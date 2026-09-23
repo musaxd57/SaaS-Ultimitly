@@ -184,6 +184,27 @@ describe("A2 — QR RiskEvent'i temellendirme sayaçlarını taşır", () => {
     }
   });
 
+  it("iddia desteği + token kullanımı iç kanıta girer, misafirin gövdesine GİRMEZ", async () => {
+    const { propertyId, token } = await seed();
+    await addKb(propertyId);
+    mockSuggest.mockResolvedValue(
+      okReply({
+        claimAudit: { v: 1, n: 1, ctx: 0, op: 0, echo: 0, k: 0, u: 1, uc: ["money"], ec: [] },
+        llmUsage: { pt: 9000, ct: 60, cpt: 8500, m: "gpt-5.1" },
+      }),
+    );
+    const res = await ask(token, "Otopark var mi?");
+    const raw = await res.text();
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { surface: "guest_chat" } });
+    expect(JSON.parse(String(ev.kbEvidenceJson))).toMatchObject({
+      claims: { u: 1, uc: ["money"] },
+      llm: { pt: 9000, cpt: 8500, m: "gpt-5.1" },
+    });
+    for (const field of ["claimAudit", "llmUsage", "\"claims\"", "\"llm\"", "8500"]) {
+      expect(raw, field).not.toContain(field);
+    }
+  });
+
   it("sayaçlar misafirin cevabını BOZMAZ (yan etki sözleşmesi korunur)", async () => {
     const { propertyId, token } = await seed();
     await addKb(propertyId);

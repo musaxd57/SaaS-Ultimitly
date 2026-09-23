@@ -13,6 +13,7 @@ import {
   propertyTimeMismatch,
   PROPERTY_TIME_FIELDS,
 } from "./retrieval/time-fields";
+import type { ClaimContext } from "./claim-support";
 
 // ============================================================================
 // TONE SYSTEM — Detailed guidance for each tone mode
@@ -630,7 +631,8 @@ function sameDay(a: Date | string, b: Date | string): boolean {
  * adjacency data. Keeps the guardrail: the model still defers the final time
  * commitment to the operator.
  */
-function buildAdjacencyBlock(
+/** Komşuluk VERİ satırları (talimat satırı hariç) — hem istem bloğu hem iddia ölçümü bunu okur. */
+function adjacencyDataLines(
   reservation: SuggestReplyInput["reservation"],
   adjacency: AdjacencyContext | null,
   property: SuggestReplyInput["property"],
@@ -654,12 +656,21 @@ function buildAdjacencyBlock(
       : `Çıkıştan sonraki ilk giriş: ${fmtDate(nextArrival)}. Geç çıkışta devir baskısı düşük.`
     : `Çıkış sonrası kayıtlı sonraki rezervasyon yok (geç çıkış daha esnek olabilir).`;
 
+  return `${before}\n${after}`;
+}
+
+function buildAdjacencyBlock(
+  reservation: SuggestReplyInput["reservation"],
+  adjacency: AdjacencyContext | null,
+  property: SuggestReplyInput["property"],
+): string {
+  const data = adjacencyDataLines(reservation, adjacency, property);
+  if (!data) return "";
   return `
 ════════════════════════════════════════════════════
 KOMŞU REZERVASYON / DEVİR GÜNÜ (erken giriş & geç çıkış için VERİ)
 ════════════════════════════════════════════════════
-${before}
-${after}
+${data}
 Bunu Bölüm 7.5 mantığıyla kullan: devir günü varsa temkinli, müsaitse daha olumlu yaklaş. YİNE DE kesin saat taahhüdünü tek başına verme; onayı operatöre bırak (actionSuggestion).`;
 }
 
@@ -1028,7 +1039,7 @@ export function selectHistoryForPrompt<T extends { direction: "inbound" | "outbo
  * kendi sayısına EKLENMEZ, onun YERİNE geçer — aksi hâlde ön düşüşler iki kez
  * sayılırdı (`applyPromptKbAudit`, test-pinli).
  */
-export function buildReplyPrompt(input: SuggestReplyInput): { text: string; kbOmitted: number } {
+export function buildReplyPrompt(input: SuggestReplyInput): { text: string; kbOmitted: number; claimContext: ClaimContext } {
   const { property, reservation, knowledgeBase, history, openTopics, guestMessage, tone, language } = input;
 
   // P4 — çelişki bloğu yalnız GERÇEK bir çelişki varken basılır (sakin durumda gürültü yok).
@@ -1138,11 +1149,10 @@ Zaman bağlamı: ${buildTimelineContext(reservation)}`
       ? `\n\nKONUŞMA DURUMU (kodda hesaplandı, kesin): Bu sohbette misafire DAHA ÖNCE cevap verdin.\n- YENİDEN SELAMLAMA. "Merhaba", "Hoş geldiniz", isimle hitap gibi açılışları TEKRARLAMA.\n- Doğrudan konuya gir; kapanış nezaketi kısa kalsın.`
       : "";
 
+  const selectedHistory = history && history.length > 0 ? selectHistoryForPrompt(history) : [];
   const hist =
-    history && history.length > 0
-      ? selectHistoryForPrompt(history)
-          .map((m) => `[${m.direction === "inbound" ? "MİSAFİR" : "OPERATİF"}]: ${m.body}`)
-          .join("\n")
+    selectedHistory.length > 0
+      ? selectedHistory.map((m) => `[${m.direction === "inbound" ? "MİSAFİR" : "OPERATİF"}]: ${m.body}`).join("\n")
       : "(önceki mesaj geçmişi yok)";
 
   const toneBlock = TONE_GUIDANCE[tone];
@@ -1221,6 +1231,11 @@ ${input.styleProfile.trim()}
 `
     : "";
 
+  const propertyFacts = `Ad: ${sanitizePromptValue(property.name)}
+Adres: ${property.address ? sanitizePromptValue(property.address, 200) : "(belirtilmemiş — asla uydurma)"} ${property.city ? "/ " + sanitizePromptValue(property.city) : ""}
+Check-in saati: ${property.checkInTime}
+Check-out saati: ${property.checkOutTime}`;
+
   const text = `════════════════════════════════════════════════════
 OPERATÖR TALİMATI
 ════════════════════════════════════════════════════
@@ -1234,10 +1249,7 @@ ${lengthHint}
 ════════════════════════════════════════════════════
 MÜLK BİLGİSİ
 ════════════════════════════════════════════════════
-Ad: ${sanitizePromptValue(property.name)}
-Adres: ${property.address ? sanitizePromptValue(property.address, 200) : "(belirtilmemiş — asla uydurma)"} ${property.city ? "/ " + sanitizePromptValue(property.city) : ""}
-Check-in saati: ${property.checkInTime}
-Check-out saati: ${property.checkOutTime}
+${propertyFacts}
 
 UYARI: Bu alanlardan herhangi biri "(belirtilmemiş)" ise cevabında o bilgiyi YAZMA.
 ÖNCELİK: Check-in/check-out SAATİ için YUKARIDAKİ mülk bilgisi esastır. Bilgi tabanındaki bir saat bununla
@@ -1277,7 +1289,34 @@ ${guestMessage}
 GÖREV: Yukarıdaki bilgilere dayanarak yalnızca geçerli JSON döndür.
 Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanını kullan.
 ════════════════════════════════════════════════════`;
-  return { text, kbOmitted: packed.omitted };
+
+  // İDDİA DESTEĞİ GÖLGE ÖLÇÜMÜ (`claim-support.ts`) için bağlam — istemi kuran AYNI değişkenlerden
+  // (ikinci bir kopya/yeniden hesap YOK). Sistem istemi DAHİL DEĞİL: few-shot örneklerindeki sahte
+  // değerler ("12345678") desteğe sayılsaydı sızan bir örnek "dayanaklı" görünürdü. KB bloğundaki
+  // kodun yazdığı "[NOT]" satırları veri değil talimattır → çıkarılır. Misafir metni OTORİTE DEĞİL.
+  const claimContext: ClaimContext = {
+    facts: [
+      propertyFacts,
+      reservation ? res : "",
+      adjacencyDataLines(reservation, input.adjacency ?? null, property),
+      offerText ?? "",
+      input.styleProfile?.trim() ?? "",
+      kb
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("- [NOT]"))
+        .join("\n"),
+    ].filter((x) => x.length > 0),
+    operator: selectedHistory.filter((m) => m.direction !== "inbound").map((m) => m.body),
+    guest: [guestMessage, ...selectedHistory.filter((m) => m.direction === "inbound").map((m) => m.body)],
+    derivedNumbers: reservation ? stayNights(reservation.arrivalDate, reservation.departureDate) : [],
+  };
+  return { text, kbOmitted: packed.omitted, claimContext };
+}
+
+/** Konaklamanın gece sayısı (metinde harfiyen yazmaz; "3 gece" cevabı buna dayanır). */
+function stayNights(arrival: Date | string, departure: Date | string): number[] {
+  const n = Math.round((new Date(departure).getTime() - new Date(arrival).getTime()) / 86_400_000);
+  return Number.isFinite(n) && n > 0 ? [n] : [];
 }
 
 /**

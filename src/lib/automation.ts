@@ -1808,7 +1808,20 @@ export async function applyChannelAutoReply(
   // ekleyerek döndürür) → eklemek ön düşüşleri İKİ KEZ saymak olurdu.
   // ⚠️ Model çağrılmadıysa (fallback) alan `undefined` gelir ve sayaçlara
   // DOKUNULMAZ — A2: "ölçülmedi" ile "sıfırdı" aynı şey değildir.
-  const groundingAudited = applyPromptKbAudit(grounding, result.kbOmittedInPrompt, kbForModel.length);
+  // 🚨 KANIT PARİTESİ (09-23, ajan ölçtü): kanıt model çağrısından ÖNCE `usedLabels: []` ile
+  // kuruluyordu → kanal oto-yanıtının karar kaydı "hangi KB etiketine dayandı"yı HİÇ taşımıyordu
+  // (QR taşıyor). Model döndükten sonra doğrulanmış etiketler + iddia desteği gölge ölçümü +
+  // token kullanımı ile yeniden kurulur; tek kaynak bu nesne, dört RiskEvent yazımı onu yayar.
+  const groundingAudited = {
+    ...applyPromptKbAudit(grounding, result.kbOmittedInPrompt, kbForModel.length),
+    kbEvidenceJson: buildKbEvidence({
+      retrieved: kbForModel,
+      usedLabels: result.usedSources ?? [],
+      retrieval: kbSel.evidence,
+      claims: result.claimAudit,
+      llm: result.llmUsage,
+    }),
+  };
 
   // If the guest stated their own departure time, record it on the reservation
   // so the dashboard can show it (falling back to the property default). Guarded

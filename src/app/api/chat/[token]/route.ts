@@ -749,6 +749,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       retrieved: kbSel.items,
       usedLabels: result.usedSources ?? [],
       retrieval: kbSel.evidence,
+      // GÖLGE ölçüm (karar DEĞİL): modelin taslağındaki somut iddiaların desteği + token kullanımı.
+      // Misafir devir metnini alsa bile bu, MODELİN taslağını betimler.
+      claims: result.claimAudit,
+      llm: result.llmUsage,
     }),
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,

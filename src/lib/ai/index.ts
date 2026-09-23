@@ -2,7 +2,8 @@ import "server-only";
 import { REPLY_SYSTEM_PROMPT, buildReplyPrompt } from "./prompts";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeStatedInMessage } from "./stated-time";
-import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
+import type { ClassifyResult, LlmUsage, SuggestReplyInput, SuggestReplyResult } from "./types";
+import { auditClaimsSafe } from "./claim-support";
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel } from "./model-family";
 import { reportError } from "@/lib/report-error";
@@ -115,7 +116,32 @@ function normalizeLang(v: unknown): string {
 let lastKeyMissingReportAt = 0;
 const KEY_MISSING_REPORT_MS = 10 * 60_000;
 
-async function callOpenAI(system: string, user: string): Promise<string | null> {
+/** Sayısal kullanım alanı: yalnız sonlu, negatif olmayan tamsayı (aksi hâlde yok = ölçülmedi). */
+function usageInt(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : undefined;
+}
+
+/** OpenAI `usage` → PII'siz kullanım özeti. Bozuk/eksik alan atlanır, asla fırlatmaz. */
+export function parseLlmUsage(data: unknown): LlmUsage | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const d = data as { usage?: Record<string, unknown>; model?: unknown };
+  const u = d.usage;
+  const out: LlmUsage = {};
+  if (u && typeof u === "object") {
+    const pt = usageInt(u.prompt_tokens);
+    const ct = usageInt(u.completion_tokens);
+    const cpt = usageInt((u.prompt_tokens_details as Record<string, unknown> | undefined)?.cached_tokens);
+    const rt = usageInt((u.completion_tokens_details as Record<string, unknown> | undefined)?.reasoning_tokens);
+    if (pt !== undefined) out.pt = pt;
+    if (ct !== undefined) out.ct = ct;
+    if (cpt !== undefined) out.cpt = cpt;
+    if (rt !== undefined) out.rt = rt;
+  }
+  if (typeof d.model === "string" && /^[A-Za-z0-9._:-]{1,64}$/.test(d.model)) out.m = d.model;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+async function callOpenAI(system: string, user: string): Promise<{ content: string | null; usage?: LlmUsage } | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
     // 🚨 SESSİZ TAM ARIZA — SİNYALSİZ BIRAKMA (denetim 08-08).
@@ -198,15 +224,17 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
     noteModelProviderSuccess();
     const data = await res.json();
     const choice = data?.choices?.[0];
+    const usage = parseLlmUsage(data);
     // Truncated output (hit max_completion_tokens): the JSON is almost certainly
     // incomplete and any "reply" is cut off. Treat it as a failure → the caller
     // uses the deterministic fallback (source="fallback") and the auto-send gate
     // (which requires source==="openai") never ships a truncated reply.
+    // Tokenler yine de HARCANDI → kullanım fallback yolunda da raporlanır.
     if (choice?.finish_reason === "length") {
       void reportError("openai-reply truncated", new Error("finish_reason=length"));
-      return null;
+      return { content: null, usage };
     }
-    return choice?.message?.content ?? null;
+    return { content: choice?.message?.content ?? null, usage };
   } catch (err) {
     void reportError("openai-reply", err);
     return null;
@@ -265,7 +293,9 @@ function capReply(text: string): { text: string; truncated: boolean } {
 export async function suggestReply(input: SuggestReplyInput): Promise<SuggestReplyResult> {
   // §C: istem TEK KEZ kurulur; metin modele, muhasebe karar kaydına gider.
   const prompt = buildReplyPrompt(input);
-  const raw = await callOpenAI(REPLY_SYSTEM_PROMPT, prompt.text);
+  const call = await callOpenAI(REPLY_SYSTEM_PROMPT, prompt.text);
+  const raw = call?.content ?? null;
+  const llmUsage = call?.usage;
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -365,6 +395,13 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // hesaplayamaz — pack karakter bütçesinin kesmesi yalnız istem
           // kurulurken bilinir ve eskiden ATILIYORDU.
           kbOmittedInPrompt: prompt.kbOmitted,
+          // GÖLGE ölçüm: modelin KENDİ metni (imza/açıklama eklenmeden) modelin gördüğü AYNI
+          // veriye karşı. Karar değildir; hata cevabı bozamaz (`auditClaimsSafe`).
+          ...(() => {
+            const claimAudit = auditClaimsSafe(cappedReply.text, prompt.claimContext);
+            return claimAudit ? { claimAudit } : {};
+          })(),
+          ...(llmUsage ? { llmUsage } : {}),
           missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
             // Format-valid AND deterministically evidenced in the guest's own
@@ -382,7 +419,9 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
       // fall through to deterministic fallback
     }
   }
-  return suggestReplyFallback(input);
+  const fallback = suggestReplyFallback(input);
+  // Model çağrıldı ama cevap kullanılamadıysa (kesildi / bozuk JSON) harcanan token yine görünür.
+  return llmUsage ? { ...fallback, llmUsage } : fallback;
 }
 
 /**

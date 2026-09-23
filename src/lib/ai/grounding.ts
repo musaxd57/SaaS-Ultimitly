@@ -1,3 +1,5 @@
+import { CLAIM_CLASSES, type ClaimAudit } from "./claim-support";
+import type { LlmUsage } from "./types";
 // ---------------------------------------------------------------------------
 // TEMELLENDİRME SINIFLANDIRMASI (A2, 09-08) — OKUMA ZAMANINDA, HÜKÜM DEĞİL.
 //
@@ -215,6 +217,30 @@ export interface KbEvidenceInput {
     /** Bütçeye sığmayan çelişki sayısı. */
     confDropped?: number;
   } | null;
+  /** İddia desteği gölge ölçümü (yalnız sayılar + kapalı-küme sınıflar; `claim-support.ts`). */
+  claims?: ClaimAudit;
+  /** Model token kullanımı (yalnız sayılar + sunulan model adı). */
+  llm?: LlmUsage;
+}
+
+/** İddia özetini yeniden kurar: yalnız bilinen alanlar, yalnız sayı/kapalı-küme sınıf (serbest metin sızamaz). */
+function cleanClaims(c: ClaimAudit | undefined): ClaimAudit | undefined {
+  if (!c || c.v !== 1) return undefined;
+  const int = (x: unknown) => (typeof x === "number" && Number.isInteger(x) && x >= 0 ? x : 0);
+  const classes = (xs: unknown) =>
+    Array.isArray(xs) ? CLAIM_CLASSES.filter((k) => (xs as unknown[]).includes(k)) : [];
+  return { v: 1, n: int(c.n), ctx: int(c.ctx), op: int(c.op), echo: int(c.echo), k: int(c.k), u: int(c.u), uc: classes(c.uc), ec: classes(c.ec) };
+}
+
+function cleanUsage(u: LlmUsage | undefined): LlmUsage | undefined {
+  if (!u) return undefined;
+  const out: LlmUsage = {};
+  for (const k of ["pt", "ct", "cpt", "rt"] as const) {
+    const v = u[k];
+    if (typeof v === "number" && Number.isInteger(v) && v >= 0) out[k] = v;
+  }
+  if (typeof u.m === "string" && /^[A-Za-z0-9._:-]{1,64}$/.test(u.m)) out.m = u.m;
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /**
@@ -255,8 +281,12 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
           ...(Number.isInteger(input.retrieval.confDropped) ? { confDropped: input.retrieval.confDropped } : {}),
         }
       : undefined;
-  if (retrieved.length === 0 && used.length === 0 && !retrieval) return null;
-  const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}) });
+  const claims = cleanClaims(input.claims);
+  const llm = cleanUsage(input.llm);
+  // Yalnız ölçüldüyse yazılır: kanıt biçimi ölçülmeyen yolda karakteri karakterine aynı kalır.
+  const extra = { ...(claims ? { claims } : {}), ...(llm ? { llm } : {}) };
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm) return null;
+  const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa
   // denetim eksik bir listeyi TAM sanar.
@@ -266,8 +296,9 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
       used,
       omitted: retrieved.length - keep,
       ...(retrieval ? { retrieval } : {}),
+      ...extra,
     });
     if (truncated.length <= EVIDENCE_CHAR_CAP) return truncated;
   }
-  return JSON.stringify({ retrieved: [], used: [], omitted: retrieved.length, ...(retrieval ? { retrieval } : {}) });
+  return JSON.stringify({ retrieved: [], used: [], omitted: retrieved.length, ...(retrieval ? { retrieval } : {}), ...extra });
 }

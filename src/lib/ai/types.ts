@@ -1,3 +1,4 @@
+import type { ClaimAudit } from "./claim-support";
 import type { Priority, ReplyTone } from "@/lib/constants";
 
 export interface KbContext {
@@ -114,6 +115,20 @@ export interface SuggestReplyInput {
   verifiedActiveStay?: boolean;
 }
 
+/** Model çağrısının token kullanımı (yalnız sayılar + sunulan model adı; metin YOK). */
+export interface LlmUsage {
+  /** prompt_tokens */
+  pt?: number;
+  /** completion_tokens */
+  ct?: number;
+  /** prompt_tokens_details.cached_tokens — istem önbelleğinden okunan */
+  cpt?: number;
+  /** completion_tokens_details.reasoning_tokens */
+  rt?: number;
+  /** Sağlayıcının yanıtta bildirdiği (sunulan) model. */
+  m?: string;
+}
+
 export interface SuggestReplyResult {
   intent: string;
   /** 0..1 */
@@ -158,6 +173,17 @@ export interface SuggestReplyResult {
    * hiç kurulmaz, oraya uydurma bir sayı yazmak sahte kesinlik olurdu.
    */
   kbOmittedInPrompt?: number;
+  /**
+   * İDDİA DESTEĞİ GÖLGE ÖLÇÜMÜ (`claim-support.ts`, 09-23): cevaptaki somut iddiaların modelin
+   * gördüğü veride harfiyen geçip geçmediği — PII'siz sayılar + sınıflar. KARAR DEĞİLDİR (hiçbir
+   * kapı okumaz). Opsiyonel: yokluğu "ölçülmedi" demektir (fallback, ya da ölçüm hatası).
+   */
+  claimAudit?: ClaimAudit;
+  /**
+   * Model çağrısının token kullanımı (`usage`) — "istem önbelleği çalışıyor" iddiasını VARSAYIM
+   * olmaktan çıkarıp GÖZLEME çevirir (`cpt/pt` oranı). Metin taşımaz. Opsiyonel = ölçülmedi.
+   */
+  llmUsage?: LlmUsage;
   /** What was missing to answer fully (short phrases; empty when nothing). */
   missingInfo: string[];
   /** The guest's own stated departure/check-out time as "HH:MM" (24h), or null. */
