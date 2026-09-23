@@ -238,7 +238,17 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function embedTexts(
   texts: readonly string[],
-  opts: { deadlineMs?: number } = {},
+  opts: {
+    deadlineMs?: number;
+    /**
+     * GEÇİCİ arızada (ağ/zaman aşımı/5xx/hız sınırı) çağrı başına alarm YOK (09-23 inceleme). Anlamsal
+     * arama isteğe bağlı bir iyileştirmedir: düşünce seçim sözcüksel sürer ve karar kaydında
+     * `sem:unavailable` görünür. Misafir mesajı başına bir alarm, yavaş bir sağlayıcıda günde ~144
+     * e-posta demekti. KALICI arıza (kota/anahtar/model) yine geçiş tabanlı alarma gider; sağlayıcı
+     * sözleşme ihlali (bozuk gövde) yine bildirilir.
+     */
+    quiet?: boolean;
+  } = {},
 ): Promise<number[][] | null> {
   if (texts.length === 0) return [];
   if (texts.length > EMBEDDING_BATCH_MAX) return null;
@@ -315,7 +325,7 @@ export async function embedTexts(
       const json: unknown = await res.json();
       const data = (json as { data?: unknown }).data;
       if (!Array.isArray(data) || data.length !== input.length) {
-        await reportError(
+        void reportError(
           "openai-embeddings shape violation",
           new Error(`expected ${input.length} rows`),
         );
@@ -350,7 +360,7 @@ export async function embedTexts(
       // Timeout/abort/ağ — `status: null` ile aynı politikadan geçer.
       const plan = retryPlan({ attempt, status: null, elapsedMs: Date.now() - startedAt, deadlineMs: deadline });
       if (!plan.retry) {
-        await reportError("openai-embeddings", err);
+        if (!opts.quiet) void reportError("openai-embeddings", err);
         return null;
       }
       await sleep(plan.waitMs);
@@ -365,11 +375,13 @@ export async function embedTexts(
   // çağrısıdır; kredisi biten hesapta çağrı başına `reportError` sohbet yolunun 09-23 selini aynen
   // tekrarlardı. Anahtar AYRI (`model-provider:embedding`); gövde yine GEÇİLMEZ (PII kuralı ↑).
   if (persistent) {
-    await noteModelProviderPersistentFailure(persistent, lastStatus, "", "embedding");
+    // 🚨 BEKLENMEZ (`void`): durum satırı + e-posta misafirin beklediği yolda koşmaz (sohbet yolu da
+    // `void` ile çağırır, `ai/index.ts`). Fonksiyon asla fırlatmaz.
+    void noteModelProviderPersistentFailure(persistent, lastStatus, "", "embedding");
     return null;
   }
   if (lastStatus) {
-    await reportError(`openai-embeddings ${lastStatus}`, new Error(`HTTP ${lastStatus}`));
+    if (!opts.quiet) void reportError(`openai-embeddings ${lastStatus}`, new Error(`HTTP ${lastStatus}`));
   }
   return null;
 }

@@ -140,7 +140,7 @@ export function semanticBySubquery(
   t: number,
 ): Map<string, Map<string, number>> {
   const out = new Map<string, Map<string, number>>();
-  for (const q of retrievalQueries(guestMessage).queries) {
+  for (const q of retrievalQueries(guestMessage, undefined, { embedTexts: true }).queries) {
     const m = new Map<string, number>();
     for (const c of chunks) {
       let best: number | null = null;
@@ -343,7 +343,7 @@ describe.skipIf(!enabled)("E4 — GERÇEK embedding ölçümü (ücretli, < 0,1 
     for (const s of perSize) {
       for (const c of s.chunks) unique.add(embeddingTextFor(c));
       // Üretimin gömdüğü sorgu metinleri (alt sorgu başına ham cümle + gerekirse alt sorgu).
-      for (const q of s.queries) for (const rq of retrievalQueries(q.text).queries) for (const t of rq.embedTexts) unique.add(t);
+      for (const q of s.queries) for (const rq of retrievalQueries(q.text, undefined, { embedTexts: true }).queries) for (const t of rq.embedTexts) unique.add(t);
     }
     const all = [...unique];
     texts = all.length;

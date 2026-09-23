@@ -281,7 +281,7 @@ function embedTextsByQuery(message: string): Map<string, string[]> {
     const raw = seg.trim().slice(0, EMBED_QUERY_MAX_CHARS);
     if (!raw) continue;
     const subs = splitQuestions(seg);
-    for (const sq of subs) if (!out.has(sq)) out.set(sq, subs.length === 1 ? [raw] : [raw, sq]);
+    for (const sq of subs) if (!out.has(sq)) out.set(sq, subs.length === 1 ? [raw] : [raw, sq.slice(0, EMBED_QUERY_MAX_CHARS)]);
   }
   return out;
 }
@@ -296,16 +296,23 @@ function embedTextsByQuery(message: string): Map<string, string[]> {
 export function retrievalQueries(
   guestMessage: string,
   history?: readonly { direction: "inbound" | "outbound"; body: string }[],
+  /**
+   * `embedTexts: true` yalnız ANLAMSAL yol içindir; seçici kendisi yalnız `subquery` okur ve gömme
+   * metinlerini hesaplamaz (09-23 inceleme: anahtar kapalıyken bölme işi iki katına çıkıyordu).
+   */
+  opts: { embedTexts?: boolean } = {},
 ): { queries: RetrievalQuery[]; pending: number } {
   // Alt sorgu ham cümlesiyle eşleşmezse (normalizasyon bölüm sınırını aşan nadir dönüşüm) alt
   // sorgunun kendisi gömülür — puan asla SESSİZCE başka bir alt sorguya gitmez.
-  const textsFor = (byQuery: Map<string, string[]>, sq: string): string[] => byQuery.get(sq) ?? [sq];
+  const textsFor = (byQuery: Map<string, string[]> | null, sq: string): string[] =>
+    byQuery ? (byQuery.get(sq) ?? [sq.slice(0, EMBED_QUERY_MAX_CHARS)]) : [];
+  const textsOf = (message: string) => (opts.embedTexts ? embedTextsByQuery(message) : null);
   // Güncel mesajın alt sorguları OLDUĞU GİBİ (kendi tavanı `MAX_SUBQUERIES`; 09-23 öncesi davranış).
-  const currentTexts = embedTextsByQuery(guestMessage);
+  const currentTexts = textsOf(guestMessage);
   const queries: RetrievalQuery[] = splitQuestions(guestMessage).map((sq) => ({ subquery: sq, embedTexts: textsFor(currentTexts, sq) }));
   let pending = 0;
   for (const msg of pendingGuestMessages(history, guestMessage)) {
-    const texts = embedTextsByQuery(msg);
+    const texts = textsOf(msg);
     for (const sq of splitQuestions(msg)) {
       if (queries.length >= MAX_TOTAL_SUBQUERIES) break;
       if (queries.some((q) => q.subquery === sq)) continue;

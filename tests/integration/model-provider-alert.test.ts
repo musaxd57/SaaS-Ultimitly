@@ -142,6 +142,8 @@ describe("gömme kanalı kalıcı arızası — gerçek alert-state", () => {
   it("🚨 30 gömme çağrısı boyunca kredi bitik: TEK alarm, kendi konusuyla; hata gövdesi alarma GİRMEZ", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     for (let i = 0; i < 30; i++) expect(await embedTexts([`soru ${i}`])).toBeNull();
+    // Durum yazımı misafir yolunu BEKLETMEZ (`void`); yazımların bitmesini bekle.
+    await new Promise((r) => setTimeout(r, 100));
     expect(mockReport).toHaveBeenCalledTimes(1);
     expect(mockReport.mock.calls[0][0]).toBe("openai-embedding kalıcı arıza");
     expect(String((mockReport.mock.calls[0][1] as Error).message)).not.toContain("credit_balance_exhausted");
@@ -153,7 +155,7 @@ describe("gömme kanalı kalıcı arızası — gerçek alert-state", () => {
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     await suggestReply(input);
     await embedTexts(["a"]);
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 100));
     expect(await stateRow()).not.toBeNull();
     expect(await embeddingRow()).not.toBeNull();
 
@@ -165,6 +167,7 @@ describe("gömme kanalı kalıcı arızası — gerçek alert-state", () => {
 
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     await embedTexts(["c"]);
+    for (let i = 0; i < 50 && !(await embeddingRow()); i++) await new Promise((r) => setTimeout(r, 20));
     vi.stubGlobal("fetch", vi.fn(async () => OK()));
     expect((await suggestReply(input)).source).toBe("openai");
     await waitForRowGone();
@@ -172,10 +175,21 @@ describe("gömme kanalı kalıcı arızası — gerçek alert-state", () => {
     expect(await embeddingRow()).not.toBeNull(); // gömme alarmı açık kalır
   });
 
-  it("geçici hata (503) eski yolda kalır: durum satırı YAZILMAZ", async () => {
+  it("geçici hata (503) eski yolda kalır: durum satırı YAZILMAZ; sessiz modda (sıcak yol/ısınma) alarm da YOK", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 503 })));
     expect(await embedTexts(["x"])).toBeNull();
     expect(await embeddingRow()).toBeNull();
     expect(mockReport.mock.calls.map((c) => c[0])).toContain("openai-embeddings 503");
+    mockReport.mockClear();
+    expect(await embedTexts(["y"], { quiet: true })).toBeNull();
+    expect(mockReport).not.toHaveBeenCalled();
+  });
+
+  it("🚨 KALICI arıza sessiz modda da TEK alarm verir (sessizlik yalnız geçici arızalar içindir)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
+    for (let i = 0; i < 5; i++) expect(await embedTexts([`q${i}`], { quiet: true })).toBeNull();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mockReport).toHaveBeenCalledTimes(1);
+    expect(mockReport.mock.calls[0][0]).toBe("openai-embedding kalıcı arıza");
   });
 });

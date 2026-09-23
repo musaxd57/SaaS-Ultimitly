@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => ({ notified: false, throttled: false, configured: false })) }));
+import { reportError } from "@/lib/report-error";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { selectKbForPrompt, retrievalQueries, EMBED_QUERY_MAX_CHARS } from "@/lib/ai/retrieval/select";
 import { semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
@@ -98,6 +101,7 @@ function bigKb(padding = 35) {
 }
 
 let calls: FetchCall[];
+const mockReport = vi.mocked(reportError);
 
 beforeEach(() => {
   __resetSemanticRetrieval();
@@ -154,27 +158,91 @@ describe("anahtar AÇIK — sözcüksel açığı (parafraz) kapatır", () => {
     expect(r.items.map((i) => i.id)).not.toContain(HEATING.id);
   });
 
+  /** Parça vektörleri YALNIZ arka planda üretilir: ilk karar soğuk, ısınma bitince sıcak. */
+  async function warm(items: ReturnType<typeof bigKb>, msg = PARAPHRASE) {
+    const first = await retrieveKbForPrompt({ items, guestMessage: msg });
+    expect(first.evidence).toMatchObject({ sem: "cold" });
+    await __awaitSemanticWarm();
+  }
+
   it("🚨 anlamsal puan seçiciye ULAŞIR: cevap kalemi seçilir, kanıtta semantic + sem:ok", async () => {
     vi.stubGlobal("fetch", embeddingFetch(calls));
+    await warm(bigKb());
+    calls.length = 0;
     const r = await retrieveKbForPrompt({ items: bigKb(), guestMessage: PARAPHRASE });
     expect(r.selection).toBe("retrieved");
     expect(r.items[0].id).toBe(HEATING.id);
     expect(r.evidence).toMatchObject({ fb: "none", sem: "ok", fus: "rrf" });
     expect(r.evidence?.srcs).toContain("semantic");
-    // Tek çağrı: sorgu metinleri + (satır içine sığan) tüm parçalar. Virgül cümleyi iki alt sorguya
-    // böler; ikisi de ait oldukları HAM cümleyle sorulur (Türkçe karakterler korunur) + kendileriyle.
-    expect(calls).toHaveLength(1);
-    expect(calls[0].input.slice(0, 3)).toEqual([PARAPHRASE, "gece cok usuduk", "evi ilik yapabilir miyiz"]);
+    // Sıcak yolda TEK çağrı ve YALNIZ sorgu metinleri. Virgül cümleyi iki alt sorguya böler; ikisi de ait
+    // oldukları HAM cümleyle sorulur (Türkçe karakterler korunur) + kendileriyle.
+    expect(calls).toEqual([{ input: [PARAPHRASE, "gece cok usuduk", "evi ilik yapabilir miyiz"] }]);
   });
+
+  it("🚨 SOĞUK KB misafiri BEKLETMEZ ve parça gömmesi sıcak yola ASLA girmez: ilk karar sözcüksel, parçalar arka planda", async () => {
+    vi.stubGlobal("fetch", embeddingFetch(calls));
+    const items = bigKb(80); // 83 parça
+    const first = await retrieveKbForPrompt({ items, guestMessage: PARAPHRASE });
+    expect(first.evidence).toMatchObject({ sem: "cold" });
+    expect(first.evidence?.srcs).not.toContain("semantic");
+    await __awaitSemanticWarm();
+    expect(__semanticStoreSize()).toBe(items.length); // her kalem tek parça
+    // Isınma çağrıları yalnız parça metni taşır (sorgu yok); sıcak yol yalnız sorgu.
+    expect(calls.every((c) => !c.input.includes(PARAPHRASE))).toBe(true);
+    const second = await retrieveKbForPrompt({ items, guestMessage: PARAPHRASE });
+    expect(second.evidence).toMatchObject({ sem: "ok" });
+    expect(second.items[0].id).toBe(HEATING.id);
+    expect(calls[calls.length - 1].input).toEqual([PARAPHRASE, "gece cok usuduk", "evi ilik yapabilir miyiz"]);
+  });
+
+  it("🚨 YAVAŞ sağlayıcı KB'yi kalıcı olarak kör BIRAKMAZ (inceleme 09-23): sıcak yol bütçeyi aşsa da ısınma tamamlanır", async () => {
+    // İlk sürüm eksik parçaları sorguyla aynı 1,5 sn'lik çağrıda gömüyordu: çağrı düşünce parçalar ısıtmaya
+    // hiç gitmiyor, KB her mesajda `unavailable` kalıyordu. Şimdi ısınma TAM bütçeyle arka planda koşar.
+    const DELAY = SEMANTIC_HOT_PATH_DEADLINE_MS + 200;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: { body: string; signal?: AbortSignal }) =>
+          new Promise((resolve, reject) => {
+            const { input } = JSON.parse(init.body) as { input: string[] };
+            const t = setTimeout(
+              () => resolve({ ok: true, status: 200, headers: new Headers(), json: async () => ({ data: input.map((x, index) => ({ index, embedding: fakeVec(x) })) }) }),
+              DELAY,
+            );
+            init.signal?.addEventListener("abort", () => {
+              clearTimeout(t);
+              reject(new DOMException("aborted", "AbortError"));
+            });
+          }),
+      ),
+    );
+    const items = bigKb();
+    expect((await retrieveKbForPrompt({ items, guestMessage: PARAPHRASE })).evidence).toMatchObject({ sem: "cold" });
+    await __awaitSemanticWarm();
+    expect(__semanticStoreSize()).toBe(items.length);
+    // Sorgu çağrısı sıcak yol bütçesini aşar → bu karar sözcüksel, ama depo DOLU (bir sonraki hızlı yanıt anlamsal olur).
+    mockReport.mockClear();
+    expect((await retrieveKbForPrompt({ items, guestMessage: PARAPHRASE })).evidence).toMatchObject({ sem: "unavailable" });
+    expect(mockReport).not.toHaveBeenCalled(); // zaman aşımı geçici arızadır: çağrı başına alarm YOK
+  }, 15_000);
 
   it("ikinci karar parça vektörlerini TEKRAR ödemez (depo); yalnız yeni sorgu gömülür", async () => {
     vi.stubGlobal("fetch", embeddingFetch(calls));
-    await retrieveKbForPrompt({ items: bigKb(), guestMessage: PARAPHRASE });
+    await warm(bigKb());
     const stored = __semanticStoreSize();
     expect(stored).toBeGreaterThan(30);
+    calls.length = 0;
     await retrieveKbForPrompt({ items: bigKb(), guestMessage: "Arabayı nereye bırakacağız?" });
-    expect(calls).toHaveLength(2);
-    expect(calls[1].input).toEqual(["Arabayı nereye bırakacağız?"]);
+    expect(calls).toEqual([{ input: ["Arabayı nereye bırakacağız?"] }]);
+    expect(__semanticStoreSize()).toBe(stored);
+  });
+
+  it("aynı anda gelen kararlar aynı parçaları İKİ KEZ ödemez (ısınma tekilleştirilir)", async () => {
+    vi.stubGlobal("fetch", embeddingFetch(calls));
+    const items = bigKb();
+    await Promise.all(Array.from({ length: 5 }, () => retrieveKbForPrompt({ items, guestMessage: PARAPHRASE })));
+    await __awaitSemanticWarm();
+    expect(calls.reduce((n, c) => n + c.input.length, 0)).toBe(items.length);
   });
 
   it("küçük KB (tamamı gider) → ağa ÇIKMAZ, kanıt sem:not_needed", async () => {
@@ -188,8 +256,9 @@ describe("anahtar AÇIK — sözcüksel açığı (parafraz) kapatır", () => {
 
   it("🚨 ALT SORGU BAŞINA puan: iki sorulu mesajda her alt sorgunun en iyisi KENDİ konusu", async () => {
     vi.stubGlobal("fetch", embeddingFetch(calls));
+    await warm(bigKb());
     const msg = "Gece çok üşüdük, evi ılık yapabilir miyiz? Çamaşır makinesi var mı?";
-    const { queries } = retrievalQueries(msg);
+    const { queries } = retrievalQueries(msg, undefined, { embedTexts: true });
     expect(queries.map((q) => q.embedTexts)).toEqual([
       ["Gece çok üşüdük, evi ılık yapabilir miyiz?", "gece cok usuduk"],
       ["Gece çok üşüdük, evi ılık yapabilir miyiz?", "evi ilik yapabilir miyiz"],
@@ -203,8 +272,14 @@ describe("anahtar AÇIK — sözcüksel açığı (parafraz) kapatır", () => {
     expect(top(queries[2].subquery)).not.toBe(`${HEATING.id}#0`);
   });
 
+  it("seçicinin kendi yolu gömme metinlerini HESAPLAMAZ (anahtar kapalıyken ek iş yok)", () => {
+    const { queries } = retrievalQueries("Gece çok üşüdük, evi ılık yapabilir miyiz? Çamaşır makinesi var mı?");
+    expect(queries.map((q) => q.embedTexts)).toEqual([[], [], []]);
+  });
+
   it("🚨 ÇOKLU SORGU = EN YÜKSEK benzerlik: virgülle ayrılan İKİ soruda her biri KENDİ konusunu, bağlamsız parçada cümle konusu bulur", async () => {
     vi.stubGlobal("fetch", embeddingFetch(calls));
+    await warm(bigKb());
     const top = async (msg: string) => {
       const prep = await prepareSemanticScores({ items: bigKb(), guestMessage: msg });
       expect(prep.status).toBe("ok");
@@ -216,38 +291,36 @@ describe("anahtar AÇIK — sözcüksel açığı (parafraz) kapatır", () => {
     expect(await top("Çok üşüdük, ne yapabiliriz?")).toEqual([`${HEATING.id}#0`, `${HEATING.id}#0`]);
   });
 
-  it("depo bir KB'yi tutamazsa (tahliye) YARIM HARİTA verilmez → cold, seçim sözcüksel", async () => {
+  it("depo bir KB'yi tutamazsa (tahliye) YARIM HARİTA verilmez → ısınmadan sonra da cold, seçim sözcüksel", async () => {
     vi.stubGlobal("fetch", embeddingFetch(calls));
     __setChunkVectorCacheMaxForTests(20); // 38 parçalık KB sığmaz
+    await warm(bigKb());
     const r = await retrieveKbForPrompt({ items: bigKb(), guestMessage: PARAPHRASE });
     expect(r.evidence).toMatchObject({ sem: "cold" });
     expect(r.evidence?.srcs).not.toContain("semantic");
   });
 
-  it("SOĞUK KB misafiri BEKLETMEZ: satır içine sığmayan parça kümesi arka planda ısınır, bu karar sözcüksel", async () => {
-    vi.stubGlobal("fetch", embeddingFetch(calls));
-    const items = bigKb(80); // 83 parça > tek parti
-    const first = await retrieveKbForPrompt({ items, guestMessage: PARAPHRASE });
-    expect(first.evidence).toMatchObject({ sem: "cold" });
-    expect(first.evidence?.srcs).not.toContain("semantic");
-    await __awaitSemanticWarm();
-    expect(__semanticStoreSize()).toBe(items.length); // her kalem tek parça
-    const second = await retrieveKbForPrompt({ items, guestMessage: PARAPHRASE });
-    expect(second.evidence).toMatchObject({ sem: "ok" });
-    expect(second.items[0].id).toBe(HEATING.id);
-    // Sıcak yolda yalnız sorgu metinleri gömüldü (parça yok).
-    expect(calls[calls.length - 1].input).toEqual([PARAPHRASE, "gece cok usuduk", "evi ilik yapabilir miyiz"]);
-  });
-
-  it("sağlayıcı arızası (429/500) → sem:unavailable, seçim sözcüksel, FIRLATMAZ", async () => {
+  it("GEÇİCİ sağlayıcı arızası (429/500) → sem:unavailable, seçim sözcüksel, FIRLATMAZ ve çağrı başına ALARM YOK", async () => {
     for (const status of [429, 500]) {
       __resetSemanticRetrieval();
       clearEmbeddingCache();
+      // Isınma sırasında geçici arıza: alarm YOK, depo boş kalır (sonraki kararda yeniden denenir).
+      mockReport.mockClear();
+      vi.stubGlobal("fetch", embeddingFetch(calls, { fail: status }));
+      await warm(bigKb());
+      expect(__semanticStoreSize()).toBe(0);
+      expect(mockReport, `ısınma ${status}`).not.toHaveBeenCalled();
+      vi.stubGlobal("fetch", embeddingFetch(calls));
+      await warm(bigKb());
+      mockReport.mockClear();
       vi.stubGlobal("fetch", embeddingFetch(calls, { fail: status }));
       const input = { items: bigKb(), guestMessage: "Otopark nerede?" };
-      const r = await retrieveKbForPrompt(input);
-      expect(r.evidence, String(status)).toMatchObject({ sem: "unavailable" });
-      expect(r.items.map((i) => i.id)).toEqual(selectKbForPrompt(input).items.map((i) => i.id));
+      for (let i = 0; i < 3; i++) {
+        const r = await retrieveKbForPrompt(input);
+        expect(r.evidence, String(status)).toMatchObject({ sem: "unavailable" });
+        expect(r.items.map((x) => x.id)).toEqual(selectKbForPrompt(input).items.map((x) => x.id));
+      }
+      expect(mockReport, String(status)).not.toHaveBeenCalled();
     }
   });
 
@@ -334,11 +407,18 @@ describe("sözleşme parçaları", () => {
 
   it("sorgu metni: tek alt sorguda HAM cümle (tavanlı), cevapsız önceki soru da ayrı sorgu", () => {
     const long = `Otopark ${"x".repeat(EMBED_QUERY_MAX_CHARS * 2)}`;
-    expect(retrievalQueries(long).queries[0].embedTexts.map((t) => t.length)).toEqual([EMBED_QUERY_MAX_CHARS]);
-    const { queries, pending } = retrievalQueries("Çamaşır makinesi var mı?", [
-      { direction: "outbound", body: "Hoş geldiniz" },
-      { direction: "inbound", body: "Otopark nerede?" },
-    ]);
+    expect(retrievalQueries(long, undefined, { embedTexts: true }).queries[0].embedTexts.map((t) => t.length)).toEqual([EMBED_QUERY_MAX_CHARS]);
+    // Virgülle bölünen uzun cümlenin İKİNCİ metni (alt sorgunun kendisi) de tavanlı (inceleme 09-23).
+    const longClause = retrievalQueries(`Otopark ${"y".repeat(9_000)}, wifi var mi?`, undefined, { embedTexts: true }).queries[0].embedTexts;
+    expect(Math.max(...longClause.map((t) => t.length))).toBeLessThanOrEqual(EMBED_QUERY_MAX_CHARS);
+    const { queries, pending } = retrievalQueries(
+      "Çamaşır makinesi var mı?",
+      [
+        { direction: "outbound", body: "Hoş geldiniz" },
+        { direction: "inbound", body: "Otopark nerede?" },
+      ],
+      { embedTexts: true },
+    );
     expect(pending).toBe(1);
     expect(queries.map((q) => q.embedTexts)).toEqual([["Çamaşır makinesi var mı?"], ["Otopark nerede?"]]);
   });

@@ -16,11 +16,14 @@
  *  · ALT SORGU BAŞINA puan (`retrievalQueries` tek kaynak): çok sorulu mesajda tek mesaj vektörü
  *    iki konunun karışımıdır. Her alt sorgu 1–2 metinle sorulur (ait olduğu ham cümle + virgülle
  *    bölündüyse kendisi) ve parçanın puanı EN YÜKSEK kosinüstür (çoklu sorgu).
- *  · SICAK YOL KISA: yalnız sorgu metinleri (≤6) + küçük bir eksik parça kümesi satır içinde,
- *    `SEMANTIC_HOT_PATH_DEADLINE_MS` bütçesiyle. Aşılırsa bu karar SÖZCÜKSEL devam eder.
- *  · SOĞUK KB MİSAFİRİ BEKLETMEZ: parça vektörleri eksik ve satır içine sığmıyorsa arka planda
- *    ısıtılır (saatlik metin tavanı), bu karar sözcüksel (`cold`). YARIM HARİTA YOK: bazı
- *    parçaların puanı olup bazılarının olmaması sıralamayı sessizce çarpıtırdı.
+ *  · SICAK YOL KISA: YALNIZ sorgu metinleri, `SEMANTIC_HOT_PATH_DEADLINE_MS` bütçesiyle; geçici
+ *    arızada çağrı başına alarm YOK (`quiet`). Aşılırsa bu karar SÖZCÜKSEL devam eder.
+ *  · PARÇA VEKTÖRLERİ YALNIZ ARKA PLANDA (saatlik metin tavanı): eksik parça varsa ısıtma başlar ve
+ *    bu karar sözcüksel (`cold`). YARIM HARİTA YOK: bazı parçaların puanı olup bazılarının
+ *    olmaması sıralamayı sessizce çarpıtırdı.
+ *  · BİLİNEN SINIRLAR: depo ve ısıtma tavanı TÜM kiracılarda ORTAK (vektör metnin saf fonksiyonu,
+ *    kiracı taşımaz; ama büyük bir kiracı saatlik ısıtma tavanını tüketebilir) · toplam parça depo
+ *    tavanını aşarsa KB'ler birbirini tahliye eder (tavanla sınırlı yeniden ısıtma). Kalıcı çözüm E2.
  *  · Vektörler SÜREÇ BELLEĞİNDE (Float32Array, LRU). Kalıcı tablo E2 (migration onayı); o gelene
  *    kadar bedel her yeniden başlatmada KB başına tek seferlik ~0,1 sent.
  *  · ASLA FIRLATMAZ; her arıza "anlamsal kaynak yok" demektir (seçici sözcüksel çalışır).
@@ -122,7 +125,7 @@ function scheduleWarm(model: string, texts: readonly string[]): void {
     try {
       for (let i = 0; i < todo.length; i += EMBEDDING_BATCH_MAX) {
         const batch = todo.slice(i, i + EMBEDDING_BATCH_MAX);
-        const out = await embedTexts(batch);
+        const out = await embedTexts(batch, { quiet: true });
         // Sağlayıcı arızası: dur. Alarm sağlayıcının kendi (geçiş tabanlı) yolunda; burada ikinci
         // bir alarm YOK (kalıcı kota arızasında her misafir mesajı bir e-posta demek olurdu).
         if (!out) break;
@@ -160,7 +163,7 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
   });
   try {
     if (!retrievalNeeded(input.items, input.fullSetMaxItems)) return done("not_needed");
-    const { queries } = retrievalQueries(input.guestMessage, input.history);
+    const { queries } = retrievalQueries(input.guestMessage, input.history, { embedTexts: true });
     if (queries.length === 0) return done("not_needed");
     // Seçiciyle AYNI küme (sürüm kuralı sonrası) → aynı indeks önbellek girdisi, aynı parça anahtarları.
     const { kept } = dropSuperseded(input.items as readonly (T & Supersedable)[]);
@@ -169,24 +172,28 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
 
     const model = embeddingModel();
     const chunkTexts = index.chunks.map((c) => embeddingTextFor(c));
-    const missing = [...new Set(chunkTexts.filter((t) => !store.has(storeKey(model, t))))];
-    const queryTexts = [...new Set(queries.flatMap((q) => q.embedTexts))];
-    if (missing.length > 0 && missing.length + queryTexts.length > EMBEDDING_BATCH_MAX) {
-      scheduleWarm(model, missing);
-      return done("cold");
-    }
-
-    const vecs = await embedTexts([...queryTexts, ...missing], { deadlineMs: SEMANTIC_HOT_PATH_DEADLINE_MS });
-    if (!vecs) return done("unavailable");
-    missing.forEach((t, j) => storeSet(storeKey(model, t), vecs[queryTexts.length + j]));
-    const queryVec = new Map(queryTexts.map((t, j) => [t, vecs[j]]));
-
+    // 🚨 PARÇA VEKTÖRLERİ YALNIZ ARKA PLANDA ÜRETİLİR (09-23 inceleme). İlk sürüm eksik parçaları
+    // sorguyla AYNI çağrıda, misafirin 1,5 sn'lik bütçesinde gömüyordu: çağrı bütçeyi aşınca eksikler
+    // ısıtmaya hiç gitmiyor, KB her mesajda aynı ~50 parçayı yeniden ödeyip `unavailable` kalıyordu
+    // (ölçüldü: 2 sn gecikmeli sağlayıcıda üç ardışık karar, depo büyümedi). Sektör düzeni de budur:
+    // dizin YAZMA zamanında kurulur, sorgu zamanında yalnız sorgu gömülür. Bedel: yeni/değişen KB'nin
+    // İLK kararı sözcüksel (`cold`). Aynı anda gelen çağrılar aynı parçaları iki kez ödemez (`warming`).
     const chunkVecs: Float32Array[] = [];
+    const missing: string[] = [];
     for (const t of chunkTexts) {
-      const v = storeGet(storeKey(model, t));
-      if (!v) return done("cold"); // depo bu KB'yi tutamadı (eşzamanlı tahliye) — yarım harita YOK
-      chunkVecs.push(v);
+      const v = storeGet(storeKey(model, t)); // okuma tazeliği yeniler: kullanılan KB tahliyeye direnir
+      if (v) chunkVecs.push(v);
+      else missing.push(t);
     }
+    if (missing.length > 0) {
+      scheduleWarm(model, missing);
+      return done("cold"); // YARIM HARİTA YOK
+    }
+
+    const queryTexts = [...new Set(queries.flatMap((q) => q.embedTexts))];
+    const vecs = await embedTexts(queryTexts, { deadlineMs: SEMANTIC_HOT_PATH_DEADLINE_MS, quiet: true });
+    if (!vecs) return done("unavailable");
+    const queryVec = new Map(queryTexts.map((t, j) => [t, vecs[j]]));
 
     const bySubquery = new Map<string, Map<string, number>>();
     for (const q of queries) {
