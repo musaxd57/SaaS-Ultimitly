@@ -618,26 +618,35 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 **Kimlik / oturum**
 - 🚨 **OTURUM ÇEREZİ `__Host-guestops_session` (09-23 ikinci tur, kurucu onayı):** üretimde yeni adla yazılır;
   okuma `readSessionCookie` (önce yeni ad, 2026-10-15'e kadar eski ad); middleware + `setSessionCookie` eski çerezi
-  siler; çıkış İKİ adı temizler; geliştirmede eski ad canlı. 🚨 Oturum çerezini doğrudan `SESSION_COOKIE` adıyla
-  OKUMA/YAZMA — `readSessionCookie` / `sessionCookieName`. 2026-10-15 SONRASI eski adın okuma kodu silinebilir.
+  siler; çıkış İKİ adı temizler; geliştirmede YALNIZ eski ad okunur/yazılır. 🚨 Oturum çerezini doğrudan
+  `SESSION_COOKIE` adıyla OKUMA/YAZMA — `readSessionCookie` / `sessionCookieName`. 🚨 **FIRLATMA KAPISI:** bu
+  sürümden itibaren `signSession` her oturuma `hv` iddiası yazar; eski ad YALNIZ `hv`siz (yayından önce eski kodun
+  imzaladığı) oturumu taşıyabilir — yoksa yeniden adlandırılıp fırlatılan oturum middleware'de `__Host-`e yükseltilip
+  kalıcılaşıyordu. `hv`i kaldırma/koşula bağlama. 2026-10-15 SONRASI eski adın okuma kodu silinebilir.
 - **Epoch artıran kimlik işlemi BU CİHAZI yeniden imzalar:** 2FA AÇMA ve şifre DEĞİŞTİRME `sessionEpoch`i artırır
   (başka her oturum düşer) ve işlemi yapan cihazın çerezini yeni epoch ile yeniden imzalar + tanınan-cihaz
   çerezini yeniler (asla ölümcül değil). Şifre SIFIRLAMA oturum açmaz ama tamamlayan tarayıcıyı tanınan cihaz
-  yapar (saldırı altında dolu hesap kovasından çıkış yolu). `mfa` iddiası bu işlemlerde YÜKSELTİLMEZ.
+  yapar (saldırı altında dolu hesap kovasından çıkış yolu). `mfa` iddiası bu işlemlerde YÜKSELTİLMEZ. 🚨 Yeni epoch
+  **İŞLEMİN İÇİNDEN** okunur (işlem sonrası okuma araya giren başka bir artışı alıyordu).
 - **Parola biçimi (③):** saklama NFC; doğrulama NFC → (girdi NFC değilse) ham; sahte yol aynı sayıda karşılaştırma.
   Yeni parola en fazla 72 BAYT (tek kaynak `password-policy.ts`, bcrypt'siz). Giriş yolu sınır uygulamaz.
   Eski maliyet-10 / ham biçim hash TAM başarılı girişte yükseltilir (`password-upgrade.ts`: CAS, kuyruksuz,
-  epoch'a dokunmaz). Maliyeti düşük hash'te BAŞARISIZ doğrulama sahte yolun süresine bekletilir (zamanlama kâhini).
+  epoch'a dokunmaz). 🚨 Maliyeti düşük hash'te BAŞARISIZ doğrulama sahte yolun **İŞİNE** tamamlanır: AYNI YUVADA
+  maliyet 10 + 11 sahte karşılaştırma = tam bir maliyet-12 (ölçüldü: 318↔319 ms, eşzamanlıda 1,95↔1,90 sn).
+  **UYKUYA GERİ DÖNME** — ilk sürüm yuvayı bırakıp ortalamaya kadar uyuyordu; eşzamanlı isteklerde sızdı (inceleme).
 - **Hız sınırı kovası `rateLimitClientKey(req)`** (IPv6 → /64, IPv4-eşlemeli → IPv4). `clientIp` yalnız iz/onay
-  kayıtları için (tam adres). Ham IP'den kova kurmak mekanik pinle YASAK.
+  kayıtları için (tam adres). Ham IP'den kova kurmak mekanik pinle YASAK. 🚨 **Halka açık takvim beslemesi**
+  ağ başına geniş taşma kapısı (600/dk) + takvim BAŞINA 60/dk: Airbnb/Booking/Google sunucuları aynı /64'ten çok
+  takvim çeker; tek kova 429 → bayat takvim → çift rezervasyon riski demekti. Yeni halka açık "sunucu çeker" ucu
+  eklerken aynı soru sorulur. Ek /48 kovası REDDEDİLDİ (mobil operatör havuzları → toplu kilitleme riski).
 - 🚨 **OTURUM İÇİ YENİDEN DOĞRULAMA GÜNDE 20 HATA — TEK ORTAK SAYAÇ** (`auth/reauth-guard.ts`,
   `reauth-fail-day:`): 2FA kurulumu (ŞİFRE) + 2FA kapatma/açma/kurtarma kodu (KOD) + hesap silme (ŞİFRE) aynı
   sayaca yazar; tavan dolunca DOĞRU şifre/kod da o gün reddedilir (yoksa tavan yalnız yavaşlatır). Girişin
   sayacından AYRI anahtar. Eskiden kurulum günde 1.440, silme 480 şifre tahmini bırakıyordu. Oturum varken
   şifre/kod soran YENİ bir ekran eklenirse aynı iki çağrıyı yapar (`reauthBlocked` önce, `noteReauthFailure`
   hatada). Sır/kurtarma kodu yanıtları `noStore`.
-- **Giriş sonrası `?next=` API yolu olamaz** (`safe-redirect.ts`). Host izin listesi yalnız TAM `localhost`/
-  `127.0.0.1` (+port).
+- **Giriş sonrası `?next=` API yolu olamaz** (`safe-redirect.ts`); çözülemeyen (bozuk yüzde kodlu) hedef de
+  olamaz. Host izin listesi yalnız TAM `localhost`/`127.0.0.1` (+port).
 - 🚨 **PAROLA ASLA KIRPILMAZ (09-23):** kayıt/giriş parolayı olduğu gibi alır; değiştirme ve sıfırlama da
   öyle (eskiden kırpıyordu → boşluklu parola sıfırlamadan sonra girişte kilitliyordu). Kod/token kırpılır.
 - 🚨 **bcrypt EŞZAMANLILIK KAPISI (`auth/password.ts`):** bcryptjs saf JS — ölçüldü: 8 eşzamanlı karşılaştırma

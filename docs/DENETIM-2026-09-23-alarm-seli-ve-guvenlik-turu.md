@@ -200,9 +200,50 @@ organizasyonun aylık harcama limitine takıldı; limit sıfırlanınca yeniden 
    şifreli veriyi kırar — ASLA doğrulamadan değiştirilmez).
 7. **Mutlak oturum ömrü** (ör. 90 gün sonra yeniden giriş) — bugün kayan 14 gün; çalınmış bir çerez
    14 günde bir kullanıldıkça ölmüyor.
+8. **NFC olmayan parolada ham-biçim denemesinin bir bitiş tarihi** (↓9.6 madde 3) — yayından ~90 gün
+   sonra ham biçim denenmez; o tarihe kadar girmemiş ve parolası ayrık yazımla saklanmış (pratikte
+   sıfıra yakın) kullanıcı "şifremi unuttum" kullanır. Kimlik akışı → onay.
+9. **Kalan maliyet-10 hash'ler** (↓9.6 madde 2) — iş eşitliği zamanlama farkını kapattı; hash'lerin
+   kendisini kaldırmak için önce say: `SELECT count(*) FROM "User" WHERE "passwordHash" LIKE '$2_$10$%';`
+   (salt-okuma). Sayı küçükse ilgili hesaplara sıfırlama e-postası seçeneği; kimlik akışı → onay.
 
 ### 9.5 İlk deneme birlikte (kimlik akışı kuralı)
 
 Deploy sonrası birlikte: giriş (çerez `__Host-` adıyla yazılıyor mu, eski oturum düşmeden taşındı mı) ·
 şifre değiştirme (bu cihaz girişli kalıyor mu) · 2FA açma (diğer cihaz çıkışa düşüyor mu) · şifre
 sıfırlama + ardından giriş.
+
+### 9.6 İnceleme turu — bu turun KENDİ kodu saldırgan gözüyle (aynı gün)
+
+Bir inceleme ajanı `421c5da..HEAD` farkını saldırgan ve gerileme avcısı gözüyle okudu (P1 yok; 2 × P2,
+6 × P3). **Her bulgu kodda doğrulandı ve eski kodda kırmızı-önce ile kanıtlandı.** Ayrıca tam test
+paketi, bu turun kendi iki hatasını yakaladı (↓ 10–11).
+
+| # | Bulgu | Hüküm |
+|---|---|---|
+| 1 | **P2 — CI kırmızı olacaktı:** `verify-email`in JSON kontrolü artık 415 dönüyor, uçtan uca test JSON olmayan dört istek için 400 bekliyordu → "Wait for CI" açık olduğu için canlıya çıkış ATLANIRDI | ✅ test 415'e çekildi; meşru JSON yolu `expired` sebep koduyla gövdenin okunduğunu hâlâ kanıtlıyor; yerel uçtan uca koşu ↓8 |
+| 2 | **P2 — zamanlama dolgusu eşzamanlı isteklerde sızıyordu:** başarısız maliyet-10 doğrulama yuvayı erken bırakıp DIŞARIDA uyuyordu → eşzamanlı isteklerde bitiş sırası hesabı ele veriyordu; dolgu hedefi (ortalama) saldırganın ürettiği yükle kaydırılabiliyordu | ✅ **İŞ EŞİTLİĞİ** (ajanın önerisinden iyi, ölçüldü): aynı yuvada maliyet 10 + 11 sahte karşılaştırma = tam bir maliyet-12 işi. Tek istek 318 ↔ 319 ms, 6 eşzamanlı istek 1,95 ↔ 1,90 sn. Uyku ve ortalama makinesi TAMAMEN kalktı; test artık süreye değil İŞE ve SIRAYA bakıyor (titremesiz) |
+| 3 | P3 — NFC olmayan parola başarısız girişte bcrypt işini ikiye katlıyor (kapıyı doldurmak için gereken istek yarıya iniyor) | ⏸️ bilinen sınır: kapı + 503 zaten sınırlıyor; kalıcı çözüm bitiş tarihi → onay listesi (9.4 madde 8) |
+| 4 | P3 — şifre değiştirme/sıfırlama yeni epoch'u işlem BİTTİKTEN sonra okuyordu → araya giren başka bir artışın epoch'unu alıp o ikinci geçersiz kılmadan sağ çıkabiliyordu | ✅ epoch işlemin içinden (2FA açmadaki desen); sıfırlama fonksiyonu yeni epoch'u döndürüyor |
+| 5 | P3 — ortak günlük tavan (20) eşzamanlı isteklerle aşılabilir | ⏸️ bilinen sınır, SINIRLI: kısa kovalar (2FA 10/10 dk, silme 5/15 dk) aşımı en fazla ~34/güne tutar (önceki 1.920/gün); sayacı karşılaştırmadan önce yakıp başarıda iade etmek ek karmaşıklık, kazanç küçük |
+| 6 | P3 — `__Host-` geçişi: (a) yeni kodun imzaladığı oturum eski adla FIRLATILIRSA middleware onu `__Host-` adıyla yeniden imzalayıp kalıcılaştırıyordu; (b) geliştirmede `__Host-` de okunuyordu (yerel `next start` kalıntısı geliştirme girişini ezer) | ✅ (a) her yeni oturum `hv` iddiası taşır, eski ad yalnız işaretsiz (yayından önce eski kodun imzaladığı) oturumu taşır → fırlatma penceresi yayından en geç 14 gün sonra kapanır (ajanın "iat tarihi" önerisinden iyi: saat sabiti yok, yayın gecikse de kimse düşmez); (b) geliştirmede yalnız eski ad |
+| 7 | P3 — 2FA açma/şifre değiştirme anında uçuştaki başka bir istek eski epoch'lu çerezi geri yazabilir (kullanıcı bir kez çıkışa düşer) | ⏸️ bilinen sınır (düşük olasılık); kayan oturumun yeniden imzalama sıklığını azaltmak ayrı bir tasarım işi |
+| 8 | P3 — `?next=` bozuk yüzde kodlamasında API kontrolü atlanıyordu (`/%61pi/auth/logout/%ZZ`) | ✅ çözülemeyen hedef → yok |
+| 9 | P3 — IPv6 /48 sahibi hâlâ 256–65.536 kova alır; **takvim beslemesi /64 kovasına düşünce platform sunucuları tek kovayı paylaşacaktı** | ✅ takvim: ağ başına geniş taşma kapısı (600/dk) + takvim BAŞINA 60/dk — eski kodda aynı /64'ten iki takvimi çeken platformun 120 isteğinin 60'ı 429 alıyordu (çift rezervasyon riski). ⛔ ek /48 kovası REDDEDİLDİ: mobil operatörler binlerce aboneyi aynı /48 havuzundan dağıtabilir → ölçmeden toplu kilitleme riski |
+| 10 | (tam paket) 08-07 kaynak pini, şifre rotalarında eski "200 karakter" metnini arıyordu | ✅ davranışsal değişmeze çevrildi (belirleme yolunun kabul ettiği en uzun biçimler girişten geçer) |
+| 11 | (tip kontrolü) bu turun çerez testinde tip hatası | ✅ |
+
+Kanıt: kırmızı-önce 4 (iş eşitliği) + 3 (takvim) + 2 (epoch) + 2 (yönlendirme) + 4 (çerez); değişen
+modüllere dokunan 101 dosya 923/923; mutasyon ↓9.7.
+
+### 9.7 Mutasyon (iki yönlü, temiz ağaçta, M0 kontrolü yeşil)
+
+- Oturum içi yeniden doğrulama tavanı + şifre metni: **12/12** (kapıyı sil, `setup`i listeden çıkar, hata
+  saymayı sil ×2, tavanı 19'a indir, bakmayı tüketmeye çevir, anahtarı ayır, metne teknik terim koy,
+  "seçin"/"oluşturunuz" geri koy).
+- İnceleme turu düzeltmeleri: **16/16** (dolguyu sil, ham-biçim dolgusunu sil, başarıya da dolgu, maliyet-12'ye
+  de dolgu, dolguyu tam maliyet-12 yap · takvim kovasını paylaşılana çevir, taşma kapısını sil, takvim kovasını
+  sil · üç epoch kaydırma · bozuk kodlamayı geçir · `hv` süzgecini sil, `hv` yazmayı sil, geliştirme dalını
+  sil, çözülemeyen token'ı kabul et).
+- Önceki (ikinci tur) mutasyon: **37/37**.
+
