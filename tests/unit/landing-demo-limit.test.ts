@@ -37,7 +37,8 @@ describe("landing demo — çip sayısı ve saatlik hak", () => {
     const src = read(ROUTE);
     expect(src).toContain("DEMO_HOURLY_LIMIT");
     // Eski hâl: `rateLimit(..., 6, 60 * 60_000)` — sayı rotaya gömülüydü.
-    expect(src).toMatch(/rateLimit\(`demo-ai:\$\{clientIp\(req\)\}`,\s*DEMO_HOURLY_LIMIT/);
+    // (09-23: kova anahtarı IPv6 /64'e indirgeyen `rateLimitClientKey`ten gelir.)
+    expect(src).toMatch(/rateLimit\(`demo-ai:\$\{rateLimitClientKey\(req\)\}`,\s*DEMO_HOURLY_LIMIT/);
   });
 
   it("🚨 LİMİT KULLANICIYA GÖRÜNÜR (aynı sabitten)", () => {

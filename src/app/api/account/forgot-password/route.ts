@@ -11,8 +11,9 @@ import {
   hasJsonContentType,
   unsupportedMediaType,
 } from "@/lib/api";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitClientKey } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
+import { setKnownDeviceCookie } from "@/lib/auth";
 import {
   issueChallenge,
   verifyChallenge,
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
   // dakikalarca dışarıda bırakabiliyordu. Kendi formlarımız hep `application/json` yollar.
   if (!hasJsonContentType(req)) return unsupportedMediaType();
   // Per-IP cap over the whole flow (enumeration / code-spray defense).
-  const ipLimit = await rateLimit(`forgot:${clientIp(req)}`, 12, 15 * 60_000);
+  const ipLimit = await rateLimit(`forgot:${rateLimitClientKey(req)}`, 12, 15 * 60_000);
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
 
   try {
@@ -216,6 +217,18 @@ export async function POST(req: NextRequest) {
         // Paralel iki DOĞRU istekte yalnız biri `true` alır — ikincisi hiçbir
         // şey yazmadan genel hataya düşer.
         if (!done) return badRequest({ code: GENERIC_CONFIRM });
+        // 🚨 SIFIRLAMAYI TAMAMLAYAN TARAYICI TANINAN CİHAZ OLUR (09-23 saldırgan turu). Saldırgan
+        // hesap kovasını IP döndürerek dolu tutarsa, tanınan-cihaz çerezi olmayan her tarayıcı
+        // girişte 429 alır; sıfırlama epoch'u artırdığı için kurbanın ESKİ tanınan cihazları da
+        // ölür → saldırı sürdükçe hiçbir cihazdan giremezdi. Bu tarayıcı e-posta kutusunu
+        // kanıtladı (token + kod) → kovayı aşabilir; yine de yeni PAROLA (ve varsa 2FA) ister.
+        // Oturum AÇILMAZ (sıfırlama giriş değildir). Asla ölümcül değil.
+        try {
+          const fresh = await prisma.user.findUnique({ where: { id: actorUserId }, select: { sessionEpoch: true } });
+          if (fresh) await setKnownDeviceCookie(actorUserId, fresh.sessionEpoch);
+        } catch {
+          // yok say — sıfırlama zaten tamamlandı
+        }
         await writeAudit({
           organizationId,
           actorUserId,

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
 import { badRequest, jsonOk, notFound, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { DEMO_HOURLY_LIMIT } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     // değişmedi, yani günlük tavanı bitirmek için gereken IP sayısı 50 → 25'e
     // indi. Bu bir MALİYET tavanıdır (kötüye kullanım değil) ve bilinçli olarak
     // artırılmadı; demo kapanırsa metin ziyaretçiyi kayda yönlendiriyor.
-    const limited = await rateLimit(`demo-ai:${clientIp(req)}`, DEMO_HOURLY_LIMIT, 60 * 60_000);
+    const limited = await rateLimit(`demo-ai:${rateLimitClientKey(req)}`, DEMO_HOURLY_LIMIT, 60 * 60_000);
     if (!limited.ok) {
       return tooManyRequests(
         limited.retryAfter,

@@ -7,6 +7,7 @@ import {
   dummyVerifyPassword,
   newPasswordProblem,
   PASSWORD_MAX_BYTES,
+  PASSWORD_TOO_LONG_MESSAGE,
 } from "@/lib/auth/password";
 
 // ---------------------------------------------------------------------------
@@ -112,6 +113,12 @@ describe("yeni parola politikası — 72 bayt (③)", () => {
     expect(PASSWORD_MAX_BYTES).toBe(72);
   });
 
+  it("🚨 müşteriye giden metin SADE: teknik terim yok (kurucu 09-23)", () => {
+    expect(PASSWORD_TOO_LONG_MESSAGE).not.toMatch(/bayt|byte|utf|nfc|bcrypt|karakter sayı/i);
+    // Ne yapması gerektiğini söyler.
+    expect(PASSWORD_TOO_LONG_MESSAGE).toMatch(/daha kısa/);
+  });
+
   it("uzunluk: 8 karakter altı reddedilir, 8 kabul", () => {
     expect(newPasswordProblem("a".repeat(7))).toMatch(/en az 8/);
     expect(newPasswordProblem("a".repeat(8))).toBeNull();
@@ -119,12 +126,12 @@ describe("yeni parola politikası — 72 bayt (③)", () => {
 
   it("ASCII: 72 bayt kabul, 73 bayt reddedilir", () => {
     expect(newPasswordProblem("a".repeat(72))).toBeNull();
-    expect(newPasswordProblem("a".repeat(73))).toMatch(/72 bayt/);
+    expect(newPasswordProblem("a".repeat(73))).toBe(PASSWORD_TOO_LONG_MESSAGE);
   });
 
   it("Türkçe harf 2 bayt sayılır: 36 × ş = 72 bayt kabul, 37 × ş reddedilir", () => {
     expect(newPasswordProblem("ş".repeat(36))).toBeNull();
-    expect(newPasswordProblem("ş".repeat(37))).toMatch(/72 bayt/);
+    expect(newPasswordProblem("ş".repeat(37))).toBe(PASSWORD_TOO_LONG_MESSAGE);
   });
 
   it("ölçü SAKLANAN biçimdir (NFC): NFD yazımın fazladan baytı parolayı reddettirmez", () => {

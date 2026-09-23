@@ -12,6 +12,7 @@ import {
   readJsonCappedOrNull,
 } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { setSessionCookie, setKnownDeviceCookie } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
 import {
@@ -207,6 +208,27 @@ export async function POST(req: NextRequest) {
       });
       if (consumed.count === 0) {
         return badRequest({ code: "Kod az önce kullanıldı. Yeni bir kod isteyin." });
+      }
+      // 🚨 BU CİHAZ GİRİŞLİ KALIR (09-23 saldırgan turu). Yukarıdaki yorum "DİĞER oturumlar"
+      // diyordu ama çerez yeniden imzalanmadığı için işlemi yapan cihaz da bir sonraki
+      // tıklamada sessizce çıkışa düşüyordu. Epoch artışı başka her oturumu düşürmeye devam
+      // eder; yalnız bu tarayıcının çerezi YENİ epoch ile yeniden imzalanır ve tanınan-cihaz
+      // çerezi (epoch'a bağlı) yenilenir — yoksa hesap kovası saldırı altında dolduğunda sahibin
+      // kendi cihazı da girişte reddedilirdi. İkisi de asla ölümcül değil: yazılamazsa kullanıcı
+      // yalnız bir kez yeniden girer (eski davranış). "Beni hatırla" güveni BİLİNÇLİ olarak
+      // düşer (parola değişince 2FA bir kez yeniden sorulur — S2 kararı).
+      const fresh = await prisma.user.findUnique({ where: { id: session.userId }, select: { sessionEpoch: true } });
+      if (fresh) {
+        try {
+          await setSessionCookie({ ...session, sessionEpoch: fresh.sessionEpoch });
+        } catch {
+          // yok say — kullanıcı bir kez yeniden girer
+        }
+        try {
+          await setKnownDeviceCookie(session.userId, fresh.sessionEpoch);
+        } catch {
+          // yok say
+        }
       }
       await writeAudit({
         organizationId: session.organizationId,

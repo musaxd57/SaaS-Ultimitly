@@ -22,8 +22,15 @@ export function normalizePassword(password: string): string {
 /** bcrypt'in fiilen kullandığı üst sınır (bayt, UTF-8). */
 export const PASSWORD_MAX_BYTES = 72;
 export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_TOO_LONG_MESSAGE =
-  `Şifre çok uzun: en fazla ${PASSWORD_MAX_BYTES} bayt olabilir (ş, ğ, ü gibi harfler 2 bayt sayılır).`;
+/**
+ * 🚨 MÜŞTERİYE GİDEN METİN SADE (kurucu 09-23): "bayt", "ş 2 bayt sayılır" gibi teknik
+ * açıklama müşteriye GİTMEZ. Sınır aynen uygulanır (OWASP Password Storage: bcrypt için en
+ * fazla 72 bayt; Go `ErrPasswordTooLong`, Spring `BCryptPasswordEncoder` de fazlasını
+ * reddeder) ama kullanıcıya yalnız ne yapması gerektiği söylenir. Karakter sayısı
+ * YAZILMAZ: Türkçe harf 2 bayt olduğundan "en fazla N karakter" sözü yanlış olurdu.
+ * Pinli: metin teknik terim içermez (`password-normalization.test.ts`).
+ */
+export const PASSWORD_TOO_LONG_MESSAGE = "Şifre çok uzun. Lütfen daha kısa bir şifre belirleyin.";
 
 /** Ölçü SAKLANACAK biçimdir (NFC): NFD yazımın fazladan baytı parolayı reddettirmez. */
 export function passwordExceedsByteLimit(password: string): boolean {

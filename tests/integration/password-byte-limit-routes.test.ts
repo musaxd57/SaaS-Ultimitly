@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SessionPayload } from "@/lib/auth";
+import { PASSWORD_TOO_LONG_MESSAGE } from "@/lib/auth/password-policy";
 
 // ---------------------------------------------------------------------------
 // ③ YENİ PAROLA 72 BAYTI AŞAMAZ — ÜÇ BELİRLEME YOLUNDA DA (kurucu onayı 09-23).
@@ -63,7 +64,7 @@ describe("③ yeni parola 72 bayt sınırı — kayıt / değiştirme / sıfırl
       }),
     );
     expect(res.status).toBe(400);
-    expect((await res.json()).fields?.password).toMatch(/72 bayt/);
+    expect((await res.json()).fields?.password).toBe(PASSWORD_TOO_LONG_MESSAGE);
     expect(await prisma.user.count({ where: { email: "yeni@example.com" } })).toBe(0);
   });
 
@@ -89,7 +90,7 @@ describe("③ yeni parola 72 bayt sınırı — kayıt / değiştirme / sıfırl
       }),
     );
     expect(res.status).toBe(400);
-    expect((await res.json()).fields?.newPassword).toMatch(/72 bayt/);
+    expect((await res.json()).fields?.newPassword).toBe(PASSWORD_TOO_LONG_MESSAGE);
   });
 
   it("sıfırlama (e-posta bağlantısı): 74 baytlık yeni parola reddedilir", async () => {
@@ -102,7 +103,7 @@ describe("③ yeni parola 72 bayt sınırı — kayıt / değiştirme / sıfırl
       }),
     );
     expect(res.status).toBe(400);
-    expect((await res.json()).fields?.newPassword).toMatch(/72 bayt/);
+    expect((await res.json()).fields?.newPassword).toBe(PASSWORD_TOO_LONG_MESSAGE);
   });
 
   it("KONTROL: kısa parola hâlâ 'en az 8' metnini alır (iki yolda da)", async () => {

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { leadSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 
@@ -15,7 +15,7 @@ function esc(s: string): string {
 // review in the Operator Panel.
 export async function POST(req: NextRequest) {
   try {
-    const limited = await rateLimit(`lead:${clientIp(req)}`, 5, 60 * 60_000); // 5 / hour
+    const limited = await rateLimit(`lead:${rateLimitClientKey(req)}`, 5, 60 * 60_000); // 5 / hour
     if (!limited.ok) {
       return NextResponse.json(
         { error: "Çok fazla istek gönderildi. Lütfen kısa bir süre bekleyip tekrar deneyin." },

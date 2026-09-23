@@ -4,8 +4,8 @@ import { setSessionCookie } from "@/lib/auth";
 import { verifySession, SESSION_COOKIE } from "@/lib/auth/session";
 import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
 import { verifyPassword, PasswordHashBusyError } from "@/lib/auth/password";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { readJsonCappedOrNull, passwordHashBusy } from "@/lib/api";
+import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
+import { readJsonCappedOrNull, passwordHashBusy, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import type { UserRole } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -61,10 +61,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // 🚨 JSON KONTROLÜ IP KOVASINDAN ÖNCE (09-23 saldırgan turu — dört kardeş kimlik rotasının
+  // emsali, gerekçe `hasJsonContentType`te): başka bir site `text/plain` POST'larla (preflight
+  // YOK) bir ağın `verify-email` kovasını yakıp oradaki yeni kullanıcıların hesap doğrulamasını
+  // bir saat engelleyebiliyordu. Kendi formumuz (`verify-email-form.tsx`) hep JSON yollar.
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
   // Throttle by IP: this endpoint issues a login session on a token match and
   // scans an unindexed column, so an unauthenticated flood could brute-force
   // tokens and hammer the DB. A legit user clicks the emailed link once or twice.
-  const limited = await rateLimit(`verify-email:${clientIp(req)}`, 20, 60 * 60 * 1000);
+  const limited = await rateLimit(`verify-email:${rateLimitClientKey(req)}`, 20, 60 * 60 * 1000);
   if (!limited.ok) {
     return NextResponse.json(
       { reason: "error" },

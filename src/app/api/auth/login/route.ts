@@ -14,7 +14,7 @@ import {
   hasJsonContentType,
   unsupportedMediaType,
 } from "@/lib/api";
-import { rateLimit, rateLimitPeek, clientIp } from "@/lib/rate-limit";
+import { rateLimit, rateLimitPeek, clientIp, rateLimitClientKey } from "@/lib/rate-limit";
 import { KNOWN_DEVICE_COOKIE, verifyKnownDeviceToken } from "@/lib/auth/known-device";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
@@ -31,7 +31,11 @@ const LOGIN_ACCT_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_2FA_DAILY_FAILURES = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const ACCT_LOCKED_MESSAGE = "Bu hesap için çok fazla deneme. Lütfen biraz sonra tekrar deneyin.";
+// Hesap var/yok fark etmeksizin AYNI metin (numaralandırma yok). İkinci cümle, saldırı altında
+// kilitli kalan sahibin tek tıkla çıkış yolu: sıfırlamayı tamamlayan tarayıcı tanınan cihaz olur
+// ve kovayı aşar (09-23, `forgot-password` rotası).
+const ACCT_LOCKED_MESSAGE =
+  "Bu hesap için çok fazla deneme yapıldı. Biraz sonra tekrar deneyin ya da “Şifremi unuttum” ile şifrenizi yenileyin.";
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +46,7 @@ export async function POST(req: NextRequest) {
     if (!hasJsonContentType(req)) return unsupportedMediaType();
 
     // Throttle login attempts per IP: 10 tries / 5 minutes (anti brute-force).
-    const limited = await rateLimit(`login:${clientIp(req)}`, 10, 5 * 60 * 1000);
+    const limited = await rateLimit(`login:${rateLimitClientKey(req)}`, 10, 5 * 60 * 1000);
     if (!limited.ok) {
       return NextResponse.json(
         { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
@@ -123,17 +127,23 @@ export async function POST(req: NextRequest) {
       // hatalarıyla dolmuyordu, yani bu bir REGRESYON DEĞİL; ama tek dokümantasyonu
       // silinmişti. Ayrı bir `login-2fa:{userId}` kovası açık iş olarak kayıtlı
       // (`docs/MIGRATION-BEKLEYEN-ISLER.md`).
-      const acct = await rateLimit(`login-acct:${email}`, LOGIN_ACCT_LIMIT, LOGIN_ACCT_WINDOW_MS);
       // Record a failed attempt against a KNOWN account (targeted-attack signal).
       // Unknown emails have no org to scope to — the rate limiter covers those.
-      if (user) {
-        await writeAudit({
-          organizationId: user.organizationId,
-          actorUserId: user.id,
-          action: "auth.login_failed",
-          metadata: { reason: "bad_password", ip: clientIp(req) },
-        });
-      }
+      // 🚨 PARALEL (09-23 saldırgan turu): denetim yazımı YALNIZ bilinen hesapta vardı ve kova
+      // tüketiminden SONRA sırayla bekleniyordu → bilinen hesabın başarısız girişi fazladan bir
+      // DB turu kadar yavaştı = "bu e-posta kayıtlı" zamanlama sinyali. İki yazım aynı anda
+      // koşunca süre ikisinin EN UZUNU olur (tek tur), bilinmeyen hesabın tek turuna eşitlenir.
+      const [acct] = await Promise.all([
+        rateLimit(`login-acct:${email}`, LOGIN_ACCT_LIMIT, LOGIN_ACCT_WINDOW_MS),
+        user
+          ? writeAudit({
+              organizationId: user.organizationId,
+              actorUserId: user.id,
+              action: "auth.login_failed",
+              metadata: { reason: "bad_password", ip: clientIp(req) },
+            })
+          : Promise.resolve(),
+      ]);
       // Tavan aşıldıysa YANLIŞ kimlik bilgisi 429 alır — kaba kuvvet koruması
       // burada duruyor. DOĞRU parola bu dala hiç girmediği için etkilenmez.
       if (!acct.ok) {

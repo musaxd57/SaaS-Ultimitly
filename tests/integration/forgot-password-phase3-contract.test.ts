@@ -136,7 +136,8 @@ describe("Faz 3 — eski yola dönüş engelli", () => {
     // kurbanın adresiyle onu yakabiliyordu. Bütçe artık challenge SATIRINDA.
     expect(routeSrc()).not.toMatch(/forgot-confirm:/);
     // KONTROL: rotanın diğer iki kovası DURUYOR.
-    expect(routeSrc()).toMatch(/forgot:\$\{clientIp\(req\)\}/);
+    // (09-23: kova anahtarı IPv6 /64'e indirgeyen `rateLimitClientKey`ten gelir.)
+    expect(routeSrc()).toMatch(/forgot:\$\{rateLimitClientKey\(req\)\}/);
     expect(routeSrc()).toMatch(/forgot-req:\$\{email\}/);
   });
 });

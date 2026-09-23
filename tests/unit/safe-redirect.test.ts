@@ -44,3 +44,33 @@ describe("safeRedirectTarget — dış adrese çıkış YOK", () => {
     expect(safeRedirectTarget("", O)).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// 🚨 GİRİŞ SONRASI `/api/...` HEDEFİ YOK (09-23 saldırgan turu, ajan ölçtü).
+// Aynı origin'deki API yolları da geçiyordu: saldırganın bağlantısıyla (`/login?next=...`)
+// giriş yapan kurban, girişin ardından doğrudan `/api/auth/logout`a (anında çıkış),
+// `/api/account/export`a (sahibin veri dökümü kurbanın cihazına iner, saatlik 3'lük export
+// hakkı yanar, denetim satırı yazılır) ya da OAuth başlatma ucuna gönderilebiliyordu. Giriş
+// sonrası meşru hedef HER ZAMAN bir panel SAYFASIDIR.
+// ---------------------------------------------------------------------------
+describe("safeRedirectTarget — API yolları hedef olamaz", () => {
+  it.each([
+    ["/api/auth/logout"],
+    ["/api/account/export"],
+    ["/api/hospitable/oauth/authorize"],
+    ["/api"],
+    ["/./api/auth/logout"], // normalizasyon sonrası da API
+    ["/%61pi/auth/logout"], // yüzde kodlu "a"
+    ["/API/account/export"], // büyük harf
+    [`${O}/api/auth/logout`],
+  ])("%j → null", (next) => {
+    expect(safeRedirectTarget(next, O)).toBeNull();
+  });
+
+  it.each([
+    ["/apiler", "/apiler"], // "/api" ile BAŞLAYAN ama API olmayan bir sayfa adı engellenmez
+    ["/settings?tab=api", "/settings?tab=api"],
+  ])("KONTROL: %j → %j", (next, beklenen) => {
+    expect(safeRedirectTarget(next, O)).toBe(beklenen);
+  });
+});

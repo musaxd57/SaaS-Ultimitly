@@ -19,11 +19,14 @@ vi.mock("@/lib/email", () => ({
 import { POST as register } from "@/app/api/auth/register/route";
 import { POST as forgot } from "@/app/api/account/forgot-password/route";
 import { POST as resend } from "@/app/api/auth/resend-verification/route";
+import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 
 const ROUTES = [
   { name: "register", handler: register, url: "http://localhost/api/auth/register", bucket: "register:" },
   { name: "forgot-password", handler: forgot, url: "http://localhost/api/account/forgot-password", bucket: "forgot:" },
   { name: "resend-verification", handler: resend, url: "http://localhost/api/auth/resend-verification", bucket: "verify-resend:" },
+  // 09-23 saldırgan turu: dördüncü kimlik rotası da aynı sırayla (JSON önce, kova sonra).
+  { name: "verify-email", handler: verifyEmail, url: "http://localhost/api/auth/verify-email", bucket: "verify-email:" },
 ] as const;
 
 const req = (url: string, contentType: string, body: string) =>

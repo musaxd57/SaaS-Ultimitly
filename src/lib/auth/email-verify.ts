@@ -108,8 +108,10 @@ export function appBaseUrl(): string {
  *  "www.lixusai.com.evil.com" suffix trick does NOT pass. */
 function isAllowedHost(host: string): boolean {
   const h = host.toLowerCase();
-  if (h === "localhost" || h.startsWith("localhost:")) return true;
-  if (h === "127.0.0.1" || h.startsWith("127.0.0.1:")) return true;
+  // 🚨 TAM BİÇİM (09-23 saldırgan turu): eski `startsWith("localhost:")` kontrolü
+  // `localhost:@evil.example`yi geçiriyordu → kurulan taban `http://localhost:@evil.example`
+  // = kullanıcı adı "localhost", HOST `evil.example`. Yalnız çıplak ad ya da ad + sayısal port.
+  if (/^(?:localhost|127\.0\.0\.1)(?::\d{1,5})?$/.test(h)) return true;
   if (CANONICAL_HOSTS().has(h)) return true;
   try {
     // Only a TRUSTED APP_URL may extend the allowlist (Codex 07-23 #2): before

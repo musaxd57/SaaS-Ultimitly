@@ -154,3 +154,43 @@ describe("reverse-trial reminder emails", () => {
     expect(r2.ended).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 🚨 DENEME E-POSTALARI KİŞİSELLEŞTİRİLMEZ (09-23 saldırgan turu, hesap kurtarma ajanı).
+// `ownerName` kayıtta YAZILAN serbest metindir (200 karakter). Başkasının adresiyle kayıt olan
+// biri, ~13 gün sonra o kişinin kutusuna Lixus imzalı ve "Merhaba <kendi metni>" satırlı bir
+// e-posta düşürtebiliyordu (HTML kaçışlı ama okunur metin: talimat, telefon numarası…). Doğrulama
+// e-postasında 09-23'te kapatılan sınıfın AYNISI; bu iki şablon atlanmıştı.
+// ---------------------------------------------------------------------------
+describe("deneme e-postaları — kayıtta yazılan ad e-postaya GİRMEZ", () => {
+  const INJECTED = "Hesabiniz askiya alindi 0850 000 00 00 numarasini arayin";
+
+  async function orgWithName(trialEndsAt: Date) {
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: INJECTED, email: "kurban@example.com", passwordHash: "x", role: "owner" },
+    });
+    await prisma.subscription.create({
+      data: { organizationId: org.id, planCode: "pro", provider: "trial", status: "trialing", trialEndsAt },
+    });
+  }
+
+  it("'bitiyor' e-postası adı içermez (metin anlamını korur)", async () => {
+    const now = new Date();
+    await orgWithName(new Date(now.getTime() + 1 * DAY));
+    await sendDueTrialReminders(now);
+    const html = mockSend.mock.calls[0][2] as string;
+    expect(html).not.toContain("0850");
+    expect(html).not.toContain("askiya");
+    expect(html).toMatch(/Pro denemeniz/); // KONTROL: e-posta hâlâ işini yapıyor
+  });
+
+  it("'sona erdi' e-postası adı içermez", async () => {
+    const now = new Date();
+    await orgWithName(new Date(now.getTime() - 1 * DAY));
+    await sendDueTrialReminders(now);
+    const html = mockSend.mock.calls[0][2] as string;
+    expect(html).not.toContain("0850");
+    expect(html).toMatch(/denemeniz/);
+  });
+});

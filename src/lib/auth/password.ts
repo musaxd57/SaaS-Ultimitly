@@ -101,8 +101,8 @@ export {
 
 async function compareStored(password: string, hash: string): Promise<{ ok: boolean; legacyForm: boolean }> {
   const nfc = normalizePassword(password);
-  if (await bcrypt.compare(nfc, hash)) return { ok: true, legacyForm: false };
-  if (nfc !== password && (await bcrypt.compare(password, hash))) return { ok: true, legacyForm: true };
+  if (await timedCompare(nfc, hash)) return { ok: true, legacyForm: false };
+  if (nfc !== password && (await timedCompare(password, hash))) return { ok: true, legacyForm: true };
   return { ok: false, legacyForm: false };
 }
 
@@ -114,20 +114,73 @@ export function verifyPassword(password: string, hash: string): Promise<boolean>
   return withSlot(async () => (await compareStored(password, hash)).ok);
 }
 
+// ---------------------------------------------------------------------------
+// 🚨 ESKİ HASH ZAMANLAMA KÂHİNİ (09-23 saldırgan turu, ölçüldü). Bilinmeyen e-posta
+// maliyet-12 SAHTE hash'e karşı doğrulanır (~315 ms); 05-31 → 06-09 arasında belirlenmiş
+// parolalar maliyet-10'dur (~80 ms) → yanlış parolayla TEK istek "bu e-posta kayıtlı (ve erken
+// dönem hesabı)" diye okunuyordu (4 kat fark, ilk hesaplar dahil). Girişte yükseltme (④) yalnız
+// giriş YAPAN hesabı kapatır. Çözüm: maliyeti düşük hash'te BAŞARISIZ doğrulama, sahte yolun
+// süresine (gözlenen maliyet-12 karşılaştırma süresi × karşılaştırma sayısı) kadar BEKLETİLİR —
+// yuva bırakıldıktan SONRA, işlemci harcamadan. Başarılı giriş bekletilmez.
+// ---------------------------------------------------------------------------
+
+/** Gözlenen maliyet-12 karşılaştırma süresi (ms, üstel ortalama); 0 = henüz ölçülmedi. */
+let cost12CompareMs = 0;
+
+function observeCost12(ms: number): void {
+  cost12CompareMs = cost12CompareMs === 0 ? ms : cost12CompareMs * 0.8 + ms * 0.2;
+}
+
+async function timedCompare(value: string, hash: string): Promise<boolean> {
+  const t0 = performance.now();
+  const ok = await bcrypt.compare(value, hash);
+  if (bcrypt.getRounds(hash) === SALT_ROUNDS) observeCost12(performance.now() - t0);
+  return ok;
+}
+
+/**
+ * Bilinmeyen hesap yolunun (sahte doğrulama) bu girdi için beklenen süresi. Test kancası da
+ * budur: bekletme bu tabana kadardır. Henüz gözlem yoksa 0 (çağıran o durumda gerçek bir sahte
+ * karşılaştırmayla hem bekletir hem ölçer).
+ */
+export function __loginFailureFloorMs(password: string): number {
+  const compares = normalizePassword(password) !== password ? 2 : 1;
+  return cost12CompareMs * compares;
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 /**
  * ④ GİRİŞ YOLU: doğrula + saklanan hash'in yükseltilmesi gerekip gerekmediğini söyle
  * (maliyet < `SALT_ROUNDS` ya da eski ham biçim). Yükseltme YALNIZ doğru parolada
  * istenir. Yazmayı çağıran yapar (`password-upgrade.ts`, CAS'lı ve kuyruksuz).
  */
-export function verifyPasswordForLogin(
+export async function verifyPasswordForLogin(
   password: string,
   hash: string,
 ): Promise<{ ok: boolean; needsRehash: boolean }> {
-  return withSlot(async () => {
-    const r = await compareStored(password, hash);
-    // Bozuk/tanınmayan hash'te `getRounds` NaN döner → karşılaştırma false → yükseltme yok.
-    return { ok: r.ok, needsRehash: r.ok && (r.legacyForm || bcrypt.getRounds(hash) < SALT_ROUNDS) };
+  // Süre YUVA ALINDIKTAN SONRA ölçülür: kuyrukta bekleme iki yolda da ortaktır, eşitlenmesi
+  // gereken yalnız karşılaştırmanın kendisidir (yoksa yük altında fark geri dönerdi).
+  let compareMs = 0;
+  const r = await withSlot(async () => {
+    const t0 = performance.now();
+    const out = await compareStored(password, hash);
+    compareMs = performance.now() - t0;
+    return out;
   });
+  // Bozuk/tanınmayan hash'te `getRounds` NaN döner → karşılaştırmalar false → yükseltme yok.
+  const rounds = bcrypt.getRounds(hash);
+  if (!r.ok && rounds < SALT_ROUNDS) {
+    const floor = __loginFailureFloorMs(password);
+    if (floor > 0) {
+      const left = floor - compareMs;
+      if (left > 0) await sleep(left);
+    } else {
+      // Henüz ölçüm yok (süreç yeni başladı): gerçek bir sahte karşılaştırma hem bekletir hem ölçer.
+      await dummyVerifyPassword(password);
+    }
+  }
+  return { ok: r.ok, needsRehash: r.ok && (r.legacyForm || rounds < SALT_ROUNDS) };
 }
 
 /**
@@ -165,7 +218,7 @@ const DUMMY_HASH = "$2a$12$pW7aCpH9gDjLDJgWwMZS9e4XetljqUVeM6688s259LuXEGh42XYii
 export async function dummyVerifyPassword(password: string): Promise<void> {
   await withSlot(async () => {
     const nfc = normalizePassword(password);
-    await bcrypt.compare(nfc, DUMMY_HASH);
-    if (nfc !== password) await bcrypt.compare(password, DUMMY_HASH);
+    await timedCompare(nfc, DUMMY_HASH);
+    if (nfc !== password) await timedCompare(password, DUMMY_HASH);
   });
 }

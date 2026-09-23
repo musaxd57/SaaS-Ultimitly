@@ -39,7 +39,9 @@ describe("login — hesap kovasının YERİ (yapısal pin)", () => {
     expect(from, "başarısız-doğrulama dalının başı bulunamadı — pin boşa düştü").toBeGreaterThan(-1);
     expect(to, "sınır metni değişmiş — bu testi yeni sınıra taşı, yoksa pin ÖLÜ").toBeGreaterThan(from);
     const failBranch = src.slice(from, to);
-    expect(failBranch).toMatch(/await rateLimit\(`login-acct:/);
+    // (09-23: tüketim, denetim yazımıyla AYNI ANDA `await Promise.all([...])` içinde koşar —
+    // bilinen hesabın başarısız girişi fazladan bir DB turu kadar yavaş kalmasın diye.)
+    expect(failBranch).toMatch(/await Promise\.all\(\[\s*rateLimit\(`login-acct:/);
     // Ve tavan aşıldığında o dal 429 döndürür (koruma dekoratif değil).
     expect(failBranch).toMatch(/if \(!acct\.ok\)/);
     expect(failBranch).toMatch(/status: 429/);
@@ -48,7 +50,8 @@ describe("login — hesap kovasının YERİ (yapısal pin)", () => {
   it("IP kovası HÂLÂ en başta ve koşulsuz (regresyon pini)", async () => {
     const src = await loginSource();
     const head = src.slice(0, src.indexOf("const bodyResult"));
-    expect(head).toMatch(/await rateLimit\(`login:\$\{clientIp\(req\)\}`, 10, 5 \* 60 \* 1000\)/);
+    // (09-23: kova anahtarı IPv6 /64'e indirgeyen `rateLimitClientKey`ten gelir.)
+    expect(head).toMatch(/await rateLimit\(`login:\$\{rateLimitClientKey\(req\)\}`, 10, 5 \* 60 \* 1000\)/);
   });
 
   it("ölü `peekRateLimit` geri gelmedi (kullanılmayan koruma bırakılmaz)", async () => {

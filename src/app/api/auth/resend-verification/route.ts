@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { jsonOk, tooManyRequests, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   // POST'larla (preflight YOK) bir ofis/mobil NAT'ının kovasını yakıp orayı bu akıştan
   // dakikalarca dışarıda bırakabiliyordu. Kendi formlarımız hep `application/json` yollar.
   if (!hasJsonContentType(req)) return unsupportedMediaType();
-  const ipLimit = await rateLimit(`verify-resend:${clientIp(req)}`, 8, 15 * 60_000);
+  const ipLimit = await rateLimit(`verify-resend:${rateLimitClientKey(req)}`, 8, 15 * 60_000);
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
 
   const bodyResult = await parseJsonBody<{ email?: unknown }>(req);

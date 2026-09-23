@@ -27,5 +27,20 @@ export function safeRedirectTarget(next: string | null | undefined, origin: stri
   }
   if (u.origin !== origin) return null;
   if (!u.pathname.startsWith("/") || u.pathname.startsWith("//")) return null;
+  // 🚨 API YOLU HEDEF OLAMAZ (09-23 saldırgan turu): aynı origin'deki `/api/...` da geçiyordu
+  // → saldırganın bağlantısıyla giriş yapan kurban girişin hemen ardından `/api/auth/logout`a
+  // (anında çıkış) ya da `/api/account/export`a (veri dökümü + export hakkı yanar) gidiyordu.
+  // Giriş sonrası meşru hedef HER ZAMAN bir sayfadır. Yüzde kodlu ve büyük harfli yazım da
+  // aynı yola çözüldüğü için karşılaştırma çözülmüş + küçük harfli biçimde yapılır.
+  const p = safeDecode(u.pathname).toLowerCase();
+  if (p === "/api" || p.startsWith("/api/")) return null;
   return u.pathname + u.search + u.hash;
+}
+
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }

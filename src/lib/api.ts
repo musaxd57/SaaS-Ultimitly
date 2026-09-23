@@ -109,6 +109,16 @@ export function jsonOk<T>(data: T, status = 200) {
   return NextResponse.json(data, { status });
 }
 
+/**
+ * Yanıtın HİÇBİR önbellekte saklanmamasını iste (09-23 saldırgan turu). Düz metin sır, kurtarma
+ * kodu ya da kimlik bilgisi taşıyan yanıtlar için: POST yanıtları normalde önbelleklenmez ama
+ * yanlış yapılandırılmış bir ara katman ya da ileride eklenecek bir GET varyantı buna güvenmemeli.
+ */
+export function noStore<T extends Response>(res: T): T {
+  res.headers.set("Cache-Control", "no-store");
+  return res;
+}
+
 export function unauthorized() {
   return NextResponse.json({ error: "Yetkisiz erişim" }, { status: 401 });
 }

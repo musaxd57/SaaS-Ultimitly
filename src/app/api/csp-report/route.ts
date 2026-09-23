@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { BodyTooLargeError, readTextCapped } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   // ve `reservations/import`ın TERSİ: burada istekte bulunan ANONİM ve kötüye
   // kullanım vektörünün ta kendisi. Geçersiz gövdelerle sınırsız deneme
   // yapılabilseydi kova hiç dolmadan uç yorulurdu.
-  const limited = await rateLimit(`csp-report:${clientIp(req)}`, 30, 60 * 60_000); // 30/saat
+  const limited = await rateLimit(`csp-report:${rateLimitClientKey(req)}`, 30, 60 * 60_000); // 30/saat
   if (!limited.ok) {
     return NextResponse.json({ ok: false }, { status: 429, headers: { "Retry-After": String(limited.retryAfter) } });
   }

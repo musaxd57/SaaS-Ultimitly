@@ -109,6 +109,7 @@ describe("POST /api/account/2fa", () => {
     });
     const res = await POST(req({ action: "recovery_codes", code: totp(secret) }));
     expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
     const data = await res.json();
     expect(data.codes).toHaveLength(10);
   });
@@ -147,6 +148,8 @@ describe("POST /api/account/2fa", () => {
   it("allows 'setup' when 2FA is not yet active", async () => {
     const res = await POST(req({ action: "setup", password: SETUP_PW }));
     expect(res.status).toBe(200);
+    // Düz metin sır taşıyan yanıt hiçbir önbellekte saklanmaz (09-23).
+    expect(res.headers.get("cache-control")).toBe("no-store");
     const data = await res.json();
     expect(typeof data.secret).toBe("string");
     // Setup must not flip it on — only 'enable' (with a valid code) does that.

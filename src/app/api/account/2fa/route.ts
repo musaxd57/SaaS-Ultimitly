@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, forbidden, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
-import { rateLimit } from "@/lib/rate-limit";
+import { requireSession, unauthorized, forbidden, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull, noStore } from "@/lib/api";
+import { rateLimit, rateLimitPeek } from "@/lib/rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 // ⚠️ `verifyTotp` (boole) BİLİNÇLİ OLARAK İMPORT EDİLMİYOR: bu rotadaki üç
 // doğrulama yolu da kodu TÜKETMEK zorunda, o yüzden hepsi `verifyTotpStep` +
@@ -24,6 +24,19 @@ import { reportError } from "@/lib/report-error";
 // Still fail-closed — the broken state never allows disable/minting either.
 const SECRET_UNREADABLE_MSG =
   "Sistem, kayıtlı 2FA anahtarını çözemiyor — kod doğru olsa da işlem yapılamaz. Operatöre başvurun (2FA sıfırlama gerekir).";
+
+// 🚨 GÜNLÜK HATALI-KOD TAVANI (saldırgan gözüyle giriş turu, 09-23). Bu rotanın tek freni
+// 10 deneme / 10 dk idi = günde 1.440 kod tahmini; ±1 adım penceresiyle ayda ~%12 isabet
+// (ölçüldü). Bahis büyük: `recovery_codes` 10 KALICI kurtarma kodu basar ve bunlar parola
+// değişiminden SAĞ ÇIKAR → çalınmış bir oturum çerezi (parolasız) ay içinde kalıcı bir
+// ikinci-faktör atlamasına dönüşebiliyordu. Giriş rotasının tavanıyla (20/gün) aynı sayı,
+// AYRI anahtar: oturumu ele geçiren biri kurbanın GİRİŞ kodu hakkını yakamasın. Yalnız
+// HATALAR sayılır; meşru kullanıcı bu sınıra hiç yaklaşmaz.
+const MANAGE_2FA_DAILY_FAILURES = 20;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const CODE_ACTIONS = new Set(["enable", "disable", "recovery_codes"]);
+const MANAGE_2FA_CAP_MESSAGE =
+  "Çok fazla hatalı kod girildi. Güvenliğiniz için bu işlem bir süreliğine durduruldu; lütfen daha sonra tekrar deneyin.";
 
 function reportUnreadableSecret(userId: string) {
   void reportError("account.2fa secret-undecryptable", new Error(`userId=${userId}`));
@@ -87,6 +100,13 @@ export async function POST(req: NextRequest) {
     const data = await readJsonCappedOrNull(req);
     const action = typeof data?.action === "string" ? data.action : "";
     const code = typeof data?.code === "string" ? data.code : "";
+    const failDayKey = `2fa-manage-fail-day:${session.userId}`;
+    if (CODE_ACTIONS.has(action)) {
+      const day = await rateLimitPeek(failDayKey, MANAGE_2FA_DAILY_FAILURES);
+      if (!day.ok) return tooManyRequests(day.retryAfter, MANAGE_2FA_CAP_MESSAGE);
+    }
+    /** Hatalı (ya da yeniden oynatılan) kod — günlük tavana sayılır. */
+    const noteCodeFailure = () => rateLimit(failDayKey, MANAGE_2FA_DAILY_FAILURES, DAY_MS);
 
     if (action === "setup") {
       // Guard: never let "setup" run on an already-active account. Setup writes
@@ -150,7 +170,8 @@ export async function POST(req: NextRequest) {
           _: "İki adımlı doğrulama bu hesapta daha önce açılmış ve şu an etkin. Yeniden kurmak için önce mevcut kodunuzla kapatın.",
         });
       }
-      return jsonOk({ secret, otpauthUri: otpauthUri(secret, session.email) });
+      // Düz metin sır: hiçbir ara katman/önbellek saklamasın (09-23).
+      return noStore(jsonOk({ secret, otpauthUri: otpauthUri(secret, session.email) }));
     }
 
     if (action === "enable") {
@@ -162,7 +183,10 @@ export async function POST(req: NextRequest) {
       const armedSecret = user.twoFactorSecret;
       const secret = decryptSecret(armedSecret);
       const step = verifyTotpStep(secret, code);
-      if (step === null) return badRequest({ code: "Kod hatalı veya süresi geçmiş." });
+      if (step === null) {
+        await noteCodeFailure();
+        return badRequest({ code: "Kod hatalı veya süresi geçmiş." });
+      }
       // 🚨 KOŞULLU YAZMA — kardeşi `setup` ile aynı desen (denetim, 08-09).
       // Eskiden bu bir KOŞULSUZ `update` idi ve İKİ arıza üretiyordu:
       // (1) ZATEN AÇIK bir hesapta çağrılınca `twoFactorEnabledAt`i sessizce
@@ -208,7 +232,13 @@ export async function POST(req: NextRequest) {
       // BU cihaz girişli kalır: çerez YENİ epoch ile yeniden imzalanır (bir sonraki
       // adım — kurtarma kodu üretimi — aynı oturumla yapılır). `mfa` iddiası
       // YÜKSELTİLMEZ: operatör yetkisi faktörle yapılan yeni girişten gelir.
-      await setSessionCookie({ ...session, sessionEpoch: newEpoch });
+      // Yazılamazsa (üretimde beklenmez) fırlatmaz: 2FA zaten açıldı; kullanıcı bir sonraki
+      // istekte yeniden girer — epoch artışının güvenlik yönü korunur, 500 + yanıltıcı hata olmaz.
+      try {
+        await setSessionCookie({ ...session, sessionEpoch: newEpoch });
+      } catch {
+        // yok say
+      }
       // Tanınan-cihaz çerezi de epoch'a bağlı → bu tarayıcı kova kapısında tanınmaya
       // devam etsin. Asla ölümcül değil (giriş rotasındaki kararın aynısı).
       try {
@@ -260,6 +290,7 @@ export async function POST(req: NextRequest) {
         // `count === 0` → kod zaten tüketilmiş → red.
         const step = verifyTotpStep(secret, code);
         if (step === null) {
+          await noteCodeFailure();
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
         }
         const burned = await prisma.user.updateMany({
@@ -272,6 +303,7 @@ export async function POST(req: NextRequest) {
         // Aynı hata metni: dışarıdan "kod yanlış" ile "kod zaten kullanıldı"
         // ayırt EDİLEMEZ (giriş rotasının aynı kararı).
         if (burned.count === 0) {
+          await noteCodeFailure();
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
         }
       }
@@ -324,6 +356,7 @@ export async function POST(req: NextRequest) {
       // olmadan aynı kod hem giriş için hem burada kullanılabiliyordu.
       const step = verifyTotpStep(secret, code);
       if (step === null) {
+        await noteCodeFailure();
         return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
       }
       const burned = await prisma.user.updateMany({
@@ -334,6 +367,7 @@ export async function POST(req: NextRequest) {
         data: { twoFactorLastStep: step },
       });
       if (burned.count === 0) {
+        await noteCodeFailure();
         return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
       }
       // Regeneration atomically invalidates every previous code.
@@ -345,7 +379,7 @@ export async function POST(req: NextRequest) {
         metadata: { targetUserId: session.userId, count: RECOVERY_CODE_COUNT },
       });
       // The ONLY place the plaintexts ever leave the server — shown once.
-      return jsonOk({ ok: true, codes, recoveryRemaining: codes.length });
+      return noStore(jsonOk({ ok: true, codes, recoveryRemaining: codes.length }));
     }
 
     return badRequest({ _: "Geçersiz işlem." });

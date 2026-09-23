@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { buildIcsCalendar, buildIcalEvents } from "@/lib/export/ics";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export async function GET(
 ) {
   // Public + unauthenticated: cap per-IP so a single client can't hammer it.
   // Generous — legitimate calendar subscribers poll infrequently per IP.
-  const limited = await rateLimit(`ical:${clientIp(req)}`, 60, 60_000);
+  const limited = await rateLimit(`ical:${rateLimitClientKey(req)}`, 60, 60_000);
   if (!limited.ok) {
     return new Response("Too many requests", {
       status: 429,

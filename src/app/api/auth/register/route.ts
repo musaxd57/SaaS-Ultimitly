@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
 import { registerSchema, zodFieldErrors } from "@/lib/validators";
 import { hashPassword } from "@/lib/auth/password";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitClientKey } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
     if (!hasJsonContentType(req)) return unsupportedMediaType();
 
     // Throttle sign-ups per IP: 5 / hour (anti-spam / abuse).
-    const limited = await rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+    const limited = await rateLimit(`register:${rateLimitClientKey(req)}`, 5, 60 * 60 * 1000);
     if (!limited.ok) {
       return NextResponse.json(
         { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
@@ -186,51 +187,63 @@ export async function POST(req: NextRequest) {
     const passwordHash = await hashPassword(parsed.data.password);
     const { raw, hash } = makeVerifyToken();
     const verifyExpiresAt = new Date(Date.now() + VERIFY_TTL_MS);
-    await prisma.$transaction(async (tx) => {
-      const org = await tx.organization.create({
-        data: { name: parsed.data.organizationName, timezone, ...NEW_ORG_AUTO_REPLY_WINDOW },
-      });
-      // One checkbox covers Terms + Privacy, so both acceptances share the same
-      // instant. Version + IP + UA make the consent record defensible against a
-      // later "I never accepted" dispute (which text, when, from where).
-      const acceptedAt = new Date();
-      const user = await tx.user.create({
-        data: {
-          organizationId: org.id,
-          name: parsed.data.name,
-          email,
-          passwordHash,
-          role: "owner",
-          acceptedTermsAt: acceptedAt,
-          privacyAcceptedAt: acceptedAt,
-          acceptedLegalVersion: LEGAL_VERSION,
-          acceptedLegalTextHash: LEGAL_TEXT_HASH,
-          acceptedIp: ip,
-          acceptedUserAgent: userAgent,
-          emailVerifyTokenHash: hash,
-          emailVerifyExpiresAt: verifyExpiresAt,
-        },
-      });
-      // Start the reverse-trial: full Pro free for 14 days (no card). Harmless
-      // while billing is dormant — counts as active until BILLING_ENFORCED is on.
-      await tx.subscription.create({
-        data: { organizationId: org.id, ...newTrialSubscriptionData() },
-      });
-      // Durable outbox (Tur-4, flag ON): the verification send-intent joins THIS
-      // transaction, so 201 ⟺ account + verify-hash + outbox row committed
-      // together — a "mail kuyrukta" 201 can never lie about a half-created
-      // state, and a provider outage no longer 503s the registration.
-      if (emailOutboxEnabled()) {
-        await enqueueIdentityEmail(tx, {
-          userId: user.id,
-          kind: "verify_email",
-          secret: raw,
-          recipient: email,
-          expiresAt: verifyExpiresAt,
+    // 🚨 YARIŞ: yukarıdaki "var mı" okuması ile bu ekleme arasında ~300 ms'lik hash var. Aynı
+    // YENİ e-postayla iki eşzamanlı istek ikisi de "yok" görür; ikincisi `User.email`
+    // eşsizliğine (P2002) çarpar. Eskiden genel `catch` → 500 + `reportError("api")` = ALARM
+    // E-POSTASI (hesabı olmayan herkes tetikleyebiliyordu; "api" bağlamı tüm rotalarla ortak).
+    // Kaybeden istek var-olan-hesap dalıyla BİREBİR aynı 201'i alır (numaralandırma kâhini
+    // doğmaz); TX geri alındığı için yetim org/abonelik kalmaz. Yalnız TAM OLARAK `email`
+    // ihlali yutulur — başka bir eşsizlik ihlali eskisi gibi alarm üretir.
+    try {
+      await prisma.$transaction(async (tx) => {
+        const org = await tx.organization.create({
+          data: { name: parsed.data.organizationName, timezone, ...NEW_ORG_AUTO_REPLY_WINDOW },
         });
-      }
-      return { org, user };
-    });
+        // One checkbox covers Terms + Privacy, so both acceptances share the same
+        // instant. Version + IP + UA make the consent record defensible against a
+        // later "I never accepted" dispute (which text, when, from where).
+        const acceptedAt = new Date();
+        const user = await tx.user.create({
+          data: {
+            organizationId: org.id,
+            name: parsed.data.name,
+            email,
+            passwordHash,
+            role: "owner",
+            acceptedTermsAt: acceptedAt,
+            privacyAcceptedAt: acceptedAt,
+            acceptedLegalVersion: LEGAL_VERSION,
+            acceptedLegalTextHash: LEGAL_TEXT_HASH,
+            acceptedIp: ip,
+            acceptedUserAgent: userAgent,
+            emailVerifyTokenHash: hash,
+            emailVerifyExpiresAt: verifyExpiresAt,
+          },
+        });
+        // Start the reverse-trial: full Pro free for 14 days (no card). Harmless
+        // while billing is dormant — counts as active until BILLING_ENFORCED is on.
+        await tx.subscription.create({
+          data: { organizationId: org.id, ...newTrialSubscriptionData() },
+        });
+        // Durable outbox (Tur-4, flag ON): the verification send-intent joins THIS
+        // transaction, so 201 ⟺ account + verify-hash + outbox row committed
+        // together — a "mail kuyrukta" 201 can never lie about a half-created
+        // state, and a provider outage no longer 503s the registration.
+        if (emailOutboxEnabled()) {
+          await enqueueIdentityEmail(tx, {
+            userId: user.id,
+            kind: "verify_email",
+            secret: raw,
+            recipient: email,
+            expiresAt: verifyExpiresAt,
+          });
+        }
+        return { org, user };
+      });
+    } catch (err) {
+      if (isUniqueViolation(err, ["email"])) return jsonOk({ ok: true, verifyEmail: true }, 201);
+      throw err;
+    }
 
     if (emailOutboxEnabled()) {
       kickEmailOutboxDrain();

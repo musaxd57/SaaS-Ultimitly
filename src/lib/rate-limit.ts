@@ -5,6 +5,7 @@
 // DB is unreachable the endpoint still gets local protection instead of a 500
 // (fail-open only across instances, never fully open).
 
+import { isIP } from "node:net";
 import { prisma } from "@/lib/db";
 
 type Bucket = { count: number; resetAt: number };
@@ -171,6 +172,60 @@ export function clientIp(req: { headers: Headers }): string {
   // yani tüm per-IP limitleri fiilen kapanır. "unknown" ise herkesi tek kovaya
   // koyar: limit GEVŞER ama TAKLİT EDİLEMEZ — yön kuralı gereği güvenli taraf.
   return "unknown";
+}
+
+/**
+ * 🚨 HIZ SINIRI KOVASI İÇİN istemci kimliği (saldırgan gözüyle giriş turu, 09-23).
+ *
+ * `clientIp` TAM adresi döndürür ve kova anahtarı olarak IPv4'te doğrudur; IPv6'da
+ * DEĞİL: tek bir VPS/ev hattı standart olarak bir /64 alır (2^64 adres) ve her adres
+ * AYRI kova sayılıyordu → "IP başına N deneme" sınırı o saldırgan için fiilen YOKTU
+ * (parola püskürtme, sızıntı listesi deneme, e-posta bombası). /64 sektör standardıdır
+ * (tek abonenin en küçük ayrılmış bloğu); daha geniş gruplama (/56, /48) ilgisiz
+ * kullanıcıları — ör. bir şirket ağını — tek kovaya düşürürdü.
+ * ⚠️ YALNIZ KOVA ANAHTARI: kanıt/iz kayıtları (denetim `ip`, KVKK/ödeme onay kaydı) TAM
+ * adresi yazmaya devam eder (`clientIp`).
+ */
+export function rateLimitClientKey(req: { headers: Headers }): string {
+  return ipBucketKey(clientIp(req));
+}
+
+/** Saf: IPv4 aynen; IPv6 → "/64" öneki; IPv4-eşlemeli IPv6 → IPv4; başka her şey kısaltılmış hâliyle. */
+export function ipBucketKey(ip: string): string {
+  const raw = ip.trim();
+  const base = raw.split("%")[0]!; // bölge eki (fe80::1%eth0)
+  const kind = isIP(base);
+  if (kind === 4) return base;
+  // "unknown" ya da IP olmayan değer: aynen, ama kova tablosunu şişiremesin diye kısaltılmış.
+  if (kind !== 6) return raw.slice(0, 64);
+  const g = expandIpv6(base.toLowerCase());
+  if (!g) return raw.slice(0, 64);
+  // ::ffff:a.b.c.d — IPv4 istemcisinin IPv6 gösterimi. /64'e indirgenseydi TÜM IPv4
+  // istemcileri AYNI kovaya düşerdi (0:0:0:0::/64) — sınır meşru herkese kapanırdı.
+  if (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0xffff) {
+    return `${g[6]! >> 8}.${g[6]! & 255}.${g[7]! >> 8}.${g[7]! & 255}`;
+  }
+  return `${g.slice(0, 4).map((n) => n.toString(16)).join(":")}::/64`;
+}
+
+/** `isIP(...) === 6` doğrulanmış adresi 8 sayılık gruba açar (`::` ve sondaki gömülü IPv4 dahil). */
+function expandIpv6(addr: string): number[] | null {
+  let s = addr;
+  const lastColon = s.lastIndexOf(":");
+  const tail = s.slice(lastColon + 1);
+  if (tail.includes(".")) {
+    const o = tail.split(".").map(Number);
+    if (o.length !== 4 || o.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+    s = `${s.slice(0, lastColon + 1)}${((o[0]! << 8) | o[1]!).toString(16)}:${((o[2]! << 8) | o[3]!).toString(16)}`;
+  }
+  const halves = s.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
+  if (fill < 0 || head.length + rest.length + fill !== 8) return null;
+  const groups = [...head, ...Array<string>(fill).fill("0"), ...rest].map((h) => parseInt(h, 16));
+  return groups.every((n) => Number.isInteger(n) && n >= 0 && n <= 0xffff) ? groups : null;
 }
 
 /**

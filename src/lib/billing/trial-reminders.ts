@@ -73,7 +73,7 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
         select: {
           // The OWNER (role-filtered), not merely the oldest user — a staff-first
           // org would otherwise address the trial notice to a staff account.
-          users: { where: { role: "owner" }, orderBy: { createdAt: "asc" }, take: 1, select: { email: true, name: true } },
+          users: { where: { role: "owner" }, orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
         },
       },
     },
@@ -85,7 +85,6 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
     const owner = sub.organization.users[0];
     const to = owner?.email?.trim();
     if (!to) continue; // no recipient — skip without claiming so it can fire later
-    const ownerName = owner?.name?.trim() || "merhaba";
     const endsMs = endsAt.getTime();
 
     if (endsMs <= nowMs) {
@@ -100,7 +99,7 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       // Use sendReporting (not send) — send() swallows delivery failures and
       // returns void, so the old try/catch rollback was DEAD code: a failed mail
       // stayed stamped "sent" forever. Branch on the reported outcome instead.
-      const sent = await emailService.sendReporting(to, "Lixus AI — Ücretsiz denemeniz sona erdi", trialEndedEmail(ownerName, settingsUrl()));
+      const sent = await emailService.sendReporting(to, "Lixus AI — Ücretsiz denemeniz sona erdi", trialEndedEmail(settingsUrl()));
       if (sent.ok) {
         result.ended++;
       } else {
@@ -132,7 +131,7 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       const sent = await emailService.sendReporting(
         to,
         `Lixus AI — Pro denemeniz ${daysLeft <= 1 ? "yarın" : daysLeft + " gün sonra"} bitiyor`,
-        trialEndingSoonEmail(ownerName, daysLeft, settingsUrl()),
+        trialEndingSoonEmail(daysLeft, settingsUrl()),
       );
       if (sent.ok) {
         result.ending++;

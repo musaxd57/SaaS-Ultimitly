@@ -362,15 +362,19 @@ function ctaButton(href: string, label: string): string {
     </table>`;
 }
 
+// 🚨 DENEME E-POSTALARI KİŞİSELLEŞTİRİLMEZ (09-23 saldırgan turu). Ad kayıtta YAZILAN serbest
+// metindir: başkasının adresiyle kayıt olan biri o kişinin kutusuna Lixus imzalı ve "Merhaba
+// <kendi metni>" satırlı e-posta düşürtebiliyordu (doğrulama e-postasında kapatılan sınıfın
+// aynısı). Selamlama sabittir; adı geri eklemek bu açığı geri açar (test-pinli).
 /** "Your Pro trial ends in N days" — a few days before expiry. */
-export function trialEndingSoonEmail(ownerName: string, daysLeft: number, settingsUrl: string): string {
+export function trialEndingSoonEmail(daysLeft: number, settingsUrl: string): string {
   const gun = daysLeft <= 1 ? "yarın" : `${daysLeft} gün sonra`;
   const body = `
     <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
       Pro denemeniz ${gun} bitiyor
     </h2>
     <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
-      Merhaba ${esc(ownerName)},<br/><br/>
+      Merhaba,<br/><br/>
       14 günlük ücretsiz Pro denemeniz <strong>${gun}</strong> sona eriyor. Süre dolduğunda
       panelinizi kullanmaya devam edebilirsiniz; ancak <strong>otomatik misafir yanıtları</strong>
       (oto-yanıt, karşılama, giriş/çıkış mesajları ve QR concierge) <strong>kapanır</strong>.
@@ -387,13 +391,13 @@ export function trialEndingSoonEmail(ownerName: string, daysLeft: number, settin
 }
 
 /** "Your trial ended — automatic messaging is paused." */
-export function trialEndedEmail(ownerName: string, settingsUrl: string): string {
+export function trialEndedEmail(settingsUrl: string): string {
   const body = `
     <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
       Ücretsiz denemeniz sona erdi
     </h2>
     <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
-      Merhaba ${esc(ownerName)},<br/><br/>
+      Merhaba,<br/><br/>
       14 günlük Pro denemeniz doldu. Hesabınız açık — panelleri kullanmaya, mesajları
       görüntülemeye ve manuel yanıt vermeye devam edebilirsiniz. Ancak
       <strong>otomatik misafir yanıtları şu anda kapalı</strong>.
