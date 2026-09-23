@@ -1,5 +1,10 @@
 # Gerçek model eval'i — nasıl koşulur
 
+> 🚨 **09-23: OpenAI HESABININ KREDİSİ BİTMİŞ** (chat + embedding ikisi de `429 insufficient_quota`,
+> ölçüldü). Railway açılmadan ÖNCE kredi yüklenmeli — yoksa canlıda AI cevap üretemez (kalıcı arıza artık
+> tek alarm e-postası üretir, `ai/provider-health.ts`). Kredi yüklenince sıra: ① `npm run eval` (QR kapsam +
+> eşleştirilmiş retrieval, v2 dataset) ② **E4 embedding ölçümü** (↓) ③ model kıyası.
+
 > **09-11: BULUT KONTEYNERİNDE GERÇEK KOŞU BAŞARILI.** Ön koşul ↓`NODE_USE_ENV_PROXY=1`
 > (Node 22'nin fetch'i proxy'yi varsayılan olarak kullanmıyor). Sonuçlar: QR kapsam **8/8** ·
 > eşleştirilmiş retrieval **legacy 7/8 · hibrit 8/8** (ortalama blok 3578 → 740 karakter) ·
@@ -250,6 +255,14 @@ maliyet kazancı, host'un haberi olmadan giden yanlış bir cevabı telafi etmez
 ⚠️ **Gölge katmanı yarım kanıttır:** `src/lib/shadow-ai.ts` luna'yı Lale'de canlıda koşuyor ama
 YALNIZ güvenlik sınıflandırmasını kıyaslıyor; **cevap kalitesini ölçmüyor.** Model değişimi iki
 kanıt ister; ikincisi bu harness'tan gelir.
+
+## E4 — embedding ölçümü (09-23; `tests/eval/embedding-e4.eval.test.ts`)
+Aynı komut (`RUN_REAL_EVAL=1 npm run eval`, bulutta `NODE_USE_ENV_PROXY=1`) E4'ü de koşar: sentetik KB
+30/100/300 × ölçek + parafraz + negatif sorgular, gömme ÜRETİM istemcisinden (`embedTexts`), seçim ÜRETİM
+seçicisinden, beş eşik. ~643 metin / ~20k token → **< 0,1 sent**. Rapor `docs/olcum/eval-e4-<tarih>-<id>.md`
+(+ `.json`). Tek parti bile düşerse koşu GEÇERSİZ sayılır ve rapor YAZILMAZ (kısmi ölçüm sonuç değildir).
+E5 (üretime bağlama) ölçütü: parafraz inPrompt belirgin artmalı · ölçek %99'un altına inmemeli · negatifte
+blok şişmemeli; bağlama AYRI ONAY + E2 migration.
 
 ## Ne zaman gerekir
 - `QR_INFORMATIONAL_BAND_ENABLED` bayrağı **bu eval bitmeden AÇILMAZ** (kurucu kararı).
