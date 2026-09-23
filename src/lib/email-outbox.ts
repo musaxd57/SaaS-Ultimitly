@@ -312,16 +312,12 @@ export function accountExistsEmailHtml(): string {
 const CODE_FOOTNOTE =
   "Bu kod <strong>10 dakika</strong> geçerlidir. Birden fazla kod aldıysanız en son gönderilen geçerlidir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.";
 
-function renderIdentityEmail(
-  kind: EmailOutboxKind,
-  secret: string,
-  userName: string,
-): { subject: string; html: string } {
+function renderIdentityEmail(kind: EmailOutboxKind, secret: string): { subject: string; html: string } {
   switch (kind) {
     case "verify_email":
       return {
         subject: "Lixus AI — E-postanızı doğrulayın",
-        html: verifyEmailHtml(userName, verifyUrl(secret)),
+        html: verifyEmailHtml(verifyUrl(secret)),
       };
     case "pw_reset_challenge": {
       // ⚠️ BİLEŞİK SIR: "{token}.{code}". Outbox'ın tek-`secret` sözleşmesi
@@ -339,9 +335,8 @@ function renderIdentityEmail(
     case "pw_change_code":
       return { subject: "Lixus AI — Şifre değiştirme kodu", html: changeCodeEmailHtml(secret) };
     case "account_exists":
-      // ⚠️ `secret` KULLANILMAZ (bu türün sırrı yoktur) ve `userName` de
-      // KULLANILMAZ (↑kişiselleştirme yasağı). İmza ortak olduğu için ikisi de
-      // parametre listesinde durur.
+      // ⚠️ `secret` KULLANILMAZ (bu türün sırrı yoktur). Kişiselleştirme YOK — 09-23'ten
+      // beri HİÇBİR kimlik e-postası kullanıcı adını taşımaz (`verifyEmailHtml` notu).
       return {
         subject: "Lixus AI — Bu adresle zaten bir hesap var",
         html: accountExistsEmailHtml(),
@@ -577,7 +572,7 @@ async function processClaimedRow(
     return;
   }
 
-  const { subject, html } = renderIdentityEmail(row.kind as EmailOutboxKind, payload.secret, gate.name ?? "");
+  const { subject, html } = renderIdentityEmail(row.kind as EmailOutboxKind, payload.secret);
   const outcome = await send(payload.recipient, subject, html);
 
   if (outcome.ok) {
@@ -647,17 +642,35 @@ async function processClaimedRow(
 }
 
 /**
- * Recovery + retention sweep (the 2-min scheduled sync). Recovery runs through
- * the SAME currency gate (a crash can't resurrect a superseded generation), but
- * SPLITS on the status it found: `claimed` = never reached the provider →
- * requeue free of charge; `sending` = ambiguous provider attempt → costs an
- * attempt and takes backoff. Retention: sent rows after 7 days, canceled/failed
- * after 30 (payloadEnc is already NULL by then).
+ * Recovery + retention sweep. Recovery runs through the SAME currency gate (a
+ * crash can't resurrect a superseded generation), but SPLITS on the status it
+ * found: `claimed` = never reached the provider → requeue free of charge;
+ * `sending` = ambiguous provider attempt → costs an attempt and takes backoff.
+ * Retention: sent rows after 7 days, canceled/failed after 30 (payloadEnc is
+ * already NULL by then).
+ *
+ * 🚨 İKİ PARÇA AYRI ÇAĞRILIR (09-23, yapısal ajan): bu fonksiyon tek parça hâlde
+ * senkronun SAATLİK derin bloğundaydı, oysa yorumu ve `scheduled-sync`teki çağrı
+ * yorumu "2 dakikalık kurtarma ağı" diyordu. 15 sn'lik poller YALNIZ drain eder,
+ * kurtarma YAPMAZ → gönderim sırasında süreç düşerse (Railway deploy'u tam budur)
+ * `claimed` satır bir saate kadar askıda kalıyor ve kısa ömürlü bir parola sıfırlama
+ * kodu kullanıcıya hiç ulaşmadan süresi doluyordu. Artık `recoverEmailOutbox` her
+ * geçişte, `purgeEmailOutbox` (silme) derin blokta koşar; bu fonksiyon ikisinin
+ * birleşimi olarak (testler ve geriye uyumluluk için) kalır.
  */
 export async function sweepEmailOutbox(
   now: Date = new Date(),
 ): Promise<{ recovered: number; canceled: number; failed: number; deleted: number }> {
-  const out = { recovered: 0, canceled: 0, failed: 0, deleted: 0 };
+  const recovered = await recoverEmailOutbox(now);
+  const purged = await purgeEmailOutbox(now);
+  return { ...recovered, deleted: purged.deleted };
+}
+
+/** Süresi dolmuş sahiplenmeleri kurtar (her senkron geçişinde). Bayrak kapalıyken no-op. */
+export async function recoverEmailOutbox(
+  now: Date = new Date(),
+): Promise<{ recovered: number; canceled: number; failed: number }> {
+  const out = { recovered: 0, canceled: 0, failed: 0 };
   if (!emailOutboxEnabled()) return out;
 
   const stuck = await prisma.emailOutbox.findMany({
@@ -732,13 +745,17 @@ export async function sweepEmailOutbox(
       }
     });
   }
+  return out;
+}
 
+/** Saklama süresi dolmuş terminal satırları sil (saatlik derin blok). Bayrak kapalıyken no-op. */
+export async function purgeEmailOutbox(now: Date = new Date()): Promise<{ deleted: number }> {
+  if (!emailOutboxEnabled()) return { deleted: 0 };
   const oldSent = await prisma.emailOutbox.deleteMany({
     where: { status: "sent", sentAt: { lt: new Date(now.getTime() - SENT_RETENTION_MS) } },
   });
   const oldTerminal = await prisma.emailOutbox.deleteMany({
     where: { status: { in: ["canceled", "failed"] }, updatedAt: { lt: new Date(now.getTime() - TERMINAL_RETENTION_MS) } },
   });
-  out.deleted = oldSent.count + oldTerminal.count;
-  return out;
+  return { deleted: oldSent.count + oldTerminal.count };
 }

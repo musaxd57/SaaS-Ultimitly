@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
 import { reportError, redactSensitive } from "@/lib/report-error";
+import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
 import {
   getPaddleWebhookSecret,
   verifyPaddleSignature,
@@ -443,9 +444,11 @@ export async function POST(req: NextRequest) {
     // yeniden dener) EKSİK anahtardan daha iyi davranıyordu.
     // 200 KORUNUYOR (bkz. "DORMANT" testi: anahtarsız kurulumda rota sessizce
     // kapalı olmalı, 5xx sel açar) — eklenen tek şey GÖRÜNÜRLÜK.
-    // `reportError` kendi 10 dakikalık throttle'ını uygular, yani sağlıklı bir
-    // dormant kurulumda bile spam olmaz.
-    void reportError(
+    // 🚨 GEÇİŞ TABANLI (09-23): eskiden `reportError`ın bellek-içi 10 dk kısıtına
+    // güveniyordu — kalıcı bir yapılandırma hatasında olay başına (günde onlarca) e-posta.
+    // Artık bir kez + 24 saatte bir hatırlatma; ilk DOĞRULANMIŞ olay durumu temizler.
+    await alertOnTransition(
+      "paddle-webhook:dormant",
       "paddle-webhook-dormant",
       new Error("PADDLE_WEBHOOK_SECRET yok — gelen Paddle olayı ACK'lenip ATILDI"),
     );
@@ -483,14 +486,23 @@ export async function POST(req: NextRequest) {
     // (dormant dalı da aynı taviz üzerine kurulu).
     //
     // ⚠️ GÖVDE ALARMA GİRMEZ: ham payload müşteri adı/e-postası/adresi taşır.
+    // 🚨 GEÇİŞ TABANLI (09-23): kimliksiz bir saldırgan şekli doğru başlıklarla bu dalı
+    // istediği kadar tetikleyebiliyordu ve tek fren `reportError`ın bellek-içi 10 dk
+    // kısıtıydı (günde ~144 e-posta, her yeniden başlatmada sıfırlanır). Artık durum
+    // DB'de: bir kez + 24 saatte bir hatırlatma; ilk DOĞRULANMIŞ olay temizler.
     if (looksLikePaddleDelivery(signatureHeader)) {
-      void reportError(
+      await alertOnTransition(
+        "paddle-webhook:signature-mismatch",
         "paddle-webhook-signature-mismatch",
         new Error("Paddle imzası doğrulanmadı — webhook anahtarı yanlış/rotasyona uğramış olabilir"),
       );
     }
     return unauthorized();
   }
+  // İmza DOĞRULANDI → yapılandırma sağlam: iki yapılandırma alarmının durumu temizlenir
+  // (bir sonraki bozulma yeniden ve HEMEN bildirilsin). Asla fırlatmaz.
+  await clearAlertState("paddle-webhook:signature-mismatch");
+  await clearAlertState("paddle-webhook:dormant");
 
   let event: PaddleEvent | null = null;
   try {

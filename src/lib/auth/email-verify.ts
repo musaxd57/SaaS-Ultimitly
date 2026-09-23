@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "crypto";
 import { appCanonicalOrigin, canonicalHosts } from "@/lib/app-config";
-import { identityEmailShell, escapeHtml, plainLinkFallback } from "@/lib/email-shell";
+import { identityEmailShell, plainLinkFallback } from "@/lib/email-shell";
 
 // ---------------------------------------------------------------------------
 // E-mail verification for self-serve sign-ups (anti-bot / valid-inbox check).
@@ -163,10 +163,19 @@ export function verifyUrl(rawToken: string): string {
   return `${appBaseUrl()}/e-posta-dogrula#t=${encodeURIComponent(rawToken)}`;
 }
 
-export function verifyEmailHtml(name: string, url: string): string {
+/**
+ * 🚨 KİŞİSELLEŞTİRME YOK (09-23, güvenlik ajanı): bu e-posta KİMLİKSİZ bir istekle
+ * (kayıt / yeniden gönder) HERHANGİ bir adrese gönderilebilir ve eskiden kayıtta yazılan
+ * AD selamlamaya kalın basılıyordu. HTML kaçışlı olduğu için XSS değildi ama İÇERİK
+ * ENJEKSİYONUYDU: saldırgan kurbanın adresiyle kayıt olup ad alanına "Hesabınız askıya
+ * alındı, 0850… arayın" yazınca kurbana `noreply@lixusai.com`dan, gerçek bir doğrulama
+ * bağlantısının yanında o metin gidiyordu. `account_exists` e-postası aynı gerekçeyle
+ * zaten kişiselleştirilmiyordu; bu ikisi artık aynı kuralda.
+ */
+export function verifyEmailHtml(url: string): string {
   return identityEmailShell({
     heading: "E-postanızı doğrulayın",
-    intro: `Merhaba <strong style="color:#0f172a">${escapeHtml(name)}</strong>, Lixus AI hesabınız oluşturuldu. Doğrulamayı tamamlamak için aşağıdaki butona tıklayın ve <strong style="color:#0f172a">kayıt olurken belirlediğiniz şifreyi</strong> girin.`,
+    intro: `Merhaba, Lixus AI hesabınız oluşturuldu. Doğrulamayı tamamlamak için aşağıdaki butona tıklayın ve <strong style="color:#0f172a">kayıt olurken belirlediğiniz şifreyi</strong> girin.`,
     action: { label: "E-postamı doğrula", url },
     footnote: `${plainLinkFallback(url)}<br><br>Bu bağlantı <strong>24 saat</strong> geçerlidir. Bu hesabı siz oluşturmadıysanız bu e-postayı yok sayabilirsiniz: doğrulama şifre olmadan tamamlanamaz, yani sizin adresinizle açılmış bir hesap doğrulanmadan kullanılamaz.`,
   });

@@ -17,6 +17,7 @@ import {
 // event). Kimlik kilidi ve test kancası oradan re-export — mevcut çağıranlar için.
 export { acquireConversationIdentityLock, __importThreadHooks };
 import { reportError, redactSensitive } from "@/lib/report-error";
+import { alertTracker } from "@/lib/alert-state";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { recordSupplyRequestFromMessage, sweepMissedSupplyDerivations } from "@/lib/supply";
 import { billingEnforced, getEntitlement, isFounderOrg } from "@/lib/billing/subscription";
@@ -229,13 +230,14 @@ export async function syncHospitable(
   // ONCE per org (reportError → Sentry/alert email) so the host gets told to
   // reconnect — instead of the sync dying silently and new guest messages never
   // importing again. Non-auth per-record errors stay best-effort console logs.
-  let authFailureReported = false;
+  // Alarm koşu SONUNDA, diğer toplulaştırılmış alarmlarla birlikte ve geçiş tabanlı
+  // (↓`opsAlarm`): kalıcı bir 401 artık 2 dakikada bir değil, bir kez bildirilir.
+  let firstAuthError: unknown = null;
   const noteHospitableError = (context: string, err: unknown) => {
     // Sarmaldan bağımsız okuma TEK yerde (`provider-errors`; 09-23 olayı, sınıf pinli).
     const status = providerErrorStatus(err);
-    if ((status === 401 || status === 403) && !authFailureReported) {
-      authFailureReported = true;
-      void reportError(`hospitable-auth org:${organizationId}`, err);
+    if ((status === 401 || status === 403) && firstAuthError === null) {
+      firstAuthError = err;
     } else {
       // ⚠️ 401/403 DIŞINDAKİ HER ŞEY (404, 429, 5xx, ağ) buraya düşüyor ve
       // `console.error` Sentry'ye de uyarı e-postasına da GİTMEZ. Çağıranlar
@@ -532,63 +534,82 @@ export async function syncHospitable(
     }
   }
 
+  // 🚨 GEÇİŞ TABANLI (09-23 olayının sınıf düzeltmesi): bu toplulaştırılmış alarmların
+  // hepsi 2 dakikalık döngüde HER koşuda yeniden ateşleniyordu; kalıcı bir durum (ör. hiç
+  // yazılamayan bir rezervasyon, kalıcı bir P2002, iptal edilmiş token) `reportError`ın
+  // 10 dakikalık bellek-içi kısıtıyla günde ~130 e-posta demekti. Artık her tür için
+  // durum DEĞİŞİNCE bir kez + 24 saatte bir hatırlatma; sayaç sıfıra inince temizlenir.
+  // Konu başlıkları DEĞİŞMEDİ; sayı hâlâ MESAJDA, context'te değil (↓eski dersler).
+  const opsAlarm = await alertTracker(`hospitable-sync:${organizationId}:`);
+  const aggregate = async (kind: string, context: string, failed: boolean, err: () => unknown) => {
+    if (failed) await opsAlarm.fail(kind, context, err());
+    else await opsAlarm.ok(kind);
+  };
+  // A revoked/expired token makes EVERY per-listing call 401/403 → reconnect gerekir.
+  await aggregate("auth", `hospitable-auth org:${organizationId}`, firstAuthError !== null, () => firstAuthError);
   // Supply-derivation visibility + self-heal (Codex 07-24 #5). Before this, a
   // transient failure after the message committed was PERMANENT silent loss:
   // the next sync deduped the message by externalId and never re-emitted the
   // job. One aggregate alert per run (first sample + count — PII-free, the
   // error text is scrubbed inside reportError)…
-  if (supplyFailures > 0) {
-    void reportError(
-      `supply-derivation org:${organizationId}`, // sayı context'te DEĞİL (↓throttle)
+  await aggregate(
+    "supply-derivation",
+    `supply-derivation org:${organizationId}`, // sayı context'te DEĞİL (↓throttle)
+    supplyFailures > 0,
+    () =>
       new Error(
         `${supplyFailures} supply derivation(s) failed; first: ${
           firstSupplyError instanceof Error ? firstSupplyError.message : String(firstSupplyError)
         }`,
       ),
-    );
-  }
+  );
   // Mesaj içe aktarımı SUPPLY'DAN DAHA KRİTİK: supply bir yardımcı özellik,
   // bu ise ürünün girdisi. Aynı aggregate deseni, ayrı sayaç.
-  if (fetchFailures > 0) {
-    void reportError(
-      `hospitable-fetch org:${organizationId}`, // sayı context'te DEĞİL (throttle)
+  await aggregate(
+    "fetch",
+    `hospitable-fetch org:${organizationId}`, // sayı context'te DEĞİL (throttle)
+    fetchFailures > 0,
+    () =>
       new Error(
         `${fetchFailures} Hospitable fetch(es) failed — those apartments/threads imported NOTHING this run; first: ${
           firstFetchError instanceof Error ? firstFetchError.message : String(firstFetchError)
         }`,
       ),
-    );
-  }
-  if (linkFailures > 0) {
-    void reportError(
-      `property-link org:${organizationId}`,
+  );
+  await aggregate(
+    "property-link",
+    `property-link org:${organizationId}`,
+    linkFailures > 0,
+    () =>
       new Error(
         `${linkFailures} listing link(s) failed — those apartments imported NOTHING this run; first: ${
           firstLinkError instanceof Error ? firstLinkError.message : String(firstLinkError)
         }`,
       ),
-    );
-  }
-  if (result.reservationsUnwritable > 0) {
-    // ⚠️ SAYI CONTEXT'E GİRMEZ: `reportError` e-posta throttle'ını CONTEXT
-    // string'iyle anahtarlıyor; sayı her koşuda değişirse her koşu YENİ anahtar
-    // olur ve 10 dakikalık koruma fiilen kalkar (kardeş alarmların dersi).
-    void reportError(
-      `reservation-unwritable org:${organizationId}`,
+  );
+  // ⚠️ SAYI CONTEXT'E GİRMEZ: `reportError` e-posta throttle'ını CONTEXT
+  // string'iyle anahtarlıyor; sayı her koşuda değişirse her koşu YENİ anahtar
+  // olur ve 10 dakikalık koruma fiilen kalkar (kardeş alarmların dersi).
+  await aggregate(
+    "reservation-unwritable",
+    `reservation-unwritable org:${organizationId}`,
+    result.reservationsUnwritable > 0,
+    () =>
       new Error(
         `${result.reservationsUnwritable} reservation(s) had no writable local row — ` +
           `their threads carry NO stay context (calendar/occupancy/lifecycle blind); ` +
           `first: ${firstUnwritableReason ?? "unknown"}`,
       ),
-    );
-  }
-  if (result.messagesUnimportable > 0) {
-    // ⚠️ SAYI CONTEXT'E GİRMEZ (kardeşinin dersi): `reportError` e-posta
-    // throttle'ını CONTEXT string'iyle anahtarlıyor; sayı her koşuda değişirse
-    // 10 dakikalık koruma fiilen kalkar ve 2 dakikalık cron her geçişte
-    // bildirim üretir.
-    void reportError(
-      `message-unimportable org:${organizationId}`,
+  );
+  // ⚠️ SAYI CONTEXT'E GİRMEZ (kardeşinin dersi): `reportError` e-posta
+  // throttle'ını CONTEXT string'iyle anahtarlıyor; sayı her koşuda değişirse
+  // 10 dakikalık koruma fiilen kalkar ve 2 dakikalık cron her geçişte
+  // bildirim üretir.
+  await aggregate(
+    "message-unimportable",
+    `message-unimportable org:${organizationId}`,
+    result.messagesUnimportable > 0,
+    () =>
       new Error(
         `${result.messagesUnimportable} provider message(s) had an id but NO text body — ` +
           `skipped and NEVER re-evaluated (the sync cursor still advances). If a guest ` +
@@ -596,36 +617,33 @@ export async function syncHospitable(
           `Behaviour unchanged on purpose — this counter exists to decide with DATA whether ` +
           `to import a placeholder row (see SyncResult.messagesUnimportable).`,
       ),
-    );
-  }
-  if (reservationUpsertFailures > 0) {
-    void reportError(
-      `reservation-upsert org:${organizationId}`,
+  );
+  await aggregate(
+    "reservation-upsert",
+    `reservation-upsert org:${organizationId}`,
+    reservationUpsertFailures > 0,
+    () =>
       new Error(
         `${reservationUpsertFailures} reservation upsert(s) failed; first: ${
-          firstReservationError instanceof Error
-            ? firstReservationError.message
-            : String(firstReservationError)
+          firstReservationError instanceof Error ? firstReservationError.message : String(firstReservationError)
         }`,
       ),
-    );
-  }
-  if (threadImportFailures > 0) {
-    // ⚠️ SAYI CONTEXT'E GİRMEZ: `reportError` e-posta throttle'ını CONTEXT
-    // string'iyle anahtarlıyor. Sayı her koşuda değiştiği için (5, sonra 6…)
-    // her koşu YENİ bir anahtar olur ve 10 dakikalık koruma fiilen kalkar;
-    // Sentry tarafında da tek arıza N ayrı Issue'ya bölünür. Sayı MESAJDA.
-    void reportError(
-      `thread-import org:${organizationId}`,
+  );
+  // ⚠️ SAYI CONTEXT'E GİRMEZ: `reportError` e-posta throttle'ını CONTEXT
+  // string'iyle anahtarlıyor. Sayı her koşuda değiştiği için (5, sonra 6…)
+  // her koşu YENİ bir anahtar olur ve 10 dakikalık koruma fiilen kalkar;
+  // Sentry tarafında da tek arıza N ayrı Issue'ya bölünür. Sayı MESAJDA.
+  await aggregate(
+    "thread-import",
+    `thread-import org:${organizationId}`,
+    threadImportFailures > 0,
+    () =>
       new Error(
         `${threadImportFailures} thread import(s) failed; first: ${
-          firstThreadImportError instanceof Error
-            ? firstThreadImportError.message
-            : String(firstThreadImportError)
+          firstThreadImportError instanceof Error ? firstThreadImportError.message : String(firstThreadImportError)
         }`,
       ),
-    );
-  }
+  );
   // …and an idempotent sweep over the recent window re-derives whatever was
   // missed (dedupe on [sourceMessageId,itemKey] makes re-runs no-ops), so the
   // loss heals on the next cycle. Best-effort: never fails the sync itself.

@@ -568,6 +568,56 @@ describe("registration → verification → login", () => {
     expect(html).toContain("https://www.lixusai.com/e-posta-dogrula#t=");
   });
 
+  it("🚨 İÇERİK ENJEKSİYONU (09-23): doğrulama e-postası kayıtta yazılan ADI taşımaz", async () => {
+    // Kimliksiz yol: saldırgan kurbanın adresiyle kayıt olur, ad alanına kendi metnini yazar;
+    // eskiden o metin `noreply@lixusai.com`dan, gerçek bir doğrulama bağlantısının yanında
+    // kalın puntoyla kurbana gidiyordu.
+    const bait = "Hesabiniz askiya alindi 0850 000 00 00 arayin";
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: bait,
+        email: "victim@x.com",
+        passwordHash: await hashPassword("secret123"),
+        role: "owner",
+        createdAt: AFTER,
+        emailVerifiedAt: null,
+      },
+    });
+    const res = await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "victim@x.com" }));
+    expect(res.status).toBe(200);
+    expect(mockSendReporting).toHaveBeenCalledOnce();
+    const html = String(mockSendReporting.mock.calls[0][2]);
+    expect(html).toContain("https://www.lixusai.com/e-posta-dogrula#t="); // anti-vakum: gerçek doğrulama e-postası
+    expect(html).not.toContain("askiya");
+    expect(html).not.toContain("0850");
+  });
+
+  it("🚨 E-POSTA BOMBASI (09-23): aynı adrese 24 saatte en fazla 6 doğrulama e-postası (15 dk'lık kovalar dolsa da)", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "Ada",
+        email: "bomb@x.com",
+        passwordHash: await hashPassword("secret123"),
+        role: "owner",
+        createdAt: AFTER,
+        emailVerifiedAt: null,
+      },
+    });
+    for (let i = 0; i < 10; i++) {
+      await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "bomb@x.com" }));
+      // Zamanın geçmesini taklit et: YALNIZ 15 dakikalık kovalar (IP + hesap) boşalır;
+      // saldırganın IP döndürmesi de tam olarak IP kovasını boşaltır.
+      await prisma.$executeRaw`
+        UPDATE "RateLimitCounter" SET "resetAt" = (now() AT TIME ZONE 'utc') - interval '1 minute'
+        WHERE "key" LIKE 'verify-resend:%' OR "key" LIKE 'verify-resend-acct:%'`;
+    }
+    expect(mockSendReporting).toHaveBeenCalledTimes(6);
+  });
+
   it("a NEW (post-cutoff) unverified account is BLOCKED from login (403), then allowed once verified", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
     await prisma.user.create({

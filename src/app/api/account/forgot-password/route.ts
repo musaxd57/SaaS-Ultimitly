@@ -1,7 +1,16 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
-import { badRequest, jsonOk, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
+import {
+  badRequest,
+  jsonOk,
+  serverError,
+  tooManyRequests,
+  parseJsonBody,
+  payloadTooLarge,
+  hasJsonContentType,
+  unsupportedMediaType,
+} from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import {
@@ -64,6 +73,11 @@ const GENERIC_CONFIRM =
   "Bu kod artık kullanılamıyor. Süresi dolmuş veya daha yeni bir kod oluşturulmuş olabilir. “Kodu tekrar gönder” ile yeni bir kod isteyin.";
 
 export async function POST(req: NextRequest) {
+  // 🚨 JSON KONTROLÜ IP KOVASINDAN ÖNCE (09-23; `login` rotasının F8 emsali, gerekçe
+  // `hasJsonContentType`te): başka bir site ziyaretçinin tarayıcısından `text/plain`
+  // POST'larla (preflight YOK) bir ofis/mobil NAT'ının kovasını yakıp orayı bu akıştan
+  // dakikalarca dışarıda bırakabiliyordu. Kendi formlarımız hep `application/json` yollar.
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
   // Per-IP cap over the whole flow (enumeration / code-spray defense).
   const ipLimit = await rateLimit(`forgot:${clientIp(req)}`, 12, 15 * 60_000);
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);

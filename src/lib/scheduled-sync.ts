@@ -6,7 +6,7 @@ import { syncHospitable } from "@/lib/hospitable-sync";
 import { isPrimaryOrg } from "@/lib/hospitable-credentials";
 import { backfillChannelConnections } from "@/lib/channels/connections";
 import { isChannelSubscriptionInactive } from "@/lib/provider-errors";
-import { reportError } from "@/lib/report-error";
+import { alertTracker, sweepStaleAlertStates } from "@/lib/alert-state";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads, retentionCutoff } from "@/lib/data-retention";
@@ -14,7 +14,7 @@ import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence
 import { sweepUnverifiedRegistrations } from "@/lib/unverified-sweep";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
 import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challenge";
-import { drainEmailOutboxOnce, sweepEmailOutbox } from "@/lib/email-outbox";
+import { drainEmailOutboxOnce, purgeEmailOutbox, recoverEmailOutbox } from "@/lib/email-outbox";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
 import { drainStorageDeletions, hasPendingStorageDeletions } from "@/lib/storage/deletion-queue";
@@ -254,6 +254,14 @@ export async function withSyncLock<T>(fn: () => Promise<T>): Promise<T | { locke
 }
 
 export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
+  // 🚨 GEÇİŞ TABANLI ALARM (09-23 olayının SINIF düzeltmesi): bu dosyadaki HER alarm bu
+  // izleyiciden geçer. `reportError`ın kısıtı süreç belleğinde, context başına 10 dk'dır;
+  // 2 dakikalık döngüde KALICI bir arıza (Hospitable kesintisi, env token'ına kalıcı 401,
+  // deterministik bir DB hatası) bu yüzden günde ~130 e-posta üretiyordu. Artık durum
+  // DEĞİŞTİĞİNDE bir kez + 24 saatte bir hatırlatma; aşama başarılı olunca durum temizlenir.
+  // E-posta KONULARI değişmedi (kurucu aynı başlıkları tanır).
+  const opsAlarm = await alertTracker("scheduled-sync:");
+
   // V0.3 EXPAND — idempotent backfill of ChannelConnection rows for orgs that were
   // connected before migration 49 (dual-write keeps everyone else current). Cheap
   // (indexed "no connection row yet" query, normally 0 rows); a failure is reported,
@@ -261,8 +269,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
   try {
     const { created } = await backfillChannelConnections();
     if (created > 0) console.log(`[scheduled-sync] channel-connection backfill: ${created} row(s) created`);
+    await opsAlarm.ok("channel-connection-backfill");
   } catch (err) {
-    void reportError("channel-connection-backfill", err);
+    void opsAlarm.fail("channel-connection-backfill", "channel-connection-backfill", err);
   }
   // Multi-tenant: no global token gate here. Each org self-gates on ITS OWN
   // Hospitable connection (syncHospitable + the automation senders return early
@@ -295,8 +304,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
             AND "totalAmount" NOT IN ('NaN'::float8, 'Infinity'::float8, '-Infinity'::float8)
             AND abs("totalAmount") < 1e10`;
         if (healed > 0) console.log(`[scheduled-sync] amount shadow healed: ${healed}`);
+        await opsAlarm.ok("amount-heal");
       } catch (err) {
-        await reportError("scheduled-sync amount-heal", err);
+        await opsAlarm.fail("amount-heal", "scheduled-sync amount-heal", err);
       }
 
       // BOŞTA ORG'U ATLA. Döngünün yaptığı her iş (konuşma, rezervasyon, uyarı,
@@ -435,9 +445,13 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           break;
         }
         const orgStartedAt = Date.now();
-        // Bir org'un hatası diğerlerini durdurmaz. AYNI gövde iki try'da da
-        // kullanılıyor (senkron + otomasyon), o yüzden tek yerde duruyor.
-        const handleOrgError = async (err: unknown) => {
+        // Alarm durumu AŞAMA başınadır (senkron düzelirken otomasyon hâlâ düşüyor olabilir;
+        // tek anahtar olsaydı birinin başarısı ötekinin alarmını silerdi). E-posta konusu
+        // dört aşamada da AYNI kalır.
+        const orgKey = (stage: string) => `org:${org.id}:${stage}`;
+        // Bir org'un hatası diğerlerini durdurmaz. AYNI gövde dört try'da da
+        // kullanılıyor (senkron, uyarı, otomasyon, takvim), o yüzden tek yerde duruyor.
+        const handleOrgError = async (stage: string, err: unknown) => {
           // A Hospitable 402 ("Subscription not active") means THIS org's Hospitable
           // billing lapsed — an expected external state, not a Lixus bug — so log it
           // but DON'T alert-email every cycle, which would flood the inbox until they renew.
@@ -445,10 +459,13 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // ingest adaptörüne taşıdı ve adaptör hatayı `IngestError`a SARIYOR → dal
           // 09-08'den beri ÖLÜYDÜ, kurucuya her geçişte "sistem hatası" e-postası gitti.
           // Okuma artık sarmaldan bağımsız TEK yerden (`provider-errors`, sınıf pinli).
+          // Bilinen bir dış durumdur, alarm hâli DEĞİL → aşamanın alarm durumu da temizlenir
+          // (abonelik yenilendikten sonra gelen gerçek bir kesinti yeniden bildirilsin).
           if (isChannelSubscriptionInactive(err)) {
             console.warn(`[scheduled-sync] org ${org.id}: Hospitable subscription not active (skipped)`);
+            await opsAlarm.ok(orgKey(stage));
           } else {
-            await reportError(`scheduled-sync org ${org.id}`, err);
+            await opsAlarm.fail(orgKey(stage), `scheduled-sync org ${org.id}`, err);
           }
         };
 
@@ -466,13 +483,18 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // `IngestError` of kind `blocked` — skipping this line). So
           // atomically requeue any outbox rows parked as `blocked` (subscription-not-active) →
           // `pending`, to be retried exactly ONCE by the drain at the end of this run. Tenant-
-          // scoped + idempotent; a no-op when nothing is blocked. Best-effort — never aborts.
-          await reactivateBlockedOutbox(org.id).catch((err) =>
-            reportError(`scheduled-sync reactivate-blocked ${org.id}`, err),
-          );
+          // scoped + idempotent; a no-op when nothing is blocked. Best-effort — never aborts
+          // (kendi try'ı: hatası senkronu "başarısız" SAYDIRMAZ).
+          try {
+            await reactivateBlockedOutbox(org.id);
+            await opsAlarm.ok(orgKey("reactivate-blocked"));
+          } catch (err) {
+            await opsAlarm.fail(orgKey("reactivate-blocked"), `scheduled-sync reactivate-blocked ${org.id}`, err);
+          }
           syncOk = true;
+          await opsAlarm.ok(orgKey("sync"));
         } catch (err) {
-          await handleOrgError(err);
+          await handleOrgError("sync", err);
         }
 
         // ŞİKAYET UYARISI SÜRE BÜTÇESİNDEN MUAF (denetim düzeltmesi).
@@ -502,8 +524,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         try {
           const alert = await sendDueAlerts(org.id);
           totals.alerts += alert.alerted;
+          await opsAlarm.ok(orgKey("complaint-alerts"));
         } catch (err) {
-          await handleOrgError(err);
+          await handleOrgError("complaint-alerts", err);
         }
 
         // Senkron patladıysa otomasyon koşmaz (eski davranış birebir): mesajlar
@@ -536,8 +559,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
               totals.welcomes += welcome.sent;
               totals.checkins += checkin.sent;
               totals.checkouts += checkout.sent;
+              await opsAlarm.ok(orgKey("automation"));
             } catch (err) {
-              await handleOrgError(err);
+              await handleOrgError("automation", err);
             }
           }
         }
@@ -580,10 +604,11 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
             icalUpdated += ical.updated;
             icalFailed += ical.failed;
             icalDeferred += ical.deferred;
+            await opsAlarm.ok(orgKey("ical"));
           } catch (err) {
             // `syncDueCalendarSourcesForOrg` sözleşme gereği fırlatmaz; yine de
             // bir org'un takvimi diğerlerinin geçişini düşüremez.
-            await handleOrgError(err);
+            await handleOrgError("ical", err);
           }
           icalSpentMs += Date.now() - icalStartedAt;
         } else {
@@ -602,8 +627,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // karşılama/takvim) asla bloklamaz. Hospitable'ı olmayan org da buraya gelir (busy = mülkü var).
         try {
           await runIntelligencePass(org.id);
+          await opsAlarm.ok(orgKey("intelligence"));
         } catch (err) {
-          await reportError(`intelligence-pass org:${org.id}`, err);
+          await opsAlarm.fail(orgKey("intelligence"), `intelligence-pass org:${org.id}`, err);
         }
       }
       if (icalSources > 0 || icalDeferred > 0 || icalOrgsDeferred > 0) {
@@ -632,13 +658,16 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // olması gereken sinyaldir. Org sayısı ve PII taşımaz.
       if (lockLost) {
         totals.lockLost = true;
-        await reportError(
+        await opsAlarm.fail(
+          "lock-lost",
           "scheduled-sync lock-lost",
           new Error(
             "Kilit yenilenemedi (TTL aşıldı ya da başka bir replika devraldı) — geçiş erken kesildi. " +
               `Toplam org: ${orgs.length}.`,
           ),
         );
+      } else {
+        await opsAlarm.ok("lock-lost");
       }
 
       // Durable Outbox drain. The flag ONLY gates NEW enqueues — the worker must
@@ -651,8 +680,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         try {
           const drained = await drainOutboxOnce();
           if (drained.claimed > 0) console.log(`[scheduled-sync] outbox: ${JSON.stringify(drained)}`);
+          await opsAlarm.ok("outbox-drain");
         } catch (err) {
-          await reportError("scheduled-sync outbox-drain", err);
+          await opsAlarm.fail("outbox-drain", "scheduled-sync outbox-drain", err);
         }
       }
 
@@ -667,47 +697,55 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
             console.log(`[scheduled-sync] storage-deletions: ${JSON.stringify(r)}`);
           }
         }
+        await opsAlarm.ok("storage-deletions");
       } catch (err) {
-        await reportError("scheduled-sync storage-deletions", err);
+        await opsAlarm.fail("storage-deletions", "scheduled-sync storage-deletions", err);
+      }
+
+      // Kimlik e-postası KURTARMASI — HER geçişte (09-23; eskiden yalnız saatlik derin
+      // blokta koşuyordu, ↓ve `recoverEmailOutbox` yorumu). 15 sn'lik poller yalnız drain
+      // eder; gönderim ortasında düşen sürecin `claimed` satırını YALNIZ bu geri kazanır.
+      // Drain de burada: yalnız harici cron'la çalışan kurulumlar da gecikmesiz teslim eder.
+      // Bayrak kapalıyken ikisi de sorgusuz no-op.
+      try {
+        await recoverEmailOutbox();
+        await drainEmailOutboxOnce();
+        await opsAlarm.ok("email-outbox");
+      } catch (err) {
+        await opsAlarm.fail("email-outbox", "scheduled-sync email-outbox", err);
       }
 
       // KVKK retention sweep — anonymize guest PII for long-past stays. No-op
       // unless DATA_RETENTION_MONTHS is set; runs at most once per deep window so
       // it never burdens the frequent narrow passes. Best-effort, never aborts.
       if (deep) {
-        try {
-          await anonymizeOldGuestData();
-        } catch (err) {
-          await reportError("scheduled-sync retention", err);
-        }
+        // Saatlik işler. Alarm anahtarı işin adı, e-posta konusu ESKİ başlık (değişmedi);
+        // geçiş tabanlı olduğu için kalıcı bir arıza saatte bir değil, bir kez bildirilir.
+        const hourly = async (key: string, context: string, fn: () => Promise<unknown>) => {
+          try {
+            await fn();
+            await opsAlarm.ok(key);
+          } catch (err) {
+            await opsAlarm.fail(key, context, err);
+          }
+        };
+        await hourly("retention", "scheduled-sync retention", () => anonymizeOldGuestData());
         // V1: misafir mesajından türeyen sinyaller aynı saklama süresine tabi (değişmez 14).
-        try {
+        await hourly("signal-retention", "scheduled-sync signal retention", async () => {
           const cutoff = retentionCutoff();
           if (cutoff) await purgeExpiredSignals(cutoff);
-        } catch (err) {
-          await reportError("scheduled-sync signal retention", err);
-        }
+        });
         // Marketing-lead retention. No-op unless LEAD_RETENTION_MONTHS is set.
-        try {
-          await purgeOldLeads();
-        } catch (err) {
-          await reportError("scheduled-sync lead-purge", err);
-        }
+        await hourly("lead-purge", "scheduled-sync lead-purge", () => purgeOldLeads());
         // Distributed rate-limit hygiene: drop counters whose window ended (keys
         // that never return — one-off IPs — would otherwise accumulate forever).
-        try {
-          await sweepExpiredRateLimits();
-        } catch (err) {
-          await reportError("scheduled-sync rate-limit-sweep", err);
-        }
+        await hourly("rate-limit-sweep", "scheduled-sync rate-limit-sweep", () => sweepExpiredRateLimits());
         // Parola sıfırlama challenge'ları: süresi dolmuş / tüketilmiş / iptal
         // edilmiş satırları topla. CANLI satıra dokunmaz; 24 saatlik gecikme
         // bilinçli (destek "sıfırlayamıyorum" derse izi bir süre daha durur).
-        try {
-          await sweepPasswordResetChallenges();
-        } catch (err) {
-          await reportError("scheduled-sync pw-reset-challenge-sweep", err);
-        }
+        await hourly("pw-reset-challenge-sweep", "scheduled-sync pw-reset-challenge-sweep", () =>
+          sweepPasswordResetChallenges(),
+        );
         // Terk edilmiş DOĞRULANMAMIŞ kayıtlar: hesap ön-ele-geçirme
         // düzeltmesinin tamamlayıcısı. Doğrulama artık parola istediği için
         // saldırgan kurbanın adresiyle açtığı hesaba giremiyor — ama hesap
@@ -716,30 +754,20 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // 201 döner). Bu süpürge o işgali sonlandırır.
         // 🚨 YIKICI → `UNVERIFIED_SWEEP_ENABLED` DEFAULT KAPALI; bayrak
         // kapalıyken tek sorgu bile koşmaz.
-        try {
+        await hourly("unverified-sweep", "scheduled-sync unverified-sweep", async () => {
           const r = await sweepUnverifiedRegistrations();
           if (r.deleted > 0 || r.failed > 0 || r.skipped > 0) {
             console.log(`[scheduled-sync] unverified-sweep: ${JSON.stringify(r)}`);
           }
-        } catch (err) {
-          await reportError("scheduled-sync unverified-sweep", err);
-        }
+        });
         // Reverse-trial reminder emails ("ending soon" / "ended"). No-op unless
         // BILLING_ENFORCED is on; idempotent + per-tenant. Best-effort.
-        try {
-          await sendDueTrialReminders();
-        } catch (err) {
-          await reportError("scheduled-sync trial-reminders", err);
-        }
-        // Identity e-mail outbox: the 2-min RECOVERY net behind the 15s poller
-        // (crash recovery + retention sweep + a drain pass so external-cron-only
-        // deployments still deliver). No-op while EMAIL_OUTBOX_ENABLED is off.
-        try {
-          await sweepEmailOutbox();
-          await drainEmailOutboxOnce();
-        } catch (err) {
-          await reportError("scheduled-sync email-outbox", err);
-        }
+        await hourly("trial-reminders", "scheduled-sync trial-reminders", () => sendDueTrialReminders());
+        // Kimlik e-postası kuyruğunun SAKLAMA silmesi (terminal satırlar). Kurtarma + drain
+        // artık HER geçişte (↑); burada yalnız silme kaldı.
+        await hourly("email-outbox-purge", "scheduled-sync email-outbox", () => purgeEmailOutbox());
+        // Alarm durum satırlarının kendisi: 30 gündür dokunulmamış (sahibi silinmiş org vb.).
+        await hourly("alert-state-sweep", "scheduled-sync alert-state-sweep", () => sweepStaleAlertStates());
       }
       return totals;
     } finally {

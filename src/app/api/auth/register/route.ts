@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { registerSchema, zodFieldErrors } from "@/lib/validators";
 import { hashPassword } from "@/lib/auth/password";
-import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
+import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
@@ -54,6 +54,12 @@ export async function POST(req: NextRequest) {
     // text, so it's length-capped and stored only as an informational record.
     const ip = clientIp(req);
     const userAgent = req.headers.get("user-agent")?.slice(0, 512) ?? null;
+
+    // 🚨 JSON KONTROLÜ IP KOVASINDAN ÖNCE (09-23; `login` rotasının F8 emsali, gerekçe
+    // `hasJsonContentType`te): başka bir site ziyaretçinin tarayıcısından `text/plain`
+    // POST'larla (preflight YOK) bir ofis/mobil NAT'ının kovasını yakıp orayı bu akıştan
+    // dakikalarca dışarıda bırakabiliyordu. Kendi formlarımız hep `application/json` yollar.
+    if (!hasJsonContentType(req)) return unsupportedMediaType();
 
     // Throttle sign-ups per IP: 5 / hour (anti-spam / abuse).
     const limited = await rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
@@ -180,7 +186,7 @@ export async function POST(req: NextRequest) {
     const passwordHash = await hashPassword(parsed.data.password);
     const { raw, hash } = makeVerifyToken();
     const verifyExpiresAt = new Date(Date.now() + VERIFY_TTL_MS);
-    const { user } = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: { name: parsed.data.organizationName, timezone, ...NEW_ORG_AUTO_REPLY_WINDOW },
       });
@@ -241,7 +247,7 @@ export async function POST(req: NextRequest) {
     const sent = await emailService.sendReporting(
       email,
       "Lixus AI — E-postanızı doğrulayın",
-      verifyEmailHtml(user.name, verifyUrl(raw)),
+      verifyEmailHtml(verifyUrl(raw)),
     );
     if (!sent.ok) {
       void reportError("auth.register.verify_email", new Error(sent.error ?? "email send failed"));

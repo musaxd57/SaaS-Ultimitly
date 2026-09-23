@@ -42,6 +42,18 @@ vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
   return { ...actual, reportError: vi.fn(async () => undefined) };
 });
+// Uyarı aşamasını tek bir testte düşürebilmek için geçirgen sarmal (varsayılan: gerçek fonksiyon).
+const { alertsStage } = vi.hoisted(() => ({ alertsStage: { fail: null as Error | null } }));
+vi.mock("@/lib/automation", async (orig) => {
+  const actual = await orig<typeof import("@/lib/automation")>();
+  return {
+    ...actual,
+    sendDueAlerts: async (...args: Parameters<typeof actual.sendDueAlerts>) => {
+      if (alertsStage.fail) throw alertsStage.fail;
+      return actual.sendDueAlerts(...args);
+    },
+  };
+});
 
 import { listProperties, listReservations, HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
@@ -175,5 +187,123 @@ describe("syncHospitable — mülk başına okuma hatası SARILMIŞ hâlde de do
 
     expect(authAlerts(orgId), "sunucu arızası 'yeniden bağlan' diye raporlandı").toEqual([]);
     expect(mockReport.mock.calls.some((c) => c[0] === `hospitable-fetch org:${orgId}`)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SINIF DÜZELTMESİ: KALICI ARIZA GEÇİŞ TABANLI ALARM ÜRETİR (09-23)
+//
+// 402 yalnız o günün TETİĞİYDİ. Asıl mekanizma: `reportError`ın kısıtı süreç
+// belleğinde, context başına 10 dk → 2 dakikalık döngüde HERHANGİ bir kalıcı arıza
+// (Hospitable kesintisi, env token'ına kalıcı 401, deterministik DB hatası) günde
+// ~130 e-posta. Bu dosyadaki mock kısıtsızdır → eski kod her geçişte alarm verir;
+// ölçülen şey "durum DEĞİŞMEDEN alarm tekrarlanıyor mu".
+// ---------------------------------------------------------------------------
+describe("scheduled-sync — kalıcı arıza geçiş tabanlı alarm üretir", () => {
+  const wire500 = () => new HospitableError("Hospitable API hatası (HTTP 500): x", 500);
+
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.mocked(console.warn).mockRestore();
+    mockListProperties.mockReset();
+  });
+
+  it("🚨 kalıcı 500: 5 geçişte TEK alarm (eskiden her geçişte bir)", async () => {
+    const orgId = await seedOrg();
+    mockListProperties.mockRejectedValue(wire500());
+    for (let i = 0; i < 5; i++) expect((await runScheduledSync()).ok).toBe(true);
+    expect(orgAlerts(orgId)).toHaveLength(1);
+  });
+
+  it("toparlanma durumu temizler → sonraki arıza YENİDEN ve hemen bildirilir", async () => {
+    const orgId = await seedOrg();
+    mockListProperties.mockRejectedValue(wire500());
+    await runScheduledSync();
+    await runScheduledSync();
+    mockListProperties.mockResolvedValue([] as never); // başarılı senkron
+    await runScheduledSync();
+    mockListProperties.mockRejectedValue(wire500());
+    await runScheduledSync();
+    expect(orgAlerts(orgId)).toHaveLength(2);
+  });
+
+  it("SINIF DEĞİŞİMİ yeni bir durumdur: kesinti (500) → yetki reddi (401) yeniden alarm", async () => {
+    const orgId = await seedOrg();
+    mockListProperties.mockRejectedValue(wire500());
+    await runScheduledSync();
+    mockListProperties.mockRejectedValue(new HospitableError("Hospitable API hatası (HTTP 401)", 401));
+    await runScheduledSync();
+    await runScheduledSync();
+    const calls = orgAlerts(orgId);
+    expect(calls).toHaveLength(2);
+    expect((calls[1][1] as IngestError).kind).toBe("auth_revoked");
+  });
+
+  it("402 bilinen bir dış durumdur: aşamanın alarm durumunu TEMİZLER (yenilenince gelen kesinti yeniden bildirilir)", async () => {
+    const orgId = await seedOrg();
+    mockListProperties.mockRejectedValue(wire500());
+    await runScheduledSync();
+    mockListProperties.mockRejectedValue(wire402());
+    await runScheduledSync();
+    mockListProperties.mockRejectedValue(wire500());
+    await runScheduledSync();
+    expect(orgAlerts(orgId)).toHaveLength(2);
+    expect(any402Alert()).toEqual([]);
+  });
+
+  it("org'lar BAĞIMSIZ: bir org'un bastırılmış arızası başka org'un ilk alarmını yutmaz", async () => {
+    const a = await seedOrg();
+    mockListProperties.mockRejectedValue(wire500());
+    await runScheduledSync();
+    const b = await seedOrg();
+    await runScheduledSync();
+    expect(orgAlerts(a)).toHaveLength(1);
+    expect(orgAlerts(b)).toHaveLength(1);
+  });
+
+  it("aşamalar BAĞIMSIZ: senkron alarmdayken uyarı aşamasının YENİ arızası da bildirilir", async () => {
+    const orgId = await seedOrg();
+    mockListProperties.mockRejectedValue(wire500());
+    alertsStage.fail = new TypeError("uyarı geçişi düştü");
+    try {
+      await runScheduledSync();
+      await runScheduledSync();
+    } finally {
+      alertsStage.fail = null;
+    }
+    const calls = orgAlerts(orgId);
+    // Senkron (IngestError) bir kez + uyarı aşaması (TypeError) bir kez; ikinci geçiş ikisini de bastırır.
+    expect(calls.map((c) => (c[1] as Error).constructor.name).sort()).toEqual(["IngestError", "TypeError"]);
+  });
+});
+
+describe("syncHospitable — toplulaştırılmış alarmlar da geçiş tabanlı", () => {
+  const authAlerts = (orgId: string) => mockReport.mock.calls.filter((c) => c[0] === `hospitable-auth org:${orgId}`);
+
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    mockListProperties.mockResolvedValue([{ id: "h-prop-1", name: "Lale 7" }] as never);
+  });
+  afterEach(() => {
+    mockListReservations.mockResolvedValue([]);
+    mockListProperties.mockReset();
+  });
+
+  it("🚨 kalıcı mülk-başına 401: üç koşuda TEK 'yeniden bağlan' alarmı; 401 kalkınca temizlenir", async () => {
+    const orgId = await seedOrg();
+    mockListReservations.mockRejectedValue(new HospitableError("Hospitable API hatası (HTTP 401)", 401));
+    for (let i = 0; i < 3; i++) await syncHospitable(orgId);
+    expect(authAlerts(orgId)).toHaveLength(1);
+
+    mockListReservations.mockResolvedValue([]);
+    await syncHospitable(orgId); // düzeldi → durum temizlenir
+    mockListReservations.mockRejectedValue(new HospitableError("Hospitable API hatası (HTTP 401)", 401));
+    await syncHospitable(orgId);
+    expect(authAlerts(orgId)).toHaveLength(2);
   });
 });

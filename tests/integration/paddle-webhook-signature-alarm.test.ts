@@ -23,6 +23,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { POST } from "@/app/api/webhooks/paddle/route";
+import { prisma, resetDb } from "../helpers/db";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 const BODY = JSON.stringify({ event_id: "evt_x", event_type: "subscription.activated", data: {} });
@@ -44,7 +45,9 @@ function signWith(secret: string, body = BODY): string {
 }
 
 describe("Paddle webhook — imza uyuşmazlığı alarmı", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Alarm durumu artık DB'de (`alert-state`, 09-23) → testler arası sızmasın.
+    await resetDb();
     vi.clearAllMocks();
     reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
@@ -89,5 +92,36 @@ describe("Paddle webhook — imza uyuşmazlığı alarmı", () => {
     const res = await POST(req(signWith(SECRET)));
     expect(res.status).not.toBe(401);
     expect(reportErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("🚨 GEÇİŞ TABANLI (09-23): aynı uyuşmazlık 25 kez gelse de TEK alarm (saldırgan kutuyu dolduramaz)", async () => {
+    for (let i = 0; i < 25; i++) {
+      const res = await POST(req(signWith("bambaska-anahtar")));
+      expect(res.status).toBe(401); // kabul/ret kararı her istekte AYNI
+    }
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("DOĞRULANMIŞ bir olay durumu temizler → sonraki bozulma YENİDEN ve hemen bildirilir", async () => {
+    await POST(req(signWith("bambaska-anahtar")));
+    await POST(req(signWith("bambaska-anahtar")));
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+
+    const ok = await POST(req(signWith(SECRET)));
+    expect(ok.status).not.toBe(401);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "alert-state:paddle-webhook:" } } })).toBe(0);
+
+    await POST(req(signWith("bambaska-anahtar")));
+    expect(reportErrorMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("EKSİK anahtar (dormant) da geçiş tabanlı: 10 olayda TEK alarm, 200 davranışı aynı", async () => {
+    vi.stubEnv("PADDLE_WEBHOOK_SECRET", "");
+    for (let i = 0; i < 10; i++) {
+      const res = await POST(req(null));
+      expect(res.status).toBe(200);
+    }
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    expect(reportErrorMock.mock.calls[0][0]).toBe("paddle-webhook-dormant");
   });
 });
