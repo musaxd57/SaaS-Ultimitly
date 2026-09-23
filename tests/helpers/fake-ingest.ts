@@ -21,8 +21,9 @@ import {
 //      aktarılır; kronoloji çekirdeğin işi.
 //   3. Kiracı sınırı: token'ın görmediği mülk → BOŞ liste (⚠️ canlıda
 //      gözlenmedi; stub varsayımı — adaptör ne dönerse onu aktarır).
-//   4. 401/403 → auth_revoked · 429 → rate_limited · 5xx/ağ → outage · 404 →
-//      not_found; kimlik bilgisi yoksa ağa çıkılmaz → no_credential.
+//   4. 401/403 → auth_revoked · 402 → blocked (abonelik pasif; 09-23'e kadar
+//      gerçek adaptör onu `unknown`a atıyordu) · 429 → rate_limited · 5xx/ağ →
+//      outage · 404 → not_found; kimlik bilgisi yoksa ağa çıkılmaz → no_credential.
 //   5. Sayfalar birleştirilir (gerçek istemci `meta.last_page`/`links.next`).
 //   6. Gövdesiz mesaj body=null olarak aktarılır (çekirdek sayar, atlar).
 //   7. Hata metni token taşımaz.

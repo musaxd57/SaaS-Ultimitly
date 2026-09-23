@@ -43,12 +43,14 @@ vi.mock("@/lib/report-error", async (orig) => {
   return { ...actual, reportError: vi.fn(async () => undefined) };
 });
 
-import { listProperties, HospitableError } from "@/lib/hospitable";
+import { listProperties, listReservations, HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
 import { IngestError } from "@/lib/channels/ingest";
 import { runScheduledSync } from "@/lib/scheduled-sync";
+import { syncHospitable } from "@/lib/hospitable-sync";
 
 const mockListProperties = vi.mocked(listProperties);
+const mockListReservations = vi.mocked(listReservations);
 const mockReport = vi.mocked(reportError);
 
 /** Canlıdaki gerçek hata metni (`hospitable.ts` bu biçimde kuruyor). */
@@ -133,5 +135,45 @@ describe("scheduled-sync — Hospitable 402 (abonelik pasif) alarm üretmez", ()
     await runScheduledSync();
 
     expect(orgAlerts(orgId)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AYNI SINIF, İKİNCİ OKUYUCU: `syncHospitable`ın mülk başına hata dalı.
+// `noteHospitableError` 401/403'ü ayırıp host'a "yeniden bağlan" alarmı üretir. O dal
+// da sarmaldan geçen hatayı okuyor; 09-23 turunun mutasyon koşusu (M6) durum okumasını
+// komple silen mutantın HAYATTA KALDIĞINI ölçtü — yani bu dal hiç pinli değildi.
+// ---------------------------------------------------------------------------
+describe("syncHospitable — mülk başına okuma hatası SARILMIŞ hâlde de doğru sınıflanır", () => {
+  const authAlerts = (orgId: string) => mockReport.mock.calls.filter((c) => c[0] === `hospitable-auth org:${orgId}`);
+
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    mockListProperties.mockResolvedValue([{ id: "h-prop-1", name: "Lale 7" }] as never);
+  });
+  afterEach(() => {
+    mockListReservations.mockResolvedValue([]); // sonraki dosya/testlere sızmasın
+  });
+
+  it("401 (rezervasyon okuması) → 'yeniden bağlan' alarmı TEK kez, sarılmış hatayla", async () => {
+    const orgId = await seedOrg();
+    mockListReservations.mockRejectedValue(new HospitableError("Hospitable API hatası (HTTP 401)", 401));
+
+    await syncHospitable(orgId);
+
+    const calls = authAlerts(orgId);
+    expect(calls, "yetki reddi sarmaldan sonra tanınmıyor").toHaveLength(1);
+    expect(calls[0][1]).toBeInstanceOf(IngestError); // anti-vakumluk: gerçek sarma yolu
+  });
+
+  it("500 (rezervasyon okuması) → 'yeniden bağlan' DEĞİL; toplu fetch alarmına düşer", async () => {
+    const orgId = await seedOrg();
+    mockListReservations.mockRejectedValue(new HospitableError("Hospitable API hatası (HTTP 500)", 500));
+
+    await syncHospitable(orgId);
+
+    expect(authAlerts(orgId), "sunucu arızası 'yeniden bağlan' diye raporlandı").toEqual([]);
+    expect(mockReport.mock.calls.some((c) => c[0] === `hospitable-fetch org:${orgId}`)).toBe(true);
   });
 });

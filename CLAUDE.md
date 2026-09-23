@@ -668,6 +668,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 
 **Mesajlaşma / outbox / sync**
+- 🚨 **SAĞLAYICI HATASI SARMALA KÖR OKUNMAZ (09-23 olayı):** `err instanceof HospitableError` /
+  `err.name === "HospitableError"` YASAK (izinli beş dosya: istemci, adaptör sarmalı, `provider-errors`,
+  adaptörsüz iki bağlantı rotası — pin `provider-error-wrapper-pin.test.ts`). Okuma TEK yerden:
+  `providerErrorStatus` / `isChannelSubscriptionInactive` (`@/lib/provider-errors`). **ÖRDEK TİPLEMESİ YOK**
+  (OpenAI SDK hatası da `status: 402` taşır = kota; "Hospitable aboneliği" DEĞİL). Ingest sözlüğünde 402 =
+  **`blocked`** (giden yönle AYNI sözcük; eskiden `unknown`). Yeni sarmal/adaptör eklerken: çağıranın özel
+  dalları (402 sus · 401 revoke · 429 bekle) sarmaldan SONRA da eşleşiyor mu — davranışsal test şart.
 - **Channel Layer (V0.1–V0.2, `src/lib/channels`):** giden-mesaj çekirdeği (`messaging.ts`, `outbox/worker.ts`)
   `@/lib/hospitable` istemcisini import ETMEZ, yalnız `@/lib/channels`; `sendMessage(` src/ içinde TEK yerde =
   `channels/hospitable-outbound.ts` (pin `core-channel-independence.test.ts`). `qr-chat:` iç-thread kuralı
@@ -1278,6 +1285,19 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   dönüşte reconcile)** · Hospitable OAuth refresh (süresi dolabilir, KONTROL ET).
 
 ## Durum
+**🚨 CANLI OLAY + DENETİM TURU (09-23) — alarm seli kapandı (`82bb675`).** Kurucunun gelen kutusu
+"⚠️ Lixus AI sistem hatası — scheduled-sync org <id>" e-postalarıyla doldu; gövde `IngestError: hospitable
+ingest unknown (HTTP 402)`. **Gmail'den ölçüldü: ~10 dakikada bir = günde ~140 e-posta** (2 dk'lık senkron
+× `reportError` kısıtı). 🚨 **GERİLEME, yeni arıza değil:** `scheduled-sync` 402'yi 08-08'den beri
+susturuyordu ama `instanceof HospitableError` diye bakarak; V0.6 (`a2e60fe`, 09-07) okumayı ingest
+adaptörüne taşıdı ve adaptör hatayı `IngestError`a SARIYOR → dal **09-08'den beri ÖLÜYDÜ**. Aynı sarmal
+İKİ yeri daha öldürmüştü: `api.ts serverError` (sarılmış 402 → 500 + alarm, 409 yerine) ve
+`providerErrorMessage` (elle senkron düğmesi 402'de "aboneliğinizi yenileyin" yerine jenerik metin).
+**Neden hiçbir test görmedi:** kardeş test (`alerts-survive-sync-failure`) 402'yi TAM bu gerçek yoldan
+geçiriyordu ama `reportError`ı yalnız mock'luyor, hiç SORGULAMIYORDU (yüklem vardı, iddia yoktu).
+Düzeltme + sınıf kuralı ↑"Mesajlaşma / outbox / sync" ilk madde. Kanıt: kırmızı-önce 16 (eski kodda
+entegrasyon testi canlı e-postanın gövdesini BİREBİR üretti: 3 geçiş → 3 × `unknown (HTTP 402)`).
+
 **DIŞ DENETİM TURU (09-18, DÖRT paralel ölçümlü ajan) — hüküm belgesi
 `docs/DENETIM-2026-09-18-dis-rapor-hukumleri.md`.** Kurucu dış bir rapor getirdi (10 bulgu; raporun
 kendi notu: hedefli vitest grubu Windows'ta `spawn EPERM` ile koşmadı, yani **statik inceleme**).
