@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SendResultKind } from "@/lib/outbox/state";
+import type { ChannelProviderId } from "./providers";
 
 // ---------------------------------------------------------------------------
 // OUTBOUND DISPATCH SINIRI (V0.1 — Channel Independence, ilk dilim)
@@ -33,14 +34,21 @@ import type { SendResultKind } from "@/lib/outbox/state";
 // gönderebilir mi" sorusuna cevap verir (iCal adaptörü V0.2+'da gönderemez).
 // ---------------------------------------------------------------------------
 
-/** Kapalı sağlayıcı kümesi. Yeni sağlayıcı = yeni adaptör + bu union'a bir üye. */
-export type OutboundProvider = "hospitable";
+/**
+ * CANLI adaptörü olan sağlayıcılar (kapalı küme). `ChannelProviderId`in alt kümesidir:
+ * sözleşmesi yazılmış ama canlıya alınmamış sağlayıcı (`airbnb_direct`) buraya GİRMEZ —
+ * kayıt defteri ve `dispatchOutbound` yalnız bu kümeyi kabul eder. Genişletmek canlıya
+ * almak demektir ve bilinçli yapılır (manifesto `stage` + veri politikası kapısı).
+ */
+export type OutboundProvider = Extract<ChannelProviderId, "hospitable">;
 
 /** İç (QR concierge) thread'lerin `externalReservationId` öneki — tek kaynak. */
 export const INTERNAL_THREAD_PREFIX = "qr-chat:";
 
-export interface OutboundDestination {
-  provider: OutboundProvider;
+// Tip parametresi yalnız SÖZLEŞME aşamasındaki adaptörlerin aynı şekli ilan edebilmesi
+// içindir; varsayılan `OutboundProvider` → mevcut her kullanım birebir aynı tiptir.
+export interface OutboundDestination<P extends ChannelProviderId = OutboundProvider> {
+  provider: P;
   /** Sağlayıcının konuşma/rezervasyon kimliği (Hospitable: reservation UUID). */
   externalReservationId: string;
 }
@@ -60,8 +68,8 @@ export function resolveOutboundRoute(target: { externalReservationId?: string | 
   return { kind: "external", destination: { provider: "hospitable", externalReservationId: ext } };
 }
 
-export interface OutboundCredential {
-  provider: OutboundProvider;
+export interface OutboundCredential<P extends ChannelProviderId = OutboundProvider> {
+  provider: P;
   /** Sağlayıcı erişim token'ı; çağıran çözer (`getOrgHospitableToken`). */
   token: string | undefined;
 }
@@ -82,11 +90,11 @@ export interface OutboundSendResult {
   retryAfterSec?: number | null;
 }
 
-export interface OutboundAdapter {
-  readonly provider: OutboundProvider;
+export interface OutboundAdapter<P extends ChannelProviderId = OutboundProvider> {
+  readonly provider: P;
   readonly capabilities: ReadonlySet<OutboundCapability>;
   /** TAM OLARAK BİR sağlayıcı denemesi (tek atış). Asla fırlatmaz. */
-  send(destination: OutboundDestination, body: string, credential: OutboundCredential): Promise<OutboundSendResult>;
+  send(destination: OutboundDestination<P>, body: string, credential: OutboundCredential<P>): Promise<OutboundSendResult>;
 }
 
 const registered = new Map<OutboundProvider, OutboundAdapter>();

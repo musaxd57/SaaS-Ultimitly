@@ -124,6 +124,9 @@ export function providerErrorMessage(err: unknown, fallback: string): string {
     // normalizasyon kodumuzda bir TypeError). Sağlayıcıya ulaşıldığı bile kanıtsız →
     // Hospitable'ı suçlayan bir cümle kurulmaz, çağıranın kendi cümlesi.
     if (err.kind === "unknown" && err.status === undefined) return fallback;
+    // Yetenek uygulanmadı / verilmedi: ağa çıkılmadı, sağlayıcıyı ("…'a ulaşılamıyor")
+    // suçlayan cümle YANLIŞ olurdu — çağıranın kendi cümlesi.
+    if (err.kind === "unsupported") return fallback;
   }
 
   const pe = asProviderError(err);

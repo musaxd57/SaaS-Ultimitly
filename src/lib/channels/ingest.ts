@@ -1,4 +1,5 @@
 import type { OutboundProvider } from "./outbound";
+import type { ChannelProviderId } from "./providers";
 
 // ---------------------------------------------------------------------------
 // INGEST CONTRACT — Channel Layer'ın OKUMA yönü (V0.6)
@@ -27,8 +28,9 @@ import type { OutboundProvider } from "./outbound";
 
 export type IngestCapability = "properties.read" | "reservations.read" | "messages.read";
 
-export interface IngestCredential {
-  provider: OutboundProvider;
+// Tip parametresi: bkz. outbound.ts — varsayılan canlı küme, mevcut kullanımlar birebir aynı.
+export interface IngestCredential<P extends ChannelProviderId = OutboundProvider> {
+  provider: P;
   /** Ham token; undefined = istemci env fallback'i (kurucu legacy yolu, V0.7'ye kadar). */
   token: string | undefined;
 }
@@ -98,14 +100,17 @@ export type IngestErrorKind =
   | "outage"
   | "not_found"
   | "no_credential"
+  /** Yetenek bu sağlayıcı için uygulanmadı (sözleşme aşaması) ya da bağlantıya verilmedi —
+   *  AĞA HİÇ ÇIKILMADI. `no_credential`den ayrı: bağlantı olsa da sonuç değişmez. */
+  | "unsupported"
   | "unknown";
 
 export class IngestError extends Error {
   readonly kind: IngestErrorKind;
   readonly status: number | undefined;
-  readonly provider: OutboundProvider;
+  readonly provider: ChannelProviderId;
   readonly retryAfterSec: number | undefined;
-  constructor(provider: OutboundProvider, kind: IngestErrorKind, message: string, status?: number, retryAfterSec?: number) {
+  constructor(provider: ChannelProviderId, kind: IngestErrorKind, message: string, status?: number, retryAfterSec?: number) {
     super(message);
     this.name = "IngestError";
     this.provider = provider;
@@ -115,12 +120,12 @@ export class IngestError extends Error {
   }
 }
 
-export interface IngestAdapter {
-  readonly provider: OutboundProvider;
+export interface IngestAdapter<P extends ChannelProviderId = OutboundProvider> {
+  readonly provider: P;
   readonly capabilities: ReadonlySet<IngestCapability>;
-  listProperties(credential: IngestCredential): Promise<CanonicalProperty[]>;
-  listReservations(credential: IngestCredential, window: ReservationWindow): Promise<CanonicalReservation[]>;
-  listMessages(credential: IngestCredential, reservationExternalId: string): Promise<CanonicalMessage[]>;
+  listProperties(credential: IngestCredential<P>): Promise<CanonicalProperty[]>;
+  listReservations(credential: IngestCredential<P>, window: ReservationWindow): Promise<CanonicalReservation[]>;
+  listMessages(credential: IngestCredential<P>, reservationExternalId: string): Promise<CanonicalMessage[]>;
 }
 
 const registry = new Map<OutboundProvider, IngestAdapter>();
