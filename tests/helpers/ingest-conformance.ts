@@ -20,6 +20,7 @@ export type IngestScenario =
   | "two_pages"
   | "unowned_property"
   | "reject_401"
+  | "reject_402"
   | "reject_403"
   | "reject_404"
   | "rate_limit"
@@ -131,6 +132,11 @@ export function describeIngestConformance(label: string, makeHarness: () => Inge
 
     for (const [scenario, kind, status] of [
       ["reject_401", "auth_revoked", 401],
+      // 🚨 402 = sağlayıcı hesabı askıda (Hospitable "Subscription not active"). 09-23'e
+      // kadar bu kitte YOKTU ve gerçek adaptör onu "unknown"a atıyordu → çağıranın
+      // "beklenen durum, alarm verme" dalı sessizce ölmüştü (canlıda alarm seli).
+      // Giden yöndeki sınıfla AYNI sözcük: `blocked`.
+      ["reject_402", "blocked", 402],
       ["reject_403", "auth_revoked", 403],
       ["reject_404", "not_found", 404],
       ["rate_limit", "rate_limited", 429],

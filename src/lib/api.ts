@@ -3,6 +3,7 @@ import { getSession, type SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { isSuperAdmin } from "@/lib/admin";
+import { isChannelSubscriptionInactive, SUBSCRIPTION_INACTIVE_MESSAGE } from "@/lib/provider-errors";
 
 export type { SessionPayload };
 
@@ -157,13 +158,12 @@ export function serverError(
     // hatası — api"); log it instead. (2) Return a MEANINGFUL response, not a bare
     // 500 — the caller gets a clear "renew your Hospitable subscription" 409 so the
     // UI can show why the channel action failed. Every OTHER error still pages + 500s.
-    const status = (err as { status?: number } | null)?.status;
-    if (err instanceof Error && err.name === "HospitableError" && status === 402) {
+    // 🚨 09-23: this check read `err.name === "HospitableError"` and so missed the SAME
+    // 402 once the V0.6 ingest adapter started wrapping it in an `IngestError` —
+    // wrapper-blind reads live in ONE place now (`provider-errors`, class-pinned).
+    if (isChannelSubscriptionInactive(err)) {
       console.warn("[api] Hospitable subscription not active (402) — surfaced, not paged");
-      return NextResponse.json(
-        { error: "Hospitable aboneliğiniz aktif değil. Kanal senkronizasyonu için aboneliğinizi yenileyin." },
-        { status: 409 },
-      );
+      return NextResponse.json({ error: SUBSCRIPTION_INACTIVE_MESSAGE }, { status: 409 });
     }
     void reportError("api", err);
   }

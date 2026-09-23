@@ -11,8 +11,12 @@ import type { OutboundProvider } from "./outbound";
 //     çekirdeğin — write service'in — işi; outbound'daki "sağlayıcı dedupe yapmaz"
 //     kuralının aynası).
 //   · Hata sınıfları TİPLİ (`IngestError.kind`), metin regex'i yok; 401/403 =
-//     auth_revoked (V0.3 yaşam döngüsü), 429 = rate_limited, 5xx/ağ = outage,
+//     auth_revoked (V0.3 yaşam döngüsü), 402 = blocked (sağlayıcı hesabı askıda;
+//     giden yöndeki sınıfla AYNI sözcük), 429 = rate_limited, 5xx/ağ = outage,
 //     404 = not_found. Kimlik bilgisi yoksa AĞA ÇIKILMAZ (no_credential).
+//   · 🚨 Çağıran hatayı `instanceof HospitableError` ile OKUMAZ — adaptör sarar;
+//     sarmaldan bağımsız okuma `@/lib/provider-errors` (09-23 olayı, sınıf pini
+//     `tests/unit/provider-error-wrapper-pin.test.ts`).
 //   · Hata metni kimlik bilgisini taşımaz.
 //   · Kiracı sınırı sağlayıcıda da vardır: token hangi mülkü/rezervasyonu
 //     görebiliyorsa onu döner; adaptör bunu genişletemez.
@@ -81,7 +85,20 @@ export interface ReservationWindow {
   endDate: string;
 }
 
-export type IngestErrorKind = "auth_revoked" | "rate_limited" | "outage" | "not_found" | "no_credential" | "unknown";
+/**
+ * `blocked` = sağlayıcı hesabı API erişimine yetkili DEĞİL (Hospitable 402
+ * "Subscription not active"): KALICI, org'un kendi faturasına bağlı, Lixus
+ * arızası değil. 09-23'e kadar bu sınıf YOKTU ve 402 `unknown`a düşüyordu →
+ * çağıranın "beklenen durum" dalı ölüydü, her senkron geçişi alarm e-postası.
+ */
+export type IngestErrorKind =
+  | "auth_revoked"
+  | "blocked"
+  | "rate_limited"
+  | "outage"
+  | "not_found"
+  | "no_credential"
+  | "unknown";
 
 export class IngestError extends Error {
   readonly kind: IngestErrorKind;

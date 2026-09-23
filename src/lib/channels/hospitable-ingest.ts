@@ -18,6 +18,7 @@ import {
   type CanonicalReservationStatus,
   type IngestAdapter,
   type IngestCredential,
+  type IngestErrorKind,
   type ReservationWindow,
 } from "./ingest";
 
@@ -123,22 +124,26 @@ export function normalizeMessage(m: HospitableMessage): CanonicalMessage {
   };
 }
 
+/**
+ * HTTP durumu → tipli sınıf. Giden yöndeki `classifyHospitableOutcome` ile AYNI
+ * sözlük (402 iki yönde de `blocked`). 09-23'e kadar 402 burada `unknown`a
+ * düşüyordu ve "beklenen durum, alarm verme" dalı her çağıranda ölüydü.
+ */
+function ingestKindFor(s: number | undefined): IngestErrorKind {
+  if (s === undefined) return "outage"; // ağ / zaman aşımı (durum kodu yok)
+  if (s === 401 || s === 403) return "auth_revoked";
+  if (s === 402) return "blocked"; // abonelik pasif — KALICI, org'un kendi faturası
+  if (s === 429) return "rate_limited";
+  if (s === 404) return "not_found";
+  if (s >= 500) return "outage";
+  return "unknown";
+}
+
 function toIngestError(err: unknown): IngestError {
   if (err instanceof IngestError) return err;
   if (err instanceof HospitableError) {
     const s = err.status;
-    const kind =
-      s === 401 || s === 403
-        ? "auth_revoked"
-        : s === 429
-          ? "rate_limited"
-          : s === 404
-            ? "not_found"
-            : s !== undefined && s >= 500
-              ? "outage"
-              : s === undefined
-                ? "outage" // ağ / zaman aşımı (durum kodu yok)
-                : "unknown";
+    const kind = ingestKindFor(s);
     // Metin: yalnız sınıf + durum; sağlayıcı gövdesi ve token TAŞINMAZ.
     return new IngestError(PROVIDER, kind, `hospitable ingest ${kind}${s ? ` (HTTP ${s})` : ""}`, s, err.retryAfterSec);
   }

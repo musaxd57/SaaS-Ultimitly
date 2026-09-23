@@ -67,6 +67,7 @@ describeIngestConformance("ortak fake (tests/helpers/fake-ingest.ts)", () => {
           fake.setReservations("prop-of-ANOTHER", [A]); // veri var ama bu token görmez
           break;
         case "reject_401": fake.behave({ mode: "reject", status: 401 }); break;
+        case "reject_402": fake.behave({ mode: "reject", status: 402 }); break;
         case "reject_403": fake.behave({ mode: "reject", status: 403 }); break;
         case "reject_404": fake.behave({ mode: "reject", status: 404 }); break;
         case "rate_limit": fake.behave({ mode: "rate_limit", retryAfterSec: 0 }); break;
@@ -176,6 +177,7 @@ describeIngestConformance("gerçek Hospitable ingest adaptörü (fetch stub)", (
       case "unowned_property":
         return page([], 1, 1); // stub varsayımı (canlıda gözlenmedi)
       case "reject_401": return err(401);
+      case "reject_402": return err(402);
       case "reject_403": return err(403);
       case "reject_404": return err(404);
       case "rate_limit": return err(429, { "Retry-After": "0" });

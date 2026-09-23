@@ -2,10 +2,10 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { HospitableError } from "@/lib/hospitable";
+import { providerErrorStatus } from "@/lib/provider-errors";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getActiveConnection } from "@/lib/channels/connections";
-import { getIngestAdapter, IngestError, type CanonicalMessage, type CanonicalReservation } from "@/lib/channels";
+import { getIngestAdapter, type CanonicalMessage, type CanonicalReservation } from "@/lib/channels";
 import {
   upsertCanonicalReservation,
   importCanonicalThread,
@@ -231,7 +231,8 @@ export async function syncHospitable(
   // importing again. Non-auth per-record errors stay best-effort console logs.
   let authFailureReported = false;
   const noteHospitableError = (context: string, err: unknown) => {
-    const status = err instanceof IngestError ? err.status : err instanceof HospitableError ? err.status : undefined;
+    // Sarmaldan bağımsız okuma TEK yerde (`provider-errors`; 09-23 olayı, sınıf pinli).
+    const status = providerErrorStatus(err);
     if ((status === 401 || status === 403) && !authFailureReported) {
       authFailureReported = true;
       void reportError(`hospitable-auth org:${organizationId}`, err);

@@ -10,6 +10,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 import { serverError } from "@/lib/api";
 import { reportError } from "@/lib/report-error";
 import { HospitableError } from "@/lib/hospitable";
+import { IngestError } from "@/lib/channels/ingest";
 
 const mockReport = vi.mocked(reportError);
 
@@ -31,6 +32,29 @@ describe("serverError — Hospitable 402 is not paged", () => {
 
   it("a generic error still pages", () => {
     serverError(undefined, new Error("boom"));
+    expect(mockReport).toHaveBeenCalledTimes(1);
+  });
+
+  // 🚨 09-23: V0.6 ingest adaptörü HospitableError'ı IngestError'a SARIYOR. Bu kontrol
+  // yalnız `err.name === "HospitableError"`a bakıyordu → sarılmış 402 buradan da
+  // 500 + alarm e-postası olarak geçiyordu (scheduled-sync'teki olayın api yüzü).
+  it("the SAME 402 wrapped by the ingest adapter (IngestError, kind blocked) → 409, NOT paged", async () => {
+    const res = serverError(undefined, new IngestError("hospitable", "blocked", "hospitable ingest blocked (HTTP 402)", 402));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/Hospitable aboneliğiniz aktif değil/);
+    expect(mockReport).not.toHaveBeenCalled();
+  });
+
+  it("a wrapped NON-402 ingest error still pages (the wrapper must not widen the suppression)", () => {
+    const res = serverError(undefined, new IngestError("hospitable", "outage", "hospitable ingest outage (HTTP 503)", 503));
+    expect(res.status).toBe(500);
+    expect(mockReport).toHaveBeenCalledTimes(1);
+  });
+
+  it("an unrelated error that merely CARRIES status 402 (OpenAI SDK style) still pages — no duck typing", () => {
+    const openAiLike = Object.assign(new Error("insufficient_quota"), { name: "APIError", status: 402 });
+    const res = serverError(undefined, openAiLike);
+    expect(res.status).toBe(500);
     expect(mockReport).toHaveBeenCalledTimes(1);
   });
 

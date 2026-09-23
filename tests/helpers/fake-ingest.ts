@@ -30,7 +30,7 @@ import {
 
 export type FakeIngestBehaviour =
   | { mode: "ok" }
-  | { mode: "reject"; status: 401 | 403 | 404 }
+  | { mode: "reject"; status: 401 | 402 | 403 | 404 }
   | { mode: "rate_limit"; retryAfterSec: number }
   | { mode: "outage"; status?: 500 | 503 }
   | { mode: "network" };
@@ -99,7 +99,7 @@ export class FakeIngestProvider {
       case "reject":
         throw new IngestError(
           cred.provider,
-          b.status === 404 ? "not_found" : "auth_revoked",
+          b.status === 404 ? "not_found" : b.status === 402 ? "blocked" : "auth_revoked",
           `sağlayıcı reddetti (HTTP ${b.status})`,
           b.status,
         );

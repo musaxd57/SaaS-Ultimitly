@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { isPrimaryOrg } from "@/lib/hospitable-credentials";
 import { backfillChannelConnections } from "@/lib/channels/connections";
-import { HospitableError } from "@/lib/hospitable";
+import { isChannelSubscriptionInactive } from "@/lib/provider-errors";
 import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
@@ -440,9 +440,12 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         const handleOrgError = async (err: unknown) => {
           // A Hospitable 402 ("Subscription not active") means THIS org's Hospitable
           // billing lapsed — an expected external state, not a Lixus bug — so log it
-          // (the UI connection status already reflects it) but DON'T alert-email every
-          // cycle, which would flood the inbox until they renew.
-          if (err instanceof HospitableError && err.status === 402) {
+          // but DON'T alert-email every cycle, which would flood the inbox until they renew.
+          // 🚨 09-23 OLAYI: bu kontrol `err instanceof HospitableError` idi. V0.6 okumayı
+          // ingest adaptörüne taşıdı ve adaptör hatayı `IngestError`a SARIYOR → dal
+          // 09-08'den beri ÖLÜYDÜ, kurucuya her geçişte "sistem hatası" e-postası gitti.
+          // Okuma artık sarmaldan bağımsız TEK yerden (`provider-errors`, sınıf pinli).
+          if (isChannelSubscriptionInactive(err)) {
             console.warn(`[scheduled-sync] org ${org.id}: Hospitable subscription not active (skipped)`);
           } else {
             await reportError(`scheduled-sync org ${org.id}`, err);
@@ -459,7 +462,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           totals.messages += result.messages;
 
           // A SUCCESSFUL sync PROVES this org's Hospitable subscription is active again (a 402
-          // "subscription not active" throws a HospitableError above, skipping this line). So
+          // "subscription not active" throws above — wrapped by the ingest adapter as an
+          // `IngestError` of kind `blocked` — skipping this line). So
           // atomically requeue any outbox rows parked as `blocked` (subscription-not-active) →
           // `pending`, to be retried exactly ONCE by the drain at the end of this run. Tenant-
           // scoped + idempotent; a no-op when nothing is blocked. Best-effort — never aborts.
