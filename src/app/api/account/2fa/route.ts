@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, forbidden, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull, noStore } from "@/lib/api";
-import { rateLimit, rateLimitPeek } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 // ⚠️ `verifyTotp` (boole) BİLİNÇLİ OLARAK İMPORT EDİLMİYOR: bu rotadaki üç
 // doğrulama yolu da kodu TÜKETMEK zorunda, o yüzden hepsi `verifyTotpStep` +
@@ -13,6 +13,7 @@ import {
   RECOVERY_CODE_COUNT,
 } from "@/lib/auth/recovery-codes";
 import { verifyPassword } from "@/lib/auth/password";
+import { reauthBlocked, noteReauthFailure, REAUTH_CAP_MESSAGE } from "@/lib/auth/reauth-guard";
 import { setSessionCookie, setKnownDeviceCookie } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { reportError } from "@/lib/report-error";
@@ -25,18 +26,14 @@ import { reportError } from "@/lib/report-error";
 const SECRET_UNREADABLE_MSG =
   "Sistem, kayıtlı 2FA anahtarını çözemiyor — kod doğru olsa da işlem yapılamaz. Operatöre başvurun (2FA sıfırlama gerekir).";
 
-// 🚨 GÜNLÜK HATALI-KOD TAVANI (saldırgan gözüyle giriş turu, 09-23). Bu rotanın tek freni
-// 10 deneme / 10 dk idi = günde 1.440 kod tahmini; ±1 adım penceresiyle ayda ~%12 isabet
-// (ölçüldü). Bahis büyük: `recovery_codes` 10 KALICI kurtarma kodu basar ve bunlar parola
-// değişiminden SAĞ ÇIKAR → çalınmış bir oturum çerezi (parolasız) ay içinde kalıcı bir
-// ikinci-faktör atlamasına dönüşebiliyordu. Giriş rotasının tavanıyla (20/gün) aynı sayı,
-// AYRI anahtar: oturumu ele geçiren biri kurbanın GİRİŞ kodu hakkını yakamasın. Yalnız
-// HATALAR sayılır; meşru kullanıcı bu sınıra hiç yaklaşmaz.
-const MANAGE_2FA_DAILY_FAILURES = 20;
-const DAY_MS = 24 * 60 * 60 * 1000;
-const CODE_ACTIONS = new Set(["enable", "disable", "recovery_codes"]);
-const MANAGE_2FA_CAP_MESSAGE =
-  "Çok fazla hatalı kod girildi. Güvenliğiniz için bu işlem bir süreliğine durduruldu; lütfen daha sonra tekrar deneyin.";
+// 🚨 GÜNLÜK HATA TAVANI (saldırgan gözüyle giriş turu, 09-23). Bu rotanın tek freni
+// 10 deneme / 10 dk idi = günde 1.440 tahmin: kod isteyen üç işlemde ±1 adım penceresiyle
+// ayda ~%12 isabet (ölçüldü), `setup`ta ise günde 1.440 ŞİFRE tahmini ve doğru tahmin düz
+// metin sırrı veriyordu. Bahis büyük: `recovery_codes` 10 KALICI kurtarma kodu basar ve bunlar
+// parola değişiminden SAĞ ÇIKAR → çalınmış bir oturum çerezi (parolasız) kalıcı bir
+// ikinci-faktör atlamasına dönüşebiliyordu. Sayaç hesap silmeyle ORTAK (`reauth-guard.ts`):
+// saldırgan tahminlerini ekranlar arasında bölerek tavanı çoğaltamaz.
+const REAUTH_ACTIONS = new Set(["setup", "enable", "disable", "recovery_codes"]);
 
 function reportUnreadableSecret(userId: string) {
   void reportError("account.2fa secret-undecryptable", new Error(`userId=${userId}`));
@@ -100,13 +97,13 @@ export async function POST(req: NextRequest) {
     const data = await readJsonCappedOrNull(req);
     const action = typeof data?.action === "string" ? data.action : "";
     const code = typeof data?.code === "string" ? data.code : "";
-    const failDayKey = `2fa-manage-fail-day:${session.userId}`;
-    if (CODE_ACTIONS.has(action)) {
-      const day = await rateLimitPeek(failDayKey, MANAGE_2FA_DAILY_FAILURES);
-      if (!day.ok) return tooManyRequests(day.retryAfter, MANAGE_2FA_CAP_MESSAGE);
+    // Tavan dolduysa DOĞRU şifre/kod da reddedilir — yoksa tavan tahmini durdurmaz, yalnız yavaşlatır.
+    if (REAUTH_ACTIONS.has(action)) {
+      const day = await reauthBlocked(session.userId);
+      if (!day.ok) return tooManyRequests(day.retryAfter, REAUTH_CAP_MESSAGE);
     }
-    /** Hatalı (ya da yeniden oynatılan) kod — günlük tavana sayılır. */
-    const noteCodeFailure = () => rateLimit(failDayKey, MANAGE_2FA_DAILY_FAILURES, DAY_MS);
+    /** Hatalı (ya da yeniden oynatılan) şifre/kod — günlük tavana sayılır. */
+    const noteFailure = () => noteReauthFailure(session.userId);
 
     if (action === "setup") {
       // Guard: never let "setup" run on an already-active account. Setup writes
@@ -149,7 +146,10 @@ export async function POST(req: NextRequest) {
       const reauthOk = current?.passwordHash
         ? await verifyPassword(password, current.passwordHash)
         : false;
-      if (!reauthOk) return badRequest({ password: "Şifre hatalı." });
+      if (!reauthOk) {
+        await noteFailure();
+        return badRequest({ password: "Şifre hatalı." });
+      }
 
       const secret = generateSecret();
       // 🚨 YAZMA KOŞULLU — YARIŞI DARALTMA, KAPAT (denetim 08-09).
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
       const secret = decryptSecret(armedSecret);
       const step = verifyTotpStep(secret, code);
       if (step === null) {
-        await noteCodeFailure();
+        await noteFailure();
         return badRequest({ code: "Kod hatalı veya süresi geçmiş." });
       }
       // 🚨 KOŞULLU YAZMA — kardeşi `setup` ile aynı desen (denetim, 08-09).
@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
         // `count === 0` → kod zaten tüketilmiş → red.
         const step = verifyTotpStep(secret, code);
         if (step === null) {
-          await noteCodeFailure();
+          await noteFailure();
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
         }
         const burned = await prisma.user.updateMany({
@@ -303,7 +303,7 @@ export async function POST(req: NextRequest) {
         // Aynı hata metni: dışarıdan "kod yanlış" ile "kod zaten kullanıldı"
         // ayırt EDİLEMEZ (giriş rotasının aynı kararı).
         if (burned.count === 0) {
-          await noteCodeFailure();
+          await noteFailure();
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
         }
       }
@@ -356,7 +356,7 @@ export async function POST(req: NextRequest) {
       // olmadan aynı kod hem giriş için hem burada kullanılabiliyordu.
       const step = verifyTotpStep(secret, code);
       if (step === null) {
-        await noteCodeFailure();
+        await noteFailure();
         return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
       }
       const burned = await prisma.user.updateMany({
@@ -367,7 +367,7 @@ export async function POST(req: NextRequest) {
         data: { twoFactorLastStep: step },
       });
       if (burned.count === 0) {
-        await noteCodeFailure();
+        await noteFailure();
         return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
       }
       // Regeneration atomically invalidates every previous code.

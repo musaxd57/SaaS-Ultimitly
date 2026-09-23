@@ -108,8 +108,14 @@ describe("2FA yönetimi — günlük hatalı kod tavanı", () => {
   it("KONTROL: başarılı işlem hak YAKMAZ (yalnız hatalar sayılır)", async () => {
     const ok = await POST(req({ action: "recovery_codes", code: totp(SECRET) }));
     expect(ok.status).toBe(200);
-    const day = await prisma.rateLimitCounter.findFirst({ where: { key: { startsWith: "2fa-manage-fail-day:" } } });
+    const day = await prisma.rateLimitCounter.findFirst({ where: { key: { startsWith: "reauth-fail-day:" } } });
     expect(day).toBeNull();
+    // Anti-vakum: aynı anahtar bir HATADAN sonra gerçekten yazılıyor (yoksa yukarıdaki `null`
+    // yanlış anahtara bakan bir iddia olurdu).
+    const bad = await POST(req({ action: "recovery_codes", code: wrongCode() }));
+    expect(bad.status).toBe(400);
+    const after = await prisma.rateLimitCounter.findFirst({ where: { key: { startsWith: "reauth-fail-day:" } } });
+    expect(after?.count).toBe(1);
   });
 
   it("müşteriye giden metin sade: teknik terim yok", async () => {

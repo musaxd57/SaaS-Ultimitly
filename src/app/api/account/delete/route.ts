@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/auth/password";
+import { reauthBlocked, noteReauthFailure, REAUTH_CAP_MESSAGE } from "@/lib/auth/reauth-guard";
 import { clearSessionCookie } from "@/lib/auth";
 import {
   requireSession,
@@ -28,6 +29,11 @@ export async function POST(req: NextRequest) {
 
   const limited = await rateLimit(`account-delete:${session.userId}`, 5, 15 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  // 🚨 GÜNLÜK ORTAK HATA TAVANI (09-23 saldırgan turu): kısa kova tek başına günde 480 şifre
+  // tahmini bırakıyordu ve doğru tahmin HESABI SİLİYOR. Sayaç 2FA ekranlarıyla ortak
+  // (`reauth-guard.ts`); tavan dolunca doğru şifre de o gün reddedilir.
+  const day = await reauthBlocked(session.userId);
+  if (!day.ok) return tooManyRequests(day.retryAfter, REAUTH_CAP_MESSAGE);
 
   try {
     const data = await readJsonCappedOrNull(req);
@@ -39,7 +45,10 @@ export async function POST(req: NextRequest) {
       select: { passwordHash: true },
     });
     const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : false;
-    if (!ok) return badRequest({ password: "Şifre hatalı." });
+    if (!ok) {
+      await noteReauthFailure(session.userId);
+      return badRequest({ password: "Şifre hatalı." });
+    }
 
     // 🚨 ÖDEME ABONELİĞİ KAPISI — FAIL-CLOSED (Codex denetimi, 08-01 — madde 2).
     //

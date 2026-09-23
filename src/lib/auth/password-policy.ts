@@ -30,7 +30,7 @@ export const PASSWORD_MIN_LENGTH = 8;
  * YAZILMAZ: Türkçe harf 2 bayt olduğundan "en fazla N karakter" sözü yanlış olurdu.
  * Pinli: metin teknik terim içermez (`password-normalization.test.ts`).
  */
-export const PASSWORD_TOO_LONG_MESSAGE = "Şifre çok uzun. Lütfen daha kısa bir şifre belirleyin.";
+export const PASSWORD_TOO_LONG_MESSAGE = "Şifre çok uzun. Lütfen daha kısa bir şifre oluşturun.";
 
 /** Ölçü SAKLANACAK biçimdir (NFC): NFD yazımın fazladan baytı parolayı reddettirmez. */
 export function passwordExceedsByteLimit(password: string): boolean {

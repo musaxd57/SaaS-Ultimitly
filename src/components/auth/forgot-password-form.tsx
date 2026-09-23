@@ -278,7 +278,7 @@ export function ForgotPasswordForm() {
               "E-posta adresini değiştir" burada anlamsız olurdu — değiştirilecek
               bir alan yok; onun yerine baştan başlama yolu (↓"Baştan başla"). */}
           <p className="text-sm text-muted-foreground">
-            E-postanızdaki 8 haneli kodu girin ve yeni şifrenizi belirleyin.
+            E-postanızdaki 8 haneli kodu girin ve yeni şifrenizi oluşturun.
           </p>
           <Field label="Doğrulama kodu" htmlFor="code" error={fieldError.code}>
             <Input

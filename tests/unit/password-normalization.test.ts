@@ -117,6 +117,9 @@ describe("yeni parola politikası — 72 bayt (③)", () => {
     expect(PASSWORD_TOO_LONG_MESSAGE).not.toMatch(/bayt|byte|utf|nfc|bcrypt|karakter sayı/i);
     // Ne yapması gerektiğini söyler.
     expect(PASSWORD_TOO_LONG_MESSAGE).toMatch(/daha kısa/);
+    // Kurucu kararı (09-23): şifre "seçilmez", OLUŞTURULUR; hitap sitenin geri kalanı gibi "-in".
+    expect(PASSWORD_TOO_LONG_MESSAGE).toMatch(/oluşturun\.$/);
+    expect(PASSWORD_TOO_LONG_MESSAGE).not.toMatch(/seçin|belirleyiniz|oluşturunuz/);
   });
 
   it("uzunluk: 8 karakter altı reddedilir, 8 kabul", () => {
