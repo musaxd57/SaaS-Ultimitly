@@ -562,7 +562,8 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
   → `pkill -f "node \(vitest"` + `ps | grep "[v]itest"` ile doğrula.
 - 🚨 **MÜŞTERİYE GİDEN METİN SADE (kurucu 09-23):** teknik açıklama ("bayt", "ş 2 bayt sayılır", kova, TOTP…)
   ve gereksiz uzatma müşteriye GİTMEZ; yalnız ne yapması gerektiği söylenir, büyük platformların deyimiyle.
-  Fiil seçimi de ürün dilidir: kullanıcı şifre "belirler", "seçmez".
+  Fiil seçimi de ürün dilidir: kullanıcı şifre "seçmez", OLUŞTURUR; hitap sitenin geri kalanı gibi "-in"
+  ("…daha kısa bir şifre oluşturun."; "-iniz" değil). Kurucu seçimi 09-23, pinli.
 - **Hospitable'a özgü yeni ekran/özellik YAPILMAZ (kurucu 09-23: "amacımız Hospitable'ı kaldırmak"):**
   bağlantı sağlığı gibi yüzeyler sağlayıcıdan bağımsız `ChannelConnection` üzerine kurulur (Airbnb Direct'i de taşır).
 - **Ajanlar yalnız araştırır/ölçer/doğrular; kodu Claude yazar.** Bol paralel ajan, bulguları kodla doğrula
@@ -629,8 +630,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   epoch'a dokunmaz). Maliyeti düşük hash'te BAŞARISIZ doğrulama sahte yolun süresine bekletilir (zamanlama kâhini).
 - **Hız sınırı kovası `rateLimitClientKey(req)`** (IPv6 → /64, IPv4-eşlemeli → IPv4). `clientIp` yalnız iz/onay
   kayıtları için (tam adres). Ham IP'den kova kurmak mekanik pinle YASAK.
-- **2FA yönetimi günde 20 hatalı kod** (`2fa-manage-fail-day:`, girişin tavanından AYRI anahtar). Sır/kurtarma
-  kodu yanıtları `noStore`.
+- 🚨 **OTURUM İÇİ YENİDEN DOĞRULAMA GÜNDE 20 HATA — TEK ORTAK SAYAÇ** (`auth/reauth-guard.ts`,
+  `reauth-fail-day:`): 2FA kurulumu (ŞİFRE) + 2FA kapatma/açma/kurtarma kodu (KOD) + hesap silme (ŞİFRE) aynı
+  sayaca yazar; tavan dolunca DOĞRU şifre/kod da o gün reddedilir (yoksa tavan yalnız yavaşlatır). Girişin
+  sayacından AYRI anahtar. Eskiden kurulum günde 1.440, silme 480 şifre tahmini bırakıyordu. Oturum varken
+  şifre/kod soran YENİ bir ekran eklenirse aynı iki çağrıyı yapar (`reauthBlocked` önce, `noteReauthFailure`
+  hatada). Sır/kurtarma kodu yanıtları `noStore`.
 - **Giriş sonrası `?next=` API yolu olamaz** (`safe-redirect.ts`). Host izin listesi yalnız TAM `localhost`/
   `127.0.0.1` (+port).
 - 🚨 **PAROLA ASLA KIRPILMAZ (09-23):** kayıt/giriş parolayı olduğu gibi alır; değiştirme ve sıfırlama da

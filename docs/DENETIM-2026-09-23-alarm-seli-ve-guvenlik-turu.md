@@ -145,7 +145,7 @@ organizasyonun aylık harcama limitine takıldı; limit sıfırlanınca yeniden 
 |---|---|---|---|
 | ② | 2FA **açılınca** diğer oturumlar düşer | `sessionEpoch` aynı yazmada artar; işlemi yapan cihazın çerezi yeni epoch ile yeniden imzalanır, tanınan-cihaz çerezi yenilenir. Kapatma/kurtarma kodu üretimi epoch'a dokunmaz; `mfa` iddiası yükseltilmez | `ca6bdf8` |
 | ④ | Eski maliyet-10 hash girişte maliyet-12'ye | yalnız TAM başarılı girişten sonra; epoch'a dokunmaz; CAS (arada sıfırlanan parolayı ezmez); parola kapısı doluysa kuyruğa girmez; girişi asla bozmaz | `ca6bdf8` |
-| ③ | Parola Unicode NFC + 72 bayt | saklama NFC; doğrulama önce NFC, girdi NFC değilse ham biçim (eski hash kilitlenmez, girişte NFC'ye taşınır); sahte yol aynı sayıda karşılaştırma. Yeni parola en fazla 72 bayt (OWASP; Go/Spring de reddeder). **Müşteri metni sade** (kurucu): "Şifre çok uzun. Lütfen daha kısa bir şifre belirleyin." — bayt anlatılmaz, pinli | `ca6bdf8`, `e62f95c` |
+| ③ | Parola Unicode NFC + 72 bayt | saklama NFC; doğrulama önce NFC, girdi NFC değilse ham biçim (eski hash kilitlenmez, girişte NFC'ye taşınır); sahte yol aynı sayıda karşılaştırma. Yeni parola en fazla 72 bayt (OWASP; Go/Spring de reddeder). **Müşteri metni sade** (kurucu): "Şifre çok uzun. Lütfen daha kısa bir şifre oluşturun." — bayt anlatılmaz; fiil ve hitap kurucu seçimi ("seçin" değil, "-iniz" değil), pinli | `ca6bdf8`, `e62f95c` |
 | ① | Oturum çerezine `__Host-` öneki | üretimde yeni adla yazılır; okuma önce yeni adı, 2026-10-15'e kadar eski adı dener (kimse çıkışa zorlanmaz); middleware eski çerezi siler; çıkış iki adı da temizler; geliştirmede eski ad canlı. Chromium'un `__Host-`i http://127.0.0.1 ve localhost'ta kabul ettiği ölçüldü (CI uçtan uca giriş testi etkilenmez) | `d851afe` |
 
 ### 9.2 Saldırgan turunda kapatılan açıklar
@@ -153,7 +153,7 @@ organizasyonun aylık harcama limitine takıldı; limit sıfırlanınca yeniden 
 | # | Açık (kodda doğrulandı, eski kodda kırmızı) | Düzeltme |
 |---|---|---|
 | 1 | **IPv6 /64:** hız sınırı kovası tam adresti → tek VPS'in /64'ü = 2^64 ayrı kova; "IP başına 10 deneme" fiilen yoktu (eski kodda aynı /64'ten 11. istek 401 aldı, 429 değil) | kova anahtarı /64 önekine indirgenir (IPv4 aynen, IPv4-eşlemeli → IPv4); iz/onay kayıtları tam adresi yazar; mekanik pin: hiçbir rota ham IP'den kova kurmaz |
-| 2 | **2FA yönetiminde günlük tavan yoktu:** 10/10 dk = günde 1.440 kod tahmini; ayda ~%12 ihtimalle çalınmış oturum (parolasız) 10 KALICI kurtarma kodu basabiliyordu (parola değişiminden sağ çıkarlar) | kod doğrulayan eylemlere günde 20 hata tavanı; girişin tavanından AYRI anahtar |
+| 2 | **2FA yönetiminde günlük tavan yoktu:** 10/10 dk = günde 1.440 kod tahmini; ayda ~%12 ihtimalle çalınmış oturum (parolasız) 10 KALICI kurtarma kodu basabiliyordu (parola değişiminden sağ çıkarlar) | kod doğrulayan eylemlere günde 20 hata tavanı; girişin tavanından AYRI anahtar (→ 13: sayaç ortaklaştı) |
 | 3 | **Eski hash zamanlama kâhini:** hatalı giriş maliyet-10 hesapta ~80 ms, bilinmeyen hesapta ~315 ms (oran 0.26) → tek istekle "bu e-posta kayıtlı, erken dönem hesabı" | başarısız doğrulama sahte yolun süresine kadar bekletilir (işlemci harcamadan; başarılı giriş bekletilmez) |
 | 4 | Başarısız giriş denetim yazımı yalnız bilinen hesapta ve kovadan SONRA sırayla → DB turu farkı | yazım kova tüketimiyle paralel (davranışsal pin: sıralı kodda test kilitlenir) |
 | 5 | **Kayıt yarışı:** aynı yeni e-postayla iki eşzamanlı istek → 500 + ALARM E-POSTASI (sabahki selin aynı sınıfı; hesabı olmayan herkes tetikleyebiliyordu) | e-posta eşsizlik ihlali var-olan-hesap yanıtına eşit 201; yetim org kalmaz |
@@ -164,6 +164,7 @@ organizasyonun aylık harcama limitine takıldı; limit sıfırlanınca yeniden 
 | 10 | **Sürekli kilitleme:** saldırgan hesap kovasını IP döndürerek dolu tutunca tanınan-cihaz çerezi olmayan her tarayıcı reddediliyor; kurban parolasını sıfırlayınca eski tanınan cihazları da ölüyordu | sıfırlamayı tamamlayan tarayıcı tanınan cihaz olur (kutuyu kanıtladı); kilit mesajı bu yolu söyler |
 | 11 | Şifre değişince "yalnız DİĞER oturumlar düşer" yazıyordu ama işlemi yapan cihaz da sessizce çıkışa düşüyordu | bu cihazın çerezi yeni epoch ile yeniden imzalanır (② deseni); "beni hatırla" güveni bilinçli olarak düşer (S2) |
 | 12 | 2FA sırrı ve kurtarma kodu yanıtlarında `no-store` yoktu | `Cache-Control: no-store` |
+| 13 | **Oturum içi ŞİFRE tahmini:** çalınmış oturum 2FA kurulumunun "şifrenizi girin" adımını günde 1.440, hesap silmeyi günde 480 şifre tahmini için kullanabiliyordu; doğru tahmin ilkinde düz metin 2FA sırrını verir (saldırgan 2FA'yı kendi uygulamasıyla açıp sahibi dışarıda bırakır), ikincisinde hesabı siler. Eski kodda 20 yanlış şifreden sonra doğru şifre sırrı DÖNDÜRDÜ | 2FA kurulumu + 2FA kod işlemleri + hesap silme TEK günlük sayaç (20 hata, `reauth-guard.ts`); tavan dolunca doğru şifre de o gün reddedilir; tahminler ekranlar arasında bölünerek çoğaltılamaz. Şifre değiştirme bu sınıfta DEĞİL (e-postayla gelen kodla çalışıyor, mevcut şifreyi sormuyor) |
 
 ### 9.3 Doğrulanıp reddedilen / değişiklik gerektirmeyen
 
