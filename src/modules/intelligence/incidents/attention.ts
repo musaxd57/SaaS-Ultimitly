@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { findUpcomingConflicts, type UpcomingConflict } from "@/modules/availability/conflicts";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ, migration İSTEMEZ.
@@ -20,6 +21,10 @@ import { prisma } from "@/lib/db";
 //                           kartı YENİDEN eskiye sıralayıp 5 alıyor, yani EN ESKİ
 //                           cevapsız mesaj görünmeyen tek şey.
 //  · recurring_issue      — V1 örüntü hafızası; bugün yalnız mülk sayfasında.
+//  · calendar_conflict    — (09-24, müsaitlik motoru) önümüzdeki 60 gecede AYNI geceyi
+//                           işgal eden iki rezervasyon. Hiçbir yazma yolu bunu engellemiyor,
+//                           takvim sayfası gece başına mülk saydığı için GÖRÜNMÜYORDU.
+//                           Motor arızası kartın geri kalanını düşürmez (ayrı `.catch`).
 //
 // 🚨 BİLEREK DIŞARIDA:
 //  · KB boşlukları → `/knowledge`te zaten var (A3/A4). Çift kopya yasağı.
@@ -38,6 +43,7 @@ export const ATTENTION_KINDS = [
   "departing_unanswered",
   "unanswered_aging",
   "recurring_issue",
+  "calendar_conflict",
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -105,6 +111,10 @@ export interface AttentionItem {
   category?: string;
   /** Yalnız `recurring_issue`: örüntüyü besleyen sinyal sayısı. */
   evidenceCount?: number;
+  /** Yalnız `calendar_conflict`: çakışan geceler, yarı açık [from, to) mülk takvim günleri. */
+  nights?: { from: string; to: string };
+  /** Yalnız `calendar_conflict`: iki satırın tarihleri birebir aynı — aynı konaklama olabilir. */
+  possibleDuplicate?: boolean;
 }
 
 export interface FindAttentionOptions {
@@ -148,7 +158,7 @@ export async function findAttentionItems(
   const windowStart = new Date(now.getTime() - ATTENTION_WINDOW_DAYS * 24 * HOUR);
   const recurringSince = new Date(now.getTime() - RECURRING_FRESH_DAYS * 24 * HOUR);
 
-  const [brokenFeeds, conversations, patterns] = await Promise.all([
+  const [brokenFeeds, conversations, patterns, conflicts] = await Promise.all([
     prisma.calendarSource.findMany({
       where: { propertyId: { in: propertyIds }, lastStatus: "error" },
       // 🚨 `url` ve `urlEnc` BİLEREK SEÇİLMİYOR: besleme adresi sorgu dizesinde
@@ -192,6 +202,8 @@ export async function findAttentionItems(
       },
       select: { propertyId: true, category: true, observedAt: true, evidenceJson: true },
     }),
+    // Motorun kendi arızası öteki satırları düşürmez: bu bacak başarısızsa yalnız o yok.
+    findUpcomingConflicts(organizationId, { propertyIds, now }).catch((): UpcomingConflict[] => []),
   ]);
 
   const items: AttentionItem[] = [];
@@ -269,6 +281,25 @@ export async function findAttentionItems(
       href: `/properties/${p.propertyId}`,
       category: p.category,
       evidenceCount: evidenceCount(p.evidenceJson),
+    });
+  }
+
+  for (const c of conflicts) {
+    const [y, m, d] = c.from.split("-").map(Number);
+    items.push({
+      kind: "calendar_conflict",
+      // Satırlar BİZİM kayıtlarımız: çakışma gözlemdir. "Aynı konaklama olabilir" ise ipucudur
+      // ve söz arayüzde ona göre kurulur.
+      certainty: "observed",
+      propertyId: c.propertyId,
+      propertyName: nameById.get(c.propertyId) ?? "",
+      // Gerçek çift rezervasyon: bozuk beslemeyle aynı sınıf (misafir kapıda kalabilir).
+      // Birebir aynı tarihli çift: büyük olasılıkla aynı konaklamanın iki kopyası → daha alçak.
+      severity: c.possibleDuplicate ? 45 : 97,
+      occurredAt: new Date(Date.UTC(y, m - 1, d)),
+      href: `/calendar?property=${encodeURIComponent(c.propertyId)}&month=${c.from.slice(0, 7)}`,
+      nights: { from: c.from, to: c.to },
+      possibleDuplicate: c.possibleDuplicate,
     });
   }
 

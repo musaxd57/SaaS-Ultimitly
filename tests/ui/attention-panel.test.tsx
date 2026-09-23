@@ -42,6 +42,42 @@ describe("AttentionPanel", () => {
     expect(screen.queryByText(/otomatik sınıflandırma/)).toBeNull();
   });
 
+  it("çakışan rezervasyon satırı mülkü, geceleri ve yapılacak şeyi SADE dille söyler", () => {
+    const items: AttentionItem[] = [
+      {
+        ...base,
+        kind: "calendar_conflict",
+        certainty: "observed",
+        severity: 97,
+        href: "/calendar?property=p1&month=2026-10",
+        nights: { from: "2026-10-05", to: "2026-10-07" },
+        possibleDuplicate: false,
+      },
+    ];
+    render(<AttentionPanel items={items} />);
+    expect(screen.getByText("Aynı gecelere iki rezervasyon var")).toBeTruthy();
+    expect(screen.getByText(/Deniz Apart · 5 Eki – 7 Eki · takvimi kontrol edin/)).toBeTruthy();
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/calendar?property=p1&month=2026-10");
+    // Müşteriye giden metin teknik terim taşımaz.
+    expect(document.body.textContent).not.toMatch(/conflict|overlap|claim|origin|çakışma olgusu/i);
+  });
+
+  it("birebir aynı tarihli çift 'olabilir' diye söylenir — kesin hüküm vermez", () => {
+    const items: AttentionItem[] = [
+      {
+        ...base,
+        kind: "calendar_conflict",
+        certainty: "observed",
+        severity: 45,
+        href: "/calendar?property=p1&month=2026-10",
+        nights: { from: "2026-10-10", to: "2026-10-12" },
+        possibleDuplicate: true,
+      },
+    ];
+    render(<AttentionPanel items={items} />);
+    expect(screen.getByText("Aynı rezervasyon iki kez görünüyor olabilir")).toBeTruthy();
+  });
+
   it("cevapsız mesaj satırı BEKLEME SÜRESİNİ yazar", () => {
     const items: AttentionItem[] = [
       { ...base, kind: "unanswered_aging", certainty: "observed", severity: 59, href: "/inbox/c1", hoursWaiting: 9 },

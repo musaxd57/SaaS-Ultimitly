@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarX2, Clock, LogOut, Repeat } from "lucide-react";
+import { AlertTriangle, CalendarRange, CalendarX2, Clock, LogOut, Repeat } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
@@ -24,7 +24,14 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   departing_unanswered: LogOut,
   unanswered_aging: Clock,
   recurring_issue: Repeat,
+  calendar_conflict: CalendarRange,
 };
+
+/** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
+function dayLabel(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" });
+}
 
 function headline(item: AttentionItem): string {
   switch (item.kind) {
@@ -36,6 +43,8 @@ function headline(item: AttentionItem): string {
       return `${item.hoursWaiting ?? 0} saattir cevapsız misafir mesajı`;
     case "recurring_issue":
       return `${signalCategoryLabel(item.category ?? "")} tekrar ediyor`;
+    case "calendar_conflict":
+      return item.possibleDuplicate ? "Aynı rezervasyon iki kez görünüyor olabilir" : "Aynı gecelere iki rezervasyon var";
   }
 }
 
@@ -49,6 +58,10 @@ function detail(item: AttentionItem): string {
       return item.propertyName;
     case "recurring_issue":
       return `${item.propertyName} · ${item.evidenceCount ?? 0} sinyal`;
+    case "calendar_conflict": {
+      const range = item.nights ? `${dayLabel(item.nights.from)} – ${dayLabel(item.nights.to)}` : "";
+      return `${item.propertyName} · ${range} · takvimi kontrol edin`;
+    }
   }
 }
 
