@@ -69,12 +69,16 @@ yakalandı) · tur 4 **8/8** · tur 5 **9/9**. Tam kapılar: ↓ bölüm 8.
   kimliğin ömrü boyunca DB'ye eşit, silinen hesap zaten `sessionEpoch` kontrolünde düşüyor. Merkezi
   kimlik koduna sıfır maruziyetli bir kalem için dokunulmadı. **Ön koşul:** e-posta değiştirme
   özelliği eklenirse bu kontrol O GÜN eklenir (CLAUDE.md'ye yazıldı).
-- **Manuel rezervasyon + kanal etiketi + referans (P3-4) — ÜRÜN KARARI:** elle girilen "Airbnb"
-  etiketli bir rezervasyona referans yazılınca mesajlanabilir sayılıyor (yaşam döngüsü göndericisi
-  Hospitable'a bu referansla gitmeye çalışır). Doğru çözüm referansın "kanal kimliği mi, not mu"
-  olduğuna karar vermek — kurucunun.
-- **Login ajanının kimlik AKIŞINI değiştiren dört önerisi — kurucu onayı + ilk deneme birlikte
-  (CLAUDE.md kuralı), bu turda UYGULANMADI:** ① oturum çerezine `__Host-` öneki (ad değişince HERKES
+- **Manuel rezervasyon + kanal etiketi + referans (P3-4) — KARAR VERİLDİ (ikinci tur, ↓§9):** elle
+  girilen "Airbnb" etiketli bir rezervasyona referans yazılınca mesajlanabilir sayılıyor (yaşam döngüsü
+  göndericisi Hospitable'a bu referansla gitmeye çalışır, kod orada olmadığı için gönderim başarısız
+  olur). **Karar: elle yazılan referans bir NOTTUR, gönderim yetkisi VERMEZ** — yetki yalnız
+  rezervasyonun gerçekten bir kanal bağlantısından gelmesinden doğar (değişmez 20: "channel
+  string'inden yetenek çıkarımı yasak"; CSV içe aktarma bu kuralı zaten uyguluyor). Bugünkü etkisi
+  sıfır (kurucu org 402'de, başka müşteride sağlayıcı bağlantısı yok); kalıcı uygulama işaret kolonu
+  ister (migration) → kanal bağlantısı modeliyle (Airbnb Direct zemini) birlikte.
+- **Login ajanının kimlik AKIŞINI değiştiren dört önerisi — kurucu "mantıklı" dedi, İKİNCİ TURDA
+  UYGULANDI (↓§9); ilk deneme birlikte yapılacak:** ① oturum çerezine `__Host-` öneki (ad değişince HERKES
   bir kez çıkış yapar) · ② 2FA AÇILINCA diğer oturumların düşürülmesi (`sessionEpoch` artışı + mevcut
   çerezin yeniden imzalanması; bugün 2FA öncesi çalınmış bir oturum geçerli kalıyor) · ③ parolada
   Unicode NFC normalizasyonu + bcrypt'in 72 bayt sınırının belgelenmesi (farklı klavyeden aynı parola
@@ -105,8 +109,11 @@ edilir.**
 
 ## 7. Yapısal yol haritası (yapısal ajan önerileri — sıralı, hiçbiri bu turda uygulanmadı)
 
-1. **Entegrasyon sağlığı tablosu** (`IntegrationHealth`): bağlantı başına son başarı/son hata sınıfı —
-   alarm durumu bugün `SystemLock` satırında; ürün yüzeyi (host'a "bağlantın bozuk") ayrı tablo ister.
+1. **Kanal bağlantısı sağlığı** — 🚨 Hospitable'a ÖZGÜ DEĞİL (kurucu 09-23: "amacımız zaten
+   Hospitable'ı kaldırmak"). İlk yazımdaki "host'a 'Hospitable bağlantın bozuk' de" çerçevesi yanlıştı.
+   Doğru biçim: `ChannelConnection` başına sağlayıcıdan bağımsız sağlık (değişmez 9: token/refresh/
+   health/reconnect/revoked yaşam döngüsü) — Airbnb Direct geldiğinde aynı yüzey onu da taşır. Hospitable
+   için ayrıca ekran YAPILMAZ.
 2. **Tek LLM istemcisi + tek cevap boru hattı:** `ai/index.ts`, `translate.ts`, `openai-compat.ts`
    üç ayrı OpenAI çağrı yolu; kapı/iz/maliyet tek yerde toplanmalı.
 3. **Yapılandırma kaydı:** env bayrakları dağınık; tek tipli kayıt + boot raporu.
@@ -123,3 +130,78 @@ edilir.**
 Dondurulmuş çalışma ağacında (`2a2548f`): **`npm test` 428 dosya / 5060 test yeşil** (24 atlanan, 1 todo) ·
 `tsc` 0 · `lint` 0 · `build` temiz · `audit:check` yeşil (üretim: 4 danışma, 4 triaj kaydı). Migration YOK →
 push kurucu onayı gerektirmez (kural: migration içeren push onay ister).
+
+## 9. İkinci tur (aynı gün) — giriş ekranına SALDIRGAN GÖZÜYLE
+
+İstek (kurucu, aynen): *"giriş ekranına karşı kötü niyetli birisi olarak düşünüp uzun uzun didik didik
+geliştirmelere devam et agentlar çalıştır."* Beş saldırı ajanı (kaba kuvvet/hız sınırı · oturum/JWT/çerez/
+middleware · hesap kurtarma/kayıt · istemci/HTTP yüzeyi · 2FA/kurtarma kodu/operatör) araştırdı ve ölçtü;
+**kodu yalnız Claude yazdı, her bulgu eski kodda kırmızı-önce ile doğrulandı.** (İlk denemede beş ajanın dördü
+organizasyonun aylık harcama limitine takıldı; limit sıfırlanınca yeniden başlatıldı.)
+
+### 9.1 Kurucunun onayladığı dört öneri (hepsi UYGULANDI)
+
+| # | Ne | Nasıl | Commit |
+|---|---|---|---|
+| ② | 2FA **açılınca** diğer oturumlar düşer | `sessionEpoch` aynı yazmada artar; işlemi yapan cihazın çerezi yeni epoch ile yeniden imzalanır, tanınan-cihaz çerezi yenilenir. Kapatma/kurtarma kodu üretimi epoch'a dokunmaz; `mfa` iddiası yükseltilmez | `ca6bdf8` |
+| ④ | Eski maliyet-10 hash girişte maliyet-12'ye | yalnız TAM başarılı girişten sonra; epoch'a dokunmaz; CAS (arada sıfırlanan parolayı ezmez); parola kapısı doluysa kuyruğa girmez; girişi asla bozmaz | `ca6bdf8` |
+| ③ | Parola Unicode NFC + 72 bayt | saklama NFC; doğrulama önce NFC, girdi NFC değilse ham biçim (eski hash kilitlenmez, girişte NFC'ye taşınır); sahte yol aynı sayıda karşılaştırma. Yeni parola en fazla 72 bayt (OWASP; Go/Spring de reddeder). **Müşteri metni sade** (kurucu): "Şifre çok uzun. Lütfen daha kısa bir şifre belirleyin." — bayt anlatılmaz, pinli | `ca6bdf8`, `e62f95c` |
+| ① | Oturum çerezine `__Host-` öneki | üretimde yeni adla yazılır; okuma önce yeni adı, 2026-10-15'e kadar eski adı dener (kimse çıkışa zorlanmaz); middleware eski çerezi siler; çıkış iki adı da temizler; geliştirmede eski ad canlı. Chromium'un `__Host-`i http://127.0.0.1 ve localhost'ta kabul ettiği ölçüldü (CI uçtan uca giriş testi etkilenmez) | `d851afe` |
+
+### 9.2 Saldırgan turunda kapatılan açıklar
+
+| # | Açık (kodda doğrulandı, eski kodda kırmızı) | Düzeltme |
+|---|---|---|
+| 1 | **IPv6 /64:** hız sınırı kovası tam adresti → tek VPS'in /64'ü = 2^64 ayrı kova; "IP başına 10 deneme" fiilen yoktu (eski kodda aynı /64'ten 11. istek 401 aldı, 429 değil) | kova anahtarı /64 önekine indirgenir (IPv4 aynen, IPv4-eşlemeli → IPv4); iz/onay kayıtları tam adresi yazar; mekanik pin: hiçbir rota ham IP'den kova kurmaz |
+| 2 | **2FA yönetiminde günlük tavan yoktu:** 10/10 dk = günde 1.440 kod tahmini; ayda ~%12 ihtimalle çalınmış oturum (parolasız) 10 KALICI kurtarma kodu basabiliyordu (parola değişiminden sağ çıkarlar) | kod doğrulayan eylemlere günde 20 hata tavanı; girişin tavanından AYRI anahtar |
+| 3 | **Eski hash zamanlama kâhini:** hatalı giriş maliyet-10 hesapta ~80 ms, bilinmeyen hesapta ~315 ms (oran 0.26) → tek istekle "bu e-posta kayıtlı, erken dönem hesabı" | başarısız doğrulama sahte yolun süresine kadar bekletilir (işlemci harcamadan; başarılı giriş bekletilmez) |
+| 4 | Başarısız giriş denetim yazımı yalnız bilinen hesapta ve kovadan SONRA sırayla → DB turu farkı | yazım kova tüketimiyle paralel (davranışsal pin: sıralı kodda test kilitlenir) |
+| 5 | **Kayıt yarışı:** aynı yeni e-postayla iki eşzamanlı istek → 500 + ALARM E-POSTASI (sabahki selin aynı sınıfı; hesabı olmayan herkes tetikleyebiliyordu) | e-posta eşsizlik ihlali var-olan-hesap yanıtına eşit 201; yetim org kalmaz |
+| 6 | Giriş sonrası `?next=/api/...`: saldırganın bağlantısıyla giren kurban anında çıkışa ya da veri dökümüne gönderilebiliyordu | API yolları hedef olamaz (yüzde kodlu/büyük harfli yazım dahil) |
+| 7 | Host izin listesi `localhost:@evil.example`yi geçiriyordu (taban `http://localhost:@evil.example` = host evil.example) | yalnız tam `localhost`/`127.0.0.1` + sayısal port |
+| 8 | `verify-email`: JSON kontrolü IP kovasından SONRA (dört kardeş rotada önceydi) | önce 415 |
+| 9 | **Deneme e-postaları** kayıtta yazılan adı basıyordu → başkasının adresiyle kayıt olan, 13 gün sonra o kişinin kutusuna Lixus imzalı "Merhaba <kendi metni>" düşürtebiliyordu | selamlama sabit (doğrulama e-postası emsali) |
+| 10 | **Sürekli kilitleme:** saldırgan hesap kovasını IP döndürerek dolu tutunca tanınan-cihaz çerezi olmayan her tarayıcı reddediliyor; kurban parolasını sıfırlayınca eski tanınan cihazları da ölüyordu | sıfırlamayı tamamlayan tarayıcı tanınan cihaz olur (kutuyu kanıtladı); kilit mesajı bu yolu söyler |
+| 11 | Şifre değişince "yalnız DİĞER oturumlar düşer" yazıyordu ama işlemi yapan cihaz da sessizce çıkışa düşüyordu | bu cihazın çerezi yeni epoch ile yeniden imzalanır (② deseni); "beni hatırla" güveni bilinçli olarak düşer (S2) |
+| 12 | 2FA sırrı ve kurtarma kodu yanıtlarında `no-store` yoktu | `Cache-Control: no-store` |
+
+### 9.3 Doğrulanıp reddedilen / değişiklik gerektirmeyen
+
+- **XFF adım sayısı (ajan P1, koşullu):** `TRUSTED_PROXY_HOPS=2`, kodun kendi kaydına göre canlı zincirin
+  `<istemci>, <railway-edge>` olduğu ölçülerek seçildi; ajanın "edge tek adım ekliyorsa" varsayımı o kayıtla
+  çelişiyor. Buradan canlıya istek atılamadığı için yeniden doğrulama kurucu adımı: `/admin` teşhis kartı
+  kendi telefonundan açıldığında telefonun GERÇEK IP'sini göstermeli.
+- **İstemci ajanı:** XSS, dışarı yönlendirme (98 elle + 400 bin rastgele yük, 0 kaçış), clickjacking (enforce
+  `frame-ancestors 'self'` + `X-Frame-Options`), giriş-CSRF, prototip kirlenmesi, derin JSON — hepsi güvenli.
+- **Oturum ajanı:** algoritma sabit (alg:none / RS256 reddedilir), `sessionEpoch` her yüzeyde, `mfa` her
+  istekte DB'den, 83 rotanın hepsi korumalı ya da bilinçli açık, CVE-2025-29927 sınıfı etkisiz (middleware
+  yetki sınırı değil).
+- **Kalıcı parola ön-hash'i (SHA-256 → bcrypt) REDDEDİLDİ:** 72 bayt sınırını kaldırırdı ama OWASP'ın
+  uyardığı "shucking" ve NUL bayt riskini getirir; reddetmek sektör varsayılanı.
+
+### 9.4 Kurucu onayı bekleyen (kod YAZILMADI)
+
+1. **Güvenlik bildirim e-postası** — parola değişince/sıfırlanınca, 2FA kapatılınca, kurtarma kodu
+   üretilince, operatör 2FA sıfırlayınca hesaba "bu siz değilseniz bize yazın" e-postası (kişiselleştirmesiz).
+   Bugün kurbanın tek işareti çıkışa düşmek. (E-posta akışı → onay.)
+2. **Operatör hesabında "beni hatırla" operatör yetkisi vermesin** — bugün tanınan cihazla 30 gün boyunca
+   yalnız parolayla `mfa: true` (operatör paneli) alınıyor; Airbnb'nin "personel MFA ile erişir" şartına
+   daha sıkı uyum. Bedel: kurucu panele her girişte kod girer.
+3. **Operatör müşteri hesabındayken plan değiştiremesin / veri dökümü alamasın** — 2FA, parola ve hesap
+   silme zaten kapalı; plan değişikliği müşterinin kartından anında çeker.
+4. **E-posta büyük/küçük harf eşsizliği** (`lower(email)` eşsiz indeksi, migration) — bugün tüm yazma yolları
+   küçük harfe çeviriyor ama veritabanı kuralı büyük/küçük harfe duyarlı. Önce salt-okuma kontrol:
+   `SELECT lower(email), count(*) FROM "User" GROUP BY 1 HAVING count(*) > 1;` ve
+   `SELECT count(*) FROM "User" WHERE email <> lower(email);` — ikisi de 0 ise migration güvenle eklenir.
+5. **Doğrulanmamış hesaba deneme e-postası gitmesin** (başkasının adresiyle kayıt = istenmeyen e-posta).
+6. **`AUTH_SECRET` 32 karakterden kısaysa boot DURSUN** — bugün yalnız uyarı. Önce Railway'deki değerin
+   ≥32 olduğu doğrulanmalı (kısa ise boot çöker; değiştirmek herkesi çıkışa atar ve `ENCRYPTION_KEY` yoksa
+   şifreli veriyi kırar — ASLA doğrulamadan değiştirilmez).
+7. **Mutlak oturum ömrü** (ör. 90 gün sonra yeniden giriş) — bugün kayan 14 gün; çalınmış bir çerez
+   14 günde bir kullanıldıkça ölmüyor.
+
+### 9.5 İlk deneme birlikte (kimlik akışı kuralı)
+
+Deploy sonrası birlikte: giriş (çerez `__Host-` adıyla yazılıyor mu, eski oturum düşmeden taşındı mı) ·
+şifre değiştirme (bu cihaz girişli kalıyor mu) · 2FA açma (diğer cihaz çıkışa düşüyor mu) · şifre
+sıfırlama + ardından giriş.

@@ -560,6 +560,11 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
   dosya). Mutasyon script'leri de vitest'tir. Süreç öldürürken `pkill -f "vitest run"` YETMEZ (kendi kabuğunla
   eşleşir, `node (vitest)` ana süreciyle eşleşmez; yetim ana süreç bitince teardown'ı yeni koşunun PG'sini kapatır)
   → `pkill -f "node \(vitest"` + `ps | grep "[v]itest"` ile doğrula.
+- 🚨 **MÜŞTERİYE GİDEN METİN SADE (kurucu 09-23):** teknik açıklama ("bayt", "ş 2 bayt sayılır", kova, TOTP…)
+  ve gereksiz uzatma müşteriye GİTMEZ; yalnız ne yapması gerektiği söylenir, büyük platformların deyimiyle.
+  Fiil seçimi de ürün dilidir: kullanıcı şifre "belirler", "seçmez".
+- **Hospitable'a özgü yeni ekran/özellik YAPILMAZ (kurucu 09-23: "amacımız Hospitable'ı kaldırmak"):**
+  bağlantı sağlığı gibi yüzeyler sağlayıcıdan bağımsız `ChannelConnection` üzerine kurulur (Airbnb Direct'i de taşır).
 - **Ajanlar yalnız araştırır/ölçer/doğrular; kodu Claude yazar.** Bol paralel ajan, bulguları kodla doğrula
   (yarısı yanlış), kısa format. Kararı uygula, soru sorma; klişe yok.
 - Kalıcı kararlar buraya, gerekçeler git log/arşive.
@@ -610,14 +615,32 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   gölge pilotta teslimat takibi/per-org kota · supply türetmenin import TX'ine alınması.
 
 **Kimlik / oturum**
+- 🚨 **OTURUM ÇEREZİ `__Host-guestops_session` (09-23 ikinci tur, kurucu onayı):** üretimde yeni adla yazılır;
+  okuma `readSessionCookie` (önce yeni ad, 2026-10-15'e kadar eski ad); middleware + `setSessionCookie` eski çerezi
+  siler; çıkış İKİ adı temizler; geliştirmede eski ad canlı. 🚨 Oturum çerezini doğrudan `SESSION_COOKIE` adıyla
+  OKUMA/YAZMA — `readSessionCookie` / `sessionCookieName`. 2026-10-15 SONRASI eski adın okuma kodu silinebilir.
+- **Epoch artıran kimlik işlemi BU CİHAZI yeniden imzalar:** 2FA AÇMA ve şifre DEĞİŞTİRME `sessionEpoch`i artırır
+  (başka her oturum düşer) ve işlemi yapan cihazın çerezini yeni epoch ile yeniden imzalar + tanınan-cihaz
+  çerezini yeniler (asla ölümcül değil). Şifre SIFIRLAMA oturum açmaz ama tamamlayan tarayıcıyı tanınan cihaz
+  yapar (saldırı altında dolu hesap kovasından çıkış yolu). `mfa` iddiası bu işlemlerde YÜKSELTİLMEZ.
+- **Parola biçimi (③):** saklama NFC; doğrulama NFC → (girdi NFC değilse) ham; sahte yol aynı sayıda karşılaştırma.
+  Yeni parola en fazla 72 BAYT (tek kaynak `password-policy.ts`, bcrypt'siz). Giriş yolu sınır uygulamaz.
+  Eski maliyet-10 / ham biçim hash TAM başarılı girişte yükseltilir (`password-upgrade.ts`: CAS, kuyruksuz,
+  epoch'a dokunmaz). Maliyeti düşük hash'te BAŞARISIZ doğrulama sahte yolun süresine bekletilir (zamanlama kâhini).
+- **Hız sınırı kovası `rateLimitClientKey(req)`** (IPv6 → /64, IPv4-eşlemeli → IPv4). `clientIp` yalnız iz/onay
+  kayıtları için (tam adres). Ham IP'den kova kurmak mekanik pinle YASAK.
+- **2FA yönetimi günde 20 hatalı kod** (`2fa-manage-fail-day:`, girişin tavanından AYRI anahtar). Sır/kurtarma
+  kodu yanıtları `noStore`.
+- **Giriş sonrası `?next=` API yolu olamaz** (`safe-redirect.ts`). Host izin listesi yalnız TAM `localhost`/
+  `127.0.0.1` (+port).
 - 🚨 **PAROLA ASLA KIRPILMAZ (09-23):** kayıt/giriş parolayı olduğu gibi alır; değiştirme ve sıfırlama da
   öyle (eskiden kırpıyordu → boşluklu parola sıfırlamadan sonra girişte kilitliyordu). Kod/token kırpılır.
 - 🚨 **bcrypt EŞZAMANLILIK KAPISI (`auth/password.ts`):** bcryptjs saf JS — ölçüldü: 8 eşzamanlı karşılaştırma
   olay döngüsünü ~800 ms dondurur. Aynı anda en fazla 2 iş (env `PASSWORD_HASH_MAX_IN_FLIGHT`), 32'lik kuyruk,
   8 sn; taşarsa `PasswordHashBusyError` → `serverError` 503 (alarm YOK). Doğrulama/hash/SAHTE doğrulama AYNI
   kapıdan geçer (numaralandırma kâhini doğmaz). bcrypt'i kapı dışında çağırma.
-- **Doğrulama e-postası kişiselleştirilmez** (kimliksiz yolla herhangi bir adrese gider → ad alanı içerik
-  enjeksiyonu); yeniden gönderme günlük tavanı 6/adres. **Kimlik rotalarında JSON kontrolü IP kovasından ÖNCE**
+- **Doğrulama e-postası ve DENEME (trial) e-postaları kişiselleştirilmez** (kayıtta yazılan ad = saldırganın
+  metni; başkasının adresiyle kayıt olan onu o kişinin kutusuna taşırdı → içerik enjeksiyonu); yeniden gönderme günlük tavanı 6/adres. **Kimlik rotalarında JSON kontrolü IP kovasından ÖNCE**
   (login/register/forgot/resend; 415).
 - **Süper-admin e-postası JWT iddiasından okunur** — bugün `User.email`i değiştiren HİÇBİR yol yok (ölçüldü).
   🚨 **E-posta değiştirme özelliği eklenirse** `requireSession`/`requireAuth` e-postayı DB'den okumalı (ön koşul).
@@ -1306,6 +1329,18 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   dönüşte reconcile)** · Hospitable OAuth refresh (süresi dolabilir, KONTROL ET).
 
 ## Durum
+**09-23 İKİNCİ TUR — GİRİŞ EKRANINA SALDIRGAN GÖZÜYLE (beş saldırı ajanı; hüküm belgesi
+`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md` §9).** Kurucunun onayladığı dört öneri uygulandı
+(`ca6bdf8` 2FA açınca oturum düşürme + girişte hash yükseltme + NFC/72 bayt · `d851afe` `__Host-` önek) ve 12 açık
+kapandı (`e62f95c`): IPv6 /64 kova atlatması · 2FA yönetiminde günlük tavan yok (ayda ~%12 kalıcı kurtarma kodu) ·
+eski maliyet-10 hash zamanlama kâhini (oran 0.26 → ~1) · kayıt yarışında 500 + alarm · `?next=/api/...` ·
+`localhost:@evil` host · verify-email JSON sırası · deneme e-postasında ad enjeksiyonu · sürekli kilitleme (sıfırlayan
+tarayıcı tanınan cihaz) · şifre değişince bu cihazın düşmesi · sır yanıtlarında no-store · denetim yazımı zamanlaması.
+Hepsi eski kodda kırmızı-önce. **Onay bekleyen yedi öneri §9.4'te** (güvenlik bildirim e-postası, operatör
+"beni hatırla", impersonation'da plan/export, `lower(email)` eşsizliği, doğrulanmamışa deneme e-postası,
+`AUTH_SECRET` ≥32 zorunluluğu, mutlak oturum ömrü). **P3-4 kararı:** elle yazılan rezervasyon referansı NOTTUR,
+gönderim yetkisi vermez (uygulama işaret kolonu = migration, Airbnb Direct zeminiyle).
+
 **🚨 CANLI OLAY + DENETİM TURU (09-23) — alarm seli kapandı (`82bb675`).** Kurucunun gelen kutusu
 "⚠️ Lixus AI sistem hatası — scheduled-sync org <id>" e-postalarıyla doldu; gövde `IngestError: hospitable
 ingest unknown (HTTP 402)`. **Gmail'den ölçüldü: ~10 dakikada bir = günde ~140 e-posta** (2 dk'lık senkron
