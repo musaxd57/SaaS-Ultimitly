@@ -104,11 +104,14 @@ export function KbManager({
   properties,
   items,
   timeConflicts = {},
+  hijackIds = [],
 }: {
   properties: { id: string; name: string }[];
   items: KbItem[];
   /** Mülk kimliği → uyuşmayan saat satırları (sunucuda `kbTimeConflicts` ile hesaplanır). */
   timeConflicts?: Record<string, KbTimeConflictRow[]>;
+  /** Yapay zekâya komut veren ifade taşıdığı için AI'ın KULLANMADIĞI kalemler (sunucuda hesaplanır). */
+  hijackIds?: string[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -546,6 +549,14 @@ export function KbManager({
                         {(timeConflicts[property.id] ?? []).some((r) => r.sides.some((s) => s.itemId === item.id)) ? (
                           <Badge tone="warning" title="Bu bilgideki saat mülk ayarlarıyla ya da başka bir bilgiyle uyuşmuyor.">
                             Saat uyuşmuyor
+                          </Badge>
+                        ) : null}
+                        {hijackIds.includes(item.id) ? (
+                          <Badge
+                            tone="destructive"
+                            title="Bu metin yapay zekâya komut veren bir ifade içerdiği için misafir cevaplarında kullanılmıyor. Metni düzenleyin."
+                          >
+                            Yapay zekâ kullanmıyor
                           </Badge>
                         ) : null}
                         {TRIGGER_CATEGORIES.has(item.category) && hasUnfilledField(item.content) ? (

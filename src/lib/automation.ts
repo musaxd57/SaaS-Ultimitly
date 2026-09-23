@@ -1728,7 +1728,7 @@ export async function applyChannelAutoReply(
     // Yetkili iç denetim kanıtı — `kbVisible` yer tutucu ikamesinden GEÇMİŞ
     // nesnelerdir ama `id`/`updatedAt` alanları kaynaktan olduğu gibi taşınır.
     // Hibritte parça indeksi (`chunk`) ve retrieval özeti de kanıta girer.
-    kbEvidenceJson: buildKbEvidence({ retrieved: kbForModel, usedLabels: [], retrieval: kbSel.evidence }),
+    kbEvidenceJson: buildKbEvidence({ retrieved: kbForModel, usedLabels: [], retrieval: kbSel.evidence, hijackScreened: kbFetch.hijackScreened }),
   };
 
   // Turnover context so early-checkin / late-checkout answers are data-driven.
@@ -1820,6 +1820,7 @@ export async function applyChannelAutoReply(
       retrieval: kbSel.evidence,
       claims: result.claimAudit,
       llm: result.llmUsage,
+      hijackScreened: kbFetch.hijackScreened,
     }),
   };
 

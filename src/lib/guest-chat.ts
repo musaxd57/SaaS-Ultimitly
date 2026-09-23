@@ -537,6 +537,8 @@ export interface GuestChatContext {
    * üretilen kanıt yanıtlar (`buildKbEvidence`). Misafire AÇILMAZ.
    */
   knowledgeBaseNewestUpdatedAt: Date | null;
+  /** Yapay zekâyı ele geçirme ifadesi yüzünden istemden çıkarılan kalem sayısı (karar kaydı için). */
+  knowledgeBaseHijackScreened: number;
   /** True when this stay must present a PIN before it can be claimed on a device
    *  (Faz 5). Derived: QR_PIN_ENABLED env on AND (this reservation has a PIN OR the
    *  org runs strict mode). NEVER exposes the hash — only the boolean gate. */
@@ -1003,7 +1005,7 @@ export async function resolveGuestChat(
   // Closed → return the property (so the page can show a branded "no active stay"
   // screen) but no reservation and an empty knowledge base (nothing to answer).
   if (!open) {
-    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, pinRequired: false };
+    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, knowledgeBaseHijackScreened: 0, pinRequired: false };
   }
 
   // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız
@@ -1051,7 +1053,7 @@ export async function resolveGuestChat(
   );
   const droppedTotal = kbDropped + (kbRaw.length - knowledgeBaseFilled.length);
 
-  return { property: propertyPublic, open: true, activeReservation, knowledgeBase: knowledgeBaseFilled, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, pinRequired };
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase: knowledgeBaseFilled, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, knowledgeBaseHijackScreened: kb.hijackScreened, pinRequired };
 }
 
 /**

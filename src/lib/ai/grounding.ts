@@ -216,11 +216,15 @@ export interface KbEvidenceInput {
     conf?: number;
     /** Bütçeye sığmayan çelişki sayısı. */
     confDropped?: number;
+    /** Cevapsız önceki misafir mesajlarından eklenen alt sorgu sayısı. */
+    pq?: number;
   } | null;
   /** İddia desteği gölge ölçümü (yalnız sayılar + kapalı-küme sınıflar; `claim-support.ts`). */
   claims?: ClaimAudit;
   /** Model token kullanımı (yalnız sayılar + sunulan model adı). */
   llm?: LlmUsage;
+  /** Yapay zekâyı ele geçirme ifadesi taşıdığı için istemden çıkarılan kalem sayısı (`kb-fetch`). */
+  hijackScreened?: number;
 }
 
 /** İddia özetini yeniden kurar: yalnız bilinen alanlar, yalnız sayı/kapalı-küme sınıf (serbest metin sızamaz). */
@@ -279,13 +283,15 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
           ...(Number.isInteger(input.retrieval.sup) ? { sup: input.retrieval.sup } : {}),
           ...(Number.isInteger(input.retrieval.conf) ? { conf: input.retrieval.conf } : {}),
           ...(Number.isInteger(input.retrieval.confDropped) ? { confDropped: input.retrieval.confDropped } : {}),
+          ...(Number.isInteger(input.retrieval.pq) ? { pq: input.retrieval.pq } : {}),
         }
       : undefined;
   const claims = cleanClaims(input.claims);
   const llm = cleanUsage(input.llm);
   // Yalnız ölçüldüyse yazılır: kanıt biçimi ölçülmeyen yolda karakteri karakterine aynı kalır.
-  const extra = { ...(claims ? { claims } : {}), ...(llm ? { llm } : {}) };
-  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm) return null;
+  const hj = Number.isInteger(input.hijackScreened) && (input.hijackScreened as number) > 0 ? (input.hijackScreened as number) : undefined;
+  const extra = { ...(claims ? { claims } : {}), ...(llm ? { llm } : {}), ...(hj ? { hj } : {}) };
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj) return null;
   const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa

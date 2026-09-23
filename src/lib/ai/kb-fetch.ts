@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { KB_ITEM_CAP, KB_RETRIEVAL_FETCH_CAP } from "@/lib/ai/limits";
 import { kbRetrievalMode } from "@/lib/ai/retrieval/flag";
 import { KB_APPROVAL_GATE_WHERE, isAiReadableReviewState } from "@/lib/kb-review";
+import { detectKbInstructionHijack } from "@/lib/ai/fallback";
 
 // ---------------------------------------------------------------------------
 // BİLGİ TABANINI İSTEM İÇİN ÇEK — TEK YOL (denetim, 07-31).
@@ -43,6 +44,13 @@ export interface KbForPrompt {
   }[];
   /** Adet tavanı yüzünden istemin DIŞINDA kalan kalem sayısı (0 = kesme yok). */
   dropped: number;
+  /**
+   * Yapay zekâyı ele geçirmeye çalışan ifade taşıdığı için istemden ÇIKARILAN kalem sayısı
+   * (`detectKbInstructionHijack`, 09-23). `dropped`a EKLENMEZ: o kapasite, bu güvenlik — ikisi
+   * karışırsa "yer sınırı" notu yanlış sebeple yazılırdı (§C dersi). Host kalemi Bilgi Tabanı'nda
+   * "Yapay zekâ kullanmıyor" rozetiyle görür; sessiz kayıp YOK.
+   */
+  hijackScreened: number;
   /**
    * A2 — AKTİF ama ONAY KAPISINDAN geçmeyen kalem sayısı (A1 `draft`).
    *
@@ -115,6 +123,16 @@ export async function fetchKnowledgeBaseForPrompt(
   }
   // Sıralama `updatedAt desc` olduğu için ilk satır en yenisi; yine de boş
   // listede `undefined` yerine açıkça null döndürülüyor.
-  const newestUpdatedAt = rows[0]?.updatedAt ?? null;
-  return { items: rows, dropped: Math.max(0, total - rows.length), pendingApproval, newestUpdatedAt };
+  // 🚨 KB TALİMAT ELE GEÇİRME SÜZGECİ — boyuttan ve retrieval modundan BAĞIMSIZ, dört AI yüzeyi
+  // için tek yer (onay kapısıyla aynı gerekçe). Kalem tamamen çıkar; `dropped` kapasite sayacı
+  // DEĞİŞMEZ (tavanda düşen sayısı tavandan önceki kümeye göredir).
+  const items = rows.filter((r) => !detectKbInstructionHijack(`${r.title}\n${r.content}`));
+  const newestUpdatedAt = items[0]?.updatedAt ?? null;
+  return {
+    items,
+    dropped: Math.max(0, total - rows.length),
+    pendingApproval,
+    newestUpdatedAt,
+    hijackScreened: rows.length - items.length,
+  };
 }

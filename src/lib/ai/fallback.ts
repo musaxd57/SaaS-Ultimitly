@@ -1718,6 +1718,94 @@ export function detectPromptInjection(message: string): boolean {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// BİLGİ TABANI KALEMİNDE YAPAY ZEKÂYI ELE GEÇİRME İFADESİ (09-23).
+//
+// Güvenlik KB boyutuna ya da retrieval'a bağlı DEĞİLDİR: bu kontrol `kb-fetch`te, seçiciden ÖNCE
+// ve her boyutta çalışır. Misafir kalıpları (↑) KB'ye UYGULANAMAZ — ölçüldü: gerçekçi 16 host
+// cümlesinin 10'u yanlış pozitif ("Act as if you are at home", "Pretend you are a local",
+// "Kilit kodu çözülemezse…", "The system prompts you for the door code"). Maliyet modeli TERS:
+// misafir mesajında yanlış pozitif = bir insan bakar; KB'de = o bilgi misafire HİÇ ulaşmaz.
+// Bu yüzden liste YALNIZ yapay zekâya yönelen ifadeler: kendi çit belirteçlerimiz, "system
+// prompt", "developer mode", "you are now an AI…", "ignore all previous instructions" ve
+// Türkçede TEKİL emir ("unut", "yok say") — host misafire çoğul/nazik emirle yazar ("unutun",
+// "görmezden gelin"), yapay zekâya yazan saldırgan tekil. Kalıplar ASCII-katlanmış küçük harf
+// metin içindir; aday biçimler misafir dedektörüyle AYNI (görünmez karakter, homoglif, NFKC).
+// ---------------------------------------------------------------------------
+const KB_HIJACK_PATTERNS: readonly RegExp[] = [
+  // Sahte blok/rol işaretleri (bizim çitlerimiz + yaygın sohbet biçimleri).
+  /<<[a-z_]{2,}>>/,
+  /\[\s*\/?\s*(system|sistem|assistant|developer|inst)\s*\]/,
+  /<\s*\/?\s*(system|assistant|developer|knowledge_?base|instructions?)\s*>/,
+  /<\|\s*im_(start|end)\s*\|>/,
+  /\brole\s*"?\s*[:=]\s*"?\s*(system|developer|assistant)\b/,
+  /(^|\s)#{1,6}\s*(system|sistem|assistant|instructions?)\b/,
+  /<!--\s*(ai|assistant|system|yapay|asistan)\b/,
+  />>>\s*.{0,30}\b(talimat|instruction)/,
+  // Kodlanmış talimat kurulumu (misafir listesiyle aynı sınıf; host KB'sinde meşru kullanımı yok).
+  /\bdecode\s+(this|the\s+following|and|it)\b/,
+  /\bbase64\b.{0,60}\b(coz|decode|uygula|follow|execute)\w*/,
+  /\btranslate\b.{0,40}\b(and\s+)?(then\s+)?(follow|execute|obey)\b/,
+  // Modelin KENDİ çıktı alanlarını yönlendirme (meşru host metninde hiç geçmez).
+  /\brisk_?level\b/,
+  /\b(used_?sources|risk_?type|action_?suggestion)\b/,
+  /\bconfidence\s*"?\s*(:|=|to|degeri|degerini|olarak)?\s*"?\s*(1(\.0+)?|0?\.\d+|%?\d{2,3})\b/,
+  /\bintent\s*"?\s*[:=]\s*"?[a-z_]+/,
+  // İngilizce talimat/kural iptali ve rol değiştirme.
+  /\b(ignore|disregard|forget|override)\s+(all\s+|any\s+)?(of\s+)?(your|all|the\s+above|previous|prior|earlier|preceding)\s+((previous|prior|earlier|preceding|above|system)\s+)?(instructions|prompts?|directives|guidelines)\b/,
+  /\b(ignore|disregard|forget|override)\s+(all\s+|any\s+)?(of\s+)?your\s+(rules|safety|restrictions|guardrails|guidelines|instructions)\b/,
+  /\b(ignore|disregard)\s+(everything|the\s+above)\b/,
+  /\bforget\s+everything\s+(above|before|previous|you\s+(were|have\s+been)\s+told)\b/,
+  /\bstop\s+following\s+(your|the|these|those)\s+(instructions|rules|guidelines)\b/,
+  /\byour\s+system\s+(prompt|message|instructions?)\b/,
+  /\bsystem\s+prompt\b(?!s)/,
+  // Diğer diller: "önceki talimatları yok say" (DE / RU / FR) + karışık dil.
+  /\b(ignoriere|vergiss|missachte)\s+(alle\s+)?(vorherigen\s+|bisherigen\s+)?(anweisungen|regeln)\b/,
+  /(игнорируй|забудь)\s+(все\s+)?(предыдущие\s+)?(инструкции|правила)/,
+  /\bignor(e|ez)\s+(toutes\s+)?(les\s+)?instructions\s+(precedentes|précédentes)\b/,
+  /\bignore\s+(onceki|tum|butun|eski)\s+(kural|talimat)/,
+  /\bpretend\s+(to\s+be|you\s+are|you're)\s+(the\s+)?(host|owner|admin|manager|developer)\b/,
+  // "developer mode'a almayın": kesme işareti normalizasyonda boşluk olur → Türkçe hâl ekleri hariç.
+  /\bdeveloper\s+mode\b(?!\s?['’]?\s?(a|e|i|u|ya|ye|yi|yu|da|de|ta|te|dan|den|tan|ten|un|in|nun|nin)\b)/,
+  /\bjailbreak/,
+  /\byou\s+are\s+now\s+(a|an|the)?\s*(new\s+|different\s+|unrestricted\s+|uncensored\s+)?(ai|assistant|bot|chatbot|model|system|admin|dan)\b/,
+  /\byou\s+are\s+no\s+longer\s+(a|an|the|bound|restricted|an?\s+\w+\s+(ai|assistant|bot|model))\b/,
+  /\byou\s+are\s+(a|an)\s+(helpful\s+|new\s+)?(ai|assistant|chatbot|model)\s+(with|without)\s+(no\s+)?(restrictions|rules|limits|filters)\b/,
+  /\bfrom\s+now\s+on\b.{0,30}\b(act\s+as|you\s+are\s+(an?|the)\s+(\w+\s+)?(ai|assistant|bot|model))\b/,
+  /\b(your|a)\s+new\s+(role|persona|identity)\b/,
+  /\breveal\s+(your|the)\s+(system\s+)?(instructions|prompt|rules)\b/,
+  /\bas\s+an?\s+(ai|language\s+model|assistant)\b.{0,40}\b(ignore|must|always|never)\b/,
+  // Türkçe — TEKİL emir (host misafire çoğul/nazik yazar) …
+  /\b(onceki|yukaridaki|tum|butun|eski|diger|guvenlik)?\s*(talimat|kural|yonerge|komut|kalem|kontrol)(ler|lar)?(i|in|ini|leri|lari|larini|lerini)?\s+(unut|yok\s+say|gormezden\s+gel|gecersiz\s+kil|dikkate\s+alma|goz\s?ardi\s+et|devre\s+disi\s+birak|bir\s+kenara\s+birak|askiya\s+al|atla)(?![a-z])/,
+  // … ya da 2. ÇOĞUL İYELİK ("kurallarınızı / talimatlarınızı" = SİZİN kurallarınız — misafirin kuralı
+  // olmaz, okuyan yapay zekânındır) + herhangi bir iptal fiili (tekil ya da çoğul).
+  /\b(talimat|kural|yonerge|komut|kisitlama|guvenlik\s+kural)(lar|ler)?(iniz|inizi|larinizi|lerinizi)\s+(unut|yok\s+say|gormezden\s+gel|gecersiz\s+kil|dikkate\s+alma|goz\s?ardi\s+et|devre\s+disi\s+birak|bir\s+kenara\s+birak|askiya\s+al|atla|birak)/,
+  /\bsistem\s+(prompt\w*|talimat(i|ini|lari|larini|lariniz|larinizi))\b/,
+  // Yapay zekâya HİTAP + iptal fiili (tekil ya da nazik çoğul).
+  /\b(yapay\s+zek[aâ]|asistan|model|bot|chatbot|ai)\b\w*\s*[:,-]?\s*.{0,60}\b(unut|yok\s+say|gormezden\s+gel|goz\s?ardi\s+et|devre\s+disi\s+birak|bir\s+kenara\s+birak|askiya\s+al)(un|in|iniz|unuz)?(?![a-z])/,
+  /\bartik\s+(sen\s+)?(kisitlamasiz|kuralsiz|sansursuz|yeni\s+bir)\s+(bir\s+)?(asistan|yapay\s+zek[aâ]|model|bot)/,
+  // Rol değiştirme (tekil hitap: "yeni rolün / görevin değişti / bundan sonra sen …").
+  /\byeni\s+(rolun|gorevin|kimligin|persona)\b/,
+  /\b(gorevin|rolun)\s+(degisti|artik)\b/,
+  /\bsen\s+(bir\s+)?(asistan|yapay\s+zek[aâ]|bot|model|chatbot)\s+degilsin\b/,
+  /\b(bundan\s+sonra|artik)\s+sen\b.{0,50}\b(degilsin|olarak\s+davran|rolundesin|asistanisin|botsun)\b/,
+];
+
+/** True when a knowledge-base text tries to address and redirect the AI itself (narrow; ↑gerekçe). */
+export function detectKbInstructionHijack(text: string): boolean {
+  for (const cand of candidatesOf(text)) {
+    const folded = foldTurkishAscii(cand);
+    if (KB_HIJACK_PATTERNS.some((re) => re.test(folded))) return true;
+    // Leetspeak ("1gn0re"): YALNIZ harf içeren belirteçlerdeki rakamlar harfe çevrilir (saf sayılar,
+    // kodlar, saatler dokunulmaz) — yalnız EŞLEŞME ekleyen ek aday.
+    const leet = folded.replace(/\b(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{3,}\b/g, (w) =>
+      w.replace(/[013457]/g, (d) => ({ "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t" })[d] ?? d),
+    );
+    if (leet !== folded && KB_HIJACK_PATTERNS.some((re) => re.test(leet))) return true;
+  }
+  return false;
+}
+
 /**
  * Detect the guest's language (basic heuristic). Default is ENGLISH — Turkish
  * only when clear Turkish markers are present — matching the product policy

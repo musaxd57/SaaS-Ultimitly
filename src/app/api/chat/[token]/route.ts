@@ -753,6 +753,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       // Misafir devir metnini alsa bile bu, MODELİN taslağını betimler.
       claims: result.claimAudit,
       llm: result.llmUsage,
+      hijackScreened: ctx.knowledgeBaseHijackScreened,
     }),
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,

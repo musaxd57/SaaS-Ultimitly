@@ -6,6 +6,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/empty-state";
 import { KbManager, type KbItem } from "@/components/knowledge/kb-manager";
 import { aiReadableForConflicts, kbTimeConflicts, type KbTimeConflictRow } from "@/lib/kb-time-conflicts";
+import { detectKbInstructionHijack } from "@/lib/ai/fallback";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,9 @@ export default async function KnowledgePage() {
     const rows = kbTimeConflicts(p, aiReadableForConflicts(items.filter((i) => i.propertyId === p.id)));
     if (rows.length > 0) timeConflicts[p.id] = rows;
   }
+  // Yapay zekâya komut veren ifade taşıyan kalemler: `kb-fetch` onları isteme HİÇ koymaz (her
+  // boyutta); host bunu kalemin yanında görür — güvenlik süzgeci sessiz bilgi kaybına dönüşmesin.
+  const hijackIds = items.filter((i) => detectKbInstructionHijack(`${i.title}\n${i.content}`)).map((i) => i.id);
 
   return (
     <>
@@ -65,6 +69,7 @@ export default async function KnowledgePage() {
           properties={properties.map((p) => ({ id: p.id, name: p.name }))}
           items={kbItems}
           timeConflicts={timeConflicts}
+          hijackIds={hijackIds}
         />
       )}
     </>
