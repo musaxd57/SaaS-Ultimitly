@@ -657,6 +657,60 @@ function phraseHit(hay: string, needle: string): boolean {
   return re.test(hay);
 }
 
+/**
+ * \ud83d\udea8 MAL\u0130YET \u00d6NBELLEKLER\u0130 (09-23 denetimi, \u00d6L\u00c7\u00dcLD\u00dc) \u2014 anlam DE\u011e\u0130\u015eMEZ, yaln\u0131z tekrar
+ * hesap kalkar. `includesAnyFold` tek bir s\u0131n\u0131fland\u0131rmada ONLARCA kez AYNI mesajla
+ * \u00e7a\u011fr\u0131l\u0131yor (`detectIntent` her niyet i\u00e7in bir kez) ve her \u00e7a\u011fr\u0131da mesaj\u0131 6'ya kadar
+ * aday bi\u00e7ime \u00e7evirip \u00dc\u00c7 katlamadan ge\u00e7iriyor, \u00fcst\u00fcne listedeki HER kelimeyi her aday
+ * i\u00e7in yeniden katl\u0131yordu. Erken e\u015fle\u015fme olmayan girdide (tam da d\u00fc\u015fmanca girdi) i\u015f
+ * komple bo\u015fa tekrarlan\u0131yordu: 2.000 karakterlik `a'a'a'\u2026` mesaj\u0131 163 ms. QR pencere
+ * kurucusu her POST'ta 120 mesaja kadar s\u0131n\u0131fland\u0131rd\u0131\u011f\u0131 i\u00e7in bu tek bir misafirin
+ * payla\u015f\u0131lan s\u00fcreci ~20 sn DONDURAB\u0130LMES\u0130 demekti (kanal yolunda da bekleyen mesajlar
+ * ayn\u0131 a\u011flardan ge\u00e7iyor).
+ *  \u00b7 Mesaj \u00f6nbelle\u011fi TEK G\u0130R\u0130\u015eL\u0130: anahtar ham mesaj\u0131n kendisi, de\u011fer saf bir fonksiyonun
+ *    \u00e7\u0131kt\u0131s\u0131 \u2192 bayatlama imk\u00e2ns\u0131z; bellekte en fazla B\u0130R mesaj tutulur.
+ *  \u00b7 Kelime \u00f6nbelle\u011fi L\u0130STE K\u0130ML\u0130\u011e\u0130NE ba\u011fl\u0131 (WeakMap): statik listeler bir kez katlan\u0131r;
+ *    her \u00e7a\u011fr\u0131da yeni kurulan dizi yaln\u0131z \u00f6nbelle\u011fi \u0131skalar (do\u011fruluk etkilenmez) ve
+ *    diziyle birlikte \u00e7\u00f6pe gider. Uzunluk de\u011fi\u015firse yeniden katlan\u0131r.
+ */
+let candidatesCacheKey: string | null = null;
+let candidatesCacheVal: readonly string[] = [];
+/** `matchCandidates(normalizeForMatch(message))` \u2014 ayn\u0131 mesaj i\u00e7in bir kez. */
+function candidatesOf(message: string): readonly string[] {
+  if (message !== candidatesCacheKey) {
+    // DONDURULUR: paylaşılan önbellek; bir çağıran diziyi değiştirirse sessiz bozulma
+    // değil GÜRÜLTÜLÜ hata olsun.
+    candidatesCacheVal = Object.freeze(matchCandidates(normalizeForMatch(message)));
+    candidatesCacheKey = message;
+  }
+  return candidatesCacheVal;
+}
+
+type FoldedCandidate = { std: string; tr: string; ascii: string };
+let foldedCacheKey: string | null = null;
+let foldedCacheVal: readonly FoldedCandidate[] = [];
+function foldedCandidatesOf(message: string): readonly FoldedCandidate[] {
+  if (message !== foldedCacheKey) {
+    foldedCacheVal = Object.freeze(
+      candidatesOf(message).map((cand) =>
+        Object.freeze({ std: foldTurkishLower(cand), tr: foldTurkishLowerTr(cand), ascii: foldTurkishAscii(cand) }),
+      ),
+    );
+    foldedCacheKey = message;
+  }
+  return foldedCacheVal;
+}
+
+const asciiWordsCache = new WeakMap<readonly string[], string[]>();
+function asciiFoldedWords(words: readonly string[]): string[] {
+  let v = asciiWordsCache.get(words);
+  if (!v || v.length !== words.length) {
+    v = words.map(foldTurkishAscii);
+    asciiWordsCache.set(words, v);
+  }
+  return v;
+}
+
 /** Kelime a\u011f\u0131 e\u015fle\u015fmesi: metin, \u00dc\u00c7 katlamadan herhangi biriyle kelimeyi i\u00e7eriyor mu? */
 function includesAnyFold(
   message: string,
@@ -673,14 +727,12 @@ function includesAnyFold(
 ): boolean {
   // Her ADAY biçim (görsel ikizler sökülmüş, birleştirici işaretler atılmış,
   // ayıraçla parçalanmış) × ÜÇ katlama. Yalnızca EŞLEŞME EKLER.
-  for (const cand of matchCandidates(normalizeForMatch(message))) {
-    const std = foldTurkishLower(cand);
-    const tr = foldTurkishLowerTr(cand);
-    const ascii = foldTurkishAscii(cand);
-    const hit = (hay: string, needle: string) =>
-      allowWordGap ? phraseHit(hay, needle) : hay.includes(needle);
-    if (words.some((w) => hit(std, w) || hit(tr, w) || hit(ascii, foldTurkishAscii(w)))) {
-      return true;
+  // (Adaylar/katlamalar ve kelimelerin ASCII katlaması ↑önbellekten — anlam aynı.)
+  const asciiWords = asciiFoldedWords(words);
+  const hit = (hay: string, needle: string) => (allowWordGap ? phraseHit(hay, needle) : hay.includes(needle));
+  for (const { std, tr, ascii } of foldedCandidatesOf(message)) {
+    for (let k = 0; k < words.length; k++) {
+      if (hit(std, words[k]) || hit(tr, words[k]) || hit(ascii, asciiWords[k])) return true;
     }
   }
   return false;
@@ -1115,12 +1167,68 @@ const APOSTROPHES = /['\u2019\u2018\u02BC\u2032`]/gu;
  * ("Klima'mız" → klima ✓), değilse kesme YERİNDE kalır ve `WORD_SPLIT` onu sınır sayar.
  * Yön yalnız ELEMEDİR: cihaz olmayan hiçbir önek artık cihaza dönüşemez.
  */
-const APOSTROPHE_IN_WORD = /([\p{L}\p{N}]+)['\u2019\u2018\u02BC\u2032`](?=[\p{L}\p{N}])/gu;
+const IN_WORD_APOSTROPHES = new Set(["'", "\u2019", "\u2018", "\u02BC", "\u2032", "`"]);
+const LETTER_OR_DIGIT = /^[\p{L}\p{N}]$/u;
+
+/**
+ * Kelime \u0130\u00C7\u0130 kesmeyi (harf/rakam ko\u015Fusu + kesme + harf/rakam) `keep(sol)` do\u011Fruysa siler.
+ *
+ * \uD83D\uDEA8 REGEX DE\u011E\u0130L, DO\u011ERUSAL TARAYICI (09-23 denetimi, \u00D6L\u00C7\u00DCLD\u00DC). Eski bi\u00E7im
+ * `/([\p{L}\p{N}]+)['\u2019\u2018\u02BC\u2032`](?=[\p{L}\p{N}])/gu` idi: kesmesiz UZUN bir kelimede her
+ * ba\u015Flang\u0131\u00E7ta `+` kelimenin sonuna ko\u015Fup geri izliyordu \u2192 O(n\u00B2). 2.000 karakterlik tek
+ * kelime ("\u015F\u015F\u015F\u2026" / karma yaz\u0131 "\u043Ea\u043Ea\u2026") s\u0131n\u0131fland\u0131rmay\u0131 100\u2013180 ms'ye \u00E7\u0131kar\u0131yordu ve bu
+ * fonksiyon her aday bi\u00E7im \u00D7 her s\u0131n\u0131fland\u0131rma ko\u015Fuyor. Anlam B\u0130REB\u0130R: `sol` = kesmeden
+ * hemen \u00F6nceki azami harf/rakam ko\u015Fusu (\u00F6nceki e\u015Fle\u015Fmenin kesmesinden sonra ba\u015Flar),
+ * kesmenin ard\u0131nda harf/rakam \u015Fart, kod noktas\u0131 (vekil \u00E7ift) say\u0131m\u0131 regex'in `u`
+ * bayra\u011F\u0131yla ayn\u0131. E\u015Fde\u011Ferlik eski regex k\u00E2hin al\u0131narak HER y\u00FCklemle pinli
+ * (`tests/unit/classifier-cost.test.ts`).
+ */
+export function joinInWordApostrophes(cand: string, keep: (left: string) => boolean): string {
+  const n = cand.length;
+  /** `idx`teki kod noktas\u0131 harf/rakam m\u0131 (vekil \u00E7ift tek kod noktas\u0131 say\u0131l\u0131r, `u` bayra\u011F\u0131 gibi). */
+  const isLD = (idx: number) => idx < n && LETTER_OR_DIGIT.test(String.fromCodePoint(cand.codePointAt(idx)!));
+  const width = (idx: number) => (cand.codePointAt(idx)! > 0xffff ? 2 : 1);
+  let out = "";
+  let copiedUpTo = 0;
+  let i = 0;
+  while (i < n) {
+    if (!isLD(i)) {
+      i += width(i);
+      continue;
+    }
+    // Azami harf/rakam ko\u015Fusu [s, e). \u26A0\uFE0F U+02BC `\u02BC` HARFT\u0130R (Lm) \u2192 ko\u015Funun \u0130\u00C7\u0130NDE kal\u0131r ama
+    // ayn\u0131 zamanda kesme s\u0131n\u0131f\u0131ndad\u0131r; eski regex onu geri izlemeyle kesme olarak da g\u00F6r\u00FCyordu.
+    const s = i;
+    let e = i;
+    while (e < n && isLD(e)) e += width(e);
+    // Regex'in \u0130LK denemesi (a\u00E7g\u00F6zl\u00FC): ko\u015Funun hemen ard\u0131nda ger\u00E7ek kesme + harf/rakam.
+    let p = -1;
+    if (e < n && IN_WORD_APOSTROPHES.has(cand[e]) && isLD(e + 1)) {
+      p = e;
+    } else {
+      // Geri izleme: ko\u015Funun \u0130\u00C7\u0130NDE, ard\u0131ndan ko\u015Fu karakteri gelen EN SA\u011EDAK\u0130 `\u02BC` (sol bo\u015F olamaz).
+      for (let k = e - 2; k > s; k--) {
+        if (cand[k] === "\u02BC") {
+          p = k;
+          break;
+        }
+      }
+    }
+    if (p < 0) {
+      i = e; // bu ko\u015Fuda e\u015Fle\u015Fme yok (regex sonraki ba\u015Flang\u0131\u00E7larda da bulamaz \u2014 aday k\u00FCmesi ayn\u0131)
+      continue;
+    }
+    if (keep(cand.slice(s, p))) {
+      out += cand.slice(copiedUpTo, p); // kesme D\u00DC\u015EER, sol par\u00E7a kal\u0131r
+      copiedUpTo = p + 1;
+    }
+    i = p + 1; // regex e\u015Fle\u015Fmeden (kesmeden) SONRA devam eder
+  }
+  return out + cand.slice(copiedUpTo);
+}
 
 function deviceTokens(cand: string): string[] {
-  const joined = cand.replace(APOSTROPHE_IN_WORD, (whole, left: string) =>
-    matchesInflectedWord(left, BREAKDOWN_DEVICES) ? left : whole,
-  );
+  const joined = joinInWordApostrophes(cand, (left) => matchesInflectedWord(left, BREAKDOWN_DEVICES));
   return joined.replace(APOSTROPHES, " ").split(WORD_SPLIT).filter(Boolean);
 }
 
@@ -1136,13 +1244,28 @@ function deviceTokens(cand: string): string[] {
  * YANILSAMASI üretirdi. Çarpışmaları eleyen şey ASCII kapısı değil, ÇEKİM doğrulamasıdır
  * (düşünürken→"unurken", fondöten→"doten", fonksiyon→"ksiyon" hepsi reddedilir).
  */
+/**
+ * Kelime listesinin katlanmış biçimleri — liste KİMLİĞİNE bağlı, bir kez (09-23 denetimi).
+ * 🚨 ÖLÇÜLEN MALİYET: `matchesWordForm` her BELİRTEÇ için listedeki her kelimeyi (145
+ * cihaz adı) İKİ katlamadan yeniden geçiriyordu → 2.000 karakterlik `a'a'a'…` mesajı
+ * 1.000 belirteç × 290 katlama × 6 aday; sınıflandırmanın en büyük kalemi buydu (profil).
+ * Listeler statik; değer saf fonksiyon çıktısı → anlam DEĞİŞMEZ.
+ */
+const wordFormsCache = new WeakMap<readonly string[], readonly { ws: string; wa: string }[]>();
+function foldedWordForms(words: readonly string[]): readonly { ws: string; wa: string }[] {
+  let v = wordFormsCache.get(words);
+  if (!v || v.length !== words.length) {
+    v = Object.freeze(words.map((w) => Object.freeze({ ws: foldTurkishLower(w), wa: foldTurkishAscii(w) })));
+    wordFormsCache.set(words, v);
+  }
+  return v;
+}
+
 function matchesWordForm(tok: string, words: readonly string[], suffix: RegExp): boolean {
   const std = foldTurkishLower(tok);
   const tr = foldTurkishLowerTr(tok);
   const ascii = foldTurkishAscii(tok);
-  for (const w of words) {
-    const ws = foldTurkishLower(w);
-    const wa = foldTurkishAscii(w);
+  for (const { ws, wa } of foldedWordForms(words)) {
     const rests: string[] = [];
     if (std.startsWith(ws)) rests.push(std.slice(ws.length));
     if (tr !== std && tr.startsWith(ws)) rests.push(tr.slice(ws.length));
@@ -1167,9 +1290,7 @@ function breakdownVerbRest(tok: string): string | null {
   const std = foldTurkishLower(tok);
   const tr = foldTurkishLowerTr(tok);
   const ascii = foldTurkishAscii(tok);
-  for (const v of BREAKDOWN_VERBS) {
-    const vs = foldTurkishLower(v);
-    const va = foldTurkishAscii(v);
+  for (const { ws: vs, wa: va } of foldedWordForms(BREAKDOWN_VERBS)) {
     if (std.startsWith(vs)) return std.slice(vs.length);
     if (tr !== std && tr.startsWith(vs)) return tr.slice(vs.length);
     if (ascii.startsWith(va)) return ascii.slice(va.length);
@@ -1225,7 +1346,7 @@ function reportSubjectSlot(toks: string[], verbIndex: number): boolean {
  * (`reportSubjectSlot`) ve fiil koşul kipinde olmamalı (`CONDITIONAL_TAIL`).
  */
 function hasDeviceBreakdown(message: string): boolean {
-  for (const cand of matchCandidates(normalizeForMatch(message))) {
+  for (const cand of candidatesOf(message)) {
     const toks = deviceTokens(cand);
     if (!toks.some((t) => matchesInflectedWord(t, BREAKDOWN_DEVICES))) continue;
     for (let i = 0; i < toks.length; i++) {
@@ -1274,7 +1395,7 @@ function reportedNotConditional(hay: string, needle: string): boolean {
  * düzelmezse otele geçeceğiz" BİLDİRİMDİR. Fark kalıbın hemen ardındaki ekte (↑ `CONDITIONAL_TAIL`).
  */
 function hasNegativeVerbComplaint(message: string): boolean {
-  for (const cand of matchCandidates(normalizeForMatch(message))) {
+  for (const cand of candidatesOf(message)) {
     const std = foldTurkishLower(cand);
     const tr = foldTurkishLowerTr(cand);
     const ascii = foldTurkishAscii(cand);
@@ -1583,7 +1704,7 @@ export function detectPromptInjection(message: string): boolean {
   // olarak ölçüldü: tek bir Kiril görsel-ikizi, tek bir birleştirici işaret, tam
   // genişlikli harfler ya da "I.g.n.o.r.e" gibi ayıraçlı yazım vetoyu deliyor ve
   // `passesAutoReplySafetyGate` TRUE dönüyordu (misafire OTO-GÖNDERİM izni).
-  for (const cand of matchCandidates(normalizeForMatch(message))) {
+  for (const cand of candidatesOf(message)) {
     if (INJECTION_PATTERNS.some((re) => re.test(cand))) return true;
     if (INJECTION_PATTERNS_ASCII.some((re) => re.test(foldTurkishAscii(cand)))) return true;
   }

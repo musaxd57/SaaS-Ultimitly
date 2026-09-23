@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { safeRedirectTarget } from "@/lib/safe-redirect";
 
 /** Form-bazlı hata düğümünün id'si; alanlara aria-describedby ile bağlanır. */
 const FORM_ERROR_ID = "login-form-error";
@@ -160,15 +161,10 @@ export function LoginForm() {
       // "oturumunuz doldu" / sahte ödeme ekranı) — en ikna edici kimlik avı
       // biçimi. Ayrıştırıcının hangi karakteri yediğini tahmin etmek yerine
       // SONUCU sınıyoruz: nereye çözülüyorsa orası bizim origin'imiz olmalı.
-      let safeNext: string | null = null;
-      if (next) {
-        try {
-          const u = new URL(next, window.location.origin);
-          if (u.origin === window.location.origin) safeNext = u.pathname + u.search + u.hash;
-        } catch {
-          // ayrıştırılamayan değer → varsayılana düş
-        }
-      }
+      // 🚨 09-23: origin kontrolü YETMİYORDU — `/.//evil` origin'den geçip pathname'i
+      // `//evil` yapıyordu ve router onu dış adres sayıyordu. Kural tek yerde, test-pinli:
+      // `src/lib/safe-redirect.ts`.
+      const safeNext = safeRedirectTarget(next, window.location.origin);
       router.push(safeNext ?? "/dashboard");
       router.refresh();
     } catch {

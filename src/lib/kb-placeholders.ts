@@ -297,8 +297,63 @@ export function fillGuestPlaceholdersInItems<T extends { title?: string; content
  * `[ŞİFRE]`, `<adres>`, `____` sınıfı — host'un DOLDURMADIĞI alanlar.
  * `{isim}`/`{daire}` BİLEREK DIŞARIDA: onlar gönderim anında çözülür.
  * İçinde en az bir HARF şart: "[1]" madde imi yer tutucu değildir.
+ *
+ * 🚨 REGEX DEĞİL, DOĞRUSAL TARAYICI (09-23 denetimi, ölçüldü). Eski gerçekleme
+ * `/\[[^\]\n]*\p{L}[^\]\n]*\]|<[^>\n]*\p{L}[^>\n]*>|_{3,}/gu` idi: iki sınırsız
+ * olumsuz sınıf arasında ZORUNLU bir harf → kapanışsız her açılışta bütün bölünme
+ * noktaları denenir, O(n³). "[ş" tekrarı 3.000 karakterde 8,1 sn; KB kalemi 20.000
+ * karaktere kadar kabul edildiği için ~40 DAKİKA tek iş parçacığı donması — ve bu
+ * yüklem halka açık QR yolunda (istem paketleme) koşuyor. Anlam BİREBİR aynı:
+ *   · `[`/`<` açılışından İLK kapanışa (`]`/`>`) kadar; arada satır sonu varsa eşleşme yok
+ *     (içte başka açılış serbest: "[ab[cd]" tek belirteç),
+ *   · aralıkta en az bir harf (`\p{L}`, BMP dışı vekil çift dahil),
+ *   · eşleşmeyen açılışta bir sonraki karakterden devam (regex'in soldan tarama sırası),
+ *   · `_{3,}` ardışık alt çizgi koşusu.
+ * Eşdeğerlik eski regex KÂHİN alınarak tohumlu rastgele testle pinli
+ * (`tests/unit/kb-placeholder-redos.test.ts`). Her açılış için kapanış aramasını
+ * yeniden yapmamak üzere tür başına "bilinen durak" ileri gider → toplam O(n).
  */
-const KB_PLACEHOLDER_G = /\[[^\]\n]*\p{L}[^\]\n]*\]|<[^>\n]*\p{L}[^>\n]*>|_{3,}/gu;
+const LETTER = /\p{L}/u;
 export function kbPlaceholderTokens(content: string): string[] {
-  return Array.from(content.matchAll(KB_PLACEHOLDER_G), (m) => m[0]);
+  const n = content.length;
+  // nextLetter[i] = i'den itibaren ilk harfin BAŞLADIĞI indeks (yoksa n). BMP dışı harf
+  // vekil çiftin YÜKSEK yarısında işaretlenir (`codePointAt` orada çifti tek kod noktası
+  // okur); düşük yarı tek başına harf değildir — aralık kontrolü çiftin tamamını kapsar.
+  const nextLetter = new Int32Array(n + 1);
+  nextLetter[n] = n;
+  for (let i = n - 1; i >= 0; i--) {
+    nextLetter[i] = LETTER.test(String.fromCodePoint(content.codePointAt(i)!)) ? i : nextLetter[i + 1];
+  }
+  // Tür başına bilinen durak: son hesaplanan (kapanış | satır sonu | son) konumu.
+  const stop = { "[": -1, "<": -1 } as Record<"[" | "<", number>;
+  const out: string[] = [];
+  let i = 0;
+  while (i < n) {
+    const c = content[i];
+    if (c === "[" || c === "<") {
+      const close = c === "[" ? "]" : ">";
+      if (stop[c] <= i) {
+        let j = i + 1;
+        while (j < n && content[j] !== close && content[j] !== "\n") j++;
+        stop[c] = j;
+      }
+      const j = stop[c];
+      if (j < n && content[j] === close && nextLetter[i + 1] < j) {
+        out.push(content.slice(i, j + 1));
+        i = j + 1;
+        continue;
+      }
+      i++;
+      continue;
+    }
+    if (c === "_") {
+      let j = i;
+      while (j < n && content[j] === "_") j++;
+      if (j - i >= 3) out.push(content.slice(i, j));
+      i = j;
+      continue;
+    }
+    i++;
+  }
+  return out;
 }

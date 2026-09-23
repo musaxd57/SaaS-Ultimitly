@@ -58,6 +58,36 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
   }
 }
 
+/**
+ * SALT-OKUMA: bu anahtarın AÇIK penceresinde sayaç `limit`e ulaştı mı — yani
+ * `rateLimit(key, limit, …)`e yapılacak BİR SONRAKİ çağrı reddedilir mi? TÜKETMEZ.
+ * Aynı anahtarı `rateLimit` ile tüketen bir kapının ÖNÜNDE "zaten dolu mu" sorusu için
+ * (login'in tanınan-cihaz kapısı, 09-23). Anlam iki yolda da `rateLimit`in reddiyle
+ * aynı: DB'de sayaç `limit`e ULAŞMIŞSA sonraki vuruş `limit+1` olur ve reddedilir;
+ * bellek yedeği de `count >= limit`te reddeder. DB hatasında bellek kovasına bakar
+ * (orada kayıt yoksa "dolu değil" — kapı bugünkü davranışa düşer, fail-open).
+ */
+export async function rateLimitPeek(key: string, limit: number): Promise<Verdict> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ count: number; retry: number }>>`
+      SELECT
+        "count"::int AS count,
+        CEIL(GREATEST(1, EXTRACT(EPOCH FROM ("resetAt" - (now() AT TIME ZONE 'utc')))))::int AS retry
+      FROM "RateLimitCounter"
+      WHERE "key" = ${key} AND "resetAt" > (now() AT TIME ZONE 'utc')
+    `;
+    const row = rows[0];
+    if (!row || Number(row.count) < limit) return { ok: true, retryAfter: 0 };
+    return { ok: false, retryAfter: Math.max(1, Number(row.retry)) };
+  } catch (err) {
+    warnDbUnavailable(err);
+    const now = Date.now();
+    const bucket = buckets.get(key);
+    if (!bucket || bucket.resetAt <= now || bucket.count < limit) return { ok: true, retryAfter: 0 };
+    return { ok: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+  }
+}
+
 // Throttled operational warning — a DB outage would otherwise log per request.
 let lastDbWarnAt = 0;
 function warnDbUnavailable(err: unknown) {

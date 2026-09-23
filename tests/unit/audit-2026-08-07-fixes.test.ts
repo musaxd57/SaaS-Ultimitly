@@ -242,9 +242,12 @@ describe("kaynak pinleri — geri alınması KOLAY ama tehlikeli düzeltmeler", 
   it("giriş formu `next`i ORIGIN karşılaştırmasıyla doğrular, karakter listesiyle değil", () => {
     // TAB/LF/CR karakterlerini URL ayrıştırıcısı SİLİYOR → önek kara listesi
     // (`//`, `/\`) delinebiliyordu. Doğru yöntem sonucu sınamak.
+    // 09-23: kural `safe-redirect.ts`e taşındı (origin kontrolü tek başına YETMİYORDU —
+    // `/.//evil` atlatması). DAVRANIŞSAL pin: `tests/unit/safe-redirect.test.ts`.
     const src = read("src/components/auth/login-form.tsx");
-    expect(src).toContain("u.origin === window.location.origin");
+    expect(src).toContain("safeRedirectTarget(next, window.location.origin)");
     expect(src).not.toMatch(/next\.startsWith\("\/\/"\)/);
+    expect(read("src/lib/safe-redirect.ts")).toContain("u.origin !== origin");
   });
 
   it("mülk API'leri bearer token'ları yanıttan çıkarır", () => {

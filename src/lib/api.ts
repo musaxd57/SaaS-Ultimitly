@@ -253,6 +253,28 @@ function mediaTypeEssence(raw: string | null): string {
   return (semi === -1 ? raw : raw.slice(0, semi)).trim().toLowerCase();
 }
 
+/**
+ * İstek `application/json` başlığı taşıyor mu? (`readJsonCapped` kapısıyla AYNI öz kuralı;
+ * gövdeden BAĞIMSIZ — gövdesiz CORS'suz POST da gönderilebilir.)
+ *
+ * 🚨 KİMLİK ROTALARI BUNU IP KOVASINDAN ÖNCE SORAR (09-23 denetimi, login ajanı F8):
+ * JSON kontrolü kovadan SONRA olunca, başka bir site ziyaretçinin tarayıcısından
+ * `no-cors` + `text/plain` POST'larla (preflight YOK) kurbanın — ya da bütün bir ofis/
+ * mobil operatör NAT'ının — IP kovasını yakıp onu dakikalarca girişten dışarıda
+ * bırakabiliyordu. `application/json` CORS-safelisted DEĞİL: çapraz sitede preflight
+ * ister ve `/api` hiçbir CORS başlığı yayınlamadığı için tarayıcı isteği hiç göndermez.
+ * ⚠️ curl'ü durdurmaz (başlığı set eder) — onu IP kovası sınırlar; burada kapatılan tek
+ * şey TARAYICI üzerinden başkasının kovasını yakmaktır.
+ */
+export function hasJsonContentType(req: Request): boolean {
+  return mediaTypeEssence(req.headers.get("content-type")) === "application/json";
+}
+
+/** 415 — kimlik rotalarının IP kovasına dokunmadan verdiği ret (↑`hasJsonContentType`). */
+export function unsupportedMediaType() {
+  return NextResponse.json({ error: "İstek biçimi desteklenmiyor." }, { status: 415 });
+}
+
 export function payloadTooLarge(message = "Gönderilen içerik çok büyük. Lütfen daha küçük bir dosya veya daha kısa bir metin gönderin.") {
   return NextResponse.json({ error: message }, { status: 413 });
 }

@@ -586,6 +586,19 @@ export const QR_HISTORY_MESSAGE_CAP = 24; // ≈ 12 tur
 export const QR_HISTORY_CHAR_CAP = 8_000;
 /** Pencere DIŞINDA açık konu aranırken taranacak en fazla mesaj (maliyet tavanı). */
 const QR_TOPIC_SCAN_CAP = 120;
+/**
+ * Konu taramasında SINIFLANDIRILACAK misafir metninin toplam karakter bütçesi (en YENİ
+ * mesajlardan geriye). 🚨 09-23 denetimi, ÖLÇÜLDÜ: tarama döngüsü sayı tavanına rağmen
+ * KARAKTER bütçesi taşımıyordu ve her POST'ta 120 mesaja kadar `classifyFallback`
+ * çalıştırıyordu. Misafir 2.000 karakterlik düşmanca mesajlar biriktirince (aşım POST'ları
+ * da kaydediliyor) tek pencere kurulumu eski sınıflandırıcıyla ~20 SN, hızlandırılmışıyla
+ * bile ~2,7 sn paylaşılan süreci donduruyordu. Pencerenin KENDİSİ zaten "sayı + karakter,
+ * hangisi önce dolarsa" kuralıyla çalışıyor; tarama bunun eksik yarısıydı.
+ * Olağan sohbeti ETKİLEMEZ: 120 kısa mesaj (~150 karakter) bütçenin altında kalır.
+ * Bütçenin gerisinde kalan eski mesaj, sayı tavanının gerisindeki gibi taranmaz —
+ * bedeli yalnız bir bağlam notudur (devir/güvenlik kararına girmez).
+ */
+export const QR_TOPIC_SCAN_CHAR_BUDGET = 24_000;
 
 /** Modelin göreceği tek bir geçmiş satırı (yön mesajın KENDİ alanından gelir). */
 export interface GuestChatHistoryItem {
@@ -710,8 +723,20 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
   // ⚠️ Kapanışın hangi konuya ait olduğunu METİNDEN çıkarmıyoruz: "teşekkürler"
   // konu taşımaz. Yakınlık, elde olan tek dürüst sinyaldir; yanılması hâlinde
   // bedeli yalnız bir bağlam notudur (devir/güvenlik kararına girmez).
+  // Tarama başlangıcı: en YENİDEN geriye, sınıflandırılacak MİSAFİR metni bütçeyi
+  // aşmadan gidilebilen en eski indeks (↑`QR_TOPIC_SCAN_CHAR_BUDGET`). Yalnız inbound
+  // sayılır — maliyeti sınıflandırma üretir ve yalnız misafir satırı sınıflanır.
+  let scanFrom = chronological.length;
+  for (let i = chronological.length - 1, budget = QR_TOPIC_SCAN_CHAR_BUDGET; i >= 0; i--) {
+    const r = chronological[i];
+    if (r.direction === "inbound") {
+      if (r.body.length > budget) break;
+      budget -= r.body.length;
+    }
+    scanFrom = i;
+  }
   const openStack: { intent: string; index: number }[] = [];
-  for (let i = 0; i < chronological.length; i++) {
+  for (let i = scanFrom; i < chronological.length; i++) {
     const r = chronological[i];
     if (r.direction !== "inbound") continue;
     if (looksLikeTopicClosure(r.body)) {

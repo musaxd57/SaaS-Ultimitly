@@ -20,6 +20,12 @@ import {
   signTrustedDeviceToken,
   verifyTrustedDeviceToken,
 } from "@/lib/auth/trusted-device";
+import {
+  KNOWN_DEVICE_COOKIE,
+  KNOWN_DEVICE_MAX_AGE,
+  KNOWN_DEVICE_PATH,
+  signKnownDeviceToken,
+} from "@/lib/auth/known-device";
 
 export type { SessionPayload };
 
@@ -188,6 +194,24 @@ export async function setTrustedDeviceCookie(
     sameSite: "lax",
     path: "/",
     maxAge: TRUSTED_DEVICE_MAX_AGE,
+  });
+}
+
+/**
+ * Bu tarayıcıyı bu kullanıcı için TANINAN CİHAZ olarak işaretle (180 gün, her başarılı
+ * girişte kayar). Hesap kovası doluyken parola denemesine yalnız bu çerezi taşıyan
+ * tarayıcı devam edebilir (`known-device.ts` başlığı). Yol `/api/auth` — uygulamanın
+ * geri kalanına taşınmaz.
+ */
+export async function setKnownDeviceCookie(userId: string, sEpoch: number): Promise<void> {
+  const token = await signKnownDeviceToken(userId, sEpoch);
+  const store = await cookies();
+  store.set(KNOWN_DEVICE_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: KNOWN_DEVICE_PATH,
+    maxAge: KNOWN_DEVICE_MAX_AGE,
   });
 }
 
