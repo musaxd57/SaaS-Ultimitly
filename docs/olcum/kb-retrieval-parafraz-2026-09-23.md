@@ -99,3 +99,60 @@ ajanın KÖR bataryası: 150 meşru metin + repodaki 530+ KB metni **0 yanlış 
 devretme, teknisyen yolda de): meşru host talimatıyla biçimce aynı → çıktı katmanları (sır filtresi,
 çıktı vetosu, kelime ağı kapısı) ve hesap güvenliği karşılar. Eleme sessiz değil: host "Yapay zekâ
 kullanmıyor" rozetini görür; karar kaydında `hj`.
+
+## Üçüncü tur (aynı gün): "kurumsal RAG" önerileri tek tek ölçüldü
+
+Kurucunun ilettiği öneri tablosu (hibrit yoğun+seyrek arama · çapraz-kodlayıcı yeniden sıralama · "sabit
+karakter/kalem sınırı yerine %80 üstü alaka, en iyi 3–5 parça" · "Lost in the Middle"). Üç ajan: sektör
+araştırması (web), yerel reranker fizibilitesi (ölçüm), kesme kuralları (ölçüm, repo değişmeden).
+
+**1. Skor eşiğiyle dinamik kesme — REDDEDİLDİ (ölçüldü).** Üretim seçicisinin parametrik kopyası (970
+kontrolde üretimle birebir) 100/300 kalemde; ölçek 193 + parafraz 82 + negatif 20 + iki sorulu 190 mesaj:
+
+| varyant (n=100 / 300) | ölçek kaçan /193 | parafraz inPrompt | iki soru, ikisi de kaçan /190 | ort. blok |
+|---|---|---|---|---|
+| **bugünkü** (göreli taban 0,25·en iyi, 6k/12) | **1 / 0** | %38 / %38 | **2 / 6** | 685 / 1195 |
+| puan ≥ 0,8, en fazla 5 | 2 / 6 | %34 / %35 | 8 / 11 | 451 / 637 |
+| göreli 0,5 + 6k/12 | 1 / 1 | %37 / %38 | 4 / 6 | 475 / 1016 |
+| diz (en büyük boşluk) | 4 / 5 | %35 / %38 | 8 / 8 | 416 / 889 |
+
+Puan bir yüzde DEĞİL: en iyi parça her sorguda ~1,00 + bonus alır; cevabı KB'de olmayan (negatif) sorgular da
+1,00–1,35 alıyor ("dişçi önerir misiniz?" 1,35) → "≥0,8" kuralı pratikte "her zaman ilk 5" demek, hiçbir
+eşik cevaplanabilir ile cevaplanamazı ayıramıyor (dengeli doğruluk en iyi 0,70–0,71; ham BM25'te 0,77–0,79).
+Her kesme cevap kaybettiriyor; kazanç mesaj başına ~60 token. Sektör de mutlak eşiği güvenilir saymıyor
+(Cohere: puan sorguya bağlı, kalibrasyon ister; Vectara: göreli "diz" kesmesi).
+
+**2. Asıl açık kesme değil ADAY ÜRETİMİ.** 275 cevaplanabilir sorunun 58'inde cevap parçası sözcüksel
+aday listesine HİÇ girmiyor (çoğu parafraz). Kesme yalnız listeyi kısaltır; bunu yalnız ikinci bir aday
+üreticisi (embedding) kapatır → **üretim yolu yazıldı, anahtar KAPALI** (`KB_SEMANTIC_RETRIEVAL`):
+- alt sorgu BAŞINA anlamsal puan (tek mesaj vektörü iki konunun karışımı),
+- her alt sorgu, ait olduğu HAM cümle + virgülle bölündüyse kendisiyle sorulur; puan en yüksek kosinüs
+  ("Gece çok üşüdük, evi ılık yapabilir miyiz?" virgülle ikiye bölünür, "gece çok üşüdük" tek başına anlamsız),
+- sıcak yol 1,5 sn bütçe; soğuk KB misafiri bekletmez (arka planda ısıtma, saatlik tavan), yarım harita yok,
+- kalıcı sağlayıcı arızası geçiş tabanlı alarm (ayrı anahtar), kanıtta `sem` durumu.
+
+**3. Yeniden sıralamada anlamsal uyum bonusu (ölçüldü, kâhin sinyal).** Mevcut bonusların hepsi sözcükseldi;
+kusursuz anlamsal sinyal verildiğinde bile iki sorulu parafraz mesajında iki cevap birden bloğa yalnız
+**%87** giriyordu ("gece" kelimesiyle gelen ilgisiz sessizlik kuralı, kelime paylaşmayan ısıtma cevabını
+geçiyordu). Kavram ipucuyla aynı büyüklükte bonus → **≥%90**. Anlamsal kaynak yokken etkisi sıfır.
+
+**4. Çapraz-kodlayıcı (cross-encoder) — ŞİMDİLİK HAYIR (ölçüldü).** Aynı sınıf rastgele ağırlıklı ONNX
+modellerle bu makinede (4 vCPU): 25 aday × ~128 token küçük model 320–490 ms, taban model 650–1.240 ms, büyük
+model 2,2 sn+; çağrı Node olay döngüsünü BLOKLUYOR (ayrı iş parçacığı şart); en iyi çok dilli modelin lisansı
+ticari kullanıma kapalı (jina v2), temiz lisanslı olan taban boyutlu (gte-multilingual); Türkçe kazancı
+yayımlanmış bir ölçümde yok; HuggingFace erişimi bu ortamda kapalı olduğu için kalite ölçülemedi. Bizde seçilen
+blok zaten ≤12 parça ve onu okuyan gpt-5.1 fiilen yeniden sıralayıcıdır. Barındırılan reranker (Cohere) yeni
+alt-işleyen = KVKK + onay. Yeniden değerlendirme ölçütü: E4 sonrası hassasiyet (yanlış ilk parça) sorunu
+kalırsa `gte-multilingual-reranker-base`, 10 aday × 128 token, iş parçacığında (~0,5 sn) — kalite testi
+(`quality.mjs`, ajan betiği) önce.
+
+**5. "Lost in the Middle".** Seçilen blok ≤6k karakter ve en iyi parça önde; tam küme (≤24k) kodda
+`updatedAt` sırasında. Uzunluk etkisi 5–10k token'da küçük ama sıfır değil (NoLiMa: sözcük örtüşmesi düşük
+sorularda etkili uzunluk birçok modelde ~2k token). Tam kümeyi alakaya göre sıralamak istemi değiştirir →
+yalnız gerçek-model eval'iyle karar verilir (kredi); ölçülmeden değiştirilmedi.
+
+**Sektör (web araştırması):** STR rakiplerinin (Guesty ReplyAI, Hostaway, Hospitable, HostAI, Enso, Breezeway)
+hiçbiri retrieval mimarisini açıklamıyor; Airbnb'nin kendi destek sistemi: embedding ile ilk 30 makale +
+LLM ile yeniden sıralama. Anthropic "Contextual Retrieval": bağlamsal parça başlığı + BM25 + rerank ile ilk-20
+kaçırma %5,7 → %1,9; KB 200k token altındaysa "hepsini isteme koy + önbellek" önerisi — bizim ≤24k tam küme
+kuralımızla aynı yön. Bağlamsal parça metni (kategori · başlık) gömme tarafında zaten var.

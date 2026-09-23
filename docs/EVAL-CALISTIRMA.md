@@ -262,7 +262,21 @@ Aynı komut (`RUN_REAL_EVAL=1 npm run eval`, bulutta `NODE_USE_ENV_PROXY=1`) E4'
 seçicisinden, beş eşik. ~643 metin / ~20k token → **< 0,1 sent**. Rapor `docs/olcum/eval-e4-<tarih>-<id>.md`
 (+ `.json`). Tek parti bile düşerse koşu GEÇERSİZ sayılır ve rapor YAZILMAZ (kısmi ölçüm sonuç değildir).
 E5 (üretime bağlama) ölçütü: parafraz inPrompt belirgin artmalı · ölçek %99'un altına inmemeli · negatifte
-blok şişmemeli; bağlama AYRI ONAY + E2 migration.
+blok şişmemeli · iki sorulu mesajda iki cevap birden.
+
+**09-23 güncellemesi — üretim yolu HAZIR, anahtar KAPALI.** Seçiciye bağlanan kod yazıldı
+(`src/lib/ai/kb-retrieve.ts` → `src/lib/ai/embeddings/semantic-retrieval.ts`), `KB_SEMANTIC_RETRIEVAL`
+varsayılan KAPALI; kapalıyken tek istek gitmez, sonuç birebir eski. E4 artık ÜRETİMİN kuralını ölçer
+(alt sorgu başına puan, ham cümle + alt sorgu çoklu sorgu, üretim eşik dönüşümü, anlamsal uyum bonusu)
+ve iki birleşimi kıyaslar: `sem@t` (RRF, üretim varsayılanı) · `sum@t` (CombSUM); yeni "iki soru" kolonu.
+Açma sırası (her adım kurucunun):
+1. `RUN_REAL_EVAL=1 NODE_USE_ENV_PROXY=1 npm run eval` → `docs/olcum/eval-e4-*.md`.
+2. Ölçüte uyan en iyi eşik `src/lib/ai/retrieval/semantic.ts` `SEMANTIC_COSINE_THRESHOLD`e (bugün 0,40 =
+   başlangıç kabulü, ölçüm DEĞİL); `sum` kazanırsa `DEFAULT_SOURCES.semanticFusion`. Kod değişikliği → testler.
+3. Eşleştirilmiş gerçek-model eval'i (aynı komut) anahtar açık ve kapalı iki koşu: cevap kalitesi düşmemeli.
+4. Railway'de `KB_SEMANTIC_RETRIEVAL=1`; açılış logunda `[kb-semantic] AÇIK`. Karar kaydında
+   `kbEvidenceJson.retrieval.sem` (`ok`/`cold`/`unavailable`/`not_needed`) ve `srcs` içinde `semantic`.
+Geri alma: env'i sil (yeniden başlatma). Vektörler süreç belleğinde; kalıcı tablo E2 ayrı onay (migration).
 
 ## Ne zaman gerekir
 - `QR_INFORMATIONAL_BAND_ENABLED` bayrağı **bu eval bitmeden AÇILMAZ** (kurucu kararı).

@@ -149,8 +149,16 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   sökücüden GEÇMEZ); Latin tam kelime + kapalı ek kümesi (`*` önek, `=` tam kelime), Kiril önek, Arapça tek bitişik
   ek. Türkçe/İngilizce seçim birebir aynı (`sources.foreign:false` kıyası pinli). Geri EKLENMEYECEK girdiler: RU
   машина/пробки · FR four/chat/café/partir/tekil drap · DE laut · ES parada.
-- 🚨 **ANLAMSAL (embedding) RETRIEVAL ÜRETİMDE YOK** — hiçbir yüzey `semantic` vermez (pin); raporlarda "anlamsal
-  retrieval" denmez. E0–E4 durumu ↓Kalıcı ürün kararları.
+- 🚨 **ANLAMSAL (embedding) KAYNAK: ÜRETİM YOLU VAR, ANAHTAR `KB_SEMANTIC_RETRIEVAL` VARSAYILAN KAPALI (09-23).**
+  Yüzeyler tek girişten `retrieveKbForPrompt` (`ai/kb-retrieve.ts`) → `selectKbForPrompt`; puanı YALNIZ o verir
+  (pin). Kapalıyken ağ çağrısı yok, sonuç birebir (davranışsal pin); açılmadan raporlarda "anlamsal retrieval"
+  denmez. Açma = E4 + eşik ölçümü + kurucu onayı (`docs/EVAL-CALISTIRMA.md`). Kurallar: alt sorgu BAŞINA puan
+  (`retrievalQueries` tek kaynak), her alt sorgu ait olduğu HAM cümle + virgülle bölündüyse kendisiyle sorulur
+  (en yüksek kosinüs); sıcak yol 1,5 sn; soğuk KB bekletmez (arka plan ısıtma, saatlik tavan); YARIM HARİTA YOK;
+  rerank'te anlamsal uyum bonusu (= kavram ipucu büyüklüğü; kâhin iki soruda %87→≥%90); kalıcı sağlayıcı arızası
+  AYRI anahtarlı geçiş alarmı (`model-provider:embedding`). 🚨 **Mutlak alaka eşiği ("≥%80, en iyi 3–5") ÖLÇÜLÜP
+  REDDEDİLDİ** — puan sorgu içinde göreli, negatif sorgu da 1,0–1,35 alır; her kesme cevap kaybettirir.
+  Yerel çapraz-kodlayıcı ŞİMDİLİK HAYIR (gecikme/olay döngüsü/lisans; `docs/olcum/kb-retrieval-parafraz-…` 3. tur).
 - **Ölçek harness'ı** `tests/unit/kb-retrieval-scale.test.ts` (38 konu, 30/100/300): ölçü inPrompt(METİN) = cevap
   CÜMLESİ blokta mı (kalem kimliği değil). Eşikler kaçırılan SORU sayısıyla pinli (hit@1 ≥.95, hit@3 ≥.96, inPrompt
   ≥.99, geri çekilme 0). Legacy inPrompt 100 kalemde %51, hibrit %99–100. Cevap kalitesi burada ÖLÇÜLMEZ
@@ -815,12 +823,13 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   yoksa boş dön" (yabancı misafiri devre iter) · embedding sağlayıcısında zod · "normalize'ı kaldır".
 - **Embedding durumu:** E0 (eşik 0.3 + semantic varken RRF) ✅ · E1/E1b sağlayıcı (asla fırlatmaz, kısmi sonuç
   yok, `index`le sıra, L2, içerik anahtarlı LRU, toplam bütçe 9 sn, hata gövdesi alarma girmez; üretimde çağıranı
-  YOK, mekanik pin) ✅ · bağlamsal parça metni (yalnız vektöre) ✅ · E2 tablo = migration 56 → onay paketi
+  tek izinli çağıran, mekanik pin) ✅ · bağlamsal parça metni (yalnız vektöre) ✅ · E2 tablo = migration 56 → onay paketi
   `docs/ONAY-E2-…md` · **E4 ölçüm düzeneği REPODA** (`tests/eval/embedding-e4.eval.test.ts`, `npm run eval` +
   `RUN_REAL_EVAL=1`; 643 metin ~20k token < 0,1 sent; kâhin testi anlamsal kanalın seçiciye ulaştığını pinler).
   Sözcüksel taban: >30 kalemlik KB'de parafraz cevabı isteme %24–64 (legacy %54–91); ≤30 kalemde artık legacy ile
-  birebir. E5 (seçiciye bağlama) E4 sonucu + ayrı onay. `embedTexts` kalıcı arızada (kredi/anahtar/model) yeniden
-  DENEMEZ.
+  birebir. **E5 üretim yolu yazıldı (anahtar KAPALI, ↑Retrieval)**; açma E4 sonucu + ayrı onay. `embedTexts` kalıcı
+  arızada (kredi/anahtar/model) yeniden DENEMEZ; sağlayıcının TEK izinli üretim çağıranı `semantic-retrieval.ts`
+  (mekanik pin, göreli import da sayılır).
 - **Saat alanı kuralı TEK KAYNAK `retrieval/time-fields.ts`** (retrieval çelişki koruması + istemin KB↔mülk
   bloğu + host "Uyuşmayan saatler"): erken giriş/geç çıkış ayrı alan, bina/otopark girişi + acil çıkış + çıkış GÜNÜ
   konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu.
@@ -836,6 +845,15 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-23 BEŞİNCİ TUR (kurucu: "Gemini tablosu — hibrit arama, çapraz-kodlayıcı, %80 skor eşiği, lost in the
+middle; en gelişmiş hâli, Guesty gibi"; 4 ajan).** Migration'sız. Ölçülenler: mutlak skor eşiği REDDEDİLDİ (her
+kesme cevap kaybettirir; puan göreli, negatif sorgu 1,0–1,35) · asıl açık ADAY ÜRETİMİ (58/275 cevap aday
+listesinde yok) → embedding ÜRETİM YOLU yazıldı, anahtar `KB_SEMANTIC_RETRIEVAL` KAPALI (açma = E4 + onay) ·
+alt sorgu başına + çoklu sorgu (ham cümle ∨ alt sorgu) · rerank'te anlamsal uyum bonusu (kâhin %87 → ≥%90) ·
+yerel çapraz-kodlayıcı ŞİMDİLİK HAYIR (gecikme/olay döngüsü/lisans) · embedding kalıcı arızası geçiş alarmı
+(ayrı anahtar) · mimari pinin göreli-import açığı kapandı · kanıtta `fus` 09-11'den beri düşüyordu, düzeldi.
+Ayrıntı `docs/olcum/kb-retrieval-parafraz-2026-09-23.md` 3. tur; açma adımları `docs/EVAL-CALISTIRMA.md`.
+
 **09-23 DÖRDÜNCÜ TUR (kurucu: "RAG'i milyar dolarlık şirket seviyesinde bitir"; dış AI eleştirisi; 4 ajan).**
 Migration'sız, hepsi kırmızı-önce + mutasyon (20/20): inceleme ajanının 3 bulgusu (otopark/site girişi sahte
 çelişki → her soru devrediliyordu · kategori ödüncü kaçan gerçek çelişki · iddia ölçümünde 31,9 sn → 15 ms) ·

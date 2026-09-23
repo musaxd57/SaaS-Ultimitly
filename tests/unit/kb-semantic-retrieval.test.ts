@@ -343,6 +343,15 @@ describe("sözleşme parçaları", () => {
     expect(queries.map((q) => q.embedTexts)).toEqual([["Çamaşır makinesi var mı?"], ["Otopark nerede?"]]);
   });
 
+  it("cevapsız önceki mesaj güncel soruyu TEKRARLIYORSA ikinci sorgu açılmaz (bütçe ve gömme boşa gitmez)", () => {
+    const { queries, pending } = retrievalQueries("Otopark nerede?", [
+      { direction: "outbound", body: "Hoş geldiniz" },
+      { direction: "inbound", body: "otopark nerede" }, // farklı yazım, AYNI alt sorgu
+    ]);
+    expect(pending).toBe(0);
+    expect(queries.map((q) => q.subquery)).toEqual(["otopark nerede"]);
+  });
+
   it("sıcak yol bütçesi toplam tavanı aşamaz; kısa bütçe tekrar denemeyi keser", () => {
     expect(SEMANTIC_HOT_PATH_DEADLINE_MS).toBeLessThan(EMBEDDING_TOTAL_DEADLINE_MS);
     // Varsayılan bütçede 1,4 sn sonra 200 ms bekleme sığar; 1,5 sn bütçede sığmaz.
