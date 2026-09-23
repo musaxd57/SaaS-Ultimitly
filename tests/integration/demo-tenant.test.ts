@@ -21,7 +21,7 @@ const PW_HASH = bcrypt.hashSync("demo-sifre-uzun-ve-rastgele-xyz", 4);
 const STAFF_HASH = bcrypt.hashSync("kullanilmayan", 4);
 
 async function snapshotOrg(orgId: string): Promise<string> {
-  const [org, users, props, res, convs, msgs, tasks, kb, tpl] = await Promise.all([
+  const [org, users, props, res, convs, msgs, tasks, kb, tpl, risk, audit] = await Promise.all([
     prisma.organization.findUnique({ where: { id: orgId } }),
     prisma.user.findMany({ where: { organizationId: orgId }, orderBy: { id: "asc" } }),
     prisma.property.findMany({ where: { organizationId: orgId }, orderBy: { id: "asc" } }),
@@ -31,8 +31,10 @@ async function snapshotOrg(orgId: string): Promise<string> {
     prisma.task.findMany({ where: { property: { organizationId: orgId } }, orderBy: { id: "asc" } }),
     prisma.knowledgeBaseItem.findMany({ where: { property: { organizationId: orgId } }, orderBy: { id: "asc" } }),
     prisma.messageTemplate.findMany({ where: { organizationId: orgId }, orderBy: { id: "asc" } }),
+    prisma.riskEvent.findMany({ where: { organizationId: orgId }, orderBy: { id: "asc" } }),
+    prisma.auditLog.findMany({ where: { organizationId: orgId }, orderBy: { id: "asc" } }),
   ]);
-  return createHash("sha256").update(JSON.stringify({ org, users, props, res, convs, msgs, tasks, kb, tpl })).digest("hex");
+  return createHash("sha256").update(JSON.stringify({ org, users, props, res, convs, msgs, tasks, kb, tpl, risk, audit })).digest("hex");
 }
 
 async function neighbour() {
@@ -44,6 +46,8 @@ async function neighbour() {
   await prisma.message.create({ data: { conversationId: c.id, direction: "inbound", senderName: "Komşu Misafir", body: "Merhaba" } });
   await prisma.knowledgeBaseItem.create({ data: { propertyId: n.propertyId, title: "Wi-Fi", content: "Etikette.", category: "wifi" } });
   await prisma.messageTemplate.create({ data: { organizationId: n.orgId, category: "welcome", title: "Hoş geldin", body: "Merhaba" } });
+  await prisma.riskEvent.create({ data: { organizationId: n.orgId, surface: "auto_reply", triggerId: `t-${n.orgId}`, finalDecision: "auto_sent" } });
+  await prisma.auditLog.create({ data: { organizationId: n.orgId, action: "settings.updated" } });
   return n;
 }
 

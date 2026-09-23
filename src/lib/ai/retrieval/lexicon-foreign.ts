@@ -47,12 +47,12 @@ export const FOREIGN_SURFACE_FORMS: Readonly<Record<string, readonly string[]>> 
   checkin: ["einchecken*", "anreise", "anreisen", "ankunft", "arrivée*", "enregistrement", "llegada", "entrada", "registro", "заселен", "заселит", "заселиться", "заезд", "заехать", "заедем", "чек ин", "تسجيل الدخول", "الدخول", "الوصول", "تشيك ان"],
   checkout: ["auschecken*", "abreise", "abreisen", "départ", "libérer", "quitter", "salida", "dejar el apartamento", "выезд", "выехать", "выселен", "освободить", "تسجيل الخروج", "الخروج", "مغادرة", "غادر", "تسليم الشقة"],
   towels: ["handtuch*", "handtücher", "badetuch*", "badetücher", "bettwäsche*", "laken", "serviette*", "draps", "linge de lit", "toalla*", "sábana*", "ropa de cama", "полотенц", "полотенец", "простын", "постельн", "бельё", "منشفة", "مناشف", "فوطة", "فوط", "شراشف", "ملايات", "بشكير", "بشاكير"],
-  trash: ["müll*", "mülltonne", "abfall*", "abfälle", "poubelle*", "ordure*", "déchet*", "basura*", "residuo*", "reciclaje", "мусор", "отход", "قمامة", "القمامة", "زبالة", "الزبالة", "نفايات", "حاوية"],
+  trash: ["müll*", "mülltonne", "abfall*", "abfälle", "poubelle*", "ordure*", "déchet*", "basura*", "residuo*", "reciclaje", "мусор", "отходы", "отходов", "قمامة", "القمامة", "زبالة", "الزبالة", "نفايات", "حاوية"],
   ac: ["klimaanlage", "klimaanl*", "climatisation", "climatiseur", "clim", "aire acondicionado", "acondicionado", "climatización", "aire", "кондиционер", "кондицион", "кондер", "مكيف", "تكييف"],
   tv: ["fernbedienung*", "fernseher", "télécommande*", "télé", "mando", "control remoto", "televisión", "tele", "пульт", "телевизор", "ريموت", "جهاز التحكم", "تلفزيون", "التلفاز"],
   pool: ["schwimmbad", "schwimmen", "piscine", "piscina", "alberca", "бассейн", "مسبح", "المسبح", "حمام السباحة", "سباحة"],
   noise: ["nachtruhe", "ruhezeit*", "ruhezeiten", "lärm", "bruit", "silence", "fête", "ruido", "silencio", "fiesta", "тишин", "шум", "вечеринк", "тихие часы", "الهدوء", "هدوء", "إزعاج", "ازعاج", "ضجيج", "حفلة", "حفلات"],
-  taxi: ["такси", "тачка", "تاكسي", "تكسي", "أوبر", "اوبر"],
+  taxi: ["такси", "тачка", "تاكسي", "تكسي", "أوبر", "اوبر", "سيارة أجرة"],
   airport: ["flughafen", "aéroport", "aeropuerto", "аэропорт", "مطار", "المطار"],
   keys: ["schlüssel*", "schlüsselkasten", "clé", "clés", "clef", "boîte à clés", "llave", "llaves", "ключ", "ключниц", "مفتاح", "مفاتيح"],
   hot_water: ["warmwasser", "warmes wasser", "heißes wasser", "eau chaude", "agua caliente", "горячей воды", "горячая вода", "горяч", "ماء ساخن", "مياه ساخنة", "ساخن"],
@@ -60,8 +60,8 @@ export const FOREIGN_SURFACE_FORMS: Readonly<Record<string, readonly string[]>> 
   address: ["adresse", "dirección", "ubicación", "адрес", "عنوان", "الموقع", "لوكيشن"],
   pharmacy: ["apotheke", "pharmacie*", "farmacia*", "аптек", "صيدلي"],
   grocery: ["supermarkt*", "lebensmittel*", "supermarché*", "épicerie", "supermercado*", "tienda", "супермаркет", "магазин", "продукт", "سوبرماركت", "بقالة", "بقاله", "ماركت"],
-  restaurant: ["restaurants", "essen gehen", "frühstück", "restaurante*", "déjeuner", "dîner", "desayuno*", "cena", "ресторан", "кафе", "поесть", "завтрак", "مطعم", "مطاعم", "فطور", "عشاء", "كافيه"],
-  beach: ["strand", "plage", "playa", "пляж", "море", "شاطئ", "الشاطئ", "بحر", "البحر"],
+  restaurant: ["restaurants", "essen gehen", "frühstück", "restaurante*", "déjeuner", "dîner", "desayuno*", "cena", "ресторан", "кафе=", "поесть", "завтрак", "مطعم", "مطاعم", "فطور", "عشاء", "كافيه"],
+  beach: ["strand", "plage", "playa", "пляж", "море=", "моря=", "морю=", "морем=", "морск", "شاطئ", "الشاطئ", "بحر=", "البحر="],
   transit: ["bushaltestelle", "u bahn", "straßenbahn", "métro", "arrêt de bus", "autobus", "метро", "автобус", "остановк", "трамва", "مترو", "باص", "حافلة", "الحافله", "موقف الباص"],
   laundry: ["waschmaschine*", "wäsche", "machine à laver", "lessive", "lavadora*", "lavar la ropa", "стиральн", "стирк", "постират", "غسالة", "الغسالة", "غسيل"],
   dishwasher: ["spülmaschine*", "geschirrspüler*", "lave vaisselle", "lavavajillas", "посудомо", "غسالة الصحون", "جلاية"],
@@ -72,18 +72,18 @@ export const FOREIGN_SURFACE_FORMS: Readonly<Record<string, readonly string[]>> 
   balcony: ["balcon", "terrasse", "terraza", "балкон", "терраса", "بلكونة", "البلكونة", "شرفة", "الشرفة", "بلكونه"],
   iron: ["bügeleisen", "fer à repasser", "plancha", "утюг", "مكواة", "مكوى"],
   hairdryer: ["föhn", "haartrockner", "sèche cheveux", "secador", "фен", "سشوار", "مجفف الشعر", "استشوار"],
-  stove: ["herd", "backofen", "kochfeld", "plaque", "cuisinière", "cocina", "horno", "плита", "плиту", "духовк", "فرن", "موقد", "بوتاجاز", "غاز الطبخ"],
+  stove: ["herd", "backofen", "kochfeld", "plaque", "cuisinière", "cocina", "horno", "плита", "плиту", "духовк", "فرن=", "موقد", "بوتاجاز", "غاز الطبخ"],
   fridge: ["kühlschrank*", "réfrigérateur", "frigo", "nevera", "frigorífico", "холодильник", "ثلاجة", "الثلاجة", "براد"],
   microwave: ["mikrowelle", "micro ondes", "microondas*", "микроволнов", "ميكروويف"],
   coffee: ["kaffee", "kaffeemaschine", "wasserkocher", "cafetière", "bouilloire", "cafetera", "hervidor", "кофе", "кофемашин", "чайник", "قهوة", "القهوة", "غلاية", "كاتل"],
   cleaning: ["reinigung", "putzen", "ménage", "nettoyage", "limpieza", "уборк", "убрат", "تنظيف", "التنظيف"],
   gym: ["fitnessstudio*", "salle de sport", "gimnasio", "спортзал", "фитнес", "тренажер", "جيم", "نادي رياضي", "صالة رياضية"],
-  power: ["strom", "sicherung", "électricité", "disjoncteur", "electricidad", "luz", "электричеств", "свет", "كهرباء", "الكهرباء", "فيوز"],
+  power: ["strom", "sicherung", "électricité", "disjoncteur", "electricidad", "luz", "электричеств", "свет=", "света=", "светом=", "كهرباء", "الكهرباء", "فيوز"],
   socket: ["steckdose*", "adapter", "prise", "adaptateur", "enchufe", "adaptador", "розетк", "переходник", "адаптер", "فيش", "بريزة", "محول", "مقبس"],
   water_cut: ["kein wasser", "pas d'eau", "no hay agua", "нет воды", "отключили воду", "لا يوجد ماء", "انقطاع الماء", "الماء مقطوع"],
   emergency: ["notfall", "arzt", "krankenhaus", "urgence", "médecin", "hôpital", "urgencia", "médico", "hospital", "скорая", "врач", "больниц", "طوارئ", "طبيب", "مستشفى", "اسعاف", "إسعاف"],
   fire: ["feuerlöscher*", "notausgang", "extincteur", "sortie de secours", "extintor", "salida de emergencia", "огнетушител", "пожар", "طفاية", "حريق", "مخرج الطوارئ"],
-  doorman: ["hausmeister*", "concierge", "gardien", "conserje", "portero", "консьерж", "охран", "بواب", "حارس", "البواب"],
+  doorman: ["hausmeister*", "concierge", "gardien", "conserje", "portero", "консьерж", "охран", "بواب=", "حارس", "البواب="],
   packages: ["paket", "lieferung", "colis", "livraison", "paquete", "entrega", "посылк", "доставк", "курьер", "طرد", "توصيل", "شحنة"],
   lost: ["vergessen", "verloren", "oublié", "perdu", "olvidado", "perdido", "забыл", "потерял", "نسيت", "فقدت", "ضاع"],
   sights: ["sehenswürdigkeit*", "museum", "musée", "visiter", "museo", "visitar", "достопримечательн", "музей", "معالم", "متحف", "اماكن سياحية"],
@@ -96,6 +96,9 @@ const ARABIC_CLITICS = ["وال", "بال", "فال", "كال", "ولل", "لل"
 /** Latin tam eşleşmeye izin verilen çekim ekleri (kapalı küme). */
 const LATIN_INFLECTIONS: ReadonlySet<string> = new Set(["", "s", "es", "e", "en", "er", "n"]);
 const PREFIX_MARK = "*";
+/** Tam kelime işareti (her yazı sistemi): önek/içerme kuralı çarpışma üretiyorsa ("свет" ↛ "светлая",
+ *  "فرن" ↛ "فرنسي", "البواب" ↛ "البوابة"). Arapçada tek bitişik ek sökümü yine uygulanır. */
+const EXACT_MARK = "=";
 
 /**
  * Aksan/harf biçimi katlaması: `normalizeForRetrieval` (NFKC + görünmez + Türkçe katlama) →
@@ -129,6 +132,7 @@ interface EntryToken {
   text: string;
   script: Script;
   prefix: boolean;
+  exact: boolean;
 }
 
 interface CompiledEntry {
@@ -141,8 +145,10 @@ function tokenMatches(t: string, e: EntryToken): boolean {
   if (e.script === "arabic") {
     const candidates = [t];
     for (const c of ARABIC_CLITICS) if (t.startsWith(c) && t.length - c.length >= 2) candidates.push(t.slice(c.length));
+    if (e.exact) return candidates.includes(e.text);
     return candidates.some((x) => x.startsWith(e.text) || (e.text.length >= 4 && x.includes(e.text)));
   }
+  if (e.exact) return t === e.text;
   if (e.script === "cyrillic") return t.startsWith(e.text) || (e.text.length >= 5 && t.includes(e.text));
   if (e.prefix) return t.startsWith(e.text);
   return t.startsWith(e.text) && LATIN_INFLECTIONS.has(t.slice(e.text.length));
@@ -154,13 +160,20 @@ function compile(): CompiledEntry[] {
   for (const concept of CONCEPTS) {
     for (const raw of FOREIGN_SURFACE_FORMS[concept.id] ?? []) {
       const prefix = raw.endsWith(PREFIX_MARK);
-      const texts = foreignTokens(prefix ? raw.slice(0, -1) : raw);
-      if (texts.length === 0) continue;
-      out.push({
-        conceptId: concept.id,
-        tokens: texts.map((text) => ({ text, script: scriptOf(text), prefix })),
-        via: texts.join(" "),
-      });
+      const exact = raw.endsWith(EXACT_MARK);
+      const body = prefix || exact ? raw.slice(0, -1) : raw;
+      // Almanca umlaut'u klavyesiz yazan misafir: "Handtuecher", "Muell", "Schluessel" (inceleme 09-24).
+      // Katlama ü→u yapar; ue/oe/ae yazımı için girdiye İKİNCİ bir biçim eklenir (misafir metni değişmez).
+      const variants = /[äöü]/i.test(body) ? [body, body.replace(/ä/gi, "ae").replace(/ö/gi, "oe").replace(/ü/gi, "ue")] : [body];
+      for (const v of variants) {
+        const texts = foreignTokens(v);
+        if (texts.length === 0) continue;
+        out.push({
+          conceptId: concept.id,
+          tokens: texts.map((text) => ({ text, script: scriptOf(text), prefix, exact })),
+          via: texts.join(" "),
+        });
+      }
     }
   }
   return out;

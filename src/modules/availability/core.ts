@@ -103,10 +103,13 @@ export function statusClassOf(status: string): StatusClass {
  * çıkarılmaz (değişmez 20). Yükleyici (load.ts) KANITLI alanlardan hesaplar:
  *   calendar_feed        = `calendarSourceId` dolu (takvim bağlantısından)
  *   channel_connection   = `connectionId` dolu (kanıtlanmış kanal bağlantısı)
- *   host_entered         = elle giriş / dosya / silinmiş beslemenin öksüzü (mekanizma işaretçisi)
+ *   host_entered         = elle giriş / elle dosya içe aktarma (mekanizma işaretçisi)
+ *   detached_source      = bir kaynaktan ALINMIŞ ama kaynağı sonradan silinmiş satır (silinen takvim
+ *                          bağlantısı satırları "manual"a çevirir; alınma damgası `ingestedAt` kalır).
+ *                          Host'un kendi girişi DEĞİLDİR → hâlâ geçerli olduğu kanıtsız.
  *   channel_unattributed = kanal etiketli ama bağlantısı kanıtsız (V0.4 öncesi köprü satırları)
  */
-export type ClaimOrigin = "calendar_feed" | "channel_connection" | "host_entered" | "channel_unattributed";
+export type ClaimOrigin = "calendar_feed" | "channel_connection" | "host_entered" | "detached_source" | "channel_unattributed";
 
 /** Neden güvendiğimiz: `fresh` = kaynağın son başarılı okumasında görüldü · `host_asserted` =
  *  host'un kendi girişi · `unconfirmed` = hâlâ geçerli olduğu kanıtsız (bayat köprü, hayalet satır). */
@@ -137,6 +140,13 @@ export interface CoverageSource {
 export interface AvailabilityPolicy {
   /** Kaynak bu kadar süredir başarılı okunmadıysa bayattır. */
   sourceFreshMs: number;
+  /**
+   * Besleme satırı "son başarılı okumada görüldü" sayılırken tanınan pay: senkron `feedLastSeenAt`i
+   * koşunun BAŞINDA (`runStartedAt`), `lastSyncedAt`i SONUNDA yazar — ikisi hiçbir zaman eşit değildir
+   * (inceleme 09-24). Tek kaynağın koşusu ~15 sn getirme tavanı + yazma; kadans 15 dk. Pay kadanstan
+   * KISA tutulur ki bir ÖNCEKİ koşuda görülüp sonra kaybolan satır "taze" sayılmasın.
+   */
+  feedRunToleranceMs: number;
   /** Tek sorguda en fazla gece. */
   maxNights: number;
   /** Bugünden en fazla bu kadar gün ileri sorulabilir. */
@@ -145,6 +155,7 @@ export interface AvailabilityPolicy {
 
 export const DEFAULT_AVAILABILITY_POLICY: AvailabilityPolicy = {
   sourceFreshMs: 6 * 60 * 60 * 1000,
+  feedRunToleranceMs: 5 * 60 * 1000,
   maxNights: 62,
   maxHorizonDays: 365,
 };
@@ -157,6 +168,12 @@ export interface AvailabilityInput {
   sources: readonly CoverageSource[];
   /** Yükleyici satır tavanına çarptıysa true → boş görünen hiçbir gece "boş" sayılmaz. */
   loadTruncated: boolean;
+  /**
+   * Rezervasyonların HANGİ aralık için yüklendiği (yarı açık). Verilirse bu aralığın dışındaki
+   * boş görünen gece "bilinmiyor" olur — başka bir aralık için yüklenmiş girdi sessizce "müsait"
+   * cevabı üretemez (inceleme 09-24; yükleyici her zaman doldurur).
+   */
+  loadedRange?: { from: NightKey; to: NightKey };
   policy?: AvailabilityPolicy;
 }
 
@@ -169,6 +186,7 @@ export type UnknownReason =
   | "source_stale"
   | "source_freshness_unrecorded"
   | "load_truncated"
+  | "outside_loaded_range"
   | "anomalous_claim";
 
 export interface NightClaim {
@@ -196,6 +214,8 @@ export interface Conflict {
     identicalSpan: boolean;
     sameOrigin: boolean;
     anyHeld: boolean;
+    /** Hiçbir iddia taze kaynaktan ya da host'un kendi girişinden gelmiyor (hayalet satır olabilir). */
+    allUnconfirmed: boolean;
   };
 }
 
@@ -239,11 +259,14 @@ const UNKNOWN_FOR_STATE: Record<Exclude<SourceState, "fresh">, UnknownReason> = 
   unrecorded: "source_freshness_unrecorded",
 };
 
-function claimBasis(r: ReservationSnapshot, sourcesById: Map<string, CoverageSource>): ClaimBasis {
+function claimBasis(r: ReservationSnapshot, sourcesById: Map<string, CoverageSource>, policy: AvailabilityPolicy): ClaimBasis {
   if (r.origin === "host_entered") return "host_asserted";
   if (r.origin === "calendar_feed" && r.calendarSourceId) {
     const src = sourcesById.get(r.calendarSourceId);
-    if (src?.lastSuccessAt && r.feedLastSeenAt && r.feedLastSeenAt.getTime() >= src.lastSuccessAt.getTime()) return "fresh";
+    // Satır, kaynağın SON başarılı koşusunda görüldü mü (koşu başı ≤ görülme ≤ koşu sonu).
+    if (src?.lastSuccessAt && r.feedLastSeenAt && r.feedLastSeenAt.getTime() >= src.lastSuccessAt.getTime() - policy.feedRunToleranceMs) {
+      return "fresh";
+    }
   }
   return "unconfirmed";
 }
@@ -299,7 +322,10 @@ export function describeNights(
     const dep = calendarDateOf(res.departure, input.timeZone).key;
     const n = nightsBetween(arr, dep);
     if (n === 0) {
+      // Sıfır gecelik kayıt: hangi geceyi kastettiği bilinemez (ör. gerçek an çapa kuralına takılıp
+      // girişi ile çıkışı aynı güne düştü) → o gece "boş" DENEMEZ (inceleme 09-24).
       anomalies.push({ reservationId: res.id, kind: "zero_nights" });
+      anomalousNights.add(arr);
       continue;
     }
     if (n < 0) {
@@ -308,7 +334,7 @@ export function describeNights(
       for (let k = dep; k < arr; k = addNights(k, 1)) anomalousNights.add(k);
       continue;
     }
-    spans.push({ r: res, arr, dep, cls, basis: claimBasis(res, sourcesById) });
+    spans.push({ r: res, arr, dep, cls, basis: claimBasis(res, sourcesById, policy) });
   }
 
   const nights: NightEvidence[] = [];
@@ -324,6 +350,7 @@ export function describeNights(
     } else {
       for (const reason of coverageReasons) reasons.add(reason);
       if (anomalousNights.has(night)) reasons.add("anomalous_claim");
+      if (input.loadedRange && (night < input.loadedRange.from || night >= input.loadedRange.to)) reasons.add("outside_loaded_range");
       state = reasons.size === 0 ? "free" : "unknown";
     }
     nights.push({ night, state, claims, unknownReasons: [...reasons].sort() });
@@ -344,6 +371,7 @@ export function describeNights(
         identicalSpan: involved.every((s) => s.arr === first.arr && s.dep === first.dep),
         sameOrigin: involved.every((s) => s.r.origin === first.r.origin),
         anyHeld: involved.some((s) => s.cls === "held"),
+        allUnconfirmed: involved.every((s) => s.basis === "unconfirmed"),
       },
     });
     open = null;

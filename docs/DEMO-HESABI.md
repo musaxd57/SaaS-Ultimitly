@@ -22,12 +22,17 @@ cevapları, host cevapları, 2 sorunlu, 2 cevap bekleyen) · ~350 görev (ürün
 
 ## Güvenlik
 
-- İnceleme hesabı **yönetici** (sahip DEĞİL): faturalandırma, hesap silme, veri dışa aktarma, misafir silme,
-  kanal bağlama sunucu tarafında kapalı. Personel hesapları rastgele (paylaşılmayan) şifreli.
+- İnceleme hesabı **yönetici** (sahip DEĞİL): faturalandırma, hesap silme, veri dışa aktarma, misafir silme
+  ve Hospitable bağlama sunucu tarafında kapalı. ⚠️ Yönetici bir mülke **iCal takvim bağlantısı EKLEYEBİLİR**
+  (`calendar-sources` POST `withManage`); o durumda sonraki yenileme "canlı bağlantı var" diye REDDEDİLİR —
+  operatör bağlantıyı silip yeniden koşar. Personel hesapları rastgele (paylaşılmayan) şifreli.
 - Yenileme uyarı e-postası adresini SIFIRLAR (paylaşılan hesapta keyfi adrese e-posta yollatılamasın).
 - Şikâyet/iade konuşmaları `problem` doğar; `new` + şikâyet otomatik uyarı e-postası tetiklerdi.
 - Başka bir org'a ait giriş adresi (açık kayıtla önceden alınmış), demo org'unda canlı bağlantı, kimlik
   çakışması ya da şifresiz ilk kurulum → **SIFIR yazma** ile red.
+
+⚠️ Uzak veritabanı teyidi yalnız adresin SUNUCU ADINA bakar: `localhost`a açılmış bir tünel (ör. canlı
+veritabanına SSH tüneli) yerel sayılır. Canlıya koşuda tünel kullanılmaz; koşu kurucuyla birlikte yapılır.
 
 ## Komutlar
 

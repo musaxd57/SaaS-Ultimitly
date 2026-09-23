@@ -86,6 +86,19 @@ describe("çekim biçimleri (yazı sistemine göre kural)", () => {
     ["Wo ist die Strassenbahn?", "transit"],
     ["هل يمكنني إحضار كلبي؟", "pets"], // Arapça iyelik eki: önek eşleşmesi (tam eşitlik YETMEZ)
     ["أين مناشفكم؟", "towels"],
+    // İnceleme 09-24: umlaut'suz Almanca klavye (ue/oe/ae) + tam-kelime girdilerin olağan çekimleri.
+    ["Wo sind die Handtuecher?", "towels"],
+    ["Wohin mit dem Muell?", "trash"],
+    ["Ist der Kuehlschrank leer?", "fridge"],
+    ["Wo ist der Schluessel?", "keys"],
+    ["Свет погас", "power"],
+    ["Куда выбросить отходы?", "trash"],
+    ["Далеко до моря?", "beach"],
+    ["Есть кафе рядом?", "restaurant"],
+    ["أين البواب؟", "doorman"],
+    ["كيف أشغل الفرن؟", "stove"],
+    ["كم يبعد البحر؟", "beach"],
+    ["أين أجد سيارة أجرة؟", "taxi"],
     ["Wie hoch ist die Parkplatzgebühr?", "parking"],
   ])("%s → %s", (text, concept) => {
     expect(ids(text)).toContain(concept);
@@ -108,6 +121,14 @@ describe("🚨 ölçülmüş çarpışma tuzakları ASLA eşleşmez", () => {
     ["Are there blackout drapes?", "towels"],
     // Çok kelimeli girdi ARDIŞIK belirteç ister ("kein wasser").
     ["Kein Problem, das Wasser ist warm genug", "water_cut"],
+    // İnceleme 09-24: önek/içerme kuralının ölçülmüş çarpışmaları (tam-kelime işaretiyle kapandı).
+    ["Поезд отходит в 10", "trash"],
+    ["Светлая комната", "power"],
+    ["Кафельный пол", "restaurant"],
+    ["Где купить морепродукты?", "beach"],
+    ["أين البوابة؟", "doorman"],
+    ["مطعم فرنسي قريب", "stove"],
+    ["رحلة إلى البحرين", "beach"],
     // Türkçe (sözlük TÜM sorgularda koşar).
     ["Paradan kesinti var mı?", "transit"],
     ["Parke zemin mi?", "parking"],
@@ -171,6 +192,12 @@ describe("veri pinleri", () => {
       expect(toks.length, `${k}: ${e}`).toBe(1);
       expect(toks[0], `${k}: ${e}`).toMatch(/^[a-z]+$/);
     }
+  });
+
+  it("`=` (tam kelime) yalnız TEK belirteçli girdide; `*` ile birlikte kullanılmaz", () => {
+    const exact = entries.filter(([, e]) => e.endsWith("="));
+    expect(exact.length).toBeGreaterThan(5);
+    for (const [k, e] of exact) expect(foreignTokens(e.slice(0, -1)).length, `${k}: ${e}`).toBe(1);
   });
 
   it("ölçülüp ÇIKARILAN girdiler geri gelmedi", () => {

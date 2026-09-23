@@ -49,6 +49,29 @@ deterministik bir araçtan gelir. Bu dilim o aracın çekirdeğini ve ilk ürün
   bandı aynı kararı okur. Kırmızı-önce: eski kod iki gerçek aynı gün devrini "komşu yok" döndürüyordu.
 - ⚠️ `reports.ts getOccupancyForecast` çıkış gecesini dolu sayıyor (yarı açık aralık değil); çağıranı yok.
 
+## İnceleme ajanı bulguları (09-24) — düzeltildi
+
+- **"Taze" besleme iddiası gerçekte hiç oluşmuyordu:** senkron `feedLastSeenAt`i koşunun BAŞINDA,
+  `lastSyncedAt`i SONUNDA yazar; eski kural `görülme ≥ son başarı` istiyordu (test ikisini eşit veriyordu).
+  Artık koşu içi pay (`feedRunToleranceMs` 5 dk, kadans 15 dk'dan kısa). ⚠️ `feedLastSeenAt` yalnız
+  `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` açıkken yazılır (canlıda KAPALI) → canlıda besleme iddiaları
+  "kanıtsız" kalır ve dolu gece `unavailable + unverified` döner. Bu DOĞRU yöndür: kayıp tespiti kapalıyken
+  iptal edilmiş bir konaklama hayalet satır olarak kalabilir.
+- **Silinen takvim bağlantısının öksüzleri host girişi sayılıyordu** (DELETE satırları `manual`a çevirir):
+  artık `manual` + alınma damgası (`ingestedAt`) = `detached_source` (kanıtsız). Sınır: V0.4 öncesi öksüzlerde
+  damga yok.
+- **Sıfır gecelik satır "boş" üretiyordu** (kapalı başarısız kuralının deliği): o gece artık `anomalous_claim`.
+- **Girdi hangi aralık için yüklendiğini taşımıyordu:** `loadedRange` + `outside_loaded_range` (AI aracı
+  bağlandığında başka aralık için yüklenmiş girdi sessizce "müsait" diyemez).
+- **Panel satırı gürültülüydü:** köprü + aynı ilanın iCal'i birlikteyse her konaklama bir satır üretip kartı
+  dolduruyordu. Artık mülk başına TEK satır (en önemli çakışma + "N çakışma daha"); önem kanıta göre
+  (kesin 97 · talep ya da yalnız kanıtsız iddialar 70 + "kayıtlardan biri güncel olmayabilir" · birebir kopya
+  45); geceler yarı açık aralığa uygun yazılır ("5 Eki – 6 Eki geceleri"; eskiden çıkış gününü gösteriyordu).
+  Motor bacağı çökerse geçiş tabanlı alarm (sessiz boş liste değil).
+- Bilinen sınırlar (dokunulmadı): `property-links` bağlantı kesilmiş köprü mülkünü de kapsama kaynağı sayar
+  (o mülk hiç "müsait" diyemez — güvenli yön); `getAdjacency` 10 aday alır (aynı pencerede 10+ üst üste satır
+  en yakın komşuyu kaçırabilir); `prompts.ts fmtDate` sunucu diliminde gün yazar.
+
 ## Kanıt
 
 Kırmızı-önce + iki yönlü mutasyon **46/46** (ilk turda 7 mutant hayatta kaldı, hepsi gerçek pin eksikliğiydi:

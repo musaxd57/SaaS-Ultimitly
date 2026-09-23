@@ -506,8 +506,11 @@ Bu dosyaya token/anahtar/parola yazma.
   alıyordu). Yazı sistemine göre kural: Latin tam kelime + kapalı ek kümesi, önek YALNIZ `*` işaretli girdide
   (uzunluk-önek kuralı department/stranded/hospitality ile çarpışıyordu); Kiril önek (+≥5 harfte içerme);
   Arapça tek bitişik ek sökülür. Ölçüm (400 yabancı sorgu, üretim koduyla tekrarlandı): cevap cümlesi isteme
-  %63 → %97, yanlış dar seçim 48 → 9, blok ~3000 → ~580 karakter; Türkçe/İngilizce seçim BİREBİR aynı
-  (ölçek harness'ının tüm soruları, `sources.foreign:false` ile kıyas pinli). Çıkarılan girdiler (geri
+  %63 → %97, yanlış dar seçim 48 → 9, blok ~3000 → ~580 karakter; Türkçe/İngilizce seçim ölçek harness'ının
+  TÜM sorularında birebir aynı (`sources.foreign:false` kıyası pinli). ⚠️ Bu evrensel değil: inceleme ajanı
+  İngilizcede nadir çarpışmalar ölçtü ("mulled"→çöp, "strands"→plaj, "depart"→çıkış) — kabul edildi; Rusça/
+  Arapça önek çarpışmaları (отходит/светлая/кафельный/морепродукты, البوابة/فرنسي/البحرين) `=` tam-kelime
+  işaretiyle kapatıldı; umlaut'suz Almanca (Handtuecher, Muell) ue/oe/ae varyantıyla eşleşir. Çıkarılan girdiler (geri
   EKLEME): RU машина/пробки · FR four/chat/café/partir/tekil drap · DE laut · ES parada (Türkçe "paradan").
   ⚠️ Sınır: listede OLMAYAN konuda soran yabancı misafir artık yanlış kaleme daralabilir (50 sorguda 13→20;
   sonuç uydurma değil devir); kelime listeleri anadil konuşanı tarafından İNCELENMEDİ. Dil algılayıcı

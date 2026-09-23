@@ -18,7 +18,7 @@ const GUEST_SENTINEL = "Gizli Misafir Adı 7731";
 
 async function reservation(
   propertyId: string,
-  p: { arrival: Date; departure: Date; status?: string; channel?: string; calendarSourceId?: string; sourceReference?: string },
+  p: { arrival: Date; departure: Date; status?: string; channel?: string; calendarSourceId?: string; sourceReference?: string; ingestedAt?: Date },
 ) {
   return prisma.reservation.create({
     data: {
@@ -31,6 +31,7 @@ async function reservation(
       channel: p.channel ?? "manual",
       calendarSourceId: p.calendarSourceId ?? null,
       sourceReference: p.sourceReference ?? null,
+      ingestedAt: p.ingestedAt ?? null,
     },
   });
 }
@@ -68,9 +69,22 @@ describe("yükleyici", () => {
     const feed = await reservation(propertyId, { arrival: noon("2026-10-03"), departure: noon("2026-10-04"), channel: "booking", calendarSourceId: src.id });
     const manual = await reservation(propertyId, { arrival: midnight("2026-10-05"), departure: midnight("2026-10-06"), channel: "manual" });
     const bridge = await reservation(propertyId, { arrival: midnight("2026-10-07"), departure: midnight("2026-10-08"), channel: "airbnb", sourceReference: "uuid-1" });
+    // 🚨 Silinen takvim bağlantısının öksüzü: "manual"a çevrilmiş ama alınma damgası duruyor (inceleme 09-24).
+    const orphan = await reservation(propertyId, { arrival: noon("2026-10-08"), departure: noon("2026-10-09"), channel: "manual", ingestedAt: new Date("2026-09-01T00:00:00Z") });
     const loaded = await loadAvailabilityInputs(orgId, { range: { from: "2026-10-01", to: "2026-10-10" }, now: NOW });
-    const origins = Object.fromEntries(loaded!.inputs.get(propertyId)!.reservations.map((r) => [r.id, r.origin]));
-    expect(origins).toEqual({ [feed.id]: "calendar_feed", [manual.id]: "host_entered", [bridge.id]: "channel_unattributed" });
+    const input = loaded!.inputs.get(propertyId)!;
+    const origins = Object.fromEntries(input.reservations.map((r) => [r.id, r.origin]));
+    expect(origins).toEqual({
+      [feed.id]: "calendar_feed",
+      [manual.id]: "host_entered",
+      [bridge.id]: "channel_unattributed",
+      [orphan.id]: "detached_source",
+    });
+    // Öksüz satır host'un kendi girişi gibi "kesin dolu" DEMEZ.
+    expect(checkAvailability(input, { from: "2026-10-08", to: "2026-10-09" })).toMatchObject({ ok: true, value: { verdict: "unavailable", certainty: "unverified" } });
+    expect(checkAvailability(input, { from: "2026-10-05", to: "2026-10-06" })).toMatchObject({ ok: true, value: { verdict: "unavailable", certainty: "verified" } });
+    // Yükleyici yüklediği aralığı girdiye yazar (başka aralık sorusu "müsait" üretemez).
+    expect(input.loadedRange).toEqual({ from: "2026-10-01", to: "2026-10-10" });
   });
 
   it("kaynak tazeliği: 'ok' son deneme başarıdır; 'error' ve hiç senkron olmamış başarı DEĞİLDİR; köprü bağlantısı tazeliği bilinmez", async () => {
@@ -164,9 +178,9 @@ describe("panel — çakışan rezervasyon satırı", () => {
     expect(await findAttentionItems(orgId, { now: NOW })).toEqual([]);
   });
 
-  it("🚨 aynı gecelere iki farklı rezervasyon → yüksek öncelikli satır, doğru geceler ve takvim bağlantısı", async () => {
+  it("🚨 aynı gecelere iki farklı rezervasyon (en az biri kanıtlı) → yüksek öncelikli satır, doğru geceler ve takvim bağlantısı", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await reservation(propertyId, { arrival: midnight("2026-10-03"), departure: midnight("2026-10-07"), channel: "airbnb" });
+    await reservation(propertyId, { arrival: midnight("2026-10-03"), departure: midnight("2026-10-07"), channel: "manual" });
     await reservation(propertyId, { arrival: noon("2026-10-05"), departure: noon("2026-10-09"), channel: "booking" });
     const items = await findAttentionItems(orgId, { now: NOW });
     expect(items).toHaveLength(1);
@@ -177,9 +191,41 @@ describe("panel — çakışan rezervasyon satırı", () => {
       severity: 97,
       nights: { from: "2026-10-05", to: "2026-10-07" },
       possibleDuplicate: false,
+      heldRequest: false,
+      conflictCount: 1,
       href: `/calendar?property=${propertyId}&month=2026-10`,
     });
     expect(JSON.stringify(items)).not.toContain(GUEST_SENTINEL);
+  });
+
+  it("yalnız kanıtsız iddialar (bağlantısı kanıtsız kanal satırları) → ÇIKARIM, daha alçak öncelik", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await reservation(propertyId, { arrival: midnight("2026-10-03"), departure: midnight("2026-10-07"), channel: "airbnb" });
+    await reservation(propertyId, { arrival: noon("2026-10-05"), departure: noon("2026-10-09"), channel: "booking" });
+    const [item] = await findAttentionItems(orgId, { now: NOW });
+    expect(item).toMatchObject({ kind: "calendar_conflict", certainty: "inferred", severity: 70 });
+  });
+
+  it("onay bekleyen talep dolu gecelerle çakışırsa 'talep' olarak söylenir, kesin çift rezervasyon DEĞİL", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await reservation(propertyId, { arrival: midnight("2026-10-03"), departure: midnight("2026-10-07"), channel: "manual" });
+    await reservation(propertyId, { arrival: midnight("2026-10-05"), departure: midnight("2026-10-09"), channel: "manual", status: "pending" });
+    const [item] = await findAttentionItems(orgId, { now: NOW });
+    expect(item).toMatchObject({ kind: "calendar_conflict", heldRequest: true, severity: 70 });
+  });
+
+  it("🚨 mülk başına TEK satır: aynı mülkteki birden çok çakışma kartı doldurmaz; en önemlisi gösterilir + sayı", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    // İki birebir kopya (45) + bir gerçek çakışma (97) aynı mülkte.
+    await reservation(propertyId, { arrival: midnight("2026-10-03"), departure: midnight("2026-10-05"), channel: "manual" });
+    await reservation(propertyId, { arrival: midnight("2026-10-03"), departure: midnight("2026-10-05"), channel: "manual" });
+    await reservation(propertyId, { arrival: midnight("2026-10-10"), departure: midnight("2026-10-12"), channel: "manual" });
+    await reservation(propertyId, { arrival: midnight("2026-10-10"), departure: midnight("2026-10-12"), channel: "manual" });
+    await reservation(propertyId, { arrival: midnight("2026-10-20"), departure: midnight("2026-10-24"), channel: "manual" });
+    await reservation(propertyId, { arrival: midnight("2026-10-22"), departure: midnight("2026-10-26"), channel: "manual" });
+    const items = await findAttentionItems(orgId, { now: NOW });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ severity: 97, possibleDuplicate: false, conflictCount: 3, nights: { from: "2026-10-22", to: "2026-10-24" } });
   });
 
   it("birebir aynı tarihli iki satır → 'aynı rezervasyon olabilir', daha alçak öncelik", async () => {

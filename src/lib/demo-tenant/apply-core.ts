@@ -164,8 +164,9 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
           });
           continue;
         }
-        await tx.user.update({
-          where: { id: u.id },
+        // Kimlik + demo org BİRLİKTE (inceleme 09-24): başka org'a ait aynı kimlikli bir satır asla güncellenmez.
+        await tx.user.updateMany({
+          where: { id: u.id, organizationId: DEMO_ORG_ID },
           data: {
             name: u.name,
             role: u.role,

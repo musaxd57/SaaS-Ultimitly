@@ -28,9 +28,16 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
 };
 
 /** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
-function dayLabel(key: string): string {
+function dayLabel(key: string, offsetDays = 0): string {
   const [y, m, d] = key.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" });
+  return new Date(Date.UTC(y, m - 1, d + offsetDays)).toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+/** Yarı açık [from, to) GECELER: son gece `to`dan bir önceki gündür ("5 Eki – 7 Eki" çıkış gününü gösterirdi). */
+function nightsLabel(from: string, to: string): string {
+  const last = dayLabel(to, -1);
+  const first = dayLabel(from);
+  return first === last ? `${first} gecesi` : `${first} – ${last} geceleri`;
 }
 
 function headline(item: AttentionItem): string {
@@ -44,7 +51,9 @@ function headline(item: AttentionItem): string {
     case "recurring_issue":
       return `${signalCategoryLabel(item.category ?? "")} tekrar ediyor`;
     case "calendar_conflict":
-      return item.possibleDuplicate ? "Aynı rezervasyon iki kez görünüyor olabilir" : "Aynı gecelere iki rezervasyon var";
+      if (item.possibleDuplicate) return "Aynı rezervasyon iki kez görünüyor olabilir";
+      if (item.heldRequest) return "Onay bekleyen bir talep dolu gecelerle çakışıyor";
+      return "Aynı gecelere iki rezervasyon var";
   }
 }
 
@@ -59,8 +68,9 @@ function detail(item: AttentionItem): string {
     case "recurring_issue":
       return `${item.propertyName} · ${item.evidenceCount ?? 0} sinyal`;
     case "calendar_conflict": {
-      const range = item.nights ? `${dayLabel(item.nights.from)} – ${dayLabel(item.nights.to)}` : "";
-      return `${item.propertyName} · ${range} · takvimi kontrol edin`;
+      const range = item.nights ? nightsLabel(item.nights.from, item.nights.to) : "";
+      const more = (item.conflictCount ?? 1) > 1 ? ` · ${(item.conflictCount ?? 1) - 1} çakışma daha` : "";
+      return `${item.propertyName} · ${range}${more} · takvimi kontrol edin`;
     }
   }
 }
@@ -93,9 +103,10 @@ export function AttentionPanel({ items }: { items: AttentionItem[] }) {
                 <p className="truncate text-xs text-muted-foreground">
                   {detail(item)}
                   {item.certainty === "inferred" ? (
-                    // Kesin tespit DEĞİL — host'un doğrulaması gerekiyor.
+                    // Kesin tespit DEĞİL — host'un doğrulaması gerekiyor. Çakışmada sebep sınıflandırma
+                    // değil, kayıtlardan birinin güncel olduğunun kanıtlanamaması.
                     <span className="ml-1 text-amber-700 dark:text-amber-500">
-                      · otomatik sınıflandırma, doğrulayın
+                      {item.kind === "calendar_conflict" ? "· kayıtlardan biri güncel olmayabilir, doğrulayın" : "· otomatik sınıflandırma, doğrulayın"}
                     </span>
                   ) : null}
                 </p>

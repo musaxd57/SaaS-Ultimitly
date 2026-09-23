@@ -24,7 +24,10 @@ export interface UpcomingConflict {
   to: NightKey;
   reservationIds: readonly string[];
   possibleDuplicate: boolean;
+  /** En az bir iddia onay bekleyen talep (pending) — kesinleşmiş çift rezervasyon DEĞİL. */
   anyHeld: boolean;
+  /** Hiçbir iddia taze kaynaktan ya da host girişinden gelmiyor — hayalet satır olabilir. */
+  allUnconfirmed: boolean;
 }
 
 export async function findUpcomingConflicts(
@@ -49,6 +52,7 @@ export async function findUpcomingConflicts(
         reservationIds: c.reservationIds,
         possibleDuplicate: c.facts.identicalSpan,
         anyHeld: c.facts.anyHeld,
+        allUnconfirmed: c.facts.allUnconfirmed,
       });
     }
   }

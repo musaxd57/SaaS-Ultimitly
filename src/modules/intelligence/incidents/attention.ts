@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { alertOnTransition } from "@/lib/alert-state";
 import { findUpcomingConflicts, type UpcomingConflict } from "@/modules/availability/conflicts";
 
 // ---------------------------------------------------------------------------
@@ -115,6 +116,10 @@ export interface AttentionItem {
   nights?: { from: string; to: string };
   /** Yalnız `calendar_conflict`: iki satırın tarihleri birebir aynı — aynı konaklama olabilir. */
   possibleDuplicate?: boolean;
+  /** Yalnız `calendar_conflict`: çakışmada onay bekleyen bir TALEP var (kesin çift rezervasyon değil). */
+  heldRequest?: boolean;
+  /** Yalnız `calendar_conflict`: bu mülkteki çakışma aralığı sayısı (satır EN ÖNEMLİSİNİ gösterir). */
+  conflictCount?: number;
 }
 
 export interface FindAttentionOptions {
@@ -202,8 +207,12 @@ export async function findAttentionItems(
       },
       select: { propertyId: true, category: true, observedAt: true, evidenceJson: true },
     }),
-    // Motorun kendi arızası öteki satırları düşürmez: bu bacak başarısızsa yalnız o yok.
-    findUpcomingConflicts(organizationId, { propertyIds, now }).catch((): UpcomingConflict[] => []),
+    // Motorun kendi arızası öteki satırları düşürmez: bu bacak başarısızsa yalnız o yok. Arıza
+    // SESSİZ de kalmaz: geçiş tabanlı alarm (aynı sınıf sürerken günde en fazla bir e-posta).
+    findUpcomingConflicts(organizationId, { propertyIds, now }).catch((err): UpcomingConflict[] => {
+      void alertOnTransition("attention:calendar-conflict", "attention calendar_conflict", err).catch(() => {});
+      return [];
+    }),
   ]);
 
   const items: AttentionItem[] = [];
@@ -284,22 +293,41 @@ export async function findAttentionItems(
     });
   }
 
+  // Çakışmalar MÜLK BAŞINA TEK satır (inceleme 09-24): köprü + aynı ilanın iCal'i birlikte beslenirse
+  // gelecekteki HER konaklama bir çakışma aralığı üretir; aralık başına satır kartı doldurup tekrar eden
+  // arıza satırlarını dışarı itiyordu. Satır mülkün EN ÖNEMLİ çakışmasını gösterir + toplam sayı.
+  // Önem KANITA göre: iki taraflı kesin işgal 97 (misafir kapıda kalabilir) · onay bekleyen talep ya da
+  // yalnız kanıtsız iddialar (hayalet satır olabilir) 70 · birebir aynı tarihli çift 45.
+  const conflictRank = (c: UpcomingConflict): number =>
+    c.possibleDuplicate ? 45 : c.anyHeld || c.allUnconfirmed ? 70 : 97;
+  const worstByProperty = new Map<string, { c: UpcomingConflict; count: number }>();
   for (const c of conflicts) {
+    const cur = worstByProperty.get(c.propertyId);
+    if (!cur) {
+      worstByProperty.set(c.propertyId, { c, count: 1 });
+      continue;
+    }
+    cur.count++;
+    const better = conflictRank(c) > conflictRank(cur.c) || (conflictRank(c) === conflictRank(cur.c) && c.from < cur.c.from);
+    if (better) cur.c = c;
+  }
+  for (const { c, count } of worstByProperty.values()) {
     const [y, m, d] = c.from.split("-").map(Number);
+    const severity = conflictRank(c);
     items.push({
       kind: "calendar_conflict",
-      // Satırlar BİZİM kayıtlarımız: çakışma gözlemdir. "Aynı konaklama olabilir" ise ipucudur
-      // ve söz arayüzde ona göre kurulur.
-      certainty: "observed",
+      // Satırlar BİZİM kayıtlarımız: çakışma gözlemdir — ancak iddiaların hiçbiri taze kaynaktan ya da
+      // host girişinden gelmiyorsa satırlardan biri hayalet olabilir → çıkarım.
+      certainty: c.allUnconfirmed ? "inferred" : "observed",
       propertyId: c.propertyId,
       propertyName: nameById.get(c.propertyId) ?? "",
-      // Gerçek çift rezervasyon: bozuk beslemeyle aynı sınıf (misafir kapıda kalabilir).
-      // Birebir aynı tarihli çift: büyük olasılıkla aynı konaklamanın iki kopyası → daha alçak.
-      severity: c.possibleDuplicate ? 45 : 97,
+      severity,
       occurredAt: new Date(Date.UTC(y, m - 1, d)),
       href: `/calendar?property=${encodeURIComponent(c.propertyId)}&month=${c.from.slice(0, 7)}`,
       nights: { from: c.from, to: c.to },
       possibleDuplicate: c.possibleDuplicate,
+      heldRequest: c.anyHeld,
+      conflictCount: count,
     });
   }
 

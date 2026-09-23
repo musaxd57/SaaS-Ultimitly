@@ -28,10 +28,20 @@ function keyStartUtc(key: NightKey): Date {
 }
 
 /** İddianın kökeni KANITLI alanlardan; kanal ETİKETİNDEN yetenek çıkarılmaz (değişmez 20).
- *  `ics`/`manual` OTA adı değil MEKANİZMA işaretçisidir (capability.ts). */
-export function classifyClaimOrigin(r: { calendarSourceId: string | null; connectionId: string | null; channel: string }): ClaimOrigin {
+ *  `ics`/`manual` OTA adı değil MEKANİZMA işaretçisidir (capability.ts).
+ *  🚨 Silinen takvim bağlantısının satırları `channel: "manual"`a çevrilir (calendar-sources DELETE) ama
+ *  İLK ALINMA damgası (`ingestedAt`) kalır; elle girişte o damga HİÇ yazılmaz (V0.4). Yani "manual" +
+ *  `ingestedAt` = kaynaktan alınmış, kaynağı gitmiş satır → host'un kendi girişi SAYILMAZ (inceleme 09-24).
+ *  Bilinen sınır: V0.4 öncesi alınmış öksüzlerin damgası yok → host girişi sayılır. */
+export function classifyClaimOrigin(r: {
+  calendarSourceId: string | null;
+  connectionId: string | null;
+  channel: string;
+  ingestedAt: Date | null;
+}): ClaimOrigin {
   if (r.calendarSourceId !== null) return "calendar_feed";
   if (r.connectionId !== null) return "channel_connection";
+  if (r.channel === "manual" && r.ingestedAt !== null) return "detached_source";
   if ((NON_MESSAGING_CHANNELS as readonly string[]).includes(r.channel)) return "host_entered";
   return "channel_unattributed";
 }
@@ -91,6 +101,7 @@ export async function loadAvailabilityInputs(organizationId: string, opts: LoadA
         channel: true,
         calendarSourceId: true,
         connectionId: true,
+        ingestedAt: true,
         feedLastSeenAt: true,
       },
     }),
@@ -139,6 +150,7 @@ export async function loadAvailabilityInputs(organizationId: string, opts: LoadA
       reservations: rows,
       sources: sourcesByProperty.get(id) ?? [],
       loadTruncated: truncatedAll || rows.length > RESERVATION_LOAD_CAP_PER_PROPERTY,
+      loadedRange: range,
     });
   }
   return { timeZone, range, inputs: out };

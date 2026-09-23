@@ -22,7 +22,9 @@ dahil)". Kurucu: *endpoint'leri olmayacak ama Lixus'un Airbnb'den ne beklediği 
   yetenek kümesi yüzünden `dispatchOutbound` reddeder. Hiçbir üretim modülü adaptörü içe aktarmaz.
 - **Canlıya alma kapısı:** `supported` yeteneği olan HİÇBİR kaynakta veri politikası `requires_terms_review`
   kalamaz; kiracılar arası kullanım her kaynakta ve her sınıfta yasak.
-- Müşteriye "Hospitable'a ulaşılamıyor" denmez: `unsupported` hata sınıfı genel metne düşer.
+- Müşteriye "Hospitable'a ulaşılamıyor" denmez: `unsupported` hata sınıfı genel metne düşer. ⚠️ Öteki hata
+  sınıflarının müşteri metinleri (`provider-errors`) hâlâ "Hospitable" der; Airbnb Direct adaptörü canlıya
+  alınmadan önce sağlayıcıya göre metin gerekir (bugün ulaşılamaz: adaptör yalnız `unsupported` üretir).
 - Canlı `hospitable-*.ts` dosyaları bu dilimde bayt-bayt aynı.
 
 ## Sıradaki adımlar (sandbox + resmî doküman geldiğinde)

@@ -244,7 +244,14 @@ describe("mimari pinler", () => {
     const src = read("src/lib/demo-tenant/apply-core.ts");
     const calls = [...src.matchAll(/\.deleteMany\(\{[^\n]*\n?/g)].map((m) => m[0]);
     expect(calls.length).toBeGreaterThanOrEqual(14);
-    for (const c of calls) expect(c, c).toContain("DEMO_ORG_ID");
+    for (const c of calls) {
+      // Olumlu kapsam ŞART: "organizationId: DEMO_ORG_ID" — `NOT: { organizationId: DEMO_ORG_ID }` gibi
+      // TERS bir filtre yalnız adı andığı için geçmesin (inceleme 09-24).
+      expect(c, c).toMatch(/organizationId: DEMO_ORG_ID/);
+      expect(c, c).not.toMatch(/\bNOT\b|notIn: \[DEMO_ORG_ID|not: DEMO_ORG_ID/);
+    }
+    // Güncellemeler de demo org'uyla kapsanır.
+    expect(src).not.toMatch(/tx\.user\.update\(/);
   });
 
   it("demo modülleri betikten çalışır: server-only / db / sağlayıcı modülü içe aktarmaz", () => {

@@ -56,10 +56,32 @@ describe("AttentionPanel", () => {
     ];
     render(<AttentionPanel items={items} />);
     expect(screen.getByText("Aynı gecelere iki rezervasyon var")).toBeTruthy();
-    expect(screen.getByText(/Deniz Apart · 5 Eki – 7 Eki · takvimi kontrol edin/)).toBeTruthy();
+    // Yarı açık [5, 7) = 5 ve 6 Ekim geceleri; 7 Ekim çıkış günüdür, çakışan gece DEĞİL (inceleme 09-24).
+    expect(screen.getByText(/Deniz Apart · 5 Eki – 6 Eki geceleri · takvimi kontrol edin/)).toBeTruthy();
     expect(screen.getByRole("link").getAttribute("href")).toBe("/calendar?property=p1&month=2026-10");
     // Müşteriye giden metin teknik terim taşımaz.
     expect(document.body.textContent).not.toMatch(/conflict|overlap|claim|origin|çakışma olgusu/i);
+  });
+
+  it("tek gece, talep ve birden çok çakışma kendi sözüyle söylenir; kanıtsız çakışma 'doğrulayın' der (sınıflandırma DEMEZ)", () => {
+    const items: AttentionItem[] = [
+      {
+        ...base,
+        kind: "calendar_conflict",
+        certainty: "inferred",
+        severity: 70,
+        href: "/calendar?property=p1&month=2026-10",
+        nights: { from: "2026-10-05", to: "2026-10-06" },
+        possibleDuplicate: false,
+        heldRequest: true,
+        conflictCount: 3,
+      },
+    ];
+    render(<AttentionPanel items={items} />);
+    expect(screen.getByText("Onay bekleyen bir talep dolu gecelerle çakışıyor")).toBeTruthy();
+    expect(screen.getByText(/5 Eki gecesi · 2 çakışma daha · takvimi kontrol edin/)).toBeTruthy();
+    expect(screen.getByText(/kayıtlardan biri güncel olmayabilir, doğrulayın/)).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/otomatik sınıflandırma/);
   });
 
   it("birebir aynı tarihli çift 'olabilir' diye söylenir — kesin hüküm vermez", () => {

@@ -236,7 +236,9 @@ describe("kapalı başarısız 'boş' — kanıt yoksa 'bilinmiyor'", () => {
       "2026-10-04": "unknown",
       "2026-10-05": "unknown",
       "2026-10-06": "free",
-      "2026-10-08": "free",
+      // İnceleme 09-24: sıfır gecelik kayıt hangi geceyi kastettiği bilinemediği için o geceyi
+      // "boş" dedirtmez (eskiden "free" idi — kapalı başarısız kuralının delinmesi).
+      "2026-10-08": "unknown",
     });
     expect(r.anomalies).toEqual([
       { reservationId: "inv", kind: "inverted" },
@@ -259,17 +261,23 @@ describe("karar ve kesinlik", () => {
   });
 
   it("besleme satırı yalnız kaynağın SON başarılı okumasında görüldüyse 'fresh'", () => {
+    // 🚨 Gerçek sıralama (inceleme 09-24): senkron `feedLastSeenAt`i koşunun BAŞINDA, `lastSyncedAt`i
+    // SONUNDA yazar → görülme anı son başarıdan hep biraz ÖNCEDİR. Eski test ikisini eşit veriyordu
+    // (veritabanında hiç olmayan durum) ve "fresh" yolu gerçekte hiç çalışmıyordu.
     const seen = res({
       arrival: noon("2026-10-03"),
       departure: noon("2026-10-05"),
       origin: "calendar_feed",
       calendarSourceId: "src1",
-      feedLastSeenAt: new Date("2026-10-01T08:30:00Z"),
+      feedLastSeenAt: new Date("2026-10-01T08:29:59.588Z"), // koşu başı, son başarıdan 412 ms önce
     });
     const r = nightsOf(input({ reservations: [seen] }), "2026-10-03", "2026-10-04");
     expect(r.nights[0].claims[0].basis).toBe("fresh");
     const stale = { ...seen, feedLastSeenAt: new Date("2026-09-20T00:00:00Z") };
     expect(nightsOf(input({ reservations: [stale] }), "2026-10-03", "2026-10-04").nights[0].claims[0].basis).toBe("unconfirmed");
+    // Bir ÖNCEKİ koşuda (kadans 15 dk) görülüp son koşuda görülmeyen satır taze DEĞİL.
+    const previousRun = { ...seen, feedLastSeenAt: new Date("2026-10-01T08:14:00Z") };
+    expect(nightsOf(input({ reservations: [previousRun] }), "2026-10-03", "2026-10-04").nights[0].claims[0].basis).toBe("unconfirmed");
   });
 
   it.each([
@@ -289,6 +297,18 @@ describe("karar ve kesinlik", () => {
     expect(checkAvailability(i, { from: "2026-10-03", to: "2026-10-05" })).toMatchObject({ ok: true, value: { verdict: "unknown", certainty: "unverified" } });
   });
 
+  it("🚨 yüklenen aralığın DIŞINDAKİ boş gece 'müsait' değil 'bilinmiyor' (başka aralık için yüklenmiş girdi)", () => {
+    const i = input({ loadedRange: { from: "2026-10-01", to: "2026-10-10" } });
+    expect(stateMap(i, "2026-10-08", "2026-10-12")).toEqual({
+      "2026-10-08": "free",
+      "2026-10-09": "free",
+      "2026-10-10": "unknown",
+      "2026-10-11": "unknown",
+    });
+    expect(nightsOf(i, "2026-10-10", "2026-10-11").nights[0].unknownReasons).toEqual(["outside_loaded_range"]);
+    expect(checkAvailability(i, { from: "2026-10-12", to: "2026-10-14" })).toMatchObject({ ok: true, value: { verdict: "unknown" } });
+  });
+
   it("host görünümü (describeNights) geçmiş geceleri kabul eder", () => {
     expect(describeNights(input(), { from: "2026-09-20", to: "2026-09-22" }).ok).toBe(true);
   });
@@ -303,7 +323,7 @@ describe("çakışma — OLGU, birleştirme DEĞİL (değişmez 6)", () => {
       ],
     });
     expect(nightsOf(i, "2026-10-01", "2026-10-12").conflicts).toEqual([
-      { from: "2026-10-05", to: "2026-10-07", reservationIds: ["a", "b"], facts: { identicalSpan: false, sameOrigin: false, anyHeld: false } },
+      { from: "2026-10-05", to: "2026-10-07", reservationIds: ["a", "b"], facts: { identicalSpan: false, sameOrigin: false, anyHeld: false, allUnconfirmed: false } },
     ]);
   });
 
@@ -316,7 +336,7 @@ describe("çakışma — OLGU, birleştirme DEĞİL (değişmez 6)", () => {
     });
     const r = nightsOf(i, "2026-10-01", "2026-10-10");
     expect(r.conflicts).toHaveLength(1);
-    expect(r.conflicts[0].facts).toEqual({ identicalSpan: true, sameOrigin: false, anyHeld: true });
+    expect(r.conflicts[0].facts).toEqual({ identicalSpan: true, sameOrigin: false, anyHeld: true, allUnconfirmed: true });
     expect(r.nights.find((n) => n.night === "2026-10-03")!.claims).toHaveLength(2);
   });
 
