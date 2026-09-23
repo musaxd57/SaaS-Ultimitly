@@ -63,6 +63,9 @@ describe("safeRedirectTarget — API yolları hedef olamaz", () => {
     ["/%61pi/auth/logout"], // yüzde kodlu "a"
     ["/API/account/export"], // büyük harf
     [`${O}/api/auth/logout`],
+    // Bozuk yüzde kodlaması çözülemeyince kontrol ATLANIYORDU (inceleme turu): güvenli tarafa düşer.
+    ["/%61pi/auth/logout/%ZZ"],
+    ["/dashboard/%E0%A4%A"], // yarım UTF-8 dizisi — kendi ara katmanımız böyle bir değer üretmez
   ])("%j → null", (next) => {
     expect(safeRedirectTarget(next, O)).toBeNull();
   });
@@ -70,6 +73,7 @@ describe("safeRedirectTarget — API yolları hedef olamaz", () => {
   it.each([
     ["/apiler", "/apiler"], // "/api" ile BAŞLAYAN ama API olmayan bir sayfa adı engellenmez
     ["/settings?tab=api", "/settings?tab=api"],
+    ["/inbox/%C3%A7", "/inbox/%C3%A7"], // geçerli yüzde kodlaması (ç) engellenmez
   ])("KONTROL: %j → %j", (next, beklenen) => {
     expect(safeRedirectTarget(next, O)).toBe(beklenen);
   });

@@ -220,14 +220,14 @@ export async function consumeChallengeAndResetPassword(args: {
   organizationId: string;
   newPasswordHash: string;
   now?: Date;
-}): Promise<boolean> {
+}): Promise<number | null> {
   const now = args.now ?? new Date();
   return prisma.$transaction(async (tx) => {
     const consumed = await tx.passwordResetChallenge.updateMany({
       where: { id: args.challengeId, consumedAt: null, invalidatedAt: null },
       data: { consumedAt: now },
     });
-    if (consumed.count === 0) return false; // yarışı kaybettik → hiçbir şey yazma
+    if (consumed.count === 0) return null; // yarışı kaybettik → hiçbir şey yazma
 
     // Bu kullanıcının DİĞER canlı challenge'ları kapanır — sıfırlama bittiğinde
     // ortada kullanılabilir başka bir sıfırlama yolu kalmamalı.
@@ -241,8 +241,11 @@ export async function consumeChallengeAndResetPassword(args: {
       data: { invalidatedAt: now },
     });
 
-    await tx.user.update({
+    // Dönüş değeri BU sıfırlamanın ürettiği epoch'tur (aynı ifadede okunur; işlem sonrası okuma
+    // araya giren başka bir artışı da alırdı — 09-23 inceleme turu).
+    const updated = await tx.user.update({
       where: { id: args.userId },
+      select: { sessionEpoch: true },
       data: {
         passwordHash: args.newPasswordHash,
         // Çalınmış her oturum bu artışla ölür — kullanıcının parolasını
@@ -259,7 +262,7 @@ export async function consumeChallengeAndResetPassword(args: {
         emailVerifyExpiresAt: null,
       },
     });
-    return true;
+    return updated.sessionEpoch;
   });
 }
 

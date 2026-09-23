@@ -101,8 +101,8 @@ export {
 
 async function compareStored(password: string, hash: string): Promise<{ ok: boolean; legacyForm: boolean }> {
   const nfc = normalizePassword(password);
-  if (await timedCompare(nfc, hash)) return { ok: true, legacyForm: false };
-  if (nfc !== password && (await timedCompare(password, hash))) return { ok: true, legacyForm: true };
+  if (await bcrypt.compare(nfc, hash)) return { ok: true, legacyForm: false };
+  if (nfc !== password && (await bcrypt.compare(password, hash))) return { ok: true, legacyForm: true };
   return { ok: false, legacyForm: false };
 }
 
@@ -119,36 +119,35 @@ export function verifyPassword(password: string, hash: string): Promise<boolean>
 // maliyet-12 SAHTE hash'e karşı doğrulanır (~315 ms); 05-31 → 06-09 arasında belirlenmiş
 // parolalar maliyet-10'dur (~80 ms) → yanlış parolayla TEK istek "bu e-posta kayıtlı (ve erken
 // dönem hesabı)" diye okunuyordu (4 kat fark, ilk hesaplar dahil). Girişte yükseltme (④) yalnız
-// giriş YAPAN hesabı kapatır. Çözüm: maliyeti düşük hash'te BAŞARISIZ doğrulama, sahte yolun
-// süresine (gözlenen maliyet-12 karşılaştırma süresi × karşılaştırma sayısı) kadar BEKLETİLİR —
-// yuva bırakıldıktan SONRA, işlemci harcamadan. Başarılı giriş bekletilmez.
+// giriş YAPAN hesabı kapatır.
+//
+// Çözüm İŞ EŞİTLİĞİ: maliyeti r olan karşılaştırma 2^r tur yapar ve maliyet-12 =
+// maliyet-10 + maliyet-10 + maliyet-11 (1024 + 1024 + 2048 = 4096). Başarısız doğrulamadan sonra,
+// AYNI YUVANIN İÇİNDE, r..11 maliyetli birer sahte karşılaştırma yapılır → toplam iş sahte yolla
+// birebir aynı ve yük altında da öyle kalır (ikisi de aynı işlemciyi aynı biçimde kullanır).
+// 🚨 İlk çözüm (yuvayı bırakıp gözlenen maliyet-12 ortalamasına kadar UYUMAK) iki yerden
+// sızıyordu (inceleme ajanı, 09-23): yuvayı erken bıraktığı için eşzamanlı isteklerde bitiş sırası
+// farklıydı; ortalama da saldırganın ürettiği yükle kaydırılabiliyordu. UYKUYA GERİ DÖNME.
+// Ölçüm (bu konteyner): tek istek 318 ms ↔ 319 ms; 6 eşzamanlı istek 1,95 sn ↔ 1,90 sn.
+// Başarılı giriş dolgulanmaz (sahibin girişi yavaşlamaz; başarı zaten yanıttan belli).
 // ---------------------------------------------------------------------------
 
-/** Gözlenen maliyet-12 karşılaştırma süresi (ms, üstel ortalama); 0 = henüz ölçülmedi. */
-let cost12CompareMs = 0;
+// Kimsenin parolası olmayan atılmış sırların sabit hash'leri (DUMMY_HASH gibi).
+const PAD_HASH: Record<number, string> = {
+  10: "$2a$10$0kcZHXK5X7dZx3PSVXrO7.yL6Slrxmr1Q6IpbAmY1vdF5jJ8RntNC",
+  11: "$2a$11$y6pHMA9mnaj.ULekVMo9Pum553XQiK7nI2FKk3CElBn1TNZqNn.tK",
+};
 
-function observeCost12(ms: number): void {
-  cost12CompareMs = cost12CompareMs === 0 ? ms : cost12CompareMs * 0.8 + ms * 0.2;
+/** Başarısız TEK karşılaştırmayı sahte yolun işine tamamlar. Yuvanın İÇİNDE çağrılır. */
+async function padLowCostFailure(value: string, rounds: number): Promise<void> {
+  if (rounds === 10 || rounds === 11) {
+    for (let k = rounds; k < SALT_ROUNDS; k++) await bcrypt.compare(value, PAD_HASH[k]);
+  } else {
+    // Üretimde yok (yalnız maliyet 10 ve 12 var): tam bir sahte karşılaştırma — fark en fazla
+    // maliyet-r'nin kendisi kadar (≤ maliyet-9 ≈ 40 ms).
+    await bcrypt.compare(value, DUMMY_HASH);
+  }
 }
-
-async function timedCompare(value: string, hash: string): Promise<boolean> {
-  const t0 = performance.now();
-  const ok = await bcrypt.compare(value, hash);
-  if (bcrypt.getRounds(hash) === SALT_ROUNDS) observeCost12(performance.now() - t0);
-  return ok;
-}
-
-/**
- * Bilinmeyen hesap yolunun (sahte doğrulama) bu girdi için beklenen süresi. Test kancası da
- * budur: bekletme bu tabana kadardır. Henüz gözlem yoksa 0 (çağıran o durumda gerçek bir sahte
- * karşılaştırmayla hem bekletir hem ölçer).
- */
-export function __loginFailureFloorMs(password: string): number {
-  const compares = normalizePassword(password) !== password ? 2 : 1;
-  return cost12CompareMs * compares;
-}
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
  * ④ GİRİŞ YOLU: doğrula + saklanan hash'in yükseltilmesi gerekip gerekmediğini söyle
@@ -159,27 +158,18 @@ export async function verifyPasswordForLogin(
   password: string,
   hash: string,
 ): Promise<{ ok: boolean; needsRehash: boolean }> {
-  // Süre YUVA ALINDIKTAN SONRA ölçülür: kuyrukta bekleme iki yolda da ortaktır, eşitlenmesi
-  // gereken yalnız karşılaştırmanın kendisidir (yoksa yük altında fark geri dönerdi).
-  let compareMs = 0;
+  // Bozuk/tanınmayan hash'te `getRounds` NaN döner → karşılaştırmalar false → dolgu ve yükseltme yok.
+  const rounds = bcrypt.getRounds(hash);
   const r = await withSlot(async () => {
-    const t0 = performance.now();
     const out = await compareStored(password, hash);
-    compareMs = performance.now() - t0;
+    if (!out.ok && rounds < SALT_ROUNDS) {
+      // `compareStored` ile AYNI sayıda: NFC her zaman, ham biçim yalnız NFC'den farklıysa.
+      const nfc = normalizePassword(password);
+      await padLowCostFailure(nfc, rounds);
+      if (nfc !== password) await padLowCostFailure(password, rounds);
+    }
     return out;
   });
-  // Bozuk/tanınmayan hash'te `getRounds` NaN döner → karşılaştırmalar false → yükseltme yok.
-  const rounds = bcrypt.getRounds(hash);
-  if (!r.ok && rounds < SALT_ROUNDS) {
-    const floor = __loginFailureFloorMs(password);
-    if (floor > 0) {
-      const left = floor - compareMs;
-      if (left > 0) await sleep(left);
-    } else {
-      // Henüz ölçüm yok (süreç yeni başladı): gerçek bir sahte karşılaştırma hem bekletir hem ölçer.
-      await dummyVerifyPassword(password);
-    }
-  }
   return { ok: r.ok, needsRehash: r.ok && (r.legacyForm || rounds < SALT_ROUNDS) };
 }
 
@@ -218,7 +208,7 @@ const DUMMY_HASH = "$2a$12$pW7aCpH9gDjLDJgWwMZS9e4XetljqUVeM6688s259LuXEGh42XYii
 export async function dummyVerifyPassword(password: string): Promise<void> {
   await withSlot(async () => {
     const nfc = normalizePassword(password);
-    await timedCompare(nfc, DUMMY_HASH);
-    if (nfc !== password) await timedCompare(password, DUMMY_HASH);
+    await bcrypt.compare(nfc, DUMMY_HASH);
+    if (nfc !== password) await bcrypt.compare(password, DUMMY_HASH);
   });
 }

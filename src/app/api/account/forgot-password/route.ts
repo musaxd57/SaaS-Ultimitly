@@ -208,15 +208,15 @@ export async function POST(req: NextRequest) {
         // yazılabilsin diye (oturum ÖNCESİ akışın "çağıran sorumlu" deseni).
         const { challengeId, userId: actorUserId, organizationId } = verdict;
         const newHash = await hashPassword(newPassword);
-        const done = await consumeChallengeAndResetPassword({
+        const newEpoch = await consumeChallengeAndResetPassword({
           challengeId,
           userId: actorUserId,
           organizationId,
           newPasswordHash: newHash,
         });
-        // Paralel iki DOĞRU istekte yalnız biri `true` alır — ikincisi hiçbir
+        // Paralel iki DOĞRU istekte yalnız biri epoch alır — ikincisi hiçbir
         // şey yazmadan genel hataya düşer.
-        if (!done) return badRequest({ code: GENERIC_CONFIRM });
+        if (newEpoch === null) return badRequest({ code: GENERIC_CONFIRM });
         // 🚨 SIFIRLAMAYI TAMAMLAYAN TARAYICI TANINAN CİHAZ OLUR (09-23 saldırgan turu). Saldırgan
         // hesap kovasını IP döndürerek dolu tutarsa, tanınan-cihaz çerezi olmayan her tarayıcı
         // girişte 429 alır; sıfırlama epoch'u artırdığı için kurbanın ESKİ tanınan cihazları da
@@ -224,8 +224,7 @@ export async function POST(req: NextRequest) {
         // kanıtladı (token + kod) → kovayı aşabilir; yine de yeni PAROLA (ve varsa 2FA) ister.
         // Oturum AÇILMAZ (sıfırlama giriş değildir). Asla ölümcül değil.
         try {
-          const fresh = await prisma.user.findUnique({ where: { id: actorUserId }, select: { sessionEpoch: true } });
-          if (fresh) await setKnownDeviceCookie(actorUserId, fresh.sessionEpoch);
+          await setKnownDeviceCookie(actorUserId, newEpoch);
         } catch {
           // yok say — sıfırlama zaten tamamlandı
         }

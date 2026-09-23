@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { SignJWT, decodeJwt } from "jose";
 
 // ---------------------------------------------------------------------------
 // ① OTURUM ÇEREZİNE `__Host-` ÖNEKİ (kurucu onayı 09-23).
@@ -49,6 +50,15 @@ const payload = (userId: string): SessionPayload => ({
   sessionEpoch: 0,
 });
 
+/** Yayından ÖNCEKİ kodun imzaladığı oturum: `hv` iddiası YOK (eski ad yalnız bunu taşıyabilir). */
+async function signLegacySession(p: SessionPayload): Promise<string> {
+  return new SignJWT({ ...p })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("14d")
+    .sign(new TextEncoder().encode(process.env.AUTH_SECRET!));
+}
+
 const BEFORE_CUTOFF = LEGACY_SESSION_COOKIE_READ_UNTIL - 24 * 60 * 60 * 1000;
 const AFTER_CUTOFF = LEGACY_SESSION_COOKIE_READ_UNTIL + 24 * 60 * 60 * 1000;
 
@@ -70,26 +80,53 @@ describe("ad seçimi ve okuma sırası (saf)", () => {
     expect(sessionCookieName()).toBe(SESSION_COOKIE);
   });
 
-  it("okuma: yeni ad ÖNCE; yoksa geçiş süresince eski ad", () => {
+  it("okuma: yeni ad ÖNCE; yoksa geçiş süresince eski ad (eski kodun imzaladığı)", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const both = { [SESSION_COOKIE_HOST]: "yeni", [SESSION_COOKIE]: "eski" };
+    const old = await signLegacySession(payload("u1"));
+    const both = { [SESSION_COOKIE_HOST]: "yeni", [SESSION_COOKIE]: old } as Record<string, string>;
     expect(readSessionCookie((n) => both[n], BEFORE_CUTOFF)).toBe("yeni");
-    const legacyOnly = { [SESSION_COOKIE]: "eski" } as Record<string, string>;
-    expect(readSessionCookie((n) => legacyOnly[n], BEFORE_CUTOFF)).toBe("eski");
+    const legacyOnly = { [SESSION_COOKIE]: old } as Record<string, string>;
+    expect(readSessionCookie((n) => legacyOnly[n], BEFORE_CUTOFF)).toBe(old);
   });
 
-  it("geçiş süresi BİTİNCE eski ad okunmaz (koruma tam: fırlatılan eski-adlı çerez işe yaramaz)", () => {
+  it("geçiş süresi BİTİNCE eski ad okunmaz (koruma tam: fırlatılan eski-adlı çerez işe yaramaz)", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const legacyOnly = { [SESSION_COOKIE]: "eski" } as Record<string, string>;
+    const legacyOnly = { [SESSION_COOKIE]: await signLegacySession(payload("u1")) } as Record<string, string>;
     expect(readSessionCookie((n) => legacyOnly[n], AFTER_CUTOFF)).toBeUndefined();
     const hostOnly = { [SESSION_COOKIE_HOST]: "yeni" } as Record<string, string>;
     expect(readSessionCookie((n) => hostOnly[n], AFTER_CUTOFF)).toBe("yeni");
+  });
+
+  it("🚨 geçişte de FIRLATMA yok: bu sürümün imzaladığı (hv) oturum eski adla gelirse okunmaz", async () => {
+    // Saldırgan kendi (yeni) oturumunu eski ada çevirip kurbanın tarayıcısına fırlatır; eskiden
+    // middleware onu `__Host-` adıyla yeniden imzalayıp KALICILAŞTIRIRDI.
+    vi.stubEnv("NODE_ENV", "production");
+    const planted = { [SESSION_COOKIE]: await signSession(payload("saldirgan")) } as Record<string, string>;
+    expect(readSessionCookie((n) => planted[n], BEFORE_CUTOFF)).toBeUndefined();
+    const garbage = { [SESSION_COOKIE]: "cozulemeyen-token" } as Record<string, string>;
+    expect(readSessionCookie((n) => garbage[n], BEFORE_CUTOFF)).toBeUndefined();
+  });
+
+  it("signSession `hv` iddiasını yazar; doğrulanmış oturuma SIZMAZ (beyaz liste)", async () => {
+    const token = await signSession(payload("u1"));
+    expect(decodeJwt(token).hv).toBe(1);
+    const back = await verifySession(token);
+    expect(back).not.toHaveProperty("hv");
+    expect(back?.userId).toBe("u1");
   });
 
   it("KONTROL: geliştirmede eski ad CANLI addır — tarih ne olursa olsun okunur", () => {
     vi.stubEnv("NODE_ENV", "development");
     const legacyOnly = { [SESSION_COOKIE]: "dev" } as Record<string, string>;
     expect(readSessionCookie((n) => legacyOnly[n], AFTER_CUTOFF)).toBe("dev");
+  });
+
+  it("geliştirmede `__Host-` OKUNMAZ (yerel `next start` kalıntısı geliştirme girişini ezmez)", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const both = { [SESSION_COOKIE_HOST]: "kalinti", [SESSION_COOKIE]: "dev" } as Record<string, string>;
+    expect(readSessionCookie((n) => both[n], BEFORE_CUTOFF)).toBe("dev");
+    const hostOnly = { [SESSION_COOKIE_HOST]: "kalinti" } as Record<string, string>;
+    expect(readSessionCookie((n) => hostOnly[n], BEFORE_CUTOFF)).toBeUndefined();
   });
 });
 
@@ -101,7 +138,7 @@ describe("middleware — üretimde geçiş", () => {
     // kırmızıya dönerdi — 09-15 saat-bombası dersi).
     vi.useFakeTimers({ now: BEFORE_CUTOFF, toFake: ["Date"] });
     const req = new NextRequest("https://www.lixusai.com/dashboard");
-    req.cookies.set(SESSION_COOKIE, await signSession(payload("u1")));
+    req.cookies.set(SESSION_COOKIE, await signLegacySession(payload("u1")));
     const res = await middleware(req);
     expect(res.headers.get("location")).toBeNull(); // girişe yönlendirilmedi
     const fresh = res.cookies.get(SESSION_COOKIE_HOST);
@@ -128,9 +165,18 @@ describe("middleware — üretimde geçiş", () => {
   it("geçiş bittikten sonra yalnız eski adlı çerez = oturum YOK (girişe yönlendirilir)", async () => {
     vi.useFakeTimers({ now: AFTER_CUTOFF, toFake: ["Date"] });
     const req = new NextRequest("https://www.lixusai.com/dashboard");
-    req.cookies.set(SESSION_COOKIE, await signSession(payload("u1")));
+    req.cookies.set(SESSION_COOKIE, await signLegacySession(payload("u1")));
     const res = await middleware(req);
     expect(res.headers.get("location")).toMatch(/\/login/);
+  });
+
+  it("🚨 fırlatılan (hv'li) eski-adlı çerez geçişte bile `__Host-`e YÜKSELTİLMEZ", async () => {
+    vi.useFakeTimers({ now: BEFORE_CUTOFF, toFake: ["Date"] });
+    const req = new NextRequest("https://www.lixusai.com/dashboard");
+    req.cookies.set(SESSION_COOKIE, await signSession(payload("saldirgan")));
+    const res = await middleware(req);
+    expect(res.headers.get("location")).toMatch(/\/login/);
+    expect(res.cookies.get(SESSION_COOKIE_HOST)).toBeUndefined();
   });
 
   it("KONTROL: geliştirmede davranış birebir eski (eski adla yazılır, önek yok)", async () => {
@@ -172,7 +218,7 @@ describe("sunucu tarafı çerez yazma/okuma — üretimde", () => {
     jar = { [SESSION_COOKIE_HOST]: await signSession(payload("kurban")), [SESSION_COOKIE]: await signSession(payload("x")) };
     expect((await getSession())?.userId).toBe("kurban");
     vi.useFakeTimers({ now: BEFORE_CUTOFF, toFake: ["Date"] });
-    jar = { [SESSION_COOKIE]: await signSession(payload("eski-kullanici")) };
+    jar = { [SESSION_COOKIE]: await signLegacySession(payload("eski-kullanici")) };
     expect((await getSession())?.userId).toBe("eski-kullanici");
   });
 });

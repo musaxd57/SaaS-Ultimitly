@@ -194,19 +194,28 @@ export async function POST(req: NextRequest) {
       // and is rejected. Kills last-writer-wins on the password and enforces the
       // code's single-use promise (email-verify atomic-consume emsali).
       const passwordHash = await hashPassword(newPassword);
-      const consumed = await prisma.user.updateMany({
-        where: { id: session.userId, pwChangeCodeHash: codeHash },
-        data: {
-          passwordHash,
-          pwChangeCodeHash: null,
-          pwChangeCodeExpiresAt: null,
-          pwChangeCodeAttempts: 0,
-          // Invalidate every OTHER live session (a stolen token carries the old
-          // epoch → it stops matching on the next request).
-          sessionEpoch: { increment: 1 },
-        },
+      // Yeni epoch AYNI işlemde okunur (2FA açmadaki desen, 09-23 inceleme turu): işlem bittikten
+      // sonra okunsaydı araya giren başka bir epoch artışını (ör. eşzamanlı sıfırlama) da alır ve
+      // bu cihazın çerezi, düşmesi gereken o ikinci geçersiz kılmadan sağ çıkardı. Satır kilidi
+      // işlem sonuna kadar tutulduğu için içerideki okuma TAM bu değişikliğin epoch'unu verir.
+      const newEpoch = await prisma.$transaction(async (tx) => {
+        const consumed = await tx.user.updateMany({
+          where: { id: session.userId, pwChangeCodeHash: codeHash },
+          data: {
+            passwordHash,
+            pwChangeCodeHash: null,
+            pwChangeCodeExpiresAt: null,
+            pwChangeCodeAttempts: 0,
+            // Invalidate every OTHER live session (a stolen token carries the old
+            // epoch → it stops matching on the next request).
+            sessionEpoch: { increment: 1 },
+          },
+        });
+        if (consumed.count === 0) return null;
+        const row = await tx.user.findUniqueOrThrow({ where: { id: session.userId }, select: { sessionEpoch: true } });
+        return row.sessionEpoch;
       });
-      if (consumed.count === 0) {
+      if (newEpoch === null) {
         return badRequest({ code: "Kod az önce kullanıldı. Yeni bir kod isteyin." });
       }
       // 🚨 BU CİHAZ GİRİŞLİ KALIR (09-23 saldırgan turu). Yukarıdaki yorum "DİĞER oturumlar"
@@ -217,18 +226,15 @@ export async function POST(req: NextRequest) {
       // kendi cihazı da girişte reddedilirdi. İkisi de asla ölümcül değil: yazılamazsa kullanıcı
       // yalnız bir kez yeniden girer (eski davranış). "Beni hatırla" güveni BİLİNÇLİ olarak
       // düşer (parola değişince 2FA bir kez yeniden sorulur — S2 kararı).
-      const fresh = await prisma.user.findUnique({ where: { id: session.userId }, select: { sessionEpoch: true } });
-      if (fresh) {
-        try {
-          await setSessionCookie({ ...session, sessionEpoch: fresh.sessionEpoch });
-        } catch {
-          // yok say — kullanıcı bir kez yeniden girer
-        }
-        try {
-          await setKnownDeviceCookie(session.userId, fresh.sessionEpoch);
-        } catch {
-          // yok say
-        }
+      try {
+        await setSessionCookie({ ...session, sessionEpoch: newEpoch });
+      } catch {
+        // yok say — kullanıcı bir kez yeniden girer
+      }
+      try {
+        await setKnownDeviceCookie(session.userId, newEpoch);
+      } catch {
+        // yok say
       }
       await writeAudit({
         organizationId: session.organizationId,

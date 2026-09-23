@@ -131,47 +131,40 @@ test("JSON gövdeli POST `application/json` İSTİYOR (tarayıcı-botnet kapıs�
   // düşürüyordu. 429 rate-limit kontrolünden GELİYOR ve gövde okumasının
   // ÖNÜNDE olduğu için test "ölçemedim"i "kırıldı" diye raporluyordu.
   //
-  // `verify-email` hem daha bol (20/saat) hem de DAHA KESİN bir ayrım veriyor:
-  // durum kodu ikisinde de 400, ama SEBEP KODU gövdenin okunup okunmadığını
-  // birebir söylüyor —
-  //   · gövde okundu   → token bulundu, DB'de yok  → reason "expired"
-  //   · gövde DÜŞÜRÜLDÜ → token boş                → reason "missing"
-  // (`readJsonCappedOrNull` medya tipi hatasını `null`'a çeviriyor.)
+  // 09-23: JSON kontrolü `verify-email`de de IP KOVASINDAN ÖNCE (dört kardeş kimlik rotasının
+  // emsali) → JSON olmayan istek gövdesi okunmadan ve kova tüketilmeden **415** alır. Meşru
+  // JSON isteği ise okunur: token bulunur, DB'de yok → 400 + sebep kodu "expired" (gövdenin
+  // gerçekten okunduğunun kanıtı — yalnız durum koduna bakmak "her şeyi reddet"i yakalamazdı).
   const body = JSON.stringify({ token: "gecersiz" });
-  const reasonFor = async (ct: string) => {
-    const res = await request.post("/api/auth/verify-email", { headers: { "content-type": ct }, data: body });
-    // 🚨 429 = "ÖLÇEMEDİM", "kontrol bozuk" DEĞİL. Ayrı ve AÇIK bir mesajla
-    // düşer, çünkü bu ayrımı yapmayan bir hata (`Expected "missing", got
-    // undefined`) okuyanı saatlerce yanlış yere bakmaya iter — bu dosyayı
-    // yazarken tam olarak o oldu.
+  const post = (ct: string) => request.post("/api/auth/verify-email", { headers: { "content-type": ct }, data: body });
+
+  // MEŞRU istek kapıya TAKILMAMALI — gövdesi okunmalı.
+  for (const ct of ["application/json", "application/json; charset=utf-8"]) {
+    const res = await post(ct);
+    // 🚨 429 = "ÖLÇEMEDİM", "kontrol bozuk" DEĞİL. Ayrı ve AÇIK bir mesajla düşer.
     if (res.status() === 429) {
       throw new Error(
         `Hız limiti (429), Content-Type="${ct}". Bu test ÖLÇEMEDİ; kontrolün bozuk ` +
-          `olduğu anlamına GELMEZ. Her koşum 7 istek harcıyor, sınır 20/saat/IP. ` +
+          `olduğu anlamına GELMEZ. Kovayı yalnız JSON istekleri harcar (sınır 20/saat/IP). ` +
           `CI'da veritabanı her koşuda taze olduğu için sorun çıkmaz (2 retry payı da var). ` +
           `Yerelde arka arkaya koştuysan: psql -c 'TRUNCATE "RateLimitCounter";' ya da 1 saat bekle.`,
       );
     }
     expect(res.status(), ct).toBe(400);
-    return (await res.json()).reason;
-  };
-
-  // MEŞRU istek kapıya TAKILMAMALI — gövdesi okunmalı. Bu assertion olmadan
-  // kapı "her şeyi reddet"e dönse bile test yeşil kalırdı.
-  for (const ct of ["application/json", "application/json; charset=utf-8"]) {
-    expect(await reasonFor(ct), ct).toBe("expired");
+    expect((await res.json()).reason, ct).toBe("expired");
   }
 
   // Üç MIME CORS-safelisted'dır; onlarla gelen istek preflight'sız
   // gönderilebilir → gövde REDDEDİLMELİ. Aradaki iki satır naif uygulamaların
   // delindiği tam biçimler: `includes()` ilkini, `startsWith()` ikincisini
   // kabul ederdi. Virgüllü biçim ÖZDE değil HAM değerde yakalanmak zorunda.
+  // Kovadan ÖNCE reddedildikleri için 429 bile alamazlar.
   for (const ct of [
     "text/plain",
     "text/plain; x=application/json",
     "application/json+evil",
     "application/json;charset=utf-8, text/plain",
   ]) {
-    expect(await reasonFor(ct), ct).toBe("missing");
+    expect((await post(ct)).status(), ct).toBe(415);
   }
 });

@@ -106,11 +106,11 @@ export async function POST(req: NextRequest) {
 
   // ⚠️ BOŞ PAROLA KONTROLÜ TOKEN ARAMASINDAN SONRA — SIRAYI DEĞİŞTİRME.
   // `tests/e2e/security-controls.spec.ts` tarayıcı-botnet Content-Type kapısını
-  // BU ROTA üzerinden ölçüyor ve tüm ayrımı sebep kodlarına dayandırıyor: gövde
-  // okundu → `expired`, gövde düşürüldü → `missing`. Parola kontrolü aramanın
-  // ÖNÜNE alınırsa geçersiz token da `password` döner, iki dal ayrışamaz ve o
-  // kapının TEK davranışsal pini sessizce anlamsızlaşır. Yeni sebep kodu
-  // EKLEMEK serbest; `missing`/`expired`'ın anlamını DEĞİŞTİRMEK değil.
+  // BU ROTA üzerinden ölçüyor: JSON olmayan istek artık en başta 415 alıyor (09-23),
+  // meşru JSON isteğinin gövdesinin GERÇEKTEN okunduğunu ise `expired` sebep kodu
+  // kanıtlıyor (token okundu, DB'de yok). Parola kontrolü aramanın ÖNÜNE alınırsa
+  // geçersiz token `password` döner ve o kanıt sessizce anlamsızlaşır. Yeni sebep
+  // kodu EKLEMEK serbest; `missing`/`expired`'ın anlamını DEĞİŞTİRMEK değil.
   if (!password) return fail("password");
 
   // 🔁 BAŞKA BİR HESABIN OTURUMU AÇIKKEN DOĞRULAMA YAPILMAZ.

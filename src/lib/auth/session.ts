@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT, jwtVerify, decodeJwt } from "jose";
 import type { UserRole } from "@/lib/constants";
 
 // Edge-safe session helpers (jose only). Used by both middleware and server.
@@ -14,8 +14,15 @@ export const SESSION_COOKIE = "guestops_session";
 // GEÇİŞ KİMSEYİ ÇIKIŞA ZORLAMAZ: okuma önce yeni adı, yoksa eski adı dener; middleware her
 // sayfa görüntülemesinde yeni adla yazar ve eski çerezi siler. Eski ad yalnız aşağıdaki tarihe
 // kadar okunur (aktif oturumlar zaten ≤14 günde yenilenir); sonra koruma TAMDIR — fırlatılan
-// eski-adlı çerez işe yaramaz. Geliştirmede (http://localhost, Secure yok) tarayıcı `__Host-`i
-// reddeder → orada eski ad CANLI addır ve tarihten bağımsız okunur.
+// eski-adlı çerez işe yaramaz. Geliştirmede (http://localhost, Secure yok) `__Host-` hiç yazılmaz
+// → orada eski ad CANLI addır, tarihten bağımsız ve YALNIZ o okunur.
+//
+// 🚨 GEÇİŞTE DE FIRLATMA KAPALI (09-23 inceleme turu): bu sürümden itibaren imzalanan her oturum
+// `hv` iddiası taşır ve eski ad YALNIZ işaretsiz — yani yayından ÖNCE eski kodun imzaladığı —
+// oturumu taşıyabilir. Yeni kod eski adla hiç yazmaz; `hv`li eski-adlı çerez, kendi oturumunu
+// yeniden adlandırıp kurbanın tarayıcısına fırlatan birinin işidir ve middleware onu `__Host-`
+// adıyla yeniden imzalayıp KALICILAŞTIRIRDI. Eski kodun imzaladıkları en geç 14 gün içinde
+// kendiliğinden ölür → fırlatma penceresi yayından en geç 14 gün sonra tamamen kapanır.
 // ---------------------------------------------------------------------------
 export const SESSION_COOKIE_HOST = `__Host-${SESSION_COOKIE}`;
 /** Bu andan sonra üretimde eski (öneksiz) ad OKUNMAZ. */
@@ -28,15 +35,33 @@ export function sessionCookieName(): string {
   return isProduction() ? SESSION_COOKIE_HOST : SESSION_COOKIE;
 }
 
-/** Oturum çerezini oku: yeni ad önce; geçişte (ya da geliştirmede) eski ad. */
+/** Bu sürümden itibaren imzalanan her oturumun taşıdığı iddia (↑ fırlatma kapısı). */
+const HOST_ERA_CLAIM = "hv";
+
+/** Token'ı bu sürümün kodu mu imzaladı? İmza burada DOĞRULANMAZ (çağıran doğrular): yalnız
+ *  eski-ad süzgecidir ve iddiayı eklemek saldırgana hiçbir şey kazandırmaz. */
+function signedByHostEraCode(token: string): boolean {
+  try {
+    return decodeJwt(token)[HOST_ERA_CLAIM] !== undefined;
+  } catch {
+    return true; // çözülemeyen token zaten doğrulanamaz — eski ad için kabul EDİLMEZ
+  }
+}
+
+/** Oturum çerezini oku: yeni ad önce; geçişte yalnız eski kodun imzaladığı eski-adlı oturum. */
 export function readSessionCookie(
   get: (name: string) => string | undefined,
   now: number = Date.now(),
 ): string | undefined {
+  // Geliştirmede `__Host-` hiç YAZILMAZ; okunsaydı yerel bir `next start` denemesinden kalan
+  // çerez geliştirme girişini ezerdi (giriş döngüsü ya da yanlış kullanıcı — inceleme turu).
+  if (!isProduction()) return get(SESSION_COOKIE);
   const fresh = get(SESSION_COOKIE_HOST);
   if (fresh) return fresh;
-  if (!isProduction() || now < LEGACY_SESSION_COOKIE_READ_UNTIL) return get(SESSION_COOKIE);
-  return undefined;
+  if (now >= LEGACY_SESSION_COOKIE_READ_UNTIL) return undefined;
+  const legacy = get(SESSION_COOKIE);
+  if (!legacy || signedByHostEraCode(legacy)) return undefined;
+  return legacy;
 }
 // 14 days (seconds), sliding. Re-issued on every active request, so daily users
 // never get logged out; only 14-day-idle sessions expire. Shorter than 30d to
@@ -97,7 +122,7 @@ function getSecretKey(): Uint8Array {
 }
 
 export async function signSession(payload: SessionPayload): Promise<string> {
-  return new SignJWT({ ...payload })
+  return new SignJWT({ ...payload, [HOST_ERA_CLAIM]: 1 })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)

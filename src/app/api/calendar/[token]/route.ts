@@ -15,15 +15,15 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
-  // Public + unauthenticated: cap per-IP so a single client can't hammer it.
-  // Generous — legitimate calendar subscribers poll infrequently per IP.
-  const limited = await rateLimit(`ical:${rateLimitClientKey(req)}`, 60, 60_000);
-  if (!limited.ok) {
-    return new Response("Too many requests", {
-      status: 429,
-      headers: { "Retry-After": String(Math.max(1, limited.retryAfter)) },
-    });
-  }
+  // Public + unauthenticated. 🚨 İKİ KOVA (09-23 inceleme turu): tek kova ağ başına 60/dk idi;
+  // IPv6 kovası /64 önekine indirilince Airbnb/Booking/Google'ın AYNI /64'ten birçok müşterinin
+  // takvimini çeken sunucuları o tek kovayı paylaşacaktı → 429 → kanal takvimi bayatlar (çift
+  // rezervasyon riski). Artık: ağ başına GENİŞ taşma kapısı (geçersiz token seli DB'yi dövmesin)
+  // + takvim BAŞINA ağ başına 60/dk (tek abonenin bir takvimi dövmesi). Takvim anahtarı mülk
+  // kimliğidir, token DEĞİL (token bir kimlik bilgisidir, sayaç tablosuna yazılmaz).
+  const net = rateLimitClientKey(req);
+  const flood = await rateLimit(`ical:${net}`, 600, 60_000);
+  if (!flood.ok) return tooManyRequests(flood.retryAfter);
 
   const { token } = await params;
 
@@ -31,8 +31,16 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
+  // Önce hafif arama: takvim başına kova, ağır sorgudan (tüm rezervasyonlar) ÖNCE uygulanır.
+  const found = await prisma.property.findUnique({ where: { icalToken: token }, select: { id: true } });
+  if (!found) {
+    return new Response("Not found", { status: 404 });
+  }
+  const perFeed = await rateLimit(`ical-feed:${found.id}:${net}`, 60, 60_000);
+  if (!perFeed.ok) return tooManyRequests(perFeed.retryAfter);
+
   const property = await prisma.property.findUnique({
-    where: { icalToken: token },
+    where: { id: found.id },
     include: {
       organization: { select: { icalShowGuestName: true } },
       reservations: {
@@ -42,6 +50,8 @@ export async function GET(
     },
   });
 
+  // Arada mülk silinmiş olabilir (token milisaniyeler önce geçerliydi; arada döndürülmesi
+  // yeni bir yetki açmaz).
   if (!property) {
     return new Response("Not found", { status: 404 });
   }
@@ -62,5 +72,12 @@ export async function GET(
       "Content-Disposition": `inline; filename="${property.id}.ics"`,
       "Cache-Control": "no-cache, max-age=0",
     },
+  });
+}
+
+function tooManyRequests(retryAfter: number): Response {
+  return new Response("Too many requests", {
+    status: 429,
+    headers: { "Retry-After": String(Math.max(1, retryAfter)) },
   });
 }

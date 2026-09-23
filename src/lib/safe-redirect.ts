@@ -32,15 +32,20 @@ export function safeRedirectTarget(next: string | null | undefined, origin: stri
   // (anında çıkış) ya da `/api/account/export`a (veri dökümü + export hakkı yanar) gidiyordu.
   // Giriş sonrası meşru hedef HER ZAMAN bir sayfadır. Yüzde kodlu ve büyük harfli yazım da
   // aynı yola çözüldüğü için karşılaştırma çözülmüş + küçük harfli biçimde yapılır.
-  const p = safeDecode(u.pathname).toLowerCase();
+  // Çözülemeyen (bozuk) yüzde kodlaması → hedef YOK: eskiden çözülemeyince ham biçim
+  // karşılaştırılıyordu ve `/%61pi/auth/logout/%ZZ` kontrolü atlatıyordu (09-23 inceleme turu).
+  // Kendi ara katmanımız `next`i `encodeURIComponent` ile kurar, yani meşru değer hep çözülür.
+  const decoded = safeDecode(u.pathname);
+  if (decoded === null) return null;
+  const p = decoded.toLowerCase();
   if (p === "/api" || p.startsWith("/api/")) return null;
   return u.pathname + u.search + u.hash;
 }
 
-function safeDecode(s: string): string {
+function safeDecode(s: string): string | null {
   try {
     return decodeURIComponent(s);
   } catch {
-    return s;
+    return null;
   }
 }
