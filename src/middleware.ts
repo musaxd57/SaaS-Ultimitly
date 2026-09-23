@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifySession } from "@/lib/auth/session";
+import {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
+  readSessionCookie,
+  sessionCookieName,
+  signSession,
+  verifySession,
+} from "@/lib/auth/session";
 
 /** Oturum GEREKTİRMEYEN kimlik sayfaları — çıkış yapmış ziyaretçi görebilir. */
 const AUTH_PATHS = ["/login", "/register", "/sifremi-unuttum", "/e-posta-dogrula"];
@@ -28,7 +35,7 @@ const SIGNED_IN_REDIRECT_PATHS = ["/login", "/register"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  const token = readSessionCookie((name) => req.cookies.get(name)?.value);
   const session = await verifySession(token);
   const matches = (paths: string[]) =>
     paths.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -91,13 +98,25 @@ export async function middleware(req: NextRequest) {
   // All session fields (incl. impersonation actor*) are preserved on re-sign.
   if (session) {
     const fresh = await signSession(session);
-    res.cookies.set(SESSION_COOKIE, fresh, {
+    const name = sessionCookieName();
+    res.cookies.set(name, fresh, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: SESSION_MAX_AGE,
     });
+    // ① `__Host-` geçişi: eski (öneksiz) çerez geldiyse sil — bir sonraki istekte yalnız
+    // yeni ad kalır. Kimse çıkışa düşmez (oturum aynı istekte yeni adla yazıldı).
+    if (name !== SESSION_COOKIE && req.cookies.get(SESSION_COOKIE)) {
+      res.cookies.set(SESSION_COOKIE, "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+      });
+    }
   }
 
   return res;

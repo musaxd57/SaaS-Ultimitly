@@ -9,7 +9,10 @@ import { prisma } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin-core";
 import {
   SESSION_COOKIE,
+  SESSION_COOKIE_HOST,
   SESSION_MAX_AGE,
+  readSessionCookie,
+  sessionCookieName,
   signSession,
   verifySession,
   type SessionPayload,
@@ -32,7 +35,7 @@ export type { SessionPayload };
 /** Read & verify the current session from cookies. Returns null if absent/invalid. */
 export async function getSession(): Promise<SessionPayload | null> {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
+  const token = readSessionCookie((name) => store.get(name)?.value);
   return verifySession(token);
 }
 
@@ -146,13 +149,24 @@ export async function requireAuth(): Promise<SessionPayload> {
 export async function setSessionCookie(payload: SessionPayload): Promise<void> {
   const token = await signSession(payload);
   const store = await cookies();
-  store.set(SESSION_COOKIE, token, {
+  const name = sessionCookieName();
+  store.set(name, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
+  // ① `__Host-` geçişi: eski (öneksiz) ad varsa silinir → tarayıcıda tek oturum çerezi kalır.
+  if (name !== SESSION_COOKIE) {
+    store.set(SESSION_COOKIE, "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  }
 }
 
 export async function clearSessionCookie(): Promise<void> {
@@ -160,13 +174,20 @@ export async function clearSessionCookie(): Promise<void> {
   // Overwrite-then-expire with the SAME attributes the cookie was set with
   // (notably path:"/"). A bare delete-by-name can fail to clear the cookie
   // behind some proxy/path setups, leaving a valid session alive after logout.
-  store.set(SESSION_COOKIE, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  // ① İKİ ad da temizlenir (`__Host-` geçişi): geçiş süresinde tarayıcıda hangisi kaldıysa.
+  // `__Host-` adı yalnız Secure ile kabul edildiğinden onun silme yazımı da Secure olmalı.
+  for (const [name, secure] of [
+    [SESSION_COOKIE_HOST, true],
+    [SESSION_COOKIE, process.env.NODE_ENV === "production"],
+  ] as const) {
+    store.set(name, "", {
+      httpOnly: true,
+      secure,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  }
   // 🚨 "BENİ HATIRLA" ÇEREZİNE DOKUNULMAZ (kullanıcı kararı, 09-07 — 08-09
   // sertleştirmesi GERİ ALINDI). 08-09'da çıkış `guestops_trusted_device`ı da
   // düşürüyordu; canlıda sonucu "bozuk" olarak yaşandı: "Bu cihazı 30 gün

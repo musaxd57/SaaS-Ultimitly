@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
-import { verifySession, SESSION_COOKIE } from "@/lib/auth/session";
+import { verifySession, readSessionCookie } from "@/lib/auth/session";
 import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
 import { verifyPassword, PasswordHashBusyError } from "@/lib/auth/password";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
   // ortam sızıntısına bağlı değildir. (İlk yazımda `getSession()` kullanmıştım;
   // pin testi sessizce 200 alıp geçti çünkü harness `next/headers`'ı bağlamıyor
   // — koruma üretimde çalışsa da SINANAMAZ olurdu.)
-  const current = await verifySession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
+  const current = await verifySession(readSessionCookie((name) => req.cookies.get(name)?.value)).catch(() => null);
   if (current && current.userId !== user.id) return fail("session_mismatch");
 
   // 🚨 PAROLA ŞART — HESAP ÖN-ELE-GEÇİRME KAPISI (08-06). GEVŞETME.

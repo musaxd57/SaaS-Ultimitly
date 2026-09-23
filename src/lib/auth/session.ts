@@ -4,6 +4,40 @@ import type { UserRole } from "@/lib/constants";
 // Edge-safe session helpers (jose only). Used by both middleware and server.
 
 export const SESSION_COOKIE = "guestops_session";
+
+// ---------------------------------------------------------------------------
+// ① `__Host-` ÖNEKİ (kurucu onayı 09-23). Tarayıcı `__Host-` adlı çerezi yalnız Secure +
+// Path=/ + Domain'siz kabul eder → bir alt alan adı (ya da http üzerinden araya giren biri)
+// bu adla çerez YAZAMAZ. Öneksiz ad buna açıktı: ele geçirilmiş/sarkan bir alt alan adı
+// kurbanın tarayıcısına SALDIRGANIN oturumunu "fırlatıp" onu saldırganın hesabında
+// çalıştırabilirdi (giriş-CSRF sınıfı).
+// GEÇİŞ KİMSEYİ ÇIKIŞA ZORLAMAZ: okuma önce yeni adı, yoksa eski adı dener; middleware her
+// sayfa görüntülemesinde yeni adla yazar ve eski çerezi siler. Eski ad yalnız aşağıdaki tarihe
+// kadar okunur (aktif oturumlar zaten ≤14 günde yenilenir); sonra koruma TAMDIR — fırlatılan
+// eski-adlı çerez işe yaramaz. Geliştirmede (http://localhost, Secure yok) tarayıcı `__Host-`i
+// reddeder → orada eski ad CANLI addır ve tarihten bağımsız okunur.
+// ---------------------------------------------------------------------------
+export const SESSION_COOKIE_HOST = `__Host-${SESSION_COOKIE}`;
+/** Bu andan sonra üretimde eski (öneksiz) ad OKUNMAZ. */
+export const LEGACY_SESSION_COOKIE_READ_UNTIL = Date.UTC(2026, 9, 15); // 2026-10-15
+
+const isProduction = () => process.env.NODE_ENV === "production";
+
+/** Oturum çerezinin YAZILDIĞI ad. */
+export function sessionCookieName(): string {
+  return isProduction() ? SESSION_COOKIE_HOST : SESSION_COOKIE;
+}
+
+/** Oturum çerezini oku: yeni ad önce; geçişte (ya da geliştirmede) eski ad. */
+export function readSessionCookie(
+  get: (name: string) => string | undefined,
+  now: number = Date.now(),
+): string | undefined {
+  const fresh = get(SESSION_COOKIE_HOST);
+  if (fresh) return fresh;
+  if (!isProduction() || now < LEGACY_SESSION_COOKIE_READ_UNTIL) return get(SESSION_COOKIE);
+  return undefined;
+}
 // 14 days (seconds), sliding. Re-issued on every active request, so daily users
 // never get logged out; only 14-day-idle sessions expire. Shorter than 30d to
 // bound a stolen token's blast radius (a forgot-password reset rotates the

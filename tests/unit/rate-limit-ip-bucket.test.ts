@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { ipBucketKey, rateLimitClientKey } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
@@ -62,5 +64,34 @@ describe("rateLimitClientKey — istekten kova anahtarı", () => {
 
   it("IPv4 istemci için clientIp ile BİREBİR aynı", () => {
     expect(rateLimitClientKey({ headers: new Headers({ "x-forwarded-for": "198.51.100.23" }) })).toBe("198.51.100.23");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MEKANİK PİN: hiçbir rota IP kovası anahtarını HAM `clientIp`ten kurmaz (09-23). Yeni bir
+// rota eski deseni kopyalarsa IPv6 /64 atlatması o rotada sessizce geri gelirdi. Tarama dosya
+// sistemi üzerinden (git gerekmez); anti-vakum: tarama gerçekten rota dosyası buluyor ve bilinen
+// bir doğru kullanım görülüyor.
+// ---------------------------------------------------------------------------
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (/\.(ts|tsx)$/.test(name)) out.push(p);
+  }
+  return out;
+}
+
+describe("MEKANİK PİN — kova anahtarı ham IP'den kurulmaz", () => {
+  it("src/ içinde `rateLimit(`…${clientIp(` ya da `…${ip}` deseni YOK", () => {
+    const files = walk("src");
+    expect(files.length).toBeGreaterThan(100); // anti-vakum
+    const offenders = files.filter((f) =>
+      /rateLimit(?:Peek)?\(`[^`]*\$\{(?:clientIp\(|ip\})/.test(readFileSync(f, "utf8")),
+    );
+    expect(offenders).toEqual([]);
+    // anti-vakum: doğru kullanım GERÇEKTEN taranan metinde görülüyor
+    expect(files.some((f) => readFileSync(f, "utf8").includes("rateLimit(`login:${rateLimitClientKey(req)}`"))).toBe(true);
   });
 });
