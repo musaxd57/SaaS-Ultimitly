@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyFallback, detectRiskType, isClosingAck, joinInWordApostrophes } from "@/lib/ai/fallback";
+import { classifyFallback, detectRiskType, isClosingAck, joinInWordApostrophes, __asciiFoldMissCount } from "@/lib/ai/fallback";
 
 // ---------------------------------------------------------------------------
 // SINIFLANDIRICI MALİYETİ — düşmanca girdide sınırlı kalır (09-23 denetimi, ÖLÇÜLDÜ)
@@ -42,6 +42,33 @@ describe("sınıflandırıcı — düşmanca girdide sınırlı süre", () => {
       detectRiskType(girdi);
     });
     expect(t).toBeLessThan(200);
+  });
+});
+
+describe("kelime listesi katlama önbelleği — ÖLÇÜLMÜŞ katkı, deterministik pin", () => {
+  // Önbellek yalnız MALİYETİ etkiler; süre pini onu ayırt edemiyordu (mutasyon turu 09-23:
+  // kaldıran mutant HAYATTA KALDI). Ölçüm: kaldırılınca 800 gerçekçi mesaj 388 → 678 ms.
+  // Pin davranış değil SÖZLEŞME: statik listeler süreç başına BİR kez katlanır.
+  const GERCEKCI = [
+    "Merhaba, giriş saati kaçta?", "Wifi şifresi nedir?", "Klima çalışmıyor, yardımcı olur musunuz?",
+    "Sıcak su gelmiyor", "Teşekkürler, her şey harikaydı!", "Otopark var mı?", "Hi, what time is check-out?",
+    "The shower is broken and there is no hot water", "Erken giriş yapabilir miyiz?", "Kapı kodu çalışmıyor",
+    "Buzdolabı bozuldu", "Mutfak musluğu akmıyor", "Bir sorun olursa sizi arayabilir miyiz?",
+  ];
+  const tur = () => {
+    for (const m of GERCEKCI) {
+      classifyFallback(m);
+      detectRiskType(m);
+      isClosingAck(m);
+    }
+  };
+
+  it("ikinci turda HİÇBİR liste yeniden katlanmaz", () => {
+    tur();
+    expect(__asciiFoldMissCount(), "sayaç hiç artmıyor — önbellek yolu çalışmıyor (vakum)").toBeGreaterThan(0);
+    const once = __asciiFoldMissCount();
+    tur();
+    expect(__asciiFoldMissCount() - once).toBe(0);
   });
 });
 

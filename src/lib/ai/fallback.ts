@@ -364,18 +364,18 @@ export function foldTurkishLower(s: string): string {
 }
 
 /**
- * T\u00dcRK\u00c7E-YERELL\u0130 ikiz katlama: "I" \u2192 "\u0131", "\u0130" \u2192 "i". JS'in toLowerCase'i yerelden
- * ba\u011f\u0131ms\u0131zd\u0131r ve "I"y\u0131 DA\u0130MA "i" yapar; T\u00fcrk\u00e7ede ise "I"n\u0131n k\u00fc\u00e7\u00fc\u011f\u00fc "\u0131"d\u0131r. Sonu\u00e7:
- * B\u00dcY\u00dcK HARFLE yaz\u0131lm\u0131\u015f T\u00fcrk\u00e7e mesaj ("KLIMA \u00c7ALI\u015eMIYOR" \u2192 "\u00e7ali\u015fmiyor") hi\u00e7bir
- * kelimeye uymuyordu \u2014 k\u0131zg\u0131n/panikli misafirin kapsleri \u015fik\u00e2yet, injection ve
- * g\u00fcvenlik a\u011flar\u0131n\u0131 komple deliyordu (kod-do\u011fruland\u0131: kap\u0131 "KLIMA \u00c7ALI\u015eMIYOR"a
- * OTO-G\u00d6NDER\u0130M \u0130ZN\u0130 veriyordu, k\u00fc\u00e7\u00fck harflisini engellerken).
+ * TÜRKÇE-YERELLİ ikiz katlama: "I" → "ı", "İ" → "i". JS'in toLowerCase'i yerelden
+ * bağımsızdır ve "I"yı DAİMA "i" yapar; Türkçede ise "I"nın küçüğü "ı"dır. Sonuç:
+ * BÜYÜK HARFLE yazılmış Türkçe mesaj ("KLIMA ÇALIŞMIYOR" → "çalişmiyor") hiçbir
+ * kelimeye uymuyordu — kızgın/panikli misafirin kapsleri şikâyet, injection ve
+ * güvenlik ağlarını komple deliyordu (kod-doğrulandı: kapı "KLIMA ÇALIŞMIYOR"a
+ * OTO-GÖNDERİM İZNİ veriyordu, küçük harflisini engellerken).
  *
- * Neden ikinci bir katlama, neden tek katlamay\u0131 de\u011fi\u015ftirmedik: \u0130ngilizcede "I"
- * ZORUNLU olarak "i" olmal\u0131 ("I need help"), yani tek bir do\u011fru katlama yok.
- * K\u0131s\u0131tlay\u0131c\u0131 a\u011flar bu y\u00fczden HER \u0130K\u0130 katlamay\u0131 da dener \u2014 yaln\u0131zca E\u015eLE\u015eME EKLER,
- * hi\u00e7bir a\u011f\u0131 zay\u0131flatamaz. Beyaz listelere (isPositiveFeedback/isClosingAck)
- * bilin\u00e7li UYGULANMADI: onlar\u0131n ba\u015far\u0131s\u0131zl\u0131k y\u00f6n\u00fc zaten g\u00fcvenli (modele d\u00fc\u015fer).
+ * Neden ikinci bir katlama, neden tek katlamayı değiştirmedik: İngilizcede "I"
+ * ZORUNLU olarak "i" olmalı ("I need help"), yani tek bir doğru katlama yok.
+ * Kısıtlayıcı ağlar bu yüzden HER İKİ katlamayı da dener — yalnızca EŞLEŞME EKLER,
+ * hiçbir ağı zayıflatamaz. Beyaz listelere (isPositiveFeedback/isClosingAck)
+ * bilinçli UYGULANMADI: onların başarısızlık yönü zaten güvenli (modele düşer).
  */
 export function foldTurkishLowerTr(s: string): string {
   return s.replace(/\u0130/g, "i").replace(/I/g, "\u0131").toLowerCase().replace(/\u0307/g, "");
@@ -386,41 +386,41 @@ const TR_TO_ASCII: Record<string, string> = {
 };
 
 /**
- * ASCII-KANON\u0130K katlama (\u0131/i, \u015f/s, \u011f/g, \u00e7/c, \u00f6/o, \u00fc/u tek harfe iner). Gerek\u00e7esi:
- * B\u00dcY\u00dcK harften k\u00fc\u00e7\u00fc\u011fe d\u00f6nerken "TALIMATLARI" gibi bir kelimede hangi I'n\u0131n "i"
- * hangisinin "\u0131" oldu\u011fu GER\u0130 GET\u0130R\u0130LEMEZ ("talimatlar\u0131" kelimesi ikisini de
- * i\u00e7erir) \u2014 tek y\u00f6nl\u00fc hi\u00e7bir katlama yetmez. \u0130ki taraf\u0131 da (metin VE kelime)
- * bu forma indirince e\u015fle\u015fme iml\u00e2dan ba\u011f\u0131ms\u0131z olur. Kelime listeleri zaten
- * ASCII ikizleri ("calismiyo", "sikayet") bar\u0131nd\u0131r\u0131yor; bu, o prati\u011fi kurala
- * \u00e7evirir. Yaln\u0131zca E\u015eLE\u015eME EKLER \u2192 k\u0131s\u0131tlay\u0131c\u0131 a\u011flar i\u00e7in g\u00fcvenli y\u00f6n.
+ * ASCII-KANONİK katlama (ı/i, ş/s, ğ/g, ç/c, ö/o, ü/u tek harfe iner). Gerekçesi:
+ * BÜYÜK harften küçüğe dönerken "TALIMATLARI" gibi bir kelimede hangi I'nın "i"
+ * hangisinin "ı" olduğu GERİ GETİRİLEMEZ ("talimatları" kelimesi ikisini de
+ * içerir) — tek yönlü hiçbir katlama yetmez. İki tarafı da (metin VE kelime)
+ * bu forma indirince eşleşme imlâdan bağımsız olur. Kelime listeleri zaten
+ * ASCII ikizleri ("calismiyo", "sikayet") barındırıyor; bu, o pratiği kurala
+ * çevirir. Yalnızca EŞLEŞME EKLER → kısıtlayıcı ağlar için güvenli yön.
  */
 export function foldTurkishAscii(s: string): string {
   return foldTurkishLower(s).replace(/[\u0131\u015f\u011f\u00e7\u00f6\u00fc]/g, (c) => TR_TO_ASCII[c] ?? c);
 }
 
 /**
- * BO\u015eLUK/G\u00d6R\u00dcNMEZ KARAKTER NORMAL\u0130ZASYONU (denetim, 08-01).
+ * BOŞLUK/GÖRÜNMEZ KARAKTER NORMALİZASYONU (denetim, 08-01).
  *
- * B\u00fct\u00fcn \u00e7ok-kelimeli kal\u0131plar\u0131m\u0131z TEK ASCII bo\u015flukla yaz\u0131l\u0131 ("ignore all previous
- * instructions", "\u00f6nceki t\u00fcm talimatlar\u0131 unut", "not working", "gas leak"). Metin
- * hi\u00e7 normalize edilmedi\u011fi i\u00e7in \u00c7\u0130FT BO\u015eLUK, SATIR SONU ya da KIRILMAYAN BO\u015eLUK
- * (U+00A0) kal\u0131b\u0131 komple deliyordu \u2014 ampirik do\u011fruland\u0131:
- *   "Ignore all previous instructions\u2026"   \u2192 veto \u00c7ALI\u015eIR
- *   "Ignore  all previous instructions\u2026"  \u2192 veto \u00c7ALI\u015eMAZDI (\u00e7ift bo\u015fluk)
- *   "Ignore all previous\ninstructions\u2026"  \u2192 veto \u00c7ALI\u015eMAZDI
- *   "Ignore all previous\u00a0instructions\u2026" \u2192 veto \u00c7ALI\u015eMAZDI
- * Yani \u00fcr\u00fcn\u00fcn d\u00f6rt de\u011fi\u015fmez kap\u0131 kural\u0131ndan biri (injection vetosu) g\u00f6r\u00fcnmez
- * bi\u00e7imde devre d\u0131\u015f\u0131yd\u0131 ve tam olarak MODEL\u0130 KANDIRMAK \u0130\u00c7\u0130N TASARLANMI\u015e girdi
- * s\u0131n\u0131f\u0131nda ikinci savunma kalm\u0131yordu.
+ * Bütün çok-kelimeli kalıplarımız TEK ASCII boşlukla yazılı ("ignore all previous
+ * instructions", "önceki tüm talimatları unut", "not working", "gas leak"). Metin
+ * hiç normalize edilmediği için ÇİFT BOŞLUK, SATIR SONU ya da KIRILMAYAN BOŞLUK
+ * (U+00A0) kalıbı komple deliyordu — ampirik doğrulandı:
+ *   "Ignore all previous instructions…"   → veto ÇALIŞIR
+ *   "Ignore  all previous instructions…"  → veto ÇALIŞMAZDI (çift boşluk)
+ *   "Ignore all previous\ninstructions…"  → veto ÇALIŞMAZDI
+ *   "Ignore all previous\u00a0instructions…" → veto ÇALIŞMAZDI
+ * Yani ürünün dört değişmez kapı kuralından biri (injection vetosu) görünmez
+ * biçimde devre dışıydı ve tam olarak MODELİ KANDIRMAK İÇİN TASARLANMIŞ girdi
+ * sınıfında ikinci savunma kalmıyordu.
  *
- * SIFIR GEN\u0130\u015eL\u0130KL\u0130 karakterler de silinir (ZWSP/ZWNJ/ZWJ/BOM): "ig\u200bnore"
- * kelimenin ORTASINA g\u00f6r\u00fcnmez karakter koyan ayn\u0131 ailenin ka\u00e7\u0131\u015f\u0131. JS'in `\s`
- * s\u0131n\u0131f\u0131 U+00A0'y\u0131 kapsar ama U+200B'yi KAPSAMAZ \u2014 o y\u00fczden ayr\u0131 silinir.
+ * SIFIR GENİŞLİKLİ karakterler de silinir (ZWSP/ZWNJ/ZWJ/BOM): "ig\u200bnore"
+ * kelimenin ORTASINA görünmez karakter koyan aynı ailenin kaçışı. JS'in `\s`
+ * sınıfı U+00A0'yı kapsar ama U+200B'yi KAPSAMAZ — o yüzden ayrı silinir.
  *
- * \u26a0\ufe0f YALNIZCA KISITLAYICI yollarda kullan\u0131l\u0131r (kelime a\u011flar\u0131 + injection vetosu):
- * sadece E\u015eLE\u015eME EKLER. `isPositiveFeedback`/`isClosingAck` beyaz listelerine ve
- * `hasUnnegatedProblemWord` negasyon kontrol\u00fcne UYGULANMAZ \u2014 orada normalizasyon
- * oto-yan\u0131t iznini GEN\u0130\u015eLET\u0130RD\u0130 (CLAUDE.md KATLAMA KURALI ile ayn\u0131 gerek\u00e7e).
+ * ⚠️ YALNIZCA KISITLAYICI yollarda kullanılır (kelime ağları + injection vetosu):
+ * sadece EŞLEŞME EKLER. `isPositiveFeedback`/`isClosingAck` beyaz listelerine ve
+ * `hasUnnegatedProblemWord` negasyon kontrolüne UYGULANMAZ — orada normalizasyon
+ * oto-yanıt iznini GENİŞLETİRDİ (CLAUDE.md KATLAMA KURALI ile aynı gerekçe).
  */
 function normalizeForMatch(s: string): string {
   // ⚠️ SINIF `\p{Cf}` OLMAK ZORUNDA — beş kod noktası YETMEZ (saldırgan denetimi,
@@ -501,31 +501,31 @@ const CONFUSABLE_TO_LATIN: Record<string, string> = {
   "\u03bf": "o", "\u03b1": "a", "\u03bd": "v", "\u03c1": "p", "\u03c5": "u",
   "\u0391": "A", "\u0392": "B", "\u0395": "E", "\u039f": "O", "\u03a1": "P",
   "\u03a4": "T", "\u0397": "H", "\u039a": "K", "\u039c": "M", "\u039d": "N",
-  // \u2500\u2500 K\u0130R\u0130L/YUNAN YETMED\u0130 (08-07 (2), denetim turu \u2014 \u00d6L\u00c7\u00dcLD\u00dc) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  // Harita yaln\u0131z bu iki yaz\u0131 sistemini tan\u0131yordu ve sald\u0131rgan ba\u015fka bir
-  // sistemden tek harf sokarak SAFETY_EMERGENCY s\u0131n\u0131f\u0131n\u0131 d\u00fc\u015f\u00fcrebiliyordu.
-  // \u00d6l\u00e7\u00fclen iki ger\u00e7ek ka\u00e7\u0131\u015f: "Dairede ya\u0578\u0563\u0131\u0578 var" (Ermenice \u0578/\u0563) ve
-  // "\u00f6l\u1d0dek istiyorum" (k\u00fc\u00e7\u00fck-kapital \u1d0d) \u2192 `detectRiskType` NULL d\u00f6nd\u00fc.
-  // \u0130kisi de \u00fcr\u00fcn\u00fcn EN Y\u00dcKSEK bahisli s\u0131n\u0131f\u0131: yang\u0131n ihbar\u0131 ve \u00f6z-zarar.
-  // Daha k\u00f6t\u00fcs\u00fc zincirin devam\u0131: s\u0131n\u0131f `complaint`e d\u00fc\u015f\u00fcnce mesaj
-  // "holding ack" uygunu oluyor ve host o se\u00e7ene\u011fi a\u00e7m\u0131\u015fsa YANGIN bildiren
-  // misafire deterministik \u00f6z\u00fcr mesaj\u0131 gidiyor \u2014 model hi\u00e7 \u00e7a\u011fr\u0131lmadan.
+  // ── KİRİL/YUNAN YETMEDİ (08-07 (2), denetim turu — ÖLÇÜLDÜ) ───────────────
+  // Harita yalnız bu iki yazı sistemini tanıyordu ve saldırgan başka bir
+  // sistemden tek harf sokarak SAFETY_EMERGENCY sınıfını düşürebiliyordu.
+  // Ölçülen iki gerçek kaçış: "Dairede ya\u0578\u0563ı\u0578 var" (Ermenice \u0578/\u0563) ve
+  // "öl\u1d0dek istiyorum" (küçük-kapital \u1d0d) → `detectRiskType` NULL döndü.
+  // İkisi de ürünün EN YÜKSEK bahisli sınıfı: yangın ihbarı ve öz-zarar.
+  // Daha kötüsü zincirin devamı: sınıf `complaint`e düşünce mesaj
+  // "holding ack" uygunu oluyor ve host o seçeneği açmışsa YANGIN bildiren
+  // misafire deterministik özür mesajı gidiyor — model hiç çağrılmadan.
   //
-  // \u26a0\ufe0f Bunlar "fancy text generator" \u00e7\u0131kt\u0131s\u0131: kopyala-yap\u0131\u015ft\u0131r tek ad\u0131m,
-  // ekranda okunur, modele de insana da normal g\u00f6r\u00fcn\u00fcr.
+  // ⚠️ Bunlar "fancy text generator" çıktısı: kopyala-yapıştır tek adım,
+  // ekranda okunur, modele de insana da normal görünür.
   // Ermenice
   "\u0578": "n", "\u057d": "u", "\u0563": "q", "\u0561": "w", "\u056b": "h",
   "\u0585": "o", "\u0581": "g", "\u0575": "j", "\u0574": "u", "\u057e": "l",
   "\u0570": "h", "\u0566": "q", "\u0572": "n",
-  // Cherokee (\u00e7o\u011fu B\u00dcY\u00dcK Latin'e benzer)
+  // Cherokee (çoğu BÜYÜK Latin'e benzer)
   "\u13a0": "D", "\u13a1": "R", "\u13a2": "T", "\u13ac": "E", "\u13b3": "W",
   "\u13bb": "G", "\u13c0": "H", "\u13ce": "Z", "\u13d9": "V", "\u13de": "L",
   "\u13e9": "V", "\u13ef": "C", "\u13f4": "B", "\u13a9": "Y", "\u13aa": "K",
-  // K\u0131ptice
+  // Kıptice
   "\u2c9f": "o", "\u2ca3": "p", "\u2ca5": "c", "\u2c8f": "h", "\u2c9b": "n",
   "\u2ca7": "t", "\u2c99": "m", "\u2c95": "k", "\u2c81": "a", "\u2c89": "e",
   "\u2c93": "i", "\u2cad": "x", "\u2ca9": "y", "\u2c83": "b", "\u2c97": "l",
-  // Latin k\u00fc\u00e7\u00fck-kapital + IPA (U+1D00 blo\u011fu ve kom\u015fular\u0131)
+  // Latin küçük-kapital + IPA (U+1D00 bloğu ve komşuları)
   "\u1d00": "a", "\u0299": "b", "\u1d04": "c", "\u1d05": "d", "\u1d07": "e",
   "\u0262": "g", "\u0261": "g", "\u029c": "h", "\u026a": "i", "\u1d0a": "j",
   "\u1d0b": "k", "\u029f": "l", "\u1d0d": "m", "\u0274": "n", "\u1d0f": "o",
@@ -658,32 +658,28 @@ function phraseHit(hay: string, needle: string): boolean {
 }
 
 /**
- * \ud83d\udea8 MAL\u0130YET \u00d6NBELLEKLER\u0130 (09-23 denetimi, \u00d6L\u00c7\u00dcLD\u00dc) \u2014 anlam DE\u011e\u0130\u015eMEZ, yaln\u0131z tekrar
- * hesap kalkar. `includesAnyFold` tek bir s\u0131n\u0131fland\u0131rmada ONLARCA kez AYNI mesajla
- * \u00e7a\u011fr\u0131l\u0131yor (`detectIntent` her niyet i\u00e7in bir kez) ve her \u00e7a\u011fr\u0131da mesaj\u0131 6'ya kadar
- * aday bi\u00e7ime \u00e7evirip \u00dc\u00c7 katlamadan ge\u00e7iriyor, \u00fcst\u00fcne listedeki HER kelimeyi her aday
- * i\u00e7in yeniden katl\u0131yordu. Erken e\u015fle\u015fme olmayan girdide (tam da d\u00fc\u015fmanca girdi) i\u015f
- * komple bo\u015fa tekrarlan\u0131yordu: 2.000 karakterlik `a'a'a'\u2026` mesaj\u0131 163 ms. QR pencere
- * kurucusu her POST'ta 120 mesaja kadar s\u0131n\u0131fland\u0131rd\u0131\u011f\u0131 i\u00e7in bu tek bir misafirin
- * payla\u015f\u0131lan s\u00fcreci ~20 sn DONDURAB\u0130LMES\u0130 demekti (kanal yolunda da bekleyen mesajlar
- * ayn\u0131 a\u011flardan ge\u00e7iyor).
- *  \u00b7 Mesaj \u00f6nbelle\u011fi TEK G\u0130R\u0130\u015eL\u0130: anahtar ham mesaj\u0131n kendisi, de\u011fer saf bir fonksiyonun
- *    \u00e7\u0131kt\u0131s\u0131 \u2192 bayatlama imk\u00e2ns\u0131z; bellekte en fazla B\u0130R mesaj tutulur.
- *  \u00b7 Kelime \u00f6nbelle\u011fi L\u0130STE K\u0130ML\u0130\u011e\u0130NE ba\u011fl\u0131 (WeakMap): statik listeler bir kez katlan\u0131r;
- *    her \u00e7a\u011fr\u0131da yeni kurulan dizi yaln\u0131z \u00f6nbelle\u011fi \u0131skalar (do\u011fruluk etkilenmez) ve
- *    diziyle birlikte \u00e7\u00f6pe gider. Uzunluk de\u011fi\u015firse yeniden katlan\u0131r.
+ * 🚨 MALİYET ÖNBELLEKLERİ (09-23 denetimi, ÖLÇÜLDÜ) — anlam DEĞİŞMEZ, yalnız tekrar
+ * hesap kalkar. `includesAnyFold` tek bir sınıflandırmada ONLARCA kez AYNI mesajla
+ * çağrılıyor (`detectIntent` her niyet için bir kez) ve her çağrıda mesajı 6'ya kadar
+ * aday biçime çevirip ÜÇ katlamadan geçiriyor, üstüne listedeki HER kelimeyi her aday
+ * için yeniden katlıyordu. Erken eşleşme olmayan girdide (tam da düşmanca girdi) iş
+ * komple boşa tekrarlanıyordu: 2.000 karakterlik `a'a'a'…` mesajı 163 ms. QR pencere
+ * kurucusu her POST'ta 120 mesaja kadar sınıflandırdığı için bu tek bir misafirin
+ * paylaşılan süreci ~20 sn DONDURABİLMESİ demekti (kanal yolunda da bekleyen mesajlar
+ * aynı ağlardan geçiyor).
+ *  · Katlanmış aday önbelleği TEK GİRİŞLİ: anahtar ham mesajın kendisi, değer saf bir
+ *    fonksiyonun çıktısı → bayatlama imkânsız; bellekte en fazla BİR mesaj tutulur.
+ *  · Kelime önbelleği LİSTE KİMLİĞİNE bağlı (WeakMap): statik listeler bir kez katlanır;
+ *    her çağrıda yeni kurulan dizi yalnız önbelleği ıskalar (doğruluk etkilenmez) ve
+ *    diziyle birlikte çöpe gider. Uzunluk değişirse yeniden katlanır.
+ * ⚠️ ÖLÇÜLÜP KALDIRILAN (mutasyon turu 09-23): katlanMAMIŞ aday listesi için ayrı bir tek
+ * girişli önbellek daha vardı; mutasyonu HAYATTA KALDI ve ölçüm katkısını ≤%4 verdi
+ * (800 gerçekçi mesaj 388→389 ms) → ölü ağırlık, silindi. Kelime önbelleği ise kaldırılınca
+ * aynı yük 388→678 ms (+%75) → KALDI ve ıska sayacıyla pinli (`__asciiFoldMissCount`).
  */
-let candidatesCacheKey: string | null = null;
-let candidatesCacheVal: readonly string[] = [];
-/** `matchCandidates(normalizeForMatch(message))` \u2014 ayn\u0131 mesaj i\u00e7in bir kez. */
+/** `matchCandidates(normalizeForMatch(message))`. */
 function candidatesOf(message: string): readonly string[] {
-  if (message !== candidatesCacheKey) {
-    // DONDURULUR: paylaşılan önbellek; bir çağıran diziyi değiştirirse sessiz bozulma
-    // değil GÜRÜLTÜLÜ hata olsun.
-    candidatesCacheVal = Object.freeze(matchCandidates(normalizeForMatch(message)));
-    candidatesCacheKey = message;
-  }
-  return candidatesCacheVal;
+  return matchCandidates(normalizeForMatch(message));
 }
 
 type FoldedCandidate = { std: string; tr: string; ascii: string };
@@ -702,16 +698,27 @@ function foldedCandidatesOf(message: string): readonly FoldedCandidate[] {
 }
 
 const asciiWordsCache = new WeakMap<readonly string[], string[]>();
+let asciiFoldMisses = 0;
 function asciiFoldedWords(words: readonly string[]): string[] {
   let v = asciiWordsCache.get(words);
   if (!v || v.length !== words.length) {
+    asciiFoldMisses++;
     v = words.map(foldTurkishAscii);
     asciiWordsCache.set(words, v);
   }
   return v;
 }
 
-/** Kelime a\u011f\u0131 e\u015fle\u015fmesi: metin, \u00dc\u00c7 katlamadan herhangi biriyle kelimeyi i\u00e7eriyor mu? */
+/**
+ * TEST KANCASI (salt-okuma): kelime listesi katlama önbelleğinin ıska sayısı. Önbellek
+ * yalnız MALİYETİ etkiler (anlam aynı) → davranış testi onu göremez; bu sayaç
+ * "statik listeler süreç başına bir kez katlanır" sözleşmesini deterministik pinler.
+ */
+export function __asciiFoldMissCount(): number {
+  return asciiFoldMisses;
+}
+
+/** Kelime ağı eşleşmesi: metin, ÜÇ katlamadan herhangi biriyle kelimeyi içeriyor mu? */
 function includesAnyFold(
   message: string,
   words: readonly string[],
@@ -1143,13 +1150,13 @@ const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
  * kelimeyi BÖLMEZ — bu yolda SİLİNİR ("klima'mız" → "klimamız"). Ayıraç okuması kaybolmuyor:
  * `matchCandidates` zaten `splitApostrophes` adayını (kesme → boşluk) ayrıca üretiyor.
  */
-// \uD83D\uDEA8 `\u00B4` (ACUTE ACCENT) \u00C7IKARILDI \u2014 \u00D6L\u00DC G\u0130RD\u0130YD\u0130 (7. tur incelemesi, \u00D6L\u00C7\u00DCLD\u00DC):
-// `deviceTokens` `normalizeForMatch` \u00C7IKTISI \u00FCzerinde \u00E7al\u0131\u015F\u0131r ve NFKC(U+00B4) = BO\u015ELUK +
-// U+0301 (birle\u015Ftirici i\u015Faret), yani o kod noktas\u0131 buraya H\u0130\u00C7 ULA\u015EMAZ. Listede durmas\u0131
-// "kapsan\u0131yor" yan\u0131lsamas\u0131 \u00FCretiyordu. S\u0131n\u0131f test-pinli B\u0130L\u0130NEN SINIR olarak kald\u0131:
-// "Klima\u00B4m\u0131z bozuldu." h\u00E2l\u00E2 ka\u00E7ar (d\u00FCzeltmesi NFKC \u00F6ncesi ayr\u0131 bir aday \u00FCretmeyi gerektirir).
-// `\u02BC` ve `\u2032` EKLEND\u0130: ikisi de NFKC'den DE\u011E\u0130\u015EMEDEN ge\u00E7iyor (\u00F6l\u00E7\u00FCld\u00FC) ve ger\u00E7ek
-// kesme varyantlar\u0131d\u0131r.
+// 🚨 `´` (ACUTE ACCENT) ÇIKARILDI — ÖLÜ GİRDİYDİ (7. tur incelemesi, ÖLÇÜLDÜ):
+// `deviceTokens` `normalizeForMatch` ÇIKTISI üzerinde çalışır ve NFKC(U+00B4) = BOŞLUK +
+// U+0301 (birleştirici işaret), yani o kod noktası buraya HİÇ ULAŞMAZ. Listede durması
+// "kapsanıyor" yanılsaması üretiyordu. Sınıf test-pinli BİLİNEN SINIR olarak kaldı:
+// "Klima´mız bozuldu." hâlâ kaçar (düzeltmesi NFKC öncesi ayrı bir aday üretmeyi gerektirir).
+// `ʼ` ve `′` EKLENDİ: ikisi de NFKC'den DEĞİŞMEDEN geçiyor (ölçüldü) ve gerçek
+// kesme varyantlarıdır.
 const APOSTROPHES = /['\u2019\u2018\u02BC\u2032`]/gu;
 
 /**
@@ -1171,21 +1178,21 @@ const IN_WORD_APOSTROPHES = new Set(["'", "\u2019", "\u2018", "\u02BC", "\u2032"
 const LETTER_OR_DIGIT = /^[\p{L}\p{N}]$/u;
 
 /**
- * Kelime \u0130\u00C7\u0130 kesmeyi (harf/rakam ko\u015Fusu + kesme + harf/rakam) `keep(sol)` do\u011Fruysa siler.
+ * Kelime İÇİ kesmeyi (harf/rakam koşusu + kesme + harf/rakam) `keep(sol)` doğruysa siler.
  *
- * \uD83D\uDEA8 REGEX DE\u011E\u0130L, DO\u011ERUSAL TARAYICI (09-23 denetimi, \u00D6L\u00C7\u00DCLD\u00DC). Eski bi\u00E7im
- * `/([\p{L}\p{N}]+)['\u2019\u2018\u02BC\u2032`](?=[\p{L}\p{N}])/gu` idi: kesmesiz UZUN bir kelimede her
- * ba\u015Flang\u0131\u00E7ta `+` kelimenin sonuna ko\u015Fup geri izliyordu \u2192 O(n\u00B2). 2.000 karakterlik tek
- * kelime ("\u015F\u015F\u015F\u2026" / karma yaz\u0131 "\u043Ea\u043Ea\u2026") s\u0131n\u0131fland\u0131rmay\u0131 100\u2013180 ms'ye \u00E7\u0131kar\u0131yordu ve bu
- * fonksiyon her aday bi\u00E7im \u00D7 her s\u0131n\u0131fland\u0131rma ko\u015Fuyor. Anlam B\u0130REB\u0130R: `sol` = kesmeden
- * hemen \u00F6nceki azami harf/rakam ko\u015Fusu (\u00F6nceki e\u015Fle\u015Fmenin kesmesinden sonra ba\u015Flar),
- * kesmenin ard\u0131nda harf/rakam \u015Fart, kod noktas\u0131 (vekil \u00E7ift) say\u0131m\u0131 regex'in `u`
- * bayra\u011F\u0131yla ayn\u0131. E\u015Fde\u011Ferlik eski regex k\u00E2hin al\u0131narak HER y\u00FCklemle pinli
+ * 🚨 REGEX DEĞİL, DOĞRUSAL TARAYICI (09-23 denetimi, ÖLÇÜLDÜ). Eski biçim
+ * `/([\p{L}\p{N}]+)['’‘ʼ′`](?=[\p{L}\p{N}])/gu` idi: kesmesiz UZUN bir kelimede her
+ * başlangıçta `+` kelimenin sonuna koşup geri izliyordu → O(n²). 2.000 karakterlik tek
+ * kelime ("şşş…" / karma yazı "\u043Ea\u043Ea…") sınıflandırmayı 100–180 ms'ye çıkarıyordu ve bu
+ * fonksiyon her aday biçim × her sınıflandırma koşuyor. Anlam BİREBİR: `sol` = kesmeden
+ * hemen önceki azami harf/rakam koşusu (önceki eşleşmenin kesmesinden sonra başlar),
+ * kesmenin ardında harf/rakam şart, kod noktası (vekil çift) sayımı regex'in `u`
+ * bayrağıyla aynı. Eşdeğerlik eski regex kâhin alınarak HER yüklemle pinli
  * (`tests/unit/classifier-cost.test.ts`).
  */
 export function joinInWordApostrophes(cand: string, keep: (left: string) => boolean): string {
   const n = cand.length;
-  /** `idx`teki kod noktas\u0131 harf/rakam m\u0131 (vekil \u00E7ift tek kod noktas\u0131 say\u0131l\u0131r, `u` bayra\u011F\u0131 gibi). */
+  /** `idx`teki kod noktası harf/rakam mı (vekil çift tek kod noktası sayılır, `u` bayrağı gibi). */
   const isLD = (idx: number) => idx < n && LETTER_OR_DIGIT.test(String.fromCodePoint(cand.codePointAt(idx)!));
   const width = (idx: number) => (cand.codePointAt(idx)! > 0xffff ? 2 : 1);
   let out = "";
@@ -1196,17 +1203,17 @@ export function joinInWordApostrophes(cand: string, keep: (left: string) => bool
       i += width(i);
       continue;
     }
-    // Azami harf/rakam ko\u015Fusu [s, e). \u26A0\uFE0F U+02BC `\u02BC` HARFT\u0130R (Lm) \u2192 ko\u015Funun \u0130\u00C7\u0130NDE kal\u0131r ama
-    // ayn\u0131 zamanda kesme s\u0131n\u0131f\u0131ndad\u0131r; eski regex onu geri izlemeyle kesme olarak da g\u00F6r\u00FCyordu.
+    // Azami harf/rakam koşusu [s, e). ⚠️ U+02BC `ʼ` HARFTİR (Lm) → koşunun İÇİNDE kalır ama
+    // aynı zamanda kesme sınıfındadır; eski regex onu geri izlemeyle kesme olarak da görüyordu.
     const s = i;
     let e = i;
     while (e < n && isLD(e)) e += width(e);
-    // Regex'in \u0130LK denemesi (a\u00E7g\u00F6zl\u00FC): ko\u015Funun hemen ard\u0131nda ger\u00E7ek kesme + harf/rakam.
+    // Regex'in İLK denemesi (açgözlü): koşunun hemen ardında gerçek kesme + harf/rakam.
     let p = -1;
     if (e < n && IN_WORD_APOSTROPHES.has(cand[e]) && isLD(e + 1)) {
       p = e;
     } else {
-      // Geri izleme: ko\u015Funun \u0130\u00C7\u0130NDE, ard\u0131ndan ko\u015Fu karakteri gelen EN SA\u011EDAK\u0130 `\u02BC` (sol bo\u015F olamaz).
+      // Geri izleme: koşunun İÇİNDE, ardından koşu karakteri gelen EN SAĞDAKİ `ʼ` (sol boş olamaz).
       for (let k = e - 2; k > s; k--) {
         if (cand[k] === "\u02BC") {
           p = k;
@@ -1215,14 +1222,14 @@ export function joinInWordApostrophes(cand: string, keep: (left: string) => bool
       }
     }
     if (p < 0) {
-      i = e; // bu ko\u015Fuda e\u015Fle\u015Fme yok (regex sonraki ba\u015Flang\u0131\u00E7larda da bulamaz \u2014 aday k\u00FCmesi ayn\u0131)
+      i = e; // bu koşuda eşleşme yok (regex sonraki başlangıçlarda da bulamaz — aday kümesi aynı)
       continue;
     }
     if (keep(cand.slice(s, p))) {
-      out += cand.slice(copiedUpTo, p); // kesme D\u00DC\u015EER, sol par\u00E7a kal\u0131r
+      out += cand.slice(copiedUpTo, p); // kesme DÜŞER, sol parça kalır
       copiedUpTo = p + 1;
     }
-    i = p + 1; // regex e\u015Fle\u015Fmeden (kesmeden) SONRA devam eder
+    i = p + 1; // regex eşleşmeden (kesmeden) SONRA devam eder
   }
   return out + cand.slice(copiedUpTo);
 }
