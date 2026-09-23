@@ -162,6 +162,26 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
   });
 });
 
+describe("checkProductionEnv — CRON_SECRET (09-23, denetim ajanı)", () => {
+  const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+
+  it("YOKSA tek uyarı (mevcut davranış — yeni kontrol onu ÇİFTLEMEZ)", () => {
+    const r = checkProductionEnv(base);
+    expect(r.errors, "uyarı boot'u DURDURMAZ (üretim değeri doğrulanmadan hata eklenmez)").toHaveLength(0);
+    expect(r.warnings.filter((w: string) => w.includes("CRON_SECRET"))).toHaveLength(1);
+    expect(r.warnings.join("\n")).toMatch(/CRON_SECRET is missing/);
+  });
+
+  it("KISAYSA uyarır (uçlar hız sınırlı değil); değer ASLA basılmaz; uzun değer sessiz", () => {
+    const short = checkProductionEnv({ ...base, CRON_SECRET: "kisa-sir" });
+    expect(short.warnings.join("\n")).toMatch(/CRON_SECRET is shorter than 32/);
+    expect(short.warnings.join("\n")).not.toContain("kisa-sir");
+    const long = checkProductionEnv({ ...base, CRON_SECRET: "x".repeat(40) });
+    expect(long.warnings.join("\n")).not.toMatch(/CRON_SECRET/);
+    expect(long.errors).toHaveLength(0);
+  });
+});
+
 describe("scripts/verify-env.mjs — the prestart boot gate", () => {
   it("PROD + missing AUTH_SECRET → non-zero exit", () => {
     const r = gate({ ENCRYPTION_KEY: REAL_ENC });

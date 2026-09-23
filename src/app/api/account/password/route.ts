@@ -132,7 +132,12 @@ export async function POST(req: NextRequest) {
     // STEP 2 — verify the code, then set the new password.
     if (action === "confirm") {
       const code = typeof data?.code === "string" ? data.code.trim() : "";
-      const newPassword = typeof data?.newPassword === "string" ? data.newPassword.trim() : "";
+      // 🚨 PAROLA KIRPILMAZ (09-23, login ajanı F7): kayıt ve giriş parolayı OLDUĞU GİBİ
+      // alır, bu yol ise baştaki/sondaki boşluğu siliyordu → " gizli-parola1 " belirleyen
+      // kullanıcının (ya da boşluklu değeri kaydeden parola yöneticisinin) yazdığıyla
+      // saklanan AYRIŞIYOR ve girişte kendi hesabından kilitleniyordu. Kod alanı kırpılır
+      // (rakam), parola asla.
+      const newPassword = typeof data?.newPassword === "string" ? data.newPassword : "";
       if (newPassword.length < 8) {
         return badRequest({ newPassword: "Şifre en az 8 karakter olmalı." });
       }

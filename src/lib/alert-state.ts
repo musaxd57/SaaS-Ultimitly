@@ -105,9 +105,21 @@ export async function alertOnTransition(
   return "alerted";
 }
 
+let clearCalls = 0;
+
 /** Arıza bitti: bir sonraki arıza yeniden alarm üretsin. Asla fırlatmaz. */
 export async function clearAlertState(key: string): Promise<void> {
+  clearCalls++;
   await prisma.systemLock.deleteMany({ where: { name: PREFIX + key } }).catch(() => {});
+}
+
+/**
+ * TEST KANCASI (salt-okuma): `clearAlertState` çağrı sayısı. İzleyicinin "sağlıklı yolda
+ * SORGU YOK" sözü yalnız MALİYETİ etkiler (davranış aynı) → davranış testi göremez;
+ * mutasyon turu tam bunu ölçtü (her `ok()`ta koşulsuz silme mutantı HAYATTA KALDI).
+ */
+export function __alertStateClearCount(): number {
+  return clearCalls;
 }
 
 export interface AlertTracker {

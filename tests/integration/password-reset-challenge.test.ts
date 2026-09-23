@@ -233,6 +233,16 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
     expect(await verifyPassword(NEW_PASSWORD, u.passwordHash)).toBe(true);
   }, 90_000);
 
+  it("🚨 PAROLA KIRPILMAZ (09-23, F7): sıfırlanan parola boşluklarıyla YAZILDIĞI GİBİ saklanır (giriş kırpmaz)", async () => {
+    const c = await requestChallenge("6.1.0.9");
+    const typed = " bosluklu-Yeni1  ";
+    const res = await POST(req({ action: "confirm", token: c.token, code: c.code, newPassword: typed }));
+    expect(res.status).toBe(200);
+    const u = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    expect(await verifyPassword(typed, u.passwordHash)).toBe(true);
+    expect(await verifyPassword(typed.trim(), u.passwordHash)).toBe(false);
+  }, 90_000);
+
   it("b) ÇAPRAZ eşleşme REDDEDİLİR: yeni e-postanın kodu + ESKİ sekmenin token'ı", async () => {
     const eski = await requestChallenge("6.2.0.1"); // kullanıcının açık duran sekmesi
     const yeni = await requestChallenge("6.2.0.2"); // "tekrar gönder"den gelen yeni mail

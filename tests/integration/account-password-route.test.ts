@@ -94,6 +94,18 @@ describe("POST /api/account/password (e-mail code flow)", () => {
     expect(u?.sessionEpoch).toBe(1); // bumped 0→1 → invalidates stolen tokens
   });
 
+  it("🚨 PAROLA KIRPILMAZ (09-23, F7): baştaki/sondaki boşluk dahil YAZILDIĞI GİBİ saklanır — giriş aynı değeri kabul eder", async () => {
+    await POST(req({ action: "request" }));
+    const code = codeFromEmail();
+    const typed = "  bosluklu-Parola1 ";
+    const res = await POST(req({ action: "confirm", code, newPassword: typed }));
+    expect(res.status).toBe(200);
+    const u = await prisma.user.findUnique({ where: { id: session.userId }, select: { passwordHash: true } });
+    // Giriş parolayı kırpmaz (loginSchema) → saklanan değer yazılanla BİREBİR olmalı.
+    expect(await verifyPassword(typed, u!.passwordHash)).toBe(true);
+    expect(await verifyPassword(typed.trim(), u!.passwordHash)).toBe(false);
+  });
+
   it("rejects a wrong code, increments attempts, and leaves the password unchanged", async () => {
     await POST(req({ action: "request" }));
 

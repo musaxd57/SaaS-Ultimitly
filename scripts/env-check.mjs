@@ -331,10 +331,16 @@ export function checkProductionEnv(env) {
   // silently stops while /api/health stays 200 — a silent outage. WARN (not error)
   // so a deployment that drives sync by some other means is never blocked, but the
   // most common misconfiguration is surfaced at boot instead of discovered later.
-  if (!(env.CRON_SECRET ?? "").trim()) {
+  const cronSecret = (env.CRON_SECRET ?? "").trim();
+  if (!cronSecret) {
     warnings.push(
       "CRON_SECRET is missing — the sync/auto-reply engine will not run (internal cron idle, external cron 401s).",
     );
+  } else if (cronSecret.length < 32) {
+    // 09-23 (denetim ajani): /api/cron/* uclarinin TEK kimligi bu Bearer degeridir ve uclar
+    // hiz sinirli DEGILDIR (zamanlayici dostu) -> kisa bir deger tahmin edilebilir. UYARI:
+    // boot'u durduracak bir kural uretim degeri dogrulanmadan eklenmez (kural).
+    warnings.push("CRON_SECRET is shorter than 32 characters — /api/cron/* is not rate-limited; use a long random secret.");
   }
 
   // DEPLOYMENT LOCALE / BILLING CURRENCY. Both are OPTIONAL — unset means the

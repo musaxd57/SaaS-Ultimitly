@@ -51,14 +51,21 @@ const annotate = (level, msg) => console.log(`::${level}::${msg}`);
  * "postcss kabul edildi" deyip O PAKETE GELECEK YENI danismayi da sessizce
  * yutardi.
  */
-function extractAdvisories(auditJson) {
+export function extractAdvisories(auditJson) {
   const found = new Map();
   for (const vuln of Object.values(auditJson.vulnerabilities ?? {})) {
     for (const via of vuln.via ?? []) {
       // string `via` = gecisli zincirin ust paketi, kendi danismasi yok.
       if (typeof via === "string") continue;
-      const id = /GHSA-[0-9a-z-]+/.exec(via.url ?? "")?.[0];
-      if (!id || found.has(id)) continue;
+      // 🚨 GHSA'SIZ DANISMA SESSIZCE ATLANMAZ (09-23, denetim ajani): eskiden URL'sinde GHSA
+      // kimligi olmayan (npm'in eski /advisories/<no> bicimi, url alani eksik) bir danisma
+      // `continue` ile DUSUYORDU -> npm audit zafiyet raporlarken kapi YESIL kaliyordu
+      // (fail-open). Artik kararli bir yedek kimlikle sayilir; triaj edilmemisse KIRMIZI,
+      // gerekirse baseline'a bu kimlikle yazilir.
+      const id =
+        /GHSA-[0-9a-z-]+/.exec(via.url ?? "")?.[0] ??
+        `NO-GHSA:${via.source ?? via.url ?? `${via.name ?? "?"}:${via.title ?? "?"}`}`;
+      if (found.has(id)) continue;
       found.set(id, { id, package: via.name, severity: via.severity, title: via.title ?? "" });
     }
   }
@@ -241,4 +248,8 @@ function main() {
   return failed ? 1 : 0;
 }
 
-process.exit(main());
+// Dogrudan calistirildiginda kos (npm run audit:check / CI). Test ICE AKTARINCA kosmaz.
+// ⚠️ Karsilastirma DOSYA ADIYLA, import.meta.url ile DEGIL: sembolik bagli bir yolda
+// url esitligi tutmayabilir ve kapi SESSIZCE hic kosmadan 0 ile cikardi (fail-open).
+// Dosya adi eslesmesi dogrudan calistirmanin her bicimini yakalar.
+if (path.basename(process.argv[1] ?? "") === "audit-check.mjs") process.exit(main());

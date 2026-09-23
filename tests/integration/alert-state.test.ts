@@ -77,10 +77,12 @@ describe("alertOnTransition", () => {
   });
 
   it("izleyici: başarı yalnız AKTİF anahtara dokunur, düşen aşama kaydedilir ve aynı geçişte temizlenebilir", async () => {
-    const { alertTracker } = await import("@/lib/alert-state");
+    const { alertTracker, __alertStateClearCount } = await import("@/lib/alert-state");
     await alertOnTransition("p:a", "ctx", outage()); // önceki geçişten kalan alarm
     const t = await alertTracker("p:");
-    await t.ok("b"); // alarmda değil → sorgu yok, bir şey değişmez
+    const clearsBefore = __alertStateClearCount();
+    for (let i = 0; i < 50; i++) await t.ok("b"); // alarmda değil → SORGU YOK (sağlıklı yolun maliyeti)
+    expect(__alertStateClearCount(), "sağlıklı yolda koşulsuz silme sorgusu atılıyor").toBe(clearsBefore);
     expect(await prisma.systemLock.count()).toBe(1);
     await t.ok("a"); // alarmdaydı → temizlenir
     expect(await prisma.systemLock.count()).toBe(0);

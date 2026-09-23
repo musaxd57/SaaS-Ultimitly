@@ -175,7 +175,11 @@ export async function POST(req: NextRequest) {
       if (!rawToken) return badRequest({ code: GENERIC_CONFIRM });
 
       const code = typeof data?.code === "string" ? data.code.trim() : "";
-      const newPassword = typeof data?.newPassword === "string" ? data.newPassword.trim() : "";
+      // 🚨 PAROLA KIRPILMAZ (09-23, login ajanı F7) — kayıt ve giriş parolayı OLDUĞU GİBİ
+      // alır; burada kırpmak " gizli-parola1 " belirleyen kullanıcıyı (ya da boşluklu
+      // değeri kaydeden parola yöneticisini) sıfırlamanın ARDINDAN girişte kilitliyordu.
+      // Token ve kod kırpılır (yapısal değerler), parola asla.
+      const newPassword = typeof data?.newPassword === "string" ? data.newPassword : "";
       if (newPassword.length < 8) {
         return badRequest({ newPassword: "Şifre en az 8 karakter olmalı." });
       }
