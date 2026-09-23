@@ -6,6 +6,11 @@ import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./ty
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel } from "./model-family";
 import { reportError } from "@/lib/report-error";
+import {
+  classifyModelProviderFailure,
+  noteModelProviderPersistentFailure,
+  noteModelProviderSuccess,
+} from "./provider-health";
 
 export type { SuggestReplyInput, SuggestReplyResult, ClassifyResult } from "./types";
 
@@ -178,9 +183,19 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
       // persistent cause (bad/expired key, exhausted quota, deprecated model)
       // would otherwise degrade every reply with nobody noticing. Report, don't
       // throw — the fallback path below is unaffected.
-      void reportError(`openai-reply ${res.status}`, new Error(await res.text().catch(() => res.statusText)));
+      const body = await res.text().catch(() => res.statusText);
+      // 🚨 KALICI arıza (kredi bitti / anahtar reddedildi / model yok) GEÇİŞ tabanlı
+      // alarma gider: bu dal 2 dakikalık oto-yanıt döngüsünün içinde koşar ve
+      // `reportError` Sentry'yi hiç kısmaz (↑ "anahtar yok" dalının ölçümü) →
+      // kredisi biten hesap alarm seli üretirdi (09-23 ölçümü, `provider-health.ts`).
+      const persistent = classifyModelProviderFailure(res.status, body);
+      if (persistent) void noteModelProviderPersistentFailure(persistent, res.status, body);
+      else void reportError(`openai-reply ${res.status}`, new Error(body));
       return null;
     }
+    // HTTP başarısı sağlayıcının (kota/anahtar/model) sağlıklı olduğunu gösterir;
+    // açık olabilecek kalıcı arıza alarmını kapatır (sağlıklı yolda sorgu yok).
+    noteModelProviderSuccess();
     const data = await res.json();
     const choice = data?.choices?.[0];
     // Truncated output (hit max_completion_tokens): the JSON is almost certainly
