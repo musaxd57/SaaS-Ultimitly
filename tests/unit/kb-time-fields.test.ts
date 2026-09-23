@@ -101,6 +101,11 @@ describe("alan atfı (retrieval + rapor ortak)", () => {
   it("rakamdan sonraki nokta cümlecik sınırıdır ('Giriş 15:00. Çıkış 11:00.'); '12.00' bölünmez", () => {
     expect(fields("Saatler", "Giriş 15:00. Çıkış 11:00.")).toEqual({ checkin: ["15:00"], checkout: ["11:00"] });
     expect(fields("Çıkış", "Çıkış 12.00'dir.")).toEqual({ checkout: ["12:00"] });
+    // İki alanı adlandıran cümlecik "ve/and" ile bir kez daha bölünür (yoksa iki saat de düşerdi).
+    expect(fields("Saatler", "Giriş 15:00 ve çıkış 11:00.")).toEqual({ checkin: ["15:00"], checkout: ["11:00"] });
+    expect(findTimeConflicts(PROP, [kb("checkin", "Saatler", "Giriş 14:00 ve çıkış 11:00.")])).toEqual([
+      { field: "checkInTime", propertyValue: "15:00", kbValues: ["14:00"] },
+    ]);
   });
 
   it("başlık ödüncü: cümlecik BAŞKA konudan söz ediyorsa alınmaz; alansız cümlecikte alınır", () => {
