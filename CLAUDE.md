@@ -59,7 +59,8 @@ canlı (migration 49 prod'da 09-07) · V0.4 ✅ provenance canlı (migration 50 
 canlı (`19d5527`, migration'sız) · V0.6 ✅ ingest write service + `IngestEvent` canlı (migration 51 prod'da 09-08
 03:13Z) · V0.7 ✅ kod hazırlığı canlı (migration'sız; kolon DROP'u operatör planına bağlı:
 `docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`, ön koşul: okuma anahtarı ≥2 hafta)) → **V1 Property Memory + Signals CANLI
-(migration 52 prod'da 09-08 06:11Z; `docs/V1-PROPERTY-MEMORY-DESIGN.md`, envanter §14)** → **V2.1 "Dikkat Gerektirenler" CANLI (09-09, salt-okuma, migration'sız)** → ④ deterministik **Availability Engine** → ⑤ geniş
+(migration 52 prod'da 09-08 06:11Z; `docs/V1-PROPERTY-MEMORY-DESIGN.md`, envanter §14)** → **V2.1 "Dikkat Gerektirenler" CANLI (09-09, salt-okuma, migration'sız)** → ④ deterministik **Availability Engine**
+(**İLK DİLİM 09-24**: saf çekirdek + yükleyici + panelde çakışan rezervasyon satırı; AI'ya BAĞLANMADI; `docs/MUSAITLIK-MOTORU-2026-09-24.md`) → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
 Review/Issue tabloları. Yalnız dar, davranış-koruyan temel eklenebilir.
@@ -68,7 +69,8 @@ Review/Issue tabloları. Yalnız dar, davranış-koruyan temel eklenebilir.
 V6 Review + Recurring Issue Brain → V7 Revenue Brain → V8 Ask Lixus → Action. Intelligence katmanı ayrı
 bounded context (`/modules/intelligence`: memory/signals/incidents/recommendations/actions/scoring/agents/
 audit), event dinler; AI bozulsa PMS çalışır. Konumlandırma: "AI Operating System for Short-Term Rentals".
-**Airbnb başvurusu öncesi 6 kapı:** channel independence (boş `AirbnbDirectAdapter` sözleşmesi dahil) ·
+**Airbnb başvurusu öncesi 6 kapı** (09-24: boş `AirbnbDirectAdapter` sözleşmesi ✅ `docs/AIRBNB-DIRECT-SOZLESMESI.md` ·
+demo hesabı üreticisi ✅ kod, CANLIYA KOŞULMADI `docs/DEMO-HESABI.md`): channel independence (boş `AirbnbDirectAdapter` sözleşmesi dahil) ·
 Hospitable'sız Lixus'un büyük bölümü çalışır (iCal + kendi verisi; yalnız kanal-özel inbox köprü ister) ·
 ciddi security katmanı (Airbnb şartları: data-security review, MFA, least-privilege, OWASP, ≥3 ayda tarama,
 HTTPS, şifreleme) · demo tenant (demo@lixusai.com, 10–15 örnek property) · gerçek kullanım kanıtı (11 daire
@@ -498,7 +500,19 @@ Bu dosyaya token/anahtar/parola yazma.
   `styleBlock` +752 · `adjacencyBlock` +659 …) — yalnız en büyük bloğa uygulanmamış.
   **Prompt cache sıralaması DOĞRU** (system önce, önek ~47.533 karakter) ama `cached_tokens`/`usage`
   HİÇBİR YERDE OKUNMUYOR → "önbelleklidir" GÖZLEM değil VARSAYIM.
-- 🚨 **DİL BAZINDA RETRIEVAL: RUSÇA ve ARAPÇA'da HİÇ ÇALIŞMIYOR (09-11 ölçüldü).** Hibrit açıkken
+- ✅ **YABANCI DİL SÖZLÜĞÜ (09-24, `retrieval/lexicon-foreign.ts`) — aşağıdaki 09-11 bulgusunun SÖZCÜKSEL kısmını kapattı.**
+  DE/FR/ES/RU/AR ~560 yüzey biçimi → MEVCUT 46 kavram; eşleşme HAM belirteç üzerinde (Türkçe kök sökücüden
+  GEÇMEZ — `detectOnly`ye koymak ölçüldü ve reddedildi: 23 girdi 2 harfe iniyor, "Giriş saati" çıkış kavramı
+  alıyordu). Yazı sistemine göre kural: Latin tam kelime + kapalı ek kümesi, önek YALNIZ `*` işaretli girdide
+  (uzunluk-önek kuralı department/stranded/hospitality ile çarpışıyordu); Kiril önek (+≥5 harfte içerme);
+  Arapça tek bitişik ek sökülür. Ölçüm (400 yabancı sorgu, üretim koduyla tekrarlandı): cevap cümlesi isteme
+  %63 → %97, yanlış dar seçim 48 → 9, blok ~3000 → ~580 karakter; Türkçe/İngilizce seçim BİREBİR aynı
+  (ölçek harness'ının tüm soruları, `sources.foreign:false` ile kıyas pinli). Çıkarılan girdiler (geri
+  EKLEME): RU машина/пробки · FR four/chat/café/partir/tekil drap · DE laut · ES parada (Türkçe "paradan").
+  ⚠️ Sınır: listede OLMAYAN konuda soran yabancı misafir artık yanlış kaleme daralabilir (50 sorguda 13→20;
+  sonuç uydurma değil devir); kelime listeleri anadil konuşanı tarafından İNCELENMEDİ. Dil algılayıcı
+  kusuru (aşağıda) retrieval'ı ETKİLEMİYOR (ölçüldü: yalnız `queryIsTurkish` → n-gram; seçim 0 fark).
+- 🚨 **DİL BAZINDA RETRIEVAL: RUSÇA ve ARAPÇA'da HİÇ ÇALIŞMIYOR (09-11 ölçüldü; sözcüksel kısmı 09-24'te ↑ kapandı).** Hibrit açıkken
   `ru`/`ar` sorgusu `no_lexical_hits` → seçici TÜM KB'ye düşüyor (fail-open, bilgi kaybı yok ama
   hibritin vaadi o dillerde GEÇERSİZ). Sebep: `retrieval/lexicon.ts` 47 kavram/302 terim **TR+EN**,
   kök sökücü Türkçe ekler + `EN_SUFFIXES {ing,ed,es,s}`. Almanca/Fransızca yalnız KAZAEN çalışıyor
