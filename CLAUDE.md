@@ -838,6 +838,28 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yıllık tutar (zorunlu); üstü çizili fiyat YOK; yıllıkta plan değiştirme kapalı. Katalog dışı `priceId`
   reddedilir (katalog yapılandırılmışsa). Açık ticari: `paused` grace; reconcile'da plan otoritesi.
 
+**Kanal sözleşmesi / müsaitlik / demo (09-24)**
+- **Sağlayıcı kimliği ≠ OTA etiketi:** `ChannelProviderId` (`hospitable`, `airbnb_direct`) sözleşme kümesi;
+  `OutboundProvider` CANLI küme (bugün yalnız `hospitable`) ve kayıt defteri/dispatch YALNIZ onu kabul eder →
+  sözleşme aşamasındaki sağlayıcı derleme zamanında kaydedilemez. "airbnb" asla sağlayıcı kimliği olmaz.
+- **Yetenek manifestosu** (`channels/manifests.ts`): her kaynak 13 yeteneğin HEPSİNİ ve her veri sınıfını ilan
+  eder; Hospitable manifestosu adaptörün çalışma zamanı yetenek kümesiyle PARİTE pinli; `supported` yeteneği
+  olan kaynakta veri politikası `requires_terms_review` KALAMAZ; kiracılar arası kullanım her yerde yasak.
+  Yeni adaptör önce manifestoya `planned` girer, uyum kitini geçmeden `supported` olmaz.
+- **Airbnb Direct adaptörü ağa ÇIKMAZ** (fetch/HTTP/env/DB/URL literal mekanik pinli); tahminî uç nokta/yük
+  YAZILMAZ (değişmez 18). Okuma hatası `IngestError("unsupported")` → müşteriye genel metin (Hospitable DEMEZ).
+- **Müsaitlik: tek tarih kuralı `calendarDateOf`** (tam 00:00Z/12:00Z = yalnız tarih; aksi an → mülk dilimi).
+  Aynı günü karşılaştıran YENİ kod ham `Date` karşılaştırması YAPMAZ, bu kuralı kullanır (`getAdjacency`
+  09-24'te bu yüzden düzeltildi). "Boş" yalnız KANITLA (her kapsama kaynağı taze); kanıt yoksa "bilinmiyor".
+  Çakışma OLGUDUR — hiçbir kod çakışan satırı iptal/birleştirmez. Müsaitlik isteme/AI'ya bağlanırken yalnız
+  `verified` sonuç otomatik cevaba dayanak olabilir (ayrı dilim, ayrı onay).
+- **Demo hesabı** (`lib/demo-tenant/`): her kimlik `lxdemo-`; her silme `DEMO_ORG_ID` ile kapsanır (mekanik
+  pin); reddetme = SIFIR yazma; sahte bağlantı/rezervasyon kodu/misafir iletişimi/sır YOK; şikâyet asla `new`
+  doğmaz. Canlı koşu = kurucu onayı + taze `pg_dump`. Korumalar betik ÇALIŞTIRILARAK değil saf karar
+  fonksiyonuyla (`cli.ts`) sınanır.
+- **Retrieval yabancı sözlüğü** sorgu tarafındadır ve Türkçe kök sökücüden GEÇMEZ; yeni girdi eklerken
+  Türkçe/İngilizce kimlik pini (`kb-retrieval-foreign.test.ts`) ve çarpışma tuzakları koşulur.
+
 **AI / QR / diğer ürün kararları**
 - QR: per-stay device binding; `isOpenNow` simetrik; `chatToken` rotasyonu YOK (bilinçli); PIN DoS tasarımı
   var uygulanmadı (bütçeyi cihaza taşıma REDDEDİLDİ). QR rotasında hata sınırı `reportError`.
@@ -1357,6 +1379,17 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   dönüşte reconcile)** · Hospitable OAuth refresh (süresi dolabilir, KONTROL ET).
 
 ## Durum
+**09-24 TURU — MÜSAİTLİK MOTORU + AIRBNB KAPILARI + ÇOK DİLLİ RETRIEVAL (kurucu: "2'sini paralel, ajanlarla,
+en sonda inceleme ajanı"; dört araştırma ajanı + bir inceleme ajanı).** Beş dilim, hepsi YEREL commit, migration
+YOK: ① boş `AirbnbDirectAdapter` sözleşmesi + yetenek manifestosu (`docs/AIRBNB-DIRECT-SOZLESMESI.md`) ·
+② deterministik müsaitlik motoru ilk dilim + panelde "aynı gecelere iki rezervasyon" satırı — bugün HİÇBİR
+yazma yolu çift rezervasyonu fark etmiyordu (`docs/MUSAITLIK-MOTORU-2026-09-24.md`) · ③ DE/FR/ES/RU/AR
+retrieval sözlüğü: cevap cümlesi isteme %63 → %97, Türkçe/İngilizce seçim birebir aynı · ④ demo hesabı
+üreticisi (12 mülk, ~430 rezervasyon; CANLIYA KOŞULMADI, kurucu kararları `docs/DEMO-HESABI.md`) ·
+⑤ `getAdjacency` karışık tarih yazımında aynı gün devri kaçırıp isteme "giriş öncesi daire boş" yazıyordu →
+motorun takvim günü kuralıyla düzeltildi. Kanıt: kırmızı-önce + mutasyon (kanal+müsaitlik 46/46 · retrieval
+18/18 · demo 21/22 + 1 ölçülmüş eşdeğer · komşuluk 11/11; her turda hayatta kalanlar gerçek pin eksikliğiydi
+ve kapatıldı).
 **09-23 İKİNCİ TUR — GİRİŞ EKRANINA SALDIRGAN GÖZÜYLE (beş saldırı ajanı; hüküm belgesi
 `docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md` §9).** Kurucunun onayladığı dört öneri uygulandı
 (`ca6bdf8` 2FA açınca oturum düşürme + girişte hash yükseltme + NFC/72 bayt · `d851afe` `__Host-` önek) ve 12 açık
