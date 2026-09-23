@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { isSuperAdmin } from "@/lib/admin";
 import { isChannelSubscriptionInactive, SUBSCRIPTION_INACTIVE_MESSAGE } from "@/lib/provider-errors";
+import { PasswordHashBusyError } from "@/lib/auth/password";
 
 export type { SessionPayload };
 
@@ -165,9 +166,24 @@ export function serverError(
       console.warn("[api] Hospitable subscription not active (402) — surfaced, not paged");
       return NextResponse.json({ error: SUBSCRIPTION_INACTIVE_MESSAGE }, { status: 409 });
     }
+    // Parola işlemi kapısı doygun (09-23, `auth/password.ts`): dağıtık parola denemesinin
+    // BEKLENEN yan etkisi — 503 + Retry-After, operatöre alarm YOK (saldırı sırasında
+    // her istekte "sistem hatası" e-postası üretmek 09-23 selinin ta kendisi olurdu).
+    if (err instanceof PasswordHashBusyError) {
+      console.warn("[api] password hashing saturated — 503");
+      return passwordHashBusy();
+    }
     void reportError("api", err);
   }
   return NextResponse.json({ error: message }, { status: 500 });
+}
+
+/** 503 — parola işlemi kapısı doygun (↑`serverError`, `auth/password.ts`). */
+export function passwordHashBusy() {
+  return NextResponse.json(
+    { error: "Sunucu şu an çok yoğun. Lütfen birkaç saniye sonra tekrar deneyin." },
+    { status: 503, headers: { "Retry-After": "3" } },
+  );
 }
 
 export function tooManyRequests(

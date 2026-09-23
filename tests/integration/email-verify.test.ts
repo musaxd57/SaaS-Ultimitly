@@ -568,6 +568,34 @@ describe("registration → verification → login", () => {
     expect(html).toContain("https://www.lixusai.com/e-posta-dogrula#t=");
   });
 
+  it("🚨 PAROLA KAPISI DOYGUNSA doğrulama 503 döner (çıplak 500 DEĞİL) ve token TÜKETİLMEZ (09-23, F4)", async () => {
+    const { verifyPassword: realVerify } = await import("@/lib/auth/password");
+    vi.stubEnv("PASSWORD_HASH_MAX_IN_FLIGHT", "1");
+    vi.stubEnv("PASSWORD_HASH_MAX_QUEUE", "0");
+    const { raw, hash } = makeVerifyToken();
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "Ada",
+        email: "busy@x.com",
+        passwordHash: await hashPassword("secret123"),
+        role: "owner",
+        createdAt: AFTER,
+        emailVerifyTokenHash: hash,
+        emailVerifyExpiresAt: new Date(Date.now() + 60 * 60_000),
+      },
+    });
+    // Tek yuvayı başka bir parola işi tutuyor (gerçek bcrypt, ~300 ms).
+    const holder = realVerify("x", "$2a$12$pW7aCpH9gDjLDJgWwMZS9e4XetljqUVeM6688s259LuXEGh42XYii");
+    const res = await verifyEmail(verifyReq(raw));
+    await holder;
+    expect(res.status).toBe(503);
+    const u = await prisma.user.findUniqueOrThrow({ where: { email: "busy@x.com" } });
+    expect(u.emailVerifyTokenHash, "yoğunluk yüzünden token yanmamalı").toBe(hash);
+    expect(u.emailVerifiedAt).toBeNull();
+  });
+
   it("🚨 İÇERİK ENJEKSİYONU (09-23): doğrulama e-postası kayıtta yazılan ADI taşımaz", async () => {
     // Kimliksiz yol: saldırgan kurbanın adresiyle kayıt olur, ad alanına kendi metnini yazar;
     // eskiden o metin `noreply@lixusai.com`dan, gerçek bir doğrulama bağlantısının yanında

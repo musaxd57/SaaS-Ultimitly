@@ -73,6 +73,19 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(401);
   });
 
+  it("🚨 PAROLA KAPISI DOYGUNSA 503 + Retry-After (09-23, F4) — 500 DEĞİL, 'yanlış parola' DEĞİL", async () => {
+    const { PasswordHashBusyError } = await import("@/lib/auth/password");
+    vi.mocked(mockedVerify).mockRejectedValueOnce(new PasswordHashBusyError());
+    const res = await POST(loginReq({ email: "musa@example.com", password: "correct-horse" }));
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("3");
+    expect(mockSetSession).not.toHaveBeenCalled();
+    // Bilinmeyen hesap yolu da AYNI kapıdan geçer → aynı yanıt (numaralandırma kâhini yok).
+    vi.mocked(mockedDummy).mockRejectedValueOnce(new PasswordHashBusyError());
+    const unknown = await POST(loginReq({ email: "yok@example.com", password: "correct-horse" }, "1.1.1.2"));
+    expect(unknown.status).toBe(503);
+  });
+
   it("rejects a malformed body with 400", async () => {
     const res = await POST(loginReq({ email: "not-an-email", password: "" }));
     expect(res.status).toBe(400);

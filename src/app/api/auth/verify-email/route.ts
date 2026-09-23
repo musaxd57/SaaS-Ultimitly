@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
 import { verifySession, SESSION_COOKIE } from "@/lib/auth/session";
 import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
-import { verifyPassword } from "@/lib/auth/password";
+import { verifyPassword, PasswordHashBusyError } from "@/lib/auth/password";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { readJsonCappedOrNull } from "@/lib/api";
+import { readJsonCappedOrNull, passwordHashBusy } from "@/lib/api";
 import type { UserRole } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -151,7 +151,16 @@ export async function POST(req: NextRequest) {
   // "parolan yanlış" demek ön-ele-geçirme saldırganına HİÇBİR ŞEY vermez (o
   // token'ı hiç görmez). Birleştirmek ise meşru kullanıcıyı "bağlantı geçersiz"
   // deyip tekrar tıklamaya iten bir döngüye sokardı.
-  if (!(await verifyPassword(password, user.passwordHash))) return fail("password");
+  // Parola kapısı doygunsa 503 (bu rotada genel hata sarmalı yok; aksi hâlde istisna
+  // çıplak 500 olurdu). Token TÜKETİLMEZ — kullanıcı aynı bağlantıyla yeniden dener.
+  let passwordOk: boolean;
+  try {
+    passwordOk = await verifyPassword(password, user.passwordHash);
+  } catch (err) {
+    if (err instanceof PasswordHashBusyError) return passwordHashBusy();
+    throw err;
+  }
+  if (!passwordOk) return fail("password");
 
   // ATOMIC single-use consume (same burn pattern as TOTP): the update is
   // conditioned on the token hash STILL being set, so of N concurrent clicks on
