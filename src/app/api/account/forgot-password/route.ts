@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { hashPassword } from "@/lib/auth/password";
+import { hashPassword, newPasswordProblem } from "@/lib/auth/password";
 import {
   badRequest,
   jsonOk,
@@ -180,17 +180,13 @@ export async function POST(req: NextRequest) {
       // değeri kaydeden parola yöneticisini) sıfırlamanın ARDINDAN girişte kilitliyordu.
       // Token ve kod kırpılır (yapısal değerler), parola asla.
       const newPassword = typeof data?.newPassword === "string" ? data.newPassword : "";
-      if (newPassword.length < 8) {
-        return badRequest({ newPassword: "Şifre en az 8 karakter olmalı." });
-      }
-      // ⚠️ ÜST SINIR GİRİŞ ŞEMASIYLA AYNI OLMAK ZORUNDA (`loginSchema` 200'de
-      // kesiyor). Burada sınır olmadığı için 200'den uzun bir şifre BELİRLENİP
-      // hash'lenebiliyor, sonra aynı şifreyle GİRİŞ 400 alıyordu → kullanıcı
-      // kendi hesabından kilitleniyordu. Kayıt sırasında imkânsız olan bu durum
-      // yalnız sıfırlama/değiştirme yollarından üretilebiliyordu.
-      if (newPassword.length > 200) {
-        return badRequest({ newPassword: "Şifre en fazla 200 karakter olabilir." });
-      }
+      // ⚠️ ÜST SINIR GİRİŞ ŞEMASINDAN SIKI OLMAK ZORUNDA (`loginSchema` 200'de kesiyor).
+      // Eskiden burada sınır yoktu: 200'den uzun bir şifre BELİRLENİP hash'lenebiliyor,
+      // sonra aynı şifreyle GİRİŞ 400 alıyordu → kullanıcı kendi hesabından kilitleniyordu.
+      // Artık kural tek kaynaktan (③, 09-23): en az 8 karakter, en fazla 72 BAYT (bcrypt
+      // fazlasını sessizce yok sayar) — 72 bayt her durumda 200 karakterin altında kalır.
+      const pwProblem = newPasswordProblem(newPassword);
+      if (pwProblem) return badRequest({ newPassword: pwProblem });
       if (!/^\d{8}$/.test(code)) {
         return badRequest({ code: "8 haneli doğrulama kodunu girin." });
       }

@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { normalizePassword } from "@/lib/auth/password-policy";
 
 // bcrypt cost factor. 12 is the current sane default; existing hashes carry
 // their own cost so older 10-cost hashes keep verifying (re-hashed on next set).
@@ -80,12 +81,69 @@ export function __passwordHashSlots(): { inFlight: number; queued: number } {
   return { inFlight, queued: waiters.length };
 }
 
+// ---------------------------------------------------------------------------
+// ③ SAKLAMA/DOĞRULAMA BİÇİMİ: Unicode NFC (kurucu onayı 09-23; kural ve gerekçe
+// `password-policy.ts`te — bcrypt'siz, şemalar da oradan okur).
+//   · SAKLAMA daima NFC biçiminden — "ş"nin iki kodlaması da aynı parolaya girer;
+//   · DOĞRULAMA önce NFC'yi, girdi NFC değilse HAM biçimi de dener: bu düzeltmeden
+//     ÖNCE ham NFD olarak saklanmış parola kilitlenmez (girişte NFC'ye taşınır, ④);
+//   · SAHTE doğrulama (bilinmeyen kullanıcı) AYNI sayıda karşılaştırma yapar →
+//     "hesap var mı" zamanlama kâhini doğmaz.
+// ---------------------------------------------------------------------------
+export {
+  normalizePassword,
+  newPasswordProblem,
+  passwordExceedsByteLimit,
+  PASSWORD_MAX_BYTES,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_TOO_LONG_MESSAGE,
+} from "@/lib/auth/password-policy";
+
+async function compareStored(password: string, hash: string): Promise<{ ok: boolean; legacyForm: boolean }> {
+  const nfc = normalizePassword(password);
+  if (await bcrypt.compare(nfc, hash)) return { ok: true, legacyForm: false };
+  if (nfc !== password && (await bcrypt.compare(password, hash))) return { ok: true, legacyForm: true };
+  return { ok: false, legacyForm: false };
+}
+
 export function hashPassword(password: string): Promise<string> {
-  return withSlot(() => bcrypt.hash(password, SALT_ROUNDS));
+  return withSlot(() => bcrypt.hash(normalizePassword(password), SALT_ROUNDS));
 }
 
 export function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return withSlot(() => bcrypt.compare(password, hash));
+  return withSlot(async () => (await compareStored(password, hash)).ok);
+}
+
+/**
+ * ④ GİRİŞ YOLU: doğrula + saklanan hash'in yükseltilmesi gerekip gerekmediğini söyle
+ * (maliyet < `SALT_ROUNDS` ya da eski ham biçim). Yükseltme YALNIZ doğru parolada
+ * istenir. Yazmayı çağıran yapar (`password-upgrade.ts`, CAS'lı ve kuyruksuz).
+ */
+export function verifyPasswordForLogin(
+  password: string,
+  hash: string,
+): Promise<{ ok: boolean; needsRehash: boolean }> {
+  return withSlot(async () => {
+    const r = await compareStored(password, hash);
+    // Bozuk/tanınmayan hash'te `getRounds` NaN döner → karşılaştırma false → yükseltme yok.
+    return { ok: r.ok, needsRehash: r.ok && (r.legacyForm || bcrypt.getRounds(hash) < SALT_ROUNDS) };
+  });
+}
+
+/**
+ * Yalnız ŞU AN boş bir yuva varsa hash'ler; yoksa `null` döner ve KUYRUĞA GİRMEZ.
+ * Arka plan niteliğindeki işler (girişte hash yükseltme) içindir: meşru girişlerin
+ * kuyruğunu uzatmamalı, doluysa bir sonraki fırsata kalır.
+ */
+export async function hashPasswordIfIdle(password: string): Promise<string | null> {
+  // Yuva boşsa kuyruk da boştur: `release` yuvayı bekleyene DEVREDER, boşaltmaz.
+  if (inFlight >= maxInFlight()) return null;
+  inFlight++;
+  try {
+    return await bcrypt.hash(normalizePassword(password), SALT_ROUNDS);
+  } finally {
+    release();
+  }
 }
 
 // A fixed, valid bcrypt hash (cost 12, matching SALT_ROUNDS) of a throwaway
@@ -100,7 +158,14 @@ const DUMMY_HASH = "$2a$12$pW7aCpH9gDjLDJgWwMZS9e4XetljqUVeM6688s259LuXEGh42XYii
  * unregistered one by response latency (user enumeration). Always resolves; the
  * caller still returns the same generic "wrong credentials" error either way.
  * (Goes through the SAME concurrency gate as a real verify — see above.)
+ * ③ Aynı SAYIDA karşılaştırma: NFC olmayan girdide gerçek yol başarısızken iki kez
+ * karşılaştırır (NFC + ham), sahte yol da iki kez — yoksa bilinmeyen hesap ölçülebilir
+ * biçimde hızlı döner.
  */
 export async function dummyVerifyPassword(password: string): Promise<void> {
-  await withSlot(() => bcrypt.compare(password, DUMMY_HASH));
+  await withSlot(async () => {
+    const nfc = normalizePassword(password);
+    await bcrypt.compare(nfc, DUMMY_HASH);
+    if (nfc !== password) await bcrypt.compare(password, DUMMY_HASH);
+  });
 }

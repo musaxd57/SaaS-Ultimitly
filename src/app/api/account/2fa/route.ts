@@ -13,6 +13,7 @@ import {
   RECOVERY_CODE_COUNT,
 } from "@/lib/auth/recovery-codes";
 import { verifyPassword } from "@/lib/auth/password";
+import { setSessionCookie, setKnownDeviceCookie } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { reportError } from "@/lib/report-error";
 
@@ -179,21 +180,41 @@ export async function POST(req: NextRequest) {
       // hem de "kur + bayat kodları sil" ikilisini atomik tutuyor (orijinal
       // transaction'ın koruduğu değişmez: 2FA asla canlı bayat kodlarla açık
       // kalmaz).
-      const armedCount = await prisma.$transaction(async (tx) => {
+      // 🚨 AÇMA ANI BİR GÜVENLİK SINIRIDIR (kurucu onayı 09-23): `sessionEpoch` AYNI
+      // yazmada artar → 2FA ÖNCESİ açılmış her oturum (parola sızmışsa saldırganınki
+      // dahil) bir sonraki istekte düşer. Eskiden artmıyordu ve middleware çerezi her
+      // istekte 14 gün ileri ittiği için öyle bir oturum HİÇ sona ermiyordu. Yalnız
+      // AÇMA: kapatma/kurtarma kodu üretimi kullanıcının diğer cihazlarını düşürmez.
+      const newEpoch = await prisma.$transaction(async (tx) => {
         const r = await tx.user.updateMany({
           where: { id: session.userId, twoFactorEnabledAt: null, twoFactorSecret: armedSecret },
           // Record the step so the enabling code can't be replayed at login.
-          data: { twoFactorEnabledAt: new Date(), twoFactorLastStep: step },
+          data: { twoFactorEnabledAt: new Date(), twoFactorLastStep: step, sessionEpoch: { increment: 1 } },
         });
-        if (r.count === 0) return 0;
+        if (r.count === 0) return null;
         // Defense-in-depth: a FRESH activation starts with ZERO recovery codes.
         // If a past disable's clear step ever failed midway, stale codes must
         // not resurrect as valid second factors under the new secret.
         await tx.twoFactorRecoveryCode.deleteMany({ where: { userId: session.userId } });
-        return r.count;
+        const row = await tx.user.findUniqueOrThrow({
+          where: { id: session.userId },
+          select: { sessionEpoch: true },
+        });
+        return row.sessionEpoch;
       });
-      if (armedCount === 0) {
+      if (newEpoch === null) {
         return badRequest({ _: "Kurulum durumu değişti. Sayfayı yenileyip kurulumu yeniden başlatın." });
+      }
+      // BU cihaz girişli kalır: çerez YENİ epoch ile yeniden imzalanır (bir sonraki
+      // adım — kurtarma kodu üretimi — aynı oturumla yapılır). `mfa` iddiası
+      // YÜKSELTİLMEZ: operatör yetkisi faktörle yapılan yeni girişten gelir.
+      await setSessionCookie({ ...session, sessionEpoch: newEpoch });
+      // Tanınan-cihaz çerezi de epoch'a bağlı → bu tarayıcı kova kapısında tanınmaya
+      // devam etsin. Asla ölümcül değil (giriş rotasındaki kararın aynısı).
+      try {
+        await setKnownDeviceCookie(session.userId, newEpoch);
+      } catch {
+        // yok say — 2FA açıldı, oturum yenilendi
       }
       await writeAudit({
         organizationId: session.organizationId,

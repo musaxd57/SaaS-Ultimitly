@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
-import { hashPassword, verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
+import { hashPassword, verifyPasswordForLogin, dummyVerifyPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { encryptSecret } from "@/lib/crypto";
 import { generateSecret, totp } from "@/lib/auth/totp";
@@ -23,13 +23,14 @@ vi.mock("@/lib/auth/password", async (orig) => {
   const actual = await orig<typeof import("@/lib/auth/password")>();
   return {
     ...actual,
-    verifyPassword: vi.fn(actual.verifyPassword),
+    // Giriş rotası artık doğrulama + yükseltme sinyalini tek çağrıda alır (09-23, ④).
+    verifyPasswordForLogin: vi.fn(actual.verifyPasswordForLogin),
     dummyVerifyPassword: vi.fn(actual.dummyVerifyPassword),
   };
 });
 
 import { setSessionCookie, setKnownDeviceCookie } from "@/lib/auth";
-import { verifyPassword as mockedVerify, dummyVerifyPassword as mockedDummy } from "@/lib/auth/password";
+import { verifyPasswordForLogin as mockedVerify, dummyVerifyPassword as mockedDummy } from "@/lib/auth/password";
 import { KNOWN_DEVICE_COOKIE, signKnownDeviceToken } from "@/lib/auth/known-device";
 import { POST } from "@/app/api/auth/login/route";
 
@@ -96,13 +97,13 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(401);
     // The dummy compare ran (equal work to a real verify); the real verify did NOT.
     expect(vi.mocked(dummyVerifyPassword)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(verifyPassword)).not.toHaveBeenCalled();
+    expect(vi.mocked(verifyPasswordForLogin)).not.toHaveBeenCalled();
   });
 
   it("known email runs the REAL verify, never the dummy", async () => {
     const res = await POST(loginReq({ email: "musa@example.com", password: "nope" }, "7.0.0.2"));
     expect(res.status).toBe(401);
-    expect(vi.mocked(verifyPassword)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(verifyPasswordForLogin)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(dummyVerifyPassword)).not.toHaveBeenCalled();
   });
 

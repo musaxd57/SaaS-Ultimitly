@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { installTurkishZodErrors } from "@/lib/zod-tr";
+import { PASSWORD_TOO_LONG_MESSAGE, passwordExceedsByteLimit } from "@/lib/auth/password-policy";
 
 // ⚠️ MODÜL SEVİYESİNDE, BİLİNÇLİ BİR YAN ETKİ (08-06). Zod'un VARSAYILAN hata
 // metinleri İngilizce ve doğrudan müşterinin ekranına çıkıyordu ("String must
@@ -64,7 +65,14 @@ export const registerSchema = z.object({
   organizationName: z.string().min(2, "İşletme adı en az 2 karakter olmalı").max(200),
   name: z.string().min(2, "Ad en az 2 karakter olmalı").max(200),
   email: z.string().email("Geçerli bir e-posta girin").max(254),
-  password: z.string().min(8, "Şifre en az 8 karakter olmalı").max(200),
+  // ③ 72 BAYT (09-23): bcrypt fazlasını sessizce yok sayar → yeni parola sınırı aşamaz.
+  // Ölçü ve metin TEK kaynaktan (`auth/password.ts`); değiştirme/sıfırlama yolları aynısını
+  // kullanır. `max(200)` kaba bir gövde kemeri olarak kalır.
+  password: z
+    .string()
+    .min(8, "Şifre en az 8 karakter olmalı")
+    .max(200)
+    .refine((pw) => !passwordExceedsByteLimit(pw), PASSWORD_TOO_LONG_MESSAGE),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 

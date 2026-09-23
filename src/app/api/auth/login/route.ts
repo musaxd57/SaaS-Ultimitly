@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { loginSchema, zodFieldErrors } from "@/lib/validators";
-import { verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
+import { verifyPasswordForLogin, dummyVerifyPassword } from "@/lib/auth/password";
+import { upgradeStoredPasswordHash } from "@/lib/auth/password-upgrade";
 import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie, setKnownDeviceCookie } from "@/lib/auth";
 import {
   badRequest,
@@ -101,8 +102,11 @@ export async function POST(req: NextRequest) {
     // instead — otherwise the fast "no user" path leaks (by response latency)
     // which emails are registered (user enumeration).
     let ok = false;
+    // ④ Saklanan hash eski maliyette / eski (NFC olmayan) biçimdeyse doğru parolada
+    // `needsRehash` gelir; yazma yalnız TAM başarılı girişten sonra (↓).
+    let needsRehash = false;
     if (user) {
-      ok = await verifyPassword(parsed.data.password, user.passwordHash);
+      ({ ok, needsRehash } = await verifyPasswordForLogin(parsed.data.password, user.passwordHash));
     } else {
       await dummyVerifyPassword(parsed.data.password);
     }
@@ -318,6 +322,11 @@ export async function POST(req: NextRequest) {
     } catch {
       // yok say — giriş zaten başarılı
     }
+
+    // ④ Eski hash'i maliyet-12 + NFC biçimine taşı. Yalnız burada: parola VE (varsa)
+    // ikinci faktör geçti, oturum basıldı. Epoch'a dokunmaz, CAS'lı, kuyruğa girmez,
+    // fırlatmaz (`password-upgrade.ts`) — girişin sonucunu hiçbir koşulda değiştirmez.
+    if (needsRehash) await upgradeStoredPasswordHash(user.id, user.passwordHash, parsed.data.password);
 
     // Security breadcrumb: a successful sign-in (who + when). Non-fatal.
     await writeAudit({

@@ -15,6 +15,17 @@ vi.mock("@/lib/api", async (orig) => {
   const actual = await orig<typeof import("@/lib/api")>();
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
+// `enable` artık oturum çerezini yeni epoch ile yeniden imzalıyor (09-23, ②) — gerçek
+// çerez deposu istek kapsamı dışında kullanılamaz. Davranışın kendisi
+// `two-factor-enable-revokes-sessions.test.ts`te pinli.
+vi.mock("@/lib/auth", async (orig) => {
+  const actual = await orig<typeof import("@/lib/auth")>();
+  return {
+    ...actual,
+    setSessionCookie: vi.fn().mockResolvedValue(undefined),
+    setKnownDeviceCookie: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import { POST } from "@/app/api/account/2fa/route";
 
