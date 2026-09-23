@@ -78,6 +78,14 @@ describe("çekim biçimleri (yazı sistemine göre kural)", () => {
     ["heißes Wasser", "hot_water"], // ß → ss
     ["ПАРОЛЬ", "credentials"], // büyük harf
     ["Wann kommt die Müllabfuhr?", "trash"], // `*` önek: Almanca bileşik isim
+    // Mutasyon turu (09-24) — dördü de hayatta kalan bir mutantı yakalar:
+    ["Sind Hunde erlaubt?", "pets"], // Latin kapalı ek kümesi: hund + e
+    ["Les chiens sont acceptés ?", "pets"], // chien + s
+    ["أين المنشفه؟", "towels"], // misafir te-merbutayı "ه" yazar; girdi "ة" — iki yön birleşmeli
+    ["Gibt es heisses Wasser?", "hot_water"], // İsviçre/ASCII yazımı: ß yerine ss
+    ["Wo ist die Strassenbahn?", "transit"],
+    ["هل يمكنني إحضار كلبي؟", "pets"], // Arapça iyelik eki: önek eşleşmesi (tam eşitlik YETMEZ)
+    ["أين مناشفكم؟", "towels"],
     ["Wie hoch ist die Parkplatzgebühr?", "parking"],
   ])("%s → %s", (text, concept) => {
     expect(ids(text)).toContain(concept);
