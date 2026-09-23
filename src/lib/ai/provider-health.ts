@@ -37,6 +37,18 @@ export const MODEL_PROVIDER_ALERT_KEY = "model-provider:reply";
 export const MODEL_PROVIDER_ALERT_CONTEXT = "openai-reply kalıcı arıza";
 
 /**
+ * Kanal: sohbet cevabı (`reply`) ya da anlamsal arama gömmesi (`embedding`, 09-23). 🚨 AYRI ANAHTAR
+ * (alert-state kuralı: bir aşamanın başarısı ötekinin alarmını silmez) — örn. yapılandırılan SOHBET
+ * modeli yokken (`model`) gömme çağrısının başarısı o alarmı kapatmamalı.
+ */
+export type ModelProviderChannel = "reply" | "embedding";
+
+const ALERT: Record<ModelProviderChannel, { key: string; context: string }> = {
+  reply: { key: MODEL_PROVIDER_ALERT_KEY, context: MODEL_PROVIDER_ALERT_CONTEXT },
+  embedding: { key: "model-provider:embedding", context: "openai-embedding kalıcı arıza" },
+};
+
+/**
  * HTTP durum + gövde → kalıcı arıza sınıfı (yoksa null = geçici).
  * Saf; gövde metni yalnız SINIFLANDIRMA için okunur, sınıfın kendisine girmez.
  */
@@ -54,8 +66,8 @@ export function classifyModelProviderFailure(status: number, body: string): Mode
 export class ModelProviderPersistentError extends Error {
   readonly code: ModelProviderPersistentFailure;
   readonly status: number;
-  constructor(code: ModelProviderPersistentFailure, status: number, detail: string) {
-    super(`${HUMAN_CAUSE[code]} (HTTP ${status}): ${detail.slice(0, 400)}`);
+  constructor(code: ModelProviderPersistentFailure, status: number, detail: string, channel: ModelProviderChannel = "reply") {
+    super(`${(channel === "embedding" ? EMBEDDING_CAUSE : HUMAN_CAUSE)[code]} (HTTP ${status}): ${detail.slice(0, 400)}`);
     this.name = "ModelProviderPersistentError";
     this.code = code;
     this.status = status;
@@ -68,37 +80,45 @@ const HUMAN_CAUSE: Record<ModelProviderPersistentFailure, string> = {
   model: "Yapılandırılan OpenAI modeli bulunamadı — AI yanıtı üretilemiyor, oto-yanıt durdu",
 };
 
+const EMBEDDING_CAUSE: Record<ModelProviderPersistentFailure, string> = {
+  quota: "OpenAI kredisi/kotası bitti — anlamsal bilgi araması çalışmıyor (sözcüksel arama sürüyor)",
+  auth: "OpenAI anahtarı gömme çağrısında reddedildi — anlamsal bilgi araması çalışmıyor (sözcüksel arama sürüyor)",
+  model: "Yapılandırılan gömme modeli bulunamadı — anlamsal bilgi araması çalışmıyor (sözcüksel arama sürüyor)",
+};
+
 /**
  * Bu süreçte bir alarm durumunun AÇIK OLABİLECEĞİ bilgisi. Süreç başında
  * bilinmez (başka bir süreç ya da önceki çalıştırma açmış olabilir) → `true`;
  * ilk başarı TEK silmeyle kapatır ve bayrağı indirir.
  */
-let alertMayBeActive = true;
+const alertMayBeActive: Record<ModelProviderChannel, boolean> = { reply: true, embedding: true };
 
 /** Kalıcı arızayı bildir: alarm YALNIZ durum geçişinde. Asla fırlatmaz. */
 export async function noteModelProviderPersistentFailure(
   code: ModelProviderPersistentFailure,
   status: number,
   body: string,
+  channel: ModelProviderChannel = "reply",
 ): Promise<void> {
-  alertMayBeActive = true;
-  const err = new ModelProviderPersistentError(code, status, body);
+  alertMayBeActive[channel] = true;
+  const err = new ModelProviderPersistentError(code, status, body, channel);
   try {
-    await alertOnTransition(MODEL_PROVIDER_ALERT_KEY, MODEL_PROVIDER_ALERT_CONTEXT, err);
+    await alertOnTransition(ALERT[channel].key, ALERT[channel].context, err);
   } catch {
     // Alarm yolunun kendisi düştü: SUSMA — eski (kısıtlı) yola düş.
-    await reportError(MODEL_PROVIDER_ALERT_CONTEXT, err).catch(() => {});
+    await reportError(ALERT[channel].context, err).catch(() => {});
   }
 }
 
 /** Başarılı model çağrısı: açık olabilecek alarm durumunu kapat (sağlıklı yolda sorgu yok). */
-export function noteModelProviderSuccess(): void {
-  if (!alertMayBeActive) return;
-  alertMayBeActive = false;
-  void clearAlertState(MODEL_PROVIDER_ALERT_KEY).catch(() => {});
+export function noteModelProviderSuccess(channel: ModelProviderChannel = "reply"): void {
+  if (!alertMayBeActive[channel]) return;
+  alertMayBeActive[channel] = false;
+  void clearAlertState(ALERT[channel].key).catch(() => {});
 }
 
 /** TEST KANCASI: süreç bayrağını sıfırla (her test kendi başlangıç durumunu kurar). */
 export function __resetModelProviderHealthForTests(mayBeActive = true): void {
-  alertMayBeActive = mayBeActive;
+  alertMayBeActive.reply = mayBeActive;
+  alertMayBeActive.embedding = mayBeActive;
 }

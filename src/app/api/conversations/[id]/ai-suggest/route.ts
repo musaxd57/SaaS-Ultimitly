@@ -8,7 +8,7 @@ import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
-import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 
@@ -86,7 +86,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
 
   // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — oto-yanıt ve QR ile aynı seçici,
   // bayrak kapalıyken kimlik (`kbSel.items === kb`, `droppedItems === 0`).
-  const kbSel = selectKbForPrompt({
+  const kbSel = await retrieveKbForPrompt({
     items: kb,
     guestMessage: lastInbound.body,
     history: conversation.messages.map((m) => ({

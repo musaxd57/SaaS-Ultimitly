@@ -83,3 +83,20 @@ export function kbRetrievalModeInfo(): { mode: KbRetrievalMode; raw: string; rec
     recognized: raw === "" || OFF_SPELLINGS.has(raw) || ON_SPELLINGS.has(raw),
   };
 }
+
+/**
+ * ANLAMSAL (EMBEDDING) ADAY KAYNAĞI ANAHTARI — `KB_SEMANTIC_RETRIEVAL` (09-23).
+ *
+ * `KB_RETRIEVAL_MODE`un TERSİ yönde: VARSAYILAN KAPALI, yalnız açık bir "aç" yazımı açar. Sebep
+ * maliyet/sağlayıcı değil (veri zaten aynı sağlayıcıya gidiyor) ÖLÇÜM: eşik ve birleşim E4 ile
+ * kalibre edilmeden açılırsa sözcüksel seçimi BOZABİLİR. Tanınmayan değer KAPALI kalır ve boot'ta
+ * gürültülü yazılır. `KB_RETRIEVAL_MODE=legacy` (acil durdurma) bunu da kapatır — seçici legacy'de
+ * hiç sıralama yapmaz, anlamsal hazırlık da ağa çıkmaz.
+ */
+const SEMANTIC_ON = new Set(["1", "on", "true", "yes", "enabled"]);
+const SEMANTIC_OFF = new Set(["0", "off", "false", "no", "disabled"]);
+
+export function semanticRetrievalInfo(): { enabled: boolean; raw: string; recognized: boolean } {
+  const raw = (process.env.KB_SEMANTIC_RETRIEVAL ?? "").trim().toLowerCase();
+  return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
+}

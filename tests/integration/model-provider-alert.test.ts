@@ -107,3 +107,75 @@ describe("model sağlayıcısı kalıcı arızası — gerçek alert-state", () 
     expect((await stateRow())?.holder).toBe("ModelProviderPersistentError:auth:401");
   });
 });
+
+// ---------------------------------------------------------------------------
+// GÖMME (EMBEDDING) KANALI — 09-23. Anlamsal arama anahtarı açıkken HER misafir mesajı bir gömme
+// çağrısıdır; kalıcı arıza AYNI geçiş kuralına tabi, ama AYRI durum anahtarıyla (bir kanalın
+// başarısı ötekinin alarmını silmez).
+// ---------------------------------------------------------------------------
+
+import { embedTexts, clearEmbeddingCache, EMBEDDING_DIMENSIONS } from "@/lib/ai/embeddings/provider";
+
+const EMBED_OK = () =>
+  new Response(
+    JSON.stringify({ data: [{ index: 0, embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (i === 0 ? 1 : 0)) }] }),
+    { status: 200 },
+  );
+
+async function embeddingRow() {
+  return prisma.systemLock.findUnique({ where: { name: "alert-state:model-provider:embedding" } });
+}
+
+describe("gömme kanalı kalıcı arızası — gerçek alert-state", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    clearEmbeddingCache();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    __resetModelProviderHealthForTests(false);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("🚨 30 gömme çağrısı boyunca kredi bitik: TEK alarm, kendi konusuyla; hata gövdesi alarma GİRMEZ", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
+    for (let i = 0; i < 30; i++) expect(await embedTexts([`soru ${i}`])).toBeNull();
+    expect(mockReport).toHaveBeenCalledTimes(1);
+    expect(mockReport.mock.calls[0][0]).toBe("openai-embedding kalıcı arıza");
+    expect(String((mockReport.mock.calls[0][1] as Error).message)).not.toContain("credit_balance_exhausted");
+    expect((await embeddingRow())?.holder).toBe("ModelProviderPersistentError:quota:429");
+    expect(await stateRow()).toBeNull(); // sohbet kanalının durumu AYRI
+  });
+
+  it("kanallar birbirinin alarmını SİLMEZ: gömme başarısı sohbet alarmını, sohbet başarısı gömme alarmını kapatmaz", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
+    await suggestReply(input);
+    await embedTexts(["a"]);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(await stateRow()).not.toBeNull();
+    expect(await embeddingRow()).not.toBeNull();
+
+    vi.stubGlobal("fetch", vi.fn(async () => EMBED_OK()));
+    expect(await embedTexts(["b"])).not.toBeNull();
+    for (let i = 0; i < 50 && (await embeddingRow()); i++) await new Promise((r) => setTimeout(r, 20));
+    expect(await embeddingRow()).toBeNull();
+    expect(await stateRow()).not.toBeNull(); // sohbet alarmı açık kalır
+
+    vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
+    await embedTexts(["c"]);
+    vi.stubGlobal("fetch", vi.fn(async () => OK()));
+    expect((await suggestReply(input)).source).toBe("openai");
+    await waitForRowGone();
+    expect(await stateRow()).toBeNull();
+    expect(await embeddingRow()).not.toBeNull(); // gömme alarmı açık kalır
+  });
+
+  it("geçici hata (503) eski yolda kalır: durum satırı YAZILMAZ", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 503 })));
+    expect(await embedTexts(["x"])).toBeNull();
+    expect(await embeddingRow()).toBeNull();
+    expect(mockReport.mock.calls.map((c) => c[0])).toContain("openai-embeddings 503");
+  });
+});

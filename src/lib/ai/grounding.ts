@@ -218,6 +218,12 @@ export interface KbEvidenceInput {
     confDropped?: number;
     /** Cevapsız önceki misafir mesajlarından eklenen alt sorgu sayısı. */
     pq?: number;
+    /** Etkin birleşim ("sum" | "rrf"). */
+    fus?: string;
+    /** Anlamsal kaynağın durumu (yalnız anahtar açıkken). */
+    sem?: string;
+    /** Anlamsal hazırlık süresi (ms). */
+    semMs?: number;
   } | null;
   /** İddia desteği gölge ölçümü (yalnız sayılar + kapalı-küme sınıflar; `claim-support.ts`). */
   claims?: ClaimAudit;
@@ -254,6 +260,9 @@ function cleanUsage(u: LlmUsage | undefined): LlmUsage | undefined {
  * İki taraf da boşsa `null` döner: boş bir JSON yazmak "ölçtük, boştu" ile
  * "ölçmedik"i karıştırırdı — A2'nin NULL sözleşmesiyle aynı gerekçe.
  */
+/** Anlamsal kaynak durumları — kapalı küme (`embeddings/semantic-retrieval.ts`). */
+const SEM_STATUSES = new Set(["ok", "cold", "unavailable", "not_needed"]);
+
 export function buildKbEvidence(input: KbEvidenceInput): string | null {
   const retrieved = input.retrieved
     .filter((r) => typeof r?.id === "string" && r.id.length > 0 && r.updatedAt instanceof Date)
@@ -284,6 +293,13 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
           ...(Number.isInteger(input.retrieval.conf) ? { conf: input.retrieval.conf } : {}),
           ...(Number.isInteger(input.retrieval.confDropped) ? { confDropped: input.retrieval.confDropped } : {}),
           ...(Number.isInteger(input.retrieval.pq) ? { pq: input.retrieval.pq } : {}),
+          // 🚨 `fus` 09-11'den beri "kanıttan denetlenebilir" diye belgelenmişti ama BURADA
+          // düşüyordu (09-23 ölçüldü): kapalı küme, taşınır.
+          ...(input.retrieval.fus === "sum" || input.retrieval.fus === "rrf" ? { fus: input.retrieval.fus } : {}),
+          ...(SEM_STATUSES.has(String(input.retrieval.sem)) ? { sem: String(input.retrieval.sem) } : {}),
+          ...(typeof input.retrieval.semMs === "number" && Number.isFinite(input.retrieval.semMs) && input.retrieval.semMs >= 0
+            ? { semMs: Math.round(input.retrieval.semMs * 10) / 10 }
+            : {}),
         }
       : undefined;
   const claims = cleanClaims(input.claims);

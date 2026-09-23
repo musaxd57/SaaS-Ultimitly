@@ -2,10 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
-import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { selectKbForPrompt, retrievalQueries } from "@/lib/ai/retrieval/select";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { chunkItems, chunkKey, type KbChunk } from "@/lib/ai/retrieval/chunker";
-import { SEMANTIC_QUALIFY_MIN } from "@/lib/ai/retrieval/semantic";
+import { SEMANTIC_QUALIFY_MIN, thresholdTransform } from "@/lib/ai/retrieval/semantic";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { cosineOfUnit, embeddingModel, embedTexts, EMBEDDING_BATCH_MAX } from "@/lib/ai/embeddings/provider";
@@ -33,7 +33,7 @@ export const E4_SIZES = [30, 100, 300] as const;
 export const E4_THRESHOLDS = [0.3, 0.35, 0.4, 0.45, 0.5] as const;
 const NOW = Date.UTC(2026, 8, 23, 12);
 
-export type E4Group = "scale" | "para" | "neg";
+export type E4Group = "scale" | "para" | "neg" | "multi";
 export interface E4Query {
   id: string;
   group: E4Group;
@@ -41,7 +41,12 @@ export interface E4Query {
   text: string;
   goldIds: string[];
   needles: string[];
+  /** Çok sorulu mesaj: HER grubun en az bir iğnesi blokta olmalı (iki cevap birden). */
+  needleGroups?: string[][];
 }
+
+/** İki sorulu mesaj sayısı (parafraz + farklı konulu ölçek sorusu, " Ayrıca " ile). */
+export const E4_MULTI_N = 40;
 
 export function e4Queries(kb: SyntheticKb): E4Query[] {
   const out: E4Query[] = kb.questions.map((q) => ({ id: q.id, group: "scale", cls: q.kind, text: q.text, goldIds: q.goldIds, needles: q.needles }));
@@ -52,6 +57,25 @@ export function e4Queries(kb: SyntheticKb): E4Query[] {
     if (ref) out.push({ id: p.id, group: "para", cls: `para_${p.lang}`, text: p.text, goldIds: ref.goldIds, needles: ref.needles });
   }
   for (const n of NEGATIVES) out.push({ id: n.id, group: "neg", cls: `neg_${n.lang}`, text: n.text, goldIds: [], needles: [] });
+  // ÇOK SORULU (09-23, alt sorgu başına anlamsal puanın ölçüsü): Türkçe parafraz + FARKLI konulu
+  // doğrudan soru. Tek bir mesaj vektörü iki konunun karışımıdır; ölçülen şey İKİ cevabın da blokta
+  // olması.
+  const paraTr = out.filter((q) => q.group === "para" && q.cls === "para_tr");
+  const direct = kb.questions.filter((q) => q.kind === "tr");
+  for (let i = 0; i < Math.min(E4_MULTI_N, paraTr.length); i++) {
+    const a = paraTr[i];
+    const b = direct.find((q, j) => j >= i % direct.length && !q.goldIds.some((g) => a.goldIds.includes(g)));
+    if (!b) continue;
+    out.push({
+      id: `multi_${i}`,
+      group: "multi",
+      cls: "multi_tr",
+      text: `${a.text} Ayrıca ${b.text}`,
+      goldIds: [...a.goldIds, ...b.goldIds],
+      needles: [...a.needles, ...b.needles],
+      needleGroups: [a.needles, b.needles],
+    });
+  }
   return out;
 }
 
@@ -68,8 +92,23 @@ export interface E4Row {
   noise: number;
 }
 
-export function runE4(size: number, pool: SyntheticKb["items"], q: E4Query, config: string, semantic?: ReadonlyMap<string, number>): E4Row {
-  const r = selectKbForPrompt({ items: pool, guestMessage: q.text, mode: "hybrid", now: NOW, ...(semantic ? { semantic } : {}) });
+export function runE4(
+  size: number,
+  pool: SyntheticKb["items"],
+  q: E4Query,
+  config: string,
+  semantic?: ReadonlyMap<string, number> | { bySubquery: ReadonlyMap<string, ReadonlyMap<string, number>>; fusion?: "rrf" | "sum" },
+): E4Row {
+  const semInput =
+    semantic === undefined
+      ? {}
+      : semantic instanceof Map
+        ? { semantic }
+        : {
+            semanticBySubquery: (semantic as { bySubquery: ReadonlyMap<string, ReadonlyMap<string, number>> }).bySubquery,
+            sources: { semanticFusion: (semantic as { fusion?: "rrf" | "sum" }).fusion ?? "rrf" },
+          };
+  const r = selectKbForPrompt({ items: pool, guestMessage: q.text, mode: "hybrid", now: NOW, ...semInput });
   const ids: string[] = [];
   for (const it of r.items) if (!ids.includes(it.id)) ids.push(it.id);
   const text = packKnowledgeBase(r.items, r.droppedItems, r.selection, r.notes).text;
@@ -80,7 +119,7 @@ export function runE4(size: number, pool: SyntheticKb["items"], q: E4Query, conf
     qid: q.id,
     group: q.group,
     cls: q.cls,
-    inPrompt: q.needles.some((n) => text.includes(n)),
+    inPrompt: q.needleGroups ? q.needleGroups.every((g) => g.some((n) => text.includes(n))) : q.needles.some((n) => text.includes(n)),
     hit1: r.selection === "retrieved" && !!ids[0] && gold.has(ids[0]),
     fb: r.evidence?.fb ?? "none",
     chars: text.length,
@@ -88,12 +127,34 @@ export function runE4(size: number, pool: SyntheticKb["items"], q: E4Query, conf
   };
 }
 
-/** Kesin artan dönüşüm: s' ≥ SEMANTIC_QUALIFY_MIN ⇔ s ≥ t (t = eşik ise birim). */
-export function thresholdTransform(s: number, t: number): number {
-  const m = SEMANTIC_QUALIFY_MIN;
-  if (Math.abs(t - m) < 1e-12) return s;
-  if (s <= 0) return 0;
-  return s < t ? (m * s) / t : m + ((1 - m) * (s - t)) / (1 - t);
+// Eşik dönüşümü ÜRETİMDEN (`retrieval/semantic.ts` `thresholdTransform`) — ölçülen şey koşacak olanla aynı.
+
+/**
+ * ÜRETİMİN alt sorgu başına haritası (`embeddings/semantic-retrieval.ts` ile aynı kural): her alt
+ * sorgunun gömme metinlerinden EN YÜKSEK kosinüs, üretim eşik dönüşümüyle.
+ */
+export function semanticBySubquery(
+  guestMessage: string,
+  chunks: readonly KbChunk[],
+  cosOf: (text: string, c: KbChunk) => number | null,
+  t: number,
+): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>();
+  for (const q of retrievalQueries(guestMessage).queries) {
+    const m = new Map<string, number>();
+    for (const c of chunks) {
+      let best: number | null = null;
+      for (const text of q.embedTexts) {
+        const cos = cosOf(text, c);
+        if (cos !== null && (best === null || cos > best)) best = cos;
+      }
+      if (best === null) continue;
+      const v = thresholdTransform(best, t);
+      if (v > 0) m.set(chunkKey(c), v);
+    }
+    out.set(q.subquery, m);
+  }
+  return out;
 }
 
 export function semanticMap(chunks: readonly KbChunk[], cosOf: (c: KbChunk) => number | null, t: number): Map<string, number> {
@@ -134,26 +195,36 @@ export function aggregateE4(rows: readonly E4Row[]): Map<string, E4Agg> {
 
 const pct = (x: number, n: number) => (n ? `${Math.round((100 * x) / n)}%` : "—");
 
+/** Ölçülen yapılandırmalar: sözcüksel · her eşikte RRF (üretim varsayılanı) · her eşikte CombSUM. */
+export const E4_CONFIGS = ["lex", ...E4_THRESHOLDS.map((t) => `sem@${t}`), ...E4_THRESHOLDS.map((t) => `sum@${t}`)];
+
 export function buildE4Report(rows: readonly E4Row[], meta: Record<string, unknown>): string {
   const agg = aggregateE4(rows);
-  const configs = ["lex", ...E4_THRESHOLDS.map((t) => `sem@${t}`)];
+  const configs = E4_CONFIGS;
   const lines = [
     `# E4 — anlamsal aday kaynağı ölçümü (${String(meta.stamp)})`,
     "",
     `Model: \`${String(meta.model)}\` · commit \`${String(meta.commit)}\` · gömülen metin ${String(meta.texts)} · veri SENTETİK.`,
     "Ölçü: inPrompt = cevap cümlesi istem bloğunda · hit@1 = seçilen ilk kalem altın · fb = geri çekilme sayısı · blok = ortalama karakter.",
-    "Karar ölçütü (E5): parafraz inPrompt belirgin artmalı · ölçek %99'un altına inmemeli · negatifte blok şişmemeli.",
+    "Karar ölçütü (E5): parafraz inPrompt belirgin artmalı · ölçek %99'un altına inmemeli · negatifte blok şişmemeli · çok sorulu mesajda İKİ cevap birden.",
+    "Yapılandırma: `sem@t` = üretim varsayılanı (alt sorgu başına puan, RRF) · `sum@t` = aynı puan, CombSUM birleşimi · t = ham kosinüs eşiği.",
     "",
   ];
   for (const size of E4_SIZES) {
-    lines.push(`## ${size} (sentetik n)`, "", "| config | ölçek inPrompt | ölçek hit@1 | parafraz inPrompt | parafraz hit@1 | parafraz fb | negatif fb | negatif blok |", "|---|---|---|---|---|---|---|---|");
+    lines.push(
+      `## ${size} (sentetik n)`,
+      "",
+      "| config | ölçek inPrompt | ölçek hit@1 | parafraz inPrompt | parafraz hit@1 | parafraz fb | iki soru (ikisi de) | negatif fb | negatif blok |",
+      "|---|---|---|---|---|---|---|---|---|",
+    );
     for (const c of configs) {
       const s = agg.get(`${size}|${c}|scale`);
       const p = agg.get(`${size}|${c}|para`);
       const ng = agg.get(`${size}|${c}|neg`);
-      if (!s || !p || !ng) continue;
+      const mu = agg.get(`${size}|${c}|multi`);
+      if (!s || !p || !ng || !mu) continue;
       lines.push(
-        `| ${c} | ${pct(s.inPrompt, s.n)} | ${pct(s.hit1, s.n)} | ${pct(p.inPrompt, p.n)} | ${pct(p.hit1, p.n)} | ${p.fb}/${p.n} | ${ng.fb}/${ng.n} | ${Math.round(ng.chars / ng.n)} |`,
+        `| ${c} | ${pct(s.inPrompt, s.n)} | ${pct(s.hit1, s.n)} | ${pct(p.inPrompt, p.n)} | ${pct(p.hit1, p.n)} | ${p.fb}/${p.n} | ${pct(mu.inPrompt, mu.n)} | ${ng.fb}/${ng.n} | ${Math.round(ng.chars / ng.n)} |`,
       );
     }
     lines.push("");
@@ -195,6 +266,22 @@ describe("E4 — çevrimdışı pinler (ölçüm düzeneğinin kendisi)", () => 
     expect(rate(oracle) - rate(lex)).toBeGreaterThan(0.4);
   });
 
+  it("🚨 ALT SORGU BAŞINA kâhin: iki sorulu mesajda İKİ cevap da bloğa girer (üretim haritası seçiciye ulaşıyor)", () => {
+    const kb = makeSyntheticKb(100);
+    const pool = [...kb.items].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const chunks = chunkItems(pool);
+    const multi = e4Queries(kb).filter((q) => q.group === "multi");
+    expect(multi.length).toBeGreaterThanOrEqual(30);
+    const rate = (rs: E4Row[]) => rs.filter((r) => r.inPrompt).length / rs.length;
+    const oracle = multi.map((q) => {
+      const gold = new Set(q.goldIds);
+      return runE4(100, pool, q, "oracle", { bySubquery: semanticBySubquery(q.text, chunks, (_t, c) => (gold.has(c.id) ? 0.9 : 0.1), 0.3) });
+    });
+    const lex = multi.map((q) => runE4(100, pool, q, "lex"));
+    expect(rate(oracle)).toBeGreaterThan(rate(lex));
+    expect(rate(oracle)).toBeGreaterThanOrEqual(0.9);
+  });
+
   it("eşik dönüşümü kesin artan ve eşdeğer: s ≥ t ⇔ s' ≥ SEMANTIC_QUALIFY_MIN", () => {
     for (const t of E4_THRESHOLDS) {
       let prev = -1;
@@ -210,11 +297,11 @@ describe("E4 — çevrimdışı pinler (ölçüm düzeneğinin kendisi)", () => 
 
   it("rapor her boyut ve yapılandırma için satır üretir (eksik veri sessizce yeşil görünmez)", () => {
     const rows: E4Row[] = [];
-    for (const size of E4_SIZES) for (const config of ["lex", ...E4_THRESHOLDS.map((t) => `sem@${t}`)]) for (const group of ["scale", "para", "neg"] as const) {
+    for (const size of E4_SIZES) for (const config of E4_CONFIGS) for (const group of ["scale", "para", "neg", "multi"] as const) {
       rows.push({ size, config, qid: "x", group, cls: group, inPrompt: true, hit1: true, fb: "none", chars: 10, noise: 0 });
     }
     const md = buildE4Report(rows, { stamp: "t", model: "m", commit: "c", texts: 0 });
-    expect(md.match(/^\| (lex|sem@)/gm)?.length).toBe(E4_SIZES.length * (1 + E4_THRESHOLDS.length));
+    expect(md.match(/^\| (lex|sem@|sum@)/gm)?.length).toBe(E4_SIZES.length * E4_CONFIGS.length);
   });
 });
 
@@ -255,7 +342,8 @@ describe.skipIf(!enabled)("E4 — GERÇEK embedding ölçümü (ücretli, < 0,1 
     const unique = new Set<string>();
     for (const s of perSize) {
       for (const c of s.chunks) unique.add(embeddingTextFor(c));
-      for (const q of s.queries) unique.add(q.text);
+      // Üretimin gömdüğü sorgu metinleri (alt sorgu başına ham cümle + gerekirse alt sorgu).
+      for (const q of s.queries) for (const rq of retrievalQueries(q.text).queries) for (const t of rq.embedTexts) unique.add(t);
     }
     const all = [...unique];
     texts = all.length;
@@ -275,14 +363,15 @@ describe.skipIf(!enabled)("E4 — GERÇEK embedding ölçümü (ücretli, < 0,1 
       const chunkVec = new Map(s.chunks.map((c) => [chunkKey(c), vec.get(embeddingTextFor(c))!]));
       for (const q of s.queries) {
         collected.push(runE4(s.size, s.pool, q, "lex"));
-        const qv = vec.get(q.text)!;
+        const cos = (text: string, c: KbChunk) => cosineOfUnit(vec.get(text)!, chunkVec.get(chunkKey(c))!);
         for (const t of E4_THRESHOLDS) {
-          const sem = semanticMap(s.chunks, (c) => cosineOfUnit(qv, chunkVec.get(chunkKey(c))!), t);
-          collected.push(runE4(s.size, s.pool, q, `sem@${t}`, sem));
+          const bySubquery = semanticBySubquery(q.text, s.chunks, cos, t);
+          collected.push(runE4(s.size, s.pool, q, `sem@${t}`, { bySubquery, fusion: "rrf" }));
+          collected.push(runE4(s.size, s.pool, q, `sum@${t}`, { bySubquery, fusion: "sum" }));
         }
       }
     }
     rows.push(...collected);
-    expect(rows.length).toBe(perSize.reduce((n, s) => n + s.queries.length, 0) * (1 + E4_THRESHOLDS.length));
+    expect(rows.length).toBe(perSize.reduce((n, s) => n + s.queries.length, 0) * E4_CONFIGS.length);
   }, 300_000);
 });

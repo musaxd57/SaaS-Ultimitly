@@ -37,7 +37,12 @@
 
 import { createHash } from "node:crypto";
 import { reportError } from "@/lib/report-error";
-import { classifyModelProviderFailure } from "@/lib/ai/provider-health";
+import {
+  classifyModelProviderFailure,
+  noteModelProviderPersistentFailure,
+  noteModelProviderSuccess,
+  type ModelProviderPersistentFailure,
+} from "@/lib/ai/provider-health";
 
 /**
  * Model. `text-embedding-3-small`: 1536 boyut, ölçülen maliyet kurucu org'un
@@ -198,16 +203,28 @@ export function retryPlan(opts: {
   status: number | null;
   elapsedMs: number;
   retryAfterSec?: number | null;
+  /** Toplam bütçe (varsayılan `EMBEDDING_TOTAL_DEADLINE_MS`; sıcak yol daha kısa verir). */
+  deadlineMs?: number;
 }): { retry: boolean; waitMs: number } {
   const { attempt, status, elapsedMs, retryAfterSec } = opts;
+  const deadline = effectiveDeadline(opts.deadlineMs);
   if (attempt >= MAX_ATTEMPTS) return { retry: false, waitMs: 0 };
   if (status !== null && !isRetryableStatus(status)) return { retry: false, waitMs: 0 };
   const ra = Number(retryAfterSec);
   const waitMs = Number.isFinite(ra) && ra > 0 ? ra * 1000 : BACKOFF_BASE_MS * 2 ** (attempt - 1);
   // 🚨 BEKLEME KALAN BÜTÇEYİ AŞAMAZ: `Retry-After` sağlayıcının talimatıdır ama
   // misafir onun takvimine göre beklemez.
-  if (elapsedMs + waitMs >= EMBEDDING_TOTAL_DEADLINE_MS) return { retry: false, waitMs: 0 };
+  if (elapsedMs + waitMs >= deadline) return { retry: false, waitMs: 0 };
   return { retry: true, waitMs };
+}
+
+/**
+ * Çağıranın istediği toplam bütçe — `EMBEDDING_TOTAL_DEADLINE_MS`i ASLA aşamaz (üst tavan
+ * sabit), geçersiz değer varsayılana düşer. Sıcak yol (misafir cevabı beklerken sorgu gömme)
+ * daha KISA bütçe verir: uzun bekleme yerine sözcüksel seçimle devam etmek doğrudur.
+ */
+function effectiveDeadline(ms: number | undefined): number {
+  return typeof ms === "number" && Number.isFinite(ms) && ms > 0 ? Math.min(ms, EMBEDDING_TOTAL_DEADLINE_MS) : EMBEDDING_TOTAL_DEADLINE_MS;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -219,7 +236,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  *          Kısmi sonuç DÖNMEZ: yarım küme, çağıranda sessizce yanlış eşleşme
  *          üretirdi ("2. parçanın vektörü" aslında 3. parçanınki olurdu).
  */
-export async function embedTexts(texts: readonly string[]): Promise<number[][] | null> {
+export async function embedTexts(
+  texts: readonly string[],
+  opts: { deadlineMs?: number } = {},
+): Promise<number[][] | null> {
   if (texts.length === 0) return [];
   if (texts.length > EMBEDDING_BATCH_MAX) return null;
   // Boş/aşırı uzun girdi sağlayıcıya HİÇ gitmez (maliyet + 400 gürültüsü).
@@ -253,11 +273,13 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
 
   const input = missing.map((i) => texts[i]);
   const startedAt = Date.now();
+  const deadline = effectiveDeadline(opts.deadlineMs);
   let lastStatus = 0;
+  let persistent: ModelProviderPersistentFailure | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     // ── ② TOPLAM BÜTÇE: her deneme KALAN süreyi alır, yenisini değil ────────
-    const remaining = EMBEDDING_TOTAL_DEADLINE_MS - (Date.now() - startedAt);
+    const remaining = deadline - (Date.now() - startedAt);
     if (remaining <= 0) break;
 
     try {
@@ -274,7 +296,8 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
         // hesabın 429'u `isRetryableStatus` için geçici görünür ama hiçbir deneme başarılı olamaz (09-23
         // ölçüldü). Gövde YALNIZ sınıflandırma için okunur; alarma geçmez (↓ yalnız durum kodu).
         const errBody = await res.text().catch(() => "");
-        if (classifyModelProviderFailure(res.status, errBody)) break;
+        persistent = classifyModelProviderFailure(res.status, errBody);
+        if (persistent) break;
         // 🚨 KALICI HATADA ISRAR YOK ve BEKLEME KALAN BÜTÇEYİ AŞAMAZ — karar
         // saf `retryPlan`da (tek başına test-pinli).
         const plan = retryPlan({
@@ -282,6 +305,7 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
           status: res.status,
           elapsedMs: Date.now() - startedAt,
           retryAfterSec: Number(res.headers.get("retry-after")),
+          deadlineMs: deadline,
         });
         if (!plan.retry) break;
         await sleep(plan.waitMs);
@@ -320,10 +344,11 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
         // kesinti kalıcı bir körlüğe dönerdi.
         cacheSet(keys[missing[j]], vec);
       }
+      noteModelProviderSuccess("embedding");
       return out as number[][];
     } catch (err) {
       // Timeout/abort/ağ — `status: null` ile aynı politikadan geçer.
-      const plan = retryPlan({ attempt, status: null, elapsedMs: Date.now() - startedAt });
+      const plan = retryPlan({ attempt, status: null, elapsedMs: Date.now() - startedAt, deadlineMs: deadline });
       if (!plan.retry) {
         await reportError("openai-embeddings", err);
         return null;
@@ -336,6 +361,13 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
   // Kardeş yol (`ai/index.ts`) gövdeyi geçiriyor ama orada istek gövdesi
   // İSTEMDİR; burada istek gövdesi KB metni + misafirin SORUSUDUR, yani hata
   // ekosu PII taşıyabilir. Alarm/RiskEvent sözleşmesi PII'sizdir.
+  // 🚨 KALICI ARIZA GEÇİŞ TABANLI ALARMA gider (09-23): anahtar açıkken HER misafir mesajı bir gömme
+  // çağrısıdır; kredisi biten hesapta çağrı başına `reportError` sohbet yolunun 09-23 selini aynen
+  // tekrarlardı. Anahtar AYRI (`model-provider:embedding`); gövde yine GEÇİLMEZ (PII kuralı ↑).
+  if (persistent) {
+    await noteModelProviderPersistentFailure(persistent, lastStatus, "", "embedding");
+    return null;
+  }
   if (lastStatus) {
     await reportError(`openai-embeddings ${lastStatus}`, new Error(`HTTP ${lastStatus}`));
   }

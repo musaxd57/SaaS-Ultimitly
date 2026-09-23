@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // ANLAMSAL KAYNAK — EŞİK + AĞIRLIK (RAG).
 //
-// Bugün ÜRETİMDE ANLAMSAL RETRIEVAL YOK: hiçbir yüzey seçiciye `semantic`
-// vermiyor (pin: `kb-retrieval-evidence-prompt.test.ts`). Gömme (embedding)
-// ücretli servis + kalıcı vektör için migration ister.
+// 09-23: ÜRETİM YOLU VAR ama ANAHTAR VARSAYILAN KAPALI (`KB_SEMANTIC_RETRIEVAL`,
+// `embeddings/semantic-retrieval.ts`). Kapalıyken hiçbir yüzey anlamsal puan vermez
+// ve gömme sağlayıcısına tek istek gitmez (davranışsal pin). Açma = E4 ölçümü +
+// kurucu onayı. Vektörler bugün süreç belleğinde (kalıcı tablo E2, migration onayı).
 //
 // 🚨 `SemanticScorer` ARAYÜZÜ SİLİNDİ (inceleme turu, 09-11). İki gerekçe
 // ölçüldü: (a) seçici onu HİÇ import etmiyordu — gerçek sözleşme
@@ -45,3 +46,28 @@ export const SEMANTIC_QUALIFY_MIN = 0.3;
  * ölçülmedi (üretimde verilmiyor).
  */
 export const SOURCE_WEIGHTS = { bm25: 1, ngram: 0.7, semantic: 1 } as const;
+
+/**
+ * HAM KOSİNÜS EŞİĞİ — bir parçanın YALNIZ anlamsal benzerlikle aday olabilmesi için gereken
+ * kosinüs (09-23, üretim yolu `embeddings/semantic-retrieval.ts`, anahtar varsayılan KAPALI).
+ *
+ * ⚠️ BU SAYI HENÜZ ÖLÇÜM DEĞİL: E4 (`tests/eval/embedding-e4.eval.test.ts`) 0,30–0,50 aralığını
+ * tarar ve anahtar AÇILMADAN önce buraya ölçülen değer yazılır. text-embedding-3 ailesinde ilgisiz
+ * kısa metinler tipik olarak 0,1–0,3, aynı konunun parafrazı 0,35–0,6 aralığında — orta nokta
+ * başlangıç kabulüdür. Mutlak bir "alaka yüzdesi" DEĞİLDİR (kosinüs kalibre edilmiş olasılık
+ * değildir; ajan ölçümü 09-23: sabit mutlak eşik kuralı sözcüksel puanda da ayırt edemiyordu).
+ */
+export const SEMANTIC_COSINE_THRESHOLD = 0.4;
+
+/**
+ * Ham kosinüsü seçicinin ölçeğine taşır: KESİN ARTAN ve `s ≥ t ⇔ s' ≥ SEMANTIC_QUALIFY_MIN`.
+ * Böylece eşik seçicinin İÇİNE dokunmadan ayarlanır (aday şartı tek yerde, `hasEvidence`).
+ * Negatif/sıfır kosinüs puan üretmez. E4 ölçüm düzeneği AYNI fonksiyonu kullanır (tek kaynak).
+ */
+export function thresholdTransform(s: number, t: number = SEMANTIC_COSINE_THRESHOLD): number {
+  const m = SEMANTIC_QUALIFY_MIN;
+  if (!Number.isFinite(s) || s <= 0) return 0;
+  if (!(t > 0 && t < 1)) return 0;
+  if (Math.abs(t - m) < 1e-12) return Math.min(1, s);
+  return s < t ? (m * s) / t : Math.min(1, m + ((1 - m) * (s - t)) / (1 - t));
+}

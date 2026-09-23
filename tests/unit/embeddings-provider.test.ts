@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import {
   embedTexts,
   embedText,
@@ -155,13 +155,30 @@ describe("embedText — tek metin sarmalayıcı", () => {
   });
 });
 
-describe("🚨 E1 MİMARİ PİN — ÜRETİMDE HİÇBİR ÇAĞIRAN YOK ($0)", () => {
-  it("provider yalnız TESTLERDEN import edilir", () => {
-    // Bu satır E1'in TANIMIDIR: sözleşme kurulur, ücretli servis ÇAĞRILMAZ.
-    // E3/E5'te bağlanınca bu test BİLİNÇLİ olarak güncellenir — sessizce
-    // bağlanamaz. Aksi hâlde "ücretli servis yok" iddiası sessizce ölürdü.
+/**
+ * 09-23: E5 üretim yolu BİLİNÇLİ olarak bağlandı — tek izinli çağıran anlamsal hazırlık modülüdür ve
+ * o da `KB_SEMANTIC_RETRIEVAL` anahtarı KAPALIYKEN ağa çıkmaz (davranışsal pin
+ * `kb-semantic-retrieval.test.ts`). Yeni bir çağıran bu listeye BİLİNÇLİ olarak eklenir.
+ */
+const ALLOWED_PRODUCTION_IMPORTERS = ["src/lib/ai/embeddings/semantic-retrieval.ts"];
+
+describe("🚨 MİMARİ PİN — üretimde TEK çağıran (anahtar arkasında)", () => {
+  it("provider üretimde yalnız izinli modülden import edilir", () => {
+    // E1'de liste BOŞTU ("ücretli servis çağrılmaz"). Bağlantı sessizce çoğalamaz: her yeni çağıran
+    // bu testi kırar ve ancak bilinçli olarak listeye eklenir.
     const out = execImporters();
-    expect(out, `üretimde çağıran belirdi: ${out.join(", ")}`).toEqual([]);
+    expect(out, `izinsiz üretim çağıranı: ${out.join(", ")}`).toEqual(ALLOWED_PRODUCTION_IMPORTERS);
+  });
+
+  it("🚨 GÖRELİ import da sayılır (09-23 ölçüldü: yalnız `@/` yolunu arayan desen `./provider`ı KAÇIRIYORDU)", () => {
+    const f = "src/lib/ai/embeddings/x.ts";
+    expect(importsProvider(f, 'import { embedTexts } from "./provider";')).toBe(true);
+    expect(importsProvider("src/lib/ai/retrieval/x.ts", 'import { embedTexts } from "../embeddings/provider";')).toBe(true);
+    expect(importsProvider("src/app/a/b.ts", 'const m = await import("@/lib/ai/embeddings/provider");')).toBe(true);
+    expect(importsProvider(f, 'import { x } from "@/lib/ai/provider-health";')).toBe(false);
+    expect(importsProvider(f, 'import { x } from "./provider-health";')).toBe(false);
+    // Başka dizindeki "./provider" AYNI modül değildir.
+    expect(importsProvider("src/lib/channels/x.ts", 'import { x } from "./provider";')).toBe(false);
   });
 
   it("anti-vakum: tarama GERÇEKTEN çalışıyor (BU dosya bulunuyor)", () => {
@@ -182,13 +199,14 @@ describe("🚨 E1 MİMARİ PİN — ÜRETİMDE HİÇBİR ÇAĞIRAN YOK ($0)", ()
       .filter((f) => !f.endsWith("src/lib/ai/embeddings/provider.ts"))
       .filter((f) => {
         try {
-          return /from\s+"@\/lib\/ai\/embeddings\/provider"/.test(readFileSync(join(REPO, f), "utf8"));
+          return importsProvider(f, readFileSync(join(REPO, f), "utf8"));
         } catch {
           return false;
         }
-      });
-    // Hüküm AYNI: üretimde çağıran yok. Git çalışsa da çalışmasa da.
-    expect(viaWalk).toEqual([]);
+      })
+      .sort();
+    // Hüküm AYNI: yalnız izinli çağıran. Git çalışsa da çalışmasa da.
+    expect(viaWalk).toEqual(ALLOWED_PRODUCTION_IMPORTERS);
     // Anti-vakumluk: tarama gerçekten dosya görüyor (boş dizin değil).
     expect(walkFiles(REPO).length).toBeGreaterThan(100);
   });
@@ -255,9 +273,27 @@ function execImporters(includeTests = false): string[] {
       if (f.endsWith("src/lib/ai/embeddings/provider.ts")) return false;
       if (!includeTests && f.startsWith("tests/")) return false;
       try {
-        return /from\s+"@\/lib\/ai\/embeddings\/provider"/.test(readFileSync(join(REPO, f), "utf8"));
+        return importsProvider(f, readFileSync(join(REPO, f), "utf8"));
       } catch {
         return false;
       }
-    });
+    })
+    .sort();
+}
+
+const PROVIDER_MODULE = "src/lib/ai/embeddings/provider";
+
+/**
+ * Dosya `embeddings/provider`ı import ediyor mu — `@/` yolu YA DA göreli yol, dosyanın KENDİ
+ * dizinine göre ÇÖZÜLEREK (başka dizindeki bir `./provider` sayılmaz).
+ */
+function importsProvider(file: string, text: string): boolean {
+  for (const m of text.matchAll(/(?:from\s+|import\s*\(\s*)"([^"]+)"/g)) {
+    const spec = m[1];
+    let resolved: string | null = null;
+    if (spec.startsWith("@/")) resolved = `src/${spec.slice(2)}`;
+    else if (spec.startsWith(".")) resolved = posix.normalize(posix.join(posix.dirname(file), spec));
+    if (resolved && resolved.replace(/\.tsx?$/, "") === PROVIDER_MODULE) return true;
+  }
+  return false;
 }

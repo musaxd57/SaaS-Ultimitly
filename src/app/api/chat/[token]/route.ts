@@ -31,7 +31,7 @@ import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
 import { recordRiskEvent } from "@/lib/risk-events";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
-import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 
 export const dynamic = "force-dynamic";
 
@@ -639,7 +639,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // onay + sır kategorisi + içerik sezgiseli süzgeçlerinden geçmiştir; seçici
   // bu kümeye kalem EKLEYEMEZ. Bayrak kapalıyken `kbSel.items` aynı dizidir
   // ve `droppedItems` 0'dır (canlı davranış aynen).
-  const kbSel = selectKbForPrompt({ items: ctx.knowledgeBase, guestMessage: message, history });
+  const kbSel = await retrieveKbForPrompt({ items: ctx.knowledgeBase, guestMessage: message, history });
   const kbDroppedTotal = ctx.knowledgeBaseDropped + kbSel.droppedItems;
 
   const result = await suggestReply({

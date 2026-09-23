@@ -16,7 +16,7 @@ import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
-import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
@@ -1708,7 +1708,7 @@ export async function applyChannelAutoReply(
   // `kbVisible`'ın KENDİSİDİR (aynı dizi) ve `droppedItems` 0 → canlı davranış
   // karakteri karakterine aynı. Hibritte seçilmeyen kalemler devir notunu
   // besler: retrieval kaçırırsa model "bilgim yok" DEMEZ, insana devreder.
-  const kbSel = selectKbForPrompt({
+  const kbSel = await retrieveKbForPrompt({
     items: kbVisible,
     guestMessage: last.body,
     history: messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),

@@ -197,6 +197,17 @@ describe("mimari pinler", () => {
     };
     walk("src");
     expect(flagReaders).toEqual(["src/lib/ai/retrieval/flag.ts"]);
+    // Anlamsal anahtar da TEK okuyucudan (açılış logu ve yol aynı yorumu kullansın).
+    const semReaders: string[] = [];
+    const walkSem = (dir: string) => {
+      for (const e of readdirSync(path.resolve(__dirname, "../../", dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) walkSem(rel);
+        else if (/\.tsx?$/.test(e.name) && read(rel).includes("process.env.KB_SEMANTIC_RETRIEVAL")) semReaders.push(rel);
+      }
+    };
+    walkSem("src");
+    expect(semReaders).toEqual(["src/lib/ai/retrieval/flag.ts"]);
   });
 
   it("DÖRT AI yüzeyi seçiciden geçer ve seçilen kümeyi + düşen sayısını modele verir", () => {
@@ -207,7 +218,9 @@ describe("mimari pinler", () => {
       "src/app/api/ai/test/route.ts",
     ]) {
       const src = read(rel);
-      expect(src, rel).toContain("selectKbForPrompt(");
+      // 09-23: yüzeyler tek girişten (`kb-retrieve.ts`) geçer; o da TEK boğaz `selectKbForPrompt`i çağırır.
+      expect(src, rel).toContain("await retrieveKbForPrompt(");
+      expect(src, rel).not.toContain("selectKbForPrompt(");
       expect(src, rel).toContain("knowledgeBaseSelection: kbSel.selection");
       expect(src, rel).toMatch(/knowledgeBase: kb(Sel\.items|ForModel)/);
     }
@@ -224,17 +237,21 @@ describe("mimari pinler", () => {
     }
   });
 
-  it("🚨 ÜRETİMDE ANLAMSAL (embedding) KAYNAK YOK: hiçbir yüzey seçiciye `semantic` vermez; semantic.ts yalnız sözleşme + no-op (ağ çağrısı yok)", () => {
-    // Kanıtta `srcs` üretimde yalnız "bm25"/"ngram" olabilir; "semantic" yalnız harness/test haritasıyla çıkar.
-    // Raporlarda "anlamsal retrieval" DENMEZ (Codex 09-09: embedding yoksa öyle raporlama).
+  it("🚨 ANLAMSAL KAYNAK YALNIZ TEK GİRİŞTEN: yüzeyler seçiciye puan VERMEZ; puanı yalnız `kb-retrieve.ts` (anahtar arkasında) verir; semantic.ts ağsız", () => {
+    // 09-23: üretim yolu var ama `KB_SEMANTIC_RETRIEVAL` VARSAYILAN KAPALI (davranışsal pin
+    // `kb-semantic-retrieval.test.ts`: kapalıyken ağ çağrısı yok, sonuç birebir). Anahtar açılmadan
+    // raporlarda "anlamsal retrieval" DENMEZ (Codex 09-09).
     for (const rel of [
       "src/lib/automation.ts",
       "src/app/api/chat/[token]/route.ts",
       "src/app/api/conversations/[id]/ai-suggest/route.ts",
       "src/app/api/ai/test/route.ts",
     ]) {
-      expect(read(rel), rel).not.toMatch(/semantic\s*:/);
+      expect(read(rel), rel).not.toMatch(/semantic(BySubquery)?\s*:/);
     }
+    const entry = read("src/lib/ai/kb-retrieve.ts");
+    expect(entry).toContain("selectKbForPrompt(");
+    expect(entry).toContain("prepareSemanticScores(");
     const sem = read("src/lib/ai/retrieval/semantic.ts");
     expect(sem).not.toMatch(/fetch\(|openai|https?:\/\//i);
     // 🚨 `noopSemanticScorer` PİNİ KALDIRILDI ve yerine ASIL SÖZLEŞME kondu
@@ -268,9 +285,9 @@ describe("mimari pinler", () => {
 
   it("seçici önce SÜZGEÇ sonra SEÇİM: QR yolunda seçici `ctx.knowledgeBase` (sır elemesinden geçmiş) üzerinde çalışır", () => {
     const src = read("src/app/api/chat/[token]/route.ts");
-    expect(src).toMatch(/selectKbForPrompt\(\{\s*items: ctx\.knowledgeBase/);
+    expect(src).toMatch(/retrieveKbForPrompt\(\{\s*items: ctx\.knowledgeBase/);
     const auto = read("src/lib/automation.ts");
     // automation: `kbVisible` = sır süzgeçlerinden geçmiş küme.
-    expect(auto).toMatch(/selectKbForPrompt\(\{\s*items: kbVisible/);
+    expect(auto).toMatch(/retrieveKbForPrompt\(\{\s*items: kbVisible/);
   });
 });

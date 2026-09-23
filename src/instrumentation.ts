@@ -15,7 +15,7 @@
 // server-only modülleri bundle'a sokma" kuralını ihlal etmez. Env'i doğrudan
 // okumak da SEÇENEK DEĞİL: `KB_RETRIEVAL_MODE`un tek okuyucusunun flag.ts
 // olduğu mekanik olarak pinli (kb-retrieval-evidence-prompt.test.ts).
-import { kbRetrievalModeInfo } from "@/lib/ai/retrieval/flag";
+import { kbRetrievalModeInfo, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
 
 const INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -46,6 +46,13 @@ export async function register() {
     );
   } else {
     console.log(`[kb-retrieval] mode=${kb.mode}${kb.raw ? "" : " (varsayılan)"}`);
+  }
+  // Anlamsal aday kaynağı (varsayılan KAPALI): tanınmayan değer KAPALI kalır ve gürültülü yazılır.
+  const sem = semanticRetrievalInfo();
+  if (!sem.recognized) {
+    console.warn(`[kb-semantic] KB_SEMANTIC_RETRIEVAL="${sem.raw}" TANINMADI — KAPALI. Açmak için: 1 | on | true`);
+  } else {
+    console.log(`[kb-semantic] ${sem.enabled ? "AÇIK" : "kapalı"}${kb.mode === "legacy" && sem.enabled ? " (legacy modda etkisiz)" : ""}`);
   }
 
   // Opt-out hatch if you rely solely on an external scheduler.

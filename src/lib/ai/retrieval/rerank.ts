@@ -38,6 +38,16 @@ export const TITLE_FULL_BONUS = 0.15;
 /** Başlık eşleşmesi yalnız GENİŞLETME terimiyle ("lift" → "asansor") ise yarım bonus. */
 export const TITLE_EXPANSION_FACTOR = 0.5;
 export const PHRASE_BONUS = 0.1;
+/**
+ * ANLAMSAL UYUM BONUSU (09-23). Buradaki diğer bonusların HEPSİ sözcükseldir (kavram ipucu, başlık,
+ * kalıp); anlamsal kaynak bağlandığında yalnız anlamsal olarak bulunan bir parça (kelime paylaşmayan
+ * parafrazın cevabı) hiçbirini alamaz ve tek bir ortak kelimeyle ("gece") gelen ilgisiz parçanın
+ * ARKASINDA kalır. Ölçüldü (kâhin anlamsal sinyal, 100 kalem, iki sorulu mesaj): bonus yokken iki
+ * cevap birden bloğa %87 giriyordu. Büyüklük kavram ipucuyla (`HINT_BONUS`) AYNI — ikisi de "bu
+ * parça sorunun KONUSUNDA" kanıtıdır; eşik üstü anlamsal puanla doğrusal ölçeklenir. Anlamsal kaynak
+ * yokken (bugün üretimde anahtar kapalı) etkisi SIFIR.
+ */
+export const SEMANTIC_BONUS = 0.35;
 /** Yakın eşitlik hassasiyeti: bu adımda eşit puanlar tazelikle sıralanır. */
 export const SCORE_TIE_STEP = 0.01;
 
@@ -84,6 +94,8 @@ export function rerank(
    * verdiği için `base > 0` tek başına "yalnız-ipucu"yu ayıramıyordu.
    */
   hasEvidence: (i: number) => boolean = (i) => base[i] > 0,
+  /** Seçici ölçeğinde anlamsal puanlar (varsa). Eşik (`semanticQualifyMin`) üstü kısım bonus alır. */
+  semantic?: { scores: Float64Array; qualifyMin: number },
 ): Candidate[] {
   const out: Candidate[] = [];
   chunks.forEach((chunk, i) => {
@@ -103,6 +115,9 @@ export function rerank(
     else if (titleExp) s += TITLE_BONUS * TITLE_EXPANSION_FACTOR;
     if (titleCovered && (titleOwn || titleExp)) s += TITLE_FULL_BONUS;
     if (ctx.bigrams.some(([a, b]) => hasBigram(docs[i].stems, a, b))) s += PHRASE_BONUS;
+    if (semantic && semantic.scores[i] >= semantic.qualifyMin) {
+      s += (SEMANTIC_BONUS * (Math.min(1, semantic.scores[i]) - semantic.qualifyMin)) / (1 - semantic.qualifyMin);
+    }
     if (s > 0) out.push({ idx: i, score: s });
   });
   return out;

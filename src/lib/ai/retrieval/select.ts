@@ -25,13 +25,16 @@ import { detectGuestLanguage } from "@/lib/ai/fallback";
 // Boru hattı (bayrak AÇIKKEN):
 //   girdi (yetki+mülk+onay+sır süzgeçlerinden GEÇMİŞ kalemler)
 //   → sürüm kuralı (halefi kümede olan kalem düşer)
-//   → küçük-KB passthrough (≤12 kalem ve ≤6k: tamamı gider)
-//   → alt sorgular (?, satır, ; , ve/ayrıca/and/also; ≤4)
+//   → küçük-KB passthrough (≤30 kalem VE ≤24k — legacy'nin kendi kümesi: tamamı gider)
+//   → alt sorgular (?, satır, ; , ve/ayrıca/and/also; ≤4) + cevapsız önceki
+//     misafir soruları (toplam ≤6) — `retrievalQueries` TEK KAYNAK
 //   → her alt sorgu için ADAY KAYNAKLARI: BM25 (kök+sözlük+fuzzy) · karakter
-//     3-gram kosinüsü (yalnız Türkçe sorguda, ölçümle) · (varsa) anlamsal
-//     puanlar — ÜRETİMDE ANLAMSAL KAYNAK YOK, yalnız sözleşme → CombSUM
-//     birleşimi → yeniden sıralama (ipucu/başlık/kalıp; tazelik yalnız
-//     yakın-eşitlik bozucu) → eşik
+//     3-gram kosinüsü (yalnız Türkçe sorguda, ölçümle) · (varsa) ALT SORGU
+//     BAŞINA anlamsal puanlar (üretim yolu `kb-retrieve.ts`, anahtar
+//     `KB_SEMANTIC_RETRIEVAL` VARSAYILAN KAPALI) → CombSUM (anlamsal varken
+//     RRF) → yeniden sıralama (ipucu/başlık/kalıp; tazelik yalnız
+//     yakın-eşitlik bozucu) → göreli eşik (mutlak "alaka yüzdesi" YOK — puan
+//     sorgu içinde görelidir, ölçüm 09-23)
 //   → alt sorgular arası round-robin (kalem başına ≤3 parça)
 //   → çelişki koruma (aynı SAAT ALANINDA farklı saat; kategori-bağımsız)
 //   → bütçe (6k / 12 parça); sığmayan çelişki AÇIKÇA bildirilir (notes)
@@ -77,6 +80,15 @@ export interface KbRetrievalEvidence {
   confDropped?: number;
   /** Cevapsız ÖNCEKİ misafir mesajlarından eklenen alt sorgu sayısı (↓`pendingGuestMessages`). */
   pq?: number;
+  /**
+   * Anlamsal kaynağın bu karardaki durumu (yalnız anahtar AÇIKKEN yazılır; kapalıyken alan YOK):
+   * `ok` = puanlar seçiciye verildi · `cold` = parça vektörleri henüz hazır değil (arka planda
+   * ısınıyor; bu karar sözcüksel) · `unavailable` = sağlayıcı/zaman aşımı (sözcüksel) ·
+   * `not_needed` = küçük KB, retrieval koşmadı (çağrı YAPILMADI). PII yok, kapalı küme.
+   */
+  sem?: "ok" | "cold" | "unavailable" | "not_needed";
+  /** Anlamsal hazırlığın süresi (ms; yalnız anahtar açıkken). */
+  semMs?: number;
 }
 
 export interface KbSelectSources {
@@ -96,6 +108,13 @@ export interface KbSelectSources {
    * iki yolu bununla kıyaslar.
    */
   foreign?: boolean;
+  /**
+   * Anlamsal kaynak VARKEN birleşim. Varsayılan "rrf" (09-11 inceleme kararı: min-max CombSUM
+   * yoğun kosinüsle sözcüksel sırayı siler). "sum" YALNIZ ölçüm içindir (E4): anlamsal puan
+   * eşik altında aday şartına tabi olduğundan artık yoğun değil; hangisinin kazandığı ölçümle
+   * seçilir — literatür (Bruch vd.) ayarlı ağırlıklı birleşimin RRF'yi geçebildiğini gösteriyor.
+   */
+  semanticFusion?: "rrf" | "sum";
 }
 
 export interface KbSelectInput<T extends KbChunkSource> {
@@ -113,6 +132,14 @@ export interface KbSelectInput<T extends KbChunkSource> {
   fullSetMaxItems?: number;
   /** Anlamsal puanlar (parça anahtarı → 0..1), önceden hesaplanmış; yoksa kaynak yok. */
   semantic?: ReadonlyMap<string, number>;
+  /**
+   * ALT SORGU BAŞINA anlamsal puanlar (alt sorgu → parça anahtarı → 0..1). Verilen alt sorguda
+   * `semantic`i EZER. Üretim yolu (`embeddings/semantic-retrieval.ts`) bunu kullanır: çok sorulu
+   * mesajda tek bir mesaj vektörü iki konunun karışımıdır ve her alt sorguya AYNI anlamsal sırayı
+   * dayatırdı ("Wi-Fi şifresi ne, otopark var mı?" → otopark parçası Wi-Fi listesinde de öne çıkar).
+   * Anahtarlar `retrievalQueries(...).subquery` ile BİREBİR aynıdır (tek kaynak).
+   */
+  semanticBySubquery?: ReadonlyMap<string, ReadonlyMap<string, number>>;
   sources?: KbSelectSources;
   now?: number;
 }
@@ -142,7 +169,7 @@ export const RELEVANCE_FLOOR_ABS = 0.1;
 export const RELEVANCE_FLOOR_REL = 0.25;
 export const MAX_CHUNKS_PER_ITEM = 3;
 export const MAX_SUBQUERIES = 4;
-export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: "auto", fusion: "sum", foreign: true };
+export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: "auto", fusion: "sum", foreign: true, semanticFusion: "rrf" };
 /** Sorgu bu kadar az içerik kökü taşıyorsa önceki misafir mesajları bağlam olarak eklenir. */
 const THIN_QUERY_STEMS = 2;
 const CARRY_HISTORY_MESSAGES = 2;
@@ -225,6 +252,79 @@ export function splitQuestions(message: string): string[] {
     .filter((p) => p.length >= 3 && contentStems(p).length > 0);
   if (parts.length === 0) return contentStems(norm).length > 0 ? [norm] : [];
   return parts.slice(0, MAX_SUBQUERIES);
+}
+
+/** Gömülecek sorgu metninin tavanı (misafir mesajı QR'da zaten 2.000'de kırpılı gelir). */
+export const EMBED_QUERY_MAX_CHARS = 1_000;
+
+export interface RetrievalQuery {
+  /** Seçicinin sıraladığı alt sorgu (ASCII-katlanmış; `semanticBySubquery` ANAHTARI). */
+  subquery: string;
+  /**
+   * Anlamsal kaynağa GÖMÜLECEK metinler (1–2); parçanın puanı bunların EN YÜKSEK kosinüsüdür
+   * (çoklu sorgu). Birincisi alt sorgunun geçtiği HAM CÜMLE ("?", satır, ";" ile ayrılan
+   * bölüm — Türkçe karakter, noktalama ve bağlam korunur). Cümle virgül/bağlaçla birden çok alt
+   * sorguya bölündüyse ikincisi alt sorgunun kendisi: virgül bazen AYNI sorunun iki cümleciğidir
+   * ("Gece çok üşüdük, evi ılık yapabilir miyiz?" — tek başına "gece çok üşüdük" anlamı taşımaz),
+   * bazen İKİ ayrı soru ("Wi-Fi şifresi ne, otopark var mı?" — cümle vektörü iki konunun
+   * karışımı). İkisini birden sormak iki durumu da karşılar; maliyet aynı çağrıda birkaç kısa metin.
+   */
+  embedTexts: string[];
+}
+
+/** Ham mesajın SERT bölümleri (soru işareti sonrası, satır, ";") — alt sorguların ait olduğu cümle. */
+const HARD_SEGMENT = /(?<=[?？])|\n+|;/;
+
+function embedTextsByQuery(message: string): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const seg of message.split(HARD_SEGMENT)) {
+    const raw = seg.trim().slice(0, EMBED_QUERY_MAX_CHARS);
+    if (!raw) continue;
+    const subs = splitQuestions(seg);
+    for (const sq of subs) if (!out.has(sq)) out.set(sq, subs.length === 1 ? [raw] : [raw, sq]);
+  }
+  return out;
+}
+
+/**
+ * SEÇİCİNİN SIRALAYACAĞI SORGULAR — TEK KAYNAK. Güncel mesajın alt sorguları + son operatör
+ * mesajından sonraki cevapsız misafir mesajlarının alt sorguları (tekrarsız, toplam
+ * `MAX_TOTAL_SUBQUERIES`). Anlamsal hazırlık (`embeddings/semantic-retrieval.ts`) AYNI listeyi
+ * gömer; iki yerde ayrı hesaplansaydı anahtarlar ayrışır ve puan sessizce hiçbir alt sorguya
+ * ulaşmazdı.
+ */
+export function retrievalQueries(
+  guestMessage: string,
+  history?: readonly { direction: "inbound" | "outbound"; body: string }[],
+): { queries: RetrievalQuery[]; pending: number } {
+  // Alt sorgu ham cümlesiyle eşleşmezse (normalizasyon bölüm sınırını aşan nadir dönüşüm) alt
+  // sorgunun kendisi gömülür — puan asla SESSİZCE başka bir alt sorguya gitmez.
+  const textsFor = (byQuery: Map<string, string[]>, sq: string): string[] => byQuery.get(sq) ?? [sq];
+  // Güncel mesajın alt sorguları OLDUĞU GİBİ (kendi tavanı `MAX_SUBQUERIES`; 09-23 öncesi davranış).
+  const currentTexts = embedTextsByQuery(guestMessage);
+  const queries: RetrievalQuery[] = splitQuestions(guestMessage).map((sq) => ({ subquery: sq, embedTexts: textsFor(currentTexts, sq) }));
+  let pending = 0;
+  for (const msg of pendingGuestMessages(history, guestMessage)) {
+    const texts = embedTextsByQuery(msg);
+    for (const sq of splitQuestions(msg)) {
+      if (queries.length >= MAX_TOTAL_SUBQUERIES) break;
+      if (queries.some((q) => q.subquery === sq)) continue;
+      queries.push({ subquery: sq, embedTexts: textsFor(texts, sq) });
+      pending += 1;
+    }
+  }
+  return { queries, pending };
+}
+
+/**
+ * Bu küme için sıralama (retrieval) KOŞACAK MI? Küçük KB (tamamı legacy bütçesine sığan) tamamen
+ * gider; anlamsal hazırlık bu durumda ağa ÇIKMAZ (boşuna ödeme/gecikme yok). Seçicinin kendi
+ * kararıyla AYNI fonksiyon (↓ `selectKbForPrompt`), iki yerde ayrışamaz.
+ */
+export function retrievalNeeded<T extends KbChunkSource>(items: readonly T[], fullSetMaxItems: number = KB_ITEM_CAP): boolean {
+  if (items.length === 0) return false;
+  const { kept } = dropSuperseded(items as readonly (T & Supersedable)[]);
+  return !(kept.length <= fullSetMaxItems && renderedCharsAll(kept) <= KB_CHAR_BUDGET);
 }
 
 function renderedChars(c: { category: string; title: string; text: string }): number {
@@ -332,7 +432,7 @@ function rankForSubquery(
   // RRF yalnız SIRAYA baktığı için bu sorunu yaşamaz. Çağıran açıkça `rrf`
   // dediyse zaten RRF; anlamsal kaynak geldiğinde de RRF'e geçilir.
   // ⚠️ Bugün etkisi YOK (üretimde `semantic` verilmiyor) — bu bir HAZIRLIKTIR.
-  const useRrf = opt.sources.fusion === "rrf" || semanticScores !== undefined;
+  const useRrf = opt.sources.fusion === "rrf" || (semanticScores !== undefined && opt.sources.semanticFusion === "rrf");
   const fused = useRrf ? fuseRankings(rankings, n).fused : fuseNormalizedScores(rankings, n);
   let max = 0;
   for (const v of fused) if (v > max) max = v;
@@ -346,7 +446,15 @@ function rankForSubquery(
   const bigrams: [string, string][] = [];
   for (let i = 0; i + 1 < ownResolved.length; i++) bigrams.push([ownResolved[i], ownResolved[i + 1]]);
   const expansionStems = new Set(expansion.keys());
-  const cands = rerank(index.chunks, index.bm25.docs, base, qualified, { ownStems: ownSet, expansionStems, bigrams, categoryHints }, hasEvidence);
+  const cands = rerank(
+    index.chunks,
+    index.bm25.docs,
+    base,
+    qualified,
+    { ownStems: ownSet, expansionStems, bigrams, categoryHints },
+    hasEvidence,
+    semanticScores ? { scores: semanticScores, qualifyMin: SEMANTIC_QUALIFY_MIN } : undefined,
+  );
   const best = cands.reduce((m, c) => Math.max(m, c.score), 0);
   const floor = Math.max(RELEVANCE_FLOOR_ABS, best * RELEVANCE_FLOOR_REL);
   return { cands: sortCandidates(cands.filter((c) => c.score >= floor), index.chunks), sources, fusion: useRrf ? ("rrf" as const) : ("sum" as const) };
@@ -447,20 +555,11 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // cevabı isteme TR %35–41 · EN %53–61 giriyordu, legacy'de %100. Kural artık tanım gereği:
     // legacy'nin HİÇBİR ŞEY düşürmeyeceği KB'de seçim yapılmaz; retrieval yalnız legacy'nin bilgi
     // KAYBEDECEĞİ yerde (>30 kalem ya da >24k) devreye girer — orada hibrit legacy'yi geçer.
-    const fullSetMaxItems = input.fullSetMaxItems ?? KB_ITEM_CAP;
-    if (items.length <= fullSetMaxItems && renderedCharsAll(items) <= KB_CHAR_BUDGET) {
+    if (!retrievalNeeded(input.items, input.fullSetMaxItems ?? KB_ITEM_CAP)) {
       return legacyResult(sup > 0 ? items : input.items, "hybrid", evidence("small_kb", 0, items.length, items.length, { sup }));
     }
-    const subqueries = splitQuestions(input.guestMessage);
-    let pq = 0;
-    for (const msg of pendingGuestMessages(input.history, input.guestMessage)) {
-      for (const sq of splitQuestions(msg)) {
-        if (subqueries.length >= MAX_TOTAL_SUBQUERIES) break;
-        if (subqueries.includes(sq)) continue;
-        subqueries.push(sq);
-        pq += 1;
-      }
-    }
+    const { queries, pending: pq } = retrievalQueries(input.guestMessage, input.history);
+    const subqueries = queries.map((q) => q.subquery);
     const index = getOrBuildKbIndex(items, input.now);
     if (subqueries.length === 0) {
       const cap = cappedForFallback(sup > 0 ? items : input.items);
@@ -472,7 +571,9 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       .flatMap((m) => contentStems(m.body));
 
     const queryIsTurkish = detectGuestLanguage(input.guestMessage) === "tr";
-    const rankedAll = subqueries.map((q) => rankForSubquery(index, q, { carryStems, semantic: input.semantic, sources, queryIsTurkish }));
+    const rankedAll = subqueries.map((q) =>
+      rankForSubquery(index, q, { carryStems, semantic: input.semanticBySubquery?.get(q) ?? input.semantic, sources, queryIsTurkish }),
+    );
     const ranked = rankedAll.map((r) => r.cands);
     const srcs = rankedAll[0]?.sources ?? [];
     const fus = rankedAll[0]?.fusion;
