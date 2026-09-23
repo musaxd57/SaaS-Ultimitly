@@ -177,7 +177,7 @@ describe("istem notu — seçilmiş kalemlerde DÜRÜST wording, davranış kura
 
 describe("mimari pinler", () => {
   it("retrieval modülü DB'ye ERİŞMEZ (yetki/onay/sır filtreleri retrieval'ın ÖNÜNDEDİR)", () => {
-    for (const rel of ["select.ts", "bm25.ts", "chunker.ts", "index-cache.ts", "lexicon.ts", "text.ts", "semantic.ts", "flag.ts", "sources.ts", "fusion.ts", "rerank.ts"]) {
+    for (const rel of ["select.ts", "bm25.ts", "chunker.ts", "index-cache.ts", "lexicon.ts", "lexicon-foreign.ts", "text.ts", "semantic.ts", "flag.ts", "sources.ts", "fusion.ts", "rerank.ts"]) {
       const src = read(`src/lib/ai/retrieval/${rel}`);
       expect(src, rel).not.toMatch(/from "@\/lib\/db"/);
       expect(src, rel).not.toMatch(/prisma/);
@@ -253,7 +253,7 @@ describe("mimari pinler", () => {
     const guestPath = [
       "src/app/api/chat/[token]/route.ts",
       "src/lib/guest-chat.ts",
-      ...["select.ts", "bm25.ts", "chunker.ts", "index-cache.ts", "lexicon.ts", "text.ts", "semantic.ts", "flag.ts", "sources.ts", "fusion.ts", "rerank.ts"].map(
+      ...["select.ts", "bm25.ts", "chunker.ts", "index-cache.ts", "lexicon.ts", "lexicon-foreign.ts", "text.ts", "semantic.ts", "flag.ts", "sources.ts", "fusion.ts", "rerank.ts"].map(
         (f) => `src/lib/ai/retrieval/${f}`,
       ),
     ];

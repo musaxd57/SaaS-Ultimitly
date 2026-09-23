@@ -4,6 +4,7 @@ import type { KbChunk, KbChunkSource } from "./chunker";
 import { kbRetrievalMode, type KbRetrievalMode } from "./flag";
 import { fuseNormalizedScores, fuseRankings, type SourceRanking } from "./fusion";
 import { expandQuery, TIME_FIELD_LABELS } from "./lexicon";
+import { matchForeignConcepts } from "./lexicon-foreign";
 import { getOrBuildKbIndex, type KbIndex } from "./index-cache";
 import {
   dropSuperseded,
@@ -87,6 +88,12 @@ export interface KbSelectSources {
   ngram?: boolean | "auto";
   /** Birleşim: "sum" (büyüklük koruyan, VARSAYILAN — ölçüldü) ya da "rrf". */
   fusion?: "sum" | "rrf";
+  /**
+   * Yabancı dil yüzey biçimleri (`lexicon-foreign.ts`, DE/FR/ES/RU/AR). VARSAYILAN AÇIK (09-24,
+   * ölçümle). `false` yalnız ölçüm/harness içindir: "Türkçe/İngilizce seçim birebir aynı" pini
+   * iki yolu bununla kıyaslar.
+   */
+  foreign?: boolean;
 }
 
 export interface KbSelectInput<T extends KbChunkSource> {
@@ -128,7 +135,7 @@ export const RELEVANCE_FLOOR_ABS = 0.1;
 export const RELEVANCE_FLOOR_REL = 0.25;
 export const MAX_CHUNKS_PER_ITEM = 3;
 export const MAX_SUBQUERIES = 4;
-export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: "auto", fusion: "sum" };
+export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: "auto", fusion: "sum", foreign: true };
 /** Sorgu bu kadar az içerik kökü taşıyorsa önceki misafir mesajları bağlam olarak eklenir. */
 const THIN_QUERY_STEMS = 2;
 const CARRY_HISTORY_MESSAGES = 2;
@@ -220,7 +227,8 @@ function rankForSubquery(
   for (const s of carried) {
     if (!weights.has(s)) weights.set(s, WEAK_QUERY_TERMS.has(s) ? Math.min(CARRY_WEIGHT, WEAK_QUERY_WEIGHT) : CARRY_WEIGHT);
   }
-  const { expansion, categoryHints } = expandQuery([...own, ...carried]);
+  // Yabancı dil yüzey biçimleri HAM alt sorgudan (Türkçe kök sökücüden GEÇMEDEN) — lexicon-foreign.ts.
+  const { expansion, categoryHints } = expandQuery([...own, ...carried], opt.sources.foreign ? matchForeignConcepts(subquery) : []);
   for (const [s, w] of expansion) if (!weights.has(s)) weights.set(s, w);
 
   // --- Kaynak 1: BM25 (kök + sözlük genişletmesi + fuzzy) -------------------

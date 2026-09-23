@@ -178,8 +178,13 @@ export interface QueryExpansion {
 
 export const EXPANSION_WEIGHT = 0.5;
 
-export function expandQuery(stems: string[]): QueryExpansion {
+/**
+ * `extra`: kökten BAĞIMSIZ bulunmuş kavramlar (yabancı dil yüzey biçimleri, `lexicon-foreign.ts`).
+ * Kavram kimliğine göre birleşir — aynı kavram iki yoldan gelirse genişletme ve ipucu BİR kez.
+ */
+export function expandQuery(stems: string[], extra: readonly ConceptMatch[] = []): QueryExpansion {
   const matched = matchConcepts(stems);
+  for (const e of extra) if (!matched.some((m) => m.concept.id === e.concept.id)) matched.push(e);
   const own = new Set(stems);
   const expansion = new Map<string, number>();
   const categoryHints = new Map<KbCategory, number>();
