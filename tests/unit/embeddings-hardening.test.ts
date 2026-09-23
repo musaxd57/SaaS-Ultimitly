@@ -122,6 +122,20 @@ describe("② TEKRAR DENEME — geçici arıza kaybedilmez, kalıcı arıza ısr
     expect(n).toBe(2);
   });
 
+  it("🚨 KALICI 429 (kredi bitti) tekrar DENENMEZ — hiçbir deneme başarılı olamaz, bütçe boşa yanar", async () => {
+    // 09-23 ölçüldü: kredisiz hesapta her parti 9 sn'lik toplam bütçeyi yeniden denemelerle tüketiyordu.
+    let n = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        n += 1;
+        return new Response(JSON.stringify({ error: { code: "insufficient_quota" } }), { status: 429 });
+      }),
+    );
+    expect(await embedTexts(["x"])).toBeNull();
+    expect(n).toBe(1);
+  });
+
   it("5xx tekrar denenir", async () => {
     let n = 0;
     vi.stubGlobal(

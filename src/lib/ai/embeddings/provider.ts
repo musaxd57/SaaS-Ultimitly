@@ -37,6 +37,7 @@
 
 import { createHash } from "node:crypto";
 import { reportError } from "@/lib/report-error";
+import { classifyModelProviderFailure } from "@/lib/ai/provider-health";
 
 /**
  * Model. `text-embedding-3-small`: 1536 boyut, ölçülen maliyet kurucu org'un
@@ -269,6 +270,11 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
 
       if (!res.ok) {
         lastStatus = res.status;
+        // 🚨 KALICI ARIZA (kredi bitti / anahtar reddedildi / model yok) yeniden DENENMEZ: kredisi biten
+        // hesabın 429'u `isRetryableStatus` için geçici görünür ama hiçbir deneme başarılı olamaz (09-23
+        // ölçüldü). Gövde YALNIZ sınıflandırma için okunur; alarma geçmez (↓ yalnız durum kodu).
+        const errBody = await res.text().catch(() => "");
+        if (classifyModelProviderFailure(res.status, errBody)) break;
         // 🚨 KALICI HATADA ISRAR YOK ve BEKLEME KALAN BÜTÇEYİ AŞAMAZ — karar
         // saf `retryPlan`da (tek başına test-pinli).
         const plan = retryPlan({
