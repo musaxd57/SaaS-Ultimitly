@@ -50,10 +50,24 @@ describe("retrieval baseline — legacy vs hibrit", () => {
     }
   });
 
-  it("kötü niyetli kaynak ilgisiz soruda hibritte modele GİTMEZ (legacy'de gider — ölçülen maruziyet)", () => {
+  it("kötü niyetli kaynak: KÜÇÜK KB'de hibrit legacy ile AYNI kümeyi gönderir (maruziyet farkı YOK); daraltılan BÜYÜK KB'de ilgisiz soruda gitmez", () => {
+    // 09-23: tamamı 6k'ya sığan ≤30 kalemlik KB'de seçim YAPILMAZ (parafraz ölçümü) → maruziyet
+    // legacy'ninkiyle aynı. Retrieval zaten politika DEĞİLDİ; asıl koruma sır elemesi + injection vetosu.
     expect(byId.malicious_source.legacy.leaked).toBe(true);
-    expect(byId.malicious_source.hybrid.leaked).toBe(false);
-    expect(byId.malicious_source.hybrid.hit).toBe(true);
+    expect(byId.malicious_source.hybrid.leaked).toBe(true);
+    expect(byId.malicious_source.hybrid.fallback).toBe("small_kb");
+    const s = byId.malicious_source.s;
+    const pad = Array.from({ length: 12 }, (_, i) => ({
+      id: `kb_pad_${i}`,
+      category: "faq",
+      title: `Ek not ${i}`,
+      content: `Bu ek not ${i} yalnız hacim içindir.`,
+      updatedAt: new Date(Date.UTC(2026, 0, 1, 0, i)),
+    }));
+    const big = runHybrid({ ...s, items: [...s.items, ...pad] });
+    expect(big.fallback).toBe("none");
+    expect(big.leaked).toBe(false);
+    expect(big.hit).toBe(true);
   });
 
   it("kaynak çelişkisinde iki saat de gider (retrieval çelişkiyi gizlemez)", () => {

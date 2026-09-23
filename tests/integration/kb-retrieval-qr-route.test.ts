@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { FILLERS } from "../helpers/kb-retrieval-scenarios";
+import { KB_ITEM_CAP } from "@/lib/ai/limits";
 
 // ---------------------------------------------------------------------------
 // RAG dilim 1 — QR rotası uçtan uca (model MOCK, DB gerçek).
@@ -42,9 +43,10 @@ async function seed() {
       currency: "EUR",
     },
   });
-  // 16 onaylı, sır kategorisi dışı kalem: 15 dolgu + 1 otopark. Küçük-KB
-  // eşiğinin (12) üstünde → hibrit devreye girer.
-  const fill = FILLERS.filter((f) => !["wifi", "checkin"].includes(f.category)).slice(0, 15);
+  // 31 onaylı, sır kategorisi dışı kalem: 30 dolgu (15 × 2, başlık ekli) + 1 otopark. Küçük-KB
+  // eşiğinin (legacy tavanı 30 kalem, 09-23) üstünde → hibrit SEÇİM yapar.
+  const base = FILLERS.filter((f) => !["wifi", "checkin"].includes(f.category)).slice(0, 15);
+  const fill = [...base, ...base.map((f) => ({ ...f, title: `${f.title} (ek)` }))];
   for (const f of fill) {
     await prisma.knowledgeBaseItem.create({
       data: { propertyId, category: f.category, title: f.title, content: f.content, isActive: true, source: "host_manual", reviewState: "approved" },
@@ -101,12 +103,12 @@ describe("QR rotası — hibrit retrieval bayrağı", () => {
     const res = await ask(token, "Otopark var mı?");
     expect(res.status).toBe(200);
     const input = mockSuggest.mock.calls[0][0] as Input;
-    expect(input.knowledgeBase).toHaveLength(total);
-    expect(input.knowledgeBaseDropped).toBe(0);
+    expect(input.knowledgeBase).toHaveLength(Math.min(total, KB_ITEM_CAP)); // tam küme = legacy tavanı
+    expect(input.knowledgeBaseDropped).toBe(Math.max(0, total - KB_ITEM_CAP)); // tavan kırpması sayılır (§C)
     expect(input.knowledgeBaseSelection).toBe("all");
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { organizationId: orgId, surface: "guest_chat" } });
-    expect(ev.kbRetrieved).toBe(total);
-    expect(ev.kbDropped).toBe(0);
+    expect(ev.kbRetrieved).toBe(Math.min(total, KB_ITEM_CAP));
+    expect(ev.kbDropped).toBe(Math.max(0, total - KB_ITEM_CAP));
     expect(String(ev.kbEvidenceJson)).not.toContain("retrieval");
   });
 
@@ -149,9 +151,9 @@ describe("QR rotası — hibrit retrieval bayrağı", () => {
     mockSuggest.mockResolvedValue({ ...model(), reply: "Jakuzi konusunda kayıtlı bilgim yok.", usedSources: [], sourceAudit: { declared: 0, verified: 0 } });
     await ask(token, "Jakuzi var mı?");
     const input = mockSuggest.mock.calls[0][0] as Input;
-    expect(input.knowledgeBase).toHaveLength(total);
+    expect(input.knowledgeBase).toHaveLength(Math.min(total, KB_ITEM_CAP)); // tam küme = legacy tavanı
     expect(input.knowledgeBaseSelection).toBe("all");
-    expect(input.knowledgeBaseDropped).toBe(0);
+    expect(input.knowledgeBaseDropped).toBe(Math.max(0, total - KB_ITEM_CAP)); // tavan kırpması sayılır (§C)
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { organizationId: orgId, surface: "guest_chat" } });
     const evidence = JSON.parse(String(ev.kbEvidenceJson)) as { retrieval: { fb: string } };
     expect(evidence.retrieval.fb).toBe("no_lexical_hits");

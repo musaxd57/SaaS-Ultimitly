@@ -6,7 +6,8 @@ import {
 } from "@/lib/ai/retrieval/lexicon-foreign";
 import { CONCEPTS, matchConcepts } from "@/lib/ai/retrieval/lexicon";
 import { contentStems, isStopword } from "@/lib/ai/retrieval/text";
-import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+// Seçim MEKANİĞİ: küçük fikstürde eski küçük-KB eşiği (helper gerekçesi).
+import { selectKbForPrompt } from "../helpers/select-mechanics";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
 

@@ -9,7 +9,6 @@ import { reportError } from "@/lib/report-error";
 import {
   kbRetrievalMode,
   kbRetrievalModeInfo,
-  selectKbForPrompt,
   splitQuestions,
   MAX_CHUNKS_PER_ITEM,
 } from "@/lib/ai/retrieval/select";
@@ -23,6 +22,8 @@ import { KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limi
 import { extractFieldTimes, preserveTimeConflicts, rerank, sortCandidates, SCORE_TIE_STEP } from "@/lib/ai/retrieval/rerank";
 import { findTimeConflicts } from "@/lib/ai/prompts";
 import { FILLERS, longGuide } from "../helpers/kb-retrieval-scenarios";
+// Seçim MEKANİĞİ: küçük fikstürde eski küçük-KB eşiği (↓helper gerekçesi). Üretim eşiği ayrı dosyada.
+import { selectKbForPrompt } from "../helpers/select-mechanics";
 
 // ---------------------------------------------------------------------------
 // RAG dilim 1 — hibrit seçici sözleşmesi.

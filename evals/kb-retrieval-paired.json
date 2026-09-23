@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "kb-retrieval-paired",
   "description": "AYNI sorular, AYNI bilgi tabanı, İKİ retrieval modu: legacy (en yeni 30 kalem + 24k açgözlü bütçe) ve hybrid (soruya göre parça, en yeni 200 okuma). Her senaryo iki kez koşar; ölçülen: doğru kaynak İSTEMDE mi (koddan), cevap doğru mu, makbuzsuz iddia var mı, çelişkide kesin değer var mı, bilgi yokken yokluk söyleniyor mu. LLM grader YOKTUR.",
   "notes": [
@@ -7,7 +7,8 @@
     "Beklentiler MODDAN BAĞIMSIZ yazılır; hangi modda gold'un istemde olduğu KODDAN ölçülür ve kontrol ona göre dallanır: gold istemdeyse cevap ona DAYANMALI; istemde değilse cevap 'doğru' çıksa bile DESTEKSİZDİR (şans/uydurma) ve yokluk söylenmelidir.",
     "Sentetik retrieval ölçümü (`kb-retrieval-scale`) ile bu gerçek-model ölçümü AYRI TUTULUR: oradaki inPrompt 'kaynak bloğa girdi mi'dir, buradaki 'cevap doğru mu'dur; ikisi birbirinin yerine geçmez.",
     "Gerçek çağrıyı KURUCU yapar (`npm run eval`, RUN_REAL_EVAL=1 + anahtar). Bu ortamda anahtar yoktur; senaryolar atlanır, çevrimdışı testler eşleştirmenin kendisini pinler.",
-    "2026-09-11: `acknowledgeAbsenceWhenGoldMissing` → `notDeliverableWhenGoldMissing`. Eskiden modelin 'bilgim yok' DEMESİ şart koşuluyordu; o şart KURAL-5'in kalıp cümlesi istemden kaldırıldıktan sonra ürünün EMRETTİĞİ davranışla ÇELİŞTİ ve kurucunun gerçek koşusunda yedi SATIRI (altı senaryo; R6 hem legacy hem hibritte) kırmızı yaptı. Ölçüldü: o satırların hepsini ürünün kapısı zaten durduruyordu — ama `low_confidence` dalıyla, yokluk itirafıyla DEĞİL. Yeni ölçüt itiraf değil TESLİMAT: kaynak isteme girmediyse ürün misafire kesin bir şey söylememeli. 🚨 EK (09-11 ikinci tur): teslimat TEK BAŞINA yetmiyor — düşük güvenli bir UYDURMA kapıda durur ve teslimat ekseni yeşil kalır. Bu yüzden ikinci eksen eklendi: kaynak yokken cevap SOMUT İDDİA (rakam/yer tarifi) taşımamalı; ölçen, ürünün kendi yüklemi `hasUnsourcedSpecificClaim`."
+    "2026-09-11: `acknowledgeAbsenceWhenGoldMissing` → `notDeliverableWhenGoldMissing`. Eskiden modelin 'bilgim yok' DEMESİ şart koşuluyordu; o şart KURAL-5'in kalıp cümlesi istemden kaldırıldıktan sonra ürünün EMRETTİĞİ davranışla ÇELİŞTİ ve kurucunun gerçek koşusunda yedi SATIRI (altı senaryo; R6 hem legacy hem hibritte) kırmızı yaptı. Ölçüldü: o satırların hepsini ürünün kapısı zaten durduruyordu — ama `low_confidence` dalıyla, yokluk itirafıyla DEĞİL. Yeni ölçüt itiraf değil TESLİMAT: kaynak isteme girmediyse ürün misafire kesin bir şey söylememeli. 🚨 EK (09-11 ikinci tur): teslimat TEK BAŞINA yetmiyor — düşük güvenli bir UYDURMA kapıda durur ve teslimat ekseni yeşil kalır. Bu yüzden ikinci eksen eklendi: kaynak yokken cevap SOMUT İDDİA (rakam/yer tarifi) taşımamalı; ölçen, ürünün kendi yüklemi `hasUnsourcedSpecificClaim`.",
+    "2026-09-23 (v2): R4 ve R5 dolgu sayısı 20 → 34. Üretimde küçük-KB eşiği legacy tavanına (30 kalem, 6k içinde tamamı gider) çıktı; 22 kalemlik KB artık seçim YAPMAZ, iki blok birebir olur ve bu iki senaryo sınamak için yazıldıkları hibrit mekaniği (çok soruda round-robin, çelişki koruması) sınayamaz. Kalemler 'newest' olduğu için gold iki modda da istemde kalır (✓/✓ deseni değişmez). `docs/olcum/kb-retrieval-parafraz-2026-09-23.md`."
   ],
   "scenarios": [
     {
@@ -124,7 +125,7 @@
       "id": "R4-cok-soru",
       "question": "Otopark var mı, çöpü nereye bırakayım?",
       "kb": {
-        "fillers": 20,
+        "fillers": 34,
         "extra": [
           {
             "id": "kb_parking",
@@ -164,7 +165,7 @@
       "question": "Çıkış saati kaçta?",
       "propertyCheckOutTime": "11:00",
       "kb": {
-        "fillers": 20,
+        "fillers": 34,
         "excludeTopics": [
           "checkout_msg"
         ],

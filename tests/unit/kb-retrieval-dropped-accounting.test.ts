@@ -61,8 +61,10 @@ describe("§C — geri çekilme dalında DÜŞEN kalem sayılır", () => {
     // HİÇ çağrılmaz — mutasyon turu (M3) tam bu boşluğu ölçtü: "tavan altında
     // sahte düşüş üret" mutantı HAYATTA KALMIŞTI, çünkü eski fikstür (10 kalem)
     // kırpma fonksiyonuna hiç uğramıyordu.
+    // 09-23: üretimde ≤30 kalem + 6k içindeki KB `small_kb`dır; kırpma dalına ulaşmak için
+    // küçük-KB eşiği burada AÇIKÇA eski değere (12) çekilir.
     const items = Array.from({ length: 20 }, (_, i) => item(i));
-    const out = selectKbForPrompt({ items, guestMessage: NO_HIT_QUESTION, now: NOW, mode: "hybrid" });
+    const out = selectKbForPrompt({ items, guestMessage: NO_HIT_QUESTION, now: NOW, mode: "hybrid", fullSetMaxItems: 12 });
     expect(out.evidence?.fb).toBe("no_lexical_hits"); // gerçekten kırpma dalındayız
     expect(out.items.length).toBe(20); // tavanın altında → kırpma YOK
     expect(out.droppedItems).toBe(0);

@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { stem, contentStems } from "@/lib/ai/retrieval/text";
 import { matchConcepts, expandQuery } from "@/lib/ai/retrieval/lexicon";
-import { selectKbForPrompt, WEAK_QUERY_TERMS } from "@/lib/ai/retrieval/select";
+import { WEAK_QUERY_TERMS } from "@/lib/ai/retrieval/select";
+// Seçim MEKANİĞİ: küçük fikstürde eski küçük-KB eşiği (helper gerekçesi).
+import { selectKbForPrompt } from "../helpers/select-mechanics";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 import { makeSyntheticKb, TOPICS } from "../helpers/kb-retrieval-synthetic";
 

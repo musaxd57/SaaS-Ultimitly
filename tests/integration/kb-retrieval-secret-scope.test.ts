@@ -46,7 +46,9 @@ const CHECKIN = { category: "checkin", title: "Giriş talimatı", content: "Anah
 const PARKING = { category: "parking", title: "Otopark", content: "Bina altı otopark misafirler için ücretsizdir." };
 
 async function seedKb(propertyId: string, extra: { category: string; title: string; content: string }[]) {
-  const fill = FILLERS.filter((f) => !["wifi", "checkin"].includes(f.category)).slice(0, 14);
+  // Sır bacakları elendikten SONRA da küçük-KB eşiğini (legacy tavanı 30, 09-23) aşsın → seçim yapılır.
+  const base = FILLERS.filter((f) => !["wifi", "checkin"].includes(f.category)).slice(0, 14);
+  const fill = [...base, ...base.map((f) => ({ ...f, title: `${f.title} (ek)` })), ...base.map((f) => ({ ...f, title: `${f.title} (ek 2)` }))];
   const ids: Record<string, string> = {};
   for (const f of fill) {
     await prisma.knowledgeBaseItem.create({

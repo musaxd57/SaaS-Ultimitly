@@ -463,8 +463,9 @@ describe("eşleştirilmiş eval — çevrimdışı pinler (gerçek çağrı YAPM
       expect(h.goldInPrompt, `${s.id} hybrid`).toBe(hybridGold);
       expect(l.kbSel.selection).toBe("all");
       if (s.id === "R6-bilgi-yok") {
-        // Geri çekilme: hibrit tam kümeyi verir = legacy bloğu (aynı 20 kalem).
-        expect(h.kbSel.evidence?.fb).toBe("no_lexical_hits");
+        // Hibrit tam kümeyi verir = legacy bloğu (aynı 20 kalem). 09-23'ten beri sebep küçük-KB eşiği
+        // (≤30 kalem, 6k içinde → seçim yok); öncesinde sözcüksel isabetsizlik geri çekilmesiydi.
+        expect(h.kbSel.evidence?.fb).toBe("small_kb");
         expect(h.promptText).toBe(l.promptText);
       } else {
         expect(h.kbSel.selection, s.id).toBe("retrieved");

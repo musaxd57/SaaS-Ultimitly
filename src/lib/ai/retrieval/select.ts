@@ -104,6 +104,11 @@ export interface KbSelectInput<T extends KbChunkSource> {
   mode?: KbRetrievalMode;
   budgetChars?: number;
   maxChunks?: number;
+  /**
+   * KÜÇÜK KB eşiği (kalem sayısı): KB bu sayıyı ve karakter bütçesini aşmıyorsa seçim YAPILMAZ,
+   * tamamı gider. Varsayılan `KB_ITEM_CAP` (legacy'nin gönderdiği küme). Test/ölçüm için ezilebilir.
+   */
+  fullSetMaxItems?: number;
   /** Anlamsal puanlar (parça anahtarı → 0..1), önceden hesaplanmış; yoksa kaynak yok. */
   semantic?: ReadonlyMap<string, number>;
   sources?: KbSelectSources;
@@ -397,7 +402,13 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const { kept: items, dropped: sup } = dropSuperseded(input.items as readonly (T & Supersedable)[]);
     // KÜÇÜK KB → SEÇİM YOK: tamamı bütçeye sığıyorsa retrieval'ın katkısı yok,
     // riski var (kaçırılan parça = gereksiz devir). Retrieval yalnız gerektiğinde.
-    if (items.length <= maxChunks && renderedCharsAll(items) <= budget) {
+    // 🚨 KALEM EŞİĞİ `maxChunks` (12) DEĞİL, legacy tavanı (09-23 ölçümü): 12 SEÇİMİN çıktı
+    // tavanıdır, "küçük KB"nin tanımı değil. Eski şartla 13–30 kalemlik (tipik host) KB, tamamı
+    // 6k'ya sığdığı hâlde daraltılıyordu; kelime paylaşmayan (parafraz) Türkçe soruda cevap
+    // cümlesi isteme %33–36 giriyordu, legacy'de %91–100 — "hibrit legacy'den AZ bilgi taşımaz"
+    // değişmezinin ihlali. `docs/olcum/kb-retrieval-parafraz-2026-09-23.md`.
+    const fullSetMaxItems = input.fullSetMaxItems ?? KB_ITEM_CAP;
+    if (items.length <= fullSetMaxItems && renderedCharsAll(items) <= budget) {
       return legacyResult(sup > 0 ? items : input.items, "hybrid", evidence("small_kb", 0, items.length, items.length, { sup }));
     }
     const subqueries = splitQuestions(input.guestMessage);
