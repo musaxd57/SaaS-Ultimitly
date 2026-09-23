@@ -95,6 +95,22 @@ describe("QR konu taraması — sınıflandırma karakter bütçesi", () => {
     expect(w.openTopics).toContain("complaint");
   });
 
+  it("bütçe yalnız MİSAFİR metnini sayar: uzun host cevapları eski şikâyeti taramadan İTMEZ", async () => {
+    // Maliyeti sınıflandırma üretir ve yalnız misafir satırı sınıflanır. Host metnini de
+    // saymak, 2.000 karakterlik host cevapları olan olağan bir sohbette şikâyet notunu
+    // sebepsiz yere düşürürdü.
+    const msgs: { direction: "inbound" | "outbound"; body: string }[] = [
+      { direction: "inbound", body: "Klima çalışmıyor, içerisi çok sıcak." },
+      ...Array.from({ length: 13 }, () => ({ direction: "outbound" as const, body: "Bilgi: ".repeat(285) })),
+      { direction: "inbound", body: "Havlular nerede acaba?" },
+    ];
+    const conversationId = await seedConversation(msgs);
+
+    const w = await buildGuestChatContextWindow(conversationId);
+
+    expect(w.openTopics).toContain("complaint");
+  });
+
   it("BİLİNEN SINIR (bütçe gerçekten uygulanıyor): şikâyet bütçenin GERİSİNDE kalırsa not taşınmaz", async () => {
     // Bütçe = 24.000; 13 × 2.000 karakterlik misafir mesajı şikâyeti tarama dışına iter.
     // Bedeli yalnız bir BAĞLAM notudur: kapı GÜNCEL mesaja bakar, devir kararı etkilenmez.

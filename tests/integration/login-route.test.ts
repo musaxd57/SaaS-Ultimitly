@@ -371,6 +371,17 @@ describe("login — hesap kovası kilitleme silahı DEĞİLDİR", () => {
     expect(mockSetSession).not.toHaveBeenCalled();
   });
 
+  it("SINIR: 19 hatada kapı AÇIK, 20. hatadan sonra KAPALI (peek = tüketimle aynı eşik)", { timeout: 90_000 }, async () => {
+    // Eski davranışta 20 hataya 401, 21.'ye 429 verilir; kapı da tam oradan kapanmalı —
+    // `<` yerine `<=` bir fazla denemeye, `<`in bir eksiği erken kilitlemeye yol açar.
+    await attackerFailures(19, "9.9.4");
+    const open = await POST(loginReq({ email: VICTIM, password: GOOD }, "2.2.3.1"));
+    expect(open.status, "19 hatada kapı ERKEN kapandı").toBe(200);
+    await POST(loginReq({ email: VICTIM, password: "wrong-20" }, "9.9.4.200")); // 20. hata
+    const closed = await POST(loginReq({ email: VICTIM, password: GOOD }, "2.2.3.2"));
+    expect(closed.status, "20 hatadan sonra kapı AÇIK kaldı").toBe(429);
+  });
+
   it("BAŞKA kullanıcının tanınan-cihaz çerezi işe yaramaz", { timeout: 60_000 }, async () => {
     await attackerFailures(21, "9.9.7");
     const other = await prisma.user.create({
