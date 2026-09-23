@@ -9,6 +9,7 @@ import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WH
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import { findUpcomingConflicts } from "@/modules/availability/conflicts";
 import { createReservationTasks } from "@/lib/automation";
+import { refreshPatternMemory } from "@/modules/intelligence/memory/patterns";
 
 // ---------------------------------------------------------------------------
 // DEMO HESABI — gerçek PostgreSQL. Kiracı sınırı DAVRANIŞSAL (komşu org'ların satırları önce/sonra
@@ -114,6 +115,29 @@ describe("demo hesabı — uygulama", () => {
     for (const i of items) expect(["unanswered_aging", "departing_unanswered"]).toContain(i.kind);
     expect(items.map((i) => fresh.find((id) => i.href.includes(id)))).not.toContain(undefined);
     expect(await findUpcomingConflicts(DEMO_ORG_ID, { now: NOW })).toEqual([]);
+  });
+
+  it("🚨 'tekrar eden arıza' kartı ÜRÜNÜN örüntü kuralıyla doğar (uydurma satır yok): sinyaller → senkron hafızası → panel", async () => {
+    const ds = buildDemoDataset({ now: NOW });
+    await applyDemoTenant(prisma, ds, { reviewerPasswordHash: PW_HASH, staffPasswordHash: STAFF_HASH });
+    // Sinyal satırları ürünün tüketicisinin yazacağı biçimde (kaynak, tekilleştirme anahtarı).
+    const sigs = await prisma.signal.findMany({ where: { organizationId: DEMO_ORG_ID } });
+    expect(sigs.length).toBe(ds.signals.length);
+    for (const g of sigs) {
+      expect(g.source).toBe("guest_message");
+      expect(g.dedupeKey).toBe(`${DEMO_ORG_ID}:message.intent:${g.sourceEntityId}`);
+      expect(g.sourceEventId).toBeNull();
+    }
+    // Senkron geçişinin çağırdığı AYNI fonksiyon örüntüyü üretir; panel onu okur.
+    await refreshPatternMemory(DEMO_ORG_ID, undefined, NOW);
+    const items = await findAttentionItems(DEMO_ORG_ID, { now: NOW });
+    const recurring = items.filter((i) => i.kind === "recurring_issue");
+    expect(recurring).toHaveLength(1);
+    expect(recurring[0].href).toContain(ds.properties[7].id);
+    // Yenileme sinyalleri ve örüntüyü temizleyip yeniden yazar (çoğalma yok).
+    await applyDemoTenant(prisma, buildDemoDataset({ now: NOW }), { reviewerPasswordHash: null, staffPasswordHash: STAFF_HASH });
+    expect(await prisma.signal.count({ where: { organizationId: DEMO_ORG_ID } })).toBe(ds.signals.length);
+    expect(await prisma.propertyMemory.count({ where: { organizationId: DEMO_ORG_ID, source: "signal_pattern" } })).toBe(0);
   });
 
   it("görevler ürünün kendi görev üreticisiyle birebir: hiçbir rezervasyon için EKSİK görev yok", async () => {

@@ -21,6 +21,7 @@ import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fromNow, truncate, cn } from "@/lib/utils";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,7 @@ export default async function InboxPage({
   // Free/expired tier: automation is suppressed server-side — render the
   // controls inert so they don't misleadingly read "Açık".
   const automationLocked = !(await premiumAllowed(session.organizationId));
+  const demo = isDemoOrg(session.organizationId);
 
   // "x gün önce" etiketi 30 günü aşınca mutlak güne düşer — o gün host'un
   // takvim günü olmalı, sunucunun UTC'si değil.
@@ -208,14 +210,17 @@ export default async function InboxPage({
     <>
       <AutoRefresh seconds={30} />
       <PageHeader title="Mesajlar" description="Tüm misafir konuşmalarını tek kutudan yönetin.">
-        <HospitableSyncButton />
-        <AutoReplyTestButton locked={automationLocked} />
+        {/* Demo (inceleme) hesabında kanal bağlantısı YOK: "Mesajları çek" her basışta "bağlı değil"
+            der, önizleme de yalnız kanal konuşmalarını seçtiği için her zaman boş döner (ve günlük
+            AI hakkı yakar). İkisi de orada yalnız kırık bir düğme olurdu. */}
+        {demo ? null : <HospitableSyncButton />}
+        {demo ? null : <AutoReplyTestButton locked={automationLocked} />}
         <AutoReplyToggle
           field="autoReplyHospitable"
           label={`Oto-yanıt (${activeWindow})`}
           enabled={org?.autoReplyHospitable ?? false}
           locked={automationLocked}
-          title={`${windowSentence}, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır. "Mesajları çek" sırasında çalışır.`}
+          title={`${windowSentence}, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır.`}
         />
         <LinkButton href="/inbox/new">
           <Plus className="size-4" /> Yeni konuşma

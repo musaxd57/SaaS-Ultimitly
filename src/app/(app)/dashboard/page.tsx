@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { CONVERSATION_STATUS, PRIORITY, TASK_TYPE } from "@/lib/constants";
 import { formatTime, truncate } from "@/lib/utils";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -201,7 +202,9 @@ export default async function DashboardPage() {
       {/* ⚠️ 6/6 kapısı ARTIK BİLEŞENİN İÇİNDE (istemci tarafı) — kutlama anı
           "az önce bitti" bilgisini gerektiriyor ve o yalnız istemcide var.
           Bileşen 6/6'da SSR'da da boş basar, yani flash yok. */}
-      <OnboardingGuide steps={onboardingSteps} />
+      {/* Demo (inceleme) hesabında kurulum rehberi YOK: sahte kanal bağlantısı kurulmaz ve
+          "Bağlantıyı kur" adımı inceleme ekibine tamamlanamaz bir iş olarak görünürdü. */}
+      {isDemoOrg(orgId) ? null : <OnboardingGuide steps={onboardingSteps} />}
 
       {/* V2.1 — bu kart, hemen aşağıdaki notun tarif ettiği şeyin ta kendisi:
           kutucukların GÖSTEREMEDİĞİ durumları söyler ve SAKİN GÜNDE HİÇ BASMAZ

@@ -15,6 +15,7 @@ import { QualityAuditCard } from "@/components/admin/quality-audit-card";
 import { qualityAuditConfigured } from "@/lib/quality-audit";
 import { shadowAiEnabled, shadowModel } from "@/lib/shadow-ai";
 import { LeadActions } from "@/components/admin/lead-actions";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -193,7 +194,9 @@ export default async function AdminPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Müşteriler ({orgs.length})</CardTitle>
+          {/* Demo (inceleme) hesabı müşteri SAYILMAZ — "gerçek kullanım" sayısını şişirmesin
+              (kurucu kararı 09-23); satırı listede "Demo" etiketiyle görünür kalır. */}
+          <CardTitle className="text-base">Müşteriler ({orgs.filter((o) => !isDemoOrg(o.id)).length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -218,6 +221,11 @@ export default async function AdminPage() {
                       <td className="px-4 py-3 font-medium">
                         {org.name}
                         {isSelf ? <span className="ml-2 text-xs text-muted-foreground">(buradasın)</span> : null}
+                        {isDemoOrg(org.id) ? (
+                          <span className="ml-2 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                            Demo
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{org._count.properties}</td>
                       <td className="px-4 py-3 text-muted-foreground">{org._count.users}</td>

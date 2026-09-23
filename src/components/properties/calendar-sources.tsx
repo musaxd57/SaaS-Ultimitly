@@ -146,8 +146,8 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
         Airbnb / Booking.com&apos;daki &quot;takvimi dışa aktar&quot; iCal bağlantısını buraya
         ekleyin; bağlantı düzenli aralıklarla yeniden okunur (&quot;Senkronla&quot; anında çeker).
         Elinizdeki bir dosyayı bir kez aktarmak için aşağıdaki &quot;Dosyadan içe aktar&quot;ı
-        kullanın. Hospitable bağlıysa aynı ilanın iCal&apos;ini ayrıca eklemeyin — rezervasyonlar
-        iki kez görünebilir.
+        kullanın. Bu ilanın rezervasyonları kanal bağlantınızdan zaten geliyorsa aynı ilanın
+        iCal&apos;ini ayrıca eklemeyin — rezervasyonlar iki kez görünebilir.
       </p>
 
       {sources.length > 0 && (

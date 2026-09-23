@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import type { BadgeTone } from "@/lib/constants";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 /**
  * 🚨 PERFORMANS ROZETİ HEP YEŞİLDİ (ölçüldü, 09-11): `tone="success"` SABİT
@@ -141,7 +142,7 @@ export default async function ReportsPage() {
         description="AI performansı, şikayet yoğunluğu ve operasyon metrikleri. Her kart kendi dönemini belirtir (AI etkinliği son 30 gün, doluluk bu ay)."
       />
 
-      {!connection.connected ? (
+      {!connection.connected && !isDemoOrg(organizationId) ? (
         <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           Airbnb / Booking bağlantısı kurulunca bu raporlar misafir mesajları ve rezervasyonlarla
           otomatik dolar.

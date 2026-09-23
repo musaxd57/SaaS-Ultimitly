@@ -1,4 +1,5 @@
 import { dateKeyInTimeZone } from "@/lib/timezone";
+import { deriveMessageSignal, type SignalDraft } from "@/modules/intelligence/signals/derive";
 import {
   DEMO_FUTURE_DAYS,
   DEMO_ID_PREFIX,
@@ -27,8 +28,11 @@ import {
 //  · Şikâyet/iade konuşmaları `problem` doğar, asla `new` değil: `new` + şikâyet otomatik uyarı
 //    e-postası tetikler. `new` konuşmalar yalnız zararsız sorular taşır (test-pinli).
 //  · Sır YOK: Wi-Fi şifresi, kapı kodu ya da QR/takvim token'ı veri kümesinde bulunmaz.
-//  · Bu dilimde müşteri sinyali / hafıza olayı (IngestEvent) üretilmez: yeni bir kaynak türü
-//    ("demo_seed") eklemek kapalı kaynak sözleşmesini değiştirir → ayrı karar.
+//  · IngestEvent (olay kaydı) üretilmez: yeni bir kaynak türü ("demo_seed") eklemek kapalı kaynak
+//    sözleşmesini değiştirir. Onun yerine SİNYALLER, ürünün tüketicisinin kullandığı AYNI saf
+//    türetme (`deriveMessageSignal`) ile misafir mesajlarından hesaplanır — aynı kaynak
+//    (`guest_message`), aynı tekilleştirme anahtarı. "Tekrar eden arıza" kartı bu sinyallerden
+//    senkron geçişinin örüntü hafızasıyla (`refreshPatternMemory`) doğar; burada uydurulmaz.
 // ---------------------------------------------------------------------------
 
 export interface DemoOrgRow {
@@ -136,6 +140,8 @@ export interface DemoTemplateRow {
   language: string;
 }
 
+export type DemoSignalRow = SignalDraft & { id: string };
+
 export interface DemoDataset {
   now: Date;
   todayKey: string;
@@ -148,6 +154,7 @@ export interface DemoDataset {
   tasks: DemoTaskRow[];
   kbItems: DemoKbRow[];
   templates: DemoTemplateRow[];
+  signals: DemoSignalRow[];
 }
 
 /** Mülberry32 — küçük, deterministik PRNG. */
@@ -286,12 +293,19 @@ interface ScriptedMessage {
   language?: string;
   intent?: string;
   sources?: string[];
+  /**
+   * Verilirse mesaj zamanı "şimdiden X dk önce" DEĞİL, seçilen konaklamanın giriş günü (12:00Z)
+   * + bu kadar dakikadır — geçmiş konaklamanın konuşması konaklamanın İÇİNDE geçsin diye.
+   */
+  afterStayStartMin?: number;
 }
 
 interface ScriptedThread {
   property: number;
   /** Hangi konaklama: "today" = bugünü kapsayan/bugün başlayan/biten çapa; "next" = ilk gelecek konaklama; "past" = geçmiş. */
   stay: "anchor" | "next" | "past";
+  /** `past` için: 0 = en yakın geçmiş konaklama, 1 = bir öncekisi, … */
+  pastIndex?: number;
   status: DemoConversationRow["status"];
   priority?: DemoConversationRow["priority"];
   skippedReason?: string;
@@ -390,7 +404,9 @@ const THREADS: readonly ScriptedThread[] = [
     stay: "past",
     status: "problem",
     priority: "urgent",
-    skippedReason: "refund",
+    // Ürünün uyarı yolu iade dâhil şikâyet sınıfında "complaint" yazar; "refund" diye bir gerekçe
+    // hiçbir üretim yolunda yok (konuşma bandı genel metne düşüyordu — demo denetimi 09-23).
+    skippedReason: "complaint",
     messages: [
       { who: "guest", minutesAgo: 6 * 24 * 60, body: "Temizlik ücretinin iadesini istiyorum, ev teslimde temiz değildi.", intent: "refund" },
       { who: "host", minutesAgo: 6 * 24 * 60 - 45, body: "Geri bildiriminiz için teşekkür ederiz; talebinizi inceliyoruz." },
@@ -409,6 +425,29 @@ const THREADS: readonly ScriptedThread[] = [
     messages: [
       { who: "guest", minutesAgo: 14 * 60, body: "Köpeğimizi getirebilir miyiz?", intent: "general" },
       { who: "ai", minutesAgo: 14 * 60 - 2, body: "Maalesef evimizde evcil hayvan kabul edilmemektedir.", sources: ["kb:rules"] },
+    ],
+  },
+  // Aynı dairede (7) geçmiş konaklamalarda da klima şikâyeti: bugünkü şikâyetle birlikte ürünün
+  // örüntü kuralı (≥3 olumsuz sinyal / 180 gün) "tekrar eden arıza" hafızası üretir. Cevaplanmış
+  // (`answered`) doğar: `new` + şikâyet uyarı e-postası tetiklerdi.
+  {
+    property: 7,
+    stay: "past",
+    pastIndex: 0,
+    status: "answered",
+    messages: [
+      { who: "guest", minutesAgo: 0, afterStayStartMin: 20 * 60, body: "Klima yine çalışmıyor, oda çok sıcak.", intent: "complaint" },
+      { who: "host", minutesAgo: 0, afterStayStartMin: 20 * 60 + 40, body: "Hemen teknisyen gönderiyoruz, anlayışınız için teşekkürler." },
+    ],
+  },
+  {
+    property: 7,
+    stay: "past",
+    pastIndex: 2,
+    status: "answered",
+    messages: [
+      { who: "guest", minutesAgo: 0, afterStayStartMin: 26 * 60, body: "Klima çalışmıyor, kumandayla da açılmıyor.", intent: "complaint" },
+      { who: "host", minutesAgo: 0, afterStayStartMin: 26 * 60 + 35, body: "Özür dileriz, teknisyen bugün uğrayacak." },
     ],
   },
 ];
@@ -586,8 +625,11 @@ export function buildDemoDataset(opts: BuildDemoOptions): DemoDataset {
         ? list.find((x) => x.stay.anchor && x.stay.end >= 0) ?? list.find((x) => x.stay.anchor)
         : t.stay === "next"
           ? list.find((x) => x.stay.start > 0)
-          : list.filter((x) => x.stay.end < -3).at(-1);
+          : list.filter((x) => x.stay.end < -3).at(-1 - (t.pastIndex ?? 0));
     if (!pick) return;
+    const stayStart = dayAt(todayKey, pick.stay.start).getTime();
+    const at = (m: ScriptedMessage) =>
+      m.afterStayStartMin !== undefined ? new Date(stayStart + m.afterStayStartMin * 60_000) : minutesAgo(m.minutesAgo);
     const res = reservations.find((r) => r.id === pick.resId)!;
     const convId = id("conv", n + 1);
     const guest = guestName(res.id);
@@ -604,7 +646,7 @@ export function buildDemoDataset(opts: BuildDemoOptions): DemoDataset {
         aiAssisted: m.who === "ai",
         authorType: m.who,
         aiSourcesJson: m.who === "ai" && m.sources ? JSON.stringify(m.sources) : null,
-        createdAt: minutesAgo(m.minutesAgo),
+        createdAt: at(m),
       });
     });
     const last = t.messages[t.messages.length - 1];
@@ -616,7 +658,7 @@ export function buildDemoDataset(opts: BuildDemoOptions): DemoDataset {
       guestIdentifier: guest,
       status: t.status,
       priority: t.priority ?? "standard",
-      lastMessageAt: minutesAgo(last.minutesAgo),
+      lastMessageAt: at(last),
       skippedReason: t.skippedReason ?? null,
     });
     if (t.maintenance) {
@@ -696,5 +738,27 @@ export function buildDemoDataset(opts: BuildDemoOptions): DemoDataset {
     },
   ];
 
-  return { now, todayKey, org, users, properties, reservations, conversations, messages, tasks, kbItems, templates };
+  // Sinyaller: ürünün IngestEvent tüketicisiyle AYNI saf türetme (misafir satırı → en fazla bir
+  // intent sinyali; "general" sinyal değildir). `sourceEventId` null: olay kaydı üretilmedi.
+  const convById = new Map(conversations.map((c) => [c.id, c]));
+  const signals: DemoSignalRow[] = [];
+  for (const m of messages) {
+    const c = convById.get(m.conversationId);
+    if (!c) continue;
+    const draft = deriveMessageSignal(
+      DEMO_ORG_ID,
+      {
+        id: m.id,
+        direction: m.direction,
+        authorType: m.authorType,
+        body: m.body,
+        createdAt: m.createdAt,
+        conversation: { id: c.id, propertyId: c.propertyId, reservationId: c.reservationId },
+      },
+      null,
+    );
+    if (draft) signals.push({ id: m.id.replace(`${DEMO_ID_PREFIX}msg-`, `${DEMO_ID_PREFIX}sig-`), ...draft });
+  }
+
+  return { now, todayKey, org, users, properties, reservations, conversations, messages, tasks, kbItems, templates, signals };
 }

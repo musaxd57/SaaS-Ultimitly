@@ -335,7 +335,9 @@ export default async function PropertyDetailPage({
                     <div className="space-y-1">
                       {memory.patterns.map((p) => (
                         <div key={p.id} className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm">{p.title}</span>
+                          {/* Ham başlık ("complaint: 3 sinyal / 40 gün") İç kayıt biçimidir; host'a
+                              kategorinin Türkçe adı gösterilir (demo denetimi 09-23). */}
+                          <span className="truncate text-sm">Tekrarlayan konu: {signalCategoryLabel(p.category)}</span>
                           <Badge tone="warning">{p.evidenceCount} sinyal</Badge>
                         </div>
                       ))}

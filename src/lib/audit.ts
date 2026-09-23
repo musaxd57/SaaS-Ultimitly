@@ -19,6 +19,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "account.2fa_recovery_generate": "2FA kurtarma kodları oluşturuldu",
   "account.2fa_recovery_used": "2FA kurtarma koduyla giriş yapıldı",
   "customer.create": "Müşteri hesabı oluşturuldu",
+  "demo_tenant.refreshed": "Demo hesabı yenilendi",
   "data.export": "Veri dışa aktarıldı (operatör)",
   "data.export_self": "Kullanıcı verilerini indirdi",
   "hospitable.connect": "Hospitable bağlandı",

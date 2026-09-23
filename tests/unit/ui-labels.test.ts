@@ -57,6 +57,8 @@ describe("channelLabel", () => {
     expect(channelLabel("airbnb")).toBe("Airbnb");
     expect(channelLabel("booking")).toBe("Booking.com");
     expect(channelLabel("ics")).toBe("Takvim (iCal)");
+    // Köprü/demo "direct" yazar; etiket yokken konuşma başlığında ham "direct" görünüyordu.
+    expect(channelLabel("direct")).toBe("Doğrudan");
   });
 });
 

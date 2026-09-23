@@ -96,7 +96,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   const token = await getOrgHospitableToken(session.organizationId);
   if (!isInternal && conversation.externalReservationId && !token) {
     return NextResponse.json(
-      { error: "Hospitable bağlı değil — mesaj gönderilemiyor. Ayarlar'dan bağlayın." },
+      { error: "Kanal hesabınız bağlı değil — mesaj gönderilemiyor. Ayarlar'dan bağlantınızı kurun." },
       { status: 502 },
     );
   }

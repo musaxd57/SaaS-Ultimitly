@@ -7,6 +7,8 @@ import { AppShell } from "@/components/shell/app-shell";
 import { getEntitlement, billingEnforced } from "@/lib/billing/subscription";
 import { TrialBanner } from "@/components/billing/trial-banner";
 import { LimitedModeBanner } from "@/components/billing/limited-mode-banner";
+import { DemoBanner } from "@/components/billing/demo-banner";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 // The in-app surface must never be indexed: the ROOT layout declares
 // robots index:true (right for marketing pages) and metadata inherits — this
@@ -78,7 +80,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           : null
       }
     >
-      {limited ? (
+      {isDemoOrg(session.organizationId) ? (
+        <DemoBanner />
+      ) : limited ? (
         <LimitedModeBanner status={entitlement.status} />
       ) : entitlement.trialing && entitlement.trialDaysLeft != null ? (
         <TrialBanner daysLeft={entitlement.trialDaysLeft} />

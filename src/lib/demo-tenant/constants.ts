@@ -20,3 +20,13 @@ export const DEMO_FUTURE_DAYS = 75;
 export const DEMO_MAX_CANCELLED_PER_PROPERTY = 2;
 /** Demo şifresinin en kısa uzunluğu (şifre yalnız ortam değişkeninden gelir, koda yazılmaz). */
 export const DEMO_PASSWORD_MIN_LENGTH = 20;
+
+/**
+ * Bu org demo (Airbnb inceleme) hesabı mı? Görüntü kararları için TEK kaynak: örnek veri bandı,
+ * "kanalınızı bağlayın" dürtülerinin gizlenmesi, gerçek kullanım metriklerinden dışlama.
+ * Kimlik öneki kuralı (`lxdemo-`) yazma tarafında zorlanır; burada yalnız org kimliğine bakılır
+ * (kolon/migration YOK — tek demo org'u var).
+ */
+export function isDemoOrg(organizationId: string | null | undefined): boolean {
+  return organizationId === DEMO_ORG_ID;
+}

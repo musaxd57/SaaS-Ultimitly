@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { providerErrorMessage } from "@/lib/provider-errors";
+import { NOT_CONNECTED_MESSAGE, providerErrorMessage } from "@/lib/provider-errors";
 import { tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
@@ -26,7 +26,7 @@ export const POST = withManage(async (session) => {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   if (!(await hasOrgHospitable(session.organizationId))) {
-    return NextResponse.json({ ok: false, error: "Hospitable bağlı değil. Ayarlar'dan hesabınızı bağlayın." });
+    return NextResponse.json({ ok: false, error: NOT_CONNECTED_MESSAGE });
   }
 
   try {

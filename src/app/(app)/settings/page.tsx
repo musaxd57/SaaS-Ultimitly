@@ -31,6 +31,7 @@ import { defaultPlans, annualPriceMinor, annualMonthlyEquivalentMinor } from "@/
 import { appLocale, appBillingCurrency } from "@/lib/app-config";
 import { isSuperAdmin } from "@/lib/admin";
 import { isHospitableOAuthConfigured } from "@/lib/hospitable-oauth";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -339,11 +340,19 @@ export default async function SettingsPage({
           <CardTitle className="text-base">Kanal Bağlantısı (Airbnb / Booking)</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Airbnb / Booking bağlantınız <strong>operatörünüz tarafından kurulur ve yönetilir</strong>.
-            Sizin bir şey yapmanıza gerek yok — bağlantı kurulduğunda misafir mesajlarınız otomatik
-            olarak buraya akmaya başlar.
-          </p>
+          {isDemoOrg(session.organizationId) ? (
+            <p className="text-sm text-muted-foreground">
+              Bu bir <strong>örnek hesaptır</strong>: mülkler, rezervasyonlar ve mesajlar kurgusaldır ve
+              hiçbir kanala bağlı değildir. Gerçek bir hesapta Airbnb / Booking bağlantısı buradan kurulur;
+              kurulduğunda misafir mesajları ve rezervasyonlar otomatik olarak akar.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Airbnb / Booking bağlantınız <strong>operatörünüz tarafından kurulur ve yönetilir</strong>.
+              Sizin bir şey yapmanıza gerek yok — bağlantı kurulduğunda misafir mesajlarınız otomatik
+              olarak buraya akmaya başlar.
+            </p>
+          )}
         </CardContent>
       </Card>
     );

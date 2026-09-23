@@ -53,7 +53,7 @@ export function HospitableSyncButton() {
         type="button"
         onClick={sync}
         disabled={busy}
-        title="Airbnb / Booking konuşmalarını Hospitable'dan çek (sadece okuma — hiçbir şey gönderilmez)"
+        title="Airbnb / Booking konuşmalarını kanal bağlantınızdan çek (sadece okuma — hiçbir şey gönderilmez)"
         // Kompakt SECONDARY: başlıktaki tek primary komut "Yeni konuşma".
         // Yükseklik/radius diğer kontrollerle aynı (h-8 · rounded-md = 6px).
         className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-muted-foreground")}

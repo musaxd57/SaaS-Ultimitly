@@ -34,6 +34,7 @@ function allIds(d: DemoDataset): string[] {
     ...d.tasks.map((x) => x.id),
     ...d.kbItems.map((x) => x.id),
     ...d.templates.map((x) => x.id),
+    ...d.signals.map((x) => x.id),
   ];
 }
 
@@ -94,6 +95,52 @@ describe("kimlik ve gizlilik", () => {
   it("sahte bağlantı YOK: rezervasyon kodu ve sağlayıcı konuşma kimliği yazılmaz", () => {
     for (const r of ds.reservations) expect(r).not.toHaveProperty("sourceReference");
     for (const c of ds.conversations) expect(c).not.toHaveProperty("externalReservationId");
+  });
+});
+
+describe("sinyaller ve tekrar eden arıza (ürünün kuralıyla)", () => {
+  it("sinyaller ürünün saf türetmesiyle: yalnız misafir satırından, 'general' yok, tekilleştirme anahtarı ürünle aynı", () => {
+    const inbound = new Map(ds.messages.filter((m) => m.direction === "inbound").map((m) => [m.id, m]));
+    expect(ds.signals.length).toBeGreaterThan(0);
+    for (const g of ds.signals) {
+      const m = inbound.get(g.sourceEntityId);
+      expect(m, g.id).toBeDefined();
+      expect(g.category).toBe(classifyFallback(m!.body).intent);
+      expect(g.category).not.toBe("general");
+      expect(g.dedupeKey).toBe(`${DEMO_ORG_ID}:message.intent:${m!.id}`);
+      expect(g.source).toBe("guest_message");
+      expect(g.sourceEventId).toBeNull();
+    }
+  });
+
+  it("🚨 aynı dairede ≥3 şikâyet sinyali (180 gün) ve sonuncusu son 30 günde → örüntü kuralı + panel eşiği karşılanır", () => {
+    const byProp = new Map<string, Date[]>();
+    for (const g of ds.signals.filter((x) => x.sentiment === "negative" && x.category === "complaint")) {
+      byProp.set(g.propertyId, [...(byProp.get(g.propertyId) ?? []), g.occurredAt]);
+    }
+    const hits = [...byProp.entries()].filter(([, ds2]) => {
+      const inWindow = ds2.filter((d) => NOW.getTime() - d.getTime() <= 180 * DAY);
+      const latest = Math.max(...inWindow.map((d) => d.getTime()));
+      return inWindow.length >= 3 && NOW.getTime() - latest <= 30 * DAY;
+    });
+    expect(hits.map(([p]) => p)).toEqual([ds.properties[7].id]);
+  });
+
+  it("geçmiş konaklamanın konuşması konaklamanın İÇİNDE geçer (tarih tutarlılığı)", () => {
+    const resById = new Map(ds.reservations.map((r) => [r.id, r]));
+    const past = ds.conversations.filter((c) => resById.get(c.reservationId)!.departureDate.getTime() < NOW.getTime() - 3 * DAY);
+    expect(past.length).toBeGreaterThanOrEqual(3);
+    for (const c of past) {
+      const r = resById.get(c.reservationId)!;
+      for (const m of ds.messages.filter((x) => x.conversationId === c.id && x.direction === "inbound")) {
+        expect(m.createdAt.getTime(), c.id).toBeGreaterThanOrEqual(r.arrivalDate.getTime() - DAY);
+        expect(m.createdAt.getTime(), c.id).toBeLessThan(r.departureDate.getTime() + 2 * DAY);
+      }
+    }
+  });
+
+  it("konuşma bandı gerekçeleri ürünün yazdığı kümeden ('refund' diye gerekçe yok)", () => {
+    for (const c of ds.conversations) expect([null, "complaint"]).toContain(c.skippedReason);
   });
 });
 

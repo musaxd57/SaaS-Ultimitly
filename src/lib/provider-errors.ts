@@ -27,8 +27,11 @@ import { IngestError, type IngestErrorKind } from "@/lib/channels/ingest";
 export const SUBSCRIPTION_INACTIVE_MESSAGE =
   "Hospitable aboneliğiniz aktif değil. Kanal senkronizasyonu için aboneliğinizi yenileyin.";
 
-/** Ağa hiç çıkılmadı: kimlik bilgisi yok. `api/hospitable/sync` ön kontrolüyle aynı cümle. */
-const NOT_CONNECTED_MESSAGE = "Hospitable bağlı değil. Ayarlar'dan hesabınızı bağlayın.";
+/**
+ * Ağa hiç çıkılmadı: kimlik bilgisi yok. `api/hospitable/sync` ön kontrolü AYNI sabiti kullanır.
+ * Sağlayıcı adı YOK (kurucu 09-23: arayüzde yalnız Airbnb/Booking/Vrbo; PMS adı görünmez).
+ */
+export const NOT_CONNECTED_MESSAGE = "Kanal hesabınız bağlı değil. Ayarlar'dan bağlantınızı kurun.";
 
 const UNREACHABLE_MESSAGE = "Hospitable'a şu anda ulaşılamıyor. Lütfen kısa bir süre sonra tekrar deneyin.";
 

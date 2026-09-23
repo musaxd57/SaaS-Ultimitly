@@ -8,11 +8,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 export const dynamic = "force-dynamic";
 
 export default async function PropertiesPage() {
   const session = await requireAuth();
+  const demo = isDemoOrg(session.organizationId);
   const canManage = session.role === "owner" || session.role === "manager";
   const [properties, connection] = await Promise.all([
     prisma.property.findMany({
@@ -50,7 +52,9 @@ export default async function PropertiesPage() {
       { label: "Ev kuralları", done: cats.has("rules") },
       { label: "Çıkış mesajı", done: cats.has("checkout") },
       // Bozuk besleme "tamam" SAYILMAZ: satır duruyor ama veri akmıyor.
-      { label: "Kanal bağlantısı (Hospitable/iCal)", done: hasChannel && broken === 0 },
+      // Demo (inceleme) hesabında kanal adımı YOK: sahte bağlantı kurulmaz (kurucu kuralı) ve
+      // inceleme ekibi bağlantı kuramaz — adım her kartta "eksik" görünürdü.
+      ...(demo ? [] : [{ label: "Kanal bağlantısı (Airbnb/Booking ya da takvim)", done: hasChannel && broken === 0 }]),
     ];
     return { items, done: items.filter((i) => i.done).length, broken, never };
   };

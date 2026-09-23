@@ -112,6 +112,8 @@ describe("sarmaldan bağımsız: ingest adaptörünün IngestError'ı da AYNI me
     const m = providerErrorMessage(e, "yedek");
     expect(m).toMatch(/bağlı değil/i);
     expect(m).not.toMatch(/ulaşılamıyor/i);
+    // Arayüzde PMS adı görünmez (kurucu 09-23: yalnız Airbnb/Booking/Vrbo).
+    expect(m).not.toMatch(/hospitable/i);
   });
 });
 

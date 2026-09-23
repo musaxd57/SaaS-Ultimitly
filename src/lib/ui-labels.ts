@@ -69,6 +69,10 @@ const CHANNEL_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp",
   email: "E-posta",
   ics: "Takvim (iCal)",
+  // Köprü ve demo verisi "direct" (doğrudan rezervasyon) yazar; etiket yokken konuşma başlığında
+  // ham "direct" görünüyordu (demo denetimi 09-23).
+  direct: "Doğrudan",
+  vrbo: "Vrbo",
 };
 
 export function channelLabel(channel: string): string {

@@ -116,7 +116,7 @@ export interface DemoApplyOptions {
 
 export interface DemoApplyResult {
   preflight: DemoPreflight;
-  written: { properties: number; reservations: number; conversations: number; messages: number; tasks: number; kbItems: number; templates: number };
+  written: { properties: number; reservations: number; conversations: number; messages: number; tasks: number; kbItems: number; templates: number; signals: number };
   photoDeletionsQueued: number;
 }
 
@@ -239,6 +239,9 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
       await tx.reservation.createMany({ data: ds.reservations });
       await tx.conversation.createMany({ data: ds.conversations });
       await tx.message.createMany({ data: ds.messages });
+      // Sinyaller mesajlardan ürünün AYNI saf türetmesiyle hesaplandı (dataset.ts); yenilemede
+      // yukarıdaki silme onları da temizler. Örüntü hafızasını senkron geçişi üretir.
+      if (ds.signals.length > 0) await tx.signal.createMany({ data: ds.signals });
       await tx.task.createMany({ data: ds.tasks });
       await tx.knowledgeBaseItem.createMany({
         data: ds.kbItems.map((k) => ({ ...k, isActive: true, source: "host_manual", reviewState: "approved", approvedAt: now })),
@@ -253,6 +256,7 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
         tasks: ds.tasks.length,
         kbItems: ds.kbItems.length,
         templates: ds.templates.length,
+        signals: ds.signals.length,
       };
       await tx.auditLog.create({
         data: {
