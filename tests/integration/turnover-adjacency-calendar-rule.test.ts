@@ -50,6 +50,19 @@ describe("getAdjacency — takvim günü kuralı", () => {
     expect(adj).toEqual({ previousDeparture: closest.departureDate, previousSameDay: false, nextArrival: next.arrivalDate, nextSameDay: false });
   });
 
+  it("en yakın komşu ANLA değil TAKVİM GÜNÜYLE seçilir (UTC+13 diliminde an sırası ile gün sırası ayrışır)", async () => {
+    // Mutasyon turu (09-24): "ilk aday" seçimi İstanbul'da eşdeğerdi (00:00Z/12:00Z çapaları ile +3 dilimi
+    // aynı sırayı verir); Auckland'da (NZDT, UTC+13) daha GEÇ an daha ERKEN güne düşebilir.
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Pacific/Auckland" } });
+    await stay(propertyId, noon("2026-09-30"), noon("2026-10-04")); // çıkış günü 10-04 (öğlen çapası)
+    const sameDay = await stay(propertyId, noon("2026-09-30"), new Date("2026-10-04T11:30:00Z")); // Auckland 10-05 00:30
+    const nextSame = await stay(propertyId, new Date("2026-10-08T12:00:00Z"), noon("2026-10-12")); // gün 10-08
+    await stay(propertyId, new Date("2026-10-08T11:30:00Z"), noon("2026-10-12")); // Auckland 10-09 00:30 — daha ERKEN an, daha GEÇ gün
+    const adj = await getAdjacency(propertyId, midnight("2026-10-05"), midnight("2026-10-08"));
+    expect(adj).toEqual({ previousDeparture: sameDay.departureDate, previousSameDay: true, nextArrival: nextSame.arrivalDate, nextSameDay: true });
+  });
+
   it("konaklamanın KENDİSİ komşu sayılmaz; iptal ve beklemedeki talep sayılmaz; başka mülk sayılmaz", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await stay(propertyId, midnight("2026-10-05"), midnight("2026-10-08")); // kendisi
