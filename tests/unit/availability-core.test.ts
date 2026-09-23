@@ -93,6 +93,13 @@ describe("tek tarih kuralı (çapa)", () => {
     }
   });
 
+  it("çapa TAM olmalı: milisaniye bile taşıyan değer GERÇEK ANDIR (New York'ta önceki gün)", () => {
+    // Mutasyon turu (09-24): milisaniye koşulu silinince hiçbir test düşmüyordu — İstanbul'da
+    // 00:00:00.123Z zaten aynı güne düşer; ayırt edici dilim batıdakidir.
+    expect(calendarDateOf(new Date("2026-03-10T00:00:00.123Z"), "America/New_York")).toEqual({ key: "2026-03-09", anchor: "instant" });
+    expect(calendarDateOf(new Date("2026-03-10T00:00:00.000Z"), "America/New_York")).toEqual({ key: "2026-03-10", anchor: "utc_midnight" });
+  });
+
   it("gerçek an mülk diliminde okunur (TZID'li iCal)", () => {
     // İstanbul 2026-10-05 01:30 = 2026-10-04 22:30Z → gün İstanbul'a göre 10-05.
     expect(calendarDateOf(new Date("2026-10-04T22:30:00Z"), TZ)).toEqual({ key: "2026-10-05", anchor: "instant" });
@@ -275,6 +282,13 @@ describe("karar ve kesinlik", () => {
     expect(checkAvailability(input(), range)).toEqual({ ok: false, reason });
   });
 
+  it("🚨 bir gece boş, bir gece bilinmiyorsa karar 'müsait' DEĞİL 'bilinmiyor'", () => {
+    // Mutasyon turu (09-24): "her gece boş" şartı "bir gece boş"a gevşetilince hiçbir test düşmüyordu.
+    const i = input({ reservations: [res({ id: "inv", arrival: midnight("2026-10-05"), departure: midnight("2026-10-04") })] });
+    expect(stateMap(i, "2026-10-03", "2026-10-05")).toEqual({ "2026-10-03": "free", "2026-10-04": "unknown" });
+    expect(checkAvailability(i, { from: "2026-10-03", to: "2026-10-05" })).toMatchObject({ ok: true, value: { verdict: "unknown", certainty: "unverified" } });
+  });
+
   it("host görünümü (describeNights) geçmiş geceleri kabul eder", () => {
     expect(describeNights(input(), { from: "2026-09-20", to: "2026-09-22" }).ok).toBe(true);
   });
@@ -318,6 +332,32 @@ describe("çakışma — OLGU, birleştirme DEĞİL (değişmez 6)", () => {
       ["2026-10-04", "2026-10-05", ["a", "b"]],
       ["2026-10-06", "2026-10-07", ["a", "c"]],
     ]);
+  });
+
+  it("🚨 arada boşluk OLMADAN iddia kümesi değişirse de aralık bölünür (a∩b bitişik b∩c)", () => {
+    // Mutasyon turu (09-24): yalnız "iki kiralık arasında boş gece" zinciri sınanıyordu; küme
+    // değişimini değil yalnız boşluğu kapatan bir kural da o testi geçiyordu.
+    const i = input({
+      reservations: [
+        res({ id: "a", arrival: midnight("2026-10-03"), departure: midnight("2026-10-05") }),
+        res({ id: "b", arrival: midnight("2026-10-04"), departure: midnight("2026-10-06") }),
+        res({ id: "c", arrival: midnight("2026-10-05"), departure: midnight("2026-10-07") }),
+      ],
+    });
+    expect(nightsOf(i, "2026-10-01", "2026-10-10").conflicts.map((c) => [c.from, c.to, c.reservationIds])).toEqual([
+      ["2026-10-04", "2026-10-05", ["a", "b"]],
+      ["2026-10-05", "2026-10-06", ["b", "c"]],
+    ]);
+  });
+
+  it("aynı girişli ama farklı çıkışlı iki satır 'birebir aynı tarih' DEĞİLDİR", () => {
+    const i = input({
+      reservations: [
+        res({ id: "a", arrival: midnight("2026-10-03"), departure: midnight("2026-10-05") }),
+        res({ id: "b", arrival: midnight("2026-10-03"), departure: midnight("2026-10-06") }),
+      ],
+    });
+    expect(nightsOf(i, "2026-10-01", "2026-10-10").conflicts[0].facts.identicalSpan).toBe(false);
   });
 
   it("aralığın sonuna kadar süren çakışma aralık bitişinde kapanır", () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
-import { loadAvailabilityInputs } from "@/modules/availability/load";
+import { loadAvailabilityInputs, RESERVATION_LOAD_CAP_PER_PROPERTY } from "@/modules/availability/load";
 import { checkAvailability, describeNights } from "@/modules/availability/core";
 import { findUpcomingConflicts, CONFLICT_HORIZON_NIGHTS } from "@/modules/availability/conflicts";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
@@ -94,6 +94,36 @@ describe("yükleyici", () => {
     // Bozuk + bilinmeyen tazelik → boş gece "bilinmiyor", asla "müsait".
     const answer = checkAvailability(loaded!.inputs.get(propertyId)!, { from: "2026-10-03", to: "2026-10-05" });
     expect(answer).toMatchObject({ ok: true, value: { verdict: "unknown" } });
+  });
+
+  it("yalnız takvim beslemesi olan mülk (kanal köprüsüne bağlı değil): taze beslemede boş gece MÜSAİT", async () => {
+    // Mutasyon turu (09-24): köprü bağlantısı filtresi silinince her mülk "tazeliği bilinmeyen"
+    // bir kanal kaynağı kazanıyor ve iCal-yalnız mülk bir daha asla "müsait" diyemiyordu.
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://x.example/f.ics", lastStatus: "ok", lastSyncedAt: new Date("2026-10-01T08:00:00Z") },
+    });
+    const loaded = await loadAvailabilityInputs(orgId, { range: { from: "2026-10-01", to: "2026-10-10" }, now: NOW });
+    const inputs = loaded!.inputs.get(propertyId)!;
+    expect(inputs.sources.map((s) => s.kind)).toEqual(["calendar_feed"]);
+    expect(checkAvailability(inputs, { from: "2026-10-03", to: "2026-10-05" })).toMatchObject({ ok: true, value: { verdict: "available", certainty: "verified" } });
+  });
+
+  it("satır tavanını aşan mülk boş geceyi 'bilinmiyor' der; aynı org'un öteki mülkü etkilenmez", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Öteki" } });
+    const rows = Array.from({ length: RESERVATION_LOAD_CAP_PER_PROPERTY + 1 }, () => ({
+      propertyId,
+      guestName: "x",
+      arrivalDate: midnight("2026-10-02"),
+      departureDate: midnight("2026-10-03"),
+      status: "confirmed",
+      channel: "manual",
+    }));
+    await prisma.reservation.createMany({ data: rows });
+    const loaded = await loadAvailabilityInputs(orgId, { range: { from: "2026-10-01", to: "2026-10-10" }, now: NOW });
+    expect(loaded!.inputs.get(propertyId)!.loadTruncated).toBe(true);
+    expect(loaded!.inputs.get(other.id)!.loadTruncated).toBe(false);
   });
 
   it("'bugünden itibaren' org'un KENDİ diliminde: 22:30Z İstanbul'da ertesi gün", async () => {
