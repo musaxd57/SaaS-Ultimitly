@@ -15,7 +15,7 @@ import {
 import { DeleteConversationButton } from "@/components/inbox/delete-conversation-button";
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { KB_CATEGORY, RESERVATION_STATUS, TASK_STATUS, TASK_TYPE } from "@/lib/constants";
-import { formatDate, formatDateTime, formatCurrency, daysUntilDate } from "@/lib/utils";
+import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
 import { channelLabel, riskTypeLabel } from "@/lib/ui-labels";
 import { getReturningGuestInfo } from "@/lib/returning-guest";
 import { getAdjacency } from "@/lib/turnover";
@@ -105,8 +105,8 @@ export default async function ConversationPage({
   );
 
   // Turnover day = the adjacent booking's checkout/checkin falls on the SAME
-  // Istanbul calendar day as this stay's arrival/departure (daysUntilDate diffs
-  // any two dates, not just "today" — reused rather than a new same-day helper).
+  // calendar day (property timezone) as this stay's arrival/departure — decided
+  // once in `getAdjacency` with the availability engine's date rule.
   // 🚨 DEVİR UYARISI YALNIZ HÂLÂ YAPILACAK İŞ İÇİNSE GÖSTERİLİR (kullanıcı kararı).
   // Bu bant bir OPERASYON uyarısı: "temizlik çıkışla giriş arasına sıkışıyor".
   // GEÇMİŞ bir konaklamada söyleyecek bir şey yok — iş çoktan yapıldı (ya da
@@ -118,14 +118,10 @@ export default async function ConversationPage({
   const stayIsOver = conversation.reservation
     ? dateKeyInTimeZone(conversation.reservation.departureDate, TZ) < todayKey
     : false;
-  const turnoverIn =
-    !stayIsOver && adjacency?.previousDeparture && conversation.reservation
-      ? daysUntilDate(adjacency.previousDeparture, conversation.reservation.arrivalDate) === 0
-      : false;
-  const turnoverOut =
-    !stayIsOver && adjacency?.nextArrival && conversation.reservation
-      ? daysUntilDate(adjacency.nextArrival, conversation.reservation.departureDate) === 0
-      : false;
+  // "Aynı gün devir" kararı `getAdjacency`de, müsaitlik motorunun takvim günü kuralıyla verilir
+  // (istemle AYNI karar — ekran ile model aynı olguyu görür).
+  const turnoverIn = !stayIsOver && adjacency?.previousSameDay === true;
+  const turnoverOut = !stayIsOver && adjacency?.nextSameDay === true;
 
   const messages: ThreadMessage[] = conversation.messages
     // A superseded AI draft (its outbox row was CANCELED by the send-time veto) never reached

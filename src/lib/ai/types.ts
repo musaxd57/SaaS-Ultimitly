@@ -21,6 +21,13 @@ export interface AdjacencyContext {
   previousDeparture?: Date | string | null;
   /** Nearest following booking's check-in date (same property), or null. */
   nextArrival?: Date | string | null;
+  /**
+   * Önceki çıkış bu girişle AYNI takvim gününde mi — KODDA, müsaitlik motorunun tarih kuralıyla
+   * (mülk dilimi) hesaplanır (`getAdjacency`). Verilmezse istem eski UTC-günü karşılaştırmasına düşer.
+   */
+  previousSameDay?: boolean;
+  /** Sonraki giriş bu çıkışla AYNI takvim gününde mi (aynı kural). */
+  nextSameDay?: boolean;
 }
 
 export interface PropertyContext {

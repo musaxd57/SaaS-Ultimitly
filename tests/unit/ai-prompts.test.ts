@@ -193,6 +193,22 @@ describe("buildReplyUserPrompt", () => {
     expect(free).not.toMatch(/→ DEVİR GÜNÜ/); // no actual turnover day in this case
   });
 
+  it("🚨 'aynı gün' kararı KODDA verildiyse (takvim günü kuralı) istem UTC gününe bakarak yeniden tahmin ETMEZ", () => {
+    // TZID'li an: önceki çıkış İstanbul 06-01 00:30 = 05-31 21:30Z. UTC günü 05-31 → eski kural
+    // "daire boş" derdi; kod aynı günü söylüyorsa istem DEVİR GÜNÜ yazar.
+    const coded = buildReplyUserPrompt({
+      ...input,
+      adjacency: { previousDeparture: new Date("2026-05-31T21:30:00Z"), previousSameDay: true, nextArrival: null, nextSameDay: false },
+    });
+    expect(coded).toMatch(/Giriş günü AYNI dairede önceki misafir/);
+    // Ters yön: UTC günü aynı görünse de kod "aynı gün değil" dediyse devir YAZILMAZ.
+    const notSame = buildReplyUserPrompt({
+      ...input,
+      adjacency: { previousDeparture: new Date("2026-06-01T12:00:00Z"), previousSameDay: false, nextArrival: new Date("2026-06-04T12:00:00Z"), nextSameDay: false },
+    });
+    expect(notSame).not.toMatch(/→ DEVİR GÜNÜ/);
+  });
+
   it("verifiedActiveStay (QR) suppresses the prospect framing but keeps the no-secrets policy", () => {
     const out = buildReplyUserPrompt({ ...input, reservation: null, verifiedActiveStay: true });
     expect(out).toContain("AKTİF KONAKLAMA DOĞRULANDI");

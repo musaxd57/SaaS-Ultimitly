@@ -631,15 +631,19 @@ function buildAdjacencyBlock(
 ): string {
   if (!reservation || !adjacency) return "";
   const { previousDeparture, nextArrival } = adjacency;
+  // "Aynı gün" kararı KODDA verildiyse o kullanılır (takvim günü kuralı, mülk dilimi); yoksa eski
+  // UTC-günü karşılaştırması (karışık yazımda ve TZID'li anda yanlış gün verebilir — `getAdjacency`).
+  const beforeSameDay = previousDeparture ? (adjacency.previousSameDay ?? sameDay(previousDeparture, reservation.arrivalDate)) : false;
+  const afterSameDay = nextArrival ? (adjacency.nextSameDay ?? sameDay(nextArrival, reservation.departureDate)) : false;
 
   const before = previousDeparture
-    ? sameDay(previousDeparture, reservation.arrivalDate)
+    ? beforeSameDay
       ? `Giriş günü AYNI dairede önceki misafir saat ${property.checkOutTime} itibarıyla çıkıyor → DEVİR GÜNÜ. Erken giriş ancak çıkış + temizlik sonrası mümkün (pencere ${property.checkOutTime}–${property.checkInTime}).`
       : `Giriş gününden önce daire boş (önceki çıkış: ${fmtDate(previousDeparture)}). Erken girişte devir baskısı yok.`
     : `Giriş öncesi kayıtlı önceki rezervasyon yok (daire muhtemelen müsait).`;
 
   const after = nextArrival
-    ? sameDay(nextArrival, reservation.departureDate)
+    ? afterSameDay
       ? `Çıkış günü AYNI daireye sonraki misafir saat ${property.checkInTime} itibarıyla giriyor → DEVİR GÜNÜ. Geç çıkış sınırlı; temizlik için ${property.checkOutTime}–${property.checkInTime} penceresi gerekiyor.`
       : `Çıkıştan sonraki ilk giriş: ${fmtDate(nextArrival)}. Geç çıkışta devir baskısı düşük.`
     : `Çıkış sonrası kayıtlı sonraki rezervasyon yok (geç çıkış daha esnek olabilir).`;
