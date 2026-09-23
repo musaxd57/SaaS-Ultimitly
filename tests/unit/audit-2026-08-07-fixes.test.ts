@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildIcsCalendar } from "@/lib/export/ics";
 import { isDefinitiveSendFailure } from "@/lib/messaging";
-import { taskUpdateSchema } from "@/lib/validators";
+import { taskUpdateSchema, loginSchema } from "@/lib/validators";
+import { newPasswordProblem, PASSWORD_MAX_BYTES } from "@/lib/auth/password-policy";
 import { scrubStyleProfileForPublic } from "@/lib/guest-chat";
 
 // ---------------------------------------------------------------------------
@@ -320,11 +321,27 @@ describe("kaynak pinleri — geri alınması KOLAY ama tehlikeli düzeltmeler", 
   it("şifre BELİRLEME yolları giriş şemasıyla aynı üst sınırı uygular", () => {
     // Sınır yokken 200'den uzun bir şifre belirlenebiliyor, sonra `loginSchema`
     // onu reddediyordu → kullanıcı kendi hesabından kilitleniyordu.
+    // 09-23: kural tek kaynak (`newPasswordProblem`, en fazla 72 BAYT). Değişmez aynı:
+    // belirleme yolunun kabul ettiği HER şifre girişte de kabul edilir. Artık metin değil
+    // DAVRANIŞ sınanır — en uzun kabul edilebilir biçimler (72 tek baytlık karakter; 36 × ş;
+    // NFD yazım, girişe ham uzunluğuyla gelir) giriş şemasından geçmeli.
+    const longest = [
+      "a".repeat(PASSWORD_MAX_BYTES),
+      "ş".repeat(PASSWORD_MAX_BYTES / 2),
+      "s\u0327".repeat(PASSWORD_MAX_BYTES / 2),
+    ];
+    for (const pw of longest) {
+      expect(newPasswordProblem(pw), JSON.stringify(pw.length)).toBeNull();
+      expect(loginSchema.safeParse({ email: "a@example.com", password: pw }).success).toBe(true);
+    }
+    // Anti-vakum: sınırın bir fazlası gerçekten reddediliyor.
+    expect(newPasswordProblem("a".repeat(PASSWORD_MAX_BYTES + 1))).not.toBeNull();
+    // İki yol da tek kaynağa bağlı (rota davranışı: password-byte-limit-routes.test.ts).
     for (const rel of [
       "src/app/api/account/password/route.ts",
       "src/app/api/account/forgot-password/route.ts",
     ]) {
-      expect(read(rel), rel).toContain("newPassword.length > 200");
+      expect(read(rel), rel).toContain("newPasswordProblem(newPassword)");
     }
   });
 });
