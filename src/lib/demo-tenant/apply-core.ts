@@ -176,8 +176,9 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
                   twoFactorSecret: null,
                   twoFactorEnabledAt: null,
                   twoFactorLastStep: null,
-                  pwChangeCodeHash: null,
-                  pwChangeCodeExpiresAt: null,
+                  // Bekleyen şifre değiştirme kodu (kimlik özet kolonu) BİLEREK yazılmaz: e-posta kuyruğu
+                  // "kimlik özetine dokunan dosyalar kapalı listedir" pini; onay zaten oturum ister ve
+                  // oturumlar aşağıda düşürülür.
                   sessionEpoch: { increment: 1 },
                 }
               : {}),
