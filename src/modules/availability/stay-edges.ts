@@ -58,9 +58,10 @@ export interface StayEdges {
 
 export const STAY_EDGE_LOOKAHEAD_NIGHTS = 14;
 
-function edge(input: AvailabilityInput, night: NightKey, today: NightKey): EdgeAnswer {
+function edge(input: AvailabilityInput, night: NightKey): EdgeAnswer {
   const na: EdgeAnswer = { night, verdict: "not_applicable", certainty: "unverified", blockedBy: null, reasons: [] };
-  if (night < today) return na;
+  // Geçmiş gece (`starts_in_past`) ya da ufuk dışı gece motorun kendi aralık kuralıyla reddedilir →
+  // "sorulamaz". İkinci bir "geçmiş mi" kontrolü YAZILMAZ (mutasyon turu: eşdeğer, ölü koddu).
   const r = checkAvailability(input, { from: night, to: addNights(night, 1) });
   if (!r.ok) return na;
   const n = r.value.nights[0];
@@ -109,8 +110,8 @@ export function describeStayEdges(
     arrival,
     departure,
     today,
-    beforeArrival: edge(others, addNights(arrival, -1), today),
-    afterDeparture: edge(others, departure, today),
+    beforeArrival: edge(others, addNights(arrival, -1)),
+    afterDeparture: edge(others, departure),
     nextKnown,
     lookAheadNights: look,
     overlap,

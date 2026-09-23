@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { kbTimeConflicts } from "@/lib/kb-time-conflicts";
+import { aiReadableForConflicts, kbTimeConflicts } from "@/lib/kb-time-conflicts";
 import { findTimeConflicts } from "@/lib/ai/prompts";
 import { buildDemoDataset } from "@/lib/demo-tenant/dataset";
 
@@ -41,6 +41,12 @@ describe("kbTimeConflicts — KB ↔ mülk ayarı", () => {
     ]);
   });
 
+  it("mülk ayarıyla karşılaştırılan alan kalemler arasında TEKRAR raporlanmaz (tek satır)", () => {
+    const rows = kbTimeConflicts(PROP, [kb("checkout", "Çıkış", "Çıkış 11:00'dir."), kb("rules", "Kurallar", "Çıkış saati 12:00'dir.")]);
+    expect(rows.map((r) => `${r.kind}:${r.field}`)).toEqual(["property:checkout"]);
+    expect(rows[0].sides.map((s) => s.title)).toEqual(["Kurallar"]);
+  });
+
   it("kategori önemsiz: 'Ev kuralları' içindeki çıkış saati de raporlanır (otomatik mesaj DEĞİL)", () => {
     const rows = kbTimeConflicts(PROP, [kb("rules", "Ev kuralları", "Sigara içilmez. Çıkış saati 12:00'dir.")]);
     expect(rows).toHaveLength(1);
@@ -78,6 +84,20 @@ describe("kbTimeConflicts — KB ↔ KB", () => {
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ field: "checkin", kind: "items" });
+  });
+});
+
+describe("kapsam = AI'ın okuduğu kalemler", () => {
+  it("pasif, taslak ve halefi kümede olan kalem RAPORA GİRMEZ; legacy/approved girer", () => {
+    const base = { category: "checkout", title: "Çıkış", content: "Çıkış 12:00'dir.", updatedAt: new Date(0) };
+    const all = [
+      { ...base, id: "a", isActive: true, reviewState: "approved", supersededById: null },
+      { ...base, id: "b", isActive: false, reviewState: "approved", supersededById: null },
+      { ...base, id: "c", isActive: true, reviewState: "draft", supersededById: null },
+      { ...base, id: "d", isActive: true, reviewState: "legacy", supersededById: "a" },
+      { ...base, id: "e", isActive: true, reviewState: "legacy", supersededById: null },
+    ];
+    expect(aiReadableForConflicts(all).map((i) => i.id)).toEqual(["a", "e"]);
   });
 });
 

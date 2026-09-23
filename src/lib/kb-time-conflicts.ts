@@ -23,6 +23,8 @@ import {
   PROPERTY_TIME_FIELDS,
 } from "@/lib/ai/retrieval/time-fields";
 import { TIME_FIELD_LABELS } from "@/lib/ai/retrieval/lexicon";
+import { dropSuperseded } from "@/lib/ai/retrieval/rerank";
+import { isAiReadableReviewState } from "@/lib/kb-review";
 
 export interface KbTimeConflictItem {
   id: string;
@@ -71,6 +73,17 @@ function perItemFieldTimes(item: KbTimeConflictItem): Map<string, { times: Set<s
     out.set(h.field, cur);
   }
   return out;
+}
+
+/**
+ * Raporun kapsamı = AI'ın GERÇEKTEN okuduğu kalemler: aktif + onay kapısından geçen (`legacy` /
+ * `approved`; taslak DEĞİL) + halefi kümede olmayan. Taslak ya da pasif bir kalem host'a sahte
+ * çelişki göstermesin; eski sürümü halefiyle "çelişiyor" diye işaretlenmesin.
+ */
+export function aiReadableForConflicts<
+  T extends KbTimeConflictItem & { isActive: boolean; reviewState: string; updatedAt: Date; supersededById?: string | null },
+>(items: readonly T[]): T[] {
+  return dropSuperseded(items.filter((i) => i.isActive && isAiReadableReviewState(i.reviewState))).kept;
 }
 
 /**

@@ -76,6 +76,19 @@ describe("describeStayEdges — kenar geceleri", () => {
     expect(summarizeStayEdges(e).lines.map((l) => l.text)).toContain("Sonraki kayıtlı rezervasyon çıkış günü başlıyor.");
   });
 
+  it("aynı gece iki iddia: en GÜÇLÜ kanıt raporlanır (host girişi, kanıtsız köprü satırından önce)", () => {
+    const e = edges(
+      input({
+        reservations: [
+          ownRow(),
+          res({ id: "a-bridge", origin: "channel_unattributed", arrival: midnight("2026-10-10"), departure: midnight("2026-10-12") }),
+          res({ id: "b-host", arrival: midnight("2026-10-10"), departure: midnight("2026-10-11") }),
+        ],
+      }),
+    );
+    expect(e.nextKnown).toMatchObject({ night: "2026-10-10", basis: "host_asserted" });
+  });
+
   it("sonraki rezervasyon 12 Eki → arada 4 gece", () => {
     const e = edges(input({ reservations: [ownRow(), res({ arrival: midnight("2026-10-12"), departure: midnight("2026-10-14") })] }));
     expect(e.nextKnown).toMatchObject({ night: "2026-10-12", gapNights: 4 });

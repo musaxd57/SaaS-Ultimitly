@@ -46,6 +46,7 @@ describe("findTimeConflicts — mülkle UYUMLU bilgi tabanı çelişki SAYILMAZ 
     expect(findTimeConflicts(PROP, [kb("checkin", "Giriş", "Bina girişi 23:00'ten sonra kilitlenir.")])).toEqual([]);
     expect(findTimeConflicts(PROP, [kb("checkin", "Giriş", "Otopark girişi 08:00-20:00 arası açık.")])).toEqual([]);
     expect(findTimeConflicts(PROP, [kb("checkout", "Çıkış", "Çıkış günü bagajınızı 14:00'e kadar bırakabilirsiniz.")])).toEqual([]);
+    expect(findTimeConflicts(PROP, [kb("checkout", "Çıkış", "Acil çıkış kapısı 23:00'ten sonra alarmlıdır.")])).toEqual([]);
   });
 
   it("aralık: mülk saati kümenin içindeyse uyumlu ('15:00'ten itibaren, en geç 22:00')", () => {
@@ -107,6 +108,8 @@ describe("alan atfı (retrieval + rapor ortak)", () => {
     expect(fields("Çıkış", "Saat 11:00'e kadar daireyi boşaltın.")).toEqual({ checkout: ["11:00"] });
     expect(fieldTimeHits("Çıkış", "Saat 11:00'e kadar daireyi boşaltın.")[0].via).toBe("title");
     expect(fieldTimeHits("Notlar", "Çıkış 11:00'dir.")[0].via).toBe("clause");
+    // Saatin ardındaki kısa ek ("12:00'te" → "te") bir kavram ateşleyip ödüncü ENGELLEMEZ.
+    expect(fields("Çıkış", "Lütfen 12:00'te daireyi boşaltın.")).toEqual({ checkout: ["12:00"] });
   });
 
   it("erken giriş / geç çıkış ayrı alan; 'en geç' çıkış alanı", () => {

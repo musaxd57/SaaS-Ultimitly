@@ -5,9 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/empty-state";
 import { KbManager, type KbItem } from "@/components/knowledge/kb-manager";
-import { kbTimeConflicts, type KbTimeConflictRow } from "@/lib/kb-time-conflicts";
-import { isAiReadableReviewState } from "@/lib/kb-review";
-import { dropSuperseded } from "@/lib/ai/retrieval/rerank";
+import { aiReadableForConflicts, kbTimeConflicts, type KbTimeConflictRow } from "@/lib/kb-time-conflicts";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +39,7 @@ export default async function KnowledgePage() {
   // halefi olmayan); taslak ya da pasif bir kalem host'a sahte çelişki göstermesin.
   const timeConflicts: Record<string, KbTimeConflictRow[]> = {};
   for (const p of properties) {
-    const readable = items.filter((i) => i.propertyId === p.id && i.isActive && isAiReadableReviewState(i.reviewState));
-    const rows = kbTimeConflicts(p, dropSuperseded(readable).kept);
+    const rows = kbTimeConflicts(p, aiReadableForConflicts(items.filter((i) => i.propertyId === p.id)));
     if (rows.length > 0) timeConflicts[p.id] = rows;
   }
 

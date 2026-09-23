@@ -124,6 +124,13 @@ describe("sinyaller ve tekrar eden arıza (ürünün kuralıyla)", () => {
       return inWindow.length >= 3 && NOW.getTime() - latest <= 30 * DAY;
     });
     expect(hits.map(([p]) => p)).toEqual([ds.properties[7].id]);
+    // Şikâyetler ÜÇ AYRI konaklamada (aynı misafirin üç mesajı "tekrar eden arıza" değildir).
+    const stays = new Set(
+      ds.signals
+        .filter((g) => g.propertyId === ds.properties[7].id && g.category === "complaint")
+        .map((g) => g.reservationId),
+    );
+    expect(stays.size).toBe(3);
   });
 
   it("geçmiş konaklamanın konuşması konaklamanın İÇİNDE geçer (tarih tutarlılığı)", () => {
