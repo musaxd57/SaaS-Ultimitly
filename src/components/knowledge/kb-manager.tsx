@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { kbPlaceholderTokens } from "@/lib/kb-placeholders";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
+import type { KbTimeConflictRow } from "@/lib/kb-time-conflicts";
+import Link from "next/link";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
 // facts the AI uses to answer questions). Only used to group the dropdown.
@@ -101,9 +103,12 @@ export interface KbItem {
 export function KbManager({
   properties,
   items,
+  timeConflicts = {},
 }: {
   properties: { id: string; name: string }[];
   items: KbItem[];
+  /** Mülk kimliği → uyuşmayan saat satırları (sunucuda `kbTimeConflicts` ile hesaplanır). */
+  timeConflicts?: Record<string, KbTimeConflictRow[]>;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -483,6 +488,39 @@ export function KbManager({
                     kayıtta birleştirin — böylece AI&apos;nın neyi gördüğü belirsiz kalmaz.
                   </p>
                 ) : null}
+                {/* 🚨 UYUŞMAYAN SAATLER (P4-b ikinci yarısı, 09-23): KB ile mülk ayarı ya da iki
+                    kalem farklı saat söylüyorsa AI misafire kesin saat vermez, soruyu host'a
+                    bırakır. Sebep eskiden HİÇBİR ekranda yoktu; şimdi düzeltmenin yapılacağı yerde. */}
+                {(timeConflicts[property.id] ?? []).length > 0 ? (
+                  <div
+                    data-testid="kb-time-conflicts"
+                    className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                  >
+                    <p className="font-medium">Uyuşmayan saatler</p>
+                    <ul className="space-y-2">
+                      {(timeConflicts[property.id] ?? []).map((row) => (
+                        <li key={`${row.kind}-${row.field}`} className="space-y-1">
+                          <p>{row.text}</p>
+                          {row.sides.some((s) => s.sentAutomatically) ? (
+                            <p className="text-xs">Giriş/çıkış bilgisi otomatik mesaj olarak da gönderiliyorsa misafire bu saat gider.</p>
+                          ) : null}
+                          <ul className="space-y-0.5 text-xs opacity-80">
+                            {row.sides.map((s) => (
+                              <li key={s.itemId}>
+                                “{s.title}”: {s.sentence}
+                              </li>
+                            ))}
+                          </ul>
+                          {row.kind === "property" ? (
+                            <Link href={`/properties/${property.id}`} className="text-xs font-medium underline underline-offset-2">
+                              Mülk ayarlarını aç
+                            </Link>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {list.map((item) => (
                   <div key={item.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-start justify-between gap-2">
@@ -505,6 +543,11 @@ export function KbManager({
                             Gönderici artık fail-closed eliyor; uyarı TAM
                             DÜZELTMENİN YAPILACAĞI YERDE duruyor ki eleme sessiz
                             bir arızaya dönüşmesin. */}
+                        {(timeConflicts[property.id] ?? []).some((r) => r.sides.some((s) => s.itemId === item.id)) ? (
+                          <Badge tone="warning" title="Bu bilgideki saat mülk ayarlarıyla ya da başka bir bilgiyle uyuşmuyor.">
+                            Saat uyuşmuyor
+                          </Badge>
+                        ) : null}
                         {TRIGGER_CATEGORIES.has(item.category) && hasUnfilledField(item.content) ? (
                           <Badge tone="warning" title="Doldurulmamış alan içerdiği için bu otomatik mesaj gönderilmiyor.">
                             Doldurulmamış alan

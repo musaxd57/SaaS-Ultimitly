@@ -7,6 +7,12 @@ import { kbPlaceholderTokens } from "@/lib/kb-placeholders";
 import { foldTurkishLower, foldTurkishAscii } from "@/lib/ai/fallback";
 export { KB_ITEM_CAP, KB_CHAR_BUDGET };
 import type { AdjacencyContext, KbContext, PropertyContext, SuggestReplyInput } from "./types";
+import {
+  extractFieldTimes,
+  normalizePropertyTime,
+  propertyTimeMismatch,
+  PROPERTY_TIME_FIELDS,
+} from "./retrieval/time-fields";
 
 // ============================================================================
 // TONE SYSTEM — Detailed guidance for each tone mode
@@ -875,9 +881,6 @@ export function packKnowledgeBase(
   return { text: lines.join("\n"), omitted };
 }
 
-const HHMM_RE = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g;
-const normalizeHHMM = (h: string, m: string): string => `${h.padStart(2, "0")}:${m}`;
-
 export interface TimeConflict {
   field: "checkInTime" | "checkOutTime";
   propertyValue: string;
@@ -885,40 +888,34 @@ export interface TimeConflict {
 }
 
 /**
- * KAYNAK ÇELİŞKİSİ TESPİTİ (P4, 09-09) — yalnız giriş/çıkış SAATİ, yalnız `checkin` /
- * `checkout` kategorileri. Deterministik ve DAR.
+ * KAYNAK ÇELİŞKİSİ TESPİTİ (P4, 09-09) — yalnız giriş/çıkış SAATİ. Deterministik ve DAR.
  *
  * 🚨 ÖNCELİK KARARI VERMEZ. Saat için tanımlı öncelik zaten var (aşağıdaki şablon:
  * "mülk bilgisi esastır") ve burada DEĞİŞTİRİLMEZ, yeni bir öncelik de icat edilmez.
- * Bu fonksiyon yalnızca çelişkiyi ADLANDIRIR ki (a) model iki kaynağı görüp yok
- * saymasın, (b) ev sahibi kendi verisindeki tutarsızlığı öğrensin (missingInfo /
- * actionSuggestion). Gerçek eval E7'de model 0.95 güvenle ayarı söyledi — o günkü kuralı
- * uyguluyordu. KURUCU KARARI (P4-b, 09-09): çelişkide misafire KESİN SAAT SÖYLENMEZ,
- * cevap insan incelemesine gider; çelişkiyi ev sahibine göstermek bundan AYRI bir iştir.
- * Karar istem bloğunda uygulanır; kapı/eşik değişmedi (düşük güven zaten insana gider).
+ * Bu fonksiyon yalnızca çelişkiyi ADLANDIRIR. KURUCU KARARI (P4-b, 09-09): çelişkide misafire
+ * KESİN SAAT SÖYLENMEZ, cevap insan incelemesine gider (istem bloğu güveni 0.75 altına çeker).
  *
- * Bilinen sınır: "Çıkış 11:00; geç çıkış 12:00 mümkün" gibi bir kalem 12:00'ı çelişki
- * sayar — bu bir yanlış pozitif sınıfıdır ama zararsızdır (ev sahibine "iki saat var"
- * notu düşer). Mülk ayarı SS:DD değilse hüküm verilmez.
+ * 🚨 09-23: KURAL `retrieval/time-fields.ts`TE TEK KAYNAK. Eski hâl KATEGORİ bazlıydı
+ * (`checkin`/`checkout` kalemindeki HER saat) ve ölçülmüş yanlış pozitif üretiyordu: mülkle
+ * UYUMLU "Giriş 15:00, çıkış 11:00." giriş kalemi "giriş: ayar 15:00, KB 11:00" diyordu; "geç
+ * çıkış 13:00'e kadar" çıkış çelişkisi sayılıyordu. Blok devir zorladığı için uyumlu KB'li bir
+ * mülkte Wi-Fi/otopark sorusu bile İNSANA düşüyordu (7 kalemlik ölçümde 3/3). Şimdi: saat,
+ * geçtiği cümleciğin ALANINA atfedilir (kategori önemsiz — `rules`taki "Çıkış 12:00" da sayılır),
+ * erken giriş / geç çıkış ayrı alandır, ve mülk ayarı alanın saat kümesinin İÇİNDEYSE çelişki
+ * yoktur. Mülk ayarı SS:DD değilse hüküm verilmez.
  */
 export function findTimeConflicts(property: PropertyContext, kb: KbContext[]): TimeConflict[] {
   const out: TimeConflict[] = [];
-  const check = (category: string, field: "checkInTime" | "checkOutTime") => {
-    const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec((property[field] ?? "").trim());
-    if (!m) return;
-    const propertyValue = normalizeHHMM(m[1], m[2]);
+  for (const { field, property: key } of PROPERTY_TIME_FIELDS) {
+    const propertyValue = normalizePropertyTime(property[key]);
+    if (!propertyValue) continue;
     const seen = new Set<string>();
     for (const item of kb) {
-      if (item.category !== category) continue;
-      for (const t of `${item.title}\n${item.content}`.matchAll(HHMM_RE)) {
-        const v = normalizeHHMM(t[1], t[2]);
-        if (v !== propertyValue) seen.add(v);
-      }
+      const times = extractFieldTimes(item.title, item.content).get(field);
+      for (const t of propertyTimeMismatch(times, propertyValue)) seen.add(t);
     }
-    if (seen.size > 0) out.push({ field, propertyValue, kbValues: [...seen].sort() });
-  };
-  check("checkin", "checkInTime");
-  check("checkout", "checkOutTime");
+    if (seen.size > 0) out.push({ field: key, propertyValue, kbValues: [...seen].sort() });
+  }
   return out;
 }
 

@@ -5,6 +5,9 @@ import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/empty-state";
 import { KbManager, type KbItem } from "@/components/knowledge/kb-manager";
+import { kbTimeConflicts, type KbTimeConflictRow } from "@/lib/kb-time-conflicts";
+import { isAiReadableReviewState } from "@/lib/kb-review";
+import { dropSuperseded } from "@/lib/ai/retrieval/rerank";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +16,7 @@ export default async function KnowledgePage() {
   const [properties, items] = await Promise.all([
     prisma.property.findMany({
       where: { organizationId: session.organizationId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, checkInTime: true, checkOutTime: true },
       orderBy: { name: "asc" },
     }),
     prisma.knowledgeBaseItem.findMany({
@@ -34,6 +37,15 @@ export default async function KnowledgePage() {
     isActive: i.isActive,
   }));
 
+  // "Uyuşmayan saatler" — yalnız AI'ın GERÇEKTEN okuduğu kalemler üzerinden (aktif + onay kapısı +
+  // halefi olmayan); taslak ya da pasif bir kalem host'a sahte çelişki göstermesin.
+  const timeConflicts: Record<string, KbTimeConflictRow[]> = {};
+  for (const p of properties) {
+    const readable = items.filter((i) => i.propertyId === p.id && i.isActive && isAiReadableReviewState(i.reviewState));
+    const rows = kbTimeConflicts(p, dropSuperseded(readable).kept);
+    if (rows.length > 0) timeConflicts[p.id] = rows;
+  }
+
   return (
     <>
       <PageHeader
@@ -52,7 +64,11 @@ export default async function KnowledgePage() {
           </LinkButton>
         </EmptyState>
       ) : (
-        <KbManager properties={properties} items={kbItems} />
+        <KbManager
+          properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+          items={kbItems}
+          timeConflicts={timeConflicts}
+        />
       )}
     </>
   );

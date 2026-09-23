@@ -209,6 +209,11 @@ export const TIME_FIELD_LABELS: Record<string, string> = {
   pool: "havuz",
   gym: "spor salonu",
   cleaning: "temizlik",
+  // `time-fields.ts` ayrı alanları: erken/geç giriş-çıkış mülk saatiyle KIYASLANMAZ.
+  early_checkin: "erken giriş",
+  late_checkin: "geç giriş",
+  early_checkout: "erken çıkış",
+  late_checkout: "geç çıkış",
 };
 
 /** Bir parça metninin köklerinde geçen SAAT ALANLARI (tekil, sözlük sırasıyla). */

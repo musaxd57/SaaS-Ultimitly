@@ -1,6 +1,5 @@
 import type { KbChunk, KbChunkSource } from "./chunker";
-import { timeFieldsIn } from "./lexicon";
-import { contentStems } from "./text";
+import { timeSetsConflict, type FieldTimes } from "./time-fields";
 
 // ---------------------------------------------------------------------------
 // YENİDEN SIRALAMA + SÜRÜM/ÇELİŞKİ KURALLARI (RAG dilim 2+3, 09-09).
@@ -135,53 +134,11 @@ export function dropSuperseded<T extends Supersedable>(items: readonly T[]): { k
   return { kept, dropped: items.length - kept.length };
 }
 
-const HHMM_G = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g;
-
-export function timesIn(text: string): Set<string> {
-  const out = new Set<string>();
-  for (const m of text.matchAll(HHMM_G)) out.add(`${m[1].padStart(2, "0")}:${m[2]}`);
-  return out;
-}
-
-/** Parça başına: saat alanı (`lexicon.timeField`) → o alana atfedilen saatler ("SS:DD"). */
-export type FieldTimes = ReadonlyMap<string, ReadonlySet<string>>;
-
-/**
- * Cümlecik sınırı: nokta / ünlem / soru / noktalı virgül / virgül / satır —
- * ama "12.00" biçimindeki saatin noktası sınır DEĞİLDİR.
- */
-const CLAUSE_SPLIT = /(?<!\d)\.(?!\d)|[!?;,\n]+/;
-
-/**
- * SAAT → ALAN ATFI (Codex 09-09: "aynı konunun aynı alanını karşılaştır").
- *
- * Her saat, içinde geçtiği CÜMLECİĞİN saat-alanı kavramına bağlanır:
- *   "Çıkış saati 12:00'dir, temizlik öğleden sonra gelir" → 12:00 = çıkış
- *   (virgülden sonraki cümlecik saat taşımaz; temizlik alanı saatsizdir).
- *   "Temizlik ekibi 12:00'de gelir; lütfen o saatten önce daireyi boşaltın"
- *   → 12:00 = temizlik (çıkış DEĞİL — çıkış çelişkisi sayılmaz).
- * Cümlecikte alan kavramı yoksa BAŞLIĞIN alanı kullanılır ("Çıkış" başlıklı
- * kalemde "saat 11:00'e kadar boşaltın" → çıkış). O da yoksa ya da cümlecik
- * birden çok alan taşıyorsa saat HİÇBİR alana atfedilmez: belirsizde hüküm
- * yok — "Kahvaltı 08:00'de" hiçbir alan değildir ve "Havuz 09:00" ile
- * çelişmez (eski kategori bazlı kontrolün fazla-geniş yanlışı).
- */
-export function extractFieldTimes(title: string, text: string): FieldTimes {
-  const out = new Map<string, Set<string>>();
-  const titleFields = timeFieldsIn(contentStems(title));
-  const titleField = titleFields.length === 1 ? titleFields[0] : null;
-  for (const clause of text.split(CLAUSE_SPLIT)) {
-    const ts = timesIn(clause);
-    if (ts.size === 0) continue;
-    const fields = timeFieldsIn(contentStems(clause));
-    const field = fields.length === 1 ? fields[0] : fields.length === 0 ? titleField : null;
-    if (!field) continue;
-    const set = out.get(field) ?? new Set<string>();
-    for (const t of ts) set.add(t);
-    out.set(field, set);
-  }
-  return out;
-}
+// Saat okuma + alan atfı + çelişki kuralı TEK KAYNAKTA (`time-fields.ts`, 09-23): retrieval,
+// istemin KB↔mülk bloğu ve host raporu aynı kuralı kullanır. Eski kopya ölçülmüş yanlış alarm
+// üretiyordu (erken/geç giriş-çıkış, "bina girişi", "acil çıkış", "12:00. Çıkış" nokta bölmesi,
+// aralık inceltmesi, am/pm). Buradaki adlar geriye uyumluluk için yeniden dışa aktarılır.
+export { timesIn, extractFieldTimes, type FieldTimes } from "./time-fields";
 
 export interface TimeConflict {
   /** Saat alanı (`lexicon.timeField`). */
@@ -223,9 +180,10 @@ export function preserveTimeConflicts(
     for (const [field, times] of fieldTimes[i]) {
       const a = anchors.get(field);
       if (!a || a.idx === i) continue;
-      let differs = false;
-      for (const t of times) if (!a.times.has(t)) differs = true;
-      if (!differs) continue;
+      // Simetrik küme kuralı (`timeSetsConflict`): biri ötekini kapsıyorsa (aralık inceltmesi,
+      // "22:00-08:00" ↔ "22:00") çelişki DEĞİL; eski tek yönlü kural çapa sırasına göre farklı
+      // hüküm veriyordu.
+      if (!timeSetsConflict(a.times, times)) continue;
       partnersByField.set(field, [...(partnersByField.get(field) ?? []), i]);
       const vals = valuesByField.get(field) ?? new Set(a.times);
       for (const t of times) vals.add(t);
