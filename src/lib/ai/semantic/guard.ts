@@ -69,7 +69,8 @@ export const STAY_GUARD_SYSTEM_PROMPT = [
   "- reply_grants_change: the draft permits, confirms, arranges or promises a stay change, or half-promises it ('it is usually fine', 'I am sure your host will say yes', 'sorun olacağını sanmıyorum'), including time-specific acceptance relative to the standard times ('see you at 11' or 'you can come at 11' when standard check-in is 15:00; '13:00'te çıkabilirsiniz' when standard check-out is 11:00) and 'the apartment will be ready early'. True even if the draft also defers.",
   "- reply_defers_to_host: the draft clearly leaves the decision to the host or the booking platform ('this is your host's decision; your message has been recorded', 'subject to availability', 'please send a change request through the platform') AND contains no permission, promise, half-promise or calendar statement.",
   "- reply_refuses: the draft says the change is not possible, without a calendar statement.",
-  "- reply_states_price: the draft states or implies money terms: an amount or currency, a fee, a percentage, a discount or better price, a waiver, or that something is free / included / at no extra cost ('the fee is €30', 'it would be 20 euros', 'no extra charge', 'I can do 20% off', 'ücretsiz', 'kostenlos'), even if it also defers. Relaying the HOST'S STANDING OFFER word for word is NOT a price statement; saying only that the host will confirm availability and any possible fee is NOT one.",
+  "- reply_amounts: every money amount the draft states for the requested stay change (fee, price, charge), including amounts relayed from the host's standing offer: amount as a number, currency as an ISO code (EUR, TRY, USD, GBP, …) or null when the draft names none. [] when the draft states no amount. Amounts about unrelated things (parking, taxi) are not listed.",
+  "- reply_price_terms: the draft says anything else about the price of the requested stay change: that it is free / at no extra cost / on the house, discounted, half price, negotiable, or that a fee applies — even if it also defers. NOT a price term: relaying the HOST'S STANDING OFFER (word for word or faithfully translated); saying only that the host will confirm availability and any possible fee.",
   "Standard-time information alone ('check-in is from 15:00', 'please leave by 11:00') is none of the reply fields.",
   "If a HOST'S STANDING OFFER is given, it was written by the host: relaying it word for word while leaving availability to the host is reply_defers_to_host, NOT a grant. Changing it, confirming it for a specific day, or adding the assistant's own permission is a grant.",
 ].join("\n");
@@ -92,8 +93,20 @@ export interface StayGuardInput {
   fetchImpl?: typeof fetch;
 }
 
+const knownNames = (input: Pick<StayGuardInput, "names">) =>
+  (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+
+/**
+ * Taslağın bekçiye giden (redakte edilmiş) hâli TAMAMEN sığıyor mu? Redaksiyon metni uzatabilir (ad → yer tutucu); 2.000
+ * karakterlik otomatik gönderim tavanındaki bir taslağın kuyruğu kesilirse bekçi oradaki izni/fiyatı GÖRMEDEN "erteliyor"
+ * derdi (inceleme 09-24). Sığmıyorsa bekçi hüküm vermez → düşmüş sayılır (hassas istek insana).
+ */
+export function guardSeesWholeReply(input: Pick<StayGuardInput, "reply" | "names">): boolean {
+  return fenceSafe(redactForSemanticModel(input.reply, knownNames(input))).length <= REPLY_CAP;
+}
+
 export function buildStayGuardUserContent(input: StayGuardInput): string {
-  const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+  const names = knownNames(input);
   const clean = (t: string, cap: number) => fenceSafe(redactForSemanticModel(t, names)).slice(0, cap);
   const msgs = input.guestMessages
     .filter((m): m is string => typeof m === "string" && m.trim().length > 0)
@@ -127,6 +140,7 @@ export async function runStayChangeGuard(input: StayGuardInput): Promise<StayGua
   try {
     const apiKey = semanticApiKey();
     if (!apiKey) return undefined;
+    if (!guardSeesWholeReply(input)) return { status: "failed" };
     const model = semanticModel();
     const res = await callStructuredJson({
       apiKey,

@@ -29,7 +29,8 @@ const VERDICT = {
   reply_grants_change: true,
   reply_defers_to_host: false,
   reply_refuses: false,
-  reply_states_price: false,
+  reply_amounts: [],
+  reply_price_terms: false,
 };
 
 function respond(body: unknown, init: { status?: number; finish?: string; refusal?: string; raw?: string } = {}) {
@@ -105,7 +106,8 @@ describe("çağrı sözleşmesi", () => {
         replyGrantsChange: true,
         replyDefersToHost: false,
         replyRefuses: false,
-        replyStatesPrice: false,
+        replyAmounts: [],
+        replyPriceTerms: false,
       },
     });
     expect(f).toHaveBeenCalledTimes(1);

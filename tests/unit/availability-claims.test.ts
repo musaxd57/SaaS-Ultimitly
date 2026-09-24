@@ -28,7 +28,8 @@ const CLEAN_VERDICT = {
   replyGrantsChange: false,
   replyDefersToHost: false,
   replyRefuses: false,
-  replyStatesPrice: false,
+  replyAmounts: [],
+  replyPriceTerms: false,
 };
 
 // ---------------------------------------------------------------------------

@@ -500,7 +500,8 @@ const guard = (time: string | null, defers: boolean, kind = "early_checkin") => 
   reply_grants_change: false,
   reply_defers_to_host: defers,
   reply_refuses: false,
-  reply_states_price: false,
+  reply_amounts: [],
+  reply_price_terms: false,
 });
 
 /** Şema adına göre cevap veren sahte OpenAI (anlama katmanı + bekçi aynı uca gider). */

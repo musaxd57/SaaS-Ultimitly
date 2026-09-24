@@ -66,7 +66,8 @@
  * ------------------------------------------------------------------------- */
 
 import { foldTurkishAscii, restrictiveMatchForms } from "@/lib/ai/fallback";
-import { hasMoneyStatement } from "@/lib/ai/stay-money";
+import { hasUnallowedMoney, moneyAmountsOf } from "@/lib/ai/stay-money";
+import { sameMoney, type MoneyAmount } from "@/lib/ai/money-lexicon";
 import {
   declaredClaim,
   declaredRequest,
@@ -757,7 +758,7 @@ function guardFlags(v: StayGuardVerdict, stay: StayTimes | null | undefined): st
     (v.replyDefersToHost ? "d" : "") +
     (v.replyRefuses ? "x" : "") +
     (slotTimesShifted({ checkinTime: v.requestedCheckinTime, checkoutTime: v.requestedCheckoutTime }, stay) ? "t" : "") +
-    (v.replyStatesPrice ? "p" : "");
+    (v.replyPriceTerms || v.replyAmounts.length > 0 ? "p" : "");
   return f || "-";
 }
 
@@ -824,10 +825,14 @@ export function evaluateAvailability(
   // ilk geçiş teklif metnini iddia sayarsa bekçi hiç çağrılmaz (iddia tutuşu bekçiyi tetiklemez).
   // STANDART ÇIKIŞ SAATİ bilgisi izin DEĞİLDİR — ↑`withoutStandardCheckoutUntil`.
   const offerExempt = guard !== null ? deferred : trustedDefers && lexDeferral;
-  const scanned = offerExempt ? withoutOffer : reply;
-  const lexClaim = lexicalClaim(scanned, opts.stayTimes);
-  // Para ifadesi AYNI metinde aranır: host'un teklif metni (ücretiyle) yalnız erteleyen cevapta muaf.
-  const lexMoney = hasMoneyStatement(scanned);
+  const lexClaim = lexicalClaim(offerExempt ? withoutOffer : reply, opts.stayTimes);
+  // PARA (dilim 8): host'un geç çıkış teklifi YALNIZ geç çıkış isteğinde kendi konusudur — o zaman teklif metni aynen
+  // aktarımda muaf, tutarları ise çeviride / kısmi aktarımda da İZİNLİ (aynı tutar + aynı birim). Başka bir isteğe
+  // (erken giriş, ek gece) geç çıkış fiyatını aktarmak para ifadesidir (inceleme 09-24: "ek gece için geç çıkış ücreti").
+  const kinds = stayRequestKinds(guestTexts, opts);
+  const offerTopic = kinds.size > 0 && [...kinds].every((k) => k === "late_checkout");
+  const allowedMoney: MoneyAmount[] = offerTopic ? moneyAmountsOf(opts.hostOfferText) : [];
+  const lexMoney = hasUnallowedMoney(offerTopic ? withoutOffer : reply, allowedMoney);
   const lexRequest = guestTexts.some((t) => detectAvailabilityRequest(t) !== null);
   const signals: AvailabilitySignals = {
     lx: (lexClaim ? "c" : "") + (lexRequest ? "r" : "") + (lexDeferral ? "d" : "") + (lexMoney ? "m" : "") || "-",
@@ -840,7 +845,6 @@ export function evaluateAvailability(
 
   // DOĞRULANMIŞ ERKEN GİRİŞ ONAYI (09-24): yalnız koddan kurulan metin (birebir) + tek tür erken giriş → muaf.
   if (opts.verifiedGrant && reply === opts.verifiedGrant.text) {
-    const kinds = stayRequestKinds(guestTexts, opts);
     if (kinds.size === 1 && kinds.has("early_checkin")) return { reason: null, enforceReason: null, signals };
   }
 
@@ -873,9 +877,12 @@ export function evaluateAvailability(
   // değişmeziyle KALDIRILDI); devir cevabı da muaf değil (P1-2). Kanıttaki `ev` şema kararlılığı için `v`ye eşittir.
   // 🚨 PARA (dilim 8, kurucu senaryo 16-17): doğrulanmış erteleme de bir tutar / yüzde / indirim / muafiyet
   // söyleyemez — ücret YALNIZ host'un kuralından, KODDA kurulan onay metniyle gider (o metin ↑muaf). Birleşim: biçim
-  // dedektörü (`stay-money.ts`) ∨ bekçinin fiyat hükmü; hiçbiri ötekinin "para yok"u ile silinmez. Hassas istek
-  // yoksa (bilgi sorusu: "otopark ücretli mi?") bu kontrolün konusu değildir.
-  const priced = lexMoney || guard?.replyStatesPrice === true;
+  // dedektörü (`stay-money.ts`) ∨ bekçinin fiyat sözü ∨ bekçinin çıkardığı, host'un kaydında OLMAYAN bir tutar (kıyas
+  // KODDA); hiçbiri ötekinin "para yok"u ile silinmez. Hassas istek yoksa (bilgi sorusu: "otopark ücretli mi?", geç çıkış
+  // teklifinin aktarıldığı çıkış saati cevabı) bu kontrolün konusu değildir — genel tutar doğrulaması kurucu kararı (P5).
+  const guardPriced =
+    guard !== null && (guard.replyPriceTerms || guard.replyAmounts.some((a) => !allowedMoney.some((b) => sameMoney(a, b))));
+  const priced = lexMoney || guardPriced;
   const reason: AvailabilityVetoReason | null = !sensitive ? null : !deferred ? "availability_unconfirmed" : priced ? "price_claim" : null;
   return { reason, enforceReason: reason, signals };
 }

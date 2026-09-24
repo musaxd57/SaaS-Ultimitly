@@ -40,7 +40,8 @@ const verdict = (over: Partial<StayGuardVerdict> = {}): StayGuardVerdict => ({
   replyGrantsChange: false,
   replyDefersToHost: false,
   replyRefuses: false,
-  replyStatesPrice: false,
+  replyAmounts: [],
+  replyPriceTerms: false,
   ...over,
 });
 
@@ -65,7 +66,8 @@ describe("şema sözleşmesi (strict)", () => {
       reply_grants_change: false,
       reply_defers_to_host: true,
       reply_refuses: false,
-      reply_states_price: false,
+      reply_amounts: [],
+      reply_price_terms: false,
     };
     expect(parseStayGuardVerdict(ok)).toMatchObject({ guestRequestsChange: true, kind: "early_checkin", requestedCheckinTime: "11:00" });
     expect(parseStayGuardVerdict({ ...ok, reply_grants_change: "false" })).toBeNull();

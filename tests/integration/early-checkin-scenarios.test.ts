@@ -168,7 +168,8 @@ const guard = (time: string | null, over: Record<string, unknown> = {}) => ({
   reply_grants_change: false,
   reply_defers_to_host: false,
   reply_refuses: false,
-  reply_states_price: false,
+  reply_amounts: [],
+  reply_price_terms: false,
   ...over,
 });
 const NO_REQUEST_GUARD = guard(null, { guest_requests_change: false, kind: "none" });

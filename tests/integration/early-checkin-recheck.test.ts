@@ -82,7 +82,8 @@ const GUARD = {
   reply_grants_change: false,
   reply_defers_to_host: false,
   reply_refuses: false,
-  reply_states_price: false,
+  reply_amounts: [],
+  reply_price_terms: false,
 };
 function semanticFetch() {
   return vi.fn(async (_url: string, init?: RequestInit) => {

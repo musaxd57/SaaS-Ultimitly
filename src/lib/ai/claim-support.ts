@@ -22,6 +22,8 @@
 // telefon/tarih/saat/para içindeki rakam dizisi KOD SAYILMAZ ("0532" telefonun parçasıdır).
 // ---------------------------------------------------------------------------
 
+import { CURRENCY_AFTER, CURRENCY_BEFORE, NUM, currencyCode, parseAmount } from "@/lib/ai/money-lexicon";
+
 export type ClaimClass =
   | "time"
   | "date"
@@ -195,24 +197,7 @@ const EN_MONTHS: Record<string, number> = {
 };
 const MONTHS = { ...TR_MONTHS, ...EN_MONTHS };
 
-const CURRENCY_AFTER = "(?:tl|try|₺|lira|eur|euros?|avro|€|\\$|usd|dolar|dollars?|£|gbp|sterlin|pounds?)";
-const CURRENCY_BEFORE = "(?:₺|\\$|€|£|tl|eur|usd|try)";
-const NUM = "(?:\\d{1,3}(?:[.,]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)";
-
-function parseAmount(raw: string): number {
-  const r = raw.replace(/\s/g, "");
-  const grouped = /^(\d{1,3}(?:[.,]\d{3})+)(?:[.,](\d{1,2}))?$/.exec(r);
-  if (grouped) return Number(grouped[1].replace(/[.,]/g, "")) + (grouped[2] ? Number(`0.${grouped[2]}`) : 0);
-  return Number(r.replace(",", "."));
-}
-
-function currencyCode(c: string): string {
-  if (/^(tl|try|₺|lira)/.test(c)) return "TRY";
-  if (/^(eur|euro|avro|€)/.test(c)) return "EUR";
-  if (/^(\$|usd|dolar|dollar)/.test(c)) return "USD";
-  if (/^(£|gbp|sterlin|pound)/.test(c)) return "GBP";
-  return "X";
-}
+// Para birimi kelime dağarcığı + tutar çözümlemesi TEK KAYNAK (`money-lexicon.ts`; konaklama para kapısı da kullanır).
 
 /** Birimli miktarın kanonik anahtarı: mesafe→metre, süre→saniye, gece ayrı, adet eşyaya göre. */
 function typedQuantity(cls: ClaimClass, unit: string, v: number): string {

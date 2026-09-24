@@ -24,6 +24,8 @@
  * SAF: DB yok, ağ yok, `server-only` yok.
  * ------------------------------------------------------------------------- */
 
+import { normalizeCurrency, type MoneyAmount } from "@/lib/ai/money-lexicon";
+
 /** Misafirin talep ettiği, TAKVİME BAĞLI değişiklik türü. */
 export const STAY_CHANGE_KINDS = [
   "none",
@@ -155,7 +157,8 @@ export const STAY_GUARD_JSON_SCHEMA = {
       "reply_grants_change",
       "reply_defers_to_host",
       "reply_refuses",
-      "reply_states_price",
+      "reply_amounts",
+      "reply_price_terms",
     ],
     properties: {
       guest_requests_change: { type: "boolean" },
@@ -166,7 +169,17 @@ export const STAY_GUARD_JSON_SCHEMA = {
       reply_grants_change: { type: "boolean" },
       reply_defers_to_host: { type: "boolean" },
       reply_refuses: { type: "boolean" },
-      reply_states_price: { type: "boolean" },
+      // Dilim 8: model TUTARI ÇIKARIR, host'un tutarıyla kıyası KOD yapar (saat yuvalarıyla aynı ilke).
+      reply_amounts: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["amount", "currency"],
+          properties: { amount: { type: "number" }, currency: { type: ["string", "null"] } },
+        },
+      },
+      reply_price_terms: { type: "boolean" },
     },
   },
 } as const;
@@ -181,9 +194,14 @@ export interface StayGuardVerdict {
   replyGrantsChange: boolean;
   replyDefersToHost: boolean;
   replyRefuses: boolean;
-  /** Taslak bir tutar / ücret / yüzde / indirim / muafiyet söylüyor (dilim 8; host'un teklif metninin aynen aktarımı hariç). */
-  replyStatesPrice: boolean;
+  /** Taslağın konaklama değişikliği için söylediği tutarlar (dilim 8). Host'un tutarıyla kıyas KODDA. */
+  replyAmounts: MoneyAmount[];
+  /** Tutar dışı fiyat sözü: ücretsiz / indirimli / pazarlığa açık / ücretli (host'un teklifinin aktarımı hariç). */
+  replyPriceTerms: boolean;
 }
+
+/** Bekçinin tutar listesine tavan: fazlası şema ihlali sayılır (bekçi düşer). */
+const MAX_REPLY_AMOUNTS = 10;
 
 /** Bekçinin sonucu: koşmadı (bayrak kapalı / aday değil) ≠ koştu ama başarısız. */
 export type StayGuardOutcome = { status: "ok"; verdict: StayGuardVerdict } | { status: "failed" };
@@ -205,10 +223,12 @@ export function parseStayGuardVerdict(raw: unknown): StayGuardVerdict | null {
     "reply_grants_change",
     "reply_defers_to_host",
     "reply_refuses",
-    "reply_states_price",
+    "reply_price_terms",
   ] as const;
   if (!bools.every((k) => typeof r[k] === "boolean")) return null;
   if (!member(STAY_CHANGE_KINDS, r.kind)) return null;
+  const amounts = parseReplyAmounts(r.reply_amounts);
+  if (!amounts) return null;
   return {
     guestRequestsChange: r.guest_requests_change as boolean,
     kind: r.kind,
@@ -218,8 +238,26 @@ export function parseStayGuardVerdict(raw: unknown): StayGuardVerdict | null {
     replyGrantsChange: r.reply_grants_change as boolean,
     replyDefersToHost: r.reply_defers_to_host as boolean,
     replyRefuses: r.reply_refuses as boolean,
-    replyStatesPrice: r.reply_states_price as boolean,
+    replyAmounts: amounts,
+    replyPriceTerms: r.reply_price_terms as boolean,
   };
+}
+
+/**
+ * Tutar listesi STRICT: dizi değilse, tavanı aşarsa ya da bir öğe sonlu, negatif olmayan bir sayı taşımıyorsa → `null`
+ * (bekçi düşer). Para birimi yalnız bilinen koda çevrilir; tanınmayan → `null` (hiçbir tutarla eşleşmez = temkinli).
+ */
+function parseReplyAmounts(raw: unknown): MoneyAmount[] | null {
+  if (!Array.isArray(raw) || raw.length > MAX_REPLY_AMOUNTS) return null;
+  const out: MoneyAmount[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const { amount, currency } = item as Record<string, unknown>;
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return null;
+    if (currency !== null && typeof currency !== "string") return null;
+    out.push({ amount, currency: normalizeCurrency(currency) });
+  }
+  return out;
 }
 
 /**
