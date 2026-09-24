@@ -751,7 +751,9 @@ export function evaluateAvailability(
   // 🚨 ERTELEME = İKİ BAĞIMSIZ MODEL: güvenilir `defers` beyanı VE koşmuş bekçinin "erteliyor" hükmü. Bekçi yoksa ya
   // da düştüyse erteleme KANITLANAMAZ. Kelime ağının erteleme cümlesi izin sayılmaz (kurucu 09-24: kelime ağı yalnız
   // engeller) — eskiden beyan yokken tek başına, beyan `defers` iken ikinci anahtar olarak sayılıyordu.
-  const trustedDefers = declared !== null && !mismatch && declared.stance === "defers";
+  // (Çelişen beyan burada ayrıca elenmez: çelişki ↓ her durumda iddia sayılır — mutasyon turu 09-24'te `!mismatch`
+  // şartının gözlemlenemez / ölü olduğunu gösterdi.)
+  const trustedDefers = declared !== null && declared.stance === "defers";
   const deferred = trustedDefers && guard?.replyDefersToHost === true;
 
   // ERTELEME ev sahibinin teklif metninin DIŞINDA aranır: teklifin kendi "müsaitlik varsa"sı kendini onaylayamaz.
