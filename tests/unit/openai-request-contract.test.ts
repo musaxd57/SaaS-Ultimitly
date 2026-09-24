@@ -63,14 +63,21 @@ describe("OpenAI istek sözleşmesi — çağrı yerleri", () => {
     }
   });
 
-  it("`openai-compat.ts`'i kullanan modüller: gölge + hazırlık özeti", () => {
+  it("`openai-compat.ts`'i kullanan modüller: gölge + hazırlık özeti + anlam katmanı", () => {
     // Belgedeki "üç çağrı yeri" iddiasının GERÇEK karşılığı bu ikisi. Sayı
     // artarsa (örn. ana yanıt taşınırsa) bu liste bilinçli güncellenir.
+    // 09-24: anlam katmanı (bekçi + anlama) ortak sözleşmeden geçer — anahtar/sağlayıcı eşleşmesi
+    // `semantic/config.ts`, gövde kuralları `semantic/structured-call.ts` (tek ağ kapısı).
     const importers = sourceFiles(path.join(ROOT, "src"))
       .filter((f) => /from "(@\/lib\/ai\/|\.\/)openai-compat"/.test(readFileSync(f, "utf8")))
       .map((f) => path.relative(ROOT, f).replace(/\\/g, "/"))
       .sort();
-    expect(importers).toEqual(["src/lib/shadow-ai.ts", "src/lib/supply-ai.ts"]);
+    expect(importers).toEqual([
+      "src/lib/ai/semantic/config.ts",
+      "src/lib/ai/semantic/structured-call.ts",
+      "src/lib/shadow-ai.ts",
+      "src/lib/supply-ai.ts",
+    ]);
   });
 
   it("ayrıştırıcı GERÇEKTEN dosya buldu (test kendini boşa düşürmesin)", () => {

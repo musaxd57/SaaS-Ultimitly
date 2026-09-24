@@ -41,11 +41,14 @@ export const MODEL_PROVIDER_ALERT_CONTEXT = "openai-reply kalıcı arıza";
  * (alert-state kuralı: bir aşamanın başarısı ötekinin alarmını silmez) — örn. yapılandırılan SOHBET
  * modeli yokken (`model`) gömme çağrısının başarısı o alarmı kapatmamalı.
  */
-export type ModelProviderChannel = "reply" | "embedding";
+export type ModelProviderChannel = "reply" | "embedding" | "semantic";
 
 const ALERT: Record<ModelProviderChannel, { key: string; context: string }> = {
   reply: { key: MODEL_PROVIDER_ALERT_KEY, context: MODEL_PROVIDER_ALERT_CONTEXT },
   embedding: { key: "model-provider:embedding", context: "openai-embedding kalıcı arıza" },
+  // Anlam katmanı (09-24): bağımsız bekçi + anlama/sorgu yeniden yazma çağrıları. Ayrı anahtar —
+  // bekçinin başarısı sohbet modelinin alarmını kapatmamalı (ya da tersi).
+  semantic: { key: "model-provider:semantic", context: "openai-semantic kalıcı arıza" },
 };
 
 /**
@@ -67,7 +70,8 @@ export class ModelProviderPersistentError extends Error {
   readonly code: ModelProviderPersistentFailure;
   readonly status: number;
   constructor(code: ModelProviderPersistentFailure, status: number, detail: string, channel: ModelProviderChannel = "reply") {
-    super(`${(channel === "embedding" ? EMBEDDING_CAUSE : HUMAN_CAUSE)[code]} (HTTP ${status}): ${detail.slice(0, 400)}`);
+    const cause = channel === "embedding" ? EMBEDDING_CAUSE : channel === "semantic" ? SEMANTIC_CAUSE : HUMAN_CAUSE;
+    super(`${cause[code]} (HTTP ${status}): ${detail.slice(0, 400)}`);
     this.name = "ModelProviderPersistentError";
     this.code = code;
     this.status = status;
@@ -86,12 +90,18 @@ const EMBEDDING_CAUSE: Record<ModelProviderPersistentFailure, string> = {
   model: "Yapılandırılan gömme modeli bulunamadı — anlamsal bilgi araması çalışmıyor (sözcüksel arama sürüyor)",
 };
 
+const SEMANTIC_CAUSE: Record<ModelProviderPersistentFailure, string> = {
+  quota: "OpenAI kredisi/kotası bitti — anlam katmanı (bekçi / anlama) çalışmıyor; deterministik denetim sürüyor",
+  auth: "OpenAI anahtarı anlam katmanında reddedildi — bekçi / anlama çalışmıyor; deterministik denetim sürüyor",
+  model: "Anlam katmanı için yapılandırılan model bulunamadı — bekçi / anlama çalışmıyor; deterministik denetim sürüyor",
+};
+
 /**
  * Bu süreçte bir alarm durumunun AÇIK OLABİLECEĞİ bilgisi. Süreç başında
  * bilinmez (başka bir süreç ya da önceki çalıştırma açmış olabilir) → `true`;
  * ilk başarı TEK silmeyle kapatır ve bayrağı indirir.
  */
-const alertMayBeActive: Record<ModelProviderChannel, boolean> = { reply: true, embedding: true };
+const alertMayBeActive: Record<ModelProviderChannel, boolean> = { reply: true, embedding: true, semantic: true };
 
 /** Kalıcı arızayı bildir: alarm YALNIZ durum geçişinde. Asla fırlatmaz. */
 export async function noteModelProviderPersistentFailure(
@@ -121,4 +131,5 @@ export function noteModelProviderSuccess(channel: ModelProviderChannel = "reply"
 export function __resetModelProviderHealthForTests(mayBeActive = true): void {
   alertMayBeActive.reply = mayBeActive;
   alertMayBeActive.embedding = mayBeActive;
+  alertMayBeActive.semantic = mayBeActive;
 }

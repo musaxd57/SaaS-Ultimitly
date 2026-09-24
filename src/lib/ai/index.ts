@@ -4,6 +4,7 @@ import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeStatedInMessage } from "./stated-time";
 import type { ClassifyResult, LlmUsage, SuggestReplyInput, SuggestReplyResult } from "./types";
 import { auditClaimsSafe } from "./claim-support";
+import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel } from "./model-family";
 import { reportError } from "@/lib/report-error";
@@ -413,6 +414,9 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             timeStatedInMessage(parsed.statedCheckoutTime.trim(), input.guestMessage)
               ? parsed.statedCheckoutTime.trim()
               : null,
+          // Şema beyanı (09-24): STRICT çözülür — kapalı küme dışı değer `unknown` olur, alanın
+          // hiç gelmemesi `null` (sinyal yok). Kapı yalnız sıkılaştırır (`ai/semantic/stay-change.ts`).
+          stayChange: parseStayChangeDeclaration(parsed.stayChangeAsked, parsed.replyStance),
         };
       }
     } catch {

@@ -67,7 +67,14 @@ export default async function ReportsPage() {
   // Conversation snapshot kept only the LAST decision per thread, so earlier
   // risks vanished and a stale one looked current. No backfill by design:
   // counting starts when the event log shipped (the card says so).
-  const HELD_REASONS = ["escalated_to_human", "keyword_escalated", "low_confidence_or_risky"];
+  const HELD_REASONS = [
+    "escalated_to_human",
+    "keyword_escalated",
+    "low_confidence_or_risky",
+    // Müsaitlik vetosu (09-24): takvim doğrulanmadan gönderilmeyen cevaplar — kendi satırı.
+    "availability_claim",
+    "availability_unconfirmed",
+  ];
   const [riskRows, heldRows, heldResolved] = await Promise.all([
     prisma.riskEvent.groupBy({
       by: ["riskLevel"],
@@ -312,6 +319,10 @@ export default async function ReportsPage() {
                   <div className="flex items-center justify-between px-3 py-2">
                     <span>Düşük güven — onay bekledi</span>
                     <Badge tone="muted">{heldCount("low_confidence_or_risky")}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span>Müsaitlik — takvim kontrolü bekledi</span>
+                    <Badge tone="muted">{heldCount("availability_claim") + heldCount("availability_unconfirmed")}</Badge>
                   </div>
                   <div className="flex items-center justify-between px-3 py-2">
                     <span>Size bırakılanlardan yanıtladığınız</span>

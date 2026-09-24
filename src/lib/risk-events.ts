@@ -48,6 +48,9 @@ const REASONS = new Set([
   "history_injection",
   // Çıktı vetosu (Codex §A, 09-12): misafire GİDECEK metin son kez denetlenir.
   "placeholder_in_reply", "unverified_commitment",
+  // Müsaitlik vetosu (09-24): doğrulanmamış takvim iddiası / ertelemeyen cevap. Kanal yolunda da
+  // yazılır (düşük güven kovasından AYRI, raporda kendi satırı).
+  "availability_claim", "availability_unconfirmed",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

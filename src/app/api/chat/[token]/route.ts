@@ -2,7 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { detectRiskType } from "@/lib/ai/fallback";
-import { evaluateEscalation } from "@/lib/guest-chat-gate";
+import { evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
+import { evaluateAvailability, stayEvidenceOf } from "@/lib/ai/availability-claims";
+import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
   resolveGuestChat,
   bindOrCheckStay,
@@ -639,7 +641,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // onay + sır kategorisi + içerik sezgiseli süzgeçlerinden geçmiştir; seçici
   // bu kümeye kalem EKLEYEMEZ. Bayrak kapalıyken `kbSel.items` aynı dizidir
   // ve `droppedItems` 0'dır (canlı davranış aynen).
-  const kbSel = await retrieveKbForPrompt({ items: ctx.knowledgeBase, guestMessage: message, history });
+  const kbSel = await retrieveKbForPrompt({
+    items: ctx.knowledgeBase,
+    guestMessage: message,
+    history,
+    // Anlama katmanı (bayrak açıkken): standart saat kıyası + redaksiyon için.
+    stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
+    redactNames: [res.guestName],
+  });
   const kbDroppedTotal = ctx.knowledgeBaseDropped + kbSel.droppedItems;
 
   const result = await suggestReply({
@@ -690,12 +699,27 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // kısmının dışına itip modele ulaştırabilir. Burada tek kaynak `history` —
   // ikinci bir pencere hesaplanmıyor, çünkü ayrışabilecek her kopya bu açığın
   // kendisidir.
-  const verdict = evaluateEscalation(
-    { ...result, reply: result.reply, usedSources: result.usedSources },
-    message,
-    res.guestName,
-    history,
-  );
+  // ANLAM KATMANI (09-24): mülkün standart saatleri politikaya girer (model yuvasındaki saat KODDA
+  // kıyaslanır); bekçi bayrağı açıksa (`AI_STAY_GUARD_ENABLED`) YALNIZ otomatik cevap adayı için
+  // ikinci model taslağı okur ve kapı onun hükmüyle yeniden değerlendirilir (yalnız sıkılaştırır).
+  let stayCtx: Parameters<typeof evaluateEscalation>[4] = {
+    stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
+    understanding: kbSel.understanding?.stay ?? null,
+  };
+  const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
+  let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
+  if (!verdict.escalate && stayGuardEnabled()) {
+    const stayGuard = await runStayChangeGuard({
+      guestMessages: [message],
+      reply: result.reply,
+      stayTimes: stayCtx?.stayTimes,
+      names: [res.guestName],
+    });
+    if (stayGuard) {
+      stayCtx = { ...stayCtx, stayGuard };
+      verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
+    }
+  }
   const escalate = verdict.escalate;
 
   // SEND-TIME VETO: a host may have replied WHILE the model ran (seconds). The
@@ -754,6 +778,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       claims: result.claimAudit,
       llm: result.llmUsage,
       hijackScreened: ctx.knowledgeBaseHijackScreened,
+      // Konaklama değişikliği politikası: kapıyla AYNI girdi (`qrAvailabilityPolicy`) — uygulanan
+      // karar + `enforce` kipinin kararı (gölge) + katman sinyalleri; kapalı-küme kodlar.
+      stay: stayEvidenceOf(evaluateAvailability(result.reply, [message], qrAvailabilityPolicy(result, stayCtx))),
     }),
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,

@@ -89,7 +89,15 @@ giriş), çıkış gecesi (geç çıkış / uzatma), bilinen bir sonraki rezerva
 (kendi gecesi "dolu" görünmesin); iptal/red durumundaki konaklamada blok yok.
 **İsteme / yapay zekâya BAĞLANMADI** — yalnız host görür.
 
-## Ölçülen açık (09-23 ajan, kodla doğrulandı) — ONAY BEKLİYOR, uygulanmadı
+## Ölçülen açık (09-23 ajan, kodla doğrulandı) — ✅ UYGULANDI 09-24 (kurucu onayı: "kontrol etmeden cevap vermesini engelle")
+
+> Uygulama: `src/lib/ai/availability-claims.ts` (`evaluateAvailability` — kanal kapısı + QR kapısı + inbox
+> önerisi uyarısı + önizlemeler aynı politika) · istemdeki "muhtemelen müsait" cümleleri dürüstleştirildi
+> ("boşluk KANITI değildir", "takvim bu cevapta DOĞRULANMADI") + Bölüm 7.5'e ek gece / uzatma / tarih
+> değişikliği maddesi. İlk kelime-kalıbı sürümü kör bataryada genellemedi (izinlerin 19/60'ı) → karar
+> dört katmanlı ANLAM KATMANIYLA verilir: `docs/ANLAM-KATMANI-2026-09-24.md`. Gerekçe kodları
+> `availability_claim` / `availability_unconfirmed` (RiskEvent + raporlar "Müsaitlik — takvim kontrolü
+> bekledi" satırı).
 
 - **Gönderim kapısı müsaitlik iddiasını DURDURMUYOR.** "Evet, 14 Ekim gecesi daire boş; bir gece daha
   kalabilirsiniz." · "Yes, next weekend is available." · "Unfortunately we're fully booked that night." —

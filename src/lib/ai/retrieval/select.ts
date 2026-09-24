@@ -89,6 +89,14 @@ export interface KbRetrievalEvidence {
   sem?: "ok" | "cold" | "unavailable" | "not_needed";
   /** Anlamsal hazırlığın süresi (ms; yalnız anahtar açıkken). */
   semMs?: number;
+  /** ANLAMA KATMANININ eklediği (yeniden yazılmış) alt sorgu sayısı (yalnız katman açık + sorgu varken). */
+  uq?: number;
+  /** Anlama katmanının durumu (yalnız `AI_UNDERSTANDING_ENABLED` açıkken; kapalı küme). */
+  un?: "ok" | "cached" | "failed";
+  /** Anlama katmanının süresi (ms). */
+  unMs?: number;
+  /** Anlaşılan niyetler (kapalı küme `UNDERSTANDING_INTENTS`, en fazla 5; metin YOK). */
+  ui?: string[];
 }
 
 export interface KbSelectSources {
@@ -140,6 +148,13 @@ export interface KbSelectInput<T extends KbChunkSource> {
    * Anahtarlar `retrievalQueries(...).subquery` ile BİREBİR aynıdır (tek kaynak).
    */
   semanticBySubquery?: ReadonlyMap<string, ReadonlyMap<string, number>>;
+  /**
+   * ANLAMA KATMANININ yeniden yazdığı sorgular (`ai/semantic/understand.ts`; bayrak kapalıyken YOK).
+   * Deterministik alt sorgulara BİRLEŞİM olarak eklenir — hiçbir alt sorgunun yerine geçmez, adayı
+   * daraltmaz. Kaynak model olduğu için yalnız ARAMA sorgusudur: seçilebilecek küme yetki/onay/sır
+   * süzgeçlerinden ÖNCE geçmiş `items`tır (sorgu kümeye kalem ekleyemez).
+   */
+  extraQueries?: readonly string[];
   sources?: KbSelectSources;
   now?: number;
 }
@@ -177,6 +192,8 @@ const CARRY_HISTORY_MESSAGES = 2;
 export const PENDING_QUERY_MESSAGES = 3;
 /** Güncel mesaj + cevapsız mesajlardan gelen alt sorguların toplam tavanı. */
 export const MAX_TOTAL_SUBQUERIES = 6;
+/** Anlama katmanından eklenebilecek sorgu tavanı (deterministik tavandan AYRI). */
+export const MAX_EXTRA_QUERIES = 6;
 
 /**
  * CEVAPSIZ ÖNCEKİ MİSAFİR MESAJLARI (09-23 ölçümü): son operatör/AI mesajından SONRA gelen, güncel
@@ -300,8 +317,8 @@ export function retrievalQueries(
    * `embedTexts: true` yalnız ANLAMSAL yol içindir; seçici kendisi yalnız `subquery` okur ve gömme
    * metinlerini hesaplamaz (09-23 inceleme: anahtar kapalıyken bölme işi iki katına çıkıyordu).
    */
-  opts: { embedTexts?: boolean } = {},
-): { queries: RetrievalQuery[]; pending: number } {
+  opts: { embedTexts?: boolean; extraQueries?: readonly string[] } = {},
+): { queries: RetrievalQuery[]; pending: number; extra: number } {
   // Alt sorgu ham cümlesiyle eşleşmezse (normalizasyon bölüm sınırını aşan nadir dönüşüm) alt
   // sorgunun kendisi gömülür — puan asla SESSİZCE başka bir alt sorguya gitmez.
   const textsFor = (byQuery: Map<string, string[]> | null, sq: string): string[] =>
@@ -320,7 +337,18 @@ export function retrievalQueries(
       pending += 1;
     }
   }
-  return { queries, pending };
+  // ANLAMA KATMANI sorguları EN SONA (deterministik sıra ve tavanlar BİREBİR korunur). Her biri tek
+  // alt sorgudur (model zaten tek konuya indirdi); gömme metni sorgunun kendisi.
+  let extra = 0;
+  for (const raw of opts.extraQueries ?? []) {
+    if (extra >= MAX_EXTRA_QUERIES) break;
+    if (typeof raw !== "string") continue;
+    const sq = normalizeForRetrieval(raw).trim();
+    if (sq.length < 3 || contentStems(sq).length === 0 || queries.some((q) => q.subquery === sq)) continue;
+    queries.push({ subquery: sq, embedTexts: opts.embedTexts ? [raw.slice(0, EMBED_QUERY_MAX_CHARS)] : [] });
+    extra += 1;
+  }
+  return { queries, pending, extra };
 }
 
 /**
@@ -533,7 +561,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     q: number,
     sel: number,
     cand: number,
-    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped" | "fus" | "pq"> = {},
+    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped" | "fus" | "pq" | "uq"> = {},
   ): KbRetrievalEvidence => ({
     mode: "hybrid",
     q,
@@ -565,7 +593,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     if (!retrievalNeeded(input.items, input.fullSetMaxItems ?? KB_ITEM_CAP)) {
       return legacyResult(sup > 0 ? items : input.items, "hybrid", evidence("small_kb", 0, items.length, items.length, { sup }));
     }
-    const { queries, pending: pq } = retrievalQueries(input.guestMessage, input.history);
+    const { queries, pending: pq, extra: uq } = retrievalQueries(input.guestMessage, input.history, { extraQueries: input.extraQueries });
     const subqueries = queries.map((q) => q.subquery);
     const index = getOrBuildKbIndex(items, input.now);
     if (subqueries.length === 0) {
@@ -589,7 +617,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       return legacyResult(
         cap.items,
         "hybrid",
-        evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, fus, sup, ...(pq ? { pq } : {}) }),
+        evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, fus, sup, ...(pq ? { pq } : {}), ...(uq ? { uq } : {}) }),
         cap.dropped,
       );
     }
@@ -671,6 +699,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
         conf: conflicts.length,
         confDropped,
         ...(pq ? { pq } : {}),
+        ...(uq ? { uq } : {}),
       }),
     };
   } catch (err) {

@@ -169,6 +169,10 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   ilk-tur kısıtı. Sözlükten ÇIKARILDI, geri gelmesin: "varış→var", "şu→su", "ki" eki, torba "olanaklar". Bilinen kök
   sınırları: markete→mark, kilidi→ki, duşu→du, görevliniz→gorevl. `hasEvidence` yüklemi (güçlü kök / n-gram ≥0.3 /
   anlamsal ≥0.3) — `base > 0` yetmez.
+- **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
+  geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
+  (sona, ayrı tavan 6; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); kapalıyken sonuç BİREBİR;
+  sorgu METNİ kanıta girmez (`uq/un/unMs/ui` yalnız sayı/kapalı küme).
 - **Önbellek anahtarı küme parmak izi** (id+updatedAt+içerik özeti), `max(updatedAt)` DEĞİL. Kanıt
   `kbEvidenceJson.retrieved[].c` + `.retrieval {q, fb, sel, cand, ms, srcs, sup, conf, fus}` — PII yok, misafire dönmez.
 - **Retrieval politika DEĞİLDİR** (kötü niyetli kalem sözcüksel eşleşince gider; eleme ayrı onay). Güvenlik
@@ -282,6 +286,18 @@ Bu dosyaya token/anahtar/parola yazma.
   Misafir kalıpları KB'ye UYGULANMAZ (16 host cümlesinin 10'u yanlış pozitif). Yalnız yapay zekâya yönelen biçimler
   (sahte rol/çit işareti, çıktı alanı, TEKİL emir / 2. çoğul iyelik, rol değişimi). Kör batarya 0/150 yanlış
   pozitif, genelleme 22/60 → "düz emir" sınıfı içerik süzgeciyle ayrılamaz (bilinen sınır, pinli).
+- 🚨 **ANLAM KATMANI (09-24, kurucu: "kelimeye takılma, anlamı modelle çıkar"; `docs/ANLAM-KATMANI-2026-09-24.md`):**
+  müsaitlik/konaklama değişikliği kararı `evaluateAvailability`te DÖRT katmanın birleşimi, hepsi yalnız SIKILAŞTIRIR:
+  kelime ağı (`availability-claims.ts`, YALNIZ YEDEK — kör bataryada izinlerin 19/60'ı; BÜYÜTÜLMEZ, taban circirde
+  `stay-change-backstop-floor.test.ts`) · cevap modelinin şema beyanı (`stayChangeAsked`+`replyStance`; iddia duruşu
+  varsayılan ZORLANIR) · bağımsız bekçi (`semantic/guard.ts`, `AI_STAY_GUARD_ENABLED`) · anlama katmanı
+  (`semantic/understand.ts`, `AI_UNDERSTANDING_ENABLED`). Model saati ÇIKARIR, kıyas KODDA (`slotTimesShifted`).
+  ERTELEME kanıtı izin yönlü: kelime ağının cümlesi YA DA iki bağımsız model (beyan + bekçi) — tek model YETMEZ;
+  erteleme dedektörü TEK biçim (genişletici katlama yok). Modelden türeyen istek sinyali `AI_STAY_POLICY=enforce`
+  ile karar verir (varsayılan gölge; `kbEvidenceJson.sc.ev` her koşuda ölçer). Bekçi düşerse modelin konaklama
+  sinyali varsa tutulur. Tek ağ kapısı `semantic/structured-call.ts` (Structured Outputs strict; alarm `semantic`
+  kanalı), yapılandırma tek kaynak `semantic/config.ts`. Açma = eval (`evals/stay-change.json` YALNIZ `holdout`
+  satırları; `dev` görüldü) + kurucu onayı; sıra belge §5.
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).
@@ -845,6 +861,13 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-24 ANLAM KATMANI TURU (kurucu: Gemini eleştirisi — "kalıp genişletmek aşırı uyum; şema tabanlı niyet
+çıkarıcı + sorgu yeniden yazma + LLM'lerle yap").** Migration'sız. Müsaitlik vetosunun kelime ağı kör bataryada
+ölçüldü ve DONDURULDU (yalnız yedek); karar dört katmanlı anlam katmanı (↑AI güvenlik mimarisi). Cevap JSON'una
+iki beyan alanı (24 few-shot dahil), bağımsız bekçi + anlama/sorgu yeniden yazma (Structured Outputs, bayraklar
+KAPALI, kredi yok → ölçülmedi), eval seti `evals/stay-change.json` (dev + holdout) ve harness. Açma sırası
+`docs/ANLAM-KATMANI-2026-09-24.md` §5.
+
 **09-23 BEŞİNCİ TUR (kurucu: "Gemini tablosu — hibrit arama, çapraz-kodlayıcı, %80 skor eşiği, lost in the
 middle; en gelişmiş hâli, Guesty gibi"; 4 ajan).** Migration'sız. Ölçülenler: mutlak skor eşiği REDDEDİLDİ (her
 kesme cevap kaybettirir; puan göreli, negatif sorgu 1,0–1,35) · asıl açık ADAY ÜRETİMİ (58/275 cevap aday

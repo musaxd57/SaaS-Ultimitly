@@ -1,19 +1,64 @@
 import type { KbChunkSource } from "@/lib/ai/retrieval/chunker";
 import { selectKbForPrompt, type KbSelectInput, type KbSelectResult } from "@/lib/ai/retrieval/select";
 import { prepareSemanticScores } from "@/lib/ai/embeddings/semantic-retrieval";
+import { understandGuestMessages } from "@/lib/ai/semantic/understand";
+import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
+import type { StayTimes } from "@/lib/ai/semantic/stay-change";
 
 // ---------------------------------------------------------------------------
 // BİLGİ SEÇİMİ — YÜZEYLERİN TEK GİRİŞİ (09-23).
 //
 // Dört AI yüzeyi (oto-yanıt, QR, inbox öneri, Ayarlar testi) bunu çağırır; bu da TEK boğaz
-// `selectKbForPrompt`i. Aradaki tek iş anlamsal hazırlıktır (ağ çağrısı burada, seçici SAF ve
-// SENKRON kalır). Anahtar (`KB_SEMANTIC_RETRIEVAL`) kapalıyken sonuç `selectKbForPrompt(input)`
-// ile BİREBİR aynıdır ve kanıta yeni alan girmez (davranışsal pin).
+// `selectKbForPrompt`i. Aradaki iş ağ gerektiren hazırlıktır (seçici SAF ve SENKRON kalır):
+//  1. ANLAMA KATMANI (09-24, `AI_UNDERSTANDING_ENABLED`): model misafirin sorusunu anlar ve temiz,
+//     geçmişle çözülmüş arama sorgularına yeniden yazar (sorgu yeniden yazma / çoklu sorgu). Sorgular
+//     deterministik alt sorgulara BİRLEŞİM olarak girer; anlaşılan konaklama sinyali çağırana döner
+//     (kapıya gider). Küçük KB'de de koşar — sinyal retrieval'dan bağımsız değerlidir.
+//  2. ANLAMSAL HAZIRLIK (`KB_SEMANTIC_RETRIEVAL`): alt sorgu başına gömme puanları — yeniden yazılmış
+//     sorgular da gömülür.
+// İki anahtar da kapalıyken sonuç `selectKbForPrompt(input)` ile BİREBİR aynıdır ve kanıta yeni alan
+// girmez (davranışsal pin).
 // ---------------------------------------------------------------------------
 
-export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<T>): Promise<KbSelectResult<T>> {
-  const sem = await prepareSemanticScores(input);
-  const result = selectKbForPrompt(sem.bySubquery ? { ...input, semanticBySubquery: sem.bySubquery } : input);
-  if (sem.status === "off" || !result.evidence) return result;
-  return { ...result, evidence: { ...result.evidence, sem: sem.status, semMs: sem.ms } };
+export interface KbRetrieveInput<T extends KbChunkSource> extends KbSelectInput<T> {
+  /** Anlama katmanı için mülkün standart saatleri (konaklama isteğinin "standart dışı" kararı). */
+  stayTimes?: StayTimes | null;
+  /** Anlama katmanına gitmeden redakte edilecek bilinen adlar. */
+  redactNames?: readonly (string | null | undefined)[];
+}
+
+export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
+  /** Anlama katmanının çıktısı (yalnız katman açık ve başarılıyken). */
+  understanding?: MessageUnderstanding;
+};
+
+export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
+  const { stayTimes, redactNames, ...selectInput } = input;
+  const und = await understandGuestMessages({
+    guestMessage: selectInput.guestMessage,
+    history: selectInput.history,
+    stayTimes,
+    names: redactNames,
+  });
+  const understanding = und.status === "ok" ? und.value : undefined;
+  const extraQueries = understandingQueries(understanding);
+  const withExtra: KbSelectInput<T> = extraQueries.length > 0 ? { ...selectInput, extraQueries } : selectInput;
+
+  const sem = await prepareSemanticScores(withExtra);
+  const result = selectKbForPrompt(sem.bySubquery ? { ...withExtra, semanticBySubquery: sem.bySubquery } : withExtra);
+  let evidence = result.evidence;
+  if (evidence && sem.status !== "off") evidence = { ...evidence, sem: sem.status, semMs: sem.ms };
+  if (evidence && und.status !== "off") {
+    evidence = {
+      ...evidence,
+      un: und.status === "ok" ? (und.cached ? "cached" : "ok") : "failed",
+      unMs: und.ms,
+      ...(understanding && understanding.requests.length > 0 ? { ui: understanding.requests.map((r) => r.intent) } : {}),
+    };
+  }
+  return {
+    ...result,
+    evidence,
+    ...(understanding ? { understanding } : {}),
+  };
 }

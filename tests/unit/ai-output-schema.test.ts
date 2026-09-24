@@ -159,3 +159,37 @@ describe("passesAutoReplySafetyGate — güven değeri sonlu olmak zorunda (ikin
     expect(passesAutoReplySafetyGate({ ...base, confidence: 0.9 }, GUEST)).toBe(true);
   });
 });
+
+describe("suggestReply — konaklama değişikliği ŞEMA BEYANI (09-24)", () => {
+  const ASK = "Could we get into the flat at 11?";
+  const askInput = { ...input, guestMessage: ASK };
+  beforeEach(() => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    mockReportError.mockClear();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("geçerli beyan aynen taşınır ve kapı İZİN beyanına kapanır (kelime ağı görmese de)", async () => {
+    openAiReturns({ ...VALID, intent: "early_checkin", reply: "Your early check-in is all set.", stayChangeAsked: "early_checkin", replyStance: "grants" });
+    const r = await suggestReply(askInput);
+    expect(r.stayChange).toEqual({ asked: "early_checkin", stance: "grants" });
+    expect(passesAutoReplySafetyGate(r, ASK)).toBe(false);
+  });
+
+  it("KONTROL: aynı cevap beyansız gelirse (alan yok) sinyal YOK — kapı eski davranışta", async () => {
+    openAiReturns({ ...VALID, intent: "early_checkin", reply: "Your early check-in is all set." });
+    const r = await suggestReply(askInput);
+    expect(r.stayChange).toBeNull();
+    expect(passesAutoReplySafetyGate(r, ASK)).toBe(true);
+    expect(mockReportError).not.toHaveBeenCalled(); // eksik beyan alarm DEĞİL, kanıtta "absent"
+  });
+
+  it("kapalı küme dışı değer coercion görmez → `unknown` (tanınmayan ≠ temiz)", async () => {
+    openAiReturns({ ...VALID, stayChangeAsked: "EARLY", replyStance: 3 });
+    const r = await suggestReply(askInput);
+    expect(r.stayChange).toEqual({ asked: "unknown", stance: "unknown" });
+  });
+});

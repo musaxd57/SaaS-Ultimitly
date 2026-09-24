@@ -383,3 +383,53 @@ describe("ConversationThread — AI öneri paneli kapatılabilir", () => {
     expect(screen.getByRole("button", { name: "AI cevap öner" })).toBeTruthy();
   });
 });
+
+// ---------------------------------------------------------------------------
+// MÜSAİTLİK UYARISI (09-24): otomatik gönderimi durduran politikanın AYNISI inbox önerisinde host'a
+// görünür — taslak takvim iddiası taşıyorsa ya da erteleme yapmıyorsa host onaylamadan önce okur.
+// ---------------------------------------------------------------------------
+describe("ConversationThread — AI önerisinde müsaitlik uyarısı", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const suggest = (availabilityCheck: string | null) =>
+    JSON.stringify({
+      intent: "early_checkin",
+      confidence: 0.9,
+      reply: "Sure, see you at 11.",
+      risk: null,
+      source: "openai",
+      riskLevel: "low",
+      usedSources: [],
+      missingInfo: [],
+      detectedLanguage: "en",
+      availabilityCheck,
+    });
+
+  async function open(check: string | null) {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(suggest(check), { status: 200 })));
+    render(<ConversationThread {...baseProps} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "AI cevap öner" }));
+    });
+  }
+
+  it("takvim iddiası/izin → host 'kanal takviminden kontrol edin' uyarısını görür", async () => {
+    await open("availability_claim");
+    expect(screen.getByTestId("availability-warning").textContent).toMatch(/takvim hakkında kesin bir şey söylüyor/);
+    expect(screen.getByTestId("availability-warning").textContent).toMatch(/kanal takviminden kontrol edin/);
+  });
+
+  it("ertelemesiz istek → 'söz vermeden önce' uyarısı", async () => {
+    await open("availability_unconfirmed");
+    expect(screen.getByTestId("availability-warning").textContent).toMatch(/Misafire söz vermeden önce/);
+  });
+
+  it("KONTROL: temiz öneride uyarı YOK", async () => {
+    await open(null);
+    expect(screen.queryByTestId("availability-warning")).toBeNull();
+  });
+});

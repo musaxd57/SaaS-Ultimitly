@@ -278,6 +278,17 @@ Açma sırası (her adım kurucunun):
    `kbEvidenceJson.retrieval.sem` (`ok`/`cold`/`unavailable`/`not_needed`) ve `srcs` içinde `semantic`.
 Geri alma: env'i sil (yeniden başlatma). Vektörler süreç belleğinde; kalıcı tablo E2 ayrı onay (migration).
 
+## Konaklama değişikliği anlam katmanı (09-24; `tests/eval/stay-change.eval.test.ts`)
+Veri `evals/stay-change.json` (SENTETİK, iki kör batarya): `dev` (ilk batarya; deterministik yedeğin doğruluk
+düzeltmelerinde görüldü) · `holdout` (ikinci batarya; HİÇBİR ayarlamada kullanılmaz, genelleme ölçüsü yalnız
+buradan okunur). Üç katman aynı etiketlere karşı: deterministik yedek (anahtarsız da koşar) · bağımsız bekçi
+(`runStayChangeGuard`) · anlama katmanı (`understandGuestMessages`); saat kıyası KODDA. Aynı iki kapı
+(`RUN_REAL_EVAL=1` + gerçek anahtar; bulutta `NODE_USE_ENV_PROXY=1`); tek dosya için
+`npm run eval -- tests/eval/stay-change.eval.test.ts`. `EVAL_STAY_LIMIT=N` örnekler. Tek çağrı düşerse rapor
+GEÇERSİZ (`docs/olcum/stay-change-eval-<tarih>.md` + `.json`). Açma sırası ve eşik yorumu:
+`docs/ANLAM-KATMANI-2026-09-24.md` §5 — `AI_UNDERSTANDING_ENABLED` → `AI_STAY_GUARD_ENABLED` → (1–2 hafta
+`sc.v`/`sc.ev` gölge izleme) → `AI_STAY_POLICY=enforce`.
+
 ## Ne zaman gerekir
 - `QR_INFORMATIONAL_BAND_ENABLED` bayrağı **bu eval bitmeden AÇILMAZ** (kurucu kararı).
 - `KB_RETRIEVAL_MODE=hybrid` açılmadan önce eşleştirilmiş retrieval eval'i koşulmalı (↑).

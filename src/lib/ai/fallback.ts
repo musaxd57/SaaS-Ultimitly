@@ -697,6 +697,22 @@ function foldedCandidatesOf(message: string): readonly FoldedCandidate[] {
   return foldedCacheVal;
 }
 
+/**
+ * KISITLAYICI bir dedektörün sınaması gereken TÜM biçimler: normalize edilmiş metin + ek adaylar
+ * (birleştirici işaret, homoglif, ayrık harf, kesme işareti) × üç katlama (standart · Türkçe-yerelli ·
+ * ASCII). Yalnız EŞLEŞME EKLER (CLAUDE.md KATLAMA KURALI) → yalnız engelleyebilen yollarda kullanılır;
+ * bir oto-gönderimi YETKİLENDİREN beyaz listelerde ASLA. İlk tüketici: müsaitlik vetosu (09-24).
+ */
+export function restrictiveMatchForms(text: string): readonly string[] {
+  const out = new Set<string>();
+  for (const c of foldedCandidatesOf(text)) {
+    out.add(c.std);
+    out.add(c.tr);
+    out.add(c.ascii);
+  }
+  return [...out];
+}
+
 const asciiWordsCache = new WeakMap<readonly string[], string[]>();
 let asciiFoldMisses = 0;
 function asciiFoldedWords(words: readonly string[]): string[] {

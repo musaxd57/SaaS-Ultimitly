@@ -11,6 +11,8 @@ import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
+import { vetoAvailability } from "@/lib/ai/availability-claims";
+import { availabilityPolicyFor } from "@/lib/automation";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
@@ -89,6 +91,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   const kbSel = await retrieveKbForPrompt({
     items: kb,
     guestMessage: lastInbound.body,
+    stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
+    redactNames: [conversation.guestIdentifier],
     history: conversation.messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
@@ -143,5 +147,25 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     },
   });
 
-  return jsonOk(result);
+  // MÜSAİTLİK UYARISI (09-24): otomatik gönderimi durduran yüklemin AYNISI, aynı girdiyle (son giden
+  // mesajdan sonraki cevapsız misafir mesajları; host zaten yazdıysa son misafir mesajı). Taslak
+  // takvim iddiası taşıyorsa ya da müsaitlik isteğini ertelemiyorsa host onaylamadan önce görür —
+  // yoksa oto-gönderimin durdurduğu iddiayı host tek tıkla misafire gönderebilirdi.
+  const lastOut = conversation.messages.map((m) => m.direction).lastIndexOf("outbound");
+  const unanswered = conversation.messages
+    .slice(lastOut + 1)
+    .filter((m) => m.direction === "inbound")
+    .map((m) => m.body);
+  // Politika girdisi kapıyla AYNI kurucudan (`availabilityPolicyFor`): modelin şema beyanı + mülkün
+  // standart saatleri. Bekçi burada KOŞMAZ (host zaten okuyor; ek model çağrısı maliyetine değmez).
+  const availabilityCheck = vetoAvailability(
+    result.reply,
+    unanswered.length > 0 ? unanswered : [lastInbound.body],
+    availabilityPolicyFor(result, {
+      stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
+      understanding: kbSel.understanding?.stay ?? null,
+    }),
+  );
+
+  return jsonOk({ ...result, availabilityCheck });
 });

@@ -1,4 +1,5 @@
 import type { ClaimAudit } from "./claim-support";
+import type { StayChangeDeclaration } from "./semantic/stay-change";
 import type { Priority, ReplyTone } from "@/lib/constants";
 
 export interface KbContext {
@@ -188,6 +189,13 @@ export interface SuggestReplyResult {
   missingInfo: string[];
   /** The guest's own stated departure/check-out time as "HH:MM" (24h), or null. */
   statedCheckoutTime: string | null;
+  /**
+   * Modelin KENDİ cevabı hakkındaki şema beyanı (`stayChangeAsked` + `replyStance`, 09-24): misafir
+   * takvime bağlı bir değişiklik istedi mi, cevap ne yaptı (erteledi / izin verdi / takvimden söz
+   * etti / reddetti). ETİKETTİR, yetki vermez — kapı yalnız SIKILAŞTIRIR
+   * (`ai/semantic/stay-change.ts`). Yokluğu = model alanı üretmedi (fallback dâhil) = sinyal yok.
+   */
+  stayChange?: StayChangeDeclaration | null;
 }
 
 export interface ClassifyResult {

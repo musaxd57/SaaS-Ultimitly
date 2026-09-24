@@ -2,6 +2,13 @@ import "server-only";
 
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
+import { vetoAvailability, type AvailabilityPolicyOptions } from "@/lib/ai/availability-claims";
+import type {
+  StayChangeDeclaration,
+  StayGuardOutcome,
+  StayTimes,
+  UnderstandingStaySignal,
+} from "@/lib/ai/semantic/stay-change";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
 import { HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
 
@@ -107,6 +114,9 @@ export const ESCALATION_REASONS = [
   // Çıktı vetosu (§A) — `output-veto.ts` `OutputVetoReason` ile BİREBİR.
   "placeholder_in_reply",
   "unverified_commitment",
+  // Müsaitlik vetosu (09-24) — `availability-claims.ts` `AVAILABILITY_VETO_REASONS` ile BİREBİR.
+  "availability_claim",
+  "availability_unconfirmed",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -121,6 +131,19 @@ export type EscalationReason = (typeof ESCALATION_REASONS)[number];
  *
  * Devir kararı + GEREKÇESİ. `reason: null` → kapı geçildi (otomatik cevap).
  */
+/** QR kapısı ile QR karar kaydı AYNI politika girdisini kullanır (gerekçe ↔ hüküm ayrışamaz). */
+export function qrAvailabilityPolicy(
+  result: { stayChange?: StayChangeDeclaration | null },
+  stayCtx?: { stayTimes?: StayTimes | null; stayGuard?: StayGuardOutcome; understanding?: UnderstandingStaySignal | null },
+): AvailabilityPolicyOptions {
+  return {
+    declared: result.stayChange ?? null,
+    guard: stayCtx?.stayGuard,
+    understanding: stayCtx?.understanding ?? null,
+    stayTimes: stayCtx?.stayTimes ?? null,
+  };
+}
+
 export function evaluateEscalation(
   result: {
     intent: string;
@@ -132,6 +155,8 @@ export function evaluateEscalation(
     reply?: string;
     /** Kodda doğrulanmış kaynak etiketleri (`verifyUsedSources`). Boş = dayanaksız. */
     usedSources?: string[];
+    /** Modelin konaklama değişikliği ŞEMA BEYANI (yalnız sıkılaştırır). */
+    stayChange?: StayChangeDeclaration | null;
   },
   message: string,
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
@@ -151,6 +176,15 @@ export function evaluateEscalation(
    * ⚠️ Verilmezse davranış BİREBİR eski (geriye dönük uyumlu).
    */
   history?: readonly { body: string }[],
+  /**
+   * Anlam katmanı (09-24): mülkün standart saatleri + bağımsız bekçinin sonucu + anlama katmanı.
+   * Kanal kapısıyla AYNI politika (`evaluateAvailability`); verilmezse deterministik yedek + beyan.
+   */
+  stayCtx?: {
+    stayTimes?: StayTimes | null;
+    stayGuard?: StayGuardOutcome;
+    understanding?: UnderstandingStaySignal | null;
+  },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
   if (guestName && detectPromptInjection(guestName)) return yes("guest_name_injection");
@@ -227,6 +261,12 @@ export function evaluateEscalation(
   // ile "Konu yönetime bildirilmiştir" (makbuzsuz) BİREBİR aynı şablon.
   const vetoed = vetoOutgoingReply(result.reply);
   if (vetoed !== null) return yes(vetoed);
+  // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24) ────────────────────────────────
+  // Kanal kapısıyla AYNI yüklem. QR'da cevaplanan tek mesaj GÜNCEL mesajdır (eşzamanlı sohbet;
+  // önceki turlar zaten cevaplandı). Devir muafiyeti burada GEREKMEZ: `human_request` yukarıda
+  // `escalate_intent` ile zaten devredildi.
+  const availability = vetoAvailability(result.reply, [message], qrAvailabilityPolicy(result, stayCtx));
+  if (availability !== null) return yes(availability);
   // ── EKSİK BİLGİDE DÜRÜST CEVAP — DAR BANT (kurucu, 09-08) ─────────────────
   //
   // Buraya gelen mesaj, YUKARIDAKİ SEKİZ KAPININ HEPSİNDEN geçmiştir: model

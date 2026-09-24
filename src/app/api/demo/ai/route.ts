@@ -141,8 +141,10 @@ export async function POST(req: NextRequest) {
         // BLOKLAR — yukarıdaki "must state what the product would truly do"
         // sözü tam olarak bunu yasaklıyor.
         reply: result.reply,
+        stayChange: result.stayChange ?? null,
       },
       message,
+      { stayTimes: { checkIn: DEMO_PROPERTY.checkInTime, checkOut: DEMO_PROPERTY.checkOutTime } },
     );
 
     // ⚠️ YALNIZ ARAYÜZÜN ÇİZDİĞİ ALANLAR DÖNER. `intent`, `detectedLanguage` ve

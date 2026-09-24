@@ -1,0 +1,10 @@
+{
+  "suite": "stay-change",
+  "version": 1,
+  "meta": {
+    "status": "MODEL KOŞMADI (yalnız deterministik yedek)",
+    "failures": 0,
+    "enabled": false
+  },
+  "rows": []
+}

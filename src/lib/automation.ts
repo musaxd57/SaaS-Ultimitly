@@ -2,6 +2,19 @@ import "server-only";
 
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
+import {
+  evaluateAvailability,
+  stayEvidenceOf,
+  vetoAvailability,
+  type AvailabilityPolicyOptions,
+} from "@/lib/ai/availability-claims";
+import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
+import type {
+  StayChangeDeclaration,
+  StayGuardOutcome,
+  StayTimes,
+  UnderstandingStaySignal,
+} from "@/lib/ai/semantic/stay-change";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone, addZonedDays } from "@/lib/timezone";
@@ -83,6 +96,22 @@ export const HIGH_STAKES_RISK_TYPES = new Set([
   "complaint", "human_request", "rule_violation",
 ]);
 
+/** `passesAutoReplySafetyGate` bağlamı: modelin mesaj dışında gördükleri + anlam katmanı sinyalleri. */
+export interface AutoReplyGateContext {
+  history?: string[];
+  guestName?: string | null;
+  /** Son giden yanıttan SONRA gelen, henüz cevaplanmamış misafir mesajları
+   *  (sonuncusu hariç — o `guestMessage` olarak ayrıca geliyor). Kısıtlayıcı
+   *  netler bunların HEPSİNE uygulanır; ↓gerekçe. */
+  pendingGuestMessages?: string[];
+  /** Mülkün standart giriş/çıkış saati — model yuvalarındaki saat KODDA bunlarla kıyaslanır. */
+  stayTimes?: StayTimes | null;
+  /** Bağımsız bekçinin sonucu (`AI_STAY_GUARD_ENABLED`); verilmezse bekçi koşmadı. */
+  stayGuard?: StayGuardOutcome;
+  /** Anlama katmanının konaklama sinyali (`AI_UNDERSTANDING_ENABLED`). */
+  understanding?: UnderstandingStaySignal | null;
+}
+
 /** Only safe, confident drafts may be auto-sent; everything else waits for a human.
  * Exported for the golden scenario suite — the gate is the product's core safety
  * promise, so its verdicts are pinned by fixed test scenarios. */
@@ -100,18 +129,13 @@ export function passesAutoReplySafetyGate(
      * 09-11). Verilmezse (golden senaryolar, eski çağıranlar) kural hiç çalışmaz.
      */
     reply?: string | null;
+    /** Modelin konaklama değişikliği ŞEMA BEYANI (yalnız sıkılaştırır; `ai/semantic/stay-change.ts`). */
+    stayChange?: StayChangeDeclaration | null;
   },
   guestMessage: string,
   /** What the MODEL sees beyond the last message: recent history bodies + the
    *  (Airbnb-controlled) guest display name. Scanned for INJECTION ONLY. */
-  context?: {
-    history?: string[];
-    guestName?: string | null;
-    /** Son giden yanıttan SONRA gelen, henüz cevaplanmamış misafir mesajları
-     *  (sonuncusu hariç — o `guestMessage` olarak ayrıca geliyor). Kısıtlayıcı
-     *  netler bunların HEPSİNE uygulanır; ↑gerekçe. */
-    pendingGuestMessages?: string[];
-  },
+  context?: AutoReplyGateContext,
 ): boolean {
   // Never auto-send the deterministic fallback: it can't honour the language /
   // nuance rules the model follows, so if the model is unavailable we wait for a
@@ -291,11 +315,37 @@ export function passesAutoReplySafetyGate(
   // bağlanır), kapıyı devir akışının üstüne kapatarak değil — aksi hâlde
   // misafir hiçbir şey almaz ve host da devir sinyalini kaybeder.
   if (result.intent !== "human_request" && vetoOutgoingReply(result.reply) !== null) return false;
+  // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24, `availability-claims.ts`) ──────────
+  // Model takvimi GÖRMÜYOR → "o gece boş / kalabilirsiniz / fully booked" doğrulanmamış iddiadır;
+  // müsaitliğe bağlı bir istek ancak kararı ev sahibine bırakan cevapla gider. Kapsam TÜM cevapsız
+  // misafir mesajları (`surfaces`) — öndeki bir uzatma isteği sondaki wifi sorusunun arkasına
+  // saklanamaz. Devir cevabı yalnız İSTEK bacağından muaf; İDDİA bacağından değil.
+  // ⚠️ 09-24 KURUCU DÜZELTMESİ: kelime ağı tek başına genellemiyor (kör batarya: izinlerin 19/60'ı) →
+  // karar dört katmanın BİRLEŞİMİ (deterministik yedek + modelin şema beyanı + bağımsız bekçi + anlama
+  // katmanı); hepsi yalnız sıkılaştırır. Ayrıntı `availabilityPolicyFor` + `evaluateAvailability`.
+  if (vetoAvailability(result.reply, surfaces, availabilityPolicyFor(result, context)) !== null) return false;
   // İKİNCİ KEMER (Codex F01): güven değeri SONLU bir sayı olmak zorunda. Parser
   // zaten yalnız sonlu number geçiriyor, ama kapı başka çağıranlardan da ham
   // nesne alır (QR yolu, testler) — `Infinity >= 0.75` true olurdu.
   if (!Number.isFinite(result.confidence)) return false;
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
+}
+
+/**
+ * Kapı ile karar kaydı AYNI politika girdisini kullansın diye tek kurucu: gerekçe kodu ile kapının
+ * hükmü ayrışamaz (ikisi de bu nesneden türer).
+ */
+export function availabilityPolicyFor(
+  result: { intent: string; stayChange?: StayChangeDeclaration | null },
+  context?: AutoReplyGateContext,
+): AvailabilityPolicyOptions {
+  return {
+    handoff: result.intent === "human_request",
+    declared: result.stayChange ?? null,
+    guard: context?.stayGuard,
+    understanding: context?.understanding ?? null,
+    stayTimes: context?.stayTimes ?? null,
+  };
 }
 
 /**
@@ -1712,6 +1762,9 @@ export async function applyChannelAutoReply(
     items: kbVisible,
     guestMessage: last.body,
     history: messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
+    // Anlama katmanı (bayrak açıkken): standart saat kıyası + redaksiyon için.
+    stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
+    redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],
   });
   const kbForModel = kbSel.items;
   const kbDroppedTotal = kbDropped + (kb.length - kbVisible.length) + kbSel.droppedItems;
@@ -1795,6 +1848,69 @@ export async function applyChannelAutoReply(
     lateCheckoutOfferText: org.lateCheckoutOfferText,
   });
 
+  // Safety gate: only auto-send safe, confident replies (cross-checked against
+  // the guest's own words, so a mislabelled complaint/refund never slips through).
+  // Context mirrors what the MODEL sees beyond last.body: the prompt's history
+  // window and both guest-name surfaces (the
+  // reservation name goes into the prompt; guestIdentifier feeds the KB {isim}
+  // fill) — an injection planted in any of them must veto the auto-send.
+  // CEVAPLANMAMIŞ misafir mesajları = son GİDEN mesajdan sonrakiler. Misafir arka
+  // arkaya yazdığında (şikayet + zararsız takip) kapı yalnız sonuncuyu görüyordu;
+  // artık pencerenin tamamını görüyor. Pencere, biz cevap verince sıfırlanır —
+  // yani "dünkü çözülmüş şikayet" bugünü engellemez.
+  const lastOutboundIdx = messages.map((m) => m.direction).lastIndexOf("outbound");
+  const pendingGuestMessages = messages
+    .slice(lastOutboundIdx + 1)
+    .filter((m) => m.direction === "inbound" && m.id !== last.id)
+    .map((m) => m.body);
+
+  const gateContext: AutoReplyGateContext = {
+    // 🚨 AYNA AYNI SEÇİCİDEN BESLENİR (inceleme turu, 09-11 — ÖLÇÜLMÜŞ AÇIK).
+    // Burası `messages.slice(-6)` idi ve istem de 6 tutuyordu: iki pencere
+    // BİREBİR eşitti. İstem `selectHistoryForPrompt` ile 25 mesaja çıkınca
+    // ayna 6'da kaldı ve OTO-GÖNDERİM AÇIĞI doğdu: misafir N-10'uncu mesaja
+    // injection yükünü koyar, araya 9 zararsız mesaj sıkıştırır, son mesajı
+    // masum bir soru olur → MODEL yükü görür, KAPI görmez, veto düşer.
+    // `pendingGuestMessages` bacağı kurtarmaz: o yalnız son GİDEN mesajdan
+    // sonrasını kapsar, yük ondan ÖNCEDEDİR.
+    history: [
+      ...selectHistoryForPrompt(
+        messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
+      ).map((m) => m.body),
+      conversation.guestIdentifier ?? "",
+    ],
+    guestName: conversation.reservation?.guestName ?? null,
+    pendingGuestMessages,
+    // Model yuvalarındaki saat KODDA bununla kıyaslanır (`ai/semantic/stay-change.ts`).
+    stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
+    // Anlama katmanının konaklama sinyali (katman kapalıyken yok → politika eski davranışta).
+    understanding: kbSel.understanding?.stay ?? null,
+  };
+  // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
+  // Yalnız OTOMATİK GÖNDERİM ADAYI için ve bayrak açıkken (`AI_STAY_GUARD_ENABLED`): önce bekçisiz
+  // kapı; geçerse ikinci model taslağı okur ve kapı bekçinin hükmüyle YENİDEN değerlendirilir (bekçi
+  // yalnız sıkılaştırır). Önizleme (dryRun) de aynı yoldan geçer — "gönderilirdi" dürüst kalsın.
+  let gatePassed = passesAutoReplySafetyGate(result, last.body, gateContext);
+  if (gatePassed && stayGuardEnabled()) {
+    const stayGuard = await runStayChangeGuard({
+      guestMessages: [...pendingGuestMessages, last.body],
+      reply: result.reply,
+      stayTimes: gateContext.stayTimes,
+      names: [conversation.guestIdentifier, conversation.reservation?.guestName],
+    });
+    if (stayGuard) {
+      gateContext.stayGuard = stayGuard;
+      gatePassed = passesAutoReplySafetyGate(result, last.body, gateContext);
+    }
+  }
+  // Karar kaydı kapıyla AYNI politika girdisinden (`availabilityPolicyFor`) — gerekçe ile hüküm
+  // ayrışamaz; `enforceReason` gölge ölçümüdür (modelin istek sinyalleri zorlansaydı ne olurdu).
+  const stayEval = evaluateAvailability(
+    result.reply,
+    [last.body, ...pendingGuestMessages],
+    availabilityPolicyFor(result, gateContext),
+  );
+
   // §C (09-12) — SAYAÇLARI İSTEMİN GERÇEĞİNE ÇEK.
   //
   // `grounding` yukarıda, `suggestReply`'dan ÖNCE kuruldu ve yalnız istem-ÖNCESİ
@@ -1821,6 +1937,7 @@ export async function applyChannelAutoReply(
       claims: result.claimAudit,
       llm: result.llmUsage,
       hijackScreened: kbFetch.hijackScreened,
+      stay: stayEvidenceOf(stayEval),
     }),
   };
 
@@ -1888,41 +2005,7 @@ export async function applyChannelAutoReply(
   if (signature) outboundParts.push(signature);
   const outboundBody = outboundParts.join("\n\n");
 
-  // Safety gate: only auto-send safe, confident replies (cross-checked against
-  // the guest's own words, so a mislabelled complaint/refund never slips through).
-  // Context mirrors what the MODEL sees beyond last.body: the prompt's history
-  // window and both guest-name surfaces (the
-  // reservation name goes into the prompt; guestIdentifier feeds the KB {isim}
-  // fill) — an injection planted in any of them must veto the auto-send.
-  // CEVAPLANMAMIŞ misafir mesajları = son GİDEN mesajdan sonrakiler. Misafir arka
-  // arkaya yazdığında (şikayet + zararsız takip) kapı yalnız sonuncuyu görüyordu;
-  // artık pencerenin tamamını görüyor. Pencere, biz cevap verince sıfırlanır —
-  // yani "dünkü çözülmüş şikayet" bugünü engellemez.
-  const lastOutboundIdx = messages.map((m) => m.direction).lastIndexOf("outbound");
-  const pendingGuestMessages = messages
-    .slice(lastOutboundIdx + 1)
-    .filter((m) => m.direction === "inbound" && m.id !== last.id)
-    .map((m) => m.body);
-
-  const gateContext = {
-    // 🚨 AYNA AYNI SEÇİCİDEN BESLENİR (inceleme turu, 09-11 — ÖLÇÜLMÜŞ AÇIK).
-    // Burası `messages.slice(-6)` idi ve istem de 6 tutuyordu: iki pencere
-    // BİREBİR eşitti. İstem `selectHistoryForPrompt` ile 25 mesaja çıkınca
-    // ayna 6'da kaldı ve OTO-GÖNDERİM AÇIĞI doğdu: misafir N-10'uncu mesaja
-    // injection yükünü koyar, araya 9 zararsız mesaj sıkıştırır, son mesajı
-    // masum bir soru olur → MODEL yükü görür, KAPI görmez, veto düşer.
-    // `pendingGuestMessages` bacağı kurtarmaz: o yalnız son GİDEN mesajdan
-    // sonrasını kapsar, yük ondan ÖNCEDEDİR.
-    history: [
-      ...selectHistoryForPrompt(
-        messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
-      ).map((m) => m.body),
-      conversation.guestIdentifier ?? "",
-    ],
-    guestName: conversation.reservation?.guestName ?? null,
-    pendingGuestMessages,
-  };
-  if (!passesAutoReplySafetyGate(result, last.body, gateContext)) {
+  if (!gatePassed) {
     // If the block was driven by a MODEL-detected sensitive signal (complaint /
     // refund / early-departure intent, medium/high risk, OR a high-stakes
     // riskType label) — not mere low confidence — actively escalate to the host
@@ -2155,7 +2238,10 @@ export async function applyChannelAutoReply(
         finalDecision: "human_review",
         riskLevel: result.riskLevel,
         riskType: result.riskType ?? detectRiskType(last.body),
-        reason: "low_confidence_or_risky",
+        // Müsaitlik vetosu kapattıysa GEREKÇE ONUN KODU (kapıyla AYNI yüklem, AYNI girdi) — raporda
+        // "düşük güven" kovasına karışmasın. Konuşmanın `skippedReason`u BİLEREK aynı kalır: o kod on
+        // yerde işleniyor (damgalama, senkron koruması, raporlar); yeni kod o zinciri riske atardı.
+        reason: stayEval.reason ?? "low_confidence_or_risky",
         confidence: result.confidence,
         ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,

@@ -129,7 +129,12 @@ export const POST = withManage(async (session, req) => {
   // result is only returned, never sent and never persisted.
   // RAG dilim 1 (09-09): üretimle PARİTE — test kartı da aynı seçiciden geçer
   // (bayrak kapalıyken kimlik: `kbSel.items === kb`).
-  const kbSel = await retrieveKbForPrompt({ items: kb, guestMessage: message, history: [] });
+  const kbSel = await retrieveKbForPrompt({
+    items: kb,
+    guestMessage: message,
+    history: [],
+    stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },
+  });
 
   const now = new Date();
   const result = await suggestReply({
@@ -180,8 +185,11 @@ export const POST = withManage(async (session, req) => {
       // "kendiliğinden gönderilirdi" der. Yukarıdaki "the exact production gate"
       // iddiası ancak bu alanla doğru (alan opsiyonel → derleme uyarmaz).
       reply: result.reply,
+      // Şema beyanı (09-24) — gerçek kapıyla PARİTE; bekçi önizlemede koşmaz (bilinen fark, belgeli).
+      stayChange: result.stayChange ?? null,
     },
     message,
+    { stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime }, understanding: kbSel.understanding?.stay ?? null },
   );
 
   // PREVIEW PARITY: show EXACTLY what would leave the building. An AUTO-send

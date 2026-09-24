@@ -67,6 +67,8 @@ export interface SemanticPrepInput<T extends KbChunkSource> {
   items: readonly T[];
   guestMessage: string;
   history?: readonly { direction: "inbound" | "outbound"; body: string }[];
+  /** Anlama katmanının yeniden yazdığı sorgular — seçiciyle AYNI liste gömülür (`retrievalQueries`). */
+  extraQueries?: readonly string[];
   mode?: KbRetrievalMode;
   fullSetMaxItems?: number;
   now?: number;
@@ -163,7 +165,7 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
   });
   try {
     if (!retrievalNeeded(input.items, input.fullSetMaxItems)) return done("not_needed");
-    const { queries } = retrievalQueries(input.guestMessage, input.history, { embedTexts: true });
+    const { queries } = retrievalQueries(input.guestMessage, input.history, { embedTexts: true, extraQueries: input.extraQueries });
     if (queries.length === 0) return done("not_needed");
     // Seçiciyle AYNI küme (sürüm kuralı sonrası) → aynı indeks önbellek girdisi, aynı parça anahtarları.
     const { kept } = dropSuperseded(input.items as readonly (T & Supersedable)[]);

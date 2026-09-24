@@ -1,4 +1,5 @@
 import { CLAIM_CLASSES, type ClaimAudit } from "./claim-support";
+import { UNDERSTANDING_INTENTS } from "./semantic/understanding-schema";
 import type { LlmUsage } from "./types";
 // ---------------------------------------------------------------------------
 // TEMELLENDİRME SINIFLANDIRMASI (A2, 09-08) — OKUMA ZAMANINDA, HÜKÜM DEĞİL.
@@ -224,6 +225,14 @@ export interface KbEvidenceInput {
     sem?: string;
     /** Anlamsal hazırlık süresi (ms). */
     semMs?: number;
+    /** Anlama katmanının eklediği sorgu sayısı. */
+    uq?: number;
+    /** Anlama katmanının durumu (ok/cached/failed). */
+    un?: string;
+    /** Anlama katmanının süresi (ms). */
+    unMs?: number;
+    /** Anlaşılan niyetler (kapalı küme). */
+    ui?: string[];
   } | null;
   /** İddia desteği gölge ölçümü (yalnız sayılar + kapalı-küme sınıflar; `claim-support.ts`). */
   claims?: ClaimAudit;
@@ -231,6 +240,43 @@ export interface KbEvidenceInput {
   llm?: LlmUsage;
   /** Yapay zekâyı ele geçirme ifadesi taşıdığı için istemden çıkarılan kalem sayısı (`kb-fetch`). */
   hijackScreened?: number;
+  /**
+   * Konaklama değişikliği politikasının özeti (09-24, `evaluateAvailability`): uygulanan karar,
+   * `enforce` kipinin kararı (gölge) ve katman sinyalleri — yalnız kapalı-küme kodlar.
+   */
+  stay?: StayEvidence;
+}
+
+/** `sc` kanıt alanı — hepsi kapalı küme; metin/PII YOK. */
+export interface StayEvidence {
+  /** Uygulanan karar ("-" = temiz). */
+  v: string;
+  /** `enforce` kipinde verilecek karar (gölge ölçümü). */
+  ev: string;
+  lx: string;
+  d: string;
+  g: string;
+  gv?: string;
+  u: string;
+}
+
+const STAY_REASONS = new Set(["-", "availability_claim", "availability_unconfirmed"]);
+const STAY_KINDS = new Set(["none", "extend", "early_checkin", "late_checkout", "date_change", "availability", "unknown"]);
+const STAY_STANCES = new Set(["none", "defers", "grants", "states_calendar", "refuses", "unknown"]);
+
+/** Kanıt özetini yeniden kurar: tanınmayan her değer düşer (serbest metin sızamaz). */
+function cleanStay(x: StayEvidence | undefined): StayEvidence | undefined {
+  if (!x) return undefined;
+  if (!STAY_REASONS.has(x.v) || !STAY_REASONS.has(x.ev)) return undefined;
+  if (!/^(?:-|c?r?d?)$/.test(x.lx) || x.lx === "") return undefined;
+  if (x.d !== "absent") {
+    const [asked, stance, extra] = String(x.d).split("/");
+    if (extra !== undefined || !STAY_KINDS.has(asked) || !STAY_STANCES.has(stance)) return undefined;
+  }
+  if (x.g !== "off" && x.g !== "ok" && x.g !== "failed") return undefined;
+  if (x.u !== "off" && x.u !== "req" && x.u !== "none") return undefined;
+  const gv = typeof x.gv === "string" && /^(?:-|q?s?a?d?x?t?)$/.test(x.gv) && x.gv !== "" ? x.gv : undefined;
+  return { v: x.v, ev: x.ev, lx: x.lx, d: x.d, g: x.g, ...(gv ? { gv } : {}), u: x.u };
 }
 
 /** İddia özetini yeniden kurar: yalnız bilinen alanlar, yalnız sayı/kapalı-küme sınıf (serbest metin sızamaz). */
@@ -262,6 +308,9 @@ function cleanUsage(u: LlmUsage | undefined): LlmUsage | undefined {
  */
 /** Anlamsal kaynak durumları — kapalı küme (`embeddings/semantic-retrieval.ts`). */
 const SEM_STATUSES = new Set(["ok", "cold", "unavailable", "not_needed"]);
+/** Anlama katmanı durumları + niyetleri — kapalı kümeler (`ai/semantic/understanding-schema.ts`). */
+const UN_STATUSES = new Set(["ok", "cached", "failed"]);
+const INTENT_SET: ReadonlySet<string> = new Set(UNDERSTANDING_INTENTS);
 
 export function buildKbEvidence(input: KbEvidenceInput): string | null {
   const retrieved = input.retrieved
@@ -300,14 +349,27 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
           ...(typeof input.retrieval.semMs === "number" && Number.isFinite(input.retrieval.semMs) && input.retrieval.semMs >= 0
             ? { semMs: Math.round(input.retrieval.semMs * 10) / 10 }
             : {}),
+          // Anlama katmanı (09-24): yalnız kapalı küme / sayı; sorgu METNİ kanıta GİRMEZ.
+          ...(Number.isInteger(input.retrieval.uq) && (input.retrieval.uq as number) > 0 ? { uq: input.retrieval.uq } : {}),
+          ...(UN_STATUSES.has(String(input.retrieval.un)) ? { un: String(input.retrieval.un) } : {}),
+          ...(typeof input.retrieval.unMs === "number" && Number.isFinite(input.retrieval.unMs) && input.retrieval.unMs >= 0
+            ? { unMs: Math.round(input.retrieval.unMs) }
+            : {}),
+          ...(Array.isArray(input.retrieval.ui)
+            ? (() => {
+                const ui = input.retrieval.ui.filter((x) => INTENT_SET.has(x)).slice(0, 5);
+                return ui.length > 0 ? { ui } : {};
+              })()
+            : {}),
         }
       : undefined;
   const claims = cleanClaims(input.claims);
   const llm = cleanUsage(input.llm);
   // Yalnız ölçüldüyse yazılır: kanıt biçimi ölçülmeyen yolda karakteri karakterine aynı kalır.
   const hj = Number.isInteger(input.hijackScreened) && (input.hijackScreened as number) > 0 ? (input.hijackScreened as number) : undefined;
-  const extra = { ...(claims ? { claims } : {}), ...(llm ? { llm } : {}), ...(hj ? { hj } : {}) };
-  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj) return null;
+  const sc = cleanStay(input.stay);
+  const extra = { ...(claims ? { claims } : {}), ...(llm ? { llm } : {}), ...(hj ? { hj } : {}), ...(sc ? { sc } : {}) };
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc) return null;
   const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa

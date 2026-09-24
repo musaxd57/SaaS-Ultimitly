@@ -86,6 +86,8 @@ interface Suggestion {
   usedSources?: string[];
   missingInfo?: string[];
   detectedLanguage?: string;
+  /** Müsaitlik vetosu (sunucu yüklemi): taslak takvim iddiası taşıyor ya da isteği ertelemiyor. */
+  availabilityCheck?: "availability_claim" | "availability_unconfirmed" | null;
 }
 
 interface Props {
@@ -971,6 +973,21 @@ export function ConversationThread({
               <p className="flex items-start gap-2 rounded-md bg-blue-50 dark:bg-blue-500/10 px-2.5 py-2 text-xs text-blue-800 dark:text-blue-300">
                 <Info className="mt-0.5 size-3.5 shrink-0" />
                 <span><span className="font-medium">Sizin için not:</span> {suggestion.actionSuggestion}</span>
+              </p>
+            ) : null}
+
+            {suggestion.availabilityCheck ? (
+              <p
+                data-testid="availability-warning"
+                className="flex items-start gap-2 rounded-md bg-orange-50 dark:bg-orange-500/10 px-2.5 py-2 text-xs text-orange-800 dark:text-orange-300"
+              >
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  <span className="font-medium">Müsaitlik:</span>{" "}
+                  {suggestion.availabilityCheck === "availability_claim"
+                    ? "Bu taslak takvim hakkında kesin bir şey söylüyor. Göndermeden önce kanal takviminden kontrol edin."
+                    : "Misafir tarih ya da saat değişikliği istiyor. Misafire söz vermeden önce kanal takviminden kontrol edin."}
+                </span>
               </p>
             ) : null}
 
