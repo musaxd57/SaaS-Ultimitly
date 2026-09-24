@@ -111,7 +111,9 @@ describe("PUT/DELETE /api/properties/[id]/nightly-rate", () => {
 
   it("geçerli aralık yazılır; denetim kaydı DEĞER taşımaz; kart olgularında görünmez; dışa aktarımda görünür", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    session = owner(orgId);
+    // Denetim kaydının aktörü gerçek bir kullanıcı olmalı (FK); yoksa kayıt tasarım gereği sessizce düşer.
+    const user = await prisma.user.create({ data: { organizationId: orgId, name: "O", email: "o@example.com", passwordHash: "x", role: "owner" } });
+    session = { ...owner(orgId), userId: user.id };
     const res = await put(propertyId, { low: 1800, high: 4200, currency: "TRY" });
     expect(res.status).toBe(200);
     const rates = await loadNightlyRates(orgId, [propertyId]);
