@@ -288,6 +288,28 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect((await decision(id2)).ec).toEqual({ s: "pending", f: ["previous_still_in", "not_ready"], a: "0" });
   });
 
+  it("1c · istenen saat GEÇTİ (10:30'da '09:00'da gelebilir miyiz?') → onay o saati söyleyemez: host (ret yok)", async () => {
+    const now = Z("2026-10-14T07:30:00.000"); // 10:30
+    at(now);
+    const v = await vacantNight(now);
+    await saveEarlyCheckinRule(v.orgId, v.propertyId, RULE);
+    openAi({ understanding: nlu("09:00"), guard: guard("09:00") });
+    const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await decision(id)).ec).toEqual({ s: "needs_host", f: ["time_passed"], a: "0" });
+    // Varış günü standart giriş (15:00) geçtiyse artık erken giriş değildir: akış onay/ret üretmez.
+    await fresh();
+    const late = Z("2026-10-14T12:30:00.000"); // 15:30
+    at(late);
+    const w = await vacantNight(late);
+    await saveEarlyCheckinRule(w.orgId, w.propertyId, RULE);
+    openAi({ understanding: nlu("13:00"), guard: guard("13:00") });
+    const id2 = await conversationFor(w.propertyId, w.own.id, "Hi! Could we check in at 13:00 today?", new Date(late.getTime() - 60_000));
+    expect((await applyChannelAutoReply(id2)).sent).toBe(false);
+    expect((await decision(id2)).ec).toEqual({ s: "not_early", f: [], a: "0" });
+  });
+
   it("2 · planlanan çıkış 11:00, temizlikçi 08:15 başladı + 08:45 READY, takvim temiz, en erken 09:00, misafir 09:00 → host rızasıyla OTOMATİK onay; rıza yoksa bekler", async () => {
     const now = Z("2026-10-14T05:52:00.000"); // 08:52
     at(now);

@@ -165,13 +165,12 @@ export async function loadEarlyCheckinFacts(args: {
     facts.readinessNote = detail.note;
     facts.departureConfirmed = detail.departureConfirmed;
     readyAt = readyAtOf(marks, checkoutAt, args.now, opts);
-    // G4 (bilgi): açık bir devir temizliğinin EN SON durum kaydı bugün kimlikli "başladım" → temizlikçi içeride.
-    facts.cleaningStarted =
-      facts.readiness !== "ready" &&
-      cleaning.some((t) => {
-        const latest = t.updates.filter((u) => u.status !== null).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-        return t.status === "in_progress" && latest?.status === "in_progress" && latest.userId !== null && (!dayStart || latest.createdAt >= dayStart);
-      });
+    // G4 (bilgi): açık bir devir temizliğinin EN SON durum kaydı bugün kimlikli "başladım" → temizlikçi içeride. (Açık
+    // görev varken hazırlık zaten "hazır" olamaz; ayrıca koşul gerekmez.)
+    facts.cleaningStarted = cleaning.some((t) => {
+      const latest = t.updates.filter((u) => u.status !== null).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+      return t.status === "in_progress" && latest?.status === "in_progress" && latest.userId !== null && (!dayStart || latest.createdAt >= dayStart);
+    });
     // AÇIK sorun / bakım / kontrol görevi (ayrılan konaklamaya bağlı ya da devir gününe tarihli) → "hazır" denemez.
     facts.openIssue = tasks.some(
       (t) => t.type !== "cleaning" && t.status !== "done" && (t.reservationId === reference.id || (t.reservationId === null && onTurnoverDay(t))),

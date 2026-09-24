@@ -6,8 +6,8 @@ import { earlyCheckinAutoBlockers } from "@/lib/early-checkin/workflow";
 import { validateEarlyCheckinRuleInput } from "@/lib/early-checkin/rules";
 import { earlyCheckinPanelLines, type EarlyCheckinPanelData } from "@/lib/early-checkin/panel";
 import { minutesOfDayInTimeZone } from "@/lib/timezone";
-import { UNDERSTANDING_WINDOW } from "@/lib/ai/semantic/understand";
-import { GUARD_WINDOW } from "@/lib/ai/semantic/guard";
+import { buildUnderstandingUserContent, UNDERSTANDING_WINDOW } from "@/lib/ai/semantic/understand";
+import { buildStayGuardUserContent, GUARD_WINDOW } from "@/lib/ai/semantic/guard";
 
 // ---------------------------------------------------------------------------
 // ERKEN GİRİŞ KANIT MODELİ — dilim 1 (09-24; `docs/ERKEN-GIRIS-KANIT-MODELI-2026-09-24.md`). Kurucu: "Dün atılmış READY
@@ -250,6 +250,27 @@ describe("otomatik gönderim engelleri — yalnız ENGELLER", () => {
     expect(earlyCheckinAutoBlockers({ ...base, guestTexts: ["Erken girebilir miyiz?"] })).toEqual(["time_mismatch_text"]);
   });
 
+  it("pencere sabitleri modellerin GERÇEKTEN gördüğüyle aynıdır (davranışsal; sabitten türetilen totoloji değil)", () => {
+    const fruits = ["elma", "armut", "kiraz", "erik", "incir", "ayva", "nar", "dut"];
+    for (const [name, window, build] of [
+      [
+        "anlama",
+        UNDERSTANDING_WINDOW,
+        (msgs: string[]) => buildUnderstandingUserContent({ guestMessage: msgs[msgs.length - 1], history: msgs.map((body) => ({ direction: "inbound" as const, body })) }),
+      ],
+      ["bekçi", GUARD_WINDOW, (msgs: string[]) => buildStayGuardUserContent({ guestMessages: msgs, reply: "tamam", stayTimes: null })],
+    ] as const) {
+      const msgs = fruits.slice(0, window.maxMessages + 1);
+      const content = build([...msgs]);
+      expect(content, name).not.toContain(`<<<${msgs[0]}>>>`);
+      for (const m of msgs.slice(1)) expect(content, `${name}: ${m}`).toContain(`<<<${m}>>>`);
+      const long = `${"a".repeat(window.messageCap)}Z`;
+      const cut = build([long]);
+      expect(cut, name).toContain(`<<<${"a".repeat(window.messageCap)}>>>`);
+      expect(cut, name).not.toContain("aZ");
+    }
+  });
+
   it("🚨 modellerin penceresine sığmayan cevapsız mesaj → 'tamamı okunmadı' (iki modelin ORTAK penceresi)", () => {
     const maxMessages = Math.min(UNDERSTANDING_WINDOW.maxMessages, GUARD_WINDOW.maxMessages);
     const messageCap = Math.min(UNDERSTANDING_WINDOW.messageCap, GUARD_WINDOW.messageCap);
@@ -310,6 +331,19 @@ describe("panel — kanıt modelinin yeni satırları (sade dil)", () => {
       text: "Temizlik önceki misafirin beklenen çıkışından önce bitti; çıkış temizlikçinin kaydıyla doğrulandı.",
     });
     expect(confirmed.some((l) => l.text.startsWith("Önceki misafirin beklenen çıkışı"))).toBe(false);
+  });
+
+  it("önceki misafirin beklenenden ERKEN beyanı bilgi satırıdır; temizlikçi başladıysa temizlik satırı bunu söyler", () => {
+    const DECLARED = "Önceki misafirin yazdığı çıkış: 10:00 (misafir beyanı; temizlik kaydı olmadan esas alınmaz).";
+    expect(lines({ failed: ["previous_still_in"] }, { previousDeclaredCheckout: "10:00" }).map((l) => l.text)).toContain(DECLARED);
+    expect(lines({ failed: ["previous_still_in"] }).map((l) => l.text)).not.toContain(DECLARED);
+    // Kanıtlı erken hazırlıkta çıkış zaten doğrulandı: beyan satırı gösterilmez.
+    expect(lines({ status: "approvable" }, { departureConfirmed: true, previousDeclaredCheckout: "10:00" }).map((l) => l.text)).not.toContain(DECLARED);
+    const STARTED = 'Temizlikçi temizliğe başladı; henüz "Daire hazır" demedi.';
+    expect(lines({ failed: ["not_ready"] }, { readiness: "not_ready", readinessNote: "open", cleaningStarted: true }).map((l) => l.text)).toContain(STARTED);
+    expect(lines({ failed: ["not_ready"] }, { readiness: "not_ready", readinessNote: "open" }).map((l) => l.text)).toContain(
+      "Temizlik henüz bitti olarak işaretlenmedi.",
+    );
   });
 
   it("bekleyen istek: yalnız otomatik kurallı + varış günü 'yeniden kontrol edilir' der (başka durumda söz verilmez)", () => {

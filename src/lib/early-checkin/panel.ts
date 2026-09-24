@@ -88,7 +88,8 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData): PanelLine[] {
       : { ok: true, text: "Çakışan başka rezervasyon yok." },
   );
   if (d.facts.readiness === "ready") lines.push({ ok: true, text: "Temizlik bitti olarak işaretlendi." });
-  else if (d.facts.readiness === "not_ready" && d.facts.cleaningStarted && (d.facts.readinessNote ?? "open") === "open") {
+  // Temizlik sürüyorsa (görev açık → neden her zaman "open") temizlikçinin başladığı söylenir.
+  else if (d.facts.readiness === "not_ready" && d.facts.cleaningStarted) {
     lines.push({ ok: false, text: 'Temizlikçi temizliğe başladı; henüz "Daire hazır" demedi.' });
   } else if (d.facts.readiness === "not_ready") lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? "open"] ?? READINESS_TEXT.open });
   else lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? ""] ?? "Bu devir için temizlik görevi bulunamadı." });

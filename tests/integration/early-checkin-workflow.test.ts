@@ -132,12 +132,59 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
     const late = await turnover({ cleaned: CLEANED_AT, guestCheckout: "13:30" });
     const a = await loadEarlyCheckinFacts({ organizationId: late.orgId, propertyId: late.propertyId, reservationId: late.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
     expect(a?.facts.previousSameDay).toEqual({ checkoutTime: "13:30" });
+    // Geç beyan zaten beklenen saattir; ayrıca "erken beyan" diye taşınmaz.
+    expect(a?.facts.previousDeclaredCheckout).toBeUndefined();
     // 11:30'daki işaret 13:30 çıkıştan ÖNCE → dünkü/erken dokunma, hazır SAYILMAZ.
     expect(a?.facts.readiness).toBe("not_ready");
     await resetDb();
     const early = await turnover({ cleaned: CLEANED_AT, guestCheckout: "09:00" });
     const b = await loadEarlyCheckinFacts({ organizationId: early.orgId, propertyId: early.propertyId, reservationId: early.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
     expect(b?.facts.previousSameDay).toEqual({ checkoutTime: "11:00" });
+    // Erken beyan karara girmez, yalnız host bilgisi olarak taşınır (G2).
+    expect(b?.facts.previousDeclaredCheckout).toBe("09:00");
+    await resetDb();
+    const same = await turnover({ cleaned: CLEANED_AT, guestCheckout: "11:00" });
+    const c = await loadEarlyCheckinFacts({ organizationId: same.orgId, propertyId: same.propertyId, reservationId: same.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
+    expect(c?.facts.previousDeclaredCheckout).toBeUndefined();
+  });
+
+  it("🚨 devirde AÇIK bakım/kontrol görevi (ayrılan konaklamaya bağlı ya da devir gününe tarihli) → açık sorun; kapalı / başka konaklama / başka gün sayılmaz", async () => {
+    const cases: [string, (t: Awaited<ReturnType<typeof turnover>>) => Record<string, unknown>, boolean][] = [
+      ["ayrılan konaklamaya bağlı açık bakım", (t) => ({ reservationId: t.previous.id, type: "maintenance", status: "todo" }), true],
+      ["bağsız, devir gününe tarihli açık kontrol", () => ({ reservationId: null, type: "checkout_review", status: "in_progress", dueAt: midnight("2026-10-14") }), true],
+      ["kapanmış bakım", (t) => ({ reservationId: t.previous.id, type: "maintenance", status: "done" }), false],
+      ["bizim misafirin rezervasyonuna bağlı bakım", (t) => ({ reservationId: t.own.id, type: "maintenance", status: "todo" }), false],
+      ["bağsız, başka güne tarihli bakım", () => ({ reservationId: null, type: "maintenance", status: "todo", dueAt: midnight("2026-10-13") }), false],
+      ["eksik eşya (açık sorun sayılmaz)", (t) => ({ reservationId: t.previous.id, type: "restock", status: "todo" }), false],
+    ];
+    for (const [name, data, expected] of cases) {
+      await resetDb();
+      const t = await turnover({ cleaned: CLEANED_AT });
+      await prisma.task.create({ data: { propertyId: t.propertyId, title: "Sorun", origin: "manual", ...data(t) } as never });
+      const out = await loadEarlyCheckinFacts({ organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
+      expect(out?.facts.openIssue, name).toBe(expected);
+      // Hazırlık ayrı kalır: açık sorun "hazır" hükmünü değiştirmez, kararı host'a bırakır.
+      expect(out?.facts.readiness, name).toBe("ready");
+    }
+  });
+
+  it("temizlikçi başladı (G4) yalnız KİMLİKLİ ve BUGÜNKÜ 'başladım' + görev hâlâ sürüyorsa", async () => {
+    const started = async (update: { userId: "cleaner" | null; at: string }, taskStatus = "in_progress") => {
+      await resetDb();
+      const t = await turnover();
+      const task = await prisma.task.create({
+        data: { propertyId: t.propertyId, reservationId: t.previous.id, type: "cleaning", title: "Temizlik", status: taskStatus, origin: "system", dueAt: midnight("2026-10-14") },
+      });
+      await prisma.taskUpdate.create({
+        data: { taskId: task.id, userId: update.userId === "cleaner" ? t.cleanerId : null, status: "in_progress", createdAt: new Date(update.at) },
+      });
+      const out = await loadEarlyCheckinFacts({ organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
+      return out?.facts;
+    };
+    expect(await started({ userId: "cleaner", at: "2026-10-14T08:10:00.000Z" })).toMatchObject({ cleaningStarted: true, readiness: "not_ready" });
+    expect((await started({ userId: null, at: "2026-10-14T08:10:00.000Z" }))?.cleaningStarted).toBe(false);
+    expect((await started({ userId: "cleaner", at: "2026-10-13T15:00:00.000Z" }))?.cleaningStarted).toBe(false);
+    expect((await started({ userId: "cleaner", at: "2026-10-14T08:10:00.000Z" }, "todo"))?.cleaningStarted).toBe(false);
   });
 
   it("🚨 hazırlık: işaret çıkıştan önce, 5 dakikadan taze ya da görev açıksa hazır DEĞİL; görev yoksa bilinmiyor", async () => {
@@ -598,6 +645,28 @@ describe("AI öner — host'a kontrol listesi + doğrulanmış taslak (gönderim
     });
     expect(String(json.earlyCheckin?.draft)).toMatch(/^The apartment is ready — you can check in today \(14 October\) from 13:00/);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("rota kanıt alanlarını panele taşır: çıkış doğrulandı, açık sorun, misafirin erken beyanı, temizlikçi başladı", async () => {
+    const t = await turnover({ guestCheckout: "10:00" });
+    // Kanıtlı erken hazırlık: aynı kullanıcı 09:30 başladı, 10:15 hazır (çıkıştan önce); host rızası açık.
+    const task = await prisma.task.create({
+      data: { propertyId: t.propertyId, reservationId: t.previous.id, type: "cleaning", title: "Temizlik", status: "done", origin: "system", dueAt: midnight("2026-10-14") },
+    });
+    await prisma.taskUpdate.create({ data: { taskId: task.id, userId: t.cleanerId, status: "in_progress", createdAt: new Date("2026-10-14T06:30:00.000Z") } });
+    await prisma.taskUpdate.create({ data: { taskId: task.id, userId: t.cleanerId, status: "done", createdAt: new Date("2026-10-14T07:15:00.000Z") } });
+    await prisma.task.create({ data: { propertyId: t.propertyId, reservationId: t.previous.id, type: "maintenance", title: "Sorun", status: "todo", origin: "manual" } });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, { ...RULE, readyBeforeCheckout: true });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00") }));
+    const id = await conversationFor(t);
+    session = owner(t.orgId);
+    const res = await aiSuggest(new NextRequest(`http://localhost/api/conversations/${id}/ai-suggest`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }), {
+      params: Promise.resolve({ id }),
+    });
+    const json = (await res.json()) as { earlyCheckin: { status: string; failed: string[]; facts: Record<string, unknown> } | null };
+    expect(json.earlyCheckin?.facts).toMatchObject({ departureConfirmed: true, openIssue: true, previousDeclaredCheckout: "10:00", cleaningStarted: false, readiness: "ready" });
+    expect(json.earlyCheckin?.status).toBe("needs_host");
+    expect(json.earlyCheckin?.failed).toContain("open_issue");
   });
 });
 
