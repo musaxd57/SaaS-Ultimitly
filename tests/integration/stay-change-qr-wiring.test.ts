@@ -201,7 +201,7 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "");
   });
 
-  it("🚨 anlama katmanı QR kapısına ULAŞIR: bekçi yokken isteği gölgede de devreder; bekçi 'istek yok' derse gölgede bot cevaplar, enforce'ta devir", async () => {
+  it("🚨 anlama katmanı QR kapısına ULAŞIR: isteği bekçi yokken de, bekçi 'istek yok' dese de devreder (GÜÇLÜ sinyal, düşmanca inceleme P1-1)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     // Cevap modeli isteği KAÇIRDI (niyet genel, "istek yok"): hassas isteği yalnız anlama katmanı görüyor.
     const missed = { ...DRAFT, intent: "general", stayChange: { asked: "none", stance: "none" } };
@@ -223,17 +223,11 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_EARLY, stay_change_guard: GUARD_CLEAN }));
     const { token: t2 } = await seed();
-    const shadow = await ask(t2, ASK);
-    expect(shadow.escalated).toBe(false);
-    expect((await lastEvent()).sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", u: "req", g: "ok" });
-
-    await resetDb();
-    __resetUnderstandingCache();
-    vi.stubEnv("AI_STAY_POLICY", "enforce");
-    const { token: t3 } = await seed();
-    const enforced = await ask(t3, ASK);
-    expect(enforced.escalated).toBe(true);
-    expect((await lastEvent()).ev.reason).toBe("availability_unconfirmed");
+    const withGuard = await ask(t2, ASK);
+    expect(withGuard.escalated).toBe(true);
+    const second = await lastEvent();
+    expect(second.ev.reason).toBe("availability_unconfirmed");
+    expect(second.sc).toMatchObject({ v: "availability_unconfirmed", u: "req", g: "ok" });
   });
 
   it("🚨 bekçi QR'da modelin gördüğü önceki konuşmayı da görür (takip izni bağlamla anlaşılır)", async () => {

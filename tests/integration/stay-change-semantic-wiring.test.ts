@@ -230,7 +230,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(sc).toMatchObject({ v: "availability_unconfirmed", ev: "availability_unconfirmed", d: "early_checkin/none", g: "off" });
   });
 
-  it("bekçi KOŞTU ve istek görmedi: beyan edilen istek gölge kipte karar vermez ama `enforce` kararı kanıta yazılır", async () => {
+  it("🚨 bekçi KOŞTU ve 'istek yok' dedi ama beyan istek görüyor → HER kipte tutulur (düşmanca inceleme P1-1); gölge yalnız niyet etiketini ölçer", async () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     const f = semanticFetch({ stay_change_guard: GUARD_CLEAN });
     vi.stubGlobal("fetch", f);
@@ -238,9 +238,17 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     const id = await seed();
     await applyChannelAutoReply(id);
     expect(schemasCalled(f)).toEqual(["stay_change_guard"]);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await riskEvent(id)).sc).toMatchObject({ v: "availability_unconfirmed", d: "early_checkin/none", g: "ok" });
+
+    // Yalnız ZAYIF sinyal (niyet etiketi; beyan "istek yok"): gölgede gider, `enforce` kararı kanıtta.
+    await resetDb();
+    mockSend.mockClear();
+    mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "none", stance: "none" } });
+    const id2 = await seed();
+    await applyChannelAutoReply(id2);
     expect(mockSend).toHaveBeenCalledTimes(1);
-    const { sc } = await riskEvent(id);
-    expect(sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", d: "early_checkin/none", g: "ok" });
+    expect((await riskEvent(id2)).sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", d: "none/none", g: "ok", ri: "early_checkin" });
   });
 
   it("`AI_STAY_POLICY=enforce`: aynı durum taslağa düşer (gerekçe `availability_unconfirmed`)", async () => {
@@ -330,7 +338,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(sc).toMatchObject({ v: "availability_unconfirmed", ev: "availability_unconfirmed", u: "req", g: "off" });
   });
 
-  it("anlama + bekçi (istek görmedi): anlama katmanının isteği gölge kipte karar vermez, `enforce` kararı kanıtta", async () => {
+  it("🚨 anlama + bekçi (bekçi istek görmedi): anlama katmanının isteği GÜÇLÜ sinyal — gölge kipte de tutulur (P1-1)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     const f = semanticFetch({ guest_message_understanding: NLU_EARLY, stay_change_guard: GUARD_CLEAN });
@@ -339,8 +347,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     const id = await seed();
     await applyChannelAutoReply(id);
     expect([...schemasCalled(f)].sort()).toEqual(["guest_message_understanding", "stay_change_guard"]);
-    expect(mockSend).toHaveBeenCalledTimes(1);
-    expect((await riskEvent(id)).sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", u: "req", g: "ok" });
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await riskEvent(id)).sc).toMatchObject({ v: "availability_unconfirmed", u: "req", g: "ok" });
   });
 
   it("anlama katmanı + `AI_STAY_POLICY=enforce`: modelin anladığı standart-dışı saat isteği taslağa düşer", async () => {
@@ -573,6 +581,43 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(conv).toMatchObject({ status: "problem", priority: "urgent", skippedReason: "escalated_to_human", lastRiskType: "complaint" });
     expect(mockMail).toHaveBeenCalledTimes(1);
     expect(mockMail.mock.calls[0][0]).toBe("host@example.com");
+  });
+
+  it("🚨 P2-4: anlama katmanının hassas niyeti, kapıyı ÖNCE başka bir kontrol (düşük güven) kapatsa da acil yükseltmeyi tetikler; devir cevabında rozet acil durum", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("AI_INTENT_POLICY", "enforce");
+    const emergency = {
+      language: "en",
+      requests: [{ intent: "emergency", query_tr: "en yakın hastane", query_original: "nearest hospital" }],
+      stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+    };
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: emergency }));
+    const MSG = [{ direction: "inbound" as const, body: "My daughter cut her hand badly, where is the nearest hospital?" }];
+    // Düşük güven: kapının İLK düşen kontrolü "blocked" — eskiden yükseltme hiç tetiklenmiyordu (sessiz taslak).
+    mockSuggest.mockResolvedValue({ ...THANKS, confidence: 0.6, reply: "The nearest hospital is 2 km away." });
+    const id = await seed({ messages: MSG });
+    await prisma.organization.updateMany({ data: { alertEmail: "host@example.com" } });
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.conversation.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "problem", lastRiskType: "safety_emergency" });
+    expect(mockMail).toHaveBeenCalledTimes(1);
+
+    // Devir cevabı (model etiketi human_request) + anlama katmanı acil → rozet acil durum (daha ağır olan).
+    await resetDb();
+    __resetUnderstandingCache();
+    mockMail.mockClear();
+    mockSuggest.mockResolvedValue({
+      ...THANKS,
+      intent: "human_request",
+      riskType: "human_request",
+      riskLevel: "low" as const,
+      reply: "Tabii. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+    });
+    const id2 = await seed({ messages: MSG });
+    await prisma.organization.updateMany({ data: { alertEmail: "host@example.com" } });
+    await applyChannelAutoReply(id2);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: id2 } })).lastRiskType).toBe("safety_emergency");
+    expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
   it("acil durum niyeti (enforce): rozet 'safety_emergency'; ikinci geçiş aynı konuşmaya İKİNCİ e-posta atmaz (atomik claim)", async () => {

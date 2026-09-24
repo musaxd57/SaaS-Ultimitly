@@ -390,7 +390,6 @@ export function availabilityPolicyFor(
   context?: AutoReplyGateContext,
 ): AvailabilityPolicyOptions {
   return {
-    handoff: result.intent === "human_request",
     declared: result.stayChange ?? null,
     // Modelin niyet etiketi hassas istek sinyalidir ve beyanla çelişkisi beyanı güvenilmez kılar (09-24).
     replyIntent: result.intent,
@@ -2105,14 +2104,21 @@ export async function applyChannelAutoReply(
     // görmedi) aynı acil yükseltme yolu koşar — problem + acil + host'a e-posta. Gerekçe: sinyal zaten "insana"
     // demek; sessiz taslak, tam da bu sınıfın (dolaylı dilde acil durum/şikâyet) host'a GEÇ ulaşması demekti.
     // Gölge kipte kapı kapanmaz → e-posta da YOK. Rozet ve karar kaydı niyetin kendi etiketini taşır.
-    const nluSensitive = gateFailure === INTENT_RISK_REASON;
+    // 🚨 Kapının İLK düşen kontrolüne BAĞLI DEĞİL (düşmanca inceleme 09-24, P2-4): düşük güven, "bilgim yok" ya da
+    // müsaitlik tutuşu önce kapatsa da hassas niyet yükseltilir — yoksa dolaylı dildeki acil durum sessiz taslakta kalırdı.
+    const nluSensitive =
+      result.source === "openai" &&
+      evaluateIntentRisk(gateContext.understandingRisk, { modelIntent: result.intent, mode: gateContext.intentMode }).reason !== null;
     const nluRiskType = nluSensitive ? riskTypeOfIntentRisk(gateContext.understandingRisk) : null;
-    const modelSensitive =
+    const modelFlagged =
       result.source === "openai" &&
       (NEVER_AUTO_REPLY_INTENTS.has(result.intent) ||
         (result.riskLevel !== "none" && result.riskLevel !== "low") ||
-        (result.riskType != null && HIGH_STAKES_RISK_TYPES.has(result.riskType)) ||
-        nluSensitive);
+        (result.riskType != null && HIGH_STAKES_RISK_TYPES.has(result.riskType)));
+    const modelSensitive = modelFlagged || nluSensitive;
+    // Rozet: acil durum her etiketten ağırdır (devir cevabının `human_request` etiketi acil durumu gizlemesin — P3-1).
+    const escalationRiskType =
+      nluRiskType === "safety_emergency" ? nluRiskType : (result.riskType ?? detectRiskType(last.body) ?? nluRiskType);
     if (!options.dryRun && modelSensitive) {
       try {
         const claimed = await prisma.conversation.updateMany({
@@ -2122,7 +2128,7 @@ export async function applyChannelAutoReply(
             priority: "urgent",
             skippedReason: "escalated_to_human",
             lastRiskLevel: result.riskLevel,
-            lastRiskType: result.riskType ?? detectRiskType(last.body) ?? nluRiskType,
+            lastRiskType: escalationRiskType,
             // m48 — YOL 1/3: MODEL yolu. Modelin ZATEN ürettiği analiz burada
             // saklanıyor; yeni bir çağrı YOK. Altı alan da AÇIKÇA yazılır
             // (`buildTriageData` sözleşmesi): eksik bırakılan alan `undefined`
@@ -2289,9 +2295,9 @@ export async function applyChannelAutoReply(
         triggerId: last.id,
         finalDecision: "human_review",
         riskLevel: result.riskLevel,
-        riskType: result.riskType ?? detectRiskType(last.body) ?? nluRiskType,
+        riskType: escalationRiskType,
         // Yükseltmeyi YALNIZ anlama katmanı tetiklediyse gerekçe onun kodu (raporda kendi satırı kalsın).
-        reason: nluSensitive ? INTENT_RISK_REASON : "escalated_to_human",
+        reason: modelFlagged ? "escalated_to_human" : INTENT_RISK_REASON,
         confidence: result.confidence,
         ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,

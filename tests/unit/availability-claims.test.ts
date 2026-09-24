@@ -124,12 +124,17 @@ describe("veto matrisi", () => {
     ).toBe("availability_unconfirmed");
   });
 
-  it("devir cevabı İSTEK bacağından muaf, İDDİA bacağından DEĞİL", () => {
-    const ran = { declared: { asked: "extend", stance: "none" } as const, guard: { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const } } };
-    expect(vetoAvailability("Mesajınızı ev sahibimize ilettim.", [ASK], { handoff: true, ...ran })).toBeNull();
-    expect(vetoAvailability("Ev sahibimize ilettim; o gece boş görünüyor.", [ASK], { handoff: true, ...ran })).toBe("availability_claim");
-    // 🚨 Bekçi yokken devir de hassas istekte durur (hakem yok; kanal yolu acil e-postayla bildirir).
-    expect(vetoAvailability("Mesajınızı ev sahibimize ilettim.", [ASK], { handoff: true, declared: ran.declared })).toBe("availability_unconfirmed");
+  it("🚨 devir cevabı da konaklama isteğinde muaf DEĞİL (09-24): iki model ertelemesi ister; iddia bacağı her zaman", () => {
+    const req = { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const } };
+    const defers = { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const, replyDefersToHost: true } };
+    // Eskiden devir burada muaftı: "ilettim" bir uzatma isteğine EVET gibi okunabilir, erteleme kanıtı yok → tutulur.
+    expect(vetoAvailability("Mesajınızı ev sahibimize ilettim.", [ASK], { declared: { asked: "extend", stance: "none" }, guard: req })).toBe("availability_unconfirmed");
+    expect(vetoAvailability("Mesajınızı ev sahibimize ilettim.", [ASK], { declared: { asked: "extend", stance: "defers" }, guard: defers })).toBeNull();
+    expect(vetoAvailability("Ev sahibimize ilettim; o gece boş görünüyor.", [ASK], { declared: { asked: "extend", stance: "defers" }, guard: defers })).toBe(
+      "availability_claim",
+    );
+    // Bekçi yokken de durur (hakem yok; kanal yolu acil e-postayla bildirir).
+    expect(vetoAvailability("Mesajınızı ev sahibimize ilettim.", [ASK], { declared: { asked: "extend", stance: "none" } })).toBe("availability_unconfirmed");
   });
 
   it("boş/eksik cevap hüküm üretmez (kapı başka dallarla karar verir)", () => {
@@ -169,14 +174,22 @@ describe("gönderim kapısı (kanal) — bağlantı DAVRANIŞSAL", () => {
     ).toBe(false);
   });
 
-  it("devir akışı korunur: human_request cevabı istek bacağından muaf", () => {
-    const handoff = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "human_request", stayChange: { asked: "extend", stance: "none" } as const };
+  it("devir akışı: konaklama isteğine devir cevabı ancak iki model 'erteliyor' derse gider (09-24); saf devir her zaman gider", () => {
+    const handoff = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "human_request" };
     const msg = "Ev sahibiyle konuşmak istiyorum, bir gece daha kalabilir miyiz?";
-    const ran = { stayGuard: { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const } } };
-    expect(passesAutoReplySafetyGate({ ...handoff, reply: "Mesajınızı ev sahibimize ilettim." }, msg, ran)).toBe(true);
-    expect(passesAutoReplySafetyGate({ ...handoff, reply: "Ev sahibimize ilettim; o gece boş." }, msg, ran)).toBe(false);
-    // 🚨 Bekçi yokken devir cevabı da hassas istekte gitmez (tutulan devir kanal yolunda acil e-postayla bildirilir).
-    expect(passesAutoReplySafetyGate({ ...handoff, reply: "Mesajınızı ev sahibimize ilettim." }, msg)).toBe(false);
+    const req = { stayGuard: { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const } } };
+    const defers = { stayGuard: { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const, replyDefersToHost: true } } };
+    const none = { asked: "extend", stance: "none" } as const;
+    const def = { asked: "extend", stance: "defers" } as const;
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: none, reply: "Mesajınızı ev sahibimize ilettim." }, msg, req)).toBe(false);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınızı ev sahibimize ilettim." }, msg, defers)).toBe(true);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Ev sahibimize ilettim; o gece boş." }, msg, defers)).toBe(false);
+    // Bekçi yokken de gitmez (tutulan devir kanal yolunda acil e-postayla bildirilir).
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınızı ev sahibimize ilettim." }, msg)).toBe(false);
+    // KONTROL: konaklama konusu olmayan saf devir gider.
+    expect(
+      passesAutoReplySafetyGate({ ...handoff, stayChange: { asked: "none", stance: "none" }, reply: "Mesajınızı ev sahibimize ilettim." }, "Ev sahibiyle konuşmak istiyorum."),
+    ).toBe(true);
   });
 });
 

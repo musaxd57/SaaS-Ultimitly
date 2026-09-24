@@ -96,16 +96,22 @@ HASSAS İSTEK (herhangi bir katman)           ve   herhangi bir güvenlik sinyal
 
 ### 2.1 Karar kuralı (`evaluateAvailability`)
 
-* **HASSAS İSTEK:** kelime ağının isteği · bekçinin isteği (ret ya da **kodda** standart dışı bulunan saat
-  dahil) · beyan edilen istek (tanınmayan `asked` dahil) ya da ret · cevap modelinin niyet etiketi
-  (`early_checkin`/`late_checkout`) · anlama katmanının isteği.
+* **HASSAS İSTEK:** GÜÇLÜ sinyaller (isteğe ayrılmış alanlar): kelime ağının isteği · bekçinin isteği (ret ya da
+  **kodda** standart dışı bulunan saat dahil) · beyan edilen istek (tanınmayan `asked` dahil) ya da ret · anlama
+  katmanının isteği. ZAYIF sinyal: cevap modelinin niyet etiketi (`early_checkin`/`late_checkout`) — istem bu etiketi
+  konu SORULARINA da verir ("erken check-in sorusu"), bu yüzden tek başına bekçinin "istek yok"unu ezmez.
 * **İDDİA** (her kipte, devir cevabında da): kelime ağının iddiası · beyan `grants`/`states_calendar`
-  · bekçinin takvim/izin hükmü · **modelin duruşu bilinmiyor** (beyan yok / tanınmıyor / niyet etiketiyle
-  çelişiyor) ve hassas istek var → `availability_claim`.
-* **DOĞRULAYICI YOK** (bekçi kapalı ya da düştü) + hassas istek → `availability_unconfirmed` (kip, erteleme,
-  devir ne olursa olsun).
-* **İSTEK** (bekçi koştu; devir cevabı muaf): kelime ağının isteği · bekçinin isteği · (`AI_STAY_POLICY=enforce`
-  ile) modelin kendi istek sinyalleri → **erteleme kanıtı yoksa** `availability_unconfirmed`.
+  · bekçinin takvim/izin hükmü · **tanınmayan duruş** (her durumda — geçerli bir izin duruşundan gevşek olamaz) ·
+  **beyan hiç yok** ve hassas istek var → `availability_claim`.
+* **DOĞRULAYICI YOK** (bekçi kapalı ya da düştü) + hassas istek (güçlü ya da zayıf) → `availability_unconfirmed`
+  (kip ve erteleme ne olursa olsun).
+* **İSTEK** (bekçi koştu): herhangi bir GÜÇLÜ sinyalin isteği → **erteleme kanıtı yoksa** `availability_unconfirmed`,
+  her kipte; **devir cevabı da muaf değil** ("Tabii. Mesajınız kaydedildi…" bir geç çıkış isteğine EVET gibi
+  okunur). Zayıf sinyal tek başına yalnız `AI_STAY_POLICY=enforce` ile karar verir.
+* **Düşmanca inceleme (09-24, değişmezden sonra):** bekçinin tek başına "istek yok" hükmü beyanın ve anlama
+  katmanının isteğini susturuyordu (P1-1); devir cevabı iki model kuralını atlıyordu (P1-2); niyet etiketi ile
+  beyanın "çelişkisini" iddia saymak bilgi sorularını kalıcı tutup bekçiyi hiç çağırtmıyordu (P2-2); tanınmayan
+  duruş bağlamsız izni geçiriyordu (P2-3). Dördü de kırmızı-önce testle kapatıldı.
 * **ERTELEME = iki bağımsız model:** güvenilir beyan `defers` (çelişkisiz) **ve** bekçinin
   `reply_defers_to_host` hükmü. Kelime ağı bekçinin "ertelemiyor" hükmünü ezemez.
   - Erteleme = kararın ev sahibine AİT olduğunu söylemek. "Mesajınız kaydedildi" tek başına erteleme
@@ -165,9 +171,9 @@ HASSAS İSTEK (herhangi bir katman)           ve   herhangi bir güvenlik sinyal
 
 ### 2.2 Kipler ve gölge ölçümü
 
-`AI_STAY_POLICY` varsayılanı **gölgedir**. Modelden türeyen istek sinyalleri kanıta yazılır ama karar
-vermez — **yalnız bekçi koştuysa**. Bekçi yoksa ya da düştüyse ↑2.0 değişmezi her kipte tutar; gölge kip
-yalnız "bekçi koştu, istek görmedi, cevap modeli ya da anlama katmanı istek gördü" anlaşmazlığını ölçer. `enforce` kipinin kararı **her zaman** hesaplanır ve `kbEvidenceJson.sc.ev` alanına yazılır.
+`AI_STAY_POLICY` varsayılanı **gölgedir** ve artık tek bir şeyi yönetir: bekçi koşup istek görmediğinde cevap
+modelinin **niyet etiketi tek başına** tutsun mu. Bekçi yoksa ya da düştüyse ↑2.0 değişmezi her kipte tutar; güçlü
+sinyaller (beyan, anlama katmanı, bekçi, kelime ağı) her kipte karar verir. `enforce` kipinin kararı **her zaman** hesaplanır ve `kbEvidenceJson.sc.ev` alanına yazılır.
 Böylece açmadan önce gerçek trafikte "açsaydık kaç taslak daha çıkardı" okunabilir: `sc.v` ile
 `sc.ev` farkı.
 
