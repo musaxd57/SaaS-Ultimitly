@@ -24,6 +24,12 @@ import { earlyCheckinApprovalText, earlyCheckinLang } from "./reply";
 import { mentionsAnotherDay, timeMismatchInTexts } from "./text-checks";
 import type { EarlyCheckinAutoBlocker } from "./core";
 
+/**
+ * Uzunluk payı: modeller mesajı ad/telefon maskesinden (`redactForSemanticModel`) SONRA ve tavanla keserek görür; maske
+ * metni uzatabilir → ham uzunluk tavana bu kadar yaklaşınca da "tamamı okunmadı" sayılır (09-24 inceleme).
+ */
+export const NOT_FULLY_READ_MARGIN = 100;
+
 /** İki model katmanının ORTAK penceresi: bundan fazla / uzun cevapsız mesajın bir kısmı modellerce görülmedi. */
 const MODEL_WINDOW = {
   maxMessages: Math.min(UNDERSTANDING_WINDOW.maxMessages, GUARD_WINDOW.maxMessages),
@@ -44,7 +50,10 @@ export function earlyCheckinAutoBlockers(args: {
   const out: EarlyCheckinAutoBlocker[] = [];
   if (args.queuedDelivery) out.push("queued_delivery");
   if (mentionsAnotherDay(args.guestTexts, args.now, args.timeZone)) out.push("day_unverified");
-  if (args.guestTexts.length > MODEL_WINDOW.maxMessages || args.guestTexts.some((t) => t.length > MODEL_WINDOW.messageCap)) {
+  if (
+    args.guestTexts.length > MODEL_WINDOW.maxMessages ||
+    args.guestTexts.some((t) => t.length > MODEL_WINDOW.messageCap - NOT_FULLY_READ_MARGIN)
+  ) {
     out.push("not_fully_read");
   }
   if (timeMismatchInTexts(args.guestTexts, args.requestedTime)) out.push("time_mismatch_text");

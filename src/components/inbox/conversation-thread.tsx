@@ -999,15 +999,31 @@ export function ConversationThread({
                 <p className="font-medium">Erken giriş kontrolü</p>
                 <ul className="space-y-1">
                   {earlyCheckinPanelLines(suggestion.earlyCheckin).map((line) => (
-                    <li key={line.text} className={cn("flex items-start gap-2", line.ok ? "text-foreground" : "text-orange-800 dark:text-orange-300")}>
-                      {line.ok ? <CheckCheck className="mt-0.5 size-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />}
+                    <li
+                      key={line.text}
+                      className={cn(
+                        "flex items-start gap-2",
+                        line.info ? "text-muted-foreground" : line.ok ? "text-foreground" : "text-orange-800 dark:text-orange-300",
+                      )}
+                    >
+                      {line.info ? (
+                        <Info className="mt-0.5 size-3.5 shrink-0" />
+                      ) : line.ok ? (
+                        <CheckCheck className="mt-0.5 size-3.5 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                      )}
                       <span>{line.text}</span>
                     </li>
                   ))}
                 </ul>
                 {suggestion.earlyCheckin.draft ? (
                   <div className="space-y-2" data-testid="early-checkin-draft">
-                    <p className="text-muted-foreground">Kontroller uygun. Erken giriş için hazır cevap:</p>
+                    <p className="text-muted-foreground">
+                      {suggestion.earlyCheckin.failed.length === 0
+                        ? "Kontroller uygun. Erken giriş için hazır cevap:"
+                        : "Erken giriş için hazır cevap (yukarıdaki uyarıları kontrol edip gönderin):"}
+                    </p>
                     <p className="whitespace-pre-wrap rounded-md bg-muted p-2 text-sm">{suggestion.earlyCheckin.draft}</p>
                     {canReply ? (
                       <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.earlyCheckin?.draft ?? "")}>

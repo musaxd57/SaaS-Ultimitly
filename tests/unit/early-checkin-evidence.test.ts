@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { MIN_START_TO_READY_MS, READY_SETTLE_MS, readinessDetailOf, readyAtOf, readyMarkOf, type ReadinessMark } from "@/lib/early-checkin/readiness";
 import { markOfTask } from "@/lib/early-checkin/load";
 import { explicitTimeMentions, mentionsAnotherDay, timeMismatchInTexts } from "@/lib/early-checkin/text-checks";
-import { earlyCheckinAutoBlockers, earlyCheckinEvidenceOf, earlyCheckinRuleHash } from "@/lib/early-checkin/workflow";
+import { earlyCheckinAutoBlockers, earlyCheckinEvidenceOf, earlyCheckinRuleHash, NOT_FULLY_READ_MARGIN } from "@/lib/early-checkin/workflow";
 import { decideEarlyCheckin, type EarlyCheckinFacts, type EarlyCheckinRule } from "@/lib/early-checkin/core";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 import { validateEarlyCheckinRuleInput } from "@/lib/early-checkin/rules";
@@ -86,8 +86,12 @@ describe("hazırlık — çıkıştan ÖNCE bitmiş temizlik yalnız host rızas
 });
 
 describe("görevin hazırlık işareti (`markOfTask`) — yalnız kimlikli ve EN SON durum kaydı", () => {
-  const task = (updates: { status: string | null; userId: string | null; createdAt: Date }[], extra: Partial<{ status: string; reservationId: string | null }> = {}) => ({
+  const task = (
+    updates: { id?: string; status: string | null; userId: string | null; createdAt: Date }[],
+    extra: Partial<{ status: string; reservationId: string | null; origin: string | null }> = {},
+  ) => ({
     status: "done",
+    origin: "system",
     reservationId: "dep",
     dueAt: null,
     updates,
@@ -105,6 +109,37 @@ describe("görevin hazırlık işareti (`markOfTask`) — yalnız kimlikli ve EN
     // `doneId` = hazır hükmünü veren kaydın kimliği (karar kaydı `rm`).
     expect(m).toEqual({ status: "done", doneAt: at("07:45"), doneId: "u-done", startedAt: at("07:00"), linked: true });
     expect(markOfTask(task([{ status: "done", userId: "c1", createdAt: at("07:45") }], { reservationId: "other" }), "dep").linked).toBe(false);
+  });
+
+  it("🚨 çıkıştan önceki kanıt YALNIZ ayrılan konaklamanın çıkış temizliği görevinden (yaşam döngüsü): konaklama içi ek temizlik görevi sayılmaz", () => {
+    const seq = [
+      { status: "in_progress", userId: "c1", createdAt: at("06:30") },
+      { status: "done", userId: "c1", createdAt: at("07:00") },
+    ];
+    expect(markOfTask(task(seq), "dep").linked).toBe(true);
+    for (const origin of ["ai", "manual", null]) expect(markOfTask(task(seq, { origin }), "dep").linked, String(origin)).toBe(false);
+  });
+
+  it("🚨 'başladım' = 'bitti'nin HEMEN ÖNCEKİ durum kaydı ve aynı kişi: arada geri alma varsa temizlik oturumu kanıtı yok", () => {
+    const reverted = markOfTask(
+      task([
+        { status: "in_progress", userId: "c1", createdAt: at("06:00") },
+        { status: "todo", userId: "c1", createdAt: at("06:05") },
+        { status: "done", userId: "c1", createdAt: at("07:30") },
+      ]),
+      "dep",
+    );
+    expect(reverted).toMatchObject({ doneAt: at("07:30"), startedAt: null });
+    // Ardışık iki "başladım" → bitişe en yakın olanı.
+    const twice = markOfTask(
+      task([
+        { status: "in_progress", userId: "c1", createdAt: at("06:00") },
+        { status: "in_progress", userId: "c1", createdAt: at("07:00") },
+        { status: "done", userId: "c1", createdAt: at("07:30") },
+      ]),
+      "dep",
+    );
+    expect(twice.startedAt).toEqual(at("07:00"));
   });
 
   it("🚨 kullanıcısız (sistem) 'bitti' SAYILMAZ; sonradan geri alınan 'bitti'nin eskisi sayılmaz", () => {
@@ -244,6 +279,74 @@ describe("metin çapraz kontrolleri — misafirin KENDİ yazdığı saat ve gün
     expect(today(["Cumartesi değil, bugün geliyoruz"])).toBe(true);
   });
 
+  it("🚨 inceleme 09-24 (P1): Türkçe hâl ekli adlar, büyük İ, Arapça hareke/gün adları, 'next <gün>', sayı sözcüklü süre, ABD tarihi", () => {
+    for (const text of [
+      "Cumartesiye 12'de gelebilir miyiz?",
+      "Cumaya erken girebilir miyiz?",
+      "Pazartesiye kalsın",
+      "15 ekimde 12'de gelsek?",
+      "15 EKİM 12:00",
+      "ERTESİ GÜN geliriz",
+      "ÖNÜMÜZDEKİ HAFTA",
+      "هل يمكننا الوصول غدًا",
+      "يوم السبت الساعة ١٢",
+      "Can we come next Wednesday at 12?",
+      "Gelecek çarşamba 12'de?",
+      "iki gün sonra geleceğiz",
+      "We arrive in two days",
+      "Check-in on 10/15 at noon?",
+      "в следующую среду в 12",
+    ]) {
+      expect(today([text]), text).toBe(true);
+    }
+  });
+
+  it("en uzun ad kazanır ve bugünün adı engel değildir; yanlış alarm sınırları (yalnız otomatik gönderimi durdurur)", () => {
+    // 14 Ekim 2026 Çarşamba: bugünün adı ekli de olsa engel değil.
+    for (const text of ["Çarşambaya, yani bugün", "ÇARŞAMBA", "on Wednesday"]) expect(today([text]), text).toBe(false);
+    // "Cumartesi" ≠ "Cuma", "Pazartesi" ≠ "Pazar": EN UZUN ad kazanır — bugün cumartesiyse "cumartesi" engel değil,
+    // bugün cumayken "cumartesi" engeldir (17 Ekim 2026 Cumartesi, 16 Ekim Cuma; 19 Pazartesi, 18 Pazar).
+    const on = (iso: string, text: string) => mentionsAnotherDay([text], new Date(iso), "Europe/Istanbul");
+    expect(on("2026-10-17T08:00:00Z", "Cumartesi 12'de gelebilir miyiz?")).toBe(false);
+    expect(on("2026-10-16T08:00:00Z", "Cumartesi 12'de gelebilir miyiz?")).toBe(true);
+    expect(on("2026-10-19T08:00:00Z", "Pazartesi 12'de")).toBe(false);
+    expect(on("2026-10-18T08:00:00Z", "Pazartesi 12'de")).toBe(true);
+    expect(today(["cumartesiye"])).toBe(true);
+    // Kahvaltı / öğle yemeği "yarın" değildir.
+    expect(today(["Завтрак включен? Можно заехать в 12?"])).toBe(false);
+    expect(today(["هل الغداء متاح؟ الساعة ١٢"])).toBe(false);
+    // "среди" (arasında) çarşamba değildir.
+    expect(today(["Мы среди гостей"])).toBe(false);
+    // ABD biçiminde bugün ("10/14") ve GÜN/AY bugün ("14/10") engel değil.
+    expect(today(["10/14 at noon"])).toBe(false);
+    expect(today(["14/10 öğlen"])).toBe(false);
+  });
+
+  it("yarım/çeyrek saat anlatımları doğru dakikaya okunur; cümle sonundaki saat de anmadır", () => {
+    const cases: [string, number][] = [
+      ["saat 11 buçukta", 11 * 60 + 30],
+      ["halb 12", 11 * 60 + 30],
+      ["12 Uhr 30", 12 * 60 + 30],
+      ["half past 11", 11 * 60 + 30],
+      ["quarter past 12", 12 * 60 + 15],
+      ["quarter to 12", 11 * 60 + 45],
+      ["a las 12 y media", 12 * 60 + 30],
+      ["11h et demie", 11 * 60 + 30],
+    ];
+    for (const [text, minutes] of cases) {
+      const mentions = explicitTimeMentions(text);
+      expect(mentions, text).toHaveLength(1);
+      expect(mentions[0], text).toContain(minutes);
+      expect(mentions[0], text).not.toContain(Math.floor(minutes / 60) * 60);
+    }
+    // Ortak yanlış okuma yakalanır: misafir "11 buçuk" dedi, modeller 11:00 okudu → eşleşmez → otomatik yok.
+    expect(timeMismatchInTexts(["Saat 11 buçukta gelebilir miyiz?"], "11:00")).toBe(true);
+    expect(timeMismatchInTexts(["Saat 11 buçukta gelebilir miyiz?"], "11:30")).toBe(false);
+    // Cümle sonundaki saat ("at 9.") başka bir saat olarak sayılır.
+    expect(explicitTimeMentions("We land at 9. Could we check in at 12:00?")).toEqual([[12 * 60], [9 * 60, 21 * 60]]);
+    expect(timeMismatchInTexts(["We land at 9. Could we check in at 12:00?"], "12:00")).toBe(true);
+  });
+
   it("saat dilimi: gün mülkün diliminde okunur (UTC'de 13 Ekim iken İstanbul'da 14 Ekim)", () => {
     const lateUtc = new Date("2026-10-13T22:30:00Z"); // İstanbul 14 Ekim 01:30
     expect(mentionsAnotherDay(["14 Ekim"], lateUtc, "Europe/Istanbul")).toBe(false);
@@ -289,9 +392,12 @@ describe("otomatik gönderim engelleri — yalnız ENGELLER", () => {
     expect(earlyCheckinAutoBlockers({ ...base, guestTexts: [...fits, "Saat 12'de gelebilir miyiz?"] })).toEqual(["not_fully_read"]);
     const long = `Saat 12'de gelebilir miyiz? ${"a".repeat(messageCap)}`;
     expect(earlyCheckinAutoBlockers({ ...base, guestTexts: [long] })).toEqual(["not_fully_read"]);
-    const exact = `Saat 12'de ${"a".repeat(messageCap - "Saat 12'de ".length)}`;
-    expect(exact.length).toBe(messageCap);
-    expect(earlyCheckinAutoBlockers({ ...base, guestTexts: [exact] })).toEqual([]);
+    // Maske metni uzatabilir → tavana 100 karakter yaklaşınca da "tamamı okunmadı" (inceleme 09-24).
+    expect(NOT_FULLY_READ_MARGIN).toBe(100);
+    const fits1 = `Saat 12'de ${"a".repeat(messageCap - 100 - "Saat 12'de ".length)}`;
+    expect(fits1.length).toBe(messageCap - 100);
+    expect(earlyCheckinAutoBlockers({ ...base, guestTexts: [fits1] })).toEqual([]);
+    expect(earlyCheckinAutoBlockers({ ...base, guestTexts: [`${fits1}a`] })).toEqual(["not_fully_read"]);
   });
 });
 
@@ -336,11 +442,15 @@ describe("panel — kanıt modelinin yeni satırları (sade dil)", () => {
       text: "Önceki misafirin beklenen çıkışı: 11:00 — istenen saatten sonra; temizlik bitmeden onay verilmez.",
     });
     const confirmed = lines({ status: "approvable" }, { departureConfirmed: true });
-    expect(confirmed.find((l) => l.text.startsWith("Temizlik önceki"))).toEqual({
+    expect(confirmed.find((l) => l.text.startsWith("Temizlikçi, önceki"))).toEqual({
       ok: true,
-      text: "Temizlik önceki misafirin beklenen çıkışından önce bitti; çıkış temizlikçinin kaydıyla doğrulandı.",
+      text: 'Temizlikçi, önceki misafirin beklenen çıkışından önce temizliğe başlayıp "Daire hazır" dedi; izninizle bu, çıkışın kanıtı sayıldı.',
     });
     expect(confirmed.some((l) => l.text.startsWith("Önceki misafirin beklenen çıkışı"))).toBe(false);
+    // Aynı gün devir yoksa (dün gece) kanıtlı erken hazırlık satırı yerine dün gecenin durumu yazılır (neden gizlenmesin).
+    const noTurnover = lines({ failed: ["previous_night_unverified"] }, { departureConfirmed: true, previousCheckout: null }).map((l) => l.text);
+    expect(noTurnover).toContain("Dün gecenin boş olduğu doğrulanamadı; kanal takviminden kontrol edin.");
+    expect(noTurnover.some((t) => t.startsWith("Temizlikçi, önceki"))).toBe(false);
   });
 
   it("önceki misafirin beklenenden ERKEN beyanı bilgi satırıdır; temizlikçi başladıysa temizlik satırı bunu söyler", () => {
@@ -356,10 +466,21 @@ describe("panel — kanıt modelinin yeni satırları (sade dil)", () => {
     );
   });
 
+  it("yeni kodların satırları; misafir beyanı yalnız BİLGİ (onay işareti değil)", () => {
+    const texts = (code: string) => lines({ status: "approvable", failed: [code] }).filter((l) => !l.ok).map((l) => l.text);
+    expect(texts("clock_unknown")).toContain("Şu anki saat okunamadı; istenen saatin geçip geçmediğini kontrol edin.");
+    expect(texts("open_maintenance")).toContain("Mülkte açık bir bakım görevi var; göndermeden önce kontrol edin.");
+    expect(texts("cleaning_note")).toContain("Temizlikçi bugün bir not bıraktı; göndermeden önce okuyun.");
+    const declared = lines({ failed: ["previous_still_in"] }, { previousDeclaredCheckout: "10:00" }).find((l) => l.text.startsWith("Önceki misafirin yazdığı"));
+    expect(declared?.info).toBe(true);
+  });
+
   it("bekleyen istek: yalnız otomatik kurallı + varış günü 'yeniden kontrol edilir' der (başka durumda söz verilmez)", () => {
     const RECHECK = 'Temizlikçi "Daire hazır" dediğinde istek yeniden kontrol edilir.';
     const has = (d: Partial<EarlyCheckinPanelData>, over: Partial<EarlyCheckinPanelData["facts"]> = {}) => lines(d, over).some((l) => l.text === RECHECK);
     expect(has({ status: "pending", failed: ["not_ready"] }, { readiness: "not_ready" })).toBe(true);
+    // Devrin temizlik görevi YOKSA söz verilmez (işaretlenecek görev yok).
+    expect(has({ status: "pending", failed: ["ready_unknown"] }, { readiness: "unknown" })).toBe(false);
     expect(has({ status: "pending", failed: ["not_ready"], mode: "draft" }, { readiness: "not_ready" })).toBe(false);
     expect(has({ status: "pending", failed: ["not_arrival_day"] }, { arrivalToday: false })).toBe(false);
     expect(has({ status: "needs_host", failed: ["not_ready", "overlap"] }, { readiness: "not_ready", otherOverlaps: 1 })).toBe(false);
@@ -381,6 +502,7 @@ const FACTS: EarlyCheckinFacts = {
   standardCheckIn: "15:00",
   reservation: { status: "confirmed", arrivalKey: "2026-10-14" },
   todayKey: "2026-10-14",
+  nowMinutes: 8 * 60,
   previousSameDay: { checkoutTime: "11:00" },
   otherOverlaps: 0,
   readiness: "ready",

@@ -20,10 +20,15 @@ import { autoEarlyCheckinPropertyIds } from "./rules";
 /** Host'un görev geçmişinde görünen not (sade dil) — aynı zamanda döngü korumasının işareti. */
 export const EARLY_CHECKIN_RECHECK_NOTE = "Temizlik bitti; bekleyen erken giriş isteği yeniden kontrol ediliyor.";
 
-/** Yalnız bu kontroller düştüyse yeniden değerlendirmeye değer (başka her eksik host'ta kalır). */
-// Temizlik bitince değişebilen kontroller: hazır değil / bilinmiyor + (kanıtlı erken hazırlık çıkışı da doğrular)
-// önceki misafir hâlâ içeride / çıkış saati bilinmiyor. Gelecek varış günü (`not_arrival_day`) ayrı akış (henüz yok).
-const READINESS_ONLY: ReadonlySet<string> = new Set(["not_ready", "ready_unknown", "previous_still_in", "previous_checkout_unknown"]);
+/**
+ * Yalnız bu kontroller düştüyse yeniden değerlendirmeye değer (başka her eksik host'ta kalır). Bekleyen (`pending`)
+ * kararda temizlik bitince değişebilenler: hazır değil / bilinmiyor + önceki misafirin beklenen çıkışı (yalnız host
+ * "çıkıştan önce hazır" rızası verdiyse bekler — çekirdek o zaman `pending` der). Çıkış saati bilinmiyorsa hazırlık hiç
+ * ölçülemez (host). Gelecek varış günü (`not_arrival_day`) ayrı akış (henüz yok). Eski kayıtlar (`needs_host`) yalnız
+ * hazırlık kodlarıyla.
+ */
+const WAITING_ON_READINESS: ReadonlySet<string> = new Set(["not_ready", "ready_unknown", "previous_still_in"]);
+const LEGACY_READINESS_ONLY: ReadonlySet<string> = new Set(["not_ready", "ready_unknown"]);
 const KNOWN_CHECKS: ReadonlySet<string> = new Set(EARLY_CHECKIN_CHECKS);
 const LOOKBACK_MS = 24 * 60 * 60_000;
 /** Varış günü her saat diliminde bu pencerenin içindedir (gün anahtarı kodda ayrıca doğrulanır). */
@@ -43,7 +48,8 @@ export function heldOnlyForReadiness(kbEvidenceJson: string | null | undefined):
   const { s, f, a } = ec as { s?: unknown; f?: unknown; a?: unknown };
   // `pending` (kanıt modeli, 09-24) ya da eski kayıtların `needs_host`u — ikisinde de otomatik gitmemiş olmalı.
   if ((s !== "pending" && s !== "needs_host") || a !== "0" || !Array.isArray(f) || f.length === 0) return false;
-  return f.every((c) => typeof c === "string" && KNOWN_CHECKS.has(c) && READINESS_ONLY.has(c));
+  const allowed = s === "pending" ? WAITING_ON_READINESS : LEGACY_READINESS_ONLY;
+  return f.every((c) => typeof c === "string" && KNOWN_CHECKS.has(c) && allowed.has(c));
 }
 
 /**

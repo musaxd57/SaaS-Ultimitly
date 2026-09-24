@@ -9,7 +9,10 @@
 //    5 dk önce (yanlışlıkla dokunma geri alınabilsin). Görev yoksa "bilinmiyor", bitmemişse "hazır değil".
 //  · Kanıt modeli (09-24): yalnız KİMLİKLİ kullanıcı kaydı "bitti" sayılır ve görevin EN SON durum kaydı "bitti"
 //    olmalı (geri alınıp yeniden atılmış işaretin eskisi sayılmaz); ayrılan konaklamaya bağlı TARİHSİZ temizlik görevi
-//    de kümeye girer (açıksa engeller); devirde AÇIK bakım/kontrol görevi "Daireniz hazır"ı durdurur.
+//    de kümeye girer (açıksa engeller). Devirde AÇIK bakım/kontrol görevi (ayrılan ya da gelen konaklamaya bağlı, ya da
+//    devir gününe tarihli) "Daireniz hazır"ı durdurur; mülkte bağsız tarihsiz/gecikmiş açık bakım görevi ve
+//    temizlikçinin bugün devir temizliğine yazdığı NOT (bugün sorun bildiriminin tek yolu) yalnız otomatik gönderimi
+//    durdurur. (Temizlikçinin kapalı-küme sorun bildirimi ayrı dilim — bugün personel görev AÇAMAZ.)
 //  · Aynı gün devir yoksa dün gece YALNIZ müsaitlik motoru taze kaynaklarla "boş" diyorsa boş sayılır.
 // ---------------------------------------------------------------------------
 
@@ -31,28 +34,31 @@ export const EARLY_CHECKIN_ISSUE_TASK_TYPES = ["maintenance", "checkout_review"]
 
 type TaskWithUpdates = {
   status: string;
+  origin?: string | null;
   reservationId: string | null;
   dueAt: Date | null;
   updates: { id?: string; status: string | null; userId: string | null; createdAt: Date }[];
 };
 
 /**
- * Görevin hazırlık işareti: EN SON durum kaydı "bitti" VE kimlikli kullanıcıdan ise onun anı; aynı kullanıcının ondan
- * önceki EN SON "başladım" kaydı. Sistem kaydı (kullanıcısız) ya da sonradan geri alınmış "bitti" sayılmaz.
+ * Görevin hazırlık işareti: EN SON durum kaydı "bitti" VE kimlikli kullanıcıdan ise onun anı. Çıkıştan önceki kanıt için
+ * "başladım" = "bitti"nin HEMEN ÖNCEKİ durum kaydı ve aynı kullanıcıdan (arada geri alma / başka durum varsa kanıt yok —
+ * 09-24 inceleme: başladım → yapılacak → bitti bir temizlik oturumu değildir). `linked` = ayrılan konaklamanın ÇIKIŞ
+ * TEMİZLİĞİ görevi (yaşam döngüsü, `origin: system`): konaklama içi ek temizlik görevi (misafir içerideyken yapılmış
+ * olabilir) çıkışın kanıtı SAYILMAZ. Sistem kaydı (kullanıcısız) ya da sonradan geri alınmış "bitti" sayılmaz.
  */
 export function markOfTask(t: TaskWithUpdates, departingReservationId: string): ReadinessMark {
   const statusUpdates = t.updates.filter((u) => u.status !== null).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const latest = statusUpdates[0];
   const done = latest && latest.status === "done" && latest.userId ? latest : null;
-  // "Bitti" görevin EN SON durum kaydı → aynı kullanıcının "başladım"ları ondan önce (ya da aynı an; o zaman süre 0 ve
-  // 15 dk kuralı reddeder). Ayrıca zaman kıyası gerekmez (mutasyon turu 09-24: eşdeğer koşuldu).
-  const started = done ? statusUpdates.find((u) => u.status === "in_progress" && u.userId === done.userId) : undefined;
+  const before = done ? statusUpdates[1] : undefined;
+  const started = before && before.status === "in_progress" && before.userId === done?.userId ? before : undefined;
   return {
     status: t.status,
     doneAt: done ? done.createdAt : null,
     doneId: done?.id ?? null,
     startedAt: started ? started.createdAt : null,
-    linked: t.reservationId === departingReservationId,
+    linked: t.reservationId === departingReservationId && t.origin === "system",
   };
 }
 
@@ -157,14 +163,21 @@ export async function loadEarlyCheckinFacts(args: {
       where: {
         propertyId: args.propertyId,
         type: { in: ["cleaning", ...EARLY_CHECKIN_ISSUE_TASK_TYPES] },
-        OR: [{ reservationId: reference.id }, ...(dayWindow ? [{ reservationId: null, dueAt: dayWindow }] : [])],
+        OR: [
+          { reservationId: reference.id },
+          { reservationId: own.id, type: { in: [...EARLY_CHECKIN_ISSUE_TASK_TYPES] } },
+          ...(dayWindow ? [{ reservationId: null, dueAt: dayWindow }] : []),
+        ],
       },
       select: {
         type: true,
+        origin: true,
         status: true,
         reservationId: true,
         dueAt: true,
         updates: { where: { status: { not: null } }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, status: true, userId: true, createdAt: true } },
+        // Temizlikçinin bugün yazdığı not (sorun bildiriminin bugünkü tek yolu) — içerik okunmaz, yalnız varlığı.
+        _count: { select: { updates: { where: { note: { not: null }, userId: { not: null }, ...(dayStart ? { createdAt: { gte: dayStart } } : {}) } } } },
       },
     });
     const onTurnoverDay = (t: { dueAt: Date | null }) => t.dueAt !== null && calendarDateOf(t.dueAt, tz).key === reference.dayKey;
@@ -185,10 +198,27 @@ export async function loadEarlyCheckinFacts(args: {
       const latest = t.updates.filter((u) => u.status !== null).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
       return t.status === "in_progress" && latest?.status === "in_progress" && latest.userId !== null && (!dayStart || latest.createdAt >= dayStart);
     });
-    // AÇIK sorun / bakım / kontrol görevi (ayrılan konaklamaya bağlı ya da devir gününe tarihli) → "hazır" denemez.
+    // AÇIK sorun / bakım / kontrol görevi (ayrılan ya da gelen konaklamaya bağlı, ya da devir gününe tarihli) → "hazır"
+    // denemez (host).
     facts.openIssue = tasks.some(
-      (t) => t.type !== "cleaning" && t.status !== "done" && (t.reservationId === reference.id || (t.reservationId === null && onTurnoverDay(t))),
+      (t) =>
+        t.type !== "cleaning" &&
+        t.status !== "done" &&
+        (t.reservationId === reference.id || t.reservationId === own.id || (t.reservationId === null && onTurnoverDay(t))),
     );
+    facts.cleaningNote = cleaning.some((t) => t._count.updates > 0);
+    // Mülkte bağsız AÇIK bakım/kontrol görevi (tarihsiz ya da devir gününden önce vadesi geçmiş) → host bir baksın.
+    const dayEnd = dayStart ? new Date(dayStart.getTime() + DAY_MS) : null;
+    facts.maintenanceOpen =
+      (await prisma.task.count({
+        where: {
+          propertyId: args.propertyId,
+          reservationId: null,
+          type: { in: [...EARLY_CHECKIN_ISSUE_TASK_TYPES] },
+          status: { not: "done" },
+          OR: [{ dueAt: null }, ...(dayEnd ? [{ dueAt: { lt: dayEnd } }] : [])],
+        },
+      })) > 0;
   }
 
   if (!previous) {

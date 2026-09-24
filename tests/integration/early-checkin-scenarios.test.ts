@@ -261,7 +261,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     await prisma.$disconnect();
   });
 
-  it("1 · planlanan çıkış 11:00, yeni misafir 09:00 istiyor, READY yok → RED DEĞİL: 'henüz doğrulanmadı' (pending), güvenli akış", async () => {
+  it("1 · planlanan çıkış 11:00, yeni misafir 09:00 istiyor, READY yok → RED DEĞİL: host kararı (rıza yoksa) ya da temizlikçiyi bekler (rıza varsa)", async () => {
     const now = Z("2026-10-14T05:00:00.000"); // 08:00
     at(now);
     const t = await turnover();
@@ -271,16 +271,18 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     const id = await conversationFor(t.propertyId, t.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id)).sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
+    // Host "çıkıştan önce hazır" rızası vermediyse beklenen 11:00'ı hiçbir kanıt aşamaz → host kararı (ret DEĞİL).
     expect(await decision(id)).toEqual({
       finalDecision: "human_review",
       reason: "availability_unconfirmed",
-      ec: { s: "pending", f: ["previous_still_in", "not_ready"], a: "0" },
+      ec: { s: "needs_host", f: ["previous_still_in", "not_ready"], a: "0" },
     });
-    // İki model ertelemeyi doğruladıysa misafire yalnız ERTELEME gider — ne onay ne ret.
+    // Rıza varsa aynı istek temizlikçinin kanıtını BEKLER; iki model ertelemeyi doğruladıysa misafire yalnız ERTELEME
+    // gider — ne onay ne ret.
     await fresh();
     const u = await turnover();
     await cleaning(u, u.departing.id, "2026-10-14", []);
-    await saveEarlyCheckinRule(u.orgId, u.propertyId, RULE);
+    await saveEarlyCheckinRule(u.orgId, u.propertyId, { ...RULE, readyBeforeCheckout: true });
     openAi({ understanding: nlu("09:00"), guard: guard("09:00", { reply_defers_to_host: true }) });
     const id2 = await conversationFor(u.propertyId, u.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id2)).sent).toBe(true);
@@ -327,7 +329,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     // Karar kaydı, hazırlığın çıkıştan ÖNCEKİ kanıtlı işarete dayandığını (önceki misafirin çıkışı doğrulandı) taşır.
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" }, dc: "1" });
 
-    // KONTROL: aynı olgular, host rızası YOK → onay yok, bekliyor (önceki misafirin beklenen çıkışı + temizlik sayılmadı).
+    // KONTROL: aynı olgular, host rızası YOK → onay yok, host kararı (beklenen çıkış aşılamaz, temizlik sayılmadı).
     await fresh();
     const u = await turnover();
     await cleaning(u, u.departing.id, "2026-10-14", [
@@ -338,7 +340,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ understanding: nlu("09:00"), guard: guard("09:00") });
     const id2 = await conversationFor(u.propertyId, u.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id2)).sent).toBe(false);
-    expect((await decision(id2)).ec).toEqual({ s: "pending", f: ["previous_still_in", "not_ready"], a: "0" });
+    expect((await decision(id2)).ec).toEqual({ s: "needs_host", f: ["previous_still_in", "not_ready"], a: "0" });
   });
 
   it("2b · sabah sorulan istek (07:00) bekler; temizlikçi 08:45'te READY deyince BİR KEZ yeniden değerlendirilir ve onay gider", async () => {
@@ -405,7 +407,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     });
     expect(loaded?.facts).toMatchObject({ previousSameDay: { checkoutTime: "11:00" }, previousDeclaredCheckout: "10:00" });
     const d = decideEarlyCheckin(loaded!.facts, loaded!.rule);
-    expect(d).toMatchObject({ status: "pending", failed: ["previous_still_in", "not_ready"], autoSend: false });
+    expect(d).toMatchObject({ status: "needs_host", failed: ["previous_still_in", "not_ready"], autoSend: false });
   });
 
   it("5 · ayrılan misafir 'çıktık' → onay da ret de üretmez; temizlikçi kaydı gelene kadar bekler", async () => {
@@ -427,7 +429,8 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ understanding: nlu("10:00"), guard: guard("10:00") });
     const id = await conversationFor(t.propertyId, t.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id)).sent).toBe(false);
-    expect((await decision(id)).ec).toEqual({ s: "pending", f: ["previous_still_in", "not_ready"], a: "0" });
+    // Misafirin "çıktık"ı onay kanıtı değildir; beklenen çıkışı yalnız temizlikçinin kanıtı (host rızasıyla) aşar → host.
+    expect((await decision(id)).ec).toEqual({ s: "needs_host", f: ["previous_still_in", "not_ready"], a: "0" });
   });
   it.todo("5b · 'çıktık' beyanı G3 kanıtı olarak KAYDEDİLİR ve host paneline yazılır (onay kanıtı DEĞİL) — dilim 7 (anlama olayları)");
 
@@ -544,7 +547,8 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     const a = await conversationFor(t.propertyId, t.own.id, "Yarın 10'da gelebilir miyiz?", new Date(eve.getTime() - 60_000));
     expect((await applyChannelAutoReply(a)).sent).toBe(false);
     const da = await decision(a);
-    expect(da.ec?.s).toBe("pending");
+    // Varış günü gelmedi (+ beklenen çıkış 11:00 > 10:00, rıza yok) → host; ret değil, otomatik onay da değil.
+    expect(da.ec?.s).toBe("needs_host");
     expect(da.ec?.f).toContain("not_arrival_day");
     // (b) Varış GÜNÜ gelen "yarın": diğer her şey doğrulanmış olsa da gün doğrulanmadı → otomatik yok.
     await fresh();
@@ -684,7 +688,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect((await patch(tenantTask.id)).status).toBe(404);
     expect(await prisma.taskUpdate.count()).toBe(0);
     expect((await prisma.task.findUniqueOrThrow({ where: { id: foreignTask.id } })).status).toBe("todo");
-    // Anti-vakum: kendi atanmış görevini işaretleyebilir ve bu hazırlık olarak SAYILIR.
+    // Anti-vakum: kendi atanmış görevini işaretleyebilir; kayıt KİMLİKLİ (hazırlık kuralının istediği tek biçim).
     const own = await cleaning(t, t.departing.id, "2026-10-14", [], "todo");
     expect((await patch(own.id)).status).toBe(200);
     const upd = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: own.id } });

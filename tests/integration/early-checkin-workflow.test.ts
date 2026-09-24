@@ -59,6 +59,7 @@ import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
 import { autoEarlyCheckinPropertyIds, loadEarlyCheckinRule, saveEarlyCheckinRule, EARLY_CHECKIN_TRIGGER } from "@/lib/early-checkin/rules";
 import { earlyCheckinRuleHash } from "@/lib/early-checkin/workflow";
+import { decideEarlyCheckin } from "@/lib/early-checkin/core";
 import type { EarlyCheckinRule } from "@/lib/early-checkin/core";
 import { POST as aiSuggest } from "@/app/api/conversations/[id]/ai-suggest/route";
 import { PUT as putRule, DELETE as deleteRule } from "@/app/api/properties/[id]/early-checkin-rule/route";
@@ -150,12 +151,13 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
     expect(c?.facts.previousDeclaredCheckout).toBeUndefined();
   });
 
-  it("🚨 devirde AÇIK bakım/kontrol görevi (ayrılan konaklamaya bağlı ya da devir gününe tarihli) → açık sorun; kapalı / başka konaklama / başka gün sayılmaz", async () => {
+  it("🚨 devirde AÇIK bakım/kontrol görevi (ayrılan ya da gelen konaklamaya bağlı, ya da devir gününe tarihli) → açık sorun; kapalı / başka gün sayılmaz", async () => {
     const cases: [string, (t: Awaited<ReturnType<typeof turnover>>) => Record<string, unknown>, boolean][] = [
       ["ayrılan konaklamaya bağlı açık bakım", (t) => ({ reservationId: t.previous.id, type: "maintenance", status: "todo" }), true],
       ["bağsız, devir gününe tarihli açık kontrol", () => ({ reservationId: null, type: "checkout_review", status: "in_progress", dueAt: midnight("2026-10-14") }), true],
       ["kapanmış bakım", (t) => ({ reservationId: t.previous.id, type: "maintenance", status: "done" }), false],
-      ["bizim misafirin rezervasyonuna bağlı bakım", (t) => ({ reservationId: t.own.id, type: "maintenance", status: "todo" }), false],
+      // Gelen misafirin konaklamasına bağlı açık bakım ("varıştan önce ısıtıcıyı onar") da "hazır" dedirtmez (inceleme 09-24).
+      ["bizim misafirin rezervasyonuna bağlı bakım", (t) => ({ reservationId: t.own.id, type: "maintenance", status: "todo" }), true],
       ["bağsız, başka güne tarihli bakım", () => ({ reservationId: null, type: "maintenance", status: "todo", dueAt: midnight("2026-10-13") }), false],
       ["eksik eşya (açık sorun sayılmaz)", (t) => ({ reservationId: t.previous.id, type: "restock", status: "todo" }), false],
     ];
@@ -168,6 +170,73 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
       // Hazırlık ayrı kalır: açık sorun "hazır" hükmünü değiştirmez, kararı host'a bırakır.
       expect(out?.facts.readiness, name).toBe("ready");
     }
+  });
+
+  it("🚨 inceleme 09-24: çıkıştan önceki kanıt ek (konaklama içi) temizlik görevinden gelemez; geri alınmış 'başladım' kanıt değil", async () => {
+    const consent = { ...RULE, readyBeforeCheckout: true };
+    const args = (t: { orgId: string; propertyId: string; own: { id: string } }) => ({
+      organizationId: t.orgId,
+      propertyId: t.propertyId,
+      reservationId: t.own.id,
+      now: NOW,
+      requested: { time: "10:00", sources: 2, conflict: false },
+      singleIntent: true,
+    });
+    // (a) Asıl çıkış temizliği 10:45'te "bitti" (başladım YOK); aynı gün, aynı konaklamaya bağlı YAPAY ZEKÂ ek temizlik
+    //     görevi 09:00 başladım → 09:20 bitti (misafir içerideyken yapılmış olabilir) → çıkış kanıtı SAYILMAZ.
+    const t = await turnover();
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, consent);
+    const main = await prisma.task.create({
+      data: { propertyId: t.propertyId, reservationId: t.previous.id, type: "cleaning", title: "Temizlik", status: "done", origin: "system", dueAt: midnight("2026-10-14") },
+    });
+    await prisma.taskUpdate.create({ data: { taskId: main.id, userId: t.cleanerId, status: "done", createdAt: new Date("2026-10-14T07:45:00.000Z") } });
+    const extra = await prisma.task.create({
+      data: { propertyId: t.propertyId, reservationId: t.previous.id, type: "cleaning", title: "Ek temizlik", status: "done", origin: "ai", dueAt: midnight("2026-10-14") },
+    });
+    await prisma.taskUpdate.create({ data: { taskId: extra.id, userId: t.cleanerId, status: "in_progress", createdAt: new Date("2026-10-14T06:00:00.000Z") } });
+    await prisma.taskUpdate.create({ data: { taskId: extra.id, userId: t.cleanerId, status: "done", createdAt: new Date("2026-10-14T06:20:00.000Z") } });
+    expect((await loadEarlyCheckinFacts(args(t)))?.facts).toMatchObject({ readiness: "not_ready", departureConfirmed: false });
+    // KONTROL: aynı sıra asıl çıkış temizliğindeyse kanıt sayılır.
+    await prisma.taskUpdate.create({ data: { taskId: main.id, userId: t.cleanerId, status: "in_progress", createdAt: new Date("2026-10-14T07:10:00.000Z") } });
+    expect((await loadEarlyCheckinFacts(args(t)))?.facts).toMatchObject({ readiness: "ready", departureConfirmed: true });
+    // (b) başladım → yapılacak (geri alındı) → bitti: temizlik oturumu kanıtı yok.
+    await resetDb();
+    const u = await turnover();
+    await saveEarlyCheckinRule(u.orgId, u.propertyId, consent);
+    const task = await prisma.task.create({
+      data: { propertyId: u.propertyId, reservationId: u.previous.id, type: "cleaning", title: "Temizlik", status: "done", origin: "system", dueAt: midnight("2026-10-14") },
+    });
+    for (const [status, at] of [["in_progress", "06:00"], ["todo", "06:05"], ["done", "07:30"]] as const) {
+      await prisma.taskUpdate.create({ data: { taskId: task.id, userId: u.cleanerId, status, createdAt: new Date(`2026-10-14T${at}:00.000Z`) } });
+    }
+    expect((await loadEarlyCheckinFacts(args(u)))?.facts).toMatchObject({ readiness: "not_ready", departureConfirmed: false });
+  });
+
+  it("mülkte bağsız açık bakım (tarihsiz / vadesi geçmiş) ve temizlikçinin BUGÜNKÜ notu yalnız otomatik gönderimi durdurur", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    const args = { organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true };
+    expect((await loadEarlyCheckinFacts(args))?.facts).toMatchObject({ maintenanceOpen: false, cleaningNote: false, openIssue: false });
+    const m = await prisma.task.create({ data: { propertyId: t.propertyId, type: "maintenance", title: "Duş bataryası", status: "todo", origin: "manual" } });
+    expect((await loadEarlyCheckinFacts(args))?.facts).toMatchObject({ maintenanceOpen: true, openIssue: false });
+    // Vadesi ileride olan bağsız bakım (ör. gelecek hafta boya) engel değil; kapanmış bakım da değil.
+    await prisma.task.update({ where: { id: m.id }, data: { dueAt: new Date("2026-10-20T00:00:00.000Z") } });
+    expect((await loadEarlyCheckinFacts(args))?.facts.maintenanceOpen).toBe(false);
+    await prisma.task.update({ where: { id: m.id }, data: { dueAt: new Date("2026-10-10T00:00:00.000Z"), status: "done" } });
+    expect((await loadEarlyCheckinFacts(args))?.facts.maintenanceOpen).toBe(false);
+    // Temizlikçinin devir temizliğine BUGÜN yazdığı not → otomatik yok; dünkü not / kullanıcısız (sistem) not sayılmaz.
+    const cleaningTask = await prisma.task.findFirstOrThrow({ where: { propertyId: t.propertyId, type: "cleaning" } });
+    await prisma.taskUpdate.create({ data: { taskId: cleaningTask.id, userId: t.cleanerId, note: "dün bakıldı", createdAt: new Date("2026-10-13T10:00:00.000Z") } });
+    await prisma.taskUpdate.create({ data: { taskId: cleaningTask.id, userId: null, note: "sistem", createdAt: new Date("2026-10-14T08:00:00.000Z") } });
+    expect((await loadEarlyCheckinFacts(args))?.facts.cleaningNote).toBe(false);
+    await prisma.taskUpdate.create({ data: { taskId: cleaningTask.id, userId: t.cleanerId, note: "Misafir hâlâ içeride", createdAt: new Date("2026-10-14T08:32:00.000Z") } });
+    const out = await loadEarlyCheckinFacts(args);
+    expect(out?.facts.cleaningNote).toBe(true);
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    expect(decideEarlyCheckin(out!.facts, await loadEarlyCheckinRule(t.orgId, t.propertyId))).toMatchObject({
+      status: "approvable",
+      autoSend: false,
+      failed: ["cleaning_note"],
+    });
   });
 
   it("temizlikçi başladı (G4) yalnız KİMLİKLİ ve BUGÜNKÜ 'başladım' + görev hâlâ sürüyorsa", async () => {

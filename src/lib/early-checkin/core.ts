@@ -83,8 +83,15 @@ export interface EarlyCheckinFacts {
    * dayanıyor: önceki misafirin gittiği operasyonel olarak doğrulandı → beklenen çıkış saati artık engel değil.
    */
   departureConfirmed?: boolean;
-  /** Devirde AÇIK sorun/bakım görevi var (temizlikçinin olumsuz bildirimi dahil) — "Daireniz hazır" gidemez. */
+  /**
+   * Devirde AÇIK sorun/bakım/kontrol görevi var (ayrılan ya da gelen konaklamaya bağlı, ya da devir gününe tarihli) —
+   * "Daireniz hazır" gidemez (host).
+   */
   openIssue?: boolean;
+  /** Mülkte bağsız, tarihsiz ya da gecikmiş AÇIK bakım/kontrol görevi var — yalnız otomatik gönderimi durdurur. */
+  maintenanceOpen?: boolean;
+  /** Temizlikçi bugün devir temizliği görevine NOT yazdı (sorun bildirimi olabilir) — yalnız otomatik gönderimi durdurur. */
+  cleaningNote?: boolean;
   /** Anlama katmanı bavul bırakma/alma isteği gördü — erken giriş onayı bavul isteğini cevaplamaz. */
   luggage?: boolean;
   /** Yalnız OTOMATİK gönderimi engelleyen koşullar (taslak yine hazırlanır). */
@@ -131,23 +138,31 @@ export const EARLY_CHECKIN_CHECKS = [
   "luggage",
   "multi_intent",
   "single_source_time",
+  // Olgulardan türeyen, yalnız OTOMATİK gönderimi durduran kontroller (taslak host'a).
+  "clock_unknown",
+  "open_maintenance",
+  "cleaning_note",
   ...EARLY_CHECKIN_AUTO_BLOCKERS,
 ] as const;
 export type EarlyCheckinCheck = (typeof EARLY_CHECKIN_CHECKS)[number];
 
 /**
- * Dört durum (kanıt modeli F). `pending` = düşen kontrollerin HEPSİ "kanıt henüz yok" türünden: temizlik bitince / varış
- * günü gelince değişebilir. `needs_host` = host kararı (kural kapalı, pencere dışı, çakışma, saat okunamadı, açık sorun…).
+ * Dört durum (kanıt modeli F). `pending` = düşen kontrollerin HEPSİ "kanıt henüz yok" türünden ve kanıt GELEBİLİR:
+ * temizlik bitince / varış günü gelince değişebilir. `needs_host` = host kararı (kural kapalı, pencere dışı, çakışma, saat
+ * okunamadı, açık sorun, çıkış saati bilinmiyor…).
  */
 export type EarlyCheckinStatus = "approvable" | "pending" | "needs_host" | "not_early";
 
-/** "Kanıt HENÜZ yok" kontrolleri — yalnız bunlar düştüyse durum `pending`. */
+/**
+ * "Kanıt HENÜZ yok" kontrolleri — yalnız bunlar düştüyse durum `pending`. Önceki misafirin beklenen çıkışı
+ * (`previous_still_in`) YALNIZ host "çıkıştan önce hazır" rızası verdiyse kanıtla aşılabilir → ancak o zaman bekler;
+ * rıza yoksa hiçbir kanıt onu kaldıramaz (host). Çıkış saati bilinmiyorsa hazırlık hiç ölçülemez (host). (09-24 inceleme.)
+ */
 export const EARLY_CHECKIN_PENDING_CHECKS: ReadonlySet<EarlyCheckinCheck> = new Set<EarlyCheckinCheck>([
   "not_ready",
   "ready_unknown",
   "not_arrival_day",
   "previous_still_in",
-  "previous_checkout_unknown",
 ]);
 
 /** İstenen saat bu kadar dakikadan fazla geçtiyse onay artık o saati söyleyemez (host'a). */
@@ -221,13 +236,15 @@ export function decideEarlyCheckin(facts: EarlyCheckinFacts, rule: EarlyCheckinR
   if (approvable) {
     if (facts.requested.sources < 2) autoFailed.push("single_source_time");
     if (!facts.singleIntent) autoFailed.push("multi_intent");
+    // Saat bilinmiyorsa "istenen saat geçti mi / standart giriş geçti mi" sorulamadı: belirsizlik güvenli değildir.
+    if (nowMin === null) autoFailed.push("clock_unknown");
+    if (facts.maintenanceOpen) autoFailed.push("open_maintenance");
+    if (facts.cleaningNote) autoFailed.push("cleaning_note");
     for (const b of EARLY_CHECKIN_AUTO_BLOCKERS) if (facts.autoBlockers?.includes(b)) autoFailed.push(b);
   }
-  const status: EarlyCheckinStatus = approvable
-    ? "approvable"
-    : failed.every((c) => EARLY_CHECKIN_PENDING_CHECKS.has(c))
-      ? "pending"
-      : "needs_host";
+  const waitable = (c: EarlyCheckinCheck) =>
+    EARLY_CHECKIN_PENDING_CHECKS.has(c) && (c !== "previous_still_in" || rule?.readyBeforeCheckout === true);
+  const status: EarlyCheckinStatus = approvable ? "approvable" : failed.every(waitable) ? "pending" : "needs_host";
   return {
     status,
     failed: [...failed, ...autoFailed],

@@ -69,6 +69,16 @@ describe("ConversationThread — erken giriş kontrol paneli", () => {
     expect(vi.mocked(fetch).mock.calls.length).toBe(fetchCalls);
   });
 
+  it("onaylanabilir ama uyarılı (ör. başka güne işaret): 'Kontroller uygun' DENMEZ; hazır cevap uyarıyla birlikte", async () => {
+    await openSuggestion(
+      suggestion({ status: "approvable", failed: ["day_unverified"], approvedTime: "13:00", fee: null, mode: "auto", draft: DRAFT, facts: FACTS }),
+    );
+    const panel = await screen.findByTestId("early-checkin-panel");
+    expect(panel.textContent).toContain('Mesajda başka bir güne işaret var (ör. "yarın"); günü kontrol edin.');
+    expect(panel.textContent).not.toContain("Kontroller uygun");
+    expect(screen.getByTestId("early-checkin-draft").textContent).toContain("yukarıdaki uyarıları kontrol edip gönderin");
+  });
+
   it("insana kalan: düşen kontrol ne yapılacağını söyler; hazır cevap YOK", async () => {
     await openSuggestion(
       suggestion({ status: "needs_host", failed: ["not_ready"], approvedTime: null, fee: null, mode: "auto", draft: null, facts: { ...FACTS, readiness: "not_ready" } }),

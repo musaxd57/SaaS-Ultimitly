@@ -282,7 +282,10 @@ describe("heldOnlyForReadiness (saf)", () => {
     // Kanıt modeli: bekleyen (`pending`) karar; önceki misafirin beklenen çıkışı da temizlik kanıtıyla değişebilir.
     expect(heldOnlyForReadiness(ev({ s: "pending", f: ["not_ready"], a: "0" }))).toBe(true);
     expect(heldOnlyForReadiness(ev({ s: "pending", f: ["previous_still_in", "not_ready"], a: "0" }))).toBe(true);
-    expect(heldOnlyForReadiness(ev({ s: "pending", f: ["previous_checkout_unknown"], a: "0" }))).toBe(true);
+    // Çıkış saati bilinmiyorsa hazırlık hiç ölçülemez → yeniden değerlendirme boşa model çağırır (inceleme 09-24).
+    expect(heldOnlyForReadiness(ev({ s: "pending", f: ["previous_checkout_unknown"], a: "0" }))).toBe(false);
+    // Eski kayıtlar (`needs_host`) yalnız hazırlık kodlarıyla; beklenen çıkış (rızasız) temizlikle aşılamaz.
+    expect(heldOnlyForReadiness(ev({ s: "needs_host", f: ["previous_still_in", "not_ready"], a: "0" }))).toBe(false);
     // Gelecek varış günü ayrı akış (bu tarama varış günü çalışır); başka durum adı açmaz.
     expect(heldOnlyForReadiness(ev({ s: "pending", f: ["not_arrival_day"], a: "0" }))).toBe(false);
     expect(heldOnlyForReadiness(ev({ s: "not_early", f: ["not_ready"], a: "0" }))).toBe(false);

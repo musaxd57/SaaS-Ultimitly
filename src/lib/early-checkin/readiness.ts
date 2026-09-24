@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // DOĞRULANMIŞ ERKEN GİRİŞ — SAF HAZIRLIK KURALLARI (09-24). DB yok: olgu yükleyici (`load.ts`) ve geçmiş mesaj
-// taraması (`lib/eval-real/replay-stats.ts`) AYNI kuralı kullanır — "hazır" iki yerde farklı tanımlanamasın.
+// taraması (`lib/eval-real/replay-stats.ts`) AYNI zaman kuralını kullanır. Tarama kimlik / son-durum şartını (yükleyicinin
+// `markOfTask`ı) UYGULAMAZ — o tarafın "hazır" sayısı bu yüzden ÜST SINIRDIR (inceleme 09-24).
 //  · Önceki misafirin çıkışı: mülkün varsayılanı ile misafirin BİLDİRDİĞİ saatten hangisi daha GEÇSE (temkin; misafir
 //    beyanı YALNIZ sıkılaştırır — kanıt modeli G1/G2, `docs/ERKEN-GIRIS-KANIT-MODELI-2026-09-24.md`).
 //  · Hazır (G5): BU devrin temizlik görevlerinin HEPSİ kapalı + bir "bitti" kaydı (sunucu zamanı) çıkış ANINDAN sonra,
