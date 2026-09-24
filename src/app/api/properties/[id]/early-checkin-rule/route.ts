@@ -25,7 +25,7 @@ export const PUT = withManage<{ id: string }>(async (session, req, { params }) =
     organizationId: session.organizationId,
     actorUserId: auditActor(session),
     action: "property.early_checkin_rule_set",
-    metadata: { propertyId: property.id, fields: ["mode", "earliest", "fee", "note"] },
+    metadata: { propertyId: property.id, fields: ["mode", "earliest", "fee", "note", "readyBeforeCheckout"] },
   });
   return jsonOk({ ok: true, rule });
 });

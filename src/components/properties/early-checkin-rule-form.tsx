@@ -37,6 +37,7 @@ export interface EarlyCheckinRuleInitial {
   earliest: string;
   fee: { amount: number; currency: string } | null;
   note: string | null;
+  readyBeforeCheckout?: boolean;
 }
 
 export function EarlyCheckinRuleForm({
@@ -57,6 +58,7 @@ export function EarlyCheckinRuleForm({
   const [amount, setAmount] = useState(initial?.fee ? String(initial.fee.amount).replace(".", ",") : "");
   const [currency, setCurrency] = useState(initial?.fee?.currency ?? "TRY");
   const [note, setNote] = useState(initial?.note ?? "");
+  const [readyBeforeCheckout, setReadyBeforeCheckout] = useState(initial?.readyBeforeCheckout === true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +77,13 @@ export function EarlyCheckinRuleForm({
       const res = await fetch(`/api/properties/${propertyId}/early-checkin-rule`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, earliest, fee: parsed === null ? null : { amount: parsed, currency }, note: note.trim() || null }),
+        body: JSON.stringify({
+          mode,
+          earliest,
+          fee: parsed === null ? null : { amount: parsed, currency },
+          note: note.trim() || null,
+          readyBeforeCheckout,
+        }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { fields?: { _?: string } } | null;
@@ -113,7 +121,7 @@ export function EarlyCheckinRuleForm({
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="En erken giriş saati" htmlFor="eci-earliest">
+        <Field label="Otomatik onay için en erken saat" htmlFor="eci-earliest">
           <Input id="eci-earliest" type="time" value={earliest} disabled={!canManage} onChange={(e) => setEarliest(e.target.value)} />
         </Field>
         <Field label="Ücret (isteğe bağlı)" htmlFor="eci-fee">
@@ -129,6 +137,9 @@ export function EarlyCheckinRuleForm({
           </Select>
         </Field>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Bu saatten önceki istekler reddedilmez, size gelir. Misafire bu saat söylenmez.
+      </p>
       {preview ? (
         <p className="text-xs text-muted-foreground" data-testid="eci-fee-preview">
           Misafire şöyle yazılır: {preview}
@@ -138,6 +149,22 @@ export function EarlyCheckinRuleForm({
         <Textarea id="eci-note" rows={2} maxLength={200} value={note} disabled={!canManage} onChange={(e) => setNote(e.target.value)} placeholder="Örn. Ödeme talebi Airbnb üzerinden gelecek." />
       </Field>
       <p className="text-xs text-muted-foreground">Not misafire olduğu gibi gider; yabancı misafirleriniz çoksa İngilizce yazabilirsiniz.</p>
+      <label className="flex items-start gap-2 text-sm" htmlFor="eci-ready-before-checkout">
+        <input
+          id="eci-ready-before-checkout"
+          type="checkbox"
+          className="mt-1"
+          checked={readyBeforeCheckout}
+          disabled={!canManage}
+          onChange={(e) => setReadyBeforeCheckout(e.target.checked)}
+        />
+        <span>
+          Temizlikçi temizliğe başlayıp &quot;Daire hazır&quot; dediyse, önceki misafirin çıkış saatinden önce de otomatik onay verilebilir.
+          <span className="block text-xs text-muted-foreground">
+            Temizlik aynı gün en az 15 dakika sürmüş olmalı ve o çıkışın temizlik görevi olmalı. Misafirin &quot;çıktık&quot; demesi yetmez.
+          </span>
+        </span>
+      </label>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {canManage ? (
         <div className="flex justify-end">

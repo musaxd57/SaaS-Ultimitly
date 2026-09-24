@@ -72,12 +72,17 @@ const CLEANED_AT = new Date("2026-10-14T08:30:00.000Z");
 const RULE: EarlyCheckinRule = { mode: "auto", earliest: "12:00", fee: { amount: 30, currency: "EUR" }, note: null };
 const ASK = "Hi! Could we check in at 13:00 today?";
 
+let userSeq = 0;
 async function org() {
   const o = await prisma.organization.create({
     data: { name: "Test Org", timezone: "Europe/Istanbul", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0 },
   });
   const p = await prisma.property.create({ data: { organizationId: o.id, name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" } });
-  return { orgId: o.id, propertyId: p.id };
+  // "Bitti" işareti yalnız KİMLİKLİ kullanıcı kaydından sayılır (kanıt modeli) — temizlik ekibi üyesi.
+  const cleaner = await prisma.user.create({
+    data: { organizationId: o.id, name: "Temizlik", email: `temizlik-${++userSeq}@example.com`, passwordHash: "x", role: "staff" },
+  });
+  return { orgId: o.id, propertyId: p.id, cleanerId: cleaner.id };
 }
 
 async function reservation(propertyId: string, arrival: string, departure: string, extra: Record<string, unknown> = {}) {
@@ -88,17 +93,17 @@ async function reservation(propertyId: string, arrival: string, departure: strin
 
 /** Aynı gün devir: önceki misafir bugün çıkıyor, bizim misafir bugün geliyor; isteğe bağlı temizlik görevi. */
 async function turnover(opts: { cleaned?: Date | null; cleaningStatus?: string; guestCheckout?: string | null } = {}) {
-  const { orgId, propertyId } = await org();
+  const { orgId, propertyId, cleanerId } = await org();
   const previous = await reservation(propertyId, "2026-10-12", "2026-10-14", { guestCheckoutTime: opts.guestCheckout ?? null });
   const own = await reservation(propertyId, "2026-10-14", "2026-10-16");
   if (opts.cleaned !== undefined) {
     const task = await prisma.task.create({
       data: { propertyId, reservationId: previous.id, type: "cleaning", title: "Temizlik", status: opts.cleaningStatus ?? "done", origin: "system", dueAt: midnight("2026-10-14") },
     });
-    if (opts.cleaned) await prisma.taskUpdate.create({ data: { taskId: task.id, status: "done", createdAt: opts.cleaned } });
+    if (opts.cleaned) await prisma.taskUpdate.create({ data: { taskId: task.id, userId: cleanerId, status: "done", createdAt: opts.cleaned } });
   }
   const prep = await prisma.task.create({ data: { propertyId, reservationId: own.id, type: "checkin_prep", title: "Giriş hazırlığı", origin: "system" } });
-  return { orgId, propertyId, previous, own, prepTaskId: prep.id };
+  return { orgId, propertyId, cleanerId, previous, own, prepTaskId: prep.id };
 }
 
 const REQUESTED = { time: "13:00", sources: 2, conflict: false };
@@ -166,7 +171,7 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
     const side = await prisma.task.create({
       data: { propertyId: t.propertyId, reservationId: t.previous.id, type: "cleaning", title: "Ek temizlik", status: "done", origin: "ai", dueAt: new Date("2026-10-13T09:00:00.000Z") },
     });
-    await prisma.taskUpdate.create({ data: { taskId: side.id, status: "done", createdAt: new Date("2026-10-14T08:20:00.000Z") } });
+    await prisma.taskUpdate.create({ data: { taskId: side.id, userId: t.cleanerId, status: "done", createdAt: new Date("2026-10-14T08:20:00.000Z") } });
     const out = await loadEarlyCheckinFacts({ organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
     expect(out?.facts).toMatchObject({ readiness: "not_ready", readinessNote: "open" });
     expect(out?.readyAt).toBeNull();
@@ -184,7 +189,7 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
     const args = { organizationId: u.orgId, propertyId: u.propertyId, reservationId: u.own.id, now: NOW, requested: REQUESTED, singleIntent: true };
     expect((await loadEarlyCheckinFacts(args))?.facts.readiness).toBe("not_ready");
     await prisma.task.update({ where: { id: extra.id }, data: { status: "done" } });
-    await prisma.taskUpdate.create({ data: { taskId: extra.id, status: "done", createdAt: CLEANED_AT } });
+    await prisma.taskUpdate.create({ data: { taskId: extra.id, userId: u.cleanerId, status: "done", createdAt: CLEANED_AT } });
     expect((await loadEarlyCheckinFacts(args))?.facts.readiness).toBe("ready");
   });
 
@@ -196,12 +201,12 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
   });
 
   it("aynı gün devir YOKSA hazırlık varıştan önceki EN SON çıkışın temizliğine bakar (daha eskisine değil)", async () => {
-    const { orgId, propertyId } = await org();
+    const { orgId, propertyId, cleanerId } = await org();
     const older = await reservation(propertyId, "2026-10-05", "2026-10-08");
     const latest = await reservation(propertyId, "2026-10-09", "2026-10-12");
     const own = await reservation(propertyId, "2026-10-14", "2026-10-16");
     const oldTask = await prisma.task.create({ data: { propertyId, reservationId: older.id, type: "cleaning", title: "T", status: "done", origin: "system", dueAt: midnight("2026-10-08") } });
-    await prisma.taskUpdate.create({ data: { taskId: oldTask.id, status: "done", createdAt: new Date("2026-10-08T10:00:00.000Z") } });
+    await prisma.taskUpdate.create({ data: { taskId: oldTask.id, userId: cleanerId, status: "done", createdAt: new Date("2026-10-08T10:00:00.000Z") } });
     await prisma.task.create({ data: { propertyId, reservationId: latest.id, type: "cleaning", title: "T", status: "todo", origin: "system", dueAt: midnight("2026-10-12") } });
     const out = await loadEarlyCheckinFacts({ organizationId: orgId, propertyId, reservationId: own.id, now: NOW, requested: REQUESTED, singleIntent: true });
     expect(out?.facts).toMatchObject({ previousSameDay: null, readiness: "not_ready" });
@@ -397,7 +402,8 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
 
   it("🚨 tek eksik → İNSAN, hangi kontrolün düştüğü kanıtta (temizlik bitmedi / saatler çelişiyor / başka konu / kural yok)", async () => {
     const cases: { name: string; opts: Parameters<typeof turnover>[0]; rule: EarlyCheckinRule | null; understand: ReturnType<typeof nlu>; g: ReturnType<typeof guard>; failed: string[]; status: string }[] = [
-      { name: "temizlik görevi yok", opts: {}, rule: RULE, understand: nlu("13:00"), g: guard("13:00", false), failed: ["ready_unknown"], status: "needs_host" },
+      // Kanıt HENÜZ yok (temizlik görevi yok) → `pending`: reddedilmez, host'a gider; temizlik işaretiyle yeniden kontrol edilebilir.
+      { name: "temizlik görevi yok", opts: {}, rule: RULE, understand: nlu("13:00"), g: guard("13:00", false), failed: ["ready_unknown"], status: "pending" },
       { name: "iki model farklı saat", opts: { cleaned: CLEANED_AT }, rule: RULE, understand: nlu("13:00"), g: guard("12:00", false), failed: ["time_conflict"], status: "needs_host" },
       { name: "mesajda başka soru", opts: { cleaned: CLEANED_AT }, rule: RULE, understand: nlu("13:00", ["wifi"]), g: guard("13:00", false), failed: ["multi_intent"], status: "approvable" },
       { name: "kural yok", opts: { cleaned: CLEANED_AT }, rule: null, understand: nlu("13:00"), g: guard("13:00", false), failed: ["rule_off"], status: "needs_host" },
@@ -616,7 +622,7 @@ describe("PUT/DELETE /api/properties/[id]/early-checkin-rule", () => {
     expect(await loadEarlyCheckinRule(orgId, propertyId)).toMatchObject({ mode: "auto", fee: { amount: 30, currency: "EUR" } });
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "property.early_checkin_rule_set" } });
     // TAM eşitlik: rastgele kimlik "30" içerebilir (ilk sürümdeki /30|EUR/ kalıbı bu yüzden aralıklı kırmızıydı).
-    expect(JSON.parse(String(audit.metadataJson))).toEqual({ propertyId, fields: ["mode", "earliest", "fee", "note"] });
+    expect(JSON.parse(String(audit.metadataJson))).toEqual({ propertyId, fields: ["mode", "earliest", "fee", "note", "readyBeforeCheckout"] });
     expect((await del(propertyId)).status).toBe(200);
     expect(await loadEarlyCheckinRule(orgId, propertyId)).toBeNull();
   });

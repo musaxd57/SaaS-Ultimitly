@@ -9,7 +9,7 @@ import { formatEarlyCheckinFee } from "./reply";
 import type { EarlyCheckinCurrency } from "./core";
 
 export interface EarlyCheckinPanelData {
-  status: "approvable" | "needs_host" | "not_early";
+  status: "approvable" | "pending" | "needs_host" | "not_early";
   failed: readonly string[];
   mode: string;
   fee: { amount: number; currency: string } | null;
@@ -21,6 +21,14 @@ export interface EarlyCheckinPanelData {
     readinessNote?: "none" | "open" | "fresh" | "before_checkout" | "no_time";
     otherOverlaps: number;
     previousNightVerifiedVacant: boolean;
+    /** Temizlik beklenen çıkıştan önce, kanıtlı "başladım → hazır" ile bitti (host rızası) → çıkış doğrulandı. */
+    departureConfirmed?: boolean;
+    /** Devirde açık sorun / bakım görevi var. */
+    openIssue?: boolean;
+    /** Önceki misafirin beklenenden ERKEN beyanı (karara girmez; yalnız bilgi). */
+    previousDeclaredCheckout?: string | null;
+    /** Temizlikçi bugün başladı, henüz "hazır" demedi. */
+    cleaningStarted?: boolean;
   };
 }
 
@@ -51,13 +59,22 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData): PanelLine[] {
       ? { ok: true, text: "Misafirin varışı bugün." }
       : { ok: false, text: "Varış bugün değil; hazırlık o gün kontrol edilebilir." },
   );
-  if (d.facts.previousCheckout) {
+  if (d.facts.departureConfirmed) {
+    lines.push({ ok: true, text: "Temizlik önceki misafirin beklenen çıkışından önce bitti; çıkış temizlikçinin kaydıyla doğrulandı." });
+  } else if (d.facts.previousCheckout) {
+    // Beklenen saat bir BEKLENTİDİR (misafir erken çıkmış olabilir) — "daire dolu" diye olgu gibi yazılmaz (inceleme 09-24).
     lines.push({
       ok: !f.has("previous_still_in") && !f.has("previous_checkout_unknown"),
       text: f.has("previous_still_in")
-        ? `Önceki misafirin çıkışı: ${d.facts.previousCheckout} — istenen saatte daire dolu.`
-        : `Önceki misafirin çıkışı: ${d.facts.previousCheckout}`,
+        ? `Önceki misafirin beklenen çıkışı: ${d.facts.previousCheckout} — istenen saatten sonra; temizlik bitmeden onay verilmez.`
+        : `Önceki misafirin beklenen çıkışı: ${d.facts.previousCheckout}`,
     });
+    if (d.facts.previousDeclaredCheckout) {
+      lines.push({
+        ok: true,
+        text: `Önceki misafirin yazdığı çıkış: ${d.facts.previousDeclaredCheckout} (misafir beyanı; temizlik kaydı olmadan esas alınmaz).`,
+      });
+    }
   } else {
     lines.push(
       d.facts.previousNightVerifiedVacant
@@ -71,11 +88,24 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData): PanelLine[] {
       : { ok: true, text: "Çakışan başka rezervasyon yok." },
   );
   if (d.facts.readiness === "ready") lines.push({ ok: true, text: "Temizlik bitti olarak işaretlendi." });
-  else if (d.facts.readiness === "not_ready") lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? "open"] ?? READINESS_TEXT.open });
+  else if (d.facts.readiness === "not_ready" && d.facts.cleaningStarted && (d.facts.readinessNote ?? "open") === "open") {
+    lines.push({ ok: false, text: 'Temizlikçi temizliğe başladı; henüz "Daire hazır" demedi.' });
+  } else if (d.facts.readiness === "not_ready") lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? "open"] ?? READINESS_TEXT.open });
   else lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? ""] ?? "Bu devir için temizlik görevi bulunamadı." });
-  if (f.has("before_window")) lines.push({ ok: false, text: "İstenen saat, izin verdiğiniz en erken saatten önce." });
+  if (f.has("open_issue")) lines.push({ ok: false, text: "Bu devirde açık bir sorun ya da bakım görevi var; kapanmadan \"daire hazır\" denemez." });
+  if (f.has("arrival_passed")) lines.push({ ok: false, text: "Misafirin varış günü geçmiş." });
+  if (f.has("time_passed")) lines.push({ ok: false, text: "İstenen saat geçti; misafire uygun saati siz yazın." });
+  if (f.has("before_window")) lines.push({ ok: false, text: "İstenen saat, otomatik onay için belirlediğiniz en erken saatten önce; karar sizin." });
+  if (f.has("luggage")) lines.push({ ok: false, text: "Misafir bavul bırakmayı ya da almayı soruyor; erken giriş onayı bunu yanıtlamaz." });
   if (f.has("multi_intent")) lines.push({ ok: false, text: "Mesajda başka bir istek ya da soru da var; hazır cevap yalnız erken girişi yanıtlar." });
+  if (f.has("day_unverified")) lines.push({ ok: false, text: "Mesajda başka bir güne işaret var (ör. \"yarın\"); günü kontrol edin." });
+  if (f.has("not_fully_read")) lines.push({ ok: false, text: "Cevapsız mesajlar çok uzun ya da çok fazla; hepsini okuyup siz karar verin." });
+  if (f.has("time_mismatch_text")) lines.push({ ok: false, text: "Mesajdaki saat(ler) istenen saatle birebir eşleşmiyor; saati kontrol edin." });
   if (d.fee) lines.push({ ok: true, text: `Erken giriş ücreti: ${formatEarlyCheckinFee({ amount: d.fee.amount, currency: d.fee.currency as EarlyCheckinCurrency }, "tr")}` });
   if (d.mode === "off" || f.has("rule_off")) lines.push({ ok: false, text: "Erken giriş kuralı kapalı; mülk sayfasından açabilirsiniz." });
+  // Bekleyen istek: yalnız otomatik kurallı mülkte varış günü temizlik işaretiyle yeniden kontrol edilir (`recheck.ts`).
+  if (d.status === "pending" && d.facts.arrivalToday && d.mode === "auto") {
+    lines.push({ ok: false, text: "Temizlikçi \"Daire hazır\" dediğinde istek yeniden kontrol edilir." });
+  }
   return lines;
 }

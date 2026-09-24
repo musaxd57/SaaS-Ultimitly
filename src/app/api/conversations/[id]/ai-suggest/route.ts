@@ -201,6 +201,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           readinessNote: run.facts.readinessNote ?? "none",
           otherOverlaps: run.facts.otherOverlaps,
           previousNightVerifiedVacant: run.facts.previousNightVerifiedVacant,
+          departureConfirmed: run.facts.departureConfirmed === true,
+          openIssue: run.facts.openIssue === true,
+          previousDeclaredCheckout: run.facts.previousDeclaredCheckout ?? null,
+          cleaningStarted: run.facts.cleaningStarted === true,
         },
       }
     : null;

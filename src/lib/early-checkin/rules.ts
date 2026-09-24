@@ -64,7 +64,10 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
   } else if (r.note !== null && r.note !== undefined) {
     return null;
   }
-  return { mode: r.mode, earliest, fee, note };
+  // Host rızası (kanıt modeli): yalnız açık `true` evet; yok / `null` / `false` HAYIR. Başka tip = bozuk kural → tüm kural
+  // reddedilir (öteki alanlarla aynı: fail-closed, kural kapalı sayılır).
+  if (r.readyBeforeCheckout !== undefined && r.readyBeforeCheckout !== null && typeof r.readyBeforeCheckout !== "boolean") return null;
+  return { mode: r.mode, earliest, fee, note, ...(r.readyBeforeCheckout === true ? { readyBeforeCheckout: true } : {}) };
 }
 
 const conditionFor = (propertyId: string) => JSON.stringify({ propertyId });

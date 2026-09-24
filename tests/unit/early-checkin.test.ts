@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 import {
   agreeRequestedTime,
   decideEarlyCheckin,
+  EARLY_CHECKIN_AUTO_BLOCKERS,
   EARLY_CHECKIN_CHECKS,
+  TIME_PASSED_GRACE_MINUTES,
   type EarlyCheckinFacts,
   type EarlyCheckinRule,
 } from "@/lib/early-checkin/core";
@@ -50,29 +52,101 @@ describe("karar çekirdeği — her kontrol ayrı, eksik ya da çelişki insana"
     expect(decideEarlyCheckin({ ...vacant, previousNightVerifiedVacant: false }, RULE).failed).toEqual(["previous_night_unverified"]);
   });
 
-  it("🚨 her başarısız kontrol tek başına onayı düşürür (kapalı küme kodu ile)", () => {
-    const cases: [string, EarlyCheckinFacts, EarlyCheckinRule | null, string][] = [
-      ["kural yok", OK, null, "rule_off"],
-      ["kural kapalı", OK, { ...RULE, mode: "off" }, "rule_off"],
-      ["rezervasyon yok", { ...OK, reservation: null }, RULE, "no_reservation"],
-      ["onaylı değil", { ...OK, reservation: { status: "pending", arrivalKey: "2026-10-14" } }, RULE, "reservation_not_confirmed"],
-      ["varış bugün değil", { ...OK, reservation: { status: "confirmed", arrivalKey: "2026-10-15" } }, RULE, "not_arrival_day"],
-      ["saat bilinmiyor", { ...OK, requested: { time: null, sources: 0, conflict: false } }, RULE, "time_unknown"],
-      ["iki model farklı saat", { ...OK, requested: { time: null, sources: 2, conflict: true } }, RULE, "time_conflict"],
-      ["izin penceresinden önce", { ...OK, requested: { time: "11:30", sources: 2, conflict: false } }, RULE, "before_window"],
-      ["çakışan rezervasyon", { ...OK, otherOverlaps: 1 }, RULE, "overlap"],
-      ["önceki misafir hâlâ içeride", { ...OK, previousSameDay: { checkoutTime: "13:00" } }, RULE, "previous_still_in"],
-      ["önceki çıkış saati bilinmiyor", { ...OK, previousSameDay: { checkoutTime: null } }, RULE, "previous_checkout_unknown"],
-      ["temizlik bitmedi", { ...OK, readiness: "not_ready" }, RULE, "not_ready"],
-      ["temizlik görevi yok", { ...OK, readiness: "unknown" }, RULE, "ready_unknown"],
+  it("🚨 her başarısız kontrol tek başına onayı düşürür (kapalı küme kodu ile); kanıt HENÜZ yoksa `pending`, host kararıysa `needs_host`", () => {
+    const cases: [string, EarlyCheckinFacts, EarlyCheckinRule | null, string, "pending" | "needs_host"][] = [
+      ["kural yok", OK, null, "rule_off", "needs_host"],
+      ["kural kapalı", OK, { ...RULE, mode: "off" }, "rule_off", "needs_host"],
+      ["rezervasyon yok", { ...OK, reservation: null }, RULE, "no_reservation", "needs_host"],
+      ["onaylı değil", { ...OK, reservation: { status: "pending", arrivalKey: "2026-10-14" } }, RULE, "reservation_not_confirmed", "needs_host"],
+      ["varış günü gelmedi", { ...OK, reservation: { status: "confirmed", arrivalKey: "2026-10-15" } }, RULE, "not_arrival_day", "pending"],
+      ["varış günü geçti", { ...OK, reservation: { status: "confirmed", arrivalKey: "2026-10-13" } }, RULE, "arrival_passed", "needs_host"],
+      ["saat bilinmiyor", { ...OK, requested: { time: null, sources: 0, conflict: false } }, RULE, "time_unknown", "needs_host"],
+      ["iki model farklı saat", { ...OK, requested: { time: null, sources: 2, conflict: true } }, RULE, "time_conflict", "needs_host"],
+      ["otomatik onay saatinden önce", { ...OK, requested: { time: "11:30", sources: 2, conflict: false } }, RULE, "before_window", "needs_host"],
+      ["istenen saat geçti", { ...OK, nowMinutes: 12 * 60 + 16 }, RULE, "time_passed", "needs_host"],
+      ["çakışan rezervasyon", { ...OK, otherOverlaps: 1 }, RULE, "overlap", "needs_host"],
+      ["önceki misafirin beklenen çıkışı istenen saatten sonra", { ...OK, previousSameDay: { checkoutTime: "13:00" } }, RULE, "previous_still_in", "pending"],
+      ["önceki çıkış saati bilinmiyor", { ...OK, previousSameDay: { checkoutTime: null } }, RULE, "previous_checkout_unknown", "pending"],
+      ["temizlik bitmedi", { ...OK, readiness: "not_ready" }, RULE, "not_ready", "pending"],
+      ["temizlik görevi yok", { ...OK, readiness: "unknown" }, RULE, "ready_unknown", "pending"],
+      ["devirde açık sorun görevi", { ...OK, openIssue: true }, RULE, "open_issue", "needs_host"],
+      ["bavul isteği de var", { ...OK, luggage: true }, RULE, "luggage", "needs_host"],
+      ["dün gece boş olduğu kanıtlanmadı", { ...OK, previousSameDay: null }, RULE, "previous_night_unverified", "needs_host"],
     ];
-    for (const [name, facts, rule, code] of cases) {
+    for (const [name, facts, rule, code, status] of cases) {
       const d = decideEarlyCheckin(facts, rule);
-      expect(d.status, name).toBe("needs_host");
-      expect(d.failed, name).toContain(code);
+      expect(d.status, name).toBe(status);
+      expect(d.failed, name).toEqual([code]);
       expect(d.autoSend, name).toBe(false);
       expect(d.approvedTime, name).toBeNull();
     }
+    // Kapalı kümenin her kodu bu tabloda ya da otomatik-gönderim tablosunda sınanır (yeni kod testsiz kalmasın).
+    const covered = new Set([...cases.map((c) => c[3]), "multi_intent", "single_source_time", ...EARLY_CHECKIN_AUTO_BLOCKERS]);
+    expect([...EARLY_CHECKIN_CHECKS].filter((c) => !covered.has(c))).toEqual([]);
+  });
+
+  it("🚨 `pending` YALNIZ düşen kontrollerin HEPSİ 'kanıt henüz yok' türündense; biri host kararıysa `needs_host` (bilinmeyen asla 'hayır' değil)", () => {
+    expect(decideEarlyCheckin({ ...OK, readiness: "not_ready", previousSameDay: { checkoutTime: "13:00" } }, RULE)).toMatchObject({
+      status: "pending",
+      failed: ["previous_still_in", "not_ready"],
+    });
+    // Hazırlık bekleniyor AMA kural kapalı → host (yeniden değerlendirilecek bir şey yok).
+    expect(decideEarlyCheckin({ ...OK, readiness: "not_ready" }, { ...RULE, mode: "off" }).status).toBe("needs_host");
+    expect(decideEarlyCheckin({ ...OK, readiness: "not_ready" }, null).status).toBe("needs_host");
+    // Hazırlık bekleniyor AMA çakışma var → host.
+    expect(decideEarlyCheckin({ ...OK, readiness: "unknown", otherOverlaps: 1 }, RULE)).toMatchObject({ status: "needs_host", failed: ["overlap", "ready_unknown"] });
+    // Hiçbir durum otomatik RED değildir: kapalı kümede "reject" yok.
+    for (const facts of [OK, { ...OK, readiness: "not_ready" as const }, { ...OK, otherOverlaps: 3 }, { ...OK, reservation: null }]) {
+      expect(["approvable", "pending", "needs_host", "not_early"]).toContain(decideEarlyCheckin(facts, RULE).status);
+    }
+  });
+
+  it("🚨 varış günü standart giriş saati GEÇTİYSE erken giriş penceresi kapanmıştır (onay üretilmez); saat bilinmiyorsa kontrol yapılmaz", () => {
+    expect(decideEarlyCheckin({ ...OK, nowMinutes: 15 * 60 }, RULE)).toMatchObject({ status: "not_early", autoSend: false, approvedTime: null });
+    expect(decideEarlyCheckin({ ...OK, nowMinutes: 14 * 60 + 59, requested: { time: "14:30", sources: 2, conflict: false } }, RULE)).toMatchObject({
+      status: "needs_host",
+      failed: ["time_passed"],
+    });
+    // Varış günü değilse "şimdi" standart girişi geçmiş olsa da (ertesi gün için soruyor) pencere kapanmaz.
+    expect(decideEarlyCheckin({ ...OK, nowMinutes: 16 * 60, reservation: { status: "confirmed", arrivalKey: "2026-10-15" } }, RULE)).toMatchObject({
+      status: "pending",
+      failed: ["not_arrival_day"],
+    });
+    expect(decideEarlyCheckin({ ...OK, nowMinutes: null }, RULE).status).toBe("approvable");
+    expect(decideEarlyCheckin({ ...OK, nowMinutes: Number.NaN }, RULE).status).toBe("approvable");
+  });
+
+  it("istenen saat payı (15 dk): tam sınırda onaylanabilir, bir dakika sonra host", () => {
+    expect(TIME_PASSED_GRACE_MINUTES).toBe(15);
+    expect(decideEarlyCheckin({ ...OK, nowMinutes: 12 * 60 + 15 }, RULE).status).toBe("approvable");
+    expect(decideEarlyCheckin({ ...OK, nowMinutes: 12 * 60 + 16 }, RULE).failed).toEqual(["time_passed"]);
+    // Yalnız varış günü: gelecek gün için soran misafirin saati "geçmiş" sayılmaz.
+    expect(decideEarlyCheckin({ ...OK, nowMinutes: 13 * 60, reservation: { status: "confirmed", arrivalKey: "2026-10-15" } }, RULE).failed).toEqual(["not_arrival_day"]);
+  });
+
+  it("🚨 kanıtlı erken hazırlık (`departureConfirmed`) önceki misafirin BEKLENEN çıkışını engel olmaktan çıkarır — hazırlık yine şart", () => {
+    const early = { ...OK, requested: { time: "10:00", sources: 2, conflict: false }, previousSameDay: { checkoutTime: "11:00" } };
+    const rule = { ...RULE, earliest: "09:00" };
+    expect(decideEarlyCheckin(early, rule)).toMatchObject({ status: "pending", failed: ["previous_still_in"] });
+    expect(decideEarlyCheckin({ ...early, departureConfirmed: true }, rule)).toMatchObject({ status: "approvable", approvedTime: "10:00", autoSend: true });
+    // Çıkış saati bilinmese de kanıtlı erken hazırlık çıkışı doğrular.
+    expect(decideEarlyCheckin({ ...early, previousSameDay: { checkoutTime: null }, departureConfirmed: true }, rule).status).toBe("approvable");
+    // `departureConfirmed` hazırlığın YERİNE geçmez (tutarsız olgu): hazır değilse yine bekler.
+    expect(decideEarlyCheckin({ ...early, departureConfirmed: true, readiness: "not_ready" }, rule)).toMatchObject({ status: "pending", failed: ["not_ready"] });
+    // Aynı gün devir yoksa (dün gece) `departureConfirmed` gece kanıtını da atlatmaz.
+    expect(decideEarlyCheckin({ ...early, previousSameDay: null, departureConfirmed: true }, rule).failed).toEqual(["previous_night_unverified"]);
+  });
+
+  it("🚨 otomatik-gönderim engelleri yalnız OTOMATİK gönderimi durdurur: onaylanabilir kalır (taslak), onaylanamayan kararda kod eklenmez", () => {
+    for (const b of EARLY_CHECKIN_AUTO_BLOCKERS) {
+      expect(decideEarlyCheckin({ ...OK, autoBlockers: [b] }, RULE), b).toMatchObject({ status: "approvable", failed: [b], autoSend: false, approvedTime: "12:00" });
+      expect(decideEarlyCheckin({ ...OK, readiness: "not_ready", autoBlockers: [b] }, RULE).failed, b).toEqual(["not_ready"]);
+    }
+    expect(decideEarlyCheckin({ ...OK, autoBlockers: [] }, RULE).autoSend).toBe(true);
+    // Sıra sabit: tek konu → tek kaynak → metin engelleri.
+    expect(
+      decideEarlyCheckin({ ...OK, singleIntent: false, requested: { time: "12:00", sources: 1, conflict: false }, autoBlockers: ["time_mismatch_text", "day_unverified"] }, RULE).failed,
+    ).toEqual(["single_source_time", "multi_intent", "day_unverified", "time_mismatch_text"]);
   });
 
   it("onaylanabilir ama OTOMATİK değil: kural 'taslak', saati tek model okudu ya da mesajda başka konu var → host'a hazır taslak", () => {
@@ -94,8 +168,8 @@ describe("karar çekirdeği — her kontrol ayrı, eksik ya da çelişki insana"
     const at = (time: string) => decideEarlyCheckin({ ...OK, requested: { time, sources: 2, conflict: false } }, { ...RULE, earliest: "00:00" });
     expect(at("01:30")).toMatchObject({ status: "not_early", autoSend: false, approvedTime: null });
     expect(at("04:59").status).toBe("not_early");
-    // Eşiğin hemen üstü erken giriştir (önceki misafir 11:00'de çıktığı için burada dolu).
-    expect(at("05:00")).toMatchObject({ status: "needs_host", failed: ["previous_still_in"] });
+    // Eşiğin hemen üstü erken giriştir (önceki misafirin beklenen çıkışı 11:00 → kanıt henüz yok, bekliyor).
+    expect(at("05:00")).toMatchObject({ status: "pending", failed: ["previous_still_in"] });
   });
 
   it("🚨 değişmez: herhangi bir başarısız kontrol varken otomatik gönderim ASLA yok (tüm tekli ve ikili bozulmalar)", () => {
@@ -272,7 +346,7 @@ describe("hazırlık hükmü — tik, çıkıştan SONRA, en az 5 dk, geri alın
   it("🚨 bu devirde AÇIK temizlik görevi varsa başka bir görevin 'bitti'si hazır yapmaz (inceleme 09-24, P1)", () => {
     const done = { status: "done", doneAt: new Date("2026-10-14T09:30:00Z") };
     expect(readinessOf([done, { status: "todo", doneAt: null }], checkout, now)).toBe("not_ready");
-    expect(readinessDetailOf([done, { status: "in_progress", doneAt: null }], checkout, now)).toEqual({ status: "not_ready", note: "open" });
+    expect(readinessDetailOf([done, { status: "in_progress", doneAt: null }], checkout, now)).toEqual({ status: "not_ready", note: "open", departureConfirmed: false });
     expect(readyAtOf([done, { status: "todo", doneAt: null }], checkout, now)).toBeNull();
     // Hepsi kapalı: biri çıkıştan önce (konaklama içi), biri sonra ve oturmuş → hazır.
     expect(readinessOf([{ status: "done", doneAt: new Date("2026-10-14T07:00:00Z") }, done], checkout, now)).toBe("ready");
@@ -281,8 +355,8 @@ describe("hazırlık hükmü — tik, çıkıştan SONRA, en az 5 dk, geri alın
     expect(readinessDetailOf([{ status: "todo", doneAt: null }], checkout, now).note).toBe("open");
     expect(readinessDetailOf([{ status: "done", doneAt: new Date(now.getTime() - 60_000) }], checkout, now).note).toBe("fresh");
     expect(readinessDetailOf([{ status: "done", doneAt: new Date("2026-10-14T07:00:00Z") }], checkout, now).note).toBe("before_checkout");
-    expect(readinessDetailOf([{ status: "done", doneAt: null }], checkout, now)).toEqual({ status: "unknown", note: "no_time" });
-    expect(readinessDetailOf([], checkout, now)).toEqual({ status: "unknown", note: "none" });
+    expect(readinessDetailOf([{ status: "done", doneAt: null }], checkout, now)).toEqual({ status: "unknown", note: "no_time", departureConfirmed: false });
+    expect(readinessDetailOf([], checkout, now)).toEqual({ status: "unknown", note: "none", departureConfirmed: false });
   });
   it("🚨 'bitti' işaretinden sonra görev yeniden AÇILDIYSA (host geri aldı) hazır DEĞİL", () => {
     expect(readinessOf([{ status: "todo", doneAt: new Date("2026-10-14T09:30:00Z") }], checkout, now)).toBe("not_ready");
@@ -379,7 +453,10 @@ describe("kanıt + host notu + panel", () => {
   it("`ec` kanıtı yalnız kapalı küme kodlar taşır; tanınmayan değer alanı düşürür", () => {
     const run = { decision: decideEarlyCheckin({ ...OK, readiness: "not_ready" }, RULE), rule: RULE, facts: OK, draft: null };
     const ec = earlyCheckinEvidenceOf(run, false);
-    expect(ec).toEqual({ s: "needs_host", f: ["not_ready"], a: "0" });
+    expect(ec).toEqual({ s: "pending", f: ["not_ready"], a: "0" });
+    for (const s of ["approvable", "needs_host", "not_early"]) {
+      expect(JSON.parse(String(buildKbEvidence({ retrieved: [], usedLabels: [], earlyCheckin: { ...ec, s } }))).ec.s, s).toBe(s);
+    }
     expect(JSON.parse(String(buildKbEvidence({ retrieved: [], usedLabels: [], earlyCheckin: ec }))).ec).toEqual(ec);
     for (const bad of [{ ...ec, s: "maybe" }, { ...ec, f: ["Ayşe"] }, { ...ec, a: "yes" }]) {
       expect(buildKbEvidence({ retrieved: [], usedLabels: [], earlyCheckin: bad }), JSON.stringify(bad)).toBeNull();
@@ -404,7 +481,8 @@ describe("kanıt + host notu + panel", () => {
     });
     expect(lines.find((l) => l.text.startsWith("Temizlik"))).toEqual({ ok: false, text: "Temizlik henüz bitti olarak işaretlenmedi." });
     expect(lines.some((l) => !l.ok && l.text.includes("kuralı kapalı"))).toBe(true);
-    expect(lines.find((l) => l.text.startsWith("Önceki misafir"))).toEqual({ ok: true, text: "Önceki misafirin çıkışı: 11:00" });
+    // Önceki çıkış bir BEKLENTİDİR (misafir erken çıkmış olabilir) — olgu gibi yazılmaz.
+    expect(lines.find((l) => l.text.startsWith("Önceki misafir"))).toEqual({ ok: true, text: "Önceki misafirin beklenen çıkışı: 11:00" });
     expect(lines.find((l) => l.text.startsWith("Erken giriş ücreti"))?.text).toBe("Erken giriş ücreti: €30");
   });
 

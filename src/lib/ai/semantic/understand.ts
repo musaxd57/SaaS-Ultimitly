@@ -53,6 +53,8 @@ export const UNDERSTANDING_SYSTEM_PROMPT = [
 const MAX_UNANSWERED = 5;
 const MAX_HISTORY = 6;
 const MESSAGE_CAP = 1_000;
+/** Katmanın gördüğü pencere (erken giriş akışı: pencereye sığmayan cevapsız mesaj varsa otomatik gönderim yok). */
+export const UNDERSTANDING_WINDOW = { maxMessages: MAX_UNANSWERED, messageCap: MESSAGE_CAP } as const;
 
 function fenceSafe(text: string): string {
   // İki+ açılı ayraç ÇALIŞMASI bütünüyle silinir: tek geçişte "<<<" silmek ">><<<>" girdisinden YENİ bir

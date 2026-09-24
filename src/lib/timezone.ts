@@ -164,6 +164,18 @@ export function zonedDateStart(y: number, m: number, d: number, tz: string): Dat
   return new Date(t);
 }
 
+/** Gün içi dakika (0–1439) — verilen IANA diliminde duvar saati. Biçimlendirme başarısızsa `null` (tahmin yok). */
+export function minutesOfDayInTimeZone(timeZone: string, now: Date = new Date()): number | null {
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+    const h = Number(parts.find((p) => p.type === "hour")?.value);
+    const m = Number(parts.find((p) => p.type === "minute")?.value);
+    return Number.isInteger(h) && Number.isInteger(m) && h >= 0 && h < 24 && m >= 0 && m < 60 ? h * 60 + m : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Current hour (0-23) in the given IANA timezone (e.g. "Europe/Istanbul"). */
 export function currentHourInTimeZone(timeZone: string, now: Date = new Date()): number {
   try {

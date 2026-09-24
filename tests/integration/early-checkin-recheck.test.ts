@@ -119,6 +119,10 @@ async function scenario(opts: { rule?: EarlyCheckinRule | null; overlap?: boolea
     data: { propertyId: property.id, reservationId: previous.id, type: "cleaning", title: "Temizlik", status: "todo", origin: "system", dueAt: midnight("2026-10-14") },
   });
   const prep = await prisma.task.create({ data: { propertyId: property.id, reservationId: own.id, type: "checkin_prep", title: "Giriş hazırlığı", origin: "system" } });
+  // "Bitti" işareti yalnız KİMLİKLİ kullanıcı kaydından sayılır (kanıt modeli) — temizlik ekibi üyesi.
+  const cleaner = await prisma.user.create({
+    data: { organizationId: org.id, name: "Temizlik", email: `temizlik-${org.id}@example.com`, passwordHash: "x", role: "staff" },
+  });
   if (opts.rule !== null) await saveEarlyCheckinRule(org.id, property.id, opts.rule ?? RULE);
   const conversation = await prisma.conversation.create({
     data: {
@@ -133,12 +137,12 @@ async function scenario(opts: { rule?: EarlyCheckinRule | null; overlap?: boolea
     },
     select: { id: true },
   });
-  return { orgId: org.id, conversationId: conversation.id, cleaningTaskId: cleaning.id, prepTaskId: prep.id };
+  return { orgId: org.id, conversationId: conversation.id, cleaningTaskId: cleaning.id, prepTaskId: prep.id, cleanerId: cleaner.id };
 }
 
-async function markCleaned(taskId: string, at: Date) {
-  await prisma.task.update({ where: { id: taskId }, data: { status: "done" } });
-  await prisma.taskUpdate.create({ data: { taskId, status: "done", createdAt: at } });
+async function markCleaned(s: { cleaningTaskId: string; cleanerId: string }, at: Date) {
+  await prisma.task.update({ where: { id: s.cleaningTaskId }, data: { status: "done" } });
+  await prisma.taskUpdate.create({ data: { taskId: s.cleaningTaskId, userId: s.cleanerId, status: "done", createdAt: at } });
 }
 
 describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", () => {
@@ -180,7 +184,7 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
 
   it("🚨 sabah tutulan istek, temizlik bitip oturunca BİR KEZ yeniden aday olur ve doğrulanmış onay gider", async () => {
     const s = await morningHold();
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     vi.setSystemTime(AFTER_SETTLE);
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(1);
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: s.conversationId } })).autoReplyAttemptedAt).toBeNull();
@@ -195,7 +199,7 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
 
   it("🚨 yeniden koşu yine tutulursa (ör. bekçi düştü) tarama TEKRAR açmaz — sonsuz model çağrısı yok", async () => {
     const s = await morningHold();
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     vi.setSystemTime(AFTER_SETTLE);
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(1);
     vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream down", { status: 503 })));
@@ -210,22 +214,22 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
   it("dokunulmayanlar: işaret taze (<5 dk) · kural taslak · başka sebeple tutulmuş · host cevapladı · işaret yok", async () => {
     // işaret taze
     let s = await morningHold();
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, new Date(CLEANED_AT.getTime() + 2 * 60_000))).toBe(0);
     // kural taslak (tutuş kural kapalı değil ama otomatik değil → tarama yalnız otomatik kurallı mülkte)
     await resetDb();
     s = await morningHold({ rule: { ...RULE, mode: "draft" } });
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(0);
     // başka sebep: aynı gün çakışan rezervasyon (hazırlık dışı bir kontrol de düştü)
     await resetDb();
     s = await morningHold({ overlap: true });
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(0);
     // host cevapladı
     await resetDb();
     s = await morningHold();
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     await prisma.conversation.update({ where: { id: s.conversationId }, data: { status: "answered" } });
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(0);
     // işaret yok
@@ -235,7 +239,7 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     // karar işaret OTURDUKTAN sonra verilmiş (o karar hazırlığı zaten görmüştü)
     await resetDb();
     s = await morningHold();
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     await prisma.riskEvent.updateMany({ where: { conversationId: s.conversationId }, data: { occurredAt: new Date(CLEANED_AT.getTime() + 6 * 60_000) } });
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, new Date(CLEANED_AT.getTime() + 7 * 60_000))).toBe(0);
     expect(await prisma.taskUpdate.count({ where: { note: EARLY_CHECKIN_RECHECK_NOTE } })).toBe(0);
@@ -243,14 +247,14 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
 
   it("karar işaretin 5 dakikalık oturma penceresinde verildiyse (o an 'hazır değil') yeniden değerlendirilir", async () => {
     const s = await morningHold();
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     await prisma.riskEvent.updateMany({ where: { conversationId: s.conversationId }, data: { occurredAt: new Date(CLEANED_AT.getTime() + 60_000) } });
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(1);
   });
 
   it("🚨 kiracı yalıtımı: başka org'un taraması bu konuşmaya dokunmaz", async () => {
     const s = await morningHold();
-    await markCleaned(s.cleaningTaskId, CLEANED_AT);
+    await markCleaned(s, CLEANED_AT);
     const other = await prisma.organization.create({ data: { name: "Başka" } });
     expect(await recheckEarlyCheckinsAfterCleaning(other.id, AFTER_SETTLE)).toBe(0);
     // Derinlemesine savunma: başka org'un kural satırı BU org'un mülkünü gösterse bile (rota bunu engeller) dokunulmaz.
@@ -275,6 +279,15 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
 describe("heldOnlyForReadiness (saf)", () => {
   const ev = (ec: unknown) => JSON.stringify({ retrieved: [], used: [], ec });
   it("yalnız hazırlık kodlarıyla tutulmuş, otomatik gitmemiş karar", () => {
+    // Kanıt modeli: bekleyen (`pending`) karar; önceki misafirin beklenen çıkışı da temizlik kanıtıyla değişebilir.
+    expect(heldOnlyForReadiness(ev({ s: "pending", f: ["not_ready"], a: "0" }))).toBe(true);
+    expect(heldOnlyForReadiness(ev({ s: "pending", f: ["previous_still_in", "not_ready"], a: "0" }))).toBe(true);
+    expect(heldOnlyForReadiness(ev({ s: "pending", f: ["previous_checkout_unknown"], a: "0" }))).toBe(true);
+    // Gelecek varış günü ayrı akış (bu tarama varış günü çalışır); başka durum adı açmaz.
+    expect(heldOnlyForReadiness(ev({ s: "pending", f: ["not_arrival_day"], a: "0" }))).toBe(false);
+    expect(heldOnlyForReadiness(ev({ s: "not_early", f: ["not_ready"], a: "0" }))).toBe(false);
+    expect(heldOnlyForReadiness(ev({ s: "approvable", f: ["not_ready"], a: "0" }))).toBe(false);
+    // Eski kayıtlar (kanıt modelinden önce) `needs_host` yazıyordu.
     expect(heldOnlyForReadiness(ev({ s: "needs_host", f: ["ready_unknown"], a: "0" }))).toBe(true);
     expect(heldOnlyForReadiness(ev({ s: "needs_host", f: ["not_ready"], a: "0" }))).toBe(true);
     expect(heldOnlyForReadiness(ev({ s: "needs_host", f: ["not_ready", "overlap"], a: "0" }))).toBe(false);

@@ -263,7 +263,7 @@ export interface KbEvidenceInput {
 const IR_REASONS: ReadonlySet<string> = new Set(["-", INTENT_RISK_REASON]);
 const IR_KINDS: ReadonlySet<string> = new Set(["-", ...INTENT_RISK_KINDS]);
 
-const EC_STATUSES: ReadonlySet<string> = new Set(["approvable", "needs_host", "not_early"]);
+const EC_STATUSES: ReadonlySet<string> = new Set(["approvable", "pending", "needs_host", "not_early"]);
 const EC_CHECKS: ReadonlySet<string> = new Set(EARLY_CHECKIN_CHECKS);
 
 /** `ec` kanıt alanı: durum + başarısız kontroller + otomatik gönderim; tanınmayan her değer alanı düşürür. */

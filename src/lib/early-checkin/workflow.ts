@@ -15,8 +15,36 @@ import {
   type EarlyCheckinFacts,
   type EarlyCheckinRule,
 } from "./core";
+import { UNDERSTANDING_WINDOW } from "@/lib/ai/semantic/understand";
+import { GUARD_WINDOW } from "@/lib/ai/semantic/guard";
 import { loadEarlyCheckinFacts } from "./load";
 import { earlyCheckinApprovalText, earlyCheckinLang } from "./reply";
+import { mentionsAnotherDay, timeMismatchInTexts } from "./text-checks";
+import type { EarlyCheckinAutoBlocker } from "./core";
+
+/** İki model katmanının ORTAK penceresi: bundan fazla / uzun cevapsız mesajın bir kısmı modellerce görülmedi. */
+const MODEL_WINDOW = {
+  maxMessages: Math.min(UNDERSTANDING_WINDOW.maxMessages, GUARD_WINDOW.maxMessages),
+  messageCap: Math.min(UNDERSTANDING_WINDOW.messageCap, GUARD_WINDOW.messageCap),
+};
+
+/**
+ * Otomatik gönderimi engelleyen metin koşulları (saf; `core.ts` `autoBlockers`). YALNIZ engeller: taslak yine hazırlanır.
+ */
+export function earlyCheckinAutoBlockers(args: {
+  guestTexts: readonly string[];
+  requestedTime: string | null;
+  now: Date;
+  timeZone: string;
+}): EarlyCheckinAutoBlocker[] {
+  const out: EarlyCheckinAutoBlocker[] = [];
+  if (mentionsAnotherDay(args.guestTexts, args.now, args.timeZone)) out.push("day_unverified");
+  if (args.guestTexts.length > MODEL_WINDOW.maxMessages || args.guestTexts.some((t) => t.length > MODEL_WINDOW.messageCap)) {
+    out.push("not_fully_read");
+  }
+  if (timeMismatchInTexts(args.guestTexts, args.requestedTime)) out.push("time_mismatch_text");
+  return out;
+}
 
 /** Anlama katmanında erken girişle birlikte cevabı etkilemeyen niyetler (tek konu sayılır). */
 const SINGLE_TOPIC_INTENTS: ReadonlySet<string> = new Set(["early_checkin", "checkin_time", "greeting_thanks"]);
@@ -71,15 +99,24 @@ export async function runEarlyCheckinWorkflow(args: {
     const understoodTime = u && u.requested && u.kind === "early_checkin" ? u.checkinTime : null;
     const guardTime = guard && guard.guestRequestsChange && guard.kind === "early_checkin" ? guard.requestedCheckinTime : null;
     const replyTopic = REPLY_TOPIC_INTENTS.has(args.policy.replyIntent ?? "");
+    const requested = agreeRequestedTime([understoodTime, guardTime]);
     const loaded = await loadEarlyCheckinFacts({
       organizationId: args.organizationId,
       propertyId: args.propertyId,
       reservationId: args.reservationId,
       now: args.now,
-      requested: agreeRequestedTime([understoodTime, guardTime]),
+      requested,
       singleIntent: singleTopicEarlyCheckin(args.understood) && replyTopic,
     });
     if (!loaded) return null;
+    // Bavul bırakma/alma isteği erken giriş onayıyla cevaplanamaz (üç istem bavulu erken girişe katlıyor — inceleme 09-24).
+    loaded.facts.luggage = (args.understood?.requests ?? []).some((r) => r.intent === "luggage");
+    loaded.facts.autoBlockers = earlyCheckinAutoBlockers({
+      guestTexts: args.guestTexts,
+      requestedTime: requested.time,
+      now: args.now,
+      timeZone: loaded.timeZone,
+    });
     const decision = decideEarlyCheckin(loaded.facts, loaded.rule);
     const draft = earlyCheckinApprovalText(decision, earlyCheckinLang(args.detectedLanguage), loaded.rule?.note ?? null, loaded.facts.todayKey);
     return { decision, rule: loaded.rule, facts: loaded.facts, draft };

@@ -21,7 +21,9 @@ import { EARLY_CHECKIN_TRIGGER, validateEarlyCheckinRuleInput } from "./rules";
 export const EARLY_CHECKIN_RECHECK_NOTE = "Temizlik bitti; bekleyen erken giriş isteği yeniden kontrol ediliyor.";
 
 /** Yalnız bu kontroller düştüyse yeniden değerlendirmeye değer (başka her eksik host'ta kalır). */
-const READINESS_ONLY: ReadonlySet<string> = new Set(["not_ready", "ready_unknown"]);
+// Temizlik bitince değişebilen kontroller: hazır değil / bilinmiyor + (kanıtlı erken hazırlık çıkışı da doğrular)
+// önceki misafir hâlâ içeride / çıkış saati bilinmiyor. Gelecek varış günü (`not_arrival_day`) ayrı akış (henüz yok).
+const READINESS_ONLY: ReadonlySet<string> = new Set(["not_ready", "ready_unknown", "previous_still_in", "previous_checkout_unknown"]);
 const KNOWN_CHECKS: ReadonlySet<string> = new Set(EARLY_CHECKIN_CHECKS);
 const LOOKBACK_MS = 24 * 60 * 60_000;
 /** Varış günü her saat diliminde bu pencerenin içindedir (gün anahtarı kodda ayrıca doğrulanır). */
@@ -39,7 +41,8 @@ export function heldOnlyForReadiness(kbEvidenceJson: string | null | undefined):
   }
   if (!ec || typeof ec !== "object") return false;
   const { s, f, a } = ec as { s?: unknown; f?: unknown; a?: unknown };
-  if (s !== "needs_host" || a !== "0" || !Array.isArray(f) || f.length === 0) return false;
+  // `pending` (kanıt modeli, 09-24) ya da eski kayıtların `needs_host`u — ikisinde de otomatik gitmemiş olmalı.
+  if ((s !== "pending" && s !== "needs_host") || a !== "0" || !Array.isArray(f) || f.length === 0) return false;
   return f.every((c) => typeof c === "string" && KNOWN_CHECKS.has(c) && READINESS_ONLY.has(c));
 }
 
