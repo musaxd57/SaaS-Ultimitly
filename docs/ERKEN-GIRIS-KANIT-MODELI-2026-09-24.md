@@ -183,6 +183,13 @@ READY = BU devrin temizlik görevinde kimlikli (`userId` dolu) `done` kaydı. Ge
 Temizlikçi akışı: Başladım (`in_progress`) → Temizlik bitti (isteğe bağlı kontrol: `awaiting_review`) → **Daire hazır**
 (`done`, iki adımlı onay). Bayat işaret günü gelince "bugün için yenile" ile yeniden onaylanır.
 
+**Uygulandı (dilim 4a, C-16):** rezervasyonun giriş/çıkış tarihi değişince AÇIK SİSTEM görevi (giriş hazırlığı / çıkış
+temizliği), tarihi ESKİ rezervasyon tarihine BİREBİR eşitse yeni tarihe taşınır — tek kural `lib/tasks/follow-reservation.ts`,
+tarih değişiminin olduğu her yazma yolunda aynı TX'te (kanal senkronu · takvim bağlantısı · dosyadan içe aktarma; elle
+düzenleme rotası tarih değiştirmez). Host'un elle taşıdığı, bitmiş ya da elle / mesajdan açılmış görevlere dokunulmaz.
+Bilinen sınır: "bitti" işaretinden SONRA uzatılan konaklamanın yeni çıkış gününde temizlik görevi oluşmaz (tür başına tek
+görev) — hazırlık o devirde "görev bulunamadı" der (güvenli yön: onay yok).
+
 ## J. En erken OTOMATİK onay saati
 
 Mevcut `earliest` alanı AYNEN bu anlamdadır: daha erken istek reddedilmez, host'a gider (`before_window`). Değişen:

@@ -11,6 +11,7 @@ import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 import { recordIngestEvent, type IngestContext } from "@/lib/ingest/events";
+import { followReservationDates } from "@/lib/tasks/follow-reservation";
 
 export interface SyncResult {
   imported: number;
@@ -434,6 +435,8 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               },
             });
             if (resU.count === 0) return { kind: "skip" };
+            // Tarih değiştiyse açık yaşam döngüsü görevleri yeni tarihe (aynı TX; host'un taşıdığına dokunulmaz — dilim 4a).
+            await followReservationDates(tx, existing.id, existing, row);
             await recordIngestEvent(tx, ingestCtx, "reservation", existing.id, "reservation.updated", changedFields);
             return { kind: "updated", id: existing.id };
           }

@@ -5,6 +5,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { toAmountDec } from "@/lib/money";
 import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
+import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
 import { recordIngestEvent as emit, INGEST_EVENT_SCHEMA_VERSION } from "./events";
@@ -138,6 +139,10 @@ export async function upsertCanonicalReservation(
     const contentChanged = Object.keys(data).some((k) => k !== "connectionId" && k !== "connectionEvidence");
     if (Object.keys(data).length > 0) {
       await db.reservation.update({ where: { id: existing.id }, data });
+    }
+    // Tarih değiştiyse açık yaşam döngüsü görevleri yeni tarihe (aynı TX; host'un taşıdığına dokunulmaz — dilim 4a).
+    if (data.arrivalDate !== undefined || data.departureDate !== undefined) {
+      await followReservationDates(db, existing.id, existing, { arrivalDate: r.arrivalDate, departureDate: r.departureDate });
     }
     if (contentChanged) {
       const cancelledNow = r.status === "cancelled" && existing.status !== "cancelled";

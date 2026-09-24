@@ -9,6 +9,7 @@ import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import { recordIngestEvent } from "@/lib/ingest/events";
+import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { ANON_NAME } from "@/lib/data-retention";
 
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
@@ -525,6 +526,11 @@ export const POST = withManage(async (session, req) => {
             // ATOMİK sahiplik: yalnız bu rotanın kendi CANLI satırı (`calendarSourceId`
             // NULL + `channel` "ics" + iptalli değil). Araya giren bir senkron/iptal
             // satırı değiştirdiyse count 0 → dokunmadan atla.
+            // Eski tarihler TX İÇİNDE okunur (sınıflandırma TX dışında; araya giren aktarım görevi yanlış tarihten taşımasın).
+            const prev = await tx.reservation.findUnique({
+              where: { id: c.existingId! },
+              select: { arrivalDate: true, departureDate: true },
+            });
             const res = await tx.reservation.updateMany({
               where: { id: c.existingId!, calendarSourceId: null, channel: "ics", status: { not: "cancelled" } },
               data: {
@@ -539,6 +545,8 @@ export const POST = withManage(async (session, req) => {
               },
             });
             if (res.count !== 1) return null;
+            // Tarih değiştiyse açık yaşam döngüsü görevleri yeni tarihe (aynı TX; host'un taşıdığına dokunulmaz — dilim 4a).
+            if (prev) await followReservationDates(tx, c.existingId!, prev, row);
             // V1: değişen alan ADLARI (değer yok) — tarih alanları date_change sinyalinin girdisi.
             await recordIngestEvent(tx, ingestCtx, "reservation", c.existingId!, "reservation.updated", c.changedFields);
             return c.existingId!;
