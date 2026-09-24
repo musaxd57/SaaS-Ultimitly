@@ -298,7 +298,7 @@ Redaksiyon aynen (tarih/saat dizileri korunur; enum serbest metin eklemez).
 | Host notu politika metnine muafiyetle ekleniyordu (not bir izin cümlesi taşıyabilir) | P2 | **DÜZELTİLDİ** — not eklenmez |
 | Kilidin mesaj kapsamı pinsizdi (org geneli sorgu mutantı yaşardı) | P3 | **PİNLENDİ** — başka konuşmanın ertelemesi gider |
 | Karar kaydı atılan taslağın kaynak sayımını taşıyordu | P3 | **DÜZELTİLDİ** — NULL (ölçülmedi) |
-| Aynı milisaniyedeki iki mesajda "son mesaj" tarayıcıyla farklı seçilebilirdi | P3 | **DÜZELTİLDİ** — (createdAt, id) sırası; kırmızı test üretilemez (PG eşitlik sırası tanımsız), gerekçe yorumda |
+| Aynı milisaniyedeki iki mesajda "son mesaj" tarayıcıyla farklı seçilebilirdi | P3 | **DÜZELTİLDİ** — (createdAt, id) sırası; kırmızı-önce testi fiziksel sıra ≠ kimlik sırası kurgusuyla (eski kodda kırmızı ölçüldü; PG eşitlikte sırayı garanti etmez, test bunu bilerek kullanır) |
 | Kuyruklu teslimde ücret kuyruğa girdiği andaki kural | P3 | **BİLİNEN SINIR** — kuyruk bayrağı kapalı; onayda `queued_delivery` ile aynı sınıf |
 
 ## S. Eşzamanlılık / TOCTOU (dilim 2, analiz + karar)

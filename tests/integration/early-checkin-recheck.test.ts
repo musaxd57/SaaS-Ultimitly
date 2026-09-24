@@ -263,6 +263,33 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     expect(String(mockSend.mock.calls[0][1])).toContain("I'll check with the host");
   });
 
+  it("aynı milisaniyedeki iki mesajda kilit, taramanın baktığı mesaja bakar — (createdAt, id) sırası (inceleme 09-24)", async () => {
+    vi.setSystemTime(MORNING_PASS);
+    const s = await scenario({ rule: { ...RULE, mode: "draft" } });
+    await prisma.conversation.delete({ where: { id: s.conversationId } });
+    const own = await prisma.reservation.findFirstOrThrow({ where: { propertyId: s.propertyId, arrivalDate: midnight("2026-10-14") } });
+    const conv = await prisma.conversation.create({
+      data: { propertyId: s.propertyId, reservationId: own.id, channel: "airbnb", guestIdentifier: "Alex", status: "new", externalReservationId: "res-tie", lastMessageAt: ASKED },
+    });
+    // Fiziksel sıra ≠ kimlik sırası: BÜYÜK kimlik önce yazılır. Tarama (createdAt, id) ile "zzzz"yi son mesaj sayar.
+    await prisma.message.create({ data: { id: "zzzz-tie", conversationId: conv.id, direction: "inbound", senderName: "Alex", body: "Hi! Could we check in at 13:00 today?", createdAt: ASKED } });
+    await prisma.message.create({ data: { id: "aaaa-tie", conversationId: conv.id, direction: "inbound", senderName: "Alex", body: "Also, where is the parking?", createdAt: ASKED } });
+    await prisma.riskEvent.create({
+      data: {
+        organizationId: s.orgId,
+        conversationId: conv.id,
+        surface: "auto_reply",
+        triggerId: "zzzz-tie",
+        finalDecision: "human_review",
+        reason: "availability_unconfirmed",
+        kbEvidenceJson: JSON.stringify({ ec: { s: "pending", f: ["not_ready"], a: "0" } }),
+      },
+    });
+    vi.stubGlobal("fetch", semanticFetch({ ...GUARD, reply_defers_to_host: true }));
+    await runDueChannelAutoReplies(s.orgId);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("KONTROL (aşırı-uygulama): yeniden koşu OLMAYAN mesajda iki modelin doğruladığı erteleme bugünkü gibi gider", async () => {
     vi.setSystemTime(MORNING_PASS);
     const s = await scenario({ rule: { ...RULE, mode: "draft" } });
