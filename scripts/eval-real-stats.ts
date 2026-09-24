@@ -65,7 +65,7 @@ async function main(): Promise<void> {
         FROM "Reservation" r JOIN "Property" p ON p.id = r."propertyId"
         WHERE p."organizationId" = ${org.id}`;
       const cleanings = await tx.$queryRaw<ReplayCleaning[]>`
-        SELECT t."propertyId", t."reservationId", t."dueAt", t.status,
+        SELECT t."propertyId", t."reservationId", t."dueAt", t.status, t."createdAt",
           (SELECT max(u."createdAt") FROM "TaskUpdate" u WHERE u."taskId" = t.id AND u.status = 'done') AS "doneAt"
         FROM "Task" t JOIN "Property" p ON p.id = t."propertyId"
         WHERE p."organizationId" = ${org.id} AND t.type = 'cleaning'`;
@@ -88,8 +88,8 @@ async function main(): Promise<void> {
     // Yalnız SAYILAR basılır — metin asla.
     const e = stats.earlyOnly;
     console.log(`Taranan misafir mesajı: ${stats.messages} · konaklama değişikliği isteği (kelime ağı, alt sınır): ${stats.stayRequests.any}`);
-    console.log(`Yalnız erken giriş: ${e.total} · varış günü sorulan: ${e.askedOnArrivalDay} · aynı gün devir: ${e.sameDayTurnover}`);
-    console.log(`Temizlik görevi olan: ${e.cleaningTaskFound} · sorulduğunda hazır: ${e.readyWhenAsked} · girişe kadar hazır oldu: ${e.readyLaterSameDay}`);
+    console.log(`Yalnız erken giriş: ${e.messages} mesaj · ${e.requests} istek (rezervasyon başına ilk soru) · varış günü sorulan: ${e.askedOnArrivalDay} · aynı gün devir: ${e.sameDayTurnover}`);
+    console.log(`Temizlik görevi olan: ${e.cleaningTaskFound} · sorulduğunda hazır: ${e.readyWhenAsked} · girişe kadar hazır oldu (üst sınır): ${e.readyLaterSameDay}`);
     console.log(`Yazıldı: ${path.relative(REPO, out)}`);
   } finally {
     await prisma.$disconnect();

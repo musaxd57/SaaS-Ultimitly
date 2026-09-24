@@ -124,11 +124,14 @@ yalnız "ne sıklıkta, hangi koşulda" sorusunu cevaplar.
   `tests/unit/eval-real.test.ts`). Yalnız kuruluş SAHİBİ; okumadan önce "EVET".
 * Çıktı YALNIZ SAYI (`src/lib/eval-real/replay-stats.ts`, saf): taranan misafir mesajı; kelime ağının konaklama
   değişikliği saydığı mesajlar tür tür (ALT SINIR — kelime ağı yedektir, dolaylı dili kaçırır); yalnız erken giriş
-  isteklerinden varış günü sorulanlar, aynı gün devir olanlar, o devrin temizlik görevi olanlar, misafir sorduğunda
-  daire hazır olanlar, standart girişe kadar hazır olanlar (temizlikten sonra yeniden değerlendirmenin payı) ve
-  soruların yerel saat dağılımı. Metin, ad, kimlik, tarih ekrana da dosyaya da girmez (pin).
-* Hazırlık ve tarih kuralı ürünle AYNI (`early-checkin/readiness.ts`, `calendarDateOf`). Geçmişe bakışın sınırı:
-  görevin bugünkü "bitti" kaydı o ana göre değerlendirilir; sonradan yeniden açılıp kapanan görev ayırt edilmez.
+  isteklerinden (rezervasyon başına İLK soru; takip mesajları yeniden sayılmaz) varış günü sorulanlar, aynı gün devir
+  olanlar, o devrin temizlik görevi olanlar, misafir sorduğunda daire hazır olanlar, standart girişe kadar hazır
+  olanlar (temizlikten sonra yeniden değerlendirmenin payı — ÜST SINIR: aradaki host cevabına bakılmaz) ve soruların
+  yerel saat dağılımı. Metin, ad, kimlik, tarih ekrana da dosyaya da girmez (pin).
+* Hazırlık, tarih ve önceki misafir kuralı ürünle AYNI (`early-checkin/readiness.ts`, `calendarDateOf`, `load.ts`'in
+  durum sınıfı + en geç çıkış). Görevler SORU ANINDAKİ hâlleriyle değerlendirilir (o anda yoksa sayılmaz; "bitti"
+  kaydı o andan sonraysa açık sayılır — inceleme 09-24). Sınır: sonradan yeniden açılıp kapanan görev ayırt edilmez
+  (bugün açık olan görev geçmişte de açık sayılır — temkinli yön).
 * Dosya git'in yok saydığı `evals/private/replay-stats.json`e yazılır; sayılar paylaşılabilir, depoya kurucu
   isterse elle girer.
 
