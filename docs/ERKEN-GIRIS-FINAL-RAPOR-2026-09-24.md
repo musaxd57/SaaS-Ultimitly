@@ -139,12 +139,15 @@ değildir), yani kaçak otomatik izne dönüşmez. Para dedektörü kör holdout
 | 7a/7b | 12/12 |
 | 4a | 11/11 (1 eşdeğer mutant yazılı: eşitlik kısa devresi yalnız sorgu sayısını değiştirir) |
 | 6 inceleme düzeltmeleri | 8/8 (sıra mutantı dahil) |
+| 7a/4a inceleme düzeltmeleri | 8/8 (kilit sırası, sahipsiz kural, 404, okunamayan saat, tür filtresi) |
+| 4c (C-17) | kırmızı-önce (eski kod görevi "done" bırakıyordu) → yeşil; işlem içi `prisma` mutantı bu arıza kurgusunda eşdeğer (atılan hata işlemi geri alır) |
 
 ## T. Eşzamanlılık
 
 Model çağrıları boyunca kilit yok; olgular kapıdan hemen önce okunur; doğrudan gönderimde `claim` CAS; kuyrukta otomatik
 onay yok; kural kaydında mülk satırı `FOR UPDATE`; yeniden değerlendirme karar vermez, tüm hattı baştan koşar; son
-mesaj `(createdAt, id)` ile tarama ile aynı. Tasarım §S.
+mesaj `(createdAt, id)` ile tarama ile aynı. Mülk silme de ÖNCE mülk satırını kilitler (kural kaydıyla aynı sıra; kilitlenme
+ve sahipsiz kural yok, iki deterministik test). Görev durumu + geçmiş kaydı tek işlemde (C-17). Tasarım §S.
 
 ## U. Denetlenebilirlik
 
@@ -154,12 +157,19 @@ kaynak sayımı NULL (ölçülmedi). Tasarım §U.
 
 ## V. Kapılar
 
-(push anındaki SHA ile doldurulur ↓)
+`128d841` ve `c743fe8` yerel tam kapılar: 505 test dosyası (6.192 / 6.193 test) · tip kontrolü · lint · build · audit
+yeşil. CI: ikisi de 5/5 yeşil (koşu 1150, 1152). `739d83c` CI'ı kod değil Actions dakika sınırıydı (`runner_id: 0`);
+repo public yapılınca çözüldü.
 
 ## W. Üretimi etkileyen değişiklikler
 
-(↓)
+Migration YOK, env değişikliği YOK. Görünür değişiklikler: personel görev listesi / temizlik listesi / atama e-postası
+misafir adı ve mesajı göstermez · sistem görevleri rezervasyon tarihi değişince taşınır · panoda resmi çıkış saati esas,
+misafirin yazdığı saat ikincil not · erken giriş panelinde yeni durumlar (bekliyor / host'a) · mülk silme erken giriş
+kuralını da siler. Otomatik erken giriş onayı üretimde hâlâ GİTMEZ (iki anlam bayrağı kapalı).
 
 ## X. Push durumu
 
-(↓)
+`739d83c..128d841` ve `128d841..c743fe8` push edildi; CI yeşil → Railway "Wait for CI" yayını alır. Push öncesi
+kurucu taze prod yedeği aldı (`pg_dump`, SHA256 `1694067D…F93A2E5`). Gerçek model eval'i: 20 satırlık deneme GEÇERLİ
+(istek 20/20 tutuldu, kaçak 0); tam koşu kurucu onayı bekliyor.
