@@ -77,6 +77,39 @@ const MONEY: readonly string[] = [
   "Сделаем 20 процентов.",
   "نقدم لك 20٪.",
   "نقدم 20 في المئة.",
+  // Kanonik biçimler — satır içi HER alternatifin kendi örneği (satır silme mutantı alternatif kaybını göremez):
+  "Erken giriş bizden olsun.",
+  "Geç çıkış yarı fiyatına olur.",
+  "Early check-in is on the house.",
+  "Das wäre zum halben Preis.",
+  "Das geht aufs Haus.",
+  "Nous pouvons faire un geste commercial.",
+  "La nuit serait à moitié prix.",
+  "Le départ tardif vous serait offert à titre gracieux.",
+  "La entrada es de cortesía.",
+  "Sería a mitad de precio.",
+  "Podemos mejorarle el precio.",
+  "Будет за полцены.",
+  "Можем сделать половинную цену.",
+  "Ранний заезд за наш счёт.",
+  "Можем договориться о цене.",
+  "الليلة بنصف السعر.",
+  "الدخول المبكر على حسابنا.",
+  "يمكننا تقديم سعر أفضل.",
+  "Son 1.200 pesos.",
+  "الليلة 300 د.إ.",
+  "تكلفة الليلة ٤٥٠ ر.س.",
+  "The late check-out fee is 45.00 per hour.",
+  "Geç çıkışın ücreti 500.",
+  // Yalnız rakama bitişikken para sayılan birimler (başka kalıbın yakalamadığı biçimler):
+  "That would be 500 TRY.",
+  "It is 5 pounds.",
+  "Es kostet 20 Franken.",
+  "Toplam 100 dolara çıkar.",
+  // Rakamsız para adı (yalnız "kesin" adlar; "dolar" Türkçede fiil olduğu için rakamsız sayılmaz):
+  "Ödeme lira olarak alınır.",
+  "Se paga en dólares.",
+  "Se paga en pesos.",
   // İndirim / muafiyet / pazarlık
   "Size indirim yapabiliriz.",
   "İndirimli fiyat uygulanır.",
@@ -217,6 +250,8 @@ describe("bekçi şeması: tutarlar + fiyat sözü ZORUNLU (eksik / bozuk = bek�
     expect(parseStayGuardVerdict(RAW)).toMatchObject({ replyAmounts: [{ amount: 30, currency: "EUR" }], replyPriceTerms: true });
     expect(parseStayGuardVerdict({ ...RAW, reply_amounts: [{ amount: 500, currency: "lira" }] })?.replyAmounts).toEqual([{ amount: 500, currency: "TRY" }]);
     expect(parseStayGuardVerdict({ ...RAW, reply_amounts: [{ amount: 5, currency: "coins" }] })?.replyAmounts).toEqual([{ amount: 5, currency: null }]);
+    // Sözlükte olmayan ÜÇ HARFLİ ISO kodu aynen korunur (yalnız adlar sözlükten çevrilir).
+    expect(parseStayGuardVerdict({ ...RAW, reply_amounts: [{ amount: 5, currency: "chf" }] })?.replyAmounts).toEqual([{ amount: 5, currency: "CHF" }]);
     expect(parseStayGuardVerdict({ ...RAW, reply_amounts: [{ amount: 5, currency: null }] })?.replyAmounts).toEqual([{ amount: 5, currency: null }]);
   });
   it("🚨 eksik alan, tavan aşımı, sayı olmayan / negatif / sonsuz tutar, dizi olmayan liste → hüküm YOK", () => {

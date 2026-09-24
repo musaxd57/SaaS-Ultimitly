@@ -251,7 +251,9 @@ function parseReplyAmounts(raw: unknown): MoneyAmount[] | null {
   if (!Array.isArray(raw) || raw.length > MAX_REPLY_AMOUNTS) return null;
   const out: MoneyAmount[] = [];
   for (const item of raw) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    // Boş öğe düşer; nesne olmayan öğe (sayı, metin, dizi) `amount` taşımaz → aşağıdaki tutar kontrolü düşürür
+    // (mutasyon turu 09-24: ayrı tip/dizi kontrolü ölü koddu).
+    if (!item) return null;
     const { amount, currency } = item as Record<string, unknown>;
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return null;
     if (currency !== null && typeof currency !== "string") return null;
