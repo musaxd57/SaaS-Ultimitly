@@ -98,21 +98,39 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     }
   }
 
-  const task = await prisma.task.update({
-    where: { id },
-    data: {
-      ...(d.status !== undefined ? { status: d.status } : {}),
-      ...(d.assignedToId !== undefined ? { assignedToId: d.assignedToId || null } : {}),
-      ...(d.title !== undefined ? { title: d.title } : {}),
-      ...(d.description !== undefined ? { description: d.description } : {}),
-      ...(d.priority !== undefined ? { priority: d.priority } : {}),
-      ...(d.dueAt !== undefined ? { dueAt: d.dueAt } : {}),
-      // Checklist tick-off (staff: done-only, rebuilt above; manager: free).
-      ...(checklistWrite !== undefined ? { checklistJson: checklistWrite } : {}),
-    },
-    include: {
-      property: { select: { name: true, address: true, city: true } },
-    },
+  // C-17 (09-24): durum ve geçmiş kaydı TEK işlemde. Ayrı yazımda durum "bitti" olup kayıt düşerse "hazır" kanıtı
+  // eksik kalıyordu (güvenli yön ama tutarsız); tersinde kayıt bir durumu anlatıp görev başka durumda kalabiliyordu.
+  // Satır kilidi (update) iki eşzamanlı güncellemeyi sıralar → son geçmiş kaydı görevin son durumunu anlatır.
+  const task = await prisma.$transaction(async (tx) => {
+    const updated = await tx.task.update({
+      where: { id },
+      data: {
+        ...(d.status !== undefined ? { status: d.status } : {}),
+        ...(d.assignedToId !== undefined ? { assignedToId: d.assignedToId || null } : {}),
+        ...(d.title !== undefined ? { title: d.title } : {}),
+        ...(d.description !== undefined ? { description: d.description } : {}),
+        ...(d.priority !== undefined ? { priority: d.priority } : {}),
+        ...(d.dueAt !== undefined ? { dueAt: d.dueAt } : {}),
+        // Checklist tick-off (staff: done-only, rebuilt above; manager: free).
+        ...(checklistWrite !== undefined ? { checklistJson: checklistWrite } : {}),
+      },
+      include: {
+        property: { select: { name: true, address: true, city: true } },
+      },
+    });
+    // Record an activity update when status / note / photo changes.
+    if (d.status !== undefined || d.note || d.photoUrl) {
+      await tx.taskUpdate.create({
+        data: {
+          taskId: id,
+          userId: session.userId,
+          status: d.status ?? null,
+          note: d.note ?? null,
+          photoUrl: d.photoUrl ?? null,
+        },
+      });
+    }
+    return updated;
   });
 
   // Send email to the newly assigned user. Personele giden e-posta misafir adını / mesajını taşımaz (temizlikçi
@@ -140,19 +158,6 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
         }
       })
       .catch((err) => void reportError("task-assign-mail", err));
-  }
-
-  // Record an activity update when status / note / photo changes.
-  if (d.status !== undefined || d.note || d.photoUrl) {
-    await prisma.taskUpdate.create({
-      data: {
-        taskId: id,
-        userId: session.userId,
-        status: d.status ?? null,
-        note: d.note ?? null,
-        photoUrl: d.photoUrl ?? null,
-      },
-    });
   }
 
   return jsonOk(canManage(session) ? task : staffTaskProjection(task));

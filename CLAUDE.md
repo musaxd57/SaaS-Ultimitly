@@ -211,7 +211,8 @@ Bu dosyaya token/anahtar/parola yazma.
   sıfır-drift doğrula. Migration içeren push = taze `pg_dump` + açık onay.
 - **Dolu tabloya `@unique` / required-no-default / drop EKLEME** (boot'ta patlar). Index + yeni tablo güvenli.
   Büyük tabloya index: `CONCURRENTLY` değerlendir; küçük tabloda düz index (INVALID index riski daha kötü).
-- **Repo PRIVATE** → GitHub Actions ayda 2000 dk (~250 push). CI durursa sebep kota olabilir.
+- **Repo PUBLIC (kurucu 09-24, Actions dakikası 2000'i aştı)** → standart çalıştırıcılar ücretsiz. Private'a dönülürse
+  ayda 2000 dk (push başına ~14 dk); CI durursa sebep kota olabilir. Repoya sır/gerçek veri/işletme adı YAZILMAZ.
 - **Git:** commit author `user.email noreply@anthropic.com` / `user.name Claude`; yedek TAG değil BRANCH
   (`backup/stable-YYYY-MM-DD`); commit mesajında backtick yok → heredoc.
 - **`crypto-core.key()` sırası `ENCRYPTION_KEY || AUTH_SECRET`.** `*-undecryptable` alarmında ÖNCE
@@ -373,6 +374,8 @@ Bu dosyaya token/anahtar/parola yazma.
   de bu alana düşebilir. Resmi çıkıştan SONRAKİ (ya da karşılaştırılamayan) saat istemde "geç çıkış ONAYLANMADI";
   panoda resmi saat esas, misafirinki ikincil not. Hiçbir yüzey `guestCheckoutTime ?? resmi` ile esas saat SEÇMEZ (pin).
   Kayıt kalır: erken girişte yalnız sıkılaştırır.
+- **Görev durumu + geçmiş kaydı TEK işlemde (C-17, `api/tasks/[id]`):** geçmiş yazılamazsa durum da değişmez ("bitti"
+  kanıtsız kalmaz). Görev durumunu değiştiren YENİ yol aynı işlemde `TaskUpdate` yazar.
 - **Yaşam döngüsü görevleri rezervasyon tarihini izler (C-16, `lib/tasks/follow-reservation.ts`):** tarih değişince AÇIK
   SİSTEM görevi, tarihi ESKİ rezervasyon tarihine BİREBİR eşitse aynı TX'te yeni tarihe; host'un taşıdığı / bitmiş /
   elle / mesajdan görev dokunulmaz. Tarih değiştiren YENİ bir yazma yolu eklenirse aynı fonksiyonu çağırır.

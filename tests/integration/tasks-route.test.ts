@@ -64,6 +64,20 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
     session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff", sessionEpoch: 0 };
   };
 
+  it("C-17: durum ve geçmiş kaydı TEK işlemde — geçmiş yazılamazsa durum da DEĞİŞMEZ (\"bitti\" kanıtsız kalmaz)", async () => {
+    // Sahip oturumu ama kullanıcı satırı yok → geçmiş kaydının yabancı anahtarı düşer (yazma arızası kurgusu).
+    session = { userId: "ghost-user", organizationId: orgId, role: "owner", email: "g@x.com", name: "G", sessionEpoch: 0 };
+    const res = await PATCH(patchReq({ status: "done" }), ctx());
+    expect(res.status).toBe(500);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("todo");
+    expect(await prisma.taskUpdate.count({ where: { taskId } })).toBe(0);
+    // KONTROL: gerçek kullanıcıyla ikisi birlikte yazılır.
+    session = { userId: ownerId, organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    expect((await PATCH(patchReq({ status: "done" }), ctx())).status).toBe(200);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("done");
+    expect(await prisma.taskUpdate.count({ where: { taskId, status: "done", userId: ownerId } })).toBe(1);
+  });
+
   it("blocks staff from changing a management field (title) with 403", async () => {
     staffSession();
     const res = await PATCH(patchReq({ title: "Yeni başlık" }), ctx());
