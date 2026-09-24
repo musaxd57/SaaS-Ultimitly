@@ -119,23 +119,29 @@ export async function loadEarlyCheckinRule(organizationId: string, propertyId: s
   }
 }
 
-/** Kuralı yaz (`null` = kaldır). Mülkün sahipliğini ÇAĞIRAN doğrular (rota org kapsamlı 404 döner). */
-export async function saveEarlyCheckinRule(organizationId: string, propertyId: string, rule: EarlyCheckinRule | null): Promise<void> {
+/**
+ * Kuralı yaz (`null` = kaldır). Mülkün sahipliğini ÇAĞIRAN doğrular (rota org kapsamlı 404 döner). Dönüş: yazıldı mı —
+ * kilit alındığında mülk artık yoksa (eşzamanlı silme) HİÇBİR ŞEY yazılmaz, `false` (sahipsiz kural kalmasın).
+ */
+export async function saveEarlyCheckinRule(organizationId: string, propertyId: string, rule: EarlyCheckinRule | null): Promise<boolean> {
   const where = earlyCheckinRuleWhere(organizationId, propertyId);
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     // Eşzamanlı iki kayıt (iki sekme / çift tık) iki satır doğurmasın: mülk satırı kilitlenir, yazımlar sıralanır.
-    await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${propertyId} AND "organizationId" = ${organizationId} FOR UPDATE`;
+    // Mülk silme de ÖNCE bu satırı kilitler (aynı sıra → kilitlenme yok).
+    const locked = await tx.$queryRaw<unknown[]>`SELECT 1 FROM "Property" WHERE "id" = ${propertyId} AND "organizationId" = ${organizationId} FOR UPDATE`;
+    if (locked.length === 0) return false;
     const rows = await tx.automationRule.findMany({ where, orderBy: { updatedAt: "desc" }, select: { id: true } });
     if (!rule) {
       await tx.automationRule.deleteMany({ where });
-      return;
+      return true;
     }
     const data = { actionJson: JSON.stringify(rule), isEnabled: rule.mode !== "off", name: "Erken giriş kuralı" };
     if (rows.length === 0) {
       await tx.automationRule.create({ data: { ...where, ...data } });
-      return;
+      return true;
     }
     await tx.automationRule.update({ where: { id: rows[0].id }, data });
     if (rows.length > 1) await tx.automationRule.deleteMany({ where: { id: { in: rows.slice(1).map((r) => r.id) } } });
+    return true;
   });
 }

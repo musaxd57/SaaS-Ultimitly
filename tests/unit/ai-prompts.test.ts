@@ -163,8 +163,8 @@ describe("buildReplyUserPrompt", () => {
       reservation: { ...input.reservation!, guestCheckoutTime: "09:00" },
     });
     expect(withTime).toMatch(/belirttiği çıkış saati: 09:00/);
-    // Resmi saatten ÖNCEKİ beyan zararsızdır: "onaylanmadı" uyarısı yok (gürültü yok).
-    expect(withTime).not.toMatch(/ONAYLANMADI/);
+    // Resmi saatten ÖNCEKİ beyan zararsızdır: "kayıtlı onay yok" uyarısı yok (gürültü yok).
+    expect(withTime).not.toMatch(/onayı YOK/);
   });
 
   // DİLİM 7a (C-9): "13:00'te çıkabilir miyiz?" gibi bir istek de bu alana düşebilir; istem onu "hatırla, buna göre
@@ -174,7 +174,7 @@ describe("buildReplyUserPrompt", () => {
     const late = buildReplyUserPrompt({ ...input, reservation: { ...input.reservation!, guestCheckoutTime: "13:00" } });
     expect(late).toMatch(/belirttiği çıkış saati: 13:00/);
     expect(late).toMatch(/resmi çıkış saatinden \(11:00\) SONRA/);
-    expect(late).toMatch(/geç çıkış ONAYLANMADI/);
+    expect(late).toMatch(/kayıtlı bir geç çıkış onayı YOK/);
     expect(late).not.toMatch(/buna göre konuş/);
     // Karşılaştırılamayan resmi saat de temkinli okunur (sonra olabilir).
     const unknown = buildReplyUserPrompt({
@@ -182,11 +182,14 @@ describe("buildReplyUserPrompt", () => {
       property: { ...input.property, checkOutTime: "" },
       reservation: { ...input.reservation!, guestCheckoutTime: "13:00" },
     });
-    expect(unknown).toMatch(/geç çıkış ONAYLANMADI/);
+    expect(unknown).toMatch(/kayıtlı bir geç çıkış onayı YOK/);
     expect(unknown).not.toMatch(/buna göre konuş/);
     // Resmi saate EŞİT beyan zararsız.
     const same = buildReplyUserPrompt({ ...input, reservation: { ...input.reservation!, guestCheckoutTime: "11:00" } });
-    expect(same).not.toMatch(/ONAYLANMADI/);
+    expect(same).not.toMatch(/onayı YOK/);
+    // Okunamayan (eski kayıt) saat bir saat değildir: satır hiç yazılmaz — "buna göre konuş" diye sunulmaz.
+    const unreadable = buildReplyUserPrompt({ ...input, reservation: { ...input.reservation!, guestCheckoutTime: "öğlen" } });
+    expect(unreadable).not.toMatch(/belirttiği çıkış saati/);
   });
 
   it("includes a turnover/adjacency block only when adjacency data is given", () => {

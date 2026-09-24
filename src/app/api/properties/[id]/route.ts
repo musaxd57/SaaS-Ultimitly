@@ -111,6 +111,9 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   // Sonuç ADIYLA okunur: dizi biçimli işlemde konumsal okuma (`[, result]`) araya adım eklenince yanlış satırın
   // sayısını okuyordu — kural silme eklenince kuralı OLMAYAN her mülk silinip 404 dönüyordu (09-24, yayın öncesi yakalandı).
   const deleted = await prisma.$transaction(async (tx) => {
+    // Kilit sırası kural kaydıyla AYNI: önce mülk satırı (`saveEarlyCheckinRule` de önce onu kilitler) — ters sıra
+    // eşzamanlı kural kaydı + silmede kilitlenme (deadlock) ya da silinmiş mülke sahipsiz kural bırakabilirdi.
+    await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${id} AND "organizationId" = ${session.organizationId} FOR UPDATE`;
     await tx.messageOutbox.updateMany({
       where: {
         organizationId: session.organizationId,
@@ -123,7 +126,9 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     // Mülkün erken giriş kuralı da gider (FK yok; aynı kimlikle yeniden kullanılmasın, sahipsiz satır kalmasın).
     await tx.automationRule.deleteMany({ where: earlyCheckinRuleWhere(session.organizationId, id) });
     return tx.property.deleteMany({ where: { id, organizationId: session.organizationId } });
-  });
+    // Etkileşimli işlemin varsayılan 5 sn / 2 sn sınırı dizi biçiminde YOKTU: kaskad silme (indekssiz SetNull
+    // kolonları) veri büyüdükçe uzar; kardeş yazma yollarının sınırları (inceleme 09-24).
+  }, { timeout: 60_000, maxWait: 15_000 });
   if (deleted.count === 0) return notFound();
   return jsonOk({ ok: true });
 });

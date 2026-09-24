@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vites
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // DOĞRULANMIŞ ERKEN GİRİŞ — UÇTAN UCA (09-24; DB gerçek, cevap modeli MOCK, anlama katmanı + bekçi sahte fetch).
@@ -398,6 +399,16 @@ describe("kural deposu (migration'sız, `AutomationRule`)", () => {
     expect(await loadEarlyCheckinRule(a.orgId, a.propertyId)).toBeNull();
     await saveEarlyCheckinRule(a.orgId, a.propertyId, null);
     expect(await prisma.automationRule.count()).toBe(0);
+  });
+
+  it("🚨 mülk silinmişse kural YAZILMAZ (sahipsiz kural yok): kayıt 'yazılmadı' döner; var olan mülkte 'yazıldı' (inceleme 09-24)", async () => {
+    const a = await org();
+    expect(await saveEarlyCheckinRule(a.orgId, a.propertyId, RULE)).toBe(true);
+    await prisma.automationRule.deleteMany({ where: earlyCheckinRuleWhere(a.orgId, a.propertyId) });
+    // Eşzamanlı silme kilit sırasında bitmiş gibi: satır gitti, kilit hiçbir satır döndürmez.
+    await prisma.property.delete({ where: { id: a.propertyId } });
+    expect(await saveEarlyCheckinRule(a.orgId, a.propertyId, RULE)).toBe(false);
+    expect(await prisma.automationRule.count({ where: earlyCheckinRuleWhere(a.orgId, a.propertyId) })).toBe(0);
   });
 
   it("🚨 eşzamanlı kayıtlar (iki sekme / çift tık) TEK satır bırakır: mülk satırı kilitlenir, yazımlar sıralanır", async () => {
@@ -937,6 +948,75 @@ describe("PUT/DELETE /api/properties/[id]/early-checkin-rule", () => {
     expect(res.status).toBe(200);
     expect(await prisma.automationRule.count({ where: { organizationId: orgId } })).toBe(1);
     expect(await loadEarlyCheckinRule(orgId, other.id)).not.toBeNull();
+  });
+
+  /** Mülk satırını kilitleyip tutan eşzamanlı işlem; `then` bırakıldıktan sonra, işlem bitmeden (kilit hâlâ elde) koşar. */
+  const holdProperty = (propertyId: string, then: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    let holding!: () => void;
+    const held = new Promise<void>((r) => (holding = r));
+    const done = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${propertyId} FOR UPDATE`;
+        holding();
+        await hold;
+        await then(tx);
+      },
+      { timeout: 15_000 },
+    );
+    return { held, release: () => release(), done };
+  };
+  /** İstek kilitte beklemeye başlayana (ya da bitene) kadar bekle — en fazla ~3 sn. */
+  const untilBlockedOrSettled = async (p: Promise<unknown>) => {
+    let settled = false;
+    void p.finally(() => (settled = true)).catch(() => undefined);
+    for (let i = 0; i < 300 && !settled; i++) {
+      const [{ n }] = await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_locks WHERE NOT granted`;
+      if (n > 0n) return;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  };
+
+  it.each([
+    ["kaydetme", (id: string) => put(id, RULE)],
+    ["kaldırma", (id: string) => del(id)],
+  ])("🚨 kural %s sürerken mülk silinirse HİÇBİR ŞEY yazılmaz, rota 404 döner (sahipsiz kural / sahte denetim yok; inceleme 09-24)", async (_, call) => {
+    const a = await org();
+    // Gerçek kullanıcı: denetim kaydı yazılabilir olsun (sahte kimlikle FK düşer ve "denetim yok" iddiası vakumlu kalırdı).
+    const user = await prisma.user.create({ data: { organizationId: a.orgId, name: "O", email: `o-${++userSeq}@example.com`, passwordHash: "x", role: "owner" } });
+    session = { ...owner(a.orgId), userId: user.id };
+    const deleter = holdProperty(a.propertyId, (tx) => tx.property.delete({ where: { id: a.propertyId } }));
+    await deleter.held;
+    const res = call(a.propertyId);
+    await untilBlockedOrSettled(res);
+    deleter.release();
+    await deleter.done;
+    expect((await res).status).toBe(404);
+    expect(await prisma.automationRule.count({ where: earlyCheckinRuleWhere(a.orgId, a.propertyId) })).toBe(0);
+    expect(await prisma.auditLog.count({ where: { organizationId: a.orgId } })).toBe(0);
+  });
+
+  it("🚨 mülk silme, sürmekte olan kural kaydını BEKLER ve onun satırını da siler — kilit sırası kayıtla aynı (inceleme 09-24)", async () => {
+    // Silme önce mülk satırını kilitlemezse kuralların silinmesi bitmemiş kaydı göremez; mülk silinir, kayıt işini
+    // bitirince sahipsiz bir kural kalır.
+    const a = await org();
+    session = owner(a.orgId);
+    const where = earlyCheckinRuleWhere(a.orgId, a.propertyId);
+    // Sürmekte olan kayıt (`saveEarlyCheckinRule` ile aynı sıra): mülk satırı kilitli, kuralı yazmak üzere.
+    const saving = holdProperty(a.propertyId, (tx) =>
+      tx.automationRule.create({ data: { ...where, actionJson: JSON.stringify(RULE), isEnabled: true, name: "Erken giriş kuralı" } }),
+    );
+    await saving.held;
+    const res = deleteProperty(new NextRequest(`http://localhost/api/properties/${a.propertyId}`, { method: "DELETE" }), {
+      params: Promise.resolve({ id: a.propertyId }),
+    });
+    await untilBlockedOrSettled(res);
+    saving.release();
+    await saving.done;
+    expect((await res).status).toBe(200);
+    expect(await prisma.property.count({ where: { id: a.propertyId } })).toBe(0);
+    expect(await prisma.automationRule.count({ where })).toBe(0);
   });
 
   it("🚨 temizlik/personel rolü ücreti değiştiremez (403); başka kiracının mülkü 404; geçersiz girdi 400 + sade mesaj", async () => {

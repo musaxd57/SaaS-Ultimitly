@@ -20,7 +20,7 @@ export const PUT = withManage<{ id: string }>(async (session, req, { params }) =
   if (!property) return notFound();
   const rule = validateEarlyCheckinRuleInput(await readJsonCappedOrNull(req));
   if (!rule) return badRequest({ _: EARLY_CHECKIN_RULE_ERROR });
-  await saveEarlyCheckinRule(session.organizationId, property.id, rule);
+  if (!(await saveEarlyCheckinRule(session.organizationId, property.id, rule))) return notFound();
   await writeAudit({
     organizationId: session.organizationId,
     actorUserId: auditActor(session),
@@ -34,7 +34,7 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   const { id } = await params;
   const property = await ownProperty(session.organizationId, id);
   if (!property) return notFound();
-  await saveEarlyCheckinRule(session.organizationId, property.id, null);
+  if (!(await saveEarlyCheckinRule(session.organizationId, property.id, null))) return notFound();
   await writeAudit({
     organizationId: session.organizationId,
     actorUserId: auditActor(session),

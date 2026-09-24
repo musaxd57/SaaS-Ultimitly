@@ -90,6 +90,17 @@ describe("yaşam döngüsü görevleri rezervasyon tarihini izler", () => {
       expect(await due(res.id, "cleaning")).toBe(DEP.getTime());
     });
 
+    it("🚨 YENİ giriş = ESKİ çıkış (konaklama ileri kaydı): giriş hazırlığı yeni girişe, temizlik yeni çıkışa — ikisi karışmaz", async () => {
+      // (5→9) ⇒ (9→13): giriş hazırlığı 9'a taşınınca ESKİ çıkış tarihiyle aynı güne düşer; tür filtresi olmasa ikinci
+      // adım (temizlik: eski çıkış = 9) onu da 13'e sürüklerdi (inceleme 09-24).
+      const { orgId, res } = await seeded();
+      const newDep = daysFromNow(13);
+      fake.setReservations("hp-A", [R({ arrivalDate: DEP, departureDate: newDep })]);
+      await syncHospitable(orgId);
+      expect(await due(res.id, "checkin_prep")).toBe(DEP.getTime());
+      expect(await due(res.id, "cleaning")).toBe(newDep.getTime());
+    });
+
     it("giriş günü değişince giriş hazırlığı yeni güne taşınır; kısaltmada temizlik ÖNE çekilir", async () => {
       const { orgId, res } = await seeded();
       const newArr = daysFromNow(6);

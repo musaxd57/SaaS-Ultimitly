@@ -457,7 +457,8 @@ describe("login — hesap kovası kilitleme silahı DEĞİLDİR", () => {
     expect(res.headers.get("Retry-After")).toBeTruthy();
   });
 
-  it("IP limiti KORUNUR (aynı IP'den 11. istek 429)", async () => {
+  // 11 ardışık maliyet-12 bcrypt (~320 ms) tek başına ~3,8 sn — tam koşu yükünde 5 sn'yi aştı (09-24 kapısı); kardeşi gibi 30 sn.
+  it("IP limiti KORUNUR (aynı IP'den 11. istek 429)", { timeout: 30_000 }, async () => {
     for (let i = 0; i < 10; i++) {
       await POST(loginReq({ email: VICTIM, password: `w${i}` }, "7.7.7.7"));
     }

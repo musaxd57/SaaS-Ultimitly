@@ -67,4 +67,14 @@ describe("yüzeyler — misafirin saati hiçbir ekranda esas saat yerine geçmez
     // Anti-vakum: tarama gerçekten dosya okuyor (pano bu kümede).
     expect(files("src/app").some((f) => f.endsWith(join("dashboard", "page.tsx")))).toBe(true);
   });
+
+  it("alanı okuyan HER ekran/rota bilinçli listede — yeni yüzey `guestCheckoutNote`tan geçip buraya eklenir (inceleme 09-24)", () => {
+    // `??` taraması `||`, üçlü ifade ya da yardımcıyla kaçırılabilirdi. Liste: pano (not biçimi) + öneri rotası (isteme
+    // gider; istem satırı `guestCheckoutPromptLine`ta).
+    const ALLOWED = [join("app", "(app)", "dashboard", "page.tsx"), join("app", "api", "conversations", "[id]", "ai-suggest", "route.ts")];
+    const readers = [...files("src/app"), ...files("src/components")]
+      .filter((f) => readFileSync(f, "utf8").includes("guestCheckoutTime"))
+      .map((f) => f.replace(/^src[\\/]/, ""));
+    expect(readers.sort()).toEqual([...ALLOWED].sort());
+  });
 });
