@@ -75,6 +75,13 @@ describe("replayStats", () => {
     expect(replayStats(input).earlyOnly).toMatchObject({ messages: 1, requests: 0 });
   });
 
+  it("konuşmanın mülkü (listede VAR) rezervasyonun mülkünden farklıysa istek sayılmaz (ürün: rezervasyon konuşmanın mülküne ait)", () => {
+    const input = base();
+    input.properties.push({ id: "p2", checkInTime: "15:00", checkOutTime: "11:00" });
+    input.messages = [ask("2026-10-14T06:00:00Z", "own", "p2")];
+    expect(replayStats(input).earlyOnly).toMatchObject({ messages: 1, requests: 0 });
+  });
+
   it("istek = rezervasyon başına İLK soru (takip mesajı yeniden sayılmaz); başka mülkün rezervasyonu sayılmaz", () => {
     const input = base();
     // Sıra karışık: ilk gelen (07:30Z) ne listede ilk ne de son olan (07:00Z) — en ERKEN soru (06:00Z) seçilmeli.
