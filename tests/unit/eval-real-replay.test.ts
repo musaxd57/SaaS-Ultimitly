@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { replayStats, type ReplayCleaning, type ReplayInput } from "@/lib/eval-real/replay-stats";
+import { replayStats, type ReplayCleaning, type ReplayMessage, type ReplayProperty, type ReplayReservation } from "@/lib/eval-real/replay-stats";
 
 // ---------------------------------------------------------------------------
 // GEÇMİŞ MESAJ TARAMASI — SAF SAYIM (09-24). Pinlenen: yalnız SAYI döner (metin/kimlik yok); tür sayımı bir mesajdaki
@@ -14,7 +14,16 @@ const midnight = (k: string) => new Date(`${k}T00:00:00.000Z`);
 const EARLY = "Erken giriş yapabilir miyiz?";
 const OLD = d("2026-10-01T00:00:00Z"); // görevler sorudan çok önce oluşturulmuş
 
-function base(): ReplayInput {
+/** Testte değiştirilebilir girdi (üretim tipi salt okunur dizi ister; değiştirilebilir dizi ona atanabilir). */
+interface MutableInput {
+  timeZone: string;
+  properties: ReplayProperty[];
+  reservations: ReplayReservation[];
+  cleanings: ReplayCleaning[];
+  messages: ReplayMessage[];
+}
+
+function base(): MutableInput {
   return {
     timeZone: TZ,
     properties: [{ id: "p1", checkInTime: "15:00", checkOutTime: "11:00" }],
