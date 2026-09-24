@@ -82,6 +82,29 @@ rezervasyon bağı) ve `TaskUpdate` (durum, not, `photoUrl`, **sunucu zamanı** 
 3. **Otomatik onay:** ev sahibi kuralı (varsayılan KAPALI) + eval + kurucu onayı. İlk sürümde yalnız bugünkü
    varış ve yalnız mülkün izin verdiği en erken saate kadar.
 
-### Açık sorular (kurucu)
-* Temizlikçinin kendi girişi var mı, yoksa ev sahibi mi işaretliyor? (Rol `staff` bugün var; mobil akış sade olmalı.)
-* Ücretli erken giriş (ör. 20 €) teklif metni ile otomatik onay birleşsin mi, yoksa ücret her zaman ev sahibine mi?
+### Kurucu kararları (09-24) + öneri
+Kurucu: *"Temizlikçinin kendi girişi olsun. Ücretli erken giriş mümkün olsun — dediğimiz şartlar geçerli (ör. evin
+erkenden temizlenmesi) — ama para konusuna karışmasın."*
+
+**Temizlikçi girişi — EVET, ama DAR bir rol.** Bugünkü `staff` rolü bir temizlikçi için fazla geniş (panelin çoğunu
+görür). Öneri: ayrı bir "temizlik" rolü (en az yetki):
+* Görür: YALNIZ kendisine atanmış görevler (bugün / yarın), mülk adı + adres, zamanlar ("önceki misafir 11:00'de
+  çıkıyor · sonraki giriş 15:00"), kontrol listesi, "Daire hazır" (iki adım, 5 dk geri alınabilir), isteğe bağlı
+  fotoğraf, "sorun bildir".
+* GÖRMEZ: misafir mesajları, misafirin adı ve iletişim bilgisi, fiyatlar / ödemeler / raporlar, ayarlar, bilgi
+  tabanındaki sırlar (Wi-Fi, kapı kodu hariç — o görev için gerekiyorsa ev sahibi göreve yazar), başka mülklerin
+  görevleri.
+* Telefon için sade tek sayfa; giriş aynı güvenli oturum sistemiyle. Her yeni rota için kiracı + rol davranışsal
+  testi (değişmez 16) ve "temizlik rolü misafir verisine erişemez" pini.
+
+**Ücretli erken giriş — mümkün, para temizlikçiye ve yapay zekâya DOKUNMAZ.**
+* Şartlar (hepsi birden, KODDA): (a) müsaitlik motoru o gün çakışma yok diyor; (b) önceki misafirin çıkışından
+  SONRA atılmış taze "Daire hazır" işareti var; (c) ev sahibinin kuralı açık ve ÜCRETİ ev sahibi kendi yazdı
+  (ör. "13:00'ten itibaren 20 €").
+* Yapay zekâ yalnız ev sahibinin sabit teklif metnini aktarır: pazarlık etmez, tutar hesaplamaz, ödeme almaz,
+  "ödendi" demez. Ödeme platformun kendi yolundan (Airbnb özel teklif / ödeme talebi) ya da ev sahibinin kendi
+  yöntemiyle; kesinleşme ev sahibinin onayıyla (ya da doğrulanmış ödeme kaydıyla). O ana kadar cevap: "Daireniz
+  13:00'ten itibaren hazır olabilir; ücretli erken giriş için ev sahibiniz ödeme adımını iletecek."
+* Temizlikçi ücreti hiç görmez; onun tek girdisi "hazır" işaretidir. Para etkisi raporları ev sahibinde kalır
+  (V2 kuralı: sahte kesinlik yok).
+* Dilim sırası değişmez (↑ 1 → 2 → 3); ücretli erken giriş 3. dilimin (otomatik onay) alt maddesidir ve ayrı onay ister.

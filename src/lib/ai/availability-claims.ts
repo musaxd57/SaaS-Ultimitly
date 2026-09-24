@@ -528,9 +528,9 @@ export interface AvailabilityPolicyOptions {
   /** Cevap modelinin şema beyanı (`SuggestReplyResult.stayChange`); yok = modelin konaklama görüşü YOK (F01). */
   declared?: StayChangeDeclaration | null;
   /**
-   * Cevap modelinin KENDİ niyet etiketi (`SuggestReplyResult.intent`). `early_checkin` / `late_checkout` ZAYIF bir
-   * hassas istek sinyalidir (istem bu etiketi konu SORULARINA da verir): bekçi yokken tutar; bekçi koşup istek
-   * görmediyse tek başına yalnız `enforce` kipinde karar verir (yalnız sıkılaştırır).
+   * Cevap modelinin KENDİ niyet etiketi (`SuggestReplyResult.intent`). `early_checkin` / `late_checkout` hassas
+   * isteğe SAYILIR (birleşim değişmezi 09-24): bekçi ya da beyan "istek yok" dese de silinmez. İstem etiketi konu
+   * SORULARINA da verdiği için bilgi sorusunu da taslağa düşürebilir — bilinçli bedel (yalnız sıkılaştırır).
    */
   replyIntent?: string | null;
   /**

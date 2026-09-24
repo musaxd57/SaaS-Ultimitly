@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { detectAvailabilityClaim, detectAvailabilityRequest, hasAvailabilityDeferral } from "@/lib/ai/availability-claims";
@@ -58,8 +59,31 @@ const SEALED_FILE = path.resolve(__dirname, "../../evals/sealed/stay-change-fina
 // Mühür kısmi (anahtarsız / yalnız yedek) koşuyla YAKILMAZ: içerik ancak tam final koşusunda okunur.
 if (SEALED && !enabled) throw new Error("EVAL_SEALED_FINAL=1 yalnız gerçek model koşusunda (RUN_REAL_EVAL=1 + anahtar).");
 const DATASET = SEALED ? SEALED_FILE : path.resolve(__dirname, "../../evals/stay-change.json");
-const data = JSON.parse(readFileSync(DATASET, "utf8")) as { version: number; requests: ReqItem[]; replies: RepItem[] };
-const SPLITS = SEALED ? ["final"] : ["dev", "holdout"];
+const base = JSON.parse(readFileSync(DATASET, "utf8")) as { version: number; requests: ReqItem[]; replies: RepItem[] };
+
+// GERÇEK SET (B, `docs/EVAL-MUHURLU-FINAL.md`): kurucunun gerçek misafir mesajlarından, anonim, YALNIZ kurucunun
+// makinesinde (depoya girmez). Yalnız mühürlü final koşusunda ve dosyanın SHA-256'sı `SEALS.json`daki
+// "local-only" kaydıyla eşleşirse okunur; rapora METİN girmez (yalnız sayılar ve "r-0001" gibi sıra kimlikleri).
+const REAL_SET = process.env.EVAL_REAL_SET?.trim() ?? "";
+if (REAL_SET && !SEALED) throw new Error("EVAL_REAL_SET yalnız mühürlü final koşusunda okunur (EVAL_SEALED_FINAL=1).");
+function loadRealSet(file: string): { requests: ReqItem[] } {
+  const bytes = readFileSync(path.resolve(file));
+  const seals = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/sealed/SEALS.json"), "utf8")) as Record<
+    string,
+    { sha256?: string; state?: string; location?: string }
+  >;
+  const seal = seals["stay-change-real.json"];
+  if (!seal || seal.location !== "local-only" || seal.state !== "sealed") {
+    throw new Error("gerçek set için mühür kaydı yok (SEALS.json → stay-change-real.json: location local-only, state sealed).");
+  }
+  if (createHash("sha256").update(bytes).digest("hex") !== seal.sha256) throw new Error("gerçek setin SHA-256'sı mühürle eşleşmiyor.");
+  const ds = JSON.parse(bytes.toString("utf8")) as { source?: string; requests?: ReqItem[] };
+  if (ds.source !== "real-anonymized" || !Array.isArray(ds.requests)) throw new Error("gerçek set tanınmadı.");
+  return { requests: ds.requests };
+}
+const real = REAL_SET ? loadRealSet(REAL_SET) : null;
+const data = real ? { ...base, requests: [...base.requests, ...real.requests] } : base;
+const SPLITS = SEALED ? (real ? ["final", "real"] : ["final"]) : ["dev", "holdout"];
 const LIMIT = Number(process.env.EVAL_STAY_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_STAY_LIMIT)) : Infinity;
 const CONCURRENCY = 4;
 
@@ -238,6 +262,12 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       SEALED
         ? "🚨 MÜHÜRLÜ FİNAL KOŞUSU: genelleme ölçüsü bu raporun TAMAMIdır. Koşu bitti → set YANDI (`evals/sealed/SEALS.json` durumu `burned`; sonraki karar için yeni kör set)."
         : "Bu rapordaki `dev` ve `holdout` bölümleri GÖRÜLDÜ (dev: düzeltmelerde; holdout: 09-24 denetimlerinde ölçüldü) — gelişme göstergesidir, son açma kararı yalnız mühürlü final setiyle (`docs/EVAL-MUHURLU-FINAL.md`).",
+      ...(real
+        ? [
+            "",
+            `Gerçek set (B): ${real.requests.length} misafir mesajı (bölüm \`real\`) — kurucunun hesabından, anonim, yalnız yerel; metin bu rapora girmez. Bu koşuyla o da YANDI.`,
+          ]
+        : []),
       "",
     ];
     writeFileSync(path.join(dir, name), [...head, ...lines].join("\n"), "utf8");

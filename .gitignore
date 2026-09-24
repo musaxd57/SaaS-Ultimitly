@@ -41,3 +41,6 @@ yarn-error.log*
 /test-results/
 /playwright-report/
 shots/
+
+# Gerçek misafir mesajlarından eval seti (anonim, YALNIZ yerel; docs/EVAL-MUHURLU-FINAL.md) — ASLA commit edilmez
+/evals/private/

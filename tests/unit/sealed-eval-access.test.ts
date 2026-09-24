@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -83,9 +83,14 @@ describe("mühürlü final eval seti", () => {
   it("bütünlük: her MÜHÜRLÜ dosyanın SHA-256'sı mühür kaydıyla eşleşir (içerik okunmaz, yalnız baytlar)", () => {
     const seals = JSON.parse(readFileSync(path.join(SEALED_DIR, "SEALS.json"), "utf8")) as Record<
       string,
-      { sha256: string; sealedAt: string; author: string; state: "sealed" | "burned" }
+      { sha256: string; sealedAt: string; author: string; state: "sealed" | "burned"; location?: "local-only" }
     >;
-    const sealed = Object.entries(seals).filter(([, s]) => s.state === "sealed");
+    // "local-only" = gerçek misafir mesajlarından set (B): dosya depoya ASLA girmez, SHA'sını harness koşuda doğrular.
+    for (const [name, seal] of Object.entries(seals).filter(([, s]) => s.location === "local-only")) {
+      expect(seal.sha256, name).toMatch(/^[0-9a-f]{64}$/);
+      expect(existsSync(path.join(SEALED_DIR, name)), `${name}: gerçek set depoda OLAMAZ`).toBe(false);
+    }
+    const sealed = Object.entries(seals).filter(([, s]) => s.state === "sealed" && s.location !== "local-only");
     expect(sealed.length).toBeGreaterThan(0); // anti-vakum
     for (const [name, seal] of sealed) {
       expect(seal.sha256, name).toMatch(/^[0-9a-f]{64}$/);
@@ -106,5 +111,22 @@ describe("mühürlü final eval seti", () => {
     expect(src.split("SEALED_FILE").length - 1).toBe(2); // tanım + DATASET seçimi
     // Normal test takımı bayrağı hiçbir koşulda set etmez.
     expect(readFileSync(path.join(REPO, "vitest.config.ts"), "utf8")).not.toContain("EVAL_SEALED_FINAL");
+  });
+});
+
+describe("gerçek misafir mesajı seti (B) — depoya girmez", () => {
+  it(".gitignore evals/private/ dizinini yok sayar ve orada TAKİP EDİLEN dosya yoktur", () => {
+    expect(readFileSync(path.join(REPO, ".gitignore"), "utf8").split(/\r?\n/)).toContain("/evals/private/");
+    // "Takip edilen" yalnız git ile bilinir; git yoksa dosya sistemi taraması kurucunun YEREL (yok sayılan) dosyalarını
+    // da görür → o durumda yalnız .gitignore kuralı (↑) denetlenir.
+    const tracked = trackedFiles();
+    if (tracked) expect(tracked.filter((f) => f.startsWith("evals/private/"))).toEqual([]);
+  });
+
+  it("harness gerçek seti yalnız mühürlü final koşusunda ve mühürle eşleşirse okur", () => {
+    const src = readFileSync(path.join(REPO, "tests/eval/stay-change.eval.test.ts"), "utf8");
+    expect(src).toContain('if (REAL_SET && !SEALED) throw new Error(');
+    expect(src).toContain('seal.location !== "local-only" || seal.state !== "sealed"');
+    expect(src).toContain("!== seal.sha256) throw new Error(");
   });
 });

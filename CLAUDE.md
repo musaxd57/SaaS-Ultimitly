@@ -766,7 +766,14 @@ KREDİSİ BİTTİ (`insufficient_quota`) → kredi yüklenmeden gerçek koşu/em
 GÖRÜLDÜ (ayar + denetim ölçümleri) → açma kararı YALNIZ `evals/sealed/` altındaki kör yazılmış setle. İçerik açılmaz/
 basılmaz/ajana verilmez; harness yalnız `EVAL_SEALED_FINAL=1` + gerçek model koşusunda okur (kısmi koşu hata);
 SHA-256 `SEALS.json` ile pinli, adı yalnız izinli dosyalarda (`sealed-eval-access.test.ts`). Dondurulmuş SHA'da BİR
-kez koşulur, sonra "yandı" (yeni kör set).
+kez koşulur, sonra "yandı" (yeni kör set). 🚨 **SET B — GERÇEK MİSAFİR MESAJLARI (09-24, kurucu: "salt okuma"):**
+`scripts/eval-real-export.ts` kurucunun makinesinde canlı DB'ye bağlanır: tek işlem, İLK komut `SET TRANSACTION READ
+ONLY` + `SHOW transaction_read_only` doğrulaması + yalnız SELECT (mekanik pin `eval-real.test.ts`); anonimleştirir
+(`eval-real/anonymize.ts`; tarih/saat kuralı tek kaynak `semantic/date-time-tokens.ts`), aday süzgeci ürünün
+dedektöründen BAĞIMSIZ; çıktı YALNIZ git'in yok saydığı `evals/private/` (pin). Kör etiket `scripts/eval-real-label.ts`
+(tahmin/katman göstermez). Mühür `SEALS.json` `location: local-only` (dosya depoda OLAMAZ, pin); harness yalnız
+`EVAL_SEALED_FINAL=1` + `EVAL_REAL_SET` + SHA eşleşmesiyle okur, rapora metin girmez. Geliştirici ve ajanlar içeriği
+GÖRMEZ; metin OpenAI dışında hiçbir servise gitmez. Protokol `docs/EVAL-MUHURLU-FINAL.md`.
 
 **KB onay (A1, migration 53 CANLI):** `source`/`reviewState`; eski satırın onayı VARSAYILMAZ (varsayılan `legacy`,
 `approved` yalnız POST'ta açık eylem). Erişim ALLOWLIST `legacy+approved`, TEK kapı `kb-review.ts`; `kb-fetch` AND'ler

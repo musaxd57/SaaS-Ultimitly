@@ -49,8 +49,62 @@ yalnız üçüncü, mühürlü bir setle verilir.
 Koşu GEÇERSİZ çıkarsa (düşen çağrı) set yanmış sayılmaz; aynı dondurulmuş SHA ile yeniden koşulur.
 Sonuca bakıp kodu değiştirip aynı seti yeniden koşmak ise yasaktır: o durumda set yanmıştır.
 
+## Set B — gerçek misafir mesajları (anonim, yalnız yerel) — 09-24
+
+Dış inceleme haklı: A seti sentetik ve yazarı bir dil modeli; tam bağımsız değil. Kurucu: "host hesabımdaki
+mesajları kesinlikle bozmadan, hiçbir değişiklik yapmadan salt okuma ile kullanalım". Final koşusu A + B birlikte.
+
+**Kim ne görür:** mesajları yalnız KURUCU görür, kendi makinesinde. Geliştirici (Claude) ve ajanlar içeriği
+hiç görmez; depoya yalnız mühür (SHA-256 + sayılar) ve final raporunun toplam sayıları girer.
+
+1. **Dışa aktarım (salt okuma):** `npx tsx scripts/eval-real-export.ts --email <giriş e-postası>`.
+   Veritabanı adresi gizli sorulur (ekrana ve komut geçmişine yazılmaz).
+   * Tek işlem, ilk komut `SET TRANSACTION READ ONLY` → PostgreSQL her yazmayı reddeder;
+     `SHOW transaction_read_only` "on" değilse hiçbir veri okunmaz. Betik yalnız SELECT çalıştırır (mekanik pin).
+     Sorgu süresi 60 sn ile sınırlı.
+   * Yalnız misafirin gelen mesaj metni + mülkün standart giriş/çıkış saati okunur. Kimlik, tarih, konuşma ve
+     rezervasyon bilgisi dosyaya girmez; öğe kimliği "r-0001" gibi sıra numarasıdır (canlı veriye geri bağlanamaz).
+   * **Anonimleştirme** (`src/lib/eval-real/anonymize.ts`): misafir / ev sahibi / ekip adları, mülk ve işletme
+     adları, adresler, telefon, e-posta, bağlantı, IBAN, kod ve 4+ haneli sayılar maskelenir. Saat, tarih ve küçük
+     sayılar kalır ("11 gibi", "14 - 16 Ekim", "2 kişi"). Serbest metindeki tanınmayan adlar yakalanamaz → son kapı
+     insan (↓ "x").
+   * **Katmanlı örnek** (tohumlu, tekrarlanabilir): GENİŞ aday katmanı (saat / tarih / konaklama sözcüğü geçen her
+     mesaj, 7 dil) + geri kalandan rastgele. Aday süzgeci ürünün dedektörü DEĞİLDİR ve ondan bağımsızdır (pin):
+     ürünün kelime ağıyla seçmek, kaçırdığı dolaylı istekleri sete hiç sokmazdı. Varsayılan 180 + 120. Katman
+     boyutları dosyaya yazılır (oranlar yeniden ağırlıklanabilir).
+   * Çıktı yalnız git'in yok saydığı `evals/private/` altına (ya da depo dışına) yazılır; aksi hâlde betik durur.
+2. **Kör etiketleme:** `npx tsx scripts/eval-real-label.ts`. Veritabanına bağlanmaz. Her mesaj tek tek gösterilir;
+   model ya da kelime ağı tahmini ve öğenin katmanı GÖSTERİLMEZ. Etiketler eval şemasıyla aynı (0 yok · 1 ek gece ·
+   2 erken giriş · 3 geç çıkış · 4 tarih değişikliği · 5 müsaitlik) + "x" (kişisel bilgi kalmış → sete girmez) +
+   "s" (emin değilim → sete girmez). Kural metni aracın başında (`LABEL_RUBRIC`): bilgi sorusu ("erken giriş
+   ücretli mi?") = 0; erken gelip bavul bırakmak ya da "oda erken hazır olur mu" = 2; çıkıştan sonra eşya bırakmak
+   = 3. Her cevaptan sonra kaydeder; yarıda bırakılıp devam edilebilir.
+3. **Mühür:** `npx tsx scripts/eval-real-label.ts --finalize` → `evals/private/stay-change-real.json` + SHA-256.
+   SHA `SEALS.json`a `"stay-change-real.json": { sha256, sealedAt, author: "kurucu (kör etiket)", items,
+   state: "sealed", location: "local-only" }` olarak eklenir. Dosyanın kendisi depoya ASLA girmez (pin:
+   `local-only` kaydının dosyası depoda olamaz; `evals/private/` takip edilemez).
+4. **Final koşusu:** A ile birlikte, bir kez:
+   `EVAL_SEALED_FINAL=1 EVAL_REAL_SET=evals/private/stay-change-real.json RUN_REAL_EVAL=1 npm run eval -- tests/eval/stay-change.eval.test.ts`.
+   Harness gerçek seti yalnız bu koşuda ve SHA mühürle eşleşirse okur; raporda bölüm `real`, metin YOK. Koşu
+   bitince iki set de yanar.
+5. **Sonra:** yanmış gerçek set silinir (`evals/private/`). Sonraki karar için yeni örnek (yeni tohum) çekilir.
+
+**KVKK / platform notları (kurucu onayıyla):**
+* Amaç yalnız kalite ölçümü; üretim verisi otomatik eğitime GİRMEZ (CLAUDE.md). Veri en aza indirilir (yalnız
+  mesaj metni + standart saat), anonimleştirilir, kurucunun makinesinde kalır.
+* Final koşusunda metinler OpenAI'ye gider. OpenAI canlıda aynı mesajları zaten işleyen alt-işleyendir; yeni bir
+  alıcı eklenmez. Başka hiçbir servise (Claude dahil) gönderilmez.
+* Silme paritesi: canlı veriye geri bağ yok; bir misafir silme isterse ya da set yandığında yerel dosya bütünüyle
+  silinir.
+* Mesajların bir kısmı Airbnb kaynaklıdır (Hospitable üzerinden). Ev sahibinin kendi hizmet kalitesini ölçmek için
+  yerel ve anonim kullanım olarak kurucu onaylar; avukat paketine not düşülür (değişmez 14: platform verisi
+  politikası ayrı).
+
 ## Sınırlar
 
-* Set sentetiktir. Gerçek trafik ölçüsü `kbEvidenceJson.sc` gölge kanıtıdır (canlıda, açmadan önce).
+* A seti sentetiktir; B seti gerçektir ama tek işletmenin (kurucunun) misafirleridir. Gerçek trafik ölçüsü ayrıca
+  `kbEvidenceJson.sc` / `.ir` kanıtıdır (canlıda).
 * Kör yazar bir dil modelidir. Geliştiricinin sistemini görmedi ama aynı model ailesinin yazım alışkanlıklarını
-  taşıyabilir. Gerçek misafir mesajları (anonim, kurucunun elle yazdığı) sonraki setin en iyi kaynağıdır.
+  taşıyabilir — B seti bu yüzden eklendi.
+* B setinin etiketlerini tek kişi (kurucu) verir: etiketleyici tutarlılığı ölçülmez. İkinci bir etiketleyici
+  (ekipten biri) aynı seti bağımsız etiketlerse uyum oranı raporlanabilir (ayrı iş).
