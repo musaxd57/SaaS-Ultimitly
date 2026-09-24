@@ -57,6 +57,27 @@ describe("eşzamanlı vitest (PG 5433 paylaşılıyor)", () => {
     expect(concurrentVitest(PS, [101, 202])).toEqual([]);
     expect(concurrentVitest("  PID ARGS\n  505 node /usr/bin/next dev", [])).toEqual([]);
   });
+
+  it("vitest'i ÇALIŞTIRAN her biçim bulunur (npm betiği, doğrudan giriş dosyası, başlıksız ana süreç)", () => {
+    const run = [
+      "  PID ARGS",
+      "  601 sh -c vitest run",
+      "  602 node /home/u/app/node_modules/vitest/vitest.mjs run tests/unit/a.test.ts",
+      "  603 node (vitest)",
+      "  604 /bin/bash -c source snap.sh && eval 'npx vitest run tests/unit/a.test.ts' < /dev/null",
+    ].join("\n");
+    expect(concurrentVitest(run, []).map((l) => l.split(" ")[0])).toEqual(["601", "602", "603", "604"]);
+  });
+
+  it("🚨 yalnız ADI geçen kabuk vitest DEĞİLDİR (09-24: yapılandırma dosyasını arayan bir grep iki koşuyu durdurdu)", () => {
+    const mention = [
+      "  PID ARGS",
+      `  701 /bin/bash -c source snap.sh && eval 'grep -rn "DATABASE_URL" tests/global-setup.ts vitest.config.* 2>/dev/null' < /dev/null`,
+      `  702 /bin/bash -c eval 'grep -n "vitest" package.json'`,
+      "  703 node /home/u/app/node_modules/vitest-environment-x/index.js",
+    ].join("\n");
+    expect(concurrentVitest(mention, [])).toEqual([]);
+  });
 });
 
 describe("yazma yalnız adanmış worktree İÇİNE", () => {
@@ -87,5 +108,16 @@ describe("koşucu betiği — yapısal sözleşme", () => {
     // M0 kontrol koşusu mutantlardan ÖNCE ve kırmızıysa mutantlara geçilmez.
     expect(src.indexOf("const m0 = runTests")).toBeLessThan(firstWrite);
     expect(src).toContain("exitCode = 2");
+  });
+
+  it("🚨 koşu ORTASINDA eşzamanlı vitest: süreç `finally`den kaçmaz (worktree silinir), yarım sonuç kaydedilir", () => {
+    // 09-24: döngü içindeki `process.exit(5)` `finally`yi atlıyordu → worktree /tmp'de kalıyor, 53 mutantın sonucu
+    // kayboluyordu. Kurulumdan ÖNCEKİ tek kontrol hâlâ doğrudan çıkabilir (henüz kaynak yok).
+    const loop = src.slice(src.indexOf("for (const m of mutants)"), src.indexOf("} catch (err)"));
+    expect(loop.length).toBeGreaterThan(0);
+    expect(loop).not.toContain("process.exit");
+    expect(loop).not.toContain("assertNoConcurrentVitest()"); // çıkan yardımcı döngüde çağrılamaz
+    expect(loop).toContain("exitCode = 5");
+    expect(src).toContain("remaining");
   });
 });

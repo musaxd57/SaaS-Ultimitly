@@ -52,7 +52,13 @@ export function applyMutant(src, oldText, newText) {
  * `ps -eo pid,args` çıktısında KENDİMİZ dışında çalışan bir vitest var mı? Test kurulumu PG 5433'ü her koşuda
  * `stop -m immediate` + `initdb` ile sıfırlar → eşzamanlı koşu diğerinin veritabanını öldürür (ölçüldü: 42–59 sahte
  * kırmızı dosya). Ana süreç `node (vitest …)` görünür; `vitest run` kabukları da sayılır.
+ * Yalnız ÇALIŞTIRMA biçimi sayılır: `vitest` (ya da giriş dosyası `vitest.mjs`) boşluk / parantez / kabuk işareti / yol
+ * ayırıcısından sonra gelir, ardından boşluk / kapanış parantezi / tırnak / satır sonu. Adı yalnız GEÇEN kabuk
+ * (`vitest.config.ts` arayan grep, `"vitest"` deseni, `vitest-…` paketi) vitest değildir — 09-24'te böyle bir grep iki
+ * koşuyu durdurdu.
  */
+const VITEST_INVOCATION = /(?:^|[\s(/;&|])vitest(?:\.mjs)?(?=[\s)'"]|$)/;
+
 export function concurrentVitest(psOutput, selfPids = []) {
   const skip = new Set(selfPids.map(String));
   return String(psOutput)
@@ -64,7 +70,7 @@ export function concurrentVitest(psOutput, selfPids = []) {
       if (!m || skip.has(m[1])) return false;
       const args = m[2];
       if (/\bmutation-run\.mjs\b/.test(args) || /^(?:grep|ps)\b/.test(args)) return false;
-      return /\bvitest\b/.test(args);
+      return VITEST_INVOCATION.test(args);
     });
 }
 

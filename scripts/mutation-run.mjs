@@ -17,7 +17,9 @@
 //  · M0 kontrol koşusu ZORUNLU: mutasyonsuz worktree'de hedef testler yeşil değilse sonuçlar geçersiz (çıkış 2).
 //  · Her mutantın çapası TAM BİR KEZ geçmeli (çıkış 3). Mutant sonrası dosya bayt bayt geri yüklenir, sha doğrulanır.
 //  · 🚨 Test kurulumu PG 5433'ü her koşuda sıfırlar: başka bir vitest çalışırken BAŞLAMAZ ve her mutanttan önce yeniden
-//    bakar (çıkış 5). Worktree dosya yarışını çözer, veritabanı yarışını ÇÖZMEZ — tam suit ile aynı anda koşmayın.
+//    bakar (çıkış 5). Koşu ortasında durursa worktree yine silinir, o ana kadarki sonuçlar ve kalan mutantlar (`remaining`,
+//    `--only` ile sürdürülür) yazılır. Worktree dosya yarışını çözer, veritabanı yarışını ÇÖZMEZ — tam suit ile aynı anda
+//    koşmayın.
 // Çıkış: 0 hepsi öldürüldü · 1 yaşayan var · 2 M0 kırmızı · 3 çapa hatası · 4 kurulum hatası · 5 eşzamanlı vitest.
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -37,13 +39,17 @@ function arg(name) {
 const git = (...a) => execFileSync("git", ["-C", ROOT, ...a], { encoding: "utf8" }).trim();
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
-function assertNoConcurrentVitest() {
+/** Kendimiz dışında çalışan vitest süreçleri (varsa yazdırılır). */
+function concurrentOthers() {
   const ps = spawnSync("ps", ["-eo", "pid,args"], { encoding: "utf8" }).stdout ?? "";
   const others = concurrentVitest(ps, [process.pid, process.ppid]);
-  if (others.length > 0) {
-    console.error(`BAŞKA BİR vitest ÇALIŞIYOR (PG 5433 paylaşılıyor) — koşu durdu:\n${others.join("\n")}`);
-    process.exit(5);
-  }
+  if (others.length > 0) console.error(`BAŞKA BİR vitest ÇALIŞIYOR (PG 5433 paylaşılıyor) — koşu durdu:\n${others.join("\n")}`);
+  return others;
+}
+
+/** Yalnız KURULUMDAN ÖNCE: henüz silinecek worktree yok, doğrudan çıkılabilir. */
+function assertNoConcurrentVitest() {
+  if (concurrentOthers().length > 0) process.exit(5);
 }
 
 // `--bail=1`: ilk kırmızı testte koşu durur — sınıflandırma aynı (kırmızı = öldürüldü), öldürülen mutant tüm listeyi
@@ -103,9 +109,17 @@ try {
     exitCode = 2;
   } else {
     const results = [];
+    const attempted = new Set();
     let anchorError = false;
+    let stopped = false;
     for (const m of mutants) {
-      assertNoConcurrentVitest();
+      // Koşu ortasında: çıkış YOK (`finally` worktree'yi silsin); yarım sonuç + kalan liste yazılır, `--only` ile sürer.
+      if (concurrentOthers().length > 0) {
+        stopped = true;
+        exitCode = 5;
+        break;
+      }
+      attempted.add(m.id);
       const target = resolve(wt, m.file);
       if (!insideDir(wt, target) || !existsSync(target)) {
         console.log(m.id, "HATA: dosya worktree dışında ya da yok", m.file);
@@ -128,10 +142,14 @@ try {
       console.log(m.id, outcome === "killed" ? "öldürüldü" : "YAŞADI");
     }
     const s = summarize(results);
-    console.log(`SONUÇ ${s.killed}/${s.total} öldürüldü${s.survived.length ? ` · yaşayan: ${s.survived.join(", ")}` : ""}`);
+    const remaining = mutants.map((m) => m.id).filter((id) => !attempted.has(id));
+    console.log(
+      `SONUÇ ${s.killed}/${s.total} öldürüldü${s.survived.length ? ` · yaşayan: ${s.survived.join(", ")}` : ""}` +
+        (remaining.length ? ` · YARIM — kalan ${remaining.length}: --only ${remaining.join(",")}` : ""),
+    );
     const out = arg("--json");
-    if (out) writeFileSync(out, JSON.stringify({ sha, results, ...s }, null, 2));
-    exitCode = anchorError ? 3 : s.exitCode;
+    if (out) writeFileSync(out, JSON.stringify({ sha, results, ...s, ...(remaining.length ? { remaining } : {}) }, null, 2));
+    if (!stopped) exitCode = anchorError ? 3 : s.exitCode;
   }
 } catch (err) {
   console.error("kurulum hatası:", err instanceof Error ? err.message : err);
