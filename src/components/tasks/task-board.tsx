@@ -14,6 +14,11 @@ import { cn } from "@/lib/utils";
 export interface TaskCardData {
   id: string;
   title: string;
+  /**
+   * Temizlik listesinde (WhatsApp / kopyala) kullanılan başlık: temizlikçiye gider → misafir adı TAŞIMAZ
+   * (`lib/tasks/staff-view.ts`). Yoksa (eski çağıran) listeye görev türü yazılır, başlık değil.
+   */
+  shareTitle?: string;
   type: string;
   priority: string;
   status: string;
@@ -301,7 +306,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
     (cleaningTasks.length === 0
       ? "(seçili aralıkta temizlik yok)"
       : cleaningTasks
-          .map((t) => "• " + [t.dueLabel, t.propertyName, t.title].filter(Boolean).join(" — "))
+          .map((t) => "• " + [t.dueLabel, t.propertyName, t.shareTitle ?? TASK_TYPE.label(t.type)].filter(Boolean).join(" — "))
           .join("\n"));
   const waLink = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 

@@ -10,11 +10,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
-import { safeJsonParse, cn, daysUntilDate, formatDayInTz } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { zonedDayRange } from "@/lib/automation";
 import { orgTimezone } from "@/lib/timezone";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 import { latestRenderablePhotoByTask } from "@/lib/storage/keys";
+import { taskCardData } from "@/lib/tasks/card-data";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,6 @@ export const dynamic = "force-dynamic";
 // bile eski kayıtları ERİŞİLEMEZ bırakıyordu. "Gizli" demek erişim sağlamaz —
 // sütun sayfalanınca tavan tamamen kalkar ve geçmişin tamamı gezilebilir.
 const DONE_PAGE_SIZE = 50;
-
-type ChecklistItem = { label: string; done: boolean };
 
 export default async function TasksPage({
   searchParams,
@@ -168,27 +167,9 @@ export default async function TasksPage({
   // aynı-kaynak yolu sahibin panosunda `<img src>` olarak TIKSIZ GET üretirdi).
   const latestPhotoByTask = latestRenderablePhotoByTask(photoRows, session.organizationId);
 
-  const cards: TaskCardData[] = tasks.map((t) => {
-    const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
-    // Guard against a stored non-array JSON scalar (e.g. "foo") slipping past
-    // safeJsonParse — .length/.filter on a non-array would 500 the page.
-    const checklist = Array.isArray(parsedChecklist) ? parsedChecklist : [];
-    const latestUpdate = t.updates[0] ?? null;
-    return {
-      id: t.id,
-      title: t.title,
-      type: t.type,
-      priority: t.priority,
-      status: t.status,
-      propertyName: t.property.name,
-      assigneeName: t.assignedTo?.name ?? null,
-      dueLabel: t.dueAt ? formatDayInTz(t.dueAt, TZ) : null,
-      dueDays: t.dueAt ? daysUntilDate(t.dueAt, now, TZ) : null,
-      checklist: checklist.length > 0 ? { items: checklist } : null,
-      latestPhotoUrl: latestPhotoByTask.get(t.id) ?? null,
-      latestNote: latestUpdate?.note ?? null,
-    };
-  });
+  const cards: TaskCardData[] = tasks.map((t) =>
+    taskCardData(t, { canManage, timeZone: TZ, now, latestPhotoUrl: latestPhotoByTask.get(t.id) ?? null }),
+  );
 
   return (
     <>

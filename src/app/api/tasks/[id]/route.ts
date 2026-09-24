@@ -7,6 +7,7 @@ import { reportError } from "@/lib/report-error";
 import { taskAssignedEmail } from "@/lib/email-templates";
 import { enqueueStorageDeletions } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl, isAcceptablePhotoUrl } from "@/lib/storage/keys";
+import { staffTaskProjection } from "@/lib/tasks/staff-view";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -84,11 +85,11 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     }
   }
 
-  let newAssignee: { id: string; name: string; email: string } | null = null;
+  let newAssignee: { id: string; name: string; email: string; role: string } | null = null;
   if (d.assignedToId) {
     const member = await prisma.user.findFirst({
       where: { id: d.assignedToId, organizationId: session.organizationId },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, role: true },
     });
     if (!member) return badRequest({ assignedToId: "Geçersiz personel" });
     // Only notify if the assignee actually changed.
@@ -114,10 +115,12 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     },
   });
 
-  // Send email to the newly assigned user.
+  // Send email to the newly assigned user. Personele giden e-posta misafir adını / mesajını taşımaz (temizlikçi
+  // görünümü; e-posta onun kutusunda, saklama süremizin dışında kalır).
   if (newAssignee) {
+    const emailTask = newAssignee.role === "owner" || newAssignee.role === "manager" ? task : staffTaskProjection(task);
     const html = taskAssignedEmail(
-      task,
+      emailTask,
       { name: newAssignee.name, email: newAssignee.email },
       { name: task.property.name, address: task.property.address, city: task.property.city },
     );
@@ -127,7 +130,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     // ⚠️ Alarm PII TAŞIMAZ: görev başlığı misafir adı taşıyabilir (KVKK süpürge
     // kapsamında) → alarma yalnız görev ID'si girer.
     void emailService
-      .sendReporting(newAssignee.email, `Yeni Görev: ${task.title}`, html)
+      .sendReporting(newAssignee.email, `Yeni Görev: ${emailTask.title}`, html)
       .then((res) => {
         if (!res.ok) {
           void reportError(
@@ -152,7 +155,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     });
   }
 
-  return jsonOk(task);
+  return jsonOk(canManage(session) ? task : staffTaskProjection(task));
 });
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {

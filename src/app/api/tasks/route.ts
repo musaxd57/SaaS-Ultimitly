@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { taskSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, propertyInOrg, canManage, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
+import { staffTaskProjection } from "@/lib/tasks/staff-view";
 
 export const GET = withAuth(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -23,7 +24,8 @@ export const GET = withAuth(async (session, req) => {
     orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
     take: 500, // bound the payload — no pagination yet
   });
-  return jsonOk(tasks);
+  // Personel (temizlikçi) misafir adını / mesajını görmez: başlık + açıklama TEK kuraldan (`tasks/staff-view.ts`).
+  return jsonOk(canManage(session) ? tasks : tasks.map(staffTaskProjection));
 });
 
 export const POST = withManage(async (session, req) => {
