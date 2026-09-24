@@ -363,9 +363,19 @@ Bu dosyaya token/anahtar/parola yazma.
   çıkardığı tutar (`reply_amounts`) host'un kaydında yoksa — kıyas KODDA. Host'un geç çıkış teklif tutarı YALNIZ geç çıkış
   isteğinde izinli (çeviride de); başka isteğe aktarımı para. Para sözlüğü tek kaynak `ai/money-lexicon.ts`; `claim-support`
   kapıya GİRMEZ. Öncelik: iddia → ertelenmemiş istek → para. Hassas olmayan cevapta para kontrolü YOK (genel tutar = P5).
-  Bekçi redakte taslağı TAM göremezse hüküm vermez. **Bilgi sorusu** ("ücretli mi?"; anlama + bekçi koşup "istek yok",
-  tek sinyal konu etiketi, kural `auto` + kayıtlı ücret) → koddan politika metni (`early_checkin_policy`). **Yeniden
-  değerlendirme turunda** yalnız doğrulanmış onay gider (modelin gecikmiş ertelemesi gitmez).
+  Bekçi redakte taslağı TAM göremezse hüküm vermez. Kör holdout (ayarsız): para %74, temiz %97 — kelime dedektörü
+  YEDEK, serbest anlatım bekçinin işi; holdout'a göre AYAR YAPILMAZ (yeni kör set gerekir). **Bilgi sorusu** ("ücretli
+  mi?"; anlama + bekçi koşup "istek yok", tek sinyal konu etiketi, kural `auto` + kayıtlı ücret) → koddan politika metni
+  (`early_checkin_policy`); ek şart `earlyCheckinPolicyAllowed`: modeller mesajların TAMAMINI gördü + mesajda SAAT /
+  başka gün YOK (somut istek); host notu politika metnine EKLENMEZ. **Yeniden değerlendirme turunda** yalnız doğrulanmış
+  onay gider; kilit akışın koşmasına BAĞLI DEĞİL, mesaja bağlı (son mesaj `(createdAt, id)`, tarama ile aynı).
+- **Misafirin yazdığı çıkış saati (`guestCheckoutTime`) BEYANDIR (C-9, tek kural `lib/guest-checkout-time.ts`):** istek
+  de bu alana düşebilir. Resmi çıkıştan SONRAKİ (ya da karşılaştırılamayan) saat istemde "geç çıkış ONAYLANMADI";
+  panoda resmi saat esas, misafirinki ikincil not. Hiçbir yüzey `guestCheckoutTime ?? resmi` ile esas saat SEÇMEZ (pin).
+  Kayıt kalır: erken girişte yalnız sıkılaştırır.
+- **Yaşam döngüsü görevleri rezervasyon tarihini izler (C-16, `lib/tasks/follow-reservation.ts`):** tarih değişince AÇIK
+  SİSTEM görevi, tarihi ESKİ rezervasyon tarihine BİREBİR eşitse aynı TX'te yeni tarihe; host'un taşıdığı / bitmiş /
+  elle / mesajdan görev dokunulmaz. Tarih değiştiren YENİ bir yazma yolu eklenirse aynı fonksiyonu çağırır.
 - 🚨 **TEMİZLİKÇİ GÖRÜNÜMÜ (09-24, `lib/tasks/staff-view.ts` TEK kural):** personel ve temizlik listesi (WhatsApp)
   misafir ADI / MESAJI görmez — sistem görevi → tür adı, yapay zekâ görevi → yalnız "Tür: konu" (rakamsız) + açıklama
   YOK, elle görev → aynen. Uygulandığı yerler: personel görev listesi + güncelleme cevabı, personele atama e-postası,
@@ -951,6 +961,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-24 KANIT MODELİ DİLİMLERİ (8 · 6 · 7a/7b · 4a; hepsi migration'sız, kırmızı-önce + mutasyon + düşmanca inceleme):**
+para (erteleme tutar/indirim söyleyemez) · bilgi sorusuna koddan politika metni + yeniden değerlendirme kilidi ·
+misafirin çıkış saati onay gibi sunulmaz · görev tarihleri rezervasyonu izler. Kör holdout (para): %74 / temiz %97.
+Kalan: temizlikçi davet (kimlik akışı → kurucu onayı), anlama `events[]` + "çıktık" kaydı, varsayılan temizlikçi.
+
 **09-24 DOĞRULANMIŞ ERKEN GİRİŞ TURU:** hassas erken giriş isteği artık doğrulama iş akışını tetikler (önceki çıkış ·
 çakışma · temizlik "bitti" kaydı · host'un en erken saati · host'un ücret kuralı · kapalı/taslak/otomatik); her şey
 doğrulanmışsa KODDAN kurulan onay gider, eksik/çelişki → host'a kontrol listesi + hazır taslak. Mülk sayfasında
