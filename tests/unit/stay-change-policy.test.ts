@@ -468,6 +468,8 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
     ]) {
       expect(vetoAvailability(reply, ask, { stayTimes: STAY }), reply).toBeNull();
     }
+    // Öğleden sonra çıkışlı mülk: dakikalı "1:00" da öğleden sonradır (13:00 = standart).
+    expect(vetoAvailability("You can stay until 1:00 on your departure day.", ask, { stayTimes: { ...STAY, checkOut: "13:00" } })).toBeNull();
     // Standart DIŞI saat izindir; "until 1" öğleden sonradır (kimse gece 1'de çıkmaz).
     for (const reply of ["You can stay until 13:00 on Sunday.", "You can stay until 1 on Sunday.", "You can stay until 12pm.", "Pazar günü 13:00'e kadar kalabilirsiniz."]) {
       expect(vetoAvailability(reply, ask, { stayTimes: STAY }), reply).toBe("availability_claim");
@@ -552,6 +554,7 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
       "20-25 Ekim için müsait misiniz? Taksit imkanı var mı?",
       "Airbnb aracılığıyla 20-22 Ekim için rezervasyon yapabilir miyiz?",
       "Masal gibi bir yer! Cuma gecesi müsait mi?",
+      "Taksitle rezervasyon yapabilir miyiz 14 Ekim için?",
       "Can I book a taxi and is the flat free on the 14th?",
     ]) {
       expect(detectAvailabilityRequest(msg), msg).toBe("availability");

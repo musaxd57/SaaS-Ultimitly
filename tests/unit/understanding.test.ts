@@ -660,6 +660,25 @@ describe("son denetim 09-24 — geri çekilmede taşıma tavanı, parça düzeyi
     expect(r.droppedItems).toBe(base.droppedItems);
   });
 
+  it("🚨 taşıma da tavana sayılır: iki orta boy legacy kalemi birlikte sığmıyorsa ikincisinin yalnız PARÇASI öne gelir", () => {
+    const body = (t: string) => fill(`${t} kullanımı hakkında bilgi: ${t} her gün açıktır ve temizdir.`, 1650);
+    const pad = neutralPadding(40);
+    const a = item("a", "Sauna", body("sauna"), 1);
+    const b = item("b", "Jakuzi", body("jakuzi"), 2);
+    const items = [a, b, ...pad];
+    const r = selectKbForPrompt({ items, guestMessage: "Gibt es hier eine Schwitzkabine?", mode: "hybrid", extraQueries: ["sauna", "jakuzi"].map((text) => ({ text, turkish: true })) });
+    const base = selectKbForPrompt({ items, guestMessage: "Gibt es hier eine Schwitzkabine?", mode: "hybrid" });
+    expect(rc(a) + rc(b)).toBeGreaterThan(3_000); // anti-vakum: ikisi birlikte tavanı aşar
+    expect(r.items[0]).toMatchObject({ id: "a" });
+    expect((r.items[0] as { chunk?: number }).chunk).toBeUndefined(); // ilki bütün olarak taşındı
+    expect(r.items[1]).toMatchObject({ id: "b" });
+    expect((r.items[1] as { chunk?: number }).chunk).toBeTypeOf("number"); // ikincisi yalnız parça
+    expect(rc(r.items[0]) + rc(r.items[1])).toBeLessThanOrEqual(3_000);
+    // İkinci kalemin bütünü legacy yerinde kalır (kırpılmaz).
+    expect(r.items.filter((i) => i.id === "b" && (i as { chunk?: number }).chunk === undefined)).toHaveLength(1);
+    expect(r.droppedItems).toBe(base.droppedItems);
+  });
+
   it("🚨 tekrar sayımı PARÇA düzeyinde: aynı kılavuzun başka bölümünü soran ek sorgu düşürülmez", () => {
     const mid = Array.from({ length: 12 }, (_, i) => `Kural ${i}: ortak alanlarda sessizlik rica edilir ve düzen korunur.`).join(" ");
     const manual = item("manual", "Ev kılavuzu", `Wi-Fi: ağ adı Lale, şifre modemin altındaki etikette yazar. ${mid} Evcil hayvan: küçük köpekler kabul edilir, lütfen tasmalı gezdirin.`, 1);
