@@ -2,11 +2,18 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { detectAvailabilityClaim, detectAvailabilityRequest, hasAvailabilityDeferral } from "@/lib/ai/availability-claims";
+import {
+  detectAvailabilityClaim,
+  detectAvailabilityRequest,
+  detectAvailabilityRequestKinds,
+  hasAvailabilityDeferral,
+} from "@/lib/ai/availability-claims";
+import { explicitTimeMentions, mentionsAnotherDay } from "@/lib/early-checkin/text-checks";
 import { runStayChangeGuard } from "@/lib/ai/semantic/guard";
 import { understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { slotTimesShifted, type StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
 import { writeSidecar } from "./sidecar";
+import { summarizeUnion, unionMetricsLines, type UnionRow } from "./stay-metrics";
 
 // ---------------------------------------------------------------------------
 // KONAKLAMA DEĞİŞİKLİĞİ ANLAM KATMANI — GERÇEK MODEL EVAL'İ (09-24).
@@ -184,6 +191,11 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       const nluReq = new Map<string, Tally>();
       const unionReq = new Map<string, Tally>();
       const guardRep = new Map<string, Tally>();
+      // Karar ölçüleri (dilim 9): bölüm başına birleşim satırları — tehlikeli kaçak · gereksiz inceleme · bilgi sorusu ↔
+      // izin · bilinmiyor · katman gerekliliği (`stay-metrics.ts`, saf; metin taşımaz).
+      const unionRows = new Map<string, UnionRow[]>();
+      // "Başka gün" işareti sabit bir güne göre (eval deterministik): tarih / gün adı / "yarın" metni somut istek sayılır.
+      const EVAL_NOW = new Date("2026-10-14T09:00:00.000Z");
       // Örnek sınırı BÖLÜM BAŞINA: dev önce geldiği için düz `slice` holdout'u hiç ölçmezdi (inceleme 09-24).
       const perSplit = <T extends { split: string }>(xs: T[]) =>
         Number.isFinite(LIMIT) ? SPLITS.flatMap((sp) => xs.filter((x) => x.split === sp).slice(0, LIMIT)) : xs;
@@ -212,6 +224,18 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
           add(nluReq, `${splitKey(r)}|${truth ? "istek" : "none"}|${r.lang}`, said === truth);
           rows.push({ layer: "nlu-req", id: r.id, truth, said, intents: u.value.requests.map((x) => x.intent) });
         }
+        const lexicalKinds = detectAvailabilityRequestKinds(r.text);
+        const bucket = unionRows.get(splitKey(r)) ?? [];
+        bucket.push({
+          kind: r.kind,
+          lexical: detectAvailabilityRequest(r.text) !== null,
+          lexicalKinds,
+          guard: guardSaid,
+          nlu: nluSaid,
+          intents: u.status === "ok" ? u.value.requests.map((x) => x.intent) : [],
+          concrete: explicitTimeMentions(r.text).length > 0 || mentionsAnotherDay([r.text], EVAL_NOW, "Europe/Istanbul"),
+        });
+        unionRows.set(splitKey(r), bucket);
         // BİRLEŞİM (09-24 değişmezi): hiçbir katmanın "istek yok"u başka bir katmanın isteğini silemez → ürünün
         // tutuşu kelime ağı ∨ bekçi ∨ anlama. Yalnız iki model de koştuysa sayılır (düşen çağrı zaten GEÇERSİZ).
         if (guardSaid !== null && nluSaid !== null) {
@@ -253,6 +277,9 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
         "",
       );
       table("Bekçi — cevap duruşu (claim/grant durmalı; erteleme/teklif/tarafsız gitmeli)", guardRep);
+      for (const [sp, rs] of [...unionRows].sort(([a], [b]) => a.localeCompare(b))) {
+        lines.push(...unionMetricsLines(`Karar ölçüleri — ${sp} (cevap modeli beyanı / konu etiketi hariç: alt sınır)`, summarizeUnion(rs)));
+      }
     },
     3_600_000,
   );
