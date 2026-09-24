@@ -77,11 +77,20 @@ describe("replayStats", () => {
 
   it("istek = rezervasyon başına İLK soru (takip mesajı yeniden sayılmaz); başka mülkün rezervasyonu sayılmaz", () => {
     const input = base();
-    input.messages = [ask("2026-10-14T07:00:00Z"), ask("2026-10-14T06:00:00Z"), ask("2026-10-14T06:30:00Z", "own", "p2")];
+    // Sıra karışık: ilk gelen (07:30Z) ne listede ilk ne de son olan (07:00Z) — en ERKEN soru (06:00Z) seçilmeli.
+    input.messages = [ask("2026-10-14T07:30:00Z"), ask("2026-10-14T06:00:00Z"), ask("2026-10-14T07:00:00Z"), ask("2026-10-14T06:30:00Z", "own", "p2")];
     const s = replayStats(input);
-    expect(s.earlyOnly).toMatchObject({ messages: 3, requests: 1, askedOnArrivalDay: 1 });
+    expect(s.earlyOnly).toMatchObject({ messages: 4, requests: 1, askedOnArrivalDay: 1 });
     expect(s.askHourLocal[9]).toBe(1); // ilk soru 06:00Z = 09:00 İstanbul
     expect(s.askHourLocal[10]).toBe(0);
+  });
+
+  it("mesaj ANI mülk diliminde güne çevrilir (tam 00:00Z anı 'yalnız tarih' sayılmaz — inceleme 09-24)", () => {
+    const input = base();
+    input.timeZone = "America/New_York";
+    // 14 Ekim 00:00:00.000Z = New York'ta 13 Ekim 20:00 → varıştan ÖNCEKİ gün.
+    input.messages = [ask("2026-10-14T00:00:00.000Z")];
+    expect(replayStats(input).earlyOnly).toMatchObject({ requests: 1, askedBeforeArrivalDay: 1, askedOnArrivalDay: 0 });
   });
 
   it("varış gününden önce / varış günü / sonra (ayrı rezervasyonlar)", () => {
