@@ -16,7 +16,12 @@ yalnız üçüncü, mühürlü bir setle verilir.
 
 * Dosya: `evals/sealed/stay-change-final.json` (şema `evals/stay-change.json` ile aynı, bölüm `final`).
 * Yazar: **kör ajan.** Depodaki hiçbir dosyayı (kod, istem, eval setleri, belgeler) okumadan, yalnız kendi
-  bilgisiyle yazdı. Geliştiriciye içerik değil, yalnız sayılar, boyut ve SHA-256 raporlandı.
+  bilgisiyle yazdı. Geliştiriciye içerik değil, yalnız sayılar, boyut ve SHA-256 raporlandı; ajanın taslak
+  kopyaları okunmadan silindi. **Dürüst sınır:** oturum başında CLAUDE.md (genel kurallar, ör. konaklama değişikliği
+  politikasının özeti) ajanın bağlamına otomatik yüklendi — kodu görmedi ama kuralları biliyordu.
+* İlk mühür (09-24): 180 istek (none 63 · early 26 · late 26 · extend 22 · availability 22 · date_change 21) +
+  180 cevap (grant 45 · deferral 36 · neutral 36 · claim 22 · refusal 22 · offer 19); diller tr/en ağırlıklı,
+  de/fr/es/ru/ar ~%6'şar. SHA-256 `SEALS.json`da.
 * Mühür: `evals/sealed/SEALS.json` dosyanın SHA-256'sını, tarihini, yazarını ve durumunu tutar.
 
 ## Kurallar (mekanik pinli: `tests/unit/sealed-eval-access.test.ts`)

@@ -304,8 +304,10 @@ Bu dosyaya token/anahtar/parola yazma.
   varsayılan ZORLANIR) · bağımsız bekçi (`semantic/guard.ts`, `AI_STAY_GUARD_ENABLED`) · anlama katmanı
   (`semantic/understand.ts`, `AI_UNDERSTANDING_ENABLED`). Model saati ÇIKARIR, kıyas KODDA (`slotTimesShifted`).
   🚨 **BELİRSİZLİK GÜVENLİ DEĞİLDİR (kurucu değişmezi 09-24):** HASSAS İSTEK (herhangi bir katman; cevap modelinin
-  niyet etiketi `early_checkin`/`late_checkout` dahil) + bekçi YOK (bayrak kapalı = düşmüş = aynı) ya da beyan
-  YOK/tanınmıyor/etiketle ÇELİŞİYOR → otomatik gönderim YOK, her kipte, devirde de. Kelime ağı yalnız ENGELLER:
+  niyet etiketi ZAYIF sinyal: istem onu konu sorularına da verir) + bekçi YOK (bayrak kapalı = düşmüş = aynı) ya da
+  beyan YOK/tanınmıyor → otomatik gönderim YOK, her kipte, devirde de. Bekçi koşunca GÜÇLÜ sinyaller (beyan, anlama
+  katmanı, bekçi, kelime ağı) her kipte iki model ertelemesi ister, DEVİR cevabı dahil; `AI_STAY_POLICY` yalnız
+  etiketin tek başına tutmasını yönetir. Tanınmayan duruş her zaman iddia. Kelime ağı yalnız ENGELLER:
   sessizliği de erteleme cümlesi de izin DEĞİL (erteleme = YALNIZ güvenilir `defers` beyanı + koşmuş bekçi). Hassas
   istek yoksa (bilgi sorusu) bekçisiz de gider — her arızada her mesaj durmaz. Yedek (şablon) cevapta "duruş
   bilinmiyor" kuralı yok. "kaydedildi" tek başına ve "ev sahibi onaylar" (kestirim) erteleme DEĞİL; erteleme
@@ -759,6 +761,11 @@ EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ (beklenen/tamamlanan/geçersiz ayrı). LLM
 parse edilmez, `EVAL_COMPARE_YES=1` ücretli kapı); gölge katmanı yalnız GÜVENLİK sınıflandırmasını kıyaslar, cevap
 kalitesi bu harness'la ölçülür. Son gerçek koşu 09-11 (`docs/EVAL-CALISTIRMA.md`). 🚨 09-23: bu ortamdaki anahtarın
 KREDİSİ BİTTİ (`insufficient_quota`) → kredi yüklenmeden gerçek koşu/embedding ölçümü YOK.
+🚨 **MÜHÜRLÜ FİNAL SETİ (09-24, `docs/EVAL-MUHURLU-FINAL.md`):** konaklama eval'inin `dev` + `holdout` bölümleri
+GÖRÜLDÜ (ayar + denetim ölçümleri) → açma kararı YALNIZ `evals/sealed/` altındaki kör yazılmış setle. İçerik açılmaz/
+basılmaz/ajana verilmez; harness yalnız `EVAL_SEALED_FINAL=1` + gerçek model koşusunda okur (kısmi koşu hata);
+SHA-256 `SEALS.json` ile pinli, adı yalnız izinli dosyalarda (`sealed-eval-access.test.ts`). Dondurulmuş SHA'da BİR
+kez koşulur, sonra "yandı" (yeni kör set).
 
 **KB onay (A1, migration 53 CANLI):** `source`/`reviewState`; eski satırın onayı VARSAYILMAZ (varsayılan `legacy`,
 `approved` yalnız POST'ta açık eylem). Erişim ALLOWLIST `legacy+approved`, TEK kapı `kb-review.ts`; `kb-fetch` AND'ler
@@ -831,9 +838,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 ## Çalışma dersleri (turlardan damıtıldı — gerekçeler arşivde)
 - 🚨 **Yıkıcı bir betik "denemek" için ASLA çalıştırılmaz** — koruma SAF karar fonksiyonuyla sınanır (09-23:
   `env:recover` denemesi commit edilmemiş ~30 dosyayı sildi). Uzun iş arasında yerel commit/yama yedeği.
-- **Mutasyon turu YALNIZ TEMİZ AĞAÇTA** (harness `git checkout`/sha geri yüklemesi commit edilmemiş işi siler);
-  M0 kontrol koşusu her turda ZORUNLU (kırmızı kontrolle sonuçlar geçersiz). Hayatta kalan mutant = eksik pin
-  ya da ÖLÜ KOD — ikisinden biri düzeltilir.
+- 🚨 **Mutasyon YALNIZ `scripts/mutation-run.mjs` ile** (09-24, dış inceleme: eski betikler ANA ağaçtaki dosyayı
+  değiştiriyordu → yazılan kodla yarış): commit edilmiş SHA'nın ayrık worktree'si, ana ağaca hiç yazmaz, çapa tam
+  1, sha ile geri yükleme. M0 kontrol koşusu ZORUNLU. Worktree DOSYA yarışını çözer, PG 5433 yarışını ÇÖZMEZ → tam
+  suit ile aynı anda koşmaz (koşucu başka vitest görünce durur). Hayatta kalan mutant = eksik pin ya da ÖLÜ KOD
+  (ya da gerekçesi yazılı EŞDEĞER mutant) — biri düzeltilir.
 - **"Yüklem var, argüman yok"** sınıfı: saf fonksiyon doğru ama çağıran ona girdiyi vermiyor → bağlantı
   DAVRANIŞSAL test ister (QR `history_injection`, `suggestReply` alanı, önizleme `reply`).
 - **Bir yüzeyi kapatırken RENDER'ı değil VERİNİN ÜRETİLDİĞİ yeri kapat**; bir kartı kaldırırken içindeki her
@@ -893,6 +902,13 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-24 BELİRSİZLİK TURU (kurucu + dış inceleme):** hassas konaklama isteği + bekçi yok/düştü ya da beyan yok/
+tanınmıyor/niyet etiketiyle çelişiyor → otomatik gönderim YOK (bekçi açılana kadar erken giriş/geç çıkış/uzatma
+isteklerine otomatik cevap gitmez, taslak host'a; bilgi soruları gider). Anlama katmanının risk niyeti enforce'ta
+acil e-posta. Mutasyon koşucusu worktree'de (20 mutant, 18 öldü, 1 ölü kod silindi, 1 eşdeğer). Mühürlü final eval
+seti. Deneme bandı: Ayarlar içinde sekme geçişi düzeldi, bant 4 saat kapatılabilir. Tasarım: çoklu istek + bilgi/
+izin + tarih yuvaları + temizlikçi "hazır" tiki (`docs/TASARIM-2026-09-24-coklu-istek-ve-temizlik-hazir.md`).
+
 **09-24 ANLAM KATMANI TURU (kurucu: Gemini eleştirisi — "kalıp genişletmek aşırı uyum; şema tabanlı niyet
 çıkarıcı + sorgu yeniden yazma + LLM'lerle yap").** Migration'sız. Müsaitlik vetosunun kelime ağı kör bataryada
 ölçüldü ve DONDURULDU (yalnız yedek); karar dört katmanlı anlam katmanı (↑AI güvenlik mimarisi). Cevap JSON'una
