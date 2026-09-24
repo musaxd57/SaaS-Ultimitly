@@ -57,7 +57,7 @@ import { sendOnChannel } from "@/lib/messaging";
 import { applyChannelAutoReply } from "@/lib/automation";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
-import { autoEarlyCheckinPropertyIds, loadEarlyCheckinRule, saveEarlyCheckinRule, EARLY_CHECKIN_TRIGGER } from "@/lib/early-checkin/rules";
+import { autoEarlyCheckinPropertyIds, earlyCheckinRuleWhere, loadEarlyCheckinRule, saveEarlyCheckinRule, EARLY_CHECKIN_TRIGGER } from "@/lib/early-checkin/rules";
 import { earlyCheckinRuleHash } from "@/lib/early-checkin/workflow";
 import { decideEarlyCheckin } from "@/lib/early-checkin/core";
 import type { EarlyCheckinRule } from "@/lib/early-checkin/core";
@@ -405,6 +405,44 @@ describe("kural deposu (migration'sız, `AutomationRule`)", () => {
     await Promise.all(Array.from({ length: 6 }, (_, i) => saveEarlyCheckinRule(a.orgId, a.propertyId, { ...RULE, earliest: `1${i}:00` })));
     expect(await prisma.automationRule.count({ where: { organizationId: a.orgId, triggerType: EARLY_CHECKIN_TRIGGER } })).toBe(1);
     expect((await loadEarlyCheckinRule(a.orgId, a.propertyId))?.earliest).toMatch(/^1[0-5]:00$/);
+  });
+
+  it("🚨 kilit DETERMİNİSTİK: başka bir yazıcı mülk satırını tutarken kayıt BEKLER, onun satırını görüp günceller", async () => {
+    // Yukarıdaki Promise.all yarışı şansa bağlı (mutasyon turu 09-24: kilidi silen mutant ondan sağ çıktı). Burada eşzamanlı
+    // yazıcı kilidi ELİNDE tutup satırını eklemiş ama henüz bitirmemiş: kilit varsa kayıt bekler ve bittikten sonra o satırı
+    // günceller (tek satır); kilit yoksa kayıt onun bitmemiş satırını göremez ve ikinci satırı yaratır.
+    const a = await org();
+    const where = earlyCheckinRuleWhere(a.orgId, a.propertyId);
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    let holding!: () => void;
+    const held = new Promise<void>((r) => (holding = r));
+    const writer = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${a.propertyId} FOR UPDATE`;
+        await tx.automationRule.create({ data: { ...where, actionJson: JSON.stringify(RULE), isEnabled: true, name: "Erken giriş kuralı" } });
+        holding();
+        await hold;
+      },
+      { timeout: 15_000 },
+    );
+    await held;
+    let settled = false;
+    const save = saveEarlyCheckinRule(a.orgId, a.propertyId, { ...RULE, earliest: "11:00" }).finally(() => {
+      settled = true;
+    });
+    // Kayıt ya bitti (kilit yok) ya da kilitte bekliyor: ikisinden biri görülene kadar (en fazla ~3 sn) bekle.
+    for (let i = 0; i < 300 && !settled; i++) {
+      const [{ n }] = await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_locks WHERE NOT granted`;
+      if (n > 0n) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    release();
+    await writer;
+    await save;
+    const rows = await prisma.automationRule.findMany({ where });
+    expect(rows).toHaveLength(1);
+    expect((await loadEarlyCheckinRule(a.orgId, a.propertyId))?.earliest).toBe("11:00");
   });
 
   it("yeniden değerlendirme yalnız OTOMATİK kurallı mülkleri depodan okur: taslak, kapalı, bozuk ve başka kiracınınki yok", async () => {

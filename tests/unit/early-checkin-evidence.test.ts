@@ -554,6 +554,10 @@ describe("karar kaydı dayanakları — hangi devir, hangi 'hazır' kaydı, hang
       n: "2",
     });
     expect(earlyCheckinEvidenceOf(run({ ...FACTS, departureConfirmed: true }), false)).toMatchObject({ dc: "1", a: "0" });
+    // Saat kaç modelden okundu: gerçek sayı yazılır (tek kaynak = otomatik onay yok, kayıtta görünür); 2'de kırpılır.
+    const sourcesOf = (sources: number) =>
+      earlyCheckinEvidenceOf(run({ ...FACTS, requested: { ...FACTS.requested, sources } }), false).n;
+    expect([sourcesOf(0), sourcesOf(1), sourcesOf(2), sourcesOf(3)]).toEqual(["0", "1", "2", "2"]);
     // Dayanak yoksa alan yok (uydurma kimlik yazılmaz).
     const bare = earlyCheckinEvidenceOf({ ...run(), trace: { referenceId: null, readyMarkId: null, readyAt: null, ruleHash: null } }, false);
     expect(Object.keys(bare).sort()).toEqual(["a", "f", "n", "s"]);
