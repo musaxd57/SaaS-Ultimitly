@@ -6,6 +6,7 @@ import { guardSeesWholeReply, runStayChangeGuard } from "@/lib/ai/semantic/guard
 import { autoReplyGateFailure, availabilityPolicyFor } from "@/lib/automation";
 import { evaluateEscalation, ESCALATION_REASONS } from "@/lib/guest-chat-gate";
 import { buildKbEvidence } from "@/lib/ai/grounding";
+import { sameMoney } from "@/lib/ai/money-lexicon";
 
 // ---------------------------------------------------------------------------
 // PARA (dilim 8, kurucu senaryo 16-17: "onay + model ücret uydurdu / indirim pazarlığı yaptı → engel").
@@ -180,6 +181,13 @@ describe("para dedektörü (deterministik, yalnız sıkılaştırır)", () => {
     expect(moneyAmountsOf("It is 29,90 €.")).toEqual([{ amount: 29.9, currency: "EUR" }]);
   });
 
+  it("tutar eşitliği: birim bilinmeli ve aynı olmalı; kuruş yazımı farkı tolere edilir, 50 kuruş fark edilmez", () => {
+    expect(sameMoney({ amount: 29.9, currency: "EUR" }, { amount: 29.9, currency: "EUR" })).toBe(true);
+    expect(sameMoney({ amount: 20, currency: "EUR" }, { amount: 20.5, currency: "EUR" })).toBe(false);
+    expect(sameMoney({ amount: 20, currency: "EUR" }, { amount: 20, currency: "TRY" })).toBe(false);
+    expect(sameMoney({ amount: 20, currency: null }, { amount: 20, currency: null })).toBe(false);
+  });
+
   it("🚨 izinli tutar ÇIKARILIR, kalan para sinyali sayılır: aynı tutar + birim geçer; başka tutar / birim / yüzde / indirim geçmez", () => {
     const allowed = [{ amount: 20, currency: "EUR" }];
     expect(hasUnallowedMoney("Il est possible de partir à 13h pour 20 €.", allowed)).toBe(false); // çeviri, aynı tutar
@@ -307,6 +315,25 @@ describe("politika: hassas istekte ERTELEYEN cevap para taşıyamaz", () => {
       expect(evaluateAvailability(words, ask, late({ guard: lateGuard({ replyAmounts: [{ amount: 25, currency: "EUR" }] }) })).reason).toBe("price_claim");
     });
 
+    it("teklifin KENDİ sözü (\"ücretsiz\") aynen aktarımda muaf; tutar paritesi tek başına bunu kurtarmaz", () => {
+      const freeOffer = "Late checkout until 12:00 is free; until 14:00 it is 20 EUR.";
+      const relay = `Your host's standing offer: ${freeOffer} Whether it works that day is your host's decision.`;
+      expect(evaluateAvailability(relay, ask, late({ hostOfferText: freeOffer })).reason).toBeNull();
+    });
+
+    it("🚨 istek türlerinin HEPSİ geç çıkış olmalı: karışık tür (geç çıkış + erken giriş) ya da türü olmayan hassas istek → teklif tutarı izinli değil", () => {
+      const relay = `Your host's standing offer: ${offer} Whether it works that day is your host's decision.`;
+      expect(evaluateAvailability(relay, ask, late({ replyIntent: "early_checkin" })).reason).toBe("price_claim");
+      // Türsüz hassas istek (bekçi yalnız "ret" gördü): boş kümede "hepsi geç çıkış" boş doğru OLMAMALI.
+      const kindless = {
+        declared: { asked: "none", stance: "defers" } as const,
+        guard: { status: "ok" as const, verdict: verdict({ replyRefuses: true, replyDefersToHost: true }) },
+        stayTimes: STAY,
+        hostOfferText: offer,
+      };
+      expect(evaluateAvailability(relay, ["hmm"], kindless).reason).toBe("price_claim");
+    });
+
     it("🚨 teklif BAŞKA bir isteğe aktarılırsa (erken giriş, ek gece) tutarı izinli değildir — aynen aktarılsa da", () => {
       const relay = `Your host's standing offer: ${offer} Whether anything else is possible is your host's decision.`;
       expect(evaluateAvailability(relay, ASK, opts({ hostOfferText: offer })).reason).toBe("price_claim");
@@ -362,6 +389,9 @@ describe("bekçi taslağın TAMAMINI görmeli (inceleme 09-24)", () => {
     expect(reply.length).toBeLessThanOrEqual(2000);
     expect(guardSeesWholeReply({ reply, names: [name] })).toBe(false);
     expect(guardSeesWholeReply({ reply: "Thanks! I'll check with the host.", names: [name] })).toBe(true);
+    // Sınır: tavana TAM eşit taslak sığar (bir fazlası sığmaz).
+    expect(guardSeesWholeReply({ reply: "x".repeat(2000), names: [] })).toBe(true);
+    expect(guardSeesWholeReply({ reply: "x".repeat(2001), names: [] })).toBe(false);
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     const fetchImpl = vi.fn();
