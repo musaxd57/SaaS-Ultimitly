@@ -12,7 +12,7 @@ import type { SessionPayload } from "@/lib/auth";
 //  · son GİDEN mesajdan sonraki TÜM cevapsız misafir mesajları (öndeki uzatma isteği sondaki wifi
 //    sorusunun arkasına saklanamaz), cevaplanmış eski istek DEĞİL;
 //  · modelin şema beyanı (`stayChange`);
-//  · anlama katmanının sinyali (bayrak açıkken; `enforce` kipinde karar verir).
+//  · anlama katmanının sinyali (bayrak açıkken karar verir; gölge kip yok).
 // Cevap modeli MOCK; DB gerçek.
 // ---------------------------------------------------------------------------
 

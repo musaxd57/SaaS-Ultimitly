@@ -2,7 +2,7 @@ import "server-only";
 
 import { redactSensitive } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
-import { isDateOrTimeToken, isProtectedNumericRun, NUMERIC_RUN } from "./date-time-tokens";
+import { isDateOrTimeToken, isProtectedNumericRun, NUMERIC_RUN_SOURCE } from "./date-time-tokens";
 
 // Testler ve eski çağıranlar için aynı adlarla (tek kaynak `date-time-tokens.ts`).
 export { isDateOrTimeToken, isProtectedNumericRun };
@@ -33,7 +33,7 @@ const PLACEHOLDER_RE = new RegExp(`${MARK}KEEP(\\d+)${MARK}`, "g");
 
 export function redactForSemanticModel(text: string, names: readonly string[]): string {
   const kept: string[] = [];
-  const masked = redactNameFromBody(text.replace(MARK_RE, ""), [...names]).replace(NUMERIC_RUN, (run) => {
+  const masked = redactNameFromBody(text.replace(MARK_RE, ""), [...names]).replace(new RegExp(NUMERIC_RUN_SOURCE, "g"), (run) => {
     if (!isProtectedNumericRun(run)) return run;
     kept.push(run);
     return `${MARK}KEEP${kept.length - 1}${MARK}`;

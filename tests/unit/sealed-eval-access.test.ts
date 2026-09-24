@@ -123,6 +123,16 @@ describe("gerçek misafir mesajı seti (B) — depoya girmez", () => {
     if (tracked) expect(tracked.filter((f) => f.startsWith("evals/private/"))).toEqual([]);
   });
 
+  it("🚨 harness mühürlü A setini yalnız SHA + 'sealed' durumu eşleşirse koşar; mühürlü koşuda örnek sınırı YASAK (inceleme 09-24)", () => {
+    const src = readFileSync(path.join(REPO, "tests/eval/stay-change.eval.test.ts"), "utf8");
+    const state = src.indexOf('if (!seal || seal.state !== "sealed") throw new Error(');
+    const sha = src.indexOf('if (createHash("sha256").update(datasetBytes).digest("hex") !== seal.sha256) throw new Error(');
+    const limit = src.indexOf("if (process.env.EVAL_STAY_LIMIT) throw new Error(");
+    const parse = src.indexOf('const base = JSON.parse(datasetBytes.toString("utf8"))');
+    for (const [name, at] of Object.entries({ state, sha, limit, parse })) expect(at, name).toBeGreaterThan(-1);
+    expect(Math.max(state, sha, limit)).toBeLessThan(parse); // denetimler içerik ayrıştırılmadan ÖNCE
+  });
+
   it("harness gerçek seti yalnız mühürlü final koşusunda ve mühürle eşleşirse okur", () => {
     const src = readFileSync(path.join(REPO, "tests/eval/stay-change.eval.test.ts"), "utf8");
     expect(src).toContain('if (REAL_SET && !SEALED) throw new Error(');

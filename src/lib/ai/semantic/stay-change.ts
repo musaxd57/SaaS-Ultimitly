@@ -41,7 +41,8 @@ export type ReplyStance = (typeof REPLY_STANCES)[number];
 
 /**
  * Cevap modelinin konaklama değişikliği adlandıran NİYET etiketleri (`ai/index.ts` KNOWN_INTENTS alt kümesi).
- * Beyandan AYRI bir çıktı alanıdır: ikisi çelişirse beyanın duruşu güvenilmez sayılır (`evaluateAvailability`).
+ * Beyandan AYRI bir çıktı alanıdır; hassas istek BİRLEŞİMİNE sayılır (beyan "istek yok" dese de silinmez —
+ * `evaluateAvailability`, birleşim değişmezi 09-24). Çelişki beyanın duruşunu "iddia" yapmaz (P2-2).
  */
 export const STAY_REPLY_INTENTS = ["early_checkin", "late_checkout"] as const;
 export type StayReplyIntent = (typeof STAY_REPLY_INTENTS)[number];
@@ -235,7 +236,4 @@ export interface UnderstandingStaySignal {
   checkinTime: string | null;
   checkoutTime: string | null;
 }
-
-// ─── politika kipi ──────────────────────────────────────────────────────────
-
 

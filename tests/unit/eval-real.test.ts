@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ANON, anonymizeGuestText, nameVariants } from "@/lib/eval-real/anonymize";
 import { dedupeKey, guessLanguage, isStayCandidate, seededRandom, stratifiedSample } from "@/lib/eval-real/sampling";
 import {
   applyLabelAction,
+  bindLabelFile,
   buildRealDataset,
   guardedOutputPath,
   LABEL_KEYS,
@@ -27,6 +29,7 @@ const REPO = path.resolve(__dirname, "../..");
 const CTX = {
   personNames: ["Ayşe Yılmaz", "Can Demir", "Mehmet Kaya"],
   placeNames: ["Lale Suites", "Papatya Evleri", "Kordon Caddesi No 5"],
+  nowYear: 2026,
 };
 
 describe("anonimleştirme — anlam kalır, kişi/yer gider", () => {
@@ -57,7 +60,48 @@ describe("anonimleştirme — anlam kalır, kişi/yer gider", () => {
     expect(anonymizeGuestText("Kordon Caddesi No 5 doğru adres mi?", CTX)).toBe(`${ANON.place} doğru adres mi?`);
     // "Suites" yaygın sözcük: tek başına kalır (cümleyi bozmamak için).
     expect(anonymizeGuestText("Are the suites quiet?", CTX)).toBe("Are the suites quiet?");
-    expect(nameVariants(["Can Demir"])).not.toContain("Can");
+    expect(nameVariants(["Can Demir"]).anywhere).not.toContain("Can");
+    expect(nameVariants(["Can Demir"]).namePosition).toContain("Can");
+  });
+
+  it("🚨 inceleme 09-24: saat ve süre biçimleri KOD sayılmaz (FR/DE/EN/TR zaman istekleri korunur)", () => {
+    for (const t of ["arriver à 13h30 au lieu de 16h00", "um 11Uhr", "extend 2nights", "1gece daha kalabilir miyiz", "We land 8am", "3pax"]) {
+      expect(anonymizeGuestText(t, CTX), t).toBe(t);
+    }
+  });
+
+  it("🚨 inceleme 09-24: Türkçe büyük harf (İ/ı), kesmesiz ek ve yaygın-sözcük adlar AD KONUMUNDA yakalanır; cümle bozulmaz", () => {
+    const ctx = { personNames: ["Fatih Işık", "Ali Kaya", "Can"], placeNames: [], nowYear: 2026 };
+    expect(anonymizeGuestText("FATİH IŞIK burada", ctx)).toBe(`${ANON.person} burada`);
+    expect(anonymizeGuestText("Fatihle konuştum", ctx)).toBe(`${ANON.person} konuştum`);
+    expect(anonymizeGuestText("Ben Ali, Kaya ailesi olarak geliyoruz", ctx)).toBe(`Ben ${ANON.person}, ${ANON.person} ailesi olarak geliyoruz`);
+    expect(anonymizeGuestText("Hi, Can here", ctx)).toBe(`Hi, ${ANON.person} here`);
+    // Aşırı-uygulama kontrolü: cümle başındaki ve küçük harfli yaygın sözcük bozulmaz.
+    for (const t of ["Can we check in at 11?", "Yes we can stay", "Kaya ailesi olarak geliyoruz"]) expect(anonymizeGuestText(t, ctx), t).toBe(t);
+  });
+
+  it("🚨 inceleme 09-24: sistemin yer tutucu adları ('Misafir', 'Rezervasyon <kod>') ad sayılmaz; kod ayrıca maskelenir", () => {
+    const ctx = { personNames: ["Misafir", "Eski misafir", "Rezervasyon QWERTY"], placeNames: [], nowYear: 2026 };
+    expect(anonymizeGuestText("Misafir olarak soruyorum, rezervasyon tarihini değiştirebilir miyiz?", ctx)).toBe(
+      "Misafir olarak soruyorum, rezervasyon tarihini değiştirebilir miyiz?",
+    );
+    expect(anonymizeGuestText("Rezervasyon QWERTY için", ctx)).toBe(`Rezervasyon ${ANON.code} için`);
+  });
+
+  it("🚨 inceleme 09-24: yer adında yalnız tam ad + ilk ayırt edici parça ('Lale Stay' → 'Stay' tek başına kalır)", () => {
+    const ctx = { personNames: [], placeNames: ["Lale Stay"], nowYear: 2026 };
+    expect(anonymizeGuestText("Can we stay one more night?", ctx)).toBe("Can we stay one more night?");
+    expect(anonymizeGuestText("Lale Stay'e nasıl gelirim, Lale'ye taksi?", ctx)).toBe(`${ANON.place}'e nasıl gelirim, ${ANON.place}'ye taksi?`);
+  });
+
+  it("🚨 inceleme 09-24: plaka, boşluklu kod, Arap-Hint / tam genişlik rakamlı telefon, doğum tarihi maskelenir; yakın tarih ve aralık kalır", () => {
+    expect(anonymizeGuestText("Plakamız 34 ABC 123", CTX)).toBe(`Plakamız ${ANON.code}`);
+    expect(anonymizeGuestText("kapı kodu 4 8 2 6", CTX)).toBe(`kapı kodu ${ANON.number}`);
+    expect(anonymizeGuestText("tel ٠٥٣٢١٢٣٤٥٦٧", CTX)).toBe(`tel ${ANON.number}`);
+    expect(anonymizeGuestText("tel ０５３２１２３４５６７", CTX)).toBe(`tel ${ANON.number}`);
+    expect(anonymizeGuestText("doğum tarihim 12.03.1985", CTX)).toBe(`doğum tarihim ${ANON.date}`);
+    expect(anonymizeGuestText("12.03.85 doğumluyum", CTX)).toBe(`${ANON.date} doğumluyum`);
+    for (const t of ["14.10.2026'da geliyoruz", "14.10.26 tarihinde", "14 - 16 Ekim", "12-14 arası"]) expect(anonymizeGuestText(t, CTX), t).toBe(t);
   });
 
   it("iletişim, bağlantı, IBAN, kod ve telefon biçimli diziler maskelenir", () => {
@@ -180,15 +224,25 @@ describe("kör etiketleme — saf durum geçişi ve set üretimi", () => {
 
   it("🚨 set yalnız geçerli etiketli öğeleri taşır; kişisel bilgi / emin değilim / etiketsiz DIŞARIDA (yalnız sayı)", () => {
     const file: CandidateFile = { kind: "lixus-real-candidates", version: 1, seed: "s", population: { candidate: 50, rest: 70 }, items: ITEMS };
-    const ds = buildRealDataset(file, { "r-0001": "early", "r-0002": "none", "r-0003": "pii" });
-    expect(ds.requests.map((r) => [r.id, r.kind, r.split])).toEqual([
-      ["r-0001", "early", "real"],
-      ["r-0002", "none", "real"],
+    const bound = bindLabelFile({ kind: "lixus-real-labels", candidatesSha256: "abc", labels: { "r-0001": "early", "r-0002": "none", "r-0003": "pii" } }, "abc");
+    const ds = buildRealDataset(file, bound);
+    expect(ds.requests.map((r) => [r.id, r.kind, r.split, r.stratum])).toEqual([
+      ["r-0001", "early", "real", "candidate"],
+      ["r-0002", "none", "real", "rest"],
     ]);
+    expect(ds.candidatesSha256).toBe("abc");
     expect(ds.excluded).toEqual({ pii: 1, unsure: 0, unlabeled: 1 });
     expect(ds.strata).toEqual({ candidate: { population: 50, labeled: 1 }, rest: { population: 70, labeled: 1 } });
     expect(JSON.stringify(ds)).not.toContain("12'de çıksak"); // kişisel bilgi işaretli öğenin metni sete girmez
-    expect(JSON.stringify(ds)).not.toContain("stratum"); // katman etiketi sete sızmaz (kör)
+  });
+
+  it("🚨 inceleme 09-24 (P1): etiketler YALNIZ ait oldukları aday dosyasıyla kullanılır — yeniden üretilmiş dosyaya sessizce oturmaz", () => {
+    expect(bindLabelFile(null, "sha-1")).toEqual({ kind: "lixus-real-labels", candidatesSha256: "sha-1", labels: {} });
+    const lf = { kind: "lixus-real-labels", candidatesSha256: "sha-1", labels: { "r-0001": "early" } };
+    expect(bindLabelFile(lf, "sha-1").labels).toEqual({ "r-0001": "early" });
+    expect(() => bindLabelFile(lf, "sha-2")).toThrow(/BAŞKA bir aday dosyasına/);
+    expect(() => bindLabelFile({ "r-0001": "early" }, "sha-1")).toThrow(/tanınmadı/); // eski düz biçim: bağ yok → ret
+    expect(() => bindLabelFile({ ...lf, labels: { "r-0001": "maybe" } }, "sha-1")).toThrow(/tanınmayan/);
   });
 });
 
@@ -220,41 +274,77 @@ describe("betik pinleri (çalıştırılmadan, kaynak üzerinden)", () => {
   const exportSrc = readFileSync(path.join(REPO, "scripts/eval-real-export.ts"), "utf8");
   const labelSrc = readFileSync(path.join(REPO, "scripts/eval-real-label.ts"), "utf8");
 
-  it("🚨 dışa aktarım: işlemin İLK komutu SET TRANSACTION READ ONLY, doğrulama veri sorgularından ÖNCE", () => {
-    const setRo = exportSrc.indexOf('$executeRawUnsafe("SET TRANSACTION READ ONLY")');
-    const verify = exportSrc.indexOf("readOnlyVerified(await tx.$queryRawUnsafe(\"SHOW transaction_read_only\"))");
-    const firstData = exportSrc.indexOf("tx.$queryRaw<");
-    expect(setRo).toBeGreaterThan(-1);
-    expect(verify).toBeGreaterThan(setRo);
-    expect(firstData).toBeGreaterThan(verify);
-    // İşlem gövdesinin ilk satırı READ ONLY (araya başka komut giremez).
-    const body = exportSrc.slice(exportSrc.indexOf("async (tx) => {"));
-    expect(body.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("//"))[1]).toBe(
-      'await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");',
-    );
+  it("🚨 dışa aktarım: her okuma `readOnly` içinde; ilk komut READ ONLY, doğrulama TÜM SET'lerden SONRA, veri sorgusundan ÖNCE", () => {
+    const helper = exportSrc.slice(exportSrc.indexOf("async function readOnly<T>"), exportSrc.indexOf("interface MsgRow"));
+    const lines = helper.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("//") && !l.startsWith("*"));
+    const first = lines.findIndex((l) => l.startsWith("await tx.$executeRawUnsafe("));
+    expect(lines[first]).toBe('await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");');
+    expect(lines[first + 1]).toBe(`await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '60s'");`);
+    expect(lines[first + 2]).toBe('if (!readOnlyVerified(await tx.$queryRawUnsafe("SHOW transaction_read_only"))) {');
+    expect(helper.indexOf("return fn(tx);")).toBeGreaterThan(helper.indexOf("readOnlyVerified("));
+    // Veri sorguları YALNIZ `readOnly(prisma, …)` geri çağrılarında (doğrudan `prisma.$transaction` başka yerde yok).
+    expect(exportSrc.split("prisma.$transaction(").length - 1).toBe(1);
+    expect(exportSrc.split("await readOnly(prisma,").length - 1).toBe(2);
   });
 
-  it("🚨 dışa aktarım yalnız OKUR: yazma API'si / yazma SQL'i yok; ham komutlar yalnız SET", () => {
-    // Prisma MODEL erişimi hiç yok (yalnız `$queryRaw` / `$executeRawUnsafe("SET …")` / `$transaction` / `$disconnect`):
-    // `prisma.user.update(` gibi bir yazma yolu yazılamaz. (Kripto özetinin `.update(` çağrısı model erişimi değildir.)
+  it("🚨 dışa aktarım yalnız OKUR: model erişimi yok, ham komutlar TAM OLARAK izinli liste, SQL gövdelerinde yazma sözcüğü yok (harf duyarsız)", () => {
+    // Prisma MODEL erişimi hiç yok: `prisma.user.update(` gibi bir yazma yolu yazılamaz. (Kripto özetinin `.update(`
+    // çağrısı model erişimi değildir.)
     expect(exportSrc).not.toMatch(/\b(?:prisma|tx)\.(?!\$)[A-Za-z_]/);
     expect(exportSrc).toMatch(/\btx\.\$queryRaw</); // anti-vakum: kalıp gerçekten tx erişimlerini görüyor
     expect(exportSrc).not.toMatch(/\$executeRaw`/);
-    expect(exportSrc).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|GRANT|COPY)\b/);
-    const unsafe = [...exportSrc.matchAll(/\$executeRawUnsafe\("([^"]*)"\)/g)].map((m) => m[1]);
-    expect(unsafe.length).toBeGreaterThan(0);
-    for (const cmd of unsafe) expect(cmd.startsWith("SET "), cmd).toBe(true);
+    expect(exportSrc).not.toMatch(/\bprisma\.\$(?:queryRaw|executeRaw)/);
+    const unsafeExec = [...exportSrc.matchAll(/\$executeRawUnsafe\(([^)]*)\)/g)].map((m) => m[1]);
+    expect(unsafeExec).toEqual(['"SET TRANSACTION READ ONLY"', `"SET LOCAL statement_timeout = '60s'"`]);
+    const unsafeQuery = [...exportSrc.matchAll(/\$queryRawUnsafe\(([^)]*)\)/g)].map((m) => m[1]);
+    expect(unsafeQuery).toEqual(['"SHOW transaction_read_only"']);
+    const sqlBodies = [...exportSrc.matchAll(/\$queryRaw<[^`]*`([^`]*)`/g)].map((m) => m[1]);
+    expect(sqlBodies.length).toBeGreaterThanOrEqual(6); // anti-vakum
+    for (const sql of sqlBodies) {
+      expect(sql, sql).toMatch(/^\s*SELECT\b/i);
+      expect(sql, sql).not.toMatch(/\b(?:insert|update|delete|truncate|alter|drop|grant|revoke|copy|create|merge|call|lock|vacuum|refresh|reindex|cluster|comment|set|reset|do)\b/i);
+    }
   });
 
-  it("dışa aktarım mesaj METNİNİ ekrana basmaz; veritabanı adresi gizli sorulur", () => {
+  it("🚨 inceleme 09-24: yalnız SAHİBİN kendi kuruluşu + açık 'EVET' onayı; --org yok; aday dosyasının üzerine yazmaz; sıralama tekrarlanabilir", () => {
+    expect(exportSrc).not.toContain('"--org"');
+    expect(exportSrc).toContain('if (users[0].role !== "owner")');
+    expect(exportSrc).toContain('if (answer !== "EVET")');
+    expect(exportSrc.indexOf('if (answer !== "EVET")')).toBeLessThan(exportSrc.indexOf('FROM "Message" m\n        JOIN'));
+    expect(exportSrc).toContain('if (existsSync(out) && !process.argv.includes("--force"))');
+    expect(exportSrc).toContain('ORDER BY m."createdAt" DESC, m.id DESC');
+  });
+
+  it("dışa aktarım mesaj METNİNİ ekrana basmaz; veritabanı adresi gizli sorulur; veritabanı hatası yalnız KOD olarak basılır", () => {
     const logs = exportSrc.split("\n").filter((l) => /console\.(?:log|error)\(/.test(l));
     expect(logs.length).toBeGreaterThan(0);
     for (const l of logs) expect(l, l).not.toMatch(/\.body|\.text\b|\burl\b/);
-    expect(exportSrc).toContain("askHidden(");
+    expect(exportSrc).toMatch(/ask\("Veritabanı adresi[^"]*", true\)/);
+    expect(exportSrc).toContain('!String(e?.name ?? "").startsWith("PrismaClient")');
+    expect(exportSrc).toContain("typeof e?.errorCode === \"string\"");
   });
 
-  it("etiketleme veritabanına bağlanmaz ve öğenin katmanını GÖSTERMEZ (kör)", () => {
+  it("etiketleme veritabanına bağlanmaz, öğenin katmanını GÖSTERMEZ (kör) ve etiketleri aday dosyasının SHA'sına bağlar", () => {
     expect(labelSrc).not.toContain("@prisma/client");
     expect(labelSrc).not.toContain(".stratum");
+    expect(labelSrc).toContain("bindLabelFile(");
+    expect(labelSrc).toContain('createHash("sha256").update(candidatesBytes)');
+  });
+
+  it("🚨 yanlışlıkla commit pini: takip edilen hiçbir JSON dosyası gerçek aday / etiket / set verisi taşımaz", () => {
+    let tracked: string[] = [];
+    try {
+      tracked = execFileSync("git", ["-c", `safe.directory=${REPO}`, "ls-files", "-z", "*.json"], { cwd: REPO, encoding: "utf8" })
+        .split("\0")
+        .filter(Boolean);
+    } catch {
+      tracked = [];
+    }
+    expect(tracked.length).toBeGreaterThan(5); // anti-vakum: git gerçekten JSON dosyası görüyor
+    const offenders = tracked.filter((f) => {
+      const t = readFileSync(path.join(REPO, f), "utf8");
+      return /"kind"\s*:\s*"lixus-real-(?:candidates|labels)"|"source"\s*:\s*"real-anonymized"/.test(t);
+    });
+    expect(offenders).toEqual([]);
   });
 });

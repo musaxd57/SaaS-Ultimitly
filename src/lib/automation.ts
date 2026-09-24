@@ -333,7 +333,7 @@ export function autoReplyGateFailure(
   // Model takvimi GÖRMÜYOR → "o gece boş / kalabilirsiniz / fully booked" doğrulanmamış iddiadır;
   // müsaitliğe bağlı bir istek ancak kararı ev sahibine bırakan cevapla gider. Kapsam TÜM cevapsız
   // misafir mesajları (`surfaces`) — öndeki bir uzatma isteği sondaki wifi sorusunun arkasına
-  // saklanamaz. Devir cevabı yalnız İSTEK bacağından muaf; İDDİA bacağından değil.
+  // saklanamaz. Devir cevabı da muaf DEĞİL (09-24, P1-2): konaklama isteğinde iki model ertelemesi ister.
   // ⚠️ 09-24 KURUCU DÜZELTMESİ: kelime ağı tek başına genellemiyor (kör batarya: izinlerin 19/60'ı) →
   // karar dört katmanın BİRLEŞİMİ (deterministik yedek + modelin şema beyanı + bağımsız bekçi + anlama
   // katmanı); hepsi yalnız sıkılaştırır. Ayrıntı `availabilityPolicyFor` + `evaluateAvailability`.
@@ -388,7 +388,7 @@ export function availabilityPolicyFor(
 ): AvailabilityPolicyOptions {
   return {
     declared: result.stayChange ?? null,
-    // Modelin niyet etiketi hassas istek sinyalidir ve beyanla çelişkisi beyanı güvenilmez kılar (09-24).
+    // Modelin niyet etiketi hassas istek BİRLEŞİMİNE sayılır (beyan "istek yok" dese de silinmez — 09-24).
     replyIntent: result.intent,
     // Yalnız BİLİNEN şablon kaynağı "model metni değil" sayılır; bilinmeyen/eksik kaynak model metnidir (fail-closed).
     deterministicReply: result.source === "fallback",
@@ -2103,9 +2103,10 @@ export async function applyChannelAutoReply(
     // Katman kapalı / düştüyse sinyal yok → e-posta da YOK. Rozet ve karar kaydı niyetin kendi etiketini taşır.
     // 🚨 Kapının İLK düşen kontrolüne BAĞLI DEĞİL (düşmanca inceleme 09-24, P2-4): düşük güven, "bilgim yok" ya da
     // müsaitlik tutuşu önce kapatsa da hassas niyet yükseltilir — yoksa dolaylı dildeki acil durum sessiz taslakta kalırdı.
-    const nluSensitive =
-      result.source === "openai" &&
-      evaluateIntentRisk(gateContext.understandingRisk, { modelIntent: result.intent }).reason !== null;
+    // 🚨 Bu dalda kapı KAPANDI, yani devir cevabı GİTMEDİ: kapıdaki "insan talebine modelin kendi devri muaf" kuralı
+    // burada GEÇERSİZ (misafir insan istedi ve hiç cevap almadı — P2-10). Cevap modeli düşmüş olsa da (şablon) bağımsız
+    // anlama katmanının sinyali yükseltir (P2-9). Katman kapalı / düştüyse sinyal yok.
+    const nluSensitive = gateContext.understandingRisk != null;
     const nluRiskType = nluSensitive ? riskTypeOfIntentRisk(gateContext.understandingRisk) : null;
     const modelFlagged =
       result.source === "openai" &&

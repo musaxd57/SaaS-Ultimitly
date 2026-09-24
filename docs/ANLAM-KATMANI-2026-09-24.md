@@ -341,6 +341,10 @@ onaylanmasıyla kesinleşir; otomatik onay = V3 Aksiyonlar.
 ## 7. Bilinen sınırlar
 
 * Model katmanları **ölçülmedi**: kredi yok. Bayraklar kapalı; açıldıklarında karar doğrudan etkilenir (gölge yok).
+* **Beyan alanlarının İKİSİ birden eksikse** (`sc.d = absent`) hassas istek yokken cevap gider (bilinçli: "her
+  arızada her mesaj durmaz", 09-24, pinli). Dış inceleme bunu F01 asimetrisine benzetti; karar ölçümle verilecek:
+  canlıda `RiskEvent.kbEvidenceJson` içinde `"d":"absent"` oranı (salt okuma sayım). Oran anlamlıysa eksik beyan
+  "tanınmıyor" sayılır (tek satırlık değişiklik: `ai/index.ts` çözümünde `null` yerine `unknown/unknown`).
 * Beyan aynı modelden gelir; enjeksiyonla kandırılan üretici etiketini de yanlış yazabilir. Bu
   yüzden izin yönlü karar tek beyana dayanmaz. Bekçi ikinci, bağımsız hükümdür.
 * Anlama katmanı küçük bilgi tabanında da koşar: sinyal retrieval'dan bağımsız değerlidir, ama

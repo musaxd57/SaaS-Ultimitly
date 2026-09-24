@@ -709,7 +709,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
     understanding: understood?.stay ?? null,
     understandingFailed: (await kbSel.understandingStatus) === "failed",
-    // Anlama katmanının risk niyeti (acil/şikâyet/iptal-iade/insan) — kanal kapısıyla parite, varsayılan gölge.
+    // Anlama katmanının risk niyeti (acil/şikâyet/iptal-iade/insan) — kanal kapısıyla parite; katman koştuysa karar verir.
     understandingRisk: understandingRiskOf(understood),
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
@@ -799,13 +799,16 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     srcVerified: result.sourceAudit?.verified ?? null,
   });
   if (escalate) {
+    // Alarm önceliği: kelime ağının acil durumu YA DA anlama katmanının acil niyeti (kelime ağının kaçırdığı dolaylı
+    // dil — inceleme 09-24, P2-11) bekleme süresini aşar. Misafire giden metin DAR yüklemde kalır (↑ physicalEmergency).
+    const alertCritical = criticalEvent || understandingRiskOf(understood) === "emergency";
     await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,
       reservationId: res.id,
-      eventId: qrEscalationEventId(inboundMessageId, message, criticalEvent),
+      eventId: qrEscalationEventId(inboundMessageId, message, alertCritical),
       reason: "ai_escalated",
-      critical: criticalEvent,
+      critical: alertCritical,
     });
   }
   return finalize({ escalated: escalate, reply });

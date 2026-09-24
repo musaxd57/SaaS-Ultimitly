@@ -15,7 +15,9 @@ import path from "node:path";
 //
 // 🚨 PII: eval senaryoları ZATEN anonimdir (`evals/*.json`, sürümlü). Sidecar
 // modelin CEVABINI da taşır — bu, raporun kendisinde de var (ölçüm için şart).
-// Gerçek misafir verisi bu yola HİÇBİR ZAMAN girmez.
+// Gerçek misafir METNİ bu yola girmez: gerçek set (B, `docs/EVAL-MUHURLU-FINAL.md`) koşusunda sidecar yalnız
+// sıra kimliği ("r-0001"), etiket ve katman hükümlerini taşır — metin, ad, tarih YOK (kimlik yerel dosya olmadan
+// hiçbir mesaja bağlanamaz), bu yüzden rapor ve sidecar depoya girebilir.
 // ---------------------------------------------------------------------------
 
 /** Koşucunun stdout'tan yakaladığı işaret satırları (kırılgan dosya adı tahmini yok). */

@@ -58,6 +58,33 @@ export interface CandidateFile {
   items: CandidateItem[];
 }
 
+/**
+ * Etiket dosyası HANGİ aday dosyasına ait olduğunu taşır (düşmanca inceleme 09-24, P1): öğe kimliği yalnız sıra
+ * numarasıdır ("r-0001"); aday dosyası yeniden üretilirse eski etiketler SESSİZCE yeni mesajlara oturur ve mühürlü
+ * tek koşu bozuk veriyle yanardı. Kimlik = aday dosyasının baytlarının SHA-256'sı.
+ */
+export interface LabelFile {
+  kind: "lixus-real-labels";
+  candidatesSha256: string;
+  labels: Record<string, RealLabel>;
+}
+
+/** Var olan etiket dosyasını aday dosyasına BAĞLAR; başka bir aday dosyasına aitse (ya da biçim tanınmıyorsa) FIRLATIR. */
+export function bindLabelFile(existing: unknown, candidatesSha256: string): LabelFile {
+  if (existing === null || existing === undefined) return { kind: "lixus-real-labels", candidatesSha256, labels: {} };
+  const f = existing as Partial<LabelFile>;
+  if (f.kind !== "lixus-real-labels" || typeof f.candidatesSha256 !== "string" || typeof f.labels !== "object" || f.labels === null) {
+    throw new Error("etiket dosyası tanınmadı — silin ya da başka bir yol verin");
+  }
+  if (f.candidatesSha256 !== candidatesSha256) {
+    throw new Error("etiketler BAŞKA bir aday dosyasına ait (aday dosyası yeniden üretilmiş) — eski etiketler kullanılamaz");
+  }
+  for (const v of Object.values(f.labels)) {
+    if (!Object.values(LABEL_KEYS).includes(v as RealLabel)) throw new Error("etiket dosyasında tanınmayan değer");
+  }
+  return { kind: "lixus-real-labels", candidatesSha256, labels: f.labels as Record<string, RealLabel> };
+}
+
 export interface LabelState {
   labels: Record<string, RealLabel>;
   index: number;
@@ -83,14 +110,30 @@ export function resumeIndex(items: readonly CandidateItem[], labels: Record<stri
 export interface RealDataset {
   version: 1;
   source: "real-anonymized";
-  requests: { id: string; split: "real"; text: string; lang: string; kind: RealKind; checkIn: string; checkOut: string }[];
+  /** Hangi aday dosyasından (SHA-256) etiketlendi — izlenebilirlik. */
+  candidatesSha256: string;
+  /**
+   * `stratum` sette KALIR (inceleme 09-24, P2): etiketleme bittikten sonra katman bilgisi körlüğü bozmaz, ama
+   * olmadan sonuçlar yeniden ağırlıklanamaz (aday katmanı + rastgele katman karışık sayılırdı).
+   */
+  requests: {
+    id: string;
+    split: "real";
+    stratum: "candidate" | "rest";
+    text: string;
+    lang: string;
+    kind: RealKind;
+    checkIn: string;
+    checkOut: string;
+  }[];
   replies: never[];
   excluded: { pii: number; unsure: number; unlabeled: number };
   strata: Record<"candidate" | "rest", { population: number; labeled: number }>;
 }
 
 /** Eval şemasında set: yalnız geçerli etiketli öğeler; çıkarılanlar yalnız SAYI. */
-export function buildRealDataset(file: CandidateFile, labels: Record<string, RealLabel>): RealDataset {
+export function buildRealDataset(file: CandidateFile, bound: LabelFile): RealDataset {
+  const labels = bound.labels;
   const requests: RealDataset["requests"] = [];
   const excluded = { pii: 0, unsure: 0, unlabeled: 0 };
   const labeled = { candidate: 0, rest: 0 };
@@ -100,13 +143,14 @@ export function buildRealDataset(file: CandidateFile, labels: Record<string, Rea
     else if (l === "pii") excluded.pii++;
     else if (l === "unsure") excluded.unsure++;
     else {
-      requests.push({ id: it.id, split: "real", text: it.text, lang: it.lang, kind: l, checkIn: it.checkIn, checkOut: it.checkOut });
+      requests.push({ id: it.id, split: "real", stratum: it.stratum, text: it.text, lang: it.lang, kind: l, checkIn: it.checkIn, checkOut: it.checkOut });
       labeled[it.stratum]++;
     }
   }
   return {
     version: 1,
     source: "real-anonymized",
+    candidatesSha256: bound.candidatesSha256,
     requests,
     replies: [],
     excluded,

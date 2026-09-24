@@ -4,25 +4,28 @@
  *
  * Kurucunun makinesinde, elle çalıştırılır; hiçbir şey bunu otomatik çağırmaz:
  *   npx tsx scripts/eval-real-export.ts --email <giriş e-postanız>
- *   (ya da --org <organizasyon kimliği>)   seçenekler: --candidates 180 --rest 120 --seed <metin>
+ *   seçenekler: --candidates 180 --rest 120 --seed <metin> --out <yol> --force (var olan dosyanın üzerine yaz)
  *
  * Veritabanı adresi GİZLİ sorulur (ekrana basılmaz, komut geçmişine yazılmaz); istenirse EVAL_REAL_DATABASE_URL.
+ * YALNIZ kendi kuruluşunuz: e-posta bir SAHİP (owner) hesabı olmalı; okumadan önce kuruluşun adı gösterilir ve
+ * "EVET" yazmanız istenir (başka bir müşterinin verisi yanlışlıkla okunmasın — KVKK amaçla sınırlılık).
  *
- * 🚨 SALT OKUMA — üç katman:
- *   1. Tek işlem, ilk komut `SET TRANSACTION READ ONLY`: PostgreSQL bu işlemde HER yazmayı reddeder.
- *   2. `SHOW transaction_read_only` tam olarak "on" değilse hiçbir veri okunmadan durur (`readOnlyVerified`).
- *   3. Betik yalnız SELECT çalıştırır — yazma çağrısı içermediği mekanik olarak pinli (`tests/unit/eval-real.test.ts`).
- * Sorgu süresi 60 sn ile sınırlı; tek seferde en fazla --max (varsayılan 20.000) mesaj okunur.
+ * 🚨 SALT OKUMA — üç katman (her okuma işlemi için ayrı ayrı, `readOnly`):
+ *   1. İşlemin ilk komutu `SET TRANSACTION READ ONLY`: PostgreSQL bu işlemde HER yazmayı reddeder.
+ *   2. Tüm SET komutlarından SONRA `SHOW transaction_read_only` tam olarak "on" değilse hiçbir veri okunmaz.
+ *   3. Betik yalnız sabit SELECT'ler çalıştırır — izinli ham komutların listesi mekanik olarak pinli
+ *      (`tests/unit/eval-real.test.ts`). Sorgu süresi 60 sn ile sınırlı; en fazla --max (20.000) mesaj.
  *
- * 🚨 GİZLİLİK: mesaj METNİ ekrana basılmaz; çıktı yalnız git'in yok saydığı `evals/private/` altına (ya da depo
- * dışına) yazılır, anonimleştirilmiş olarak (`src/lib/eval-real/anonymize.ts`). Veritabanı kimliği, tarih, konuşma
- * ve rezervasyon bilgisi dosyaya GİRMEZ (öğe kimliği "r-0001" gibi sıra numarasıdır).
- * Sonraki adım: `npx tsx scripts/eval-real-label.ts` (etiketleme). Protokol: `docs/EVAL-MUHURLU-FINAL.md`.
+ * 🚨 GİZLİLİK: mesaj METNİ ekrana basılmaz. Ad ve adresler YALNIZ bellekte, maskeleme için okunur; dosyaya
+ * anonimleştirilmiş metin yazılır (`src/lib/eval-real/anonymize.ts`). Veritabanı kimliği, tarih, konuşma ve
+ * rezervasyon bilgisi dosyaya GİRMEZ (öğe kimliği "r-0001" gibi sıra numarasıdır). Çıktı yalnız git'in yok saydığı
+ * `evals/private/` altına (ya da depo dışına). Sonraki adım: `npx tsx scripts/eval-real-label.ts`.
+ * Protokol: `docs/EVAL-MUHURLU-FINAL.md`.
  * ------------------------------------------------------------------------- */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { anonymizeGuestText } from "../src/lib/eval-real/anonymize";
@@ -43,21 +46,40 @@ function intArg(name: string, dflt: number, max: number): number {
   return Number.isInteger(v) && v >= 0 ? Math.min(v, max) : dflt;
 }
 
-
-function askHidden(question: string): Promise<string> {
+function ask(question: string, hidden = false): Promise<string> {
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
     let muted = false;
-    (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput = (s: string) => {
-      if (!muted) process.stdout.write(s);
-    };
+    if (hidden) {
+      (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput = (s: string) => {
+        if (!muted) process.stdout.write(s);
+      };
+    }
     rl.question(question, (answer) => {
       rl.close();
-      process.stdout.write("\n");
+      if (hidden) process.stdout.write("\n");
       resolve(answer.trim());
     });
     muted = true;
   });
+}
+
+/**
+ * SALT-OKUMA işlemi: ilk komut READ ONLY, ardından süre sınırı, EN SON doğrulama; doğrulanmadan `fn` ÇAĞRILMAZ.
+ * Betikteki ham komutların TEK kaynağı burasıdır (pinli).
+ */
+async function readOnly<T>(prisma: PrismaClient, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
+      await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '60s'");
+      if (!readOnlyVerified(await tx.$queryRawUnsafe("SHOW transaction_read_only"))) {
+        throw new Error("salt-okuma doğrulanamadı — hiçbir veri okunmadı");
+      }
+      return fn(tx);
+    },
+    { maxWait: 15_000, timeout: 180_000 },
+  );
 }
 
 interface MsgRow {
@@ -69,57 +91,64 @@ interface MsgRow {
 
 async function main(): Promise<void> {
   const email = arg("--email")?.trim();
-  const orgArg = arg("--org")?.trim();
-  if (!email === !orgArg) throw new Error("tam olarak biri gerekli: --email <giriş e-postası> ya da --org <kimlik>");
+  if (!email) throw new Error("gerekli: --email <kendi giriş e-postanız> (yalnız kendi kuruluşunuzun mesajları okunur)");
   const out = guardedOutputPath(REPO, arg("--out") ?? "evals/private/real-candidates.json", gitIgnored);
+  // Etiketleme başladıktan sonra yeniden üretmek etiketleri boşa çıkarır → varsayılan olarak üzerine YAZILMAZ.
+  if (existsSync(out) && !process.argv.includes("--force")) {
+    throw new Error("aday dosyası zaten var — yeniden üretmek etiketleri geçersiz kılar (bilerek istiyorsanız --force)");
+  }
   const candidateQuota = intArg("--candidates", 180, 1000);
   const restQuota = intArg("--rest", 120, 1000);
   const max = intArg("--max", 20000, 100000);
   const seed = arg("--seed")?.trim() || randomBytes(8).toString("hex");
 
-  const url = process.env.EVAL_REAL_DATABASE_URL?.trim() || (await askHidden("Veritabanı adresi (DATABASE_URL, ekrana basılmaz): "));
+  const url = process.env.EVAL_REAL_DATABASE_URL?.trim() || (await ask("Veritabanı adresi (DATABASE_URL, ekrana basılmaz): ", true));
   if (!/^postgres(?:ql)?:\/\//.test(url)) throw new Error("geçerli bir postgres adresi değil");
   const prisma = new PrismaClient({ datasources: { db: { url } }, log: [] });
 
   try {
-    const data = await prisma.$transaction(
-      async (tx) => {
-        // 1) İşlemin İLK komutu: salt okuma. 2) Doğrulanmadan hiçbir veri okunmaz.
-        await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
-        if (!readOnlyVerified(await tx.$queryRawUnsafe("SHOW transaction_read_only"))) {
-          throw new Error("salt-okuma doğrulanamadı — hiçbir veri okunmadı");
-        }
-        await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '60s'");
-
-        let orgId = orgArg ?? "";
-        if (email) {
-          const users = await tx.$queryRaw<{ organizationId: string }[]>`
-            SELECT "organizationId" FROM "User" WHERE lower(email) = lower(${email}) LIMIT 2`;
-          if (users.length !== 1) throw new Error("bu e-postayla tek bir kullanıcı bulunamadı");
-          orgId = users[0].organizationId;
-        }
-        const orgs = await tx.$queryRaw<{ name: string }[]>`SELECT name FROM "Organization" WHERE id = ${orgId}`;
-        if (orgs.length !== 1) throw new Error("organizasyon bulunamadı");
-        const users = await tx.$queryRaw<{ name: string | null }[]>`SELECT name FROM "User" WHERE "organizationId" = ${orgId}`;
-        const props = await tx.$queryRaw<{ id: string; name: string; address: string | null; checkInTime: string | null; checkOutTime: string | null }[]>`
-          SELECT id, name, address, "checkInTime", "checkOutTime" FROM "Property" WHERE "organizationId" = ${orgId}`;
-        const msgs = await tx.$queryRaw<MsgRow[]>`
-          SELECT m.body, c."guestIdentifier", r."guestName", c."propertyId"
-          FROM "Message" m
-          JOIN "Conversation" c ON c.id = m."conversationId"
-          JOIN "Property" p ON p.id = c."propertyId"
-          LEFT JOIN "Reservation" r ON r.id = c."reservationId"
-          WHERE p."organizationId" = ${orgId}
-            AND m.direction = 'inbound'
-            AND (m."authorType" IS NULL OR m."authorType" = 'guest')
-          ORDER BY m."createdAt" DESC
-          LIMIT ${max}`;
-        return { orgName: orgs[0].name, users, props, msgs };
-      },
-      { maxWait: 15_000, timeout: 180_000 },
+    // 1) Kuruluşu çöz ve ONAY al (ayrı salt-okuma işlemi; kullanıcı düşünürken işlem açık kalmaz).
+    const org = await readOnly(prisma, async (tx) => {
+      const users = await tx.$queryRaw<{ organizationId: string; role: string }[]>`
+        SELECT "organizationId", role FROM "User" WHERE lower(email) = lower(${email}) LIMIT 2`;
+      if (users.length !== 1) throw new Error("bu e-postayla tek bir kullanıcı bulunamadı");
+      if (users[0].role !== "owner") throw new Error("yalnız kuruluş SAHİBİ (owner) kendi verisini dışa aktarabilir");
+      const orgId = users[0].organizationId;
+      const orgs = await tx.$queryRaw<{ name: string }[]>`SELECT name FROM "Organization" WHERE id = ${orgId}`;
+      if (orgs.length !== 1) throw new Error("kuruluş bulunamadı");
+      const counts = await tx.$queryRaw<{ properties: bigint; messages: bigint }[]>`
+        SELECT
+          (SELECT count(*) FROM "Property" WHERE "organizationId" = ${orgId}) AS properties,
+          (SELECT count(*) FROM "Message" m JOIN "Conversation" c ON c.id = m."conversationId"
+             JOIN "Property" p ON p.id = c."propertyId"
+           WHERE p."organizationId" = ${orgId} AND m.direction = 'inbound') AS messages`;
+      return { id: orgId, name: orgs[0].name, properties: Number(counts[0].properties), messages: Number(counts[0].messages) };
+    });
+    const answer = await ask(
+      `Okunacak kuruluş: "${org.name}" (${org.properties} mülk, ${org.messages} misafir mesajı). Yalnız okunur, hiçbir şey değişmez. Devam için EVET yazın: `,
     );
+    if (answer !== "EVET") throw new Error("onay verilmedi — hiçbir mesaj okunmadı");
 
-    const placeNames = [data.orgName, ...data.props.flatMap((p) => [p.name, p.address ?? ""])].filter(Boolean);
+    // 2) Mesajları oku (yeni salt-okuma işlemi).
+    const data = await readOnly(prisma, async (tx) => {
+      const users = await tx.$queryRaw<{ name: string | null }[]>`SELECT name FROM "User" WHERE "organizationId" = ${org.id}`;
+      const props = await tx.$queryRaw<{ id: string; name: string; address: string | null; checkInTime: string | null; checkOutTime: string | null }[]>`
+        SELECT id, name, address, "checkInTime", "checkOutTime" FROM "Property" WHERE "organizationId" = ${org.id}`;
+      const msgs = await tx.$queryRaw<MsgRow[]>`
+        SELECT m.body, c."guestIdentifier", r."guestName", c."propertyId"
+        FROM "Message" m
+        JOIN "Conversation" c ON c.id = m."conversationId"
+        JOIN "Property" p ON p.id = c."propertyId"
+        LEFT JOIN "Reservation" r ON r.id = c."reservationId"
+        WHERE p."organizationId" = ${org.id}
+          AND m.direction = 'inbound'
+          AND (m."authorType" IS NULL OR m."authorType" = 'guest')
+        ORDER BY m."createdAt" DESC, m.id DESC
+        LIMIT ${max}`;
+      return { users, props, msgs };
+    });
+
+    const placeNames = [org.name, ...data.props.flatMap((p) => [p.name, p.address ?? ""])].filter(Boolean);
     const hostNames = data.users.map((u) => u.name ?? "").filter(Boolean);
     const propById = new Map(data.props.map((p) => [p.id, p]));
     const items = data.msgs
@@ -152,8 +181,9 @@ async function main(): Promise<void> {
     const json = `${JSON.stringify(file, null, 1)}\n`;
     writeFileSync(out, json, "utf8");
     // Yalnız SAYILAR basılır — metin asla.
-    console.log(`Okunan misafir mesajı: ${data.msgs.length} · tekrar ayıklandıktan sonra aday katmanı ${sample.population.candidate}, diğer ${sample.population.rest}`);
-    console.log(`Örnek: ${file.items.filter((x) => x.stratum === "candidate").length} aday + ${file.items.filter((x) => x.stratum === "rest").length} diğer = ${file.items.length}`);
+    const nCand = file.items.filter((x) => x.stratum === "candidate").length;
+    console.log(`Okunan misafir mesajı: ${data.msgs.length} · tekrarsız aday katmanı ${sample.population.candidate}, diğer ${sample.population.rest}`);
+    console.log(`Örnek: ${nCand} aday + ${file.items.length - nCand} diğer = ${file.items.length}`);
     console.log(`Yazıldı: ${path.relative(REPO, out)} · SHA-256 ${createHash("sha256").update(json).digest("hex")}`);
     console.log("Sonraki adım: npx tsx scripts/eval-real-label.ts");
   } finally {
@@ -163,9 +193,12 @@ async function main(): Promise<void> {
 
 if (require.main === module) {
   main().catch((err: unknown) => {
-    // Hata mesajı adres/metin taşımaz (yalnız bizim ürettiğimiz sınıf mesajı ya da Prisma kodu).
-    const code = (err as { code?: string })?.code;
-    console.error(`Durdu: ${err instanceof Error && !code ? err.message : `veritabanı hatası${code ? ` (${code})` : ""}`}`);
+    // Hata metni YALNIZ bizim ürettiğimiz sınıf mesajıysa basılır. Veritabanı / bağlantı hataları (Prisma) sunucu
+    // adresi ve kullanıcı adı taşıyabilir → yalnız hata KODU (inceleme 09-24).
+    const e = err as { code?: unknown; errorCode?: unknown; name?: unknown };
+    const dbCode = typeof e?.code === "string" ? e.code : typeof e?.errorCode === "string" ? e.errorCode : null;
+    const ours = err instanceof Error && !dbCode && !String(e?.name ?? "").startsWith("PrismaClient");
+    console.error(`Durdu: ${ours ? (err as Error).message : `veritabanı hatası${dbCode ? ` (${dbCode})` : ""}`}`);
     process.exit(1);
   });
 }

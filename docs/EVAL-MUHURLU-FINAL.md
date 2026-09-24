@@ -59,15 +59,22 @@ hiç görmez; depoya yalnız mühür (SHA-256 + sayılar) ve final raporunun top
 
 1. **Dışa aktarım (salt okuma):** `npx tsx scripts/eval-real-export.ts --email <giriş e-postası>`.
    Veritabanı adresi gizli sorulur (ekrana ve komut geçmişine yazılmaz).
-   * Tek işlem, ilk komut `SET TRANSACTION READ ONLY` → PostgreSQL her yazmayı reddeder;
-     `SHOW transaction_read_only` "on" değilse hiçbir veri okunmaz. Betik yalnız SELECT çalıştırır (mekanik pin).
-     Sorgu süresi 60 sn ile sınırlı.
-   * Yalnız misafirin gelen mesaj metni + mülkün standart giriş/çıkış saati okunur. Kimlik, tarih, konuşma ve
-     rezervasyon bilgisi dosyaya girmez; öğe kimliği "r-0001" gibi sıra numarasıdır (canlı veriye geri bağlanamaz).
-   * **Anonimleştirme** (`src/lib/eval-real/anonymize.ts`): misafir / ev sahibi / ekip adları, mülk ve işletme
-     adları, adresler, telefon, e-posta, bağlantı, IBAN, kod ve 4+ haneli sayılar maskelenir. Saat, tarih ve küçük
-     sayılar kalır ("11 gibi", "14 - 16 Ekim", "2 kişi"). Serbest metindeki tanınmayan adlar yakalanamaz → son kapı
-     insan (↓ "x").
+   * **Yalnız kendi kuruluşunuz:** e-posta bir SAHİP (owner) hesabı olmalı; okumadan önce kuruluşun adı ve mesaj
+     sayısı gösterilir, "EVET" yazılmadan hiçbir mesaj okunmaz (KVKK amaçla sınırlılık; `--org` seçeneği yok).
+   * Her okuma ayrı bir işlemde: ilk komut `SET TRANSACTION READ ONLY` → PostgreSQL her yazmayı reddeder; tüm SET
+     komutlarından SONRA `SHOW transaction_read_only` "on" değilse hiçbir veri okunmaz. İzinli ham komutlar ve
+     SQL gövdeleri mekanik olarak pinli (yalnız SELECT). Sorgu süresi 60 sn ile sınırlı.
+   * Dosyaya yalnız anonimleştirilmiş mesaj metni + mülkün standart giriş/çıkış saati girer. Ad ve adresler YALNIZ
+     bellekte, maskeleme için okunur. Kimlik, tarih, konuşma ve rezervasyon bilgisi dosyaya girmez; öğe kimliği
+     "r-0001" gibi sıra numarasıdır (canlı veriye geri bağlanamaz).
+   * Aday dosyası varsa üzerine YAZILMAZ (yeniden üretmek etiketleri geçersiz kılar; bilerek: `--force`).
+   * **Anonimleştirme** (`src/lib/eval-real/anonymize.ts`): misafir / ev sahibi / ekip adları (Türkçe büyük/küçük
+     harf ve kesmesiz ekler dahil; "Can/Deniz/Kaya" gibi yaygın sözcük adlar yalnız ad konumunda), mülk ve işletme
+     adları, adresler, telefon (Arap-Hint rakamları dahil), e-posta, bağlantı, IBAN, plaka, kod, 4+ haneli ve 3+
+     parçalı sayılar, geçmiş yıllı tarihler (doğum tarihi) maskelenir. Saat, yakın tarih, süre ve küçük sayılar
+     kalır ("11 gibi", "13h30", "11Uhr", "2 nights", "14 - 16 Ekim", "2 kişi"). Sistemin yer tutucu adları
+     ("Misafir", "Rezervasyon <kod>") ad sayılmaz. Serbest metindeki tanınmayan adlar yakalanamaz → son kapı insan
+     (↓ "x").
    * **Katmanlı örnek** (tohumlu, tekrarlanabilir): GENİŞ aday katmanı (saat / tarih / konaklama sözcüğü geçen her
      mesaj, 7 dil) + geri kalandan rastgele. Aday süzgeci ürünün dedektörü DEĞİLDİR ve ondan bağımsızdır (pin):
      ürünün kelime ağıyla seçmek, kaçırdığı dolaylı istekleri sete hiç sokmazdı. Varsayılan 180 + 120. Katman
@@ -78,15 +85,19 @@ hiç görmez; depoya yalnız mühür (SHA-256 + sayılar) ve final raporunun top
    2 erken giriş · 3 geç çıkış · 4 tarih değişikliği · 5 müsaitlik) + "x" (kişisel bilgi kalmış → sete girmez) +
    "s" (emin değilim → sete girmez). Kural metni aracın başında (`LABEL_RUBRIC`): bilgi sorusu ("erken giriş
    ücretli mi?") = 0; erken gelip bavul bırakmak ya da "oda erken hazır olur mu" = 2; çıkıştan sonra eşya bırakmak
-   = 3. Her cevaptan sonra kaydeder; yarıda bırakılıp devam edilebilir.
+   = 3. Her cevaptan sonra kaydeder; yarıda bırakılıp devam edilebilir. Etiket dosyası aday dosyasının SHA-256'sına
+   BAĞLIDIR: aday dosyası yeniden üretilirse eski etiketler reddedilir (sessizce yanlış mesajlara oturmaz).
 3. **Mühür:** `npx tsx scripts/eval-real-label.ts --finalize` → `evals/private/stay-change-real.json` + SHA-256.
+   Sette öğe katmanı (aday / rastgele) KALIR: sonuçlar katman katman raporlanır ve evren boyutlarıyla yeniden
+   ağırlıklanabilir (etiketleme bittiği için körlüğü bozmaz).
    SHA `SEALS.json`a `"stay-change-real.json": { sha256, sealedAt, author: "kurucu (kör etiket)", items,
    state: "sealed", location: "local-only" }` olarak eklenir. Dosyanın kendisi depoya ASLA girmez (pin:
    `local-only` kaydının dosyası depoda olamaz; `evals/private/` takip edilemez).
 4. **Final koşusu:** A ile birlikte, bir kez:
    `EVAL_SEALED_FINAL=1 EVAL_REAL_SET=evals/private/stay-change-real.json RUN_REAL_EVAL=1 npm run eval -- tests/eval/stay-change.eval.test.ts`.
-   Harness gerçek seti yalnız bu koşuda ve SHA mühürle eşleşirse okur; raporda bölüm `real`, metin YOK. Koşu
-   bitince iki set de yanar.
+   Harness gerçek seti yalnız bu koşuda ve SHA mühürle eşleşirse okur; raporda bölüm `real/<katman>`, metin YOK.
+   A seti de koşudan önce SHA + `sealed` durumuyla doğrulanır; mühürlü koşuda `EVAL_STAY_LIMIT` reddedilir (yarım
+   koşu seti boşa yakmasın). Koşu bitince iki setin durumu elle `burned` yapılır.
 5. **Sonra:** yanmış gerçek set silinir (`evals/private/`). Sonraki karar için yeni örnek (yeni tohum) çekilir.
 
 **KVKK / platform notları (kurucu onayıyla):**

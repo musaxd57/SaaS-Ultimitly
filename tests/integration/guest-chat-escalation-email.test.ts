@@ -28,6 +28,7 @@ import {
   QR_ALERT_RESPONSE_BUDGET_MS,
 } from "@/lib/guest-chat-alerts";
 import { POST } from "@/app/api/chat/[token]/route";
+import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSendReporting = vi.mocked(emailService.sendReporting);
@@ -393,6 +394,44 @@ describe("POST /api/chat/[token] — escalation wires the e-mail", () => {
     const res = await call(token, "Yangın var, duman kokusu geliyor!", cookie);
     expect((await res.json()).escalated).toBe(true);
     expect(mockSendReporting).toHaveBeenCalledTimes(2);
+  });
+
+  it("🚨 ROUTE (P2-11): kelime ağının KAÇIRDIĞI acil durum, anlama katmanı gördüyse bekleme süresini aşar; misafir metni DAR kalır", async () => {
+    const { orgId, token } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const EMERGENCY = "My daughter cut her hand badly, where is the nearest hospital?";
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    // Anlama katmanı: acil mesaj için "emergency", diğerleri için şikâyet (kural mesaja göre).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const body = String(init?.body);
+        const intent = body.includes("hospital") ? "emergency" : "complaint_issue";
+        const verdict = {
+          language: "en",
+          requests: [{ intent, query_tr: "x", query_original: "x" }],
+          stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        };
+        return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(verdict) } }] }), { status: 200 });
+      }),
+    );
+    __resetUnderstandingCache();
+    try {
+      const first = await call(token, "İade istiyorum, berbat!"); // şikâyet → e-posta 1 (bekleme süresi başlar)
+      const cookie = deviceCookie(first);
+      expect(mockSendReporting).toHaveBeenCalledTimes(1);
+      mockSuggest.mockResolvedValue(aiResult({ reply: "The nearest hospital is 2 km away." }));
+      const res = await call(token, EMERGENCY, cookie);
+      const json = await res.json();
+      expect(json.escalated).toBe(true);
+      expect(mockSendReporting).toHaveBeenCalledTimes(2); // bekleme süresi içinde de gider
+      // Misafir metni: acil talimatı YALNIZ dar fiziksel acil durum yüklemiyle (bu mesaj onu tetiklemiyor).
+      expect(json.reply).toMatch(/kaydedildi/i);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
   });
 
   it("ROUTE: two DISTINCT safety messages back-to-back → two e-mails (1 dk arayla senaryosu)", async () => {

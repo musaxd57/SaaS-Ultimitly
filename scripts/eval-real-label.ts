@@ -14,13 +14,14 @@ import path from "node:path";
 import readline from "node:readline";
 import {
   applyLabelAction,
+  bindLabelFile,
   buildRealDataset,
   guardedOutputPath,
   LABEL_RUBRIC,
   resumeIndex,
   type CandidateFile,
+  type LabelFile,
   type LabelState,
-  type RealLabel,
 } from "../src/lib/eval-real/labeling";
 import { gitIgnoredIn } from "./eval-real-shared";
 
@@ -44,13 +45,21 @@ function writeAtomic(file: string, content: string): void {
 async function main(): Promise<void> {
   const inPath = path.resolve(REPO, arg("--in") ?? "evals/private/real-candidates.json");
   const labelsPath = guardedOutputPath(REPO, arg("--labels") ?? "evals/private/real-labels.json", gitIgnored);
-  const file = JSON.parse(readFileSync(inPath, "utf8")) as CandidateFile;
+  const candidatesBytes = readFileSync(inPath);
+  const candidatesSha256 = createHash("sha256").update(candidatesBytes).digest("hex");
+  const file = JSON.parse(candidatesBytes.toString("utf8")) as CandidateFile;
   if (file.kind !== "lixus-real-candidates" || !Array.isArray(file.items)) throw new Error("aday dosyası tanınmadı");
-  const labels: Record<string, RealLabel> = existsSync(labelsPath) ? JSON.parse(readFileSync(labelsPath, "utf8")) : {};
+  // Etiketler YALNIZ ait oldukları aday dosyasıyla kullanılır (yeniden üretilmiş dosyaya sessizce oturmasın).
+  const bound = bindLabelFile(existsSync(labelsPath) ? JSON.parse(readFileSync(labelsPath, "utf8")) : null, candidatesSha256);
+  const labels = bound.labels;
+  const saveLabels = (next: LabelState) => {
+    const lf: LabelFile = { kind: "lixus-real-labels", candidatesSha256, labels: next.labels };
+    writeAtomic(labelsPath, `${JSON.stringify(lf, null, 1)}\n`);
+  };
 
   if (process.argv.includes("--finalize")) {
     const out = guardedOutputPath(REPO, arg("--out") ?? "evals/private/stay-change-real.json", gitIgnored);
-    const ds = buildRealDataset(file, labels);
+    const ds = buildRealDataset(file, bound);
     const json = `${JSON.stringify(ds, null, 1)}\n`;
     writeAtomic(out, json);
     const byKind = new Map<string, number>();
@@ -78,7 +87,7 @@ async function main(): Promise<void> {
     const key = (await ask("> ")).trim().toLowerCase();
     if (key === "q") break;
     const next = applyLabelAction(state, file.items, key === "b" ? { type: "back" } : { type: "key", key });
-    if (next !== state) writeAtomic(labelsPath, `${JSON.stringify(next.labels, null, 1)}\n`);
+    if (next !== state) saveLabels(next);
     state = next;
   }
   rl.close();

@@ -595,6 +595,50 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 P2-10: insan talebi + model de 'human_request' dedi AMA kapı başka sebeple kapandı (devir GİTMEDİ) → host'a acil yükseltme", async () => {
+    // Muafiyet yalnız devir cevabı GERÇEKTEN gönderildiğinde doğrudur; burada düşük güven kapıyı kapattı, misafir
+    // insan istedi ve HİÇ cevap almadı. Cevap modeli `riskType` bırakmadı (sık görülen durum) → model yolu sessiz.
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal(
+      "fetch",
+      semanticFetch({
+        guest_message_understanding: {
+          language: "en",
+          requests: [{ intent: "human_request", query_tr: "ev sahibiyle görüşme", query_original: "speak with the owner" }],
+          stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        },
+      }),
+    );
+    mockSuggest.mockResolvedValue({ ...THANKS, intent: "human_request", confidence: 0.5, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." });
+    const id = await seed({ messages: [{ direction: "inbound", body: "Can I speak with the owner directly please?" }] });
+    await prisma.organization.updateMany({ data: { alertEmail: "host@example.com" } });
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.conversation.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "problem", lastRiskType: "human_request" });
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 P2-9: cevap modeli DÜŞTÜ (şablon) ama bağımsız anlama katmanı acil durum gördü → acil yükseltme", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal(
+      "fetch",
+      semanticFetch({
+        guest_message_understanding: {
+          language: "en",
+          requests: [{ intent: "emergency", query_tr: "en yakın hastane", query_original: "nearest hospital" }],
+          stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        },
+      }),
+    );
+    mockSuggest.mockResolvedValue({ ...THANKS, source: "fallback" as never, reply: "Mesajınız alındı." });
+    const id = await seed({ messages: [{ direction: "inbound", body: "My daughter cut her hand badly, where is the nearest hospital?" }] });
+    await prisma.organization.updateMany({ data: { alertEmail: "host@example.com" } });
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.conversation.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "problem", lastRiskType: "safety_emergency" });
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
   it("acil durum niyeti: rozet 'safety_emergency'; ikinci geçiş aynı konuşmaya İKİNCİ e-posta atmaz (atomik claim)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal(

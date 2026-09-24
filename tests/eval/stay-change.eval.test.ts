@@ -35,6 +35,8 @@ import { writeSidecar } from "./sidecar";
 interface ReqItem {
   id: string;
   split: string;
+  /** Yalnız gerçek sette (B): "candidate" | "rest" — sonuçlar katman katman raporlanır (yeniden ağırlıklandırma). */
+  stratum?: string;
   text: string;
   lang: string;
   kind: string;
@@ -59,33 +61,48 @@ const SEALED_FILE = path.resolve(__dirname, "../../evals/sealed/stay-change-fina
 // Mühür kısmi (anahtarsız / yalnız yedek) koşuyla YAKILMAZ: içerik ancak tam final koşusunda okunur.
 if (SEALED && !enabled) throw new Error("EVAL_SEALED_FINAL=1 yalnız gerçek model koşusunda (RUN_REAL_EVAL=1 + anahtar).");
 const DATASET = SEALED ? SEALED_FILE : path.resolve(__dirname, "../../evals/stay-change.json");
-const base = JSON.parse(readFileSync(DATASET, "utf8")) as { version: number; requests: ReqItem[]; replies: RepItem[] };
+const SEALS_FILE = path.resolve(__dirname, "../../evals/sealed/SEALS.json");
+const datasetBytes = readFileSync(DATASET);
+type SealEntry = { sha256?: string; state?: string; location?: string };
+const seals = (): Record<string, SealEntry> => JSON.parse(readFileSync(SEALS_FILE, "utf8")) as Record<string, SealEntry>;
+if (SEALED) {
+  // 🚨 Mühürlü A seti yalnız SHA-256'sı kayıtla eşleşir ve durumu "sealed" ise koşulur: yanmış ya da değiştirilmiş
+  // set sessizce koşulmasın (inceleme 09-24). Kısmi koşu da mührü yakardı → örnek sınırı mühürlü koşuda YASAK.
+  const seal = seals()[path.basename(DATASET)];
+  if (!seal || seal.state !== "sealed") throw new Error("mühürlü set 'sealed' durumunda değil (yanmış ya da kayıtsız).");
+  if (createHash("sha256").update(datasetBytes).digest("hex") !== seal.sha256) throw new Error("mühürlü setin SHA-256'sı kayıtla eşleşmiyor.");
+  if (process.env.EVAL_STAY_LIMIT) throw new Error("EVAL_STAY_LIMIT mühürlü koşuda kullanılamaz (kısmi koşu seti yakar).");
+}
+const base = JSON.parse(datasetBytes.toString("utf8")) as { version: number; requests: ReqItem[]; replies: RepItem[] };
 
 // GERÇEK SET (B, `docs/EVAL-MUHURLU-FINAL.md`): kurucunun gerçek misafir mesajlarından, anonim, YALNIZ kurucunun
 // makinesinde (depoya girmez). Yalnız mühürlü final koşusunda ve dosyanın SHA-256'sı `SEALS.json`daki
 // "local-only" kaydıyla eşleşirse okunur; rapora METİN girmez (yalnız sayılar ve "r-0001" gibi sıra kimlikleri).
 const REAL_SET = process.env.EVAL_REAL_SET?.trim() ?? "";
 if (REAL_SET && !SEALED) throw new Error("EVAL_REAL_SET yalnız mühürlü final koşusunda okunur (EVAL_SEALED_FINAL=1).");
-function loadRealSet(file: string): { requests: ReqItem[] } {
+function loadRealSet(file: string): { requests: ReqItem[]; strata?: Record<string, { population: number; labeled: number }> } {
   const bytes = readFileSync(path.resolve(file));
-  const seals = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/sealed/SEALS.json"), "utf8")) as Record<
-    string,
-    { sha256?: string; state?: string; location?: string }
-  >;
-  const seal = seals["stay-change-real.json"];
+  const seal = seals()["stay-change-real.json"];
   if (!seal || seal.location !== "local-only" || seal.state !== "sealed") {
     throw new Error("gerçek set için mühür kaydı yok (SEALS.json → stay-change-real.json: location local-only, state sealed).");
   }
   if (createHash("sha256").update(bytes).digest("hex") !== seal.sha256) throw new Error("gerçek setin SHA-256'sı mühürle eşleşmiyor.");
-  const ds = JSON.parse(bytes.toString("utf8")) as { source?: string; requests?: ReqItem[] };
+  const ds = JSON.parse(bytes.toString("utf8")) as {
+    source?: string;
+    requests?: ReqItem[];
+    strata?: Record<string, { population: number; labeled: number }>;
+  };
   if (ds.source !== "real-anonymized" || !Array.isArray(ds.requests)) throw new Error("gerçek set tanınmadı.");
-  return { requests: ds.requests };
+  return { requests: ds.requests, strata: ds.strata };
 }
 const real = REAL_SET ? loadRealSet(REAL_SET) : null;
 const data = real ? { ...base, requests: [...base.requests, ...real.requests] } : base;
 const SPLITS = SEALED ? (real ? ["final", "real"] : ["final"]) : ["dev", "holdout"];
 const LIMIT = Number(process.env.EVAL_STAY_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_STAY_LIMIT)) : Infinity;
 const CONCURRENCY = 4;
+
+/** Tablo anahtarının bölüm kısmı: gerçek sette katmanla birlikte ("real/candidate") — oranlar yeniden ağırlıklanabilsin. */
+const splitKey = (r: { split: string; stratum?: string }) => (r.stratum ? `${r.split}/${r.stratum}` : r.split);
 
 /** Cevap etiketi → bu cevap misafire OTOMATİK gidebilir mi (doğru davranış)? */
 function replyMayAutoSend(label: string): boolean {
@@ -147,7 +164,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     const rep = new Map<string, Tally>();
     for (const r of data.requests) {
       const hit = detectAvailabilityRequest(r.text) !== null;
-      add(req, `${r.split}|${r.kind === "none" ? "none(doğru=yok)" : "istek(doğru=var)"}`, r.kind === "none" ? !hit : hit);
+      add(req, `${splitKey(r)}|${r.kind === "none" ? "none(doğru=yok)" : "istek(doğru=var)"}`, r.kind === "none" ? !hit : hit);
     }
     for (const r of data.replies) {
       const claim = detectAvailabilityClaim(r.text) !== null;
@@ -184,7 +201,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
           const v: StayGuardVerdict = g.verdict;
           const said = v.guestRequestsChange || slotTimesShifted({ checkinTime: v.requestedCheckinTime, checkoutTime: v.requestedCheckoutTime }, stayTimes);
           guardSaid = said;
-          add(guardReq, `${r.split}|${truth ? "istek" : "none"}|${r.lang}`, said === truth);
+          add(guardReq, `${splitKey(r)}|${truth ? "istek" : "none"}|${r.lang}`, said === truth);
           rows.push({ layer: "guard-req", id: r.id, truth, said });
         }
         const u = await understandGuestMessages({ guestMessage: r.text, stayTimes });
@@ -192,14 +209,14 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
         else {
           const said = u.value.stay.requested || slotTimesShifted(u.value.stay, stayTimes);
           nluSaid = said;
-          add(nluReq, `${r.split}|${truth ? "istek" : "none"}|${r.lang}`, said === truth);
+          add(nluReq, `${splitKey(r)}|${truth ? "istek" : "none"}|${r.lang}`, said === truth);
           rows.push({ layer: "nlu-req", id: r.id, truth, said, intents: u.value.requests.map((x) => x.intent) });
         }
         // BİRLEŞİM (09-24 değişmezi): hiçbir katmanın "istek yok"u başka bir katmanın isteğini silemez → ürünün
         // tutuşu kelime ağı ∨ bekçi ∨ anlama. Yalnız iki model de koştuysa sayılır (düşen çağrı zaten GEÇERSİZ).
         if (guardSaid !== null && nluSaid !== null) {
           const said = detectAvailabilityRequest(r.text) !== null || guardSaid || nluSaid;
-          add(unionReq, `${r.split}|${truth ? "istek (doğru = tutuldu)" : "none (doğru = gitti; yanlış = GEREKSİZ İNCELEME)"}`, said === truth);
+          add(unionReq, `${splitKey(r)}|${truth ? "istek (doğru = tutuldu)" : "none (doğru = gitti; yanlış = GEREKSİZ İNCELEME)"}`, said === truth);
           rows.push({ layer: "union-req", id: r.id, truth, said });
         }
       });
@@ -266,6 +283,13 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
         ? [
             "",
             `Gerçek set (B): ${real.requests.length} misafir mesajı (bölüm \`real\`) — kurucunun hesabından, anonim, yalnız yerel; metin bu rapora girmez. Bu koşuyla o da YANDI.`,
+            ...(real.strata
+              ? [
+                  `Katman evreni (yeniden ağırlıklandırma için): ${Object.entries(real.strata)
+                    .map(([k, v]) => `${k} ${v.labeled}/${v.population}`)
+                    .join(" · ")} (etiketli / evren).`,
+                ]
+              : []),
           ]
         : []),
       "",

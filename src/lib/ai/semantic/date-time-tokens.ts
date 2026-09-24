@@ -4,8 +4,12 @@
 // Kural ve ölçülmüş gerekçesi `redact.ts` başlığında (noktalı/tireli telefon parça parça KORUNMAZ).
 // ---------------------------------------------------------------------------
 
-/** Rakamla başlayıp rakamla biten, arada yalnız rakam/boşluk/ayraç taşıyan dizi (telefon kalıbının üst kümesi). */
-export const NUMERIC_RUN = /\+?\d[\d\s().:/-]*\d/g;
+/**
+ * Rakamla başlayıp rakamla biten, arada yalnız rakam/boşluk/ayraç taşıyan dizi (telefon kalıbının üst kümesi).
+ * KAYNAK dizesi dışa verilir, `g` bayraklı paylaşılan nesne DEĞİL (durum taşıyan `lastIndex` çağıranlar arasında
+ * sızmasın — inceleme 09-24): her çağıran kendi `new RegExp(NUMERIC_RUN_SOURCE, "g")` nesnesini kurar.
+ */
+export const NUMERIC_RUN_SOURCE = String.raw`\+?\d[\d\s().:/-]*\d`;
 const DATE_YMD = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/;
 const DATE_DMY = /^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/;
 const TIME = /^(\d{1,2})[:.](\d{2})$/;

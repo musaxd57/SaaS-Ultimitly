@@ -194,7 +194,7 @@ export const POST = withManage(async (session, req) => {
     {
       stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },
       understanding: (await kbSel.understanding)?.stay ?? null,
-      // Anlama katmanının risk niyeti — gerçek kapıyla PARİTE (enforce kipinde "gönderilirdi" dürüst kalsın).
+      // Anlama katmanının risk niyeti — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
       understandingRisk: understandingRiskOf(await kbSel.understanding),
       hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
     },

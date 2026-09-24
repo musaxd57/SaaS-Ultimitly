@@ -243,13 +243,13 @@ export interface KbEvidenceInput {
   /** Yapay zekâyı ele geçirme ifadesi taşıdığı için istemden çıkarılan kalem sayısı (`kb-fetch`). */
   hijackScreened?: number;
   /**
-   * Konaklama değişikliği politikasının özeti (09-24, `evaluateAvailability`): uygulanan karar,
-   * `enforce` kipinin kararı (gölge) ve katman sinyalleri — yalnız kapalı-küme kodlar.
+   * Konaklama değişikliği politikasının özeti (09-24, `evaluateAvailability`): uygulanan karar, `ev` (09-24'ten
+   * beri karara eşit; eski kayıtlarda gölge kararıydı) ve katman sinyalleri — yalnız kapalı-küme kodlar.
    */
   stay?: StayEvidence;
   /**
-   * Anlama katmanının risk niyeti (09-24, `semantic/intent-risk.ts`): uygulanan karar, `enforce` kipinin kararı
-   * (gölge) ve sinyalin kendisi — yalnız kapalı-küme kodlar. Yalnız katman gerçekten koştuysa verilir.
+   * Anlama katmanının risk niyeti (09-24, `semantic/intent-risk.ts`): uygulanan karar, `ev` (karara eşit; eski
+   * kayıtlarda gölge kararıydı) ve sinyalin kendisi — yalnız kapalı-küme kodlar. Yalnız katman koştuysa verilir.
    */
   intentRisk?: { v: string; ev: string; k: string };
 }
@@ -267,7 +267,7 @@ function cleanIntentRisk(x: KbEvidenceInput["intentRisk"]): { v: string; ev: str
 export interface StayEvidence {
   /** Uygulanan karar ("-" = temiz). */
   v: string;
-  /** `enforce` kipinde verilecek karar (gölge ölçümü). */
+  /** 09-24'ten beri `v`ye eşit (gölge kip kaldırıldı); eski kayıtlarda gölge kararıydı. Şema kararlılığı için. */
   ev: string;
   lx: string;
   d: string;
