@@ -348,3 +348,39 @@ describe("betik pinleri (çalıştırılmadan, kaynak üzerinden)", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("geçmiş mesaj taraması betiği (09-24) — yalnız okur, yalnız sayı yazar", () => {
+  const statsSrc = readFileSync(path.join(REPO, "scripts/eval-real-stats.ts"), "utf8");
+
+  it("🚨 ham komut YOK (dışa aktarımın pinli `readOnly` yardımcısı), model erişimi yok, her SQL gövdesi SELECT", () => {
+    expect(statsSrc).toContain('import { ask, readOnly } from "./eval-real-export";');
+    expect(statsSrc).not.toMatch(/\$(?:executeRaw|queryRawUnsafe|executeRawUnsafe)/);
+    expect(statsSrc).not.toMatch(/\bprisma\.\$(?:queryRaw|transaction)/);
+    expect(statsSrc).not.toMatch(/\b(?:prisma|tx)\.(?!\$)[A-Za-z_]/);
+    expect(statsSrc.split("await readOnly(prisma,").length - 1).toBe(2);
+    const sqlBodies = [...statsSrc.matchAll(/\$queryRaw<[^`]*`([^`]*)`/g)].map((m) => m[1]);
+    expect(sqlBodies.length).toBeGreaterThanOrEqual(6); // anti-vakum
+    for (const sql of sqlBodies) {
+      expect(sql, sql).toMatch(/^\s*SELECT\b/i);
+      expect(sql, sql).not.toMatch(/\b(?:insert|update|delete|truncate|alter|drop|grant|revoke|copy|create|merge|call|lock|vacuum|refresh|reindex|cluster|comment|set|reset|do)\b/i);
+    }
+    // Kiracı kapsamı: mülk / rezervasyon / görev / mesaj okuyan HER sorgu yalnız sahibin kuruluşuna bağlı.
+    const scoped = sqlBodies.filter((sql) => /FROM "(?:Property|Reservation|Task|Message)"/.test(sql));
+    expect(scoped.length).toBe(4);
+    for (const sql of scoped) expect(sql, sql).toMatch(/"organizationId" = \$\{org\.id\}/);
+    // Yalnız misafirin yazdığı gelen mesajlar (bizim cevaplarımız, ev sahibi ve sistem satırları sayılmaz).
+    expect(statsSrc).toContain(`AND m.direction = 'inbound'`);
+    expect(statsSrc).toContain(`AND (m."authorType" IS NULL OR m."authorType" = 'guest')`);
+  });
+
+  it("🚨 yalnız SAHİBİN kendi kuruluşu + mesajlar okunmadan ÖNCE 'EVET'; ekrana metin basılmaz; çıktı git'in yok saydığı yola", () => {
+    expect(statsSrc).toContain('if (users[0].role !== "owner")');
+    expect(statsSrc.indexOf('if (answer !== "EVET")')).toBeGreaterThan(-1);
+    expect(statsSrc.indexOf('if (answer !== "EVET")')).toBeLessThan(statsSrc.indexOf('FROM "Message" m'));
+    const logs = statsSrc.split("\n").filter((l) => /console\.(?:log|error)\(/.test(l));
+    expect(logs.length).toBeGreaterThan(0);
+    for (const l of logs) expect(l, l).not.toMatch(/\.body|\.text\b|\burl\b/);
+    expect(statsSrc).toContain("guardedOutputPath(REPO,");
+    expect(statsSrc).toMatch(/ask\("Veritabanı adresi[^"]*", true\)/);
+  });
+});

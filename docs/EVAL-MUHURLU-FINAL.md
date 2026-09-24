@@ -111,6 +111,27 @@ hiç görmez; depoya yalnız mühür (SHA-256 + sayılar) ve final raporunun top
   yerel ve anonim kullanım olarak kurucu onaylar; avukat paketine not düşülür (değişmez 14: platform verisi
   politikası ayrı).
 
+## Tüm geçmiş mesajların taraması — yalnız sayı (09-24)
+
+Kurucu: "admin hesabından önceden çektiğimiz her mesajla kontrol edebilir miyiz — salt okuma". Set B örnektir ve
+DOĞRULUK ölçer (kör etiket + model). Bu tarama ise TÜM geçmişe bakar, etiket ve model yoktur, kredi gerekmez;
+yalnız "ne sıklıkta, hangi koşulda" sorusunu cevaplar.
+
+`npx tsx scripts/eval-real-stats.ts --email <giriş e-postası>` (isteğe bağlı `--max 50000`, `--force`).
+
+* Aynı salt-okuma kapısı: dışa aktarım betiğinin pinli `readOnly` yardımcısı (ilk komut `SET TRANSACTION READ ONLY`,
+  `SHOW transaction_read_only` doğrulaması, 60 sn sınır); bu betikte yalnız SELECT (mekanik pin
+  `tests/unit/eval-real.test.ts`). Yalnız kuruluş SAHİBİ; okumadan önce "EVET".
+* Çıktı YALNIZ SAYI (`src/lib/eval-real/replay-stats.ts`, saf): taranan misafir mesajı; kelime ağının konaklama
+  değişikliği saydığı mesajlar tür tür (ALT SINIR — kelime ağı yedektir, dolaylı dili kaçırır); yalnız erken giriş
+  isteklerinden varış günü sorulanlar, aynı gün devir olanlar, o devrin temizlik görevi olanlar, misafir sorduğunda
+  daire hazır olanlar, standart girişe kadar hazır olanlar (temizlikten sonra yeniden değerlendirmenin payı) ve
+  soruların yerel saat dağılımı. Metin, ad, kimlik, tarih ekrana da dosyaya da girmez (pin).
+* Hazırlık ve tarih kuralı ürünle AYNI (`early-checkin/readiness.ts`, `calendarDateOf`). Geçmişe bakışın sınırı:
+  görevin bugünkü "bitti" kaydı o ana göre değerlendirilir; sonradan yeniden açılıp kapanan görev ayırt edilmez.
+* Dosya git'in yok saydığı `evals/private/replay-stats.json`e yazılır; sayılar paylaşılabilir, depoya kurucu
+  isterse elle girer.
+
 ## Sınırlar
 
 * A seti sentetiktir; B seti gerçektir ama tek işletmenin (kurucunun) misafirleridir. Gerçek trafik ölçüsü ayrıca

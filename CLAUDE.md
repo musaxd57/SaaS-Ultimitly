@@ -788,6 +788,8 @@ dedektöründen BAĞIMSIZ; çıktı YALNIZ git'in yok saydığı `evals/private/
 (tahmin/katman göstermez). Mühür `SEALS.json` `location: local-only` (dosya depoda OLAMAZ, pin); harness yalnız
 `EVAL_SEALED_FINAL=1` + `EVAL_REAL_SET` + SHA eşleşmesiyle okur, rapora metin girmez. Geliştirici ve ajanlar içeriği
 GÖRMEZ; metin OpenAI dışında hiçbir servise gitmez. Protokol `docs/EVAL-MUHURLU-FINAL.md`.
+**Tüm geçmiş taraması** `scripts/eval-real-stats.ts` (Set B'nin AYNI pinli `readOnly` kapısı; model/kredi YOK; çıktı
+YALNIZ SAYI — saf `eval-real/replay-stats.ts`, hazırlık/tarih kuralı ürünle aynı; kelime ağı sayımı ALT SINIRDIR).
 
 **KB onay (A1, migration 53 CANLI):** `source`/`reviewState`; eski satırın onayı VARSAYILMAZ (varsayılan `legacy`,
 `approved` yalnız POST'ta açık eylem). Erişim ALLOWLIST `legacy+approved`, TEK kapı `kb-review.ts`; `kb-fetch` AND'ler

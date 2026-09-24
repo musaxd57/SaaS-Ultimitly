@@ -46,7 +46,7 @@ function intArg(name: string, dflt: number, max: number): number {
   return Number.isInteger(v) && v >= 0 ? Math.min(v, max) : dflt;
 }
 
-function ask(question: string, hidden = false): Promise<string> {
+export function ask(question: string, hidden = false): Promise<string> {
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
     let muted = false;
@@ -68,7 +68,7 @@ function ask(question: string, hidden = false): Promise<string> {
  * SALT-OKUMA işlemi: ilk komut READ ONLY, ardından süre sınırı, EN SON doğrulama; doğrulanmadan `fn` ÇAĞRILMAZ.
  * Betikteki ham komutların TEK kaynağı burasıdır (pinli).
  */
-async function readOnly<T>(prisma: PrismaClient, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+export async function readOnly<T>(prisma: PrismaClient, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
   return prisma.$transaction(
     async (tx) => {
       await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
