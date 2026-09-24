@@ -406,8 +406,24 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
         stayTimes: STAY,
       }),
     ).toBe("availability_claim");
-    // Teklifin KENDİ "müsaitlik varsa"sı kendini onaylamaz: erteleme teklif metninin DIŞINDA aranır.
-    expect(evaluateAvailability(offer, ask, { hostOfferText: offer }).signals.lx).not.toContain("d");
+    // Teklifin KENDİ erteleme cümlesi kendini onaylamaz: erteleme teklif metninin DIŞINDA aranır. Teklif metni
+    // kendi içinde "subject to availability" taşıyor (mutasyon turu 09-24: teklif metni erteleme İÇERMEYEN eski
+    // örnek bu kuralı sınamıyordu — kural silinse de geçiyordu).
+    const selfDeferring = "Late checkout until 13:00 is possible for 20 EUR, subject to availability.";
+    expect(hasAvailabilityDeferral(selfDeferring)).toBe(true); // anti-vakum: teklif GERÇEKTEN erteleme cümlesi taşıyor
+    const relayOnly = evaluateAvailability(selfDeferring, ["Could we leave at 1pm tomorrow instead of 11?"], {
+      hostOfferText: selfDeferring,
+      stayTimes: STAY,
+    });
+    expect(relayOnly.reason).toBe("availability_claim");
+    expect(relayOnly.signals.lx).not.toContain("d");
+    // KONTROL: teklifin DIŞINDA gerçek erteleme varsa muafiyet işler.
+    expect(
+      vetoAvailability(`${selfDeferring} Whether it works for your dates is your host's call; your message has been recorded.`, ["x"], {
+        hostOfferText: selfDeferring,
+        stayTimes: STAY,
+      }),
+    ).toBeNull();
     expect(vetoAvailability("Çıkışınızı 13:00'e uzattık, iyi tatiller.", ask, { hostOfferText: offer })).toBe("availability_claim");
   });
 
