@@ -4,6 +4,7 @@ import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { serializeSupplyProfile } from "@/lib/supply";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { earlyCheckinRuleWhere } from "@/lib/early-checkin/rules";
 
 // ⚠️ GİZLİ TOKEN'LAR YANITTAN ÇIKARILIR — GERİ EKLEME.
 // `icalToken` takvim beslemesinin, `chatToken` QR concierge'in TEK kimlik
@@ -117,6 +118,8 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
       },
       data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "property_deleted" },
     }),
+    // Mülkün erken giriş kuralı da gider (FK yok; aynı kimlikle yeniden kullanılmasın, sahipsiz satır kalmasın).
+    prisma.automationRule.deleteMany({ where: earlyCheckinRuleWhere(session.organizationId, id) }),
     prisma.property.deleteMany({ where: { id, organizationId: session.organizationId } }),
   ]);
   if (result.count === 0) return notFound();

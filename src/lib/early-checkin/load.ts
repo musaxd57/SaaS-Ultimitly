@@ -19,7 +19,7 @@ import { addNights, calendarDateOf, describeNights, statusClassOf, todayKey } fr
 import { loadAvailabilityInputs } from "@/modules/availability/load";
 import { hhmmToMinutes, normalizeHhmm } from "@/lib/ai/semantic/stay-change";
 import type { EarlyCheckinFacts, EarlyCheckinRule } from "./core";
-import { laterTime, readinessDetailOf, readyAtOf, wallClockMoment, type ReadinessMark } from "./readiness";
+import { laterTime, readinessDetailOf, readyMarkOf, wallClockMoment, type ReadinessMark } from "./readiness";
 import { loadEarlyCheckinRule } from "./rules";
 
 // Saf kurallar `readiness.ts`te (geçmiş mesaj taraması da aynı kuralı kullanır); eski içe aktarımlar bozulmasın.
@@ -33,7 +33,7 @@ type TaskWithUpdates = {
   status: string;
   reservationId: string | null;
   dueAt: Date | null;
-  updates: { status: string | null; userId: string | null; createdAt: Date }[];
+  updates: { id?: string; status: string | null; userId: string | null; createdAt: Date }[];
 };
 
 /**
@@ -44,15 +44,28 @@ export function markOfTask(t: TaskWithUpdates, departingReservationId: string): 
   const statusUpdates = t.updates.filter((u) => u.status !== null).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const latest = statusUpdates[0];
   const done = latest && latest.status === "done" && latest.userId ? latest : null;
-  const started = done
-    ? statusUpdates.find((u) => u.status === "in_progress" && u.userId === done.userId && u.createdAt < done.createdAt)
-    : undefined;
+  // "Bitti" görevin EN SON durum kaydı → aynı kullanıcının "başladım"ları ondan önce (ya da aynı an; o zaman süre 0 ve
+  // 15 dk kuralı reddeder). Ayrıca zaman kıyası gerekmez (mutasyon turu 09-24: eşdeğer koşuldu).
+  const started = done ? statusUpdates.find((u) => u.status === "in_progress" && u.userId === done.userId) : undefined;
   return {
     status: t.status,
     doneAt: done ? done.createdAt : null,
+    doneId: done?.id ?? null,
     startedAt: started ? started.createdAt : null,
     linked: t.reservationId === departingReservationId,
   };
+}
+
+/** Yükleyici çıktısı. `referenceId` / `readyMark` karar kaydı içindir (hangi devir, hangi "hazır" kaydı). */
+export interface LoadedEarlyCheckin {
+  facts: EarlyCheckinFacts;
+  rule: EarlyCheckinRule | null;
+  readyAt: Date | null;
+  timeZone: string;
+  /** Hazırlığın ölçüldüğü devrin (ayrılan / son çıkan) rezervasyonu. */
+  referenceId: string | null;
+  /** Hazır hükmünü veren "bitti" kaydı (kimlik + an). */
+  readyMark: { id: string | null; at: Date } | null;
 }
 
 export async function loadEarlyCheckinFacts(args: {
@@ -62,7 +75,7 @@ export async function loadEarlyCheckinFacts(args: {
   now: Date;
   requested: EarlyCheckinFacts["requested"];
   singleIntent: boolean;
-}): Promise<{ facts: EarlyCheckinFacts; rule: EarlyCheckinRule | null; readyAt: Date | null; timeZone: string } | null> {
+}): Promise<LoadedEarlyCheckin | null> {
   const property = await prisma.property.findFirst({
     where: { id: args.propertyId, organizationId: args.organizationId },
     select: { checkInTime: true, checkOutTime: true, organization: { select: { timezone: true } } },
@@ -88,7 +101,7 @@ export async function loadEarlyCheckinFacts(args: {
         select: { id: true, status: true, arrivalDate: true },
       })
     : null;
-  if (!own) return { facts, rule, readyAt: null, timeZone: tz };
+  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null };
   const arrivalKey = calendarDateOf(own.arrivalDate, tz).key;
   facts.reservation = { status: own.status, arrivalKey };
 
@@ -122,7 +135,7 @@ export async function loadEarlyCheckinFacts(args: {
   }
 
   // Hazırlık: referans çıkış = aynı gün ayrılan; yoksa varıştan önceki EN SON çıkış.
-  let readyAt: Date | null = null;
+  let readyMark: LoadedEarlyCheckin["readyMark"] = null;
   const reference = previous
     ? { id: previous.r.id, dayKey: previous.d, checkout: previous.checkout }
     : await (async () => {
@@ -151,7 +164,7 @@ export async function loadEarlyCheckinFacts(args: {
         status: true,
         reservationId: true,
         dueAt: true,
-        updates: { where: { status: { not: null } }, orderBy: { createdAt: "desc" }, take: 20, select: { status: true, userId: true, createdAt: true } },
+        updates: { where: { status: { not: null } }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, status: true, userId: true, createdAt: true } },
       },
     });
     const onTurnoverDay = (t: { dueAt: Date | null }) => t.dueAt !== null && calendarDateOf(t.dueAt, tz).key === reference.dayKey;
@@ -164,7 +177,8 @@ export async function loadEarlyCheckinFacts(args: {
     facts.readiness = detail.status;
     facts.readinessNote = detail.note;
     facts.departureConfirmed = detail.departureConfirmed;
-    readyAt = readyAtOf(marks, checkoutAt, args.now, opts);
+    const mark = readyMarkOf(marks, checkoutAt, args.now, opts);
+    readyMark = mark?.doneAt ? { id: mark.doneId ?? null, at: mark.doneAt } : null;
     // G4 (bilgi): açık bir devir temizliğinin EN SON durum kaydı bugün kimlikli "başladım" → temizlikçi içeride. (Açık
     // görev varken hazırlık zaten "hazır" olamaz; ayrıca koşul gerekmez.)
     facts.cleaningStarted = cleaning.some((t) => {
@@ -187,5 +201,5 @@ export async function loadEarlyCheckinFacts(args: {
       facts.previousNightVerifiedVacant = report.ok && report.value.nights.length === 1 && report.value.nights[0].state === "free";
     }
   }
-  return { facts, rule, readyAt, timeZone: tz };
+  return { facts, rule, readyAt: readyMark?.at ?? null, timeZone: tz, referenceId: reference?.id ?? null, readyMark };
 }

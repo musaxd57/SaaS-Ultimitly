@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { MIN_START_TO_READY_MS, READY_SETTLE_MS, readinessDetailOf, readyAtOf, type ReadinessMark } from "@/lib/early-checkin/readiness";
+import { MIN_START_TO_READY_MS, READY_SETTLE_MS, readinessDetailOf, readyAtOf, readyMarkOf, type ReadinessMark } from "@/lib/early-checkin/readiness";
 import { markOfTask } from "@/lib/early-checkin/load";
 import { explicitTimeMentions, mentionsAnotherDay, timeMismatchInTexts } from "@/lib/early-checkin/text-checks";
-import { earlyCheckinAutoBlockers } from "@/lib/early-checkin/workflow";
+import { earlyCheckinAutoBlockers, earlyCheckinEvidenceOf, earlyCheckinRuleHash } from "@/lib/early-checkin/workflow";
+import { decideEarlyCheckin, type EarlyCheckinFacts, type EarlyCheckinRule } from "@/lib/early-checkin/core";
+import { buildKbEvidence } from "@/lib/ai/grounding";
 import { validateEarlyCheckinRuleInput } from "@/lib/early-checkin/rules";
 import { earlyCheckinPanelLines, type EarlyCheckinPanelData } from "@/lib/early-checkin/panel";
 import { minutesOfDayInTimeZone } from "@/lib/timezone";
@@ -58,9 +60,12 @@ describe("hazırlık — çıkıştan ÖNCE bitmiş temizlik yalnız host rızas
     for (const [name, mark, opts] of cases) {
       expect(readinessDetailOf([mark], CHECKOUT, NOW, opts), name).toMatchObject({ status: "not_ready", departureConfirmed: false });
     }
-    // Sınır: tam 15 dk sayılır.
-    const exact = { ...EARLY, startedAt: new Date(EARLY_DONE.getTime() - MIN_START_TO_READY_MS) };
+    // Sınır: tam 15 dk sayılır; eşik sabiti 15 dk'dır (formdaki "en az 15 dakika" metniyle aynı).
+    expect(MIN_START_TO_READY_MS).toBe(15 * 60_000);
+    const exact = { ...EARLY, startedAt: new Date(EARLY_DONE.getTime() - 15 * 60_000) };
     expect(readinessDetailOf([exact], CHECKOUT, NOW, OPTS).status).toBe("ready");
+    const tenMinutes = { ...EARLY, startedAt: new Date(EARLY_DONE.getTime() - 10 * 60_000) };
+    expect(readinessDetailOf([tenMinutes], CHECKOUT, NOW, OPTS).status).toBe("not_ready");
   });
 
   it("kanıtlı erken işaret de OTURMALI (≥5 dk) ve devrin başka görevi AÇIK olmamalı", () => {
@@ -92,12 +97,13 @@ describe("görevin hazırlık işareti (`markOfTask`) — yalnız kimlikli ve EN
   it("temizlikçinin 'başladım → bitti' sırası: iki an + bağ", () => {
     const m = markOfTask(
       task([
-        { status: "in_progress", userId: "c1", createdAt: at("07:00") },
-        { status: "done", userId: "c1", createdAt: at("07:45") },
+        { id: "u-start", status: "in_progress", userId: "c1", createdAt: at("07:00") },
+        { id: "u-done", status: "done", userId: "c1", createdAt: at("07:45") },
       ]),
       "dep",
     );
-    expect(m).toEqual({ status: "done", doneAt: at("07:45"), startedAt: at("07:00"), linked: true });
+    // `doneId` = hazır hükmünü veren kaydın kimliği (karar kaydı `rm`).
+    expect(m).toEqual({ status: "done", doneAt: at("07:45"), doneId: "u-done", startedAt: at("07:00"), linked: true });
     expect(markOfTask(task([{ status: "done", userId: "c1", createdAt: at("07:45") }], { reservationId: "other" }), "dep").linked).toBe(false);
   });
 
@@ -200,6 +206,10 @@ describe("metin çapraz kontrolleri — misafirin KENDİ yazdığı saat ve gün
       "haftaya salı değil, haftaya",
       "next week",
       "2 gün sonra geleceğiz",
+      // Gün numarası bugünle AYNI ama ay farklı → başka gün.
+      "14 Kasım'da 12'de gelsek?",
+      "November 14 at noon?",
+      "14.11",
     ]) {
       expect(today([text]), text).toBe(true);
     }
@@ -362,5 +372,104 @@ describe("gün içi dakika (mülk dilimi)", () => {
     expect(minutesOfDayInTimeZone("UTC", NOW)).toBe(8 * 60 + 40);
     expect(minutesOfDayInTimeZone("Europe/Istanbul", new Date("2026-10-13T21:00:00Z"))).toBe(0);
     expect(minutesOfDayInTimeZone("Not/AZone", NOW)).toBeNull();
+  });
+});
+
+// ─── dilim 2: kuyruklu teslim + karar kaydı dayanakları (kanıt modeli S/U) ─────────────────────────────────────────
+
+const FACTS: EarlyCheckinFacts = {
+  standardCheckIn: "15:00",
+  reservation: { status: "confirmed", arrivalKey: "2026-10-14" },
+  todayKey: "2026-10-14",
+  previousSameDay: { checkoutTime: "11:00" },
+  otherOverlaps: 0,
+  readiness: "ready",
+  previousNightVerifiedVacant: false,
+  requested: { time: "12:00", sources: 2, conflict: false },
+  singleIntent: true,
+};
+const AUTO_RULE: EarlyCheckinRule = { mode: "auto", earliest: "12:00", fee: { amount: 30, currency: "EUR" }, note: null };
+
+describe("kuyruklu teslim — bayat 'bugün' onayı gitmez", () => {
+  it("🚨 kalıcı kuyruk açıkken onaylanabilir karar OTOMATİK değildir (taslak host'a); kapalıyken engel yok", () => {
+    const base = { guestTexts: ["Saat 12'de gelebilir miyiz?"], requestedTime: "12:00", now: NOW, timeZone: "Europe/Istanbul" };
+    expect(earlyCheckinAutoBlockers({ ...base, queuedDelivery: true })).toEqual(["queued_delivery"]);
+    expect(earlyCheckinAutoBlockers({ ...base, queuedDelivery: false })).toEqual([]);
+    expect(earlyCheckinAutoBlockers(base)).toEqual([]);
+    expect(decideEarlyCheckin({ ...FACTS, autoBlockers: ["queued_delivery"] }, AUTO_RULE)).toMatchObject({
+      status: "approvable",
+      failed: ["queued_delivery"],
+      autoSend: false,
+      approvedTime: "12:00",
+    });
+  });
+
+  it("panel bunu sade dille söyler", () => {
+    const texts = earlyCheckinPanelLines({
+      status: "approvable",
+      mode: "auto",
+      fee: null,
+      failed: ["queued_delivery"],
+      facts: { arrivalToday: true, requestedTime: "12:00", previousCheckout: "11:00", readiness: "ready", otherOverlaps: 0, previousNightVerifiedVacant: false },
+    }).map((l) => l.text);
+    expect(texts).toContain("Bu onay şu an otomatik gönderilemiyor; hazır cevabı siz gönderin.");
+  });
+});
+
+describe("karar kaydı dayanakları — hangi devir, hangi 'hazır' kaydı, hangi kural sürümü (PII/metin/tutar YOK)", () => {
+  const trace = { referenceId: "cmdep0000000000000000001", readyMarkId: "cmupd0000000000000000001", readyAt: new Date("2026-10-14T08:30:41.123Z"), ruleHash: "0123456789ab" };
+  const run = (facts: EarlyCheckinFacts = FACTS) => ({ decision: decideEarlyCheckin(facts, AUTO_RULE), rule: AUTO_RULE, facts, draft: "x", trace });
+
+  it("kanıt kimlik + dakika + kural parmak izi + saat kaynağı sayısı taşır; erken hazırlıkta 'çıkış doğrulandı'", () => {
+    expect(earlyCheckinEvidenceOf(run(), true)).toEqual({
+      s: "approvable",
+      f: [],
+      a: "1",
+      dr: trace.referenceId,
+      rm: trace.readyMarkId,
+      rt: "2026-10-14T08:30Z",
+      rh: trace.ruleHash,
+      n: "2",
+    });
+    expect(earlyCheckinEvidenceOf(run({ ...FACTS, departureConfirmed: true }), false)).toMatchObject({ dc: "1", a: "0" });
+    // Dayanak yoksa alan yok (uydurma kimlik yazılmaz).
+    const bare = earlyCheckinEvidenceOf({ ...run(), trace: { referenceId: null, readyMarkId: null, readyAt: null, ruleHash: null } }, false);
+    expect(Object.keys(bare).sort()).toEqual(["a", "f", "n", "s"]);
+  });
+
+  it("🚨 kayıt her alanı AYRI doğrular: bozuk dayanak yalnız kendini düşürür, serbest metin sızamaz; s/f/a bozuksa ec yok", () => {
+    const ec = earlyCheckinEvidenceOf(run(), true);
+    const stored = (x: unknown) => JSON.parse(String(buildKbEvidence({ retrieved: [], usedLabels: [], earlyCheckin: x as never }))).ec;
+    expect(stored(ec)).toEqual(ec);
+    const tampered = { ...ec, dr: "Ayşe Yılmaz", rm: "../../etc", rt: "14:00", rh: "XYZ", n: "3", dc: "yes" };
+    expect(stored(tampered)).toEqual({ s: "approvable", f: [], a: "1" });
+    expect(buildKbEvidence({ retrieved: [], usedLabels: [], earlyCheckin: { ...ec, s: "maybe" } })).toBeNull();
+  });
+
+  it("kural parmak izi içerikle değişir (kip, saat, ücret, not, rıza); aynı içerik aynı iz; kural yoksa iz yok", () => {
+    const h = earlyCheckinRuleHash(AUTO_RULE);
+    expect(h).toMatch(/^[0-9a-f]{12}$/);
+    expect(earlyCheckinRuleHash({ ...AUTO_RULE })).toBe(h);
+    for (const changed of [
+      { ...AUTO_RULE, mode: "draft" as const },
+      { ...AUTO_RULE, earliest: "11:00" },
+      { ...AUTO_RULE, fee: { amount: 31, currency: "EUR" as const } },
+      { ...AUTO_RULE, note: "Hoş geldiniz" },
+      { ...AUTO_RULE, readyBeforeCheckout: true },
+    ]) {
+      expect(earlyCheckinRuleHash(changed), JSON.stringify(changed)).not.toBe(h);
+    }
+    expect(earlyCheckinRuleHash(null)).toBeNull();
+  });
+
+  it("hazır hükmünü veren işaret: geçerli işaretlerin EN YENİSİ ve kimliği", () => {
+    const a: ReadinessMark = { status: "done", doneAt: at("08:10"), doneId: "a" };
+    const b: ReadinessMark = { status: "done", doneAt: at("08:30"), doneId: "b" };
+    expect(readyMarkOf([a, b], CHECKOUT, NOW)?.doneId).toBe("b");
+    expect(readyMarkOf([b, a], CHECKOUT, NOW)?.doneId).toBe("b");
+    // Çıkıştan önceki (rızasız) işaret sayılmaz; hazır değilse işaret yok.
+    expect(readyMarkOf([{ status: "done", doneAt: at("07:30"), doneId: "c" }, b], CHECKOUT, NOW)?.doneId).toBe("b");
+    expect(readyMarkOf([a, { status: "todo", doneAt: null }], CHECKOUT, NOW)).toBeNull();
+    expect(readyAtOf([a, b], CHECKOUT, NOW)).toEqual(at("08:30"));
   });
 });

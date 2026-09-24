@@ -2531,7 +2531,9 @@ export async function applyChannelAutoReply(
       finalDecision: "auto_sent",
       riskLevel: result.riskLevel,
       riskType: result.riskType,
-      reason: earlyCheckinSent ? "early_checkin_verified" : "gate_passed",
+      // Kuyruklu teslimde doğrulanmış erken giriş onayı OTOMATİK gitmez (`queued_delivery`): burada yalnız kapıyı
+      // geçen model cevabı kuyruğa girer.
+      reason: "gate_passed",
       confidence: result.confidence,
       ...groundingAudited,
       srcDeclared: result.sourceAudit?.declared ?? null,
@@ -2548,7 +2550,6 @@ export async function applyChannelAutoReply(
       gateRiskLevel: result.riskLevel,
       gateRiskType: result.riskType,
     });
-    if (earlyCheckinSent && earlyCheckinRun) await noteEarlyCheckinApproval(conversation.reservation?.id ?? null, earlyCheckinRun, true);
     return { sent: true, queued: true, draft, ...meta };
   }
 
@@ -2739,8 +2740,8 @@ export function verifiedEarlyCheckinResult<T extends { reply: string; intent: st
 }
 
 /** Otomatik onaydan sonra host'un iş listesine not (en iyi çaba; ücret tutarı YOK — görevi temizlik de görür). */
-async function noteEarlyCheckinApproval(reservationId: string | null, run: EarlyCheckinRun, queued = false): Promise<void> {
-  const note = earlyCheckinHostNote(run.decision, queued);
+async function noteEarlyCheckinApproval(reservationId: string | null, run: EarlyCheckinRun): Promise<void> {
+  const note = earlyCheckinHostNote(run.decision);
   if (!reservationId || !note) return;
   try {
     const task = await prisma.task.findFirst({ where: { reservationId, type: "checkin_prep" }, select: { id: true } });

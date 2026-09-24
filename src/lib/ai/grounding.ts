@@ -255,9 +255,23 @@ export interface KbEvidenceInput {
   intentRisk?: { v: string; ev: string; k: string };
   /**
    * Doğrulanmış erken giriş akışı (09-24, `lib/early-checkin`): karar durumu, başarısız kontroller ve otomatik
-   * gönderim — yalnız kapalı-küme kodlar (saat, tutar, metin YOK). Yalnız akış koştuysa verilir.
+   * gönderim — kapalı-küme kodlar + dayanak kimlikleri / zaman damgası / kural parmak izi (kanıt modeli U; saat,
+   * tutar, metin, PII YOK). Yalnız akış koştuysa verilir.
    */
-  earlyCheckin?: { s: string; f: string[]; a: string };
+  earlyCheckin?: EarlyCheckinEvidenceInput;
+}
+
+/** `ec` girdisi: `s/f/a` zorunlu; diğerleri isteğe bağlı ve TEK TEK doğrulanır (bozuk alan yalnız kendini düşürür). */
+export interface EarlyCheckinEvidenceInput {
+  s: string;
+  f: string[];
+  a: string;
+  dr?: string;
+  rm?: string;
+  rt?: string;
+  rh?: string;
+  n?: string;
+  dc?: string;
 }
 
 const IR_REASONS: ReadonlySet<string> = new Set(["-", INTENT_RISK_REASON]);
@@ -266,11 +280,30 @@ const IR_KINDS: ReadonlySet<string> = new Set(["-", ...INTENT_RISK_KINDS]);
 const EC_STATUSES: ReadonlySet<string> = new Set(["approvable", "pending", "needs_host", "not_early"]);
 const EC_CHECKS: ReadonlySet<string> = new Set(EARLY_CHECKIN_CHECKS);
 
-/** `ec` kanıt alanı: durum + başarısız kontroller + otomatik gönderim; tanınmayan her değer alanı düşürür. */
-function cleanEarlyCheckin(x: KbEvidenceInput["earlyCheckin"]): { s: string; f: string[]; a: string } | undefined {
+/** Kayıt kimliği (cuid): yalnız küçük harf + rakam; serbest metin sızamaz. */
+const EC_ID = /^[a-z0-9]{20,40}$/;
+const EC_MINUTE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/;
+const EC_HASH = /^[0-9a-f]{12}$/;
+
+/**
+ * `ec` kanıt alanı: durum + başarısız kontroller + otomatik gönderim (tanınmayan → ALAN düşer) + isteğe bağlı dayanaklar
+ * (her biri kendi biçimiyle; bozuk olan yalnız kendini düşürür).
+ */
+function cleanEarlyCheckin(x: KbEvidenceInput["earlyCheckin"]): EarlyCheckinEvidenceInput | undefined {
   if (!x || !EC_STATUSES.has(x.s) || (x.a !== "0" && x.a !== "1") || !Array.isArray(x.f)) return undefined;
   if (!x.f.every((c) => EC_CHECKS.has(c)) || x.f.length > EC_CHECKS.size) return undefined;
-  return { s: x.s, f: [...x.f], a: x.a };
+  const ok = (v: unknown, re: RegExp): v is string => typeof v === "string" && re.test(v);
+  return {
+    s: x.s,
+    f: [...x.f],
+    a: x.a,
+    ...(ok(x.dr, EC_ID) ? { dr: x.dr } : {}),
+    ...(ok(x.rm, EC_ID) ? { rm: x.rm } : {}),
+    ...(ok(x.rt, EC_MINUTE) ? { rt: x.rt } : {}),
+    ...(ok(x.rh, EC_HASH) ? { rh: x.rh } : {}),
+    ...(x.n === "0" || x.n === "1" || x.n === "2" ? { n: x.n } : {}),
+    ...(x.dc === "1" ? { dc: "1" } : {}),
+  };
 }
 
 /** `ir` kanıt alanını yeniden kurar: tanınmayan her değer alanı düşürür (serbest metin sızamaz). */

@@ -211,4 +211,25 @@ Yazarın ayrılan/gelen misafir olduğu KODDA (konuşmanın rezervasyonu) belirl
 ASLA çıkış kanıtı değildir. Tanınmayan değer: izin verdiği yerde düşer, kısıtladığı yerde "bilinmiyor" sayılır.
 Redaksiyon aynen (tarih/saat dizileri korunur; enum serbest metin eklemez).
 
-## P–X. (tur sonunda doldurulur: Set B bulguları, oranlar, mutasyon, eşzamanlılık, denetim, kapılar, üretim etkisi, push)
+## S. Eşzamanlılık / TOCTOU (dilim 2, analiz + karar)
+
+| Aralık | Ne değişebilir | Karar |
+|---|---|---|
+| Model çağrıları (sn) | temizlik, rezervasyon, kural | Olgular model çağrılarından SONRA, kapı kararından hemen önce okunur (aynı geçiş). |
+| Karar → doğrudan gönderim (ms–sn) | temizlikçi görevi yeniden açar, eşzamanlı senkron yeni çakışma getirir | Yeniden okuma YOK — kabul edilen kalan risk (pencere, olguların okunduğu geçişle aynı); çift gönderimi `claim` (CAS) engeller. |
+| Karar → KUYRUKLU teslim (dk–gün; 402 → bloklu, geri çekilme) | her şey; onay "bugün (14 Ekim)" der | **Otomatik onay YOK** (`queued_delivery`, bayrak kapalıyken etkisiz): kuyruk işçisi onayı yeniden doğrulayamıyor. İşçide yeniden doğrulama ayrı iş. |
+| Bekleyen istek → temizlik bitti | — | Yeniden değerlendirme KARAR VERMEZ; tüm hat (model + kapı + olgular) baştan koşar. |
+| Kural kaydı ↔ kural kaydı | iki sekme / çift tık | Mülk satırı `FOR UPDATE` → yazımlar sıralanır, tek satır. |
+| Görev durumu ↔ geçmiş kaydı (atomik değil, C-17) | durum "bitti", kayıt düşmüş | "Bitti" kanıtı yok → hazır DEĞİL (güvenli yön); atomik yazım dilim 4. |
+
+## U. Denetlenebilirlik (dilim 2)
+
+Karar kaydı (`RiskEvent.kbEvidenceJson.ec`): `s` durum · `f` düşen kontroller · `a` otomatik gitti mi · `dr` hazırlığın
+ölçüldüğü devrin rezervasyon kimliği · `rm`/`rt` hazır hükmünü veren "bitti" kaydının kimliği ve anı (dakika) · `rh`
+kural içerik parmak izi (12 hex) · `n` istenen saati okuyan model sayısı · `dc` hazırlık çıkıştan önceki kanıtlı
+işarete dayandı (önceki misafirin çıkışı doğrulandı). Metin / saat / tutar / misafir verisi YOK (onaylanan saat ve
+tutar giden mesajdadır). Her alan `grounding.ts`te AYRI doğrulanır: bozuk dayanak yalnız kendini düşürür; `s/f/a`
+bozuksa `ec` hiç yazılmaz. Kural yerinde güncellendiği için `rh` "karar anındaki kural bugünkünden farklı mı"yı
+cevaplar; tam kural geçmişi ayrı tablo ister (L). Denetim kaydı (kural değişimi) değer değil alan adı taşır (kural).
+
+## P–X. (tur sonunda doldurulur: Set B bulguları, oranlar, mutasyon, kapılar, üretim etkisi, push)

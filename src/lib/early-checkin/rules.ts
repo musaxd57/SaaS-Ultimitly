@@ -72,13 +72,42 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
 
 const conditionFor = (propertyId: string) => JSON.stringify({ propertyId });
 
+/** Mülkün kural satır(lar)ı — TEK tanım (okuma, yazma, mülk silme aynı koşulu kullanır). */
+export function earlyCheckinRuleWhere(organizationId: string, propertyId: string) {
+  return { organizationId, triggerType: EARLY_CHECKIN_TRIGGER, conditionJson: conditionFor(propertyId) };
+}
+
+/**
+ * Org'un kuralı OTOMATİK olan mülkleri (yeniden değerlendirme taraması). Okuma bu depodan geçer: satırı doğrulamadan
+ * JSON'u kendisi çözen ikinci bir okuyucu olmasın. Bozuk satır = kapalı.
+ */
+export async function autoEarlyCheckinPropertyIds(organizationId: string): Promise<string[]> {
+  const rows = await prisma.automationRule.findMany({
+    where: { organizationId, triggerType: EARLY_CHECKIN_TRIGGER, isEnabled: true },
+    select: { conditionJson: true, actionJson: true },
+  });
+  const ids = new Set<string>();
+  for (const r of rows) {
+    try {
+      const rule = validateEarlyCheckinRuleInput(JSON.parse(r.actionJson));
+      const cond = r.conditionJson ? (JSON.parse(r.conditionJson) as { propertyId?: unknown } | null) : null;
+      if (rule?.mode === "auto" && typeof cond?.propertyId === "string" && r.conditionJson === conditionFor(cond.propertyId)) {
+        ids.add(cond.propertyId);
+      }
+    } catch {
+      // bozuk satır = kapalı
+    }
+  }
+  return [...ids];
+}
+
 /**
  * Mülkün kuralı (org kapsamlı). Yok / bozuk → `null` (fail-closed). "Kapalı" kural da döner (form değerlerini
  * korusun); karar çekirdeği `mode: "off"`u kural yokmuş gibi ele alır. `isEnabled` yalnız listeleme aynasıdır.
  */
 export async function loadEarlyCheckinRule(organizationId: string, propertyId: string): Promise<EarlyCheckinRule | null> {
   const row = await prisma.automationRule.findFirst({
-    where: { organizationId, triggerType: EARLY_CHECKIN_TRIGGER, conditionJson: conditionFor(propertyId) },
+    where: earlyCheckinRuleWhere(organizationId, propertyId),
     orderBy: { updatedAt: "desc" },
     select: { actionJson: true },
   });
@@ -92,8 +121,10 @@ export async function loadEarlyCheckinRule(organizationId: string, propertyId: s
 
 /** Kuralı yaz (`null` = kaldır). Mülkün sahipliğini ÇAĞIRAN doğrular (rota org kapsamlı 404 döner). */
 export async function saveEarlyCheckinRule(organizationId: string, propertyId: string, rule: EarlyCheckinRule | null): Promise<void> {
-  const where = { organizationId, triggerType: EARLY_CHECKIN_TRIGGER, conditionJson: conditionFor(propertyId) };
+  const where = earlyCheckinRuleWhere(organizationId, propertyId);
   await prisma.$transaction(async (tx) => {
+    // Eşzamanlı iki kayıt (iki sekme / çift tık) iki satır doğurmasın: mülk satırı kilitlenir, yazımlar sıralanır.
+    await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${propertyId} AND "organizationId" = ${organizationId} FOR UPDATE`;
     const rows = await tx.automationRule.findMany({ where, orderBy: { updatedAt: "desc" }, select: { id: true } });
     if (!rule) {
       await tx.automationRule.deleteMany({ where });

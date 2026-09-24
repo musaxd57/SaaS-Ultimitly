@@ -206,10 +206,11 @@ async function conversationFor(propertyId: string, reservationId: string, body: 
   return c.id;
 }
 
+/** Karar kaydı: `ec` yalnız karar alanlarıyla (s/f/a); dayanak kimlikleri iş akışı testinde ayrıca sınanır. */
 async function decision(conversationId: string) {
   const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" }, orderBy: { occurredAt: "desc" } });
-  const evidence = JSON.parse(String(ev.kbEvidenceJson)) as { ec?: { s: string; f: string[]; a: string } };
-  return { finalDecision: ev.finalDecision, reason: ev.reason, ec: evidence.ec };
+  const evidence = JSON.parse(String(ev.kbEvidenceJson)) as { ec?: { s: string; f: string[]; a: string; dc?: string } };
+  return { finalDecision: ev.finalDecision, reason: ev.reason, ec: evidence.ec ? { s: evidence.ec.s, f: evidence.ec.f, a: evidence.ec.a } : undefined, dc: evidence.ec?.dc };
 }
 
 const sentBody = () => String(mockSend.mock.calls[0]?.[1] ?? "");
@@ -323,7 +324,8 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     const id = await conversationFor(t.propertyId, t.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
     expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 09:00. The early check-in fee is €30.")).toBe(true);
-    expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
+    // Karar kaydı, hazırlığın çıkıştan ÖNCEKİ kanıtlı işarete dayandığını (önceki misafirin çıkışı doğrulandı) taşır.
+    expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" }, dc: "1" });
 
     // KONTROL: aynı olgular, host rızası YOK → onay yok, bekliyor (önceki misafirin beklenen çıkışı + temizlik sayılmadı).
     await fresh();

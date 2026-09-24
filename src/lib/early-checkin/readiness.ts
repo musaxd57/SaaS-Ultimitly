@@ -49,6 +49,8 @@ export type ReadinessNote = "none" | "open" | "fresh" | "before_checkout" | "no_
 export interface ReadinessMark {
   status: string;
   doneAt: Date | null;
+  /** "Bitti" kaydının kimliği (karar kaydı: hangi işarete dayanıldı). Yoksa `null`. */
+  doneId?: string | null;
   /** Aynı görevde, "bitti"den önce, AYNI kullanıcının EN SON "başladım" kaydı. */
   startedAt?: Date | null;
   /** Görev ayrılan konaklamaya BAĞLI mı (bağsız görev çıkıştan önceki işaretle hazır saydıramaz). */
@@ -68,11 +70,9 @@ const settledAt = (t: ReadinessMark, now: Date) =>
 /** Çıkıştan ÖNCE atılmış işaretin operasyonel kanıtı (G4 → G5); host rızası yoksa asla. */
 function provenBeforeCheckout(t: ReadinessMark, opts: ReadinessOptions): boolean {
   if (!opts.allowBeforeCheckout || !opts.dayStart || !t.linked || !t.doneAt || !t.startedAt) return false;
-  return (
-    t.doneAt >= opts.dayStart &&
-    t.startedAt >= opts.dayStart &&
-    t.doneAt.getTime() - t.startedAt.getTime() >= MIN_START_TO_READY_MS
-  );
+  // "Bitti" de devir gününde olmalı — ayrıca sınanmaz: başlama gün başından sonra ve bitiş başlamadan ≥15 dk sonra
+  // olduğu için bitiş de gün başından sonradır (mutasyon turu 09-24: ayrı koşul ölü koddu).
+  return t.startedAt >= opts.dayStart && t.doneAt.getTime() - t.startedAt.getTime() >= MIN_START_TO_READY_MS;
 }
 
 /** Bu işaret hazır saydırır mı (oturmuş + çıkıştan sonra ya da kanıtlı erken). */
@@ -110,13 +110,18 @@ export function readinessOf(tasks: readonly ReadinessMark[], checkoutAt: Date | 
   return readinessDetailOf(tasks, checkoutAt, now, opts).status;
 }
 
-/** Hazır hükmünü veren EN YENİ "bitti" işaretinin zamanı (`readinessOf` ile aynı şart); hazır değilse `null`. */
-export function readyAtOf(tasks: readonly ReadinessMark[], checkoutAt: Date | null, now: Date, opts: ReadinessOptions = {}): Date | null {
+/** Hazır hükmünü veren EN YENİ "bitti" işareti (`readinessOf` ile aynı şart); hazır değilse `null`. */
+export function readyMarkOf(tasks: readonly ReadinessMark[], checkoutAt: Date | null, now: Date, opts: ReadinessOptions = {}): ReadinessMark | null {
   if (!checkoutAt || readinessOf(tasks, checkoutAt, now, opts) !== "ready") return null;
-  let latest: Date | null = null;
+  let latest: ReadinessMark | null = null;
   for (const t of tasks) {
     if (!qualifies(t, checkoutAt, now, opts)) continue;
-    if (!latest || (t.doneAt as Date) > latest) latest = t.doneAt;
+    if (!latest || (t.doneAt as Date) > (latest.doneAt as Date)) latest = t;
   }
   return latest;
+}
+
+/** Hazır hükmünü veren EN YENİ "bitti" işaretinin zamanı; hazır değilse `null`. */
+export function readyAtOf(tasks: readonly ReadinessMark[], checkoutAt: Date | null, now: Date, opts: ReadinessOptions = {}): Date | null {
+  return readyMarkOf(tasks, checkoutAt, now, opts)?.doneAt ?? null;
 }

@@ -57,10 +57,12 @@ import { sendOnChannel } from "@/lib/messaging";
 import { applyChannelAutoReply } from "@/lib/automation";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
-import { loadEarlyCheckinRule, saveEarlyCheckinRule, EARLY_CHECKIN_TRIGGER } from "@/lib/early-checkin/rules";
+import { autoEarlyCheckinPropertyIds, loadEarlyCheckinRule, saveEarlyCheckinRule, EARLY_CHECKIN_TRIGGER } from "@/lib/early-checkin/rules";
+import { earlyCheckinRuleHash } from "@/lib/early-checkin/workflow";
 import type { EarlyCheckinRule } from "@/lib/early-checkin/core";
 import { POST as aiSuggest } from "@/app/api/conversations/[id]/ai-suggest/route";
 import { PUT as putRule, DELETE as deleteRule } from "@/app/api/properties/[id]/early-checkin-rule/route";
+import { DELETE as deleteProperty } from "@/app/api/properties/[id]/route";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
@@ -240,6 +242,22 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
     expect((await loadEarlyCheckinFacts(args))?.facts.readiness).toBe("ready");
   });
 
+  it("🚨 ayrılan konaklamaya bağlı TARİHSİZ temizlik görevi de bu devrin kümesindedir: açıksa hazır değil, kimlikli bitti sayılır", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    const undated = await prisma.task.create({
+      data: { propertyId: t.propertyId, reservationId: t.previous.id, type: "cleaning", title: "Çarşaf", status: "todo", origin: "manual", dueAt: null },
+    });
+    const args = { organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true };
+    expect((await loadEarlyCheckinFacts(args))?.facts).toMatchObject({ readiness: "not_ready", readinessNote: "open" });
+    await prisma.task.update({ where: { id: undated.id }, data: { status: "done" } });
+    await prisma.taskUpdate.create({ data: { taskId: undated.id, userId: t.cleanerId, status: "done", createdAt: CLEANED_AT } });
+    expect((await loadEarlyCheckinFacts(args))?.facts.readiness).toBe("ready");
+    // Başka bir konaklamaya bağlı tarihsiz görev bu devre girmez.
+    const other = await reservation(t.propertyId, "2026-10-01", "2026-10-03");
+    await prisma.task.create({ data: { propertyId: t.propertyId, reservationId: other.id, type: "cleaning", title: "Eski", status: "todo", origin: "manual", dueAt: null } });
+    expect((await loadEarlyCheckinFacts(args))?.facts.readiness).toBe("ready");
+  });
+
   it("gecesiz / ters kayıt varış gününe dokunuyorsa hüküm verilemez → çakışma", async () => {
     const t = await turnover({ cleaned: CLEANED_AT });
     await reservation(t.propertyId, "2026-10-14", "2026-10-14");
@@ -312,6 +330,30 @@ describe("kural deposu (migration'sız, `AutomationRule`)", () => {
     await saveEarlyCheckinRule(a.orgId, a.propertyId, null);
     expect(await prisma.automationRule.count()).toBe(0);
   });
+
+  it("🚨 eşzamanlı kayıtlar (iki sekme / çift tık) TEK satır bırakır: mülk satırı kilitlenir, yazımlar sıralanır", async () => {
+    const a = await org();
+    await Promise.all(Array.from({ length: 6 }, (_, i) => saveEarlyCheckinRule(a.orgId, a.propertyId, { ...RULE, earliest: `1${i}:00` })));
+    expect(await prisma.automationRule.count({ where: { organizationId: a.orgId, triggerType: EARLY_CHECKIN_TRIGGER } })).toBe(1);
+    expect((await loadEarlyCheckinRule(a.orgId, a.propertyId))?.earliest).toMatch(/^1[0-5]:00$/);
+  });
+
+  it("yeniden değerlendirme yalnız OTOMATİK kurallı mülkleri depodan okur: taslak, kapalı, bozuk ve başka kiracınınki yok", async () => {
+    const a = await org();
+    const [auto, draft, off, broken] = await Promise.all(
+      ["Otomatik", "Taslak", "Kapalı", "Bozuk"].map((name) => prisma.property.create({ data: { organizationId: a.orgId, name } })),
+    );
+    await saveEarlyCheckinRule(a.orgId, auto.id, RULE);
+    await saveEarlyCheckinRule(a.orgId, draft.id, { ...RULE, mode: "draft" });
+    await saveEarlyCheckinRule(a.orgId, off.id, { ...RULE, mode: "off" });
+    await prisma.automationRule.create({
+      data: { organizationId: a.orgId, name: "x", triggerType: EARLY_CHECKIN_TRIGGER, conditionJson: JSON.stringify({ propertyId: broken.id }), actionJson: "{bozuk", isEnabled: true },
+    });
+    const b = await org();
+    await saveEarlyCheckinRule(b.orgId, b.propertyId, RULE);
+    expect(await autoEarlyCheckinPropertyIds(a.orgId)).toEqual([auto.id]);
+    expect(await autoEarlyCheckinPropertyIds(b.orgId)).toEqual([b.propertyId]);
+  });
 });
 
 // ─── kanal oto-yanıtı ───────────────────────────────────────────────────────
@@ -379,10 +421,17 @@ async function conversationFor(t: { propertyId: string; own: { id: string } }, b
   return c.id;
 }
 
+/** Karar kaydı: `ec` burada yalnız karar alanlarıyla (s/f/a) kıyaslanır; dayanaklar `ecTrace` ile ayrıca sınanır. */
 async function decision(conversationId: string) {
   const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
   const evidence = JSON.parse(String(ev.kbEvidenceJson)) as { ec?: { s: string; f: string[]; a: string } };
-  return { finalDecision: ev.finalDecision, reason: ev.reason, ec: evidence.ec };
+  return { finalDecision: ev.finalDecision, reason: ev.reason, ec: evidence.ec ? { s: evidence.ec.s, f: evidence.ec.f, a: evidence.ec.a } : undefined };
+}
+
+async function ecTrace(conversationId: string): Promise<Record<string, unknown>> {
+  const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+  const ec = (JSON.parse(String(ev.kbEvidenceJson)) as { ec: Record<string, unknown> }).ec;
+  return Object.fromEntries(Object.entries(ec).filter(([k]) => !["s", "f", "a"].includes(k)));
 }
 
 describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
@@ -424,6 +473,51 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     const note = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: t.prepTaskId } });
     // Ücret TUTARI nota girmez (görev geçmişini temizlik de görür).
     expect(note.note).toBe("Erken giriş 13:00 otomatik onaylandı.");
+  });
+
+  it("🚨 karar kaydı dayanakları: hangi devir (rezervasyon), hangi 'hazır' kaydı + anı, hangi kural sürümü, kaç model okudu", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    const ready = await prisma.taskUpdate.findFirstOrThrow({ where: { task: { reservationId: t.previous.id }, status: "done" } });
+    expect(await ecTrace(id)).toEqual({
+      dr: t.previous.id,
+      rm: ready.id,
+      rt: "2026-10-14T08:30Z",
+      rh: earlyCheckinRuleHash(await loadEarlyCheckinRule(t.orgId, t.propertyId)),
+      n: "2",
+    });
+    // Kural sonradan değişirse kayıttaki parmak izi eski sürümü gösterir (karar yeniden kurulabilir).
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, { ...RULE, fee: { amount: 45, currency: "EUR" } });
+    expect(earlyCheckinRuleHash(await loadEarlyCheckinRule(t.orgId, t.propertyId))).not.toBe((await ecTrace(id)).rh);
+  });
+
+  it("🚨 kalıcı mesaj kuyruğu AÇIKKEN doğrulanmış onay otomatik gitmez (bayat 'bugün' riski); kapıyı geçen erteleme kuyruğa girer", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(await prisma.messageOutbox.count()).toBe(0);
+    expect(await decision(id)).toEqual({ finalDecision: "human_review", reason: "availability_unconfirmed", ec: { s: "approvable", f: ["queued_delivery"], a: "0" } });
+    // İki model ertelemeyi doğruladı → yalnız ERTELEME kuyruğa girer (onay değil).
+    await resetDb();
+    vi.clearAllMocks();
+    __resetUnderstandingCache();
+    mockSuggest.mockResolvedValue(MODEL);
+    const u = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(u.orgId, u.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const id2 = await conversationFor(u);
+    expect(await applyChannelAutoReply(id2)).toMatchObject({ sent: true, queued: true });
+    const row = await prisma.messageOutbox.findFirstOrThrow();
+    expect(row.body).toContain("check with the host");
+    expect(row.body).not.toContain("The apartment is ready");
+    expect(await decision(id2)).toEqual({ finalDecision: "auto_sent", reason: "gate_passed", ec: { s: "approvable", f: ["queued_delivery"], a: "0" } });
+    expect(await prisma.taskUpdate.count({ where: { taskId: u.prepTaskId } })).toBe(0);
   });
 
   it("🚨 iki model ertelemeyi doğrulayıp kapı GEÇSE de doğrulanmış onay ertelemenin yerine geçer (misafir 'soracağım' değil cevap alır)", async () => {
@@ -522,6 +616,18 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect((await applyChannelAutoReply(id)).sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
     expect((await decision(id)).ec).toEqual({ s: "approvable", f: ["multi_intent"], a: "0" });
+  });
+
+  it("🚨 anlama katmanı BAVUL isteği de gördüyse onay yok: erken giriş onayı bavul isteğini cevaplamaz (host)", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00", ["luggage"]), stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t, "Hi! Could we check in at 13:00 today, or at least drop our bags?");
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const d = await decision(id);
+    expect(d.ec?.s).toBe("needs_host");
+    expect(d.ec?.f).toContain("luggage");
   });
 
   it("🚨 'istek yok' diyen bekçinin saati ikinci kaynak SAYILMAZ → tek kaynak, onay otomatik gitmez", async () => {
@@ -694,6 +800,20 @@ describe("PUT/DELETE /api/properties/[id]/early-checkin-rule", () => {
     expect(JSON.parse(String(audit.metadataJson))).toEqual({ propertyId, fields: ["mode", "earliest", "fee", "note", "readyBeforeCheckout"] });
     expect((await del(propertyId)).status).toBe(200);
     expect(await loadEarlyCheckinRule(orgId, propertyId)).toBeNull();
+  });
+
+  it("🚨 mülk silinince erken giriş kuralı da silinir (sahipsiz satır kalmaz); başka mülkün kuralına dokunulmaz", async () => {
+    const { orgId, propertyId } = await org();
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Menekşe" } });
+    await saveEarlyCheckinRule(orgId, propertyId, RULE);
+    await saveEarlyCheckinRule(orgId, other.id, RULE);
+    session = owner(orgId);
+    const res = await deleteProperty(new NextRequest(`http://localhost/api/properties/${propertyId}`, { method: "DELETE" }), {
+      params: Promise.resolve({ id: propertyId }),
+    });
+    expect(res.status).toBe(200);
+    expect(await prisma.automationRule.count({ where: { organizationId: orgId } })).toBe(1);
+    expect(await loadEarlyCheckinRule(orgId, other.id)).not.toBeNull();
   });
 
   it("🚨 temizlik/personel rolü ücreti değiştiremez (403); başka kiracının mülkü 404; geçersiz girdi 400 + sade mesaj", async () => {

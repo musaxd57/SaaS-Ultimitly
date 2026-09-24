@@ -87,7 +87,7 @@ export interface EarlyCheckinFacts {
   openIssue?: boolean;
   /** Anlama katmanı bavul bırakma/alma isteği gördü — erken giriş onayı bavul isteğini cevaplamaz. */
   luggage?: boolean;
-  /** Cevapsız mesajlardan türetilen, yalnız OTOMATİK gönderimi engelleyen koşullar (taslak yine hazırlanır). */
+  /** Yalnız OTOMATİK gönderimi engelleyen koşullar (taslak yine hazırlanır). */
   autoBlockers?: readonly EarlyCheckinAutoBlocker[];
   /** Aynı gün devir YOKSA: dün gece kanıtla (taze kaynaklarla) boş mu. */
   previousNightVerifiedVacant: boolean;
@@ -97,7 +97,7 @@ export interface EarlyCheckinFacts {
   singleIntent: boolean;
 }
 
-/** Yalnız OTOMATİK gönderimi engelleyen, cevapsız mesajlardan türetilen koşullar (kapalı küme). */
+/** Yalnız OTOMATİK gönderimi engelleyen koşullar — cevapsız mesajlardan ya da teslim yolundan (kapalı küme). */
 export const EARLY_CHECKIN_AUTO_BLOCKERS = [
   // Cevapsız mesajlarda bugünden BAŞKA bir güne işaret var ("yarın", hafta günü, tarih) — gün doğrulanmadı.
   "day_unverified",
@@ -105,6 +105,9 @@ export const EARLY_CHECKIN_AUTO_BLOCKERS = [
   "not_fully_read",
   // Misafirin yazdığı sayısal saat onaylanan saatle çelişiyor (iki model aynı yanlışı okumuş olabilir).
   "time_mismatch_text",
+  // Teslim KUYRUKLU (kalıcı mesaj kuyruğu açık): onay "bugün (14 Ekim)" der ve kuyruk günler sonra teslim edebilir;
+  // kuyruk işçisi onayı yeniden doğrulamıyor (TOCTOU, kanıt modeli S) → otomatik onay yok, taslak host'a.
+  "queued_delivery",
 ] as const;
 export type EarlyCheckinAutoBlocker = (typeof EARLY_CHECKIN_AUTO_BLOCKERS)[number];
 

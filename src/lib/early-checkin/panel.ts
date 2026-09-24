@@ -102,6 +102,7 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData): PanelLine[] {
   if (f.has("day_unverified")) lines.push({ ok: false, text: "Mesajda başka bir güne işaret var (ör. \"yarın\"); günü kontrol edin." });
   if (f.has("not_fully_read")) lines.push({ ok: false, text: "Cevapsız mesajlar çok uzun ya da çok fazla; hepsini okuyup siz karar verin." });
   if (f.has("time_mismatch_text")) lines.push({ ok: false, text: "Mesajdaki saat(ler) istenen saatle birebir eşleşmiyor; saati kontrol edin." });
+  if (f.has("queued_delivery")) lines.push({ ok: false, text: "Bu onay şu an otomatik gönderilemiyor; hazır cevabı siz gönderin." });
   if (d.fee) lines.push({ ok: true, text: `Erken giriş ücreti: ${formatEarlyCheckinFee({ amount: d.fee.amount, currency: d.fee.currency as EarlyCheckinCurrency }, "tr")}` });
   if (d.mode === "off" || f.has("rule_off")) lines.push({ ok: false, text: "Erken giriş kuralı kapalı; mülk sayfasından açabilirsiniz." });
   // Bekleyen istek: yalnız otomatik kurallı mülkte varış günü temizlik işaretiyle yeniden kontrol edilir (`recheck.ts`).

@@ -113,7 +113,10 @@ describe("karar çekirdeği — her kontrol ayrı, eksik ya da çelişki insana"
       failed: ["not_arrival_day"],
     });
     expect(decideEarlyCheckin({ ...OK, nowMinutes: null }, RULE).status).toBe("approvable");
-    expect(decideEarlyCheckin({ ...OK, nowMinutes: Number.NaN }, RULE).status).toBe("approvable");
+    // Sonlu olmayan "şimdi" bilinmiyor sayılır (tahmin yok): ne "standart giriş geçti" ne "istenen saat geçti".
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(decideEarlyCheckin({ ...OK, nowMinutes: bad }, RULE).status, String(bad)).toBe("approvable");
+    }
   });
 
   it("istenen saat payı (15 dk): tam sınırda onaylanabilir, bir dakika sonra host", () => {
@@ -453,7 +456,8 @@ describe("kanıt + host notu + panel", () => {
   it("`ec` kanıtı yalnız kapalı küme kodlar taşır; tanınmayan değer alanı düşürür", () => {
     const run = { decision: decideEarlyCheckin({ ...OK, readiness: "not_ready" }, RULE), rule: RULE, facts: OK, draft: null };
     const ec = earlyCheckinEvidenceOf(run, false);
-    expect(ec).toEqual({ s: "pending", f: ["not_ready"], a: "0" });
+    // Dayanak izi (trace) yoksa kimlik alanı yazılmaz; saati okuyan model sayısı her zaman (kanıt modeli U).
+    expect(ec).toEqual({ s: "pending", f: ["not_ready"], a: "0", n: "2" });
     for (const s of ["approvable", "needs_host", "not_early"]) {
       expect(JSON.parse(String(buildKbEvidence({ retrieved: [], usedLabels: [], earlyCheckin: { ...ec, s } }))).ec.s, s).toBe(s);
     }
@@ -464,9 +468,8 @@ describe("kanıt + host notu + panel", () => {
     expect([...EARLY_CHECKIN_CHECKS].length).toBe(new Set(EARLY_CHECKIN_CHECKS).size);
   });
 
-  it("🚨 host notu yalnız onayda ve ÜCRET TUTARI TAŞIMAZ (görev geçmişini temizlik de görür); kuyruk yolunda 'gönderime alındı'", () => {
+  it("🚨 host notu yalnız onayda ve ÜCRET TUTARI TAŞIMAZ (görev geçmişini temizlik de görür)", () => {
     expect(earlyCheckinHostNote(decideEarlyCheckin(OK, RULE))).toBe("Erken giriş 12:00 otomatik onaylandı.");
-    expect(earlyCheckinHostNote(decideEarlyCheckin(OK, RULE), true)).toBe("Erken giriş 12:00 için onay mesajı gönderime alındı.");
     expect(earlyCheckinHostNote(decideEarlyCheckin({ ...OK, readiness: "unknown" }, RULE))).toBeNull();
   });
 

@@ -15,7 +15,7 @@ import { prisma } from "@/lib/db";
 import { EARLY_CHECKIN_CHECKS } from "./core";
 import { loadEarlyCheckinFacts } from "./load";
 import { READY_SETTLE_MS } from "./readiness";
-import { EARLY_CHECKIN_TRIGGER, validateEarlyCheckinRuleInput } from "./rules";
+import { autoEarlyCheckinPropertyIds } from "./rules";
 
 /** Host'un görev geçmişinde görünen not (sade dil) — aynı zamanda döngü korumasının işareti. */
 export const EARLY_CHECKIN_RECHECK_NOTE = "Temizlik bitti; bekleyen erken giriş isteği yeniden kontrol ediliyor.";
@@ -51,28 +51,15 @@ export function heldOnlyForReadiness(kbEvidenceJson: string | null | undefined):
  * Döner: yeniden aday yapılan konuşma sayısı. Hata fırlatabilir (çağıran aşama alarmına bağlar).
  */
 export async function recheckEarlyCheckinsAfterCleaning(organizationId: string, now: Date): Promise<number> {
-  const rules = await prisma.automationRule.findMany({
-    where: { organizationId, triggerType: EARLY_CHECKIN_TRIGGER, isEnabled: true },
-    select: { conditionJson: true, actionJson: true },
-  });
-  const propertyIds = new Set<string>();
-  for (const r of rules) {
-    try {
-      const rule = validateEarlyCheckinRuleInput(JSON.parse(r.actionJson));
-      const cond = r.conditionJson ? (JSON.parse(r.conditionJson) as { propertyId?: unknown } | null) : null;
-      if (rule?.mode === "auto" && typeof cond?.propertyId === "string") propertyIds.add(cond.propertyId);
-    } catch {
-      // bozuk satır = kapalı
-    }
-  }
-  if (propertyIds.size === 0) return 0;
+  const propertyIds = await autoEarlyCheckinPropertyIds(organizationId);
+  if (propertyIds.length === 0) return 0;
 
   // Aday kümesi DAR tutulur (açlık olmasın): hazırlık yüzünden tutulmuş karar tanım gereği VARIŞ GÜNÜ verilmiştir →
   // yalnız varışı bugün civarında olan rezervasyonların konuşmaları; en yeni önce (başka sebeple tutulmuş eski
   // konuşmalar tavanı doldurup asıl adayları dışarıda bırakamasın).
   const conversations = await prisma.conversation.findMany({
     where: {
-      propertyId: { in: [...propertyIds] },
+      propertyId: { in: propertyIds },
       property: { organizationId },
       status: "new",
       reservationId: { not: null },
