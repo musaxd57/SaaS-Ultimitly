@@ -11,8 +11,11 @@ import { writeSidecar } from "./sidecar";
 // KONAKLAMA DEĞİŞİKLİĞİ ANLAM KATMANI — GERÇEK MODEL EVAL'İ (09-24).
 //
 // Veri: `evals/stay-change.json` (SENTETİK; iki kör batarya: `dev` = ilk kör batarya, deterministik
-// yedeğin doğruluk düzeltmelerinde GÖRÜLDÜ; `holdout` = ikinci kör batarya, hiçbir ayarlamada
-// kullanılmaz — genelleme ölçüsü yalnız ondan okunur).
+// yedeğin doğruluk düzeltmelerinde GÖRÜLDÜ; `holdout` = ikinci kör batarya — ayarlamada kullanılmadı ama
+// 09-24 denetimlerinde defalarca ÖLÇÜLDÜ, yani o da artık görüldü (dış inceleme 09-24)).
+// 🚨 MÜHÜRLÜ FİNAL SETİ (`evals/sealed/`, `docs/EVAL-MUHURLU-FINAL.md`): kör yazar üretti, geliştirici içeriğini
+// görmedi. YALNIZ `EVAL_SEALED_FINAL=1` + gerçek model koşusunda, YALNIZ bu dosyada okunur ve o koşuda dev/holdout
+// hiç yüklenmez. Model/istem/kod dondurulmadan koşulmaz; koşulduktan sonra "yandı" sayılır, yenisi yazılır.
 //
 // Ölçülen üç katman, AYNI etiketlere karşı:
 //  · yedek   — deterministik kelime ağı (her koşuda, anahtar gerekmez);
@@ -47,11 +50,16 @@ interface RepItem {
   checkOut: string;
 }
 
-const DATASET = path.resolve(__dirname, "../../evals/stay-change.json");
-const data = JSON.parse(readFileSync(DATASET, "utf8")) as { version: number; requests: ReqItem[]; replies: RepItem[] };
-
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
+
+const SEALED = process.env.EVAL_SEALED_FINAL === "1";
+const SEALED_FILE = path.resolve(__dirname, "../../evals/sealed/stay-change-final.json");
+// Mühür kısmi (anahtarsız / yalnız yedek) koşuyla YAKILMAZ: içerik ancak tam final koşusunda okunur.
+if (SEALED && !enabled) throw new Error("EVAL_SEALED_FINAL=1 yalnız gerçek model koşusunda (RUN_REAL_EVAL=1 + anahtar).");
+const DATASET = SEALED ? SEALED_FILE : path.resolve(__dirname, "../../evals/stay-change.json");
+const data = JSON.parse(readFileSync(DATASET, "utf8")) as { version: number; requests: ReqItem[]; replies: RepItem[] };
+const SPLITS = SEALED ? ["final"] : ["dev", "holdout"];
 const LIMIT = Number(process.env.EVAL_STAY_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_STAY_LIMIT)) : Infinity;
 const CONCURRENCY = 4;
 
@@ -136,7 +144,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       const guardRep = new Map<string, Tally>();
       // Örnek sınırı BÖLÜM BAŞINA: dev önce geldiği için düz `slice` holdout'u hiç ölçmezdi (inceleme 09-24).
       const perSplit = <T extends { split: string }>(xs: T[]) =>
-        Number.isFinite(LIMIT) ? ["dev", "holdout"].flatMap((sp) => xs.filter((x) => x.split === sp).slice(0, LIMIT)) : xs;
+        Number.isFinite(LIMIT) ? SPLITS.flatMap((sp) => xs.filter((x) => x.split === sp).slice(0, LIMIT)) : xs;
       const reqs = perSplit(data.requests);
       const reps = perSplit(data.replies);
 
@@ -200,7 +208,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
-    const name = `stay-change-eval-${stamp}.md`;
+    const name = SEALED ? `stay-change-FINAL-eval-${stamp}.md` : `stay-change-eval-${stamp}.md`;
     const status = failures > 0 ? `GEÇERSİZ — ${failures} çağrı düştü` : "GEÇERLİ";
     const head = [
       `# Konaklama değişikliği anlam katmanı — eval (${stamp})`,
@@ -208,7 +216,9 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       `Durum: **${status}** · veri sürümü ${data.version} · istek ${data.requests.length} · cevap ${data.replies.length}` +
         (Number.isFinite(LIMIT) ? ` · örnek sınırı ${LIMIT}` : ""),
       "",
-      "Genelleme ölçüsü YALNIZ `holdout` satırlarıdır; `dev` bölümü deterministik yedeğin düzeltilmesinde görüldü.",
+      SEALED
+        ? "🚨 MÜHÜRLÜ FİNAL KOŞUSU: genelleme ölçüsü bu raporun TAMAMIdır. Koşu bitti → set YANDI (`evals/sealed/SEALS.json` durumu `burned`; sonraki karar için yeni kör set)."
+        : "Bu rapordaki `dev` ve `holdout` bölümleri GÖRÜLDÜ (dev: düzeltmelerde; holdout: 09-24 denetimlerinde ölçüldü) — gelişme göstergesidir, son açma kararı yalnız mühürlü final setiyle (`docs/EVAL-MUHURLU-FINAL.md`).",
       "",
     ];
     writeFileSync(path.join(dir, name), [...head, ...lines].join("\n"), "utf8");
