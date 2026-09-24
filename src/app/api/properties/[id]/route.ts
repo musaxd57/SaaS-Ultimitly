@@ -108,8 +108,10 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     ...(resIds.length ? [{ reservationId: { in: resIds } }] : []),
     ...(srcRefs.length ? [{ externalReservationId: { in: srcRefs } }] : []),
   ];
-  const [, result] = await prisma.$transaction([
-    prisma.messageOutbox.updateMany({
+  // Sonuç ADIYLA okunur: dizi biçimli işlemde konumsal okuma (`[, result]`) araya adım eklenince yanlış satırın
+  // sayısını okuyordu — kural silme eklenince kuralı OLMAYAN her mülk silinip 404 dönüyordu (09-24, yayın öncesi yakalandı).
+  const deleted = await prisma.$transaction(async (tx) => {
+    await tx.messageOutbox.updateMany({
       where: {
         organizationId: session.organizationId,
         ...(targets.length ? { OR: targets } : { id: "__none__" }),
@@ -117,11 +119,11 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
         claimedBy: null,
       },
       data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "property_deleted" },
-    }),
+    });
     // Mülkün erken giriş kuralı da gider (FK yok; aynı kimlikle yeniden kullanılmasın, sahipsiz satır kalmasın).
-    prisma.automationRule.deleteMany({ where: earlyCheckinRuleWhere(session.organizationId, id) }),
-    prisma.property.deleteMany({ where: { id, organizationId: session.organizationId } }),
-  ]);
-  if (result.count === 0) return notFound();
+    await tx.automationRule.deleteMany({ where: earlyCheckinRuleWhere(session.organizationId, id) });
+    return tx.property.deleteMany({ where: { id, organizationId: session.organizationId } });
+  });
+  if (deleted.count === 0) return notFound();
   return jsonOk({ ok: true });
 });
