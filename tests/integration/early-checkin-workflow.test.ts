@@ -448,6 +448,18 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect((await decision(id)).ec).toBeUndefined();
   });
 
+  it("🚨 ikinci konaklama isteğini YALNIZ anlama katmanının istek listesi görse de akış koşmaz (mutasyon turu 09-24, RV16)", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    // Yuva ve bekçi yalnız erken giriş görüyor; ikinci istek (geç çıkış) yalnız anlama katmanının LİSTESİNDE.
+    const nluTwo = nlu("13:00", ["late_checkout"]);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nluTwo, stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await decision(id)).ec).toBeUndefined();
+  });
+
   it("🚨 P1-2 (inceleme 09-24): cevap modeli 'insan talebi' dediyse (anlama katmanı yalnız erken giriş görse de) onay GİTMEZ", async () => {
     const t = await turnover({ cleaned: CLEANED_AT });
     await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
@@ -464,6 +476,18 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
     const noRequest = { ...guard("13:00", false), guest_requests_change: false, kind: "none" };
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: noRequest }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await decision(id)).ec).toEqual({ s: "approvable", f: ["single_source_time"], a: "0" });
+  });
+
+  it("🚨 simetri (mutasyon turu 09-24, RV10 hayatta kalmıştı): 'istek yok' diyen ANLAMA katmanının saati de kaynak SAYILMAZ", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    // Anlama katmanı saati okudu ama istek görmedi (tutarsız okuma) → yalnız bekçinin saati sayılır.
+    const nluNoRequest = { ...nlu("13:00"), stay_change: { requested: false, kind: "none", checkin_time: "13:00", checkout_time: null } };
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nluNoRequest, stay_change_guard: guard("13:00", false) }));
     const id = await conversationFor(t);
     expect((await applyChannelAutoReply(id)).sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();

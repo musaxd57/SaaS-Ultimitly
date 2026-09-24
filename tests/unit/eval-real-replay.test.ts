@@ -68,6 +68,13 @@ describe("replayStats", () => {
     expect(s.earlyOnly.requests).toBe(0); // rezervasyona bağlı değil
   });
 
+  it("mülk listesinde olmayan mülkün mesajı (tutarsız veri) çökertmez ve istek sayılmaz", () => {
+    const input = base();
+    input.reservations.push({ id: "ghost", propertyId: "p9", status: "confirmed", arrivalDate: midnight("2026-10-14"), departureDate: midnight("2026-10-16"), guestCheckoutTime: null });
+    input.messages = [ask("2026-10-14T06:00:00Z", "ghost", "p9")];
+    expect(replayStats(input).earlyOnly).toMatchObject({ messages: 1, requests: 0 });
+  });
+
   it("istek = rezervasyon başına İLK soru (takip mesajı yeniden sayılmaz); başka mülkün rezervasyonu sayılmaz", () => {
     const input = base();
     input.messages = [ask("2026-10-14T07:00:00Z"), ask("2026-10-14T06:00:00Z"), ask("2026-10-14T06:30:00Z", "own", "p2")];
