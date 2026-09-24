@@ -55,7 +55,7 @@ export type KbSelectFallback = "none" | "small_kb" | "empty_query" | "no_lexical
 /** PII'siz kanıt parçası — `RiskEvent.kbEvidenceJson`'a girer (yalnız sayılar/kodlar). */
 export interface KbRetrievalEvidence {
   mode: "hybrid";
-  /** Alt sorgu sayısı. */
+  /** Deterministik alt sorgu sayısı (güncel + cevapsız önceki mesajlar; anlama katmanının sorguları `uq`da, burada DEĞİL). */
   q: number;
   fb: KbSelectFallback;
   /** Seçilen parça / indeksteki toplam parça. */
@@ -91,6 +91,8 @@ export interface KbRetrievalEvidence {
   semMs?: number;
   /** ANLAMA KATMANININ eklediği (yeniden yazılmış) alt sorgu sayısı (yalnız katman açık + sorgu varken). */
   uq?: number;
+  /** Geri çekilmede anlama katmanının isabetiyle ÖNE alınan kalem sayısı (taşınan + parça olarak eklenen). */
+  uf?: number;
   /** Anlama katmanının durumu (yalnız `AI_UNDERSTANDING_ENABLED` açıkken; kapalı küme). */
   un?: "ok" | "cached" | "failed";
   /** Anlama katmanının süresi (ms). */
@@ -211,6 +213,13 @@ export const MAX_EXTRA_QUERIES = 6;
 export const EXTRA_QUERY_SHARE = 1 / 3;
 /** Özgün sorgular hiç isabet almadığında (geri çekilme) ek sorguların öne alabileceği kalem sayısı. */
 export const EXTRA_FALLBACK_ITEMS = 4;
+/**
+ * Geri çekilmede ek sorguların legacy kümesine EKLEYEBİLECEĞİ yeni içerik tavanı (karakter). Legacy'de zaten
+ * olan kalem yalnız öne taşınır (içerik eklemez); olmayan kalemin yalnız eşleşen PARÇASI gelir. Böylece
+ * legacy bloğunun (24k) en fazla bu kadarı yer değiştirebilir (ikinci inceleme 09-24: bütün kalem ekleniyordu,
+ * tek bir 19k'lık "ev kılavuzu" legacy kümesinin 24 kalemini isteme sığmaz hâle getiriyordu).
+ */
+export const EXTRA_FALLBACK_CHARS = Math.floor(KB_RETRIEVAL_CHAR_BUDGET / 2);
 
 /**
  * CEVAPSIZ ÖNCEKİ MİSAFİR MESAJLARI (09-23 ölçümü): son operatör/AI mesajından SONRA gelen, güncel
@@ -574,6 +583,83 @@ function cappedForFallback<T extends KbChunkSource>(
   return { items: items.slice(0, KB_ITEM_CAP), dropped: items.length - KB_ITEM_CAP };
 }
 
+/** Seçilen parçanın isteme giden kalem biçimi (tek kaynak: seçim dalı + geri çekilme ön-eklemesi). */
+function chunkAsItem<T extends KbChunkSource>(src: T, c: KbChunk): SelectedKbItem<T> {
+  const title = c.chunkCount > 1 ? `${c.title} (${c.chunkIndex + 1}/${c.chunkCount})` : c.title;
+  return { ...src, title, content: c.text, chunk: c.chunkIndex, chunkCount: c.chunkCount };
+}
+
+/**
+ * GERİ ÇEKİLMEDE ANLAMA KATMANININ KATKISI (ikinci inceleme 09-24). Legacy kümesi (`legacy`, en yeni ≤30
+ * kalem) AYNEN kalır — kırpılmaz, sırası yalnız öne alınanlar kadar değişir. Ek sorguların adayları
+ * round-robin dolaşılır, en fazla `EXTRA_FALLBACK_ITEMS` kalem:
+ *  · kalem legacy kümesindeyse → ÖNE TAŞINIR (yeni içerik yok);
+ *  · değilse → yalnız eşleşen PARÇASI eklenir, toplam `EXTRA_FALLBACK_CHARS` tavanıyla (bütün kalem değil:
+ *    20k'lık bir kalem legacy bloğunu isteme sığmaz hâle getiriyordu);
+ *  · bu dal çelişki korumasından GEÇMEZ → saat alanı dizindeki başka bir parçayla ÇELİŞEN parça eklenmez
+ *    (pencere dışından bayat bir "Çıkış 12:00" kalemi öne gelmesin).
+ */
+function fallbackFront<T extends KbChunkSource>(
+  index: KbIndex,
+  ranked: readonly (readonly Candidate[])[],
+  isExtra: readonly boolean[],
+  pool: readonly T[],
+  legacy: readonly T[],
+): { items: SelectedKbItem<T>[]; count: number; added: number } {
+  const inLegacy = new Set(legacy.map((i) => i.id));
+  const byId = new Map(pool.map((i) => [i.id, i] as const));
+  const extraLists = ranked.filter((_, qi) => isExtra[qi]);
+  const front: ({ kind: "move"; id: string } | { kind: "add"; chunk: KbChunk })[] = [];
+  const taken = new Set<string>();
+  let addedChars = 0;
+  for (let round = 0; front.length < EXTRA_FALLBACK_ITEMS; round++) {
+    let any = false;
+    for (const list of extraLists) {
+      if (front.length >= EXTRA_FALLBACK_ITEMS) break;
+      const cand = list[round];
+      if (!cand) continue;
+      any = true;
+      const chunk = index.chunks[cand.idx];
+      if (taken.has(chunk.id) || !byId.has(chunk.id)) continue;
+      if (inLegacy.has(chunk.id)) {
+        taken.add(chunk.id);
+        front.push({ kind: "move", id: chunk.id });
+        continue;
+      }
+      const cost = renderedChars({ category: chunk.category, title: chunk.title, text: chunk.text });
+      if (addedChars + cost > EXTRA_FALLBACK_CHARS) continue;
+      if (preserveTimeConflicts(index.chunks, [cand.idx], index.fieldTimes).conflicts.length > 0) continue;
+      taken.add(chunk.id);
+      addedChars += cost;
+      front.push({ kind: "add", chunk });
+    }
+    if (!any) break;
+  }
+  const moved = new Set(front.filter((f) => f.kind === "move").map((f) => (f as { id: string }).id));
+  const frontItems = front.map((f) =>
+    f.kind === "move" ? (byId.get(f.id) as SelectedKbItem<T>) : chunkAsItem(byId.get(f.chunk.id) as T, f.chunk),
+  );
+  const rest = legacy.filter((i) => !moved.has(i.id)) as SelectedKbItem<T>[];
+  return { items: [...frontItems, ...rest], count: front.length, added: front.length - moved.size };
+}
+
+/** Konu kapsanmış mı: ek sorgunun EN İYİ adayı, özgün bir sorgunun ilk bu kadar adayından birinin kalemindeyse. */
+const REDUNDANT_EXTRA_TOP = 3;
+
+/** Özgün sorguların zaten kapsadığı konuyu tekrar eden ek sorgular (seçimde pay almaz). */
+function redundantExtraQueries(index: KbIndex, ranked: readonly (readonly Candidate[])[], isExtra: readonly boolean[]): Set<number> {
+  const ownTop = new Set<string>();
+  ranked.forEach((list, qi) => {
+    if (isExtra[qi]) return;
+    for (const c of list.slice(0, REDUNDANT_EXTRA_TOP)) ownTop.add(index.chunks[c.idx].id);
+  });
+  const out = new Set<number>();
+  ranked.forEach((list, qi) => {
+    if (isExtra[qi] && list.length > 0 && ownTop.has(index.chunks[list[0].idx].id)) out.add(qi);
+  });
+  return out;
+}
+
 export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<T>): KbSelectResult<T> {
   const mode = input.mode ?? kbRetrievalMode();
   if (mode !== "hybrid") return legacyResult(input.items, "legacy", null);
@@ -583,7 +669,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     q: number,
     sel: number,
     cand: number,
-    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped" | "fus" | "pq" | "uq"> = {},
+    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped" | "fus" | "pq" | "uq" | "uf"> = {},
   ): KbRetrievalEvidence => ({
     mode: "hybrid",
     q,
@@ -630,7 +716,10 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const queryIsTurkish = detectGuestLanguage(input.guestMessage) === "tr";
     const rankedAll = queries.map((q) =>
       rankForSubquery(index, q.subquery, {
-        carryStems,
+        // Ek sorgunun (anlama katmanı) bağlamı ZATEN çözülmüştür: önceki misafir mesajlarının kökleri ona
+        // TAŞINMAZ (ikinci inceleme 09-24: kısa "sauna" sorgusuna eski "wifi" kökleri ekleniyor, geri
+        // çekilmede wifi kalemleri öne alınıyordu).
+        carryStems: q.extra ? [] : carryStems,
         semantic: input.semanticBySubquery?.get(q.subquery) ?? input.semantic,
         sources,
         queryIsTurkish: q.extra ? q.turkish === true : queryIsTurkish,
@@ -638,37 +727,30 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     );
     const ranked = rankedAll.map((r) => r.cands);
     const isExtra = queries.map((q) => q.extra === true);
+    // Kanıttaki `q` yalnız DETERMİNİSTİK alt sorgulardır; ek sorgular `uq`da (ikinci inceleme: `q` ikisini karıştırıyordu).
+    const ownQ = isExtra.filter((x) => !x).length;
     const srcs = rankedAll[0]?.sources ?? [];
     const fus = rankedAll[0]?.fusion;
     const ownHits = ranked.some((r, qi) => !isExtra[qi] && r.length > 0);
     if (!ownHits) {
-      // ÖZGÜN sorgular isabet almadı → geri çekilme kümesi (legacy tavanı) KORUNUR. Anlama katmanının ek
-      // sorguları bu kümeyi DARALTAMAZ (inceleme 09-24: tek bir ek isabet 30 kalemi 12 parçaya indiriyordu);
-      // yalnız kendi en iyi kalemlerini (≤ EXTRA_FALLBACK_ITEMS) kümenin ÖNÜNE alabilir.
+      // ÖZGÜN sorgular isabet almadı → geri çekilme kümesi (legacy tavanı) AYNEN korunur; anlama katmanı onu
+      // DARALTAMAZ, yalnız sınırlı biçimde ÖNE ekler (`fallbackFront`).
       const pool = sup > 0 ? items : input.items;
-      const hasOwnQuery = isExtra.some((x) => !x);
-      const fb: KbSelectFallback = hasOwnQuery ? "no_lexical_hits" : "empty_query";
-      const frontIds: string[] = [];
-      for (let round = 0; frontIds.length < EXTRA_FALLBACK_ITEMS; round++) {
-        let any = false;
-        for (let qi = 0; qi < ranked.length && frontIds.length < EXTRA_FALLBACK_ITEMS; qi++) {
-          const cand = isExtra[qi] ? ranked[qi][round] : undefined;
-          if (!cand) continue;
-          any = true;
-          const id = index.chunks[cand.idx].id;
-          if (!frontIds.includes(id)) frontIds.push(id);
-        }
-        if (!any) break;
-      }
-      const extraEv = { srcs, fus, sup, ...(pq ? { pq } : {}), ...(uq ? { uq } : {}) };
-      if (frontIds.length === 0) {
-        const cap = cappedForFallback(pool);
-        return legacyResult(cap.items, "hybrid", evidence(fb, hasOwnQuery ? subqueries.length : 0, 0, index.chunks.length, hasOwnQuery ? extraEv : { sup }), cap.dropped);
-      }
-      const byIdAll = new Map(pool.map((i) => [i.id, i] as const));
-      const front = frontIds.map((id) => byIdAll.get(id)).filter((i): i is T => i !== undefined);
-      const merged = [...front, ...pool.filter((i) => !frontIds.includes(i.id))].slice(0, KB_ITEM_CAP);
-      return legacyResult(merged, "hybrid", evidence(fb, subqueries.length, front.length, index.chunks.length, extraEv), pool.length - merged.length);
+      const fb: KbSelectFallback = ownQ > 0 ? "no_lexical_hits" : "empty_query";
+      const cap = cappedForFallback(pool);
+      const front = uq > 0 ? fallbackFront(index, ranked, isExtra, pool, cap.items) : null;
+      const ev = evidence(
+        fb,
+        ownQ,
+        0,
+        index.chunks.length,
+        ownQ > 0
+          ? { srcs, fus, sup, ...(pq ? { pq } : {}), ...(uq ? { uq } : {}), ...(front && front.count ? { uf: front.count } : {}) }
+          : { sup, ...(uq ? { uq } : {}), ...(front && front.count ? { uf: front.count } : {}) },
+      );
+      if (!front || front.count === 0) return legacyResult(cap.items, "hybrid", ev, cap.dropped);
+      // Parça olarak eklenen kalem artık TEMSİL EDİLİYOR: düşen sayısından çıkar (kbDropped dürüst kalsın).
+      return legacyResult(front.items, "hybrid", ev, cap.dropped - front.added);
     }
 
     // Alt sorgular arasında sırayla (round-robin) → çok sorulu mesajda her
@@ -677,14 +759,21 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const pickedSet = new Set<number>();
     const perItem = new Map<string, number>();
     const cursors = ranked.map(() => 0);
+    // Parçanın KÖKENİ (yalnız ek sorgu varken tutulur): ek sorguların payı bütçe döngüsünde köken bazında
+    // uygulanır. Ek sorgu yoksa bu harita boş kalır ve davranış BİREBİR eskisidir.
+    const origin = new Map<number, "own" | "extra">();
     // Ek sorguların payı sınırlı (↑EXTRA_QUERY_SHARE); ek sorgu yoksa sınır hiç devreye girmez (birebir eski).
     const extraQuota = Math.floor(maxChunks * EXTRA_QUERY_SHARE);
+    // AYNI KONUYU TEKRAR EDEN ek sorgu payı yemez (ikinci inceleme 09-24): en iyi adayı, özgün bir sorgunun ilk
+    // adaylarından birinin KALEMİYSE konu zaten kapsanmıştır ("Wifi?" + "wifi şifresi" + "WLAN Passwort" üçü
+    // de wifi kalemlerini seçip evcil hayvan sorusunu dışarıda bırakıyordu).
+    const skipExtra = uq > 0 ? redundantExtraQueries(index, ranked, isExtra) : new Set<number>();
     let extraPicked = 0;
     let progressed = true;
     while (progressed) {
       progressed = false;
       for (let qi = 0; qi < ranked.length; qi++) {
-        if (isExtra[qi] && extraPicked >= extraQuota) continue;
+        if (isExtra[qi] && (extraPicked >= extraQuota || skipExtra.has(qi))) continue;
         const list = ranked[qi];
         while (cursors[qi] < list.length) {
           const cand = list[cursors[qi]++];
@@ -695,7 +784,10 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
           picked.push(cand.idx);
           pickedSet.add(cand.idx);
           perItem.set(chunk.id, cnt + 1);
-          if (isExtra[qi]) extraPicked += 1;
+          if (isExtra[qi]) {
+            extraPicked += 1;
+            origin.set(cand.idx, "extra");
+          } else if (uq > 0) origin.set(cand.idx, "own");
           progressed = true;
           break;
         }
@@ -705,25 +797,45 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // ÇELİŞKİ KORUMA (alan bazlı): aynı SAAT ALANINDA çapadan farklı saat taşıyan
     // parçalar çapanın hemen arkasına taşınır (P4 iki kaynağı görsün).
     const { order, conflicts } = preserveTimeConflicts(index.chunks, picked, index.fieldTimes);
+    // Çelişki partneri, onu ÇEKEN çapanın kökenine yazılır (ikinci inceleme 09-24: ek sorgu "çıkış saati"
+    // 8 çelişen çıkış kalemini içeri çekip özgün sorunun parçalarını 12'den 4'e indiriyordu). Özgün sorunun
+    // çelişkisini tamamlayan partner ÖZGÜN sayılır (kendi sorusunun iki kaynağı paya takılmasın).
+    if (uq > 0) {
+      for (const c of conflicts) {
+        const anchor = origin.get(c.anchorIdx) ?? "own";
+        for (const p of c.partnerIdx) {
+          if (anchor === "own") origin.set(p, "own");
+          else if (!origin.has(p)) origin.set(p, "extra");
+        }
+      }
+    }
 
-    // Bütçe: en az bir parça her zaman gider (isabet varken boş blok gitmez).
+    // Bütçe: en az bir parça her zaman gider (isabet varken boş blok gitmez). Ek sorgu kökenli parçalar
+    // (partnerleri dahil) KARAKTER ve PARÇA olarak bütçenin en fazla `EXTRA_QUERY_SHARE`ını alır — pay parça
+    // sayısıyla değil gerçekten isteme girenle ölçülür (ikinci inceleme: ~850 karakterlik parçalarda 6k bütçenin
+    // yarısını 1 ek sorgu alıyordu).
+    const extraCharCap = Math.floor(budget * EXTRA_QUERY_SHARE);
+    const extraChunkCap = Math.floor(maxChunks * EXTRA_QUERY_SHARE);
+    let extraChars = 0;
+    let extraChunks = 0;
     const chosen: KbChunk[] = [];
     let used = 0;
     for (const idx of order) {
       const c = index.chunks[idx];
       const cost = renderedChars({ category: c.category, title: c.title, text: c.text });
       if (chosen.length > 0 && (used + cost > budget || chosen.length >= maxChunks)) break;
+      if (origin.get(idx) === "extra") {
+        if (extraChunks >= extraChunkCap || extraChars + cost > extraCharCap) continue;
+        extraChunks += 1;
+        extraChars += cost;
+      }
       chosen.push(c);
       used += cost;
     }
 
     const byId = new Map<string, T>();
     for (const it of items) byId.set(it.id, it);
-    const selected: SelectedKbItem<T>[] = chosen.map((c) => {
-      const src = byId.get(c.id) as T;
-      const title = c.chunkCount > 1 ? `${c.title} (${c.chunkIndex + 1}/${c.chunkCount})` : c.title;
-      return { ...src, title, content: c.text, chunk: c.chunkIndex, chunkCount: c.chunkCount };
-    });
+    const selected: SelectedKbItem<T>[] = chosen.map((c) => chunkAsItem(byId.get(c.id) as T, c));
     const representedIds = new Set(chosen.map((c) => c.id));
     const droppedItems = byId.size - representedIds.size;
     // BÜTÇE ÇELİŞKİYİ YUTAMAZ: bir çelişkinin tüm tarafları bloğa sığmadıysa
@@ -746,7 +858,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       droppedItems,
       selection: "retrieved",
       notes,
-      evidence: evidence("none", subqueries.length, selected.length, index.chunks.length, {
+      evidence: evidence("none", ownQ, selected.length, index.chunks.length, {
         srcs,
         fus,
         sup,

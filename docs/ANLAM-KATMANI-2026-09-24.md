@@ -13,11 +13,15 @@ yazdığı **kör batarya** (`evals/stay-change.json`, `dev` bölümü: 268 misa
 | sınıf | kelime ağı — `dev` (ilk kör batarya) | kelime ağı — `holdout` (ikinci kör batarya, TEK ölçüm) |
 |---|---|---|
 | konaklama isteği (ek gece, erken giriş, geç çıkış, tarih değişikliği, müsaitlik sorusu) | 77/125 (%62) | **77/170 (%45)** |
-| istek olmayan zor benzerde yanlış alarm | 10/143 | **28/161 (%17)** |
+| istek olmayan zor benzerde yanlış alarm | 10/143 → **8/143** | 28/161 → **26/161 (%16)** |
 | takvim iddiası ("o gece boş", "doluyuz", "sizden sonra misafir yok") | 31/57 | **26/73 (%36)** |
-| izin / söz ("see you at 11", "çıkışınızı 13:00'e aldım", "genelde sorun olmaz") | **19/60** | **13/95 (%14)** |
-| erteleme cümlesi tanıma | 61/76 | 41/77 |
-| tarafsız cevapta yanlış alarm | 1/118 | 3/127 |
+| izin / söz ("see you at 11", "çıkışınızı 13:00'e aldım", "genelde sorun olmaz") | 19/60 → **20/60** | **13/95 (%14)** |
+| erteleme cümlesi tanıma | 70/76 | 44/77 |
+| tarafsız cevapta yanlış alarm | 0/118 | 2/127 |
+
+İkinci inceleme turundaki (09-24) oklu değişimler DOĞRULUK düzeltmeleridir, holdout'a bakılarak yapılmadı:
+İngilizce kısaltmalar ("you're / we'll / I'll") kalıp yapısı yüzünden hiç eşleşmiyordu; genel müsaitlik kalıbı
+öznesizdi ve taksi/market/otopark sorularını istek sayıyordu (↓2.1). Holdout satırları yalnız yeniden ölçüldü.
 
 `holdout`un yanlış alarmları kelime tabanlı yöntemin yapısal sınırıdır: olumsuz ya da vazgeçilmiş istek
 ("Geç çıkışa gerek yok, 10'da çıkarız"), karşı-olgusal ("Keşke daha uzun kalabilseydik ama…"), olanak
@@ -86,6 +90,20 @@ kanalı), `ai/semantic/config.ts` (anahtar/model/zaman aşımı tek kaynak).
   belirli bir güne onaylamak ya da üstüne izin eklemek izindir.
 * **SAAT KODDA:** `H:MM` ve `HH:MM` kabul edilir, sıfır dolgulu biçime getirilir. Gece 05:00'ten önceki
   bir giriş saati geç varıştır, erken giriş sayılmaz (00:30 varış 15:00 girişten "erken" değildir).
+* **TEKLİF MUAFİYETİ YALNIZ ERTELEMEYLE** (ikinci inceleme): teklif metni ancak cevap kararı ev sahibine de
+  bırakıyorsa iddia taramasından çıkarılır; erteleme teklifin DIŞINDA aranır (teklifin kendi "müsaitlik varsa"sı
+  kendini onaylayamaz). Teklifi aynen aktarıp ertelemeyen cevap bir güne izin gibi okunur → iddia.
+* **STANDART ÇIKIŞ BİLGİSİ İZİN DEĞİL:** "11:00'e kadar kalabilirsiniz / you can stay until 11" standart çıkış
+  saatine eşit ya da erkense izin sayılmaz; saat KODDA kıyaslanır. am/pm'siz 1–6 öğleden sonradır ("until 1" =
+  13:00, izin). Mülkün çıkış saati bilinmiyorsa eski davranış (izin sayılır).
+* **GENEL MÜSAİTLİK KALIBININ ÖZNESİ:** mesaj üçüncü taraf bir şeyden (taksi, araba, restoran/masa, market,
+  eczane, otopark, havuz…) söz ediyor ve konaklamanın kendisini adlandırmıyorsa genel `availability` kalıbı
+  istek sayılmaz. Uzatma/erken/geç/tarih değişikliği kalıplarına uygulanmaz. Kapalı sınıftır; yeni yanlış alarm
+  için genişletilmez — anlam katmanı açılınca karar onundur.
+* **BEKÇİ TUTUŞTA DA KOŞAR:** bekçi yalnız otomatik gönderim adayında değil, tek engeli `availability_unconfirmed`
+  olan taslakta da koşar (kanal + QR). Böylece kelime ağının tanımadığı doğru ertelemeler ("Das muss Ihr Gastgeber
+  entscheiden") iki bağımsız modelin (beyan + bekçi) birlikte hükmüyle gidebilir; tek model yine gevşetemez.
+* **ANLAMA KATMANI DÜŞTÜYSE** kanıtta `u: "failed"` yazar ("off"tan ayrı); karar değişmez.
 * **GEREKÇE:** `RiskEvent.reason` kapının İLK düşen kontrolünden gelir. Müsaitlik kodu yalnız müsaitlik
   kontrolü kapattıysa yazılır; model arızası ya da başka bir veto "Müsaitlik" satırına sayılmaz. `sc`
   kanıtı ayrıca politikanın ne dediğini yine ölçer.
@@ -107,10 +125,12 @@ Böylece açmadan önce gerçek trafikte "açsaydık kaç taslak daha çıkardı
 | `lx` | kelime ağı: `c` iddia, `r` istek, `d` erteleme |
 | `d` | beyan `asked/stance` ya da `absent` |
 | `g`, `gv` | bekçi `off/ok/failed`; hüküm `q` istek, `s` takvim, `a` izin, `d` erteleme, `x` ret, `t` kaydırılmış saat |
-| `u` | anlama katmanı `off/req/none` |
+| `u` | anlama katmanı `off/req/none/failed` |
 
-Retrieval kanıtına (`retrieval`) anlama katmanından `uq` (eklenen sorgu sayısı), `un`
-(`ok/cached/failed`), `unMs` ve `ui` (niyet etiketleri) girer. Sorgu **metni girmez**.
+Retrieval kanıtına (`retrieval`) anlama katmanından `uq` (eklenen sorgu sayısı), `uf` (geri çekilmede öne
+alınan kalem), `un` (`ok/cached/failed`), `unMs` ve `ui` (niyet etiketleri) girer. `q` yalnız deterministik alt
+sorgulardır. Katman retrieval'da beklenmediyse (paralel koştu) `un/unMs/ui` kapıdan sonra
+`evidenceAfterUnderstanding()` ile eklenir. Sorgu **metni girmez**.
 
 ## 3. Sorgu yeniden yazma / çoklu sorgu (kurucunun Gemini örneği)
 
@@ -122,12 +142,19 @@ daraltmaz, bilgi tabanına kalem ekleyemez (seçilebilecek küme yetki, onay ve 
 
 Birleşimin üç sınırı var (inceleme 09-24; model sorguları deterministik davranışı asla kötüleştiremez):
 
-* **Sıra:** güncel mesajın alt sorguları → cevapsız önceki sorular → modelin sorguları (en fazla 6).
-* **Pay:** modelin sorguları parça bütçesinin en fazla **üçte birini** alır. Misafirin kendi sorusu
-  bütçeden itilemez.
-* **Geri çekilme daralmaz:** deterministik sorguların hiç isabeti yoksa eski davranış sürer (legacy
-  kümesi, `fb: no_lexical_hits`). Modelin sorgularının isabetleri o kümenin **önüne** eklenir
-  (en fazla 4 kalem); küme küçülmez.
+* **Sıra:** güncel mesajın alt sorguları → cevapsız önceki sorular → modelin sorguları (en fazla 6; ÖNCE her
+  isteğin Türkçesi, SONRA özgün dil — Türkçe olmayan misafirin 4.–5. sorusu da sorgu alır).
+* **Pay:** modelin sorguları bütçenin en fazla **üçte birini** alır — KARAKTER ve PARÇA olarak, gerçekten isteme
+  girenle ölçülür. Ek sorgunun çektiği saat çelişkisi partnerleri de onun payına sayılır (özgün sorunun
+  çelişkisini tamamlayan partner özgün sayılır). Misafirin kendi sorusu bütçeden itilemez.
+* **Tekrar eden konu pay yemez:** ek sorgunun en iyi adayı, özgün bir sorgunun ilk 3 adayından birinin
+  kalemindeyse o ek sorgu seçime katılmaz.
+* **Bağlam taşınmaz:** önceki misafir mesajlarının kökleri ek sorguya eklenmez (bağlamı model zaten çözdü).
+* **Geri çekilme daralmaz:** deterministik sorguların hiç isabeti yoksa legacy kümesi (en yeni ≤30) AYNEN
+  kalır, kırpılmaz. Modelin isabetleri en fazla 4 kalem olarak ÖNE gelir: kalem zaten legacy'deyse yalnız
+  taşınır; değilse yalnız eşleşen PARÇASI eklenir (toplam ≤3.000 karakter), saati dizinde başka bir parçayla
+  çelişen parça hiç eklenmez (bu dal çelişki korumasından geçmez). Legacy bloğundan en fazla bu kadar içerik
+  yer değiştirir.
 * Selamlaşma/teşekkür (`greeting_thanks`) sorgu üretmez. Türkçe karakter 3-gram'ı sorgu başına açılır
   (Türkçe yeniden yazım için açık, özgün dilde yazılmış sorgu için dilin kendisine göre).
 
@@ -155,7 +182,9 @@ Kazanımlar (pinli: `tests/unit/understanding.test.ts`):
 * **Gecikme:** anlama katmanı YALNIZ retrieval sorgulara ihtiyaç duyduğunda (hibrit + büyük bilgi
   tabanı) beklenir. Tipik host bilgi tabanında (küçük KB) ya da legacy acil durdurmada cevap
   üretimiyle **paralel** koşar ve yalnız kapıdan önce beklenir. Bekçi gönderimden önce koşar. Zaman
-  aşımları `AI_SEMANTIC_TIMEOUT_MS` ile ayarlanır (reasoning 12 sn, klasik 6 sn).
+  aşımları `AI_SEMANTIC_TIMEOUT_MS` ile ayarlanır (reasoning 12 sn, klasik 6 sn, **tavan 20 sn**: QR yolunda
+  anlama + cevap + bekçi ardışık koşabilir; 60 sn'lik eski tavan `qr-in:` talebinin 120 sn TTL'ini aşıp
+  misafirin yeniden denemesini ikinci kez işletebiliyordu).
 * **Model:** `AI_SEMANTIC_MODEL`; boşsa `OPENAI_MODEL`. Reasoning modelinde düşünme çabası
   `AI_SEMANTIC_REASONING_EFFORT` (none/minimal/low/medium/high; boşsa gönderilmez). Küçük ve hızlı bir
   model ya da düşük çaba seçmek maliyet ile gecikme kararıdır; önce eval ile ölçülür.

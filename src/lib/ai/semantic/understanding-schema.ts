@@ -141,19 +141,25 @@ export function parseUnderstanding(raw: unknown): MessageUnderstanding | null {
 }
 
 /**
- * Retrieval'a eklenecek sorgular: Türkçe + özgün dil, tekilleştirilmiş, sırası korunur. Selamlama /
- * teşekkür kalemleri ARAMA SORGUSU DEĞİLDİR (inceleme 09-24: "teşekkürler" sorgusu seçimi bozuyordu).
+ * Retrieval'a eklenecek sorgular: tekilleştirilmiş; ÖNCE her isteğin Türkçe sorgusu (bilgi tabanının dili),
+ * SONRA özgün dildeki sorgular. Selamlama / teşekkür kalemleri ARAMA SORGUSU DEĞİLDİR (inceleme 09-24:
+ * "teşekkürler" sorgusu seçimi bozuyordu).
+ * 🚨 SIRA (ikinci inceleme 09-24): eskiden [TR, özgün] ÇİFTLERİ tavana (6) kadar diziliyordu → Türkçe olmayan
+ * misafirin 4. ve 5. sorusu HİÇ sorgu almıyordu; round-robin payını da özgün dil tekrarları yiyordu. Türkçe
+ * sorgular önce gelince her istek tavandan önce en az bir sorgu alır.
  */
 export function understandingQueries(u: MessageUnderstanding | null | undefined, max = 6): { text: string; turkish: boolean }[] {
   if (!u) return [];
   const out: { text: string; turkish: boolean }[] = [];
   const seen = new Set<string>();
-  for (const r of u.requests) {
-    if (r.intent === "greeting_thanks") continue;
-    for (const [text, turkish] of [
-      [r.queryTr, true],
-      [r.queryOriginal, u.language === "tr"],
-    ] as const) {
+  const requests = u.requests.filter((r) => r.intent !== "greeting_thanks");
+  const passes: [(r: UnderstoodRequest) => string, boolean][] = [
+    [(r) => r.queryTr, true],
+    [(r) => r.queryOriginal, u.language === "tr"],
+  ];
+  for (const [textOf, turkish] of passes) {
+    for (const r of requests) {
+      const text = textOf(r);
       const k = text.toLocaleLowerCase("tr");
       if (seen.has(k)) continue;
       seen.add(k);

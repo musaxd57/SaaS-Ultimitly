@@ -133,9 +133,11 @@ describe("anahtar KAPALI (varsayılan) — davranış birebir eski", () => {
     const input = { items: bigKb(), guestMessage: "Otopark nerede?", history: [] };
     // Giriş fonksiyonunun TEK ek alanı anlama katmanının sözü (kapıdan önce beklenir); katman kapalıyken
     // `undefined`a çözülür. Geri kalan her şey seçiciyle birebir.
-    const { understanding, ...viaWrapper } = await retrieveKbForPrompt(input);
+    const { understanding, understandingStatus, evidenceAfterUnderstanding, ...viaWrapper } = await retrieveKbForPrompt(input);
     const direct = selectKbForPrompt(input);
     expect(await understanding).toBeUndefined();
+    expect(await understandingStatus).toBe("off");
+    expect(await evidenceAfterUnderstanding()).toBe(viaWrapper.evidence);
     expect(f).not.toHaveBeenCalled();
     expect(viaWrapper.evidence).not.toHaveProperty("sem");
     expect({ ...viaWrapper, evidence: { ...viaWrapper.evidence, ms: 0 } }).toEqual({ ...direct, evidence: { ...direct.evidence, ms: 0 } });

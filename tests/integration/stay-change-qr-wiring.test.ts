@@ -17,6 +17,7 @@ vi.mock("@/lib/ai", () => ({ suggestReply: (...a: unknown[]) => mockSuggest(...a
 
 import { NextRequest } from "next/server";
 import { POST as CHAT } from "@/app/api/chat/[token]/route";
+import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 
 const DAY = 86_400_000;
 const ASK = "Could we get into the flat at 11?";
@@ -80,7 +81,8 @@ const cookieOf = (res: Response) => res.headers.get("set-cookie")?.split(";")[0]
 
 async function lastEvent() {
   const ev = await prisma.riskEvent.findFirstOrThrow({ where: { surface: "guest_chat" }, orderBy: { occurredAt: "desc" } });
-  return { ev, sc: (JSON.parse(String(ev.kbEvidenceJson)) as { sc?: Record<string, string> }).sc };
+  const json = JSON.parse(String(ev.kbEvidenceJson)) as { sc?: Record<string, string>; retrieval?: Record<string, unknown> };
+  return { ev, sc: json.sc, retrieval: json.retrieval };
 }
 
 /** Şema adına göre cevap veren sahte OpenAI (anlama katmanı ve bekçi aynı uca gider). */
@@ -117,6 +119,8 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
+    // Anlama katmanının süreç içi önbelleği testler arasında sızmasın (aynı mesaj = aynı anahtar).
+    __resetUnderstandingCache();
     vi.stubEnv("GUEST_CHAT_ENABLED", "1");
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     vi.stubEnv("QR_INFORMATIONAL_BAND_ENABLED", "");
@@ -179,7 +183,10 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     const shadow = await ask(token, ASK);
     expect(bodyOf(f, 0).response_format.json_schema.name).toBe("guest_message_understanding");
     expect(shadow.escalated).toBe(false);
-    expect((await lastEvent()).sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", u: "req" });
+    const first = await lastEvent();
+    expect(first.sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", u: "req" });
+    // Katman retrieval'da beklenmedi (boş KB) ama özeti karar kaydına YİNE girer.
+    expect(first.retrieval).toMatchObject({ un: "ok", ui: ["early_checkin"] });
 
     await resetDb();
     vi.stubEnv("AI_STAY_POLICY", "enforce");
@@ -205,6 +212,41 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     expect(second).toContain("EARLIER CONVERSATION (context only, oldest first):");
     expect(second).toContain("Guest: <<<What is the wifi password?>>>");
     expect(second).toContain("[1] <<<Could we get into the flat at 11?>>>");
+  });
+
+  it("anlama katmanı DÜŞTÜ → bot eski davranışta; kanıtta 'failed' ('off'tan ayrı)", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream down", { status: 503 })));
+    mockSuggest.mockResolvedValue(DRAFT);
+    const { token } = await seed();
+    const out = await ask(token, ASK);
+    expect(out.escalated).toBe(false);
+    expect((await lastEvent()).sc).toMatchObject({ v: "-", u: "failed" });
+  });
+
+  it("🚨 bekçi müsaitlik onayı eksik diye DEVREDİLECEK cevapta da koşar: iki model erteleme → bot cevaplar (kanal paritesi)", async () => {
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    const verdict = (defers: boolean) => ({
+      ...GUARD_GRANTS,
+      kind: "extend",
+      requested_checkin_time: null,
+      reply_grants_change: false,
+      reply_defers_to_host: defers,
+    });
+    const reply = { ...DRAFT, intent: "extend_stay", reply: "Das muss Ihr Gastgeber entscheiden.", stayChange: { asked: "extend", stance: "defers" } };
+    vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: verdict(true) }));
+    mockSuggest.mockResolvedValue(reply);
+    const { token } = await seed();
+    const out = await ask(token, "Can we stay one more night?");
+    expect(out.escalated).toBe(false);
+    expect(out.reply).toBe(reply.reply);
+
+    await resetDb();
+    vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: verdict(false) }));
+    const { token: t2 } = await seed();
+    const held = await ask(t2, "Can we stay one more night?");
+    expect(held.escalated).toBe(true);
+    expect((await lastEvent()).ev.reason).toBe("availability_unconfirmed");
   });
 
   it("bekçi yalnız ADAY için: kapı zaten devrettiyse ikinci model çağrılmaz", async () => {

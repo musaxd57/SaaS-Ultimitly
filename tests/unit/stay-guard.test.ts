@@ -18,6 +18,7 @@ import {
   stayGuardEnabled,
 } from "@/lib/ai/semantic/guard";
 import { STAY_GUARD_JSON_SCHEMA } from "@/lib/ai/semantic/stay-change";
+import { SEMANTIC_TIMEOUT_MAX_MS, semanticTimeoutMs } from "@/lib/ai/semantic/config";
 
 const VERDICT = {
   guest_requests_change: true,
@@ -215,6 +216,19 @@ describe("çağrı sözleşmesi", () => {
     vi.stubEnv("AI_SEMANTIC_REASONING_EFFORT", "low");
     vi.stubEnv("AI_SEMANTIC_MODEL", "gpt-4o-mini");
     expect(await effortOf()).toBeUndefined();
+  });
+});
+
+describe("zaman aşımı", () => {
+  it("🚨 env değeri 20 sn tavanını AŞAMAZ (QR `qr-in:` talebinin 120 sn TTL'i içinde kalınsın); varsayılanlar ve alt sınır", () => {
+    vi.stubEnv("AI_SEMANTIC_TIMEOUT_MS", "60000");
+    expect(semanticTimeoutMs("gpt-5.1")).toBe(SEMANTIC_TIMEOUT_MAX_MS);
+    expect(SEMANTIC_TIMEOUT_MAX_MS).toBe(20_000);
+    vi.stubEnv("AI_SEMANTIC_TIMEOUT_MS", "8000");
+    expect(semanticTimeoutMs("gpt-5.1")).toBe(8_000);
+    vi.stubEnv("AI_SEMANTIC_TIMEOUT_MS", "100"); // alt sınırın altı → varsayılan
+    expect(semanticTimeoutMs("gpt-5.1")).toBe(12_000);
+    expect(semanticTimeoutMs("gpt-4o-mini")).toBe(6_000);
   });
 });
 

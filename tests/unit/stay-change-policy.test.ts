@@ -13,7 +13,14 @@ import {
   stayPolicyMode,
   type StayGuardVerdict,
 } from "@/lib/ai/semantic/stay-change";
-import { evaluateAvailability, stayEvidenceOf, vetoAvailability } from "@/lib/ai/availability-claims";
+import {
+  detectAvailabilityClaim,
+  detectAvailabilityRequest,
+  evaluateAvailability,
+  hasAvailabilityDeferral,
+  stayEvidenceOf,
+  vetoAvailability,
+} from "@/lib/ai/availability-claims";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 
@@ -124,8 +131,8 @@ describe("politika kipi", () => {
 
 describe("birleşim kuralı — İDDİA bacağı (her kipte, devirde de)", () => {
   it("🚨 beyan edilen izin/takvim duruşu kelime ağının göremediği cevabı da durdurur", () => {
-    // Kör bataryadan: kelime ağının kaçırdığı gerçek izin cümleleri.
-    for (const reply of ["Olur, bekliyoruz.", "Sure, you're welcome to stay until Tuesday.", "Your early check-in is all set."]) {
+    // Kelime ağının kaçırdığı gerçek izin cümleleri (kör batarya + ikinci inceleme).
+    for (const reply of ["Olur, bekliyoruz.", "Absolutely, stay as long as you like!", "Your early check-in is all set."]) {
       expect(vetoAvailability(reply, ["Bir gece daha kalabilir miyiz?"])).not.toBe("availability_claim");
       expect(vetoAvailability(reply, ["x"], { declared: { asked: "extend", stance: "grants" } }), reply).toBe("availability_claim");
     }
@@ -382,7 +389,103 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
     const relay = `${offer} Uygunluğu ev sahibinizin kararıdır; mesajınız kaydedildi.`;
     expect(vetoAvailability(relay, ask)).toBe("availability_claim"); // KONTROL: teklif bilinmezse izin gibi okunur
     expect(vetoAvailability(relay, ask, { hostOfferText: offer })).toBeNull();
-    expect(vetoAvailability(offer, ask, { hostOfferText: offer })).toBe("availability_unconfirmed"); // ertelemesiz aktarım
+    // 🚨 ERTELEMESİZ AKTARIMDA MUAFİYET YOK (ikinci inceleme 09-24, P1): teklifin kendi izin cümlesi iddiadır —
+    // model "defers" dese de, istek kelime ağından kaçsa da (gölge kip).
+    expect(vetoAvailability(offer, ask, { hostOfferText: offer })).toBe("availability_claim");
+    const tomorrow = ["Yarın öğlen 1'de çıksak sorun olur mu?"];
+    for (const stance of ["defers", "none"] as const) {
+      expect(vetoAvailability(offer, tomorrow, { hostOfferText: offer, declared: { asked: "late_checkout", stance } }), stance).toBe(
+        "availability_claim",
+      );
+    }
+    const en = "Late checkout until 13:00 is possible for 20 EUR.";
+    expect(
+      vetoAvailability(en, ["Could we leave at 1pm tomorrow instead of 11?"], {
+        hostOfferText: en,
+        declared: { asked: "late_checkout", stance: "defers" },
+        stayTimes: STAY,
+      }),
+    ).toBe("availability_claim");
+    // Teklifin KENDİ "müsaitlik varsa"sı kendini onaylamaz: erteleme teklif metninin DIŞINDA aranır.
+    expect(evaluateAvailability(offer, ask, { hostOfferText: offer }).signals.lx).not.toContain("d");
     expect(vetoAvailability("Çıkışınızı 13:00'e uzattık, iyi tatiller.", ask, { hostOfferText: offer })).toBe("availability_claim");
+  });
+
+  it("🚨 İngilizce kısaltmalar izin olarak yakalanır; virgülle biten koşul cümleciği ana cümlecikteki izni gizlemez", () => {
+    const ask = ["Can we stay one more night?"];
+    for (const reply of [
+      "You're welcome to stay another night",
+      "You’re welcome to stay another night",
+      "We'll extend your stay by one night — subject to availability.",
+      "I'll add another night to your booking.",
+      "You'll be able to check in early.",
+      "If you want, you can stay another night.",
+      "Once you confirm, early check-in is possible.",
+      "Sure, you're welcome to stay until Tuesday.",
+    ]) {
+      expect(vetoAvailability(reply, ask), reply).toBe("availability_claim");
+      // Model erteleme beyan etse de (tek model gevşetemez).
+      expect(vetoAvailability(reply, ask, { declared: { asked: "extend", stance: "defers" } }), reply).toBe("availability_claim");
+    }
+    // Aşırı-uygulama kontrolü: gömülü soru, koşulun İÇİNDEKİ durum ve nezaket kalıpları iddia DEĞİL.
+    for (const reply of [
+      "Please ask your host if you can stay another night.",
+      "Whether you can stay another night is your host's call.",
+      "If an extra night is possible, your host will let you know.",
+      "You're welcome! Enjoy your stay.",
+      "We'll be happy to help with anything else.",
+      "You'll find the keys in the lockbox.",
+    ]) {
+      expect(detectAvailabilityClaim(reply), reply).toBeNull();
+    }
+  });
+
+  it("🚨 standart çıkış saatini söyleyen 'kadar kalabilirsiniz' izin DEĞİL; saat KODDA mülkün çıkışıyla kıyaslanır", () => {
+    const ask = ["What time is check-out?"];
+    expect(vetoAvailability("Check-out is at 11:00, so you can stay until 11:00 on Sunday.", ask, { stayTimes: STAY })).toBeNull();
+    expect(vetoAvailability("Çıkış saatimiz 11:00; pazar günü saat 11:00'e kadar kalabilirsiniz.", ["Çıkış kaçta?"], { stayTimes: STAY })).toBeNull();
+    expect(vetoAvailability("You can stay until 10:30.", ask, { stayTimes: STAY })).toBeNull();
+    // Standart DIŞI saat izindir; "until 1" öğleden sonradır (kimse gece 1'de çıkmaz).
+    for (const reply of ["You can stay until 13:00 on Sunday.", "You can stay until 1 on Sunday.", "You can stay until 12pm.", "Pazar günü 13:00'e kadar kalabilirsiniz."]) {
+      expect(vetoAvailability(reply, ask, { stayTimes: STAY }), reply).toBe("availability_claim");
+    }
+    // Mülkün çıkış saati bilinmiyorsa eski davranış (temkin): izin sayılır.
+    expect(vetoAvailability("You can stay until 11:00.", ask, {})).toBe("availability_claim");
+  });
+
+  it("🚨 genel müsaitlik kalıbı üçüncü taraf nesnelerde istek DEĞİL (taksi/market/araba); konaklama adlandırılınca yine istek", () => {
+    const reply = "The supermarket on the corner is open 9–21 every day.";
+    for (const msg of [
+      "Can I book a taxi for tomorrow morning?",
+      "Is the supermarket open on Sunday?",
+      "Is it possible to rent bikes for tomorrow?",
+      "Yarın için taksi ayırtabilir miyiz?",
+      "Yarın araba kiralamak istiyoruz, nereden kiralayabiliriz?",
+      "Otopark müsait mi? 14-16 Ekim arası arabayla geleceğiz.",
+    ]) {
+      expect(detectAvailabilityRequest(msg), msg).toBeNull();
+      expect(vetoAvailability(reply, [msg]), msg).toBeNull();
+    }
+    // KONTROL: nesne olsa da konaklamanın kendisi soruluyorsa istek; öznesiz tarih sorusu da istek.
+    expect(detectAvailabilityRequest("Is the apartment available on the 14th? We'd also need parking.")).toBe("availability");
+    expect(detectAvailabilityRequest("15 ekim musait mi")).toBe("availability");
+    expect(detectAvailabilityRequest("Can we stay one more night? Also can I book a taxi?")).toBe("extend");
+  });
+
+  it("Türkçe ünsüz yumuşaması: 'teyit' ünlüyle başlayan ekte 'teyid-' olur — erteleme yine tanınır", () => {
+    expect(hasAvailabilityDeferral("Bu, ev sahibinizin teyidine bağlıdır.")).toBe(true);
+    expect(hasAvailabilityDeferral("Geç çıkış ev sahibinizin teyidine tabidir.")).toBe(true);
+    expect(hasAvailabilityDeferral("Ev sahibinizin onayına bağlıdır.")).toBe(true); // KONTROL: eski biçim
+  });
+
+  it("anlama katmanı açıktı ama BAŞARISIZ: kanıtta 'failed' ('off'tan ayrı), karar değişmez", () => {
+    const off = evaluateAvailability("Check-in is from 15:00.", ["Could we get into the flat at 11?"], {});
+    const failed = evaluateAvailability("Check-in is from 15:00.", ["Could we get into the flat at 11?"], { understandingFailed: true });
+    expect(off.signals.u).toBe("off");
+    expect(failed.signals.u).toBe("failed");
+    expect(failed.reason).toBe(off.reason);
+    expect(failed.enforceReason).toBe(off.enforceReason);
+    const json = buildKbEvidence({ retrieved: [], usedLabels: [], stay: stayEvidenceOf(failed) });
+    expect(JSON.parse(String(json)).sc.u).toBe("failed");
   });
 });

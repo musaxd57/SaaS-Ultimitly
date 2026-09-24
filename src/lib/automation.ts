@@ -111,6 +111,8 @@ export interface AutoReplyGateContext {
   stayGuard?: StayGuardOutcome;
   /** Anlama katmanının konaklama sinyali (`AI_UNDERSTANDING_ENABLED`). */
   understanding?: UnderstandingStaySignal | null;
+  /** Anlama katmanı açıktı ama başarısız oldu (yalnız kanıt: `sc.u = "failed"`; kararı değiştirmez). */
+  understandingFailed?: boolean;
   /** Ev sahibinin tanımlı teklif metni (istemin gösterdiği SANİTİZE biçim) — iddia taramasından muaf. */
   hostOfferText?: string | null;
 }
@@ -373,6 +375,7 @@ export function availabilityPolicyFor(
     declared: result.stayChange ?? null,
     guard: context?.stayGuard,
     understanding: context?.understanding ?? null,
+    understandingFailed: context?.understandingFailed === true,
     stayTimes: context?.stayTimes ?? null,
     hostOfferText: context?.hostOfferText ?? null,
   };
@@ -1916,16 +1919,19 @@ export async function applyChannelAutoReply(
     // Anlama katmanının konaklama sinyali (katman kapalıyken yok → politika eski davranışta). Retrieval'a
     // gerekmediyse cevap üretimiyle paralel koştu; burada bekleniyor.
     understanding: (await kbSel.understanding)?.stay ?? null,
+    understandingFailed: (await kbSel.understandingStatus) === "failed",
     // İstemin gösterdiği AYNI sanitize teklif metni: host'un kendi sözü iddia sayılmaz.
     hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
   };
   // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
-  // Yalnız OTOMATİK GÖNDERİM ADAYI için ve bayrak açıkken (`AI_STAY_GUARD_ENABLED`): önce bekçisiz
-  // kapı; geçerse ikinci model taslağı okur ve kapı bekçinin hükmüyle YENİDEN değerlendirilir (bekçi
-  // yalnız sıkılaştırır). Önizleme (dryRun) de aynı yoldan geçer — "gönderilirdi" dürüst kalsın.
+  // Bayrak açıkken (`AI_STAY_GUARD_ENABLED`) önce bekçisiz kapı; ikinci model taslağı YALNIZ iki durumda okur:
+  // otomatik gönderim ADAYI (bekçi sıkılaştırabilir) ya da tek engeli müsaitlik onayı eksikliği olan taslak
+  // (ikinci inceleme 09-24: iki bağımsız modelin erteleme hükmü bu tutuşu ancak bekçi koşarsa kaldırabilir —
+  // "Das muss Ihr Gastgeber entscheiden" gibi kelime ağının tanımadığı doğru ertelemeler hep tutuluyordu).
+  // Kapı bekçinin hükmüyle BAŞTAN değerlendirilir. Önizleme (dryRun) de aynı yoldan — "gönderilirdi" dürüst kalsın.
   let gateFailure = autoReplyGateFailure(result, last.body, gateContext);
   let gatePassed = gateFailure === null;
-  if (gatePassed && stayGuardEnabled()) {
+  if ((gatePassed || gateFailure === "availability_unconfirmed") && stayGuardEnabled()) {
     const stayGuard = await runStayChangeGuard({
       guestMessages: [...pendingGuestMessages, last.body],
       reply: result.reply,
@@ -1968,12 +1974,14 @@ export async function applyChannelAutoReply(
   // kuruluyordu → kanal oto-yanıtının karar kaydı "hangi KB etiketine dayandı"yı HİÇ taşımıyordu
   // (QR taşıyor). Model döndükten sonra doğrulanmış etiketler + iddia desteği gölge ölçümü +
   // token kullanımı ile yeniden kurulur; tek kaynak bu nesne, dört RiskEvent yazımı onu yayar.
+  // Anlama katmanı retrieval'da beklenmediyse (paralel koştu) özeti kanıta BURADA girer — kapı onu zaten bekledi.
+  const retrievalEvidence = await kbSel.evidenceAfterUnderstanding();
   const groundingAudited = {
     ...applyPromptKbAudit(grounding, result.kbOmittedInPrompt, kbForModel.length),
     kbEvidenceJson: buildKbEvidence({
       retrieved: kbForModel,
       usedLabels: result.usedSources ?? [],
-      retrieval: kbSel.evidence,
+      retrieval: retrievalEvidence,
       claims: result.claimAudit,
       llm: result.llmUsage,
       hijackScreened: kbFetch.hijackScreened,

@@ -59,6 +59,8 @@ import { foldTurkishAscii, restrictiveMatchForms } from "@/lib/ai/fallback";
 import {
   declaredClaim,
   declaredRequest,
+  hhmmToMinutes,
+  normalizeHhmm,
   slotTimesShifted,
   stayPolicyMode,
   type StayChangeDeclaration,
@@ -91,6 +93,15 @@ const CO = "check[\\s\\-\\u2010\\u2011]?out";
 /** Saat: "15:00", "15.00", "3 pm" — tarih değil. */
 const CLOCK_AHEAD = "(?!\\s+(?:from|after|at|until|till|between|by)\\s+\\d{1,2}(?:[:.]\\d{2}|\\s*(?:am|pm|a\\.m\\.|p\\.m\\.|o'?clock|h)(?![\\p{L}\\p{N}])))";
 
+/**
+ * İngilizce kısaltmalar (ikinci inceleme 09-24, DOĞRULUK düzeltmesi — kapsam genişletme değil): eski kalıplar
+ * "'re / 'll"i `you\\s+` / `we\\s+` ARDINA koyuyordu, yani "you're" / "we'll" HİÇ eşleşemiyordu ("You're welcome
+ * to stay another night", "We'll extend your stay" izin olduğu hâlde geçiyordu). Kesme düz ya da kıvrık olabilir;
+ * katlanmış biçimde kesme boşluğa dönüşür ("you re").
+ */
+const RE = "(?:['’]\\s*|\\s+)re";
+const LL = "(?:['’]\\s*|\\s+)ll";
+const VE = "(?:['’]\\s*|\\s+)ve";
 const rx = (parts: readonly string[]) => parts.map((p) => new RegExp(p, "iu"));
 
 /**
@@ -99,7 +110,10 @@ const rx = (parts: readonly string[]) => parts.map((p) => new RegExp(p, "iu"));
  * geçiyor. "whether / if / once / when / until / ask" ile açılan yan cümlecikteki durum cümlesi bir
  * iddia değil, sorunun kendisidir. (Değişken uzunluklu geri bakış — V8 destekler.)
  */
-const NOT_EMBEDDED_EN = "(?<!(?:whether|[iı]f|once|when|until|ask|ask[iı]ng)\\s+(?:\\S+\\s+){0,3})";
+// ⚠️ Geri bakış VİRGÜLÜ AŞMAZ (ikinci inceleme 09-24, doğruluk düzeltmesi): "If you want, you can stay another
+// night." / "Once you confirm, early check-in is possible." — koşul cümleciği virgülde biter, ANA cümlecikteki
+// izin iddiadır; eski `\S+` belirteci "want," üzerinden geçip izni gömülü soru sanıyordu.
+const NOT_EMBEDDED_EN = "(?<!(?:whether|[iı]f|once|when|until|ask|ask[iı]ng)\\s+(?:[^\\s,;:]+\\s+){0,3})";
 /** Türkçe karşılığı: "boş OLUP OLMADIĞI", "müsait Mİ" — soru/gömülü soru, iddia değil. "değil" İDDİADIR. */
 const NOT_QUESTIONED_TR = "(?!\\s+(?:olup|olmad\\p{L}*|m[iıuü])(?![\\p{L}\\p{N}]))";
 
@@ -219,6 +233,44 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
   ]),
 };
 
+/**
+ * GENEL MÜSAİTLİK KALIBININ ÖZNESİ YOK (ikinci inceleme 09-24, DOĞRULUK düzeltmesi): "Is the supermarket open
+ * on Sunday?", "Yarın için taksi ayırtabilir miyiz?", "Can I book a taxi for tomorrow morning?", "Yarın araba
+ * kiralamak istiyoruz" konaklama değişikliği DEĞİLDİR ama tarih sözcüğüyle genel kalıba düşüyor ve normal cevap
+ * taslakta kalıyordu. Mesaj ÜÇÜNCÜ TARAF bir şeyden (ulaşım, yeme-içme, alışveriş, olanak) söz ediyor ve
+ * konaklamanın kendisinden söz etmiyorsa genel kalıp istek sayılmaz. YALNIZ genel `availability` türüne
+ * uygulanır — uzatma/erken/geç/tarih değişikliği kalıpları konaklamanın kendisini adlandırır.
+ * ⚠️ Kapalı sınıf (misafirin ayırttığı ya da sorduğu dış şeyler), genişletme listesi DEĞİL: yeni bir yanlış
+ * alarmı kapatmak için buraya kelime eklenmez — anlam katmanı açıldığında karar onundur.
+ * ⚠️ Kısa Türkçe gövdeler BİLEREK yok ("tur" → "Türkiye", "ev" her yerde): kaçan dışlama taslak demektir
+ * (güvenli yön), yanlış dışlama isteği kaçırır.
+ */
+const THIRD_PARTY_OBJECT = new RegExp(
+  [
+    `${NL}(?:taxis?|cabs?|uber|cars?|bikes?|bicycles?|scooters?|restaurants?|tables?|supermarkets?|markets?|shops?|stores?|pharmac(?:y|ies)|museums?|tours?|tickets?|transfers?|shuttles?|boats?|parking|garages?|pools?|gym|spa|sauna|beach|bars?|bakery|dinner|lunch)${NR}`,
+    `${NL}(?:taksi|araba|arac|bisiklet|restoran|lokanta|masa|market|supermarket|dukkan|magaza|eczane|muze|bilet|transfer|tekne|otopark|garaj|havuz|plaj|firin|kahvalti)${L}`,
+    `${NL}(?:taxi|auto|fahrrad|fahrr(?:ä|a)der|restaurant|tisch|supermarkt|laden|apotheke|museum|parkplatz|garage|pool|schwimmbad|strand)${NR}`,
+    `${NL}(?:voiture|v(?:é|e)lo|restaurant|supermarch(?:é|e)|magasin|pharmacie|mus(?:é|e)e|piscine|plage)${NR}`,
+    `${NL}(?:coche|bici|bicicleta|restaurante|mesa|supermercado|tienda|farmacia|museo|aparcamiento|piscina|playa)${NR}`,
+    `(?:такси|машин|велосипед|ресторан|столик|магазин|супермаркет|аптек|музей|парковк|бассейн|пляж)`,
+    `(?:تاكسي|سيارة|مطعم|طاولة|سوبرماركت|متجر|صيدلية|متحف|موقف|مسبح|شاطئ)`,
+  ].join("|"),
+  "iu",
+);
+/** Konaklamanın KENDİSİ adlandırılıyorsa (üçüncü taraf nesne olsa da) genel kalıp istek sayılır. */
+const ACCOMMODATION_CUE = new RegExp(
+  [
+    `${NL}(?:apartment|flat|place|property|house|home|room|unit|studio|villa|accommodation|stay)${NR}`,
+    `${NL}(?:daire${L}|oda${L}|konaklama${L}|apart${L}|mulk${L}|yeriniz|evinizi?|eviniz\\p{L}*)`,
+    `${NL}(?:wohnung|unterkunft|zimmer|ferienwohnung)${NR}`,
+    `${NL}(?:appartement|logement|chambre)${NR}`,
+    `${NL}(?:apartamento|piso|alojamiento|habitaci(?:ó|o)n)${NR}`,
+    `(?:квартир|апартамент|жиль)`,
+    `(?:شقة|الشقة|سكن)`,
+  ].join("|"),
+  "iu",
+);
+
 /** Tarih sözcüğü (genel müsaitlik sorusunun şartı). */
 const DATE_WORD = new RegExp(
   [
@@ -258,12 +310,12 @@ const CALENDAR_CLAIMS = rx([
   `${NOT_EMBEDDED_EN}${NL}${STATE_EN}\\s+(?:on|for|that|this|those|these|next|from|between|during|over)\\s+(?:the\\s+)?(?:night|nights|date|dates|weekend|week|\\d{1,2}(?:st|nd|rd|th)?${NR}(?!\\s*(?:am|pm|a\\.m|p\\.m|:|\\.\\d|h${NR}|hours?|hrs?|minutes?|mins?|people|guests|persons|adults)))`,
   `${NOT_EMBEDDED_EN}${NL}fully\\s+booked${NR}`,
   `${NOT_EMBEDDED_EN}${NL}(?:no|any|some|limited)\\s+(?:availability|vacancy|vacancies)${NR}`,
-  `${NOT_EMBEDDED_EN}${NL}(?:we|i)\\s+(?:do\\s+)?(?:have|'ve\\s+got|got)\\s+(?:no\\s+|some\\s+|limited\\s+)?(?:availability|vacancy|vacancies|openings?)${NR}`,
-  `${NOT_EMBEDDED_EN}${NL}we(?:'re|\\s+are)\\s+(?:fully\\s+|completely\\s+|all\\s+)?(?:booked|sold\\s+out)${NR}`,
-  `${NOT_EMBEDDED_EN}${NL}we(?:'re|\\s+are)\\s+(?:still\\s+)?(?:available|free|open)\\s+(?:on|for|that|this|those|next|from)\\s+(?:the\\s+)?(?:night|nights|date|dates|weekend|week|\\d)`,
-  `${NOT_EMBEDDED_EN}${NL}(?:there\\s+is|there's|there\\s+are|we\\s+have)\\s+(?:no|another|a|one)\\s+(?:other\\s+|new\\s+|next\\s+)?(?:guest|guests|booking|bookings|reservation|reservations|${CI}s?|arrivals?)${gap(3)}(?:after|before|following|coming|arriving)${NR}`,
+  `${NOT_EMBEDDED_EN}${NL}(?:we|i)(?:\\s+(?:do\\s+)?(?:have|got)|${VE}\\s+got)\\s+(?:no\\s+|some\\s+|limited\\s+)?(?:availability|vacancy|vacancies|openings?)${NR}`,
+  `${NOT_EMBEDDED_EN}${NL}we(?:${RE}|\\s+are)\\s+(?:fully\\s+|completely\\s+|all\\s+)?(?:booked|sold\\s+out)${NR}`,
+  `${NOT_EMBEDDED_EN}${NL}we(?:${RE}|\\s+are)\\s+(?:still\\s+)?(?:available|free|open)\\s+(?:on|for|that|this|those|next|from)\\s+(?:the\\s+)?(?:night|nights|date|dates|weekend|week|\\d)`,
+  `${NOT_EMBEDDED_EN}${NL}(?:there\\s+is|there(?:['’]\\s*|\\s+)s|there\\s+are|we\\s+have)\\s+(?:no|another|a|one)\\s+(?:other\\s+|new\\s+|next\\s+)?(?:guest|guests|booking|bookings|reservation|reservations|${CI}s?|arrivals?)${gap(3)}(?:after|before|following|coming|arriving)${NR}`,
   `${NOT_EMBEDDED_EN}${NL}(?:nobody|no\\s+one|no\\s+other\\s+guests?|no\\s+guests?|another\\s+guest|the\\s+next\\s+guests?|next\\s+guests?)\\s+(?:is\\s+|are\\s+|will\\s+be\\s+)?(?:checking\\s+in|arriving|coming|booked|staying|scheduled)${NR}`,
-  `${NOT_EMBEDDED_EN}${NL}(?:next|following)\\s+(?:guest|guests|booking|reservation|${CI}|arrival)\\s+(?:is|isn't|is\\s+not|arrives?|comes?|checks?\\s+in|starts?)${NR}`,
+  `${NOT_EMBEDDED_EN}${NL}(?:next|following)\\s+(?:guest|guests|booking|reservation|${CI}|arrival)\\s+(?:is|isn(?:['’]\\s*|\\s+)t|is\\s+not|arrives?|comes?|checks?\\s+in|starts?)${NR}`,
   `${NOT_EMBEDDED_EN}${NL}(?:calendar|schedule)${gap(1)}(?:is|looks|shows|seems)\\s+(?:open|free|clear|empty|blocked|full|available)${NR}`,
   // DE / FR / ES / RU / AR (temel; erteleme şartı ↓ ikinci bacakta)
   `${NL}(?:nacht|n(?:ä|a)chte|datum|termin|wochenende|wohnung|apartment|zimmer|unterkunft)${gap(3)}(?:ist|sind|w(?:ä|a)re)(?:\\s+(?!uhr${NR})\\S+){0,4}\\s+(?:frei|verf(?:ü|u)gbar|ausgebucht|belegt|besetzt|reserviert)${NR}`,
@@ -289,10 +341,10 @@ const GRANT_CLAIMS = rx([
   // EN
   `${NOT_EMBEDDED_EN}${NL}(?:early\\s+${CI}|late\\s+${CO}|earlier\\s+${CI}|later\\s+${CO}|early\\s+arrival|late\\s+departure|(?:an\\s+|the\\s+)?extension|(?:an\\s+)?extra\\s+night|(?:an\\s+)?additional\\s+night|another\\s+night|one\\s+more\\s+night|(?:the\\s+)?extra\\s+nights)${gap(2)}(?:is|are|would\\s+be|will\\s+be|should\\s+be|seems|looks)\\s+(?:totally\\s+|absolutely\\s+|perfectly\\s+|definitely\\s+|probably\\s+|likely\\s+|most\\s+likely\\s+|also\\s+)?(?:possible|fine|ok|okay|no\\s+problem|available|confirmed|approved|arranged|doable|granted|free|feasible|allowed|great|guaranteed)${NR}`,
   `${NOT_EMBEDDED_EN}${NL}(?:early\\s+${CI}|late\\s+${CO}|(?:an\\s+)?extra\\s+night|one\\s+more\\s+night)['’]s\\s+(?:totally\\s+|absolutely\\s+)?(?:possible|fine|ok|okay|no\\s+problem|available|confirmed)${NR}`,
-  `${NOT_EMBEDDED_EN}${NL}you\\s+(?:can|may|could|are\\s+(?:welcome|free|able)\\s+to|'re\\s+(?:welcome|free|able)\\s+to|will\\s+be\\s+able\\s+to|'ll\\s+be\\s+able\\s+to)\\s+(?:definitely\\s+|certainly\\s+|of\\s+course\\s+)?(?:stay\\s+(?:an?\\s+|one\\s+|another\\s+|two\\s+|a\\s+few\\s+|the\\s+)?(?:extra|more|additional|longer|another|until|till|through|over|one|two|night)|extend|check\\s+in\\s+(?:early|earlier|before)|check\\s+out\\s+(?:late|later|after)|arrive\\s+(?:early|earlier)|leave\\s+(?:later|late)|keep\\s+the\\s+(?:apartment|room|place|flat|unit|keys?)\\s+(?:until|till|longer))${NR}`,
+  `${NOT_EMBEDDED_EN}${NL}you(?:\\s+(?:can|may|could|are\\s+(?:welcome|free|able)\\s+to|will\\s+be\\s+able\\s+to)|${RE}\\s+(?:welcome|free|able)\\s+to|${LL}\\s+be\\s+able\\s+to)\\s+(?:definitely\\s+|certainly\\s+|of\\s+course\\s+)?(?:stay\\s+(?:an?\\s+|one\\s+|another\\s+|two\\s+|a\\s+few\\s+|the\\s+)?(?:extra|more|additional|longer|another|until|till|through|over|one|two|night)|extend|check\\s+in\\s+(?:early|earlier|before)|check\\s+out\\s+(?:late|later|after)|arrive\\s+(?:early|earlier)|leave\\s+(?:later|late)|keep\\s+the\\s+(?:apartment|room|place|flat|unit|keys?)\\s+(?:until|till|longer))${NR}`,
   `${NOT_EMBEDDED_EN}${NL}(?:happy|glad|pleased|delighted|able)\\s+to\\s+(?:extend|offer\\s+(?:you\\s+)?(?:an?\\s+)?(?:early|late|extra|additional)|accommodate\\s+(?:your|an?|the)\\s+(?:early|late|extra|extension)|host\\s+you\\s+(?:for\\s+)?(?:another|an?\\s+extra|one\\s+more)|have\\s+you\\s+(?:stay\\s+)?(?:for\\s+)?(?:another|an?\\s+extra|one\\s+more|longer))${NR}`,
-  `${NOT_EMBEDDED_EN}${NL}(?:we|i)\\s+(?:can|could|will|'ll|would\\s+be\\s+able\\s+to|are\\s+able\\s+to)\\s+(?:extend|arrange\\s+(?:an?\\s+)?(?:early|late)|offer\\s+(?:you\\s+)?(?:an?\\s+)?(?:early|late|extra)|add\\s+(?:an?|another|one\\s+more|the)\\s+(?:extra\\s+)?night|accommodate\\s+(?:your|an?|the)\\s+(?:early|late|extra|extension))${NR}`,
-  `${NOT_EMBEDDED_EN}${NL}(?:we've|we\\s+have|i've|i\\s+have)\\s+(?:extended|added|arranged|approved|confirmed|booked|blocked)\\s+(?:your|the|an?|another)\\s+(?:stay|booking|reservation|night|extra|early|late|extension|dates?)${NR}`,
+  `${NOT_EMBEDDED_EN}${NL}(?:we|i)(?:\\s+(?:can|could|will|would\\s+be\\s+able\\s+to|are\\s+able\\s+to)|${LL})\\s+(?:extend|arrange\\s+(?:an?\\s+)?(?:early|late)|offer\\s+(?:you\\s+)?(?:an?\\s+)?(?:early|late|extra)|add\\s+(?:an?|another|one\\s+more|the)\\s+(?:extra\\s+)?night|accommodate\\s+(?:your|an?|the)\\s+(?:early|late|extra|extension))${NR}`,
+  `${NOT_EMBEDDED_EN}${NL}(?:we${VE}|we\\s+have|i${VE}|i\\s+have)\\s+(?:extended|added|arranged|approved|confirmed|booked|blocked)\\s+(?:your|the|an?|another)\\s+(?:stay|booking|reservation|night|extra|early|late|extension|dates?)${NR}`,
   `${NOT_EMBEDDED_EN}${NL}(?:your|the)\\s+(?:extension|early\\s+${CI}|late\\s+${CO}|request)\\s+(?:is|has\\s+been)\\s+(?:approved|confirmed|accepted|granted)${NR}`,
   // DE / FR / ES / RU / AR
   `${NL}(?:sie|ihr)\\s+(?:k(?:ö|o)nnen|k(?:ö|o)nnt|d(?:ü|u)rfen)\\s+(?:gerne\\s+)?(?:noch\\s+)?(?:eine\\s+nacht\\s+)?(?:l(?:ä|a)nger|fr(?:ü|u)her|sp(?:ä|a)ter)\\s+(?:bleiben|einchecken|auschecken|anreisen|abreisen|kommen)${NR}`,
@@ -320,10 +372,11 @@ const DEFERRALS = rx([
   `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:karar${L}|degerlendir${L}|takdir${L}|kontrol${L}|belirle${L}|bildir${L}|bilgi\\s+ver${L}|haber\\s+ver${L})`,
   // Ters dizilim: "karar ev sahibinizindir", "kararı ev sahibiniz verir".
   `${NL}karar${L}\\s+ev\\s+sahib${L}`,
-  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:onay|teyit)(?:ina|ine|i|ı)?\\s+(?:bagli${L}|tabi${L}|gerek${L})`,
+  // "teyit" ünlüyle başlayan ekte YUMUŞAR ("teyidine") — doğruluk düzeltmesi (ikinci inceleme 09-24).
+  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:onay|teyi[td])(?:ina|ine|i|ı)?\\s+(?:bagli${L}|tabi${L}|gerek${L})`,
   `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+teyit\\s+(?:edebilir|edecek|etmesi\\s+gerek|etmeli)${L}`,
   `${NL}(?:musaitli[kg]|uygunlu[kg]|takvim)${L}(?:\\s+${T}){0,4}\\s+(?:bagli${L}|bagl${L}|karar${L})`,
-  `${NL}(?:onay|teyit)${L}(?:\\s+${T})?\\s+(?:bagli${L}|gerek${L}|sonra${L})`,
+  `${NL}(?:onay|teyi[td])${L}(?:\\s+${T})?\\s+(?:bagli${L}|gerek${L}|sonra${L})`,
   `${NL}(?:platform|airbnb|booking|uygulama)${L}(?:\\s+${T}){0,3}\\s+(?:degisiklik|uzatma|talep)${L}`,
   // EN
   `${NL}(?:host|owner|property\\s+manager)(?:'s|’s)?\\s+(?:call|decision|discretion)${NR}`,
@@ -410,7 +463,11 @@ export function detectAvailabilityRequest(message: string | null | undefined): A
   for (const kind of REQUEST_KIND_ORDER) {
     if (anyClauseMatches(message, REQUEST_PATTERNS[kind])) return kind;
   }
-  if (anyClauseMatches(message, REQUEST_PATTERNS.availability) && anyFormMatches(message, [DATE_WORD])) {
+  if (
+    anyClauseMatches(message, REQUEST_PATTERNS.availability) &&
+    anyFormMatches(message, [DATE_WORD]) &&
+    !(anyFormMatches(message, [THIRD_PARTY_OBJECT]) && !anyFormMatches(message, [ACCOMMODATION_CUE]))
+  ) {
     return "availability";
   }
   return null;
@@ -443,6 +500,11 @@ export interface AvailabilityPolicyOptions {
   declared?: StayChangeDeclaration | null;
   /** Bağımsız bekçinin sonucu; `undefined` = bekçi koşmadı (bayrak kapalı ya da aday değil). */
   guard?: StayGuardOutcome;
+  /**
+   * Anlama katmanı açıktı ama BAŞARISIZ oldu (kanıtta `u: "failed"`; kararı değiştirmez — sinyal yokmuş gibi).
+   * Eskiden "kapalı" ile aynı görünüyordu (ikinci inceleme 09-24).
+   */
+  understandingFailed?: boolean;
   /** Anlama katmanının konaklama sinyali; `undefined`/`null` = katman kapalı ya da başarısız. */
   understanding?: UnderstandingStaySignal | null;
   /** Mülkün standart saatleri — model yuvalarındaki saat KODDA bunlarla kıyaslanır. */
@@ -466,6 +528,33 @@ function withoutHostOffer(reply: string, offer: string | null | undefined): stri
   return reply.replace(/\s+/g, " ").split(o).join(" ");
 }
 
+/** "11", "11:00", "11.30", "11am", "1 pm" → dakika; am/pm yoksa ve saat ≤ 6 ise öğleden sonra sayılır ("until 1"). */
+function untilMinutes(h: string, mm: string | undefined, ap: string | undefined): number {
+  let hour = Number(h);
+  const min = mm ? Number(mm) : 0;
+  const pm = ap ? /^p/i.test(ap) : !mm && hour <= 6;
+  if (ap && /^a/i.test(ap) && hour === 12) hour = 0;
+  if (pm && hour < 12) hour += 12;
+  return hour * 60 + min;
+}
+
+/**
+ * Standart çıkış saatinden (ya da daha erken bir saatten) söz eden "…'e kadar / until …" öbeğini çıkarır: o öbek
+ * standart bilgidir, geç çıkış izni değildir. Mülkün çıkış saati bilinmiyorsa metin aynen döner (eski davranış).
+ * Kıyas KODDA (`hhmmToMinutes`), model saati yorumlamaz.
+ */
+function withoutStandardCheckoutUntil(text: string, stayTimes: StayTimes | null | undefined): string {
+  const co = hhmmToMinutes(normalizeHhmm(stayTimes?.checkOut));
+  if (co === null) return text;
+  return text
+    .replace(/\b(?:until|till)\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?(?![\p{L}\p{N}])/giu, (m, h: string, mm?: string, ap?: string) =>
+      untilMinutes(h, mm, ap) <= co ? " " : m,
+    )
+    .replace(/(?<![\p{L}\p{N}])(\d{1,2})(?:[:.](\d{2}))?(?:\s*['’]?\s*\p{L}{1,3})?\s+(?:kadar|dek)(?![\p{L}\p{N}])/giu, (m, h: string, mm?: string) =>
+      untilMinutes(h, mm, undefined) <= co ? " " : m,
+    );
+}
+
 /** Kanıt için PII'siz sinyal özeti (kapalı küme kodlar; metin taşımaz). */
 export interface AvailabilitySignals {
   /** Deterministik yedek: c = iddia/izin, r = istek, d = erteleme ("-" = hiçbiri). */
@@ -476,8 +565,8 @@ export interface AvailabilitySignals {
   g: "off" | "ok" | "failed";
   /** Bekçi hükmü: q = istek, s = takvim, a = izin, d = erteleme, x = ret, t = kaydırılmış saat. */
   gv?: string;
-  /** Anlama katmanı: koşmadı / istek var / istek yok. */
-  u: "off" | "req" | "none";
+  /** Anlama katmanı: koşmadı / istek var / istek yok / açıktı ama başarısız. */
+  u: "off" | "req" | "none" | "failed";
 }
 
 export interface AvailabilityEvaluation {
@@ -521,7 +610,9 @@ export function evaluateAvailability(
   // Model "istek yok" dese bile `kind` bir değişiklik adlandırıyorsa ya da KODDA saat kaymışsa istek
   // sayılır (yalnız sıkılaştırır; inceleme 09-24).
   const u: AvailabilitySignals["u"] = !opts.understanding
-    ? "off"
+    ? opts.understandingFailed
+      ? "failed"
+      : "off"
     : opts.understanding.requested || opts.understanding.kind !== "none" || slotTimesShifted(opts.understanding, opts.stayTimes)
       ? "req"
       : "none";
@@ -531,9 +622,21 @@ export function evaluateAvailability(
   }
   const guard = opts.guard?.status === "ok" ? opts.guard.verdict : null;
 
-  const lexClaim = detectAvailabilityClaim(withoutHostOffer(reply, opts.hostOfferText)) !== null;
+  // ERTELEME ev sahibinin teklif metninin DIŞINDA aranır: teklifin kendi "müsaitlik varsa"sı kendini onaylayamaz.
+  const withoutOffer = withoutHostOffer(reply, opts.hostOfferText);
+  const lexDeferral = hasAvailabilityDeferral(withoutOffer);
+  // ERTELEME izin yönlüdür: kelime ağının cümlesi, model BAŞKA bir duruş beyan ettiyse sayılmaz ("Olur,
+  // bekliyoruz! … ev sahibinizin kararıdır" gibi çelişkili cevapta beyan `grants`/`none` olur); beyan yoksa
+  // (eski çıktı/yedek) kelime ağı tek başına sayılır. Model tarafı YALNIZ iki bağımsız hükümle.
+  const lexDeferralCounts = lexDeferral && (!opts.declared || opts.declared.stance === "defers");
+  const deferred = lexDeferralCounts || (opts.declared?.stance === "defers" && guard?.replyDefersToHost === true);
+  // EV SAHİBİ TEKLİFİ MUAFİYETİ YALNIZ ERTELEMEYLE (ikinci inceleme 09-24, P1): teklifi aynen aktarıp hiçbir şeyi
+  // ertelemeyen cevap ("Late checkout until 13:00 is possible for 20 EUR.") belirli bir gün için izin gibi okunur;
+  // muafiyet onu siliyordu ve gölge kipte istek kelime ağından kaçınca cevap GİDİYORDU.
+  // STANDART ÇIKIŞ SAATİ bilgisi ("11:00'e kadar kalabilirsiniz" / "you can stay until 11") izin DEĞİLDİR: saat
+  // KODDA mülkün standart çıkışıyla kıyaslanır (ikinci inceleme 09-24).
+  const lexClaim = detectAvailabilityClaim(withoutStandardCheckoutUntil(deferred ? withoutOffer : reply, opts.stayTimes)) !== null;
   const lexRequest = guestTexts.some((t) => detectAvailabilityRequest(t) !== null);
-  const lexDeferral = hasAvailabilityDeferral(reply);
   const signals: AvailabilitySignals = {
     lx: (lexClaim ? "c" : "") + (lexRequest ? "r" : "") + (lexDeferral ? "d" : "") || "-",
     d,
@@ -560,11 +663,6 @@ export function evaluateAvailability(
   if (claim) return { reason: "availability_claim", enforceReason: "availability_claim", signals };
   if (opts.handoff) return { reason: null, enforceReason: null, signals };
 
-  // ERTELEME izin yönlüdür: kelime ağının cümlesi, model BAŞKA bir duruş beyan ettiyse sayılmaz ("Olur,
-  // bekliyoruz! … ev sahibinizin kararıdır" gibi çelişkili cevapta beyan `grants`/`none` olur); beyan yoksa
-  // (eski çıktı/yedek) kelime ağı tek başına sayılır. Model tarafı YALNIZ iki bağımsız hükümle.
-  const lexDeferralCounts = lexDeferral && (!opts.declared || opts.declared.stance === "defers");
-  const deferred = lexDeferralCounts || (opts.declared?.stance === "defers" && guard?.replyDefersToHost === true);
   const modelRequest =
     declaredRequest(opts.declared) ||
     opts.declared?.stance === "refuses" ||

@@ -31,8 +31,15 @@ export function semanticReasoningEffort(): string | undefined {
   return v && ["none", "minimal", "low", "medium", "high"].includes(v) ? v : undefined;
 }
 
+/**
+ * Tavan 20 sn (ikinci inceleme 09-24): QR yolunda anlama + cevap (≤60 sn) + bekçi ardışık koşabilir; tavan
+ * 60 sn iken en kötü durum `qr-in:` talebinin 120 sn TTL'ini aşıp misafirin yeniden denemesini İKİNCİ kez
+ * işletebiliyordu. 20 sn ile en kötü durum ~100 sn.
+ */
+export const SEMANTIC_TIMEOUT_MAX_MS = 20_000;
+
 export function semanticTimeoutMs(model: string): number {
   const n = Number(process.env.AI_SEMANTIC_TIMEOUT_MS);
-  if (Number.isFinite(n) && n >= 500 && n <= 60_000) return Math.trunc(n);
+  if (Number.isFinite(n) && n >= 500) return Math.min(Math.trunc(n), SEMANTIC_TIMEOUT_MAX_MS);
   return isReasoningModel(model) ? 12_000 : 6_000;
 }

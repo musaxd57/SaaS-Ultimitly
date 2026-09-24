@@ -51,7 +51,7 @@ const BASE = {
   statedCheckoutTime: null,
 };
 
-async function seed(opts: { offer?: string; messages?: { direction: "inbound" | "outbound"; body: string }[] } = {}) {
+async function seed(opts: { offer?: string; messages?: { direction: "inbound" | "outbound"; body: string }[]; kb?: number } = {}) {
   const org = await prisma.organization.create({
     data: {
       name: "Test Org",
@@ -65,6 +65,18 @@ async function seed(opts: { offer?: string; messages?: { direction: "inbound" | 
   const property = await prisma.property.create({
     data: { organizationId: org.id, name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" },
   });
+  if (opts.kb) {
+    await prisma.knowledgeBaseItem.createMany({
+      data: Array.from({ length: opts.kb }, (_, i) => ({
+        propertyId: property.id,
+        category: "general",
+        title: `Bilgi ${i}`,
+        content: `Konu ${i} hakkında ev bilgisi: ayrıntılar ev kılavuzunda.`,
+        reviewState: "approved",
+        source: "host_manual",
+      })),
+    });
+  }
   const msgs = opts.messages ?? [{ direction: "inbound" as const, body: ASK }];
   const t0 = Date.now() - (msgs.length + 1) * 60_000;
   const conversation = await prisma.conversation.create({
@@ -305,14 +317,73 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect((await riskEvent(id)).sc).toMatchObject({ v: "-", ev: "-", u: "none" });
   });
 
-  it("anlama katmanı DÜŞTÜ → politika onsuz karar verir (u 'off'), gönderim eski davranışta", async () => {
+  it("anlama katmanı DÜŞTÜ → politika onsuz karar verir, gönderim eski davranışta; kanıtta 'failed' ('off'tan AYRI)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream down", { status: 503 })));
     mockSuggest.mockResolvedValue(BASE);
     const id = await seed();
     await applyChannelAutoReply(id);
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect((await riskEvent(id)).sc).toMatchObject({ v: "-", u: "off" });
+    expect((await riskEvent(id)).sc).toMatchObject({ v: "-", u: "failed" });
+  });
+
+  it("🚨 bekçi müsaitlik onayı eksik diye TUTULAN taslakta da koşar: iki model ertelemeyi tanırsa (kelime ağı tanımasa da) gider", async () => {
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    const ask = [{ direction: "inbound" as const, body: "Can we stay one more night?" }];
+    const reply = { ...BASE, intent: "extend_stay", reply: "Das muss Ihr Gastgeber entscheiden.", stayChange: { asked: "extend" as const, stance: "defers" as const } };
+    const verdict = (defers: boolean) => ({
+      guest_requests_change: true,
+      kind: "extend",
+      requested_checkin_time: null,
+      requested_checkout_time: null,
+      reply_states_calendar: false,
+      reply_grants_change: false,
+      reply_defers_to_host: defers,
+      reply_refuses: false,
+    });
+    const f = semanticFetch({ stay_change_guard: verdict(true) });
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValue(reply);
+    const id = await seed({ messages: ask });
+    await applyChannelAutoReply(id);
+    expect(schemasCalled(f)).toEqual(["stay_change_guard"]);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect((await riskEvent(id)).sc).toMatchObject({ v: "-", g: "ok", gv: "qd" });
+
+    // KONTROL: bekçi ertelemeyi TANIMAZSA tutuş kalır (tek model gevşetemez).
+    await resetDb();
+    mockSend.mockClear();
+    vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: verdict(false) }));
+    const held = await seed({ messages: ask });
+    await applyChannelAutoReply(held);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await riskEvent(held)).ev.reason).toBe("availability_unconfirmed");
+  });
+
+  it("🚨 anlama katmanı PARALEL koştuğunda (küçük KB, hibrit) özeti yine karar kaydına girer; sorgu eklenmez", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "hybrid");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_EARLY }));
+    mockSuggest.mockResolvedValue(BASE);
+    const id = await seed({ kb: 3 });
+    await applyChannelAutoReply(id);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    const retrieval = (JSON.parse(String(ev.kbEvidenceJson)) as { retrieval?: Record<string, unknown> }).retrieval;
+    expect(retrieval).toMatchObject({ fb: "small_kb", un: "ok", ui: ["early_checkin"] });
+    expect(retrieval).not.toHaveProperty("uq");
+  });
+
+  it("anlama katmanı büyük KB'de retrieval'a sorgu ekler (beklenir) ve kanıtta `uq` görünür", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "hybrid");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_EARLY }));
+    mockSuggest.mockResolvedValue(BASE);
+    const id = await seed({ kb: 35 });
+    await applyChannelAutoReply(id);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    const retrieval = (JSON.parse(String(ev.kbEvidenceJson)) as { retrieval?: Record<string, number | string> }).retrieval;
+    expect(retrieval).toMatchObject({ un: "ok" });
+    expect(Number(retrieval?.uq)).toBeGreaterThanOrEqual(1);
   });
 
   it("bekçi + anlama birlikte: iki ayrı şema çağrısı; bekçinin izni gölge kipte BİLE durdurur", async () => {

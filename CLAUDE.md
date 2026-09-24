@@ -171,11 +171,14 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   anlamsal ≥0.3) — `base > 0` yetmez.
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
-  (sona, ayrı tavan 6; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model sorguları parça
-  bütçesinin en fazla 1/3'ü; özgün sorgu isabetsizse geri çekilme kümesi DARALMAZ (isabetler öne, ≤4); Türkçe
-  3-gram sorgu BAŞINA; `greeting_thanks` sorgu üretmez; kapalıyken sonuç BİREBİR; sorgu METNİ kanıta girmez
-  (`uq/un/unMs/ui` yalnız sayı/kapalı küme). Retrieval sorgulara ihtiyaç duymuyorsa (küçük KB/legacy) katman
-  BEKLENMEZ, cevapla paralel koşar, kapıdan önce `await kbSel.understanding`.
+  (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
+  sorguları bütçenin en fazla 1/3'ü KARAKTER+PARÇA olarak (çektiği çelişki partnerleri dahil); özgün sorgunun
+  kapsadığı konuyu tekrar eden ek sorgu pay almaz; ek sorguya geçmiş kökü taşınmaz; özgün sorgu isabetsizse
+  legacy kümesi KIRPILMAZ, isabetler öne ≤4 (legacy'deki kalem yalnız taşınır, yeni kalem yalnız PARÇA ≤3k
+  karakter, saati çelişen parça eklenmez); Türkçe 3-gram sorgu BAŞINA; `greeting_thanks` sorgu üretmez; kapalıyken
+  sonuç BİREBİR; sorgu METNİ kanıta girmez (`q` deterministik; `uq/uf/un/unMs/ui` yalnız sayı/kapalı küme).
+  Retrieval sorgulara ihtiyaç duymuyorsa (küçük KB/legacy) katman BEKLENMEZ, cevapla paralel koşar, kapıdan önce
+  `await kbSel.understanding`; kanıt `evidenceAfterUnderstanding()`.
 - **Önbellek anahtarı küme parmak izi** (id+updatedAt+içerik özeti), `max(updatedAt)` DEĞİL. Kanıt
   `kbEvidenceJson.retrieved[].c` + `.retrieval {q, fb, sel, cand, ms, srcs, sup, conf, fus}` — PII yok, misafire dönmez.
 - **Retrieval politika DEĞİLDİR** (kötü niyetli kalem sözcüksel eşleşince gider; eleme ayrı onay). Güvenlik
@@ -298,10 +301,16 @@ Bu dosyaya token/anahtar/parola yazma.
   ERTELEME kanıtı izin yönlü: kelime ağının cümlesi (yalnız beyan yoksa ya da beyan da `defers`se — çelişkide
   izin YOK) YA DA iki bağımsız model (beyan + bekçi) — tek model YETMEZ; erteleme dedektörü TEK biçim
   (genişletici katlama yok); "kaydedildi" tek başına ve "ev sahibi onaylar" (kestirim) erteleme DEĞİL.
-  Tanınmayan duruş + konaklama bağlamı = iddia (F01). Host'un teklif metni kelime iddia taramasından muaf,
-  bekçiye gösterilir. `RiskEvent.reason` kapının İLK düşen kontrolü (`autoReplyGateFailure`). Semantik
-  katmana giden metinde tarih/saat korunur (`semantic/redact.ts`); ayraç çalışması `[<>]{2,}` silinir;
-  400 desteklenmeyen parametre/şema = kalıcı arıza sınıfı `request` (yalnız `semantic` kanalı). Modelden türeyen istek sinyali `AI_STAY_POLICY=enforce`
+  Tanınmayan duruş + konaklama bağlamı = iddia (F01). Host'un teklif metni kelime iddia taramasından YALNIZ
+  cevap erteliyorsa muaf (erteleme teklif DIŞINDA aranır), bekçiye gösterilir. Standart çıkışa eşit/erken
+  "…'e kadar kalabilirsiniz / until 11" izin DEĞİL (saat KODDA; am/pm'siz 1–6 = öğleden sonra). Genel
+  müsaitlik kalıbı üçüncü taraf nesnede (taksi/market/otopark…) konaklama adlandırılmadıkça istek değil
+  (kapalı sınıf, GENİŞLETİLMEZ). Bekçi `availability_unconfirmed` tutuşunda da koşar (iki model ertelemesi
+  kaldırabilsin; kanal+QR). `RiskEvent.reason` kapının İLK düşen kontrolü (`autoReplyGateFailure`). Semantik
+  katmana giden metinde yalnız GEÇERLİ tarih/saat dizisi korunur (`semantic/redact.ts`; noktalı/tireli telefon
+  parçalanıp kaçmasın); ayraç çalışması `[<>]{2,}` silinir; 400 desteklenmeyen parametre/şema = kalıcı arıza
+  sınıfı `request` (yalnız `semantic` kanalı); anlama katmanı düşerse kanıtta `u: failed`; semantik zaman aşımı
+  tavanı 20 sn (QR `qr-in:` 120 sn TTL). Modelden türeyen istek sinyali `AI_STAY_POLICY=enforce`
   ile karar verir (varsayılan gölge; `kbEvidenceJson.sc.ev` her koşuda ölçer). Bekçi düşerse modelin konaklama
   sinyali varsa tutulur. Tek ağ kapısı `semantic/structured-call.ts` (Structured Outputs strict; alarm `semantic`
   kanalı), yapılandırma tek kaynak `semantic/config.ts`. Açma = eval (`evals/stay-change.json` YALNIZ `holdout`

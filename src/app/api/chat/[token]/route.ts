@@ -700,15 +700,17 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // ikinci bir pencere hesaplanmıyor, çünkü ayrışabilecek her kopya bu açığın
   // kendisidir.
   // ANLAM KATMANI (09-24): mülkün standart saatleri politikaya girer (model yuvasındaki saat KODDA
-  // kıyaslanır); bekçi bayrağı açıksa (`AI_STAY_GUARD_ENABLED`) YALNIZ otomatik cevap adayı için
-  // ikinci model taslağı okur ve kapı onun hükmüyle yeniden değerlendirilir (yalnız sıkılaştırır).
+  // kıyaslanır); bekçi bayrağı açıksa (`AI_STAY_GUARD_ENABLED`) ikinci model taslağı otomatik cevap ADAYI için
+  // ya da tek engeli müsaitlik onayı eksikliği olan taslak için okur (iki bağımsız modelin ertelemesi o tutuşu
+  // ancak böyle kaldırabilir — kanal kapısıyla parite) ve kapı onun hükmüyle yeniden değerlendirilir.
   let stayCtx: Parameters<typeof evaluateEscalation>[4] = {
     stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
     understanding: (await kbSel.understanding)?.stay ?? null,
+    understandingFailed: (await kbSel.understandingStatus) === "failed",
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
-  if (!verdict.escalate && stayGuardEnabled()) {
+  if ((!verdict.escalate || verdict.reason === "availability_unconfirmed") && stayGuardEnabled()) {
     const stayGuard = await runStayChangeGuard({
       guestMessages: [message],
       reply: result.reply,
@@ -774,7 +776,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     kbEvidenceJson: buildKbEvidence({
       retrieved: kbSel.items,
       usedLabels: result.usedSources ?? [],
-      retrieval: kbSel.evidence,
+      // Anlama katmanı paralel koştuysa özeti burada eklenir (kapı onu zaten bekledi).
+      retrieval: await kbSel.evidenceAfterUnderstanding(),
       // GÖLGE ölçüm (karar DEĞİL): modelin taslağındaki somut iddiaların desteği + token kullanımı.
       // Misafir devir metnini alsa bile bu, MODELİN taslağını betimler.
       claims: result.claimAudit,

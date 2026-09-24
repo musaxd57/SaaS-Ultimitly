@@ -1,5 +1,11 @@
 import type { KbChunkSource } from "@/lib/ai/retrieval/chunker";
-import { retrievalNeeded, selectKbForPrompt, type KbSelectInput, type KbSelectResult } from "@/lib/ai/retrieval/select";
+import {
+  retrievalNeeded,
+  selectKbForPrompt,
+  type KbRetrievalEvidence,
+  type KbSelectInput,
+  type KbSelectResult,
+} from "@/lib/ai/retrieval/select";
 import { kbRetrievalMode } from "@/lib/ai/retrieval/flag";
 import { prepareSemanticScores } from "@/lib/ai/embeddings/semantic-retrieval";
 import { understandGuestMessages, understandingEnabled, type UnderstandingOutcome } from "@/lib/ai/semantic/understand";
@@ -36,6 +42,13 @@ export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
    * Asla reddedilmez (katman fırlatmaz).
    */
   understanding: Promise<MessageUnderstanding | undefined>;
+  /** Katmanın durumu (`failed` kanıtta "kapalı"dan AYRI görünsün — ikinci inceleme 09-24). Asla reddedilmez. */
+  understandingStatus: Promise<"off" | "ok" | "cached" | "failed">;
+  /**
+   * Karar kaydı için kanıt: katman retrieval'da beklenmediyse (küçük KB / legacy — PARALEL koştu) `un/unMs/ui`
+   * burada eklenir; beklendiyse `evidence` ile aynıdır. Kapıdan sonra çağrılır. Asla reddedilmez.
+   */
+  evidenceAfterUnderstanding: () => Promise<KbRetrievalEvidence | null>;
 };
 
 export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
@@ -60,17 +73,27 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
   const result = selectKbForPrompt(sem.bySubquery ? { ...withExtra, semanticBySubquery: sem.bySubquery } : withExtra);
   let evidence = result.evidence;
   if (evidence && sem.status !== "off") evidence = { ...evidence, sem: sem.status, semMs: sem.ms };
-  if (evidence && und.status !== "off") {
-    evidence = {
-      ...evidence,
-      un: und.status === "ok" ? (und.cached ? "cached" : "ok") : "failed",
-      unMs: und.ms,
-      ...(understood && understood.requests.length > 0 ? { ui: understood.requests.map((r) => r.intent) } : {}),
-    };
-  }
+  if (evidence && und.status !== "off") evidence = withUnderstanding(evidence, und);
+  const base = evidence;
   return {
     ...result,
     evidence,
     understanding: pending.then((o) => (o.status === "ok" ? o.value : undefined)),
+    understandingStatus: pending.then((o) => (o.status === "ok" ? (o.cached ? "cached" : "ok") : o.status)),
+    evidenceAfterUnderstanding: async () => {
+      if (!base || und.status !== "off") return base;
+      const o = await pending;
+      return o.status === "off" ? base : withUnderstanding(base, o);
+    },
+  };
+}
+
+/** Kanıta anlama katmanının kapalı-küme özetini ekler (metin YOK: durum, süre, niyet etiketleri). */
+function withUnderstanding(evidence: KbRetrievalEvidence, o: Exclude<UnderstandingOutcome, { status: "off" }>): KbRetrievalEvidence {
+  return {
+    ...evidence,
+    un: o.status === "ok" ? (o.cached ? "cached" : "ok") : "failed",
+    unMs: o.ms,
+    ...(o.status === "ok" && o.value.requests.length > 0 ? { ui: o.value.requests.map((r) => r.intent) } : {}),
   };
 }

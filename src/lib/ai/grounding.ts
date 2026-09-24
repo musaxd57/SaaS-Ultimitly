@@ -274,7 +274,7 @@ function cleanStay(x: StayEvidence | undefined): StayEvidence | undefined {
     if (extra !== undefined || !STAY_KINDS.has(asked) || !STAY_STANCES.has(stance)) return undefined;
   }
   if (x.g !== "off" && x.g !== "ok" && x.g !== "failed") return undefined;
-  if (x.u !== "off" && x.u !== "req" && x.u !== "none") return undefined;
+  if (x.u !== "off" && x.u !== "req" && x.u !== "none" && x.u !== "failed") return undefined;
   const gv = typeof x.gv === "string" && /^(?:-|q?s?a?d?x?t?)$/.test(x.gv) && x.gv !== "" ? x.gv : undefined;
   return { v: x.v, ev: x.ev, lx: x.lx, d: x.d, g: x.g, ...(gv ? { gv } : {}), u: x.u };
 }

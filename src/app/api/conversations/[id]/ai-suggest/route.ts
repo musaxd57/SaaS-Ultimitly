@@ -164,6 +164,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     availabilityPolicyFor(result, {
       stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
       understanding: (await kbSel.understanding)?.stay ?? null,
+      understandingFailed: (await kbSel.understandingStatus) === "failed",
       hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
     }),
   );

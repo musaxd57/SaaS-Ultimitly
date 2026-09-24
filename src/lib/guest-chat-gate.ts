@@ -134,12 +134,18 @@ export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 /** QR kapısı ile QR karar kaydı AYNI politika girdisini kullanır (gerekçe ↔ hüküm ayrışamaz). */
 export function qrAvailabilityPolicy(
   result: { stayChange?: StayChangeDeclaration | null },
-  stayCtx?: { stayTimes?: StayTimes | null; stayGuard?: StayGuardOutcome; understanding?: UnderstandingStaySignal | null },
+  stayCtx?: {
+    stayTimes?: StayTimes | null;
+    stayGuard?: StayGuardOutcome;
+    understanding?: UnderstandingStaySignal | null;
+    understandingFailed?: boolean;
+  },
 ): AvailabilityPolicyOptions {
   return {
     declared: result.stayChange ?? null,
     guard: stayCtx?.stayGuard,
     understanding: stayCtx?.understanding ?? null,
+    understandingFailed: stayCtx?.understandingFailed === true,
     stayTimes: stayCtx?.stayTimes ?? null,
   };
 }
@@ -184,6 +190,7 @@ export function evaluateEscalation(
     stayTimes?: StayTimes | null;
     stayGuard?: StayGuardOutcome;
     understanding?: UnderstandingStaySignal | null;
+    understandingFailed?: boolean;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });

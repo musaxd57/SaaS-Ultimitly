@@ -277,10 +277,13 @@ describe("mimari pinler", () => {
     for (const rel of guestPath) expect(read(rel), rel).not.toMatch(/modules\/intelligence\/graph/);
   });
 
-  it("karar kaydı yazan iki yüzey retrieval kanıtını RiskEvent'e taşır", () => {
-    for (const rel of ["src/lib/automation.ts", "src/app/api/chat/[token]/route.ts"]) {
-      expect(read(rel), rel).toContain("retrieval: kbSel.evidence");
-    }
+  it("karar kaydı yazan iki yüzey retrieval kanıtını RiskEvent'e taşır (anlama katmanı paralel koştuysa özetiyle)", () => {
+    // 09-24: kanıt `evidenceAfterUnderstanding()`den gelir — katman retrieval'da beklenmediyse özeti orada eklenir.
+    // Davranışsal karşılığı: `stay-change-semantic-wiring.test.ts` (küçük KB'de `un`, büyük KB'de `uq`).
+    const auto = read("src/lib/automation.ts");
+    expect(auto).toContain("const retrievalEvidence = await kbSel.evidenceAfterUnderstanding();");
+    expect(auto).toContain("retrieval: retrievalEvidence,");
+    expect(read("src/app/api/chat/[token]/route.ts")).toContain("retrieval: await kbSel.evidenceAfterUnderstanding(),");
   });
 
   it("seçici önce SÜZGEÇ sonra SEÇİM: QR yolunda seçici `ctx.knowledgeBase` (sır elemesinden geçmiş) üzerinde çalışır", () => {
