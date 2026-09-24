@@ -117,6 +117,22 @@ function guardFetch(verdict: Record<string, unknown> | null, status = 200) {
   });
 }
 
+/** Hassas OLMAYAN bilgi sorusu + tutarlı beyan (niyet `checkin`, "istek yok"). */
+const INFO = { ...BASE, intent: "checkin", stayChange: { asked: "none" as const, stance: "none" as const } };
+const INFO_ASK = [{ direction: "inbound" as const, body: "What time is check-in?" }];
+
+/** Bekçi: "istek yok, iddia yok" (her alan false/null). */
+const GUARD_CLEAN = {
+  guest_requests_change: false,
+  kind: "none",
+  requested_checkin_time: null,
+  requested_checkout_time: null,
+  reply_states_calendar: false,
+  reply_grants_change: false,
+  reply_defers_to_host: false,
+  reply_refuses: false,
+};
+
 const GUARD_GRANTS = {
   guest_requests_change: true,
   kind: "early_checkin",
@@ -170,14 +186,25 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     await prisma.$disconnect();
   });
 
-  it("KONTROL: beyan yok, kelime ağı sessiz → gider; kanıtta beyan 'absent'", async () => {
+  it("🚨 beyan YOK + kelime ağı sessiz + niyet erken giriş → GİTMEZ (09-24'e kadar bu satır 'gider' KONTROLÜYDÜ); kanıtta 'absent' + `ri`", async () => {
     mockSuggest.mockResolvedValue(BASE);
     const id = await seed();
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    const { ev, sc } = await riskEvent(id);
+    expect(ev.finalDecision).toBe("human_review");
+    expect(ev.reason).toBe("availability_claim");
+    expect(sc).toEqual({ v: "availability_claim", ev: "availability_claim", lx: "-", d: "absent", g: "off", u: "off", ri: "early_checkin" });
+  });
+
+  it("KONTROL (aşırı-uygulama): hassas olmayan bilgi sorusu + tutarlı beyan, bekçi YOK → gider", async () => {
+    mockSuggest.mockResolvedValue(INFO);
+    const id = await seed({ messages: INFO_ASK });
     await applyChannelAutoReply(id);
     expect(mockSend).toHaveBeenCalledTimes(1);
     const { ev, sc } = await riskEvent(id);
     expect(ev.finalDecision).toBe("auto_sent");
-    expect(sc).toEqual({ v: "-", ev: "-", lx: "-", d: "absent", g: "off", u: "off" });
+    expect(sc).toEqual({ v: "-", ev: "-", lx: "-", d: "none/none", g: "off", u: "off" });
   });
 
   it("🚨 beyan edilen İZİN gönderimi durdurur; gerekçe kapıyla aynı politikadan", async () => {
@@ -191,13 +218,27 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(sc).toMatchObject({ v: "availability_claim", d: "early_checkin/grants", g: "off" });
   });
 
-  it("beyan edilen İSTEK gölge kipte karar vermez ama `enforce` kipinin kararı kanıta yazılır", async () => {
+  it("🚨 bekçi YOKKEN beyan edilen İSTEK gölge kipte de tutulur (hassas istek + doğrulayıcı yok)", async () => {
     mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "early_checkin", stance: "none" } });
     const id = await seed();
     await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    const { ev, sc } = await riskEvent(id);
+    expect(ev.reason).toBe("availability_unconfirmed");
+    expect(sc).toMatchObject({ v: "availability_unconfirmed", ev: "availability_unconfirmed", d: "early_checkin/none", g: "off" });
+  });
+
+  it("bekçi KOŞTU ve istek görmedi: beyan edilen istek gölge kipte karar vermez ama `enforce` kararı kanıta yazılır", async () => {
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    const f = semanticFetch({ stay_change_guard: GUARD_CLEAN });
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "early_checkin", stance: "none" } });
+    const id = await seed();
+    await applyChannelAutoReply(id);
+    expect(schemasCalled(f)).toEqual(["stay_change_guard"]);
     expect(mockSend).toHaveBeenCalledTimes(1);
     const { sc } = await riskEvent(id);
-    expect(sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", d: "early_checkin/none" });
+    expect(sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", d: "early_checkin/none", g: "ok" });
   });
 
   it("`AI_STAY_POLICY=enforce`: aynı durum taslağa düşer (gerekçe `availability_unconfirmed`)", async () => {
@@ -209,11 +250,11 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect((await riskEvent(id)).ev.reason).toBe("availability_unconfirmed");
   });
 
-  it("🚨 bekçi açıkken: beyansız izni ikinci model yakalar; tek çağrı, kanıtta hüküm kodları", async () => {
+  it("🚨 bekçi açıkken: beyanın ('erteliyor') kaçırdığı izni ikinci model yakalar; tek çağrı, kanıtta hüküm kodları", async () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     const f = guardFetch(GUARD_GRANTS);
     vi.stubGlobal("fetch", f);
-    mockSuggest.mockResolvedValue({ ...BASE, reply: "Sure, see you at 11." });
+    mockSuggest.mockResolvedValue({ ...BASE, reply: "Sure, see you at 11.", stayChange: { asked: "early_checkin", stance: "defers" } });
     const id = await seed();
     await applyChannelAutoReply(id);
     expect(f).toHaveBeenCalledTimes(1);
@@ -223,11 +264,11 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(sc).toMatchObject({ v: "availability_claim", g: "ok", gv: "qat" });
   });
 
-  it("bekçi düştü + modelin konaklama sinyali YOK → eski davranış (gider), kanıtta 'failed'", async () => {
+  it("bekçi düştü + HİÇBİR katmanda hassas istek yok (bilgi sorusu) → gider, kanıtta 'failed' — her arızada her mesaj durmaz", async () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     vi.stubGlobal("fetch", guardFetch(null, 500));
-    mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "none", stance: "none" } });
-    const id = await seed();
+    mockSuggest.mockResolvedValue(INFO);
+    const id = await seed({ messages: INFO_ASK });
     await applyChannelAutoReply(id);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect((await riskEvent(id)).sc).toMatchObject({ g: "failed", v: "-" });
@@ -272,25 +313,39 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect((await riskEvent(id)).ev.reason).toBe("low_confidence_or_risky");
   });
 
-  it("🚨 anlama katmanı açıkken (legacy retrieval = sorgu gerekmez): katman PARALEL koşar, kapıdan önce beklenir, sinyali kanıta girer; gölge kipte karar vermez", async () => {
+  it("🚨 anlama katmanı açıkken (legacy retrieval = sorgu gerekmez): katman PARALEL koşar, kapıdan önce beklenir, sinyali kanıta girer; bekçi yokken isteği gölgede de tutar", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     const f = semanticFetch({ guest_message_understanding: NLU_EARLY });
     vi.stubGlobal("fetch", f);
-    mockSuggest.mockResolvedValue(BASE);
+    // Cevap modeli isteği KAÇIRDI (niyet genel, "istek yok"): hassas isteği yalnız anlama katmanı görüyor.
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "general", stayChange: { asked: "none", stance: "none" } });
     const id = await seed();
     await applyChannelAutoReply(id);
     expect(schemasCalled(f)).toEqual(["guest_message_understanding"]);
-    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend).not.toHaveBeenCalled();
     const { ev, sc } = await riskEvent(id);
-    expect(ev.finalDecision).toBe("auto_sent");
-    expect(sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", u: "req", g: "off" });
+    expect(ev.reason).toBe("availability_unconfirmed");
+    expect(sc).toMatchObject({ v: "availability_unconfirmed", ev: "availability_unconfirmed", u: "req", g: "off" });
+  });
+
+  it("anlama + bekçi (istek görmedi): anlama katmanının isteği gölge kipte karar vermez, `enforce` kararı kanıtta", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    const f = semanticFetch({ guest_message_understanding: NLU_EARLY, stay_change_guard: GUARD_CLEAN });
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "general", stayChange: { asked: "none", stance: "none" } });
+    const id = await seed();
+    await applyChannelAutoReply(id);
+    expect([...schemasCalled(f)].sort()).toEqual(["guest_message_understanding", "stay_change_guard"]);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect((await riskEvent(id)).sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", u: "req", g: "ok" });
   });
 
   it("anlama katmanı + `AI_STAY_POLICY=enforce`: modelin anladığı standart-dışı saat isteği taslağa düşer", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_STAY_POLICY", "enforce");
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_EARLY }));
-    mockSuggest.mockResolvedValue(BASE);
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "general", stayChange: { asked: "none", stance: "none" } });
     const id = await seed();
     await applyChannelAutoReply(id);
     expect(mockSend).not.toHaveBeenCalled();
@@ -310,8 +365,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
         },
       }),
     );
-    mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "none", stance: "none" } });
-    const id = await seed();
+    mockSuggest.mockResolvedValue(INFO);
+    const id = await seed({ messages: INFO_ASK });
     await applyChannelAutoReply(id);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect((await riskEvent(id)).sc).toMatchObject({ v: "-", ev: "-", u: "none" });
@@ -320,8 +375,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
   it("anlama katmanı DÜŞTÜ → politika onsuz karar verir, gönderim eski davranışta; kanıtta 'failed' ('off'tan AYRI)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream down", { status: 503 })));
-    mockSuggest.mockResolvedValue(BASE);
-    const id = await seed();
+    mockSuggest.mockResolvedValue(INFO);
+    const id = await seed({ messages: INFO_ASK });
     await applyChannelAutoReply(id);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect((await riskEvent(id)).sc).toMatchObject({ v: "-", u: "failed" });
@@ -391,7 +446,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     const f = semanticFetch({ guest_message_understanding: NLU_EARLY, stay_change_guard: GUARD_GRANTS });
     vi.stubGlobal("fetch", f);
-    mockSuggest.mockResolvedValue({ ...BASE, reply: "Sure, see you at 11." });
+    mockSuggest.mockResolvedValue({ ...BASE, reply: "Sure, see you at 11.", stayChange: { asked: "early_checkin", stance: "defers" } });
     const id = await seed();
     await applyChannelAutoReply(id);
     expect([...schemasCalled(f)].sort()).toEqual(["guest_message_understanding", "stay_change_guard"]);
@@ -399,11 +454,16 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect((await riskEvent(id)).sc).toMatchObject({ v: "availability_claim", g: "ok", u: "req" });
   });
 
-  it("🚨 ev sahibinin teklif metni kanal kapısına ULAŞIR: aynen aktarıp erteleyen cevap gider; teklif tanımlı değilse aynı cevap iddiadır", async () => {
+  it("🚨 ev sahibinin teklif metni kanal kapısına ULAŞIR: aynen aktarıp erteleyen cevap (iki model) gider; teklif tanımlı değilse aynı cevap iddiadır", async () => {
     const offer = "Müsaitlik varsa çıkışınızı 13:00'e kadar uzatabiliriz.";
     const relay = `${offer} Uygunluğu ev sahibinizin kararıdır; mesajınız kaydedildi.`;
     const late = { ...BASE, intent: "late_checkout", reply: relay, stayChange: { asked: "late_checkout" as const, stance: "defers" as const } };
     const ask = [{ direction: "inbound" as const, body: "Geç çıkış mümkün mü?" }];
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    vi.stubGlobal(
+      "fetch",
+      semanticFetch({ stay_change_guard: { ...GUARD_CLEAN, guest_requests_change: true, kind: "late_checkout", reply_defers_to_host: true } }),
+    );
 
     mockSuggest.mockResolvedValue(late);
     const withOffer = await seed({ offer, messages: ask });

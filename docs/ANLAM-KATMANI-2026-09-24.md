@@ -64,26 +64,58 @@ Ortak: `ai/semantic/stay-change.ts` (kapalı kümeler, çözücüler, KODDA saat
 `ai/semantic/structured-call.ts` (tek ağ kapısı; 64 KB tavan, kalıcı arıza geçiş alarmı `semantic`
 kanalı), `ai/semantic/config.ts` (anahtar/model/zaman aşımı tek kaynak).
 
+### 2.0 Değişmez: BELİRSİZLİK GÜVENLİ DEĞİLDİR (kurucu, 09-24)
+
+Ölçülen açık (kurucunun ve dış incelemenin tarifi): **"bekçi çöktü → kelime ağı bir şey bulamadı → cevap
+otomatik gitti."** Sonda ile yeniden üretildi: bekçi düşmüş (ya da bayrak kapalı) + cevap modelinin beyan alanları
+eksik + niyet etiketi `early_checkin` + örtük izin ("See you at 11!") → kapı `null` döndürüyordu. Üstelik bir
+test bu davranışı "KONTROL: kapı eski davranışta (GEÇER)" diye pinliyordu.
+
+```
+HASSAS İSTEK (herhangi bir katman)           ve   herhangi bir güvenlik sinyali
+  kelime ağının isteği                             YOK (bekçi kapalı)
+  cevap modelinin beyanı / niyet etiketi           DÜŞTÜ (zaman aşımı, bozuk JSON)
+  bekçinin isteği (ret, kaydırılmış saat)          TANINMIYOR / EKSİK (beyan alanı yok)
+  anlama katmanının isteği                         ÇELİŞİYOR (beyan "istek yok", etiket "erken giriş")
+                                             =>  OTOMATİK GÖNDERİM YOK (insana)
+```
+
+* **Kelime ağı yalnız ENGELLER.** Sessizliği izin değildir; erteleme cümlesi de artık izin değildir (yalnız
+  kanıtta `lx: d`). Eskiden beyan yokken kelime ağının erteleme cümlesi TEK BAŞINA, beyan `defers` iken ikinci
+  anahtar olarak isteği serbest bırakıyordu.
+* **Bekçi yoksa erteleme kanıtlanamaz** → hassas istek her kipte, devir cevabında da insana. Bekçi kapalı
+  (üretim varsayılanı) ile bekçi düşmüş aynı muameleyi görür: doğrulayıcı yok.
+* **Her arızada her mesaj durmaz:** hiçbir katmanda hassas istek yoksa ("Check-in saati kaç?" + mülkün saati)
+  karar yalnız iddia bacağına kalır ve cevap gider. Bilgi sorusunu izin talebinden ("Saat 12'de gelebilir
+  miyiz?") ayıran, katmanların İSTEK sinyalidir.
+* Kanal yolunda tutulan devir cevabı (niyet `human_request`, `riskType: human_request`) mevcut acil yükseltme
+  yolundan host'a e-posta ile bildirilir; QR'da misafir dürüst devir metnini görür.
+* Ürün etkisi (bilinçli): bekçi açılana kadar erken giriş / geç çıkış / uzatma / tarih isteklerine OTOMATİK
+  cevap gitmez, taslak host'a düşer (isteğe bağlı deterministik bekletme mesajı aynen çalışır). İki model
+  hemfikir olduğunda (bekçi açık) doğru erteleme yine otomatik gider.
+
 ### 2.1 Karar kuralı (`evaluateAvailability`)
 
+* **HASSAS İSTEK:** kelime ağının isteği · bekçinin isteği (ret ya da **kodda** standart dışı bulunan saat
+  dahil) · beyan edilen istek (tanınmayan `asked` dahil) ya da ret · cevap modelinin niyet etiketi
+  (`early_checkin`/`late_checkout`) · anlama katmanının isteği.
 * **İDDİA** (her kipte, devir cevabında da): kelime ağının iddiası · beyan `grants`/`states_calendar`
-  · bekçinin takvim/izin hükmü → `availability_claim`.
-* **İSTEK** (devir cevabı muaf): kelime ağının isteği · bekçinin isteği ya da **kodda** standart
-  dışı bulunan saat · (`AI_STAY_POLICY=enforce` ile) beyan edilen istek/ret ve anlama katmanının
-  isteği → **erteleme kanıtı yoksa** `availability_unconfirmed`.
-* **ERTELEME kanıtı izin yönlüdür:** kelime ağının tanıdığı erteleme cümlesi **ya da** iki bağımsız
-  modelin (beyan `defers` + bekçi `reply_defers_to_host`) birlikte "erteliyor" hükmü. Tek model
-  yetmez. Kelime ağının Türkçe/İngilizce dışında zayıf kaldığı yer burasıdır; bekçi bu açığı kapatır.
-  - Kelime ağının ertelemesi yalnız beyan YOKSA ya da beyan da `defers` diyorsa sayılır. Model cevabını
-    `none`/`refuses`/`unknown` diye etiketleyip metne bir erteleme kalıbı koyduysa iki kaynak çelişiyor
-    demektir; çelişkide izin verilmez (inceleme 09-24).
+  · bekçinin takvim/izin hükmü · **modelin duruşu bilinmiyor** (beyan yok / tanınmıyor / niyet etiketiyle
+  çelişiyor) ve hassas istek var → `availability_claim`.
+* **DOĞRULAYICI YOK** (bekçi kapalı ya da düştü) + hassas istek → `availability_unconfirmed` (kip, erteleme,
+  devir ne olursa olsun).
+* **İSTEK** (bekçi koştu; devir cevabı muaf): kelime ağının isteği · bekçinin isteği · (`AI_STAY_POLICY=enforce`
+  ile) modelin kendi istek sinyalleri → **erteleme kanıtı yoksa** `availability_unconfirmed`.
+* **ERTELEME = iki bağımsız model:** güvenilir beyan `defers` (çelişkisiz) **ve** bekçinin
+  `reply_defers_to_host` hükmü. Kelime ağı bekçinin "ertelemiyor" hükmünü ezemez.
   - Erteleme = kararın ev sahibine AİT olduğunu söylemek. "Mesajınız kaydedildi" tek başına erteleme
     değildir (yalnız kayıt bildirir). "Ev sahibiniz onaylar / onaylayacaktır" da erteleme değildir, onayı
-    önceden kestirir. "Ev sahibinizin onayına bağlı" ise ertelemedir.
-* **TANINMAYAN BEYAN = TEMİZ DEĞİL** (F01 kuralı): duruş kapalı küme dışındaysa (`unknown`) ve herhangi bir
-  konaklama bağlamı varsa (istek sinyali ya da beyan edilen istek), cevap iddia sayılır.
-* **BEKÇİ DÜŞTÜYSE** (bayrak açık, çağrı başarısız): modelin herhangi bir konaklama sinyali varsa
-  kip ne olursa olsun tutulur. Sinyal yoksa eski davranış sürer.
+    önceden kestirir. "Ev sahibinizin onayına bağlı" ise ertelemedir. (Kelime ağının erteleme tanıması
+    kanıt ve yedek ölçüsü olarak kalır.)
+* **BEYANIN GÜVENİLİRLİĞİ** (F01 kuralı): beyan yoksa, duruş kapalı küme dışındaysa (`unknown`) ya da beyan
+  "istek yok" derken aynı modelin niyet etiketi `early_checkin`/`late_checkout` ise duruş BİLİNMİYOR sayılır;
+  hassas istek varsa cevap iddiadır. Yedek (şablon) cevapta (`source: "fallback"`) ortada model duruşu yoktur,
+  bu kural uygulanmaz (host uyarısı "takvim iddiası" değil "istek var" der).
 * **EV SAHİBİNİN TEKLİFİ** (Ayarlar'daki geç çıkış teklif metni): istemin gösterdiği aynı temizlenmiş
   metin kelime ağının iddia taramasından çıkarılır. Ev sahibinin kendi sözünü aktarmak iddia değildir.
   Bekçiye de "ev sahibinin teklifi" olarak gösterilir: olduğu gibi aktarmak ertelemedir; değiştirmek,
@@ -92,7 +124,10 @@ kanalı), `ai/semantic/config.ts` (anahtar/model/zaman aşımı tek kaynak).
   bir giriş saati geç varıştır, erken giriş sayılmaz (00:30 varış 15:00 girişten "erken" değildir).
 * **TEKLİF MUAFİYETİ YALNIZ ERTELEMEYLE** (ikinci inceleme): teklif metni ancak cevap kararı ev sahibine de
   bırakıyorsa iddia taramasından çıkarılır; erteleme teklifin DIŞINDA aranır (teklifin kendi "müsaitlik varsa"sı
-  kendini onaylayamaz). Teklifi aynen aktarıp ertelemeyen cevap bir güne izin gibi okunur → iddia.
+  kendini onaylayamaz). Teklifi aynen aktarıp ertelemeyen cevap bir güne izin gibi okunur → iddia. Bekçi koştuysa
+  erteleme onun hükmüyle; koşmadıysa güvenilir `defers` beyanı + erteleme cümlesi yalnız teklif metnini iddia
+  taramasından çıkarır — izin DEĞİLDİR (hassas istek bekçisiz yine tutulur), ama ilk geçişin bekçiyi
+  çağırabilmesi için şarttır (iddia tutuşu bekçiyi tetiklemez). Bilgi sorusuna eklenen teklif eskisi gibi gider.
 * **STANDART ÇIKIŞ BİLGİSİ İZİN DEĞİL** (son denetimde DARALTILDI): "Çıkış günü 11:00'e kadar kalabilirsiniz /
   you can stay until 11:00 on your departure day" izin sayılmaz. Saat KODDA kıyaslanır. Kural yalnız izin
   kalıplarına uygulanır; takvim kalıbının saat bastırması korunur. Dört şart birlikte aranır:
@@ -131,7 +166,8 @@ kanalı), `ai/semantic/config.ts` (anahtar/model/zaman aşımı tek kaynak).
 ### 2.2 Kipler ve gölge ölçümü
 
 `AI_STAY_POLICY` varsayılanı **gölgedir**. Modelden türeyen istek sinyalleri kanıta yazılır ama karar
-vermez. `enforce` kipinin kararı **her zaman** hesaplanır ve `kbEvidenceJson.sc.ev` alanına yazılır.
+vermez — **yalnız bekçi koştuysa**. Bekçi yoksa ya da düştüyse ↑2.0 değişmezi her kipte tutar; gölge kip
+yalnız "bekçi koştu, istek görmedi, cevap modeli ya da anlama katmanı istek gördü" anlaşmazlığını ölçer. `enforce` kipinin kararı **her zaman** hesaplanır ve `kbEvidenceJson.sc.ev` alanına yazılır.
 Böylece açmadan önce gerçek trafikte "açsaydık kaç taslak daha çıkardı" okunabilir: `sc.v` ile
 `sc.ev` farkı.
 
@@ -144,6 +180,7 @@ Böylece açmadan önce gerçek trafikte "açsaydık kaç taslak daha çıkardı
 | `d` | beyan `asked/stance` ya da `absent` |
 | `g`, `gv` | bekçi `off/ok/failed`; hüküm `q` istek, `s` takvim, `a` izin, `d` erteleme, `x` ret, `t` kaydırılmış saat |
 | `u` | anlama katmanı `off/req/none/failed` |
+| `ri` | cevap modelinin niyet etiketi konaklama değişikliği adlandırıyorsa (`early_checkin`/`late_checkout`); yoksa alan yok |
 
 Retrieval kanıtına (`retrieval`) anlama katmanından `uq` (eklenen sorgu sayısı), `uf` (geri çekilmede öne
 alınan kalem), `un` (`ok/cached/failed`), `unMs` ve `ui` (niyet etiketleri) girer. `q` yalnız deterministik alt

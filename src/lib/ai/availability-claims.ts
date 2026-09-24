@@ -17,14 +17,24 @@
  *     etsin" yine takvim iddiasıdır.
  *  2. İSTEK: misafirin cevapsız mesajlarından biri müsaitliğe BAĞLI bir istekse (ek gece · uzatma ·
  *     erken giriş · geç çıkış · tarih değişikliği · "şu tarihte boş mu") cevap ancak kararı açıkça
- *     ERTELİYORSA gider ("bu ev sahibinizin kararıdır; mesajınız kaydedildi", "subject to
- *     availability", "platform üzerinden değişiklik talebi gönderebilirsiniz"). Ertelemeyen cevap →
- *     `availability_unconfirmed`. Bu bacak kelime listesinin kaçırdığı dolaylı izni de kapatır
- *     ("Tabii, sizi bir gece daha ağırlarız!" · "Olur, bekliyoruz") ve Türkçe/İngilizce DIŞINDAKİ
- *     dillerde iddia tespiti sınırlı olduğu için GÜVENLİ YÖNE düşer (erteleme ifadesi tanınmazsa
- *     insana).
+ *     ERTELİYORSA ve bu İKİ BAĞIMSIZ MODELLE doğrulandıysa gider (↓"BELİRSİZLİK GÜVENLİ DEĞİLDİR").
+ *     Ertelemeyen / doğrulanamayan cevap → `availability_unconfirmed`. Bu bacak kelime listesinin
+ *     kaçırdığı dolaylı izni de kapatır ("Tabii, sizi bir gece daha ağırlarız!" · "Olur, bekliyoruz").
  *  Host'un tanımladığı GEÇ ÇIKIŞ TEKLİFİ bloğu çalışmaya devam eder: istem o teklifi "uygunluğu ev
- *  sahibinizin kararıdır" ile paylaştırır → erteleme var, iddia yok → gider.
+ *  sahibinizin kararıdır" ile paylaştırır; erteleyen cevapta teklif metni iddia sayılmaz. Bilgi sorusuna
+ *  eklenen teklif gider; geç çıkış İSTEĞİNE teklif aktarımı ise bekçi kapalıyken taslakta kalır (↓).
+ *
+ * ── BELİRSİZLİK GÜVENLİ DEĞİLDİR (kurucu 09-24, değişmez) ───────────────────────────────────────
+ * "Bekçi çöktü → kelime ağı bir şey bulamadı → cevap gitti" açığı kapatıldı. Kural:
+ *   HASSAS İSTEK (herhangi bir katman: kelime ağı · cevap modelinin beyanı ya da niyet etiketi · bekçi ·
+ *   anlama katmanı) + herhangi bir güvenlik sinyali YOK / düştü / tanınmıyor / çelişiyor → OTOMATİK
+ *   GÖNDERİM YOK. Ayrı ayrı kapanan üç durum:
+ *    · bekçi YOK (bayrak kapalı) ya da DÜŞTÜ (zaman aşımı / bozuk JSON) → hassas istek insana;
+ *    · cevap modelinin beyanı YOK / tanınmıyor / kendi niyet etiketiyle ÇELİŞİYOR + hassas istek → insana;
+ *    · kelime ağının SESSİZLİĞİ hiçbir zaman izin değildir; kelime ağının erteleme cümlesi de izin
+ *      değildir (yalnız kanıta yazılır). Kelime ağı yalnız ENGELLER.
+ * Hassas olmayan soru ("Check-in saat kaçta?") bekçi yokken de cevaplanır — her arızada her mesajı
+ * durdurmak gereksizdir; bilgi sorusu ile izin talebini ayıran, katmanların İSTEK sinyalidir.
  *
  * ── DOĞRULANMIŞ TAKVİM GELİNCE (kurucu sorusu 09-24, Airbnb Direct) ─────────────────────────────
  * Kural "iddia yasak" değil "iddia yalnız DOĞRULANMIŞ takvim sonucuyla eşleşirse" demektir. Bugün
@@ -45,9 +55,9 @@
  *   2. cevap modelinin şema beyanı (`stayChangeAsked` + `replyStance`, ana JSON'da);
  *   3. bağımsız bekçi (ikinci model, `semantic/guard.ts`, bayrak `AI_STAY_GUARD_ENABLED`);
  *   4. anlama katmanı (`semantic/understand.ts`, bayrak `AI_UNDERSTANDING_ENABLED`).
- * Model saati ÇIKARIR, standart saatle kıyası KOD yapar. ERTELEME kanıtı izin yönlüdür: kelime ağının
- * tanıdığı cümle YA DA iki bağımsız modelin (beyan + bekçi) "erteliyor" hükmü — tek model yetmez.
- * Tasarım + açma sırası: `docs/ANLAM-KATMANI-2026-09-24.md`.
+ * Model saati ÇIKARIR, standart saatle kıyası KOD yapar. ERTELEME kanıtı izin yönlüdür: YALNIZ iki
+ * bağımsız modelin (güvenilir beyan + koşmuş bekçi) "erteliyor" hükmü — tek model yetmez, kelime ağı
+ * sayılmaz. Tasarım + açma sırası: `docs/ANLAM-KATMANI-2026-09-24.md`.
  *
  * ── SINIRLAR (bilinçli) ───────────────────────────────────────────────────────────────────────
  *  · Kelime ağı: iddia TR/EN'de geniş, DE/FR/ES/RU/AR'da temel; istek yedi dilde. Kaçan iddia
@@ -63,7 +73,9 @@ import {
   normalizeHhmm,
   slotTimesShifted,
   stayPolicyMode,
+  stayReplyIntentOf,
   type StayChangeDeclaration,
+  type StayReplyIntent,
   type StayGuardOutcome,
   type StayGuardVerdict,
   type StayPolicyMode,
@@ -518,8 +530,20 @@ export interface AvailabilityPolicyOptions {
    * zaten insana bırakır. İDDİA bacağı muaf DEĞİL: devir cevabı da "o gece boş" diyemez.
    */
   handoff?: boolean;
-  /** Cevap modelinin şema beyanı (`SuggestReplyResult.stayChange`). */
+  /** Cevap modelinin şema beyanı (`SuggestReplyResult.stayChange`); yok = modelin konaklama görüşü YOK (F01). */
   declared?: StayChangeDeclaration | null;
+  /**
+   * Cevap modelinin KENDİ niyet etiketi (`SuggestReplyResult.intent`). `early_checkin` / `late_checkout` hassas
+   * istek sinyalidir; beyan "istek yok" derken etiket istek adlandırıyorsa modelin iki çıktısı ÇELİŞİR → beyanın
+   * duruşu güvenilmez sayılır (yalnız sıkılaştırır).
+   */
+  replyIntent?: string | null;
+  /**
+   * Cevap BİZİM deterministik şablonumuz (yedek yol, `source: "fallback"`), model metni DEĞİL: "modelin duruşu
+   * bilinmiyor" kuralı uygulanmaz (ortada model yok). Varsayılan `false` = model metni (fail-closed). Yedek cevap
+   * zaten otomatik gönderilmez; bu bayrak host'a gösterilen taslak uyarısının DOĞRU cümleyi seçmesi içindir.
+   */
+  deterministicReply?: boolean;
   /** Bağımsız bekçinin sonucu; `undefined` = bekçi koşmadı (bayrak kapalı ya da aday değil). */
   guard?: StayGuardOutcome;
   /**
@@ -655,6 +679,8 @@ export interface AvailabilitySignals {
   gv?: string;
   /** Anlama katmanı: koşmadı / istek var / istek yok / açıktı ama başarısız. */
   u: "off" | "req" | "none" | "failed";
+  /** Cevap modelinin niyet etiketi konaklama değişikliği adlandırıyorsa o etiket (yoksa alan YOK). */
+  ri?: StayReplyIntent;
 }
 
 export interface AvailabilityEvaluation {
@@ -677,17 +703,22 @@ function guardFlags(v: StayGuardVerdict, stay: StayTimes | null | undefined): st
 }
 
 /**
- * Misafire GİDECEK cevabın müsaitlik denetimi — dört katman, tek karar:
+ * Misafire GİDECEK cevabın müsaitlik denetimi — dört katman, tek karar, hepsi yalnız SIKILAŞTIRIR:
  *
- *  İDDİA (her kipte, devirde de): deterministik iddia/izin · beyan edilen `grants`/`states_calendar`
- *    · bekçinin takvim/izin hükmü → `availability_claim`.
- *  İSTEK (devir muaf): deterministik istek · bekçinin istek hükmü ya da KODDA kaydırılmış saat
- *    · (yalnız `enforce`) beyan edilen istek / ret, anlama katmanının isteği → ERTELEME yoksa
- *    `availability_unconfirmed`. ERTELEME kanıtı İZİN yönlüdür, bu yüzden tek modelin sözü
- *    yetmez: deterministik erteleme cümlesi YA DA (beyan `defers` VE bekçi "erteliyor") — iki
- *    bağımsız hüküm.
- *  BEKÇİ BAŞARISIZ (bayrak açık, çağrı düştü): modelin herhangi bir konaklama sinyali varsa ve
- *    erteleme kanıtı yoksa tutulur (kip ne olursa olsun) — hakem düştüyse temkin.
+ *  HASSAS İSTEK = herhangi bir katman konaklama değişikliği görüyor: kelime ağının isteği · bekçinin isteği (ret
+ *    ya da KODDA kaydırılmış saat dahil) · beyan edilen istek (tanınmayan dahil) ya da ret · cevap modelinin niyet
+ *    etiketi (`early_checkin`/`late_checkout`) · anlama katmanının isteği.
+ *  1. İDDİA (her kipte, devirde de) → `availability_claim`: deterministik iddia/izin · beyan edilen
+ *     `grants`/`states_calendar` · bekçinin takvim/izin hükmü · modelin DURUŞU BİLİNMİYOR (beyan yok /
+ *     tanınmıyor / niyet etiketiyle çelişiyor) ve hassas istek var (F01: bilinmeyen ≠ temiz).
+ *  2. BAĞIMSIZ DOĞRULAYICI YOK (bekçi kapalı ya da düştü) + hassas istek → `availability_unconfirmed` — kip,
+ *     erteleme ve devir ne olursa olsun (kurucu 09-24: belirsizlik güvenli kabul edilmez).
+ *  3. İSTEK (bekçi koştu; devir muaf) → ERTELEME yoksa `availability_unconfirmed`: kelime ağının ya da bekçinin
+ *     isteği her kipte; modelin kendi istek sinyalleri yalnız `enforce` kipinde (gölgede ölçülür).
+ *  ERTELEME = güvenilir `defers` beyanı VE bekçinin "erteliyor" hükmü (iki bağımsız model). Kelime ağının
+ *  erteleme cümlesi İZİN DEĞİLDİR — yalnız kanıta yazılır (`lx` içinde `d`).
+ * Hassas istek yoksa (bilgi sorusu) bekçi yokken de karar yalnız iddia bacağına kalır: her arızada her mesaj
+ * durmaz.
  */
 export function evaluateAvailability(
   reply: string | null | undefined,
@@ -705,24 +736,36 @@ export function evaluateAvailability(
       ? "req"
       : "none";
   const d = opts.declared ? `${opts.declared.asked}/${opts.declared.stance}` : "absent";
+  const ri = stayReplyIntentOf(opts.replyIntent);
   if (typeof reply !== "string" || reply.trim() === "") {
-    return { reason: null, enforceReason: null, signals: { lx: "-", d, g, u } };
+    return { reason: null, enforceReason: null, signals: { lx: "-", d, g, u, ...(ri ? { ri } : {}) } };
   }
   const guard = opts.guard?.status === "ok" ? opts.guard.verdict : null;
+  const declared = opts.declared ?? null;
+
+  // BEYANIN GÜVENİLİRLİĞİ (F01 — eksik / tanınmayan / kendi niyet etiketiyle çelişen ≠ temiz): "istek yok" diyen
+  // beyan, aynı modelin niyet etiketi erken giriş/geç çıkış derken duruşu hakkında da güvenilmez. Yedek (şablon)
+  // cevapta ortada model duruşu yoktur → bu kural uygulanmaz.
+  const mismatch = ri !== undefined && declared !== null && declared.asked === "none";
+  const stanceUnknown = !opts.deterministicReply && (declared === null || mismatch || declared.stance === "unknown");
+  // 🚨 ERTELEME = İKİ BAĞIMSIZ MODEL: güvenilir `defers` beyanı VE koşmuş bekçinin "erteliyor" hükmü. Bekçi yoksa ya
+  // da düştüyse erteleme KANITLANAMAZ. Kelime ağının erteleme cümlesi izin sayılmaz (kurucu 09-24: kelime ağı yalnız
+  // engeller) — eskiden beyan yokken tek başına, beyan `defers` iken ikinci anahtar olarak sayılıyordu.
+  const trustedDefers = declared !== null && !mismatch && declared.stance === "defers";
+  const deferred = trustedDefers && guard?.replyDefersToHost === true;
 
   // ERTELEME ev sahibinin teklif metninin DIŞINDA aranır: teklifin kendi "müsaitlik varsa"sı kendini onaylayamaz.
   const withoutOffer = withoutHostOffer(reply, opts.hostOfferText);
   const lexDeferral = hasAvailabilityDeferral(withoutOffer);
-  // ERTELEME izin yönlüdür: kelime ağının cümlesi, model BAŞKA bir duruş beyan ettiyse sayılmaz ("Olur,
-  // bekliyoruz! … ev sahibinizin kararıdır" gibi çelişkili cevapta beyan `grants`/`none` olur); beyan yoksa
-  // (eski çıktı/yedek) kelime ağı tek başına sayılır. Model tarafı YALNIZ iki bağımsız hükümle.
-  const lexDeferralCounts = lexDeferral && (!opts.declared || opts.declared.stance === "defers");
-  const deferred = lexDeferralCounts || (opts.declared?.stance === "defers" && guard?.replyDefersToHost === true);
   // EV SAHİBİ TEKLİFİ MUAFİYETİ YALNIZ ERTELEMEYLE (ikinci inceleme 09-24, P1): teklifi aynen aktarıp hiçbir şeyi
-  // ertelemeyen cevap ("Late checkout until 13:00 is possible for 20 EUR.") belirli bir gün için izin gibi okunur;
-  // muafiyet onu siliyordu ve gölge kipte istek kelime ağından kaçınca cevap GİDİYORDU.
-  // STANDART ÇIKIŞ SAATİ bilgisi izin DEĞİLDİR — dar kural ve gerekçesi ↑`withoutStandardCheckoutUntil`.
-  const lexClaim = lexicalClaim(deferred ? withoutOffer : reply, opts.stayTimes);
+  // ertelemeyen cevap ("Late checkout until 13:00 is possible for 20 EUR.") belirli bir gün için izin gibi okunur.
+  // Bekçi koştuysa erteleme ONUN hükmüyle (iki model); koşmadıysa (kapalı / düştü / ilk geçiş) güvenilir `defers` beyanı
+  // + erteleme cümlesi yalnız teklif metnini iddia taramasından çıkarır — İZİN DEĞİLDİR: hassas istek bekçisiz yine
+  // tutulur (↓), bilgi sorusuna eklenen teklif ise eskisi gibi gider. Bu ayrım bekçiye ULAŞILMASI için de şarttır:
+  // ilk geçiş teklif metnini iddia sayarsa bekçi hiç çağrılmaz (iddia tutuşu bekçiyi tetiklemez).
+  // STANDART ÇIKIŞ SAATİ bilgisi izin DEĞİLDİR — ↑`withoutStandardCheckoutUntil`.
+  const offerExempt = guard !== null ? deferred : trustedDefers && lexDeferral;
+  const lexClaim = lexicalClaim(offerExempt ? withoutOffer : reply, opts.stayTimes);
   const lexRequest = guestTexts.some((t) => detectAvailabilityRequest(t) !== null);
   const signals: AvailabilitySignals = {
     lx: (lexClaim ? "c" : "") + (lexRequest ? "r" : "") + (lexDeferral ? "d" : "") || "-",
@@ -730,6 +773,7 @@ export function evaluateAvailability(
     g,
     ...(guard ? { gv: guardFlags(guard, opts.stayTimes) } : {}),
     u,
+    ...(ri ? { ri } : {}),
   };
 
   const guardRequest =
@@ -738,27 +782,27 @@ export function evaluateAvailability(
       guard.kind !== "none" ||
       guard.replyRefuses ||
       slotTimesShifted({ checkinTime: guard.requestedCheckinTime, checkoutTime: guard.requestedCheckoutTime }, opts.stayTimes));
-  // Beyan kapalı kümede DEĞİLSE (tanınmayan ≠ temiz, F01) ve ortada bir konaklama bağlamı varsa, duruş
-  // "izin" kabul edilir: "Grants"/"grant" gibi biçim bozukluğu izni KAÇIRMAMALI (inceleme 09-24).
-  const stayContext =
-    lexRequest || guardRequest || u === "req" || (opts.declared != null && opts.declared.asked !== "none");
+  // Modelin (cevap modeli + anlama katmanı) KENDİ istek sinyalleri; tanınmayan `asked` de istektir.
+  const modelRequest = declaredRequest(declared) || declared?.stance === "refuses" || u === "req" || ri !== undefined;
+  const sensitive = lexRequest || guardRequest || modelRequest;
+
   const claim =
     lexClaim ||
-    declaredClaim(opts.declared) ||
-    (opts.declared?.stance === "unknown" && stayContext) ||
+    declaredClaim(declared) ||
+    // Duruş bilinmiyorsa ve ortada hassas istek varsa izin kabul edilir: "Grants"/"grant" gibi biçim bozukluğu,
+    // eksik alan ya da çelişen etiket izni KAÇIRMAMALI (inceleme 09-24 + kurucu 09-24).
+    (stanceUnknown && sensitive) ||
     (guard !== null && (guard.replyStatesCalendar || guard.replyGrantsChange));
   if (claim) return { reason: "availability_claim", enforceReason: "availability_claim", signals };
+  // 🚨 BAĞIMSIZ DOĞRULAYICI YOK (bekçi kapalı / düştü / zaman aşımı / bozuk JSON) + hassas istek → insana. Devir
+  // cevabı da, erteleme cümlesi de, gölge kip de bunu gevşetmez: hakem yokken kelime ağının sessizliği izin değildir.
+  if (guard === null && sensitive) {
+    return { reason: "availability_unconfirmed", enforceReason: "availability_unconfirmed", signals };
+  }
   if (opts.handoff) return { reason: null, enforceReason: null, signals };
 
-  const modelRequest =
-    declaredRequest(opts.declared) ||
-    opts.declared?.stance === "refuses" ||
-    opts.declared?.stance === "unknown" ||
-    u === "req";
-  const guardFailedWithSignal = opts.guard?.status === "failed" && modelRequest;
-
   const decide = (enforce: boolean): AvailabilityVetoReason | null =>
-    (lexRequest || guardRequest || guardFailedWithSignal || (enforce && modelRequest)) && !deferred
+    (lexRequest || guardRequest || (enforce && (modelRequest || declared?.stance === "unknown"))) && !deferred
       ? "availability_unconfirmed"
       : null;
   const mode = opts.mode ?? stayPolicyMode();
@@ -774,6 +818,7 @@ export function stayEvidenceOf(e: AvailabilityEvaluation): {
   g: string;
   gv?: string;
   u: string;
+  ri?: string;
 } {
   return { v: e.reason ?? "-", ev: e.enforceReason ?? "-", ...e.signals };
 }

@@ -47,6 +47,8 @@ const BASE = {
   sourceAudit: { declared: 0, verified: 0 },
   missingInfo: [],
   statedCheckoutTime: null,
+  // Gerçek model çıktısı beyanı HER ZAMAN taşır (istem + 24 örnek); beyansız çıktı ayrı satırda sınanır.
+  stayChange: { asked: "none" as const, stance: "none" as const },
 };
 
 type Msg = { direction: "inbound" | "outbound"; body: string };
@@ -149,7 +151,9 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect((await suggest(id)).availabilityCheck).toBe("availability_claim");
   });
 
-  it("ertelemeyi hem beyan eden hem metinde taşıyan cevap → uyarı yok", async () => {
+  it("🚨 ertelemeyi hem beyan eden hem metinde taşıyan taslak da uyarı alır: bu rotada bekçi koşmaz → erteleme iki modelle kanıtlanamaz (kapıyla AYNI yüklem)", async () => {
+    // 09-24'e kadar "uyarı yok" idi (kelime ağının erteleme cümlesi izin sayılıyordu). Uyarı metni ("Misafir tarih ya
+    // da saat değişikliği istiyor. Misafire söz vermeden önce kanal takviminden kontrol edin.") erteleyen taslak için de doğru.
     mockSuggest.mockResolvedValue({
       ...BASE,
       intent: "early_checkin",
@@ -157,10 +161,21 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
       stayChange: { asked: "early_checkin", stance: "defers" },
     });
     const id = await seed([{ direction: "inbound", body: "Can we check in early?" }]);
-    expect((await suggest(id)).availabilityCheck).toBeNull();
+    expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
   });
 
-  it("ev sahibinin teklif metni rotaya ULAŞIR: aynen aktarıp erteleyen taslak uyarı almaz; teklif tanımlı değilse aynı taslak iddiadır", async () => {
+  it("🚨 beyansız model çıktısı + hassas istek → 'availability_claim' (duruş bilinmiyor, F01); yedek (şablon) taslakta 'onaylanmadı'", async () => {
+    const noDeclaration = { ...BASE, stayChange: undefined }; // model alanları üretmedi
+    mockSuggest.mockResolvedValue({ ...noDeclaration, intent: "early_checkin", reply: "Check-in is from 15:00." });
+    const id = await seed([{ direction: "inbound", body: "Can we check in early?" }]);
+    expect((await suggest(id)).availabilityCheck).toBe("availability_claim");
+    // Yedek yol (model yok): ortada model duruşu yok → uyarı "takvim iddiası" DEMEZ, isteği bildirir.
+    mockSuggest.mockResolvedValue({ ...noDeclaration, source: "fallback" as never, intent: "early_checkin", reply: "Check-in is from 15:00." });
+    __resetRateLimit();
+    expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
+  });
+
+  it("ev sahibinin teklif metni rotaya ULAŞIR: tanımlıysa aktarım 'takvim iddiası' sayılmaz (yalnız 'istek var' uyarısı — bekçi burada koşmaz, erteleme kanıtlanamaz); tanımlı değilse aynı taslak iddiadır", async () => {
     const offer = "Müsaitlik varsa çıkışınızı 13:00'e kadar uzatabiliriz.";
     mockSuggest.mockResolvedValue({
       ...BASE,
@@ -172,7 +187,7 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect((await suggest(id)).availabilityCheck).toBe("availability_claim"); // KONTROL: teklif yok
     await prisma.organization.update({ where: { id: session.organizationId }, data: { lateCheckoutOfferText: offer } });
     __resetRateLimit();
-    expect((await suggest(id)).availabilityCheck).toBeNull();
+    expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
   });
 
   it("🚨 anlama katmanı açık + enforce: modelin anladığı standart-dışı saat isteği uyarıya girer (kelime ağı sessizken)", async () => {
@@ -204,9 +219,9 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
     expect(f).toHaveBeenCalledTimes(1);
 
-    // Aynı girdi gölge kipte: anlama sinyali tek başına karar vermez.
+    // Aynı girdi gölge kipte de uyarır: bu rotada bekçi koşmaz → hassas istek + doğrulayıcı yok (09-24 değişmezi).
     vi.stubEnv("AI_STAY_POLICY", "shadow");
     __resetRateLimit();
-    expect((await suggest(id)).availabilityCheck).toBeNull();
+    expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
   });
 });

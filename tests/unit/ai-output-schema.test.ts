@@ -179,12 +179,21 @@ describe("suggestReply — konaklama değişikliği ŞEMA BEYANI (09-24)", () =>
     expect(passesAutoReplySafetyGate(r, ASK)).toBe(false);
   });
 
-  it("KONTROL: aynı cevap beyansız gelirse (alan yok) sinyal YOK — kapı eski davranışta", async () => {
+  it("🚨 aynı cevap beyansız gelirse (alan yok) kapı YİNE KAPANIR: niyet etiketi erken giriş = hassas istek, duruş bilinmiyor", async () => {
+    // 09-24'e kadar bu satır "KONTROL: kapı eski davranışta (GEÇER)" idi — kurucunun tarif ettiği açığın ta kendisi:
+    // beyan yok + kelime ağı sessiz → örtük izin otomatik gidiyordu. Belirsizlik güvenli kabul edilmez.
     openAiReturns({ ...VALID, intent: "early_checkin", reply: "Your early check-in is all set." });
     const r = await suggestReply(askInput);
     expect(r.stayChange).toBeNull();
-    expect(passesAutoReplySafetyGate(r, ASK)).toBe(true);
+    expect(passesAutoReplySafetyGate(r, ASK)).toBe(false);
     expect(mockReportError).not.toHaveBeenCalled(); // eksik beyan alarm DEĞİL, kanıtta "absent"
+  });
+
+  it("aşırı-uygulama kontrolü: beyansız ama hassas OLMAYAN cevap (wifi) kapıdan geçer — her eksik alan her mesajı durdurmaz", async () => {
+    openAiReturns({ ...VALID, intent: "wifi", reply: "The Wi-Fi password is on the router." });
+    const r = await suggestReply({ ...input, guestMessage: "What is the wifi password?" });
+    expect(r.stayChange).toBeNull();
+    expect(passesAutoReplySafetyGate(r, "What is the wifi password?")).toBe(true);
   });
 
   it("kapalı küme dışı değer coercion görmez → `unknown` (tanınmayan ≠ temiz)", async () => {

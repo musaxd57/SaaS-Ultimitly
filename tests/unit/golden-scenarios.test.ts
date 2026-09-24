@@ -557,12 +557,43 @@ describe("kapı — deterministik yüksek-risk vetosu tam kümeyi kapsar", () =>
 // ---------------------------------------------------------------------------
 describe("GOLDEN SET — müsaitlik vetosu (mesaj + cevap)", () => {
   const OK = { intent: "general", riskLevel: "none", confidence: 0.92, source: "openai" };
-  const cases: { name: string; guest: string; reply: string; veto: boolean; stayChange?: { asked: "early_checkin" | "none"; stance: "grants" | "none" | "defers" } }[] = [
+  // Bekçinin (ikinci model) "istek var, cevap erteliyor" hükmü — iki bağımsız model hemfikir.
+  const GUARD_DEFERS = {
+    status: "ok" as const,
+    verdict: {
+      guestRequestsChange: true,
+      kind: "early_checkin" as const,
+      requestedCheckinTime: null,
+      requestedCheckoutTime: null,
+      replyStatesCalendar: false,
+      replyGrantsChange: false,
+      replyDefersToHost: true,
+      replyRefuses: false,
+    },
+  };
+  const cases: {
+    name: string;
+    guest: string;
+    reply: string;
+    veto: boolean;
+    intent?: string;
+    stayChange?: { asked: "early_checkin" | "none"; stance: "grants" | "none" | "defers" };
+    guard?: typeof GUARD_DEFERS;
+  }[] = [
     { name: "ek gece + takvim iddiası (TR)", guest: "Bir gece daha kalabilir miyiz?", reply: "Evet, o gece daire boş; kalabilirsiniz.", veto: true },
     { name: "TUZAK: giriş saati sorusu + standart saat (TR)", guest: "Saat kaçta giriş yapabiliriz?", reply: "Giriş saatimiz 15:00'tir.", veto: false },
     { name: "geç çıkış + izin (EN)", guest: "Late checkout possible?", reply: "Sure, late checkout until 1pm is fine.", veto: true },
     { name: "TUZAK: otopark müsaitliği (olanak, takvim değil) (EN)", guest: "Is parking available?", reply: "Yes, there is free parking under the building.", veto: false },
-    { name: "erken giriş + standart erteleme cümlesi GİDER (TR)", guest: "Erken giriş yapabilir miyiz?", reply: "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.", veto: false },
+    // 🚨 KURUCU DEĞİŞMEZİ (09-24): bekçi YOKKEN kelime ağının erteleme cümlesi izin değildir (eskiden bu satır GİDER idi).
+    { name: "erken giriş + erteleme cümlesi, bekçi YOK → GİTMEZ (TR)", guest: "Erken giriş yapabilir miyiz?", reply: "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.", veto: true },
+    {
+      name: "TUZAK: erken giriş + erteleme, beyan 'defers' + bekçi 'erteliyor' (iki model) GİDER (TR)",
+      guest: "Erken giriş yapabilir miyiz?",
+      reply: "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      veto: false,
+      stayChange: { asked: "early_checkin", stance: "defers" },
+      guard: GUARD_DEFERS,
+    },
     { name: "TUZAK: wifi sorusu (TR)", guest: "Wifi şifresi ne?", reply: "Wi-Fi şifresi Lale2024.", veto: false },
     {
       name: "kelime ağının göremediği izin, modelin BEYANIYLA durur (EN)",
@@ -572,16 +603,43 @@ describe("GOLDEN SET — müsaitlik vetosu (mesaj + cevap)", () => {
       stayChange: { asked: "early_checkin", stance: "grants" },
     },
     {
-      name: "TUZAK: beyan 'defers' + kelime ağının tanıdığı erteleme GİDER (EN)",
+      name: "beyan 'defers' + kelime ağının tanıdığı erteleme, bekçi YOK → GİTMEZ (EN)",
+      guest: "Could we get into the flat at 11?",
+      reply: "Whether an earlier arrival is possible is the host's call; your request has been recorded and is visible to your host.",
+      veto: true,
+      stayChange: { asked: "early_checkin", stance: "defers" },
+    },
+    {
+      name: "TUZAK: aynı cevap, beyan + bekçi hemfikir (iki model) GİDER (EN)",
       guest: "Could we get into the flat at 11?",
       reply: "Whether an earlier arrival is possible is the host's call; your request has been recorded and is visible to your host.",
       veto: false,
       stayChange: { asked: "early_checkin", stance: "defers" },
+      guard: GUARD_DEFERS,
+    },
+    // 🚨 Ölçülen açık (kurucu 09-24): beyan alanları EKSİK + kelime ağı sessiz + modelin kendi niyet etiketi erken giriş.
+    { name: "beyan YOK + niyet erken giriş + örtük izin → GİTMEZ (EN)", guest: "Could we get into the flat at 11?", reply: "See you at 11!", veto: true, intent: "early_checkin" },
+    {
+      name: "beyan 'istek yok' ama niyet geç çıkış (çelişki) → GİTMEZ (TR)",
+      guest: "Yarın biraz daha kalsak olur mu?",
+      reply: "Tabii, görüşmek üzere!",
+      veto: true,
+      intent: "late_checkout",
+      stayChange: { asked: "none", stance: "none" },
+    },
+    {
+      name: "TUZAK: bilgi sorusu, beyan tutarlı, bekçi YOK → GİDER (TR)",
+      guest: "Check-in saati kaç?",
+      reply: "Giriş saatimiz 15:00.",
+      veto: false,
+      intent: "checkin",
+      stayChange: { asked: "none", stance: "none" },
     },
   ];
   for (const c of cases) {
     it(`${c.veto ? "VETO " : "PASS "}| ${c.name}`, () => {
-      expect(passesAutoReplySafetyGate({ ...OK, reply: c.reply, ...(c.stayChange ? { stayChange: c.stayChange } : {}) }, c.guest)).toBe(!c.veto);
+      const result = { ...OK, ...(c.intent ? { intent: c.intent } : {}), reply: c.reply, ...(c.stayChange ? { stayChange: c.stayChange } : {}) };
+      expect(passesAutoReplySafetyGate(result, c.guest, c.guard ? { stayGuard: c.guard } : undefined)).toBe(!c.veto);
     });
   }
 });

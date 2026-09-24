@@ -1,6 +1,7 @@
 import { CLAIM_CLASSES, type ClaimAudit } from "./claim-support";
 import { UNDERSTANDING_INTENTS } from "./semantic/understanding-schema";
 import { INTENT_RISK_KINDS, INTENT_RISK_REASON } from "./semantic/intent-risk";
+import { STAY_REPLY_INTENTS } from "./semantic/stay-change";
 import type { LlmUsage } from "./types";
 // ---------------------------------------------------------------------------
 // TEMELLENDİRME SINIFLANDIRMASI (A2, 09-08) — OKUMA ZAMANINDA, HÜKÜM DEĞİL.
@@ -273,9 +274,12 @@ export interface StayEvidence {
   g: string;
   gv?: string;
   u: string;
+  /** Cevap modelinin niyet etiketi konaklama değişikliği adlandırıyorsa o etiket (kapalı küme). */
+  ri?: string;
 }
 
 const STAY_REASONS = new Set(["-", "availability_claim", "availability_unconfirmed"]);
+const STAY_REPLY_INTENT_CODES: ReadonlySet<string> = new Set(STAY_REPLY_INTENTS);
 const STAY_KINDS = new Set(["none", "extend", "early_checkin", "late_checkout", "date_change", "availability", "unknown"]);
 const STAY_STANCES = new Set(["none", "defers", "grants", "states_calendar", "refuses", "unknown"]);
 
@@ -291,7 +295,9 @@ function cleanStay(x: StayEvidence | undefined): StayEvidence | undefined {
   if (x.g !== "off" && x.g !== "ok" && x.g !== "failed") return undefined;
   if (x.u !== "off" && x.u !== "req" && x.u !== "none" && x.u !== "failed") return undefined;
   const gv = typeof x.gv === "string" && /^(?:-|q?s?a?d?x?t?)$/.test(x.gv) && x.gv !== "" ? x.gv : undefined;
-  return { v: x.v, ev: x.ev, lx: x.lx, d: x.d, g: x.g, ...(gv ? { gv } : {}), u: x.u };
+  // Niyet etiketi yalnız kapalı kümeden; tanınmayan değer yalnız KENDİSİ düşer (`gv` gibi — sinyal özeti kalır).
+  const ri = typeof x.ri === "string" && STAY_REPLY_INTENT_CODES.has(x.ri) ? x.ri : undefined;
+  return { v: x.v, ev: x.ev, lx: x.lx, d: x.d, g: x.g, ...(gv ? { gv } : {}), u: x.u, ...(ri ? { ri } : {}) };
 }
 
 /** İddia özetini yeniden kurar: yalnız bilinen alanlar, yalnız sayı/kapalı-küme sınıf (serbest metin sızamaz). */

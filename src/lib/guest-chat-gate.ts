@@ -136,7 +136,7 @@ export type EscalationReason = (typeof ESCALATION_REASONS)[number];
  */
 /** QR kapısı ile QR karar kaydı AYNI politika girdisini kullanır (gerekçe ↔ hüküm ayrışamaz). */
 export function qrAvailabilityPolicy(
-  result: { stayChange?: StayChangeDeclaration | null },
+  result: { intent?: string; stayChange?: StayChangeDeclaration | null; source?: string },
   stayCtx?: {
     stayTimes?: StayTimes | null;
     stayGuard?: StayGuardOutcome;
@@ -146,6 +146,9 @@ export function qrAvailabilityPolicy(
 ): AvailabilityPolicyOptions {
   return {
     declared: result.stayChange ?? null,
+    // Kanal kapısıyla AYNI iki girdi (`availabilityPolicyFor`): niyet etiketi + şablon cevabı ayrımı.
+    replyIntent: result.intent ?? null,
+    deterministicReply: result.source === "fallback",
     guard: stayCtx?.stayGuard,
     understanding: stayCtx?.understanding ?? null,
     understandingFailed: stayCtx?.understandingFailed === true,

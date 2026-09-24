@@ -384,12 +384,16 @@ export function hostOfferForGate(raw: string | null | undefined): string | null 
  * hükmü ayrışamaz (ikisi de bu nesneden türer).
  */
 export function availabilityPolicyFor(
-  result: { intent: string; stayChange?: StayChangeDeclaration | null },
+  result: { intent: string; stayChange?: StayChangeDeclaration | null; source?: string },
   context?: AutoReplyGateContext,
 ): AvailabilityPolicyOptions {
   return {
     handoff: result.intent === "human_request",
     declared: result.stayChange ?? null,
+    // Modelin niyet etiketi hassas istek sinyalidir ve beyanla çelişkisi beyanı güvenilmez kılar (09-24).
+    replyIntent: result.intent,
+    // Yalnız BİLİNEN şablon kaynağı "model metni değil" sayılır; bilinmeyen/eksik kaynak model metnidir (fail-closed).
+    deterministicReply: result.source === "fallback",
     guard: context?.stayGuard,
     understanding: context?.understanding ?? null,
     understandingFailed: context?.understandingFailed === true,

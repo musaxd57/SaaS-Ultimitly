@@ -104,6 +104,22 @@ const NLU_EARLY = {
   stay_change: { requested: true, kind: "early_checkin", checkin_time: "11:00", checkout_time: null },
 };
 
+/** Hassas OLMAYAN bilgi sorusu + tutarlı beyan (niyet `checkin`, "istek yok"). */
+const INFO = { ...DRAFT, intent: "checkin", stayChange: { asked: "none", stance: "none" } };
+const INFO_ASK = "What time is check-in?";
+
+/** Bekçi: "istek yok, iddia yok". */
+const GUARD_CLEAN = {
+  guest_requests_change: false,
+  kind: "none",
+  requested_checkin_time: null,
+  requested_checkout_time: null,
+  reply_states_calendar: false,
+  reply_grants_change: false,
+  reply_defers_to_host: false,
+  reply_refuses: false,
+};
+
 const GUARD_GRANTS = {
   guest_requests_change: true,
   kind: "early_checkin",
@@ -134,13 +150,24 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     await prisma.$disconnect();
   });
 
-  it("KONTROL: beyansız, kelime ağı sessiz → bot cevaplar; kanıtta 'absent'", async () => {
+  it("🚨 beyansız + kelime ağı sessiz + niyet erken giriş → DEVİR (09-24'e kadar 'bot cevaplar' KONTROLÜYDÜ; kanal paritesi)", async () => {
     mockSuggest.mockResolvedValue(DRAFT);
     const { token } = await seed();
     const out = await ask(token, ASK);
+    expect(out.escalated).toBe(true);
+    expect(out.reply).not.toBe(DRAFT.reply);
+    const { ev, sc } = await lastEvent();
+    expect(ev.reason).toBe("availability_claim");
+    expect(sc).toEqual({ v: "availability_claim", ev: "availability_claim", lx: "-", d: "absent", g: "off", u: "off", ri: "early_checkin" });
+  });
+
+  it("KONTROL (aşırı-uygulama): hassas olmayan bilgi sorusu + tutarlı beyan, bekçi YOK → bot cevaplar", async () => {
+    mockSuggest.mockResolvedValue(INFO);
+    const { token } = await seed();
+    const out = await ask(token, INFO_ASK);
     expect(out.escalated).toBe(false);
-    expect(out.reply).toBe(DRAFT.reply);
-    expect((await lastEvent()).sc).toEqual({ v: "-", ev: "-", lx: "-", d: "absent", g: "off", u: "off" });
+    expect(out.reply).toBe(INFO.reply);
+    expect((await lastEvent()).sc).toEqual({ v: "-", ev: "-", lx: "-", d: "none/none", g: "off", u: "off" });
   });
 
   it("🚨 beyan edilen İZİN → devir; gerekçe `availability_claim`, taslak misafire GİTMEZ", async () => {
@@ -154,7 +181,7 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     expect(sc).toMatchObject({ v: "availability_claim", d: "early_checkin/grants" });
   });
 
-  it("🚨 bekçi açıkken beyansız izni ikinci model yakalar (mülk saatleri politikaya ulaşır)", async () => {
+  it("🚨 bekçi açıkken beyanın ('erteliyor') kaçırdığı izni ikinci model yakalar (mülk saatleri politikaya ulaşır)", async () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     const f = vi.fn(
       async () =>
@@ -163,7 +190,7 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
         }),
     );
     vi.stubGlobal("fetch", f);
-    mockSuggest.mockResolvedValue({ ...DRAFT, reply: "Sure, see you at 11." });
+    mockSuggest.mockResolvedValue({ ...DRAFT, reply: "Sure, see you at 11.", stayChange: { asked: "early_checkin", stance: "defers" } });
     const { token } = await seed();
     const out = await ask(token, ASK);
     expect(f).toHaveBeenCalledTimes(1);
@@ -174,24 +201,37 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "");
   });
 
-  it("🚨 anlama katmanı QR kapısına ULAŞIR: gölge kipte bot cevaplar ama sinyal kanıtta; enforce kipinde devir", async () => {
+  it("🚨 anlama katmanı QR kapısına ULAŞIR: bekçi yokken isteği gölgede de devreder; bekçi 'istek yok' derse gölgede bot cevaplar, enforce'ta devir", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    // Cevap modeli isteği KAÇIRDI (niyet genel, "istek yok"): hassas isteği yalnız anlama katmanı görüyor.
+    const missed = { ...DRAFT, intent: "general", stayChange: { asked: "none", stance: "none" } };
     const f = semanticFetch({ guest_message_understanding: NLU_EARLY });
     vi.stubGlobal("fetch", f);
-    mockSuggest.mockResolvedValue(DRAFT);
+    mockSuggest.mockResolvedValue(missed);
     const { token } = await seed();
-    const shadow = await ask(token, ASK);
+    const noGuard = await ask(token, ASK);
     expect(bodyOf(f, 0).response_format.json_schema.name).toBe("guest_message_understanding");
-    expect(shadow.escalated).toBe(false);
+    expect(noGuard.escalated).toBe(true);
     const first = await lastEvent();
-    expect(first.sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", u: "req" });
+    expect(first.ev.reason).toBe("availability_unconfirmed");
+    expect(first.sc).toMatchObject({ v: "availability_unconfirmed", u: "req", g: "off" });
     // Katman retrieval'da beklenmedi (boş KB) ama özeti karar kaydına YİNE girer.
     expect(first.retrieval).toMatchObject({ un: "ok", ui: ["early_checkin"] });
 
     await resetDb();
-    vi.stubEnv("AI_STAY_POLICY", "enforce");
+    __resetUnderstandingCache();
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_EARLY, stay_change_guard: GUARD_CLEAN }));
     const { token: t2 } = await seed();
-    const enforced = await ask(t2, ASK);
+    const shadow = await ask(t2, ASK);
+    expect(shadow.escalated).toBe(false);
+    expect((await lastEvent()).sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", u: "req", g: "ok" });
+
+    await resetDb();
+    __resetUnderstandingCache();
+    vi.stubEnv("AI_STAY_POLICY", "enforce");
+    const { token: t3 } = await seed();
+    const enforced = await ask(t3, ASK);
     expect(enforced.escalated).toBe(true);
     expect((await lastEvent()).ev.reason).toBe("availability_unconfirmed");
   });
@@ -201,11 +241,18 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     const clean = { ...GUARD_GRANTS, guest_requests_change: false, kind: "none", requested_checkin_time: null, reply_grants_change: false };
     const f = semanticFetch({ stay_change_guard: clean });
     vi.stubGlobal("fetch", f);
-    mockSuggest.mockResolvedValue({ ...DRAFT, intent: "wifi", reply: "The Wi-Fi details are on the card next to the router.", usedSources: [] });
+    mockSuggest.mockResolvedValue({
+      ...DRAFT,
+      intent: "wifi",
+      reply: "The Wi-Fi details are on the card next to the router.",
+      usedSources: [],
+      stayChange: { asked: "none", stance: "none" },
+    });
     const { token } = await seed();
     const first = await askRaw(token, "What is the wifi password?");
     expect(((await first.json()) as { escalated?: boolean }).escalated).toBe(false);
-    mockSuggest.mockResolvedValue(DRAFT);
+    // İkinci tur hassas istek: beyan var (kapı bekçisiz tutar → bekçi koşar ve önceki konuşmayı görür).
+    mockSuggest.mockResolvedValue({ ...DRAFT, stayChange: { asked: "early_checkin", stance: "none" } });
     await askRaw(token, ASK, cookieOf(first));
     expect(f).toHaveBeenCalledTimes(2);
     const second = bodyOf(f, f.mock.calls.length - 1).messages[1].content as string;
@@ -214,12 +261,12 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     expect(second).toContain("[1] <<<Could we get into the flat at 11?>>>");
   });
 
-  it("anlama katmanı DÜŞTÜ → bot eski davranışta; kanıtta 'failed' ('off'tan ayrı)", async () => {
+  it("anlama katmanı DÜŞTÜ → bot eski davranışta (bilgi sorusu cevaplanır); kanıtta 'failed' ('off'tan ayrı)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream down", { status: 503 })));
-    mockSuggest.mockResolvedValue(DRAFT);
+    mockSuggest.mockResolvedValue(INFO);
     const { token } = await seed();
-    const out = await ask(token, ASK);
+    const out = await ask(token, INFO_ASK);
     expect(out.escalated).toBe(false);
     expect((await lastEvent()).sc).toMatchObject({ v: "-", u: "failed" });
   });

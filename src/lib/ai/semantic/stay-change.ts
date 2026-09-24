@@ -39,6 +39,18 @@ export type StayChangeKind = (typeof STAY_CHANGE_KINDS)[number];
 export const REPLY_STANCES = ["none", "defers", "grants", "states_calendar", "refuses"] as const;
 export type ReplyStance = (typeof REPLY_STANCES)[number];
 
+/**
+ * Cevap modelinin konaklama değişikliği adlandıran NİYET etiketleri (`ai/index.ts` KNOWN_INTENTS alt kümesi).
+ * Beyandan AYRI bir çıktı alanıdır: ikisi çelişirse beyanın duruşu güvenilmez sayılır (`evaluateAvailability`).
+ */
+export const STAY_REPLY_INTENTS = ["early_checkin", "late_checkout"] as const;
+export type StayReplyIntent = (typeof STAY_REPLY_INTENTS)[number];
+
+/** Etiket kapalı kümedeyse onu döndürür; değilse `undefined`. */
+export function stayReplyIntentOf(intent: string | null | undefined): StayReplyIntent | undefined {
+  return (STAY_REPLY_INTENTS as readonly string[]).includes(intent ?? "") ? (intent as StayReplyIntent) : undefined;
+}
+
 /** Beyan: alan geldi ama kapalı kümede değilse `unknown` (tanınmayan ≠ temiz; F01 ilkesi). */
 export interface StayChangeDeclaration {
   asked: StayChangeKind | "unknown";

@@ -303,11 +303,14 @@ Bu dosyaya token/anahtar/parola yazma.
   `stay-change-backstop-floor.test.ts`) · cevap modelinin şema beyanı (`stayChangeAsked`+`replyStance`; iddia duruşu
   varsayılan ZORLANIR) · bağımsız bekçi (`semantic/guard.ts`, `AI_STAY_GUARD_ENABLED`) · anlama katmanı
   (`semantic/understand.ts`, `AI_UNDERSTANDING_ENABLED`). Model saati ÇIKARIR, kıyas KODDA (`slotTimesShifted`).
-  ERTELEME kanıtı izin yönlü: kelime ağının cümlesi (yalnız beyan yoksa ya da beyan da `defers`se — çelişkide
-  izin YOK) YA DA iki bağımsız model (beyan + bekçi) — tek model YETMEZ; erteleme dedektörü TEK biçim
-  (genişletici katlama yok); "kaydedildi" tek başına ve "ev sahibi onaylar" (kestirim) erteleme DEĞİL.
-  Tanınmayan duruş + konaklama bağlamı = iddia (F01). Host'un teklif metni kelime iddia taramasından YALNIZ
-  cevap erteliyorsa muaf (erteleme teklif DIŞINDA aranır), bekçiye gösterilir. 🚨 Standart çıkış bilgisi
+  🚨 **BELİRSİZLİK GÜVENLİ DEĞİLDİR (kurucu değişmezi 09-24):** HASSAS İSTEK (herhangi bir katman; cevap modelinin
+  niyet etiketi `early_checkin`/`late_checkout` dahil) + bekçi YOK (bayrak kapalı = düşmüş = aynı) ya da beyan
+  YOK/tanınmıyor/etiketle ÇELİŞİYOR → otomatik gönderim YOK, her kipte, devirde de. Kelime ağı yalnız ENGELLER:
+  sessizliği de erteleme cümlesi de izin DEĞİL (erteleme = YALNIZ güvenilir `defers` beyanı + koşmuş bekçi). Hassas
+  istek yoksa (bilgi sorusu) bekçisiz de gider — her arızada her mesaj durmaz. Yedek (şablon) cevapta "duruş
+  bilinmiyor" kuralı yok. "kaydedildi" tek başına ve "ev sahibi onaylar" (kestirim) erteleme DEĞİL; erteleme
+  dedektörü TEK biçim. Host'un teklif metni iddia taramasından yalnız erteleyen cevapta muaf (bekçi koştuysa
+  onun hükmüyle; koşmadıysa beyan+cümle yalnız muafiyete yeter, izne değil — bekçi çağrılabilsin diye). 🚨 Standart çıkış bilgisi
   ("çıkış günü 11:00'e kadar kalabilirsiniz") izin DEĞİL ama YALNIZ: saat çıkışa BİREBİR eşit + cümlecikte
   tarih/gün/akşam/uzatma işareti yok + cevapta onay ("Sure/Tabii") yok; yalnız İZİN kalıplarına ("≤" kıyası 22
   gerçek izni gizliyordu — son denetim). 🚨 Üçüncü taraf dışlaması YALNIZ bitişik yapıyı ("book a taxi",
