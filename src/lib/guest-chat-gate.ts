@@ -3,6 +3,7 @@ import "server-only";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { vetoAvailability, type AvailabilityPolicyOptions } from "@/lib/ai/availability-claims";
+import { evaluateIntentRisk, type IntentPolicyMode, type IntentRiskKind } from "@/lib/ai/semantic/intent-risk";
 import type {
   StayChangeDeclaration,
   StayGuardOutcome,
@@ -117,6 +118,8 @@ export const ESCALATION_REASONS = [
   // Müsaitlik vetosu (09-24) — `availability-claims.ts` `AVAILABILITY_VETO_REASONS` ile BİREBİR.
   "availability_claim",
   "availability_unconfirmed",
+  // Anlama katmanının risk niyeti (09-24) — `intent-risk.ts` `INTENT_RISK_REASON` ile BİREBİR.
+  "understanding_risk",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -191,6 +194,10 @@ export function evaluateEscalation(
     stayGuard?: StayGuardOutcome;
     understanding?: UnderstandingStaySignal | null;
     understandingFailed?: boolean;
+    /** Anlama katmanının en ağır risk niyeti; verilmezse sinyal yok. */
+    understandingRisk?: IntentRiskKind | null;
+    /** Risk niyetlerinin kipi; verilmezse `AI_INTENT_POLICY` (varsayılan gölge). */
+    intentMode?: IntentPolicyMode;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
@@ -274,6 +281,10 @@ export function evaluateEscalation(
   // `escalate_intent` ile zaten devredildi.
   const availability = vetoAvailability(result.reply, [message], qrAvailabilityPolicy(result, stayCtx));
   if (availability !== null) return yes(availability);
+  // ── ANLAMA KATMANININ RİSK NİYETLERİ (09-24, `semantic/intent-risk.ts`) ──────
+  // Kanal kapısıyla AYNI yüklem; iki "geçiş" çıkışının (bilgi bandı + tam güven) hemen önünde uygulanır →
+  // gerekçe yalnız başka HİÇBİR kontrol devretmediğinde `understanding_risk` olur. Varsayılan GÖLGE.
+  const intentRisk = evaluateIntentRisk(stayCtx?.understandingRisk, { modelIntent: result.intent, mode: stayCtx?.intentMode }).reason;
   // ── EKSİK BİLGİDE DÜRÜST CEVAP — DAR BANT (kurucu, 09-08) ─────────────────
   //
   // Buraya gelen mesaj, YUKARIDAKİ SEKİZ KAPININ HEPSİNDEN geçmiştir: model
@@ -300,8 +311,10 @@ export function evaluateEscalation(
     if (hasUnsourcedSpecificClaim(result.reply ?? "", result.usedSources ?? [])) {
       return yes("unsourced_claim");
     }
+    if (intentRisk) return yes(intentRisk);
     return { escalate: false, reason: "informational_low_confidence" };
   }
   if (result.confidence < 0.75) return yes("low_confidence");
+  if (intentRisk) return yes(intentRisk);
   return { escalate: false, reason: null };
 }

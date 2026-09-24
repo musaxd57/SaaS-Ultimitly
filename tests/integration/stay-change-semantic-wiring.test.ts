@@ -461,4 +461,67 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(mockSend).not.toHaveBeenCalled();
     expect((await riskEvent(id)).sc).toMatchObject({ g: "off" });
   });
+
+  // ── Anlama katmanının RİSK NİYETİ (09-24, `semantic/intent-risk.ts`) ──────────────────────────────
+  /** Kelime ağının KAÇIRDIĞI şikâyet (ölçüldü: `classifyFallback` + `detectRiskType` engellemiyor). */
+  const ANTS = [{ direction: "inbound" as const, body: "There are ants all over the kitchen counter." }];
+  const NLU_COMPLAINT = {
+    language: "en",
+    requests: [{ intent: "complaint_issue", query_tr: "mutfakta karınca", query_original: "ants in the kitchen" }],
+    stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+  };
+  const THANKS = { ...BASE, intent: "general", reply: "Thank you for letting us know.", usedSources: [] as string[] };
+  const irOf = async (conversationId: string) =>
+    (JSON.parse(String((await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } })).kbEvidenceJson)) as {
+      ir?: Record<string, string>;
+    }).ir;
+
+  it("KONTROL: katman KAPALI → şikâyeti kelime ağı görmüyor, cevap GİDER; kanıtta `ir` alanı HİÇ yok", async () => {
+    mockSuggest.mockResolvedValue(THANKS);
+    const id = await seed({ messages: ANTS });
+    await applyChannelAutoReply(id);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await irOf(id)).toBeUndefined();
+  });
+
+  it("🚨 risk niyeti kanal kapısına ULAŞIR: gölge kipte gider ama `enforce` kararı kanıtta; `AI_INTENT_POLICY=enforce` → taslak", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_COMPLAINT }));
+    mockSuggest.mockResolvedValue(THANKS);
+    const id = await seed({ messages: ANTS });
+    await applyChannelAutoReply(id);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await irOf(id)).toEqual({ v: "-", ev: "understanding_risk", k: "complaint_issue" });
+
+    await resetDb();
+    vi.stubEnv("AI_INTENT_POLICY", "enforce");
+    mockSend.mockClear();
+    const id2 = await seed({ messages: ANTS });
+    await applyChannelAutoReply(id2);
+    expect(mockSend).not.toHaveBeenCalled();
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id2, surface: "auto_reply" } });
+    expect(ev.finalDecision).toBe("human_review");
+    expect(ev.reason).toBe("understanding_risk");
+    expect(await irOf(id2)).toEqual({ v: "understanding_risk", ev: "understanding_risk", k: "complaint_issue" });
+  });
+
+  it("aşırı-uygulama kontrolü: katman risk niyeti GÖRMEDİYSE `enforce` kipinde de gider (kanıtta `-`)", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("AI_INTENT_POLICY", "enforce");
+    vi.stubGlobal(
+      "fetch",
+      semanticFetch({
+        guest_message_understanding: {
+          language: "en",
+          requests: [{ intent: "amenities", query_tr: "mutfak", query_original: "kitchen" }],
+          stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        },
+      }),
+    );
+    mockSuggest.mockResolvedValue(THANKS);
+    const id = await seed({ messages: ANTS });
+    await applyChannelAutoReply(id);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await irOf(id)).toEqual({ v: "-", ev: "-", k: "-" });
+  });
 });

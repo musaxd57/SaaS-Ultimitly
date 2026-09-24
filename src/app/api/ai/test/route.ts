@@ -16,6 +16,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
+import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import {
   fillGuestPlaceholdersInItems,
@@ -193,6 +194,8 @@ export const POST = withManage(async (session, req) => {
     {
       stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },
       understanding: (await kbSel.understanding)?.stay ?? null,
+      // Anlama katmanının risk niyeti — gerçek kapıyla PARİTE (enforce kipinde "gönderilirdi" dürüst kalsın).
+      understandingRisk: understandingRiskOf(await kbSel.understanding),
       hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
     },
   );

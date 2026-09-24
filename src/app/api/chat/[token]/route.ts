@@ -4,6 +4,7 @@ import { suggestReply } from "@/lib/ai";
 import { detectRiskType } from "@/lib/ai/fallback";
 import { evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, stayEvidenceOf } from "@/lib/ai/availability-claims";
+import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
   resolveGuestChat,
@@ -703,10 +704,13 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // kıyaslanır); bekçi bayrağı açıksa (`AI_STAY_GUARD_ENABLED`) ikinci model taslağı otomatik cevap ADAYI için
   // ya da tek engeli müsaitlik onayı eksikliği olan taslak için okur (iki bağımsız modelin ertelemesi o tutuşu
   // ancak böyle kaldırabilir — kanal kapısıyla parite) ve kapı onun hükmüyle yeniden değerlendirilir.
+  const understood = await kbSel.understanding;
   let stayCtx: Parameters<typeof evaluateEscalation>[4] = {
     stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
-    understanding: (await kbSel.understanding)?.stay ?? null,
+    understanding: understood?.stay ?? null,
     understandingFailed: (await kbSel.understandingStatus) === "failed",
+    // Anlama katmanının risk niyeti (acil/şikâyet/iptal-iade/insan) — kanal kapısıyla parite, varsayılan gölge.
+    understandingRisk: understandingRiskOf(understood),
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
@@ -786,6 +790,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       // Konaklama değişikliği politikası: kapıyla AYNI girdi (`qrAvailabilityPolicy`) — uygulanan
       // karar + `enforce` kipinin kararı (gölge) + katman sinyalleri; kapalı-küme kodlar.
       stay: stayEvidenceOf(evaluateAvailability(result.reply, [message], qrAvailabilityPolicy(result, stayCtx))),
+      // Risk niyeti: kapıyla AYNI girdi; yalnız anlama katmanı gerçekten koştuysa yazılır.
+      intentRisk: understood
+        ? intentRiskEvidenceOf(evaluateIntentRisk(stayCtx?.understandingRisk, { modelIntent: result.intent, mode: stayCtx?.intentMode }))
+        : undefined,
     }),
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,

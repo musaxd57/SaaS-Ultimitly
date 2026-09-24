@@ -74,6 +74,8 @@ export default async function ReportsPage() {
     // Müsaitlik vetosu (09-24): takvim doğrulanmadan gönderilmeyen cevaplar — kendi satırı.
     "availability_claim",
     "availability_unconfirmed",
+    // Anlama katmanının risk niyeti (09-24; yalnız `AI_INTENT_POLICY=enforce` iken yazılır) — kendi satırı.
+    "understanding_risk",
   ];
   const [riskRows, heldRows, heldResolved] = await Promise.all([
     prisma.riskEvent.groupBy({
@@ -324,6 +326,12 @@ export default async function ReportsPage() {
                     <span>Müsaitlik — takvim kontrolü bekledi</span>
                     <Badge tone="muted">{heldCount("availability_claim") + heldCount("availability_unconfirmed")}</Badge>
                   </div>
+                  {heldCount("understanding_risk") > 0 ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span>Hassas konu — size bırakıldı</span>
+                      <Badge tone="muted">{heldCount("understanding_risk")}</Badge>
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between px-3 py-2">
                     <span>Size bırakılanlardan yanıtladığınız</span>
                     <Badge tone={heldResolved > 0 ? "success" : "muted"}>{heldResolved}</Badge>

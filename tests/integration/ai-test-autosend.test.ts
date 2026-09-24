@@ -122,4 +122,46 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect(json.reply).not.toContain(AUTO_NOTE_TR); // manual/approval draft never carries the note
     expect(json.reply.endsWith("Sevgiler,\nMusa")).toBe(true);
   });
+
+  it("🚨 PARİTE: anlama katmanının risk niyeti önizlemeye ULAŞIR (`enforce` → gönderilmezdi; gölge → gönderilirdi)", async () => {
+    // Kelime ağının KAÇIRDIĞI insan talebi (ölçüldü). Katman ağ çağrısı sahte; kapı gerçek.
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  finish_reason: "stop",
+                  message: {
+                    content: JSON.stringify({
+                      language: "tr",
+                      requests: [{ intent: "human_request", query_tr: "ev sahibiyle görüşme", query_original: "ev sahibiyle görüşme" }],
+                      stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+                    }),
+                  },
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    try {
+      await seed();
+      const answer = { ...SAFE_WIFI, intent: "general", reply: "Size nasıl yardımcı olabilirim?" };
+      mockSuggest.mockResolvedValue(answer);
+      const shadow = await (await POST(req("Ev sahibiyle bizzat konuşabilir miyim?"), ctx)).json();
+      expect(shadow.wouldAutoSend).toBe(true);
+      vi.stubEnv("AI_INTENT_POLICY", "enforce");
+      const enforced = await (await POST(req("Ev sahibiyle bizzat konuşabilir miyim?"), ctx)).json();
+      expect(enforced.wouldAutoSend).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
 });

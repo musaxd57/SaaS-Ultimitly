@@ -10,6 +10,14 @@ import {
   type AvailabilityVetoReason,
 } from "@/lib/ai/availability-claims";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
+import {
+  evaluateIntentRisk,
+  intentRiskEvidenceOf,
+  understandingRiskOf,
+  type IntentPolicyMode,
+  type IntentRiskKind,
+  type IntentRiskReason,
+} from "@/lib/ai/semantic/intent-risk";
 import type {
   StayChangeDeclaration,
   StayGuardOutcome,
@@ -115,6 +123,10 @@ export interface AutoReplyGateContext {
   understandingFailed?: boolean;
   /** Ev sahibinin tanımlı teklif metni (istemin gösterdiği SANİTİZE biçim) — iddia taramasından muaf. */
   hostOfferText?: string | null;
+  /** Anlama katmanının en ağır risk niyeti (`semantic/intent-risk.ts`); verilmezse sinyal yok. */
+  understandingRisk?: IntentRiskKind | null;
+  /** Risk niyetlerinin kipi; verilmezse `AI_INTENT_POLICY` (varsayılan gölge). */
+  intentMode?: IntentPolicyMode;
 }
 
 /** Kapı kararı + ilk düşen kontrol (`null` = gönderilebilir). Ayrıntılar aşağıdaki yorumlarda. */
@@ -332,7 +344,12 @@ export function autoReplyGateFailure(
   // zaten yalnız sonlu number geçiriyor, ama kapı başka çağıranlardan da ham
   // nesne alır (QR yolu, testler) — `Infinity >= 0.75` true olurdu.
   if (!Number.isFinite(result.confidence)) return "blocked";
-  return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE ? null : "blocked";
+  if (result.confidence < AUTO_REPLY_MIN_CONFIDENCE) return "blocked";
+  // ── ANLAMA KATMANININ RİSK NİYETLERİ (09-24, `semantic/intent-risk.ts`) ────────
+  // Acil / şikâyet / iptal-iade / insan talebi: kelime ağının tanımadığı dolaylı dili (ölçüldü) ayrı bir model
+  // okur. SON kontrol: gerekçe `understanding_risk` yalnız başka HİÇBİR kontrol kapatmadığında görünür — gölge
+  // ölçümün sorusu tam olarak bu ("yalnız anlama katmanı neyi yakalardı?"). Varsayılan GÖLGE (karar vermez).
+  return evaluateIntentRisk(context?.understandingRisk, { modelIntent: result.intent, mode: context?.intentMode }).reason;
 }
 
 /**
@@ -340,7 +357,7 @@ export function autoReplyGateFailure(
  * kapıyı gerçekten kapattıysa müsaitlik kodudur — model arızası ya da başka bir veto müsaitlik satırına
  * sayılmaz (eskiden gerekçe kapıdan bağımsız hesaplanıyordu).
  */
-export type AutoReplyGateFailure = AvailabilityVetoReason | "blocked";
+export type AutoReplyGateFailure = AvailabilityVetoReason | IntentRiskReason | "blocked";
 
 /** Only safe, confident drafts may be auto-sent; everything else waits for a human.
  * Exported for the golden scenario suite — the gate is the product's core safety
@@ -1897,6 +1914,9 @@ export async function applyChannelAutoReply(
     .filter((m) => m.direction === "inbound" && m.id !== last.id)
     .map((m) => m.body);
 
+  // Anlama katmanı (katman kapalıysa `null`): retrieval'a gerekmediyse cevap üretimiyle paralel koştu; kapı
+  // onu burada bekler — konaklama sinyali ve risk niyeti AYNI sonuçtan.
+  const understood = await kbSel.understanding;
   const gateContext: AutoReplyGateContext = {
     // 🚨 AYNA AYNI SEÇİCİDEN BESLENİR (inceleme turu, 09-11 — ÖLÇÜLMÜŞ AÇIK).
     // Burası `messages.slice(-6)` idi ve istem de 6 tutuyordu: iki pencere
@@ -1916,10 +1936,11 @@ export async function applyChannelAutoReply(
     pendingGuestMessages,
     // Model yuvalarındaki saat KODDA bununla kıyaslanır (`ai/semantic/stay-change.ts`).
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
-    // Anlama katmanının konaklama sinyali (katman kapalıyken yok → politika eski davranışta). Retrieval'a
-    // gerekmediyse cevap üretimiyle paralel koştu; burada bekleniyor.
-    understanding: (await kbSel.understanding)?.stay ?? null,
+    // Anlama katmanının konaklama sinyali (katman kapalıyken yok → politika eski davranışta).
+    understanding: understood?.stay ?? null,
     understandingFailed: (await kbSel.understandingStatus) === "failed",
+    // Anlama katmanının risk niyeti (acil/şikâyet/iptal-iade/insan) — varsayılan gölge (`AI_INTENT_POLICY`).
+    understandingRisk: understandingRiskOf(understood),
     // İstemin gösterdiği AYNI sanitize teklif metni: host'un kendi sözü iddia sayılmaz.
     hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
   };
@@ -1986,6 +2007,11 @@ export async function applyChannelAutoReply(
       llm: result.llmUsage,
       hijackScreened: kbFetch.hijackScreened,
       stay: stayEvidenceOf(stayEval),
+      // Risk niyeti: kapıyla AYNI girdi; yalnız anlama katmanı gerçekten koştuysa yazılır (kanıt biçimi
+      // katman kapalıyken karakteri karakterine aynı kalır).
+      intentRisk: understood
+        ? intentRiskEvidenceOf(evaluateIntentRisk(gateContext.understandingRisk, { modelIntent: result.intent, mode: gateContext.intentMode }))
+        : undefined,
     }),
   };
 
@@ -2291,7 +2317,11 @@ export async function applyChannelAutoReply(
         // yerde işleniyor (damgalama, senkron koruması, raporlar); yeni kod o zinciri riske atardı.
         // Gerekçe kapının İLK düşen kontrolünden: müsaitlik kodu yalnız o kontrol kapattıysa (model arızası ya
         // da başka bir veto "Müsaitlik" satırına sayılmaz — inceleme 09-24).
-        reason: gateFailure === "availability_claim" || gateFailure === "availability_unconfirmed" ? gateFailure : "low_confidence_or_risky",
+        // Anlama katmanının risk niyeti (`understanding_risk`) de kendi kodunu yazar (yalnız `enforce` kipinde kapatır).
+        reason:
+          gateFailure === "availability_claim" || gateFailure === "availability_unconfirmed" || gateFailure === "understanding_risk"
+            ? gateFailure
+            : "low_confidence_or_risky",
         confidence: result.confidence,
         ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,

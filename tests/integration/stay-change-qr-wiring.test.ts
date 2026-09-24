@@ -260,4 +260,36 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     expect(f).not.toHaveBeenCalled();
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "");
   });
+
+  it("🚨 anlama katmanının RİSK NİYETİ QR kapısına ULAŞIR: gölge kipte bot cevaplar (kanıtta `ir`); enforce kipinde devir", async () => {
+    // Kelime ağının KAÇIRDIĞI acil durum (ölçüldü: `classifyFallback` + `detectRiskType` engellemiyor).
+    const MSG = "My daughter cut her hand badly, where is the nearest hospital?";
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal(
+      "fetch",
+      semanticFetch({
+        guest_message_understanding: {
+          language: "en",
+          requests: [{ intent: "emergency", query_tr: "en yakın hastane", query_original: "nearest hospital" }],
+          stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        },
+      }),
+    );
+    mockSuggest.mockResolvedValue({ ...DRAFT, intent: "general", reply: "The nearest hospital is 2 km away.", usedSources: [] });
+    const irOf = async () =>
+      (JSON.parse(String((await lastEvent()).ev.kbEvidenceJson)) as { ir?: Record<string, string> }).ir;
+    const { token } = await seed();
+    const shadow = await ask(token, MSG);
+    expect(shadow.escalated).toBe(false);
+    expect(await irOf()).toEqual({ v: "-", ev: "understanding_risk", k: "emergency" });
+
+    await resetDb();
+    vi.stubEnv("AI_INTENT_POLICY", "enforce");
+    const { token: t2 } = await seed();
+    const enforced = await ask(t2, MSG);
+    expect(enforced.escalated).toBe(true);
+    expect(enforced.reply).not.toContain("2 km");
+    expect((await lastEvent()).ev.reason).toBe("understanding_risk");
+    expect(await irOf()).toEqual({ v: "understanding_risk", ev: "understanding_risk", k: "emergency" });
+  });
 });

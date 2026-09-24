@@ -51,6 +51,8 @@ const REASONS = new Set([
   // Müsaitlik vetosu (09-24): doğrulanmamış takvim iddiası / ertelemeyen cevap. Kanal yolunda da
   // yazılır (düşük güven kovasından AYRI, raporda kendi satırı).
   "availability_claim", "availability_unconfirmed",
+  // Anlama katmanının risk niyeti (09-24, `semantic/intent-risk.ts`; yalnız `AI_INTENT_POLICY=enforce`).
+  "understanding_risk",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

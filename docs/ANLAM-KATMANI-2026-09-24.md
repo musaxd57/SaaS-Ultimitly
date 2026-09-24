@@ -150,6 +150,43 @@ alınan kalem), `un` (`ok/cached/failed`), `unMs` ve `ui` (niyet etiketleri) gir
 sorgulardır. Katman retrieval'da beklenmediyse (paralel koştu) `un/unMs/ui` kapıdan sonra
 `evidenceAfterUnderstanding()` ile eklenir. Sorgu **metni girmez**.
 
+### 2.3 Risk niyetleri kapıda (`semantic/intent-risk.ts`, `AI_INTENT_POLICY`)
+
+Anlama katmanı yalnız konaklama değişikliğini değil, mesajın **niyetini** de kapalı bir kümeye indirir. Bu
+niyetlerden dördü kapıya bağlıdır: acil durum > şikâyet > iptal/iade > insan talebi. Öncelik bu sıradadır ve
+kanıta tek kod yazılır.
+
+**Neden gerekli (ölçüldü, 09-24).** Aşağıdaki mesajlar kelime ağını ve risk etiketi dedektörünü GEÇİYOR.
+Bugün tek savunma cevap modelinin kendi etiketi:
+
+| Mesaj | Niyet |
+|---|---|
+| "My daughter cut her hand badly, where is the nearest hospital?" | acil |
+| "Kapının kilidi takılıyor, dışarıda kaldık." | acil |
+| "There are ants all over the kitchen counter." | şikâyet |
+| "Komşular gece boyunca bağırdı, hiç uyuyamadık." | şikâyet |
+| "I would like to get back the amount for the last two nights." | iade |
+| "Can I speak with the owner directly please?" · "Ev sahibiyle bizzat konuşabilir miyim?" | insan |
+
+**Kurallar:**
+
+* **Yalnız sıkılaştırır:** sinyal bir gönderimi engelleyebilir, hiçbir zaman sebep olamaz.
+* **Varsayılan gölge:** `AI_INTENT_POLICY=enforce` yoksa karar vermez. `enforce` kararı her koşuda
+  hesaplanır ve kanıta yazılır.
+* **Son kontrol:** kanal kapısında güven eşiğinden sonra, QR'da iki geçiş çıkışının (bilgi bandı ve tam güven)
+  önünde durur. Gerekçe `understanding_risk` yalnız başka hiçbir kontrol kapatmadığında görünür. Gölge
+  ölçümün sorusu tam olarak budur: "yalnız anlama katmanı neyi yakalardı?"
+* **İnsan talebi:** cevap modelinin kendi devir cevabı (`intent === "human_request"`) muaftır, kelime
+  ağındaki kuralla aynı. Acil, şikâyet ve iptal devir cevabında da muaf değildir.
+* **Katman kapalı ya da düştüyse:** sinyal yoktur ve davranış birebir eskisidir. Kanıtta `ir` alanı da yazılmaz.
+* **Parite:** kanal kapısı, QR kapısı ve Ayarlar önizlemesi aynı yüklemi kullanır. Gerekçe kodu RiskEvent
+  kümesindedir. Raporlarda "Hassas konu — size bırakıldı" satırı yalnız sayı sıfırdan büyükse görünür.
+* **Kanıt** `kbEvidenceJson.ir = { v, ev, k }`: uygulanan karar, `enforce` kararı ve niyet kodu. Yalnız
+  kapalı küme kodlar taşınır, metin taşınmaz.
+* **Açık karar (kurucu onayı gerekir):** model hassas bir sinyal verdiğinde kanal kapısı konuşmayı "Sorunlu"
+  yapar ve ev sahibine e-posta atar. Anlama katmanının sinyali `enforce` kipinde yalnız taslakta tutar,
+  e-posta tetiklemez. Yeni bir e-posta tetiği, e-posta akışı değişikliğidir ve onay ister.
+
 ## 3. Sorgu yeniden yazma / çoklu sorgu (kurucunun Gemini örneği)
 
 "Giriş saati kaçtı bir de evcil hayvan getirebiliyor muyduk?" → anlama katmanı iki istek üretir:
@@ -227,6 +264,9 @@ Kazanımlar (pinli: `tests/unit/understanding.test.ts`):
 4. `AI_STAY_GUARD_ENABLED=1` açılır: bekçi zorlar, gölgede değildir.
 5. 1–2 hafta `RiskEvent.kbEvidenceJson.sc` izlenir: `v` ile `ev` farkı ve gereksiz taslak oranı.
 6. `AI_STAY_POLICY=enforce` açılır.
+7. Aynı gölge dönemde `kbEvidenceJson.ir` de izlenir: `ev = understanding_risk` olan kayıtlar gerçekten hassas
+   mıydı (ev sahibinin sonraki cevabı ve konuşma durumu)? Yanlış alarm oranı kabul edilebilirse
+   `AI_INTENT_POLICY=enforce` açılır.
 
 Hepsi tek env ile geri alınır. Migration yok.
 

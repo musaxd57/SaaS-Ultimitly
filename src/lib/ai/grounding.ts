@@ -1,5 +1,6 @@
 import { CLAIM_CLASSES, type ClaimAudit } from "./claim-support";
 import { UNDERSTANDING_INTENTS } from "./semantic/understanding-schema";
+import { INTENT_RISK_KINDS, INTENT_RISK_REASON } from "./semantic/intent-risk";
 import type { LlmUsage } from "./types";
 // ---------------------------------------------------------------------------
 // TEMELLENDİRME SINIFLANDIRMASI (A2, 09-08) — OKUMA ZAMANINDA, HÜKÜM DEĞİL.
@@ -245,6 +246,20 @@ export interface KbEvidenceInput {
    * `enforce` kipinin kararı (gölge) ve katman sinyalleri — yalnız kapalı-küme kodlar.
    */
   stay?: StayEvidence;
+  /**
+   * Anlama katmanının risk niyeti (09-24, `semantic/intent-risk.ts`): uygulanan karar, `enforce` kipinin kararı
+   * (gölge) ve sinyalin kendisi — yalnız kapalı-küme kodlar. Yalnız katman gerçekten koştuysa verilir.
+   */
+  intentRisk?: { v: string; ev: string; k: string };
+}
+
+const IR_REASONS: ReadonlySet<string> = new Set(["-", INTENT_RISK_REASON]);
+const IR_KINDS: ReadonlySet<string> = new Set(["-", ...INTENT_RISK_KINDS]);
+
+/** `ir` kanıt alanını yeniden kurar: tanınmayan her değer alanı düşürür (serbest metin sızamaz). */
+function cleanIntentRisk(x: KbEvidenceInput["intentRisk"]): { v: string; ev: string; k: string } | undefined {
+  if (!x || !IR_REASONS.has(x.v) || !IR_REASONS.has(x.ev) || !IR_KINDS.has(x.k)) return undefined;
+  return { v: x.v, ev: x.ev, k: x.k };
 }
 
 /** `sc` kanıt alanı — hepsi kapalı küme; metin/PII YOK. */
@@ -368,8 +383,9 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
   // Yalnız ölçüldüyse yazılır: kanıt biçimi ölçülmeyen yolda karakteri karakterine aynı kalır.
   const hj = Number.isInteger(input.hijackScreened) && (input.hijackScreened as number) > 0 ? (input.hijackScreened as number) : undefined;
   const sc = cleanStay(input.stay);
-  const extra = { ...(claims ? { claims } : {}), ...(llm ? { llm } : {}), ...(hj ? { hj } : {}), ...(sc ? { sc } : {}) };
-  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc) return null;
+  const ir = cleanIntentRisk(input.intentRisk);
+  const extra = { ...(claims ? { claims } : {}), ...(llm ? { llm } : {}), ...(hj ? { hj } : {}), ...(sc ? { sc } : {}), ...(ir ? { ir } : {}) };
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir) return null;
   const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa
