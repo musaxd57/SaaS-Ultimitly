@@ -220,9 +220,13 @@ Bugün tek savunma cevap modelinin kendi etiketi:
   kümesindedir. Raporlarda "Hassas konu — size bırakıldı" satırı yalnız sayı sıfırdan büyükse görünür.
 * **Kanıt** `kbEvidenceJson.ir = { v, ev, k }`: uygulanan karar, `enforce` kararı ve niyet kodu. Yalnız
   kapalı küme kodlar taşınır, metin taşınmaz.
-* **Açık karar (kurucu onayı gerekir):** model hassas bir sinyal verdiğinde kanal kapısı konuşmayı "Sorunlu"
-  yapar ve ev sahibine e-posta atar. Anlama katmanının sinyali `enforce` kipinde yalnız taslakta tutar,
-  e-posta tetiklemez. Yeni bir e-posta tetiği, e-posta akışı değişikliğidir ve onay ister.
+* **E-posta (kurucu "sen seç", 09-24 → EVET, yalnız `enforce`):** kanal kapısını YALNIZ anlama katmanının risk
+  niyeti kapattıysa, model kaynaklı hassas sinyalle aynı acil yükseltme yolu koşar: konuşma "Sorunlu" + acil,
+  ev sahibine e-posta (atomik claim: aynı konuşmaya ikinci e-posta yok). Gerekçe: sinyalin anlamı zaten
+  "insana"; sessiz taslak, dolaylı dildeki acil durum ve şikâyetin host'a GEÇ ulaşması demekti. Rozet
+  (`lastRiskType`) ve karar kaydı niyetin etiketini taşır (acil → `safety_emergency`, şikâyet → `complaint`,
+  iptal-iade → `money_refund`, insan → `human_request`); karar kaydının gerekçesi `understanding_risk` kalır.
+  Gölge kipte kapı kapanmaz, e-posta da gitmez. QR'da devir zaten host'a bildirilir.
 
 ## 3. Sorgu yeniden yazma / çoklu sorgu (kurucunun Gemini örneği)
 

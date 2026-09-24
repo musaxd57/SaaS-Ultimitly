@@ -25,11 +25,13 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
+import { emailService } from "@/lib/email";
 import { applyChannelAutoReply } from "@/lib/automation";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
+const mockMail = vi.mocked(emailService.sendReporting);
 
 /** Kelime ağının İSTEK saymadığı bir erken giriş isteği (kör bataryadan). */
 const ASK = "Could we get into the flat at 11?";
@@ -552,17 +554,48 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     await applyChannelAutoReply(id);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(await irOf(id)).toEqual({ v: "-", ev: "understanding_risk", k: "complaint_issue" });
+    expect(mockMail).not.toHaveBeenCalled(); // gölge kip: kapı kapanmadı → e-posta YOK
 
     await resetDb();
     vi.stubEnv("AI_INTENT_POLICY", "enforce");
     mockSend.mockClear();
     const id2 = await seed({ messages: ANTS });
+    await prisma.organization.updateMany({ data: { alertEmail: "host@example.com" } });
     await applyChannelAutoReply(id2);
     expect(mockSend).not.toHaveBeenCalled();
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id2, surface: "auto_reply" } });
     expect(ev.finalDecision).toBe("human_review");
     expect(ev.reason).toBe("understanding_risk");
+    expect(ev.riskType).toBe("complaint"); // cevap modeli ve kelime ağı etiket vermedi → niyetin etiketi
     expect(await irOf(id2)).toEqual({ v: "understanding_risk", ev: "understanding_risk", k: "complaint_issue" });
+    // 🚨 Kurucu "sen seç" (09-24) → EVET: yalnız anlama katmanının gördüğü şikâyet de acil yükseltmeye gider.
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: id2 } });
+    expect(conv).toMatchObject({ status: "problem", priority: "urgent", skippedReason: "escalated_to_human", lastRiskType: "complaint" });
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(mockMail.mock.calls[0][0]).toBe("host@example.com");
+  });
+
+  it("acil durum niyeti (enforce): rozet 'safety_emergency'; ikinci geçiş aynı konuşmaya İKİNCİ e-posta atmaz (atomik claim)", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("AI_INTENT_POLICY", "enforce");
+    vi.stubGlobal(
+      "fetch",
+      semanticFetch({
+        guest_message_understanding: {
+          language: "en",
+          requests: [{ intent: "emergency", query_tr: "en yakın hastane", query_original: "nearest hospital" }],
+          stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        },
+      }),
+    );
+    mockSuggest.mockResolvedValue({ ...THANKS, reply: "The nearest hospital is 2 km away." });
+    const id = await seed({ messages: [{ direction: "inbound", body: "My daughter cut her hand badly, where is the nearest hospital?" }] });
+    await prisma.organization.updateMany({ data: { alertEmail: "host@example.com" } });
+    await applyChannelAutoReply(id);
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id } })).lastRiskType).toBe("safety_emergency");
+    expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
   it("aşırı-uygulama kontrolü: katman risk niyeti GÖRMEDİYSE `enforce` kipinde de gider (kanıtta `-`)", async () => {

@@ -12,7 +12,9 @@ import {
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
   evaluateIntentRisk,
+  INTENT_RISK_REASON,
   intentRiskEvidenceOf,
+  riskTypeOfIntentRisk,
   understandingRiskOf,
   type IntentPolicyMode,
   type IntentRiskKind,
@@ -2097,11 +2099,20 @@ export async function applyChannelAutoReply(
     // (human_request/human_request) failed the gate anyway, the guest asked for
     // a human and got NO reply — the host must know. Atomic status claim →
     // can't double-email.
+    //
+    // ANLAMA KATMANININ RİSK NİYETİ (09-24, kurucu "sen seç" → EVET, yalnız `AI_INTENT_POLICY=enforce`): kapıyı
+    // YALNIZ anlama katmanı kapattıysa (acil / şikâyet / iptal-iade / insan talebi; kelime ağı ve cevap modeli
+    // görmedi) aynı acil yükseltme yolu koşar — problem + acil + host'a e-posta. Gerekçe: sinyal zaten "insana"
+    // demek; sessiz taslak, tam da bu sınıfın (dolaylı dilde acil durum/şikâyet) host'a GEÇ ulaşması demekti.
+    // Gölge kipte kapı kapanmaz → e-posta da YOK. Rozet ve karar kaydı niyetin kendi etiketini taşır.
+    const nluSensitive = gateFailure === INTENT_RISK_REASON;
+    const nluRiskType = nluSensitive ? riskTypeOfIntentRisk(gateContext.understandingRisk) : null;
     const modelSensitive =
       result.source === "openai" &&
       (NEVER_AUTO_REPLY_INTENTS.has(result.intent) ||
         (result.riskLevel !== "none" && result.riskLevel !== "low") ||
-        (result.riskType != null && HIGH_STAKES_RISK_TYPES.has(result.riskType)));
+        (result.riskType != null && HIGH_STAKES_RISK_TYPES.has(result.riskType)) ||
+        nluSensitive);
     if (!options.dryRun && modelSensitive) {
       try {
         const claimed = await prisma.conversation.updateMany({
@@ -2111,7 +2122,7 @@ export async function applyChannelAutoReply(
             priority: "urgent",
             skippedReason: "escalated_to_human",
             lastRiskLevel: result.riskLevel,
-            lastRiskType: result.riskType ?? detectRiskType(last.body),
+            lastRiskType: result.riskType ?? detectRiskType(last.body) ?? nluRiskType,
             // m48 — YOL 1/3: MODEL yolu. Modelin ZATEN ürettiği analiz burada
             // saklanıyor; yeni bir çağrı YOK. Altı alan da AÇIKÇA yazılır
             // (`buildTriageData` sözleşmesi): eksik bırakılan alan `undefined`
@@ -2278,8 +2289,9 @@ export async function applyChannelAutoReply(
         triggerId: last.id,
         finalDecision: "human_review",
         riskLevel: result.riskLevel,
-        riskType: result.riskType ?? detectRiskType(last.body),
-        reason: "escalated_to_human",
+        riskType: result.riskType ?? detectRiskType(last.body) ?? nluRiskType,
+        // Yükseltmeyi YALNIZ anlama katmanı tetiklediyse gerekçe onun kodu (raporda kendi satırı kalsın).
+        reason: nluSensitive ? INTENT_RISK_REASON : "escalated_to_human",
         confidence: result.confidence,
         ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,

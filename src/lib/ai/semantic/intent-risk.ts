@@ -72,6 +72,26 @@ export function evaluateIntentRisk(
   return { reason: mode === "enforce" ? enforceReason : null, enforceReason, kind: k };
 }
 
+/**
+ * Risk niyeti → konuşmanın risk etiketi (`RiskEvent.riskType` / `Conversation.lastRiskType` kapalı kümesi,
+ * `risk-events.ts` RISK_TYPES; parite pinli). Yalnız cevap modeli ve kelime ağı etiket VERMEDİĞİNDE kullanılır —
+ * host'a giden acil yükseltmenin rozeti boş kalmasın. İptal-iade tek niyettir; para riski öne çıkar.
+ */
+export function riskTypeOfIntentRisk(kind: IntentRiskKind | null | undefined): string | null {
+  switch (kind) {
+    case "emergency":
+      return "safety_emergency";
+    case "complaint_issue":
+      return "complaint";
+    case "cancellation_refund":
+      return "money_refund";
+    case "human_request":
+      return "human_request";
+    default:
+      return null;
+  }
+}
+
 /** Kanıt özeti (`kbEvidenceJson.ir`): yalnız kapalı-küme kodlar, metin/PII YOK. */
 export function intentRiskEvidenceOf(e: IntentRiskEvaluation): { v: string; ev: string; k: string } {
   return { v: e.reason ?? "-", ev: e.enforceReason ?? "-", k: e.kind ?? "-" };

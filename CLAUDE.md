@@ -327,8 +327,9 @@ Bu dosyaya token/anahtar/parola yazma.
   satırları; `dev` görüldü) + kurucu onayı; sıra belge §5. 🚨 **Risk niyetleri** (acil > şikâyet > iptal-iade >
   insan; `semantic/intent-risk.ts`): kelime ağının kaçırdığı dolaylı dil ÖLÇÜLDÜ; kapının SON kontrolü (kanal:
   güvenden sonra; QR: iki geçiş çıkışından önce), yalnız sıkılaştırır, `AI_INTENT_POLICY=enforce` olmadan karar
-  YOK (kanıt `ir`); modelin kendi devir cevabı insan talebinde muaf; enforce'ta e-posta TETİKLEMEZ (yeni e-posta
-  tetiği = onay); kanal + QR + Ayarlar önizlemesi aynı yüklem, gerekçe `understanding_risk` REASONS'ta.
+  YOK (kanıt `ir`); modelin kendi devir cevabı insan talebinde muaf; enforce'ta kanalı YALNIZ bu niyet kapattıysa acil yükseltme
+  (Sorunlu + acil + host e-postası, atomik claim; kurucu "sen seç" 09-24 → evet), rozet niyetin etiketi; kanal + QR +
+  Ayarlar önizlemesi aynı yüklem, gerekçe `understanding_risk` REASONS'ta.
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).

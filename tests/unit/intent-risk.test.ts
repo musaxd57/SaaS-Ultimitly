@@ -5,12 +5,13 @@ import {
   evaluateIntentRisk,
   intentPolicyMode,
   intentRiskEvidenceOf,
+  riskTypeOfIntentRisk,
   understandingRiskOf,
 } from "@/lib/ai/semantic/intent-risk";
 import type { MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { autoReplyGateFailure } from "@/lib/automation";
 import { evaluateEscalation, ESCALATION_REASONS } from "@/lib/guest-chat-gate";
-import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
+import { ESCALATION_REASON_CODES, RISK_TYPES } from "@/lib/risk-events";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 import { classifyFallback, detectRiskType } from "@/lib/ai/fallback";
 
@@ -54,6 +55,13 @@ describe("saf politika", () => {
     expect(understandingRiskOf(null)).toBeNull();
     expect(understandingRiskOf(undefined)).toBeNull();
     expect(INTENT_RISK_KINDS).toEqual(["emergency", "complaint_issue", "cancellation_refund", "human_request"]);
+  });
+
+  it("acil yükseltme rozeti: her risk niyeti kapalı RISK_TYPES kümesinden bir etikete düşer (yoksa null)", () => {
+    expect(INTENT_RISK_KINDS.map((k) => riskTypeOfIntentRisk(k))).toEqual(["safety_emergency", "complaint", "money_refund", "human_request"]);
+    for (const k of INTENT_RISK_KINDS) expect(RISK_TYPES.has(String(riskTypeOfIntentRisk(k))), k).toBe(true);
+    expect(riskTypeOfIntentRisk(null)).toBeNull();
+    expect(riskTypeOfIntentRisk(undefined)).toBeNull();
   });
 
   it("🚨 varsayılan GÖLGE: karar yok ama `enforce` kararı HER ZAMAN hesaplanır", () => {
