@@ -74,7 +74,7 @@ export default async function ReportsPage() {
     // Müsaitlik vetosu (09-24): takvim doğrulanmadan gönderilmeyen cevaplar — kendi satırı.
     "availability_claim",
     "availability_unconfirmed",
-    // Anlama katmanının risk niyeti (09-24; yalnız `AI_INTENT_POLICY=enforce` iken yazılır) — kendi satırı.
+    // Anlama katmanının risk niyeti (09-24; yalnız anlama katmanı açıkken yazılır) — kendi satırı.
     "understanding_risk",
   ];
   const [riskRows, heldRows, heldResolved] = await Promise.all([

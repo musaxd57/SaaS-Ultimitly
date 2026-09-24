@@ -286,8 +286,10 @@ buradan okunur). Üç katman aynı etiketlere karşı: deterministik yedek (anah
 (`RUN_REAL_EVAL=1` + gerçek anahtar; bulutta `NODE_USE_ENV_PROXY=1`); tek dosya için
 `npm run eval -- tests/eval/stay-change.eval.test.ts`. `EVAL_STAY_LIMIT=N` örnekler. Tek çağrı düşerse rapor
 GEÇERSİZ (`docs/olcum/stay-change-eval-<tarih>.md` + `.json`). Açma sırası ve eşik yorumu:
-`docs/ANLAM-KATMANI-2026-09-24.md` §5 — `AI_UNDERSTANDING_ENABLED` → `AI_STAY_GUARD_ENABLED` → (1–2 hafta
-`sc.v`/`sc.ev` gölge izleme) → `AI_STAY_POLICY=enforce`.
+`docs/ANLAM-KATMANI-2026-09-24.md` §5 — mühürlü final seti → `AI_UNDERSTANDING_ENABLED` → `AI_STAY_GUARD_ENABLED`
+→ 1–2 hafta gereksiz taslak oranı izleme (`sc`, `ir`). Gölge kip YOK (09-24 birleşim değişmezi): katman açıldığı
+an karar verir; eski `AI_STAY_POLICY` / `AI_INTENT_POLICY` anahtarları okunmaz. Raporda "yalnız konu etiketiyle
+tutulan" bilgi soruları AYRI satırdır (kurucu: gereksiz insan incelemesinin oranına özellikle bakılır).
 
 ## Ne zaman gerekir
 - `QR_INFORMATIONAL_BAND_ENABLED` bayrağı **bu eval bitmeden AÇILMAZ** (kurucu kararı).

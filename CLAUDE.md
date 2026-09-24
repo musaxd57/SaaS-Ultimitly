@@ -303,11 +303,13 @@ Bu dosyaya token/anahtar/parola yazma.
   `stay-change-backstop-floor.test.ts`) · cevap modelinin şema beyanı (`stayChangeAsked`+`replyStance`; iddia duruşu
   varsayılan ZORLANIR) · bağımsız bekçi (`semantic/guard.ts`, `AI_STAY_GUARD_ENABLED`) · anlama katmanı
   (`semantic/understand.ts`, `AI_UNDERSTANDING_ENABLED`). Model saati ÇIKARIR, kıyas KODDA (`slotTimesShifted`).
-  🚨 **BELİRSİZLİK GÜVENLİ DEĞİLDİR (kurucu değişmezi 09-24):** HASSAS İSTEK (herhangi bir katman; cevap modelinin
-  niyet etiketi ZAYIF sinyal: istem onu konu sorularına da verir) + bekçi YOK (bayrak kapalı = düşmüş = aynı) ya da
-  beyan YOK/tanınmıyor → otomatik gönderim YOK, her kipte, devirde de. Bekçi koşunca GÜÇLÜ sinyaller (beyan, anlama
-  katmanı, bekçi, kelime ağı) her kipte iki model ertelemesi ister, DEVİR cevabı dahil; `AI_STAY_POLICY` yalnız
-  etiketin tek başına tutmasını yönetir. Tanınmayan duruş her zaman iddia. Kelime ağı yalnız ENGELLER:
+  🚨 **BELİRSİZLİK GÜVENLİ DEĞİLDİR (kurucu değişmezi 09-24):** HASSAS İSTEK + bekçi YOK (bayrak kapalı = düşmüş =
+  aynı) ya da beyan YOK/tanınmıyor → otomatik gönderim YOK, devirde de. 🚨 **BİRLEŞİM DEĞİŞMEZİ (09-24 üçüncü tur):**
+  hassas istek = kelime ağı ∨ beyan (`asked`/ret) ∨ cevap modelinin niyet etiketi ∨ anlama katmanı ∨ bekçi; HİÇBİR
+  katmanın "istek yok"u başkasının isteğini SİLEMEZ; hassas istek ancak İKİ model ertelemesiyle (güvenilir `defers`
+  beyanı + koşmuş bekçi) gider. Gölge kip YOK (`AI_STAY_POLICY` / `AI_INTENT_POLICY` okunmaz; geri almak = katmanın
+  kendi bayrağı). Bedeli bilinçli: konu etiketi `early_checkin` olan bilgi sorusu da taslağa düşer ("yanlış otomatik
+  izin çok kötü, gereksiz inceleme kabul edilebilir") — oranı eval'ın BİRLEŞİM tablosu + canlı `sc` ölçer. Tanınmayan duruş her zaman iddia. Kelime ağı yalnız ENGELLER:
   sessizliği de erteleme cümlesi de izin DEĞİL (erteleme = YALNIZ güvenilir `defers` beyanı + koşmuş bekçi). Hassas
   istek yoksa (bilgi sorusu) bekçisiz de gider — her arızada her mesaj durmaz. Yedek (şablon) cevapta "duruş
   bilinmiyor" kuralı yok. "kaydedildi" tek başına ve "ev sahibi onaylar" (kestirim) erteleme DEĞİL; erteleme
@@ -322,14 +324,13 @@ Bu dosyaya token/anahtar/parola yazma.
   katmana giden metinde yalnız GEÇERLİ tarih/saat dizisi korunur (`semantic/redact.ts`; noktalı/tireli telefon
   parçalanıp kaçmasın); ayraç çalışması `[<>]{2,}` silinir; 400 desteklenmeyen parametre/şema = kalıcı arıza
   sınıfı `request` (yalnız `semantic` kanalı); anlama katmanı düşerse kanıtta `u: failed`; semantik zaman aşımı
-  tavanı 20 sn (QR `qr-in:` 120 sn TTL). Modelden türeyen istek sinyali `AI_STAY_POLICY=enforce`
-  ile karar verir (varsayılan gölge; `kbEvidenceJson.sc.ev` her koşuda ölçer). Bekçi düşerse modelin konaklama
-  sinyali varsa tutulur. Tek ağ kapısı `semantic/structured-call.ts` (Structured Outputs strict; alarm `semantic`
+  tavanı 20 sn (QR `qr-in:` 120 sn TTL). Kanıtta `sc.ev` artık `sc.v`ye eşit (şema kararlılığı). Bekçi düşerse
+  modelin konaklama sinyali varsa tutulur. Tek ağ kapısı `semantic/structured-call.ts` (Structured Outputs strict; alarm `semantic`
   kanalı), yapılandırma tek kaynak `semantic/config.ts`. Açma = eval (`evals/stay-change.json` YALNIZ `holdout`
   satırları; `dev` görüldü) + kurucu onayı; sıra belge §5. 🚨 **Risk niyetleri** (acil > şikâyet > iptal-iade >
   insan; `semantic/intent-risk.ts`): kelime ağının kaçırdığı dolaylı dil ÖLÇÜLDÜ; kapının SON kontrolü (kanal:
-  güvenden sonra; QR: iki geçiş çıkışından önce), yalnız sıkılaştırır, `AI_INTENT_POLICY=enforce` olmadan karar
-  YOK (kanıt `ir`); modelin kendi devir cevabı insan talebinde muaf; enforce'ta kanalı YALNIZ bu niyet kapattıysa acil yükseltme
+  güvenden sonra; QR: iki geçiş çıkışından önce), yalnız sıkılaştırır, katman koştuysa HER ZAMAN karar verir (birleşim
+  değişmezi; kanıt `ir`); modelin kendi devir cevabı insan talebinde muaf; kanalı YALNIZ bu niyet kapattıysa acil yükseltme
   (Sorunlu + acil + host e-postası, atomik claim; kurucu "sen seç" 09-24 → evet), rozet niyetin etiketi; kanal + QR +
   Ayarlar önizlemesi aynı yüklem, gerekçe `understanding_risk` REASONS'ta.
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
@@ -803,7 +804,9 @@ Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused
 mesajlarda yüksek-risk taraması · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
-## 🚨 ÇALIŞMA BİÇİMİ DEĞİŞTİ (09-19): RAILWAY DURAKLATILDI, GELİŞTİRME LOCAL'DE
+## 🚨 ÇALIŞMA BİÇİMİ (09-19 → 09-24 güncel): RAILWAY AYIN 1'İNE KADAR AKTİF, GELİŞTİRME LOCAL'DE
+🚨 **09-24 kurucu: "Railway ayın 1'ine kadar aktif"** → dal push'u = CI yeşilse CANLI deploy (tarihli "duraklatıldı,
+canlıya bir şey gitmedi" varsayımı YANLIŞTI). Aşağıdaki 09-19 duraklatma notu ayın 1'inden sonrası için geçerlidir.
 Kurucu Railway **ücretli planından çıktı** (servis SİLİNMEDİ, proje bitmeye yakın geri açılacak).
 Duraklatma öncesi tam yedek ALINDI ve **GERİ YÜKLENEBİLİRLİĞİ KANITLANDI** (aşağıda).
 Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`.
@@ -904,8 +907,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 ## Durum
 **09-24 BELİRSİZLİK TURU (kurucu + dış inceleme):** hassas konaklama isteği + bekçi yok/düştü ya da beyan yok/
 tanınmıyor/niyet etiketiyle çelişiyor → otomatik gönderim YOK (bekçi açılana kadar erken giriş/geç çıkış/uzatma
-isteklerine otomatik cevap gitmez, taslak host'a; bilgi soruları gider). Anlama katmanının risk niyeti enforce'ta
-acil e-posta. Mutasyon koşucusu worktree'de (20 mutant, 18 öldü, 1 ölü kod silindi, 1 eşdeğer). Mühürlü final eval
+isteklerine otomatik cevap gitmez, taslak host'a; bilgi soruları gider). Anlama katmanının risk niyeti acil e-posta.
+Üçüncü tur: BİRLEŞİM değişmezi (hiçbir katmanın "yok"u başkasının sinyalini silemez; iki gölge kip kaldırıldı; eval'a
+birleşim yanlış alarm tablosu). Mutasyon koşucusu worktree'de (20 mutant, 18 öldü, 1 ölü kod silindi, 1 eşdeğer). Mühürlü final eval
 seti. Deneme bandı: Ayarlar içinde sekme geçişi düzeldi, bant 4 saat kapatılabilir. Tasarım: çoklu istek + bilgi/
 izin + tarih yuvaları + temizlikçi "hazır" tiki (`docs/TASARIM-2026-09-24-coklu-istek-ve-temizlik-hazir.md`).
 

@@ -10,7 +10,7 @@
  * KULLANIM (yalnız ekler, hiçbir şeyi daraltmaz ya da yetkilendirmez):
  *  · retrieval: sorgular deterministik alt sorgulara BİRLEŞİM olarak eklenir (Türkçe sorgu, Türkçe
  *    bilgi tabanında Almanca soruyu da buldurur; "Peki ya köpek?" geçmişle çözülür);
- *  · konaklama politikası: `stay` istek sinyali (`AI_STAY_POLICY=enforce` ile karar verir);
+ *  · konaklama politikası: `stay` istek sinyali (birleşimin bir katmanı; her zaman karar verir);
  *  · kanıt: niyet etiketleri (kapalı küme, PII yok).
  * ------------------------------------------------------------------------- */
 

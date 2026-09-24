@@ -27,8 +27,8 @@ import { writeSidecar } from "./sidecar";
 // rapor "MODEL KOŞMADI" der. EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ: tek bir çağrı düşerse rapor GEÇERSİZ.
 // Maliyet (tam koşu, iki bölüm): ~1.300 küçük çağrı; `EVAL_STAY_LIMIT` ile örneklenebilir.
 // Açma kararı (kurucu): holdout'ta cevap sınıfları ve istekler için isabet + yanlış alarm oranı
-// raporlanır; `AI_STAY_GUARD_ENABLED` / `AI_UNDERSTANDING_ENABLED` / `AI_STAY_POLICY=enforce` bu
-// rapora bakılarak açılır (`docs/EVAL-CALISTIRMA.md`).
+// raporlanır; `AI_STAY_GUARD_ENABLED` / `AI_UNDERSTANDING_ENABLED` bu rapora bakılarak açılır (gölge kip yok —
+// açılan katman doğrudan karar verir; `docs/EVAL-CALISTIRMA.md`).
 // ---------------------------------------------------------------------------
 
 interface ReqItem {
@@ -141,6 +141,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     async () => {
       const guardReq = new Map<string, Tally>();
       const nluReq = new Map<string, Tally>();
+      const unionReq = new Map<string, Tally>();
       const guardRep = new Map<string, Tally>();
       // Örnek sınırı BÖLÜM BAŞINA: dev önce geldiği için düz `slice` holdout'u hiç ölçmezdi (inceleme 09-24).
       const perSplit = <T extends { split: string }>(xs: T[]) =>
@@ -151,11 +152,14 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       await pool(reqs, async (r) => {
         const stayTimes = { checkIn: r.checkIn, checkOut: r.checkOut };
         const truth = r.kind !== "none";
+        let guardSaid: boolean | null = null;
+        let nluSaid: boolean | null = null;
         const g = await runStayChangeGuard({ guestMessages: [r.text], reply: "Thank you for your message.", stayTimes });
         if (g?.status !== "ok") failures++;
         else {
           const v: StayGuardVerdict = g.verdict;
           const said = v.guestRequestsChange || slotTimesShifted({ checkinTime: v.requestedCheckinTime, checkoutTime: v.requestedCheckoutTime }, stayTimes);
+          guardSaid = said;
           add(guardReq, `${r.split}|${truth ? "istek" : "none"}|${r.lang}`, said === truth);
           rows.push({ layer: "guard-req", id: r.id, truth, said });
         }
@@ -163,8 +167,16 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
         if (u.status !== "ok") failures++;
         else {
           const said = u.value.stay.requested || slotTimesShifted(u.value.stay, stayTimes);
+          nluSaid = said;
           add(nluReq, `${r.split}|${truth ? "istek" : "none"}|${r.lang}`, said === truth);
           rows.push({ layer: "nlu-req", id: r.id, truth, said, intents: u.value.requests.map((x) => x.intent) });
+        }
+        // BİRLEŞİM (09-24 değişmezi): hiçbir katmanın "istek yok"u başka bir katmanın isteğini silemez → ürünün
+        // tutuşu kelime ağı ∨ bekçi ∨ anlama. Yalnız iki model de koştuysa sayılır (düşen çağrı zaten GEÇERSİZ).
+        if (guardSaid !== null && nluSaid !== null) {
+          const said = detectAvailabilityRequest(r.text) !== null || guardSaid || nluSaid;
+          add(unionReq, `${r.split}|${truth ? "istek (doğru = tutuldu)" : "none (doğru = gitti; yanlış = GEREKSİZ İNCELEME)"}`, said === truth);
+          rows.push({ layer: "union-req", id: r.id, truth, said });
         }
       });
 
@@ -192,6 +204,13 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       };
       table("Bekçi — misafir isteği (+ KODDA saat kıyası)", guardReq);
       table("Anlama katmanı — misafir isteği (+ KODDA saat kıyası)", nluReq);
+      table("BİRLEŞİM — kelime ağı ∨ bekçi ∨ anlama (ürünün tutuşu)", unionReq);
+      lines.push(
+        "`none` satırında yanlış kalan pay = gereksiz insan incelemesi (kurucu: özellikle bakılacak oran). ALT SINIRDIR:",
+        "cevap modelinin beyanı ve konu etiketi (`ri`) bu harness'ta koşmaz; canlıda `sc` kanıtıyla ayrıca ölçülür",
+        "(`docs/ANLAM-KATMANI-2026-09-24.md` §2.2).",
+        "",
+      );
       table("Bekçi — cevap duruşu (claim/grant durmalı; erteleme/teklif/tarafsız gitmeli)", guardRep);
     },
     3_600_000,

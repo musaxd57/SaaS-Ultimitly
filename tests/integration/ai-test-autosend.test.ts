@@ -123,10 +123,9 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect(json.reply.endsWith("Sevgiler,\nMusa")).toBe(true);
   });
 
-  it("🚨 PARİTE: anlama katmanının risk niyeti önizlemeye ULAŞIR (`enforce` → gönderilmezdi; gölge → gönderilirdi)", async () => {
+  it("🚨 PARİTE: anlama katmanının risk niyeti önizlemeye ULAŞIR (katman açık → gönderilmezdi; eski `AI_INTENT_POLICY` okunmaz)", async () => {
     // Kelime ağının KAÇIRDIĞI insan talebi (ölçüldü). Katman ağ çağrısı sahte; kapı gerçek.
     vi.stubEnv("OPENAI_API_KEY", "test-key");
-    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -154,11 +153,14 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
       await seed();
       const answer = { ...SAFE_WIFI, intent: "general", reply: "Size nasıl yardımcı olabilirim?" };
       mockSuggest.mockResolvedValue(answer);
-      const shadow = await (await POST(req("Ev sahibiyle bizzat konuşabilir miyim?"), ctx)).json();
-      expect(shadow.wouldAutoSend).toBe(true);
-      vi.stubEnv("AI_INTENT_POLICY", "enforce");
-      const enforced = await (await POST(req("Ev sahibiyle bizzat konuşabilir miyim?"), ctx)).json();
-      expect(enforced.wouldAutoSend).toBe(false);
+      // KONTROL: katman kapalı → kelime ağı bu insan talebini görmüyor, gönderilirdi.
+      const off = await (await POST(req("Ev sahibiyle bizzat konuşabilir miyim?"), ctx)).json();
+      expect(off.wouldAutoSend).toBe(true);
+      // Katman açık: risk niyeti silinemez (birleşim değişmezi) — eski gölge anahtarı yazılı olsa da.
+      vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+      vi.stubEnv("AI_INTENT_POLICY", "shadow");
+      const on = await (await POST(req("Ev sahibiyle bizzat konuşabilir miyim?"), ctx)).json();
+      expect(on.wouldAutoSend).toBe(false);
     } finally {
       vi.unstubAllGlobals();
       vi.unstubAllEnvs();

@@ -4,7 +4,8 @@ import { prisma, resetDb } from "../helpers/db";
 // ---------------------------------------------------------------------------
 // ANLAM KATMANI — KANAL OTO-YANITI UÇTAN UCA (09-24; cevap modeli MOCK, DB gerçek, bekçi çağrısı
 // sahte fetch). Pinlenen: şema beyanı kapıya ULAŞIR, bekçi yalnız ADAY için koşar, karar kaydı
-// kapıyla AYNI politikadan gerekçe + `sc` kanıtı taşır, gölge kip karar vermez ama ölçer.
+// kapıyla AYNI politikadan gerekçe + `sc` kanıtı taşır; hiçbir katmanın "istek yok"u başka bir katmanın
+// isteğini silemez (birleşim değişmezi 09-24 — gölge kip YOK).
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
@@ -220,7 +221,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(sc).toMatchObject({ v: "availability_claim", d: "early_checkin/grants", g: "off" });
   });
 
-  it("🚨 bekçi YOKKEN beyan edilen İSTEK gölge kipte de tutulur (hassas istek + doğrulayıcı yok)", async () => {
+  it("🚨 bekçi YOKKEN beyan edilen İSTEK tutulur (hassas istek + doğrulayıcı yok)", async () => {
     mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "early_checkin", stance: "none" } });
     const id = await seed();
     await applyChannelAutoReply(id);
@@ -230,7 +231,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(sc).toMatchObject({ v: "availability_unconfirmed", ev: "availability_unconfirmed", d: "early_checkin/none", g: "off" });
   });
 
-  it("🚨 bekçi KOŞTU ve 'istek yok' dedi ama beyan istek görüyor → HER kipte tutulur (düşmanca inceleme P1-1); gölge yalnız niyet etiketini ölçer", async () => {
+  it("🚨 bekçi KOŞTU ve 'istek yok' dedi ama beyan istek görüyor → tutulur (P1-1); yalnız niyet etiketi görse de tutulur (birleşim değişmezi)", async () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     const f = semanticFetch({ stay_change_guard: GUARD_CLEAN });
     vi.stubGlobal("fetch", f);
@@ -241,23 +242,18 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(mockSend).not.toHaveBeenCalled();
     expect((await riskEvent(id)).sc).toMatchObject({ v: "availability_unconfirmed", d: "early_checkin/none", g: "ok" });
 
-    // Yalnız ZAYIF sinyal (niyet etiketi; beyan "istek yok"): gölgede gider, `enforce` kararı kanıtta.
+    // Yalnız niyet etiketi (beyan "istek yok", bekçi "istek yok"): 09-24 üçüncü tura kadar gölge kipte GİDİYORDU.
+    // 🚨 Eski `AI_STAY_POLICY` anahtarı artık okunmaz: "shadow" yazılı olsa da etiketin isteği silinmez.
+    vi.stubEnv("AI_STAY_POLICY", "shadow");
     await resetDb();
     mockSend.mockClear();
     mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "none", stance: "none" } });
     const id2 = await seed();
     await applyChannelAutoReply(id2);
-    expect(mockSend).toHaveBeenCalledTimes(1);
-    expect((await riskEvent(id2)).sc).toMatchObject({ v: "-", ev: "availability_unconfirmed", d: "none/none", g: "ok", ri: "early_checkin" });
-  });
-
-  it("`AI_STAY_POLICY=enforce`: aynı durum taslağa düşer (gerekçe `availability_unconfirmed`)", async () => {
-    vi.stubEnv("AI_STAY_POLICY", "enforce");
-    mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "early_checkin", stance: "none" } });
-    const id = await seed();
-    await applyChannelAutoReply(id);
     expect(mockSend).not.toHaveBeenCalled();
-    expect((await riskEvent(id)).ev.reason).toBe("availability_unconfirmed");
+    const second = await riskEvent(id2);
+    expect(second.ev.reason).toBe("availability_unconfirmed");
+    expect(second.sc).toMatchObject({ v: "availability_unconfirmed", ev: "availability_unconfirmed", d: "none/none", g: "ok", ri: "early_checkin" });
   });
 
   it("🚨 bekçi açıkken: beyanın ('erteliyor') kaçırdığı izni ikinci model yakalar; tek çağrı, kanıtta hüküm kodları", async () => {
@@ -284,7 +280,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect((await riskEvent(id)).sc).toMatchObject({ g: "failed", v: "-" });
   });
 
-  it("bekçi düştü + model konaklama isteği beyan etti → gölge kipte BİLE tutulur (hakem yok, temkin)", async () => {
+  it("bekçi düştü + model konaklama isteği beyan etti → tutulur (hakem yok, temkin)", async () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     vi.stubGlobal("fetch", guardFetch(null, 500));
     mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "early_checkin", stance: "none" } });
@@ -323,7 +319,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect((await riskEvent(id)).ev.reason).toBe("low_confidence_or_risky");
   });
 
-  it("🚨 anlama katmanı açıkken (legacy retrieval = sorgu gerekmez): katman PARALEL koşar, kapıdan önce beklenir, sinyali kanıta girer; bekçi yokken isteği gölgede de tutar", async () => {
+  it("🚨 anlama katmanı açıkken (legacy retrieval = sorgu gerekmez): katman PARALEL koşar, kapıdan önce beklenir, sinyali kanıta girer; bekçi yokken isteği tutar", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     const f = semanticFetch({ guest_message_understanding: NLU_EARLY });
     vi.stubGlobal("fetch", f);
@@ -338,7 +334,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(sc).toMatchObject({ v: "availability_unconfirmed", ev: "availability_unconfirmed", u: "req", g: "off" });
   });
 
-  it("🚨 anlama + bekçi (bekçi istek görmedi): anlama katmanının isteği GÜÇLÜ sinyal — gölge kipte de tutulur (P1-1)", async () => {
+  it("🚨 anlama + bekçi (bekçi istek görmedi): anlama katmanının isteği silinmez — tutulur (P1-1)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     const f = semanticFetch({ guest_message_understanding: NLU_EARLY, stay_change_guard: GUARD_CLEAN });
@@ -351,20 +347,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect((await riskEvent(id)).sc).toMatchObject({ v: "availability_unconfirmed", u: "req", g: "ok" });
   });
 
-  it("anlama katmanı + `AI_STAY_POLICY=enforce`: modelin anladığı standart-dışı saat isteği taslağa düşer", async () => {
+  it("aşırı-uygulama kontrolü: anlama katmanı istek GÖRMEDİYSE (standart saat sorusu) gider", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
-    vi.stubEnv("AI_STAY_POLICY", "enforce");
-    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_EARLY }));
-    mockSuggest.mockResolvedValue({ ...BASE, intent: "general", stayChange: { asked: "none", stance: "none" } });
-    const id = await seed();
-    await applyChannelAutoReply(id);
-    expect(mockSend).not.toHaveBeenCalled();
-    expect((await riskEvent(id)).ev.reason).toBe("availability_unconfirmed");
-  });
-
-  it("aşırı-uygulama kontrolü: anlama katmanı istek GÖRMEDİYSE (standart saat sorusu) enforce kipinde de gider", async () => {
-    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
-    vi.stubEnv("AI_STAY_POLICY", "enforce");
     vi.stubGlobal(
       "fetch",
       semanticFetch({
@@ -451,7 +435,7 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(Number(retrieval?.uq)).toBeGreaterThanOrEqual(1);
   });
 
-  it("bekçi + anlama birlikte: iki ayrı şema çağrısı; bekçinin izni gölge kipte BİLE durdurur", async () => {
+  it("bekçi + anlama birlikte: iki ayrı şema çağrısı; bekçinin izni durdurur", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
     const f = semanticFetch({ guest_message_understanding: NLU_EARLY, stay_change_guard: GUARD_GRANTS });
@@ -554,19 +538,11 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(await irOf(id)).toBeUndefined();
   });
 
-  it("🚨 risk niyeti kanal kapısına ULAŞIR: gölge kipte gider ama `enforce` kararı kanıtta; `AI_INTENT_POLICY=enforce` → taslak", async () => {
+  it("🚨 risk niyeti kanal kapısına ULAŞIR: taslak + acil yükseltme; eski `AI_INTENT_POLICY=shadow` artık okunmaz (birleşim değişmezi)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("AI_INTENT_POLICY", "shadow"); // 09-24'e kadar bu değer gönderime izin veriyordu
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_COMPLAINT }));
     mockSuggest.mockResolvedValue(THANKS);
-    const id = await seed({ messages: ANTS });
-    await applyChannelAutoReply(id);
-    expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(await irOf(id)).toEqual({ v: "-", ev: "understanding_risk", k: "complaint_issue" });
-    expect(mockMail).not.toHaveBeenCalled(); // gölge kip: kapı kapanmadı → e-posta YOK
-
-    await resetDb();
-    vi.stubEnv("AI_INTENT_POLICY", "enforce");
-    mockSend.mockClear();
     const id2 = await seed({ messages: ANTS });
     await prisma.organization.updateMany({ data: { alertEmail: "host@example.com" } });
     await applyChannelAutoReply(id2);
@@ -585,7 +561,6 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
 
   it("🚨 P2-4: anlama katmanının hassas niyeti, kapıyı ÖNCE başka bir kontrol (düşük güven) kapatsa da acil yükseltmeyi tetikler; devir cevabında rozet acil durum", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
-    vi.stubEnv("AI_INTENT_POLICY", "enforce");
     const emergency = {
       language: "en",
       requests: [{ intent: "emergency", query_tr: "en yakın hastane", query_original: "nearest hospital" }],
@@ -620,9 +595,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
-  it("acil durum niyeti (enforce): rozet 'safety_emergency'; ikinci geçiş aynı konuşmaya İKİNCİ e-posta atmaz (atomik claim)", async () => {
+  it("acil durum niyeti: rozet 'safety_emergency'; ikinci geçiş aynı konuşmaya İKİNCİ e-posta atmaz (atomik claim)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
-    vi.stubEnv("AI_INTENT_POLICY", "enforce");
     vi.stubGlobal(
       "fetch",
       semanticFetch({
@@ -643,9 +617,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
-  it("aşırı-uygulama kontrolü: katman risk niyeti GÖRMEDİYSE `enforce` kipinde de gider (kanıtta `-`)", async () => {
+  it("aşırı-uygulama kontrolü: katman risk niyeti GÖRMEDİYSE gider (kanıtta `-`)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
-    vi.stubEnv("AI_INTENT_POLICY", "enforce");
     vi.stubGlobal(
       "fetch",
       semanticFetch({

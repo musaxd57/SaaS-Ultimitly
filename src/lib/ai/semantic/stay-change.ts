@@ -9,8 +9,8 @@
  *
  * ── KATMANLAR (hepsi YALNIZ SIKILAŞTIRIR, hiçbiri gönderim YETKİSİ vermez) ─────────────────────
  *  1. Cevap modelinin BEYANI (`stayChangeAsked` + `replyStance`, ana JSON'da, ek çağrı YOK):
- *     model kendi cevabını etiketler. İzin/takvim duruşu beyanı VARSAYILAN zorlanır; istek bacağı
- *     `AI_STAY_POLICY=enforce` ile (varsayılan gölge: kanıta yazılır, karar vermez).
+ *     model kendi cevabını etiketler. Duruşu ve isteği her zaman karar verir (09-24 birleşim
+ *     değişmezi: hiçbir katmanın "istek yok"u başkasının isteğini silemez; gölge kip YOK).
  *  2. BAĞIMSIZ BEKÇİ (`guard.ts`, bayrak `AI_STAY_GUARD_ENABLED`, varsayılan kapalı): ikinci bir
  *     model taslağı okur — üreticiyi kandıran bir enjeksiyonun bekçiyi de kandırması gerekir.
  *  3. ANLAMA KATMANI (`understand.ts`, bayrak `AI_UNDERSTANDING_ENABLED`): misafir mesajını niyet +
@@ -238,15 +238,4 @@ export interface UnderstandingStaySignal {
 
 // ─── politika kipi ──────────────────────────────────────────────────────────
 
-export type StayPolicyMode = "shadow" | "enforce";
 
-/**
- * Modelden türeyen İSTEK sinyallerinin (beyan, anlama katmanı) kipi. Varsayılan `shadow`: kanıta
- * yazılır, karar vermez — gerçek model eval'i (`evals/stay-change.json`) koşulmadan zorlanmaz
- * (Türkçe/İngilizce dışı erteleme cümleleri deterministik katmanda tanınmıyor → erken zorlamak
- * doğru cevapları taslağa düşürürdü). Yalnız tam `enforce` değeri açar; gevşek yazım açmaz.
- */
-export function stayPolicyMode(): StayPolicyMode {
-  // Büyük/küçük harf esnek: sıkılaştıran anahtarda yazım farkı daha GEVŞEK kipe düşürmemeli.
-  return process.env.AI_STAY_POLICY?.trim().toLowerCase() === "enforce" ? "enforce" : "shadow";
-}

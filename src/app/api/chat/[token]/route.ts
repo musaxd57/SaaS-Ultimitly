@@ -788,11 +788,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       llm: result.llmUsage,
       hijackScreened: ctx.knowledgeBaseHijackScreened,
       // Konaklama değişikliği politikası: kapıyla AYNI girdi (`qrAvailabilityPolicy`) — uygulanan
-      // karar + `enforce` kipinin kararı (gölge) + katman sinyalleri; kapalı-küme kodlar.
+      // karar + katman sinyalleri; kapalı-küme kodlar (`ev` = `v`, gölge kip yok).
       stay: stayEvidenceOf(evaluateAvailability(result.reply, [message], qrAvailabilityPolicy(result, stayCtx))),
       // Risk niyeti: kapıyla AYNI girdi; yalnız anlama katmanı gerçekten koştuysa yazılır.
       intentRisk: understood
-        ? intentRiskEvidenceOf(evaluateIntentRisk(stayCtx?.understandingRisk, { modelIntent: result.intent, mode: stayCtx?.intentMode }))
+        ? intentRiskEvidenceOf(evaluateIntentRisk(stayCtx?.understandingRisk, { modelIntent: result.intent }))
         : undefined,
     }),
     srcDeclared: result.sourceAudit?.declared ?? null,

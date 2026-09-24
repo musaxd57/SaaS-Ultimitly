@@ -60,7 +60,7 @@ misafir mesajı ─► [3] ANLAMA KATMANI (LLM, şema) ─► niyetler + yeniden
 | [3] anlama katmanı | `ai/semantic/understand.ts` + `understanding-schema.ts` | OpenAI Structured Outputs (`json_schema`, `strict`) | `AI_UNDERSTANDING_ENABLED=1` |
 | [4] bağımsız bekçi | `ai/semantic/guard.ts` | ikinci model, yalnız aday taslak | `AI_STAY_GUARD_ENABLED=1` |
 
-Ortak: `ai/semantic/stay-change.ts` (kapalı kümeler, çözücüler, KODDA saat kıyası, politika kipi),
+Ortak: `ai/semantic/stay-change.ts` (kapalı kümeler, çözücüler, KODDA saat kıyası),
 `ai/semantic/structured-call.ts` (tek ağ kapısı; 64 KB tavan, kalıcı arıza geçiş alarmı `semantic`
 kanalı), `ai/semantic/config.ts` (anahtar/model/zaman aşımı tek kaynak).
 
@@ -96,18 +96,19 @@ HASSAS İSTEK (herhangi bir katman)           ve   herhangi bir güvenlik sinyal
 
 ### 2.1 Karar kuralı (`evaluateAvailability`)
 
-* **HASSAS İSTEK:** GÜÇLÜ sinyaller (isteğe ayrılmış alanlar): kelime ağının isteği · bekçinin isteği (ret ya da
-  **kodda** standart dışı bulunan saat dahil) · beyan edilen istek (tanınmayan `asked` dahil) ya da ret · anlama
-  katmanının isteği. ZAYIF sinyal: cevap modelinin niyet etiketi (`early_checkin`/`late_checkout`) — istem bu etiketi
-  konu SORULARINA da verir ("erken check-in sorusu"), bu yüzden tek başına bekçinin "istek yok"unu ezmez.
-* **İDDİA** (her kipte, devir cevabında da): kelime ağının iddiası · beyan `grants`/`states_calendar`
+* **HASSAS İSTEK = TÜM katmanların BİRLEŞİMİ** (kurucu + dış inceleme, 09-24 üçüncü tur): kelime ağının isteği ·
+  bekçinin isteği (ret ya da **kodda** standart dışı bulunan saat dahil) · beyan edilen istek (tanınmayan `asked`
+  dahil) ya da ret · anlama katmanının isteği · cevap modelinin niyet etiketi (`early_checkin`/`late_checkout`).
+  **Hiçbir katmanın "istek yok"u başka bir katmanın isteğini silemez.** Bedeli bilinçli: istem etiketi konu
+  SORULARINA da verdiği için ("erken check-in ücretli mi?") o bilgi soruları da taslağa düşer. Kurucu ölçütü:
+  "yanlış otomatik izin çok kötü; gereksiz insan incelemesi can sıkıcı ama kabul edilebilir". Bu oran gerçek
+  eval'da ve canlıda ayrıca ölçülür (↓2.2).
+* **İDDİA** (devir cevabında da): kelime ağının iddiası · beyan `grants`/`states_calendar`
   · bekçinin takvim/izin hükmü · **tanınmayan duruş** (her durumda — geçerli bir izin duruşundan gevşek olamaz) ·
   **beyan hiç yok** ve hassas istek var → `availability_claim`.
-* **DOĞRULAYICI YOK** (bekçi kapalı ya da düştü) + hassas istek (güçlü ya da zayıf) → `availability_unconfirmed`
-  (kip ve erteleme ne olursa olsun).
-* **İSTEK** (bekçi koştu): herhangi bir GÜÇLÜ sinyalin isteği → **erteleme kanıtı yoksa** `availability_unconfirmed`,
-  her kipte; **devir cevabı da muaf değil** ("Tabii. Mesajınız kaydedildi…" bir geç çıkış isteğine EVET gibi
-  okunur). Zayıf sinyal tek başına yalnız `AI_STAY_POLICY=enforce` ile karar verir.
+* **İSTEK:** hassas istek → **erteleme kanıtı yoksa** `availability_unconfirmed`. Bekçi kapalı ya da düştüyse
+  erteleme hiç kanıtlanamaz. **Devir cevabı da muaf değil** ("Tabii. Mesajınız kaydedildi…" bir geç çıkış
+  isteğine EVET gibi okunur). Kip YOK (eski `AI_STAY_POLICY` anahtarı okunmaz).
 * **Düşmanca inceleme (09-24, değişmezden sonra):** bekçinin tek başına "istek yok" hükmü beyanın ve anlama
   katmanının isteğini susturuyordu (P1-1); devir cevabı iki model kuralını atlıyordu (P1-2); niyet etiketi ile
   beyanın "çelişkisini" iddia saymak bilgi sorularını kalıcı tutup bekçiyi hiç çağırtmıyordu (P2-2); tanınmayan
@@ -118,9 +119,10 @@ HASSAS İSTEK (herhangi bir katman)           ve   herhangi bir güvenlik sinyal
     değildir (yalnız kayıt bildirir). "Ev sahibiniz onaylar / onaylayacaktır" da erteleme değildir, onayı
     önceden kestirir. "Ev sahibinizin onayına bağlı" ise ertelemedir. (Kelime ağının erteleme tanıması
     kanıt ve yedek ölçüsü olarak kalır.)
-* **BEYANIN GÜVENİLİRLİĞİ** (F01 kuralı): beyan yoksa, duruş kapalı küme dışındaysa (`unknown`) ya da beyan
-  "istek yok" derken aynı modelin niyet etiketi `early_checkin`/`late_checkout` ise duruş BİLİNMİYOR sayılır;
-  hassas istek varsa cevap iddiadır. Yedek (şablon) cevapta (`source: "fallback"`) ortada model duruşu yoktur,
+* **BEYANIN GÜVENİLİRLİĞİ** (F01 kuralı): beyan yoksa ya da duruş kapalı küme dışındaysa (`unknown`) duruş
+  BİLİNMİYOR sayılır; hassas istek varsa cevap iddiadır. Beyan "istek yok" derken aynı modelin niyet etiketi
+  `early_checkin`/`late_checkout` ise bu çelişki İDDİA sayılmaz (bekçi çağrılabilsin — P2-2) ama etiket hassas
+  isteğe sayılır: cevap yine ertelemesiz gidemez. Yedek (şablon) cevapta (`source: "fallback"`) ortada model duruşu yoktur,
   bu kural uygulanmaz (host uyarısı "takvim iddiası" değil "istek var" der).
 * **EV SAHİBİNİN TEKLİFİ** (Ayarlar'daki geç çıkış teklif metni): istemin gösterdiği aynı temizlenmiş
   metin kelime ağının iddia taramasından çıkarılır. Ev sahibinin kendi sözünü aktarmak iddia değildir.
@@ -169,19 +171,23 @@ HASSAS İSTEK (herhangi bir katman)           ve   herhangi bir güvenlik sinyal
 * Erteleme dedektörü tek biçimle çalışır: küçük harf + Türkçe ASCII katlama. Homoglif ve görünmez
   karakter adayları yalnız KISITLAYICI dedektörlerdedir (CLAUDE.md katlama kuralı).
 
-### 2.2 Kipler ve gölge ölçümü
+### 2.2 Gölge kip YOK — gereksiz taslak oranı nasıl ölçülür
 
-`AI_STAY_POLICY` varsayılanı **gölgedir** ve artık tek bir şeyi yönetir: bekçi koşup istek görmediğinde cevap
-modelinin **niyet etiketi tek başına** tutsun mu. Bekçi yoksa ya da düştüyse ↑2.0 değişmezi her kipte tutar; güçlü
-sinyaller (beyan, anlama katmanı, bekçi, kelime ağı) her kipte karar verir. `enforce` kipinin kararı **her zaman** hesaplanır ve `kbEvidenceJson.sc.ev` alanına yazılır.
-Böylece açmadan önce gerçek trafikte "açsaydık kaç taslak daha çıkardı" okunabilir: `sc.v` ile
-`sc.ev` farkı.
+09-24 üçüncü tura kadar `AI_STAY_POLICY` (gölge) niyet etiketinin tek başına tutmasını yönetiyordu; birleşim
+değişmeziyle KALDIRILDI (anahtar okunmaz). Sıkılaştıran bir sinyal için gölge kip, sinyalin başka bir katmanca
+"silinmesi" demekti. Ölçüm artık karar kaydından okunur:
+
+* **gereksiz taslak oranı:** `sc.v = availability_unconfirmed` olan kayıtlardan host'un sonradan cevabı
+  DEĞİŞTİRMEDEN gönderdiği ya da konuşmanın konaklama değişikliği içermediği kayıtların payı;
+* **hangi katman tuttu:** `sc.lx` (`r`), `sc.d` (`asked`), `sc.gv` (`q`/`t`), `sc.u` (`req`), `sc.ri`. Yalnız `ri`
+  dolu, diğerleri boş olan kayıtlar "yalnız konu etiketiyle tutulan" sınıftır — eval raporunda ayrı satır.
+* `ev` alanı şema kararlılığı için kalır ve artık `v`ye eşittir.
 
 `sc` kanıt alanı (PII yok, kapalı küme):
 
 | alan | anlam |
 |---|---|
-| `v` / `ev` | uygulanan karar / `enforce` kipinin kararı (`-` = temiz) |
+| `v` / `ev` | uygulanan karar (`-` = temiz); `ev` 09-24'ten beri `v`ye eşit (eski kayıtlarda gölge kararıydı) |
 | `lx` | kelime ağı: `c` iddia, `r` istek, `d` erteleme |
 | `d` | beyan `asked/stance` ya da `absent` |
 | `g`, `gv` | bekçi `off/ok/failed`; hüküm `q` istek, `s` takvim, `a` izin, `d` erteleme, `x` ret, `t` kaydırılmış saat |
@@ -193,7 +199,7 @@ alınan kalem), `un` (`ok/cached/failed`), `unMs` ve `ui` (niyet etiketleri) gir
 sorgulardır. Katman retrieval'da beklenmediyse (paralel koştu) `un/unMs/ui` kapıdan sonra
 `evidenceAfterUnderstanding()` ile eklenir. Sorgu **metni girmez**.
 
-### 2.3 Risk niyetleri kapıda (`semantic/intent-risk.ts`, `AI_INTENT_POLICY`)
+### 2.3 Risk niyetleri kapıda (`semantic/intent-risk.ts`)
 
 Anlama katmanı yalnız konaklama değişikliğini değil, mesajın **niyetini** de kapalı bir kümeye indirir. Bu
 niyetlerden dördü kapıya bağlıdır: acil durum > şikâyet > iptal/iade > insan talebi. Öncelik bu sıradadır ve
@@ -214,25 +220,26 @@ Bugün tek savunma cevap modelinin kendi etiketi:
 **Kurallar:**
 
 * **Yalnız sıkılaştırır:** sinyal bir gönderimi engelleyebilir, hiçbir zaman sebep olamaz.
-* **Varsayılan gölge:** `AI_INTENT_POLICY=enforce` yoksa karar vermez. `enforce` kararı her koşuda
-  hesaplanır ve kanıta yazılır.
+* **Gölge kip YOK (birleşim değişmezi, 09-24 üçüncü tur):** katman koştuysa risk niyeti her zaman karar verir;
+  cevap modelinin "genel" etiketi bu sinyali silemez. Eski `AI_INTENT_POLICY` anahtarı okunmaz. Geri alma =
+  katmanın kendisini kapatmak (`AI_UNDERSTANDING_ENABLED`).
 * **Son kontrol:** kanal kapısında güven eşiğinden sonra, QR'da iki geçiş çıkışının (bilgi bandı ve tam güven)
-  önünde durur. Gerekçe `understanding_risk` yalnız başka hiçbir kontrol kapatmadığında görünür. Gölge
-  ölçümün sorusu tam olarak budur: "yalnız anlama katmanı neyi yakalardı?"
+  önünde durur. Gerekçe `understanding_risk` yalnız başka hiçbir kontrol kapatmadığında görünür: "yalnız anlama
+  katmanı neyi yakaladı?"
 * **İnsan talebi:** cevap modelinin kendi devir cevabı (`intent === "human_request"`) muaftır, kelime
   ağındaki kuralla aynı. Acil, şikâyet ve iptal devir cevabında da muaf değildir.
 * **Katman kapalı ya da düştüyse:** sinyal yoktur ve davranış birebir eskisidir. Kanıtta `ir` alanı da yazılmaz.
 * **Parite:** kanal kapısı, QR kapısı ve Ayarlar önizlemesi aynı yüklemi kullanır. Gerekçe kodu RiskEvent
   kümesindedir. Raporlarda "Hassas konu — size bırakıldı" satırı yalnız sayı sıfırdan büyükse görünür.
-* **Kanıt** `kbEvidenceJson.ir = { v, ev, k }`: uygulanan karar, `enforce` kararı ve niyet kodu. Yalnız
+* **Kanıt** `kbEvidenceJson.ir = { v, ev, k }`: uygulanan karar, (eşit) `ev` ve niyet kodu. Yalnız
   kapalı küme kodlar taşınır, metin taşınmaz.
-* **E-posta (kurucu "sen seç", 09-24 → EVET, yalnız `enforce`):** kanal kapısını YALNIZ anlama katmanının risk
+* **E-posta (kurucu "sen seç", 09-24 → EVET):** kanal kapısını YALNIZ anlama katmanının risk
   niyeti kapattıysa, model kaynaklı hassas sinyalle aynı acil yükseltme yolu koşar: konuşma "Sorunlu" + acil,
   ev sahibine e-posta (atomik claim: aynı konuşmaya ikinci e-posta yok). Gerekçe: sinyalin anlamı zaten
   "insana"; sessiz taslak, dolaylı dildeki acil durum ve şikâyetin host'a GEÇ ulaşması demekti. Rozet
   (`lastRiskType`) ve karar kaydı niyetin etiketini taşır (acil → `safety_emergency`, şikâyet → `complaint`,
   iptal-iade → `money_refund`, insan → `human_request`); karar kaydının gerekçesi `understanding_risk` kalır.
-  Gölge kipte kapı kapanmaz, e-posta da gitmez. QR'da devir zaten host'a bildirilir.
+  Katman kapalı ya da düştüyse sinyal yoktur, e-posta da gitmez. QR'da devir zaten host'a bildirilir.
 
 ## 3. Sorgu yeniden yazma / çoklu sorgu (kurucunun Gemini örneği)
 
@@ -307,15 +314,17 @@ Kazanımlar (pinli: `tests/unit/understanding.test.ts`):
 2. `RUN_REAL_EVAL=1 npm run eval -- tests/eval/stay-change.eval.test.ts` koşulur. Rapor
    `docs/olcum/stay-change-eval-<tarih>.md` dosyasına yazılır. Genelleme ölçüsü **yalnız `holdout`**
    satırlarıdır. Tek bir çağrı düşerse rapor GEÇERSİZ sayılır.
-3. `AI_UNDERSTANDING_ENABLED=1` açılır: sorgu yeniden yazma ve anlama. Karar etkisi gölgede kalır.
-4. `AI_STAY_GUARD_ENABLED=1` açılır: bekçi zorlar, gölgede değildir.
-5. 1–2 hafta `RiskEvent.kbEvidenceJson.sc` izlenir: `v` ile `ev` farkı ve gereksiz taslak oranı.
-6. `AI_STAY_POLICY=enforce` açılır.
-7. Aynı gölge dönemde `kbEvidenceJson.ir` de izlenir: `ev = understanding_risk` olan kayıtlar gerçekten hassas
-   mıydı (ev sahibinin sonraki cevabı ve konuşma durumu)? Yanlış alarm oranı kabul edilebilirse
-   `AI_INTENT_POLICY=enforce` açılır.
+3. Mühürlü final seti (`docs/EVAL-MUHURLU-FINAL.md`) dondurulmuş SHA'da BİR kez koşulur; açma kararı
+   o rapora bakılarak verilir.
+4. `AI_UNDERSTANDING_ENABLED=1` açılır: sorgu yeniden yazma + anlama. 🚨 Kararı DOĞRUDAN etkiler (09-24 üçüncü
+   turdan beri gölge kip yok): konaklama isteği ve risk niyeti taslağa düşürür, risk niyeti host'a acil bildirim
+   gönderir. Önce kurucu org'da, sonra genele.
+5. `AI_STAY_GUARD_ENABLED=1` açılır: bekçi zorlar; iki model ertelemede hemfikirse doğru erteleme otomatik gider.
+6. 1–2 hafta `RiskEvent.kbEvidenceJson.sc` ve `.ir` izlenir: gereksiz taslak oranı (↑2.2) ve risk niyetinin
+   yanlış alarm oranı (ev sahibinin sonraki cevabı ve konuşma durumu). Oran kabul edilemezse kural GEVŞETİLMEZ;
+   istem/şema düzeltilir ve eval yeniden koşulur.
 
-Hepsi tek env ile geri alınır. Migration yok.
+Her katman kendi bayrağıyla geri alınır. Migration yok.
 
 ## 6. Doğrulanmış takvim gelince (Airbnb Direct)
 
@@ -331,7 +340,7 @@ onaylanmasıyla kesinleşir; otomatik onay = V3 Aksiyonlar.
 
 ## 7. Bilinen sınırlar
 
-* Model katmanları **ölçülmedi**: kredi yok. Bayraklar kapalı, kararlar gölgede.
+* Model katmanları **ölçülmedi**: kredi yok. Bayraklar kapalı; açıldıklarında karar doğrudan etkilenir (gölge yok).
 * Beyan aynı modelden gelir; enjeksiyonla kandırılan üretici etiketini de yanlış yazabilir. Bu
   yüzden izin yönlü karar tek beyana dayanmaz. Bekçi ikinci, bağımsız hükümdür.
 * Anlama katmanı küçük bilgi tabanında da koşar: sinyal retrieval'dan bağımsız değerlidir, ama

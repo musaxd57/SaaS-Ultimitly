@@ -10,7 +10,6 @@ import {
   isEarlierThanCheckIn,
   isLaterThanCheckOut,
   slotTimesShifted,
-  stayPolicyMode,
   type StayGuardVerdict,
 } from "@/lib/ai/semantic/stay-change";
 import {
@@ -120,16 +119,6 @@ describe("saat kıyası KODDA", () => {
   });
 });
 
-describe("politika kipi", () => {
-  it("varsayılan gölge; YALNIZ 'enforce' (büyük/küçük harf esnek) açar — sıkılaştıran anahtar yazım farkıyla gevşemez", () => {
-    expect(stayPolicyMode()).toBe("shadow");
-    for (const [v, want] of [["1", "shadow"], ["true", "shadow"], [" yes", "shadow"], ["Enforce", "enforce"], ["ENFORCE ", "enforce"], ["enforce", "enforce"]] as const) {
-      vi.stubEnv("AI_STAY_POLICY", v);
-      expect(stayPolicyMode(), v).toBe(want);
-    }
-  });
-});
-
 describe("birleşim kuralı — İDDİA bacağı (her kipte, devirde de)", () => {
   it("🚨 beyan edilen izin/takvim duruşu kelime ağının göremediği cevabı da durdurur", () => {
     // Kelime ağının kaçırdığı gerçek izin cümleleri (kör batarya + ikinci inceleme).
@@ -165,26 +154,14 @@ describe("birleşim kuralı — İSTEK bacağı", () => {
   const PLAIN = "Check-in is from 15:00.";
 
   it("KONTROL: kelime ağı bu isteği görmüyor (katmanların neden gerekli olduğu)", () => {
-    expect(evaluateAvailability(PLAIN, [ASK], { mode: "enforce" }).signals.lx).toBe("-");
+    expect(evaluateAvailability(PLAIN, [ASK], {}).signals.lx).toBe("-");
   });
 
-  it("🚨 beyan edilen istek (GÜÇLÜ sinyal) bekçi 'istek yok' dese de HER kipte ertelemesiz cevabı durdurur (düşmanca inceleme 09-24, P1-1)", () => {
+  it("🚨 beyan edilen istek bekçi 'istek yok' dese de ertelemesiz cevabı durdurur (düşmanca inceleme 09-24, P1-1)", () => {
     const declared = { asked: "early_checkin" as const, stance: "none" as const };
     const guard = { status: "ok" as const, verdict: verdict() };
-    for (const mode of ["shadow", "enforce"] as const) {
-      expect(evaluateAvailability(PLAIN, [ASK], { declared, guard, mode }).reason, mode).toBe("availability_unconfirmed");
-    }
-    expect(evaluateAvailability(PLAIN, [ASK], { declared, mode: "shadow" }).reason).toBe("availability_unconfirmed"); // bekçisiz de
-  });
-
-  it("gölge kip YALNIZ zayıf sinyali (niyet etiketi tek başına) ölçer; `enforce` kipinde o da durdurur; varsayılan `AI_STAY_POLICY` (gölge)", () => {
-    const opts = { declared: { asked: "none", stance: "none" } as const, replyIntent: "early_checkin", guard: { status: "ok" as const, verdict: verdict() } };
-    const shadow = evaluateAvailability(PLAIN, [ASK], { ...opts, mode: "shadow" });
-    expect(shadow.reason).toBeNull();
-    expect(shadow.enforceReason).toBe("availability_unconfirmed");
-    expect(vetoAvailability(PLAIN, [ASK], opts)).toBeNull();
-    vi.stubEnv("AI_STAY_POLICY", "enforce");
-    expect(vetoAvailability(PLAIN, [ASK], opts)).toBe("availability_unconfirmed");
+    expect(evaluateAvailability(PLAIN, [ASK], { declared, guard }).reason).toBe("availability_unconfirmed");
+    expect(evaluateAvailability(PLAIN, [ASK], { declared }).reason).toBe("availability_unconfirmed"); // bekçisiz de
   });
 
   it("🚨 ERTELEME tek modelin sözüyle kabul edilmez: kelime ağının tanımadığı erteleme ancak beyan + bekçi ikisi 'erteliyor' derse", () => {
@@ -194,12 +171,11 @@ describe("birleşim kuralı — İSTEK bacağı", () => {
     const declared = { asked: "late_checkout" as const, stance: "defers" as const };
     const req = verdict({ guestRequestsChange: true, kind: "late_checkout" });
     // Yalnız beyan: yetmez.
-    expect(evaluateAvailability(DE, ["Possiamo fare il check-out più tardi? Late checkout?"], { declared, mode: "enforce" }).reason).toBe("availability_unconfirmed");
+    expect(evaluateAvailability(DE, ["Possiamo fare il check-out più tardi? Late checkout?"], { declared }).reason).toBe("availability_unconfirmed");
     // Beyan + bağımsız bekçi hemfikir: erteleme kanıtı.
     expect(
       vetoAvailability(DE, ["Possiamo fare il check-out più tardi? Late checkout?"], {
         declared,
-        mode: "enforce",
         guard: { status: "ok", verdict: { ...req, replyDefersToHost: true } },
       }),
     ).toBeNull();
@@ -207,7 +183,6 @@ describe("birleşim kuralı — İSTEK bacağı", () => {
     expect(
       vetoAvailability(DE, ["Possiamo fare il check-out più tardi? Late checkout?"], {
         declared: { asked: "late_checkout", stance: "none" },
-        mode: "enforce",
         guard: { status: "ok", verdict: { ...req, replyDefersToHost: true } },
       }),
     ).toBe("availability_unconfirmed");
@@ -217,10 +192,10 @@ describe("birleşim kuralı — İSTEK bacağı", () => {
     const reply = "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.";
     const declared = { asked: "early_checkin", stance: "defers" } as const;
     expect(hasAvailabilityDeferral(reply)).toBe(true); // anti-vakum: kelime ağı ertelemeyi tanıyor
-    expect(vetoAvailability(reply, [ASK], { declared, mode: "enforce" })).toBe("availability_unconfirmed");
+    expect(vetoAvailability(reply, [ASK], { declared })).toBe("availability_unconfirmed");
     // İki bağımsız model hemfikirse gider.
     const guard = { status: "ok" as const, verdict: verdict({ guestRequestsChange: true, kind: "early_checkin", replyDefersToHost: true }) };
-    expect(vetoAvailability(reply, [ASK], { declared, mode: "enforce", guard })).toBeNull();
+    expect(vetoAvailability(reply, [ASK], { declared, guard })).toBeNull();
   });
 
   it("bekçinin istek hükmü ve KODDA kaydırılmış saat (model 'istek yok' dese de) ertelemesiz cevabı durdurur", () => {
@@ -246,30 +221,28 @@ describe("birleşim kuralı — İSTEK bacağı", () => {
     ).toBe("availability_unconfirmed");
   });
 
-  it("BEKÇİ BAŞARISIZ: modelin konaklama sinyali varsa gölgede bile tutulur; sinyal yoksa eski davranış", () => {
-    expect(
-      vetoAvailability(PLAIN, [ASK], { guard: { status: "failed" }, declared: { asked: "early_checkin", stance: "none" }, mode: "shadow" }),
-    ).toBe("availability_unconfirmed");
-    expect(vetoAvailability(PLAIN, ["Wifi?"], { guard: { status: "failed" }, declared: { asked: "none", stance: "none" }, mode: "shadow" })).toBeNull();
+  it("BEKÇİ BAŞARISIZ: modelin konaklama sinyali varsa tutulur; sinyal yoksa eski davranış", () => {
+    expect(vetoAvailability(PLAIN, [ASK], { guard: { status: "failed" }, declared: { asked: "early_checkin", stance: "none" } })).toBe(
+      "availability_unconfirmed",
+    );
+    expect(vetoAvailability(PLAIN, ["Wifi?"], { guard: { status: "failed" }, declared: { asked: "none", stance: "none" } })).toBeNull();
   });
 
-  it("🚨 anlama katmanının isteği (ya da KODDA kaydırılmış yuva saati) GÜÇLÜ sinyaldir: bekçi 'istek yok' dese de her kipte durdurur", () => {
+  it("🚨 anlama katmanının isteği (ya da KODDA kaydırılmış yuva saati) bekçi 'istek yok' dese de durdurur", () => {
     const u = { requested: false, kind: "none" as const, checkinTime: "11:00", checkoutTime: null };
     const ran = { declared: { asked: "none", stance: "none" } as const, guard: { status: "ok" as const, verdict: verdict() } };
-    const e = evaluateAvailability(PLAIN, [ASK], { ...ran, understanding: u, stayTimes: STAY, mode: "shadow" });
+    const e = evaluateAvailability(PLAIN, [ASK], { ...ran, understanding: u, stayTimes: STAY });
     expect(e.signals.u).toBe("req");
     expect(e.reason).toBe("availability_unconfirmed");
     expect(e.enforceReason).toBe("availability_unconfirmed");
-    // Bekçi yoksa anlama katmanının isteği gölgede de tutar (hassas istek + doğrulayıcı yok).
-    expect(evaluateAvailability(PLAIN, [ASK], { declared: ran.declared, understanding: u, stayTimes: STAY, mode: "shadow" }).reason).toBe(
+    // Bekçi yoksa anlama katmanının isteği de tutar (hassas istek + doğrulayıcı yok).
+    expect(evaluateAvailability(PLAIN, [ASK], { declared: ran.declared, understanding: u, stayTimes: STAY }).reason).toBe(
       "availability_unconfirmed",
     );
   });
 
-  it("geçersiz duruş (`unknown`) tanınmayan ≠ temiz: her kipte iddia sayılır (geçerli izin duruşundan gevşek olamaz)", () => {
-    for (const mode of ["shadow", "enforce"] as const) {
-      expect(vetoAvailability(PLAIN, ["Wifi?"], { declared: { asked: "none", stance: "unknown" }, mode }), mode).toBe("availability_claim");
-    }
+  it("geçersiz duruş (`unknown`) tanınmayan ≠ temiz: iddia sayılır (geçerli izin duruşundan gevşek olamaz)", () => {
+    expect(vetoAvailability(PLAIN, ["Wifi?"], { declared: { asked: "none", stance: "unknown" } })).toBe("availability_claim");
   });
 });
 
@@ -279,7 +252,6 @@ describe("kanıt: PII'siz kapalı-küme özet", () => {
       declared: { asked: "extend", stance: "states_calendar" },
       guard: { status: "ok", verdict: verdict({ guestRequestsChange: true, kind: "extend", replyStatesCalendar: true, requestedCheckoutTime: "13:00" }) },
       stayTimes: STAY,
-      mode: "shadow",
     });
     expect(e.reason).toBe("availability_claim");
     expect(e.signals).toEqual({ lx: "crd", d: "extend/states_calendar", g: "ok", gv: "qst", u: "off" });
@@ -412,9 +384,7 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
 
   it("🚨 tanınmayan duruş (biçim bozuk 'Grants') izin SAYILIR — konaklama bağlamı olsa da olmasa da (09-24: bağlamsız muafiyet kaldırıldı, P2-3)", () => {
     expect(vetoAvailability(PLAIN, [ASK], { declared: { asked: "early_checkin", stance: "unknown" } })).toBe("availability_claim");
-    expect(vetoAvailability("Wi-Fi şifresi Lale2024.", ["Wifi?"], { declared: { asked: "none", stance: "unknown" }, mode: "shadow" })).toBe(
-      "availability_claim",
-    );
+    expect(vetoAvailability("Wi-Fi şifresi Lale2024.", ["Wifi?"], { declared: { asked: "none", stance: "unknown" } })).toBe("availability_claim");
   });
 
   it("bekçi / anlama `kind` bir değişiklik adlandırıyorsa `requested:false` olsa da istek sayılır", () => {
@@ -425,7 +395,6 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
     const e = evaluateAvailability(PLAIN, [ASK], {
       declared: none,
       understanding: { requested: false, kind: "extend", checkinTime: null, checkoutTime: null },
-      mode: "enforce",
     });
     expect(e.signals.u).toBe("req");
     expect(e.reason).toBe("availability_unconfirmed");
@@ -444,7 +413,7 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
     // 🚨 Bekçi yokken teklif aktarımı da taslakta kalır (erteleme iki modelle kanıtlanamadı).
     expect(vetoAvailability(relay, ask, { declared: twoModels.declared, hostOfferText: offer })).not.toBeNull();
     // 🚨 ERTELEMESİZ AKTARIMDA MUAFİYET YOK (ikinci inceleme 09-24, P1): teklifin kendi izin cümlesi iddiadır —
-    // model "defers" dese de, istek kelime ağından kaçsa da (gölge kip).
+    // model "defers" dese de, istek kelime ağından kaçsa da.
     expect(vetoAvailability(offer, ask, { hostOfferText: offer })).toBe("availability_claim");
     const tomorrow = ["Yarın öğlen 1'de çıksak sorun olur mu?"];
     for (const stance of ["defers", "none"] as const) {
@@ -688,25 +657,23 @@ describe("🚨 BELİRSİZLİK GÜVENLİ DEĞİLDİR — hassas istek + eksik/dü
     expect(autoReplyGateFailure(r, ASK, { stayTimes: STAY })).not.toBeNull();
   });
 
-  it("🚨 beyan 'istek yok' ama aynı modelin niyet etiketi erken giriş/geç çıkış → bekçi yok/düştüyse GÖNDERİLMEZ (belirsizlik)", () => {
+  it("🚨 beyan 'istek yok' ama aynı modelin niyet etiketi erken giriş/geç çıkış → bekçi yok, düştü ya da koşup 'istek yok' dedi: GÖNDERİLMEZ", () => {
     for (const intent of ["early_checkin", "late_checkout"]) {
       const r = { ...MODEL, intent, reply: IMPLICIT_GRANT, stayChange: { asked: "none", stance: "none" } as const };
       expect(autoReplyGateFailure(r, ASK, { stayTimes: STAY, stayGuard: FAILED }), intent).toBe("availability_unconfirmed");
       expect(autoReplyGateFailure(r, ASK, { stayTimes: STAY }), intent).toBe("availability_unconfirmed");
-      // Bekçi koşup "istek yok, izin yok" derse iki ADANMIŞ alan (beyan + bekçi) konu etiketinden ağır basar; etiket tek
-      // başına yalnız `enforce` kipinde durdurur (istem etiketi konu sorularına da veriyor — P2-2). ↓ ayrı test.
-      expect(autoReplyGateFailure(r, ASK, { stayTimes: STAY, stayGuard: { status: "ok", verdict: verdict() } }), intent).toBeNull();
-    }
-  });
-
-  it("🚨 bekçi yokken kelime ağının erteleme cümlesi İZİN DEĞİLDİR — beyan 'defers' olsa da, her kipte", () => {
-    const declared = { asked: "early_checkin" as const, stance: "defers" as const };
-    for (const mode of ["shadow", "enforce"] as const) {
-      expect(vetoAvailability(DEFERS, ["Erken giriş yapabilir miyiz?"], { declared, mode }), `off/${mode}`).toBe("availability_unconfirmed");
-      expect(vetoAvailability(DEFERS, ["Erken giriş yapabilir miyiz?"], { declared, mode, guard: FAILED }), `failed/${mode}`).toBe(
+      // 🚨 Birleşim değişmezi (09-24 üçüncü tur): beyan + bekçinin "istek yok"u etiketin isteğini SİLEMEZ (eskiden
+      // gölge kipte giderdi).
+      expect(autoReplyGateFailure(r, ASK, { stayTimes: STAY, stayGuard: { status: "ok", verdict: verdict() } }), intent).toBe(
         "availability_unconfirmed",
       );
     }
+  });
+
+  it("🚨 bekçi yokken kelime ağının erteleme cümlesi İZİN DEĞİLDİR — beyan 'defers' olsa da", () => {
+    const declared = { asked: "early_checkin" as const, stance: "defers" as const };
+    expect(vetoAvailability(DEFERS, ["Erken giriş yapabilir miyiz?"], { declared }), "off").toBe("availability_unconfirmed");
+    expect(vetoAvailability(DEFERS, ["Erken giriş yapabilir miyiz?"], { declared, guard: FAILED }), "failed").toBe("availability_unconfirmed");
   });
 
   it("🚨 bekçi DÜŞTÜ: devir cevabı da hassas istekte gönderilmez (hakem yok)", () => {
@@ -721,7 +688,7 @@ describe("🚨 BELİRSİZLİK GÜVENLİ DEĞİLDİR — hassas istek + eksik/dü
   it("İKİ BAĞIMSIZ MODEL erteleme diyorsa gider (bekçi koştu) — güvenli yolun kendisi kapanmadı", () => {
     const declared = { asked: "early_checkin" as const, stance: "defers" as const };
     const ok = { status: "ok" as const, verdict: verdict({ guestRequestsChange: true, kind: "early_checkin", replyDefersToHost: true }) };
-    expect(vetoAvailability(DEFERS, ["Erken giriş yapabilir miyiz?"], { declared, guard: ok, mode: "enforce" })).toBeNull();
+    expect(vetoAvailability(DEFERS, ["Erken giriş yapabilir miyiz?"], { declared, guard: ok })).toBeNull();
     // Devir cevabı da iki model "erteliyor" derse gider.
     expect(vetoAvailability("Mesajınız kaydedildi.", ["Bir gece daha kalabilir miyiz?"], { declared: { asked: "extend", stance: "defers" }, guard: ok })).toBeNull();
   });
@@ -815,10 +782,10 @@ describe("düşmanca inceleme 09-24 — bekçi AÇIKKEN değişmez", () => {
   const LATE = "Is it ok if we leave at 1pm on Sunday?";
   const GUARD_BLIND = { status: "ok" as const, verdict: verdict() }; // bekçi koştu ama hiçbir şey görmedi
 
-  it("🚨 P1-1: bekçi 'istek yok' dese de cevap modelinin beyanı / anlama katmanı istek görüyorsa İKİ MODEL ertelemesi şart (gölgede de)", () => {
+  it("🚨 P1-1: bekçi 'istek yok' dese de cevap modelinin beyanı / anlama katmanı istek görüyorsa İKİ MODEL ertelemesi şart", () => {
     const reply = "Sure, no rush on Sunday — take your time!"; // örtük izin; kelime ağı görmüyor
     expect(detectAvailabilityClaim(reply)).toBeNull(); // anti-vakum
-    const base = { guard: GUARD_BLIND, stayTimes: STAY, mode: "shadow" as const, replyIntent: "late_checkout" };
+    const base = { guard: GUARD_BLIND, stayTimes: STAY, replyIntent: "late_checkout" };
     // Beyan istek görüyor (duruşu yanlış 'defers'), bekçi ertelemeyi doğrulamıyor → tutulur.
     expect(vetoAvailability(reply, [LATE], { ...base, declared: { asked: "late_checkout", stance: "defers" } })).toBe("availability_unconfirmed");
     // Yalnız anlama katmanı istek görüyor → yine tutulur.
@@ -847,22 +814,59 @@ describe("düşmanca inceleme 09-24 — bekçi AÇIKKEN değişmez", () => {
     ).toBeNull();
   });
 
-  it("P2-2: niyet etiketi KONU etiketidir (istem: 'erken check-in sorusu' da early_checkin) — tek başına bekçinin 'istek yok'unu ezmez, bekçisizken tutar ama 'iddia' demez", () => {
+  it("P2-2 → birleşim (09-24 üçüncü tur): konu etiketi `early_checkin` olan bilgi sorusu da insana gider — 'iddia' değil 'onaylanmadı' (bekçi çağrılabilsin)", () => {
     const info = { riskLevel: "low", confidence: 0.92, source: "openai", riskType: null, intent: "early_checkin" };
     const r = { ...info, reply: "Check-in is from 15:00.", stayChange: { asked: "none", stance: "none" } as const };
-    expect(autoReplyGateFailure(r, "What time is check-in?", { stayTimes: STAY, stayGuard: GUARD_BLIND })).toBeNull();
-    // Bekçi yokken belirsizlik tutulur — ama gerekçe "onaylanmadı" (bekçi çağrılabilsin; eskiden "iddia" idi, bekçi hiç koşmuyordu).
+    // Bilinçli bedel: istem etiketi konu SORULARINA da verir; birleşimde etiketin isteği silinemez.
+    expect(autoReplyGateFailure(r, "What time is check-in?", { stayTimes: STAY, stayGuard: GUARD_BLIND })).toBe("availability_unconfirmed");
     expect(autoReplyGateFailure(r, "What time is check-in?", { stayTimes: STAY })).toBe("availability_unconfirmed");
-    // `enforce` kipinde etiket tek başına da tutar (gölgede ölçülür).
-    const e = evaluateAvailability(r.reply, ["What time is check-in?"], { ...availabilityPolicyFor(r, { stayTimes: STAY, stayGuard: GUARD_BLIND }), mode: "shadow" });
-    expect(e.reason).toBeNull();
-    expect(e.enforceReason).toBe("availability_unconfirmed");
+    // `enforceReason` artık ayrı karar değil: `reason`a eşit (kanıtta `ev` = `v`).
+    const e = evaluateAvailability(r.reply, ["What time is check-in?"], availabilityPolicyFor(r, { stayTimes: STAY, stayGuard: GUARD_BLIND }));
+    expect(e.reason).toBe("availability_unconfirmed");
+    expect(e.enforceReason).toBe(e.reason);
+    // KONTROL: aynı soru bilgi etiketiyle (`checkin`) bekçi yokken de gider — bedel yalnız etiketli konuya.
+    expect(autoReplyGateFailure({ ...r, intent: "checkin" }, "What time is check-in?", { stayTimes: STAY })).toBeNull();
   });
 
   it("P2-3: tanınmayan duruş, geçerli bir izin duruşundan GEVŞEK olamaz — konaklama bağlamı olmasa da iddia sayılır (F01)", () => {
     const reply = "Thank you! Feel free to take your time tomorrow, 2pm works.";
     expect(detectAvailabilityClaim(reply)).toBeNull(); // anti-vakum: kelime ağı görmüyor
-    expect(vetoAvailability(reply, ["Thanks for everything!"], { declared: { asked: "none", stance: "grants" }, mode: "shadow" })).toBe("availability_claim");
-    expect(vetoAvailability(reply, ["Thanks for everything!"], { declared: { asked: "none", stance: "unknown" }, mode: "shadow" })).toBe("availability_claim");
+    expect(vetoAvailability(reply, ["Thanks for everything!"], { declared: { asked: "none", stance: "grants" } })).toBe("availability_claim");
+    expect(vetoAvailability(reply, ["Thanks for everything!"], { declared: { asked: "none", stance: "unknown" } })).toBe("availability_claim");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BİRLEŞİM DEĞİŞMEZİ (kurucu + dış inceleme, 09-24 üçüncü tur): hassas istek = TÜM katmanların birleşimi. Hiçbir
+// katmanın "istek yok"u başka bir katmanın isteğini SİLEMEZ — cevap modelinin niyet etiketi dahil, her kipte.
+// ("Yanlış otomatik izin çok kötü; gereksiz insan incelemesi can sıkıcı ama kabul edilebilir.")
+// ---------------------------------------------------------------------------
+describe("🚨 birleşim değişmezi — hiçbir katman başka bir katmanın isteğini silemez", () => {
+  const ASK = "Could we get into the flat at 11?";
+  const PLAIN = "Check-in is from 15:00.";
+  const GUARD_BLIND = { status: "ok" as const, verdict: verdict() };
+
+  it("niyet etiketi tek başına da tutar: bekçi + beyan 'istek yok' dese bile (her ortam değeri)", () => {
+    const opts = { declared: { asked: "none", stance: "none" } as const, replyIntent: "early_checkin", guard: GUARD_BLIND, stayTimes: STAY };
+    expect(evaluateAvailability(PLAIN, [ASK], opts).reason).toBe("availability_unconfirmed");
+    for (const v of ["", "shadow", "enforce", "whatever"]) {
+      vi.stubEnv("AI_STAY_POLICY", v);
+      expect(vetoAvailability(PLAIN, [ASK], opts), v).toBe("availability_unconfirmed");
+    }
+  });
+
+  it("her katman tek başına yeter (kelime ağı · beyan · ret · anlama · niyet etiketi · bekçi); hiçbiri yoksa bilgi cevabı gider", () => {
+    const none = { asked: "none", stance: "none" } as const;
+    const base = { declared: none, guard: GUARD_BLIND, stayTimes: STAY };
+    const cases: [string, Parameters<typeof evaluateAvailability>[2], string][] = [
+      ["kelime ağı", base, "Erken giriş yapabilir miyiz?"],
+      ["beyan", { ...base, declared: { asked: "early_checkin", stance: "none" } }, ASK],
+      ["ret duruşu", { ...base, declared: { asked: "none", stance: "refuses" } }, ASK],
+      ["anlama", { ...base, understanding: { requested: true, kind: "early_checkin", checkinTime: "11:00", checkoutTime: null } }, ASK],
+      ["niyet etiketi", { ...base, replyIntent: "late_checkout" }, ASK],
+      ["bekçi", { ...base, guard: { status: "ok", verdict: verdict({ guestRequestsChange: true, kind: "early_checkin" }) } }, ASK],
+    ];
+    for (const [name, opts, msg] of cases) expect(evaluateAvailability(PLAIN, [msg], opts).reason, name).toBe("availability_unconfirmed");
+    expect(evaluateAvailability(PLAIN, ["What time is check-in?"], { ...base, replyIntent: "checkin" }).reason).toBeNull(); // KONTROL
   });
 });

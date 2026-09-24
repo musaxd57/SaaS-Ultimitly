@@ -3,7 +3,7 @@ import "server-only";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { vetoAvailability, type AvailabilityPolicyOptions } from "@/lib/ai/availability-claims";
-import { evaluateIntentRisk, type IntentPolicyMode, type IntentRiskKind } from "@/lib/ai/semantic/intent-risk";
+import { evaluateIntentRisk, type IntentRiskKind } from "@/lib/ai/semantic/intent-risk";
 import type {
   StayChangeDeclaration,
   StayGuardOutcome,
@@ -199,8 +199,6 @@ export function evaluateEscalation(
     understandingFailed?: boolean;
     /** Anlama katmanının en ağır risk niyeti; verilmezse sinyal yok. */
     understandingRisk?: IntentRiskKind | null;
-    /** Risk niyetlerinin kipi; verilmezse `AI_INTENT_POLICY` (varsayılan gölge). */
-    intentMode?: IntentPolicyMode;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
@@ -286,8 +284,9 @@ export function evaluateEscalation(
   if (availability !== null) return yes(availability);
   // ── ANLAMA KATMANININ RİSK NİYETLERİ (09-24, `semantic/intent-risk.ts`) ──────
   // Kanal kapısıyla AYNI yüklem; iki "geçiş" çıkışının (bilgi bandı + tam güven) hemen önünde uygulanır →
-  // gerekçe yalnız başka HİÇBİR kontrol devretmediğinde `understanding_risk` olur. Varsayılan GÖLGE.
-  const intentRisk = evaluateIntentRisk(stayCtx?.understandingRisk, { modelIntent: result.intent, mode: stayCtx?.intentMode }).reason;
+  // gerekçe yalnız başka HİÇBİR kontrol devretmediğinde `understanding_risk` olur. Katman koştuysa her zaman karar
+  // verir (birleşim değişmezi 09-24, gölge kip YOK).
+  const intentRisk = evaluateIntentRisk(stayCtx?.understandingRisk, { modelIntent: result.intent }).reason;
   // ── EKSİK BİLGİDE DÜRÜST CEVAP — DAR BANT (kurucu, 09-08) ─────────────────
   //
   // Buraya gelen mesaj, YUKARIDAKİ SEKİZ KAPININ HEPSİNDEN geçmiştir: model

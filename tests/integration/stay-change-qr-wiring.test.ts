@@ -302,10 +302,9 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "");
   });
 
-  it("🚨 anlama katmanının RİSK NİYETİ QR kapısına ULAŞIR: gölge kipte bot cevaplar (kanıtta `ir`); enforce kipinde devir", async () => {
+  it("🚨 anlama katmanının RİSK NİYETİ QR kapısına ULAŞIR: katman kapalıyken bot cevaplar; açıkken devir (eski gölge anahtarı okunmaz)", async () => {
     // Kelime ağının KAÇIRDIĞI acil durum (ölçüldü: `classifyFallback` + `detectRiskType` engellemiyor).
     const MSG = "My daughter cut her hand badly, where is the nearest hospital?";
-    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal(
       "fetch",
       semanticFetch({
@@ -319,13 +318,15 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     mockSuggest.mockResolvedValue({ ...DRAFT, intent: "general", reply: "The nearest hospital is 2 km away.", usedSources: [] });
     const irOf = async () =>
       (JSON.parse(String((await lastEvent()).ev.kbEvidenceJson)) as { ir?: Record<string, string> }).ir;
+    // KONTROL: katman kapalı → kelime ağı acil durumu görmüyor, bot cevaplar; kanıtta `ir` HİÇ yok.
     const { token } = await seed();
-    const shadow = await ask(token, MSG);
-    expect(shadow.escalated).toBe(false);
-    expect(await irOf()).toEqual({ v: "-", ev: "understanding_risk", k: "emergency" });
+    const off = await ask(token, MSG);
+    expect(off.escalated).toBe(false);
+    expect(await irOf()).toBeUndefined();
 
     await resetDb();
-    vi.stubEnv("AI_INTENT_POLICY", "enforce");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("AI_INTENT_POLICY", "shadow"); // artık okunmaz (birleşim değişmezi 09-24)
     const { token: t2 } = await seed();
     const enforced = await ask(t2, MSG);
     expect(enforced.escalated).toBe(true);

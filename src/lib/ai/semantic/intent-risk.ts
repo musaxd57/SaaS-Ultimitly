@@ -15,9 +15,9 @@ import type { MessageUnderstanding } from "./understanding-schema";
 //
 // Sözleşme (CLAUDE.md anlam katmanı kuralları ile aynı):
 //  · YALNIZ SIKILAŞTIRIR: sinyal bir otomatik gönderimi engelleyebilir, hiçbir zaman sebep olamaz.
-//  · VARSAYILAN GÖLGE: `AI_INTENT_POLICY=enforce` olmadan karar VERMEZ; `enforce` kipinin kararı her koşuda
-//    hesaplanır ve kanıta yazılır (`kbEvidenceJson.ir`) → açmadan önce gerçek trafikte "açsaydık kaç taslak
-//    daha çıkardı" okunur. Açma = eval + kurucu onayı.
+//  · 🚨 BİRLEŞİM DEĞİŞMEZİ (09-24 üçüncü tur): hiçbir katmanın "risk yok"u başka bir katmanın riskini SİLEMEZ →
+//    katman koştuysa sinyal HER ZAMAN karar verir (09-24'e kadarki `AI_INTENT_POLICY` gölge kipi KALDIRILDI; anahtar
+//    artık okunmaz). Geri alma = katmanın kendisi (`AI_UNDERSTANDING_ENABLED`). Açma = eval + kurucu onayı.
 //  · Katman kapalıysa / düştüyse sinyal YOK (eski davranış birebir); başarısızlık kanıtta ayrıca görünür.
 //  · İnsan talebi: cevap modelinin KENDİ devir cevabı (`intent === "human_request"`) doğru cevaptır → muaf
 //    (kelime ağındaki kuralla aynı: devri istemek devri engellemez).
@@ -31,16 +31,6 @@ export type IntentRiskKind = (typeof INTENT_RISK_KINDS)[number];
 export const INTENT_RISK_REASON = "understanding_risk" as const;
 export type IntentRiskReason = typeof INTENT_RISK_REASON;
 
-export type IntentPolicyMode = "shadow" | "enforce";
-
-/**
- * Anlama katmanı risk niyetlerinin kipi. Yalnız tam `enforce` değeri açar (büyük/küçük harf ve kenar boşluğu
- * esnek — sıkılaştıran anahtarda yazım farkı daha GEVŞEK kipe düşürmemeli; `AI_STAY_POLICY` ile aynı kural).
- */
-export function intentPolicyMode(): IntentPolicyMode {
-  return process.env.AI_INTENT_POLICY?.trim().toLowerCase() === "enforce" ? "enforce" : "shadow";
-}
-
 /** Anlama katmanının en ağır risk niyeti; katman yoksa ya da risk niyeti yoksa `null`. */
 export function understandingRiskOf(u: MessageUnderstanding | null | undefined): IntentRiskKind | null {
   if (!u || !Array.isArray(u.requests)) return null;
@@ -51,9 +41,9 @@ export function understandingRiskOf(u: MessageUnderstanding | null | undefined):
 }
 
 export interface IntentRiskEvaluation {
-  /** Uygulanan karar (geçerli kip). */
+  /** Uygulanan karar. */
   reason: IntentRiskReason | null;
-  /** `enforce` kipinin kararı — gölge ölçümü için HER ZAMAN hesaplanır. */
+  /** 09-24'ten beri `reason`a EŞİT (gölge kip kaldırıldı); kanıt şeması (`ir.ev`) kararlı kalsın diye korunur. */
   enforceReason: IntentRiskReason | null;
   /** Sinyalin kendisi (muafiyetten önce); kanıt için. */
   kind: IntentRiskKind | null;
@@ -61,15 +51,14 @@ export interface IntentRiskEvaluation {
 
 export function evaluateIntentRisk(
   kind: IntentRiskKind | null | undefined,
-  opts: { modelIntent: string; mode?: IntentPolicyMode },
+  opts: { modelIntent: string },
 ): IntentRiskEvaluation {
   const k = kind ?? null;
   // Devir cevabı insan talebinin DOĞRU cevabıdır; başka her risk niyeti (acil/şikâyet/iptal) devir cevabında
   // da taslakta kalır (devir metni o konunun cevabı değildir).
   const effective = k === "human_request" && opts.modelIntent === "human_request" ? null : k;
-  const enforceReason = effective ? INTENT_RISK_REASON : null;
-  const mode = opts.mode ?? intentPolicyMode();
-  return { reason: mode === "enforce" ? enforceReason : null, enforceReason, kind: k };
+  const reason = effective ? INTENT_RISK_REASON : null;
+  return { reason, enforceReason: reason, kind: k };
 }
 
 /**

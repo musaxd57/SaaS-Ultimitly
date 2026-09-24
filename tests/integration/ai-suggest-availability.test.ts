@@ -190,9 +190,8 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
   });
 
-  it("🚨 anlama katmanı açık + enforce: modelin anladığı standart-dışı saat isteği uyarıya girer (kelime ağı sessizken)", async () => {
+  it("🚨 anlama katmanı açık: modelin anladığı standart-dışı saat isteği uyarıya girer (kelime ağı sessizken)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
-    vi.stubEnv("AI_STAY_POLICY", "enforce");
     const f = vi.fn(async (_url: string, init?: RequestInit) => {
       expect(JSON.parse(String(init?.body)).response_format.json_schema.name).toBe("guest_message_understanding");
       return new Response(
@@ -219,7 +218,7 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
     expect(f).toHaveBeenCalledTimes(1);
 
-    // Aynı girdi gölge kipte de uyarır: bu rotada bekçi koşmaz → hassas istek + doğrulayıcı yok (09-24 değişmezi).
+    // Eski `AI_STAY_POLICY` anahtarı artık okunmaz (birleşim değişmezi): "shadow" yazılı olsa da aynı uyarı.
     vi.stubEnv("AI_STAY_POLICY", "shadow");
     __resetRateLimit();
     expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");

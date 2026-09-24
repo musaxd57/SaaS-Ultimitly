@@ -16,7 +16,6 @@ import {
   intentRiskEvidenceOf,
   riskTypeOfIntentRisk,
   understandingRiskOf,
-  type IntentPolicyMode,
   type IntentRiskKind,
   type IntentRiskReason,
 } from "@/lib/ai/semantic/intent-risk";
@@ -127,8 +126,6 @@ export interface AutoReplyGateContext {
   hostOfferText?: string | null;
   /** Anlama katmanının en ağır risk niyeti (`semantic/intent-risk.ts`); verilmezse sinyal yok. */
   understandingRisk?: IntentRiskKind | null;
-  /** Risk niyetlerinin kipi; verilmezse `AI_INTENT_POLICY` (varsayılan gölge). */
-  intentMode?: IntentPolicyMode;
 }
 
 /** Kapı kararı + ilk düşen kontrol (`null` = gönderilebilir). Ayrıntılar aşağıdaki yorumlarda. */
@@ -349,9 +346,9 @@ export function autoReplyGateFailure(
   if (result.confidence < AUTO_REPLY_MIN_CONFIDENCE) return "blocked";
   // ── ANLAMA KATMANININ RİSK NİYETLERİ (09-24, `semantic/intent-risk.ts`) ────────
   // Acil / şikâyet / iptal-iade / insan talebi: kelime ağının tanımadığı dolaylı dili (ölçüldü) ayrı bir model
-  // okur. SON kontrol: gerekçe `understanding_risk` yalnız başka HİÇBİR kontrol kapatmadığında görünür — gölge
-  // ölçümün sorusu tam olarak bu ("yalnız anlama katmanı neyi yakalardı?"). Varsayılan GÖLGE (karar vermez).
-  return evaluateIntentRisk(context?.understandingRisk, { modelIntent: result.intent, mode: context?.intentMode }).reason;
+  // okur. SON kontrol: gerekçe `understanding_risk` yalnız başka HİÇBİR kontrol kapatmadığında görünür ("yalnız
+  // anlama katmanı neyi yakaladı?"). Katman koştuysa her zaman karar verir (birleşim değişmezi 09-24, gölge kip YOK).
+  return evaluateIntentRisk(context?.understandingRisk, { modelIntent: result.intent }).reason;
 }
 
 /**
@@ -1944,7 +1941,7 @@ export async function applyChannelAutoReply(
     // Anlama katmanının konaklama sinyali (katman kapalıyken yok → politika eski davranışta).
     understanding: understood?.stay ?? null,
     understandingFailed: (await kbSel.understandingStatus) === "failed",
-    // Anlama katmanının risk niyeti (acil/şikâyet/iptal-iade/insan) — varsayılan gölge (`AI_INTENT_POLICY`).
+    // Anlama katmanının risk niyeti (acil/şikâyet/iptal-iade/insan) — katman koştuysa karar verir.
     understandingRisk: understandingRiskOf(understood),
     // İstemin gösterdiği AYNI sanitize teklif metni: host'un kendi sözü iddia sayılmaz.
     hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
@@ -1976,7 +1973,7 @@ export async function applyChannelAutoReply(
     }
   }
   // Karar kaydı kapıyla AYNI politika girdisinden (`availabilityPolicyFor`) — gerekçe ile hüküm
-  // ayrışamaz; `enforceReason` gölge ölçümüdür (modelin istek sinyalleri zorlansaydı ne olurdu).
+  // ayrışamaz (`enforceReason` 09-24'ten beri `reason`a eşit — konaklamada gölge kip yok).
   const stayEval = evaluateAvailability(
     result.reply,
     [last.body, ...pendingGuestMessages],
@@ -2015,7 +2012,7 @@ export async function applyChannelAutoReply(
       // Risk niyeti: kapıyla AYNI girdi; yalnız anlama katmanı gerçekten koştuysa yazılır (kanıt biçimi
       // katman kapalıyken karakteri karakterine aynı kalır).
       intentRisk: understood
-        ? intentRiskEvidenceOf(evaluateIntentRisk(gateContext.understandingRisk, { modelIntent: result.intent, mode: gateContext.intentMode }))
+        ? intentRiskEvidenceOf(evaluateIntentRisk(gateContext.understandingRisk, { modelIntent: result.intent }))
         : undefined,
     }),
   };
@@ -2099,16 +2096,16 @@ export async function applyChannelAutoReply(
     // a human and got NO reply — the host must know. Atomic status claim →
     // can't double-email.
     //
-    // ANLAMA KATMANININ RİSK NİYETİ (09-24, kurucu "sen seç" → EVET, yalnız `AI_INTENT_POLICY=enforce`): kapıyı
+    // ANLAMA KATMANININ RİSK NİYETİ (09-24, kurucu "sen seç" → EVET; birleşim değişmezinden beri kip yok): kapıyı
     // YALNIZ anlama katmanı kapattıysa (acil / şikâyet / iptal-iade / insan talebi; kelime ağı ve cevap modeli
     // görmedi) aynı acil yükseltme yolu koşar — problem + acil + host'a e-posta. Gerekçe: sinyal zaten "insana"
     // demek; sessiz taslak, tam da bu sınıfın (dolaylı dilde acil durum/şikâyet) host'a GEÇ ulaşması demekti.
-    // Gölge kipte kapı kapanmaz → e-posta da YOK. Rozet ve karar kaydı niyetin kendi etiketini taşır.
+    // Katman kapalı / düştüyse sinyal yok → e-posta da YOK. Rozet ve karar kaydı niyetin kendi etiketini taşır.
     // 🚨 Kapının İLK düşen kontrolüne BAĞLI DEĞİL (düşmanca inceleme 09-24, P2-4): düşük güven, "bilgim yok" ya da
     // müsaitlik tutuşu önce kapatsa da hassas niyet yükseltilir — yoksa dolaylı dildeki acil durum sessiz taslakta kalırdı.
     const nluSensitive =
       result.source === "openai" &&
-      evaluateIntentRisk(gateContext.understandingRisk, { modelIntent: result.intent, mode: gateContext.intentMode }).reason !== null;
+      evaluateIntentRisk(gateContext.understandingRisk, { modelIntent: result.intent }).reason !== null;
     const nluRiskType = nluSensitive ? riskTypeOfIntentRisk(gateContext.understandingRisk) : null;
     const modelFlagged =
       result.source === "openai" &&

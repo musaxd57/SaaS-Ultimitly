@@ -3,7 +3,6 @@ import {
   INTENT_RISK_KINDS,
   INTENT_RISK_REASON,
   evaluateIntentRisk,
-  intentPolicyMode,
   intentRiskEvidenceOf,
   riskTypeOfIntentRisk,
   understandingRiskOf,
@@ -17,7 +16,7 @@ import { classifyFallback, detectRiskType } from "@/lib/ai/fallback";
 
 // ---------------------------------------------------------------------------
 // ANLAMA KATMANININ RİSK NİYETLERİ → KAPI (09-24). Pinlenen:
-//  · yalnız SIKILAŞTIRIR, varsayılan GÖLGE (karar yok, `enforce` kararı her koşuda hesaplanır);
+//  · yalnız SIKILAŞTIRIR; katman koştuysa HER ZAMAN karar verir (birleşim değişmezi 09-24 — gölge kip YOK);
 //  · kelime ağının KAÇIRDIĞI dolaylı dil (ölçüldü) yalnız bu sinyalle tutulur;
 //  · gerekçe SON kontrol: başka bir kontrol kapattıysa onun gerekçesi yazılır;
 //  · insan talebinde modelin KENDİ devir cevabı muaf; acil/şikâyet/iptal muaf DEĞİL;
@@ -64,46 +63,32 @@ describe("saf politika", () => {
     expect(riskTypeOfIntentRisk(undefined)).toBeNull();
   });
 
-  it("🚨 varsayılan GÖLGE: karar yok ama `enforce` kararı HER ZAMAN hesaplanır", () => {
-    const e = evaluateIntentRisk("complaint_issue", { modelIntent: "general" });
-    expect(e).toEqual({ reason: null, enforceReason: INTENT_RISK_REASON, kind: "complaint_issue" });
-    expect(evaluateIntentRisk("complaint_issue", { modelIntent: "general", mode: "enforce" }).reason).toBe(INTENT_RISK_REASON);
-    expect(evaluateIntentRisk(null, { modelIntent: "general", mode: "enforce" })).toEqual({ reason: null, enforceReason: null, kind: null });
+  it("risk niyeti karar verir; sinyal yoksa karar yok", () => {
+    expect(evaluateIntentRisk("complaint_issue", { modelIntent: "general" })).toEqual({
+      reason: INTENT_RISK_REASON,
+      enforceReason: INTENT_RISK_REASON,
+      kind: "complaint_issue",
+    });
+    expect(evaluateIntentRisk(null, { modelIntent: "general" })).toEqual({ reason: null, enforceReason: null, kind: null });
   });
 
   it("insan talebi: modelin KENDİ devir cevabı muaf; acil/şikâyet/iptal devir cevabında da muaf DEĞİL", () => {
-    expect(evaluateIntentRisk("human_request", { modelIntent: "human_request", mode: "enforce" }).enforceReason).toBeNull();
-    expect(evaluateIntentRisk("human_request", { modelIntent: "general", mode: "enforce" }).reason).toBe(INTENT_RISK_REASON);
+    expect(evaluateIntentRisk("human_request", { modelIntent: "human_request" }).reason).toBeNull();
+    expect(evaluateIntentRisk("human_request", { modelIntent: "general" }).reason).toBe(INTENT_RISK_REASON);
     for (const kind of ["emergency", "complaint_issue", "cancellation_refund"] as const) {
-      expect(evaluateIntentRisk(kind, { modelIntent: "human_request", mode: "enforce" }).reason, kind).toBe(INTENT_RISK_REASON);
+      expect(evaluateIntentRisk(kind, { modelIntent: "human_request" }).reason, kind).toBe(INTENT_RISK_REASON);
     }
-  });
-
-  it("kip: yalnız `enforce` açar (harf/kenar boşluğu esnek); başka her değer gölge", () => {
-    expect(intentPolicyMode()).toBe("shadow");
-    for (const [v, want] of [
-      ["enforce", "enforce"],
-      [" ENFORCE ", "enforce"],
-      ["Enforce", "enforce"],
-      ["1", "shadow"],
-      ["true", "shadow"],
-      ["on", "shadow"],
-      ["", "shadow"],
-    ] as const) {
-      vi.stubEnv("AI_INTENT_POLICY", v);
-      expect(intentPolicyMode(), v).toBe(want);
-    }
-    vi.stubEnv("AI_INTENT_POLICY", "enforce");
-    expect(evaluateIntentRisk("emergency", { modelIntent: "general" }).reason).toBe(INTENT_RISK_REASON);
   });
 
   it("kanıt özeti yalnız kapalı-küme kodlar", () => {
-    expect(intentRiskEvidenceOf(evaluateIntentRisk("emergency", { modelIntent: "general", mode: "shadow" }))).toEqual({
-      v: "-",
+    expect(intentRiskEvidenceOf(evaluateIntentRisk("emergency", { modelIntent: "general" }))).toEqual({
+      v: "understanding_risk",
       ev: "understanding_risk",
       k: "emergency",
     });
-    expect(intentRiskEvidenceOf(evaluateIntentRisk(null, { modelIntent: "general", mode: "enforce" }))).toEqual({ v: "-", ev: "-", k: "-" });
+    // Muaf devir: sinyal kanıtta kalır, karar yok.
+    expect(intentRiskEvidenceOf(evaluateIntentRisk("human_request", { modelIntent: "human_request" }))).toEqual({ v: "-", ev: "-", k: "human_request" });
+    expect(intentRiskEvidenceOf(evaluateIntentRisk(null, { modelIntent: "general" }))).toEqual({ v: "-", ev: "-", k: "-" });
   });
 });
 
@@ -128,65 +113,50 @@ describe("kanal kapısı (`autoReplyGateFailure`)", () => {
     }
   });
 
-  it("🚨 `enforce`: anlama katmanının risk niyeti taslağı TUTAR (gerekçe `understanding_risk`); gölge kipte geçer", () => {
+  it("🚨 anlama katmanının risk niyeti taslağı TUTAR (gerekçe `understanding_risk`)", () => {
     for (const [msg, kind] of MISSED) {
-      expect(autoReplyGateFailure(OK, msg, { understandingRisk: kind, intentMode: "enforce" }), msg).toBe("understanding_risk");
-      expect(autoReplyGateFailure(OK, msg, { understandingRisk: kind, intentMode: "shadow" }), msg).toBeNull();
+      expect(autoReplyGateFailure(OK, msg, { understandingRisk: kind }), msg).toBe("understanding_risk");
     }
   });
 
   it("gerekçe SON kontrol: başka bir kontrol kapattıysa onun gerekçesi yazılır (düşük güven → `blocked`)", () => {
     const msg = MISSED[2][0];
-    expect(autoReplyGateFailure({ ...OK, confidence: 0.5 }, msg, { understandingRisk: "complaint_issue", intentMode: "enforce" })).toBe("blocked");
-    expect(autoReplyGateFailure({ ...OK, confidence: Number.NaN }, msg, { understandingRisk: "complaint_issue", intentMode: "enforce" })).toBe(
-      "blocked",
-    );
+    expect(autoReplyGateFailure({ ...OK, confidence: 0.5 }, msg, { understandingRisk: "complaint_issue" })).toBe("blocked");
+    expect(autoReplyGateFailure({ ...OK, confidence: Number.NaN }, msg, { understandingRisk: "complaint_issue" })).toBe("blocked");
   });
 
   it("devir cevabı insan talebinde GİDER; aynı devir cevabı acil durumda TUTULUR", () => {
     const handoff = { ...OK, intent: "human_request", reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." };
     const msg = "Can I speak with the owner directly please?";
-    expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "human_request", intentMode: "enforce" })).toBeNull();
-    expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "emergency", intentMode: "enforce" })).toBe("understanding_risk");
-  });
-
-  it("varsayılan kip `AI_INTENT_POLICY`den (verilmezse gölge)", () => {
-    const msg = MISSED[0][0];
-    expect(autoReplyGateFailure(OK, msg, { understandingRisk: "emergency" })).toBeNull();
-    vi.stubEnv("AI_INTENT_POLICY", "enforce");
-    expect(autoReplyGateFailure(OK, msg, { understandingRisk: "emergency" })).toBe("understanding_risk");
+    expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "human_request" })).toBeNull();
+    expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "emergency" })).toBe("understanding_risk");
   });
 });
 
 describe("QR kapısı (`evaluateEscalation`) — AYNI yüklem", () => {
   const msg = "There are ants all over the kitchen counter.";
 
-  it("KONTROL: sinyalsiz geçer; 🚨 `enforce` + risk niyeti → devir (`understanding_risk`); gölge kipte geçer", () => {
+  it("KONTROL: sinyalsiz geçer; 🚨 risk niyeti → devir (`understanding_risk`)", () => {
     expect(evaluateEscalation(OK, msg, null, [], {})).toEqual({ escalate: false, reason: null });
-    expect(evaluateEscalation(OK, msg, null, [], { understandingRisk: "complaint_issue", intentMode: "enforce" })).toEqual({
+    expect(evaluateEscalation(OK, msg, null, [], { understandingRisk: "complaint_issue" })).toEqual({
       escalate: true,
       reason: "understanding_risk",
     });
-    expect(evaluateEscalation(OK, msg, null, [], { understandingRisk: "complaint_issue", intentMode: "shadow" })).toEqual({
-      escalate: false,
-      reason: null,
-    });
   });
 
-  it("🚨 bilgi bandı (bayrak açık, güven 0.45–0.75) da risk niyetini atlayamaz: `enforce` → devir; gölge → bant cevabı", () => {
+  it("🚨 bilgi bandı (bayrak açık, güven 0.45–0.75) da risk niyetini atlayamaz → devir", () => {
     vi.stubEnv("QR_INFORMATIONAL_BAND_ENABLED", "1");
     const band = { ...OK, confidence: 0.6, usedSources: ["kb:Genel"] };
     // Anti-vakum: sinyalsiz bant cevabı gerçekten GEÇİYOR (bant yolu bu testte canlı).
     expect(evaluateEscalation(band, msg, null, [], {})).toEqual({ escalate: false, reason: "informational_low_confidence" });
-    expect(evaluateEscalation(band, msg, null, [], { understandingRisk: "complaint_issue", intentMode: "enforce" })).toEqual({
+    expect(evaluateEscalation(band, msg, null, [], { understandingRisk: "complaint_issue" })).toEqual({
       escalate: true,
       reason: "understanding_risk",
     });
-    expect(evaluateEscalation(band, msg, null, [], { understandingRisk: "complaint_issue", intentMode: "shadow" }).escalate).toBe(false);
   });
 
   it("gerekçe SON kontrol: düşük güvende `low_confidence` yazılır", () => {
-    expect(evaluateEscalation({ ...OK, confidence: 0.3 }, msg, null, [], { understandingRisk: "complaint_issue", intentMode: "enforce" }).reason).toBe(
+    expect(evaluateEscalation({ ...OK, confidence: 0.3 }, msg, null, [], { understandingRisk: "complaint_issue" }).reason).toBe(
       "low_confidence",
     );
   });
@@ -213,5 +183,39 @@ describe("kanıt (`kbEvidenceJson.ir`)", () => {
     }
     // Yalnız risk kanıtı olsa da kayıt üretilir (ölçüldü ≠ ölçülmedi).
     expect(buildKbEvidence({ retrieved: [], usedLabels: [], intentRisk: { v: "-", ev: "-", k: "-" } })).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 BİRLEŞİM DEĞİŞMEZİ (kurucu + dış inceleme, 09-24 üçüncü tur): hiçbir katmanın "risk yok"u başka bir katmanın
+// riskini SİLEMEZ. Anlama katmanı koştu ve acil/şikâyet/iptal-iade/insan talebi gördüyse, cevap modelinin "genel"
+// etiketi ya da bir ortam anahtarı bu sinyali susturamaz. Gölge kip YOK; geri alma = katmanın kendisini kapatmak
+// (`AI_UNDERSTANDING_ENABLED`). Bedeli bilinçli: yanlış alarm host'a taslak + acil bildirim demektir.
+// ---------------------------------------------------------------------------
+describe("🚨 birleşim değişmezi — anlama katmanının risk niyeti silinemez", () => {
+  const msg = "There are ants all over the kitchen counter.";
+
+  it("karar her ortam değerinde verilir; `enforceReason` artık ayrı karar değil (`reason`a eşit)", () => {
+    for (const v of ["", "shadow", "enforce", "whatever"]) {
+      vi.stubEnv("AI_INTENT_POLICY", v);
+      const e = evaluateIntentRisk("complaint_issue", { modelIntent: "general" });
+      expect(e.reason, v).toBe(INTENT_RISK_REASON);
+      expect(e.enforceReason, v).toBe(e.reason);
+    }
+    // Muafiyet aynen: modelin KENDİ devir cevabı insan talebinin doğru cevabıdır.
+    expect(evaluateIntentRisk("human_request", { modelIntent: "human_request" }).reason).toBeNull();
+    expect(evaluateIntentRisk(null, { modelIntent: "general" }).reason).toBeNull();
+  });
+
+  it("kanal ve QR kapısı: 'shadow' yazılı olsa da risk niyeti tutar", () => {
+    vi.stubEnv("AI_INTENT_POLICY", "shadow");
+    expect(autoReplyGateFailure(OK, msg, { understandingRisk: "complaint_issue" })).toBe("understanding_risk");
+    expect(evaluateEscalation(OK, msg, null, [], { understandingRisk: "complaint_issue" })).toEqual({
+      escalate: true,
+      reason: "understanding_risk",
+    });
+    // KONTROL: sinyal yoksa (katman kapalı / düştü / risk niyeti yok) eski davranış.
+    expect(autoReplyGateFailure(OK, msg, {})).toBeNull();
+    expect(autoReplyGateFailure(OK, msg, { understandingRisk: null })).toBeNull();
   });
 });
