@@ -160,6 +160,53 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
     expect(clash?.facts.otherOverlaps).toBe(1);
   });
 
+  it("🚨 P1 (inceleme 09-24): konaklama içi temizlik görevi çıkıştan SONRA kapatılsa da çıkış temizliği AÇIKSA hazır DEĞİL", async () => {
+    const t = await turnover({ cleaned: null, cleaningStatus: "todo" });
+    // Önceki misafirin konaklaması sırasında açılmış (şikâyet) temizlik görevi: vadesi konaklama içinde, çıkıştan sonra kapatıldı.
+    const side = await prisma.task.create({
+      data: { propertyId: t.propertyId, reservationId: t.previous.id, type: "cleaning", title: "Ek temizlik", status: "done", origin: "ai", dueAt: new Date("2026-10-13T09:00:00.000Z") },
+    });
+    await prisma.taskUpdate.create({ data: { taskId: side.id, status: "done", createdAt: new Date("2026-10-14T08:20:00.000Z") } });
+    const out = await loadEarlyCheckinFacts({ organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
+    expect(out?.facts).toMatchObject({ readiness: "not_ready", readinessNote: "open" });
+    expect(out?.readyAt).toBeNull();
+    // Çıkış temizliği görevi HİÇ yoksa (mülk yaşam döngüsü görevi üretmiyor): konaklama içi görevin geç "bitti"si yine
+    // hazır YAPMAZ — küme çıkış gününe bağlı görevlerden kurulur, o gün görev yok → bilinmiyor.
+    await prisma.task.deleteMany({ where: { propertyId: t.propertyId, id: { not: side.id } } });
+    const lone = await loadEarlyCheckinFacts({ organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
+    expect(lone?.facts).toMatchObject({ readiness: "unknown" });
+    // Çıkış günündeki İKİNCİ bir temizlik görevi açıkken de hazır değil; ikisi de kapanınca hazır.
+    await resetDb();
+    const u = await turnover({ cleaned: CLEANED_AT });
+    const extra = await prisma.task.create({
+      data: { propertyId: u.propertyId, reservationId: u.previous.id, type: "cleaning", title: "Çarşaf", status: "in_progress", origin: "manual", dueAt: midnight("2026-10-14") },
+    });
+    const args = { organizationId: u.orgId, propertyId: u.propertyId, reservationId: u.own.id, now: NOW, requested: REQUESTED, singleIntent: true };
+    expect((await loadEarlyCheckinFacts(args))?.facts.readiness).toBe("not_ready");
+    await prisma.task.update({ where: { id: extra.id }, data: { status: "done" } });
+    await prisma.taskUpdate.create({ data: { taskId: extra.id, status: "done", createdAt: CLEANED_AT } });
+    expect((await loadEarlyCheckinFacts(args))?.facts.readiness).toBe("ready");
+  });
+
+  it("gecesiz / ters kayıt varış gününe dokunuyorsa hüküm verilemez → çakışma", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await reservation(t.propertyId, "2026-10-14", "2026-10-14");
+    const out = await loadEarlyCheckinFacts({ organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
+    expect(out?.facts.otherOverlaps).toBe(1);
+  });
+
+  it("aynı gün devir YOKSA hazırlık varıştan önceki EN SON çıkışın temizliğine bakar (daha eskisine değil)", async () => {
+    const { orgId, propertyId } = await org();
+    const older = await reservation(propertyId, "2026-10-05", "2026-10-08");
+    const latest = await reservation(propertyId, "2026-10-09", "2026-10-12");
+    const own = await reservation(propertyId, "2026-10-14", "2026-10-16");
+    const oldTask = await prisma.task.create({ data: { propertyId, reservationId: older.id, type: "cleaning", title: "T", status: "done", origin: "system", dueAt: midnight("2026-10-08") } });
+    await prisma.taskUpdate.create({ data: { taskId: oldTask.id, status: "done", createdAt: new Date("2026-10-08T10:00:00.000Z") } });
+    await prisma.task.create({ data: { propertyId, reservationId: latest.id, type: "cleaning", title: "T", status: "todo", origin: "system", dueAt: midnight("2026-10-12") } });
+    const out = await loadEarlyCheckinFacts({ organizationId: orgId, propertyId, reservationId: own.id, now: NOW, requested: REQUESTED, singleIntent: true });
+    expect(out?.facts).toMatchObject({ previousSameDay: null, readiness: "not_ready" });
+  });
+
   it("aynı gün İKİ ayrılan (önceki iki misafir çakışmış) → çakışma sayılır", async () => {
     const t = await turnover({ cleaned: CLEANED_AT });
     await reservation(t.propertyId, "2026-10-11", "2026-10-14");
@@ -319,11 +366,12 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     const out = await applyChannelAutoReply(id);
     expect(out.sent).toBe(true);
     const body = String(mockSend.mock.calls[0][1]);
-    expect(body.startsWith("Hello, the apartment is ready — you can check in from 13:00. The early check-in fee is €30.")).toBe(true);
+    expect(body.startsWith("The apartment is ready — you can check in today (14 October) from 13:00. The early check-in fee is €30.")).toBe(true);
     expect(body).not.toContain("check with the host");
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
     const note = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: t.prepTaskId } });
-    expect(note.note).toMatch(/^Erken giriş 13:00 otomatik onaylandı · ücret .*30/);
+    // Ücret TUTARI nota girmez (görev geçmişini temizlik de görür).
+    expect(note.note).toBe("Erken giriş 13:00 otomatik onaylandı.");
   });
 
   it("🚨 iki model ertelemeyi doğrulayıp kapı GEÇSE de doğrulanmış onay ertelemenin yerine geçer (misafir 'soracağım' değil cevap alır)", async () => {
@@ -332,7 +380,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
     const id = await conversationFor(t);
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(String(mockSend.mock.calls[0][1])).toContain("you can check in from 13:00");
+    expect(String(mockSend.mock.calls[0][1])).toContain("you can check in today (14 October) from 13:00");
     expect((await decision(id)).reason).toBe("early_checkin_verified");
   });
 
@@ -400,6 +448,61 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect((await decision(id)).ec).toBeUndefined();
   });
 
+  it("🚨 P1-2 (inceleme 09-24): cevap modeli 'insan talebi' dediyse (anlama katmanı yalnız erken giriş görse de) onay GİTMEZ", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, intent: "human_request" });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t, "Can we check in at 13:00? I also need to speak to the host.");
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await decision(id)).ec).toEqual({ s: "approvable", f: ["multi_intent"], a: "0" });
+  });
+
+  it("🚨 'istek yok' diyen bekçinin saati ikinci kaynak SAYILMAZ → tek kaynak, onay otomatik gitmez", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    const noRequest = { ...guard("13:00", false), guest_requests_change: false, kind: "none" };
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: noRequest }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await decision(id)).ec).toEqual({ s: "approvable", f: ["single_source_time"], a: "0" });
+  });
+
+  it("🚨 anlama katmanının BOŞ sorgulu insan talebi kalemi artık düşmez → tek konu değil, onay gitmez", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    const understanding = { ...nlu("13:00"), requests: [...nlu("13:00").requests, { intent: "human_request", query_tr: "", query_original: "" }] };
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: understanding, stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 P2 (inceleme 09-24): modelin DÜŞÜK güveni onay metnine taşınır — güven tabanı kalkmaz; kapı güvenden kapandıysa akış hiç koşmaz", async () => {
+    // (a) müsaitlik önce kapattı → akış koştu, ama onay metni modelin 0.5 güveniyle kapıdan geçemez.
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, confidence: 0.5 });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const a = await conversationFor(t);
+    expect((await applyChannelAutoReply(a)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await decision(a)).ec).toEqual({ s: "approvable", f: [], a: "0" });
+    // (b) iki model ertelemeyi doğruladı (müsaitlik geçti) ama güven düşük → kapı güvenden kapandı → akış KOŞMAZ.
+    await resetDb();
+    vi.clearAllMocks();
+    __resetUnderstandingCache();
+    mockSuggest.mockResolvedValue({ ...MODEL, confidence: 0.5 });
+    const u = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(u.orgId, u.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const b = await conversationFor(u);
+    expect((await applyChannelAutoReply(b)).sent).toBe(false);
+    expect((await decision(b)).ec).toBeUndefined();
+  });
+
   it("KONTROL: bayraklar kapalıyken (bugünkü üretim) saat iki modelden okunamaz → otomatik onay YOK", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "");
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "");
@@ -463,7 +566,7 @@ describe("AI öner — host'a kontrol listesi + doğrulanmış taslak (gönderim
       fee: { amount: 30, currency: "EUR" },
       facts: { arrivalToday: true, requestedTime: "13:00", previousCheckout: "11:00", readiness: "ready", otherOverlaps: 0 },
     });
-    expect(String(json.earlyCheckin?.draft)).toMatch(/^Hello, the apartment is ready — you can check in from 13:00/);
+    expect(String(json.earlyCheckin?.draft)).toMatch(/^The apartment is ready — you can check in today \(14 October\) from 13:00/);
     expect(mockSend).not.toHaveBeenCalled();
   });
 });
@@ -488,7 +591,8 @@ describe("PUT/DELETE /api/properties/[id]/early-checkin-rule", () => {
     expect((await put(propertyId, { ...RULE, note: "Ödeme talebi Airbnb üzerinden gelecek." })).status).toBe(200);
     expect(await loadEarlyCheckinRule(orgId, propertyId)).toMatchObject({ mode: "auto", fee: { amount: 30, currency: "EUR" } });
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "property.early_checkin_rule_set" } });
-    expect(String(audit.metadataJson)).not.toMatch(/30|EUR|12:00|Airbnb/);
+    // TAM eşitlik: rastgele kimlik "30" içerebilir (ilk sürümdeki /30|EUR/ kalıbı bu yüzden aralıklı kırmızıydı).
+    expect(JSON.parse(String(audit.metadataJson))).toEqual({ propertyId, fields: ["mode", "earliest", "fee", "note"] });
     expect((await del(propertyId)).status).toBe(200);
     expect(await loadEarlyCheckinRule(orgId, propertyId)).toBeNull();
   });

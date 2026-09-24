@@ -37,7 +37,8 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
     const f = r.fee as Record<string, unknown>;
     const amount = f.amount;
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0 || amount > FEE_MAX) return null;
-    if (Math.round(amount * 100) !== amount * 100) return null; // en fazla iki hane
+    // En fazla iki ondalık hane. `amount * 100` kayan nokta hatası taşır (19.99 × 100 = 1998.999…) → yuvarla-geri kıyasla.
+    if (Math.round(amount * 100) / 100 !== amount) return null;
     if (!member(EARLY_CHECKIN_CURRENCIES, f.currency)) return null;
     fee = { amount, currency: f.currency };
   }

@@ -198,6 +198,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           requestedTime: run.facts.requested.time,
           previousCheckout: run.facts.previousSameDay?.checkoutTime ?? null,
           readiness: run.facts.readiness,
+          readinessNote: run.facts.readinessNote ?? "none",
           otherOverlaps: run.facts.otherOverlaps,
           previousNightVerifiedVacant: run.facts.previousNightVerifiedVacant,
         },

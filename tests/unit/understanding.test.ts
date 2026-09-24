@@ -25,6 +25,7 @@ import {
   MAX_UNDERSTOOD_REQUESTS,
 } from "@/lib/ai/semantic/understanding-schema";
 import { STAY_CHANGE_KINDS } from "@/lib/ai/semantic/stay-change";
+import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import {
   UNDERSTANDING_SYSTEM_PROMPT,
   buildUnderstandingUserContent,
@@ -74,7 +75,20 @@ describe("şema sözleşmesi", () => {
     expect(sc.properties.kind.enum).toEqual([...STAY_CHANGE_KINDS]);
   });
 
-  it("çözücü: geçerli çıktı; üst düzey bozuk → null; tanınmayan niyet / boş sorgu kalemi DÜŞER", () => {
+  it("🚨 boş sorgulu kalem DÜŞMEZ (inceleme 09-24): risk niyeti sorguya bağlı değil; sorgu üretimi boşu atlar", () => {
+    const u = parseUnderstanding({
+      ...OK_RAW,
+      requests: [
+        { intent: "early_checkin", query_tr: "erken giriş", query_original: "early check-in" },
+        { intent: "human_request", query_tr: "", query_original: "" },
+      ],
+    });
+    expect(u?.requests.map((r) => r.intent)).toEqual(["early_checkin", "human_request"]);
+    expect(understandingRiskOf(u)).toBe("human_request");
+    expect(understandingQueries(u).map((q) => q.text)).toEqual(["erken giriş", "early check-in"]);
+  });
+
+  it("çözücü: geçerli çıktı; üst düzey bozuk → null; tanınmayan niyet DÜŞER, boş sorgu kalemi niyetiyle kalır", () => {
     expect(parseUnderstanding(OK_RAW)).toEqual({
       language: "de",
       requests: [{ intent: "parking", queryTr: "otopark park yeri", queryOriginal: "Parkplatz parken" }],
@@ -94,6 +108,7 @@ describe("şema sözleşmesi", () => {
     });
     expect(mixed?.requests).toEqual([
       { intent: "parking", queryTr: "otopark", queryOriginal: "Parkplatz" },
+      { intent: "wifi", queryTr: "", queryOriginal: "" },
       { intent: "wifi", queryTr: "wifi şifre", queryOriginal: "wifi şifre" },
     ]);
   });

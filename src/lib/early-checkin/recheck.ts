@@ -13,7 +13,8 @@
 
 import { prisma } from "@/lib/db";
 import { EARLY_CHECKIN_CHECKS } from "./core";
-import { loadEarlyCheckinFacts, READY_SETTLE_MS } from "./load";
+import { loadEarlyCheckinFacts } from "./load";
+import { READY_SETTLE_MS } from "./readiness";
 import { EARLY_CHECKIN_TRIGGER, validateEarlyCheckinRuleInput } from "./rules";
 
 /** Host'un görev geçmişinde görünen not (sade dil) — aynı zamanda döngü korumasının işareti. */

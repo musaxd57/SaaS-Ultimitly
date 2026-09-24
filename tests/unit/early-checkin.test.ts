@@ -8,10 +8,11 @@ import {
   type EarlyCheckinFacts,
   type EarlyCheckinRule,
 } from "@/lib/early-checkin/core";
-import { earlyCheckinApprovalText, earlyCheckinLang, EARLY_CHECKIN_LANGS, formatEarlyCheckinFee } from "@/lib/early-checkin/reply";
+import { earlyCheckinApprovalText, earlyCheckinLang, EARLY_CHECKIN_LANGS, formatEarlyCheckinDay, formatEarlyCheckinFee } from "@/lib/early-checkin/reply";
 import { validateEarlyCheckinRuleInput } from "@/lib/early-checkin/rules";
-import { earlyCheckinPanelLines } from "@/lib/early-checkin/panel";
-import { laterTime, READY_SETTLE_MS, readinessOf, readyAtOf } from "@/lib/early-checkin/load";
+import { parseFeeInput } from "@/lib/early-checkin/fee-input";
+import { earlyCheckinPanelLines, type EarlyCheckinPanelData } from "@/lib/early-checkin/panel";
+import { laterTime, READY_SETTLE_MS, readinessDetailOf, readinessOf, readyAtOf } from "@/lib/early-checkin/readiness";
 import { earlyCheckinEvidenceOf, earlyCheckinHostNote, singleTopicEarlyCheckin } from "@/lib/early-checkin/workflow";
 import { evaluateAvailability, stayRequestKinds } from "@/lib/ai/availability-claims";
 import { verifiedEarlyCheckinResult } from "@/lib/automation";
@@ -130,35 +131,43 @@ describe("karar çekirdeği — her kontrol ayrı, eksik ya da çelişki insana"
 describe("onay metni — KODDA, yalnız doğrulanmış veri + host'un kayıtlı kuralı", () => {
   const approvable = decideEarlyCheckin(OK, RULE);
 
-  it("altı dilde saat + ücret; Arapçada Latin rakamlar; tanınmayan dil → İngilizce", () => {
+  it("altı dilde GÜN + saat + ücret, selamsız; Arapçada Latin rakamlar; tanınmayan dil → İngilizce", () => {
     for (const lang of EARLY_CHECKIN_LANGS) {
-      const t = earlyCheckinApprovalText(approvable, lang, null);
+      const t = earlyCheckinApprovalText(approvable, lang, null, "2026-10-14");
       expect(t, lang).toContain("12:00");
+      expect(t, lang).toContain("14");
       expect(t, lang).toContain("30");
       expect(t ?? "", lang).not.toMatch(/[٠-٩۰-۹]/);
+      expect(t ?? "", lang).not.toMatch(/^(?:Merhaba|Hello|Hallo|Bonjour|مرحب|Здравствуйте)/);
     }
     expect(earlyCheckinLang("pt")).toBe("en");
     expect(earlyCheckinLang("TR")).toBe("tr");
     expect(earlyCheckinLang("de-DE")).toBe("de");
     expect(earlyCheckinLang(null)).toBe("en");
-    expect(earlyCheckinApprovalText(approvable, "tr", null)).toBe("Merhaba, daireniz hazır; saat 12:00 itibarıyla giriş yapabilirsiniz. Erken giriş ücreti €30.");
+    expect(earlyCheckinApprovalText(approvable, "tr", null, "2026-10-14")).toBe(
+      "Daireniz hazır; bugün (14 Ekim) saat 12:00 itibarıyla giriş yapabilirsiniz. Erken giriş ücreti €30.",
+    );
   });
 
   it("ücretsiz kuralda ücret cümlesi YOK; host notu en sona olduğu gibi eklenir", () => {
     const free = decideEarlyCheckin(OK, { ...RULE, fee: null });
-    expect(earlyCheckinApprovalText(free, "en", "Please message us when you arrive.")).toBe(
-      "Hello, the apartment is ready — you can check in from 12:00. Please message us when you arrive.",
+    expect(earlyCheckinApprovalText(free, "en", "Please message us when you arrive.", "2026-10-14")).toBe(
+      "The apartment is ready — you can check in today (14 October) from 12:00. Please message us when you arrive.",
     );
   });
 
   it("onaylanabilir DEĞİLSE metin YOK (çağıran insan akışına döner)", () => {
-    expect(earlyCheckinApprovalText(decideEarlyCheckin({ ...OK, readiness: "not_ready" }, RULE), "tr", null)).toBeNull();
-    expect(earlyCheckinApprovalText(decideEarlyCheckin({ ...OK, requested: { time: "15:00", sources: 2, conflict: false } }, RULE), "tr", null)).toBeNull();
+    expect(earlyCheckinApprovalText(decideEarlyCheckin({ ...OK, readiness: "not_ready" }, RULE), "tr", null, "2026-10-14")).toBeNull();
+    expect(earlyCheckinApprovalText(decideEarlyCheckin({ ...OK, requested: { time: "15:00", sources: 2, conflict: false } }, RULE), "tr", null, "2026-10-14")).toBeNull();
   });
 
-  it("ücret biçimi: tam sayıda kuruş yok, küsurda iki hane", () => {
-    expect(formatEarlyCheckinFee({ amount: 500, currency: "TRY" }, "tr")).toMatch(/^₺?500(,00)? ?₺?$|500/);
+  it("ücret ve gün biçimi dile göre (Türkçede virgül ondalık, binlik nokta)", () => {
+    expect(formatEarlyCheckinFee({ amount: 500, currency: "TRY" }, "tr")).toBe("₺500");
+    expect(formatEarlyCheckinFee({ amount: 1500, currency: "TRY" }, "tr")).toBe("₺1.500");
+    expect(formatEarlyCheckinFee({ amount: 12.5, currency: "EUR" }, "tr")).toBe("€12,50");
     expect(formatEarlyCheckinFee({ amount: 12.5, currency: "EUR" }, "en")).toBe("€12.50");
+    expect(formatEarlyCheckinDay("2026-10-14", "tr")).toBe("14 Ekim");
+    expect(formatEarlyCheckinDay("2026-10-14", "de")).toBe("14. Oktober");
   });
 });
 
@@ -173,6 +182,12 @@ describe("kural doğrulama — host verisi misafire gider, süzgeçten geçer", 
     expect(validateEarlyCheckinRuleInput({ mode: "off", earliest: "12:00", fee: null, note: "" })).toEqual({ mode: "off", earliest: "12:00", fee: null, note: null });
   });
 
+  it("iki haneli küsurlu ücret kabul edilir (kayan nokta: 19.99 × 100 = 1998.999… — ilk sürüm reddediyordu)", () => {
+    for (const amount of [19.99, 9.95, 1.1, 4.35, 12.5]) {
+      expect(validateEarlyCheckinRuleInput({ mode: "auto", earliest: "12:00", fee: { amount, currency: "EUR" }, note: null })?.fee, String(amount)).toEqual({ amount, currency: "EUR" });
+    }
+  });
+
   it("🚨 geçersiz değerler REDDEDİLİR (kip, saat, ücret, para birimi, not)", () => {
     const base = { mode: "auto", earliest: "12:00", fee: null, note: null };
     for (const bad of [
@@ -185,6 +200,7 @@ describe("kural doğrulama — host verisi misafire gider, süzgeçten geçer", 
       { ...base, fee: { amount: -5, currency: "EUR" } },
       { ...base, fee: { amount: 10001, currency: "EUR" } },
       { ...base, fee: { amount: 1.234, currency: "EUR" } },
+      { ...base, fee: { amount: 0.001, currency: "EUR" } },
       { ...base, fee: { amount: "20", currency: "EUR" } },
       { ...base, fee: { amount: 20, currency: "BTC" } },
       { ...base, note: "x".repeat(201) },
@@ -199,6 +215,23 @@ describe("kural doğrulama — host verisi misafire gider, süzgeçten geçer", 
     ]) {
       expect(validateEarlyCheckinRuleInput(bad), JSON.stringify(bad)).toBeNull();
     }
+  });
+});
+
+describe("para içeren formlar yalnız yöneticiye (kurucu: temizlik ücreti görmez)", () => {
+  it("mülk sayfası erken giriş ve gecelik aralık formlarını YALNIZ `canManage` bloğunda çizer; kural personel için hiç okunmaz", () => {
+    const src = readFileSync(resolve(process.cwd(), "src/app/(app)/properties/[id]/page.tsx"), "utf8");
+    const gate = src.indexOf("{canManage ? (\n                <>");
+    const end = src.indexOf(") : null}", gate);
+    expect(gate).toBeGreaterThan(-1);
+    for (const tag of ["<EarlyCheckinRuleForm", "<NightlyRateForm"]) {
+      const at = src.indexOf(tag);
+      expect(at, tag).toBeGreaterThan(gate);
+      expect(at, tag).toBeLessThan(end);
+      expect(src.split(tag).length - 1, tag).toBe(1);
+    }
+    expect(src).toContain("const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(");
+    expect(src).toContain("const nightlyRate = canManage ? await getNightlyRate(");
   });
 });
 
@@ -235,6 +268,21 @@ describe("hazırlık hükmü — tik, çıkıştan SONRA, en az 5 dk, geri alın
     expect(readyAtOf([{ status: "done", doneAt: new Date(now.getTime() - 60_000) }], checkout, now)).toBeNull();
     expect(readyAtOf([{ status: "todo", doneAt: b }], checkout, now)).toBeNull();
     expect(readyAtOf([{ status: "done", doneAt: b }], null, now)).toBeNull();
+  });
+  it("🚨 bu devirde AÇIK temizlik görevi varsa başka bir görevin 'bitti'si hazır yapmaz (inceleme 09-24, P1)", () => {
+    const done = { status: "done", doneAt: new Date("2026-10-14T09:30:00Z") };
+    expect(readinessOf([done, { status: "todo", doneAt: null }], checkout, now)).toBe("not_ready");
+    expect(readinessDetailOf([done, { status: "in_progress", doneAt: null }], checkout, now)).toEqual({ status: "not_ready", note: "open" });
+    expect(readyAtOf([done, { status: "todo", doneAt: null }], checkout, now)).toBeNull();
+    // Hepsi kapalı: biri çıkıştan önce (konaklama içi), biri sonra ve oturmuş → hazır.
+    expect(readinessOf([{ status: "done", doneAt: new Date("2026-10-14T07:00:00Z") }, done], checkout, now)).toBe("ready");
+  });
+  it("hazır değilse NEDEN: açık · taze · çıkıştan önce · zamansız · görev yok", () => {
+    expect(readinessDetailOf([{ status: "todo", doneAt: null }], checkout, now).note).toBe("open");
+    expect(readinessDetailOf([{ status: "done", doneAt: new Date(now.getTime() - 60_000) }], checkout, now).note).toBe("fresh");
+    expect(readinessDetailOf([{ status: "done", doneAt: new Date("2026-10-14T07:00:00Z") }], checkout, now).note).toBe("before_checkout");
+    expect(readinessDetailOf([{ status: "done", doneAt: null }], checkout, now)).toEqual({ status: "unknown", note: "no_time" });
+    expect(readinessDetailOf([], checkout, now)).toEqual({ status: "unknown", note: "none" });
   });
   it("🚨 'bitti' işaretinden sonra görev yeniden AÇILDIYSA (host geri aldı) hazır DEĞİL", () => {
     expect(readinessOf([{ status: "todo", doneAt: new Date("2026-10-14T09:30:00Z") }], checkout, now)).toBe("not_ready");
@@ -281,10 +329,12 @@ describe("istek türü birleşimi + kapı muafiyeti — yalnız KODDAN kurulan m
       [...stayRequestKinds(["x"], { understanding: { requested: true, kind: "late_checkout", checkinTime: "12:00", checkoutTime: null }, stayTimes: STAY })].sort(),
     ).toEqual(["early_checkin", "late_checkout"]);
     expect([...stayRequestKinds(["x"], { understanding: { requested: true, kind: "none", checkinTime: null, checkoutTime: null } })]).toEqual(["unknown"]);
+    // Kelime ağı ÖNCELİKLİ tek türde durmaz (inceleme 09-24): aynı mesajdaki ikinci tür de birleşime girer.
+    expect([...stayRequestKinds(["Could we check in early and also check out late?"], {})].sort()).toEqual(["early_checkin", "late_checkout"]);
   });
 
   it("🚨 muafiyet YALNIZ birebir aynı metin + tek tür erken giriş; başka her durumda metin izin/iddia sayılır", () => {
-    const text = earlyCheckinApprovalText(decideEarlyCheckin(OK, RULE), "tr", null) as string;
+    const text = earlyCheckinApprovalText(decideEarlyCheckin(OK, RULE), "tr", null, "2026-10-14") as string;
     const base = { declared: { asked: "early_checkin" as const, stance: "none" as const }, guard: { status: "ok" as const, verdict: verdict() }, stayTimes: STAY };
     const ask = ["Saat 12'de gelebilir miyiz?"];
     expect(evaluateAvailability(text, ask, { ...base, verifiedGrant: { text } }).reason).toBeNull();
@@ -301,7 +351,7 @@ describe("istek türü birleşimi + kapı muafiyeti — yalnız KODDAN kurulan m
     expect(evaluateAvailability(text, ask, { ...base, replyIntent: "late_checkout", verifiedGrant: { text } }).reason).not.toBeNull();
   });
 
-  it("doğrulanmış sonuç yalnız metni, güveni ve kaynakları değiştirir; niyet / risk / beyan AYNEN kalır (kapının diğer kontrolleri koşsun)", () => {
+  it("🚨 doğrulanmış sonuç: metin + niyet (early_checkin) değişir; GÜVEN, risk ve beyan AYNEN kalır (inceleme 09-24: güven 1'e çekilmez, insan talebi etiketi muafiyet taşımaz)", () => {
     const r = {
       intent: "complaint",
       riskLevel: "medium",
@@ -312,7 +362,7 @@ describe("istek türü birleşimi + kapı muafiyeti — yalnız KODDAN kurulan m
       stayChange: { asked: "early_checkin", stance: "defers" },
       claimAudit: { total: 1 },
     };
-    expect(verifiedEarlyCheckinResult(r, "şablon")).toEqual({ ...r, reply: "şablon", confidence: 1, usedSources: [], claimAudit: undefined });
+    expect(verifiedEarlyCheckinResult(r, "şablon")).toEqual({ ...r, reply: "şablon", intent: "early_checkin", usedSources: [], claimAudit: undefined });
   });
 
   it("tek konu: anlama katmanı yalnız erken giriş (± giriş saati / selam) gördüyse", () => {
@@ -337,8 +387,9 @@ describe("kanıt + host notu + panel", () => {
     expect([...EARLY_CHECKIN_CHECKS].length).toBe(new Set(EARLY_CHECKIN_CHECKS).size);
   });
 
-  it("host notu yalnız onayda; ücret Türkçe biçimde", () => {
-    expect(earlyCheckinHostNote(decideEarlyCheckin(OK, RULE))).toMatch(/^Erken giriş 12:00 otomatik onaylandı · ücret .*30.*\.$/);
+  it("🚨 host notu yalnız onayda ve ÜCRET TUTARI TAŞIMAZ (görev geçmişini temizlik de görür); kuyruk yolunda 'gönderime alındı'", () => {
+    expect(earlyCheckinHostNote(decideEarlyCheckin(OK, RULE))).toBe("Erken giriş 12:00 otomatik onaylandı.");
+    expect(earlyCheckinHostNote(decideEarlyCheckin(OK, RULE), true)).toBe("Erken giriş 12:00 için onay mesajı gönderime alındı.");
     expect(earlyCheckinHostNote(decideEarlyCheckin({ ...OK, readiness: "unknown" }, RULE))).toBeNull();
   });
 
@@ -353,6 +404,38 @@ describe("kanıt + host notu + panel", () => {
     });
     expect(lines.find((l) => l.text.startsWith("Temizlik"))).toEqual({ ok: false, text: "Temizlik henüz bitti olarak işaretlenmedi." });
     expect(lines.some((l) => !l.ok && l.text.includes("kuralı kapalı"))).toBe(true);
-    expect(lines.find((l) => l.text.startsWith("Önceki misafir"))?.ok).toBe(true);
+    expect(lines.find((l) => l.text.startsWith("Önceki misafir"))).toEqual({ ok: true, text: "Önceki misafirin çıkışı: 11:00" });
+    expect(lines.find((l) => l.text.startsWith("Erken giriş ücreti"))?.text).toBe("Erken giriş ücreti: €30");
+  });
+
+  it("panel dürüstlüğü (inceleme 09-24): saati okuyamayınca 'net değil' demez; taze/erken işaret kendi nedeniyle; başka konu uyarısı", () => {
+    const facts: EarlyCheckinPanelData["facts"] = {
+      arrivalToday: true,
+      requestedTime: null,
+      previousCheckout: "11:00",
+      readiness: "not_ready",
+      otherOverlaps: 0,
+      previousNightVerifiedVacant: false,
+    };
+    const text = (failed: string[], over: Partial<EarlyCheckinPanelData["facts"]> = {}) =>
+      earlyCheckinPanelLines({ status: "needs_host", mode: "auto", fee: null, failed, facts: { ...facts, ...over } }).map((l) => l.text);
+    expect(text(["time_unknown"])[0]).toBe("İstenen saati mesajdan kontrol edin.");
+    expect(text(["time_conflict"])[0]).toMatch(/iki kontrolde farklı okundu/);
+    expect(text(["not_ready"], { readinessNote: "fresh" })).toContain("Temizlik az önce bitti olarak işaretlendi; birkaç dakika içinde yeniden kontrol edilir.");
+    expect(text(["not_ready"], { readinessNote: "before_checkout" })).toContain("Temizlik işareti önceki misafirin çıkışından önce atılmış; bu devir için sayılmaz.");
+    expect(text(["ready_unknown"], { readiness: "unknown", readinessNote: "none" })).toContain("Bu devir için temizlik görevi bulunamadı.");
+    expect(text(["multi_intent"], { readiness: "ready", requestedTime: "12:00" })).toContain("Mesajda başka bir istek ya da soru da var; hazır cevap yalnız erken girişi yanıtlar.");
+  });
+});
+
+describe("ücret girişi (form) — Türkçe yazım", () => {
+  it("binlik nokta, ondalık virgül; belirsiz / bozuk yazım 'invalid' (sessizce düşmez); boş = ücret yok", () => {
+    expect(parseFeeInput("1.500")).toBe(1500);
+    expect(parseFeeInput("12,50")).toBe(12.5);
+    expect(parseFeeInput("12.5")).toBe(12.5);
+    expect(parseFeeInput("1.500,50")).toBe(1500.5);
+    expect(parseFeeInput(" ₺500 ")).toBe(500);
+    expect(parseFeeInput("")).toBeNull();
+    for (const bad of ["1,500", "abc", "0", "1.5.0", "1.2345", "12,345"]) expect(parseFeeInput(bad), bad).toBe("invalid");
   });
 });

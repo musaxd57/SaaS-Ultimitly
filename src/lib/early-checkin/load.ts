@@ -11,68 +11,18 @@
 // ---------------------------------------------------------------------------
 
 import { prisma } from "@/lib/db";
-import { orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
+import { orgTimezone } from "@/lib/timezone";
 import { addNights, calendarDateOf, describeNights, statusClassOf, todayKey } from "@/modules/availability/core";
 import { loadAvailabilityInputs } from "@/modules/availability/load";
-import { hhmmToMinutes, normalizeHhmm } from "@/lib/ai/semantic/stay-change";
-import type { EarlyCheckinFacts, EarlyCheckinRule, ReadinessStatus } from "./core";
+import { hhmmToMinutes } from "@/lib/ai/semantic/stay-change";
+import type { EarlyCheckinFacts, EarlyCheckinRule } from "./core";
+import { laterTime, readinessDetailOf, readyAtOf, wallClockMoment } from "./readiness";
 import { loadEarlyCheckinRule } from "./rules";
 
-/** "Bitti" işareti bundan yeniyse sayılmaz (yanlışlıkla dokunma geri alınabilsin). */
-export const READY_SETTLE_MS = 5 * 60_000;
+// Saf kurallar `readiness.ts`te (geçmiş mesaj taraması da aynı kuralı kullanır); eski içe aktarımlar bozulmasın.
+export { laterTime, READY_SETTLE_MS, readinessDetailOf, readinessOf, readyAtOf, wallClockMoment } from "./readiness";
+
 const DAY_MS = 86_400_000;
-
-/** İki saatten GEÇ olanı (biri geçersizse diğeri). */
-export function laterTime(a: string | null | undefined, b: string | null | undefined): string | null {
-  const x = normalizeHhmm(a);
-  const y = normalizeHhmm(b);
-  if (!x) return y;
-  if (!y) return x;
-  return (hhmmToMinutes(x) ?? 0) >= (hhmmToMinutes(y) ?? 0) ? x : y;
-}
-
-/** Takvim günü + duvar saati → an (org saat dilimi). Saat geçersizse `null`. */
-export function wallClockMoment(dayKey: string, hhmm: string | null, timeZone: string): Date | null {
-  const t = normalizeHhmm(hhmm);
-  if (!t) return null;
-  const [y, m, d] = dayKey.split("-").map(Number);
-  const [h, mi] = t.split(":").map(Number);
-  return zonedWallClockToUtc(y, m, d, h, mi, 0, timeZone);
-}
-
-/**
- * Saf hazırlık hükmü: görevler + çıkış anı + şimdi → hazır / hazır değil / bilinmiyor. `doneAt` = görevi "bitti"
- * yapan en son kaydın sunucu zamanı (yoksa `null`: zaman doğrulanamaz).
- */
-export function readinessOf(
-  tasks: readonly { status: string; doneAt: Date | null }[],
-  checkoutAt: Date | null,
-  now: Date,
-): ReadinessStatus {
-  if (tasks.length === 0 || !checkoutAt) return "unknown";
-  const ready = tasks.some(
-    (t) => t.status === "done" && t.doneAt !== null && t.doneAt >= checkoutAt && now.getTime() - t.doneAt.getTime() >= READY_SETTLE_MS,
-  );
-  if (ready) return "ready";
-  // "Bitti" ama zamanı yazılmamış kayıt doğrulanamaz; açık görev ya da çıkıştan ÖNCEKİ / taze işaret = hazır değil.
-  if (tasks.every((t) => t.status === "done" && t.doneAt === null)) return "unknown";
-  return "not_ready";
-}
-
-/** Hazır hükmünü veren EN YENİ "bitti" işaretinin zamanı (`readinessOf` ile aynı şart); hazır değilse `null`. */
-export function readyAtOf(
-  tasks: readonly { status: string; doneAt: Date | null }[],
-  checkoutAt: Date | null,
-  now: Date,
-): Date | null {
-  if (!checkoutAt) return null;
-  let latest: Date | null = null;
-  for (const t of tasks) {
-    if (t.status !== "done" || t.doneAt === null || t.doneAt < checkoutAt || now.getTime() - t.doneAt.getTime() < READY_SETTLE_MS) continue;
-    if (!latest || t.doneAt > latest) latest = t.doneAt;
-  }
-  return latest;
-}
 
 export async function loadEarlyCheckinFacts(args: {
   organizationId: string;
@@ -125,8 +75,10 @@ export async function loadEarlyCheckinFacts(args: {
     .map((r) => ({ r, a: calendarDateOf(r.arrivalDate, tz).key, d: calendarDateOf(r.departureDate, tz).key }));
   const sameDay = keyed.filter((x) => x.d === arrivalKey && x.a < arrivalKey);
   const occupying = keyed.filter((x) => x.a <= arrivalKey && arrivalKey < x.d);
+  // Gecesiz ya da ters kayıt varış gününe dokunuyorsa hüküm verilemez (motor da "boş" demez) → çakışma sayılır.
+  const malformed = keyed.filter((x) => x.a >= x.d && (x.a === arrivalKey || x.d === arrivalKey));
   // Aynı gün iki ayrılan = biri ötekiyle çakışmış (çift rezervasyon) → çakışma sayılır.
-  facts.otherOverlaps = occupying.length + Math.max(0, sameDay.length - 1);
+  facts.otherOverlaps = occupying.length + Math.max(0, sameDay.length - 1) + malformed.length;
   const previous = sameDay
     .map((x) => ({ ...x, checkout: laterTime(x.r.guestCheckoutTime, property.checkOutTime) }))
     .sort((p, q) => (hhmmToMinutes(q.checkout) ?? 0) - (hhmmToMinutes(p.checkout) ?? 0))[0];
@@ -147,6 +99,8 @@ export async function loadEarlyCheckinFacts(args: {
           : null;
       })();
   if (reference) {
+    // BU DEVRİN temizliği = çıkış GÜNÜNE bağlı temizlik görevleri (önceki rezervasyona bağlı ya da bağsız). Konaklama
+    // sırasında açılmış başka bir temizlik görevi (şikâyet) kümeye girmez; çıkış günündeki her görev kapanmış olmalı.
     const dayStart = wallClockMoment(reference.dayKey, "00:00", tz);
     const tasks = await prisma.task.findMany({
       where: {
@@ -154,15 +108,23 @@ export async function loadEarlyCheckinFacts(args: {
         type: "cleaning",
         OR: [
           { reservationId: reference.id },
-          ...(dayStart ? [{ reservationId: null, dueAt: { gte: dayStart, lt: new Date(dayStart.getTime() + DAY_MS) } }] : []),
+          ...(dayStart ? [{ reservationId: null, dueAt: { gte: new Date(dayStart.getTime() - DAY_MS), lt: new Date(dayStart.getTime() + 2 * DAY_MS) } }] : []),
         ],
       },
-      select: { status: true, updates: { where: { status: "done" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } },
+      select: {
+        status: true,
+        dueAt: true,
+        updates: { where: { status: "done" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+      },
     });
-    const marks = tasks.map((t) => ({ status: t.status, doneAt: t.updates[0]?.createdAt ?? null }));
+    const marks = tasks
+      .filter((t) => t.dueAt !== null && calendarDateOf(t.dueAt, tz).key === reference.dayKey)
+      .map((t) => ({ status: t.status, doneAt: t.updates[0]?.createdAt ?? null }));
     const checkoutAt = wallClockMoment(reference.dayKey, reference.checkout, tz);
-    facts.readiness = readinessOf(marks, checkoutAt, args.now);
-    readyAt = facts.readiness === "ready" ? readyAtOf(marks, checkoutAt, args.now) : null;
+    const detail = readinessDetailOf(marks, checkoutAt, args.now);
+    facts.readiness = detail.status;
+    facts.readinessNote = detail.note;
+    readyAt = readyAtOf(marks, checkoutAt, args.now);
   }
 
   if (!previous) {

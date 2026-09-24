@@ -60,7 +60,7 @@ describe("ConversationThread — erken giriş kontrol paneli", () => {
     );
     const panel = await screen.findByTestId("early-checkin-panel");
     expect(panel.textContent).toContain("İstenen saat: 13:00");
-    expect(panel.textContent).toContain("Önceki misafir 11:00'de çıkıyor.");
+    expect(panel.textContent).toContain("Önceki misafirin çıkışı: 11:00");
     expect(panel.textContent).toContain("Temizlik bitti olarak işaretlendi.");
     expect(screen.getByTestId("early-checkin-draft").textContent).toContain(DRAFT);
     const fetchCalls = vi.mocked(fetch).mock.calls.length;

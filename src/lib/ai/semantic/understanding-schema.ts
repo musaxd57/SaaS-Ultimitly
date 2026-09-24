@@ -116,7 +116,7 @@ function cleanQuery(v: unknown): string | null {
 
 /**
  * Model çıktısını STRICT çözer. Üst düzey biçim bozuksa `null` (= katman başarısız). Tek tek istek
- * kalemleri daha yumuşak: tanınmayan niyet ya da boş sorgu taşıyan kalem DÜŞER (geri kalanı kullanılır).
+ * kalemleri daha yumuşak: tanınmayan niyet taşıyan kalem DÜŞER (geri kalanı kullanılır); boş sorgu kalemi düşürmez.
  */
 export function parseUnderstanding(raw: unknown): MessageUnderstanding | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -128,9 +128,12 @@ export function parseUnderstanding(raw: unknown): MessageUnderstanding | null {
   for (const it of r.requests.slice(0, MAX_UNDERSTOOD_REQUESTS)) {
     if (!it || typeof it !== "object") continue;
     const x = it as Record<string, unknown>;
-    const queryTr = cleanQuery(x.query_tr);
+    if (!member(UNDERSTANDING_INTENTS, x.intent)) continue;
+    // Sorgusuz kalem de TUTULUR (inceleme 09-24): risk niyeti (acil, insan talebi) ve "tek konu mu?" kararı sorgu
+    // metnine bağlı değildir — eskiden boş sorgulu kalem DÜŞÜYOR ve o sinyal sessizce kayboluyordu. Sorgu üretimi
+    // (`understandingQueries`) boş sorguları atlar.
+    const queryTr = cleanQuery(x.query_tr) ?? "";
     const queryOriginal = cleanQuery(x.query_original) ?? queryTr;
-    if (!member(UNDERSTANDING_INTENTS, x.intent) || !queryTr || !queryOriginal) continue;
     requests.push({ intent: x.intent, queryTr, queryOriginal });
   }
   return {
@@ -160,6 +163,7 @@ export function understandingQueries(u: MessageUnderstanding | null | undefined,
   for (const [textOf, turkish] of passes) {
     for (const r of requests) {
       const text = textOf(r);
+      if (!text) continue;
       const k = text.toLocaleLowerCase("tr");
       if (seen.has(k)) continue;
       seen.add(k);

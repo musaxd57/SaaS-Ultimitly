@@ -26,28 +26,34 @@ gönderilmez. QR sohbeti resmî giriş saatinde açıldığı için orada erken 
 |---|---|---|---|
 | 1 | Önceki misafir ne zaman çıkıyor? | aynı gün ayrılan rezervasyon; saat = misafirin BİLDİRDİĞİ ile mülk varsayılanından GEÇ olanı (temkin) | `previous_checkout_unknown`, `previous_still_in` |
 | 2 | O gün çakışan rezervasyon var mı? | varış gecesini işgal eden başka satır + aynı gün iki ayrılan (iptal sayılmaz) | `overlap` |
-| 3 | Daire hazır mı? | önceki çıkış ANINDAN sonra atılmış, en az 5 dk'lık temizlik "bitti" kaydı (sunucu zamanı; fotoğraf değil) | `not_ready`, `ready_unknown` |
+| 3 | Daire hazır mı? | BU DEVRİN (çıkış gününe bağlı) temizlik görevlerinin HEPSİ kapalı + en az bir "bitti" kaydı önceki çıkış ANINDAN sonra ve ≥5 dk'lık (sunucu zamanı; fotoğraf değil). Konaklama içi başka bir temizlik görevinin geç kapanması hazır YAPMAZ (inceleme 09-24, P1) | `not_ready`, `ready_unknown` |
 | 3b | Aynı gün devir yoksa dün gece boş muydu? | YALNIZ müsaitlik motorunun taze kaynaklı "boş" hükmü | `previous_night_unverified` |
 | 4 | İstenen saat izin penceresinde mi? | host'un "en erken" saati; standarttan erken değilse / 05:00 öncesi (geç varış) ise akış uygulanmaz (`not_early`) | `before_window` |
 | 5 | Ücret ne? | YALNIZ host'un kayıtlı kuralı okunur; model tutar üretmez, hesaplamaz | — |
 | 6 | Host onayı mı, otomatik mi? | kural: kapalı (varsayılan) / taslak / otomatik | `rule_off` |
-| 7 | Cevap verilere uygun mu? | onay metni KODDA kurulur (6 dil), model metni DEĞİL | — |
+| 7 | Cevap verilere uygun mu? | onay metni KODDA kurulur (6 dil, selamsız, GÜNÜ adlandırır: "bugün (14 Ekim) saat 12:00 itibarıyla"), model metni DEĞİL | — |
 | 8 | Uydurma izin/müsaitlik yok mu? | kapı TÜM kontrolleri bu metinle BAŞTAN koşar; müsaitlik muafiyeti YALNIZ birebir aynı metin + tek tür | — |
 
 Ek: rezervasyon yok / onaylı değil / varış bugün değil → `no_reservation`, `reservation_not_confirmed`,
 `not_arrival_day`; saat okunamadı / iki model farklı okudu → `time_unknown`, `time_conflict`.
 
 **Otomatik gönderim ek şartları** (onaylanabilir olsa da yoksa host'a hazır TASLAK): istenen saati iki bağımsız
-model (anlama katmanı + bekçi) AYNI okumalı (`single_source_time`) ve cevapsız mesajlarda başka konu olmamalı
-(`multi_intent`; selam ve giriş saati sorusu tek konu sayılır).
+model (anlama katmanı + bekçi) AYNI okumalı — saat yalnız o model erken giriş İSTEĞİ gördüyse sayılır
+(`single_source_time`) — ve tek konu olmalı (`multi_intent`): anlama katmanının istek listesi yalnız erken giriş
+(± selam / giriş saati) VE cevap modelinin kendi niyet etiketi `early_checkin`/`checkin` (inceleme 09-24, P1-2:
+"insanla görüşmek istiyorum" gibi ikinci bir istek onayın arkasında kaybolmasın). Anlama katmanının sorgusuz istek
+kalemleri artık DÜŞMEZ (risk niyeti sorguya bağlı değil). Kelime ağı bir mesajdaki TÜM türleri verir (eskiden
+yalnız önceliklisini).
 
 ## 3. Gönderim
 
-`verifiedEarlyCheckinResult`: yalnız metin (kod), güven (1) ve kaynaklar (yok) değişir; niyet, risk seviyesi, risk
-türü ve beyan AYNEN kalır → acil / şikâyet / injection / çıktı vetosu / anlama katmanı risk niyeti bu metinle yeniden
-koşar. Geçerse gider; gerekçe `early_checkin_verified` (`RiskEvent.reason`), kanıt `kbEvidenceJson.ec = {s, f, a}`
+`verifiedEarlyCheckinResult`: metin (kod) ve niyet (`early_checkin` — modelin `human_request` etiketi onay metnine
+muafiyet taşımaz) değişir; GÜVEN, risk seviyesi, risk türü ve beyan AYNEN kalır (inceleme 09-24: güveni 1'e çekmek
+≥0.75 tabanını kaldırıyor ve karar kaydına uydurma ölçüm yazıyordu) → güven / acil / şikâyet / injection / çıktı
+vetosu / anlama katmanı risk niyeti bu metinle yeniden koşar. Geçerse gider; gerekçe `early_checkin_verified` (`RiskEvent.reason`), kanıt `kbEvidenceJson.ec = {s, f, a}`
 (yalnız kapalı küme kodlar; saat/tutar/metin yok). Otomatik onaydan sonra rezervasyonun `checkin_prep` görevine not
-düşer ("Erken giriş 13:00 otomatik onaylandı · ücret €30.") — ödeme tahsili ve temizlik planı host'un gözünde kalsın.
+düşer ("Erken giriş 13:00 otomatik onaylandı.") — ücret TUTARI nota girmez (görev geçmişini temizlik de görür); ücret
+misafire giden mesajdadır. Kuyruk yolunda not "onay mesajı gönderime alındı" der (teslim henüz doğrulanmadı).
 
 Kapanmazsa bugünkü davranış: model cevabı taslak (host'a), geçen erteleme gider. Hata = bugünkü davranış.
 
@@ -70,9 +76,12 @@ anahtarıyla koşar; düşerse oto-yanıt geçişi yine koşar.
 
 Depo: kullanılmayan `AutomationRule` tablosu (org kapsamlı; `triggerType = early_checkin_request`, koşul
 `{propertyId}`), mülk başına tek satır; yok / bozuk = KAPALI. Rota `PUT/DELETE /api/properties/[id]/early-checkin-rule`
-yönetici kapılı (`withManage` — personel/temizlik rolü ücreti ne görür ne değiştirir), başka kiracının mülkü 404,
+yönetici kapılı (`withManage`), başka kiracının mülkü 404,
 denetim kaydı alan adıyla (değer yok). Not misafire OLDUĞU GİBİ gider: ödeme yöntemi, bağlantı, ayraç ve çıktı
 vetosuna takılan söz ("göndereceğiz", "ayarladım") kayıtta reddedilir. Formun örnek notu doğrulamadan geçer (pinli).
+Form ve gecelik fiyat aralığı mülk sayfasında YALNIZ yöneticiye çizilir (personel ücreti görmez). Ücret alanı Türkçe
+yazımı okur ("1.500" = bin beş yüz, "12,50") ve misafire nasıl yazılacağını gösterir; belirsiz yazım ("1,500") hata
+verir, sessizce düşmez. Otomatik seçenek, iki yapay zekâ kontrolü kapalıyken bunu açıkça söyler.
 
 ## 5. Bugünkü sınırlar (dürüst)
 

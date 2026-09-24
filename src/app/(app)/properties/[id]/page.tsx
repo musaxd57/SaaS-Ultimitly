@@ -33,6 +33,8 @@ import { RATE_STALE_DAYS } from "@/modules/intelligence/money/impact";
 import { NightlyRateForm } from "@/components/properties/nightly-rate-form";
 import { EarlyCheckinRuleForm } from "@/components/properties/early-checkin-rule-form";
 import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
+import { stayGuardEnabled } from "@/lib/ai/semantic/guard";
+import { understandingEnabled } from "@/lib/ai/semantic/understand";
 import { sentimentTone, signalCategoryLabel, signalKindLabel } from "@/modules/intelligence/labels";
 
 export const dynamic = "force-dynamic";
@@ -64,8 +66,8 @@ export default async function PropertyDetailPage({
   // ("AI bozulsa PMS çalışır"): kart "okunamadı" der, hiçbir başka bölüm etkilenmez.
   const memory = await getPropertyMemory(session.organizationId, property.id, 8).catch(() => null);
   // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
-  const nightlyRate = await getNightlyRate(session.organizationId, property.id).catch(() => null);
-  const earlyCheckinRule = await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null);
+  const nightlyRate = canManage ? await getNightlyRate(session.organizationId, property.id).catch(() => null) : null;
+  const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null;
   const nightlyRateStale = nightlyRate ? Date.now() - nightlyRate.enteredAt.getTime() > RATE_STALE_DAYS * 86_400_000 : false;
 
   // QR PIN feature (Faz 5) is master-gated by the env switch; the per-reservation
@@ -205,17 +207,28 @@ export default async function PropertyDetailPage({
                   notes: property.notes ?? "",
                 }}
               />
-              <div className="mt-6 border-t border-border pt-4">
-                <NightlyRateForm
-                  propertyId={property.id}
-                  canManage={canManage}
-                  initial={nightlyRate ? { low: nightlyRate.low, high: nightlyRate.high, currency: nightlyRate.currency } : null}
-                  stale={nightlyRateStale}
-                />
-              </div>
-              <div className="mt-6 border-t border-border pt-4">
-                <EarlyCheckinRuleForm propertyId={property.id} canManage={canManage} initial={earlyCheckinRule} />
-              </div>
+              {/* Para içeren ayarlar (gecelik aralık, erken giriş ücreti) YALNIZ yöneticiye görünür — kurucu: temizlik
+                  personeli paraya dokunmaz, ücreti görmez (inceleme 09-24). */}
+              {canManage ? (
+                <>
+                  <div className="mt-6 border-t border-border pt-4">
+                    <NightlyRateForm
+                      propertyId={property.id}
+                      canManage={canManage}
+                      initial={nightlyRate ? { low: nightlyRate.low, high: nightlyRate.high, currency: nightlyRate.currency } : null}
+                      stale={nightlyRateStale}
+                    />
+                  </div>
+                  <div className="mt-6 border-t border-border pt-4">
+                    <EarlyCheckinRuleForm
+                      propertyId={property.id}
+                      canManage={canManage}
+                      initial={earlyCheckinRule}
+                      autoActive={stayGuardEnabled() && understandingEnabled()}
+                    />
+                  </div>
+                </>
+              ) : null}
             </CardContent>
           </Card>
 

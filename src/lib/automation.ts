@@ -2547,7 +2547,7 @@ export async function applyChannelAutoReply(
       gateRiskLevel: result.riskLevel,
       gateRiskType: result.riskType,
     });
-    if (earlyCheckinSent && earlyCheckinRun) await noteEarlyCheckinApproval(conversation.reservation?.id ?? null, earlyCheckinRun);
+    if (earlyCheckinSent && earlyCheckinRun) await noteEarlyCheckinApproval(conversation.reservation?.id ?? null, earlyCheckinRun, true);
     return { sent: true, queued: true, draft, ...meta };
   }
 
@@ -2727,18 +2727,19 @@ export async function applyChannelAutoReply(
 }
 
 /**
- * Doğrulanmış erken giriş gönderilirken sonucun YERİNE geçen nesne: yalnız metin (koddan kurulan onay) ve güven
- * (doğrulanmış olgulardan kurulan metnin modelin öz-değerlendirmesiyle ilgisi yok) değişir. Niyet, risk seviyesi,
- * risk türü ve beyan AYNEN kalır — kapının diğer kontrolleri (acil, şikâyet, insan talebi, risk) modelin gördüğüne
- * göre koşmaya devam eder; beyan istek türü birleşimine girer. KB kaynağı yoktur (metin KB'den gelmedi).
+ * Doğrulanmış erken giriş gönderilirken sonucun YERİNE geçen nesne: metin (koddan kurulan onay) ve niyet (onay metni
+ * bir erken giriş cevabıdır) değişir. GÜVEN AYNEN kalır (inceleme 09-24, P2: 1'e çekmek güven tabanını — müsaitlik
+ * kontrolünden SONRA gelen ≥0.75 şartını — kaldırıyor ve karar kaydına uydurma bir ölçüm yazıyordu). Niyet
+ * `early_checkin`e sabitlenir: modelin `human_request` etiketi onay metnine insan talebi muafiyetleri (çıktı vetosu,
+ * risk niyeti) TAŞIYAMAZ (P1-2). Risk seviyesi / türü ve beyan AYNEN kalır; KB kaynağı yoktur.
  */
-export function verifiedEarlyCheckinResult<T extends { reply: string; confidence: number; usedSources: string[] }>(result: T, text: string): T {
-  return { ...result, reply: text, confidence: 1, usedSources: [], claimAudit: undefined };
+export function verifiedEarlyCheckinResult<T extends { reply: string; intent: string; usedSources: string[] }>(result: T, text: string): T {
+  return { ...result, reply: text, intent: "early_checkin", usedSources: [], claimAudit: undefined };
 }
 
-/** Otomatik onaydan sonra host'un iş listesine not (en iyi çaba; ödeme tahsili ve temizlik planı görünsün). */
-async function noteEarlyCheckinApproval(reservationId: string | null, run: EarlyCheckinRun): Promise<void> {
-  const note = earlyCheckinHostNote(run.decision);
+/** Otomatik onaydan sonra host'un iş listesine not (en iyi çaba; ücret tutarı YOK — görevi temizlik de görür). */
+async function noteEarlyCheckinApproval(reservationId: string | null, run: EarlyCheckinRun, queued = false): Promise<void> {
+  const note = earlyCheckinHostNote(run.decision, queued);
   if (!reservationId || !note) return;
   try {
     const task = await prisma.task.findFirst({ where: { reservationId, type: "checkin_prep" }, select: { id: true } });

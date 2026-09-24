@@ -190,7 +190,7 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(0);
     await runDueChannelAutoReplies(s.orgId);
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(String(mockSend.mock.calls[0][1])).toContain("you can check in from 13:00");
+    expect(String(mockSend.mock.calls[0][1])).toContain("you can check in today (14 October) from 13:00");
   });
 
   it("🚨 yeniden koşu yine tutulursa (ör. bekçi düştü) tarama TEKRAR açmaz — sonsuz model çağrısı yok", async () => {

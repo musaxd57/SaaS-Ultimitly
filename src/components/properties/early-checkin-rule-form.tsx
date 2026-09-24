@@ -9,11 +9,15 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/form-field";
 import { toast } from "@/lib/toast";
+import { parseFeeInput } from "@/lib/early-checkin/fee-input";
+import { formatEarlyCheckinFee } from "@/lib/early-checkin/reply";
+import type { EarlyCheckinCurrency } from "@/lib/early-checkin/core";
 
 /**
  * ERKEN GİRİŞ KURALI (mülk başına, isteğe bağlı — doğrulanmış erken giriş akışı, `lib/early-checkin`). Misafir erken
  * gelmek isterse sistem önceki misafirin çıkışını, çakışan rezervasyonu ve temizliğin "bitti" işaretini kontrol
  * eder; kural hepsi uygunsa ne yapılacağını söyler. Ücreti yapay zekâ yalnız OKUR, uydurmaz. Müşteri metni sade.
+ * Yalnız yöneticiye çizilir (sayfa kapısı) — temizlik personeli ücreti görmez.
  */
 const MODES = [
   { code: "off", label: "Kapalı — erken giriş istekleri size gelir" },
@@ -39,25 +43,31 @@ export function EarlyCheckinRuleForm({
   propertyId,
   canManage,
   initial,
+  autoActive,
 }: {
   propertyId: string;
   canManage: boolean;
   initial: EarlyCheckinRuleInitial | null;
+  /** Otomatik gönderim bugün çalışabilir mi (iki yapay zekâ kontrolü açık). Kapalıysa seçenek taslak gibi davranır. */
+  autoActive: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState(initial?.mode ?? "off");
   const [earliest, setEarliest] = useState(initial?.earliest ?? "12:00");
-  const [amount, setAmount] = useState(initial?.fee ? String(initial.fee.amount) : "");
+  const [amount, setAmount] = useState(initial?.fee ? String(initial.fee.amount).replace(".", ",") : "");
   const [currency, setCurrency] = useState(initial?.fee?.currency ?? "TRY");
   const [note, setNote] = useState(initial?.note ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const parsed = parseFeeInput(amount);
+  const preview =
+    typeof parsed === "number" ? formatEarlyCheckinFee({ amount: parsed, currency: currency as EarlyCheckinCurrency }, "tr") : null;
+
   async function save() {
     setError(null);
-    const a = amount.trim() === "" ? null : Number(amount.replace(",", "."));
-    if (a !== null && (!Number.isFinite(a) || a <= 0)) {
-      setError("Ücreti sayı olarak girin ya da boş bırakın.");
+    if (parsed === "invalid") {
+      setError("Ücreti rakamla yazın (ör. 500 ya da 12,50) ya da boş bırakın.");
       return;
     }
     setBusy(true);
@@ -65,7 +75,7 @@ export function EarlyCheckinRuleForm({
       const res = await fetch(`/api/properties/${propertyId}/early-checkin-rule`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, earliest, fee: a === null ? null : { amount: a, currency }, note: note.trim() || null }),
+        body: JSON.stringify({ mode, earliest, fee: parsed === null ? null : { amount: parsed, currency }, note: note.trim() || null }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { fields?: { _?: string } } | null;
@@ -97,12 +107,17 @@ export function EarlyCheckinRuleForm({
           ))}
         </Select>
       </Field>
+      {mode === "auto" && !autoActive ? (
+        <p className="text-xs text-muted-foreground" data-testid="eci-auto-inactive">
+          Otomatik gönderim şu an kapalı; uygun olduğunda cevap size hazır olarak gösterilir.
+        </p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="En erken giriş saati" htmlFor="eci-earliest">
           <Input id="eci-earliest" type="time" value={earliest} disabled={!canManage} onChange={(e) => setEarliest(e.target.value)} />
         </Field>
         <Field label="Ücret (isteğe bağlı)" htmlFor="eci-fee">
-          <Input id="eci-fee" type="number" min={0} step="0.01" inputMode="decimal" value={amount} disabled={!canManage} onChange={(e) => setAmount(e.target.value)} />
+          <Input id="eci-fee" type="text" inputMode="decimal" value={amount} disabled={!canManage} onChange={(e) => setAmount(e.target.value)} placeholder="Örn. 500" />
         </Field>
         <Field label="Para birimi" htmlFor="eci-currency">
           <Select id="eci-currency" value={currency} disabled={!canManage} onChange={(e) => setCurrency(e.target.value)}>
@@ -114,9 +129,15 @@ export function EarlyCheckinRuleForm({
           </Select>
         </Field>
       </div>
+      {preview ? (
+        <p className="text-xs text-muted-foreground" data-testid="eci-fee-preview">
+          Misafire şöyle yazılır: {preview}
+        </p>
+      ) : null}
       <Field label="Misafire eklenecek not (isteğe bağlı)" htmlFor="eci-note">
         <Textarea id="eci-note" rows={2} maxLength={200} value={note} disabled={!canManage} onChange={(e) => setNote(e.target.value)} placeholder="Örn. Ödeme talebi Airbnb üzerinden gelecek." />
       </Field>
+      <p className="text-xs text-muted-foreground">Not misafire olduğu gibi gider; yabancı misafirleriniz çoksa İngilizce yazabilirsiniz.</p>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {canManage ? (
         <div className="flex justify-end">

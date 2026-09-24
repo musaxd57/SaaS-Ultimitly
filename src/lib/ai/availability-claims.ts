@@ -484,14 +484,24 @@ export function detectAvailabilityRequest(message: string | null | undefined): A
   for (const kind of REQUEST_KIND_ORDER) {
     if (anyClauseMatches(message, REQUEST_PATTERNS[kind])) return kind;
   }
-  if (
-    anyClauseMatches(message, REQUEST_PATTERNS.availability) &&
-    anyFormMatches(message, [DATE_WORD]) &&
-    !onlyThirdPartyAvailability(message)
-  ) {
-    return "availability";
-  }
-  return null;
+  return isGeneralAvailabilityRequest(message) ? "availability" : null;
+}
+
+/** Genel müsaitlik sorusu: kalıp + tarih sözcüğü + yalnız üçüncü taraf yapısı DEĞİL (iki dedektörün TEK kaynağı). */
+function isGeneralAvailabilityRequest(message: string): boolean {
+  return anyClauseMatches(message, REQUEST_PATTERNS.availability) && anyFormMatches(message, [DATE_WORD]) && !onlyThirdPartyAvailability(message);
+}
+
+/**
+ * Mesajdaki TÜM istek türleri — aynı kalıplar (kelime ağı büyütülmedi), yalnız ilk eşleşmede durulmaz.
+ * `detectAvailabilityRequest` öncelikli TEK türü verir; "12'de girip bir gece daha kalabilir miyiz?" onda yalnız
+ * `early` olur (inceleme 09-24) — türlerin birleşimi ("yalnız erken giriş mi?") bu fonksiyonu kullanır.
+ */
+export function detectAvailabilityRequestKinds(message: string | null | undefined): AvailabilityRequestKind[] {
+  if (typeof message !== "string" || message.trim() === "") return [];
+  const kinds: AvailabilityRequestKind[] = REQUEST_KIND_ORDER.filter((kind) => anyClauseMatches(message, REQUEST_PATTERNS[kind]));
+  if (isGeneralAvailabilityRequest(message)) kinds.push("availability");
+  return kinds;
 }
 
 /**
@@ -588,8 +598,7 @@ export function stayRequestKinds(
 ): Set<StayRequestKind> {
   const kinds = new Set<StayRequestKind>();
   for (const t of guestTexts) {
-    const k = detectAvailabilityRequest(t);
-    if (k) kinds.add(LEXICAL_KIND[k]);
+    for (const k of detectAvailabilityRequestKinds(t)) kinds.add(LEXICAL_KIND[k]);
   }
   const d = opts.declared;
   if (d && d.asked !== "none") kinds.add(d.asked);

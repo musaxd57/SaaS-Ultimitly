@@ -52,6 +52,8 @@ export interface EarlyCheckinFacts {
   otherOverlaps: number;
   /** Son çıkıştan sonraki temizlik "bitti" işareti. */
   readiness: ReadinessStatus;
+  /** Hazır değilse nedeni (yalnız host paneli; karar `readiness`ten verilir). */
+  readinessNote?: "none" | "open" | "fresh" | "before_checkout" | "no_time";
   /** Aynı gün devir YOKSA: dün gece kanıtla (taze kaynaklarla) boş mu. */
   previousNightVerifiedVacant: boolean;
   /** İstenen giriş saati: kaynaklar ve anlaşma. */

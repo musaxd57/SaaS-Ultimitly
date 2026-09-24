@@ -1007,7 +1007,7 @@ export function ConversationThread({
                 </ul>
                 {suggestion.earlyCheckin.draft ? (
                   <div className="space-y-2" data-testid="early-checkin-draft">
-                    <p className="text-muted-foreground">Her şey uygun. Hazır cevap:</p>
+                    <p className="text-muted-foreground">Kontroller uygun. Erken giriş için hazır cevap:</p>
                     <p className="whitespace-pre-wrap rounded-md bg-muted p-2 text-sm">{suggestion.earlyCheckin.draft}</p>
                     {canReply ? (
                       <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.earlyCheckin?.draft ?? "")}>

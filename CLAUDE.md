@@ -337,11 +337,14 @@ Bu dosyaya token/anahtar/parola yazma.
   `docs/ERKEN-GIRIS-DOGRULAMA-2026-09-24.md`, migration YOK):** yalnız tüm katmanların istek türü TEK `early_checkin`
   iken (`stayRequestKinds`; birleşim kuralı AYNEN). Saf çekirdek kapalı-küme kodlarla karar verir; otomatik = host
   kuralı `auto` (varsayılan KAPALI, `AutomationRule`, yönetici kapılı) + onaylanabilir + iki model (anlama + bekçi)
-  AYNI saati okudu + tek konu. Onay metni KODDA (6 dil); ücret YALNIZ host'un kaydından, model tutar üretmez. Kapı bu
-  metinle BAŞTAN koşar; müsaitlik muafiyeti YALNIZ birebir aynı metin + tek tür. Hazır = önceki çıkış ANINDAN sonra
-  ≥5 dk'lık temizlik "bitti" kaydı; önceki çıkış = misafir bildirimi ile varsayılanın GEÇ olanı; aynı gün devir yoksa
-  dün gece yalnız motorun taze "boş" hükmüyle; 05:00 öncesi saat geç varıştır (`not_early`). Not çıktı vetosundan
-  geçmezse kayıtta reddedilir. Bugün üretimde otomatik GİTMEZ (iki bayrak kapalı + kredi yok) → host'a kontrol listesi.
+  AYNI saati okudu (yalnız istek gören modelin saati sayılır) + tek konu (anlama listesi VE cevap modelinin niyet
+  etiketi `early_checkin`/`checkin`). Onay metni KODDA (6 dil, selamsız, GÜNÜ adlandırır); ücret YALNIZ host'un
+  kaydından, model tutar üretmez. Kapı bu metinle BAŞTAN koşar: niyet `early_checkin`e sabit, GÜVEN modelinki (1'e
+  çekilmez); müsaitlik muafiyeti YALNIZ birebir aynı metin + tek tür. Hazır = BU DEVRİN (çıkış günü) temizlik
+  görevlerinin HEPSİ kapalı + bir kayıt önceki çıkış ANINDAN sonra ≥5 dk (tek kural `readiness.ts`); önceki çıkış =
+  misafir bildirimi ile varsayılanın GEÇ olanı; aynı gün devir yoksa dün gece yalnız motorun taze "boş" hükmüyle;
+  05:00 öncesi saat geç varıştır (`not_early`). Not çıktı vetosundan geçmezse kayıtta reddedilir. Ücret personele
+  görünmez (form + görev notu). Bugün üretimde otomatik GİTMEZ (iki bayrak kapalı + kredi yok) → host'a kontrol listesi.
   Temizlik bitince: YALNIZ hazırlık yüzünden tutulmuş cevapsız istek BİR KEZ yeniden aday olur (`recheck.ts`; karar
   vermez, göndermez); döngü koruması giriş hazırlığı görevindeki NOT (karar kaydı aynı mesajın ikinci tutuşunu yazmaz).
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +

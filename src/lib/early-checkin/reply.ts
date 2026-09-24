@@ -13,13 +13,15 @@ import type { EarlyCheckinDecision, EarlyCheckinRule } from "./core";
 export const EARLY_CHECKIN_LANGS = ["tr", "en", "de", "fr", "ar", "ru"] as const;
 export type EarlyCheckinLang = (typeof EARLY_CHECKIN_LANGS)[number];
 
-const APPROVED: Record<EarlyCheckinLang, (time: string) => string> = {
-  tr: (t) => `Merhaba, daireniz hazır; saat ${t} itibarıyla giriş yapabilirsiniz.`,
-  en: (t) => `Hello, the apartment is ready — you can check in from ${t}.`,
-  de: (t) => `Hallo, die Wohnung ist bereit – Sie können ab ${t} Uhr einchecken.`,
-  fr: (t) => `Bonjour, le logement est prêt : vous pouvez arriver à partir de ${t}.`,
-  ar: (t) => `مرحبًا، الشقة جاهزة ويمكنكم تسجيل الدخول ابتداءً من الساعة ${t}.`,
-  ru: (t) => `Здравствуйте! Квартира готова — заезд возможен с ${t}.`,
+// Selamsız (konuşmanın ortasında tekrar selam verilmez — `isFirstOperatorReply` kuralı) ve GÜNÜ adlandırır: onay
+// yalnız bugünkü varış içindir; başka bir gün / başka bir konaklama sanılmasın (inceleme 09-24).
+const APPROVED: Record<EarlyCheckinLang, (time: string, day: string) => string> = {
+  tr: (t, d) => `Daireniz hazır; bugün (${d}) saat ${t} itibarıyla giriş yapabilirsiniz.`,
+  en: (t, d) => `The apartment is ready — you can check in today (${d}) from ${t}.`,
+  de: (t, d) => `Die Wohnung ist bereit – Sie können heute (${d}) ab ${t} Uhr einchecken.`,
+  fr: (t, d) => `Le logement est prêt : vous pouvez arriver aujourd'hui (${d}) à partir de ${t}.`,
+  ar: (t, d) => `الشقة جاهزة ويمكنكم تسجيل الدخول اليوم (${d}) ابتداءً من الساعة ${t}.`,
+  ru: (t, d) => `Квартира готова — сегодня (${d}) заезд возможен с ${t}.`,
 };
 
 const FEE: Record<EarlyCheckinLang, (fee: string) => string> = {
@@ -56,17 +58,26 @@ export function formatEarlyCheckinFee(fee: NonNullable<EarlyCheckinRule["fee"]>,
   }).format(fee.amount);
 }
 
+/** Takvim günü ("2026-10-14") → misafirin dilinde gün + ay ("14 Ekim"); rakamlar Latin. */
+export function formatEarlyCheckinDay(dayKey: string, lang: EarlyCheckinLang): string {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  // Öğlen UTC + UTC dilimi: gün hiçbir dilimde kaymaz (tarih anahtarı zaten mülkün kendi günüdür).
+  return new Intl.DateTimeFormat(LOCALE[lang], { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+
 /**
  * Onay metni — YALNIZ `approvable` karar için. Başka her durumda `null` (çağıran insan akışına döner).
- * Host notu (varsa) en sona OLDUĞU GİBİ eklenir: host'un kendi sözüdür, kayıtta ödeme yöntemi süzgecinden geçti.
+ * Host notu (varsa) en sona OLDUĞU GİBİ eklenir: host'un kendi sözüdür, kayıtta ödeme yöntemi ve çıktı vetosu
+ * süzgecinden geçti. `dayKey` = mülk takviminde bugün (varış günü; karar bunu zaten doğruladı).
  */
 export function earlyCheckinApprovalText(
   decision: EarlyCheckinDecision,
   lang: EarlyCheckinLang,
   note: string | null,
+  dayKey: string,
 ): string | null {
   if (decision.status !== "approvable" || !decision.approvedTime) return null;
-  const parts = [APPROVED[lang](decision.approvedTime)];
+  const parts = [APPROVED[lang](decision.approvedTime, formatEarlyCheckinDay(dayKey, lang))];
   if (decision.fee) parts.push(FEE[lang](formatEarlyCheckinFee(decision.fee, lang)));
   const n = note?.trim();
   if (n) parts.push(n);
