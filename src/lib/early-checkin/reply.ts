@@ -97,12 +97,11 @@ const POLICY_DECIDES: Record<EarlyCheckinLang, string> = {
 /**
  * BİLGİ SORUSU ("erken giriş ücretli mi?") için POLİTİKA metni (dilim 6, kurucu senaryo 10). Yalnız host'un KAYITLI
  * ücreti + kararın o günün temizliğine bağlı olduğu. Kayıtlı ücret yoksa `null`: "ücretsiz" de "ücretli" de
- * varsayılmaz (soru host'a kalır). Host notu (kayıtta süzüldü) sona eklenir.
+ * varsayılmaz (soru host'a kalır). Host notu EKLENMEZ (inceleme 09-24): not ONAY için yazılır ("ödeme talebi
+ * platformdan gelecek" bilgi cevabında "ücretlendirileceksiniz" gibi okunur) ve birebir metin muafiyetiyle bir izin
+ * cümlesi de taşıyabilirdi.
  */
 export function earlyCheckinPolicyText(rule: EarlyCheckinRule | null, lang: EarlyCheckinLang): string | null {
   if (!rule?.fee) return null;
-  const parts = [FEE[lang](formatEarlyCheckinFee(rule.fee, lang)), POLICY_DECIDES[lang]];
-  const n = rule.note?.trim();
-  if (n) parts.push(n);
-  return parts.join(" ");
+  return `${FEE[lang](formatEarlyCheckinFee(rule.fee, lang))} ${POLICY_DECIDES[lang]}`;
 }

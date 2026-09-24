@@ -14,6 +14,7 @@ import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
   earlyCheckinEvidenceOf,
   earlyCheckinHostNote,
+  earlyCheckinPolicyAllowed,
   runEarlyCheckinWorkflow,
   type EarlyCheckinRun,
 } from "@/lib/early-checkin/workflow";
@@ -1529,7 +1530,9 @@ export async function applyChannelAutoReply(
           guestCheckoutTime: true,
         },
       },
-      messages: { orderBy: { createdAt: "asc" } },
+      // (createdAt, id): aynı milisaniyedeki iki mesajda "son mesaj" deterministik ve yeniden değerlendirme taramasıyla
+      // (`recheck.ts`, createdAt+id) AYNI — kilit başka mesaja bakmasın (inceleme 09-24).
+      messages: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
     },
   });
 
@@ -2025,12 +2028,14 @@ export async function applyChannelAutoReply(
   // Anlama katmanı VE bekçi koşup "istek yok" dedi, tek sinyal cevap modelinin konu etiketi, tek konu erken giriş ve host
   // kuralı OTOMATİK + kayıtlı ücret → host'un kuralından KODDA kurulan politika metni gider (izin / ret / söz yok;
   // gereksiz inceleme yok). Kapı bu metinle BAŞTAN koşar: birebir metin muafiyeti yalnız müsaitlik kontrolünedir,
-  // acil / şikâyet / injection / çıktı vetosu / güven aynen. Aksi hâlde bugünkü davranış.
+  // acil / şikâyet / injection / çıktı vetosu / güven aynen. Modeller mesajların tamamını görmediyse ya da mesajda saat /
+  // başka gün varsa (somut istek) gitmez — `earlyCheckinPolicyAllowed` (inceleme 09-24). Aksi hâlde bugünkü davranış.
   let earlyCheckinPolicySent = false;
   if (
     !earlyCheckinSent &&
     earlyCheckinRun?.rule?.mode === "auto" &&
     earlyCheckinRun.facts.singleIntent &&
+    earlyCheckinPolicyAllowed(earlyCheckinRun, [last.body, ...pendingGuestMessages]) &&
     stayInfoOnly([last.body, ...pendingGuestMessages], availabilityPolicyFor(result, gateContext))
   ) {
     const text = earlyCheckinPolicyText(earlyCheckinRun.rule, earlyCheckinLang(result.detectedLanguage));
@@ -2049,12 +2054,12 @@ export async function applyChannelAutoReply(
   // ── YENİDEN DEĞERLENDİRME TURU (dilim 6; inceleme 09-24, P3) ─────────────────────────────────────────────────────
   // Temizlik bitince yeniden aday yapılan istekte (`recheck.ts`) YALNIZ doğrulanmış onay gidebilir. Aynı mesaj sabah
   // hazırlık yüzünden tutulmuştu ve host kontrol listesini gördü; onay çıkmadıysa modelin saatler sonra gelen "ev
-  // sahibine soracağım"ı misafiri yanıltır. Sorgu yalnız akış bu mesajda koştuysa atılır (sıcak yol etkilenmez); aynı
-  // mesajın ikinci "insana" kaydı tekillik anahtarıyla zaten yazılmaz.
+  // sahibine soracağım"ı misafiri yanıltır. Kilit akışın koşmasına BAĞLI DEĞİL (inceleme 09-24: yeniden koşuda beyanın
+  // türü tanınmazsa akış `null` döner ve kilit açık kalıyordu); tek indeksli sorgu, yalnız kapı geçtiyse. Aynı mesajın
+  // ikinci "insana" kaydı tekillik anahtarıyla zaten yazılmaz.
   if (
     gatePassed &&
     !earlyCheckinSent &&
-    earlyCheckinRun !== null &&
     (await heldForReadinessEarlier(conversation.property.organizationId, last.id))
   ) {
     gatePassed = false;
@@ -2779,7 +2784,8 @@ export async function applyChannelAutoReply(
  * risk niyeti) TAŞIYAMAZ (P1-2). Risk seviyesi / türü ve beyan AYNEN kalır; KB kaynağı yoktur.
  */
 export function verifiedEarlyCheckinResult<T extends { reply: string; intent: string; usedSources: string[] }>(result: T, text: string): T {
-  return { ...result, reply: text, intent: "early_checkin", usedSources: [], claimAudit: undefined };
+  // Kaynak sayımı modelin ATILAN taslağına aitti: koddan kurulan metin için ölçülmedi (NULL, 0 değil — A2 sözleşmesi).
+  return { ...result, reply: text, intent: "early_checkin", usedSources: [], claimAudit: undefined, sourceAudit: undefined };
 }
 
 /** Otomatik onaydan sonra host'un iş listesine not (en iyi çaba; ücret tutarı YOK — görevi temizlik de görür). */

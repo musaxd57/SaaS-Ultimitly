@@ -226,6 +226,43 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  it("🚨 kilit iş akışı KOŞMASA da geçerli: yeniden koşuda beyanın türü tanınmazsa (akış null) gecikmiş erteleme yine gitmez (inceleme 09-24)", async () => {
+    const s = await morningHold();
+    await markCleaned(s, CLEANED_AT);
+    vi.setSystemTime(AFTER_SETTLE);
+    expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(1);
+    // Tanınmayan `stayChangeAsked` → tür kümesine "unknown" girer → erken giriş akışı hiç koşmaz; iki model ertelemeyi
+    // doğrular. Kilit akışa bağlı olsaydı saatler sonra "ev sahibine soracağım" giderdi.
+    mockSuggest.mockResolvedValue({ ...MODEL, stayChange: { asked: "unknown" as const, stance: "defers" as const } });
+    vi.stubGlobal("fetch", semanticFetch({ ...GUARD, reply_defers_to_host: true }));
+    await runDueChannelAutoReplies(s.orgId);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL: kilit MESAJA bağlıdır — aynı org'da başka bir mesaj hazırlık yüzünden tutulmuş olsa da bu mesajın iki modelin doğruladığı ertelemesi gider", async () => {
+    const s = await morningHold(); // A konuşmasının mesajı hazırlık yüzünden tutuldu
+    await saveEarlyCheckinRule(s.orgId, s.propertyId, { ...RULE, mode: "draft" });
+    const own = await prisma.reservation.findFirstOrThrow({ where: { propertyId: s.propertyId, arrivalDate: midnight("2026-10-14") } });
+    const later = new Date(MORNING_PASS.getTime() + 60_000);
+    await prisma.conversation.create({
+      data: {
+        propertyId: s.propertyId,
+        reservationId: own.id,
+        channel: "airbnb",
+        guestIdentifier: "Bea",
+        status: "new",
+        externalReservationId: "res-2",
+        lastMessageAt: later,
+        messages: { create: [{ direction: "inbound", senderName: "Bea", body: "Hi! Could we check in at 13:00 today?", createdAt: later }] },
+      },
+    });
+    vi.setSystemTime(new Date(later.getTime() + 60_000));
+    vi.stubGlobal("fetch", semanticFetch({ ...GUARD, reply_defers_to_host: true }));
+    await runDueChannelAutoReplies(s.orgId);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(String(mockSend.mock.calls[0][1])).toContain("I'll check with the host");
+  });
+
   it("KONTROL (aşırı-uygulama): yeniden koşu OLMAYAN mesajda iki modelin doğruladığı erteleme bugünkü gibi gider", async () => {
     vi.setSystemTime(MORNING_PASS);
     const s = await scenario({ rule: { ...RULE, mode: "draft" } });

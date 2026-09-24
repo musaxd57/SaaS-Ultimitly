@@ -21,7 +21,7 @@ import { UNDERSTANDING_WINDOW } from "@/lib/ai/semantic/understand";
 import { GUARD_WINDOW } from "@/lib/ai/semantic/guard";
 import { loadEarlyCheckinFacts } from "./load";
 import { earlyCheckinApprovalText, earlyCheckinLang } from "./reply";
-import { mentionsAnotherDay, timeMismatchInTexts } from "./text-checks";
+import { explicitTimeMentions, mentionsAnotherDay, timeMismatchInTexts } from "./text-checks";
 import type { EarlyCheckinAutoBlocker } from "./core";
 
 /**
@@ -58,6 +58,20 @@ export function earlyCheckinAutoBlockers(args: {
   }
   if (timeMismatchInTexts(args.guestTexts, args.requestedTime)) out.push("time_mismatch_text");
   return out;
+}
+
+/**
+ * Bilgi sorusuna politika metni gidebilir mi (dilim 6; inceleme 09-24)? Yalnız sıkılaştırır, `stayInfoOnly`ye EK:
+ *  · modeller cevapsız mesajların TAMAMINI gördü (`not_fully_read` yok) — "tek konu" ve iki modelin "istek yok"u
+ *    görmedikleri mesaj için hüküm değildir (altıncı mesajdaki soru sessizce cevapsız kalırdı);
+ *  · mesajda başka güne işaret (`day_unverified`) ve SAAT yok — saat ya da gün taşıyan erken giriş mesajı somut bir
+ *    istektir ("yarın 10 gibi", "11:00 istiyoruz"); üç model "istek yok" dese de kelime ağının aynı-konu işaretini
+ *    ancak bu deterministik kontrol ayırır (birleşim değişmezi: istek sinyali model "yok"uyla silinmez).
+ */
+export function earlyCheckinPolicyAllowed(run: Pick<EarlyCheckinRun, "facts">, guestTexts: readonly string[]): boolean {
+  const blockers = run.facts.autoBlockers ?? [];
+  if (blockers.includes("not_fully_read") || blockers.includes("day_unverified")) return false;
+  return !guestTexts.some((t) => explicitTimeMentions(t).length > 0);
 }
 
 /** Anlama katmanında erken girişle birlikte cevabı etkilemeyen niyetler (tek konu sayılır). */

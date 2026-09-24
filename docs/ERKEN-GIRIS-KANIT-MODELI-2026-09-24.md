@@ -221,14 +221,22 @@ kıyas KODDA (saat yuvalarıyla aynı ilke) — host'un geç çıkış teklifini
 ve kısmi aktarımda da (aynı tutar + birim); teklifi erken giriş / ek gece isteğine aktarmak para ifadesidir. Para birimi
 sözlüğü tek kaynak `money-lexicon.ts` (iddia desteği gölge ölçümü de okur). Bekçi redaksiyonla uzayan taslağı tam
 göremezse hüküm vermez. Kör batarya (ayarsız): para 109/139, temiz 137/138, tutarsız ücret sözü 28/28; ayar sonrası
-(görülmüş) 130/139 · 138/138 · 28/28 — kalan 9 serbest anlatım bekçinin işi. Reddedilen: kontrolü hassas olmayan
+(görülmüş) 130/139 · 138/138 · 28/28 — kalan 9 serbest anlatım bekçinin işi. **Kör HOLDOUT (ayrı ajan, yeni metinler,
+ayar YAPILMADI):** para 103/139 (%74) · temiz 130/134 (%97) · tutarsız ücret sözü 35/35 — dürüst genelleme sayısı budur
+(ayar yalnız görülen sette %93'e çıkardı). Kaçanlar serbest anlatım ("on us", "c'est cadeau", "fiyatta anlaşırız",
+"torg") ve birkaç biçim ("TRY 350", "Fr. 120.–", "1500р"); yanlış alarmlar "on the house rules", "remise" (kulübe),
+"don't discount". Kelime dedektörü YEDEKTİR; bugün üretimde bu kontrol hiç koşmaz (erteleme bekçi ister, bayrak kapalı). Reddedilen: kontrolü hassas olmayan
 cevaplara genişletmek (çevrilmiş teklif aktaran çıkış saati cevapları üretimde tutulurdu; genel tutar doğrulaması P5).
 
 **Bilgi sorusu (dilim 6, senaryo 10b):** anlama katmanı VE bekçi koşup "istek yok" der, tek sinyal cevap modelinin
 `early_checkin` konu etiketi, tek konu ve host kuralı `auto` + KAYITLI ücret → koddan kurulan politika metni ("Erken giriş
 ücreti X. Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir." + host notu) gider;
 kapı bu metinle baştan koşar, gerekçe `early_checkin_policy`. Ücret kaydı yoksa metin YOK ("ücretsiz" varsayılmaz).
-Anlam katmanları kapalıyken (bugünkü üretim) bilgi sorusu kanıtlanamaz → davranış değişmez.
+Anlam katmanları kapalıyken (bugünkü üretim) bilgi sorusu kanıtlanamaz → davranış değişmez. **İnceleme sonrası
+(09-24):** ek şart `earlyCheckinPolicyAllowed` — modeller cevapsız mesajların TAMAMINI gördü (`not_fully_read` yok) ve
+mesajda SAAT ya da başka güne işaret yok (saat/gün taşıyan mesaj somut istektir; kelime ağının aynı-konu işaretini ancak
+bu deterministik kontrol ayırır). Host notu politika metnine EKLENMEZ (onay için yazılır; muafiyetle izin taşıyabilirdi).
+Karar kaydı atılan taslağın kaynak sayımını taşımaz (NULL). Yeniden değerlendirme kilidi akışın koşmasına bağlı değil.
 
 ## L. Kural deposu — AutomationRule (şimdilik) + tipli depo
 
@@ -279,6 +287,19 @@ Redaksiyon aynen (tarih/saat dizileri korunur; enum serbest metin eklemez).
 | Maske metni uzatınca "tamamı okunmadı" kaçabiliyordu | P3 | **DÜZELTİLDİ** (100 karakter pay) |
 | Geçmiş taraması yeni kimlik/son-durum şartını uygulamıyor ("tek kaynak" iddiası) | P3 | **BELGELENDİ** — tarama üst sınır sayar; sorgu verisi kimlik taşımıyor |
 | Yeniden değerlendirme sonrası, onay yerine gecikmiş bir "ev sahibine soracağım" gidebilir (bekçi açıkken) | P3 | **DÜZELTİLDİ (dilim 6)** — yeniden değerlendirme turunda (aynı mesaj daha önce yalnız hazırlık yüzünden tutulduysa; ölçüt taramanınkiyle aynı) YALNIZ doğrulanmış onay gider |
+
+### R2. Dilim 6 düşmanca incelemesi (09-24)
+
+| Bulgu | Önem | Karar |
+|---|---|---|
+| Politika metni modellerin görmediği mesajlar varken gidebiliyordu (6 mesaj: ilkindeki otopark sorusu sessizce kaybolur) | P1 | **DÜZELTİLDİ** — `not_fully_read` politika yolunu da durdurur |
+| Saat / gün taşıyan gerçek istek ("yarın 10 gibi", "11:00 istiyoruz") üç model "istek yok" derse politika metniyle kapanıyordu | P2 | **DÜZELTİLDİ** — deterministik saat + başka gün kontrolü |
+| Yeniden değerlendirme kilidi akış `null` iken (tanınmayan beyan türü) açık kalıyordu | P2 | **DÜZELTİLDİ** — kilit her geçen cevapta |
+| Host notu politika metnine muafiyetle ekleniyordu (not bir izin cümlesi taşıyabilir) | P2 | **DÜZELTİLDİ** — not eklenmez |
+| Kilidin mesaj kapsamı pinsizdi (org geneli sorgu mutantı yaşardı) | P3 | **PİNLENDİ** — başka konuşmanın ertelemesi gider |
+| Karar kaydı atılan taslağın kaynak sayımını taşıyordu | P3 | **DÜZELTİLDİ** — NULL (ölçülmedi) |
+| Aynı milisaniyedeki iki mesajda "son mesaj" tarayıcıyla farklı seçilebilirdi | P3 | **DÜZELTİLDİ** — (createdAt, id) sırası; kırmızı test üretilemez (PG eşitlik sırası tanımsız), gerekçe yorumda |
+| Kuyruklu teslimde ücret kuyruğa girdiği andaki kural | P3 | **BİLİNEN SINIR** — kuyruk bayrağı kapalı; onayda `queued_delivery` ile aynı sınıf |
 
 ## S. Eşzamanlılık / TOCTOU (dilim 2, analiz + karar)
 

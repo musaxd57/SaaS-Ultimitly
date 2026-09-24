@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { earlyCheckinPolicyText, EARLY_CHECKIN_LANGS } from "@/lib/early-checkin/reply";
 import { stayInfoOnly } from "@/lib/ai/availability-claims";
+import { earlyCheckinPolicyAllowed } from "@/lib/early-checkin/workflow";
 import type { StayGuardVerdict, UnderstandingStaySignal } from "@/lib/ai/semantic/stay-change";
 import type { EarlyCheckinRule } from "@/lib/early-checkin/core";
 
@@ -13,14 +14,18 @@ import type { EarlyCheckinRule } from "@/lib/early-checkin/core";
 const RULE: EarlyCheckinRule = { mode: "auto", earliest: "09:00", fee: { amount: 30, currency: "EUR" }, note: null };
 
 describe("politika metni (kodda, altı dil)", () => {
-  it("ücret kayıttan biçimlenir; karar söylenmez (izin / ret / söz yok); host notu sona eklenir", () => {
+  it("ücret kayıttan biçimlenir; karar söylenmez (izin / ret / söz yok); host notu EKLENMEZ", () => {
     expect(earlyCheckinPolicyText(RULE, "en")).toBe(
       "The early check-in fee is €30. Whether an early check-in is possible depends on that day's cleaning; your host decides.",
     );
     expect(earlyCheckinPolicyText(RULE, "tr")).toBe(
       "Erken giriş ücreti €30. Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.",
     );
-    expect(earlyCheckinPolicyText({ ...RULE, note: "Ödeme platform üzerinden alınır." }, "tr")?.endsWith("Ödeme platform üzerinden alınır.")).toBe(true);
+    // Not ONAY için yazılır ("Ödeme talebi platformdan gelecek"); bilgi cevabında "ücretlendirileceksiniz" gibi okunur ve
+    // birebir metin muafiyetiyle bir izin cümlesi ("12:00'den itibaren mümkündür") de taşıyabilirdi (inceleme 09-24).
+    expect(earlyCheckinPolicyText({ ...RULE, note: "Erken giriş 12:00'den itibaren mümkündür." }, "tr")).toBe(
+      "Erken giriş ücreti €30. Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.",
+    );
     for (const lang of EARLY_CHECKIN_LANGS) {
       const t = earlyCheckinPolicyText(RULE, lang);
       expect(t, lang).toMatch(/30/);
@@ -98,5 +103,25 @@ describe("bilgi sorusu yüklemi — iki anlamsal katman koşup 'istek yok' demel
     for (const q of ["Is early check-in paid?", "Erken giriş ücretli mi?", "How much is early check-in?", "Erken giriş var mı?"]) {
       expect(stayInfoOnly([q], base), q).toBe(true);
     }
+  });
+});
+
+describe("politika metnine uygunluk — modeller her şeyi gördü, mesajda saat / başka gün yok (inceleme 09-24)", () => {
+  const run = (autoBlockers: string[] = []) => ({ facts: { autoBlockers } }) as never;
+  it("KONTROL: engel yok, saat yok → uygun", () => {
+    expect(earlyCheckinPolicyAllowed(run(), ["Is early check-in paid?"])).toBe(true);
+    // Onaylanan saat olmadığı için `time_mismatch_text` bilgi sorusunda HER ZAMAN vardır; kuyruk kodu da bu yüklemin
+    // konusu değil (politika metni izin taşımaz).
+    expect(earlyCheckinPolicyAllowed(run(["time_mismatch_text", "queued_delivery"]), ["Is early check-in paid?"])).toBe(true);
+  });
+  it("🚨 modeller mesajların tamamını görmedi → uygun DEĞİL", () => {
+    expect(earlyCheckinPolicyAllowed(run(["not_fully_read"]), ["Is early check-in paid?"])).toBe(false);
+  });
+  it("🚨 başka güne işaret → uygun DEĞİL", () => {
+    expect(earlyCheckinPolicyAllowed(run(["day_unverified"]), ["Is early check-in paid?"])).toBe(false);
+  });
+  it("🚨 herhangi bir cevapsız mesajda saat → uygun DEĞİL (somut istek)", () => {
+    expect(earlyCheckinPolicyAllowed(run(), ["Is early check-in paid?", "We'd like 11:00."])).toBe(false);
+    expect(earlyCheckinPolicyAllowed(run(), ["Erken giriş ücretli mi? Saat 10 gibi gelsek?"])).toBe(false);
   });
 });

@@ -606,6 +606,66 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  it("10c · politika metni YALNIZ gerçek bilgi sorusuna: modeller mesajların tamamını görmediyse ya da mesajda saat / başka gün varsa gitmez; host notu eklenmez; kaynak sayımı yazılmaz (inceleme 09-24)", async () => {
+    const now = Z("2026-10-14T05:00:00.000");
+    at(now);
+    const infoNlu = nlu(null, [], {
+      requests: [{ intent: "early_checkin", query_tr: "erken giriş ücretli mi", query_original: "is early check-in paid" }],
+      stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+    });
+    const infoReply = reply({ reply: "Early check-in may be possible depending on availability.", stayChangeAsked: "none", replyStance: "none" });
+
+    // (a) 🚨 Altı cevapsız mesaj: anlama katmanı ve bekçi yalnız son beşini görür — ilk mesajdaki soru (otopark)
+    // görülmeden "tek konu" denemez; politika metni diğer soruyu sessizce cevapsız bırakırdı.
+    const t = await turnover();
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    openAi({ reply: infoReply, understanding: infoNlu, guard: NO_REQUEST_GUARD });
+    const texts = ["Where can we park?", "Hello?", "Hi?", "??", "Thank you", "Is early check-in paid?"];
+    const a = await prisma.conversation.create({
+      data: {
+        propertyId: t.propertyId,
+        reservationId: t.own.id,
+        channel: "airbnb",
+        guestIdentifier: "Alex",
+        status: "new",
+        externalReservationId: `res-${t.own.id}`,
+        lastMessageAt: new Date(now.getTime() - 60_000),
+        messages: {
+          create: texts.map((body, i) => ({ direction: "inbound", senderName: "Alex", body, createdAt: new Date(now.getTime() - (texts.length - i) * 60_000) })),
+        },
+      },
+      select: { id: true },
+    });
+    expect((await applyChannelAutoReply(a.id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+
+    // (b) 🚨 Saat ya da başka gün taşıyan mesaj somut bir İSTEKTİR — üç model "istek yok" dese de politika metni gitmez
+    // (kelime ağının aynı-konu işaretini ancak bu deterministik kontrol ayırır).
+    for (const body of ["Can we check in early tomorrow, around 10?", "Is early check-in paid? We'd like 11:00."]) {
+      await fresh();
+      const u = await turnover();
+      await saveEarlyCheckinRule(u.orgId, u.propertyId, RULE);
+      openAi({ reply: infoReply, understanding: infoNlu, guard: NO_REQUEST_GUARD });
+      const b = await conversationFor(u.propertyId, u.own.id, body, new Date(now.getTime() - 60_000));
+      expect((await applyChannelAutoReply(b)).sent, body).toBe(false);
+      expect(mockSend, body).not.toHaveBeenCalled();
+    }
+
+    // (c) Host notu politika metnine EKLENMEZ (onay için yazılmıştır; birebir metin muafiyetiyle izin taşıyabilirdi) ve
+    // karar kaydı gönderilmeyen taslağın kaynak sayımını taşımaz.
+    await fresh();
+    const w = await turnover();
+    await saveEarlyCheckinRule(w.orgId, w.propertyId, { ...RULE, note: "Erken giriş 12:00'den itibaren mümkündür." });
+    openAi({ reply: { ...infoReply, usedSources: ["property:checkInTime"] }, understanding: infoNlu, guard: NO_REQUEST_GUARD });
+    const c = await conversationFor(w.propertyId, w.own.id, "Is early check-in paid?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(c)).sent).toBe(true);
+    expect(sentBody()).not.toContain("12:00");
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: c, surface: "auto_reply" } });
+    expect(ev.reason).toBe("early_checkin_policy");
+    expect(ev.srcDeclared).toBeNull();
+    expect(ev.srcVerified).toBeNull();
+  });
+
   it("11 · 'Yarın 10'da gelebilir miyiz?' → izin iş akışı: varış günü değilse bekler; varış günü gelen 'yarın' da otomatik gitmez", async () => {
     // (a) Bir gün önce soruyor: varış günü bekleniyor.
     const eve = Z("2026-10-13T06:00:00.000"); // 13 Ekim 09:00
