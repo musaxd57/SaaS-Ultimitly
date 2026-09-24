@@ -21,7 +21,8 @@ import {
   stayEvidenceOf,
   vetoAvailability,
 } from "@/lib/ai/availability-claims";
-import { autoReplyGateFailure, passesAutoReplySafetyGate } from "@/lib/automation";
+import { autoReplyGateFailure, availabilityPolicyFor, passesAutoReplySafetyGate } from "@/lib/automation";
+import { qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 
 // ---------------------------------------------------------------------------
@@ -783,6 +784,16 @@ describe("🚨 BELİRSİZLİK GÜVENLİ DEĞİLDİR — hassas istek + eksik/dü
     const tpl = "Our check-in time is 15:00. An early check-in may be possible depending on availability that day.";
     expect(vetoAvailability(tpl, [ASK], { replyIntent: "early_checkin", deterministicReply: true })).toBe("availability_unconfirmed");
     expect(vetoAvailability(tpl, [ASK], { replyIntent: "early_checkin" })).toBe("availability_claim"); // KONTROL: model metni sayılsaydı
+  });
+
+  it("kanal ve QR kurucuları niyet etiketini ve şablon ayrımını AYNI biçimde taşır (parite; yalnız BİLİNEN şablon kaynağı)", () => {
+    const r = { intent: "late_checkout", stayChange: null, source: "fallback" };
+    expect(availabilityPolicyFor(r)).toMatchObject({ replyIntent: "late_checkout", deterministicReply: true });
+    expect(qrAvailabilityPolicy(r)).toMatchObject({ replyIntent: "late_checkout", deterministicReply: true });
+    for (const source of ["openai", undefined, "Fallback"]) {
+      expect(availabilityPolicyFor({ ...r, source }).deterministicReply, String(source)).toBe(false);
+      expect(qrAvailabilityPolicy({ ...r, source }).deterministicReply, String(source)).toBe(false);
+    }
   });
 
   it("kanıt: niyet etiketi `ri` olarak yazılır (kapalı küme); tanınmayan değer yalnız kendisi düşer", () => {
