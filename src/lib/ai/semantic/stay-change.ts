@@ -74,13 +74,21 @@ export function declaredRequest(d: StayChangeDeclaration | null | undefined): bo
 
 // ─── saat ───────────────────────────────────────────────────────────────────
 
-const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+/** Tek haneli saat de kabul ("9:00" — model bazen sıfırsız yazar; inceleme 09-24). */
+const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
-/** "HH:MM" → gün içi dakika; biçim dışı → null (şema zaten zorlar, burada da doğrulanır). */
+/** "HH:MM" / "H:MM" → gün içi dakika; biçim dışı → null (şema zaten zorlar, burada da doğrulanır). */
 export function hhmmToMinutes(v: unknown): number | null {
   if (typeof v !== "string") return null;
   const m = HHMM.exec(v.trim());
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** Geçerli saat → sıfır dolgulu "HH:MM"; aksi hâlde null (yuva değerleri tek biçimde saklanır). */
+export function normalizeHhmm(v: unknown): string | null {
+  const min = hhmmToMinutes(v);
+  if (min === null) return null;
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
 
 /** Mülkün standart saatleri (şemada zorunlu, varsayılan 15:00 / 11:00). */
@@ -89,11 +97,19 @@ export interface StayTimes {
   checkOut?: string | null;
 }
 
+/**
+ * Gece yarısından sonraki varış (01:30) ertesi günün GEÇ varışıdır, erken giriş DEĞİL (inceleme 09-24:
+ * "gece 1:30 gibi varırız" erken giriş isteği sayılıyordu). Bu saatin altındaki giriş saati kaydırma sayılmaz;
+ * modelin kendi istek hükmü ayrıca değerlendirilir.
+ */
+export const LATE_NIGHT_ARRIVAL_CUTOFF_MINUTES = 5 * 60;
+
 /** İstenen GİRİŞ saati standarttan ÖNCE mi? Saatlerden biri çözülemezse `null` (bilinmiyor). */
 export function isEarlierThanCheckIn(requested: unknown, stay: StayTimes | null | undefined): boolean | null {
   const r = hhmmToMinutes(requested);
   const s = hhmmToMinutes(stay?.checkIn);
-  return r === null || s === null ? null : r < s;
+  if (r === null || s === null) return null;
+  return r >= LATE_NIGHT_ARRIVAL_CUTOFF_MINUTES && r < s;
 }
 
 /** İstenen ÇIKIŞ saati standarttan SONRA mı? Saatlerden biri çözülemezse `null`. */
@@ -156,7 +172,7 @@ export interface StayGuardVerdict {
 export type StayGuardOutcome = { status: "ok"; verdict: StayGuardVerdict } | { status: "failed" };
 
 function hhmmOrNull(v: unknown): string | null {
-  return hhmmToMinutes(v) === null ? null : (v as string).trim();
+  return normalizeHhmm(v);
 }
 
 /**
@@ -219,5 +235,6 @@ export type StayPolicyMode = "shadow" | "enforce";
  * doğru cevapları taslağa düşürürdü). Yalnız tam `enforce` değeri açar; gevşek yazım açmaz.
  */
 export function stayPolicyMode(): StayPolicyMode {
-  return process.env.AI_STAY_POLICY?.trim() === "enforce" ? "enforce" : "shadow";
+  // Büyük/küçük harf esnek: sıkılaştıran anahtarda yazım farkı daha GEVŞEK kipe düşürmemeli.
+  return process.env.AI_STAY_POLICY?.trim().toLowerCase() === "enforce" ? "enforce" : "shadow";
 }

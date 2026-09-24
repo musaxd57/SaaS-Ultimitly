@@ -134,8 +134,11 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       const guardReq = new Map<string, Tally>();
       const nluReq = new Map<string, Tally>();
       const guardRep = new Map<string, Tally>();
-      const reqs = data.requests.slice(0, LIMIT);
-      const reps = data.replies.slice(0, LIMIT);
+      // Örnek sınırı BÖLÜM BAŞINA: dev önce geldiği için düz `slice` holdout'u hiç ölçmezdi (inceleme 09-24).
+      const perSplit = <T extends { split: string }>(xs: T[]) =>
+        Number.isFinite(LIMIT) ? ["dev", "holdout"].flatMap((sp) => xs.filter((x) => x.split === sp).slice(0, LIMIT)) : xs;
+      const reqs = perSplit(data.requests);
+      const reps = perSplit(data.replies);
 
       await pool(reqs, async (r) => {
         const stayTimes = { checkIn: r.checkIn, checkOut: r.checkOut };
@@ -187,11 +190,18 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
   );
 
   afterAll(() => {
+    // 🚨 RAPOR YALNIZ GERÇEK MODEL KOŞUSUNDA YAZILIR (inceleme 09-24): ana suite `tests/**` topladığı için bu
+    // dosya her `npm test`te koşuyor ve her koşu repoya tarihli rapor yazıyordu — aynı gün ücretli bir koşunun
+    // raporunu "MODEL KOŞMADI" ile EZEBİLİRDİ. Anahtarsız koşuda yedek tablosu yalnız konsola basılır.
+    if (!enabled) {
+      if (process.env.EVAL_CONFIG === "1") console.log(lines.join("\n"));
+      return;
+    }
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
     const name = `stay-change-eval-${stamp}.md`;
-    const status = !enabled ? "MODEL KOŞMADI (yalnız deterministik yedek)" : failures > 0 ? `GEÇERSİZ — ${failures} çağrı düştü` : "GEÇERLİ";
+    const status = failures > 0 ? `GEÇERSİZ — ${failures} çağrı düştü` : "GEÇERLİ";
     const head = [
       `# Konaklama değişikliği anlam katmanı — eval (${stamp})`,
       "",

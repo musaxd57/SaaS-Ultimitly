@@ -7,6 +7,7 @@ import {
   stayEvidenceOf,
   vetoAvailability,
   type AvailabilityPolicyOptions,
+  type AvailabilityVetoReason,
 } from "@/lib/ai/availability-claims";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import type {
@@ -30,7 +31,7 @@ import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
-import { selectHistoryForPrompt } from "@/lib/ai/prompts";
+import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import {
@@ -110,12 +111,12 @@ export interface AutoReplyGateContext {
   stayGuard?: StayGuardOutcome;
   /** Anlama katmanının konaklama sinyali (`AI_UNDERSTANDING_ENABLED`). */
   understanding?: UnderstandingStaySignal | null;
+  /** Ev sahibinin tanımlı teklif metni (istemin gösterdiği SANİTİZE biçim) — iddia taramasından muaf. */
+  hostOfferText?: string | null;
 }
 
-/** Only safe, confident drafts may be auto-sent; everything else waits for a human.
- * Exported for the golden scenario suite — the gate is the product's core safety
- * promise, so its verdicts are pinned by fixed test scenarios. */
-export function passesAutoReplySafetyGate(
+/** Kapı kararı + ilk düşen kontrol (`null` = gönderilebilir). Ayrıntılar aşağıdaki yorumlarda. */
+export function autoReplyGateFailure(
   result: {
     intent: string;
     riskLevel: string;
@@ -136,13 +137,13 @@ export function passesAutoReplySafetyGate(
   /** What the MODEL sees beyond the last message: recent history bodies + the
    *  (Airbnb-controlled) guest display name. Scanned for INJECTION ONLY. */
   context?: AutoReplyGateContext,
-): boolean {
+): AutoReplyGateFailure | null {
   // Never auto-send the deterministic fallback: it can't honour the language /
   // nuance rules the model follows, so if the model is unavailable we wait for a
   // human instead of sending a canned message.
-  if (result.source !== "openai") return false;
+  if (result.source !== "openai") return "blocked";
   // Sensitive intents always go to a human (refund/cancellation/complaint).
-  if (NEVER_AUTO_REPLY_INTENTS.has(result.intent)) return false;
+  if (NEVER_AUTO_REPLY_INTENTS.has(result.intent)) return "blocked";
   // CROSS-CHECK the model against the deterministic keyword detector: if the
   // guest's OWN words clearly signal a complaint, refund, or early-departure/
   // cancellation, never auto-send — even when the model under-rated it as a
@@ -171,7 +172,7 @@ export function passesAutoReplySafetyGate(
         (x.intent === "human_request" && result.intent !== "human_request"),
     )
   ) {
-    return false;
+    return "blocked";
   }
   // Yüksek-riskli deterministik netler de TÜM cevaplanmamış mesajlara uygulanır.
   if (
@@ -180,7 +181,7 @@ export function passesAutoReplySafetyGate(
       return d === "safety_emergency" || d === "rule_violation" || d === "discrimination";
     })
   ) {
-    return false;
+    return "blocked";
   }
 
   const fb = classifyFallback(guestMessage);
@@ -196,13 +197,13 @@ export function passesAutoReplySafetyGate(
     fb.intent === "early_departure" ||
     (fb.intent === "human_request" && result.intent !== "human_request")
   ) {
-    return false;
+    return "blocked";
   }
   // Deterministic prompt-injection backstop: never rely on the model to
   // self-report an injection attempt — if the guest's own words carry classic
   // jailbreak phrasing, the draft waits for a human no matter what the model
   // scored. Restrictive-only (can only prevent an auto-send).
-  if (detectPromptInjection(guestMessage)) return false;
+  if (detectPromptInjection(guestMessage)) return "blocked";
   // The model does not only see the LAST message: the prompt carries the recent
   // history verbatim plus the guest display name (Airbnb-controlled text). An
   // injection planted in an EARLIER message — or in the name itself — reaches
@@ -212,7 +213,7 @@ export function passesAutoReplySafetyGate(
   // (yesterday's resolved complaint is not a reason to hold today's wifi answer).
   if (context) {
     const extraSurfaces = [...(context.history ?? []), context.guestName ?? ""];
-    if (extraSurfaces.some((t) => t && detectPromptInjection(t))) return false;
+    if (extraSurfaces.some((t) => t && detectPromptInjection(t))) return "blocked";
   }
   // ── DETERMİNİSTİK YÜKSEK-RİSK VETOSU — 3 ETİKETTEN TAM KÜMEYE (08-06) ──────
   //
@@ -255,7 +256,7 @@ export function passesAutoReplySafetyGate(
     deterministicRisk !== null &&
     HIGH_STAKES_RISK_TYPES.has(deterministicRisk) &&
     !(deterministicRisk === "human_request" && result.intent === "human_request");
-  if (deterministicBlocks) return false;
+  if (deterministicBlocks) return "blocked";
   // A high-stakes label (HIGH_STAKES_RISK_TYPES, module scope — shared with the QR
   // gate) is itself a red flag: if the model names one, never auto-send even when
   // it (inconsistently) scored the risk low. Tightens only — null label changes nothing.
@@ -263,9 +264,9 @@ export function passesAutoReplySafetyGate(
   // human_request. Any OTHER high-stakes label (even alongside a human_request
   // intent) holds for a human.
   if (result.riskType && !isHandoffAck && HIGH_STAKES_RISK_TYPES.has(result.riskType)) {
-    return false;
+    return "blocked";
   }
-  if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
+  if (result.riskLevel !== "none" && result.riskLevel !== "low") return "blocked";
   // ── "BİLGİM YOK" MİSAFİRE GİTMEZ (kurucu kuralı, 09-11) ───────────────────
   //
   // 🚨 GÜVEN EŞİĞİNDEN BAĞIMSIZ: ölçüldü ki güveni 0.75 ÜSTÜNDE olan bir "kayıtlı
@@ -277,7 +278,7 @@ export function passesAutoReplySafetyGate(
   // ⚠️ ÖLÇÜT CEVABIN KENDİ İTİRAFIDIR, "kaynak yok" DEĞİL — "Giriş saati kaçta?"
   // cevabı MÜLK ALANINDAN gelir, kaynaksız görünür ama DAYANAKLIDIR (test-pinli).
   // QR rotasındaki `absence_admission` dalıyla PARİTE (aynı yüklem, tek kaynak).
-  if (admitsMissingKnowledge(result.reply)) return false;
+  if (admitsMissingKnowledge(result.reply)) return "blocked";
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Bu kapı 09-12'ye kadar cevap METNİNE yalnız `admitsMissingKnowledge` ile
@@ -314,7 +315,7 @@ export function passesAutoReplySafetyGate(
   // DÜZELTEREK çözülür (fallback/holding metinleri tek dürüstlük sözleşmesine
   // bağlanır), kapıyı devir akışının üstüne kapatarak değil — aksi hâlde
   // misafir hiçbir şey almaz ve host da devir sinyalini kaybeder.
-  if (result.intent !== "human_request" && vetoOutgoingReply(result.reply) !== null) return false;
+  if (result.intent !== "human_request" && vetoOutgoingReply(result.reply) !== null) return "blocked";
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24, `availability-claims.ts`) ──────────
   // Model takvimi GÖRMÜYOR → "o gece boş / kalabilirsiniz / fully booked" doğrulanmamış iddiadır;
   // müsaitliğe bağlı bir istek ancak kararı ev sahibine bırakan cevapla gider. Kapsam TÜM cevapsız
@@ -323,12 +324,31 @@ export function passesAutoReplySafetyGate(
   // ⚠️ 09-24 KURUCU DÜZELTMESİ: kelime ağı tek başına genellemiyor (kör batarya: izinlerin 19/60'ı) →
   // karar dört katmanın BİRLEŞİMİ (deterministik yedek + modelin şema beyanı + bağımsız bekçi + anlama
   // katmanı); hepsi yalnız sıkılaştırır. Ayrıntı `availabilityPolicyFor` + `evaluateAvailability`.
-  if (vetoAvailability(result.reply, surfaces, availabilityPolicyFor(result, context)) !== null) return false;
+  const availability = vetoAvailability(result.reply, surfaces, availabilityPolicyFor(result, context));
+  if (availability !== null) return availability;
   // İKİNCİ KEMER (Codex F01): güven değeri SONLU bir sayı olmak zorunda. Parser
   // zaten yalnız sonlu number geçiriyor, ama kapı başka çağıranlardan da ham
   // nesne alır (QR yolu, testler) — `Infinity >= 0.75` true olurdu.
-  if (!Number.isFinite(result.confidence)) return false;
-  return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
+  if (!Number.isFinite(result.confidence)) return "blocked";
+  return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE ? null : "blocked";
+}
+
+/**
+ * Kapının İLK düşen kontrolü (inceleme 09-24): karar kaydının gerekçesi YALNIZ müsaitlik kontrolü
+ * kapıyı gerçekten kapattıysa müsaitlik kodudur — model arızası ya da başka bir veto müsaitlik satırına
+ * sayılmaz (eskiden gerekçe kapıdan bağımsız hesaplanıyordu).
+ */
+export type AutoReplyGateFailure = AvailabilityVetoReason | "blocked";
+
+/** Only safe, confident drafts may be auto-sent; everything else waits for a human.
+ * Exported for the golden scenario suite — the gate is the product's core safety
+ * promise, so its verdicts are pinned by fixed test scenarios. */
+export function passesAutoReplySafetyGate(
+  result: Parameters<typeof autoReplyGateFailure>[0],
+  guestMessage: string,
+  context?: AutoReplyGateContext,
+): boolean {
+  return autoReplyGateFailure(result, guestMessage, context) === null;
 }
 
 /**
@@ -345,6 +365,7 @@ export function availabilityPolicyFor(
     guard: context?.stayGuard,
     understanding: context?.understanding ?? null,
     stayTimes: context?.stayTimes ?? null,
+    hostOfferText: context?.hostOfferText ?? null,
   };
 }
 
@@ -1883,24 +1904,34 @@ export async function applyChannelAutoReply(
     pendingGuestMessages,
     // Model yuvalarındaki saat KODDA bununla kıyaslanır (`ai/semantic/stay-change.ts`).
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
-    // Anlama katmanının konaklama sinyali (katman kapalıyken yok → politika eski davranışta).
-    understanding: kbSel.understanding?.stay ?? null,
+    // Anlama katmanının konaklama sinyali (katman kapalıyken yok → politika eski davranışta). Retrieval'a
+    // gerekmediyse cevap üretimiyle paralel koştu; burada bekleniyor.
+    understanding: (await kbSel.understanding)?.stay ?? null,
+    // İstemin gösterdiği AYNI sanitize teklif metni: host'un kendi sözü iddia sayılmaz.
+    hostOfferText: sanitizePromptValue(org.lateCheckoutOfferText, 400) || null,
   };
   // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
   // Yalnız OTOMATİK GÖNDERİM ADAYI için ve bayrak açıkken (`AI_STAY_GUARD_ENABLED`): önce bekçisiz
   // kapı; geçerse ikinci model taslağı okur ve kapı bekçinin hükmüyle YENİDEN değerlendirilir (bekçi
   // yalnız sıkılaştırır). Önizleme (dryRun) de aynı yoldan geçer — "gönderilirdi" dürüst kalsın.
-  let gatePassed = passesAutoReplySafetyGate(result, last.body, gateContext);
+  let gateFailure = autoReplyGateFailure(result, last.body, gateContext);
+  let gatePassed = gateFailure === null;
   if (gatePassed && stayGuardEnabled()) {
     const stayGuard = await runStayChangeGuard({
       guestMessages: [...pendingGuestMessages, last.body],
       reply: result.reply,
       stayTimes: gateContext.stayTimes,
       names: [conversation.guestIdentifier, conversation.reservation?.guestName],
+      hostOffer: gateContext.hostOfferText,
+      // Cevapsızlardan ÖNCEKİ konuşma (takip izni bağlamla anlaşılır).
+      history: messages
+        .slice(0, lastOutboundIdx + 1)
+        .map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
     });
     if (stayGuard) {
       gateContext.stayGuard = stayGuard;
-      gatePassed = passesAutoReplySafetyGate(result, last.body, gateContext);
+      gateFailure = autoReplyGateFailure(result, last.body, gateContext);
+      gatePassed = gateFailure === null;
     }
   }
   // Karar kaydı kapıyla AYNI politika girdisinden (`availabilityPolicyFor`) — gerekçe ile hüküm
@@ -2241,7 +2272,9 @@ export async function applyChannelAutoReply(
         // Müsaitlik vetosu kapattıysa GEREKÇE ONUN KODU (kapıyla AYNI yüklem, AYNI girdi) — raporda
         // "düşük güven" kovasına karışmasın. Konuşmanın `skippedReason`u BİLEREK aynı kalır: o kod on
         // yerde işleniyor (damgalama, senkron koruması, raporlar); yeni kod o zinciri riske atardı.
-        reason: stayEval.reason ?? "low_confidence_or_risky",
+        // Gerekçe kapının İLK düşen kontrolünden: müsaitlik kodu yalnız o kontrol kapattıysa (model arızası ya
+        // da başka bir veto "Müsaitlik" satırına sayılmaz — inceleme 09-24).
+        reason: gateFailure === "availability_claim" || gateFailure === "availability_unconfirmed" ? gateFailure : "low_confidence_or_risky",
         confidence: result.confidence,
         ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,

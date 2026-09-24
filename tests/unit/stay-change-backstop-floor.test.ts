@@ -47,11 +47,14 @@ describe("deterministik yedek — ölçülmüş taban (dev bölümü)", () => {
     expect(count(neg, (r) => detectAvailabilityRequest(r.text) !== null)).toBeLessThanOrEqual(10);
   });
 
-  it("cevap: takvim ≥ 31/57 · izin ≥ 19/60 · erteleme tanıma ≥ 61/76 · tarafsızda yanlış alarm ≤ 1/118", () => {
+  // İnceleme turu 09-24: "kaydedildi/recorded" ve onay TAHMİNİ artık erteleme değil (doğruluk), genel "ev sahibi
+  // karar verir/kontrol eder" biçimleri dev'den eklendi → erteleme 61 → 70; olanak "kapalı" / "park yeri"
+  // takvim sayılmıyor → tarafsızda yanlış alarm 1 → 0.
+  it("cevap: takvim ≥ 31/57 · izin ≥ 19/60 · erteleme tanıma ≥ 70/76 · tarafsızda yanlış alarm 0/118", () => {
     expect(count(byLabel("claim"), (r) => detectAvailabilityClaim(r.text) !== null)).toBeGreaterThanOrEqual(31);
     expect(count(byLabel("grant"), (r) => detectAvailabilityClaim(r.text) !== null)).toBeGreaterThanOrEqual(19);
-    expect(count(byLabel("deferral"), (r) => detectAvailabilityClaim(r.text) === null && hasAvailabilityDeferral(r.text))).toBeGreaterThanOrEqual(61);
-    expect(count(byLabel("neutral"), (r) => detectAvailabilityClaim(r.text) !== null)).toBeLessThanOrEqual(1);
+    expect(count(byLabel("deferral"), (r) => detectAvailabilityClaim(r.text) === null && hasAvailabilityDeferral(r.text))).toBeGreaterThanOrEqual(70);
+    expect(count(byLabel("neutral"), (r) => detectAvailabilityClaim(r.text) !== null)).toBe(0);
   });
 });
 
@@ -76,10 +79,12 @@ describe("deterministik yedek — ölçülmüş taban (holdout bölümü, İLK v
     expect(count(neg, (r) => detectAvailabilityRequest(r.text) !== null)).toBeLessThanOrEqual(28);
   });
 
-  it("cevap: takvim ≥ 26/73 · izin ≥ 13/95 · erteleme tanıma ≥ 41/77 · tarafsızda yanlış alarm ≤ 3/127", () => {
+  // İlk ölçüm 09-24: erteleme 41/77, tarafsız yanlış alarm 3/127. İnceleme turu düzeltmeleri SONRASI (dev'e göre
+  // yapıldı, holdout'a bakılmadı; burada yalnız ölçüldü): 44/77 ve 2/127.
+  it("cevap: takvim ≥ 26/73 · izin ≥ 13/95 · erteleme tanıma ≥ 44/77 · tarafsızda yanlış alarm ≤ 2/127", () => {
     expect(count(byLabel("claim"), (r) => detectAvailabilityClaim(r.text) !== null)).toBeGreaterThanOrEqual(26);
     expect(count(byLabel("grant"), (r) => detectAvailabilityClaim(r.text) !== null)).toBeGreaterThanOrEqual(13);
-    expect(count(byLabel("deferral"), (r) => detectAvailabilityClaim(r.text) === null && hasAvailabilityDeferral(r.text))).toBeGreaterThanOrEqual(41);
-    expect(count(byLabel("neutral"), (r) => detectAvailabilityClaim(r.text) !== null)).toBeLessThanOrEqual(3);
+    expect(count(byLabel("deferral"), (r) => detectAvailabilityClaim(r.text) === null && hasAvailabilityDeferral(r.text))).toBeGreaterThanOrEqual(44);
+    expect(count(byLabel("neutral"), (r) => detectAvailabilityClaim(r.text) !== null)).toBeLessThanOrEqual(2);
   });
 });

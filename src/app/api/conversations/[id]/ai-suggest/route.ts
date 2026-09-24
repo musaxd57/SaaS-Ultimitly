@@ -13,6 +13,7 @@ import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } f
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor } from "@/lib/automation";
+import { sanitizePromptValue } from "@/lib/ai/prompts";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
@@ -92,7 +93,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     items: kb,
     guestMessage: lastInbound.body,
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
-    redactNames: [conversation.guestIdentifier],
+    redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],
     history: conversation.messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
@@ -163,7 +164,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     unanswered.length > 0 ? unanswered : [lastInbound.body],
     availabilityPolicyFor(result, {
       stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
-      understanding: kbSel.understanding?.stay ?? null,
+      understanding: (await kbSel.understanding)?.stay ?? null,
+      hostOfferText: sanitizePromptValue(org?.lateCheckoutOfferText, 400) || null,
     }),
   );
 

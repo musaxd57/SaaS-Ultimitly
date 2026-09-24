@@ -1,12 +1,11 @@
 import "server-only";
 
-import { redactSensitive } from "@/lib/report-error";
-import { redactNameFromBody } from "@/lib/data-retention";
 import { callStructuredJson } from "./structured-call";
-import { semanticApiKey, semanticModel, semanticTimeoutMs } from "./config";
+import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
+import { redactForSemanticModel } from "./redact";
 import {
   STAY_GUARD_JSON_SCHEMA,
-  hhmmToMinutes,
+  normalizeHhmm,
   parseStayGuardVerdict,
   type StayGuardOutcome,
   type StayTimes,
@@ -42,12 +41,15 @@ export function stayGuardEnabled(): boolean {
 }
 
 const MAX_GUEST_MESSAGES = 5;
+const MAX_CONTEXT_MESSAGES = 6;
 const GUEST_MESSAGE_CAP = 1_200;
 const REPLY_CAP = 2_000;
 
 /** Ayraç enjeksiyonu: veri bloğunun sınırını taklit eden dizi veriden silinir. */
 function fenceSafe(text: string): string {
-  return text.replace(/<<<|>>>/g, "");
+  // İki+ açılı ayraç ÇALIŞMASI bütünüyle silinir: tek geçişte "<<<" silmek ">><<<>" girdisinden YENİ bir
+  // ">>>" üretiyordu (inceleme 09-24). Kalan tek ayraçlar arasında hep ayraç olmayan karakter kalır.
+  return text.replace(/[<>]{2,}/g, "");
 }
 
 export const STAY_GUARD_SYSTEM_PROMPT = [
@@ -66,6 +68,7 @@ export const STAY_GUARD_SYSTEM_PROMPT = [
   "- reply_defers_to_host: the draft clearly leaves the decision to the host or the booking platform ('this is your host's decision; your message has been recorded', 'subject to availability', 'please send a change request through the platform') AND contains no permission, promise, half-promise or calendar statement.",
   "- reply_refuses: the draft says the change is not possible, without a calendar statement.",
   "Standard-time information alone ('check-in is from 15:00', 'please leave by 11:00') is none of the reply fields.",
+  "If a HOST'S STANDING OFFER is given, it was written by the host: relaying it word for word while leaving availability to the host is reply_defers_to_host, NOT a grant. Changing it, confirming it for a specific day, or adding the assistant's own permission is a grant.",
 ].join("\n");
 
 export interface StayGuardInput {
@@ -75,22 +78,36 @@ export interface StayGuardInput {
   stayTimes: StayTimes | null | undefined;
   /** Redaksiyon için bilinen adlar (misafir kimliği, rezervasyon adı). */
   names?: readonly (string | null | undefined)[];
+  /** Ev sahibinin tanımlı teklif metni (varsa) — aktarımı izin sayılmasın diye bekçiye gösterilir. */
+  hostOffer?: string | null;
+  /**
+   * Cevapsız mesajlardan ÖNCEKİ konuşma (en eski önce; son 6'sı gider). "Peki 13:00?" → "Evet, olur!"
+   * gibi takip izni ancak bağlamla anlaşılır (inceleme 09-24).
+   */
+  history?: readonly { direction: "inbound" | "outbound"; body: string }[];
   /** Test enjeksiyonu. */
   fetchImpl?: typeof fetch;
 }
 
 export function buildStayGuardUserContent(input: StayGuardInput): string {
   const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
-  const clean = (t: string, cap: number) => fenceSafe(redactSensitive(redactNameFromBody(t, names))).slice(0, cap);
+  const clean = (t: string, cap: number) => fenceSafe(redactForSemanticModel(t, names)).slice(0, cap);
   const msgs = input.guestMessages
     .filter((m): m is string => typeof m === "string" && m.trim().length > 0)
     .slice(-MAX_GUEST_MESSAGES)
     .map((m, i) => `[${i + 1}] <<<${clean(m, GUEST_MESSAGE_CAP)}>>>`);
-  const ci = hhmmToMinutes(input.stayTimes?.checkIn) === null ? "unknown" : input.stayTimes!.checkIn!.trim();
-  const co = hhmmToMinutes(input.stayTimes?.checkOut) === null ? "unknown" : input.stayTimes!.checkOut!.trim();
+  const ci = normalizeHhmm(input.stayTimes?.checkIn) ?? "unknown";
+  const co = normalizeHhmm(input.stayTimes?.checkOut) ?? "unknown";
+  const offer = typeof input.hostOffer === "string" && input.hostOffer.trim() ? clean(input.hostOffer, 400) : null;
+  const context = (input.history ?? [])
+    .filter((m) => typeof m.body === "string" && m.body.trim().length > 0)
+    .slice(-MAX_CONTEXT_MESSAGES)
+    .map((m) => `${m.direction === "inbound" ? "Guest" : "Host"}: <<<${clean(m.body, GUEST_MESSAGE_CAP)}>>>`);
   return [
     `Property standard check-in: ${ci}; standard check-out: ${co}.`,
-    "GUEST MESSAGES (oldest first):",
+    ...(offer ? [`HOST'S STANDING OFFER (written by the host): <<<${offer}>>>`] : []),
+    ...(context.length > 0 ? ["EARLIER CONVERSATION (context only, oldest first):", ...context] : []),
+    "GUEST MESSAGES (unanswered, oldest first):",
     ...(msgs.length > 0 ? msgs : ["(none)"]),
     "DRAFT REPLY:",
     `<<<${clean(input.reply, REPLY_CAP)}>>>`,
@@ -117,6 +134,7 @@ export async function runStayChangeGuard(input: StayGuardInput): Promise<StayGua
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 300,
       maxCompletionTokens: 4_000,
+      reasoningEffort: semanticReasoningEffort(),
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed" };

@@ -1,7 +1,8 @@
 import type { KbChunkSource } from "@/lib/ai/retrieval/chunker";
-import { selectKbForPrompt, type KbSelectInput, type KbSelectResult } from "@/lib/ai/retrieval/select";
+import { retrievalNeeded, selectKbForPrompt, type KbSelectInput, type KbSelectResult } from "@/lib/ai/retrieval/select";
+import { kbRetrievalMode } from "@/lib/ai/retrieval/flag";
 import { prepareSemanticScores } from "@/lib/ai/embeddings/semantic-retrieval";
-import { understandGuestMessages } from "@/lib/ai/semantic/understand";
+import { understandGuestMessages, understandingEnabled, type UnderstandingOutcome } from "@/lib/ai/semantic/understand";
 import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import type { StayTimes } from "@/lib/ai/semantic/stay-change";
 
@@ -12,8 +13,10 @@ import type { StayTimes } from "@/lib/ai/semantic/stay-change";
 // `selectKbForPrompt`i. Aradaki iş ağ gerektiren hazırlıktır (seçici SAF ve SENKRON kalır):
 //  1. ANLAMA KATMANI (09-24, `AI_UNDERSTANDING_ENABLED`): model misafirin sorusunu anlar ve temiz,
 //     geçmişle çözülmüş arama sorgularına yeniden yazar (sorgu yeniden yazma / çoklu sorgu). Sorgular
-//     deterministik alt sorgulara BİRLEŞİM olarak girer; anlaşılan konaklama sinyali çağırana döner
-//     (kapıya gider). Küçük KB'de de koşar — sinyal retrieval'dan bağımsız değerlidir.
+//     deterministik alt sorgulara BİRLEŞİM olarak girer (payı sınırlı, geri çekilmeyi daraltamaz).
+//     🚨 GECİKME (inceleme 09-24): retrieval sorgulara İHTİYAÇ DUYMUYORSA (küçük KB — tipik host — ya da
+//     legacy acil durdurma) anlama BEKLENMEZ; cevap üretimiyle PARALEL koşar ve yalnız kapıdan önce
+//     `await result.understanding` ile alınır. Böylece misafir yalnız sorgular gerçekten kullanıldığında bekler.
 //  2. ANLAMSAL HAZIRLIK (`KB_SEMANTIC_RETRIEVAL`): alt sorgu başına gömme puanları — yeniden yazılmış
 //     sorgular da gömülür.
 // İki anahtar da kapalıyken sonuç `selectKbForPrompt(input)` ile BİREBİR aynıdır ve kanıta yeni alan
@@ -28,20 +31,29 @@ export interface KbRetrieveInput<T extends KbChunkSource> extends KbSelectInput<
 }
 
 export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
-  /** Anlama katmanının çıktısı (yalnız katman açık ve başarılıyken). */
-  understanding?: MessageUnderstanding;
+  /**
+   * Anlama katmanının çıktısı. Kapıdan ÖNCE `await` edilir; katman kapalı/başarısızsa `undefined`.
+   * Asla reddedilmez (katman fırlatmaz).
+   */
+  understanding: Promise<MessageUnderstanding | undefined>;
 };
 
 export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
   const { stayTimes, redactNames, ...selectInput } = input;
-  const und = await understandGuestMessages({
+  // Çağrı HEMEN başlar (async fonksiyon ilk await'e kadar eşzamanlı koşar); kimse beklemese de paraleldir.
+  const pending: Promise<UnderstandingOutcome> = understandGuestMessages({
     guestMessage: selectInput.guestMessage,
     history: selectInput.history,
     stayTimes,
     names: redactNames,
   });
-  const understanding = und.status === "ok" ? und.value : undefined;
-  const extraQueries = understandingQueries(understanding);
+  const queriesNeeded =
+    understandingEnabled() &&
+    (selectInput.mode ?? kbRetrievalMode()) === "hybrid" &&
+    retrievalNeeded(selectInput.items, selectInput.fullSetMaxItems);
+  const und: UnderstandingOutcome = queriesNeeded ? await pending : { status: "off" };
+  const understood = und.status === "ok" ? und.value : undefined;
+  const extraQueries = understandingQueries(understood);
   const withExtra: KbSelectInput<T> = extraQueries.length > 0 ? { ...selectInput, extraQueries } : selectInput;
 
   const sem = await prepareSemanticScores(withExtra);
@@ -53,12 +65,12 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
       ...evidence,
       un: und.status === "ok" ? (und.cached ? "cached" : "ok") : "failed",
       unMs: und.ms,
-      ...(understanding && understanding.requests.length > 0 ? { ui: understanding.requests.map((r) => r.intent) } : {}),
+      ...(understood && understood.requests.length > 0 ? { ui: understood.requests.map((r) => r.intent) } : {}),
     };
   }
   return {
     ...result,
     evidence,
-    ...(understanding ? { understanding } : {}),
+    understanding: pending.then((o) => (o.status === "ok" ? o.value : undefined)),
   };
 }

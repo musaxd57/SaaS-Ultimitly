@@ -21,6 +21,16 @@ export function semanticModel(): string {
   return process.env.AI_SEMANTIC_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
 }
 
+/**
+ * Reasoning modeli için düşünme çabası. Yalnız kapalı küme; boş/tanınmayan → gönderilmez (modelin
+ * varsayılanı). gpt-5 ailesinin varsayılanı "medium" olabilir → anlam katmanı için "low" önerilir
+ * (inceleme 09-24; ölçmeden varsayılan yapılmadı).
+ */
+export function semanticReasoningEffort(): string | undefined {
+  const v = process.env.AI_SEMANTIC_REASONING_EFFORT?.trim();
+  return v && ["none", "minimal", "low", "medium", "high"].includes(v) ? v : undefined;
+}
+
 export function semanticTimeoutMs(model: string): number {
   const n = Number(process.env.AI_SEMANTIC_TIMEOUT_MS);
   if (Number.isFinite(n) && n >= 500 && n <= 60_000) return Math.trunc(n);

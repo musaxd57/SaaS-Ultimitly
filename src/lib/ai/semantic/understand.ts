@@ -1,11 +1,10 @@
 import "server-only";
 
 import { createHash } from "crypto";
-import { redactSensitive } from "@/lib/report-error";
-import { redactNameFromBody } from "@/lib/data-retention";
 import { callStructuredJson } from "./structured-call";
-import { semanticApiKey, semanticModel, semanticTimeoutMs } from "./config";
-import { hhmmToMinutes, type StayTimes } from "./stay-change";
+import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
+import { redactForSemanticModel } from "./redact";
+import { normalizeHhmm, type StayTimes } from "./stay-change";
 import { UNDERSTANDING_JSON_SCHEMA, parseUnderstanding, type MessageUnderstanding } from "./understanding-schema";
 
 // ---------------------------------------------------------------------------
@@ -56,7 +55,9 @@ const MAX_HISTORY = 6;
 const MESSAGE_CAP = 1_000;
 
 function fenceSafe(text: string): string {
-  return text.replace(/<<<|>>>/g, "");
+  // İki+ açılı ayraç ÇALIŞMASI bütünüyle silinir: tek geçişte "<<<" silmek ">><<<>" girdisinden YENİ bir
+  // ">>>" üretiyordu (inceleme 09-24). Kalan tek ayraçlar arasında hep ayraç olmayan karakter kalır.
+  return text.replace(/[<>]{2,}/g, "");
 }
 
 export interface UnderstandingInput {
@@ -73,7 +74,7 @@ export interface UnderstandingInput {
 /** Modele giden kullanıcı içeriği (redakte, ayraçlı, tavanlı). Saf; test edilebilir. */
 export function buildUnderstandingUserContent(input: UnderstandingInput): string {
   const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
-  const clean = (t: string) => fenceSafe(redactSensitive(redactNameFromBody(t, names))).slice(0, MESSAGE_CAP);
+  const clean = (t: string) => fenceSafe(redactForSemanticModel(t, names)).slice(0, MESSAGE_CAP);
   const hist = (input.history ?? []).filter((m) => typeof m.body === "string" && m.body.trim().length > 0);
   // Cevapsız misafir mesajları: son GİDEN mesajdan sonrakiler (güncel mesaj dâhil, tekrar etmeden).
   const lastOut = hist.map((m) => m.direction).lastIndexOf("outbound");
@@ -81,8 +82,8 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
   if (pending[pending.length - 1] !== input.guestMessage) pending.push(input.guestMessage);
   const unanswered = pending.slice(-MAX_UNANSWERED);
   const context = hist.slice(0, lastOut + 1).slice(-MAX_HISTORY);
-  const ci = hhmmToMinutes(input.stayTimes?.checkIn) === null ? "unknown" : input.stayTimes!.checkIn!.trim();
-  const co = hhmmToMinutes(input.stayTimes?.checkOut) === null ? "unknown" : input.stayTimes!.checkOut!.trim();
+  const ci = normalizeHhmm(input.stayTimes?.checkIn) ?? "unknown";
+  const co = normalizeHhmm(input.stayTimes?.checkOut) ?? "unknown";
   return [
     `Property standard check-in: ${ci}; standard check-out: ${co}.`,
     "RECENT CONVERSATION (oldest first):",
@@ -141,11 +142,15 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 600,
       maxCompletionTokens: 4_000,
+      reasoningEffort: semanticReasoningEffort(),
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed", ms: Date.now() - started };
     const value = parseUnderstanding(res.data);
     if (!value) return { status: "failed", ms: Date.now() - started };
+    // Süresi dolmuş girdi de olabilir: önce SİL, sonra ekle — `set` var olan anahtarı eski sırasında
+    // bırakır ve taze girdi ilk çıkarılan olurdu (inceleme 09-24).
+    cache.delete(key);
     cache.set(key, { at: Date.now(), value });
     while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
     return { status: "ok", value, ms: Date.now() - started, cached: false };

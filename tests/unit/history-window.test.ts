@@ -184,7 +184,8 @@ describe("kapı aynası — istem penceresi ile injection tarama yüzeyi AYNI", 
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("//"))
       .join("\n");
-    const at = src.indexOf("const gateContext = {");
+    // 09-24: bağlam artık adlandırılmış tiple bildiriliyor (`const gateContext: AutoReplyGateContext = {`).
+    const at = src.search(/const gateContext(?::\s*\w+)?\s*=\s*\{/);
     expect(at, "gateContext bulunamadı").toBeGreaterThan(-1);
     const block = src.slice(at, at + 600);
     expect(block).toContain("selectHistoryForPrompt");

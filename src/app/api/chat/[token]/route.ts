@@ -704,7 +704,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // ikinci model taslağı okur ve kapı onun hükmüyle yeniden değerlendirilir (yalnız sıkılaştırır).
   let stayCtx: Parameters<typeof evaluateEscalation>[4] = {
     stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
-    understanding: kbSel.understanding?.stay ?? null,
+    understanding: (await kbSel.understanding)?.stay ?? null,
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
@@ -714,6 +714,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       reply: result.reply,
       stayTimes: stayCtx?.stayTimes,
       names: [res.guestName],
+      // Modelin gördüğü AYNI pencere (takip izni bağlamla anlaşılır).
+      history,
     });
     if (stayGuard) {
       stayCtx = { ...stayCtx, stayGuard };

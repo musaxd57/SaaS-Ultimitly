@@ -154,12 +154,21 @@ export interface KbSelectInput<T extends KbChunkSource> {
    * daraltmaz. Kaynak model olduğu için yalnız ARAMA sorgusudur: seçilebilecek küme yetki/onay/sır
    * süzgeçlerinden ÖNCE geçmiş `items`tır (sorgu kümeye kalem ekleyemez).
    */
-  extraQueries?: readonly string[];
+  extraQueries?: readonly ExtraQuery[];
   sources?: KbSelectSources;
   now?: number;
 }
 
 export type SelectedKbItem<T> = T & { chunk?: number; chunkCount?: number };
+
+/**
+ * Anlama katmanının yeniden yazdığı sorgu. `turkish`: n-gram kaynağı YALNIZ Türkçe sorguda anlamlıdır
+ * (bilgi tabanının dili) — yabancı misafirin Türkçe yeniden yazımı da n-gram almalı (inceleme 09-24).
+ */
+export interface ExtraQuery {
+  text: string;
+  turkish: boolean;
+}
 
 export interface KbSelectResult<T extends KbChunkSource> {
   mode: KbRetrievalMode;
@@ -194,6 +203,14 @@ export const PENDING_QUERY_MESSAGES = 3;
 export const MAX_TOTAL_SUBQUERIES = 6;
 /** Anlama katmanından eklenebilecek sorgu tavanı (deterministik tavandan AYRI). */
 export const MAX_EXTRA_QUERIES = 6;
+/**
+ * Ek sorguların seçimdeki PAYI (inceleme 09-24): round-robin'de her sorgu eşit pay alıyordu ve 1 özgün +
+ * 6 ek sorguda özgün soru 12 parçanın 2'sine düşüyordu. Ek sorgular toplam en fazla bütçenin 1/3'ünü alır;
+ * özgün sorgular geri kalanı eskisi gibi paylaşır.
+ */
+export const EXTRA_QUERY_SHARE = 1 / 3;
+/** Özgün sorgular hiç isabet almadığında (geri çekilme) ek sorguların öne alabileceği kalem sayısı. */
+export const EXTRA_FALLBACK_ITEMS = 4;
 
 /**
  * CEVAPSIZ ÖNCEKİ MİSAFİR MESAJLARI (09-23 ölçümü): son operatör/AI mesajından SONRA gelen, güncel
@@ -287,6 +304,10 @@ export interface RetrievalQuery {
    * karışımı). İkisini birden sormak iki durumu da karşılar; maliyet aynı çağrıda birkaç kısa metin.
    */
   embedTexts: string[];
+  /** Anlama katmanından gelen ek sorgu mu (seçimde payı sınırlı; geri çekilmeyi daraltamaz). */
+  extra?: true;
+  /** Ek sorgu Türkçe mi (n-gram kaynağı için). */
+  turkish?: boolean;
 }
 
 /** Ham mesajın SERT bölümleri (soru işareti sonrası, satır, ";") — alt sorguların ait olduğu cümle. */
@@ -317,7 +338,7 @@ export function retrievalQueries(
    * `embedTexts: true` yalnız ANLAMSAL yol içindir; seçici kendisi yalnız `subquery` okur ve gömme
    * metinlerini hesaplamaz (09-23 inceleme: anahtar kapalıyken bölme işi iki katına çıkıyordu).
    */
-  opts: { embedTexts?: boolean; extraQueries?: readonly string[] } = {},
+  opts: { embedTexts?: boolean; extraQueries?: readonly ExtraQuery[] } = {},
 ): { queries: RetrievalQuery[]; pending: number; extra: number } {
   // Alt sorgu ham cümlesiyle eşleşmezse (normalizasyon bölüm sınırını aşan nadir dönüşüm) alt
   // sorgunun kendisi gömülür — puan asla SESSİZCE başka bir alt sorguya gitmez.
@@ -340,12 +361,13 @@ export function retrievalQueries(
   // ANLAMA KATMANI sorguları EN SONA (deterministik sıra ve tavanlar BİREBİR korunur). Her biri tek
   // alt sorgudur (model zaten tek konuya indirdi); gömme metni sorgunun kendisi.
   let extra = 0;
-  for (const raw of opts.extraQueries ?? []) {
+  for (const eq of opts.extraQueries ?? []) {
     if (extra >= MAX_EXTRA_QUERIES) break;
+    const raw = eq?.text;
     if (typeof raw !== "string") continue;
     const sq = normalizeForRetrieval(raw).trim();
     if (sq.length < 3 || contentStems(sq).length === 0 || queries.some((q) => q.subquery === sq)) continue;
-    queries.push({ subquery: sq, embedTexts: opts.embedTexts ? [raw.slice(0, EMBED_QUERY_MAX_CHARS)] : [] });
+    queries.push({ subquery: sq, embedTexts: opts.embedTexts ? [raw.slice(0, EMBED_QUERY_MAX_CHARS)] : [], extra: true, turkish: eq.turkish === true });
     extra += 1;
   }
   return { queries, pending, extra };
@@ -606,20 +628,47 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       .flatMap((m) => contentStems(m.body));
 
     const queryIsTurkish = detectGuestLanguage(input.guestMessage) === "tr";
-    const rankedAll = subqueries.map((q) =>
-      rankForSubquery(index, q, { carryStems, semantic: input.semanticBySubquery?.get(q) ?? input.semantic, sources, queryIsTurkish }),
+    const rankedAll = queries.map((q) =>
+      rankForSubquery(index, q.subquery, {
+        carryStems,
+        semantic: input.semanticBySubquery?.get(q.subquery) ?? input.semantic,
+        sources,
+        queryIsTurkish: q.extra ? q.turkish === true : queryIsTurkish,
+      }),
     );
     const ranked = rankedAll.map((r) => r.cands);
+    const isExtra = queries.map((q) => q.extra === true);
     const srcs = rankedAll[0]?.sources ?? [];
     const fus = rankedAll[0]?.fusion;
-    if (ranked.every((r) => r.length === 0)) {
-      const cap = cappedForFallback(sup > 0 ? items : input.items);
-      return legacyResult(
-        cap.items,
-        "hybrid",
-        evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, fus, sup, ...(pq ? { pq } : {}), ...(uq ? { uq } : {}) }),
-        cap.dropped,
-      );
+    const ownHits = ranked.some((r, qi) => !isExtra[qi] && r.length > 0);
+    if (!ownHits) {
+      // ÖZGÜN sorgular isabet almadı → geri çekilme kümesi (legacy tavanı) KORUNUR. Anlama katmanının ek
+      // sorguları bu kümeyi DARALTAMAZ (inceleme 09-24: tek bir ek isabet 30 kalemi 12 parçaya indiriyordu);
+      // yalnız kendi en iyi kalemlerini (≤ EXTRA_FALLBACK_ITEMS) kümenin ÖNÜNE alabilir.
+      const pool = sup > 0 ? items : input.items;
+      const hasOwnQuery = isExtra.some((x) => !x);
+      const fb: KbSelectFallback = hasOwnQuery ? "no_lexical_hits" : "empty_query";
+      const frontIds: string[] = [];
+      for (let round = 0; frontIds.length < EXTRA_FALLBACK_ITEMS; round++) {
+        let any = false;
+        for (let qi = 0; qi < ranked.length && frontIds.length < EXTRA_FALLBACK_ITEMS; qi++) {
+          const cand = isExtra[qi] ? ranked[qi][round] : undefined;
+          if (!cand) continue;
+          any = true;
+          const id = index.chunks[cand.idx].id;
+          if (!frontIds.includes(id)) frontIds.push(id);
+        }
+        if (!any) break;
+      }
+      const extraEv = { srcs, fus, sup, ...(pq ? { pq } : {}), ...(uq ? { uq } : {}) };
+      if (frontIds.length === 0) {
+        const cap = cappedForFallback(pool);
+        return legacyResult(cap.items, "hybrid", evidence(fb, hasOwnQuery ? subqueries.length : 0, 0, index.chunks.length, hasOwnQuery ? extraEv : { sup }), cap.dropped);
+      }
+      const byIdAll = new Map(pool.map((i) => [i.id, i] as const));
+      const front = frontIds.map((id) => byIdAll.get(id)).filter((i): i is T => i !== undefined);
+      const merged = [...front, ...pool.filter((i) => !frontIds.includes(i.id))].slice(0, KB_ITEM_CAP);
+      return legacyResult(merged, "hybrid", evidence(fb, subqueries.length, front.length, index.chunks.length, extraEv), pool.length - merged.length);
     }
 
     // Alt sorgular arasında sırayla (round-robin) → çok sorulu mesajda her
@@ -628,10 +677,14 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const pickedSet = new Set<number>();
     const perItem = new Map<string, number>();
     const cursors = ranked.map(() => 0);
+    // Ek sorguların payı sınırlı (↑EXTRA_QUERY_SHARE); ek sorgu yoksa sınır hiç devreye girmez (birebir eski).
+    const extraQuota = Math.floor(maxChunks * EXTRA_QUERY_SHARE);
+    let extraPicked = 0;
     let progressed = true;
     while (progressed) {
       progressed = false;
       for (let qi = 0; qi < ranked.length; qi++) {
+        if (isExtra[qi] && extraPicked >= extraQuota) continue;
         const list = ranked[qi];
         while (cursors[qi] < list.length) {
           const cand = list[cursors[qi]++];
@@ -642,6 +695,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
           picked.push(cand.idx);
           pickedSet.add(cand.idx);
           perItem.set(chunk.id, cnt + 1);
+          if (isExtra[qi]) extraPicked += 1;
           progressed = true;
           break;
         }

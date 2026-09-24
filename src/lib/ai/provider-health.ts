@@ -29,7 +29,7 @@ import { reportError } from "@/lib/report-error";
 // bir arızadan sonraki ilk başarıda) TEK silme yapılır.
 // ---------------------------------------------------------------------------
 
-export type ModelProviderPersistentFailure = "quota" | "auth" | "model";
+export type ModelProviderPersistentFailure = "quota" | "auth" | "model" | "request";
 
 /** Durum anahtarı (`alert-state:model-provider:reply`). */
 export const MODEL_PROVIDER_ALERT_KEY = "model-provider:reply";
@@ -82,19 +82,33 @@ const HUMAN_CAUSE: Record<ModelProviderPersistentFailure, string> = {
   quota: "OpenAI kredisi/kotası bitti — AI yanıtı üretilemiyor, oto-yanıt durdu",
   auth: "OpenAI anahtarı reddedildi — AI yanıtı üretilemiyor, oto-yanıt durdu",
   model: "Yapılandırılan OpenAI modeli bulunamadı — AI yanıtı üretilemiyor, oto-yanıt durdu",
+  request: "OpenAI istek biçimini reddetti (desteklenmeyen parametre/şema) — AI yanıtı üretilemiyor",
 };
 
 const EMBEDDING_CAUSE: Record<ModelProviderPersistentFailure, string> = {
   quota: "OpenAI kredisi/kotası bitti — anlamsal bilgi araması çalışmıyor (sözcüksel arama sürüyor)",
   auth: "OpenAI anahtarı gömme çağrısında reddedildi — anlamsal bilgi araması çalışmıyor (sözcüksel arama sürüyor)",
   model: "Yapılandırılan gömme modeli bulunamadı — anlamsal bilgi araması çalışmıyor (sözcüksel arama sürüyor)",
+  request: "Gömme isteği biçimi reddedildi — anlamsal bilgi araması çalışmıyor (sözcüksel arama sürüyor)",
 };
 
 const SEMANTIC_CAUSE: Record<ModelProviderPersistentFailure, string> = {
   quota: "OpenAI kredisi/kotası bitti — anlam katmanı (bekçi / anlama) çalışmıyor; deterministik denetim sürüyor",
   auth: "OpenAI anahtarı anlam katmanında reddedildi — bekçi / anlama çalışmıyor; deterministik denetim sürüyor",
   model: "Anlam katmanı için yapılandırılan model bulunamadı — bekçi / anlama çalışmıyor; deterministik denetim sürüyor",
+  request:
+    "Anlam katmanı isteği reddedildi (desteklenmeyen parametre ya da json_schema — model Structured Outputs desteklemiyor olabilir); bekçi / anlama çalışmıyor",
 };
+
+/**
+ * 400 + desteklenmeyen parametre/değer ya da `response_format` hatası: yapılandırma arızasıdır ve
+ * kendiliğinden düzelmez (inceleme 09-24: `AI_SEMANTIC_MODEL` Structured Outputs desteklemeyen bir
+ * modele çevrilirse her çağrı düşer ve katman SESSİZCE `failed` kalırdı). YALNIZ anlam katmanı kullanır;
+ * sohbet/gömme yollarının sınıflandırması DEĞİŞMEDİ.
+ */
+export function isUnsupportedRequestFailure(status: number, body: string): boolean {
+  return status === 400 && /\b(unsupported_parameter|unsupported_value|invalid_json_schema)\b|"param"\s*:\s*"response_format/.test(body);
+}
 
 /**
  * Bu süreçte bir alarm durumunun AÇIK OLABİLECEĞİ bilgisi. Süreç başında

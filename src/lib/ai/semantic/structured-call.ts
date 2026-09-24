@@ -4,6 +4,7 @@ import { applyCompatModelParams, OPENAI_BASE_URL } from "@/lib/ai/openai-compat"
 import { isReasoningModel } from "@/lib/ai/model-family";
 import {
   classifyModelProviderFailure,
+  isUnsupportedRequestFailure,
   noteModelProviderPersistentFailure,
   noteModelProviderSuccess,
 } from "@/lib/ai/provider-health";
@@ -48,6 +49,8 @@ export interface StructuredCallInput {
   maxTokens: number;
   /** Reasoning modeli için tavan (gizli düşünme token'ları da bundan yenir). */
   maxCompletionTokens: number;
+  /** Reasoning modeli için düşünme çabası (`AI_SEMANTIC_REASONING_EFFORT`); verilmezse gönderilmez. */
+  reasoningEffort?: string;
   /** Test enjeksiyonu; üretimde global `fetch`. */
   fetchImpl?: typeof fetch;
 }
@@ -90,6 +93,7 @@ export async function callStructuredJson(input: StructuredCallInput): Promise<St
     maxTokens: input.maxTokens,
     maxCompletionTokens: input.maxCompletionTokens,
   });
+  if (input.reasoningEffort && isReasoningModel(input.model)) payload.reasoning_effort = input.reasoningEffort;
   let res: Response;
   try {
     res = await (input.fetchImpl ?? fetch)(`${OPENAI_BASE_URL}/chat/completions`, {
@@ -115,7 +119,8 @@ export async function callStructuredJson(input: StructuredCallInput): Promise<St
     };
   }
   if (!res.ok) {
-    const persistent = classifyModelProviderFailure(res.status, body);
+    const persistent =
+      classifyModelProviderFailure(res.status, body) ?? (isUnsupportedRequestFailure(res.status, body) ? "request" : null);
     if (persistent) void noteModelProviderPersistentFailure(persistent, res.status, body, "semantic");
     return { ok: false, error: "http", ms: ms() };
   }

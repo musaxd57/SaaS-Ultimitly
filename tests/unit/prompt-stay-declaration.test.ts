@@ -27,10 +27,24 @@ describe("istem çıktı biçimi", () => {
     expect(REPLY_SYSTEM_PROMPT).toContain(`"replyStance": "<${REPLY_STANCES.join("|")}>"`);
   });
 
-  it("son kontrol listesinde erteleme maddesi var; 'etiketi değil cevabı düzelt' kuralı yazılı", () => {
+  it("son kontrol listesinde erteleme maddesi var; etiket cevabı BETİMLER (sonuç cümlesi yok — etiketi 'defers'e çekmesin)", () => {
     const flat = REPLY_SYSTEM_PROMPT.replace(/\s+/g, " ");
     expect(flat).toContain("13. stayChangeAsked none değilse reply kararı ev sahibine bıraktı mı");
-    expect(flat).toContain("CEVABI düzelt, etiketi değil");
+    expect(flat).toContain("Etiket cevabı BETİMLER");
+    // İnceleme 09-24: "grants beyan edilen cevap otomatik gitmez" cümlesi etiketi erteleme yönüne çekiyordu.
+    expect(flat).not.toMatch(/beyan edilen cevap misafire OTOMATİK GİTMEZ/);
+  });
+
+  it("stayChangeAsked çıktıda reply'DEN ÖNCE (misafirin isteği cevaptan önce sınıflanır); replyStance sonra", () => {
+    const fmt = REPLY_SYSTEM_PROMPT.slice(REPLY_SYSTEM_PROMPT.indexOf("ÇIKTI FORMATI"));
+    expect(fmt.indexOf('"stayChangeAsked"')).toBeLessThan(fmt.indexOf('"reply"'));
+    expect(fmt.indexOf('"replyStance"')).toBeGreaterThan(fmt.indexOf('"reply"'));
+  });
+
+  it("standart saat bilgisi ve 'kaydedildi' tek başına: istemde açıkça none / erteleme-değil", () => {
+    const flat = REPLY_SYSTEM_PROMPT.replace(/\s+/g, " ");
+    expect(flat).toContain("STANDART saat bilgisi de none'dır");
+    expect(flat).toContain("\"Mesajınız kaydedildi.\" TEK BAŞINA erteleme DEĞİLDİR");
   });
 });
 

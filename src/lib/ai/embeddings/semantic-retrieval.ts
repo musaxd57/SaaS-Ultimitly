@@ -37,7 +37,7 @@ import { chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chunker";
 import { kbRetrievalMode, semanticRetrievalInfo, type KbRetrievalMode } from "@/lib/ai/retrieval/flag";
 import { getOrBuildKbIndex } from "@/lib/ai/retrieval/index-cache";
 import { dropSuperseded, type Supersedable } from "@/lib/ai/retrieval/rerank";
-import { retrievalNeeded, retrievalQueries } from "@/lib/ai/retrieval/select";
+import { retrievalNeeded, retrievalQueries, type ExtraQuery } from "@/lib/ai/retrieval/select";
 import { thresholdTransform } from "@/lib/ai/retrieval/semantic";
 import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { embedTexts, embeddingModel, EMBEDDING_BATCH_MAX } from "@/lib/ai/embeddings/provider";
@@ -68,7 +68,7 @@ export interface SemanticPrepInput<T extends KbChunkSource> {
   guestMessage: string;
   history?: readonly { direction: "inbound" | "outbound"; body: string }[];
   /** Anlama katmanının yeniden yazdığı sorgular — seçiciyle AYNI liste gömülür (`retrievalQueries`). */
-  extraQueries?: readonly string[];
+  extraQueries?: readonly ExtraQuery[];
   mode?: KbRetrievalMode;
   fullSetMaxItems?: number;
   now?: number;

@@ -237,8 +237,10 @@ const DATE_WORD = new RegExp(
 
 // ─── İDDİA (cevap) ───────────────────────────────────────────────────────────
 
-const SUBJ_TR = `(?:gece|geceler|tarih|tarihler|gun|gunler|hafta\\s*sonu|haftasonu|hafta|donem|takvim|daire|ev|oda|mulk|yer|konut|apart|\\d{1,2}\\s*(?:${TR_MONTHS}))${L}`;
-const STATE_TR = `(?:musait|musaitiz|musaittir|bos|bostur|bosuz|bostu|dolu|doluyuz|doludur|doluydu|rezerve|kapali|kapaliyiz|uygundur|uygunuz|kiralik|tutulmus|ayrilmis)${NR}${NOT_QUESTIONED_TR}`;
+// Doğruluk düzeltmesi (inceleme 09-24, kapsam genişletme DEĞİL): "park yeri boş" ve olanak "kapalı"
+// (havuz/ısıtma) takvim durumu değildir — rutin bilgi cevapları tutuluyordu.
+const SUBJ_TR = `(?:gece|geceler|tarih|tarihler|gun|gunler|hafta\\s*sonu|haftasonu|hafta|donem|takvim|daire|ev|oda|mulk|(?<!park\\s)yer|konut|apart|\\d{1,2}\\s*(?:${TR_MONTHS}))${L}`;
+const STATE_TR = `(?:musait|musaitiz|musaittir|bos|bostur|bosuz|bostu|dolu|doluyuz|doludur|doluydu|rezerve|kapaliyiz|uygundur|uygunuz|kiralik|tutulmus|ayrilmis)${NR}${NOT_QUESTIONED_TR}`;
 const SUBJ_EN = `(?:night|nights|date|dates|weekend|week|days?|period|calendar|apartment|flat|place|property|unit|house|room|home|studio|villa|\\d{1,2}(?:st|nd|rd|th))`;
 const STATE_EN = `(?:available|free|open|vacant|unbooked|booked|fully\\s+booked|taken|reserved|unavailable|blocked|occupied|sold\\s+out)`;
 
@@ -306,37 +308,57 @@ const GRANT_CLAIMS = rx([
 ]);
 
 // ─── ERTELEME (cevap) ────────────────────────────────────────────────────────
+// 🚨 "Mesajınız kaydedildi" / "your request has been recorded" ERTELEME DEĞİLDİR (inceleme 09-24):
+// kaydın varlığı kararın kime ait olduğunu söylemez. "Of course, we'd love to have you another night.
+// Your request has been recorded." örtük izin + kayıt cümlesiydi ve yalnız "recorded" yüzünden
+// gidiyordu. Erteleme = kararı AÇIKÇA ev sahibine / platforma bırakan cümle.
 
 const DEFERRALS = rx([
   // TR — istemin kendi standart cümlesi ve türevleri
-  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:karar${L}|onay${L}|teyit${L}|kontrol${L}|degerlendirme${L}|takdir${L})`,
-  `${NL}(?:musaitli[kg]|uygunlu[kg]|takvim)${L}(?:\\s+${T}){0,4}\\s+(?:bagli${L}|bagl${L}|teyit${L}|onay${L}|karar${L}|kontrol${L})`,
+  // 🚨 YALNIZ KARARI EV SAHİBİNE BIRAKAN biçimler (inceleme 09-24): "ev sahibiniz onaylayacaktır" bir
+  // ONAY TAHMİNİDİR (yarı-söz), erteleme DEĞİL; "onay" yalnız bağımlılık/gereklilik biçiminde sayılır.
+  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:karar${L}|degerlendir${L}|takdir${L}|kontrol${L}|belirle${L}|bildir${L}|bilgi\\s+ver${L}|haber\\s+ver${L})`,
+  // Ters dizilim: "karar ev sahibinizindir", "kararı ev sahibiniz verir".
+  `${NL}karar${L}\\s+ev\\s+sahib${L}`,
+  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:onay|teyit)(?:ina|ine|i|ı)?\\s+(?:bagli${L}|tabi${L}|gerek${L})`,
+  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+teyit\\s+(?:edebilir|edecek|etmesi\\s+gerek|etmeli)${L}`,
+  `${NL}(?:musaitli[kg]|uygunlu[kg]|takvim)${L}(?:\\s+${T}){0,4}\\s+(?:bagli${L}|bagl${L}|karar${L})`,
   `${NL}(?:onay|teyit)${L}(?:\\s+${T})?\\s+(?:bagli${L}|gerek${L}|sonra${L})`,
   `${NL}(?:platform|airbnb|booking|uygulama)${L}(?:\\s+${T}){0,3}\\s+(?:degisiklik|uzatma|talep)${L}`,
-  `${NL}(?:mesajiniz|talebiniz|isteginiz)\\s+kaydedildi${NR}`,
   // EN
   `${NL}(?:host|owner|property\\s+manager)(?:'s|’s)?\\s+(?:call|decision|discretion)${NR}`,
-  `${NL}(?:up\\s+to|at\\s+the\\s+discretion\\s+of|decided\\s+by|confirmed\\s+by|approved\\s+by)\\s+(?:your|the)\\s+host${NR}`,
+  `${NL}(?:up\\s+to|at\\s+the\\s+discretion\\s+of|decided\\s+by|for)\\s+(?:your|the)\\s+host(?:\\s+to\\s+(?:decide|confirm))?${NR}`,
+  // Ev sahibi KARAR VEREN/KONTROL EDEN özne: "your host will check / decides / will let you know".
+  `${NL}(?:your|the)\\s+host\\s+(?:will\\s+|'ll\\s+|can\\s+|should\\s+)?(?:check|review|confirm|decide|decides|confirms|verify|let\\s+you\\s+know)${NR}`,
+  `${NL}who\\s+decides${NR}`,
+  `${NL}(?:needs?|requires?)\\s+(?:your|the)\\s+host['’]?s\\s+approval${NR}`,
+  // "approved/confirmed by your host" yalnız BEKLEYEN biçimde: "has been approved by your host" bir İDDİADIR.
+  `${NL}(?:to\\s+be|must\\s+be|needs?\\s+to\\s+be|has\\s+to\\s+be|would\\s+need\\s+to\\s+be)\\s+(?:confirmed|approved)\\s+by\\s+(?:your|the)\\s+host${NR}`,
   `${NL}(?:subject\\s+to|depends\\s+on|depending\\s+on|dependent\\s+on|pending)\\s+(?:availability|approval|host|the\\s+host|your\\s+host|confirmation|the\\s+cleaning|cleaning)${NR}`,
   `${NL}(?:host|owner)\\s+(?:will\\s+need\\s+to|needs\\s+to|has\\s+to|must|would\\s+need\\s+to|will\\s+have\\s+to)\\s+(?:confirm|approve|check|decide)${NR}`,
-  `${NL}(?:request|message)\\s+(?:has\\s+been\\s+)?(?:recorded|noted|logged|saved)${NR}`,
   `${NL}(?:send|submit|make|request)\\s+(?:a|an)\\s+(?:change|alteration|modification|extension)\\s+request${NR}`,
-  `${NL}(?:can't|cannot|can\\s+not|unable\\s+to)\\s+(?:confirm|guarantee|promise)${NR}`,
   // DE / FR / ES / RU / AR
   `${NL}entscheidung\\s+(?:des|ihres|deines|vom)\\s+(?:gastgeber|vermieter)${L}`,
   `${NL}(?:liegt|obliegt)\\s+(?:beim|bei\\s+ihrem|bei\\s+deinem)\\s+(?:gastgeber|vermieter)${L}`,
   `${NL}(?:gastgeber|vermieter)${L}\\s+(?:muss|wird|m(?:ü|u)sste)(?:\\s+${T})?\\s+(?:best(?:ä|a)tigen|entscheiden|pr(?:ü|u)fen)${NR}`,
+  `${NL}(?:entscheidet|best(?:ä|a)tigt|pr(?:ü|u)ft)\\s+(?:ihr|der|dein|euer)\\s+(?:gastgeber|vermieter)${L}`,
   `${NL}(?:vorbehaltlich|je\\s+nach\\s+verf(?:ü|u)gbarkeit)${NR}`,
   `${NL}d(?:é|e)cision\\s+de\\s+(?:l['’]h(?:ô|o)te|votre\\s+h(?:ô|o)te)`,
   `${NL}(?:revient|appartient)\\s+(?:à|a)\\s+(?:l['’]h(?:ô|o)te|votre\\s+h(?:ô|o)te)`,
   `${NL}(?:sous\\s+r(?:é|e)serve|selon\\s+(?:les\\s+)?disponibilit)`,
-  `${NL}decisi(?:ó|o)n\\s+del\\s+anfitri(?:ó|o)n${NR}`,
+  `${NL}(?:votre|l['’])\\s*h(?:ô|o)te\\s+qui\\s+d(?:é|e)cide`,
+  `${NL}(?:à|a)\\s+la\\s+discr(?:é|e)tion\\s+de\\s+(?:votre|l['’])\\s*h(?:ô|o)te`,
+  `${NL}(?:à|a)\\s+confirmer\\s+par\\s+(?:votre|l['’])\\s*h(?:ô|o)te`,
+  `${NL}decisi(?:ó|o)n\\s+(?:del|de\\s+su)\\s+anfitri(?:ó|o)n${NR}`,
+  `${NL}(?:la\\s+|lo\\s+)?(?:confirma|decide|confirmar(?:á|a))\\s+su\\s+anfitri(?:ó|o)n${NR}`,
   `${NL}depende\\s+del\\s+anfitri(?:ó|o)n${NR}`,
   `${NL}(?:sujeto\\s+a|seg(?:ú|u)n)\\s+(?:la\\s+)?disponibilidad${NR}`,
   `решени${L}\\s+(?:хозя|владель|арендодател)`,
   `на\\s+усмотрени${L}\\s+(?:хозя|владель|арендодател)`,
   `(?:хозя|владел|арендодател)${L}\\s+(?:долж|подтверд|решит|решает)`,
-  `(?:قرار\\s+المضيف|يعود\\s+(?:لقرار|إلى)\\s+المضيف|حسب\\s+(?:التوفر|توفر)|(?:موافقة|تأكيد)\\s+المضيف)`,
+  `(?:решает|решит|подтвердит|подтверждает)\\s+(?:ваш\\s+)?(?:хозя|владел|арендодател)`,
+  `решение\\s+принимает\\s+(?:хозя|владел|арендодател)`,
+  `(?:قرار\\s+المضيف|القرار\\s+(?:لل|ل)مضيف|يعود\\s+(?:لقرار|إلى)\\s+المضيف|حسب\\s+(?:التوفر|توفر)|(?:موافقة|تأكيد)\\s+المضيف)`,
 ]);
 
 // ─── çekirdek ────────────────────────────────────────────────────────────────
@@ -427,6 +449,21 @@ export interface AvailabilityPolicyOptions {
   stayTimes?: StayTimes | null;
   /** Modelden türeyen İSTEK sinyallerinin kipi; verilmezse `AI_STAY_POLICY` (varsayılan gölge). */
   mode?: StayPolicyMode;
+  /**
+   * Ev sahibinin TANIMLI geç çıkış / uzatma teklifi (Ayarlar; istemde aynen aktarılabilir). Metnin
+   * kendisi EV SAHİBİNİN sözüdür, modelin doğrulanmamış iddiası değil: cevaptaki birebir geçişi iddia
+   * taramasından çıkarılır (inceleme 09-24 — "Müsaitlik varsa … 13:00'e kadar uzatabiliriz" aktarımı her
+   * seferinde izin sayılıp tutuluyordu). Model teklifi DEĞİŞTİRİR ya da kendi sözünü eklerse ("uzattım")
+   * tarama yine yakalar; istek varsa erteleme şartı AYNEN geçerlidir.
+   */
+  hostOfferText?: string | null;
+}
+
+/** Cevaptan ev sahibinin teklif metninin BİREBİR geçişlerini çıkarır (boşluk farkı tolere edilir). */
+function withoutHostOffer(reply: string, offer: string | null | undefined): string {
+  const o = typeof offer === "string" ? offer.replace(/\s+/g, " ").trim() : "";
+  if (o.length < 8) return reply;
+  return reply.replace(/\s+/g, " ").split(o).join(" ");
 }
 
 /** Kanıt için PII'siz sinyal özeti (kapalı küme kodlar; metin taşımaz). */
@@ -481,9 +518,11 @@ export function evaluateAvailability(
   opts: AvailabilityPolicyOptions = {},
 ): AvailabilityEvaluation {
   const g: AvailabilitySignals["g"] = opts.guard === undefined ? "off" : opts.guard.status;
+  // Model "istek yok" dese bile `kind` bir değişiklik adlandırıyorsa ya da KODDA saat kaymışsa istek
+  // sayılır (yalnız sıkılaştırır; inceleme 09-24).
   const u: AvailabilitySignals["u"] = !opts.understanding
     ? "off"
-    : opts.understanding.requested || slotTimesShifted(opts.understanding, opts.stayTimes)
+    : opts.understanding.requested || opts.understanding.kind !== "none" || slotTimesShifted(opts.understanding, opts.stayTimes)
       ? "req"
       : "none";
   const d = opts.declared ? `${opts.declared.asked}/${opts.declared.stance}` : "absent";
@@ -492,7 +531,7 @@ export function evaluateAvailability(
   }
   const guard = opts.guard?.status === "ok" ? opts.guard.verdict : null;
 
-  const lexClaim = detectAvailabilityClaim(reply) !== null;
+  const lexClaim = detectAvailabilityClaim(withoutHostOffer(reply, opts.hostOfferText)) !== null;
   const lexRequest = guestTexts.some((t) => detectAvailabilityRequest(t) !== null);
   const lexDeferral = hasAvailabilityDeferral(reply);
   const signals: AvailabilitySignals = {
@@ -503,19 +542,29 @@ export function evaluateAvailability(
     u,
   };
 
+  const guardRequest =
+    guard !== null &&
+    (guard.guestRequestsChange ||
+      guard.kind !== "none" ||
+      guard.replyRefuses ||
+      slotTimesShifted({ checkinTime: guard.requestedCheckinTime, checkoutTime: guard.requestedCheckoutTime }, opts.stayTimes));
+  // Beyan kapalı kümede DEĞİLSE (tanınmayan ≠ temiz, F01) ve ortada bir konaklama bağlamı varsa, duruş
+  // "izin" kabul edilir: "Grants"/"grant" gibi biçim bozukluğu izni KAÇIRMAMALI (inceleme 09-24).
+  const stayContext =
+    lexRequest || guardRequest || u === "req" || (opts.declared != null && opts.declared.asked !== "none");
   const claim =
     lexClaim ||
     declaredClaim(opts.declared) ||
+    (opts.declared?.stance === "unknown" && stayContext) ||
     (guard !== null && (guard.replyStatesCalendar || guard.replyGrantsChange));
   if (claim) return { reason: "availability_claim", enforceReason: "availability_claim", signals };
   if (opts.handoff) return { reason: null, enforceReason: null, signals };
 
-  const deferred = lexDeferral || (opts.declared?.stance === "defers" && guard?.replyDefersToHost === true);
-  const guardRequest =
-    guard !== null &&
-    (guard.guestRequestsChange ||
-      guard.replyRefuses ||
-      slotTimesShifted({ checkinTime: guard.requestedCheckinTime, checkoutTime: guard.requestedCheckoutTime }, opts.stayTimes));
+  // ERTELEME izin yönlüdür: kelime ağının cümlesi, model BAŞKA bir duruş beyan ettiyse sayılmaz ("Olur,
+  // bekliyoruz! … ev sahibinizin kararıdır" gibi çelişkili cevapta beyan `grants`/`none` olur); beyan yoksa
+  // (eski çıktı/yedek) kelime ağı tek başına sayılır. Model tarafı YALNIZ iki bağımsız hükümle.
+  const lexDeferralCounts = lexDeferral && (!opts.declared || opts.declared.stance === "defers");
+  const deferred = lexDeferralCounts || (opts.declared?.stance === "defers" && guard?.replyDefersToHost === true);
   const modelRequest =
     declaredRequest(opts.declared) ||
     opts.declared?.stance === "refuses" ||

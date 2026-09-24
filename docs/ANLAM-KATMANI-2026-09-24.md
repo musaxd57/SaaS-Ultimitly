@@ -70,8 +70,25 @@ kanalı), `ai/semantic/config.ts` (anahtar/model/zaman aşımı tek kaynak).
 * **ERTELEME kanıtı izin yönlüdür:** kelime ağının tanıdığı erteleme cümlesi **ya da** iki bağımsız
   modelin (beyan `defers` + bekçi `reply_defers_to_host`) birlikte "erteliyor" hükmü. Tek model
   yetmez. Kelime ağının Türkçe/İngilizce dışında zayıf kaldığı yer burasıdır; bekçi bu açığı kapatır.
+  - Kelime ağının ertelemesi yalnız beyan YOKSA ya da beyan da `defers` diyorsa sayılır. Model cevabını
+    `none`/`refuses`/`unknown` diye etiketleyip metne bir erteleme kalıbı koyduysa iki kaynak çelişiyor
+    demektir; çelişkide izin verilmez (inceleme 09-24).
+  - Erteleme = kararın ev sahibine AİT olduğunu söylemek. "Mesajınız kaydedildi" tek başına erteleme
+    değildir (yalnız kayıt bildirir). "Ev sahibiniz onaylar / onaylayacaktır" da erteleme değildir, onayı
+    önceden kestirir. "Ev sahibinizin onayına bağlı" ise ertelemedir.
+* **TANINMAYAN BEYAN = TEMİZ DEĞİL** (F01 kuralı): duruş kapalı küme dışındaysa (`unknown`) ve herhangi bir
+  konaklama bağlamı varsa (istek sinyali ya da beyan edilen istek), cevap iddia sayılır.
 * **BEKÇİ DÜŞTÜYSE** (bayrak açık, çağrı başarısız): modelin herhangi bir konaklama sinyali varsa
   kip ne olursa olsun tutulur. Sinyal yoksa eski davranış sürer.
+* **EV SAHİBİNİN TEKLİFİ** (Ayarlar'daki geç çıkış teklif metni): istemin gösterdiği aynı temizlenmiş
+  metin kelime ağının iddia taramasından çıkarılır. Ev sahibinin kendi sözünü aktarmak iddia değildir.
+  Bekçiye de "ev sahibinin teklifi" olarak gösterilir: olduğu gibi aktarmak ertelemedir; değiştirmek,
+  belirli bir güne onaylamak ya da üstüne izin eklemek izindir.
+* **SAAT KODDA:** `H:MM` ve `HH:MM` kabul edilir, sıfır dolgulu biçime getirilir. Gece 05:00'ten önceki
+  bir giriş saati geç varıştır, erken giriş sayılmaz (00:30 varış 15:00 girişten "erken" değildir).
+* **GEREKÇE:** `RiskEvent.reason` kapının İLK düşen kontrolünden gelir. Müsaitlik kodu yalnız müsaitlik
+  kontrolü kapattıysa yazılır; model arızası ya da başka bir veto "Müsaitlik" satırına sayılmaz. `sc`
+  kanıtı ayrıca politikanın ne dediğini yine ölçer.
 * Erteleme dedektörü tek biçimle çalışır: küçük harf + Türkçe ASCII katlama. Homoglif ve görünmez
   karakter adayları yalnız KISITLAYICI dedektörlerdedir (CLAUDE.md katlama kuralı).
 
@@ -101,13 +118,25 @@ Retrieval kanıtına (`retrieval`) anlama katmanından `uq` (eklenen sorgu sayı
 `checkin_time` → "giriş saati check-in", `pets` → "evcil hayvan kabul politikası". Bu sorgular
 deterministik alt sorgulara **birleşim** olarak eklenir. Hiçbir alt sorgunun yerine geçmez, adayı
 daraltmaz, bilgi tabanına kalem ekleyemez (seçilebilecek küme yetki, onay ve sır süzgeçlerinden
-önce kurulur). Aynı sorgular embedding açıkken gömülür.
+önce kurulur). Aynı sorgular embedding açıkken ham metinleriyle gömülür.
+
+Birleşimin üç sınırı var (inceleme 09-24; model sorguları deterministik davranışı asla kötüleştiremez):
+
+* **Sıra:** güncel mesajın alt sorguları → cevapsız önceki sorular → modelin sorguları (en fazla 6).
+* **Pay:** modelin sorguları parça bütçesinin en fazla **üçte birini** alır. Misafirin kendi sorusu
+  bütçeden itilemez.
+* **Geri çekilme daralmaz:** deterministik sorguların hiç isabeti yoksa eski davranış sürer (legacy
+  kümesi, `fb: no_lexical_hits`). Modelin sorgularının isabetleri o kümenin **önüne** eklenir
+  (en fazla 4 kalem); küme küçülmez.
+* Selamlaşma/teşekkür (`greeting_thanks`) sorgu üretmez. Türkçe karakter 3-gram'ı sorgu başına açılır
+  (Türkçe yeniden yazım için açık, özgün dilde yazılmış sorgu için dilin kendisine göre).
 
 Kazanımlar (pinli: `tests/unit/understanding.test.ts`):
 
 * **Eş anlamlı ve çok dilli sorular.** "Gibt es hier eine Schwitzkabine?" kelime aramasında
-  hiçbir şey bulmuyor. Büyük bilgi tabanında eski sauna kalemi geri çekilme kümesine de girmiyor.
-  Yeniden yazılmış "sauna" sorgusuyla kalem gerçek seçimle (`fb: none`) bulunuyor.
+  hiçbir şey bulmuyor. Büyük bilgi tabanında eski sauna kalemi geri çekilme kümesinin dışında
+  kalıyor. Yeniden yazılmış "sauna" sorgusuyla kalem kümenin **başına** geliyor (`fb:
+  no_lexical_hits` korunur, küme daralmaz).
 * **Bağlam çözümü.** "Peki büyük köpek?" önceki konuşmadan "evcil hayvan köpek kabul" olur.
 * Katman kapalıyken sonuç `selectKbForPrompt` ile **birebir** aynı ve ağ çağrısı yok
   (davranışsal pin). Katman düşerse sonuç eski davranışla aynı, kanıtta `un: failed` yazar.
@@ -116,14 +145,23 @@ Kazanımlar (pinli: `tests/unit/understanding.test.ts`):
 
 * **İşleyen:** OpenAI. Cevap üretiminin zaten kullandığı işleyen olduğu için **yeni alt-işleyen yok**.
   Modele gitmeden önce bilinen adlar ve değer biçimli PII (telefon, e-posta, uzun kod) redakte
-  edilir (`shadow-ai.ts` ile aynı sıra).
+  edilir (`shadow-ai.ts` ile aynı sıra). **Tarih ve saatler korunur** (`ai/semantic/redact.ts`): isteğin
+  kendisi onlardır; genel redaksiyon "2026-10-14"ü uzun kod sanıp siliyordu.
+* **Ayraç güvenliği:** veri bloklarını sınırlayan `<<<`/`>>>` dizilerinin taklidi silinir; iki ve daha
+  fazla açılı ayraç ÇALIŞMASI bütünüyle gider (tek geçişte `<<<` silmek `>><<<>` girdisinden yeni bir
+  `>>>` üretiyordu).
 * **Maliyet:** anlama katmanı mesaj başına bir küçük çağrı yapar (süreç içi 10 dk önbellek var).
   Bekçi yalnız otomatik gönderim adayında bir küçük çağrı yapar. Beyanın ek maliyeti yok.
-* **Gecikme:** anlama katmanı retrieval'dan önce koşar, yani QR'da yaklaşık 1 sn ekler. Bekçi
-  gönderimden önce koşar. Zaman aşımları `AI_SEMANTIC_TIMEOUT_MS` ile ayarlanır (reasoning 12 sn,
-  klasik 6 sn).
-* **Model:** `AI_SEMANTIC_MODEL`; boşsa `OPENAI_MODEL`. Küçük ve hızlı bir model seçmek maliyet ile
-  gecikme kararıdır; önce eval ile ölçülür.
+* **Gecikme:** anlama katmanı YALNIZ retrieval sorgulara ihtiyaç duyduğunda (hibrit + büyük bilgi
+  tabanı) beklenir. Tipik host bilgi tabanında (küçük KB) ya da legacy acil durdurmada cevap
+  üretimiyle **paralel** koşar ve yalnız kapıdan önce beklenir. Bekçi gönderimden önce koşar. Zaman
+  aşımları `AI_SEMANTIC_TIMEOUT_MS` ile ayarlanır (reasoning 12 sn, klasik 6 sn).
+* **Model:** `AI_SEMANTIC_MODEL`; boşsa `OPENAI_MODEL`. Reasoning modelinde düşünme çabası
+  `AI_SEMANTIC_REASONING_EFFORT` (none/minimal/low/medium/high; boşsa gönderilmez). Küçük ve hızlı bir
+  model ya da düşük çaba seçmek maliyet ile gecikme kararıdır; önce eval ile ölçülür.
+* **Kalıcı arıza alarmı:** kota/anahtar/model arızasına ek olarak 400 "desteklenmeyen parametre / değer /
+  şema" da kalıcıdır (sınıf `request`): model değişince her çağrı sessizce ölmesin diye geçiş tabanlı
+  alarm gider (`model-provider:semantic`). Sıradan 400 (uzunluk, içerik) alarm değildir.
 
 ## 5. Açma sırası (kurucu kararı; hiçbiri ölçmeden açılmaz)
 
@@ -157,4 +195,8 @@ onaylanmasıyla kesinleşir; otomatik onay = V3 Aksiyonlar.
   yüzden izin yönlü karar tek beyana dayanmaz. Bekçi ikinci, bağımsız hükümdür.
 * Anlama katmanı küçük bilgi tabanında da koşar: sinyal retrieval'dan bağımsız değerlidir, ama
   maliyeti vardır.
-* Önizleme yüzeyleri (Ayarlar testi, landing demo) bekçiyi çalıştırmaz. Beyan ve yedek aynıdır.
+* Önizleme yüzeyleri (Ayarlar testi, landing demo) ve inbox önerisi bekçiyi çalıştırmaz. Beyan ve
+  yedek aynıdır. Inbox önerisi uyarıyı kapıyla aynı politikadan ve aynı girdiyle (cevapsız misafir
+  mesajlarının tamamı) hesaplar (`tests/integration/ai-suggest-availability.test.ts`).
+* Bekçi, takip izinlerini anlamak için cevapsız mesajlardan önceki konuşmanın son 6 mesajını görür
+  ("Peki 13:00?" → "Evet, olur!"). Daha eski bağlam gitmez.

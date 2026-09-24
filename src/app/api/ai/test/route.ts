@@ -15,6 +15,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
+import { sanitizePromptValue } from "@/lib/ai/prompts";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import {
   fillGuestPlaceholdersInItems,
@@ -189,7 +190,11 @@ export const POST = withManage(async (session, req) => {
       stayChange: result.stayChange ?? null,
     },
     message,
-    { stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime }, understanding: kbSel.understanding?.stay ?? null },
+    {
+      stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },
+      understanding: (await kbSel.understanding)?.stay ?? null,
+      hostOfferText: sanitizePromptValue(org?.lateCheckoutOfferText, 400) || null,
+    },
   );
 
   // PREVIEW PARITY: show EXACTLY what would leave the building. An AUTO-send

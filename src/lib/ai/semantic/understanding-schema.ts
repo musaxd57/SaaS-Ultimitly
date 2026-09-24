@@ -14,7 +14,7 @@
  *  · kanıt: niyet etiketleri (kapalı küme, PII yok).
  * ------------------------------------------------------------------------- */
 
-import { STAY_CHANGE_KINDS, hhmmToMinutes, type UnderstandingStaySignal } from "./stay-change";
+import { STAY_CHANGE_KINDS, normalizeHhmm, type UnderstandingStaySignal } from "./stay-change";
 
 /** Kapalı niyet kümesi — yönlendirme, arama ve analitik için ETİKET; karar vermez. */
 export const UNDERSTANDING_INTENTS = [
@@ -133,25 +133,31 @@ export function parseUnderstanding(raw: unknown): MessageUnderstanding | null {
     if (!member(UNDERSTANDING_INTENTS, x.intent) || !queryTr || !queryOriginal) continue;
     requests.push({ intent: x.intent, queryTr, queryOriginal });
   }
-  const time = (v: unknown) => (hhmmToMinutes(v) === null ? null : (v as string).trim());
   return {
     language: r.language,
     requests,
-    stay: { requested: sc.requested, kind: sc.kind, checkinTime: time(sc.checkin_time), checkoutTime: time(sc.checkout_time) },
+    stay: { requested: sc.requested, kind: sc.kind, checkinTime: normalizeHhmm(sc.checkin_time), checkoutTime: normalizeHhmm(sc.checkout_time) },
   };
 }
 
-/** Retrieval'a eklenecek sorgular: Türkçe + özgün dil, tekilleştirilmiş, sırası korunur. */
-export function understandingQueries(u: MessageUnderstanding | null | undefined, max = 6): string[] {
+/**
+ * Retrieval'a eklenecek sorgular: Türkçe + özgün dil, tekilleştirilmiş, sırası korunur. Selamlama /
+ * teşekkür kalemleri ARAMA SORGUSU DEĞİLDİR (inceleme 09-24: "teşekkürler" sorgusu seçimi bozuyordu).
+ */
+export function understandingQueries(u: MessageUnderstanding | null | undefined, max = 6): { text: string; turkish: boolean }[] {
   if (!u) return [];
-  const out: string[] = [];
+  const out: { text: string; turkish: boolean }[] = [];
   const seen = new Set<string>();
   for (const r of u.requests) {
-    for (const q of [r.queryTr, r.queryOriginal]) {
-      const k = q.toLocaleLowerCase("tr");
+    if (r.intent === "greeting_thanks") continue;
+    for (const [text, turkish] of [
+      [r.queryTr, true],
+      [r.queryOriginal, u.language === "tr"],
+    ] as const) {
+      const k = text.toLocaleLowerCase("tr");
       if (seen.has(k)) continue;
       seen.add(k);
-      out.push(q);
+      out.push({ text, turkish });
       if (out.length >= max) return out;
     }
   }
