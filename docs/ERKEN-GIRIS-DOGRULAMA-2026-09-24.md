@@ -51,6 +51,21 @@ düşer ("Erken giriş 13:00 otomatik onaylandı · ücret €30.") — ödeme t
 
 Kapanmazsa bugünkü davranış: model cevabı taslak (host'a), geçen erteleme gider. Hata = bugünkü davranış.
 
+## 3b. Temizlik bitince yeniden değerlendirme (`recheck.ts`)
+
+Gerçek sıra çoğunlukla şudur: misafir sabah sorar (temizlik bitmedi → host'a), temizlikçi öğlen "bitti" der. Oto-yanıt
+tutulan mesajı bir daha denemez (damga). Zamanlanmış geçiş, oto-yanıttan HEMEN ÖNCE, kuralı **otomatik** olan
+mülklerde şu konuşmaları **bir kez** yeniden aday yapar: hâlâ cevapsız (`new`), damga güncel mesaj için, o mesajın
+kararı "insana" ve `ec` kanıtında düşen kontrollerin HEPSİ hazırlıkla ilgili (`not_ready` / `ready_unknown`), şimdi
+hazır (aynı yükleyici: önceki çıkıştan sonra, ≥5 dk) ve karar işaret OTURMADAN verilmiş. Tarama karar vermez,
+göndermez; sonraki geçiş tüm hattı (model + kapı + akış) baştan koşar.
+
+Döngü koruması: karar kaydı aynı mesaj için ikinci "insana" kararını yazmaz (tekillik anahtarı), yani "son karar"
+yeniden kontrolden sonra değişmeyebilir → yeniden kontrol, varış rezervasyonunun **giriş hazırlığı görevine not**
+olarak yazılır ("Temizlik bitti; bekleyen erken giriş isteği yeniden kontrol ediliyor.") ve aynı işaretten sonra
+ikinci kez yapılmaz. Giriş hazırlığı görevi yoksa yeniden kontrol de yok (bugünkü davranış). Aşama kendi alarm
+anahtarıyla koşar; düşerse oto-yanıt geçişi yine koşar.
+
 ## 4. Kural (mülk sayfası → "Erken giriş")
 
 Depo: kullanılmayan `AutomationRule` tablosu (org kapsamlı; `triggerType = early_checkin_request`, koşul
@@ -77,4 +92,8 @@ yok; metin; kural doğrulama; hazırlık; muafiyet yalnız birebir metin + tek t
 `tests/integration/early-checkin-workflow.test.ts` (olgu yükleyici, kiracı yalıtımı, kural deposu, kanal uçtan uca:
 doğrulanmış → gider; erteleme yerine geçer; taslak kipi; tek eksik → insan + kod; kod metni vetoya takılırsa gitmez;
 geç çıkışta akış yok; bayraklar kapalıyken otomatik yok; "AI öner" yükü; rota rol/kiracı/doğrulama) ·
-`tests/ui/early-checkin-panel.test.tsx` (panel bağlantısı, "Bu cevabı kullan" göndermez).
+`tests/ui/early-checkin-panel.test.tsx` (panel bağlantısı, "Bu cevabı kullan" göndermez) ·
+`tests/integration/early-checkin-recheck.test.ts` (sabah tutulan istek temizlik bitince bir kez yeniden aday olur ve
+onay gider; yeniden koşu yine tutulursa ikinci açma yok; taze işaret / taslak kural / başka sebep / host cevabı /
+işaretten sonraki karar / başka kiracı → dokunulmaz; oturma penceresindeki karar açılır) ·
+`tests/integration/scheduled-sync-early-checkin-recheck.test.ts` (geçiş sırası; hata oto-yanıtı bloklamaz).

@@ -342,6 +342,8 @@ Bu dosyaya token/anahtar/parola yazma.
   ≥5 dk'lık temizlik "bitti" kaydı; önceki çıkış = misafir bildirimi ile varsayılanın GEÇ olanı; aynı gün devir yoksa
   dün gece yalnız motorun taze "boş" hükmüyle; 05:00 öncesi saat geç varıştır (`not_early`). Not çıktı vetosundan
   geçmezse kayıtta reddedilir. Bugün üretimde otomatik GİTMEZ (iki bayrak kapalı + kredi yok) → host'a kontrol listesi.
+  Temizlik bitince: YALNIZ hazırlık yüzünden tutulmuş cevapsız istek BİR KEZ yeniden aday olur (`recheck.ts`; karar
+  vermez, göndermez); döngü koruması giriş hazırlığı görevindeki NOT (karar kaydı aynı mesajın ikinci tutuşunu yazmaz).
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).

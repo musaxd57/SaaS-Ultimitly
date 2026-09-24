@@ -11,7 +11,7 @@ import {
 import { earlyCheckinApprovalText, earlyCheckinLang, EARLY_CHECKIN_LANGS, formatEarlyCheckinFee } from "@/lib/early-checkin/reply";
 import { validateEarlyCheckinRuleInput } from "@/lib/early-checkin/rules";
 import { earlyCheckinPanelLines } from "@/lib/early-checkin/panel";
-import { laterTime, READY_SETTLE_MS, readinessOf } from "@/lib/early-checkin/load";
+import { laterTime, READY_SETTLE_MS, readinessOf, readyAtOf } from "@/lib/early-checkin/load";
 import { earlyCheckinEvidenceOf, earlyCheckinHostNote, singleTopicEarlyCheckin } from "@/lib/early-checkin/workflow";
 import { evaluateAvailability, stayRequestKinds } from "@/lib/ai/availability-claims";
 import { verifiedEarlyCheckinResult } from "@/lib/automation";
@@ -139,6 +139,8 @@ describe("onay metni — KODDA, yalnız doğrulanmış veri + host'un kayıtlı 
     }
     expect(earlyCheckinLang("pt")).toBe("en");
     expect(earlyCheckinLang("TR")).toBe("tr");
+    expect(earlyCheckinLang("de-DE")).toBe("de");
+    expect(earlyCheckinLang(null)).toBe("en");
     expect(earlyCheckinApprovalText(approvable, "tr", null)).toBe("Merhaba, daireniz hazır; saat 12:00 itibarıyla giriş yapabilirsiniz. Erken giriş ücreti €30.");
   });
 
@@ -224,6 +226,20 @@ describe("hazırlık hükmü — tik, çıkıştan SONRA, en az 5 dk, geri alın
     expect(readinessOf([{ status: "done", doneAt: null }], checkout, now)).toBe("unknown");
     expect(readinessOf([{ status: "done", doneAt: new Date("2026-10-14T09:30:00Z") }], null, now)).toBe("unknown");
   });
+  it("hazır hükmünü veren işaretin zamanı: yalnız hazırken, geçerli işaretlerin EN YENİSİ", () => {
+    const a = new Date("2026-10-14T09:10:00Z");
+    const b = new Date("2026-10-14T09:30:00Z");
+    expect(readyAtOf([{ status: "done", doneAt: a }, { status: "done", doneAt: b }], checkout, now)).toEqual(b);
+    // Çıkıştan önceki ve taze işaretler sayılmaz; yeniden açılan görev sayılmaz.
+    expect(readyAtOf([{ status: "done", doneAt: new Date("2026-10-14T07:00:00Z") }], checkout, now)).toBeNull();
+    expect(readyAtOf([{ status: "done", doneAt: new Date(now.getTime() - 60_000) }], checkout, now)).toBeNull();
+    expect(readyAtOf([{ status: "todo", doneAt: b }], checkout, now)).toBeNull();
+    expect(readyAtOf([{ status: "done", doneAt: b }], null, now)).toBeNull();
+  });
+  it("🚨 'bitti' işaretinden sonra görev yeniden AÇILDIYSA (host geri aldı) hazır DEĞİL", () => {
+    expect(readinessOf([{ status: "todo", doneAt: new Date("2026-10-14T09:30:00Z") }], checkout, now)).toBe("not_ready");
+    expect(readinessOf([{ status: "awaiting_review", doneAt: new Date("2026-10-14T09:30:00Z") }], checkout, now)).toBe("not_ready");
+  });
   it("önceki çıkış: varsayılan ile misafirin bildirdiğinden GEÇ olanı (temkin)", () => {
     expect(laterTime("10:00", "11:00")).toBe("11:00");
     expect(laterTime("13:00", "11:00")).toBe("13:00");
@@ -256,6 +272,14 @@ describe("istek türü birleşimi + kapı muafiyeti — yalnız KODDAN kurulan m
     });
     expect([...multi].sort()).toEqual(["early_checkin", "late_checkout"]);
     expect([...stayRequestKinds(["x"], { declared: { asked: "unknown", stance: "none" } })]).toEqual(["unknown"]);
+    // Tür etiketi tek başına "yalnız erken giriş" dese de KODDA kaymış öteki saat ikinci türü ekler (iki yön).
+    expect([...stayRequestKinds(["x"], { guard: { status: "ok", verdict: verdict({ requestedCheckoutTime: "13:00" }) }, stayTimes: STAY })].sort()).toEqual([
+      "early_checkin",
+      "late_checkout",
+    ]);
+    expect(
+      [...stayRequestKinds(["x"], { understanding: { requested: true, kind: "late_checkout", checkinTime: "12:00", checkoutTime: null }, stayTimes: STAY })].sort(),
+    ).toEqual(["early_checkin", "late_checkout"]);
     expect([...stayRequestKinds(["x"], { understanding: { requested: true, kind: "none", checkinTime: null, checkoutTime: null } })]).toEqual(["unknown"]);
   });
 

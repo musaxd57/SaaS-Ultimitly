@@ -160,6 +160,13 @@ describe("olgu yükleyici — yalnız okur, org kapsamlı", () => {
     expect(clash?.facts.otherOverlaps).toBe(1);
   });
 
+  it("aynı gün İKİ ayrılan (önceki iki misafir çakışmış) → çakışma sayılır", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await reservation(t.propertyId, "2026-10-11", "2026-10-14");
+    const out = await loadEarlyCheckinFacts({ organizationId: t.orgId, propertyId: t.propertyId, reservationId: t.own.id, now: NOW, requested: REQUESTED, singleIntent: true });
+    expect(out?.facts.otherOverlaps).toBe(1);
+  });
+
   it("aynı gün devir YOKSA dün gece yalnız TAZE kaynakla boş sayılır; kaynaksız mülkte doğrulanamaz", async () => {
     const { orgId, propertyId } = await org();
     const own = await reservation(propertyId, "2026-10-14", "2026-10-16");
@@ -199,6 +206,9 @@ describe("kural deposu (migration'sız, `AutomationRule`)", () => {
     expect(await prisma.automationRule.count({ where: { organizationId: a.orgId, triggerType: EARLY_CHECKIN_TRIGGER } })).toBe(1);
     expect(await loadEarlyCheckinRule(b.orgId, a.propertyId)).toBeNull();
     await prisma.automationRule.updateMany({ where: { organizationId: a.orgId }, data: { actionJson: "{bozuk" } });
+    expect(await loadEarlyCheckinRule(a.orgId, a.propertyId)).toBeNull();
+    // Okunabilen ama geçersiz kural da KAPALI (okuma yeniden doğrular; tanınmayan kip otomatik sayılmaz).
+    await prisma.automationRule.updateMany({ where: { organizationId: a.orgId }, data: { actionJson: JSON.stringify({ ...RULE, mode: "always" }) } });
     expect(await loadEarlyCheckinRule(a.orgId, a.propertyId)).toBeNull();
     await saveEarlyCheckinRule(a.orgId, a.propertyId, null);
     expect(await prisma.automationRule.count()).toBe(0);
@@ -377,6 +387,16 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00", [], "late_checkout"), stay_change_guard: guard("13:00", false, "late_checkout") }));
     const id = await conversationFor(t, "Could we check out at 13:00 on our last day?");
     expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect((await decision(id)).ec).toBeUndefined();
+  });
+
+  it("🚨 erken giriş + geç çıkış birlikte (bekçi çıkış saatini de okudu) → akış koşmaz, hiçbir şey gitmez", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: { ...guard("13:00", false), requested_checkout_time: "13:00" } }));
+    const id = await conversationFor(t, "Could we check in at 13:00 and also leave at 13:00 on our last day?");
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
     expect((await decision(id)).ec).toBeUndefined();
   });
 

@@ -59,6 +59,21 @@ export function readinessOf(
   return "not_ready";
 }
 
+/** Hazır hükmünü veren EN YENİ "bitti" işaretinin zamanı (`readinessOf` ile aynı şart); hazır değilse `null`. */
+export function readyAtOf(
+  tasks: readonly { status: string; doneAt: Date | null }[],
+  checkoutAt: Date | null,
+  now: Date,
+): Date | null {
+  if (!checkoutAt) return null;
+  let latest: Date | null = null;
+  for (const t of tasks) {
+    if (t.status !== "done" || t.doneAt === null || t.doneAt < checkoutAt || now.getTime() - t.doneAt.getTime() < READY_SETTLE_MS) continue;
+    if (!latest || t.doneAt > latest) latest = t.doneAt;
+  }
+  return latest;
+}
+
 export async function loadEarlyCheckinFacts(args: {
   organizationId: string;
   propertyId: string;
@@ -66,7 +81,7 @@ export async function loadEarlyCheckinFacts(args: {
   now: Date;
   requested: EarlyCheckinFacts["requested"];
   singleIntent: boolean;
-}): Promise<{ facts: EarlyCheckinFacts; rule: EarlyCheckinRule | null } | null> {
+}): Promise<{ facts: EarlyCheckinFacts; rule: EarlyCheckinRule | null; readyAt: Date | null } | null> {
   const property = await prisma.property.findFirst({
     where: { id: args.propertyId, organizationId: args.organizationId },
     select: { checkInTime: true, checkOutTime: true, organization: { select: { timezone: true } } },
@@ -91,7 +106,7 @@ export async function loadEarlyCheckinFacts(args: {
         select: { id: true, status: true, arrivalDate: true },
       })
     : null;
-  if (!own) return { facts, rule };
+  if (!own) return { facts, rule, readyAt: null };
   const arrivalKey = calendarDateOf(own.arrivalDate, tz).key;
   facts.reservation = { status: own.status, arrivalKey };
 
@@ -118,6 +133,7 @@ export async function loadEarlyCheckinFacts(args: {
   if (previous) facts.previousSameDay = { checkoutTime: previous.checkout };
 
   // Hazırlık: referans çıkış = aynı gün ayrılan; yoksa varıştan önceki EN SON çıkış.
+  let readyAt: Date | null = null;
   const reference = previous
     ? { id: previous.r.id, dayKey: previous.d, checkout: previous.checkout }
     : await (async () => {
@@ -143,11 +159,10 @@ export async function loadEarlyCheckinFacts(args: {
       },
       select: { status: true, updates: { where: { status: "done" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } },
     });
-    facts.readiness = readinessOf(
-      tasks.map((t) => ({ status: t.status, doneAt: t.updates[0]?.createdAt ?? null })),
-      wallClockMoment(reference.dayKey, reference.checkout, tz),
-      args.now,
-    );
+    const marks = tasks.map((t) => ({ status: t.status, doneAt: t.updates[0]?.createdAt ?? null }));
+    const checkoutAt = wallClockMoment(reference.dayKey, reference.checkout, tz);
+    facts.readiness = readinessOf(marks, checkoutAt, args.now);
+    readyAt = facts.readiness === "ready" ? readyAtOf(marks, checkoutAt, args.now) : null;
   }
 
   if (!previous) {
@@ -160,5 +175,5 @@ export async function loadEarlyCheckinFacts(args: {
       facts.previousNightVerifiedVacant = report.ok && report.value.nights.length === 1 && report.value.nights[0].state === "free";
     }
   }
-  return { facts, rule };
+  return { facts, rule, readyAt };
 }

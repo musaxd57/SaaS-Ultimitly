@@ -19,6 +19,7 @@ import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
 import { drainStorageDeletions, hasPendingStorageDeletions } from "@/lib/storage/deletion-queue";
 import { syncDueCalendarSourcesForOrg } from "@/lib/import/sync";
+import { recheckEarlyCheckinsAfterCleaning } from "@/lib/early-checkin/recheck";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -551,6 +552,17 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
               // automatic guest messaging — the paid feature. Dormant-safe: while
               // BILLING_ENFORCED is off, premiumAllowed is always true.
               const canAutomate = await premiumAllowed(org.id);
+              // Temizlik "bitti" işareti oturduysa, YALNIZ hazırlık yüzünden tutulmuş erken giriş isteklerini bir
+              // kez yeniden aday yap (`lib/early-checkin/recheck.ts`; karar vermez, göndermez — oto-yanıt geçişi
+              // tüm hattı baştan koşar). Kendi aşaması: düşerse oto-yanıtı BLOKLAMAZ.
+              if (canAutomate) {
+                try {
+                  await recheckEarlyCheckinsAfterCleaning(org.id, new Date());
+                  await opsAlarm.ok(orgKey("early-checkin-recheck"));
+                } catch (err) {
+                  await handleOrgError("early-checkin-recheck", err);
+                }
+              }
               const auto = canAutomate ? await runDueChannelAutoReplies(org.id) : { sent: 0 };
               const welcome = canAutomate ? await sendDueWelcomes(org.id) : { sent: 0 };
               const checkin = canAutomate ? await sendDueCheckins(org.id) : { sent: 0 };
