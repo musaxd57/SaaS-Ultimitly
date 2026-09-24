@@ -141,6 +141,14 @@ Onay G5 ister. G5 beklenen andan (G0 ∨ G1/G2'nin geç olanı) ÖNCE ise ancak:
 görevde aynı gün daha önce G4 var ∧ açık sorun yok ∧ host kuralında açık rıza (`readyBeforeCheckout`). Misafir
 beyanları hiçbir zaman "evet" üretmez.
 
+**Uygulandı (dilim 7a/7b, C-9):** misafirin yazdığı çıkış saati (`guestCheckoutTime`) hiçbir yüzeyde onay gibi
+sunulmaz — tek kural `lib/guest-checkout-time.ts`. İstem: resmi çıkıştan SONRAKİ (ya da karşılaştırılamayan) saat
+"geç çıkış ONAYLANMADI; bu saate göre konuşma ya da söz verme" diye yazılır (eskiden "hatırla, buna göre konuş" —
+"13:00'te çıkabilir miyiz?" isteği sonraki Wi-Fi cevabında onaylanmış geç çıkış gibi geçebiliyordu; kapı bunu hassas
+istek görmediği için gönderirdi). Pano: resmi saat esas, misafirin saati yalnız ikincil not (sonraysa uyarı tonu).
+Kayıt KALDI: saat erken girişte yalnız sıkılaştırır (geç olan), fazla kayıt güvenli yöndür; bavul/havalimanı cümleleri
+için kelime vetosu REDDEDİLDİ (kalıp genişletme; sunum düzeltmesi zararı zaten kaldırıyor, anlam ayrımı `events[]`in işi).
+
 ## H. Temizlikçi izin modeli
 
 `staff` rolü (yeni rol dizesi YOK). Sayfa: yalnız `/tasks`. API: görevler (yalnız kendine atanmış), yükleme, foto.
@@ -194,7 +202,8 @@ iki model ertelemesiyle yanlış tutar/indirim gidebilirdi — ilk sürüm geri 
 **Uygulandı (dilim 8, 09-24):** hassas istekte modelin yazdığı cevabın gidebildiği TEK yol iki modelin doğruladığı
 ertelemedir; o erteleme para söylüyorsa gerekçe `price_claim` (kanal → taslak, QR → devir). Birleşim, ikisi de yalnız
 sıkılaştırır: biçim dedektörü `ai/stay-money.ts` (para sembolü `\p{Sc}`, kod/ad, yüzde, dar indirim-muafiyet sözlüğü;
-yedi dil; `ai/claim-support.ts` KULLANILMAZ) ∨ bekçinin yeni zorunlu alanı `reply_states_price` (eksik = bekçi düştü).
+yedi dil; `ai/claim-support.ts` KULLANILMAZ) ∨ bekçinin zorunlu alanları `reply_amounts` + `reply_price_terms` (eksik =
+bekçi düştü; ilk sürümdeki tek `reply_states_price` alanı inceleme turunda bu ikiliye bölündü, ↓).
 Host'un teklif metni aynen aktarılırsa muaf; ücretin VARLIĞINDAN tutarsız söz ("olası ücret") para değildir. Öncelik:
 izin/takvim iddiası (`availability_claim`) → ertelenmemiş istek (`availability_unconfirmed`) → para (`price_claim`).
 Doğrulanmış onay metni (kodda, kuralın ücretiyle) muaf ve `price_claim` tutuşunda da onun yerine geçebilir. Bugün izinli

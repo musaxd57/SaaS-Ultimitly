@@ -163,6 +163,30 @@ describe("buildReplyUserPrompt", () => {
       reservation: { ...input.reservation!, guestCheckoutTime: "09:00" },
     });
     expect(withTime).toMatch(/belirttiği çıkış saati: 09:00/);
+    // Resmi saatten ÖNCEKİ beyan zararsızdır: "onaylanmadı" uyarısı yok (gürültü yok).
+    expect(withTime).not.toMatch(/ONAYLANMADI/);
+  });
+
+  // DİLİM 7a (C-9): "13:00'te çıkabilir miyiz?" gibi bir istek de bu alana düşebilir; istem onu "hatırla, buna göre
+  // konuş" diye OLGU gibi sunarsa bir sonraki cevap (ör. Wi-Fi sorusu) onaylanmamış geç çıkışı ima eder ve kapı bunu
+  // hassas istek görmediği için gönderir.
+  it("resmi çıkıştan SONRAKİ misafir saati OLGU gibi sunulmaz: geç çıkış onaylanmadı, bu saate göre söz verilmez", () => {
+    const late = buildReplyUserPrompt({ ...input, reservation: { ...input.reservation!, guestCheckoutTime: "13:00" } });
+    expect(late).toMatch(/belirttiği çıkış saati: 13:00/);
+    expect(late).toMatch(/resmi çıkış saatinden \(11:00\) SONRA/);
+    expect(late).toMatch(/geç çıkış ONAYLANMADI/);
+    expect(late).not.toMatch(/buna göre konuş/);
+    // Karşılaştırılamayan resmi saat de temkinli okunur (sonra olabilir).
+    const unknown = buildReplyUserPrompt({
+      ...input,
+      property: { ...input.property, checkOutTime: "" },
+      reservation: { ...input.reservation!, guestCheckoutTime: "13:00" },
+    });
+    expect(unknown).toMatch(/geç çıkış ONAYLANMADI/);
+    expect(unknown).not.toMatch(/buna göre konuş/);
+    // Resmi saate EŞİT beyan zararsız.
+    const same = buildReplyUserPrompt({ ...input, reservation: { ...input.reservation!, guestCheckoutTime: "11:00" } });
+    expect(same).not.toMatch(/ONAYLANMADI/);
   });
 
   it("includes a turnover/adjacency block only when adjacency data is given", () => {

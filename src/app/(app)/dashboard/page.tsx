@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { CONVERSATION_STATUS, PRIORITY, TASK_TYPE } from "@/lib/constants";
 import { formatTime, truncate } from "@/lib/utils";
+import { guestCheckoutNote } from "@/lib/guest-checkout-time";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 export const dynamic = "force-dynamic";
@@ -337,7 +338,11 @@ export default async function DashboardPage() {
               <EmptyState title="Bugün çıkış yok" className="py-6" />
             ) : (
               <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
-              {departures.map((r) => (
+              {departures.map((r) => {
+                // Resmi çıkış esas; misafirin yazdığı saat bir beyandır, yalnız ikincil not (C-9 — sonrası onaylanmamış
+                // geç çıkış olabilir). Tek kural `guest-checkout-time.ts`.
+                const note = guestCheckoutNote(r.guestCheckoutTime, r.property.checkOutTime);
+                return (
                 <div
                   key={r.id}
                   className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
@@ -347,17 +352,23 @@ export default async function DashboardPage() {
                     <p className="truncate text-xs text-muted-foreground">{r.property.name}</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {r.guestCheckoutTime ?? r.property.checkOutTime}
-                    </span>
-                    {r.guestCheckoutTime ? (
-                      <span className="block text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                        misafirin verdiği saat
+                    <span className="text-sm font-medium text-muted-foreground">{r.property.checkOutTime}</span>
+                    {note ? (
+                      <span
+                        title={note.hint ?? undefined}
+                        className={
+                          note.warn
+                            ? "block text-[10px] font-medium text-amber-600 dark:text-amber-400"
+                            : "block text-[10px] font-medium text-muted-foreground"
+                        }
+                      >
+                        {note.text}
                       </span>
                     ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               </div>
             )}
           </CardContent>

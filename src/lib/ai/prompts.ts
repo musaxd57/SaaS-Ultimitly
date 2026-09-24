@@ -14,6 +14,8 @@ import {
   PROPERTY_TIME_FIELDS,
 } from "./retrieval/time-fields";
 import type { ClaimContext } from "./claim-support";
+import { guestCheckoutMayBeLate, guestCheckoutRelation } from "@/lib/guest-checkout-time";
+import { normalizeHhmm } from "./semantic/stay-change";
 
 // ============================================================================
 // TONE SYSTEM — Detailed guidance for each tone mode
@@ -715,6 +717,22 @@ MÜSAİTLİK İDDİASI ya da erken giriş / geç çıkış / uzatma SÖZÜ yazma
 standart cümleyi kullan. Kesin saat taahhüdünü tek başına verme; onayı operatöre bırak (actionSuggestion).`;
 }
 
+/**
+ * Misafirin daha önce yazdığı çıkış saati (C-9, dilim 7a). Cevap modelinin çıkardığı saat bir BEYANDIR — "13:00'te
+ * çıkabilir miyiz?" gibi bir istek de bu alana düşebilir. Resmi çıkıştan SONRAKİ (ya da karşılaştırılamayan) saat
+ * "hatırla, buna göre konuş" diye olgu gibi sunulursa sonraki cevap (ör. Wi-Fi sorusu) onaylanmamış geç çıkışı ima eder
+ * ve kapı bunu hassas istek görmediği için gönderir. Resmi saatten önceki / eşit saat zararsızdır.
+ */
+function guestCheckoutPromptLine(guestTime: string, officialTime: string): string {
+  const shown = sanitizePromptValue(guestTime, 10);
+  if (!guestCheckoutMayBeLate(guestCheckoutRelation(guestTime, officialTime))) {
+    return `Misafirin daha önce kendi belirttiği çıkış saati: ${shown} (bunu hatırla; tekrar sorma, gerekirse buna göre konuş).`;
+  }
+  const official = normalizeHhmm(officialTime);
+  const after = official ? `resmi çıkış saatinden (${official}) SONRA` : "resmi çıkış saatinden SONRA olabilir";
+  return `Misafirin daha önce kendi belirttiği çıkış saati: ${shown} — ${after}. Bu misafirin kendi beyanı ya da isteğidir; geç çıkış ONAYLANMADI. Bu saate göre konuşma ya da söz verme; konu açılırsa geç çıkışın ev sahibinin kararı olduğunu söyle. Tekrar sorma.`;
+}
+
 function buildTimelineContext(reservation: { arrivalDate: Date | string; departureDate: Date | string } | null): string {
   if (!reservation) return "(rezervasyon yok)";
   const now = new Date();
@@ -1118,9 +1136,7 @@ ${conflicts
     ? `Misafir: ${sanitizePromptValue(reservation.guestName)}
 Giriş: ${fmtDate(reservation.arrivalDate)} | Çıkış: ${fmtDate(reservation.departureDate)}
 Durum: ${reservation.status}${
-        reservation.guestCheckoutTime
-          ? `\nMisafirin daha önce kendi belirttiği çıkış saati: ${reservation.guestCheckoutTime} (bunu hatırla; tekrar sorma, gerekirse buna göre konuş).`
-          : ""
+        reservation.guestCheckoutTime ? `\n${guestCheckoutPromptLine(reservation.guestCheckoutTime, property.checkOutTime)}` : ""
       }
 Zaman bağlamı: ${buildTimelineContext(reservation)}`
     : "(bu konuşma bir rezervasyona bağlı değil)";
