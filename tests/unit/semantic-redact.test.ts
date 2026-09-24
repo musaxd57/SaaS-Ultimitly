@@ -59,6 +59,33 @@ describe("tarih/saat — korunur", () => {
     for (const leak of ["Ayşe", "Yılmaz", "532 123 45 67", "ayse@example.com"]) expect(out).not.toContain(leak);
   });
 
+  it("🚨 BİTİŞİK aralık (tek '-' ya da '/' ile iki tarih/saat) korunur — son denetim: '[PHONE] arası' oluyordu", () => {
+    for (const [text, part] of [
+      ["Saat 10.00-12.00 arası temizlik olur mu?", "10.00-12.00"],
+      ["14.10-16.10 arası müsait mi?", "14.10-16.10"],
+      ["12.10.2026-14.10.2026 tarihleri için", "12.10.2026-14.10.2026"],
+      ["2026-10-14/2026-10-16 için", "2026-10-14/2026-10-16"],
+    ] as const) {
+      const out = r(text);
+      expect(out, text).toContain(part);
+      expect(out, text).not.toContain("[PHONE]");
+    }
+    // Aşırı-uygulama kontrolü: iki taraftan biri tarih/saat DEĞİLSE ya da taraf sayısı ikiden fazlaysa telefon kalır.
+    for (const [text, secret] of [
+      ["12.34-56.78 numaram", "56.78"],
+      ["telefon 0171-12-34-56", "0171-12-34-56"],
+      ["My number is 12-34-56-78-90", "12-34-56-78-90"],
+      ["0532-123-4567 arayın", "0532-123-4567"],
+    ] as const) {
+      const out = r(text);
+      expect(out, text).not.toContain(secret);
+      expect(out, text).toContain("[PHONE]");
+    }
+    expect(isProtectedNumericRun("10.00-12.00")).toBe(true);
+    expect(isProtectedNumericRun("12.34-56.78")).toBe(false);
+    expect(isProtectedNumericRun("11:00-12:00-13:00")).toBe(false);
+  });
+
   it("yer tutucu taklit edilemez: girdideki işaret karakteri silinir, korunan değer başka yere taşınmaz", () => {
     const out = r(`fake ${"⁣"}KEEP0${"⁣"} marker 11:00`);
     expect(out).toBe("fake KEEP0 marker 11:00");

@@ -456,11 +456,18 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
     }
   });
 
-  it("🚨 standart çıkış saatini söyleyen 'kadar kalabilirsiniz' izin DEĞİL; saat KODDA mülkün çıkışıyla kıyaslanır", () => {
+  it("🚨 standart çıkış saatini söyleyen 'kadar kalabilirsiniz' izin DEĞİL; saat KODDA mülkün çıkışıyla BİREBİR kıyaslanır", () => {
     const ask = ["What time is check-out?"];
-    expect(vetoAvailability("Check-out is at 11:00, so you can stay until 11:00 on Sunday.", ask, { stayTimes: STAY })).toBeNull();
-    expect(vetoAvailability("Çıkış saatimiz 11:00; pazar günü saat 11:00'e kadar kalabilirsiniz.", ["Çıkış kaçta?"], { stayTimes: STAY })).toBeNull();
-    expect(vetoAvailability("You can stay until 10:30.", ask, { stayTimes: STAY })).toBeNull();
+    for (const reply of [
+      "Check-out is at 11:00, so you can stay until 11:00.",
+      "You can stay until 11:00 on your departure day.",
+      "You can stay until 11am.",
+      "Çıkış günü 11:00'e kadar kalabilirsiniz.",
+      "Çıkış saatimiz 11:00; saat 11'e kadar dairede kalabilirsiniz.",
+      "11.00'a kadar kalabilirsiniz.",
+    ]) {
+      expect(vetoAvailability(reply, ask, { stayTimes: STAY }), reply).toBeNull();
+    }
     // Standart DIŞI saat izindir; "until 1" öğleden sonradır (kimse gece 1'de çıkmaz).
     for (const reply of ["You can stay until 13:00 on Sunday.", "You can stay until 1 on Sunday.", "You can stay until 12pm.", "Pazar günü 13:00'e kadar kalabilirsiniz."]) {
       expect(vetoAvailability(reply, ask, { stayTimes: STAY }), reply).toBe("availability_claim");
@@ -469,15 +476,63 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
     expect(vetoAvailability("You can stay until 11:00.", ask, {})).toBe("availability_claim");
   });
 
-  it("🚨 genel müsaitlik kalıbı üçüncü taraf nesnelerde istek DEĞİL (taksi/market/araba); konaklama adlandırılınca yine istek", () => {
+  it("🚨 son denetim: ayıklama GERÇEK izni gizlemez (dakikalı öğleden sonra, akşam, gece yarısı, tarih, başka gün, onay, erteleme yanında izin)", () => {
+    // Misafir mesajı BOŞ: istek bacağı devre dışı — yalnız iddia bacağı sınanır (model beyanı yok/yanlış olduğunda son savunma).
+    for (const reply of [
+      "you can stay until 1:00",
+      "You can stay until 2:30.",
+      "You can keep the apartment until 1:30",
+      "Akşam 7'ye kadar kalabilirsiniz",
+      "You can stay until 8 in the evening",
+      "You can stay until 9 tonight",
+      "You can stay until 7 p.m",
+      "You can stay until 11 in the evening",
+      "Akşam 11'e kadar kalabilirsiniz",
+      "You can stay until 12am",
+      "You can stay until 00:00",
+      "Gece 00:00'a kadar kalabilirsiniz",
+      "You can stay until 10.10",
+      "5.11'e kadar kalabilirsiniz",
+      "10.12'ye kadar kalabilirsiniz",
+      "You can stay until 11 October",
+      "Ayın 11'ine kadar kalabilirsiniz",
+      "You can stay until 11:00 on Sunday.",
+      "Pazar günü 11:00'e kadar kalabilirsiniz",
+      "Yarın 11:00'e kadar kalabilirsiniz",
+      "You can stay until 11 the next day.",
+      "Bir gün daha, 11'e kadar kalabilirsiniz.",
+      "Of course! You can stay until 11:00.",
+      "Tabii, 11:00'e kadar kalabilirsiniz.",
+      "Late checkout is up to your host, but you can stay until 2:30.",
+      "8 gün kadar kalabilirsiniz",
+      "11 gün kadar kalabilirsiniz",
+    ]) {
+      expect(vetoAvailability(reply, [], { stayTimes: STAY }), reply).toBe("availability_claim");
+    }
+  });
+
+  it("ayıklama yalnız İZİN kalıplarına: takvim kalıbının saat bastırması (CLOCK_AHEAD) standart bilgi cümlesini tutmaz", () => {
+    for (const reply of ["On departure day the apartment is available until 11:00.", "The flat is free until 11am on your last day."]) {
+      expect(vetoAvailability(reply, [], { stayTimes: STAY }), reply).toBeNull();
+      expect(vetoAvailability(reply, [], {}), reply).toBeNull(); // saatsiz de aynı (eski davranış)
+    }
+  });
+
+  it("🚨 genel müsaitlik kalıbı üçüncü taraf YAPILARINDA istek DEĞİL (fiil/yüklem + nesne bitişik); kalan metinde isabet varsa yine istek", () => {
     const reply = "The supermarket on the corner is open 9–21 every day.";
     for (const msg of [
       "Can I book a taxi for tomorrow morning?",
       "Is the supermarket open on Sunday?",
       "Is it possible to rent bikes for tomorrow?",
       "Yarın için taksi ayırtabilir miyiz?",
-      "Yarın araba kiralamak istiyoruz, nereden kiralayabiliriz?",
+      "Yarın araba kiralamak istiyoruz.",
       "Otopark müsait mi? 14-16 Ekim arası arabayla geleceğiz.",
+      "Are there any restaurants open on Sunday?",
+      "Can we reserve a table for Saturday night?",
+      "Is parking free on the weekend?",
+      "Yarın akşam restoranda yer var mı?",
+      "Ist der Parkplatz am Samstag frei?",
+      "La piscine est-elle libre samedi?",
     ]) {
       expect(detectAvailabilityRequest(msg), msg).toBeNull();
       expect(vetoAvailability(reply, [msg]), msg).toBeNull();
@@ -486,6 +541,43 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
     expect(detectAvailabilityRequest("Is the apartment available on the 14th? We'd also need parking.")).toBe("availability");
     expect(detectAvailabilityRequest("15 ekim musait mi")).toBe("availability");
     expect(detectAvailabilityRequest("Can we stay one more night? Also can I book a taxi?")).toBe("extend");
+  });
+
+  it("🚨 son denetim: nesne sözcüğü mesajın BAŞKA yerinde geçiyor diye gerçek istek düşmez (bitişiklik şartı, kök değil tam sözcük)", () => {
+    for (const msg of [
+      "Do you have availability on Oct 14? We love the beach.",
+      "We will come by car, is it free on 14-16 Oct?",
+      "Is it available next weekend? We would need parking for our car.",
+      "Hafta sonu müsait mi? Otopark var mı?",
+      "20-25 Ekim için müsait misiniz? Taksit imkanı var mı?",
+      "Airbnb aracılığıyla 20-22 Ekim için rezervasyon yapabilir miyiz?",
+      "Masal gibi bir yer! Cuma gecesi müsait mi?",
+      "Can I book a taxi and is the flat free on the 14th?",
+    ]) {
+      expect(detectAvailabilityRequest(msg), msg).toBe("availability");
+    }
+    // Uçtan uca: istek düşmediği için ertelemesiz "misafir ederiz" cevabı gönderilmez.
+    expect(vetoAvailability("Great news, we would love to host you on October 14!", ["Do you have availability on Oct 14? We love the beach."])).toBe(
+      "availability_unconfirmed",
+    );
+  });
+
+  it("kısaltmalar (DOĞRULUK — açık biçim zaten kapsanıyordu): 's / 're / 've ve U+02BC kesmesi", () => {
+    for (const reply of [
+      "Nobody's checking in after you.",
+      "No one’s booked after you.",
+      "We've no other bookings after yours.",
+      "There’re no other guests after you.",
+    ]) {
+      expect(detectAvailabilityClaim(reply), reply).toBe("calendar");
+    }
+    for (const reply of ["youʼre welcome to stay another night", "weʼll extend your stay"]) {
+      expect(detectAvailabilityClaim(reply), reply).toBe("grant");
+    }
+    // Aşırı-uygulama kontrolü: sıradan nezaket cümleleri iddia değil.
+    for (const reply of ["You're welcome! Enjoy your stay.", "We've added the towels you asked for.", "There's a bakery next door."]) {
+      expect(detectAvailabilityClaim(reply), reply).toBeNull();
+    }
   });
 
   it("Türkçe ünsüz yumuşaması: 'teyit' ünlüyle başlayan ekte 'teyid-' olur — erteleme yine tanınır", () => {

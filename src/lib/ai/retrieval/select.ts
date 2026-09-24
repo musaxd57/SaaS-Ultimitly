@@ -593,11 +593,15 @@ function chunkAsItem<T extends KbChunkSource>(src: T, c: KbChunk): SelectedKbIte
  * GERİ ÇEKİLMEDE ANLAMA KATMANININ KATKISI (ikinci inceleme 09-24). Legacy kümesi (`legacy`, en yeni ≤30
  * kalem) AYNEN kalır — kırpılmaz, sırası yalnız öne alınanlar kadar değişir. Ek sorguların adayları
  * round-robin dolaşılır, en fazla `EXTRA_FALLBACK_ITEMS` kalem:
- *  · kalem legacy kümesindeyse → ÖNE TAŞINIR (yeni içerik yok);
- *  · değilse → yalnız eşleşen PARÇASI eklenir, toplam `EXTRA_FALLBACK_CHARS` tavanıyla (bütün kalem değil:
- *    20k'lık bir kalem legacy bloğunu isteme sığmaz hâle getiriyordu);
+ *  · kalem legacy kümesindeyse ve BÜTÜN kalem tavana sığıyorsa → ÖNE TAŞINIR (yeni içerik yok);
+ *  · sığmıyorsa ya da legacy dışındaysa → yalnız eşleşen PARÇASI öne eklenir (bütün kalem değil: 20k'lık bir
+ *    kalem legacy bloğunu isteme sığmaz hâle getiriyordu). Legacy kalemi yerinde KALIR (kırpılmaz).
+ *  · 🚨 TAŞIMA DA tavana sayılır (son denetim 09-24): istem bloğu açgözlü doldurulur (`packKnowledgeBase`,
+ *    24k) — 19k'lık bir kılavuzu öne taşımak legacy'nin sığdırdığı onlarca kalemi DIŞARI itiyordu. Ön ekin
+ *    toplamı (taşınan + eklenen) `EXTRA_FALLBACK_CHARS`ı aşmaz → yerinden edilen legacy içeriği bununla sınırlı.
  *  · bu dal çelişki korumasından GEÇMEZ → saat alanı dizindeki başka bir parçayla ÇELİŞEN parça eklenmez
  *    (pencere dışından bayat bir "Çıkış 12:00" kalemi öne gelmesin).
+ * `added` yalnız legacy DIŞINDAN gelen parçaları sayar (düşen sayısından çıkarılan: temsil edilmeye başlayanlar).
  */
 function fallbackFront<T extends KbChunkSource>(
   index: KbIndex,
@@ -609,9 +613,9 @@ function fallbackFront<T extends KbChunkSource>(
   const inLegacy = new Set(legacy.map((i) => i.id));
   const byId = new Map(pool.map((i) => [i.id, i] as const));
   const extraLists = ranked.filter((_, qi) => isExtra[qi]);
-  const front: ({ kind: "move"; id: string } | { kind: "add"; chunk: KbChunk })[] = [];
+  const front: ({ kind: "move"; id: string } | { kind: "add"; chunk: KbChunk; outside: boolean })[] = [];
   const taken = new Set<string>();
-  let addedChars = 0;
+  let frontChars = 0;
   for (let round = 0; front.length < EXTRA_FALLBACK_ITEMS; round++) {
     let any = false;
     for (const list of extraLists) {
@@ -621,17 +625,23 @@ function fallbackFront<T extends KbChunkSource>(
       any = true;
       const chunk = index.chunks[cand.idx];
       if (taken.has(chunk.id) || !byId.has(chunk.id)) continue;
-      if (inLegacy.has(chunk.id)) {
-        taken.add(chunk.id);
-        front.push({ kind: "move", id: chunk.id });
-        continue;
+      const outside = !inLegacy.has(chunk.id);
+      if (!outside) {
+        const item = byId.get(chunk.id) as T;
+        const whole = renderedChars({ category: item.category, title: item.title, text: item.content });
+        if (frontChars + whole <= EXTRA_FALLBACK_CHARS) {
+          taken.add(chunk.id);
+          frontChars += whole;
+          front.push({ kind: "move", id: chunk.id });
+          continue;
+        }
       }
       const cost = renderedChars({ category: chunk.category, title: chunk.title, text: chunk.text });
-      if (addedChars + cost > EXTRA_FALLBACK_CHARS) continue;
+      if (frontChars + cost > EXTRA_FALLBACK_CHARS) continue;
       if (preserveTimeConflicts(index.chunks, [cand.idx], index.fieldTimes).conflicts.length > 0) continue;
       taken.add(chunk.id);
-      addedChars += cost;
-      front.push({ kind: "add", chunk });
+      frontChars += cost;
+      front.push({ kind: "add", chunk, outside });
     }
     if (!any) break;
   }
@@ -640,22 +650,27 @@ function fallbackFront<T extends KbChunkSource>(
     f.kind === "move" ? (byId.get(f.id) as SelectedKbItem<T>) : chunkAsItem(byId.get(f.chunk.id) as T, f.chunk),
   );
   const rest = legacy.filter((i) => !moved.has(i.id)) as SelectedKbItem<T>[];
-  return { items: [...frontItems, ...rest], count: front.length, added: front.length - moved.size };
+  const added = front.filter((f) => f.kind === "add" && f.outside).length;
+  return { items: [...frontItems, ...rest], count: front.length, added };
 }
 
-/** Konu kapsanmış mı: ek sorgunun EN İYİ adayı, özgün bir sorgunun ilk bu kadar adayından birinin kalemindeyse. */
+/** Konu kapsanmış mı: ek sorgunun EN İYİ adayı, özgün bir sorgunun ilk bu kadar adayından BİRİNİN KENDİSİYSE. */
 const REDUNDANT_EXTRA_TOP = 3;
 
-/** Özgün sorguların zaten kapsadığı konuyu tekrar eden ek sorgular (seçimde pay almaz). */
-function redundantExtraQueries(index: KbIndex, ranked: readonly (readonly Candidate[])[], isExtra: readonly boolean[]): Set<number> {
-  const ownTop = new Set<string>();
+/**
+ * Özgün sorguların zaten kapsadığı konuyu tekrar eden ek sorgular (seçimde pay almaz). Kıyas PARÇA düzeyinde
+ * (son denetim 09-24): kalem kimliğiyle kıyas, çok parçalı bir kılavuzun wifi bölümü özgün soruda çıkınca AYNI
+ * kılavuzun evcil hayvan bölümünü soran ek sorguyu da "tekrar" sayıp düşürüyordu.
+ */
+function redundantExtraQueries(ranked: readonly (readonly Candidate[])[], isExtra: readonly boolean[]): Set<number> {
+  const ownTop = new Set<number>();
   ranked.forEach((list, qi) => {
     if (isExtra[qi]) return;
-    for (const c of list.slice(0, REDUNDANT_EXTRA_TOP)) ownTop.add(index.chunks[c.idx].id);
+    for (const c of list.slice(0, REDUNDANT_EXTRA_TOP)) ownTop.add(c.idx);
   });
   const out = new Set<number>();
   ranked.forEach((list, qi) => {
-    if (isExtra[qi] && list.length > 0 && ownTop.has(index.chunks[list[0].idx].id)) out.add(qi);
+    if (isExtra[qi] && list.length > 0 && ownTop.has(list[0].idx)) out.add(qi);
   });
   return out;
 }
@@ -767,7 +782,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // AYNI KONUYU TEKRAR EDEN ek sorgu payı yemez (ikinci inceleme 09-24): en iyi adayı, özgün bir sorgunun ilk
     // adaylarından birinin KALEMİYSE konu zaten kapsanmıştır ("Wifi?" + "wifi şifresi" + "WLAN Passwort" üçü
     // de wifi kalemlerini seçip evcil hayvan sorusunu dışarıda bırakıyordu).
-    const skipExtra = uq > 0 ? redundantExtraQueries(index, ranked, isExtra) : new Set<number>();
+    const skipExtra = uq > 0 ? redundantExtraQueries(ranked, isExtra) : new Set<number>();
     let extraPicked = 0;
     let progressed = true;
     while (progressed) {
@@ -823,9 +838,12 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     for (const idx of order) {
       const c = index.chunks[idx];
       const cost = renderedChars({ category: c.category, title: c.title, text: c.text });
+      // Paya sığmayan ek-sorgu parçası ATLANIR ve bütçe kesmesini TETİKLEMEZ (son denetim 09-24: önce bütçe
+      // kontrolü gelince zaten atlanacak bir ek parça döngüyü bitirip sığacak özgün parçaları dışarıda bırakıyordu).
+      const extra = origin.get(idx) === "extra";
+      if (extra && (extraChunks >= extraChunkCap || extraChars + cost > extraCharCap)) continue;
       if (chosen.length > 0 && (used + cost > budget || chosen.length >= maxChunks)) break;
-      if (origin.get(idx) === "extra") {
-        if (extraChunks >= extraChunkCap || extraChars + cost > extraCharCap) continue;
+      if (extra) {
         extraChunks += 1;
         extraChars += cost;
       }

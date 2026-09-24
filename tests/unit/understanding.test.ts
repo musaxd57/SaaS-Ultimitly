@@ -633,3 +633,52 @@ describe("inceleme turu 09-24 — birleşim payı, geri çekilme, gecikme", () =
     expect((await r.understanding)?.requests[0].intent).toBe("parking");
   });
 });
+
+describe("son denetim 09-24 — geri çekilmede taşıma tavanı, parça düzeyinde tekrar, bütçe sırası", () => {
+  const T0 = Date.UTC(2026, 5, 1);
+  const item = (id: string, title: string, content: string, i: number) => ({ id, category: "general", title, content, updatedAt: new Date(T0 - i * 60_000) });
+  const rc = (i: { category: string; title: string; content: string }) => i.category.length + i.title.length + i.content.length + 6;
+  const fill = (t: string, n: number) => `${t} `.repeat(Math.ceil(n / (t.length + 1))).slice(0, n).trim();
+
+  it("🚨 legacy'deki BÜYÜK kalem öne TAŞINMAZ (açgözlü istem doldurması legacy'yi dışarı iterdi); yalnız eşleşen parçası öne, kalem yerinde", () => {
+    const section = Array.from({ length: 40 }, (_, i) => `Bölüm ${i}: bu bölümde evin genel düzeni ve eşyaların yerleri anlatılır, lütfen dikkatle okuyun ve düzeni koruyun.`).join(" ");
+    const manual = item("manual", "Ev kılavuzu", `${section.repeat(4)} Sauna: binanın eksi birinci katındaki sauna her akşam açıktır. ${section}`, 3);
+    const pad = neutralPadding(40);
+    const items = [pad[0], pad[1], manual, ...pad.slice(2)];
+    const r = selectKbForPrompt({ items, guestMessage: "Gibt es hier eine Schwitzkabine?", mode: "hybrid", extraQueries: [{ text: "sauna", turkish: true }] });
+    const base = selectKbForPrompt({ items, guestMessage: "Gibt es hier eine Schwitzkabine?", mode: "hybrid" });
+    expect(manual.content.length).toBeGreaterThan(20_000); // anti-vakum: kalem gerçekten büyük
+    expect(base.items.some((i) => i.id === "manual")).toBe(true); // anti-vakum: kalem legacy'de
+    expect(r.evidence?.uf).toBe(1);
+    // Öndeki PARÇADIR (tavan içinde), bütün kalem değil.
+    expect(r.items[0]).toMatchObject({ id: "manual" });
+    expect((r.items[0] as { chunk?: number }).chunk).toBeTypeOf("number");
+    expect(rc(r.items[0])).toBeLessThanOrEqual(3_000);
+    expect(r.items[0].content).toContain("Sauna");
+    // Legacy kümesi SIRASIYLA aynen arkada (büyük kalem kendi yerinde); düşen sayısı değişmez (legacy kalemi zaten temsilliydi).
+    expect(r.items.slice(1).map((i) => i.id)).toEqual(base.items.map((i) => i.id));
+    expect(r.droppedItems).toBe(base.droppedItems);
+  });
+
+  it("🚨 tekrar sayımı PARÇA düzeyinde: aynı kılavuzun başka bölümünü soran ek sorgu düşürülmez", () => {
+    const mid = Array.from({ length: 12 }, (_, i) => `Kural ${i}: ortak alanlarda sessizlik rica edilir ve düzen korunur.`).join(" ");
+    const manual = item("manual", "Ev kılavuzu", `Wi-Fi: ağ adı Lale, şifre modemin altındaki etikette yazar. ${mid} Evcil hayvan: küçük köpekler kabul edilir, lütfen tasmalı gezdirin.`, 1);
+    const r = selectKbForPrompt({ items: [manual, ...neutralPadding(40)], guestMessage: "Wifi?", mode: "hybrid", extraQueries: [{ text: "evcil hayvan köpek", turkish: true }] });
+    const parts = r.items.filter((i) => i.id === "manual");
+    expect((parts[0] as { chunkCount?: number }).chunkCount).toBeGreaterThan(1); // anti-vakum: kalem çok parçalı
+    expect(parts.some((i) => i.content.includes("Wi-Fi"))).toBe(true);
+    expect(parts.some((i) => i.content.includes("Evcil hayvan"))).toBe(true);
+  });
+
+  it("🚨 paya sığmayan ek-sorgu parçası bütçe kesmesini TETİKLEMEZ — sığan özgün parçalar dışarıda kalmaz", () => {
+    const park = Array.from({ length: 12 }, (_, i) => item(`park${i}`, `Otopark ${i}`, fill(`Otopark bilgisi ${i}: araç bina altındaki otoparka bırakılır.`, 355), i));
+    const sauna = Array.from({ length: 6 }, (_, i) => item(`sauna${i}`, `Sauna ${i}`, fill(`Sauna kuralı ${i}: sauna her akşam açıktır ve havlu verilir.`, 870), 20 + i));
+    const items = [...park, ...sauna, ...neutralPadding(20)];
+    const r = selectKbForPrompt({ items, guestMessage: "Otopark nerede?", mode: "hybrid", budgetChars: 3000, extraQueries: [{ text: "sauna kuralları", turkish: true }] });
+    // Anti-vakum: ek sorgu pay aldı (tek parça — ikincisi 1/3 karakter payını aşar ve ATLANIR).
+    expect(r.items.filter((i) => i.id.startsWith("sauna"))).toHaveLength(1);
+    // Kalan bütçeye sığan beşinci otopark parçası da girer (eskiden atlanacak ek parça döngüyü bitiriyordu: 4).
+    expect(r.items.filter((i) => i.id.startsWith("park"))).toHaveLength(5);
+    expect(r.items.reduce((n, i) => n + rc(i), 0)).toBeLessThanOrEqual(3000);
+  });
+});
