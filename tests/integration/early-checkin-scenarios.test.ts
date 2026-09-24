@@ -519,7 +519,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(d.ec?.f).toContain("overlap");
   });
 
-  it("10 · BUGÜN (bilinen bedel): 'Early check-in ücretli mi?' bilgi sorusu da host'a düşer — otomatik İZİN asla gitmez", async () => {
+  it("10 · katmanlar 'ücretli mi?' sorusunu İSTEK sayarsa (ya da anlam katmanları kapalıyken) host'a düşer — otomatik İZİN asla gitmez", async () => {
     const now = Z("2026-10-14T05:00:00.000");
     at(now);
     const t = await turnover();
@@ -537,7 +537,74 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(d.ec?.s).toBe("needs_host");
     expect(d.ec?.f).toContain("time_unknown");
   });
-  it.todo("10b · bilgi/politika sorusu ('ücretli mi?') host kuralından KODDA kurulan politika cevabını alır; gereksiz inceleme yok — dilim 6");
+  it("10b · bilgi sorusu ('ücretli mi?'): iki katman 'istek yok' derse host kuralından KODDA kurulan politika metni gider; gereksiz inceleme yok", async () => {
+    const now = Z("2026-10-14T05:00:00.000");
+    at(now);
+    const infoNlu = nlu(null, [], {
+      requests: [{ intent: "early_checkin", query_tr: "erken giriş ücretli mi", query_original: "is early check-in paid" }],
+      stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+    });
+    const infoReply = reply({ reply: "Early check-in may be possible depending on availability.", stayChangeAsked: "none", replyStance: "none" });
+    const POLICY = "The early check-in fee is €30. Whether an early check-in is possible depends on that day's cleaning; your host decides.";
+
+    // (a) Kural otomatik + kayıtlı ücret → politika metni (modelin "müsaitliğe bağlı" cevabı değil).
+    const t = await turnover();
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    openAi({ reply: infoReply, understanding: infoNlu, guard: NO_REQUEST_GUARD });
+    const a = await conversationFor(t.propertyId, t.own.id, "Is early check-in paid?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(a)).sent).toBe(true);
+    expect(sentBody().startsWith(POLICY)).toBe(true);
+    expect(await decision(a)).toMatchObject({ finalDecision: "auto_sent", reason: "early_checkin_policy", ec: { a: "0" } });
+
+    // (b) KONTROL: kural TASLAK → politika metni otomatik gitmez (host).
+    await fresh();
+    const u = await turnover();
+    await saveEarlyCheckinRule(u.orgId, u.propertyId, { ...RULE, mode: "draft" });
+    openAi({ reply: infoReply, understanding: infoNlu, guard: NO_REQUEST_GUARD });
+    const b = await conversationFor(u.propertyId, u.own.id, "Is early check-in paid?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(b)).sent).toBe(false);
+
+    // (c) KONTROL: kayıtlı ücret YOK → "ücretsiz" de varsayılmaz, host.
+    await fresh();
+    const w = await turnover();
+    await saveEarlyCheckinRule(w.orgId, w.propertyId, { ...RULE, fee: null });
+    openAi({ reply: infoReply, understanding: infoNlu, guard: NO_REQUEST_GUARD });
+    const c = await conversationFor(w.propertyId, w.own.id, "Is early check-in paid?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(c)).sent).toBe(false);
+
+    // (d) 🚨 Bekçi İSTEK görürse (birleşim) bilgi sorusu sayılmaz: politika metni gitmez, bugünkü akış.
+    await fresh();
+    const v = await turnover();
+    await saveEarlyCheckinRule(v.orgId, v.propertyId, RULE);
+    openAi({ reply: infoReply, understanding: infoNlu, guard: guard(null) });
+    const d = await conversationFor(v.propertyId, v.own.id, "Is early check-in paid?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(d)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+
+    // (e) Misafir başka bir şey de soruyor (tek konu değil) → politika metni diğer soruyu cevapsız bırakırdı: gitmez.
+    await fresh();
+    const x = await turnover();
+    await saveEarlyCheckinRule(x.orgId, x.propertyId, RULE);
+    const twoTopics = nlu(null, [], {
+      requests: [
+        { intent: "early_checkin", query_tr: "erken giriş ücretli mi", query_original: "is early check-in paid" },
+        { intent: "wifi", query_tr: "wifi şifresi", query_original: "wifi password" },
+      ],
+      stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+    });
+    openAi({ reply: infoReply, understanding: twoTopics, guard: NO_REQUEST_GUARD });
+    const e = await conversationFor(x.propertyId, x.own.id, "Is early check-in paid? And what's the wifi password?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(e)).sent).toBe(false);
+
+    // (f) Politika metni de TÜM kapıdan geçer: modelin güveni düşükse (0.5) gitmez.
+    await fresh();
+    const y = await turnover();
+    await saveEarlyCheckinRule(y.orgId, y.propertyId, RULE);
+    openAi({ reply: reply({ reply: "Maybe.", stayChangeAsked: "none", replyStance: "none", confidence: 0.5 }), understanding: infoNlu, guard: NO_REQUEST_GUARD });
+    const f = await conversationFor(y.propertyId, y.own.id, "Is early check-in paid?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(f)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
 
   it("11 · 'Yarın 10'da gelebilir miyiz?' → izin iş akışı: varış günü değilse bekler; varış günü gelen 'yarın' da otomatik gitmez", async () => {
     // (a) Bir gün önce soruyor: varış günü bekleniyor.

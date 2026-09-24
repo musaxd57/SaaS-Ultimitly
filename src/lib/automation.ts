@@ -5,6 +5,7 @@ import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import {
   evaluateAvailability,
   stayEvidenceOf,
+  stayInfoOnly,
   vetoAvailability,
   type AvailabilityPolicyOptions,
   type AvailabilityVetoReason,
@@ -16,6 +17,8 @@ import {
   runEarlyCheckinWorkflow,
   type EarlyCheckinRun,
 } from "@/lib/early-checkin/workflow";
+import { heldForReadinessEarlier } from "@/lib/early-checkin/recheck";
+import { earlyCheckinLang, earlyCheckinPolicyText } from "@/lib/early-checkin/reply";
 import {
   evaluateIntentRisk,
   INTENT_RISK_REASON,
@@ -2018,6 +2021,45 @@ export async function applyChannelAutoReply(
       }
     }
   }
+  // ── BİLGİ SORUSU → POLİTİKA METNİ (dilim 6, kurucu senaryo 10: "erken giriş ücretli mi?") ───────────────────────
+  // Anlama katmanı VE bekçi koşup "istek yok" dedi, tek sinyal cevap modelinin konu etiketi, tek konu erken giriş ve host
+  // kuralı OTOMATİK + kayıtlı ücret → host'un kuralından KODDA kurulan politika metni gider (izin / ret / söz yok;
+  // gereksiz inceleme yok). Kapı bu metinle BAŞTAN koşar: birebir metin muafiyeti yalnız müsaitlik kontrolünedir,
+  // acil / şikâyet / injection / çıktı vetosu / güven aynen. Aksi hâlde bugünkü davranış.
+  let earlyCheckinPolicySent = false;
+  if (
+    !earlyCheckinSent &&
+    earlyCheckinRun?.rule?.mode === "auto" &&
+    earlyCheckinRun.facts.singleIntent &&
+    stayInfoOnly([last.body, ...pendingGuestMessages], availabilityPolicyFor(result, gateContext))
+  ) {
+    const text = earlyCheckinPolicyText(earlyCheckinRun.rule, earlyCheckinLang(result.detectedLanguage));
+    if (text) {
+      const policyResult = verifiedEarlyCheckinResult(result, text);
+      const policyContext: AutoReplyGateContext = { ...gateContext, verifiedGrant: { text } };
+      if (autoReplyGateFailure(policyResult, last.body, policyContext) === null) {
+        result = policyResult;
+        gateContext.verifiedGrant = policyContext.verifiedGrant;
+        gateFailure = null;
+        gatePassed = true;
+        earlyCheckinPolicySent = true;
+      }
+    }
+  }
+  // ── YENİDEN DEĞERLENDİRME TURU (dilim 6; inceleme 09-24, P3) ─────────────────────────────────────────────────────
+  // Temizlik bitince yeniden aday yapılan istekte (`recheck.ts`) YALNIZ doğrulanmış onay gidebilir. Aynı mesaj sabah
+  // hazırlık yüzünden tutulmuştu ve host kontrol listesini gördü; onay çıkmadıysa modelin saatler sonra gelen "ev
+  // sahibine soracağım"ı misafiri yanıltır. Sorgu yalnız akış bu mesajda koştuysa atılır (sıcak yol etkilenmez); aynı
+  // mesajın ikinci "insana" kaydı tekillik anahtarıyla zaten yazılmaz.
+  if (
+    gatePassed &&
+    !earlyCheckinSent &&
+    earlyCheckinRun !== null &&
+    (await heldForReadinessEarlier(conversation.property.organizationId, last.id))
+  ) {
+    gatePassed = false;
+    gateFailure = "availability_unconfirmed";
+  }
   // Karar kaydı kapıyla AYNI politika girdisinden (`availabilityPolicyFor`) — gerekçe ile hüküm
   // ayrışamaz (`enforceReason` 09-24'ten beri `reason`a eşit — konaklamada gölge kip yok).
   const stayEval = evaluateAvailability(
@@ -2534,7 +2576,7 @@ export async function applyChannelAutoReply(
       riskType: result.riskType,
       // Kuyruklu teslimde doğrulanmış erken giriş onayı OTOMATİK gitmez (`queued_delivery`): burada yalnız kapıyı
       // geçen model cevabı kuyruğa girer.
-      reason: "gate_passed",
+      reason: earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
       confidence: result.confidence,
       ...groundingAudited,
       srcDeclared: result.sourceAudit?.declared ?? null,
@@ -2708,7 +2750,7 @@ export async function applyChannelAutoReply(
     finalDecision: "auto_sent",
     riskLevel: result.riskLevel,
     riskType: result.riskType,
-    reason: earlyCheckinSent ? "early_checkin_verified" : "gate_passed",
+    reason: earlyCheckinSent ? "early_checkin_verified" : earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
     confidence: result.confidence,
     ...groundingAudited,
     srcDeclared: result.sourceAudit?.declared ?? null,

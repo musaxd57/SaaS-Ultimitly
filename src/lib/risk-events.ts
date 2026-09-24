@@ -57,6 +57,8 @@ const REASONS = new Set([
   "understanding_risk",
   // Doğrulanmış erken giriş (09-24, `lib/early-checkin`): koddan kurulan onay metni otomatik gönderildi.
   "early_checkin_verified",
+  // Bilgi sorusu (dilim 6): host kuralından koddan kurulan politika metni (ücret + "karar ev sahibinin") gönderildi.
+  "early_checkin_policy",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

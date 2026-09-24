@@ -359,8 +359,13 @@ Bu dosyaya token/anahtar/parola yazma.
   Karar kaydı `ec` = durum + kodlar + dayanak kimlikleri (`dr/rm/rt/rh/n/dc`; metin/saat/tutar YOK, alan alan
   doğrulanır). Kural deposu tek `where`, mülk satırı kilitli kayıt, mülk silinince kural silinir.
   🚨 **PARA (dilim 8):** hassas istekte iki modelin doğruladığı ERTELEME de tutar/yüzde/indirim/muafiyet söyleyemez →
-  `price_claim` (biçim dedektörü `ai/stay-money.ts` ∨ bekçinin zorunlu `reply_states_price` alanı; host teklif metni
-  hariç; `claim-support` KULLANILMAZ). Öncelik: iddia → ertelenmemiş istek → para. Bugün izinli tutar kümesi BOŞ.
+  `price_claim`. Birleşim: biçim dedektörü `ai/stay-money.ts` ∨ bekçinin fiyat sözü (`reply_price_terms`) ∨ bekçinin
+  çıkardığı tutar (`reply_amounts`) host'un kaydında yoksa — kıyas KODDA. Host'un geç çıkış teklif tutarı YALNIZ geç çıkış
+  isteğinde izinli (çeviride de); başka isteğe aktarımı para. Para sözlüğü tek kaynak `ai/money-lexicon.ts`; `claim-support`
+  kapıya GİRMEZ. Öncelik: iddia → ertelenmemiş istek → para. Hassas olmayan cevapta para kontrolü YOK (genel tutar = P5).
+  Bekçi redakte taslağı TAM göremezse hüküm vermez. **Bilgi sorusu** ("ücretli mi?"; anlama + bekçi koşup "istek yok",
+  tek sinyal konu etiketi, kural `auto` + kayıtlı ücret) → koddan politika metni (`early_checkin_policy`). **Yeniden
+  değerlendirme turunda** yalnız doğrulanmış onay gider (modelin gecikmiş ertelemesi gitmez).
 - 🚨 **TEMİZLİKÇİ GÖRÜNÜMÜ (09-24, `lib/tasks/staff-view.ts` TEK kural):** personel ve temizlik listesi (WhatsApp)
   misafir ADI / MESAJI görmez — sistem görevi → tür adı, yapay zekâ görevi → yalnız "Tür: konu" (rakamsız) + açıklama
   YOK, elle görev → aynen. Uygulandığı yerler: personel görev listesi + güncelleme cevabı, personele atama e-postası,

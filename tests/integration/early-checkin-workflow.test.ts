@@ -629,6 +629,20 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect(await prisma.taskUpdate.count({ where: { taskId: u.prepTaskId } })).toBe(0);
   });
 
+  it("bilgi sorusunun politika metni kuyruklu teslimde de kuyruğa girer (zamana bağlı değil); gerekçe `early_checkin_policy`", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, reply: "It depends on availability.", stayChange: { asked: "none", stance: "none" } });
+    const info = { ...nlu(null), stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null } };
+    const noRequest = { ...guard(null, false), guest_requests_change: false, kind: "none" };
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: info, stay_change_guard: noRequest }));
+    const id = await conversationFor(t, "Is early check-in paid?");
+    expect(await applyChannelAutoReply(id)).toMatchObject({ sent: true, queued: true });
+    expect((await prisma.messageOutbox.findFirstOrThrow()).body).toContain("The early check-in fee is €30.");
+    expect((await decision(id)).reason).toBe("early_checkin_policy");
+  });
+
   it("🚨 iki model ertelemeyi doğrulayıp kapı GEÇSE de doğrulanmış onay ertelemenin yerine geçer (misafir 'soracağım' değil cevap alır)", async () => {
     const t = await turnover({ cleaned: CLEANED_AT });
     await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);

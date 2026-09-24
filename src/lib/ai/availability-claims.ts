@@ -623,6 +623,29 @@ export function stayRequestKinds(
   return kinds;
 }
 
+/**
+ * BİLGİ SORUSU (dilim 6, kurucu senaryo 10: "erken giriş ücretli mi?"): konaklama değişikliğinin KONUSU geçiyor ama
+ * hiçbir katman İSTEK görmüyor — ve iki anlamsal katman (anlama + bekçi) KOŞUP bunu olumlu söyledi; tek hassas sinyal
+ * cevap modelinin `early_checkin` konu etiketi. Katmanlardan biri kapalıysa / düştüyse bilgi sorusu KANITLANAMAZ
+ * (belirsizlik güvenli değildir). Birleşim değişmezi bozulmaz: bu yüklem yalnız izin vermeyen KOD metnini (politika)
+ * seçtirir; istek sinyalini silmez (akış yine koşar, modelin yazdığı hiçbir izin gitmez).
+ * Kelime ağı (dondurulmuş yedek) KONUYU yakalar, isteği ayıramaz — ölçüldü 09-24: erken girişten SÖZ EDEN 10 bilgi
+ * sorusunun 10'unu "istek" sayıyor ("Is early check-in paid?", "Erken giriş var mı?"), iki gerçek isteği görmüyor. Bu
+ * yüzden AYNI konudaki (erken giriş) kelime ağı işareti politika metnini engellemez; BAŞKA bir değişiklik (geç çıkış,
+ * ek gece, tarih) işaretlerse bilgi sorusu değildir.
+ */
+export function stayInfoOnly(guestTexts: readonly (string | null | undefined)[], opts: AvailabilityPolicyOptions): boolean {
+  const u = opts.understanding;
+  const g = opts.guard?.status === "ok" ? opts.guard.verdict : null;
+  if (!u || !g) return false;
+  if (u.requested || u.kind !== "none" || slotTimesShifted(u, opts.stayTimes)) return false;
+  if (g.guestRequestsChange || g.kind !== "none" || g.replyRefuses) return false;
+  if (slotTimesShifted({ checkinTime: g.requestedCheckinTime, checkoutTime: g.requestedCheckoutTime }, opts.stayTimes)) return false;
+  if (guestTexts.some((t) => detectAvailabilityRequestKinds(t).some((k) => k !== "early"))) return false;
+  if (declaredRequest(opts.declared ?? null) || opts.declared?.stance === "refuses") return false;
+  return stayReplyIntentOf(opts.replyIntent) === "early_checkin";
+}
+
 /** Cevaptan ev sahibinin teklif metninin BİREBİR geçişlerini çıkarır (boşluk farkı tolere edilir). */
 function withoutHostOffer(reply: string, offer: string | null | undefined): string {
   const o = typeof offer === "string" ? offer.replace(/\s+/g, " ").trim() : "";

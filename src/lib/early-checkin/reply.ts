@@ -83,3 +83,26 @@ export function earlyCheckinApprovalText(
   if (n) parts.push(n);
   return parts.join(" ");
 }
+
+// POLİTİKA: kararın dayanağı söylenir, karar SÖYLENMEZ — izin vermez, reddetmez, söz vermez (tasarım K).
+const POLICY_DECIDES: Record<EarlyCheckinLang, string> = {
+  tr: "Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.",
+  en: "Whether an early check-in is possible depends on that day's cleaning; your host decides.",
+  de: "Ob ein früher Check-in möglich ist, hängt von der Reinigung an diesem Tag ab; Ihr Gastgeber entscheidet.",
+  fr: "La possibilité d'arriver plus tôt dépend du ménage ce jour-là ; votre hôte décide.",
+  ar: "إمكانية الدخول المبكر تعتمد على تنظيف ذلك اليوم، والقرار للمضيف.",
+  ru: "Возможен ли ранний заезд, зависит от уборки в этот день; решение принимает хозяин.",
+};
+
+/**
+ * BİLGİ SORUSU ("erken giriş ücretli mi?") için POLİTİKA metni (dilim 6, kurucu senaryo 10). Yalnız host'un KAYITLI
+ * ücreti + kararın o günün temizliğine bağlı olduğu. Kayıtlı ücret yoksa `null`: "ücretsiz" de "ücretli" de
+ * varsayılmaz (soru host'a kalır). Host notu (kayıtta süzüldü) sona eklenir.
+ */
+export function earlyCheckinPolicyText(rule: EarlyCheckinRule | null, lang: EarlyCheckinLang): string | null {
+  if (!rule?.fee) return null;
+  const parts = [FEE[lang](formatEarlyCheckinFee(rule.fee, lang)), POLICY_DECIDES[lang]];
+  const n = rule.note?.trim();
+  if (n) parts.push(n);
+  return parts.join(" ");
+}

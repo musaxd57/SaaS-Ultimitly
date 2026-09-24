@@ -85,10 +85,10 @@ const GUARD = {
   reply_amounts: [],
   reply_price_terms: false,
 };
-function semanticFetch() {
+function semanticFetch(guard: Record<string, unknown> = GUARD) {
   return vi.fn(async (_url: string, init?: RequestInit) => {
     const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
-    const verdict = name === "guest_message_understanding" ? NLU : name === "stay_change_guard" ? GUARD : null;
+    const verdict = name === "guest_message_understanding" ? NLU : name === "stay_change_guard" ? guard : null;
     if (!verdict) throw new Error(`beklenmeyen şema: ${name}`);
     return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(verdict) } }] }), { status: 200 });
   });
@@ -139,7 +139,7 @@ async function scenario(opts: { rule?: EarlyCheckinRule | null; overlap?: boolea
     },
     select: { id: true },
   });
-  return { orgId: org.id, conversationId: conversation.id, cleaningTaskId: cleaning.id, prepTaskId: prep.id, cleanerId: cleaner.id };
+  return { orgId: org.id, propertyId: property.id, conversationId: conversation.id, cleaningTaskId: cleaning.id, prepTaskId: prep.id, cleanerId: cleaner.id };
 }
 
 async function markCleaned(s: { cleaningTaskId: string; cleanerId: string }, at: Date) {
@@ -211,6 +211,49 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, new Date(AFTER_SETTLE.getTime() + 10 * 60_000))).toBe(0);
     await runDueChannelAutoReplies(s.orgId);
     expect(mockSuggest.mock.calls.length).toBe(calls);
+  });
+
+  it("🚨 yeniden koşuda YALNIZ doğrulanmış onay gidebilir: onay çıkmazsa modelin GECİKMİŞ ertelemesi gitmez (inceleme 09-24, P3)", async () => {
+    const s = await morningHold();
+    await markCleaned(s, CLEANED_AT);
+    vi.setSystemTime(AFTER_SETTLE);
+    expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(1);
+    // Yeniden koşuda karar otomatik DEĞİL (host kuralı bu arada taslağa çekildi) ve iki model ertelemeyi doğruluyor —
+    // yeni bir mesajda bu erteleme giderdi; sabah tutulmuş mesaja saatler sonra "ev sahibine soracağım" gitmemeli.
+    await saveEarlyCheckinRule(s.orgId, s.propertyId, { ...RULE, mode: "draft" });
+    vi.stubGlobal("fetch", semanticFetch({ ...GUARD, reply_defers_to_host: true }));
+    await runDueChannelAutoReplies(s.orgId);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL (aşırı-uygulama): yeniden koşu OLMAYAN mesajda iki modelin doğruladığı erteleme bugünkü gibi gider", async () => {
+    vi.setSystemTime(MORNING_PASS);
+    const s = await scenario({ rule: { ...RULE, mode: "draft" } });
+    vi.stubGlobal("fetch", semanticFetch({ ...GUARD, reply_defers_to_host: true }));
+    await runDueChannelAutoReplies(s.orgId);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(String(mockSend.mock.calls[0][1])).toContain("I'll check with the host");
+  });
+
+  it("KONTROL: aynı mesaj daha önce BAŞKA sebeple tutulduysa (ör. model yanıt vermedi) yeniden koşu sayılmaz — normal akış", async () => {
+    vi.setSystemTime(MORNING_PASS);
+    const s = await scenario({ rule: { ...RULE, mode: "draft" } });
+    const trigger = await prisma.message.findFirstOrThrow({ where: { conversationId: s.conversationId, direction: "inbound" } });
+    // Model yolu çökmüştü: karar kaydı var ama erken giriş akışı hiç koşmamış (kanıtta `ec` yok).
+    await prisma.riskEvent.create({
+      data: {
+        organizationId: s.orgId,
+        conversationId: s.conversationId,
+        surface: "auto_reply",
+        triggerId: trigger.id,
+        finalDecision: "human_review",
+        reason: "low_confidence_or_risky",
+        kbEvidenceJson: JSON.stringify({ retrieved: [], used: [] }),
+      },
+    });
+    vi.stubGlobal("fetch", semanticFetch({ ...GUARD, reply_defers_to_host: true }));
+    await runDueChannelAutoReplies(s.orgId);
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
   it("dokunulmayanlar: işaret taze (<5 dk) · kural taslak · başka sebeple tutulmuş · host cevapladı · işaret yok", async () => {

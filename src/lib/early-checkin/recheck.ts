@@ -53,6 +53,19 @@ export function heldOnlyForReadiness(kbEvidenceJson: string | null | undefined):
 }
 
 /**
+ * Bu misafir mesajı daha önce YALNIZ hazırlık yüzünden tutuldu mu (= şimdiki koşu yeniden değerlendirme turu)? Ölçüt
+ * taramanınkiyle AYNI (`heldOnlyForReadiness`) — tek kaynak. Yeniden değerlendirmede yalnız doğrulanmış onay gidebilir
+ * (inceleme 09-24, P3): host sabah kontrol listesini gördü; modelin saatler sonra gelen "ev sahibine soracağım"ı gitmez.
+ */
+export async function heldForReadinessEarlier(organizationId: string, triggerId: string): Promise<boolean> {
+  const held = await prisma.riskEvent.findFirst({
+    where: { organizationId, surface: "auto_reply", triggerId, finalDecision: "human_review" },
+    select: { kbEvidenceJson: true },
+  });
+  return held !== null && heldOnlyForReadiness(held.kbEvidenceJson);
+}
+
+/**
  * Org'un otomatik kurallı mülklerinde yalnız hazırlık yüzünden tutulmuş erken giriş isteklerini yeniden aday yapar.
  * Döner: yeniden aday yapılan konuşma sayısı. Hata fırlatabilir (çağıran aşama alarmına bağlar).
  */

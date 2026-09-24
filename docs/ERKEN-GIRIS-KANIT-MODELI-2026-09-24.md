@@ -199,8 +199,20 @@ Host'un teklif metni aynen aktarılırsa muaf; ücretin VARLIĞINDAN tutarsız s
 izin/takvim iddiası (`availability_claim`) → ertelenmemiş istek (`availability_unconfirmed`) → para (`price_claim`).
 Doğrulanmış onay metni (kodda, kuralın ücretiyle) muaf ve `price_claim` tutuşunda da onun yerine geçebilir. Bugün izinli
 tutar kümesi BOŞ (modele ücret verilmiyor); kural modele açılırken kuraldaki tutar izinli kümeye girer. Kanıt: `lx` `m`,
-`gv` `p`. Kırmızı-önce: eski kodda "€99" uyduran erteleme taslak kuralında GİDİYORDU (senaryo 16b). Bilinen sınır:
-tutarı para birimi olmadan yazan ("ücret 30") biçim dedektörüne görünmez — bekçinin işi.
+`gv` `p`. Kırmızı-önce: eski kodda "€99" uyduran erteleme taslak kuralında GİDİYORDU (senaryo 16b).
+**İnceleme turu (09-24):** bekçi artık TUTARLARI çıkarır (`reply_amounts`) + tutar dışı fiyat sözü (`reply_price_terms`),
+kıyas KODDA (saat yuvalarıyla aynı ilke) — host'un geç çıkış teklifinin tutarı YALNIZ geç çıkış isteğinde izinli, çeviride
+ve kısmi aktarımda da (aynı tutar + birim); teklifi erken giriş / ek gece isteğine aktarmak para ifadesidir. Para birimi
+sözlüğü tek kaynak `money-lexicon.ts` (iddia desteği gölge ölçümü de okur). Bekçi redaksiyonla uzayan taslağı tam
+göremezse hüküm vermez. Kör batarya (ayarsız): para 109/139, temiz 137/138, tutarsız ücret sözü 28/28; ayar sonrası
+(görülmüş) 130/139 · 138/138 · 28/28 — kalan 9 serbest anlatım bekçinin işi. Reddedilen: kontrolü hassas olmayan
+cevaplara genişletmek (çevrilmiş teklif aktaran çıkış saati cevapları üretimde tutulurdu; genel tutar doğrulaması P5).
+
+**Bilgi sorusu (dilim 6, senaryo 10b):** anlama katmanı VE bekçi koşup "istek yok" der, tek sinyal cevap modelinin
+`early_checkin` konu etiketi, tek konu ve host kuralı `auto` + KAYITLI ücret → koddan kurulan politika metni ("Erken giriş
+ücreti X. Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir." + host notu) gider;
+kapı bu metinle baştan koşar, gerekçe `early_checkin_policy`. Ücret kaydı yoksa metin YOK ("ücretsiz" varsayılmaz).
+Anlam katmanları kapalıyken (bugünkü üretim) bilgi sorusu kanıtlanamaz → davranış değişmez.
 
 ## L. Kural deposu — AutomationRule (şimdilik) + tipli depo
 
@@ -250,7 +262,7 @@ Redaksiyon aynen (tarih/saat dizileri korunur; enum serbest metin eklemez).
 | Saat okunamayınca kontrol açık kapı geçiyordu | P3 | **DÜZELTİLDİ** (`clock_unknown`) |
 | Maske metni uzatınca "tamamı okunmadı" kaçabiliyordu | P3 | **DÜZELTİLDİ** (100 karakter pay) |
 | Geçmiş taraması yeni kimlik/son-durum şartını uygulamıyor ("tek kaynak" iddiası) | P3 | **BELGELENDİ** — tarama üst sınır sayar; sorgu verisi kimlik taşımıyor |
-| Yeniden değerlendirme sonrası, onay yerine gecikmiş bir "ev sahibine soracağım" gidebilir (bekçi açıkken) | P3 | **AÇIK** — dilim 6 (bekleyen istek akışı: politika metni + proaktif onay) |
+| Yeniden değerlendirme sonrası, onay yerine gecikmiş bir "ev sahibine soracağım" gidebilir (bekçi açıkken) | P3 | **DÜZELTİLDİ (dilim 6)** — yeniden değerlendirme turunda (aynı mesaj daha önce yalnız hazırlık yüzünden tutulduysa; ölçüt taramanınkiyle aynı) YALNIZ doğrulanmış onay gider |
 
 ## S. Eşzamanlılık / TOCTOU (dilim 2, analiz + karar)
 
