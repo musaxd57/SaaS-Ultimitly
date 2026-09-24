@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { CONNECTION_VIEW_ID } from "@/lib/settings-nav";
 
@@ -50,6 +51,18 @@ export function SettingsSections({
     setSeen((prev) => (prev.has(active) ? prev : new Set(prev).add(active)));
   }, [active]);
   const allItems = groups.flatMap((g) => g.items);
+
+  // 🐛 KURUCU BULGUSU (09-24): Ayarlar AÇIKKEN (ör. "AI ve Otomasyon" ya da "Genel") deneme bandındaki "Planları
+  // görün" (`/settings?tab=faturalandirma`) ya da kenar çubuğundaki plan rozeti (`/billing` → aynı adres) sekmeyi
+  // DEĞİŞTİRMİYORDU: aynı sayfaya gezinmede bu istemci bileşeni korunur ve `useState(initialViewId)` ilk değerde
+  // kalır. Artık URL'deki `?tab=` değişince görünüm ona geçer — yalnız GÖRÜNÜR bir görünümse (gizli/bilinmeyen değer
+  // yok sayılır; ilk boyamadaki kuralla aynı). Kendi `replaceState`imiz aynı değeri yazdığı için döngü olmaz.
+  const tabParam = useSearchParams()?.get("tab") ?? null;
+  useEffect(() => {
+    if (tabParam && allItems.some((i) => i.id === tabParam)) setActive(tabParam);
+    // Yalnız URL değişince çalışır (görünüm kümesi sayfa ömrü boyunca sabit).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam]);
 
   // `#hospitable` (dashboard "Bağlantıyı kur") — hash is client-only, so do it
   // after mount to avoid a hydration mismatch. Activate the connection view; the

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -6,6 +7,7 @@ import { isSuperAdmin } from "@/lib/admin";
 import { AppShell } from "@/components/shell/app-shell";
 import { getEntitlement, billingEnforced } from "@/lib/billing/subscription";
 import { TrialBanner } from "@/components/billing/trial-banner";
+import { showTrialBanner, TRIAL_BANNER_COOKIE } from "@/lib/billing/trial-banner";
 import { LimitedModeBanner } from "@/components/billing/limited-mode-banner";
 import { DemoBanner } from "@/components/billing/demo-banner";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
@@ -55,6 +57,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const entitlement = await getEntitlement(session.organizationId);
   const isOperator = Boolean(session.actorUserId) || isSuperAdmin(session);
   const limited = billingEnforced() && !entitlement.active && !isOperator;
+  // Deneme bandı 4 saat kapatılabilir (çerez sunucuda okunur → kapatılmış bant yenilemede hiç çizilmez).
+  const trialBanner = showTrialBanner({
+    trialing: entitlement.trialing,
+    daysLeft: entitlement.trialDaysLeft,
+    snoozed: (await cookies()).get(TRIAL_BANNER_COOKIE)?.value === "1",
+  });
 
   // Sidebar plan summary — OWNER only (billing is an account-owner concern; the
   // Faturalandırma settings section is owner-only too). A trial shows the days left.
@@ -84,7 +92,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <DemoBanner />
       ) : limited ? (
         <LimitedModeBanner status={entitlement.status} />
-      ) : entitlement.trialing && entitlement.trialDaysLeft != null ? (
+      ) : trialBanner && entitlement.trialDaysLeft != null ? (
         <TrialBanner daysLeft={entitlement.trialDaysLeft} />
       ) : null}
       {children}

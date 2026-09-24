@@ -4,6 +4,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup, within } from "@testing-library/react";
 import { SettingsSections, type SettingsViewGroup } from "@/components/settings/settings-sections";
 
+// Next'in App Router'ı `history.pushState/replaceState` ile `useSearchParams`i eşitler (14.1+). Testte o eşitlemeyi
+// taklit ederiz: arama parametreleri her çizimde GERÇEK adres çubuğundan okunur.
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(window.location.search) }));
+
 const GROUPS: SettingsViewGroup[] = [
   {
     label: "İşletme Ayarları",
@@ -48,6 +52,31 @@ describe("SettingsSections (UI)", () => {
     const select = screen.getByLabelText("Ayarlar bölümü") as HTMLSelectElement;
     expect(select.value).toBe("ai-otomasyon");
     expect(select.querySelector('optgroup[label="İşletme Ayarları"]')).toBeTruthy();
+  });
+
+  it("🐛 Ayarlar AÇIKKEN adres ?tab= değişince (deneme bandı 'Planları görün', /billing kısayolu) görünüm ona geçer", () => {
+    window.history.replaceState(null, "", "/settings?tab=ai-otomasyon");
+    const view = render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
+    fireEvent.click(within(nav()).getByRole("button", { name: "Genel" })); // sekme içinde gezinme (replaceState)
+    expect(activePanel()?.textContent).toContain("GENEL GÖRÜNÜMÜ");
+    // Bant linki: aynı sayfaya istemci gezinmesi — bileşen korunur, sunucu yeni `initialViewId` verse de state eskisi.
+    window.history.pushState(null, "", "/settings?tab=faturalandirma");
+    view.rerender(<SettingsSections groups={GROUPS} initialViewId="faturalandirma" />);
+    expect(activePanel()?.textContent).toContain("FATURA GÖRÜNÜMÜ");
+    expect(within(nav()).getByRole("button", { name: "Faturalandırma" }).getAttribute("aria-current")).toBe("page");
+    // İkinci kez: başka sekmeye geçip banda yeniden tıklamak da çalışır (sunucu değeri bu kez DEĞİŞMİYOR).
+    fireEvent.click(within(nav()).getByRole("button", { name: "AI ve Otomasyon" }));
+    window.history.pushState(null, "", "/settings?tab=faturalandirma");
+    view.rerender(<SettingsSections groups={GROUPS} initialViewId="faturalandirma" />);
+    expect(activePanel()?.textContent).toContain("FATURA GÖRÜNÜMÜ");
+  });
+
+  it("aşırı-uygulama kontrolü: bilinmeyen / görünmeyen ?tab= değeri görünümü değiştirmez", () => {
+    window.history.replaceState(null, "", "/settings?tab=genel");
+    const view = render(<SettingsSections groups={GROUPS} initialViewId="genel" />);
+    window.history.pushState(null, "", "/settings?tab=yok-boyle-bir-sekme");
+    view.rerender(<SettingsSections groups={GROUPS} initialViewId="genel" />);
+    expect(activePanel()?.textContent).toContain("GENEL GÖRÜNÜMÜ");
   });
 
   it("marks the initial view active and shows only its panel", () => {
