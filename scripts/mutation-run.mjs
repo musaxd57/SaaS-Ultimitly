@@ -46,8 +46,10 @@ function assertNoConcurrentVitest() {
   }
 }
 
+// `--bail=1`: ilk kırmızı testte koşu durur — sınıflandırma aynı (kırmızı = öldürüldü), öldürülen mutant tüm listeyi
+// beklemez. Yaşayan mutant ve M0 yine TÜM listeyi koşar (kırmızı yoksa bail hiç devreye girmez).
 function runTests(wt, tests) {
-  const r = spawnSync("npx", ["vitest", "run", ...tests], { cwd: wt, encoding: "utf8", timeout: TEST_TIMEOUT_MS });
+  const r = spawnSync("npx", ["vitest", "run", "--bail=1", ...tests], { cwd: wt, encoding: "utf8", timeout: TEST_TIMEOUT_MS });
   return { passed: r.status === 0, tail: `${r.stdout ?? ""}${r.stderr ?? ""}`.slice(-3000) };
 }
 
