@@ -347,6 +347,24 @@ Bu dosyaya token/anahtar/parola yazma.
   görünmez (form + görev notu). Bugün üretimde otomatik GİTMEZ (iki bayrak kapalı + kredi yok) → host'a kontrol listesi.
   Temizlik bitince: YALNIZ hazırlık yüzünden tutulmuş cevapsız istek BİR KEZ yeniden aday olur (`recheck.ts`; karar
   vermez, göndermez); döngü koruması giriş hazırlığı görevindeki NOT (karar kaydı aynı mesajın ikinci tutuşunu yazmaz).
+  🚨 **KANIT MODELİ (09-24 ikinci tur, `docs/ERKEN-GIRIS-KANIT-MODELI-2026-09-24.md`):** dört durum `approvable ·
+  pending · needs_host · not_early`, otomatik RED YOK (bilinmeyen "hayır" değildir). `pending` YALNIZ kanıt GELEBİLİRSE
+  (hazırlık / varış günü; önceki misafirin beklenen çıkışı yalnız host `readyBeforeCheckout` rızasıyla bekler, çıkış
+  saati bilinmiyorsa host). "Bitti" yalnız KİMLİKLİ + görevin EN SON durum kaydı; çıkıştan ÖNCEKİ hazır yalnız rıza +
+  ayrılan konaklamanın ÇIKIŞ TEMİZLİĞİ görevi (yaşam döngüsü) + devir günü + "bitti"nin HEMEN ÖNCEKİ kaydı aynı kişinin
+  "başladım"ı (≥15 dk) → çıkış kanıtı; misafirin "çıktık"ı onay kanıtı DEĞİL, beyanı yalnız sıkılaştırır. Yalnız
+  OTOMATİK gönderimi durduranlar: başka güne işaret (TR ekli adlar, büyük İ, Arapça hareke, "next <gün>", ABD tarihi),
+  misafirin yazdığı saatle çelişki (yarım/çeyrek anlatımları dahil), modellerin görmediği mesaj (100 karakter maske
+  payı), saat okunamadı, kalıcı kuyruk açık (bayat "bugün" onayı), mülkte açık bakım, temizlikçinin bugünkü notu.
+  Karar kaydı `ec` = durum + kodlar + dayanak kimlikleri (`dr/rm/rt/rh/n/dc`; metin/saat/tutar YOK, alan alan
+  doğrulanır). Kural deposu tek `where`, mülk satırı kilitli kayıt, mülk silinince kural silinir.
+  🚨 **PARA (dilim 8):** hassas istekte iki modelin doğruladığı ERTELEME de tutar/yüzde/indirim/muafiyet söyleyemez →
+  `price_claim` (biçim dedektörü `ai/stay-money.ts` ∨ bekçinin zorunlu `reply_states_price` alanı; host teklif metni
+  hariç; `claim-support` KULLANILMAZ). Öncelik: iddia → ertelenmemiş istek → para. Bugün izinli tutar kümesi BOŞ.
+- 🚨 **TEMİZLİKÇİ GÖRÜNÜMÜ (09-24, `lib/tasks/staff-view.ts` TEK kural):** personel ve temizlik listesi (WhatsApp)
+  misafir ADI / MESAJI görmez — sistem görevi → tür adı, yapay zekâ görevi → yalnız "Tür: konu" (rakamsız) + açıklama
+  YOK, elle görev → aynen. Uygulandığı yerler: personel görev listesi + güncelleme cevabı, personele atama e-postası,
+  görev kartı (`card-data.ts`), temizlik listesi (her oturumda). Yeni bir personel yüzeyi eklenirse AYNI fonksiyondan geçer.
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).

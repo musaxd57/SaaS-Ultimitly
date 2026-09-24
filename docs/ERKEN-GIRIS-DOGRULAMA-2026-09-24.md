@@ -9,6 +9,11 @@ içindir, otomatik ret demek değildir.
 Kod: `src/lib/early-checkin/` (`core.ts` saf karar · `load.ts` tek DB okuması · `reply.ts` onay metni · `rules.ts`
 kural deposu · `workflow.ts` bağlantı · `panel.ts` host satırları). Migration YOK.
 
+> **Güncelleme (09-24 ikinci tur):** kanıt modeli bu akışın ÜSTÜNE kuruldu — dört durum (`pending` = kanıt gelebilir,
+> otomatik ret yok), kimlikli / son-durum "bitti", host rızasıyla çıkıştan önceki kanıtlı hazırlık, yalnız otomatik
+> gönderimi durduran metin/olgu kontrolleri, karar kaydı dayanakları, kuyruklu teslimde otomatik onay yok, temizlikçi
+> görünümü. Kurallar ve gerekçeler: `docs/ERKEN-GIRIS-KANIT-MODELI-2026-09-24.md` (bu belgeyle çelişkide o geçerlidir).
+
 ## 1. Ne zaman koşar
 
 Kanal oto-yanıtında kapı **müsaitlik yüzünden kapandıysa** (`availability_unconfirmed` / `availability_claim`) **ya

@@ -107,11 +107,18 @@ iddia kodla doğrulandı; doğrulanamayan UNVERIFIED yazılır. Sıfırdan yenid
   `autoSend` = kural `auto` ∧ iki kaynak aynı saat ∧ tek konu ∧ (yeni) tüm cevapsız mesajlar modellerce TAM görüldü ∧
   (yeni) istenen gün = varış günü ∧ (yeni) misafir metnindeki sayısal saat onaylanan saatle çelişmiyor ∧ (yeni) onay
   anında saat geçmemiş. Otomatik değilse host'a HAZIR TASLAK.
-- **pending** (NOT_YET_VERIFIED) — YENİ: düşen kontrollerin HEPSİ "kanıt henüz yok" türünden (`not_ready`,
-  `ready_unknown`, `not_arrival_day`, READY'siz `previous_still_in`/`previous_checkout_unknown`). Temizlik/varış günü
-  geldiğinde yeniden değerlendirilir; host'un dikkat akışında görünür.
+- **pending** (NOT_YET_VERIFIED) — YENİ: düşen kontrollerin HEPSİ "kanıt henüz yok" türünden VE kanıt GELEBİLİR
+  (`not_ready`, `ready_unknown`, `not_arrival_day`; `previous_still_in` YALNIZ host `readyBeforeCheckout` rızasıyla —
+  rıza yoksa beklenen çıkışı hiçbir kanıt aşamaz → host; `previous_checkout_unknown` → host, hazırlık ölçülemez).
+  Temizlik/varış günü geldiğinde yeniden değerlendirilir; host'un dikkat akışında görünür. (09-24 inceleme: ilk
+  sürüm hiç gelmeyecek kanıtı "bekliyor" sayıp boşa yeniden değerlendirme ve yanıltıcı panel sözü üretiyordu.)
 - **needs_host** (HOST_REVIEW): diğer her şey — kural kapalı, `before_window` (OUTSIDE_AUTO_CONFIRM_WINDOW), çakışma,
   saat okunamadı/çelişkili, rezervasyon onaylı değil, çok konu, bavul, açık sorun görevi, gizli mesaj.
+
+Yalnız OTOMATİK gönderimi durduran kodlar (onaylanabilir kalır, host tek tıkla gönderir): `single_source_time`,
+`multi_intent`, `clock_unknown` (saat okunamadı), `open_maintenance` (mülkte bağsız tarihsiz/gecikmiş açık bakım),
+`cleaning_note` (temizlikçinin bugünkü notu — bugün sorun bildiriminin tek yolu), `day_unverified`, `not_fully_read`,
+`time_mismatch_text`, `queued_delivery` (kalıcı kuyruk açık).
 
 Otomatik RET durumu YOK. "Ücretli mi?" gibi bilgi soruları motorun durumu değil, motordan ÖNCEKİ yönlendirmedir
 (↓K). Misafire giden: `approvable+autoSend` → kod onay metni; `pending/needs_host` → (kural `auto` ise) koddan
@@ -146,6 +153,13 @@ erken giriş saati), checklist, foto, not, sorun bildir. Göremeyecekleri: misaf
 (oturum sayacı artar) — READY kanıtının yazarı kaybolmasın. **Kimlik akışı → kurucu onayı + ilk denemeler birlikte;
 bayrak kapalı gelir.**
 
+**Uygulanan (dilim 3, 09-24):** misafir verisi sızıntısı kapandı — tek kural `lib/tasks/staff-view.ts` (sistem görevi →
+tür adı; yapay zekâ görevi → yalnız kendi "Tür: konu" başlığımız, açıklama yok; elle görev → aynen). Uygulandığı
+yerler: personel görev listesi + görev güncelleme cevabı, personele atama e-postası, görev panosu kartı
+(`card-data.ts`), temizlik listesi (WhatsApp / kopyala — alıcısı temizlikçi, her oturumda). Kalan: devir saatleri
+kartı, iki adımlı "Daire hazır", kapalı-küme sorun bildirimi, varsayılan temizlikçi + atama, davet (kimlik akışı →
+kurucu onayı).
+
 ## I. READY yaşam döngüsü / geçersizleşme
 
 READY = BU devrin temizlik görevinde kimlikli (`userId` dolu) `done` kaydı. Geçersiz (sayılmaz) eğer:
@@ -176,6 +190,17 @@ yalnız kural `auto` iken otomatik. Model yazdığı cevaplarda (taslak) tutar g
 giriş bağlamında her para tutarı kuraldaki tutara EŞİT olmalı; indirim/muafiyet/pazarlık ifadesi → tut (kurucu
 senaryo 16-17). Ücretin modele salt-okunur verilmesi bu eşleştirme gelmeden AÇILMAZ (09-24 incelemesi: bekçi açılınca
 iki model ertelemesiyle yanlış tutar/indirim gidebilirdi — ilk sürüm geri alındı, yama saklı).
+
+**Uygulandı (dilim 8, 09-24):** hassas istekte modelin yazdığı cevabın gidebildiği TEK yol iki modelin doğruladığı
+ertelemedir; o erteleme para söylüyorsa gerekçe `price_claim` (kanal → taslak, QR → devir). Birleşim, ikisi de yalnız
+sıkılaştırır: biçim dedektörü `ai/stay-money.ts` (para sembolü `\p{Sc}`, kod/ad, yüzde, dar indirim-muafiyet sözlüğü;
+yedi dil; `ai/claim-support.ts` KULLANILMAZ) ∨ bekçinin yeni zorunlu alanı `reply_states_price` (eksik = bekçi düştü).
+Host'un teklif metni aynen aktarılırsa muaf; ücretin VARLIĞINDAN tutarsız söz ("olası ücret") para değildir. Öncelik:
+izin/takvim iddiası (`availability_claim`) → ertelenmemiş istek (`availability_unconfirmed`) → para (`price_claim`).
+Doğrulanmış onay metni (kodda, kuralın ücretiyle) muaf ve `price_claim` tutuşunda da onun yerine geçebilir. Bugün izinli
+tutar kümesi BOŞ (modele ücret verilmiyor); kural modele açılırken kuraldaki tutar izinli kümeye girer. Kanıt: `lx` `m`,
+`gv` `p`. Kırmızı-önce: eski kodda "€99" uyduran erteleme taslak kuralında GİDİYORDU (senaryo 16b). Bilinen sınır:
+tutarı para birimi olmadan yazan ("ücret 30") biçim dedektörüne görünmez — bekçinin işi.
 
 ## L. Kural deposu — AutomationRule (şimdilik) + tipli depo
 
@@ -210,6 +235,22 @@ declared | completed | withdrawn`; saat `HH:MM|null` (`normalizeHhmm`); gün `{r
 Yazarın ayrılan/gelen misafir olduğu KODDA (konuşmanın rezervasyonu) belirlenir. Bavul/havalimanı/yolculuk saati
 ASLA çıkış kanıtı değildir. Tanınmayan değer: izin verdiği yerde düşer, kısıtladığı yerde "bilinmiyor" sayılır.
 Redaksiyon aynen (tarih/saat dizileri korunur; enum serbest metin eklemez).
+
+## R. Bağımsız düşmanca inceleme (dilim 1, 09-24) — bulgular ve karar
+
+| Bulgu | Önem | Karar |
+|---|---|---|
+| "Başka gün" kontrolü TR ekli adları ("Cumartesiye", "15 ekimde"), büyük İ ("15 EKİM"), Arapça hareke ("غدًا") ve gün adlarını, aynı adlı "next Wednesday"i, "iki gün sonra"yı, ABD tarihini ("10/15") kaçırıyordu → yanlış günün onayı otomatik gidebilirdi | P1 | **DÜZELTİLDİ** — sözcük bazlı, en uzun ad kazanır, TR ek ≤5, iki okumalı eğik çizgi; yanlış alarm sınırları da (завтрак, غداء, среди) |
+| `pending` hiç gelmeyecek kanıtı bekliyordu (rızasız beklenen çıkış, bilinmeyen çıkış saati) | P2 | **DÜZELTİLDİ** — ↑F |
+| Çıkıştan önceki kanıt konaklama içi ek temizlik görevinden gelebiliyordu | P2 | **DÜZELTİLDİ** — yalnız yaşam döngüsü çıkış temizliği |
+| Geri alınmış "başladım" kanıt sayılıyordu | P2 | **DÜZELTİLDİ** — "bitti"nin HEMEN önceki kaydı |
+| Panel dün gece doğrulanamadı nedenini gizliyordu | P2 | **DÜZELTİLDİ** |
+| Açık sorun: gelen konaklamaya bağlı bakım, temizlikçinin notu, bağsız bakım görülmüyordu | P2 | **DÜZELTİLDİ** — gelen konaklama → host; not/bağsız bakım → yalnız otomatik durur |
+| Yarım/çeyrek saat anlatımları yanlış okunuyordu; cümle sonundaki saat anma sayılmıyordu | P3 | **DÜZELTİLDİ** |
+| Saat okunamayınca kontrol açık kapı geçiyordu | P3 | **DÜZELTİLDİ** (`clock_unknown`) |
+| Maske metni uzatınca "tamamı okunmadı" kaçabiliyordu | P3 | **DÜZELTİLDİ** (100 karakter pay) |
+| Geçmiş taraması yeni kimlik/son-durum şartını uygulamıyor ("tek kaynak" iddiası) | P3 | **BELGELENDİ** — tarama üst sınır sayar; sorgu verisi kimlik taşımıyor |
+| Yeniden değerlendirme sonrası, onay yerine gecikmiş bir "ev sahibine soracağım" gidebilir (bekçi açıkken) | P3 | **AÇIK** — dilim 6 (bekleyen istek akışı: politika metni + proaktif onay) |
 
 ## S. Eşzamanlılık / TOCTOU (dilim 2, analiz + karar)
 
