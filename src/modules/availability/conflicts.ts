@@ -1,6 +1,6 @@
 import "server-only";
 
-import { describeNights, type NightKey } from "./core";
+import { calendarDateOf, describeNights, nightsBetween, type NightKey } from "./core";
 import { loadAvailabilityInputs } from "./load";
 
 // ---------------------------------------------------------------------------
@@ -28,6 +28,13 @@ export interface UpcomingConflict {
   anyHeld: boolean;
   /** Hiçbir iddia taze kaynaktan ya da host girişinden gelmiyor — hayalet satır olabilir. */
   allUnconfirmed: boolean;
+  /** Çakışan gece sayısı ([from, to)). */
+  overlapNights: number;
+  /**
+   * Çakışmadaki EN UZUN konaklamanın gece sayısı (mülk takvim günleriyle, `calendarDateOf`). Para etkisinin
+   * üst sınırı için (V2): çakışmayı çözmek o konaklamanın tamamını iptal ettirebilir.
+   */
+  longestStayNights: number;
 }
 
 export async function findUpcomingConflicts(
@@ -44,7 +51,13 @@ export async function findUpcomingConflicts(
   for (const input of loaded.inputs.values()) {
     const report = describeNights(input, loaded.range);
     if (!report.ok) continue;
+    const stayNights = new Map<string, number>();
+    for (const r of input.reservations) {
+      const n = nightsBetween(calendarDateOf(r.arrival, input.timeZone).key, calendarDateOf(r.departure, input.timeZone).key);
+      if (n > 0) stayNights.set(r.id, n);
+    }
     for (const c of report.value.conflicts) {
+      const overlapNights = Math.max(1, nightsBetween(c.from, c.to));
       out.push({
         propertyId: input.propertyId,
         from: c.from,
@@ -53,6 +66,8 @@ export async function findUpcomingConflicts(
         possibleDuplicate: c.facts.identicalSpan,
         anyHeld: c.facts.anyHeld,
         allUnconfirmed: c.facts.allUnconfirmed,
+        overlapNights,
+        longestStayNights: Math.max(overlapNights, ...c.reservationIds.map((id) => stayNights.get(id) ?? 0)),
       });
     }
   }

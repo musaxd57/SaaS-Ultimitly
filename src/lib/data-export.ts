@@ -71,7 +71,7 @@ function maskFeedUrls<
 }
 
 export async function buildOrganizationDataExport(organizationId: string) {
-  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery] = await Promise.all([
+  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery, hostEnteredFacts] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
@@ -264,6 +264,13 @@ export async function buildOrganizationDataExport(organizationId: string) {
       },
       orderBy: { createdAt: "asc" },
     }),
+    // Ev sahibinin mülk hafızasına KENDİ girdiği kayıtlar (ör. tipik gecelik fiyat aralığı, V2) — host verisi,
+    // taşınabilir olmalı. Türetilmiş hafıza (KB/sinyal örüntüsü) kendi kaynağından zaten dışa aktarılıyor.
+    prisma.propertyMemory.findMany({
+      where: { organizationId, source: "human" },
+      select: { propertyId: true, category: true, title: true, body: true, observedAt: true, expiresAt: true, status: true },
+      orderBy: { observedAt: "asc" },
+    }),
   ]);
   if (!org) return null;
   return {
@@ -273,5 +280,6 @@ export async function buildOrganizationDataExport(organizationId: string) {
     checkoutConsents,
     riskEvents,
     messageDelivery,
+    hostEnteredFacts,
   };
 }

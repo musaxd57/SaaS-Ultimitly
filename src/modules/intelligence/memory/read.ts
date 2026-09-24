@@ -32,7 +32,11 @@ export async function getPropertyMemory(organizationId: string, propertyId: stri
     }
   };
   return {
-    facts: memories.filter((m) => m.kind === "fact").map(({ id, category, title, body, observedAt, confidence, source }) => ({ id, category, title, body, observedAt, confidence, source })),
+    // Kart "Bilgi Tabanı'ndan N kalem" der → yalnız KB kaynaklı olgular. Ev sahibinin fiyat aralığı gibi insan
+    // kayıtları (`source: "human"`, V2) burada listelenmez; kendi formlarında görünür.
+    facts: memories
+      .filter((m) => m.kind === "fact" && m.source === "kb_item")
+      .map(({ id, category, title, body, observedAt, confidence, source }) => ({ id, category, title, body, observedAt, confidence, source })),
     patterns: memories
       .filter((m) => m.kind === "pattern" || m.kind === "risk")
       .map((m) => ({ id: m.id, category: m.category, title: m.title, observedAt: m.observedAt, confidence: m.confidence, evidenceCount: evidenceCount(m.evidenceJson) })),

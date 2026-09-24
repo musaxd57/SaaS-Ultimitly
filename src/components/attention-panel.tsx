@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
 import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incidents/attention";
+import type { MoneyImpact } from "@/modules/intelligence/money/impact";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "Dikkat Gerektirenler" kartı.
@@ -75,6 +76,29 @@ function detail(item: AttentionItem): string {
   }
 }
 
+function money(amount: number, currency: string): string {
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+}
+
+/**
+ * Para etkisi satırı (V2): tahmin HER ZAMAN aralık + "tahmini"; nasıl hesaplandığı ipucunda. Tutar
+ * bilinmiyorsa yalnız ev sahibinin yapabileceği şey söylenir; kopya/geçersiz durumda hiçbir şey yazılmaz.
+ */
+export function moneyLine(m: MoneyImpact | undefined): { text: string; hint?: string } | null {
+  if (!m) return null;
+  if (m.kind === "estimate") {
+    return {
+      text: `Risk altındaki tutar: ${money(m.low, m.currency)} – ${money(m.high, m.currency)} (tahmini)`,
+      hint:
+        "Çakışan gece sayısı × gecelik fiyat aralığınız; üst sınır, etkilenen en uzun konaklamanın tamamı. " +
+        "Platform cezaları ve misafiri taşıma masrafı dahil değil.",
+    };
+  }
+  if (m.kind === "unknown" && m.reason === "no_rate") return { text: "Tutarı görmek için bu dairenin gecelik fiyat aralığını ekleyin." };
+  if (m.kind === "unknown" && m.reason === "rate_stale") return { text: "Gecelik fiyat aralığınız 6 aydan eski; güncelleyin." };
+  return null;
+}
+
 export function AttentionPanel({ items }: { items: AttentionItem[] }) {
   // 🚨 Sessiz gün = hiç render yok.
   if (items.length === 0) return null;
@@ -110,6 +134,14 @@ export function AttentionPanel({ items }: { items: AttentionItem[] }) {
                     </span>
                   ) : null}
                 </p>
+                {(() => {
+                  const line = item.kind === "calendar_conflict" ? moneyLine(item.money) : null;
+                  return line ? (
+                    <p className="truncate text-xs text-muted-foreground" title={line.hint}>
+                      {line.text}
+                    </p>
+                  ) : null;
+                })()}
               </div>
             </Link>
           );

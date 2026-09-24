@@ -124,6 +124,11 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   değişmeyen satır → event yok; elle tek rezervasyon rotası ve Task olayları bilinçli dışarıda. Tüketici `provider`
   okumaz. Geçiş sırası: iCal bacağından SONRA intelligence (hafıza → event → örüntü). KB rotaları hafızayı anında
   eşitler (`refreshPropertyMemoryBestEffort`; silinen kalem → retired). Okuma yüzeyi: mülk sayfası "Mülk Hafızası" kartı.
+- **V2 para etkisi (ilk dilim 09-24, migration YOK; `docs/V2-PARA-ETKISI-2026-09-24.md`):** YALNIZ `calendar_conflict`
+  satırında, YALNIZ ev sahibinin girdiği tipik gecelik aralıktan (`PropertyMemory` source `human`, sourceRef
+  `nightly_rate_range`, 180 gün bayat). Sonuç ya ARALIK (alt < üst, dışa yuvarlama, varsayım kodları, güven asla
+  `high`) ya da sayısız "bilinmiyor". `Reservation.totalAmount/currency` OKUNMAZ (pin); aralık yapay zekâya GİTMEZ
+  (pin); paraya göre sıralama/portföy toplamı YOK (kurucu kararı). Kart olguları yalnız `kb_item`.
 
 ## Retrieval (RAG — VARSAYILAN AÇIK 09-11; tasarım `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`; ölçüm raporları `docs/olcum/`)
 - 🚨 `KB_RETRIEVAL_MODE` bir ACİL DURDURMA düğmesidir: `legacy/off/0/false/no/disabled` eski davranış, başka HER

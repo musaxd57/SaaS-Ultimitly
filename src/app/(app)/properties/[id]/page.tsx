@@ -28,6 +28,9 @@ import { getCalendarSourceUrl, maskFeedUrl } from "@/lib/calendar-source-url";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { getPropertyMemory } from "@/modules/intelligence";
+import { getNightlyRate } from "@/modules/intelligence/money/rates";
+import { RATE_STALE_DAYS } from "@/modules/intelligence/money/impact";
+import { NightlyRateForm } from "@/components/properties/nightly-rate-form";
 import { sentimentTone, signalCategoryLabel, signalKindLabel } from "@/modules/intelligence/labels";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +61,9 @@ export default async function PropertyDetailPage({
   // V1 MÜLK HAFIZASI — salt okuma, kiracı+mülk kapsamlı. Okunamazsa sayfa yine çalışır
   // ("AI bozulsa PMS çalışır"): kart "okunamadı" der, hiçbir başka bölüm etkilenmez.
   const memory = await getPropertyMemory(session.organizationId, property.id, 8).catch(() => null);
+  // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
+  const nightlyRate = await getNightlyRate(session.organizationId, property.id).catch(() => null);
+  const nightlyRateStale = nightlyRate ? Date.now() - nightlyRate.enteredAt.getTime() > RATE_STALE_DAYS * 86_400_000 : false;
 
   // QR PIN feature (Faz 5) is master-gated by the env switch; the per-reservation
   // PIN control + strict-mode toggle only appear when it's on AND the host can manage.
@@ -196,6 +202,14 @@ export default async function PropertyDetailPage({
                   notes: property.notes ?? "",
                 }}
               />
+              <div className="mt-6 border-t border-border pt-4">
+                <NightlyRateForm
+                  propertyId={property.id}
+                  canManage={canManage}
+                  initial={nightlyRate ? { low: nightlyRate.low, high: nightlyRate.high, currency: nightlyRate.currency } : null}
+                  stale={nightlyRateStale}
+                />
+              </div>
             </CardContent>
           </Card>
 

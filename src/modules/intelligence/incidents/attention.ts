@@ -3,6 +3,8 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { alertOnTransition } from "@/lib/alert-state";
 import { findUpcomingConflicts, type UpcomingConflict } from "@/modules/availability/conflicts";
+import { estimateConflictImpact, type MoneyImpact, type NightlyRateRange } from "@/modules/intelligence/money/impact";
+import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ, migration İSTEMEZ.
@@ -30,8 +32,10 @@ import { findUpcomingConflicts, type UpcomingConflict } from "@/modules/availabi
 // 🚨 BİLEREK DIŞARIDA:
 //  · KB boşlukları → `/knowledge`te zaten var (A3/A4). Çift kopya yasağı.
 //  · Outbox → `DURABLE_OUTBOX_ENABLED` bilinçli kapalı; hep boş bir satır gürültüdür.
-//  · Para etkisi → AYRI SÖZLEŞME. `Reservation.totalAmount` rezervasyonun brüt
-//    tutarıdır, kayıp DEĞİL; ikisini aynı kolona bağlamak sahte kesinlik üretirdi.
+//  · Para etkisi → YALNIZ `calendar_conflict` satırında ve YALNIZ ev sahibinin girdiği tipik gecelik
+//    aralıktan (V2, 09-24; `money/impact.ts`): tek nokta değer değil ARALIK + varsayım + güven.
+//    `Reservation.totalAmount`/`currency` OKUNMAZ (tutar pratikte dolmuyor, para birimi uydurma "EUR"
+//    olabiliyor; rezervasyonun brüt tutarı kayıp da değildir).
 //
 // 🚨 TEK BİR `decisive: false` BAYRAĞI BU DÖRDÜ İÇİN DÜRÜST OLMAZDI: bozuk
 // besleme ile cevapsız mesaj GÖZLEMDİR (senkronun/mesajın kendi kaydı), tekrar
@@ -120,6 +124,11 @@ export interface AttentionItem {
   heldRequest?: boolean;
   /** Yalnız `calendar_conflict`: bu mülkteki çakışma aralığı sayısı (satır EN ÖNEMLİSİNİ gösterir). */
   conflictCount?: number;
+  /**
+   * Yalnız `calendar_conflict`: risk altındaki tutar (ARALIK, varsayım, güven) ya da neden bilinmediği.
+   * Sıralamaya GİRMEZ (önem kanıta göre kalır; paraya göre sıralama ayrı kurucu kararı).
+   */
+  money?: MoneyImpact;
 }
 
 export interface FindAttentionOptions {
@@ -311,6 +320,17 @@ export async function findAttentionItems(
     const better = conflictRank(c) > conflictRank(cur.c) || (conflictRank(c) === conflictRank(cur.c) && c.from < cur.c.from);
     if (better) cur.c = c;
   }
+  // Para etkisi için ev sahibinin aralıkları — YALNIZ çakışma varsa okunur (sakin günde ek sorgu yok). Okuma
+  // arızası satırı düşürmez: tutar yalnız "bilinmiyor" olur; alarm geçiş tabanlı (kalıcı arızada günde bir).
+  let rates = new Map<string, NightlyRateRange>();
+  let ratesFailed = false;
+  if (worstByProperty.size > 0) {
+    rates = await loadNightlyRates(organizationId, [...worstByProperty.keys()]).catch((err): Map<string, NightlyRateRange> => {
+      ratesFailed = true;
+      void alertOnTransition("attention:money-rates", "attention money rates", err).catch(() => {});
+      return new Map();
+    });
+  }
   for (const { c, count } of worstByProperty.values()) {
     const [y, m, d] = c.from.split("-").map(Number);
     const severity = conflictRank(c);
@@ -328,6 +348,21 @@ export async function findAttentionItems(
       possibleDuplicate: c.possibleDuplicate,
       heldRequest: c.anyHeld,
       conflictCount: count,
+      ...(ratesFailed
+        ? {}
+        : {
+            money: estimateConflictImpact(
+              {
+                overlapNights: c.overlapNights,
+                longestStayNights: c.longestStayNights,
+                possibleDuplicate: c.possibleDuplicate,
+                heldRequest: c.anyHeld,
+                allUnconfirmed: c.allUnconfirmed,
+              },
+              rates.get(c.propertyId),
+              now,
+            ),
+          }),
     });
   }
 

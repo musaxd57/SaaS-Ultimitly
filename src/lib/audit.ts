@@ -36,6 +36,8 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "admin.2fa_reset": "2FA operatör tarafından sıfırlandı",
   "admin.quality_audit": "AI kalite denetimi çalıştırıldı (Claude)",
   "kvkk.guest_erasure": "KVKK misafir verisi silindi (sayılar)",
+  "property.nightly_rate_set": "Gecelik fiyat aralığı kaydedildi",
+  "property.nightly_rate_cleared": "Gecelik fiyat aralığı kaldırıldı",
 };
 
 /** Turkish label for an audit action; falls back to the raw action if unknown. */
