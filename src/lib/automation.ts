@@ -2384,9 +2384,10 @@ export async function applyChannelAutoReply(
         // yerde işleniyor (damgalama, senkron koruması, raporlar); yeni kod o zinciri riske atardı.
         // Gerekçe kapının İLK düşen kontrolünden: müsaitlik kodu yalnız o kontrol kapattıysa (model arızası ya
         // da başka bir veto "Müsaitlik" satırına sayılmaz — inceleme 09-24).
-        // Anlama katmanının risk niyeti (`understanding_risk`) de kendi kodunu yazar (katman koştuysa kapatır).
+        // Anlama katmanının risk niyeti (`understanding_risk`) BURAYA HİÇ GELMEZ: niyet varsa yukarıdaki acil yükseltme
+        // dalı koşar, gerekçeyi o yazar ve döner (mutasyon turu 09-24: buradaki üçüncü kol ölü koddu, silindi).
         reason:
-          gateFailure === "availability_claim" || gateFailure === "availability_unconfirmed" || gateFailure === "understanding_risk"
+          gateFailure === "availability_claim" || gateFailure === "availability_unconfirmed"
             ? gateFailure
             : "low_confidence_or_risky",
         confidence: result.confidence,

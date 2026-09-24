@@ -119,6 +119,15 @@ describe("anonimleştirme — anlam kalır, kişi/yer gider", () => {
     expect(anonymizeGuestText("06.12.34.56.78", CTX)).toBe(ANON.number);
   });
 
+  it("🚨 mutasyon turu 09-24 (ER6 hayatta kalmıştı): 5–8 karakterlik harf+rakam kodu da maskelenir (kapı kodu, Wi-Fi şifresi)", () => {
+    for (const code of ["A7F3K", "Rx82mQ7", "kP4z9Wq2"]) {
+      const out = anonymizeGuestText(`kapı kodu ${code} çalışmıyor`, CTX);
+      expect(out, code).toBe(`kapı kodu ${ANON.code} çalışmıyor`);
+    }
+    // Aşırı-uygulama kontrolü: 4 karakterlik karışık belirteç ("B12a") kod sayılmaz.
+    expect(anonymizeGuestText("daire B12a", CTX)).toBe("daire B12a");
+  });
+
   it("görünmez karakterler silinir (adın arasına gizlenemez)", () => {
     expect(anonymizeGuestText("Ay​şe burada", CTX)).toBe(`${ANON.person} burada`);
   });
@@ -167,6 +176,20 @@ describe("örnekleme — geniş aday katmanı, tohumlu, tekrarsız", () => {
     expect(a.picked.filter((p) => p.stratum === "rest")).toHaveLength(5);
     for (const p of a.picked) expect(isStayCandidate(p.item)).toBe(p.stratum === "candidate");
     expect(new Set(a.picked.map((p) => dedupeKey(p.item))).size).toBe(a.picked.length);
+  });
+
+  it("🚨 mutasyon turu 09-24 (ER15 hayatta kalmıştı): sonuç sırası katmana göre GRUPLU değil — etiketleyen sıradan katmanı tahmin edemez", () => {
+    const items = [
+      ...Array.from({ length: 30 }, (_, i) => `Saat ${i % 24}:00 gibi gelsek olur mu ${i}`),
+      ...Array.from({ length: 30 }, (_, i) => `Havlu nerede acaba ${i}`),
+    ];
+    const order = stratifiedSample(items, { text: (t: string) => t, candidateQuota: 10, restQuota: 10, seed: "tohum-1" }).picked.map((p) => p.stratum);
+    const grouped = [...Array(10).fill("candidate"), ...Array(10).fill("rest")];
+    expect(order).toHaveLength(20);
+    expect(order).not.toEqual(grouped);
+    // İlk yarıda en az bir "rest" ve son yarıda en az bir "candidate" (tohumla sabit; karışım gerçekten var).
+    expect(order.slice(0, 10)).toContain("rest");
+    expect(order.slice(10)).toContain("candidate");
   });
 
   it("tohumlu sayı üreteci [0,1) aralığında ve tekrarlanabilir", () => {

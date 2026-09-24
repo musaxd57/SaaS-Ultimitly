@@ -452,6 +452,30 @@ describe("inceleme turu 09-24 — politika sıkılaştırmaları", () => {
     expect(vetoAvailability("Çıkışınızı 13:00'e uzattık, iyi tatiller.", ask, { hostOfferText: offer })).toBe("availability_claim");
   });
 
+  it("🚨 teklif muafiyetinin anahtarı (mutasyon turu 09-24, P20/P21 hayatta kalmıştı): beyan YOKSA muafiyet yok; bekçi koştuysa ONUN erteleme hükmü", () => {
+    const offer = "Müsaitlik varsa çıkışınızı 13:00'e kadar uzatabiliriz.";
+    const relay = `${offer} Uygunluğu ev sahibinizin kararıdır; mesajınız kaydedildi.`;
+    expect(hasAvailabilityDeferral(relay)).toBe(true); // anti-vakum: erteleme cümlesi var
+    // P20: istek YOK (teşekkür) + beyan HİÇ YOK → erteleme cümlesi tek başına teklifi iddia taramasından çıkaramaz.
+    for (const declared of [undefined, null]) {
+      expect(vetoAvailability(relay, ["Teşekkürler, her şey için."], { hostOfferText: offer, declared }), String(declared)).toBe("availability_claim");
+    }
+    // KONTROL: güvenilir `defers` beyanı + erteleme cümlesi (bekçi yok) → muafiyet işler; istek yok → gider.
+    expect(vetoAvailability(relay, ["Teşekkürler, her şey için."], { hostOfferText: offer, declared: { asked: "none", stance: "defers" } })).toBeNull();
+
+    // P21 — bekçi KOŞTUYSA muafiyet onun hükmüdür, kelime ağının cümlesi DEĞİL:
+    const ask = ["Geç çıkış mümkün mü?"];
+    const defers = { asked: "late_checkout", stance: "defers" } as const;
+    // (a) bekçi "erteliyor" der, kelime ağı cümleyi TANIMAZ → muafiyet + iki model ertelemesi → gider.
+    const quiet = `${offer} Bunu şimdilik kesinleştiremiyoruz.`;
+    expect(hasAvailabilityDeferral(quiet)).toBe(false); // anti-vakum: kelime ağı bu ertelemeyi görmüyor
+    const guardDefers = { status: "ok" as const, verdict: verdict({ guestRequestsChange: true, kind: "late_checkout", replyDefersToHost: true }) };
+    expect(vetoAvailability(quiet, ask, { hostOfferText: offer, declared: defers, guard: guardDefers })).toBeNull();
+    // (b) bekçi "ertelemiyor" der, kelime ağı erteleme cümlesi görür → muafiyet YOK → teklif iddia olarak okunur.
+    const guardNot = { status: "ok" as const, verdict: verdict({ guestRequestsChange: true, kind: "late_checkout", replyDefersToHost: false }) };
+    expect(vetoAvailability(relay, ask, { hostOfferText: offer, declared: defers, guard: guardNot })).toBe("availability_claim");
+  });
+
   it("🚨 İngilizce kısaltmalar izin olarak yakalanır; virgülle biten koşul cümleciği ana cümlecikteki izni gizlemez", () => {
     const ask = ["Can we stay one more night?"];
     for (const reply of [
