@@ -569,6 +569,7 @@ describe("GOLDEN SET — müsaitlik vetosu (mesaj + cevap)", () => {
       replyGrantsChange: false,
       replyDefersToHost: true,
       replyRefuses: false,
+      replyStatesPrice: false,
     },
   };
   const cases: {

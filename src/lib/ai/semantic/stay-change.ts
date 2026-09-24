@@ -155,6 +155,7 @@ export const STAY_GUARD_JSON_SCHEMA = {
       "reply_grants_change",
       "reply_defers_to_host",
       "reply_refuses",
+      "reply_states_price",
     ],
     properties: {
       guest_requests_change: { type: "boolean" },
@@ -165,6 +166,7 @@ export const STAY_GUARD_JSON_SCHEMA = {
       reply_grants_change: { type: "boolean" },
       reply_defers_to_host: { type: "boolean" },
       reply_refuses: { type: "boolean" },
+      reply_states_price: { type: "boolean" },
     },
   },
 } as const;
@@ -179,6 +181,8 @@ export interface StayGuardVerdict {
   replyGrantsChange: boolean;
   replyDefersToHost: boolean;
   replyRefuses: boolean;
+  /** Taslak bir tutar / ücret / yüzde / indirim / muafiyet söylüyor (dilim 8; host'un teklif metninin aynen aktarımı hariç). */
+  replyStatesPrice: boolean;
 }
 
 /** Bekçinin sonucu: koşmadı (bayrak kapalı / aday değil) ≠ koştu ama başarısız. */
@@ -201,6 +205,7 @@ export function parseStayGuardVerdict(raw: unknown): StayGuardVerdict | null {
     "reply_grants_change",
     "reply_defers_to_host",
     "reply_refuses",
+    "reply_states_price",
   ] as const;
   if (!bools.every((k) => typeof r[k] === "boolean")) return null;
   if (!member(STAY_CHANGE_KINDS, r.kind)) return null;
@@ -213,6 +218,7 @@ export function parseStayGuardVerdict(raw: unknown): StayGuardVerdict | null {
     replyGrantsChange: r.reply_grants_change as boolean,
     replyDefersToHost: r.reply_defers_to_host as boolean,
     replyRefuses: r.reply_refuses as boolean,
+    replyStatesPrice: r.reply_states_price as boolean,
   };
 }
 

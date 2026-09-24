@@ -1994,7 +1994,8 @@ export async function applyChannelAutoReply(
   // istek yok) → akış hiç DB'ye dokunmadan `null` döner.
   let earlyCheckinRun: EarlyCheckinRun | null = null;
   let earlyCheckinSent = false;
-  if (gatePassed || gateFailure === "availability_unconfirmed" || gateFailure === "availability_claim") {
+  // `price_claim` da (dilim 8): uydurma ücretli erteleme tutulur ama doğrulanmış onay onun YERİNE geçebilir.
+  if (gatePassed || gateFailure === "availability_unconfirmed" || gateFailure === "availability_claim" || gateFailure === "price_claim") {
     earlyCheckinRun = await runEarlyCheckinWorkflow({
       organizationId: conversation.property.organizationId,
       propertyId: conversation.propertyId,
@@ -2387,7 +2388,7 @@ export async function applyChannelAutoReply(
         // Anlama katmanının risk niyeti (`understanding_risk`) BURAYA HİÇ GELMEZ: niyet varsa yukarıdaki acil yükseltme
         // dalı koşar, gerekçeyi o yazar ve döner (mutasyon turu 09-24: buradaki üçüncü kol ölü koddu, silindi).
         reason:
-          gateFailure === "availability_claim" || gateFailure === "availability_unconfirmed"
+          gateFailure === "availability_claim" || gateFailure === "availability_unconfirmed" || gateFailure === "price_claim"
             ? gateFailure
             : "low_confidence_or_risky",
         confidence: result.confidence,

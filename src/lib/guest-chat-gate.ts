@@ -118,6 +118,7 @@ export const ESCALATION_REASONS = [
   // Müsaitlik vetosu (09-24) — `availability-claims.ts` `AVAILABILITY_VETO_REASONS` ile BİREBİR.
   "availability_claim",
   "availability_unconfirmed",
+  "price_claim",
   // Anlama katmanının risk niyeti (09-24) — `intent-risk.ts` `INTENT_RISK_REASON` ile BİREBİR.
   "understanding_risk",
 ] as const;

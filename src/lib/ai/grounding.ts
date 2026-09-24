@@ -327,7 +327,7 @@ export interface StayEvidence {
   ri?: string;
 }
 
-const STAY_REASONS = new Set(["-", "availability_claim", "availability_unconfirmed"]);
+const STAY_REASONS = new Set(["-", "availability_claim", "availability_unconfirmed", "price_claim"]);
 const STAY_REPLY_INTENT_CODES: ReadonlySet<string> = new Set(STAY_REPLY_INTENTS);
 const STAY_KINDS = new Set(["none", "extend", "early_checkin", "late_checkout", "date_change", "availability", "unknown"]);
 const STAY_STANCES = new Set(["none", "defers", "grants", "states_calendar", "refuses", "unknown"]);
@@ -336,14 +336,14 @@ const STAY_STANCES = new Set(["none", "defers", "grants", "states_calendar", "re
 function cleanStay(x: StayEvidence | undefined): StayEvidence | undefined {
   if (!x) return undefined;
   if (!STAY_REASONS.has(x.v) || !STAY_REASONS.has(x.ev)) return undefined;
-  if (!/^(?:-|c?r?d?)$/.test(x.lx) || x.lx === "") return undefined;
+  if (!/^(?:-|c?r?d?m?)$/.test(x.lx) || x.lx === "") return undefined;
   if (x.d !== "absent") {
     const [asked, stance, extra] = String(x.d).split("/");
     if (extra !== undefined || !STAY_KINDS.has(asked) || !STAY_STANCES.has(stance)) return undefined;
   }
   if (x.g !== "off" && x.g !== "ok" && x.g !== "failed") return undefined;
   if (x.u !== "off" && x.u !== "req" && x.u !== "none" && x.u !== "failed") return undefined;
-  const gv = typeof x.gv === "string" && /^(?:-|q?s?a?d?x?t?)$/.test(x.gv) && x.gv !== "" ? x.gv : undefined;
+  const gv = typeof x.gv === "string" && /^(?:-|q?s?a?d?x?t?p?)$/.test(x.gv) && x.gv !== "" ? x.gv : undefined;
   // Niyet etiketi yalnız kapalı kümeden; tanınmayan değer yalnız KENDİSİ düşer (`gv` gibi — sinyal özeti kalır).
   const ri = typeof x.ri === "string" && STAY_REPLY_INTENT_CODES.has(x.ri) ? x.ri : undefined;
   return { v: x.v, ev: x.ev, lx: x.lx, d: x.d, g: x.g, ...(gv ? { gv } : {}), u: x.u, ...(ri ? { ri } : {}) };

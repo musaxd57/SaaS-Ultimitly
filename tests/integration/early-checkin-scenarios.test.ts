@@ -168,6 +168,7 @@ const guard = (time: string | null, over: Record<string, unknown> = {}) => ({
   reply_grants_change: false,
   reply_defers_to_host: false,
   reply_refuses: false,
+  reply_states_price: false,
   ...over,
 });
 const NO_REQUEST_GUARD = guard(null, { guest_requests_change: false, kind: "none" });
@@ -653,7 +654,39 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
       expect(await decision(b)).toMatchObject({ finalDecision: "human_review", reason: "availability_claim" });
     }
   });
-  it.todo("16b/17b · onaylanabilir ama TASLAK kuralında (ya da bekleyen kararda) modelin ERTELEME cevabı uydurma ücret / indirim içeriyorsa otomatik gitmez — dilim 8 (para paritesi; bekçi açılmadan önce ZORUNLU)");
+  it("16b/17b · onaylanabilir ama kural TASLAK (ya da karar bekliyor): modelin ERTELEMESİ uydurma ücret / indirim taşıyorsa GİTMEZ; parasız erteleme gider", async () => {
+    const now = Z("2026-10-14T05:00:00.000"); // 08:00
+    at(now);
+    // (a) Kural taslak: karar onaylanabilir ama otomatik değil → misafire gidebilecek tek metin modelin ertelemesi.
+    for (const invented of ["The early check-in fee is €99.", "I can offer you a 20% discount."]) {
+      await fresh();
+      const v = await vacantNight(now);
+      await saveEarlyCheckinRule(v.orgId, v.propertyId, { ...RULE, mode: "draft" });
+      openAi({ reply: reply({ reply: `${DEFER} ${invented}` }), understanding: nlu("12:00"), guard: guard("12:00", { reply_defers_to_host: true }) });
+      const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 12:00 today?", new Date(now.getTime() - 60_000));
+      expect((await applyChannelAutoReply(id)).sent, invented).toBe(false);
+      expect(mockSend, invented).not.toHaveBeenCalled();
+      expect(await decision(id), invented).toMatchObject({ finalDecision: "human_review", reason: "price_claim", ec: { s: "approvable", a: "0" } });
+    }
+    // (b) Karar bekliyor (temizlik bitmedi) + kural otomatik: "ek ücret yok" diyen erteleme de gitmez.
+    await fresh();
+    const t = await turnover();
+    await cleaning(t, t.departing.id, "2026-10-14", []);
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    openAi({ reply: reply({ reply: `${DEFER} There would be no extra charge.` }), understanding: nlu("13:00"), guard: guard("13:00", { reply_defers_to_host: true }) });
+    const p = await conversationFor(t.propertyId, t.own.id, "Hi! Could we check in at 13:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(p)).sent).toBe(false);
+    expect(await decision(p)).toMatchObject({ finalDecision: "human_review", reason: "price_claim", ec: { s: "pending", a: "0" } });
+    // KONTROL (aşırı-uygulama): aynı taslak kuralında PARASIZ erteleme bugünkü gibi gider.
+    await fresh();
+    const w = await vacantNight(now);
+    await saveEarlyCheckinRule(w.orgId, w.propertyId, { ...RULE, mode: "draft" });
+    openAi({ reply: reply(), understanding: nlu("12:00"), guard: guard("12:00", { reply_defers_to_host: true }) });
+    const c = await conversationFor(w.propertyId, w.own.id, "Hi! Could we check in at 12:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(c)).sent).toBe(true);
+    expect(sentBody()).toContain("check with the host");
+    expect(sentBody()).not.toMatch(/€|%|charge/);
+  });
 
   it("18 · temizlikçi para/fiyat/rapor/faturalandırma uçlarına ERİŞEMEZ (403) ve hiçbir şey yazılmaz", async () => {
     const t = await turnover();

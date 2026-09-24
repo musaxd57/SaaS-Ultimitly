@@ -408,6 +408,7 @@ describe("istek türü birleşimi + kapı muafiyeti — yalnız KODDAN kurulan m
     replyGrantsChange: false,
     replyDefersToHost: false,
     replyRefuses: false,
+    replyStatesPrice: false,
     ...over,
   });
 

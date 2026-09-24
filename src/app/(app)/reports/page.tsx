@@ -74,6 +74,8 @@ export default async function ReportsPage() {
     // Müsaitlik vetosu (09-24): takvim doğrulanmadan gönderilmeyen cevaplar — kendi satırı.
     "availability_claim",
     "availability_unconfirmed",
+    // Hassas istekte erteleyen cevap ücret/indirim söyledi (dilim 8; yalnız bekçi açıkken yazılır) — kendi satırı.
+    "price_claim",
     // Anlama katmanının risk niyeti (09-24; yalnız anlama katmanı açıkken yazılır) — kendi satırı.
     "understanding_risk",
   ];
@@ -326,6 +328,12 @@ export default async function ReportsPage() {
                     <span>Müsaitlik — takvim kontrolü bekledi</span>
                     <Badge tone="muted">{heldCount("availability_claim") + heldCount("availability_unconfirmed")}</Badge>
                   </div>
+                  {heldCount("price_claim") > 0 ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span>Ücret ya da indirim — size bırakıldı</span>
+                      <Badge tone="muted">{heldCount("price_claim")}</Badge>
+                    </div>
+                  ) : null}
                   {heldCount("understanding_risk") > 0 ? (
                     <div className="flex items-center justify-between px-3 py-2">
                       <span>Hassas konu — size bırakıldı</span>

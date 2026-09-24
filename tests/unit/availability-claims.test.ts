@@ -28,6 +28,7 @@ const CLEAN_VERDICT = {
   replyGrantsChange: false,
   replyDefersToHost: false,
   replyRefuses: false,
+  replyStatesPrice: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -142,8 +143,8 @@ describe("veto matrisi", () => {
     expect(vetoAvailability(undefined, [ASK])).toBeNull();
   });
 
-  it("gerekçe kümesi kapalı ve iki üyeli", () => {
-    expect([...AVAILABILITY_VETO_REASONS]).toEqual(["availability_claim", "availability_unconfirmed"]);
+  it("gerekçe kümesi kapalı ve üç üyeli (dilim 8: `price_claim`)", () => {
+    expect([...AVAILABILITY_VETO_REASONS]).toEqual(["availability_claim", "availability_unconfirmed", "price_claim"]);
   });
 });
 

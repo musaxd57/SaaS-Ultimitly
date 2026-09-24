@@ -118,6 +118,7 @@ const GUARD_CLEAN = {
   reply_grants_change: false,
   reply_defers_to_host: false,
   reply_refuses: false,
+  reply_states_price: false,
 };
 
 const GUARD_GRANTS = {
@@ -129,6 +130,7 @@ const GUARD_GRANTS = {
   reply_grants_change: true,
   reply_defers_to_host: false,
   reply_refuses: false,
+  reply_states_price: false,
 };
 
 describe("QR rotası — anlam katmanı bağlantısı", () => {

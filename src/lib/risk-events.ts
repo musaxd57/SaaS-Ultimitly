@@ -51,6 +51,8 @@ const REASONS = new Set([
   // Müsaitlik vetosu (09-24): doğrulanmamış takvim iddiası / ertelemeyen cevap. Kanal yolunda da
   // yazılır (düşük güven kovasından AYRI, raporda kendi satırı).
   "availability_claim", "availability_unconfirmed",
+  // Hassas istekte erteleyen cevap para söylüyor (dilim 8, `availability-claims.ts` `price_claim`).
+  "price_claim",
   // Anlama katmanının risk niyeti (09-24, `semantic/intent-risk.ts`; yalnız anlama katmanı açıkken).
   "understanding_risk",
   // Doğrulanmış erken giriş (09-24, `lib/early-checkin`): koddan kurulan onay metni otomatik gönderildi.

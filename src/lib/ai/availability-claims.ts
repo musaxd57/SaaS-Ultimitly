@@ -66,6 +66,7 @@
  * ------------------------------------------------------------------------- */
 
 import { foldTurkishAscii, restrictiveMatchForms } from "@/lib/ai/fallback";
+import { hasMoneyStatement } from "@/lib/ai/stay-money";
 import {
   declaredClaim,
   declaredRequest,
@@ -81,8 +82,11 @@ import {
   type UnderstandingStaySignal,
 } from "@/lib/ai/semantic/stay-change";
 
-/** Kapalı küme — `RiskEvent.reason` ile aynı sözleşme (PII taşımaz). */
-export const AVAILABILITY_VETO_REASONS = ["availability_claim", "availability_unconfirmed"] as const;
+/**
+ * Kapalı küme — `RiskEvent.reason` ile aynı sözleşme (PII taşımaz). `price_claim` (dilim 8): hassas istekte iki modelin
+ * doğruladığı ERTELEME bir tutar / yüzde / indirim / muafiyet söylüyor (↓`evaluateAvailability`).
+ */
+export const AVAILABILITY_VETO_REASONS = ["availability_claim", "availability_unconfirmed", "price_claim"] as const;
 export type AvailabilityVetoReason = (typeof AVAILABILITY_VETO_REASONS)[number];
 
 export type AvailabilityRequestKind = "extend" | "early" | "late" | "date_change" | "availability";
@@ -720,13 +724,13 @@ function lexicalClaim(text: string, stayTimes: StayTimes | null | undefined): bo
 
 /** Kanıt için PII'siz sinyal özeti (kapalı küme kodlar; metin taşımaz). */
 export interface AvailabilitySignals {
-  /** Deterministik yedek: c = iddia/izin, r = istek, d = erteleme ("-" = hiçbiri). */
+  /** Deterministik yedek: c = iddia/izin, r = istek, d = erteleme, m = para ifadesi ("-" = hiçbiri). */
   lx: string;
   /** Beyan: "asked/stance" ya da "absent". */
   d: string;
   /** Bekçi: koşmadı / ok / başarısız. */
   g: "off" | "ok" | "failed";
-  /** Bekçi hükmü: q = istek, s = takvim, a = izin, d = erteleme, x = ret, t = kaydırılmış saat. */
+  /** Bekçi hükmü: q = istek, s = takvim, a = izin, d = erteleme, x = ret, t = kaydırılmış saat, p = fiyat. */
   gv?: string;
   /** Anlama katmanı: koşmadı / istek var / istek yok / açıktı ama başarısız. */
   u: "off" | "req" | "none" | "failed";
@@ -752,7 +756,8 @@ function guardFlags(v: StayGuardVerdict, stay: StayTimes | null | undefined): st
     (v.replyGrantsChange ? "a" : "") +
     (v.replyDefersToHost ? "d" : "") +
     (v.replyRefuses ? "x" : "") +
-    (slotTimesShifted({ checkinTime: v.requestedCheckinTime, checkoutTime: v.requestedCheckoutTime }, stay) ? "t" : "");
+    (slotTimesShifted({ checkinTime: v.requestedCheckinTime, checkoutTime: v.requestedCheckoutTime }, stay) ? "t" : "") +
+    (v.replyStatesPrice ? "p" : "");
   return f || "-";
 }
 
@@ -767,6 +772,8 @@ function guardFlags(v: StayGuardVerdict, stay: StayTimes | null | undefined): st
  *  1. İDDİA (devirde de) → `availability_claim`: deterministik iddia/izin · beyan edilen `grants`/`states_calendar` ·
  *     bekçinin takvim/izin hükmü · TANINMAYAN duruş (her durumda) · beyan HİÇ yok ve hassas istek var (F01).
  *  2. Hassas istek → ERTELEME kanıtlanmadıysa `availability_unconfirmed` (bekçi kapalı / düştü / koştu, devirde de).
+ *  3. Hassas istek + kanıtlı erteleme ama cevap para söylüyor (tutar / yüzde / indirim / muafiyet; host'un teklif
+ *     metni hariç) → `price_claim` (dilim 8). Biçim dedektörü ∨ bekçinin fiyat hükmü.
  *  ERTELEME = güvenilir `defers` beyanı VE bekçinin "erteliyor" hükmü (iki bağımsız model). Bekçi yoksa erteleme
  *  kanıtlanamaz. Kelime ağının erteleme cümlesi İZİN DEĞİLDİR — yalnız kanıta yazılır (`lx` içinde `d`). Kip YOK.
  * Hassas istek yoksa (bilgi sorusu) bekçi yokken de karar yalnız iddia bacağına kalır: her arızada her mesaj
@@ -817,10 +824,13 @@ export function evaluateAvailability(
   // ilk geçiş teklif metnini iddia sayarsa bekçi hiç çağrılmaz (iddia tutuşu bekçiyi tetiklemez).
   // STANDART ÇIKIŞ SAATİ bilgisi izin DEĞİLDİR — ↑`withoutStandardCheckoutUntil`.
   const offerExempt = guard !== null ? deferred : trustedDefers && lexDeferral;
-  const lexClaim = lexicalClaim(offerExempt ? withoutOffer : reply, opts.stayTimes);
+  const scanned = offerExempt ? withoutOffer : reply;
+  const lexClaim = lexicalClaim(scanned, opts.stayTimes);
+  // Para ifadesi AYNI metinde aranır: host'un teklif metni (ücretiyle) yalnız erteleyen cevapta muaf.
+  const lexMoney = hasMoneyStatement(scanned);
   const lexRequest = guestTexts.some((t) => detectAvailabilityRequest(t) !== null);
   const signals: AvailabilitySignals = {
-    lx: (lexClaim ? "c" : "") + (lexRequest ? "r" : "") + (lexDeferral ? "d" : "") || "-",
+    lx: (lexClaim ? "c" : "") + (lexRequest ? "r" : "") + (lexDeferral ? "d" : "") + (lexMoney ? "m" : "") || "-",
     d,
     g,
     ...(guard ? { gv: guardFlags(guard, opts.stayTimes) } : {}),
@@ -861,7 +871,12 @@ export function evaluateAvailability(
   // 🚨 Hassas istek ancak İKİ BAĞIMSIZ MODEL ertelemeyi doğruladıysa gider. Bekçi yoksa ya da düştüyse erteleme hiç
   // kanıtlanamaz → hassas istek her durumda insana. Kip yok (09-24'e kadarki `AI_STAY_POLICY` gölge kipi birleşim
   // değişmeziyle KALDIRILDI); devir cevabı da muaf değil (P1-2). Kanıttaki `ev` şema kararlılığı için `v`ye eşittir.
-  const reason: AvailabilityVetoReason | null = sensitive && !deferred ? "availability_unconfirmed" : null;
+  // 🚨 PARA (dilim 8, kurucu senaryo 16-17): doğrulanmış erteleme de bir tutar / yüzde / indirim / muafiyet
+  // söyleyemez — ücret YALNIZ host'un kuralından, KODDA kurulan onay metniyle gider (o metin ↑muaf). Birleşim: biçim
+  // dedektörü (`stay-money.ts`) ∨ bekçinin fiyat hükmü; hiçbiri ötekinin "para yok"u ile silinmez. Hassas istek
+  // yoksa (bilgi sorusu: "otopark ücretli mi?") bu kontrolün konusu değildir.
+  const priced = lexMoney || guard?.replyStatesPrice === true;
+  const reason: AvailabilityVetoReason | null = !sensitive ? null : !deferred ? "availability_unconfirmed" : priced ? "price_claim" : null;
   return { reason, enforceReason: reason, signals };
 }
 
