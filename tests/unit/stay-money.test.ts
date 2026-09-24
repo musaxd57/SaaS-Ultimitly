@@ -3,7 +3,7 @@ import { hasMoneyStatement } from "@/lib/ai/stay-money";
 import { evaluateAvailability, stayEvidenceOf, AVAILABILITY_VETO_REASONS } from "@/lib/ai/availability-claims";
 import { parseStayGuardVerdict, type StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
 import { autoReplyGateFailure, availabilityPolicyFor } from "@/lib/automation";
-import { evaluateEscalation } from "@/lib/guest-chat-gate";
+import { evaluateEscalation, ESCALATION_REASONS } from "@/lib/guest-chat-gate";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 
 // ---------------------------------------------------------------------------
@@ -55,6 +55,10 @@ const MONEY: readonly string[] = [
   "الرسوم 300 ليرة.",
   "Ücreti 100 dolar.",
   "Ücreti 50 avro.",
+  "Ücreti 500TL.",
+  "Ücreti TRY 500.",
+  "Ücreti 20 sterlin.",
+  "Son 40 dólares.",
   // Yüzde
   "We can do %20 less.",
   "We can do 20% less.",
@@ -72,7 +76,27 @@ const MONEY: readonly string[] = [
   "Erken giriş ücretsizdir.",
   "Erken giriş bedava.",
   "Ek ücret alınmaz.",
+  "Size özel fiyat verebiliriz.",
+  "Bunun için ücret almayacağız.",
   "I can offer you a discount.",
+  "We can waive the fee.",
+  "You can do it for free.",
+  "We offer free early check-in.",
+  "Late check-out is free.",
+  "It comes without any extra charge.",
+  "We can give you a better price.",
+  "It would be half-price.",
+  "Es entstehen keine zusätzlichen Kosten.",
+  "Wir machen Ihnen einen Sonderpreis.",
+  "Das bekommen Sie umsonst.",
+  "Nous pouvons faire une réduction.",
+  "Aucun frais supplémentaire.",
+  "Nous avons un prix spécial.",
+  "Hay una rebaja.",
+  "Tenemos un precio especial.",
+  "Сделаем специальную цену.",
+  "Отдадим даром.",
+  "يمكننا تقديم تخفيض.",
   "Early check-in is free of charge.",
   "There is no extra charge.",
   "It comes at no additional cost.",
@@ -109,6 +133,8 @@ const CLEAN: readonly string[] = [
   "Хозяин ответит вам в течение дня, среди прочего уточнит время.",
   "سيقوم المضيف بالرد عليك قريبا.",
   "Check-in is from 15:00; please leave by 11:00 on the 16th.",
+  "Your host is free to decide; I'll let you know.",
+  "La remise des clés se fait à 15h ; votre hôte confirmera l'heure.",
 ];
 
 describe("para dedektörü (deterministik, yalnız sıkılaştırır)", () => {
@@ -220,6 +246,8 @@ describe("politika: hassas istekte ERTELEYEN cevap para taşıyamaz", () => {
 
   it("gerekçe kapalı kümede; kanıt `sc` yeni kodu ve harfleri taşır, tanınmayan harf düşer", () => {
     expect([...AVAILABILITY_VETO_REASONS]).toContain("price_claim");
+    // QR gerekçe listesi müsaitlik gerekçeleriyle BİREBİR (yoksa QR kaydı tanımadığı kodu sessizce null yazardı).
+    expect([...ESCALATION_REASONS]).toEqual(expect.arrayContaining([...AVAILABILITY_VETO_REASONS]));
     const e = evaluateAvailability(`${DEFER} The fee is €99.`, ASK, opts({ guard: GUARD({ replyStatesPrice: true }) }));
     const sc = JSON.parse(String(buildKbEvidence({ retrieved: [], usedLabels: [], stay: stayEvidenceOf(e) }))).sc;
     expect(sc).toMatchObject({ v: "price_claim", ev: "price_claim" });
