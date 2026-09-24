@@ -108,3 +108,9 @@ görür). Öneri: ayrı bir "temizlik" rolü (en az yetki):
 * Temizlikçi ücreti hiç görmez; onun tek girdisi "hazır" işaretidir. Para etkisi raporları ev sahibinde kalır
   (V2 kuralı: sahte kesinlik yok).
 * Dilim sırası değişmez (↑ 1 → 2 → 3); ücretli erken giriş 3. dilimin (otomatik onay) alt maddesidir ve ayrı onay ister.
+
+### UYGULANDI (09-24, kurucu: "hassas istek = engel değil, doğrulama iş akışı")
+Üç dilim birlikte yazıldı (kurucu tam akışı istedi): `docs/ERKEN-GIRIS-DOGRULAMA-2026-09-24.md`. Farklar: ücret
+kodda host'un kaydından biçimlenir (model tutar görmez/üretmez) ve onay metni ücreti söyler; ödeme adımı host'un
+notundadır. Çakışma kontrolü rezervasyon satırlarından; aynı gün devir dışı "dün gece boş" yalnız motorun taze
+hükmüyle. Temizlikçi dar rolü + iki adımlı "Daire hazır" düğmesi HENÜZ YOK (bugün görev ekranındaki "bitti").

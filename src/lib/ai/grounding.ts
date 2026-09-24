@@ -2,6 +2,7 @@ import { CLAIM_CLASSES, type ClaimAudit } from "./claim-support";
 import { UNDERSTANDING_INTENTS } from "./semantic/understanding-schema";
 import { INTENT_RISK_KINDS, INTENT_RISK_REASON } from "./semantic/intent-risk";
 import { STAY_REPLY_INTENTS } from "./semantic/stay-change";
+import { EARLY_CHECKIN_CHECKS } from "@/lib/early-checkin/core";
 import type { LlmUsage } from "./types";
 // ---------------------------------------------------------------------------
 // TEMELLENDİRME SINIFLANDIRMASI (A2, 09-08) — OKUMA ZAMANINDA, HÜKÜM DEĞİL.
@@ -252,10 +253,25 @@ export interface KbEvidenceInput {
    * kayıtlarda gölge kararıydı) ve sinyalin kendisi — yalnız kapalı-küme kodlar. Yalnız katman koştuysa verilir.
    */
   intentRisk?: { v: string; ev: string; k: string };
+  /**
+   * Doğrulanmış erken giriş akışı (09-24, `lib/early-checkin`): karar durumu, başarısız kontroller ve otomatik
+   * gönderim — yalnız kapalı-küme kodlar (saat, tutar, metin YOK). Yalnız akış koştuysa verilir.
+   */
+  earlyCheckin?: { s: string; f: string[]; a: string };
 }
 
 const IR_REASONS: ReadonlySet<string> = new Set(["-", INTENT_RISK_REASON]);
 const IR_KINDS: ReadonlySet<string> = new Set(["-", ...INTENT_RISK_KINDS]);
+
+const EC_STATUSES: ReadonlySet<string> = new Set(["approvable", "needs_host", "not_early"]);
+const EC_CHECKS: ReadonlySet<string> = new Set(EARLY_CHECKIN_CHECKS);
+
+/** `ec` kanıt alanı: durum + başarısız kontroller + otomatik gönderim; tanınmayan her değer alanı düşürür. */
+function cleanEarlyCheckin(x: KbEvidenceInput["earlyCheckin"]): { s: string; f: string[]; a: string } | undefined {
+  if (!x || !EC_STATUSES.has(x.s) || (x.a !== "0" && x.a !== "1") || !Array.isArray(x.f)) return undefined;
+  if (!x.f.every((c) => EC_CHECKS.has(c)) || x.f.length > EC_CHECKS.size) return undefined;
+  return { s: x.s, f: [...x.f], a: x.a };
+}
 
 /** `ir` kanıt alanını yeniden kurar: tanınmayan her değer alanı düşürür (serbest metin sızamaz). */
 function cleanIntentRisk(x: KbEvidenceInput["intentRisk"]): { v: string; ev: string; k: string } | undefined {
@@ -390,8 +406,16 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
   const hj = Number.isInteger(input.hijackScreened) && (input.hijackScreened as number) > 0 ? (input.hijackScreened as number) : undefined;
   const sc = cleanStay(input.stay);
   const ir = cleanIntentRisk(input.intentRisk);
-  const extra = { ...(claims ? { claims } : {}), ...(llm ? { llm } : {}), ...(hj ? { hj } : {}), ...(sc ? { sc } : {}), ...(ir ? { ir } : {}) };
-  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir) return null;
+  const ec = cleanEarlyCheckin(input.earlyCheckin);
+  const extra = {
+    ...(claims ? { claims } : {}),
+    ...(llm ? { llm } : {}),
+    ...(hj ? { hj } : {}),
+    ...(sc ? { sc } : {}),
+    ...(ir ? { ir } : {}),
+    ...(ec ? { ec } : {}),
+  };
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec) return null;
   const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa

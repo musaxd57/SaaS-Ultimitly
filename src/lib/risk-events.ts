@@ -53,6 +53,8 @@ const REASONS = new Set([
   "availability_claim", "availability_unconfirmed",
   // Anlama katmanının risk niyeti (09-24, `semantic/intent-risk.ts`; yalnız anlama katmanı açıkken).
   "understanding_risk",
+  // Doğrulanmış erken giriş (09-24, `lib/early-checkin`): koddan kurulan onay metni otomatik gönderildi.
+  "early_checkin_verified",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

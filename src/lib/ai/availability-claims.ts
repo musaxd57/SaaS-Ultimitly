@@ -558,6 +558,55 @@ export interface AvailabilityPolicyOptions {
    * tarama yine yakalar; istek varsa erteleme şartı AYNEN geçerlidir.
    */
   hostOfferText?: string | null;
+  /**
+   * DOĞRULANMIŞ ERKEN GİRİŞ ONAYI (09-24, `lib/early-checkin`): koddan, doğrulanmış olgulardan kurulan onay metni.
+   * YALNIZ cevap bu metne BİREBİR eşitse ve tüm katmanlarda istenen TEK tür erken girişse muaftır — başka her metin
+   * ve başka her tür normal kurallarla değerlendirilir (model metni hiçbir zaman bu yoldan geçemez).
+   */
+  verifiedGrant?: { text: string } | null;
+}
+
+/** Konaklama değişikliği TÜRLERİ — birleşim: hangi katman hangi türü gördü ("yalnız erken giriş mi?" sorusu için). */
+export type StayRequestKind = "early_checkin" | "late_checkout" | "extend" | "date_change" | "availability" | "unknown";
+
+const LEXICAL_KIND: Record<AvailabilityRequestKind, StayRequestKind> = {
+  early: "early_checkin",
+  late: "late_checkout",
+  extend: "extend",
+  date_change: "date_change",
+  availability: "availability",
+};
+
+/**
+ * Tüm katmanların gördüğü istek türlerinin BİRLEŞİMİ (kelime ağı · beyan · niyet etiketi · anlama katmanı · bekçi;
+ * KODDA kaydırılmış saatler dahil). Tanınmayan / türü belirsiz istek `unknown` olarak girer — "yalnız erken giriş"
+ * sorusuna asla evet dedirtmez.
+ */
+export function stayRequestKinds(
+  guestTexts: readonly (string | null | undefined)[],
+  opts: AvailabilityPolicyOptions,
+): Set<StayRequestKind> {
+  const kinds = new Set<StayRequestKind>();
+  for (const t of guestTexts) {
+    const k = detectAvailabilityRequest(t);
+    if (k) kinds.add(LEXICAL_KIND[k]);
+  }
+  const d = opts.declared;
+  if (d && d.asked !== "none") kinds.add(d.asked);
+  const ri = stayReplyIntentOf(opts.replyIntent);
+  if (ri) kinds.add(ri);
+  const slots = (s: { kind: string; checkinTime: string | null; checkoutTime: string | null }, requested: boolean) => {
+    if (s.kind !== "none") kinds.add(s.kind as StayRequestKind);
+    else if (requested) kinds.add("unknown");
+    if (slotTimesShifted({ checkinTime: s.checkinTime }, opts.stayTimes)) kinds.add("early_checkin");
+    if (slotTimesShifted({ checkoutTime: s.checkoutTime }, opts.stayTimes)) kinds.add("late_checkout");
+  };
+  if (opts.understanding) slots(opts.understanding, opts.understanding.requested);
+  if (opts.guard?.status === "ok") {
+    const v = opts.guard.verdict;
+    slots({ kind: v.kind, checkinTime: v.requestedCheckinTime, checkoutTime: v.requestedCheckoutTime }, v.guestRequestsChange);
+  }
+  return kinds;
 }
 
 /** Cevaptan ev sahibinin teklif metninin BİREBİR geçişlerini çıkarır (boşluk farkı tolere edilir). */
@@ -769,6 +818,12 @@ export function evaluateAvailability(
     u,
     ...(ri ? { ri } : {}),
   };
+
+  // DOĞRULANMIŞ ERKEN GİRİŞ ONAYI (09-24): yalnız koddan kurulan metin (birebir) + tek tür erken giriş → muaf.
+  if (opts.verifiedGrant && reply === opts.verifiedGrant.text) {
+    const kinds = stayRequestKinds(guestTexts, opts);
+    if (kinds.size === 1 && kinds.has("early_checkin")) return { reason: null, enforceReason: null, signals };
+  }
 
   const guardRequest =
     guard !== null &&

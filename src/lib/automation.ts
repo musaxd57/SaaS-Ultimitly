@@ -11,6 +11,12 @@ import {
 } from "@/lib/ai/availability-claims";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
+  earlyCheckinEvidenceOf,
+  earlyCheckinHostNote,
+  runEarlyCheckinWorkflow,
+  type EarlyCheckinRun,
+} from "@/lib/early-checkin/workflow";
+import {
   evaluateIntentRisk,
   INTENT_RISK_REASON,
   intentRiskEvidenceOf,
@@ -126,6 +132,11 @@ export interface AutoReplyGateContext {
   hostOfferText?: string | null;
   /** Anlama katmanının en ağır risk niyeti (`semantic/intent-risk.ts`); verilmezse sinyal yok. */
   understandingRisk?: IntentRiskKind | null;
+  /**
+   * Doğrulanmış erken giriş onayı (`lib/early-checkin`): yalnız koddan kurulan bu metin, yalnız tek tür erken giriş
+   * isteğinde müsaitlik kuralından muaf (`evaluateAvailability`). Diğer tüm kapı kontrolleri AYNEN koşar.
+   */
+  verifiedGrant?: { text: string } | null;
 }
 
 /** Kapı kararı + ilk düşen kontrol (`null` = gönderilebilir). Ayrıntılar aşağıdaki yorumlarda. */
@@ -397,6 +408,7 @@ export function availabilityPolicyFor(
     understandingFailed: context?.understandingFailed === true,
     stayTimes: context?.stayTimes ?? null,
     hostOfferText: context?.hostOfferText ?? null,
+    verifiedGrant: context?.verifiedGrant ?? null,
   };
 }
 
@@ -1845,7 +1857,7 @@ export async function applyChannelAutoReply(
       )
     : null;
 
-  const result = await suggestReply({
+  let result = await suggestReply({
     guestMessage: last.body,
     property: {
       name: conversation.property.name,
@@ -1972,6 +1984,39 @@ export async function applyChannelAutoReply(
       gatePassed = gateFailure === null;
     }
   }
+  // ── DOĞRULANMIŞ ERKEN GİRİŞ (09-24, kurucu: "hassas istek = ENGEL değil, doğrulama iş akışı") ────────────────
+  // Kapı müsaitlik yüzünden kapandıysa YA DA iki model ertelemeyi doğrulayıp geçtiyse ("ev sahibine soracağım") ve
+  // tüm katmanlarda istenen TEK tür erken girişse: önceki çıkış, çakışma, temizlik "bitti" işareti, host'un izin
+  // penceresi ve ücret kuralı KODDA doğrulanır (`lib/early-checkin`). Onaylanabilir + host kuralı "otomatik" + iki
+  // model aynı saati okudu + tek konu → onay metni KODDA kurulur ve kapının TÜM kontrolleri bu metinle BAŞTAN koşar
+  // (acil/şikâyet/injection/çıktı vetosu aynen); geçerse erteleme yerine doğrulanmış cevap gider. Aksi hâlde bugünkü
+  // davranış: kapanan cevap host'a taslak, geçen erteleme gider. Hata = bugünkü davranış. Başka türde istek (ya da
+  // istek yok) → akış hiç DB'ye dokunmadan `null` döner.
+  let earlyCheckinRun: EarlyCheckinRun | null = null;
+  let earlyCheckinSent = false;
+  if (gatePassed || gateFailure === "availability_unconfirmed" || gateFailure === "availability_claim") {
+    earlyCheckinRun = await runEarlyCheckinWorkflow({
+      organizationId: conversation.property.organizationId,
+      propertyId: conversation.propertyId,
+      reservationId: conversation.reservation?.id ?? null,
+      now: new Date(),
+      guestTexts: [last.body, ...pendingGuestMessages],
+      policy: availabilityPolicyFor(result, gateContext),
+      understood,
+      detectedLanguage: result.detectedLanguage,
+    });
+    if (earlyCheckinRun?.decision.autoSend && earlyCheckinRun.draft) {
+      const verified = verifiedEarlyCheckinResult(result, earlyCheckinRun.draft);
+      const verifiedContext: AutoReplyGateContext = { ...gateContext, verifiedGrant: { text: earlyCheckinRun.draft } };
+      if (autoReplyGateFailure(verified, last.body, verifiedContext) === null) {
+        result = verified;
+        gateContext.verifiedGrant = verifiedContext.verifiedGrant;
+        gateFailure = null;
+        gatePassed = true;
+        earlyCheckinSent = true;
+      }
+    }
+  }
   // Karar kaydı kapıyla AYNI politika girdisinden (`availabilityPolicyFor`) — gerekçe ile hüküm
   // ayrışamaz (`enforceReason` 09-24'ten beri `reason`a eşit — konaklamada gölge kip yok).
   const stayEval = evaluateAvailability(
@@ -2014,6 +2059,8 @@ export async function applyChannelAutoReply(
       intentRisk: understood
         ? intentRiskEvidenceOf(evaluateIntentRisk(gateContext.understandingRisk, { modelIntent: result.intent }))
         : undefined,
+      // Doğrulanmış erken giriş: yalnız akış koştuysa (kapalı küme kodlar; saat/tutar/metin YOK).
+      earlyCheckin: earlyCheckinRun ? earlyCheckinEvidenceOf(earlyCheckinRun, earlyCheckinSent) : undefined,
     }),
   };
 
@@ -2483,7 +2530,7 @@ export async function applyChannelAutoReply(
       finalDecision: "auto_sent",
       riskLevel: result.riskLevel,
       riskType: result.riskType,
-      reason: "gate_passed",
+      reason: earlyCheckinSent ? "early_checkin_verified" : "gate_passed",
       confidence: result.confidence,
       ...groundingAudited,
       srcDeclared: result.sourceAudit?.declared ?? null,
@@ -2500,6 +2547,7 @@ export async function applyChannelAutoReply(
       gateRiskLevel: result.riskLevel,
       gateRiskType: result.riskType,
     });
+    if (earlyCheckinSent && earlyCheckinRun) await noteEarlyCheckinApproval(conversation.reservation?.id ?? null, earlyCheckinRun);
     return { sent: true, queued: true, draft, ...meta };
   }
 
@@ -2657,7 +2705,7 @@ export async function applyChannelAutoReply(
     finalDecision: "auto_sent",
     riskLevel: result.riskLevel,
     riskType: result.riskType,
-    reason: "gate_passed",
+    reason: earlyCheckinSent ? "early_checkin_verified" : "gate_passed",
     confidence: result.confidence,
     ...groundingAudited,
     srcDeclared: result.sourceAudit?.declared ?? null,
@@ -2674,7 +2722,30 @@ export async function applyChannelAutoReply(
     gateRiskLevel: result.riskLevel,
     gateRiskType: result.riskType,
   });
+  if (earlyCheckinSent && earlyCheckinRun) await noteEarlyCheckinApproval(conversation.reservation?.id ?? null, earlyCheckinRun);
   return { sent: true, draft, ...meta };
+}
+
+/**
+ * Doğrulanmış erken giriş gönderilirken sonucun YERİNE geçen nesne: yalnız metin (koddan kurulan onay) ve güven
+ * (doğrulanmış olgulardan kurulan metnin modelin öz-değerlendirmesiyle ilgisi yok) değişir. Niyet, risk seviyesi,
+ * risk türü ve beyan AYNEN kalır — kapının diğer kontrolleri (acil, şikâyet, insan talebi, risk) modelin gördüğüne
+ * göre koşmaya devam eder; beyan istek türü birleşimine girer. KB kaynağı yoktur (metin KB'den gelmedi).
+ */
+export function verifiedEarlyCheckinResult<T extends { reply: string; confidence: number; usedSources: string[] }>(result: T, text: string): T {
+  return { ...result, reply: text, confidence: 1, usedSources: [], claimAudit: undefined };
+}
+
+/** Otomatik onaydan sonra host'un iş listesine not (en iyi çaba; ödeme tahsili ve temizlik planı görünsün). */
+async function noteEarlyCheckinApproval(reservationId: string | null, run: EarlyCheckinRun): Promise<void> {
+  const note = earlyCheckinHostNote(run.decision);
+  if (!reservationId || !note) return;
+  try {
+    const task = await prisma.task.findFirst({ where: { reservationId, type: "checkin_prep" }, select: { id: true } });
+    if (task) await prisma.taskUpdate.create({ data: { taskId: task.id, userId: null, note } });
+  } catch (err) {
+    void reportError("early-checkin host note", err);
+  }
 }
 
 /**

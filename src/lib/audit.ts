@@ -38,6 +38,8 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "kvkk.guest_erasure": "KVKK misafir verisi silindi (sayılar)",
   "property.nightly_rate_set": "Gecelik fiyat aralığı kaydedildi",
   "property.nightly_rate_cleared": "Gecelik fiyat aralığı kaldırıldı",
+  "property.early_checkin_rule_set": "Erken giriş kuralı kaydedildi",
+  "property.early_checkin_rule_cleared": "Erken giriş kuralı kaldırıldı",
 };
 
 /** Turkish label for an audit action; falls back to the raw action if unknown. */

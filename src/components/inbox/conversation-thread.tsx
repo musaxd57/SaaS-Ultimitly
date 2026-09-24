@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CONVERSATION_STATUS, PRIORITY, REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { earlyCheckinPanelLines, type EarlyCheckinPanelData } from "@/lib/early-checkin/panel";
 import { intentLabel, langLabel, displaySenderName, riskTypeLabel, sourceLabel, displayableSources } from "@/lib/ui-labels";
 import { applyTemplateBody } from "@/lib/template-apply";
 
@@ -88,6 +89,8 @@ interface Suggestion {
   detectedLanguage?: string;
   /** Müsaitlik vetosu (sunucu yüklemi): taslak takvim iddiası taşıyor ya da isteği ertelemiyor. */
   availabilityCheck?: "availability_claim" | "availability_unconfirmed" | null;
+  /** Doğrulanmış erken giriş kontrolü (09-24): kontrol listesi + uygunsa koddan kurulan hazır cevap. */
+  earlyCheckin?: (EarlyCheckinPanelData & { draft: string | null }) | null;
 }
 
 interface Props {
@@ -989,6 +992,31 @@ export function ConversationThread({
                     : "Misafir tarih ya da saat değişikliği istiyor. Misafire söz vermeden önce kanal takviminden kontrol edin."}
                 </span>
               </p>
+            ) : null}
+
+            {suggestion.earlyCheckin && suggestion.earlyCheckin.status !== "not_early" ? (
+              <div data-testid="early-checkin-panel" className="space-y-2 rounded-md border border-border bg-card px-3 py-2 text-xs">
+                <p className="font-medium">Erken giriş kontrolü</p>
+                <ul className="space-y-1">
+                  {earlyCheckinPanelLines(suggestion.earlyCheckin).map((line) => (
+                    <li key={line.text} className={cn("flex items-start gap-2", line.ok ? "text-foreground" : "text-orange-800 dark:text-orange-300")}>
+                      {line.ok ? <CheckCheck className="mt-0.5 size-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />}
+                      <span>{line.text}</span>
+                    </li>
+                  ))}
+                </ul>
+                {suggestion.earlyCheckin.draft ? (
+                  <div className="space-y-2" data-testid="early-checkin-draft">
+                    <p className="text-muted-foreground">Her şey uygun. Hazır cevap:</p>
+                    <p className="whitespace-pre-wrap rounded-md bg-muted p-2 text-sm">{suggestion.earlyCheckin.draft}</p>
+                    {canReply ? (
+                      <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.earlyCheckin?.draft ?? "")}>
+                        <Wand2 className="size-4" /> Bu cevabı kullan
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
 
             <p className="whitespace-pre-wrap rounded-md bg-card p-3 text-sm">{suggestion.reply}</p>

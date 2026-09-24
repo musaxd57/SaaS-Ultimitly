@@ -333,6 +333,15 @@ Bu dosyaya token/anahtar/parola yazma.
   değişmezi; kanıt `ir`); modelin kendi devir cevabı insan talebinde muaf; kanalı YALNIZ bu niyet kapattıysa acil yükseltme
   (Sorunlu + acil + host e-postası, atomik claim; kurucu "sen seç" 09-24 → evet), rozet niyetin etiketi; kanal + QR +
   Ayarlar önizlemesi aynı yüklem, gerekçe `understanding_risk` REASONS'ta.
+- 🚨 **DOĞRULANMIŞ ERKEN GİRİŞ (09-24, kurucu: "hassas istek = ENGEL değil, doğrulama iş akışı"; `lib/early-checkin`,
+  `docs/ERKEN-GIRIS-DOGRULAMA-2026-09-24.md`, migration YOK):** yalnız tüm katmanların istek türü TEK `early_checkin`
+  iken (`stayRequestKinds`; birleşim kuralı AYNEN). Saf çekirdek kapalı-küme kodlarla karar verir; otomatik = host
+  kuralı `auto` (varsayılan KAPALI, `AutomationRule`, yönetici kapılı) + onaylanabilir + iki model (anlama + bekçi)
+  AYNI saati okudu + tek konu. Onay metni KODDA (6 dil); ücret YALNIZ host'un kaydından, model tutar üretmez. Kapı bu
+  metinle BAŞTAN koşar; müsaitlik muafiyeti YALNIZ birebir aynı metin + tek tür. Hazır = önceki çıkış ANINDAN sonra
+  ≥5 dk'lık temizlik "bitti" kaydı; önceki çıkış = misafir bildirimi ile varsayılanın GEÇ olanı; aynı gün devir yoksa
+  dün gece yalnız motorun taze "boş" hükmüyle; 05:00 öncesi saat geç varıştır (`not_early`). Not çıktı vetosundan
+  geçmezse kayıtta reddedilir. Bugün üretimde otomatik GİTMEZ (iki bayrak kapalı + kredi yok) → host'a kontrol listesi.
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).
@@ -912,6 +921,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-24 DOĞRULANMIŞ ERKEN GİRİŞ TURU:** hassas erken giriş isteği artık doğrulama iş akışını tetikler (önceki çıkış ·
+çakışma · temizlik "bitti" kaydı · host'un en erken saati · host'un ücret kuralı · kapalı/taslak/otomatik); her şey
+doğrulanmışsa KODDAN kurulan onay gider, eksik/çelişki → host'a kontrol listesi + hazır taslak. Mülk sayfasında
+"Erken giriş" kuralı, inbox'ta kontrol paneli. Ayrıntı ↑AI güvenlik mimarisi.
+
 **09-24 BELİRSİZLİK TURU (kurucu + dış inceleme):** hassas konaklama isteği + bekçi yok/düştü ya da beyan yok/
 tanınmıyor/niyet etiketiyle çelişiyor → otomatik gönderim YOK (bekçi açılana kadar erken giriş/geç çıkış/uzatma
 isteklerine otomatik cevap gitmez, taslak host'a; bilgi soruları gider). Anlama katmanının risk niyeti acil e-posta.

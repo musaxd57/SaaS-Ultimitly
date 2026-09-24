@@ -13,6 +13,7 @@ import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } f
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
+import { runEarlyCheckinWorkflow } from "@/lib/early-checkin/workflow";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
@@ -158,16 +159,50 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     .map((m) => m.body);
   // Politika girdisi kapıyla AYNI kurucudan (`availabilityPolicyFor`): modelin şema beyanı + mülkün
   // standart saatleri. Bekçi burada KOŞMAZ (host zaten okuyor; ek model çağrısı maliyetine değmez).
-  const availabilityCheck = vetoAvailability(
-    result.reply,
-    unanswered.length > 0 ? unanswered : [lastInbound.body],
-    availabilityPolicyFor(result, {
-      stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
-      understanding: (await kbSel.understanding)?.stay ?? null,
-      understandingFailed: (await kbSel.understandingStatus) === "failed",
-      hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
-    }),
-  );
+  const guestTexts = unanswered.length > 0 ? unanswered : [lastInbound.body];
+  const understood = await kbSel.understanding;
+  const policy = availabilityPolicyFor(result, {
+    stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
+    understanding: understood?.stay ?? null,
+    understandingFailed: (await kbSel.understandingStatus) === "failed",
+    hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
+  });
+  const availabilityCheck = vetoAvailability(result.reply, guestTexts, policy);
 
-  return jsonOk({ ...result, availabilityCheck });
+  // DOĞRULANMIŞ ERKEN GİRİŞ (09-24): istek yalnız erken girişse host'a kontrol listesi + (uygunsa) koddan kurulan
+  // onay taslağı. Burada GÖNDERİLMEZ — host "Taslağı kullan" ile kendi gönderir. Bekçi burada koşmaz → saati iki
+  // model okumadığı için "otomatik" olamaz; taslak yine doğrulanmış olgulardan kurulur.
+  const run =
+    availabilityCheck !== null
+      ? await runEarlyCheckinWorkflow({
+          organizationId: session.organizationId,
+          propertyId: conversation.propertyId,
+          reservationId: conversation.reservation?.id ?? null,
+          now: new Date(),
+          guestTexts,
+          policy,
+          understood,
+          detectedLanguage: result.detectedLanguage,
+        })
+      : null;
+  const earlyCheckin = run
+    ? {
+        status: run.decision.status,
+        failed: run.decision.failed,
+        approvedTime: run.decision.approvedTime,
+        fee: run.decision.fee,
+        mode: run.rule?.mode ?? "off",
+        draft: run.draft,
+        facts: {
+          arrivalToday: run.facts.reservation?.arrivalKey === run.facts.todayKey,
+          requestedTime: run.facts.requested.time,
+          previousCheckout: run.facts.previousSameDay?.checkoutTime ?? null,
+          readiness: run.facts.readiness,
+          otherOverlaps: run.facts.otherOverlaps,
+          previousNightVerifiedVacant: run.facts.previousNightVerifiedVacant,
+        },
+      }
+    : null;
+
+  return jsonOk({ ...result, availabilityCheck, earlyCheckin });
 });
