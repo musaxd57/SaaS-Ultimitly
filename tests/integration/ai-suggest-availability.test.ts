@@ -160,6 +160,21 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect((await suggest(id)).availabilityCheck).toBeNull();
   });
 
+  it("ev sahibinin teklif metni rotaya ULAŞIR: aynen aktarıp erteleyen taslak uyarı almaz; teklif tanımlı değilse aynı taslak iddiadır", async () => {
+    const offer = "Müsaitlik varsa çıkışınızı 13:00'e kadar uzatabiliriz.";
+    mockSuggest.mockResolvedValue({
+      ...BASE,
+      intent: "late_checkout",
+      reply: `${offer} Uygunluğu ev sahibinizin kararıdır; mesajınız kaydedildi.`,
+      stayChange: { asked: "late_checkout", stance: "defers" },
+    });
+    const id = await seed([{ direction: "inbound", body: "Geç çıkış mümkün mü?" }]);
+    expect((await suggest(id)).availabilityCheck).toBe("availability_claim"); // KONTROL: teklif yok
+    await prisma.organization.update({ where: { id: session.organizationId }, data: { lateCheckoutOfferText: offer } });
+    __resetRateLimit();
+    expect((await suggest(id)).availabilityCheck).toBeNull();
+  });
+
   it("🚨 anlama katmanı açık + enforce: modelin anladığı standart-dışı saat isteği uyarıya girer (kelime ağı sessizken)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_STAY_POLICY", "enforce");

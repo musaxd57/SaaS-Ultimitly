@@ -352,6 +352,15 @@ export function passesAutoReplySafetyGate(
 }
 
 /**
+ * Ev sahibinin teklif metni, istemin gösterdiği AYNI temizlenmiş biçimde (tek kaynak): kapının "host'un
+ * kendi sözü iddia sayılmaz" muafiyeti ve bekçi bunu kullanır. Rotalar `prompts.ts`'i doğrudan import
+ * etmez (istemci paketi pini) — buradan alır.
+ */
+export function hostOfferForGate(raw: string | null | undefined): string | null {
+  return sanitizePromptValue(raw, 400) || null;
+}
+
+/**
  * Kapı ile karar kaydı AYNI politika girdisini kullansın diye tek kurucu: gerekçe kodu ile kapının
  * hükmü ayrışamaz (ikisi de bu nesneden türer).
  */
@@ -1908,7 +1917,7 @@ export async function applyChannelAutoReply(
     // gerekmediyse cevap üretimiyle paralel koştu; burada bekleniyor.
     understanding: (await kbSel.understanding)?.stay ?? null,
     // İstemin gösterdiği AYNI sanitize teklif metni: host'un kendi sözü iddia sayılmaz.
-    hostOfferText: sanitizePromptValue(org.lateCheckoutOfferText, 400) || null,
+    hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
   };
   // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
   // Yalnız OTOMATİK GÖNDERİM ADAYI için ve bayrak açıkken (`AI_STAY_GUARD_ENABLED`): önce bekçisiz

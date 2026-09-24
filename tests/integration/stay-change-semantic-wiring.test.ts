@@ -51,13 +51,22 @@ const BASE = {
   statedCheckoutTime: null,
 };
 
-async function seed() {
+async function seed(opts: { offer?: string; messages?: { direction: "inbound" | "outbound"; body: string }[] } = {}) {
   const org = await prisma.organization.create({
-    data: { name: "Test Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
+    data: {
+      name: "Test Org",
+      autoReplyHospitable: true,
+      autoReplyStartHour: 0,
+      autoReplyEndHour: 0,
+      timezone: "Europe/Istanbul",
+      ...(opts.offer ? { lateCheckoutOfferText: opts.offer } : {}),
+    },
   });
   const property = await prisma.property.create({
     data: { organizationId: org.id, name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" },
   });
+  const msgs = opts.messages ?? [{ direction: "inbound" as const, body: ASK }];
+  const t0 = Date.now() - (msgs.length + 1) * 60_000;
   const conversation = await prisma.conversation.create({
     data: {
       propertyId: property.id,
@@ -65,7 +74,14 @@ async function seed() {
       guestIdentifier: "Alex",
       status: "new",
       externalReservationId: "res-1",
-      messages: { create: [{ direction: "inbound", senderName: "Alex", body: ASK, createdAt: new Date(Date.now() - 60_000) }] },
+      messages: {
+        create: msgs.map((m, i) => ({
+          direction: m.direction,
+          senderName: m.direction === "inbound" ? "Alex" : "Host",
+          body: m.body,
+          createdAt: new Date(t0 + i * 60_000),
+        })),
+      },
     },
     select: { id: true },
   });
@@ -310,6 +326,57 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     expect([...schemasCalled(f)].sort()).toEqual(["guest_message_understanding", "stay_change_guard"]);
     expect(mockSend).not.toHaveBeenCalled();
     expect((await riskEvent(id)).sc).toMatchObject({ v: "availability_claim", g: "ok", u: "req" });
+  });
+
+  it("🚨 ev sahibinin teklif metni kanal kapısına ULAŞIR: aynen aktarıp erteleyen cevap gider; teklif tanımlı değilse aynı cevap iddiadır", async () => {
+    const offer = "Müsaitlik varsa çıkışınızı 13:00'e kadar uzatabiliriz.";
+    const relay = `${offer} Uygunluğu ev sahibinizin kararıdır; mesajınız kaydedildi.`;
+    const late = { ...BASE, intent: "late_checkout", reply: relay, stayChange: { asked: "late_checkout" as const, stance: "defers" as const } };
+    const ask = [{ direction: "inbound" as const, body: "Geç çıkış mümkün mü?" }];
+
+    mockSuggest.mockResolvedValue(late);
+    const withOffer = await seed({ offer, messages: ask });
+    await applyChannelAutoReply(withOffer);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect((await riskEvent(withOffer)).sc).toMatchObject({ v: "-", lx: "rd" });
+
+    // KONTROL (anti-vakum): teklif tanımlı olmayan org'da aynı metin ev sahibinin sözü DEĞİL → iddia.
+    await resetDb();
+    mockSend.mockClear();
+    const noOffer = await seed({ messages: ask });
+    await applyChannelAutoReply(noOffer);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await riskEvent(noOffer)).ev.reason).toBe("availability_claim");
+  });
+
+  it("🚨 bekçi isteği: cevapsızlardan ÖNCEKİ konuşma + ev sahibi teklifi + adların redaksiyonu (girdi bağlantısı davranışsal)", async () => {
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    const f = semanticFetch({ stay_change_guard: { ...GUARD_GRANTS, reply_grants_change: false, reply_defers_to_host: true } });
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValue({
+      ...BASE,
+      reply: "Early check-in is up to your host; your message has been recorded and your host can see it.",
+      stayChange: { asked: "early_checkin", stance: "defers" },
+    });
+    const id = await seed({
+      offer: "Erken giriş 12:00'den itibaren ücretli olabilir.",
+      messages: [
+        { direction: "inbound", body: "Hi, Alex here. We land at 8am." },
+        { direction: "outbound", body: "Welcome! Check-in is from 15:00." },
+        { direction: "inbound", body: ASK },
+      ],
+    });
+    await applyChannelAutoReply(id);
+    expect(schemasCalled(f)).toEqual(["stay_change_guard"]);
+    const user = JSON.parse(String((f.mock.calls[0][1] as RequestInit).body)).messages[1].content as string;
+    expect(user).toContain("HOST'S STANDING OFFER (written by the host): <<<Erken giriş 12:00'den itibaren ücretli olabilir.>>>");
+    expect(user).toContain("EARLIER CONVERSATION (context only, oldest first):");
+    expect(user).toContain("Host: <<<Welcome! Check-in is from 15:00.>>>");
+    expect(user).toContain("[1] <<<Could we get into the flat at 11?>>>");
+    // Cevaplanmış eski mesaj CEVAPSIZ listesine girmez; misafirin görünen adı modele gitmez.
+    expect(user.slice(user.indexOf("GUEST MESSAGES"))).not.toContain("We land at 8am");
+    expect(user).not.toContain("Alex");
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
   it("bekçi YALNIZ aday için koşar: kapı başka sebeple kapandıysa model çağrılmaz", async () => {

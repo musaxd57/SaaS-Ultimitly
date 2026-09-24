@@ -12,8 +12,7 @@ import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { vetoAvailability } from "@/lib/ai/availability-claims";
-import { availabilityPolicyFor } from "@/lib/automation";
-import { sanitizePromptValue } from "@/lib/ai/prompts";
+import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
@@ -165,7 +164,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     availabilityPolicyFor(result, {
       stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
       understanding: (await kbSel.understanding)?.stay ?? null,
-      hostOfferText: sanitizePromptValue(org?.lateCheckoutOfferText, 400) || null,
+      hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
     }),
   );
 

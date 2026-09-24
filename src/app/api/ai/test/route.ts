@@ -7,6 +7,7 @@ import {
   closingCourtesyLanguage,
   passesAutoReplySafetyGate,
   automatedReplyNote,
+  hostOfferForGate,
   type CourtesyKind,
 } from "@/lib/automation";
 import { badRequest, jsonOk, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
@@ -15,7 +16,6 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
-import { sanitizePromptValue } from "@/lib/ai/prompts";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import {
   fillGuestPlaceholdersInItems,
@@ -193,7 +193,7 @@ export const POST = withManage(async (session, req) => {
     {
       stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },
       understanding: (await kbSel.understanding)?.stay ?? null,
-      hostOfferText: sanitizePromptValue(org?.lateCheckoutOfferText, 400) || null,
+      hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
     },
   );
 
