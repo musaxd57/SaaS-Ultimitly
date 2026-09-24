@@ -912,6 +912,13 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - Prisma temsilcisine `vi.spyOn` sonraki testlere sızar → DB arızası testi AYRI dosyada. Testte sabit tarih +
   `Date.now()` penceresi = zaman bombası (09-15). Yorumlarda `\uXXXX` kaçışı yazılmaz.
 - **Tam suit koşarken başka vitest koşma** (PG 5433 sıfırlanır); eval config'i DB kullanmaz, paralel koşabilir.
+- 🚨 **PUSH SONRASI CI SONUCU HER SEFER KONTROL EDİLİR** (kurucu 09-24): 739d83c'nin CI'si kırmızı kaldı ve 4 saat fark
+  edilmedi → Railway "Wait for CI" yayını atladı, canlı eski sürümde kaldı. Kontrol `actions_list` (dal filtresi) →
+  `list_workflow_jobs`. İşler 2–7 sn'de düşüp `runner_id: 0` ve log 404 ise KOD DEĞİL: Actions dakika/harcama limiti
+  (repo private) → kurucuya GitHub → Settings → Billing. Yeniden deneme `rerun_failed_jobs`.
+- **Dizi biçimli `$transaction([...])` sonucu KONUMLA okunmaz** (09-24): mülk silmeye kural silme adımı eklenince
+  `const [, result]` kural sayısını okudu, kuralı olmayan her mülk silinip 404 döndü (yayın öncesi tam kapıda yakalandı).
+  Sonucu kullanılan adım etkileşimli işlemde ADIYLA döner.
 - **Bulutta Node fetch proxy'yi okumaz:** OpenAI/embedding çağıran tsx/eval koşuları `NODE_USE_ENV_PROXY=1` ister.
 - **Ajan token maliyeti (kurucu 09-23):** her alt ajan CLAUDE.md'nin TAMAMINI + tüm araç tanımlarını yükler ve
   sayaç birikimlidir (her araç çağrısında bağlam yeniden okunur). Bu dosya KURAL + GÜNCEL DURUM olarak kalır;
