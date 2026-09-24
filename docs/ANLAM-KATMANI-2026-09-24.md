@@ -93,13 +93,31 @@ kanalı), `ai/semantic/config.ts` (anahtar/model/zaman aşımı tek kaynak).
 * **TEKLİF MUAFİYETİ YALNIZ ERTELEMEYLE** (ikinci inceleme): teklif metni ancak cevap kararı ev sahibine de
   bırakıyorsa iddia taramasından çıkarılır; erteleme teklifin DIŞINDA aranır (teklifin kendi "müsaitlik varsa"sı
   kendini onaylayamaz). Teklifi aynen aktarıp ertelemeyen cevap bir güne izin gibi okunur → iddia.
-* **STANDART ÇIKIŞ BİLGİSİ İZİN DEĞİL:** "11:00'e kadar kalabilirsiniz / you can stay until 11" standart çıkış
-  saatine eşit ya da erkense izin sayılmaz; saat KODDA kıyaslanır. am/pm'siz 1–6 öğleden sonradır ("until 1" =
-  13:00, izin). Mülkün çıkış saati bilinmiyorsa eski davranış (izin sayılır).
-* **GENEL MÜSAİTLİK KALIBININ ÖZNESİ:** mesaj üçüncü taraf bir şeyden (taksi, araba, restoran/masa, market,
-  eczane, otopark, havuz…) söz ediyor ve konaklamanın kendisini adlandırmıyorsa genel `availability` kalıbı
-  istek sayılmaz. Uzatma/erken/geç/tarih değişikliği kalıplarına uygulanmaz. Kapalı sınıftır; yeni yanlış alarm
-  için genişletilmez — anlam katmanı açılınca karar onundur.
+* **STANDART ÇIKIŞ BİLGİSİ İZİN DEĞİL** (son denetimde DARALTILDI): "Çıkış günü 11:00'e kadar kalabilirsiniz /
+  you can stay until 11:00 on your departure day" izin sayılmaz. Saat KODDA kıyaslanır. Kural yalnız izin
+  kalıplarına uygulanır; takvim kalıbının saat bastırması korunur. Dört şart birlikte aranır:
+  - saat mülkün çıkışına BİREBİR eşit (am/pm'siz 1–6 dakikalı da olsa öğleden sonra; 12am / 00:00 = 0);
+  - cümlecikte tarih, gün, akşam ya da uzatma işareti yok ("on your departure day" / "çıkış günü" gün sayılmaz);
+  - cevapta olumlu onay yok ("Sure!", "Tabii");
+  - Türkçe ek yalnız yönelme eki ('e/'a/'ye/'ya).
+
+  İlk sürüm "≤" kıyası yapıyordu ve 22 gerçek izni gizliyordu: "until 2:30", "Akşam 7'ye kadar", "until 12am",
+  "until 10 October", "11:00 on Sunday", "8 gün kadar". Mülkün çıkış saati bilinmiyorsa eski davranış
+  sürer (izin sayılır).
+* **GENEL MÜSAİTLİK KALIBININ ÖZNESİ** (son denetimde DARALTILDI): yalnız nesnenin müsaitlik fiiline ya da
+  yüklemine BİTİŞİK olduğu üçüncü taraf yapısı silinir. Örnekler: "book a taxi", "is the supermarket open",
+  "taksi ayırt-", "otopark müsait mi", "restoranda yer var mı", "Parkplatz … frei".
+  - Genel kalıp KALAN metinde yeniden aranır; hiçbir şey silinmediyse sonuç eskisiyle birebir aynıdır.
+  - Silme izin yönlüdür, bu yüzden tek kanonik biçimde yapılır.
+  - İlk sürüm nesne sözcüğü mesajın herhangi bir yerinde geçince susturuyordu ve gerçek istekleri düşürüyordu:
+    "We love the BEACH", "come by CAR", "OTOPARK var mı?", "TAKSİT", "ARACılığıyla", "MASAL".
+  - Uzatma, erken/geç giriş-çıkış ve tarih değişikliği kalıplarına uygulanmaz.
+  - Kapalı sınıftır, genişletilmez. Bilinen sınır güvenli yöndedir: nesnesi önceki yan cümlede kalan fiil
+    ("…kiralamak istiyoruz, nereden kiralayabiliriz?") istek sayılır.
+  - Kör batarya: istek TP/FP dev 77/8, holdout 77/26. Bu sayılar ilk sürümle aynıdır, yani ölçülmüş yanlış
+    alarm düzeltmeleri korundu.
+* **KISALTMALAR** (doğruluk düzeltmesi): "'s", "'re", "'ve" ve U+02BC kesmesi kapsandı. Açık biçimleri ("is",
+  "are", "have") zaten kapsanıyordu.
 * **BEKÇİ TUTUŞTA DA KOŞAR:** bekçi yalnız otomatik gönderim adayında değil, tek engeli `availability_unconfirmed`
   olan taslakta da koşar (kanal + QR). Böylece kelime ağının tanımadığı doğru ertelemeler ("Das muss Ihr Gastgeber
   entscheiden") iki bağımsız modelin (beyan + bekçi) birlikte hükmüyle gidebilir; tek model yine gevşetemez.
@@ -146,15 +164,22 @@ Birleşimin üç sınırı var (inceleme 09-24; model sorguları deterministik d
   isteğin Türkçesi, SONRA özgün dil — Türkçe olmayan misafirin 4.–5. sorusu da sorgu alır).
 * **Pay:** modelin sorguları bütçenin en fazla **üçte birini** alır — KARAKTER ve PARÇA olarak, gerçekten isteme
   girenle ölçülür. Ek sorgunun çektiği saat çelişkisi partnerleri de onun payına sayılır (özgün sorunun
-  çelişkisini tamamlayan partner özgün sayılır). Misafirin kendi sorusu bütçeden itilemez.
-* **Tekrar eden konu pay yemez:** ek sorgunun en iyi adayı, özgün bir sorgunun ilk 3 adayından birinin
-  kalemindeyse o ek sorgu seçime katılmaz.
+  çelişkisini tamamlayan partner özgün sayılır). Misafirin kendi sorusu bütçeden itilemez. Paya sığmayan ek-sorgu
+  parçası ATLANIR ve bütçe kesmesini tetiklemez (son denetim: önce bütçe kontrolü gelince sığacak özgün parçalar
+  dışarıda kalıyordu).
+* **Tekrar eden konu pay yemez:** ek sorgunun en iyi PARÇASI, özgün bir sorgunun ilk 3 parçasından biriyse o ek
+  sorgu seçime katılmaz. Kıyas parça düzeyindedir (son denetim: kalem kimliğiyle kıyas, çok parçalı bir kılavuzun
+  wifi bölümü çıkınca aynı kılavuzun evcil hayvan bölümünü soran ek sorguyu da düşürüyordu).
 * **Bağlam taşınmaz:** önceki misafir mesajlarının kökleri ek sorguya eklenmez (bağlamı model zaten çözdü).
 * **Geri çekilme daralmaz:** deterministik sorguların hiç isabeti yoksa legacy kümesi (en yeni ≤30) AYNEN
-  kalır, kırpılmaz. Modelin isabetleri en fazla 4 kalem olarak ÖNE gelir: kalem zaten legacy'deyse yalnız
-  taşınır; değilse yalnız eşleşen PARÇASI eklenir (toplam ≤3.000 karakter), saati dizinde başka bir parçayla
-  çelişen parça hiç eklenmez (bu dal çelişki korumasından geçmez). Legacy bloğundan en fazla bu kadar içerik
-  yer değiştirir.
+  kalır, kırpılmaz. Modelin isabetleri en fazla 4 öğe olarak ÖNE gelir ve ön ekin TOPLAMI ≤3.000 karakterdir
+  (taşınan bütün kalemler + eklenen parçalar birlikte). Legacy'deki kalem tavana sığıyorsa bütün olarak taşınır;
+  sığmıyorsa ya da legacy dışındaysa yalnız eşleşen PARÇASI öne eklenir, legacy kalemi yerinde kalır. Son denetim:
+  taşıma sayılmıyordu, 19k'lık bir kılavuz öne alınınca istemin açgözlü doldurması legacy'nin sığdırdığı onlarca
+  kalemi dışarı itiyordu. Saati dizinde başka bir parçayla çelişen parça hiç eklenmez (bu dal çelişki
+  korumasından geçmez). Legacy bloğundan en fazla bu kadar içerik yer değiştirir.
+* **Redaksiyon:** anlam katmanına giden metinde geçerli tarih/saat dizileri ve BİTİŞİK tarih/saat aralıkları
+  ("10.00-12.00", "12.10.2026-14.10.2026") korunur; telefon biçimleri yine redakte edilir.
 * Selamlaşma/teşekkür (`greeting_thanks`) sorgu üretmez. Türkçe karakter 3-gram'ı sorgu başına açılır
   (Türkçe yeniden yazım için açık, özgün dilde yazılmış sorgu için dilin kendisine göre).
 

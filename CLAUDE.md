@@ -307,10 +307,12 @@ Bu dosyaya token/anahtar/parola yazma.
   izin YOK) YA DA iki bağımsız model (beyan + bekçi) — tek model YETMEZ; erteleme dedektörü TEK biçim
   (genişletici katlama yok); "kaydedildi" tek başına ve "ev sahibi onaylar" (kestirim) erteleme DEĞİL.
   Tanınmayan duruş + konaklama bağlamı = iddia (F01). Host'un teklif metni kelime iddia taramasından YALNIZ
-  cevap erteliyorsa muaf (erteleme teklif DIŞINDA aranır), bekçiye gösterilir. Standart çıkışa eşit/erken
-  "…'e kadar kalabilirsiniz / until 11" izin DEĞİL (saat KODDA; am/pm'siz 1–6 = öğleden sonra). Genel
-  müsaitlik kalıbı üçüncü taraf nesnede (taksi/market/otopark…) konaklama adlandırılmadıkça istek değil
-  (kapalı sınıf, GENİŞLETİLMEZ). Bekçi `availability_unconfirmed` tutuşunda da koşar (iki model ertelemesi
+  cevap erteliyorsa muaf (erteleme teklif DIŞINDA aranır), bekçiye gösterilir. 🚨 Standart çıkış bilgisi
+  ("çıkış günü 11:00'e kadar kalabilirsiniz") izin DEĞİL ama YALNIZ: saat çıkışa BİREBİR eşit + cümlecikte
+  tarih/gün/akşam/uzatma işareti yok + cevapta onay ("Sure/Tabii") yok; yalnız İZİN kalıplarına ("≤" kıyası 22
+  gerçek izni gizliyordu — son denetim). 🚨 Üçüncü taraf dışlaması YALNIZ bitişik yapıyı ("book a taxi",
+  "otopark müsait mi") siler, genel kalıp KALAN metinde yeniden aranır (nesne sözcüğü mesajın herhangi bir
+  yerinde geçince susturmak gerçek istekleri düşürüyordu; kapalı sınıf, GENİŞLETİLMEZ). Bekçi `availability_unconfirmed` tutuşunda da koşar (iki model ertelemesi
   kaldırabilsin; kanal+QR). `RiskEvent.reason` kapının İLK düşen kontrolü (`autoReplyGateFailure`). Semantik
   katmana giden metinde yalnız GEÇERLİ tarih/saat dizisi korunur (`semantic/redact.ts`; noktalı/tireli telefon
   parçalanıp kaçmasın); ayraç çalışması `[<>]{2,}` silinir; 400 desteklenmeyen parametre/şema = kalıcı arıza
