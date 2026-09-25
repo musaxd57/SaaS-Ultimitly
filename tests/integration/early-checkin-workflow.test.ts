@@ -63,6 +63,7 @@ import {
   earlyCheckinRuleWhere,
   loadEarlyCheckinRule,
   saveEarlyCheckinRule,
+  validateEarlyCheckinRuleInput,
   EARLY_CHECKIN_NOTE_PAYMENT_ERROR,
   EARLY_CHECKIN_TRIGGER,
 } from "@/lib/early-checkin/rules";
@@ -406,6 +407,29 @@ describe("kural deposu (migration'sız, `AutomationRule`)", () => {
     expect(await loadEarlyCheckinRule(a.orgId, a.propertyId)).toBeNull();
     await saveEarlyCheckinRule(a.orgId, a.propertyId, null);
     expect(await prisma.automationRule.count()).toBe(0);
+  });
+
+  it("🚨 09-25 (inceleme P2): kayıtlı not bugünkü vetoya takılırsa kural KAPANMAZ — not düşer, işaretlenir; kayıt yolu yine reddeder", async () => {
+    const a = await org();
+    await saveEarlyCheckinRule(a.orgId, a.propertyId, RULE);
+    // Eskiden kaydedilmiş, bugün yasak bir söz taşıyan not (kayıt doğrulamasını atlayarak — sıkılaşan kural senaryosu).
+    const promiseNote = "Kontrol edip size dönüş yapacağım.";
+    await prisma.automationRule.updateMany({
+      where: { organizationId: a.orgId },
+      data: { actionJson: JSON.stringify({ ...RULE, note: promiseNote }) },
+    });
+    const loaded = await loadEarlyCheckinRule(a.orgId, a.propertyId);
+    expect(loaded).toEqual({ ...RULE, note: null, noteRejected: true });
+    // Otomatik taramada da kural AÇIK kalır (sessizce "kapalı" görünmez).
+    expect(await autoEarlyCheckinPropertyIds(a.orgId)).toEqual([a.propertyId]);
+    // Kayıt (girdi) yolu aynı notu REDDEDER — ev sahibi nedenini görür.
+    expect(validateEarlyCheckinRuleInput({ ...RULE, note: promiseNote })).toBeNull();
+    // KONTROL: geçerli not aynen okunur, işaret yok.
+    await prisma.automationRule.updateMany({
+      where: { organizationId: a.orgId },
+      data: { actionJson: JSON.stringify({ ...RULE, note: "Ödeme talebi Airbnb üzerinden gelecek." }) },
+    });
+    expect(await loadEarlyCheckinRule(a.orgId, a.propertyId)).toEqual({ ...RULE, note: "Ödeme talebi Airbnb üzerinden gelecek." });
   });
 
   it("🚨 mülk silinmişse kural YAZILMAZ (sahipsiz kural yok): kayıt 'yazılmadı' döner; var olan mülkte 'yazıldı' (inceleme 09-24)", async () => {

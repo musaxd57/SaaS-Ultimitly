@@ -259,7 +259,8 @@ describe("human_request gate refinement (regression for the over-broad veto)", (
     mockSuggest.mockResolvedValue({
       intent: "human_request",
       confidence: 0.9,
-      reply: "Talebinizi ev sahibimize ilettim; en kısa sürede kendisi sizinle iletişime geçecektir.",
+      // İstemin devir örneği (OLGU; 09-25'ten beri "ilettim / size dönecek" sözü vetoya takılır — muafiyet kalktı).
+      reply: "Tabii ki. Mesajınız kaydedildi; ev sahibiniz görebilir.",
       risk: "insan talebi",
       priority: "standard" as const,
       source: "openai" as const,

@@ -40,7 +40,7 @@ import { applyChannelAutoReply, runDueChannelAutoReplies } from "@/lib/automatio
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
 import { decideEarlyCheckin, type EarlyCheckinRule } from "@/lib/early-checkin/core";
-import { saveEarlyCheckinRule } from "@/lib/early-checkin/rules";
+import { loadEarlyCheckinRule, saveEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import { recheckEarlyCheckinsAfterCleaning } from "@/lib/early-checkin/recheck";
 import { POST as aiSuggest } from "@/app/api/conversations/[id]/ai-suggest/route";
 import { PUT as putRule } from "@/app/api/properties/[id]/early-checkin-rule/route";
@@ -798,14 +798,18 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(sentBody()).toContain(note);
     expect((await decision(id)).reason).toBe("early_checkin_verified");
 
-    // Karşı çift: aynı notta ödeme YÖNTEMİ ("kapıda ödenir") → kural okumada geçersiz, akış kapalı (insan).
+    // Karşı çift: aynı notta ödeme YÖNTEMİ ("kapıda ödenir"). 09-25 (inceleme P2): kayıtlı not okumada geçersizse kural
+    // KAPANMAZ — not DÜŞER (misafire platform dışı ödeme talimatı gitmez), onay notsuz gider, mülk sayfası uyarır.
     await fresh();
     const w = await vacantNight(now);
-    await saveEarlyCheckinRule(w.orgId, w.propertyId, { ...RULE, earliest: "10:00", note: "Anahtar kapıdaki kutuda; ücret kapıda ödenir." });
+    const badNote = "Anahtar kapıdaki kutuda; ücret kapıda ödenir.";
+    await saveEarlyCheckinRule(w.orgId, w.propertyId, { ...RULE, earliest: "10:00", note: badNote });
+    expect((await loadEarlyCheckinRule(w.orgId, w.propertyId))?.noteRejected).toBe(true);
     openAi({ reply: reply(), understanding: nlu("10:00"), guard: guard("10:00") });
     const id2 = await conversationFor(w.propertyId, w.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
-    expect((await applyChannelAutoReply(id2)).sent).toBe(false);
-    expect(mockSend).not.toHaveBeenCalled();
+    expect((await applyChannelAutoReply(id2)).sent).toBe(true);
+    expect(sentBody()).not.toContain("kapıda ödenir");
+    expect(sentBody()).not.toContain(badNote);
   });
 
   it("14 · bir model 'istek yok', diğeri 'erken giriş isteği' → istek YAŞAR (cevap modelinin düz cevabı otomatik gitmez)", async () => {

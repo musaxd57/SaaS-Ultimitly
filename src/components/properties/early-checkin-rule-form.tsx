@@ -38,6 +38,8 @@ export interface EarlyCheckinRuleInitial {
   fee: { amount: number; currency: string } | null;
   note: string | null;
   readyBeforeCheckout?: boolean;
+  /** Kayıtlı not bugünkü kurallara uymuyor ve misafire gönderilmiyor (kural açık kalır). */
+  noteRejected?: boolean;
 }
 
 export function EarlyCheckinRuleForm({
@@ -148,6 +150,11 @@ export function EarlyCheckinRuleForm({
       <Field label="Misafire eklenecek not (isteğe bağlı)" htmlFor="eci-note">
         <Textarea id="eci-note" rows={2} maxLength={200} value={note} disabled={!canManage} onChange={(e) => setNote(e.target.value)} placeholder="Örn. Ödeme talebi Airbnb üzerinden gelecek." />
       </Field>
+      {initial?.noteRejected ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400" data-testid="eci-note-rejected">
+          Kayıtlı notunuz artık misafire gönderilmiyor (söz ya da ödeme yöntemi içeriyor). Yeni bir not yazıp kaydedin.
+        </p>
+      ) : null}
       <p className="text-xs text-muted-foreground">Not misafire olduğu gibi gider; yabancı misafirleriniz çoksa İngilizce yazabilirsiniz.</p>
       <label className="flex items-start gap-2 text-sm" htmlFor="eci-ready-before-checkout">
         <input

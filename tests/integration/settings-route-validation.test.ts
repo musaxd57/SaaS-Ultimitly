@@ -84,4 +84,15 @@ describe("PATCH /api/settings — numeric field validation", () => {
     }
     expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).lateCheckoutOfferText).toBe(ok);
   });
+
+  it("🚨 09-25: söz / yapılmamış işlem taşıyan teklif REDDEDİLİR (istem teklifi aynen aktarır; veto her cevabı tutardı)", async () => {
+    const ok = "13:00'e kadar geç çıkış 250 TL, uygunluğa bağlı.";
+    await patch({ lateCheckoutOfferText: ok });
+    for (const bad of ["Geç çıkış 250 TL; uygunluğu kontrol edip size döneceğim.", "Late checkout until 1pm is 20 EUR — I'll confirm shortly."]) {
+      const r = await patch({ lateCheckoutOfferText: bad });
+      expect(r.status, bad).toBe(400);
+      expect((await r.json()).fields?.lateCheckoutOfferText, bad).toContain("söz ya da yapılmamış bir işlem");
+    }
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).lateCheckoutOfferText).toBe(ok);
+  });
 });

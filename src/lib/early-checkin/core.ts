@@ -49,6 +49,11 @@ export interface EarlyCheckinRule {
    * görevde devir gününde kimlikli "başladım → Daire hazır" sırası çıkışın gerçekleştiğinin kanıtı sayılsın.
    */
   readyBeforeCheckout?: boolean;
+  /**
+   * Kayıtlı not bugünkü kurallara uymuyor (kayıttan SONRA sıkılaşan çıktı vetosu / ödeme süzgeci; 09-25 inceleme P2) ve
+   * KULLANILMIYOR: kural kapanmaz, not düşer; mülk sayfası ev sahibine yeniden yazmasını söyler. Yalnız okumada kurulur.
+   */
+  noteRejected?: true;
 }
 
 /** "Hazır" işareti: önceki çıkıştan sonra atılmış temizlik tamamlandı kaydı. */

@@ -45,7 +45,15 @@ function member<T extends string>(set: readonly T[], v: unknown): v is T {
 }
 
 /** Saf doğrulama: geçerliyse temizlenmiş kural, değilse `null`. Ek alanlar yok sayılır. */
-export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | null {
+export function validateEarlyCheckinRuleInput(
+  raw: unknown,
+  /**
+   * `storedRow`: kayıtlı satır okunuyor. Not bugünkü kurallara uymuyorsa (kayıttan sonra sıkılaşan veto/süzgeç) kural
+   * KAPANMAZ — not düşer, `noteRejected` işaretlenir (inceleme 09-25, P2: kural sessizce "kapalı" görünüyordu). Girdi
+   * (kayıt) yolu bu seçeneği vermez: geçersiz not reddedilir ve ev sahibi nedenini görür.
+   */
+  opts: { storedRow?: boolean } = {},
+): EarlyCheckinRule | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   if (!member(EARLY_CHECKIN_MODES, r.mode)) return null;
@@ -65,6 +73,7 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
   }
 
   let note: string | null = null;
+  let noteRejected = false;
   if (typeof r.note === "string") {
     const n = cleanNote(r.note);
     if (n) {
@@ -79,9 +88,11 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
         /[<>{}[\]]/.test(n) ||
         vetoOutgoingReply(n) !== null
       ) {
-        return null;
+        if (!opts.storedRow) return null;
+        noteRejected = true;
+      } else {
+        note = n;
       }
-      note = n;
     }
   } else if (r.note !== null && r.note !== undefined) {
     return null;
@@ -89,7 +100,14 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
   // Host rızası (kanıt modeli): yalnız açık `true` evet; yok / `null` / `false` HAYIR. Başka tip = bozuk kural → tüm kural
   // reddedilir (öteki alanlarla aynı: fail-closed, kural kapalı sayılır).
   if (r.readyBeforeCheckout !== undefined && r.readyBeforeCheckout !== null && typeof r.readyBeforeCheckout !== "boolean") return null;
-  return { mode: r.mode, earliest, fee, note, ...(r.readyBeforeCheckout === true ? { readyBeforeCheckout: true } : {}) };
+  return {
+    mode: r.mode,
+    earliest,
+    fee,
+    note,
+    ...(r.readyBeforeCheckout === true ? { readyBeforeCheckout: true } : {}),
+    ...(noteRejected ? { noteRejected: true as const } : {}),
+  };
 }
 
 const conditionFor = (propertyId: string) => JSON.stringify({ propertyId });
@@ -111,7 +129,7 @@ export async function autoEarlyCheckinPropertyIds(organizationId: string): Promi
   const ids = new Set<string>();
   for (const r of rows) {
     try {
-      const rule = validateEarlyCheckinRuleInput(JSON.parse(r.actionJson));
+      const rule = validateEarlyCheckinRuleInput(JSON.parse(r.actionJson), { storedRow: true });
       const cond = r.conditionJson ? (JSON.parse(r.conditionJson) as { propertyId?: unknown } | null) : null;
       if (rule?.mode === "auto" && typeof cond?.propertyId === "string" && r.conditionJson === conditionFor(cond.propertyId)) {
         ids.add(cond.propertyId);
@@ -135,7 +153,7 @@ export async function loadEarlyCheckinRule(organizationId: string, propertyId: s
   });
   if (!row) return null;
   try {
-    return validateEarlyCheckinRuleInput(JSON.parse(row.actionJson));
+    return validateEarlyCheckinRuleInput(JSON.parse(row.actionJson), { storedRow: true });
   } catch {
     return null;
   }

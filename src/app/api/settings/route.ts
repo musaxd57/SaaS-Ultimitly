@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
+import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { withManage } from "@/lib/route-guard";
 import { isValidTimeZone } from "@/lib/timezone";
 import { isOrgMemberEmail, isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
@@ -137,6 +138,11 @@ export const PATCH = withManage(async (session, req) => {
         // Teklif her zaman fiyat teklifidir → ödeme bağlamı var ("kapıda" burada ödeme yeridir).
         errors.lateCheckoutOfferText =
           "Teklif metni ödemenin nasıl ya da nerede yapılacağını (kapıda, elden, nakit, IBAN gibi) içeremez. Yalnızca fiyatı ve koşulları yazın; tahsilatı siz yönetirsiniz.";
+      } else if (vetoOutgoingReply(trimmed) !== null) {
+        // İstem teklifi AYNEN aktarır; misafire giden cevap çıktı vetosundan geçer → "size döneceğim / ev sahibiniz
+        // onaylayacak" taşıyan teklif her cevabı tutardı ve ev sahibi nedenini göremezdi (inceleme 09-25). Kayıtta söylenir.
+        errors.lateCheckoutOfferText =
+          "Teklif metni söz ya da yapılmamış bir işlem içeremez (örn. “size döneceğim”, “onaylayacağım”). Yalnızca fiyatı ve koşulları yazın.";
       } else {
         update.lateCheckoutOfferText = trimmed.length === 0 ? null : trimmed;
       }

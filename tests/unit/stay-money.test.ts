@@ -447,14 +447,18 @@ describe("iki kapı — bağlantı DAVRANIŞSAL (kanal + QR aynı yüklem)", () 
     riskLevel: "none",
     confidence: 0.92,
     source: "openai",
-    reply: "Thanks! I'll check with the host and get back to you. I can offer you a 20% discount.",
+    // Erteleme OLGU cümlesiyle (bekleme sözü "I'll check with the host and get back to you" 09-25'ten beri çıktı
+    // vetosuna takılır — kurucu kararı; o hâlde kapının İLK düşen kontrolü veto olurdu ve bu test para kontrolünü
+    // hiç sınamazdı).
+    reply: "Thanks! Early check-in is the host's call; your request has been recorded and is visible to your host. I can offer you a 20% discount.",
     stayChange: { asked: "early_checkin", stance: "defers" } as const,
   };
+  const DEFERRAL_ONLY = "Thanks! Early check-in is the host's call; your request has been recorded and is visible to your host.";
 
   it("kanal: gerekçe `price_claim`; parasız aynı cevap geçer", () => {
     const ctx = { stayTimes: { checkIn: "15:00", checkOut: "11:00" }, stayGuard: guard };
     expect(autoReplyGateFailure(result, ASK, ctx)).toBe("price_claim");
-    expect(autoReplyGateFailure({ ...result, reply: "Thanks! I'll check with the host and get back to you." }, ASK, ctx)).toBeNull();
+    expect(autoReplyGateFailure({ ...result, reply: DEFERRAL_ONLY }, ASK, ctx)).toBeNull();
     // Politika girdisi kapıyla aynı kurucudan (karar kaydı ile hüküm ayrışamaz).
     expect(evaluateAvailability(result.reply, [ASK], availabilityPolicyFor(result, ctx)).reason).toBe("price_claim");
   });

@@ -1,0 +1,257 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { vetoOutgoingReply } from "@/lib/ai/output-veto";
+
+// ---------------------------------------------------------------------------
+// BEKLEME SÖZÜ VETOSU — İNCELEME BATARYASI (09-25). Kurucu kuralı: "Guest hiçbir 'soruyorum/döneceğim' mesajı
+// almayacak." İlk sürüm (a3b30ac) ajansız Türkçe gövdelerle ev sahibinin SÜREÇ anlatımını tutuyordu ("Girişte site
+// güvenliği adınızı soracak", "We will verify your ID at check-in") ve birçok İngilizce/Türkçe/diğer dil sözünü
+// kaçırıyordu. Ölçüm (168 cümle, 6 dil): yanlış pozitif 23 → 0, kaçan söz 76 → 1.
+// Bilinen, BİLEREK kapsam dışı: edilgen "dönüş yapılacaktır" (edilgen çatı olgu cümlesinden ayrılamaz — dosya başı).
+// ---------------------------------------------------------------------------
+
+const LEGIT = [
+    "Emin olmak için soruyorum: yarınki girişinizi mi kastediyorsunuz?",
+    "Size soracağımız tek şey tahmini varış saatiniz.",
+    "Let me check if I understood correctly: you arrive on Friday?",
+    "Let me double-check: is it two adults and one child?",
+    "Let me check whether I got this right — you mean tomorrow's check-in?",
+    "Ich frage nur nach: reisen Sie mit dem Auto an?",
+    "Je vais vous demander une précision : arrivez-vous vendredi ?",
+    "Je vais vous demander de laisser les clés dans la boîte en partant.",
+    "Уточню: вы приезжаете в пятницу?",
+    "Уточню, пожалуйста: сколько вас будет?",
+    "Voy a confirmar un detalle: ¿llegan el viernes?",
+    "سأسألك سؤالًا واحدًا: هل ستصلون يوم الجمعة؟",
+    "Kimlik Bildirim Sistemi için girişte kimliğinizi teyit ediyoruz.",
+    "Akıllı kilit kodunuzu kontrol edecek ve kapı açılacak.",
+    "Girişte size bilgi verecek bir görevli olacak.",
+    "Our team will check on the heating system during the scheduled maintenance on Monday.",
+    "We check the apartment before every arrival.",
+    "Wir prüfen die Wohnung vor jeder Anreise.",
+    "Dairede çocukların ilgileneceği oyuncaklar ve kitaplar var.",
+    "Tarih meraklılarının ilgileneceği bir müze yürüme mesafesinde.",
+    "Taksicinin soracağı ilk şey adres olur; adresi kısa mesajla gösterebilirsiniz.",
+    "Girişte sizinle ilgilenecek görevlimizin adı resepsiyonda yazıyor.",
+    "Onaylayacağınız kural listesi Airbnb'de.",
+    "Kontrol edecekleriniz: kapı kodu ve Wi-Fi.",
+    "Soracaklarınız olursa buradayız.",
+    "Sorarım diye düşünmeyin, her şey hazır.",
+    "Let me know if you need anything else.",
+    "Otobüs sizi merkeze götürecek.",
+    "Temizlik ekibi çıkıştan sonra daireyi kontrol edecek.",
+    "Ev sahibiniz sizi kapıda karşılayacak.",
+    "Soracağınız bir şey olursa buradan yazabilirsiniz.",
+    "Kapı kodunu girişten önce kontrol edebilirsiniz.",
+    "Girişte kimliğinizi sorarız.",
+    "Girişte tüm misafirlerimize kimlik soruyoruz.",
+    "Her misafirden önce daireyi kontrol ediyoruz.",
+    "Çıkışta daireyi kontrol ediyoruz; anahtarları kutuya bırakmanız yeterli.",
+    "Rezervasyonları 24 saat önce teyit ediyoruz.",
+    "Airbnb ödemenizi onaylayacak ve onay e-postası gelecek.",
+    "Sistem rezervasyonunuzu otomatik olarak onaylayacaktır.",
+    "Görevlimiz bagajlarınızla ilgilenecek.",
+    "Resepsiyon görevlisi size bilgi verecek.",
+    "Kapıdaki görevli kimliğinizi teyit edecek.",
+    "Emin olmak için soruyorum: kaç kişi geleceksiniz?",
+    "Size şunu soruyorum: hangi gün geleceksiniz?",
+    "Kontrol edeceğiniz tek şey kapı kodu.",
+    "Soracak mısınız?",
+    "Ev sahibine soracak mısınız?",
+    "Rezervasyonu Airbnb üzerinden onaylayacaksınız.",
+    "Havuz görevlisi sizinle ilgilenecektir.",
+    "Sorarım diye düşünmeyin, her şey hazır.",
+    "Otomat parayı kontrol edecek ve kartı verecek.",
+    "Güvenlik görevlisi girişte isminizi soracak.",
+    "Taksi şoförü adresi soracaktır; bu adresi gösterebilirsiniz.",
+    "Bina görevlisi paketinizi teslim alacak.",
+    "Uygulama kodunuzu doğrulayacak.",
+    "Check-in will be verified at the door.",
+    "You can verify the code on the lockbox.",
+    "The cleaning team will check the apartment after checkout.",
+    "We will verify your ID at check-in, as required by law.",
+    "The host will check for damages after checkout.",
+    "Our team will check in on the pool every morning.",
+    "The concierge will check your booking reference at the desk.",
+    "Please double-check the door code before you arrive.",
+    "Feel free to check with the front desk for luggage storage.",
+    "The app will verify your identity automatically.",
+    "The building security will verify your name at the entrance.",
+    "You'll find out more in the house manual.",
+    "Someone will check your ID at reception.",
+    "Let me check: did you mean Friday or Saturday?",
+    "We'll verify the deposit and release it within 7 days per the listing policy.",
+    "Melden Sie sich gerne, wenn Sie Fragen haben.",
+    "Bitte melden Sie sich bei der Rezeption.",
+    "Ich frage mich, ob Sie nach dem Frühstück abreisen.",
+    "Je vous confirme que l'arrivée est à 15h.",
+    "Je vais revenir sur les horaires : l'arrivée est à 15h.",
+    "Consulte el manual de la casa.",
+    "Le confirmo que la llegada es a las 15:00.",
+    "Я узнаю ваш голос.",
+    "هل لديك مسألة أخرى؟",
+];
+
+const PROMISES = [
+    "Ev sahibinize soruyorum.",
+    "Kontrol ediyorum.",
+    "Hemen kontrol ediyorum, bir dakika.",
+    "Hemen bakıyorum.",
+    "Ev sahibinize danışıyorum.",
+    "Kontrol edip size dönüş yapacağım.",
+    "One moment, let me check.",
+    "Let me see what I can find.",
+    "I'll look.",
+    "Your host will review your request and let you know.",
+    "The host will check availability.",
+    "I'll check the router and get back to you.",
+    "They'll confirm whether the 14th–16th works.",
+    "Ev sahibinize soracağım.",
+    "Size döneceğim.",
+    "Ev sahibiniz teyit edecek.",
+    "Sizi bilgilendireceğiz.",
+    "Size haber veririm.",
+    "Ev sahibine iletip dönüş sağlarım.",
+    "Müsait olursa ev sahibiniz size bildirecektir.",
+    "Size bildireceğim.",
+    "Ev sahibiniz size ulaşacak.",
+    "Ev sahibiniz en kısa sürede cevap verecek.",
+    "Ev sahibiniz size yanıt verecektir.",
+    "Hemen bakacağım.",
+    "Öğrenip size yazarım.",
+    "Öğrenip size söyleyeceğim.",
+    "Durumu öğreneceğim.",
+    "Ev sahibinize danışıp size bilgi vereceğim.",
+    "Ev sahibiniz sizinle iletişime geçecektir.",
+    "Ev sahibiniz size geri dönüş yapacaktır.",
+    "Kontrol edip dönüyorum.",
+    "Ev sahibinize sorup dönüyorum.",
+    "Ev sahibiniz değerlendirip size bilgi iletecektir.",
+    "Bilgi alıp size ileteceğim.",
+    "Ev sahibiniz size kısa süre içinde yazacaktır.",
+    "Bu konuda sizi bilgilendireceğim.",
+    "Ev sahibinden öğrenip size aktarırım.",
+    "Ev sahibinizle görüşüp size dönerim.",
+    "Ev sahibiniz size bilgi verir.",
+    "Ev sahibiniz sizi arayacaktır.",
+    "I'll check with the host and get back to you.",
+    "Let me check.",
+    "Let me check that for you.",
+    "Let me check this with the host.",
+    "I'll check.",
+    "I'll check the availability and get back to you.",
+    "I'll check the calendar and let you know.",
+    "I'll reach out to the host.",
+    "We'll keep you posted.",
+    "I'll keep you updated.",
+    "I'll confirm shortly.",
+    "The host will be in touch.",
+    "Your host will get in touch with you soon.",
+    "I'll look into it.",
+    "Your host will reply shortly.",
+    "Your host will respond soon.",
+    "You'll hear back from your host soon.",
+    "You will hear from us shortly.",
+    "Your host will review your request.",
+    "Your host will check the calendar and confirm.",
+    "They will get back to you.",
+    "Our host will get back to you.",
+    "The owner will get back to you.",
+    "I'll ask them.",
+    "I'll ask the owner.",
+    "I'll ask the property manager.",
+    "I will find out for you.",
+    "I shall check with the host.",
+    "I am going to check with the host.",
+    "I'm going to ask the host.",
+    "Allow me to check with the host.",
+    "I'll message the host.",
+    "I'll get an answer from the host.",
+    "Once I hear from the host, I'll let you know.",
+    "I will revert shortly.",
+    "I'll check on that.",
+    "I'll have the host contact you.",
+    "Ich melde mich bei Ihnen.",
+    "Dann melde ich mich bei Ihnen.",
+    "Gerne frage ich beim Gastgeber nach.",
+    "Ich gebe Ihnen Bescheid.",
+    "Ich leite Ihre Anfrage weiter.",
+    "Wir melden uns bei Ihnen.",
+    "Ihr Gastgeber wird sich bei Ihnen melden.",
+    "Ich prüfe das und melde mich.",
+    "Ich kläre das mit dem Gastgeber.",
+    "Ich werde den Gastgeber fragen.",
+    "Ich werde Ihnen dann gerne bestätigen, dass alles passt.",
+    "Je vais vérifier avec l'hôte.",
+    "Je vais voir avec l'hôte.",
+    "Je vous tiens informé.",
+    "Je vous tiens au courant.",
+    "Je vais me renseigner.",
+    "Je vous informerai.",
+    "Nous allons vérifier.",
+    "Votre hôte vous contactera.",
+    "Je contacterai l'hôte.",
+    "Je reviens vers vous rapidement.",
+    "Je vais demander à l'hôte.",
+    "Consultaré con el anfitrión.",
+    "Te aviso en cuanto sepa algo.",
+    "Le escribo en cuanto sepa algo.",
+    "Voy a hablar con el anfitrión.",
+    "Voy a averiguar.",
+    "Revisaré el calendario.",
+    "El anfitrión se pondrá en contacto con usted.",
+    "Nos pondremos en contacto con usted.",
+    "Lo consultaré con el anfitrión.",
+    "Preguntaré al anfitrión.",
+    "Voy a verificar la disponibilidad.",
+    "Я проверю и сообщу вам.",
+    "Уточню у хозяина.",
+    "Мы уточним и сообщим.",
+    "Хозяин свяжется с вами.",
+    "Я напишу вам позже.",
+    "Я дам вам знать.",
+    "Проверю, если нужно.",
+    "Сообщу хозяину.",
+    "سأتواصل مع المضيف.",
+    "سوف أسأل المضيف.",
+    "سأقوم بالتواصل مع المضيف.",
+    "سيتواصل معك المضيف.",
+    "سنتواصل معك قريبًا.",
+    "سأتأكد من ذلك.",
+    "سأرسل لك التفاصيل.",
+    "سأعلمك.",
+    "سأعود إليك.",
+];
+
+describe("bekleme sözü vetosu — meşru süreç / netleştirme / talimat cümleleri GEÇER", () => {
+  it.each(LEGIT)("geçer: %s", (text) => {
+    expect(vetoOutgoingReply(text)).toBeNull();
+  });
+});
+
+describe("bekleme sözü vetosu — söz ve sahte eylem TUTULUR (6 dil)", () => {
+  it.each(PROMISES)("tutulur: %s", (text) => {
+    expect(vetoOutgoingReply(text)).toBe("unverified_commitment");
+  });
+});
+
+describe("gerçek model cevapları (09-25 cevap kıyası, 540 cevap, iki model) — HİÇBİRİ tutulmaz", () => {
+  it("model-reply-compare raporlarının cevaplarında yanlış pozitif yok", () => {
+    const dir = path.resolve(__dirname, "../../docs/olcum");
+    const files = readdirSync(dir).filter((f) => /^model-reply-compare-2026-09-25-.*\.json$/.test(f));
+    expect(files.length).toBeGreaterThanOrEqual(2); // anti-vakum
+    let n = 0;
+    const vetoed: string[] = [];
+    for (const f of files) {
+      const rows = (JSON.parse(readFileSync(path.join(dir, f), "utf8")) as { rows: { id: string; reply?: unknown }[] }).rows;
+      for (const r of rows) {
+        if (typeof r.reply !== "string") continue;
+        n++;
+        if (vetoOutgoingReply(r.reply) !== null) vetoed.push(`${f}#${r.id}`);
+      }
+    }
+    expect(n).toBeGreaterThan(400);
+    expect(vetoed).toEqual([]);
+  });
+});

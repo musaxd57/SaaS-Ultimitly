@@ -6,6 +6,7 @@ import {
   evaluateAvailability,
   stayEvidenceOf,
   stayInfoOnly,
+  stayRequestKinds,
   vetoAvailability,
   type AvailabilityPolicyOptions,
   type AvailabilityVetoReason,
@@ -377,11 +378,14 @@ export function autoReplyGateVerdict(
   // DÜZELTEREK çözülür (fallback/holding metinleri tek dürüstlük sözleşmesine
   // bağlanır), kapıyı devir akışının üstüne kapatarak değil — aksi hâlde
   // misafir hiçbir şey almaz ve host da devir sinyalini kaybeder.
-  if (
-    !context?.skipOutputVetoForDiagnosis &&
-    result.intent !== "human_request" &&
-    vetoOutgoingReply(result.reply) !== null
-  ) {
+  //
+  // 🚨 09-25 (kurucu: "Guest hiçbir 'soruyorum/döneceğim' mesajı almayacak" + inceleme P2): insan talebi muafiyeti
+  // KALKTI. Muafiyet modelin "Talebinizi ev sahibimize ilettim; size dönecektir" devir cevabı için vardı; istem artık
+  // devri OLGU olarak yazdırıyor ("Mesajınız kaydedildi; ev sahibiniz görebilir." — örnek 16) ve muafiyet tam da
+  // yasaklanan sözü geçiriyordu ("ev sahibinize soracağım ve size döneceğim" otomatik gidiyordu). Söz/iddia taşıyan
+  // devir cevabı artık tutulur: model insan talebini etiketlediyse (`riskType` human_request) ya da anlama katmanı
+  // insan talebi gördüyse aşağıdaki yükseltme yolu ev sahibine ACİL bildirir — devir sessizce ölmez.
+  if (!context?.skipOutputVetoForDiagnosis && vetoOutgoingReply(result.reply) !== null) {
     return hold("reply_output_veto");
   }
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24, `availability-claims.ts`) ──────────
@@ -2141,11 +2145,13 @@ export async function applyChannelAutoReply(
         rest === "reply_language_mismatch")
     );
   };
-  const guardAfterOutputVeto = () => {
-    const rest = withoutOutputVeto();
-    return rest === null || rest === "availability_unconfirmed";
-  };
-  if ((gatePassed || gateFailure === "availability_unconfirmed" || guardAfterOutputVeto()) && stayGuardEnabled()) {
+  // Bekçi bir ağ çağrısıdır (tavan 20 sn): vetonun tuttuğu taslakta YALNIZ erken giriş akışı onun hükmünü kullanabilir
+  // (inceleme 09-25, P3) → öteki katmanlardan biri erken giriş istediyse çağrılır; başka konuda veto zaten tutar.
+  const vetoRest = stayGuardEnabled() ? withoutOutputVeto() : undefined;
+  const guardAfterOutputVeto =
+    (vetoRest === null || vetoRest === "availability_unconfirmed") &&
+    stayRequestKinds([...pendingGuestMessages, last.body], availabilityPolicyFor(result, gateContext)).has("early_checkin");
+  if ((gatePassed || gateFailure === "availability_unconfirmed" || guardAfterOutputVeto) && stayGuardEnabled()) {
     const stayGuard = await runStayChangeGuard({
       guestMessages: [...pendingGuestMessages, last.body],
       reply: result.reply,
@@ -2164,12 +2170,13 @@ export async function applyChannelAutoReply(
     }
   }
   // ── DOĞRULANMIŞ ERKEN GİRİŞ (09-24, kurucu: "hassas istek = ENGEL değil, doğrulama iş akışı") ────────────────
-  // Kapı müsaitlik yüzünden kapandıysa YA DA iki model ertelemeyi doğrulayıp geçtiyse ("ev sahibine soracağım") ve
+  // Kapı müsaitlik yüzünden kapandıysa, iki model ertelemeyi doğrulayıp geçtiyse ("erken giriş ev sahibinin kararıdır;
+  // talebiniz kaydedildi") YA DA taslağı yalnız bekleme sözü vetosu tuttuysa ("ev sahibine soracağım" — 09-25) ve
   // tüm katmanlarda istenen TEK tür erken girişse: önceki çıkış, çakışma, temizlik "bitti" işareti, host'un izin
   // penceresi ve ücret kuralı KODDA doğrulanır (`lib/early-checkin`). Onaylanabilir + host kuralı "otomatik" + iki
   // model aynı saati okudu + tek konu → onay metni KODDA kurulur ve kapının TÜM kontrolleri bu metinle BAŞTAN koşar
   // (acil/şikâyet/injection/çıktı vetosu aynen); geçerse erteleme yerine doğrulanmış cevap gider. Aksi hâlde bugünkü
-  // davranış: kapanan cevap host'a taslak, geçen erteleme gider. Hata = bugünkü davranış. Başka türde istek (ya da
+  // davranış: kapanan cevap host'a taslak, geçen (olgu cümlesi) erteleme gider. Hata = bugünkü davranış. Başka türde istek (ya da
   // istek yok) → akış hiç DB'ye dokunmadan `null` döner.
   let earlyCheckinRun: EarlyCheckinRun | null = null;
   let earlyCheckinSent = false;

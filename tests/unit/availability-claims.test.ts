@@ -183,15 +183,27 @@ describe("gönderim kapısı (kanal) — bağlantı DAVRANIŞSAL", () => {
     const defers = { stayGuard: { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const, replyDefersToHost: true } } };
     const none = { asked: "extend", stance: "none" } as const;
     const def = { asked: "extend", stance: "defers" } as const;
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: none, reply: "Mesajınızı ev sahibimize ilettim." }, msg, req)).toBe(false);
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınızı ev sahibimize ilettim." }, msg, defers)).toBe(true);
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Ev sahibimize ilettim; o gece boş." }, msg, defers)).toBe(false);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: none, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, msg, req)).toBe(false);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, msg, defers)).toBe(true);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınız kaydedildi; o gece boş." }, msg, defers)).toBe(false);
     // Bekçi yokken de gitmez (tutulan devir kanal yolunda acil e-postayla bildirilir).
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınızı ev sahibimize ilettim." }, msg)).toBe(false);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, msg)).toBe(false);
     // KONTROL: konaklama konusu olmayan saf devir gider.
     expect(
-      passesAutoReplySafetyGate({ ...handoff, stayChange: { asked: "none", stance: "none" }, reply: "Mesajınızı ev sahibimize ilettim." }, "Ev sahibiyle konuşmak istiyorum."),
+      passesAutoReplySafetyGate({ ...handoff, stayChange: { asked: "none", stance: "none" }, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, "Ev sahibiyle konuşmak istiyorum."),
     ).toBe(true);
+    // 🚨 09-25 (kurucu: misafir "soracağım/döneceğim" almaz; inceleme P2): insan talebinin çıktı vetosu MUAFİYETİ KALKTI —
+    // söz ya da sahte eylem taşıyan devir cevabı gitmez (kanal yolunda yükseltme ev sahibine acil bildirir).
+    for (const reply of [
+      "Tabii ki, ev sahibinize soracağım ve size döneceğim.",
+      "Sure — I'll pass this on and your host will get back to you shortly.",
+      "Talebinizi ev sahibimize ilettim; en kısa sürede kendisi sizinle iletişime geçecektir.",
+    ]) {
+      expect(
+        passesAutoReplySafetyGate({ ...handoff, stayChange: { asked: "none", stance: "none" }, reply }, "Ev sahibiyle konuşmak istiyorum."),
+        reply,
+      ).toBe(false);
+    }
   });
 });
 

@@ -472,11 +472,12 @@ describe("applyChannelAutoReply", () => {
     mockSuggest.mockResolvedValue({
       ...SAFE_REPLY,
       intent: "human_request",
-      reply: "Talebinizi ev sahibimize ilettim; en kısa sürede kendisi sizinle iletişime geçecektir.",
+      reply: "Tabii ki. Mesajınız kaydedildi; ev sahibiniz görebilir.",
       riskLevel: "low",
       confidence: 0.9,
     });
-    const { conversationId } = await seed();
+    // Misafirin dilinde devir (09-25 dil kapısı): Türkçe istek, Türkçe devir cevabı.
+    const { conversationId } = await seed({ guestMessage: "Ev sahibiyle görüşmek istiyorum lütfen" });
 
     const out = await applyChannelAutoReply(conversationId);
 
@@ -484,6 +485,26 @@ describe("applyChannelAutoReply", () => {
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     expect(conv?.autoReplyHoldUntil).toBeInstanceOf(Date);
     expect(conv!.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("🚨 09-25: SÖZ taşıyan devir cevabı ('soracağım ve döneceğim') GİTMEZ — ev sahibine acil yükseltilir, AI susmaz değil 'Sorunlu'", async () => {
+    mockSuggest.mockResolvedValue({
+      ...SAFE_REPLY,
+      intent: "human_request",
+      reply: "Tabii ki, ev sahibinize soracağım ve size döneceğim.",
+      riskLevel: "low",
+      riskType: "human_request",
+      confidence: 0.9,
+    });
+    const { conversationId } = await seed();
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.status).toBe("problem");
+    expect(conv.skippedReason).toBe("escalated_to_human");
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(ev.finalDecision).toBe("human_review");
   });
 
   it("stays silent while a human-handoff hold is active", async () => {
@@ -1189,11 +1210,11 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     mockSuggest.mockResolvedValue({
       ...SAFE_REPLY,
       intent: "human_request",
-      reply: "Talebinizi ev sahibimize ilettim.",
+      reply: "Tabii ki. Mesajınız kaydedildi; ev sahibiniz görebilir.",
       riskLevel: "low",
       confidence: 0.9,
     });
-    const { conversationId } = await seed();
+    const { conversationId } = await seed({ guestMessage: "Ev sahibiyle görüşmek istiyorum lütfen" });
     const out = await applyChannelAutoReply(conversationId);
 
     expect(out.sent).toBe(true);
@@ -1216,16 +1237,18 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     mockSuggest.mockResolvedValue({
       ...SAFE_REPLY,
       intent: "human_request",
-      reply: "Talebinizi ev sahibimize ilettim.",
+      reply: "Tabii ki. Mesajınız kaydedildi; ev sahibiniz görebilir.",
       riskLevel: "low",
       confidence: 0.9,
     });
-    const { conversationId } = await seed();
-    await applyChannelAutoReply(conversationId);
+    const { conversationId } = await seed({ guestMessage: "Ev sahibiyle görüşmek istiyorum lütfen" });
+    // Anti-vakum: devir cevabı gerçekten KUYRUĞA girdi (yoksa aşağıdaki "hold yok" iddiası boş geçerdi).
+    expect((await applyChannelAutoReply(conversationId)).queued).toBe(true);
 
     // Kalıcı (definitive) sağlayıcı hatası: mesaj misafire ULAŞMADI.
     const deliver = vi.fn().mockResolvedValue({ ok: false, status: 400, error: "bad request" });
     await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    expect(deliver).toHaveBeenCalledTimes(1);
 
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     // Misafir devir mesajını almadıysa AI'yı susturmak İKİNCİ bir kayıptır.
