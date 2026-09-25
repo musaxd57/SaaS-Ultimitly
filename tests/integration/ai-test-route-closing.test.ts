@@ -108,6 +108,19 @@ describe("POST /api/ai/test — anlamca kapanış önizlemesi", () => {
     expect(mockSuggest.mock.calls[0][0].timeZone).toBe("America/New_York");
   });
 
+  it("KONTROL (parite): cevap modeli EKSİK BİLGİ ya da EYLEM ÖNERİSİ bildirdiyse kapanış DEĞİL — kanalla aynı", async () => {
+    // Mutasyon turu (ikinci inceleme 09-25): önizleme kapı girdisine `missingInfo`yu vermeyince hiçbir test düşmüyordu —
+    // kanal bu hâlde cevap/taslak üretirken önizleme "cevap gerekmez" diyordu.
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch(NLU_THANKS));
+    await seed();
+    mockSuggest.mockResolvedValue({ ...CLOSING_DRAFT, missingInfo: ["Otopark bilgisi"] });
+    expect((await (await POST(req({ message: "Anladım" }), ctx)).json()).closingSemantic).toBe(false);
+    __resetUnderstandingCache();
+    mockSuggest.mockResolvedValue({ ...CLOSING_DRAFT, actionSuggestion: "Misafire otopark yerini gönderin." });
+    expect((await (await POST(req({ message: "Anladım" }), ctx)).json()).closingSemantic).toBe(false);
+  });
+
   it("KONTROL: cevap modeli başka niyet dedi → kapanış DEĞİL", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch(NLU_THANKS));

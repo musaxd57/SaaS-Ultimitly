@@ -256,6 +256,13 @@ describe("gizleme kapısı (`closingMayHide`) — yalnız açık iş olmadığı
     expect(hide([g("Sorun var"), ai("Mesajınız kaydedildi; ev sahibiniz görebilir.", null), g("Teşekkürler")])).toBe(false);
     expect(hide([g("Pets?"), ai("Whether pets are allowed is the host's call; your request has been recorded and is visible to your host.", "general"), g("ok thanks")])).toBe(false);
   });
+
+  it("🚨 P1: karar ERTELEMESİ tek başına da (devir cümlesi olmadan) gizlemeyi kapatır", () => {
+    // Mutasyon turu 09-25 (ikinci inceleme): yukarıdaki örnekler erteleme ile devir cümlesini BİRLİKTE taşıyordu; erteleme
+    // bacağı silinince hiçbir test düşmüyordu.
+    expect(hide([g("Köpeğimi getirebilir miyim?"), ai("Evcil hayvan kabulü ev sahibinizin kararıdır.", "general"), g("Teşekkürler")])).toBe(false);
+    expect(hide([g("Pets?"), ai("Bringing a pet is the host's call.", "general"), g("ok thanks")])).toBe(false);
+  });
 });
 
 describe("anlam yolu — ikinci inceleme (09-25) sözcüksel itirazları", () => {

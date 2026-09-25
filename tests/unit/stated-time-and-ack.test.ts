@@ -169,6 +169,8 @@ describe("statedCheckoutTime — ikinci inceleme (09-25): yanlış kabuller", ()
     ["10:00", "Saat 10:00 yerine 11:30'da çıkarız"], // açık saatte de değiştirilen saat (boşluğu eşleşme yer)
     ["10:00", "10:00 değil 11:00'de çıkarız"],
     ["12:00", "Öğlen yemeğinden sonra çıkarız"], // öğle yemeği saat değil
+    // Mutasyon turu: yukarıdaki satırda "sonra" cümleciği böldüğü için "yeme" freni hiç sınanmıyordu — AYNI cümlecik.
+    ["12:00", "Öğlen yemeğini yiyip çıkarız"],
   ];
   for (const [time, msg] of rejects) {
     it(`reddeder: ${time} ← ${msg}`, () => {

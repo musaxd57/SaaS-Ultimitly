@@ -43,6 +43,17 @@ describe("hasOpenHostWork — pencere", () => {
     expect(await hasOpenHostWork(ORG, [guest("g1"), host("h1")])).toBe(false);
     expect(findMany).not.toHaveBeenCalled();
   });
+
+  it("pencere tavanı 200 misafir mesajı: uzun ev sahibisiz dizide eski tutulan soru da sorulur (en yeni 200)", async () => {
+    // Mutasyon turu (ikinci inceleme 09-25): tavan 50'ye indirilince hiçbir test düşmüyordu.
+    await hasOpenHostWork(ORG, Array.from({ length: 120 }, (_, i) => guest(`g${i + 1}`)));
+    expect(queriedIds()).toHaveLength(120);
+    expect(queriedIds()[0]).toBe("g1");
+    findMany.mockClear();
+    await hasOpenHostWork(ORG, Array.from({ length: 250 }, (_, i) => guest(`g${i + 1}`)));
+    expect(queriedIds()).toHaveLength(200);
+    expect(queriedIds()[0]).toBe("g51");
+  });
 });
 
 describe("hasOpenHostWork — karar okuması", () => {
