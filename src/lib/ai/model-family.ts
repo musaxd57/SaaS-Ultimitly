@@ -13,7 +13,7 @@
 export function isReasoningModel(model: string): boolean {
   // gpt-5 ve SONRASI (gpt-6-luna/sol/astra, 09-25 canlı sonda: temperature 0.4 ve max_tokens reddedilir). Eski kural
   // yalnız gpt-5'i tanıyordu; gpt-6'ya geçiş her çağrıyı 400 ile düşürürdü. gpt-4.x / 3.5 klasik kalır.
-  return /^(o\d|gpt-(?:[5-9]|\d{2,})(?!\d))/i.test(model.trim());
+  return /^(o\d|gpt-(?:[5-9]|\d{2,}))/i.test(model.trim());
 }
 
 /**

@@ -115,6 +115,10 @@ describe("inceleme bulguları (09-23 ikinci tur) — sahte çelişki ve kaçan g
       "Çıkış günü bavullarınızı en geç 14:00'e kadar dairenin giriş holünde bırakabilirsiniz.",
       "Bavulları 14:00'e kadar giriş katındaki depoya bırakabilirsiniz.",
       "Giriş koridorundaki ışıklar 23:00'te kapanır.",
+      "Giriş lobisinde 22:00'ye kadar görevli bulunur.",
+      "Giriş merdiveninin ışığı 23:00'te söner.",
+      "Giriş kapısı 23:00'te kilitlenir.",
+      "Our driver waits in the arrival hall from 14:00.",
     ]) {
       expect(fieldTimeHits("Bavul bırakma", text, "checkout"), text).toEqual([]);
       expect(findTimeConflicts(PROP, [kb("checkout", "Bavul bırakma", text)]), text).toEqual([]);

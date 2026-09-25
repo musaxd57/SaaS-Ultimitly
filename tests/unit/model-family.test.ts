@@ -21,7 +21,7 @@ describe("isReasoningModel", () => {
   });
 
   it("klasik sohbet modelleri reasoning DEĞİL", () => {
-    for (const m of ["gpt-4.1", "gpt-4o", "gpt-3.5-turbo", "zai-org/GLM-5.2", "llama-3"]) {
+    for (const m of ["gpt-4.1", "gpt-4o", "gpt-4.5-preview", "gpt-3.5-turbo", "zai-org/GLM-5.2", "llama-3"]) {
       expect(isReasoningModel(m), m).toBe(false);
     }
   });
