@@ -125,6 +125,17 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect((await (await POST(req("Giriş saati kaçta?"), ctx)).json()).wouldAutoSend).toBe(false);
   });
 
+  it("🚨 PARİTE: eylem beyanı (MÇ §4) → wouldAutoSend FALSE; boş beyanla aynı cevap TRUE", async () => {
+    // Kart kapıya alanları TEK TEK veriyor: `claimedActions` verilmezse gerçek gönderici tutarken kart "gönderilirdi" derdi.
+    await seed();
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, claimedActions: { status: "declared", actions: [] } });
+    expect((await (await POST(req("Wi-Fi şifresi nedir?"), ctx)).json()).wouldAutoSend).toBe(true);
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, claimedActions: { status: "declared", actions: ["notified_team"] } });
+    expect((await (await POST(req("Wi-Fi şifresi nedir?"), ctx)).json()).wouldAutoSend).toBe(false);
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, claimedActions: { status: "unknown" } });
+    expect((await (await POST(req("Wi-Fi şifresi nedir?"), ctx)).json()).wouldAutoSend).toBe(false);
+  });
+
   it("🚨 PARİTE: misafirin dilinde olmayan cevap (09-25) → wouldAutoSend FALSE; aynı içerik misafirin dilinde TRUE", async () => {
     // Kart gerçek kapıyı çağırır: dil kontrolü misafirin mesajı + `reply` ile koşar (ek alan gerekmez) — kart
     // "gönderilirdi" derken gerçek gönderici tutmasın. Kontrol satırı aynı cevabın doğru dilde geçtiğini gösterir.

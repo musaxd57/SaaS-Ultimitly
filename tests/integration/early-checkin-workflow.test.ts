@@ -891,6 +891,44 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect((await decision(id)).ec).toBeUndefined();
   });
 
+  // ── EYLEM BEYANI (MÇ §4, `claimedActions`; bayrak `AI_ACTION_CLAIMS_ENABLED`) ─────────────────────────────────────
+  // Kelime vetosuyla AYNI sınıf: modelin metnindeki söz/iddia. Akış o metni koddan kurulanla değiştirdiği için beyanın
+  // tuttuğu taslakta da koşmalı — yoksa bayrak açılınca doğrulanmış erken giriş sessizce ölürdü. Kurulan metin `[]` taşır.
+  it("🚨 eylem beyanı (kelime vetosunun GEÇİRDİĞİ metin) tutulur; her şey doğrulanmışsa onay ONUN YERİNE gider", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, claimedActions: { status: "declared", actions: ["will_follow_up"] } });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    expect(String(mockSend.mock.calls[0][1]).startsWith("The apartment is ready")).toBe(true);
+    expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
+  });
+
+  it("🚨 eylem beyanı + onaylanamaz (temizlik bitmedi) → HİÇBİR ŞEY gitmez; gerekçe action_claim, akış yine koşar", async () => {
+    const t = await turnover({});
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, claimedActions: { status: "unknown" } });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const d = await decision(id);
+    expect(d.finalDecision).toBe("human_review");
+    expect(d.reason).toBe("action_claim_undeclared");
+    expect(d.ec?.a).toBe("0");
+  });
+
+  it("🚨 eylem beyanı + DÜŞÜK güven → akış KOŞMAZ (güven tabanı kalkmaz)", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, confidence: 0.5, claimedActions: { status: "declared", actions: ["will_follow_up"] } });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect((await decision(id)).ec).toBeUndefined();
+  });
+
   it("KONTROL: bayraklar kapalıyken (bugünkü üretim) saat iki modelden okunamaz → otomatik onay YOK", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "");
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "");

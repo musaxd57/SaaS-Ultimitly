@@ -67,6 +67,9 @@ const REASONS = new Set([
   "reply_language_mismatch",
   // Kapanış mesajı → cevap gerekmedi (09-25, `ai/closing-turn.ts`): sözcük yolu / iki modelin uyuştuğu anlam yolu.
   "closing_ack", "closing_ack_semantic",
+  // Eylem beyanı (MÇ §4, `ai/action-claims.ts`; bayrak kapalıyken yazılmaz): cevap makbuzsuz bir eylem iddia etti /
+  // beyan istenip gelmedi. Kanal + QR; raporda kendi satırı.
+  "action_claim", "action_claim_undeclared",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

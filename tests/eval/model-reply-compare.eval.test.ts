@@ -6,6 +6,7 @@ import { suggestReply } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { autoReplyGateFailure } from "@/lib/automation";
+import { actionClaimsEnabled } from "@/lib/ai/action-claims";
 import { writeSidecar } from "./sidecar";
 
 // ---------------------------------------------------------------------------
@@ -145,6 +146,8 @@ interface Row {
   stayOk?: boolean | null;
   langOk?: boolean;
   greetRepeat?: boolean | null;
+  /** Eylem beyanı (MÇ §4, yalnız `AI_ACTION_CLAIMS_ENABLED=1` koşusunda): kodlar ya da ["unknown"]; istenmediyse null. */
+  claims?: string[] | null;
   ms?: number;
   pt?: number;
   ct?: number;
@@ -218,6 +221,8 @@ async function runOne(s: Scenario): Promise<Row> {
         reply: r.reply,
         stayChange: r.stayChange ?? null,
         timeConflicts: r.timeConflicts ?? null,
+        // Eylem beyanı (MÇ §4) — üretim kapısıyla PARİTE; bayrak kapalıyken alan yok, kural koşmaz.
+        claimedActions: r.claimedActions ?? null,
       },
       s.message,
       {
@@ -249,6 +254,7 @@ async function runOne(s: Scenario): Promise<Row> {
       stayOk: s.class === "stay_change" ? (r.stayChange?.asked ?? "none") !== "none" : null,
       langOk: languageMatches(s.lang, reply),
       greetRepeat: priorOutbound ? GREETING.test(reply) : null,
+      claims: r.claimedActions === undefined ? null : r.claimedActions.status === "unknown" ? ["unknown"] : r.claimedActions.actions,
       ms,
       pt: r.llmUsage?.pt,
       ct: r.llmUsage?.ct,
@@ -345,6 +351,21 @@ export function summarize(rows: Row[], model: string): string[] {
     `| maliyet (liste fiyatı, bu koşu) | ${cost === null ? "fiyat tablosunda yok" : `$${cost.toFixed(4)} · 1.000 mesaj ≈ $${((cost / Math.max(1, ok.length)) * 1000).toFixed(2)}`} |`,
     `| KB'de cevabı olan ama gitmeyen soruda kapı gerekçesi | ${[...heldReasons].map(([k, v]) => `${k} ${v}`).join(" · ") || "—"} |`,
   ];
+  // Eylem beyanı (MÇ §4) — yalnız bayrak açık koşuda; açma kararının üç sayısı: beyan eksikliği, bilgi sorusunda gereksiz
+  // tutma (cevabı KB'de olan soru eylem beyanıyla gitmedi), kod dağılımı.
+  const declaredRows = ok.filter((r) => r.claims != null);
+  if (declaredRows.length > 0) {
+    const undeclared = declaredRows.filter((r) => r.claims?.[0] === "unknown");
+    const claimHeldGrounded = grounded.filter((r) => r.gate === "action_claim" || r.gate === "action_claim_undeclared");
+    const codes = new Map<string, number>();
+    for (const r of declaredRows) for (const c of r.claims ?? []) codes.set(c, (codes.get(c) ?? 0) + 1);
+    lines.push(
+      `| EYLEM BEYANI: eksik/bozuk (unknown) | ${pct(undeclared.length, declaredRows.length)} |`,
+      `| EYLEM BEYANI: cevabı KB'de olan soru beyan yüzünden gitmedi | ${pct(claimHeldGrounded.length, grounded.length)} |`,
+      `| EYLEM BEYANI: kapıyı tuttu (tüm satırlar) | ${ok.filter((r) => r.gate === "action_claim" || r.gate === "action_claim_undeclared").length} |`,
+      `| EYLEM BEYANI: kodlar | ${[...codes].map(([k, v]) => `${k} ${v}`).join(" · ") || "—"} |`,
+    );
+  }
   lines.push("", "Sınıf bazında otomatik gönderim:", "", "| sınıf | beklenen | otomatik | uydurma |", "|---|---|---|---|");
   const classes = [...new Set(rows.map((r) => r.cls))];
   for (const c of classes) {
@@ -370,7 +391,8 @@ function writeReport(dir: string, name: string, model: string, commit: string, r
     "",
     `Durum: **${status}** · commit \`${commit}\` · veri sürümü ${data.version} · satır ${rows.length}` +
       (Number.isFinite(LIMIT) ? ` · örnek sınırı ${LIMIT}` : ""),
-    `Sunulan model: ${[...new Set(rows.map((r) => r.served).filter(Boolean))].join(", ") || "?"} · anlam katmanı/bekçi KAPALI (yalnız cevap modeli)`,
+    `Sunulan model: ${[...new Set(rows.map((r) => r.served).filter(Boolean))].join(", ") || "?"} · anlam katmanı/bekçi KAPALI (yalnız cevap modeli)` +
+      ` · eylem beyanı ${actionClaimsEnabled() ? "AÇIK" : "KAPALI"}`,
     ...(note ? ["", note] : []),
     "",
     ...summarize(rows, model),

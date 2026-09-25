@@ -8,8 +8,9 @@
 //    MODELİN hükmü (`mi/mt/ml`) ayrı alanlarda. Anlama katmanının risk niyeti zaten `ir` alanında.
 // Amaç ölçmek: "yalnız kelime ağının tuttuğu" mesajlar (model ve anlama katmanı risk görmedi) canlı trafikte ne
 // kadar — sözcüksel yetkiyi azaltma kararı bu sayıya dayanır (bugün değişmez: birleşim kuralı AYNEN).
-// PII YOK: yalnız kapalı-küme kodlar. Saf; bağımlılık yok.
+// PII YOK: yalnız kapalı-küme kodlar. Saf; tek bağımlılık eylem beyanı kod kümesi (`action-claims.ts`, o da saf).
 // ---------------------------------------------------------------------------
+import { actionClaimEvidence, cleanActionClaimEvidence, type ClaimedActionsDeclaration } from "./action-claims";
 
 /** `blocked` gerekçesinin ayrıntısı — kapının kontrol sırasıyla. */
 export const GATE_BLOCK_DETAILS = [
@@ -67,6 +68,8 @@ export interface GateEvidence {
   mt?: string;
   /** Modelin orta/yüksek risk düzeyi. */
   ml?: string;
+  /** Modelin eylem beyanı (MÇ §4): kapalı-küme kodlar ya da `["unknown"]`; beyan istenmediyse alan yok. */
+  ma?: string[];
 }
 
 const DETAIL_SET: ReadonlySet<string> = new Set(GATE_BLOCK_DETAILS);
@@ -82,14 +85,25 @@ export function cleanGateEvidence(x: GateEvidence | undefined): GateEvidence | u
     ...(typeof x.mi === "string" && MODEL_INTENTS.has(x.mi) ? { mi: x.mi } : {}),
     ...(typeof x.mt === "string" && MODEL_RISK_TYPES.has(x.mt) ? { mt: x.mt } : {}),
     ...(typeof x.ml === "string" && MODEL_RISK_LEVELS.has(x.ml) ? { ml: x.ml } : {}),
+    ...(() => {
+      const ma = cleanActionClaimEvidence(x.ma);
+      return ma ? { ma } : {};
+    })(),
   };
 }
 
 /** Model tarafı sinyaller (kapının kümeleriyle aynı; yalnız kapatıcı olanlar yazılır). */
-export function modelGateSignals(result: { intent: string; riskType?: string | null; riskLevel: string }): Pick<GateEvidence, "mi" | "mt" | "ml"> {
+export function modelGateSignals(result: {
+  intent: string;
+  riskType?: string | null;
+  riskLevel: string;
+  claimedActions?: ClaimedActionsDeclaration | null;
+}): Pick<GateEvidence, "mi" | "mt" | "ml" | "ma"> {
+  const ma = actionClaimEvidence(result.claimedActions);
   return {
     ...(MODEL_INTENTS.has(result.intent) ? { mi: result.intent } : {}),
     ...(result.riskType && MODEL_RISK_TYPES.has(result.riskType) ? { mt: result.riskType } : {}),
     ...(MODEL_RISK_LEVELS.has(result.riskLevel) ? { ml: result.riskLevel } : {}),
+    ...(ma ? { ma } : {}),
   };
 }

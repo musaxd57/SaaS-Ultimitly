@@ -161,6 +161,15 @@ describe("POST /api/demo/ai — public landing demo", () => {
       expect((await (await POST(req("Giriş saati kaçta?", "10.0.0.7"))).json()).wouldAutoSend).toBe(false);
     });
 
+    it("🚨 eylem beyanı (MÇ §4) → false; boş beyanla aynı cevap true (rozet ürünü yansıtır)", async () => {
+      vi.mocked(suggestReply).mockResolvedValueOnce(modelResult({ claimedActions: { status: "declared", actions: [] } }) as never);
+      expect((await (await POST(req("wifi şifresi nedir?", "10.0.0.8"))).json()).wouldAutoSend).toBe(true);
+      vi.mocked(suggestReply).mockResolvedValueOnce(
+        modelResult({ claimedActions: { status: "declared", actions: ["forwarded_to_host"] } }) as never,
+      );
+      expect((await (await POST(req("wifi şifresi nedir?", "10.0.0.9"))).json()).wouldAutoSend).toBe(false);
+    });
+
     it("fallback-source reply → false (the product never auto-sends the deterministic path)", async () => {
       vi.mocked(suggestReply).mockResolvedValueOnce(modelResult({ source: "fallback" }) as never);
       const data = await (await POST(req("wifi şifresi nedir?", "10.0.0.4"))).json();

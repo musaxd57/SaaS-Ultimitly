@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
+import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import {
   evaluateAvailability,
   stayEvidenceOf,
@@ -169,8 +170,9 @@ export interface AutoReplyGateContext {
    */
   verifiedGrant?: { text: string } | null;
   /**
-   * YALNIZ TEŞHİS: çıktı vetosunu atla. Gönderim kararında ASLA verilmez; tek kullanımı "bu taslağı YALNIZ bekleme sözü
-   * vetosu mu tuttu?" sorusu (doğrulanmış erken giriş akışının tetiği — `heldOnlyByOutputVeto`).
+   * YALNIZ TEŞHİS: çıktı vetosunu VE eylem beyanı kontrolünü atla (ikisi aynı sınıf: modelin metnindeki söz/iddia).
+   * Gönderim kararında ASLA verilmez; tek kullanımı "bu taslağı YALNIZ bekleme sözü / eylem iddiası mı tuttu?" sorusu
+   * (doğrulanmış erken giriş akışının tetiği — `heldOnlyByOutputVeto`; akış modelin metnini koddan kurulanla değiştirir).
    */
   skipOutputVetoForDiagnosis?: boolean;
 }
@@ -211,6 +213,8 @@ export function autoReplyGateVerdict(
     stayChange?: StayChangeDeclaration | null;
     /** İstemin gördüğü bilgi tabanındaki giriş/çıkış saati çelişkileri (`suggestReply` taşır; P4-b kodda). */
     timeConflicts?: readonly TimeConflict[] | null;
+    /** Modelin eylem beyanı (`ai/action-claims.ts`); yokluğu = beyan istenmedi → kural koşmaz. */
+    claimedActions?: ClaimedActionsDeclaration | null;
   },
   guestMessage: string,
   /** What the MODEL sees beyond the last message: recent history bodies + the
@@ -405,6 +409,16 @@ export function autoReplyGateVerdict(
   if (!context?.skipOutputVetoForDiagnosis && vetoOutgoingReply(result.reply) !== null) {
     return hold("reply_output_veto");
   }
+  // ── EYLEM BEYANI (MÇ §4, `ai/action-claims.ts`; bayrak `AI_ACTION_CLAIMS_ENABLED`, varsayılan KAPALI) ─────────────
+  // Model, misafire yazdığı metinde kendisinin / ekibin yaptığı-yapacağı eylemleri kapalı kümeden beyan eder. Eylem
+  // yürütücümüz ve makbuzumuz YOK → boş olmayan beyan (`action_claim`) da, istenip gelmeyen / bozuk beyan
+  // (`action_claim_undeclared`) da GİTMEZ. Çıktı vetosunun deterministik YEDEĞİ olduğu kuralın modelli ikizi: birleşim,
+  // yalnız sıkılaştırır. Vetonun ARDINDA: kelime ağının yakaladığı cevapların gerekçesi değişmez, bu gerekçe yalnız
+  // kelime ağının kaçırdığını gösterir. Beyan istenmediyse (bayrak kapalı, şablon, koddan kurulan metin) kural koşmaz.
+  if (!context?.skipOutputVetoForDiagnosis) {
+    const claim = actionClaimHold(result.claimedActions);
+    if (claim !== null) return { reason: claim };
+  }
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24, `availability-claims.ts`) ──────────
   // Model takvimi GÖRMÜYOR → "o gece boş / kalabilirsiniz / fully booked" doğrulanmamış iddiadır;
   // müsaitliğe bağlı bir istek ancak kararı ev sahibine bırakan cevapla gider. Kapsam TÜM cevapsız
@@ -485,6 +499,7 @@ export function gateEvidenceOf(
 export type AutoReplyGateFailure =
   | AvailabilityVetoReason
   | IntentRiskReason
+  | ActionClaimReason
   | "kb_time_conflict"
   | "reply_language_mismatch"
   | "blocked";
@@ -2186,8 +2201,11 @@ export async function applyChannelAutoReply(
   // GEÇMESİNE dayanıyordu.
   // "YALNIZ veto tuttu" = veto olmasa kapı geçerdi ya da akışın zaten kabul ettiği bir gerekçeyle (müsaitlik/para/saat/dil)
   // tutardı. Kapı güvenden / riskten kapanıyorsa akış yine KOŞMAZ (güven tabanı kalkmaz — P2, 09-24).
+  // Eylem beyanı (`action_claim*`) aynı sınıftır: modelin metnindeki söz/iddia — akış o metni koddan kurulanla değiştirir.
   const withoutOutputVeto = () =>
-    gateFailure === "blocked" && autoReplyGateVerdict(result, last.body, gateContext)?.detail === "reply_output_veto"
+    (gateFailure === "blocked" && autoReplyGateVerdict(result, last.body, gateContext)?.detail === "reply_output_veto") ||
+    gateFailure === "action_claim" ||
+    gateFailure === "action_claim_undeclared"
       ? autoReplyGateFailure(result, last.body, { ...gateContext, skipOutputVetoForDiagnosis: true })
       : undefined;
   const heldOnlyByOutputVeto = () => {
@@ -2727,7 +2745,9 @@ export async function applyChannelAutoReply(
           gateFailure === "availability_unconfirmed" ||
           gateFailure === "price_claim" ||
           gateFailure === "kb_time_conflict" ||
-          gateFailure === "reply_language_mismatch"
+          gateFailure === "reply_language_mismatch" ||
+          gateFailure === "action_claim" ||
+          gateFailure === "action_claim_undeclared"
             ? gateFailure
             : "low_confidence_or_risky",
         confidence: result.confidence,
@@ -3075,9 +3095,21 @@ export async function applyChannelAutoReply(
  * `early_checkin`e sabitlenir: modelin `human_request` etiketi onay metnine insan talebi muafiyetleri (çıktı vetosu,
  * risk niyeti) TAŞIYAMAZ (P1-2). Risk seviyesi / türü ve beyan AYNEN kalır; KB kaynağı yoktur.
  */
-export function verifiedEarlyCheckinResult<T extends { reply: string; intent: string; usedSources: string[] }>(result: T, text: string): T {
+export function verifiedEarlyCheckinResult<
+  T extends { reply: string; intent: string; usedSources: string[]; claimedActions?: ClaimedActionsDeclaration },
+>(result: T, text: string): T {
   // Kaynak sayımı modelin ATILAN taslağına aitti: koddan kurulan metin için ölçülmedi (NULL, 0 değil — A2 sözleşmesi).
-  return { ...result, reply: text, intent: "early_checkin", usedSources: [], claimAudit: undefined, sourceAudit: undefined };
+  return {
+    ...result,
+    reply: text,
+    intent: "early_checkin",
+    usedSources: [],
+    claimAudit: undefined,
+    sourceAudit: undefined,
+    // Eylem beyanı da atılan taslağındı: koddan kurulan, doğrulanmış metin makbuzsuz eylem iddia etmez (MÇ §4 — `[]`).
+    // Beyan istenmediyse (bayrak kapalı) alan eklenmez: kapı ve kanıt bugünküyle birebir.
+    ...(result.claimedActions !== undefined ? { claimedActions: { status: "declared" as const, actions: [] } } : {}),
+  };
 }
 
 /** Otomatik onaydan sonra host'un iş listesine not (en iyi çaba; ücret tutarı YOK — görevi temizlik de görür). */

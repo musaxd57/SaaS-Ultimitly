@@ -82,6 +82,9 @@ export default async function ReportsPage() {
     "kb_time_conflict",
     // Cevap misafirin dilinde değildi (09-25, yalnız kanal) — kendi satırı: "düşük güven" kovasına karışmasın.
     "reply_language_mismatch",
+    // Cevap yapılmamış bir işten söz etti / beyan eksikti (MÇ §4; yalnız eylem beyanı açıkken yazılır) — kendi satırı.
+    "action_claim",
+    "action_claim_undeclared",
   ];
   const [riskRows, heldRows, heldResolved] = await Promise.all([
     prisma.riskEvent.groupBy({
@@ -348,6 +351,12 @@ export default async function ReportsPage() {
                     <div className="flex items-center justify-between px-3 py-2">
                       <span>Misafirin dilinde değil — size bırakıldı</span>
                       <Badge tone="muted">{heldCount("reply_language_mismatch")}</Badge>
+                    </div>
+                  ) : null}
+                  {heldCount("action_claim") + heldCount("action_claim_undeclared") > 0 ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span>Yapılmamış bir işten söz ediyordu — size bırakıldı</span>
+                      <Badge tone="muted">{heldCount("action_claim") + heldCount("action_claim_undeclared")}</Badge>
                     </div>
                   ) : null}
                   {heldCount("understanding_risk") > 0 ? (

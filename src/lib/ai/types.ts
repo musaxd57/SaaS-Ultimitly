@@ -1,3 +1,4 @@
+import type { ClaimedActionsDeclaration } from "./action-claims";
 import type { ClaimAudit } from "./claim-support";
 import type { ConversationStateSummary } from "./conversation-state";
 import type { StayChangeDeclaration } from "./semantic/stay-change";
@@ -127,6 +128,11 @@ export interface SuggestReplyInput {
   timeZone?: string | null;
   /** Hesap anı (test/önizleme için sabitlenebilir); verilmezse şimdi. */
   now?: Date;
+  /**
+   * Eylem beyanı iste (`action-claims.ts`, bayrak `AI_ACTION_CLAIMS_ENABLED`): istemin GÖREV çerçevesine `claimedActions`
+   * alan tanımı girer ve cevap STRICT çözülür. YALNIZ `suggestReply` bayraktan yazar; verilmezse istem bayt bayt aynı.
+   */
+  declareActions?: boolean;
 }
 
 /** Model çağrısının token kullanımı (yalnız sayılar + sunulan model adı; metin YOK). */
@@ -215,6 +221,12 @@ export interface SuggestReplyResult {
    * karar modelin güven puanına bırakılmaz. Yokluğu = istem kurulmadı (fallback) → kapı zaten tutar.
    */
   timeConflicts?: { field: "checkInTime" | "checkOutTime"; propertyValue: string; kbValues: string[] }[];
+  /**
+   * Modelin EYLEM BEYANI (`action-claims.ts`): cevap metninde söylediği, kendisinin/ekibin yaptığı-yapacağı eylemler.
+   * Makbuz yok → boş olmayan beyan ya da `unknown` otomatik GİTMEZ (kapı yalnız sıkılaştırır). Yokluğu = beyan
+   * istenmedi (bayrak kapalı, şablon, koddan kurulan metin) → kural koşmaz.
+   */
+  claimedActions?: ClaimedActionsDeclaration;
 }
 
 export interface ClassifyResult {

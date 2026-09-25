@@ -5,6 +5,7 @@ import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
 import type { ClassifyResult, LlmUsage, SuggestReplyInput, SuggestReplyResult } from "./types";
 import { auditClaimsSafe } from "./claim-support";
 import { parseStayChangeDeclaration } from "./semantic/stay-change";
+import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel, replyReasoningEffort } from "./model-family";
 import { reportError } from "@/lib/report-error";
@@ -295,8 +296,10 @@ function capReply(text: string): { text: string; truncated: boolean } {
 }
 
 export async function suggestReply(input: SuggestReplyInput): Promise<SuggestReplyResult> {
+  // Eylem beyanı (`action-claims.ts`): bayrak TEK YERDE, burada okunur; istem ve STRICT çözüm aynı karara bağlı.
+  const declareActions = actionClaimsEnabled();
   // §C: istem TEK KEZ kurulur; metin modele, muhasebe karar kaydına gider.
-  const prompt = buildReplyPrompt(input);
+  const prompt = buildReplyPrompt(declareActions ? { ...input, declareActions: true } : input);
   const call = await callOpenAI(REPLY_SYSTEM_PROMPT, prompt.text);
   const raw = call?.content ?? null;
   const llmUsage = call?.usage;
@@ -425,6 +428,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           stayChange: parseStayChangeDeclaration(parsed.stayChangeAsked, parsed.replyStance),
           // P4-b KODDA (09-25): istemin çelişki hesabı kapıya taşınır (model ne gördüyse kapı onu bilir).
           timeConflicts: prompt.timeConflicts,
+          // Eylem beyanı YALNIZ istendiyse: STRICT (eksik/bozuk → `unknown`; kapı tutar). İstenmediyse alan YOK.
+          ...(declareActions ? { claimedActions: parseClaimedActions(parsed.claimedActions) } : {}),
         };
       }
     } catch {

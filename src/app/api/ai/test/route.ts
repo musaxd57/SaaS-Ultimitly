@@ -202,6 +202,8 @@ export const POST = withManage(async (session, req) => {
     // önizleme de "cevap gerekmez" demez.
     missingInfo: result.missingInfo ?? null,
     actionSuggestion: result.actionSuggestion ?? null,
+    // Eylem beyanı (MÇ §4, bayrak kapalıyken alan yok) — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
+    claimedActions: result.claimedActions ?? null,
   };
   const gateCtx = {
     stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },

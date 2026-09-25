@@ -2,6 +2,7 @@ import "server-only";
 
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
+import { actionClaimHold, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import { vetoAvailability, type AvailabilityPolicyOptions } from "@/lib/ai/availability-claims";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
 import type { TimeConflict } from "@/lib/ai/prompts";
@@ -125,6 +126,9 @@ export const ESCALATION_REASONS = [
   "understanding_risk",
   // Saat kaynağı çelişkisi (P4-b kodda, 09-25) — kanal kapısıyla AYNI yüklem (`time-conflict-gate.ts`).
   "kb_time_conflict",
+  // Eylem beyanı (MÇ §4, bayrak kapalıyken yazılmaz) — `action-claims.ts` `ACTION_CLAIM_REASONS` ile BİREBİR.
+  "action_claim",
+  "action_claim_undeclared",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -176,6 +180,8 @@ export function evaluateEscalation(
     stayChange?: StayChangeDeclaration | null;
     /** İstemin gördüğü giriş/çıkış saati çelişkileri (`suggestReply` taşır; P4-b kodda). */
     timeConflicts?: readonly TimeConflict[] | null;
+    /** Modelin eylem beyanı (`ai/action-claims.ts`); yokluğu = beyan istenmedi → kural koşmaz. */
+    claimedActions?: ClaimedActionsDeclaration | null;
   },
   message: string,
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
@@ -283,6 +289,9 @@ export function evaluateEscalation(
   // ile "Konu yönetime bildirilmiştir" (makbuzsuz) BİREBİR aynı şablon.
   const vetoed = vetoOutgoingReply(result.reply);
   if (vetoed !== null) return yes(vetoed);
+  // ── EYLEM BEYANI (MÇ §4) — kanal kapısıyla AYNI yüklem ve AYNI yer (çıktı vetosunun ardında). Makbuz yok → devir. ──
+  const claim = actionClaimHold(result.claimedActions);
+  if (claim !== null) return yes(claim);
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24) ────────────────────────────────
   // Kanal kapısıyla AYNI yüklem. QR'da cevaplanan tek mesaj GÜNCEL mesajdır (eşzamanlı sohbet;
   // önceki turlar zaten cevaplandı). Devir muafiyeti burada GEREKMEZ: `human_request` yukarıda

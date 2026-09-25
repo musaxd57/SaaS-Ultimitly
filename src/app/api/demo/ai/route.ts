@@ -145,6 +145,8 @@ export async function POST(req: NextRequest) {
         stayChange: result.stayChange ?? null,
         // Saat kaynağı çelişkisi (P4-b kodda, 09-25) — gerçek kapıyla PARİTE.
         timeConflicts: result.timeConflicts ?? null,
+        // Eylem beyanı (MÇ §4, bayrak kapalıyken alan yok) — gerçek kapıyla PARİTE.
+        claimedActions: result.claimedActions ?? null,
       },
       message,
       { stayTimes: { checkIn: DEMO_PROPERTY.checkInTime, checkOut: DEMO_PROPERTY.checkOutTime } },
