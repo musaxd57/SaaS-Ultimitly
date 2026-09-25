@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 
 import { suggestReply } from "@/lib/ai";
-import { timeStatedInMessage } from "@/lib/ai/stated-time";
+import { timeCorrectedInMessage, timeStatedInMessage } from "@/lib/ai/stated-time";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
 function makeInput(guestMessage: string): SuggestReplyInput {
@@ -109,6 +109,55 @@ describe("statedCheckoutTime requires evidence in the guest message (#29)", () =
     stubModel({ ...BASE, intent: "checkout", usedSources: [], statedCheckoutTime: "14:00" });
     const result = await suggestReply(makeInput("2 valizimiz var, çıkışta resepsiyona bırakabilir miyiz?"));
     expect(result.statedCheckoutTime).toBeNull();
+  });
+});
+
+describe("statedCheckoutTime — DÜZELTME kabul edilir (09-25, kurucu örneği)", () => {
+  const withStored = (msg: string, stored: string | null) => {
+    const base = makeInput(msg);
+    return { ...base, reservation: { ...base.reservation!, guestCheckoutTime: stored } };
+  };
+
+  it("🚨 '10 demiştim ama 11 olacak' + kayıtlı 10:00 → YENİ saat (eskiden reddediliyor, eski saat kalıyordu)", async () => {
+    stubModel({ ...BASE, intent: "checkout", usedSources: [], statedCheckoutTime: "11:00" });
+    expect((await suggestReply(withStored("10 demiştim ama 11 olacak", "10:00"))).statedCheckoutTime).toBe("11:00");
+  });
+
+  it("kayıtlı eski saat YOKSA düzeltme kabulü yok (halüsinasyon durdurucu aynen)", async () => {
+    stubModel({ ...BASE, intent: "checkout", usedSources: [], statedCheckoutTime: "11:00" });
+    expect((await suggestReply(withStored("10 demiştim ama 11 olacak", null))).statedCheckoutTime).toBeNull();
+  });
+
+  it("yeni saat mesajda YOKSA reddedilir (model uydurmasın)", async () => {
+    stubModel({ ...BASE, intent: "checkout", usedSources: [], statedCheckoutTime: "12:00" });
+    expect((await suggestReply(withStored("10 demiştim ama biraz geç olacak", "10:00"))).statedCheckoutTime).toBeNull();
+  });
+
+  it("misafir ayrılmayı REDDEDİYORSA düzeltme de reddedilir (veto aynen)", async () => {
+    stubModel({ ...BASE, intent: "checkout", usedSources: [], statedCheckoutTime: "11:00" });
+    expect((await suggestReply(withStored("10 demiştim ama çıkmayacağız, 11 bile değil", "10:00"))).statedCheckoutTime).toBeNull();
+  });
+});
+
+describe("timeCorrectedInMessage (pure)", () => {
+  it("eski ve yeni saat AYNI cümlede (çıplak rakam dahil) → düzeltme", () => {
+    expect(timeCorrectedInMessage("10:00", "11:00", "10 demiştim ama 11 olacak")).toBe(true);
+    expect(timeCorrectedInMessage("10:00", "11:30", "Saat 10:00 yerine 11:30'da çıkarız")).toBe(true);
+    expect(timeCorrectedInMessage("10:00", "11:00", "make it 11 instead of 10")).toBe(true);
+  });
+
+  it("farklı cümleler, aynı saat, eksik eski saat → düzeltme DEĞİL", () => {
+    expect(timeCorrectedInMessage("10:00", "11:00", "10 demiştim. 11 olacak.")).toBe(false);
+    expect(timeCorrectedInMessage("10:00", "10:00", "10 demiştim ama 10 olacak")).toBe(false);
+    expect(timeCorrectedInMessage("10:00", "11:00", "biraz geç olacak, 11 gibi")).toBe(false);
+    expect(timeCorrectedInMessage("bozuk", "11:00", "10 demiştim ama 11 olacak")).toBe(false);
+  });
+
+  it("rakam başka bir sayının parçasıysa saat sayılmaz ('110', '10.5')", () => {
+    expect(timeCorrectedInMessage("10:00", "11:00", "oda 110, kat 11")).toBe(false);
+    // "110"un içinden "11" okunmaz (eski saat 11 sanılıp düzeltme kabul edilmesin).
+    expect(timeCorrectedInMessage("11:00", "10:00", "oda 110'dayız, saat 10 olsun")).toBe(false);
+    expect(timeCorrectedInMessage("11:00", "10:00", "11 demiştik, saat 10 olsun")).toBe(true);
   });
 });
 

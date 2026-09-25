@@ -1,7 +1,7 @@
 import "server-only";
 import { REPLY_SYSTEM_PROMPT, buildReplyPrompt } from "./prompts";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
-import { timeStatedInMessage } from "./stated-time";
+import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
 import type { ClassifyResult, LlmUsage, SuggestReplyInput, SuggestReplyResult } from "./types";
 import { auditClaimsSafe } from "./claim-support";
 import { parseStayChangeDeclaration } from "./semantic/stay-change";
@@ -414,7 +414,10 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             // hallucination must never be written.
             typeof parsed.statedCheckoutTime === "string" &&
             /^([01]?\d|2[0-3]):[0-5]\d$/.test(parsed.statedCheckoutTime.trim()) &&
-            timeStatedInMessage(parsed.statedCheckoutTime.trim(), input.guestMessage)
+            (timeStatedInMessage(parsed.statedCheckoutTime.trim(), input.guestMessage) ||
+              // Düzeltme ("10 demiştim ama 11 olacak", 09-25): kayıtlı eski saat + yeni saat aynı cümlede.
+              (!!input.reservation?.guestCheckoutTime &&
+                timeCorrectedInMessage(input.reservation.guestCheckoutTime, parsed.statedCheckoutTime.trim(), input.guestMessage)))
               ? parsed.statedCheckoutTime.trim()
               : null,
           // Şema beyanı (09-24): STRICT çözülür — kapalı küme dışı değer `unknown` olur, alanın

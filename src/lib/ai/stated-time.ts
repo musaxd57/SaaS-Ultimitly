@@ -201,3 +201,36 @@ function segmentStatesTime(text: string, h: number, min: number): boolean {
   }
   return false;
 }
+
+/**
+ * DÜZELTME (09-25, kurucu örneği: "10 demiştim ama 11 olacak"). Misafir daha önce KAYITLI çıkış saatini değiştiriyorsa
+ * mesajda çıkış fiili olmayabilir — `timeStatedInMessage` bunu reddediyordu ve eski saat kayıtlı kalıyordu. Anlamı (bu bir
+ * çıkış saati düzeltmesi mi, yoksa "10 kişi demiştik ama 11 olacağız" mı) cevap modeli çözer; bu yüklem yalnız
+ * HALÜSİNASYON durdurucudur: yeni saat VE kayıtlı eski saat AYNI cümlede geçmeli (çıplak rakam dahil — düzeltmede saat
+ * işareti çoğu zaman yoktur). Ayrılmayı reddetme vetosu aynen geçerli.
+ */
+export function timeCorrectedInMessage(previousHhmm: string, newHhmm: string, message: string): boolean {
+  const prev = HHMM.exec(previousHhmm.trim());
+  const next = HHMM.exec(newHhmm.trim());
+  if (!prev || !next) return false;
+  const [ph, pm, nh, nm] = [Number(prev[1]), Number(prev[2]), Number(next[1]), Number(next[2])];
+  if (ph === nh && pm === nm) return false;
+  const lower = message.toLowerCase();
+  if (DEPARTURE_REFUSAL.test(lower)) return false;
+  for (const sentence of lower.split(/(?:[!?\n]|(?<!\d)\.|\.(?!\d))+/)) {
+    if (mentionsTime(sentence, ph, pm) && mentionsTime(sentence, nh, nm)) return true;
+  }
+  return false;
+}
+
+/** Cümlede h:min açıkça ("10:00", "10.30") ya da tam saatse çıplak rakamla ("10 demiştim") geçiyor mu. */
+function mentionsTime(text: string, h: number, min: number): boolean {
+  if (segmentStatesTime(text, h, min)) return true;
+  if (min !== 0) return false;
+  // Tam sayı: başka bir sayının parçası ("110") ya da saat/ondalık ("10:30", "10.5") olamaz.
+  for (const m of text.matchAll(/(?<![\d:.])(\d{1,2})(?!\d)(?![:.]\d)/g)) {
+    const n = Number(m[1]);
+    if (n === h || (n < 12 && n + 12 === h)) return true;
+  }
+  return false;
+}
