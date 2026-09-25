@@ -225,6 +225,80 @@ testin kendisinin kör noktasıydı; her biri için ÖZGÜN örnek yazıldı (`8
 Yeniden koşu `80ef335` üzerinde: yaşayan 17 + düzeltilmiş V11 + yeni üç bacak (politika metni muafiyeti, pencereyi
 yalnız EV SAHİBİ cevabının kapatması, boş pencere) = 20 mutant, M0 yeşil, **20/20 öldürüldü**.
 
+### 1.7 İkinci inceleme turu (09-25) — üç ajan daha, dört commit
+Üç ajan turun kodunu yeniden düşmanca okudu (kapanış · bekleme sözü vetosu · zaman). Her bulgu kodda yeniden üretildi,
+kırmızı-önce düzeltildi: kapanış `935b491` · veto `42809cb` · tek tarih kuralı `8227d8d` · yazılan saat `41c6eca`.
+
+**Kapanış (P1×3, P2×3):**
+- Yapay zekânın son cevabı soru ya da TEKLİF taşıyorsa ("Yol tarifini de gönderebilirim", "…mı kastediyorsunuz?")
+  misafirin "Olur / Evet"i bir CEVAPTIR → kapanış kısayolu kapalı, model cevaplar (`closableAfter`). Ev sahibinin teklifinin
+  (soru işaretsiz de) kabulü kapanıştır ama görünür kalır.
+- Karşılama / giriş otomasyonundan sonra gelen ilk "İyi akşamlar" bir selamdır: "önceki cevap" = misafir mesajından SONRA
+  giden cevap (`hasPriorReply`).
+- Karar ertelemesi ya da devir cümlesi taşıyan son cevaptan sonraki teşekkür gizlenmez — niyet etiketi olmasa da (QR bot
+  mesajı), konaklama dışı konuda da ("Evcil hayvan kabulü ev sahibinizin kararıdır") — `handsOffToHost`.
+- Nezaket cevabı (açıksa) YALNIZ gizleme izinliyken gider; anlam yolu soru ekinde, gizli istek sözcüğünde (ama / lütfen /
+  but / please …), rakamda ve 2'den fazla artık sözcükte itiraz eder; övgü cümleciği soru açan sözcükle başlıyorsa övgü
+  değildir; ":(" kapanış değildir; QR ikinci kapanışı da tanır; senkron toleransı 5 sn; açık iş penceresi 200 karar kaydı;
+  Ayarlar önizlemesi `missingInfo` / `actionSuggestion`u kapıya verir (parite).
+
+**Bekleme sözü vetosu:** bağımsız ajan bataryası (389 cümle, 7 dil) kaçan sözü 131 → 1 (bilinçli: "Teyit ediyorum, giriş
+15:00" bir olgu onayıdır), yanlış pozitifi 44 → 13 indirdi. Kalan 13'ün hepsi bu turdan ÖNCE de vardı: ajansız 09-12
+gövdeleri ("Uygulama size kodu gönderecek") ve 1. çoğul geniş zaman süreç anlatımı ("Faturayı çıkışta göndeririz") —
+güvenli yön, taslak ev sahibine gider. Yeni biçimler: Türkçe istek kipi ("Hemen sorayım", "Bir bakayım"; misafire sorulan
+"Size bir şey sorayım: …?" değil), 1. tekil geniş zaman ("kontrol ederim"; "Ben olsam … bakarım" tavsiyesi değil), ekip /
+görevli öznesi YALNIZ geri dönüş / onay fiilleriyle ("Ekibimiz size bilgi verecek"; "Görevlimiz bagajlarınızla
+ilgilenecek" bir hizmet anlatımıdır), ev sahibinin kararını bildiren geçmiş ("Ev sahibiniz erken girişinizi onayladı",
+"Your host has approved…"), İngilizce "I've sent someone / We'll get it fixed / Consider it done / I can ask the host", ve
+DE/FR/ES/RU/AR 1. şahıs + ev sahibi öznesi. İki nokta ile açılan duyuru, dil değişikliği bildirimi ("I'll reply in English
+from now on"), önceki gerçek mesaja atıf ("As I mentioned", "I've sent you the door code in the previous message") serbest.
+Ölçüm: 1.287 gerçek model cevabında yeni veto 1 (gerçek iddia: "Takvime baktım, … müsait"), düşen 0; koddan kurulan 121
+metinde (erken giriş onayı/politikası, bekletme, nezaket, few-shot) yeni veto 0. Batarya satırlarının 121/140'ı
+kırmızı-önce. Kanal: model insan talebi NİYETİYLE devir yazıp kapı kapandıysa risk etiketi boş olsa da konuşma yükseltilir
+(önce misafir hiçbir şey almıyor, ev sahibi de haberdar olmuyordu).
+
+**Tek tarih kuralı (P1, zaman ajanı):** saklanan rezervasyon tarihi "yalnız tarih" (D 00:00Z Hospitable, D 12:00Z iCal
+tarih değeri) iken dört yol onu org dilimine çeviriyordu. QR sohbet New York'ta çıkıştan bir gün ÖNCE 11:00'de kapanıyor,
+girişten bir gün önce 15:00'te açılıyordu (devir akşamı içeride kalan misafir gelecek konaklamanın sohbetini
+sahiplenebiliyordu); çıkış hatırlatması ABD dilimlerinde bir gün önce gidiyor, outbox'taki gönderim anı vetosu çıkış günü
+sabahı mesajı iptal ediyordu; aynı gün giriş yapan misafire karşılama / giriş mesajı hiç gitmiyordu (Auckland'da dün
+başlamış konaklamaya gidiyordu); gelen kutusu devir blokları çıkış günü boyunca gizleniyordu. Hepsi `calendarDateOf`
+(seçim sorgusu üst küme: bugünün iki çapası eklenir, kesin karar bellekte; önizleme gönderici ile aynı kural; "konaklama
+bitti mi" tek fonksiyon `stayEndedBefore`). İstanbul davranışı değişmedi. Bilinen sınır (çekirdek yorumu düzeltildi): tam
+00:00Z/12:00Z'ye düşen GERÇEK an tarih sanılır — Los Angeles 17:00 PDT, Honolulu 14:00, New York 20:00 EDT girişleri
+(yalnız saatli iCal etkinlikleri); ingest'te +1 ms eklemek reddedildi (var olan satırları değiştirip yapay ingest olayı
+üretirdi). QR aday ağı da genişledi (`793d87b`): varış ağı "şimdi + 12 sa" idi → UTC+13/+14'te (Auckland yazı,
+Kiritimati) giriş saati 12:00–13:00 iken "yalnız tarih" iCal satırı (D 12:00Z) giriş anında ağın dışında kalıyor, sohbet
+bir saat geç açılıyordu; ağ 36 sa, kesin karar yine `isOpenNow`. **Açık kalan (ev sahibi yüzeyleri, misafire görünmez):**
+pano ("Bugünkü çıkışlar"), Görevler sayfası, İptaller, raporlar, tedarik ve yaşam döngüsü GÖREV oluşturma
+(`automation.ts` `todayStart` kapısı: New York'ta bugünün yalnız-tarih girişine "giriş hazırlığı" görevi açılmaz) hâlâ
+rezervasyon tarihini org gününün başına kıyaslıyor — İstanbul ve AB dilimlerinde (UTC+0…+3) doğru, ABD / UTC+12 üstünde
+ayrı dilim.
+
+**Misafirin yazdığı çıkış saati (P2, `stated-time.ts`):** yanlış kabul rezervasyona YAZILIR ve istem "hatırla, yeniden
+sorma" der. Ajan bataryasında (518 mesaj × aday saat) yanlış KABUL 107 → 28, yanlış RED 30 → 11: saat / tarih içindeki
+rakam ("11:00'de" içindeki "00", "12.10.2026"), sabah / akşam okunuşu, baştaki sıfır (24 saat), ileri bakış yalnız saatten
+ibaret cümleciğe, "için / so / since" cümlecik sınırı, değiştirilen saat ("10'da değil"), giriş etiketi, sayaç / para /
+ay adı / sıra sayısı / yaş, düzeltmede yeni saatin kendi cümleciği; kaçan doğru beyanlar (kıvrık kesme işareti, "checking
+out", "buçuk" = :30, "öğlen" = 12:00, "11'e kadar", "çıkmaz sokak" ret değil). Kalan yanlış kabullerin hepsi AYNI
+cümlecikte başka eylemin saati ("Kahvaltıyı 9'da yapıp 10'da çıkarız", "Our train leaves at 9") — anlamı cevap modeli
+çözer, bu yüklem uydurma durdurucu.
+
+**Mutasyon (ikinci inceleme dilimi):** `41c6eca` üzerinde 67 mutant (kapanış 20 · veto 15 · tek tarih kuralı 11 ·
+yazılan saat 22 — kısmi kopya: gün kuralını eski `dateKeyInTimeZone` okunuşuna döndüren mutantlar `todayKey(tarih)` ile),
+ayrık worktree, M0 yeşil → **63 öldürüldü, 4 yaşadı**. Dördü de testin kör noktasıydı, pinlendi (`bb8ac51`):
+- `handsOffToHost` erteleme bacağı — örnekler erteleme ile devir cümlesini BİRLİKTE taşıyordu → yalnız erteleme;
+- açık iş penceresi tavanı 200 — testler bir avuç mesajla koşuyordu → 120 ve 250 misafir mesajı;
+- Ayarlar önizlemesi kapı girdisine eksik bilgi / eylem önerisi vermezse "cevap gerekmez" diyordu → önizleme paritesi;
+- öğle yemeği freni — örnekte "sonra" cümleciği böldüğü için fren hiç sınanmıyordu → aynı cümlecik.
+Yeniden koşu `bb8ac51` üzerinde: **4/4 öldürüldü**.
+
+**Son kontrol (ajanlar):** üç bağımsız ajan başlatıldı — veto ve yazılan saat için KÖR batarya (kodu okumadan önce
+yazılır), gün kuralı + kapanış için kod incelemesi. Kod inceleme ajanı organizasyonun aylık harcama sınırına takılıp yarıda
+kaldı (sınır 30 Eylül'de yenilenir); kontrol listesi elle yürütüldü: kalan ham gün kıyasları tarandı (misafire görünenler
+kapandı, ev sahibi yüzeyleri ↑açık listede), QR aday ağı düzeltildi, insan talebi yükseltmesi yalnız kapı cevabı TUTTUĞUNDA
+koşar (atomik `problem` claim'i çift e-postayı önler). Kör batarya sonuçları gelirse ayrıca işlenir.
+
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 
 ### 2.1 Bugün ne var (ajan envanteri, 09-25)

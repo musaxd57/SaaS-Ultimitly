@@ -404,6 +404,10 @@ Bu dosyaya token/anahtar/parola yazma.
   yoksa (`closingMayHide`: son cevap devir/şikâyet, soru ya da tutar değil + `hasOpenHostWork` yok — okuma hatası = açık +
   sağlayıcı damgası kararla ≤2 dk); yoksa `closing_ack_open` (görünür). Cevap oranı `no_reply` mesajını saymaz. Yeni
   "bekleyen iş" yüzeyi aynı yüklemi kullanır. Bilinen sınır: çıkıştan sonraki teşekkür `reservation_ended`e düşer.
+  İkinci inceleme (09-25): kısayolun ön şartı `closableAfter` — önceki cevap bir misafir mesajından SONRA gitmiş olmalı
+  (hoş geldiniz otomasyonundan sonraki "İyi akşamlar" selamdır) VE yapay zekânın son cevabı soru/TEKLİF olmamalı ("Olur"
+  bir cevaptır → model). Gizleme ayrıca ev sahibinin teklifinde, karar ertelemesinde / devir cümlesinde (niyet etiketi
+  olmasa da) kapanır; nezaket cevabı YALNIZ gizlenebilirken gider.
 - 🚨 **ZAMAN BAĞLAMI TEK KAYNAK `ai/stay-timeline.ts` (09-25):** istemin "Bugün: … · Yarın: …" + evre satırı org diliminde,
   günler `calendarDateOf`, gün farkı takvim günü (eski satır sunucu saatiyle çıkış sabahı "konaklama tamamlandı" diyordu).
   `suggestReply` çağıran her yüzey `timeZone` geçirir (kanal, öneri, Ayarlar testi, QR — QR'da rezervasyon ayrıntısı YOK).
@@ -413,6 +417,15 @@ Bu dosyaya token/anahtar/parola yazma.
   bu satıra göre çözülür; NETLEŞTİRME SON ÇAREDİR (olası anlamı öneren tek soru). Çıkış saati: bir YERE gitmek çıkış değil
   (istem, anlam modelde); düzeltme (`timeCorrectedInMessage`, halüsinasyon durdurucu) ancak düzeltme/çıkış işareti + cümlede
   TAM iki saat belirteci, eski ve yeni FARKLI belirteçte (sayaç/numara/tarih saat değil; "10 pm" yalnız 22:00).
+  🚨 **TEK TARİH KURALI HER GÜN KIYASINDA (ikinci inceleme 09-25):** QR sohbet açılışı, karşılama/giriş/çıkış seçimi (+
+  önizleme), outbox çıkış vetosu, gelen kutusu devir blokları `calendarDateOf` / `todayKey` / `stayEndedBefore` kullanır —
+  rezervasyon tarihini `dateKeyInTimeZone` / `daysUntilDate` / ham `Date` ile "bugün"e kıyaslayan YENİ kod YAZILMAZ (New
+  York'ta çıkış hatırlatması bir gün önce gidiyordu, QR sohbeti devir akşamı gelecek konaklamaya açılıyordu). Yazılan
+  saatin kanıtı (`stated-time.ts`, uydurma durdurucu): saat/tarih içindeki rakam, sabah/akşam okunuşu, değiştirilen
+  saat ("10'da değil"), giriş etiketi, başka cümleciğin saati kanıt DEĞİL; aynı cümlecikteki başka eylemin saati bilinen
+  sınır (anlam modelde). QR aday ağı varışta 36 sa (UTC+13/+14'te yalnız-tarih iCal girişi). AÇIK (misafire görünmez):
+  pano/Görevler/İptaller/raporlar/tedarik ve yaşam döngüsü GÖREV oluşturma (`todayStart`) hâlâ gün başı kıyası — TR/AB'de
+  doğru, ABD/UTC+12 üstünde ayrı dilim.
 - 🚨 **Ev sahibi metninde ödeme yöntemi/yeri TEK KAYNAK `payment-method-guard.ts` (09-25) — ŞÜPHEDE REDDET:** yanlış ret
   bir cümle yeniden yazdırır, kaçak ise yapay zekânın misafire platform dışı ödeme talimatı iletmesidir. Üç inceleme turu
   ölçtü: bağlamı daraltan her sürüm eski kalıbın yakaladığı gerçek talimatları geçirdi ("Ödeme: kapıda", "parayı kapıdaki
@@ -1023,7 +1036,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   vetoyla tutulduysa (`skipOutputVetoForDiagnosis`) doğrulanmış erken giriş akışı yine koşar (bekçi yalnız erken giriş
   isteği varsa); güven/risk kapanışında KOŞMAZ. Kayıtlı erken giriş notu vetoya takılırsa kural KAPANMAZ (not düşer,
   `noteRejected`, mülk sayfası uyarır); geç çıkış teklif metni kayıtta vetodan geçer. İstem söz EMRETMEZ. Bekletme
-  mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
+  mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz. İkinci inceleme (7 dil, ajan bataryası kaçan 131→1, yanlış pozitif
+  44→13, kalanlar tur öncesinden): istek kipi ("sorayım"), 1. tekil geniş zaman, ekip/görevli öznesi (YALNIZ geri dönüş/
+  onay fiilleri; "Görevlimiz bagajlarınızla ilgilenecek" hizmettir), ev sahibinin kararını bildiren geçmiş ("onayladı",
+  "has approved") tutulur; tavsiye ("ben olsam"), iki noktalı duyuru, alışkanlık, önceki mesaja atıf, dil bildirimi serbest.
+  Kanalda insan talebi NİYETİ tutulan cevabı yükseltir (risk etiketi boş olsa da).
 - **Temellendirme kaydı:** geri çekilme kırpması + pack bütçesi `kbDropped`e SAYILIR (`capacity` ≠ `ungrounded`);
   `supersededById` düşüşü sayılmaz; kalite denetçisi `aiSourcesJson` görür (null ≠ "kaynak yok").
 - **Bütçe:** "12 çağrı = 1 birim" Inbox önizlemesidir (Ayarlar kartı değil); oran fiyatlandırma kararı.
@@ -1072,6 +1089,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-25 İKİNCİ İNCELEME TURU (üç ajan + kör batarya son kontrolü; `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md` §1.7):**
+kapanış teklif/selam/devir düzeltmeleri · bekleme sözü vetosu 7 dilde · tek tarih kuralı QR/yaşam döngüsü/outbox/gelen
+kutusunda (ABD'de bir gün erken hatırlatma, devir akşamı açılan QR sohbeti) · yazılan saat kanıtı (yanlış kabul 107→28) —
+migration'sız, kırmızı-önce + mutasyon.
+
 **09-25 MESAJLAŞMA ÇEKİRDEĞİ v2 TURU (kurucu: kapanışta sessizlik, bekleme sözü yok, Konuşma Anlama Durumu, Host Karar
 Motoru; `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md`):** kapanışa sessizlik + "cevap gerekmedi" hâli · zaman bağlamı (CUS v1
 dilim A) · çıkış saati düzeltmesi + yolculuk ayrımı · netleştirme politikası · bekleme sözü vetosu — migration'sız,
