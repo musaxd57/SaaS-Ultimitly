@@ -39,6 +39,7 @@ import type {
 } from "@/lib/ai/semantic/stay-change";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
 import { guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
+import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
@@ -1958,14 +1959,7 @@ export async function applyChannelAutoReply(
   // hesaplanır; yüklü `messages` penceresine DEĞİL konuşmanın TAMAMINA bakar
   // (pencere bir gösterim tavanıdır, gerçeğin kaynağı değil). Sistem olayı ve
   // gövdesiz satır cevap sayılmaz: misafir onları görmez.
-  const priorOperatorReplies = await prisma.message.count({
-    where: {
-      conversationId: conversation.id,
-      direction: "outbound",
-      systemEventType: null,
-      NOT: { body: "" },
-    },
-  });
+  const priorOperatorReplies = await countPriorOperatorReplies(conversation.id);
   const { items: kbRaw, dropped: kbDropped } = kbFetch;
   // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
   // the guest's name before it reaches the model, so a literal "{isim}" can

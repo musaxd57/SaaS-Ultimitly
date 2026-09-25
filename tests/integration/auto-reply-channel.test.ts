@@ -2088,3 +2088,47 @@ describe("sendDueCheckouts", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// SELAM TEKRARI — kanal (tek kural `countPriorOperatorReplies`, gelen kutusu ve QR ile aynı). Konuşmanın TAMAMINA
+// bakılır; sistem olayı ve gövdesiz giden satır cevap sayılmaz (misafir onları görmez).
+// ---------------------------------------------------------------------------
+describe("applyChannelAutoReply — selam tekrarı (kodda)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true });
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  const firstOperatorReply = () => mockSuggest.mock.calls[0][0].conversationState?.isFirstOperatorReply;
+
+  it("ilk temas → ilk cevap", async () => {
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    expect(firstOperatorReply()).toBe(true);
+  });
+
+  it("yalnız sistem olayı ve gövdesiz giden satır → hâlâ ilk cevap", async () => {
+    const { conversationId } = await seed();
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "sistem", authorType: "system", systemEventType: "guest_chat_ai_resumed", body: "x", createdAt: new Date(Date.now() - 180_000) },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Host", authorType: "host", body: "", createdAt: new Date(Date.now() - 150_000) },
+    });
+    await applyChannelAutoReply(conversationId);
+    expect(firstOperatorReply()).toBe(true);
+  });
+
+  it("🚨 önceki gerçek cevap varsa ilk cevap DEĞİL", async () => {
+    const { conversationId } = await seed();
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Host", authorType: "host", body: "Welcome!", createdAt: new Date(Date.now() - 120_000) },
+    });
+    await applyChannelAutoReply(conversationId);
+    expect(firstOperatorReply()).toBe(false);
+  });
+});

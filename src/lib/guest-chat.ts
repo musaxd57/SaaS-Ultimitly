@@ -7,6 +7,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { loadErasureGuard } from "@/lib/erasure";
 import { ANON_NAME } from "@/lib/data-retention";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
@@ -694,9 +695,7 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
       select: { direction: true, body: true },
       take: QR_TOPIC_SCAN_CAP,
     }),
-    prisma.message.count({
-      where: { conversationId, direction: "outbound", systemEventType: null, NOT: { body: "" } },
-    }),
+    countPriorOperatorReplies(conversationId),
   ]);
   const chronological = rows.slice().reverse();
 

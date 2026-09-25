@@ -12,6 +12,7 @@ import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
+import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
 import { runEarlyCheckinWorkflow } from "@/lib/early-checkin/workflow";
@@ -101,6 +102,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     })),
   });
 
+  // SELAM TEKRARI — kanal oto-yanıtı ve QR ile AYNI kural (`countPriorOperatorReplies`). Bu yüzey alanı hiç vermiyordu;
+  // taslak devam eden konuşmada da yeniden selamlıyordu.
+  const priorOperatorReplies = await countPriorOperatorReplies(conversation.id);
+
   const result = await suggestReply({
     guestMessage: lastInbound.body,
     property: {
@@ -127,6 +132,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
     })),
+    conversationState: { isFirstOperatorReply: priorOperatorReplies === 0 },
     tone,
     language: lastInbound.language || "tr",
     // 🚨 STİL REHBERİ SÜZÜLEREK GEÇER — QR ve kanal yollarıyla PARİTE (08-09 (2)).
