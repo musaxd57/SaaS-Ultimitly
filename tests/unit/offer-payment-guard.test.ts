@@ -75,6 +75,19 @@ describe("ev sahibi metninde ödeme yöntemi/yeri — şüphede REDDET", () => {
     for (const s of caughtByOld) expect(namesPaymentMethod(s, { paymentContext: true }), s).toBe(true);
   });
 
+  it("bayrak olmadan da: metnin KENDİ para sözcüğü bağlamdır (bedel/tutar/TRY/CHF/₺ — ücretsiz kuralın notunda da)", () => {
+    for (const s of [
+      "Geç çıkış bedeli kapıda alınır.",
+      "Tutar kapıda alınır.",
+      "Geç çıkış 300 TRY, kapıda.",
+      "Geç çıkış 50 CHF elden",
+      "Masraf kapıda ödenir.",
+      "₺300 kapıda",
+    ]) {
+      expect(namesPaymentMethod(s), s).toBe(true);
+    }
+  });
+
   it("temiz fiyat/koşul satırı geçer (teklif bağlamında)", () => {
     for (const s of [
       "13:00'e kadar geç çıkış 250 TL, uygunluğa bağlı.",

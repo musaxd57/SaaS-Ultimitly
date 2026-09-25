@@ -76,7 +76,8 @@ describe("PATCH /api/settings — numeric field validation", () => {
     const res = await patch({ lateCheckoutOfferText: ok });
     expect(res.status).toBe(200);
     expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).lateCheckoutOfferText).toBe(ok);
-    for (const bad of ["Geç çıkış 250 TL, kapıda ödenir.", "Geç çıkış 250 TL, İBAN ile ödeyin.", "Geç çıkış 250 TL. Ödeme: kapıda"]) {
+    // Son madde para sözcüğü taşımaz: teklif HER ZAMAN fiyat bağlamıdır ("kapıda alırız" = kapıda ödeme).
+    for (const bad of ["Geç çıkış 250 TL, kapıda ödenir.", "Geç çıkış 250 TL, İBAN ile ödeyin.", "Geç çıkış 250 TL. Ödeme: kapıda", "Geç çıkış mümkün; kapıda alırız."]) {
       const r = await patch({ lateCheckoutOfferText: bad });
       expect(r.status, bad).toBe(400);
       expect((await r.json()).fields?.lateCheckoutOfferText, bad).toContain("nasıl ya da nerede yapılacağını");
