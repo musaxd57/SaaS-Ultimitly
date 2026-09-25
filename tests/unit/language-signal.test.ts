@@ -141,12 +141,27 @@ describe("guestTurnLanguage — son mesaj, değilse cevapsız mesajların tamam�
     expect(guestTurnLanguage("👍", ["Otopark nerede acaba?"])).toBe("tr");
   });
 
-  it("🚨 misafir bir DİL ADI yazdıysa (açık dil isteği) kod dayatmaz — önceki Türkçe mesaj İngilizce isteğini EZMEZ (inceleme P3)", () => {
+  it("🚨 misafir açıkça bir DİL İSTEDİYSE kod dayatmaz — önceki Türkçe mesaj İngilizce isteğini EZMEZ (inceleme P3)", () => {
     expect(guestTurnLanguage("In English please 🙏", ["Merhaba, havlular nerede acaba?"])).toBeNull();
     expect(guestTurnLanguage("Could you please answer in Turkish?")).toBeNull();
+    expect(guestTurnLanguage("Do you speak English?")).toBeNull();
     expect(guestTurnLanguage("Türkçe yazabilir misiniz lütfen?", ["Where is the parking?"])).toBeNull();
+    expect(guestTurnLanguage("Können Sie bitte auf Deutsch antworten?")).toBeNull();
     // KONTROL: dil adı yoksa kural aynen.
     expect(guestTurnLanguage("Could you please answer quickly?")).toBe("en");
+  });
+
+  it("🚨 dil ADININ sıradan geçişi istek DEĞİL: 'Turkish bath / SIM card / coffee', 'English breakfast' İngilizce kalır", () => {
+    // Türkiye'deki misafirde çok sık: burada yönergeyi ve kapıyı düşürmek Türkçeye kaymayı serbest bırakırdı.
+    for (const m of [
+      "Is the Turkish bath open today? What time does it close?",
+      "Where can I buy a Turkish SIM card near the flat?",
+      "Is English breakfast included in the price?",
+      "We would like to try Turkish coffee, is there a place nearby?",
+      "My English is not very good, sorry. Where is the key?",
+    ]) {
+      expect(guestTurnLanguage(m), m).toBe("en");
+    }
   });
 
   it("hiçbiri emin değilse null (istem eski kurala döner)", () => {

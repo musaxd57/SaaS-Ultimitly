@@ -231,26 +231,45 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
  * emin değilse `null` (istem eski kuralına döner: belirsizde İngilizce).
  */
 export function guestTurnLanguage(latest: string, pending: readonly string[] = []): ConfidentLanguage | null {
-  // Misafir bir DİL ADI yazdıysa ("In English please 🙏", "Türkçe yazar mısınız?") dil isteği olabilir: kod dayatmaz,
-  // model mesajı okur (inceleme 09-25, P3: önceki Türkçe mesaj İngilizce isteğini eziyordu).
+  // Misafir açıkça bir DİL İSTEDİYSE ("In English please 🙏", "Türkçe yazar mısınız?") kod dayatmaz, model mesajı okur
+  // (inceleme 09-25, P3: önceki Türkçe mesaj İngilizce isteğini eziyordu).
   if (mentionsLanguageName(latest)) return null;
   return confidentLanguage(latest) ?? (pending.length > 0 ? confidentLanguage([...pending, latest].join("\n")) : null);
 }
 
-/** Dil adları (yedi dilin kendi adıyla ve TR/EN/DE/FR/ES/RU/AR adlandırmalarıyla). Belirteç eşleşmesi. */
-const LANGUAGE_NAMES_MENTIONED: ReadonlySet<string> = new Set([
-  "english", "englisch", "anglais", "inglés", "ingles", "ingilizce", "английском", "английский", "английски", "الإنجليزية", "بالإنجليزية", "انجليزي",
-  "turkish", "türkisch", "turc", "turco", "türkçe", "turkce", "турецком", "турецкий", "التركية", "بالتركية",
-  "german", "deutsch", "allemand", "alemán", "aleman", "almanca", "немецком", "немецкий", "الألمانية",
-  "french", "französisch", "français", "francais", "francés", "frances", "fransızca", "французском", "французский", "الفرنسية",
-  "spanish", "spanisch", "espagnol", "español", "espanol", "ispanyolca", "испанском", "испанский", "الإسبانية",
-  "russian", "russisch", "russe", "ruso", "rusça", "русском", "русский", "русски", "الروسية",
-  "arabic", "arabisch", "arabe", "árabe", "arapça", "арабском", "арабский", "العربية", "بالعربية", "بالعربي", "عربي",
+/**
+ * Açık dil isteği — "In English please", "Could you answer in Turkish?", "auf Deutsch", "Türkçe yazar mısınız?".
+ * ⚠️ Dil ADININ geçmesi yetmez: "Turkish breakfast / Turkish bath / a Turkish SIM card" Türkiye'deki misafir mesajlarında
+ * çok sık ve dil isteği DEĞİL — o mesajlarda yönergeyi ve kapıyı düşürmek, Türkçeye kaymayı tam da engellenmesi gereken
+ * yerde serbest bırakırdı. Bu yüzden iki sınıf: dilin KENDİ adı (Türkçe "-ce/-ca" adları, "Deutsch", Rusça "-ском"
+ * biçimleri, Arapça "بال…") her geçişte; sıfat da olabilen adlar (English/Turkish/anglais/inglés…) yalnız istek
+ * kalıbında ("in/en X", "speak/write/answer… (in) X", "X please").
+ */
+const LANGUAGE_NAME_ALWAYS: ReadonlySet<string> = new Set([
+  "ingilizce", "türkçe", "turkce", "almanca", "fransızca", "fransizca", "ispanyolca", "rusça", "rusca", "arapça", "arapca",
+  "deutsch", "englisch", "türkisch", "französisch", "spanisch", "russisch", "arabisch",
+  "английском", "английски", "турецком", "немецком", "французском", "испанском", "русском", "русски", "арабском",
+  "بالعربية", "بالعربي", "بالإنجليزية", "بالانجليزية", "بالانجليزي", "بالتركية", "بالفرنسية", "بالألمانية", "بالروسية",
 ]);
+const LANGUAGE_NAME_IN_CONTEXT: ReadonlySet<string> = new Set([
+  "english", "turkish", "german", "french", "spanish", "russian", "arabic",
+  "anglais", "turc", "allemand", "français", "francais", "espagnol", "russe", "arabe",
+  "inglés", "ingles", "turco", "alemán", "aleman", "francés", "frances", "español", "espanol", "ruso", "árabe",
+]);
+const LANGUAGE_REQUEST_BEFORE: ReadonlySet<string> = new Set([
+  "in", "en", "speak", "speaks", "write", "reply", "answer", "respond", "talk", "text", "message", "parlez", "parler",
+  "parles", "écrire", "ecrire", "répondre", "repondre", "habla", "hablas", "hablar", "escribir", "responder",
+]);
+const LANGUAGE_REQUEST_AFTER: ReadonlySet<string> = new Set(["please", "pls", "plz", "por", "s'il", "svp"]);
 
 function mentionsLanguageName(text: string): boolean {
-  const words = text.replace(/İ/g, "i").replace(/I/g, "i").toLowerCase().match(/\p{L}+/gu) ?? [];
-  return words.some((w) => LANGUAGE_NAMES_MENTIONED.has(w));
+  const words = text.replace(/İ/g, "i").replace(/I/g, "i").toLowerCase().match(/\p{L}+(?:['’]\p{L}+)*/gu) ?? [];
+  return words.some((w, i) => {
+    if (LANGUAGE_NAME_ALWAYS.has(w)) return true;
+    if (!LANGUAGE_NAME_IN_CONTEXT.has(w)) return false;
+    const before = words.slice(Math.max(0, i - 2), i);
+    return before.some((b) => LANGUAGE_REQUEST_BEFORE.has(b)) || LANGUAGE_REQUEST_AFTER.has(words[i + 1] ?? "");
+  });
 }
 
 /**
