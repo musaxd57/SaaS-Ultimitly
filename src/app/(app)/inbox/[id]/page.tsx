@@ -18,6 +18,7 @@ import { KB_CATEGORY, RESERVATION_STATUS, TASK_STATUS, TASK_TYPE } from "@/lib/c
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
 import { channelLabel, riskTypeLabel } from "@/lib/ui-labels";
 import { getReturningGuestInfo } from "@/lib/returning-guest";
+import { CLOSING_HANDLED_REASON, isClosingHandled } from "@/lib/conversation-attention";
 import { getAdjacency } from "@/lib/turnover";
 import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
 
@@ -173,6 +174,8 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   complaint: "Şikayet algılandı — otomatik cevap gönderilmedi, size bırakıldı",
   low_confidence_or_risky: "AI emin olamadı — taslak onayınızı bekliyor",
   closing_ack: "Misafir sohbeti kapattı — cevap gerekmedi",
+  // Kapanışa yine cevap gitmedi ama konuşmada açık bir konu olabilir (teklif kabulü, devir, bekleyen soru).
+  closing_ack_open: "Misafir teşekkür etti; otomatik cevap gönderilmedi. Açık bir konu varsa yanıtlayın.",
   human_hold: "İnsan devri istendi — AI bu konuşmada beklemede",
   reservation_ended: "Konaklama bitti/iptal — otomatik yanıt bu konuşmada kapalı",
   // Kota dolduğunda sebep GÖRÜNÜR olmalı: aksi hâlde host "AI neden sustu?"
@@ -219,10 +222,16 @@ const SKIP_REASON_LABELS: Record<string, string> = {
           sağda (`headerActions` slotu) — kartın üstünde artık hiçbir şey yok,
           yani mesaj listesi 3.5rem (buton 2rem + `gap-6` 1.5rem) kazandı.
           Bilgi kaybı YOK: iki düğme de aynı yerde, bir satır aşağıda. */}
-      {conversation.skippedReason && conversation.status !== "answered" ? (
+      {/* "Cevap gerekmedi" etiketi TÜRETİLİR (inceleme 09-25): kayıttaki `closing_ack` misafir yeniden yazdıktan sonra da
+          durur — yeni bir soru varken "sohbeti kapattı" yazmasın. Kapanış satırlarında eski risk gerekçesi gösterilmez. */}
+      {conversation.skippedReason &&
+      conversation.status !== "answered" &&
+      (conversation.skippedReason !== CLOSING_HANDLED_REASON || isClosingHandled(conversation)) ? (
         <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           🤖 {SKIP_REASON_LABELS[conversation.skippedReason] ?? "Otomatik yanıt beklemede"}
-          {riskTypeLabel(conversation.lastRiskType) ? ` · Sebep: ${riskTypeLabel(conversation.lastRiskType)}` : ""}
+          {riskTypeLabel(conversation.lastRiskType) && !conversation.skippedReason.startsWith("closing_ack")
+            ? ` · Sebep: ${riskTypeLabel(conversation.lastRiskType)}`
+            : ""}
         </p>
       ) : null}
 

@@ -34,12 +34,37 @@ describe("responseRate — episode-based over ACTIVE conversations", () => {
         lastMessageAt: msgs[msgs.length - 1]?.at ?? createdAt,
       },
     });
+    const ids: string[] = [];
     for (const m of msgs) {
-      await prisma.message.create({
+      const row = await prisma.message.create({
         data: { conversationId: conv.id, direction: m.dir, senderName: "x", body: "b", createdAt: m.at },
       });
+      ids.push(row.id);
     }
+    return { conversationId: conv.id, ids };
   }
+
+  it("🚨 kapanışa sessizlik (09-25): karar kaydı `no_reply` olan son teşekkür kaçırılmış cevap SAYILMAZ; başka org'un kaydı sayılmaz", async () => {
+    const now = Date.now();
+    const created = new Date(now - 10 * 24 * H);
+    const { conversationId, ids } = await seedConversation(created, [
+      { dir: "inbound", at: new Date(now - 5 * 24 * H) },
+      { dir: "outbound", at: new Date(now - 5 * 24 * H + H) }, // 1 saatte cevap
+      { dir: "inbound", at: new Date(now - 4 * 24 * H) }, //      "Teşekkürler" — bilerek cevapsız
+    ]);
+    // KONTROL: kayıt yokken son mesaj süresi geçmiş cevapsız bir bekleyiştir → %50.
+    expect((await getHostPerformanceScore(orgId)).breakdown.responseRate).toBe(50);
+    // Kiracı izolasyonu: başka org'un aynı tetikleyicili kaydı hiçbir şey değiştirmez.
+    const other = await prisma.organization.create({ data: { name: "Başka" } });
+    await prisma.riskEvent.create({
+      data: { organizationId: other.id, surface: "auto_reply", triggerId: ids[2], finalDecision: "no_reply", reason: "closing_ack" },
+    });
+    expect((await getHostPerformanceScore(orgId)).breakdown.responseRate).toBe(50);
+    await prisma.riskEvent.create({
+      data: { organizationId: orgId, conversationId, surface: "auto_reply", triggerId: ids[2], finalDecision: "no_reply", reason: "closing_ack" },
+    });
+    expect((await getHostPerformanceScore(orgId)).breakdown.responseRate).toBe(100);
+  });
 
   it("A) an old-but-ACTIVE conversation counts (old code excluded it → rate was null)", async () => {
     const now = Date.now();

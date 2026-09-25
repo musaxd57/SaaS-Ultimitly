@@ -73,8 +73,13 @@ import {
   kbPlaceholderTokens,
 } from "@/lib/kb-placeholders";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
-import { lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
-import { notClosingHandledWhere } from "@/lib/conversation-attention";
+import { closingMayHide, hasPriorReply, lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
+import {
+  CLOSING_HANDLED_REASON,
+  CLOSING_OPEN_REASON,
+  hasOpenHostWork,
+  notClosingHandledWhere,
+} from "@/lib/conversation-attention";
 import type { MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import {
@@ -107,6 +112,12 @@ import {
 import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
 
 const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
+
+/**
+ * Kapanışta gizleme için sağlayıcının son mesaj damgası (`lastMessageAt`) ile karar verilen mesajın zamanı arasındaki
+ * tolerans: damga bundan ileride ise içe alınmamış bir mesaj (fotoğraf) kararın ARDINDAN gelmiş olabilir → gizleme yok.
+ */
+const CLOSING_SYNC_TOLERANCE_MS = 2 * 60_000;
 
 // Auto-reply only fires when the AI is confident AND the message is safe. The
 // deterministic fallback never reaches this bar (it caps safe intents at 0.55),
@@ -496,15 +507,17 @@ export function passesAutoReplySafetyGate(
  * ayrıca sormak ölü mantıktı. Güvene bağlı YENİ bir kontrol eklenirse bu çıkarım gözden geçirilir.
  */
 export function semanticClosingHolds(
-  result: Parameters<typeof autoReplyGateFailure>[0],
+  result: Parameters<typeof autoReplyGateFailure>[0] & { missingInfo?: readonly unknown[] | null; actionSuggestion?: unknown },
   guestMessage: string,
   context: AutoReplyGateContext,
   understood: MessageUnderstanding | null | undefined,
   unanswered: readonly string[],
+  /** Sohbette misafire daha önce bir cevap gitti mi (`hasPriorReply`) — ilk mesaj selamdır, kapanış değil. */
+  priorReply: boolean,
 ): boolean {
   return (
     autoReplyGateFailure({ ...result, confidence: 1 }, guestMessage, context) === null &&
-    semanticClosingOnly({ unanswered, understood, reply: result })
+    semanticClosingOnly({ unanswered, hasPriorReply: priorReply, understood, reply: result })
   );
 }
 
@@ -1772,14 +1785,42 @@ export async function applyChannelAutoReply(
     .slice(lastOutboundIdx0 + 1)
     .filter((m) => m.direction === "inbound")
     .map((m) => m.body);
-  // Kapanış = hiçbir mesaj yok + içeride "cevap gerekmedi" (karar kaydı `no_reply`; konuşma kaydı `closing_ack`).
-  // Anlam yolu modelin hükmünü ve temellendirme kanıtını da yazar; sözcük yolunda model çağrılmadı (alanlar NULL kalır).
+  // Önceki cevap şartı (inceleme 09-25, P2): ilk mesaj "İyi akşamlar" / "Merhaba" bir selamdır, kapanış değil → modele.
+  const priorReply = hasPriorReply(messages);
+  // Kapanış = hiçbir mesaj yok + karar kaydı `no_reply`. GİZLEME (konuşma "cevap gerekmedi" diye listelerden düşer)
+  // yalnız açık iş olmadığı KESİNSE (`closingMayHide`: devir/bekletme cevabı, soru ya da teklif taşıyan son cevap, ev
+  // sahibine bırakılmış mesaj yok) VE sağlayıcının son mesaj damgası karar verilen mesajla aynıysa (içe alınmamış bir
+  // fotoğraf mesajı kararın ARDINDAN gelmiş olabilir). Aksi hâlde misafire yine hiçbir şey gitmez ama konuşma görünür
+  // kalır (`closing_ack_open`). Anlam yolu modelin hükmünü ve temellendirme kanıtını da yazar; sözcük yolunda model
+  // çağrılmadı (alanlar NULL kalır).
   const closingNoReply = async (
     reason: "closing_ack" | "closing_ack_semantic",
-    modelVerdict?: Pick<RiskEventInput, "riskLevel" | "riskType" | "confidence" | "kbEvidenceJson">,
+    modelVerdict?: Pick<
+      RiskEventInput,
+      | "riskLevel"
+      | "riskType"
+      | "confidence"
+      | "kbEvidenceJson"
+      | "kbRetrieved"
+      | "kbDropped"
+      | "kbPendingApproval"
+      | "kbNewestUpdatedAt"
+      | "srcDeclared"
+      | "srcVerified"
+    >,
   ) => {
+    const inSync = conversation.lastMessageAt.getTime() - last.createdAt.getTime() <= CLOSING_SYNC_TOLERANCE_MS;
+    const hide =
+      inSync &&
+      closingMayHide({
+        messages,
+        openHostWork: await hasOpenHostWork(conversation.property.organizationId, messages),
+      });
     if (!options.dryRun) {
-      await persistRiskVisibility(conversation.id, "closing_ack");
+      // Gizlenen kapanışta bayat risk etiketi temizlenir (etiket "cevap gerekmedi" satırında "Sebep: …" diye kalmasın);
+      // görünür kalan kapanış önceki etiketi KORUR (açık iş olabilir).
+      if (hide) await persistRiskVisibility(conversation.id, CLOSING_HANDLED_REASON, null, null);
+      else await persistRiskVisibility(conversation.id, CLOSING_OPEN_REASON);
       await recordRiskEvent({
         organizationId: conversation.property.organizationId,
         propertyId: conversation.propertyId,
@@ -1791,48 +1832,48 @@ export async function applyChannelAutoReply(
         ...modelVerdict,
       });
     }
-    return { sent: false, skippedReason: "closing_ack" as const, ...meta };
+    return { sent: false, skippedReason: hide ? ("closing_ack" as const) : ("closing_ack_open" as const), ...meta };
   };
-  if (closingKind && lexicalClosingOnly(unansweredGuestTexts)) {
-    if (messages.some((m) => m.direction === "outbound")) {
-      // LOOP GUARD (both kinds): our latest outbound was itself the courtesy → the guest is thanking/complimenting
-      // the thank-you. Stay SILENT — neither a second courtesy nor a model draft.
-      const lastOutbound = [...messages].reverse().find((m) => m.direction === "outbound");
-      if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) return closingNoReply("closing_ack");
-      // Opt-in courtesy (HOST'un açık seçimi, varsayılan kapalı): closing / pure compliment ONCE with a deterministic
-      // line (never in dry-run). Any gate saying no falls through to the silent skip below.
-      if (org.autoClosingReplyEnabled && !options.dryRun) {
-        const courtesySent = await maybeSendClosingCourtesy({
+  const allClosingOrPraise = unansweredGuestTexts.every((t) => isClosingAck(t) || isPositiveFeedback(t));
+  if (closingKind && priorReply && allClosingOrPraise) {
+    // LOOP GUARD (both kinds): our latest outbound was itself the courtesy → the guest is thanking/complimenting
+    // the thank-you. Stay SILENT — neither a second courtesy nor a model draft.
+    const lastOutbound = [...messages].reverse().find((m) => m.direction === "outbound");
+    if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) return closingNoReply("closing_ack");
+    // Opt-in courtesy (HOST'un açık seçimi, varsayılan kapalı): closing / pure compliment ONCE with a deterministic
+    // line (never in dry-run). Any gate saying no falls through below.
+    if (org.autoClosingReplyEnabled && !options.dryRun) {
+      const courtesySent = await maybeSendClosingCourtesy({
+        organizationId: conversation.property.organizationId,
+        conversation: {
+          id: conversation.id,
+          channel: conversation.channel,
+          guestIdentifier: conversation.guestIdentifier,
+          externalReservationId: conversation.externalReservationId,
+        },
+        messages,
+        lastInbound: { id: last.id, body: last.body },
+        kind: closingKind,
+        org,
+      });
+      if (courtesySent) {
+        // Gölge kapsamı (Codex): nezaket kapanışı da bir OTOMATİK GÖNDERİM kararıdır — pilot bu kararı da görsün.
+        void recordShadowVerdict({
           organizationId: conversation.property.organizationId,
-          conversation: {
-            id: conversation.id,
-            channel: conversation.channel,
-            guestIdentifier: conversation.guestIdentifier,
-            externalReservationId: conversation.externalReservationId,
-          },
-          messages,
-          lastInbound: { id: last.id, body: last.body },
-          kind: closingKind,
-          org,
+          conversationId: conversation.id,
+          triggerId: last.id,
+          guestMessage: last.body,
+          guestName: conversation.guestIdentifier,
+          reservationGuestName: conversation.reservation?.guestName,
+          gateDecision: "auto_sent",
         });
-        if (courtesySent) {
-          // Gölge kapsamı (Codex): nezaket kapanışı da bir OTOMATİK GÖNDERİM kararıdır — pilot bu kararı da görsün.
-          void recordShadowVerdict({
-            organizationId: conversation.property.organizationId,
-            conversationId: conversation.id,
-            triggerId: last.id,
-            guestMessage: last.body,
-            guestName: conversation.guestIdentifier,
-            reservationGuestName: conversation.reservation?.guestName,
-            gateDecision: "auto_sent",
-          });
-          return { sent: true, ...meta };
-        }
+        return { sent: true, ...meta };
       }
     }
-    // 🚨 KAPANIŞA SESSİZLİK (kurucu kuralı 09-25): teşekkür/onay VE övgü, önceki bir cevap olmasa da. Eskiden övgü
-    // ("Harika bir konaklamaydı!") normal model akışına düşüyordu → modelin cevabı otomatik gidebiliyordu.
-    return closingNoReply("closing_ack");
+    // 🚨 KAPANIŞA SESSİZLİK (kurucu kuralı 09-25): yalnız teşekkür/onay (`isClosingAck`). Övgü ("Harika bir
+    // konaklamaydı") normal model akışına gider: övgü listesi soru işaretsiz soruyu da kabul ediyordu (inceleme P1);
+    // modelin "yalnız teşekkür" hükmüyle anlam yolu yine susturabilir.
+    if (lexicalClosingOnly(unansweredGuestTexts)) return closingNoReply("closing_ack");
   }
 
   // BAĞLANTI KONTROLÜ MODEL ÇAĞRISINDAN ÖNCE (denetim, 07-31).
@@ -2390,13 +2431,16 @@ export async function applyChannelAutoReply(
   // adımın kararı (hazırlık kilidi, erken giriş akışı) asla ezilmez. (Bugün eşdeğer: düşük güvende o adımlar koşmaz.)
   if (
     gateFailure === "blocked" &&
-    semanticClosingHolds(result, last.body, gateContext, understood, [...pendingGuestMessages, last.body])
+    semanticClosingHolds(result, last.body, gateContext, understood, [...pendingGuestMessages, last.body], priorReply)
   ) {
+    // Model koştu → karar kaydı öteki üç karar gibi temellendirme sütunlarını da taşır (NULL = "ölçülmedi" okunmasın).
     return closingNoReply("closing_ack_semantic", {
       riskLevel: result.riskLevel,
       riskType: result.riskType ?? null,
       confidence: result.confidence,
-      kbEvidenceJson: groundingAudited.kbEvidenceJson,
+      ...groundingAudited,
+      srcDeclared: result.sourceAudit?.declared ?? null,
+      srcVerified: result.sourceAudit?.verified ?? null,
     });
   }
 
@@ -3317,6 +3361,8 @@ export async function runDueChannelAutoReplies(
       outcome.skippedReason === "low_confidence_or_risky" ||
       outcome.skippedReason === "globally_disabled" ||
       outcome.skippedReason === "closing_ack" ||
+      // Kapanış, görünür kalan (açık iş olabilir): misafire yine hiçbir şey gitmedi — bu mesaj için de KALICI hayır.
+      outcome.skippedReason === "closing_ack_open" ||
       // Konaklama bitti/iptal: bu mesaj için KALICI bir hayır. Damgalanmazsa
       // konuşma `status:"new"` kalır, `lastMessageAt`'i en eski olduğu için
       // sıranın başına oturur ve her turda aday slotu yer (denetim, 08-01).

@@ -140,3 +140,27 @@ describe("computeResponseEpisodes — pencere ÖRTÜŞMESİ", () => {
     expect(Math.round((within / answerable) * 100)).toBe(33); // eski kod: %100
   });
 });
+
+describe("kapanışa sessizlik — bilerek cevapsız bırakılan teşekkür (inceleme 09-25, P2)", () => {
+  const closing = (at: Date) => ({ direction: "inbound", createdAt: at, noReplyNeeded: true });
+
+  it("🚨 son 'teşekkürler' 24 saat sonra KAÇIRILMIŞ cevap sayılmaz", () => {
+    const msgs = [inb(min(0)), out(min(10)), closing(min(20))];
+    expect(computeResponseEpisodes(msgs, WINDOW, min(20 + 48 * 60))).toEqual({ answerable: 1, answeredWithin24h: 1 });
+  });
+
+  it("🚨 pazartesiki teşekkürden sonra çarşamba 5 dakikada cevaplanan soru GECİKMİŞ görünmez", () => {
+    const msgs = [inb(min(0)), out(min(10)), closing(min(20)), inb(min(2 * 24 * 60)), out(min(2 * 24 * 60 + 5))];
+    expect(computeResponseEpisodes(msgs, WINDOW, min(3 * 24 * 60))).toEqual({ answerable: 2, answeredWithin24h: 2 });
+  });
+
+  it("KONTROL: açık bir soru varken gelen teşekkür o bekleyişi KAPATMAZ (soru hâlâ cevapsız)", () => {
+    const msgs = [inb(min(0)), closing(min(5))];
+    expect(computeResponseEpisodes(msgs, WINDOW, min(26 * 60))).toEqual({ answerable: 1, answeredWithin24h: 0 });
+  });
+
+  it("KONTROL: işaretsiz aynı mesaj bugünkü gibi sayılır (bayrak davranışı değiştirir)", () => {
+    const msgs = [inb(min(0)), out(min(10)), inb(min(20))];
+    expect(computeResponseEpisodes(msgs, WINDOW, min(20 + 48 * 60))).toEqual({ answerable: 2, answeredWithin24h: 1 });
+  });
+});

@@ -1560,8 +1560,20 @@ const PRAISE_GLUE = new Set([
   // English
   "the", "a", "an", "we", "you", "it", "was", "were", "is", "are", "everything",
   "place", "apartment", "flat", "house", "stay", "time", "had", "have", "our", "your",
-  "really", "truly", "absolutely", "very", "here", "again", "definitely", "highly",
+  // ⚠️ "here" BİLEREK YOK (inceleme 09-25, P1): "Perfect, we are here" / "Great we are here" bir VARIŞ bildirimidir
+  // (kapı kodu, anahtar gerekebilir), övgü değil.
+  "really", "truly", "absolutely", "very", "again", "definitely", "highly",
   "this", "that", "everyone", "hosts", "host",
+]);
+/**
+ * SORU AÇAN İLK SÖZCÜK (inceleme 09-25, P1): dolgu listesi "is/are/was/the/it" içerdiği için soru işaretsiz İngilizce
+ * soru ("is the apartment clean", "Is it clean", "Is the house comfortable") ve istek ("Recommend a place") övgü
+ * sayılıyordu → kapanış yolunda susturulup gizleniyor, nezaket açıkken "teşekkürler" alıyordu. İlk sözcük bunlardan
+ * biriyse övgü DEĞİL (kaçan gerçek övgü yalnız modele gider — bedeli bir model çağrısı).
+ */
+const PRAISE_QUESTION_OPENERS = new Set([
+  "is", "are", "was", "were", "do", "does", "did", "can", "could", "will", "would", "should", "shall", "may",
+  "might", "has", "have", "recommend", "any", "anything",
 ]);
 
 /** True only for a SHORT compliment built ENTIRELY from known praise vocabulary. */
@@ -1580,6 +1592,7 @@ export function isPositiveFeedback(message: string): boolean {
   if (hasNonAckPictograph(raw)) return false;
   const tokens = cleaned.split(" ");
   if (tokens.length > 12) return false;
+  if (PRAISE_QUESTION_OPENERS.has(tokens[0])) return false; // soru/istek biçimi — övgü değil (↑)
   if (!tokens.every((t) => PRAISE_ANCHORS.has(t) || PRAISE_GLUE.has(t) || CLOSING_TOKENS.has(t))) {
     return false; // ONE unknown word → the model + safety gate decide, as today
   }

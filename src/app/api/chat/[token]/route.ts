@@ -33,8 +33,15 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
 import { recordRiskEvent } from "@/lib/risk-events";
-import { lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
-import { CLOSING_HANDLED_REASON } from "@/lib/conversation-attention";
+import {
+  closingMayHide,
+  hasPriorReply,
+  lexicalClosingOnly,
+  replyAuthorOf,
+  semanticClosingOnly,
+  type ClosingThreadMessage,
+} from "@/lib/ai/closing-turn";
+import { CLOSING_HANDLED_REASON, CLOSING_OPEN_REASON, hasOpenHostWork } from "@/lib/conversation-attention";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 
@@ -135,6 +142,29 @@ function setStayCookie(res: NextResponse, name: string, secret: string, departur
  * lose-the-race catch below cannot live inside an interactive transaction
  * (PostgreSQL aborts the whole tx on a unique violation).
  */
+/** Kapanış kararı için konuşmanın son mesajları (kronolojik): yazar, sistem olayı, niyet — misafir metni kalıcı yazılmaz. */
+async function loadClosingThread(conversationId: string): Promise<(ClosingThreadMessage & { id: string })[]> {
+  const rows = await prisma.message.findMany({
+    where: { conversationId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 50,
+    select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true, aiIntent: true },
+  });
+  return rows.reverse();
+}
+
+/** Son cevaptan (yapay zekâ ya da ev sahibi) sonraki misafir mesajları — yapay zekâ duraklatılmışken yazılanlar dahil. */
+function unansweredGuestTextsOf(thread: readonly ClosingThreadMessage[]): string[] {
+  let lastReply = -1;
+  thread.forEach((m, i) => {
+    if (replyAuthorOf(m) !== null) lastReply = i;
+  });
+  return thread
+    .slice(lastReply + 1)
+    .filter((m) => m.direction === "inbound")
+    .map((m) => m.body);
+}
+
 /**
  * Record a guest-chat exchange (the guest's question + the bot's reply) on an
  * EXISTING conversation. Runs on the given client — inside the per-thread
@@ -153,10 +183,11 @@ async function recordGuestChatExchange(
   escalated: boolean,
   // V1: event kiracı kapsamı (QR bir Lixus-native giriştir; sağlayıcı/bağlantı yok).
   organizationId: string,
-  // KAPANIŞA SESSİZLİK (kurucu kuralı 09-25): misafir yalnız teşekkür/onay yazdı, bilerek cevap verilmedi → konuşmaya
-  // "cevap gerekmedi" izi (`conversation-attention.ts`): karar + damga AYNI anda, son mesaja eşit. Misafir yeniden yazınca
-  // `lastMessageAt` damgayı geçer, iz kendiliğinden düşer.
-  closing = false,
+  // KAPANIŞA SESSİZLİK (kurucu kuralı 09-25): misafir yalnız teşekkür/onay yazdı, bilerek cevap verilmedi.
+  //  · "handled" → "cevap gerekmedi" izi (`conversation-attention.ts`): karar + damga AYNI anda, son mesaja eşit. Misafir
+  //    yeniden yazınca `lastMessageAt` damgayı geçer, iz kendiliğinden düşer.
+  //  · "open" → yine hiçbir şey gönderilmedi ama açık iş olabilir (`closingMayHide`) → konuşma GÖRÜNÜR kalır.
+  closing: false | "handled" | "open" = false,
 ): Promise<{ inboundMessageId: string }> {
   const touchedAt = new Date();
   await db.conversation.update({
@@ -164,7 +195,8 @@ async function recordGuestChatExchange(
     data: {
       lastMessageAt: touchedAt,
       ...(escalated ? { priority: "urgent" } : {}),
-      ...(closing ? { skippedReason: CLOSING_HANDLED_REASON, autoReplyAttemptedAt: touchedAt } : {}),
+      ...(closing === "handled" ? { skippedReason: CLOSING_HANDLED_REASON, autoReplyAttemptedAt: touchedAt } : {}),
+      ...(closing === "open" ? { skippedReason: CLOSING_OPEN_REASON } : {}),
     },
   });
   // createManyAndReturn: the inbound row's id is the escalation-alert EVENT
@@ -513,7 +545,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // veto" this replaces was best-effort — a host reply landing between the
   // check and the insert still got talked over.
   let recorded = false;
-  const record = async (botReply: string | null, escalated: boolean, closing = false) => {
+  const record = async (botReply: string | null, escalated: boolean, closing: false | "handled" | "open" = false) => {
     const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
     const out = await prisma.$transaction(async (tx) => {
       await acquireGuestChatThreadLock(tx, conversationId);
@@ -542,12 +574,22 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   }
 
   // ── KAPANIŞA SESSİZLİK (kurucu kuralı 09-25, `ai/closing-turn.ts`) ─────────────────────────────────────────────
-  // Misafir yalnız teşekkür/onay/övgü yazdı ("Teşekkürler", "Tamamdır", "👍", "Harika") → HİÇBİR ŞEY gönderilmez,
-  // ev sahibine devir/uyarı da yok; yalnız misafirin mesajı "cevap gerekmedi" iziyle kaydedilir. Eskiden bu mesajlar
-  // düşük güvenden devrediliyor, misafir "kaydedildi; ev sahibiniz görebilir" alıyor ve host uyarılıyordu. Model
-  // çağrısı ve günlük kota birimi harcanmaz. QR eşzamanlıdır: cevaplanacak tek mesaj bu mesajdır.
-  if (lexicalClosingOnly([message])) {
-    const { inboundMessageId, conversationId } = await record(null, false, true);
+  // Misafir yalnız teşekkür/onay yazdı ("Teşekkürler", "Tamamdır", "👍") → HİÇBİR ŞEY gönderilmez, ev sahibine
+  // devir/uyarı da yok. Eskiden bu mesajlar düşük güvenden devrediliyor, misafir "kaydedildi; ev sahibiniz görebilir"
+  // alıyor ve host uyarılıyordu. Model çağrısı ve günlük kota birimi harcanmaz. Kanalla AYNI kurallar (inceleme 09-25):
+  //  · önceki bir cevap şart (ilk mesaj bir selamdır);
+  //  · son cevaptan sonraki TÜM misafir mesajları kapanış olmalı (yapay zekâ duraklatılmışken yazılmış, ev sahibinin
+  //    cevaplamadığı bir soru bir "teşekkürler"in arkasında kaybolmasın);
+  //  · konuşma yalnız açık iş yoksa "cevap gerekmedi" diye gizlenir (`closingMayHide`), yoksa görünür kalır.
+  const closingThread = await loadClosingThread(await ensureGuestChatConversation(ctx.property.id, res));
+  const qrUnanswered = [...unansweredGuestTextsOf(closingThread), message];
+  const qrHideDecision = async () =>
+    closingMayHide({
+      messages: closingThread,
+      openHostWork: await hasOpenHostWork(ctx.property.organizationId, closingThread),
+    });
+  if (hasPriorReply(closingThread) && lexicalClosingOnly(qrUnanswered)) {
+    const { inboundMessageId, conversationId } = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
     await recordRiskEvent({
       organizationId: ctx.property.organizationId,
       propertyId: ctx.property.id,
@@ -813,12 +855,15 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // koşar ve devir istememeli; bekçi burada koşmadı, yani herhangi bir katmanın konaklama isteği her zaman devreder.
   // "Güven 1 ile devir yok" + "güven 0.4 altı" ⇒ gerçek kararı YALNIZ güven verdi (bilgi bandı 0.45'ten başlar). `escalate`
   // koruması bugün eşdeğer, bilinçli: kapının göndereceği bir cevap asla susturulmaz.
+  // Yapay zekâ duraklatılmışken yazılmış cevapsız mesaj varsa (`qrUnanswered` > 1) anlam yolu SUSTURMAZ: anlama katmanı
+  // yalnız bu mesajı değerlendirdi, ötekileri onaylayamaz.
   if (
     escalate &&
+    qrUnanswered.length === 1 &&
     !evaluateEscalation({ ...gateResult, confidence: 1 }, message, res.guestName, history, stayCtx).escalate &&
-    semanticClosingOnly({ unanswered: [message], understood, reply: result })
+    semanticClosingOnly({ unanswered: [message], hasPriorReply: hasPriorOperatorReply, understood, reply: result })
   ) {
-    const closingRecord = await record(null, false, true);
+    const closingRecord = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
     await recordRiskEvent({
       organizationId: ctx.property.organizationId,
       propertyId: ctx.property.id,

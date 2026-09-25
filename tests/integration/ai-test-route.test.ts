@@ -73,6 +73,14 @@ describe("POST /api/ai/test — signature preview parity", () => {
     // Pure praise is the PRAISE kind (courtesy-class) — not a bare closing.
     const mixed = await (await POST(req({ message: "Çok teşekkürler, her şey harikaydı! 😊" }), ctx)).json();
     expect(mixed.closingKind).toBe("praise");
+    // 🚨 Kanalla PARİTE (inceleme 09-25, P1): nezaket cevabı KAPALIYKEN övgü kapanış değildir, modele gider (övgü listesi
+    // soru işaretsiz soruyu da kabul ediyordu); teşekkür/onay yine kapanıştır.
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: false } });
+    const praiseOff = await (await POST(req({ message: "Çok teşekkürler, her şey harikaydı! 😊" }), ctx)).json();
+    expect(praiseOff.closingAck).toBe(false);
+    expect(praiseOff.closingKind).toBeNull();
+    const ackOff = await (await POST(req({ message: "Tamam, teşekkürler! 🙏" }), ctx)).json();
+    expect(ackOff.closingAck).toBe(true);
     // Thanks + a real question is NEITHER — the model answers it normally.
     const question = await (await POST(req({ message: "Teşekkürler! Peki wifi şifresi nedir?" }), ctx)).json();
     expect(question.closingAck).toBe(false);

@@ -658,14 +658,28 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
     // One query for all messages (was N+1: a findMany per conversation).
     const recentMessages = await prisma.message.findMany({
       where: { conversationId: { in: recentConversations.map((c) => c.id) } },
-      select: { conversationId: true, direction: true, createdAt: true },
+      select: { id: true, conversationId: true, direction: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
-    const grouped = new Map<string, { direction: string; createdAt: Date }[]>();
+    // Kapanışa sessizlik (kurucu kuralı 09-25): yapay zekânın BİLEREK cevapsız bıraktığı teşekkür/onay mesajları
+    // (karar kaydı `no_reply`) cevap bekleyen mesaj sayılmaz. Kiracı kapsamlı; mesaj kimliğiyle eşleşir.
+    const inboundIds = recentMessages.filter((m) => m.direction === "inbound").map((m) => m.id);
+    const noReplyIds = new Set(
+      inboundIds.length === 0
+        ? []
+        : (
+            await prisma.riskEvent.findMany({
+              where: { organizationId: orgId, finalDecision: "no_reply", triggerId: { in: inboundIds } },
+              select: { triggerId: true },
+            })
+          ).map((r) => r.triggerId),
+    );
+    const grouped = new Map<string, { direction: string; createdAt: Date; noReplyNeeded: boolean }[]>();
     for (const m of recentMessages) {
+      const row = { direction: m.direction, createdAt: m.createdAt, noReplyNeeded: noReplyIds.has(m.id) };
       const arr = grouped.get(m.conversationId);
-      if (arr) arr.push(m);
-      else grouped.set(m.conversationId, [m]);
+      if (arr) arr.push(row);
+      else grouped.set(m.conversationId, [row]);
     }
     for (const msgs of grouped.values()) {
       const stats = computeResponseEpisodes(msgs, thirtyDaysAgo, now);

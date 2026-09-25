@@ -170,7 +170,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
                 sayılır.{" "}
                 {result.closingReplyEnabled && !result.closingSemantic
                   ? "Nezaket yanıtı ayarınız AÇIK — misafire otomatik olarak ŞU mesaj GÖNDERİLİR (aynı mesaja bir kez):"
-                  : "Bu mesaja cevap gerekmez: misafire hiçbir şey gönderilmez ve konuşma “Cevap gerekmedi” olarak işaretlenir."}
+                  : "Bu mesaja cevap gerekmez: misafire hiçbir şey gönderilmez. Konuşmada açık bir konu yoksa “Cevap gerekmedi” olarak işaretlenir."}
               </p>
               {result.closingReplyEnabled && result.closingReplyPreview && !result.closingSemantic ? (
                 <pre className="whitespace-pre-wrap rounded border border-sky-200 dark:border-sky-500/30 bg-white dark:bg-card p-2 font-sans text-sky-900 dark:text-sky-200">

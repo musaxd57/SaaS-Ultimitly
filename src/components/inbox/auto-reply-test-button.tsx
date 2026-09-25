@@ -103,7 +103,8 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
 
   const willSend = previews?.filter((p) => p.wouldSend) ?? [];
   // Yalnız teşekkür/kapanış: hiçbir şey gönderilmez VE ev sahibine de iş kalmaz (kurucu kuralı 09-25) — "size bırakılır"
-  // listesine girmez, ayrı bir satırda sayılır.
+  // listesine girmez, ayrı bir satırda sayılır. Açık konu olabilen kapanış (`closing_ack_open`: teklif kabulü, devir,
+  // bekleyen soru) misafire yine cevap almaz ama ev sahibine BIRAKILIR → o listede görünür.
   const noReplyNeeded = previews?.filter((p) => !p.wouldSend && p.reason === "closing_ack") ?? [];
   const willWait = previews?.filter((p) => !p.wouldSend && p.reason !== "closing_ack") ?? [];
 
@@ -202,7 +203,8 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
 
                   {noReplyNeeded.length > 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      Cevap gerekmeyenler (yalnız teşekkür/kapanış): {noReplyNeeded.length} — misafire hiçbir şey gönderilmez.
+                      Cevap gerekmeyenler (yalnız teşekkür/kapanış): {noReplyNeeded.length} — yapay zekâ cevap yazmaz. Kısa
+                      teşekkür cevabı ayarınız açıksa yalnız o gider.
                     </p>
                   ) : null}
 
@@ -243,6 +245,8 @@ function reasonLabel(reason: string | null): string {
     // Kapanışa sessizlik (kurucu kuralı 09-25): yalnız teşekkür/onay — hiçbir şey gönderilmez, elle cevap da GEREKMEZ.
     case "closing_ack":
       return "cevap gerekmedi";
+    case "closing_ack_open":
+      return "teşekkür etti — açık konu olabilir";
     default:
       return "elle cevap";
   }

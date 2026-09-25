@@ -32,9 +32,14 @@ export interface EpisodeStats {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** messages: ONE conversation's messages in chronological order. */
+/**
+ * messages: ONE conversation's messages in chronological order.
+ * `noReplyNeeded` (inceleme 09-25, P2): yapay zekânın BİLEREK cevapsız bıraktığı kapanış mesajı (karar kaydı `no_reply` —
+ * "Teşekkürler", "👍"). Ne yeni bir bekleme başlatır ne de açık bir beklemeyi kapatır: son "teşekkürler" 24 saat sonra
+ * "kaçırılmış cevap" sayılmaz, pazartesiki teşekkürden sonra çarşamba 5 dakikada cevaplanan soru 47 saat gecikmiş görünmez.
+ */
 export function computeResponseEpisodes(
-  messages: { direction: string; createdAt: Date }[],
+  messages: { direction: string; createdAt: Date; noReplyNeeded?: boolean }[],
   windowStart: Date,
   now: Date,
 ): EpisodeStats {
@@ -61,6 +66,7 @@ export function computeResponseEpisodes(
 
   for (const m of messages) {
     if (m.direction === "inbound") {
+      if (m.noReplyNeeded) continue; // bilerek cevapsız kapanış: bekleme başlatmaz (↑)
       if (!runStart) runStart = m.createdAt; // consecutive inbounds keep the FIRST anchor
     } else {
       closeAnswered(m.createdAt); // outbound answers the open run (no-op when none is open)

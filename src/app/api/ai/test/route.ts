@@ -207,7 +207,10 @@ export const POST = withManage(async (session, req) => {
   const wouldAutoSend = passesAutoReplySafetyGate(gateInput, message, gateCtx);
   // Kapanışa sessizlik — anlam yolu (kurucu kuralı 09-25): gerçek kanalla AYNI yüklem. Önizleme de "bu mesaja cevap
   // gerekmez; hiçbir şey gönderilmez" desin (sözcük listesinin tanımadığı "Anladım" gibi kapanışlar).
-  const semanticClosing = !wouldAutoSend && semanticClosingHolds(gateInput, message, gateCtx, understood, [message]);
+  // Önizleme TEK mesajdır ve konuşmanın ORTASINDA yazılmış sayılır (önceki cevap var): gerçek kanalda ilk mesaj bir selamdır,
+  // kapanış değil — o yol modele gider (`hasPriorReply`).
+  const semanticClosing =
+    !wouldAutoSend && semanticClosingHolds(gateInput, message, gateCtx, understood, [message], true);
 
   // PREVIEW PARITY: show EXACTLY what would leave the building. An AUTO-send
   // carries reply + machine-note + signature (same order as the real sender);
@@ -239,9 +242,12 @@ export const POST = withManage(async (session, req) => {
       ? "praise"
       : null;
   const closingReplyEnabled = org?.autoClosingReplyEnabled ?? false;
+  // Gerçek kanalla AYNI (inceleme 09-25, P1): teşekkür/onay SUSTURULUR; övgü yalnız nezaket cevabı açıkken o cevabı alır,
+  // kapalıyken modele gider (övgü listesi soru işaretsiz soruyu da kabul ediyordu) — anlam yolu yine susturabilir.
+  const lexicalClosing = closingKind === "ack" || (closingKind === "praise" && closingReplyEnabled);
   // Nezaket cevabı YALNIZ sözcük yolunda (gerçek kanalla aynı); anlam yolunda her zaman sessizlik.
   const closingReplyPreview =
-    closingKind && closingReplyEnabled && org
+    lexicalClosing && closingKind && closingReplyEnabled && org
       ? composeClosingCourtesy({
           kind: closingKind,
           lang: closingCourtesyLanguage(message, org.language),
@@ -255,9 +261,9 @@ export const POST = withManage(async (session, req) => {
     reply,
     property: property.name,
     wouldAutoSend,
-    closingAck: closingKind !== null || semanticClosing, // backwards-compatible flag for the card
-    closingKind: closingKind ?? (semanticClosing ? "ack" : null),
-    closingSemantic: closingKind === null && semanticClosing,
+    closingAck: lexicalClosing || semanticClosing, // backwards-compatible flag for the card
+    closingKind: lexicalClosing ? closingKind : semanticClosing ? "ack" : null,
+    closingSemantic: !lexicalClosing && semanticClosing,
     closingReplyEnabled,
     closingReplyPreview,
   });
