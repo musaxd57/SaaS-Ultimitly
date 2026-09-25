@@ -198,6 +198,19 @@ describe("tier-2 holding acknowledgement — model path (applyChannelAutoReply)"
     expect(mockEmail).toHaveBeenCalledTimes(1);
   });
 
+  it("bekletme mesajının dili kodun tespitinden: model 'tr' beyan etse de İngilizce misafire İngilizce (09-25)", async () => {
+    const { conversation } = await seed({
+      holdingAck: true,
+      guestMessage: "The vibe here is not what we hoped for at all, quite let down.",
+    });
+    mockSuggest.mockResolvedValue({ ...modelComplaint("medium"), detectedLanguage: "tr" });
+    await applyChannelAutoReply(conversation.id);
+    const bodies = await outboundBodies(conversation.id);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toContain("Apologies for the trouble");
+    expect(bodies[0]).not.toContain("özür dileriz");
+  });
+
   it("HIGH-risk model verdict never gets the ack (silent draft + escalation only)", async () => {
     const { conversation } = await seed({
       holdingAck: true,

@@ -342,7 +342,9 @@ describe("applyChannelAutoReply", () => {
   });
 
   it("appends the host signature to the reply when one is configured", async () => {
-    const { conversationId } = await seed({ aiSignature: "Sevgiler,\nİsa Çınar" });
+    // Türkçe cevap + Türkçe dipnot → misafir de Türkçe yazar (dipnot dili misafirin mesajından; İngilizce misafire İngilizce
+    // dipnot ayrıca pinli: `claim-evidence-auto-reply.test.ts`).
+    const { conversationId } = await seed({ aiSignature: "Sevgiler,\nİsa Çınar", guestMessage: "Merhaba, check-in saat kaçta?" });
     const out = await applyChannelAutoReply(conversationId, { dryRun: true });
 
     expect(out.draft?.reply).toBe(`${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar`);
@@ -359,7 +361,9 @@ describe("applyChannelAutoReply", () => {
   });
 
   it("sends via the channel transport and persists when enabled and in-window", async () => {
-    const { conversationId } = await seed();
+    // Türkçe cevap + Türkçe dipnot → misafir de Türkçe yazar (dipnot dili misafirin mesajından; İngilizce misafire İngilizce
+    // dipnot ayrıca pinli: `claim-evidence-auto-reply.test.ts`).
+    const { conversationId } = await seed({ guestMessage: "Merhaba, check-in saat kaçta?" });
     const out = await applyChannelAutoReply(conversationId);
 
     expect(out.sent).toBe(true);
@@ -381,7 +385,9 @@ describe("applyChannelAutoReply", () => {
   });
 
   it("marks the auto-sent body as machine-prepared, but keeps the draft clean", async () => {
-    const { conversationId } = await seed();
+    // Türkçe cevap + Türkçe dipnot → misafir de Türkçe yazar (dipnot dili misafirin mesajından; İngilizce misafire İngilizce
+    // dipnot ayrıca pinli: `claim-evidence-auto-reply.test.ts`).
+    const { conversationId } = await seed({ guestMessage: "Merhaba, check-in saat kaçta?" });
     // Draft (preview) stays clean — no disclosure.
     const preview = await applyChannelAutoReply(conversationId, { dryRun: true });
     expect(preview.draft?.reply).toBe(SAFE_REPLY.reply);
