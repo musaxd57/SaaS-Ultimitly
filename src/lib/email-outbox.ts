@@ -172,6 +172,8 @@ export async function enqueueIdentityEmail(
         aadFor(id, args.userId, args.kind),
       ),
       expiresAt: args.expiresAt,
+      // ENQUEUE_CLOCK: vade, drain'in `"nextAttemptAt" <= now` kıyasladığı JS saatiyle damgalanır (şema varsayılanı başka saat).
+      nextAttemptAt: new Date(),
     },
   });
   return id;
