@@ -3,6 +3,8 @@ import "server-only";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { vetoAvailability, type AvailabilityPolicyOptions } from "@/lib/ai/availability-claims";
+import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
+import type { TimeConflict } from "@/lib/ai/prompts";
 import { evaluateIntentRisk, type IntentRiskKind } from "@/lib/ai/semantic/intent-risk";
 import type {
   StayChangeDeclaration,
@@ -121,6 +123,8 @@ export const ESCALATION_REASONS = [
   "price_claim",
   // Anlama katmanının risk niyeti (09-24) — `intent-risk.ts` `INTENT_RISK_REASON` ile BİREBİR.
   "understanding_risk",
+  // Saat kaynağı çelişkisi (P4-b kodda, 09-25) — kanal kapısıyla AYNI yüklem (`time-conflict-gate.ts`).
+  "kb_time_conflict",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -170,6 +174,8 @@ export function evaluateEscalation(
     usedSources?: string[];
     /** Modelin konaklama değişikliği ŞEMA BEYANI (yalnız sıkılaştırır). */
     stayChange?: StayChangeDeclaration | null;
+    /** İstemin gördüğü giriş/çıkış saati çelişkileri (`suggestReply` taşır; P4-b kodda). */
+    timeConflicts?: readonly TimeConflict[] | null;
   },
   message: string,
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
@@ -283,6 +289,10 @@ export function evaluateEscalation(
   // `escalate_intent` ile zaten devredildi.
   const availability = vetoAvailability(result.reply, [message], qrAvailabilityPolicy(result, stayCtx));
   if (availability !== null) return yes(availability);
+  // ── SAAT KAYNAĞI ÇELİŞKİSİ (P4-b kodda, 09-25) — kanal kapısıyla AYNI yüklem ve AYNI yer (müsaitlikten sonra). ──
+  if (timeConflictHolds(result.timeConflicts, { intent: result.intent, reply: result.reply, guestTexts: [message] })) {
+    return yes("kb_time_conflict");
+  }
   // ── ANLAMA KATMANININ RİSK NİYETLERİ (09-24, `semantic/intent-risk.ts`) ──────
   // Kanal kapısıyla AYNI yüklem; iki "geçiş" çıkışının (bilgi bandı + tam güven) hemen önünde uygulanır →
   // gerekçe yalnız başka HİÇBİR kontrol devretmediğinde `understanding_risk` olur. Katman koştuysa her zaman karar

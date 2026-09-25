@@ -856,6 +856,52 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(upd).toMatchObject({ status: "done", userId: t.cleanerId });
   });
 
+  it("🚨 P4-b KODDA (09-25): mülk giriş saati ↔ bilgi tabanı ÇELİŞKİLİYSE iki model ertelemesi de doğrulanmış onay da OTOMATİK GİTMEZ (kb_time_conflict)", async () => {
+    // Canlı Ayarlar testi (09-25): çelişkili mülkte model güveni 0.80 verdi; eskiden "insana git" yalnız istem talimatıydı.
+    // Burada gerçek istem + gerçek ayrıştırıcı + gerçek kapı: çelişki bilgi tabanındaki kalemden KODDA hesaplanır.
+    const now = Z("2026-10-14T05:52:00.000"); // 08:52
+    const conflictingKb = (propertyId: string) =>
+      prisma.knowledgeBaseItem.create({ data: { propertyId, category: "checkin", title: "Karşılama", content: "Giriş saati 14:00'tür." } });
+
+    // (a) KONTROL — çelişki yok: iki model ertelemesi GİDER (senaryo 1'in rızalı kolu).
+    at(now);
+    const a = await turnover();
+    await cleaning(a, a.departing.id, "2026-10-14", []);
+    await saveEarlyCheckinRule(a.orgId, a.propertyId, { ...RULE, readyBeforeCheckout: true });
+    openAi({ understanding: nlu("09:00"), guard: guard("09:00", { reply_defers_to_host: true }) });
+    const idA = await conversationFor(a.propertyId, a.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(idA)).sent).toBe(true);
+
+    // (b) Aynı olgular + mülk ayarı 15:00 iken bilgi tabanı 14:00 → erteleme TUTULUR, gerekçe kendi kodu.
+    await fresh();
+    const b = await turnover();
+    await conflictingKb(b.propertyId);
+    await cleaning(b, b.departing.id, "2026-10-14", []);
+    await saveEarlyCheckinRule(b.orgId, b.propertyId, { ...RULE, readyBeforeCheckout: true });
+    openAi({ understanding: nlu("09:00"), guard: guard("09:00", { reply_defers_to_host: true }) });
+    const idB = await conversationFor(b.propertyId, b.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(idB)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    // İş akışı saat çelişkisinde de koşar (host'un kontrol listesi / kanıt kaydı): temizlik yok, rızalı → bekliyor.
+    expect(await decision(idB)).toMatchObject({ finalDecision: "human_review", reason: "kb_time_conflict", ec: { s: "pending" } });
+
+    // (c) Doğrulanmış onay (senaryo 2'nin olguları) da çelişkide GİTMEZ: onay metni kapıdan baştan geçer, aynı listeyi taşır.
+    await fresh();
+    const c = await turnover();
+    await conflictingKb(c.propertyId);
+    await cleaning(c, c.departing.id, "2026-10-14", [
+      ["in_progress", "2026-10-14T05:15:00.000"],
+      ["done", "2026-10-14T05:45:00.000"],
+    ]);
+    await saveEarlyCheckinRule(c.orgId, c.propertyId, { ...RULE, readyBeforeCheckout: true });
+    openAi({ understanding: nlu("09:00"), guard: guard("09:00") });
+    const idC = await conversationFor(c.propertyId, c.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(idC)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    // İş akışı yine koşar (host'un kontrol listesi / kanıt kaydı üretilir); gönderimi tutan saat çelişkisidir.
+    expect(await decision(idC)).toMatchObject({ finalDecision: "human_review", reason: "kb_time_conflict", ec: { s: "approvable" } });
+  });
+
   it("20 · eski READY yeni devirde tekrar kullanılamaz: arada başka konaklama varsa önceki temizlik sayılmaz", async () => {
     const now = Z("2026-10-14T09:00:00.000"); // 12:00
     at(now);

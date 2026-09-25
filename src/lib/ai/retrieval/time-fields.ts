@@ -4,7 +4,8 @@
 // ya da KB ile mülk ayarının ÇELİŞİP çelişmediğine karar verir. Üç tüketici AYNI kuralı kullanır:
 //   · retrieval çelişki koruması (`rerank.preserveTimeConflicts`),
 //   · istemdeki KB ↔ mülk ayarı çelişki bloğu (`prompts.findTimeConflicts`),
-//   · host'a gösterilen "Uyuşmayan saatler" raporu (`kb-time-conflicts.ts`).
+//   · host'a gösterilen "Uyuşmayan saatler" raporu (`kb-time-conflicts.ts`);
+//   · gönderim kapısı istemin çelişki listesini okur (`ai/time-conflict-gate.ts`, 09-25 — P4-b kodda).
 // Eskiden İKİ ayrı kural vardı (retrieval alan bazlı, istem KATEGORİ bazlı) ve ikisi de ölçülmüş
 // yanlış pozitif üretiyordu (09-23 ajan ölçümü, 46 kalem çifti + 28 kalem↔mülk vakası):
 //   · istem: "Giriş 15:00, çıkış 11:00." yazan (mülkle UYUMLU) bir giriş kalemi "giriş saati:

@@ -417,6 +417,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // Şema beyanı (09-24): STRICT çözülür — kapalı küme dışı değer `unknown` olur, alanın
           // hiç gelmemesi `null` (sinyal yok). Kapı yalnız sıkılaştırır (`ai/semantic/stay-change.ts`).
           stayChange: parseStayChangeDeclaration(parsed.stayChangeAsked, parsed.replyStance),
+          // P4-b KODDA (09-25): istemin çelişki hesabı kapıya taşınır (model ne gördüyse kapı onu bilir).
+          timeConflicts: prompt.timeConflicts,
         };
       }
     } catch {

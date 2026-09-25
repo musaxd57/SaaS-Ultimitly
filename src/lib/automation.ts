@@ -35,6 +35,8 @@ import type {
   StayTimes,
   UnderstandingStaySignal,
 } from "@/lib/ai/semantic/stay-change";
+import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
+import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone, addZonedDays } from "@/lib/timezone";
@@ -160,6 +162,8 @@ export function autoReplyGateFailure(
     reply?: string | null;
     /** Modelin konaklama değişikliği ŞEMA BEYANI (yalnız sıkılaştırır; `ai/semantic/stay-change.ts`). */
     stayChange?: StayChangeDeclaration | null;
+    /** İstemin gördüğü bilgi tabanındaki giriş/çıkış saati çelişkileri (`suggestReply` taşır; P4-b kodda). */
+    timeConflicts?: readonly TimeConflict[] | null;
   },
   guestMessage: string,
   /** What the MODEL sees beyond the last message: recent history bodies + the
@@ -354,6 +358,13 @@ export function autoReplyGateFailure(
   // katmanı); hepsi yalnız sıkılaştırır. Ayrıntı `availabilityPolicyFor` + `evaluateAvailability`.
   const availability = vetoAvailability(result.reply, surfaces, availabilityPolicyFor(result, context));
   if (availability !== null) return availability;
+  // ── SAAT KAYNAĞI ÇELİŞKİSİ (kurucu kararı P4-b, 09-09 → KODDA 09-25, `time-conflict-gate.ts`) ─────────────────
+  // Mülk ayarı ile bilgi tabanı giriş/çıkış saatinde çelişiyorsa o alana değen cevap İNSANA gider. Eskiden yalnız
+  // istemin "güveni 0.75 altında tut" talimatına bağlıydı; model 0.80 verdi (canlı Ayarlar testi 09-25). Güvenden
+  // ÖNCE: gerekçe "düşük güven" kovasına karışmasın. Çelişkisiz mülkte etkisiz; çelişkili alana değmeyen soru gider.
+  if (timeConflictHolds(result.timeConflicts, { intent: result.intent, reply: result.reply, guestTexts: surfaces })) {
+    return "kb_time_conflict";
+  }
   // İKİNCİ KEMER (Codex F01): güven değeri SONLU bir sayı olmak zorunda. Parser
   // zaten yalnız sonlu number geçiriyor, ama kapı başka çağıranlardan da ham
   // nesne alır (QR yolu, testler) — `Infinity >= 0.75` true olurdu.
@@ -371,7 +382,7 @@ export function autoReplyGateFailure(
  * kapıyı gerçekten kapattıysa müsaitlik kodudur — model arızası ya da başka bir veto müsaitlik satırına
  * sayılmaz (eskiden gerekçe kapıdan bağımsız hesaplanıyordu).
  */
-export type AutoReplyGateFailure = AvailabilityVetoReason | IntentRiskReason | "blocked";
+export type AutoReplyGateFailure = AvailabilityVetoReason | IntentRiskReason | "kb_time_conflict" | "blocked";
 
 /** Only safe, confident drafts may be auto-sent; everything else waits for a human.
  * Exported for the golden scenario suite — the gate is the product's core safety
@@ -2001,7 +2012,15 @@ export async function applyChannelAutoReply(
   let earlyCheckinRun: EarlyCheckinRun | null = null;
   let earlyCheckinSent = false;
   // `price_claim` da (dilim 8): uydurma ücretli erteleme tutulur ama doğrulanmış onay onun YERİNE geçebilir.
-  if (gatePassed || gateFailure === "availability_unconfirmed" || gateFailure === "availability_claim" || gateFailure === "price_claim") {
+  // `kb_time_conflict` da: akış host'un kontrol listesini + kanıtı üretir; onay / politika metni kapıdan BAŞTAN geçer ve
+  // aynı çelişki listesini taşıdığı için (`verifiedEarlyCheckinResult` sonucu yayar) yine tutulur.
+  if (
+    gatePassed ||
+    gateFailure === "availability_unconfirmed" ||
+    gateFailure === "availability_claim" ||
+    gateFailure === "price_claim" ||
+    gateFailure === "kb_time_conflict"
+  ) {
     earlyCheckinRun = await runEarlyCheckinWorkflow({
       organizationId: conversation.property.organizationId,
       propertyId: conversation.propertyId,
@@ -2015,12 +2034,16 @@ export async function applyChannelAutoReply(
     if (earlyCheckinRun?.decision.autoSend && earlyCheckinRun.draft) {
       const verified = verifiedEarlyCheckinResult(result, earlyCheckinRun.draft);
       const verifiedContext: AutoReplyGateContext = { ...gateContext, verifiedGrant: { text: earlyCheckinRun.draft } };
-      if (autoReplyGateFailure(verified, last.body, verifiedContext) === null) {
+      const verifiedFailure = autoReplyGateFailure(verified, last.body, verifiedContext);
+      if (verifiedFailure === null) {
         result = verified;
         gateContext.verifiedGrant = verifiedContext.verifiedGrant;
         gateFailure = null;
         gatePassed = true;
         earlyCheckinSent = true;
+      } else if (verifiedFailure === "kb_time_conflict") {
+        // Onay gidebilirdi, yalnız saat çelişkisi tuttu: karar kaydı bunu söylesin (host saati eşitleyince onay gider).
+        gateFailure = verifiedFailure;
       }
     }
   }
@@ -2042,7 +2065,9 @@ export async function applyChannelAutoReply(
     if (text) {
       const policyResult = verifiedEarlyCheckinResult(result, text);
       const policyContext: AutoReplyGateContext = { ...gateContext, verifiedGrant: { text } };
-      if (autoReplyGateFailure(policyResult, last.body, policyContext) === null) {
+      const policyFailure = autoReplyGateFailure(policyResult, last.body, policyContext);
+      if (policyFailure === "kb_time_conflict") gateFailure = policyFailure;
+      if (policyFailure === null) {
         result = policyResult;
         gateContext.verifiedGrant = policyContext.verifiedGrant;
         gateFailure = null;
@@ -2435,7 +2460,10 @@ export async function applyChannelAutoReply(
         // Anlama katmanının risk niyeti (`understanding_risk`) BURAYA HİÇ GELMEZ: niyet varsa yukarıdaki acil yükseltme
         // dalı koşar, gerekçeyi o yazar ve döner (mutasyon turu 09-24: buradaki üçüncü kol ölü koddu, silindi).
         reason:
-          gateFailure === "availability_claim" || gateFailure === "availability_unconfirmed" || gateFailure === "price_claim"
+          gateFailure === "availability_claim" ||
+          gateFailure === "availability_unconfirmed" ||
+          gateFailure === "price_claim" ||
+          gateFailure === "kb_time_conflict"
             ? gateFailure
             : "low_confidence_or_risky",
         confidence: result.confidence,

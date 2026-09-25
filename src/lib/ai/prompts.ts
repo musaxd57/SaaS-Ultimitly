@@ -1102,7 +1102,13 @@ export function selectHistoryForPrompt<T extends { direction: "inbound" | "outbo
  * kendi sayısına EKLENMEZ, onun YERİNE geçer — aksi hâlde ön düşüşler iki kez
  * sayılırdı (`applyPromptKbAudit`, test-pinli).
  */
-export function buildReplyPrompt(input: SuggestReplyInput): { text: string; kbOmitted: number; claimContext: ClaimContext } {
+export function buildReplyPrompt(input: SuggestReplyInput): {
+  text: string;
+  kbOmitted: number;
+  claimContext: ClaimContext;
+  /** İstemin çelişki bloğunu basan AYNI hesap — kapı bunu okur (`time-conflict-gate.ts`, P4-b kodda). */
+  timeConflicts: TimeConflict[];
+} {
   const { property, reservation, knowledgeBase, history, openTopics, guestMessage, tone, language } = input;
 
   // P4 — çelişki bloğu yalnız GERÇEK bir çelişki varken basılır (sakin durumda gürültü yok).
@@ -1372,7 +1378,7 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
     guest: [guestMessage, ...selectedHistory.filter((m) => m.direction === "inbound").map((m) => m.body)],
     derivedNumbers: reservation ? stayNights(reservation.arrivalDate, reservation.departureDate) : [],
   };
-  return { text, kbOmitted: packed.omitted, claimContext };
+  return { text, kbOmitted: packed.omitted, claimContext, timeConflicts: conflicts };
 }
 
 /** Konaklamanın gece sayısı (metinde harfiyen yazmaz; "3 gece" cevabı buna dayanır). */

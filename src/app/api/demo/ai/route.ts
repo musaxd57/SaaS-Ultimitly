@@ -142,6 +142,8 @@ export async function POST(req: NextRequest) {
         // sözü tam olarak bunu yasaklıyor.
         reply: result.reply,
         stayChange: result.stayChange ?? null,
+        // Saat kaynağı çelişkisi (P4-b kodda, 09-25) — gerçek kapıyla PARİTE.
+        timeConflicts: result.timeConflicts ?? null,
       },
       message,
       { stayTimes: { checkIn: DEMO_PROPERTY.checkInTime, checkOut: DEMO_PROPERTY.checkOutTime } },

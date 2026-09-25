@@ -114,6 +114,17 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect(json.wouldAutoSend).toBe(false);
   });
 
+  it("🚨 PARİTE: saat kaynağı çelişkisi (P4-b kodda, 09-25) → wouldAutoSend FALSE; çelişkisiz aynı cevap TRUE", async () => {
+    // Kart kapıya alanları TEK TEK veriyor: `timeConflicts` verilmezse gerçek gönderici tutarken kart "gönderilirdi"
+    // derdi (`reply` dersinin aynısı). Kontrol satırı aynı cevabın çelişkisiz geçtiğini gösterir (vakum değil).
+    await seed();
+    const checkin = { ...SAFE_WIFI, intent: "checkin", reply: "Giriş saatiniz 13:00'tür." };
+    mockSuggest.mockResolvedValue({ ...checkin, timeConflicts: [] });
+    expect((await (await POST(req("Giriş saati kaçta?"), ctx)).json()).wouldAutoSend).toBe(true);
+    mockSuggest.mockResolvedValue({ ...checkin, timeConflicts: [{ field: "checkInTime", propertyValue: "13:00", kbValues: ["14:00"] }] });
+    expect((await (await POST(req("Giriş saati kaçta?"), ctx)).json()).wouldAutoSend).toBe(false);
+  });
+
   it("gate-blocked reply (refund) → wouldAutoSend false and the DRAFT stays note-free", async () => {
     await seed();
     mockSuggest.mockResolvedValue({ ...SAFE_WIFI, intent: "refund", reply: "İade talebinizi yöneticimize ilettim." });

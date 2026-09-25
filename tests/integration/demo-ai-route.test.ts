@@ -151,6 +151,16 @@ describe("POST /api/demo/ai — public landing demo", () => {
       expect(data.wouldAutoSend).toBe(false);
     });
 
+    it("🚨 saat kaynağı çelişkisi (P4-b kodda) → false; çelişkisiz aynı cevap true (rozet ürünü yansıtır)", async () => {
+      const checkin = { intent: "checkin", reply: "Giriş saatiniz 15:00'tir." };
+      vi.mocked(suggestReply).mockResolvedValueOnce(modelResult({ ...checkin, timeConflicts: [] }) as never);
+      expect((await (await POST(req("Giriş saati kaçta?", "10.0.0.6"))).json()).wouldAutoSend).toBe(true);
+      vi.mocked(suggestReply).mockResolvedValueOnce(
+        modelResult({ ...checkin, timeConflicts: [{ field: "checkInTime", propertyValue: "15:00", kbValues: ["14:00"] }] }) as never,
+      );
+      expect((await (await POST(req("Giriş saati kaçta?", "10.0.0.7"))).json()).wouldAutoSend).toBe(false);
+    });
+
     it("fallback-source reply → false (the product never auto-sends the deterministic path)", async () => {
       vi.mocked(suggestReply).mockResolvedValueOnce(modelResult({ source: "fallback" }) as never);
       const data = await (await POST(req("wifi şifresi nedir?", "10.0.0.4"))).json();

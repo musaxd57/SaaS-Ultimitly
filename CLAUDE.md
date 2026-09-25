@@ -965,6 +965,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   bloğu + host "Uyuşmayan saatler"): erken giriş/geç çıkış ayrı alan, bina/otopark girişi + acil çıkış + çıkış GÜNÜ
   konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu.
   İkinci bir saat/çelişki kuralı YAZILMAZ. Host raporu yalnız cümlecik saatini sayar; misafir yolu temkinli.
+  🚨 **Çelişki KAPIDA tutulur (09-25, `ai/time-conflict-gate.ts`):** istemin çelişki listesi `suggestReply` sonucunda
+  (`timeConflicts`) kapıya gider; çelişkili alana (niyet · misafir/cevap konusu · çelişen saat) değen cevap kanal + QR +
+  Ayarlar/demo önizlemesinde `kb_time_conflict` — karar model güvenine BIRAKILMAZ (model 0.80 verdi). Doğrulanmış onay /
+  politika metni de aynı listeyi taşır ve tutulur; kayıt gerekçesi o zaman `kb_time_conflict`. Raporlarda kendi satırı.
 - **Model sağlayıcısı kalıcı arızası** (429+`insufficient_quota`, 401/403, 404/`model_not_found`) geçiş tabanlı
   alarma gider (`ai/provider-health.ts`); düz 429/5xx/ağ hatası eski yolda. Misafir her durumda fallback alır.
 - **Müsaitlik host metni** "müsait/kiralanabilir/kalabilirsiniz" DEMEZ; en güçlü ifade "bağlı takvimlerinizde

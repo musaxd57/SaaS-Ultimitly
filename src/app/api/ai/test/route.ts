@@ -189,6 +189,8 @@ export const POST = withManage(async (session, req) => {
       reply: result.reply,
       // Şema beyanı (09-24) — gerçek kapıyla PARİTE; bekçi önizlemede koşmaz (bilinen fark, belgeli).
       stayChange: result.stayChange ?? null,
+      // Saat kaynağı çelişkisi (P4-b kodda, 09-25) — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
+      timeConflicts: result.timeConflicts ?? null,
     },
     message,
     {

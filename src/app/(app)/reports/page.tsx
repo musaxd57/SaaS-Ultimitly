@@ -78,6 +78,8 @@ export default async function ReportsPage() {
     "price_claim",
     // Anlama katmanının risk niyeti (09-24; yalnız anlama katmanı açıkken yazılır) — kendi satırı.
     "understanding_risk",
+    // Mülk ayarı ↔ bilgi tabanı giriş/çıkış saati çelişkisi (P4-b kodda, 09-25) — kendi satırı: çözümü host'un veri düzeltmesi.
+    "kb_time_conflict",
   ];
   const [riskRows, heldRows, heldResolved] = await Promise.all([
     prisma.riskEvent.groupBy({
@@ -332,6 +334,12 @@ export default async function ReportsPage() {
                     <div className="flex items-center justify-between px-3 py-2">
                       <span>Ücret ya da indirim — size bırakıldı</span>
                       <Badge tone="muted">{heldCount("price_claim")}</Badge>
+                    </div>
+                  ) : null}
+                  {heldCount("kb_time_conflict") > 0 ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span>Saatler uyuşmuyor — size bırakıldı</span>
+                      <Badge tone="muted">{heldCount("kb_time_conflict")}</Badge>
                     </div>
                   ) : null}
                   {heldCount("understanding_risk") > 0 ? (

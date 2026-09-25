@@ -196,6 +196,12 @@ export interface SuggestReplyResult {
    * (`ai/semantic/stay-change.ts`). Yokluğu = model alanı üretmedi (fallback dâhil) = sinyal yok.
    */
   stayChange?: StayChangeDeclaration | null;
+  /**
+   * Modelin GÖRDÜĞÜ bilgi tabanında mülk ayarıyla çelişen giriş/çıkış saatleri (istemin çelişki bloğunu basan AYNI
+   * hesap, `findTimeConflicts`). Kapı çelişkili alana değen cevabı TUTAR (P4-b kodda, `time-conflict-gate.ts`) —
+   * karar modelin güven puanına bırakılmaz. Yokluğu = istem kurulmadı (fallback) → kapı zaten tutar.
+   */
+  timeConflicts?: { field: "checkInTime" | "checkOutTime"; propertyValue: string; kbValues: string[] }[];
 }
 
 export interface ClassifyResult {

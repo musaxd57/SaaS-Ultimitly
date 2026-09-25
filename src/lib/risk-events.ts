@@ -59,6 +59,8 @@ const REASONS = new Set([
   "early_checkin_verified",
   // Bilgi sorusu (dilim 6): host kuralından koddan kurulan politika metni (ücret + "karar ev sahibinin") gönderildi.
   "early_checkin_policy",
+  // Saat kaynağı çelişkisi (P4-b kodda, 09-25): mülk ayarı ↔ bilgi tabanı giriş/çıkış saati çelişkili alana değen cevap.
+  "kb_time_conflict",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.
