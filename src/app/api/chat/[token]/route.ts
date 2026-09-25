@@ -808,8 +808,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // selam/teşekkür gördü + cevap modeli kendi kapanış kuralına uydu (genel niyet, güven < 0.4) + kapı YALNIZ düşük
   // güvenden devretti. 🚨 BİRLEŞİM DEĞİŞMEZİ: kapı düşük güvende DÖNER (risk niyeti sonra bakılır) → güven 1 ile BAŞTAN
   // koşar ve devir istememeli; bekçi burada koşmadı, yani herhangi bir katmanın konaklama isteği her zaman devreder.
+  // "Güven 1 ile devir yok" + "güven 0.4 altı" ⇒ gerçek kararı YALNIZ güven verdi (bilgi bandı 0.45'ten başlar). `escalate`
+  // koruması bugün eşdeğer, bilinçli: kapının göndereceği bir cevap asla susturulmaz.
   if (
-    verdict.reason === "low_confidence" &&
+    escalate &&
     !evaluateEscalation({ ...gateResult, confidence: 1 }, message, res.guestName, history, stayCtx).escalate &&
     semanticClosingOnly({ unanswered: [message], understood, reply: result })
   ) {

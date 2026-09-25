@@ -476,6 +476,9 @@ export function passesAutoReplySafetyGate(
  * katmanının risk niyeti ve dil kontrolü hiç koşmaz. Bu yüzden kapı güven 1 ile BAŞTAN koşar ve hiçbir engel çıkmamalı:
  * kelime ağının, beyanın ya da anlama katmanının konaklama isteği (bekçi burada koşmadı → hassas istek her zaman tutar),
  * risk niyeti, injection, çıktı vetosu, saat çelişkisi, dil — HİÇBİRİ susturulamaz.
+ * "Güven 1 ile temiz" + "güven sonlu ve 0.4 altı" (`semanticClosingOnly`) ⇒ gerçek kapıyı YALNIZ güven kontrolü kapattı:
+ * kapının güvene bağlı kontrolleri yalnız `confidence_invalid` ve `low_confidence` (09-25 ölçüldü) — ilk düşen kontrolü
+ * ayrıca sormak ölü mantıktı. Güvene bağlı YENİ bir kontrol eklenirse bu çıkarım gözden geçirilir.
  */
 export function semanticClosingHolds(
   result: Parameters<typeof autoReplyGateFailure>[0],
@@ -485,7 +488,6 @@ export function semanticClosingHolds(
   unanswered: readonly string[],
 ): boolean {
   return (
-    autoReplyGateVerdict(result, guestMessage, context)?.detail === "low_confidence" &&
     autoReplyGateFailure({ ...result, confidence: 1 }, guestMessage, context) === null &&
     semanticClosingOnly({ unanswered, understood, reply: result })
   );
@@ -2334,8 +2336,8 @@ export async function applyChannelAutoReply(
 
   // ── KAPANIŞA SESSİZLİK — ANLAM YOLU (`semanticClosingHolds`) ────────────────────────────────────────────────────
   // Sözcük listesinin kaçırdığı teşekkür/onay: iki model "yalnız teşekkür/kapanış" + kapı YALNIZ düşük güvenden kapandı.
-  // Aksi hâlde bugünkü davranış (taslak ev sahibine "AI emin olamadı"). Son gerekçe `blocked` olmalı: sonradan bir adım
-  // gerekçeyi değiştirdiyse (hazırlık kilidi, erken giriş akışı) o karar geçerli.
+  // Aksi hâlde bugünkü davranış (taslak ev sahibine "AI emin olamadı"). Son gerekçe `blocked` olmalı: kapıdan sonraki bir
+  // adımın kararı (hazırlık kilidi, erken giriş akışı) asla ezilmez. (Bugün eşdeğer: düşük güvende o adımlar koşmaz.)
   if (
     gateFailure === "blocked" &&
     semanticClosingHolds(result, last.body, gateContext, understood, [...pendingGuestMessages, last.body])

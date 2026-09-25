@@ -33,7 +33,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 import { NextRequest } from "next/server";
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
-import { applyChannelAutoReply, runDueChannelAutoReplies } from "@/lib/automation";
+import { applyChannelAutoReply, runDueChannelAutoReplies, previewChannelAutoReplies } from "@/lib/automation";
 import { POST as CHAT } from "@/app/api/chat/[token]/route";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { notClosingHandledWhere, isClosingHandled } from "@/lib/conversation-attention";
@@ -179,6 +179,21 @@ describe("kanal oto-yanıtı — kapanışa sessizlik", () => {
     expect(await prisma.conversation.count({ where: { id: conversationId, AND: [notClosingHandledWhere()] } })).toBe(1);
   });
 
+  it("oto-yanıt önizlemesi 'cevap gerekmedi' konuşmasını ALMAZ (yer doldurmaz, modeli yeniden çağırmaz)", async () => {
+    const { orgId, conversationId } = await seedChannel([{ direction: "inbound", body: "Teşekkürler!" }]);
+    await runDueChannelAutoReplies(orgId);
+    expect(isClosingHandled(await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } }))).toBe(true);
+    expect(await previewChannelAutoReplies(orgId)).toEqual([]);
+    // Misafir yeniden yazınca önizlemeye geri gelir.
+    const later = new Date(Date.now() + 1_000);
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Wifi şifresi nedir?", createdAt: later },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: later } });
+    mockSuggest.mockResolvedValue({ ...CLOSING_DRAFT, intent: "wifi", confidence: 0.9, reply: "Wifi şifresi kılavuzda." });
+    expect(await previewChannelAutoReplies(orgId)).toHaveLength(1);
+  });
+
   it("KONTROL: 'Anladım teşekkürler ama 12'de gelebilir miyiz?' kapanış DEĞİL — modele gider", async () => {
     mockSuggest.mockResolvedValue({ ...CLOSING_DRAFT, intent: "early_checkin", confidence: 0.9 });
     const { conversationId } = await seedChannel([
@@ -244,6 +259,15 @@ describe("kanal oto-yanıtı — kapanışa sessizlik", () => {
       expect(out.skippedReason).not.toBe("closing_ack");
       const [ev] = await channelEvents(conversationId);
       expect(ev.finalDecision).toBe("human_review");
+    });
+
+    it("🚨 anlama katmanının penceresine sığmayan cevapsız mesaj varsa (6 > 5) sessizlik YOK — görmediğini onaylayamaz", async () => {
+      vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+      vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_THANKS }));
+      mockSuggest.mockResolvedValue(CLOSING_DRAFT);
+      const { conversationId } = await seedChannel(Array.from({ length: 6 }, () => ({ direction: "inbound" as const, body: "Anladım" })));
+      const out = await applyChannelAutoReply(conversationId);
+      expect(out.skippedReason).toBe("low_confidence_or_risky");
     });
 
     it("🚨 kapı başka bir kontrolden kapandıysa (model riski) sessizlik YOK — güvenlik gerekçesi önce", async () => {
@@ -371,6 +395,18 @@ describe("QR misafir sohbeti — kapanışa sessizlik", () => {
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { propertyId, surface: "guest_chat" } });
     expect(ev).toMatchObject({ finalDecision: "no_reply", reason: "closing_ack_semantic", confidence: 0.3 });
     expect(ev.kbEvidenceJson).not.toBeNull();
+  });
+
+  it("🚨 BİRLEŞİM (QR): iki model 'yalnız teşekkür' dese de kelime ağının konaklama isteği SUSTURULAMAZ → devir", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_THANKS }));
+    mockSuggest.mockResolvedValue(CLOSING_DRAFT);
+    const { propertyId, token } = await seedQr();
+    const { body } = await ask(token, "Anladım, bir gece daha kalabilir miyiz?");
+    expect(body.noReply).toBeUndefined();
+    expect(body.escalated).toBe(true);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { propertyId, surface: "guest_chat" } });
+    expect(ev.finalDecision).toBe("human_review");
   });
 
   it("KONTROL: anlama katmanı kapalı → bugünkü davranış (düşük güven devri)", async () => {
