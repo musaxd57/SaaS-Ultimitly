@@ -214,6 +214,46 @@ describe("statedCheckoutTime — ikinci inceleme (09-25): yanlış redler + aş�
   }
 });
 
+describe("statedCheckoutTime — kör batarya son kontrolü (09-25)", () => {
+  // Bağımsız kör batarya (477 mesaj) bu turun kendi eklemelerinden doğan dört yanlış kabul ve bir CPU sorunu buldu.
+  const rejects: [string, string][] = [
+    ["02:30", "2 buçuk saatte çıkarız"], // "buçuk" ardındaki sayaç (saat/yaş/euro) saat değil
+    ["14:30", "2 buçuk saatte çıkarız"],
+    ["10:30", "10 buçuk euro verip 11'de çıkarız"],
+    ["10:00", "Çıkmaz sokakta 10'da buluşalım"], // "çıkmaz sokak" bir yer, çıkış ipucu değil
+    ["14:00", "The power will be out until 2pm"], // "be out" yalnız we/I öznesiyle
+    ["20:00", "08'de çıkarız"], // baştaki sıfır 24 saat (çıplak saatte de)
+  ];
+  for (const [time, msg] of rejects) {
+    it(`reddeder: ${time} ← ${msg}`, () => {
+      expect(timeStatedInMessage(time, msg)).toBe(false);
+    });
+  }
+  const accepts: [string, string][] = [
+    ["11:00", "Ev çıkmaz sokağın sonunda, 11'de çıkıyoruz"], // "sokağ" yazımı ret sayılmaz
+    ["11:00", "1 buçuk yaşındaki bebekle 11'de çıkıyoruz"],
+    ["08:00", "08'de çıkarız"],
+    ["10:00", "We'll be out by 10"],
+  ];
+  for (const [time, msg] of accepts) {
+    it(`kabul eder: ${time} ← ${msg}`, () => {
+      expect(timeStatedInMessage(time, msg)).toBe(true);
+    });
+  }
+
+  it("🚨 uzun boşluk dizisi karesel iş yaptırmaz; sınırın üstündeki mesajda kanıt ARANMAZ (güvenli yön)", () => {
+    // Kör batarya: cümlecik ayırıcısı (\s+ve\s+ …) boşluk dizisinde karesel — düzeltme yolunda 20.000 boşluk ~0,9 sn senkron
+    // CPU'ydu. Boşluk dizileri tek boşluğa iner; 4.000 karakterin üstünde hiçbir saat kaydedilmez.
+    const t0 = performance.now();
+    expect(timeCorrectedInMessage("10:00", "11:00", `10 demiştim${" ".repeat(20000)}11 olacak`)).toBe(false);
+    expect(timeStatedInMessage("10:00", `çıkış${" ".repeat(20000)}10'da`)).toBe(false);
+    expect(performance.now() - t0).toBeLessThan(200);
+    // Sınırın altında: boşluk dizisi olsa da doğru okuma sürer.
+    expect(timeStatedInMessage("10:00", `çıkış 10'da${" ".repeat(3900)}`)).toBe(true);
+    expect(timeCorrectedInMessage("10:00", "11:00", `10 demiştim${"\t".repeat(3000)}ama 11 olacak`)).toBe(true);
+  });
+});
+
 describe("çıkış saati DÜZELTMESİ — ikinci inceleme (09-25)", () => {
   // `ai/index.ts` ile aynı kabul kuralı: beyan ya da düzeltme.
   const accepted = (prev: string, next: string, msg: string) =>

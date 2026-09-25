@@ -27,8 +27,9 @@ const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 // düşürmek fonksiyonu daha az kabul eder hâle getirir (güvenli yön).
 // İkinci inceleme 09-25: "checking out at 11" / "we checked out at 10" / "we'll be out by 10" / "we head out at 10" /
 // "Yarın 10'da gidiyoruz" de ipucudur (nereye gidildiği — havalimanı, yemek — cevap modelinin işi; bu yüklem uydurma durdurucu).
+// Kör batarya (09-25): "be out" YALNIZ we/I öznesiyle ("The power will be out until 2pm" çıkış değil); "çıkmaz sokak" bir yerdir.
 const CHECKOUT_CUE =
-  /(?<!a)ç[ıi]k(?!olata|let|artma|rık|rik|ıntı|inti)|ayr[ıi]l(?!ık|ik\b)|terk(?!os)|boşalt|bosalt|check(?:ing|ed)?[\s-]?out|(?:be|head(?:ing)?)\s+out(?![a-z])|(?<![a-zçğıöşü])gid(?:iyor|eriz|erim|ece)|(?<!c)leav|depart(?!man|ment)|vacat(?!ion)|auscheck/;
+  /(?<!a)ç[ıi]k(?!olata|let|artma|rık|rik|ıntı|inti|maz\s+soka[kğ])|ayr[ıi]l(?!ık|ik\b)|terk(?!os)|boşalt|bosalt|check(?:ing|ed)?[\s-]?out|(?:\b(?:we|i)(?:'ll|\s+will|'re|'m|\s+are|\s+am)?\s+be\s+|head(?:ing)?\s+)out(?![a-z])|(?<![a-zçğıöşü])gid(?:iyor|eriz|erim|ece)|(?<!c)leav|depart(?!man|ment)|vacat(?!ion)|auscheck/;
 
 /**
  * ULAÇ (gerund) İPUCU DEĞİLDİR (denetim, 08-01 — ikinci tur).
@@ -77,7 +78,7 @@ const DEPARTURE_REFUSAL = new RegExp(
     "ç[ıi]kmad(?!an)",
     "ç[ıi]kmam(?![ıia])",
     // "çıkmaz sokak" bir YER adıdır (ikinci inceleme 09-25: "Ev çıkmaz sokakta mı? 11'de çıkarız" reddediliyordu).
-    "ç[ıi]kmaz(?!\\s+sokak)",
+    "ç[ıi]kmaz(?!\\s+soka[kğ])",
     // ayrılmıyoruz / ayrılmayacağız / ayrılmadık / ayrılmam / ayrılmaz
     "ayr[ıi]lm[ıi]yor",
     "ayr[ıi]lmayaca",
@@ -112,15 +113,25 @@ const CLAUSE_NEGATION = /yapmay[ıi]n/;
 const CLAUSE_SEPARATOR =
   /[,;]+|\s+(?:ve|and|ama|but|fakat|(?<!(?:öğleden|ogleden)\s+)sonra|then|ayrıca|çünkü|için|because|so|since|while|yani)\s+|\s+[-–—]\s+|(?<!\d):(?!\d)/g;
 
-/** iPhone'un kıvrık kesme işareti ("11’de") düz olana çevrilir — ikinci inceleme 09-25: ipucu ve ek okunmuyordu. */
+/**
+ * iPhone'un kıvrık kesme işareti ("11’de") düz olana çevrilir — ikinci inceleme 09-25: ipucu ve ek okunmuyordu. Satır içi
+ * boşluk dizileri TEK boşluğa indirilir: cümlecik ayırıcısı (`\s+ve\s+` …) uzun boşluk dizisinde karesel iş yapıyordu (kör
+ * batarya 09-25: 20.000 boşlukta ~0,9 sn senkron CPU). Satır sonu cümle sınırıdır, korunur.
+ */
 function normalizeMessage(message: string): string {
-  return message.replace(/[\u2018\u2019\u02BC\u2032]/g, "'").toLowerCase();
+  return message.replace(/[\u2018\u2019\u02BC\u2032]/g, "'").replace(/[^\S\n]+/g, " ").toLowerCase();
 }
+
+/**
+ * Bu uzunluğun üstündeki mesajda saat kanıtı ARANMAZ (false = kayıt yok, güvenli yön): düzenli ifadelerin en kötü durum
+ * maliyeti sınırlı kalır. Gerçek bir çıkış saati beyanı bu uzunluğa yaklaşmaz.
+ */
+const MAX_STATED_TIME_MESSAGE_CHARS = 4000;
 
 /** True when `message` plausibly states HH:MM AS A CHECKOUT TIME. */
 export function timeStatedInMessage(hhmm: string, message: string): boolean {
   const parsed = HHMM.exec(hhmm.trim());
-  if (!parsed) return false;
+  if (!parsed || message.length > MAX_STATED_TIME_MESSAGE_CHARS) return false;
   const h = Number(parsed[1]);
   const min = Number(parsed[2]);
 
@@ -244,8 +255,9 @@ function segmentStatesTime(text: string, h: number, min: number): boolean {
       continue;
     }
     if ((half ? 30 : 0) !== min) continue;
-    // Sayaç / para / tarih / numara saat değildir ("at 15 EUR", "10 Ekim", "oda 10") — `timeTokens` ile aynı kural.
-    if (COUNTER_AFTER.test(after) || NUMBER_BEFORE.test(before)) continue;
+    // Sayaç / para / tarih / numara saat değildir ("at 15 EUR", "10 Ekim", "oda 10") — `timeTokens` ile aynı kural. "Buçuk"
+    // ardındaki sözcük de sayılır: "2 buçuk saatte", "10 buçuk euro" saat değil (kör batarya 09-25).
+    if (COUNTER_AFTER.test(afterHalf(after)) || NUMBER_BEFORE.test(before)) continue;
     if (isReplacedTime(before, after) || isCheckinLabeled(before)) continue;
     // (?:^|\s) instead of \b — JS \b is ASCII-only and fails on ö/ğ/ş etc.
     const cueBefore = /(?:^|\s)(?:saat|at|by|um|around|öğlen|sabah|akşam)\s*$/.test(before);
@@ -262,7 +274,8 @@ function segmentStatesTime(text: string, h: number, min: number): boolean {
     if ((isPm || period === "pm") && hh < 12) hh += 12;
     if (isAm && hh === 12) hh = 0;
     if (hh === h) return true;
-    if (!isPm && !isAm && !period && n < 12 && n + 12 === h) return true;
+    // Baştaki sıfır 24 saattir ("08'de" 20:00 değil) — açık saatle aynı kural.
+    if (!isPm && !isAm && !period && !m[0].startsWith("0") && n < 12 && n + 12 === h) return true;
   }
 
   // 3) Sözcükle öğle: "Yarın öğlen çıkarız", "we'll leave at noon" = 12:00 (ardından saat gelmiyorsa: "öğlen 1" 13:00'tür).
@@ -275,6 +288,11 @@ function segmentStatesTime(text: string, h: number, min: number): boolean {
     return true;
   }
   return false;
+}
+
+/** "Buçuk" sözcüğünden SONRAKİ metin (sayaç denetimi için); buçuk yoksa metin aynen. */
+function afterHalf(after: string): string {
+  return after.replace(/^\s*'?\s*bu[çc]uk\p{L}*/u, "");
 }
 
 /** Giriş saati olarak ETİKETLENEN saat çıkış saati değildir: "Giriş 15:00 çıkış 11:00 değil mi?", "Check-in 3pm check-out 11am". */
@@ -327,7 +345,7 @@ function isTimeOnlyClause(text: string): boolean {
 export function timeCorrectedInMessage(previousHhmm: string, newHhmm: string, message: string): boolean {
   const prev = HHMM.exec(previousHhmm.trim());
   const next = HHMM.exec(newHhmm.trim());
-  if (!prev || !next) return false;
+  if (!prev || !next || message.length > MAX_STATED_TIME_MESSAGE_CHARS) return false;
   const prevMin = Number(prev[1]) * 60 + Number(prev[2]);
   const nextMin = Number(next[1]) * 60 + Number(next[2]);
   if (prevMin === nextMin) return false;
@@ -402,7 +420,7 @@ function timeTokens(text: string): { at: number; readings: number[] }[] {
     const n = Number(m[1]);
     if (n > 23) continue;
     const after = text.slice(at + m[1].length);
-    if (COUNTER_AFTER.test(after) || NUMBER_BEFORE.test(text.slice(0, at))) continue;
+    if (COUNTER_AFTER.test(afterHalf(after)) || NUMBER_BEFORE.test(text.slice(0, at))) continue;
     // "10 buçuk" = 10:30 (segmentStatesTime ile aynı); çeyrek / "half past" okunmaz — belirteç sayılmaz.
     const half = /^\s*'?\s*bu[çc]uk/.test(after);
     if (!half && (/^\s*'?[a-zçğıöşü]{0,3}\s*[çc]eyrek/.test(after) || /(?:half|quarter)\s+(?:past|to|after|before)\s*$/.test(text.slice(0, at)))) {
