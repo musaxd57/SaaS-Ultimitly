@@ -449,21 +449,33 @@ bırakıldı. Öneri tek satır: `create`'te `nextAttemptAt: new Date()`.
 | Karar kaydı (`RiskEvent` + `sc/u/ir/ec/g`) | raporlar, yeniden değerlendirme | hiçbir istem |
 | Anlama katmanı çıktısı | retrieval, kapı, erken giriş | cevap modeli (paralel koşuyor) |
 
-### 2.2 v1 dilim B (sıradaki; bayrak `AI_CONVERSATION_STATE_ENABLED`, varsayılan KAPALI)
-Kalıcı kaynaklardan kodla kurulur ve iki model çağrısından ÖNCE hazırdır. PII yok, metin yok.
-- **Sohbet evresi:** ilk temas / devam; teslim edilmiş cevap sayısı; cevapsız misafir mesajı sayısı; ev sahibi yazdı mı.
-- **Açık kayıtlar (en fazla 5):** son misafir mesajlarının karar kayıtlarından türetilir. Durum kodları:
-  `pending_host` · `deferred_to_host` · `host_replied` · `code_approved` · `unknown`. Kayıt yoksa "bilinmiyor"dur,
-  "istek yok" DEĞİL.
-- **Gönderilen yaşam döngüsü mesajları:** karşılama / giriş / çıkış.
-- **Anlama katmanına tarih satırı:** yalnız gün, dakika yok; önbellek anahtarı bozulmasın.
-- **Kurallar:**
-  - Hiçbir kapı bu bloğu OKUMAZ (pin).
-  - Bekçi yalnız metne bakmaya devam eder. Yanlış bir durum iki modeli birden yanıltmasın.
-  - Geçmiş sınıflandırmalar "etiket" olarak işaretlenir, olgu gibi sunulmaz.
+### 2.2 v1 dilim B — YAPILDI, bayrak `AI_CONVERSATION_STATE_ENABLED` varsayılan KAPALI
+Kalıcı kaynaklardan kodla kurulur ve cevap modeli çağrısından ÖNCE hazırdır. PII yok, metin yok.
+- **Kod:**
+  - saf kurucu `ai/conversation-state.ts`;
+  - yükleyici `ai/conversation-state-loader.ts`: kiracı kapsamlı; bayrak kapalıyken SIFIR sorgu; hata olursa durum yok.
+- **Bağlı yüzeyler:** kanal oto-yanıtı, gelen kutusu "AI öner", QR.
+- **Blok:** istemde geçmişin ardında "KONUŞMA KAYITLARI". Söylenecek bir şey yoksa yazılmaz. Bayrak kapalıyken istem bayt
+  bayt aynı (pinli).
+- **Sohbet evresi:**
+  - misafire giden mesaj sayısı (sistem olayı ve gövdesiz satır hariç);
+  - bunların ev sahibinin kendisinin yazdığı kısmı;
+  - son giden mesajdan sonraki misafir mesajı sayısı.
+- **Açık kayıtlar (en fazla 5, son 10 misafir mesajının karar kayıtlarından):** `pending_host` · `deferred_to_host` ·
+  `host_replied` · `code_approved`.
+  - Kayıt yoksa o mesaj hakkında HİÇBİR ŞEY söylenmez ("bilinmiyor" ≠ "istek yok").
+  - Konu adı yalnız model / kod kaynaklı kapalı-küme kodlardan gelir; kelime ağının uyarısı konu adı olmaz.
+  - İstem, konu adlarının ETİKET olduğunu, olgu olmadığını söyler.
+- **Gönderilen yaşam döngüsü mesajları:** karşılama / giriş / çıkış (rezervasyonun damgaları, kiracı kapsamlı).
+- **Kurallar (mekanik pin `conversation-state-prompt.test.ts`):**
+  - durum modülünü YALNIZ istem, tip ve yükleyici içe aktarır; hiçbir kapı okumaz;
+  - yükleyiciyi YALNIZ üç cevap yüzeyi çağırır.
+- **Ayrı commit — selam tekrarı paritesi (bayraksız):** gelen kutusu "AI öner" `isFirstOperatorReply` vermiyordu, taslak
+  devam eden konuşmada da yeniden selamlıyordu. Kural artık üç yüzeyde tek kaynak: `countPriorOperatorReplies`.
+- **Kalan (bu dilimde YOK):** anlama katmanına tarih satırı (yalnız gün, dakika yok — önbellek anahtarı bozulmasın).
 - **Açma sırası:**
   1. Kör set `evals/conversation-state.json`: "yarın erken" varıştan önce, çıkıştan önce ve rezervasyonsuz; düzeltme;
-     yolculuk; kapanış.
+     yolculuk; kapanış. Ajanla yazılacak; harcama sınırı nedeniyle 30 Eylül sonrası.
   2. Bayrak kapalı/açık eşleştirilmiş koşu.
   3. Kurucu onayı.
 

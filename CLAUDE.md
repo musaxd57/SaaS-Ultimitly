@@ -292,7 +292,14 @@ Bu dosyaya token/anahtar/parola yazma.
   Kapanış gündemdeki SON konuyu kapatır (yakınlık). `+1 ms` nedensellik kanıtı değildir (doğrusu
   `Message.replyToMessageId`, migration); QR bot cevabı misafirden +1 ms damgalanır, `id` kopma noktası korunur.
   Kalite denetçisi `lte` + `id` kopma noktası; `guest: null` tek başına proaktif kanıtı değil. Gölge pilotu QR'da
-  çalışmaz (tasarım). Selam tekrarı: `isFirstOperatorReply` kodda.
+  çalışmaz (tasarım). Selam tekrarı: `isFirstOperatorReply` kodda, TEK kural `countPriorOperatorReplies` (kanal + gelen
+  kutusu + QR; gelen kutusu "AI öner" 09-25'e kadar hiç vermiyordu, taslak devam eden konuşmada da selamlıyordu).
+- 🚨 **KONUŞMA KAYITLARI (CUS v1 dilim B, 09-25, `ai/conversation-state.ts`; bayrak `AI_CONVERSATION_STATE_ENABLED`
+  varsayılan KAPALI):** kalıcı kayıtlardan KODLA, PII/metin yok: giden mesaj sayısı, cevapsız misafir mesajı, son 10 misafir
+  mesajının karar kaydından açık konular, yaşam döngüsü damgaları. HİÇBİR kapı okumaz, yükleyiciyi YALNIZ üç cevap yüzeyi
+  çağırır (mekanik pin); bayrak kapalı = SIFIR sorgu + istem bayt bayt aynı; kayıt yok = o mesaj hakkında hiçbir şey
+  söylenmez; kelime ağının `alerts` kaydı konu adı OLMAZ; okuma hatası akışı durdurmaz. QR'da cevaplanan mesaj henüz
+  kayıtlı değildir → sayıma katılır (üç yüzeyde aynı anlam). Açma = kör eval + eşli koşu + kurucu onayı (belge §2.2).
 - 🚨 **KB talimat-ele-geçirme süzgeci (`detectKbInstructionHijack`, 09-23):** `kb-fetch` tek boğazında, her boyutta,
   seçiciden ÖNCE; kalem isteme girmez, `dropped`a karışmaz, kanıtta `hj`, host'a "Yapay zekâ kullanmıyor" rozeti.
   Misafir kalıpları KB'ye UYGULANMAZ (16 host cümlesinin 10'u yanlış pozitif). Yalnız yapay zekâya yönelen biçimler
@@ -1114,8 +1121,8 @@ kırmızı-önce + mutasyon (35+15+15+14). Üç inceleme ajanının bulguları a
 `1785250` · zaman `a83459d`; belge §1.6). Kör veto bataryası dilimi #162 (belge §1.8): kaçan 51→15 (12'si edilgen),
 yanlış tutma 8→4, korpusta yeni tutma 0, mutasyon 67/67. Yazılan saat kör batarya dilimi #161b (belge §1.9): yanlış kabul
 67→1, yanlış red 55→19, sonda 51→2, mutasyon 71/74 → yaşayanlar kapandı + 35/35. CI #1170 rastgele kırmızısı kökten
-kapandı (belge §1.10). ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
-e-posta), bekleme sırasında A/B (SABİTLENMEDİ), `claimedActions` ve CUS v1 dilim B (bayrak + ücretli eval), CUS v2 defter
+kapandı (belge §1.10). Konuşma Anlama Durumu v1 dilim B kodda, bayrak KAPALI (belge §2.2) + gelen kutusu selam paritesi. ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
+e-posta), bekleme sırasında A/B (SABİTLENMEDİ), `claimedActions`, CUS v1 dilim B'nin AÇILMASI (kod hazır, bayrak kapalı; kör eval + kurucu onayı; belge §2.2), CUS v2 defter
 (migration).
 
 **09-25 MESAJ ANLAMA ÇEKİRDEĞİ TURU (kurucu: ChatGPT'nin "kelime kuralları anlam kararı vermesin" metni; "mantıklıysa
