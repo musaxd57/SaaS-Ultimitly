@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  closableAfter,
   closingMayHide,
   hasAckSignal,
   hasPriorReply,
@@ -8,7 +9,7 @@ import {
   CLOSING_MAX_MODEL_CONFIDENCE,
   type ClosingThreadMessage,
 } from "@/lib/ai/closing-turn";
-import { isPositiveFeedback } from "@/lib/ai/fallback";
+import { isClosingAck, isPositiveFeedback } from "@/lib/ai/fallback";
 import { isClosingHandled, CLOSING_HANDLED_REASON, CLOSING_OPEN_REASON } from "@/lib/conversation-attention";
 import type { MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 
@@ -73,7 +74,7 @@ describe("teşekkür/onay sinyali (anlam yolunun GEREKLİ koşulu, tek başına 
       "Anladım",
       "Anladım, kolay gelsin",
       "TEŞEKKÜRLER",
-      "İyi akşamlar",
+      "İyi akşamlar, teşekkürler",
       "Understood",
       "Muchas gracias",
       "Спасибо, понятно",
@@ -86,7 +87,8 @@ describe("teşekkür/onay sinyali (anlam yolunun GEREKLİ koşulu, tek başına 
   });
 
   it("🚨 P2: selam / soru habercisi / sorun bildirimi teşekkür sinyali taşımaz", () => {
-    for (const t of ["Merhaba, bir sorum olacaktı", "Hi, are you there", "Merhaba", "Kapı kodu çalışmıyor", "Selam"]) {
+    // "İyi akşamlar / iyi günler" SELAM da olabilir (ikinci inceleme 09-25, P1): tek başına sinyal değil.
+    for (const t of ["Merhaba, bir sorum olacaktı", "Hi, are you there", "Merhaba", "Kapı kodu çalışmıyor", "Selam", "Merhaba, iyi akşamlar", "İyi günler"]) {
       expect(hasAckSignal(t), t).toBe(false);
     }
   });
@@ -206,8 +208,104 @@ describe("gizleme kapısı (`closingMayHide`) — yalnız açık iş olmadığı
     expect(hide([g("Teşekkürler"), legacyResume])).toBe(false);
     expect(hide([g("Teşekkürler"), blank])).toBe(false);
     expect(hasPriorReply([g("Teşekkürler"), sys, legacyResume, blank])).toBe(false);
-    // Yazarı eski ad kuralından çözülen cevap sayılır.
-    expect(hasPriorReply([{ direction: "outbound", senderName: "GuestOps AI", body: "x" }])).toBe(true);
+    // Yazarı eski ad kuralından çözülen cevap sayılır (misafir mesajından SONRA).
+    expect(hasPriorReply([g("Soru"), { direction: "outbound", senderName: "GuestOps AI", body: "x" }])).toBe(true);
+  });
+
+  // ── İKİNCİ İNCELEME (09-25) ────────────────────────────────────────────────────────────────────────────────────
+  it("🚨 P1: misafir hiç yazmadan giden mesaj (hoş geldiniz otomasyonu) CEVAP değildir — ardından gelen 'İyi akşamlar' selamdır", () => {
+    const welcome = ai("Hoş geldiniz! Giriş talimatlarınız: anahtar kutusu kapının yanında.", "checkin_instructions");
+    expect(hasPriorReply([welcome, g("İyi akşamlar")])).toBe(false);
+    expect(closableAfter([welcome, g("İyi akşamlar")])).toBe(false);
+    expect(hide([welcome, g("İyi akşamlar")])).toBe(true); // gizleme kendi başına izin verse de kapanış yolu hiç açılmaz
+    // KONTROL: gerçek bir alışverişten sonra aynı mesaj kapanıştır.
+    expect(closableAfter([g("Wifi?"), ai("Şifre kılavuzda."), g("İyi akşamlar")])).toBe(true);
+  });
+
+  it("🚨 P1: yapay zekânın son cevabı soru/TEKLİF ise kapanış yolu KAPALI ('Olur' bir cevaptır → model); ev sahibinin teklifi değil", () => {
+    for (const reply of [
+      "İsterseniz yol tarifini de gönderebilirim.",
+      "Dilerseniz size transfer ayarlayabilirim.",
+      "Geç çıkış 300 TL; isterseniz hemen ayarlayalım.",
+      "I can send you the directions as well.",
+      "Late checkout until 1pm is possible, let me know.",
+      "Yarınki girişinizi mi kastediyorsunuz?",
+      "Kaç kişi olacağınızı yazar mısınız",
+      "Si vous le souhaitez, je peux vous envoyer l'itinéraire.",
+    ]) {
+      expect(closableAfter([g("Havalimanı?"), ai(reply), g("Olur")]), reply).toBe(false);
+    }
+    // Ev sahibinin teklifine verilen onay kapanıştır (yapay zekâ yazmaz) — ama GİZLENMEZ (↓).
+    expect(closableAfter([g("Havlu az"), host("İsterseniz yarın yeni havlu gönderebilirim."), g("Olur")])).toBe(true);
+    // KONTROL: sınırlama / genel yardım cümlesi teklif değildir.
+    for (const reply of ["I can only help with questions about your stay.", "Başka bir konuda yardımcı olabilirim.", "No puedo confirmar fechas."]) {
+      expect(closableAfter([g("?"), ai(reply), g("Tamam")]), reply).toBe(true);
+    }
+  });
+
+  it("🚨 P1: ev sahibinin soru işaretsiz TEKLİFİ / soru ekli sorusu da gizlemeyi kapatır; düz cevabı ve kendi sözü kapatmaz", () => {
+    expect(hide([g("Havlu az"), host("İsterseniz yarın sabah temizlikçi ile yeni havlu gönderebilirim."), g("Olur, çok iyi olur")])).toBe(false);
+    expect(hide([g("Towels?"), host("I can bring fresh towels tomorrow at 10."), g("sounds good")])).toBe(false);
+    expect(hide([g("Kaç kişisiniz"), host("Kaç kişi olacağınızı yazar mısınız"), g("Tamam")])).toBe(false);
+    // Ev sahibinin kendi sözü: konuşma o mesajla zaten "cevaplandı" durumundaydı; gizleme yalnız önceki hâli geri getirir.
+    expect(hide([g("Kombi ses yapıyor"), host("Kontrol edip size döneceğim."), g("Tamam teşekkürler")])).toBe(true);
+  });
+
+  it("🚨 P1: yapay zekânın konaklama DIŞI konudaki devri/ertelemesi ve QR devir metni (niyet etiketi yok) gizlemeyi kapatır", () => {
+    expect(hide([g("Köpeğimizi getirebilir miyiz?"), ai("Evcil hayvan kabulü ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.", "general"), g("Tamam teşekkürler")])).toBe(false);
+    expect(hide([g("Sorun var"), ai("Mesajınız kaydedildi; ev sahibiniz görebilir.", null), g("Teşekkürler")])).toBe(false);
+    expect(hide([g("Pets?"), ai("Whether pets are allowed is the host's call; your request has been recorded and is visible to your host.", "general"), g("ok thanks")])).toBe(false);
+  });
+});
+
+describe("anlam yolu — ikinci inceleme (09-25) sözcüksel itirazları", () => {
+  const ok = { unanswered: ["Anladım, kolay gelsin"], hasPriorReply: true, understood: THANKS_ONLY, reply: CLOSING_REPLY };
+  it("🚨 P2: rakam / karşıtlık / rica ya da kapanış dışı 2'den fazla sözcük → susturmaz", () => {
+    for (const t of [
+      "Teşekkürler, yarın 12'de gelsek olur mu",
+      "Olur, 14:00'te çıkarız",
+      "Tamam, su akıtıyor tavandan",
+      "Güzel, komşular çok gürültü yapıyor",
+      "ok send me the door code",
+      "Thanks. Door code please",
+      "Ok but the shower is cold",
+      "Tamam ama havlu yok",
+      "Merci, on peut arriver à 11h",
+      "Tamam, geliyor musunuz",
+    ]) {
+      expect(semanticClosingOnly({ ...ok, unanswered: [t] }), t).toBe(false);
+    }
+  });
+
+  it("KONTROL: kapanış sözcüklerinin yanında en fazla iki yabancı sözcük geçer", () => {
+    for (const t of ["Anladım, çok teşekkür ederim", "Tamam anladım", "Kolay gelsin, iyi çalışmalar", "Хорошо, спасибо большое"]) {
+      expect(semanticClosingOnly({ ...ok, unanswered: [t] }), t).toBe(true);
+    }
+  });
+});
+
+describe("övgü / kapanış dedektörü — ikinci inceleme (09-25)", () => {
+  it("🚨 P1: cümlecik başındaki dolgudan sonra gelen soru/istek övgü DEĞİL", () => {
+    for (const t of [
+      "Ok is the apartment clean",
+      "Thanks, is the apartment clean",
+      "So is the apartment clean",
+      "Great is it clean",
+      "Clean the apartment again",
+      "Thanks, recommend a place",
+      "Thank you, is it clean",
+    ]) {
+      expect(isPositiveFeedback(t), t).toBe(false);
+    }
+    // KONTROL: gerçek övgü (cümlecik ortasındaki "was/is" soru açmaz).
+    for (const t of ["Everything was great", "The place was amazing, it was so clean", "Great stay, everything was perfect"]) {
+      expect(isPositiveFeedback(t), t).toBe(true);
+    }
+  });
+
+  it("P3: ASCII üzgün yüz kapanış onayı değildir", () => {
+    for (const t of ["ok :(", "tamam :-(", "thanks :/", "ok =("]) expect(isClosingAck(t), t).toBe(false);
+    expect(isClosingAck("ok :)")).toBe(true); // KONTROL
   });
 });
 

@@ -74,7 +74,7 @@ import {
   kbPlaceholderTokens,
 } from "@/lib/kb-placeholders";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
-import { closingMayHide, hasPriorReply, lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
+import { closableAfter, closingMayHide, lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
 import {
   CLOSING_HANDLED_REASON,
   CLOSING_OPEN_REASON,
@@ -117,8 +117,10 @@ const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 /**
  * Kapanışta gizleme için sağlayıcının son mesaj damgası (`lastMessageAt`) ile karar verilen mesajın zamanı arasındaki
  * tolerans: damga bundan ileride ise içe alınmamış bir mesaj (fotoğraf) kararın ARDINDAN gelmiş olabilir → gizleme yok.
+ * Yalnız saniye yuvarlaması payı (inceleme 09-25, P3: 2 dakikalık pay "Tamam"dan hemen sonra gönderilen fotoğrafı
+ * gizletiyordu). Damga daha ileride (ya da sağlayıcı damga vermediyse "şimdi") → gizleme YOK = güvenli yön.
  */
-const CLOSING_SYNC_TOLERANCE_MS = 2 * 60_000;
+const CLOSING_SYNC_TOLERANCE_MS = 5_000;
 
 // Auto-reply only fires when the AI is confident AND the message is safe. The
 // deterministic fallback never reaches this bar (it caps safe intents at 0.55),
@@ -513,7 +515,7 @@ export function semanticClosingHolds(
   context: AutoReplyGateContext,
   understood: MessageUnderstanding | null | undefined,
   unanswered: readonly string[],
-  /** Sohbette misafire daha önce bir cevap gitti mi (`hasPriorReply`) — ilk mesaj selamdır, kapanış değil. */
+  /** Kapanışa uygun nokta (`closableAfter`): misafirden sonra gitmiş bir cevap var ve yapay zekânın son cevabı soru/teklif değil. */
   priorReply: boolean,
 ): boolean {
   return (
@@ -1789,14 +1791,24 @@ export async function applyChannelAutoReply(
     .slice(lastOutboundIdx0 + 1)
     .filter((m) => m.direction === "inbound")
     .map((m) => m.body);
-  // Önceki cevap şartı (inceleme 09-25, P2): ilk mesaj "İyi akşamlar" / "Merhaba" bir selamdır, kapanış değil → modele.
-  const priorReply = hasPriorReply(messages);
+  // Kapanışa uygun nokta (inceleme 09-25): misafir mesajından SONRA gitmiş bir cevap var (hoş geldiniz otomasyonundan
+  // sonraki "İyi akşamlar" bir selamdır) VE yapay zekânın son cevabı soru/teklif değil ("…gönderebilirim" → "Olur" bir
+  // cevaptır) — aksi hâlde iki yol da atlanır, model cevaplar.
+  const closable = closableAfter(messages);
   // Kapanış = hiçbir mesaj yok + karar kaydı `no_reply`. GİZLEME (konuşma "cevap gerekmedi" diye listelerden düşer)
-  // yalnız açık iş olmadığı KESİNSE (`closingMayHide`: devir/bekletme cevabı, soru ya da teklif taşıyan son cevap, ev
-  // sahibine bırakılmış mesaj yok) VE sağlayıcının son mesaj damgası karar verilen mesajla aynıysa (içe alınmamış bir
-  // fotoğraf mesajı kararın ARDINDAN gelmiş olabilir). Aksi hâlde misafire yine hiçbir şey gitmez ama konuşma görünür
-  // kalır (`closing_ack_open`). Anlam yolu modelin hükmünü ve temellendirme kanıtını da yazar; sözcük yolunda model
-  // çağrılmadı (alanlar NULL kalır).
+  // yalnız açık iş olmadığı KESİNSE (`closingMayHide`: ev sahibinin kendi mesajı, devir/erteleme, soru ya da teklif
+  // taşıyan son cevap, ev sahibine bırakılmış mesaj) VE sağlayıcının son mesaj damgası karar verilen mesajla aynıysa
+  // (içe alınmamış bir fotoğraf mesajı kararın ARDINDAN gelmiş olabilir). Aksi hâlde misafire yine hiçbir şey gitmez ama
+  // konuşma görünür kalır (`closing_ack_open`). Anlam yolu modelin hükmünü ve temellendirme kanıtını da yazar; sözcük
+  // yolunda model çağrılmadı (alanlar NULL kalır).
+  let closingHideDecision: Promise<boolean> | null = null;
+  const closingHide = (): Promise<boolean> =>
+    (closingHideDecision ??= (async () =>
+      conversation.lastMessageAt.getTime() - last.createdAt.getTime() <= CLOSING_SYNC_TOLERANCE_MS &&
+      closingMayHide({
+        messages,
+        openHostWork: await hasOpenHostWork(conversation.property.organizationId, messages),
+      }))());
   const closingNoReply = async (
     reason: "closing_ack" | "closing_ack_semantic",
     modelVerdict?: Pick<
@@ -1813,13 +1825,7 @@ export async function applyChannelAutoReply(
       | "srcVerified"
     >,
   ) => {
-    const inSync = conversation.lastMessageAt.getTime() - last.createdAt.getTime() <= CLOSING_SYNC_TOLERANCE_MS;
-    const hide =
-      inSync &&
-      closingMayHide({
-        messages,
-        openHostWork: await hasOpenHostWork(conversation.property.organizationId, messages),
-      });
+    const hide = await closingHide();
     if (!options.dryRun) {
       // Gizlenen kapanışta bayat risk etiketi temizlenir (etiket "cevap gerekmedi" satırında "Sebep: …" diye kalmasın);
       // görünür kalan kapanış önceki etiketi KORUR (açık iş olabilir).
@@ -1839,14 +1845,17 @@ export async function applyChannelAutoReply(
     return { sent: false, skippedReason: hide ? ("closing_ack" as const) : ("closing_ack_open" as const), ...meta };
   };
   const allClosingOrPraise = unansweredGuestTexts.every((t) => isClosingAck(t) || isPositiveFeedback(t));
-  if (closingKind && priorReply && allClosingOrPraise) {
+  if (closingKind && closable && allClosingOrPraise) {
     // LOOP GUARD (both kinds): our latest outbound was itself the courtesy → the guest is thanking/complimenting
     // the thank-you. Stay SILENT — neither a second courtesy nor a model draft.
     const lastOutbound = [...messages].reverse().find((m) => m.direction === "outbound");
     if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) return closingNoReply("closing_ack");
     // Opt-in courtesy (HOST'un açık seçimi, varsayılan kapalı): closing / pure compliment ONCE with a deterministic
     // line (never in dry-run). Any gate saying no falls through below.
-    if (org.autoClosingReplyEnabled && !options.dryRun) {
+    // 🚨 Nezaket cevabı konuşmayı "cevaplandı" yapar — yani listeden DÜŞÜRÜR: yalnız gizlemenin de uygun olduğu yerde
+    // (açık iş yok; inceleme 09-25, P1: teklif kabulüne, devirden / tutulan sorudan sonraki teşekküre "Rica ederiz 😊"
+    // gidiyor ve iş kayboluyordu). Uygun değilse aşağıdaki sessiz + görünür kapanış.
+    if (org.autoClosingReplyEnabled && !options.dryRun && (await closingHide())) {
       const courtesySent = await maybeSendClosingCourtesy({
         organizationId: conversation.property.organizationId,
         conversation: {
@@ -2435,7 +2444,7 @@ export async function applyChannelAutoReply(
   // adımın kararı (hazırlık kilidi, erken giriş akışı) asla ezilmez. (Bugün eşdeğer: düşük güvende o adımlar koşmaz.)
   if (
     gateFailure === "blocked" &&
-    semanticClosingHolds(result, last.body, gateContext, understood, [...pendingGuestMessages, last.body], priorReply)
+    semanticClosingHolds(result, last.body, gateContext, understood, [...pendingGuestMessages, last.body], closable)
   ) {
     // Model koştu → karar kaydı öteki üç karar gibi temellendirme sütunlarını da taşır (NULL = "ölçülmedi" okunmasın).
     return closingNoReply("closing_ack_semantic", {

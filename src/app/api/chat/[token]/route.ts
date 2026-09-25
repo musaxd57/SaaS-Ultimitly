@@ -34,8 +34,8 @@ import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
 import { recordRiskEvent } from "@/lib/risk-events";
 import {
+  closableAfter,
   closingMayHide,
-  hasPriorReply,
   lexicalClosingOnly,
   replyAuthorOf,
   semanticClosingOnly,
@@ -577,18 +577,20 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Misafir yalnız teşekkür/onay yazdı ("Teşekkürler", "Tamamdır", "👍") → HİÇBİR ŞEY gönderilmez, ev sahibine
   // devir/uyarı da yok. Eskiden bu mesajlar düşük güvenden devrediliyor, misafir "kaydedildi; ev sahibiniz görebilir"
   // alıyor ve host uyarılıyordu. Model çağrısı ve günlük kota birimi harcanmaz. Kanalla AYNI kurallar (inceleme 09-25):
-  //  · önceki bir cevap şart (ilk mesaj bir selamdır);
+  //  · kapanışa uygun nokta şart (`closableAfter`: misafirden sonra gitmiş bir cevap var — ilk mesaj bir selamdır — ve
+  //    yapay zekânın son cevabı soru/teklif değil: "…gönderebilirim" → "Olur" bir CEVAPTIR);
   //  · son cevaptan sonraki TÜM misafir mesajları kapanış olmalı (yapay zekâ duraklatılmışken yazılmış, ev sahibinin
   //    cevaplamadığı bir soru bir "teşekkürler"in arkasında kaybolmasın);
   //  · konuşma yalnız açık iş yoksa "cevap gerekmedi" diye gizlenir (`closingMayHide`), yoksa görünür kalır.
   const closingThread = await loadClosingThread(await ensureGuestChatConversation(ctx.property.id, res));
   const qrUnanswered = [...unansweredGuestTextsOf(closingThread), message];
+  const qrClosable = closableAfter(closingThread);
   const qrHideDecision = async () =>
     closingMayHide({
       messages: closingThread,
       openHostWork: await hasOpenHostWork(ctx.property.organizationId, closingThread),
     });
-  if (hasPriorReply(closingThread) && lexicalClosingOnly(qrUnanswered)) {
+  if (qrClosable && lexicalClosingOnly(qrUnanswered)) {
     const { inboundMessageId, conversationId } = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
     await recordRiskEvent({
       organizationId: ctx.property.organizationId,
@@ -856,12 +858,13 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // "Güven 1 ile devir yok" + "güven 0.4 altı" ⇒ gerçek kararı YALNIZ güven verdi (bilgi bandı 0.45'ten başlar). `escalate`
   // koruması bugün eşdeğer, bilinçli: kapının göndereceği bir cevap asla susturulmaz.
   // Yapay zekâ duraklatılmışken yazılmış cevapsız mesaj varsa (`qrUnanswered` > 1) anlam yolu SUSTURMAZ: anlama katmanı
-  // yalnız bu mesajı değerlendirdi, ötekileri onaylayamaz.
+  // yalnız bu mesajı değerlendirdi, ötekileri onaylayamaz — ötekiler de SÖZCÜK listesindeki kapanışlarsa ("Teşekkürler"
+  // → "Anladım") onaylanacak bir şey yok (inceleme 09-25, P3: ikinci teşekkür devir + uyarı alıyordu).
   if (
     escalate &&
-    qrUnanswered.length === 1 &&
+    (qrUnanswered.length === 1 || lexicalClosingOnly(qrUnanswered.slice(0, -1))) &&
     !evaluateEscalation({ ...gateResult, confidence: 1 }, message, res.guestName, history, stayCtx).escalate &&
-    semanticClosingOnly({ unanswered: [message], hasPriorReply: hasPriorOperatorReply, understood, reply: result })
+    semanticClosingOnly({ unanswered: [message], hasPriorReply: qrClosable, understood, reply: result })
   ) {
     const closingRecord = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
     await recordRiskEvent({

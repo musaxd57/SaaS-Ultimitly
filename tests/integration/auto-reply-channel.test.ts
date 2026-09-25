@@ -865,9 +865,14 @@ describe("applyChannelAutoReply", () => {
   });
 
   it("KONTROL: cevapsız mesajların HEPSİ kapanışsa kısayol aynen (iki ardışık 'teşekkürler')", async () => {
-    const { conversationId } = await seed({ guestMessage: "Teşekkürler!" });
+    // Soru (seed, -60 sn) → ev sahibi cevabı → iki ardışık teşekkür. (Cevap, bir misafir mesajından SONRA gelmeli: misafir
+    // hiç yazmadan giden mesaj bir cevap değildir — ikinci inceleme 09-25.)
+    const { conversationId } = await seed({ guestMessage: "Wifi şifresi nedir?" });
     await prisma.message.create({
-      data: { conversationId, direction: "outbound", senderName: "Host", body: "Rica ederiz!", createdAt: new Date(Date.now() - 120_000) },
+      data: { conversationId, direction: "outbound", senderName: "Host", body: "Wi-Fi şifresi Lale2025.", createdAt: new Date(Date.now() - 40_000) },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Teşekkürler!", createdAt: new Date(Date.now() - 20_000) },
     });
     await prisma.message.create({
       data: { conversationId, direction: "inbound", senderName: "Alex", body: "Tamam, çok teşekkürler! 🙏", createdAt: new Date() },

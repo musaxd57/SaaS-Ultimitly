@@ -82,6 +82,9 @@ function deferredToHost(kbEvidenceJson: string | null): boolean {
 
 const DECISION_RANK: Readonly<Record<string, number>> = { auto_sent: 3, human_review: 2, no_reply: 1 };
 
+/** Son ev sahibi mesajından sonra bakılan en fazla misafir mesajı (karar kaydı sorgusunun `in` listesi). */
+const OPEN_WORK_WINDOW = 200;
+
 /**
  * Son EV SAHİBİ mesajından sonra ev sahibine bırakılmış bir misafir mesajı var mı (kapanışta gizleme kapısı,
  * `closingMayHide`)? Mesaj başına en güçlü karar (`auto_sent` > `human_review` > `no_reply`): tutulan (`human_review`),
@@ -96,11 +99,12 @@ export async function hasOpenHostWork(
   messages.forEach((m, i) => {
     if (replyAuthorOf(m) === "host") lastHost = i;
   });
+  // Tavan 200 (inceleme 09-25, P3: 50'lik tavan uzun bir ev sahibisiz dizide eski tutulan soruyu kaçırabiliyordu).
   const ids = messages
     .slice(lastHost + 1)
     .filter((m) => m.direction === "inbound")
     .map((m) => m.id)
-    .slice(-50);
+    .slice(-OPEN_WORK_WINDOW);
   if (ids.length === 0) return false;
   try {
     const rows = await prisma.riskEvent.findMany({

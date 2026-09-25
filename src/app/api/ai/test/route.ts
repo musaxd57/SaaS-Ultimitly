@@ -198,6 +198,10 @@ export const POST = withManage(async (session, req) => {
     stayChange: result.stayChange ?? null,
     // Saat kaynağı çelişkisi (P4-b kodda, 09-25) — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
     timeConflicts: result.timeConflicts ?? null,
+    // Anlam yolunun kapanış itirazları (inceleme 09-25, P3) — kanalla PARİTE: modelin eksik bilgi / eylem önerisi varsa
+    // önizleme de "cevap gerekmez" demez.
+    missingInfo: result.missingInfo ?? null,
+    actionSuggestion: result.actionSuggestion ?? null,
   };
   const gateCtx = {
     stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },

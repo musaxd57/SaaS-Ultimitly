@@ -1575,6 +1575,24 @@ const PRAISE_QUESTION_OPENERS = new Set([
   "is", "are", "was", "were", "do", "does", "did", "can", "could", "will", "would", "should", "shall", "may",
   "might", "has", "have", "recommend", "any", "anything",
 ]);
+/**
+ * Cümlecik başında atlanan dolgu (ikinci inceleme 09-25, P1): "Ok is the apartment clean", "Thanks, is it clean", "So is
+ * the apartment clean", "Great is it clean" — soru açan sözcük İLK sözcük değildi. Cümlecik ("," "." ";" "!" ile ayrılır)
+ * başındaki bu sözcükler atlanıp ilk GERÇEK sözcük denetlenir. ("Everything was great" → ilk sözcük "everything": geçer.)
+ */
+const PRAISE_CLAUSE_FILLERS = new Set(["ok", "okay", "okey", "thanks", "thank", "you", "thx", "so", "and", "oh", "wow", "great", "perfect", "awesome", "cool", "well"]);
+/** "Clean the apartment again" — "clean" + belirleyici = istek (emir kipi), övgü değil. */
+const IMPERATIVE_CLEAN = /(?:^|\s)clean\s+(?:the|a|an|our|your|my|this|that|it)(?:\s|$)/u;
+
+/** Cümleciklerden biri soru/istek biçiminde mi (baştaki dolgu atlanır). */
+function praiseClauseAsks(m: string): boolean {
+  if (IMPERATIVE_CLEAN.test(m.replace(/[^\p{L}\s]/gu, " ").replace(/\s+/g, " "))) return true;
+  return m.split(/[,.;!]+/u).some((clause) => {
+    const words = clause.replace(/[^\p{L}\s]/gu, " ").trim().split(/\s+/u).filter(Boolean);
+    const first = words.find((w) => !PRAISE_CLAUSE_FILLERS.has(w));
+    return first !== undefined && PRAISE_QUESTION_OPENERS.has(first);
+  });
+}
 
 /** True only for a SHORT compliment built ENTIRELY from known praise vocabulary. */
 export function isPositiveFeedback(message: string): boolean {
@@ -1592,7 +1610,7 @@ export function isPositiveFeedback(message: string): boolean {
   if (hasNonAckPictograph(raw)) return false;
   const tokens = cleaned.split(" ");
   if (tokens.length > 12) return false;
-  if (PRAISE_QUESTION_OPENERS.has(tokens[0])) return false; // soru/istek biçimi — övgü değil (↑)
+  if (praiseClauseAsks(m)) return false; // soru/istek biçimi — övgü değil (↑)
   if (!tokens.every((t) => PRAISE_ANCHORS.has(t) || PRAISE_GLUE.has(t) || CLOSING_TOKENS.has(t))) {
     return false; // ONE unknown word → the model + safety gate decide, as today
   }
@@ -1605,6 +1623,11 @@ export function isPositiveFeedback(message: string): boolean {
 // and no safety gate). Pure-emoji "👎" empties `cleaned` and used to return true.
 const NEGATIVE_EMOJI =
   /[\u{1F44E}\u{1F621}\u{1F620}\u{1F624}\u{1F4A9}\u{1F92C}\u{1F92E}\u{1F595}\u{26D4}\u{274C}]/u;
+/**
+ * ASCII üzgün yüz (inceleme 09-25, P3): "ok :(" kapanış onayı sayılıyordu — noktalama silinince geriye "ok" kalıyor.
+ * ":(", ":-(", ":'(", ":/", "=(", ":((" — memnuniyetsizlik işareti, kapanış değil.
+ */
+const SAD_EMOTICON = /[:;=]['’]?-?[(\/\\[]/u;
 
 /**
  * ONAY EMOJİLERİ — KAPALI BEYAZ LİSTE (denetim, 08-01).
@@ -1674,6 +1697,7 @@ export function isClosingAck(message: string): boolean {
   if (!raw || raw.length > 60) return false;
   if (raw.includes("?") || raw.includes("？")) return false; // a question is never a closing
   if (NEGATIVE_EMOJI.test(raw)) return false; // 👎/😡 = dissatisfaction, never an ack
+  if (SAD_EMOTICON.test(raw)) return false; // "ok :(" (↑)
   // Strip punctuation/emoji; what remains must be ONLY closing words.
   const cleaned = raw.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return isPureAckEmoji(raw); // ↑BEYAZ LİSTE (eskiden koşulsuz true)

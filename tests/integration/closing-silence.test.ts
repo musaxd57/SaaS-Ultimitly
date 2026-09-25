@@ -325,6 +325,78 @@ describe("kanal oto-yanıtı — kapanışa sessizlik", () => {
     expect(out.skippedReason).not.toBe("closing_ack");
   });
 
+  // ── İKİNCİ İNCELEME (09-25) ───────────────────────────────────────────────────────────────────────────────────────
+  it("🚨 P1: hoş geldiniz otomasyonundan sonraki İLK misafir mesajı 'İyi akşamlar' bir SELAMDIR — sessizlik yok, modele gider", async () => {
+    mockSuggest.mockResolvedValue({ ...CLOSING_DRAFT, confidence: 0.3 });
+    const { conversationId } = await seedChannel([
+      { direction: "outbound", body: "Hoş geldiniz! Giriş talimatlarınız kılavuzda.", authorType: "ai", aiIntent: "checkin_instructions" },
+      { direction: "inbound", body: "İyi akşamlar" },
+    ]);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(mockSuggest).toHaveBeenCalled();
+    expect(out.skippedReason).not.toMatch(/^closing_ack/);
+  });
+
+  it("🚨 P1: yapay zekânın soru işaretsiz TEKLİFİNE 'Olur' bir CEVAPTIR — kısayol yok, iki model de susturamaz", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_THANKS }));
+    mockSuggest.mockResolvedValue(CLOSING_DRAFT);
+    const { conversationId } = await seedChannel([
+      { direction: "inbound", body: "Havalimanından nasıl gelirim" },
+      { direction: "outbound", body: "Havaş ile gelebilirsiniz. İsterseniz yol tarifini de gönderebilirim.", authorType: "ai", aiIntent: "directions" },
+      { direction: "inbound", body: "Olur" },
+    ]);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(mockSuggest).toHaveBeenCalled();
+    expect(out.skippedReason).not.toMatch(/^closing_ack/);
+    expect(mockSend).not.toHaveBeenCalled(); // düşük güven → taslak ev sahibine
+  });
+
+  it("🚨 P1: ev sahibinin soru işaretsiz TEKLİFİNİN kabulü: misafire hiçbir şey gitmez (kısayol) ama konuşma GÖRÜNÜR kalır", async () => {
+    const { conversationId } = await seedChannel([
+      { direction: "inbound", body: "Havlular az" },
+      { direction: "outbound", body: "İsterseniz yarın sabah temizlikçi ile yeni havlu gönderebilirim.", authorType: "host" },
+      { direction: "inbound", body: "Olur, teşekkürler" },
+    ]);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(out.skippedReason).toBe("closing_ack_open");
+  });
+
+  it("🚨 P1: konaklama DIŞI konuda yapay zekânın ertelemesinden sonraki teşekkür görünür kalır (beyan 'defers' taşımaz)", async () => {
+    const { conversationId } = await seedChannel([
+      { direction: "inbound", body: "Köpeğimizi getirebilir miyiz" },
+      {
+        direction: "outbound",
+        body: "Evcil hayvan kabulü ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+        authorType: "ai",
+        aiIntent: "general",
+      },
+      { direction: "inbound", body: "Tamam teşekkürler" },
+    ]);
+    expect((await applyChannelAutoReply(conversationId)).skippedReason).toBe("closing_ack_open");
+  });
+
+  it("🚨 P1: nezaket cevabı AÇIKKEN ev sahibine bırakılmış soru varsa 'Rica ederiz' GİTMEZ — sessiz + görünür", async () => {
+    const { orgId, conversationId, messageIds } = await seedChannel([
+      { direction: "inbound", body: "Otopark var mı?" },
+      { direction: "outbound", body: "Hoş geldiniz! Giriş bilgileri kılavuzda.", authorType: "ai", aiIntent: null },
+      { direction: "inbound", body: "Teşekkürler" },
+    ]);
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
+    await prisma.riskEvent.create({
+      data: { organizationId: orgId, conversationId, surface: "auto_reply", triggerId: messageIds[0], finalDecision: "human_review" },
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(out.skippedReason).toBe("closing_ack_open");
+    // KONTROL: açık iş yoksa nezaket cevabı gider.
+    const plain = await seedChannel([...PRIOR, { direction: "inbound", body: "Teşekkürler" }]);
+    await prisma.organization.update({ where: { id: plain.orgId }, data: { autoClosingReplyEnabled: true } });
+    expect((await applyChannelAutoReply(plain.conversationId)).sent).toBe(true);
+  });
+
   describe("anlam yolu (sözcük listesinin tanımadığı kapanış: 'Anladım, kolay gelsin')", () => {
     const THANKS: SeedMessage[] = [...PRIOR, { direction: "inbound", body: "Anladım, kolay gelsin" }];
 
@@ -618,6 +690,19 @@ describe("QR misafir sohbeti — kapanışa sessizlik", () => {
     const { body } = await ask(token, "Anladım", prior.cookie);
     expect(body.noReply).toBeUndefined();
     expect(body.escalated).toBe(true);
+  });
+
+  it("P3 (ikinci inceleme): sözcük listesindeki kapanışın ardından gelen İKİNCİ kapanış ('Teşekkürler' → 'Anladım') da sessiz — devir/uyarı yok", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_THANKS }));
+    const { token } = await seedQr();
+    const prior = await askPriorAnswer(token);
+    const first = await ask(token, "Teşekkürler!", prior.cookie);
+    expect(first.body.noReply).toBe(true);
+    mockSuggest.mockResolvedValue(CLOSING_DRAFT);
+    const { body } = await ask(token, "Anladım", first.cookie);
+    expect(body.noReply).toBe(true);
+    expect(body.escalated).toBeFalsy();
   });
 
   it("🚨 BİRLEŞİM (QR): iki model 'yalnız teşekkür' dese de kelime ağının konaklama isteği SUSTURULAMAZ → devir", async () => {
