@@ -783,7 +783,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   🚨 **Vade kapısı TEK SAAT (`ENQUEUE_CLOCK`, CI #1170):** enqueue `availableAt`'i worker'ın kıyasladığı saatle YAZAR;
   şema varsayılanı (`@default(now())`) başka saattir ve timestamp(3)'e yuvarlanır → aynı milisaniyede satır "vadesi
   gelmedi" görünüyordu (rastgele kırmızı CI = atlanan yayın). JS saatiyle kıyaslanan YENİ zaman kolonu şema varsayılanına
-  BIRAKILMAZ. E-posta kuyruğunda (`nextAttemptAt`) aynı sınıf açık — kimlik akışı, kurucu onayı bekliyor.
+  BIRAKILMAZ. E-posta kuyruğu da aynı kuralla (`nextAttemptAt`, kurucu onayı 09-25; `email-outbox-enqueue-clock.test.ts`).
 - CLAIM-THEN-NOTIFY: atomik işaret + yan etki → yan etkinin SONUCU okunur; `emailService.send` bildirim
   yollarında KULLANILMAZ (`sendReporting`); `reportError` `throttled/configured:false` başarısızlık değil.
 - Escalation üç yol (model · kelime alerts · `applyInboundMessageRules`); m48 triyaj ikinci model çağrısı

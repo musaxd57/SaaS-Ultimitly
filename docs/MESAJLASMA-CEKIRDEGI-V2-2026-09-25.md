@@ -432,9 +432,27 @@ test: JS saati 5 sn geride (yalnız `Date` sahte). Düzeltmesiz iki test kırmı
 
 Canlı etki yok: dayanıklı kuyruk bayrağı kapalı; açık olsaydı en fazla bir tur gecikme.
 
-AYNI SINIF e-posta kuyruğunda da var (`EmailOutbox.nextAttemptAt`, bayrak canlıda AÇIK). Etkisi: nadiren bir doğrulama /
+AYNI SINIF e-posta kuyruğunda da vardı (`EmailOutbox.nextAttemptAt`, bayrak canlıda AÇIK). Etkisi: nadiren bir doğrulama /
 şifre sıfırlama e-postası bir poller turu (≤15 sn) gecikir, kaybolmaz. Kimlik e-postası akışı olduğu için kurucu onayına
-bırakıldı. Öneri tek satır: `create`'te `nextAttemptAt: new Date()`.
+bırakılmıştı.
+
+**E-posta kuyruğu — DÜZELTİLDİ (kurucu onayı 09-25).** Onayın şartı: "aynı kök neden olduğunu regresyon testiyle doğrula;
+mail kaybı, çift gönderim, yeniden deneme ve sürüm davranışı değişmiyorsa tek satırı uygula".
+- **Düzeltme:** `enqueueIdentityEmail`'in `create`'inde tek satır: `nextAttemptAt: new Date()`. Kuyruğa satır yazan tek yer
+  burası; `nextAttemptAt`'i yalnız bu modül okur. Yeniden deneme (`settleNow + bekleme`) ve kurtarma (`now`) zaten JS
+  saatiyle yazıyordu; dokunulmadı.
+- **Kök neden aynı, kanıtı** (`tests/integration/email-outbox-enqueue-clock.test.ts`, JS saati 5 sn geride):
+  - düzeltmesiz satırın vadesi JS saatinin **~5,06 sn ilerisinde** damgalandı, yani şema varsayılanının saatiyle;
+  - enqueue'dan hemen sonra koşan drain hiçbir şey almadı (`claimed: 0`);
+  - düzeltmesiz 5 test kırmızıydı; süre dolumu kontrolü iki durumda da yeşil (beklenen).
+- **Davranış değişmedi, aynı sahte saat altında:**
+  - iki paralel drain → tek gönderim;
+  - hata → 1 dk bekleme, hemen koşan drain yeniden göndermez, süre dolunca gönderir; sır korunur (kayıp yok);
+  - yeni istek eski nesli iptal eder, yalnız yeni kod bir kez gider;
+  - süresi dolan sır gitmez.
+- **Mevcut kuyruk ve rota testleri** değişmeden yeşil: 8 dosya, 101 test. Kapsananlar: çift gönderim, SKIP LOCKED, parti
+  ortasında kurtarma, lease yenileme, deneme bütçesi, süre dolumu, sürüm, alıcı/AAD, saklama.
+- **Mutasyon 3/3** (commit `f2f5e64`): satırı geri al, geleceğe damga, epoch damga.
 
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 
