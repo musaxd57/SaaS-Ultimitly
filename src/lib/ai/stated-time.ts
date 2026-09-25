@@ -317,6 +317,17 @@ function to24(hh: number, isAm: boolean, isPm: boolean, period: DayPeriod | null
 }
 const afternoonAlternative = (hh: number) => hh >= 1 && hh <= 7;
 
+/**
+ * Bir saat belirtecinin ÖNÜNDEKİ metin — yalnız son 64 karakter. Önüne bakan her kalıp ("saat", "at", "tomorrow afternoon
+ * around", "instead of checking out at", "check-in saati:", "before the breakfast around" …) `$`'a çapalıdır ve en fazla
+ * birkaç sözcüktür; metnin tamamını vermek her belirteçte baştan tarama demekti (karesel — ölçüm 09-25: 4.000 karakterlik
+ * "çıkış 1 1 1 …" 33–41 ms senkron CPU).
+ */
+const BEFORE_WINDOW_CHARS = 64;
+function beforeOf(text: string, at: number): string {
+  return text.slice(Math.max(0, at - BEFORE_WINDOW_CHARS), at);
+}
+
 /** Does this (lowercased) segment plausibly contain the time h:min? */
 function segmentStatesTime(text: string, h: number, min: number): boolean {
   // 1) Explicit hour:minute / hour.minute mentions, optional am/pm suffix. Bir tarihin parçası ("12.10.2026") saat
@@ -328,15 +339,16 @@ function segmentStatesTime(text: string, h: number, min: number): boolean {
     const isPm = m[3]?.startsWith("p") ?? false;
     const isAm = m[3]?.startsWith("a") ?? false;
     const at = m.index ?? 0;
+    const before = beforeOf(text, at);
     if (
-      isReplacedTime(text.slice(0, at), text.slice(at + m[0].length)) ||
-      isCheckinLabeled(text.slice(0, at)) ||
-      MEAL_TIME_BEFORE.test(text.slice(0, at)) ||
-      DURATION_BEFORE.test(text.slice(0, at))
+      isReplacedTime(before, text.slice(at + m[0].length)) ||
+      isCheckinLabeled(before) ||
+      MEAL_TIME_BEFORE.test(before) ||
+      DURATION_BEFORE.test(before)
     ) {
       continue;
     }
-    const period = isPm || isAm ? null : dayPeriodOf(text.slice(0, at), text.slice(at + m[0].length));
+    const period = isPm || isAm ? null : dayPeriodOf(before, text.slice(at + m[0].length));
     const raw = hh;
     hh = to24(hh, isAm, isPm, period);
     if (mm !== min) continue;
@@ -352,7 +364,7 @@ function segmentStatesTime(text: string, h: number, min: number): boolean {
     const n = Number(m[0]);
     if (n > 23) continue;
     const at = m.index ?? 0;
-    const before = text.slice(0, at);
+    const before = beforeOf(text, at);
     const after = text.slice(at + m[0].length);
     // "11 buçuk" = 11:30. Çeyrek / "half past" / "quarter to" TAM SAAT DEĞİLDİR ve okunmaz (güvenli yön: kabul edilmez) —
     // eskiden "Saat 11 buçukta çıkarız" 11:00'ı doğruluyordu.
@@ -536,7 +548,7 @@ function timeTokens(text: string): TimeToken[] {
     const isPm = m[3]?.startsWith("p") ?? false;
     const isAm = m[3]?.startsWith("a") ?? false;
     const at0 = m.index ?? 0;
-    const period = isPm || isAm ? null : dayPeriodOf(text.slice(0, at0), text.slice(at0 + m[0].length));
+    const period = isPm || isAm ? null : dayPeriodOf(beforeOf(text, at0), text.slice(at0 + m[0].length));
     const raw = hh;
     hh = to24(hh, isAm, isPm, period);
     const readings = [hh * 60 + mm];
@@ -550,17 +562,18 @@ function timeTokens(text: string): TimeToken[] {
     const n = Number(m[1]);
     if (n > 23) continue;
     const after = text.slice(at + m[1].length);
-    if (COUNTER_AFTER.test(afterHalf(after)) || NUMBER_BEFORE.test(text.slice(0, at))) continue;
+    const before = beforeOf(text, at);
+    if (COUNTER_AFTER.test(afterHalf(after)) || NUMBER_BEFORE.test(before)) continue;
     // "10 buçuk" = 10:30 (segmentStatesTime ile aynı); çeyrek / "half past" okunmaz — belirteç sayılmaz.
     const half = /^\s*'?\s*bu[çc]uk/.test(after);
-    if (!half && (/^\s*'?[a-zçğıöşü]{0,3}\s*[çc]eyrek/.test(after) || /(?:half|quarter)\s+(?:past|to|after|before)\s*$/.test(text.slice(0, at)))) {
+    if (!half && (/^\s*'?[a-zçğıöşü]{0,3}\s*[çc]eyrek/.test(after) || /(?:half|quarter)\s+(?:past|to|after|before)\s*$/.test(before))) {
       continue;
     }
     const mm = half ? 30 : 0;
     const isPm = /^\s*p\.?m\.?(?![a-z])/.test(after);
     const isAm = /^\s*a\.?m\.?(?![a-z])/.test(after);
     // "10 demiştim ama akşam 7 olacak": gün dilimi okunuşu sabitler (ikinci inceleme 09-25: 07:00 da kabul ediliyordu).
-    const period = isPm || isAm ? null : dayPeriodOf(text.slice(0, at), after);
+    const period = isPm || isAm ? null : dayPeriodOf(before, after);
     const readings = [to24(n, isAm, isPm, period) * 60 + mm];
     if (!isPm && !isAm && !period && afternoonAlternative(n)) readings.push((n + 12) * 60 + mm);
     // İşaretsiz çıplak saat, düzeltilen saatin öğleden sonra okunuşunu MİRAS alabilir ("Akşam 10 dedim ama 9 olacak" = 21:00).
