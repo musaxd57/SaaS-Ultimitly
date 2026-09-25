@@ -6,7 +6,7 @@ import type { ClassifyResult, LlmUsage, SuggestReplyInput, SuggestReplyResult } 
 import { auditClaimsSafe } from "./claim-support";
 import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import type { Priority } from "@/lib/constants";
-import { DEFAULT_OPENAI_MODEL, isReasoningModel } from "./model-family";
+import { DEFAULT_OPENAI_MODEL, isReasoningModel, replyReasoningEffort } from "./model-family";
 import { reportError } from "@/lib/report-error";
 import {
   classifyModelProviderFailure,
@@ -193,6 +193,9 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
   // reasoning models use max_completion_tokens (must also cover hidden reasoning).
   if (isReasoningModel(model)) payload.max_completion_tokens = 2000;
   else payload.max_tokens = 900;
+  // Düşünme çabası yalnız AYARLIYSA ve reasoning modelinde (09-25 model kıyası; ayarsız = modelin varsayılanı).
+  const effort = replyReasoningEffort();
+  if (effort && isReasoningModel(model)) payload.reasoning_effort = effort;
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",

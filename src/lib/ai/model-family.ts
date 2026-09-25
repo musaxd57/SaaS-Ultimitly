@@ -26,3 +26,16 @@ export function isReasoningModel(model: string): boolean {
  * Keep this in the same family as what production runs.
  */
 export const DEFAULT_OPENAI_MODEL = "gpt-5.1";
+
+const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
+
+/**
+ * Cevap modeli için düşünme çabası (`OPENAI_REASONING_EFFORT`, 09-25 model kıyası). Kapalı küme; boş/tanınmayan →
+ * `undefined` = gövdeye GİRMEZ (modelin varsayılanı — bugünkü canlı davranış). Yalnız reasoning modelinde gönderilir
+ * (çağıran `isReasoningModel` ile birlikte kullanır). gpt-6-luna varsayılanda düşünür, gpt-5.1 düşünmez: kıyas ve
+ * gecikme/maliyet ayarı bu anahtarla ölçülür.
+ */
+export function replyReasoningEffort(): (typeof REASONING_EFFORTS)[number] | undefined {
+  const v = process.env.OPENAI_REASONING_EFFORT?.trim();
+  return (REASONING_EFFORTS as readonly string[]).includes(v ?? "") ? (v as (typeof REASONING_EFFORTS)[number]) : undefined;
+}

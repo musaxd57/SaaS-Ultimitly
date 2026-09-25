@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/availability-claims";
 import { explicitTimeMentions, mentionsAnotherDay } from "@/lib/early-checkin/text-checks";
 import { runStayChangeGuard } from "@/lib/ai/semantic/guard";
+import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import { understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { slotTimesShifted, type StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
 import { writeSidecar } from "./sidecar";
@@ -295,13 +296,16 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
-    const name = SEALED ? `stay-change-FINAL-eval-${stamp}.md` : `stay-change-eval-${stamp}.md`;
+    // Model kıyası (09-25): aynı gün iki modelin koşusu birbirini EZMESİN → mühürsüz raporun adı modeli taşır.
+    const modelTag = semanticModel().replace(/[^a-z0-9.-]+/gi, "_");
+    const name = SEALED ? `stay-change-FINAL-eval-${stamp}.md` : `stay-change-eval-${stamp}-${modelTag}.md`;
     const status = failures > 0 ? `GEÇERSİZ — ${failures} çağrı düştü` : "GEÇERLİ";
     const head = [
       `# Konaklama değişikliği anlam katmanı — eval (${stamp})`,
       "",
       `Durum: **${status}** · veri sürümü ${data.version} · istek ${data.requests.length} · cevap ${data.replies.length}` +
         (Number.isFinite(LIMIT) ? ` · örnek sınırı ${LIMIT}` : ""),
+      `Model: \`${semanticModel()}\` · reasoning_effort: ${semanticReasoningEffort() ?? "model varsayılanı"}`,
       "",
       SEALED
         ? "🚨 MÜHÜRLÜ FİNAL KOŞUSU: genelleme ölçüsü bu raporun TAMAMIdır. Koşu bitti → set YANDI (`evals/sealed/SEALS.json` durumu `burned`; sonraki karar için yeni kör set)."
