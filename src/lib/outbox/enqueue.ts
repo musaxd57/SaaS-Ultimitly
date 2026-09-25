@@ -18,6 +18,13 @@ import { getActiveConnection } from "@/lib/channels/connections";
 // The Message intentionally carries NO externalId here — that is written ONLY
 // after the worker gets a confirmed provider id (or reconciles one), so a queued-
 // but-not-yet-sent message can never be mistaken for a delivered one.
+//
+// ENQUEUE_CLOCK (CI #1170, 09-25): `availableAt` is written from the SAME clock the
+// worker's due-gate compares against (`availableAt <= now`, JS time). The schema
+// default (`@default(now())`) comes from another clock and is ROUNDED to
+// timestamp(3), while JS time is FLOORED to the millisecond — an enqueue and a
+// drain inside the same millisecond left the row "not yet due" (flaky red CI →
+// Railway skipped the deploy).
 // ---------------------------------------------------------------------------
 
 /** Whether the caller is enqueuing a host reply or an AI auto-send (drives authorType). */
@@ -123,6 +130,8 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
           body: args.body,
           idempotencyKey: args.idempotencyKey,
           status: "pending",
+          // ↓ENQUEUE_CLOCK: vade kapısı worker'ın saatiyle kıyaslanır; satır da o saatle damgalanır.
+          availableAt: new Date(),
           connectionId,
         },
         select: { id: true },
@@ -188,6 +197,7 @@ export async function enqueueProactive(args: EnqueueProactiveArgs): Promise<Enqu
         body: args.body,
         idempotencyKey: args.idempotencyKey,
         status: "pending",
+        availableAt: new Date(), // ↓ENQUEUE_CLOCK
         connectionId,
       },
       select: { id: true },
