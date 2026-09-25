@@ -56,22 +56,34 @@ hatırlatma, Türkçe olmayan misafirde istemdeki Türkçe kalıp cümleleri çe
 kalktı; kanal kapısında son kontrol `reply_language_mismatch` (cevabın tamamı ya da tek cümlesi emince başka dilde →
 taslak ev sahibine; güvenlik gerekçesi her zaman önce). QR'da kapı yok (devir metni + arayüz yalnız Türkçe).
 
-| ölçü (cevap kıyası, 5.1) | önce | sonra (`ae317bf`, ilk tur) |
-|---|---|---|
-| Misafirin dilinde cevap (Türkçe dışı) | 52/59 (%88) | **58/59 (%98)** — Luna ile aynı |
-| Misafirin dilinde cevap (Türkçe) | 76/76 | 76/76 |
-| Yanlış dilde cevap OTOMATİK gidiyor | 1 | 0 |
-| Sızıntı | 0/52 | 0/52 |
-| Doğru olgu | 54/55 | 54/55 |
-| Doğru olgu + otomatik | 49/55 | 47/55 ¹ |
-| Gecikme p50 | 2,3 sn | 2,3 sn |
+| ölçü (cevap kıyası, 5.1) | önce | ilk tur (`ae317bf`) | **son (`039aa79`)** |
+|---|---|---|---|
+| Misafirin dilinde cevap (Türkçe dışı) | 52/59 (%88) | 58/59 (%98) | **59/59 (%100)** (Luna 58/59) |
+| Misafirin dilinde cevap (Türkçe) | 76/76 | 76/76 | 76/76 |
+| Yanlış dilde cevap OTOMATİK gidiyor | 1 | 0 | 0 |
+| Sızıntı | 0/52 | 0/52 | 0/52 |
+| Doğru olgu | 54/55 | 54/55 | 55/55 |
+| Doğru olgu + otomatik | 49/55 | 47/55 ¹ | 50/55 |
+| Gecikme p50 / p95 | 2,3 / 3,4 sn | 2,3 / 4,6 sn | 2,2 / 3,4 sn |
 
 ¹ İki fark dil değişikliğiyle ilgisiz, satır satır incelendi: model bir anahtar kutusu cevabına kendi kendine "orta
 risk" verdi; Arapça cevaba eklenen standart giriş saati cümlesi mevcut müsaitlik dedektörüne takıldı (model
 değişkenliği). Kalan tek dil kayması: Almanca acil durum cevabının sonuna istemdeki Türkçe devir kalıbı AYNEN
 yapışmıştı — o mesaj dedektörde belirsiz kaldığı için talimat gitmemişti. İkinci turda (`0785f7e`) kapsama genişletildi
 (Almanca mesaj artık tespit ediliyor), kapı cümle düzeyinde kaymayı da tutuyor ve istem Türkçe kalıbı çevirmeyi söylüyor.
-Raporlar: `docs/olcum/model-reply-compare-2026-09-25-gpt-5.1-dil.md`.
+Son koşuda Almanca acil durum cevabı tamamen Almanca ("Ihr Hinweis wurde vermerkt; Ihr Gastgeber kann die Nachricht
+einsehen."); ürün dedektörü 135 cevapta 0 uyuşmazlık buldu, dil kapısı hiçbir cevabı tutmadı. Model değişkenliği
+tek koşuda ±2 satır oynatır (ilk turdaki 47/55 buydu). Raporlar: `docs/olcum/model-reply-compare-2026-09-25-gpt-5.1-dil.md`
+(ilk tur) ve `…-gpt-5.1-dil2.md` (son). Mutasyon 25/25.
+
+**İnceleme turu (aynı gün, bağımsız inceleme ajanı):** (1) Desteklenmeyen dil kesin etiket alıyordu ve istem modele yanlış
+dili dayatacaktı (Farsça→Arapça, Ukraynaca→Rusça, İtalyanca→Fransızca, Portekizce→İspanyolca; 37 deneme mesajının 23'ü) →
+artık hüküm yok (0/37). (2) Türkçe adres / özel ad içeren doğru dildeki cevaplar tutulabiliyordu → büyük harfle başlayan
+sözcükte harf kanıtı yok, çift tırnak alıntısı ve karma yazı hüküm almaz. (3) Cümle kuralı, host'un Türkçe notunu taşıyan
+İngilizce doğrulanmış erken giriş onayını tutuyordu → koddan kurulan doğrulanmış metin dil kapısından muaf, dilini kod
+seçer. (4) "In English please" gibi açık dil isteği önceki Türkçe mesajla eziliyordu → dil adı geçen mesajda hüküm yok.
+Bu düzeltmeler eval senaryolarında yönergeyi yalnız 1/135 satırda değiştirir (Almanca "Wäre ein später Check-out…" artık
+belirsiz); kayıtlı cevap pinleri aynı (5.1'in 7 vakası yakalanıyor, son koşuda 0).
 - Uydurma: iki modelde de 0 (bu sette); Luna'nın genel benchmark'taki yüksek halüsinasyon oranı (Artificial
   Analysis) bu kapalı, bilgi tabanlı işte görünmedi — ama ücret sorusunda bilgi VERMEMEYİ seçti (↑1).
 

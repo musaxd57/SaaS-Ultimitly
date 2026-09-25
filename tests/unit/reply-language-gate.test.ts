@@ -63,6 +63,27 @@ describe("kanal kapısı — yanlış dilde cevap otomatik gitmez", () => {
     expect(autoReplyGateFailure({ ...passing, reply: mixed }, emergency)).toBe("blocked");
   });
 
+  it("🚨 koddan kurulan doğrulanmış metin muaf: ev sahibinin AYNEN eklenen Türkçe notu İngilizce metni TUTMAZ (inceleme)", () => {
+    // Mekanizma (birebir metin) — gerçek erken giriş onayı + not entegrasyonda (`early-checkin-scenarios` 13c).
+    const codeText = "The Wi-Fi network is Lale-5G and the password is Lale2025. Anahtar kutusunun kodu size ayrıca bildirilecek, teşekkürler.";
+    const guest = "Hi, what is the wifi password?";
+    const r = { ...passing, reply: codeText };
+    expect(autoReplyGateFailure(r, guest, { verifiedGrant: { text: codeText } })).toBeNull();
+    // KONTROL: aynı metin MODELDEN gelseydi (doğrulanmış metin bağlamı yok) dil kuralı işlerdi.
+    expect(autoReplyGateFailure(r, guest)).toBe("reply_language_mismatch");
+    // Muafiyet BİREBİR metne: bağlamdaki doğrulanmış metinden farklı bir cevap → dil kuralı işler.
+    expect(autoReplyGateFailure({ ...r, reply: `${codeText} Rica ederiz.` }, guest, { verifiedGrant: { text: codeText } })).toBe(
+      "reply_language_mismatch",
+    );
+  });
+
+  it("devir cevabı da dil kuralına tabi: İngilizce misafire Türkçe devir cümlesi GİTMEZ (bilinçli; insan talebinde yükseltme yolu koşar)", () => {
+    const handoff = { ...passing, intent: "human_request", riskType: "human_request", reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." };
+    expect(autoReplyGateFailure(handoff, "Can I speak with the owner directly please?")).toBe("reply_language_mismatch");
+    // KONTROL: misafirin dilindeki devir gider.
+    expect(autoReplyGateFailure({ ...handoff, reply: "Your message has been saved; your host can see it." }, "Can I speak with the owner directly please?")).toBeNull();
+  });
+
   it("AŞIRI UYGULAMA YOK: misafirin dili belirsizse ('ok', emoji, özel ad) kontrol yok", () => {
     expect(autoReplyGateFailure({ ...passing, reply: TR_REPLY }, "ok 👍")).toBeNull();
     expect(autoReplyGateFailure({ ...passing, reply: TR_REPLY }, "Lale2025?")).toBeNull();

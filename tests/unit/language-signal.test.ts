@@ -47,6 +47,38 @@ describe("confidentLanguage — eminken dil", () => {
     expect(confidentLanguage(text)).toBeNull();
   });
 
+  // 🚨 İnceleme 09-25 (P1): desteklenmeyen dile KESİN (yanlış) etiket, istemde modele yanlış dili DAYATIR (Farsça misafire
+  // Arapça, Ukraynacaya Rusça, İtalyancaya Fransızca…). Önce 37 mesajın 23'ü kesin etiket alıyordu; şimdi hiçbiri.
+  it.each([
+    ["fa", "سلام، رمز وای فای چیست؟"],
+    ["fa", "ببخشید، پارکینگ دارید؟"],
+    ["ur", "السلام علیکم، وائی فائی کا پاس ورڈ کیا ہے؟"],
+    ["ckb", "سڵاو، وشەی نهێنی وای فای چییە؟"],
+    ["uk", "Привіт, який пароль від wifi?"],
+    ["uk", "Доброго дня! Ми приїдемо о 14:00. Чи можна заселитися раніше?"],
+    ["bg", "Здравейте, ще пристигнем около 22 часа. Има ли паркинг?"],
+    ["sr", "Здраво, која је лозинка за wifi?"],
+    ["kk", "Сәлеметсіз бе, wifi құпия сөзі қандай?"],
+    ["it", "Buongiorno, il parcheggio è incluso? E il wifi funziona in tutto l'appartamento?"],
+    ["it", "Salve, a che ora è il check-out? Il taxi è alle 10."],
+    ["pt", "Oi! Estamos chegando. Qual é o código da porta do apartamento? Obrigado"],
+    ["pt", "Bom dia! Tem estacionamento perto do apartamento? Estamos de carro."],
+    ["nl", "Goedemiddag, wat is het wachtwoord van de wifi? We kunnen het niet vinden."],
+    ["sv", "Hej! Vi är på väg. När kan vi checka in? Är det möjligt att få nyckeln tidigare?"],
+    ["ro", "Bună seara, suntem în drum spre apartament. Ce cod are ușa? Mulțumim, și ne vedem în curând."],
+    ["pl", "Dzień dobry! Który jest kod do drzwi? Również potrzebujemy informacji, kiedy możemy przyjść."],
+    ["az", "Salam, bu gün saat neçədə giriş edə bilərik? Bir az tez gəlirik."],
+    ["da", "Hej, hvad er koden til døren? Vi er der om en time."],
+  ])("desteklenmeyen dil (%s) → null (dayatma yok): %s", (_lang, text) => {
+    expect(confidentLanguage(text)).toBeNull();
+  });
+
+  it("KONTROL: desteklenen dillerin kendisi bu işaretlerden etkilenmez (Rusça, Arapça, Türkçe)", () => {
+    expect(confidentLanguage("Здравствуйте, какой пароль от wifi?")).toBe("ru");
+    expect(confidentLanguage("مرحبا، ما هي كلمة سر الواي فاي؟")).toBe("ar");
+    expect(confidentLanguage("Merhaba, bugün saat kaçta giriş yapabiliriz acaba?")).toBe("tr");
+  });
+
   it("null / undefined güvenli", () => {
     expect(confidentLanguage(null)).toBeNull();
     expect(confidentLanguage(undefined)).toBeNull();
@@ -66,6 +98,22 @@ describe("confidentLanguage — eminken dil", () => {
   it("bağlantı dil kanıtı değildir (İngilizce sözcüklü URL Türkçe cümleyi çevirmez)", () => {
     expect(confidentLanguage("Adres linki: https://example.com/the-house-is-here-and-there")).toBeNull();
     expect(confidentLanguage("Konum bilgisi için bu bağlantıya bakabilirsiniz: https://example.com/where-is-the-flat-and-how")).toBe("tr");
+  });
+
+  it("🚨 özel ad (büyük harfle başlayan) Türkçe harf kanıtı sayılmaz: Türkçe adres veren cevap Türkçe SANILMAZ (inceleme P2)", () => {
+    expect(confidentLanguage("It's Bağdat Caddesi No:12, Şaşkınbakkal, Kızıltoprak Mahallesi, Kadıköy/İstanbul.")).toBeNull();
+    // KONTROL: küçük harfli Türkçe sözcüklerde harf kanıtı sürer.
+    expect(confidentLanguage("Tabii, çamaşır makinesi mutfakta, deterjan altındaki dolapta.")).toBe("tr");
+  });
+
+  it("çift tırnak içi alıntı (Wi-Fi adı / şifre / tabela) dil kanıtı değildir", () => {
+    expect(confidentLanguage('Wi-Fi şifresi: "we are at the sea"')).toBeNull();
+    expect(confidentLanguage('Network: "Işıklı Ev", password: "ağaçlıkyol".')).toBeNull();
+  });
+
+  it("karma yazı (Kiril/Arap + Latin adres) hüküm almaz", () => {
+    expect(confidentLanguage("Адрес квартиры: Bağdat Caddesi, Şaşkınbakkal, Kızıltoprak Mahallesi, Kadıköy/İstanbul.")).toBeNull();
+    expect(confidentLanguage("خذ حافلة Havaş إلى Kadıköy، ثم انزل في Söğütlüçeşme وامشِ إلى Kuşdili Caddesi.")).toBeNull();
   });
 
   it("İspanyolca ters soru/ünlem işareti kanıttır (tek zayıf sözcükle birlikte kesinleşir)", () => {
@@ -91,6 +139,14 @@ describe("guestTurnLanguage — son mesaj, değilse cevapsız mesajların tamam�
   it("son mesaj belirsizse cevapsız mesajlarla birlikte okunur", () => {
     expect(guestTurnLanguage("ok", ["Where can we park the car?"])).toBe("en");
     expect(guestTurnLanguage("👍", ["Otopark nerede acaba?"])).toBe("tr");
+  });
+
+  it("🚨 misafir bir DİL ADI yazdıysa (açık dil isteği) kod dayatmaz — önceki Türkçe mesaj İngilizce isteğini EZMEZ (inceleme P3)", () => {
+    expect(guestTurnLanguage("In English please 🙏", ["Merhaba, havlular nerede acaba?"])).toBeNull();
+    expect(guestTurnLanguage("Could you please answer in Turkish?")).toBeNull();
+    expect(guestTurnLanguage("Türkçe yazabilir misiniz lütfen?", ["Where is the parking?"])).toBeNull();
+    // KONTROL: dil adı yoksa kural aynen.
+    expect(guestTurnLanguage("Could you please answer quickly?")).toBe("en");
   });
 
   it("hiçbiri emin değilse null (istem eski kurala döner)", () => {
@@ -143,6 +199,18 @@ describe("replyLanguageMismatch — yalnız ikisi de eminken", () => {
     expect(replyLanguageMismatch("en", "The fee is 3.5 EUR per bag and check-in is at 15:00.")).toBe(false);
   });
 
+  it("🚨 AŞIRI UYGULAMA YOK (inceleme P2): misafirin dilindeki cevap Türkçe adres / özel ad / alıntı taşısa da uyuşur", () => {
+    expect(replyLanguageMismatch("ru", "Адрес квартиры: Bağdat Caddesi, Şaşkınbakkal, Kızıltoprak Mahallesi, Kadıköy/İstanbul.")).toBe(false);
+    expect(replyLanguageMismatch("ar", "العنوان: Bağdat Caddesi, Şaşkınbakkal, Kızıltoprak Mahallesi, Kadıköy/İstanbul.")).toBe(false);
+    expect(replyLanguageMismatch("en", "It's Bağdat Caddesi No:12, Şaşkınbakkal, Kızıltoprak Mahallesi, Kadıköy/İstanbul.")).toBe(false);
+    expect(replyLanguageMismatch("en", 'Network: "Işıklı Ev", password: "ağaçlıkyol". Enjoy your stay!')).toBe(false);
+    expect(replyLanguageMismatch("tr", 'Wi-Fi şifresi: "we are at the sea"')).toBe(false);
+    // Desteklenmeyen dilde misafir (hüküm yok) → kontrol yok.
+    const nl = guestTurnLanguage("Hallo, we komen rond 15:00 aan. Is de sleutel in de kluis?");
+    expect(nl).toBeNull();
+    expect(replyLanguageMismatch(nl, "Hallo! Ja, de sleutel die je nodig hebt zit in de kluis naast de deur.")).toBe(false);
+  });
+
   it("belirsiz misafir ya da belirsiz cevap → kontrol yok (yalnız sıkılaştırır)", () => {
     expect(replyLanguageMismatch(null, "Wi-Fi ağ adı Lale-5G, şifre Lale2025, iyi günler dileriz.")).toBe(false);
     expect(replyLanguageMismatch("en", "Lale2025")).toBe(false);
@@ -185,10 +253,11 @@ describe("veri pini — yanlış kesin hüküm SIFIR", () => {
       }
     }
     expect(wrong).toEqual([]);
-    // Kapsama TABANI (09-25 ikinci tur: tr %72 · en %95 · de %92 · fr %79 · es %79 · ru/ar %100; ilk sürüm tr %67 · en %93 ·
-    // de %90 · fr %78 · es %62). Taban ölçümün altında bırakıldı; düşerse bir liste daraltması fark edilmeden istem
-    // talimatını ve kapıyı körleştiriyordur. ⚠️ Bu setler sözcük seçerken GÖRÜLDÜ — kapsama rakamı kör ölçüm değil.
-    const floor: Record<string, number> = { tr: 0.66, en: 0.9, de: 0.87, fr: 0.72, es: 0.72, ru: 0.95, ar: 0.95 };
+    // Kapsama TABANI (09-25 üçüncü tur: tr %70 · en %95 · de %88 · fr %79 · es %79 · ru/ar %100 — özel ad kuralı tr/de'den
+    // birkaç puan aldı; ikinci tur tr %72 · de %92; ilk sürüm tr %67 · en %93 · de %90 · fr %78 · es %62). Taban ölçümün
+    // altında bırakıldı; düşerse bir liste daraltması fark edilmeden istem talimatını ve kapıyı körleştiriyordur.
+    // ⚠️ Bu setler sözcük seçerken GÖRÜLDÜ — kapsama rakamı kör ölçüm değil.
+    const floor: Record<string, number> = { tr: 0.65, en: 0.9, de: 0.84, fr: 0.72, es: 0.72, ru: 0.95, ar: 0.95 };
     for (const [lang, min] of Object.entries(floor)) {
       expect(per[lang].conf / per[lang].n, `${lang} kapsama`).toBeGreaterThanOrEqual(min);
     }
@@ -223,5 +292,7 @@ describe("veri pini — yanlış kesin hüküm SIFIR", () => {
     // Düzeltme sonrası 5.1 koşusu: yedi vaka düzeldi; Almanca acil durum cevabının sonuna Türkçe devir kalıbı yapışmıştı
     // (cümle düzeyi kural). O koşuda Almanca mesaj henüz tespit edilmiyordu → istem talimatı o satıra gitmemişti.
     expect(flagged("docs/olcum/model-reply-compare-2026-09-25-gpt-5.1-dil.json")).toEqual(["e-de-stromschlag"]);
+    // İkinci tur (kapsama + Türkçe kalıp çevirisi) sonrası koşu: TR dışı 59/59, uyuşmazlık YOK.
+    expect(flagged("docs/olcum/model-reply-compare-2026-09-25-gpt-5.1-dil2.json")).toEqual([]);
   });
 });

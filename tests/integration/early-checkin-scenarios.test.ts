@@ -746,6 +746,21 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect((await decision(id2)).reason).toBe("reply_language_mismatch");
   });
 
+  it("13c · 🚨 dil kapısı (inceleme 09-25): ev sahibinin TÜRKÇE notu İngilizce onayı tutmaz; modelin dil kayması ('tr') onayı Türkçe KURDURMAZ", async () => {
+    const now = Z("2026-10-14T05:00:00.000"); // 08:00
+    at(now);
+    const v = await vacantNight(now);
+    // Not onaya OLDUĞU GİBİ eklenir (host'un kendi sözü); İngilizce misafire giden onayı dil kuralı yüzünden tutmamalı.
+    await saveEarlyCheckinRule(v.orgId, v.propertyId, { ...RULE, earliest: "10:00", note: "Lütfen dairede sigara içmeyin, teşekkürler." });
+    // Model misafirin dilini YANLIŞ beyan ediyor ("tr") — onayın dili kodun tespitinden (misafirin İngilizce mesajı) gelir.
+    openAi({ reply: reply({ detectedLanguage: "tr" }), understanding: nlu("10:00"), guard: guard("10:00") });
+    const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 10:00. The early check-in fee is €30.")).toBe(true);
+    expect(sentBody()).toContain("Lütfen dairede sigara içmeyin, teşekkürler.");
+    expect((await decision(id)).reason).toBe("early_checkin_verified");
+  });
+
   it("14 · bir model 'istek yok', diğeri 'erken giriş isteği' → istek YAŞAR (cevap modelinin düz cevabı otomatik gitmez)", async () => {
     const now = Z("2026-10-14T05:00:00.000");
     at(now);

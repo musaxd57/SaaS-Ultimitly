@@ -384,7 +384,11 @@ export function autoReplyGateFailure(
   // eminken farklıysa cevap GİTMEZ, taslak ev sahibine kalır. Belirsizlik engel sebebi DEĞİL (kalite kontrolü, güvenlik
   // değil). EN SONDA: kalite gerekçesi hiçbir güvenlik gerekçesini gölgelemez. QR kapısında BİLİNÇLİ yok (orada devir
   // metni ve arayüz yalnız Türkçe — Türkçe devir, Türkçe ama bilgili cevaptan misafir için daha az yararlı).
-  if (replyLanguageMismatch(guestTurnLanguage(guestMessage, context?.pendingGuestMessages ?? []), result.reply)) {
+  // Koddan kurulan doğrulanmış metin (erken giriş onayı / politika) muaf: dilini KOD seçer (`guestTurnLanguage` önce,
+  // desteklenmeyen dilde İngilizce yedek) ve ev sahibinin kendi notu metne AYNEN eklenir — Türkçe not, İngilizce onayı
+  // tutmasın (inceleme 09-25). Muafiyet birebir aynı metne (müsaitlik muafiyetiyle aynı koşul).
+  const codeBuilt = context?.verifiedGrant != null && result.reply === context.verifiedGrant.text;
+  if (!codeBuilt && replyLanguageMismatch(guestTurnLanguage(guestMessage, context?.pendingGuestMessages ?? []), result.reply)) {
     return "reply_language_mismatch";
   }
   return null;
@@ -1963,6 +1967,10 @@ export async function applyChannelAutoReply(
     .filter((m) => m.direction === "inbound" && m.id !== last.id)
     .map((m) => m.body);
 
+  // Misafirin dili — kapının dil kuralıyla AYNI girdiler (son mesaj, değilse cevapsız mesajların tamamı). Koddan kurulan
+  // metinlerin (erken giriş onayı / politika) dili bundan seçilir.
+  const guestLanguage = guestTurnLanguage(last.body, pendingGuestMessages);
+
   // Anlama katmanı (katman kapalıysa `null`): retrieval'a gerekmediyse cevap üretimiyle paralel koştu; kapı
   // onu burada bekler — konaklama sinyali ve risk niyeti AYNI sonuçtan.
   const understood = await kbSel.understanding;
@@ -2050,7 +2058,9 @@ export async function applyChannelAutoReply(
       guestTexts: [last.body, ...pendingGuestMessages],
       policy: availabilityPolicyFor(result, gateContext),
       understood,
-      detectedLanguage: result.detectedLanguage,
+      // Onay metninin dili: kapının dil kuralı (misafirin mesajı) önce, modelin beyanı yedek — kod metni dil kapısından
+      // muaf olduğundan modelin dil kayması ("tr") yanlış dilde onay GÖNDERMESİN (09-25).
+      detectedLanguage: guestLanguage ?? result.detectedLanguage,
     });
     if (earlyCheckinRun?.decision.autoSend && earlyCheckinRun.draft) {
       const verified = verifiedEarlyCheckinResult(result, earlyCheckinRun.draft);
@@ -2082,7 +2092,7 @@ export async function applyChannelAutoReply(
     earlyCheckinPolicyAllowed(earlyCheckinRun, [last.body, ...pendingGuestMessages]) &&
     stayInfoOnly([last.body, ...pendingGuestMessages], availabilityPolicyFor(result, gateContext))
   ) {
-    const text = earlyCheckinPolicyText(earlyCheckinRun.rule, earlyCheckinLang(result.detectedLanguage));
+    const text = earlyCheckinPolicyText(earlyCheckinRun.rule, earlyCheckinLang(guestLanguage ?? result.detectedLanguage));
     if (text) {
       const policyResult = verifiedEarlyCheckinResult(result, text);
       const policyContext: AutoReplyGateContext = { ...gateContext, verifiedGrant: { text } };

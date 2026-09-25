@@ -410,17 +410,24 @@ Bu dosyaya token/anahtar/parola yazma.
   (şablon yolu) Almancayı İngilizce sanıyor (retrieval'ı etkilemiyor, ölçüldü).
 - 🚨 **MİSAFİRİN DİLİNDE CEVAP (09-25, `ai/language-signal.ts`; kurucu: "5.1'in zayıf noktasını düzelt"):** 5.1 İngilizce
   misafirlerin 7/59'una Türkçe yazdı (biri otomatik gidiyordu). Dil YALNIZ EMİNKEN (tr/en/de/fr/es/ru/ar): dillere ortak
-  sözcük listede yok, puan ≥2 ve ikincinin 2 katı; rakamlı belirteç / URL / özel ad kanıt değil (eval metinlerinde 1.498
-  metinde 0 yanlış kesin hüküm, veri pinli; ¿¡ İspanyolca kanıtı). İstem eminken "MİSAFİRİN DİLİ (kodla tespit edildi)" +
-  GÖREV satırında hatırlatma + (Türkçe olmayan misafirde) "istemdeki Türkçe kalıp cümleleri ÇEVİR" (5.1 Almanca cevaba
-  Türkçe devir kalıbını aynen yapıştırdı); "(Sistem tercih dili: tr)" parantezi KALKTI (5.1'i Türkçeye çekiyordu). Kanal
-  kapısının SON kontrolü `reply_language_mismatch`: misafir eminken cevabın TAMAMI ya da TEK CÜMLESİ emince başka dilde →
-  taslak (hiçbir güvenlik gerekçesini gölgelemez; erken giriş akışı bu tutuşta da koşar, doğrulanmış onay yine gidebilir).
-  Kural tek: son mesaj, değilse cevapsız mesajların tamamı (istem + kapı aynı). Ölçüm: TR dışı dil uyumu 52/59 → 58/59,
-  sızıntı 0, olgu aynı. QR kapısında BİLİNÇLİ YOK (devir metni + arayüz yalnız Türkçe; pinli). Koddan kurulan metinler
-  (erken giriş onayı/politika, bekletme, dipnot) modelin `detectedLanguage`ini kullanır; İspanyolca onay İngilizce kurulur
-  → dil kapısında tutulur (bilinçli). Dil listesine sözcük eklerken diller arası çakışma + veri pini koşulur (setler
-  GÖRÜLDÜ; kapsama rakamı kör ölçüm değil).
+  sözcük listede yok, puan ≥2 ve ikincinin 2 katı; rakamlı belirteç / URL / çift tırnak alıntısı ayıklanır; BÜYÜK harfle
+  başlayan sözcükte harf kanıtı YOK (özel ad: "Kadıköy" Türkçe cevap sanılmasın); ¿¡ İspanyolca kanıtı. 🚨 Desteklenmeyen
+  dil KESİN etiket ALMAZ (yanlış etiket istemde modele yanlış dili DAYATIR — ölçüldü: Farsça→ar, Ukraynaca→ru,
+  İtalyanca→fr, Portekizce→es, 37 mesajın 23'ü): Rusçada olmayan Kiril harfi / Bulgarca sözcük, Arapçada olmayan Arap
+  harfi, desteklenmeyen Latin dillerinin harfi/sözcüğü (ikinci aday gibi sayılır), karma yazı → null. Misafir DİL ADI
+  yazdıysa ("In English please") → null (açık dil isteğini kod ezmez). Eval metinlerinde 1.498 metinde 0 yanlış kesin
+  hüküm (veri pinli; setler GÖRÜLDÜ, kapsama kör değil). İstem eminken "MİSAFİRİN DİLİ (kodla tespit edildi)" + GÖREV
+  hatırlatması + (Türkçe olmayan misafirde) "istemdeki Türkçe kalıp cümleleri ÇEVİR"; "(Sistem tercih dili: tr)" KALKTI.
+  Kanal kapısının SON kontrolü `reply_language_mismatch`: misafir eminken cevabın TAMAMI ya da TEK CÜMLESİ emince başka
+  dilde → taslak (hiçbir güvenlik gerekçesini gölgelemez; erken giriş akışı bu tutuşta da koşar). Kural tek: son mesaj,
+  değilse cevapsız mesajların tamamı (istem + kapı aynı). 🚨 Koddan kurulan DOĞRULANMIŞ metin (erken giriş onayı/politika,
+  `verifiedGrant` birebir) dil kapısından MUAF: dilini kod seçer (`guestLanguage ?? detectedLanguage` — modelin "tr"
+  kayması onayı Türkçe kurdurmaz) ve host notu AYNEN eklenir (Türkçe not İngilizce onayı tutmasın); İspanyolca misafire
+  onay İngilizce gider (desteklenmeyen onay dili yedeği). Devir cevabı muaf DEĞİL (yanlış dilde devir → tutulur, insan
+  talebinde yükseltme yolu koşar). QR kapısında BİLİNÇLİ YOK (devir metni + arayüz yalnız Türkçe; pinli). Bilinen sınır:
+  kısa mesaj/cevapta ("Towels?", "Havlular dolapta.") hüküm çoğu zaman yok → kontrol yok; konuşma geçmişine dönüş YOK.
+  Ölçüm: TR dışı dil uyumu 52/59 → 59/59 (Luna 58/59), sızıntı 0, olgu 55/55, gecikme aynı. Dil listesine sözcük
+  eklerken diller arası çakışma + veri pini + desteklenmeyen dil bataryası koşulur.
 - Üslup: duygu beyanı/temenni/çelişki/dolgu-soru yasak; "siz"; ben-dili. Injection kara listesi yapısal olarak
   yetersiz; asıl koruma sır elemesi + source==openai (yapısal sınıflandırıcı ayrı tur).
 
@@ -990,7 +997,7 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - 🚨 **MODEL KIYASI 09-25 — gpt-6-luna'ya GEÇİLMEDİ** (`docs/MODEL-KIYASI-2026-09-25-gpt-6-luna.md`): cevap kıyası
   (135 senaryo) doğru olgu 5.1 %98 ↔ Luna %84 — Luna bilgi tabanındaki ücreti söylemiyor ("ücret ev sahibinin
   kararı"), bu cevaplar OTOMATİK gidiyordu (KURAL-4 "fiyat ASLA yazma"yı harfiyen okuyor); gecikme 2× (p50 4,3 sn);
-  konaklama katmanı dev 2 kaçak; token/dk sınırı 200k. Luna'nın artısı: misafir dili %98 (5.1 %88 → dil düzeltmesiyle %98, ↑) ve
+  konaklama katmanı dev 2 kaçak; token/dk sınırı 200k. Luna'nın artısı: misafir dili %98 (5.1 %88 → dil düzeltmesiyle %100, ↑) ve
   maliyet ~8× düşük. Geçiş yolu belgede (KURAL-4 netleştirme → iki modelde yeniden kıyas → kör set → gölge).
   🚨 `gpt-6-*` reasoning modeli sayılır (`model-family.ts`); bu kod canlıya çıkmadan `OPENAI_MODEL`e gpt-6 YAZILMAZ
   (eski kodla her cevap 400). Kıyas aracı `tests/eval/model-reply-compare.eval.test.ts` (`OPENAI_MODEL=<model>`,

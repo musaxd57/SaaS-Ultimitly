@@ -117,11 +117,56 @@ const SPANISH_MARKS = /[¿¡]/u;
 
 const LATIN: readonly LatinLanguage[] = ["tr", "en", "de", "fr", "es"];
 
-/** Bağlantı, e-posta, rakam içeren belirteç (kod, saat, şifre: "Lale2025", "15:00") dil kanıtı değildir. */
+// ── DESTEKLENMEYEN DİLLER (inceleme 09-25, P1): kesin ama YANLIŞ etiket istemde modele yanlış dili DAYATIR ─────────
+// Ölçüldü: Farsça/Urduca/Kürtçe → "ar", Ukraynaca/Bulgarca/Sırpça/Kazakça → "ru", İtalyanca → "fr", Portekizce → "es",
+// Felemenkçe → "en", İsveççe → "de", Azerice → "tr" (37 mesajın 23'ü). Bu işaretler görülünce hüküm YOK.
+/** Rusçada olmayan Kiril harfleri (uk/be/sr/mk/kk). */
+const CYRILLIC_NON_RUSSIAN = /[іїєґўјљњћђџәғқңөұүһ]/iu;
+/** Bulgarca sık sözcükler (Rusçadan harfle ayrılmaz). */
+const BULGARIAN_WORDS: ReadonlySet<string> = new Set(["ще", "има", "къде", "сте", "съм", "няма", "каква", "какво", "здравейте", "благодаря", "моля"]);
+/** Arapçada olmayan Arap yazısı harfleri + Farsça/Urduca rakamlar (fa/ur/ckb/ps). */
+const PERSO_ARABIC = /[پچژگکیٹڈڑںےھہۃڵۆێەڕټډړږښځڅېۍ۰-۹]/u;
+/** Desteklenmeyen Latin dillerinin harfleri (pt/ro/pl/cs/sk/hr/sl/sv/da/no/hu/az/tk). Beş dilin yazımıyla çakışmaz. */
+const FOREIGN_LETTERS = /[ãõășțąęłńśźżćřěůåøæőűəýňžšđčďťľ]/u;
+/** Desteklenmeyen Latin dillerinin sık sözcükleri (it/pt/nl/sv/da/no/ro/pl/hr/hu/sq/ca/id). Beş dilin listesiyle KESİŞMEZ (pinli). */
+const FOREIGN_WORDS: ReadonlySet<string> = new Set([
+  // it
+  "è", "sono", "siamo", "abbiamo", "avete", "vorrei", "vorremmo", "grazie", "buongiorno", "buonasera", "ciao", "salve",
+  "della", "delle", "degli", "dello", "nella", "nel", "alla", "alle", "dalla", "questo", "questa", "anche", "perché",
+  "tutto", "tutti", "posso", "possiamo", "arriviamo", "chiave", "possibile", "gli", "che", "più", "già", "c'è",
+  "l'appartamento", "ho", "molto", "dove", "quando",
+  // pt
+  "não", "você", "vocês", "obrigado", "obrigada", "bom", "boa", "tem", "temos", "muito", "muita", "onde", "uma", "isso",
+  "esse", "essa", "perto", "carro", "chegando", "chegamos", "olá", "oi", "estou", "também", "sim", "pelo", "pela",
+  "aqui", "agora", "então", "código", "senha", "chave", "porta", "qual", "avise", "cedo", "disponível", "estacionamento",
+  // nl
+  "het", "een", "ik", "jij", "wij", "zijn", "niet", "wat", "waar", "hoe", "hebben", "kunnen", "graag", "bedankt", "voor",
+  "naar", "maar", "ook", "nog", "jullie", "komen", "sleutel", "wachtwoord", "goedemiddag", "goedemorgen", "goedenavond",
+  "hoi", "bijna", "mogelijk", "halen", "kluis", "rond", "vinden", "aan", "op", "om", "dat",
+  // sv / da / no
+  "och", "är", "jag", "det", "att", "inte", "på", "för", "med", "hej", "tack", "när", "vad", "nyckeln", "också",
+  "väg", "möjligt", "hvad", "hvor", "jeg", "ikke", "hei", "koden", "vi",
+  // ro
+  "și", "este", "în", "pentru", "bună", "mulțumesc", "mulțumim", "unde", "suntem", "avem", "aveți", "vă", "noi",
+  "ziua", "seara", "drum", "spre", "vedem", "curând",
+  // pl
+  "jest", "nie", "się", "czy", "dziękuję", "gdzie", "proszę", "dzień", "dobry", "mamy", "możemy", "który", "również",
+  "kiedy", "przy", "około", "cześć",
+  // hr / sr (Latin) · hu · sq · ca · id
+  "hvala", "koja", "lozinka", "pozdrav", "jó", "napot", "mikor", "lehet", "përshëndetje", "faleminderit", "është",
+  "cili", "és", "quina", "apakah", "terima", "kasih", "tidak", "saya", "kami", "bisa",
+]);
+
+/**
+ * Dil kanıtı OLMAYANLAR ayıklanır: bağlantı, e-posta, rakam içeren belirteç (kod, saat, şifre: "Lale2025", "15:00") ve
+ * çift tırnak içindeki alıntı (Wi-Fi adı / şifre, tabela metni: `Network: "Işıklı Ev"`). Tek tırnak kesme işaretidir
+ * ("it's", "15:00'te") — ayıklanmaz.
+ */
 function strip(text: string): string {
   return text
     .replace(/https?:\/\/\S+/gi, " ")
     .replace(/\S+@\S+/g, " ")
+    .replace(/"[^"\n]*"|“[^”\n]*”|«[^»\n]*»|„[^“”\n]*[“”]/gu, " ")
     .replace(/\S*\d\S*/g, " ");
 }
 
@@ -135,13 +180,23 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
   if (letters.length < 3) return null;
   const cyr = (clean.match(/\p{Script=Cyrillic}/gu) ?? []).length;
   const arab = (clean.match(/\p{Script=Arabic}/gu) ?? []).length;
-  if (cyr >= 3 && cyr / letters.length > 0.5) return "ru";
-  if (arab >= 3 && arab / letters.length > 0.5) return "ar";
+  if (cyr >= 3 && cyr / letters.length > 0.5) {
+    const bulgarian = (clean.toLowerCase().match(/\p{L}+/gu) ?? []).some((w) => BULGARIAN_WORDS.has(w));
+    return CYRILLIC_NON_RUSSIAN.test(clean) || bulgarian ? null : "ru";
+  }
+  if (arab >= 3 && arab / letters.length > 0.5) return PERSO_ARABIC.test(clean) ? null : "ar";
+  // Karma yazı (Kiril/Arap + Latin, ör. Rusça cümle + Türkçe adres): Latin sözcüklerle hüküm VERİLMEZ.
+  if (cyr + arab >= 3 && (cyr + arab) / letters.length >= 0.2) return null;
 
-  const tokens = clean.replace(/İ/g, "i").replace(/I/g, "i").toLowerCase().match(/\p{L}+(?:['’]\p{L}+)*/gu) ?? [];
+  const tokens = clean.match(/\p{L}+(?:['’]\p{L}+)*/gu) ?? [];
   const score: Record<LatinLanguage, number> = { tr: 0, en: 0, de: 0, fr: 0, es: 0 };
+  let foreign = 0;
   for (const raw of tokens) {
-    const tok = raw.replace(/’/g, "'");
+    const tok = raw.replace(/İ/g, "i").replace(/I/g, "i").toLowerCase().replace(/’/g, "'");
+    if (FOREIGN_WORDS.has(tok)) {
+      foreign += 1;
+      continue;
+    }
     let listed = false;
     for (const lang of LATIN) {
       if (WORDS[lang].has(tok)) {
@@ -149,7 +204,13 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
         listed = true;
       }
     }
-    if (listed) continue;
+    // Büyük harfle başlayan sözcük çoğu zaman ÖZEL AD ("Bağdat Caddesi", "Kadıköy", "São Paulo"): harf kanıtı sayılmaz
+    // (inceleme 09-25, P2: Türkçe adres veren İngilizce/Rusça cevap Türkçe sanılıyordu).
+    if (listed || /^\p{Lu}/u.test(raw)) continue;
+    if (FOREIGN_LETTERS.test(tok)) {
+      foreign += 1;
+      continue;
+    }
     for (const lang of LATIN) {
       const re = LETTERS[lang];
       if (re && re.test(tok)) score[lang] += 0.5;
@@ -160,6 +221,8 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
   const [best, second] = ranked;
   if (best[1] < 2) return null;
   if (second[1] > 0 && best[1] < 2 * second[1]) return null;
+  // Desteklenmeyen bir dilin kanıtı da ikinci aday gibi sayılır (İtalyanca "il" Fransızca listesinde, vb.).
+  if (foreign > 0 && best[1] < 2 * foreign) return null;
   return best[0];
 }
 
@@ -168,7 +231,26 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
  * emin değilse `null` (istem eski kuralına döner: belirsizde İngilizce).
  */
 export function guestTurnLanguage(latest: string, pending: readonly string[] = []): ConfidentLanguage | null {
+  // Misafir bir DİL ADI yazdıysa ("In English please 🙏", "Türkçe yazar mısınız?") dil isteği olabilir: kod dayatmaz,
+  // model mesajı okur (inceleme 09-25, P3: önceki Türkçe mesaj İngilizce isteğini eziyordu).
+  if (mentionsLanguageName(latest)) return null;
   return confidentLanguage(latest) ?? (pending.length > 0 ? confidentLanguage([...pending, latest].join("\n")) : null);
+}
+
+/** Dil adları (yedi dilin kendi adıyla ve TR/EN/DE/FR/ES/RU/AR adlandırmalarıyla). Belirteç eşleşmesi. */
+const LANGUAGE_NAMES_MENTIONED: ReadonlySet<string> = new Set([
+  "english", "englisch", "anglais", "inglés", "ingles", "ingilizce", "английском", "английский", "английски", "الإنجليزية", "بالإنجليزية", "انجليزي",
+  "turkish", "türkisch", "turc", "turco", "türkçe", "turkce", "турецком", "турецкий", "التركية", "بالتركية",
+  "german", "deutsch", "allemand", "alemán", "aleman", "almanca", "немецком", "немецкий", "الألمانية",
+  "french", "französisch", "français", "francais", "francés", "frances", "fransızca", "французском", "французский", "الفرنسية",
+  "spanish", "spanisch", "espagnol", "español", "espanol", "ispanyolca", "испанском", "испанский", "الإسبانية",
+  "russian", "russisch", "russe", "ruso", "rusça", "русском", "русский", "русски", "الروسية",
+  "arabic", "arabisch", "arabe", "árabe", "arapça", "арабском", "арабский", "العربية", "بالعربية", "بالعربي", "عربي",
+]);
+
+function mentionsLanguageName(text: string): boolean {
+  const words = text.replace(/İ/g, "i").replace(/I/g, "i").toLowerCase().match(/\p{L}+/gu) ?? [];
+  return words.some((w) => LANGUAGE_NAMES_MENTIONED.has(w));
 }
 
 /**
