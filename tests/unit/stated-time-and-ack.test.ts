@@ -252,6 +252,23 @@ describe("statedCheckoutTime — kör batarya son kontrolü (09-25)", () => {
     expect(timeStatedInMessage("10:00", `çıkış 10'da${" ".repeat(3900)}`)).toBe(true);
     expect(timeCorrectedInMessage("10:00", "11:00", `10 demiştim${"\t".repeat(3000)}ama 11 olacak`)).toBe(true);
   });
+
+  it("sınırın ALTINDA da boşluk dizisi teke iner (tekrarlı çağrı, geniş pay)", () => {
+    // Mutasyon turu: boşluk indirgemesi kaldırılınca hiçbir test düşmüyordu (sınır büyük girdileri zaten kesiyor). 3.900
+    // boşluk karesel yolda ~30 ms/çağrı; indirgenmiş hâlde <1 ms. 50 çağrı: ~1,5 sn ↔ ~0,05 sn — pay CI yavaşlığına yeter.
+    // Ardından bağlaç GELMEYEN boşluk dizisi: ayırıcı her başlangıç noktasında diziyi tarayıp düşer (bağlaç gelirse ilk
+    // denemede eşleşir ve iş doğrusal kalır — ilk pin bu yüzden hiçbir şey ölçmüyordu).
+    const msg = `10 demiştim${" ".repeat(3900)}11 olacak`;
+    const t0 = performance.now();
+    for (let i = 0; i < 50; i++) expect(timeCorrectedInMessage("10:00", "11:00", msg)).toBe(true);
+    expect(performance.now() - t0).toBeLessThan(400);
+  });
+
+  it("düzeltme yolunda da 'buçuk' ardındaki sayaç saat değildir", () => {
+    // Mutasyon turu: `timeTokens`in buçuk sayacı yalnız onay yolunda sınanıyordu.
+    const msg = "10 demiştim ama 2 buçuk saat sonra çıkarız";
+    expect(timeStatedInMessage("14:30", msg) || timeCorrectedInMessage("10:00", "14:30", msg)).toBe(false);
+  });
 });
 
 describe("çıkış saati DÜZELTMESİ — ikinci inceleme (09-25)", () => {
