@@ -304,8 +304,8 @@ koşar (atomik `problem` claim'i çift e-postayı önler).
   (ev sahibi onayı "hat genehmigt / одобрил", ekip sözü "Unser Team wird Sie kontaktieren", "I'm checking with the host
   now", İngilizce dışı teklifler). Bunların HEPSİ canlı sürümde de geçiyordu (gerileme değil); iki yanlış pozitif bu turun
   eklemesiydi (nesnesiz Arapça "سألت", "aşağıya ekledim"). Bu batarya üzerinde hazırlanan yama (kaçan 51 → 15, 12'si
-  edilgen; yanlış pozitif 8 → 4, dördü kabul edilmiş sınır; korpus ve koddan kurulan metinde yeni veto 0) SONRAKİ dilimde
-  (#162) — artık kör değil, yeni kör ölçüm harcama sınırı yenilenince.
+  edilgen; yanlış pozitif 8 → 4, dördü kabul edilmiş sınır; korpus ve koddan kurulan metinde yeni veto 0) ayrı dilimde
+  (#162, ↓§1.8) — batarya artık kör değil, yeni kör ölçüm harcama sınırı yenilenince.
 - *Yazılan saat* — 477 mesaj: yanlış kabul 92/448, yanlış red 76/347. Bu turun KENDİ eklemelerinden doğan dört yanlış kabul
   ve bir CPU sorunu push'tan ÖNCE kapandı (`7fd861c`, mutasyon 9/9): düzeltme yolunun yeni cümlecik bulucusu boşluk
   dizisinde karesel (20.000 boşluk 0,3 ms → 869 ms; onay yolu zaten ~0,9 sn) → satır içi boşluk tek boşluğa iner, 4.000
@@ -313,6 +313,42 @@ koşar (atomik `problem` claim'i çift e-postayı önler).
   out until 2pm" · "08'de" +12. Kalanlar tur öncesinden (sonraki dilim): ret biçimleri ("çıkamayız", "can't check out"),
   cümle bölücüsünün "a.m./p.m." noktaları, "gece", İngilizce gün dilimi ("tonight at 9"), düzeltme yolunda olay adı
   ("Kahvaltı 10 demiştim ama 9 olsun"), soru cümleciğinden ileri bakış.
+
+### 1.8 Kör veto bataryası dilimi (#162)
+Bağımsız ajanın kodu görmeden yazdığı 368 cümle (7 dil) repoda: `tests/helpers/veto-blind-battery-2026-09-25.ts` +
+regresyon pini `tests/unit/output-veto-blind-battery.test.ts`. Kaçan 51/183 → **15** (12'si edilgen çatı — bilinçli
+kapsam dışı; 3'ü etiketi tartışmalı), yanlış tutma 8/185 → **4** (dördü önceden kabul edilmiş sınır: ajansız gelecek
+"Uygulama size kodu gönderecek", 1. çoğul süreç "Faturayı çıkışta göndeririz"). Batarya bu dilimde ayar için kullanıldı,
+artık kör değil.
+- **Eklenen (yalnız sıkılaştırır):**
+  - ev sahibinin kararını bildiren geçmiş, DE/FR/ES/RU/AR (TR/EN vardı);
+  - ekip öznesiyle geri dönüş sözü 5 dilde; TR "Ekibimiz konuyla ilgilenecek(tir)", "gerekeni yapacak(tır)", ev sahibine/ekibe
+    teklif ("sorabilirim");
+  - şimdi yapıyorum: "I'm checking with / asking the host", "estoy consultando", "уточняю", "lassen Sie mich", "laissez-moi";
+  - "leave it with me", "I'm on it", "bear with me", "give me a few minutes to check", "would you like me to";
+  - teklifler: "kann ich … nachfragen", "je peux", "puedo", "могу", "يمكنني";
+  - tamirci / tesisatçı / elektrikçi öznesi.
+- **Dar istisnalar:**
+
+  | Geçer (atıf, olgu ya da dürüst sınır) | Tutulur (iddia ya da söz) |
+  |---|---|
+  | "size (dün) ilettim" | "size dönmesi için ilettim" (amaç cümleciği) |
+  | "aşağıya / buraya ekledim" | "notun sonuna / mesaja ekledim" |
+  | "Ev sahibinin numarasını size yazdım" | "ekibine yazdım / söyledim / mesaj gönderdim" (alıcı YÖNELME hâlinde) |
+  | alışkanlık: "genelde / normalde", "her + zaman ya da durum adı" (tek sabit `HABITUAL_BEFORE`) | "Her şeyi iletirim", "ama bu sefer ben dönerim" |
+  | "As we informed you", "I informed you", "We've emailed you" | "I've informed the host" |
+  | Arapça "سألت / راسلت" nesnesi ev sahibi değilse; "متأكد" (eminim) | "سألت المضيف" |
+  | olumsuz yetki: "No puedo verificar", "Ich kann das nicht klären", "Не могу уточнить", "لا يمكنني", "Je peux pas vérifier" | aynı fiillerin olumlu teklifi |
+- **Son gözden geçirme:** harcama sınırı nedeniyle ajan yerine elle yapıldı. Bataryayı geçen ilk yama sürümü, bataryada
+  OLMAYAN biçimlerde:
+  - 6 gerçek iddiayı geçiriyordu (HEAD bunları tutuyordu — gerileme olurdu);
+  - 8 dürüst cümleyi tutuyordu.
+
+  İstisnalar daraltıldı; 30 ikiz cümle ve dal üyesi başına 18 cümle pinli.
+- **Ölçüm:** 1.287 gerçek model cevabında yeni tutma 0, düşen 0. Koddan kurulan 121 metinde fark yok. Ayar bataryası değişmedi
+  (yanlış tutma 13/220, kaçan 1/169).
+- **Mutasyon:** `174edda` üzerinde 67 mutant (her yeni dal, dal üyesi ve istisna), ayrık worktree, M0 yeşil →
+  **67/67 öldürüldü**.
 
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 

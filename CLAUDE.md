@@ -1040,7 +1040,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   44→13, kalanlar tur öncesinden): istek kipi ("sorayım"), 1. tekil geniş zaman, ekip/görevli öznesi (YALNIZ geri dönüş/
   onay fiilleri; "Görevlimiz bagajlarınızla ilgilenecek" hizmettir), ev sahibinin kararını bildiren geçmiş ("onayladı",
   "has approved") tutulur; tavsiye ("ben olsam"), iki noktalı duyuru, alışkanlık, önceki mesaja atıf, dil bildirimi serbest.
-  Kanalda insan talebi NİYETİ tutulan cevabı yükseltir (risk etiketi boş olsa da).
+  Kanalda insan talebi NİYETİ tutulan cevabı yükseltir (risk etiketi boş olsa da). Kör batarya (#162, 368 cümle/7 dil,
+  regresyon pini `output-veto-blind-battery.test.ts`): ev sahibi onayı + ekip sözü + teklif 5 dilde tutulur. 🚨 İstisnalar
+  DAR kalır — amaç cümleciği ("size dönmesi için ilettim"), "notun sonuna ekledim", "her şeyi iletirim" SÖZDÜR;
+  alışkanlık istisnası tek sabit `HABITUAL_BEFORE`; OLUMSUZ yetki cümlesi ("No puedo verificar") söz değildir. Yeni
+  istisna eklerken bataryada OLMAYAN ikiz iddiayı da yaz (ilk yama sürümü 6 gerçek iddiayı geçiriyordu).
 - **Temellendirme kaydı:** geri çekilme kırpması + pack bütçesi `kbDropped`e SAYILIR (`capacity` ≠ `ungrounded`);
   `supersededById` düşüşü sayılmaz; kalite denetçisi `aiSourcesJson` görür (null ≠ "kaynak yok").
 - **Bütçe:** "12 çağrı = 1 birim" Inbox önizlemesidir (Ayarlar kartı değil); oran fiyatlandırma kararı.
@@ -1098,7 +1102,8 @@ migration'sız, kırmızı-önce + mutasyon.
 Motoru; `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md`):** kapanışa sessizlik + "cevap gerekmedi" hâli · zaman bağlamı (CUS v1
 dilim A) · çıkış saati düzeltmesi + yolculuk ayrımı · netleştirme politikası · bekleme sözü vetosu — migration'sız,
 kırmızı-önce + mutasyon (35+15+15+14). Üç inceleme ajanının bulguları ayrı commitlerle kapandı (veto `6c7b439` · kapanış
-`1785250` · zaman `a83459d`; belge §1.6). ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
+`1785250` · zaman `a83459d`; belge §1.6). Kör veto bataryası dilimi #162 (belge §1.8): kaçan 51→15 (12'si edilgen),
+yanlış tutma 8→4, korpusta yeni tutma 0, mutasyon 67/67. ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
 e-posta), bekleme sırasında A/B (SABİTLENMEDİ), `claimedActions` ve CUS v1 dilim B (bayrak + ücretli eval), CUS v2 defter
 (migration).
 
