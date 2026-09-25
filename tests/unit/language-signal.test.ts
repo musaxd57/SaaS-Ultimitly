@@ -109,6 +109,8 @@ describe("confidentLanguage — eminken dil", () => {
   it("🚨 cümle BAŞINDAKİ büyük harfli sözcük harf kanıtı sayılır: kısa Türkçe cevap yakalanmaya devam eder (ikinci inceleme P2)", () => {
     expect(confidentLanguage("Çıkış saati 11:00; anahtarları mutfak tezgâhına bırakabilirsiniz.")).toBe("tr");
     expect(replyLanguageMismatch("en", "Çıkış saati 11:00; anahtarları mutfak tezgâhına bırakabilirsiniz.")).toBe(true);
+    // Metnin ORTASINDAKİ cümle başı da sayılır (noktadan sonra büyük harf özel ad değildir).
+    expect(confidentLanguage("Merhaba. Çıkışta anahtarı tezgâha bırakın.")).toBe("tr");
   });
 
   it("desteklenen dillerin sık sözcükleri yabancı liste yüzünden belirsizleşmez (ikinci inceleme P3: alle, nie, SIM, carro, благодаря…)", () => {
