@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
-import { OFFER_PAYMENT_METHOD_RX } from "@/lib/validators";
+import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { withManage } from "@/lib/route-guard";
 import { isValidTimeZone } from "@/lib/timezone";
 import { isOrgMemberEmail, isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
@@ -133,7 +133,7 @@ export const PATCH = withManage(async (session, req) => {
       const trimmed = (raw ?? "").toString().trim();
       if (trimmed.length > OFFER_TEXT_MAX) {
         errors.lateCheckoutOfferText = `En fazla ${OFFER_TEXT_MAX} karakter.`;
-      } else if (OFFER_PAYMENT_METHOD_RX.test(trimmed)) {
+      } else if (namesPaymentMethod(trimmed)) {
         errors.lateCheckoutOfferText =
           "Teklif metni ödeme yöntemi içeremez (elden/nakit/IBAN/havale vb.). Yalnızca fiyat ve koşulları yazın; tahsilatı siz yönetirsiniz.";
       } else {

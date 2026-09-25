@@ -70,4 +70,16 @@ describe("PATCH /api/settings — numeric field validation", () => {
     const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { handoffHoldHours: true } });
     expect(org?.handoffHoldHours).toBe(12);
   });
+  it("geç çıkış teklifi (09-25 'kapıda' kök nedeni): kapı konumu KAYDEDİLİR, kapıda ödeme / büyük harf İBAN REDDEDİLİR", async () => {
+    const ok = "13:00'e kadar geç çıkış 250 TL; anahtarı kapıdaki kutuya bırakın.";
+    const res = await patch({ lateCheckoutOfferText: ok });
+    expect(res.status).toBe(200);
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).lateCheckoutOfferText).toBe(ok);
+    for (const bad of ["Geç çıkış 250 TL, kapıda ödenir.", "Geç çıkış 250 TL, İBAN ile ödeyin."]) {
+      const r = await patch({ lateCheckoutOfferText: bad });
+      expect(r.status, bad).toBe(400);
+      expect((await r.json()).fields?.lateCheckoutOfferText, bad).toContain("ödeme yöntemi");
+    }
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).lateCheckoutOfferText).toBe(ok);
+  });
 });

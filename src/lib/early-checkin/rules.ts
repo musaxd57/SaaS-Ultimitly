@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { prisma } from "@/lib/db";
-import { OFFER_PAYMENT_METHOD_RX } from "@/lib/validators";
+import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
 import { EARLY_CHECKIN_CURRENCIES, EARLY_CHECKIN_MODES, type EarlyCheckinRule } from "./core";
@@ -52,7 +52,7 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
       // ve host nedenini göremezdi (kapı gönderimde yine AYNI vetoyu koşar).
       if (
         n.length > EARLY_CHECKIN_NOTE_MAX ||
-        OFFER_PAYMENT_METHOD_RX.test(n) ||
+        namesPaymentMethod(n) ||
         /https?:\/\/|www\./i.test(n) ||
         /[<>{}[\]]/.test(n) ||
         vetoOutgoingReply(n) !== null
