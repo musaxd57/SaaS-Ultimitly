@@ -1,5 +1,5 @@
 /**
- * Reasoning (o1/o3/o4…) and GPT-5 family models — Luna/Terra included — only
+ * Reasoning (o1/o3/o4…) and GPT-5+ family models (gpt-5.x, gpt-6-luna/sol/astra …) only
  * accept the default sampling settings (a custom `temperature` is rejected) and
  * take their output ceiling as `max_completion_tokens`, which must also cover the
  * hidden reasoning tokens. Every caller that builds an OpenAI-compatible request
@@ -11,7 +11,9 @@
  * throw mid-request and look like an upstream failure).
  */
 export function isReasoningModel(model: string): boolean {
-  return /^(o\d|gpt-5)/i.test(model.trim());
+  // gpt-5 ve SONRASI (gpt-6-luna/sol/astra, 09-25 canlı sonda: temperature 0.4 ve max_tokens reddedilir). Eski kural
+  // yalnız gpt-5'i tanıyordu; gpt-6'ya geçiş her çağrıyı 400 ile düşürürdü. gpt-4.x / 3.5 klasik kalır.
+  return /^(o\d|gpt-(?:[5-9]|\d{2,})(?!\d))/i.test(model.trim());
 }
 
 /**
