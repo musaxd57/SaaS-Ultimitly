@@ -122,9 +122,23 @@ const QUESTION_CLAUSE =
  * BAŞKA BİR ARACIN kalkışı ve NESNELİ "leave" çıkış değildir (kör batarya 09-25): "Our train leaves at 10", "Our flight
  * departs at 13:20", "Our bus departs at 12, so we'll leave at 11", "Trenimiz 10'da gidiyor", "We'll leave the car at the
  * airport at 9". İpucu testinden ÖNCE nötrlenir (↓ulaç gibi); aynı mesajdaki gerçek ipucu ("we'll leave at 11") kalır.
+ * Mutasyon turu 09-25: UZUN YOL aracının kalkış İSMİ de ("our departure flight", "the flight's departure", "departure of
+ * our train", "départ du vol", "vol de départ") — `depart` / `départ` ipucudur ve uçağın saatini çıkış saati diye kabul
+ * ediyordu. Taksi / shuttle / transfer isim dalında YOK: kapıdan alma saati çoğunlukla misafirin çıktığı saattir. Almanca /
+ * İspanyolca araç fiilleri ("Zug fährt", "vuelo sale") ipucu olmadığı için burada YOK (nötrlemeleri yalnız ↓işareti
+ * bırakırdı; araç sözcüğü cümleciği zaten yalnız-saat olmaktan çıkarır).
  */
 const OTHER_DEPARTURE =
-  /(?:train|flight|plane|bus|coach|ferry|boat|ship|taxi|cab|uber|shuttle|transfer|tram|metro)\s+(?:\p{L}+\s+){0,2}?(?:leaves|departs|leaving|departing|left|departed|will\s+(?:leave|depart))|(?:uça[kğ]|tren|otobüs|otobus|feribot|vapur|taksi|servis|transfer)\p{L}*\s+(?:\S+\s+){0,2}?(?:gidiyor|gidecek|çıkıyor|cikiyor|çıkacak|kalkıyor|ayrılıyor)(?![a-zçğıöşü])|leav(?:e|ing)\s+(?:the|our|my|your)\s+(?:car|keys?|bags?|luggage|suitcases?|stuff|things|rubbish|trash)|(?<![a-zçğıöşü])(?:plaj|deniz|konser|yemeğ|yemek|tur|müze|muze|çarşı|carsi|alışveriş|alisveris|gezi|gezme|gezinti|yürüyüş|yuruyus|havuz|sahil|park)\p{L}{0,2}\s+(?:\S+\s+){0,1}?(?:ç[ıi]k|c[ıi]k|gid)\p{L}*|(?:head(?:ing)?|go(?:ing)?|be)\s+out\s+(?:\S+\s+){0,3}?for\s+(?:a\s+|the\s+)?(?:dinner|lunch|breakfast|brunch|drinks|tour|walk|hike|swim|day|evening|sightseeing|shopping)|(?:zug|flug|vol|vuelo|avion|avión)\s+(?:\p{L}+\s+){0,2}?(?:fährt|geht|part|sale|décolle|despega)|check(?:ed|ing)?[\s-]?out\s+(?:the|a|an|this|that|some)\s+(?!(?:flat|apartment|room|place|property|house|home|unit|studio|villa|airbnb)(?![a-z]))/gu;
+  /(?:train|flight|plane|bus|coach|ferry|boat|ship|taxi|cab|uber|shuttle|transfer|tram|metro)\s+(?:\p{L}+\s+){0,2}?(?:leaves|departs|leaving|departing|left|departed|will\s+(?:leave|depart))|(?:train|flight|plane|bus|coach|ferry|boat|ship)(?:'s)?\s+(?:\p{L}+\s+){0,1}?departure|departure\s+(?:flight|train|plane|bus|coach|ferry|(?:time\s+)?(?:of|for)\s+(?:(?:the|our|my|your)\s+)?(?:train|flight|plane|bus|coach|ferry|boat|ship))|départ\s+(?:du|de\s+(?:notre|mon|ma|la|l'|nos|mes|votre))\s*(?:vol|train|avion|bus|bateau|ferry)|(?:vol|train|avion|bus|bateau|ferry)\s+de\s+départ|(?:uça[kğ]|tren|otobüs|otobus|feribot|vapur|taksi|servis|transfer)\p{L}*\s+(?:\S+\s+){0,2}?(?:gidiyor|gidecek|çıkıyor|cikiyor|çıkacak|kalkıyor|ayrılıyor)(?![a-zçğıöşü])|leav(?:e|ing)\s+(?:the|our|my|your)\s+(?:car|keys?|bags?|luggage|suitcases?|stuff|things|rubbish|trash)|(?<![a-zçğıöşü])(?:plaj|deniz|konser|yemeğ|yemek|tur|müze|muze|çarşı|carsi|alışveriş|alisveris|gezi|gezme|gezinti|yürüyüş|yuruyus|havuz|sahil|park)\p{L}{0,2}\s+(?:\S+\s+){0,1}?(?:ç[ıi]k|c[ıi]k|gid)\p{L}*|(?:head(?:ing)?|go(?:ing)?|be)\s+out\s+(?:\S+\s+){0,3}?for\s+(?:a\s+|the\s+)?(?:dinner|lunch|breakfast|brunch|drinks|tour|walk|hike|swim|day|evening|sightseeing|shopping)|check(?:ed|ing)?[\s-]?out\s+(?:the|a|an|this|that|some)\s+(?!(?:flat|apartment|room|place|property|house|home|unit|studio|villa|airbnb)(?![a-z]))/gu;
+
+/**
+ * Nötrlenen ifadenin YERİNE konan sözcük (↑OTHER_DEPARTURE). Boşluk DEĞİL (mutasyon turu 09-25): "We leave tomorrow, the
+ * train leaves at 10" — boşlukla silinen "train leaves" ikinci cümleciği "the … at 10" bırakıyordu; ileri bakış onu
+ * yalnız-saat cümleciği (↓isTimeOnlyClause) sanıp TREN saatini çıkış saati diye kabul ediyordu ("Yarın çıkıyoruz, plaja
+ * gidiyoruz 10'da" de). Hiçbir ipucu / dolgu / ayırıcı kalıbına uymayan harf dizisi: cümlecikte BAŞKA bir olay olduğunu
+ * taşır, başka bir şey söylemez.
+ */
+const OTHER_EVENT_MARK = " başkaolay ";
 
 /**
  * CÜMLECİK seviyesinde bağlayan genel olumsuz kalıplar. "11:00'de çıkacağız,
@@ -204,7 +218,7 @@ export function timeStatedInMessage(hhmm: string, message: string): boolean {
   if (DEPARTURE_REFUSAL.test(lower)) return false;
 
   // Ulaçları ve başka aracın kalkışını NÖTRLE: ne ipucu ne olumsuzluk sayılsınlar (↑CHECKOUT_GERUND, ↑OTHER_DEPARTURE).
-  const neutral = lower.replace(CHECKOUT_GERUND, " ").replace(OTHER_DEPARTURE, " ");
+  const neutral = lower.replace(CHECKOUT_GERUND, " ").replace(OTHER_DEPARTURE, OTHER_EVENT_MARK);
 
   // Önceki beyanın AKTARIMI (↑REPORTED_EARLIER) yalnız mesajda AKTARILMAMIŞ başka bir saatli çıkış beyanı varsa düşer
   // ("10'da çıkacağımızı yazmıştım; 8'de çıkıyoruz" → 10:00 eski); yoksa aktarım bir teyittir ("11'de çıkarız demiştim;
@@ -454,7 +468,7 @@ export function timeCorrectedInMessage(previousHhmm: string, newHhmm: string, me
   for (const { sentence: raw, question } of sentencesOf(lower)) {
     // Başka aracın kalkışı çıkış ipucu değildir (↑OTHER_DEPARTURE) — ama olay ADI ham cümleden okunur: "Our flight leaves
     // at 13:00 instead of 11" nötrlenince "flight" sözcüğü de gider.
-    const sentence = raw.replace(OTHER_DEPARTURE, " ");
+    const sentence = raw.replace(OTHER_DEPARTURE, OTHER_EVENT_MARK);
     if (!CORRECTION_CUE.test(sentence) && !CHECKOUT_CUE.test(sentence)) continue;
     // Çıkış ipucu yokken cümle BAŞKA bir olayı adlandırıyorsa düzeltme o olayındır (kör batarya 09-25): "Kahvaltı 10
     // demiştim ama 9 olsun", "Giriş 14 değil 15'te olacak", "The cleaner should come at 12 instead of 11", "My son is 11".

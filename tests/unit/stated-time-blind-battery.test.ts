@@ -114,6 +114,33 @@ const REVIEW_TWINS: [msg: string, t: string, expected: boolean][] = [
   ["Notre vol part à 15h, nous partirons à 11h.", "15:00", false],
   // "-ınca" cümlecik ayırıcısı DEĞİL (ölçüldü: bataryada gereksiz; "taksi gelince çıkarız" çıkış saatini taşır).
   ["Taksi 9'da gelince çıkarız.", "09:00", true],
+  // Mutasyon turu 09-25 — soru / istek SORU İŞARETİ OLMADAN da cümleciğin kendi biçiminden tanınır (parçacık, -sAk, can we).
+  ["12'de çıkabilir miyiz", "12:00", false],
+  ["Can we check out at 1pm", "13:00", false],
+  ["Saat 12'de çıksak, temizlikçi ona göre gelsin.", "12:00", false],
+  ["Saat 11'de ayrılsak, sorun olur mu", "11:00", false],
+  // Nötrlenen araç / gezi ifadesi cümleciği YALNIZ-SAAT yapmaz (işaret sözcüğü): ileri bakış tren saatini çıkış sanmıyor.
+  ["We leave tomorrow, the train leaves at 10.", "10:00", false],
+  ["We check out tomorrow and the flight leaves at 14:00.", "14:00", false],
+  ["Yarın çıkıyoruz, plaja gidiyoruz 10'da.", "10:00", false],
+  ["Wir reisen morgen ab, Zug fährt um 10.", "10:00", false],
+  ["We leave tomorrow, around 10.", "10:00", true],
+  // Aracın kalkış İSMİ ipucu değildir; misafirin kendi "departure / départ"ı ipucudur.
+  ["Our departure flight is at 16:00.", "16:00", false],
+  ["Our flight's departure is at 16:00, can we leave the luggage?", "16:00", false],
+  ["Departure of our train is at 10.", "10:00", false],
+  ["Le départ de notre vol est à 15h.", "15:00", false],
+  ["Notre vol de départ est à 15h.", "15:00", false],
+  ["The train's scheduled departure is at 10.", "10:00", false],
+  ["The departure time of our flight is 16:00.", "16:00", false],
+  ["Départ du train à 10h.", "10:00", false],
+  ["Le départ de l'avion est à 15h.", "15:00", false],
+  ["Our departure time is 10:30, the flight is at 14:00.", "10:30", true],
+  ["Our flight departure is at 16:00, we leave at 11.", "11:00", true],
+  ["Notre départ est prévu à 11h.", "11:00", true],
+  ["Départ du logement à 10h.", "10:00", true],
+  // Kapıdan alma aracı (transfer / taksi) isim dalında YOK: alma saati çoğunlukla misafirin çıktığı saattir.
+  ["Our departure transfer is at 9.", "09:00", true],
 ];
 
 describe("kör saat bataryası — son gözden geçirme ikizleri", () => {
@@ -127,6 +154,9 @@ const REVIEW_CORRECTION_TWINS: [msg: string, prev: string, next: string, expecte
   ["Our flight leaves at 13:00 instead of 11.", "11:00", "13:00", false],
   ["10 yerine 11?", "10:00", "11:00", false],
   ["10 demiştim ama 11 olacak.", "10:00", "11:00", true],
+  // Mutasyon turu 09-25: nötrlenen "bus leaves" cümleciği yalnız-saat sayılmaz — otobüs saati düzeltme değildir.
+  ["Checkout was 11, the bus leaves at 13.", "11:00", "13:00", false],
+  ["Checkout 11 değil, 13'te çıkarız.", "11:00", "13:00", true],
 ];
 
 describe("kör saat bataryası — düzeltme yolu ikizleri", () => {
