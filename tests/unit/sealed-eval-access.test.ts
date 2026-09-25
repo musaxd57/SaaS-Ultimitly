@@ -80,23 +80,45 @@ describe("mühürlü final eval seti", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("bütünlük: her MÜHÜRLÜ dosyanın SHA-256'sı mühür kaydıyla eşleşir (içerik okunmaz, yalnız baytlar)", () => {
+  it("bütünlük: her MÜHÜRLÜ ya da YANMIŞ dosyanın SHA-256'sı mühür kaydıyla eşleşir (içerik okunmaz, yalnız baytlar)", () => {
     const seals = JSON.parse(readFileSync(path.join(SEALED_DIR, "SEALS.json"), "utf8")) as Record<
       string,
-      { sha256: string; sealedAt: string; author: string; state: "sealed" | "burned"; location?: "local-only" }
+      {
+        sha256: string;
+        sealedAt: string;
+        author: string;
+        state: "sealed" | "burned";
+        location?: "local-only";
+        burnedAt?: string;
+        runSha?: string;
+        report?: string;
+      }
     >;
     // "local-only" = gerçek misafir mesajlarından set (B): dosya depoya ASLA girmez, SHA'sını harness koşuda doğrular.
     for (const [name, seal] of Object.entries(seals).filter(([, s]) => s.location === "local-only")) {
       expect(seal.sha256, name).toMatch(/^[0-9a-f]{64}$/);
       expect(existsSync(path.join(SEALED_DIR, name)), `${name}: gerçek set depoda OLAMAZ`).toBe(false);
     }
-    const sealed = Object.entries(seals).filter(([, s]) => s.state === "sealed" && s.location !== "local-only");
-    expect(sealed.length).toBeGreaterThan(0); // anti-vakum
-    for (const [name, seal] of sealed) {
+    // Yanmış set de DEĞİŞMEZ: kararın dayandığı rapor o baytlarla koşuldu (09-25: A seti f584075'te koşuldu, yandı).
+    const inRepo = Object.entries(seals).filter(([, s]) => s.location !== "local-only");
+    expect(inRepo.length).toBeGreaterThan(0); // anti-vakum
+    for (const [name, seal] of inRepo) {
+      expect(["sealed", "burned"], name).toContain(seal.state);
       expect(seal.sha256, name).toMatch(/^[0-9a-f]{64}$/);
       const digest = createHash("sha256").update(readFileSync(path.join(SEALED_DIR, name))).digest("hex");
       // Mesaj içerik basmaz: yalnız ad + eşleşme.
       expect(digest === seal.sha256, `${name}: SHA-256 mühürle eşleşmiyor`).toBe(true);
+    }
+    // Yanmış set geri "sealed" yapılıp yeniden koşulamaz: yakma izi taşıyan kayıt yanmış kalır (harness yalnız "sealed" koşar).
+    for (const [name, seal] of inRepo.filter(([, s]) => s.burnedAt !== undefined || s.runSha !== undefined || s.report !== undefined)) {
+      expect(seal.state, `${name}: yakma izi var ama durum yanmış değil`).toBe("burned");
+    }
+    // Yakma kaydı eksiksiz: hangi dondurulmuş commit'te koşuldu + kararın okunduğu rapor depoda (protokol "Yak" adımı).
+    for (const [name, seal] of inRepo.filter(([, s]) => s.state === "burned")) {
+      expect(seal.burnedAt, name).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(seal.runSha, name).toMatch(/^[0-9a-f]{40}$/);
+      expect(seal.report ?? "", name).toMatch(/^docs\/olcum\/stay-change-FINAL-eval-\d{4}-\d{2}-\d{2}\.md$/);
+      expect(existsSync(path.join(REPO, seal.report ?? "")), `${name}: yakma raporu depoda yok`).toBe(true);
     }
   });
 

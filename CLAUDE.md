@@ -328,7 +328,9 @@ Bu dosyaya token/anahtar/parola yazma.
   tavanı 20 sn (QR `qr-in:` 120 sn TTL). Kanıtta `sc.ev` artık `sc.v`ye eşit (şema kararlılığı). Bekçi düşerse
   modelin konaklama sinyali varsa tutulur. Tek ağ kapısı `semantic/structured-call.ts` (Structured Outputs strict; alarm `semantic`
   kanalı), yapılandırma tek kaynak `semantic/config.ts`. Açma = eval (`evals/stay-change.json` YALNIZ `holdout`
-  satırları; `dev` görüldü) + kurucu onayı; sıra belge §5. 🚨 **Risk niyetleri** (acil > şikâyet > iptal-iade >
+  satırları; `dev` görüldü) + kurucu onayı; sıra belge §5. **09-25: eval + mühürlü final GEÇTİ → açma kurucuda**
+  (Railway: önce `AI_UNDERSTANDING_ENABLED=1`, sonra `AI_STAY_GUARD_ENABLED=1`; değer tam `1`; `AI_SEMANTIC_*` BOŞ =
+  ölçülen yapılandırma). Ayarlar AI testi bekçiyi KOŞMAZ (hassas istekte orada "gönderilmez" görünür; belgeli fark). 🚨 **Risk niyetleri** (acil > şikâyet > iptal-iade >
   insan; `semantic/intent-risk.ts`): kelime ağının kaçırdığı dolaylı dil ÖLÇÜLDÜ; kapının SON kontrolü (kanal:
   güvenden sonra; QR: iki geçiş çıkışından önce), yalnız sıkılaştırır, katman koştuysa HER ZAMAN karar verir (birleşim
   değişmezi; kanıt `ir`); modelin kendi devir cevabı insan talebinde muaf; kanalı YALNIZ bu niyet kapattıysa acil yükseltme
@@ -810,13 +812,16 @@ YOK, anahtar boşaltılmaz; normal suite anahtarı ZORLA boşaltır — ikisi de
 EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ (beklenen/tamamlanan/geçersiz ayrı). LLM grader YOK. Bulutta `NODE_USE_ENV_PROXY=1`
 şart (Node fetch proxy'yi okumaz). Model kıyası `scripts/eval-compare-models.mjs` (her model AYRI SÜREÇ, markdown
 parse edilmez, `EVAL_COMPARE_YES=1` ücretli kapı); gölge katmanı yalnız GÜVENLİK sınıflandırmasını kıyaslar, cevap
-kalitesi bu harness'la ölçülür. Son gerçek koşu 09-11 (`docs/EVAL-CALISTIRMA.md`). 🚨 09-23: bu ortamdaki anahtarın
-KREDİSİ BİTTİ (`insufficient_quota`) → kredi yüklenmeden gerçek koşu/embedding ölçümü YOK.
+kalitesi bu harness'la ölçülür. 09-24 kredi yüklendi (OpenAI bakiyesi org geneli ve PEŞİN; panodaki harcama
+"limit"i yalnız UYARI, durdurmaz) → ücretli koşu önce küçük deneme (`EVAL_STAY_LIMIT`, 20 satır ≈ 0,10 $) + kurucu onayı.
 🚨 **MÜHÜRLÜ FİNAL SETİ (09-24, `docs/EVAL-MUHURLU-FINAL.md`):** konaklama eval'inin `dev` + `holdout` bölümleri
 GÖRÜLDÜ (ayar + denetim ölçümleri) → açma kararı YALNIZ `evals/sealed/` altındaki kör yazılmış setle. İçerik açılmaz/
 basılmaz/ajana verilmez; harness yalnız `EVAL_SEALED_FINAL=1` + gerçek model koşusunda okur (kısmi koşu hata);
 SHA-256 `SEALS.json` ile pinli, adı yalnız izinli dosyalarda (`sealed-eval-access.test.ts`). Dondurulmuş SHA'da BİR
-kez koşulur, sonra "yandı" (yeni kör set). 🚨 **SET B — GERÇEK MİSAFİR MESAJLARI (09-24, kurucu: "salt okuma"):**
+kez koşulur, sonra "yandı" (yeni kör set). **A seti 09-25'te `f584075`te koşuldu → YANDI** (kaçak 0/117 · bekçi izin
+45/45, iddia 22/22 · gereksiz inceleme 7/63, hepsi kelime ağından; `docs/olcum/stay-change-FINAL-eval-2026-09-25.md`);
+B'siz koşuldu (kurucu: bayraklar bugün) → B için yeni kör A ya da yalnız-B harness değişikliği. Yanmış kayıt pinli
+(`burnedAt`/`runSha`/`report` zorunlu, baytlar değişmez). 🚨 **SET B — GERÇEK MİSAFİR MESAJLARI (09-24, kurucu: "salt okuma"):**
 `scripts/eval-real-export.ts` kurucunun makinesinde canlı DB'ye bağlanır: tek işlem, İLK komut `SET TRANSACTION READ
 ONLY` + `SHOW transaction_read_only` doğrulaması + yalnız SELECT (mekanik pin `eval-real.test.ts`); anonimleştirir
 (`eval-real/anonymize.ts`; tarih/saat kuralı tek kaynak `semantic/date-time-tokens.ts`), aday süzgeci ürünün
@@ -971,6 +976,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-25 ÖLÇÜM + YAYIN:** tam eval (599 istek + 747 cevap, ~3 $) ve mühürlü final (~1 $) GEÇERLİ; birleşimde tehlikeli
+kaçak 0 (dev/holdout/final). Canlı `f584075` (C-17 + 7a/4a inceleme düzeltmeleri dahil; migration yok). CI 739d83c'de
+Actions dakika sınırıyla düşmüştü → repo PUBLIC yapıldı. Bayrak açma kurucuda (↑AI güvenlik mimarisi).
+
 **09-24 KANIT MODELİ DİLİMLERİ (8 · 6 · 7a/7b · 4a; hepsi migration'sız, kırmızı-önce + mutasyon + düşmanca inceleme):**
 para (erteleme tutar/indirim söyleyemez) · bilgi sorusuna koddan politika metni + yeniden değerlendirme kilidi ·
 misafirin çıkış saati onay gibi sunulmaz · görev tarihleri rezervasyonu izler. Kör holdout (para): %74 / temiz %97.

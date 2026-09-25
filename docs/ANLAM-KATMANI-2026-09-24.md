@@ -310,6 +310,10 @@ Kazanımlar (pinli: `tests/unit/understanding.test.ts`):
 
 ## 5. Açma sırası (kurucu kararı; hiçbiri ölçmeden açılmaz)
 
+**Durum 09-25:** 1–3 TAMAM (kredi 09-24 yüklendi; tam eval `docs/olcum/stay-change-eval-2026-09-24.md` GEÇERLİ;
+mühürlü final `docs/olcum/stay-change-FINAL-eval-2026-09-25.md` GEÇERLİ, set yandı). 4–5 kurucunun Railway adımı
+(bayrak değeri tam olarak `1`; `AI_SEMANTIC_*` boş kalır = ölçülen yapılandırma).
+
 1. OpenAI kredisi yüklenir. Bu ortamdaki anahtar 09-23'ten beri `insufficient_quota` veriyor.
 2. `RUN_REAL_EVAL=1 npm run eval -- tests/eval/stay-change.eval.test.ts` koşulur. Rapor
    `docs/olcum/stay-change-eval-<tarih>.md` dosyasına yazılır. Genelleme ölçüsü **yalnız `holdout`**

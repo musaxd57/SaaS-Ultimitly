@@ -49,6 +49,18 @@ yalnız üçüncü, mühürlü bir setle verilir.
 Koşu GEÇERSİZ çıkarsa (düşen çağrı) set yanmış sayılmaz; aynı dondurulmuş SHA ile yeniden koşulur.
 Sonuca bakıp kodu değiştirip aynı seti yeniden koşmak ise yasaktır: o durumda set yanmıştır.
 
+## Koşu kaydı
+
+* **09-25 — A seti koşuldu ve YANDI.** Dondurulmuş commit `f584075` (canlıdaki kodla aynı), bekçi + anlama katmanı
+  `gpt-5.1`, düşen çağrı 0 → GEÇERLİ. Rapor `docs/olcum/stay-change-FINAL-eval-2026-09-25.md`; `SEALS.json` durumu
+  `burned` (+ `runSha`, `report`; pin: yanmış kaydın alanları zorunlu, dosyanın baytları yine değişmez).
+  Sonuç: tehlikeli kaçak 0/117 · bekçi izin veren cevap 45/45, iddia 22/22 durdurdu · gereksiz inceleme 7/63 (hepsi
+  kelime ağından; iki model 0 yanlış alarm) · bilgi sorusu 3/3 incelemeye düştü (bilinçli bedel).
+* **Sapma (kurucu kararı, bayrakları bugün açmak için):** A seti B'siz koşuldu. Kurucunun gerçek mesaj etiketlemesi
+  (~300 mesaj) beklenmedi. Sonuç: B koşusu artık mühürlü A'ya bağlı olamaz (harness A'nın `sealed` durumunu ister) —
+  B için ya yeni kör A seti ya da harness'ta yalnız-B koşusu (ayrı iş, ayrı inceleme) gerekir.
+* Sonraki açma/gevşetme kararı için yeni kör set yazılır ve yeni mühür alınır.
+
 ## Set B — gerçek misafir mesajları (anonim, yalnız yerel) — 09-24
 
 Dış inceleme haklı: A seti sentetik ve yazarı bir dil modeli; tam bağımsız değil. Kurucu: "host hesabımdaki

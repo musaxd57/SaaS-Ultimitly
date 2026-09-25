@@ -118,16 +118,20 @@ gerekiyor. Geliştirici ve ajanlar içeriği görmez. Protokol `docs/EVAL-MUHURL
 
 ## Q. Yanlış alarm / gereksiz inceleme oranı
 
-Model katmanları kredisiz ÖLÇÜLEMEDİ. Ölçülebilen (deterministik): kelime ağı tek başına "istek yok" satırlarında dev
-135/143 (%6 gereksiz inceleme), holdout 135/161 (%16). Para dedektörü kör holdout: temiz 130/134 (%3 yanlış alarm),
-tutarsız ücret sözü 35/35. Eval harness'ına karar ölçüleri eklendi (gereksiz inceleme · bilgi sorusu ↔ izin · katman
-gerekliliği · bilinmiyor) — kredi yüklenince tek koşuda raporlanır.
+Gerçek model ölçüldü (09-24/25, `gpt-5.1`, bekçi + anlama katmanı; cevap modeli beyanı ve konu etiketi harness'ta
+koşmaz → ALT SINIR). Birleşimde "istek yok" satırlarının incelemeye düşen payı: dev 11/143 (%8) · holdout 28/161
+(%17) · **mühürlü final 7/63 (%11)**. Finalde bu payın tamamı kelime ağından; iki model "istek yok" satırlarında
+0 yanlış alarm verdi. Erken giriş konulu bilgi sorusu incelemeye düşüyor (final 3/3; bilinçli bedel: yanlış otomatik
+izin çok kötü, gereksiz inceleme kabul edilebilir). Para dedektörü kör holdout: temiz 130/134 (%3 yanlış alarm).
+Raporlar `docs/olcum/stay-change-eval-2026-09-24.md`, `docs/olcum/stay-change-FINAL-eval-2026-09-25.md`.
 
 ## R. Tehlikeli kaçak
 
-Kelime ağı tek başına isteklerin dev 77/125, holdout 77/170'ini yakalıyor — bu yüzden YALNIZ yedek; asıl yakalama iki
-model + birleşim (ölçüm kredi bekliyor). Üretimde bugün hassas istek bekçisiz OTOMATİK GİTMEZ (belirsizlik güvenli
-değildir), yani kaçak otomatik izne dönüşmez. Para dedektörü kör holdout: 103/139 (%74) — kalan serbest anlatım bekçinin işi.
+Birleşim (kelime ağı ∨ bekçi ∨ anlama): **0/125 (dev) · 0/170 (holdout) · 0/117 (mühürlü final)** istek kaçtı.
+Kelime ağı tek başına finalde 61/117 yakalıyor → YALNIZ yedek; finalde 4 isteği yalnız bekçi yakaladı. Cevap
+tarafında bekçi finalde izin veren cevapların 45/45'ini, uydurma müsaitlik iddialarının 22/22'sini durdurdu (holdout:
+izin 93/95). Para dedektörü kör holdout: 103/139 (%74) — kalan serbest anlatım bekçinin işi. Bayraklar kapalıyken
+hassas istek bekçisiz OTOMATİK GİTMEZ (belirsizlik güvenli değildir).
 
 ## S. Mutasyon istatistikleri
 
