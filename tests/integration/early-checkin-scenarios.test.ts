@@ -606,6 +606,28 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  it("10d · 🚨 dil (09-25): model misafirin dilini YANLIŞ beyan etse ('tr') politika metni misafirin dilinde (koddan) kurulur", async () => {
+    const now = Z("2026-10-14T05:00:00.000");
+    at(now);
+    const infoNlu = nlu(null, [], {
+      requests: [{ intent: "early_checkin", query_tr: "erken giriş ücretli mi", query_original: "is early check-in paid" }],
+      stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+    });
+    const drifted = reply({
+      reply: "Early check-in may be possible depending on availability.",
+      stayChangeAsked: "none",
+      replyStance: "none",
+      detectedLanguage: "tr",
+    });
+    const t = await turnover();
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    openAi({ reply: drifted, understanding: infoNlu, guard: NO_REQUEST_GUARD });
+    const id = await conversationFor(t.propertyId, t.own.id, "Is early check-in paid? Could you tell me please?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    expect(sentBody().startsWith("The early check-in fee is €30. Whether an early check-in is possible depends on that day's cleaning; your host decides.")).toBe(true);
+    expect((await decision(id)).reason).toBe("early_checkin_policy");
+  });
+
   it("10c · politika metni YALNIZ gerçek bilgi sorusuna: modeller mesajların tamamını görmediyse ya da mesajda saat / başka gün varsa gitmez; host notu eklenmez; kaynak sayımı yazılmaz (inceleme 09-24)", async () => {
     const now = Z("2026-10-14T05:00:00.000");
     at(now);
