@@ -328,9 +328,9 @@ Bu dosyaya token/anahtar/parola yazma.
   tavanı 20 sn (QR `qr-in:` 120 sn TTL). Kanıtta `sc.ev` artık `sc.v`ye eşit (şema kararlılığı). Bekçi düşerse
   modelin konaklama sinyali varsa tutulur. Tek ağ kapısı `semantic/structured-call.ts` (Structured Outputs strict; alarm `semantic`
   kanalı), yapılandırma tek kaynak `semantic/config.ts`. Açma = eval (`evals/stay-change.json` YALNIZ `holdout`
-  satırları; `dev` görüldü) + kurucu onayı; sıra belge §5. **09-25: eval + mühürlü final GEÇTİ → açma kurucuda**
-  (Railway: önce `AI_UNDERSTANDING_ENABLED=1`, sonra `AI_STAY_GUARD_ENABLED=1`; değer tam `1`; `AI_SEMANTIC_*` BOŞ =
-  ölçülen yapılandırma). Ayarlar AI testi bekçiyi KOŞMAZ (hassas istekte orada "gönderilmez" görünür; belgeli fark). 🚨 **Risk niyetleri** (acil > şikâyet > iptal-iade >
+  satırları; `dev` görüldü) + kurucu onayı; sıra belge §5. **09-25: eval + mühürlü final GEÇTİ → kurucu İKİ bayrağı
+  CANLIDA AÇTI** (`AI_UNDERSTANDING_ENABLED=1` + `AI_STAY_GUARD_ENABLED=1`; `AI_SEMANTIC_*` BOŞ = ölçülen yapılandırma,
+  semantik katmanlar `OPENAI_MODEL`e düşer; model değişimi = yeni kör set). Ayarlar AI testi bekçiyi KOŞMAZ (hassas istekte orada "gönderilmez" görünür; belgeli fark). 🚨 **Risk niyetleri** (acil > şikâyet > iptal-iade >
   insan; `semantic/intent-risk.ts`): kelime ağının kaçırdığı dolaylı dil ÖLÇÜLDÜ; kapının SON kontrolü (kanal:
   güvenden sonra; QR: iki geçiş çıkışından önce), yalnız sıkılaştırır, katman koştuysa HER ZAMAN karar verir (birleşim
   değişmezi; kanıt `ir`); modelin kendi devir cevabı insan talebinde muaf; kanalı YALNIZ bu niyet kapattıysa acil yükseltme
@@ -969,6 +969,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   (`timeConflicts`) kapıya gider; çelişkili alana (niyet · misafir/cevap konusu · çelişen saat) değen cevap kanal + QR +
   Ayarlar/demo önizlemesinde `kb_time_conflict` — karar model güvenine BIRAKILMAZ (model 0.80 verdi). Doğrulanmış onay /
   politika metni de aynı listeyi taşır ve tutulur; kayıt gerekçesi o zaman `kb_time_conflict`. Raporlarda kendi satırı.
+- 🚨 **TASLAK = EV SAHİBİNİN SESİ (09-25, `ai/host-voice.ts`):** istemin devir kalıbı ("mesajınız kaydedildi; ev sahibiniz
+  görebilir" / "is the host's call …") otomatik giden mesajda ve QR'da AYNEN kalır; YALNIZ ev sahibine gösterilen taslakta
+  (inbox "AI öner" cevabı + saklanan `aiSuggestedReply`, Ayarlar testinde gönderilmeyecek cevap) onun ağzına çevrilir
+  ("kontrol edip size dönüş yapacağım"). Kapı, müsaitlik uyarısı ve erken giriş akışı ORİJİNAL metne bakar (erteleme
+  tanıma o kalıba dayanır). Tanınmayan biçim olduğu gibi kalır. Yeni bir taslak yüzeyi aynı fonksiyondan geçer.
 - **Model sağlayıcısı kalıcı arızası** (429+`insufficient_quota`, 401/403, 404/`model_not_found`) geçiş tabanlı
   alarma gider (`ai/provider-health.ts`); düz 429/5xx/ağ hatası eski yolda. Misafir her durumda fallback alır.
 - **Müsaitlik host metni** "müsait/kiralanabilir/kalabilirsiniz" DEMEZ; en güçlü ifade "bağlı takvimlerinizde

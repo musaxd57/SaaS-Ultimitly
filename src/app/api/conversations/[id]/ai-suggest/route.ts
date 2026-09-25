@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { scrubStyleProfileForPublic } from "@/lib/guest-chat";
 import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
+import { hostVoiceDraft } from "@/lib/ai/host-voice";
 import { getAdjacency } from "@/lib/turnover";
 import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
@@ -139,10 +140,14 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
   });
 
+  // TASLAK = EV SAHİBİNİN SESİ (09-25, `ai/host-voice.ts`): bu cevap misafire otomatik GİTMEZ, ev sahibi kendi adıyla
+  // gönderir → istemin devir kalıbı ("ev sahibiniz görebilir") onun ağzına çevrilir. Aşağıdaki müsaitlik / erken giriş
+  // kontrolleri ORİJİNAL metne bakar (erteleme tanıma o kalıba dayanır).
+  const hostDraft = hostVoiceDraft(result.reply);
   await prisma.message.update({
     where: { id: lastInbound.id },
     data: {
-      aiSuggestedReply: result.reply,
+      aiSuggestedReply: hostDraft,
       aiConfidence: result.confidence,
       aiIntent: result.intent,
     },
@@ -209,5 +214,5 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       }
     : null;
 
-  return jsonOk({ ...result, availabilityCheck, earlyCheckin });
+  return jsonOk({ ...result, reply: hostDraft, availabilityCheck, earlyCheckin });
 });

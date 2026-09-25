@@ -113,6 +113,34 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     await prisma.$disconnect();
   });
 
+  it("🚨 TASLAK = EV SAHİBİNİN SESİ (09-25): istemin devir kalıbı ev sahibine onun ağzından döner VE öyle saklanır; uyarı ORİJİNAL metinden", async () => {
+    const original =
+      "Our standard check-in is at 15:00. Whether an earlier arrival is possible is the host's call; your request has been recorded and is visible to your host.";
+    mockSuggest.mockResolvedValue({
+      ...BASE,
+      intent: "early_checkin",
+      reply: original,
+      stayChange: { asked: "early_checkin", stance: "defers" },
+    });
+    const id = await seed([{ direction: "inbound", body: "Can we check in early?" }]);
+    const res = await aiSuggest(
+      new NextRequest(`http://localhost/api/conversations/${id}/ai-suggest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    const body = (await res.json()) as { reply: string; availabilityCheck: string | null };
+    const hostVoice = "Our standard check-in is at 15:00. I'll check whether an earlier arrival is possible and get back to you.";
+    expect(body.reply).toBe(hostVoice);
+    expect(body.reply).not.toMatch(/visible to your host/);
+    const stored = await prisma.message.findFirstOrThrow({ where: { conversationId: id, direction: "inbound" } });
+    expect(stored.aiSuggestedReply).toBe(hostVoice);
+    // Uyarı kapıyla aynı yüklemden, orijinal metinle: bekçi burada koşmaz → erteleme kanıtlanamaz.
+    expect(body.availabilityCheck).toBe("availability_unconfirmed");
+  });
+
   it("KONTROL: sıradan soru + sıradan cevap → uyarı yok (null)", async () => {
     mockSuggest.mockResolvedValue(BASE);
     const id = await seed([{ direction: "inbound", body: "What's the wifi password?" }]);

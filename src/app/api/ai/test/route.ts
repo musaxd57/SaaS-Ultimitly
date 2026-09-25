@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { scrubStyleProfileForPublic } from "@/lib/guest-chat";
 import { suggestReply } from "@/lib/ai";
+import { hostVoiceDraft } from "@/lib/ai/host-voice";
 import { isClosingAck, isPositiveFeedback } from "@/lib/ai/fallback";
 import {
   composeClosingCourtesy,
@@ -209,7 +210,10 @@ export const POST = withManage(async (session, req) => {
   // this message would truly go out on its own.
   const signature = org?.aiSignature?.trim();
   const note = wouldAutoSend ? automatedReplyNote(result.detectedLanguage, org?.autoReplyDisclosure ?? true) : null;
-  const parts = [result.reply?.trimEnd() ?? ""];
+  // Gönderilmeyecek (taslak) cevap ev sahibinin sesiyle gösterilir — gelen kutusu önerisiyle aynı (`ai/host-voice.ts`);
+  // otomatik gidecek cevap istemin dürüst devir kalıbıyla aynen. Kapı yukarıda ORİJİNAL metne baktı.
+  const shown = wouldAutoSend ? result.reply : hostVoiceDraft(result.reply ?? "");
+  const parts = [shown?.trimEnd() ?? ""];
   if (note) parts.push(note);
   if (signature) parts.push(signature);
   const reply = result.reply ? parts.join("\n\n") : result.reply;

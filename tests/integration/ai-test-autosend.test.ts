@@ -125,6 +125,21 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect((await (await POST(req("Giriş saati kaçta?"), ctx)).json()).wouldAutoSend).toBe(false);
   });
 
+  it("🚨 TASLAK = EV SAHİBİNİN SESİ (09-25): gönderilmeyecek cevapta devir kalıbı ev sahibinin ağzından; gönderilecek cevap AYNEN", async () => {
+    await seed();
+    // Tutulan cevap (iade niyeti kapıda durur): kalıp çevrilir.
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, intent: "refund", reply: "Anlıyorum. Mesajınız kaydedildi; ev sahibiniz görebilir." });
+    const held = await (await POST(req("Kısmi iade istiyorum."), ctx)).json();
+    expect(held.wouldAutoSend).toBe(false);
+    expect(held.reply.startsWith("Anlıyorum. Mesajınızı aldım; kontrol edip size dönüş yapacağım.")).toBe(true);
+    expect(held.reply).not.toContain("ev sahibiniz görebilir");
+    // Otomatik gidecek cevap: misafire giden metnin birebir önizlemesi — çevrilmez.
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, reply: "Wi-Fi şifresi kartta. Mesajınız kaydedildi; ev sahibiniz görebilir." });
+    const auto = await (await POST(req("Merhaba, wifi şifresi nedir?"), ctx)).json();
+    expect(auto.wouldAutoSend).toBe(true);
+    expect(auto.reply.startsWith("Wi-Fi şifresi kartta. Mesajınız kaydedildi; ev sahibiniz görebilir.")).toBe(true);
+  });
+
   it("gate-blocked reply (refund) → wouldAutoSend false and the DRAFT stays note-free", async () => {
     await seed();
     mockSuggest.mockResolvedValue({ ...SAFE_WIFI, intent: "refund", reply: "İade talebinizi yöneticimize ilettim." });
