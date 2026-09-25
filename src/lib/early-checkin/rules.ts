@@ -15,6 +15,27 @@ export const EARLY_CHECKIN_TRIGGER = "early_checkin_request";
 export const EARLY_CHECKIN_NOTE_MAX = 200;
 const FEE_MAX = 10_000;
 
+/** Not ödeme yöntemi/yeri anlatıyorsa gösterilen hata (sade dil — CLAUDE.md). */
+export const EARLY_CHECKIN_NOTE_PAYMENT_ERROR =
+  "Not, ödemenin nasıl ya da nerede yapılacağını (kapıda, elden, nakit, IBAN gibi) içeremez. Bu kısmı nottan çıkarın.";
+
+/** Notun misafire giden biçimi (kontrol karakterleri ve fazla boşluk temizlenmiş). */
+function cleanNote(raw: string): string {
+  return raw.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Kural neden geçersiz: not ödeme anlatıyorsa ÖZEL metin (ev sahibi neyi düzelteceğini bilsin), değilse genel metin. */
+export function earlyCheckinRuleErrorMessage(raw: unknown): string {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const r = raw as Record<string, unknown>;
+    const hasFee = r.fee !== null && r.fee !== undefined;
+    if (typeof r.note === "string" && namesPaymentMethod(cleanNote(r.note), { paymentContext: hasFee })) {
+      return EARLY_CHECKIN_NOTE_PAYMENT_ERROR;
+    }
+  }
+  return EARLY_CHECKIN_RULE_ERROR;
+}
+
 /** Müşteriye gösterilen kısa hata (sade dil — CLAUDE.md). */
 export const EARLY_CHECKIN_RULE_ERROR =
   "Kuralı kontrol edin: saat SS:DD biçiminde olmalı; ücret 0'dan büyük olmalı; not en fazla 200 karakter olmalı; bağlantı, ödeme yöntemi ya da \"göndereceğiz, ayarladım\" gibi söz veren ifadeler içermemeli.";
@@ -45,7 +66,7 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
 
   let note: string | null = null;
   if (typeof r.note === "string") {
-    const n = r.note.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+    const n = cleanNote(r.note);
     if (n) {
       // Misafire OLDUĞU GİBİ gider: platform dışı ödeme yöntemi, bağlantı ve istem ayraçları yasak. Otomatik cevabın
       // çıktı vetosuna takılacak not ("taksinizi ayarladım") kayıtta reddedilir — yoksa kural hiç otomatik gönderemez

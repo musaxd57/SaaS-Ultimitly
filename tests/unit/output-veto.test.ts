@@ -89,6 +89,19 @@ describe("çıktı vetosu — 09-25 kaçan ETKEN iddialar (mesaj anlama çekirde
     "I'm forwarding this to the host.",
     "I'll pass this on.",
     "I'll ask the host.",
+    // Son kontrol ajanı (09-25): kaçan biçimler.
+    "Talebinizi kaydettim.",
+    "Ev sahibiyle iletişime geçtim.",
+    "Taksinizi ayarlayacağım.",
+    "Temizlikçiyi çağıracağım.",
+    "Konaklamanızı uzattım.",
+    "İade sürecini başlattım.",
+    "I've sent a message to your host.",
+    "I've reached out to the cleaner.",
+    "We'll send someone right away.",
+    "Let me forward this to the host.",
+    "We are looking into it.",
+    "I'm arranging a taxi for you.",
     // Kıvrık kesme işareti (model çıktısında sık; hepsi geçiyordu).
     "I’ve booked a taxi for 9:00.",
     "We’ve notified the cleaning team.",
@@ -120,6 +133,11 @@ describe("çıktı vetosu — 09-25 kaçan ETKEN iddialar (mesaj anlama çekirde
       "We have scheduled housekeeping every Wednesday.",
       "We called it the blue room.",
       "We have booked this flat for you from 15 to 18 October.",
+      // Son kontrol: sıfat-fiil (önceki gerçek mesaja atıf) ve olgu/nezaket.
+      "Size daha önce ilettiğimiz adres doğru.",
+      "İlettiğim mesajda kapı kodu yazıyor.",
+      "We are looking forward to hosting you.",
+      "Let me know if you need anything.",
     ]) {
       expect(vetoOutgoingReply(t), t).toBeNull();
     }
@@ -229,13 +247,34 @@ describe("sözleşme", () => {
       "He informado al anfitrión.",
       "Я передал ваше сообщение хозяину.",
       "لقد أبلغت المضيف.",
+      "He enviado su solicitud al anfitrión.",
+      "Я написал хозяину.",
+      "أرسلت طلبك إلى المضيف.",
     ]) {
       expect(vetoOutgoingReply(t), t).toBe("unverified_commitment");
     }
     // Edilgen ve olgu cümleleri bu dillerde de geçer (Türkçe/İngilizce ile aynı gerekçe).
-    for (const t of ["Ihre Nachricht wurde weitergeleitet.", "Ich habe keine Informationen dazu.", "He visto su mensaje.", "Vous pouvez appeler l'hôte via la plateforme."]) {
+    for (const t of [
+      "Ihre Nachricht wurde weitergeleitet.",
+      "Ich habe keine Informationen dazu.",
+      "He visto su mensaje.",
+      "Vous pouvez appeler l'hôte via la plateforme.",
+      // Çoğul + rezervasyon fiili = ev sahibi olgusu (İngilizce "we reserved" ile aynı gerekçe).
+      "Wir haben für jede Wohnung einen Parkplatz reserviert.",
+      "Nous avons réservé une place de parking pour chaque appartement.",
+      "Hemos reservado una plaza de aparcamiento para cada apartamento.",
+    ]) {
       expect(vetoOutgoingReply(t), t).toBeNull();
     }
+  });
+
+  it("⚠️ bilinen sınır (pinli): şimdiki zaman 'gönderiyorum' iddia sayılmaz — 'aşağıda gönderiyorum' cevabın kendisine atıftır", () => {
+    expect(vetoOutgoingReply("Size konumu gönderiyorum.")).toBeNull();
+  });
+
+  it("⚠️ ürün kararı bekliyor (pinli): modelin ERTELEME cevabı 'I'll check with the host (and get back to you)' tutulmaz — doğrulanmış erken giriş akışı buna dayanır", () => {
+    expect(vetoOutgoingReply("Thanks! I'll check with the host whether an early check-in is possible and get back to you.")).toBeNull();
+    expect(vetoOutgoingReply("Let me check with the host.")).toBeNull();
   });
 
   it("⚠️ EDİLGEN dal kapıda YOK — ölçülmüş bedel, test-pinli", () => {

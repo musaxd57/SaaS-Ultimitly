@@ -789,7 +789,8 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     const now = Z("2026-10-14T05:00:00.000"); // 08:00
     at(now);
     const v = await vacantNight(now);
-    const note = "Anahtar kapıdaki kilitli kutudadır; ücret platform üzerinden alınır.";
+    // Anahtar/erişim cümlesi para sözcüğü taşımıyor → ücretli kuralda da konum (payment-method-guard istisnası).
+    const note = "Anahtar kapıdaki kilitli kutudadır.";
     await saveEarlyCheckinRule(v.orgId, v.propertyId, { ...RULE, earliest: "10:00", note });
     openAi({ reply: reply(), understanding: nlu("10:00"), guard: guard("10:00") });
     const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));

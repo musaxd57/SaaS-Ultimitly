@@ -133,9 +133,10 @@ export const PATCH = withManage(async (session, req) => {
       const trimmed = (raw ?? "").toString().trim();
       if (trimmed.length > OFFER_TEXT_MAX) {
         errors.lateCheckoutOfferText = `En fazla ${OFFER_TEXT_MAX} karakter.`;
-      } else if (namesPaymentMethod(trimmed)) {
+      } else if (namesPaymentMethod(trimmed, { paymentContext: true })) {
+        // Teklif her zaman fiyat teklifidir → ödeme bağlamı var ("kapıda" burada ödeme yeridir).
         errors.lateCheckoutOfferText =
-          "Teklif metni ödeme yöntemi içeremez (elden/nakit/IBAN/havale vb.). Yalnızca fiyat ve koşulları yazın; tahsilatı siz yönetirsiniz.";
+          "Teklif metni ödemenin nasıl ya da nerede yapılacağını (kapıda, elden, nakit, IBAN gibi) içeremez. Yalnızca fiyatı ve koşulları yazın; tahsilatı siz yönetirsiniz.";
       } else {
         update.lateCheckoutOfferText = trimmed.length === 0 ? null : trimmed;
       }

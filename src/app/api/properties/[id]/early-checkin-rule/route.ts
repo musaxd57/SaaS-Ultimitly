@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
-import { EARLY_CHECKIN_RULE_ERROR, saveEarlyCheckinRule, validateEarlyCheckinRuleInput } from "@/lib/early-checkin/rules";
+import { earlyCheckinRuleErrorMessage, saveEarlyCheckinRule, validateEarlyCheckinRuleInput } from "@/lib/early-checkin/rules";
 
 // ---------------------------------------------------------------------------
 // MÜLKÜN ERKEN GİRİŞ KURALI (09-24, doğrulanmış erken giriş akışı — `lib/early-checkin`). Yalnız yönetici yazar
@@ -18,8 +18,9 @@ export const PUT = withManage<{ id: string }>(async (session, req, { params }) =
   const { id } = await params;
   const property = await ownProperty(session.organizationId, id);
   if (!property) return notFound();
-  const rule = validateEarlyCheckinRuleInput(await readJsonCappedOrNull(req));
-  if (!rule) return badRequest({ _: EARLY_CHECKIN_RULE_ERROR });
+  const input = await readJsonCappedOrNull(req);
+  const rule = validateEarlyCheckinRuleInput(input);
+  if (!rule) return badRequest({ _: earlyCheckinRuleErrorMessage(input) });
   if (!(await saveEarlyCheckinRule(session.organizationId, property.id, rule))) return notFound();
   await writeAudit({
     organizationId: session.organizationId,
