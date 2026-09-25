@@ -24,8 +24,9 @@ cevap modelinin şema beyanı · bağımsız bekçi · anlama katmanı), kelime 
    ise devreye girer. Kırmızı-önce 3 test (cevapsız istek, cevapsız acil durum + nezaket açık, kontrol).
 2. **Ödeme yöntemi süzgeci** (`payment-method-guard.ts`, eski `OFFER_PAYMENT_METHOD_RX` kaldırıldı): anlam parçalara
    ayrıldı — kendi başına yöntem adları (nakit, IBAN, havale, PayPal, Revolut, kripto, banka hesabı…) ve IBAN numarası
-   her yerde; YER/BİÇİM/YÖN sözcükleri (kapıda, elden, at the door, on arrival, in person, directly, hesabıma) METİNDE
-   ödeme/ücret/para birimi varsa (↓inceleme: ilk sürümün cümlecik kapsamı gerilemeydi). Minimal çift bataryası (aynı yer sözcüğü, bağlamlı/bağlamsız). **Kök regresyon testi 13d**: 13c
+   her yerde; YER/BİÇİM sözcükleri ödeme bağlamında ödeme yeri — ŞÜPHEDE REDDET (↓üç inceleme: bağlamı daraltan her
+   sürüm eski kalıbın yakaladığını geçirdi). Serbest kalan yalnız: bağlamsız yer sözcüğü ve para sözcüğü taşımayan
+   anahtar/erişim cümlesi ("Anahtar kapıdaki kutuda"). Minimal çift bataryası (aynı yer sözcüğü, bağlamlı/bağlamsız). **Kök regresyon testi 13d**: 13c
    fikstürünün değiştirilmesi sorunu gizlemişti (kurucu kuralı #28) — artık kapı konumu yazan not kuralı kapatmaz.
 3. **Kapı kanıtı** (`gate-evidence.ts`): kapı 14 ayrı kontrolü tek `blocked`de topluyordu. Artık karar kaydında
    `g = { d: ilk kapatan kontrol, lx: kelime ağı uyarıları, mi/mt/ml: modelin kapatıcı sinyalleri }` — anlama
@@ -34,6 +35,18 @@ cevap modelinin şema beyanı · bağımsız bekçi · anlama katmanı), kelime 
 4. **Çıktı vetosu** (`output-veto.ts`): TR "haber verdim, aradım, rezerve ettim, yönlendirdim, gönderdim, hallettim…",
    EN "booked, notified, called, sent, reported, escalated, let the host know, passed … to" + "we" ajanı. Bilinen bedel
    pinli: "We have booked this flat for you…" da tutulur (taslak, güvenli yön).
+
+### Son kontrol (üçüncü ajan) — ödeme süzgecinde YÖN değişti: şüphede REDDET
+İkinci sürüm de eski kalıbın yakaladığı gerçek talimatları geçiriyordu ("parayı kapıdaki kutuya bırakın", "kapıdaki
+görevliye ödeyin", "Ödeme eldendir", "bedel/tutar/TRY/CHF", "300TLnakit"). Sonuç: sözcükle ANLAM çözülemiyor (ChatGPT
+metninin haklı olduğu yer) → yön açıkça "şüphede reddet": yer sözcüğü ödeme bağlamında (teklif = her zaman; ücretli
+erken giriş notu; metinde para) ödeme yeridir; serbest kalan yalnız iki dar durum (bağlamsız yer sözcüğü; para sözcüğü
+taşımayan anahtar/erişim cümlesinde "kapıda/kapıdaki"). Eski kalıba karşı regresyon bataryası pinli (kaçak 0). Ev sahibi
+reddi sade ve ÖZEL metinle görür ("Not, ödemenin nasıl ya da nerede yapılacağını … içeremez"). Bedel pinli: fiyatla aynı
+metinde "kapıda ücretsiz otopark" da reddedilir. Veto: "ilettiğim/ilettiğimiz" sıfat-fiili ve DE/FR/ES çoğul
+rezervasyon olgusu artık tutulmaz; kaçanlar eklendi. 🚨 "I'll check with the host and get back to you" gibi ERTELEME
+cevabını tutmak doğrulanmış erken giriş akışını kapatırdı (15 test kırıldı) → bilinçli olarak tutulmuyor, KURUCU KARARI
+listesinde (§4).
 
 ### İki bağımsız inceleme (09-25, tur sonu) — düzeltilenler
 - **P2 (iki ajan da buldu): ödeme süzgecinin cümlecik bölmesi GERİLEMEYDİ** — "Ödeme: kapıda", "Ödeme şekli: elden",
@@ -81,6 +94,8 @@ yeni kör set gerekir (A yandı), ücretli koşu, model değişimine duyarlılı
 | 2 | Karşılaştırma: salt-okuma geri-test (Set B aracı) + YENİ kör set; model başına: yalnız-model tutuşları, yalnız-kelime ağı tutuşları, alıntı kaçırma, `uncertain` oranı | YOK | Kör set yazımı + ücretli koşu → onay |
 | 3 | Yalnız SIKILAŞTIRAN yetki (bayrakla): `day ≠ today` → otomatik erken giriş onayı yok; `act` → politika metni yalnız soru iken; `uncertain` → otomatik gönderim yok. Sonra kelime ağı ETİKETİNİN "uyarı"ya inmesi (acil/kural ihlali için anlama katmanı "yok" + model "yok" + kelime ağı "var" → tut ama acil etiketi/rozeti verme) | Sıkılaştırıcı | 🚨 Birleşim değişmezine dokunan kısım (son madde) kurucu kararı |
 | — | Cevap modelinin eylem beyanı: `claimedActions` (kapalı küme) — makbuz (`actionReceipt`) yoksa gönderilmez; çıktı vetosunun regex'i yedek kalır | Sıkılaştırıcı | İstem + şema + eval → onay |
+| — | "I'll check with the host / get back to you" gibi ERTELEME sözü: bugün İngilizce "I'll get back to you" tutuluyor ama "I'll check with the host and get back to you" ve Türkçe "Ev sahibiniz onaylayacak" geçiyor (asimetri). Tutmak doğrulanmış erken giriş akışını kapatır → akışın ertelemeye bağımlılığı yeniden tasarlanmalı | Karar | Kurucu kararı |
+| — | Ev sahibi metnini (teklif/not) kayıtta modelle sınıflandırmak (ödeme talimatı mı, anahtar konumu mu) — sözcük süzgeci yedek kalır | Sıkılaştırıcı | Model çağrısı + eval → onay |
 
 Ek öneriler (ChatGPT metninden, doğrulandı): anlama katmanı bugün `OPENAI_MODEL`e düşüyor → Luna'ya geçişte anlama da
 sessizce değişir; `AI_SEMANTIC_MODEL` pinlenmeli (kurucu kararı, env). Cevap modeli `json_object` ile çağrılıyor

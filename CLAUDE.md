@@ -392,14 +392,17 @@ Bu dosyaya token/anahtar/parola yazma.
   `HIGH_STAKES_RISK_TYPES` kümeleri oradan kurulur. Sözcüksel etiket yetkisini indirme kararı bu ölçüme dayanır (kurucu onayı;
   kelime listesine tek tek istisna YAZILMAZ). Kapanış kısayolu yalnız son giden mesajdan sonraki TÜM misafir mesajları
   kapanış/övgüyse (cevapsız istek + "teşekkürler" modeli atlatmaz).
-- **Ev sahibi metninde ödeme yöntemi TEK KAYNAK `payment-method-guard.ts` (09-25):** yöntem adı (nakit/IBAN/havale/PayPal/
-  kripto/banka hesabı…) ve IBAN biçimli numara her yerde; yer/biçim/yön sözcüğü (kapıda/elden/at the door/on arrival/in
-  person/directly/hesabıma) METNİN herhangi bir yerinde ödeme bağlamıyla — 🚨 CÜMLECİK DEĞİL (iki inceleme: "Ödeme:
-  kapıda", "Ücret 300 TL. Kapıda alınır." geçiyordu = gerileme); "kapıdaki" (nesnenin yeri) ve "ücretsiz" sayılmaz;
-  ücretli erken giriş kuralının notu `paymentContext` taşır (ücret onaya kodla yazılır). Türkçe katlama (JS `/i`
-  "İBAN/KAPIDA"yı katlamaz). Misafir mesajına UYGULANMAZ. Bilinen bedel (pinli): olumsuzlanan yöntem ve ücretli kuralda
-  "elden teslim" de reddedilir (güvenli yön). 🚨 Kural
-  (kurucu #28): test bir sözcük çakışmasıyla düşerse fikstür değiştirilip geçilmez — gerçek mesajda olabiliyorsa kök
+- 🚨 **Ev sahibi metninde ödeme yöntemi/yeri TEK KAYNAK `payment-method-guard.ts` (09-25) — ŞÜPHEDE REDDET:** yanlış ret
+  bir cümle yeniden yazdırır, kaçak ise yapay zekânın misafire platform dışı ödeme talimatı iletmesidir. Üç inceleme turu
+  ölçtü: bağlamı daraltan her sürüm eski kalıbın yakaladığı gerçek talimatları geçirdi ("Ödeme: kapıda", "parayı kapıdaki
+  kutuya bırakın", "Ödeme eldendir"). Kural: yöntem adı + IBAN numarası her yerde; yer/biçim sözcüğü (kapıda* tüm
+  çekimler, elden*, at the door, on arrival, in person, girişte) ÖDEME BAĞLAMINDA ödeme yeri (geç çıkış teklifi = her zaman
+  bağlam; ücretli erken giriş notu = bağlam; metinde para sözcüğü = bağlam); yön sözcüğü (directly/doğrudan/hesabıma)
+  yalnız aynı cümlede ödeme fiiliyle. Serbest kalan YALNIZ iki dar durum: bağlam yoksa yer sözcüğü, ve para sözcüğü
+  taşımayan anahtar/erişim cümlesindeki "kapıda/kapıdaki" ("Anahtar kapıdaki kutuda"). Eski kalıba karşı REGRESYON
+  bataryası pinli. Erken giriş notu ödeme anlatıyorsa ev sahibine ÖZEL sade hata. Misafir mesajına UYGULANMAZ. Anlamı
+  gerçekten çözmek anlama katmanı işi (öneri). 🚨 Kural (kurucu #28): test bir sözcük çakışmasıyla düşerse fikstür
+  değiştirilip geçilmez — gerçek mesajda olabiliyorsa kök
   regresyon testi yazılır (örnek 13d).
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
@@ -987,8 +990,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi + iki incelemeyle düzeltildi: kıvrık kesme işareti düz
   olana çevrilir; haber verdim/aradım/onayladım/güncelledim/iletiyorum · booked/notified/let the host know/I'm forwarding/
   I'll ask the host · DE/FR/ES/RU/AR 1. şahıs iletişim fiilleri. "gönderdik/paylaştık/we sent" YOK (gerçekten giden önceki
-  mesaja atıf), "we" yalnız iletişim fiillerinde (ev sahibi olgusu "we reserved/called" değil), soru eki iddia değil.
-  Korpus 1.287 cevapta tur öncesine göre 2 yeni veto (ikisi de gerçek iddia), düşen yok. Bekletme mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
+  mesaja atıf), "we" yalnız iletişim fiillerinde (ev sahibi olgusu "we reserved/called" değil), soru eki iddia değil,
+  "ilettiğim/ilettiğimiz" sıfat-fiili iddia değil. Korpus 1.287 cevapta tur öncesine göre 4 yeni veto (hepsi gerçek izin
+  iddiası), düşen yok. 🚨 "I'll check with the host (and get back to you)" ERTELEMESİ BİLEREK tutulmaz (doğrulanmış erken
+  giriş akışı ertelemenin kapıdan geçmesine dayanır) — tutmak ürün kararı (kurucu), pinli. Bekletme mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
 - **Temellendirme kaydı:** geri çekilme kırpması + pack bütçesi `kbDropped`e SAYILIR (`capacity` ≠ `ungrounded`);
   `supersededById` düşüşü sayılmaz; kalite denetçisi `aiSourcesJson` görür (null ≠ "kaynak yok").
 - **Bütçe:** "12 çağrı = 1 birim" Inbox önizlemesidir (Ayarlar kartı değil); oran fiyatlandırma kararı.
