@@ -64,6 +64,18 @@ describe("durum — karar kaydından açık konular", () => {
     expect(s.items).toEqual([{ topic: "early_checkin", status: "deferred_to_host" }]);
   });
 
+  it("🚨 kanal: kapsayan geçiş ertelemeden cevapladıysa eski tutuş 'bekliyor' SAYILMAZ (farklı konu — üzerine yazılma yok)", () => {
+    // Mutasyon turu (CB20): yukarıdaki test aynı konuyu kullanıyordu; yeni karar eskisinin üstüne yazdığı için "kapsandı"
+    // kuralı kaldırılsa da geçiyordu.
+    const m1 = guest();
+    const m2 = guest();
+    const s = buildConversationState({
+      messages: [m1, m2, ai()],
+      decisions: [decision(m1.id, { riskType: "complaint" }), decision(m2.id, { finalDecision: "auto_sent", reason: "gate_passed" })],
+    });
+    expect(s.items).toEqual([]);
+  });
+
   it("gönderilmiş erteleme + sonra ev sahibi yazdı → host_replied", () => {
     const m = guest();
     const s = buildConversationState({
@@ -148,6 +160,25 @@ describe("durum — karar kaydından açık konular", () => {
     expect(s.items.at(-1)).toEqual({ topic: "complaint", status: "pending_host" });
   });
 
+  it("🚨 aynı konu yeniden geçerse EN YENİ konumuna taşınır (5 sınırında yeni konu, eskinin yerine düşmez)", () => {
+    // Mutasyon turu (CB22): konu tekrar etmeyen tek testte "eskiyi silip sona ekle" kaldırılınca hiçbir şey düşmüyordu.
+    const m1 = guest();
+    const m2 = guest();
+    const m3 = guest();
+    const s = buildConversationState({
+      messages: [m1, host(), m2, host(), m3],
+      decisions: [
+        decision(m1.id, { kbEvidenceJson: stayAsk("early_checkin") }),
+        decision(m2.id, { kbEvidenceJson: stayAsk("late_checkout") }),
+        decision(m3.id, { kbEvidenceJson: stayAsk("early_checkin") }),
+      ],
+    });
+    expect(s.items).toEqual([
+      { topic: "late_checkout", status: "host_replied" },
+      { topic: "early_checkin", status: "pending_host" },
+    ]);
+  });
+
   it(`yalnız son ${STATE_DECISION_WINDOW} misafir mesajının kaydı okunur`, () => {
     const old = guest();
     const msgs: StateMessage[] = [old];
@@ -187,6 +218,14 @@ describe("konu adı — yalnız model/kod kaynaklı kapalı küme", () => {
 });
 
 describe("yazar — authorType; yoksa eski ad kuralı; sistem olayı ve boş gövde sayılmaz", () => {
+  it("🚨 sistem olayı işareti yazar alanından BAĞIMSIZ elenir (yazarı boş, adı ev sahibi gibi) — sayım kuralıyla parite", () => {
+    // Mutasyon turu (CB28): yazar çözümleyici yazarı boş satırda işarete değil ADA bakar; işaret kontrolü kalkınca böyle
+    // bir satır "ev sahibi yazdı" sayılıyordu. `countPriorOperatorReplies` de işaretli her satırı eler.
+    const sys: StateMessage = { id: "s1", direction: "outbound", senderName: "Ayşe", authorType: null, systemEventType: "guest_chat_ai_resumed", body: "x" };
+    const s = buildConversationState({ messages: [guest(), sys], decisions: [] });
+    expect(s).toMatchObject({ outbound: 0, hostOutbound: 0, unansweredGuest: 1 });
+  });
+
   it("eski satırlar: 'GuestOps AI' yapay zekâ, başka ad ev sahibi; sistem olayı/boş gövde mesaj değil", () => {
     const legacyAi: StateMessage = { id: "l1", direction: "outbound", senderName: "GuestOps AI", body: "x" };
     const legacyHost: StateMessage = { id: "l2", direction: "outbound", senderName: "Ayşe", body: "x" };
