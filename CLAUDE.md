@@ -392,6 +392,27 @@ Bu dosyaya token/anahtar/parola yazma.
   `HIGH_STAKES_RISK_TYPES` kümeleri oradan kurulur. Sözcüksel etiket yetkisini indirme kararı bu ölçüme dayanır (kurucu onayı;
   kelime listesine tek tek istisna YAZILMAZ). Kapanış kısayolu yalnız son giden mesajdan sonraki TÜM misafir mesajları
   kapanış/övgüyse (cevapsız istek + "teşekkürler" modeli atlatmaz).
+- 🚨 **KAPANIŞA SESSİZLİK (kurucu kuralı 09-25, `ai/closing-turn.ts`):** önceki bir cevaptan sonra cevapsız misafir
+  mesajlarının HEPSİ teşekkür/onay (`isClosingAck`) ise HİÇBİR ŞEY gönderilmez, karar kaydı `no_reply` (`closing_ack` /
+  `closing_ack_semantic`). İlk mesaj selamdır (modele). Övgü sözcük yolunda SUSTURULMAZ (övgü listesi soru işaretsiz soruyu
+  kabul ediyordu — inceleme): nezaket açıksa nezaket cevabı, değilse model. Sözcük listesi BÜYÜTÜLMEZ; anlam yolu
+  `semanticClosingHolds` (kanal + önizleme, QR eşdeğeri): anlama katmanı yalnız `greeting_thanks` (liste tavanda değil) +
+  cevap modeli genel/<0.4, eksik bilgi/eylem önerisi yok + kapı GÜVEN 1 İLE temiz + sözcüksel itiraz (soru işareti, teşekkür
+  sinyali yok, kelime ağı niyeti) YOK — sözcük kuralları yalnız sıkılaştırır. QR: tüm cevapsız mesajlar + önceki cevap.
+  **Sessizlik ≠ gizleme:** "Cevap gerekmedi" (`skippedReason=closing_ack` + damga ≥ `lastMessageAt`; TÜRETİLİR, tek kaynak
+  `lib/conversation-attention.ts`; `answered`/`closed` YAZILMAZ; "Sorunlu" asla; SQL ikizi NULL güvenli) YALNIZ açık iş
+  yoksa (`closingMayHide`: son cevap devir/şikâyet, soru ya da tutar değil + `hasOpenHostWork` yok — okuma hatası = açık +
+  sağlayıcı damgası kararla ≤2 dk); yoksa `closing_ack_open` (görünür). Cevap oranı `no_reply` mesajını saymaz. Yeni
+  "bekleyen iş" yüzeyi aynı yüklemi kullanır. Bilinen sınır: çıkıştan sonraki teşekkür `reservation_ended`e düşer.
+- 🚨 **ZAMAN BAĞLAMI TEK KAYNAK `ai/stay-timeline.ts` (09-25):** istemin "Bugün: … · Yarın: …" + evre satırı org diliminde,
+  günler `calendarDateOf`, gün farkı takvim günü (eski satır sunucu saatiyle çıkış sabahı "konaklama tamamlandı" diyordu).
+  `suggestReply` çağıran her yüzey `timeZone` geçirir (kanal, öneri, Ayarlar testi, QR — QR'da rezervasyon ayrıntısı YOK).
+  Onaysız / iptal rezervasyon ayrı satır (evre anlatılmaz); 05:00 öncesi "yarın = çoğu zaman bugün" ipucu; geçmiş standart
+  saat "bugün bu saat GEÇTİ"; bilgi tabanıyla çelişen saat bu satırda YOK. "Konaklama bitti" kontrolü ve komşu rezervasyon
+  satırları da `calendarDateOf` (ham damga ↔ gün başı kıyası New York'ta çıkış günü boyunca AI'yı susturuyordu). Göreli gün
+  bu satıra göre çözülür; NETLEŞTİRME SON ÇAREDİR (olası anlamı öneren tek soru). Çıkış saati: bir YERE gitmek çıkış değil
+  (istem, anlam modelde); düzeltme (`timeCorrectedInMessage`, halüsinasyon durdurucu) ancak düzeltme/çıkış işareti + cümlede
+  TAM iki saat belirteci, eski ve yeni FARKLI belirteçte (sayaç/numara/tarih saat değil; "10 pm" yalnız 22:00).
 - 🚨 **Ev sahibi metninde ödeme yöntemi/yeri TEK KAYNAK `payment-method-guard.ts` (09-25) — ŞÜPHEDE REDDET:** yanlış ret
   bir cümle yeniden yazdırır, kaçak ise yapay zekânın misafire platform dışı ödeme talimatı iletmesidir. Üç inceleme turu
   ölçtü: bağlamı daraltan her sürüm eski kalıbın yakaladığı gerçek talimatları geçirdi ("Ödeme: kapıda", "parayı kapıdaki
@@ -992,8 +1013,17 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   I'll ask the host · DE/FR/ES/RU/AR 1. şahıs iletişim fiilleri. "gönderdik/paylaştık/we sent" YOK (gerçekten giden önceki
   mesaja atıf), "we" yalnız iletişim fiillerinde (ev sahibi olgusu "we reserved/called" değil), soru eki iddia değil,
   "ilettiğim/ilettiğimiz" sıfat-fiili iddia değil. Korpus 1.287 cevapta tur öncesine göre 4 yeni veto (hepsi gerçek izin
-  iddiası), düşen yok. 🚨 "I'll check with the host (and get back to you)" ERTELEMESİ BİLEREK tutulmaz (doğrulanmış erken
-  giriş akışı ertelemenin kapıdan geçmesine dayanır) — tutmak ürün kararı (kurucu), pinli. Bekletme mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
+  iddiası), düşen yok. 🚨 **BEKLEME SÖZÜ TUTULUR (kurucu kararı 09-25: "Guest hiçbir 'soruyorum/döneceğim' mesajı
+  almayacak"):** 09-25 gövdeleri (soracağım/kontrol edeceğim/teyit edecek/onaylayacak…) YALNIZ 1. şahıs ya da EV SAHİBİ
+  öznesiyle söz; süreç anlatımı ("site güvenliği adınızı soracak", "Her misafirden önce kontrol ediyoruz", "We will verify
+  your ID") ve misafire sorulan netleştirme ("soruyorum: …?", "Let me check if I understood: …?") DEĞİL — inceleme bataryası
+  168 cümle: yanlış pozitif 23→0, kaçan 76→1 (edilgen "dönüş yapılacaktır", bilinçli). EN "I'll check." / "Let me check." /
+  keep you posted / you'll hear back; DE/FR/ES/RU/AR 1. şahıs + ev sahibi gelecek (şimdiki zaman olgu cümlesi DEĞİL).
+  **İnsan talebi muafiyeti KALKTI:** söz taşıyan devir tutulur, yükseltme yolu ev sahibine acil bildirir. Taslak YALNIZ
+  vetoyla tutulduysa (`skipOutputVetoForDiagnosis`) doğrulanmış erken giriş akışı yine koşar (bekçi yalnız erken giriş
+  isteği varsa); güven/risk kapanışında KOŞMAZ. Kayıtlı erken giriş notu vetoya takılırsa kural KAPANMAZ (not düşer,
+  `noteRejected`, mülk sayfası uyarır); geç çıkış teklif metni kayıtta vetodan geçer. İstem söz EMRETMEZ. Bekletme
+  mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
 - **Temellendirme kaydı:** geri çekilme kırpması + pack bütçesi `kbDropped`e SAYILIR (`capacity` ≠ `ungrounded`);
   `supersededById` düşüşü sayılmaz; kalite denetçisi `aiSourcesJson` görür (null ≠ "kaynak yok").
 - **Bütçe:** "12 çağrı = 1 birim" Inbox önizlemesidir (Ayarlar kartı değil); oran fiyatlandırma kararı.
@@ -1042,6 +1072,14 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-25 MESAJLAŞMA ÇEKİRDEĞİ v2 TURU (kurucu: kapanışta sessizlik, bekleme sözü yok, Konuşma Anlama Durumu, Host Karar
+Motoru; `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md`):** kapanışa sessizlik + "cevap gerekmedi" hâli · zaman bağlamı (CUS v1
+dilim A) · çıkış saati düzeltmesi + yolculuk ayrımı · netleştirme politikası · bekleme sözü vetosu — migration'sız,
+kırmızı-önce + mutasyon (35+15+15+14). Üç inceleme ajanının bulguları ayrı commitlerle kapandı (veto `6c7b439` · kapanış
+`1785250` · zaman `a83459d`; belge §1.6). ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
+e-posta), bekleme sırasında A/B (SABİTLENMEDİ), `claimedActions` ve CUS v1 dilim B (bayrak + ücretli eval), CUS v2 defter
+(migration).
+
 **09-25 MESAJ ANLAMA ÇEKİRDEĞİ TURU (kurucu: ChatGPT'nin "kelime kuralları anlam kararı vermesin" metni; "mantıklıysa
 uygula, çok büyükse söyle"):** kapanış kısayolu (cevapsız istek kayboluyordu) · ödeme süzgeci kök düzeltmesi ("kapıda") ·
 kapı kanıtı `g` · çıktı vetosu genişletmesi — hepsi migration'sız, kırmızı-önce + mutasyon. Büyük öneri (anlama v2:

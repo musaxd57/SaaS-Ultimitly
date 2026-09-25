@@ -28,21 +28,28 @@ kurucu onayı isteyen büyük parçalar.
 ## 1. Bu turda kodda yapılanlar
 
 ### 1.1 Kapanışa sessizlik + "cevap gerekmedi" hâli (`ai/closing-turn.ts`, `lib/conversation-attention.ts`)
-- **Kanal, sözcük yolu:** cevapsız misafir mesajlarının HEPSİ teşekkür/onay/övgü ise model çağrılmaz, hiçbir şey
-  gönderilmez. Artık övgü ("Harika bir konaklamaydı!") ve önceki cevabı olmayan teşekkür de bu yolda. Eskiden ikisi de
-  modele gidiyordu ve modelin cevabı otomatik gidebiliyordu. Nezaket cevabı (kullanıcı açarsa) aynen çalışır.
+- **Kanal, sözcük yolu:** cevapsız misafir mesajlarının HEPSİ teşekkür/onay (`isClosingAck`) ise ve misafire daha önce
+  bir cevap gittiyse model çağrılmaz, hiçbir şey gönderilmez. İlk mesaj ("İyi akşamlar", "Merhaba") bir selamdır, modele
+  gider. Övgü ("Harika bir konaklamaydı!") bu yolda SUSTURULMAZ (inceleme, ↓1.6): nezaket cevabı açıksa o cevabı alır,
+  kapalıysa modele gider; yalnız anlam yolu susturabilir. Nezaket cevabı (kullanıcı açarsa) aynen çalışır.
 - **Kanal, anlam yolu (`semanticClosingHolds`):** sözcük listesi "Anladım", "Anladım teşekkürler", "Kolay gelsin",
   "Tamam anladım", "Understood" ifadelerini TANIMIYOR (ölçüldü). Listeyi büyütmek yerine şu şartlarla anlam yolu
   kullanılıyor:
-  - anlama katmanı cevapsız mesajların tamamında yalnız `greeting_thanks` gördü;
-  - cevap modeli istemin kapanış kuralına uydu (genel niyet, güven < 0.4);
+  - misafire daha önce bir cevap gitti;
+  - cevapsız hiçbir mesajda soru işareti yok, hepsinde bir teşekkür/onay/veda sinyali var ve kelime ağı hiçbirinde bir
+    niyet (erken giriş, şikâyet…) görmüyor — bu sözcük kuralları yalnız SIKILAŞTIRIR;
+  - anlama katmanı cevapsız mesajların tamamında yalnız `greeting_thanks` gördü ve listesi tavanda (5) değil (tavandaki
+    liste kesilmiş olabilir);
+  - cevap modeli istemin kapanış kuralına uydu (genel niyet, güven < 0.4), eksik bilgi ve eylem önerisi boş;
   - kapı güven 1 ile baştan koşunca hiçbir engel çıkmadı.
 
   Son şart **birleşim değişmezidir**: kelime ağının, beyanın ya da anlama katmanının konaklama isteği, risk niyeti,
   injection, çıktı vetosu, saat çelişkisi ve dil hiçbir koşulda susturulamaz. "İlk düşen kontrol düşük güven mi" sorusu
   ölü mantıktı ve kaldırıldı (kapının güvene bağlı kontrolleri yalnız `confidence_invalid` ve `low_confidence`).
 - **QR:** teşekküre devir yok, ev sahibine uyarı yok, model ve günlük kota harcanmıyor. Eskiden her teşekkür düşük
-  güvenden devrediliyordu: misafir "kaydedildi" metnini alıyor, ev sahibi uyarılıyordu.
+  güvenden devrediliyordu: misafir "kaydedildi" metnini alıyor, ev sahibi uyarılıyordu. Kanalla aynı kurallar: önceki
+  cevap şart ve son cevaptan sonraki TÜM misafir mesajları kapanış olmalı (yapay zekâ duraklatılmışken yazılmış bir soru
+  bir "teşekkürler"in arkasında kaybolmasın).
 - **Karar kaydı:** yeni `finalDecision = no_reply` (şema yorumu; migration yok), gerekçe `closing_ack` ya da
   `closing_ack_semantic`.
 - **"Cevap gerekmedi" hâli:** konuşmanın durumu değiştirilmiyor, hâl türetiliyor. Koşul: `skippedReason = closing_ack`
@@ -52,6 +59,19 @@ kurucu onayı isteyen büyük parçalar.
     sekmesi, "Dikkat gerektirenler" ve oto-yanıt önizlemesi.
   - "Tümü" sekmesinde kendi etiketiyle görünüyor. "Sorunlu" asla gizlenmez. Misafir yeniden yazınca hâl kendiliğinden
     düşer.
+  - 🚨 **Gizleme yalnız açık iş olmadığı KESİNSE** (`closingMayHide`, inceleme ↓1.6). Gizlenmez:
+    - son cevap yapay zekânın devir / şikâyet bekletme cevabıysa;
+    - son cevap bir soru ya da tutar/indirim taşıyorsa ("Tamam olur" bir teklif KABULÜDÜR);
+    - son ev sahibi mesajından sonra ev sahibine bırakılmış bir misafir mesajı varsa (karar kaydı `human_review`, ya da
+      gönderilmiş ama kararı ev sahibine bırakan erteleme; okuma hatası = açık sayılır);
+    - sağlayıcının son mesaj damgası karar verilen mesajdan 2 dakikadan fazla ilerideyse (içe alınmamış bir fotoğraf
+      mesajı kararın ardından gelmiş olabilir).
+
+    Bu durumlarda misafire yine HİÇBİR ŞEY gitmez ama konuşma görünür kalır (`closing_ack_open`; etiket "Misafir teşekkür
+    etti; otomatik cevap gönderilmedi. Açık bir konu varsa yanıtlayın."). Yanlış gizleme gerçek bir işi kaybettirir,
+    gereksiz görünürlük ucuzdur.
+- **Cevap oranı (Raporlar):** yapay zekânın bilerek cevapsız bıraktığı kapanış mesajı (karar kaydı `no_reply`) cevap
+  bekleyen mesaj sayılmaz; önceki cevapsız mesajın saati aynen işler.
 - **Önizleme paritesi:** Ayarlar "AI cevabını gör" kartı artık aynı yüklemi kullanıyor. Eskiden övgü için "normal AI
   akışına düşer" yazıyordu ve hiç gönderilmeyecek bir taslak gösteriyordu. Oto-yanıt önizleme penceresinde kapanışlar
   "size bırakılır" listesine girmiyor.
@@ -78,14 +98,29 @@ kurucu onayı isteyen büyük parçalar.
   - Satır iddia ölçümünün bağlamına da giriyor.
   - Dört yüzey (kanal, gelen kutusu önerisi, Ayarlar testi, QR) org dilimini geçiriyor. QR'da rezervasyon ayrıntısı
     yine yok; bugünün tarihi kişisel veri değil.
-- **Mutasyon:** 15/15.
+- **İnceleme düzeltmeleri (↓1.6):**
+  - Onaylanmamış rezervasyon "henüz ONAYLANMADI … onaylı bir konaklama gibi anlatma", iptal planlanan tarihleriyle
+    yazılır (evre anlatılmaz). Geçersiz tarih "rezervasyon yok" gibi okunur.
+  - 00:00–04:59 arası saat satırı "misafirin 'yarın'ı çoğu zaman BUGÜNÜ kasteder; kesin sonuç gerektiren konuda tek soru"
+    ipucunu taşır.
+  - Giriş/çıkış günü standart saat geçtiyse "bugün bu saat GEÇTİ" yazılır; bilgi tabanıyla çelişen standart saat bu
+    satırda tekrarlanmaz.
+  - "Konaklama bitti" kontrolü (`automation.ts`) de takvim günü kuralına geçti: batı dilimlerinde (New York) yalnız
+    tarih saklanan çıkış, çıkış günü boyunca "bitti" sayılıyordu (misafir dairedeyken yapay zekâ susuyordu).
+  - Komşu rezervasyon satırları (erken giriş / geç çıkış baskısı) aynı gün kuralıyla, gün adıyla yazılır.
+- **Mutasyon:** 15/15 (ilk dilim); inceleme dilimi ↓1.6.
 
 ### 1.3 Çıkış saati: yolculuk ≠ çıkış, düzeltme = yeni saat
 - **İstem:** "bir YERE gitmek çıkış saati DEĞİLDİR" ("10'da havaalanına çıkacağız", "yemeğe çıkıyoruz"). Düzeltmede
   YENİ saat yazılıyor.
 - **Kod:** anlamı model çözüyor. `timeCorrectedInMessage` yalnız halüsinasyon durdurucu: kayıtlı eski saat ve yeni saat
   aynı cümlede geçmeli (tam sayı; "110" içinden "11" okunmaz) ve ayrılmayı reddetme vetosu aynen geçerli. Eskiden
-  düzeltme reddediliyor, eski saat kayıtlı kalıyordu.
+  düzeltme reddediliyor, eski saat kayıtlı kalıyordu. İnceleme sonrası (↓1.6) ek şartlar:
+  - cümlede bir düzeltme ("demiştim / yerine / değil / instead…") ya da çıkış işareti olmalı;
+  - cümlede TAM İKİ saat belirteci olmalı ve eski ile yeni saat FARKLI belirteçlerde okunmalı (tek "10" hem 10:00 hem
+    22:00 okunuşuyla iki saati birden karşılayamaz; üç saatli uçuş cümlesi bu yoldan kabul edilmez);
+  - sayaç ("2 kişi", "10 tane"), numara ("oda 10") ve tarih ("10/11") saat değildir; "10 pm" yalnız 22:00'dır.
+  - "Yazılan saat" yolunda sonraki cümleciğe bakma yalnız ipucu cümleciğinde saat yoksa yapılır.
 - Kodun "yolculuk" için ek sözcük kuralı YAZILMADI. Kurucu ilkesi anlamın modelden gelmesi; kayıt da yalnız sıkılaştırır.
 
 ### 1.4 Netleştirme politikası (istem)
@@ -101,24 +136,94 @@ Sırası şöyle:
 - **Çıktı vetosu:** bekleme sözleri artık tutuluyor. Önceden "I'll check with the host" BİLEREK geçiyordu; doğrulanmış
   erken giriş akışı buna dayanıyordu. Tutulanlar:
   - TR: soracağım, danışacağım, kontrol edeceğim, "ev sahibiniz teyit edecek / netleştirecek / size bilgi verecek /
-    ilgilenecek / onaylayacak", soruyorum, danışıyorum, sorarım.
-  - EN: check with, find out, double-check, let me check.
-  - DE/FR/ES/RU/AR: 1. şahıs gelecek sözü. Şimdiki zaman olgu cümleleri bilerek dışarıda ("Je vous confirme que…").
-- **Ölçüm (1.287 cevaplık derlem):** 9 yeni veto, hepsi ev sahibi adına verilen gelecek sözü; biri doğrudan izin
-  iddiası ("onaylayacaktır"). Hiçbir önceki veto düşmedi.
-- **Erken giriş akışı:** taslak YALNIZ bu vetoyla tutulduysa bekçi ve doğrulanmış erken giriş akışı yine koşar. Sonuç
-  iki durumdan biri:
+    ilgilenecek / onaylayacak / size döner", sorarım; "soruyorum" yalnız ev sahibine soruluyorsa, "kontrol ediyorum /
+    bakıyorum" yalnız 1. tekil.
+  - EN: I'll check (with the host) / Let me check. / I'll look into it / keep you posted / find out / double-check /
+    "your host will review your request and let you know" / "you'll hear back".
+  - DE/FR/ES/RU/AR: 1. şahıs gelecek sözü (DE devrik dizim dahil) ve ev sahibi öznesiyle gelecek. Şimdiki zaman olgu
+    cümleleri bilerek dışarıda ("Je vous confirme que…").
+  - 🚨 Süreç anlatımı söz DEĞİLDİR (inceleme ↓1.6): 09-25 gövdeleri yalnız 1. şahıs ya da EV SAHİBİ öznesiyle söz
+    sayılır — "Girişte site güvenliği adınızı soracak", "Temizlik ekibi daireyi kontrol edecek", "Her misafirden önce
+    daireyi kontrol ediyoruz", "We will verify your ID at check-in", "The host will check for damages after checkout"
+    geçer. Misafire sorulan netleştirme de söz değildir ("Emin olmak için soruyorum: …?", "Let me check if I understood:
+    …?", "Je vais vous demander une précision…?", "Уточню: …?").
+- **Ölçüm:**
+  - İlk sürüm, 1.287 cevaplık derlem: 9 yeni veto, hepsi ev sahibi adına verilen gelecek sözü; biri doğrudan izin
+    iddiası ("onaylayacaktır"). Hiçbir önceki veto düşmedi.
+  - İnceleme sonrası, 168 cümlelik 6 dilli batarya: yanlış pozitif 23 → 0, kaçan söz 76 → 1 (bilerek kapsam dışı edilgen
+    "dönüş yapılacaktır").
+  - Derlemde veto 19 → 33: 14 yeninin hepsi ev sahibi adına söz ("ev sahibiniz teyit edecek", "your host will check …
+    and confirm"); kaybolan veto 0. 540 gerçek model cevabında yeni tutma 0; koddan kurulan metinler ve 24 örnek cevapta 0.
+- **İnsan talebi muafiyeti KALKTI:** muafiyet "ev sahibinize soracağım ve size döneceğim" devir cevabını otomatik
+  geçiriyordu. Söz taşıyan devir artık tutulur. Model insan talebini etiketlediyse (`riskType` human_request) ya da anlama
+  katmanı insan talebi gördüyse yükseltme yolu ev sahibine ACİL bildirir ("Sorunlu"); devir sessizce ölmez. İstemin devir
+  cümlesi zaten olgudur ("Mesajınız kaydedildi; ev sahibiniz görebilir.").
+- **Erken giriş akışı:** taslak YALNIZ bu vetoyla tutulduysa doğrulanmış erken giriş akışı yine koşar. Sonuç iki
+  durumdan biri:
   - doğrulanmış onay sözün yerine gider;
   - ev sahibi kontrol listesini görür, misafire söz gitmez.
 
   "Yalnız veto tuttu" demek, veto olmasa kapının geçeceği ya da akışın zaten kabul ettiği bir gerekçeyle tutacağı
-  anlamına gelir. Kapı güvenden ya da riskten kapanıyorsa akış yine koşmaz (P2).
+  anlamına gelir. Kapı güvenden ya da riskten kapanıyorsa akış yine koşmaz (P2). Bekçi (ağ çağrısı, 20 sn tavan) bu
+  durumda yalnız bir katman erken giriş isteği gördüyse çağrılır; başka konuda veto zaten tutar.
+- **Kayıtlı ev sahibi metinleri:** kayıtlı erken giriş notu bugünkü vetoya takılırsa kural KAPANMAZ; not düşer ve mülk
+  sayfası "Kayıtlı notunuz artık misafire gönderilmiyor … Yeni bir not yazıp kaydedin." der (eskiden kural sessizce
+  "kapalı" görünüyordu). Geç çıkış teklif metni kayıtta vetodan geçer ("Teklif metni söz ya da yapılmamış bir işlem
+  içeremez …").
 - **İstem:**
   - Geç çıkış teklif bloğu artık "ev sahibinin teyit edeceğini belirt" EMRETMİYOR; "onayına bağlı olduğunu belirt" diyor.
   - Açık "BEKLEME SÖZÜ YASAK" maddesi eklendi.
   - Örnek 16'daki "marked as urgent" eylem iddiası çıkarıldı.
   - Örnek 13 başlığındaki "söz verilebilecek tek şey ilgilenildiğidir" çelişkisi düzeltildi. Pin büyük harfli olduğu
     için bunu kaçırıyordu.
+
+### 1.6 İnceleme turu (09-25) — üç ajan, bulgular kodda doğrulandı
+Üç inceleme ajanı (kapanış · zaman/yazılan saat · bekleme sözü) turun kodunu düşmanca okudu ve bataryalarla ölçtü. Her
+bulgu kodda yeniden üretildi, sonra kırmızı-önce düzeltildi. Üç ayrı commit (her biri tek başına tip denetiminden geçer):
+veto `6c7b439` · kapanış `1785250` · zaman `a83459d`.
+
+**Kapanış (P1/P2):**
+- Övgü listesi dolgu sözcükleri ("is / are / the / it") yüzünden soru işaretsiz soruyu kabul ediyordu: "is the apartment
+  clean", "Can you recommend a great restaurant", "Perfect, we are here" (varış bildirimi). Bunlar susturulup
+  gizleniyordu. Övgü sözcük yolundan çıkarıldı; `isPositiveFeedback` soru açan ilk sözcükte (is/are/can/could/recommend…)
+  övgü demez, "here" dolgu değil.
+- İki modelin uyuşması yetmiyordu: istem aynı "soru yok" hükmünü bilgi tabanının cevaplayamadığı soruya da verdirir,
+  anlama katmanı beş istekten sonrasını keser. Sözcüksel itirazlar eklendi (↑1.1).
+- Teklif kabulü, devirden sonraki teşekkür ve ev sahibine bırakılmış soru gizleniyordu → `closingMayHide` (↑1.1).
+- İlk mesaj selamı ("İyi akşamlar") kapanış sayılıyordu → önceki cevap şartı.
+- QR yalnız son mesaja bakıyordu → tüm cevapsız mesajlar.
+- Cevap oranı kapanış mesajlarını cevapsız sayıyordu.
+
+**Zaman ve yazılan saat (P2/P3):** ↑1.2 ve ↑1.3. Ölçülen en ağır bulgu: batı dilimlerinde çıkış günü boyunca yapay zekâ
+susuyordu (yalnız tarih saklanan çıkış, gün başıyla ham damga kıyası).
+
+**Bekleme sözü (P1/P2):** ↑1.5. Ajansız gövdeler süreç anlatımını tutuyordu (kanalda taslak, QR'da devir); "I'll check."
+gibi en yaygın sözler kaçıyordu; insan talebi muafiyeti yasaklanan sözü otomatik geçiriyordu.
+
+**Bilinen sınırlar (bilinçli, pinli ya da belgeli):**
+- Edilgen söz ("Size dönüş yapılacaktır") tutulmaz: edilgen çatı olgu cümlesiyle aynı biçimdedir ("Kahvaltı 8'de
+  servis edilir"), edilgen dal bu yüzden hiç yok.
+- Şablon yedek metinleri (`fallback.ts`) "döneceğim / ilettim" taşıyabilir: bunlar yalnız ev sahibine gösterilen
+  taslaktır; kaynak `openai` olmayan cevap kapıdan hiçbir zaman otomatik gitmez.
+- Çıkıştan sonra gelen teşekkür kapanış yoluna hiç girmez: "konaklama bitti" kontrolü önce koşar (gerekçe
+  `reservation_ended`, misafire yine hiçbir şey gitmez). Konuşma "cevap gerekmedi" diye işaretlenmez.
+- Konaklama eval'i (`evals/stay-change.json`) bekçiyi puanlar, vetoyu değil. Veto artık bazı erteleme cevaplarını da
+  tutar, bu yüzden eval'in "gereksiz inceleme" sayısı kanalda gerçekten tutulan cevabı birebir göstermez. Birleşim
+  tablosu bir sonraki ücretli koşuda veto dahil yeniden okunmalı.
+- Bekleme sırasında misafire ne gideceği (A tam sessizlik / B nötr alındı) SABİTLENMEDİ (kurucu). Veto bir cevabı
+  tuttuğunda bugünkü davranış: misafire hiçbir şey gitmez, taslak ev sahibine.
+
+**Mutasyon (inceleme dilimi):** `a83459d` üzerinde 90 mutant, ayrık worktree, M0 yeşil → 73 öldürüldü, 17 yaşadı. Yaşayanlar
+testin kendisinin kör noktasıydı; her biri için ÖZGÜN örnek yazıldı (`80ef335`):
+- `hasOpenHostWork`in beş iç bacağı (pencere, erteleme, doğrulanmış onay muafiyeti, en güçlü karar, okuma hatası)
+  entegrasyonda sınanmıyordu → sahte veritabanlı saf birim testi.
+- İnsan talebi muafiyetini geri getiren mutant yaşıyordu: testin İngilizce misafir mesajı dil kapısına takılıyordu, yani
+  test vetoyu hiç sınamıyordu → Türkçe istek + kapı kanıtı `g.d = reply_output_veto`.
+- QR anlam yolunun iki şartı, üç veto freni/dalı, zaman satırının iki kuralı ve yazılan saatin iki kuralı başka şartların
+  arkasında kalıyordu → yalnız o kuralın ayırdığı örnekler.
+- `replyAuthorOf`taki `systemEventType` denetimi ölü koddu → silindi. Bir mutant (V11) kendisi hatalıydı (tek harf).
+Yeniden koşu `80ef335` üzerinde: yaşayan 17 + düzeltilmiş V11 + yeni üç bacak (politika metni muafiyeti, pencereyi
+yalnız EV SAHİBİ cevabının kapatması, boş pencere) = 20 mutant, M0 yeşil, **20/20 öldürüldü**.
 
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 
