@@ -250,4 +250,22 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     const after = await resolveGuestChat(token, new Date("2026-06-22T22:00:00Z"));
     expect(after!.open).toBe(false);
   });
+
+  it("🚨 aday ağı: Auckland YAZI (UTC+13) + giriş 12:00 + iCal tarih değeri (D 12:00Z) → sohbet giriş saatinde açılır", async () => {
+    // Giriş 12:00 NZDT = bir önceki UTC gününün 23:00'ü; eski "+12 sa" varış ağı D 12:00Z satırını 12:30'da bile DIŞARIDA
+    // bırakıyordu (sohbet 13:00'e kadar kapalı). Kesin karar `isOpenNow`da, ağ yalnız aday toplar.
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Pacific/Auckland" } });
+    await prisma.property.update({ where: { id: propertyId }, data: { checkInTime: "12:00" } });
+    const token = await enableChat(propertyId);
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "Y", arrivalDate: new Date("2027-01-20T12:00:00Z"), departureDate: new Date("2027-01-22T12:00:00Z"), status: "confirmed", channel: "airbnb" },
+    });
+    // 2027-01-20 12:30 NZDT = 2027-01-19T23:30Z → giriş saati geçti → açık.
+    const open = await resolveGuestChat(token, new Date("2027-01-19T23:30:00Z"));
+    expect(open!.open).toBe(true);
+    // KONTROL: 11:30 NZDT → giriş saatinden önce → kapalı (ağ genişledi, kesin karar değişmedi).
+    const early = await resolveGuestChat(token, new Date("2027-01-19T22:30:00Z"));
+    expect(early!.open).toBe(false);
+  });
 });

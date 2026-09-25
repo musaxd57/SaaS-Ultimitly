@@ -922,8 +922,10 @@ export async function resolveGuestChat(
     where: {
       propertyId: property.id,
       status: { in: ["confirmed", "completed"] },
-      // Wide net; the precise open/closed decision is the Istanbul day/time check.
-      arrivalDate: { lte: new Date(now.getTime() + 12 * 60 * 60 * 1000) },
+      // Wide net; the precise open/closed decision is the org-zone day/time check (`isOpenNow`). Varış ağı 36 sa (ikinci
+      // inceleme 09-25): "yalnız tarih" iCal değeri D 12:00Z'dir; UTC+13/+14'te (Auckland yazı, Kiritimati) giriş saati
+      // 12:00–13:00 iken +12 sa ağı o satırı giriş anında DIŞARIDA bırakıyor, sohbet bir saat geç açılıyordu.
+      arrivalDate: { lte: new Date(now.getTime() + 36 * 60 * 60 * 1000) },
       departureDate: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
     },
     // Ascending (earliest arrival first): on a back-to-back turnover day the
