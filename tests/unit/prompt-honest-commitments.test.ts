@@ -86,6 +86,16 @@ describe("P1 — istem kanıtsız taahhüt EMRETMEZ", () => {
     expect(offenders, JSON.stringify(offenders, null, 1)).toEqual([]);
   });
 
+  it("few-shot örnekleri EDİLGEN sistem eylemi de iddia etmez ('marked as urgent', 'acil olarak işaretlendi' — mutasyon V14, 09-25)", () => {
+    // Çıktı vetosunun edilgen dalı bilerek yok (meşru olgu cümlesini de yakalar); modele ÖĞRETTİĞİMİZ örnekte ise böyle bir
+    // sistem eylemi iddiası hiç olmamalı — ürün hiçbir mesajı "acil" olarak işaretlemez.
+    const SYSTEM_ACTION = /marked\s+as\s+urgent|flagged\s+(?:as|for)|escalated\s+to|acil\s+olarak\s+işaretle|işaretlendi|önceliklendirildi/i;
+    const rows = exampleRows();
+    expect(rows.length).toBeGreaterThanOrEqual(10);
+    expect(rows.filter((r) => SYSTEM_ACTION.test(r.reply)).map((r) => r.reply)).toEqual([]);
+    expect(SYSTEM_ACTION.test("Your message has been recorded and marked as urgent for your host.")).toBe(true); // anti-vakum
+  });
+
   it("🚨 ANTI-VAKUMLUK: dedektör GERÇEKTEN ateşliyor", () => {
     // Yukarıdaki iddia boş bir listeyle de "geçer". Dedektör bozulsa (ya da
     // bir kalıbı sessizce düşse) hiçbir şey kırmızıya dönmezdi.
