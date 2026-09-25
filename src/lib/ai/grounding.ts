@@ -4,6 +4,7 @@ import { INTENT_RISK_KINDS, INTENT_RISK_REASON } from "./semantic/intent-risk";
 import { STAY_REPLY_INTENTS } from "./semantic/stay-change";
 import { EARLY_CHECKIN_CHECKS } from "@/lib/early-checkin/core";
 import type { LlmUsage } from "./types";
+import { cleanGateEvidence, type GateEvidence } from "./gate-evidence";
 // ---------------------------------------------------------------------------
 // TEMELLENDİRME SINIFLANDIRMASI (A2, 09-08) — OKUMA ZAMANINDA, HÜKÜM DEĞİL.
 //
@@ -259,6 +260,11 @@ export interface KbEvidenceInput {
    * tutar, metin, PII YOK). Yalnız akış koştuysa verilir.
    */
   earlyCheckin?: EarlyCheckinEvidenceInput;
+  /**
+   * Kapı kanıtı (09-25, `ai/gate-evidence.ts`): `blocked` ayrıntısı + kelime ağı uyarıları ile modelin kapatıcı
+   * sinyalleri ayrı alanlarda (kapalı küme kodlar). Karar değil — ölçüm.
+   */
+  gate?: GateEvidence;
 }
 
 /** `ec` girdisi: `s/f/a` zorunlu; diğerleri isteğe bağlı ve TEK TEK doğrulanır (bozuk alan yalnız kendini düşürür). */
@@ -440,6 +446,7 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
   const sc = cleanStay(input.stay);
   const ir = cleanIntentRisk(input.intentRisk);
   const ec = cleanEarlyCheckin(input.earlyCheckin);
+  const g = cleanGateEvidence(input.gate);
   const extra = {
     ...(claims ? { claims } : {}),
     ...(llm ? { llm } : {}),
@@ -447,8 +454,9 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
     ...(sc ? { sc } : {}),
     ...(ir ? { ir } : {}),
     ...(ec ? { ec } : {}),
+    ...(g ? { g } : {}),
   };
-  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec) return null;
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec && !g) return null;
   const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa
