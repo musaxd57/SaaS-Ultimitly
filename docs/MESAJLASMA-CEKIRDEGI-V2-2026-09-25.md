@@ -297,7 +297,22 @@ Yeniden koşu `bb8ac51` üzerinde: **4/4 öldürüldü**.
 yazılır), gün kuralı + kapanış için kod incelemesi. Kod inceleme ajanı organizasyonun aylık harcama sınırına takılıp yarıda
 kaldı (sınır 30 Eylül'de yenilenir); kontrol listesi elle yürütüldü: kalan ham gün kıyasları tarandı (misafire görünenler
 kapandı, ev sahibi yüzeyleri ↑açık listede), QR aday ağı düzeltildi, insan talebi yükseltmesi yalnız kapı cevabı TUTTUĞUNDA
-koşar (atomik `problem` claim'i çift e-postayı önler). Kör batarya sonuçları gelirse ayrıca işlenir.
+koşar (atomik `problem` claim'i çift e-postayı önler).
+
+**Kör bataryalar (ajan kodu okumadan önce yazdı, sonuçtan sonra ayar yok):**
+- *Bekleme sözü vetosu* — 368 cevap, 7 dil: kaçan 51/183, yanlış pozitif 8/185. Kaçanların çoğu DE/FR/ES/RU/AR'da
+  (ev sahibi onayı "hat genehmigt / одобрил", ekip sözü "Unser Team wird Sie kontaktieren", "I'm checking with the host
+  now", İngilizce dışı teklifler). Bunların HEPSİ canlı sürümde de geçiyordu (gerileme değil); iki yanlış pozitif bu turun
+  eklemesiydi (nesnesiz Arapça "سألت", "aşağıya ekledim"). Bu batarya üzerinde hazırlanan yama (kaçan 51 → 15, 12'si
+  edilgen; yanlış pozitif 8 → 4, dördü kabul edilmiş sınır; korpus ve koddan kurulan metinde yeni veto 0) SONRAKİ dilimde
+  (#162) — artık kör değil, yeni kör ölçüm harcama sınırı yenilenince.
+- *Yazılan saat* — 477 mesaj: yanlış kabul 92/448, yanlış red 76/347. Bu turun KENDİ eklemelerinden doğan dört yanlış kabul
+  ve bir CPU sorunu push'tan ÖNCE kapandı (`7fd861c`, mutasyon 9/9): düzeltme yolunun yeni cümlecik bulucusu boşluk
+  dizisinde karesel (20.000 boşluk 0,3 ms → 869 ms; onay yolu zaten ~0,9 sn) → satır içi boşluk tek boşluğa iner, 4.000
+  karakter üstünde kanıt aranmaz · "2 buçuk saatte / 10 buçuk euro" · "Çıkmaz sokakta 10'da buluşalım" · "The power will be
+  out until 2pm" · "08'de" +12. Kalanlar tur öncesinden (sonraki dilim): ret biçimleri ("çıkamayız", "can't check out"),
+  cümle bölücüsünün "a.m./p.m." noktaları, "gece", İngilizce gün dilimi ("tonight at 9"), düzeltme yolunda olay adı
+  ("Kahvaltı 10 demiştim ama 9 olsun"), soru cümleciğinden ileri bakış.
 
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 

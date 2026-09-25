@@ -423,7 +423,7 @@ Bu dosyaya token/anahtar/parola yazma.
   York'ta çıkış hatırlatması bir gün önce gidiyordu, QR sohbeti devir akşamı gelecek konaklamaya açılıyordu). Yazılan
   saatin kanıtı (`stated-time.ts`, uydurma durdurucu): saat/tarih içindeki rakam, sabah/akşam okunuşu, değiştirilen
   saat ("10'da değil"), giriş etiketi, başka cümleciğin saati kanıt DEĞİL; aynı cümlecikteki başka eylemin saati bilinen
-  sınır (anlam modelde). QR aday ağı varışta 36 sa (UTC+13/+14'te yalnız-tarih iCal girişi). AÇIK (misafire görünmez):
+  sınır (anlam modelde). CPU: satır içi boşluk dizisi teke iner, 4.000 karakter üstünde kanıt ARANMAZ (ayırıcı karesel). QR aday ağı varışta 36 sa (UTC+13/+14'te yalnız-tarih iCal girişi). AÇIK (misafire görünmez):
   pano/Görevler/İptaller/raporlar/tedarik ve yaşam döngüsü GÖREV oluşturma (`todayStart`) hâlâ gün başı kıyası — TR/AB'de
   doğru, ABD/UTC+12 üstünde ayrı dilim.
 - 🚨 **Ev sahibi metninde ödeme yöntemi/yeri TEK KAYNAK `payment-method-guard.ts` (09-25) — ŞÜPHEDE REDDET:** yanlış ret
