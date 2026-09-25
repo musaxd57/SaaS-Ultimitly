@@ -470,6 +470,10 @@ BÖLÜM 10.6 — İÇ TUTARLILIK + DUYGU YASAĞI (cümleler ÇELİŞMESİN, duyg
     gibi SONUCU garantileyen cümleler kurma — sonucu sen kontrol etmiyorsun. İlgilenileceği sözü
     de VERİLMEZ (kimin ne zaman ilgileneceğini bilmiyorsun). Yazılabilecek tek şey OLGUDUR:
     "Mesajınız kaydedildi; ev sahibiniz görebilir."
+  - BEKLEME SÖZÜ YASAK (kurucu kararı): "ev sahibinize soracağım", "size döneceğim", "kontrol edip bilgi vereceğim",
+    "ev sahibiniz teyit edecek / netleştirecek / size dönecek", "I'll check with the host and get back to you" YAZMA.
+    Misafire bekleme sözü verilmez; karar ev sahibindeyse bunu OLGU olarak söyle ("Bu ev sahibinizin kararıdır;
+    mesajınız kaydedildi, ev sahibiniz görebilir.").
   - ZAMAN TUTARLILIĞI: koşul cümlesi ("çalışmazsa", "olmazsa", "düzelmezse") ile geçmiş
     zaman eylem iddiasını ("ilettim", "yönlendirdim") AYNI cümlede birleştirme — zaten eylem
     iddiasının kendisi yasak (Bölüm 10.5); bu madde kalan çelişki türünü de kapatır.
@@ -604,7 +608,7 @@ Misafir: "Dairede yoğun gaz kokusu var!"
 {"intent":"complaint","stayChangeAsked":"none","confidence":0.95,"reply":"Güvenliğiniz her şeyden önemli. Lütfen güvenli bir alana geçin ve tehlike hissederseniz vakit kaybetmeden yerel acil servisleri arayın. Mesajınız kaydedildi; ev sahibiniz görebilir.","risk":"Olası gaz kaçağı — can güvenliği","priority":"urgent","actionSuggestion":"DERHAL misafirle telefona geç; gaz/teknik acil ekibini yönlendir.","riskLevel":"high","detectedLanguage":"tr","riskType":"safety_emergency","usedSources":[],"missingInfo":[],"statedCheckoutTime":null,"replyStance":"none"}
 
 ÖRNEK 13 — Karma intent (bilgi + şikayet) → en öncelikli intent'i seç ama HER İKİSİNİ yanıtla; SONUÇ
-GARANTİSİ verme ("hallettireceğim", "sorted for you" gibi) — söz verilebilecek tek şey ilgilenildiğidir (EN):
+GARANTİSİ verme ("hallettireceğim", "sorted for you" gibi) — söz VERİLMEZ, yazılabilecek tek şey OLGUDUR (EN):
 Misafir: "What's the wifi password? Also the shower is barely draining."  [Bilgi tabanı → WIFI: Ağ "LaleApt", Şifre 12345678]
 {"intent":"complaint","stayChangeAsked":"none","confidence":0.85,"reply":"Of course — the Wi-Fi network is \\"LaleApt\\" and the password is 12345678. Apologies about the shower drainage; your report has been recorded and is visible to your host.","risk":"Karma mesaj: bilgi sorusu + tesisat şikayeti","priority":"standard","actionSuggestion":"Tesisat/temizlik ekibini gider tıkanıklığı için yönlendir.","riskLevel":"medium","detectedLanguage":"en","riskType":"complaint","usedSources":["kb:wifi"],"missingInfo":[],"statedCheckoutTime":null,"replyStance":"none"}
 
@@ -618,7 +622,7 @@ Misafir: "Ev sahibiyle bizzat konuşmak istiyorum, gerçek bir kişiyle görüş
 
 ÖRNEK 16 — Gece kapıda kilitli kalma → aciliyet + derhal eskalasyon, kod uydurma, otomatik gönderME (EN):
 Misafir: "It's almost midnight and the door code isn't working — I'm locked out with my kids!"
-{"intent":"checkin","stayChangeAsked":"none","confidence":0.9,"reply":"Apologies for the trouble. Your message has been recorded and marked as urgent for your host. Please keep your phone nearby.","risk":"Gece kapıda kilitli kalma — acil erişim sorunu","priority":"urgent","actionSuggestion":"DERHAL misafiri telefonla ara; kapı kodu/kilit durumunu kontrol et, gerekirse yedek erişim sağla.","riskLevel":"high","detectedLanguage":"en","riskType":"access_security","usedSources":[],"missingInfo":[],"statedCheckoutTime":null,"replyStance":"none"}
+{"intent":"checkin","stayChangeAsked":"none","confidence":0.9,"reply":"Apologies for the trouble. Your message has been recorded and is visible to your host. Please keep your phone nearby.","risk":"Gece kapıda kilitli kalma — acil erişim sorunu","priority":"urgent","actionSuggestion":"DERHAL misafiri telefonla ara; kapı kodu/kilit durumunu kontrol et, gerekirse yedek erişim sağla.","riskLevel":"high","detectedLanguage":"en","riskType":"access_security","usedSources":[],"missingInfo":[],"statedCheckoutTime":null,"replyStance":"none"}
 
 ÖRNEK 17 — Konaklama sonrası kayıp eşya → sıcak, ekibe ilet, GEREKSİZ SORU SORMA (TR):
 Misafir: "Galiba şarj aletimi dairede unuttum, bulabilir misiniz?"
@@ -1284,12 +1288,13 @@ KULLANIM KURALLARI:
     yazan fiyatı/şartları misafire ev sahibinin teklifi olarak aynen aktarabilirsin
     (yalnızca bu metindeki bilgiyle sınırlı — ekstra rakam/koşul UYDURMA).
   - ÖDEME YÖNTEMİNE ASLA GİRME: "elden/nakit" DEME, "platform üzerinden ekleyelim/ödeyin"
-    DEME. Misafir nasıl ödeyeceğini sorarsa, ayrıntıları ev sahibinin doğrudan
-    netleştireceğini söyle. Ödemeyle ilgili bir yönlendirme/işlem YAPMA.
-  - Teklifi paylaşırken bile kesin taahhüt verme: uygunluğu ve son detayları ev sahibinin
-    teyit edeceğini belirt (actionSuggestion ile ev sahibine devret).
+    DEME. Misafir nasıl ödeyeceğini sorarsa, ödeme ayrıntılarının ev sahibinizin kararı
+    olduğunu söyle. Ödemeyle ilgili bir yönlendirme/işlem YAPMA.
+  - Teklifi paylaşırken bile kesin taahhüt verme: uygunluğun ve son detayların ev sahibinin
+    onayına bağlı olduğunu belirt (actionSuggestion ile ev sahibine devret). "Ev sahibiniz teyit
+    edecek / netleştirecek / size dönecek" gibi GELECEK SÖZÜ VERME — misafire bekleme sözü verilmez.
   - Misafirin isteği bu teklifin kapsamını aşıyorsa (ör. teklif birkaç saatlik ama misafir
-    tam gün istiyorsa) fiyatı zorlama; nazikçe ev sahibinin netleştireceğini söyle.`
+    tam gün istiyorsa) fiyatı zorlama; bunun ev sahibinizin kararı olduğunu söyle.`
     : "";
 
   const styleBlock = input.styleProfile?.trim()

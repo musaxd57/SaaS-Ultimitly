@@ -127,7 +127,7 @@ async function vacantNight(now: Date) {
 
 // ─── sahte OpenAI ───────────────────────────────────────────────────────────
 
-const DEFER = "Thanks! I'll check with the host whether an early check-in is possible and get back to you.";
+const DEFER = "Thanks! Early check-in is the host's call; your request has been recorded and is visible to your host.";
 const reply = (over: Record<string, unknown> = {}) => ({
   intent: "early_checkin",
   confidence: 0.9,
@@ -288,7 +288,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ understanding: nlu("09:00"), guard: guard("09:00", { reply_defers_to_host: true }) });
     const id2 = await conversationFor(u.propertyId, u.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id2)).sent).toBe(true);
-    expect(sentBody()).toContain("check with the host");
+    expect(sentBody()).toContain("is the host's call");
     expect(sentBody()).not.toMatch(APPROVAL);
     expect((await decision(id2)).ec).toEqual({ s: "pending", f: ["previous_still_in", "not_ready"], a: "0" });
   });
@@ -854,7 +854,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
       const v = await vacantNight(now);
       await saveEarlyCheckinRule(v.orgId, v.propertyId, RULE);
       openAi({
-        reply: reply({ reply: `Thanks! I'll check with the host and get back to you — ${invented}.` }),
+        reply: reply({ reply: `Thanks! Early check-in is the host's call — ${invented}.` }),
         understanding: nlu("12:00"),
         guard: guard("12:00", { reply_defers_to_host: true }),
       });
@@ -905,7 +905,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ reply: reply(), understanding: nlu("12:00"), guard: guard("12:00", { reply_defers_to_host: true }) });
     const c = await conversationFor(w.propertyId, w.own.id, "Hi! Could we check in at 12:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(c)).sent).toBe(true);
-    expect(sentBody()).toContain("check with the host");
+    expect(sentBody()).toContain("is the host's call");
     expect(sentBody()).not.toMatch(/€|%|charge/);
   });
 

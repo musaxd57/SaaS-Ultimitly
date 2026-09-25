@@ -272,9 +272,42 @@ describe("sözleşme", () => {
     expect(vetoOutgoingReply("Size konumu gönderiyorum.")).toBeNull();
   });
 
-  it("⚠️ ürün kararı bekliyor (pinli): modelin ERTELEME cevabı 'I'll check with the host (and get back to you)' tutulmaz — doğrulanmış erken giriş akışı buna dayanır", () => {
-    expect(vetoOutgoingReply("Thanks! I'll check with the host whether an early check-in is possible and get back to you.")).toBeNull();
-    expect(vetoOutgoingReply("Let me check with the host.")).toBeNull();
+  it("🚨 BEKLEME SÖZÜ tutulur (kurucu kararı 09-25: 'Guest hiçbir soruyorum/döneceğim mesajı almayacak') — eskiden bilerek geçiyordu", () => {
+    for (const s of [
+      "Thanks! I'll check with the host whether an early check-in is possible and get back to you.",
+      "Let me check with the host.",
+      "I'll find out and let you know.",
+      "We'll double-check with the team.",
+      "Ev sahibinize soracağım.",
+      "Kontrol edip size bilgi vereceğim.",
+      "Müsaitlik durumunu ev sahibiniz teyit edecektir; talebiniz kayda alındı.",
+      "Hangi tarihlerin uygun olduğunu ev sahibiniz netleştirecek.",
+      "Ev sahibiniz uzatma talebinizi onaylayacaktır.",
+      "Ev sahibine soruyorum, birazdan dönerim.",
+      "Ich frage beim Gastgeber nach und melde mich.",
+      "Ich werde den Gastgeber fragen.",
+      "Je vais demander à l'hôte et je reviens vers vous.",
+      "Le preguntaré al anfitrión y le confirmaré.",
+      "Уточню у хозяина и сообщу вам.",
+      "سأسأل المضيف وأعود إليك.",
+    ]) {
+      expect(vetoOutgoingReply(s), s).toBe("unverified_commitment");
+    }
+  });
+
+  it("KONTROL (aşırı uygulama): kararı OLGU olarak söyleyen standart cümle ve şimdiki zaman olgu cümleleri geçer", () => {
+    for (const s of [
+      "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      "Early check-in is the host's call; your request has been recorded and is visible to your host.",
+      "Check-in will be at 15:00.",
+      "Je vous confirme que l'arrivée est à partir de 15h.",
+      "Le confirmo que el check-in es a las 15:00.",
+      "Merkeze 10 dakikada ulaşacaksınız.",
+      "Soracağınız bir şey olursa buradayız.",
+      "Temizlik ekibi daireyi her sabah kontrol eder.",
+    ]) {
+      expect(vetoOutgoingReply(s), s).toBeNull();
+    }
   });
 
   it("⚠️ EDİLGEN dal kapıda YOK — ölçülmüş bedel, test-pinli", () => {

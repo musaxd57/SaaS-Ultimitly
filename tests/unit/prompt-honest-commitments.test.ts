@@ -50,7 +50,12 @@ const INSTRUCTED_COMMITMENTS = [
   /"ekibimizle kontrol edip size döneceğim" de/,
   /bulunca\s+haber veririz/,
   /En kısa sürede çözüp size dönüş yapacağız/,
-  /İLGİLENİLDİĞİDİR/,
+  // İki yazım: JS `/i` Türkçe İ/i'yi katlamaz — küçük harfli örnek başlığı ("söz verilebilecek tek şey ilgilenildiğidir")
+  // büyük harfli pinden 09-25'e kadar kaçıyordu (ajan bulgusu).
+  /İLGİLENİLDİĞİDİR|ilgilenildiğidir/,
+  // Bekleme sözü (kurucu kararı 09-25): istem ev sahibi adına gelecek söz EMRETMEZ (geç çıkış teklif bloğu ediyordu).
+  /teyit edeceğini belirt/,
+  /netleştireceğini söyle/,
   /ev sahibimiz size dönüş yapacak/,
   /kontrol edip\s+en kısa sürede kesinleştireceğiz/,
 ];

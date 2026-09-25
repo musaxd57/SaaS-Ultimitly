@@ -91,7 +91,7 @@ const ACTIVE_PAST_CLAIM = new RegExp(
     // Soru eki: "Size ulaştık mı?" iddia değil soru.
     `(?!\\s+m[iıuü](?!\\p{L}))` +
     // Şimdiki zaman: "Durumu ev sahibine iletiyorum / aktarıyorum / yönlendiriyorum" (eylem şu an yapılıyor iddiası).
-    `|${NL}(?:ileti|aktarı|yönlendiri|bildiri|haber veri|ulaştırı|bilgilendiri)yor(?:um|uz)${NR}`,
+    `|${NL}(?:ileti|aktarı|yönlendiri|bildiri|haber veri|ulaştırı|bilgilendiri|soru|danışı|kontrol edi|teyit edi)yor(?:um|uz)${NR}`,
   "iu",
 );
 
@@ -112,8 +112,12 @@ const ACTIVE_PAST_CLAIM = new RegExp(
 const SECOND_PERSON = "(?!s?[iı]n[iı]z)(?!s[ae]n[iı]z)";
 const QUESTION_PARTICLE = "(?!\\s+m[iıuü](?:y[iıuü]m|y[iıuü]z|s[iıuü]n(?:[iıuü]z)?|d[iıuü]r)?(?!\\p{L}))";
 const ACTIVE_FUTURE_CLAIM = new RegExp(
-  `${NL}(?:dönüş yapaca|dönece|ilete?ce|paylaşaca|bilgilendirece|haber verece|gönderece|hallede?ce|değerlendirece|inceleyece|iletişime geçece|ayarlayaca|çağıraca|yazaca)[ğgk]${SECOND_PERSON}${QUESTION_PARTICLE}\\p{L}*` +
-    `|${NL}(?:ileti|döne|hallede|haber veri|dönüş yapa|bilgilendiri|paylaşı|gönderi|bildiri|aktarı)r(?:[iı]m|[iı]z)${NR}`,
+  `${NL}(?:dönüş yapaca|dönece|ilete?ce|paylaşaca|bilgilendirece|haber verece|gönderece|hallede?ce|değerlendirece|inceleyece|iletişime geçece|ayarlayaca|çağıraca|yazaca` +
+    // 🚨 BEKLEME SÖZÜ (kurucu kararı 09-25, ↓EN aynı gerekçe): "ev sahibinize soracağım", "danışacağım", "kontrol edeceğim",
+    // "ev sahibiniz teyit edecek / netleştirecek / size bilgi verecek / sizinle ilgilenecek / onaylayacak",
+    // "dönüş sağlayacağım". Ajandan bağımsız: ev sahibi adına verilen gelecek söz de makbuzsuzdur.
+    `|soraca|danışaca|kontrol edece|teyit edece|netleştirece|bilgi verece|ilgilenece|onaylayaca|dönüş sağlayaca)[ğgk]${SECOND_PERSON}${QUESTION_PARTICLE}\\p{L}*` +
+    `|${NL}(?:ileti|döne|hallede|haber veri|dönüş yapa|bilgilendiri|paylaşı|gönderi|bildiri|aktarı|sora|danışı)r(?:[iı]m|[iı]z)${NR}`,
   "iu",
 );
 
@@ -153,16 +157,19 @@ const EN_PAST_CLAIM = new RegExp(
     `|${NL}i(?:'ve| have)?\\s+(?:just\\s+|already\\s+|also\\s+)?(?:booked|reserved|called|phoned|ordered|scheduled|requested|forwarded)${NR}` +
     // Şimdiki zaman: "I'm forwarding this to the host".
     `|${NL}(?:i'm|i\\s+am|we're|we\\s+are)\\s+(?:forwarding|passing\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|notifying|contacting|informing|letting\\s+(?:the|your|our)\\s+\\p{L}+\\s+know|looking\\s+into|arranging)${NR}` +
-    // "Let me forward this / ask the host" ("let me check with the host" erteleme — ↓gelecek dalıyla aynı gerekçe).
-    `|${NL}let\\s+me\\s+(?:forward|pass\\s+(?:this|it|that)\\s+on|ask\\s+(?:the|your|our))${NR}`,
+    // "Let me forward this / ask the host / check with the host" (bekleme sözü — kurucu kararı 09-25, ↓gelecek dalı).
+    `|${NL}let\\s+me\\s+(?:forward|pass\\s+(?:this|it|that)\\s+on|ask\\s+(?:the|your|our)|check\\s+(?:with|on|and|for|if|whether)|find\\s+out|double[-\\s]?check)${NR}`,
   "iu",
 );
 const EN_FUTURE_CLAIM = new RegExp(
   `${NL}(?:i|we|our\\s+team|the\\s+team|your\\s+host|the\\s+host|someone)(?:'ll|\\s+will)\\s+(?:get\\s+back|follow\\s+up|contact|confirm|let\\s+you\\s+know|reach\\s+out|update\\s+you|inform\\s+you|look\\s+into|arrange|sort\\s+(?:this|it)|handle|be\\s+in\\s+touch` +
     // İnceleme (09-25): "I'll pass this on", "I'll ask the host", "I'll forward your message".
     `|pass\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|forward|notify|ask\\s+(?:the|your|our)\\s+(?:host|team|cleaner)` +
-    // ⚠️ "I'll check with the host (and get back to you)" BİLEREK YOK: modelin tipik ERTELEME cevabı; doğrulanmış erken
-    // giriş akışı ertelemenin kapıdan geçmesine dayanır. Onu tutmak ürün kararı (kurucu) — belge §4.
+    // 🚨 BEKLEME SÖZÜ (kurucu kararı 09-25: "Guest hiçbir 'soruyorum/döneceğim' mesajı almayacak; bunu zaten
+    // kesinleştirdik"): "I'll check with the host (and get back to you)", "I'll find out", "I'll double-check". Eskiden
+    // BİLEREK yoktu (doğrulanmış erken giriş akışı ertelemenin kapıdan geçmesine dayanıyordu); akış artık bu vetoyla
+    // tutulan cevapta da koşar (`automation.ts`, erken giriş tetik listesi) → ya doğrulanmış onay gider ya host'a liste.
+    `|check\\s+(?:with|on|and|this|that|it|for|if|whether)|find\\s+out|double[-\\s]?check|verify` +
     `|send\\s+someone)${NR}`,
   "iu",
 );
@@ -182,6 +189,21 @@ const OTHER_PAST_CLAIM = new RegExp(
     `|${NL}hemos\\s+(?:\\p{L}+\\s+){0,1}(?:reenviado|informado|avisado|contactado|notificado)${NR}` +
     `|${NL}я\\s+(?:уже\\s+)?(?:передал|передала|сообщил|сообщила|связался|связалась|забронировал|забронировала|уведомил|уведомила|позвонил|позвонила|написал|написала)${NR}` +
     `|(?:لقد\\s+)?(?:أبلغت|أخبرت|حجزت|تواصلت|اتصلت|أرسلت\\s+(?:رسالتك|طلبك))`,
+  "iu",
+);
+
+/**
+ * DE/FR/ES/RU/AR BEKLEME SÖZÜ (kurucu kararı 09-25) — 1. şahıs GELECEK iletişim/kontrol sözü. Şimdiki zaman olgu cümleleri
+ * ("Je vous confirme que l'arrivée est à 15h", "Le confirmo que…") BİLEREK yok; yalnız gelecek kip / "werde/vais/voy a".
+ */
+const OTHER_FUTURE_CLAIM = new RegExp(
+  `${NL}ich\\s+(?:melde\\s+mich|frage\\s+(?:\\p{L}+\\s+){0,3}nach|kläre\\s+das|werde\\s+(?:\\p{L}+\\s+){0,4}(?:fragen|nachfragen|melden|prüfen|klären|bestätigen|informieren|weiterleiten|kontaktieren|bescheid\\s+geben))${NR}` +
+    `|${NL}je\\s+(?:vais\\s+(?:\\p{L}+\\s+){0,2}(?:demander|vérifier|confirmer|transmettre|contacter|informer|revenir)|reviens\\s+vers\\s+vous|vous\\s+recontacte|vous\\s+tiens\\s+au\\s+courant|me\\s+renseigne` +
+    `|demanderai|vérifierai|transmettrai|reviendrai|vous\\s+confirmerai|vous\\s+recontacterai|vous\\s+tiendrai)${NR}` +
+    `|${NL}(?:(?:le|te|les)\\s+(?:confirmaré|avisaré|informaré|escribiré|contactaré)|consultaré|preguntaré|verificaré|comprobaré|averiguaré|me\\s+pondré\\s+en\\s+contacto` +
+    `|voy\\s+a\\s+(?:consultar|preguntar|verificar|comprobar|confirmar))${NR}` +
+    `|${NL}(?:уточню|сообщу|свяжусь|спрошу|узнаю|передам|проверю)${NR}` +
+    `|سأ(?:تواصل|سأل|خبر|بلغ|ؤكد|تحقق|رد|عود)`,
   "iu",
 );
 
@@ -225,7 +247,8 @@ export function vetoOutgoingReply(reply: string | null | undefined): OutputVetoR
     ACTIVE_FUTURE_CLAIM.test(lower) ||
     EN_PAST_CLAIM.test(text) ||
     EN_FUTURE_CLAIM.test(text) ||
-    OTHER_PAST_CLAIM.test(text)
+    OTHER_PAST_CLAIM.test(text) ||
+    OTHER_FUTURE_CLAIM.test(text)
   ) {
     return "unverified_commitment";
   }

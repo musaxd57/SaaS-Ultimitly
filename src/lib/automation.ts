@@ -150,6 +150,11 @@ export interface AutoReplyGateContext {
    * isteğinde müsaitlik kuralından muaf (`evaluateAvailability`). Diğer tüm kapı kontrolleri AYNEN koşar.
    */
   verifiedGrant?: { text: string } | null;
+  /**
+   * YALNIZ TEŞHİS: çıktı vetosunu atla. Gönderim kararında ASLA verilmez; tek kullanımı "bu taslağı YALNIZ bekleme sözü
+   * vetosu mu tuttu?" sorusu (doğrulanmış erken giriş akışının tetiği — `heldOnlyByOutputVeto`).
+   */
+  skipOutputVetoForDiagnosis?: boolean;
 }
 
 /**
@@ -372,7 +377,13 @@ export function autoReplyGateVerdict(
   // DÜZELTEREK çözülür (fallback/holding metinleri tek dürüstlük sözleşmesine
   // bağlanır), kapıyı devir akışının üstüne kapatarak değil — aksi hâlde
   // misafir hiçbir şey almaz ve host da devir sinyalini kaybeder.
-  if (result.intent !== "human_request" && vetoOutgoingReply(result.reply) !== null) return hold("reply_output_veto");
+  if (
+    !context?.skipOutputVetoForDiagnosis &&
+    result.intent !== "human_request" &&
+    vetoOutgoingReply(result.reply) !== null
+  ) {
+    return hold("reply_output_veto");
+  }
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24, `availability-claims.ts`) ──────────
   // Model takvimi GÖRMÜYOR → "o gece boş / kalabilirsiniz / fully booked" doğrulanmamış iddiadır;
   // müsaitliğe bağlı bir istek ancak kararı ev sahibine bırakan cevapla gider. Kapsam TÜM cevapsız
@@ -2107,7 +2118,34 @@ export async function applyChannelAutoReply(
   // Kapı bekçinin hükmüyle BAŞTAN değerlendirilir. Önizleme (dryRun) de aynı yoldan — "gönderilirdi" dürüst kalsın.
   let gateFailure = autoReplyGateFailure(result, last.body, gateContext);
   let gatePassed = gateFailure === null;
-  if ((gatePassed || gateFailure === "availability_unconfirmed") && stayGuardEnabled()) {
+  // Bekleme sözü vetosu (09-25, kurucu kararı: "misafir hiçbir 'soruyorum/döneceğim' mesajı almayacak"): modelin "I'll check
+  // with the host and get back to you" ertelemesi artık çıktı vetosuna takılır. Veto kapıda müsaitlikten ÖNCE koştuğu için
+  // bekçi de burada koşar (doğrulanmış erken giriş iki modelin aynı saati okumasını ister) ve ↓erken giriş akışı yine koşar →
+  // doğrulanmış onay ertelemenin yerine gider ya da ev sahibi kontrol listesini görür. Eskiden akış ertelemenin kapıdan
+  // GEÇMESİNE dayanıyordu.
+  // "YALNIZ veto tuttu" = veto olmasa kapı geçerdi ya da akışın zaten kabul ettiği bir gerekçeyle (müsaitlik/para/saat/dil)
+  // tutardı. Kapı güvenden / riskten kapanıyorsa akış yine KOŞMAZ (güven tabanı kalkmaz — P2, 09-24).
+  const withoutOutputVeto = () =>
+    gateFailure === "blocked" && autoReplyGateVerdict(result, last.body, gateContext)?.detail === "reply_output_veto"
+      ? autoReplyGateFailure(result, last.body, { ...gateContext, skipOutputVetoForDiagnosis: true })
+      : undefined;
+  const heldOnlyByOutputVeto = () => {
+    const rest = withoutOutputVeto();
+    return (
+      rest !== undefined &&
+      (rest === null ||
+        rest === "availability_unconfirmed" ||
+        rest === "availability_claim" ||
+        rest === "price_claim" ||
+        rest === "kb_time_conflict" ||
+        rest === "reply_language_mismatch")
+    );
+  };
+  const guardAfterOutputVeto = () => {
+    const rest = withoutOutputVeto();
+    return rest === null || rest === "availability_unconfirmed";
+  };
+  if ((gatePassed || gateFailure === "availability_unconfirmed" || guardAfterOutputVeto()) && stayGuardEnabled()) {
     const stayGuard = await runStayChangeGuard({
       guestMessages: [...pendingGuestMessages, last.body],
       reply: result.reply,
@@ -2140,13 +2178,16 @@ export async function applyChannelAutoReply(
   // aynı çelişki listesini taşıdığı için (`verifiedEarlyCheckinResult` sonucu yayar) yine tutulur.
   // `reply_language_mismatch` da (09-25): dil kontrolü kapının SONUNDA — eskiden GEÇEN yanlış dilli erteleme akışı
   // atlatmasın (host'un kontrol listesi kaybolurdu); koddan kurulan metin kapıdan (dil dahil) BAŞTAN geçer.
+  // Bekleme sözü vetosuyla tutulan taslakta da (↑`heldOnlyByOutputVeto`).
+  const outputVetoHold = heldOnlyByOutputVeto();
   if (
     gatePassed ||
     gateFailure === "availability_unconfirmed" ||
     gateFailure === "availability_claim" ||
     gateFailure === "price_claim" ||
     gateFailure === "kb_time_conflict" ||
-    gateFailure === "reply_language_mismatch"
+    gateFailure === "reply_language_mismatch" ||
+    outputVetoHold
   ) {
     earlyCheckinRun = await runEarlyCheckinWorkflow({
       organizationId: conversation.property.organizationId,

@@ -486,7 +486,7 @@ describe("kural deposu (migration'sız, `AutomationRule`)", () => {
 const MODEL = {
   intent: "early_checkin",
   confidence: 0.9,
-  reply: "Thanks! I'll check with the host whether an early check-in is possible and get back to you.",
+  reply: "Thanks! Early check-in is the host's call; your request has been recorded and is visible to your host.",
   risk: null,
   priority: "standard" as const,
   source: "openai" as const,
@@ -595,7 +595,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect(out.sent).toBe(true);
     const body = String(mockSend.mock.calls[0][1]);
     expect(body.startsWith("The apartment is ready — you can check in today (14 October) from 13:00. The early check-in fee is €30.")).toBe(true);
-    expect(body).not.toContain("check with the host");
+    expect(body).not.toContain("is the host's call");
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
     const note = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: t.prepTaskId } });
     // Ücret TUTARI nota girmez (görev geçmişini temizlik de görür).
@@ -641,7 +641,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     const id2 = await conversationFor(u);
     expect(await applyChannelAutoReply(id2)).toMatchObject({ sent: true, queued: true });
     const row = await prisma.messageOutbox.findFirstOrThrow();
-    expect(row.body).toContain("check with the host");
+    expect(row.body).toContain("is the host's call");
     expect(row.body).not.toContain("The apartment is ready");
     expect(await decision(id2)).toEqual({ finalDecision: "auto_sent", reason: "gate_passed", ec: { s: "approvable", f: ["queued_delivery"], a: "0" } });
     expect(await prisma.taskUpdate.count({ where: { taskId: u.prepTaskId } })).toBe(0);
@@ -677,7 +677,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
     const id = await conversationFor(t);
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(String(mockSend.mock.calls[0][1])).toContain("check with the host");
+    expect(String(mockSend.mock.calls[0][1])).toContain("is the host's call");
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "gate_passed", ec: { s: "approvable", f: [], a: "0" } });
     expect(await prisma.taskUpdate.count({ where: { taskId: t.prepTaskId } })).toBe(0);
   });
@@ -825,6 +825,46 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     const b = await conversationFor(u);
     expect((await applyChannelAutoReply(b)).sent).toBe(false);
     expect((await decision(b)).ec).toBeUndefined();
+  });
+
+  // ── BEKLEME SÖZÜ (kurucu kararı 09-25: "Guest hiçbir 'soruyorum/döneceğim' mesajı almayacak") ──────────────────
+  const PROMISE = "Thanks! I'll check with the host whether an early check-in is possible and get back to you.";
+
+  it("🚨 bekleme sözü ('I'll check with the host … get back to you') misafire GİTMEZ; her şey doğrulanmışsa onay ONUN YERİNE gider", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, reply: PROMISE });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    const body = String(mockSend.mock.calls[0][1]);
+    expect(body).not.toContain("get back to you");
+    expect(body.startsWith("The apartment is ready")).toBe(true);
+    expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
+  });
+
+  it("🚨 bekleme sözü + onaylanamaz (temizlik bitmedi) → HİÇBİR ŞEY gitmez; akış yine koşar (ev sahibinin kontrol listesi kanıtta)", async () => {
+    const t = await turnover({});
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, reply: PROMISE });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const d = await decision(id);
+    expect(d.finalDecision).toBe("human_review");
+    expect(d.ec).toBeDefined();
+    expect(d.ec?.a).toBe("0");
+  });
+
+  it("🚨 bekleme sözü + DÜŞÜK güven → akış KOŞMAZ (güven tabanı kalkmaz; 'yalnız veto tuttu' değil)", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    mockSuggest.mockResolvedValue({ ...MODEL, reply: PROMISE, confidence: 0.5 });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect((await decision(id)).ec).toBeUndefined();
   });
 
   it("KONTROL: bayraklar kapalıyken (bugünkü üretim) saat iki modelden okunamaz → otomatik onay YOK", async () => {

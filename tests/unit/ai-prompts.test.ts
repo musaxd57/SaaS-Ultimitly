@@ -321,8 +321,11 @@ describe("buildReplyUserPrompt", () => {
     expect(withOffer).toMatch(/nakit.*DEME|"elden\/nakit" DEME/);
     // Only surface on an actual late-checkout / extension question.
     expect(withOffer).toMatch(/SADECE misafir geç çıkış/);
-    // Final confirmation still deferred to the host.
-    expect(withOffer).toMatch(/ev sahibinin[\s\S]*teyit edeceğini/);
+    // Final confirmation still deferred to the host — as a FACT ("onayına bağlı"), never a follow-up promise
+    // ("teyit edecek / netleştirecek"): kurucu kararı 09-25, misafire bekleme sözü verilmez.
+    expect(withOffer).toMatch(/ev sahibinin\s+onayına bağlı olduğunu belirt/);
+    expect(withOffer).toMatch(/GELECEK SÖZÜ VERME/);
+    expect(withOffer).not.toMatch(/teyit edeceğini belirt|netleştireceğini söyle/);
     // Section 7.5 (system prompt) flags the exception so the cached "no price"
     // rule does not override the per-request offer block.
     expect(REPLY_SYSTEM_PROMPT).toMatch(/İSTİSNA:.*GEÇ ÇIKIŞ \/ UZATMA TEKLİFİ/);
