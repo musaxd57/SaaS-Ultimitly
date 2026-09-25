@@ -39,6 +39,7 @@ import type {
 } from "@/lib/ai/semantic/stay-change";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
 import { guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
+import { loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
@@ -2056,6 +2057,13 @@ export async function applyChannelAutoReply(
       )
     : null;
 
+  // Konuşma Anlama Durumu v1 dilim B (bayrak `AI_CONVERSATION_STATE_ENABLED`, varsayılan KAPALI → sorgu yok, istem aynı).
+  const conversationRecords = await loadConversationState({
+    organizationId: conversation.property.organizationId,
+    messages,
+    reservationId: conversation.reservation?.id ?? null,
+  });
+
   let result = await suggestReply({
     guestMessage: last.body,
     property: {
@@ -2096,7 +2104,7 @@ export async function applyChannelAutoReply(
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
     })),
-    conversationState: { isFirstOperatorReply: priorOperatorReplies === 0 },
+    conversationState: { isFirstOperatorReply: priorOperatorReplies === 0, records: conversationRecords },
     tone: VALID_TONES.includes(org.aiReplyTone as ReplyTone)
       ? (org.aiReplyTone as ReplyTone)
       : "warm",

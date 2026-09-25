@@ -44,6 +44,7 @@ import {
 import { CLOSING_HANDLED_REASON, CLOSING_OPEN_REASON, hasOpenHostWork } from "@/lib/conversation-attention";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
+import { loadConversationStateForConversation } from "@/lib/ai/conversation-state-loader";
 
 export const dynamic = "force-dynamic";
 
@@ -711,6 +712,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // TEKRARLANMAZ (yapısal garanti, ayrıca test-pinli).
   const priorConversationId = await ensureGuestChatConversation(ctx.property.id, res);
   const { history, openTopics, hasPriorOperatorReply } = await buildGuestChatContextWindow(priorConversationId);
+  // Konuşma Anlama Durumu v1 dilim B (bayraklı; kapalıyken sorgu yok). Metin/PII taşımaz: yalnız sayılar ve kapalı-küme
+  // konu/durum kodları — anonim yüzeye güvenli.
+  const conversationRecords = await loadConversationStateForConversation({
+    organizationId: ctx.property.organizationId,
+    conversationId: priorConversationId,
+    reservationId: res.id,
+    pendingGuestMessage: true, // bu mesaj cevabıyla birlikte kaydedilir (↓recordGuestChatExchange)
+  });
 
   // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — `ctx.knowledgeBase` zaten mülk +
   // onay + sır kategorisi + içerik sezgiseli süzgeçlerinden geçmiştir; seçici
@@ -753,7 +762,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // SELAM TEKRARI (canlı kusur 09-08): "daha önce cevap verdik mi" KODDA
     // hesaplanır ve modele AÇIKÇA söylenir. Modelin geçmişe bakıp çıkarmasını
     // beklemek tam da başarısız olan şeydi.
-    conversationState: { isFirstOperatorReply: !hasPriorOperatorReply },
+    conversationState: { isFirstOperatorReply: !hasPriorOperatorReply, records: conversationRecords },
     tone: "warm",
     language: "tr",
     // ⚠️ STİL REHBERİ HALKA AÇIK YÜZEYE HAM GİRMEZ (denetim, 08-01). Rehber, ev

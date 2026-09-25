@@ -2132,3 +2132,75 @@ describe("applyChannelAutoReply — selam tekrarı (kodda)", () => {
     expect(firstOperatorReply()).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Konuşma Anlama Durumu v1 dilim B — kanal bağlantısı (tasarım §2.2). Bayrak KAPALI: kayıt yüklenmez (istem bayt bayt
+// aynı). AÇIK: önceki tutulan mesajın karar kaydı cevap modeline PII'siz özet olarak gider.
+// ---------------------------------------------------------------------------
+describe("applyChannelAutoReply — konuşma kayıtları (CUS v1 dilim B)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true });
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /** İlk misafir mesajı daha önce ev sahibine bırakılmış (şikâyet); misafir yeniden yazdı. */
+  async function seedHeldThenFollowUp() {
+    const { orgId, conversationId } = await seed({ guestMessage: "The shower is broken" });
+    const first = await prisma.message.findFirstOrThrow({ where: { conversationId }, select: { id: true } });
+    await prisma.riskEvent.create({
+      data: {
+        organizationId: orgId,
+        surface: "auto_reply",
+        triggerId: first.id,
+        finalDecision: "human_review",
+        riskLevel: "medium",
+        riskType: "complaint",
+        reason: "low_confidence_or_risky",
+      },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", authorType: "guest", body: "Any update?", createdAt: new Date(Date.now() - 30_000) },
+    });
+    return { orgId, conversationId };
+  }
+
+  it("bayrak KAPALI: cevap modeline kayıt gitmez", async () => {
+    const { conversationId } = await seedHeldThenFollowUp();
+    await applyChannelAutoReply(conversationId);
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
+    expect(mockSuggest.mock.calls[0][0].conversationState).toEqual({ isFirstOperatorReply: true, records: undefined });
+  });
+
+  it("🚨 bayrak AÇIK: ev sahibine bırakılmış şikâyet cevap modeline 'bekliyor' olarak gider", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const { conversationId } = await seedHeldThenFollowUp();
+    await applyChannelAutoReply(conversationId);
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
+    expect(mockSuggest.mock.calls[0][0].conversationState?.records).toEqual({
+      outbound: 0,
+      hostOutbound: 0,
+      unansweredGuest: 2,
+      items: [{ topic: "complaint", status: "pending_host" }],
+      lifecycleSent: [],
+    });
+  });
+
+  it("🚨 KİRACI: başka org'un aynı mesaj kimliğine yazılmış karar kaydı özete girmez", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const { conversationId } = await seed({ guestMessage: "Hello" });
+    const first = await prisma.message.findFirstOrThrow({ where: { conversationId }, select: { id: true } });
+    const other = await prisma.organization.create({ data: { name: "Other" } });
+    await prisma.riskEvent.create({
+      data: { organizationId: other.id, surface: "auto_reply", triggerId: first.id, finalDecision: "human_review", riskType: "complaint" },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", authorType: "guest", body: "Any update?", createdAt: new Date(Date.now() - 30_000) },
+    });
+    await applyChannelAutoReply(conversationId);
+    expect(mockSuggest.mock.calls[0][0].conversationState?.records?.items).toEqual([]);
+  });
+});

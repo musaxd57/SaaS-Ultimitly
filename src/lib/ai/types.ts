@@ -1,4 +1,5 @@
 import type { ClaimAudit } from "./claim-support";
+import type { ConversationStateSummary } from "./conversation-state";
 import type { StayChangeDeclaration } from "./semantic/stay-change";
 import type { Priority, ReplyTone } from "@/lib/constants";
 
@@ -92,6 +93,11 @@ export interface SuggestReplyInput {
   conversationState?: {
     /** Bu sohbette misafire DAHA ÖNCE hiç cevap gitmedi mi? */
     isFirstOperatorReply: boolean;
+    /**
+     * Konuşma Anlama Durumu v1 dilim B (`conversation-state.ts`; bayrak `AI_CONVERSATION_STATE_ENABLED`, varsayılan
+     * KAPALI): kalıcı kayıtlardan KODLA kurulan, PII'siz ve metinsiz özet. Yoksa istem bayt bayt aynı kalır.
+     */
+    records?: ConversationStateSummary;
   };
   tone: ReplyTone;
   language: string;

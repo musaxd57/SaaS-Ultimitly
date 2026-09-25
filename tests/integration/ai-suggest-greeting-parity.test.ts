@@ -157,3 +157,59 @@ describe("POST /api/conversations/[id]/ai-suggest — selam tekrarı paritesi", 
     ).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Konuşma Anlama Durumu v1 dilim B — gelen kutusu bağlantısı. Bayrak KAPALI: kayıt yüklenmez. AÇIK: ev sahibine
+// bırakılmış önceki mesajın karar kaydı taslağı yazan modele PII'siz özet olarak gider.
+// ---------------------------------------------------------------------------
+describe("POST /api/conversations/[id]/ai-suggest — konuşma kayıtları (CUS v1 dilim B)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    mockSuggest.mockResolvedValue(REPLY);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function seedHeldComplaint(): Promise<string> {
+    const id = await seed([
+      { direction: "inbound", body: "The shower is broken" },
+      { direction: "inbound", body: "Any update?" },
+    ]);
+    const first = await prisma.message.findFirstOrThrow({ where: { conversationId: id, body: "The shower is broken" } });
+    await prisma.riskEvent.create({
+      data: { organizationId: session.organizationId, surface: "auto_reply", triggerId: first.id, finalDecision: "human_review", riskType: "complaint" },
+    });
+    return id;
+  }
+
+  async function recordsFor(id: string) {
+    const res = await aiSuggest(
+      new NextRequest(`http://localhost/api/conversations/${id}/ai-suggest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(res.status).toBe(200);
+    return mockSuggest.mock.calls[0][0].conversationState?.records;
+  }
+
+  it("bayrak KAPALI: taslağı yazan modele kayıt gitmez", async () => {
+    expect(await recordsFor(await seedHeldComplaint())).toBeUndefined();
+  });
+
+  it("🚨 bayrak AÇIK: ev sahibine bırakılmış şikâyet 'bekliyor' olarak gider", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    expect(await recordsFor(await seedHeldComplaint())).toEqual({
+      outbound: 0,
+      hostOutbound: 0,
+      unansweredGuest: 2,
+      items: [{ topic: "complaint", status: "pending_host" }],
+      lifecycleSent: [],
+    });
+  });
+});

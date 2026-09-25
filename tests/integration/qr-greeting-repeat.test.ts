@@ -222,3 +222,37 @@ describe("selam tekrarı — kodda hesaplanır, modele söylenir", () => {
     expect(second.conversationState?.isFirstOperatorReply).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Konuşma Anlama Durumu v1 dilim B — QR bağlantısı. Cevaplanan mesaj cevabıyla birlikte kaydedilir, bu yüzden yükleyiciye
+// "henüz kayıtlı değil" diye verilir: "son giden mesajdan sonraki misafir mesajı" kanal ve gelen kutusuyla aynı anlamda.
+// ---------------------------------------------------------------------------
+describe("QR — konuşma kayıtları (CUS v1 dilim B)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("GUEST_CHAT_ENABLED", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    mockSuggest.mockResolvedValue(reply());
+  });
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+  });
+
+  it("bayrak KAPALI: cevap modeline kayıt gitmez", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "");
+    const { token } = await seed();
+    const r1 = await ask(token, "Otopark var mı?");
+    await ask(token, "Çöp nereye atılıyor?", cookieOf(r1));
+    expect((mockSuggest.mock.calls[1][0] as SuggestReplyInput).conversationState?.records).toBeUndefined();
+  });
+
+  it("🚨 bayrak AÇIK: ikinci turda önceki cevap sayılır, cevaplanan (henüz kaydedilmemiş) mesaj cevapsız sayılır", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const { token } = await seed();
+    const r1 = await ask(token, "Otopark var mı?");
+    await ask(token, "Çöp nereye atılıyor?", cookieOf(r1));
+    const records = (mockSuggest.mock.calls[1][0] as SuggestReplyInput).conversationState?.records;
+    expect(records).toMatchObject({ outbound: 1, hostOutbound: 0, unansweredGuest: 1, lifecycleSent: [] });
+  });
+});
