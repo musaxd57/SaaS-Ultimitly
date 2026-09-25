@@ -91,7 +91,8 @@ describe("statedCheckoutTime — olumsuzlama vetosu", () => {
     expect(timeStatedInMessage("12:00", "12:00 gibi çıkarız, uygun mu")).toBe(true);
     expect(timeStatedInMessage("09:00", "sabah 9'da ayrılacağız")).toBe(true);
     expect(timeStatedInMessage("10:00", "10:00'da çıkmayı planlıyoruz")).toBe(true);
-    expect(timeStatedInMessage("11:00", "Çıkmamız gereken saat 11:00 mi?")).toBe(true);
+    // Kör batarya (09-25): resmi saati SORMAK beyan değildir (ret vetosu "çıkmamız"ı yine yakalamaz — alttaki satır).
+    expect(timeStatedInMessage("11:00", "Çıkmamız gereken saat 11:00 mi?")).toBe(false);
     expect(timeStatedInMessage("11:00", "11:00'de çıkmamız gerekiyor")).toBe(true);
     expect(
       timeStatedInMessage("11:00", "Çıkmadan önce anahtarı nereye bırakalım? Saat 11:00'de çıkıyoruz."),

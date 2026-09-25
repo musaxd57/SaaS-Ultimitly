@@ -219,7 +219,9 @@ describe("timeStatedInMessage (pure)", () => {
     expect(timeStatedInMessage("18:00", "akşam 6 gibi çıkarız")).toBe(true);
     expect(timeStatedInMessage("09:00", "saat 9 civarı ayrılırız")).toBe(true);
     expect(timeStatedInMessage("18:00", "18'de çıkarız")).toBe(true);
-    expect(timeStatedInMessage("12:00", "çıkışı öğlen 12 yapabilir miyiz")).toBe(true);
+    expect(timeStatedInMessage("12:00", "çıkışı öğlen 12 yapacağız")).toBe(true);
+    // Kör batarya (09-25): İSTEK beyan değildir — "öğlen 12'de çıkabilir miyiz" misafirin çıkış saati diye kaydedilmez.
+    expect(timeStatedInMessage("12:00", "çıkışı öğlen 12 yapabilir miyiz")).toBe(false);
     expect(timeStatedInMessage("21:00", "we depart at 9 pm")).toBe(true);
     expect(timeStatedInMessage("18:00", "ÇIKACAĞIZ akşam 6 gibi")).toBe(true); // all-caps I → i lowercasing
   });
