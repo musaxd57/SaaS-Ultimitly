@@ -70,6 +70,11 @@ export interface UnderstandingInput {
   stayTimes?: StayTimes | null;
   /** Redaksiyon için bilinen adlar. */
   names?: readonly (string | null | undefined)[];
+  /**
+   * Koddan kurulan tarih satırı (`stay-timeline.ts understandingDateLine`; Konuşma Anlama Durumu bayrağı açıkken
+   * `kb-retrieve.ts` verir). Yoksa içerik — ve önbellek anahtarı — bayt bayt eskisi.
+   */
+  dateLine?: string | null;
   fetchImpl?: typeof fetch;
 }
 
@@ -88,6 +93,7 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
   const co = normalizeHhmm(input.stayTimes?.checkOut) ?? "unknown";
   return [
     `Property standard check-in: ${ci}; standard check-out: ${co}.`,
+    ...(input.dateLine ? [input.dateLine] : []),
     "RECENT CONVERSATION (oldest first):",
     ...(context.length > 0
       ? context.map((m) => `${m.direction === "inbound" ? "Guest" : "Host"}: <<<${clean(m.body)}>>>`)

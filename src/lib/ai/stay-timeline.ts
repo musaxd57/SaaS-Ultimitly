@@ -136,6 +136,33 @@ export function clockLine(t: StayTimeline): string {
   return `Bugün: ${formatDayTr(t.today)}${time} (${t.timeZone}) · Yarın: ${formatDayTr(t.tomorrow)}${smallHours}`;
 }
 
+const WEEKDAYS_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function dayEn(key: NightKey): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return `${key} (${WEEKDAYS_EN[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]})`;
+}
+
+/**
+ * ANLAMA KATMANININ TARİH SATIRI (Konuşma Anlama Durumu, 09-25; katmanın istemi İngilizce). "Yarın 11'de" gibi göreli
+ * ifadelerin konaklamadaki yeri (varış günü mü, çıkış günü mü, başka gün mü) ancak bugünü ve rezervasyonun GÜNLERİNİ
+ * bilerek okunur. YALNIZ GÜN hassasiyeti — dakika yazılmaz: satır anlama katmanının önbellek anahtarına girer ve gün
+ * içinde sabit kalmalı (gece yarısından sonraki ipucu yalnız 05:00'te bir kez değişir).
+ * `bookingKnown` false: çağıran rezervasyonu bilmiyor (QR — rezervasyon ayrıntısı bilinçli verilmez) → rezervasyon
+ * hakkında HİÇBİR şey söylenmez ("rezervasyon yok" DEMEK yanlış olurdu).
+ */
+export function understandingDateLine(t: StayTimeline, bookingKnown: boolean): string {
+  const smallHours =
+    t.hhmm !== null && t.hhmm < SMALL_HOURS_END
+      ? ` It is shortly after midnight: a guest's "tomorrow" usually means today (${t.today}).`
+      : "";
+  const today = `Today (property time zone): ${dayEn(t.today)}; tomorrow: ${dayEn(t.tomorrow)}.${smallHours}`;
+  if (!bookingKnown) return today;
+  if (t.arrival === null || t.departure === null) return `${today} No booking is linked to this conversation.`;
+  const tag = t.cancelled ? " (CANCELLED — not a valid stay)" : t.unconfirmed ? " (not confirmed yet)" : "";
+  return `${today} Guest's booking${tag}: check-in day ${dayEn(t.arrival)}, check-out day ${dayEn(t.departure)}.`;
+}
+
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**

@@ -135,14 +135,23 @@ export const POST = withManage(async (session, req) => {
   // result is only returned, never sent and never persisted.
   // RAG dilim 1 (09-09): üretimle PARİTE — test kartı da aynı seçiciden geçer
   // (bayrak kapalıyken kimlik: `kbSel.items === kb`).
+  const now = new Date();
+  // Örnek misafir DÜN girdi, çıkışa 3 gün var (konaklama sürüyor). 09-25 zaman bağlamı takvim günüyle çalışıyor: varış
+  // "şimdi" olunca evre "Giriş BUGÜN" oluyordu — eski "şu an konaklamakta" çerçevesi ve 09-25 kıyası bozulmasın.
+  const sampleStay = {
+    arrivalDate: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+    departureDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+    status: "confirmed",
+  };
   const kbSel = await retrieveKbForPrompt({
     items: kb,
     guestMessage: message,
     history: [],
     stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },
+    // Anlama katmanının tarih satırı (bayrak açıkken) — cevap modeliyle AYNI örnek konaklama.
+    dateContext: { now, timeZone: org?.timezone, reservation: sampleStay },
   });
 
-  const now = new Date();
   const result = await suggestReply({
     guestMessage: message,
     property: {
@@ -152,14 +161,7 @@ export const POST = withManage(async (session, req) => {
       address: property.address,
       city: property.city,
     },
-    reservation: {
-      guestName: TEST_GUEST_NAME,
-      // Örnek misafir DÜN girdi, çıkışa 3 gün var (konaklama sürüyor). 09-25 zaman bağlamı takvim günüyle çalışıyor: varış
-      // "şimdi" olunca evre "Giriş BUGÜN" oluyordu — eski "şu an konaklamakta" çerçevesi ve 09-25 kıyası bozulmasın.
-      arrivalDate: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-      departureDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
-      status: "confirmed",
-    },
+    reservation: { guestName: TEST_GUEST_NAME, ...sampleStay },
     knowledgeBase: kbSel.items,
     knowledgeBaseDropped: kbDropped + kbSel.droppedItems,
     knowledgeBaseSelection: kbSel.selection,

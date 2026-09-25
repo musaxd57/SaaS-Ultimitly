@@ -87,9 +87,15 @@ describe("izolasyon — durumu kim bilir", () => {
     expect(files.some((f) => f.rel === "src/lib/ai/prompts.ts")).toBe(true);
   });
 
-  it("🚨 conversation-state modülünü YALNIZ istem, tip ve yükleyici içe aktarır", () => {
+  it("🚨 conversation-state modülünü YALNIZ istem, tip, yükleyici ve anlama katmanının tek girişi içe aktarır", () => {
+    // `kb-retrieve.ts` yalnız bayrağı okur (anlama katmanının tarih satırı; kapı DEĞİL — hiçbir karar vermez).
     const importers = files.filter((f) => IMPORT_OF("conversation-state").test(f.text)).map((f) => f.rel).sort();
-    expect(importers).toEqual(["src/lib/ai/conversation-state-loader.ts", "src/lib/ai/prompts.ts", "src/lib/ai/types.ts"]);
+    expect(importers).toEqual([
+      "src/lib/ai/conversation-state-loader.ts",
+      "src/lib/ai/kb-retrieve.ts",
+      "src/lib/ai/prompts.ts",
+      "src/lib/ai/types.ts",
+    ]);
   });
 
   it("🚨 yükleyiciyi YALNIZ üç cevap yüzeyi çağırır (kanal, gelen kutusu önerisi, QR)", () => {

@@ -732,6 +732,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Anlama katmanı (bayrak açıkken): standart saat kıyası + redaksiyon için.
     stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
     redactNames: [res.guestName],
+    // Anlama katmanının tarih satırı (bayrak açıkken): QR'da rezervasyon ayrıntısı bilinçli verilmez → yalnız bugün/yarın.
+    dateContext: { now: new Date(), timeZone: org?.timezone },
   });
   const kbDroppedTotal = ctx.knowledgeBaseDropped + kbSel.droppedItems;
 

@@ -2044,6 +2044,8 @@ export async function applyChannelAutoReply(
     // Anlama katmanı (bayrak açıkken): standart saat kıyası + redaksiyon için.
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
     redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],
+    // Anlama katmanının tarih satırı (yalnız Konuşma Anlama Durumu bayrağı açıkken kullanılır).
+    dateContext: { now: new Date(), timeZone: org.timezone, reservation: conversation.reservation ?? null },
   });
   const kbForModel = kbSel.items;
   const kbDroppedTotal = kbDropped + (kb.length - kbVisible.length) + kbSel.droppedItems;

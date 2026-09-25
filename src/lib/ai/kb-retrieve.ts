@@ -11,6 +11,9 @@ import { prepareSemanticScores } from "@/lib/ai/embeddings/semantic-retrieval";
 import { understandGuestMessages, understandingEnabled, type UnderstandingOutcome } from "@/lib/ai/semantic/understand";
 import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import type { StayTimes } from "@/lib/ai/semantic/stay-change";
+import { conversationStateEnabled } from "@/lib/ai/conversation-state";
+import { stayTimeline, understandingDateLine } from "@/lib/ai/stay-timeline";
+import { orgTimezone } from "@/lib/timezone";
 
 // ---------------------------------------------------------------------------
 // BİLGİ SEÇİMİ — YÜZEYLERİN TEK GİRİŞİ (09-23).
@@ -34,6 +37,16 @@ export interface KbRetrieveInput<T extends KbChunkSource> extends KbSelectInput<
   stayTimes?: StayTimes | null;
   /** Anlama katmanına gitmeden redakte edilecek bilinen adlar. */
   redactNames?: readonly (string | null | undefined)[];
+  /**
+   * Anlama katmanının tarih satırı için (Konuşma Anlama Durumu; bayrak `AI_CONVERSATION_STATE_ENABLED` KAPALIYKEN
+   * KULLANILMAZ → katmanın girdisi ve önbellek anahtarı bayt bayt eskisi). `reservation` verilmezse (QR) rezervasyon
+   * hakkında hiçbir şey yazılmaz; `null` = bu konuşmaya bağlı rezervasyon yok.
+   */
+  dateContext?: {
+    now: Date;
+    timeZone: string | null | undefined;
+    reservation?: { status: string; arrivalDate: Date | string; departureDate: Date | string } | null;
+  };
 }
 
 export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
@@ -52,13 +65,22 @@ export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
 };
 
 export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
-  const { stayTimes, redactNames, ...selectInput } = input;
+  const { stayTimes, redactNames, dateContext, ...selectInput } = input;
+  // Tarih satırı TEK karar noktası burada: bayrak kapalıyken hesaplanmaz, katmana alan hiç gitmez.
+  const dateLine =
+    dateContext && conversationStateEnabled()
+      ? understandingDateLine(
+          stayTimeline({ now: dateContext.now, timeZone: orgTimezone(dateContext.timeZone), reservation: dateContext.reservation }),
+          dateContext.reservation !== undefined,
+        )
+      : null;
   // Çağrı HEMEN başlar (async fonksiyon ilk await'e kadar eşzamanlı koşar); kimse beklemese de paraleldir.
   const pending: Promise<UnderstandingOutcome> = understandGuestMessages({
     guestMessage: selectInput.guestMessage,
     history: selectInput.history,
     stayTimes,
     names: redactNames,
+    ...(dateLine ? { dateLine } : {}),
   });
   const queriesNeeded =
     understandingEnabled() &&
