@@ -16,6 +16,7 @@ import {
 import type { ClaimContext } from "./claim-support";
 import { guestCheckoutMayBeLate, guestCheckoutRelation } from "@/lib/guest-checkout-time";
 import { normalizeHhmm } from "./semantic/stay-change";
+import { guestTurnLanguage, languageLabel, unansweredGuestTexts } from "./language-signal";
 
 // ============================================================================
 // TONE SYSTEM — Detailed guidance for each tone mode
@@ -1109,7 +1110,8 @@ export function buildReplyPrompt(input: SuggestReplyInput): {
   /** İstemin çelişki bloğunu basan AYNI hesap — kapı bunu okur (`time-conflict-gate.ts`, P4-b kodda). */
   timeConflicts: TimeConflict[];
 } {
-  const { property, reservation, knowledgeBase, history, openTopics, guestMessage, tone, language } = input;
+  // `input.language` (org ayarı) istemde KULLANILMAZ: misafire yazılan cevabın dilini belirlemez (09-25, ↓DİL).
+  const { property, reservation, knowledgeBase, history, openTopics, guestMessage, tone } = input;
 
   // P4 — çelişki bloğu yalnız GERÇEK bir çelişki varken basılır (sakin durumda gürültü yok).
   const conflicts = findTimeConflicts(property, knowledgeBase);
@@ -1247,6 +1249,19 @@ Zaman bağlamı: ${buildTimelineContext(reservation)}`
           ? "CEVAP UZUNLUĞU: Misafir uzun/detaylı yazdı — sorduğu her noktayı karşıla ama yine de öz ve sohbet havasında tut."
           : "CEVAP UZUNLUĞU: Misafirin yazdığı uzunluğa yakın, dengeli bir cevap ver (genelde 2-4 cümle).";
 
+  // ── MİSAFİRİN DİLİ — KODDA TESPİT (09-25, kurucu: "5.1'in zayıf noktasını düzelt") ─────────────────────────────
+  // Ölçüldü (cevap kıyası): gpt-5.1 İngilizce yazan misafirlerin 7/59'una TÜRKÇE cevap verdi — bilgi tabanında olmayan
+  // soruda, enjeksiyon reddinde, İngilizce geçen sohbette Wi-Fi sorusunda (bu sonuncusu otomatik gidiyordu). Çekim:
+  // Türkçe istem kuralları + bilgi tabanı + devir/şikâyet örnekleri + eskiden burada duran "(Sistem tercih dili: tr)".
+  // Dil yalnız EMİNKEN yazılır (`language-signal.ts`); belirsizde eski kural (İngilizce) geçerli. Kapı AYNI kuralla
+  // (son mesaj, değilse cevapsız mesajların tamamı) dili farklı cevabı göndermez (`automation.ts`).
+  const guestLanguage = guestTurnLanguage(guestMessage, unansweredGuestTexts(history ?? [], guestMessage));
+  const languageLine = guestLanguage
+    ? `\nMİSAFİRİN DİLİ (kodla tespit edildi): ${languageLabel(guestLanguage)}. reply alanının TAMAMINI bu dilde yaz — bilgi tabanı, geçmiş mesajlar ya da örnekler başka dilde olsa bile; devir, ret ve kaydı olmayan konu cevapları da dahil. detectedLanguage alanı da "${guestLanguage}" olmalı.`
+    : "";
+  // Aynı dil GÖREV satırında bir kez daha (model en son okuduğunu daha iyi uygular; istemin geri kalanı Türkçe).
+  const languageReminder = guestLanguage ? `\nreply dili: ${languageLabel(guestLanguage)} — yukarıdaki MİSAFİRİN DİLİ.` : "";
+
   const adjacencyBlock = buildAdjacencyBlock(reservation, input.adjacency ?? null, property);
 
   // Host-configured late-checkout / stay-extension offer. Injected ONLY when the
@@ -1311,7 +1326,7 @@ OPERATÖR TALİMATI
 ${toneBlock}
 ${styleBlock}
 DİL ZORUNLULUĞU: Misafirin yazdığı dili (detectedLanguage) tespit et ve cevabı o dilde yaz.
-Dil belirsiz veya çok kısaysa VARSAYILAN olarak İngilizce (en) yaz. (Sistem tercih dili: ${language})
+Dil belirsiz veya çok kısaysa VARSAYILAN olarak İngilizce (en) yaz.${languageLine}
 ${lengthHint}
 
 ════════════════════════════════════════════════════
@@ -1355,7 +1370,7 @@ ${guestMessage}
 
 ════════════════════════════════════════════════════
 GÖREV: Yukarıdaki bilgilere dayanarak yalnızca geçerli JSON döndür.
-Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanını kullan.
+Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanını kullan.${languageReminder}
 ════════════════════════════════════════════════════`;
 
   // İDDİA DESTEĞİ GÖLGE ÖLÇÜMÜ (`claim-support.ts`) için bağlam — istemi kuran AYNI değişkenlerden

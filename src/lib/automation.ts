@@ -36,6 +36,7 @@ import type {
   UnderstandingStaySignal,
 } from "@/lib/ai/semantic/stay-change";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
+import { guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
@@ -372,9 +373,21 @@ export function autoReplyGateFailure(
   if (result.confidence < AUTO_REPLY_MIN_CONFIDENCE) return "blocked";
   // ── ANLAMA KATMANININ RİSK NİYETLERİ (09-24, `semantic/intent-risk.ts`) ────────
   // Acil / şikâyet / iptal-iade / insan talebi: kelime ağının tanımadığı dolaylı dili (ölçüldü) ayrı bir model
-  // okur. SON kontrol: gerekçe `understanding_risk` yalnız başka HİÇBİR kontrol kapatmadığında görünür ("yalnız
-  // anlama katmanı neyi yakaladı?"). Katman koştuysa her zaman karar verir (birleşim değişmezi 09-24, gölge kip YOK).
-  return evaluateIntentRisk(context?.understandingRisk, { modelIntent: result.intent }).reason;
+  // okur. Güvenlik kontrollerinin SONUNCUSU: gerekçe `understanding_risk` yalnız başka HİÇBİR güvenlik kontrolü
+  // kapatmadığında görünür ("yalnız anlama katmanı neyi yakaladı?"). Katman koştuysa her zaman karar verir (birleşim
+  // değişmezi 09-24, gölge kip YOK).
+  const intentRisk = evaluateIntentRisk(context?.understandingRisk, { modelIntent: result.intent }).reason;
+  if (intentRisk) return intentRisk;
+  // ── MİSAFİRİN DİLİNDE DEĞİL (09-25, kurucu: "5.1'in zayıf noktasını düzelt", `ai/language-signal.ts`) ────────
+  // Ölçüldü: gpt-5.1 İngilizce yazan misafirlerin 7/59'una Türkçe cevap verdi; biri buradan geçip otomatik gidiyordu.
+  // Misafirin dili (son mesaj; değilse cevapsız mesajların tamamı — istemle AYNI kural) ve cevabın dili İKİSİ DE
+  // eminken farklıysa cevap GİTMEZ, taslak ev sahibine kalır. Belirsizlik engel sebebi DEĞİL (kalite kontrolü, güvenlik
+  // değil). EN SONDA: kalite gerekçesi hiçbir güvenlik gerekçesini gölgelemez. QR kapısında BİLİNÇLİ yok (orada devir
+  // metni ve arayüz yalnız Türkçe — Türkçe devir, Türkçe ama bilgili cevaptan misafir için daha az yararlı).
+  if (replyLanguageMismatch(guestTurnLanguage(guestMessage, context?.pendingGuestMessages ?? []), result.reply)) {
+    return "reply_language_mismatch";
+  }
+  return null;
 }
 
 /**
@@ -382,7 +395,12 @@ export function autoReplyGateFailure(
  * kapıyı gerçekten kapattıysa müsaitlik kodudur — model arızası ya da başka bir veto müsaitlik satırına
  * sayılmaz (eskiden gerekçe kapıdan bağımsız hesaplanıyordu).
  */
-export type AutoReplyGateFailure = AvailabilityVetoReason | IntentRiskReason | "kb_time_conflict" | "blocked";
+export type AutoReplyGateFailure =
+  | AvailabilityVetoReason
+  | IntentRiskReason
+  | "kb_time_conflict"
+  | "reply_language_mismatch"
+  | "blocked";
 
 /** Only safe, confident drafts may be auto-sent; everything else waits for a human.
  * Exported for the golden scenario suite — the gate is the product's core safety
@@ -2014,12 +2032,15 @@ export async function applyChannelAutoReply(
   // `price_claim` da (dilim 8): uydurma ücretli erteleme tutulur ama doğrulanmış onay onun YERİNE geçebilir.
   // `kb_time_conflict` da: akış host'un kontrol listesini + kanıtı üretir; onay / politika metni kapıdan BAŞTAN geçer ve
   // aynı çelişki listesini taşıdığı için (`verifiedEarlyCheckinResult` sonucu yayar) yine tutulur.
+  // `reply_language_mismatch` da (09-25): dil kontrolü kapının SONUNDA — eskiden GEÇEN yanlış dilli erteleme akışı
+  // atlatmasın (host'un kontrol listesi kaybolurdu); koddan kurulan metin kapıdan (dil dahil) BAŞTAN geçer.
   if (
     gatePassed ||
     gateFailure === "availability_unconfirmed" ||
     gateFailure === "availability_claim" ||
     gateFailure === "price_claim" ||
-    gateFailure === "kb_time_conflict"
+    gateFailure === "kb_time_conflict" ||
+    gateFailure === "reply_language_mismatch"
   ) {
     earlyCheckinRun = await runEarlyCheckinWorkflow({
       organizationId: conversation.property.organizationId,
@@ -2463,7 +2484,8 @@ export async function applyChannelAutoReply(
           gateFailure === "availability_claim" ||
           gateFailure === "availability_unconfirmed" ||
           gateFailure === "price_claim" ||
-          gateFailure === "kb_time_conflict"
+          gateFailure === "kb_time_conflict" ||
+          gateFailure === "reply_language_mismatch"
             ? gateFailure
             : "low_confidence_or_risky",
         confidence: result.confidence,

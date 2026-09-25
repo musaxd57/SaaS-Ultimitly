@@ -64,6 +64,8 @@ const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.1";
 const LIMIT = Number(process.env.EVAL_COMPARE_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_COMPARE_LIMIT)) : Infinity;
+/** Rapor adına ek (aynı gün aynı modelin ikinci koşusu ilk raporu EZMESİN — örn. düzeltme sonrası ölçüm). */
+const TAG = (process.env.EVAL_COMPARE_TAG ?? "").trim().replace(/[^a-z0-9.-]+/gi, "_");
 const CONCURRENCY = 3;
 /**
  * Dakikadaki istek tavanı (09-25 ölçüldü): hesabın token/dk sınırı gpt-6-luna'da 200k, gpt-5.1'de 500k; bir cevap
@@ -334,6 +336,7 @@ export function summarize(rows: Row[], model: string): string[] {
     `| insan talebi → devir cevabı otomatik (tasarım gereği) | ${pct(human.filter((r) => r.auto).length, human.length)} |`,
     `| dil uyumu (TR dışı) | ${pct(nonTr.filter((r) => r.langOk).length, nonTr.length)} |`,
     `| dil uyumu (TR) | ${pct(ok.filter((r) => r.lang === "tr" && r.langOk).length, ok.filter((r) => r.lang === "tr").length)} |`,
+    `| dil kapısı tuttu (cevap misafirin dilinde değil, 09-25) | ${ok.filter((r) => r.gate === "reply_language_mismatch").length} |`,
     `| selam tekrarı (önceki cevaptan sonra) | ${pct(greet.filter((r) => r.greetRepeat).length, greet.length)} |`,
     `| yedeğe düşen / hata (şema ihlali dahil) | ${pct(rows.length - ok.length, rows.length)} · yeniden denenen ${rows.filter((r) => r.retried).length} |`,
     `| gecikme p50 / p95 | ${(quantile(ms, 0.5) / 1000).toFixed(1)} sn / ${(quantile(ms, 0.95) / 1000).toFixed(1)} sn |`,
@@ -395,7 +398,7 @@ describe.skipIf(!enabled)(`CEVAP MODELİ KIYASI — ${MODEL}`, () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
-    const name = `model-reply-compare-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}.md`;
+    const name = `model-reply-compare-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${TAG ? `-${TAG}` : ""}.md`;
     let commit = "?";
     try {
       commit = execSync("git rev-parse --short HEAD", { cwd: path.resolve(__dirname, "../..") }).toString().trim();

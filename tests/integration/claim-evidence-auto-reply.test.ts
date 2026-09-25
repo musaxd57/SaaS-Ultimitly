@@ -50,7 +50,7 @@ const REPLY = {
   statedCheckoutTime: null,
 };
 
-async function seed() {
+async function seed(guestBody = "Otopark var mı?") {
   const org = await prisma.organization.create({
     data: { name: "Test Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
   });
@@ -73,7 +73,7 @@ async function seed() {
       guestIdentifier: "Alex",
       status: "new",
       externalReservationId: "res-1",
-      messages: { create: [{ direction: "inbound", senderName: "Alex", body: "Otopark var mı?", createdAt: new Date(Date.now() - 60_000) }] },
+      messages: { create: [{ direction: "inbound", senderName: "Alex", body: guestBody, createdAt: new Date(Date.now() - 60_000) }] },
     },
     select: { id: true },
   });
@@ -120,6 +120,28 @@ describe("applyChannelAutoReply — karar kaydı kanıtı", () => {
       claims: { n: 2, u: 1, uc: ["money"] },
       llm: { pt: 12000, cpt: 11000, m: "gpt-5.1" },
     });
+  });
+
+  it("🚨 misafirin dilinde olmayan cevap GİTMEZ (09-25): İngilizce misafire Türkçe cevap → taslak, gerekçe reply_language_mismatch", async () => {
+    // Ölçülen vaka (cevap kıyası, gpt-5.1): İngilizce sohbette Türkçe cevap kapıdan geçip otomatik gidiyordu.
+    mockSuggest.mockResolvedValue({ ...REPLY, reply: "Bina altı otopark misafirlerimiz için ücretsizdir, dilediğiniz zaman kullanabilirsiniz." });
+    const conversationId = await seed("Hi! Is there parking at the building?");
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(ev.finalDecision).toBe("human_review");
+    expect(ev.reason).toBe("reply_language_mismatch");
+    // Konuşma ev sahibine kalır (gelen kutusunda "onay bekliyor" görünür; `skippedReason` zinciri BİLEREK aynı kod).
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.skippedReason).toBe("low_confidence_or_risky");
+  });
+
+  it("KONTROL: aynı soru, cevap misafirin dilinde → gider", async () => {
+    mockSuggest.mockResolvedValue({ ...REPLY, reply: "Yes, parking under the building is free for guests." });
+    const conversationId = await seed("Hi! Is there parking at the building?");
+    await applyChannelAutoReply(conversationId);
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
   it("ölçülmediyse (alan yok) kanıtta claims/llm anahtarı YOK", async () => {

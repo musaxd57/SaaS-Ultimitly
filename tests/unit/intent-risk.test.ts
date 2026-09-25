@@ -39,6 +39,8 @@ const OK = {
   riskType: null,
   reply: "Thank you for letting us know.",
 };
+/** Aynı taslak misafirin dilinde (dil kapısı 09-25 ayrı ölçülür: `reply-language-gate.test.ts`). */
+const okIn = (lang: "tr" | "en") => (lang === "tr" ? { ...OK, reply: "Bildiriminiz için teşekkür ederiz." } : OK);
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -94,28 +96,28 @@ describe("saf politika", () => {
 
 describe("kanal kapısı (`autoReplyGateFailure`)", () => {
   /** Kelime ağının KAÇIRDIĞI dolaylı dil (09-24 ölçümü): ne `classifyFallback` ne `detectRiskType` engelliyor. */
-  const MISSED: [string, "emergency" | "complaint_issue" | "cancellation_refund" | "human_request"][] = [
-    ["My daughter cut her hand badly, where is the nearest hospital?", "emergency"],
-    ["Kapının kilidi takılıyor, dışarıda kaldık.", "emergency"],
-    ["There are ants all over the kitchen counter.", "complaint_issue"],
-    ["Komşular gece boyunca bağırdı, hiç uyuyamadık.", "complaint_issue"],
-    ["I would like to get back the amount for the last two nights.", "cancellation_refund"],
-    ["Can I speak with the owner directly please?", "human_request"],
-    ["Ev sahibiyle bizzat konuşabilir miyim?", "human_request"],
+  const MISSED: [string, "emergency" | "complaint_issue" | "cancellation_refund" | "human_request", "tr" | "en"][] = [
+    ["My daughter cut her hand badly, where is the nearest hospital?", "emergency", "en"],
+    ["Kapının kilidi takılıyor, dışarıda kaldık.", "emergency", "tr"],
+    ["There are ants all over the kitchen counter.", "complaint_issue", "en"],
+    ["Komşular gece boyunca bağırdı, hiç uyuyamadık.", "complaint_issue", "tr"],
+    ["I would like to get back the amount for the last two nights.", "cancellation_refund", "en"],
+    ["Can I speak with the owner directly please?", "human_request", "en"],
+    ["Ev sahibiyle bizzat konuşabilir miyim?", "human_request", "tr"],
   ];
 
   it("KONTROL (anti-vakum): bu mesajlar sinyalsiz kapıdan GEÇİYOR — kelime ağı gerçekten kaçırıyor", () => {
-    for (const [msg] of MISSED) {
+    for (const [msg, , lang] of MISSED) {
       const fb = classifyFallback(msg);
       expect(fb.isComplaint || ["refund", "early_departure", "human_request"].includes(fb.intent), msg).toBe(false);
       expect(detectRiskType(msg), msg).toBeNull();
-      expect(autoReplyGateFailure(OK, msg, {}), msg).toBeNull();
+      expect(autoReplyGateFailure(okIn(lang), msg, {}), msg).toBeNull();
     }
   });
 
   it("🚨 anlama katmanının risk niyeti taslağı TUTAR (gerekçe `understanding_risk`)", () => {
-    for (const [msg, kind] of MISSED) {
-      expect(autoReplyGateFailure(OK, msg, { understandingRisk: kind }), msg).toBe("understanding_risk");
+    for (const [msg, kind, lang] of MISSED) {
+      expect(autoReplyGateFailure(okIn(lang), msg, { understandingRisk: kind }), msg).toBe("understanding_risk");
     }
   });
 
@@ -126,7 +128,8 @@ describe("kanal kapısı (`autoReplyGateFailure`)", () => {
   });
 
   it("devir cevabı insan talebinde GİDER; aynı devir cevabı acil durumda TUTULUR", () => {
-    const handoff = { ...OK, intent: "human_request", reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." };
+    // Devir cümlesi misafirin dilinde (istemin İngilizce devir kalıbı; dil kapısı ayrı ölçülür).
+    const handoff = { ...OK, intent: "human_request", reply: "Your message has been saved; your host can see it." };
     const msg = "Can I speak with the owner directly please?";
     expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "human_request" })).toBeNull();
     expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "emergency" })).toBe("understanding_risk");

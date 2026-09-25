@@ -125,6 +125,16 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect((await (await POST(req("Giriş saati kaçta?"), ctx)).json()).wouldAutoSend).toBe(false);
   });
 
+  it("🚨 PARİTE: misafirin dilinde olmayan cevap (09-25) → wouldAutoSend FALSE; aynı içerik misafirin dilinde TRUE", async () => {
+    // Kart gerçek kapıyı çağırır: dil kontrolü misafirin mesajı + `reply` ile koşar (ek alan gerekmez) — kart
+    // "gönderilirdi" derken gerçek gönderici tutmasın. Kontrol satırı aynı cevabın doğru dilde geçtiğini gösterir.
+    await seed();
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, reply: "The Wi-Fi network is LALEBUTIK and the password is Lale2025." });
+    expect((await (await POST(req("Hi, what is the wifi password?"), ctx)).json()).wouldAutoSend).toBe(true);
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, reply: "Wi-Fi ağımız LALEBUTİK, şifresi Lale2025. İyi günler dileriz, bir şey olursa yazın." });
+    expect((await (await POST(req("Hi, what is the wifi password?"), ctx)).json()).wouldAutoSend).toBe(false);
+  });
+
   it("🚨 TASLAK = EV SAHİBİNİN SESİ (09-25): gönderilmeyecek cevapta devir kalıbı ev sahibinin ağzından; gönderilecek cevap AYNEN", async () => {
     await seed();
     // Tutulan cevap (iade niyeti kapıda durur): kalıp çevrilir.

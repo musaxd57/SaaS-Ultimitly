@@ -825,7 +825,8 @@ describe("düşmanca inceleme 09-24 — bekçi AÇIKKEN değişmez", () => {
 
   it("🚨 P1-2: devir cevabı ('Tabii. Mesajınız kaydedildi…') konaklama isteğinde muaf DEĞİL — iki model ertelemesi şart", () => {
     const handoff = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "human_request" };
-    const msg = `${LATE} I'd like to talk to the host.`;
+    // Türkçe devir cümlesi Türkçe yazan misafire (dil kapısı 09-25 ayrı ölçülür: `reply-language-gate.test.ts`).
+    const msg = "Pazar günü 13:00'te çıksak olur mu? Ev sahibiyle konuşmak istiyorum.";
     const reply = "Tabii. Mesajınız kaydedildi; ev sahibiniz görebilir.";
     const guardReq = { status: "ok" as const, verdict: verdict({ guestRequestsChange: true, kind: "late_checkout", requestedCheckoutTime: "13:00" }) };
     expect(
@@ -838,7 +839,7 @@ describe("düşmanca inceleme 09-24 — bekçi AÇIKKEN değişmez", () => {
     ).toBeNull();
     // KONTROL: konaklama konusu olmayan saf devir her zamanki gibi gider.
     expect(
-      autoReplyGateFailure({ ...handoff, reply, stayChange: { asked: "none", stance: "none" } }, "I'd like to talk to the host.", { stayTimes: STAY }),
+      autoReplyGateFailure({ ...handoff, reply, stayChange: { asked: "none", stance: "none" } }, "Ev sahibiyle konuşmak istiyorum.", { stayTimes: STAY }),
     ).toBeNull();
   });
 

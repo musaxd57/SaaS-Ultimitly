@@ -80,6 +80,8 @@ export default async function ReportsPage() {
     "understanding_risk",
     // Mülk ayarı ↔ bilgi tabanı giriş/çıkış saati çelişkisi (P4-b kodda, 09-25) — kendi satırı: çözümü host'un veri düzeltmesi.
     "kb_time_conflict",
+    // Cevap misafirin dilinde değildi (09-25, yalnız kanal) — kendi satırı: "düşük güven" kovasına karışmasın.
+    "reply_language_mismatch",
   ];
   const [riskRows, heldRows, heldResolved] = await Promise.all([
     prisma.riskEvent.groupBy({
@@ -340,6 +342,12 @@ export default async function ReportsPage() {
                     <div className="flex items-center justify-between px-3 py-2">
                       <span>Saatler uyuşmuyor — size bırakıldı</span>
                       <Badge tone="muted">{heldCount("kb_time_conflict")}</Badge>
+                    </div>
+                  ) : null}
+                  {heldCount("reply_language_mismatch") > 0 ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span>Misafirin dilinde değil — size bırakıldı</span>
+                      <Badge tone="muted">{heldCount("reply_language_mismatch")}</Badge>
                     </div>
                   ) : null}
                   {heldCount("understanding_risk") > 0 ? (

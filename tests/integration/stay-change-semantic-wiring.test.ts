@@ -382,7 +382,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
 
   it("🚨 bekçi müsaitlik onayı eksik diye TUTULAN taslakta da koşar: iki model ertelemeyi tanırsa (kelime ağı tanımasa da) gider", async () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
-    const ask = [{ direction: "inbound" as const, body: "Can we stay one more night?" }];
+    // Almanca yazan misafire Almanca erteleme (kelime ağı tanımıyor; dil kapısı 09-25 ayrı ölçülür).
+    const ask = [{ direction: "inbound" as const, body: "Können wir noch eine Nacht bleiben?" }];
     const reply = { ...BASE, intent: "extend_stay", reply: "Das muss Ihr Gastgeber entscheiden.", stayChange: { asked: "extend" as const, stance: "defers" as const } };
     const verdict = (defers: boolean) => ({
       guest_requests_change: true,
