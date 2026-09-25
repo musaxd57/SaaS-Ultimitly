@@ -111,6 +111,17 @@ describe("confidentLanguage — eminken dil", () => {
     expect(confidentLanguage('Network: "Işıklı Ev", password: "ağaçlıkyol".')).toBeNull();
   });
 
+  it("🚨 karma yazı: Rusça/Arapça cevaptaki tırnaksız İngilizce şifre cevabı İngilizce YAPMAZ (mutasyon turu 09-25)", () => {
+    expect(confidentLanguage("Пароль от wifi: we are at the sea")).toBeNull();
+    expect(replyLanguageMismatch("ru", "Пароль от wifi: we are at the sea")).toBe(false);
+    // KONTROL: yazının çoğu Arapçaysa Arapça kalır (İngilizce şifre çevirmez).
+    expect(confidentLanguage("كلمة المرور للواي فاي: we are at the sea")).toBe("ar");
+  });
+
+  it("harf kanıtı yalnız listede OLMAYAN sözcükte: listedeki 'şifresi' iki kez sayılmaz (İngilizce ağırlık korunur)", () => {
+    expect(confidentLanguage("The wifi şifresi please?")).toBe("en");
+  });
+
   it("karma yazı (Kiril/Arap + Latin adres) hüküm almaz", () => {
     expect(confidentLanguage("Адрес квартиры: Bağdat Caddesi, Şaşkınbakkal, Kızıltoprak Mahallesi, Kadıköy/İstanbul.")).toBeNull();
     expect(confidentLanguage("خذ حافلة Havaş إلى Kadıköy، ثم انزل في Söğütlüçeşme وامشِ إلى Kuşdili Caddesi.")).toBeNull();
@@ -147,6 +158,7 @@ describe("guestTurnLanguage — son mesaj, değilse cevapsız mesajların tamam�
     expect(guestTurnLanguage("Do you speak English?")).toBeNull();
     expect(guestTurnLanguage("Türkçe yazabilir misiniz lütfen?", ["Where is the parking?"])).toBeNull();
     expect(guestTurnLanguage("Können Sie bitte auf Deutsch antworten?")).toBeNull();
+    expect(guestTurnLanguage("English please! Where is the key box?")).toBeNull();
     // KONTROL: dil adı yoksa kural aynen.
     expect(guestTurnLanguage("Could you please answer quickly?")).toBe("en");
   });

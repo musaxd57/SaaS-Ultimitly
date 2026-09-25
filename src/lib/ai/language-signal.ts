@@ -267,8 +267,7 @@ function mentionsLanguageName(text: string): boolean {
   return words.some((w, i) => {
     if (LANGUAGE_NAME_ALWAYS.has(w)) return true;
     if (!LANGUAGE_NAME_IN_CONTEXT.has(w)) return false;
-    const before = words.slice(Math.max(0, i - 2), i);
-    return before.some((b) => LANGUAGE_REQUEST_BEFORE.has(b)) || LANGUAGE_REQUEST_AFTER.has(words[i + 1] ?? "");
+    return LANGUAGE_REQUEST_BEFORE.has(words[i - 1] ?? "") || LANGUAGE_REQUEST_AFTER.has(words[i + 1] ?? "");
   });
 }
 
