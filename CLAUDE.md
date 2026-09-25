@@ -974,6 +974,14 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   (inbox "AI öner" cevabı + saklanan `aiSuggestedReply`, Ayarlar testinde gönderilmeyecek cevap) onun ağzına çevrilir
   ("kontrol edip size dönüş yapacağım"). Kapı, müsaitlik uyarısı ve erken giriş akışı ORİJİNAL metne bakar (erteleme
   tanıma o kalıba dayanır). Tanınmayan biçim olduğu gibi kalır. Yeni bir taslak yüzeyi aynı fonksiyondan geçer.
+- 🚨 **MODEL KIYASI 09-25 — gpt-6-luna'ya GEÇİLMEDİ** (`docs/MODEL-KIYASI-2026-09-25-gpt-6-luna.md`): cevap kıyası
+  (135 senaryo) doğru olgu 5.1 %98 ↔ Luna %84 — Luna bilgi tabanındaki ücreti söylemiyor ("ücret ev sahibinin
+  kararı"), bu cevaplar OTOMATİK gidiyordu (KURAL-4 "fiyat ASLA yazma"yı harfiyen okuyor); gecikme 2× (p50 4,3 sn);
+  konaklama katmanı dev 2 kaçak; token/dk sınırı 200k. Luna'nın artısı: misafir dili %98 (5.1 %88 — 5.1'de iş) ve
+  maliyet ~8× düşük. Geçiş yolu belgede (KURAL-4 netleştirme → iki modelde yeniden kıyas → kör set → gölge).
+  🚨 `gpt-6-*` reasoning modeli sayılır (`model-family.ts`); bu kod canlıya çıkmadan `OPENAI_MODEL`e gpt-6 YAZILMAZ
+  (eski kodla her cevap 400). Kıyas aracı `tests/eval/model-reply-compare.eval.test.ts` (`OPENAI_MODEL=<model>`,
+  ücretsiz yeniden puanlama `EVAL_COMPARE_RESCORE`); aynı modelin paralel koşuları token/dk sınırına takılır → tek tek.
 - **Model sağlayıcısı kalıcı arızası** (429+`insufficient_quota`, 401/403, 404/`model_not_found`) geçiş tabanlı
   alarma gider (`ai/provider-health.ts`); düz 429/5xx/ağ hatası eski yolda. Misafir her durumda fallback alır.
 - **Müsaitlik host metni** "müsait/kiralanabilir/kalabilirsiniz" DEMEZ; en güçlü ifade "bağlı takvimlerinizde
