@@ -300,6 +300,13 @@ Bu dosyaya token/anahtar/parola yazma.
   çağırır (mekanik pin); bayrak kapalı = SIFIR sorgu + istem bayt bayt aynı; kayıt yok = o mesaj hakkında hiçbir şey
   söylenmez; kelime ağının `alerts` kaydı konu adı OLMAZ; okuma hatası akışı durdurmaz. QR'da cevaplanan mesaj henüz
   kayıtlı değildir → sayıma katılır (üç yüzeyde aynı anlam). Açma = kör eval + eşli koşu + kurucu onayı (belge §2.2).
+- 🚨 **EYLEM BEYANI (`claimedActions`, 09-25, `ai/action-claims.ts`; bayrak `AI_ACTION_CLAIMS_ENABLED` varsayılan KAPALI;
+  MÇ §4):** cevap modeli reply'daki kendi/ekip eylemlerini kapalı kümeden beyan eder. Makbuz YOK → boş olmayan beyan
+  `action_claim`, eksik/bozuk beyan `action_claim_undeclared` (kanal + QR + önizleme + demo aynı yüklem). Kelime vetosunun
+  modelli ikizi, vetonun HEMEN ARDINDA (ikisi tutarsa gerekçe eski); teşhis kipi ikisini birlikte atlar (erken giriş akışı
+  ölmesin); koddan kurulan metin `[]`. Bayrak `suggestReply`'da TEK yerde; kapalıyken istem bayt bayt aynı, alan sonuçta
+  YOK (pinli); blok sistem istemine KONMAZ. Açma = cevap kıyası eval'i bayrak açık (`unknown` oranı, bilgi sorusunda
+  gereksiz tutma) + kurucu onayı.
 - 🚨 **KB talimat-ele-geçirme süzgeci (`detectKbInstructionHijack`, 09-23):** `kb-fetch` tek boğazında, her boyutta,
   seçiciden ÖNCE; kalem isteme girmez, `dropped`a karışmaz, kanıtta `hj`, host'a "Yapay zekâ kullanmıyor" rozeti.
   Misafir kalıpları KB'ye UYGULANMAZ (16 host cümlesinin 10'u yanlış pozitif). Yalnız yapay zekâya yönelen biçimler
@@ -1128,9 +1135,10 @@ kırmızı-önce + mutasyon (35+15+15+14). Üç inceleme ajanının bulguları a
 yanlış tutma 8→4, korpusta yeni tutma 0, mutasyon 67/67. Yazılan saat kör batarya dilimi #161b (belge §1.9): yanlış kabul
 67→1, yanlış red 55→19, sonda 51→2, mutasyon 71/74 → yaşayanlar kapandı + 35/35. CI #1170 rastgele kırmızısı kökten
 kapandı (belge §1.10). Konuşma Anlama Durumu v1 dilim B kodda, bayrak KAPALI (belge §2.2) + gelen kutusu selam paritesi (mutasyon 8/8 +
-31/31). ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
-e-posta), bekleme sırasında A/B (SABİTLENMEDİ), `claimedActions`, CUS v1 dilim B'nin AÇILMASI (kod hazır, bayrak kapalı; kör eval + kurucu onayı; belge §2.2), CUS v2 defter
-(migration).
+31/31). E-posta kuyruğu vade kapısı (kurucu onayı, belge §1.10). Eylem beyanı `claimedActions` kodda, bayrak KAPALI
+(belge §4.0). ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin + e-posta; artık Host Copilot
+Faz 1), bekleme sırasında A/B (SABİTLENMEDİ), iki bayrağın AÇILMASI (`AI_ACTION_CLAIMS_ENABLED` = ücretli cevap kıyası;
+`AI_CONVERSATION_STATE_ENABLED` = kör eval; ikisi de kurucu onayı), CUS v2 defter (migration).
 
 **09-25 MESAJ ANLAMA ÇEKİRDEĞİ TURU (kurucu: ChatGPT'nin "kelime kuralları anlam kararı vermesin" metni; "mantıklıysa
 uygula, çok büyükse söyle"):** kapanış kısayolu (cevapsız istek kayboluyordu) · ödeme süzgeci kök düzeltmesi ("kapıda") ·

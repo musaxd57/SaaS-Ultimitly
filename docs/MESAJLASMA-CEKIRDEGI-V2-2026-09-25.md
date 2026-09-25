@@ -593,7 +593,56 @@ Kalıcı kaynaklardan kodla kurulur ve cevap modeli çağrısından ÖNCE hazır
 5. Bekleme sırasında A/B (§3.4).
 6. Otomatik geç çıkış onayı ve özel talimatın otomatik gönderimi. İkisi de v1 DIŞINDA, eval ister.
 
-## 4. Eylem makbuzu — `claimedActions` (tasarım; bayraklı, UYGULANMADI)
+## 4. Eylem makbuzu — `claimedActions` (YAPILDI 09-25, bayrak `AI_ACTION_CLAIMS_ENABLED` varsayılan KAPALI)
+
+### 4.0 Uygulama (09-25)
+- **Kod:** saf modül `ai/action-claims.ts`:
+  - kapalı küme `CLAIMED_ACTION_KINDS`;
+  - katı ayrıştırıcı `parseClaimedActions`;
+  - kapı yüklemi `actionClaimHold`;
+  - kanıt `actionClaimEvidence` / `cleanActionClaimEvidence`;
+  - istem bloğu `ACTION_CLAIMS_PROMPT_BLOCK`.
+- **Bayrak tek yerde okunur:** `suggestReply`.
+  - Açıksa: kullanıcı isteminin GÖREV çerçevesine alan tanımı girer ve cevap katı çözülür.
+  - Kapalıysa: istem bayt bayt aynı (blok boş dize). Model alanı gönderse bile sonuçta alan YOK, kapı görmez (pinli).
+  - Sistem istemine konmadı: önbellekli önek bayraktan bağımsız.
+- **Katı çözüm:**
+  - alan yok / dizi değil / metin olmayan öğe → `unknown`;
+  - kümede olmayan kod → `other` (yine eylem);
+  - tekrar tekilleşir.
+- **Kapı (kanal + QR + Ayarlar önizlemesi + demo aynı yüklem):**
+  - boş olmayan beyan → `action_claim`; `unknown` → `action_claim_undeclared`; boş liste geçer;
+  - alan yoksa (bayrak kapalı, şablon, koddan kurulan metin) kural koşmaz;
+  - yer: kelime tabanlı çıktı vetosunun HEMEN ARDINDA. İkisi de tutarsa gerekçe bugünküyle aynı (`reply_output_veto` /
+    QR `unverified_commitment`); yeni gerekçe yalnız kelime ağının kaçırdığını gösterir. Güvenlik kontrolleri (risk,
+    niyet, enjeksiyon) önde, güven arkada.
+- **Erken giriş akışı ölmez:**
+  - teşhis kipi (`skipOutputVetoForDiagnosis`) çıktı vetosuyla BİRLİKTE beyan kontrolünü de atlar;
+  - akış, beyanın tuttuğu taslakta da koşar ve modelin metnini koddan kurulan metinle değiştirir;
+  - koddan kurulan metin (`verifiedEarlyCheckinResult`) beyanı `[]` yapar. Bayrak kapalıyken alan eklenmez.
+- **Yükseltme:** insan talebinde beyan yüzünden tutulan devir cevabı sessiz kalmaz. Mevcut yükseltme yolu (niyete bakar,
+  gerekçeye değil) Sorunlu + acil + ev sahibine e-posta yapar.
+- **Kayıt ve rapor:**
+  - `RiskEvent.reason` iki yeni kod (REASONS + QR `ESCALATION_REASONS` paritesi);
+  - kanıtta `g.ma` (kodlar ya da `["unknown"]`, metin yok);
+  - raporlarda "Yapılmamış bir işten söz ediyordu — size bırakıldı" satırı.
+- **Ölçüm düzeneği hazır:** `tests/eval/model-reply-compare.eval.test.ts`.
+  - Bayrak açık koşuda kapıya beyanı verir.
+  - Üç açma sayısını raporlar: `unknown` oranı · cevabı KB'de olan soruda beyan yüzünden gitmeyen · kod dağılımı.
+  - Rapor başlığı bayrağın durumunu yazar.
+- **Kanıt (commit `ecc3dfc`):**
+  - yeni entegrasyon testleri eski kodda 7 kırmızı (kontroller yeşil);
+  - 5 dosyada 126 test yeşil;
+  - mutasyon 27/27. Kapsam: ayrıştırıcının her dalı, kapı / QR / önizleme / demo paritesi, teşhis atlaması, koddan kurulan
+    metnin `[]`'i, bayrak kapalıyken alanın yokluğu, gerekçe listeleri, kanıt temizleyicisi, rapor sorgusu.
+- **Açma sırası:**
+  1. Cevap kıyası eval'i bayrak AÇIK (~1–3 $, kurucu onayı).
+  2. `unknown` ≈ 0 ve bilgi sorusunda gereksiz tutma kabul edilebilir.
+  3. Kurucu onayı → canlıda bayrak.
+  - Bayrak açık kalırken insan talebi devir cevaplarının beyan yüzünden tutulma oranı raporda izlenir (tasarım gereği
+    yükseltilir).
+
+### 4.1 Tasarım (ilk hâli)
 - **Alan:** cevap JSON'una yeni `claimedActions` alanı.
 - **Kapalı küme:** `forwarded_to_host · notified_team · contacted_third_party · booked_or_reserved · scheduled ·
   created_task · updated_reservation · granted_exception · checked_availability · arranged_service · payment_action ·
