@@ -1121,7 +1121,8 @@ kırmızı-önce + mutasyon (35+15+15+14). Üç inceleme ajanının bulguları a
 `1785250` · zaman `a83459d`; belge §1.6). Kör veto bataryası dilimi #162 (belge §1.8): kaçan 51→15 (12'si edilgen),
 yanlış tutma 8→4, korpusta yeni tutma 0, mutasyon 67/67. Yazılan saat kör batarya dilimi #161b (belge §1.9): yanlış kabul
 67→1, yanlış red 55→19, sonda 51→2, mutasyon 71/74 → yaşayanlar kapandı + 35/35. CI #1170 rastgele kırmızısı kökten
-kapandı (belge §1.10). Konuşma Anlama Durumu v1 dilim B kodda, bayrak KAPALI (belge §2.2) + gelen kutusu selam paritesi. ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
+kapandı (belge §1.10). Konuşma Anlama Durumu v1 dilim B kodda, bayrak KAPALI (belge §2.2) + gelen kutusu selam paritesi (mutasyon 8/8 +
+31/31). ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
 e-posta), bekleme sırasında A/B (SABİTLENMEDİ), `claimedActions`, CUS v1 dilim B'nin AÇILMASI (kod hazır, bayrak kapalı; kör eval + kurucu onayı; belge §2.2), CUS v2 defter
 (migration).
 

@@ -472,6 +472,14 @@ Kalıcı kaynaklardan kodla kurulur ve cevap modeli çağrısından ÖNCE hazır
   - yükleyiciyi YALNIZ üç cevap yüzeyi çağırır.
 - **Ayrı commit — selam tekrarı paritesi (bayraksız):** gelen kutusu "AI öner" `isFirstOperatorReply` vermiyordu, taslak
   devam eden konuşmada da yeniden selamlıyordu. Kural artık üç yüzeyde tek kaynak: `countPriorOperatorReplies`.
+- **Mutasyon:**
+  - selam paritesi 8/8 (konuşma kapsamı dahil);
+  - dilim B 31 mutant → 28 öldü. Yaşayan üçü eksik ikizdi, eklendi → **31/31**:
+    - CB20: kapsayan geçiş (test aynı konuyu kullanıyordu, yeni karar eskinin üstüne yazıyordu);
+    - CB22: aynı konu en yeni konumuna taşınır;
+    - CB28: sistem işareti yazar alanından bağımsız elenir.
+  - Eşdeğer (koşulmadı, gerekçeli): yükleyicinin karar penceresi dilimi (kurucu zaten pencereler) ve bekleyen mesaj
+    kimliğinin sorgudan elenmesi (o kimlikle kayıt olamaz).
 - **Kalan (bu dilimde YOK):** anlama katmanına tarih satırı (yalnız gün, dakika yok — önbellek anahtarı bozulmasın).
 - **Açma sırası:**
   1. Kör set `evals/conversation-state.json`: "yarın erken" varıştan önce, çıkıştan önce ve rezervasyonsuz; düzeltme;
