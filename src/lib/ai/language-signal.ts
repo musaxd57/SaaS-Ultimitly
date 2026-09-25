@@ -45,6 +45,10 @@ const WORDS: Record<LatinLanguage, ReadonlySet<string>> = {
       "saat", "daire", "oda", "sahibiniz", "sahibinize", "mesajınız", "mesajınızı", "kaydedildi", "bilgi",
       "bilgiyi", "yardımcı", "yardimci", "olabilir", "olur", "lazım", "lazim", "gerek", "istiyoruz", "istiyorum",
       "miyiz", "miyim", "misiniz", "mısınız", "musunuz", "değil", "degil", "şimdi", "simdi", "burada", "orada",
+      // Genel sık sözcükler (09-25 ikinci tur; alan sözcüğü değil, diğer dillerle çakışma denetlendi).
+      "bugün", "sabah", "hangi", "neden", "niye", "tabii", "peki", "hemen", "biraz", "sonra", "önce", "bunu", "onu",
+      "gibi", "yine", "artık", "bizim", "sizde", "bende", "geldik", "geliyoruz", "yarın", "akşam", "gece", "ayrıca",
+      "herhangi", "olmuş", "oldu",
     ],
   ),
   en: new Set(
@@ -56,6 +60,10 @@ const WORDS: Record<LatinLanguage, ReadonlySet<string>> = {
       "still", "also", "again", "very", "much", "many", "some", "there's", "it's", "i'm", "we're", "you're",
       "don't", "can't", "didn't", "i've", "i'll", "let", "know", "need", "want", "hi", "hello", "hey", "dear",
       "they", "them", "their", "shall", "into", "than", "then", "only",
+      // Genel sık sözcükler (09-25 ikinci tur; alan sözcüğü değil, diğer dillerle çakışma denetlendi).
+      "where's", "what's", "that's", "let's", "i'd", "you'll", "we'll", "we've", "they're", "isn't", "aren't",
+      "won't", "wasn't", "couldn't", "wouldn't", "doesn't", "hope", "today", "tonight", "tomorrow", "something",
+      "anything", "everything", "because", "before", "after", "being", "yours", "out", "up", "over", "other", "more",
     ],
   ),
   de: new Set(
@@ -64,6 +72,11 @@ const WORDS: Record<LatinLanguage, ReadonlySet<string>> = {
       "mit", "für", "fur", "auf", "zu", "bitte", "danke", "gibt", "wie", "wo", "wann", "warum", "haben", "habe",
       "kann", "können", "konnen", "sind", "dem", "den", "auch", "noch", "uns", "unser", "unsere", "hallo", "guten",
       "vielen", "dank", "wohnung", "schlüssel", "wlan", "passwort", "zimmer", "ihr", "ihre", "ihnen", "gerne",
+      // Genel sık sözcükler (09-25 ikinci tur; alan sözcüğü değil, diğer dillerle çakışma denetlendi).
+      "mein", "meine", "meinen", "meinem", "beim", "bei", "nach", "oder", "aber", "wenn", "dass", "mich", "mir",
+      "sehr", "heute", "wird", "werden", "schon", "jetzt", "möchte", "möchten", "würde", "würden", "soll", "sollen",
+      "muss", "müssen", "darf", "hätte", "sein", "seine", "euch", "unserer", "keine", "kein", "nichts", "etwas",
+      "alles", "wieder", "morgen", "abend", "gestern", "vielleicht", "leider", "gerade",
     ],
   ),
   fr: new Set(
@@ -71,6 +84,10 @@ const WORDS: Record<LatinLanguage, ReadonlySet<string>> = {
       "les", "et", "est", "je", "vous", "nous", "une", "pour", "avec", "pas", "qui", "bonjour", "merci", "dans",
       "sur", "il", "elle", "ce", "cette", "mon", "votre", "notre", "aux", "où", "très", "bien",
       "appartement", "clé", "voiture", "mot", "c'est", "j'ai", "n'est", "s'il", "plaît",
+      // Genel sık sözcükler (09-25 ikinci tur; alan sözcüğü değil, diğer dillerle çakışma denetlendi).
+      "bonsoir", "voudrais", "voudrions", "pouvez", "pourriez", "pouvons", "sommes", "avons", "avez", "êtes",
+      "quand", "demain", "aujourd'hui", "beaucoup", "leur", "peut", "faut", "déjà", "toujours", "aussi",
+      "parce", "chez", "rien", "moins", "nuit",
     ],
   ),
   es: new Set(
@@ -79,6 +96,10 @@ const WORDS: Record<LatinLanguage, ReadonlySet<string>> = {
       "dónde", "donde", "cómo", "puedo", "podemos", "nuestro", "nuestra", "usted", "ustedes", "también", "muy",
       "pero", "bueno", "buenos", "días", "contraseña", "apartamento", "aparcamiento", "llave", "coche", "estamos",
       "tenemos", "hasta", "quiero", "queremos",
+      // Genel sık sözcükler (09-25 ikinci tur; alan sözcüğü değil, diğer dillerle çakışma denetlendi).
+      "qué", "cuándo", "porque", "estoy", "están", "tengo", "tiene", "necesito", "necesitamos", "podría",
+      "podríamos", "mañana", "aquí", "ahora", "hacer", "gustaría", "sí", "cuesta", "noche", "llegamos", "somos",
+      "eres", "hoy", "ayer", "mucho", "muchas",
     ],
   ),
 };
@@ -89,8 +110,10 @@ const LETTERS: Record<LatinLanguage, RegExp | null> = {
   en: null,
   de: /[äß]/u,
   fr: /[àâèêëîïôûùœ]/u,
-  es: /[ñ¿¡áíóú]/u,
+  es: /[ñáíóú]/u,
 };
+// Ters soru / ünlem işareti yalnız İspanyolcada: metinde varsa bir kez +1 (belirteçlere girmez — harf değil).
+const SPANISH_MARKS = /[¿¡]/u;
 
 const LATIN: readonly LatinLanguage[] = ["tr", "en", "de", "fr", "es"];
 
@@ -132,6 +155,7 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
       if (re && re.test(tok)) score[lang] += 0.5;
     }
   }
+  if (SPANISH_MARKS.test(clean)) score.es += 1;
   const ranked = LATIN.map((l) => [l, score[l]] as const).sort((a, b) => b[1] - a[1]);
   const [best, second] = ranked;
   if (best[1] < 2) return null;
@@ -163,12 +187,27 @@ export function unansweredGuestTexts(
   return texts;
 }
 
+/** Cümleler: nokta / soru / ünlem / noktalı virgülden SONRA boşluk ya da satır sonu ("3.5", "15:00" bölünmez). */
+function sentencesOf(text: string): string[] {
+  return text
+    .split(/(?<=[.!?؟;])\s+|\n+/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 /**
- * Kapı yüklemi: misafirin dili ile cevabın dili İKİSİ DE eminken farklıysa `true` (cevap otomatik gitmez). Biri
- * belirsizse `false` — yalnız SIKILAŞTIRIR, belirsizlik bir engel sebebi değildir (cevap kalitesi, güvenlik değil).
+ * Kapı yüklemi: misafirin dili eminken cevabın TAMAMI ya da tek bir CÜMLESİ emince başka dildeyse `true` (cevap
+ * otomatik gitmez). Cümle kuralı ölçülmüş kısmi kaymayı yakalar: 5.1 Almanca acil durum cevabının sonuna sistem
+ * istemindeki Türkçe devir kalıbını ("Mesajınız kaydedildi; ev sahibiniz görebilir.") aynen yapıştırdı (09-25; kayıtlı
+ * ~1.150 cevapta yanlış alarm 0). Misafir ya da cevap belirsizse `false` — yalnız SIKILAŞTIRIR, belirsizlik bir engel
+ * sebebi değildir (cevap kalitesi, güvenlik değil).
  */
 export function replyLanguageMismatch(guestLanguage: ConfidentLanguage | null, reply: string | null | undefined): boolean {
-  if (!guestLanguage) return false;
-  const replyLanguage = confidentLanguage(reply);
-  return replyLanguage !== null && replyLanguage !== guestLanguage;
+  if (!guestLanguage || !reply) return false;
+  const whole = confidentLanguage(reply);
+  if (whole !== null && whole !== guestLanguage) return true;
+  return sentencesOf(reply).some((sentence) => {
+    const lang = confidentLanguage(sentence);
+    return lang !== null && lang !== guestLanguage;
+  });
 }

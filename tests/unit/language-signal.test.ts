@@ -68,6 +68,11 @@ describe("confidentLanguage — eminken dil", () => {
     expect(confidentLanguage("Konum bilgisi için bu bağlantıya bakabilirsiniz: https://example.com/where-is-the-flat-and-how")).toBe("tr");
   });
 
+  it("İspanyolca ters soru/ünlem işareti kanıttır (tek zayıf sözcükle birlikte kesinleşir)", () => {
+    expect(confidentLanguage("¿Tienen secador de pelo, por favor?")).toBe("es");
+    expect(confidentLanguage("Tienen secador de pelo, por favor?")).toBeNull();
+  });
+
   it("Latin metinde Kiril ad metni Rusça yapmaz (yazı sistemi PAYLA)", () => {
     expect(confidentLanguage("Hi, my name is Иван, what is the wifi password?")).toBe("en");
   });
@@ -126,6 +131,18 @@ describe("replyLanguageMismatch — yalnız ikisi de eminken", () => {
     expect(replyLanguageMismatch(en, "The Wi-Fi network is Lale-5G and the password is Lale2025.")).toBe(false);
   });
 
+  it("🚨 cümle düzeyi: cevabın ağırlıklı dili doğru ama bir cümlesi emince başka dilde → uyuşmaz", () => {
+    const mixed = "Ihre Sicherheit ist sehr wichtig. Bitte rufen Sie sofort den Notruf 112 an. Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    expect(confidentLanguage(mixed)).toBe("de");
+    expect(replyLanguageMismatch("de", mixed)).toBe(true);
+    // AŞIRI UYGULAMA YOK: özel ad / adres / tek nezaket sözcüğü / bağlantı cümleyi yabancı yapmaz.
+    expect(replyLanguageMismatch("en", "The address is Menekşe Sokak No: 14, Alsancak. The bus stop is right outside.")).toBe(false);
+    expect(replyLanguageMismatch("de", "Das WLAN-Passwort ist Lale2025. Teşekkürler!")).toBe(false);
+    expect(replyLanguageMismatch("en", "You can find the route here: https://maps.example.com/bu-adres-icin-yol-tarifi-ve-bilgi. Enjoy!")).toBe(false);
+    // Ondalık sayı ve saat cümle bölmez.
+    expect(replyLanguageMismatch("en", "The fee is 3.5 EUR per bag and check-in is at 15:00.")).toBe(false);
+  });
+
   it("belirsiz misafir ya da belirsiz cevap → kontrol yok (yalnız sıkılaştırır)", () => {
     expect(replyLanguageMismatch(null, "Wi-Fi ağ adı Lale-5G, şifre Lale2025, iyi günler dileriz.")).toBe(false);
     expect(replyLanguageMismatch("en", "Lale2025")).toBe(false);
@@ -168,15 +185,16 @@ describe("veri pini — yanlış kesin hüküm SIFIR", () => {
       }
     }
     expect(wrong).toEqual([]);
-    // Kapsama TABANI (09-25 ölçümü: tr %67 · en %93 · de %90 · fr %78 · es %62 · ru/ar %100). Taban ölçümün altında
-    // bırakıldı; düşerse bir liste daraltması fark edilmeden istem talimatını ve kapıyı körleştiriyordur.
-    const floor: Record<string, number> = { tr: 0.6, en: 0.88, de: 0.85, fr: 0.7, es: 0.55, ru: 0.95, ar: 0.95 };
+    // Kapsama TABANI (09-25 ikinci tur: tr %72 · en %95 · de %92 · fr %79 · es %79 · ru/ar %100; ilk sürüm tr %67 · en %93 ·
+    // de %90 · fr %78 · es %62). Taban ölçümün altında bırakıldı; düşerse bir liste daraltması fark edilmeden istem
+    // talimatını ve kapıyı körleştiriyordur. ⚠️ Bu setler sözcük seçerken GÖRÜLDÜ — kapsama rakamı kör ölçüm değil.
+    const floor: Record<string, number> = { tr: 0.66, en: 0.9, de: 0.87, fr: 0.72, es: 0.72, ru: 0.95, ar: 0.95 };
     for (const [lang, min] of Object.entries(floor)) {
       expect(per[lang].conf / per[lang].n, `${lang} kapsama`).toBeGreaterThanOrEqual(min);
     }
   });
 
-  it("🚨 kayıtlı model cevapları: uyuşmazlık TAM OLARAK 5.1'in 7 yanlış dilli cevabında (Luna'da 0)", () => {
+  it("🚨 kayıtlı model cevapları: uyuşmazlık TAM OLARAK 5.1'in 7 yanlış dilli cevabında (Luna'da 0); düzeltme sonrası koşuda yalnız kısmi kayma", () => {
     const byId = new Map(rc.scenarios.map((s) => [s.id, s]));
     const flagged = (file: string) => {
       const rows = readJson(file).rows as { id: string; reply: string }[];
@@ -202,5 +220,8 @@ describe("veri pini — yanlış kesin hüküm SIFIR", () => {
       "mt-en-then-construction-noise",
     ]);
     expect(flagged("docs/olcum/model-reply-compare-2026-09-25-gpt-6-luna.json")).toEqual([]);
+    // Düzeltme sonrası 5.1 koşusu: yedi vaka düzeldi; Almanca acil durum cevabının sonuna Türkçe devir kalıbı yapışmıştı
+    // (cümle düzeyi kural). O koşuda Almanca mesaj henüz tespit edilmiyordu → istem talimatı o satıra gitmemişti.
+    expect(flagged("docs/olcum/model-reply-compare-2026-09-25-gpt-5.1-dil.json")).toEqual(["e-de-stromschlag"]);
   });
 });

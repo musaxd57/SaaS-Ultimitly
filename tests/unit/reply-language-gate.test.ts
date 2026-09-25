@@ -50,6 +50,19 @@ describe("kanal kapısı — yanlış dilde cevap otomatik gitmez", () => {
     expect(autoReplyGateFailure({ ...passing, reply: EN_REPLY }, "ok", ctx)).toBeNull();
   });
 
+  it("🚨 kısmi kayma: misafirin dilindeki cevaba Türkçe devir cümlesi yapıştırılmışsa da tutulur (ölçülen kopya, Almanca)", () => {
+    // Ölçülen vaka bir acil durumdu (orada kapı zaten güvenlik gerekçesiyle tutar); aynı kopya risksiz soruda da olabilir.
+    const de = "Wie ist das WLAN-Passwort für die Wohnung?";
+    const mixed = "Das WLAN heißt Lale-5G und das Passwort ist Lale2025. Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    expect(autoReplyGateFailure({ ...passing, reply: mixed }, de)).toBe("reply_language_mismatch");
+    // KONTROL: aynı cevap devir cümlesi Almanca → geçer.
+    const clean = "Das WLAN heißt Lale-5G und das Passwort ist Lale2025. Ihre Nachricht wurde vermerkt; Ihr Gastgeber kann sie sehen.";
+    expect(autoReplyGateFailure({ ...passing, reply: clean }, de)).toBeNull();
+    // Güvenlik ÖNCE: acil durumda gerekçe dil değil.
+    const emergency = "Mein Sohn hat beim Einstecken des Ladegeräts einen Stromschlag bekommen, er zittert.";
+    expect(autoReplyGateFailure({ ...passing, reply: mixed }, emergency)).toBe("blocked");
+  });
+
   it("AŞIRI UYGULAMA YOK: misafirin dili belirsizse ('ok', emoji, özel ad) kontrol yok", () => {
     expect(autoReplyGateFailure({ ...passing, reply: TR_REPLY }, "ok 👍")).toBeNull();
     expect(autoReplyGateFailure({ ...passing, reply: TR_REPLY }, "Lale2025?")).toBeNull();
@@ -98,6 +111,13 @@ describe("istem — misafirin dili kodla tespit edilip açıkça söylenir", () 
   it("Türkçe / Almanca misafir kendi dilini alır", () => {
     expect(prompt("Merhaba, wifi şifresi nedir acaba?")).toContain("MİSAFİRİN DİLİ (kodla tespit edildi): Türkçe (tr)");
     expect(prompt("Wie ist das WLAN-Passwort für die Wohnung?")).toContain("MİSAFİRİN DİLİ (kodla tespit edildi): Almanca (de)");
+  });
+
+  it("🚨 Türkçe olmayan misafirde istemdeki Türkçe kalıp cümleler ÇEVRİLİR (ölçülen kopya: Almanca cevaba Türkçe devir)", () => {
+    expect(prompt("Mein Sohn hat beim Einstecken einen Stromschlag bekommen.")).toContain("Türkçe KOPYALAMA");
+    expect(prompt(EN_GUEST)).toContain("Türkçe KOPYALAMA");
+    // Türkçe misafirde bu uyarı anlamsız → yok.
+    expect(prompt("Merhaba, wifi şifresi nedir acaba?")).not.toContain("Türkçe KOPYALAMA");
   });
 
   it("belirsiz mesajda talimat YOK (eski kural: belirsizse İngilizce)", () => {

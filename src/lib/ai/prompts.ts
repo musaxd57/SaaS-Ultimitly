@@ -1257,7 +1257,12 @@ Zaman bağlamı: ${buildTimelineContext(reservation)}`
   // (son mesaj, değilse cevapsız mesajların tamamı) dili farklı cevabı göndermez (`automation.ts`).
   const guestLanguage = guestTurnLanguage(guestMessage, unansweredGuestTexts(history ?? [], guestMessage));
   const languageLine = guestLanguage
-    ? `\nMİSAFİRİN DİLİ (kodla tespit edildi): ${languageLabel(guestLanguage)}. reply alanının TAMAMINI bu dilde yaz — bilgi tabanı, geçmiş mesajlar ya da örnekler başka dilde olsa bile; devir, ret ve kaydı olmayan konu cevapları da dahil. detectedLanguage alanı da "${guestLanguage}" olmalı.`
+    ? `\nMİSAFİRİN DİLİ (kodla tespit edildi): ${languageLabel(guestLanguage)}. reply alanının TAMAMINI bu dilde yaz — bilgi tabanı, geçmiş mesajlar ya da örnekler başka dilde olsa bile; devir, ret ve kaydı olmayan konu cevapları da dahil.${
+        // Ölçüldü (09-25): 5.1 Almanca cevabın sonuna istemdeki Türkçe devir kalıbını AYNEN yapıştırdı.
+        guestLanguage === "tr"
+          ? ""
+          : ` Bu istemdeki Türkçe kalıp cümleleri (ör. "Mesajınız kaydedildi; ev sahibiniz görebilir.") bu dile ÇEVİREREK yaz, Türkçe KOPYALAMA.`
+      } detectedLanguage alanı da "${guestLanguage}" olmalı.`
     : "";
   // Aynı dil GÖREV satırında bir kez daha (model en son okuduğunu daha iyi uygular; istemin geri kalanı Türkçe).
   const languageReminder = guestLanguage ? `\nreply dili: ${languageLabel(guestLanguage)} — yukarıdaki MİSAFİRİN DİLİ.` : "";
