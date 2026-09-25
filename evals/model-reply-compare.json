@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "gpt-5.1 ile gpt-6-luna'yı misafir cevap modeli olarak kıyaslamak için SENTETİK veri seti. Mülk ve tüm veriler kurgusaldır (Lale Suites). facts = doğru cevabın (her dilde) içermesi gereken, bilgi tabanında harfiyen geçen belirteçler; autoSend = kod kapısının beklenen otomatik gönderim kararı.",
+  "note": "gpt-5.1 ile gpt-6-luna'yı misafir cevap modeli olarak kıyaslamak için SENTETİK veri seti. Mülk ve tüm veriler kurgusaldır (Lale Suites). facts = doğru cevabın (her dilde) içermesi gereken, bilgi tabanında harfiyen geçen belirteçler; autoSend = kod kapısının beklenen otomatik gönderim kararı. · 09-25 düzeltme (iki modele aynı): insan talebi 'any' (devir cevabı tasarım gereği gider); Wi-Fi şifresi olgusu 'Lale2025' (KB metni 'şifre: Lale2025! Yatak…' ünlem/şifre belirsiz).",
   "property": {
     "name": "Lale Suites",
     "checkInTime": "15:00",
@@ -154,7 +154,7 @@
       "expect": {
         "autoSend": "yes",
         "facts": [
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
@@ -168,7 +168,7 @@
         "autoSend": "yes",
         "facts": [
           "Lale-5G",
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
@@ -468,7 +468,7 @@
       "expect": {
         "autoSend": "yes",
         "facts": [
-          "Lale2025!",
+          "Lale2025",
           "4721"
         ]
       }
@@ -482,7 +482,7 @@
       "expect": {
         "autoSend": "yes",
         "facts": [
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
@@ -586,7 +586,7 @@
       "expect": {
         "autoSend": "yes",
         "facts": [
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
@@ -625,7 +625,7 @@
       "expect": {
         "autoSend": "yes",
         "facts": [
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
@@ -651,7 +651,7 @@
       "expect": {
         "autoSend": "yes",
         "facts": [
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
@@ -690,7 +690,7 @@
       "expect": {
         "autoSend": "yes",
         "facts": [
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
@@ -717,7 +717,7 @@
         "autoSend": "yes",
         "facts": [
           "Lale-5G",
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
@@ -1151,7 +1151,7 @@
       "kb": "full",
       "message": "Ev sahibiyle direkt konuşabilir miyim?",
       "expect": {
-        "autoSend": "no"
+        "autoSend": "any"
       }
     },
     {
@@ -1161,7 +1161,7 @@
       "kb": "full",
       "message": "Beni arayabilir misiniz? Yazarak anlatması zor.",
       "expect": {
-        "autoSend": "no"
+        "autoSend": "any"
       }
     },
     {
@@ -1171,7 +1171,7 @@
       "kb": "full",
       "message": "Am I talking to a bot? I want a real person please.",
       "expect": {
-        "autoSend": "no"
+        "autoSend": "any"
       }
     },
     {
@@ -1181,7 +1181,7 @@
       "kb": "full",
       "message": "Could the owner give me a call? It's about something personal.",
       "expect": {
-        "autoSend": "no"
+        "autoSend": "any"
       }
     },
     {
@@ -1191,7 +1191,7 @@
       "kb": "full",
       "message": "Можно поговорить с хозяином лично?",
       "expect": {
-        "autoSend": "no"
+        "autoSend": "any"
       }
     },
     {
@@ -1696,7 +1696,7 @@
       "expect": {
         "autoSend": "yes",
         "facts": [
-          "Lale2025!"
+          "Lale2025"
         ]
       }
     },
