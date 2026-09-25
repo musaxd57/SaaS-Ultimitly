@@ -38,6 +38,10 @@ describe("hostVoiceDraft — istemin devir kalıpları ev sahibinin ağzına", (
     expect(hostVoiceDraft("Apologies. Your message has been recorded and is visible to your host.")).toBe(
       "Apologies. I've received your message and will get back to you shortly.",
     );
+    // ";" sonrası: "I" küçülmez (mutasyon turu bulgusu — eski kod "i've" yazıyordu).
+    expect(hostVoiceDraft("Sorry about that; your message has been recorded and is visible to your host.")).toBe(
+      "Sorry about that; I've received your message and will get back to you shortly.",
+    );
     expect(hostVoiceDraft("Availability is the host's call; your dates have been recorded and are visible to your host.")).toBe(
       "I'll check availability and get back to you.",
     );
@@ -47,6 +51,7 @@ describe("hostVoiceDraft — istemin devir kalıpları ev sahibinin ağzına", (
     for (const t of [
       "Wi-Fi ağımız Lale-5G, şifresi kartta.",
       "Mesajınız kaydedildi.",
+      "Ekmesajınız kaydedildi; ev sahibiniz görebilir.", // kelime içi eşleşme yok
       "Das muss Ihr Gastgeber entscheiden; Ihre Nachricht wurde gespeichert.",
       "",
     ]) {

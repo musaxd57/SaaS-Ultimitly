@@ -43,9 +43,8 @@ export function hostVoiceDraft(reply: string): string {
     .replace(TR_DECISION, (_m, lead: string, subject: string) => `${lead}${subject} için ${TR_FOLLOW_UP}.`)
     .replace(TR_RECORDED, (_m, lead: string, noun: string) => `${lead}${matchCase(`${TR_ACCUSATIVE[noun.toLocaleLowerCase("tr")]} aldım`, noun)}; ${TR_FOLLOW_UP}`)
     .replace(EN_DECISION, (_m, lead: string, subject: string) => `${lead}I'll check ${lowerFirst(subject.trim())} and get back to you.`)
-    .replace(EN_RECORDED, (_m, lead: string, _y: string, noun: string) => {
-      const said = noun === "dates" ? "I've noted your dates" : `I've received your ${noun}`;
-      const sentence = `${said} and will get back to you shortly.`;
-      return `${lead}${/;\s*$/.test(lead) ? lowerFirst(sentence) : sentence}`;
-    });
+    // "I" büyük kalır (";" sonrasında da): cümle ev sahibinin birinci tekil sesiyle başlar.
+    .replace(EN_RECORDED, (_m, lead: string, _y: string, noun: string) =>
+      `${lead}${noun === "dates" ? "I've noted your dates" : `I've received your ${noun}`} and will get back to you shortly.`,
+    );
 }

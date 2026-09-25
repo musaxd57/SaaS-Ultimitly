@@ -218,6 +218,29 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
   });
 
+  it("🚨 uyarı ORİJİNAL metinden: kanonik erteleme cümlesi teklif muafiyetini açar; ev sahibi sesine çevrilmiş taslakla hesaplansaydı teklif 'iddia' sayılırdı", async () => {
+    const offer = "Müsaitlik varsa çıkışınızı 13:00'e kadar uzatabiliriz.";
+    mockSuggest.mockResolvedValue({
+      ...BASE,
+      intent: "late_checkout",
+      reply: `${offer} Uygunluğu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.`,
+      stayChange: { asked: "late_checkout", stance: "defers" },
+    });
+    const id = await seed([{ direction: "inbound", body: "Geç çıkış mümkün mü?" }]);
+    await prisma.organization.update({ where: { id: session.organizationId }, data: { lateCheckoutOfferText: offer } });
+    const res = await aiSuggest(
+      new NextRequest(`http://localhost/api/conversations/${id}/ai-suggest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    const body = (await res.json()) as { reply: string; availabilityCheck: string | null };
+    expect(body.reply).toBe(`${offer} Uygunluğu için kontrol edip size dönüş yapacağım.`);
+    expect(body.availabilityCheck).toBe("availability_unconfirmed");
+  });
+
   it("🚨 anlama katmanı açık: modelin anladığı standart-dışı saat isteği uyarıya girer (kelime ağı sessizken)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     const f = vi.fn(async (_url: string, init?: RequestInit) => {
