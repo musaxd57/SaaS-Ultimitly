@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { timeStatedInMessage } from "@/lib/ai/stated-time";
+import { timeCorrectedInMessage, timeStatedInMessage } from "@/lib/ai/stated-time";
 import { isClosingAck, classifyFallback } from "@/lib/ai/fallback";
 
 // ---------------------------------------------------------------------------
@@ -135,6 +135,116 @@ describe("statedCheckoutTime — olumsuzlama vetosu", () => {
     // Ama ÇIKIŞA ilişkin olumsuzlama aynı cümlecikteyse yine reddedilir.
     expect(timeStatedInMessage("11:00", "çıkış saatimizi 11:00 yapmayın lütfen")).toBe(false);
   });
+});
+
+// ---------------------------------------------------------------------------
+// İKİNCİ İNCELEME (09-25, zaman ajanı): 518 mesaj × aday saat çiftinde yanlış KABUL 107 → 28, yanlış RED 30 → 11.
+// Yanlış kabul misafirin çıkış saati diye rezervasyona YAZILIR ve istem "bunu hatırla, yeniden sorma" der. Kalan yanlış
+// kabullerin hepsi AYNI cümlecikte başka bir eylemin saati ("Kahvaltıyı 9'da yapıp 10'da çıkarız", "Klimayı 22'de
+// bırakıp", "Our train leaves at 9", "We'll leave the car at 11") — anlamı cevap modeli çözer, bu yüklem uydurma durdurucu
+// (ölçülen bilinen sınır). Kalan yanlış redler: çeyrek anlatımı, "1030", ret + alternatif saat ("11'de çıkmayacağız, 13'te").
+// ---------------------------------------------------------------------------
+
+describe("statedCheckoutTime — ikinci inceleme (09-25): yanlış kabuller", () => {
+  const rejects: [string, string][] = [
+    ["00:00", "11:00'de çıkış yapacağız"], // "00" saatin İÇİNDEKİ rakam
+    ["12:00", "11:00'de çıkış yapacağız"],
+    ["10:00", "Saat 10:30'da çıkarız"],
+    ["12:10", "12.10.2026'da çıkıyoruz"], // tarih parçası
+    ["06:00", "Akşam 6'da çıkıyoruz"], // gün dilimi okunuşu sabitler
+    ["22:00", "Sabah 10'da çıkarız"],
+    ["17:00", "Sabaha karşı 5'te yola çıkacağız"],
+    ["02:00", "Öğleden sonra 2'de çıkarız"], // "öğleden sonra" bölünmez
+    ["21:00", "Saat 09:00 gibi daireyi boşaltırız"], // baştaki sıfır = 24 saat
+    ["15:00", "Yarın çıkıyoruz, uçağımız 15:00'te"], // ileri bakış yalnız saat-yalnız cümleciğe
+    ["08:00", "We leave tomorrow, breakfast at 8"],
+    ["15:30", "Uçağımız 15:30'da olduğu için 12 gibi çıkarız"], // "için" cümlecik sınırı
+    ["11:00", "The cleaner can come at 11 since we leave at 10"], // "since" cümlecik sınırı
+    ["15:00", "Is late checkout possible at 15 EUR?"], // para / sayaç saat değil
+    ["10:00", "10'da değil 11'de çıkarız"], // değiştirilen saat beyan değil
+    ["10:00", "Saat 10 yerine 11:30'da çıkarız"],
+    ["15:00", "Giriş 15:00 çıkış 11:00 değil mi?"], // giriş diye etiketlenen saat
+    ["15:00", "Check-in 3pm check-out 11am"],
+    ["11:00", "Saat 11 buçukta çıkarız"], // buçuk tam saat değil
+    ["10:00", "Saat 10:00 yerine 11:30'da çıkarız"], // açık saatte de değiştirilen saat (boşluğu eşleşme yer)
+    ["10:00", "10:00 değil 11:00'de çıkarız"],
+    ["12:00", "Öğlen yemeğinden sonra çıkarız"], // öğle yemeği saat değil
+  ];
+  for (const [time, msg] of rejects) {
+    it(`reddeder: ${time} ← ${msg}`, () => {
+      expect(timeStatedInMessage(time, msg)).toBe(false);
+    });
+  }
+});
+
+describe("statedCheckoutTime — ikinci inceleme (09-25): yanlış redler + aşırı uygulama kontrolü", () => {
+  const accepts: [string, string][] = [
+    ["11:00", "11\u2019de çıkarız"], // iPhone kıvrık kesme işareti
+    ["11:00", "We're checking out at 11"],
+    ["11:30", "Saat 11 buçukta çıkarız"],
+    ["11:00", "Ev çıkmaz sokakta mı? 11'de çıkarız"], // "çıkmaz sokak" ret değil
+    ["12:00", "Yarın öğlen çıkarız"],
+    ["12:00", "we'll leave at noon"],
+    ["11:00", "11'e kadar çıkarız"],
+    ["11:00", "11 de çıkarız"],
+    ["10:00", "Leaving 10ish"],
+    ["10:00", "We'll be out by 10"],
+    ["10:00", "We head out at 10"],
+    ["10:00", "Yarın 10'da gidiyoruz"],
+    ["10:00", "11 Ekim'de çıkıyoruz, saat 10:00 gibi"], // ay adıyla tarih ipucu cümleciğinin saati DEĞİL
+    ["11:30", "Yarın çıkıyoruz, 11 buçukta"], // ileri bakışta "buçuk" dolgu sayılır
+    ["11:30", "Saat 10:00 yerine 11:30'da çıkarız"],
+    ["11:00", "10:00 değil 11:00'de çıkarız"],
+    ["12:00", "Öğlen çıkarız"],
+    // Aşırı uygulama kontrolü: aynı cümlelerin DOĞRU okunuşu hâlâ kabul.
+    ["14:00", "Öğleden sonra 2'de çıkarız"],
+    ["11:00", "10'da değil 11'de çıkarız"],
+    ["12:00", "Uçağımız 15:30'da olduğu için 12 gibi çıkarız"],
+    ["18:00", "Akşam 6'da çıkıyoruz"],
+    ["10:00", "Sabah 10'da çıkarız"],
+    ["09:00", "Saat 09:00 gibi daireyi boşaltırız"],
+    ["05:00", "Sabaha karşı 5'te yola çıkacağız"],
+  ];
+  for (const [time, msg] of accepts) {
+    it(`kabul eder: ${time} ← ${msg}`, () => {
+      expect(timeStatedInMessage(time, msg)).toBe(true);
+    });
+  }
+});
+
+describe("çıkış saati DÜZELTMESİ — ikinci inceleme (09-25)", () => {
+  // `ai/index.ts` ile aynı kabul kuralı: beyan ya da düzeltme.
+  const accepted = (prev: string, next: string, msg: string) =>
+    timeStatedInMessage(next, msg) || timeCorrectedInMessage(prev, next, msg);
+
+  const rejects: [string, string, string][] = [
+    ["10:00", "11:00", "10'unda değil 11'inde çıkıyoruz"], // sıra sayısı = tarih
+    ["10:00", "11:00", "10 Ekim değil, 11 Ekim"], // ay adı
+    ["10:00", "11:00", "10 yaşında değil 11 yaşında"],
+    ["10:00", "11:00", "10 demiştik, değişmedi, 11'de temizlikçi gelebilir"], // yeni saatin cümleciği başka iş
+    ["10:00", "07:00", "10 demiştim ama akşam 7 olacak"], // akşam 7 = 19:00
+    ["10:00", "22:00", "10'da değil 10 buçukta çıkacağız"],
+    ["10:00", "11:00", "the 11th, not the 10th"],
+  ];
+  for (const [prev, next, msg] of rejects) {
+    it(`düzeltme sayılmaz: ${prev} → ${next} ← ${msg}`, () => {
+      expect(accepted(prev, next, msg)).toBe(false);
+    });
+  }
+
+  const accepts: [string, string, string][] = [
+    ["10:00", "11:00", "10 demiştim ama 11 olacak, bir de 3 havlu lazım"], // üçüncü sayı sayaç
+    ["10:00", "11:00", "Not 10, 11 please"],
+    ["10:00", "19:00", "10 demiştim ama akşam 7 olacak"],
+    ["10:00", "10:30", "10'da değil 10 buçukta çıkacağız"],
+    ["11:00", "10:00", "11 dedik ama 10'a çekelim"],
+    ["10:00", "11:00", "10 demiştim, 11'de"], // yeni saatin cümleciği yalnız saat
+  ];
+  for (const [prev, next, msg] of accepts) {
+    it(`düzeltme sayılır: ${prev} → ${next} ← ${msg}`, () => {
+      expect(accepted(prev, next, msg)).toBe(true);
+    });
+  }
 });
 
 describe("isClosingAck — harf içermeyen mesaj artık BEYAZ LİSTE", () => {
