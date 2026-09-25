@@ -27,3 +27,10 @@ describe("çıkış saati çıkarımı — yolculuk ≠ çıkış, düzeltme = y
     expect(REPLY_SYSTEM_PROMPT).toMatch(/DÜZELTME: misafir önceki çıkış saatini değiştiriyorsa \("10 demiştim ama 11 olacak"\) YENİ saati yaz/);
   });
 });
+
+describe("bekleme sözü yasağı (kurucu kararı 09-25)", () => {
+  it("istem misafire bekleme sözü vermeyi açıkça yasaklar ve kararı OLGU olarak söyletir", () => {
+    expect(REPLY_SYSTEM_PROMPT).toContain("BEKLEME SÖZÜ YASAK (kurucu kararı)");
+    expect(REPLY_SYSTEM_PROMPT).toContain('"I\'ll check with the host and get back to you" YAZMA');
+  });
+});

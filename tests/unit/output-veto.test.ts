@@ -284,6 +284,10 @@ describe("sözleşme", () => {
       "Hangi tarihlerin uygun olduğunu ev sahibiniz netleştirecek.",
       "Ev sahibiniz uzatma talebinizi onaylayacaktır.",
       "Ev sahibine soruyorum, birazdan dönerim.",
+      // Tek başına (başka tetikleyici olmadan): şimdiki zaman ve geniş zaman biçimleri.
+      "Şu an ev sahibinize danışıyorum.",
+      "Takvimi kontrol ediyorum.",
+      "Bunu ev sahibinize sorarım.",
       "Ich frage beim Gastgeber nach und melde mich.",
       "Ich werde den Gastgeber fragen.",
       "Je vais demander à l'hôte et je reviens vers vous.",
