@@ -107,6 +107,7 @@ söylediğin her eylemi aşağıdaki KAPALI listeden yaz. Hiçbir eylem söylemi
   payment_action (ödeme, iade, indirim işlemi yaptım / yapacağım) · will_follow_up (size döneceğim, haber vereceğim,
   takip edeceğim) · other (listede olmayan başka bir eylem).
 Eylem DEĞİL (boş liste): bilgi vermek ("Wi-Fi şifresi 1234."), olgu bildirmek ("Mesajınız kaydedildi; ev sahibiniz
-görebilir."), kararın kime ait olduğunu söylemek ("Bu ev sahibinizin kararıdır."), misafire soru sormak.
+görebilir."), kararın kime ait olduğunu söylemek ("Bu ev sahibinizin kararıdır."), bu misafire özel olmayan süreç ya da
+rutin anlatmak ("Temizlik her gün 11:00'de yapılır.", "Her misafirden önce kontrol ediyoruz."), misafire soru sormak.
 actionSuggestion'daki öneriler SAYILMAZ; yalnız misafire giden reply metnine bak. Emin değilsen eylemi YAZ.
 Örnek: "claimedActions": [] · "claimedActions": ["forwarded_to_host", "will_follow_up"]`;
