@@ -1673,7 +1673,16 @@ export async function applyChannelAutoReply(
     : isPositiveFeedback(last.body)
       ? "praise"
       : null;
-  if (closingKind && messages.some((m) => m.direction === "outbound")) {
+  // 🚨 CEVAPSIZ MESAJLARIN HEPSİ kapanış olmalı (09-25 denetim): kısayol eskiden YALNIZ son mesaja bakıyordu —
+  // "Bir gece daha kalabilir miyiz?" / "Mutfakta duman var" + aynı döngüde "Tamam, teşekkürler" → model hiç
+  // çağrılmıyor, istek 'closing_ack' damgasıyla kuyruktan düşüyor, nezaket açıksa konuşma "cevaplandı" oluyordu.
+  // Son giden mesajdan sonraki misafir mesajlarından biri bile gerçek içerikse normal akış (model + kapı) koşar.
+  const lastOutboundIdx0 = messages.map((m) => m.direction).lastIndexOf("outbound");
+  const onlyClosingsUnanswered = messages
+    .slice(lastOutboundIdx0 + 1)
+    .filter((m) => m.direction === "inbound")
+    .every((m) => isClosingAck(m.body) || isPositiveFeedback(m.body));
+  if (closingKind && onlyClosingsUnanswered && messages.some((m) => m.direction === "outbound")) {
     // LOOP GUARD (both kinds): our latest outbound was itself the courtesy →
     // the guest is thanking/complimenting the thank-you. Stay SILENT — neither
     // a second courtesy nor a model draft (which would resurrect the gushy

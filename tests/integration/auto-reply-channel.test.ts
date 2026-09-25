@@ -785,6 +785,53 @@ describe("applyChannelAutoReply", () => {
     expect(out2.considered).toBe(0);
   });
 
+  it("🚨 closing-ack (09-25 denetim): cevapsız GERÇEK bir mesajdan sonra gelen 'Tamam, teşekkürler' modeli ATLATMAZ", async () => {
+    // Eskiden kısayol yalnız SON mesaja bakıyordu: "Bir gece daha kalabilir miyiz?" + (aynı döngüde) "Tamam, teşekkürler"
+    // → model hiç çağrılmıyor, istek sessizce 'closing_ack' damgasıyla kuyruktan düşüyordu (duman/acil mesajı da aynı yol).
+    const { conversationId } = await seed({ guestMessage: "Bir gece daha kalabilir miyiz?" });
+    // Önceki cevap, isteğin ÖNCESİNDE (istek hâlâ cevapsız).
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Host", body: "Hoş geldiniz!", createdAt: new Date(Date.now() - 120_000) },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Tamam, çok teşekkürler! 🙏", createdAt: new Date() },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).not.toBe("closing_ack");
+    expect(mockSuggest).toHaveBeenCalled(); // cevapsız istek modele gider
+  });
+
+  it("🚨 closing-ack + nezaket açık: cevapsız istek varken nezaket cevabı GİTMEZ, konuşma 'cevaplandı' OLMAZ", async () => {
+    const { orgId, conversationId } = await seed({ guestMessage: "Mutfakta duman var, alarm çalıyor" });
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Host", body: "Hoş geldiniz!", createdAt: new Date(Date.now() - 120_000) },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Tamam", createdAt: new Date() },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
+    await applyChannelAutoReply(conversationId);
+    const bodies = mockSend.mock.calls.map((c) => String(c[1] ?? ""));
+    expect(bodies.some((b) => /Rica ederiz|You're welcome/.test(b))).toBe(false);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).not.toBe("answered");
+  });
+
+  it("KONTROL: cevapsız mesajların HEPSİ kapanışsa kısayol aynen (iki ardışık 'teşekkürler')", async () => {
+    const { conversationId } = await seed({ guestMessage: "Teşekkürler!" });
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Host", body: "Rica ederiz!", createdAt: new Date(Date.now() - 120_000) },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Tamam, çok teşekkürler! 🙏", createdAt: new Date() },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).toBe("closing_ack");
+    expect(mockSuggest).not.toHaveBeenCalled();
+  });
+
   it("closing-ack: 'thanks + a real question' still goes to the model", async () => {
     const { conversationId } = await seed({ guestMessage: "Teşekkürler! Peki wifi şifresi nedir?" });
     await prisma.message.create({
