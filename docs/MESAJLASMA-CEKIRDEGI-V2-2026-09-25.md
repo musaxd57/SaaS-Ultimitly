@@ -350,6 +350,92 @@ artık kör değil.
 - **Mutasyon:** `174edda` üzerinde 67 mutant (her yeni dal, dal üyesi ve istisna), ayrık worktree, M0 yeşil →
   **67/67 öldürüldü**.
 
+### 1.9 Yazılan çıkış saati — kör batarya dilimi (#161b)
+Misafirin yazdığı çıkış saati rezervasyona YAZILIR (`guestCheckoutTime`) ve istem "hatırla, yeniden sorma" der. Bu yüzden
+yanlış KABUL tehlikelidir, yanlış RED yalnız kaydı atlar. Bağımsız ajanın kodu görmeden yazdığı batarya repoda:
+- 477 mesaj × aday saat (TR/EN/DE/FR/ES) + 74 saldırgan sonda: `tests/helpers/stated-time-blind-battery-2026-09-25.ts`;
+- regresyon pini: `tests/unit/stated-time-blind-battery.test.ts`.
+
+Batarya bu dilimde ayar için kullanıldı, artık kör değil.
+
+| Ölçüm (tartışmasız etiketler) | Önce | Sonra |
+|---|---|---|
+| Yanlış kabul | 67 / 407 | **1** |
+| Yanlış red | 55 / 318 | **19** |
+| Saldırgan sonda yanlışı | 51 / 74 | **2** (ikisi de red) |
+| 3.999 karakterde en kötü CPU | ~11 ms | **~9 ms** |
+
+- **Artık beyan sayılmayan cümlecikler:**
+  - yapamama ve olumsuz niyet: "10'da çıkamayız", "çıkış yapmayacağız", "çıkmayı düşünmüyoruz", "can't leave",
+    "aren't leaving". Mesajın tamamı düşmez; aynı mesajdaki "13'te çıkarız" kalır;
+  - soru / istek: "12'de çıkabilir miyiz?", "13.30'da çıksak olur mu?", "Can we check out at 1pm?". Soru işareti
+    OLMADAN da biçimden tanınır ("miyiz", "-sAk", "can we"). Soru işaretli cümlenin son cümleciği de sorudur. "11'de
+    çıkacağız, olur mu?" beyanı etkilenmez;
+  - önceki beyanın aktarımı: "10'da çıkacağımızı yazmıştım". Aynı mesajda yeni saatli beyan yoksa aktarım teyittir.
+- **Öğleden sonra okunuşu yalnız 1–7 (13:00–19:59):** "10:30'da çıkış" artık 22:30'u doğrulamıyor.
+- **Gün dilimi:**
+  - "gece 11" = 23:00, "gece 12" = 00:00;
+  - İngilizce sayının önünde ("tonight at 9") ve ardında ("at 11 at night", "tomorrow morning");
+  - "akşam üstü", "sabah erken", "7h du soir", "7 Uhr abends";
+  - düzeltmede yeni saat eskisinin öğleden sonrasını miras alır ("Akşam 10 dedim ama 9 olacak" = 21:00).
+- **Başka işin saati çıkış değil:**
+  - başka aracın kalkışı ("Our train leaves at 10", "Trenimiz 10'da gidiyor"); kalıp yalnız 3. tekil fiille çalışır,
+    "tren istasyonuna gidiyoruz" ayrılmadır;
+  - UZUN YOL aracının kalkış İSMİ ("our departure flight", "the flight's departure", "departure of our train", "départ du
+    vol", "vol de départ"). Taksi / transfer isim dalında yok: kapıdan alma saati çoğunlukla misafirin çıktığı saattir
+    ("Our departure transfer is at 9" kabul, kontrol satırı pinli);
+  - gezi ("plaja gidiyoruz", "head out for dinner", "checked out the old town");
+  - nesneli "leave the car", yemeğin saati ("After breakfast at 9");
+  - ulaç ("kalkıp", "yapıp"), "diye", "-dığından", şart kipi ("gelecekse") ve DE/FR/ES bağlaçları cümlecik böler.
+    "-ınca" bölmez: ölçüldü, bataryada gereksiz, "taksi gelince çıkarız" çıkış saatini taşır.
+- **Nötrlenen ifadenin yerine işaret sözcüğü (`OTHER_EVENT_MARK`), boşluk DEĞİL:** boşlukla silinen "train leaves",
+  "We leave tomorrow, the train leaves at 10" cümlesinin ikinci cümleciğini "the … at 10" bırakıyordu. İleri bakış bunu
+  yalnız-saat cümleciği sanıp tren saatini kabul ediyordu. Aynı açık düzeltme yolunda da vardı: "Checkout was 11, the bus
+  leaves at 13" otobüs saatini düzeltme diye kabul ediyordu. Mutasyon turu buldu (aşağıda).
+- **Düzeltme yolu:** olay adı ("Kahvaltı 10 demiştim ama 9 olsun", "Giriş 14 değil 15'te") çıkış ipucu yoksa düzeltmeyi
+  düşürür; ad, nötrlemeden ÖNCEKİ cümleden okunur. Tarih ("Oct 11", "ayın 11'i", "12'si") saat değildir.
+- **Kapsam (yanlış red azaldı):**
+  - ASCII yazım ("cikiyoruz") ve ters tırnak ("10`da");
+  - "a.m." noktaları, "be out / be gone by", "we're off", "hit the road", "heading to the airport";
+  - gece yarısı, "öğleye doğru", "3'e doğru";
+  - DE "reisen … ab / checken … aus", FR "partir / quitter / 10h / 11h30" (süre "dans 2h30" hariç), ES "saldremos / a las".
+- **CPU:** saat belirtecinin ÖNÜNE bakan her kalıp `$`'a çapalıdır ve birkaç sözcüktür. Metnin tamamı her belirteçte
+  baştan taranıyordu (karesel): 4.000 karakterlik "çıkış 1 1 1 …" 33–41 ms. Artık yalnız son 64 karakter (`beforeOf`),
+  ~9 ms.
+- **Bilinen sınırlar (pinli):**
+  - "Sabah erkenden, 6'da çıkıyoruz": gün dilimi virgülün öteki cümleciğinde;
+  - çeyrek / "half past" / sözle saat;
+  - bitişik "1030";
+  - soru ile cevabın ayrı cümlede olması ("Kaçta mı çıkıyoruz? 11'de.");
+  - çıplak sayının önünde ipucu yoksa ("Our checkout time is 10.") okunmaz (eski davranış, red).
+- **Mutasyon:**
+  - `6c9b607` üzerinde 74 mutant → 71 öldü. Yaşayan üçü:
+    - I2 ve Q2: soru işaretsiz soru ikizi eksikti, eklendi;
+    - O7 (Almanca/Fransızca/İspanyolca araç fiili) ÖLÜ değil ZARARLIYDI: "Wir reisen morgen ab, Zug fährt um 10" satırını
+      yeni bir yanlış kabule çeviriyordu. Silindi; işaret sözcüğü sınıfı kapattı.
+  - Takip commit'leri üzerinde 33 + 2 mutant: işaret sözcüğü (iki yol), isim dalının her parçası, Q2'nin iki yarısı,
+    aşırı uygulama (transfer, "departure time", araçsız "départ du") ve pencere boyu (8/20). Hepsi öldü.
+  - Eşdeğer mutant (koşulmadı, gerekçeli): pencereyi TAM önek yapmak sonucu değiştirmez, yalnız CPU'yu artırır.
+
+### 1.10 CI #1170 — kuyruk vade kapısı tek saat
+`5d13552`'nin CI'ı `outbox-connection` testinde ("sağlıklı bağlantıda normal teslim") düştü: teslim 0. "Wait for CI"
+açık olduğu için Railway o sürümü yayınlamadı.
+
+Kök neden:
+- worker'ın claim sorgusu `availableAt <= now` kıyasını JS saatiyle yapar;
+- enqueue ise `availableAt`'i şema varsayılanından (`@default(now())`) alıyordu. Bu başka bir saattir ve `timestamp(3)`'e
+  YUVARLANIR; JS saati milisaniyeye TABANLANIR;
+- aynı milisaniyedeki enqueue + drain satırı "vadesi gelmedi" gösteriyordu.
+
+Düzeltme: `enqueueOutbound` ve `enqueueProactive` `availableAt`'i worker'ın saatiyle yazar (`ENQUEUE_CLOCK`). Belirlenimci
+test: JS saati 5 sn geride (yalnız `Date` sahte). Düzeltmesiz iki test kırmızı; mutasyon 3/3.
+
+Canlı etki yok: dayanıklı kuyruk bayrağı kapalı; açık olsaydı en fazla bir tur gecikme.
+
+AYNI SINIF e-posta kuyruğunda da var (`EmailOutbox.nextAttemptAt`, bayrak canlıda AÇIK). Etkisi: nadiren bir doğrulama /
+şifre sıfırlama e-postası bir poller turu (≤15 sn) gecikir, kaybolmaz. Kimlik e-postası akışı olduğu için kurucu onayına
+bırakıldı. Öneri tek satır: `create`'te `nextAttemptAt: new Date()`.
+
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 
 ### 2.1 Bugün ne var (ajan envanteri, 09-25)

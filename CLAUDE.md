@@ -423,7 +423,12 @@ Bu dosyaya token/anahtar/parola yazma.
   York'ta çıkış hatırlatması bir gün önce gidiyordu, QR sohbeti devir akşamı gelecek konaklamaya açılıyordu). Yazılan
   saatin kanıtı (`stated-time.ts`, uydurma durdurucu): saat/tarih içindeki rakam, sabah/akşam okunuşu, değiştirilen
   saat ("10'da değil"), giriş etiketi, başka cümleciğin saati kanıt DEĞİL; aynı cümlecikteki başka eylemin saati bilinen
-  sınır (anlam modelde). CPU: satır içi boşluk dizisi teke iner, 4.000 karakter üstünde kanıt ARANMAZ (ayırıcı karesel). QR aday ağı varışta 36 sa (UTC+13/+14'te yalnız-tarih iCal girişi). AÇIK (misafire görünmez):
+  sınır (anlam modelde). CPU: satır içi boşluk dizisi teke iner, 4.000 karakter üstünde kanıt ARANMAZ (ayırıcı karesel);
+  belirtecin ÖNÜNE bakan kalıplar yalnız son 64 karakteri görür (`beforeOf`; tam önek karesel iş, 33→9 ms). Kör batarya
+  dilimi #161b (belge §1.9): yapamama / soru-istek (soru işareti OLMADAN da) / aktarım beyan değildir; başka aracın kalkışı ve
+  UZUN YOL aracının kalkış İSMİ çıkış değildir (taksi/transfer değil: alma saati çıkış sayılır); 🚨 nötrlenen ifadenin
+  yerine BOŞLUK DEĞİL işaret sözcüğü (`OTHER_EVENT_MARK`) — boşluk cümleciği "yalnız saat" yapıp ileri bakışa tren saatini
+  kabul ettiriyordu. QR aday ağı varışta 36 sa (UTC+13/+14'te yalnız-tarih iCal girişi). AÇIK (misafire görünmez):
   pano/Görevler/İptaller/raporlar/tedarik ve yaşam döngüsü GÖREV oluşturma (`todayStart`) hâlâ gün başı kıyası — TR/AB'de
   doğru, ABD/UTC+12 üstünde ayrı dilim.
 - 🚨 **Ev sahibi metninde ödeme yöntemi/yeri TEK KAYNAK `payment-method-guard.ts` (09-25) — ŞÜPHEDE REDDET:** yanlış ret
@@ -768,6 +773,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   parça (`markConversationDelivered` · `stampLifecycleSent` · `applyHandoffHold`) + healer; devir hold'u
   enqueue'de değil teslimde; 402 → `blocked`, sync başarısında bir kez `pending`. `autoReplyHoldUntil`
   KİLİTTİR, zamanlayıcı değil; `autoReplyAttemptedAt` konuşmanın `lastMessageAt`'inden alınır.
+  🚨 **Vade kapısı TEK SAAT (`ENQUEUE_CLOCK`, CI #1170):** enqueue `availableAt`'i worker'ın kıyasladığı saatle YAZAR;
+  şema varsayılanı (`@default(now())`) başka saattir ve timestamp(3)'e yuvarlanır → aynı milisaniyede satır "vadesi
+  gelmedi" görünüyordu (rastgele kırmızı CI = atlanan yayın). JS saatiyle kıyaslanan YENİ zaman kolonu şema varsayılanına
+  BIRAKILMAZ. E-posta kuyruğunda (`nextAttemptAt`) aynı sınıf açık — kimlik akışı, kurucu onayı bekliyor.
 - CLAIM-THEN-NOTIFY: atomik işaret + yan etki → yan etkinin SONUCU okunur; `emailService.send` bildirim
   yollarında KULLANILMAZ (`sendReporting`); `reportError` `throttled/configured:false` başarısızlık değil.
 - Escalation üç yol (model · kelime alerts · `applyInboundMessageRules`); m48 triyaj ikinci model çağrısı
@@ -1103,7 +1112,9 @@ Motoru; `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md`):** kapanışa sessizlik + 
 dilim A) · çıkış saati düzeltmesi + yolculuk ayrımı · netleştirme politikası · bekleme sözü vetosu — migration'sız,
 kırmızı-önce + mutasyon (35+15+15+14). Üç inceleme ajanının bulguları ayrı commitlerle kapandı (veto `6c7b439` · kapanış
 `1785250` · zaman `a83459d`; belge §1.6). Kör veto bataryası dilimi #162 (belge §1.8): kaçan 51→15 (12'si edilgen),
-yanlış tutma 8→4, korpusta yeni tutma 0, mutasyon 67/67. ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
+yanlış tutma 8→4, korpusta yeni tutma 0, mutasyon 67/67. Yazılan saat kör batarya dilimi #161b (belge §1.9): yanlış kabul
+67→1, yanlış red 55→19, sonda 51→2, mutasyon 71/74 → yaşayanlar kapandı + 35/35. CI #1170 rastgele kırmızısı kökten
+kapandı (belge §1.10). ONAY BEKLEYEN: Host Karar Motoru (`DecisionRequest` migration + 6 dil metin +
 e-posta), bekleme sırasında A/B (SABİTLENMEDİ), `claimedActions` ve CUS v1 dilim B (bayrak + ücretli eval), CUS v2 defter
 (migration).
 
