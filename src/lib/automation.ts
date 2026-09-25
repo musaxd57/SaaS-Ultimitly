@@ -42,6 +42,7 @@ import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone, addZonedDays } from "@/lib/timezone";
+import { calendarDateOf, todayKey } from "@/modules/availability/core";
 // Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
 export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
@@ -1694,10 +1695,13 @@ export async function applyChannelAutoReply(
       if (!options.dryRun) await persistRiskVisibility(conversation.id, "reservation_ended");
       return { sent: false, skippedReason: "reservation_ended", ...meta };
     }
-    if (conversation.reservation.departureDate < zonedDayRange(new Date(), orgTimezone(org.timezone)).start) {
-      // Istanbul day boundary (not server UTC) — otherwise a guest still checked in
+    const orgTz = orgTimezone(org.timezone);
+    if (calendarDateOf(conversation.reservation.departureDate, orgTz).key < todayKey(new Date(), orgTz)) {
+      // Org day boundary (not server UTC) — otherwise a guest still checked in
       // on checkout-day morning (departureDate at Istanbul midnight = before UTC
       // midnight) would be wrongly treated as departed and the reply skipped.
+      // TEK TARİH KURALI (`calendarDateOf`, inceleme 09-25): ham damga ↔ gün başı kıyası batı dilimlerinde (New York)
+      // YALNIZ TARİH saklanan (00:00Z) çıkışı çıkış günü boyunca "bitti" sayıyordu — misafir hâlâ dairedeyken AI susuyordu.
       if (!options.dryRun) await persistRiskVisibility(conversation.id, "reservation_ended");
       return { sent: false, skippedReason: "reservation_ended", ...meta };
     }

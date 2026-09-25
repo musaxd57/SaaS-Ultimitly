@@ -158,6 +158,43 @@ describe("timeCorrectedInMessage (pure)", () => {
     // "110"un içinden "11" okunmaz (eski saat 11 sanılıp düzeltme kabul edilmesin).
     expect(timeCorrectedInMessage("11:00", "10:00", "oda 110'dayız, saat 10 olsun")).toBe(false);
     expect(timeCorrectedInMessage("11:00", "10:00", "11 demiştik, saat 10 olsun")).toBe(true);
+    // İnceleme 09-25 (test boşluğu): "10.5" başlıkta vardı ama sınanmıyordu — ondalık sayının parçası saat değildir.
+    expect(timeCorrectedInMessage("10:00", "11:00", "10.5 km uzaktayız, 11 olacak")).toBe(false);
+    expect(timeCorrectedInMessage("10:00", "11:00", "10:30 demiştim ama 11 olacak")).toBe(false);
+  });
+
+  it("🚨 P2 (inceleme 09-25): TEK belirteç iki saati birden karşılayamaz (12 saat arası okunuş)", () => {
+    expect(timeCorrectedInMessage("10:00", "22:00", "Çıkış saatini 10 demiştim, aynen geçerli.")).toBe(false);
+    expect(timeCorrectedInMessage("08:00", "20:00", "8 kişiyiz")).toBe(false);
+    expect(timeCorrectedInMessage("11:00", "23:00", "Saat 11 demiştim, teşekkürler")).toBe(false);
+    expect(timeCorrectedInMessage("01:00", "13:00", "1 valizimiz var")).toBe(false);
+  });
+
+  it("🚨 P2: üç saatli cümle bu yoldan kabul edilmez (uçuş saati düzeltme sanılmasın)", () => {
+    expect(timeCorrectedInMessage("10:00", "14:00", "Sabah 10 dedik ama uçağımız 14:00'te, 11'de çıkarız")).toBe(false);
+    expect(timeCorrectedInMessage("11:00", "19:30", "11 demiştim ama uçağımız 19:30'da, sabah 8 gibi çıkarız")).toBe(false);
+    // Çıkış fiili taşıyan saat ANA yoldan kabul edilir (düzeltme yolu gerekmez).
+    expect(timeStatedInMessage("11:00", "Sabah 10 dedik ama uçağımız 14:00'te, 11'de çıkarız")).toBe(true);
+  });
+
+  it("🚨 P2: sayaç / numara / tarih saat değildir; düzeltme ya da çıkış işareti şarttır", () => {
+    expect(timeCorrectedInMessage("10:00", "11:00", "oda 10, kat 11")).toBe(false);
+    expect(timeCorrectedInMessage("10:00", "11:00", "Havlular 10 tane mi 11 tane mi?")).toBe(false);
+    expect(timeCorrectedInMessage("10:00", "11:00", "10/11 tarihinde geleceğiz")).toBe(false);
+    expect(timeCorrectedInMessage("10:00", "11:00", "10 kişi demiştik ama 11 olacağız")).toBe(false);
+    expect(timeCorrectedInMessage("10:00", "11:00", "Otobüs 10 ile 11 arası geçiyor")).toBe(false); // işaret yok
+    // am/pm okunuşu korunur: "10 pm" yalnız 22:00'dır.
+    expect(timeCorrectedInMessage("10:00", "11:00", "10 pm demiştim ama 11 olacak")).toBe(false);
+    expect(timeCorrectedInMessage("22:00", "23:00", "10 pm demiştim ama 11 pm olacak")).toBe(true);
+  });
+});
+
+describe("timeStatedInMessage — ileri bakış (inceleme 09-25)", () => {
+  it("🚨 ipucu cümleciğinin KENDİ saati varsa sonraki cümleciğin saati çıkış sayılmaz", () => {
+    expect(timeStatedInMessage("09:00", "11'de çıkarız demiştim; çıkmadan önce 09:00'da kahvaltı yapabilir miyiz")).toBe(false);
+    expect(timeStatedInMessage("11:00", "11'de çıkarız demiştim; çıkmadan önce 09:00'da kahvaltı yapabilir miyiz")).toBe(true);
+    // KONTROL: ipucu cümleciğinde saat yoksa ileri bakış sürer.
+    expect(timeStatedInMessage("10:00", "yarın çıkıyoruz, saat 10:00 gibi")).toBe(true);
   });
 });
 

@@ -17,6 +17,7 @@ import type { ClaimContext } from "./claim-support";
 import { guestCheckoutMayBeLate, guestCheckoutRelation } from "@/lib/guest-checkout-time";
 import { normalizeHhmm } from "./semantic/stay-change";
 import { clockLine, formatDayTr, stayTimeline, timelineLine } from "./stay-timeline";
+import { calendarDateOf } from "@/modules/availability/core";
 import { orgTimezone } from "@/lib/timezone";
 import { guestTurnLanguage, languageLabel, unansweredGuestTexts } from "./language-signal";
 
@@ -667,6 +668,12 @@ function fmtDate(d: Date | string) {
   }
 }
 
+/** Komşu rezervasyon günü — tek tarih kuralı (`calendarDateOf`, org dilimi) + gün adı; sunucu saatiyle DEĞİL (inceleme 09-25). */
+function dayOf(d: Date | string, timeZone: string): string {
+  const at = new Date(d);
+  return Number.isNaN(at.getTime()) ? fmtDate(d) : formatDayTr(calendarDateOf(at, timeZone).key);
+}
+
 function sameDay(a: Date | string, b: Date | string): boolean {
   return new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10);
 }
@@ -682,6 +689,7 @@ function adjacencyDataLines(
   reservation: SuggestReplyInput["reservation"],
   adjacency: AdjacencyContext | null,
   property: SuggestReplyInput["property"],
+  timeZone: string,
 ): string {
   if (!reservation || !adjacency) return "";
   const { previousDeparture, nextArrival } = adjacency;
@@ -693,7 +701,7 @@ function adjacencyDataLines(
   const before = previousDeparture
     ? beforeSameDay
       ? `Giriş günü AYNI dairede önceki misafir saat ${property.checkOutTime} itibarıyla çıkıyor → DEVİR GÜNÜ. Erken giriş ancak çıkış + temizlik sonrası mümkün (pencere ${property.checkOutTime}–${property.checkInTime}).`
-      : `Giriş gününden önceki kayıtlı son çıkış: ${fmtDate(previousDeparture)} → erken girişte devir baskısı yok (bu bir boşluk KANITI değildir; takvim kaydı güncel olmayabilir).`
+      : `Giriş gününden önceki kayıtlı son çıkış: ${dayOf(previousDeparture, timeZone)} → erken girişte devir baskısı yok (bu bir boşluk KANITI değildir; takvim kaydı güncel olmayabilir).`
     : // 🚨 09-24: burası "daire muhtemelen müsait" diyordu — kayıt YOKLUĞU boşluk kanıtı değildir
       // (iCal/kanal beslemesi eksik ya da bayat olabilir; müsaitlik motoru bunu "bilinmiyor" sayar).
       `Giriş öncesi kayıtlı önceki rezervasyon görünmüyor — bu, dairenin boş olduğu anlamına GELMEZ (takvim kaydı eksik ya da güncel olmayabilir).`;
@@ -701,7 +709,7 @@ function adjacencyDataLines(
   const after = nextArrival
     ? afterSameDay
       ? `Çıkış günü AYNI daireye sonraki misafir saat ${property.checkInTime} itibarıyla giriyor → DEVİR GÜNÜ. Geç çıkış sınırlı; temizlik için ${property.checkOutTime}–${property.checkInTime} penceresi gerekiyor.`
-      : `Çıkıştan sonraki ilk kayıtlı giriş: ${fmtDate(nextArrival)} → geç çıkışta devir baskısı düşük görünüyor (kesin değil).`
+      : `Çıkıştan sonraki ilk kayıtlı giriş: ${dayOf(nextArrival, timeZone)} → geç çıkışta devir baskısı düşük görünüyor (kesin değil).`
     : `Çıkış sonrası kayıtlı sonraki rezervasyon görünmüyor — bu, dairenin boş olduğu anlamına GELMEZ (takvim kaydı eksik ya da güncel olmayabilir).`;
 
   return `${before}\n${after}`;
@@ -711,8 +719,9 @@ function buildAdjacencyBlock(
   reservation: SuggestReplyInput["reservation"],
   adjacency: AdjacencyContext | null,
   property: SuggestReplyInput["property"],
+  timeZone: string,
 ): string {
-  const data = adjacencyDataLines(reservation, adjacency, property);
+  const data = adjacencyDataLines(reservation, adjacency, property, timeZone);
   if (!data) return "";
   return `
 ════════════════════════════════════════════════════
@@ -1144,7 +1153,11 @@ ${conflicts
     ? `Misafir: ${sanitizePromptValue(reservation.guestName)}
 Giriş: ${timeline.arrival ? formatDayTr(timeline.arrival) : fmtDate(reservation.arrivalDate)} | Çıkış: ${timeline.departure ? formatDayTr(timeline.departure) : fmtDate(reservation.departureDate)}
 Durum: ${reservation.status}${guestCheckoutLine ? `\n${guestCheckoutLine}` : ""}
-Zaman bağlamı: ${timelineLine(timeline, property)}`
+Zaman bağlamı: ${timelineLine(timeline, {
+        // Bilgi tabanıyla ÇELİŞEN standart saat bu satırda tekrarlanmaz (P4-b bloğu "kesin saat söyleme" der).
+        checkInTime: conflicts.some((c) => c.field === "checkInTime") ? null : property.checkInTime,
+        checkOutTime: conflicts.some((c) => c.field === "checkOutTime") ? null : property.checkOutTime,
+      })}`
     : "(bu konuşma bir rezervasyona bağlı değil)";
 
   // PRE-BOOKING / UNCONFIRMED guard. When there is no linked reservation, or its
@@ -1260,7 +1273,7 @@ Zaman bağlamı: ${timelineLine(timeline, property)}`
   // Aynı dil GÖREV satırında bir kez daha (model en son okuduğunu daha iyi uygular; istemin geri kalanı Türkçe).
   const languageReminder = guestLanguage ? `\nreply dili: ${languageLabel(guestLanguage)} — yukarıdaki MİSAFİRİN DİLİ.` : "";
 
-  const adjacencyBlock = buildAdjacencyBlock(reservation, input.adjacency ?? null, property);
+  const adjacencyBlock = buildAdjacencyBlock(reservation, input.adjacency ?? null, property, timeline.timeZone);
 
   // Host-configured late-checkout / stay-extension offer. Injected ONLY when the
   // host actually wrote one — empty keeps today's behavior (no price, defer to
@@ -1383,7 +1396,7 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
       // Bugünün tarihi / yarın koddan (doğrulanmış olgu): cevaptaki "26.09.2026" gibi bir tarih buna dayanabilir.
       clockLine(timeline),
       reservation ? res : "",
-      adjacencyDataLines(reservation, input.adjacency ?? null, property),
+      adjacencyDataLines(reservation, input.adjacency ?? null, property, timeline.timeZone),
       offerText ?? "",
       input.styleProfile?.trim() ?? "",
       kb

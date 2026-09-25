@@ -154,7 +154,9 @@ export const POST = withManage(async (session, req) => {
     },
     reservation: {
       guestName: TEST_GUEST_NAME,
-      arrivalDate: now,
+      // Örnek misafir DÜN girdi, çıkışa 3 gün var (konaklama sürüyor). 09-25 zaman bağlamı takvim günüyle çalışıyor: varış
+      // "şimdi" olunca evre "Giriş BUGÜN" oluyordu — eski "şu an konaklamakta" çerçevesi ve 09-25 kıyası bozulmasın.
+      arrivalDate: new Date(now.getTime() - 24 * 60 * 60 * 1000),
       departureDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
       status: "confirmed",
     },

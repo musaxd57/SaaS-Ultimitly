@@ -47,6 +47,26 @@ describe("istem — bugün/yarın + konaklama evresi org diliminde", () => {
     expect(p).toContain("Bugün: 25.09.2026 Cuma, saat 22:00 (America/New_York) · Yarın: 26.09.2026 Cumartesi");
   });
 
+  it("🚨 bilgi tabanıyla ÇELİŞEN standart saat zaman satırında tekrarlanmaz (P4-b 'kesin saat söyleme' bloğuyla tutarlı)", () => {
+    const kbConflict = [{ category: "checkout", title: "Çıkış", content: "Çıkış saati 12:00'dir." }];
+    const p = buildReplyUserPrompt({ ...base, knowledgeBase: kbConflict, now: new Date("2026-09-26T05:00:00.000Z") });
+    expect(p).toContain("KAYNAK ÇELİŞKİSİ");
+    expect(p).toContain("Zaman bağlamı: Çıkış günü BUGÜN: 26.09.2026 Cumartesi.");
+    expect(p).not.toContain("standart çıkış saati 11:00");
+  });
+
+  it("komşu rezervasyon günleri org diliminde + gün adıyla (sunucu saatiyle DEĞİL — inceleme 09-25)", () => {
+    const p = buildReplyUserPrompt({
+      ...base,
+      timeZone: "America/New_York",
+      now: new Date("2026-09-24T14:00:00.000Z"),
+      // Anlık değer: 20.09 02:00Z = New York 19.09 22:00 (UTC'de yazılsaydı 20.09 görünürdü).
+      adjacency: { previousDeparture: new Date("2026-09-20T02:00:00.000Z"), nextArrival: new Date("2026-09-30T00:00:00.000Z"), previousSameDay: false, nextSameDay: false },
+    });
+    expect(p).toContain("Giriş gününden önceki kayıtlı son çıkış: 19.09.2026 Cumartesi");
+    expect(p).toContain("Çıkıştan sonraki ilk kayıtlı giriş: 30.09.2026 Çarşamba");
+  });
+
   it("saat satırı iddia desteği ölçümünün bağlamına girer (cevaptaki bugünün tarihi 'desteksiz' görünmesin)", () => {
     const { claimContext } = buildReplyPrompt({ ...base, now: new Date("2026-09-25T07:40:00.000Z") });
     expect(claimContext.facts.some((f) => f.includes("Bugün: 25.09.2026 Cuma"))).toBe(true);
@@ -54,7 +74,8 @@ describe("istem — bugün/yarın + konaklama evresi org diliminde", () => {
 
   it("dilim verilmezse uygulamanın varsayılan dilimi kullanılır (satır yine yazılır)", () => {
     const p = buildReplyUserPrompt({ ...base, timeZone: undefined, now: new Date("2026-09-25T07:40:00.000Z") });
-    expect(p).toMatch(/Bugün: 25\.09\.2026 Cuma, saat \d\d:\d\d \([^)]+\) · Yarın: 26\.09\.2026 Cumartesi/);
+    // Uygulama varsayılanı (Europe/Istanbul): 07:40Z = 10:40 (UTC'ye düşseydi 07:40 yazardı — test boşluğu 09-25).
+    expect(p).toContain("Bugün: 25.09.2026 Cuma, saat 10:40 (Europe/Istanbul) · Yarın: 26.09.2026 Cumartesi");
   });
 
   it("rezervasyon yoksa da bugünün tarihi yazılır (QR / ön-rezervasyon soruları)", () => {

@@ -112,7 +112,8 @@ export async function POST(req: NextRequest) {
       property: DEMO_PROPERTY,
       reservation: {
         guestName: "Demo Misafir",
-        arrivalDate: now,
+        // Örnek misafir DÜN girdi, çıkışa 3 gün var (konaklama sürüyor) — Ayarlar testiyle aynı çerçeve (09-25).
+        arrivalDate: new Date(now.getTime() - 24 * 60 * 60 * 1000),
         departureDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
         status: "confirmed",
       },

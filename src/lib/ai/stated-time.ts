@@ -152,8 +152,13 @@ export function timeStatedInMessage(hhmm: string, message: string): boolean {
       // Genel olumsuz kalıplar YALNIZ kendi cümleciğini bağlar (↑CLAUSE_NEGATION).
       if (CLAUSE_NEGATION.test(clauses[i])) continue;
       if (segmentStatesTime(clauses[i], h, min)) return true;
+      // İleri bakış YALNIZ ipucu cümleciğinin KENDİ saati yoksa ("yarın çıkıyoruz, saat 10:00 gibi"). Kendi saati varsa o
+      // saat onundur; sonraki cümleciğin saati başka bir işe aittir — inceleme 09-25: "11'de çıkarız demiştim; çıkmadan
+      // önce 09:00'da kahvaltı…" 09:00'ı çıkış diye kabul ediyordu.
       const next = clauses[i + 1];
-      if (next && !CLAUSE_NEGATION.test(next) && segmentStatesTime(next, h, min)) return true;
+      if (next && !CLAUSE_NEGATION.test(next) && timeTokens(clauses[i]).length === 0 && segmentStatesTime(next, h, min)) {
+        return true;
+      }
     }
   }
   return false;
@@ -206,31 +211,80 @@ function segmentStatesTime(text: string, h: number, min: number): boolean {
  * DÜZELTME (09-25, kurucu örneği: "10 demiştim ama 11 olacak"). Misafir daha önce KAYITLI çıkış saatini değiştiriyorsa
  * mesajda çıkış fiili olmayabilir — `timeStatedInMessage` bunu reddediyordu ve eski saat kayıtlı kalıyordu. Anlamı (bu bir
  * çıkış saati düzeltmesi mi, yoksa "10 kişi demiştik ama 11 olacağız" mı) cevap modeli çözer; bu yüklem yalnız
- * HALÜSİNASYON durdurucudur: yeni saat VE kayıtlı eski saat AYNI cümlede geçmeli (çıplak rakam dahil — düzeltmede saat
- * işareti çoğu zaman yoktur). Ayrılmayı reddetme vetosu aynen geçerli.
+ * HALÜSİNASYON durdurucudur. İnceleme 09-25 (P2) ile sıkılaştı — ilk sürüm tek bir sayıyı iki saat birden sayıyordu ("10
+ * demiştim, aynen geçerli" → 22:00; "8 kişiyiz" → 20:00) ve uçuş saatini düzeltme diye kabul ediyordu:
+ *  · cümlede TAM İKİ saat belirteci olmalı; eski saat biri, yeni saat ÖTEKİ (aynı belirteç iki saati karşılayamaz). Üç
+ *    saatli cümle ("Sabah 10 dedik ama uçağımız 14:00'te, 11'de çıkarız") bu yoldan kabul edilmez — çıkış fiili taşıyan
+ *    saat zaten `timeStatedInMessage` ile kabul edilir;
+ *  · sayaç / sıra sayıları saat değildir: ardında kişi / tane / gece / valiz / saat (süre) …, önünde oda / kat / daire / no
+ *    …; tarih parçası (25/09, 10.11.) saat değildir;
+ *  · cümlede bir DÜZELTME ya da ÇIKIŞ işareti olmalı (demiştim / yerine / değil / olacak / instead / çıkış …);
+ *  · ayrılmayı reddetme vetosu aynen geçerli ("10'da çıkmayacağız" — güvenli yön: eski saat kalır).
  */
 export function timeCorrectedInMessage(previousHhmm: string, newHhmm: string, message: string): boolean {
   const prev = HHMM.exec(previousHhmm.trim());
   const next = HHMM.exec(newHhmm.trim());
   if (!prev || !next) return false;
-  const [ph, pm, nh, nm] = [Number(prev[1]), Number(prev[2]), Number(next[1]), Number(next[2])];
-  if (ph === nh && pm === nm) return false;
+  const prevMin = Number(prev[1]) * 60 + Number(prev[2]);
+  const nextMin = Number(next[1]) * 60 + Number(next[2]);
+  if (prevMin === nextMin) return false;
   const lower = message.toLowerCase();
   if (DEPARTURE_REFUSAL.test(lower)) return false;
   for (const sentence of lower.split(/(?:[!?\n]|(?<!\d)\.|\.(?!\d))+/)) {
-    if (mentionsTime(sentence, ph, pm) && mentionsTime(sentence, nh, nm)) return true;
+    if (!CORRECTION_CUE.test(sentence) && !CHECKOUT_CUE.test(sentence)) continue;
+    const tokens = timeTokens(sentence);
+    if (tokens.length !== 2) continue;
+    const [a, b] = tokens;
+    if ((a.includes(prevMin) && b.includes(nextMin)) || (b.includes(prevMin) && a.includes(nextMin))) return true;
   }
   return false;
 }
 
-/** Cümlede h:min açıkça ("10:00", "10.30") ya da tam saatse çıplak rakamla ("10 demiştim") geçiyor mu. */
-function mentionsTime(text: string, h: number, min: number): boolean {
-  if (segmentStatesTime(text, h, min)) return true;
-  if (min !== 0) return false;
-  // Tam sayı: başka bir sayının parçası ("110") ya da saat/ondalık ("10:30", "10.5") olamaz.
-  for (const m of text.matchAll(/(?<![\d:.])(\d{1,2})(?!\d)(?![:.]\d)/g)) {
-    const n = Number(m[1]);
-    if (n === h || (n < 12 && n + 12 === h)) return true;
+/** Düzeltme işareti: "10 demiştim ama 11 olacak", "10 yerine 11", "10 değil 11", "instead of 10", "I said 10". */
+const CORRECTION_CUE =
+  /demişt|dedim|dedik|söylemişt|yazmışt|yerine|değil|degil|olacak|olsun|değiş|degis|instead|said|rather|change|actually|korrigier|statt|plutôt|au lieu|en vez|en lugar/;
+
+// Sayaç / süre sözcükleri (sayının ARDINDA) ve sıra/numara sözcükleri (ÖNÜNDE): saat değildir.
+const COUNTER_AFTER =
+  /^\s*'?(?:kişi|kisi|yetişkin|yetiskin|çocuk|cocuk|bebek|misafir|gece|gün|gun|hafta|ay(?!\p{L})|yıl|yil|valiz|bavul|çanta|canta|tane|adet|araba|araç|arac|oda|yatak|dakika|dk(?!\p{L})|saat|kat(?!\p{L})|numara|people|persons?|guests?|adults?|kids?|children|nights?|days?|weeks?|months?|years?|bags?|suitcases?|pieces?|cars?|rooms?|beds?|minutes?|mins?|hours?|hrs?|floors?|%|€|\$|£|₺|tl(?!\p{L})|eur|usd|euro|lira)/u;
+const NUMBER_BEFORE =
+  /(?:^|\s)(?:oda|kat|daire|no|numara|kapı|kapi|blok|room|floor|apt|apartment|flat|door|number|nr|zimmer|chambre|habitación|habitacion)\.?\s*(?:no\.?\s*)?:?\s*$/u;
+
+/**
+ * Cümledeki saat belirteçleri — her biri AYRI bir konum, okunuşları (gün içi dakika). Açık saat ("10:00", "6.30 pm")
+ * tam okunur (öğleden sonra okunuşu yalnız am/pm yoksa); çıplak tam sayı ("10") ancak tarih/sayaç/numara değilse sayılır.
+ */
+function timeTokens(text: string): number[][] {
+  const out: { at: number; readings: number[] }[] = [];
+  const taken: [number, number][] = [];
+  for (const m of text.matchAll(/(?<![\d/.])(\d{1,2})[:.](\d{2})(?![\d/.]*\d)\s*(a\.?m\.?|p\.?m\.?)?/g)) {
+    let hh = Number(m[1]);
+    const mm = Number(m[2]);
+    if (hh > 23 || mm > 59) continue;
+    const isPm = m[3]?.startsWith("p") ?? false;
+    const isAm = m[3]?.startsWith("a") ?? false;
+    if (isPm && hh < 12) hh += 12;
+    if (isAm && hh === 12) hh = 0;
+    const readings = [hh * 60 + mm];
+    if (!isPm && !isAm && hh < 12) readings.push((hh + 12) * 60 + mm);
+    out.push({ at: m.index ?? 0, readings });
+    taken.push([m.index ?? 0, (m.index ?? 0) + m[0].length]);
   }
-  return false;
+  for (const m of text.matchAll(/(?<![\d:./,])(\d{1,2})(?!\d)(?![:./,]\d)/g)) {
+    const at = m.index ?? 0;
+    if (taken.some(([s0, e0]) => at >= s0 && at < e0)) continue;
+    const n = Number(m[1]);
+    if (n > 23) continue;
+    const after = text.slice(at + m[1].length);
+    if (COUNTER_AFTER.test(after) || NUMBER_BEFORE.test(text.slice(0, at))) continue;
+    const isPm = /^\s*p\.?m\.?(?![a-z])/.test(after);
+    const isAm = /^\s*a\.?m\.?(?![a-z])/.test(after);
+    let hh = n;
+    if (isPm && hh < 12) hh += 12;
+    if (isAm && hh === 12) hh = 0;
+    const readings = [hh * 60];
+    if (!isPm && !isAm && hh < 12) readings.push((hh + 12) * 60);
+    out.push({ at, readings });
+  }
+  return out.sort((x, y) => x.at - y.at).map((t) => t.readings);
 }

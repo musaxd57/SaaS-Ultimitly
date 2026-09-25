@@ -185,7 +185,8 @@ async function runOne(s: Scenario): Promise<Row> {
       property: { ...data.property },
       // Ayarlar önizlemesiyle AYNI örnek rezervasyon (bugün giriş, 3 gece, onaylı): üretimde kanal konuşması her zaman
       // bir rezervasyona bağlıdır; rezervasyonsuz istem Wi-Fi/kapı kodunu (doğru olarak) PAYLAŞMAZ.
-      reservation: { guestName: "Alex Doe", arrivalDate: NOW, departureDate: new Date(NOW.getTime() + 3 * 86_400_000), status: "confirmed" },
+      // Misafir DÜN girdi (konaklama sürüyor) — 09-25 takvim günü zaman bağlamıyla "Giriş BUGÜN" olmasın, kıyas çerçevesi aynı kalsın.
+      reservation: { guestName: "Alex Doe", arrivalDate: new Date(NOW.getTime() - 86_400_000), departureDate: new Date(NOW.getTime() + 3 * 86_400_000), status: "confirmed" },
       knowledgeBase: kbSel.items,
       knowledgeBaseDropped: kbSel.droppedItems,
       knowledgeBaseSelection: kbSel.selection,

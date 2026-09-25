@@ -703,6 +703,27 @@ describe("applyChannelAutoReply", () => {
     expect(mockSend).toHaveBeenCalled();
   });
 
+  it("🚨 batı dilimi (America/New_York): YALNIZ TARİH saklanan çıkış günü boyunca AI susmaz; ertesi gün susar (inceleme 09-25)", async () => {
+    // Eski kıyas ham damga (00:00Z) < NY gün başı (04:00Z/05:00Z) → çıkış günü BAŞTAN "bitti" sayılıyordu.
+    const nyDay = (offsetDays: number) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(
+        new Date(Date.now() + offsetDays * 86_400_000),
+      );
+    const { orgId, conversationId } = await seed({ guestMessage: "What time is check-out?" });
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
+    await linkReservation(conversationId, {
+      status: "confirmed",
+      arrivalDate: new Date(`${nyDay(-2)}T00:00:00.000Z`),
+      departureDate: new Date(`${nyDay(0)}T00:00:00.000Z`), // bugün (NY), yalnız tarih
+    });
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "checkout", reply: "Check-out is at 11:00.", detectedLanguage: "en" });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).not.toBe("reservation_ended");
+    // KONTROL: dünkü çıkış (NY) → bitti.
+    await prisma.reservation.updateMany({ where: { conversations: { some: { id: conversationId } } }, data: { departureDate: new Date(`${nyDay(-1)}T00:00:00.000Z`) } });
+    expect((await applyChannelAutoReply(conversationId)).skippedReason).toBe("reservation_ended");
+  });
+
   it("runDueChannelAutoReplies answers a fresh 'new' chat", async () => {
     const { orgId } = await seed(); // lastMessageAt defaults to now
     const out = await runDueChannelAutoReplies(orgId);
