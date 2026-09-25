@@ -33,6 +33,8 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
 import { recordRiskEvent } from "@/lib/risk-events";
+import { lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
+import { CLOSING_HANDLED_REASON } from "@/lib/conversation-attention";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 
@@ -151,10 +153,19 @@ async function recordGuestChatExchange(
   escalated: boolean,
   // V1: event kiracı kapsamı (QR bir Lixus-native giriştir; sağlayıcı/bağlantı yok).
   organizationId: string,
+  // KAPANIŞA SESSİZLİK (kurucu kuralı 09-25): misafir yalnız teşekkür/onay yazdı, bilerek cevap verilmedi → konuşmaya
+  // "cevap gerekmedi" izi (`conversation-attention.ts`): karar + damga AYNI anda, son mesaja eşit. Misafir yeniden yazınca
+  // `lastMessageAt` damgayı geçer, iz kendiliğinden düşer.
+  closing = false,
 ): Promise<{ inboundMessageId: string }> {
+  const touchedAt = new Date();
   await db.conversation.update({
     where: { id: conversationId },
-    data: { lastMessageAt: new Date(), ...(escalated ? { priority: "urgent" } : {}) },
+    data: {
+      lastMessageAt: touchedAt,
+      ...(escalated ? { priority: "urgent" } : {}),
+      ...(closing ? { skippedReason: CLOSING_HANDLED_REASON, autoReplyAttemptedAt: touchedAt } : {}),
+    },
   });
   // createManyAndReturn: the inbound row's id is the escalation-alert EVENT
   // identity (dedupe anchor) — same insert semantics, ids back in one round.
@@ -502,7 +513,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // veto" this replaces was best-effort — a host reply landing between the
   // check and the insert still got talked over.
   let recorded = false;
-  const record = async (botReply: string | null, escalated: boolean) => {
+  const record = async (botReply: string | null, escalated: boolean, closing = false) => {
     const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
     const out = await prisma.$transaction(async (tx) => {
       await acquireGuestChatThreadLock(tx, conversationId);
@@ -510,7 +521,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, null, true, ctx.property.organizationId);
         return { ...r, handedOff: true };
       }
-      const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, botReply, escalated, ctx.property.organizationId);
+      const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, botReply, escalated, ctx.property.organizationId, closing);
       return { ...r, handedOff: false };
     });
     recorded = true;
@@ -528,6 +539,25 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   if (await guestChatAiPaused(ctx.property.id, res.id)) {
     await record(null, true);
     return finalize({ handoff: true, reply: HANDOFF_REPLY });
+  }
+
+  // ── KAPANIŞA SESSİZLİK (kurucu kuralı 09-25, `ai/closing-turn.ts`) ─────────────────────────────────────────────
+  // Misafir yalnız teşekkür/onay/övgü yazdı ("Teşekkürler", "Tamamdır", "👍", "Harika") → HİÇBİR ŞEY gönderilmez,
+  // ev sahibine devir/uyarı da yok; yalnız misafirin mesajı "cevap gerekmedi" iziyle kaydedilir. Eskiden bu mesajlar
+  // düşük güvenden devrediliyor, misafir "kaydedildi; ev sahibiniz görebilir" alıyor ve host uyarılıyordu. Model
+  // çağrısı ve günlük kota birimi harcanmaz. QR eşzamanlıdır: cevaplanacak tek mesaj bu mesajdır.
+  if (lexicalClosingOnly([message])) {
+    const { inboundMessageId, conversationId } = await record(null, false, true);
+    await recordRiskEvent({
+      organizationId: ctx.property.organizationId,
+      propertyId: ctx.property.id,
+      conversationId,
+      surface: "guest_chat",
+      triggerId: inboundMessageId,
+      finalDecision: "no_reply",
+      reason: "closing_ack",
+    });
+    return finalize({ noReply: true });
   }
 
   // Per-apartment DAILY cap on PAID AI calls — DURABLE (survives restarts, shared
@@ -730,34 +760,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   }
   const escalate = verdict.escalate;
 
-  // SEND-TIME VETO: a host may have replied WHILE the model ran (seconds). The
-  // authoritative check now lives INSIDE record() — recheck + insert run under
-  // the per-thread advisory lock shared with the host reply route, so a host
-  // reply committing at any point before our insert structurally vetoes the AI
-  // answer (handedOff below). The guest's message is still recorded for the host.
-  // 🚨 ACİL ≠ SIRADAN İSTEK (kurucu, 09-11). `criticalEvent` yukarıda (alarm
-  // dedupe'ı için) ZATEN hesaplandı — yeni dedektör, yeni çağrı, yeni maliyet yok.
-  const reply = escalate
-    ? escalationReply({ critical: physicalEmergency })
-    : result.reply;
-  const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
-  if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
-  // İZLENEBİLİRLİK (kurucu AI kalite turu, 09-08): KARARIN GEREKÇESİ kaydedilir —
-  // devir DE, otomatik cevap DA. Kapalı küme; misafir metni ASLA girmez. Yan
-  // etkidir: `recordRiskEvent` ASLA fırlatmaz (kendi try/catch'i var), o yüzden
-  // await edilmesi teslimi riske atmaz ve kaydı deterministik kılar (fire-and-forget
-  // olsaydı yanıt döndükten sonra yazılır, kurucu konsolunda yarış görünürdü).
-  await recordRiskEvent({
-    organizationId: ctx.property.organizationId,
-    propertyId: ctx.property.id,
-    conversationId,
-    surface: "guest_chat",
-    triggerId: inboundMessageId,
-    finalDecision: escalate ? "human_review" : "auto_sent",
-    riskLevel: result.riskLevel,
-    riskType: result.riskType ?? null,
-    reason: verdict.reason ?? "gate_passed",
-    confidence: result.confidence,
+  // Karar kaydının temellendirme alanları — iki kayıt (kapanış / cevap-devir) AYNI nesneyi yazar.
+  const auditFields = async () => ({
     // A2 — TEMELLENDİRME: gerekçe tek başına "neden dayanamadı"yı söylemiyor.
     // Kodun bildiği (kaç kalem gitti, kaçı onay bekliyor, kaçı tavandan düştü,
     // hangi bilgi sürümü) ile modelin BEYANI yan yana yazılır; ikisi ayrı
@@ -797,6 +801,64 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     }),
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,
+  });
+
+  // ── KAPANIŞA SESSİZLİK — ANLAM YOLU (kurucu kuralı 09-25, `ai/closing-turn.ts`; kanal kapısıyla AYNI yüklem) ──────
+  // Sözcük listesinin kaçırdığı teşekkür/onay ("Anladım", "Kolay gelsin", başka diller): anlama katmanı YALNIZ
+  // selam/teşekkür gördü + cevap modeli kendi kapanış kuralına uydu (genel niyet, güven < 0.4) + kapı YALNIZ düşük
+  // güvenden devretti. 🚨 BİRLEŞİM DEĞİŞMEZİ: kapı düşük güvende DÖNER (risk niyeti sonra bakılır) → güven 1 ile BAŞTAN
+  // koşar ve devir istememeli; bekçi burada koşmadı, yani herhangi bir katmanın konaklama isteği her zaman devreder.
+  if (
+    verdict.reason === "low_confidence" &&
+    !evaluateEscalation({ ...gateResult, confidence: 1 }, message, res.guestName, history, stayCtx).escalate &&
+    semanticClosingOnly({ unanswered: [message], understood, reply: result })
+  ) {
+    const closingRecord = await record(null, false, true);
+    await recordRiskEvent({
+      organizationId: ctx.property.organizationId,
+      propertyId: ctx.property.id,
+      conversationId: closingRecord.conversationId,
+      surface: "guest_chat",
+      triggerId: closingRecord.inboundMessageId,
+      finalDecision: "no_reply",
+      reason: "closing_ack_semantic",
+      riskLevel: result.riskLevel,
+      riskType: result.riskType ?? null,
+      confidence: result.confidence,
+      ...(await auditFields()),
+    });
+    return finalize({ noReply: true });
+  }
+
+  // SEND-TIME VETO: a host may have replied WHILE the model ran (seconds). The
+  // authoritative check now lives INSIDE record() — recheck + insert run under
+  // the per-thread advisory lock shared with the host reply route, so a host
+  // reply committing at any point before our insert structurally vetoes the AI
+  // answer (handedOff below). The guest's message is still recorded for the host.
+  // 🚨 ACİL ≠ SIRADAN İSTEK (kurucu, 09-11). `criticalEvent` yukarıda (alarm
+  // dedupe'ı için) ZATEN hesaplandı — yeni dedektör, yeni çağrı, yeni maliyet yok.
+  const reply = escalate
+    ? escalationReply({ critical: physicalEmergency })
+    : result.reply;
+  const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
+  if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
+  // İZLENEBİLİRLİK (kurucu AI kalite turu, 09-08): KARARIN GEREKÇESİ kaydedilir —
+  // devir DE, otomatik cevap DA. Kapalı küme; misafir metni ASLA girmez. Yan
+  // etkidir: `recordRiskEvent` ASLA fırlatmaz (kendi try/catch'i var), o yüzden
+  // await edilmesi teslimi riske atmaz ve kaydı deterministik kılar (fire-and-forget
+  // olsaydı yanıt döndükten sonra yazılır, kurucu konsolunda yarış görünürdü).
+  await recordRiskEvent({
+    organizationId: ctx.property.organizationId,
+    propertyId: ctx.property.id,
+    conversationId,
+    surface: "guest_chat",
+    triggerId: inboundMessageId,
+    finalDecision: escalate ? "human_review" : "auto_sent",
+    riskLevel: result.riskLevel,
+    riskType: result.riskType ?? null,
+    reason: verdict.reason ?? "gate_passed",
+    confidence: result.confidence,
+    ...(await auditFields()),
   });
   if (escalate) {
     // Alarm önceliği: kelime ağının acil durumu YA DA anlama katmanının acil niyeti (kelime ağının kaçırdığı dolaylı

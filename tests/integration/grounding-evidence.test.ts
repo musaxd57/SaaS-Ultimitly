@@ -124,14 +124,28 @@ describe("A2 — kanıt MİSAFİRE açılmaz", () => {
 
   it("misafire dönen alan adları kanıt/sayaç adlarını İÇERMEZ", () => {
     const src = read("src/app/api/chat/[token]/route.ts");
-    // `finalize(...)`/`jsonOk(...)` gövdelerinde bu adlar geçmemeli. Kaba ama
-    // etkili: adlar yalnız `recordRiskEvent` çağrısında görünür.
-    const riskCall = src.slice(src.indexOf("await recordRiskEvent({"));
-    const outsideRiskCall = src.slice(0, src.indexOf("await recordRiskEvent({"));
-    expect(riskCall).toContain("kbEvidenceJson");
-    for (const field of ["kbEvidenceJson", "srcDeclared", "srcVerified", "kbPendingApproval"]) {
-      expect(outsideRiskCall, field).not.toContain(field);
+    // Misafire dönen her gövde (`finalize(...)` / `jsonOk(...)` argümanı) ayrı ayrı çıkarılır ve taranır. Eski pin "adlar
+    // yalnız İLK `recordRiskEvent` çağrısından sonra görünür" diyordu; kanıt alanları ortak bir yardımcıya taşınınca
+    // (09-25, kapanış kaydı) yalnız sıralama sayesinde geçiyordu — gövdeleri doğrudan taramak sıralamaya bağlı değil.
+    const bodies: string[] = [];
+    for (const m of src.matchAll(/\b(?:finalize|jsonOk)\(/g)) {
+      let depth = 0;
+      let i = (m.index ?? 0) + m[0].length - 1;
+      const start = i;
+      for (; i < src.length; i++) {
+        if (src[i] === "(") depth++;
+        else if (src[i] === ")" && --depth === 0) break;
+      }
+      bodies.push(src.slice(start, i + 1));
     }
+    expect(bodies.length, "anti-vakum: misafire dönen gövde bulunamadı").toBeGreaterThan(8);
+    for (const body of bodies) {
+      for (const field of ["kbEvidenceJson", "srcDeclared", "srcVerified", "kbPendingApproval", "auditFields", "buildKbEvidence"]) {
+        expect(body, field).not.toContain(field);
+      }
+    }
+    // Kanıt yine de YAZILIYOR (vakum değil): karar kaydı çağrılarında.
+    expect(src.slice(src.indexOf("await recordRiskEvent({"))).toContain("kbEvidenceJson");
   });
 
   it("istem paketleyicisi kalem kimliğini/sürümünü MODELE göndermez (DAVRANIŞSAL)", () => {

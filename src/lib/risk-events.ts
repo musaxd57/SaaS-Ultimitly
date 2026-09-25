@@ -24,7 +24,9 @@ import { reportError } from "@/lib/report-error";
 // gerçekleşti: canlıda her soruya devir gözlendi ama SEBEP hiçbir yere
 // yazılmadığı için teşhis yalnız yeniden üretimle yapılabiliyordu.
 const SURFACES = new Set(["auto_reply", "alerts", "guest_chat"]);
-const DECISIONS = new Set(["auto_sent", "human_review"]);
+// "no_reply" (09-25, kurucu: kapanış mesajına sessizlik): hiçbir şey gönderilmedi ve insana da bırakılmadı —
+// misafir yalnız teşekkür/onay/övgü yazdı (`ai/closing-turn.ts`). Raporların "insana kaldı" sayımına KARIŞMAZ.
+const DECISIONS = new Set(["auto_sent", "human_review", "no_reply"]);
 const LEVELS = new Set(["none", "low", "medium", "high"]);
 // CLOSED SETS, not sanitization: stripping separators from free text still
 // leaks concatenated names/digits ("adalovelace555…"). A value either IS one
@@ -63,6 +65,8 @@ const REASONS = new Set([
   "kb_time_conflict",
   // Cevap misafirin dilinde değil (09-25, `ai/language-signal.ts`; yalnız kanal kapısı — QR'da bilinçli yok).
   "reply_language_mismatch",
+  // Kapanış mesajı → cevap gerekmedi (09-25, `ai/closing-turn.ts`): sözcük yolu / iki modelin uyuştuğu anlam yolu.
+  "closing_ack", "closing_ack_semantic",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.
@@ -90,7 +94,7 @@ export interface RiskEventInput {
   surface: "auto_reply" | "alerts" | "guest_chat";
   /** The inbound Message id that forced this decision. */
   triggerId: string;
-  finalDecision: "auto_sent" | "human_review";
+  finalDecision: "auto_sent" | "human_review" | "no_reply";
   /** null on the keyword path — there is no model verdict to report there. */
   riskLevel?: string | null;
   riskType?: string | null;

@@ -25,6 +25,8 @@ interface TestResult {
   closingAck?: boolean;
   /** "ack" = bare thanks/ok; "praise" = pure compliment. */
   closingKind?: "ack" | "praise" | null;
+  /** Sözcük listesinin tanımadığı kapanış ("Anladım"): iki model "yalnız teşekkür" dedi — her zaman sessizlik. */
+  closingSemantic?: boolean;
   closingReplyEnabled?: boolean;
   /** REAL production-gate verdict: would this reply auto-send (toggle permitting)? */
   wouldAutoSend?: boolean;
@@ -166,13 +168,11 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
                 Bu mesaj gerçek kanalda{" "}
                 <strong>{result.closingKind === "praise" ? "salt olumlu geri bildirim" : "kapanış"}</strong>{" "}
                 sayılır.{" "}
-                {result.closingReplyEnabled
+                {result.closingReplyEnabled && !result.closingSemantic
                   ? "Nezaket yanıtı ayarınız AÇIK — misafire otomatik olarak ŞU mesaj GÖNDERİLİR (aynı mesaja bir kez):"
-                  : result.closingKind === "praise"
-                    ? "Nezaket yanıtı ayarınız kapalı: bu mesaj normal AI akışına düşer — aşağıdaki taslak otomatik gönderilmez, onayınıza sunulur."
-                    : "Nezaket yanıtı ayarınız kapalı: hiçbir otomatik yanıt gönderilmez; konuşma sessizce kapanmış sayılır."}
+                  : "Bu mesaja cevap gerekmez: misafire hiçbir şey gönderilmez ve konuşma “Cevap gerekmedi” olarak işaretlenir."}
               </p>
-              {result.closingReplyEnabled && result.closingReplyPreview ? (
+              {result.closingReplyEnabled && result.closingReplyPreview && !result.closingSemantic ? (
                 <pre className="whitespace-pre-wrap rounded border border-sky-200 dark:border-sky-500/30 bg-white dark:bg-card p-2 font-sans text-sky-900 dark:text-sky-200">
                   {result.closingReplyPreview}
                 </pre>
@@ -209,10 +209,9 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
           {result.missingInfo && result.missingInfo.length > 0 ? (
             <p className="text-xs text-amber-700 dark:text-amber-300">Eksik bilgi: {result.missingInfo.join(" · ")}</p>
           ) : null}
-          {/* On a closing/pure-praise the model draft is DEAD weight: an ack never
-              sends anything, and with the courtesy ON the blue preview above IS the
-              outgoing message — showing a second, never-sent text only confuses. */}
-          {result.closingAck && (result.closingKind === "ack" || result.closingReplyEnabled) ? null : (
+          {/* On a closing/pure-praise the model draft is DEAD weight: nothing is sent (kurucu kuralı 09-25), and with
+              the courtesy ON the blue preview above IS the outgoing message — a second, never-sent text only confuses. */}
+          {result.closingAck ? null : (
             <pre className="whitespace-pre-wrap font-sans text-sm">{result.reply}</pre>
           )}
         </div>

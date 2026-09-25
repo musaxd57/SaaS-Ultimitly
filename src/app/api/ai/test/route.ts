@@ -8,6 +8,7 @@ import {
   composeClosingCourtesy,
   closingCourtesyLanguage,
   passesAutoReplySafetyGate,
+  semanticClosingHolds,
   automatedReplyNote,
   hostOfferForGate,
   type CourtesyKind,
@@ -177,32 +178,34 @@ export const POST = withManage(async (session, req) => {
   // risk word-nets, injection veto, source + confidence), mirroring the landing
   // demo (#27). Drives both the "would auto-send" line on the card and whether
   // the disclosure note belongs in the preview.
-  const wouldAutoSend = passesAutoReplySafetyGate(
-    {
-      intent: result.intent,
-      riskLevel: result.riskLevel,
-      confidence: result.confidence,
-      source: result.source,
-      riskType: result.riskType ?? null,
-      // 🚨 PARİTE (09-11): `reply` VERİLMEZSE "bilgim yok" kuralı burada HİÇ
-      // çalışmaz ve bu kart, gerçek göndericinin BLOKLADIĞI bir cevap için
-      // "kendiliğinden gönderilirdi" der. Yukarıdaki "the exact production gate"
-      // iddiası ancak bu alanla doğru (alan opsiyonel → derleme uyarmaz).
-      reply: result.reply,
-      // Şema beyanı (09-24) — gerçek kapıyla PARİTE; bekçi önizlemede koşmaz (bilinen fark, belgeli).
-      stayChange: result.stayChange ?? null,
-      // Saat kaynağı çelişkisi (P4-b kodda, 09-25) — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
-      timeConflicts: result.timeConflicts ?? null,
-    },
-    message,
-    {
-      stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },
-      understanding: (await kbSel.understanding)?.stay ?? null,
-      // Anlama katmanının risk niyeti — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
-      understandingRisk: understandingRiskOf(await kbSel.understanding),
-      hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
-    },
-  );
+  const understood = await kbSel.understanding;
+  const gateInput = {
+    intent: result.intent,
+    riskLevel: result.riskLevel,
+    confidence: result.confidence,
+    source: result.source,
+    riskType: result.riskType ?? null,
+    // 🚨 PARİTE (09-11): `reply` VERİLMEZSE "bilgim yok" kuralı burada HİÇ
+    // çalışmaz ve bu kart, gerçek göndericinin BLOKLADIĞI bir cevap için
+    // "kendiliğinden gönderilirdi" der. Yukarıdaki "the exact production gate"
+    // iddiası ancak bu alanla doğru (alan opsiyonel → derleme uyarmaz).
+    reply: result.reply,
+    // Şema beyanı (09-24) — gerçek kapıyla PARİTE; bekçi önizlemede koşmaz (bilinen fark, belgeli).
+    stayChange: result.stayChange ?? null,
+    // Saat kaynağı çelişkisi (P4-b kodda, 09-25) — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
+    timeConflicts: result.timeConflicts ?? null,
+  };
+  const gateCtx = {
+    stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },
+    understanding: understood?.stay ?? null,
+    // Anlama katmanının risk niyeti — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
+    understandingRisk: understandingRiskOf(understood),
+    hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
+  };
+  const wouldAutoSend = passesAutoReplySafetyGate(gateInput, message, gateCtx);
+  // Kapanışa sessizlik — anlam yolu (kurucu kuralı 09-25): gerçek kanalla AYNI yüklem. Önizleme de "bu mesaja cevap
+  // gerekmez; hiçbir şey gönderilmez" desin (sözcük listesinin tanımadığı "Anladım" gibi kapanışlar).
+  const semanticClosing = !wouldAutoSend && semanticClosingHolds(gateInput, message, gateCtx, understood, [message]);
 
   // PREVIEW PARITY: show EXACTLY what would leave the building. An AUTO-send
   // carries reply + machine-note + signature (same order as the real sender);
@@ -234,6 +237,7 @@ export const POST = withManage(async (session, req) => {
       ? "praise"
       : null;
   const closingReplyEnabled = org?.autoClosingReplyEnabled ?? false;
+  // Nezaket cevabı YALNIZ sözcük yolunda (gerçek kanalla aynı); anlam yolunda her zaman sessizlik.
   const closingReplyPreview =
     closingKind && closingReplyEnabled && org
       ? composeClosingCourtesy({
@@ -249,8 +253,9 @@ export const POST = withManage(async (session, req) => {
     reply,
     property: property.name,
     wouldAutoSend,
-    closingAck: closingKind !== null, // backwards-compatible flag for the card
-    closingKind,
+    closingAck: closingKind !== null || semanticClosing, // backwards-compatible flag for the card
+    closingKind: closingKind ?? (semanticClosing ? "ack" : null),
+    closingSemantic: closingKind === null && semanticClosing,
     closingReplyEnabled,
     closingReplyPreview,
   });

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { notClosingHandledWhere } from "@/lib/conversation-attention";
 // ⚠️ `buildDailySummary` ARTIK KULLANILMIYOR (kart kaldırıldı) ama SİLİNMEDİ:
 // `/api/reports/daily` onu kullanıyor ve test-pinli bir JSON sözleşmesi.
 import { getOpsStats } from "@/lib/reports";
@@ -68,7 +69,8 @@ export default async function DashboardPage() {
       orderBy: { departureDate: "asc" },
     }),
     prisma.conversation.findMany({
-      where: { ...scope, status: { in: ["new", "waiting", "problem"] } },
+      // Kapanışa bilerek sessiz kalınmış konuşma ("cevap gerekmedi") bekleyen iş değildir (`conversation-attention.ts`).
+      where: { ...scope, status: { in: ["new", "waiting", "problem"] }, AND: [notClosingHandledWhere()] },
       include: {
         property: { select: { name: true } },
         messages: { orderBy: { createdAt: "desc" }, take: 1 },

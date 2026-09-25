@@ -1003,7 +1003,7 @@ model RiskEvent {
   // pass can't double-log, a LEGITIMATE later transition (held -> sent) still
   // records, and two tenants sharing a trigger string can never mask each other.
   triggerId         String
-  finalDecision     String // auto_sent | human_review
+  finalDecision     String // auto_sent | human_review | no_reply (kapanış: hiçbir mesaj gönderilmedi, cevap gerekmedi)
   riskLevel         String? // none|low|medium|high (code-clamped); NULL on the keyword path (no model verdict — never fabricate one)
   riskType          String? // closed set (clamped in code) or null
   reason            String? // closed-set code (escalated_to_human, low_confidence_or_risky, keyword_escalated[_ack], gate_passed) — NEVER guest text

@@ -58,4 +58,32 @@ describe("AutoReplyTestButton — modal sözleşmesi", () => {
     expect(dialog.contains(document.activeElement)).toBe(true); // trap içinde
     vi.unstubAllGlobals();
   });
+
+  it("🚨 yalnız teşekkür (closing_ack) 'size bırakılır' listesine GİRMEZ — ayrı 'cevap gerekmeyenler' satırı (kurucu kuralı 09-25)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ok: true,
+              previews: [
+                { guestIdentifier: "Misafir-Tesekkur", propertyName: "Lale", wouldSend: false, reply: null, confidence: null, reason: "closing_ack" },
+                { guestIdentifier: "Misafir-Soru", propertyName: "Lale", wouldSend: false, reply: null, confidence: 0.4, reason: "low_confidence_or_risky" },
+              ],
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    render(<AutoReplyTestButton />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Oto-yanıt testi/ }));
+    });
+    expect(await screen.findByText(/Cevap gerekmeyenler \(yalnız teşekkür\/kapanış\): 1/)).toBeTruthy();
+    expect(screen.getByText(/Bunlar size bırakılır \(1\)/)).toBeTruthy();
+    expect(screen.queryByText("Misafir-Tesekkur")).toBeNull();
+    expect(screen.getByText("Misafir-Soru")).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
 });

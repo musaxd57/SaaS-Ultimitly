@@ -1000,13 +1000,15 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     expect((mockSend.mock.calls[0][1] as string).startsWith("Thank you for the kind feedback.")).toBe(true);
   });
 
-  it("PRAISE toggle OFF: compliments keep TODAY's behaviour — straight to the model", async () => {
+  it("PRAISE toggle OFF: 🚨 hiçbir şey gönderilmez, model ÇAĞRILMAZ (kurucu kuralı 09-25: kapanışa sessizlik)", async () => {
+    // Eskiden övgü nezaket kapalıyken modele gidiyordu ve modelin cevabı otomatik gidebiliyordu.
     const { orgId, conversationId } = await seedClosing("Her şey harikaydı, çok teşekkürler!");
     await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: false } });
     mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", confidence: 0.3 });
     const out = await applyChannelAutoReply(conversationId);
-    expect(mockSuggest).toHaveBeenCalled(); // normal flow
-    expect(out.skippedReason).not.toBe("closing_ack");
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(out.skippedReason).toBe("closing_ack");
   });
 
   it("MIXED thanks+complaint ('teşekkürler ama klima çalışmıyor') NEVER gets the courtesy — normal safety flow", async () => {

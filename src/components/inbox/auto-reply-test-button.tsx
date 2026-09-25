@@ -102,7 +102,10 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
   }
 
   const willSend = previews?.filter((p) => p.wouldSend) ?? [];
-  const willWait = previews?.filter((p) => !p.wouldSend) ?? [];
+  // Yalnız teşekkür/kapanış: hiçbir şey gönderilmez VE ev sahibine de iş kalmaz (kurucu kuralı 09-25) — "size bırakılır"
+  // listesine girmez, ayrı bir satırda sayılır.
+  const noReplyNeeded = previews?.filter((p) => !p.wouldSend && p.reason === "closing_ack") ?? [];
+  const willWait = previews?.filter((p) => !p.wouldSend && p.reason !== "closing_ack") ?? [];
 
   return (
     <>
@@ -197,6 +200,12 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
                     </section>
                   ) : null}
 
+                  {noReplyNeeded.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Cevap gerekmeyenler (yalnız teşekkür/kapanış): {noReplyNeeded.length} — misafire hiçbir şey gönderilmez.
+                    </p>
+                  ) : null}
+
                   {willWait.length > 0 ? (
                     <section className="space-y-2">
                       <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
@@ -231,6 +240,9 @@ function reasonLabel(reason: string | null): string {
       return "şikayet";
     case "already_answered":
       return "zaten cevaplandı";
+    // Kapanışa sessizlik (kurucu kuralı 09-25): yalnız teşekkür/onay — hiçbir şey gönderilmez, elle cevap da GEREKMEZ.
+    case "closing_ack":
+      return "cevap gerekmedi";
     default:
       return "elle cevap";
   }

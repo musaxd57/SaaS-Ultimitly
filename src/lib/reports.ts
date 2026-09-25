@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { notClosingHandledWhere } from "@/lib/conversation-attention";
 import { Prisma } from "@prisma/client";
 import { reservationAmount } from "@/lib/money";
 import { computeResponseEpisodes } from "@/lib/response-episodes";
@@ -100,7 +101,8 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
       select: { sourceReference: true, id: true, propertyId: true },
     }),
     prisma.conversation.count({
-      where: { ...propertyScope(orgId), status: { in: ["new", "waiting"] } },
+      // "Cevap gerekmedi" (kapanışa bilerek sessiz kalındı) bekleyen konuşma sayılmaz.
+      where: { ...propertyScope(orgId), status: { in: ["new", "waiting"] }, AND: [notClosingHandledWhere()] },
     }),
     prisma.conversation.count({
       where: { ...propertyScope(orgId), status: "problem" },

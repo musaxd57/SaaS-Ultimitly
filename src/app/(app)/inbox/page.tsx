@@ -22,6 +22,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { fromNow, truncate, cn } from "@/lib/utils";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
+import { CLOSING_HANDLED_LABEL, isClosingHandled, notClosingHandledWhere } from "@/lib/conversation-attention";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,9 @@ export default async function InboxPage({
     property: { organizationId: session.organizationId },
     channel: { not: "chat" }, // QR guest chats live in their own "Misafir Sohbetleri" tab
     ...(status ? { status } : {}),
+    // "Yeni" sekmesi yalnız cevap bekleyenleri gösterir: kapanışa bilerek sessiz kalınmış konuşma ("cevap gerekmedi",
+    // `conversation-attention.ts`) orada yok; "Tümü"nde kendi etiketiyle görünür. Sayaç ve liste AYNI koşul.
+    ...(status === "new" || status === "waiting" ? { AND: [notClosingHandledWhere()] } : {}),
     ...(query ? { guestIdentifier: { contains: query, mode: "insensitive" as const } } : {}),
   };
 
@@ -381,8 +385,10 @@ export default async function InboxPage({
           {totalPages > 1 ? pagerBar("üst") : null}
           <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
           {conversations.map((c) => {
-            // Highlight threads still needing attention (guest waiting / escalated).
-            const unread = c.status === "new" || c.status === "waiting" || c.status === "problem";
+            // Highlight threads still needing attention (guest waiting / escalated). Kapanışa bilerek sessiz kalınmış
+            // konuşma ("cevap gerekmedi") dikkat istemez: vurgusuz, kendi etiketiyle.
+            const handled = isClosingHandled(c) && (c.status === "new" || c.status === "waiting");
+            const unread = !handled && (c.status === "new" || c.status === "waiting" || c.status === "problem");
             return (
             <Link
               key={c.id}
@@ -420,8 +426,8 @@ export default async function InboxPage({
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge tone={CONVERSATION_STATUS.tone(c.status)}>
-                  {CONVERSATION_STATUS.label(c.status)}
+                <Badge tone={handled ? "muted" : CONVERSATION_STATUS.tone(c.status)}>
+                  {handled ? CLOSING_HANDLED_LABEL : CONVERSATION_STATUS.label(c.status)}
                 </Badge>
                 <span className="text-[11px] text-muted-foreground">{fromNow(c.lastMessageAt, TZ)}</span>
               </div>

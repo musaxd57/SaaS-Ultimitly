@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { isClosingHandled } from "@/lib/conversation-attention";
 import { alertOnTransition } from "@/lib/alert-state";
 import { findUpcomingConflicts, type UpcomingConflict } from "@/modules/availability/conflicts";
 import { estimateConflictImpact, type MoneyImpact, type NightlyRateRange } from "@/modules/intelligence/money/impact";
@@ -195,6 +196,11 @@ export async function findAttentionItems(
         // seçilmiyordu bile ve href sabit `/inbox/${id}` idi — QR sohbetleri
         // kanal yüzeyinin arkasına düşüyordu.
         channel: true,
+        // "Cevap gerekmedi" hâli (`conversation-attention.ts`): kapanışa bilerek sessiz kalınmış konuşma cevapsız değildir.
+        status: true,
+        skippedReason: true,
+        autoReplyAttemptedAt: true,
+        lastMessageAt: true,
         reservation: { select: { departureDate: true, status: true } },
         messages: {
           // Misafirin GÖRMEDİĞİ satırlar (sistem olayı, gövdesiz) mesaj sayılmaz.
@@ -244,6 +250,8 @@ export async function findAttentionItems(
     const last = convo.messages[0];
     // Görünür mesajı olmayan ya da son sözü BİZDE olan konuşma cevapsız değildir.
     if (!last || last.direction !== "inbound") continue;
+    // Misafirin son sözü yalnız teşekkür/kapanıştı ve bilerek cevap verilmedi — bekleyen iş değil.
+    if (isClosingHandled(convo)) continue;
 
     const waitedMs = now.getTime() - last.createdAt.getTime();
     if (waitedMs < 0) continue;

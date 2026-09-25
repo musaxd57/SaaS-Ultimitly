@@ -44,7 +44,7 @@ import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone, a
 // Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
 export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { recordRiskEvent } from "@/lib/risk-events";
+import { recordRiskEvent, type RiskEventInput } from "@/lib/risk-events";
 import {
   HIGH_STAKES_RISK_TYPE_LIST,
   NEVER_AUTO_REPLY_INTENT_LIST,
@@ -72,6 +72,9 @@ import {
   kbPlaceholderTokens,
 } from "@/lib/kb-placeholders";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
+import { lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
+import { notClosingHandledWhere } from "@/lib/conversation-attention";
+import type { MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import {
   classifyFallback,
@@ -463,6 +466,29 @@ export function passesAutoReplySafetyGate(
   context?: AutoReplyGateContext,
 ): boolean {
   return autoReplyGateFailure(result, guestMessage, context) === null;
+}
+
+/**
+ * KAPANIŞA SESSİZLİK — ANLAM YOLU (kurucu kuralı 09-25, `ai/closing-turn.ts`). Kanal oto-yanıtı ve Ayarlar önizlemesi AYNI
+ * yüklemi kullanır (QR'ın kendi kapısında eşdeğeri). Sözcük listesinin kaçırdığı teşekkür/onay ("Anladım", "Kolay gelsin",
+ * başka diller): kapı YALNIZ düşük güvenden kapandı + iki model "yalnız teşekkür/kapanış" dedi.
+ * 🚨 BİRLEŞİM DEĞİŞMEZİ: "yalnız düşük güven" İLK düşen kontrol olmakla kanıtlanmaz — kapı düşük güvende DÖNER, anlama
+ * katmanının risk niyeti ve dil kontrolü hiç koşmaz. Bu yüzden kapı güven 1 ile BAŞTAN koşar ve hiçbir engel çıkmamalı:
+ * kelime ağının, beyanın ya da anlama katmanının konaklama isteği (bekçi burada koşmadı → hassas istek her zaman tutar),
+ * risk niyeti, injection, çıktı vetosu, saat çelişkisi, dil — HİÇBİRİ susturulamaz.
+ */
+export function semanticClosingHolds(
+  result: Parameters<typeof autoReplyGateFailure>[0],
+  guestMessage: string,
+  context: AutoReplyGateContext,
+  understood: MessageUnderstanding | null | undefined,
+  unanswered: readonly string[],
+): boolean {
+  return (
+    autoReplyGateVerdict(result, guestMessage, context)?.detail === "low_confidence" &&
+    autoReplyGateFailure({ ...result, confidence: 1 }, guestMessage, context) === null &&
+    semanticClosingOnly({ unanswered, understood, reply: result })
+  );
 }
 
 /**
@@ -1712,10 +1738,9 @@ export async function applyChannelAutoReply(
   // Only answer when the guest spoke last (don't reply to ourselves).
   if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
 
-  // A bare "tamam / teşekkürler / ok 👍" closing after ANY reply (human or AI)
-  // needs no answer — skip BEFORE spending a model call, and never butt into a
-  // thread a human just wrapped up. Deterministic and conservative: a question
-  // or any extra content ("teşekkürler, peki wifi şifresi?") never matches.
+  // A bare "tamam / teşekkürler / ok 👍" closing needs no answer — skip BEFORE spending a model call, and never butt
+  // into a thread a human just wrapped up. Deterministic and conservative: a question or any extra content
+  // ("teşekkürler, peki wifi şifresi?") never matches.
   const closingKind: CourtesyKind | null = isClosingAck(last.body)
     ? "ack"
     : isPositiveFeedback(last.body)
@@ -1726,59 +1751,71 @@ export async function applyChannelAutoReply(
   // çağrılmıyor, istek 'closing_ack' damgasıyla kuyruktan düşüyor, nezaket açıksa konuşma "cevaplandı" oluyordu.
   // Son giden mesajdan sonraki misafir mesajlarından biri bile gerçek içerikse normal akış (model + kapı) koşar.
   const lastOutboundIdx0 = messages.map((m) => m.direction).lastIndexOf("outbound");
-  const onlyClosingsUnanswered = messages
+  const unansweredGuestTexts = messages
     .slice(lastOutboundIdx0 + 1)
     .filter((m) => m.direction === "inbound")
-    .every((m) => isClosingAck(m.body) || isPositiveFeedback(m.body));
-  if (closingKind && onlyClosingsUnanswered && messages.some((m) => m.direction === "outbound")) {
-    // LOOP GUARD (both kinds): our latest outbound was itself the courtesy →
-    // the guest is thanking/complimenting the thank-you. Stay SILENT — neither
-    // a second courtesy nor a model draft (which would resurrect the gushy
-    // improv this feature exists to replace).
-    const lastOutbound = [...messages].reverse().find((m) => m.direction === "outbound");
-    if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) {
-      if (!options.dryRun) await persistRiskVisibility(conversation.id, "closing_ack");
-      return { sent: false, skippedReason: "closing_ack", ...meta };
-    }
-    // Opt-in courtesy: when the org enabled it, answer the closing / pure
-    // compliment ONCE with a deterministic line (never in dry-run). Any gate
-    // saying no falls through: an "ack" keeps the classic silent skip, a
-    // "praise" continues to the NORMAL model + safety-gate flow — exactly
-    // today's behaviour.
-    if (org.autoClosingReplyEnabled && !options.dryRun) {
-      const courtesySent = await maybeSendClosingCourtesy({
+    .map((m) => m.body);
+  // Kapanış = hiçbir mesaj yok + içeride "cevap gerekmedi" (karar kaydı `no_reply`; konuşma kaydı `closing_ack`).
+  // Anlam yolu modelin hükmünü ve temellendirme kanıtını da yazar; sözcük yolunda model çağrılmadı (alanlar NULL kalır).
+  const closingNoReply = async (
+    reason: "closing_ack" | "closing_ack_semantic",
+    modelVerdict?: Pick<RiskEventInput, "riskLevel" | "riskType" | "confidence" | "kbEvidenceJson">,
+  ) => {
+    if (!options.dryRun) {
+      await persistRiskVisibility(conversation.id, "closing_ack");
+      await recordRiskEvent({
         organizationId: conversation.property.organizationId,
-        conversation: {
-          id: conversation.id,
-          channel: conversation.channel,
-          guestIdentifier: conversation.guestIdentifier,
-          externalReservationId: conversation.externalReservationId,
-        },
-        messages,
-        lastInbound: { id: last.id, body: last.body },
-        kind: closingKind,
-        org,
+        propertyId: conversation.propertyId,
+        conversationId: conversation.id,
+        surface: "auto_reply",
+        triggerId: last.id,
+        finalDecision: "no_reply",
+        reason,
+        ...modelVerdict,
       });
-      if (courtesySent) {
-        // Gölge kapsamı (Codex): nezaket kapanışı da bir OTOMATİK GÖNDERİM
-        // kararıdır (whitelist yanlış-pozitifi olsaydı GLM burada "escalate"
-        // diyecekti) — pilot bu kararı da görsün. Karar yetkisi yine sıfır.
-        void recordShadowVerdict({
+    }
+    return { sent: false, skippedReason: "closing_ack" as const, ...meta };
+  };
+  if (closingKind && lexicalClosingOnly(unansweredGuestTexts)) {
+    if (messages.some((m) => m.direction === "outbound")) {
+      // LOOP GUARD (both kinds): our latest outbound was itself the courtesy → the guest is thanking/complimenting
+      // the thank-you. Stay SILENT — neither a second courtesy nor a model draft.
+      const lastOutbound = [...messages].reverse().find((m) => m.direction === "outbound");
+      if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) return closingNoReply("closing_ack");
+      // Opt-in courtesy (HOST'un açık seçimi, varsayılan kapalı): closing / pure compliment ONCE with a deterministic
+      // line (never in dry-run). Any gate saying no falls through to the silent skip below.
+      if (org.autoClosingReplyEnabled && !options.dryRun) {
+        const courtesySent = await maybeSendClosingCourtesy({
           organizationId: conversation.property.organizationId,
-          conversationId: conversation.id,
-          triggerId: last.id,
-          guestMessage: last.body,
-          guestName: conversation.guestIdentifier,
-          reservationGuestName: conversation.reservation?.guestName,
-          gateDecision: "auto_sent",
+          conversation: {
+            id: conversation.id,
+            channel: conversation.channel,
+            guestIdentifier: conversation.guestIdentifier,
+            externalReservationId: conversation.externalReservationId,
+          },
+          messages,
+          lastInbound: { id: last.id, body: last.body },
+          kind: closingKind,
+          org,
         });
-        return { sent: true, ...meta };
+        if (courtesySent) {
+          // Gölge kapsamı (Codex): nezaket kapanışı da bir OTOMATİK GÖNDERİM kararıdır — pilot bu kararı da görsün.
+          void recordShadowVerdict({
+            organizationId: conversation.property.organizationId,
+            conversationId: conversation.id,
+            triggerId: last.id,
+            guestMessage: last.body,
+            guestName: conversation.guestIdentifier,
+            reservationGuestName: conversation.reservation?.guestName,
+            gateDecision: "auto_sent",
+          });
+          return { sent: true, ...meta };
+        }
       }
     }
-    if (closingKind === "ack") {
-      if (!options.dryRun) await persistRiskVisibility(conversation.id, "closing_ack");
-      return { sent: false, skippedReason: "closing_ack", ...meta };
-    }
+    // 🚨 KAPANIŞA SESSİZLİK (kurucu kuralı 09-25): teşekkür/onay VE övgü, önceki bir cevap olmasa da. Eskiden övgü
+    // ("Harika bir konaklamaydı!") normal model akışına düşüyordu → modelin cevabı otomatik gidebiliyordu.
+    return closingNoReply("closing_ack");
   }
 
   // BAĞLANTI KONTROLÜ MODEL ÇAĞRISINDAN ÖNCE (denetim, 07-31).
@@ -2205,6 +2242,8 @@ export async function applyChannelAutoReply(
   // token kullanımı ile yeniden kurulur; tek kaynak bu nesne, dört RiskEvent yazımı onu yayar.
   // Anlama katmanı retrieval'da beklenmediyse (paralel koştu) özeti kanıta BURADA girer — kapı onu zaten bekledi.
   const retrievalEvidence = await kbSel.evidenceAfterUnderstanding();
+  // Kapının son hükmünün ayrıntısı (yalnız son gerekçe `blocked` iken; başka bir adım gerekçeyi değiştirdiyse yok).
+  const finalGateVerdict = gateFailure === "blocked" ? autoReplyGateVerdict(result, last.body, gateContext) : null;
   const groundingAudited = {
     ...applyPromptKbAudit(grounding, result.kbOmittedInPrompt, kbForModel.length),
     kbEvidenceJson: buildKbEvidence({
@@ -2224,12 +2263,7 @@ export async function applyChannelAutoReply(
       earlyCheckin: earlyCheckinRun ? earlyCheckinEvidenceOf(earlyCheckinRun, earlyCheckinSent) : undefined,
       // Kapı kanıtı (09-25): SON sonuçla kapının ayrıntısı + kelime ağı / model sinyalleri ayrı. Ayrıntı yalnız son
       // gerekçe `blocked` iken ve yeniden hesaplanan hüküm de `blocked` ise (başka bir adım gerekçeyi değiştirdiyse yazılmaz).
-      gate: gateEvidenceOf(
-        result,
-        last.body,
-        gateContext,
-        gateFailure === "blocked" ? autoReplyGateVerdict(result, last.body, gateContext) : null,
-      ),
+      gate: gateEvidenceOf(result, last.body, gateContext, finalGateVerdict),
     }),
   };
 
@@ -2297,6 +2331,22 @@ export async function applyChannelAutoReply(
   if (note) outboundParts.push(note);
   if (signature) outboundParts.push(signature);
   const outboundBody = outboundParts.join("\n\n");
+
+  // ── KAPANIŞA SESSİZLİK — ANLAM YOLU (`semanticClosingHolds`) ────────────────────────────────────────────────────
+  // Sözcük listesinin kaçırdığı teşekkür/onay: iki model "yalnız teşekkür/kapanış" + kapı YALNIZ düşük güvenden kapandı.
+  // Aksi hâlde bugünkü davranış (taslak ev sahibine "AI emin olamadı"). Son gerekçe `blocked` olmalı: sonradan bir adım
+  // gerekçeyi değiştirdiyse (hazırlık kilidi, erken giriş akışı) o karar geçerli.
+  if (
+    gateFailure === "blocked" &&
+    semanticClosingHolds(result, last.body, gateContext, understood, [...pendingGuestMessages, last.body])
+  ) {
+    return closingNoReply("closing_ack_semantic", {
+      riskLevel: result.riskLevel,
+      riskType: result.riskType ?? null,
+      confidence: result.confidence,
+      kbEvidenceJson: groundingAudited.kbEvidenceJson,
+    });
+  }
 
   if (!gatePassed) {
     // If the block was driven by a MODEL-detected sensitive signal (complaint /
@@ -4452,6 +4502,8 @@ export async function previewChannelAutoReplies(
       property: { organizationId },
       ...PROVIDER_THREAD_CONVERSATION_WHERE, // V0.5: gönderici (dueAutoReplyWhere) ile aynı fragment
       status: "new",
+      // "Cevap gerekmedi" (kapanışa bilerek sessiz kalındı) önizleme yerini doldurmaz, modeli yeniden çağırmaz.
+      AND: [notClosingHandledWhere()],
     },
     // ⚠️ EN YENİ ÖNCE. Bu satır da 08-01'de aynı hatalı geri-alma script'iyle
     // kazayla "asc" olmuştu. Önizlemenin sorusu "AI ŞU AN ne cevap verirdi?" —
