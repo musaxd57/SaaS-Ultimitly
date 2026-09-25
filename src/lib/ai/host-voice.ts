@@ -15,18 +15,43 @@
 
 const TR_FOLLOW_UP = "kontrol edip size dönüş yapacağım";
 
+// 🚨 GERİ İZLEME (inceleme 09-25): özne kalıbı BOŞLUKSUZ bir karakterle başlar ve özneyle kalıp arasında TEK boşluk
+// aranır — ardışık `\s+ … \s+` zinciri 4.000 karakterlik boşluk dolu taslakta kübik geri izlemeydi. Özne içinde
+// "13.00" gibi saat noktası cümle sonu sayılmaz (`\.(?=\d)`). Kalıp öncesi `\s+` (mutasyon R10) yalnız KARESEL kalır ve
+// 4.000 karakter tavanında hızlıdır — yani tek boşluk bir güvenlik değil sadelik seçimidir (çift boşluklu nadir biçim çevrilmez).
+const SUBJECT = String.raw`(\S(?:[^.!?…\n]|\.(?=\d))*?)`;
+// ";"/"," sonrasında gelir → küçük harf (büyük "İsteğiniz" yalnız cümle başındaki TR_RECORDED biçiminde).
+const NOUN_TR = "(?:mesajınız|talebiniz|isteğiniz)";
+
 /** "X ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir." → "X için kontrol edip size dönüş yapacağım." */
-const TR_DECISION =
-  /(^|[.!?…]\s+|\n)([^.!?…\n]*?)\s+ev sahibinizin kararıdır[;,]\s*(?:mesajınız|talebiniz|isteğiniz)\s+kaydedildi[;,]?\s*(?:ve\s+)?ev sahibiniz görebilir\./gu;
+const TR_DECISION = new RegExp(
+  String.raw`(^|[.!?…]\s+|\n)${SUBJECT}\sev sahibinizin kararıdır[;,]\s*${NOUN_TR}\s+kaydedildi[;,]?\s*(?:ve\s+)?ev sahibiniz görebilir\.`,
+  "gu",
+);
 /** "Mesajınız kaydedildi; ev sahibiniz görebilir." → "Mesajınızı aldım; kontrol edip size dönüş yapacağım." */
-const TR_RECORDED = /(^|[^\p{L}])(mesajınız|talebiniz|isteğiniz)\s+kaydedildi[;,]?\s*(?:ve\s+)?ev sahibiniz görebilir/giu;
+const TR_RECORDED = /(^|[^\p{L}])(mesajınız|talebiniz|[iİ]steğiniz)\s+kaydedildi[;,]?\s*(?:ve\s+)?ev sahibiniz görebilir/giu;
 const TR_ACCUSATIVE: Record<string, string> = { mesajınız: "mesajınızı", talebiniz: "talebinizi", isteğiniz: "isteğinizi" };
+
+/**
+ * "Bu ev sahibinizin kararıdır" (istemin kendi örneği; ";"/","dan sonra da: "…bağlı; bu ev sahibinizin kararıdır")
+ * → "Bunu kontrol edip …" ("Bu için" bozuk Türkçe).
+ */
+function trFollowUp(subject: string): string {
+  const bare = /(^|[;,:]\s+)([bB])u$/u.exec(subject);
+  return bare
+    ? `${subject.slice(0, bare.index)}${bare[1]}${bare[2]}unu ${TR_FOLLOW_UP}`
+    : `${subject} için ${TR_FOLLOW_UP}`;
+}
+
+/** Cevabın başındaki selam/hitap ("Hi Anna, …") — EN_DECISION öznesine katılmaz. */
+const EN_GREETING = /^(?:hi|hello|hey|dear|good (?:morning|afternoon|evening))\b[^,]{0,40},\s/iu;
 
 /** "Whether X is the host's call; your request has been recorded and is visible to your host." */
 const EN_DECISION =
-  /(^|[.!?]\s+|\n)([^.!?;\n]+?)\s+is the host's call;\s*your (?:request|message|dates) (?:has|have) been recorded and (?:is|are) visible to your host\./gu;
-/** "Your message has been recorded and is visible to your host." (cümle başında ya da ";" sonrası) */
-const EN_RECORDED = /(^|[.!?;]\s*|\n)(Y|y)our (message|request|dates) (?:has|have) been recorded and (?:is|are) visible to your host\./gu;
+  /(^|[.!?]\s+|\n)(\S[^.!?;\n]*?)\sis the host's call;\s*your (?:request|message|dates) (?:has|have) been recorded and (?:is|are) visible to your host\./gu;
+/** "Your message has been recorded and is visible to your host." (cümle başında ya da ";" / "," sonrası) */
+const EN_RECORDED =
+  /(^|[.!?;,]\s*|\n)(Y|y)our (message|request|dates|report) (?:has|have) been recorded and (?:is|are) visible to your host\./gu;
 
 const lowerFirst = (s: string) => (s ? s[0].toLocaleLowerCase("en") + s.slice(1) : s);
 
@@ -40,9 +65,14 @@ function matchCase(template: string, sample: string): string {
 export function hostVoiceDraft(reply: string): string {
   if (!reply) return reply;
   return reply
-    .replace(TR_DECISION, (_m, lead: string, subject: string) => `${lead}${subject} için ${TR_FOLLOW_UP}.`)
+    .replace(TR_DECISION, (_m, lead: string, subject: string) => `${lead}${trFollowUp(subject)}.`)
     .replace(TR_RECORDED, (_m, lead: string, noun: string) => `${lead}${matchCase(`${TR_ACCUSATIVE[noun.toLocaleLowerCase("tr")]} aldım`, noun)}; ${TR_FOLLOW_UP}`)
-    .replace(EN_DECISION, (_m, lead: string, subject: string) => `${lead}I'll check ${lowerFirst(subject.trim())} and get back to you.`)
+    .replace(EN_DECISION, (_m, lead: string, subject: string) => {
+      // Selam/hitap öneki ("Hi Anna, whether …") öznede kalmaz, olduğu gibi korunur.
+      const prefix = EN_GREETING.exec(subject)?.[0] ?? "";
+      const what = subject.slice(prefix.length);
+      return `${lead}${prefix}I'll check ${lowerFirst(what.trim())} and get back to you.`;
+    })
     // "I" büyük kalır (";" sonrasında da): cümle ev sahibinin birinci tekil sesiyle başlar.
     .replace(EN_RECORDED, (_m, lead: string, _y: string, noun: string) =>
       `${lead}${noun === "dates" ? "I've noted your dates" : `I've received your ${noun}`} and will get back to you shortly.`,

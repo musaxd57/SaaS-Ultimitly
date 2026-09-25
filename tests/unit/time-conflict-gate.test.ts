@@ -37,6 +37,15 @@ describe("timeConflictHolds — saf kural", () => {
     expect(timeConflictHolds(CHECKOUT_CONFLICT, { intent: "general", reply: "Bilgi verelim.", guestTexts: ["Çıkış saati kaçta?"] })).toBe(true);
   });
 
+  it("🚨 yabancı dil (inceleme 09-25): Almanca/Fransızca/İspanyolca/Rusça giriş-çıkış sorusu etiket 'general' gelse de tutulur", () => {
+    for (const q of ["Wann ist die Anreise?", "À quelle heure est l'arrivée ?", "¿A qué hora es la llegada?", "Во сколько заезд?"]) {
+      expect(timeConflictHolds(CHECKIN_CONFLICT, { intent: "general", reply: "Info folgt.", guestTexts: [q] }), q).toBe(true);
+    }
+    expect(timeConflictHolds(CHECKOUT_CONFLICT, { intent: "general", reply: "Info folgt.", guestTexts: ["Wann ist die Abreise?"] })).toBe(true);
+    // Aynı dilde çelişkili alana değmeyen soru gider (yabancı sözlük yalnız saat alanını ekler).
+    expect(timeConflictHolds(CHECKIN_CONFLICT, { intent: "wifi", reply: "Das Passwort steht auf der Karte.", guestTexts: ["Wie ist das WLAN-Passwort?"] })).toBe(false);
+  });
+
   it("misafir alanı adlandırmasa da CEVAP adlandırıyorsa tutulur (cevabın kendi konusu)", () => {
     expect(timeConflictHolds(CHECKIN_CONFLICT, { intent: "general", reply: "Girişiniz ev sahibinizin kararıdır.", guestTexts: ["Ne zaman gelebiliriz?"] })).toBe(true);
     // KONTROL: aynı soru, cevap alanı adlandırmıyor ve saat söylemiyor → gider.

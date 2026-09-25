@@ -20,6 +20,7 @@
 
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { timeFieldsIn } from "@/lib/ai/retrieval/lexicon";
+import { matchForeignConcepts } from "@/lib/ai/retrieval/lexicon-foreign";
 import { contentStems } from "@/lib/ai/retrieval/text";
 import { timesIn } from "@/lib/ai/retrieval/time-fields";
 
@@ -29,8 +30,16 @@ const FIELD_SCOPE: Record<TimeConflict["field"], { topic: string; intents: Reado
   checkOutTime: { topic: "checkout", intents: new Set(["checkout", "late_checkout"]) },
 };
 
+/**
+ * Metnin adlandırdığı saat alanları: Türkçe/İngilizce kök sözlüğü + yabancı dil sözlüğü (DE/FR/ES/RU/AR — "Anreise",
+ * "départ", "заезд"; inceleme bulgusu 09-25: yalnız TR/EN bakılıyordu, Almanca giriş sorusu niyet etiketi `general`
+ * gelince kapıdan geçiyordu). Yabancı sözlük retrieval'daki AYNI kaynak (ikinci sözlük yazılmaz).
+ */
 function topicsOf(text: string | null | undefined): Set<string> {
-  return new Set(text ? timeFieldsIn(contentStems(text)) : []);
+  if (!text) return new Set();
+  const out = new Set(timeFieldsIn(contentStems(text)));
+  for (const m of matchForeignConcepts(text)) if (m.concept.timeField) out.add(m.concept.timeField);
+  return out;
 }
 
 /**
