@@ -59,6 +59,17 @@ describe("confidentLanguage — eminken dil", () => {
   it("kod / saat / şifre dil kanıtı değildir (rakamlı belirteç ayıklanır)", () => {
     expect(confidentLanguage("The password is Lale2025 and checkout is at 11:00.")).toBe("en");
     expect(confidentLanguage("Şifre Lale2025, çıkış 11:00.")).toBeNull();
+    // İngilizce sözcük taşıyan şifre ("Is4You2Go") Türkçe cevabı karışık GÖSTERMEZ.
+    expect(confidentLanguage("Wi-Fi şifresi Is4You2Go, iyi günler")).toBe("tr");
+  });
+
+  it("bağlantı dil kanıtı değildir (İngilizce sözcüklü URL Türkçe cümleyi çevirmez)", () => {
+    expect(confidentLanguage("Adres linki: https://example.com/the-house-is-here-and-there")).toBeNull();
+    expect(confidentLanguage("Konum bilgisi için bu bağlantıya bakabilirsiniz: https://example.com/where-is-the-flat-and-how")).toBe("tr");
+  });
+
+  it("Latin metinde Kiril ad metni Rusça yapmaz (yazı sistemi PAYLA)", () => {
+    expect(confidentLanguage("Hi, my name is Иван, what is the wifi password?")).toBe("en");
   });
 
   it("languageLabel istemde okunur ad verir", () => {

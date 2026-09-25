@@ -715,6 +715,37 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
   });
 
+  it("13b · 🚨 dil kapısı (09-25): İngilizce misafire modelin TÜRKÇE ertelemesi tutulur, doğrulanmış onay (koddan, misafirin dilinde) YİNE gider", async () => {
+    // Dil kontrolü kapının SONUNDA: eskiden iki modelin doğruladığı erteleme kapıyı GEÇİYORDU ve akış koşuyordu; dil
+    // tutuşu akışı atlatsaydı host'un kontrol listesi ve doğrulanmış onay kaybolurdu.
+    const now = Z("2026-10-14T05:00:00.000"); // 08:00
+    at(now);
+    const v = await vacantNight(now);
+    await saveEarlyCheckinRule(v.orgId, v.propertyId, { ...RULE, earliest: "10:00" });
+    openAi({
+      reply: reply({ reply: "Erken giriş ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir." }),
+      understanding: nlu("10:00"),
+      guard: guard("10:00", { reply_defers_to_host: true }),
+    });
+    const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 10:00.")).toBe(true);
+    expect((await decision(id)).reason).toBe("early_checkin_verified");
+
+    // KONTROL: kural taslakta (otomatik onay yok) → Türkçe erteleme de GİTMEZ, gerekçe dil.
+    await fresh();
+    const w = await vacantNight(now);
+    await saveEarlyCheckinRule(w.orgId, w.propertyId, { ...RULE, earliest: "10:00", mode: "draft" });
+    openAi({
+      reply: reply({ reply: "Erken giriş ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir." }),
+      understanding: nlu("10:00"),
+      guard: guard("10:00", { reply_defers_to_host: true }),
+    });
+    const id2 = await conversationFor(w.propertyId, w.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(id2)).sent).toBe(false);
+    expect((await decision(id2)).reason).toBe("reply_language_mismatch");
+  });
+
   it("14 · bir model 'istek yok', diğeri 'erken giriş isteği' → istek YAŞAR (cevap modelinin düz cevabı otomatik gitmez)", async () => {
     const now = Z("2026-10-14T05:00:00.000");
     at(now);
