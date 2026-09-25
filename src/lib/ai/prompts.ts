@@ -16,6 +16,8 @@ import {
 import type { ClaimContext } from "./claim-support";
 import { guestCheckoutMayBeLate, guestCheckoutRelation } from "@/lib/guest-checkout-time";
 import { normalizeHhmm } from "./semantic/stay-change";
+import { clockLine, formatDayTr, stayTimeline, timelineLine } from "./stay-timeline";
+import { orgTimezone } from "@/lib/timezone";
 import { guestTurnLanguage, languageLabel, unansweredGuestTexts } from "./language-signal";
 
 // ============================================================================
@@ -651,16 +653,6 @@ function fmtDate(d: Date | string) {
   }
 }
 
-function daysDiff(from: Date | string, to: Date | string): number {
-  try {
-    const a = new Date(from).getTime();
-    const b = new Date(to).getTime();
-    return Math.round((b - a) / (1000 * 60 * 60 * 24));
-  } catch {
-    return 0;
-  }
-}
-
 function sameDay(a: Date | string, b: Date | string): boolean {
   return new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10);
 }
@@ -736,23 +728,6 @@ function guestCheckoutPromptLine(guestTime: string, officialTime: string): strin
   const after = official ? `resmi çıkış saatinden (${official}) SONRA` : "resmi çıkış saatinden SONRA olabilir";
   // "Onaylanmadı" DEĞİL "kayıtlı onay yok": host sohbette onay vermiş olabilir; sistemin bildiği yalnız kaydın yokluğu.
   return `Misafirin daha önce kendi belirttiği çıkış saati: ${shown} — ${after}. Bu misafirin kendi beyanı ya da isteğidir; sistemde bu saat için kayıtlı bir geç çıkış onayı YOK. Bu saate göre söz verme; konu açılırsa geç çıkışın ev sahibinin kararı olduğunu söyle. Tekrar sorma.`;
-}
-
-function buildTimelineContext(reservation: { arrivalDate: Date | string; departureDate: Date | string } | null): string {
-  if (!reservation) return "(rezervasyon yok)";
-  const now = new Date();
-  const arrival = new Date(reservation.arrivalDate);
-  const departure = new Date(reservation.departureDate);
-
-  if (now < arrival) {
-    const daysUntil = daysDiff(now, arrival);
-    return `Giriş henüz yapılmadı. Girişe ${daysUntil} gün kaldı.`;
-  } else if (now > departure) {
-    return "Konaklama tamamlandı (check-out gerçekleşti).";
-  } else {
-    const daysLeft = daysDiff(now, departure);
-    return `Misafir şu an konaklamakta. Çıkışa ${daysLeft} gün kaldı.`;
-  }
 }
 
 // Strip control chars / newlines / angle brackets and cap length from UNTRUSTED
@@ -1113,6 +1088,10 @@ export function buildReplyPrompt(input: SuggestReplyInput): {
   // `input.language` (org ayarı) istemde KULLANILMAZ: misafire yazılan cevabın dilini belirlemez (09-25, ↓DİL).
   const { property, reservation, knowledgeBase, history, openTopics, guestMessage, tone } = input;
 
+  // ZAMAN VE KONAKLAMA EVRESİ — KODDA, org diliminde, takvim günü kuralıyla (`stay-timeline.ts`). Eskiden sunucu saati ham
+  // damgayla kıyaslanıyordu: çıkış sabahı "konaklama tamamlandı", varıştan önceki akşam "girişe 0 gün" (09-25 ölçüldü).
+  const timeline = stayTimeline({ now: input.now ?? new Date(), timeZone: orgTimezone(input.timeZone), reservation });
+
   // P4 — çelişki bloğu yalnız GERÇEK bir çelişki varken basılır (sakin durumda gürültü yok).
   const conflicts = findTimeConflicts(property, knowledgeBase);
   const conflictBlock =
@@ -1149,9 +1128,9 @@ ${conflicts
     : "";
   const res = reservation
     ? `Misafir: ${sanitizePromptValue(reservation.guestName)}
-Giriş: ${fmtDate(reservation.arrivalDate)} | Çıkış: ${fmtDate(reservation.departureDate)}
+Giriş: ${timeline.arrival ? formatDayTr(timeline.arrival) : fmtDate(reservation.arrivalDate)} | Çıkış: ${timeline.departure ? formatDayTr(timeline.departure) : fmtDate(reservation.departureDate)}
 Durum: ${reservation.status}${guestCheckoutLine ? `\n${guestCheckoutLine}` : ""}
-Zaman bağlamı: ${buildTimelineContext(reservation)}`
+Zaman bağlamı: ${timelineLine(timeline, property)}`
     : "(bu konuşma bir rezervasyona bağlı değil)";
 
   // PRE-BOOKING / UNCONFIRMED guard. When there is no linked reservation, or its
@@ -1346,6 +1325,7 @@ UYARI: Bu alanlardan herhangi biri "(belirtilmemiş)" ise cevabında o bilgiyi Y
 ════════════════════════════════════════════════════
 REZERVASYON
 ════════════════════════════════════════════════════
+${clockLine(timeline)} — göreli gün ifadelerini ("bugün", "yarın", "o gün") bu tarihlere göre çöz.
 ${res}${preBookingBlock}${activeStayBlock}
 ${adjacencyBlock}
 ${offerBlock}
@@ -1385,6 +1365,8 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
   const claimContext: ClaimContext = {
     facts: [
       propertyFacts,
+      // Bugünün tarihi / yarın koddan (doğrulanmış olgu): cevaptaki "26.09.2026" gibi bir tarih buna dayanabilir.
+      clockLine(timeline),
       reservation ? res : "",
       adjacencyDataLines(reservation, input.adjacency ?? null, property),
       offerText ?? "",

@@ -2010,6 +2010,8 @@ export async function applyChannelAutoReply(
           guestCheckoutTime: conversation.reservation.guestCheckoutTime,
         }
       : null,
+    // "Bugün / yarın" ve konaklama evresi org diliminde (`stay-timeline.ts`).
+    timeZone: org.timezone,
     knowledgeBase: kbForModel,
     knowledgeBaseSelection: kbSel.selection,
     knowledgeBaseNotes: kbSel.notes,

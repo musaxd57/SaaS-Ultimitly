@@ -275,3 +275,23 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect((await suggest(id)).availabilityCheck).toBe("availability_unconfirmed");
   });
 });
+
+describe("POST /api/conversations/[id]/ai-suggest — org saat dilimi isteme ulaşır (zaman bağlamı, 09-25)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    __resetUnderstandingCache();
+    vi.clearAllMocks();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("🚨 'bugün / yarın' org diliminde hesaplansın diye `timeZone` kanal oto-yanıtıyla aynı biçimde geçer", async () => {
+    mockSuggest.mockResolvedValue(BASE);
+    const id = await seed([{ direction: "inbound", body: "What is the wifi password?" }]);
+    await prisma.organization.update({ where: { id: session.organizationId }, data: { timezone: "America/New_York" } });
+    await suggest(id);
+    expect(mockSuggest.mock.calls[0][0].timeZone).toBe("America/New_York");
+  });
+});

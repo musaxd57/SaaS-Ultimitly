@@ -59,6 +59,9 @@ async function seed() {
     });
   // Düz yeni konuşma (skippedReason NULL — NULL güvenliği: listeden DÜŞMEMELİ).
   await convo("Misafir-Acik", { status: "new" });
+  // 🚨 Damgalı ama gerekçesiz (ör. kuyrukta bekleyen gönderim): skippedReason NULL + damga son mesaja eşit. `<> 'closing_ack'`
+  // SQL'de NULL satırı DÜŞÜRÜR — yalnız `skippedReason: null` kolu onu tutar (mutasyon H3: damgasız fikstür bu kolu örtüyordu).
+  await convo("Misafir-Damgali", { status: "new", autoReplyAttemptedAt: t });
   // Kapanışa bilerek sessiz kalındı → gizlenir.
   await convo("Misafir-Kapanis", { status: "new", skippedReason: "closing_ack", autoReplyAttemptedAt: t });
   // Aynı damga ama BAŞKA gerekçe (ev sahibi taslağı bekliyor) → görünür.
@@ -88,6 +91,7 @@ describe("'cevap gerekmedi' — pano, gelen kutusu, sayaç", () => {
     mockAuth.mockResolvedValue(sessionFor(org.id));
     const text = treeText(await DashboardPage());
     expect(text).toContain("Misafir-Acik");
+    expect(text).toContain("Misafir-Damgali");
     expect(text).toContain("Misafir-Baska");
     expect(text).toContain("Misafir-Yeniden");
     expect(text).toContain("Misafir-Sorunlu");
@@ -99,11 +103,12 @@ describe("'cevap gerekmedi' — pano, gelen kutusu, sayaç", () => {
     mockAuth.mockResolvedValue(sessionFor(org.id));
     const text = treeText(await InboxPage({ searchParams: sp({ status: "new" }) }));
     expect(text).toContain("Misafir-Acik");
+    expect(text).toContain("Misafir-Damgali");
     expect(text).toContain("Misafir-Baska");
     expect(text).toContain("Misafir-Yeniden");
     expect(text).not.toContain("Misafir-Kapanis");
     expect(text).not.toContain(CLOSING_HANDLED_LABEL);
-    expect(text).toContain("3 konuşma");
+    expect(text).toContain("4 konuşma");
   });
 
   it("gelen kutusu 'Tümü': sessiz kalınan kapanış kendi etiketiyle görünür (kaybolmaz)", async () => {
@@ -122,7 +127,7 @@ describe("'cevap gerekmedi' — pano, gelen kutusu, sayaç", () => {
   it("açık konuşma sayacı sessiz kalınan kapanışı saymaz; sorunlu sayacı etkilenmez", async () => {
     const org = await seed();
     const stats = await getOpsStats(org.id);
-    expect(stats.openConversations).toBe(3); // Acik + Baska + Yeniden
+    expect(stats.openConversations).toBe(4); // Acik + Damgali + Baska + Yeniden
     expect(stats.problemConversations).toBe(1);
   });
 });

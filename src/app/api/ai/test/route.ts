@@ -123,6 +123,7 @@ export const POST = withManage(async (session, req) => {
       closingReplyText: true,
       lateCheckoutOfferText: true,
       autoReplyDisclosure: true,
+      timezone: true,
       language: true,
     },
   });
@@ -172,6 +173,7 @@ export const POST = withManage(async (session, req) => {
     // içerik değil. Üç yüzeyin üçü de artık aynı süzgeçten geçiyor.
     styleProfile: scrubStyleProfileForPublic(org?.aiStyleProfile),
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
+    timeZone: org?.timezone,
   });
 
   // The REAL auto-send verdict — the exact production gate (intent blocklist,

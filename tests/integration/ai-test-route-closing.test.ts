@@ -100,9 +100,12 @@ describe("POST /api/ai/test — anlamca kapanış önizlemesi", () => {
   it("KONTROL: anlama katmanı kapalı → kapanış DEĞİL (gerçek kanalla aynı: taslak ev sahibine)", async () => {
     mockSuggest.mockResolvedValue(CLOSING_DRAFT);
     await seed();
+    await prisma.organization.update({ where: { id: session!.organizationId }, data: { timezone: "America/New_York" } });
     const json = await (await POST(req({ message: "Anladım" }), ctx)).json();
     expect(json.closingAck).toBe(false);
     expect(json.closingSemantic).toBe(false);
+    // Zaman bağlamı (09-25): önizleme de org diliminde ("bugün / yarın") — kanal paritesi.
+    expect(mockSuggest.mock.calls[0][0].timeZone).toBe("America/New_York");
   });
 
   it("KONTROL: cevap modeli başka niyet dedi → kapanış DEĞİL", async () => {

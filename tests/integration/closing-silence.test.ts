@@ -196,11 +196,14 @@ describe("kanal oto-yanıtı — kapanışa sessizlik", () => {
 
   it("KONTROL: 'Anladım teşekkürler ama 12'de gelebilir miyiz?' kapanış DEĞİL — modele gider", async () => {
     mockSuggest.mockResolvedValue({ ...CLOSING_DRAFT, intent: "early_checkin", confidence: 0.9 });
-    const { conversationId } = await seedChannel([
+    const { orgId, conversationId } = await seedChannel([
       { direction: "inbound", body: "Anladım teşekkürler ama 12'de gelebilir miyiz?" },
     ]);
+    // Zaman bağlamı (09-25): "yarın / bugün" org diliminde — dilim cevap modeline ULAŞIR (varsayılanla karışmasın diye başka dilim).
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
     const out = await applyChannelAutoReply(conversationId);
     expect(mockSuggest).toHaveBeenCalled();
+    expect(mockSuggest.mock.calls[0][0].timeZone).toBe("America/New_York");
     expect(out.skippedReason).not.toBe("closing_ack");
   });
 
@@ -411,10 +414,13 @@ describe("QR misafir sohbeti — kapanışa sessizlik", () => {
 
   it("KONTROL: anlama katmanı kapalı → bugünkü davranış (düşük güven devri)", async () => {
     mockSuggest.mockResolvedValue(CLOSING_DRAFT);
-    const { token } = await seedQr();
+    const { orgId, token } = await seedQr();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
     const { body } = await ask(token, "Anladım");
     expect(body.escalated).toBe(true);
     expect(body.noReply).toBeUndefined();
+    // Zaman bağlamı (09-25): QR'da da "bugün / yarın" org diliminde (rezervasyon ayrıntısı olmadan).
+    expect(mockSuggest.mock.calls[0][0].timeZone).toBe("America/New_York");
   });
 
   it("KONTROL: 'Teşekkürler ama klima çalışmıyor' kapanış DEĞİL — normal akış (şikâyet devri)", async () => {

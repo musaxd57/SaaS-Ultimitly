@@ -114,6 +114,13 @@ export interface SuggestReplyInput {
    * KEEPING the no-secrets policy (it's still an open channel).
    */
   verifiedActiveStay?: boolean;
+  /**
+   * Org'un IANA saat dilimi (`Organization.timezone`): istemdeki "bugün / yarın" ve konaklama evresi bu dilimde, takvim
+   * günü kuralıyla (`stay-timeline.ts`) hesaplanır. Verilmezse uygulamanın varsayılan dilimi (`orgTimezone(null)`).
+   */
+  timeZone?: string | null;
+  /** Hesap anı (test/önizleme için sabitlenebilir); verilmezse şimdi. */
+  now?: Date;
 }
 
 /** Model çağrısının token kullanımı (yalnız sayılar + sunulan model adı; metin YOK). */

@@ -648,7 +648,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
 
   const org = await prisma.organization.findUnique({
     where: { id: ctx.property.organizationId },
-    select: { aiStyleProfile: true },
+    select: { aiStyleProfile: true, timezone: true },
   });
 
   // ── KONUŞMA BAĞLAMI (kurucu AI kalite turu, 09-08) ────────────────────────
@@ -719,6 +719,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // değişmezi ise "sır bağlama HİÇ girmez". Aynı deterministik detektör
     // (bilgi tabanını elediği detektör) rehbere de uygulanır.
     styleProfile: scrubStyleProfileForPublic(org?.aiStyleProfile),
+    // "Bugün / yarın" org diliminde (`stay-timeline.ts`). Rezervasyon ayrıntısı QR'da BİLEREK yok; bugünün tarihi kişisel
+    // veri değildir ("çöp bugün mü alınıyor?" gibi soruları çözer).
+    timeZone: org?.timezone,
   });
 
   // (The QR model call passes reservation:null — the name never reaches the model

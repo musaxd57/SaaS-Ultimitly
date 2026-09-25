@@ -76,7 +76,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // Same learned style profile the auto-reply pass uses, for consistent voice.
   const org = await prisma.organization.findUnique({
     where: { id: session.organizationId },
-    select: { aiStyleProfile: true, lateCheckoutOfferText: true },
+    select: { aiStyleProfile: true, lateCheckoutOfferText: true, timezone: true },
   });
 
   // Turnover context (neighbouring bookings) for early-checkin/late-checkout.
@@ -138,6 +138,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     styleProfile: scrubStyleProfileForPublic(org?.aiStyleProfile),
     adjacency,
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
+    // "Bugün / yarın" ve konaklama evresi org diliminde (`stay-timeline.ts`) — kanal oto-yanıtıyla parite.
+    timeZone: org?.timezone,
   });
 
   // TASLAK = EV SAHİBİNİN SESİ (09-25, `ai/host-voice.ts`): bu cevap misafire otomatik GİTMEZ, ev sahibi kendi adıyla
