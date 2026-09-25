@@ -74,7 +74,9 @@ const NR = "(?!\\p{L})";
  * İkinci alternatif (edilgen: "iletildi", "bildirilmiştir") BİLEREK YOK ↑.
  */
 const ACTIVE_PAST_CLAIM = new RegExp(
-  `${NL}(?:ilett[iı]m|ilettik|oluşturdum|oluşturduk|kontrol ettim|kontrol ettik|ayarladım|ayarladık|bildirdim|bildirdik|not ettim|talep oluşturdum` +
+  // Üçüncü inceleme (kör batarya 09-25): alıcısı MİSAFİR olan "size (dün) ilettim" önceki mesaja atıftır; amaç cümleciği
+  // ("size dönmesi için ilettim", "size dönsün diye ilettim") ise ev sahibine iletme İDDİASIDIR — istisna ona uygulanmaz.
+  `${NL}(?:(?<!(?<!\\p{L})size\\s(?:(?!(?:için|diye)(?!\\p{L}))\\p{L}+\\s){0,3})(?:ilett[iı]m|ilettik)|oluşturdum|oluşturduk|kontrol ettim|kontrol ettik|ayarladım|ayarladık|bildirdim|bildirdik|not ettim|talep oluşturdum` +
     // 09-25 (mesaj anlama çekirdeği denetimi): aynı ETKEN 1. şahıs geçmiş sınıfının kaçan üyeleri — "Ev sahibinize haber
     // verdim", "Temizlikçiyi aradım", "Taksinizi rezerve ettim". Ölçüm: 1.287 model cevabında (cevap kıyası ×4 + konaklama
     // eval'i) yalnız 1 yeni veto ve o da gerçek iddia ("Ertelemeyi hallettim"); 2. şahıs / sıfat-fiil biçimleri
@@ -89,10 +91,12 @@ const ACTIVE_PAST_CLAIM = new RegExp(
     `|iletişime geçtim|iletişime geçtik|uzattım|uzattık|başlattım|başlattık` +
     // İkinci inceleme (09-25): "Ev sahibinize sordum", "Rezervasyonunuza baktım", "not aldım", "onay aldım", "iptal
     // ettim", "Rezervasyonunuza not ekledim". ("yazdım" YOK: "yukarıda yazdığım gibi" önceki mesaja atıftır.)
-    `|sordum|sorduk|baktım|baktık|not aldım|not aldık|onay aldım|onay aldık|onay verdim|iptal ettim|iptal ettik|ekledim|ekledik` +
+    // "Aşağıya / buraya ekledim" bu mesajın İÇERİĞİNE atıftır; "notun sonuna / mesaja ekledim" iddiadır (üçüncü inceleme).
+    `|sordum|sorduk|baktım|baktık|not aldım|not aldık|onay aldım|onay aldık|onay verdim|iptal ettim|iptal ettik|(?<!(?:aşağıya|aşağı|buraya)\\s)(?:ekledim|ekledik)` +
     `|takip ettim|takip ettik|e-?posta attım|mail attım|iade(?:nizi)?\\s+(?:yaptım|ettim)` +
-    // Alıcısı ev sahibi/ekip olan "yazdım" ("Temizlik ekibine yazdım"); çıplak "yazdım" önceki mesaja atıftır.
-    `|(?:sahib|ekib|görevli|temizlikçi|yönetici|teknisyen|tesisatçı)\\p{L}*\\s+(?:de\\s+)?yazdım` +
+    // Alıcısı ev sahibi/ekip olan "yazdım / söyledim / mesaj gönderdim" ("Temizlik ekibine durumu yazdım"); alıcı YÖNELME
+    // hâlinde olmalı — "Ev sahibinin numarasını size yazdım" önceki mesaja atıftır. Çıplak "yazdım" da atıftır.
+    `|(?:sahib|ekib|görevli|temizlikçi|yönetici|teknisyen|tesisatçı)\\p{L}*[ea](?!\\p{L})\\s+(?:\\p{L}+\\s+){0,4}?(?:yazdım|söyledim|mesaj\\s+gönderdim|mesaj\\s+attım)` +
     `|(?:iletmiş|bildirmiş|aktarmış|yönlendirmiş|ulaştırmış) bulunuyor(?:um|uz))${NR}` +
     // Soru eki: "Size ulaştık mı?" iddia değil soru.
     `(?!\\s+m[iıuü](?!\\p{L}))` +
@@ -154,6 +158,14 @@ const HOST_SUBJECT_TR = "(?:(?:ev|mülk|daire)\\s+sahib(?:i|iniz|imiz))";
 const STAFF_SUBJECT_TR = "(?:ekib(?:imiz|iniz)|ekip(?:imiz)?|yetkilimiz|görevlimiz|yöneticimiz|yönetimimiz)";
 const STAFF_PROMISE_STEMS =
   "teyit edece|netleştirece|bilgi verece|onaylayaca|dönüş sağlayaca|bildirece|ulaşaca|cevap verece|yanıt verece|yanıtlayaca|arayaca";
+/**
+ * ALIŞKANLIK anlatımı söz değildir (üçüncü inceleme 09-25): "Genelde kapı kodunu bir gün önce gönderirim", "Her misafirden
+ * önce kodu sabah iletirim". "her" YALNIZ zaman/durum adıyla — "Her şeyi ev sahibinize iletirim" bir SÖZDÜR; arada karşıtlık
+ * bağlacı varsa istisna yok ("Normalde ev sahibi bakar ama bu sefer ben size dönerim").
+ */
+const HABITUAL_BEFORE =
+  "(?<!(?<!\\p{L})(?:genelde|genellikle|normalde|her\\s+(?:zaman|gün|sabah|akşam|hafta|sefer\\p{L}*|misafir\\p{L}*" +
+  "|rezervasyon\\p{L}*|giriş\\p{L}*|çıkış\\p{L}*|konaklama\\p{L}*))\\s+(?:(?!(?:ama|fakat|ancak|lakin)(?!\\p{L}))\\p{L}+\\s+){0,8})";
 const ACTIVE_FUTURE_CLAIM = new RegExp(
   // İkinci inceleme: sıfat-fiil ("göndereceğimiz mesajda", "yazacağı mesajda") ve kalıp ("Sorunuza dönecek olursak")
   // söz değildir.
@@ -163,14 +175,19 @@ const ACTIVE_FUTURE_CLAIM = new RegExp(
     // Ev sahibi öznesiyle 3. şahıs: "Müsaitliği ev sahibiniz teyit edecek", "ev sahibiniz size bildirecektir".
     `|${NL}${HOST_SUBJECT_TR}${NR}[^.!?;:\\n]{0,80}?\\s(?:${HOST_PROMISE_STEMS})k(?:t[iı]r)?${NR}${QUESTION_PARTICLE}` +
     `|${NL}${STAFF_SUBJECT_TR}${NR}[^.!?;:\\n]{0,80}?\\s(?:${STAFF_PROMISE_STEMS})k(?:t[iı]r)?${NR}${QUESTION_PARTICLE}` +
+    // Üçüncü inceleme (kör batarya 09-25): "Ekibimiz konuyla ilgilenecek" (konu/talep/sorun nesnesiyle söz; "bagajlarınızla
+    // ilgilenecek" hizmet anlatımı), "gerekeni yapacak", ev sahibine/ekibe yönelik TEKLİF ("İsterseniz ev sahibinize sorabilirim").
+    `|${NL}${STAFF_SUBJECT_TR}${NR}\\s+(?:\\p{L}+\\s+){0,3}?(?:konu|tale[pb]|sorun|mesele|durum|şikayet|şikâyet)\\p{L}*\\s+(?:hemen\\s+)?ilgilenece(?:k(?:t[iı]r)?|ğiz)${NR}` +
+    `|${NL}gerekeni\\s+yapaca(?:k(?:t[iı]r)?|ğım|ğız)${NR}` +
+    `|${NL}(?:(?:ev|mülk|daire)\\s+sahib|ekib|görevli|yetkili|yönetici)\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}?(?:sor|danış|ilet|aktar|bildir|haber\\s+ver|ulaş)[ae]bilirim${NR}` +
     `|${NL}(?:${HOST_SUBJECT_TR}|${STAFF_SUBJECT_TR})${NR}[^.!?;:\\n]{0,80}?\\s(?:bilgi verir|haber verir|size döner|dönüş yapar|dönüş sağlar|size yazar|size ulaşır|sizi arar|sizinle iletişime geçer)${NR}` +
     // İkinci inceleme: ev sahibinin KARARINI bildiren geçmiş ("Ev sahibiniz erken girişinizi onayladı") — makbuzsuz izin iddiası.
     `|${NL}(?:${HOST_SUBJECT_TR}|${STAFF_SUBJECT_TR})${NR}[^.!?;:\\n]{0,80}?\\s(?:onayladı|kabul etti|izin verdi|teyit etti|ayarladı|iptal etti)${NR}` +
-    `|${NL}(?:ileti|döne|hallede|haber veri|dönüş yapa|bilgilendiri|paylaşı|gönderi|bildiri|aktarı)r(?:[iı]m|[iı]z)${NR}` +
+    `|${NL}${HABITUAL_BEFORE}(?:ileti|döne|hallede|haber veri|dönüş yapa|bilgilendiri|paylaşı|gönderi|bildiri|aktarı)r(?:[iı]m|[iı]z)${NR}` +
     // 1. TEKİL geniş zaman (09-25): "Bunu ev sahibinize sorarım", "Öğrenip size yazarım", "dönüş sağlarım". 1. çoğul YOK:
     // "Girişte kimliğinizi sorarız" ev sahibinin alışkanlık/süreç anlatımıdır.
     // "Ben olsam … bakarım" bir TAVSİYEDİR (ikinci inceleme 09-25).
-    `|${NL}(?<!(?<!\\p{L})olsam[^.!?\\n]{0,60})(?:sora|danışı|yaza|baka|söyle|öğreni|dönüş sağla|kontrol ede|teyit ede|bilgi veri)r[iı]m${NR}(?!\\s+diye)` +
+    `|${NL}(?<!(?<!\\p{L})olsam[^.!?\\n]{0,60})${HABITUAL_BEFORE}(?:sora|danışı|yaza|baka|söyle|öğreni|dönüş sağla|kontrol ede|teyit ede|bilgi veri)r[iı]m${NR}(?!\\s+diye)` +
     // İkinci inceleme (09-25): 1. TEKİL İSTEK KİPİ = "izin verin ben yapayım" sözü — "Hemen ev sahibinize sorayım",
     // "Kontrol edeyim", "Bir bakayım", "İleteyim". Misafire sorulan netleştirme ("Size bir şey sorayım: …?") DEĞİL.
     `|${NL}(?:sor|danış|kontrol\\s+ed|bak|öğren|araştır|ilet|haber\\s+ver|bilgi\\s+ver|bildir|ara|teyit\\s+ed|onayla|gönder|ayarla|halled|takip\\s+ed|not\\s+al|ilgilen)(?:[ey]?eyim|[ay]?ayım)${NR}(?![^.!?\\n]*[:?])`,
@@ -198,13 +215,14 @@ const ACTIVE_FUTURE_CLAIM = new RegExp(
  * ------------------------------------------------------------------------- */
 const EN_PAST_CLAIM = new RegExp(
   // "As I noted / mentioned earlier" önceki mesaja ATIFTIR (ikinci inceleme 09-25).
-  `${NL}(?<!(?<!\\p{L})as\\s)i(?:'ve| have)?\\s+(?:just\\s+)?(?:forwarded|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|passed\\s+on|created|checked|noted|informed|alerted|flagged|contacted|arranged|logged|asked\\s+our\\s+team|raised)${NR}` +
+  `${NL}(?<!(?<!\\p{L})as\\s)i(?:'ve| have)?\\s+(?:just\\s+)?(?:forwarded|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|passed\\s+on|created|checked|noted|(?:informed|contacted)(?!\\s+you(?!\\p{L}))|alerted|flagged|arranged|logged|asked\\s+our\\s+team|raised)${NR}` +
     // İkinci inceleme: "I've asked / told the host", "I've confirmed with the owner", "I've updated your booking".
     `|${NL}(?<!(?<!\\p{L})as\\s)i(?:'ve| have)?\\s+(?:just\\s+|already\\s+)?(?:(?:asked|told)\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|manager)|confirmed\\s+with\\s+(?:the|your|our)|updated\\s+(?:your|the)\\s+(?:booking|reservation|calendar|dates)` +
-    `|confirmed\\s+(?:your|the)\\s+(?:early|late|booking|reservation|check|extension)|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+along)${NR}` +
+    `|confirmed\\s+(?:your|the)\\s+(?:early|late|booking|reservation|check|extension)|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+along` +
+    `|confirmed\\s+(?:your|the)\\s+(?:\\p{L}+\\s+){0,3}with\\s+(?:the|your)\\s+(?:host|owner|team))${NR}` +
     // İkinci inceleme: ev sahibinin KARARINI bildiren geçmiş ("Your host has approved the late checkout") — makbuzsuz izin.
     `|${NL}(?:your|the)\\s+(?:host|owner)\\s+(?:has\\s+|have\\s+)?(?:approved|confirmed|accepted|agreed\\s+to|granted)${NR}` +
-    `|${NL}i\\s+have\\s+(?:forwarded|created|checked|noted|informed|alerted|flagged|contacted|arranged|logged|raised)${NR}` +
+    `|${NL}(?<!(?<!\\p{L})as\\s)i\\s+have\\s+(?:forwarded|created|checked|noted|(?:informed|contacted)(?!\\s+you(?!\\p{L}))|alerted|flagged|arranged|logged|raised)${NR}` +
     // 09-25: kaçan eylem fiilleri ve "we" ajanı ("I have booked a taxi", "I've let the host know", "We've notified the
     // cleaning team"). Aynı ölçüm: 1.287 model cevabında İngilizce yeni veto 0. Bilinen bedel (pinli): "We have booked this
     // flat for you…" gibi rezervasyonun kendisini anlatan cümle de tutulur — taslak ev sahibine gider (güvenli yön).
@@ -212,7 +230,7 @@ const EN_PAST_CLAIM = new RegExp(
     // "We called it the blue room", "the instructions we sent" ev sahibinin OLGU cümleleri; "sent" hiç yok (gerçekten
     // giden önceki mesaja atıf). Rezervasyon/sipariş fiilleri yalnız "I" ile.
     // Önceki mesaja atıf yapan sıfat cümleciği ("The check-in instructions we emailed on Monday …") iddia değil.
-    `|${NL}(?<!(?:instructions|details|message|messages|email|link|code|info|information|guide|directions)\\s)(?:i|we)(?:'ve| have)?\\s+(?:just\\s+|already\\s+|also\\s+)?(?:forwarded|notified|messaged|emailed|texted|contacted|informed|reported|escalated` +
+    `|${NL}(?<!(?:instructions|details|message|messages|email|link|code|info|information|guide|directions)\\s)(?<!(?<!\\p{L})as\\s)(?:i|we)(?:'ve| have)?\\s+(?:just\\s+|already\\s+|also\\s+)?(?:(?:forwarded|notified|messaged|emailed|texted|contacted|informed)(?!\\s+you(?!\\p{L}))|reported|escalated` +
     `|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+(?:on\\s+)?to|let\\s+(?:the|your|our)\\s+(?:host|team|cleaner|cleaning\\s+team)\\s+know` +
     // "I've sent a message to your host", "I've reached out to the cleaner" (yalnız ALICI ev sahibi/ekip iken; "the
     // instructions we sent" gibi misafire giden önceki mesaj atfı değil).
@@ -222,7 +240,11 @@ const EN_PAST_CLAIM = new RegExp(
     `|sent\\s+(?:someone|somebody|(?:a|the|our)\\s+(?:technician|plumber|cleaner|electrician|handyman|repairman|maintenance\\s+\\p{L}+)))${NR}` +
     `|${NL}consider\\s+it\\s+done${NR}` +
     // Şimdiki zaman: "I'm forwarding this to the host".
-    `|${NL}(?:i'm|i\\s+am|we're|we\\s+are)\\s+(?:forwarding|passing\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|notifying|contacting|informing(?!\\s+(?:all\\s+guests|everyone|you\\s+that))|letting\\s+(?:the|your|our)\\s+\\p{L}+\\s+know|looking\\s+into|arranging)${NR}` +
+    `|${NL}(?:i'm|i\\s+am|we're|we\\s+are)\\s+(?:forwarding|passing\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|notifying|contacting|informing(?!\\s+(?:all\\s+guests|everyone|you\\s+that))|letting\\s+(?:the|your|our)\\s+\\p{L}+\\s+know|looking\\s+into|arranging` +
+    `|checking\\s+(?:with|on)|asking\\s+(?:the|your|our)\\s+(?:host|owner|team|manager)|confirming\\s+with)${NR}` +
+    `|${NL}(?:leave\\s+it\\s+with\\s+me|i'?m\\s+on\\s+it|bear\\s+with\\s+me)${NR}` +
+    `|${NL}give\\s+me\\s+(?:a\\s+)?(?:few\\s+|couple\\s+of\\s+)?(?:minutes?|moments?|seconds?|moment|sec)\\s+to\\s+(?:check|confirm|ask|find\\s+out|look)${NR}` +
+    `|${NL}would\\s+you\\s+like\\s+me\\s+to\\s+(?:check\\s+with|ask\\s+(?:the|your|our)|contact\\s+(?:the|your)|forward|find\\s+out)${NR}` +
     // "Let me forward this / ask the host / check with the host / Let me check." (bekleme sözü — kurucu kararı 09-25,
     // ↓gelecek dalı). 🚨 Aynı cümlede misafire sorulan NETLEŞTİRME söz değildir (inceleme 09-25): "Let me check if I
     // understood correctly: …?", "Let me double-check: is it two adults?" — iki nokta / "if I understood" dalı yok.
@@ -268,7 +290,7 @@ const EN_I = "(?:i(?:'ll|\\s+will|\\s+shall)|i(?:'m|\\s+am)\\s+going\\s+to|allow
 const EN_OTHER_AGENT =
   "(?:we(?:'ll|\\s+will)|we(?:'re|\\s+are)\\s+going\\s+to|(?:your|the|our)\\s+(?:host|owner|team)\\s+is\\s+going\\s+to" +
   // İkinci inceleme: "Our cleaning team will …", "Your host, Maria, will …", "Your host should get back …".
-  "|(?:(?:your|the|our)\\s+(?:\\p{L}+\\s+){0,2}(?:host|owner|property\\s+manager|manager|team|staff|concierge|cleaner)(?:,\\s*[\\p{L}' -]{1,30},)?|they|someone)(?:'ll|\\s+will|\\s+should))";
+  "|(?:(?:your|the|our)\\s+(?:\\p{L}+\\s+){0,2}(?:host|owner|property\\s+manager|manager|team|staff|concierge|cleaner|technician|plumber|electrician|maintenance(?:\\s+team)?)(?:,\\s*[\\p{L}' -]{1,30},)?|they|someone)(?:'ll|\\s+will|\\s+should))";
 const EN_ADVERB = "(?:just\\s+|quickly\\s+|also\\s+|now\\s+|personally\\s+|shortly\\s+|soon\\s+)?";
 const EN_FUTURE_CLAIM = new RegExp(
   // Ardından iki nokta gelen 1. şahıs biçim bir DUYURUDUR ("I'll respond to each of your questions below: …").
@@ -307,8 +329,15 @@ const OTHER_PAST_CLAIM = new RegExp(
     `|(?:^|[.!?]\\s+)(?:уже\\s+)?(?:передал|передала|сообщил|сообщила|уведомил|уведомила|связался|связалась)${NR}` +
     // Arapça kelime sınırı (ikinci inceleme 09-25): "إذا حجزتم" (rezervasyon yaptıysanız), "كما أخبرتكم" (size söylediğim
     // gibi) bizim iddiamız değil.
-    `|(?:لقد\\s+)?(?:أبلغت|أخبرت|حجزت|تواصلت|اتصلت|سألت|راسلت|أبلغنا|أخبرنا|أرسلت\\s+(?:رسالتك|طلبك))(?![\\u0621-\\u064A])` +
-    `|قمت\\s+ب(?:إبلاغ|إخبار|التواصل|حجز)`,
+    `|(?:لقد\\s+)?(?:أبلغت|أخبرت|حجزت|تواصلت|اتصلت|سألت\\s+(?:المضيف|مضيفك|مضيفكم)|راسلت\\s+(?:المضيف|مضيفك|مضيفكم|فريق)|أبلغنا|أخبرنا|أرسلت\\s+(?:رسالتك|طلبك))(?![\\u0621-\\u064A])` +
+    `|قمت\\s+ب(?:إبلاغ|إخبار|التواصل|حجز)` +
+    // Üçüncü inceleme (kör batarya): ev sahibinin KARARINI bildiren geçmiş — beş dilde (TR/EN ikizleri yukarıda).
+    `|${NL}(?:der|die|ihr|ihre)\\s+(?:gastgeber|vermieter)(?:in)?\\s+hat\\s+(?:[\\p{L}-]+\\s+){0,5}?(?:genehmigt|bestätigt|akzeptiert|zugestimmt|erlaubt)${NR}` +
+    `|${NL}(?:l['’]\\s*h[ôo]te(?:sse)?|votre\\s+h[ôo]te(?:sse)?|le\\s+propriétaire)\\s+a\\s+(?:\\p{L}+\\s+){0,2}?(?:accepté|approuvé|confirmé|autorisé|validé)${NR}` +
+    `|${NL}(?:el|su)\\s+anfitri[óo]na?\\s+(?:ya\\s+)?ha\\s+(?:aprobado|aceptado|confirmado|autorizado)${NR}` +
+    `|${NL}(?:хозя\\p{L}*|владел\\p{L}*)\\s+(?:уже\\s+)?(?:одобрил|одобрила|подтвердил|подтвердила|разрешил|разрешила|согласил\\p{L}*)${NR}` +
+    // Arapça kelime sınırı: "متأكد" (eminim) içindeki "أكد" onay değildir (korpus ölçümü yakaladı); "و/ف" bağlaç öneki serbest.
+    `|(?<![\\u0621-\\u064A])[وف]?(?:وافق|أكد|سمح)\\s+(?:\\S+\\s+){0,1}?(?:المضيف|مضيفك|مضيفكم)|(?:المضيف|مضيفك|مضيفكم)\\s+[وف]?(?:وافق|أكد|سمح)(?![\\u0621-\\u064A])`,
   "iu",
 );
 
@@ -361,13 +390,36 @@ const OTHER_FUTURE_CLAIM = new RegExp(
     `|посмотрю|выясню|попрошу|перешлю|буду\\s+держать\\s+вас\\s+в\\s+курсе)${NR}` +
     `|${NL}(?:хозя\\p{L}*|владел\\p{L}*)\\s+(?:вам\\s+)?(?:напишет|сообщит|ответит|свяжется|перезвонит|подтвердит)${NR}` +
     // AR: 1. tekil/çoğul ve 3. şahıs gelecek ("سأ… / سوف أ… / سن… / سي…"); "سأسألك" misafire sorulan sorudur.
-    `|سأ(?:تواصل|سأل(?!ك)|خبر|بلغ|ؤكد|تحقق|رد|عود|تأكد|علم|رسل|قوم\\s+ب|تصل|ستفسر|تابع|وافي)|سوف\\s+أ(?:سأل(?!ك)|تواصل|خبر|بلغ|تحقق|رد|عود|تأكد)` +
+    `|سأ(?:تواصل|سأل(?!ك)|خبر|بلغ|ؤكد|تحقق|رد|عود|تأكد|علم|رسل|قوم\\s+ب|تصل|ستفسر|تابع|وافي|هتم)|سوف\\s+أ(?:سأل(?!ك)|تواصل|خبر|بلغ|تحقق|رد|عود|تأكد)` +
     `|دعني\\s+(?:أسأل|أتحقق|أتأكد|أتواصل|أستفسر|أراجع)` +
     // Üçüncü şahıs gelecek YALNIZ ev sahibi öznesiyle (ikinci inceleme: "سيعود الماء" suyun geri gelmesidir, "سيخبرك حارس
     // المبنى" bina görevlisinin sürecidir).
     `|سن(?:تواصل|خبر|بلغ|رد|عود|تحقق|تأكد|وافي)|سوف\\s+ي(?:تواصل|رد)\\S*\\s+(?:\\S+\\s+){0,2}?(?:المضيف|مضيفك|مضيفكم)` +
     `|سي(?:تواصل|رد|خبر|بلغ|عود)\\S*\\s+(?:معك\\s+|معكم\\s+|إليك\\s+|عليك\\s+|عليكم\\s+)?(?:المضيف|مضيفك|مضيفكم)|(?:المضيف|مضيفك|مضيفكم)\\s+(?:\\S+\\s+){0,2}?سي(?:تواصل|رد|خبر|بلغ|عود)` +
-    `|سيقوم\\s+(?:\\S+\\s+){0,3}?بالتواصل`,
+    `|سيقوم\\s+(?:\\S+\\s+){0,3}?بالتواصل` +
+    // Üçüncü inceleme (kör batarya): ekip öznesiyle geri dönüş sözü, "bırakın ben bakayım", şimdiki zaman "şu an
+    // soruyorum", "ben hallederim" ve ev sahibine/ekibe yönelik teklif — beş dilde.
+    `|${NL}(?:unser|das)\\s+team\\s+(?:wird\\s+(?:sie|ihnen)\\s+(?:\\p{L}+\\s+){0,3}?(?:kontaktieren|melden|informieren|benachrichtigen|antworten|schreiben)|meldet\\s+sich)${NR}` +
+    `|${NL}(?:notre|l['’])\\s*équipe\\s+(?:vous\\s+)?(?:recontactera|contactera|répondra|informera|reviendra|écrira|va\\s+vous\\s+(?:re)?contacter)${NR}` +
+    `|${NL}(?:nuestro|el)\\s+equipo\\s+(?:le|les)\\s+(?:escribirá|contactará|responderá|avisará|informará)${NR}` +
+    `|${NL}(?:наша\\s+)?команда\\s+(?:\\p{L}+\\s+){0,3}?(?:свяжется|напишет|сообщит|ответит)${NR}` +
+    `|سي(?:تصل|تواصل|رد)\\S*\\s+(?:بك\\s+|بكم\\s+|معك\\s+)?فريق|فريقنا\\s+سي(?:تصل|تواصل|رد)` +
+    `|${NL}lassen\\s+sie\\s+mich\\s+(?:\\p{L}+\\s+){0,3}?(?:prüfen|nachfragen|klären|nachsehen|checken|fragen)${NR}(?![^.!?\\n]*[:?])` +
+    `|${NL}laissez-moi\\s+(?:vérifier|demander|voir|contacter|me\\s+renseigner)${NR}(?![^.!?\\n]*[:?])` +
+    `|${NL}estoy\\s+(?:consultando|preguntando|verificando|comprobando|contactando|revisando|hablando\\s+con)${NR}` +
+    `|${NL}(?:уточняю|спрашиваю|связываюсь|выясняю)${NR}(?![^.!?\\n]*[:?])` +
+    `|أتواصل\\s+(?:\\S+\\s+){0,2}?مع\\s+(?:المضيف|مضيفك)|أ(?:تحقق|ستفسر)\\s+(?:\\S+\\s+){0,2}?(?:من|مع)\\s+(?:المضيف|مضيفك)` +
+    `|${NL}(?:me\\s+encargo|me\\s+encargaré|nos\\s+encargamos|nos\\s+encargaremos|займусь|займёмся|займемся)${NR}` +
+    // TEKLİF dalları: OLUMSUZ yetki cümlesi söz değil dürüst sınırdır ("No puedo verificar la disponibilidad", "Ich kann das
+    // leider nicht klären", "Не могу уточнить", "لا يمكنني أن أتحقق", "Je peux pas vérifier") — üçüncü inceleme; Türkçe
+    // olumsuz ("soramam") ve İngilizce ("can't / cannot") biçimleri zaten eşleşmez.
+    // Almancada modal fiil cümlecik SONUNDADIR: "…kann ich beim Gastgeber nachfragen." (isim "Fragen" değil — "Ich kann Ihnen
+    // nur bei Fragen zu Ihrem Aufenthalt helfen" bir yetki sınırıdır; korpus ölçümü yakaladı).
+    `|${NL}(?:kann\\s+ich|ich\\s+kann)\\s+(?:(?!(?:nicht|nie|kein\\p{L}*)(?!\\p{L}))[\\p{L}-]+\\s+){0,4}?(?:nachfragen|fragen|kontaktieren|weiterleiten|klären)(?=\\s*(?:[.!?,;]|$))` +
+    `|${NL}je\\s+peux\\s+(?:(?!(?:pas|plus|jamais)(?!\\p{L}))\\p{L}+\\s+){0,2}?(?:demander|vérifier|contacter|transmettre|voir\\s+avec|me\\s+renseigner)${NR}` +
+    `|${NL}(?<!(?<!\\p{L})(?:no|tampoco|nunca)\\s(?:(?:le|les|lo|la|se|me|te)\\s)?)puedo\\s+(?:\\p{L}+\\s+){0,1}?(?:preguntar|consultar|verificar|comprobar|contactar|avisar)\\p{L}*` +
+    `|${NL}(?<!(?<!\\p{L})не\\s)могу\\s+(?:\\p{L}+\\s+){0,1}?(?:уточнить|спросить|узнать|передать|связаться|проверить)${NR}` +
+    `|(?<!(?<![\\u0621-\\u064A])لا\\s)يمكنني\\s+(?:أن\\s+)?(?:أسأل|أتواصل|أتحقق|أستفسر|أبلغ)`,
   "iu",
 );
 
