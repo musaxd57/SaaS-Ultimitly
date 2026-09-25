@@ -19,8 +19,12 @@ import { dateKeyInTimeZone } from "@/lib/timezone";
 // de bazı yazarlarda günü kaydırıyordu. Çapa kuralı: UTC saati TAM 00:00:00.000 ya da
 // 12:00:00.000 ise değer "yalnız tarih"tir → UTC tarihi; aksi hâlde gerçek an → mülk diliminde
 // tarih. Europe/Istanbul'da `/calendar` ile her yazar için birebir aynıdır (parite testi).
-// Bilinen sınır: öteki dilimlerde tam 00:00Z/12:00Z'ye düşen GERÇEK bir an (ör. Auckland yerel
-// gece yarısı) tarih sanılır.
+// Bilinen sınır: öteki dilimlerde tam 00:00Z/12:00Z'ye düşen GERÇEK bir an tarih sanılır — yalnız
+// Auckland gece yarısı değil, yaygın giriş saatleri de (ikinci inceleme 09-25 ölçtü: Los Angeles
+// 16:00 PST / 17:00 PDT, Honolulu 14:00, New York 19:00/20:00, Pago Pago 13:00 = 00:00Z) → giriş bir
+// gün geç görünür. Yalnız saatli (TZID) iCal etkinliklerini etkiler; Hospitable ve elle giriş yalnız
+// tarihtir. Ingest'te +1 ms eklemek REDDEDİLDİ: var olan her satırı bir kez değiştirip yapay ingest
+// olayı üretirdi ("değişmeyen satır → olay yok" kuralı).
 //
 // 🚨 KAPALI BAŞARISIZ: "boş" demek ancak KANITLA olur. Bir gece yalnız (a) üzerinde hiçbir
 // rezervasyon yoksa, (b) mülkün en az bir kapsama kaynağı varsa ve (c) HER kaynak taze ve
@@ -79,6 +83,15 @@ export function calendarDateOf(stored: Date, timeZone: string): { key: NightKey;
 
 export function todayKey(now: Date, timeZone: string): NightKey {
   return dateKeyInTimeZone(now, timeZone);
+}
+
+/**
+ * Konaklama BİTTİ mi: çıkış günü (`calendarDateOf`) org gününe göre GEÇTİ — çıkış günü boyunca "bitmedi". Oto-yanıtın
+ * "konaklama bitti" susması ve gelen kutusu panelinin devir blokları AYNI kuralı kullanır (ikinci inceleme 09-25: panel
+ * ham `dateKeyInTimeZone` ile New York'ta çıkış günü boyunca blokları gizliyordu).
+ */
+export function stayEndedBefore(departure: Date, now: Date, timeZone: string): boolean {
+  return calendarDateOf(departure, timeZone).key < todayKey(now, timeZone);
 }
 
 /** `booked` confirmed|completed · `held` pending · `ignored` cancelled · tanınmayan → İŞGAL EDER. */

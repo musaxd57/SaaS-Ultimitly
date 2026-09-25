@@ -359,6 +359,39 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     expect((await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "co-dst23" } })).status).toBe("canceled");
   });
 
+  it("C4 (ikinci inceleme 09-25): YALNIZ TARİH çıkış (D 00:00Z) New York'ta çıkış günü sabahı window_passed DEĞİL; bir gün önceki IS", async () => {
+    // Eski kural saklı değeri org dilimine çeviriyordu: 00:00Z New York'ta bir önceki günün 20:00'si → çıkış günü sabahı
+    // kuyruktaki hatırlatma "geçti" diye iptal ediliyordu. Kural artık sendDueCheckouts ile AYNI (`calendarDateOf`).
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
+    const mkRow = async (departure: Date, ref: string, key: string) => {
+      const res = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "G", channel: "airbnb", status: "confirmed",
+          arrivalDate: new Date(departure.getTime() - 3 * 86_400_000), departureDate: departure,
+          sourceReference: ref,
+        },
+      });
+      await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
+          externalReservationId: ref, messageType: "checkout", body: "x", idempotencyKey: key, status: "pending",
+          availableAt: new Date("2026-01-01T00:00:00Z"),
+        },
+      });
+      return res.id;
+    };
+    const now = new Date("2026-06-15T13:00:00Z"); // 09:00 EDT, çıkış günü sabahı
+    const todayId = await mkRow(new Date("2026-06-15T00:00:00Z"), "res-ny-today", "co-ny-today");
+    await mkRow(new Date("2026-06-14T00:00:00Z"), "res-ny-past", "co-ny-past");
+    const { send, calls } = okDeliver();
+    const res = await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now: () => now });
+    expect(calls()).toBe(1); // bugünün çıkışı teslim; dünkü veto
+    expect(res.canceled).toBe(1);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: todayId } })).checkoutSentAt).toBeInstanceOf(Date);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "co-ny-past" } })).status).toBe("canceled");
+  });
+
   it("proactive enqueue is idempotent on the deterministic key (replay/restart safe)", async () => {
     const { orgId, reservationId } = await seedWelcome();
     const args = {

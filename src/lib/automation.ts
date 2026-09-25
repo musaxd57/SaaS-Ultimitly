@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import {
@@ -41,8 +42,8 @@ import { guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-sign
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
-import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone, addZonedDays } from "@/lib/timezone";
-import { calendarDateOf, todayKey } from "@/modules/availability/core";
+import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
+import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
 // Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
 export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
@@ -1698,7 +1699,7 @@ export async function applyChannelAutoReply(
       return { sent: false, skippedReason: "reservation_ended", ...meta };
     }
     const orgTz = orgTimezone(org.timezone);
-    if (calendarDateOf(conversation.reservation.departureDate, orgTz).key < todayKey(new Date(), orgTz)) {
+    if (stayEndedBefore(conversation.reservation.departureDate, new Date(), orgTz)) {
       // Org day boundary (not server UTC) — otherwise a guest still checked in
       // on checkout-day morning (departureDate at Istanbul midnight = before UTC
       // midnight) would be wrongly treated as departed and the reply skipped.
@@ -3613,6 +3614,24 @@ async function lifecycleOutboxOwns(
 }
 
 /**
+ * YAŞAM DÖNGÜSÜ SEÇİMİ — TEK TARİH KURALI (ikinci inceleme 09-25). Saklı rezervasyon tarihi iki biçimde durur: "yalnız
+ * tarih" (D 00:00Z / D 12:00Z — Hospitable, elle giriş, iCal tarih değeri) ve gerçek an (iCal TZID). Eski seçim her değeri
+ * org gününün BAŞINA (`zonedDayRange`) kıyaslıyordu → New York'ta bugünün 00:00Z değeri "dün" sayılıyor, çıkış hatırlatması
+ * bir gün ÖNCE gidiyor, aynı gün girişin karşılama/giriş mesajı hiç gitmiyordu; Auckland'da dünün 12:00Z değeri "bugün"
+ * sayılıyordu. Sorgu bir ÜST KÜMEDİR (bugünün iki çapası eklenir, komşu günün çapası da gelebilir); kesin karar
+ * `calendarDateOf` kıyasıdır (gönderici ve önizleme aynı kural — önizleme == gerçek).
+ */
+function todayDateAnchors(now: Date, tz: string): Date[] {
+  const key = todayKey(now, tz);
+  return [new Date(`${key}T00:00:00.000Z`), new Date(`${key}T12:00:00.000Z`)];
+}
+
+/** Org gününe göre BUGÜN ya da SONRASI (üst küme; kesin karar `calendarDateOf`, ↑todayDateAnchors). */
+function onOrAfterTodayWhere(field: "arrivalDate" | "departureDate", now: Date, tz: string): Prisma.ReservationWhereInput {
+  return { OR: [{ [field]: { gte: zonedDayRange(now, tz).start } }, { [field]: { in: todayDateAnchors(now, tz) } }] };
+}
+
+/**
  * Send the per-apartment welcome message for upcoming reservations that haven't
  * received one yet. The body is built from the apartment's "welcome" knowledge
  * base entry, personalised with the guest's first name and closed with the org
@@ -3655,7 +3674,9 @@ export async function sendDueWelcomes(
   const baseline = org.autoWelcomeEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
 
-  const reservations = await prisma.reservation.findMany({
+  const tz = orgTimezone(org.timezone);
+  const today = todayKey(now, tz);
+  const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
       status: "confirmed",
@@ -3666,8 +3687,8 @@ export async function sendDueWelcomes(
       // fragment'in başlığında; önizleme aynı fragment'i yayar → parite yapısal.
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE,
       createdAt: { gte: baseline }, // only bookings created since welcome was enabled
-      // Org-local day boundary (not server UTC) so today's arrival isn't dropped.
-      arrivalDate: { gte: zonedDayRange(now, orgTimezone(org.timezone)).start },
+      // Org gününe göre bugün ya da sonrası (not server UTC) so today's arrival isn't dropped — TEK TARİH KURALI.
+      AND: [onOrAfterTodayWhere("arrivalDate", now, tz)],
     },
     select: {
       id: true,
@@ -3682,6 +3703,7 @@ export async function sendDueWelcomes(
     orderBy: { arrivalDate: "asc" },
     take: 25, // cap per run so enabling the toggle can't cause a huge burst
   });
+  const reservations = candidates.filter((r) => calendarDateOf(r.arrivalDate, tz).key >= today);
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
@@ -3848,17 +3870,18 @@ export async function sendDueCheckins(
   const baseline = org.autoCheckinEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
 
-  const reservations = await prisma.reservation.findMany({
+  const tz = orgTimezone(org.timezone);
+  const today = todayKey(now, tz);
+  const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
       status: "confirmed",
       checkinSentAt: null,
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
       createdAt: { gte: baseline }, // only bookings created since this was enabled
-      arrivalDate: {
-        gte: zonedDayRange(now, orgTimezone(org.timezone)).start, // not for stays already begun/past (org-local day)
-        lte: addDays(now, CHECKIN_LEAD_DAYS), // …only once within the lead window
-      },
+      arrivalDate: { lte: addDays(now, CHECKIN_LEAD_DAYS) }, // …only once within the lead window
+      // Not for stays already begun/past — org gününe göre bugün ya da sonrası, TEK TARİH KURALI (↑todayDateAnchors).
+      AND: [onOrAfterTodayWhere("arrivalDate", now, tz)],
     },
     select: {
       id: true,
@@ -3866,12 +3889,14 @@ export async function sendDueCheckins(
       channel: true,
       sourceReference: true,
       propertyId: true,
+      arrivalDate: true,
       property: { select: { name: true } },
     },
     distinct: ["sourceReference"], // one message per booking, even if rows duplicated
     orderBy: { arrivalDate: "asc" },
     take: 25,
   });
+  const reservations = candidates.filter((r) => calendarDateOf(r.arrivalDate, tz).key >= today);
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
@@ -4009,23 +4034,28 @@ export async function previewWelcomes(
 
   const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
 
-  const reservations = await prisma.reservation.findMany({
+  const tz = orgTimezone(org?.timezone);
+  const today = todayKey(now, tz);
+  const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
       status: "confirmed",
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
-      arrivalDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
+      arrivalDate: { lte: horizon },
+      AND: [onOrAfterTodayWhere("arrivalDate", now, tz)], // gönderici ile AYNI gün kuralı
     },
     select: {
       guestName: true,
       propertyId: true,
       welcomeSentAt: true,
+      arrivalDate: true,
       property: { select: { name: true } },
     },
     distinct: ["sourceReference"], // one card per booking
     orderBy: { arrivalDate: "asc" },
     take: limit,
   });
+  const reservations = candidates.filter((r) => calendarDateOf(r.arrivalDate, tz).key >= today);
 
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {
@@ -4066,23 +4096,28 @@ export async function previewCheckins(
   const now = new Date();
   const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
 
-  const reservations = await prisma.reservation.findMany({
+  const tz = orgTimezone(org?.timezone);
+  const today = todayKey(now, tz);
+  const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
       status: "confirmed",
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
-      arrivalDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
+      arrivalDate: { lte: horizon },
+      AND: [onOrAfterTodayWhere("arrivalDate", now, tz)], // gönderici ile AYNI gün kuralı
     },
     select: {
       guestName: true,
       propertyId: true,
       checkinSentAt: true,
+      arrivalDate: true,
       property: { select: { name: true } },
     },
     distinct: ["sourceReference"], // one card per booking
     orderBy: { arrivalDate: "asc" },
     take: limit,
   });
+  const reservations = candidates.filter((r) => calendarDateOf(r.arrivalDate, tz).key >= today);
 
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {
@@ -4145,27 +4180,27 @@ export async function sendDueCheckouts(
   // Same-day reminder window: 08:00-11:59 org time on the departure day.
   const hour = currentHourInTimeZone(tz, now);
   if (hour < 8 || hour >= 12) return { sent: 0, considered: 0 };
-  // The calendar date of "today" in the org timezone — check-out must be today.
-  const todayKey = dateKeyInTimeZone(now, tz);
+  // The calendar date of "today" in the org timezone — check-out must be today (TEK TARİH KURALI, ↑todayDateAnchors).
+  const today = todayKey(now, tz);
+  const day = zonedDayRange(now, tz);
   // Only message bookings created AFTER checkout was switched on
   // (autoCheckoutEnabledAt), so enabling never messages guests already mid-stay
   // from before. No baseline yet → nothing is sent.
   const baseline = org.autoCheckoutEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
 
-  const reservations = await prisma.reservation.findMany({
+  const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
       status: { in: ["confirmed", "completed"] },
       checkoutSentAt: null,
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
       createdAt: { gte: baseline }, // only bookings created since checkout was enabled
-      // +3 CALENDAR days in org-tz (addZonedDays), not date-fns addDays (+72h):
-      // DST geçiş günlerinde sabit saat-adımı pencere ucunu yerel geceyarısından
-      // kaydırıyordu. Bu yalnız mesaj-SEÇİM penceresidir — asıl gönderim-anı
-      // checkout vetosu outbox worker'ındaki lifecycleVeto'da yaşar ve AYNI
-      // org-tz takvim-günü kuralını kullanır (Codex 07-23; iki yol ayrışamaz).
-      departureDate: { gte: zonedDayRange(now, tz).start, lt: addZonedDays(zonedDayRange(now, tz).start, 3, tz) },
+      // Yalnız org gününe göre BUGÜN çıkanlar — TEK TARİH KURALI (↑todayDateAnchors): gerçek anlar org gününün
+      // (DST'de 23/25 saatlik) içinde, "yalnız tarih" değerleri bugünün iki çapası. Eski "+3 gün" penceresi ABD
+      // dilimlerinde bugünün 00:00Z değerini dışarıda bırakıp bir gün ÖNCE seçiyordu. Asıl gönderim-anı checkout
+      // vetosu outbox worker'ındaki lifecycleVeto'da yaşar ve AYNI kuralı kullanır (Codex 07-23; iki yol ayrışamaz).
+      AND: [{ OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] }],
     },
     select: {
       id: true,
@@ -4180,6 +4215,10 @@ export async function sendDueCheckouts(
     orderBy: { departureDate: "asc" },
     take: 25,
   });
+  // Only when check-out is TODAY (same-day reminder) — kesin gün kararı `calendarDateOf` (üst kümeden komşu günün çapası
+  // elenir). (No single-night skip anymore: that guard existed because the old evening-before send collided with the
+  // arrival day; a morning-of reminder is exactly as useful for a one-night guest.)
+  const reservations = candidates.filter((r) => calendarDateOf(r.departureDate, tz).key === today);
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
@@ -4195,15 +4234,6 @@ export async function sendDueCheckouts(
   const failures: string[] = [];
 
   for (const r of reservations) {
-    // Only when check-out is TODAY (same-day reminder). Compare the departure's
-    // calendar day in the ORG timezone against todayKey (also org tz). A UTC
-    // day-key disagreed by a day for departures stored at Istanbul midnight, so
-    // checkout messages effectively never sent.
-    // (No single-night skip anymore: that guard existed because the old
-    // evening-before send collided with the arrival day; a morning-of reminder
-    // is exactly as useful for a one-night guest.)
-    if (dateKeyInTimeZone(r.departureDate, tz) !== todayKey) continue;
-
     const tpl = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "checkout", ...GUEST_DELIVERABLE_KB_WHERE },
       select: { content: true },
@@ -4566,23 +4596,28 @@ export async function previewCheckouts(
   const now = new Date();
   const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
 
-  const reservations = await prisma.reservation.findMany({
+  const tz = orgTimezone(org?.timezone);
+  const today = todayKey(now, tz);
+  const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
       status: { in: ["confirmed", "completed"] },
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
-      departureDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
+      departureDate: { lte: horizon },
+      AND: [onOrAfterTodayWhere("departureDate", now, tz)], // gönderici ile AYNI gün kuralı
     },
     select: {
       guestName: true,
       propertyId: true,
       checkoutSentAt: true,
+      departureDate: true,
       property: { select: { name: true } },
     },
     distinct: ["sourceReference"], // one card per booking
     orderBy: { departureDate: "asc" },
     take: limit,
   });
+  const reservations = candidates.filter((r) => calendarDateOf(r.departureDate, tz).key >= today);
 
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {

@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, BookOpen, ArrowLeftRight, CheckSquare } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
-import { orgTimezone, dateKeyInTimeZone } from "@/lib/timezone";
+import { orgTimezone } from "@/lib/timezone";
+import { stayEndedBefore } from "@/modules/availability/core";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { reservationAmountNumber } from "@/lib/money";
@@ -76,10 +77,10 @@ export default async function ConversationPage({
   // sanmak, kırpmayı sessiz veri kaybına çevirirdi.
   const hiddenStays = returning ? returning.stayCount - 1 - returning.pastStays.length : 0;
 
-  // Konaklama bitti mi (org diliminde gün anahtarı) — aşağıdaki kenar/devir bloklarının kapısı.
-  const todayKey = dateKeyInTimeZone(new Date(), TZ);
+  // Konaklama bitti mi — aşağıdaki kenar/devir bloklarının kapısı. Oto-yanıtın "konaklama bitti" kuralıyla AYNI
+  // fonksiyon (TEK TARİH KURALI; eski ham kıyas New York'ta çıkış günü boyunca blokları gizliyordu).
   const stayIsOver = conversation.reservation
-    ? dateKeyInTimeZone(conversation.reservation.departureDate, TZ) < todayKey
+    ? stayEndedBefore(conversation.reservation.departureDate, new Date(), TZ)
     : false;
 
   const [kb, adjacency, tasks, outboxRows, stayEdges] = await Promise.all([

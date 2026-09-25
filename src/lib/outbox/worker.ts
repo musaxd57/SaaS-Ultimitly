@@ -3,7 +3,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { orgTimezone, dateKeyInTimeZone } from "@/lib/timezone";
+import { orgTimezone } from "@/lib/timezone";
+import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { reportError } from "@/lib/report-error";
 import { getOrgHospitableToken, handleProviderAuthFailure } from "@/lib/hospitable-credentials";
 import { dispatchOutbound, resolveOutboundRoute } from "@/lib/channels";
@@ -479,8 +480,10 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   // day. Date-key comparison is also representation-agnostic within the day.
   if (type === "checkin" && res.departureDate < now) return "window_passed";
   if (type === "checkout") {
+    // TEK TARİH KURALI (`calendarDateOf`, ikinci inceleme 09-25): "yalnız tarih" değeri (D 00:00Z / D 12:00Z) org dilimine
+    // ÇEVRİLMEZ — eski kıyas New York'ta çıkış gününün sabahı kuyruktaki mesajı "geçti" diye iptal ediyordu.
     const tz = orgTimezone(res.property?.organization?.timezone);
-    if (dateKeyInTimeZone(now, tz) > dateKeyInTimeZone(res.departureDate, tz)) return "window_passed";
+    if (todayKey(now, tz) > calendarDateOf(res.departureDate, tz).key) return "window_passed";
   }
   return null;
 }

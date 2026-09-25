@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { daysUntilDate } from "@/lib/utils";
+import { calendarDateOf, nightsBetween, todayKey } from "@/modules/availability/core";
 import { orgTimezone } from "@/lib/timezone";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { loadErasureGuard } from "@/lib/erasure";
@@ -941,9 +941,14 @@ export async function resolveGuestChat(
   // currently on-site the afternoon before turnover, and (b) on turnover morning
   // serve the on-site guest's thread under the next guest's id (cross-guest PII).
   const tz = orgTimezone(property.organization?.timezone);
+  // Gün farkı TEK TARİH KURALIYLA (`calendarDateOf`, ikinci inceleme 09-25): saklı tarih (00:00Z / 12:00Z = yalnız tarih)
+  // org dilimine ÇEVRİLMEZ. Eski `daysUntilDate` onu çeviriyordu → New York'ta sohbet çıkıştan bir gün önce 11:00'de
+  // kapanıyor, girişten bir gün önce 15:00'te açılıyordu (devir akşamı çıkan misafir gelecek konaklamanın sohbetini
+  // sahiplenebiliyordu); Auckland'da iki uç da bir gün geç.
+  const today = todayKey(now, tz);
   const isOpenNow = (r: { arrivalDate: Date; departureDate: Date }): boolean => {
-    const arrDiff = daysUntilDate(r.arrivalDate, now, tz); // 0 = today, >0 future, <0 past
-    const depDiff = daysUntilDate(r.departureDate, now, tz);
+    const arrDiff = nightsBetween(today, calendarDateOf(r.arrivalDate, tz).key); // 0 = today, >0 future, <0 past
+    const depDiff = nightsBetween(today, calendarDateOf(r.departureDate, tz).key);
     // Symmetric HARD gate (org-local clock): on the arrival day the chat only opens
     // once the property's check-in time is reached — not from the day-start. This
     // closes the turnover window (prev guest checked out, next guest not yet checked

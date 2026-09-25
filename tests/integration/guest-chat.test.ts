@@ -201,4 +201,53 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     const aStill = await resolveGuestChat(token, new Date("2026-06-20T07:00:00Z"));
     expect(aStill!.activeReservation?.guestName).toBe("A");
   });
+
+  it("🚨 TEK TARİH KURALI (ikinci inceleme 09-25): New York'ta devir AKŞAMI gelecek konaklamanın sohbeti açılmaz, çıkış sabahı içerideki misafirinki açık kalır", async () => {
+    // Eski `daysUntilDate` YALNIZ TARİH saklanan değeri (D 00:00Z) org dilimine çeviriyordu: New York'ta 00:00Z bir önceki
+    // günün 20:00'si → sohbet çıkıştan bir gün ÖNCE 11:00'de kapanıyor, girişten bir gün ÖNCE 15:00'te açılıyordu. Devir
+    // akşamı içerideki misafir (ya da temizlikçi) GELECEK konaklamanın sohbetini sahiplenebiliyordu.
+    const { propertyId, orgId } = await makeOrgWithProperty(); // check-in 15:00, checkout 11:00
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
+    const token = await enableChat(propertyId);
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "A", arrivalDate: new Date("2026-06-18T00:00:00Z"), departureDate: new Date("2026-06-20T00:00:00Z"), status: "confirmed", channel: "airbnb" },
+    });
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "B", arrivalDate: new Date("2026-06-20T00:00:00Z"), departureDate: new Date("2026-06-22T00:00:00Z"), status: "confirmed", channel: "airbnb" },
+    });
+    // 06-19 15:30 NY (19:30Z): A yarın çıkıyor, B yarın giriyor → sohbet A'nın.
+    const eve = await resolveGuestChat(token, new Date("2026-06-19T19:30:00Z"));
+    expect(eve!.open).toBe(true);
+    expect(eve!.activeReservation?.guestName).toBe("A");
+    // 06-20 10:00 NY (14:00Z): A'nın çıkış sabahı, 11:00'den önce → hâlâ A.
+    const morning = await resolveGuestChat(token, new Date("2026-06-20T14:00:00Z"));
+    expect(morning!.open).toBe(true);
+    expect(morning!.activeReservation?.guestName).toBe("A");
+    // 06-20 12:00 NY (16:00Z): devir penceresi → kapalı.
+    const turnover = await resolveGuestChat(token, new Date("2026-06-20T16:00:00Z"));
+    expect(turnover!.open).toBe(false);
+    expect(turnover!.activeReservation).toBeNull();
+    // 06-20 16:00 NY (20:00Z): B'nin girişi geçti → B.
+    const bLive = await resolveGuestChat(token, new Date("2026-06-20T20:00:00Z"));
+    expect(bLive!.open).toBe(true);
+    expect(bLive!.activeReservation?.guestName).toBe("B");
+  });
+
+  it("🚨 TEK TARİH KURALI: Auckland'da iCal tarih değeri (D 12:00Z) giriş günü açılır, çıkıştan SONRAKİ sabah açık kalmaz", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Pacific/Auckland" } });
+    const token = await enableChat(propertyId);
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "N", arrivalDate: new Date("2026-06-20T12:00:00Z"), departureDate: new Date("2026-06-22T12:00:00Z"), status: "confirmed", channel: "airbnb" },
+    });
+    // 06-20 16:00 NZST (04:00Z): giriş günü, 15:00 geçti → açık (eski kural bir gün GEÇ açıyordu).
+    const arrival = await resolveGuestChat(token, new Date("2026-06-20T04:00:00Z"));
+    expect(arrival!.open).toBe(true);
+    // 06-22 10:00 NZST (06-21T22:00Z): çıkış sabahı → açık.
+    const checkoutMorning = await resolveGuestChat(token, new Date("2026-06-21T22:00:00Z"));
+    expect(checkoutMorning!.open).toBe(true);
+    // 06-23 10:00 NZST (06-22T22:00Z): çıkıştan sonraki gün → kapalı (eski kural bu sabah hâlâ açıktı).
+    const after = await resolveGuestChat(token, new Date("2026-06-22T22:00:00Z"));
+    expect(after!.open).toBe(false);
+  });
 });

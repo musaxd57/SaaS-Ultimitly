@@ -9,6 +9,7 @@ import {
   nightsBetween,
   parseNightKey,
   statusClassOf,
+  stayEndedBefore,
   todayKey,
   type AvailabilityInput,
   type CoverageSource,
@@ -115,6 +116,33 @@ describe("tek tarih kuralı (çapa)", () => {
     const r = nightsOf(i, "2026-10-03", "2026-10-07");
     expect(r.conflicts).toEqual([]);
     expect(r.nights.map((n) => n.state)).toEqual(["booked", "booked", "booked", "booked"]);
+  });
+});
+
+describe("konaklama bitti mi — stayEndedBefore (oto-yanıt susması + gelen kutusu devir blokları, TEK kural)", () => {
+  // İkinci inceleme 09-25: gelen kutusu paneli ham `dateKeyInTimeZone` ile kıyaslıyordu → New York'ta YALNIZ TARİH
+  // saklanan (00:00Z) çıkış, çıkış günü BOYUNCA "bitti" sayılıp devir blokları gizleniyordu.
+  it("çıkış günü boyunca bitmedi, ertesi gün bitti — New York, İstanbul, Auckland; iki çapa", () => {
+    const cases: [string, Date, Date, boolean][] = [
+      // [dilim, çıkış, şimdi, bitti mi]
+      ["America/New_York", midnight("2026-06-20"), new Date("2026-06-20T14:00:00Z"), false], // 10:00 NY, çıkış günü
+      ["America/New_York", midnight("2026-06-20"), new Date("2026-06-21T03:30:00Z"), false], // 23:30 NY, hâlâ çıkış günü
+      ["America/New_York", midnight("2026-06-20"), new Date("2026-06-21T04:30:00Z"), true], //  00:30 NY, ertesi gün
+      ["Pacific/Auckland", noon("2026-06-20"), new Date("2026-06-20T22:00:00Z"), true], //     10:00 NZ 06-21 → geçti
+      ["Pacific/Auckland", noon("2026-06-20"), new Date("2026-06-19T22:00:00Z"), false], //    10:00 NZ 06-20 → çıkış günü
+      [TZ, midnight("2026-06-20"), new Date("2026-06-20T20:59:00Z"), false], //                 23:59 İstanbul
+      [TZ, midnight("2026-06-20"), new Date("2026-06-20T21:01:00Z"), true], //                  00:01 İstanbul ertesi gün
+    ];
+    for (const [tz, dep, now, over] of cases) {
+      expect(stayEndedBefore(dep, now, tz), `${tz} ${dep.toISOString()} @ ${now.toISOString()}`).toBe(over);
+    }
+  });
+
+  it("gerçek an (TZID'li iCal) mülk diliminde okunur", () => {
+    // New York 2026-06-20 11:00 = 15:00Z → çıkış günü 06-20.
+    const dep = new Date("2026-06-20T15:00:00Z");
+    expect(stayEndedBefore(dep, new Date("2026-06-21T03:00:00Z"), "America/New_York")).toBe(false); // 23:00 NY 06-20
+    expect(stayEndedBefore(dep, new Date("2026-06-21T05:00:00Z"), "America/New_York")).toBe(true); //  01:00 NY 06-21
   });
 });
 
