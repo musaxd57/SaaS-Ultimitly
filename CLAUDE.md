@@ -1123,7 +1123,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 ev sahibinin AI ile doğal dil / ses kumandası: karar kartı, talimat, bilgi güncellemesi (onaylı), sorgu, devralma; WhatsApp
 yalnız kanal, kayıt backend'de. Doğal dilden doğrudan yürütme YOK (para/saat → "Anladığım: …" önizlemesi), gönderimden önce
 yeniden doğrulama. Kurucu: "her şeyi bitirince bu sisteme bakarız" → açık işler kapanınca belgenin §14 planı (Faz 0 onay
-paketi; Host Karar Motoru = Faz 1).
+paketi; Host Karar Motoru = Faz 1). **Faz 0 onay paketi HAZIR** (`docs/ONAY-HOST-COPILOT-FAZ0-2026-09-25.md`: on karar
+K1–K10 + `DecisionRequest` tablosu + durum makinesi + yeniden doğrulama + güvenlik); kod/migration kurucu kararından sonra.
 
 **09-25 İKİNCİ İNCELEME TURU (üç ajan + kör batarya son kontrolü; `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md` §1.7):**
 kapanış teklif/selam/devir düzeltmeleri · bekleme sözü vetosu 7 dilde · tek tarih kuralı QR/yaşam döngüsü/outbox/gelen

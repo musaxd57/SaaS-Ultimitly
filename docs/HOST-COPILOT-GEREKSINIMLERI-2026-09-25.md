@@ -271,7 +271,8 @@ Her faz kendi bayrağıyla ve varsayılan KAPALI gelir. Sıra: önce kurucu org 
   - fiyat kaynağı;
   - karar gecikirse misafire ne gider (MÇ §3.4, sabitlenmedi);
   - "ben arayacağım" hâlinin bitişi.
-- **Çıktı:** `docs/ONAY-HOST-COPILOT-…md` onay paketi.
+- **Çıktı:** onay paketi HAZIR (09-25) → `docs/ONAY-HOST-COPILOT-FAZ0-2026-09-25.md`. En üstte on karar (K1–K10), altında
+  veri modeli, durum makinesi, yeniden doğrulama sözleşmesi, güvenlik ve test planı.
 
 ### Faz 1 — Karar kartı çekirdeği (web, kanalsız) = Host Karar Motoru v1
 - `DecisionRequest` kaydı: erken giriş (bugünkü `needs_host` / `pending` durumları), geç çıkış, uzatma.
