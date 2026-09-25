@@ -110,6 +110,19 @@ describe("inceleme bulguları (09-23 ikinci tur) — sahte çelişki ve kaçan g
     }
   });
 
+  it("🚨 'giriş holü / katı / koridoru' bir YERDİR, giriş saati değil (09-25 model kıyası: bavul kalemi her giriş sorusunu tutuyordu)", () => {
+    for (const text of [
+      "Çıkış günü bavullarınızı en geç 14:00'e kadar dairenin giriş holünde bırakabilirsiniz.",
+      "Bavulları 14:00'e kadar giriş katındaki depoya bırakabilirsiniz.",
+      "Giriş koridorundaki ışıklar 23:00'te kapanır.",
+    ]) {
+      expect(fieldTimeHits("Bavul bırakma", text, "checkout"), text).toEqual([]);
+      expect(findTimeConflicts(PROP, [kb("checkout", "Bavul bırakma", text)]), text).toEqual([]);
+    }
+    // KONTROL: aynı yapıda yalın "giriş" konaklama girişidir → gerçek çelişki KAÇMAZ.
+    expect(findTimeConflicts(PROP, [kb("checkin", "Giriş", "Giriş 14:00'ten itibarendir.")]).map((c) => c.field)).toEqual(["checkInTime"]);
+  });
+
   it("KONTROL — yalın 'çıkışta kapıyı…' konaklama çıkışıdır; aynı cümlecikteki çıkış saati sayılır", () => {
     expect(fieldTimeHits("Çıkış", "Anahtarı çıkışta kutuya bırakın, çıkış saati 11:00.", "checkout").map((h) => `${h.field}:${h.time}`)).toEqual(["checkout:11:00"]);
     expect(fieldTimeHits("Çıkış", "Arka çıkış 22:00'de kilitlenir; konaklama çıkışı 11:00.", "checkout").map((h) => `${h.field}:${h.time}`)).toEqual(["checkout:11:00"]);

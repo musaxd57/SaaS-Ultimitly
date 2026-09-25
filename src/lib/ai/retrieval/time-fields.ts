@@ -76,6 +76,11 @@ const PLACE_HEAD_STEMS = ["bina", "otopark", "site", "havuz", "apartman", "garaj
 /** Kısa yön sözcükleri önek OLAMAZ ("on" → "onu", "ana" → "anahtar"): yalnız tam eşleşme. */
 const PLACE_HEAD_EXACT = new Set(["ana", "arka", "on", "yan", "kat", "main", "back", "front", "side"]);
 const isPlaceHead = (t: string) => PLACE_HEAD_EXACT.has(t) || PLACE_HEAD_STEMS.some((h) => t.startsWith(h));
+/**
+ * "Giriş kapısı / holü / katı / koridoru" — ARDINDAKİ ad bir YER (09-25 model kıyası: "bavullarınızı 14:00'e kadar
+ * dairenin giriş holünde bırakabilirsiniz" giriş saati 14:00 sayılıyor, çelişki kapısı her giriş sorusunu tutuyordu).
+ */
+const ENTRY_PLACE_TAILS = ["kapi", "hol", "hall", "koridor", "kat", "lobi", "merdiven"];
 /** Kendi çalışma saati olan yerler (kalemin konaklama saatine ödünç verilmez). */
 const OWN_HOURS_STEMS = ["resepsiyon", "reception", "danisma", "concierge", "ofis", "office", "lobi", "lobby", "guvenlik", "security", "kapici"];
 /** "Acil çıkış / yangın çıkışı" — konaklama ÇIKIŞI değil, bir KAPI. */
@@ -102,7 +107,7 @@ function clauseFields(clause: string): { fields: string[]; otherConcept: boolean
     // ("te" → çay/tea; ölçüldü: saat yazılı her parça kahve sorusuna çekiliyordu).
     if (TIME_TOKEN.test(prev) && t.length <= 3) continue;
     if (isIn(t) || isOut(t)) {
-      if (isIn(t) && (isPlaceHead(prev) || next.startsWith("kapi"))) {
+      if (isIn(t) && (isPlaceHead(prev) || ENTRY_PLACE_TAILS.some((p) => next.startsWith(p)))) {
         homonym = true;
         continue;
       }
