@@ -125,5 +125,9 @@ describe("retrieveKbForPrompt — tarih satırının TEK karar noktası", () => 
     expect(spy.mock.calls[0][0]).not.toHaveProperty("dateLine");
     await call({ now: ctx.now, timeZone: "Not/AZone", reservation: RES });
     expect(spy.mock.calls[1][0].dateLine).toContain("check-in day 2026-09-26");
+    // UTC ile İstanbul'un FARKLI güne düştüğü an: geçersiz dilim ham kullanılsaydı gün UTC'ye düşerdi (25'i, saat yok).
+    await call({ now: at("2026-09-25T22:30:00Z"), timeZone: "Not/AZone", reservation: RES });
+    expect(spy.mock.calls[2][0].dateLine).toContain("Today (property time zone): 2026-09-26 (Saturday)");
+    expect(spy.mock.calls[2][0].dateLine).toContain("shortly after midnight");
   });
 });
