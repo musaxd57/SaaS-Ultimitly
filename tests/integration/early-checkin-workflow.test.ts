@@ -58,7 +58,14 @@ import { sendOnChannel } from "@/lib/messaging";
 import { applyChannelAutoReply } from "@/lib/automation";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
-import { autoEarlyCheckinPropertyIds, earlyCheckinRuleWhere, loadEarlyCheckinRule, saveEarlyCheckinRule, EARLY_CHECKIN_TRIGGER } from "@/lib/early-checkin/rules";
+import {
+  autoEarlyCheckinPropertyIds,
+  earlyCheckinRuleWhere,
+  loadEarlyCheckinRule,
+  saveEarlyCheckinRule,
+  EARLY_CHECKIN_NOTE_PAYMENT_ERROR,
+  EARLY_CHECKIN_TRIGGER,
+} from "@/lib/early-checkin/rules";
 import { earlyCheckinRuleHash } from "@/lib/early-checkin/workflow";
 import { decideEarlyCheckin } from "@/lib/early-checkin/core";
 import type { EarlyCheckinRule } from "@/lib/early-checkin/core";
@@ -927,6 +934,10 @@ describe("PUT/DELETE /api/properties/[id]/early-checkin-rule", () => {
     session = { ...owner(orgId), userId: user.id };
     // Formun kendi örnek notu kabul edilmeli (söz veren "göndereceğiz" biçimi çıktı vetosuna takılır → reddedilir).
     expect((await put(propertyId, { ...RULE, note: "Ödeme talebini Airbnb üzerinden göndereceğiz." })).status).toBe(400);
+    // Not ödeme YERİ anlatıyorsa (ücretli kural): ev sahibi ÖZEL, sade hatayı görür (neyi düzelteceğini bilsin).
+    const payRes = await put(propertyId, { ...RULE, note: "Kapıda alırız." });
+    expect(payRes.status).toBe(400);
+    expect((await payRes.json()).fields?._).toBe(EARLY_CHECKIN_NOTE_PAYMENT_ERROR);
     expect((await put(propertyId, { ...RULE, note: "Ödeme talebi Airbnb üzerinden gelecek." })).status).toBe(200);
     expect(await loadEarlyCheckinRule(orgId, propertyId)).toMatchObject({ mode: "auto", fee: { amount: 30, currency: "EUR" } });
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "property.early_checkin_rule_set" } });
