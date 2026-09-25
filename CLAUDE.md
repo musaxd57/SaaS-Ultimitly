@@ -393,8 +393,12 @@ Bu dosyaya token/anahtar/parola yazma.
   kelime listesine tek tek istisna YAZILMAZ). Kapanış kısayolu yalnız son giden mesajdan sonraki TÜM misafir mesajları
   kapanış/övgüyse (cevapsız istek + "teşekkürler" modeli atlatmaz).
 - **Ev sahibi metninde ödeme yöntemi TEK KAYNAK `payment-method-guard.ts` (09-25):** yöntem adı (nakit/IBAN/havale/PayPal/
-  kripto/banka hesabı…) her yerde; yer/biçim sözcüğü (kapıda/elden/at the door/on arrival/in person) YALNIZ aynı cümlecikte
-  ödeme/ücret/para birimiyle; Türkçe katlama (JS `/i` "İBAN/KAPIDA"yı katlamaz). Misafir mesajına UYGULANMAZ. 🚨 Kural
+  kripto/banka hesabı…) ve IBAN biçimli numara her yerde; yer/biçim/yön sözcüğü (kapıda/elden/at the door/on arrival/in
+  person/directly/hesabıma) METNİN herhangi bir yerinde ödeme bağlamıyla — 🚨 CÜMLECİK DEĞİL (iki inceleme: "Ödeme:
+  kapıda", "Ücret 300 TL. Kapıda alınır." geçiyordu = gerileme); "kapıdaki" (nesnenin yeri) ve "ücretsiz" sayılmaz;
+  ücretli erken giriş kuralının notu `paymentContext` taşır (ücret onaya kodla yazılır). Türkçe katlama (JS `/i`
+  "İBAN/KAPIDA"yı katlamaz). Misafir mesajına UYGULANMAZ. Bilinen bedel (pinli): olumsuzlanan yöntem ve ücretli kuralda
+  "elden teslim" de reddedilir (güvenli yön). 🚨 Kural
   (kurucu #28): test bir sözcük çakışmasıyla düşerse fikstür değiştirilip geçilmez — gerçek mesajda olabiliyorsa kök
   regresyon testi yazılır (örnek 13d).
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
@@ -980,8 +984,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Otomatik giriş/çıkış/karşılama mesajları** doldurulmamış `[…]`/`{{…}}` taşıyorsa FAIL-CLOSED (gönderilmez,
   damgalanmaz; KB'de "Doldurulmamış alan" rozeti). Oto-yanıt anahtarı kapalıyken bu üç gönderici ÇALIŞIR (dürüst ad).
 - **Çıktı vetosu** (`output-veto.ts`, iki kapıda): `placeholder_in_reply` + ETKEN `unverified_commitment`; edilgen
-  dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi (haber verdim/aradım/rezerve ettim/gönderdim · booked/
-  notified/sent/let the host know, "we" ajanı): 1.287 model cevabında 1 yeni veto (gerçek iddia). Bekletme mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
+  dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi + iki incelemeyle düzeltildi: kıvrık kesme işareti düz
+  olana çevrilir; haber verdim/aradım/onayladım/güncelledim/iletiyorum · booked/notified/let the host know/I'm forwarding/
+  I'll ask the host · DE/FR/ES/RU/AR 1. şahıs iletişim fiilleri. "gönderdik/paylaştık/we sent" YOK (gerçekten giden önceki
+  mesaja atıf), "we" yalnız iletişim fiillerinde (ev sahibi olgusu "we reserved/called" değil), soru eki iddia değil.
+  Korpus 1.287 cevapta tur öncesine göre 2 yeni veto (ikisi de gerçek iddia), düşen yok. Bekletme mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
 - **Temellendirme kaydı:** geri çekilme kırpması + pack bütçesi `kbDropped`e SAYILIR (`capacity` ≠ `ungrounded`);
   `supersededById` düşüşü sayılmaz; kalite denetçisi `aiSourcesJson` görür (null ≠ "kaynak yok").
 - **Bütçe:** "12 çağrı = 1 birim" Inbox önizlemesidir (Ayarlar kartı değil); oran fiyatlandırma kararı.

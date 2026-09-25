@@ -22,10 +22,10 @@ cevap modelinin şema beyanı · bağımsız bekçi · anlama katmanı), kelime 
 
 1. **Kapanış kısayolu** (`automation.ts`): yalnız son giden mesajdan SONRAKİ misafir mesajlarının TAMAMI kapanış/övgü
    ise devreye girer. Kırmızı-önce 3 test (cevapsız istek, cevapsız acil durum + nezaket açık, kontrol).
-2. **Ödeme yöntemi süzgeci** (`payment-method-guard.ts`, eski `OFFER_PAYMENT_METHOD_RX` kaldırıldı): anlam iki parçaya
-   ayrıldı — kendi başına yöntem adları (nakit, IBAN, havale, PayPal, Revolut, kripto, banka hesabı…) her yerde;
-   YER/BİÇİM sözcükleri (kapıda, elden, at the door, on arrival, in person) yalnız AYNI cümlecikte ödeme/ücret/para
-   birimi ile. Minimal çift bataryası (aynı yer sözcüğü, bağlamlı/bağlamsız). **Kök regresyon testi 13d**: 13c
+2. **Ödeme yöntemi süzgeci** (`payment-method-guard.ts`, eski `OFFER_PAYMENT_METHOD_RX` kaldırıldı): anlam parçalara
+   ayrıldı — kendi başına yöntem adları (nakit, IBAN, havale, PayPal, Revolut, kripto, banka hesabı…) ve IBAN numarası
+   her yerde; YER/BİÇİM/YÖN sözcükleri (kapıda, elden, at the door, on arrival, in person, directly, hesabıma) METİNDE
+   ödeme/ücret/para birimi varsa (↓inceleme: ilk sürümün cümlecik kapsamı gerilemeydi). Minimal çift bataryası (aynı yer sözcüğü, bağlamlı/bağlamsız). **Kök regresyon testi 13d**: 13c
    fikstürünün değiştirilmesi sorunu gizlemişti (kurucu kuralı #28) — artık kapı konumu yazan not kuralı kapatmaz.
 3. **Kapı kanıtı** (`gate-evidence.ts`): kapı 14 ayrı kontrolü tek `blocked`de topluyordu. Artık karar kaydında
    `g = { d: ilk kapatan kontrol, lx: kelime ağı uyarıları, mi/mt/ml: modelin kapatıcı sinyalleri }` — anlama
@@ -34,6 +34,26 @@ cevap modelinin şema beyanı · bağımsız bekçi · anlama katmanı), kelime 
 4. **Çıktı vetosu** (`output-veto.ts`): TR "haber verdim, aradım, rezerve ettim, yönlendirdim, gönderdim, hallettim…",
    EN "booked, notified, called, sent, reported, escalated, let the host know, passed … to" + "we" ajanı. Bilinen bedel
    pinli: "We have booked this flat for you…" da tutulur (taslak, güvenli yön).
+
+### İki bağımsız inceleme (09-25, tur sonu) — düzeltilenler
+- **P2 (iki ajan da buldu): ödeme süzgecinin cümlecik bölmesi GERİLEMEYDİ** — "Ödeme: kapıda", "Ödeme şekli: elden",
+  "Ücret 300 TL. Kapıda alınır.", "300 TL (kapıda)" eski kalıpta reddediliyordu, ilk sürümde geçti. Kapsam METNE alındı;
+  bağlamsız yer sözcüğü ("Kapıda şifreli kilit var", "Anahtar kapıdaki kutuda") hâlâ serbest. Ek: ücretli erken giriş
+  notunda bağlam kuraldan gelir ("Kapıda alırız." onay metnindeki ücret cümlesinin yanına eklenir); yöntem adsız yön
+  talimatı ("pay the cleaner directly", "hesabıma gönderin") ve IBAN biçimli numara. Adversaryal batarya: 35 kaçak
+  cümlenin 35'i, 21 meşru notun 0'ı.
+- **P2: çıktı vetosu kıvrık kesme işaretini ("I’ve", "I’ll") hiç eşleştirmiyordu** (eski dallar dahil) → düz olana çevrilir.
+- **P3: ilk genişletmenin yanlış pozitifleri** ("talimatları dün size gönderdik" = gerçekten giden önceki mesaja atıf;
+  "We have reserved a parking spot for every apartment" = ev sahibi olgusu; "Size ulaştık mı?" = soru) → çıkarıldı/
+  daraltıldı; kaçanlar eklendi (iletiyorum, onayladım, güncelledim, I've already forwarded, I'm forwarding, I'll ask the
+  host, DE/FR/ES/RU/AR). Korpusta tur öncesine göre fark: 2 yeni veto (gerçek iddia), düşen 0.
+- Doğrulandı, kusur YOK: `autoReplyGateFailure` eski gövdeyle birebir (eşleme sonrası diff), `g` son kapı durumundan,
+  kapanış kısayolu doğru, kendi deterministik metinlerimiz (bekletme, nezaket, devir, erken giriş onayı) vetoya takılmıyor.
+- Açık bırakılan (P3, gerekçeli): kayıtlı erken giriş notu yeni kurala takılırsa kural okumada KAPANIR (fail-closed,
+  form boş görünür) — özellik 09-24'te geldi, varsayılan kapalı; "yalnız notu düşür" ürün kararı. Kanal kaydında
+  `kbEvidenceJson` artık NULL olmaz (`g` her kararda) — "KB kanıtı var mı" sayımı `retrieved`/`used`a bakmalı.
+- Adversaryal ajanın `detectRiskType` bulguları (`açıl`→acil, `extend our stay`→iptal, `mağaza`→gaz, `compartido`→
+  parti; eval metinlerinde ~%2,2 iyi huylu mesaj etiket alıyor) yalnız TUTAR, e-posta/aciliyet üretmez → §3 ve §4 Faz 3.
 
 ## 3. Ölçülen ama bu turda DOKUNULMAYANLAR (gerekçeli)
 
