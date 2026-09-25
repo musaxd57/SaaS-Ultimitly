@@ -60,29 +60,45 @@ describe("çıktı vetosu — ETKEN makbuzsuz iddia DURUR", () => {
   });
 });
 
-describe("çıktı vetosu — 09-25 kaçan ETKEN iddialar (mesaj anlama çekirdeği denetimi)", () => {
-  // Ölçüldü: bu cümlelerin hepsi veto'dan geçiyordu. Aynı disiplin (etken 1. şahıs geçmiş / ajan çapası). 1.287 model
-  // cevabında (cevap kıyası ×4 + konaklama eval'i) yeni veto yalnız 1 ve o da gerçek iddiaydı ("Ertelemeyi hallettim").
+describe("çıktı vetosu — 09-25 kaçan ETKEN iddialar (mesaj anlama çekirdeği denetimi + iki inceleme)", () => {
+  // Ölçüldü: bu cümlelerin hepsi veto'dan geçiyordu. Aynı disiplin (etken 1. şahıs / ajan çapası, edilgen dal YOK). Model
+  // cevabı korpusunda (1.287: cevap kıyası ×4 + konaklama eval'i) turun öncesine göre fark yalnız 2 yeni veto, ikisi de
+  // gerçek iddia ("Tarihlerinizi … güncelledim", "Ertelemeyi hallettim"); geçen cevaplardan hiçbiri düşmedi.
   const durmali = [
     "Ev sahibinize haber verdim.",
     "Temizlikçiyi aradım, 15:00'te gelecek.",
     "Taksinizi rezerve ettim.",
     "Talebinizi ev sahibine yönlendirdim.",
-    "Konumu size gönderdim.",
     "Sorunu hallettim.",
+    "Erken girişinizi onayladım.",
+    "Kaydınızı güncelledim.",
+    "Ev sahibiyle görüştüm.",
+    "Teknisyene mesaj attım.",
+    "Konuyu ev sahibine bildirmiş bulunuyorum.",
+    "Durumu ev sahibine iletiyorum.",
+    "Talebinizi yönlendiriyorum.",
     "I have booked a taxi for you.",
     "I have passed your message to the host.",
     "I have notified the host.",
     "I've let the host know.",
     "We've notified the cleaning team.",
+    "We've forwarded it.",
+    "I've already forwarded your message to the host.",
     "I've reported the issue to maintenance.",
     "I have escalated this to the host.",
+    "I'm forwarding this to the host.",
+    "I'll pass this on.",
+    "I'll ask the host.",
+    // Kıvrık kesme işareti (model çıktısında sık; hepsi geçiyordu).
+    "I’ve booked a taxi for 9:00.",
+    "We’ve notified the cleaning team.",
+    "I’ll get back to you shortly.",
   ];
   for (const t of durmali) {
     it(`durur: ${t}`, () => expect(vetoOutgoingReply(t)).toBe("unverified_commitment"));
   }
 
-  it("aynı kökler 2. şahıs / sıfat-fiil / soru biçiminde GEÇER (aşırı uygulama kontrolü)", () => {
+  it("aynı kökler 2. şahıs / sıfat-fiil / SORU / önceki gerçek mesaja atıf / ev sahibi olgusu biçiminde GEÇER", () => {
     for (const t of [
       "Haber verdiğiniz için teşekkürler.",
       "Paylaştığınız bilgi için teşekkürler.",
@@ -92,13 +108,21 @@ describe("çıktı vetosu — 09-25 kaçan ETKEN iddialar (mesaj anlama çekirde
       "Could you send a photo of the issue?",
       "Have you called the building manager?",
       "If you have booked a taxi, the driver can wait at the entrance.",
+      // İnceleme (09-25) — ilk genişletmenin yanlış pozitifleri:
+      "Size ulaştık mı?",
+      "Sizi aradık mı?",
+      "Bilgileri aşağıda paylaştım: Wi-Fi Lale2025",
+      "Giriş talimatlarını dün size gönderdik; kapı kodu orada.",
+      "Wi-Fi bilgilerini giriş mesajında paylaştık.",
+      "The check-in instructions we sent this morning include the door code.",
+      "The code is in the message I sent you yesterday.",
+      "We have reserved a parking spot for every apartment.",
+      "We have scheduled housekeeping every Wednesday.",
+      "We called it the blue room.",
+      "We have booked this flat for you from 15 to 18 October.",
     ]) {
       expect(vetoOutgoingReply(t), t).toBeNull();
     }
-  });
-
-  it("⚠️ bilinen bedel (pinli): rezervasyonun KENDİSİNİ anlatan 'we have booked' da tutulur — taslak ev sahibine (güvenli yön)", () => {
-    expect(vetoOutgoingReply("We have booked this flat for you from 15 to 18 October.")).toBe("unverified_commitment");
   });
 });
 
@@ -197,8 +221,21 @@ describe("sözleşme", () => {
     expect(vetoOutgoingReply("The details will be shared with you shortly.")).toBeNull();
   });
 
-  it("⚠️ DE/FR/RU/AR HÂLÂ kapsam dışı (bilinen sınır)", () => {
-    expect(vetoOutgoingReply("Ich habe Ihre Nachricht weitergeleitet.")).toBeNull();
+  it("✅ DE/FR/ES/RU/AR 1. şahıs iletişim/rezervasyon iddiası da durur (09-25: dil kapısı artık misafirin dilinde cevap verdiriyor)", () => {
+    for (const t of [
+      "Ich habe Ihre Nachricht weitergeleitet.",
+      "Ich habe Ihre Nachricht an den Gastgeber weitergeleitet.",
+      "J'ai transmis votre message à l'hôte.",
+      "He informado al anfitrión.",
+      "Я передал ваше сообщение хозяину.",
+      "لقد أبلغت المضيف.",
+    ]) {
+      expect(vetoOutgoingReply(t), t).toBe("unverified_commitment");
+    }
+    // Edilgen ve olgu cümleleri bu dillerde de geçer (Türkçe/İngilizce ile aynı gerekçe).
+    for (const t of ["Ihre Nachricht wurde weitergeleitet.", "Ich habe keine Informationen dazu.", "He visto su mensaje.", "Vous pouvez appeler l'hôte via la plateforme."]) {
+      expect(vetoOutgoingReply(t), t).toBeNull();
+    }
   });
 
   it("⚠️ EDİLGEN dal kapıda YOK — ölçülmüş bedel, test-pinli", () => {

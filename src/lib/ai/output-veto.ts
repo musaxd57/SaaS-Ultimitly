@@ -81,7 +81,16 @@ const ACTIVE_PAST_CLAIM = new RegExp(
     // ("gönderdiğiniz", "paylaştığım gibi") kelime sınırı yüzünden eşleşmez.
     `|haber verdim|haber verdik|bilgi verdim|bilgi verdik|bilgilendirdim|bilgilendirdik|aradım|aradık|ulaştım|ulaştık` +
     `|rezerve ettim|rezerve ettik|rezervasyon yaptım|rezervasyon yaptık|ayırttım|ayırttık|yönlendirdim|yönlendirdik` +
-    `|aktardım|aktardık|paylaştım|paylaştık|gönderdim|gönderdik|hallettim|hallettik|çağırdım|çağırdık|sipariş ettim|sipariş verdim)${NR}`,
+    `|aktardım|aktardık|hallettim|hallettik|çağırdım|çağırdık|sipariş ettim|sipariş verdim` +
+    // İnceleme (09-25): "Erken girişinizi onayladım", "Kaydınızı güncelledim", "Ev sahibiyle görüştüm", "mesaj attım",
+    // resmî "bildirmiş bulunuyorum". "gönderdim/paylaştık" BİLEREK YOK: gerçekten giden önceki mesaja (otomatik giriş
+    // talimatı) atıf yapar ("talimatları dün size gönderdik") — iddia değil, olgu.
+    `|onayladım|onayladık|güncelledim|güncelledik|görüştüm|görüştük|mesaj attım|mesaj attık` +
+    `|(?:iletmiş|bildirmiş|aktarmış|yönlendirmiş|ulaştırmış) bulunuyor(?:um|uz))${NR}` +
+    // Soru eki: "Size ulaştık mı?" iddia değil soru.
+    `(?!\\s+m[iıuü](?!\\p{L}))` +
+    // Şimdiki zaman: "Durumu ev sahibine iletiyorum / aktarıyorum / yönlendiriyorum" (eylem şu an yapılıyor iddiası).
+    `|${NL}(?:ileti|aktarı|yönlendiri|bildiri|haber veri|ulaştırı|bilgilendiri)yor(?:um|uz)${NR}`,
   "iu",
 );
 
@@ -132,12 +141,33 @@ const EN_PAST_CLAIM = new RegExp(
     // 09-25: kaçan eylem fiilleri ve "we" ajanı ("I have booked a taxi", "I've let the host know", "We've notified the
     // cleaning team"). Aynı ölçüm: 1.287 model cevabında İngilizce yeni veto 0. Bilinen bedel (pinli): "We have booked this
     // flat for you…" gibi rezervasyonun kendisini anlatan cümle de tutulur — taslak ev sahibine gider (güvenli yön).
-    `|${NL}(?:i|we)(?:'ve| have)?\\s+(?:just\\s+|already\\s+)?(?:booked|reserved|notified|called|phoned|messaged|emailed|texted|contacted|sent|ordered|scheduled|requested|reported|escalated` +
-    `|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+(?:on\\s+)?to|let\\s+(?:the|your|our)\\s+(?:host|team|cleaner|cleaning\\s+team)\\s+know)${NR}`,
+    // İnceleme (09-25): "we" yalnız İLETİŞİM fiillerinde ajan — "We have reserved a parking spot for every apartment",
+    // "We called it the blue room", "the instructions we sent" ev sahibinin OLGU cümleleri; "sent" hiç yok (gerçekten
+    // giden önceki mesaja atıf). Rezervasyon/sipariş fiilleri yalnız "I" ile.
+    `|${NL}(?:i|we)(?:'ve| have)?\\s+(?:just\\s+|already\\s+|also\\s+)?(?:forwarded|notified|messaged|emailed|texted|contacted|informed|reported|escalated` +
+    `|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+(?:on\\s+)?to|let\\s+(?:the|your|our)\\s+(?:host|team|cleaner|cleaning\\s+team)\\s+know)${NR}` +
+    `|${NL}i(?:'ve| have)?\\s+(?:just\\s+|already\\s+|also\\s+)?(?:booked|reserved|called|phoned|ordered|scheduled|requested|forwarded)${NR}` +
+    // Şimdiki zaman: "I'm forwarding this to the host".
+    `|${NL}(?:i'm|i\\s+am|we're|we\\s+are)\\s+(?:forwarding|passing\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|notifying|contacting|informing|letting\\s+(?:the|your|our)\\s+\\p{L}+\\s+know)${NR}`,
   "iu",
 );
 const EN_FUTURE_CLAIM = new RegExp(
-  `${NL}(?:i|we|our\\s+team|the\\s+team|your\\s+host|the\\s+host|someone)(?:'ll|\\s+will)\\s+(?:get\\s+back|follow\\s+up|contact|confirm|let\\s+you\\s+know|reach\\s+out|update\\s+you|inform\\s+you|look\\s+into|arrange|sort\\s+(?:this|it)|handle|be\\s+in\\s+touch)${NR}`,
+  `${NL}(?:i|we|our\\s+team|the\\s+team|your\\s+host|the\\s+host|someone)(?:'ll|\\s+will)\\s+(?:get\\s+back|follow\\s+up|contact|confirm|let\\s+you\\s+know|reach\\s+out|update\\s+you|inform\\s+you|look\\s+into|arrange|sort\\s+(?:this|it)|handle|be\\s+in\\s+touch` +
+    // İnceleme (09-25): "I'll pass this on", "I'll ask the host", "I'll forward your message".
+    `|pass\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|forward|notify|ask\\s+(?:the|your|our)\\s+(?:host|team|cleaner))${NR}`,
+  "iu",
+);
+
+/**
+ * DE/FR/ES/RU/AR — 09-25 (inceleme: dil kapısı artık misafire kendi dilinde cevap verdiriyor; bu dillerde veto hiç
+ * yoktu). Yalnız 1. şahıs geçmiş + İLETİŞİM/REZERVASYON fiili (etken, ajan çapalı; edilgen ve gelecek YOK).
+ */
+const OTHER_PAST_CLAIM = new RegExp(
+  `${NL}(?:ich\\s+habe|wir\\s+haben)\\s+(?:\\p{L}+\\s+){0,6}(?:weitergeleitet|informiert|benachrichtigt|kontaktiert|gebucht|reserviert|angerufen|bestellt)${NR}` +
+    `|${NL}(?:j'ai|nous\\s+avons)\\s+(?:\\p{L}+\\s+){0,2}(?:transmis|informé|prévenu|contacté|réservé|appelé|commandé)${NR}` +
+    `|${NL}(?:he|hemos)\\s+(?:\\p{L}+\\s+){0,1}(?:reenviado|informado|avisado|contactado|reservado|llamado|notificado)${NR}` +
+    `|${NL}я\\s+(?:уже\\s+)?(?:передал|передала|сообщил|сообщила|связался|связалась|забронировал|забронировала|уведомил|уведомила|позвонил|позвонила)${NR}` +
+    `|(?:لقد\\s+)?(?:أبلغت|أخبرت|حجزت|تواصلت|اتصلت|أرسلت\\s+رسالتك)`,
   "iu",
 );
 
@@ -171,14 +201,17 @@ export function vetoOutgoingReply(reply: string | null | undefined): OutputVetoR
   // Cümle başı "İlettim"/"Döneceğim": `/i` bayrağı noktalı İ ↔ i katlamaz →
   // ham metnin YANINDA Türkçe küçük harfe indirilmiş metin de sınanır
   // (yalnız EŞLEŞME EKLER, eksiltmez). `claim-detectors` ile aynı desen.
-  const lower = reply.toLocaleLowerCase("tr");
+  // Kıvrık kesme işareti ("I’ve", "I’ll") düz olana çevrilir — model çıktısında sık (inceleme 09-25: hepsi geçiyordu).
+  const text = reply.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
+  const lower = text.toLocaleLowerCase("tr");
   if (
-    ACTIVE_PAST_CLAIM.test(reply) ||
+    ACTIVE_PAST_CLAIM.test(text) ||
     ACTIVE_PAST_CLAIM.test(lower) ||
-    ACTIVE_FUTURE_CLAIM.test(reply) ||
+    ACTIVE_FUTURE_CLAIM.test(text) ||
     ACTIVE_FUTURE_CLAIM.test(lower) ||
-    EN_PAST_CLAIM.test(reply) ||
-    EN_FUTURE_CLAIM.test(reply)
+    EN_PAST_CLAIM.test(text) ||
+    EN_FUTURE_CLAIM.test(text) ||
+    OTHER_PAST_CLAIM.test(text)
   ) {
     return "unverified_commitment";
   }

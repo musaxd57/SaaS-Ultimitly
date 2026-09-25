@@ -380,7 +380,9 @@ function cleanUsage(u: LlmUsage | undefined): LlmUsage | undefined {
  * doğrulanmış kaynak ETİKETLERİ. İçerik/başlık/misafir metni TAŞIMAZ.
  *
  * İki taraf da boşsa `null` döner: boş bir JSON yazmak "ölçtük, boştu" ile
- * "ölçmedik"i karıştırırdı — A2'nin NULL sözleşmesiyle aynı gerekçe.
+ * "ölçmedik"i karıştırırdı — A2'nin NULL sözleşmesiyle aynı gerekçe. ⚠️ 09-25'ten beri kanal oto-yanıtı her kararda
+ * kapı kanıtını (`g`) verir → o yolun kaydı artık NULL OLMAZ (kapı ölçüldü); "KB kanıtı var mı" sayımı `retrieved`/`used`
+ * alanlarına bakmalı, kolonun NULL olmayışına değil.
  */
 /** Anlamsal kaynak durumları — kapalı küme (`embeddings/semantic-retrieval.ts`). */
 const SEM_STATUSES = new Set(["ok", "cold", "unavailable", "not_needed"]);

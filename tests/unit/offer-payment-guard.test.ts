@@ -39,7 +39,47 @@ describe("offer text payment-method guard (payment-neutral backstop)", () => {
     }
   });
 
-  it("minimal çiftler: YER/BİÇİM sözcüğü ('kapıda', 'elden', 'at the door') yalnız AYNI cümlecikte ödeme bağlamıyla yöntemdir", () => {
+  it("🚨 iki inceleme (09-25): cümlecik bölmek eski kalıbın yakaladığı yazımları GEÇİRİYORDU — kapsam METİN", () => {
+    for (const s of [
+      "Ödeme: kapıda",
+      "Ödeme şekli: elden",
+      "Geç çıkış ücreti 300 TL, elden.",
+      "Geç çıkış 300 TL (kapıda)",
+      "Ücret 300 TL. Kapıda alınır.",
+      "Ödeme\nkapıda",
+      "Ücret: kapıda.",
+      // Yöntem adı geçmeyen yön talimatı + IBAN biçimli numara (eski kalıp da kaçırıyordu).
+      "Please pay the cleaner directly.",
+      "Transfer the fee to my account.",
+      "Ücreti hesabıma gönderin.",
+      "Ödeme için: TR12 0006 1005 1978 6457 8413 26",
+      "Payments are taken at the door",
+      "Fees are collected in person",
+      "Bitte zahlen Sie bar",
+      "Paiement en liquide",
+      "Pago en efectivo",
+    ]) {
+      expect(namesPaymentMethod(s), s).toBe(true);
+    }
+    // Karşı yön: "kapıdaki" nesnenin yeridir, "ücretsiz" ödeme bağlamı değildir; kod/şifre IBAN sayılmaz.
+    for (const s of [
+      "Anahtar kapıdaki kutuda ve ücret Airbnb üzerinden ödenir",
+      "Kapıda ücretsiz otopark var.",
+      "Kapı kodu AB12 3456, ücret 300 TL.",
+      "Wi-Fi şifresi Lale2025DE12345678; geç çıkış 20 EUR",
+    ]) {
+      expect(namesPaymentMethod(s), s).toBe(false);
+    }
+  });
+
+  it("erken giriş notu: ücret kuralın ayrı alanında → not para sözcüğü taşımasa da ödeme bağlamı VAR", () => {
+    // Onay metni "Erken giriş ücreti 30 €." cümlesini kodla yazar, not yanına eklenir: "Kapıda alırız." = kapıda ödeme.
+    expect(namesPaymentMethod("Kapıda alırız.", { paymentContext: true })).toBe(true);
+    expect(namesPaymentMethod("Kapıda alırız.")).toBe(false);
+    expect(namesPaymentMethod("Anahtar kapıdaki kutuda.", { paymentContext: true })).toBe(false);
+  });
+
+  it("minimal çiftler: YER/BİÇİM sözcüğü ('kapıda', 'elden', 'at the door') yalnız ödeme bağlamıyla yöntemdir", () => {
     const pairs: [string, string][] = [
       ["Anahtar kapıdaki kutuda.", "Ücreti kapıda alırız."],
       ["Kapıda şifreli kilit var.", "Kapıda 300 TL ödenir."],
@@ -47,9 +87,8 @@ describe("offer text payment-method guard (payment-neutral backstop)", () => {
       ["Please leave the key at the door.", "Pay at the door: 40 EUR"],
       ["We will meet you in person at 12:00.", "The fee is payable in person."],
       ["Check-in instructions are sent on arrival day.", "Fee is payable on arrival."],
-      // Aynı metinde ücret + kapı, FARKLI cümleciklerde: kapı konumu ödeme yöntemi olmaz.
+      // Aynı metinde ücret + kapı: "kapıdaki" (nesnenin yeri) yöntem olmaz, "kapıda alınır" olur.
       ["Erken giriş ücreti 300 TL, anahtar kapıdaki kutuda.", "Erken giriş ücreti 300 TL kapıda alınır."],
-      // Saat/ondalık içindeki nokta ve iki nokta cümleciği BÖLMEZ.
       ["Kapıda 12:00'de karşılarız.", "Kapıda 12:00'de ödeme yapılır."],
     ];
     for (const [clean, method] of pairs) {
@@ -75,11 +114,19 @@ describe("offer text payment-method guard (payment-neutral backstop)", () => {
 describe("erken giriş notu: kapı konumu yazan kural KAYDEDİLEBİLİR (kök neden: 13c fikstürü bu yüzden değişmişti)", () => {
   const base = { mode: "auto", earliest: "12:00", fee: { amount: 300, currency: "TRY" } };
   it("kapı/anahtar teslimi notu geçerli, ödeme yöntemi notu geçersiz", () => {
-    for (const note of ["Anahtar kapıdaki kilitli kutuda.", "Anahtarlar elden teslim edilir."]) {
+    for (const note of ["Anahtar kapıdaki kilitli kutuda.", "Anahtar kapıdaki kutuda; ücret platform üzerinden alınır."]) {
       expect(validateEarlyCheckinRuleInput({ ...base, note })?.note, note).toBe(note);
     }
-    for (const note of ["Ücreti kapıda alırız.", "KAPIDA ÖDEME alınır.", "İBAN ile ödeyin."]) {
+    // Ücretsiz kuralda "elden teslim" anahtar teslimidir.
+    expect(validateEarlyCheckinRuleInput({ ...base, fee: null, note: "Anahtarlar elden teslim edilir." })?.note).toBe(
+      "Anahtarlar elden teslim edilir.",
+    );
+    for (const note of ["Ücreti kapıda alırız.", "KAPIDA ÖDEME alınır.", "İBAN ile ödeyin.", "Kapıda alırız."]) {
       expect(validateEarlyCheckinRuleInput({ ...base, note }), note).toBeNull();
     }
+  });
+
+  it("⚠️ bilinen bedel (pinli): ücretli kuralda 'elden teslim' de reddedilir — 'ücret elden teslim edilir' ile ayırt edilemez (güvenli yön)", () => {
+    expect(validateEarlyCheckinRuleInput({ ...base, note: "Anahtarlar elden teslim edilir." })).toBeNull();
   });
 });

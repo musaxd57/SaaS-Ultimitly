@@ -52,7 +52,8 @@ export function validateEarlyCheckinRuleInput(raw: unknown): EarlyCheckinRule | 
       // ve host nedenini göremezdi (kapı gönderimde yine AYNI vetoyu koşar).
       if (
         n.length > EARLY_CHECKIN_NOTE_MAX ||
-        namesPaymentMethod(n) ||
+        // Ücret kuralın ayrı alanında ve onay metnine kodla yazılır: not onun yanına eklenir → ücret varsa bağlam var.
+        namesPaymentMethod(n, { paymentContext: fee !== null }) ||
         /https?:\/\/|www\./i.test(n) ||
         /[<>{}[\]]/.test(n) ||
         vetoOutgoingReply(n) !== null
