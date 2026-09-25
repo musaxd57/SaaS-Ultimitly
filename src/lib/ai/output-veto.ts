@@ -74,7 +74,14 @@ const NR = "(?!\\p{L})";
  * İkinci alternatif (edilgen: "iletildi", "bildirilmiştir") BİLEREK YOK ↑.
  */
 const ACTIVE_PAST_CLAIM = new RegExp(
-  `${NL}(?:ilett[iı]m|iletti[kğ](?:[iı]m|[iı]m[iı]z)?|oluşturdum|oluşturduk|kontrol ettim|kontrol ettik|ayarladım|ayarladık|bildirdim|bildirdik|not ettim|talep oluşturdum)${NR}`,
+  `${NL}(?:ilett[iı]m|iletti[kğ](?:[iı]m|[iı]m[iı]z)?|oluşturdum|oluşturduk|kontrol ettim|kontrol ettik|ayarladım|ayarladık|bildirdim|bildirdik|not ettim|talep oluşturdum` +
+    // 09-25 (mesaj anlama çekirdeği denetimi): aynı ETKEN 1. şahıs geçmiş sınıfının kaçan üyeleri — "Ev sahibinize haber
+    // verdim", "Temizlikçiyi aradım", "Taksinizi rezerve ettim". Ölçüm: 1.287 model cevabında (cevap kıyası ×4 + konaklama
+    // eval'i) yalnız 1 yeni veto ve o da gerçek iddia ("Ertelemeyi hallettim"); 2. şahıs / sıfat-fiil biçimleri
+    // ("gönderdiğiniz", "paylaştığım gibi") kelime sınırı yüzünden eşleşmez.
+    `|haber verdim|haber verdik|bilgi verdim|bilgi verdik|bilgilendirdim|bilgilendirdik|aradım|aradık|ulaştım|ulaştık` +
+    `|rezerve ettim|rezerve ettik|rezervasyon yaptım|rezervasyon yaptık|ayırttım|ayırttık|yönlendirdim|yönlendirdik` +
+    `|aktardım|aktardık|paylaştım|paylaştık|gönderdim|gönderdik|hallettim|hallettik|çağırdım|çağırdık|sipariş ettim|sipariş verdim)${NR}`,
   "iu",
 );
 
@@ -121,7 +128,12 @@ const ACTIVE_FUTURE_CLAIM = new RegExp(
  * ------------------------------------------------------------------------- */
 const EN_PAST_CLAIM = new RegExp(
   `${NL}i(?:'ve| have)?\\s+(?:just\\s+)?(?:forwarded|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|passed\\s+on|created|checked|noted|informed|alerted|flagged|contacted|arranged|logged|asked\\s+our\\s+team|raised)${NR}` +
-    `|${NL}i\\s+have\\s+(?:forwarded|created|checked|noted|informed|alerted|flagged|contacted|arranged|logged|raised)${NR}`,
+    `|${NL}i\\s+have\\s+(?:forwarded|created|checked|noted|informed|alerted|flagged|contacted|arranged|logged|raised)${NR}` +
+    // 09-25: kaçan eylem fiilleri ve "we" ajanı ("I have booked a taxi", "I've let the host know", "We've notified the
+    // cleaning team"). Aynı ölçüm: 1.287 model cevabında İngilizce yeni veto 0. Bilinen bedel (pinli): "We have booked this
+    // flat for you…" gibi rezervasyonun kendisini anlatan cümle de tutulur — taslak ev sahibine gider (güvenli yön).
+    `|${NL}(?:i|we)(?:'ve| have)?\\s+(?:just\\s+|already\\s+)?(?:booked|reserved|notified|called|phoned|messaged|emailed|texted|contacted|sent|ordered|scheduled|requested|reported|escalated` +
+    `|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+(?:on\\s+)?to|let\\s+(?:the|your|our)\\s+(?:host|team|cleaner|cleaning\\s+team)\\s+know)${NR}`,
   "iu",
 );
 const EN_FUTURE_CLAIM = new RegExp(

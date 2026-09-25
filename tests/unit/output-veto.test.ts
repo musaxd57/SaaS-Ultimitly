@@ -60,6 +60,48 @@ describe("çıktı vetosu — ETKEN makbuzsuz iddia DURUR", () => {
   });
 });
 
+describe("çıktı vetosu — 09-25 kaçan ETKEN iddialar (mesaj anlama çekirdeği denetimi)", () => {
+  // Ölçüldü: bu cümlelerin hepsi veto'dan geçiyordu. Aynı disiplin (etken 1. şahıs geçmiş / ajan çapası). 1.287 model
+  // cevabında (cevap kıyası ×4 + konaklama eval'i) yeni veto yalnız 1 ve o da gerçek iddiaydı ("Ertelemeyi hallettim").
+  const durmali = [
+    "Ev sahibinize haber verdim.",
+    "Temizlikçiyi aradım, 15:00'te gelecek.",
+    "Taksinizi rezerve ettim.",
+    "Talebinizi ev sahibine yönlendirdim.",
+    "Konumu size gönderdim.",
+    "Sorunu hallettim.",
+    "I have booked a taxi for you.",
+    "I have passed your message to the host.",
+    "I have notified the host.",
+    "I've let the host know.",
+    "We've notified the cleaning team.",
+    "I've reported the issue to maintenance.",
+    "I have escalated this to the host.",
+  ];
+  for (const t of durmali) {
+    it(`durur: ${t}`, () => expect(vetoOutgoingReply(t)).toBe("unverified_commitment"));
+  }
+
+  it("aynı kökler 2. şahıs / sıfat-fiil / soru biçiminde GEÇER (aşırı uygulama kontrolü)", () => {
+    for (const t of [
+      "Haber verdiğiniz için teşekkürler.",
+      "Paylaştığınız bilgi için teşekkürler.",
+      "Aradığınız bilgi panoda yazıyor.",
+      "Yukarıda paylaştığım gibi giriş 15:00'te.",
+      "Daha önce gönderdiğim mesajda adres var.",
+      "Could you send a photo of the issue?",
+      "Have you called the building manager?",
+      "If you have booked a taxi, the driver can wait at the entrance.",
+    ]) {
+      expect(vetoOutgoingReply(t), t).toBeNull();
+    }
+  });
+
+  it("⚠️ bilinen bedel (pinli): rezervasyonun KENDİSİNİ anlatan 'we have booked' da tutulur — taslak ev sahibine (güvenli yön)", () => {
+    expect(vetoOutgoingReply("We have booked this flat for you from 15 to 18 October.")).toBe("unverified_commitment");
+  });
+});
+
 describe("🚨 MEŞRU CEVAPLAR GEÇER — ölçülen yanlış pozitif sınıfları", () => {
   const gecmeli = [
     // ── EDİLGEN OLGU BİLDİRİMİ: kapıya BİLEREK bağlanmadı (ölçüldü: bu sınıf
