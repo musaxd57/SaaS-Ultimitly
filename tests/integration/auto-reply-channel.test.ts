@@ -511,6 +511,26 @@ describe("applyChannelAutoReply", () => {
     expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("reply_output_veto");
   });
 
+  it("🚨 ikinci inceleme (P2): model risk ETİKETİ vermeden (null) insan talebi NİYETİYLE söz taşıyan devir yazdıysa da yükseltilir", async () => {
+    // İstem "kararsızsan riskType null bırak" der; anlama katmanı kapalı/düşmüşse tek sinyal niyettir. Niyete bakılmasa
+    // misafir hiçbir şey almıyor, ev sahibi de haberdar olmuyordu (sessiz taslak).
+    mockSuggest.mockResolvedValue({
+      ...SAFE_REPLY,
+      intent: "human_request",
+      reply: "Tabii ki, ev sahibinize soracağım ve size döneceğim.",
+      riskLevel: "low",
+      riskType: null,
+      confidence: 0.9,
+    });
+    const { conversationId } = await seed({ guestMessage: "Ev sahibiyle görüşmek istiyorum lütfen" });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.status).toBe("problem");
+    expect(conv.skippedReason).toBe("escalated_to_human");
+  });
+
   it("stays silent while a human-handoff hold is active", async () => {
     const { conversationId } = await seed();
     await prisma.conversation.update({

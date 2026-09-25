@@ -2484,9 +2484,13 @@ export async function applyChannelAutoReply(
     // anlama katmanının sinyali yükseltir (P2-9). Katman kapalı / düştüyse sinyal yok.
     const nluSensitive = gateContext.understandingRisk != null;
     const nluRiskType = nluSensitive ? riskTypeOfIntentRisk(gateContext.understandingRisk) : null;
+    // İnsan talebi NİYETİ de yükseltir (ikinci inceleme 09-25, P2): istem "kararsızsan riskType null bırak" der ve model
+    // bu akışta etiketi çoğu zaman boş bırakır; muafiyet kalktığından söz taşıyan devir cevabı artık tutuluyor — niyete
+    // bakılmazsa ve anlama katmanı da görmediyse misafir hiçbir şey almıyor, ev sahibi de haberdar olmuyordu.
     const modelFlagged =
       result.source === "openai" &&
       (NEVER_AUTO_REPLY_INTENTS.has(result.intent) ||
+        result.intent === "human_request" ||
         (result.riskLevel !== "none" && result.riskLevel !== "low") ||
         (result.riskType != null && HIGH_STAKES_RISK_TYPES.has(result.riskType)));
     const modelSensitive = modelFlagged || nluSensitive;

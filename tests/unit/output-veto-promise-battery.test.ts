@@ -246,6 +246,179 @@ describe("bekleme sözü vetosu — söz ve sahte eylem TUTULUR (6 dil)", () => 
   });
 });
 
+// ---------------------------------------------------------------------------
+// İKİNCİ İNCELEME (09-25): bağımsız ajan bataryası (389 cümle, 7 dil) kaçan sözü 131 → 1 (bilinçli: "teyit ediyorum"),
+// yanlış pozitifi 44 → 13 indirdi; kalan 13'ün hepsi bu turdan ÖNCE de vardı (ajansız 09-12 gövdeleri + 1. çoğul geniş
+// zaman süreç anlatımı — güvenli yön: taslak ev sahibine gider). 1.287 gerçek model cevabında yeni veto 1 (gerçek iddia:
+// "Takvime baktım, … müsait"), düşen 0; koddan kurulan metinlerde (erken giriş onayı/politika, bekletme, nezaket) yeni veto 0.
+// ---------------------------------------------------------------------------
+
+const SECOND_REVIEW_PROMISES = [
+  // TR: geçmiş iddia, istek kipi, geniş zaman, ekip öznesi, ev sahibinin kararı
+  "Ev sahibinize sordum, müsaitlik yarın netleşecek.",
+  "Rezervasyonunuza not ekledim.",
+  "Konuyu not aldım.",
+  "Erken giriş için onay aldım.",
+  "Rezervasyonunuzu iptal ettim.",
+  "Temizlik ekibine yazdım, birazdan gelecekler.",
+  "Ev sahibinize e-posta attım.",
+  "Hemen ev sahibinize sorayım.",
+  "Bir bakayım.",
+  "Ev sahibinize bilgi vereyim.",
+  "Takvimi kontrol ederim.",
+  "Müsaitliği ev sahibinize teyit ederim.",
+  "Ekibimiz size bilgi verecek.",
+  "Yetkilimiz sizi arayacak.",
+  "Yöneticimiz size dönüş sağlayacak.",
+  "Ev sahibiniz erken girişinizi onayladı.",
+  "Ekibimiz geç çıkışınızı onayladı.",
+  "Konuyu takip edeceğim.",
+  "Ev sahibinizle görüşeceğim.",
+  "Teknisyeni hemen arıyorum.",
+  "Konuyla ilgileniyorum.",
+  // EN
+  "I've asked the host about the early check-in.",
+  "I've confirmed with the owner that parking is free.",
+  "I've updated your booking to three guests.",
+  "I've confirmed your early check-in for 12:00.",
+  "I've passed this along to the cleaning team.",
+  "Your host has approved the late checkout.",
+  "Your host is going to get back to you shortly.",
+  "You'll receive a reply from the host within the hour.",
+  "I'll escalate this to the host.",
+  "I'll call the plumber right away.",
+  "I'll book a taxi for 9 am.",
+  "I'll send a technician this afternoon.",
+  "I've sent someone to fix the shower.",
+  "We'll get it fixed today.",
+  "Consider it done — fresh towels will be there by noon.",
+  "I'll get right back to you.",
+  "I'll ask the cleaning team to bring extra towels.",
+  "Let me ask them and get back to you.",
+  "Let me take a look at the calendar.",
+  "I can ask the host whether that's possible.",
+  "I'd be happy to check with the owner.",
+  "Our cleaning team will get back to you.",
+  "Your host, Maria, will confirm shortly.",
+  "I'll let the host know.",
+  "We'll make sure it's ready.",
+  // DE
+  "Ich kümmere mich darum.",
+  "Ich frage den Gastgeber.",
+  "Ich halte Sie auf dem Laufenden.",
+  "Ich informiere den Gastgeber.",
+  "Ich erkundige mich beim Vermieter.",
+  "Ich habe beim Gastgeber nachgefragt.",
+  "Ich habe die Verfügbarkeit geprüft.",
+  "Ich werde mich darum kümmern.",
+  "Ich schaue nach und gebe Ihnen Bescheid.",
+  "Wir prüfen das und melden uns.",
+  "Ihre Gastgeberin meldet sich bei Ihnen.",
+  "Wir kümmern uns darum.",
+  // FR
+  "Je l'ai transmis à l'hôte.",
+  "Je lui ai transmis votre demande.",
+  "J'ai demandé à l'hôte.",
+  "Je m'en occupe.",
+  "Je vais en parler avec l'hôte.",
+  "Le propriétaire vous contactera.",
+  "Nous vous recontacterons rapidement.",
+  "J'ai bien noté votre demande et je la transmets à l'hôte.",
+  "Je vous fais un retour rapidement.",
+  "Je vous préviens dès que j'ai une réponse.",
+  "On revient vers vous très vite.",
+  "Votre hôtesse va vous contacter.",
+  // ES
+  "Le he preguntado al anfitrión.",
+  "He hablado con el anfitrión.",
+  "He trasladado su solicitud al propietario.",
+  "Se lo confirmaré mañana.",
+  "Le mantendré informado.",
+  "Voy a preguntarle al anfitrión.",
+  "Déjeme consultarlo con el anfitrión.",
+  "El anfitrión le contactará en breve.",
+  "Le avisaremos en cuanto sepamos algo.",
+  "Vamos a revisarlo y le decimos algo.",
+  "Lo reviso y le digo.",
+  // RU
+  "Я уже спросил хозяина.",
+  "Я уточнил у хозяина.",
+  "Мы передали вашу просьбу хозяину.",
+  "Передал хозяину вашу просьбу.",
+  "Хозяин подтвердит время заезда.",
+  "Буду держать вас в курсе.",
+  "Посмотрю и напишу вам.",
+  "Выясню у хозяина.",
+  "Попрошу уборщицу принести полотенца.",
+  "Перешлю ваш вопрос хозяину.",
+  // AR
+  "سألت المضيف عن ذلك.",
+  "راسلت المضيف بخصوص طلبك.",
+  "أبلغنا المضيف بطلبك.",
+  "قمت بإبلاغ المضيف.",
+  "سأوافيك بالرد قريبًا.",
+  "سنوافيكم بالتفاصيل.",
+  "سوف يتواصل معك المضيف.",
+  "سيرد عليك المضيف قريبًا.",
+  "دعني أتحقق من ذلك.",
+  "سأتابع الأمر مع المضيف.",
+  "سيقوم المضيف بالتواصل معك.",
+];
+
+/** Yeni kalıpların AŞIRI UYGULAMA kontrolü + bu turda düzeltilen yanlış pozitifler (tavsiye, duyuru, alışkanlık, atıf). */
+const SECOND_REVIEW_LEGIT = [
+  "Ben olsam önce Kaleiçi'ne bakarım, akşam da sahile inerim.",
+  "Sizi bilgilendiriyoruz: yarın 10:00-12:00 arası su kesintisi var.",
+  "Her misafirden önce daireyi kontrol ediyorum.",
+  "Size bir şey sorayım: kaç kişi geleceksiniz?",
+  "Ekibimiz çıkıştan sonra daireyi kontrol edecek.",
+  "Temizlik ekibimiz daireyi saat 12:00'de hazırlayacak.",
+  "Yukarıda yazdığım gibi giriş 15:00'te.",
+  "Size dün yazdım; giriş talimatları o mesajda.",
+  "Ev sahibiniz daireyi 2019'da yeniledi.",
+  "Ev sahibiniz evcil hayvan kabul etmiyor.",
+  "As I mentioned earlier, check-in is at 3 pm.",
+  "As I noted, the code changes weekly.",
+  "The check-in instructions we emailed on Monday include the door code.",
+  "Let me double-check this: two adults and one child, right?",
+  "I'll reply in English from now on.",
+  "We are informing all guests that the pool is closed on Monday.",
+  "You'll hear from building security if your car blocks the gate.",
+  "I can only confirm what's written in the house manual.",
+  "I've sent you the door code in the previous message.",
+  "Your host has a dog-friendly policy.",
+  "Ich schaue kurz nach: Sie kommen zu zweit?",
+  "Bitte melden Sie sich bei uns, wenn Sie ankommen.",
+  "Sie können sich jederzeit bei uns melden.",
+  "Je vous préviens, la rue est un peu bruyante le soir.",
+  "Je reviens vers vous concernant votre question : oui, le parking est gratuit.",
+  "Je vais juste confirmer avec vous : c'est bien pour deux adultes ?",
+  "Le he enviado las instrucciones de llegada esta mañana.",
+  "Le escribiré en español a partir de ahora.",
+  "¿Vamos a confirmar entonces: dos adultos y un niño?",
+  "Le digo la verdad: la zona es muy tranquila.",
+  "Сразу сообщу: парковка бесплатная.",
+  "Если консьерж не ответит, позвоните по номеру на двери.",
+  "Отвечу коротко: да, парковка есть.",
+  "Водитель такси свяжется с вами по прибытии.",
+  "إذا حجزتم مبكرًا ستحصلون على خصم.",
+  "كما أخبرتكم، الدخول الساعة الثالثة.",
+  "سيعود الماء خلال ساعة.",
+  "سيخبرك حارس المبنى بمكان الموقف.",
+];
+
+describe("ikinci inceleme (09-25) — kaçan sözler TUTULUR (7 dil)", () => {
+  it.each(SECOND_REVIEW_PROMISES)("tutulur: %s", (text) => {
+    expect(vetoOutgoingReply(text)).toBe("unverified_commitment");
+  });
+});
+
+describe("ikinci inceleme (09-25) — tavsiye / duyuru / alışkanlık / atıf / hizmet anlatımı GEÇER", () => {
+  it.each(SECOND_REVIEW_LEGIT)("geçer: %s", (text) => {
+    expect(vetoOutgoingReply(text)).toBeNull();
+  });
+});
+
 describe("gerçek model cevapları (09-25 cevap kıyası, 540 cevap, iki model) — HİÇBİRİ tutulmaz", () => {
   it("model-reply-compare raporlarının cevaplarında yanlış pozitif yok", () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
