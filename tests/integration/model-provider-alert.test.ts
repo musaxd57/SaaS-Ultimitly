@@ -52,7 +52,15 @@ async function stateRow() {
 
 /** Başarı yolu temizliği `void` ile koşar; satırın gitmesini kısa süre bekle. */
 async function waitForRowGone() {
-  for (let i = 0; i < 50 && (await stateRow()); i++) await new Promise((r) => setTimeout(r, 20));
+  await until(async () => !(await stateRow()));
+}
+
+/**
+ * Durum yazımı `void` ile koşar (misafir yolunu bekletmez). SABİT uyku CI'da yetmedi (CI #1156: 50 ms'de satır
+ * henüz yazılmamıştı) → koşul gerçekleşene kadar yokla, en fazla ~3 sn.
+ */
+async function until(pred: () => boolean | Promise<boolean>) {
+  for (let i = 0; i < 150 && !(await pred()); i++) await new Promise((r) => setTimeout(r, 20));
 }
 
 describe("model sağlayıcısı kalıcı arızası — gerçek alert-state", () => {
@@ -70,8 +78,8 @@ describe("model sağlayıcısı kalıcı arızası — gerçek alert-state", () 
   it("🚨 30 çağrı boyunca kredi bitik: TEK alarm; durum satırı sınıfı taşır, metni değil", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     for (let i = 0; i < 30; i++) expect((await suggestReply(input)).source).toBe("fallback");
-    // `noteModelProviderPersistentFailure` `void` ile çağrılır; son yazmanın bitmesini bekle.
-    await new Promise((r) => setTimeout(r, 50));
+    // `noteModelProviderPersistentFailure` `void` ile çağrılır; yazmanın bitmesini bekle.
+    await until(async () => mockReport.mock.calls.length >= 1 && (await stateRow()) !== null);
     expect(mockReport).toHaveBeenCalledTimes(1);
     expect(mockReport.mock.calls[0][0]).toBe("openai-reply kalıcı arıza");
     const row = await stateRow();
@@ -81,7 +89,7 @@ describe("model sağlayıcısı kalıcı arızası — gerçek alert-state", () 
   it("toparlanma durumu kapatır; sonraki arıza YENİDEN alarm üretir (kurucu düzeldiğini ve bozulduğunu görür)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     await suggestReply(input);
-    await new Promise((r) => setTimeout(r, 50));
+    await until(async () => (await stateRow()) !== null);
     expect(await stateRow()).not.toBeNull();
 
     vi.stubGlobal("fetch", vi.fn(async () => OK()));
@@ -91,18 +99,18 @@ describe("model sağlayıcısı kalıcı arızası — gerçek alert-state", () 
 
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     await suggestReply(input);
-    await new Promise((r) => setTimeout(r, 50));
+    await until(() => mockReport.mock.calls.length >= 2);
     expect(mockReport).toHaveBeenCalledTimes(2);
   });
 
   it("SINIF değişimi yeni durumdur: kota → anahtar reddi ikinci alarmı üretir", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     await suggestReply(input);
-    await new Promise((r) => setTimeout(r, 50));
+    await until(async () => (await stateRow()) !== null);
     vi.stubGlobal("fetch", vi.fn(async () => new Response('{"error":{"code":"invalid_api_key"}}', { status: 401 })));
     await suggestReply(input);
     await suggestReply(input);
-    await new Promise((r) => setTimeout(r, 50));
+    await until(async () => mockReport.mock.calls.length >= 2 && (await stateRow())?.holder === "ModelProviderPersistentError:auth:401");
     expect(mockReport).toHaveBeenCalledTimes(2);
     expect((await stateRow())?.holder).toBe("ModelProviderPersistentError:auth:401");
   });
@@ -143,7 +151,7 @@ describe("gömme kanalı kalıcı arızası — gerçek alert-state", () => {
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     for (let i = 0; i < 30; i++) expect(await embedTexts([`soru ${i}`])).toBeNull();
     // Durum yazımı misafir yolunu BEKLETMEZ (`void`); yazımların bitmesini bekle.
-    await new Promise((r) => setTimeout(r, 100));
+    await until(async () => mockReport.mock.calls.length >= 1 && (await embeddingRow()) !== null);
     expect(mockReport).toHaveBeenCalledTimes(1);
     expect(mockReport.mock.calls[0][0]).toBe("openai-embedding kalıcı arıza");
     expect(String((mockReport.mock.calls[0][1] as Error).message)).not.toContain("credit_balance_exhausted");
@@ -155,19 +163,19 @@ describe("gömme kanalı kalıcı arızası — gerçek alert-state", () => {
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     await suggestReply(input);
     await embedTexts(["a"]);
-    await new Promise((r) => setTimeout(r, 100));
+    await until(async () => (await stateRow()) !== null && (await embeddingRow()) !== null);
     expect(await stateRow()).not.toBeNull();
     expect(await embeddingRow()).not.toBeNull();
 
     vi.stubGlobal("fetch", vi.fn(async () => EMBED_OK()));
     expect(await embedTexts(["b"])).not.toBeNull();
-    for (let i = 0; i < 50 && (await embeddingRow()); i++) await new Promise((r) => setTimeout(r, 20));
+    await until(async () => !(await embeddingRow()));
     expect(await embeddingRow()).toBeNull();
     expect(await stateRow()).not.toBeNull(); // sohbet alarmı açık kalır
 
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     await embedTexts(["c"]);
-    for (let i = 0; i < 50 && !(await embeddingRow()); i++) await new Promise((r) => setTimeout(r, 20));
+    await until(async () => (await embeddingRow()) !== null);
     vi.stubGlobal("fetch", vi.fn(async () => OK()));
     expect((await suggestReply(input)).source).toBe("openai");
     await waitForRowGone();
