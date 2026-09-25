@@ -123,7 +123,7 @@ const LATIN: readonly LatinLanguage[] = ["tr", "en", "de", "fr", "es"];
 /** Rusçada olmayan Kiril harfleri (uk/be/sr/mk/kk). */
 const CYRILLIC_NON_RUSSIAN = /[іїєґўјљњћђџәғқңөұүһ]/iu;
 /** Bulgarca sık sözcükler (Rusçadan harfle ayrılmaz). */
-const BULGARIAN_WORDS: ReadonlySet<string> = new Set(["ще", "има", "къде", "сте", "съм", "няма", "каква", "какво", "здравейте", "благодаря", "моля"]);
+const BULGARIAN_WORDS: ReadonlySet<string> = new Set(["ще", "има", "къде", "сте", "съм", "няма", "каква", "какво", "здравейте"]);
 /** Arapçada olmayan Arap yazısı harfleri + Farsça/Urduca rakamlar (fa/ur/ckb/ps). */
 const PERSO_ARABIC = /[پچژگکیٹڈڑںےھہۃڵۆێەڕټډړږښځڅېۍ۰-۹]/u;
 /** Desteklenmeyen Latin dillerinin harfleri (pt/ro/pl/cs/sk/hr/sl/sv/da/no/hu/az/tk). Beş dilin yazımıyla çakışmaz. */
@@ -131,26 +131,26 @@ const FOREIGN_LETTERS = /[ãõășțąęłńśźżćřěůåøæőűəýňžšđ
 /** Desteklenmeyen Latin dillerinin sık sözcükleri (it/pt/nl/sv/da/no/ro/pl/hr/hu/sq/ca/id). Beş dilin listesiyle KESİŞMEZ (pinli). */
 const FOREIGN_WORDS: ReadonlySet<string> = new Set([
   // it
-  "è", "sono", "siamo", "abbiamo", "avete", "vorrei", "vorremmo", "grazie", "buongiorno", "buonasera", "ciao", "salve",
-  "della", "delle", "degli", "dello", "nella", "nel", "alla", "alle", "dalla", "questo", "questa", "anche", "perché",
+  "è", "sono", "siamo", "abbiamo", "avete", "vorrei", "vorremmo", "buongiorno", "buonasera", "salve",
+  "della", "delle", "degli", "dello", "nella", "nel", "alla", "dalla", "questo", "questa", "anche", "perché",
   "tutto", "tutti", "posso", "possiamo", "arriviamo", "chiave", "possibile", "gli", "che", "più", "già", "c'è",
-  "l'appartamento", "ho", "molto", "dove", "quando",
+  "l'appartamento", "ho", "molto", "quando",
   // pt
   "não", "você", "vocês", "obrigado", "obrigada", "bom", "boa", "tem", "temos", "muito", "muita", "onde", "uma", "isso",
-  "esse", "essa", "perto", "carro", "chegando", "chegamos", "olá", "oi", "estou", "também", "sim", "pelo", "pela",
-  "aqui", "agora", "então", "código", "senha", "chave", "porta", "qual", "avise", "cedo", "disponível", "estacionamento",
+  "esse", "essa", "perto", "chegando", "chegamos", "olá", "oi", "estou", "também", "pela",
+  "agora", "então", "senha", "chave", "porta", "qual", "cedo", "disponível", "estacionamento",
   // nl
   "het", "een", "ik", "jij", "wij", "zijn", "niet", "wat", "waar", "hoe", "hebben", "kunnen", "graag", "bedankt", "voor",
   "naar", "maar", "ook", "nog", "jullie", "komen", "sleutel", "wachtwoord", "goedemiddag", "goedemorgen", "goedenavond",
-  "hoi", "bijna", "mogelijk", "halen", "kluis", "rond", "vinden", "aan", "op", "om", "dat",
+  "hoi", "bijna", "mogelijk", "kluis", "vinden", "aan", "op", "om", "dat",
   // sv / da / no
-  "och", "är", "jag", "det", "att", "inte", "på", "för", "med", "hej", "tack", "när", "vad", "nyckeln", "också",
-  "väg", "möjligt", "hvad", "hvor", "jeg", "ikke", "hei", "koden", "vi",
+  "och", "är", "jag", "det", "att", "inte", "på", "för", "hej", "när", "vad", "nyckeln", "också",
+  "väg", "möjligt", "hvad", "hvor", "jeg", "ikke", "hei", "koden",
   // ro
-  "și", "este", "în", "pentru", "bună", "mulțumesc", "mulțumim", "unde", "suntem", "avem", "aveți", "vă", "noi",
-  "ziua", "seara", "drum", "spre", "vedem", "curând",
+  "și", "în", "pentru", "bună", "mulțumesc", "mulțumim", "unde", "suntem", "avem", "aveți", "vă", "noi",
+  "ziua", "seara", "spre", "vedem", "curând",
   // pl
-  "jest", "nie", "się", "czy", "dziękuję", "gdzie", "proszę", "dzień", "dobry", "mamy", "możemy", "który", "również",
+  "jest", "się", "czy", "dziękuję", "gdzie", "proszę", "dzień", "dobry", "mamy", "możemy", "który", "również",
   "kiedy", "przy", "około", "cześć",
   // hr / sr (Latin) · hu · sq · ca · id
   "hvala", "koja", "lozinka", "pozdrav", "jó", "napot", "mikor", "lehet", "përshëndetje", "faleminderit", "është",
@@ -163,11 +163,28 @@ const FOREIGN_WORDS: ReadonlySet<string> = new Set([
  * ("it's", "15:00'te") — ayıklanmaz.
  */
 function strip(text: string): string {
-  return text
+  return stripQuoted(text)
     .replace(/https?:\/\/\S+/gi, " ")
     .replace(/\S+@\S+/g, " ")
-    .replace(/"[^"\n]*"|“[^”\n]*”|«[^»\n]*»|„[^“”\n]*[“”]/gu, " ")
     .replace(/\S*\d\S*/g, " ");
+}
+
+/**
+ * KISA alıntılar (≤ 60 karakter: Wi-Fi adı / şifre, tabela) ayıklanır. Uzun alıntı AYIKLANMAZ: tüm Türkçe cevabı
+ * tırnağa almak kapıdan kaçmanın yolu olmasın (inceleme 09-25). Kıvrık tek tırnak ‘…’ alıntıdır; düz ' ve ’ kesme işareti.
+ */
+function stripQuoted(text: string): string {
+  return text.replace(/"[^"\n]{0,60}"|“[^”\n]{0,60}”|«[^»\n]{0,60}»|„[^“”\n]{0,60}[“”]|‘[^’\n]{0,60}’/gu, " ");
+}
+
+/**
+ * Belirteç metnin başında ya da cümle sonu işaretinden / satır sonundan hemen sonra mı (araya yalnız boşluk / tırnak /
+ * ayraç)? Yalnız önceki 12 karakter okunur (uzun metinde belirteç başına sabit iş).
+ */
+function atSentenceStart(text: string, index: number): boolean {
+  const before = text.slice(Math.max(0, index - 12), index);
+  if (index <= 12 && /^[\s"'“”‘’«»„(¿¡]*$/u.test(before)) return true;
+  return /[.!?…;\n][\s"'“”‘’«»„(¿¡]*$/u.test(before);
 }
 
 /**
@@ -188,10 +205,10 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
   // Karma yazı (Kiril/Arap + Latin, ör. Rusça cümle + Türkçe adres): Latin sözcüklerle hüküm VERİLMEZ.
   if (cyr + arab >= 3 && (cyr + arab) / letters.length >= 0.2) return null;
 
-  const tokens = clean.match(/\p{L}+(?:['’]\p{L}+)*/gu) ?? [];
   const score: Record<LatinLanguage, number> = { tr: 0, en: 0, de: 0, fr: 0, es: 0 };
   let foreign = 0;
-  for (const raw of tokens) {
+  for (const match of clean.matchAll(/\p{L}+(?:['’]\p{L}+)*/gu)) {
+    const raw = match[0];
     const tok = raw.replace(/İ/g, "i").replace(/I/g, "i").toLowerCase().replace(/’/g, "'");
     if (FOREIGN_WORDS.has(tok)) {
       foreign += 1;
@@ -204,9 +221,10 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
         listed = true;
       }
     }
-    // Büyük harfle başlayan sözcük çoğu zaman ÖZEL AD ("Bağdat Caddesi", "Kadıköy", "São Paulo"): harf kanıtı sayılmaz
-    // (inceleme 09-25, P2: Türkçe adres veren İngilizce/Rusça cevap Türkçe sanılıyordu).
-    if (listed || /^\p{Lu}/u.test(raw)) continue;
+    // Cümle İÇİNDE büyük harfle başlayan sözcük çoğu zaman ÖZEL AD ("Bağdat Caddesi", "Kadıköy", "São Paulo"): harf kanıtı
+    // sayılmaz (inceleme 09-25, P2: Türkçe adres veren İngilizce/Rusça cevap Türkçe sanılıyordu). Cümle BAŞINDAKİ sözcük
+    // sayılır ("Çıkış saati 11:00" kısa Türkçe cevabı yakalanmaya devam etsin — ikinci inceleme).
+    if (listed || (/^\p{Lu}/u.test(raw) && !atSentenceStart(clean, match.index ?? 0))) continue;
     if (FOREIGN_LETTERS.test(tok)) {
       foreign += 1;
       continue;
@@ -231,10 +249,13 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
  * emin değilse `null` (istem eski kuralına döner: belirsizde İngilizce).
  */
 export function guestTurnLanguage(latest: string, pending: readonly string[] = []): ConfidentLanguage | null {
-  // Misafir açıkça bir DİL İSTEDİYSE ("In English please 🙏", "Türkçe yazar mısınız?") kod dayatmaz, model mesajı okur
-  // (inceleme 09-25, P3: önceki Türkçe mesaj İngilizce isteğini eziyordu).
-  if (mentionsLanguageName(latest)) return null;
-  return confidentLanguage(latest) ?? (pending.length > 0 ? confidentLanguage([...pending, latest].join("\n")) : null);
+  // Emin olunan son mesaj HER ZAMAN kazanır ("Sorry, I don't speak Turkish. Where is the key?" → en; ikinci inceleme:
+  // dil adı yüzünden hüküm düşünce Türkçe cevap kapıdan geçiyordu). Belirsiz son mesaj bir DİL İSTİYORSA ("In English
+  // please 🙏", "Türkçe bilmiyorum, İngilizce yazar mısınız?") önceki cevapsız mesajların diline DÖNÜLMEZ (ilk inceleme P3).
+  const direct = confidentLanguage(latest);
+  if (direct) return direct;
+  if (pending.length === 0 || mentionsLanguageName(latest)) return null;
+  return confidentLanguage([...pending, latest].join("\n"));
 }
 
 /**
@@ -306,7 +327,8 @@ export function replyLanguageMismatch(guestLanguage: ConfidentLanguage | null, r
   if (!guestLanguage || !reply) return false;
   const whole = confidentLanguage(reply);
   if (whole !== null && whole !== guestLanguage) return true;
-  return sentencesOf(reply).some((sentence) => {
+  // Kısa alıntı cümlelere bölmeden ÖNCE ayıklanır (iki cümlelik tabela alıntısı bölünüp yargılanmasın).
+  return sentencesOf(stripQuoted(reply)).some((sentence) => {
     const lang = confidentLanguage(sentence);
     return lang !== null && lang !== guestLanguage;
   });

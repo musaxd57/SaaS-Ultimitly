@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { scrubStyleProfileForPublic } from "@/lib/guest-chat";
 import { suggestReply } from "@/lib/ai";
+import { guestTurnLanguage } from "@/lib/ai/language-signal";
 import { hostVoiceDraft } from "@/lib/ai/host-voice";
 import { isClosingAck, isPositiveFeedback } from "@/lib/ai/fallback";
 import {
@@ -209,7 +210,10 @@ export const POST = withManage(async (session, req) => {
   // rides host-reviewed messages, so it is previewed ONLY when the gate says
   // this message would truly go out on its own.
   const signature = org?.aiSignature?.trim();
-  const note = wouldAutoSend ? automatedReplyNote(result.detectedLanguage, org?.autoReplyDisclosure ?? true) : null;
+  // Dipnot dili gerçek göndericiyle AYNI kuraldan (kodun dil tespiti önce, model beyanı yedek) — önizleme paritesi.
+  const note = wouldAutoSend
+    ? automatedReplyNote(guestTurnLanguage(message) ?? result.detectedLanguage, org?.autoReplyDisclosure ?? true)
+    : null;
   // Gönderilmeyecek (taslak) cevap ev sahibinin sesiyle gösterilir — gelen kutusu önerisiyle aynı (`ai/host-voice.ts`);
   // otomatik gidecek cevap istemin dürüst devir kalıbıyla aynen. Kapı yukarıda ORİJİNAL metne baktı.
   const shown = wouldAutoSend ? result.reply : hostVoiceDraft(result.reply ?? "");

@@ -135,6 +135,15 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect((await (await POST(req("Hi, what is the wifi password?"), ctx)).json()).wouldAutoSend).toBe(false);
   });
 
+  it("dipnot dili gerçek göndericiyle aynı kuraldan: model 'tr' beyan etse de İngilizce misafire İngilizce dipnot (09-25)", async () => {
+    await seed();
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, detectedLanguage: "tr", reply: "The Wi-Fi network is LALEBUTIK and the password is Lale2025." });
+    const json = await (await POST(req("Hi, what is the wifi password?"), ctx)).json();
+    expect(json.wouldAutoSend).toBe(true);
+    expect(json.reply).toContain(automatedReplyNote("en", true)!);
+    expect(json.reply).not.toContain(AUTO_NOTE_TR);
+  });
+
   it("🚨 TASLAK = EV SAHİBİNİN SESİ (09-25): gönderilmeyecek cevapta devir kalıbı ev sahibinin ağzından; gönderilecek cevap AYNEN", async () => {
     await seed();
     // Tutulan cevap (iade niyeti kapıda durur): kalıp çevrilir.

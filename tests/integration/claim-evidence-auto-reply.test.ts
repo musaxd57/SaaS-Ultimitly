@@ -28,7 +28,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
-import { applyChannelAutoReply } from "@/lib/automation";
+import { applyChannelAutoReply, automatedReplyNote } from "@/lib/automation";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
@@ -142,6 +142,16 @@ describe("applyChannelAutoReply — karar kaydı kanıtı", () => {
     const conversationId = await seed("Hi! Is there parking at the building?");
     await applyChannelAutoReply(conversationId);
     expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("dipnot dili kodun tespitinden: model 'tr' beyan etse de İngilizce misafire giden gövdede İngilizce dipnot (09-25)", async () => {
+    mockSuggest.mockResolvedValue({ ...REPLY, detectedLanguage: "tr", reply: "Yes, parking under the building is free for guests." });
+    const conversationId = await seed("Hi! Is there parking at the building?");
+    await applyChannelAutoReply(conversationId);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const body = String(mockSend.mock.calls[0]?.[1] ?? "");
+    expect(body).toContain(automatedReplyNote("en", true)!);
+    expect(body).not.toContain(automatedReplyNote("tr", true)!);
   });
 
   it("ölçülmediyse (alan yok) kanıtta claims/llm anahtarı YOK", async () => {

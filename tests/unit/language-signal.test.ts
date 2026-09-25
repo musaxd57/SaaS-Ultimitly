@@ -100,15 +100,35 @@ describe("confidentLanguage — eminken dil", () => {
     expect(confidentLanguage("Konum bilgisi için bu bağlantıya bakabilirsiniz: https://example.com/where-is-the-flat-and-how")).toBe("tr");
   });
 
-  it("🚨 özel ad (büyük harfle başlayan) Türkçe harf kanıtı sayılmaz: Türkçe adres veren cevap Türkçe SANILMAZ (inceleme P2)", () => {
+  it("🚨 cümle İÇİNDE büyük harfle başlayan sözcük (özel ad) Türkçe harf kanıtı sayılmaz: Türkçe adres veren cevap Türkçe SANILMAZ (inceleme P2)", () => {
     expect(confidentLanguage("It's Bağdat Caddesi No:12, Şaşkınbakkal, Kızıltoprak Mahallesi, Kadıköy/İstanbul.")).toBeNull();
     // KONTROL: küçük harfli Türkçe sözcüklerde harf kanıtı sürer.
     expect(confidentLanguage("Tabii, çamaşır makinesi mutfakta, deterjan altındaki dolapta.")).toBe("tr");
   });
 
-  it("çift tırnak içi alıntı (Wi-Fi adı / şifre / tabela) dil kanıtı değildir", () => {
+  it("🚨 cümle BAŞINDAKİ büyük harfli sözcük harf kanıtı sayılır: kısa Türkçe cevap yakalanmaya devam eder (ikinci inceleme P2)", () => {
+    expect(confidentLanguage("Çıkış saati 11:00; anahtarları mutfak tezgâhına bırakabilirsiniz.")).toBe("tr");
+    expect(replyLanguageMismatch("en", "Çıkış saati 11:00; anahtarları mutfak tezgâhına bırakabilirsiniz.")).toBe(true);
+  });
+
+  it("desteklenen dillerin sık sözcükleri yabancı liste yüzünden belirsizleşmez (ikinci inceleme P3: alle, nie, SIM, carro, благодаря…)", () => {
+    expect(confidentLanguage("Das WLAN funktioniert nie richtig, alle Geräte verlieren die Verbindung.")).toBe("de");
+    expect(confidentLanguage("Is there a SIM shop near the flat? Ciao")).toBe("en");
+    expect(confidentLanguage("¿Dónde puedo dejar el carro? Este fin de semana llegamos en carro.")).toBe("es");
+    expect(confidentLanguage("Благодаря вашей инструкции мы быстро нашли квартиру, спасибо!")).toBe("ru");
+  });
+
+  it("KISA alıntı (Wi-Fi adı / şifre / tabela; çift ya da kıvrık tek tırnak) dil kanıtı değildir", () => {
     expect(confidentLanguage('Wi-Fi şifresi: "we are at the sea"')).toBeNull();
     expect(confidentLanguage('Network: "Işıklı Ev", password: "ağaçlıkyol".')).toBeNull();
+    expect(replyLanguageMismatch("tr", "Wi-Fi şifresi: ‘we are at the sea’")).toBe(false);
+  });
+
+  it("🚨 alıntı cümlelere bölmeden ÖNCE ayıklanır; UZUN alıntı ayıklanmaz (tüm Türkçe cevabı tırnağa almak kaçış olmasın)", () => {
+    expect(replyLanguageMismatch("en", 'The sign says "Lütfen ayakkabılarınızı çıkarın. Teşekkür ederiz." — please take your shoes off.')).toBe(false);
+    // KONTROL: aynı metin tırnaksız → Türkçe cümle yargılanır.
+    expect(replyLanguageMismatch("en", "The sign says Lütfen ayakkabılarınızı çıkarın. Teşekkür ederiz. — please take your shoes off.")).toBe(true);
+    expect(replyLanguageMismatch("en", '"Ev kurallarımız: sigara içilmez, evcil hayvan kabul edilmez, lütfen buna dikkat edin, teşekkürler"')).toBe(true);
   });
 
   it("🚨 karma yazı: Rusça/Arapça cevaptaki tırnaksız İngilizce şifre cevabı İngilizce YAPMAZ (mutasyon turu 09-25)", () => {
@@ -152,15 +172,24 @@ describe("guestTurnLanguage — son mesaj, değilse cevapsız mesajların tamam�
     expect(guestTurnLanguage("👍", ["Otopark nerede acaba?"])).toBe("tr");
   });
 
-  it("🚨 misafir açıkça bir DİL İSTEDİYSE kod dayatmaz — önceki Türkçe mesaj İngilizce isteğini EZMEZ (inceleme P3)", () => {
+  it("🚨 belirsiz son mesaj bir DİL İSTİYORSA önceki cevapsız mesajların diline DÖNÜLMEZ (ilk inceleme P3)", () => {
     expect(guestTurnLanguage("In English please 🙏", ["Merhaba, havlular nerede acaba?"])).toBeNull();
-    expect(guestTurnLanguage("Could you please answer in Turkish?")).toBeNull();
-    expect(guestTurnLanguage("Do you speak English?")).toBeNull();
-    expect(guestTurnLanguage("Türkçe yazabilir misiniz lütfen?", ["Where is the parking?"])).toBeNull();
-    expect(guestTurnLanguage("Können Sie bitte auf Deutsch antworten?")).toBeNull();
-    expect(guestTurnLanguage("English please! Where is the key box?")).toBeNull();
-    // KONTROL: dil adı yoksa kural aynen.
-    expect(guestTurnLanguage("Could you please answer quickly?")).toBe("en");
+    expect(guestTurnLanguage("Türkçe bilmiyorum, İngilizce yazar mısınız?", ["Where is the parking?"])).toBeNull();
+    // KONTROL: dil adı yoksa belirsiz son mesaj cevapsız mesajlarla okunur.
+    expect(guestTurnLanguage("ok", ["Merhaba, havlular nerede acaba?"])).toBe("tr");
+  });
+
+  it("🚨 emin olunan son mesaj HER ZAMAN kazanır — dil adı geçse de (ikinci inceleme P1: 'I don't speak Turkish')", () => {
+    const guest = "Sorry, I don't speak Turkish. Where is the key box?";
+    expect(guestTurnLanguage(guest)).toBe("en");
+    // Eskiden dil adı yüzünden hüküm düşüyor, bu Türkçe cevap kapıdan GEÇİYORDU.
+    expect(replyLanguageMismatch(guestTurnLanguage(guest), "Anahtar kutusu kapının sağında, kodu size check-in günü sabah gönderilecek. İyi tatiller dileriz!")).toBe(true);
+    // İstek misafirin kendi dilinde yazıldıysa o dil zaten tespit edilir.
+    expect(guestTurnLanguage("Türkçe yazabilir misiniz lütfen?", ["Where is the parking?"])).toBe("tr");
+    expect(guestTurnLanguage("Können Sie bitte auf Deutsch antworten?")).toBe("de");
+    // Bilinen sınır (belgeli): İngilizce yazıp Türkçe cevap isteyen misafir İngilizce yönerge alır; model isteğe uyup
+    // Türkçe yazarsa kapı tutar (ev sahibi taslağı gönderebilir).
+    expect(guestTurnLanguage("Could you please answer in Turkish?")).toBe("en");
   });
 
   it("🚨 dil ADININ sıradan geçişi istek DEĞİL: 'Turkish bath / SIM card / coffee', 'English breakfast' İngilizce kalır", () => {

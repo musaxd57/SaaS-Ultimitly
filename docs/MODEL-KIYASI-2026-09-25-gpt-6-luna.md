@@ -82,8 +82,12 @@ artık hüküm yok (0/37). (2) Türkçe adres / özel ad içeren doğru dildeki 
 sözcükte harf kanıtı yok, çift tırnak alıntısı ve karma yazı hüküm almaz. (3) Cümle kuralı, host'un Türkçe notunu taşıyan
 İngilizce doğrulanmış erken giriş onayını tutuyordu → koddan kurulan doğrulanmış metin dil kapısından muaf, dilini kod
 seçer. (4) "In English please" gibi açık dil isteği önceki Türkçe mesajla eziliyordu → dil adı geçen mesajda hüküm yok.
-Bu düzeltmeler eval senaryolarında yönergeyi yalnız 1/135 satırda değiştirir (Almanca "Wäre ein später Check-out…" artık
-belirsiz); kayıtlı cevap pinleri aynı (5.1'in 7 vakası yakalanıyor, son koşuda 0).
+**İkinci inceleme turu:** (1) dil adı kuralı "Sorry, I don't speak Turkish" gibi mesajlarda hükmü düşürüp Türkçe cevabı
+kapıdan geçiriyordu → emin olunan son mesaj her zaman kazanır, dil adı yalnız belirsiz mesajda cevapsız mesajlara dönüşü
+engeller. (2) Özel ad kuralı cümle başındaki Türkçe sözcüğü de atlıyor, kısa Türkçe cevaplar kaçıyordu → yalnız cümle
+içindeki büyük harfli sözcük. (3) Yabancı listede desteklenen dillerle çakışan sözcükler çıkarıldı. (4) Alıntı cümle
+bölmeden önce ve yalnız kısaysa ayıklanır. (5) Dipnot ve bekletme mesajı da dilini koddan alır. Sonuç: veri pinlerinde
+kapsama `039aa79` seviyesine döndü (tr %72, de %92), 2.054 metinde kayıp 0, desteklenmeyen dil 0/37, kısa Türkçe cevap 8/8.
 - Uydurma: iki modelde de 0 (bu sette); Luna'nın genel benchmark'taki yüksek halüsinasyon oranı (Artificial
   Analysis) bu kapalı, bilgi tabanlı işte görünmedi — ama ücret sorusunda bilgi VERMEMEYİ seçti (↑1).
 

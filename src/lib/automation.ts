@@ -2226,7 +2226,8 @@ export async function applyChannelAutoReply(
   // note sits ABOVE the host's signature so the personal sign-off still closes the
   // message (a robotic disclaimer shouldn't be the last line). Draft/preview and
   // the manual "AI suggest" path stay clean — only the auto-send carries it.
-  const note = automatedReplyNote(result.detectedLanguage, org.autoReplyDisclosure);
+  // Dipnotun dili de kodun tespitinden (misafirin mesajı), model beyanı yedek — dil kapısıyla aynı kural (09-25).
+  const note = automatedReplyNote(guestLanguage ?? result.detectedLanguage, org.autoReplyDisclosure);
   const outboundParts = [result.reply.trimEnd()];
   if (note) outboundParts.push(note);
   if (signature) outboundParts.push(signature);
@@ -2400,7 +2401,7 @@ export async function applyChannelAutoReply(
               },
               guestMessage: last.body,
               org: alertOrg,
-              language: result.detectedLanguage,
+              language: guestLanguage ?? result.detectedLanguage,
               complaintConfirmed: true,
               // `conversation` fonksiyonun BAŞINDA okundu → bu alan claim'den
               // ÖNCEKİ değer. Aday sorgusu (`dueAutoReplyWhere`) çitlenmiş
