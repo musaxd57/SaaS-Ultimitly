@@ -55,6 +55,18 @@ describe("istem — bugün/yarın + konaklama evresi org diliminde", () => {
     expect(p).not.toContain("standart çıkış saati 11:00");
   });
 
+  it("🚨 GİRİŞ saati çelişkisi de aynı: varış günü satırı standart giriş saatini tekrar etmez (mutasyon turu 09-25)", () => {
+    const kbConflict = [{ category: "checkin", title: "Giriş", content: "Giriş saati 14:00'tür." }];
+    // Varış günü İstanbul 10:00 (23.09): evre "Giriş BUGÜN".
+    const p = buildReplyUserPrompt({ ...base, knowledgeBase: kbConflict, now: new Date("2026-09-23T07:00:00.000Z") });
+    expect(p).toContain("KAYNAK ÇELİŞKİSİ");
+    expect(p).toContain("Zaman bağlamı: Giriş BUGÜN: 23.09.2026 Çarşamba.");
+    expect(p).not.toContain("standart giriş saati 15:00");
+    // KONTROL: çelişki yoksa aynı satır standart saati yazar.
+    const clean = buildReplyUserPrompt({ ...base, now: new Date("2026-09-23T07:00:00.000Z") });
+    expect(clean).toContain("Zaman bağlamı: Giriş BUGÜN: 23.09.2026 Çarşamba (standart giriş saati 15:00).");
+  });
+
   it("komşu rezervasyon günleri org diliminde + gün adıyla (sunucu saatiyle DEĞİL — inceleme 09-25)", () => {
     const p = buildReplyUserPrompt({
       ...base,

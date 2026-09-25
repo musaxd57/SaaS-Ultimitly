@@ -162,6 +162,11 @@ describe("biçim — gün adı, saat satırı", () => {
     expect(line("2026-09-26T20:00:00.000Z")).toBe("Misafir şu an konaklamakta. Çıkış YARIN: 27.09.2026 Pazar (standart çıkış saati 11:00).");
     // Bilgi tabanıyla çelişen saat (P4-b): satır saati tekrar etmez.
     expect(line("2026-09-27T07:00:00.000Z", { checkInTime: "15:00", checkOutTime: null })).toBe("Çıkış günü BUGÜN: 27.09.2026 Pazar.");
+    // Biçimi bozuk standart saat (SS:DD değil) yazılmaz ve "geçti" kıyasına girmez (dize kıyası yanlış sonuç verirdi;
+    // mutasyon turu 09-25: pinsizdi).
+    for (const bad of ["11.00", "25:00", "11"]) {
+      expect(line("2026-09-27T10:00:00.000Z", { checkInTime: "15:00", checkOutTime: bad })).toBe("Çıkış günü BUGÜN: 27.09.2026 Pazar.");
+    }
   });
 
   it("evre satırları standart saati içerir (giriş/çıkış günü)", () => {

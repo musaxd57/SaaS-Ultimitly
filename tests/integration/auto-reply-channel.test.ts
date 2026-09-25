@@ -496,7 +496,9 @@ describe("applyChannelAutoReply", () => {
       riskType: "human_request",
       confidence: 0.9,
     });
-    const { conversationId } = await seed();
+    // Misafirin dilinde (Türkçe istek + Türkçe cevap): tutan kontrol YALNIZ çıktı vetosu olsun. Mutasyon turu (09-25)
+    // ölçtü: İngilizce varsayılan mesajla dil kapısı cevabı zaten tutuyordu ve muafiyeti geri getiren mutant yaşıyordu.
+    const { conversationId } = await seed({ guestMessage: "Ev sahibiyle görüşmek istiyorum lütfen" });
     const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
@@ -505,6 +507,8 @@ describe("applyChannelAutoReply", () => {
     expect(conv.skippedReason).toBe("escalated_to_human");
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
     expect(ev.finalDecision).toBe("human_review");
+    // Yükseltme kaydının gerekçesi `escalated_to_human`; kapıyı İLK kapatan kontrol kapı kanıtında (`g.d`).
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("reply_output_veto");
   });
 
   it("stays silent while a human-handoff hold is active", async () => {

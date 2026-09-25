@@ -198,11 +198,14 @@ describe("gizleme kapısı (`closingMayHide`) — yalnız açık iş olmadığı
 
   it("cevap yoksa gizlenmez; sistem olayı / gövdesiz satır / eski QR işareti CEVAP sayılmaz", () => {
     expect(hide([g("Teşekkürler")])).toBe(false);
-    const sys: ClosingThreadMessage = { direction: "outbound", senderName: "x", authorType: "system", systemEventType: "guest_chat_ai_resumed", body: "" };
+    const sys: ClosingThreadMessage = { direction: "outbound", senderName: "x", authorType: "system", systemEventType: "guest_chat_ai_resumed", body: "AI yeniden açıldı" };
     const legacyResume: ClosingThreadMessage = { direction: "outbound", senderName: "__lixus_ai_resumed__", body: "AI açıldı" };
+    // Gövdesiz giden satır (yalnız fotoğraf / boş gövde): misafir bir METİN cevabı görmedi.
+    const blank: ClosingThreadMessage = { direction: "outbound", senderName: "Ev sahibi", authorType: "host", body: "   " };
     expect(hide([g("Teşekkürler"), sys])).toBe(false);
     expect(hide([g("Teşekkürler"), legacyResume])).toBe(false);
-    expect(hasPriorReply([g("Teşekkürler"), sys, legacyResume])).toBe(false);
+    expect(hide([g("Teşekkürler"), blank])).toBe(false);
+    expect(hasPriorReply([g("Teşekkürler"), sys, legacyResume, blank])).toBe(false);
     // Yazarı eski ad kuralından çözülen cevap sayılır.
     expect(hasPriorReply([{ direction: "outbound", senderName: "GuestOps AI", body: "x" }])).toBe(true);
   });

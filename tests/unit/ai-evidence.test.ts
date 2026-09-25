@@ -168,6 +168,10 @@ describe("timeCorrectedInMessage (pure)", () => {
     expect(timeCorrectedInMessage("08:00", "20:00", "8 kişiyiz")).toBe(false);
     expect(timeCorrectedInMessage("11:00", "23:00", "Saat 11 demiştim, teşekkürler")).toBe(false);
     expect(timeCorrectedInMessage("01:00", "13:00", "1 valizimiz var")).toBe(false);
+    // İKİ belirteçli cümlede de: eski VE yeni saati aynı "10" (10:00 / 22:00 okunuşu) karşılıyor, öteki belirteç ikisini
+    // de karşılamıyor → düzeltme değil (mutasyon turu 09-25: tek belirteçli örnekler sayı şartına takılıyordu).
+    expect(timeCorrectedInMessage("10:00", "22:00", "10 demiştim ama 11:30 olacak")).toBe(false);
+    expect(timeCorrectedInMessage("10:00", "11:30", "10 demiştim ama 11:30 olacak")).toBe(true); // KONTROL
   });
 
   it("🚨 P2: üç saatli cümle bu yoldan kabul edilmez (uçuş saati düzeltme sanılmasın)", () => {
@@ -179,6 +183,9 @@ describe("timeCorrectedInMessage (pure)", () => {
 
   it("🚨 P2: sayaç / numara / tarih saat değildir; düzeltme ya da çıkış işareti şarttır", () => {
     expect(timeCorrectedInMessage("10:00", "11:00", "oda 10, kat 11")).toBe(false);
+    // Düzeltme İŞARETİ olan numara cümlesi (mutasyon turu 09-25: yukarıdaki satır işaret şartına takılıyordu, numara
+    // kuralını sınamıyordu): "oda 10" saat değildir.
+    expect(timeCorrectedInMessage("10:00", "11:00", "Oda 10 değil 11 olacak")).toBe(false);
     expect(timeCorrectedInMessage("10:00", "11:00", "Havlular 10 tane mi 11 tane mi?")).toBe(false);
     expect(timeCorrectedInMessage("10:00", "11:00", "10/11 tarihinde geleceğiz")).toBe(false);
     expect(timeCorrectedInMessage("10:00", "11:00", "10 kişi demiştik ama 11 olacağız")).toBe(false);

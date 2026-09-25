@@ -126,9 +126,13 @@ export interface ClosingThreadMessage {
   aiIntent?: string | null;
 }
 
-/** Misafirin gördüğü giden mesajın yazarı; sistem olayı / gövdesiz satır / eski QR işareti cevap DEĞİL → null. */
+/**
+ * Misafirin gördüğü giden mesajın yazarı; sistem olayı / gövdesiz satır / eski QR işareti cevap DEĞİL → null. Sistem
+ * olayı ve eski işaret `resolveMessageAuthor`dan "system" döner (ayrı `systemEventType` denetimi ölü koddu — mutasyon
+ * turu 09-25).
+ */
 export function replyAuthorOf(m: ClosingThreadMessage): "ai" | "host" | null {
-  if (m.direction !== "outbound" || m.systemEventType || m.body.trim() === "") return null;
+  if (m.direction !== "outbound" || m.body.trim() === "") return null;
   const a = resolveMessageAuthor(m).authorType;
   return a === "ai" || a === "host" ? a : null;
 }

@@ -37,6 +37,11 @@ const LEGIT = [
     "Onaylayacağınız kural listesi Airbnb'de.",
     "Kontrol edecekleriniz: kapı kodu ve Wi-Fi.",
     "Soracaklarınız olursa buradayız.",
+    // 2. çoğul sıfat-fiil (09-12 gövdeleri + "-lerini(z)"): mutasyon turu (09-25) bu frenin pinsiz olduğunu ölçtü.
+    "Paylaşacaklarınızı ev sahibiniz uygulamadan görebilir.",
+    "Göndereceklerinizi buradan iletebilirsiniz.",
+    // "confirm your ID/booking" süreç anlatımıdır (mutasyon turu 09-25: bu fren pinsizdi).
+    "At check-in we will confirm your ID in line with local registration rules.",
     "Sorarım diye düşünmeyin, her şey hazır.",
     "Let me know if you need anything else.",
     "Otobüs sizi merkeze götürecek.",
@@ -106,6 +111,11 @@ const PROMISES = [
     "Your host will review your request and let you know.",
     "The host will check availability.",
     "I'll check the router and get back to you.",
+    // YALNIZ "… and get back / let you know" dalının yakaladığı sözler (fiil başka hiçbir listede yok) — mutasyon turu
+    // (09-25) bu dalın pinsiz olduğunu ölçtü: yukarıdaki örnekler başka dallardan da düşüyordu.
+    "Our team will take a look at the heater and get back to you.",
+    "We'll sort out the parking and let you know.",
+    "I'll have a word with the cleaner and get back to you shortly.",
     "They'll confirm whether the 14th–16th works.",
     "Ev sahibinize soracağım.",
     "Size döneceğim.",

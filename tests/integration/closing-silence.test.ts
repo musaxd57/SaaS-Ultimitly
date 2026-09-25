@@ -594,6 +594,32 @@ describe("QR misafir sohbeti — kapanışa sessizlik", () => {
     expect(ev.kbEvidenceJson).not.toBeNull();
   });
 
+  it("🚨 P2 (QR anlam yolu): önceki cevap YOKSA ilk 'Anladım' susturulmaz (ilk mesaj bir selamdır)", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_THANKS }));
+    const { token } = await seedQr();
+    mockSuggest.mockResolvedValue(CLOSING_DRAFT);
+    const { body } = await ask(token, "Anladım");
+    expect(body.noReply).toBeUndefined();
+    expect(body.escalated).toBe(true); // bugünkü davranış: düşük güven devri
+  });
+
+  it("🚨 P3 (QR anlam yolu): yapay zekâ duraklatılmışken yazılmış cevapsız soru varsa 'Anladım' SUSTURULMAZ", async () => {
+    // Anlama katmanı yalnız bu mesajı değerlendirdi; öndeki "Havlu var mı?"yı onaylayamaz (mutasyon turu 09-25: pinsizdi).
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_THANKS }));
+    const { propertyId, token } = await seedQr();
+    const prior = await askPriorAnswer(token);
+    const convo = await prisma.conversation.findFirstOrThrow({ where: { propertyId, channel: "chat" } });
+    await prisma.message.create({
+      data: { conversationId: convo.id, direction: "inbound", authorType: "guest", senderName: "x", body: "Havlu var mı?" },
+    });
+    mockSuggest.mockResolvedValue(CLOSING_DRAFT);
+    const { body } = await ask(token, "Anladım", prior.cookie);
+    expect(body.noReply).toBeUndefined();
+    expect(body.escalated).toBe(true);
+  });
+
   it("🚨 BİRLEŞİM (QR): iki model 'yalnız teşekkür' dese de kelime ağının konaklama isteği SUSTURULAMAZ → devir", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: NLU_THANKS }));
