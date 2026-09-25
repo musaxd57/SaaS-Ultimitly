@@ -385,6 +385,18 @@ Bu dosyaya token/anahtar/parola yazma.
   misafir ADI / MESAJI görmez — sistem görevi → tür adı, yapay zekâ görevi → yalnız "Tür: konu" (rakamsız) + açıklama
   YOK, elle görev → aynen. Uygulandığı yerler: personel görev listesi + güncelleme cevabı, personele atama e-postası,
   görev kartı (`card-data.ts`), temizlik listesi (her oturumda). Yeni bir personel yüzeyi eklenirse AYNI fonksiyondan geçer.
+- 🚨 **KAPI KANITI + SÖZCÜKSEL/ANLAMSAL AYRIM (09-25, `ai/gate-evidence.ts`, belge `docs/MESAJ-ANLAMA-CEKIRDEGI-2026-09-25.md`):**
+  `autoReplyGateVerdict` = hüküm + `blocked` ise İLK kapatan kontrolün kapalı-küme ayrıntısı; `autoReplyGateFailure` onun
+  gerekçesi (tek kaynak, karar değişmedi). Karar kaydında `g = {d, lx, mi/mt/ml}`: kelime ağı UYARILARI ile modelin kapatıcı
+  sinyalleri AYRI alanlarda (anlama katmanı `ir`de). Kapı bu modülü OKUMAZ; kapının `NEVER_AUTO_REPLY_INTENTS` /
+  `HIGH_STAKES_RISK_TYPES` kümeleri oradan kurulur. Sözcüksel etiket yetkisini indirme kararı bu ölçüme dayanır (kurucu onayı;
+  kelime listesine tek tek istisna YAZILMAZ). Kapanış kısayolu yalnız son giden mesajdan sonraki TÜM misafir mesajları
+  kapanış/övgüyse (cevapsız istek + "teşekkürler" modeli atlatmaz).
+- **Ev sahibi metninde ödeme yöntemi TEK KAYNAK `payment-method-guard.ts` (09-25):** yöntem adı (nakit/IBAN/havale/PayPal/
+  kripto/banka hesabı…) her yerde; yer/biçim sözcüğü (kapıda/elden/at the door/on arrival/in person) YALNIZ aynı cümlecikte
+  ödeme/ücret/para birimiyle; Türkçe katlama (JS `/i` "İBAN/KAPIDA"yı katlamaz). Misafir mesajına UYGULANMAZ. 🚨 Kural
+  (kurucu #28): test bir sözcük çakışmasıyla düşerse fikstür değiştirilip geçilmez — gerçek mesajda olabiliyorsa kök
+  regresyon testi yazılır (örnek 13d).
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).
@@ -968,7 +980,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Otomatik giriş/çıkış/karşılama mesajları** doldurulmamış `[…]`/`{{…}}` taşıyorsa FAIL-CLOSED (gönderilmez,
   damgalanmaz; KB'de "Doldurulmamış alan" rozeti). Oto-yanıt anahtarı kapalıyken bu üç gönderici ÇALIŞIR (dürüst ad).
 - **Çıktı vetosu** (`output-veto.ts`, iki kapıda): `placeholder_in_reply` + ETKEN `unverified_commitment`; edilgen
-  dallar ölçümde kalır; `human_request` muaf. Bekletme mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
+  dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi (haber verdim/aradım/rezerve ettim/gönderdim · booked/
+  notified/sent/let the host know, "we" ajanı): 1.287 model cevabında 1 yeni veto (gerçek iddia). Bekletme mesajları (`HOLDING_ACK_TEXTS`) makbuzsuz iddia taşımaz.
 - **Temellendirme kaydı:** geri çekilme kırpması + pack bütçesi `kbDropped`e SAYILIR (`capacity` ≠ `ungrounded`);
   `supersededById` düşüşü sayılmaz; kalite denetçisi `aiSourcesJson` görür (null ≠ "kaynak yok").
 - **Bütçe:** "12 çağrı = 1 birim" Inbox önizlemesidir (Ayarlar kartı değil); oran fiyatlandırma kararı.
@@ -1017,6 +1030,12 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-25 MESAJ ANLAMA ÇEKİRDEĞİ TURU (kurucu: ChatGPT'nin "kelime kuralları anlam kararı vermesin" metni; "mantıklıysa
+uygula, çok büyükse söyle"):** kapanış kısayolu (cevapsız istek kayboluyordu) · ödeme süzgeci kök düzeltmesi ("kapıda") ·
+kapı kanıtı `g` · çıktı vetosu genişletmesi — hepsi migration'sız, kırmızı-önce + mutasyon. Büyük öneri (anlama v2:
+`act`/`day`/`evidence`/`uncertain` + sözcüksel etiket yetkisinin indirilmesi + eylem beyanı) KURUCU ONAYI bekliyor:
+`docs/MESAJ-ANLAMA-CEKIRDEGI-2026-09-25.md` §4. Dil düzeltmesi (5.1 misafirin dilinde %100) canlı (CI 1164 yeşil).
+
 **09-25 ÖLÇÜM + YAYIN:** tam eval (599 istek + 747 cevap, ~3 $) ve mühürlü final (~1 $) GEÇERLİ; birleşimde tehlikeli
 kaçak 0 (dev/holdout/final). Canlı `f584075` (C-17 + 7a/4a inceleme düzeltmeleri dahil; migration yok). CI 739d83c'de
 Actions dakika sınırıyla düşmüştü → repo PUBLIC yapıldı. Bayrak açma kurucuda (↑AI güvenlik mimarisi).
