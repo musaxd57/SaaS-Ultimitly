@@ -498,7 +498,24 @@ Kalıcı kaynaklardan kodla kurulur ve cevap modeli çağrısından ÖNCE hazır
     - CB28: sistem işareti yazar alanından bağımsız elenir.
   - Eşdeğer (koşulmadı, gerekçeli): yükleyicinin karar penceresi dilimi (kurucu zaten pencereler) ve bekleyen mesaj
     kimliğinin sorgudan elenmesi (o kimlikle kayıt olamaz).
-- **Kalan (bu dilimde YOK):** anlama katmanına tarih satırı (yalnız gün, dakika yok — önbellek anahtarı bozulmasın).
+- **Anlama katmanına tarih satırı — YAPILDI (aynı bayrak, commit `d743170` + `d9acd61`):**
+  - Anlama katmanı "yarın 11'de" gibi ifadenin konaklamadaki yerini ancak bugünü ve rezervasyonun GÜNLERİNİ bilerek okur.
+    Bu yüzden katmanın girdisine koddan kurulan İngilizce bir satır eklendi (`stay-timeline.ts understandingDateLine`).
+  - Satırın içeriği:
+    - bugün ve yarın (org dilimi, tek tarih kuralı);
+    - rezervasyonun giriş ve çıkış günleri; iptal ya da onaysız rezervasyon işaretli;
+    - gece yarısından sonra "yarın = bugün" ipucu.
+  - YALNIZ GÜN hassasiyeti: dakika yazılmaz, satır önbellek anahtarına girer ve gün içinde sabit kalır.
+  - Tek karar noktası `retrieveKbForPrompt`. Bayrak kapalıyken satır hesaplanmaz, alan gitmez. Anlama katmanı canlıda açık
+    ve mühürlü eval'le ölçülmüş olduğundan girdisi ve önbellek anahtarı bayt bayt aynı kalır (pinli).
+  - Dört yüzey tarih bağlamını verir:
+    - QR rezervasyon ayrıntısını bilinçli vermez (yalnız bugün/yarın; "rezervasyon yok" DENMEZ);
+    - Ayarlar testi cevap modeliyle aynı örnek konaklamayı kullanır.
+  - Geçersiz dilim varsayılan dilime düşer.
+  - İzolasyon pini `kb-retrieve.ts`'i bilinçli ekler; kapı değildir, yalnız bayrağı okur.
+  - Kanıt: yeni testler eski kodda kırmızı; mutasyon 13/13 (yaşayan DL4, UTC/İstanbul gün farkı ikiziyle kapandı).
+  - 🚨 Bayrak açılınca anlama katmanının girdisi değişir. Açma sırası kör eval + eşli koşu; stay-change eval'i de yeniden
+    koşulur (katman canlıda ölçülmüş yapılandırmayla açık).
 - **Açma sırası:**
   1. Kör set `evals/conversation-state.json`: "yarın erken" varıştan önce, çıkıştan önce ve rezervasyonsuz; düzeltme;
      yolculuk; kapanış. Ajanla yazılacak; harcama sınırı nedeniyle 30 Eylül sonrası.

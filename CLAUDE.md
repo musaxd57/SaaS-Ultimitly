@@ -300,6 +300,9 @@ Bu dosyaya token/anahtar/parola yazma.
   çağırır (mekanik pin); bayrak kapalı = SIFIR sorgu + istem bayt bayt aynı; kayıt yok = o mesaj hakkında hiçbir şey
   söylenmez; kelime ağının `alerts` kaydı konu adı OLMAZ; okuma hatası akışı durdurmaz. QR'da cevaplanan mesaj henüz
   kayıtlı değildir → sayıma katılır (üç yüzeyde aynı anlam). Açma = kör eval + eşli koşu + kurucu onayı (belge §2.2).
+  Aynı bayrak ANLAMA KATMANINA gün hassasiyetli tarih satırı ekler (`understandingDateLine`; bugün/yarın + rezervasyon
+  günleri, QR'da yalnız bugün/yarın). TEK karar noktası `retrieveKbForPrompt`; kapalıyken katmanın girdisi ve önbellek
+  anahtarı bayt bayt aynı (canlıda açık, ölçülmüş bileşen — açınca stay-change eval'i de yeniden koşulur).
 - 🚨 **EYLEM BEYANI (`claimedActions`, 09-25, `ai/action-claims.ts`; bayrak `AI_ACTION_CLAIMS_ENABLED` varsayılan KAPALI;
   MÇ §4):** cevap modeli reply'daki kendi/ekip eylemlerini kapalı kümeden beyan eder. Makbuz YOK → boş olmayan beyan
   `action_claim`, eksik/bozuk beyan `action_claim_undeclared` (kanal + QR + önizleme + demo aynı yüklem). Kelime vetosunun
