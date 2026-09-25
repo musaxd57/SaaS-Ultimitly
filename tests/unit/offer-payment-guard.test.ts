@@ -67,6 +67,8 @@ describe("offer text payment-method guard (payment-neutral backstop)", () => {
       "Kapıda ücretsiz otopark var.",
       "Kapı kodu AB12 3456, ücret 300 TL.",
       "Wi-Fi şifresi Lale2025DE12345678; geç çıkış 20 EUR",
+      // IBAN BİÇİMİNDE ama rakamsız (rezervasyon kodu): numara kuralı en az 12 rakam ister.
+      "Rezervasyon kodunuz HM12ABCDEFGHJKLM, geç çıkış 20 EUR",
     ]) {
       expect(namesPaymentMethod(s), s).toBe(false);
     }
