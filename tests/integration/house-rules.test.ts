@@ -113,6 +113,41 @@ describe("depo (migration'sız, `AutomationRule`)", () => {
     expect(await prisma.automationRule.count({ where: houseRulesWhere(a.orgId, a.propertyId) })).toBe(0);
   });
 
+  it("🚨 kilit DETERMİNİSTİK: başka bir yazıcı mülk satırını tutarken kayıt BEKLER, onun satırını görüp günceller", async () => {
+    // Promise.all yarışı şansa bağlıdır; burada eşzamanlı yazıcı kilidi ELİNDE tutup satırını eklemiş ama bitirmemiş. Kilit
+    // varsa kayıt bekler ve o satırı günceller (tek satır); kilit yoksa bitmemiş satırı göremez ve ikinci satırı yaratır.
+    const a = await org();
+    const where = houseRulesWhere(a.orgId, a.propertyId);
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    let holding!: () => void;
+    const held = new Promise<void>((r) => (holding = r));
+    const writer = prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${a.propertyId} FOR UPDATE`;
+        await tx.automationRule.create({ data: { ...where, actionJson: JSON.stringify({ rules: RULES }), isEnabled: true, name: "Ev kuralları" } });
+        holding();
+        await hold;
+      },
+      { timeout: 15_000 },
+    );
+    await held;
+    let settled = false;
+    const save = saveHouseRules(a.orgId, a.propertyId, [{ topic: "visitors", policy: "forbidden", status: "confirmed" }]).finally(() => {
+      settled = true;
+    });
+    for (let i = 0; i < 300 && !settled; i++) {
+      const [{ n }] = await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_locks WHERE NOT granted`;
+      if (n > 0n) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    release();
+    await writer;
+    await save;
+    expect(await prisma.automationRule.findMany({ where })).toHaveLength(1);
+    expect(await loadHouseRules(a.orgId, a.propertyId)).toEqual([{ topic: "visitors", policy: "forbidden", status: "confirmed" }]);
+  });
+
   it("🚨 eşzamanlı kayıtlar (iki sekme / çift tık) TEK satır bırakır", async () => {
     const a = await org();
     await Promise.all(

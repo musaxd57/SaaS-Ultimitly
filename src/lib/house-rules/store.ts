@@ -33,7 +33,7 @@ function member<T extends string>(set: readonly T[], v: unknown): v is T {
 export function validateStoredHouseRules(raw: unknown): HouseRule[] | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const list = (raw as { rules?: unknown }).rules;
-  if (!Array.isArray(list) || list.length > HOUSE_RULE_TOPICS.length) return null;
+  if (!Array.isArray(list)) return null;
   const seen = new Set<string>();
   const out: HouseRule[] = [];
   for (const item of list) {
@@ -54,7 +54,7 @@ export function validateStoredHouseRules(raw: unknown): HouseRule[] | null {
 export function validateHostHouseRulesInput(raw: unknown): HouseRule[] | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const list = (raw as { rules?: unknown }).rules;
-  if (!Array.isArray(list) || list.length > HOUSE_RULE_TOPICS.length) return null;
+  if (!Array.isArray(list)) return null;
   const seen = new Set<string>();
   const out: HouseRule[] = [];
   for (const item of list) {
