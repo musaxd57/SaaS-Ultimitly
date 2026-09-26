@@ -33,6 +33,9 @@ import { RATE_STALE_DAYS } from "@/modules/intelligence/money/impact";
 import { NightlyRateForm } from "@/components/properties/nightly-rate-form";
 import { EarlyCheckinRuleForm } from "@/components/properties/early-checkin-rule-form";
 import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
+import { HouseRulesForm } from "@/components/properties/house-rules-form";
+import { houseRulesCardEnabled } from "@/lib/house-rules/flag";
+import { houseRuleFormValues, loadHouseRules } from "@/lib/house-rules/store";
 import { stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import { understandingEnabled } from "@/lib/ai/semantic/understand";
 import { sentimentTone, signalCategoryLabel, signalKindLabel } from "@/modules/intelligence/labels";
@@ -68,6 +71,11 @@ export default async function PropertyDetailPage({
   // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
   const nightlyRate = canManage ? await getNightlyRate(session.organizationId, property.id).catch(() => null) : null;
   const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null;
+  // Ev kuralları (#188): kart bayrağı açık + yönetici. Okunamazsa her konu "bana sor" görünür (kural yok = bugünkü davranış).
+  const houseRules =
+    canManage && houseRulesCardEnabled()
+      ? houseRuleFormValues(await loadHouseRules(session.organizationId, property.id).catch(() => []))
+      : null;
   const nightlyRateStale = nightlyRate ? Date.now() - nightlyRate.enteredAt.getTime() > RATE_STALE_DAYS * 86_400_000 : false;
 
   // QR PIN feature (Faz 5) is master-gated by the env switch; the per-reservation
@@ -227,6 +235,11 @@ export default async function PropertyDetailPage({
                       autoActive={stayGuardEnabled() && understandingEnabled()}
                     />
                   </div>
+                  {houseRules ? (
+                    <div className="mt-6 border-t border-border pt-4">
+                      <HouseRulesForm propertyId={property.id} canManage={canManage} initial={houseRules} />
+                    </div>
+                  ) : null}
                 </>
               ) : null}
             </CardContent>

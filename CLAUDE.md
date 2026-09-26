@@ -1235,8 +1235,8 @@ cevap KAYDEDİLMEZ; gösterimde müsaitlik uyarısı yeniden hesaplanır; bayrak
 (#188, `docs/TASARIM-2026-09-26-ev-kurallari-politikasi.md`) ONAYLANDI ("en mantıklı şekilde"): yasak kural NAZİK söylenir;
 açma sırası migration 57 (taze yedek + onay) → kural kartı → gölge → ücretli ölçüm → onay; "izinli" parti / ek misafir /
 sessiz saat ev sahibinde kalır. Saf çekirdek `house-rules/core.ts` canlıda, çağıranı YOK.
-Kurucuya ÖNERİLEN canlı değişkenler (`b66bceb` Active sonrası; eklendiği TEYİT EDİLMEDİ — açılış logundan bakılır):
-`AI_CONVERSATION_ITEMS_ENABLED=1` + `KB_SEMANTIC_RETRIEVAL=1`; yeniden sıralayıcı (`KB_RERANK_ENABLED`, #186) bağlandı, açmak ayrı adım.
+Canlı değişkenler (kurucu 09-26 ekledi, sürüm Active — ekran görüntüsü): `AI_CONVERSATION_ITEMS_ENABLED=1` +
+`KB_SEMANTIC_RETRIEVAL=1`; yeniden sıralayıcı (`KB_RERANK_ENABLED`, #186) bağlandı, açmak ayrı adım.
 
 **09-26 CODEX P2 TURU (`docs/audit-2026-09-05/DURUM.md`):** F13 (+ sistem istemi kalıntısı), F15, F16 KAPANDI; F14 kodda,
 bayrak arkasında (açmak = kör eval + kurucu onayı); #176 sahte geçmiş etiketi canlı kapıda injection. Hepsi migration'sız,

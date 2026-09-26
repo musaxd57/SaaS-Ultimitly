@@ -8,8 +8,8 @@
 > söylenir (örnek: "Evin içinde sigara içilmesine izin verilmiyor, anlayışınız için teşekkür ederiz."); azarlama / uyarı
 > tonu / yaptırım cümlesi YOK. Metin KODDAN kurulur (doğrulanmış kural + 6 dil), model serbest yazmaz.
 > **(5) 09-26 cevap (§5 soru 3 ve 4):** "mantıklıysa yapalım, en mantıklı şekilde" → açma sırası ve "izinli ama ev sahibinde
-> kalan konular" önerildiği gibi (↓§5). Migration 57 ister (yeni tablo, dolu tabloya dokunmaz) → push öncesi taze yedek +
-> açık onay AYRICA sorulur.
+> kalan konular" önerildiği gibi (↓§5). **Uygulamada migration GEREKMEDİ (↓§6 dilim 2):** kurallar erken giriş kuralıyla
+> aynı depoda (`AutomationRule`, mülk başına tek satır) tutulur — yeni tablo, yedek ve onay kapısı yok, geri alınabilir.
 
 ## 1. Bugün (kodda ölçüldü)
 
@@ -21,7 +21,8 @@ etiketi alıyor ("parti" alt dizesi). Karakterizasyon: `tests/unit/detect-risk-t
 
 ## 2. Önerilen yapı
 
-**A. Kural kaydı (migration 57, yeni tablo `HouseRule`):** mülk başına konu başına bir satır.
+**A. Kural kaydı (ilk öneri: migration 57 / yeni tablo `HouseRule`; UYGULANAN: migration'sız, erken giriş kuralının deposu
+`AutomationRule` — mülk başına TEK satır, konu listesi JSON'da, ↓§6 dilim 2):** mülk başına konu başına bir kural.
 - `topic` kapalı küme: `party_event` · `smoking` · `pets` · `extra_guests` · `quiet_hours` · `visitors`.
 - `policy`: `allowed` · `forbidden` · `ask_host` (varsayılan — kural yoksa da bu).
 - `status`: `suggested` (AI önerdi) · `confirmed` (ev sahibi onayladı) · `rejected`. **Yalnız `confirmed` karar verir.**
@@ -82,5 +83,11 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
 - **Dilim 1 — saf çekirdek (09-26, `src/lib/house-rules/core.ts`, çağıranı YOK, davranış değişmez):** kapalı kümeler,
   "yalnız onaylı kural" + çelişen onaylılar = bana sor, §2.C karar tablosu, 6 dilde koddan metin (yasak cümlesi teşekkür
   eder; azarlama / yaptırım sözcüğü yok; çıktı vetosu + "bilgim yok" + dil kapısı temiz). 19 test, mutasyon 17/17.
-- Sonraki: migration 57 (`HouseRule`) + mülk sayfası kartı → anlama katmanına `rule_topic`/`stance` (bayrak kapalı, istem
-  bayt bayt aynı) → kapıya bağlama (gölge) → ücretli ölçüm → kurucu onayı.
+- **Dilim 2 — depo + kayıt rotası + mülk sayfası kartı (09-26, migration YOK):** `src/lib/house-rules/store.ts` (erken giriş
+  kuralıyla aynı depo ve kilit sırası: önce mülk satırı; eşzamanlı kayıt tek satır; mülk silinmişse yazılmaz; bozuk satır = kural
+  yok = her konu "bana sor"), `PUT /api/properties/[id]/house-rules` (yönetici; personel 403; başka kiracı 404; ev sahibinin seçimi
+  ONAY; denetim kaydı konu adıyla, seçim değeri olmadan), mülk silme kuralı aynı işlemde siler, kart "Ev kuralları" (6 konu ×
+  İzinli / Yasak / Bana sor). Kart ve rota `HOUSE_RULES_CARD_ENABLED=1` iken var (varsayılan KAPALI); kart "yapay zekâ bu
+  kuralları henüz kullanmıyor" der — karar hâlâ YOK, davranış değişmez.
+- Sonraki: anlama katmanına `rule_topic`/`stance` (bayrak kapalı, istem bayt bayt aynı) → kapıya bağlama (gölge: kayıt,
+  karar eski) → ücretli kör ölçüm → kurucu onayı. Yapay zekâ önerisi (bilgi tabanından `suggested`) ayrı dilim.
