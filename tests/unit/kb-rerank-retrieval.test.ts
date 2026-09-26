@@ -42,7 +42,7 @@ function fakeVec(text: string): number[] {
   return v;
 }
 
-type ChatMode = { kind: "answer"; marker: string } | { kind: "status"; status: number } | { kind: "empty" };
+type ChatMode = { kind: "answer"; marker: string; related?: string } | { kind: "status"; status: number } | { kind: "empty" };
 
 interface Recorded {
   chatBodies: string[];
@@ -64,14 +64,16 @@ function routerFetch(rec: Recorded, chat: () => ChatMode) {
       const mode = chat();
       if (mode.kind === "status") return new Response("boom", { status: mode.status });
       const answers: string[] = [];
+      const related: string[] = [];
       if (mode.kind === "answer") {
         for (const line of user.split("\n")) {
           const m = /^\[(C\d+)\] <<<(.*)>>>$/.exec(line);
           if (m && m[2].includes(mode.marker)) answers.push(m[1]);
+          else if (m && mode.related && m[2].includes(mode.related)) related.push(m[1]);
         }
       }
       return new Response(
-        JSON.stringify({ choices: [{ message: { content: JSON.stringify({ answers, related: [] }) }, finish_reason: "stop" }] }),
+        JSON.stringify({ choices: [{ message: { content: JSON.stringify({ answers, related }) }, finish_reason: "stop" }] }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
@@ -232,6 +234,25 @@ describe("AÇIK — model yalnız SIRAYI değiştirir", () => {
     expect(typeof r.evidence?.rrMs).toBe("number");
   });
 
+  it("rrA yalnız 'cevaplıyor' denenleri sayar ('ilgili' sayılmaz); cevaplayan ilgilinin önünde", async () => {
+    vi.stubGlobal("fetch", routerFetch(rec, () => ({ kind: "answer", marker: "ücretsiz", related: "komşu" })));
+    await warm();
+    const r = await retrieveKbForPrompt({ items: bigKb(), guestMessage: QUESTION });
+    expect(r.evidence).toMatchObject({ rr: "ok", rrA: 1 });
+    expect(r.items.map((i) => i.id).slice(0, 2)).toEqual([RIGHT.id, DECOY.id]);
+  });
+
+  it("seçici isabet bulamadıysa (geri çekilme) yeniden sıralayıcı KOŞMAZ — kanıtta `rr` yok", async () => {
+    vi.stubGlobal("fetch", routerFetch(rec, () => ({ kind: "answer", marker: "ücretsiz" })));
+    await warm();
+    rec.chatBodies.length = 0;
+    const r = await retrieveKbForPrompt({ items: bigKb(), guestMessage: "Zxqv wpyk?" });
+    expect(r.evidence?.sem).toBe("ok");
+    expect(r.evidence?.fb).not.toBe("none");
+    expect(r.evidence).not.toHaveProperty("rr");
+    expect(rec.chatBodies).toEqual([]);
+  });
+
   it("isteme parça METNİ C-kimliğiyle gider; parça anahtarı / kalem kimliği GİTMEZ", async () => {
     vi.stubGlobal("fetch", routerFetch(rec, () => ({ kind: "empty" })));
     await warm();
@@ -279,11 +300,15 @@ describe("AÇIK — model yalnız SIRAYI değiştirir", () => {
         { direction: "inbound", body: "Havlu var mı?" },
         { direction: "outbound", body: "Evet, dolapta." },
         { direction: "inbound", body: "Arabamızı nereye bırakabiliriz?" },
+        { direction: "inbound", body: "Bisiklet için de yer var mı?" },
       ],
     });
     const body = rec.chatBodies[0];
-    expect(body).toContain("Arabamızı nereye bırakabiliriz?");
-    expect(body.indexOf("Arabamızı nereye bırakabiliriz?")).toBeLessThan(body.indexOf(QUESTION));
+    const a = body.indexOf("Arabamızı nereye bırakabiliriz?");
+    const b = body.indexOf("Bisiklet için de yer var mı?");
+    expect(a).toBeGreaterThan(-1);
+    expect(b).toBeGreaterThan(a);
+    expect(body.indexOf(QUESTION)).toBeGreaterThan(b);
     expect(body).not.toContain("Havlu var mı?");
   });
 
@@ -303,10 +328,11 @@ describe("AÇIK — model yalnız SIRAYI değiştirir", () => {
     vi.stubGlobal("fetch", routerFetch(rec, () => ({ kind: "empty" })));
     await warm();
     rec.chatBodies.length = 0;
-    const long = `Arabamız var. ${"Uzun bir açıklama cümlesi. ".repeat(120)}`;
+    const long = `Baştaki cümle. ${"Uzun bir açıklama cümlesi. ".repeat(120)}Arabamız da var.`;
     await retrieveKbForPrompt({ items: bigKb(), guestMessage: QUESTION, history: [{ direction: "inbound", body: long }] });
     const q = /^Guest message: <<<([\s\S]*?)>>>$/m.exec(rec.chatBodies[0])?.[1] ?? "";
-    expect(q.endsWith(`\n${QUESTION}`)).toBe(true);
+    expect(q.endsWith(`Arabamız da var.\n${QUESTION}`)).toBe(true);
+    expect(q).not.toContain("Baştaki cümle.");
     expect(q.length).toBeLessThanOrEqual(RERANK_QUESTION_CHARS);
     expect(q.length).toBeGreaterThan(RERANK_QUESTION_CHARS - 5);
   });
@@ -343,6 +369,7 @@ describe("karar kaydı — kanıt yalnız kapalı küme / sayı taşır", () => 
     expect(parse({ ...base, rr: "ok", rrMs: 812.345, rrA: 2 })).toMatchObject({ rr: "ok", rrMs: 812.3, rrA: 2 });
     expect(parse({ ...base, rr: "failed", rrMs: 2500 })).toMatchObject({ rr: "failed", rrMs: 2500 });
     expect(parse({ ...base, rr: "skipped", rrMs: 0 })).toMatchObject({ rr: "skipped", rrMs: 0 });
+    expect(parse({ ...base, rr: "ok", rrMs: 5, rrA: 0 })).toMatchObject({ rr: "ok", rrA: 0 });
   });
 
   it("kapalı küme dışı durum / geçersiz sayı DÜŞER", () => {
