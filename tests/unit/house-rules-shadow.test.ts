@@ -57,10 +57,12 @@ describe("evaluateHouseRulesShadow", () => {
     ]);
   });
 
-  it("en fazla HOUSE_RULE_SHADOW_MAX kayıt", () => {
+  it("en fazla HOUSE_RULE_SHADOW_MAX kayıt (çözücüden geçmemiş, 5'ten fazla istek taşıyan girdide de)", () => {
     const u = understood(Array.from({ length: 5 }, () => ({ intent: "pets", rule_topic: "pets", rule_stance: "asks_info" })));
     expect(HOUSE_RULE_SHADOW_MAX).toBe(5);
     expect(evaluateHouseRulesShadow(u, [])).toHaveLength(5);
+    const many = { ...u, requests: Array.from({ length: 7 }, () => u.requests[0]) };
+    expect(evaluateHouseRulesShadow(many, [])).toHaveLength(5);
   });
 });
 
