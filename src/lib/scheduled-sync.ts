@@ -20,6 +20,7 @@ import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/
 import { drainStorageDeletions, hasPendingStorageDeletions } from "@/lib/storage/deletion-queue";
 import { syncDueCalendarSourcesForOrg } from "@/lib/import/sync";
 import { recheckEarlyCheckinsAfterCleaning } from "@/lib/early-checkin/recheck";
+import { rotateFrom } from "@/lib/sync-fairness";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -110,6 +111,41 @@ let running = false;
 // replica — and every restart — kept its own timestamp and re-ran its own deep
 // sweep (extra Hospitable load + 429s for nothing).
 const DEEP_CADENCE_NAME = "deep-sync-cadence";
+
+// ---------------------------------------------------------------------------
+// ADİL SIRA İMLECİ (F17, Codex 09-05). Org listesi sırasız çekiliyordu (pratikte sabit fiziksel sıra) ve 12 dk'lık
+// geçiş bütçesi bitince sıradakiler atlanıyordu → her geçişte AYNI son org'lar kalıcı olarak aç kalıyordu. Taban sıra
+// artık kimliğe göre SABİT; bütçe yüzünden atlanan İLK org'un kimliği bu satıra yazılır (SystemLock satırı genel durum
+// deposu olarak — alert-state emsali; `holder` = imleç, `lockedUntil` anlamsız) ve sonraki geçiş ORADAN başlar.
+// Geçiş eksiksiz biterse satır silinir. En iyi çaba: okuma/yazma hatası senkronu DURDURMAZ (adalet bir geçişliğine
+// bozulur, o kadar). Kilit kaybında yazılmaz (kilidi devralan koşu aynı listeyi işliyor).
+// ---------------------------------------------------------------------------
+const RESUME_CURSOR_NAME = "scheduled-sync:resume-from";
+
+async function readSyncResumeCursor(): Promise<string | null> {
+  try {
+    const row = await prisma.systemLock.findUnique({ where: { name: RESUME_CURSOR_NAME }, select: { holder: true } });
+    return row?.holder ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSyncResumeCursor(orgId: string | null): Promise<void> {
+  try {
+    if (orgId === null) {
+      await prisma.systemLock.deleteMany({ where: { name: RESUME_CURSOR_NAME } });
+    } else {
+      await prisma.systemLock.upsert({
+        where: { name: RESUME_CURSOR_NAME },
+        create: { name: RESUME_CURSOR_NAME, lockedUntil: new Date(0), holder: orgId },
+        update: { holder: orgId },
+      });
+    }
+  } catch {
+    /* en iyi çaba — ↑ */
+  }
+}
 
 /**
  * Atomically claim the deep-sweep slot: true when THIS run should go deep. The
@@ -322,6 +358,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // env-token fallback'i de geçerli değil". Yani ilk senkronunda listelerini
       // içeri çekecek yeni bir bağlantı ASLA atlanmaz.
       const orgRows = await prisma.organization.findMany({
+        // F17: taban sıra SABİT (adil sıra imleci bu sıra üzerinde döner).
+        orderBy: { id: "asc" },
         select: {
           id: true,
           hospitableTokenEnc: true,
@@ -341,6 +379,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         if (busy) orgs.push({ id: o.id });
       }
       totals.organizations = orgs.length;
+      // F17: önceki geçişte bütçe yüzünden atlanan ilk org'dan başla (↑RESUME_CURSOR_NAME).
+      const passOrder = rotateFrom(orgs, await readSyncResumeCursor());
       const skipped = orgRows.length - orgs.length;
       if (skipped > 0) totals.idleOrganizationsSkipped = skipped;
 
@@ -390,6 +430,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       const PASS_BUDGET_MS = 12 * 60_000;
       const ORG_BUDGET_MS = 4 * 60_000;
       let budgetSkipped = 0;
+      let firstBudgetSkippedId: string | null = null;
       let lockLost = false;
 
       // ⚠️ iCal BÜTÇESİ = YUKARIDAKİ 12 DAKİKANIN İÇİNDEN AYRILMIŞ BİR PAY
@@ -429,9 +470,10 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       let icalDeferred = 0;
       let icalOrgsDeferred = 0;
 
-      for (const [orgIndex, org] of orgs.entries()) {
+      for (const [orgIndex, org] of passOrder.entries()) {
         if (Date.now() - passStartedAt > PASS_BUDGET_MS) {
           budgetSkipped += 1;
+          firstBudgetSkippedId ??= org.id;
           continue;
         }
         // Bu geçiş HÂLÂ ilerliyor → kilidi tazele (↑renewLock: ilerleme-tetikli).
@@ -677,9 +719,11 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       if (budgetSkipped > 0) {
         totals.budgetSkipped = budgetSkipped;
         console.warn(
-          `[scheduled-sync] süre bütçesi: ${budgetSkipped} org bu geçişte atlandı (sonraki turda devam eder)`,
+          `[scheduled-sync] süre bütçesi: ${budgetSkipped} org bu geçişte atlandı (sonraki turda devam eder)` +
+            (firstBudgetSkippedId ? ` — sonraki geçiş org ${firstBudgetSkippedId}'den başlar` : ""),
         );
       }
+      if (!lockLost) await writeSyncResumeCursor(firstBudgetSkippedId);
       // ⚠️ KİLİT KAYBI SESSİZ GEÇMEZ. Bu, TTL'in (15 dk) gerçekten aşıldığının
       // KANITIDIR ve tam olarak "heartbeat'li kilide geç" kararının tetikleyicisi
       // olması gereken sinyaldir. Org sayısı ve PII taşımaz.
