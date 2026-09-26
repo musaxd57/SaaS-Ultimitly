@@ -1223,8 +1223,11 @@ bayrak kapalı → davranış aynı). c (akış + kapı) + d (liste rozeti / "A�
 `wip/conversation-items` yerel dalında — push = taze pg_dump + kurucu onayı. Kurallar: hassas istek SESSİZCE ev sahibinde
 (Sorunlu YOK, bekletme mesajı YOK, mesaj başına acil e-posta), güvenli kısım cevaplanır, yalnız acil/enjeksiyon durdurur,
 emin olunmayan tur öğeye BÖLÜNMEZ (bugünkü kapı), model riski TÜM mesajlar için etiketler (ayrımı kod yapar). Bayrak anlama
-katmanı kapalıyken açık sayılmaz. Açma = migration + ücretli ölçüm + kurucu onayı. Mülke özgü ev kuralı önerisi (#188)
-`docs/TASARIM-2026-09-26-ev-kurallari-politikasi.md` ONAY BEKLİYOR.
+katmanı kapalıyken açık sayılmaz. Açma = migration + ücretli ölçüm + kurucu onayı. Ödeme/fatura isteği niyetten hassas
+(`d40a566`, her dilde). HAZIR TASLAK (kurucu "Otomatik hazır dursun"): turun tamamı tutulunca cevap ev sahibi ağzıyla
+`aiSuggestedReply`e yazılır, konuşma açılınca panelde durur (`prepared-draft.ts`); kısmen tutulan / müsaitlik vetolu / şablon
+cevap KAYDEDİLMEZ; gösterimde müsaitlik uyarısı yeniden hesaplanır; bayrak kapalıyken gösterilmez. Mülke özgü ev kuralı
+önerisi (#188) `docs/TASARIM-2026-09-26-ev-kurallari-politikasi.md` ONAY BEKLİYOR (yasak kural NAZİK söylenir — cevaplandı).
 
 **09-26 CODEX P2 TURU (`docs/audit-2026-09-05/DURUM.md`):** F13 (+ sistem istemi kalıntısı), F15, F16 KAPANDI; F14 kodda,
 bayrak arkasında (açmak = kör eval + kurucu onayı); #176 sahte geçmiş etiketi canlı kapıda injection. Hepsi migration'sız,

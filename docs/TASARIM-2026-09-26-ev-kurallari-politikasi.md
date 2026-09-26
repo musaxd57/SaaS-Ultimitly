@@ -4,6 +4,9 @@
 > global kelime listesinden değil, mülkün GERÇEK kuralından. **(2)** "Mesela evlerin içinde sigara yasak, adam 'sigara
 > içebilir miyim' diyor: kuralı söylesin, yasak olduğunu söylesin, yeterli." **(3)** "İkisi birden" — kuralları AI bilgi
 > tabanından ÖNERİR, ev sahibi ONAYLAR; onaylanmamış kural = "bana sor".
+> **(4) 09-26 cevap:** "Evet, güzel bir dille yasak olduğunu da belirtsin, kızar gibi değil" → yasak kural nazik ve açık
+> söylenir (örnek: "Evin içinde sigara içilmesine izin verilmiyor, anlayışınız için teşekkür ederiz."); azarlama / uyarı
+> tonu / yaptırım cümlesi YOK. Metin KODDAN kurulur (doğrulanmış kural + 6 dil), model serbest yazmaz.
 > Bu belge bir ÖNERİDİR; kod yok. Migration 57 ister (yeni tablo, dolu tabloya dokunmaz).
 
 ## 1. Bugün (kodda ölçüldü)
@@ -30,7 +33,7 @@ etiketi alıyor ("parti" alt dizesi). Karakterizasyon: `tests/unit/detect-risk-t
 
 | Durum | Onaylı kural `forbidden` | Onaylı kural `allowed` | Kural yok / `ask_host` / yalnız öneri |
 |---|---|---|---|
-| `asks_permission` | AI kuralı söyler, gider ("Evde sigara içmek yasaktır.") | AI izni kuraldan söyler, gider | Ev sahibinde açık iş (bugünkü gibi tutulur) |
+| `asks_permission` | AI kuralı nazikçe söyler, gider ("Evin içinde sigara içilmesine izin verilmiyor, anlayışınız için teşekkür ederiz.") | AI izni kuraldan söyler, gider | Ev sahibinde açık iş (bugünkü gibi tutulur) |
 | `announces` | ❓ **karar sizin** (aşağıda) | normal cevap | Ev sahibinde açık iş |
 | `asks_info` | kural söylenir, gider | kural söylenir, gider | bilgi tabanında yazıyorsa cevap; yoksa açık iş |
 | `not_about_guest` | kural devreye girmez (normal cevap) | aynı | aynı |
@@ -39,8 +42,9 @@ Kelime listesi YEDEK kalır: anlama katmanı düşerse bugünkü gibi tutar (bel
 
 ## 3. Örnekler (önce → sonra)
 
-- "Sigara içebilir miyim?" · kural onaylı YASAK → **önce:** tutulur, ev sahibi yazar · **sonra:** "Evde sigara içmek
-  yasaktır; balkonda içebilirsiniz" (yalnız bilgi tabanında balkon yazıyorsa) — otomatik gider.
+- "Sigara içebilir miyim?" · kural onaylı YASAK → **önce:** tutulur, ev sahibi yazar · **sonra:** "Evin içinde sigara
+  içilmesine izin verilmiyor, anlayışınız için teşekkür ederiz. Balkonda içebilirsiniz." (balkon cümlesi yalnız bilgi
+  tabanında yazıyorsa) — otomatik gider.
 - "Köpeğimizi getirebilir miyiz?" · kural onaylı İZİNLİ → **sonra:** "Evcil hayvan kabul ediyoruz." — gider.
 - "Köpeğimizi getirebilir miyiz?" · kural YOK → **sonra da:** ev sahibinde açık iş (AI izin vermez).
 - "Our party of 4 will arrive around 3pm" → **önce:** tutulur (kelime "party") · **sonra:** `not_about_guest` → giriş
@@ -57,8 +61,9 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
 
 ## 5. Kurucuya sorular
 
-1. Sigara örneğindeki "yasal olduğunu söylesin" → **"yasak olduğunu söylesin"** mi demek istediniz?
-2. Misafir YASAK bir şeyi yapacağını söylerse ("Bu akşam parti yapacağız", kural yasak): AI kuralı hatırlatıp göndersin
+1. ~~Sigara örneğindeki "yasal olduğunu söylesin" → "yasak olduğunu söylesin" mi?~~ **CEVAPLANDI 09-26:** evet, yasak
+   olduğu nazik bir dille söylenir (kızar gibi değil).
+2. **HÂLÂ AÇIK:** Misafir YASAK bir şeyi yapacağını söylerse ("Bu akşam parti yapacağız", kural yasak): AI kuralı hatırlatıp göndersin
    mi, ayrıca size de haber gitsin mi (açık iş + e-posta)? Önerim: **ikisi birden** — kural hatırlatması gider, siz de
    haberdar olursunuz (ihlal ihtimali ev sahibinin işidir).
 3. Açma sırası: migration 57 (taze yedek + onay) → kural kartı → gölge ölçüm (anlam alanları kayda, karar eski) →

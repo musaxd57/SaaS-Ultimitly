@@ -94,8 +94,16 @@ uyarı geçişi ve kapanış gizlemesi bayt bayt eski (entegrasyon kontrolüyle 
    risk düzeyi yalnız TUTULAN bir öğeye atfedilebiliyorsa güvenli cevabı tutmaz; model riski bugünkü gibi TÜM cevapsız
    mesajlar için etiketler (ayrımı kod yapar — üçüncü dedektör körleşmesin).
 5. Turun HEPSİ hassassa model yine bugünkü istemle koşar (öğe bloğu yok; acil / enjeksiyon etiketi için üçüncü dedektör),
-   metni gitmez. Taslak bugünkü gibi gelen kutusunda "AI öner" ile — **otomatik saklanmıyor** (kurucuya düzeltme: "taslak
-   hazırlansın" kararı bugün "AI öner"le karşılanıyor; otomatik saklanan taslak ayrı karar).
+   metni gitmez. **HAZIR TASLAK (kurucu kararı 09-26 "Otomatik hazır dursun"):** o cevap ev sahibinin ağzıyla
+   (`hostVoiceDraft`) son misafir mesajına kaydedilir (`aiSuggestedReply` — "AI öner"in yazdığı alan; migration YOK, ek
+   model çağrısı YOK) ve konuşma açılınca öneri panelinde "Hazır taslak · gönderilmedi" diye durur
+   (`conversation-items/prepared-draft.ts`). Kaydedilmez: kısmen tutulan tur (cevap bırakılan istekleri bilerek atlar —
+   eksik taslak tek tıkla gitmesin) · müsaitlik vetosuna takılan cevap (uyarıyı ve erken giriş kontrolünü "AI öner" tam
+   hesaplar) · şablon yedeği. Gösterim: yalnız EN SON mesaj misafirinse ve kaydı varsa (sonra cevap gittiyse / yeni misafir
+   mesajı geldiyse bayat); müsaitlik uyarısı sayfada yeniden hesaplanır (kelime ağı + taslağın niyet etiketi; model beyanı
+   yok → konaklama konusunda uyarı her zaman, nötr cümleyle); kapatılan taslak yenilemede geri gelmez, "AI öner"in sonucu
+   kayıtlı özetle ezilmez; bayrak kapalıyken gösterilmez (bugünkü davranış). Yan etki (bilinçli): kayıt `aiIntent`i de
+   yazar → raporların "En çok sorulanlar" sayımı tutulan turu da sayar ("AI öner" bugün de böyle).
 6. Tutuşta cevap modelinin öğelere ATFEDİLEMEYEN sinyali son mesaja kendi öğesi olarak yazılır (birleşim); gidişte yalnız
    beyan edilen güvenli istekler `answered`, kapsanmayan güvenli istek AÇIK kalır. Öğe kipinde insan talebi varken yapay
    zekâ DURAKLATILMAZ (devir mesajı gitmedi).
@@ -116,17 +124,21 @@ sınıflandırma işaretli; ev sahibi yazınca düşer) · raporda "Hassas konu 
 koruma beyan + istem kuralı) · e-posta şablonu bugünkü "Şikayet" başlığını taşır (metin değişikliği kurucu onayı) · QR yolu
 öğe yazmıyor (zaten mesaj başına devir) · açma sırası: dilim d (görünürlük) + migration 56 canlıda + ücretli ölçüm (dilim e) + kurucu onayı.
 
-## 5. Ölçüm (açmadan önce, ~1-2 $, kurucu onayı alındı) — İLK KOŞU 09-26 (`docs/olcum/konusma-ogeleri-eval-2026-09-26-gpt-5.1.md`)
+## 5. Ölçüm (açmadan önce, ~1-2 $, kurucu onayı alındı) — İKİ KOŞU 09-26
 
-Tasarım seti (20 sentetik senaryo, TR/EN/DE; görülmüş, kör DEĞİL), gpt-5.1, iki kol:
-güvenli kısım cevaplandı **%41 → %76** · hassas istek varken bugün konuşmaların **%31'inde** istek ev sahibine ulaşmadan
-"cevaplandı" (öğe kipinde açık iş kalır) · sızıntı (ödeme yöntemi / "kaydedildi") bugün 3 → öğe kipinde **0** · acilde
-otomatik cevap **0 / 0** · tur bölünme %85.
-**Bulgular (kurucuya soruldu):** (1) İngilizce/Almanca "IBAN / bank details / cash" ve Türkçe "nakit ödeyebilir miyim"
-kelime ağına takılmıyor → öğe kipinde ödeme isteği hassas sayılmıyor (anlama katmanının `payment_invoice` niyeti kendi
-başına hassas değil). Öneri: ödeme/fatura isteği niyetten hassas (dilden bağımsız). (2) CANLI yanlış alarm: Almanca
-"Gastgeber" (ev sahibi) içindeki "gas" acil durum sayılıyor → konuşma "Sorunlu" + acil e-posta. Öneri: kısa acil
-sözcüklerinde kelime sınırı (#51 "acil"/"açıl" ile aynı sınıf).
+Tasarım seti (20 sentetik senaryo, TR/EN/DE; görülmüş, kör DEĞİL), gpt-5.1, iki kol (bugün · öğe kipi).
+**2. koşu** (ödeme niyetten hassas + kısa acil sözcükleri tam sözcük SONRASI; `docs/olcum/konusma-ogeleri-eval-2026-09-26-gpt-5.1.md`):
+güvenli kısım cevaplandı bugün **%35** → öğe kipinde **17/17 (%100)** · hassas istek varken bugün konuşmaların **%31'inde**
+istek ev sahibine ulaşmadan "cevaplandı" (öğe kipinde açık iş kalır) · sızıntı (ödeme yöntemi / "kaydedildi") bugün 2 → öğe
+kipinde **0** · acilde otomatik cevap **0 / 0** · tur bölünme **%90**. İnsan gözü: bir İngilizce cevap tutulan ödeme için
+"payments go through Airbnb" dedi (güvenli politika cümlesi, yöntem sızıntısı değil); model bir Türkçe cevapta misafirin
+"çıkış saatim"ini aynen tekrarladı (iki kolda da — modelin dil hatası, öğe kipiyle ilgisiz).
+**1. koşu** (düzeltmelerden önce; `…-gpt-5.1-kosu1.md`): güvenli kısım %41 → %76 · sızıntı 3 → 0 · acil 0/0 · bölünme %85.
+**Bulgular → kurucu kararları (09-26):** (1) İngilizce/Almanca "IBAN / bank details / cash" ve Türkçe "nakit ödeyebilir miyim"
+kelime ağına takılmıyordu → kurucu "Evet, hepsi size": `payment_invoice` niyeti kendi başına hassas (`d40a566`, dilden
+bağımsız). (2) CANLI yanlış alarm: "Gastgeber" içindeki "gas", "fireplace" içindeki "fire", "açılıyor"/"facilities" içindeki
+"acil" acil durum sayılıyordu (otomatik cevap kapanıyor + acil rozeti) → kurucu "Evet, düzelt": kısa acil sözcükleri TAM
+SÖZCÜK (`a1ea672`, #51; Türkçe ad çekimleri + harf uzatması korunur). İkisi de ana dalda; ölçüm yeniden koşulunca rapor güncellenir.
 
 
 Gerçek model, bayrak açık: IBAN→Wi-Fi · aynı mesaj · şikâyet→otopark · acil→Wi-Fi · vazgeçme · ev sahibi yazdı ·
@@ -137,8 +149,8 @@ cevap = 0. Sonuç örnekleriyle kurucuya; açma kararı kurucuda.
 
 a) şema + saf durum makinesi + birleşim kuralı (test) ✅ `a903e78` CANLI · b) çıkarım ✅ `be3ff5a` CANLI; kalıcılık +
 migration 56 YEREL (push = taze pg_dump + kurucu onayı) · c) akış + kapı (bayrak) ✅ YEREL · d) ev sahibi görünümü
-(liste rozeti + konuşma "Açık işler" + Dikkat satırı) ✅ YEREL · e) ücretli ölçüm → kurucu. Her dilim kırmızı-önce + mutasyon +
-tam kapılar.
+(liste rozeti + konuşma "Açık işler" + Dikkat satırı) ✅ YEREL · e) ücretli ölçüm ✅ iki koşu (↑§5) · f) hazır taslak ✅ YEREL
+("Otomatik hazır dursun", ↑§4 madde 5) → açma kararı kurucuda. Her dilim kırmızı-önce + mutasyon + tam kapılar.
 
 ## 7. `rule_violation` nereden geliyor? — mülke özgü politika önerisi (kurucu sorusu 09-26, ONAY BEKLİYOR)
 
