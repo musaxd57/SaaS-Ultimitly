@@ -6,7 +6,9 @@
 > tek tek (acile/acilde/acilden/aciliyet/aciliyeti/acildir/acilen; "acili"/"acildi" BİLEREK yok — ASCII'de "acılı"/"açıldı")
 > + harf uzatması ("ACİLLL" — aşağıdaki "bilinen sınır" böylece kapandı) + bileşikler (Gasgeruch/Gasleck/Gasaustritt,
 > firefighter(s), wildfire(s), fires). Batarya `tests/unit/safety-whole-words.test.ts` (aşağıdaki cümleler dahil); 7 dil ×
-> 7 kategori acil matrisi AYNEN geçer. Türkçe "gaz" alt dizesi ("gazete", "Gazipaşa") BU DEĞİŞİKLİĞİN DIŞINDA (ayrı soru).
+> 7 kategori acil matrisi AYNEN geçer. **İkinci onay (aynı gün, "Evet, düzelt"):** Türkçe "gaz" da tam sözcük — canlıda "Yakında
+> bir mağaza var mı?", "Gazipaşa havalimanından…", "Gazete…", "Doğalgaz faturası…" acil sayılıyordu; ekler tek tek (gazın, gazda,
+> gazdan), "gazı" BİLEREK yok (ASCII'de "Gazi" semt/ad), "doğalgaz/tüpgaz + koku/kaçak/sızıntı" kalıpları.
 >
 > Özgün durum (09-10): **öneri**, kod değişikliği YOK. Bu bir GÜVENLİK AĞI DARALTMASIDIR (yalnız daha AZ mesaj
 > `safety_emergency` sayılır) → kurucu onayı olmadan uygulanmaz. Bulan: şikâyet dilimi inceleme ajanı

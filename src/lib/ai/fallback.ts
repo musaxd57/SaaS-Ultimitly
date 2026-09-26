@@ -1932,7 +1932,8 @@ export function matchesIntentKeywords(message: string, intent: Exclude<Intent, "
 // stay on the silent-escalate path. Substring over-matching here is fine: it
 // only means "no holding ack", never a wrong message.
 const SAFETY_CRITICAL_WORDS = [
-  "gaz", "yangın", "yangin", "duman", "yaraland", "düştü", "dustu", "kaza", "ambulans",
+  // (Çıplak "gaz" artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK: "mağaza", "Gazipaşa", "gazete" acil değil, 09-26.)
+  "yangın", "yangin", "duman", "yaraland", "düştü", "dustu", "kaza", "ambulans",
   "polis", "kilitli kaldı", "kilitli kaldi", "içeri giremiyor", "iceri giremiyor",
   "smoke", "gas leak", "carbon monoxide", "injured", "hurt", "bleeding",
   "ambulance", "police", "emergency", "locked out", "can't get in", "cant get in",
@@ -1962,6 +1963,11 @@ const SAFETY_CRITICAL_WORDS = [
   // Almanca GAZ bileşikleri: çıplak "gas" TAM SÖZCÜK olunca ("Gastgeber" düzeltmesi, 09-26) bitişik yazılan bileşikler
   // açıkça listelenir — "Es riecht nach Gas" tam sözcükten, "Gasgeruch/Gasleck/Gasaustritt" buradan.
   "gasgeruch", "gasleck", "gasaustritt",
+  // Türkçe GAZ bileşikleri (09-26, kurucu onayı): "doğalgaz" tek başına acil DEĞİL ("Doğalgaz faturası kimde?", "Kombi
+  // doğalgazla mı çalışıyor?"); koku / kaçak / sızıntı ile birlikte acil. Bitişik "tüpgaz" da aynı.
+  // ("doğal gaz kokusu" iki sözcük: tam sözcük "gaz" zaten tutar.)
+  "doğalgaz koku", "doğalgaz kaçağ", "doğalgaz kaçak", "doğalgaz sızıntı",
+  "tüpgaz koku", "tüpgaz kaçağ", "tüpgaz kaçak",
   "incendie", "le feu", "fumée", "fumee", "urgence", "ambulance", "évanoui", "evanoui",
   "blessé", "blesse", "saigne", "enfermés dehors", "enfermes dehors",
   "fuego", "incendio", "humo", "emergencia", "ambulancia", "desmayó", "desmayo",
@@ -2092,13 +2098,18 @@ const DISCRIMINATION_PHRASES = [
 /**
  * KISA ACİL SÖZCÜKLERİ — ALT DİZE DEĞİL, TAM SÖZCÜK (kurucu onayı 09-26, #51). Alt dize eşleşmesi canlıda yanlış acil
  * üretiyordu: "Gastgeber" / "Gastfreundschaft" ("gas"), "fireplace" / "Firework" ("fire"), "Havuz ne zaman açılıyor?" /
- * "facilities" / "C'est facile" ("acil" — ASCII katlamada "açıl" → "acil"). Sonuç: bu mesajlara hiç otomatik cevap
+ * "facilities" / "C'est facile" ("acil" — ASCII katlamada "açıl" → "acil"), "Yakında bir mağaza var mı?" / "Gazipaşa" /
+ * "gazete" ("gaz" — ikinci onay 09-26). Sonuç: bu mesajlara hiç otomatik cevap
  * gitmiyor, konuşmaya acil rozeti düşüyordu. Tam sözcük (önünde/ardında harf ya da rakam yok) gerçek acili korur: "I smell
  * gas", "fire in the kitchen", "ACİL!", "acil durum", "acilen". Bitişik bileşikler (Almanca "Gasgeruch", "firefighter")
  * ↑listede açıkça. Tüm aday biçimlerin ASCII katlamasında sınanır — yalnız EŞLEŞME EKLER.
  */
 const SAFETY_CRITICAL_WHOLE_WORDS = [
   "gas", "fire", "fires", "wildfire", "wildfires", "firefighter", "firefighters",
+  // Türkçe (ve Fransızca) "gaz" + ad çekimleri tek tek (09-26, kurucu onayı): alt dize "mağaza", "Gazipaşa", "Gaziantep",
+  // "gazete", "gazoz", "gazino" içinde acil üretiyordu. "gazi" (belirtme "gazı") BİLEREK YOK — ASCII katlamada "Gazi"
+  // (semt/ad) olur; "Gazı kapattım" gibi cümle modele kalır.
+  "gaz", "gazin", "gazda", "gazdan",
   // Türkçe "acil"in ad çekimleri tek tek (eskiden alt dize hepsini tutuyordu): "acile gittik", "acilde", "acilden",
   // "aciliyeti var", "acildir". "acili" / "acildi" BİLEREK YOK — ASCII katlamada "acılı" (baharatlı) / "açıldı" olur.
   "acil", "acilen", "acile", "acilde", "acilden", "aciliyet", "aciliyeti", "acildir",

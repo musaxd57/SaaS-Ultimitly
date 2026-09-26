@@ -31,6 +31,17 @@ const FALSE_ALARMS: [string, string][] = [
   ["Acılı yemek önerir misiniz?", "TR acılı (acili BİLEREK listede yok)"],
   ["We had a campfire, lovely", "EN campfire"],
   ["Die Gasse ist ruhig", "DE Gasse (gas + e)"],
+  // Türkçe "gaz" (ikinci onay 09-26): mağaza / yer adları / gazete / gazoz / doğalgaz faturası.
+  ["Yakında bir mağaza var mı?", "TR mağaza"],
+  ["Mağazalar kaçta kapanıyor?", "TR mağazalar"],
+  ["Gazipaşa havalimanından nasıl gelirim?", "TR Gazipaşa"],
+  ["Gaziantep'ten geliyoruz", "TR Gaziantep"],
+  ["Gazi Mahallesi'ne yakın mı?", "TR Gazi (gazi BİLEREK listede yok)"],
+  ["Gazete bırakıyor musunuz?", "TR gazete"],
+  ["Gazoz var mı buzdolabında?", "TR gazoz"],
+  ["Yakında gazino var mı?", "TR gazino"],
+  ["Doğalgaz faturası kimde?", "TR doğalgaz tek başına"],
+  ["Kombi doğalgazla mı çalışıyor?", "TR doğalgazla"],
 ];
 
 const TRUE_EMERGENCIES: [string, string][] = [
@@ -61,6 +72,25 @@ const TRUE_EMERGENCIES: [string, string][] = [
   ["fires nearby!", "EN fires"],
   // ASCII katlama ı/i yazım hatasını da tutar (standart katlama tutmazdı).
   ["Acıl durum var, yardım edin", "TR ı/i yazım hatası"],
+  // Türkçe / Fransızca "gaz" gerçek acil AYNEN (ikinci onay 09-26).
+  ["Gaz kokusu var!", "TR gaz kokusu"],
+  ["gaz kokuyo", "TR ağız yazımı"],
+  ["Gaz kaçağı var galiba", "TR gaz kaçağı"],
+  ["Evde gaz sızıntısı var", "TR gaz sızıntısı"],
+  ["Gazdan zehirlendik sanırım", "TR gazdan"],
+  ["Gazın kokusu odaya yayıldı", "TR gazın"],
+  ["Gazda bir sorun var sanki", "TR gazda"],
+  // ("… kaçak yapıyor" biçimi zaten elektrik kaçağı kalıbına takılır; bu satırlar yalnız "kaçak" girdisini sınar.)
+  ["Mutfakta doğalgaz kaçak var gibi", "TR doğalgaz kaçak"],
+  ["Doğalgaz sızıntısı var", "TR doğalgaz sızıntı"],
+  ["Tüpgaz kaçağı olabilir", "TR tüpgaz kaçağı"],
+  ["Tüpgaz kaçak var galiba", "TR tüpgaz kaçak"],
+  ["Doğal gaz kokusu var", "TR iki sözcük doğal gaz"],
+  ["Doğalgaz kokuyor", "TR doğalgaz + koku"],
+  ["Dogalgaz kacagi var", "TR ASCII doğalgaz kaçağı"],
+  ["Tüpgaz kokusu geliyor", "TR tüpgaz + koku"],
+  ["GAAAZ KOKUSU", "TR uzatılmış gaz"],
+  ["Il y a une odeur de gaz dans la cuisine", "FR gaz"],
 ];
 
 describe("kısa acil sözcükleri — tam sözcük", () => {
