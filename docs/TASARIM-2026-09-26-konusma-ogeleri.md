@@ -1,8 +1,9 @@
 # Konuşma öğeleri (ConversationItem) — öğe bazlı risk · tasarım (2026-09-26)
 
 > Kurucu kararları 09-26 (hepsi önerilen seçenek; önceki inceleme: `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`).
-> Durum: **tasarım**. Kod bayrak arkasında (`AI_CONVERSATION_ITEMS_ENABLED`, varsayılan KAPALI); migration 56 yerelde,
-> gönderim = taze `pg_dump` + kurucu onayı. Açma = ücretli ölçüm + örnekli sonuç + kurucu onayı.
+> Durum: **kod gönderildi (09-26, `b66bceb`), bayrak KAPALI** (`AI_CONVERSATION_ITEMS_ENABLED`). Migration 56 = yeni
+> tablo; push kapısı kanıtı ↓§6. Açma = ücretli ölçüm (✅ §5) + örnekli sonuç + kurucu onayı; bayrak YALNIZ bu kod canlıdayken
+> eklenir (eski canlı kod bayrağı anlama katmanı şartı olmadan okuyordu → anlama istemi akışsız değişirdi).
 
 ## 1. Kurucunun istediği davranış (örneklerle)
 
@@ -151,6 +152,15 @@ a) şema + saf durum makinesi + birleşim kuralı (test) ✅ `a903e78` CANLI · 
 migration 56 YEREL (push = taze pg_dump + kurucu onayı) · c) akış + kapı (bayrak) ✅ YEREL · d) ev sahibi görünümü
 (liste rozeti + konuşma "Açık işler" + Dikkat satırı) ✅ YEREL · e) ücretli ölçüm ✅ iki koşu (↑§5) · f) hazır taslak ✅ YEREL
 ("Otomatik hazır dursun", ↑§4 madde 5) → açma kararı kurucuda. Her dilim kırmızı-önce + mutasyon + tam kapılar.
+
+**Push kapısı KANITI (09-26, operatör klonu `LixusPreflight-43ccd3c` @ `59d4338`, `ops-backup-prod.ps1`, PostgreSQL 18):**
+`lixus-prod-post-contract-2026-09-26-185611.dump` · 1.480.696 bayt · TOC 226 · `pg_restore -l` ✅ ("YEDEK TAMAM") · SHA256
+`734F62BC7DA8A788644E7F826033B3EF40DB472D165FAC6E622E2B4615488A24`. **Restore provası** (`ops-restore-drill.ps1
+-ExpectCalendarSources 0`, PostgreSQL 17 sunucu kurulumu): SHA eşleşti · geri yükleme 0,6 sn exit 0 · org 10 · mülk 11 ·
+rezervasyon 1542 · konuşma 1329 · mesaj 17462 · takvim 0 · ASSERT migration=56, bitmemiş=0 · şifreli alan kontrolü VAKUMLU
+(takvim tablosu boş; anahtar bu koşuda kanıtlanmadı) · geçici küme temizlendi. Kurucu kararı "yedek aldır bana" (yedekten
+sonra gönder) → fast-forward push `59d4338..b66bceb` (11 commit; tam kapılar `b66bceb`te yeşil: 9100 test, tip, lint, build,
+audit). CI + Railway teyidi aşağıya.
 
 ## 7. `rule_violation` nereden geliyor? — mülke özgü politika önerisi (kurucu sorusu 09-26, ONAY BEKLİYOR)
 

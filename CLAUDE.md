@@ -1219,8 +1219,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 **09-26 KONUŞMA ÖĞELERİ (öğe bazlı risk; `docs/TASARIM-2026-09-26-konusma-ogeleri.md`):** a+b CANLI (`a903e78`, `be3ff5a`;
-bayrak kapalı → davranış aynı). c (akış + kapı) + d (liste rozeti / "Açık işler" kartı / Dikkat satırı) + migration 56 YALNIZ
-`wip/conversation-items` yerel dalında — push = taze pg_dump + kurucu onayı. Kurallar: hassas istek SESSİZCE ev sahibinde
+bayrak kapalı → davranış aynı). c (akış + kapı) + d (liste rozeti / "Açık işler" kartı / Dikkat satırı) + migration 56 +
+hazır taslak GÖNDERİLDİ 09-26 (`b66bceb`; taze yedek SHA `734F62BC…` + restore provası kanıtı belgede §6). Bayrak YALNIZ bu kod
+canlıdayken eklenir (eski canlı kod bayrağı anlama katmanı şartı olmadan okuyordu). Kurallar: hassas istek SESSİZCE ev sahibinde
 (Sorunlu YOK, bekletme mesajı YOK, mesaj başına acil e-posta), güvenli kısım cevaplanır, yalnız acil/enjeksiyon durdurur,
 emin olunmayan tur öğeye BÖLÜNMEZ (bugünkü kapı), model riski TÜM mesajlar için etiketler (ayrımı kod yapar). Bayrak anlama
 katmanı kapalıyken açık sayılmaz. Açma = migration + ücretli ölçüm + kurucu onayı. Ödeme/fatura isteği niyetten hassas
