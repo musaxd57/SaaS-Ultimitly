@@ -5,7 +5,8 @@ import { Prisma } from "@prisma/client";
 import { reservationAmount } from "@/lib/money";
 import { computeResponseEpisodes } from "@/lib/response-episodes";
 import { orgTimezone, zonedDayRange, zonedDateStart, addZonedDays } from "@/lib/timezone";
-import { reservationDayRangeWhere, todayRange } from "@/lib/day-where";
+import { reservationDayRangeWhere, taskDueDayRangeWhere, todayRange } from "@/lib/day-where";
+import { addNights, calendarDateOf, todayKey } from "@/modules/availability/core";
 
 // Reporting day/occupancy math is anchored to the HOST'S calendar day
 // (org.timezone, default Europe/Istanbul) — Railway runs UTC and arrivalDates
@@ -71,10 +72,10 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     select: { timezone: true },
   });
   const tz = orgTimezone(org?.timezone);
-  const { end: dayEnd } = zonedDayRange(now, tz);
   // Bugünkü giriş/çıkış = TEK TARİH KURALI (09-26, `calendarDateOf`; panonun listeleri ve günlük rapor aynı küme). Ham
   // gün başı/sonu penceresi New York'ta bugünün 00:00Z girişini saymıyor, yarınınkini sayıyordu.
   const today = todayRange(now, tz);
+  const todayK = todayKey(now, tz);
   const activeStatus = { in: ["confirmed", "completed"] };
 
   const [
@@ -132,16 +133,18 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     // gece-katına geçince ikisi tanım gereği AYNI küme oldu — bir DB gidiş-dönüşü
     // boşa gidiyordu.
     //
-    // Night-strict: occupied at END-of-today, so a flat that
-    // checks out today with no re-let is NOT counted (empty tonight). Both bounds
-    // keyed to dayEnd → representation-agnostic (Hospitable midnight-UTC AND iCal
-    // noon-UTC); a dayStart bound would miscount iCal reservations on both sides.
+    // Night-strict: bu gece dolu = giriş günü ≤ bugün ∧ çıkış günü ≥ yarın — iki kenar da TEK TARİH KURALIYLA
+    // (`calendarDateOf`, 09-26). Bugün çıkan ve yerine kimse gelmeyen daire SAYILMAZ. Eski "iki uç da gün sonu (dayEnd)"
+    // kıyası İstanbul'da (ve UTC..+12 arasında) birebir aynıdır; New York'ta yarın çıkanı saymıyor, yarın geleni
+    // sayıyordu (yarının 00:00Z çapası bugünün yerel gün sonundan önce düşer).
     prisma.reservation.findMany({
       where: {
         ...propertyScope(orgId),
         status: { in: ["confirmed", "completed"] },
-        arrivalDate: { lte: dayEnd },
-        departureDate: { gt: dayEnd },
+        AND: [
+          reservationDayRangeWhere("arrivalDate", { from: null, to: todayK }, tz),
+          reservationDayRangeWhere("departureDate", { from: addNights(todayK, 1), to: null }, tz),
+        ],
       },
       select: { propertyId: true },
       distinct: ["propertyId"],
@@ -356,11 +359,14 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
   // property → an N+1). countOccupiedDays clamps each reservation to the target
   // range, so feeding it the whole union-window set yields the same per-month
   // counts as the old per-property queries.
+  // Sorgu bir ÜST KÜMEDİR: giriş ucu bir gün pay bırakır — Auckland'da (UTC+12 ve üstü) ayın son gününün 12:00Z çapası yerel
+  // ay sonundan SONRA düşer. Çıkış ucunda pay gerekmez: geçen ayda gece olması için çıkış günü ayın 2'si ya da sonrasıdır ve
+  // 2'sinin çapaları her dilimde yerel ay başından sonradır. Kesin sayım aşağıda gün anahtarıyla (`calendarDateOf`).
   const allRes = await prisma.reservation.findMany({
     where: {
       property: { organizationId: orgId },
       status: { in: ["confirmed", "completed"] },
-      arrivalDate: { lt: thisMonthEnd },
+      arrivalDate: { lt: new Date(thisMonthEnd.getTime() + 86_400_000) },
       departureDate: { gt: lastMonthStart },
     },
     select: { propertyId: true, arrivalDate: true, departureDate: true },
@@ -395,10 +401,14 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     //   doluluk yüzdesi sistematik olarak şişiyordu ve /calendar ile ÇELİŞİYORDU
     //   (orası zaten `key >= arrKey && key < depKey` ile doğru sayıyor).
     // İki taraf da artık "YYYY-MM-DD" karşılaştırması: aynı çerçeve, kayma yok.
+    const rangeStartKey = dayKeyTz(rangeStart, tz);
     const rangeEndKey = dayKeyTz(rangeEnd, tz); // DIŞLAYICI (günler 1..cutoff-1)
     for (const r of reservations) {
-      const start = r.arrivalDate > rangeStart ? r.arrivalDate : rangeStart;
-      const depKey = dayKeyTz(r.departureDate, tz); // çıkış günü DIŞLANIR
+      // Konaklamanın uçları TEK TARİH KURALIYLA (`calendarDateOf`, 09-26): yalnız-tarih çapası UTC tarihidir. Ham
+      // `dayKeyTz` New York'ta her Hospitable konaklamasını bir gün erkene kaydırıyordu (ay başında bir gece eksik).
+      const arrKey = calendarDateOf(r.arrivalDate, tz).key;
+      const depKey = calendarDateOf(r.departureDate, tz).key; // çıkış günü DIŞLANIR
+      const startKey = arrKey > rangeStartKey ? arrKey : rangeStartKey;
       const endKey = depKey < rangeEndKey ? depKey : rangeEndKey;
       // 🚨 YÜRÜYÜŞ TAKVİM ANAHTARI ÜZERİNDE — ANLIK (instant) ÜZERİNDE DEĞİL.
       // (denetim 08-08, ÖLÇÜLDÜ.) Eskiden `addZonedDays` ile an-an yürünüyordu ve
@@ -419,7 +429,7 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
       // saat diliminden BAĞIMSIZ hale getirmek: uçlar org dilimiyle anahtara
       // çevrilir, aradaki günler saf takvim aritmetiğiyle üretilir. Takvimde
       // "olmayan gün" yoktur → sabit nokta imkânsız, sayım da doğru.
-      let key = dayKeyTz(start, tz);
+      let key = startKey;
       while (key < endKey) {
         occupied.add(key);
         key = nextDayKey(key);
@@ -624,9 +634,10 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
   // day and mis-scores task completion.
   const tz = await reportTz(orgId);
   const locKey = dayKeyTz(now, tz);
-  const [iy, im] = locKey.split("-").map(Number);
-  const monthStart = zonedDateStart(iy, im, 1, tz);
-  const todayStart = zonedDayRange(now, tz).start;
+  // Vadesi "bu ay, bugünden ÖNCE" olan görevler — TEK TARİH KURALIYLA (`calendarDateOf`, 09-26): yaşam döngüsü vadesi
+  // yalnız-tarih çapasıdır. Ham `gün başı` kıyası New York'ta BUGÜN vadeli görevi "geçmiş" sayıp puanı düşürüyordu.
+  // Ayın 1'inde aralık ters (1 … dün) → boş küme, eskisi gibi.
+  const dueBeforeToday = { from: `${locKey.slice(0, 7)}-01`, to: addNights(locKey, -1) };
 
   // 1. Response rate — EPISODE-BASED (Codex #33): every consecutive guest-message
   //    run that STARTED in the last 30 days counts once (clock = first message of
@@ -709,13 +720,13 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
       where: {
         property: { organizationId: orgId },
         status: "done",
-        dueAt: { gte: monthStart, lt: todayStart },
+        AND: [taskDueDayRangeWhere(dueBeforeToday, tz)],
       },
     }),
     prisma.task.count({
       where: {
         property: { organizationId: orgId },
-        dueAt: { gte: monthStart, lt: todayStart },
+        AND: [taskDueDayRangeWhere(dueBeforeToday, tz)],
       },
     }),
   ]);

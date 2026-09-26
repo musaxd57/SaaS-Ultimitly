@@ -3,6 +3,8 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { foldTurkishLower, foldTurkishLowerTr, foldTurkishAscii } from "@/lib/ai/fallback";
 import { orgTimezone, zonedDayRange, addZonedDays } from "@/lib/timezone";
+import { reservationDayRangeWhere } from "@/lib/day-where";
+import { addNights, todayKey } from "@/modules/availability/core";
 import {
   SUPPLY_ITEMS,
   SUPPLY_ITEM_KEYS,
@@ -141,10 +143,18 @@ export async function getPrepPlan(
   const ids = properties.map((p) => p.id);
   // Arrivals in the window, bucketed by property. Mirror the calendar's status
   // filter (confirmed/completed) so cancelled/pending bookings don't inflate needs.
+  // Ufuk günleri TEK TARİH KURALIYLA (`calendarDateOf`, 09-26): bugün … bugün+days-1. Ham an penceresi New York'ta
+  // bugünün 00:00Z girişini dışarıda bırakıp ufkun ertesi gününün girişini alıyordu (İstanbul'da birebir aynı).
+  const firstDay = todayKey(now, supplyTz);
+  const horizon = { from: firstDay, to: addNights(firstDay, days - 1) };
   const [arrivals, requestsRaw] = await Promise.all([
     prisma.reservation.groupBy({
       by: ["propertyId"],
-      where: { propertyId: { in: ids }, status: { in: ["confirmed", "completed"] }, arrivalDate: { gte: start, lt: end } },
+      where: {
+        propertyId: { in: ids },
+        status: { in: ["confirmed", "completed"] },
+        AND: [reservationDayRangeWhere("arrivalDate", horizon, supplyTz)],
+      },
       _count: { id: true },
     }),
     prisma.supplyRequest.findMany({

@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RESERVATION_CHANNEL } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
-import { zonedDayRange } from "@/lib/automation";
-import { orgTimezone, zonedDateStart } from "@/lib/timezone";
+import { orgTimezone } from "@/lib/timezone";
+import { reservationDayRangeWhere, type DayRange } from "@/lib/day-where";
+import { addNights, todayKey } from "@/modules/availability/core";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -26,47 +27,25 @@ const PERIODS: { value: Period; label: string }[] = [
 ];
 
 /**
- * Date window (by stay arrival date) for the selected period, anchored to the
- * HOST'S calendar (org.timezone) — NOT the server's zone (Railway is UTC).
- * Hospitable stores arrivalDate at local-midnight-UTC and iCal/CSV at noon-UTC,
- * so a UTC boundary mis-buckets a stay by a day; we mirror tasks/page.tsx &
- * automation.ts and key off the org-local day. Calendar-day boundaries map to
- * exact UTC instants via zonedDateStart (probe-date yaklaşımı UTC'nin batısındaki
- * dilimlerde bir gün kayardı). Null = no filter ("Tümü"). */
-function windowFor(period: Period, tz: string): { gte: Date; lte: Date } | null {
-  const now = new Date();
+ * Seçili dönemin gün aralığı (konaklamanın GİRİŞ günüyle), ev sahibinin takviminde (org.timezone). Gün TEK TARİH
+ * KURALIYLA okunur (`calendarDateOf` / `reservationDayRangeWhere`, 09-26): Hospitable girişi yerel gece yarısı ya da
+ * 00:00Z, iCal/CSV 12:00Z yazar. Eski ham an penceresi İstanbul'da doğruydu; New York'ta bugünün 00:00Z girişini
+ * "Bugün"den atıyor, yarınınkini alıyordu. Null = süzgeç yok ("Tümü").
+ */
+function windowFor(period: Period, tz: string): DayRange | null {
   if (period === "all") return null;
-
-  // Today's org-local calendar day boundaries (start = local-midnight UTC instant).
-  const today = zonedDayRange(now, tz);
-  if (period === "day") return { gte: today.start, lte: today.end };
-
-  // The org-local calendar Y-M-D of "today", used to derive week/month edges.
-  const key = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-  const [y, m, d] = key.split("-").map(Number);
-
+  const today = todayKey(new Date(), tz);
+  if (period === "day") return { from: today, to: today };
+  const [y, m, d] = today.split("-").map(Number);
   if (period === "week") {
-    // Week starts Monday (matches the previous weekStartsOn: 1). Compute the
-    // Mon/Sun calendar day NUMBERS via UTC date math on the local Y-M-D (pure
-    // calendar arithmetic), then map each day to its local instant directly.
-    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
-    const sinceMonday = (dow + 6) % 7; // Mon→0 .. Sun→6
-    return {
-      gte: zonedDateStart(y, m, d - sinceMonday, tz),
-      lte: new Date(zonedDateStart(y, m, d - sinceMonday + 7, tz).getTime() - 1),
-    };
+    // Hafta pazartesi başlar (eski weekStartsOn: 1); saf takvim aritmetiği.
+    const sinceMonday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // Pzt→0 … Paz→6
+    const monday = addNights(today, -sinceMonday);
+    return { from: monday, to: addNights(monday, 6) };
   }
-
-  // month: first day of the local month → last instant before next month's 1st.
-  return {
-    gte: zonedDateStart(y, m, 1, tz),
-    lte: new Date(zonedDateStart(y, m + 1, 1, tz).getTime() - 1),
-  };
+  // Ay: yerel ayın 1'i … son günü.
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${today.slice(0, 7)}-01`, to: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}` };
 }
 
 /**
@@ -93,7 +72,8 @@ export default async function CancellationsPage({
     where: { id: session.organizationId },
     select: { timezone: true },
   });
-  const win = windowFor(period, orgTimezone(orgRow?.timezone));
+  const tz = orgTimezone(orgRow?.timezone);
+  const win = windowFor(period, tz);
 
   const page = clampPage(sp.sayfa, MAX_LIST_PAGE);
   // Sayım ve listeleme AYNI koşulu paylaşır — ayrışırsa sayaç yalan söyler.
@@ -101,7 +81,7 @@ export default async function CancellationsPage({
     property: { organizationId: session.organizationId },
     status: "cancelled",
     ...(propertyId ? { propertyId } : {}),
-    ...(win ? { arrivalDate: { gte: win.gte, lte: win.lte } } : {}),
+    ...(win ? { AND: [reservationDayRangeWhere("arrivalDate", win, tz)] } : {}),
   };
 
   const [total, reservations, properties] = await Promise.all([
