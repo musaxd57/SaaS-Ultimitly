@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { BodyTooLargeError, readTextCapped } from "@/lib/api";
+import { cspDirectiveForLog, cspDispositionForLog, cspUrlForLog } from "@/lib/csp-report-fields";
+import { redactSensitive } from "@/lib/report-error";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +19,12 @@ export const dynamic = "force-dynamic";
 // koruma gövde ve hız tarafında olmak zorunda:
 //   · gövde tavanı (8 KB)         · Content-Type doğrulaması
 //   · IP başına hız limiti        · YAPISAL alan seçimi (izin listesi)
-//   · URL'lerden query/fragment ATILIR
-//   · log enjeksiyonu koruması (CR/LF ve kontrol karakterleri)
+//   · URL → origin + ROTA ŞABLONU (`/c/:token`, `/inbox/:id`); query/fragment/
+//     kullanıcı bilgisi hiç okunmaz; directive/disposition/kaynak anahtar
+//     kelimeleri KAPALI KÜME; URL olmayan değer "invalid" (özgün metin dönmez)
+//     — kural `lib/csp-report-fields.ts` (F09, Codex 09-05)
+//   · satır merkezî redaksiyondan (`redactSensitive`) geçer; log enjeksiyonu
+//     alanlar kapalı kümeden kurulduğu için yapısal olarak kapalı
 //
 // 🚨 HAM RAPOR SAKLANMAZ. Ne DB'ye yazılır ne olduğu gibi loglanır: rapor
 // gövdesi `document-uri` içinde OTURUM AÇMIŞ bir host'un panel URL'ini (org/
@@ -33,41 +39,6 @@ export const dynamic = "force-dynamic";
 const ACCEPTED_TYPES = new Set(["application/csp-report", "application/reports+json", "application/json"]);
 
 const MAX_BODY_BYTES = 8 * 1024;
-
-/**
- * Log enjeksiyonu koruması: CR/LF ve diğer kontrol karakterleri, log satırını
- * BÖLÜP sahte kayıt uydurmak için kullanılabilir ("\n[reportError] ...").
- * Ayrıca uzunluk sınırlanır — tek bir rapor log'u boğmasın.
- */
-function sanitizeForLog(v: unknown, max = 200): string {
-  if (typeof v !== "string") return "";
-  return v
-    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ")
-    .trim()
-    .slice(0, max);
-}
-
-/**
- * URL'i TAŞIYICI OLMAYAN hâle indir: yalnız origin + path; query ve fragment
- * ATILIR.
- *
- * Gerekçe ölçülebilir: panel URL'leri `?orgId=`, `?q=<arama terimi>`,
- * `/inbox/<konuşma id>` gibi değerler taşıyor ve `document-uri` oturum açmış
- * host'un o anki sayfasıdır. Query'yi saklamak, CSP ölçümü adına müşteri
- * verisi toplamak olurdu. Path TUTULUR çünkü "hangi ekran" sorusu ölçümün
- * kendisidir; id'ler path'te kalabilir ama query kadar bilgi taşımaz.
- */
-function safeUrl(v: unknown): string {
-  const raw = sanitizeForLog(v, 300);
-  if (!raw) return "";
-  try {
-    const u = new URL(raw);
-    // Şema-benzeri değerler (`inline`, `eval`, `data`) URL değildir → olduğu gibi.
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return raw.slice(0, 120);
-  }
-}
 
 export async function POST(req: NextRequest) {
   // ⚠️ BÜTÇE DOĞRULAMADAN ÖNCE TÜKETİLİR — kardeş `/api/leads` ile aynı gerekçe
@@ -113,16 +84,19 @@ export async function POST(req: NextRequest) {
     // 🚨 İZİN LİSTESİ — ham gövde ASLA olduğu gibi kullanılmaz. `script-sample`
     // BİLEREK YOK: sayfadan birebir alıntı taşır (satır içi script gövdesi,
     // içinde token/PII olabilir).
-    const directive = sanitizeForLog(body["effective-directive"] ?? body.effectiveDirective ?? body["violated-directive"], 60);
-    const blocked = safeUrl(body["blocked-uri"] ?? body.blockedURL);
-    const document = safeUrl(body["document-uri"] ?? body.documentURL);
-    const disposition = sanitizeForLog(body.disposition, 20);
+    const directive = cspDirectiveForLog(body["effective-directive"] ?? body.effectiveDirective ?? body["violated-directive"]);
+    const blocked = cspUrlForLog(body["blocked-uri"] ?? body.blockedURL);
+    const document = cspUrlForLog(body["document-uri"] ?? body.documentURL);
+    const disposition = cspDispositionForLog(body.disposition);
     if (!directive && !blocked) continue;
 
     accepted++;
+    // Merkezî redaksiyon bu sink'e de uygulanır (F09/F10): sahte bir raporun origin'ine yazılmış telefon/uzun sayı da düşer.
     console.warn(
-      `[csp-report] directive=${directive || "?"} blocked=${blocked || "?"} ` +
-        `document=${document || "?"} disposition=${disposition || "report"}`,
+      redactSensitive(
+        `[csp-report] directive=${directive || "?"} blocked=${blocked || "?"} ` +
+          `document=${document || "?"} disposition=${disposition || "report"}`,
+      ),
     );
   }
 

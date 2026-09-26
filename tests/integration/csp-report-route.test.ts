@@ -108,6 +108,117 @@ describe("/api/csp-report", () => {
     expect((await post(report(), { ip: "198.51.100.9" })).status).toBe(204);
   });
 
+  // -------------------------------------------------------------------------
+  // F09 (Codex 09-05): YOL da taşıyıcıdır. `/c/<chatToken>` QR sohbetinin kapısı (sabit, fiziksel olarak asılı bearer),
+  // `/api/calendar/<token>` halka açık takvim beslemesi. Query atılıyordu ama yol olduğu gibi loga gidiyordu; URL
+  // olmayan değerin ilk 120 karakteri, directive/disposition serbest metin olarak yazılıyordu.
+  // -------------------------------------------------------------------------
+  describe("F09 — log sınırı: yol şablonu + kapalı kümeler", () => {
+    const CHAT_TOKEN = "3f9a1c2e7b8d4e6fa0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3";
+    const line = () => logs.join("\n");
+
+    it("🚨 QR sohbet yolundaki token loga girmez (query/fragment de) — rota şablonu kalır", async () => {
+      await post(report({ "document-uri": `https://www.lixusai.com/c/${CHAT_TOKEN}?token=QUERY_SECRET#FRAG_SECRET` }));
+      expect(line()).not.toContain(CHAT_TOKEN);
+      expect(line()).not.toContain(CHAT_TOKEN.slice(0, 16));
+      expect(line()).not.toContain("QUERY_SECRET");
+      expect(line()).not.toContain("FRAG_SECRET");
+      expect(line()).toContain("document=https://www.lixusai.com/c/:token");
+    });
+
+    it("🚨 takvim beslemesi ve sohbet API'sindeki token da şablona iner (her iki alan)", async () => {
+      await post(report({ "blocked-uri": `https://www.lixusai.com/api/calendar/${CHAT_TOKEN}.ics`, "document-uri": `https://www.lixusai.com/api/chat/${CHAT_TOKEN}` }));
+      expect(line()).not.toContain(CHAT_TOKEN.slice(0, 16));
+      expect(line()).toContain("blocked=https://www.lixusai.com/api/calendar/:token");
+      expect(line()).toContain("document=https://www.lixusai.com/api/chat/:token");
+    });
+
+    it("🚨 kimlik taşıyan yol parçası şablona iner; ekran adı kalır (ölçümün kendisi)", async () => {
+      await post(report({ "document-uri": "https://www.lixusai.com/inbox/cmf8x2k9q0001abcd1234efgh?x=1" }));
+      expect(line()).not.toContain("cmf8x2k9q0001abcd1234efgh");
+      expect(line()).toContain("document=https://www.lixusai.com/inbox/:id");
+    });
+
+    it("🚨 kullanıcı bilgisi (user:parola@) loga girmez", async () => {
+      await post(report({ "blocked-uri": "https://admin:PAROLA_SECRET@evil.example/a.js" }));
+      expect(line()).not.toContain("PAROLA_SECRET");
+      expect(line()).not.toContain("admin:");
+      expect(line()).toContain("blocked=https://evil.example/a.js");
+    });
+
+    it("🚨 URL olmayan değer OLDUĞU GİBİ dönmez (sahte rapordaki kişisel veri)", async () => {
+      await post(report({ "blocked-uri": "Ayse Yilmaz TC 12345678901 tel 0555 123 45 67" }));
+      expect(line()).not.toContain("Ayse");
+      expect(line()).not.toContain("0555");
+      expect(line()).toContain("blocked=invalid");
+    });
+
+    it("🚨 data:/blob: kaynağının İÇERİĞİ girmez, yalnız şeması", async () => {
+      await post(report({ "blocked-uri": "data:text/html;base64,U0VDUkVUX1BBWUxPQUQ=" }));
+      expect(line()).not.toContain("U0VDUkVUX1BBWUxPQUQ");
+      expect(line()).not.toContain("text/html");
+      expect(line()).toContain("blocked=data:");
+    });
+
+    it("özel kaynak anahtar kelimeleri (inline/eval/…) izin listesiyle aynen kalır", async () => {
+      for (const kw of ["inline", "eval", "wasm-eval", "trusted-types-sink"]) {
+        logs = [];
+        await post(report({ "blocked-uri": kw }));
+        expect(line(), kw).toContain(`blocked=${kw} `);
+      }
+    });
+
+    it("🚨 directive KAPALI KÜME: sahte/uzun değer 'other'; CSP2 biçimi ('script-src 'self' …') ilk sözcüğe iner", async () => {
+      await post(report({ "effective-directive": "script-src;Ayse Yilmaz 05551234567" }));
+      expect(line()).not.toContain("Ayse");
+      expect(line()).toContain("directive=other ");
+      logs = [];
+      await post(report({ "effective-directive": undefined, "violated-directive": "script-src 'self' https://cdn.example" }));
+      expect(line()).toContain("directive=script-src ");
+      expect(line()).not.toContain("cdn.example");
+      logs = [];
+      await post(report({ "effective-directive": "x".repeat(5000) }));
+      expect(line()).toContain("directive=other ");
+      expect(line().length).toBeLessThan(600);
+    });
+
+    it("meşru directive'ler aynen kalır (aşırı uygulama yok)", async () => {
+      for (const d of ["script-src-elem", "style-src-attr", "img-src", "connect-src", "frame-ancestors", "form-action"]) {
+        logs = [];
+        await post(report({ "effective-directive": d }));
+        expect(line(), d).toContain(`directive=${d} `);
+      }
+    });
+
+    it("🚨 disposition KAPALI KÜME: enforce/report aynen, başka her şey 'other'", async () => {
+      await post(report({ disposition: "enforce" }));
+      expect(line()).toContain("disposition=enforce");
+      logs = [];
+      await post(report({ disposition: "Ayse-SAHTE" }));
+      expect(line()).not.toContain("Ayse");
+      expect(line()).toContain("disposition=other");
+    });
+
+    it("üçüncü taraf kaynağın ekran adı yolu kalır (ölçüm değeri korunur)", async () => {
+      await post(report({ "blocked-uri": "https://www.googletagmanager.com/gtag/js?id=G-SECRET1" }));
+      expect(line()).toContain("blocked=https://www.googletagmanager.com/gtag/js ");
+      expect(line()).not.toContain("G-SECRET1");
+    });
+
+    it("🚨 merkezî redaksiyon bu sink'te de: sahte raporun origin'ine yazılmış telefon numarası loga girmez", async () => {
+      await post(report({ "blocked-uri": "https://05551234567.evil.example/a.js" }));
+      expect(line()).not.toContain("05551234567");
+      expect(line()).toContain("directive=script-src");
+    });
+
+    it("🚨 büyük alan: 7 KB'lık yol loga taşınmaz (segment tavanı)", async () => {
+      const long = `https://evil.example/${Array.from({ length: 400 }, (_, i) => `seg${i}x`).join("/")}`;
+      await post(report({ "blocked-uri": long }));
+      expect(line().length).toBeLessThan(600);
+      expect(line()).not.toContain("seg399x");
+    });
+  });
+
   it("KONTROL: Reporting API dizi biçimi de okunur", async () => {
     const res = await post([
       { type: "csp-violation", body: { effectiveDirective: "img-src", blockedURL: "https://x.example/a.png" } },
