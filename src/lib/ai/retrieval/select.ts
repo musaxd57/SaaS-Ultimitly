@@ -195,9 +195,10 @@ export interface KbSelectInput<T extends KbChunkSource> {
   rerankScoresBySubquery?: ReadonlyMap<string, ReadonlyMap<string, number>>;
   /**
    * SEÇİM STRATEJİSİ deneyleri (#189; verilmezse davranış BİREBİR bugünkü): `packing: "skip"` = bütçeye sığmayan parçada
-   * durmak yerine atlayıp sonraki (daha kısa) parçayı dener · `maxChunksPerItem` = kalem başına parça tavanı (varsayılan 3).
+   * durmak yerine atlayıp sonraki (daha kısa) parçayı dener · `maxChunksPerItem` = kalem başına parça tavanı (varsayılan 3) ·
+   * `extraShare` = anlama katmanı sorgularının bütçe payı (varsayılan `EXTRA_QUERY_SHARE`, 1/3; 0–1 dışı değer yok sayılır).
    */
-  strategy?: { packing?: "break" | "skip"; maxChunksPerItem?: number };
+  strategy?: { packing?: "break" | "skip"; maxChunksPerItem?: number; extraShare?: number };
 }
 
 export type SelectedKbItem<T> = T & { chunk?: number; chunkCount?: number };
@@ -870,7 +871,9 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // uygulanır. Ek sorgu yoksa bu harita boş kalır ve davranış BİREBİR eskisidir.
     const origin = new Map<number, "own" | "extra">();
     // Ek sorguların payı sınırlı (↑EXTRA_QUERY_SHARE); ek sorgu yoksa sınır hiç devreye girmez (birebir eski).
-    const extraQuota = Math.floor(maxChunks * EXTRA_QUERY_SHARE);
+    const xs = input.strategy?.extraShare;
+    const extraShare = typeof xs === "number" && xs >= 0 && xs <= 1 ? xs : EXTRA_QUERY_SHARE;
+    const extraQuota = Math.floor(maxChunks * extraShare);
     // AYNI KONUYU TEKRAR EDEN ek sorgu payı yemez (ikinci inceleme 09-24): en iyi adayı, özgün bir sorgunun ilk
     // adaylarından birinin KALEMİYSE konu zaten kapsanmıştır ("Wifi?" + "wifi şifresi" + "WLAN Passwort" üçü
     // de wifi kalemlerini seçip evcil hayvan sorusunu dışarıda bırakıyordu).
@@ -921,8 +924,8 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // (partnerleri dahil) KARAKTER ve PARÇA olarak bütçenin en fazla `EXTRA_QUERY_SHARE`ını alır — pay parça
     // sayısıyla değil gerçekten isteme girenle ölçülür (ikinci inceleme: ~850 karakterlik parçalarda 6k bütçenin
     // yarısını 1 ek sorgu alıyordu).
-    const extraCharCap = Math.floor(budget * EXTRA_QUERY_SHARE);
-    const extraChunkCap = Math.floor(maxChunks * EXTRA_QUERY_SHARE);
+    const extraCharCap = Math.floor(budget * extraShare);
+    const extraChunkCap = Math.floor(maxChunks * extraShare);
     let extraChars = 0;
     let extraChunks = 0;
     const chosen: KbChunk[] = [];

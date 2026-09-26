@@ -15,7 +15,7 @@ export const CAP = KB_RETRIEVAL_FETCH_CAP;
  * K aday / kırpma) · `fb` (geri çekilmede de sırala) · `fused` (pencere listeler arası RRF) · `mixed6` (önce özgün soru başına 6,
  * sonra RRF) · `pq` (soru başına etiket) · `dry` (modelsiz pencere tavanı) · `dl2500` (üretimin zaman aşımı tavanı) · `cap400`
  * (okuma tavanı) · `b9000` / `mc16` (seçim bütçesi karakter / parça) · `skip` (sığmayan parçayı atla) · `pi5` (kalem başına parça) ·
- * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına).
+ * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına) · `xs0.5` (anlama sorgularının bütçe payı; varsayılan 1/3).
  * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200).
  */
 export function parseConfig(name: string): LabConfig {
@@ -50,6 +50,7 @@ export function parseConfig(name: string): LabConfig {
     else if ((m = tok.match(/^mc(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), maxChunks: Number(m[1]) };
     else if (tok === "skip") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), packing: "skip" } };
     else if ((m = tok.match(/^pi(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), maxChunksPerItem: Number(m[1]) } };
+    else if ((m = tok.match(/^xs(0(?:\.\d+)?|1)$/))) cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), extraShare: Number(m[1]) } };
     else if ((m = tok.match(/^dl(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), deadlineMs: Number(m[1]) };
     else if (tok === "demote") cfg.rerank = { ...(cfg.rerank ?? RR), demote: true };
     else throw new Error(`bilinmeyen yapılandırma belirteci ${tok} (${name})`);

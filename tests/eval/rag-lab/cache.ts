@@ -20,6 +20,15 @@ export function digest(parts: unknown): string {
 let embedCalls = 0;
 let embedTextsSent = 0;
 
+/**
+ * YALNIZ ÖNBELLEK kipi (`RAG_LAB_OFFLINE=1`): önbellekte olmayan her gömme / model çıktısı AĞA ÇIKMADAN hata verir. Ücretsiz
+ * ablasyonlar (ör. paketleme seçenekleri — yeniden sıralayıcı penceresi değişmediği için istekler önbellektedir) yanlışlıkla
+ * ücretli çağrı yapmasın, eksik önbellek de sessizce "başarısız çağrı" diye sonuca karışmasın diye (09-26 gece: kredi bitti).
+ */
+function assertOnline(what: string): void {
+  if (process.env.RAG_LAB_OFFLINE === "1") throw new Error(`RAG_LAB_OFFLINE: önbellekte yok (${what}) — ağa çıkılmadı`);
+}
+
 /** Gömme (üretim istemcisi `embedTexts`), disk önbellekli. Sağlayıcı düşerse fırlatır (eksik ölçüm sonuç sayılmaz). */
 export async function embedCached(texts: readonly string[]): Promise<Map<string, Float32Array>> {
   const model = embeddingModel();
@@ -34,6 +43,7 @@ export async function embedCached(texts: readonly string[]): Promise<Map<string,
       out.set(t, new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)));
     } else missing.push(t);
   }
+  if (missing.length > 0) assertOnline(`gömme ×${missing.length}`);
   for (let i = 0; i < missing.length; i += EMBEDDING_BATCH_MAX) {
     const batch = missing.slice(i, i + EMBEDDING_BATCH_MAX);
     embedCalls += 1;
@@ -67,6 +77,7 @@ export async function llmCached<T>(kind: string, keyParts: unknown, run: () => P
     s.hits += 1;
     return JSON.parse(readFileSync(f, "utf8")) as T;
   }
+  assertOnline(`model çıktısı ${kind}`);
   s.calls += 1;
   const v = await run();
   if (v !== null) writeFileSync(f, JSON.stringify(v));
@@ -94,6 +105,7 @@ export async function llmCachedTimed<T>(
     const ms = existsSync(msFile) ? Number(readFileSync(msFile, "utf8")) : null;
     return { value: JSON.parse(readFileSync(f, "utf8")) as T, ms: ms !== null && Number.isFinite(ms) ? ms : null, fresh: false };
   }
+  assertOnline(`model çıktısı ${kind}`);
   s.calls += 1;
   const { value, ms } = await run();
   if (value !== null) {
@@ -123,6 +135,7 @@ export async function embedCachedWith(texts: readonly string[], model: string, d
       out.set(t, new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)));
     } else missing.push(t);
   }
+  if (missing.length > 0) assertOnline(`gömme ${model} ×${missing.length}`);
   const key = process.env.OPENAI_API_KEY?.trim() ?? "";
   for (let i = 0; i < missing.length; i += EMBEDDING_BATCH_MAX) {
     const batch = missing.slice(i, i + EMBEDDING_BATCH_MAX);

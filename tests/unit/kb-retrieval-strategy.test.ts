@@ -110,3 +110,36 @@ describe("paketleme ve kalem başına parça", () => {
     expect(skp.items.map((i) => i.id)).toEqual(["guide", "short"]);
   });
 });
+
+describe("anlama sorgularının bütçe payı (extraShare)", () => {
+  const parks = Array.from({ length: 6 }, (_, i) => ({
+    id: `park${i}`,
+    category: "parking",
+    title: `Otopark ${i}`,
+    content: `Otopark bilgisi ${i}: araç için yer var.`,
+    updatedAt: new Date(t0 - 2000 - i),
+  }));
+  const items = [...base.slice(0, 2), ...parks, ...neutralPadding(40)];
+  const extraQueries = [
+    { text: "otopark yeri", turkish: true },
+    { text: "araç için otopark", turkish: true },
+  ];
+  const run = (strategy?: { extraShare?: number }) => {
+    __resetKbIndexCache();
+    return selectKbForPrompt({ items, guestMessage: "Wi-Fi şifresi ne?", mode: "hybrid", now: NOW, maxChunks: 6, extraQueries, ...(strategy ? { strategy } : {}) });
+  };
+  const parksIn = (r: ReturnType<typeof run>) => r.items.filter((i) => i.id.startsWith("park")).length;
+
+  it("varsayılan 1/3 (6 parçada 2); verilmezse, 1/3 verilirse ya da geçersizse AYNI", () => {
+    expect(parksIn(run())).toBe(2);
+    expect(run({ extraShare: 1 / 3 }).items.map((i) => i.id)).toEqual(run().items.map((i) => i.id));
+    for (const bad of [7, -1, Number.NaN]) expect(parksIn(run({ extraShare: bad }))).toBe(2);
+  });
+
+  it("pay büyütülünce daha çok ek-sorgu parçası girer; 0 iken hiç girmez (özgün soru etkilenmez)", () => {
+    expect(parksIn(run({ extraShare: 1 }))).toBeGreaterThan(2);
+    const none = run({ extraShare: 0 });
+    expect(parksIn(none)).toBe(0);
+    expect(none.items.map((i) => i.id)).toEqual(expect.arrayContaining(["wifi"]));
+  });
+});
