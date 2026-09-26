@@ -116,7 +116,18 @@ sınıflandırma işaretli; ev sahibi yazınca düşer) · raporda "Hassas konu 
 koruma beyan + istem kuralı) · e-posta şablonu bugünkü "Şikayet" başlığını taşır (metin değişikliği kurucu onayı) · QR yolu
 öğe yazmıyor (zaten mesaj başına devir) · açma sırası: dilim d (görünürlük) + migration 56 canlıda + ücretli ölçüm (dilim e) + kurucu onayı.
 
-## 5. Ölçüm (açmadan önce, ~1-2 $, kurucu onayı alındı)
+## 5. Ölçüm (açmadan önce, ~1-2 $, kurucu onayı alındı) — İLK KOŞU 09-26 (`docs/olcum/konusma-ogeleri-eval-2026-09-26-gpt-5.1.md`)
+
+Tasarım seti (20 sentetik senaryo, TR/EN/DE; görülmüş, kör DEĞİL), gpt-5.1, iki kol:
+güvenli kısım cevaplandı **%41 → %76** · hassas istek varken bugün konuşmaların **%31'inde** istek ev sahibine ulaşmadan
+"cevaplandı" (öğe kipinde açık iş kalır) · sızıntı (ödeme yöntemi / "kaydedildi") bugün 3 → öğe kipinde **0** · acilde
+otomatik cevap **0 / 0** · tur bölünme %85.
+**Bulgular (kurucuya soruldu):** (1) İngilizce/Almanca "IBAN / bank details / cash" ve Türkçe "nakit ödeyebilir miyim"
+kelime ağına takılmıyor → öğe kipinde ödeme isteği hassas sayılmıyor (anlama katmanının `payment_invoice` niyeti kendi
+başına hassas değil). Öneri: ödeme/fatura isteği niyetten hassas (dilden bağımsız). (2) CANLI yanlış alarm: Almanca
+"Gastgeber" (ev sahibi) içindeki "gas" acil durum sayılıyor → konuşma "Sorunlu" + acil e-posta. Öneri: kısa acil
+sözcüklerinde kelime sınırı (#51 "acil"/"açıl" ile aynı sınıf).
+
 
 Gerçek model, bayrak açık: IBAN→Wi-Fi · aynı mesaj · şikâyet→otopark · acil→Wi-Fi · vazgeçme · ev sahibi yazdı ·
 çok dilli ikizler. Ölçü: tutulan öğeye değinen cevap = 0 (sızıntı), güvenli öğenin cevaplanma oranı, acilde otomatik
