@@ -4,6 +4,7 @@ import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "@/lib/ai/semantic/config";
 import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
 import { chunkItems, chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chunker";
+import { rerankPerQuestionInfo } from "@/lib/ai/retrieval/flag";
 
 // ---------------------------------------------------------------------------
 // OPENAI YENİDEN SIRALAYICI (#186, kurucu kararı 09-26 "OpenAI ile"; tasarım docs/TASARIM-2026-09-26-openai-yeniden-siralayici.md).
@@ -19,8 +20,31 @@ import { chunkItems, chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chu
 // `llmRerank` doğrudan = ölçüm yolu (eval), anlam katmanının normal zaman aşımı.
 // ---------------------------------------------------------------------------
 
-/** Tek çağrıda puanlanan en fazla aday (tavan teşhisi 09-26: kurtarılabilir kaçakların neredeyse hepsi ilk 20'de). */
-export const RERANK_MAX_CANDIDATES = 20;
+/**
+ * 🚨 PENCERE SORU BAŞINA (#189, 09-26 gece; ölçüm `docs/olcum/rag-lab-2026-09-26-*.md`). Eski pencere (alt sorgu listelerinden
+ * sırayla ilk 20) 300 kalemlik gerçekçi sette iki sorulu mesajda cevabın çoğunu dışarıda bırakıyordu: mesaj 6–8 listeye
+ * bölünüyor (virgül/"ve" parçaları + anlama sorguları), liste başına 3 aday kalıyordu. Artık her ANLAMA İSTEĞİNİN (soru)
+ * kendi sorguları (Türkçe + özgün dil) RRF ile tek sıraya iner ve o sorunun ilk `RERANK_PER_REQUEST_CANDIDATES` adayı pencereye
+ * girer; deterministik alt sorgular ayrıca küçük bir taban penceresi alır (anlama katmanı bir soruyu kaçırırsa). Anlama
+ * sonucu yoksa sırayla birleşim (`RERANK_FALLBACK_CANDIDATES`). Kuru tavan (cevap pencerede, CEVAP düzeyinde; `docs/olcum/rag-lab-2026-09-26-8.md`,
+ * `-10.md`): iki sorulu %74 → %97, tek soru %95 → %96–99.
+ */
+export const RERANK_PER_REQUEST_CANDIDATES = 40;
+/** Bayrak KAPALIYKEN (`KB_RERANK_PER_QUESTION`) bugünkü tek pencere: alt sorgu listelerinden sırayla ilk 20 (#186 ölçümü). */
+export const RERANK_LEGACY_CANDIDATES = 20;
+/** Deterministik alt sorgu listelerinden (sırayla) ayrıca alınan taban. */
+export const RERANK_OWN_CANDIDATES = 10;
+/** Anlama isteği yokken (katman kapalı/düştü) sırayla birleşimin genişliği. */
+export const RERANK_FALLBACK_CANDIDATES = 40;
+/** Tek çağrının aday tavanı (istek penceresi + taban). */
+export const RERANK_MAX_CANDIDATES = 60;
+/**
+ * 🚨 SORU BAŞINA AYRI ÇAĞRI (#189 ölçümü): iki sorulu mesajın iki penceresi TEK çağrıda (~90 aday) sorulunca model cevap
+ * parçalarının %21'ini işaretlemiyordu (pencerede olduğu hâlde; tek soruda ~50 adayla kaçırma %2). Her istek kendi
+ * penceresiyle AYRI ve PARALEL çağrılır (gecikme ≈ tek çağrı), puanlar birleştirilir (en yükseği). Dört ve daha çok
+ * soruda çağrı sayısı bu tavanda kalır: fazla istekler son çağrının penceresini paylaşır (maliyet tavanı).
+ */
+export const RERANK_MAX_CALLS = 3;
 /**
  * Üretim yolunun (misafir bekler) zaman aşımı tavanı. Ölçüm (gpt-5.1, 288 çağrı): p50 0,86 sn, p95 1,32 sn → 2,5 sn p95'in
  * yaklaşık iki katı. Aşılırsa `failed` ve BUGÜNKÜ sıra (anlamsal sıcak yolun 1,5 sn'lik bütçesiyle aynı mantık). Anlam
@@ -40,8 +64,8 @@ export interface RerankCandidate {
 }
 
 export type RerankOutcome =
-  | { status: "ok"; scores: Map<string, number>; ms: number }
-  | { status: "skipped" | "failed"; ms: number };
+  | { status: "ok"; scores: Map<string, number>; ms: number; calls?: number }
+  | { status: "skipped" | "failed"; ms: number; calls?: number };
 
 export const RERANK_SYSTEM_PROMPT = [
   "You rank knowledge-base snippets for a short-term-rental guest assistant. You do NOT answer the guest.",
@@ -155,7 +179,7 @@ export async function llmRerank(
 
 /**
  * Alt sorgu listelerinden SIRAYLA (round-robin) en fazla `max` benzersiz parça anahtarı: çok sorulu mesajda her soru aday
- * alır, tek konu 20'lik listeyi yutamaz. Ölçüm (`rerank-llm.eval`) ile üretim AYNI birleşimi kullanır (tek kaynak). Saf.
+ * alır, tek konu listeyi yutamaz. Anlama isteği yokken pencerenin kendisi; varken deterministik taban penceresi. Saf.
  */
 export function unionTopCandidates(lists: readonly (readonly { key: string }[])[], max: number): string[] {
   const out: string[] = [];
@@ -178,6 +202,68 @@ export function unionTopCandidates(lists: readonly (readonly { key: string }[])[
   return out;
 }
 
+/** Listeler arası RRF (K=60) sırası; eşitlikte ilk görülen önde. Saf. */
+function fusedOrder(lists: readonly (readonly { key: string }[])[]): string[] {
+  const score = new Map<string, number>();
+  const first = new Map<string, number>();
+  let order = 0;
+  for (const list of lists) {
+    list.forEach((c, r) => {
+      score.set(c.key, (score.get(c.key) ?? 0) + 1 / (60 + r + 1));
+      if (!first.has(c.key)) first.set(c.key, order++);
+    });
+  }
+  return [...score.keys()].sort((a, b) => score.get(b)! - score.get(a)! || first.get(a)! - first.get(b)!);
+}
+
+/**
+ * YENİDEN SIRALAYICI PENCERELERİ (soru başına, ↑ `RERANK_PER_REQUEST_CANDIDATES`) — her pencere AYRI bir çağrıdır. `meta[i]`
+ * listenin kaynağıdır (seçicinin `onCandidates` sırası): anlama isteği indeksli listeler istek başına RRF ile tek sıraya
+ * iner — anlama sorgusuyla birebir aynı olduğu için o isteğe işaretlenen deterministik alt sorgu dahil; işaretsiz listeler
+ * taban penceresini (`RERANK_OWN_CANDIDATES`) kurar ve HER pencereye eklenir (anlama katmanı bir soruyu kaçırırsa o sorunun
+ * cevabı tabandan gelir). İstek yoksa tek pencere: sırayla
+ * birleşim (`RERANK_FALLBACK_CANDIDATES`). En çok `RERANK_MAX_CALLS` pencere; tekrar yok (pencere içinde); pencere başına
+ * en çok `RERANK_MAX_CANDIDATES`. Saf.
+ */
+export function rerankCandidateWindows(
+  lists: readonly (readonly { key: string }[])[],
+  meta: readonly { extra: boolean; request?: number }[] = [],
+): string[][] {
+  // İsteğe işaretli liste: anlama katmanının sorgusu ya da onunla birebir aynı olduğu için işaretlenen deterministik alt sorgu.
+  const reqOf = (i: number): number | undefined => meta[i]?.request;
+  const reqIds = [...new Set(lists.map((_, i) => reqOf(i)).filter((r): r is number => r !== undefined))].sort((a, b) => a - b);
+  if (reqIds.length === 0) return [unionTopCandidates(lists, RERANK_FALLBACK_CANDIDATES)];
+  const own = unionTopCandidates(
+    lists.filter((_, i) => reqOf(i) === undefined),
+    RERANK_OWN_CANDIDATES,
+  );
+  // Çağrı tavanı: fazla istekler sırayla son çağrıların kovasına düşer; kovadaki istekler payı bölüşür.
+  const buckets: number[][] = Array.from({ length: Math.min(RERANK_MAX_CALLS, reqIds.length) }, () => []);
+  reqIds.forEach((r, i) => buckets[i % buckets.length].push(r));
+  return buckets.map((bucket) => {
+    const per = Math.max(1, Math.floor(RERANK_PER_REQUEST_CANDIDATES / bucket.length));
+    const out: string[] = [];
+    const seen = new Set<string>();
+    const push = (k: string) => {
+      if (out.length < RERANK_MAX_CANDIDATES && !seen.has(k)) {
+        seen.add(k);
+        out.push(k);
+      }
+    };
+    for (const r of bucket) for (const k of fusedOrder(lists.filter((_, i) => reqOf(i) === r)).slice(0, per)) push(k);
+    for (const k of own) push(k);
+    return out;
+  });
+}
+
+/** Tüm pencerelerin birleşimi (tekrarsız, pencere sırasıyla) — kapsam ölçümü ve tek çağrılı kıyas için. Saf. */
+export function rerankCandidateKeys(
+  lists: readonly (readonly { key: string }[])[],
+  meta: readonly { extra: boolean; request?: number }[] = [],
+): string[] {
+  return [...new Set(rerankCandidateWindows(lists, meta).flat())];
+}
+
 /**
  * İsteme giden misafir metni: cevapsız ÖNCEKİ mesajlar (eskisi önce) + güncel mesaj — retrieval'ın alt sorgu kuralıyla
  * aynı küme (`pendingGuestMessages`). Güncel mesaj HER ZAMAN kalır; tavan aşılırsa önceki mesajların BAŞI kırpılır.
@@ -198,6 +284,8 @@ export interface PrepareRerankInput {
   pending?: readonly string[];
   /** Seçicinin alt sorgu başına aday listeleri (`KbSelectInput.onCandidates`). */
   candidates: readonly (readonly { key: string }[])[];
+  /** Listelerin kaynağı (aynı sıra; `onCandidates`in ikinci argümanı). Yoksa pencere sırayla birleşimdir. */
+  candidateMeta?: readonly { extra: boolean; request?: number }[];
   /** Redakte edilecek bilinen adlar (anlama katmanıyla aynı). */
   names?: readonly (string | null | undefined)[];
   fetchImpl?: typeof fetch;
@@ -205,26 +293,40 @@ export interface PrepareRerankInput {
 
 /**
  * ÜRETİM GİRİŞİ: aday anahtarlarını parça metnine çevirir, sıcak yol tavanıyla puanlatır. Sıralanacak iki aday yoksa ağa
- * ÇIKMAZ (`skipped`). Asla fırlatmaz. Parça metni yalnız aday kalemlerden yeniden kurulur (≤20 kalem; seçicinin dizini ile
- * aynı parçalayıcı → aynı anahtar).
+ * ÇIKMAZ (`skipped`). Asla fırlatmaz. Parça metni yalnız aday kalemlerden yeniden kurulur (≤`RERANK_MAX_CANDIDATES` parça;
+ * seçicinin dizini ile aynı parçalayıcı → aynı anahtar).
  */
 export async function prepareRerankScores(input: PrepareRerankInput): Promise<RerankOutcome> {
   try {
-    const keys = unionTopCandidates(input.candidates, RERANK_MAX_CANDIDATES);
-    const wanted = new Set(keys.map((k) => k.slice(0, k.lastIndexOf("#"))));
+    // Bayrak kapalıyken BUGÜNKÜ davranış birebir: tek pencere (sırayla ilk 20), tek çağrı.
+    const windows = rerankPerQuestionInfo().enabled
+      ? rerankCandidateWindows(input.candidates, input.candidateMeta ?? [])
+      : [unionTopCandidates(input.candidates, RERANK_LEGACY_CANDIDATES)];
+    const wanted = new Set(windows.flat().map((k) => k.slice(0, k.lastIndexOf("#"))));
     const byKey = new Map(chunkItems(input.items.filter((it) => wanted.has(it.id))).map((c) => [chunkKey(c), c] as const));
-    const candidates: RerankCandidate[] = [];
-    for (const k of keys) {
-      const c = byKey.get(k);
-      if (c) candidates.push({ key: k, title: c.title, text: c.text });
-    }
-    if (candidates.length < 2) return { status: "skipped", ms: 0 };
+    const calls = windows
+      .map((keys) =>
+        keys.flatMap((k): RerankCandidate[] => {
+          const c = byKey.get(k);
+          return c ? [{ key: k, title: c.title, text: c.text }] : [];
+        }),
+      )
+      .filter((cands) => cands.length >= 2);
+    if (calls.length === 0) return { status: "skipped", ms: 0 };
     const earlier = [...(input.pending ?? [])].reverse();
     const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
-    return await llmRerank(rerankQuestionText(input.guestMessage, earlier), candidates, names, {
-      fetchImpl: input.fetchImpl,
-      deadlineMs: RERANK_HOT_PATH_DEADLINE_MS,
-    });
+    const question = rerankQuestionText(input.guestMessage, earlier);
+    // PARALEL: misafirin beklediği süre en yavaş çağrı kadar; her çağrı sıcak yol tavanıyla ayrı ayrı kısılır.
+    const outs = await Promise.all(
+      calls.map((cands) => llmRerank(question, cands, names, { fetchImpl: input.fetchImpl, deadlineMs: RERANK_HOT_PATH_DEADLINE_MS })),
+    );
+    const ms = Math.max(0, ...outs.map((o) => o.ms));
+    const ok = outs.filter((o): o is Extract<RerankOutcome, { status: "ok" }> => o.status === "ok");
+    // Bir çağrı düşerse diğerinin işaretleri kullanılır (düşen sorunun adayları bugünkü sırasında kalır).
+    if (ok.length === 0) return { status: outs.every((o) => o.status === "skipped") ? "skipped" : "failed", ms, calls: calls.length };
+    const scores = new Map<string, number>();
+    for (const o of ok) for (const [k, v] of o.scores) scores.set(k, Math.max(scores.get(k) ?? 0, v));
+    return { status: "ok", scores, ms, calls: calls.length };
   } catch {
     return { status: "failed", ms: 0 };
   }

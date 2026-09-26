@@ -109,6 +109,8 @@ export interface KbRetrievalEvidence {
   rrMs?: number;
   /** Modelin "cevaplıyor" dediği aday sayısı (yalnız `rr: ok`). */
   rrA?: number;
+  /** Yeniden sıralayıcı çağrı sayısı (soru başına ayrı çağrı, #189; yalnız 1'den çoksa yazılır). */
+  rrN?: number;
 }
 
 export interface KbSelectSources {
@@ -178,7 +180,7 @@ export interface KbSelectInput<T extends KbChunkSource> {
    * sıralamasından ÖNCE (taban eşiğinden sonra). Seçimi DEĞİŞTİRMEZ. Ölçüm kancası; üretimde YALNIZ yeniden sıralayıcı
    * açıkken `ai/kb-retrieve.ts` verir (adaylar modele buradan gider).
    */
-  onCandidates?: (perSubquery: readonly (readonly { id: string; key: string }[])[]) => void;
+  onCandidates?: (perSubquery: readonly (readonly { id: string; key: string }[])[], meta: readonly CandidateListMeta[]) => void;
   /**
    * YENİDEN SIRALAYICI puanları (parça anahtarı → 0..3; `semantic/rerank.ts`, #186; üretimde yalnız `KB_RERANK_ENABLED`
    * açıkken, `ai/kb-retrieve.ts`). Yalnız SIRALAMA sinyali: her alt sorgu listesi 3 → 2 → 1 → puansız → 0 kademesine göre
@@ -207,6 +209,18 @@ export type SelectedKbItem<T> = T & { chunk?: number; chunkCount?: number };
 export interface ExtraQuery {
   text: string;
   turkish: boolean;
+  /** Anlama katmanında sorgunun geldiği isteğin sırası (yeniden sıralayıcı penceresi soru başına kurulur, #189). */
+  request?: number;
+}
+
+/**
+ * Aday listesinin kaynağı (`onCandidates` ile listelerle AYNI sırada): deterministik alt sorgu mu, anlama katmanının
+ * sorgusu mu; ve hangi isteğin (sorunun) sorgusu — deterministik alt sorgu, anlama katmanının sorgusuyla birebir aynıysa
+ * o isteğe işaretlidir. Seçimi etkilemez; yalnız yeniden sıralayıcı penceresi okur.
+ */
+export interface CandidateListMeta {
+  extra: boolean;
+  request?: number;
 }
 
 export interface KbSelectResult<T extends KbChunkSource> {
@@ -354,6 +368,12 @@ export interface RetrievalQuery {
   extra?: true;
   /** Ek sorgu Türkçe mi (n-gram kaynağı için). */
   turkish?: boolean;
+  /**
+   * Anlama isteği sırası (`ExtraQuery.request`). Deterministik alt sorguda da olabilir: anlama katmanının sorgusu o alt
+   * sorguyla BİREBİR aynıysa sorgu tekrar eklenmez, ama listesi o isteğe işaretlenir (yeniden sıralayıcı penceresi soru
+   * başına kurulur, #189 — yoksa o soru kendi penceresini alamıyordu). Seçimi etkilemez.
+   */
+  request?: number;
 }
 
 /** Ham mesajın SERT bölümleri (soru işareti sonrası, satır, ";") — alt sorguların ait olduğu cümle. */
@@ -412,8 +432,21 @@ export function retrievalQueries(
     const raw = eq?.text;
     if (typeof raw !== "string") continue;
     const sq = normalizeForRetrieval(raw).trim();
-    if (sq.length < 3 || contentStems(sq).length === 0 || queries.some((q) => q.subquery === sq)) continue;
-    queries.push({ subquery: sq, embedTexts: opts.embedTexts ? [raw.slice(0, EMBED_QUERY_MAX_CHARS)] : [], extra: true, turkish: eq.turkish === true });
+    if (sq.length < 3 || contentStems(sq).length === 0) continue;
+    const request = typeof eq.request === "number" && Number.isInteger(eq.request) && eq.request >= 0 ? eq.request : undefined;
+    const same = queries.find((q) => q.subquery === sq);
+    if (same) {
+      // Aynı sorgu ikinci kez koşmaz; listesi bu isteğe de aittir (ilk işaret kalır).
+      if (same.request === undefined && request !== undefined) same.request = request;
+      continue;
+    }
+    queries.push({
+      subquery: sq,
+      embedTexts: opts.embedTexts ? [raw.slice(0, EMBED_QUERY_MAX_CHARS)] : [],
+      extra: true,
+      turkish: eq.turkish === true,
+      ...(request !== undefined ? { request } : {}),
+    });
     extra += 1;
   }
   return { queries, pending, extra };
@@ -783,7 +816,10 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       }),
     );
     const ranked = rankedAll.map((r) => r.cands);
-    input.onCandidates?.(ranked.map((list) => list.map((c) => ({ id: index.chunks[c.idx].id, key: chunkKey(index.chunks[c.idx]) }))));
+    input.onCandidates?.(
+      ranked.map((list) => list.map((c) => ({ id: index.chunks[c.idx].id, key: chunkKey(index.chunks[c.idx]) }))),
+      queries.map((q) => ({ extra: q.extra === true, ...(q.request !== undefined ? { request: q.request } : {}) })),
+    );
     if (input.rerankScores || input.rerankScoresBySubquery) {
       const tierOf = (scores: ReadonlyMap<string, number>) => (idx: number): number => {
         const r = scores.get(chunkKey(index.chunks[idx]));

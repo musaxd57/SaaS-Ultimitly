@@ -133,10 +133,11 @@ describe("şema sözleşmesi", () => {
       ],
     });
     // Türkçe sorgu n-gram alır; özgün dil yalnız misafir Türkçe yazdıysa (burada "de").
+    // `request`: sorgunun geldiği isteğin sırası (#189 — yeniden sıralayıcı penceresi soru başına kurulur).
     expect(understandingQueries(u)).toEqual([
-      { text: "giriş saati", turkish: true },
-      { text: "evcil hayvan", turkish: true },
-      { text: "Haustiere", turkish: false },
+      { text: "giriş saati", turkish: true, request: 0 },
+      { text: "evcil hayvan", turkish: true, request: 1 },
+      { text: "Haustiere", turkish: false, request: 1 },
     ]);
     expect(understandingQueries(u, 2).map((q) => q.text)).toEqual(["giriş saati", "evcil hayvan"]);
     expect(understandingQueries(null)).toEqual([]);

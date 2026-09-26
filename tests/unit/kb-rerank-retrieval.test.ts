@@ -11,7 +11,7 @@ import { rerankRetrievalInfo } from "@/lib/ai/retrieval/flag";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { __resetSemanticRetrieval, __awaitSemanticWarm } from "@/lib/ai/embeddings/semantic-retrieval";
 import { clearEmbeddingCache, EMBEDDING_DIMENSIONS } from "@/lib/ai/embeddings/provider";
-import { unionTopCandidates, RERANK_MAX_CANDIDATES, RERANK_QUESTION_CHARS } from "@/lib/ai/semantic/rerank";
+import { unionTopCandidates, RERANK_LEGACY_CANDIDATES, RERANK_QUESTION_CHARS } from "@/lib/ai/semantic/rerank";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 import { neutralPadding } from "../helpers/kb-padding";
 
@@ -356,7 +356,7 @@ describe("aday birleşimi — alt sorgular arası sırayla (çok sorulu mesajda 
     expect(unionTopCandidates(lists, 10)).toEqual(["a#0", "d#0", "b#0", "e#0", "c#0"]);
     expect(unionTopCandidates([], 5)).toEqual([]);
     const many = [Array.from({ length: 40 }, (_, i) => ({ key: `k${i}#0` }))];
-    expect(unionTopCandidates(many, RERANK_MAX_CANDIDATES)).toHaveLength(RERANK_MAX_CANDIDATES);
+    expect(unionTopCandidates(many, RERANK_LEGACY_CANDIDATES)).toHaveLength(RERANK_LEGACY_CANDIDATES);
   });
 });
 
@@ -377,5 +377,10 @@ describe("karar kaydı — kanıt yalnız kapalı küme / sayı taşır", () => 
     expect(r).not.toHaveProperty("rr");
     expect(r).not.toHaveProperty("rrMs");
     expect(r).not.toHaveProperty("rrA");
+  });
+
+  it("rrN (soru başına çağrı sayısı, #189) yalnız 1'den büyük tam sayıysa kayda geçer", () => {
+    expect(parse({ ...base, rr: "ok", rrN: 2 })).toMatchObject({ rrN: 2 });
+    for (const bad of [1, 0, -2, 2.5, "2"]) expect(parse({ ...base, rr: "ok", rrN: bad })).not.toHaveProperty("rrN");
   });
 });

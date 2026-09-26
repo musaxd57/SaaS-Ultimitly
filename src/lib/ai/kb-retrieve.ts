@@ -3,6 +3,7 @@ import {
   pendingGuestMessages,
   retrievalNeeded,
   selectKbForPrompt,
+  type CandidateListMeta,
   type KbRetrievalEvidence,
   type KbSelectInput,
   type KbSelectResult,
@@ -122,13 +123,15 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
   const semInput: KbSelectInput<T> = sem.bySubquery ? { ...withExtra, semanticBySubquery: sem.bySubquery } : withExtra;
   const rerankOn = sem.status === "ok" && rerankRetrievalInfo().enabled;
   let lists: readonly (readonly { id: string; key: string }[])[] = [];
+  let listMeta: readonly CandidateListMeta[] = [];
   let result = selectKbForPrompt(
     rerankOn
       ? {
           ...semInput,
-          onCandidates: (l) => {
+          onCandidates: (l, meta) => {
             lists = l;
-            semInput.onCandidates?.(l);
+            listMeta = meta;
+            semInput.onCandidates?.(l, meta);
           },
         }
       : semInput,
@@ -140,6 +143,7 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
       guestMessage: selectInput.guestMessage,
       pending: pendingGuestMessages(selectInput.history, selectInput.guestMessage),
       candidates: lists,
+      candidateMeta: listMeta,
       names: redactNames,
     });
     // Boş puan haritası ("hiçbiri cevaplamıyor") seçiciyi yeniden koşturmaz: sıra zaten bugünkü.
@@ -165,13 +169,14 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
   };
 }
 
-/** Kanıta yeniden sıralayıcının özetini ekler (metin YOK: durum, süre, "cevaplıyor" denen aday sayısı). */
+/** Kanıta yeniden sıralayıcının özetini ekler (metin YOK: durum, süre, "cevaplıyor" denen aday sayısı, çağrı sayısı). */
 function withRerank(evidence: KbRetrievalEvidence, o: RerankOutcome): KbRetrievalEvidence {
   return {
     ...evidence,
     rr: o.status,
     rrMs: o.ms,
     ...(o.status === "ok" ? { rrA: [...o.scores.values()].filter((s) => s === 3).length } : {}),
+    ...(o.calls !== undefined && o.calls > 1 ? { rrN: o.calls } : {}),
   };
 }
 

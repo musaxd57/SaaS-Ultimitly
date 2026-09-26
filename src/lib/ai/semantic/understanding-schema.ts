@@ -307,9 +307,12 @@ export function parseUnderstanding(raw: unknown, opts?: { items?: boolean; rules
  * misafirin 4. ve 5. sorusu HİÇ sorgu almıyordu; round-robin payını da özgün dil tekrarları yiyordu. Türkçe
  * sorgular önce gelince her istek tavandan önce en az bir sorgu alır.
  */
-export function understandingQueries(u: MessageUnderstanding | null | undefined, max = 6): { text: string; turkish: boolean }[] {
+export function understandingQueries(
+  u: MessageUnderstanding | null | undefined,
+  max = 6,
+): { text: string; turkish: boolean; request: number }[] {
   if (!u) return [];
-  const out: { text: string; turkish: boolean }[] = [];
+  const out: { text: string; turkish: boolean; request: number }[] = [];
   const seen = new Set<string>();
   const requests = u.requests.filter((r) => r.intent !== "greeting_thanks");
   const passes: [(r: UnderstoodRequest) => string, boolean][] = [
@@ -317,13 +320,14 @@ export function understandingQueries(u: MessageUnderstanding | null | undefined,
     [(r) => r.queryOriginal, u.language === "tr"],
   ];
   for (const [textOf, turkish] of passes) {
-    for (const r of requests) {
+    for (const [request, r] of requests.entries()) {
       const text = textOf(r);
       if (!text) continue;
       const k = text.toLocaleLowerCase("tr");
       if (seen.has(k)) continue;
       seen.add(k);
-      out.push({ text, turkish });
+      // `request`: sorgunun geldiği isteğin (selamlama dışı) sırası — yeniden sıralayıcı penceresi soru başına kurulur (#189).
+      out.push({ text, turkish, request });
       if (out.length >= max) return out;
     }
   }

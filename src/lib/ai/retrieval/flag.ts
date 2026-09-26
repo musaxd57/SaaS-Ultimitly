@@ -112,3 +112,17 @@ export function rerankRetrievalInfo(): { enabled: boolean; raw: string; recogniz
   const raw = (process.env.KB_RERANK_ENABLED ?? "").trim().toLowerCase();
   return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
 }
+
+/**
+ * SORU BAŞINA YENİDEN SIRALAMA — `KB_RERANK_PER_QUESTION` (#189, 09-26 gece). VARSAYILAN KAPALI (aynı yazımlar, tanınmayan
+ * değer KAPALI + boot'ta gürültülü). Açıkken yeniden sıralayıcı penceresi anlama isteği (soru) başına kurulur ve her soru
+ * AYRI, PARALEL çağrıyla sıralanır (`semantic/rerank.ts` `rerankCandidateWindows`); kapalıyken bugünkü tek pencere (ilk 20).
+ * Neden bayrak: çağrı başına aday ~2,5 kat (maliyet), iki sorulu mesajda iki çağrı — kurucu kararıyla açılır. Ölçüm
+ * (gerçekçi 276 kalem, dev, large gömme + 0,25 eşik + okuma 400 ile birlikte; `docs/olcum/rag-lab-2026-09-26-11.md`): tek
+ * soru TR %69 → %95, diğer diller %73 → %99; iki sorulu %33 → %50 (soru başına pencere TEK çağrıda). Ayrı çağrıların temiz
+ * ölçümü API kredisi bittiği için yarım kaldı (bekliyor). Yalnız `KB_RERANK_ENABLED` açıkken etkili.
+ */
+export function rerankPerQuestionInfo(): { enabled: boolean; raw: string; recognized: boolean } {
+  const raw = (process.env.KB_RERANK_PER_QUESTION ?? "").trim().toLowerCase();
+  return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
+}
