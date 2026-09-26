@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { reportError } from "@/lib/report-error";
 import { getCalendarSourceUrl } from "@/lib/calendar-source-url";
-import { parseIcs } from "@/lib/import/ics";
+import { icsIncompleteCause, parseIcsDetailed, type IcsIncompleteReason } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
@@ -271,7 +271,12 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     return result;
   }
 
-  const rows = parseIcs(text);
+  // 🚨 F16 (09-26): okuma EKSİKSE (tavan, tekrarlayan etkinlik, okunamayan kayıt, yarım dosya…) okunan
+  // satırlar yine yazılır (gerçek olgular) ve açık STATUS:CANCELLED yine işlenir (belirli bir UID'nin
+  // olumlu beyanı) — ama listede OLMAYAN hiçbir şey hakkında hüküm verilmez: kayıp uzlaştırması kayıp
+  // saymaz, kaynak `partial` yazılır ve müsaitlik motoru bu kaynakla hiçbir geceye "boş" demez.
+  const parsed = parseIcsDetailed(text);
+  const rows = parsed.events;
   // V1 ürün akışı: iCal bir Lixus-native giriştir → her GERÇEK yazma (create/update/cancel)
   // satırla AYNI TX'te sağlayıcıdan bağımsız IngestEvent üretir (provider "ical", bağlantı yok).
   // Değişmeyen satır yazılmaz → event de üretilmez (yapay olay yok).
@@ -534,7 +539,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   if (feedReconcileEnabled()) {
     try {
       if (__reconcileHooks.forceError) throw __reconcileHooks.forceError;
-      const rec = await reconcileFeedDisappearance({ source, channel, seenRefs, runStartedAt });
+      const rec = await reconcileFeedDisappearance({ source, channel, seenRefs, runStartedAt, complete: parsed.incomplete.length === 0 });
       result.updated += rec.cancelled;
       reconcileWarning = rec.warning;
     } catch (err) {
@@ -555,6 +560,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   if (result.updated > 0) parts.push(`${result.updated} güncellendi`);
   if (result.skipped > 0) parts.push(`${result.skipped} atlandı`);
   if (result.errors.length) parts.push(`${result.errors.length} hata`);
+  if (parsed.incomplete.length) parts.push(`⚠ ${incompleteReadText(parsed.incomplete[0])}`);
   if (reconcileWarning) parts.push(`⚠ ${reconcileWarning}`);
   const summary = parts.length ? parts.join(", ") : "Yeni rezervasyon bulunamadı";
 
@@ -564,7 +570,8 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       lastSyncedAt: new Date(),
       // ANY error surfaces as "error" — a PARTIAL import (some rows failed) must not
       // report "ok" and hide the failures. The summary line carries the exact counts.
-      lastStatus: result.errors.length ? "error" : "ok",
+      // Hatasız ama EKSİK okuma "ok" DEĞİLDİR (F16): `partial` = okunanlar doğru, takvimin tamamı değil.
+      lastStatus: result.errors.length ? "error" : parsed.incomplete.length ? "partial" : "ok",
       lastResult: summary,
     },
   });
@@ -573,13 +580,22 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
 }
 
 /**
+ * Eksik okumanın host'a SADE anlatımı (teknik sözcük yok; ne yapacağı söylenir). Tek neden gösterilir —
+ * `ICS_INCOMPLETE_REASONS` sırasında en ağırı.
+ */
+function incompleteReadText(reason: IcsIncompleteReason): string {
+  return `Takvimin bir kısmı okunamadı (${icsIncompleteCause(reason)}) — boş görünen günleri kanal takviminden kontrol edin`;
+}
+
+/**
  * FAZ 2 — reconcile reservations that silently disappeared from a calendar feed. Runs ONLY
  * after a successful fetch, and internally enforces every safety gate:
  *  • per-source advisory lock → two concurrent syncs never double-count a miss;
  *  • stale-run ordering → an older/slower run never overwrites a newer one's result;
- *  • empty / suspicious-drop feed → NEVER counts a miss (audit warning instead);
+ *  • empty / suspicious-drop / INCOMPLETE (F16) feed → NEVER counts a miss (audit warning instead);
  *  • a stay is cancelled ONLY after >= THRESHOLD consecutive reliable misses AND >= MIN
- *    wall-clock, is source-bound, and reappearing resets the streak atomically;
+ *    wall-clock, is source-bound, and reappearing resets the streak atomically — also in an
+ *    UNRELIABLE run (presence is positive evidence even when absence proves nothing);
  *  • cancel is a one-time status flip (no DELETE); only system auto-tasks are cleared.
  * `now` / `runStartedAt` are injectable for deterministic tests.
  */
@@ -588,9 +604,14 @@ export async function reconcileFeedDisappearance(opts: {
   channel: string;
   seenRefs: Set<string>;
   runStartedAt: Date;
+  /**
+   * Ayrıştırıcı okumanın TAMAMINI gördü mü (`parseIcsDetailed().incomplete` boş). Zorunlu alan: yokluğu
+   * KANITLAYABİLEN tek şey tam okumadır — eksik okumada listede olmayan UID okunamayan kısımda olabilir.
+   */
+  complete: boolean;
   now?: Date;
 }): Promise<{ cancelled: number; warning: string | null }> {
-  const { source, channel, seenRefs, runStartedAt } = opts;
+  const { source, channel, seenRefs, runStartedAt, complete } = opts;
   const now = opts.now ?? new Date();
   const eventCount = seenRefs.size;
   const cancelledIds: string[] = [];
@@ -612,6 +633,39 @@ export async function reconcileFeedDisappearance(opts: {
     // Stale-run guard: a newer reliable run already reconciled → don't let this older run overwrite.
     if (src.lastReconcileAt && runStartedAt <= src.lastReconcileAt) return;
 
+    // Candidates: only FUTURE, source-bound, still-active rows of THIS feed.
+    const loadCandidates = () =>
+      tx.reservation.findMany({
+        where: {
+          propertyId: source.propertyId,
+          channel,
+          calendarSourceId: source.id, // source binding — never touch another source / Hospitable / legacy-NULL
+          sourceReference: { not: null },
+          status: { in: ["confirmed", "pending"] },
+          arrivalDate: { gt: now },
+        },
+        select: { id: true, sourceReference: true, feedMissingCount: true, feedFirstMissingAt: true },
+      });
+    // Seen in THIS feed → reset the missing streak atomically. Only ever makes a cancel HARDER, so it
+    // runs in unreliable runs too: a UID present in the text IS in the feed, whatever else was lost.
+    const markSeen = (id: string) =>
+      tx.reservation.updateMany({
+        where: { id },
+        data: { feedMissingCount: 0, feedFirstMissingAt: null, feedLastSeenAt: runStartedAt },
+      });
+    const isSeen = (r: { sourceReference: string | null }) => r.sourceReference != null && seenRefs.has(r.sourceReference);
+
+    // RELIABILITY GATE 0 (F16) — the parser itself says the read was INCOMPLETE (event cap, recurrence,
+    // unreadable / duplicate event, truncated file). Absence proves nothing: no miss is counted and the
+    // TRUSTED baseline is kept (an incomplete count must not become the next run's yardstick). The
+    // ordering stamp IS written, same rule as the suspicious-drop gate.
+    if (!complete) {
+      for (const r of await loadCandidates()) if (isSeen(r)) await markSeen(r.id);
+      warning = "Takvim eksik okundu — kayıp uzlaştırması bu turda atlandı.";
+      await tx.calendarSource.update({ where: { id: source.id }, data: { lastReconcileAt: runStartedAt } });
+      return;
+    }
+
     // RELIABILITY GATE 1 — empty / unparseable feed never mass-cancels (keep the last baseline).
     if (eventCount === 0) {
       warning = "Takvim akışı boş/okunamadı — kayıp uzlaştırması bu turda atlandı.";
@@ -631,6 +685,9 @@ export async function reconcileFeedDisappearance(opts: {
       eventCount < src.lastFeedEventCount * SUSPICIOUS_DROP_RATIO
     ) {
       warning = `Takvim akışı ${src.lastFeedEventCount} → ${eventCount} ani düşüş (kısmi olabilir) — kayıp uzlaştırması bu turda atlandı.`;
+      // Presence still counts (F16, 09-26): a row seen in this partial feed must not keep an old
+      // streak alive and be cancelled by the next reliable miss.
+      for (const r of await loadCandidates()) if (isSeen(r)) await markSeen(r.id);
       await tx.calendarSource.update({
         where: { id: source.id },
         data: { lastReconcileAt: runStartedAt }, // baseline KORUNUR — suspicious sayı bazı ezmez
@@ -638,30 +695,16 @@ export async function reconcileFeedDisappearance(opts: {
       return;
     }
 
-    // RELIABLE run. Candidates: only FUTURE, source-bound, still-active rows of THIS feed.
-    const candidates = await tx.reservation.findMany({
-      where: {
-        propertyId: source.propertyId,
-        channel,
-        calendarSourceId: source.id, // source binding — never touch another source / Hospitable / legacy-NULL
-        sourceReference: { not: null },
-        status: { in: ["confirmed", "pending"] },
-        arrivalDate: { gt: now },
-      },
-      select: { id: true, sourceReference: true, feedMissingCount: true, feedFirstMissingAt: true },
-    });
+    // RELIABLE run.
+    const candidates = await loadCandidates();
 
     // V1 event bağlamı (kayıp uzlaştırmasının iptali de GERÇEK bir iptaldir): org yalnız bir iptal
     // gerçekleşirse ve bir kez okunur; mülk silinmişse (candidates zaten boş) event yazılmaz.
     let ownerOrg: { organizationId: string } | null = null;
     for (const r of candidates) {
-      const present = r.sourceReference != null && seenRefs.has(r.sourceReference);
-      if (present) {
+      if (isSeen(r)) {
         // Reappeared / still there → reset the missing streak atomically.
-        await tx.reservation.updateMany({
-          where: { id: r.id },
-          data: { feedMissingCount: 0, feedFirstMissingAt: null, feedLastSeenAt: runStartedAt },
-        });
+        await markSeen(r.id);
         continue;
       }
       // Missing this run → grow the streak; anchor firstMissing on the first miss.

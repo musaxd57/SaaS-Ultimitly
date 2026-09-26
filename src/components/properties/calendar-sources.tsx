@@ -189,9 +189,12 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
               {s.lastSyncedAt && (
                 <p className="mt-1 flex items-center gap-1 text-xs">
                   {s.lastStatus === "error" ? (
-                    <AlertCircle className="size-3 text-destructive" />
+                    <AlertCircle aria-label="Son okuma başarısız" className="size-3 text-destructive" />
+                  ) : s.lastStatus === "partial" ? (
+                    // Kısmi okuma (F16): okunanlar alındı ama takvimin tamamı değil — yeşil "tamam" DEĞİL.
+                    <AlertCircle aria-label="Takvimin bir kısmı okunamadı" className="size-3 text-amber-600 dark:text-amber-400" />
                   ) : (
-                    <CheckCircle2 className="size-3 text-emerald-600 dark:text-emerald-400" />
+                    <CheckCircle2 aria-label="Son okuma başarılı" className="size-3 text-emerald-600 dark:text-emerald-400" />
                   )}
                   <span className="text-muted-foreground">
                     {fromNow(s.lastSyncedAt, tz)} · {s.lastResult ?? ""}

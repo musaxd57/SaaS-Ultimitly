@@ -618,8 +618,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - **Kalan P2 (ayrı modül turları):** F09 CSP raporu path token'ı · F10 merkezi log redaksiyonu · F11 mülk
   silmede obje temizliği · F12 audit baseline şeması · ~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26) · F14
   sohbet hafızası/zaman · ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: `evaluated/inconclusive/empty`; boş liste YALNIZ tam
-  değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · F16 iCal completeness · F17 cron adaleti · F18 login savunma
-  tasarımı. F13 ve F15 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
+  değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · ~~F16 iCal
+  completeness~~ (KAPANDI 09-26, ↓Mesajlaşma / outbox / sync) · F17 cron adaleti · F18 login savunma
+  tasarımı. F13, F15 ve F16 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
 - Kaynak taraması tek yönlüdür → davranışsal test; `rejects.not.toThrow(/…/)` kullanma; senkron CPU
   zaman aşımıyla kesilemez; çapa `indexOf` −1 pinle; mutasyon `assert count==1`.
 - Ret edilenler: ETag testi (hedef yok) · HTTP/2 parser testi · kanonik-posta-kutusu kayıt limiti ·
@@ -816,6 +817,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Yaşam-döngüsü sorguları `calendarSourceId: null` (kanal iCal işaretçisi DEĞİL); elle `.ics` `channel:"ics"`;
   CSV'de yalnız iptal ön eki eşlenir. Bozuk feed: hataya geçişte tek alarm, ham URL/host alarma girmez,
   `BEGIN:VCALENDAR` yoksa `feed_not_icalendar`. "N kaynak işlendi" = o geçişte vadesi gelen (kohort).
+- 🚨 **EKSİK iCal OKUMASI HÜKÜM VERMEZ (F16, 09-26):** `parseIcsDetailed().incomplete` kapalı küme (yarım dosya ·
+  10.000 tavanı · RRULE/RDATE/EXDATE/RECURRENCE-ID — tekrar AÇILMAZ, bilinçli · tarihi eksik/bozuk/ters/sıfır süreli ya
+  da BEGIN/END'i bozuk etkinlik · aynı UID çelişen iki hâl). Eksikse okunanlar yazılır ve açık STATUS:CANCELLED işlenir,
+  ama kaynak `partial` (satır hatası BASKIN → `error`), kayıp uzlaştırması kayıp SAYMAZ + tabanı ezmez (görülen satırın
+  serisi sıfırlanır — şüpheli düşüşte de), müsaitlik motoru o kaynakla "boş" DEMEZ (`source_incomplete`), dosya önizlemesi
+  not gösterir. `reconcileFeedDisappearance` `complete` alanı ZORUNLU. Neden metni tek kaynak `icsIncompleteCause`.
 - Sync motoru: fencing token + TTL 15 dk; heartbeat ilerleme-tetikli; `renewLock` geçici hata ≠ kayıp;
   `linkProperty` org-kapsamlı; 540 gün geri pencere kısaltılmaz; gövdesiz sağlayıcı mesajı sayacı
   (`messagesUnimportable`); `str()` trimlemez → `!body.trim()`.
@@ -851,7 +858,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   YAZILMAZ (değişmez 18). Okuma hatası `IngestError("unsupported")` → müşteriye genel metin (Hospitable DEMEZ).
 - **Müsaitlik: tek tarih kuralı `calendarDateOf`** (tam 00:00Z/12:00Z = yalnız tarih; aksi an → mülk dilimi).
   Aynı günü karşılaştıran YENİ kod ham `Date` karşılaştırması YAPMAZ, bu kuralı kullanır (`getAdjacency`
-  09-24'te bu yüzden düzeltildi). "Boş" yalnız KANITLA (her kapsama kaynağı taze); kanıt yoksa "bilinmiyor".
+  09-24'te bu yüzden düzeltildi). "Boş" yalnız KANITLA (her kapsama kaynağı taze VE tam okunmuş — `partial` taze de
+  olsa boş kanıtı değil, F16); kanıt yoksa "bilinmiyor".
   Çakışma OLGUDUR — hiçbir kod çakışan satırı iptal/birleştirmez. Müsaitlik isteme/AI'ya bağlanırken yalnız
   `verified` sonuç otomatik cevaba dayanak olabilir (ayrı dilim, ayrı onay).
 - **Demo hesabı** (`lib/demo-tenant/`): her kimlik `lxdemo-`; her silme `DEMO_ORG_ID` ile kapsanır (mekanik

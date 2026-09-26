@@ -134,6 +134,7 @@ export function formatNightTr(key: NightKey): string {
 const REASON_TEXT: Partial<Record<UnknownReason, string>> = {
   no_coverage_sources: "Bu daireye bağlı bir takvim yok.",
   source_error: "Takvim bağlantısında hata var.",
+  source_incomplete: "Takvimin bir kısmı okunamadı.",
   source_never_synced: "Takvim bağlantısı henüz hiç okunmadı.",
   source_stale: "Takvim bağlantısı bir süredir güncellenmedi.",
   source_freshness_unrecorded: "Rezervasyonların en son ne zaman güncellendiğini bilmiyoruz.",

@@ -32,6 +32,8 @@ interface PreviewResponse {
   preview: true;
   property: { id: string; name: string };
   counts: { create: number; update: number; cancel: number; skipped: number };
+  /** Dosya eksik okunduysa sade uyarı (F16); tam okumada null. */
+  note?: string | null;
   total: number;
   rows: PreviewRow[];
 }
@@ -41,6 +43,7 @@ interface ImportResult {
   cancelled: number;
   skipped: number;
   errors: string[];
+  note?: string | null;
 }
 
 /** Sunucunun atlama gerekçeleri → host'un anlayacağı tek cümle. */
@@ -215,6 +218,11 @@ export function CalendarFileImport({ propertyId }: { propertyId: string }) {
                 {preview.counts.cancel} iptal edilecek · {preview.counts.skipped} atlanacak
                 {preview.total > preview.rows.length ? ` (ilk ${preview.rows.length} satır listelendi)` : ""}
               </p>
+              {preview.note ? (
+                <p role="status" className="mt-1 text-amber-700 dark:text-amber-400">
+                  {preview.note}
+                </p>
+              ) : null}
             </div>
             <Button variant="ghost" size="sm" onClick={reset} title="Vazgeç">
               <X className="size-4" /> Vazgeç
@@ -264,6 +272,7 @@ export function CalendarFileImport({ propertyId }: { propertyId: string }) {
             <strong className="font-medium">{result.imported} eklendi</strong> · {result.updated} güncellendi ·{" "}
             {result.cancelled} iptal edildi · {result.skipped} atlandı
           </p>
+          {result.note ? <p className="mt-1 text-amber-700 dark:text-amber-400">{result.note}</p> : null}
           {result.errors.length > 0 && (
             <ul className="mt-1 space-y-0.5 text-destructive">
               {result.errors.slice(0, 5).map((e, i) => (

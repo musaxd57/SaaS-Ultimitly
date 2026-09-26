@@ -127,14 +127,16 @@ export async function loadAvailabilityInputs(organizationId: string, opts: LoadA
   }
   const sourcesByProperty = new Map<string, CoverageSource[]>(ids.map((id) => [id, []]));
   for (const f of feeds) {
-    const lastStatus = f.lastStatus === "ok" || f.lastStatus === "error" ? f.lastStatus : null;
+    // Tanınmayan değer null'a düşer ("hiç okunmadı" = boş DENMEZ); `partial` (F16) kendi durumuyla geçer.
+    const lastStatus = f.lastStatus === "ok" || f.lastStatus === "error" || f.lastStatus === "partial" ? f.lastStatus : null;
     sourcesByProperty.get(f.propertyId)?.push({
       id: f.id,
       kind: "calendar_feed",
       label: f.label,
       lastStatus,
-      // `lastSyncedAt` son DENEMEDİR; yalnız son deneme başarılıysa başarı zamanıdır.
-      lastSuccessAt: lastStatus === "ok" ? f.lastSyncedAt : null,
+      // `lastSyncedAt` son DENEMEDİR; yalnız son deneme okuyabildiyse (tam ya da kısmi) okuma zamanıdır.
+      // Kısmi okumada görülen satır görülmüştür — "boş" hükmünü motor `partial` durumuyla keser.
+      lastSuccessAt: lastStatus === "ok" || lastStatus === "partial" ? f.lastSyncedAt : null,
     });
   }
   for (const l of links) {

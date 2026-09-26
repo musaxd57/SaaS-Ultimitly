@@ -4,7 +4,7 @@ import { toAmountDec } from "@/lib/money";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeError, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
-import { parseIcs } from "@/lib/import/ics";
+import { icsIncompleteCause, parseIcsDetailed } from "@/lib/import/ics";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
@@ -196,6 +196,9 @@ export const POST = withManage(async (session, req) => {
   const text = await file.text();
 
   let rows: ParsedRow[] = [];
+  // F16 (09-26): dosya EKSİK okunduysa (yarım dosya, tekrarlayan etkinlik, tarihi okunamayan kayıt…) önizleme
+  // ve sonuç bunu SÖYLER — okunan satırlar yine gerçek olgulardır, ama liste dosyanın tamamı değildir.
+  let incompleteNote: string | null = null;
   if (isIcs) {
     // 🚨 KANAL EZİLMİYOR (denetim 08-07 (6)). Burada bir dönem `channel: "other"`
     // yazılıyordu — muhtemelen rozet ham "ics" göstermesin diye. Bedeli ağırdı:
@@ -212,7 +215,11 @@ export const POST = withManage(async (session, req) => {
     // abonelik satırları o kapıdan GEÇİYORDU; gerçek koruma `calendarSourceId`
     // ile ayrıca eklendi (`automation.ts`). "ics" kanalı bu ROTAYA özgü kalır ve
     // tam da bu yüzden elle yüklenen satırı benzersiz biçimde tanımlar (↓iptal).
-    rows = parseIcs(text);
+    const parsedIcs = parseIcsDetailed(text);
+    rows = parsedIcs.events;
+    if (parsedIcs.incomplete.length > 0) {
+      incompleteNote = `Dosyanın bir kısmı okunamadı (${icsIncompleteCause(parsedIcs.incomplete[0])}); bazı rezervasyonlar aktarılmayabilir.`;
+    }
   } else {
     // FAIL-CLOSED: a structurally broken CSV (unbalanced quote, shifted columns)
     // throws — surface a clear validation error and import NOTHING, rather than
@@ -438,6 +445,7 @@ export const POST = withManage(async (session, req) => {
       preview: true,
       property: { id: property.id, name: property.name },
       counts,
+      note: incompleteNote,
       total: classified.length,
       rows: classified.slice(0, PREVIEW_ROW_CAP).map((c) => ({
         line: c.line,
@@ -657,5 +665,6 @@ export const POST = withManage(async (session, req) => {
   // değiştirdi ve görevleri silindi. Kardeş `SyncResult` bunu `updated` diye
   // sayıyor; `updated` burada da AYRI ve additive: aynı UID'li önceki dosya
   // aktarımının tarih/ad güncellemesi (Codex 09-08), iptalden farklı.
-  return jsonOk({ imported, updated, cancelled, skipped, errors });
+  // `note` (F16, additive): eksik okunan dosya aktarımdan SONRA da "tamamı aktarıldı" gibi görünmesin.
+  return jsonOk({ imported, updated, cancelled, skipped, errors, note: incompleteNote });
 });

@@ -27,8 +27,9 @@ import { dateKeyInTimeZone } from "@/lib/timezone";
 // olayı üretirdi ("değişmeyen satır → olay yok" kuralı).
 //
 // 🚨 KAPALI BAŞARISIZ: "boş" demek ancak KANITLA olur. Bir gece yalnız (a) üzerinde hiçbir
-// rezervasyon yoksa, (b) mülkün en az bir kapsama kaynağı varsa ve (c) HER kaynak taze ve
-// başarılıysa "boş"tur; aksi hâlde "bilinmiyor". Bayat/hatalı kaynak asla "boş" üretmez.
+// rezervasyon yoksa, (b) mülkün en az bir kapsama kaynağı varsa ve (c) HER kaynak taze,
+// başarılı ve TAM okunmuşsa "boş"tur; aksi hâlde "bilinmiyor". Bayat/hatalı/kısmi (F16) kaynak
+// asla "boş" üretmez.
 // İşgal ise kaynağın tazeliğinden BAĞIMSIZ birleşimdir: bir iddianın eklenmesi hiçbir geceyi
 // dolu→boş çeviremez. İki kaynak aynı geceyi işgal ederse BİRLEŞTİRİLMEZ (değişmez 6) —
 // çakışma olarak raporlanır.
@@ -154,8 +155,12 @@ export interface CoverageSource {
   id: string;
   kind: "calendar_feed" | "channel_link";
   label: string;
-  lastStatus: "ok" | "error" | null;
-  /** Son BAŞARILI okuma; bilinmiyorsa null (köprü bugün kaydetmiyor). */
+  /** `partial` = son okuma hatasızdı ama takvimin TAMAMI okunamadı (F16; okunanlar doğru, yokluk kanıtsız). */
+  lastStatus: "ok" | "error" | "partial" | null;
+  /**
+   * Son okuma anı (tam ya da kısmi); bilinmiyorsa null (köprü bugün kaydetmiyor). Kısmi okumada da dolu:
+   * o okumada GÖRÜLEN satır görülmüştür (iddia dayanağı) — "boş" hükmünü `partial` durumu keser.
+   */
   lastSuccessAt: Date | null;
 }
 
@@ -204,6 +209,7 @@ export type NightState = "booked" | "held" | "free" | "unknown";
 export type UnknownReason =
   | "no_coverage_sources"
   | "source_error"
+  | "source_incomplete"
   | "source_never_synced"
   | "source_stale"
   | "source_freshness_unrecorded"
@@ -241,7 +247,7 @@ export interface Conflict {
   };
 }
 
-export type SourceState = "fresh" | "error" | "never_synced" | "stale" | "unrecorded";
+export type SourceState = "fresh" | "error" | "incomplete" | "never_synced" | "stale" | "unrecorded";
 
 export interface NightsReport {
   engineVersion: typeof AVAILABILITY_ENGINE_VERSION;
@@ -269,6 +275,8 @@ export type RangeResult<T> = { ok: true; value: T } | { ok: false; reason: Inval
 
 function sourceState(s: CoverageSource, now: Date, policy: AvailabilityPolicy): SourceState {
   if (s.lastStatus === "error") return "error";
+  // F16: kısmi okuma ne kadar taze olursa olsun "boş" kanıtı DEĞİLDİR (kayıp gece okunamayan kısımda olabilir).
+  if (s.lastStatus === "partial") return "incomplete";
   if (s.lastSuccessAt === null) return s.lastStatus === "ok" ? "unrecorded" : s.kind === "channel_link" ? "unrecorded" : "never_synced";
   if (now.getTime() - s.lastSuccessAt.getTime() > policy.sourceFreshMs) return "stale";
   return "fresh";
@@ -276,6 +284,7 @@ function sourceState(s: CoverageSource, now: Date, policy: AvailabilityPolicy): 
 
 const UNKNOWN_FOR_STATE: Record<Exclude<SourceState, "fresh">, UnknownReason> = {
   error: "source_error",
+  incomplete: "source_incomplete",
   never_synced: "source_never_synced",
   stale: "source_stale",
   unrecorded: "source_freshness_unrecorded",

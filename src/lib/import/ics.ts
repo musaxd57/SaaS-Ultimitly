@@ -117,25 +117,110 @@ function decodeIcsText(s: string): string {
  */
 const MAX_EVENTS = 10_000;
 
+/**
+ * 🚨 OKUMA EKSİK MİYDİ — kapalı küme (F16, Codex 09-05; düzeltme 09-26).
+ *
+ * Ayrıştırıcı eskiden yalnız bir dizi döndürüyordu: 10.000 tavanında SESSİZCE kesiliyor, tekrarlayan
+ * etkinliği (RRULE) tek örnek sanıyor, tarihi okunamayan etkinliği iz bırakmadan atlıyordu. Dizi her
+ * durumda "takvimin tamamı" gibi okunuyordu → eksik bir okuma iptal uzlaştırmasına ve müsaitlik
+ * motorunun "boş" hükmüne dayanak olabiliyordu. Liste artık NEYİN okunamadığını da taşır:
+ *   event_cap        — tavan aşıldı; ötesindeki etkinlikler okunmadı
+ *   recurrence       — tekrarlayan etkinlik (RRULE / RDATE / EXDATE / RECURRENCE-ID). Tekrarlar AÇILMAZ
+ *                      (bilinçli: sınırsız açılım bütçe ister, rezervasyon beslemesi tekrar kullanmaz) →
+ *                      yalnız ilk örnek okunur, diğer geceler listede YOK
+ *   unreadable_event — tarihi eksik / okunamayan / ters ya da sıfır süreli etkinlik, ya da yapısı bozuk
+ *                      etkinlik (BEGIN/END eşleşmiyor → bir etkinlik kayboldu)
+ *   duplicate_uid    — aynı UID farklı tarih ya da durumla iki kez: hangisinin geçerli olduğu bilinemez
+ *                      (birebir aynı tekrar belirsizlik DEĞİLDİR, işaretlenmez)
+ *   truncated        — dosya yarım: kapanmamış etkinlik ya da END:VCALENDAR yok
+ * Okunabilen etkinlikler yine DÖNER (gerçek olgulardır); karar eksikliği bilen çağıranındır.
+ */
+export type IcsIncompleteReason = "truncated" | "event_cap" | "recurrence" | "duplicate_uid" | "unreadable_event";
+
+/** Gösterim ve kayıt sırası (en ağır neden önce). */
+export const ICS_INCOMPLETE_REASONS: readonly IcsIncompleteReason[] = [
+  "truncated",
+  "event_cap",
+  "recurrence",
+  "duplicate_uid",
+  "unreadable_event",
+];
+
+export interface IcsParseResult {
+  events: IcsReservation[];
+  /** Boş = okunan liste takvimin tamamı. Tekrarsız, `ICS_INCOMPLETE_REASONS` sırasında. */
+  incomplete: IcsIncompleteReason[];
+}
+
+const INCOMPLETE_CAUSE: Record<IcsIncompleteReason, string> = {
+  truncated: "takvim dosyası yarım geldi",
+  event_cap: "takvimde çok fazla kayıt var",
+  recurrence: "tekrarlayan etkinlikler okunamıyor",
+  duplicate_uid: "aynı kayıt farklı tarihlerle iki kez geçiyor",
+  unreadable_event: "bazı kayıtların tarihi okunamadı",
+};
+
+/**
+ * Eksik okumanın nedeni, host'un anlayacağı SADE sözle (teknik terim yok). TEK kaynak: takvim bağlantısının
+ * özet satırı ve dosyadan içe aktarma önizlemesi aynı sözü kullanır.
+ */
+export function icsIncompleteCause(reason: IcsIncompleteReason): string {
+  return INCOMPLETE_CAUSE[reason];
+}
+
+/** Bu ayrıştırıcının AÇMADIĞI tekrar özellikleri — biri varsa etkinliğin tüm geceleri listede değildir. */
+const RECURRENCE_PROPERTIES = new Set(["RRULE", "RDATE", "EXDATE", "RECURRENCE-ID"]);
+
 export function parseIcs(text: string): IcsReservation[] {
+  return parseIcsDetailed(text).events;
+}
+
+export function parseIcsDetailed(text: string): IcsParseResult {
   const unfolded = unfoldLines(text);
   const lines = unfolded.split(/\r?\n/);
 
   const results: IcsReservation[] = [];
+  const reasons = new Set<IcsIncompleteReason>();
+  // UID → ilk okunan hâlin imzası (tarihler + durum): aynı UID FARKLI imzayla gelirse belirsizdir.
+  const signatureByUid = new Map<string, string>();
   let inEvent = false;
+  let calendarOpen = false;
+  let capped = false;
   let current: Record<string, string> = {};
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
 
+    // Takvim sınırları yalnız "dosya yarım mı" sorusu için izlenir (etkinlik okumasını değiştirmez).
+    const upper = line.toUpperCase();
+    if (upper === "BEGIN:VCALENDAR") {
+      calendarOpen = true;
+      continue;
+    }
+    if (upper === "END:VCALENDAR") {
+      // Kapanmamış etkinlikle biten takvim: o etkinlik kayboldu.
+      if (inEvent) reasons.add("unreadable_event");
+      inEvent = false;
+      calendarOpen = false;
+      continue;
+    }
+
     if (line === "BEGIN:VEVENT") {
+      // Önceki etkinlik END:VEVENT görmeden yenisi başladı → önceki etkinlik kayboldu.
+      if (inEvent) reasons.add("unreadable_event");
       inEvent = true;
       current = {};
       continue;
     }
 
     if (line === "END:VEVENT") {
+      // Başlangıcı olmayan bitiş: bir etkinliğin BEGIN satırı kayıp (özellikleri okunmadan geçildi).
+      // Eskiden ÖNCEKİ etkinliğin alanlarıyla ikinci kez işleniyordu (aynı etkinlik iki kez).
+      if (!inEvent) {
+        reasons.add("unreadable_event");
+        continue;
+      }
       inEvent = false;
 
       // Extract key:value — the key may have params (e.g. DTSTART;TZID=Europe/Istanbul)
@@ -156,15 +241,28 @@ export function parseIcs(text: string): IcsReservation[] {
         return /(?:^|;)TZID=([^;:]+)/i.exec(fullKey)?.[1]?.trim() ?? null;
       };
 
+      // Tekrarlayan etkinlik: yalnız ilk örneği okunabilir (aşağıda yine döner), diğer geceler YOK.
+      if (Object.keys(current).some((k) => RECURRENCE_PROPERTIES.has(k.split(";")[0]))) reasons.add("recurrence");
+
       const dtStartRaw = get("DTSTART");
       const dtEndRaw = get("DTEND");
 
-      if (!dtStartRaw || !dtEndRaw) continue;
+      // DTEND'siz (DURATION'lı ya da tek günlük) etkinlik okunmaz — ama artık İZ bırakır.
+      if (!dtStartRaw || !dtEndRaw) {
+        reasons.add("unreadable_event");
+        continue;
+      }
 
       const arrivalDate = parseIcsDate(dtStartRaw, tzidOf("DTSTART"));
       const departureDate = parseIcsDate(dtEndRaw, tzidOf("DTEND"));
 
-      if (!arrivalDate || !departureDate) continue;
+      if (!arrivalDate || !departureDate) {
+        reasons.add("unreadable_event");
+        continue;
+      }
+      // Ters / sıfır süreli: hangi geceleri kastettiği bilinemez. Liste davranışı değişmez (satır döner,
+      // senkron onu "atlandı" sayar) — yalnız okumanın eksik olduğu kaydedilir.
+      if (departureDate.getTime() <= arrivalDate.getTime()) reasons.add("unreadable_event");
 
       // Guest name: from SUMMARY
       const summary = decodeIcsText(get("SUMMARY") ?? "");
@@ -184,10 +282,19 @@ export function parseIcs(text: string): IcsReservation[] {
       const statusRaw = get("STATUS");
       const status = statusRaw ? statusRaw.trim().toUpperCase() : null;
 
-      // Tavan aşıldıysa SESSİZCE kes — hata fırlatmak, meşru bir feed'in geçici
-      // olarak şişmesi hâlinde tüm senkronu durdururdu. İlk 10.000 etkinlik
-      // zaten her gerçek takvimi kapsıyor.
-      if (results.length >= MAX_EVENTS) break;
+      // Tavan aşıldıysa kes — hata fırlatmak, meşru bir feed'in geçici olarak şişmesi hâlinde tüm
+      // senkronu durdururdu. İlk 10.000 etkinlik her gerçek takvimi kapsıyor. Kesme artık SESSİZ
+      // DEĞİL: okumanın eksik olduğu `event_cap` ile döner (F16).
+      if (results.length >= MAX_EVENTS) {
+        capped = true;
+        break;
+      }
+      if (sourceReference) {
+        const signature = `${arrivalDate.getTime()}|${departureDate.getTime()}|${status ?? ""}`;
+        const seen = signatureByUid.get(sourceReference);
+        if (seen === undefined) signatureByUid.set(sourceReference, signature);
+        else if (seen !== signature) reasons.add("duplicate_uid");
+      }
       results.push({
         guestName,
         arrivalDate,
@@ -211,5 +318,12 @@ export function parseIcs(text: string): IcsReservation[] {
     current[keyPart] = valuePart;
   }
 
-  return results;
+  if (capped) {
+    reasons.add("event_cap");
+  } else if (inEvent || calendarOpen) {
+    // Girdi bir etkinliğin ya da takvimin ORTASINDA bitti: yarım dosya (kesilmiş yanıt, bozuk dışa aktarım).
+    reasons.add("truncated");
+  }
+
+  return { events: results, incomplete: ICS_INCOMPLETE_REASONS.filter((r) => reasons.has(r)) };
 }

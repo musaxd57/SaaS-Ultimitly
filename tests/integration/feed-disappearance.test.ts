@@ -33,8 +33,8 @@ async function mkRes(
   });
 }
 
-const reconcile = (sourceId: string, propertyId: string, seen: string[], runStartedAt: Date, now = runStartedAt) =>
-  reconcileFeedDisappearance({ source: { id: sourceId, propertyId }, channel: "airbnb", seenRefs: new Set(seen), runStartedAt, now });
+const reconcile = (sourceId: string, propertyId: string, seen: string[], runStartedAt: Date, now = runStartedAt, complete = true) =>
+  reconcileFeedDisappearance({ source: { id: sourceId, propertyId }, channel: "airbnb", seenRefs: new Set(seen), runStartedAt, now, complete });
 
 describe("feed-disappearance reconciliation (#23, FAZ 2)", () => {
   beforeEach(resetDb);
@@ -140,6 +140,41 @@ describe("feed-disappearance reconciliation (#23, FAZ 2)", () => {
     // Baz DÜŞÜK değere ÇEKİLMEZ: aksi hâlde aynı kısmi feed sonraki turda "güvenilir"
     // sayılıp kaybolan 90 rezervasyonu iptal edebilirdi (Codex karantine-defeat).
     expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: sourceId } })).lastFeedEventCount).toBe(10);
+  });
+
+  it("F16: şüpheli düşüşte de GÖRÜLEN satırın eski serisi sıfırlanır (varlık olumlu kanıttır; yalnız iptali zorlaştırır)", async () => {
+    const { propertyId, sourceId } = await seedSource();
+    await prisma.calendarSource.update({ where: { id: sourceId }, data: { lastFeedEventCount: 10 } });
+    const seen = await mkRes(propertyId, sourceId, "uid-seen", {
+      feedMissingCount: 1, feedFirstMissingAt: new Date(Date.now() - 30 * 3_600_000),
+    });
+    const rec = await reconcile(sourceId, propertyId, ["uid-seen"], new Date()); // 1 olay vs taban 10 → şüpheli
+    expect(rec.warning).toMatch(/düşüş/i);
+    const s = await prisma.reservation.findUniqueOrThrow({ where: { id: seen.id } });
+    expect(s.feedMissingCount).toBe(0);
+    expect(s.feedFirstMissingAt).toBeNull();
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: sourceId } })).lastFeedEventCount).toBe(10);
+  });
+
+  it("🚨 F16: EKSİK okuma (complete:false) kayıp saymaz, tabanı ezmez, görüleni sıfırlar, sıralama damgasını yazar; aynı girdi tam okumada kayıp sayar", async () => {
+    const { propertyId, sourceId } = await seedSource();
+    await prisma.calendarSource.update({ where: { id: sourceId }, data: { lastFeedEventCount: 2 } });
+    const gone = await mkRes(propertyId, sourceId, "uid-gone");
+    const seen = await mkRes(propertyId, sourceId, "uid-seen", { feedMissingCount: 1, feedFirstMissingAt: new Date(Date.now() - 3_600_000) });
+    const t1 = new Date();
+    const rec = await reconcile(sourceId, propertyId, ["uid-seen"], t1, t1, false);
+    expect(rec).toEqual({ cancelled: 0, warning: expect.stringMatching(/eksik okundu/) });
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: gone.id } })).feedMissingCount).toBeNull();
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: seen.id } })).feedMissingCount).toBe(0);
+    const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: sourceId } });
+    expect(src.lastFeedEventCount).toBe(2); // eksik okumanın sayısı taban OLMAZ
+    expect(src.lastReconcileAt?.getTime()).toBe(t1.getTime());
+    // Daha eski bir koşu artık bu koşunun ardından sayamaz (sıralama damgası yazıldı).
+    await reconcile(sourceId, propertyId, ["uid-seen"], new Date(t1.getTime() - 60_000));
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: gone.id } })).feedMissingCount).toBeNull();
+    // Karşı yön: daha yeni bir TAM okuma aynı eksikliği kayıp sayar.
+    await reconcile(sourceId, propertyId, ["uid-seen"], new Date(t1.getTime() + 60_000));
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: gone.id } })).feedMissingCount).toBe(1);
   });
 
   it("KARANTİNE KALICI (Codex): tekrarlanan aynı kısmi feed (100→10, 10, 10) 24s+2-miss sonrası bile iptal ETMEZ", async () => {
