@@ -307,7 +307,8 @@ Bu dosyaya token/anahtar/parola yazma.
   `[ASİSTAN · …]`; yazar `historyAuthorOf` (güvenilir alan, yönle çelişen yazar yok sayılır), an `historyStamp` (org dilimi,
   `todayKey` — mesaj ANDIR, `calendarDateOf` DEĞİL); cevaplanan mesajın anı ("Yazıldığı an") ayrı; not "KURAL-1'in 3.
   kaynağı yalnız EV SAHİBİ satırları"; ayrıntılı kipte her mesaj TEK satır (gövdenin satır sonları ` ⏎ `). Üç yüzey alanları
-  hep verir; görünürlüğü yalnız bayrak belirler (kapalı = bayt bayt eski). Anlama katmanı yazıldığı anı ALMAZ (bilinen sınır).
+  hep verir; görünürlüğü yalnız bayrak belirler (kapalı = bayt bayt eski). Anlama katmanı da yazıldığı anı görür (F14b:
+  `(written <mutlak gün> SS:DD)`, ayracın dışında; tek karar noktası `kb-retrieve.ts`, kapalıyken girdi bayt bayt aynı).
 - 🚨 **EYLEM BEYANI (`claimedActions`, 09-25, `ai/action-claims.ts`; bayrak `AI_ACTION_CLAIMS_ENABLED` varsayılan KAPALI;
   MÇ §4):** cevap modeli reply'daki kendi/ekip eylemlerini kapalı kümeden beyan eder. Makbuz YOK → boş olmayan beyan
   `action_claim`, eksik/bozuk beyan `action_claim_undeclared` (kanal + QR + önizleme + demo aynı yüklem). Kelime vetosunun

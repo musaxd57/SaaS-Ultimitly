@@ -642,11 +642,15 @@ Kalıcı kaynaklardan kodla kurulur ve cevap modeli çağrısından ÖNCE hazır
     risk etiketi `prompt_injection` (o mesajdaki çıkış saati rezervasyona yazılmaz). Sentetik eval metinlerinin
     10.659'unda eşleşme 0. Ad sonu `\b` değil açık harf sınıfı (JS `\b` ASCII: "[asistanım]:" eşleşiyordu).
   - Bilinen sınırlar:
-    - anlama katmanı ve bekçi yazıldığı anı ALMAZ: katmanın tarih satırı "bugün/yarın"ı işlem anına göre kurar (gece
-      yarısı ipucu yalnız 00:00–05:00). Akşam yazılıp ertesi sabah işlenen "yarın" orada bir gün kayabilir. Güvenliği
-      bozmaz — katmanın "istek yok"u başka katmanın isteğini silemez (birleşim değişmezi), erken giriş günü
-      doğrulanamazsa otomatik gitmez (`day_unverified`) — yalnız doğruluk kaybıdır. Kapatmak anlama v2'nin `day`
-      alanıyla birlikte (kurucu onayı bekleyen öneri, `docs/MESAJ-ANLAMA-CEKIRDEGI-2026-09-25.md` §4).
+    - bekçi yazıldığı anı almaz: günü değil, cevabın izin mi erteleme mi olduğunu yargılar (gerek yok).
+  - **F14b (`8e7e694`, aynı bayrak): anlama katmanı da yazıldığı anı görür.** Katmanın tarih satırı "bugün/yarın"ı işlem
+    anına göre kurar; akşam yazılıp ertesi sabah işlenen "yarın" orada bir gün kayıyordu ve iki model aynı mesajı farklı
+    günlere okuyordu. Artık girdideki her satır `(written 2026-10-01 (Thursday) 22:10)` taşır — MUTLAK gün (tarih satırıyla
+    aynı biçim; göreli etiket gece yarısında anlam değiştirirdi), `todayKey` ile, ayracın DIŞINDA; en az bir damga varsa
+    açıklama satırı ("göreli günler mesajın yazıldığı güne göredir"). Tek karar noktası `kb-retrieve.ts` (tarih satırıyla
+    aynı): bayrak kapalıyken damga fonksiyonu gitmez, girdi + önbellek anahtarı bayt bayt aynı; seçici `at` okumaz.
+    Kanal + gelen kutusu geçmişi `at` taşır; QR'da cevaplanan mesaj o an yazıldığı için damgasız. Kırmızı-önce 10 test,
+    mutasyon 14/14. Güvenlik zaten bozulmuyordu (birleşim değişmezi + `day_unverified`); bu doğruluk düzeltmesidir.
 - **Açma sırası:**
   1. Kör set `evals/conversation-state.json`: "yarın erken" varıştan önce, çıkıştan önce ve rezervasyonsuz; düzeltme;
      yolculuk; kapanış. Ajanla yazılacak; harcama sınırı nedeniyle 30 Eylül sonrası.
