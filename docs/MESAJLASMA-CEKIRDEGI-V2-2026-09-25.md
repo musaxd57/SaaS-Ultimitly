@@ -844,5 +844,11 @@ Kalıcı kaynaklardan kodla kurulur ve cevap modeli çağrısından ÖNCE hazır
 - **Kanıt:**
   - bağlantı pini 6 test;
   - çevrimdışı pinler 9 test + model kıyası pini;
-  - mutasyon ↓ commit sonrası.
+  - mutasyon `bc1ada7`te **25/25** öldü (worktree koşucusu, M0 yeşil). Kapsam:
+    - kol ↔ özet, geçmişte son mesaj, kol ↔ bayrak kilidi;
+    - sözcük yolu, bitmiş konaklama, anlam yolu ve onun anlama girdisi;
+    - yeniden deneme, saat biçimi, tarih bağlamı, anlama türü;
+    - susturma/geçersizlik/payda ölçüleri, selam dalı, yeniden puanlama;
+    - selam kuralı, cevapsız dilim, karar kanıtı, gün ofseti, saat dilimi ofseti;
+    - söz yüklemi, genel netleştirme kalıbı, model kıyasının iki satırı.
   - Kör set 30 Eylül'de ajanla yazılacak; ücretli koşu kurucu onayıyla.
