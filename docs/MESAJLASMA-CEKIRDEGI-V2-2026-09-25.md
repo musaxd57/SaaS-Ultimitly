@@ -517,14 +517,24 @@ Kanıt (`tests/integration/host-day-rule.test.ts`, `day-where-exact.test.ts`):
 - Neden onay: e-posta içeriği değişir. Ayrıca eski satırların e-postada gösterilen saati kayar; yeniden atanan eski görevde
   +3 sa görünür.
 
-Açık (166b, misafire görünmez; TR/AB'de doğru):
+**166b-1 — takvim ve görev kartı (09-26, commit `0bb5f50`):**
+- Sorun: takvim sayfası rezervasyon gününü, görev kartı vade gününü ham "an → yerel gün" ile buluyordu (`toLocaleDateString`,
+  `formatDayInTz`, `daysUntilDate`). New York'ta her Hospitable girişi takvimde bir gün erken görünüyordu; yaşam döngüsü
+  görevi de kartta "dün" çıkıyordu. Görev kartı üç yeri besliyor: etiket, "Bugün / Bu hafta" süzgeci ve WhatsApp temizlik
+  listesi.
+- Düzeltme: ikisi de `calendarDateOf`. "Bugün" org gününe göre (`todayKey`), gün farkı `nightsBetween`.
+- Kanıt:
+  - kırmızı-önce: eski kodda 3 test düştü (New York takvim, New York kart, Auckland kart);
+  - İstanbul eşdeğerliği pinli: çapa, gece yarısı sınırı ve gerçek an;
+  - ilgili 12 dosya yeşil (92 test);
+  - mutasyon 6/6.
+
+Açık (166b-2, misafire görünmez; TR/AB'de doğru):
 - doluluk ve tahmin — gece semantiği: "giriş ≤ bugün ∧ çıkış ≥ yarın", iki aralıkla kesin ifade edilir;
 - İptaller sayfasının gün / hafta / ay pencereleri;
 - rapor görev penceresi (ay başı … dün);
 - tedarik ufku;
-- aylık doluluk ve takvim sayfası;
-- Görevler panosu kart tarihi ve "Bugün / Bu hafta" filtresi: `formatDayInTz` / `daysUntilDate` ham an → yerel gün yapıyor;
-  New York'ta yaşam döngüsü görevi bir gün erken görünür.
+- aylık rapor doluluğu (`dayKeyTz`).
 
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 

@@ -450,9 +450,10 @@ Bu dosyaya token/anahtar/parola yazma.
   `lib/day-where.ts` KESİN where ile (sayım/liste sonradan süzülmez; bellekteki ikizi `onOrAfterToday`; eşdeğerlik 11 dilimde
   veritabanı ızgarasıyla pinli; İstanbul eskisiyle birebir). Gün kıyaslayan YENİ sorgu ham `gte: gün başı` YAZMAZ, bu
   üreticiyi kullanır; sayı ile listesi AYNI küme (düğme = açılan görev, kart = günlük rapor listesi). Yalnız-tarih vadede
-  SAAT gösterilmez (`taskDueTimeLabel`; panoda "Çıkış temizliği · 03:00" yazıyordu). AÇIK (misafire görünmez, 166b; TR/AB'de
-  doğru): doluluk/tahmin (gece semantiği), İptaller pencereleri, rapor görev penceresi, tedarik, aylık doluluk/takvim,
-  görev panosu kart tarihi/"Bugün" filtresi.
+  SAAT gösterilmez (`taskDueTimeLabel`; panoda "Çıkış temizliği · 03:00" yazıyordu). Takvim sayfası ve görev kartı (etiket,
+  "Bugün" süzgeci, WhatsApp temizlik listesi) da `calendarDateOf` (166b-1; New York'ta her Hospitable girişi takvimde bir gün
+  erkendi). AÇIK (misafire görünmez, 166b-2; TR/AB'de doğru): doluluk/tahmin (gece semantiği), İptaller pencereleri, rapor
+  görev penceresi, tedarik, aylık rapor doluluğu.
 - 🚨 **Ev sahibi metninde ödeme yöntemi/yeri TEK KAYNAK `payment-method-guard.ts` (09-25) — ŞÜPHEDE REDDET:** yanlış ret
   bir cümle yeniden yazdırır, kaçak ise yapay zekânın misafire platform dışı ödeme talimatı iletmesidir. Üç inceleme turu
   ölçtü: bağlamı daraltan her sürüm eski kalıbın yakaladığı gerçek talimatları geçirdi ("Ödeme: kapıda", "parayı kapıdaki
