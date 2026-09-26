@@ -626,13 +626,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ad-redaksiyonlu metinler (`TaskUpdate.note`, outbound gövde) bacak OLAMAZ → işaret kolonu ister, BİLİNEN
   SINIR test-pinli. Bayrak kapalı davranış birebir eski. Bayrak açma onayı DEĞİL.
 - **Kalan P2 (ayrı modül turları):** ~~F09 CSP raporu path token'ı~~ (KAPANDI 09-26, ↓Tenant / rotalar CSP) ·
-  F10 merkezi log redaksiyonu · F11 mülk
+  ~~F10 merkezi log redaksiyonu~~ (KAPANDI 09-26, ↓Veri yaşam döngüsü redaksiyon; AÇIK: audit yazılamazsa eylem başına
+  durdurma politikası = kurucu kararı) · F11 mülk
   silmede obje temizliği · F12 audit baseline şeması · ~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26) · F14
   sohbet hafızası/zaman (KODDA 09-26, bayrak arkasında — ↑KONUŞMA KAYITLARI; açık: CUS v2 defteri, bayrağı açmak) ·
   ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: `evaluated/inconclusive/empty`; boş liste YALNIZ tam
   değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · ~~F16 iCal
   completeness~~ (KAPANDI 09-26, ↓Mesajlaşma / outbox / sync) · F17 cron adaleti · F18 login savunma
-  tasarımı. F09 ve F13–F16 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
+  tasarımı. F09, F10 ve F13–F16 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
 - Kaynak taraması tek yönlüdür → davranışsal test; `rejects.not.toThrow(/…/)` kullanma; senkron CPU
   zaman aşımıyla kesilemez; çapa `indexOf` −1 pinle; mutasyon `assert count==1`.
 - Ret edilenler: ETag testi (hedef yok) · HTTP/2 parser testi · kanonik-posta-kutusu kayıt limiti ·
@@ -737,8 +738,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   mesaj re-import edilmez. `RETENTION_MESSAGE_AGE_ANCHOR` bayrağı: mesaj yaşı + yeniden-temizlenebilirlik
   bacakları; kapalı davranış birebir eski; açmadan önce onay paketi + taze `pg_dump`; smoke'ta "artık
   korunacak" sayısı düşerse DUR.
-- Redaksiyon yapısal (`report-error-core.ts`): JSON ağacı gezilir, izin listesi deny'den önce, kv regex
-  kalır, işlenemeyen aday `[REDACTED_UNPARSEABLE_JSON]`, oversized/budget koşulsuz sabit, `\uXXXX` çözülür.
+- Redaksiyon yapısal (`lib/redact.ts` — YAPRAK modül, hiçbir şey import etmez; `report-error-core` yeniden dışa
+  verir): JSON ağacı gezilir, izin listesi deny'den önce, kv regex kalır, işlenemeyen aday
+  `[REDACTED_UNPARSEABLE_JSON]`, oversized/budget koşulsuz sabit, `\uXXXX` çözülür. 🚨 **Sunucuda ham hata `console.*`a
+  VERİLMEZ (F10, 09-26):** alarmsız log satırı `formatErrorForLog(err)` (ad: ileti + cause, redakte, yığın yok), alarm
+  `reportError`; e-posta istemcisi ve `instrumentation.ts` de aynı yaprak modülü kullanır (eski dar kopyalar kalktı).
+  Mekanik pin TypeScript sözdizim ağacı (`log-sink-redaction-pin.test.ts`); önce değişkene kopyalanan hata ona
+  görünmez → yeni bir log yazıcısı davranışsal teste de girer (`log-sink-redaction.test.ts`).
 - Hesap silme Invoice/Consent/AuditLog'u da siler (migration ister, açık). `Organization.plan` kolonu ölü.
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 
