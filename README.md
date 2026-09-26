@@ -29,10 +29,12 @@ toplar; gelen misafir mesajlarına gece gündüz, misafirin kendi dilinde,
 
 ### AI Güvenlik Kapısı
 
-Otomatik cevap, üst üste beş kontrolü geçmeden **asla** gönderilmez:
+Otomatik cevap, kod tarafındaki kontrol zincirini geçmeden **asla** gönderilmez:
 `source == openai` · şikayet/iade/erken-çıkış **intent blocklist** · anahtar-kelime
-çapraz kontrolü · **güven ≥ 0.75** · master + daire-bazı açık/kapalı şalter.
-Misafir mesajı veri olarak işlenir (prompt-injection korumalı); bilgi yoksa uydurmaz.
+çapraz kontrolü · **deterministik prompt-injection vetosu** · yüksek-riskli
+**riskType vetosu** (güvenlik acili, ayrımcılık, kural ihlali, yorum tehdidi…) ·
+bilinmeyen-intent clamp'i · **güven ≥ 0.75** · master + daire-bazı açık/kapalı şalter.
+Karar modele bırakılmaz; misafir mesajı veri olarak işlenir, bilgi yoksa uydurmaz.
 
 ### Diğer
 
@@ -58,7 +60,7 @@ Yerelde bir **PostgreSQL** veritabanı gerekir (Docker, yerel kurulum veya bir b
 npm install
 cp .env.example .env            # AUTH_SECRET + DATABASE_URL ayarlayın
 
-npm run db:push                 # şemayı veritabanına uygula
+npm run db:push                 # şemayı LOKAL veritabanına uygula (uzak DB'ye guard engel olur)
 npm run db:seed                 # örnek veri
 
 npm run dev                     # → http://localhost:3000
@@ -85,7 +87,8 @@ E-posta: demo@guestops.ai
 | `npm start` | Production sunucusu |
 | `npm test` | Testleri çalıştır (Vitest) |
 | `npm run typecheck` | TypeScript tip kontrolü |
-| `npm run db:push` | Şemayı veritabanına uygula |
+| `npm run lint` | ESLint (CI'da da koşar) |
+| `npm run db:push` | Şemayı veritabanına uygula (yalnız lokal DB; `ALLOW_PROD_SEED=1` kaçış) |
 | `npm run db:seed` | Örnek veriyi yükle |
 | `npm run db:reset` | DB'yi sıfırla + yeniden seed |
 | `npm run db:studio` | Prisma Studio |
@@ -94,9 +97,10 @@ E-posta: demo@guestops.ai
 
 ## 🧪 Testler
 
-Vitest — **61 test dosyası, 446 test** (birim + entegrasyon). Entegrasyon testleri gerçek bir
-PostgreSQL test veritabanı kullanır. Kapsam: AI güvenlik kapısı, otomasyon motoru,
-tenant izolasyonu, billing/entitlement, auth/2FA, raporlar, doğrulama.
+Vitest — **160+ test dosyası, 1.500+ test** (birim + entegrasyon + UI). Entegrasyon
+testleri gerçek bir PostgreSQL test veritabanı kullanır. Kapsam: AI güvenlik kapısı
+(golden set dahil), otomasyon motoru, outbox/gönderim güvenilirliği, tenant izolasyonu,
+billing/entitlement, auth/2FA, KVKK saklama-silme, raporlar, doğrulama.
 
 ```bash
 npm test

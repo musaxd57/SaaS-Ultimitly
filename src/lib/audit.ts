@@ -1,0 +1,154 @@
+import "server-only";
+
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { reportError } from "@/lib/report-error";
+
+// Human-readable Turkish labels for the dotted audit actions, so the operator
+// panel reads "Başarılı giriş" instead of "auth.login_success". Additive: an
+// unknown/new action falls back to its raw string (never blank). Keep in sync
+// when a new writeAudit action is introduced.
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  "auth.login_success": "Başarılı giriş",
+  "auth.login_failed": "Başarısız giriş denemesi",
+  "auth.2fa_failed": "Hatalı doğrulama kodu (2FA)",
+  "account.password_change": "Şifre değiştirildi",
+  "account.password_reset": "Şifre sıfırlandı",
+  "account.2fa_enable": "İki adımlı doğrulama açıldı",
+  "account.2fa_disable": "İki adımlı doğrulama kapatıldı",
+  "account.2fa_recovery_generate": "2FA kurtarma kodları oluşturuldu",
+  "account.2fa_recovery_used": "2FA kurtarma koduyla giriş yapıldı",
+  "customer.create": "Müşteri hesabı oluşturuldu",
+  "demo_tenant.refreshed": "Demo hesabı yenilendi",
+  "data.export": "Veri dışa aktarıldı (operatör)",
+  "data.export_self": "Kullanıcı verilerini indirdi",
+  "hospitable.connect": "Hospitable bağlandı",
+  "hospitable.disconnect": "Hospitable bağlantısı kesildi",
+  "guest_chat.enable": "Misafir sohbeti açıldı",
+  "guest_chat.disable": "Misafir sohbeti kapatıldı",
+  "guest_chat.reset_binding": "Misafir sohbeti cihaz kilidi sıfırlandı",
+  "guest_chat.pin_set": "Misafir sohbeti giriş kodu oluşturuldu",
+  "guest_chat.pin_clear": "Misafir sohbeti giriş kodu kaldırıldı",
+  "billing.plan_change": "Abonelik planı değiştirildi",
+  "outbox.manual_retry": "Gönderim yeniden kuyruğa alındı",
+  "impersonate.enter": "Müşteri hesabına girildi",
+  "impersonate.exit": "Müşteri hesabından çıkıldı",
+  "admin.2fa_reset": "2FA operatör tarafından sıfırlandı",
+  "admin.quality_audit": "AI kalite denetimi çalıştırıldı (Claude)",
+  "kvkk.guest_erasure": "KVKK misafir verisi silindi (sayılar)",
+  "property.nightly_rate_set": "Gecelik fiyat aralığı kaydedildi",
+  "property.nightly_rate_cleared": "Gecelik fiyat aralığı kaldırıldı",
+  "property.early_checkin_rule_set": "Erken giriş kuralı kaydedildi",
+  "property.early_checkin_rule_cleared": "Erken giriş kuralı kaldırıldı",
+};
+
+/** Turkish label for an audit action; falls back to the raw action if unknown. */
+export function auditActionLabel(action: string): string {
+  return AUDIT_ACTION_LABELS[action] ?? action;
+}
+
+/**
+ * DENETİM KAYDININ GERÇEK FAİLİ — TEK KAYNAK (denetim, 08-01).
+ *
+ * Impersonation'da `session.userId` MÜŞTERİNİN owner'ının id'sidir; gerçek
+ * operatör yalnız `session.actorUserId`'de durur (`admin.ts` girişte böyle
+ * imzalar). Yani faili doğrudan oturumun kullanıcı id'sinden alan bir rota, operatörün
+ * yaptığı işi MÜŞTERİ yapmış gibi kaydeder — kayıt olmamasından KÖTÜDÜR, çünkü
+ * yanlış delil üretir ("ben bu yükseltmeyi onaylamadım" savunmasında elimizdeki
+ * tek kanıt müşterinin kendi id'sini gösterir).
+ *
+ * Sözleşme 11 rotada zaten doğruydu ama 8 çağrı yerinde çıplak `session.userId`
+ * kalmıştı — aralarında PARA hareketi yapan plan-change (anında tahsilat) ve
+ * KVKK'nın zorunlu kıldığı misafir-silme kaydı da vardı. Artık kural KODDA:
+ * her rota bu yardımcıyı çağırır, kaynak-tarama testi çıplak biçimi yasaklar.
+ */
+export function auditActor(session: { userId: string; actorUserId?: string | null }): string {
+  return session.actorUserId ?? session.userId;
+}
+
+/**
+ * Impersonation izini metadata'ya ekler. `actorUserId` "kim yaptı"yı düzeltir;
+ * bu da "müşteri adına mı yapıldı" sorusunu tek bakışta cevaplar. Impersonation
+ * yoksa hiçbir alan eklemez (mevcut kayıtların şekli değişmez).
+ *
+ * ⚠️ OPERATÖRÜN E-POSTASI YAZILMAZ (denetim, 08-01 — ilk yazımda yazılıyordu ve
+ * bir güvenlik ajanı yakaladı). `AuditLog.metadataJson` müşterinin KENDİ veri
+ * ihracına HAM olarak giriyor (`data-export.ts`) → operatörün e-postası ÜÇÜNCÜ
+ * BİR KİŞİNİN kişisel verisidir ve müşteriye aktarılmamalıdır. Delil değeri
+ * `actorUserId` (opak id) ile zaten sağlanıyor; operatörün kim olduğu bizim
+ * kendi kullanıcı tablomuzdan çözülür.
+ */
+export function auditImpersonation(session: {
+  actorUserId?: string | null;
+}): Record<string, unknown> {
+  return session.actorUserId ? { impersonated: true } : {};
+}
+
+/**
+ * Write an audit-log entry. FIRE-AND-FORGET and SWALLOWS errors: auditing must
+ * never break or block the action it records. Use for sensitive/privileged
+ * operations — above all operator impersonation (an operator entering a customer
+ * org sees that customer's guest PII, so every enter/exit must leave a trace).
+ *
+ *   action  — dotted verb, e.g. "impersonate.enter", "customer.create"
+ *   actorUserId — the REAL operator behind the action (not the impersonated user).
+ *                 ⚠️ Oturumdan türetiyorsan `auditActor(session)` KULLAN (↑).
+ */
+export async function writeAudit(entry: {
+  organizationId: string;
+  actorUserId?: string | null;
+  action: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        organizationId: entry.organizationId,
+        actorUserId: entry.actorUserId ?? null,
+        action: entry.action,
+        metadataJson: entry.metadata ? JSON.stringify(entry.metadata) : null,
+      },
+    });
+  } catch (err) {
+    // Never let an audit write affect the real action — but surface the drop.
+    // console.error alone is NOT captured anywhere central (no Sentry SDK hooks
+    // console); reportError is the only path to the error sink, so a silently
+    // dropped security/KVKK audit trail (impersonation, 2FA-reset, plan-change,
+    // guest-erasure) stays visible to operators. The action is folded into the
+    // context so ops can tell WHICH mandatory legal record dropped (and re-record
+    // it) without opening the payload. reportError never throws and redacts PII.
+    // ⚠️ AYRI bir ham `console.error(err)` satırı YOK (F10, Codex 09-05): `reportError` düşüşü zaten redakte ederek
+    // loga yazar; ham satır Prisma'nın "Invalid invocation" metnini (yazılan metadata dahil) ve `cause` zincirini
+    // olduğu gibi Railway loguna taşıyordu (ölçüldü: e-posta ve telefon aynen görünüyordu).
+    void reportError(`audit.write:${entry.action}`, err);
+  }
+}
+
+/**
+ * MANDATORY, ATOMIC audit write — the opposite contract from writeAudit above.
+ * Writes through a caller-provided transaction client and DOES throw on failure,
+ * so the caller's transaction rolls back if the audit can't be recorded. Use ONLY
+ * when the audit is legally required to be inseparable from the action it records:
+ * KVKK guest-erasure (Deletion Regulation art. 7 requires the destruction to be
+ * LOGGED, so "destroy without a log" is not an acceptable success state). Do NOT
+ * use for ordinary audits — a login/impersonation must never fail because its log
+ * write hiccuped; those keep the fire-and-forget writeAudit.
+ */
+export async function writeAuditInTx(
+  tx: Prisma.TransactionClient,
+  entry: {
+    organizationId: string;
+    actorUserId?: string | null;
+    action: string;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await tx.auditLog.create({
+    data: {
+      organizationId: entry.organizationId,
+      actorUserId: entry.actorUserId ?? null,
+      action: entry.action,
+      metadataJson: entry.metadata ? JSON.stringify(entry.metadata) : null,
+    },
+  });
+}

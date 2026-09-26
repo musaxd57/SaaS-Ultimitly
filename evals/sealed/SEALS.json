@@ -1,0 +1,15 @@
+{
+  "stay-change-final.json": {
+    "sha256": "d178700d3561c521125bfa8ae8da9c52c8f10a2fba111b01b2f5748f2cab07b4",
+    "sealedAt": "2026-09-24",
+    "author": "kör ajan: depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md (genel kurallar) bağlamına otomatik yüklendi. Taslak kopyaları okunmadan silindi.",
+    "items": {
+      "requests": 180,
+      "replies": 180
+    },
+    "state": "burned",
+    "burnedAt": "2026-09-25",
+    "runSha": "f584075e15ceeb20146093c0a8d8c966438c01af",
+    "report": "docs/olcum/stay-change-FINAL-eval-2026-09-25.md"
+  }
+}

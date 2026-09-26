@@ -1,0 +1,848 @@
+import Link from "next/link";
+import {
+  Globe,
+  ShieldCheck,
+  Moon,
+  UserRound,
+  Wrench,
+  LayoutDashboard,
+  Plug,
+  Brain,
+  MessageSquareReply,
+  Check,
+  ArrowRight,
+  ChevronDown,
+  QrCode,
+  ClipboardCheck,
+  BarChart3,
+  BookOpen,
+  PenLine,
+  Bot,
+  Quote,
+  Ban,
+} from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { BrandMark } from "@/components/brand";
+import { LeadForm } from "@/components/marketing/lead-form";
+import { PricingTiers } from "@/components/marketing/pricing-tiers";
+import { StructuredData } from "@/components/marketing/structured-data";
+import { Reveal } from "@/components/marketing/reveal";
+import { DemoFrame } from "@/components/marketing/demo-frame";
+import { LandingDemo } from "@/components/marketing/landing-demo";
+import { NavScroll } from "@/components/marketing/nav-scroll";
+import { MobileNav } from "@/components/marketing/mobile-nav";
+import { LixusBuilding } from "@/components/marketing/lixus-building";
+import { cn, formatMinor } from "@/lib/utils";
+import { defaultPlans, annualPriceMinor, annualMonthlyEquivalentMinor } from "@/lib/billing/plans";
+import { appLocale } from "@/lib/app-config";
+
+// Public marketing landing page (logged-out visitors). Turkish-first, sells the
+// real edges: native Turkish AI, safety (no auto-reply on complaints), 24/7,
+// fast setup. Server component for speed/SEO; tiny client islands add motion.
+
+const STEPS = [
+  {
+    icon: Plug,
+    title: "1. Hesabınızı bağlayın",
+    body: "Airbnb / Booking hesabınızı birkaç adımda bağlayın.",
+  },
+  {
+    icon: Brain,
+    title: "2. AI işletmenizi öğrenir",
+    body: "Üslubunuzu, daire bilgilerinizi ve sık sorulan soruları öğrenir.",
+  },
+  {
+    icon: MessageSquareReply,
+    title: "3. Mesajlar yanıtlanır",
+    body: "Soruların sizin üslubunuzla yanıtlanır. Dilerseniz gönderimden önce onaylarsınız; riskli konular doğrudan size bırakılır.",
+  },
+];
+
+// Honest 3-tier sales scenarios — mirror the REAL safety architecture:
+// tier 1 auto-sends, tier 2 calms + gathers info (host approves; optional
+// auto pre-reply the host knowingly enables), tier 3 always waits for the host.
+const DEMO_SCENARIOS: { tier: 1 | 2 | 3; message: string; outcome: string }[] = [
+  {
+    tier: 1,
+    message: "Merhaba, wifi şifresi nedir?",
+    outcome: "Bilgi tabanınızdaki Wi-Fi bilgisiyle anında, sizin üslubunuzla yanıtlar.",
+  },
+  {
+    tier: 1,
+    message: "Check-in saat kaçta, erken gelebilir miyiz?",
+    outcome: "Dairenizin gerçek giriş saatiyle anında yanıtlar; erken giriş isteğini size iletir.",
+  },
+  {
+    tier: 1,
+    message: "Wo kann ich parken?",
+    outcome: "Almanca soruya Almanca cevap verir — otopark bilginizden.",
+  },
+  {
+    tier: 2,
+    message: "Ev çok soğuk, hiç memnun kalmadık.",
+    outcome:
+      "Sakin bir cevap taslağı hazırlar, foto/detay ister, sorunu size işaretler — söz vermez, suçu kabul etmez. Dilerseniz \"aldık, ilgileniyoruz\" ön-yanıtını otomatik de gönderir (siz açarsanız).",
+  },
+  {
+    tier: 3,
+    message: "Daire hiç temiz değildi, iade istiyorum.",
+    outcome: "Para/iade tespit edilir; otomatik cevap GÖNDERİLMEZ — taslak + e-posta ile size düşer.",
+  },
+  {
+    tier: 3,
+    message: "Airbnb komisyonu çok, IBAN atayım direkt ödeyeyim?",
+    outcome: "Platform dışı ödeme = kırmızı çizgi. AI asla kabul etmez, sizi uyarır.",
+  },
+];
+const TIER_META: Record<1 | 2 | 3, { chip: string; cls: string }> = {
+  1: { chip: "Anında yanıtlar", cls: "bg-emerald-50 text-emerald-700" },
+  2: { chip: "Yatıştırır + bilgi toplar", cls: "bg-yellow-50 text-yellow-800" },
+  3: { chip: "Durur, size bırakır", cls: "bg-amber-50 text-amber-700" },
+};
+
+// The market context: two familiar-but-costly ways to handle guest messages,
+// and the bounded middle path Lixus takes. Fresh copy on purpose — the safety
+// promise is already stated elsewhere on the page, so this section sells the
+// TIME/TRUST trade-off instead of restating it.
+const COMPARE: { chip: string; icon: typeof PenLine; title: string; body: string; ours?: boolean }[] = [
+  {
+    chip: "Eski usul",
+    icon: PenLine,
+    title: "Hepsini kendiniz yazmak",
+    body: "Uykudan, yemekten, tatilden çalınan dakikalar. Geç kalan her cevap, misafirin başka bir ilana bakması için bir fırsattır — siz de telefondan hiç kopamazsınız.",
+  },
+  {
+    chip: "Diğer uç",
+    icon: Bot,
+    title: "Hepsini bota devretmek",
+    body: "Sınır çizilmemiş bir bot, kurnaz bir mesajla konudan çıkarılabilir; gergin bir pazarlıkta ağzından ne çıkacağını önceden kimse bilemez. Bunu fark eden misafirin güvenini geri kazanmak zordur.",
+  },
+  {
+    chip: "Lixus’un yolu",
+    icon: ShieldCheck,
+    title: "Sınırı belli otomasyon",
+    body: "Cevabı net olan sorular — Wi-Fi, giriş saati, otopark — anında yanıtlanır. Karar gerektiren konuşmalar ise olduğu gibi size gelir: misafir beklemede kalmaz, kontrol sizden çıkmaz.",
+    ours: true,
+  },
+];
+
+// The enumerated red lines — the closed set the safety gate enforces in code.
+// Shown once, as a single explicit commitment (the rest of the page mentions
+// safety in passing; this is the concrete list a host can hold us to).
+const RED_LINES = [
+  "Para ve iade talepleri",
+  "Şikayetlerin çözümü",
+  "Rezervasyon iptalleri",
+  "Güvenlik ve acil durumlar",
+  // ⚠️ "pazarlık" DEĞİL "tehdit": riskli olan misafirin bir şey koparmak için
+  // kötü yorumla TEHDİT etmesidir; "pazarlık" hostu pazarlık yapıyor gibi
+  // gösteriyordu. Kodun kendi kelimesi de bu (`riskType: "review_threat"`).
+  "Kötü yorum tehditleri",
+  "Platform dışı ödeme teklifleri",
+  "İnsanla görüşme talepleri",
+];
+
+const FEATURES = [
+  {
+    icon: Globe,
+    title: "Türkçe öncelikli, çok dilli",
+    body: "Misafir hangi dilde yazarsa o dilde cevap alır — Türkçe, İngilizce, Almanca, Rusça, Arapça ve daha fazlası. Yabancı araçların aksine Türkçe’si çeviri kokmaz.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Şikayetlerde devreyi size verir",
+    body: "Şikayet, iade veya iptal mesajlarını asla kendi başına sonuçlandırmaz — işaretleyip size iletir. Emin değilse göndermez, taslağı onayınıza bırakır.",
+  },
+  {
+    icon: Moon,
+    title: "7/24, siz uyurken bile",
+    body: "Gece-gündüz, hafta sonu fark etmez. Hızlı yanıt = daha mutlu misafir = daha iyi değerlendirme.",
+  },
+  {
+    icon: UserRound,
+    title: "Robot gibi değil, sizin gibi",
+    body: "Eski cevaplarınızdan yazış tarzınızı öğrenir ve zamanla size daha da benzer. Misafir bir botla değil, ev sahibiyle konuştuğunu hisseder.",
+  },
+  {
+    icon: Wrench,
+    title: "Dakikalar içinde kurulum",
+    body: "Kaydolun, bağlantınızı ekleyin, daire bilgilerinizi girin — bitti. Kurulum ekibi, eğitim, kod yok. Aynı gün yanıt almaya başlarsınız.",
+  },
+  {
+    icon: LayoutDashboard,
+    title: "Tek panel",
+    body: "Airbnb ve Booking mesajları, otomatik karşılama, giriş-çıkış ve günlük işleriniz tek ekranda. Uygulamadan uygulamaya koşturmak yok.",
+  },
+];
+
+// Display tiers. PRICES ARE NOT WRITTEN HERE — they come from defaultPlans(), the
+// same deployment config the settings checkout card reads, so the landing page and
+// the paid flow cannot disagree. (They used to be literals like "₺449" and drift
+// was only prevented by a comment.) Reverse-trial: 14 gün tam Pro ücretsiz (kart
+// yok), sonra plan seçilir.
+// TÜM ücretli planlar AYNI ÖZELLİKLERİ alır — hiçbir özellik üst plana kilitli
+// değil. Planlar üç ölçüyle ayrışır: daire sayısı, KULLANIM HACMİ (günlük AI
+// yanıtı + daire başına bilgi kaydı, bkz. billing/plan-limits.ts) ve destek.
+// Bir özelliği üst plana özelmiş gibi göstermeyin — Başlangıç müşterisi de
+// karşılama/giriş/çıkış mesajlarını ve raporları kullanır.
+const TIERS = [
+  {
+    name: "Başlangıç",
+    planCode: "free",
+    unit: "/ay",
+    desc: "1–2 daireli ev sahipleri için",
+    features: [
+      // SIRA KULLANICI KARARI (07-31): önce "ne alıyorum" (özellik + daire),
+      // sonra "ne kadar" (hacim), sonra gerisi.
+      "Tüm AI özellikleri dahil",
+      "2 daireye kadar",
+      "Günde 150 AI işlemi (otomatik yanıt · öneri · çeviri)",
+      "Daire başına 15 bilgi kaydı — AI cevapları buradan üretir",
+      "QR concierge: daire başına günde 50 misafir sorusu",
+      "7/24 otomatik misafir yanıtı (Türkçe + çok dilli)",
+      "Otomatik karşılama, giriş ve çıkış mesajları",
+      "Doluluk ve performans raporları",
+      "Şikayette otomatik durur, size e-posta gider",
+    ],
+    highlight: false,
+  },
+  {
+    name: "Pro",
+    planCode: "pro",
+    unit: "/ay",
+    desc: "3–7 daireli profesyonel hostlar",
+    features: [
+      "Başlangıç’taki tüm AI özellikleri",
+      "7 daireye kadar",
+      "Günde 500 AI işlemi (otomatik yanıt · öneri · çeviri)",
+      "Daire başına 30 bilgi kaydı — AI cevapları buradan üretir",
+      "QR concierge: daire başına günde 100 misafir sorusu",
+      "Şikayette otomatik durur, size e-posta gider",
+      "Öncelikli destek",
+    ],
+    highlight: true,
+  },
+  {
+    name: "İşletme",
+    planCode: "business",
+    unit: "/ay",
+    desc: "8–25 daireli profesyoneller",
+    features: [
+      "Başlangıç’taki tüm AI özellikleri",
+      "25 daireye kadar",
+      "Günde 1.500 AI işlemi (otomatik yanıt · öneri · çeviri)",
+      "Daire başına 60 bilgi kaydı — AI her yanıtta en güncel 30'unu okur",
+      "QR concierge: daire başına günde 200 misafir sorusu",
+      "Şikayette otomatik durur, size e-posta gider",
+      "Birebir kurulum + öncelikli destek",
+    ],
+    highlight: false,
+  },
+];
+
+const FAQS = [
+  {
+    q: "Airbnb hesabıma ya da takvimime zarar verir mi?",
+    a: "Hayır, hesabınız güvende. Lixus AI yalnızca misafir mesajlarınızı okur ve yanıtlar; takviminize, fiyatlarınıza veya rezervasyonlarınıza dokunmaz. Kontrol her zaman sizde kalır.",
+  },
+  {
+    q: "Yanlış ya da uygunsuz cevap verir mi?",
+    a: "Şikayet, iade, iptal gibi hassas mesajları asla otomatik sonuçlandırmaz — doğrudan size düşer. Dilerseniz (siz açarsanız) yalnızca kısa bir \"mesajınızı aldık, ilgileniyoruz\" bekletme yanıtı otomatik gider; çözüm ve karar her zaman sizdedir. Emin olmadığı her durumda taslağı hazırlar, göndermeden önce onayınızı bekler.",
+  },
+  {
+    q: "Misafirim yabancı; AI onun dilinde mi cevap verir?",
+    a: "Evet. AI misafirin yazdığı dili algılar ve o dilde yanıtlar — Türkçe, İngilizce, Rusça, Almanca, Arapça ve daha fazlası. Siz panelinizi Türkçe yönetirsiniz, misafir kendi dilinde yanıt alır.",
+  },
+  {
+    q: "Hangi platformları destekliyor?",
+    a: "Airbnb ve Booking.com misafir mesajlarını destekler. Bağlantı, resmî Airbnb yazılım ortağı Hospitable üzerinden kurulur ve Hospitable'ın API / Connected Integrations erişimi ücretli planlarında (Host, Professional, Mogul) bulunur — ücretsiz Essentials planında bu erişim yoktur. Bu ücret Hospitable'a aittir, Lixus aboneliğine dahil değildir. Bağlantıyı kurulumda adım adım gösteriyoruz; sonrasında her iki platformu tek panelden yönetirsiniz.",
+  },
+  {
+    q: "Kurulum zor mu? Teknik bilgi gerekir mi?",
+    a: "Hayır. Kaydolun, Airbnb/Booking bağlantınızı birkaç tıkla yapın, daire bilgilerinizi ekleyin — AI hemen yanıtlamaya başlar. Takılırsanız kurulumda yanınızdayız.",
+  },
+  {
+    q: "Ücretsiz deneyebilir miyim? Kart gerekiyor mu?",
+    a: "Evet. 14 gün boyunca tüm Pro özellikleri ücretsiz, kart gerekmez. Beğenirseniz devam edersiniz; beğenmezseniz hiçbir şey ödemezsiniz.",
+  },
+  {
+    q: "Deneme bitince hesabıma ne olur?",
+    // Kayıt banner'ı + LimitedModeBanner ile AYNI gerçek: silinme yok, otomatik
+    // ücret yok, sınırlı erişim; oto-yanıt ücretli planda (dürüst-kopya kuralı).
+    a: "Hiçbir şey silinmez ve otomatik ücret alınmaz. Hesabınız sınırlı erişimle açık kalır — verilerinizi ve panellerinizi görmeye devam edersiniz; otomatik yanıtlar ve AI özellikleri (AI öneri, çeviri, QR concierge) için ücretli plan gerekir. İstediğiniz zaman abone olup kaldığınız yerden devam edebilirsiniz.",
+  },
+  {
+    q: "İstediğim zaman durdurabilir miyim?",
+    a: "Evet. Otomatik gönderimi tek tıkla kapatabilir, aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz. Aylık planda taahhüt yoktur; yıllık planı seçerseniz bedel bir yıllık dönem için peşin alınır.",
+  },
+  {
+    q: "Misafir, yanıtın yapay zekâdan geldiğini anlar mı?",
+    a: "Bu sizin seçiminiz. Varsayılan olarak otomatik yanıtların altına kısa bir bilgilendirme notu eklenir — şeffaflığın güveni artırdığını düşünüyoruz. Dilerseniz bu notu ayarlardan kapatırsınız. Her iki durumda da yanıtlar sizin girdiğiniz bilgilerden ve sizin üslubunuzdan üretilir.",
+  },
+  {
+    q: "Misafir verileri nasıl saklanıyor?",
+    a: "Veriler KVKK gözetilerek işlenir: misafir kişisel verileri saklama süresi dolunca anonimleştirilir, tüm verinizi dilediğinizde tek dosya hâlinde indirebilir, hesabınızı sildiğinizde kalıcı olarak sildirebilirsiniz. Misafir mesajları yalnızca size yanıt üretmek için kullanılır; reklam veya başka amaçla işlenmez.",
+  },
+];
+
+// Honest trust chips: "KVKK odaklı" (not an absolute compliance certification
+// claim while the DPA/legal work is in progress) and "otomatik sonuçlandırmaz"
+// (the opt-in holding acknowledgement exists — resolution is always human).
+const TRUST = ["Türkiye’de geliştirildi", "KVKK odaklı tasarım", "Yanıt Sürenizi Kısaltır", "Kullanıcı dostu arayüz"];
+
+// The real panels a customer uses — shown as little "screens" on the landing.
+const PANELS = [
+  {
+    icon: LayoutDashboard,
+    name: "Panel",
+    body: "Günlük AI özeti, bugünkü giriş/çıkışlar, bekleyen mesajlar ve doluluk — sabah açınca her şey bir bakışta.",
+  },
+  {
+    icon: MessageSquareReply,
+    name: "Mesajlar",
+    body: "Airbnb + Booking tek gelen kutusunda. Güvenli sorulara AI otomatik cevap verir; dilerseniz önce önerir, tek tıkla gönderirsiniz.",
+  },
+  {
+    icon: QrCode,
+    name: "Misafir Sohbetleri",
+    body: "Daireye astığınız QR ile misafir, konaklama boyunca AI’a soru sorar; çözemezse size iletilir.",
+  },
+  {
+    icon: ClipboardCheck,
+    name: "Görevler",
+    body: "Temizlik ve giriş hazırlığı görevleri rezervasyondan otomatik oluşur; Kanban’da takip edersiniz.",
+  },
+  {
+    icon: BarChart3,
+    name: "Raporlar",
+    body: "Performans skoru, daireye göre doluluk, şikayet yoğunluğu ve en çok sorulan konular.",
+  },
+  {
+    icon: BookOpen,
+    name: "Bilgi Tabanı",
+    body: "Wi-Fi, giriş talimatı, ev kuralları — AI ve otomatik mesajlar bu bilgilerle konuşur.",
+  },
+];
+
+export function LandingPage() {
+  // Prices come from the SAME deployment config the settings checkout reads, so
+  // the public page and the paid flow can never quote different numbers.
+  // (Fiyat dizgileri artık `PricingTiers`'a prop olarak, aşağıda tek yerde
+  // biçimlendiriliyor — bu harita kullanılmıyordu.)
+  const locale = appLocale();
+  // Optional WhatsApp contact — set NEXT_PUBLIC_WHATSAPP to a BUSINESS number
+  // (digits only, with country code). If unset, only the e-mail contact shows.
+  const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP?.replace(/\D/g, "");
+  // Optional demo video — set NEXT_PUBLIC_DEMO_VIDEO to a YouTube/Loom EMBED URL.
+  // If unset, the whole demo section is hidden (no empty placeholder box).
+  const demoVideo = process.env.NEXT_PUBLIC_DEMO_VIDEO;
+  // Live "try the AI" block — mirrors the /api/demo/ai kill-switch so the
+  // section and the endpoint appear/disappear together.
+  const aiDemoEnabled = process.env.LANDING_DEMO_ENABLED === "1";
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <StructuredData faqs={FAQS} />
+      <NavScroll />
+      {/* Nav */}
+      <header
+        id="site-nav"
+        className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur transition-shadow duration-300"
+      >
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <BrandMark className="size-5" />
+            </span>
+            <span className="text-lg font-semibold tracking-tight">
+              Lixus <span className="text-primary">AI</span>
+            </span>
+          </Link>
+          <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
+            <a href="#nasil" className="hover:text-foreground">Nasıl çalışır</a>
+            <a href="#ozellikler" className="hover:text-foreground">Özellikler</a>
+            <a href="#fiyatlar" className="hover:text-foreground">Fiyatlar</a>
+            <a href="#sss" className="hover:text-foreground">SSS</a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <Link href="/login" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden sm:inline-flex")}>
+              Giriş Yap
+            </Link>
+            <Link href="/register" className={cn(buttonVariants({ size: "sm" }))}>
+              Ücretsiz Dene
+            </Link>
+            <MobileNav />
+          </div>
+        </div>
+      </header>
+
+      {/* Hero. Below xl this renders exactly as before (single centered column —
+          the grid has one visible child); at xl the text left-aligns and the
+          living building appears beside it. Every layout change hides behind
+          xl: so phones and tablets are untouched. */}
+      <section className="relative overflow-hidden">
+        <div className="hero-aura" aria-hidden="true" />
+        <div className="relative z-10 mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28 xl:max-w-7xl">
+          <div className="grid items-center gap-10 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="text-center xl:text-left">
+              <span className="badge-in inline-flex items-center gap-1.5 rounded-full border border-border bg-accent/60 px-3 py-1 text-xs font-medium text-accent-foreground shadow-sm ring-1 ring-border/50">
+                <ShieldCheck className="size-3.5" aria-hidden="true" /> Airbnb &amp; Booking ev sahipleri için yapay zekâ asistanı
+              </span>
+              <Reveal as="h1" delay={60} className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl xl:mx-0">
+                Misafir mesajlarını <span className="text-primary">7/24, güvenle</span> yanıtlayan yapay zekâ.
+              </Reveal>
+              <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg xl:mx-0">
+                Özelleştirilebilir otomatik yanıtlama — misafiriniz hangi dilde yazarsa o dilde cevap
+                alır. Şikayet, iade gibi riskli konuları otomatik yanıtlamaz, size bırakır.
+              </Reveal>
+              <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row xl:justify-start">
+                <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
+                  14 gün ücretsiz dene <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+                <a href="#nasil" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full sm:w-auto")}>
+                  Nasıl çalışır?
+                </a>
+              </Reveal>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Kredi kartı gerekmez · Dakikalar içinde kurulum · İstediğiniz zaman iptal
+              </p>
+              {/* Trust strip (honest, pre-launch) */}
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-2 xl:justify-start">
+                {TRUST.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 py-1.5 text-xs font-medium text-foreground/80 shadow-sm"
+                  >
+                    <Check className="size-3 text-primary" aria-hidden="true" /> {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <LixusBuilding />
+          </div>
+        </div>
+      </section>
+
+      {/* Lixus AI in action — a real demo video if configured, otherwise a
+          static example conversation so this section is never empty. */}
+      <section className="border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Lixus AI iş başında</Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Misafir hangi dilde yazarsa o dilde yanıt. İster tam otomatik gönderir, ister AI önerir siz tek
+            tıkla onaylarsınız — riskli mesajları her zaman size bırakır.
+          </Reveal>
+
+          {demoVideo ? (
+            <Reveal delay={120} className="mt-10 aspect-video overflow-hidden rounded-2xl border border-border bg-foreground/5 shadow-sm">
+              <iframe
+                src={demoVideo}
+                title="Lixus AI demo"
+                className="size-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </Reveal>
+          ) : (
+            <Reveal delay={120} className="mt-10">
+              <DemoFrame src="/urun.html" title="Lixus AI ürün turu" />
+            </Reveal>
+          )}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section id="nasil" className="scroll-mt-20 border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Üç adımda kurulur</Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Bugün kurun, bu gece gelen ilk mesajı AI yanıtlasın.
+          </Reveal>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <Reveal key={s.title} delay={i * 80} className="card-lift rounded-xl border border-border bg-card p-6">
+                <span className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <s.icon className="size-5.5" aria-hidden="true" />
+                </span>
+                <h3 className="mt-4 text-lg font-semibold">{s.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{s.body}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Setup walkthrough — animated, static iframe (public/kurulum.html) */}
+      <section className="scroll-mt-20 py-20">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">
+            Kurulumu 20 saniyede izleyin
+          </Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Ücretsiz dene → hesap aç → e-posta onayı → bağlantıyı kur → token&apos;ı yapıştır. Hepsi bu.
+          </Reveal>
+          <Reveal delay={120} className="mt-10">
+            <DemoFrame />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="ozellikler" className="scroll-mt-20 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Neden Lixus AI?</Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Yabancı araçlar Türkçe’yi çeviri gibi konuşur; Lixus AI sizin gibi. Üstelik riskli mesajı asla tek başına yanıtlamaz.
+          </Reveal>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((f, i) => (
+              <Reveal key={f.title} delay={i * 70} className="card-lift rounded-xl border border-border bg-card p-6">
+                <span className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <f.icon className="size-5.5" aria-hidden="true" />
+                </span>
+                <h3 className="mt-4 text-lg font-semibold">{f.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{f.body}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Panels showcase — the real screens, styled as little windows */}
+      <section className="border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">
+            Açtığınız panelde her şey bir arada
+          </Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Mesajdan temizliğe, rapordan misafir sohbetine — tüm operasyonunuz tek ekranda.
+          </Reveal>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {PANELS.map((p, i) => (
+              <Reveal
+                key={p.name}
+                delay={i * 70}
+                className="card-lift overflow-hidden rounded-xl border border-border bg-card"
+              >
+                <div className="flex items-center gap-1.5 border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="size-2.5 rounded-full bg-red-400/70" />
+                  <span className="size-2.5 rounded-full bg-amber-400/80" />
+                  <span className="size-2.5 rounded-full bg-emerald-400/70" />
+                  <span className="ml-2 inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+                    <p.icon className="size-3.5 text-primary" aria-hidden="true" /> {p.name}
+                  </span>
+                </div>
+                <p className="p-5 text-sm text-muted-foreground">{p.body}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* More — shipped features the rest of the page doesn't spell out */}
+      <section className="border-t border-border py-16">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-2xl font-bold tracking-tight">Panelin içinde dahası var</Reveal>
+          <Reveal className="mx-auto mt-8 grid max-w-3xl gap-x-8 gap-y-3 sm:grid-cols-2">
+            {[
+              "Airbnb + Booking mesajları tek gelen kutusunda",
+              "A–F performans skoru ile işletme karnesi",
+              "Daireye göre doluluk (geçen aya kıyasla)",
+              "AI önceki cevaplarınızdan üslubunuzu öğrenir",
+              "Gece/gündüz çalışma saati ayarı",
+              "İki adımlı güvenlik (2FA)",
+              "Otomatik karşılama, check-in ve checkout mesajları",
+              "Türkçe, İngilizce, Almanca, Rusça, Arapça ve daha fazlası",
+            ].map((item) => (
+              <div key={item} className="flex items-start gap-2 text-sm">
+                <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </Reveal>
+        </div>
+      </section>
+
+      {/* What the AI answers vs. leaves to the host — honest example scenarios
+          (static, no API cost), plus the live demo when the operator has
+          enabled the public endpoint (LANDING_DEMO_ENABLED=1). */}
+      <section id="canli-demo" className="scroll-mt-20 border-t border-border py-20">
+        <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
+          <Reveal as="h2" className="text-3xl font-bold tracking-tight">
+            Neyi kendisi yanıtlar, neyi size bırakır?
+          </Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-muted-foreground">
+            Örnek misafir mesajları — yeşiller otomatik yanıtlanır, turuncular güvenlik
+            kapısına takılıp onayınıza gelir. Zor konuşmalarda da yalnız değilsiniz: AI
+            profesyonel taslağı saniyeler içinde hazırlar, riskli kararları size bırakır.
+          </Reveal>
+          <Reveal delay={160} className="mx-auto mt-10 grid max-w-4xl gap-4 text-left sm:grid-cols-2">
+            {DEMO_SCENARIOS.map((s) => (
+              <div key={s.message} className="card-lift rounded-xl border border-border bg-card p-4">
+                <p className="text-sm font-medium">&ldquo;{s.message}&rdquo;</p>
+                <p className="mt-2 text-sm text-muted-foreground">{s.outcome}</p>
+                <span
+                  className={cn(
+                    "mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
+                    TIER_META[s.tier].cls,
+                  )}
+                >
+                  {TIER_META[s.tier].chip}
+                </span>
+              </div>
+            ))}
+          </Reveal>
+          {aiDemoEnabled ? (
+            <Reveal delay={220} className="mt-10">
+              <h3 className="text-xl font-semibold">Kendiniz deneyin</h3>
+              <div className="mt-4">
+                <LandingDemo />
+              </div>
+            </Reveal>
+          ) : null}
+        </div>
+      </section>
+
+      {/* The trade-off: manual vs. unbounded bot vs. bounded automation */}
+      <section className="border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">
+            Mesaj yüküne iki eski çözüm, bir yenisi
+          </Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-2xl text-center text-muted-foreground">
+            Tek dairede idare edilir; daireler çoğaldıkça misafir mesajları sessizce yarı zamanlı bir işe
+            dönüşür. Bugüne kadarki iki seçenek de bir şeyden vazgeçmenizi istiyordu — ya zamanınızdan ya
+            kontrolünüzden.
+          </Reveal>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {COMPARE.map((c, i) => (
+              <Reveal
+                key={c.title}
+                delay={i * 90}
+                className={cn(
+                  "card-lift flex flex-col rounded-xl border bg-card p-6",
+                  c.ours ? "border-primary ring-1 ring-primary" : "border-border",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                    c.ours ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  <c.icon className="size-3.5" aria-hidden="true" /> {c.chip}
+                </span>
+                <h3 className="mt-4 text-lg font-semibold">{c.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{c.body}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Founder story + the enumerated red lines (stated ONCE, concretely) */}
+      <section className="border-t border-border py-20">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">
+            Bunu bir yazılım şirketi değil, bir ev sahibi başlattı
+          </Reveal>
+          <Reveal delay={100} className="relative mt-10 rounded-2xl border border-border bg-card p-8 shadow-sm">
+            <Quote className="absolute -top-4 left-8 size-8 rounded-full bg-primary p-1.5 text-primary-foreground" aria-hidden="true" />
+            <div className="space-y-4 text-[15px] leading-relaxed text-foreground/90">
+              <p>
+                Ev sahipliğinin görünmeyen mesaisi mesajlaşmadır: giriş saati, otopark, şifre… aynı
+                sorular, her hafta, çoğu gece yarısı.
+              </p>
+              <p>
+                Hazır araçları denedim. Kimi yalnızca öneri hazırlıyordu — gönderme zahmeti yine bende
+                kalıyordu. Kimi de her şeyi robota devrediyordu; oysa hassas bir konuşmada botun ne
+                söyleyeceğini kimse garanti edemez. Ben ortasını istedim: cevabı belli olan işi benim
+                ağzımdan anında halletsin, yorum isteyen her şeyi bana getirsin.
+              </p>
+              <p>
+                Lixus’u önce kendi dairelerim için kurdum; sizin açtığınız panel, benim misafirlerimi
+                yönettiğim panelin ta kendisi. Bir aracın nasıl çalışması gerektiğini en iyi, ona muhtaç
+                olan bilir.
+              </p>
+            </div>
+            <p className="mt-6 text-sm font-semibold">— Musa Çınar, Lixus AI’ın kurucusu</p>
+          </Reveal>
+
+          {/* Red lines — the one place the closed list is spelled out */}
+          <Reveal delay={160} className="mt-8 rounded-2xl border border-border bg-card/60 p-6">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Ban className="size-4 text-primary" aria-hidden="true" /> Koda gömülü kırmızı çizgiler
+            </p>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Şu yedi başlıkta son söz hiçbir zaman yazılımın değildir — hangi ayarı açarsanız açın:
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {RED_LINES.map((r) => (
+                <span
+                  key={r}
+                  className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-foreground/80"
+                >
+                  {r}
+                </span>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Bu başlıklardan biri tespit edildiğinde konuşma panelde &ldquo;sorunlu&rdquo; olarak işaretlenir,
+              size anında e-posta ile haber verilir ve yanıt taslağı hazır bekler — ama son sözü asla yazılım
+              söylemez.
+            </p>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="fiyatlar" className="scroll-mt-20 border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Basit, şeffaf fiyatlandırma</Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            <strong className="text-foreground">14 gün boyunca tüm Pro özellikleri ücretsiz</strong> — kart
+            istemeden. Beğenirseniz daire sayınıza göre seçin; daire başına değil, sabit ücret. Aylık planda dilediğiniz zaman iptal edebilirsiniz.
+          </Reveal>
+          <PricingTiers
+            tiers={TIERS}
+            annualAvailable={
+              Boolean(process.env.PADDLE_PRICE_BASLANGIC_YILLIK?.trim()) &&
+              Boolean(process.env.PADDLE_PRICE_PRO_YILLIK?.trim()) &&
+              Boolean(process.env.PADDLE_PRICE_ISLETME_YILLIK?.trim())
+            }
+            prices={Object.fromEntries(
+              defaultPlans().map((p) => [
+                p.code,
+                {
+                  monthly: formatMinor(p.priceMinor, p.currency, locale),
+                  monthlyEquivalent: formatMinor(
+                    annualMonthlyEquivalentMinor(p.priceMinor),
+                    p.currency,
+                    locale,
+                  ),
+                  annualTotal: formatMinor(annualPriceMinor(p.priceMinor), p.currency, locale),
+                },
+              ]),
+            )}
+          />
+          {/* Fiyatın NE OLDUĞU ve NEYİ KAPSAMADIĞI, kartların hemen altında.
+              (a) KDV DAHİL: Paddle'a giden fiyat vergi-dahil yapılandırılmış —
+                  plan-değişim önizlemesindeki tutar Paddle'ın `grand_total`'ı
+                  (src/lib/payments/paddle.ts) ve listedeki rakamla birebir aynı
+                  çıkıyor. Yani ödeme adımında üstüne vergi EKLENMEZ.
+              (b) Hospitable ayrı: müşteri-edinmedeki en büyük sürpriz maliyet
+                  bu. Bağlantı Hospitable üzerinden kurulur ve API/Connected
+                  Integrations erişimi ÜCRETLİ Hospitable planı ister; bu ücret
+                  Lixus aboneliğine DAHİL DEĞİLDİR. Rakam yazmıyoruz (bizim
+                  kontrolümüzde değil, bayatlar) — resmî fiyat sayfasına link. */}
+          {/* TEK SATIRLIK dipnot. Kartların altındaki uzun paragraf onlarla
+              yarışıyordu (kullanıcı kararı: sil).
+              Hospitable ön koşulu ana sayfadan KAYBOLMADI — SSS'teki "Hangi
+              platformları destekliyor?" cevabı ücretli plan şartını ve ücretin
+              Lixus'a dahil olmadığını söylüyor; tam ayrıntı + resmî fiyat linki
+              /entegrasyonlar sayfasında. Aşağıdaki test her ikisini de pinler. */}
+          <p className="mx-auto mt-8 max-w-md text-center text-xs text-muted-foreground">
+            Fiyatlara KDV dahildir; ödeme adımında ek vergi eklenmez.
+          </p>
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            25’ten fazla daire mi yönetiyorsunuz?{" "}
+            <a href="#demo" className="font-medium text-foreground underline underline-offset-2">
+              Büyük portföyler için bize ulaşın
+            </a>
+            .
+          </p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="sss" className="scroll-mt-20 py-20">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Sık sorulan sorular</Reveal>
+          <div className="mt-10 space-y-4">
+            {FAQS.map((f, i) => (
+              <Reveal
+                as="details"
+                key={f.q}
+                delay={Math.min(i * 60, 240)}
+                className="card-lift group rounded-xl border border-border bg-card p-5"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold [&::-webkit-details-marker]:hidden">
+                  {f.q}
+                  <ChevronDown
+                    className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
+                    aria-hidden="true"
+                  />
+                </summary>
+                <p className="mt-3 text-sm text-muted-foreground">{f.a}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA + lead form */}
+      <section id="demo" className="scroll-mt-20 border-t border-border bg-primary py-16 text-primary-foreground">
+        <div className="mx-auto max-w-xl px-4 sm:px-6">
+          <h2 className="text-center text-3xl font-bold tracking-tight">Kendiniz başlayın ya da birlikte kuralım</h2>
+          <p className="mx-auto mt-3 max-w-md text-center text-primary-foreground/80">
+            14 gün ücretsiz, kart yok, taahhüt yok.
+          </p>
+          {/* 🚨 BAŞLIK İKİ YOL VAAT EDİYOR, BÖLÜMDE TEK KONTROL VARDI (08-07).
+              Metin "Hemen ücretsiz deneyin ya da bilgilerinizi bırakın" diyordu
+              ama tıklanacak tek şey lead formuydu: kendi başına başlamak isteyen
+              ziyaretçi vaat edilen yolu bulamıyordu (sayfanın en altı — yukarı
+              kaydırıp hero'daki butonu araması gerekiyordu).
+              Düzeltme iki CTA'yı BİRBİRİNDEN AYIRMAK: birincil eylem gerçek bir
+              buton, form ise AÇIKÇA ikincil ("Kurulumda yardım ister misiniz?").
+              İkisini tek cümlede yan yana koymak birincisini zayıflatıyordu. */}
+          <div className="mt-8 flex justify-center">
+            <Link
+              href="/register"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "cta-arrow w-full bg-background text-foreground hover:bg-background/90 sm:w-auto",
+              )}
+            >
+              14 gün ücretsiz dene <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="mt-10 border-t border-primary-foreground/20 pt-8">
+            <p className="mb-4 text-center text-sm text-primary-foreground/80">
+              Kurulumda yardım ister misiniz? Bilgilerinizi bırakın, size dönelim.
+            </p>
+            <LeadForm />
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border py-10">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <BrandMark className="size-4.5" />
+            </span>
+            <span className="text-sm font-semibold">Lixus AI</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Lixus AI · Airbnb &amp; Booking ev sahipleri için yapay zekâ asistanı
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <Link href="/login" className="hover:text-foreground">Giriş</Link>
+            <Link href="/entegrasyonlar" className="hover:text-foreground">Entegrasyonlar</Link>
+            <Link href="/gizlilik" className="hover:text-foreground">Gizlilik &amp; KVKK</Link>
+            <Link href="/kosullar" className="hover:text-foreground">Koşullar</Link>
+            <Link href="/on-bilgilendirme" className="hover:text-foreground">Ön Bilgilendirme</Link>
+            <Link href="/mesafeli-satis" className="hover:text-foreground">Mesafeli Satış</Link>
+            {whatsapp ? (
+              <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+                WhatsApp
+              </a>
+            ) : null}
+            <a href="mailto:iletisimlixusai@gmail.com" className="hover:text-foreground">İletişim</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

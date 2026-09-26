@@ -1,0 +1,22 @@
+# Lixus AI - guvenlik acigi bildirimi / vulnerability disclosure
+# Politika / policy: https://www.lixusai.com/guvenlik
+#
+# RFC 9116. Zorunlu alanlar YALNIZ "Contact" ve "Expires"; digerleri istege
+# baglidir. Var olmayan bir adres yazmak, hic yazmamaktan KOTUDUR (RFC 9116
+# 5.3: "bayat bilgi tasiyan bir security.txt, hic olmamasindan kotu olabilir").
+#
+# ⚠️ "Expires" gecerse denetimde kirmizi yanar. tests/unit/security-txt.test.ts
+# bu tarihi izler ve dolmasina ~30 gun kala testi kirmiziya cevirir.
+#
+# ⚠️ "Canonical" YALNIZ gercekten servis ettigimiz adresi listeler. Apex
+# (lixusai.com) su an FARKLI bir sunucuya isaret ediyor; RFC 9116 3.1 dosyanin
+# yalnizca getirildigi TAM alan adi icin gecerli oldugunu soyler, dolayisiyla
+# apex'i buraya yazmak yanlis olurdu. Apex de kapsanacaksa once ya 301
+# yonlendirmesi ya da ikinci bir kopya gerekir.
+
+Contact: mailto:security@lixusai.com
+Contact: https://www.lixusai.com/guvenlik
+Expires: 2027-06-01T00:00:00Z
+Policy: https://www.lixusai.com/guvenlik
+Preferred-Languages: tr, en
+Canonical: https://www.lixusai.com/.well-known/security.txt

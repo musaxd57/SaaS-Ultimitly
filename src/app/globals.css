@@ -1,0 +1,601 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Premium, minimal palette: white / gray / navy (per product brief) */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --primary: 222 47% 20%; /* deep navy */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 20%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 213 94% 95%;
+    --accent-foreground: 222 47% 20%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 37%;
+    --success-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 47% 20%;
+
+    --radius: 0.6rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   KARANLIK TEMA — YALNIZ PANELDE.
+   🚨 YUKARIDAKİ `:root` BLOĞUNA HİÇ DOKUNULMADI ve DOKUNULMAMALI. Açık modun
+   bozulmaması bu ayrımın doğrudan sonucudur: burada yalnız EKLEME var, hiçbir
+   açık-mod değeri yeniden tanımlanmıyor. `.dark` sınıfı `<html>`'e YALNIZ panel
+   rotalarında konur (`lib/theme.ts`), yani landing/giriş/hukuk sayfaları bu
+   bloğu hiç görmez.
+   Kontrast oranları hesaplandı (WCAG 2.x bağıl parlaklık):
+     foreground/background 17.23 · muted-foreground/background 9.10
+     primary/background 7.50 · destructive/background 6.30
+     success/background 10.00 · warning/background 10.57
+--------------------------------------------------------------------------- */
+@layer base {
+  /* ⚠️ `html.dark` — çıplak `.dark` DEĞİL. İkisi de `<html class="dark">`e
+     uyuyor ama çıplak `.dark` ile `:root` AYNI özgüllükte (0,1,0) ve kazananı
+     yalnız KAYNAK SIRASI belirliyor: bloklar bir gün yer değiştirirse karanlık
+     mod SESSİZCE ölür. `html.dark` (0,1,1) bu kırılganlığı kaldırır. */
+  html.dark {
+    /* Saf siyah DEĞİL: OLED'de bulaşma yapar ve daha KOYUYA inecek yer
+       bırakmaz (kuyu/oyuk yüzeyleri için alan gerekiyor). */
+    --background: 222 47% 8%;
+    --foreground: 210 40% 96%;
+
+    /* Karanlıkta yükselti AÇILARAK okunur — kart sayfadan DAHA AÇIK. */
+    --card: 222 44% 13%;
+    --card-foreground: 210 40% 96%;
+
+    /* ⚠️ Lacivert (%20 L) karanlık zeminde görünmez. Marka "mavi" kalsın diye
+       hero-aura'nın zaten kullandığı ton ailesine geçiliyor. */
+    --primary: 213 94% 68%;
+    /* ⚠️ TERS ÇEVRİLMEK ZORUNDA: açık mavi üzerine beyaz 1.9:1 olurdu. */
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 33% 20%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 18%;
+    /* 🚨 KARANLIK MODLARIN EN SIK ÖLDÜĞÜ YER: ikincil metin. Açık moddaki
+       %47 L burada 2.1:1 verir (okunmaz). %72 L → 9.10:1. */
+    --muted-foreground: 215 22% 72%;
+
+    --accent: 217 33% 24%;
+    --accent-foreground: 210 40% 96%;
+
+    /* `text-destructive` 45 dosyada, `bg-destructive` 19'da → METİN için
+       optimize edildi, yani dolgu değil YAZI açık olmalı. */
+    --destructive: 0 84% 68%;
+    --destructive-foreground: 0 60% 12%;
+
+    --success: 142 64% 55%;
+    --success-foreground: 142 70% 10%;
+
+    --warning: 38 92% 62%;
+    --warning-foreground: 38 80% 10%;
+
+    /* Kenarlık zeminden AÇIK olmalı; açık moddaki %91 L burada görünmez. */
+    --border: 217 25% 26%;
+    /* Form denetimi sınırı ayrı: WCAG 1.4.11 gereği 3:1 tutuluyor (3.32). */
+    --input: 217 24% 46%;
+    --ring: 213 94% 68%;
+
+    /* Yerel denetimleri (select açılır listesi, `type="time"` seçici)
+       tarayıcıya karanlık olarak bildirir. Ayarlar'daki toplu giriş/çıkış
+       saati alanları bunsuz beyaz bir kutu olarak açılırdı. */
+    color-scheme: dark;
+
+    /* --radius BİLEREK yeniden tanımlanmadı — renk değil, ve iki yerde
+       tutmak sessiz sapma davetiyesi. */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * KAYDIRMA ÇUBUĞU — GÖRÜNÜR (kurucu, 09-11: "o scroll şeyi daha çok belli
+ * olsun çok silik, alt üste gidebileceği anlaşılsın").
+ *
+ * 🚨 ESKİ HÂL ÖLÇÜLDÜ: başparmak `--border` idi ve açık temada beyaz kartın
+ * üzerinde kontrastı **≈1,2:1** (karanlıkta ≈1,6:1) — pratikte görünmüyordu.
+ * Ayrıca `::-webkit-scrollbar-track` kuralı HİÇ YAZILMAMIŞTI: Chromium'da
+ * `::-webkit-scrollbar` tanımlanır tanımlanmaz oluk özel çizime geçer ve
+ * SAYDAM kalır, yani ince gri bir çizgi boşlukta yüzüyordu — "kanal" hissi,
+ * dolayısıyla "burada kaydırılacak içerik var" afordansı yoktu. `:hover`
+ * durumu da yoktu.
+ *
+ * YENİ HÂL: başparmak `--muted-foreground` TAM OPAKLIKTA (iki temada da OKUNUR
+ * olması için özellikle hesaplanmış tek ikincil renk; açık 215 16% 47%,
+ * karanlık 215 22% 72% → 9,10:1), oluk `--muted` ile GERÇEK bir kanal.
+ *
+ * ⚠️ Bu bölüm bir kez YANLIŞ yazıldı ve inceleme turunda ölçülerek düzeltildi;
+ * iki hata da burada kayıtlı ki tekrarlanmasın:
+ *   (a) başparmağa `/ 0.5` alfa verilmişti → `--muted` oluk üzerinde kontrast
+ *       açık temada **1,90:1**, karanlıkta 2,85:1, yani WCAG 1.4.11'in
+ *       metin-dışı eşiği 3:1'in ALTINDA. Kurucunun "çok silik" şikâyeti o
+ *       değerle SÜRERDİ.
+ *   (b) `:hover` kuralı yazılmıştı ve ÖLÜ KODDU: Chromium'da `scrollbar-color`
+ *       non-`auto` iken `::-webkit-scrollbar-*` YOK SAYILIR, Firefox ise webkit
+ *       pseudo'larını hiç tanımaz. `scrollbar-color` da `:hover` kabul etmez.
+ * Aynı sebeple `width: 10px` ve `border`+`background-clip` da Chromium'da
+ * uygulanmaz; webkit bloğu YALNIZ Safari içindir.
+ *
+ * Sınıf adı `scrollbar-thin` KORUNDU. Uygulandığı yerler: panelin ASIL
+ * kaydırıcısı (`app-shell.tsx` `<main>` — kurucunun şikâyetinin geldiği ekran),
+ * gelen kutusu mesaj listesi ve QR sohbet kabı.
+ * ------------------------------------------------------------------------- */
+@layer utilities {
+  /* Firefox + Chrome 121+. İKİ renk alır (başparmak, oluk).
+     🚨 ALFA KULLANILMIYOR (inceleme turu düzeltmesi): ilk yazımda `/ 0.5` vardı
+     ve ÖLÇÜLDÜ — `--muted` oluk üzerinde kontrast açık temada **1,90:1**,
+     karanlıkta 2,85:1, yani WCAG 1.4.11'in metin-dışı eşiği 3:1'in ALTINDA.
+     Kurucunun şikâyeti ("çok silik") o değerle SÜRERDİ. Tam opaklıkta
+     `--muted-foreground` bu iş için özellikle hesaplanmış renktir (9,10:1). */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted));
+  }
+  /* ⚠️ Bu blok YALNIZ `scrollbar-color`ı DESTEKLEMEYEN tarayıcılar içindir
+     (Safari). Chromium'da `scrollbar-color`/`scrollbar-width` non-`auto` iken
+     `::-webkit-scrollbar-*` kuralları YOK SAYILIR — ilk yazımdaki "webkit
+     kuralları hover'ı ayrıca taşır" cümlesi bu yüzden YANLIŞTI ve `:hover`
+     fiilen ölü koddu (Firefox da webkit pseudo'larını tanımaz). Hover kuralı
+     kaldırıldı; yerine tam opak başparmak kondu. */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background-color: hsl(var(--muted));
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground));
+    border-radius: 9999px;
+  }
+}
+
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes aura-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(24px) scale(1.06); }
+}
+@keyframes cta-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+  50% { box-shadow: 0 0 0 6px hsl(var(--primary) / 0.12); }
+}
+
+/* Smooth in-page anchor scrolling (native, cheap). */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .hero-aura::after,
+  .cta-glow::after,
+  .badge-in {
+    animation: none !important;
+  }
+  .card-lift,
+  .cta-arrow svg:last-child {
+    transition: none !important;
+  }
+  .card-lift:hover,
+  .card-lift:focus-within {
+    transform: none !important;
+  }
+}
+
+/* ============================================================
+   Lixus building (landing hero, ≥xl) — the living-building scene.
+   Pure CSS by design: the component ships ZERO JS (server component),
+   so the landing's LCP pays nothing for the decoration. Everything is
+   theme-token driven except the warm window light, which is scoped
+   below. Prefix lxb- keeps these out of Tailwind's way.
+   ============================================================ */
+.lxb-stage {
+  --lxb-warm: 42 86% 62%;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 460px;
+  isolation: isolate;
+  animation: lxb-enter 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes lxb-enter {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+.lxb-scene { position: relative; width: 210px; height: 330px; perspective: 1100px; }
+.lxb-building {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(5deg) rotateY(-24deg);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lxb-stage:hover .lxb-building { transform: rotateX(3deg) rotateY(-14deg) translateY(-6px); }
+/* Front facade sits in the z=0 plane; the flank and roof hinge off its edges,
+   which is what makes the corner REAL (no clip-path fakery). */
+.lxb-front {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(5, 1fr) 52px;
+  gap: 13px 15px;
+  padding: 38px 22px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--card)) 94%, hsl(var(--primary)) 6%),
+    color-mix(in srgb, hsl(var(--card)) 85%, hsl(var(--primary)) 15%)
+  );
+  box-shadow: 0 30px 60px -30px hsl(222 47% 11% / 0.45);
+}
+.lxb-front::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 9px;
+  background: color-mix(in srgb, hsl(var(--primary)) 26%, hsl(var(--card)));
+  border-radius: 0 0 2px 2px;
+}
+.lxb-flank {
+  position: absolute;
+  top: 0; bottom: 0; left: 100%;
+  width: 56px;
+  transform-origin: left center;
+  transform: rotateY(90deg);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--primary)) 30%, hsl(var(--card))),
+    color-mix(in srgb, hsl(var(--primary)) 44%, hsl(var(--card)))
+  );
+  border-radius: 0 3px 0 0;
+}
+.lxb-flank::before {
+  content: "";
+  position: absolute;
+  inset: 38px 12px 12px;
+  background: repeating-linear-gradient(180deg, transparent 0 42px, hsl(var(--primary-foreground) / 0.14) 42px 44px);
+}
+.lxb-top {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 56px;
+  transform-origin: center top;
+  transform: rotateX(-90deg);
+  background: color-mix(in srgb, hsl(var(--primary)) 18%, hsl(var(--card)));
+  border-radius: 3px 3px 0 0;
+}
+/* Rooftop mast + slow aviation beacon: the "alive and on the air" cue. */
+.lxb-mast {
+  position: absolute;
+  top: -30px; left: 26%;
+  width: 3px; height: 30px;
+  background: hsl(var(--primary) / 0.85);
+  border-radius: 1.5px;
+}
+.lxb-beacon {
+  position: absolute;
+  top: -3px; left: -2px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--lxb-warm));
+  opacity: 0.3;
+  animation: lxb-beacon 5s ease-in-out infinite;
+}
+@keyframes lxb-beacon {
+  0%, 84%, 100% { opacity: 0.3; box-shadow: none; }
+  90% { opacity: 1; box-shadow: 0 0 8px hsl(var(--lxb-warm) / 0.6); }
+}
+/* Brand as architectural lettering on the facade (not a UI chip). */
+.lxb-lettering {
+  position: absolute;
+  top: 15px; left: 0; right: 0;
+  text-align: center;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  color: hsl(var(--primary) / 0.5);
+}
+.lxb-win {
+  border: 1px solid hsl(var(--border));
+  border-radius: 2.5px;
+  background: color-mix(in srgb, hsl(var(--muted)) 85%, hsl(var(--background)));
+  box-shadow: inset 0 1px 2px hsl(222 47% 11% / 0.05);
+}
+/* Steady evening lights: warm, STILL — the calm baseline. */
+.lxb-lit { background: hsl(var(--lxb-warm) / 0.4); border-color: hsl(var(--lxb-warm) / 0.5); }
+/* One window breathes very slowly — the building's pulse. */
+.lxb-breath { animation: lxb-breath 9s ease-in-out infinite; }
+.lxb-breath--late { animation-delay: 4.5s; }
+@keyframes lxb-breath {
+  0%, 100% { background: hsl(var(--lxb-warm) / 0.28); }
+  50% { background: hsl(var(--lxb-warm) / 0.5); }
+}
+/* The flat that got the message: lights up once per 13s story cycle. */
+.lxb-target { animation: lxb-target 13s ease-in-out infinite; }
+@keyframes lxb-target {
+  0%, 21% { background: color-mix(in srgb, hsl(var(--muted)) 85%, hsl(var(--background))); box-shadow: inset 0 1px 2px hsl(222 47% 11% / 0.05); }
+  27%, 66% { background: hsl(var(--lxb-warm) / 0.88); box-shadow: 0 0 12px hsl(var(--lxb-warm) / 0.35); }
+  76%, 100% { background: color-mix(in srgb, hsl(var(--muted)) 85%, hsl(var(--background))); box-shadow: inset 0 1px 2px hsl(222 47% 11% / 0.05); }
+}
+.lxb-door {
+  grid-column: 2 / span 2;
+  position: relative;
+  align-self: end;
+  height: 100%;
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in srgb, hsl(var(--primary)) 55%, hsl(var(--card)));
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.25);
+}
+.lxb-door::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: 6px; bottom: 0;
+  width: 1px;
+  background: hsl(var(--primary-foreground) / 0.28);
+}
+.lxb-door::after {
+  content: "";
+  position: absolute;
+  left: -8px; right: -8px; top: -7px;
+  height: 3px;
+  border-radius: 2px;
+  background: hsl(var(--primary) / 0.45);
+}
+.lxb-ground {
+  position: absolute;
+  left: 50%; bottom: 34px;
+  width: 240px; height: 26px;
+  transform: translateX(-54%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, hsl(222 47% 11% / 0.2), transparent 70%);
+  filter: blur(6px);
+  transition: transform 0.7s, opacity 0.7s;
+}
+.lxb-stage:hover .lxb-ground { transform: translateX(-54%) scale(0.94); opacity: 0.85; }
+/* The story, told by two skeleton-text bubbles (language-free). They live on a
+   FLAT layer anchored to the scene, outside the 3D transform, so they stay
+   crisp and readable. Guest gray in → target window glows → navy reply out. */
+.lxb-bubble {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 11px;
+  padding: 8px 11px;
+  opacity: 0;
+  pointer-events: none;
+}
+.lxb-lines { display: grid; gap: 4px; }
+.lxb-lines i { display: block; height: 4px; border-radius: 2px; }
+.lxb-in {
+  left: -52px; top: 37%;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  border-bottom-right-radius: 3px;
+  box-shadow: 0 10px 26px -14px hsl(222 47% 11% / 0.4);
+  animation: lxb-in 13s ease infinite;
+}
+.lxb-in .lxb-lines i { background: hsl(var(--muted-foreground) / 0.4); }
+.lxb-in .lxb-lines i:nth-child(1) { width: 52px; }
+.lxb-in .lxb-lines i:nth-child(2) { width: 34px; }
+@keyframes lxb-in {
+  0%, 15% { opacity: 0; transform: translateY(6px); }
+  20%, 44% { opacity: 1; transform: none; }
+  50%, 100% { opacity: 0; transform: translateY(-3px); }
+}
+.lxb-out {
+  left: -36px; top: 53%;
+  background: hsl(var(--primary));
+  border-bottom-right-radius: 3px;
+  box-shadow: 0 12px 28px -14px hsl(var(--primary) / 0.6);
+  animation: lxb-out 13s ease infinite;
+}
+.lxb-out .lxb-lines i { background: hsl(var(--primary-foreground) / 0.65); }
+.lxb-out .lxb-lines i:nth-child(1) { width: 44px; }
+.lxb-out .lxb-lines i:nth-child(2) { width: 56px; }
+.lxb-out svg { color: #4ade80; }
+@keyframes lxb-out {
+  0%, 42% { opacity: 0; transform: translateY(6px); }
+  48%, 72% { opacity: 1; transform: none; }
+  80%, 100% { opacity: 0; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lxb-stage, .lxb-beacon, .lxb-breath, .lxb-target, .lxb-in, .lxb-out { animation: none; }
+  .lxb-breath { background: hsl(var(--lxb-warm) / 0.4); }
+  .lxb-beacon { opacity: 0.85; }
+  .lxb-in { opacity: 1; }
+  .lxb-building, .lxb-ground { transition: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   ONBOARDING (Başlarken kartı) — ilerleme geri bildirimi.
+   Depo geleneği: animasyonlar burada, `lxb-*` bloğunun (landing binası) yanında;
+   CSS modülü ve animasyon kütüphanesi YOK. Yalnız transform/opacity → layout
+   kaymaz. Efektler YALNIZ "bu turda bir adım tamamlandı" olduğunda oynar
+   (bileşende `justAdvanced`), her sayfa yüklemesinde DEĞİL — sürekli oynayan
+   bir animasyon geri bildirim değil gürültüdür.
+--------------------------------------------------------------------------- */
+.lxo-bar { transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1); }
+.lxo-boost { animation: lxo-boost 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.lxo-pop { animation: lxo-pop 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.lxo-launch { animation: lxo-launch 1100ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes lxo-boost {
+  0% { transform: none; }
+  40% { transform: translateY(-4px); }
+  100% { transform: none; }
+}
+@keyframes lxo-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: none; }
+}
+/* 🚀 KALKIŞ — kurulum 6/6 olduğunda BİR KEZ oynar (mühür sayesinde bir daha
+   asla). Roket önce hafifçe çöker (yaylanma), sonra fırlar ve yerine oturur;
+   aynı anda kısa bir ışık halkası genişleyip söner. Kullanıcı "bitirince daha
+   havalı bir efekt" istedi — süre bilinçli olarak 1.1 sn'de tutuldu, panelin
+   ilk açılışını bekletmesin. */
+@keyframes lxo-launch {
+  /* Kullanıcının tarifi: "yerinden çıkıp gidiyor gibi". Önce çömelip yaylanıyor,
+     sonra yukarı fırlayıp kutunun DIŞINA çıkıyor ve gözden kayboluyor.
+     ⚠️ Roket geri GELMİYOR — `both` ile son kare korunuyor. Kurulum bitti,
+     rehber bir daha açılmayacak (kalıcı mühür); ikonun yerine dönmesi
+     "hâlâ buradayım" der ve kutlamanın anlamını bozardı. */
+  0%   { transform: none; opacity: 1; }
+  18%  { transform: translateY(5px) scale(0.9); opacity: 1; }
+  38%  { transform: translateY(-10px) scale(1.12) rotate(-8deg); opacity: 1; }
+  100% { transform: translateY(-64px) scale(0.55) rotate(-14deg); opacity: 0; }
+}
+/* KUTU yerinde kalır (başlıkta boşluk olmasın), UÇAN roketin KENDİSİDİR.
+   `overflow: visible` ŞART: roket kutunun dışına çıkıyor, kırpılırsa uçuş
+   yarıda kesilmiş görünür. Işık halkası kutunun ::after'ı — ek DOM düğümü yok. */
+.lxo-launch-box { position: relative; overflow: visible; }
+.lxo-launch-box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid hsl(var(--success));
+  animation: lxo-ring 900ms ease-out both;
+  pointer-events: none;
+}
+/* Roket çıktıktan SONRA yerine oturan tik — gecikme uçuşun sonuna denk gelir. */
+.lxo-check { animation: lxo-check 400ms cubic-bezier(0.16, 1, 0.3, 1) 700ms both; }
+@keyframes lxo-check {
+  0%   { transform: scale(0.4); opacity: 0; }
+  70%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes lxo-ring {
+  0%   { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lxo-boost, .lxo-pop, .lxo-launch, .lxo-check { animation: none; }
+  /* Halka ve uçan roket ayrı animasyonlar — üstteki kural onları KAPSAMAZ.
+     Hareket kapalıyken roket YERİNDE kalır (uçup kaybolmaz) ve tik görünür. */
+  .lxo-launch-box::after { animation: none; opacity: 0; }
+  .lxo-launch { animation: none; opacity: 1; transform: none; }
+  .lxo-check { opacity: 1; transform: none; }
+  .lxo-bar { transition: none; }
+}
+
+/* Toast girişi — `fade-up` keyframe'i zaten vardı ama hiç kullanılmıyordu:
+   bildirimler ekrana SERT pop ediyordu. Reduced-motion bloğu aşağıda. */
+.lxt-in { animation: fade-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .lxt-in { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   KARANLIK MOD — TOKEN'LA ÇÖZÜLEMEYEN İKİ DÜZELTME.
+   Bunlar `dark:` sınıfı eklenerek çözülemez çünkü CSS dosyasının içindeler.
+   ⚠️ İkisi de `.dark` ile KAPSANMIŞ — açık modda hiçbir kural değişmiyor.
+--------------------------------------------------------------------------- */
+
+/* ⚠️ `card-lift` için karanlık gölge OVERRIDE'I YAZILDI ve SİLİNDİ (08-07 (2)).
+   Gerekçe: sınıf YALNIZ `marketing/` altında kullanılıyor (7 yer) ve landing
+   hiçbir zaman karanlık olmuyor → kural asla ateşlenemezdi. `nav-scrolled`ı tam
+   bu sebeple dışarıda bırakmıştım, sonra aynı kapsamdaki bir sınıf için override
+   yazdım. Panelde bir gün `card-lift` kullanılırsa override GEREKECEK: gölge
+   `--foreground`a bağlı ve karanlıkta beyaz bir PARILTIYA döner. */
+
+/* ✨ STAT SATIRI GİRİŞİ — panel açılışında dört kutucuk sırayla oturur.
+   ⚠️ `opacity: .55`'ten BAŞLAR, 0'dan DEĞİL: sayılar ilk kareden itibaren
+   OKUNABİLİR, yani bu efekt algılanan ilk boyamayı GECİKTİRMEZ. Süre kısa
+   (260 ms) ve gecikmeler 40 ms — "havalı ama abartısız" (kullanıcı isteği). */
+.lxp-in { animation: lxp-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.lxp-in:nth-child(2) { animation-delay: 40ms; }
+.lxp-in:nth-child(3) { animation-delay: 80ms; }
+.lxp-in:nth-child(4) { animation-delay: 120ms; }
+@keyframes lxp-in {
+  from { opacity: 0.55; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lxp-in { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   YÜKLENİYOR İSKELETİ (lxs-*).
+   ⚠️ Tailwind'in `animate-pulse`'ı BU DEPODA reduced-motion kaçışı OLMAYAN tek
+   animasyondu (`tailwind.config.ts` `animation`i genişletmiyor = stok davranış,
+   ve buradaki hiçbir `prefers-reduced-motion` bloğu onu adlandırmıyor). Yani
+   altı iskelet, hareket istemediğini söylemiş kullanıcıda da nabız atıyordu.
+--------------------------------------------------------------------------- */
+
+/* Nabız — YALNIZ opacity. İKİ TEMADA DA DOĞRU olmasının sebebi bu: parlayan bir
+   "shimmer" bandı açık modda beyaza doğru süpürür ve doğru görünür, ama
+   karanlıkta `--muted` (%18 L) zaten ZEMİNDEN (`--card` %13) AÇIK bir bloktur →
+   üzerine açık bir bant sürmek panelde el feneri gibi durur. Opaklık ise bloğu
+   ARKASINDAKİ yüzeye doğru soldurur; hangi tema olursa olsun doğru yönde. */
+.lxs-pulse { animation: lxs-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes lxs-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* GECİKMELİ GİRİŞ — "80 ms'lik iskelet parlaması" tuzağının JS'siz çözümü.
+   `both` dolgu kipi, 120 ms'lik GECİKME boyunca `from` durumunu (opacity 0)
+   uygular. Geçiş 120 ms'den önce biterse fallback görünür hâle gelmeden sökülür:
+   kullanıcı hiçbir şey görmez. Yavaş geçişlerde yumuşak açılır. */
+.lxs-in { animation: lxs-in 200ms ease-out 120ms both; }
+@keyframes lxs-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lxs-pulse { animation: none; opacity: 0.85; }
+  /* Nabız susar AMA gecikme KALIR (1 ms'lik geçiş = algılanan animasyon yok).
+     `animation: none` yazmak iskeleti anında geri getirir ve parlama tuzağını
+     tam da onu en az isteyen kullanıcıya geri verirdi. */
+  .lxs-in { animation: lxs-in 1ms linear 120ms both; }
+}

@@ -1,0 +1,273 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
+import { registerSchema, zodFieldErrors } from "@/lib/validators";
+import { hashPassword } from "@/lib/auth/password";
+import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
+import { rateLimit, clientIp, rateLimitClientKey } from "@/lib/rate-limit";
+import { emailService } from "@/lib/email";
+import { reportError } from "@/lib/report-error";
+import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
+import {
+  emailOutboxEnabled,
+  enqueueIdentityEmail,
+  kickEmailOutboxDrain,
+  accountExistsEmailHtml,
+} from "@/lib/email-outbox";
+import { newTrialSubscriptionData } from "@/lib/billing/subscription";
+import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
+import { resolveNewOrgTimezone } from "@/lib/app-config";
+import { normalizeEmail } from "@/lib/email-identity";
+import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
+
+// ⚠️ İKİ DAL DA BU GÖVDEYİ DÖNER — sabit tek yerde tutuluyor ki zamanla
+// AYRIŞMASINLAR. Sağlayıcı arızasında "yeni hesap" dalı 503, "hesabı var" dalı
+// 201 dönseydi, arızayı bekleyen bir saldırgan için bu tek başına bir varlık
+// oracle'ı olurdu. Metnin "hesabınız oluşturuldu" demesi mevcut-hesap dalında
+// teknik olarak yanlış ama BİLİNÇLİ: enumeration koruması zaten o dalda sahte
+// bir başarı cevabı vermeye dayanıyor.
+const SEND_FAILED_503 = {
+  error:
+    "Hesabınız oluşturuldu ancak doğrulama e-postası şu anda gönderilemedi. Lütfen birkaç dakika sonra giriş sayfasından “doğrulama e-postasını yeniden gönder” ile tekrar deneyin.",
+  accountCreated: true,
+  verifyEmailFailed: true,
+} as const;
+
+export async function POST(req: NextRequest) {
+  try {
+    // SECURITY: public sign-up is CLOSED by default. While the app shares a single
+    // Hospitable token, a new org would sync the owner's Airbnb data — so no one
+    // else may create an account until per-org channel connections exist. Flip
+    // REGISTRATION_OPEN=1 only when the product is truly multi-tenant.
+    if (process.env.REGISTRATION_OPEN !== "1") {
+      return NextResponse.json({ error: "Yeni kayıtlar şu anda kabul edilmiyor. Lütfen daha sonra tekrar deneyin." }, { status: 403 });
+    }
+
+    // Capture the request context ONCE — reused both for the per-IP throttle and
+    // for the KVKK consent-evidence record persisted below. clientIp() walks the
+    // X-Forwarded-For chain from the RIGHT (a client can only prepend, so this is
+    // not spoofable), stepping back `TRUSTED_PROXY_HOPS` hops — on Railway the
+    // correct value is 2 and the default is 1, so until that env is set this
+    // records Railway's edge address rather than the customer's (known limit;
+    // rows written before the flag are deliberately NOT rewritten — you don't
+    // retro-edit an evidence record). The User-Agent is attacker-controlled free
+    // text, so it's length-capped and stored only as an informational record.
+    const ip = clientIp(req);
+    const userAgent = req.headers.get("user-agent")?.slice(0, 512) ?? null;
+
+    // 🚨 JSON KONTROLÜ IP KOVASINDAN ÖNCE (09-23; `login` rotasının F8 emsali, gerekçe
+    // `hasJsonContentType`te): başka bir site ziyaretçinin tarayıcısından `text/plain`
+    // POST'larla (preflight YOK) bir ofis/mobil NAT'ının kovasını yakıp orayı bu akıştan
+    // dakikalarca dışarıda bırakabiliyordu. Kendi formlarımız hep `application/json` yollar.
+    if (!hasJsonContentType(req)) return unsupportedMediaType();
+
+    // Throttle sign-ups per IP: 5 / hour (anti-spam / abuse).
+    const limited = await rateLimit(`register:${rateLimitClientKey(req)}`, 5, 60 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
+      );
+    }
+
+    const bodyResult = await parseJsonBody<{ consent?: unknown; timezone?: unknown }>(req);
+    if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
+    const data = bodyResult.ok ? bodyResult.data : null;
+    const parsed = registerSchema.safeParse(data);
+    if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
+
+    // KVKK: explicit, informed consent to the Terms + Privacy Policy is required
+    // to register (backs the "kaydolarak kabul edersiniz" claim with a real
+    // record). The client disables submit until checked; enforce it server-side.
+    if (data?.consent !== true) {
+      return badRequest({
+        consent: "Devam etmek için lütfen Kullanım Koşulları ve Gizlilik Politikası'nı kabul edin.",
+      });
+    }
+
+    const email = normalizeEmail(parsed.data.email);
+    // 🚨 HESAP VARLIĞI SIZDIRILMAZ (Codex denetimi, 08-01 — madde 4).
+    //
+    // Eskiden "Bu e-posta adresi zaten kayıtlı" 400'ü dönüyordu. Giriş, şifre
+    // sıfırlama ve doğrulama-tekrar yollarının HEPSİ enumeration-korumalıyken
+    // tek kalan sızıntı buydu: saldırgan hedef adresi gönderip hesabın VARLIĞINI
+    // kesinleştiriyor, parola püskürtme öncesi hedef listesi çıkarıyordu.
+    //
+    // Artık YENİ kayıtla BİREBİR aynı yanıt döner ve HİÇBİR ŞEY yazılmaz —
+    // mevcut kullanıcının şifresi, doğrulama durumu ve tokenı DOKUNULMADAN kalır.
+    //
+    // ⚠️ ZAMANLAMA PARİTESİ ŞART: normal yol bir bcrypt (yavaş) harcıyor. Erken
+    // dönseydik yanıt gözle görülür biçimde hızlı olur ve gövde aynı olsa bile
+    // varlık YİNE sızardı. Bu yüzden aynı maliyet burada da ödenir — giriş
+    // rotasındaki `dummyVerifyPassword` emsalinin ta kendisi.
+    //
+    // ⚠️ KABUL EDİLEN UX BEDELİ: hesabı olduğunu unutan gerçek bir kullanıcı
+    // "kutunuzu kontrol edin" görür ama e-posta almaz. Standart çözüm "zaten
+    // hesabınız var" e-postasıdır — YENİ bir müşteri e-postası türü, yani ürün +
+    // e-posta akışı kararı → `docs/MIGRATION-BEKLEYEN-ISLER.md`'ye soru olarak
+    // yazıldı, tek başıma eklemiyorum. Bugünkü kaçış yolu: giriş sayfasındaki
+    // "doğrulama e-postasını yeniden gönder".
+    // 🚨 ADRES BAŞINA BİLDİRİM KOVASI — HER İKİ DALDA ve `findUnique`'ten ÖNCE
+    // tüketilir. Sebebi ince: kova yalnız "hesabı var" dalında tüketilseydi,
+    // sayacın kendisi hesabın varlığını sızdırırdı. Verdict SADECE "bildirim
+    // gönderilsin mi" kararına girer — 429 ÜRETMEZ, yanıtı DEĞİŞTİRMEZ.
+    //
+    // İki katman: 4/15dk kardeş rotalarla (`verify-resend-acct`, `forgot-req`)
+    // birebir aynı; 3/24s ise buna özel. Gerekçe: bu bildirim kullanıcının KENDİ
+    // istemediği bir maildir, saldırgan tetikler → günde 16 kopya saf tacizdir.
+    // IP kovası tek başına yetmez, saldırgan IP döndürür.
+    const notifyBurst = await rateLimit(`register-exists:${email}`, 4, 15 * 60 * 1000);
+    const notifyDaily = await rateLimit(`register-exists-day:${email}`, 3, 24 * 60 * 60 * 1000);
+    const mayNotify = notifyBurst.ok && notifyDaily.ok;
+
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      await hashPassword(parsed.data.password); // zamanlama paritesi — sonuç atılır
+      // Adres sahibine "bu adresle bir hesabın var" bildirimi. Yanıt DEĞİŞMEZ.
+      //
+      // 🚨 BAYRAK PARİTESİ ZORUNLU: bu dal, yeni-hesap dalıyla AYNI kola girmek
+      // ZORUNDA. Bayrak AÇIKKEN yeni-hesap dalı istek içinde sağlayıcıya HİÇ
+      // gitmiyor (yalnız kuyruğa yazıyor); buraya doğrudan bir gönderim koymak o
+      // dalı Resend gecikmesi kadar (tavan 15 sn) yavaşlatır ve süreyi ölçen bir
+      // saldırgana hesabın varlığını okutur — 08-06'da şifre sıfırlamada
+      // kapatılan 362 ms'lik yan kanalın katbekat büyüğü.
+      //
+      // 🚨 AYRI BİR `kind` ŞART, `verify_email` KULLANILAMAZ: `enqueueIdentityEmail`
+      // aynı (userId, kind) çiftinin bekleyen satırlarını İPTAL EDER → saldırgan
+      // buraya istek atarak kurbanın GERÇEK doğrulama mailini iptal ettirebilirdi.
+      if (mayNotify) {
+        if (emailOutboxEnabled()) {
+          await prisma.$transaction((tx) =>
+            enqueueIdentityEmail(tx, {
+              userId: existing.id,
+              kind: "account_exists",
+              // Bu türün sırrı YOK; alan sözleşme gereği zorunlu.
+              secret: "",
+              recipient: email,
+              expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+            }),
+          );
+          kickEmailOutboxDrain();
+        } else {
+          const notified = await emailService.sendReporting(
+            email,
+            "Lixus AI — Bu adresle zaten bir hesabınız var",
+            accountExistsEmailHtml(),
+          );
+          if (!notified.ok) {
+            void reportError(
+              "auth.register.account_exists_notice",
+              new Error(notified.error ?? "email send failed"),
+            );
+            // ↑Yeni-hesap dalıyla BİREBİR aynı gövde — ayrışırsa oracle olur.
+            return NextResponse.json(SEND_FAILED_503, { status: 503 });
+          }
+        }
+      }
+      return jsonOk({ ok: true, verifyEmail: true }, 201);
+    }
+
+    // Operating timezone for the new org — it drives report day boundaries,
+    // automated-message hour windows and the QR concierge's open-hours gate.
+    //
+    // The sign-up form posts the browser's own IANA zone, but the SERVER decides
+    // whether that hint is worth anything: resolveNewOrgTimezone honors it only on
+    // a deployment that opted in (APP_TRUST_BROWSER_TIMEZONE), and otherwise uses
+    // the deployment default. On .com the flag is off by design — every customer
+    // is a Turkish host with Turkish properties, so the browser can only introduce
+    // a wrong answer (signing up from abroad) with nothing to gain. The client
+    // keeps REPORTING the zone either way; trusting it is a deployment decision,
+    // so opening .eu needs an env change and no client change.
+    //
+    // Read OUTSIDE registerSchema on purpose — like `consent` — so a browser
+    // reporting an odd zone can never turn into a 400 that blocks a sign-up.
+    const timezone = resolveNewOrgTimezone(data?.timezone);
+
+    const passwordHash = await hashPassword(parsed.data.password);
+    const { raw, hash } = makeVerifyToken();
+    const verifyExpiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+    // 🚨 YARIŞ: yukarıdaki "var mı" okuması ile bu ekleme arasında ~300 ms'lik hash var. Aynı
+    // YENİ e-postayla iki eşzamanlı istek ikisi de "yok" görür; ikincisi `User.email`
+    // eşsizliğine (P2002) çarpar. Eskiden genel `catch` → 500 + `reportError("api")` = ALARM
+    // E-POSTASI (hesabı olmayan herkes tetikleyebiliyordu; "api" bağlamı tüm rotalarla ortak).
+    // Kaybeden istek var-olan-hesap dalıyla BİREBİR aynı 201'i alır (numaralandırma kâhini
+    // doğmaz); TX geri alındığı için yetim org/abonelik kalmaz. Yalnız TAM OLARAK `email`
+    // ihlali yutulur — başka bir eşsizlik ihlali eskisi gibi alarm üretir.
+    try {
+      await prisma.$transaction(async (tx) => {
+        const org = await tx.organization.create({
+          data: { name: parsed.data.organizationName, timezone, ...NEW_ORG_AUTO_REPLY_WINDOW },
+        });
+        // One checkbox covers Terms + Privacy, so both acceptances share the same
+        // instant. Version + IP + UA make the consent record defensible against a
+        // later "I never accepted" dispute (which text, when, from where).
+        const acceptedAt = new Date();
+        const user = await tx.user.create({
+          data: {
+            organizationId: org.id,
+            name: parsed.data.name,
+            email,
+            passwordHash,
+            role: "owner",
+            acceptedTermsAt: acceptedAt,
+            privacyAcceptedAt: acceptedAt,
+            acceptedLegalVersion: LEGAL_VERSION,
+            acceptedLegalTextHash: LEGAL_TEXT_HASH,
+            acceptedIp: ip,
+            acceptedUserAgent: userAgent,
+            emailVerifyTokenHash: hash,
+            emailVerifyExpiresAt: verifyExpiresAt,
+          },
+        });
+        // Start the reverse-trial: full Pro free for 14 days (no card). Harmless
+        // while billing is dormant — counts as active until BILLING_ENFORCED is on.
+        await tx.subscription.create({
+          data: { organizationId: org.id, ...newTrialSubscriptionData() },
+        });
+        // Durable outbox (Tur-4, flag ON): the verification send-intent joins THIS
+        // transaction, so 201 ⟺ account + verify-hash + outbox row committed
+        // together — a "mail kuyrukta" 201 can never lie about a half-created
+        // state, and a provider outage no longer 503s the registration.
+        if (emailOutboxEnabled()) {
+          await enqueueIdentityEmail(tx, {
+            userId: user.id,
+            kind: "verify_email",
+            secret: raw,
+            recipient: email,
+            expiresAt: verifyExpiresAt,
+          });
+        }
+        return { org, user };
+      });
+    } catch (err) {
+      if (isUniqueViolation(err, ["email"])) return jsonOk({ ok: true, verifyEmail: true }, 201);
+      throw err;
+    }
+
+    if (emailOutboxEnabled()) {
+      kickEmailOutboxDrain();
+      return jsonOk({ ok: true, verifyEmail: true }, 201);
+    }
+
+    // No auto-login: the account stays inert until the inbox is confirmed (anti-bot).
+    // The verification email is sent OUTSIDE the DB transaction (a slow/failed
+    // provider must never roll back or block the account write), and we CHECK the
+    // result — NOT fire-and-forget. On failure: keep the account (its verify token is
+    // valid → the user can request a resend), page ops (reportError), and return a
+    // secret-free 503 — never a false 201 that promises "check your inbox" when
+    // nothing was sent. We do NOT delete the account on a provider error.
+    const sent = await emailService.sendReporting(
+      email,
+      "Lixus AI — E-postanızı doğrulayın",
+      verifyEmailHtml(verifyUrl(raw)),
+    );
+    if (!sent.ok) {
+      void reportError("auth.register.verify_email", new Error(sent.error ?? "email send failed"));
+      return NextResponse.json(SEND_FAILED_503, { status: 503 });
+    }
+    return jsonOk({ ok: true, verifyEmail: true }, 201);
+  } catch (err) {
+    return serverError(undefined, err);
+  }
+}

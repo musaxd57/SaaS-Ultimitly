@@ -1,0 +1,253 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { FlaskConical, Loader2, X, Check, Clock } from "lucide-react";
+
+interface Preview {
+  guestIdentifier: string;
+  propertyName: string;
+  wouldSend: boolean;
+  reply: string | null;
+  confidence: number | null;
+  reason: string | null;
+}
+
+/**
+ * Dry-run the channel auto-reply and show what the AI WOULD send — without
+ * sending anything. Lets the user judge quality before enabling the live night
+ * auto-reply.
+ */
+export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [previews, setPreviews] = useState<Preview[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // Modal contract (Codex 07-24 #8 — same pattern as the mobile drawer in
+  // app-shell): body scroll-lock + Escape close + focus move-in/trap/restore.
+  // role="dialog" aria-modal alone announces a modal without behaving like one.
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden"; // arkaplan modal altında kaymasın
+    const prevFocus = document.activeElement as HTMLElement | null;
+    // Cleanup uses the trigger captured when the effect RAN (ref.current may
+    // have changed by cleanup time — same lint rule as the drawer).
+    const trigger = triggerRef.current;
+    dialogRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      // Focus trap: Tab cycles inside the dialog (keyboard/screen-reader users
+      // never land on the inert background).
+      const root = dialogRef.current;
+      if (!root) return;
+      const focusables = root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === root)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      // Focus restore. `prevFocus` TEK BAŞINA yetmez: modal `runTest()` içinden
+      // açılıyor ve orada önce `setBusy(true)` çalışıyor → tetikleyici
+      // `disabled` oluyor → tarayıcı odağı <body>'ye atıyor. Yani effect
+      // koştuğunda `document.activeElement` zaten <body> idi ve `?? trigger`
+      // yedeğine HİÇ ulaşılmıyordu; kapanışta `body.focus()` çağrılıp odak
+      // sayfanın başına düşüyordu. Artık <body> gerçek bir hedef sayılmıyor.
+      const restore =
+        prevFocus && prevFocus !== document.body && prevFocus.isConnected ? prevFocus : trigger;
+      restore?.focus?.();
+    };
+  }, [open]);
+
+  async function runTest() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/hospitable/auto-reply-test", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setPreviews(data.previews as Preview[]);
+        setOpen(true);
+      } else {
+        setError(data.error ?? "Önizleme başarısız oldu.");
+        setOpen(true);
+      }
+    } catch {
+      setError("İstek gönderilemedi.");
+      setOpen(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const willSend = previews?.filter((p) => p.wouldSend) ?? [];
+  // Yalnız teşekkür/kapanış: hiçbir şey gönderilmez VE ev sahibine de iş kalmaz (kurucu kuralı 09-25) — "size bırakılır"
+  // listesine girmez, ayrı bir satırda sayılır. Açık konu olabilen kapanış (`closing_ack_open`: teklif kabulü, devir,
+  // bekleyen soru) misafire yine cevap almaz ama ev sahibine BIRAKILIR → o listede görünür.
+  const noReplyNeeded = previews?.filter((p) => !p.wouldSend && p.reason === "closing_ack") ?? [];
+  const willWait = previews?.filter((p) => !p.wouldSend && p.reason !== "closing_ack") ?? [];
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={runTest}
+        disabled={busy || locked}
+        title={
+          locked
+            ? "Aboneliğiniz aktif değil — açmak için Ayarlar'dan bir plan seçin."
+            : "Oto-yanıtın şu an ne göndereceğini göster — hiçbir şey gönderilmez (test)."
+        }
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-muted-foreground")}
+      >
+        {busy ? (
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <FlaskConical className="size-4" aria-hidden="true" />
+        )}
+        {busy ? "Hazırlanıyor…" : "Oto-yanıt testi"}
+      </button>
+
+      {open ? (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 dark:bg-black/60 p-4 sm:p-8"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Oto-yanıt testi (önizleme)"
+            tabIndex={-1}
+            className="mt-8 w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card shadow-xl outline-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <div>
+                <h2 className="text-sm font-semibold">Oto-yanıt testi (önizleme)</h2>
+                <p className="text-xs text-muted-foreground">
+                  Hiçbir mesaj gönderilmedi — sadece AI&apos;ın ne göndereceği gösteriliyor.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-accent"
+                aria-label="Kapat"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Kaydırılabilir ama İÇİNDE tek bir odaklanabilir öğe yok (yalnız
+                p/section/div/span). Odak modal kökünde durduğu ve gövde
+                scroll-lock'lu olduğu için 60vh'nin altında kalan önizlemeler
+                fare olmadan HİÇ okunamıyordu. tabIndex={0} kutuyu klavyeyle
+                odaklanabilir yapar → ok tuşlarıyla kaydırılır; role+ad da onu
+                gezinilebilir bir bölge yapar. */}
+            <div
+              tabIndex={0}
+              role="group"
+              aria-label="Önizleme listesi"
+              className="max-h-[60vh] space-y-4 overflow-y-auto px-5 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            >
+              {error ? (
+                <p className="text-sm text-destructive">{error}</p>
+              ) : previews && previews.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Cevap bekleyen (misafirin son yazdığı) konuşma yok. Önce &quot;Mesajları çek&quot;e basın.
+                </p>
+              ) : (
+                <>
+                  {willSend.length > 0 ? (
+                    <section className="space-y-2">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        <Check className="size-3.5" /> AI bunları otomatik gönderir ({willSend.length})
+                      </p>
+                      {willSend.map((p) => (
+                        <div key={`${p.propertyName}|${p.guestIdentifier}`} className="rounded-lg border border-emerald-200 dark:border-emerald-500/25 bg-emerald-50/50 dark:bg-emerald-500/10 p-3">
+                          <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{p.guestIdentifier}</span>
+                            {p.propertyName ? <span>· {p.propertyName}</span> : null}
+                            {p.confidence != null ? (
+                              <span className="ml-auto">%{Math.round(p.confidence * 100)} emin</span>
+                            ) : null}
+                          </div>
+                          <p className="whitespace-pre-wrap text-sm">{p.reply}</p>
+                        </div>
+                      ))}
+                    </section>
+                  ) : null}
+
+                  {noReplyNeeded.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Cevap gerekmeyenler (yalnız teşekkür/kapanış): {noReplyNeeded.length} — yapay zekâ cevap yazmaz. Kısa
+                      teşekkür cevabı ayarınız açıksa yalnız o gider.
+                    </p>
+                  ) : null}
+
+                  {willWait.length > 0 ? (
+                    <section className="space-y-2">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                        <Clock className="size-3.5" /> Bunlar size bırakılır ({willWait.length})
+                      </p>
+                      {willWait.map((p) => (
+                        <div key={`${p.propertyName}|${p.guestIdentifier}`} className="rounded-lg border border-border bg-muted/30 p-3">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{p.guestIdentifier}</span>
+                            {p.propertyName ? <span>· {p.propertyName}</span> : null}
+                            <span className="ml-auto">{reasonLabel(p.reason)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </section>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function reasonLabel(reason: string | null): string {
+  switch (reason) {
+    case "low_confidence_or_risky":
+      return "emin değil / riskli";
+    case "complaint":
+      return "şikayet";
+    case "already_answered":
+      return "zaten cevaplandı";
+    // Kapanışa sessizlik (kurucu kuralı 09-25): yalnız teşekkür/onay — hiçbir şey gönderilmez, elle cevap da GEREKMEZ.
+    case "closing_ack":
+      return "cevap gerekmedi";
+    case "closing_ack_open":
+      return "teşekkür etti — açık konu olabilir";
+    default:
+      return "elle cevap";
+  }
+}

@@ -1,0 +1,151 @@
+// ---------------------------------------------------------------------------
+// "BİLGİM YOK" MİSAFİRE GİTMEZ — KURUCU KURALI (09-11).
+//
+// Kurucu: *"müşteriye hiçbir zaman 'bilgim yok' mesajı gitmemeli; bilgi yoksa da
+// cevap gitmemeli. Host neden 'bilgim yok' mesajı göndersin ki?"*
+//
+// Haklı ve ölçüldü: o cevabın İKİ parçası var —
+//   ① "bu bilgi bende yok"                       → misafire hiçbir işe yaramıyor
+//   ② "mesajınız kaydedildi, ev sahibiniz görebilir" → zaten DEVİR metninin kendisi
+// Yani model, devir metnini taklit edip başına işe yaramaz bir cümle ekliyordu.
+// Devretmek hem misafir için daha iyi hem host için AYNI sonuç.
+//
+// 🚨 İSTEM KURALI KALDIRILMADI — bilinçli. `prompts.ts` KURAL-3/KURAL-5 modele
+// "temellendiremediğinde kayıtlı bilgin olmadığını söyle" diyor ve o kural
+// UYDURMAYI ENGELLEMEK için var. Silinseydi model temellendiremediğinde bir şey
+// UYDURURDU — işe yaramaz bir cevaptan çok daha kötü. Kural istemde kalır (model
+// dürüst davranmaya devam eder), gönderim kapısı burada kapanır. Ayrıca bu,
+// fail-safe'i doğru yöne kurar: kapı bir gün delinirse misafir BOZUK bir belirteç
+// değil, dürüst bir cümle görür.
+//
+// 🚨 ÖLÇÜT "KAYNAK YOK" DEĞİL, CEVABIN KENDİ İTİRAFIDIR. `usedSources` yalnız KB
+// kalemlerini sayar; giriş/çıkış saati MÜLK ALANINDAN gelir ve o cevap kaynaksız
+// göründüğü hâlde DAYANAKLIDIR. "Kaynak yoksa devret" deseydik ürünün EN SIK
+// sorusunu ("Giriş saati kaçta?") kırardık — test-pinli.
+//
+// ⚠️ SAVUŞTURMA YOKLUK İTİRAFI DEĞİLDİR: "ev sahibinizle iletişime geçebilirsiniz"
+// bilginin kayıtlarda olmadığını SÖYLEMEZ. Bu ayrım bilinçli — sözleşme yalnız
+// AÇIK yokluk beyanını yakalar, kapıyı gereksiz yere geniş tutmaz.
+//
+// ---------------------------------------------------------------------------
+// 🚨 YENİDEN YAZILDI (09-11, inceleme ajanı + bağımsız doğrulama). İlk sürüm
+// düz kalıp listesiydi ve İKİ YÖNDE DE ölçülerek kırıldı (9/9 ve 15/15 üretildi):
+//
+//   YANLIŞ POZİTİF 18/67 (%27) — işe yarayan cevap misafire GİTMİYORDU:
+//     · `\bno` sağ sınırı YOKTU → "**No**thing extra is needed; the information…",
+//       "**No**te: all the check-in information…", "**No**body else has the details…",
+//       "no worries — the parking details…", "no extra charge; the information pack…"
+//     · `not listed` çıplaktı → "The pool is **not listed** as closed, it is open 09:00-20:00."
+//     · `kayıtlı${GAP}bilgi` OLUMLU bir Türkçe kalıptır →
+//       "**Kayıtlı** rezervasyon **bilgi**leriniz doğru."
+//
+//   KAÇAK 29/38 — modelin gerçekte yazdığı yokluk ifadelerinin ÇOĞU geçiyordu:
+//     "Bu detay bende kayıtlı değil" · "…bir kayıt göremiyorum" · "…bulamadım" ·
+//     "Kayıtlarımda bu detay görünmüyor" · "I couldn't locate that detail" ·
+//     "I'm not able to find that" · "There are **no records**" (yalnız tekil `record`
+//     yazılıydı) · "I don't have that **detail**" (yalnız çoğul `details`) ·
+//     "I **didn't** have any information" (yalnız don't/doesn't).
+//
+// Yeni yapı KALIP LİSTESİ DEĞİL, **NESNE + OLUMSUZLAMA** dilbilgisidir: bir BİLGİ
+// NESNESİ (bilgi/kayıt/veri/not/detay/belge · information/record/detail/data/note)
+// ile bir YOKLUK YÜKLEMİ arasındaki mesafe SINIRLI. Böylece hem sınıf kapanıyor
+// hem yanlış pozitifler yapısal olarak eleniyor.
+// ---------------------------------------------------------------------------
+
+import { foldTurkishLower, foldTurkishLowerTr } from "./fallback";
+
+/**
+ * 🚨 CÜMLE SINIRI BOŞLUĞU KESER. Ölçüldü: boşluk cümleleri aşınca
+ * "There is no smoking. Details are in the rules." yokluk itirafı sayılıyordu.
+ * Sınır = nokta/ünlem/soru + BOŞLUK; "15.00" (Türkçe saat yazımı) BÖLÜNMEZ çünkü
+ * noktadan sonra boşluk yok — ilk sürümün `[^.!?\n]` sınıfı tam tersini yapıyor ve
+ * "I don't have the **15.00** check-in information" cümlesini KAÇIRIYORDU.
+ * ⚠️ Bilinen sınır: "Mr. Yilmaz" gibi kısaltmalar cümle sonu sayılır (pinli).
+ */
+const SENTENCE_END = /([.!?])(\s|$)/gu;
+// 🚨 KAÇIŞ DİZİSİ (09-23): burada eskiden HAM bir NUL baytı vardı — git ve grep dosyayı
+// “ikili” sayıp diff'ini gizliyor, kaynak taramalı pinler onu SESSİZCE atlıyordu. Değer aynı.
+const SEP = "\u0000";
+
+/**
+ * Boşluktaki TEK BİR KELİME. Noktalama (`;` `,` `:` `—` ve cümle sınırı `SEP`)
+ * BİLEREK dışarıda: "no extra charge**;** the information" bu yüzden eşleşmez.
+ * Nokta/kesme/tire içeride ki "15.00" ve "check-in" tek kelime sayılsın.
+ */
+const W = "[\\p{L}\\p{N}.'’-]+";
+/** Sol kelime sınırı — `\b` Türkçe "ı/ş/ğ" için güvenilir değil. */
+const L = "(?<![\\p{L}\\p{N}])";
+const gap = (n: number) => `(?:${W} ){0,${n}}`;
+
+// ── Türkçe: BİLGİ NESNESİ ──────────────────────────────────────────────────
+// Çekim serbest (bilgim · bilgisi · bilgiye · kayıtlarımda · kaydım · detaylar).
+// 🚨 `bilgisayar` DIŞLANIR (bilgi + sayar); `veri` ve `not` yalın hâlde ki
+// "veriyorum" ve İngilizce "not" nesne sanılmasın.
+const TR_OBJ =
+  `${L}(?:bilgi(?!sayar)\\p{L}*|kay[ıi]t\\p{L}*|kayd\\p{L}*|veri|not|detay\\p{L}*|belge\\p{L}*)`;
+/**
+ * 🚨 DAR yüklem: `yok` NESNEYE BİTİŞİK olmalı (en fazla 1 kelime arayla).
+ * Gerekçe ÖLÇÜLDÜ: "sorun yok" / "görevli yok" Türkçenin en yaygın nezaket
+ * kapanışlarındandır — geniş boşlukla "Bu **bilgi** rehberde var, **sorun yok**."
+ * ve "Otopark **bilgisi**: ücretsiz, kapıda görevli **yok**." yokluk itirafı
+ * sayılıyordu. `yoktur` da sayılır, `yokluğu` SAYILMAZ (sağ sınır).
+ */
+const TR_TIGHT = `yok(?:tur)?(?![\\p{L}])`;
+/** Bunlar tek başına yokluk bildirir → boşluk daha geniş olabilir. */
+const TR_LOOSE =
+  "(?:bulunmuyor|bulunmamakta(?:dır)?|mevcut değil|kayıtlı değil|bulamadım|bulamıyorum|" +
+  "göremiyorum|göremedim|görünmüyor|erişimim yok|sahip değilim)";
+
+// ── İngilizce: BİLGİ NESNESİ (tekil VE çoğul — ilk sürümde karışıktı) ──────
+const EN_OBJ = "(?:information|info|records?|details?|data|notes?)(?![\\p{L}])";
+
+const ABSENCE_PATTERNS: readonly RegExp[] = [
+  new RegExp(`${TR_OBJ} ${gap(1)}${TR_TIGHT}`, "u"),
+  new RegExp(`${TR_OBJ} ${gap(4)}${TR_LOOSE}`, "u"),
+  /(?<![\p{L}])bilmiyorum(?![\p{L}])/u,
+  new RegExp(`(?:don't|do not|doesn't|does not|didn't|did not) have ${gap(4)}${EN_OBJ}`, "u"),
+  // 🚨 `${L}no ` — sağdaki BOŞLUK şart: "Nothing/Note/Nobody/Normally" artık eşleşmez.
+  new RegExp(`${L}no ${gap(3)}${EN_OBJ}`, "u"),
+  /(?:can't|cannot|can not|couldn't|could not) (?:find|locate|see)(?![\p{L}])/u,
+  /(?:not able|unable) to (?:find|locate|see)(?![\p{L}])/u,
+  // 🚨 `confirm` ÇAPA İSTER (ölçülmüş ayrım, `tests/unit/absence-detector.test.ts:48`):
+  // "I'm unable to confirm whether parking is available." bir SAVUŞTURMADIR ve o
+  // sınıf bilinçli olarak dışarıda — ayrıca "I cannot confirm your reservation
+  // without the booking number." MEŞRU bir netleştirme talebidir, bloklanamaz.
+  // Yalnız KAYIT nesnesine bağlandığında yokluk beyanı olur.
+  new RegExp(
+    `(?:can't|cannot|can not|couldn't|could not|not able to|unable to) confirm ${gap(4)}` +
+      "(?:record|note|listing|information|data|file)",
+    "u",
+  ),
+  /(?:isn't|is not|aren't|are not) (?:in|on) (?:my|our|the) (?:record|note|file|listing)/u,
+  /(?:isn't|is not) (?:available|listed in|something i have)/u,
+  /nothing (?:in|on) (?:my|our|the) (?:record|note|file|listing)/u,
+  /(?:don't|do not) see anything/u,
+  // 🚨 ÇAPALI: çıplak "not listed" meşru cümleleri bloklu yordu (↑başlık).
+  /not listed (?:in|on) (?:my|our|the)/u,
+];
+
+/**
+ * Cevap, bilginin KAYITLARDA OLMADIĞINI açıkça söylüyor mu?
+ *
+ * `true` ise bu metin MİSAFİRE GÖNDERİLMEZ — çağıran devreder.
+ *
+ * 🚨 İKİ KATLAMA (projenin `includesAnyFold` doktrini; yalnız EŞLEŞME EKLER):
+ * `toLocaleLowerCase("tr")` TEK BAŞINA YANLIŞTI ve ÖLÇÜLDÜ — Türkçe yerelde
+ * büyük "I" → "ı" olur, yani İngilizce cevaplar bozuluyordu:
+ *   "I have no **I**nformation on that."  → "ı have no **ı**nformation…"  → KAÇIYORDU
+ *   "IT IS NOT IN MY RECORDS."            → "ıt ıs not **ın** my records." → KAÇIYORDU
+ * Ama Türkçe için tr okuması ŞART ("BİLGİM YOK" → standart küçültme "bi̇lgi̇m"
+ * üretir ve kalıba uymaz). Tek doğru katlama yok → ikisi de denenir.
+ */
+export function admitsMissingKnowledge(reply: string | null | undefined): boolean {
+  const marked = (reply ?? "").replace(SENTENCE_END, `$1${SEP}$2`);
+  const plain = foldTurkishLower(marked);
+  const turkish = foldTurkishLowerTr(marked);
+  return ABSENCE_PATTERNS.some((re) => re.test(plain) || re.test(turkish));
+}
+
+/** Rapor/hata metninde gösterilecek insan-okur özet (uydurma liste basma). */
+export const ABSENCE_CONTRACT_NOTE =
+  "bilginin KAYITLARDA olmadığını açıkça söylemeli (savuşturma değil) — src/lib/ai/absence.ts";

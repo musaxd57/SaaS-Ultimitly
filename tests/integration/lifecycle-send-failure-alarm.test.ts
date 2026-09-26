@@ -1,0 +1,294 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { prisma, resetDb } from "../helpers/db";
+
+// ---------------------------------------------------------------------------
+// YAŞAM-DÖNGÜSÜ GÖNDERİM ARIZALARI ARTIK BİR YERE YAZILIYOR
+// (derin denetim, 2026-08-01 — YÜKSEK).
+//
+// Üç göndericinin (karşılama / giriş bilgisi / çıkış hatırlatması) hata dalı
+// `delivery.error`'ı YALNIZCA `isDefinitiveSendFailure`'a veriyor, başka hiçbir
+// yere yazmıyordu: ne `reportError`, ne console, ne sayaç. Dönen
+// `{sent, considered}` farkını da hiçbir çağıran okumuyordu (`scheduled-sync`
+// yalnız `.sent`'i topluyor).
+//
+// Sonuç: giriş talimatı — KAPI KODUNU taşıyan mesaj — misafire hiç gitmese bile
+// sistemde tek satır iz kalmıyordu. Host "Önizleme" ekranında satırı
+// "gönderildi" görüyordu (belirsiz hatada damga tutuluyor), sorun ancak misafir
+// kapıda kalınca anlaşılıyordu.
+//
+// Bu, 07-31 (2) turunda oto-yanıt için kapatılan "gönderim arızası hiçbir yere
+// yazılmıyordu" deseninin SON kopyasıydı.
+//
+// ⚠️ Alarm PII TAŞIMAZ: yalnız hata sınıfı (definitive/ambiguous) + sayı.
+// ---------------------------------------------------------------------------
+
+vi.mock("@/lib/report-error", async (orig) => {
+  const actual = await orig<typeof import("@/lib/report-error")>();
+  // Gerçek sözleşmeyi taklit et: `reportError` artık bir SONUÇ döndürüyor
+  // (bildirim gerçekten gitti mi). Varsayılan "gitti" — pencere korunur.
+  return {
+    ...actual,
+    reportError: vi.fn(async () => ({ notified: true, throttled: false, configured: true })),
+  };
+});
+vi.mock("@/lib/hospitable-credentials", () => ({
+  getOrgHospitableToken: vi.fn(async () => "tok"),
+}));
+vi.mock("@/lib/messaging", async (orig) => {
+  const actual = await orig<typeof import("@/lib/messaging")>();
+  return { ...actual, sendOnChannel: vi.fn(async () => ({ ok: true, providerMessageId: "m1" })) };
+});
+
+import { reportError } from "@/lib/report-error";
+import { sendOnChannel } from "@/lib/messaging";
+import { sendDueWelcomes } from "@/lib/automation";
+
+const mockReport = vi.mocked(reportError);
+const mockSend = vi.mocked(sendOnChannel);
+
+const DAY = 86_400_000;
+const GUEST = "Ada Lovelace";
+
+async function seed() {
+  const org = await prisma.organization.create({
+    data: {
+      name: "Org",
+      timezone: "UTC",
+      autoWelcome: true,
+      autoWelcomeEnabledAt: new Date(Date.now() - 30 * DAY),
+    },
+  });
+  const property = await prisma.property.create({
+    data: { organizationId: org.id, name: "Lale 7" },
+  });
+  await prisma.knowledgeBaseItem.create({
+    data: {
+      propertyId: property.id,
+      category: "welcome",
+      title: "Karşılama",
+      content: "Hoş geldiniz! Rezervasyonunuz onaylandı.",
+      isActive: true,
+    },
+  });
+  const reservation = await prisma.reservation.create({
+    data: {
+      propertyId: property.id,
+      guestName: GUEST,
+      guestPhone: "+90 555 123 45 67",
+      sourceReference: "res-1",
+      channel: "airbnb",
+      status: "confirmed",
+      arrivalDate: new Date(Date.now() + 5 * DAY),
+      departureDate: new Date(Date.now() + 8 * DAY),
+    },
+  });
+  return { orgId: org.id, reservationId: reservation.id };
+}
+
+describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu alarm", () => {
+  beforeEach(async () => {
+    await resetDb();
+    mockReport.mockReset();
+    mockSend.mockReset();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1"); // ana şalter (yaşam-döngüsü de buna bağlı)
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("KESİN hata: alarm düşer, damga geri alınır (yeniden denenebilir)", async () => {
+    const { orgId, reservationId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 422 - rejected" });
+
+    const out = await sendDueWelcomes(orgId);
+    expect(out.sent).toBe(0);
+    expect(out.considered).toBe(1);
+
+    expect(mockReport).toHaveBeenCalledTimes(1);
+    const [key, err] = mockReport.mock.calls[0];
+    expect(String(key)).toContain("welcome");
+    expect(String((err as Error).message)).toContain("definitive=1");
+
+    const r = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(r.welcomeSentAt).toBeNull(); // kesin hata → claim geri alındı
+  });
+
+  // ── KARDEŞ SATIRIN GERÇEK DAMGASI KORUNUR (yarış denetimi, 08-05) ──────────
+  //
+  // 🚨 BULUNAN GERÇEK YARIŞ: claim `welcomeSentAt: null` koşuluyla YALNIZ damgasız
+  // satırları damgalıyordu, ama geri alma KOŞULSUZDU — aynı `sourceReference`'ı
+  // paylaşan KARDEŞ satırın GERÇEKTEN gönderilmiş damgasını da siliyordu.
+  // Sonraki geçiş booking'i tekrar aday görür → misafire İKİNCİ (gerçek)
+  // karşılama mesajı gider. Dup satır bu üründe gerçek bir durum (relink
+  // sonrası; prod'da 114 çift temizlenmişti) ve "aynı sourceReference'ı taşıyan
+  // TÜM satırları damgala" tasarımının varlık sebebi tam da bu çift-gönderimi
+  // önlemekti — koşulsuz geri alma o garantiyi kendi kapısından deliyordu.
+  it("KESİN hata: aynı sourceReference'lı KARDEŞ satırın eski damgası SİLİNMEZ", async () => {
+    const { orgId, reservationId } = await seed();
+    // Aynı org, AYRI daire, AYNI sourceReference — ve bu satır geçen ay
+    // GERÇEKTEN gönderilmiş.
+    const sent = new Date(Date.now() - 30 * DAY);
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 8" } });
+    const sibling = await prisma.reservation.create({
+      data: {
+        propertyId: other.id,
+        guestName: GUEST,
+        sourceReference: "res-1", // AYNI
+        channel: "airbnb",
+        status: "confirmed",
+        arrivalDate: new Date(Date.now() + 5 * DAY),
+        departureDate: new Date(Date.now() + 8 * DAY),
+        welcomeSentAt: sent, // zaten gönderilmiş
+      },
+    });
+
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 422 - rejected" });
+    await sendDueWelcomes(orgId);
+
+    // Bu koşunun damgaladığı satır geri alınır…
+    const fresh = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(fresh.welcomeSentAt).toBeNull();
+    // …ama kardeşin GERÇEK damgası aynen durur (yoksa misafire ikinci mesaj).
+    const after = await prisma.reservation.findUniqueOrThrow({ where: { id: sibling.id } });
+    expect(after.welcomeSentAt?.getTime()).toBe(sent.getTime());
+  });
+
+  it("BELİRSİZ hata: alarm düşer, damga TUTULUR (asla yeniden POST edilmez)", async () => {
+    const { orgId, reservationId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 503 - upstream" });
+
+    await sendDueWelcomes(orgId);
+
+    expect(mockReport).toHaveBeenCalledTimes(1);
+    expect(String((mockReport.mock.calls[0][1] as Error).message)).toContain("ambiguous=1");
+
+    const r = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(r.welcomeSentAt).not.toBeNull(); // belirsiz → duplicate riski, damga kalır
+  });
+
+  it("ALARM PII TAŞIMAZ: misafir adı, rezervasyon id'si, ham sağlayıcı metni YOK", async () => {
+    const { orgId, reservationId } = await seed();
+    mockSend.mockResolvedValue({
+      ok: false,
+      error: "HTTP 422 - guest Ada Lovelace thread closed",
+    });
+
+    await sendDueWelcomes(orgId);
+
+    const payload = `${mockReport.mock.calls[0][0]} ${(mockReport.mock.calls[0][1] as Error).message}`;
+    expect(payload).not.toContain(GUEST);
+    expect(payload).not.toContain("Ada");
+    expect(payload).not.toContain(reservationId);
+    expect(payload).not.toContain("res-1");
+    expect(payload).not.toContain("thread closed"); // sağlayıcının ham metni
+    expect(payload).not.toContain("555"); // telefon
+  });
+
+  it("BAŞARILI gönderimde alarm YOK (regresyon pini)", async () => {
+    const { orgId } = await seed();
+    mockSend.mockResolvedValue({ ok: true, providerMessageId: "m1" });
+
+    const out = await sendDueWelcomes(orgId);
+    expect(out.sent).toBe(1);
+    expect(mockReport).not.toHaveBeenCalled();
+  });
+
+  it("ALARM PENCEREYE BAĞLI: aynı org+tür 6 saat içinde İKİNCİ kez uyarmaz", async () => {
+    // ⚠️ Yaşam-döngüsü göndericileri kesin hatada damgayı geri alıp HER geçişte
+    // yeniden deniyor (402 dahil) — geri çekilme yok. Alarmı ona çıplak bağlamak
+    // `reportError`'un 10 dk'lık throttle'ıyla bile GÜNDE ~432 e-posta demekti.
+    const { orgId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 402 - subscription not active" });
+
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1);
+
+    // Üretimde bu 2 dakika sonrasıdır (damga geri alındığı için aday yine uygun).
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1); // ⬅️ ARIZADA 2 olurdu
+
+    // Pencere dolunca yeniden uyarır (arıza sürüyorsa sesi tamamen kesmeyiz).
+    await prisma.systemLock.updateMany({
+      where: { name: { startsWith: "lifecycle-alarm:" } },
+      data: { lockedUntil: new Date(Date.now() - 1000) },
+    });
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // PENCERE GERİ ALMA GERÇEKTEN ÇALIŞIYOR MU (denetim, 08-01 — üçüncü tur).
+  //
+  // İlk yazımda buradaki geri alma bir `try/catch`in `catch` dalındaydı ve
+  // `reportError` ASLA FIRLATMAZ → dal ÖLÜ KODdu; yorum var olmayan bir korumayı
+  // anlatıyordu (bir denetim ajanı yakaladı). `reportError` artık sonuç
+  // döndürüyor; bu test o sonucun GERÇEKTEN okunduğunu pinler.
+  // -------------------------------------------------------------------------
+  // ⚠️ GERİ ALMA "SERBEST BIRAK" DEĞİL "KISA GERİ ÇEKİLME" (denetim 08-01, üçüncü
+  // tur — ilk hâlim bir SEL üretiyordu). `new Date(0)` pencereyi HEMEN açıyordu ve
+  // `reportError`'ün başarısızlık damgası da ~1 dk geriye çekildiği için 2 dakikalık
+  // cron'da kova HİÇ tutmuyordu: 2+9=11 dk > 10 dk throttle → HER GEÇİŞ yeni bir
+  // e-posta denemesi (3 tür × 30 geçiş/saat = 90/saat, her biri 12-15 sn timeout
+  // ile senkron içinde bloklayabilir). Oysa pencerenin VARLIK SEBEBİ o seldi.
+  it("BİLDİRİM GİTMEZSE pencere KISA geri çekilmeyle açılır (sel yok, kayıp da yok)", async () => {
+    const { orgId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 402 - subscription not active" });
+    mockReport.mockResolvedValue({ notified: false, throttled: false, configured: true });
+
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1);
+
+    // Pencere GELECEĞE yazıldı, epoch'a DEĞİL → hemen ardından gelen geçiş uyarmaz.
+    const lock = await prisma.systemLock.findFirstOrThrow({
+      where: { name: { startsWith: "lifecycle-alarm:" } },
+    });
+    expect(lock.lockedUntil.getTime()).toBeGreaterThan(Date.now()); // ⬅️ ARIZADA epoch 0
+    expect(lock.lockedUntil.getTime()).toBeLessThan(Date.now() + 20 * 60_000); // ama 6 saat DE değil
+
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1); // sel yok
+
+    // Geri çekilme dolunca YENİDEN dener — bildirim kalıcı kaybolmaz.
+    await prisma.systemLock.updateMany({
+      where: { name: { startsWith: "lifecycle-alarm:" } },
+      data: { lockedUntil: new Date(Date.now() - 1000) },
+    });
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(2);
+  });
+
+  it("THROTTLE ve YAPILANDIRILMAMIŞ hâller BAŞARISIZLIK SAYILMAZ (pencere yanar)", async () => {
+    const { orgId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 402 - subscription not active" });
+
+    // (a) throttled: "bu context zaten uyarıldı" — geri almak sonsuz tekrar olurdu.
+    mockReport.mockResolvedValue({ notified: false, throttled: true, configured: true });
+    await sendDueWelcomes(orgId);
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1);
+
+    // (b) configured:false: alarm e-postası hiç kurulmamış — arıza değil.
+    await prisma.systemLock.deleteMany({ where: { name: { startsWith: "lifecycle-alarm:" } } });
+    mockReport.mockClear();
+    mockReport.mockResolvedValue({ notified: false, throttled: false, configured: false });
+    await sendDueWelcomes(orgId);
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1);
+  });
+
+  // Davranış testi karşılama yolunu kanıtlıyor; giriş ve çıkış göndericilerinin
+  // hata dalları BİREBİR aynı kodu taşıyor. Bu kaynak-taraması ikisinin de
+  // (ve ileride eklenecek dördüncü bir göndericinin) alarmsız kalmamasını pinler
+  // — arızanın kendisi zaten "üç kopyadan hiçbirinde alarm yoktu"ydu.
+  it("KAYNAK PİNİ: üç yaşam-döngüsü göndericisinin ÜÇÜ de alarma bağlı", async () => {
+    const fs = await import("node:fs/promises");
+    const src = await fs.readFile("src/lib/automation.ts", "utf8");
+
+    for (const kind of ["welcome", "checkin", "checkout"]) {
+      expect(src).toContain(`reportLifecycleSendFailures("${kind}"`);
+    }
+    // Hata sınıfı etiketi üç dalda da toplanıyor (damga geri alma ile aynı yerde).
+    const pushes = src.match(/failures\.push\(definitive \? "definitive" : "ambiguous"\)/g) ?? [];
+    expect(pushes.length).toBe(3);
+    // Ham sağlayıcı hatası alarma GİRMEZ — kaynakta böyle bir birleştirme olmamalı.
+    expect(src).not.toMatch(/reportLifecycleSendFailures\([^)]*delivery\.error/);
+  });
+});

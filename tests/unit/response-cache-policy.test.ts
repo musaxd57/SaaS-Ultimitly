@@ -1,0 +1,225 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
+
+// ---------------------------------------------------------------------------
+// YANIT ÖNBELLEK POLİTİKASI — kaynak-tarama pin testi (export secret-scan emsali).
+//
+// Tehdit: kiracıya özel bir JSON yanıtının paylaşımlı bir önbellekte (CDN/proxy)
+// saklanabilir hâle gelmesi. O an bir müşterinin verisi başka birine servis
+// edilebilir ve bu, kodda hiçbir yerde "hata" gibi görünmez.
+//
+// Bugün güvendeyiz ama YAPISAL olarak değil, üç ayrı tesadüfün üstünde duruyoruz:
+// Next 15 route handler'ları varsayılan olarak cache'lemiyor, hassas rotalar
+// açıkça `no-store` diyor ve origin paylaşımlı bir CDN arkasında değil. Bu test
+// üçüncüsünü koruyamaz ama BİZİM elimizde olanı pinler: hiçbir API rotası
+// kendini cache'lenebilir ilan etmesin.
+//
+// (Codex "cache poisoning" turunun kodda karşılığı olan kısmı budur. Aynı turdaki
+// "ETag uzunluk karşılaştırması" maddesinin hedefi yok: kaynak kodda tek bir
+// `etag`/`if-none-match` geçişi yok — aşağıda o da pinlendi ki biri ETag mantığı
+// eklerse bu testi görüp zamanlama-güvenli karşılaştırmayı düşünsün.)
+// ---------------------------------------------------------------------------
+
+const API_DIR = path.resolve(__dirname, "../../src/app/api");
+
+// `.tsx` de taranır: aşağıdaki `next/image` pini bileşen dosyalarına bakmak
+// ZORUNDA (bugün React bileşenlerinin hepsi `.tsx`). API taraması için genişleme
+// zararsız — yalnız KAPSAM EKLER, hiçbir dosyayı kapsam dışına çıkarmaz.
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) out.push(...walk(full));
+    else if (entry.endsWith(".ts") || entry.endsWith(".tsx")) out.push(full);
+  }
+  return out;
+}
+
+/**
+ * Bir Cache-Control değeri paylaşımlı önbelleğe girebilir mi?
+ *
+ * ⚠️ Eski sürüm `(s-)?max-age` yazıyordu — bu var olmayan `s-max-age`'i üretir ve
+ * RFC 9111'in gerçek yazımı olan **`s-maxage`**'i KAÇIRIRDI. Kaçırılan direktif
+ * tam olarak paylaşımlı önbelleğe (CDN/proxy) hitap eden tek direktiftir, yani
+ * bu testin savunduğu tehdidin ta kendisi. Denetimde `s-maxage=600` yazan sahte
+ * bir kiracı-JSON rotasının testi YEŞİL geçtiği kanıtlandı.
+ *
+ * `0*` öneki `max-age=030` gibi sıfır-dolgulu yazımı da yakalar.
+ */
+const CACHEABLE = /(^|[\s,;"'])public([\s,;"']|$)|\bs-maxage\s*=\s*0*[1-9]|\bmax-age\s*=\s*0*[1-9]/i;
+
+/** Yorumlar taramaya girmesin (gerçek kod ile yorum ayrımı). */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
+/** Cache-Control DEĞERİ gibi görünen string literal'ler (satır sınırı tanımaz). */
+function cacheControlLiterals(src: string): string[] {
+  const literals = src.match(/"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/g) ?? [];
+  return literals
+    .map((l) => l.slice(1, -1))
+    .filter((v) => /\b(max-age|s-maxage|no-store|no-cache|must-revalidate|immutable)\b/i.test(v));
+}
+
+describe("API yanıtları paylaşımlı önbelleğe girmez", () => {
+  const files = walk(API_DIR);
+
+  it("taranan rota dosyası bulundu (test kendini boşa düşürmesin)", () => {
+    expect(files.length).toBeGreaterThan(50);
+  });
+
+  it("hiçbir API rotası cache'lenebilir Cache-Control yazmıyor", () => {
+    // Değer, `Cache-Control` yazısıyla AYNI SATIRDA olmak zorunda değil: sabit
+    // olarak tanımlanıp başka satırda set edilebilir. O yüzden satır değil,
+    // dosyadaki Cache-Control biçimli TÜM string literal'leri tarıyoruz.
+    const offenders: string[] = [];
+    for (const file of files) {
+      const src = stripComments(readFileSync(file, "utf8"));
+      for (const value of cacheControlLiterals(src)) {
+        if (CACHEABLE.test(value)) offenders.push(`${path.relative(API_DIR, file)}: ${value}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("CACHEABLE hakemi doğru: s-maxage ve sıfır-dolgulu yazım da yakalanır", () => {
+    // Regex'in kendisi pinli — bu testin koruduğu şey listenin doğruluğu.
+    for (const safe of ["no-store", "max-age=0", "no-cache, max-age=0", "max-age=0, must-revalidate", "private"]) {
+      expect(CACHEABLE.test(safe), safe).toBe(false);
+    }
+    for (const bad of [
+      "public, max-age=60",
+      "s-maxage=600",
+      "max-age=0, s-maxage=600", // klasik CDN kalıbı — eski regex bunu KAÇIRIYORDU
+      "max-age=030",
+      "public",
+    ]) {
+      expect(CACHEABLE.test(bad), bad).toBe(true);
+    }
+  });
+
+  it("ETag/If-None-Match mantığı YOK — varsa zamanlama-güvenli karşılaştırma düşünülmeli", () => {
+    const hits = files.filter((f) => /\betag\b|if-none-match/i.test(readFileSync(f, "utf8")));
+    expect(hits.map((f) => path.relative(API_DIR, f))).toEqual([]);
+  });
+});
+
+describe("global güvenlik başlıkları (next.config.mjs)", () => {
+  it("her yanıta giden blok cache'lenebilir Cache-Control EKLEMİYOR", async () => {
+    const config = (await import("../../next.config.mjs")).default;
+    const blocks = await config.headers!();
+    const global = blocks.find((b) => b.source === "/(.*)");
+    expect(global).toBeDefined();
+    const cache = global!.headers.find((h) => h.key.toLowerCase() === "cache-control");
+    expect(cache).toBeUndefined();
+  });
+
+  it("public,max-age YALNIZ marka görsellerinde (dışarıdan gömülmesi İSTENEN dosyalar)", async () => {
+    const config = (await import("../../next.config.mjs")).default;
+    const blocks = await config.headers!();
+    const cacheable = blocks.filter((b) =>
+      b.headers.some((h) => h.key.toLowerCase() === "cache-control" && CACHEABLE.test(h.value)),
+    );
+    expect(cacheable.map((b) => b.source).sort()).toEqual(["/lixus-logo-icon.png", "/lixus-logo.png"]);
+  });
+
+  it("ENFORCE edilen CSP form-action 'self' içeriyor (enjekte edilen formla veri sızdırma)", async () => {
+    const config = (await import("../../next.config.mjs")).default;
+    const blocks = await config.headers!();
+    const global = blocks.find((b) => b.source === "/(.*)")!;
+    const csp = global.headers.find((h) => h.key === "Content-Security-Policy")!.value;
+    expect(csp).toContain("form-action 'self'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("base-uri 'self'");
+    expect(csp).toContain("frame-ancestors 'self'");
+    // "Bu uygulama bu özelliği kullanmıyor" kanıtına dayanan, nonce GEREKTİRMEYEN
+    // dört direktif. Biri kaldırılırsa görünür olsun.
+    expect(csp).toContain("script-src-attr 'none'");
+    expect(csp).toContain("worker-src 'none'");
+    expect(csp).toContain("manifest-src 'none'");
+    expect(csp).toContain("media-src 'self'");
+    // script-src enforce EDİLMEZ — nonce altyapısı gelmeden panelin tamamını kırar.
+    // (script-src-attr AYRI bir direktiftir; bu kontrol onu yanlışlıkla yakalamasın.)
+    expect(csp.replace(/script-src-attr[^;]*/g, "")).not.toContain("script-src");
+  });
+
+  it("report-only politika uygulamayı DOĞRU anlatıyor (Paddle adlandırılmış)", async () => {
+    const config = (await import("../../next.config.mjs")).default;
+    const blocks = await config.headers!();
+    const global = blocks.find((b) => b.source === "/(.*)")!;
+    const ro = global.headers.find((h) => h.key === "Content-Security-Policy-Report-Only")!.value;
+    // Ayarlar sayfası Paddle.js'i cdn.paddle.com'dan yüklüyor. Report-only bunu
+    // saymazsa "hedef politika" hiçbir zaman açılamayacak bir politikadır.
+    expect(ro).toContain("https://cdn.paddle.com");
+    expect(ro).toContain("connect-src 'self' https://*.paddle.com");
+    // Paddle overlay EBEVEYN dokümana harici stylesheet enjekte eder; style-src'de
+    // Paddle yoksa enforce günü checkout stilsiz açılır (denetim bulgusu).
+    expect(ro).toMatch(/style-src[^;]*cdn\.paddle\.com/);
+    // 🚨 YÖN 08-07'DE TERSİNE DÖNDÜ — ESKİ HÂLİNE GERİ ALMA.
+    // Bu iki satır eskiden Google Fonts karşılamasının VAR OLMASINI istiyordu
+    // ve o zaman DOĞRUYDU: public/urun.html + public/kurulum.html ham `<link>`
+    // ile fonts.googleapis.com'dan stylesheet çekiyordu, landing de bu
+    // dosyaları iframe'le gömüyor → karşılama yazılmasa enforce günü ürün turu
+    // bozulurdu. Artık ikisi de Inter'i `/fonts/` altından KENDİ origin'imizden
+    // alıyor (ziyaretçi IP'si Google'a gitmesin diye), yani karşılamanın sebebi
+    // ortadan kalktı ve politika bu kadar daraltılabildi.
+    // Bu satır kırmızıya dönerse birinin `<link>`leri geri koyması ÇOK OLASI —
+    // önce `public/*.html`e bak, CSP'yi gevşetmek YANLIŞ düzeltmedir.
+    expect(ro).not.toMatch(/fonts\.googleapis\.com/);
+    expect(ro).not.toMatch(/fonts\.gstatic\.com/);
+    // Sandbox AYRI origin — politika sandbox testinde de doğru olmalı.
+    expect(ro).toContain("https://sandbox-cdn.paddle.com");
+  });
+
+  // 🚨 Sır TAŞIYAN iki sayfa: QR concierge (token YOLDA) ve şifre sıfırlama
+  // (challenge token'ı FRAGMENT'te). Global politika
+  // `strict-origin-when-cross-origin` — bu, AYNI-ORIGIN gezinmelerde TAM URL'i
+  // (query dahil) `Referer` başlığına koyar. İki sayfada da `no-referrer`
+  // olmalı ve GLOBAL bloktan SONRA gelmeli: Next'te son eşleşen başlık kazanır,
+  // önce yazılırsa sessizce etkisiz kalır.
+  it.each(["/c/:path*", "/sifremi-unuttum", "/e-posta-dogrula"])(
+    "%s → Referrer-Policy: no-referrer (ve global bloktan SONRA)",
+    async (source) => {
+      const config = (await import("../../next.config.mjs")).default;
+      const blocks = await config.headers!();
+      const globalIdx = blocks.findIndex((b) => b.source === "/(.*)");
+      const idx = blocks.findIndex((b) => b.source === source);
+      expect(idx).toBeGreaterThan(globalIdx); // sıra: son eşleşen kazanır
+      const rp = blocks[idx].headers.find((h) => h.key.toLowerCase() === "referrer-policy");
+      expect(rp?.value).toBe("no-referrer");
+    },
+  );
+
+  // ── GÖRÜNTÜ OPTIMIZER'I ─────────────────────────────────────────────────────
+  // 🚨 KAPALI KALMALI (08-05, ÖLÇÜLDÜ).
+  //
+  // `next/image` bu uygulamada hiç kullanılmıyor, ama Next'in `/_next/image` ucu
+  // varsayılan olarak AÇIK ve yerel yolları `sharp`'a besliyor. Canlı ölçüm:
+  // açıkken `?url=/lixus-logo.png&w=64&q=75` → 200 + 597 bayt (ham dosya
+  // 80.283 bayt), `unoptimized` sonrası → 404.
+  //
+  // Önemi: `sharp` (next'in geçişli bağımlılığı) GHSA-f88m-g3jw-g9cj / libvips
+  // CVE'lerini taşıyor ve düzeltmesi next@16 major'ı istiyor. `upload/route.ts`
+  // `STORAGE_ENABLED` kapalıyken dosyayı `public/uploads/{org}/` altına yazıyor
+  // → kimlik doğrulamalı bir kiracı hazırlanmış dosyayı zafiyetli koda
+  // besleyebiliyordu.
+  it("images.unoptimized AÇIK — kullanılmayan optimizer saldırı yüzeyi bırakmasın", async () => {
+    const config = (await import("../../next.config.mjs")).default;
+    expect(config.images?.unoptimized).toBe(true);
+  });
+
+  it("next/image gerçekten kullanılmıyor (kararın DAYANDIĞI varsayım pinli)", () => {
+    // Yukarıdaki karar "bu özelliği kullanmıyoruz" kanıtına dayanıyor — tek
+    // başına `unoptimized` pini, biri `next/image` kullanmaya başlarsa
+    // görüntülerin sessizce ham servis edilmesini görmez. Bu test o gün kırmızıya
+    // döner ve karar yeniden değerlendirilir (`sharp` sürümü de o gün kontrol
+    // edilir).
+    // ⚠️ Modül belirteci TIRNAK İÇİNDE aranır: `from "next/image"`,
+    // `import("next/image")` ve `require("next/image")` üçünü de yakalar, ama
+    // düz metindeki "next/image" geçişini (yorum/başlık) yakalamaz.
+    const srcFiles = walk(path.resolve(__dirname, "../../src"));
+    const users = srcFiles.filter((f) => /["']next\/image["']/.test(readFileSync(f, "utf8")));
+    expect(users.map((f) => path.relative(path.resolve(__dirname, "../.."), f))).toEqual([]);
+  });
+});

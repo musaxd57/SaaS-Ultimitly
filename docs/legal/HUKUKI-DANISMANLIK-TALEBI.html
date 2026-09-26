@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Lixus AI — Hukuki Danışmanlık Talebi</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 18mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "DejaVu Serif", Georgia, "Times New Roman", serif;
+    font-size: 10.2pt; line-height: 1.55; color: #14171c; margin: 0;
+  }
+  h1 { font-size: 20pt; margin: 0 0 4px; letter-spacing: -0.4px; }
+  h2 {
+    font-size: 12.4pt; margin: 26px 0 8px; padding-bottom: 5px;
+    border-bottom: 1.6px solid #14171c; page-break-after: avoid;
+  }
+  h3 {
+    font-size: 10.8pt; margin: 16px 0 5px; page-break-after: avoid;
+    font-family: "DejaVu Sans", Arial, sans-serif;
+  }
+  p { margin: 0 0 8px; text-align: justify; }
+  ul, ol { margin: 0 0 9px; padding-left: 19px; }
+  li { margin-bottom: 3.5px; }
+  table { width: 100%; border-collapse: collapse; margin: 9px 0 12px; font-size: 8.9pt; }
+  th, td { border: 1px solid #b9c0c9; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #eef1f5; font-family: "DejaVu Sans", Arial, sans-serif; font-size: 8.5pt; }
+  code, .mono { font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.8pt; }
+
+  .cover { border: 2.4px solid #14171c; padding: 20px 22px; margin-bottom: 22px; }
+  .cover .sub { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 9.4pt; color: #4a5462; margin-bottom: 14px; }
+  .meta { font-size: 9.2pt; }
+  .meta td { border: none; padding: 2.5px 0; }
+  .meta td:first-child { width: 130px; color: #4a5462; font-family: "DejaVu Sans", Arial, sans-serif; font-size: 8.7pt; }
+
+  .q {
+    background: #f6f8fa; border-left: 3.5px solid #14171c;
+    padding: 9px 12px; margin: 9px 0 12px;
+  }
+  .q p:last-child, .q ol:last-child, .q ul:last-child { margin-bottom: 0; }
+  .q .lbl {
+    font-family: "DejaVu Sans", Arial, sans-serif; font-size: 8.2pt;
+    letter-spacing: 0.7px; color: #4a5462; display: block; margin-bottom: 5px;
+  }
+  .fact {
+    border-left: 3.5px solid #b9c0c9; padding: 2px 0 2px 12px; margin: 8px 0 10px;
+    color: #333a44;
+  }
+  .blocker {
+    display: inline-block; font-family: "DejaVu Sans", Arial, sans-serif;
+    font-size: 7.6pt; letter-spacing: 0.7px; background: #14171c; color: #fff;
+    padding: 1.5px 7px; border-radius: 2px; vertical-align: 2px; margin-left: 6px;
+  }
+  .low {
+    display: inline-block; font-family: "DejaVu Sans", Arial, sans-serif;
+    font-size: 7.6pt; letter-spacing: 0.7px; background: #e6eaef; color: #4a5462;
+    padding: 1.5px 7px; border-radius: 2px; vertical-align: 2px; margin-left: 6px;
+  }
+  .pb { page-break-before: always; }
+  .note { font-size: 9pt; color: #4a5462; }
+  .foot {
+    margin-top: 26px; padding-top: 10px; border-top: 1px solid #b9c0c9;
+    font-size: 8.6pt; color: #4a5462;
+  }
+  ol.deliver { counter-reset: d; list-style: none; padding-left: 0; }
+  ol.deliver li {
+    counter-increment: d; padding-left: 26px; position: relative; margin-bottom: 7px;
+  }
+  ol.deliver li::before {
+    content: counter(d); position: absolute; left: 0; top: 1px;
+    font-family: "DejaVu Sans", Arial, sans-serif; font-size: 8.2pt;
+    background: #14171c; color: #fff; width: 17px; height: 17px;
+    border-radius: 50%; text-align: center; line-height: 17px;
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Hukuki Danışmanlık Talebi</h1>
+  <div class="sub">Lixus AI — yapay zekâ destekli misafir iletişimi yazılımı (SaaS)</div>
+  <table class="meta">
+    <tr><td>Talep eden</td><td>Zeynep Cinar — Lixus AI</td></tr>
+    <tr><td>Tarih</td><td>29 Temmuz 2026</td></tr>
+    <tr><td>Konu</td><td>Yayında olan bir yazılım hizmetinin KVKK, tüketici ve satıcı-kimliği yükümlülükleri</td></tr>
+    <tr><td>Aciliyet</td><td>Bölüm 2'deki üç soru geniş müşteri kabulünü <strong>bloke etmektedir</strong></td></tr>
+  </table>
+</div>
+
+<p>Bu belge, halihazırda <strong>canlıda çalışan ve gerçek ödeme almış</strong> bir yazılım
+hizmetinin açık hukuki sorularını tek yerde toplamaktadır. Aşağıdaki teknik tespitlerin
+tamamı kaynak kod üzerinden doğrulanmıştır; varsayım içermez. Amacımız, hizmeti tanımadığımız
+müşterilere açmadan önce yükümlülüklerimizi eksiksiz yerine getirmektir.</p>
+
+<p>Belge şu şekilde okunabilir: <strong>Bölüm 1</strong> işi ve veri akışını tanıtır,
+<strong>Bölüm 2–10</strong> cevabını beklediğimiz soruları içerir, <strong>Bölüm 11</strong>
+ise sizden talep ettiğimiz somut çıktıların listesidir.</p>
+
+<h2>1. İşletme ve hizmetin tanımı</h2>
+
+<h3>1.1 Ne satıyoruz</h3>
+<p>Lixus AI, kısa dönem konut kiralayan ev sahiplerinin (host) Airbnb ve Booking.com üzerinden
+gelen misafir mesajlarını yapay zekâ ile yanıtlamasına yardımcı olan, internet üzerinden
+abonelikle sunulan bir yazılımdır. Kurulum gerektirmez; müşteri web tarayıcısından kullanır.</p>
+
+<table>
+  <tr><th style="width:150px">Unsur</th><th>Mevcut durum</th></tr>
+  <tr><td>Alan adı</td><td>www.lixusai.com</td></tr>
+  <tr><td>Satıcı (metinlerde yazan)</td><td>Zeynep Cinar — Via Francesco Olgiati, Milano, Lombardia, 20143, İtalya</td></tr>
+  <tr><td>Kimlik numarası (yayında)</td><td class="mono">14237210969</td></tr>
+  <tr><td>İletişim</td><td>+39 348 752 45 31 — iletisimlixusai@gmail.com</td></tr>
+  <tr><td>Hedef müşteri</td><td>Türkiye'de yaşayan bireysel ev sahipleri (1–25 daire)</td></tr>
+  <tr><td>Fiyatlandırma</td><td>Aylık 449 ₺ / 899 ₺ / 1.699 ₺ (KDV dahil); yıllıkta iki ay ücretsiz</td></tr>
+  <tr><td>Deneme</td><td>14 gün ücretsiz, <strong>kredi kartı istenmeden</strong>; süre sonunda otomatik ücretlendirme yok</td></tr>
+  <tr><td>Ödeme altyapısı</td><td>Paddle (kendini "Merchant of Record" olarak tanımlıyor)</td></tr>
+  <tr><td>Ticari durum</td><td>Canlı; gerçek kartla gerçek ödeme alındı. Bugün tek gerçek müşteri kurucunun kendi işletmesidir.</td></tr>
+</table>
+
+<h3>1.2 Veri nasıl akıyor</h3>
+<ol>
+  <li>Ev sahibi, kendi <strong>Hospitable</strong> hesabını (Airbnb/Booking mesajlarına erişim sağlayan yurt dışı aracı yazılım) Lixus'a bağlar.</li>
+  <li>Lixus, bu bağlantı üzerinden rezervasyonları ve misafir mesajlarını kendi veritabanına çeker.</li>
+  <li>Gelen misafir mesajı, yanıt taslağı üretilmesi için <strong>OpenAI</strong>'ye (ABD/İrlanda) gönderilir.</li>
+  <li>Yalnızca <strong>düşük riskli</strong> konularda (wifi şifresi, giriş saati, otopark, çöp, çıkış saati) yanıt misafire otomatik gönderilir. Şikâyet, iade, iptal, güvenlik, platform dışı ödeme talebi gibi konularda otomatik yanıt <strong>yazılım tarafından kesin olarak engellenir</strong> ve konu ev sahibine devredilir.</li>
+  <li>Ayrıca her otomatik yanıt kararında, <strong>kişisel verileri çıkarılmış (redakte)</strong> misafir mesajı bir ikinci yapay zekâ sağlayıcısına (<strong>Akash Network</strong> üzerinden çalışan GLM modeli) karşılaştırma amacıyla gönderilir. Bu ikinci modelin <strong>hiçbir karar yetkisi yoktur</strong>; yalnızca birinci modelin isabetini ölçmek için kullanılır.</li>
+  <li>Opsiyonel olarak, dairelere asılan bir <strong>QR kod</strong> ile misafir doğrudan Lixus üzerinden sohbet edebilir (yalnızca konaklama süresi boyunca açıktır).</li>
+</ol>
+
+<h3>1.3 İşlenen kişisel veri kategorileri</h3>
+<table>
+  <tr><th style="width:150px">İlgili kişi</th><th>Veri</th></tr>
+  <tr><td><strong>Müşterimiz</strong> (ev sahibi)</td><td>Ad-soyad, e-posta, telefon, IP adresi, tarayıcı bilgisi, oturum kayıtları, abonelik ve ödeme durumu, onay kayıtları</td></tr>
+  <tr><td><strong>Müşterimizin misafiri</strong> (üçüncü kişi)</td><td>Ad-soyad, e-posta, telefon, rezervasyon tarihleri, <strong>mesaj içeriklerinin tamamı</strong>, temizlik/bakım görevlerine eklenen fotoğraflar</td></tr>
+</table>
+<p class="note">Kritik nokta: <em>misafir bizim müşterimiz değildir.</em> Verisi bizim sistemimizde
+işlenmektedir ancak bizimle hiçbir sözleşmesi yoktur ve çoğu hâlde varlığımızdan haberdar değildir.
+Bölüm 2.3'teki soru bu noktadan doğmaktadır.</p>
+
+<h2 class="pb">2. Bloke eden sorular</h2>
+<p>Aşağıdaki üç konu netleşmeden, tanımadığımız müşterilere satış yapmıyoruz.</p>
+
+<h3>2.1 Satıcı kimlik numarası ve başlığı <span class="blocker">BLOKE</span></h3>
+<div class="fact">
+  <p><strong>Tespit:</strong> Üç hukuk sayfamızda (Mesafeli Satış Sözleşmesi, Ön Bilgilendirme
+  Formu, Gizlilik Politikası) satıcı bilgisi şu başlıkla yayımlanmaktadır:</p>
+  <p class="mono">MERSİS / Vergi No: 14237210969</p>
+  <p>Ancak satıcı İtalya'da mukimdir ve bu numara İtalyan <em>Partita IVA</em> (KDV numarası)
+  biçimindedir. MERSİS Türk ticaret sicil sistemidir; İtalya'da mukim bir işletmenin MERSİS
+  numarası bulunmaz. Yani hâlihazırda yayında olan metin, mevcut hâliyle yanlış bir başlık
+  altında bir numara açıklamaktadır.</p>
+  <p>Bunun bir yazım hatası düzeltmesi olmadığını düşünüyoruz; hangi numaranın hangi başlıkla
+  açıklanacağı bir hukuk sorusudur. Bu nedenle <strong>sizin görüşünüz gelene kadar metne
+  dokunmadık.</strong></p>
+</div>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>Türk tüketiciye mesafeli satış yapan, yurt dışında mukim bir satıcı, Ön Bilgilendirme Formu'nda hangi kimlik numarasını hangi başlıkla açıklamalıdır? (P.IVA / VAT numarası / vergi kimlik numarası / başka bir şey)</li>
+    <li>Mesafeli Sözleşmeler Yönetmeliği'nin satıcı bilgilerine ilişkin hükümleri yabancı satıcıya nasıl uygulanır? MERSİS numarası zorunluluğu bizim için nasıl karşılanır?</li>
+    <li>Bu yapıyla Türk tüketiciye satış yapmaya devam edebilmemiz için Türkiye'de bir tüzel kişilik kurulması veya yetkili temsilci atanması gerekir mi?</li>
+    <li>Metnin ne diyeceğini <strong>tam cümle olarak</strong> yazmanızı rica ediyoruz — yazılımda tek bir yerden değiştirip üç sayfaya birden yansıtacağız.</li>
+  </ol>
+</div>
+
+<h3>2.2 Paddle "Merchant of Record" yapısında satıcı kimdir? <span class="blocker">BLOKE</span></h3>
+<div class="fact">
+  <p><strong>Tespit:</strong> Ödemeler Paddle adlı yurt dışı ödeme kuruluşu üzerinden alınmaktadır.
+  Paddle kendisini "Merchant of Record" (kayıtlı satıcı) olarak konumlandırır: müşteriden tahsilatı
+  kendi adına yapar, faturayı kendi keser ve vergi yükümlülüklerini üstlendiğini beyan eder.</p>
+  <p>Buna karşılık bizim Mesafeli Satış Sözleşmemiz satıcı olarak <strong>Zeynep Cinar</strong>'ı
+  göstermektedir. Müşteri kartından çekim yapılırken ekranda ve banka ekstresinde Paddle
+  görünmektedir. Bu iki durum arasında bir uyumsuzluk olup olmadığını değerlendiremiyoruz.</p>
+</div>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>Tüketiciye karşı hukuken satıcı kimdir — Paddle mı, biz mi? Mesafeli satış sözleşmesinin tarafı kim gösterilmelidir?</li>
+    <li>Bu yapı Türk tüketici mevzuatı bakımından sorun yaratır mı? Tüketici, satıcıyı ekranda net olarak görebilmelidir; mevcut hâl bu şartı karşılıyor mu?</li>
+    <li>Türkiye'de doğan KDV veya dijital hizmet vergisi yükümlülüğü kimdedir?</li>
+    <li>Tüketici cayma hakkını kime karşı kullanır? Tüketici Hakem Heyeti'ne başvuru hâlinde muhatap kim olur?</li>
+    <li>Sözleşme metinlerimizde bu yapının açıkça anlatılması gerekir mi? Gerekiyorsa metnini istiyoruz.</li>
+  </ol>
+</div>
+
+<h3>2.3 Misafir verileri bakımından sıfatımız nedir? <span class="blocker">BLOKE</span></h3>
+<div class="fact">
+  <p><strong>Tespit:</strong> Sistemimizde iki ayrı ilgili kişi grubu vardır: müşterimiz olan ev
+  sahibi ve <em>müşterimizin misafiri</em>. İkinci grup bizimle sözleşme kurmamıştır. Misafirin
+  adı, telefonu, e-postası ve tüm mesaj içeriği bizim veritabanımızda tutulur ve yapay zekâ
+  sağlayıcısına gönderilir.</p>
+  <p>Gizlilik metnimizde bu ayrım bugün <strong>açıkça kurulmamıştır.</strong> Metin, ev sahibinin
+  kendi misafirlerine karşı aydınlatma yükümlülüğünden sorumlu olduğunu söylemekle yetinmektedir.
+  Bunun yeterli olup olmadığını bilmiyoruz.</p>
+  <p>Ayrıca QR kod özelliğinde misafir <strong>doğrudan bizim ekranımızla</strong> konuşmaktadır;
+  burada araya ev sahibi girmemektedir.</p>
+</div>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>Misafir verileri bakımından Lixus <strong>veri işleyen</strong> midir, yoksa ev sahibiyle birlikte <strong>ortak veri sorumlusu</strong> mu?</li>
+    <li>Ev sahibi ile aramızda yazılı bir <strong>Veri İşleme Sözleşmesi</strong> imzalanması zorunlu mudur? Zorunluysa Türkçe şablonunu sizden talep ediyoruz — bu sözleşme her yeni müşteriye kayıt sırasında sunulacaktır.</li>
+    <li>Misafiri aydınlatma yükümlülüğü kimdedir? Ev sahibinin bunu yerine getirdiğini nasıl güvence altına almalıyız — sözleşmeye taahhüt koymak yeterli mi?</li>
+    <li>QR sohbet ekranında misafire ayrı bir <strong>aydınlatma metni</strong> göstermemiz gerekir mi? Gerekiyorsa metnini istiyoruz (kısa ve ekrana sığar olması önemli).</li>
+  </ol>
+</div>
+
+<h2 class="pb">3. KVKK — kişisel verilerin yurt dışına aktarılması</h2>
+<p>Kullandığımız altyapı sağlayıcılarının <strong>tamamı yurt dışındadır.</strong> Aşağıdaki tablo
+kaynak koddan doğrulanmış gerçek durumu göstermektedir.</p>
+
+<table>
+  <tr>
+    <th style="width:96px">Sağlayıcı</th><th style="width:66px">Ülke</th>
+    <th>Aktarılan veri</th><th style="width:118px">Sözleşme durumu</th>
+  </tr>
+  <tr>
+    <td><strong>OpenAI</strong></td><td>ABD / İrlanda</td>
+    <td>Misafir mesajının tam metni + rezervasyon bağlamı (ad, tarihler, daire bilgisi)</td>
+    <td>DPA <strong>imzalandı</strong> (18.07.2026, taraf: OpenAI Ireland)</td>
+  </tr>
+  <tr>
+    <td><strong>Akash Network</strong> (GLM modeli)</td><td>ABD</td>
+    <td><strong>Redakte edilmiş</strong> misafir mesajı (ad/telefon/e-posta çıkarılmış). Karar yetkisi yoktur, yalnızca kıyaslama amaçlıdır.</td>
+    <td><strong>SÖZLEŞME YOK — canlı çalışıyor</strong></td>
+  </tr>
+  <tr>
+    <td><strong>Anthropic</strong></td><td>ABD</td>
+    <td>Kalite denetimi için örnek yanıtlar — <strong>üretim ortamında API anahtarı tanımlı</strong>, özellik yönetici tetiklemeli</td>
+    <td>SÖZLEŞME YOK</td>
+  </tr>
+  <tr>
+    <td><strong>Railway</strong></td><td>ABD</td>
+    <td><strong>Veritabanının tamamı</strong> + görev fotoğrafları (Railway'in "Buckets" nesne depolaması — erişime kapalı, kısa ömürlü imzalı bağlantı)</td>
+    <td>SÖZLEŞME YOK</td>
+  </tr>
+  <tr>
+    <td><strong>Paddle</strong></td><td>Birleşik Krallık / ABD</td>
+    <td>Ad, e-posta, fatura adresi, ödeme bilgisi</td>
+    <td>Platform sözleşmesi mevcut</td>
+  </tr>
+  <tr>
+    <td><strong>Resend</strong></td><td>ABD</td>
+    <td>E-posta adresi ve gönderilen e-posta içeriği</td>
+    <td>SÖZLEŞME YOK</td>
+  </tr>
+  <tr>
+    <td><strong>Hospitable</strong></td><td>ABD</td>
+    <td>Bizden veri gitmez; veri onlardan çekilir. Ev sahibinin kendi sözleşmesi vardır.</td>
+    <td>Ev sahibiyle onların ilişkisi</td>
+  </tr>
+</table>
+
+<div class="fact">
+  <p><strong>Gizlilik metnimizdeki eksik:</strong> Yayında olan gizlilik politikamız alt işleyen
+  olarak yalnızca OpenAI, Hospitable, Paddle, e-posta sağlayıcısı ve Railway'i saymaktadır.
+  <strong>Akash Network ve Anthropic listede yoktur</strong> — oysa Akash bugün canlı olarak
+  veri almaktadır. Bu eksiği kendi başımıza düzeltmek yerine, doğru metni sizden istiyoruz.</p>
+</div>
+
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>Yukarıdaki aktarımların her biri için hangi KVKK m.9 mekanizması uygulanmalıdır — Kurul onaylı <strong>standart sözleşme</strong>, <strong>taahhütname</strong>, yoksa <strong>açık rıza</strong>? Sağlayıcı bazında ayrı ayrı belirtmenizi rica ederiz.</li>
+    <li>Standart sözleşme yolu seçilirse, imzadan itibaren <strong>beş iş günü içinde Kurul'a bildirim</strong> yükümlülüğü doğmaktadır. Bu bildirimi kim, hangi form ve kanalla yapar? Bu işlemi sizden hizmet olarak alabilir miyiz?</li>
+    <li>Bir sağlayıcı yalnızca <strong>kişisel verisi çıkarılmış (redakte)</strong> veri alıyorsa yine de alt işleyen sayılır mı ve gizlilik metninde listelenmesi gerekir mi? (Akash bu durumdadır.)</li>
+    <li>Gizlilik politikamıza eklenecek <strong>alt işleyen paragrafının tam metnini</strong> istiyoruz.</li>
+    <li>Veritabanımızın fiziksel olarak <strong>ABD'de</strong> bulunması başlı başına bir sorun mudur? Türkiye'de barındırma zorunluluğumuz var mıdır?</li>
+    <li><strong>Altyapının altındaki altyapı:</strong> Fotoğraf depolamayı Railway'in kendi ürünü olarak satın alıyoruz (sözleşme ve fatura Railway'le), ancak teknik uç nokta <strong>Tigris Data</strong> adlı başka bir şirketin altyapısında çalışıyor. Alt işleyen listesinde Railway'i saymak yeterli midir, yoksa Railway'in bu alt yüklenicisi ayrıca mı sayılmalıdır? Genel kural nedir — alt işleyenin alt işleyenini nereye kadar listeleriz?</li>
+  </ol>
+</div>
+
+<h2>4. VERBİS kaydı</h2>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>Yurt dışında mukim bir satıcı, Türkiye'deki ilgili kişilerin verisini işlerken <strong>VERBİS'e kayıt</strong> yükümlüsü müdür?</li>
+    <li>Yükümlüysek, yurt dışında yerleşik veri sorumlusu için <strong>Türkiye'de temsilci atanması</strong> gerekir mi? Bu temsilcinin nitelikleri nelerdir?</li>
+    <li>Kayıt işlemini sizden hizmet olarak alabilir miyiz? Alabiliyorsak yaklaşık süre ve bedel nedir?</li>
+  </ol>
+</div>
+
+<h2>5. Saklama ve imha süreleri</h2>
+<p>Bugünkü uygulamamız: <strong>24 aydan eski misafir kişisel verileri otomatik olarak
+anonimleştirilmektedir</strong> (ad, telefon, e-posta ve mesaj içeriği geri döndürülemez biçimde
+maskelenir; rezervasyon istatistiği kalır). Bu süre yazılımdan ayarlanabilir.</p>
+
+<p>Aşağıdaki süreleri ve dayanaklarını kendimiz araştırdık; <strong>onayınızı ya da düzeltmenizi
+istiyoruz.</strong></p>
+
+<table>
+  <tr><th style="width:190px">Veri türü</th><th style="width:120px">Önerimiz</th><th>Dayandığımız hüküm</th></tr>
+  <tr><td>Fatura ve ödeme kayıtları</td><td><strong>10 yıl</strong></td><td>TTK m.82 (ticari defter ve belgeler). VUK m.253 beş yıl öngörür; tacir için sıkı olanın uygulanacağını varsaydık.</td></tr>
+  <tr><td>Mesafeli satış onay delili (kim, ne zaman, hangi metni kabul etti)</td><td><strong>en az 3 yıl</strong>, tercihen 10 yıl</td><td>Mesafeli Sözleşmeler Yönetmeliği m.20/1 (ispat yükü satıcıda) + TBK m.146 (genel zamanaşımı)</td></tr>
+  <tr><td>Ticari elektronik ileti onay/ret kaydı</td><td><strong>3 yıl</strong></td><td>Ticari İletişim ve Ticari Elektronik İletiler Hakkında Yönetmelik m.13</td></tr>
+  <tr><td>Misafir mesajı ve rezervasyon kişisel verileri</td><td><strong>24 ay</strong></td><td>KVKK m.7 — işleme amacı ortadan kalkınca resen imha</td></tr>
+</table>
+
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>Bu süreler doğru mudur? Düzeltilmesi gereken var mı?</li>
+    <li>Resmî bir <strong>Kişisel Veri Saklama ve İmha Politikası</strong> dokümanı hazırlamamız zorunlu mudur? Zorunluysa bu dokümanı sizden talep ediyoruz. (Elimizde, veritabanındaki her tablonun tek tek incelendiği ayrıntılı bir teknik taslak vardır; talep ederseniz gönderebiliriz.)</li>
+    <li>Bu politikanın müşterilere veya kamuya açık yayımlanması gerekir mi?</li>
+  </ol>
+</div>
+
+<h2 class="pb">6. Misafirin silme talebi (KVKK m.11)</h2>
+<div class="fact">
+  <p><strong>Teknik durum:</strong> Silme mekanizmasını yazdık ve test ettik; ancak
+  <strong>sizin görüşünüz gelene kadar kapalı tutuyoruz.</strong></p>
+  <p><strong>Asıl hukuki soru şu teknik zorunluluktan doğuyor:</strong> Bir misafirin verisini
+  sildiğimizde, bir sonraki senkronizasyonda Airbnb/Hospitable aynı veriyi tekrar gönderir ve
+  silinen veri sistemimizde yeniden oluşur. Yani "sildim" demek, tek başına silmiş olmak anlamına
+  gelmiyor.</p>
+  <p>Bunu engellemek için, silinen kimliğin <strong>geri döndürülemez kriptografik özetini</strong>
+  (anahtarlı özet / HMAC) saklıyoruz. Bu kayıt yalnızca <em>"bu kimlik silinmiştir, bir daha içeri
+  alma"</em> anlamına gelir. Kaydın içinde ad, e-posta veya telefonun kendisi
+  <strong>bulunmaz</strong>; yalnızca bunlardan türetilmiş, geri çevrilemeyen bir özet vardır.
+  Bu özet olmadan silme kalıcı olamaz.</p>
+</div>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>Bu özet kaydı hukuken bir <strong>kişisel veri işleme</strong> faaliyeti sayılır mı?</li>
+    <li>Sayılıyorsa hukuki dayanağı ne olmalıdır? KVKK m.5/2-ç (veri sorumlusunun hukuki yükümlülüğünü yerine getirmesi) bizim durumumuzda yeterli midir?</li>
+    <li>Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hâle Getirilmesi Hakkında Yönetmelik'in "verinin hiçbir şekilde kullanılamaz hâle getirilmesi" ölçütü, anlattığımız yöntemle karşılanmış olur mu?</li>
+    <li>Silme talebini <strong>gerekçeli olarak reddedebileceğimiz</strong> hâller (örneğin faturaya bağlı kayıtlar) için bir <strong>red yazısı şablonu</strong> istiyoruz.</li>
+    <li>Otuz günlük yanıt süresi, başvuru kanalları ve kimlik doğrulama için standart bir <strong>başvuru prosedürü metni</strong> istiyoruz. Misafir bize hangi kanaldan başvurabilmelidir — web sitesinde ayrı bir form açmamız gerekir mi?</li>
+    <li>Misafirin talebi bize değil ev sahibine geldiğinde ne olmalıdır? Ev sahibinin bizi bilgilendirme yükümlülüğünü sözleşmeye koymalı mıyız?</li>
+  </ol>
+</div>
+
+<h2>7. Yapay zekâya özgü sorular</h2>
+<div class="fact">
+  <p><strong>Tasarım ilkemiz:</strong> "Yapay zekâ karar verici değil, yardımcıdır." Yazılım üç
+  risk seviyesi tanır: düşük riskli konular otomatik yanıtlanır; orta riskli konularda ev sahibinin
+  açıkça açması gereken, söz vermeyen ve sorumluluk kabul etmeyen tek bir bekletme mesajı gider;
+  yüksek riskli konularda (şikâyet, iade, güvenlik, ödeme, hukuki tehdit) otomatik yanıt
+  <strong>kod düzeyinde engellenir</strong> — bu kararı yapay zekâya bırakmıyoruz — ve konu
+  derhal ev sahibine devredilir.</p>
+</div>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>Misafire otomatik giden mesajda <strong>"bu yanıt yapay zekâ ile hazırlanmıştır"</strong> ibaresi zorunlu mudur? (Bugün bu not opsiyonel olarak eklenmektedir; zorunluysa varsayılan olarak açacağız.)</li>
+    <li>KVKK m.11/1-g'deki <em>"işlenen verilerin münhasıran otomatik sistemler vasıtasıyla analiz edilmesi suretiyle kişinin kendisi aleyhine bir sonucun ortaya çıkmasına itiraz etme"</em> hakkı bizim akışımızda doğar mı? Doğuyorsa hangi mekanizmayı kurmalıyız?</li>
+    <li>Misafir mesajlarının yapay zekâ sağlayıcısına gönderilmesi için misafirin <strong>açık rızası</strong> gerekir mi, yoksa sözleşmenin ifası veya meşru menfaat dayanağı yeterli midir?</li>
+    <li>Satıcı İtalya'da mukim olduğu için soruyoruz: <strong>AB Yapay Zekâ Tüzüğü</strong>nün şeffaflık yükümlülükleri bu ürüne uygulanır mı?</li>
+  </ol>
+</div>
+
+<h2>8. Turizm amaçlı kiralama mevzuatı (7464 ve 1774 sayılı Kanunlar)</h2>
+<div class="fact">
+  <p><strong>Tespit:</strong> Müşterilerimiz 7464 sayılı Kanun kapsamında turizm amaçlı kiralama
+  yapan ev sahipleri. Yazılımımız ilan yayınlamaz, rezervasyon almaz, ödeme aracılık etmez —
+  yalnızca ev sahibinin kendi platform hesaplarındaki mesajlaşmasına yardımcı olur. Sistemimizde
+  misafir adı ile giriş-çıkış tarihleri (rezervasyon kaydı olarak) zaten tutulmaktadır.</p>
+</div>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>7464'ün elektronik ticaret/aracı hizmet sağlayıcılara yönelik yükümlülük ve cezaları bizim konumumuzu kapsar mı? (İlan/rezervasyon platformu olmadığımız değerlendirmemizi teyit eder misiniz?)</li>
+    <li>İzin belgeli konutlarda 1774 sayılı Kimlik Bildirme Kanunu uygulanıyor. Ev sahibinin bu yükümlülüğü <strong>tam olarak nedir</strong>: günü gününe tutulan ve kolluk incelemesine hazır bir kayıt yeterli midir, yoksa kolluk sistemlerine anlık elektronik bildirim mi gerekir?</li>
+    <li>Elimizdeki rezervasyon verisinden ev sahibine "kimlik ve geliş-gidiş kayıt dökümü" çıktısı sunmamız bu yükümlülüğe yardımcı bir araç olur mu; sunarsak üzerimize ek bir sorumluluk geçer mi?</li>
+    <li>Müşterinin izin belgesi olup olmadığını sormak/saklamak bize bir denetim yükümlülüğü doğurur mu?</li>
+  </ol>
+</div>
+
+<h2>9. Ticari elektronik ileti</h2>
+<p>Sistemin gönderdiği e-postalar: e-posta doğrulama, şifre sıfırlama, iki adımlı doğrulama kodu,
+"deneme süreniz bitiyor" hatırlatması, ev sahibine giden "misafir şikâyeti var" uyarısı.</p>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>"Deneme süreniz bitiyor / bitti" e-postası <strong>ticari elektronik ileti</strong> midir, yoksa hizmete ilişkin bilgilendirme mi?</li>
+    <li>Ticari ileti sayılırsa <strong>İYS</strong> kaydı ve önceden onay alma yükümlülüğü doğar mı?</li>
+    <li>Yurt dışında mukim bir gönderici için İYS yükümlülüğü nasıl işler?</li>
+  </ol>
+</div>
+
+<h2>10. İleriye dönük — Avrupa açılışı <span class="low">DÜŞÜK ÖNCELİK</span></h2>
+<p>Aynı yazılımı ilerleyen dönemde Avrupa'da euro ile satmayı planlıyoruz (ayrı alan adı, ayrı
+veritabanı, ayrı fiyatlandırma). Bu henüz karara bağlanmadı; ancak aynı görüşme içinde sormanın
+maliyeti düşürdüğünü düşündüğümüz için ekliyoruz.</p>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>İtalyan satıcının AB'de mukim tüketiciye satışı, Türk tüketiciye satıştan farklı olarak hangi metinleri gerektirir?</li>
+    <li>GDPR kapsamında veritabanının fiziksel olarak AB'de bulunması <strong>zorunlu</strong> mudur, yoksa uygun aktarım güvenceleriyle başka bir ülkede barındırmak mümkün müdür?</li>
+    <li>Aynı işletmenin hem Türk hem AB tüketicisine satış yapması ek bir kayıt, temsilci veya vergi yükümlülüğü doğurur mu?</li>
+  </ol>
+</div>
+
+<h2 class="pb">11. Sizden talep ettiğimiz çıktılar</h2>
+<p>Aşağıdakileri <strong>yazılı metin</strong> olarak istiyoruz. Metinleri olduğu gibi yazılıma
+işleyeceğiz; bu nedenle "şu yönde düzenleme yapılmalıdır" biçiminde değil, doğrudan kullanılabilir
+cümleler hâlinde olmasını rica ediyoruz.</p>
+
+<ol class="deliver">
+  <li><strong>Satıcı kimlik numarası etiketi kararı ve tam metni</strong> — üç hukuk sayfasında değişecek (Bölüm 2.1)</li>
+  <li><strong>Alt işleyen listesi paragrafı</strong> — Akash Network ve Anthropic dahil, gizlilik politikasına eklenmek üzere (Bölüm 3)</li>
+  <li><strong>KVKK m.9 aktarım mekanizması kararı</strong> — sağlayıcı bazında; standart sözleşmelerin doldurulmuş hâlleri ve Kurul bildirimi (Bölüm 3)</li>
+  <li><strong>Ev sahibiyle imzalanacak Veri İşleme Sözleşmesi</strong> — Türkçe şablon; kayıt sırasında sunulacak (Bölüm 2.3)</li>
+  <li><strong>Kişisel Veri Saklama ve İmha Politikası</strong> — süreler onaylanmış hâliyle (Bölüm 5)</li>
+  <li><strong>Misafir silme talebi prosedürü + gerekçeli red yazısı şablonu</strong> (Bölüm 6)</li>
+  <li><strong>Misafire gösterilecek aydınlatma metni</strong> — QR sohbet ekranı için, kısa (Bölüm 2.3)</li>
+  <li><strong>VERBİS kayıt gerekliliği kararı</strong>, gerekliyse kayıt hizmeti (Bölüm 4)</li>
+  <li><strong>Mesafeli Satış Sözleşmesi ve Ön Bilgilendirme Formu'nun revizyonu</strong> — yabancı satıcı ve Merchant of Record yapısına göre (Bölüm 2.1–2.2)</li>
+  <li><strong>Yapay zekâ şeffaflık ibaresinin zorunlu olup olmadığı</strong> ve zorunluysa metni (Bölüm 7)</li>
+  <li><strong>7464/1774 kapsam görüşü</strong> — aracı sayılıp sayılmadığımız + kimlik-kayıt yükümlülüğünün niteliği (Bölüm 8)</li>
+</ol>
+
+<div class="fact">
+  <p><strong>Bir usul ricası:</strong> Yazılımda, kullanıcının hangi hukuki metni kabul ettiğini
+  ispatlayabilmek için metinlerin bir <strong>sürüm damgası</strong> tutulmaktadır. Metinler
+  kesinleştiğinde bize <em>tek seferde ve topluca</em> iletmenizi rica ediyoruz — parça parça gelen
+  değişiklikler her seferinde yeni bir sürüm damgası doğurur ve geçmiş onay kayıtlarını
+  karmaşıklaştırır. Nihai metinleri ve görüşlerinizi <strong>yazılı ve tarihli</strong> (e-posta
+  yeterlidir) iletmenizi rica ederiz — onaylarınızı arşivleyeceğiz.</p>
+</div>
+
+<h2>Ek A — İşinize yarayabilecek teknik gerçekler</h2>
+<p>Aşağıdakiler, "gerekli teknik ve idari tedbirler" değerlendirmesinde işinizi kolaylaştırabilir.
+Hepsi kaynak kod üzerinden doğrulanmıştır.</p>
+<ul>
+  <li>Kullanıcı kaydında Gizlilik Politikası ve Mesafeli Satış onayı; <strong>zaman damgası, IP adresi, tarayıcı bilgisi, metin sürümü ve metnin kriptografik özeti</strong> ile birlikte saklanır. Yani hangi kullanıcının hangi tarihte <em>hangi metni</em> kabul ettiği ispatlanabilir; metin sonradan değişse bile eski kabul kaydı bozulmaz.</li>
+  <li>Şifreler geri döndürülemez biçimde saklanır (bcrypt). Bağlantı anahtarları ve iki adımlı doğrulama sırları veritabanında şifrelenmiş tutulur.</li>
+  <li>Tüm veri trafiği TLS ile şifrelenir. Yönetim ekranlarına erişim rol bazlı sınırlandırılmıştır; personel hesapları yalnızca kendilerine atanan işleri görebilir.</li>
+  <li>İki adımlı doğrulama (TOTP) mevcuttur. Şifre değişikliğinde tüm mevcut oturumlar sunucu tarafında geçersiz kılınır.</li>
+  <li>Müşteri, kendisine ve misafirlerine ait tüm veriyi panelden <strong>tek tuşla dışa aktarabilir</strong> (makine okunur biçimde).</li>
+  <li>Hesap silindiğinde bağlı tüm kayıtlar silinir; yalnızca fatura iskeleti korunur ve içindeki kişisel veriler maskelenir.</li>
+  <li>Takvim paylaşım bağlantılarında misafir adı <strong>varsayılan olarak gizlidir</strong>.</li>
+  <li>Görev fotoğrafları erişime kapalı nesne depolamada tutulur; görüntüleme yalnız oturumlu ve aynı-işletme kontrollü, <strong>5 dakikalık imzalı bağlantılarla</strong> yapılır.</li>
+  <li>Takvim bağlantı adresleri (kimlik bilgisi taşır) veritabanında <strong>satıra bağlı AES-256-GCM ile şifrelenmeye</strong> başlanmıştır; kurcalanmış/uyumsuz değer sistemce reddedilir.</li>
+  <li>Yapay zekâya gönderilen istemlerde misafir adı gibi alanlar ayrıştırılarak işlenir; modelin sistem talimatını değiştirmeye yönelik girişimler (prompt injection) ayrı bir mekanizmayla engellenir.</li>
+</ul>
+
+<div class="foot">
+  <p><strong>Belge hakkında:</strong> Bu belgedeki teknik tespitler, 29 Temmuz 2026 tarihli
+  kaynak kod üzerinden doğrulanmıştır. Hukuki nitelendirme içermez; nitelendirme talebimizin
+  konusudur. Herhangi bir maddede ek teknik ayrıntı gerekirse (veritabanı tablo envanteri,
+  veri akış şeması, sağlayıcı sözleşmeleri) talep etmeniz yeterlidir.</p>
+  <p>Lixus AI — iletisimlixusai@gmail.com — +39 348 752 45 31</p>
+</div>
+
+</body>
+</html>

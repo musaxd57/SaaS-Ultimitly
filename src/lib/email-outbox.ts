@@ -1,0 +1,763 @@
+import "server-only";
+import { identityEmailShell } from "@/lib/email-shell";
+
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { encryptSecretBound, decryptSecretBound } from "@/lib/crypto";
+import { emailService } from "@/lib/email";
+import { reportError } from "@/lib/report-error";
+import { verifyUrl, verifyEmailHtml, appBaseUrl } from "@/lib/auth/email-verify";
+
+// ---------------------------------------------------------------------------
+// Durable outbox for IDENTITY e-mails (Tur-4; docs/EMAIL-OUTBOX-DESIGN.md).
+//
+// Why: the identity flows used to make a SYNCHRONOUS provider call inside the
+// request — a measurable timing oracle on forgot-password (known vs unknown
+// account) and a hard dependency (register 503'd on a provider outage). The
+// outbox removes the network leg from the request: one atomic transaction
+// writes the User's secret hash AND the send-intent row, and delivery is owned
+// by an independent drain loop.
+//
+// Delivery authority = THE ROW, not any timer: an in-process 15s poller
+// (instrumentation.ts → /api/cron/email-outbox) and the 2-min scheduled sync
+// both drain; the post-enqueue kick is only a latency optimizer. FOR UPDATE
+// SKIP LOCKED claims make any number of concurrent drains safe.
+//
+// Secrets: the raw code/token and the recipient snapshot live ONLY in
+// payloadEnc — AES-256-GCM bound via AAD to (rowId, userId, kind), so a
+// ciphertext moved to another row fails authentication. payloadEnc is NULLed
+// on EVERY terminal transition (sent / canceled / terminal failed / expiry).
+//
+// Currency ("an old row can never resurrect"): a row is CURRENT iff
+//   (1) no sibling row with a higher version exists for (userId, kind), AND
+//   (2) the User's matching hash column is still set and unexpired.
+// Every hash write shares a transaction with a same-version row insert, and
+// consume/expiry paths null the hash — so (1)+(2) ⟺ "this row's secret is the
+// user's live secret" without ever comparing secret material. The gate runs
+// under the NS-42 per-(user,kind) advisory lock at THREE transitions:
+// claimed→sending (pre-send CAS, plus the recipient-snapshot check),
+// sending→pending (failure settle → stale rows go to canceled, never retry),
+// and claim-expiry recovery. The single accepted residue: a provider call that
+// already started cannot be stopped — at most ONE stale e-mail, whose code no
+// longer verifies anyway.
+//
+// DELIVERY GUARANTEE = AT-LEAST-ONCE, NOT EXACTLY-ONCE. Be honest about this:
+// once the provider call is in flight we cannot know whether it landed. A
+// worker that dies mid-send leaves a `sending` row whose outcome is unknowable,
+// so recovery re-sends — a duplicate identity e-mail is possible and is the
+// DELIBERATE trade (a lost password-reset mail is worse than a duplicate one).
+// What IS bounded: the duplicate can only be the CURRENT generation's secret
+// (the currency gate cancels superseded rows), and the number of such attempts
+// is capped by attemptCount/backoff/expiry — `sending` recovery costs budget
+// exactly because it might already have delivered.
+// ---------------------------------------------------------------------------
+
+export type EmailOutboxKind =
+  | "verify_email"
+  | "pw_change_code"
+  | "pw_reset_challenge"
+  | "account_exists";
+const KINDS: ReadonlySet<string> = new Set([
+  "verify_email",
+  // ⚠️ `pw_reset_code` FAZ 3'te (08-09) KALDIRILDI — eski sıfırlama kod yolu
+  // tamamen çıktı. Kaldırma öncesi prod'da ölçüldü: kind='pw_reset_code' satırları
+  // yalnız terminal `sent=2`, pending/claimed/sending=0 (uçuşta iş yoktu).
+  // 🚨 GERİ EKLEME: `hashLive`ın son ternary dalı bir CATCH-ALL'dur
+  // (`pwChangeCodeHash`), yani tanımadığı bir tür oraya SESSİZCE düşer ve satır
+  // iptal edilir. Yeni tür eklenecekse dört listeye BİRDEN eklenir
+  // (`tests/unit/email-outbox-kind-parity.test.ts` bunu zorlar).
+  "pw_change_code",
+  // ⚠️ YENİ (Faz 1): challenge tabanlı sıfırlama. İKİ sır taşır (token + kod) ve
+  // canlılığı `User` satırında DEĞİL, `PasswordResetChallenge` satırında yaşar.
+  "pw_reset_challenge",
+  // ⚠️ SIRSIZ TEK TÜR: "bu adresle zaten hesabın var" bildirimi. Token/kod
+  // taşımaz, bir şeyi YETKİLENDİRMEZ; yalnız adres sahibini bilgilendirir.
+  "account_exists",
+]);
+
+/** Master switch — default OFF. While off the module is dead code: routes use
+ *  their legacy synchronous send and the drain refuses to run. */
+export function emailOutboxEnabled(): boolean {
+  return process.env.EMAIL_OUTBOX_ENABLED === "1";
+}
+
+// Advisory-lock namespace — disjoint from erasure (40) and guest-chat (41).
+const EMAIL_OUTBOX_LOCK_NS = 42;
+
+async function acquireEmailOutboxLock(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  kind: EmailOutboxKind,
+): Promise<void> {
+  await tx.$executeRaw(
+    Prisma.sql`SELECT pg_advisory_xact_lock(${EMAIL_OUTBOX_LOCK_NS}::int4, hashtext(${`${userId}:${kind}`}))`,
+  );
+}
+
+function aadFor(id: string, userId: string, kind: string): string {
+  return `emailoutbox:v1:${id}:${userId}:${kind}`;
+}
+
+export const EMAIL_OUTBOX_MAX_ATTEMPTS = 5;
+// Attempt N failure → wait BACKOFF[N-1] (bounded by the secret's own expiry).
+const BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
+/**
+ * Per-row LEASE length. Must exceed the worst-case single provider call so an
+ * in-flight `sending` row is never recovered mid-send: Resend aborts at 15s
+ * (email.ts viaResend), SMTP caps each phase at 12s (viaSmtp) — both far under
+ * this. The lease is re-stamped from DB `now()` at the claimed→sending CAS, so
+ * it is measured from THIS row's send, not from when the batch started.
+ *
+ * The earlier bug: the lease was computed once per batch and written to all
+ * rows, so with 10 rows × a real network call the LAST row's lease could expire
+ * before its send began — the sweep then "recovered" it and a second drain sent
+ * the same identity e-mail again.
+ */
+export const EMAIL_OUTBOX_CLAIM_TTL_MS = 3 * 60_000;
+const CLAIM_TTL_SECONDS = Math.floor(EMAIL_OUTBOX_CLAIM_TTL_MS / 1000);
+
+// Retention for OPERATIONAL metadata (payloadEnc is long gone by then).
+const SENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const TERMINAL_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+interface OutboxPayload {
+  secret: string;
+  recipient: string;
+}
+
+export interface EnqueueIdentityEmailArgs {
+  userId: string;
+  kind: EmailOutboxKind;
+  /** The raw code/link-token. Lives ONLY inside payloadEnc. */
+  secret: string;
+  /** Recipient SNAPSHOT — the address this secret is for. Verified against the
+   *  User's current address at send time; mismatch cancels the row. */
+  recipient: string;
+  /** The SECRET's own TTL — the row is never sent past this. */
+  expiresAt: Date;
+}
+
+/**
+ * Queue an identity e-mail. MUST run inside the SAME transaction that writes
+ * the corresponding User hash column — that shared commit is what makes the
+ * version⇔hash pairing (and the register 201 contract) atomic. Supersedes all
+ * older undelivered generations; an in-flight `sending` sibling cannot be
+ * stopped here (accepted window) — the currency gates cancel it at its next
+ * transition instead.
+ */
+export async function enqueueIdentityEmail(
+  tx: Prisma.TransactionClient,
+  args: EnqueueIdentityEmailArgs,
+): Promise<string> {
+  await acquireEmailOutboxLock(tx, args.userId, args.kind);
+  await tx.emailOutbox.updateMany({
+    where: { userId: args.userId, kind: args.kind, status: { in: ["pending", "claimed"] } },
+    data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
+  });
+  const agg = await tx.emailOutbox.aggregate({
+    where: { userId: args.userId, kind: args.kind },
+    _max: { version: true },
+  });
+  const version = (agg._max.version ?? 0) + 1;
+  const id = randomUUID();
+  await tx.emailOutbox.create({
+    data: {
+      id,
+      userId: args.userId,
+      kind: args.kind,
+      version,
+      payloadEnc: encryptSecretBound(
+        JSON.stringify({ secret: args.secret, recipient: args.recipient } satisfies OutboxPayload),
+        aadFor(id, args.userId, args.kind),
+      ),
+      expiresAt: args.expiresAt,
+      // ENQUEUE_CLOCK: vade, drain'in `"nextAttemptAt" <= now` kıyasladığı JS saatiyle damgalanır (şema varsayılanı başka saat).
+      nextAttemptAt: new Date(),
+    },
+  });
+  return id;
+}
+
+/**
+ * Fire-and-forget latency optimizer after an enqueue COMMITS — never the
+ * delivery authority (the poller + cron own that), never awaited by a route
+ * (it must not add measurable time to the known-user path), and it can NOT
+ * produce an unhandled rejection: every failure funnels into reportError,
+ * whose own rejection is swallowed too.
+ */
+export function kickEmailOutboxDrain(drain: () => Promise<unknown> = drainEmailOutboxOnce): void {
+  try {
+    void drain().catch((err) => {
+      void reportError("email-outbox.kick", err instanceof Error ? err : new Error(String(err))).catch(
+        () => {},
+      );
+    });
+  } catch {
+    // A synchronously-throwing drain (should not happen) must not crash the route.
+  }
+}
+
+// --- Rendering (single source for BOTH the outbox worker and the legacy
+// synchronous path — the two paths can never drift apart). -------------------
+
+/**
+ * Challenge sıfırlama bağlantısı — token YALNIZ burada, URL'de taşınır.
+ *
+ * 🚨 TOKEN **FRAGMENT**'TE (`#t=`), QUERY'DE (`?t=`) DEĞİL — DEĞİŞTİRME.
+ *
+ * Fragment, HTTP isteğinin hiçbir parçası değildir: tarayıcı onu sunucuya
+ * GÖNDERMEZ. Query parametresi ise istek satırının içindedir ve önümüzdeki her
+ * katman onu görür — Railway edge'i, Next'in kendi istek log'u, araya girebilecek
+ * herhangi bir ters vekil ve e-posta güvenlik tarayıcılarının bağlantıyı önceden
+ * "ısıtan" istekleri. Bunların hiçbirinin token'ı SAKLAMADIĞINI kanıtlayamayız:
+ * Railway üçüncü taraf bir platform, log içeriği bizim sözleşmemiz değil. Bir
+ * olumsuzu kanıtlamak yerine token'ı o katmanların ERİŞEMEYECEĞİ yere koyuyoruz —
+ * kanıt gerektirmeyen tek çözüm budur (Codex, 08-02).
+ *
+ * İkinci kazanç REFERRER: `Referer` başlığı fragment'i ASLA taşımaz (spec gereği
+ * çıkarılır), query'yi ise aynı-origin gezinmelerde taşır. `next.config.mjs`
+ * `/sifremi-unuttum`'a ayrıca `Referrer-Policy: no-referrer` yazar — ikinci savunma.
+ *
+ * İstemci token'ı okur okumaz `history.replaceState` ile adres çubuğundan siler
+ * (`forgot-password-form.tsx`); yani tarayıcı geçmişinde de kalmaz.
+ */
+export function resetChallengeUrl(rawToken: string): string {
+  return `${appBaseUrl()}/sifremi-unuttum#t=${encodeURIComponent(rawToken)}`;
+}
+
+/**
+ * Challenge e-postası: BAĞLANTI (token) + 8 haneli KOD.
+ *
+ * ⚠️ İKİ SIR BİLİNÇLİ OLARAK AYRI: bağlantı challenge'ı ADRESLER, kod onu
+ * YETKİLENDİRİR. Sızmış bir URL (tarayıcı geçmişi, ekran görüntüsü, referrer)
+ * tek başına parolayı sıfırlayamaz — kod da gerekir.
+ */
+export function resetChallengeEmailHtml(url: string, code: string): string {
+  return identityEmailShell({
+    heading: "Şifre sıfırlama",
+    // ⚠️ SIRA: KOD ÖNCE, BUTON SONRA (kullanıcı gözlemi, 08-09). Eskiden buton
+    // öndeydi ve metin "önce bağlantıyı açın" diyordu → kullanıcı sayfaya
+    // gidiyor, kodu görmediğini fark ediyor, kopyalamak için e-postaya GERİ
+    // dönüyordu. Akış değişmedi (token bağlantıda, kod açılan sayfada girilir);
+    // değişen yalnız okuma sırası: kopyala → tıkla → yapıştır.
+    intro: "Şifrenizi sıfırlamak için önce bu kodu kopyalayın, sonra aşağıdaki bağlantıyı açın.",
+    codeFirst: true,
+    codeCaption: "Doğrulama kodunuz:",
+    code,
+    action: { label: "Şifremi sıfırla", url },
+    footnote:
+      "Bağlantı ve kod <strong>30 dakika</strong> geçerlidir ve yalnızca bir kez kullanılabilir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.",
+  });
+}
+
+// ⚠️ `resetCodeEmailHtml` FAZ 3'te (08-09) KALDIRILDI: linksiz "yalnız kod"
+// sıfırlama e-postası artık üretilmiyor. Sıfırlamanın TEK şablonu yukarıdaki
+// `resetChallengeEmailHtml` (bağlantı + kod + 30 dk). Kardeşi
+// `changeCodeEmailHtml` DURUYOR — o oturum-içi şifre değiştirme akışına ait ve
+// hâlâ linksiz kod gönderiyor; ikisini karıştırma.
+
+export function changeCodeEmailHtml(code: string): string {
+  return identityEmailShell({
+    heading: "Şifre değiştirme kodu",
+    intro: "Hesabınızın şifresini değiştirmek için doğrulama kodunuz:",
+    code,
+    footnote: CODE_FOOTNOTE,
+  });
+}
+
+/**
+ * "Bu adresle zaten bir hesap var" bildirimi.
+ *
+ * 🚨 SIR TAŞIMAZ ve HİÇBİR ŞEYİ YETKİLENDİRMEZ. Diğer üç kimlik e-postasının
+ * aksine burada token/kod yok; mail yalnız adres sahibini bilgilendirir.
+ *
+ * ⚠️ KİŞİSELLEŞTİRME YOK — BİLİNÇLİ. Bu maili tetikleyen istek SALDIRGANDAN
+ * gelebilir ve `registerSchema` `name` ile `organizationName` için 200 karakter
+ * serbest metin kabul ediyor. "Merhaba {name}" yazmak, kurbanın GÜVENDİĞİ bir
+ * e-postaya saldırganın yazdığı metni koymak olurdu (kimlik avı enjeksiyonu);
+ * `escapeHtml` HTML'i kaçar ama METNİ engellemez. Aynı sebeple istek gövdesinden
+ * ya da isteğin IP/User-Agent'ından HİÇBİR şey buraya girmez.
+ *
+ * ⚠️ EYLEM TETİKLEYEN BAĞLANTI YOK — yalnız parametresiz gezinme bağlantıları.
+ * Rota kimliksiz ve saldırgan tetikleyicisi olduğu için maildeki her token'lı
+ * bağlantı, saldırganın kurbana karşı tetiklediği bir eyleme dönüşürdü; ayrıca
+ * e-posta tarayıcılarının ön-ısıtma istekleri tek-kullanımlık token'ı tüketir.
+ *
+ * ⚠️ Birincil eylem "giriş yap", "şifreni sıfırla" DEĞİL: kullanıcıyı istemediği
+ * maillerdeki sıfırlama bağlantılarına tıklamaya alıştırmak kimlik avı eğitimidir.
+ * Aynı sebeple dipnottaki "yine de dilerseniz şifrenizi yenileyin" cümlesi
+ * KALDIRILDI (08-06): "yapmanız gereken bir şey yok" dedikten sonra bir şey
+ * yapmayı önermek kendi kendini çürütüyordu ve önerilen eylem HİÇBİR tehdidi
+ * azaltmıyordu — birinin kayıt formuna adresinizi yazması şifreniz hakkında
+ * sıfır bilgi taşır.
+ *
+ * ⚠️ "şifreniz, verileriniz ve ayarlarınız aynı" LİSTESİ DE KALDIRILDI. Sızıntı
+ * değildi (üçü de her alıcı için sabit doğru) ama "şifreniz" mailin içindeki TEK
+ * kredensiyel kelimesiydi ve okuyucunun aklında olmayan soruyu ("şifrem
+ * etkilenmiş olabilir mi?") kendisi açıp sonra kapatmak zorunda kalıyordu.
+ * "Dokunulmadı", "hiçbir şey değişmedi"den daha kesin: ikincisi zihinsel bir
+ * diff'e davet ediyor ("ne değişebilirdi ki?"), birincisi hiçbir işlemin hesaba
+ * ulaşmadığını söylüyor.
+ */
+export function accountExistsEmailHtml(): string {
+  return identityEmailShell({
+    heading: "Zaten bir hesabınız var",
+    intro:
+      "Bu e-posta adresiyle yeni bir Lixus AI hesabı oluşturulmak istendi. Zaten kayıtlı olduğu için <strong style=\"color:#0f172a\">yeni hesap açılmadı</strong>.",
+    action: { label: "Giriş sayfasına git", url: `${appBaseUrl()}/login` },
+    footnote:
+      "Şifrenizi hatırlamıyorsanız giriş sayfasındaki <strong>Şifremi unuttum</strong> bağlantısıyla yenileyebilirsiniz. Bu denemeyi siz yapmadıysanız hesabınızda bir değişiklik yapılmadı.",
+  });
+}
+
+const CODE_FOOTNOTE =
+  "Bu kod <strong>10 dakika</strong> geçerlidir. Birden fazla kod aldıysanız en son gönderilen geçerlidir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.";
+
+function renderIdentityEmail(kind: EmailOutboxKind, secret: string): { subject: string; html: string } {
+  switch (kind) {
+    case "verify_email":
+      return {
+        subject: "Lixus AI — E-postanızı doğrulayın",
+        html: verifyEmailHtml(verifyUrl(secret)),
+      };
+    case "pw_reset_challenge": {
+      // ⚠️ BİLEŞİK SIR: "{token}.{code}". Outbox'ın tek-`secret` sözleşmesi
+      // korunur (şifreli payload, tek alan); ayırma YALNIZ burada, render anında
+      // yapılır. Token BAĞLANTIYA, kod GÖVDEYE gider — ikisi de e-posta dışına
+      // (yanıt/log/Sentry/AuditLog) ASLA çıkmaz.
+      const dot = secret.indexOf(".");
+      const token = dot > 0 ? secret.slice(0, dot) : "";
+      const code = dot > 0 ? secret.slice(dot + 1) : secret;
+      return {
+        subject: "Lixus AI — Şifre sıfırlama",
+        html: resetChallengeEmailHtml(resetChallengeUrl(token), code),
+      };
+    }
+    case "pw_change_code":
+      return { subject: "Lixus AI — Şifre değiştirme kodu", html: changeCodeEmailHtml(secret) };
+    case "account_exists":
+      // ⚠️ `secret` KULLANILMAZ (bu türün sırrı yoktur). Kişiselleştirme YOK — 09-23'ten
+      // beri HİÇBİR kimlik e-postası kullanıcı adını taşımaz (`verifyEmailHtml` notu).
+      return {
+        subject: "Lixus AI — Bu adresle zaten bir hesap var",
+        html: accountExistsEmailHtml(),
+      };
+  }
+}
+
+// --- Currency gate ----------------------------------------------------------
+
+interface LivenessRow {
+  name: string;
+  email: string;
+  emailVerifyTokenHash: string | null;
+  emailVerifyExpiresAt: Date | null;
+  pwChangeCodeHash: string | null;
+  pwChangeCodeExpiresAt: Date | null;
+}
+
+function hashLive(user: LivenessRow, kind: EmailOutboxKind, now: Date): boolean {
+  // `pw_reset_challenge` BURADA ele alınmaz: canlılığı `User` satırında değil,
+  // `PasswordResetChallenge` satırında yaşıyor (↓`rowIsCurrent`).
+  if (kind === "pw_reset_challenge") return true;
+  // 🚨 `account_exists` DE BURADA ELE ALINMALI. Aşağıdaki üçlü ternary'nin SON
+  // dalı bir CATCH-ALL'dur (`pwChangeCodeHash`): burada erken dönülmezse yeni
+  // tür sessizce oraya düşer, hash NULL bulunur, `false` döner ve satır
+  // `rowIsCurrent` tarafından İPTAL edilir — e-posta HİÇ GİTMEZ ve hiçbir hata
+  // yazılmaz. TypeScript bunu YAKALAMAZ (ternary yapısı gereği tüketici).
+  // Bu türün "canlılığı" yoktur: hesabın var olması kalıcı bir olgudur, süresi
+  // dolmaz. Güncellik yalnız `rowIsCurrent`'ın version kontrolüne kalır.
+  if (kind === "account_exists") return true;
+  const [hash, exp] =
+    kind === "verify_email"
+      ? [user.emailVerifyTokenHash, user.emailVerifyExpiresAt]
+      : [user.pwChangeCodeHash, user.pwChangeCodeExpiresAt];
+  if (hash == null) return false;
+  if (exp != null && exp <= now) return false;
+  return true;
+}
+
+const LIVENESS_SELECT = {
+  name: true,
+  email: true,
+  emailVerifyTokenHash: true,
+  emailVerifyExpiresAt: true,
+  pwChangeCodeHash: true,
+  pwChangeCodeExpiresAt: true,
+} as const;
+
+interface ClaimedRow {
+  id: string;
+  userId: string;
+  kind: string;
+  version: number;
+  payloadEnc: string | null;
+  attemptCount: number;
+  expiresAt: Date;
+}
+
+/** CURRENT ⟺ no newer generation AND the user's matching hash is still live. */
+async function rowIsCurrent(
+  db: Prisma.TransactionClient,
+  row: ClaimedRow,
+  user: LivenessRow | null,
+  now: Date,
+): Promise<boolean> {
+  if (!user || !KINDS.has(row.kind)) return false;
+  // ⚠️ CHALLENGE TÜRÜNÜN CANLILIĞI AYRI YERDE. Diğer türlerde "gönderilecek sır
+  // hâlâ kullanıcının canlı sırrı mı" sorusu `User` satırındaki hash'e bakılarak
+  // yanıtlanır; challenge'da o hash HİÇ yazılmaz. Bunun yerine kullanıcının
+  // HENÜZ tüketilmemiş, süresi dolmamış bir challenge'ı var mı diye bakılır.
+  // Yoksa (sıfırlama tamamlandı ya da süre doldu) bayat satır GÖNDERİLMEZ.
+  if (row.kind === "pw_reset_challenge") {
+    const live = await db.passwordResetChallenge.count({
+      where: {
+        userId: row.userId,
+        consumedAt: null,
+        invalidatedAt: null,
+        expiresAt: { gt: now },
+      },
+    });
+    if (live === 0) return false;
+  } else if (!hashLive(user, row.kind as EmailOutboxKind, now)) {
+    return false;
+  }
+  const newer = await db.emailOutbox.count({
+    where: { userId: row.userId, kind: row.kind, version: { gt: row.version } },
+  });
+  return newer === 0;
+}
+
+// Provider errors can echo the recipient address — scrub before persisting.
+function scrubErr(err: string | undefined | null): string {
+  return (err ?? "unknown")
+    .replace(/[^\s@]+@[^\s@]+/g, "[email]")
+    .replace(/\d{5,}/g, "[num]")
+    .slice(0, 300);
+}
+
+export interface EmailDrainDeps {
+  /** Provider send — injectable so tests never touch the network. */
+  send?: (to: string, subject: string, html: string) => Promise<{ ok: boolean; error?: string }>;
+  now?: () => Date;
+  batchSize?: number;
+}
+
+export interface EmailDrainResult {
+  claimed: number;
+  sent: number;
+  retried: number;
+  failed: number;
+  canceled: number;
+}
+
+/**
+ * Drain due rows once: claim (SKIP LOCKED) → currency gate + CAS to `sending`
+ * → exactly one provider attempt → settle. Safe to run from any number of
+ * replicas/loops concurrently. Flag OFF → hard no-op (dead code while OFF).
+ */
+export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<EmailDrainResult> {
+  const result: EmailDrainResult = { claimed: 0, sent: 0, retried: 0, failed: 0, canceled: 0 };
+  if (!emailOutboxEnabled()) return result;
+  const now = deps.now?.() ?? new Date();
+  const send =
+    deps.send ?? ((to: string, subject: string, html: string) => emailService.sendReporting(to, subject, html));
+  const batch = deps.batchSize ?? 10;
+  const claimToken = randomUUID();
+
+  // An expired secret must NEVER be delivered — cancel before claiming.
+  const expired = await prisma.emailOutbox.updateMany({
+    where: { status: "pending", expiresAt: { lte: now } },
+    data: { status: "canceled", payloadEnc: null },
+  });
+  result.canceled += expired.count;
+
+  const claimUntil = new Date(now.getTime() + EMAIL_OUTBOX_CLAIM_TTL_MS);
+  const rows = await prisma.$queryRaw<ClaimedRow[]>(Prisma.sql`
+    UPDATE "EmailOutbox"
+    SET "status" = 'claimed', "claimedBy" = ${claimToken}, "claimExpiresAt" = ${claimUntil}, "updatedAt" = now()
+    WHERE "id" IN (
+      SELECT "id" FROM "EmailOutbox"
+      WHERE "status" = 'pending' AND "nextAttemptAt" <= ${now} AND "expiresAt" > ${now}
+      ORDER BY "createdAt" ASC
+      LIMIT ${batch}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING "id", "userId", "kind", "version", "payloadEnc", "attemptCount", "expiresAt"
+  `);
+  result.claimed = rows.length;
+
+  for (const row of rows) {
+    try {
+      // NO batch-level clock is passed on: each row re-reads time at the moment
+      // it needs it (lease from DB now(), liveness/backoff/sentAt from a fresh
+      // Date). A long batch must not make later rows reason about a stale past.
+      await processClaimedRow(row, claimToken, send, result);
+    } catch (err) {
+      // One poison row must not abort the batch; the claim TTL re-frees it.
+      // Id CONTEXT'te DEĞİL mesajda: throttle context bazlı, satır başına ayrı
+      // kova açmak 10 dk'lık korumayı kaldırır (↑outbox/worker.ts gerekçesi).
+      void reportError(
+        "email-outbox.row",
+        err instanceof Error
+          ? new Error(`${err.message} (row ${row.id})`)
+          : new Error(`${String(err)} (row ${row.id})`),
+      );
+    }
+  }
+  return result;
+}
+
+async function processClaimedRow(
+  row: ClaimedRow,
+  claimToken: string,
+  send: NonNullable<EmailDrainDeps["send"]>,
+  result: EmailDrainResult,
+): Promise<void> {
+  const cancelSelf = async (): Promise<void> => {
+    await prisma.emailOutbox.updateMany({
+      where: { id: row.id, claimedBy: claimToken, status: "claimed" },
+      data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
+    });
+    result.canceled++;
+  };
+
+  // Unknown kind (defensive clamp) or missing/tampered payload → undeliverable.
+  if (!KINDS.has(row.kind) || !row.payloadEnc) return cancelSelf();
+  let payload: OutboxPayload;
+  try {
+    const parsed = JSON.parse(decryptSecretBound(row.payloadEnc, aadFor(row.id, row.userId, row.kind))) as OutboxPayload;
+    if (typeof parsed?.secret !== "string" || typeof parsed?.recipient !== "string") return cancelSelf();
+    payload = parsed;
+  } catch {
+    // Wrong AAD (ciphertext moved between rows) / tamper / key change.
+    return cancelSelf();
+  }
+
+  // PRE-SEND GATE (one short locked TX): the row must still be the CURRENT
+  // generation, the user's hash still live, and the recipient snapshot must
+  // match the user's CURRENT address — then CAS claimed→sending. After this
+  // commits, a supersede can no longer stop us (the accepted ≤1-stale-email
+  // window); before it, a superseding enqueue serializes on the same lock.
+  const gate = await prisma.$transaction(async (tx) => {
+    await acquireEmailOutboxLock(tx, row.userId, row.kind as EmailOutboxKind);
+    // FRESH time — not the batch's start. A row processed 3 minutes into a slow
+    // batch must judge liveness/expiry against NOW, not against the past.
+    const gateNow = new Date();
+    const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
+    const current = await rowIsCurrent(tx, row, user, gateNow);
+    const recipientOk =
+      user != null && user.email.toLowerCase() === payload.recipient.toLowerCase();
+    if (!current || !recipientOk || row.expiresAt <= gateNow) {
+      await tx.emailOutbox.updateMany({
+        where: { id: row.id, claimedBy: claimToken, status: "claimed" },
+        data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
+      });
+      return { go: false as const };
+    }
+    // CAS + LEASE RENEWAL in one statement, stamped from DB `now()`: the lease
+    // starts when THIS row's send is about to start. Raw SQL because the new
+    // expiry must be computed server-side (a client-side Date would re-introduce
+    // clock skew between app replicas).
+    const cas = await tx.$executeRaw(Prisma.sql`
+      UPDATE "EmailOutbox"
+      SET "status" = 'sending',
+          "claimExpiresAt" = now() + make_interval(secs => ${CLAIM_TTL_SECONDS}),
+          "updatedAt" = now()
+      WHERE "id" = ${row.id} AND "claimedBy" = ${claimToken} AND "status" = 'claimed'
+    `);
+    return { go: cas === 1, name: user.name };
+  });
+  if (!gate.go) {
+    result.canceled++;
+    return;
+  }
+
+  const { subject, html } = renderIdentityEmail(row.kind as EmailOutboxKind, payload.secret);
+  const outcome = await send(payload.recipient, subject, html);
+
+  if (outcome.ok) {
+    const done = await prisma.emailOutbox.updateMany({
+      where: { id: row.id, claimedBy: claimToken, status: "sending" },
+      // sentAt = when the send ACTUALLY returned, not when the batch began.
+      data: { status: "sent", sentAt: new Date(), payloadEnc: null, claimedBy: null, claimExpiresAt: null, lastError: null },
+    });
+    if (done.count === 1) result.sent++;
+    else void reportError("email-outbox.lost-claim", new Error(`sent settle missed for row ${row.id}`));
+    return;
+  }
+
+  // FAILURE SETTLE — under the lock, with the currency gate again: a STALE row
+  // must go to canceled here, NEVER back to pending (the resurrection Codex
+  // closed). A current row retries with backoff until attempts/expiry run out.
+  await prisma.$transaction(async (tx) => {
+    await acquireEmailOutboxLock(tx, row.userId, row.kind as EmailOutboxKind);
+    // FRESH time again: the provider call itself consumed real seconds.
+    const settleNow = new Date();
+    const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
+    const current = await rowIsCurrent(tx, row, user, settleNow);
+    if (!current) {
+      const c = await tx.emailOutbox.updateMany({
+        where: { id: row.id, claimedBy: claimToken, status: "sending" },
+        data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
+      });
+      if (c.count === 1) result.canceled++;
+      return;
+    }
+    const attempts = row.attemptCount + 1;
+    const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
+    const nextAt = new Date(settleNow.getTime() + backoff);
+    const terminal = attempts >= EMAIL_OUTBOX_MAX_ATTEMPTS || nextAt >= row.expiresAt;
+    const settled = await tx.emailOutbox.updateMany({
+      where: { id: row.id, claimedBy: claimToken, status: "sending" },
+      data: terminal
+        ? {
+            status: "failed",
+            attemptCount: attempts,
+            payloadEnc: null,
+            claimedBy: null,
+            claimExpiresAt: null,
+            lastError: scrubErr(outcome.error),
+          }
+        : {
+            status: "pending",
+            attemptCount: attempts,
+            nextAttemptAt: nextAt,
+            claimedBy: null,
+            claimExpiresAt: null,
+            lastError: scrubErr(outcome.error),
+          },
+    });
+    if (settled.count === 1) {
+      if (terminal) {
+        result.failed++;
+        void reportError(
+          `email-outbox.terminal kind:${row.kind}`,
+          new Error(scrubErr(outcome.error)),
+        );
+      } else {
+        result.retried++;
+      }
+    }
+  });
+}
+
+/**
+ * Recovery + retention sweep. Recovery runs through the SAME currency gate (a
+ * crash can't resurrect a superseded generation), but SPLITS on the status it
+ * found: `claimed` = never reached the provider → requeue free of charge;
+ * `sending` = ambiguous provider attempt → costs an attempt and takes backoff.
+ * Retention: sent rows after 7 days, canceled/failed after 30 (payloadEnc is
+ * already NULL by then).
+ *
+ * 🚨 İKİ PARÇA AYRI ÇAĞRILIR (09-23, yapısal ajan): bu fonksiyon tek parça hâlde
+ * senkronun SAATLİK derin bloğundaydı, oysa yorumu ve `scheduled-sync`teki çağrı
+ * yorumu "2 dakikalık kurtarma ağı" diyordu. 15 sn'lik poller YALNIZ drain eder,
+ * kurtarma YAPMAZ → gönderim sırasında süreç düşerse (Railway deploy'u tam budur)
+ * `claimed` satır bir saate kadar askıda kalıyor ve kısa ömürlü bir parola sıfırlama
+ * kodu kullanıcıya hiç ulaşmadan süresi doluyordu. Artık `recoverEmailOutbox` her
+ * geçişte, `purgeEmailOutbox` (silme) derin blokta koşar; bu fonksiyon ikisinin
+ * birleşimi olarak (testler ve geriye uyumluluk için) kalır.
+ */
+export async function sweepEmailOutbox(
+  now: Date = new Date(),
+): Promise<{ recovered: number; canceled: number; failed: number; deleted: number }> {
+  const recovered = await recoverEmailOutbox(now);
+  const purged = await purgeEmailOutbox(now);
+  return { ...recovered, deleted: purged.deleted };
+}
+
+/** Süresi dolmuş sahiplenmeleri kurtar (her senkron geçişinde). Bayrak kapalıyken no-op. */
+export async function recoverEmailOutbox(
+  now: Date = new Date(),
+): Promise<{ recovered: number; canceled: number; failed: number }> {
+  const out = { recovered: 0, canceled: 0, failed: 0 };
+  if (!emailOutboxEnabled()) return out;
+
+  const stuck = await prisma.emailOutbox.findMany({
+    where: { status: { in: ["claimed", "sending"] }, claimExpiresAt: { lt: now } },
+    select: { id: true, userId: true, kind: true, status: true, version: true, payloadEnc: true, attemptCount: true, expiresAt: true },
+    take: 100,
+  });
+  for (const row of stuck) {
+    await prisma.$transaction(async (tx) => {
+      await acquireEmailOutboxLock(tx, row.userId, row.kind as EmailOutboxKind);
+      const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
+      const current = await rowIsCurrent(tx, row, user, now);
+      const where = { id: row.id, status: row.status, claimExpiresAt: { lt: now } };
+
+      if (!current) {
+        const c = await tx.emailOutbox.updateMany({
+          where,
+          data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
+        });
+        if (c.count === 1) out.canceled++;
+        return;
+      }
+
+      // THE TWO RECOVERIES ARE NOT THE SAME EVENT:
+      //
+      //  · `claimed` expired → the worker died BEFORE the pre-send CAS, so the
+      //    provider was never called. Nothing was attempted; charging an attempt
+      //    would burn the budget for work that never happened.
+      //
+      //  · `sending` expired → the worker died AFTER the CAS, i.e. DURING or
+      //    AROUND a provider call. Whether the mail went out is UNKNOWABLE from
+      //    here. We therefore treat it as a real (ambiguous) attempt: it costs
+      //    budget and takes backoff, so a provider that keeps hanging cannot be
+      //    retried forever. This is the honest reading — see the at-least-once
+      //    note in the module header.
+      if (row.status === "claimed") {
+        const r = await tx.emailOutbox.updateMany({
+          where,
+          data: { status: "pending", nextAttemptAt: now, claimedBy: null, claimExpiresAt: null },
+        });
+        if (r.count === 1) out.recovered++;
+        return;
+      }
+
+      const attempts = row.attemptCount + 1;
+      const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
+      const nextAt = new Date(now.getTime() + backoff);
+      const terminal = attempts >= EMAIL_OUTBOX_MAX_ATTEMPTS || nextAt >= row.expiresAt;
+      const r = await tx.emailOutbox.updateMany({
+        where,
+        data: terminal
+          ? {
+              status: "failed",
+              attemptCount: attempts,
+              payloadEnc: null,
+              claimedBy: null,
+              claimExpiresAt: null,
+              lastError: "lease expired while sending (ambiguous)",
+            }
+          : {
+              status: "pending",
+              attemptCount: attempts,
+              nextAttemptAt: nextAt,
+              claimedBy: null,
+              claimExpiresAt: null,
+              lastError: "lease expired while sending (ambiguous)",
+            },
+      });
+      if (r.count === 1) {
+        if (terminal) out.failed++;
+        else out.recovered++;
+      }
+    });
+  }
+  return out;
+}
+
+/** Saklama süresi dolmuş terminal satırları sil (saatlik derin blok). Bayrak kapalıyken no-op. */
+export async function purgeEmailOutbox(now: Date = new Date()): Promise<{ deleted: number }> {
+  if (!emailOutboxEnabled()) return { deleted: 0 };
+  const oldSent = await prisma.emailOutbox.deleteMany({
+    where: { status: "sent", sentAt: { lt: new Date(now.getTime() - SENT_RETENTION_MS) } },
+  });
+  const oldTerminal = await prisma.emailOutbox.deleteMany({
+    where: { status: { in: ["canceled", "failed"] }, updatedAt: { lt: new Date(now.getTime() - TERMINAL_RETENTION_MS) } },
+  });
+  return { deleted: oldSent.count + oldTerminal.count };
+}
