@@ -48,8 +48,14 @@ geri yüklendi; hiçbiri commit'lenmedi. İki testim ilk yazımda vacuous çıkt
 
 F09 CSP raporu path token'ı · F10 merkezi log redaksiyonu (`audit.ts`/`rate-limit.ts` doğrudan
 `console.error`) · F11 mülk silmede obje temizliği · F12 audit baseline şeması (`expires` zorunlu) ·
-~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26, `4832ab5`: profil yalnız üslup, eski profil isteme girmez ve senkron düşse de yenilenir — `ai/style-profile.ts`; kırmızı-önce 10 test, mutasyon 20/20) · F14 sohbet hafızası/zaman · ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: durum `evaluated/inconclusive/empty`, zorunlu alan + mesaj üyeliği, ekranın yeşil "uygun" yazısı yalnız tam değerlendirmede; kırmızı-önce 9 test, mutasyon 13/13) · F16 iCal
-completeness · F17 cron adaleti · F18 login savunma tasarımı.
+~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26, `4832ab5`: profil yalnız üslup, eski profil isteme girmez ve senkron düşse de yenilenir — `ai/style-profile.ts`; kırmızı-önce 10 test, mutasyon 20/20) · F14 sohbet hafızası/zaman · ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: durum `evaluated/inconclusive/empty`, zorunlu alan + mesaj üyeliği, ekranın yeşil "uygun" yazısı yalnız tam değerlendirmede; kırmızı-önce 9 test, mutasyon 13/13) · ~~F16 iCal
+completeness~~ (KAPANDI 09-26, `9fb93ad`: `parseIcsDetailed` eksik okumayı kapalı kümeyle döndürür — yarım dosya, 10.000 tavanı,
+RRULE/RDATE/EXDATE/RECURRENCE-ID (açılmaz), tarihi okunamayan / ters / sıfır süreli / BEGIN-END'i bozuk etkinlik, aynı UID çelişen
+iki hâl; kaynak `partial`, kayıp uzlaştırması eksik okumada kayıp saymaz ve tabanı ezmez, görülen satırın serisi sıfırlanır —
+şüpheli düşüşte de; müsaitlik motoru kısmi kaynakla "boş" demez; dosya önizlemesi not gösterir. Kırmızı-önce ölçüldü: eski kodda
+uzlaştırma açıkken 25 saat arayla iki yarım okuma görünmeyen gerçek rezervasyonu İPTAL ediyordu. Kırmızı-önce 42 test, mutasyon
+41/41. Bilinen sınır: hacim düşüşü sezgisi yalnız uzlaştırma bayrağı açıkken koşar ve müsaitliğe taşınmaz; "Dikkat Gerektirenler"
+kısmi beslemeyi göstermez) · F17 cron adaleti · F18 login savunma tasarımı.
 
 ## CI sonucu
 
