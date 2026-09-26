@@ -901,6 +901,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   var uygulanmadı (bütçeyi cihaza taşıma REDDEDİLDİ). QR rotasında hata sınırı `reportError`.
 - AI öneri paneli kapatılabilir, tercih KALICI DEĞİL. Bekleyen misafir mesajları dar taranıyor
   (`HIGH_STAKES_RISK_TYPES` yalnız son mesajda — açık, ↓açık işler).
+- 🚨 **BEKLEYEN RİSK ÖĞE BAZINDA (kurucu 09-26):** eski cevapsız risk yeni mesajla KAYBOLMAZ ama TÜM konuşmayı BLOKE
+  ETMEZ. "Bekleyen herhangi bir yüksek riskli etiket → cevabın tamamı tutulur" KONUŞMA DÜZEYİ kapısı REDDEDİLDİ (`6c0e6b4`
+  gönderilmedi, yedek dal `backup/pending-highstakes-conversation-gate-2026-09-26`) — geri getirme. Kanalda istek düzeyi
+  öğe/durum YOK; bugünkü davranış + migration'sız öneri (QR paritesi: öğe başına devir) + eksik kalıcı durum + kurucu
+  kararları D1–D6: `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`; karakterizasyon `pending-risk-item-scenarios.test.ts`.
 - Doluluk gece-katı; ikinci kutucuk `sameDayTurnovers`; üçüncüsünü önerme. Kullanıcının geri aldırdığı
   UI: sidebar grupları, yatay tab-strip, zoom 0.95 geri alma — TEKRAR ÖNERME. Sidebar `mt-4` yük taşır.
 - Tarayıcı saat dilimine güven `APP_TRUST_BROWSER_TIMEZONE` default kapalı. S3 virtual-hosted, noktalı
@@ -1024,7 +1029,7 @@ geçiş, `Object.hasOwn`, `LEFTOVER_DOUBLE` yalnız düzgün belirteci siler.
 gün önce · eski org'ların aktif-saat penceresi (migration 55 varsayılanı 0/0; prod damgası bekliyor). LEGAL (avukat):
 SELLER etiketi · yıllık peşinde cayma · alt-işleyen listesi (Akash çıkar) · VERBİS · erasure bayrağı · `LEGAL_VERSION`.
 Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused` grace · reconcile'da yerel plan · bekleyen
-mesajlarda yüksek-risk taraması · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
+mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`) · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
 ## 🚨 ÇALIŞMA BİÇİMİ (09-19 → 09-24 güncel): RAILWAY AYIN 1'İNE KADAR AKTİF, GELİŞTİRME LOCAL'DE
