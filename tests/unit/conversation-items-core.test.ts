@@ -98,10 +98,20 @@ describe("öğe çıkarımı — birleşim değişmezi ÖĞE kapsamında", () =>
   });
 
   it("aynı türden iki istek TEK öğe (bir mesajda her tür bir kez), ilk sıra kalır", () => {
-    expect(pick(buildItemsForMessage({ requests: req("wifi", "wifi", "payment_invoice"), lexicalLabels: [] }))).toEqual([
+    expect(pick(buildItemsForMessage({ requests: req("wifi", "wifi", "parking"), lexicalLabels: [] }))).toEqual([
       [0, "wifi", "none", null],
-      [2, "payment_invoice", "none", null],
+      [2, "parking", "none", null],
     ]);
+  });
+
+  it("🚨 ödeme / fatura isteği kelime ağı OLMADAN da hassas (kurucu 09-26 'Evet, hepsi size' — her dilde)", () => {
+    // "Could you send me your IBAN?" / "Kalan tutarı nakit ödeyebilir miyim?" kelime ağına takılmıyordu (ölçüm 09-26).
+    expect(pick(buildItemsForMessage({ requests: req("payment_invoice", "wifi"), lexicalLabels: [] }))).toEqual([
+      [0, "payment_invoice", "sensitive", null],
+      [1, "wifi", "none", null],
+    ]);
+    // Tutulan ödeme öğesi modelin ödeme etiketini karşılar (güvenli Wi-Fi cevabı bu yüzden tutulmaz).
+    expect(replyRiskAttributable("platform_policy", buildItemsForMessage({ requests: req("payment_invoice"), lexicalLabels: [] }))).toBe(true);
   });
 
   it("anlama katmanının kendi hassas niyeti kelime ağı olmadan da hassastır", () => {
@@ -244,8 +254,8 @@ describe("cevap modelinin tur etiketi öğeye atfedilir mi", () => {
 
   it("etiketi taşıyan hassas öğe yok → cevabın TAMAMI tutulur", () => {
     expect(replyRiskAttributable("complaint", ibanWifi)).toBe(false);
-    const safeInvoice = buildItemsForMessage({ requests: req("payment_invoice"), lexicalLabels: [] });
-    expect(replyRiskAttributable("platform_policy", safeInvoice)).toBe(false);
+    const safeParking = buildItemsForMessage({ requests: req("parking"), lexicalLabels: [] });
+    expect(replyRiskAttributable("platform_policy", safeParking)).toBe(false);
     expect(replyRiskAttributable("discrimination", ibanWifi)).toBe(false);
   });
 

@@ -46,6 +46,10 @@ const INTENT_SENSITIVITY: Readonly<Partial<Record<UnderstandingIntent, ItemSensi
   complaint_issue: "sensitive",
   cancellation_refund: "sensitive",
   human_request: "sensitive",
+  // Kurucu kararı 09-26 ("Evet, hepsi size"): ödeme / fatura isteği (IBAN, havale, nakit, banka bilgisi, fatura) HER DİLDE
+  // ev sahibinin — niyetten, kelime listesinden değil. Ölçüm: İngilizce/Almanca "IBAN", "cash" ve Türkçe "nakit ödeyebilir
+  // miyim" kelime ağına takılmıyordu, istek "cevaplanabilir" sayılıyordu.
+  payment_invoice: "sensitive",
 };
 
 /**
