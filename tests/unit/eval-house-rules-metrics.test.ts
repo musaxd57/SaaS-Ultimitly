@@ -46,12 +46,17 @@ describe("ev kuralları eval — karar ölçüleri", () => {
     expect(m.stanceExact).toBe(0);
   });
 
-  it("kural yokken bilgi sorusu (normal) → model 'izin istiyor' (tutma) derse gereksiz tutma; tersi değil", () => {
+  it("kural yokken bilgi sorusu (normal) → model 'izin istiyor' (tutma) derse gereksiz tutma; tersi ve ikisi de tutma değil", () => {
     const m = summarizeHouseRules([
       row({ id: "i", expect: [u("pets", "asks_info")], predicted: [u("pets", "asks_permission")] }),
       row({ id: "j", expect: [u("pets", "asks_permission")], predicted: [u("pets", "asks_info")] }),
+      row({ id: "h", expect: [u("pets", "asks_permission")], predicted: [u("pets", "announces")] }),
     ]);
     expect(m.needlessHold).toEqual(["i"]);
+  });
+
+  it("kapalı küme dışı model çıktısı (karar tablosu 'fallback') sonuç sayılmaz", () => {
+    expect(effectsByTopic([{ topic: "drugs", stance: "asks_permission" } as never], FORBIDDEN_ALL).size).toBe(0);
   });
 
   it("yanlış konu: sigara sorusuna evcil hayvan kuralı → yanlış kural cümlesi + konu kaçtı", () => {
