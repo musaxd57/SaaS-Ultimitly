@@ -19,6 +19,7 @@ import { SEMANTIC_MAX_CHUNKS } from "@/lib/ai/embeddings/semantic-retrieval";
 import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 import {
+  RERANK_MAX_CALLS,
   RERANK_MAX_CANDIDATES,
   RERANK_QUESTION_CHARS,
   RERANK_SCHEMA,
@@ -114,6 +115,12 @@ export interface LabConfig {
     deadlineMs?: number;
     /** "prod" penceresinde `false` = tüm pencereler TEK çağrıda (soru başına ayrı çağrının kıyası). */
     split?: boolean;
+    /**
+     * "prod" ayrı çağrı yolunda SORU BAŞINA etiket (Codex 09-26 "düz etiket her alt sorguda kullanılıyor"): bir isteğe işaretli
+     * alt sorgu listesi YALNIZ o isteğin penceresini sıralayan çağrının etiketleriyle sıralanır; işaretsiz (taban) listeler
+     * birleşik etiketle. Ölçüm seçeneği — üretim bugün birleşik etiketi kullanır.
+     */
+    perRequestLabels?: boolean;
     /**
      * Modelin GÖRÜP işaretlemediği aday 0 puan alır → seçicide işaretsiz (görülmemiş) adayların ARKASINA düşer (seçicinin
      * mevcut 0 → kademe 4 kuralı). Yalnız en az bir işaret varsa (model "hiçbiri" dediyse sıra bugünkü kalır).
@@ -486,27 +493,44 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
       } else if (cfg.rerank.window === "prod" && cfg.rerank.split !== false) {
         // ÜRETİMİN İKİZİ: soru başına AYRI pencere → AYRI çağrı (paralel), puanlar en yükseğiyle birleşir; her çağrı üretimin
         // sıcak yol tavanına ayrı ayrı tabi (tavanı aşan çağrı düşmüş sayılır, diğerinin işaretleri kalır).
-        const wins = rerankCandidateWindows(lists, listMeta)
-          .map((keys) =>
-            keys.flatMap((k) => {
-              const c = byKey.get(k);
-              return c ? [{ key: k, title: c.title, text: c.text }] : [];
-            }),
-          )
-          .filter((c) => c.length >= 2);
+        const allWins = rerankCandidateWindows(lists, listMeta).map((keys) =>
+          keys.flatMap((k) => {
+            const c = byKey.get(k);
+            return c ? [{ key: k, title: c.title, text: c.text }] : [];
+          }),
+        );
+        // Pencere i ↔ isteklerin kovası (üretimin `rerankCandidateWindows` kova kuralının ikizi: sıralı istekler, sırayla).
+        const reqIds = [...new Set(listMeta.map((m) => m.request).filter((r): r is number => r !== undefined))].sort((a, b) => a - b);
+        const nb = Math.min(RERANK_MAX_CALLS, reqIds.length);
+        const winOfReq = new Map(reqIds.map((r, i) => [r, i % Math.max(1, nb)]));
+        const kept = allWins.map((c, i) => ({ c, i })).filter((w) => w.c.length >= 2);
         const question = rerankQuestionText(q.text, earlier);
-        const outs = await Promise.all(wins.map((c) => labRerank(question, c, { k: Math.max(cfg.rerank!.k, c.length), crop: cfg.rerank!.crop })));
+        const outs = await Promise.all(kept.map((w) => labRerank(question, w.c, { k: Math.max(cfg.rerank!.k, w.c.length), crop: cfg.rerank!.crop })));
         const timed = outs.filter((o): o is NonNullable<typeof o> => o !== null);
         if (timed.length > 0) {
           rrMs = Math.max(...timed.map((o) => o.ms ?? 0));
           rrChars = timed.reduce((a, o) => a + o.chars, 0);
         }
-        const ok = timed.filter((o) => !overDeadline(o.ms));
-        if (ok.length > 0) {
+        const okByWin = new Map<number, Map<string, number>>();
+        kept.forEach((w, j) => {
+          const o = outs[j];
+          if (o && !overDeadline(o.ms)) okByWin.set(w.i, o.scores);
+        });
+        if (okByWin.size > 0) {
           rrScores = new Map();
-          for (const o of ok) for (const [k, v] of o.scores) rrScores.set(k, Math.max(rrScores.get(k) ?? 0, v));
+          for (const sc of okByWin.values()) for (const [k, v] of sc) rrScores.set(k, Math.max(rrScores.get(k) ?? 0, v));
           rrStatus = "ok";
-          if (rrScores.size > 0) result = selectKbForPrompt({ ...semInput, rerankScores: rrScores });
+          let bySub: Map<string, Map<string, number>> | undefined;
+          if (cfg.rerank.perRequestLabels && reqIds.length > 1) {
+            bySub = new Map();
+            const qs = retrievalQueries(q.text, history, { extraQueries }).queries;
+            qs.forEach((x, li) => {
+              const r = listMeta[li]?.request;
+              const sc = r !== undefined ? okByWin.get(winOfReq.get(r) ?? -1) : undefined;
+              if (sc) bySub!.set(x.subquery, new Map(sc));
+            });
+          }
+          if (rrScores.size > 0) result = selectKbForPrompt({ ...semInput, rerankScores: rrScores, ...(bySub ? { rerankScoresBySubquery: bySub } : {}) });
         } else rrStatus = "failed";
       } else {
         const flat = await labRerank(rerankQuestionText(q.text, earlier), cands, cfg.rerank);

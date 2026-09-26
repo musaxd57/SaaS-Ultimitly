@@ -72,6 +72,17 @@ describe("warmPropertyKbVectors", () => {
     expect(embedded).toEqual([]);
   });
 
+  it("🚨 acil durdurma (KB_RETRIEVAL_MODE=legacy) anlamsal anahtar AÇIKKEN de ısıtmayı kapatır (ağ yok)", async () => {
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    const { propertyId } = await makeOrgWithProperty();
+    await seedKb(propertyId, 35);
+    expect(await warmPropertyKbVectors(propertyId)).toBe(0);
+    warmAllKbVectorsOnce();
+    await new Promise((r) => setTimeout(r, 300));
+    await __awaitSemanticWarm();
+    expect(embedded).toEqual([]);
+  });
+
   it("küçük KB (retrieval koşmayacak) ısıtılmaz", async () => {
     const { propertyId } = await makeOrgWithProperty();
     await seedKb(propertyId, 10);

@@ -15,7 +15,7 @@ export const CAP = KB_RETRIEVAL_FETCH_CAP;
  * K aday / kırpma) · `fb` (geri çekilmede de sırala) · `fused` (pencere listeler arası RRF) · `mixed6` (önce özgün soru başına 6,
  * sonra RRF) · `pq` (soru başına etiket) · `dry` (modelsiz pencere tavanı) · `dl2500` (üretimin zaman aşımı tavanı) · `cap400`
  * (okuma tavanı) · `b9000` / `mc16` (seçim bütçesi karakter / parça) · `skip` (sığmayan parçayı atla) · `pi5` (kalem başına parça) ·
- * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına) · `xs0.5` (anlama sorgularının bütçe payı; varsayılan 1/3).
+ * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına) · `xs0.5` (anlama sorgularının bütçe payı; varsayılan 1/3) · `prl` (ayrı çağrıda soru başına etiket).
  * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200).
  */
 export function parseConfig(name: string): LabConfig {
@@ -39,6 +39,7 @@ export function parseConfig(name: string): LabConfig {
     else if (tok === "reqx") cfg.rerank = { ...(cfg.rerank ?? RR), window: "reqx" };
     else if (tok === "prodwin") cfg.rerank = { ...(cfg.rerank ?? RR), window: "prod" };
     else if (tok === "onecall") cfg.rerank = { ...(cfg.rerank ?? RR), window: "prod", split: false };
+    else if (tok === "prl") cfg.rerank = { ...(cfg.rerank ?? RR), window: "prod", perRequestLabels: true };
     else if ((m = tok.match(/^own(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), ownQuota: Number(m[1]) };
     else if ((m = tok.match(/^mixed(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), window: "mixed", ownQuota: Number(m[1]) };
     else if (tok === "dry") cfg.rerank = { ...(cfg.rerank ?? RR), dry: true };
