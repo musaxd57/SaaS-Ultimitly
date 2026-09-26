@@ -633,8 +633,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   sohbet hafızası/zaman (KODDA 09-26, bayrak arkasında — ↑KONUŞMA KAYITLARI; açık: CUS v2 defteri, bayrağı açmak) ·
   ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: `evaluated/inconclusive/empty`; boş liste YALNIZ tam
   değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · ~~F16 iCal
-  completeness~~ (KAPANDI 09-26, ↓Mesajlaşma / outbox / sync) · F17 cron adaleti · F18 login savunma
-  tasarımı. F17 ve F18 dışında hepsine dokunuldu; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
+  completeness~~ (KAPANDI 09-26, ↓Mesajlaşma / outbox / sync) · ~~F17 cron adaleti~~ (KAPANDI 09-26, ↓Sync motoru) · F18 login savunma
+  tasarımı (kimlik akışı → kurucu kararı). F18 dışında hepsine dokunuldu; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
 - Kaynak taraması tek yönlüdür → davranışsal test; `rejects.not.toThrow(/…/)` kullanma; senkron CPU
   zaman aşımıyla kesilemez; çapa `indexOf` −1 pinle; mutasyon `assert count==1`.
 - Ret edilenler: ETag testi (hedef yok) · HTTP/2 parser testi · kanonik-posta-kutusu kayıt limiti ·
@@ -847,7 +847,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ama kaynak `partial` (satır hatası BASKIN → `error`), kayıp uzlaştırması kayıp SAYMAZ + tabanı ezmez (görülen satırın
   serisi sıfırlanır — şüpheli düşüşte de), müsaitlik motoru o kaynakla "boş" DEMEZ (`source_incomplete`), dosya önizlemesi
   not gösterir. `reconcileFeedDisappearance` `complete` alanı ZORUNLU. Neden metni tek kaynak `icsIncompleteCause`.
-- Sync motoru: fencing token + TTL 15 dk; heartbeat ilerleme-tetikli; `renewLock` geçici hata ≠ kayıp;
+- Sync motoru: fencing token + TTL 15 dk; heartbeat ilerleme-tetikli; `renewLock` geçici hata ≠ kayıp; 🚨 org sırası
+  kimliğe göre SABİT + adil sıra imleci (F17, `scheduled-sync:resume-from`): bütçe yüzünden atlanan ilk org sonraki geçişte
+  önce gelir (eski sırasız liste aynı son org'ları kalıcı aç bırakıyordu);
   `linkProperty` org-kapsamlı; 540 gün geri pencere kısaltılmaz; gövdesiz sağlayıcı mesajı sayacı
   (`messagesUnimportable`); `str()` trimlemez → `!body.trim()`.
 - Provider mesajı sessiz atlanır ve imleç ilerler (bilinçli; ölçüm sayacı var).

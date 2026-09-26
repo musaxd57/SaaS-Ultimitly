@@ -62,7 +62,7 @@ iki hâl; kaynak `partial`, kayıp uzlaştırması eksik okumada kayıp saymaz v
 şüpheli düşüşte de; müsaitlik motoru kısmi kaynakla "boş" demez; dosya önizlemesi not gösterir. Kırmızı-önce ölçüldü: eski kodda
 uzlaştırma açıkken 25 saat arayla iki yarım okuma görünmeyen gerçek rezervasyonu İPTAL ediyordu. Kırmızı-önce 42 test, mutasyon
 41/41. Bilinen sınır: hacim düşüşü sezgisi yalnız uzlaştırma bayrağı açıkken koşar ve müsaitliğe taşınmaz; "Dikkat Gerektirenler"
-kısmi beslemeyi göstermez) · F17 cron adaleti · F18 login savunma tasarımı.
+kısmi beslemeyi göstermez) · ~~F17 cron adaleti~~ (KAPANDI 09-26, `6a58385`, migration'sız: taban sıra kimliğe göre sabit; 12 dk geçiş bütçesi yüzünden atlanan İLK org'un kimliği `SystemLock` satırına (`scheduled-sync:resume-from`) yazılır, sonraki geçiş oradan döner; eksiksiz geçiş imleci siler; kilit kaybında yazılmaz; imleç hatası senkronu durdurmaz. Kırmızı-önce: sahte saatte her org 13 dk sürerken eski kod dört geçişte hep aynı org'u işliyordu, yenisi A, B, C, A. Mutasyon 7/7. AÇIK — Codex'in tam önerisi (org/bağlantı başına `nextDueAt`, lease, backoff, gecikme metriği/SLO, sağlayıcı kotası) migration ister, ayrı iş) · F18 login savunma tasarımı (kurucu kararı: kimlik akışı).
 
 ## CI sonucu
 
