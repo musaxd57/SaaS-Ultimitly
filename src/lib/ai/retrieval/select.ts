@@ -16,7 +16,7 @@ import {
 } from "./rerank";
 import { SOURCE_WEIGHTS, SEMANTIC_QUALIFY_MIN } from "./semantic";
 import { NGRAM_QUALIFY_MIN } from "./sources";
-import { contentStems, normalizeForRetrieval } from "./text";
+import { contentStems, normalizeForRetrieval, phraseUnits } from "./text";
 import { detectGuestLanguage } from "@/lib/ai/fallback";
 
 // ---------------------------------------------------------------------------
@@ -435,7 +435,12 @@ function rankForSubquery(
     if (!weights.has(s)) weights.set(s, WEAK_QUERY_TERMS.has(s) ? Math.min(CARRY_WEIGHT, WEAK_QUERY_WEIGHT) : CARRY_WEIGHT);
   }
   // Yabancı dil yüzey biçimleri HAM alt sorgudan (Türkçe kök sökücüden GEÇMEDEN) — lexicon-foreign.ts.
-  const { expansion, categoryHints } = expandQuery([...own, ...carried], opt.sources.foreign ? matchForeignConcepts(subquery) : []);
+  // Birebir kalıplar ALT SORGUNUN kendi birimlerinden (durak sözcükler korunur: "çok sıcak", "no water" — `phraseUnits`).
+  const { expansion, categoryHints } = expandQuery(
+    [...own, ...carried],
+    opt.sources.foreign ? matchForeignConcepts(subquery) : [],
+    phraseUnits(subquery),
+  );
   for (const [s, w] of expansion) if (!weights.has(s)) weights.set(s, w);
 
   // --- Kaynak 1: BM25 (kök + sözlük genişletmesi + fuzzy) -------------------

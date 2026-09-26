@@ -135,6 +135,13 @@ const MIN_STEM_3_SUFFIXES = new Set([
 export const MIN_STEM_AFTER_VOWEL = 3;
 /** Tek düzensiz kök: "su" → suyu/suyun/suyumuz/suyunuz/suya → "suy" (başka kelime "suy"a inmez). */
 const IRREGULAR_STEMS: Readonly<Record<string, string>> = { suy: "su" };
+/**
+ * SÖKÜLMEYEN KÖKLER (09-26, kurucu onayı — sözlük tipli eşleştirici turu): İngilizce bileşik "checkin" Türkçe
+ * tamlayan "-in" sanılıp "check"e iniyordu → çıplak "check" ("Can you check the AC?") GİRİŞ kavramını
+ * tetikliyordu. Sökme bu köke ulaşınca DURUR ("checkinler" → "checkin"). Simetrik: bilgi tabanındaki
+ * "check-in" / "check in" (bileşik birleştirme) da "checkin" kalır.
+ */
+const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin"]);
 const SUFFIXES_LONGEST_FIRST = [...SUFFIXES].sort((x, y) => y.length - x.length);
 /**
  * SABİT NOKTA (09-10): eski tur tavanı (3) çekimli biçim ile yalın biçimi FARKLI
@@ -184,6 +191,7 @@ export function stem(token: string): string {
   let cur = token;
   let strippedAny = false;
   for (let pass = 0; pass < STEM_PASSES_MAX; pass++) {
+    if (PROTECTED_STEMS.has(cur)) break;
     let stripped = false;
     for (const suf of SUFFIXES_LONGEST_FIRST) {
       if (pass > 0 && FIRST_PASS_ONLY_SUFFIXES.has(suf)) continue; // ↑tamlayan freni
@@ -217,6 +225,18 @@ export function contentStems(s: string): string[] {
     if (st.length < 2 || STOPWORDS.has(st)) continue;
     out.push(st);
   }
+  return out;
+}
+
+/**
+ * KALIP BİRİMLERİ (09-26, tipli sözlük eşleştiricisi): durak sözcükler OLDUĞU GİBİ kalır ("çok", "no", "how",
+ * "to"), içerik sözcükleri kök alınır. `contentStems` durak sözcükleri attığı için "çok sıcak" → [sıcak],
+ * "no water" → [water] olup kalıp TEK kelime tetikleyicisine iniyordu (ölçüldü). Çekim korunur: "Oda çok
+ * sıcaktı" → [od, cok, sicak]. Sıra korunur; kalıp eşleşmesi bitişik birimler üzerindendir.
+ */
+export function phraseUnits(s: string): string[] {
+  const out: string[] = [];
+  for (const t of tokenize(s)) out.push(STOPWORDS.has(t) ? t : stem(t));
   return out;
 }
 

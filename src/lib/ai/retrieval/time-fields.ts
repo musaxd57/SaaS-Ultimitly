@@ -17,7 +17,7 @@
 // SAF: DB/ağ yok. Değişiklik = canlı AI davranışı → golden set + E7/R5 kontrolü ŞART.
 // ---------------------------------------------------------------------------
 
-import { contentStems, tokenize } from "./text";
+import { contentStems, phraseUnits, tokenize } from "./text";
 import { matchConcepts, timeFieldsIn } from "./lexicon";
 
 /** Alan → o alana atfedilen saatler ("SS:DD"). */
@@ -132,7 +132,8 @@ function clauseFields(clause: string): { fields: string[]; otherConcept: boolean
     keep.push(t);
   }
   const stems = contentStems(keep.join(" "));
-  const fields = [...timeFieldsIn(stems), ...extra];
+  const units = phraseUnits(keep.join(" "));
+  const fields = [...timeFieldsIn(stems, units), ...extra];
   // Kendi çalışma saati olan yerler sözlükte kavram değil ama konaklama saati de DEĞİL: "Giriş"
   // başlıklı kalemde "Resepsiyon 09:00-18:00 arası açıktır" giriş saati sanılıyordu (ölçüldü 09-23).
   const ownHours = toks.some((t) => OWN_HOURS_STEMS.some((h) => t.startsWith(h)));

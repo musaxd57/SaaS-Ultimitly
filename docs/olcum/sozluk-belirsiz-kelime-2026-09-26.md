@@ -36,20 +36,35 @@ kalemde "Merdiven kapısı 23:00'te kilitlenir" giriş saati sayılmaz).
 Kanıt: kırmızı-önce 30 testin 10'u eski sözlükte düşer. Retrieval + ölçek + saat alanı testleri 17 dosyada 366 test
 yeşil. Mutasyonda 14 mutantın 13'ü öldü. Yaşayan L11 ("water outage" kalıbını silmek) eşdeğer mutant; nedeni ↓.
 
-## Yeni bulgu: kalıp sanılan tek kelimeler (KURUCU KARARI BEKLİYOR)
+## Tipli kalıp eşleştirici (kurucu onayı: "B + C + tipli eşleştirici", aynı gün)
 
-Çok kelimeli `detectOnly` kalıpları durak sözcükleri ("çok", "no", "when can i", "how to", "nereye") düşürüyor.
-Sonuçta kalıp **tek bir kelimeye** iniyor ve o kelime geçen her soru kavramı tetikliyor. Aşağıdakiler bugünkü
-davranış; hiçbiri değiştirilmedi.
+Çok kelimeli `detectOnly` kalıpları durak sözcükleri ("çok", "no", "how to") düşürüyor ve **tek kelimeye** iniyordu.
+Artık her sözlük kaydının türü belli: terim (tespit + genişletme) · yalnız tespit · yalnız genişletme · **birebir kalıp**
+(`phrases`: durak sözcükler korunur, içerik sözcükleri kök alınır — "Oda çok sıcaktı" yine eşleşir). Tek kelimeye inen
+kayıt test tarafından reddedilir (`lexiconProblems`, 17 kayıt düzeltildi: 4'ü birebir kalıp, 4'ü aynı davranışı açık
+yazan tek kelime, 9'u zaten var olan terimin tekrarıydı → silindi).
 
-| Kalıp → iniyor | Yanlış tetikleme örneği | Seçenek |
+| Misafir mesajı | Önce | Sonra |
 |---|---|---|
-| "çok sıcak" → **sıcak** (klima) | "Sıcak su gelmiyor", "Duşun suyu sıcak değil" → klima | (a) aynen bırak · (b) "daire/oda/ev sıcak" kalıpları ("Dairede sıcak su yok" yine klima olur) · (c) klima tespitini kaldır ("Daire çok sıcak" sözlükte klimayı bulamaz) |
-| "no water" → **water** (su kesintisi) | "Is there hot water?", "Is the tap water drinkable?" → su kesintisi | (a) aynen · (b) kaldır (İngilizce "no water" sözlükte bulunmaz; anlama katmanı bulur) |
-| "çok soğuk" → **soğuk** (ısıtma) | "Su soğuk akıyor" → ısıtma | (a) aynen · (b) kaldır / kalıp |
-| "when can i check in" → **check** (giriş) | "Can you check the AC?" → giriş | (a) aynen · (b) kaldır ("check in" / "checkin" terimleri zaten var) |
-| "how to get there" → **get** (adres) | "Where can I get groceries?" → adres | (a) aynen · (b) kaldır |
-| "nereye park" → **park** (otopark) | "Yakında park var mı?" (yeşil alan) → otopark | (a) aynen · (b) kaldır |
+| Sıcak su gelmiyor · Duşun suyu sıcak değil · Dairede sıcak su yok | klima + sıcak su | yalnız sıcak su |
+| Su soğuk akıyor | ısıtma | — |
+| Is there hot water? · Is the tap water drinkable? | su kesintisi | — (sıcak su sorusu yalnız sıcak su) |
+| Where can I get groceries? | adres + market | yalnız market |
+| Can you check the AC? | giriş + klima | yalnız klima |
+| Daire çok sıcak · Oda çok sıcaktı / Oda çok soğuk / There is no water / How do I get there? | klima / ısıtma / su kesintisi / adres | aynı (geri çağırma korunur) |
 
-Kalıcı çözüm: kalıp eşleşmesini durak sözcükler dahil ham sözcük dizisi üzerinden yapmak. Bu bir mekanizma değişikliği;
-ayrı öneri olarak sorulur.
+"check" kalıptan değil kök sökücüden geliyordu: "checkin" Türkçe "-in" eki sanılıp "check"e iniyordu. Kök korundu
+("checkinler" → "checkin"); "checking in" birebir kalıbı eklendi. Yan etki (doğru yönde): İngilizce bilgi tabanında
+"Check the heating before 22:00." artık GİRİŞ saati sayılmıyor — eskiden mülk ayarıyla sahte saat çelişkisi üretip giriş
+sorularında gereksiz devre yol açabiliyordu. Saat alanı kuralının "başka konu" sezgisi kalıpların içerik sözcüklerini
+yine görür ("Get the keys at 15:00." giriş başlığında yine ödünç alınmaz).
+
+Kanıt: kırmızı-önce 38 testin 15'i eski kodda düşer; retrieval + ölçek + saat alanı + kapı testleri 19 dosyada 426 test
+yeşil; mutasyon 16/16 (ilk koşuda sözleşmenin "yalnız genişletme" dalı pinsizdi → test eklendi).
+
+## Dokunulmayan iki kök çakışması (kurucuya soruldu)
+
+| Kök | Yanlış tetikleme | Not |
+|---|---|---|
+| "parking" → **park** | "Yakında park var mı?" (yeşil alan) → otopark | Çoğu zaman otopark kastediliyor; bırakıldı |
+| "giriş" → **gir** | "Havuza girebilir miyiz?" → giriş | "Kaçta girebilirim?" de aynı kökten bulunuyor; ayırmak kalıp ister |

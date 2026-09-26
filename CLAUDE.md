@@ -179,6 +179,12 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   tespitte ("sıcak su", "su kesintisi", "duman alarmı") genişletmeye girer — geri `terms`e ALINMAZ. Saat alanı kuralının
   "başka konu" sezgisi bu sözcükleri `matchConcepts(…, {loose})` ile YİNE görür (davranış aynı, pinli). Kalan gürültü
   (sözcük kalemin METNİNDE geçiyorsa BM25 eşleşir: "Daire çok sıcak" → sıcak su kalemi) sözlükle çözülmez → anlamsal arama.
+- **Sözlük kayıtları TİPLİ (kurucu onayı 09-26, "B + C + tipli eşleştirici"):** terim · `detectOnly` · `expandOnly` ·
+  **`phrases` (birebir kalıp: durak sözcükler KORUNUR, içerik kök alınır — `phraseUnits`)**. Çok kelimeli `detectOnly`
+  EN AZ iki içerik köküne inmek zorunda; tek kelimeye inen kayıt `lexiconProblems` testinde düşer ("çok sıcak" → sıcak,
+  "no water" → water, "how to get there" → get gibi). Kalıp eşleşmesi metnin birimlerini ister: arama / saat alanı /
+  çelişki kapısı `units` geçirir — yeni bir çağıran da geçirmek ZORUNDA. "checkin" kökü korunur (`PROTECTED_STEMS`;
+  "check" artık girişi tetiklemez). Bilinen, BİLEREK bırakılan kök çakışmaları: "parking"→park, "giriş"→gir.
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { expandQuery, matchConcepts } from "@/lib/ai/retrieval/lexicon";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
-import { contentStems, stem } from "@/lib/ai/retrieval/text";
+import { contentStems, phraseUnits, stem } from "@/lib/ai/retrieval/text";
 import { fieldTimeHits } from "@/lib/ai/retrieval/time-fields";
 import { neutralPadding } from "../helpers/kb-padding";
 
@@ -16,7 +16,9 @@ import { neutralPadding } from "../helpers/kb-padding";
 // genişletmeye girer. Saat alanı kuralının "başka konu" sezgisi onları YİNE görür (`loose`) — davranışı aynı.
 // ---------------------------------------------------------------------------
 
-const ids = (q: string) => matchConcepts(contentStems(q)).map((m) => m.concept.id);
+// Üretimdeki çağıranlar gibi (arama / saat alanı / çelişki kapısı) kalıp birimleriyle — birebir kalıplar ("no water",
+// "çok sıcak") yalnız birimlerle eşleşir (09-26 tipli eşleştirici).
+const ids = (q: string) => matchConcepts(contentStems(q), { units: phraseUnits(q) }).map((m) => m.concept.id);
 
 describe("belirsiz tek kelime kavramı TEK BAŞINA tetiklemez", () => {
   const cases: [string, string][] = [
@@ -62,7 +64,7 @@ describe("GERİ ÇAĞIRMA — kalıpla tespit kaybolmaz", () => {
   }
 
   it("kalıpla tespit edilen kavram yalnız-genişletme sözcüklerini YİNE ekler", () => {
-    const exp = (q: string) => expandQuery(contentStems(q)).expansion;
+    const exp = (q: string) => expandQuery(contentStems(q), [], phraseUnits(q)).expansion;
     expect([...exp("No water in the apartment").keys()]).toEqual(expect.arrayContaining([stem("kesinti"), stem("outage"), stem("depo")]));
     expect(exp("hot water please").has(stem("sicak"))).toBe(true);
     expect(exp("Duman alarmı ötüyor").has(stem("merdiven"))).toBe(true);

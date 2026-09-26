@@ -1,5 +1,5 @@
 import type { KbCategory } from "@/lib/constants";
-import { contentStems, stem } from "./text";
+import { contentStems, isStopword, phraseUnits, stem } from "./text";
 
 // ---------------------------------------------------------------------------
 // ALAN SÖZLÜĞÜ — kısa dönem kiralama kavramları (RAG dilim 1+2, 09-09).
@@ -43,22 +43,27 @@ export interface Concept {
   detectOnly?: readonly string[];
   /** Yalnız genişletme (tek kelime): kavramı TEK BAŞINA tetiklemeyecek kadar belirsiz sözcük. */
   expandOnly?: readonly string[];
+  /**
+   * Birebir kalıp (yalnız tespit): durak sözcükler KORUNUR ("çok sıcak", "no water", "get there"), içerik sözcükleri
+   * kök alınır (`phraseUnits`). `detectOnly` durak sözcükleri attığı için bu kalıplar TEK kelimeye iniyordu (09-26 ölçüldü).
+   */
+  phrases?: readonly string[];
 }
 
 export const CONCEPTS: readonly Concept[] = [
-  { id: "parking", category: "parking", terms: ["otopark", "arac", "araba", "garaj", "parking", "car", "vehicle", "garage"], detectOnly: ["park yeri", "araba parki", "arac parki", "park etmek", "nereye park"] },
+  { id: "parking", category: "parking", terms: ["otopark", "arac", "araba", "garaj", "parking", "car", "vehicle", "garage"], detectOnly: ["park yeri", "araba parki", "arac parki", "park etmek"] },
   { id: "wifi", category: "wifi", terms: ["wifi", "internet", "kablosuz", "modem", "wireless", "router", "wlan"], detectOnly: ["kablosuz ag", "internet baglantisi"] },
   { id: "credentials", terms: ["sifre", "parola", "password", "kod", "code", "pin"] },
   { id: "trash", category: "trash", terms: ["cop", "atik", "konteyner", "trash", "garbage", "rubbish", "waste", "recycling"], detectOnly: ["geri donusum", "cop kutusu", "cop poseti"] },
   // "varis" YOK: kökü "var"a iner ve her "X var mı" sorusunu giriş kavramına bağlar (iki kez ölçüldü — geri gelmesin).
-  { id: "checkin", category: "checkin", timeField: "checkin", terms: ["giris", "checkin", "arrival"], detectOnly: ["erken giris", "early checkin", "kacta girebilirim", "when can i check in", "giris saati"] },
+  { id: "checkin", category: "checkin", timeField: "checkin", terms: ["giris", "checkin", "arrival"], detectOnly: ["erken giris", "early checkin", "giris saati"], phrases: ["checking in"] },
   { id: "keys", terms: ["anahtar", "kilit", "key", "lock", "lockbox"], detectOnly: ["kapi kodu", "anahtar kutusu", "anahtari kaybettim", "lose the key", "yedek anahtar"] },
-  { id: "checkout", category: "checkout", timeField: "checkout", terms: ["cikis", "checkout", "ayrilis", "ayril", "departure", "leaving", "leave"], detectOnly: ["gec cikis", "late checkout", "cikis saati", "kacta ayril", "what time is checkout"] },
-  { id: "address", category: "location", terms: ["adres", "konum", "harita", "address", "location", "directions", "map"], detectOnly: ["yol tarifi", "nasil gelinir", "how to get there"] },
+  { id: "checkout", category: "checkout", timeField: "checkout", terms: ["cikis", "checkout", "ayrilis", "ayril", "departure", "leaving", "leave"], detectOnly: ["gec cikis", "late checkout", "cikis saati", "what time is checkout"] },
+  { id: "address", category: "location", terms: ["adres", "konum", "harita", "address", "location", "directions", "map"], detectOnly: ["yol tarifi", "gelinir"], phrases: ["get there"] },
   { id: "transit", category: "location", terms: ["metro", "otobus", "tramvay", "bus", "tram", "subway", "durak"], detectOnly: ["toplu tasima", "public transport", "ulasim karti"] },
-  { id: "airport", category: "location", terms: ["havalimani", "havaalani", "ucak", "airport", "flight", "shuttle", "transfer", "havas"], detectOnly: ["ucaga nasil", "to the airport"] },
+  { id: "airport", category: "location", terms: ["havalimani", "havaalani", "ucak", "airport", "flight", "shuttle", "transfer", "havas"], detectOnly: [] },
   { id: "taxi", category: "location", terms: ["taksi", "taxi", "cab", "uber"], detectOnly: ["arac cagir", "call a taxi"] },
-  { id: "rules", category: "rules", terms: [], detectOnly: ["ev kurallari", "house rules", "kurallar neler", "site kurallari"] },
+  { id: "rules", category: "rules", terms: [], detectOnly: ["ev kurallari", "house rules", "kural", "site kurallari"] },
   { id: "smoking", category: "rules", terms: ["sigara", "smoking", "smoke", "tutun", "cigarette"], detectOnly: ["sigara icebilir"] },
   { id: "pets", category: "rules", terms: ["evcil", "kopek", "kedi", "pet", "pets", "dog", "cat", "hayvan"], detectOnly: ["evcil hayvan", "kopegimi getir"] },
   { id: "noise", category: "rules", timeField: "quiet_hours", terms: ["gurultu", "sessiz", "sessizlik", "parti", "noise", "quiet", "party", "muzik", "music"], detectOnly: ["sessiz saat", "quiet hours", "gece saat"] },
@@ -71,25 +76,25 @@ export const CONCEPTS: readonly Concept[] = [
   { id: "hairdryer", terms: ["fon", "hairdryer", "dryer", "kurutma"], detectOnly: ["sac kurutma", "hair dryer", "blow dryer"] },
   { id: "towels", category: "cleaning", terms: ["havlu", "carsaf", "nevresim", "towel", "towels", "sheet", "sheets", "linen", "bedding", "yastik", "battaniye"], detectOnly: ["yedek havlu", "temiz carsaf", "extra towels"] },
   { id: "laundry", category: "cleaning", terms: ["camasir", "kiyafet", "yika", "laundry", "washing", "clothes", "deterjan", "detergent"], detectOnly: ["camasir makinesi", "washing machine", "kiyafet yika"] },
-  { id: "cleaning", category: "cleaning", timeField: "cleaning", terms: ["temizlik", "temizlikci", "cleaning", "cleaner", "housekeeping"], detectOnly: ["temizlik ne zaman", "oda temizligi"] },
+  { id: "cleaning", category: "cleaning", timeField: "cleaning", terms: ["temizlik", "temizlikci", "cleaning", "cleaner", "housekeeping"], detectOnly: ["oda temizligi"] },
   { id: "dishwasher", terms: ["bulasik", "dishwasher", "dishes", "tablet"], detectOnly: ["bulasik makinesi", "bulasik yika"] },
-  { id: "stove", terms: ["ocak", "firin", "stove", "oven", "hob", "induksiyon", "induction", "cooker"], detectOnly: ["yemek pisir", "how to cook"] },
+  { id: "stove", terms: ["ocak", "firin", "stove", "oven", "hob", "induksiyon", "induction", "cooker"], detectOnly: ["yemek pisir", "cook"] },
   { id: "fridge", terms: ["buzdolabi", "dondurucu", "fridge", "freezer", "refrigerator"], detectOnly: [] },
   { id: "microwave", terms: ["mikrodalga", "microwave", "isit", "heat"], detectOnly: ["yemek isit", "heat up food"] },
   { id: "coffee", terms: ["kahve", "coffee", "kapsul", "capsule", "espresso", "kettle", "cay", "tea"], detectOnly: ["kahve makinesi", "coffee machine", "kahve yap"] },
   // "uydu" (09-10): eski kök sökücüde "uydu→uy" = "uymuyor→uy" idi ("Fişim uymuyor" TV genişletmesi alıyordu);
   // çarpışma KÖKTE çözüldü (-du kök 2 harfe inecekse sökülmez → "uyd"), terim KALDI (test-pinli).
   { id: "tv", terms: ["tv", "televizyon", "television", "netflix", "kumanda", "remote", "uydu", "satellite", "kanal", "channel"] },
-  { id: "ac", terms: ["klima", "sogutma", "aircon", "cooling", "ac"], detectOnly: ["air conditioning", "air conditioner", "cok sicak", "serinle"] },
-  { id: "heating", terms: ["isitma", "kalorifer", "radyator", "heating", "heater", "radiator", "kombi"], detectOnly: ["cok soguk", "usuyor"] },
+  { id: "ac", terms: ["klima", "sogutma", "aircon", "cooling", "ac"], detectOnly: ["air conditioning", "air conditioner", "serinle"], phrases: ["cok sicak"] },
+  { id: "heating", terms: ["isitma", "kalorifer", "radyator", "heating", "heater", "radiator", "kombi"], detectOnly: ["usuyor"], phrases: ["cok soguk"] },
   // "sicak" TEK BAŞINA klima da olabilir ("Daire çok sıcak") → yalnız genişletme; "suyun sıcağı" kalıbı eklendi.
   { id: "hot_water", terms: ["kombi", "boiler", "termosifon", "isinmiyor"], expandOnly: ["sicak"], detectOnly: ["sicak su", "su sicak", "hot water", "su isitici", "water heater", "dus suyu", "shower water"] },
   // "kesinti"/"outage" elektrik de olabilir, "depo" bagaj deposu da → yalnız genişletme; kalıplar su kesintisini taşır.
-  // ⚠️ AÇIK (kurucu kararı bekliyor, 09-26): "no water" kalıbı durak sözcük ("no") düşünce TEK "water" köküne iniyor →
-  // her "water" sorusu ("Is there hot water?") su kesintisini tetikliyor; bu yüzden "water outage" kalıbı bugün etkisiz
-  // (mutasyon L11 eşdeğer). Aynı çöküş: "cok sicak"→sıcak (klima), "cok soguk"→soğuk, "when can i check in"→check,
-  // "how to get there"→get, "nereye park"→park. Ölçüm + örnekler: `docs/olcum/sozluk-belirsiz-kelime-2026-09-26.md`.
-  { id: "water_cut", terms: [], expandOnly: ["kesinti", "outage", "depo"], detectOnly: ["su kesintisi", "water cut", "water outage", "su deposu", "su gelmiyor", "no water"] },
+  // "no water" BİREBİR KALIP (09-26, tipli eşleştirici): `detectOnly`te durak sözcük "no" düşüp TEK "water"a iniyordu →
+  // her "water" sorusu ("Is there hot water?") su kesintisini tetikliyordu. Aynı çöküş "çok sıcak/soğuk" ve "get there"da
+  // düzeldi (`phrases`); tek kelimeye inen kayıt artık test tarafından reddedilir (`lexiconProblems`).
+  // Ölçüm: `docs/olcum/sozluk-belirsiz-kelime-2026-09-26.md`.
+  { id: "water_cut", terms: [], expandOnly: ["kesinti", "outage", "depo"], detectOnly: ["su kesintisi", "water cut", "water outage", "su deposu", "su gelmiyor"], phrases: ["no water"] },
   // power ↔ socket AYRILDI (09-10): torba kavram "plug adapter" sorusunu sigorta/şalter
   // kalemine, "elektrikler gitti"yi adaptör kalemine genişletiyordu (ölçüldü).
   { id: "power", terms: ["elektrik", "sigorta", "electricity", "power", "fuse", "salter"], detectOnly: ["elektrikler gitti", "power outage"] },
@@ -100,8 +105,8 @@ export const CONCEPTS: readonly Concept[] = [
   // genişletmesi + local_tips ipucu, mikrodalga kalemi 12 parçanın dışında kalıyordu).
   // 🚨 `detectOnly`'ye taşımak ÇÖZÜM DEĞİL: kalıpla tespit edilen kavram yine TÜM `terms`ini
   // genişletir. "nerede yemek" kalıbı da KOYMA — "nerede" durak, kalıp ["ye"]e derlenir.
-  { id: "restaurant", category: "local_tips", terms: ["restoran", "lokanta", "kafe", "kahvalti", "restaurant", "cafe", "food", "eat", "dinner", "breakfast", "lunch", "meyhane"], detectOnly: ["nerede yiyebiliriz", "where to eat", "restoran oner", "aksam yemegi"] },
-  { id: "beach", category: "local_tips", terms: ["plaj", "deniz", "sahil", "beach", "sea", "seaside", "kumsal"], detectOnly: ["denize nasil", "how far is the beach"] },
+  { id: "restaurant", category: "local_tips", terms: ["restoran", "lokanta", "kafe", "kahvalti", "restaurant", "cafe", "food", "eat", "dinner", "breakfast", "lunch", "meyhane"], detectOnly: ["yiyebiliriz", "restoran oner", "aksam yemegi"] },
+  { id: "beach", category: "local_tips", terms: ["plaj", "deniz", "sahil", "beach", "sea", "seaside", "kumsal"], detectOnly: ["how far is the beach"] },
   { id: "sights", category: "local_tips", terms: ["gezilecek", "tavsiye", "oneri", "muze", "recommend", "recommendation", "sights", "attractions", "museum", "yakin", "nearby"] },
   { id: "doorman", terms: ["kapici", "gorevli", "attendant", "concierge", "yonetici", "guvenlik", "security"], detectOnly: ["bina gorevlisi", "building attendant"] },
   { id: "packages", terms: ["kargo", "paket", "kurye", "siparis", "package", "delivery", "courier", "parcel", "teslimat"], detectOnly: ["yemek siparisi", "food delivery", "receive a package"] },
@@ -120,6 +125,10 @@ interface CompiledConcept {
   detect: string[][];
   /** Yalnız genişletme: tek kelimelik belirsiz sözcüklerin kökleri. */
   expandOnly: Set<string>;
+  /** Birebir kalıplar: kalıp birimi dizileri (durak sözcükler dahil). */
+  phrases: string[][];
+  /** Kalıpların içerik birimleri — YALNIZ gevşek eşleşme ("başka konu" sezgisi) için. */
+  phraseContent: Set<string>;
 }
 
 function stemsOf(term: string): string[] {
@@ -146,8 +155,34 @@ const COMPILED: readonly CompiledConcept[] = CONCEPTS.map((concept) => {
     const stems = stemsOf(term);
     if (stems.length === 1) expandOnly.add(stems[0]);
   }
-  return { concept, single, detect, expandOnly };
+  const phrases: string[][] = [];
+  const phraseContent = new Set<string>();
+  for (const p of concept.phrases ?? []) {
+    const units = phraseUnits(p); // en az iki birim: `lexiconProblems` (test pinli) tek birimlik kalıbı reddeder
+    phrases.push(units);
+    for (const u of units) if (!isStopword(u)) phraseContent.add(u);
+  }
+  return { concept, single, detect, expandOnly, phrases, phraseContent };
 });
+
+/**
+ * Sözlük kayıtlarının TÜR sözleşmesi (09-26, tipli eşleştirici; test pinler): `terms` ve `expandOnly` tek köke,
+ * çok kelimeli `detectOnly` EN AZ iki içerik köküne, `phrases` en az iki birime derlenmeli. Aksi hâlde kayıt,
+ * yazıldığından farklı bir şeye (çoğu zaman tek, genel bir kelimeye) iner — "çok sıcak" → "sıcak".
+ */
+export function lexiconProblems(concepts: readonly Concept[] = CONCEPTS): string[] {
+  const out: string[] = [];
+  for (const c of concepts) {
+    for (const t of c.terms) if (stemsOf(t).length !== 1) out.push(`${c.id}: terms "${t}" → [${stemsOf(t).join(",")}]`);
+    for (const t of c.expandOnly ?? []) if (stemsOf(t).length !== 1) out.push(`${c.id}: expandOnly "${t}" → [${stemsOf(t).join(",")}]`);
+    for (const t of c.detectOnly ?? []) {
+      const words = t.trim().split(/\s+/).length;
+      if (words > 1 && contentStems(t).length < 2) out.push(`${c.id}: detectOnly "${t}" → [${contentStems(t).join(",")}] (kalıp tek kelimeye iniyor — phrases'e taşı)`);
+    }
+    for (const p of c.phrases ?? []) if (phraseUnits(p).length < 2) out.push(`${c.id}: phrases "${p}" → tek birim`);
+  }
+  return out;
+}
 
 export interface ConceptMatch {
   concept: Concept;
@@ -155,7 +190,7 @@ export interface ConceptMatch {
   via: string;
 }
 
-function hasPhrase(stems: string[], phrase: string[]): boolean {
+function hasPhrase(stems: readonly string[], phrase: readonly string[]): boolean {
   if (phrase.length > stems.length) return false;
   outer: for (let i = 0; i + phrase.length <= stems.length; i++) {
     for (let j = 0; j < phrase.length; j++) {
@@ -167,17 +202,22 @@ function hasPhrase(stems: string[], phrase: string[]): boolean {
 }
 
 /**
- * Sorgu köklerinde geçen kavramlar (tekil, sözlük sırasıyla). `loose`: yalnız-genişletme sözcükleri de kavramı
- * tetikler — YALNIZ saat alanı kuralının "cümlecik başka bir konudan söz ediyor" sezgisi içindir (`time-fields.ts`):
- * o kural bu sözcükleri ayrım öncesinde de görüyordu, davranışı değişmesin. Retrieval katı eşleşmeyi kullanır.
+ * Sorgu köklerinde geçen kavramlar (tekil, sözlük sırasıyla). `units`: metnin kalıp birimleri (`phraseUnits`) —
+ * verilmezse birebir kalıplar eşleşmez (çağıran metni biliyorsa VERMELİ). `loose`: yalnız-genişletme sözcükleri ve
+ * kalıpların içerik sözcükleri de kavramı tetikler — YALNIZ saat alanı kuralının "cümlecik başka bir konudan söz
+ * ediyor" sezgisi içindir (`time-fields.ts`): o kural bu sözcükleri ayrım öncesinde de görüyordu, davranışı
+ * değişmesin. Retrieval katı eşleşmeyi kullanır.
  */
-export function matchConcepts(stems: string[], opts: { loose?: boolean } = {}): ConceptMatch[] {
+export function matchConcepts(
+  stems: string[],
+  opts: { loose?: boolean; units?: readonly string[] } = {},
+): ConceptMatch[] {
   const out: ConceptMatch[] = [];
   const set = new Set(stems);
   for (const c of COMPILED) {
     let via: string | null = null;
     for (const s of set) {
-      if (c.single.has(s) || (opts.loose && c.expandOnly.has(s))) {
+      if (c.single.has(s) || (opts.loose && (c.expandOnly.has(s) || c.phraseContent.has(s)))) {
         via = s;
         break;
       }
@@ -185,6 +225,14 @@ export function matchConcepts(stems: string[], opts: { loose?: boolean } = {}): 
     if (!via) {
       for (const p of c.detect) {
         if (hasPhrase(stems, p)) {
+          via = p.join(" ");
+          break;
+        }
+      }
+    }
+    if (!via && opts.units) {
+      for (const p of c.phrases) {
+        if (hasPhrase(opts.units, p)) {
           via = p.join(" ");
           break;
         }
@@ -209,8 +257,12 @@ export const EXPANSION_WEIGHT = 0.5;
  * `extra`: kökten BAĞIMSIZ bulunmuş kavramlar (yabancı dil yüzey biçimleri, `lexicon-foreign.ts`).
  * Kavram kimliğine göre birleşir — aynı kavram iki yoldan gelirse genişletme ve ipucu BİR kez.
  */
-export function expandQuery(stems: string[], extra: readonly ConceptMatch[] = []): QueryExpansion {
-  const matched = matchConcepts(stems);
+export function expandQuery(
+  stems: string[],
+  extra: readonly ConceptMatch[] = [],
+  units?: readonly string[],
+): QueryExpansion {
+  const matched = matchConcepts(stems, { units });
   for (const e of extra) if (!matched.some((m) => m.concept.id === e.concept.id)) matched.push(e);
   const own = new Set(stems);
   const expansion = new Map<string, number>();
@@ -243,10 +295,10 @@ export const TIME_FIELD_LABELS: Record<string, string> = {
   late_checkout: "geç çıkış",
 };
 
-/** Bir parça metninin köklerinde geçen SAAT ALANLARI (tekil, sözlük sırasıyla). */
-export function timeFieldsIn(stems: string[]): string[] {
+/** Bir parça metninin köklerinde geçen SAAT ALANLARI (tekil, sözlük sırasıyla). `units`: birebir kalıplar için. */
+export function timeFieldsIn(stems: string[], units?: readonly string[]): string[] {
   const out: string[] = [];
-  for (const m of matchConcepts(stems)) {
+  for (const m of matchConcepts(stems, { units })) {
     const f = m.concept.timeField;
     if (f && !out.includes(f)) out.push(f);
   }

@@ -21,7 +21,7 @@
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { timeFieldsIn } from "@/lib/ai/retrieval/lexicon";
 import { matchForeignConcepts } from "@/lib/ai/retrieval/lexicon-foreign";
-import { contentStems } from "@/lib/ai/retrieval/text";
+import { contentStems, phraseUnits } from "@/lib/ai/retrieval/text";
 import { timesIn } from "@/lib/ai/retrieval/time-fields";
 
 /** Çelişen alan → o alanın konu adı (saat alanı sözlüğü) + cevap modelinin o alana ait niyet etiketleri. */
@@ -37,7 +37,7 @@ const FIELD_SCOPE: Record<TimeConflict["field"], { topic: string; intents: Reado
  */
 function topicsOf(text: string | null | undefined): Set<string> {
   if (!text) return new Set();
-  const out = new Set(timeFieldsIn(contentStems(text)));
+  const out = new Set(timeFieldsIn(contentStems(text), phraseUnits(text)));
   for (const m of matchForeignConcepts(text)) if (m.concept.timeField) out.add(m.concept.timeField);
   return out;
 }
