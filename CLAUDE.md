@@ -627,13 +627,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   SINIR test-pinli. Bayrak kapalı davranış birebir eski. Bayrak açma onayı DEĞİL.
 - **Kalan P2 (ayrı modül turları):** ~~F09 CSP raporu path token'ı~~ (KAPANDI 09-26, ↓Tenant / rotalar CSP) ·
   ~~F10 merkezi log redaksiyonu~~ (KAPANDI 09-26, ↓Veri yaşam döngüsü redaksiyon; AÇIK: audit yazılamazsa eylem başına
-  durdurma politikası = kurucu kararı) · F11 mülk
-  silmede obje temizliği · F12 audit baseline şeması · ~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26) · F14
+  durdurma politikası = kurucu kararı) · ~~F11 mülk
+  silmede obje temizliği~~ (KAPANDI 09-26, ↓Tenant / rotalar yükleme) · ~~F12 audit baseline şeması~~ (KAPANDI 09-26,
+  ↓Tedarik zinciri) · ~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26) · F14
   sohbet hafızası/zaman (KODDA 09-26, bayrak arkasında — ↑KONUŞMA KAYITLARI; açık: CUS v2 defteri, bayrağı açmak) ·
   ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: `evaluated/inconclusive/empty`; boş liste YALNIZ tam
   değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · ~~F16 iCal
   completeness~~ (KAPANDI 09-26, ↓Mesajlaşma / outbox / sync) · F17 cron adaleti · F18 login savunma
-  tasarımı. F09, F10 ve F13–F16 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
+  tasarımı. F17 ve F18 dışında hepsine dokunuldu; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
 - Kaynak taraması tek yönlüdür → davranışsal test; `rejects.not.toThrow(/…/)` kullanma; senkron CPU
   zaman aşımıyla kesilemez; çapa `indexOf` −1 pinle; mutasyon `assert count==1`.
 - Ret edilenler: ETag testi (hedef yok) · HTTP/2 parser testi · kanonik-posta-kutusu kayıt limiti ·
@@ -716,7 +717,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   audit'siz (açık).
 - Yükleme: private mimari (imzalı GET, `orgIdFromKey` 404, sihirli bayt, SVG/HTML yok); prod'da yerel
   diske düşüş 503 (`ALLOW_LEGACY_LOCAL_UPLOADS=1` kaçış). Bucket sağlayıcı görünürlüğü operatör adımı.
-  `photoUrl` yalnız göreli.
+  `photoUrl` yalnız göreli. 🚨 Sunum YALNIZ bu org'da bir TaskUpdate'in HÂLÂ gösterdiği nesneyi imzalar (F11, 09-26);
+  görev VE mülk silme fotoğrafların silme niyetini aynı işlemde yazar (`enqueueStorageDeletions`). Nesneleri yetim
+  bırakan YENİ bir silme yolu aynısını yapar. AÇIK: PATCH düşerse/eşzamanlı silmede sahipsiz nesne uzlaştırması.
 - CSP: enforce'ta `form-action 'self'`, `script-src` enforce EDİLMEZ; report-only'ye `report-uri`
   (`/api/csp-report`: 8KB, 3 MIME, 30/saat/IP, allowlist alanlar, ham rapor saklanmaz, `reportError` YOK,
   daima 204). Enforce sırası: ≥2 hafta ölç → nonce turu → report-only doğrula → enforce. 🚨 Rapor alanları loga
@@ -900,7 +903,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Tarayıcı saat dilimine güven `APP_TRUST_BROWSER_TIMEZONE` default kapalı. S3 virtual-hosted, noktalı
   bucket adı reddedilir. E-posta boot kapısı: Resend veya eksiksiz SMTP.
 - Tedarik zinciri: zafiyet kapısı = sıfır TRİAJSIZ (`security/audit-baseline.json`, `expires` zorunlu),
-  altyapı arızasında fail-closed + retry; Dependabot PR CI (`head_ref` guard); `schedule:` bu repoda
+  altyapı arızasında fail-closed + retry; betik kaydın şemasını KENDİSİ doğrular (F12: `validateBaseline` — takvimde
+  gerçek `expires`, tekil kimlik, GHSA ya da NO-GHSA; sayaç zafiyet derken tek danışma çıkmazsa kırmızı); Dependabot PR CI (`head_ref` guard); `schedule:` bu repoda
   çalışmaz (varsayılan dal `main`, `ci.yml` yok) → haftalık denetim CANLI DEĞİL (runbook
   `docs/ZAFIYET-KAPISI-ZAMANLAYICI-RUNBOOK.md`); Node 22 (24 değil); iki aşamalı non-root imaj
   (`chown -R node:node /app` yük taşır; `node:22-slim`de openssl apt şart).
