@@ -21,6 +21,10 @@ import { channelLabel, riskTypeLabel } from "@/lib/ui-labels";
 import { getReturningGuestInfo } from "@/lib/returning-guest";
 import { CLOSING_HANDLED_REASON, isClosingHandled } from "@/lib/conversation-attention";
 import { getAdjacency } from "@/lib/turnover";
+import { listConversationItems } from "@/lib/conversation-items/store";
+import { isOpenForHost } from "@/lib/conversation-items/core";
+import { ITEM_STATUS_LABELS_TR, itemKindLabel, itemTone } from "@/lib/conversation-items/view";
+import { ConversationItemsCard, type ConversationItemRow } from "@/components/inbox/conversation-items-card";
 import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
 
 export const dynamic = "force-dynamic";
@@ -83,7 +87,7 @@ export default async function ConversationPage({
     ? stayEndedBefore(conversation.reservation.departureDate, new Date(), TZ)
     : false;
 
-  const [kb, adjacency, tasks, outboxRows, stayEdges] = await Promise.all([
+  const [kb, adjacency, tasks, outboxRows, stayEdges, itemViews] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { propertyId: conversation.propertyId, isActive: true },
       orderBy: { category: "asc" },
@@ -123,7 +127,24 @@ export default async function ConversationPage({
           { timeZone: TZ },
         )
       : null,
+    // Konuşma öğeleri (09-26): misafirin isteklerinden ev sahibinde açık kalanlar. Okuma hatası sayfayı düşürmez.
+    listConversationItems(prisma, { organizationId: session.organizationId, conversationId: conversation.id }).catch(() => []),
   ]);
+  // Açıklar üstte, sonra en yeni. Kart dar bir rayda: en fazla 20 satır.
+  const itemRows: ConversationItemRow[] = [...itemViews]
+    .sort(
+      (a, b) =>
+        Number(isOpenForHost(b.effective)) - Number(isOpenForHost(a.effective)) || b.messageAt.getTime() - a.messageAt.getTime(),
+    )
+    .slice(0, 20)
+    .map((v) => ({
+      id: v.id,
+      kindLabel: itemKindLabel(v.kind),
+      statusLabel: ITEM_STATUS_LABELS_TR[v.effective],
+      tone: itemTone(v.effective, v.sensitivity),
+      open: isOpenForHost(v.effective),
+      at: formatDateTime(v.messageAt, TZ),
+    }));
   const outboxByMessage = new Map(
     outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
   );
@@ -292,6 +313,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
             AYNI ifadeden gelir; ikisi ayrışırsa satır yüksekliği zıplar —
             ikisi de artık `lg:h-full` (grid satırının kendisi ölçüyü verir). */}
         <div className="min-w-0 space-y-4 lg:h-full lg:min-h-[26rem] lg:overflow-y-auto lg:pr-1">
+          <ConversationItemsCard conversationId={conversation.id} items={itemRows} canManage={canManage(session)} />
           {/* 🚨 "Mülk" KARTI KALDIRILDI (kurucu 09-11): adres çoğu hostta boş
               olduğu için kart pratikte TEK BİR SATIR gösteriyordu — giriş/çıkış
               saati. O satır artık konuşma kartının başlık satırında; adres,

@@ -100,7 +100,7 @@ import {
   detectRiskTypes,
 } from "@/lib/ai/fallback";
 import {
-  STAY_CHANGE_KINDS,
+  STAY_CHANGE_ITEM_KINDS,
   labelsHoldWholeTurn,
   replyRiskAttributable,
   unattributedModelItems,
@@ -505,7 +505,7 @@ export function autoReplyGateVerdict(
     if (items.paymentHeld && namesPaymentMethod(result.reply ?? "", { paymentContext: true })) return hold("items_payment_held");
     if (
       items.held.length > 0 &&
-      !items.answerableKinds.some((k) => STAY_CHANGE_KINDS.has(k)) &&
+      !items.answerableKinds.some((k) => STAY_CHANGE_ITEM_KINDS.has(k)) &&
       hasRecordedHandoff(result.reply ?? "")
     ) {
       return hold("items_touch_held");
@@ -2135,11 +2135,11 @@ export async function applyChannelAutoReply(
   // karakteri karakterine aynı. Hibritte seçilmeyen kalemler devir notunu
   // besler: retrieval kaçırırsa model "bilgim yok" DEMEZ, insana devreder.
   // Konuşma öğeleri (bayrak `AI_CONVERSATION_ITEMS_ENABLED`, varsayılan KAPALI): anlama katmanı öğe kipinde koşar (tek karar
-  // noktası `kb-retrieve.ts`) ve geçmiş mesaj KİMLİĞİ taşır — öğe eşlemesi katmanın gördüğü AYNI diziden. Kapalıyken dizi
-  // bayt bayt eskisi.
+  // noktası `kb-retrieve.ts`); öğe eşlemesi katmanın gördüğü AYNI diziden. Mesaj kimliği dizide HER ZAMAN taşınır: katmanın
+  // girdisine ve önbellek anahtarına girmez, seçici okumaz — yalnız öğe eşlemesi okur.
   const itemsFlag = conversationItemsEnabled();
   const turnHistory = messages.map((m) => ({
-    ...(itemsFlag ? { id: m.id } : {}),
+    id: m.id,
     direction: m.direction as "inbound" | "outbound",
     body: m.body,
     at: m.createdAt,

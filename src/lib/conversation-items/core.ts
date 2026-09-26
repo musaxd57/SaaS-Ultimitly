@@ -235,7 +235,7 @@ export interface ItemsGateInput {
   held: readonly ItemRiskFacts[];
   /** Ödeme öğesi tutuluyor: cevapta ödeme yöntemi / yeri adı geçerse cevap GİTMEZ (anlam katmanının kelime yedeği). */
   paymentHeld: boolean;
-  /** Bu turun cevaplanabilir isteklerinin türleri (konaklama değişikliği ertelemesi beklenir mi — `STAY_CHANGE_KINDS`). */
+  /** Bu turun cevaplanabilir isteklerinin türleri (konaklama değişikliği ertelemesi beklenir mi — `STAY_CHANGE_ITEM_KINDS`). */
   answerableKinds: readonly ItemKind[];
 }
 
@@ -244,7 +244,7 @@ export interface ItemsGateInput {
  * Öğe kipinde bu türden cevaplanabilir istek YOKSA cevaptaki "kaydedildi / ev sahibiniz görebilir" cümlesi ancak bırakılan
  * bir isteğe değinebilir → kapı tutar (kurucu 09-26: bırakılan istek için misafire otomatik "kaydedildi" GİTMEZ).
  */
-export const STAY_CHANGE_KINDS: ReadonlySet<ItemKind> = new Set([
+export const STAY_CHANGE_ITEM_KINDS: ReadonlySet<ItemKind> = new Set([
   "early_checkin",
   "late_checkout",
   "extend_stay",

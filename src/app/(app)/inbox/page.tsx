@@ -23,6 +23,8 @@ import { fromNow, truncate, cn } from "@/lib/utils";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { CLOSING_HANDLED_LABEL, isClosingHandled, notClosingHandledWhere } from "@/lib/conversation-attention";
+import { openItemCounts } from "@/lib/conversation-items/store";
+import { openItemsBadge } from "@/lib/conversation-items/view";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +86,13 @@ export default async function InboxPage({
   // controls inert so they don't misleadingly read "Açık".
   const automationLocked = !(await premiumAllowed(session.organizationId));
   const demo = isDemoOrg(session.organizationId);
+
+  // Konuşma öğeleri (09-26): ev sahibinde AÇIK iş sayısı (yalnız bu sayfanın konuşmaları; "ev sahibi yazdı" düşülür).
+  // Güvenli kısmı cevaplanmış konuşma "Cevaplandı" görünse de açık iş rozetiyle öne çıkar. Okuma hatası listeyi düşürmez.
+  const openItems = await openItemCounts(prisma, {
+    organizationId: session.organizationId,
+    conversationIds: conversations.map((c) => c.id),
+  }).catch(() => new Map<string, number>());
 
   // "x gün önce" etiketi 30 günü aşınca mutlak güne düşer — o gün host'un
   // takvim günü olmalı, sunucunun UTC'si değil.
@@ -388,7 +397,9 @@ export default async function InboxPage({
             // Highlight threads still needing attention (guest waiting / escalated). Kapanışa bilerek sessiz kalınmış
             // konuşma ("cevap gerekmedi") dikkat istemez: vurgusuz, kendi etiketiyle.
             const handled = isClosingHandled(c) && (c.status === "new" || c.status === "waiting");
-            const unread = !handled && (c.status === "new" || c.status === "waiting" || c.status === "problem");
+            const openBadge = openItemsBadge(openItems.get(c.id) ?? 0);
+            const unread =
+              openBadge !== null || (!handled && (c.status === "new" || c.status === "waiting" || c.status === "problem"));
             return (
             <Link
               key={c.id}
@@ -429,6 +440,7 @@ export default async function InboxPage({
                 <Badge tone={handled ? "muted" : CONVERSATION_STATUS.tone(c.status)}>
                   {handled ? CLOSING_HANDLED_LABEL : CONVERSATION_STATUS.label(c.status)}
                 </Badge>
+                {openBadge ? <Badge tone="warning">{openBadge}</Badge> : null}
                 <span className="text-[11px] text-muted-foreground">{fromNow(c.lastMessageAt, TZ)}</span>
               </div>
             </Link>

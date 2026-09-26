@@ -6,6 +6,8 @@ import { alertOnTransition } from "@/lib/alert-state";
 import { findUpcomingConflicts, type UpcomingConflict } from "@/modules/availability/conflicts";
 import { estimateConflictImpact, type MoneyImpact, type NightlyRateRange } from "@/modules/intelligence/money/impact";
 import { loadNightlyRates } from "@/modules/intelligence/money/rates";
+import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conversation-items/store";
+import type { ItemKind } from "@/lib/conversation-items/core";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ, migration İSTEMEZ.
@@ -25,6 +27,9 @@ import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 //                           kartı YENİDEN eskiye sıralayıp 5 alıyor, yani EN ESKİ
 //                           cevapsız mesaj görünmeyen tek şey.
 //  · recurring_issue      — V1 örüntü hafızası; bugün yalnız mülk sayfasında.
+//  · held_request         — (09-26, konuşma öğeleri) misafirin ev sahibine BIRAKILAN hassas isteği (IBAN, şikâyet, iade,
+//                           ev sahibiyle görüşme…): güvenli kısmı cevaplanmış konuşma "Cevaplandı" görünür; iş burada
+//                           görünür kalır. Konuşma başına TEK satır; aynı konuşmanın "cevapsız" satırının yerini alır.
 //  · calendar_conflict    — (09-24, müsaitlik motoru) önümüzdeki 60 gecede AYNI geceyi
 //                           işgal eden iki rezervasyon. Hiçbir yazma yolu bunu engellemiyor,
 //                           takvim sayfası gece başına mülk saydığı için GÖRÜNMÜYORDU.
@@ -50,6 +55,7 @@ export const ATTENTION_KINDS = [
   "unanswered_aging",
   "recurring_issue",
   "calendar_conflict",
+  "held_request",
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -130,6 +136,9 @@ export interface AttentionItem {
    * Sıralamaya GİRMEZ (önem kanıta göre kalır; paraya göre sıralama ayrı kurucu kararı).
    */
   money?: MoneyImpact;
+  /** Yalnız `held_request`: bırakılan isteklerin türleri (en eskiden yeniye, tekil) ve toplam sayısı. */
+  requestKinds?: ItemKind[];
+  requestCount?: number;
 }
 
 export interface FindAttentionOptions {
@@ -173,7 +182,7 @@ export async function findAttentionItems(
   const windowStart = new Date(now.getTime() - ATTENTION_WINDOW_DAYS * 24 * HOUR);
   const recurringSince = new Date(now.getTime() - RECURRING_FRESH_DAYS * 24 * HOUR);
 
-  const [brokenFeeds, conversations, patterns, conflicts] = await Promise.all([
+  const [brokenFeeds, conversations, patterns, conflicts, held] = await Promise.all([
     prisma.calendarSource.findMany({
       where: { propertyId: { in: propertyIds }, lastStatus: "error" },
       // 🚨 `url` ve `urlEnc` BİLEREK SEÇİLMİYOR: besleme adresi sorgu dizesinde
@@ -228,7 +237,13 @@ export async function findAttentionItems(
       void alertOnTransition("attention:calendar-conflict", "attention calendar_conflict", err).catch(() => {});
       return [];
     }),
+    // Konuşma öğeleri: bu bacağın arızası öteki satırları düşürmez (geçiş tabanlı alarm).
+    heldRequestsByConversation(prisma, { organizationId, propertyIds, since: windowStart }).catch((err): HeldRequestSummary[] => {
+      void alertOnTransition("attention:held-request", "attention held_request", err).catch(() => {});
+      return [];
+    }),
   ]);
+  const heldConversationIds = new Set(held.map((h) => h.conversationId));
 
   const items: AttentionItem[] = [];
 
@@ -252,6 +267,8 @@ export async function findAttentionItems(
     if (!last || last.direction !== "inbound") continue;
     // Misafirin son sözü yalnız teşekkür/kapanıştı ve bilerek cevap verilmedi — bekleyen iş değil.
     if (isClosingHandled(convo)) continue;
+    // Ev sahibine bırakılmış istek satırı bu konuşmayı zaten gösteriyor (daha özgül; çift satır olmasın).
+    if (heldConversationIds.has(convo.id)) continue;
 
     const waitedMs = now.getTime() - last.createdAt.getTime();
     if (waitedMs < 0) continue;
@@ -291,6 +308,22 @@ export async function findAttentionItems(
       occurredAt: last.createdAt,
       href: conversationHref(convo.id, convo.channel),
       hoursWaiting,
+    });
+  }
+
+  for (const h of held) {
+    items.push({
+      kind: "held_request",
+      // 🚨 ÇIKARIM: istek türü anlama katmanı + kelime ağıyla sınıflandırıldı → "otomatik sınıflandırma, doğrulayın".
+      certainty: "inferred",
+      propertyId: h.propertyId,
+      propertyName: nameById.get(h.propertyId) ?? "",
+      // Acil istek her şeyin üstünde (konuşma zaten "Sorunlu"); öteki bırakılan istek cevapsız mesajdan önce gelir.
+      severity: h.emergency ? 99 : 88,
+      occurredAt: h.oldestAt,
+      href: conversationHref(h.conversationId, h.channel),
+      requestKinds: h.kinds,
+      requestCount: h.count,
     });
   }
 

@@ -76,19 +76,45 @@ Cevapsız her misafir mesajı öğelere bölünür:
   "[1] 12'de gelebilir miyiz? [2] Boşverin, 15'te geleceğiz" ile "Boşverin eskisini, 13'te olur mu?" ayrışır. Geçersiz kayıt
   düşer (vazgeçme bir öğeyi KAPATIR; emin olunmayan kayıt kapatmaz). Acil öğe asla.
 
-## 4. Akış (bayrak açıkken)
+## 4. Akış (bayrak açıkken) — dilim c KODDA (`conversation-items/flow.ts` + `automation.ts`)
 
-1. Öğeler çıkarılır; acil öğe varsa → bugünkü acil yol (Sorunlu + e-posta), başka hiçbir şey değişmez.
-2. Hassas öğeler `pending_host` (sessiz) + acil e-posta; konuşma "Sorunlu" OLMAZ.
-3. Güvenli öğe varsa cevap modeli çağrılır; isteme "şu istekler ev sahibine bırakıldı — cevap verme, değinme" bloğu
-   girer; model cevapladığı öğeleri beyan eder (`answeredItems`, strict). Kapı: tutulan öğeye değinen / beyansız cevap
-   gitmez; ödeme öğesi tutuluyken cevapta ödeme yöntemi sözcüğü varsa gitmez (kelime yedeği).
-4. Cevap gidince yalnız cevaplanan öğeler `answered`.
-5. Sonraki turda anlama katmanı "vazgeçti" derse öğe `withdrawn` (acil hariç).
-6. Ev sahibi yazınca açık öğeler `host_replied` — okuma anında TÜRETİLİR (kaçan bir yazma yolu olamaz).
+Bayrak `AI_CONVERSATION_ITEMS_ENABLED=1` **ve** anlama katmanı açık (katmansız öğe kipi yok). Kapalıyken kapı, istem,
+uyarı geçişi ve kapanış gizlemesi bayt bayt eski (entegrasyon kontrolüyle pinli).
 
-Bugünkü konuşma düzeyi bekleyen tarama (şikâyet/iade/erken ayrılma/insan talebi + üç etiket) bayrak açıkken bu öğe
-kuralına devredilir. QR yolu zaten mesaj başına (devir metni bugünkü gibi); öğeler QR'da da yazılır (görünürlük).
+1. Cevap geçişi anlama katmanını cevap modelinden ÖNCE bekler, turu öğelere böler (vazgeçme + yerine geçme). Katmanın
+   gördüğü cevapsız mesajlar kapının kümesiyle birebir değilse ya da katman emin değilse tur BÖLÜNMEZ → bugünkü kapı.
+2. Acil / enjeksiyon turu (`turn_level`): bugünkü yol (Sorunlu + acil e-posta); öğeler görünürlük için tutulur, e-posta
+   claim'i sessizce alınır (ikinci e-posta yok). Cevap modeli acil / enjeksiyon etiketi koyarsa da bugünkü yükseltme.
+3. Hassas öğeler `pending_host` (sessiz): misafire hiçbir şey gitmez, "Sorunlu" OLMAZ, bekletme mesajı GİTMEZ; ev sahibine
+   mesaj başına bugünkü acil e-posta (düşerse claim geri alınır, sonraki geçiş dener) + host açtıysa görev.
+4. Güvenli istek varsa cevap modeline öğe bloğu girer (cevaplanacaklar `R1…` + bırakılanlar); model cevapladıklarını
+   `answeredRequests` ile beyan eder (STRICT). Kapı tutar: beyan yok/bozuk · bırakılan ya da bilinmeyen kimlik · hiçbir
+   istek cevaplanmadı · ödeme öğesi tutuluyken cevapta ödeme yöntemi/yeri · tutulan öğe varken (konaklama değişikliği
+   ertelemesi beklenmiyorsa) istemin "kaydedildi / ev sahibiniz görebilir" cümlesi. Hassas niyet / etiket / yükseltilmiş
+   risk düzeyi yalnız TUTULAN bir öğeye atfedilebiliyorsa güvenli cevabı tutmaz; model riski bugünkü gibi TÜM cevapsız
+   mesajlar için etiketler (ayrımı kod yapar — üçüncü dedektör körleşmesin).
+5. Turun HEPSİ hassassa model yine bugünkü istemle koşar (öğe bloğu yok; acil / enjeksiyon etiketi için üçüncü dedektör),
+   metni gitmez. Taslak bugünkü gibi gelen kutusunda "AI öner" ile — **otomatik saklanmıyor** (kurucuya düzeltme: "taslak
+   hazırlansın" kararı bugün "AI öner"le karşılanıyor; otomatik saklanan taslak ayrı karar).
+6. Tutuşta cevap modelinin öğelere ATFEDİLEMEYEN sinyali son mesaja kendi öğesi olarak yazılır (birleşim); gidişte yalnız
+   beyan edilen güvenli istekler `answered`, kapsanmayan güvenli istek AÇIK kalır. Öğe kipinde insan talebi varken yapay
+   zekâ DURAKLATILMAZ (devir mesajı gitmedi).
+7. Uyarı geçişi (`sendDueAlerts`): acil / enjeksiyon dışındaki şikâyet-iade Sorunlu YAPMAZ; öğe + e-posta + görev + karar
+   kaydı `items_held` (mesaj başına bir kez). Cevap geçişi aynı turu böler, güvenli kısmı cevaplar.
+8. Açık öğe varken kapanış ("teşekkürler") konuşmayı "cevap gerekmedi" diye GİZLEMEZ (`hasOpenHostWork`).
+9. Ev sahibi yazınca açık öğeler `host_replied` — okuma anında TÜRETİLİR; bırakılan listesinden de düşer.
+
+**Ev sahibi görünümü (dilim d, kurucu kararı "Liste + konuşma + Dikkat"):** gelen kutusu satırında "N açık iş" rozeti
+(konuşma "Cevaplandı" görünse de öne çıkar) · konuşma sayfasında "Açık işler" kartı (tür + durum: Açık / Size bırakıldı /
+Yanıtladınız / AI yanıtladı / Misafir vazgeçti / Yeni mesajla birleşti / Tamamlandı; açık işte "Tamamlandı" düğmesi, yalnız
+sahip/yönetici, kiracı + konuşma kapsamlı uç `PATCH /api/conversations/[id]/items/[itemId]`) · "Dikkat Gerektirenler"de
+"Size bırakılan istek: …" satırı (konuşma başına tek; aynı konuşmanın "cevapsız" satırının yerini alır; otomatik
+sınıflandırma işaretli; ev sahibi yazınca düşer) · raporda "Hassas konu — size bırakıldı" satırı `items_held`i de sayar.
+
+**Bilinen sınırlar (dilim c):** önizleme (dryRun) yazmadığı için bugünkü davranışı gösterir · kuyruklu teslim (bayrak
+üretimde kapalı) öğeyi kuyruğa girişte "cevaplandı" yazar · "kaydedildi" yedeği yalnız istemin TR/EN kalıbını tanır (asıl
+koruma beyan + istem kuralı) · e-posta şablonu bugünkü "Şikayet" başlığını taşır (metin değişikliği kurucu onayı) · QR yolu
+öğe yazmıyor (zaten mesaj başına devir) · açma sırası: dilim d (görünürlük) + migration 56 canlıda + ücretli ölçüm (dilim e) + kurucu onayı.
 
 ## 5. Ölçüm (açmadan önce, ~1-2 $, kurucu onayı alındı)
 
@@ -98,8 +124,10 @@ cevap = 0. Sonuç örnekleriyle kurucuya; açma kararı kurucuda.
 
 ## 6. Dilimler
 
-a) şema + saf durum makinesi + birleşim kuralı (test) · b) çıkarım + kalıcılık · c) akış + kapı (bayrak) · d) ev sahibi
-görünümü · e) ücretli ölçüm → kurucu. Her dilim kırmızı-önce + mutasyon + tam kapılar.
+a) şema + saf durum makinesi + birleşim kuralı (test) ✅ `a903e78` CANLI · b) çıkarım ✅ `be3ff5a` CANLI; kalıcılık +
+migration 56 YEREL (push = taze pg_dump + kurucu onayı) · c) akış + kapı (bayrak) ✅ YEREL · d) ev sahibi görünümü
+(liste rozeti + konuşma "Açık işler" + Dikkat satırı) ✅ YEREL · e) ücretli ölçüm → kurucu. Her dilim kırmızı-önce + mutasyon +
+tam kapılar.
 
 ## 7. `rule_violation` nereden geliyor? — mülke özgü politika önerisi (kurucu sorusu 09-26, ONAY BEKLİYOR)
 

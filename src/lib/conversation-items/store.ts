@@ -276,7 +276,11 @@ const HOST_OUTBOUND_WHERE: Prisma.MessageWhereInput = {
   ],
 };
 
-export type ItemView = PersistedItem & { effective: EffectiveItemStatus };
+export type ItemView = PersistedItem & {
+  effective: EffectiveItemStatus;
+  /** Öğenin mesajının yazıldığı an (mesaj bulunamazsa öğenin kendi zamanı). */
+  messageAt: Date;
+};
 
 /**
  * Bir konuşmanın öğeleri + görünen durum ("ev sahibi yazdı" türetilir: öğenin mesajından SONRA ev sahibi yazdıysa).
@@ -302,10 +306,42 @@ export async function listConversationItems(db: Db, input: { organizationId: str
   ]);
   const hostAt = lastHost && historyAuthorOf(lastHost) === "host" ? lastHost.createdAt : null;
   const messageAt = new Map(messages.map((m) => [m.id, m.createdAt]));
-  return items.map((it) => ({
-    ...it,
-    effective: effectiveStatus(it.status, hostAt !== null && (messageAt.get(it.messageId) ?? it.createdAt) < hostAt),
-  }));
+  return items.map((it) => {
+    const at = messageAt.get(it.messageId) ?? it.createdAt;
+    return { ...it, effective: effectiveStatus(it.status, hostAt !== null && at < hostAt), messageAt: at };
+  });
+}
+
+type OpenRow = { conversationId: string; messageId: string; status: string; createdAt: Date };
+
+/**
+ * Satırlardan ev sahibinde GERÇEKTEN açık olanlar ("ev sahibi yazdı" düşülür) + mesajın yazıldığı an. Konuşma başına son
+ * ev sahibi mesajı tek toplu sorguyla; kiracı kapsamı konuşmanın mülkünden.
+ */
+async function stillOpenForHost<R extends OpenRow>(db: Db, organizationId: string, rows: readonly R[]): Promise<(R & { messageAt: Date })[]> {
+  if (rows.length === 0) return [];
+  const convIds = [...new Set(rows.map((r) => r.conversationId))];
+  const [hosts, messages] = await Promise.all([
+    db.message.groupBy({
+      by: ["conversationId"],
+      where: { conversationId: { in: convIds }, conversation: { property: { organizationId } }, ...HOST_OUTBOUND_WHERE },
+      _max: { createdAt: true },
+    }),
+    db.message.findMany({
+      where: { id: { in: [...new Set(rows.map((r) => r.messageId))] }, conversationId: { in: convIds } },
+      select: { id: true, createdAt: true },
+    }),
+  ]);
+  const hostAt = new Map(hosts.map((h) => [h.conversationId, h._max.createdAt]));
+  const messageAt = new Map(messages.map((m) => [m.id, m.createdAt]));
+  const out: (R & { messageAt: Date })[] = [];
+  for (const r of rows) {
+    const status = isItemStatus(r.status) ? r.status : "open";
+    const at = messageAt.get(r.messageId) ?? r.createdAt;
+    const h = hostAt.get(r.conversationId) ?? null;
+    if (isOpenForHost(effectiveStatus(status, h !== null && at < h))) out.push({ ...r, messageAt: at });
+  }
+  return out;
 }
 
 /** Konuşma başına ev sahibinde AÇIK öğe sayısı (liste rozeti; "ev sahibi yazdı" düşülür). */
@@ -316,25 +352,75 @@ export async function openItemCounts(db: Db, input: { organizationId: string; co
     where: { organizationId: input.organizationId, conversationId: { in: [...input.conversationIds] }, status: { in: OPEN_STATUSES } },
     select: { conversationId: true, messageId: true, status: true, createdAt: true },
   });
-  if (rows.length === 0) return out;
-  const convIds = [...new Set(rows.map((r) => r.conversationId))];
-  const [hosts, messages] = await Promise.all([
-    db.message.groupBy({
-      by: ["conversationId"],
-      where: { conversationId: { in: convIds }, conversation: { property: { organizationId: input.organizationId } }, ...HOST_OUTBOUND_WHERE },
-      _max: { createdAt: true },
-    }),
-    db.message.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.messageId))] } }, select: { id: true, createdAt: true } }),
-  ]);
-  const hostAt = new Map(hosts.map((h) => [h.conversationId, h._max.createdAt]));
-  const messageAt = new Map(messages.map((m) => [m.id, m.createdAt]));
-  for (const r of rows) {
-    const status = isItemStatus(r.status) ? r.status : "open";
-    const h = hostAt.get(r.conversationId) ?? null;
-    const eff = effectiveStatus(status, h !== null && (messageAt.get(r.messageId) ?? r.createdAt) < h);
-    if (isOpenForHost(eff)) out.set(r.conversationId, (out.get(r.conversationId) ?? 0) + 1);
+  for (const r of await stillOpenForHost(db, input.organizationId, rows)) {
+    out.set(r.conversationId, (out.get(r.conversationId) ?? 0) + 1);
   }
   return out;
+}
+
+export interface HeldRequestSummary {
+  conversationId: string;
+  propertyId: string;
+  channel: string;
+  /** Ev sahibinde bekleyen hassas isteklerin türleri (en eskiden yeniye, tekil). */
+  kinds: ItemKind[];
+  count: number;
+  emergency: boolean;
+  /** En eski bekleyen isteğin mesajının yazıldığı an. */
+  oldestAt: Date;
+}
+
+/**
+ * "Dikkat Gerektirenler" için: mülklerde ev sahibine BIRAKILMIŞ (hassas, açık, ev sahibinin henüz yazmadığı) istekler,
+ * konuşma başına tek özet. Pencere öğenin kayıt anına göre (hiç unutmayan liste duvar kâğıdına döner).
+ */
+export async function heldRequestsByConversation(
+  db: Db,
+  input: { organizationId: string; propertyIds: readonly string[]; since: Date; cap?: number },
+): Promise<HeldRequestSummary[]> {
+  if (input.propertyIds.length === 0) return [];
+  const rows = await db.conversationItem.findMany({
+    where: {
+      organizationId: input.organizationId,
+      status: { in: OPEN_STATUSES },
+      sensitivity: { in: ["sensitive", "emergency"] },
+      createdAt: { gte: input.since },
+      conversation: { propertyId: { in: [...input.propertyIds] } },
+    },
+    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }],
+    take: input.cap ?? 500,
+    select: {
+      conversationId: true,
+      messageId: true,
+      status: true,
+      createdAt: true,
+      kind: true,
+      sensitivity: true,
+      conversation: { select: { propertyId: true, channel: true } },
+    },
+  });
+  const byConversation = new Map<string, HeldRequestSummary>();
+  for (const r of await stillOpenForHost(db, input.organizationId, rows)) {
+    const kind: ItemKind = isItemKind(r.kind) ? r.kind : "other";
+    const cur = byConversation.get(r.conversationId);
+    if (!cur) {
+      byConversation.set(r.conversationId, {
+        conversationId: r.conversationId,
+        propertyId: r.conversation.propertyId,
+        channel: r.conversation.channel,
+        kinds: [kind],
+        count: 1,
+        emergency: r.sensitivity === "emergency",
+        oldestAt: r.messageAt,
+      });
+      continue;
+    }
+    cur.count++;
+    if (!cur.kinds.includes(kind)) cur.kinds.push(kind);
+    if (r.sensitivity === "emergency") cur.emergency = true;
+    if (r.messageAt < cur.oldestAt) cur.oldestAt = r.messageAt;
+  }
+  return [...byConversation.values()];
 }
 
 /**

@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarRange, CalendarX2, Clock, LogOut, Repeat } from "lucide-react";
+import { AlertTriangle, CalendarRange, CalendarX2, Clock, Hand, LogOut, Repeat } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
 import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incidents/attention";
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
+import { itemKindLabel } from "@/lib/conversation-items/view";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "Dikkat Gerektirenler" kartı.
@@ -26,6 +27,7 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   unanswered_aging: Clock,
   recurring_issue: Repeat,
   calendar_conflict: CalendarRange,
+  held_request: Hand,
 };
 
 /** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
@@ -55,6 +57,10 @@ function headline(item: AttentionItem): string {
       if (item.possibleDuplicate) return "Aynı rezervasyon iki kez görünüyor olabilir";
       if (item.heldRequest) return "Onay bekleyen bir talep dolu gecelerle çakışıyor";
       return "Aynı gecelere iki rezervasyon var";
+    case "held_request": {
+      const first = item.requestKinds?.[0];
+      return `Size bırakılan istek: ${first ? itemKindLabel(first) : "misafir isteği"}`;
+    }
   }
 }
 
@@ -72,6 +78,10 @@ function detail(item: AttentionItem): string {
       const range = item.nights ? nightsLabel(item.nights.from, item.nights.to) : "";
       const more = (item.conflictCount ?? 1) > 1 ? ` · ${(item.conflictCount ?? 1) - 1} çakışma daha` : "";
       return `${item.propertyName} · ${range}${more} · takvimi kontrol edin`;
+    }
+    case "held_request": {
+      const more = (item.requestCount ?? 1) > 1 ? ` · ${(item.requestCount ?? 1) - 1} istek daha` : "";
+      return `${item.propertyName}${more} · misafire yanıt verin`;
     }
   }
 }

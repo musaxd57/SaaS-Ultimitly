@@ -59,7 +59,8 @@ describe("Dikkat Gerektirenler — konuşma bağlantısı kanala göre", () => {
     const helper = /function conversationHref/.test(s);
     expect(helper, "ortak yardımcı yok — iki dal ayrışabilir").toBe(true);
     const uses = s.match(/href:\s*conversationHref\(/g) ?? [];
-    expect(uses.length, "her iki konuşma maddesi yardımcıyı kullanmalı").toBe(2);
+    // Konuşmaya giden ÜÇ madde: çıkışı yaklaşan cevapsız · cevapsız · ev sahibine bırakılan istek (09-26, konuşma öğeleri).
+    expect(uses.length, "her konuşma maddesi yardımcıyı kullanmalı").toBe(3);
   });
 
   it("anti-vakum: QR konuşmalarının kanalı GERÇEKTEN 'chat'", () => {

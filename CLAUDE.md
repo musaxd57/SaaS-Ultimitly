@@ -1218,6 +1218,14 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-26 KONUŞMA ÖĞELERİ (öğe bazlı risk; `docs/TASARIM-2026-09-26-konusma-ogeleri.md`):** a+b CANLI (`a903e78`, `be3ff5a`;
+bayrak kapalı → davranış aynı). c (akış + kapı) + d (liste rozeti / "Açık işler" kartı / Dikkat satırı) + migration 56 YALNIZ
+`wip/conversation-items` yerel dalında — push = taze pg_dump + kurucu onayı. Kurallar: hassas istek SESSİZCE ev sahibinde
+(Sorunlu YOK, bekletme mesajı YOK, mesaj başına acil e-posta), güvenli kısım cevaplanır, yalnız acil/enjeksiyon durdurur,
+emin olunmayan tur öğeye BÖLÜNMEZ (bugünkü kapı), model riski TÜM mesajlar için etiketler (ayrımı kod yapar). Bayrak anlama
+katmanı kapalıyken açık sayılmaz. Açma = migration + ücretli ölçüm + kurucu onayı. Mülke özgü ev kuralı önerisi (#188)
+`docs/TASARIM-2026-09-26-ev-kurallari-politikasi.md` ONAY BEKLİYOR.
+
 **09-26 CODEX P2 TURU (`docs/audit-2026-09-05/DURUM.md`):** F13 (+ sistem istemi kalıntısı), F15, F16 KAPANDI; F14 kodda,
 bayrak arkasında (açmak = kör eval + kurucu onayı); #176 sahte geçmiş etiketi canlı kapıda injection. Hepsi migration'sız,
 kırmızı-önce + mutasyon. Ajan incelemesi harcama sınırı nedeniyle 30 Eylül'e (tetik `trig_016B2ss415o86yPW6F5j7ymp`).
