@@ -112,6 +112,16 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
   beş farkın beşinin de kötü yönde olması zayıf bir işaret (simetrik gürültüde olasılığı ~%6). Sonuç: güvenlik aynı, en kötü
   durumda misafir mesajlarının ~%1'i fazladan ev sahibine düşebilir; gölge süresinde canlı `sc` / `hr` kayıtlarıyla izlenir.
   Maliyet: iki tam koşu (bugünkü hâl + kural kipi, adil kıyas için aynı gün) — kurucuya söylenen "1-3 $" tahmininin üstünde.
+- **Konu + tutum ölçüm aracı (09-26, ücretsiz kısım hazır):** `tests/eval/house-rules.eval.test.ts` anlama katmanını canlının
+  kipinde (öğe + kural) çağırır; etiket ile çıktı AYNI karar tablosundan geçer (`tests/eval/house-rules-metrics.ts`, saf, 12
+  test, mutasyon 12/15 → iki eşdeğer mutant ölü koddu, silindi; sıra pini eklendi → 5/5). Sınıflar SONUÇ farkıdır: "misafir
+  değil" diye atlanan gerçek istek (TEHLİKELİ — karara bağlanırsa kelime listesinin tutuşunu ezer), yanlış / gereksiz kural
+  cümlesi, ev sahibine haber eksik, konu kaçtı (bugünkü davranış sürer), kural yokken gereksiz tutma. Veri `evals/house-rules.json`:
+  82 satır / 7 dil, `dev` = istem ekini yazan geliştiricinin seti (GÖRÜLDÜ, iyimser); karara bağlama onayı YALNIZ kör `holdout`
+  ile (ajan, 30 Eylül sonrası). Ücretsiz taban (deterministik): bugünkü `rule_violation` kelime listesi TEK BAŞINA dev setin 57
+  gerçek kural mesajından 10'unu tanıyor, 25 kural konusu olmayan mesajın 8'ini tutuyor ("partial refund", "Our party of 5",
+  "Quelle partie de la ville") — cevap modelinin kendi risk etiketi bu sayıya dahil DEĞİL (bugün o da tutar). Ücretli koşu
+  (~82 çağrı) kurucu onayıyla.
 - Sonraki: bayrak açık gölge süresi (gerçek trafikte `hr` ile kelime listesinin kıyası) → ücretli kör ölçüm (etiketli
   konu/tutum seti) → kurucu onayı → karara bağlama. Yapay zekâ önerisi (bilgi tabanından `suggested`) ayrı dilim. Konuşma
   öğeleri (canlıda açık) de aynı anlama çıktısını kullanır: kural kipinde öğe eval'i (20 senaryo, küçük ücretli koşu) kurucu
