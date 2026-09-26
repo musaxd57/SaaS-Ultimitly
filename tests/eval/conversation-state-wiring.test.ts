@@ -112,7 +112,7 @@ describe("Konuşma Anlama Durumu eval'i — ürüne bağlantı", () => {
   });
 
   it("F14: senaryodaki yazar + yazıldığı an (dün 22:10 → bugün 09:05) modele kanal yoluyla aynı alanlardan gider", async () => {
-    mockUnderstand.mockResolvedValue(understood(["checkin"]));
+    mockUnderstand.mockResolvedValue(understood(["other"]));
     mockSuggest.mockResolvedValue(REPLY);
     await runScenario(
       DATA,
