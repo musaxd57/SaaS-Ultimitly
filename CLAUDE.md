@@ -195,6 +195,17 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   her arıza BUGÜNKÜ sonuç. Kanıt `rr/rrMs/rrA`. Ölçüm (gpt-5.1, 288 çağrı, 0 hata, 0 kayıp): parafraz %67→%78 (100 kalem),
   %50→%57 (300); iki soru %62→%74, %31→%41; p50 0,86 sn. Aday başına puan şeması REDDEDİLDİ (p50 1,7 sn).
   (`docs/TASARIM-2026-09-26-openai-yeniden-siralayici.md` §5.)
+- 🚨 **#189 300 KALEM ÖLÇEĞİ (09-26 gece, `docs/TASARIM-2026-09-26-rag-300-olcek.md`; ölçer `tests/eval/rag-lab/` aşama bazlı
+  kayıp, taban `base0926` sabit, holdout `evals/rag-scale/holdout.json` İÇERİĞİ OKUNMAZ — yalnız son kabul, toplu sayı):**
+  yer tutucu ikamesi seçimden SONRA (seçim HAM metinle; sır kararı doldurulmuş metinle — misafir adı anlamsal önbelleği
+  soğutuyordu) · vektör ısıtması YAZMA anında + açılışta (`embeddings/kb-warm.ts`; anahtar kapalı/legacy = no-op) · okuma
+  tavanı 400 (plan tavanı mülk başına 60 aktif kalem → canlıda etkisiz) · gömme modeli env `OPENAI_EMBEDDING_MODEL`
+  (varsayılan small; `text-embedding-3-*` → `dimensions` 1536; eşik MODELE göre `semanticThresholdFor`: large 0,25, diğer
+  0,4; okuyucu YAPRAK `embeddings/model.ts`) · soru başına yeniden sıralama `KB_RERANK_PER_QUESTION` VARSAYILAN KAPALI
+  (anlama isteği başına 40 + 10'luk taban, ≤3 PARALEL çağrı, birleşim en yüksek; kanıt `rrN`; kapalıyken ilk 20 tek çağrı
+  BİREBİR, pinli) · anlama sorgusu alt sorguyla birebir aynıysa liste o isteğe işaretlenir. Dev ölçüm (tek çağrı): tek soru TR
+  %69→%95, diğer diller %73→%99, iki soru %33→%50. 🚨 OpenAI kredisi 09-26 gece BİTTİ: ayrı çağrı temiz ölçümü + holdout kabulü
+  + cevap düzeyi ölçüm bekliyor; iki bayrağı açmak kurucu kararı.
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
@@ -1222,6 +1233,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-26 GECE #189 RAG ÖLÇEĞİ (kurucu /loop "300 kalemde bile ≥%95"; `docs/TASARIM-2026-09-26-rag-300-olcek.md`):** ölçer +
+gerçekçi dev/holdout seti + dört değişiklik (↑Retrieval #189); iki bayrak KAPALI. Gece ölçümleri OpenAI kredisini BİTİRDİ
+(kurucuya bildirildi) → ücretli koşu YOK; kalan ölçümler kredi gelince.
+
 **09-26 KONUŞMA ÖĞELERİ (öğe bazlı risk; `docs/TASARIM-2026-09-26-konusma-ogeleri.md`):** a+b CANLI (`a903e78`, `be3ff5a`;
 bayrak kapalı → davranış aynı). c (akış + kapı) + d (liste rozeti / "Açık işler" kartı / Dikkat satırı) + migration 56 +
 hazır taslak GÖNDERİLDİ 09-26 (`b66bceb`; taze yedek SHA `734F62BC…` + restore provası kanıtı belgede §6). Bayrak YALNIZ bu kod
