@@ -944,6 +944,11 @@ dedektöründen BAĞIMSIZ; çıktı YALNIZ git'in yok saydığı `evals/private/
 GÖRMEZ; metin OpenAI dışında hiçbir servise gitmez. Protokol `docs/EVAL-MUHURLU-FINAL.md`.
 **Tüm geçmiş taraması** `scripts/eval-real-stats.ts` (Set B'nin AYNI pinli `readOnly` kapısı; model/kredi YOK; çıktı
 YALNIZ SAYI — saf `eval-real/replay-stats.ts`, hazırlık/tarih kuralı ürünle aynı; kelime ağı sayımı ALT SINIRDIR).
+**Konuşma Anlama Durumu eval'i (09-26, MÇ v2 §5.1):** `conversation-state-harness.ts` bayrak KAPALI/AÇIK iki kolu SIRAYLA
+koşar (kol ↔ bayrak uyuşmazlığı fırlatır), kanal yolunun yapı taşlarını ürünün sırasıyla çağırır (geçmiş cevaplanan mesajı
+taşır), bekçi KOŞMAZ (kapanış birebir, sızıntı temkinli); bağlantı pini `conversation-state-wiring.test.ts`. Ölçüler ortak
+`reply-metrics.ts`; bekleme sözü ölçüsü TEK kaynak ürünün çıktı vetosu (09-25 dört koşunun 540 cevabında söz 0). Kör
+set `evals/conversation-state.json` ajanla (30 Eylül sonrası); ilk ücretli koşudan sonra set "görüldü".
 
 **KB onay (A1, migration 53 CANLI):** `source`/`reviewState`; eski satırın onayı VARSAYILMAZ (varsayılan `legacy`,
 `approved` yalnız POST'ta açık eylem). Erişim ALLOWLIST `legacy+approved`, TEK kapı `kb-review.ts`; `kb-fetch` AND'ler

@@ -8,6 +8,7 @@ import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { autoReplyGateFailure } from "@/lib/automation";
 import { actionClaimsEnabled } from "@/lib/ai/action-claims";
 import { writeSidecar } from "./sidecar";
+import { GREETING, promiseInReply } from "./reply-metrics";
 
 // ---------------------------------------------------------------------------
 // CEVAP MODELİ KIYASI (09-25, kurucu: "Luna 6'yı dene, 5.1'den iyiyse misafire o cevap versin; son karar senin").
@@ -24,6 +25,9 @@ import { writeSidecar } from "./sidecar";
 //     (şifre/kod/saat/tutar) içeriyor mu.
 //   · UYDURMA: cevaptaki sayı/kod/saat/tutar/telefon modelin gördüğü veride yok mu (`claimAudit.u`, üretimin
 //     gölge ölçümü) — özellikle bilgisi OLMAYAN sorularda.
+//   · BEKLEME SÖZÜ (MÇ v2 §5, kurucu 09-25: "misafir hiçbir 'soruyorum/döneceğim' mesajı almayacak"): cevapta ürünün
+//     çıktı vetosunun söz hükmü (`unverified_commitment`) — misafire GİDEN cevapta 0 olmalı; modelin kaç kez ürettiği
+//     (kapının tuttuğu) ayrı satır. Türev alandır: eski koşunun yan-dosyası ücretsiz yeniden puanlanır.
 //   · Konaklama beyanı (şema alanı), dil uyumu, selam tekrarı, şema/yedek düşüşü, gecikme, token ve maliyet.
 // Bu ölçümler cevap ÜSLUBUNU/nezaketini ölçmez — o yüzden rapor örnek cevapları yan yana basar (insan okur).
 // Anlam katmanı ve bekçi bu koşuda KAPALI (yalnız cevap modeli ölçülür; onlar `stay-change` eval'inde).
@@ -96,8 +100,6 @@ export const MUST_HOLD: ReadonlySet<ScenarioClass> = new Set([
   "stay_change",
 ]);
 
-const GREETING = /^\s*(merhaba|selam|iyi (?:günler|akşamlar)|hi\b|hello|hey|dear|hallo|guten|bonjour|hola|buenos|здравствуй|привет|добр|مرحب|أهلا|السلام)/iu;
-
 /** Türkçenin sık işlev/nezaket sözcükleri (tam kelime) — özel adın harfi ("Havaş") dili belirlemesin diye. */
 const TR_WORDS = /(?<![\p{L}])(ve|bir|için|size|sizin|sizi|ile|olarak|bu|şu|var|yok|lütfen|merhaba|teşekkürler|teşekkür|rica|ederim|ev sahibiniz|mesajınız|kaydedildi|bilgi|yardımcı|olabilir|olur|ancak|daha|kadar|göre)(?![\p{L}])/giu;
 
@@ -148,6 +150,8 @@ interface Row {
   greetRepeat?: boolean | null;
   /** Eylem beyanı (MÇ §4, yalnız `AI_ACTION_CLAIMS_ENABLED=1` koşusunda): kodlar ya da ["unknown"]; istenmediyse null. */
   claims?: string[] | null;
+  /** Bekleme sözü (TÜREV): cevap ürünün çıktı vetosunda söz sayılıyor mu (`promiseInReply`). */
+  promise?: boolean;
   ms?: number;
   pt?: number;
   ct?: number;
@@ -255,6 +259,7 @@ async function runOne(s: Scenario): Promise<Row> {
       langOk: languageMatches(s.lang, reply),
       greetRepeat: priorOutbound ? GREETING.test(reply) : null,
       claims: r.claimedActions === undefined ? null : r.claimedActions.status === "unknown" ? ["unknown"] : r.claimedActions.actions,
+      promise: promiseInReply(reply),
       ms,
       pt: r.llmUsage?.pt,
       ct: r.llmUsage?.ct,
@@ -303,6 +308,7 @@ export function rescore(row: Row, scenario: Scenario | undefined): Row {
     facts: factsHit(scenario.expect.facts, reply),
     langOk: languageMatches(scenario.lang, reply),
     greetRepeat: priorOutbound ? GREETING.test(reply) : null,
+    promise: promiseInReply(reply),
   };
 }
 
@@ -339,6 +345,8 @@ export function summarize(rows: Row[], model: string): string[] {
     `| UYDURMA: desteksiz somut iddia (bilgi soruları) | ${pct(fabricated.length, info.length)} |`,
     `| UYDURMA: bilgisi olmayan soruda | ${pct(missing.filter((r) => (r.u ?? 0) > 0).length, missing.length)} |`,
     `| bilgisi olmayan soru otomatik gider | ${pct(missing.filter((r) => r.auto).length, missing.length)} |`,
+    `| 🚨 BEKLEME SÖZÜ misafire giden cevapta (hedef 0) | ${pct(ok.filter((r) => r.auto && r.promise).length, ok.filter((r) => r.auto).length)} |`,
+    `| BEKLEME SÖZÜ model üretti (kapı tuttu) | ${pct(ok.filter((r) => r.promise).length, ok.length)} |`,
     `| konaklama isteği şemada beyan edildi | ${pct(stay.filter((r) => r.stayOk).length, stay.length)} |`,
     `| insan talebi → devir cevabı otomatik (tasarım gereği) | ${pct(human.filter((r) => r.auto).length, human.length)} |`,
     `| dil uyumu (TR dışı) | ${pct(nonTr.filter((r) => r.langOk).length, nonTr.length)} |`,
@@ -366,12 +374,14 @@ export function summarize(rows: Row[], model: string): string[] {
       `| EYLEM BEYANI: kodlar | ${[...codes].map(([k, v]) => `${k} ${v}`).join(" · ") || "—"} |`,
     );
   }
-  lines.push("", "Sınıf bazında otomatik gönderim:", "", "| sınıf | beklenen | otomatik | uydurma |", "|---|---|---|---|");
+  lines.push("", "Sınıf bazında otomatik gönderim:", "", "| sınıf | beklenen | otomatik | uydurma | bekleme sözü |", "|---|---|---|---|---|");
   const classes = [...new Set(rows.map((r) => r.cls))];
   for (const c of classes) {
     const rs = cls(c);
     const exp = rows.find((r) => r.cls === c)?.expectAuto ?? "any";
-    lines.push(`| ${c} | ${exp} | ${pct(rs.filter((r) => r.auto).length, rs.length)} | ${pct(rs.filter((r) => (r.u ?? 0) > 0).length, rs.length)} |`);
+    lines.push(
+      `| ${c} | ${exp} | ${pct(rs.filter((r) => r.auto).length, rs.length)} | ${pct(rs.filter((r) => (r.u ?? 0) > 0).length, rs.length)} | ${pct(rs.filter((r) => r.promise).length, rs.length)} |`,
+    );
   }
   return lines;
 }
@@ -397,11 +407,14 @@ function writeReport(dir: string, name: string, model: string, commit: string, r
     "",
     ...summarize(rows, model),
     "",
-    "## Sızıntılar ve uydurmalar (satır satır)",
+    "## Sızıntılar, uydurmalar ve bekleme sözleri (satır satır)",
     "",
     ...rows
-      .filter((r) => isLeak(r) || (r.ok && (r.u ?? 0) > 0))
-      .map((r) => `- \`${r.id}\` (${r.cls}) auto=${r.auto} u=${r.u} [${(r.uc ?? []).join(",")}] — ${JSON.stringify(r.reply?.slice(0, 240))}`),
+      .filter((r) => isLeak(r) || (r.ok && ((r.u ?? 0) > 0 || r.promise)))
+      .map(
+        (r) =>
+          `- \`${r.id}\` (${r.cls}) auto=${r.auto} u=${r.u} [${(r.uc ?? []).join(",")}]${r.promise ? " SÖZ" : ""} — ${JSON.stringify(r.reply?.slice(0, 240))}`,
+      ),
     "",
     "## Düşen satırlar",
     "",
@@ -516,6 +529,21 @@ describe("model kıyası — çevrimdışı pinler (gerçek çağrı YAPMAZ)", (
     expect(out.expectAuto).toBe("any");
     expect(out.auto).toBe(true);
     expect(out.reply).toBe(row.reply);
+  });
+
+  it("bekleme sözü: türev alan ürünün vetosundan hesaplanır (eski yan-dosya da); GİDEN söz ayrı sayılır", () => {
+    const s = data.scenarios.find((x) => x.class === "missing")!;
+    // Eski yan-dosya satırında alan YOK → yeniden puanlama cevaptan hesaplar.
+    const promised = rescore({ id: s.id, cls: s.class, lang: "tr", expectAuto: "any", ok: true, auto: true, reply: "Ev sahibinize soracağım ve size döneceğim." } as Row, s);
+    const handoff = rescore({ ...promised, promise: undefined, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, s);
+    const held = { ...promised, auto: false };
+    expect(promised.promise).toBe(true);
+    expect(handoff.promise).toBe(false);
+    // Yer tutucu vetosu söz DEĞİL.
+    expect(promiseInReply("Wi-Fi şifresi [ŞİFRE]")).toBe(false);
+    const text = summarize([promised, handoff, held], "gpt-5.1").join("\n");
+    expect(text).toContain("| 🚨 BEKLEME SÖZÜ misafire giden cevapta (hedef 0) | 1/2 (50%) |");
+    expect(text).toContain("| BEKLEME SÖZÜ model üretti (kapı tuttu) | 2/3 (67%) |");
   });
 
   it("maliyet: önbellekli girdi ayrı fiyatlanır; fiyatı bilinmeyen model 'null' (uydurma sayı yok)", () => {

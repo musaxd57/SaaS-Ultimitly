@@ -619,7 +619,7 @@ Kalıcı kaynaklardan kodla kurulur ve cevap modeli çağrısından ÖNCE hazır
 - **Açma sırası:**
   1. Kör set `evals/conversation-state.json`: "yarın erken" varıştan önce, çıkıştan önce ve rezervasyonsuz; düzeltme;
      yolculuk; kapanış. Ajanla yazılacak; harcama sınırı nedeniyle 30 Eylül sonrası.
-  2. Bayrak kapalı/açık eşleştirilmiş koşu.
+  2. Bayrak kapalı/açık eşleştirilmiş koşu — araç HAZIR (09-26, ↓§5.1: `tests/eval/conversation-state.eval.test.ts`).
   3. Kurucu onayı.
 
 ### 2.3 v2 — kalıcı konuşma defteri (MIGRATION → taze pg_dump + açık onay)
@@ -775,9 +775,74 @@ Kalıcı kaynaklardan kodla kurulur ve cevap modeli çağrısından ÖNCE hazır
 - Bu turdaki regex genişletmesi (§1.5) aynı kuralın deterministik YEDEĞİ. `claimedActions` açılınca ikisi birleşimle
   çalışır; hiçbirinin "yok"u diğerinin "var"ını silemez.
 
-## 5. Eval metrikleri (eklenecek; ücretli koşu = kurucu onayı)
+## 5. Eval metrikleri (araçlar HAZIR 09-26; ücretli koşu = kurucu onayı)
 - Netleştirme oranı (hedef < %0,01) ve genel netleştirme sayısı. Genel netleştirme 0 olmalı.
 - Kapanış: gereksiz cevap oranı; yanlış susturma (gerçek soru susturuldu) 0 olmalı.
 - Bekleme sözü: misafire giden "soracağım/döneceğim" 0 olmalı.
 - Zaman: "yarın erken" doğru anlam oranı (varış yarın / çıkış yarın / rezervasyon yok).
 - Çıkış saati: yolculuk yanlış kaydı 0; düzeltme kabulü.
+
+### 5.1 Uygulama (09-26, migration'sız, ürün kodu değişmedi)
+- **Ortak ölçü modülü `tests/eval/reply-metrics.ts`:** selam, bekleme sözü (TEK kaynak ürünün çıktı vetosu,
+  `unverified_commitment`; ikinci söz sözlüğü yazılmadı), soru cümleleri, genel netleştirme (yedi dil, kapalı liste, KABA —
+  rapor soruları aynen basar, insan okur).
+- **Model kıyası (`model-reply-compare`):**
+  - iki satır: "misafire GİDEN cevapta bekleme sözü" (hedef 0) ve "model üretti (kapı tuttu)";
+  - sınıf tablosuna söz sütunu;
+  - alan TÜREVDİR: eski yan-dosyalar `EVAL_COMPARE_RESCORE` ile ücretsiz yeniden puanlanır.
+  - **Ölçüm (ücretsiz, 09-25'teki dört koşunun ham cevapları):** 540 cevabın (gpt-5.1 ×3, Luna ×1) HİÇBİRİNDE söz yok,
+    o gün giden de 0. Model söz vermiyor; veto yedek olarak duruyor ve bu sette hiçbir cevabı tutmadı.
+- **Konuşma Anlama Durumu eval'i (§2.2 açma sırasının 2. adımı):**
+  - Dosyalar:
+    - araç `tests/eval/conversation-state-harness.ts`;
+    - ücretli koşu `conversation-state.eval.test.ts`;
+    - bağlantı pini `conversation-state-wiring.test.ts`.
+  - Koşu biçimi: aynı senaryolar bayrak KAPALI ve AÇIK iki kolda, SIRAYLA. Bayrak çağrı anında okunur. Kol ile bayrak
+    uyuşmazsa araç fırlatır.
+  - Kanal yolunun yapı taşlarını ürünün sırasıyla çağırır:
+    1. bitmiş konaklama çiti;
+    2. kapanış sözcük yolu;
+    3. bilgi seçimi + anlama katmanı (tarih satırı kararı ürünün kendisi);
+    4. `suggestReply` (geçmiş cevaplanan mesajı da taşır — kanal yolu böyle);
+    5. kapı;
+    6. kapanış anlam yolu.
+  - Durum özeti ürünün saf kurucusundan (`buildConversationState`). Senaryo karar kayıtlarını kapalı-küme kodlarla verir.
+  - Bekçi KOŞMAZ:
+    - kapanış ölçüsü birebir (üründe kapanış anlam yolu bekçinin çağrılmadığı "blocked" dalında);
+    - sızıntı ölçüsü temkinli (bekçi yalnız sıkılaştırır);
+    - iki modelin doğruladığı erteleme burada tutulu kalır.
+  - Ölçüler (iki kol yan yana):
+    - sızıntı;
+    - yanlış susturma (bitmiş konaklama sayılmaz);
+    - kapanışta sessizlik / gereksiz otomatik cevap / gereksiz taslak;
+    - giden ve üretilen bekleme sözü;
+    - çözülebilir mesajda soru;
+    - genel netleştirme;
+    - belirsiz mesajda TEK soru;
+    - konaklama türü (cevap beyanı + anlama katmanı);
+    - yolculuk saatinin çıkış diye kaydı;
+    - düzeltme kabulü;
+    - ev sahibindeki konuda karar/izin/söz yok;
+    - selam tekrarı;
+    - anlama katmanı düşüşü.
+  - Geçersizlik: satırların %2'sinden fazlası düşerse (cevap modeli ya da anlama katmanı) rapor GEÇERSİZ.
+  - Ücretsiz yeniden puanlama: `EVAL_CUS_RESCORE`.
+- **Veri seti biçimi** (kör yazar için, `CusDataset`):
+  - `version`, `property`, isteğe bağlı `kb`, `scenarios[]`.
+  - Senaryo alanları:
+    - `class`: `tomorrow_early`, `checkout_time`, `travel_not_checkout`, `closing`, `closing_trap`, `pending_followup`,
+      `resolvable` ya da `ambiguous`;
+    - `lang`: yedi dilden biri;
+    - `reservation`: `{arrivalInDays, nights, status?, guestCheckoutTime?}` ya da `null`;
+    - `localTime?`;
+    - `lifecycleSent?`;
+    - `history?`: her mesaj `{direction, author?, body, decision?}`. `decision` yalnız misafir mesajında olur:
+      `finalDecision`, `reason?`, `stay?` ("tür/duruş"), `riskType?`, `surface?`;
+    - `message`;
+    - `expect`: `silent?`, `stayKind?`, `statedCheckoutTime?`, `clarify? none|one`, `autoSend?`.
+  - Sınıf ile beklenti tutarlılığı çevrimdışı pinde denetlenir (dosya varsa).
+- **Kanıt:**
+  - bağlantı pini 6 test;
+  - çevrimdışı pinler 9 test + model kıyası pini;
+  - mutasyon ↓ commit sonrası.
+  - Kör set 30 Eylül'de ajanla yazılacak; ücretli koşu kurucu onayıyla.
