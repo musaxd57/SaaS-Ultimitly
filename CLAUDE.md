@@ -625,13 +625,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   **BACAK KURALI = SONLANMA KURALI:** yalnız süpürgenin KENDİSİNİN null/sentinel yaptığı alan bacak olur;
   ad-redaksiyonlu metinler (`TaskUpdate.note`, outbound gövde) bacak OLAMAZ → işaret kolonu ister, BİLİNEN
   SINIR test-pinli. Bayrak kapalı davranış birebir eski. Bayrak açma onayı DEĞİL.
-- **Kalan P2 (ayrı modül turları):** F09 CSP raporu path token'ı · F10 merkezi log redaksiyonu · F11 mülk
+- **Kalan P2 (ayrı modül turları):** ~~F09 CSP raporu path token'ı~~ (KAPANDI 09-26, ↓Tenant / rotalar CSP) ·
+  F10 merkezi log redaksiyonu · F11 mülk
   silmede obje temizliği · F12 audit baseline şeması · ~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26) · F14
   sohbet hafızası/zaman (KODDA 09-26, bayrak arkasında — ↑KONUŞMA KAYITLARI; açık: CUS v2 defteri, bayrağı açmak) ·
   ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: `evaluated/inconclusive/empty`; boş liste YALNIZ tam
   değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · ~~F16 iCal
   completeness~~ (KAPANDI 09-26, ↓Mesajlaşma / outbox / sync) · F17 cron adaleti · F18 login savunma
-  tasarımı. F13–F16 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
+  tasarımı. F09 ve F13–F16 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
 - Kaynak taraması tek yönlüdür → davranışsal test; `rejects.not.toThrow(/…/)` kullanma; senkron CPU
   zaman aşımıyla kesilemez; çapa `indexOf` −1 pinle; mutasyon `assert count==1`.
 - Ret edilenler: ETag testi (hedef yok) · HTTP/2 parser testi · kanonik-posta-kutusu kayıt limiti ·
@@ -717,7 +718,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `photoUrl` yalnız göreli.
 - CSP: enforce'ta `form-action 'self'`, `script-src` enforce EDİLMEZ; report-only'ye `report-uri`
   (`/api/csp-report`: 8KB, 3 MIME, 30/saat/IP, allowlist alanlar, ham rapor saklanmaz, `reportError` YOK,
-  daima 204). Enforce sırası: ≥2 hafta ölç → nonce turu → report-only doğrula → enforce.
+  daima 204). Enforce sırası: ≥2 hafta ölç → nonce turu → report-only doğrula → enforce. 🚨 Rapor alanları loga
+  yalnız `lib/csp-report-fields.ts`ten (F09, 09-26): URL → origin + ROTA ŞABLONU (`/c/:token`, `/inbox/:id`),
+  directive/disposition/kaynak anahtar kelimesi/şema KAPALI KÜME, URL olmayan → `invalid`, satır merkezî
+  redaksiyondan geçer. Yeni halka açık "bağlantıyı bilen girer" rotası `BEARER_PARENTS`a da eklenir.
 - iCal SSRF: pinned DNS, redirect yok (3xx hata), private/link-local/IPv6 multicast blok, yalnız 443
   (`url.port` boş olmalı; `!== "443"` ölü kod), userinfo red, 10MB cap, toplam deadline. HTTPS zorunlu.
 - Landing iframe'leri Google Fonts çekmez (self-hosted woff2, latin+latin-ext ikisi de şart); CSP
