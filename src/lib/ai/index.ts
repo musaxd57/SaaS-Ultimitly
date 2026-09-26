@@ -466,15 +466,17 @@ export async function summarizeHostStyle(sampleReplies: string[]): Promise<strin
   const samples = sampleReplies.map((s) => s.trim()).filter(Boolean).slice(0, 40);
   if (samples.length < 5) return null; // too little signal to generalise safely
 
+  // 🚨 YALNIZ ÜSLUP (F13, 09-26): eski istem bir "SIK SORULAN SORULAR" bölümü de istiyordu ve cevap istemi onu olgu
+  // kaynağı sayıyordu — cevaplar org genelinden (bütün dairelerden) gelir, eskiyebilir ve bilgi tabanının onay kapısından
+  // geçmez. Bilgi Bilgi Tabanı'ndadır; rehber yalnız yazış tarzıdır (`ai/style-profile.ts`).
   const system =
     "Sen bir editör asistanısın. Bir kısa dönem kiralama ev sahibinin geçmiş misafir " +
-    "cevaplarını okuyup, gelecekteki AI taslakları için bir REHBER çıkaracaksın. İKİ bölüm yaz:\n" +
-    "1) TARZ: selamlama/kapanış alışkanlığı, samimiyet düzeyi, cümle uzunluğu, emoji kullanımı.\n" +
-    "2) SIK SORULAN SORULAR: ev sahibinin tekrar eden, GİZLİ OLMAYAN sorulara (ör. otopark, " +
-    "valiz/bagaj bırakma, ulaşım/yol tarifi, geç çıkış/erken giriş yaklaşımı, çevre önerileri) " +
-    "verdiği tipik cevapları kısaca özetle — yalnızca tutarlı, tekrar eden cevapları.\n" +
-    "KESİNLİKLE DIŞARIDA BIRAK: Wi-Fi şifresi, kapı/giriş kodu, tam ev adresi, fiyat ve iade " +
-    "rakamları (bunlar gizli/değişkendir, rehbere ASLA koyma). En fazla 220 kelime, madde madde.";
+    "cevaplarını okuyup, gelecekteki AI taslakları için bir ÜSLUP REHBERİ çıkaracaksın. YALNIZ yazış tarzını yaz: " +
+    "selamlama/kapanış alışkanlığı, hitap (siz/sen), samimiyet düzeyi, cümle uzunluğu, emoji kullanımı, sık kullandığı " +
+    "kalıp ifadeler.\n" +
+    "BİLGİ YAZMA: daire/tesis bilgisi (otopark, bagaj, ulaşım, saatler, kurallar, olanaklar), ücret ve tutarlar, erken giriş " +
+    "/ geç çıkış gibi isteklere yaklaşım, çevre önerileri, Wi-Fi şifresi, kapı/giriş kodu ve adres rehbere GİRMEZ — bu " +
+    "cevaplar farklı dairelere ya da eski tarihlere ait olabilir. En fazla 120 kelime, madde madde.";
   const user = `Ev sahibinin geçmiş cevapları:\n\n${samples.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
 
   const model = process.env.OPENAI_STYLE_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;

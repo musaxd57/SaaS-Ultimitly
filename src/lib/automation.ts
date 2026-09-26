@@ -59,11 +59,12 @@ import {
   type GateEvidence,
 } from "@/lib/ai/gate-evidence";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
-import { scrubStyleProfileForPublic, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { styleProfileForPrompt, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
 import { LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER } from "@/lib/message-author";
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
+import { isCurrentStyleProfile, markStyleProfile } from "@/lib/ai/style-profile";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
@@ -2134,7 +2135,7 @@ export async function applyChannelAutoReply(
     // asıl risk BU yüzeyde — burası insan olmadan oto-gönderiyor.
     // ⚠️ Süzgeç SATIR bazlı: yalnız sırra benzeyen satır düşer, üslup korunur
     // (KB'deki "kalemin tamamı düşer" sorunu burada YOK).
-    styleProfile: scrubStyleProfileForPublic(org.aiStyleProfile),
+    styleProfile: styleProfileForPrompt(org.aiStyleProfile),
     adjacency,
     lateCheckoutOfferText: org.lateCheckoutOfferText,
   });
@@ -3508,12 +3509,18 @@ export async function refreshStyleProfile(
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { aiStyleProfileAt: true },
+    select: { aiStyleProfileAt: true, aiStyleProfile: true },
   });
   if (!org) return { refreshed: false };
 
-  // Throttle: skip if refreshed within the last 24 hours.
-  if (org.aiStyleProfileAt && Date.now() - org.aiStyleProfileAt.getTime() < 24 * 60 * 60 * 1000) {
+  // Throttle: skip if refreshed within the last 24 hours — YALNIZ güncel sürüm profilde (F13, 09-26). Eski (işaretsiz)
+  // profil org genelinden damıtılmış "sık sorulan sorular" olguları taşıyabilir ve hiçbir isteme girmez
+  // (`styleProfileForPrompt`); 24 saat beklemek o süre boyunca hiç üslup rehberi olmaması demekti → hemen yenilenir.
+  if (
+    isCurrentStyleProfile(org.aiStyleProfile) &&
+    org.aiStyleProfileAt &&
+    Date.now() - org.aiStyleProfileAt.getTime() < 24 * 60 * 60 * 1000
+  ) {
     return { refreshed: false };
   }
 
@@ -3563,7 +3570,8 @@ export async function refreshStyleProfile(
 
   await prisma.organization.update({
     where: { id: organizationId },
-    data: { aiStyleProfile: profile, aiStyleProfileAt: new Date() },
+    // Sürüm işaretini KOD koyar (model yazmaz): isteme yalnız işaretli profil girer (F13).
+    data: { aiStyleProfile: markStyleProfile(profile), aiStyleProfileAt: new Date() },
   });
   return { refreshed: true };
 }

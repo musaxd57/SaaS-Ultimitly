@@ -49,7 +49,10 @@ export type SupportKind = "ctx" | "op" | "echo" | "const" | "none";
 
 /** Modelin gördüğü veri, üç yetki düzeyinde (istem kurulurken AYNI değişkenlerden üretilir). */
 export interface ClaimContext {
-  /** Yetkili VERİ: mülk alanları, rezervasyon + zaman bağlamı, komşuluk, teklif, üslup, KB satırları. */
+  /**
+   * Yetkili VERİ: mülk alanları, rezervasyon + zaman bağlamı, komşuluk, teklif, KB satırları. Üslup rehberi YOK (F13,
+   * 09-26): yalnız üsluptur, org genelinden damıtılır — rehberde geçen tutar/saat dayanak sayılmaz.
+   */
   facts: string[];
   /** İstem geçmişindeki önceki operatör/AI mesajları (otorite değil ama bizim sözümüz). */
   operator: string[];

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { scrubStyleProfileForPublic } from "@/lib/guest-chat";
+import { styleProfileForPrompt } from "@/lib/guest-chat";
 import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
 import { hostVoiceDraft } from "@/lib/ai/host-voice";
@@ -150,7 +150,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     // CEVAP KAYNAĞI olarak sunuyor. Süzgeç SATIR bazlı: yalnız sırra benzeyen
     // satır düşer, üslup korunur — yani kayıp yok, çünkü rehber ÜSLUP içindir,
     // içerik değil. Üç yüzeyin üçü de artık aynı süzgeçten geçiyor.
-    styleProfile: scrubStyleProfileForPublic(org?.aiStyleProfile),
+    styleProfile: styleProfileForPrompt(org?.aiStyleProfile),
     adjacency,
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
     // "Bugün / yarın" ve konaklama evresi org diliminde (`stay-timeline.ts`) — kanal oto-yanıtıyla parite.

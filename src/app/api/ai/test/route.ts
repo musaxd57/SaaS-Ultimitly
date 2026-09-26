@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { scrubStyleProfileForPublic } from "@/lib/guest-chat";
+import { styleProfileForPrompt } from "@/lib/guest-chat";
 import { suggestReply } from "@/lib/ai";
 import { guestTurnLanguage } from "@/lib/ai/language-signal";
 import { hostVoiceDraft } from "@/lib/ai/host-voice";
@@ -175,7 +175,7 @@ export const POST = withManage(async (session, req) => {
     // CEVAP KAYNAĞI olarak sunuyor. Süzgeç SATIR bazlı: yalnız sırra benzeyen
     // satır düşer, üslup korunur — yani kayıp yok, çünkü rehber ÜSLUP içindir,
     // içerik değil. Üç yüzeyin üçü de artık aynı süzgeçten geçiyor.
-    styleProfile: scrubStyleProfileForPublic(org?.aiStyleProfile),
+    styleProfile: styleProfileForPrompt(org?.aiStyleProfile),
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
     timeZone: org?.timezone,
   });

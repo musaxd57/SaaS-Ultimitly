@@ -530,6 +530,23 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await handleOrgError("complaint-alerts", err);
         }
 
+        // Bütçe kararı BİR KEZ (üslup yenilemesi ve otomasyon aynı kararı kullanır — yenilemenin model çağrısı
+        // otomasyonu bütçe dışına itemez; eski sıra "bütçe → üslup → otomasyon" idi).
+        const withinOrgBudget = Date.now() - orgStartedAt <= ORG_BUDGET_MS;
+
+        // Üslup profili (F13, 09-26): Hospitable'a DOKUNMAZ (yalnız DB + model) → senkronun başarısına BAĞLI DEĞİL
+        // (şikâyet uyarılarıyla aynı gerekçe). Eskiden `syncOk` bloğundaydı: senkronu düşen org'un (kurucu org — 402)
+        // eski, olgu taşıyabilen profili hiç yenilenmez, üslup rehberi kalıcı olarak kaybolurdu. Kendi try'ı: hatası
+        // otomasyonu durdurmaz (eskiden otomasyonun try'ındaydı). Kendini günde bire kısar.
+        if (withinOrgBudget) {
+          try {
+            await refreshStyleProfile(org.id);
+            await opsAlarm.ok(orgKey("style-profile"));
+          } catch (err) {
+            await handleOrgError("style-profile", err);
+          }
+        }
+
         // Senkron patladıysa otomasyon koşmaz (eski davranış birebir): mesajlar
         // içeri alınamamışken oto-yanıt/karşılama göndermenin anlamı yok.
         // ⚠️ `continue` YERİNE İÇ BLOK (08-08): koşullar ve sıra BİREBİR aynı
@@ -538,15 +555,13 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // host (kurucu org'un BUGÜNKÜ hâli) takvim beslemelerini de HİÇ senkronlayamaz,
         // yani düzeltmenin en çok ihtiyaç duyulan vakada etkisi olmazdı.
         if (syncOk) {
-          if (Date.now() - orgStartedAt > ORG_BUDGET_MS) {
+          if (!withinOrgBudget) {
             // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
             // gitti; GERİYE KALAN otomatik MİSAFİR mesajlarını sonraki tura bırak
             // ki sıradakiler aç kalmasın. Sonraki geçiş 2 dakika sonra.
             budgetSkipped += 1;
           } else {
             try {
-              // Keep the host's style profile fresh (self-throttles to once a day).
-              await refreshStyleProfile(org.id);
               // Free/expired tier (billing enforced + subscription not active): keep
               // syncing messages and host complaint-alerts, but SUPPRESS all
               // automatic guest messaging — the paid feature. Dormant-safe: while

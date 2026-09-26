@@ -77,7 +77,9 @@ describe("QR rotası ham rehberi GEÇİRMEZ (kaynak-tarama pini)", () => {
   );
 
   it("halka açık rota temizleyiciden geçiriyor", () => {
-    expect(src).toContain("scrubStyleProfileForPublic(org?.aiStyleProfile)");
+    // F13 (09-26): tek giriş `styleProfileForPrompt` (sürüm kuralı + sır süzgeci).
+    expect(src).toContain("styleProfileForPrompt(org?.aiStyleProfile)");
+    expect(src).not.toContain("scrubStyleProfileForPublic(org");
   });
 
   it("ham `aiStyleProfile` doğrudan modele verilmiyor", () => {

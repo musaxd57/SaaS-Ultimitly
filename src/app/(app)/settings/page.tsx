@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiVoiceForm } from "@/components/settings/ai-voice-form";
+import { styleProfileBody } from "@/lib/ai/style-profile";
 import { BulkTimesForm } from "@/components/settings/bulk-times-form";
 import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { DeleteAccountCard } from "@/components/settings/delete-account-card";
@@ -153,7 +154,9 @@ export default async function SettingsPage({
         tone={org?.aiReplyTone ?? "warm"}
         signature={org?.aiSignature ?? ""}
         name={session.name}
-        styleProfile={org?.aiStyleProfile}
+        // Yapay zekânın GERÇEKTEN kullandığı gövde (F13): eski — işaretsiz — profil kullanılmaz, burada da gösterilmez
+        // ("hazırlanıyor" metni görünür; bir sonraki senkronda yenilenir).
+        styleProfile={styleProfileBody(org?.aiStyleProfile)}
       />
 
       {properties.length > 0 ? (

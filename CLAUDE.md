@@ -468,7 +468,11 @@ Bu dosyaya token/anahtar/parola yazma.
   değiştirilip geçilmez — gerçek mesajda olabiliyorsa kök
   regresyon testi yazılır (örnek 13d).
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
-  `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
+  `verifiedActiveStay`; stil profili 4 yüzeyde TEK girişten (`styleProfileForPrompt` = sürüm kuralı + sır süzgeci).
+  🚨 **ÜSLUP PROFİLİ OLGU KAYNAĞI DEĞİLDİR (F13, 09-26, `ai/style-profile.ts`):** org genelindeki host cevaplarından
+  damıtılır; eski özetleyicinin "sık sorulan sorular" bölümü A dairesinin otopark cevabını B'ye olgu diye taşıyordu. Özetleyici
+  yalnız tarz yazar, kod sürüm işaretini koyar; işaretsiz (eski) profil hiçbir isteme girmez ve 24 saat beklemeden yenilenir;
+  istem rehberi "bilgi kaynağı değildir" der; iddia desteği rehberi dayanak saymaz. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).
 - **Yer tutucu:** `packKnowledgeBase` bloğa giren `[…]/<…>/___` (içinde harf) için KODDAN "DOLDURULMAMIŞ YER TUTUCU"
   notu yazar (başlık taraması GERİ ALINDI — etiketleri yer tutucu sanıyordu). İkame tek kaynak `kb-placeholders.ts`
@@ -612,9 +616,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ad-redaksiyonlu metinler (`TaskUpdate.note`, outbound gövde) bacak OLAMAZ → işaret kolonu ister, BİLİNEN
   SINIR test-pinli. Bayrak kapalı davranış birebir eski. Bayrak açma onayı DEĞİL.
 - **Kalan P2 (ayrı modül turları):** F09 CSP raporu path token'ı · F10 merkezi log redaksiyonu · F11 mülk
-  silmede obje temizliği · F12 audit baseline şeması · F13 üslup profili ↔ tesis gerçeği · F14 sohbet
-  hafızası/zaman · F15 kalite denetimi `{}` · F16 iCal completeness · F17 cron adaleti · F18 login savunma
-  tasarımı. Hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
+  silmede obje temizliği · F12 audit baseline şeması · ~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26) · F14
+  sohbet hafızası/zaman · F15 kalite denetimi `{}` · F16 iCal completeness · F17 cron adaleti · F18 login savunma
+  tasarımı. F13 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
 - Kaynak taraması tek yönlüdür → davranışsal test; `rejects.not.toThrow(/…/)` kullanma; senkron CPU
   zaman aşımıyla kesilemez; çapa `indexOf` −1 pinle; mutasyon `assert count==1`.
 - Ret edilenler: ETag testi (hedef yok) · HTTP/2 parser testi · kanonik-posta-kutusu kayıt limiti ·

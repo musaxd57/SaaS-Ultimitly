@@ -10,6 +10,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { styleProfileBody } from "@/lib/ai/style-profile";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
 import { foldTurkishLower, foldTurkishAscii, classifyFallback, isClosingAck } from "@/lib/ai/fallback";
 import {
@@ -375,6 +376,16 @@ export function scrubStyleProfileForPublic(profile: string | null | undefined): 
     .filter((line) => line.trim() && !looksLikeSecret(line));
   const out = kept.join("\n").trim();
   return out.length > 0 ? out : null;
+}
+
+/**
+ * DÖRT AI YÜZEYİNİN TEK GİRİŞİ (kanal oto-yanıtı, gelen kutusu önerisi, Ayarlar testi, QR): kayıtlı profilden isteme
+ * girebilecek metin. Önce SÜRÜM kuralı (F13, `ai/style-profile.ts`: eski — işaretsiz — profil org genelinden damıtılmış
+ * olgular taşıyabilir → hiç girmez), sonra satır bazlı sır süzgeci. Yüzeyler kayıtlı alanı doğrudan süzgece VERMEZ
+ * (yapısal pin `style-profile-channel-scrub.test.ts`).
+ */
+export function styleProfileForPrompt(stored: string | null | undefined): string | null {
+  return scrubStyleProfileForPublic(styleProfileBody(stored));
 }
 
 /** Unguessable per-apartment chat token — two UUIDs, ~256-bit (icalToken style). */

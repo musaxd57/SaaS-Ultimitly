@@ -40,7 +40,10 @@ describe("aiStyleProfile — kanal yolu da süzer", () => {
       .join("\n");
     // Ham geçiş YASAK; yalnız süzülmüş biçim.
     expect(code).not.toMatch(/styleProfile:\s*org\.aiStyleProfile\s*,/);
-    expect(code).toMatch(/styleProfile:\s*scrubStyleProfileForPublic\(org\.aiStyleProfile\)/);
+    // F13 (09-26): tek giriş `styleProfileForPrompt` = sürüm kuralı + bu süzgeç. Kayıtlı alanı doğrudan süzgece vermek
+    // eski (işaretsiz, olgu taşıyabilen) profili isteme sokardı.
+    expect(code).toMatch(/styleProfile:\s*styleProfileForPrompt\(org\.aiStyleProfile\)/);
+    expect(code).not.toMatch(/scrubStyleProfileForPublic\(org/);
   });
 
   // ── DÖRT YÜZEYİN DÖRDÜ DE (08-09 (2)) ──────────────────────────────────────
@@ -65,7 +68,8 @@ describe("aiStyleProfile — kanal yolu da süzer", () => {
         .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
         .join("\n");
       expect(code, path).not.toMatch(/styleProfile:\s*org\?\.aiStyleProfile\s*,/);
-      expect(code, path).toMatch(/styleProfile:\s*scrubStyleProfileForPublic\(org\?\.aiStyleProfile\)/);
+      expect(code, path).toMatch(/styleProfile:\s*styleProfileForPrompt\(org\?\.aiStyleProfile\)/);
+      expect(code, path).not.toMatch(/scrubStyleProfileForPublic\(org/);
     }
   });
 
