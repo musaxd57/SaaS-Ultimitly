@@ -1,0 +1,59 @@
+import { SEMANTIC_COSINE_THRESHOLD } from "@/lib/ai/retrieval/semantic";
+import { RERANK_HOT_PATH_DEADLINE_MS, RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
+import { KB_RETRIEVAL_FETCH_CAP } from "@/lib/ai/limits";
+import type { LabConfig } from "./core";
+
+// RAG LAB — yapılandırma adı çözücüsü (tek kaynak; `rag-lab.eval.test.ts` ve `rag-answer.eval.test.ts` paylaşır).
+
+export const T_PROD = SEMANTIC_COSINE_THRESHOLD;
+export const RR = { k: RERANK_MAX_CANDIDATES, crop: RERANK_TEXT_CHARS };
+export const CAP = KB_RETRIEVAL_FETCH_CAP;
+
+/**
+ * Yapılandırma adı = "+" ile ayrılmış belirteçler (tek kaynak, deney eklemek kod değişikliği istemez):
+ * `lex` (anlamsal yok) · `s0.3` (anlamsal, ham kosinüs eşiği) · `und` (anlama katmanı sorguları) · `rr20/600` (yeniden sıralayıcı: ilk
+ * K aday / kırpma) · `fb` (geri çekilmede de sırala) · `fused` (pencere listeler arası RRF) · `mixed6` (önce özgün soru başına 6,
+ * sonra RRF) · `pq` (soru başına etiket) · `dry` (modelsiz pencere tavanı) · `dl2500` (üretimin zaman aşımı tavanı) · `cap400`
+ * (okuma tavanı) · `b9000` / `mc16` (seçim bütçesi karakter / parça) · `skip` (sığmayan parçayı atla) · `pi5` (kalem başına parça) ·
+ * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına).
+ * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200).
+ */
+export function parseConfig(name: string): LabConfig {
+  if (name === "prod")
+    return { name, semantic: { t: T_PROD }, understanding: true, rerank: { ...RR, window: "prod", deadlineMs: RERANK_HOT_PATH_DEADLINE_MS }, fetchCap: CAP };
+  // 09-26 gece öncesi CANLI hâl (sabitler değişse de kıyas tabanı sabit kalsın): small gömme · eşik 0,4 · ilk 20 · 600 · 2,5 sn · okuma 200.
+  if (name === "base0926")
+    return { name, semantic: { t: 0.4, model: "text-embedding-3-small" }, understanding: true, rerank: { k: 20, crop: 600, deadlineMs: 2_500 }, fetchCap: 200 };
+  const cfg: LabConfig = { name, semantic: null, understanding: false, rerank: null, fetchCap: CAP };
+  for (const tok of name.split("+")) {
+    let m: RegExpMatchArray | null;
+    if (tok === "lex") cfg.semantic = null;
+    else if ((m = tok.match(/^s(0\.\d+)$/))) cfg.semantic = { t: Number(m[1]) };
+    else if (tok === "und") cfg.understanding = true;
+    else if ((m = tok.match(/^rr(\d+)\/(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? {}), k: Number(m[1]), crop: Number(m[2]) };
+    else if (tok === "fb") cfg.rerank = { ...(cfg.rerank ?? RR), onFallback: true };
+    else if (tok === "fused") cfg.rerank = { ...(cfg.rerank ?? RR), window: "fused" };
+    else if (tok === "qfused") cfg.rerank = { ...(cfg.rerank ?? RR), window: "qfused" };
+    else if (tok === "req") cfg.rerank = { ...(cfg.rerank ?? RR), window: "req" };
+    else if (tok === "reqsplit") cfg.rerank = { ...(cfg.rerank ?? RR), window: "reqsplit" };
+    else if (tok === "reqx") cfg.rerank = { ...(cfg.rerank ?? RR), window: "reqx" };
+    else if (tok === "prodwin") cfg.rerank = { ...(cfg.rerank ?? RR), window: "prod" };
+    else if (tok === "onecall") cfg.rerank = { ...(cfg.rerank ?? RR), window: "prod", split: false };
+    else if ((m = tok.match(/^own(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), ownQuota: Number(m[1]) };
+    else if ((m = tok.match(/^mixed(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), window: "mixed", ownQuota: Number(m[1]) };
+    else if (tok === "dry") cfg.rerank = { ...(cfg.rerank ?? RR), dry: true };
+    else if (tok === "pq") cfg.rerank = { ...(cfg.rerank ?? RR), perQuestion: true };
+    else if ((m = tok.match(/^cap(\d+)$/))) cfg.fetchCap = Number(m[1]);
+    else if (tok === "e3l") cfg.semantic = { ...(cfg.semantic ?? { t: T_PROD }), model: "text-embedding-3-large" };
+    else if (tok === "e3s") cfg.semantic = { ...(cfg.semantic ?? { t: T_PROD }), model: "text-embedding-3-small" };
+    else if ((m = tok.match(/^b(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), budgetChars: Number(m[1]) };
+    else if ((m = tok.match(/^mc(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), maxChunks: Number(m[1]) };
+    else if (tok === "skip") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), packing: "skip" } };
+    else if ((m = tok.match(/^pi(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), maxChunksPerItem: Number(m[1]) } };
+    else if ((m = tok.match(/^dl(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), deadlineMs: Number(m[1]) };
+    else if (tok === "demote") cfg.rerank = { ...(cfg.rerank ?? RR), demote: true };
+    else throw new Error(`bilinmeyen yapılandırma belirteci ${tok} (${name})`);
+  }
+  return cfg;
+}
+

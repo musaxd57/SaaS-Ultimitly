@@ -4,9 +4,6 @@ import { execSync } from "node:child_process";
 import path from "node:path";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
-import { SEMANTIC_COSINE_THRESHOLD } from "@/lib/ai/retrieval/semantic";
-import { RERANK_HOT_PATH_DEADLINE_MS, RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
-import { KB_RETRIEVAL_FETCH_CAP } from "@/lib/ai/limits";
 import { embeddingModel } from "@/lib/ai/embeddings/provider";
 import { semanticModel } from "@/lib/ai/semantic/config";
 import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
@@ -14,6 +11,7 @@ import { e4Queries } from "./e4-shared";
 import { writeSidecar } from "./sidecar";
 import { cacheStats, RAG_LAB_CACHE } from "./rag-lab/cache";
 import { labRow, latencyLines, reportLines, type LabConfig, type LabItem, type LabQuery, type LabRow } from "./rag-lab/core";
+import { parseConfig, CAP, RR, T_PROD } from "./rag-lab/config";
 import { buildScaleLab, loadScaleFile } from "./rag-lab/scale-set";
 
 // ---------------------------------------------------------------------------
@@ -28,44 +26,6 @@ import { buildScaleLab, loadScaleFile } from "./rag-lab/scale-set";
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 const NOW = Date.UTC(2026, 8, 23, 12);
-
-const T_PROD = SEMANTIC_COSINE_THRESHOLD;
-const RR = { k: RERANK_MAX_CANDIDATES, crop: RERANK_TEXT_CHARS };
-const CAP = KB_RETRIEVAL_FETCH_CAP;
-
-/**
- * Yapılandırma adı = "+" ile ayrılmış belirteçler (tek kaynak, deney eklemek kod değişikliği istemez):
- * `lex` (anlamsal yok) · `s0.3` (anlamsal, ham kosinüs eşiği) · `und` (anlama katmanı sorguları) · `rr20/600` (yeniden sıralayıcı: ilk
- * K aday / kırpma) · `fb` (geri çekilmede de sırala) · `fused` (pencere listeler arası RRF) · `mixed6` (önce özgün soru başına 6,
- * sonra RRF) · `pq` (soru başına etiket) · `dry` (modelsiz pencere tavanı) · `dl2500` (üretimin zaman aşımı tavanı) · `cap400`
- * (okuma tavanı) · `b9000` / `mc16` (seçim bütçesi karakter / parça) · `skip` (sığmayan parçayı atla) · `pi5` (kalem başına parça).
- * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200).
- */
-export function parseConfig(name: string): LabConfig {
-  if (name === "prod") return { name, semantic: { t: T_PROD }, understanding: true, rerank: { ...RR, deadlineMs: RERANK_HOT_PATH_DEADLINE_MS }, fetchCap: CAP };
-  const cfg: LabConfig = { name, semantic: null, understanding: false, rerank: null, fetchCap: CAP };
-  for (const tok of name.split("+")) {
-    let m: RegExpMatchArray | null;
-    if (tok === "lex") cfg.semantic = null;
-    else if ((m = tok.match(/^s(0\.\d+)$/))) cfg.semantic = { t: Number(m[1]) };
-    else if (tok === "und") cfg.understanding = true;
-    else if ((m = tok.match(/^rr(\d+)\/(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? {}), k: Number(m[1]), crop: Number(m[2]) };
-    else if (tok === "fb") cfg.rerank = { ...(cfg.rerank ?? RR), onFallback: true };
-    else if (tok === "fused") cfg.rerank = { ...(cfg.rerank ?? RR), window: "fused" };
-    else if ((m = tok.match(/^mixed(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), window: "mixed", ownQuota: Number(m[1]) };
-    else if (tok === "dry") cfg.rerank = { ...(cfg.rerank ?? RR), dry: true };
-    else if (tok === "pq") cfg.rerank = { ...(cfg.rerank ?? RR), perQuestion: true };
-    else if ((m = tok.match(/^cap(\d+)$/))) cfg.fetchCap = Number(m[1]);
-    else if (tok === "e3l") cfg.semantic = { ...(cfg.semantic ?? { t: T_PROD }), model: "text-embedding-3-large" };
-    else if ((m = tok.match(/^b(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), budgetChars: Number(m[1]) };
-    else if ((m = tok.match(/^mc(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), maxChunks: Number(m[1]) };
-    else if (tok === "skip") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), packing: "skip" } };
-    else if ((m = tok.match(/^pi(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), maxChunksPerItem: Number(m[1]) } };
-    else if ((m = tok.match(/^dl(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), deadlineMs: Number(m[1]) };
-    else throw new Error(`bilinmeyen yapılandırma belirteci ${tok} (${name})`);
-  }
-  return cfg;
-}
 
 const CONFIGS = (process.env.EVAL_RAG_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["lex", `s${T_PROD}`, "s0.3", `s${T_PROD}+und`, "prod", "s0.3+und+rr20/600"]).map(parseConfig);
 /** Tek soru gruplarından her N'inci soru (ücretli koşu bütçesi; 1 = hepsi). */
@@ -97,6 +57,19 @@ export function e4LabSet(size: number): { items: LabItem[]; queries: LabQuery[] 
           : [{ needles: q.needles, goldIds: q.goldIds }],
   }));
   return { items, queries };
+}
+
+/**
+ * Soru başına zaman bekçisi (09-26: bir koşu ağ beklemeden askıda kaldı, hangi soruda olduğu görülemedi). Aşılırsa koşu
+ * düşer ve rapor GEÇERSİZ yazılır — takılan yapılandırma/soru hata iletisinde.
+ */
+const WATCHDOG_MS = Math.max(10_000, Number(process.env.EVAL_RAG_WATCHDOG_MS) || 180_000);
+function withWatchdog<T>(p: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const guard = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`rag-lab bekçisi: ${label} ${WATCHDOG_MS} ms içinde bitmedi`)), WATCHDOG_MS);
+  });
+  return Promise.race([p, guard]).finally(() => clearTimeout(timer));
 }
 
 const isPaid = (c: LabConfig) => c.understanding || (c.rerank !== null && c.rerank.dry !== true);
@@ -164,7 +137,8 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
         Array.from({ length: 4 }, async () => {
           while (i < qs.length) {
             const q = qs[i++];
-            rows.push(await labRow(kbName, size, items, q, cfg, NOW));
+            rows.push(await withWatchdog(labRow(kbName, size, items, q, cfg, NOW), `${cfg.name} · ${q.id}`));
+            if (rows.length % 200 === 0) console.error(`[rag-lab] ${rows.length} satır · ${kbName}/${size} · ${cfg.name}`);
           }
         }),
       );

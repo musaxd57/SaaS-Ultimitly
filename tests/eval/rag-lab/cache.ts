@@ -108,7 +108,11 @@ export async function llmCachedTimed<T>(
  * üretimin boyut sözleşmesi aynı kalsın). Yalnız ölçüm; üretime geçmesi ayrı karar. Disk önbellekli, geçici arızada yeniden dener.
  */
 export async function embedCachedWith(texts: readonly string[], model: string, dimensions: number): Promise<Map<string, Float32Array>> {
-  const dir = path.join(RAG_LAB_CACHE, "emb", `${model}@${dimensions}`);
+  // small'ın doğal boyutu 1536: `dimensions: 1536` ile dönen vektör doğal vektörün AYNISI → eski önbellek dizini yeniden kullanılır.
+  const dir =
+    model === "text-embedding-3-small" && dimensions === 1536
+      ? path.join(RAG_LAB_CACHE, "emb", model)
+      : path.join(RAG_LAB_CACHE, "emb", `${model}@${dimensions}`);
   mkdirSync(dir, { recursive: true });
   const out = new Map<string, Float32Array>();
   const missing: string[] = [];

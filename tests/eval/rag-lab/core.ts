@@ -6,6 +6,7 @@ import {
   retrievalNeeded,
   retrievalQueries,
   selectKbForPrompt,
+  type CandidateListMeta,
   type ExtraQuery,
   type KbSelectInput,
   type KbSelectResult,
@@ -24,6 +25,8 @@ import {
   RERANK_SYSTEM_PROMPT,
   RERANK_TEXT_CHARS,
   parseRerank,
+  rerankCandidateKeys,
+  rerankCandidateWindows,
   rerankQuestionText,
   unionTopCandidates,
 } from "@/lib/ai/semantic/rerank";
@@ -37,7 +40,9 @@ import {
   UNDERSTANDING_SYSTEM_PROMPT,
 } from "@/lib/ai/semantic/understand";
 import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
-import { digest, dotF32, embedCached, embedCachedWith, llmCached, llmCachedTimed } from "./cache";
+import { normalizeForRetrieval } from "@/lib/ai/retrieval/text";
+import { embeddingModel } from "@/lib/ai/embeddings/provider";
+import { digest, dotF32, embedCachedWith, llmCached, llmCachedTimed } from "./cache";
 
 // ---------------------------------------------------------------------------
 // RAG LAB — ÜRETİM BORU HATTININ AŞAMA AŞAMA İZLENMESİ (#189, kurucu 09-26: "önce ölçüyü düzeltin").
@@ -88,9 +93,13 @@ export interface LabConfig {
     crop: number;
     /**
      * Pencere kuruluşu: "rr" = alt sorgu listelerinden sırayla (üretim) · "fused" = listeler arası RRF puanı · "mixed" = önce her
-     * ÖZGÜN alt sorgunun ilk `ownQuota` adayı (soru başına çeşitlilik), sonra kalan yer listeler arası RRF ile.
+     * ÖZGÜN alt sorgunun ilk `ownQuota` adayı (soru başına çeşitlilik), sonra kalan yer listeler arası RRF ile · "qfused" = her
+     * ek sorgu listesi en çok aday paylaştığı özgün soruya bağlanır, soru başına listeler RRF ile tek sıraya iner, pencere
+     * sorular arasında sırayla dolar (iki sorulu mesajda her soru pencerenin yarısını kendi en iyi adaylarıyla alır) · "req" =
+     * soru yapısı ANLAMA KATMANININ isteklerinden: her istek (Türkçe + özgün dil sorgusu) bir grup, özgün alt sorgular son
+     * grup(lar); gruplar RRF ile sıralanır, pencere gruplar arasında sırayla dolar (bölme başarısız olsa da her soru payını alır).
      */
-    window?: "rr" | "fused" | "mixed";
+    window?: "rr" | "fused" | "mixed" | "qfused" | "req" | "reqsplit" | "reqx" | "prod";
     ownQuota?: number;
     /** Özgün sorgular isabetsizken (geri çekilme) anlama katmanı sorgularının adaylarını da sıralat (üretimde KAPALI). */
     onFallback?: boolean;
@@ -103,6 +112,13 @@ export interface LabConfig {
      * zaman aşımına uğrayan çağrının ikizi). Verilmezse tavan yok (yalnız etiket kalitesi ölçülür).
      */
     deadlineMs?: number;
+    /** "prod" penceresinde `false` = tüm pencereler TEK çağrıda (soru başına ayrı çağrının kıyası). */
+    split?: boolean;
+    /**
+     * Modelin GÖRÜP işaretlemediği aday 0 puan alır → seçicide işaretsiz (görülmemiş) adayların ARKASINA düşer (seçicinin
+     * mevcut 0 → kademe 4 kuralı). Yalnız en az bir işaret varsa (model "hiçbiri" dediyse sıra bugünkü kalır).
+     */
+    demote?: boolean;
   };
   fetchCap: number;
   /** Seçiciye ek girdiler (deney seçenekleri). */
@@ -113,7 +129,7 @@ export const PROD: LabConfig = {
   name: "prod",
   semantic: { t: SEMANTIC_COSINE_THRESHOLD },
   understanding: true,
-  rerank: { k: RERANK_MAX_CANDIDATES, crop: RERANK_TEXT_CHARS },
+  rerank: { k: RERANK_MAX_CANDIDATES, crop: RERANK_TEXT_CHARS, window: "prod" },
   fetchCap: KB_RETRIEVAL_FETCH_CAP,
 };
 
@@ -252,7 +268,7 @@ export async function labRerankPerQuestion(
   const timed = await llmCachedTimed<{ questions: { q: string; answers: string[]; related: string[] }[] }>("rerank-pq", { m: model, s: PERQ_SYSTEM_PROMPT, u: user }, async () => {
     const apiKey = semanticApiKey();
     if (!apiKey) return { value: null, ms: 0 };
-    const res = await callStructuredJson({
+    const res = await callWithRetry({
       apiKey,
       model,
       system: PERQ_SYSTEM_PROMPT,
@@ -279,6 +295,20 @@ export async function labRerankPerQuestion(
   return { scores: out, ms: timed.ms, chars: user.length };
 }
 
+/**
+ * Ölçüm çağrısı + GEÇİCİ API arızasında yeniden deneme (09-26: 4 işçi × soru başına 2 paralel çağrı hız sınırına takıldı, 61
+ * satırın çağrıları düştü ve sonuç kirlendi). Yalnız "http"/"network" arızası tekrar denenir; süre ölçümü BAŞARILI denemenin
+ * kendi süresidir (üretim tek misafir mesajı işler, eşzamanlı yük burada yapay). Zaman aşımı/biçim arızası tekrarlanmaz.
+ */
+async function callWithRetry(input: Parameters<typeof callStructuredJson>[0]): ReturnType<typeof callStructuredJson> {
+  let last = await callStructuredJson(input);
+  for (let attempt = 1; attempt <= 4 && !last.ok && (last.error === "http" || last.error === "network"); attempt++) {
+    await new Promise((r) => setTimeout(r, 1_500 * 2 ** attempt));
+    last = await callStructuredJson(input);
+  }
+  return last;
+}
+
 export async function labRerank(
   question: string,
   candidates: readonly { key: string; title: string; text: string }[],
@@ -289,7 +319,7 @@ export async function labRerank(
   const timed = await llmCachedTimed<Record<string, string[]>>("rerank", { m: model, s: RERANK_SYSTEM_PROMPT, u: user }, async () => {
     const apiKey = semanticApiKey();
     if (!apiKey) return { value: null, ms: 0 };
-    const res = await callStructuredJson({
+    const res = await callWithRetry({
       apiKey,
       model,
       system: RERANK_SYSTEM_PROMPT,
@@ -310,6 +340,8 @@ export async function labRerank(
 export interface LabRun {
   result: KbSelectResult<LabItem>;
   lists: readonly (readonly { id: string; key: string }[])[];
+  /** Listelerin kaynağı (seçicinin `onCandidates` ikinci argümanı; üretimin pencere girdisi). */
+  listMeta: readonly CandidateListMeta[];
   rrScores: Map<string, number> | null;
   rrStatus: "ok" | "failed" | "skipped" | "off" | "dry";
   window: string[];
@@ -326,9 +358,12 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
   const history = q.history ? [...q.history, { direction: "inbound" as const, body: q.text }] : undefined;
   const base: KbSelectInput<LabItem> = { items: pool, guestMessage: q.text, history, mode: "hybrid", now, ...(cfg.select ?? {}) };
   let extraQueries: ExtraQuery[] = [];
+  /** Ek sorgunun (normalize alt sorgu) hangi anlama isteğinden geldiği — "req" penceresi için. */
+  const extraReq = new Map<string, number>();
   if (cfg.understanding && retrievalNeeded(pool, base.fullSetMaxItems)) {
     const u = await labUnderstand(q);
     extraQueries = understandingQueries(u ?? undefined);
+    for (const [text, req] of understandingQueryRequests(u)) extraReq.set(normalizeForRetrieval(text).trim(), req);
   }
   const withExtra: KbSelectInput<LabItem> = extraQueries.length > 0 ? { ...base, extraQueries } : base;
 
@@ -347,9 +382,8 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
       else {
         const chunkTexts = index.chunks.map((c) => embeddingTextFor(c));
         const queryTexts = [...new Set(queries.flatMap((x) => x.embedTexts))];
-        const vec = cfg.semantic.model
-          ? await embedCachedWith([...chunkTexts, ...queryTexts], cfg.semantic.model, 1536)
-          : await embedCached([...chunkTexts, ...queryTexts]);
+        // Model her zaman AÇIK: yapılandırmanın modeli ya da üretimin varsayılanı (koşudan koşuya kıyas aynı vektörle).
+        const vec = await embedCachedWith([...chunkTexts, ...queryTexts], cfg.semantic.model ?? embeddingModel(), 1536);
         bySubquery = new Map();
         cosByKey = new Map();
         for (const sq of queries) {
@@ -371,7 +405,14 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
   }
   const semInput: KbSelectInput<LabItem> = bySubquery ? { ...withExtra, semanticBySubquery: bySubquery } : withExtra;
   let lists: readonly (readonly { id: string; key: string }[])[] = [];
-  let result = selectKbForPrompt({ ...semInput, onCandidates: (l) => (lists = l) });
+  let listMeta: readonly CandidateListMeta[] = [];
+  let result = selectKbForPrompt({
+    ...semInput,
+    onCandidates: (l, m) => {
+      lists = l;
+      listMeta = m;
+    },
+  });
   let rrScores: Map<string, number> | null = null;
   let rrStatus: LabRun["rrStatus"] = "off";
   let window: string[] = [];
@@ -383,11 +424,36 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
   if (cfg.rerank && semStatus === "ok" && fbOk) {
     const ownCount = retrievalQueries(q.text, history, { extraQueries }).queries.filter((x) => !x.extra).length;
     window =
-      cfg.rerank.window === "fused"
+      cfg.rerank.window === "prod"
+        ? rerankCandidateKeys(lists, listMeta)
+        : cfg.rerank.window === "fused"
         ? fusedWindow(lists, cfg.rerank.k)
         : cfg.rerank.window === "mixed"
           ? mixedWindow(lists, ownCount, cfg.rerank.ownQuota ?? 5, cfg.rerank.k)
-          : unionTopCandidates(lists, cfg.rerank.k);
+          : cfg.rerank.window === "qfused"
+            ? questionFusedWindow(lists, ownCount, cfg.rerank.k)
+            : cfg.rerank.window === "req"
+              ? requestGroupedWindow(
+                  lists,
+                  retrievalQueries(q.text, history, { extraQueries }).queries.map((x) => (x.extra ? (extraReq.get(x.subquery) ?? -1) : -1)),
+                  cfg.rerank.k,
+                )
+              : cfg.rerank.window === "reqsplit"
+                ? requestSplitWindows(
+                    lists,
+                    retrievalQueries(q.text, history, { extraQueries }).queries.map((x) => (x.extra ? (extraReq.get(x.subquery) ?? -1) : -1)),
+                    cfg.rerank.k,
+                  ).flat()
+                : cfg.rerank.window === "reqx"
+                  ? requestOnlyWindows(
+                      lists,
+                      retrievalQueries(q.text, history, { extraQueries }).queries.map((x) => (x.extra ? (extraReq.get(x.subquery) ?? -1) : -1)),
+                      cfg.rerank.k,
+                      cfg.rerank.ownQuota ?? 10,
+                    ).flat()
+                  : unionTopCandidates(lists, cfg.rerank.k);
+    // Birden çok pencerenin birleşimi (reqsplit / reqx) aynı adayı iki kez taşıyabilir: modele TEK kez gider (üretimle aynı).
+    window = [...new Set(window)];
     const wanted = new Set(window.map((k) => k.slice(0, k.lastIndexOf("#"))));
     const byKey = new Map(chunkItems(pool.filter((it) => wanted.has(it.id))).map((c) => [chunkKey(c), c] as const));
     const cands = window.flatMap((k) => {
@@ -409,12 +475,38 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
           rrScores = new Map();
           const bySub = new Map<string, Map<string, number>>();
           own.forEach((x, i) => {
-            const m = per.scores.get(i) ?? new Map<string, number>();
+            const m = new Map(per.scores.get(i) ?? []);
+            if (cfg.rerank!.demote && m.size > 0) for (const c of cands) if (!m.has(c.key)) m.set(c.key, 0);
             bySub.set(x.subquery, m);
             for (const [k, v] of m) rrScores!.set(k, Math.max(rrScores!.get(k) ?? 0, v));
           });
           rrStatus = "ok";
           if (rrScores.size > 0) result = selectKbForPrompt({ ...semInput, rerankScores: rrScores, rerankScoresBySubquery: bySub });
+        } else rrStatus = "failed";
+      } else if (cfg.rerank.window === "prod" && cfg.rerank.split !== false) {
+        // ÜRETİMİN İKİZİ: soru başına AYRI pencere → AYRI çağrı (paralel), puanlar en yükseğiyle birleşir; her çağrı üretimin
+        // sıcak yol tavanına ayrı ayrı tabi (tavanı aşan çağrı düşmüş sayılır, diğerinin işaretleri kalır).
+        const wins = rerankCandidateWindows(lists, listMeta)
+          .map((keys) =>
+            keys.flatMap((k) => {
+              const c = byKey.get(k);
+              return c ? [{ key: k, title: c.title, text: c.text }] : [];
+            }),
+          )
+          .filter((c) => c.length >= 2);
+        const question = rerankQuestionText(q.text, earlier);
+        const outs = await Promise.all(wins.map((c) => labRerank(question, c, { k: Math.max(cfg.rerank!.k, c.length), crop: cfg.rerank!.crop })));
+        const timed = outs.filter((o): o is NonNullable<typeof o> => o !== null);
+        if (timed.length > 0) {
+          rrMs = Math.max(...timed.map((o) => o.ms ?? 0));
+          rrChars = timed.reduce((a, o) => a + o.chars, 0);
+        }
+        const ok = timed.filter((o) => !overDeadline(o.ms));
+        if (ok.length > 0) {
+          rrScores = new Map();
+          for (const o of ok) for (const [k, v] of o.scores) rrScores.set(k, Math.max(rrScores.get(k) ?? 0, v));
+          rrStatus = "ok";
+          if (rrScores.size > 0) result = selectKbForPrompt({ ...semInput, rerankScores: rrScores });
         } else rrStatus = "failed";
       } else {
         const flat = await labRerank(rerankQuestionText(q.text, earlier), cands, cfg.rerank);
@@ -422,14 +514,15 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
           rrMs = flat.ms;
           rrChars = flat.chars;
         }
-        rrScores = flat && !overDeadline(flat.ms) ? flat.scores : null;
+        rrScores = flat && !overDeadline(flat.ms) ? new Map(flat.scores) : null;
+        if (rrScores && cfg.rerank.demote && rrScores.size > 0) for (const c of cands) if (!rrScores.has(c.key)) rrScores.set(c.key, 0);
         rrStatus = rrScores ? "ok" : "failed";
         if (rrScores && rrScores.size > 0) result = selectKbForPrompt({ ...semInput, rerankScores: rrScores });
       }
     }
   }
   const text = packKnowledgeBase(result.items, result.droppedItems, result.selection, result.notes).text;
-  return { result, lists, rrScores, rrStatus, window, semStatus, cosByKey, pool, text, rrMs, rrChars };
+  return { result, lists, listMeta, rrScores, rrStatus, window, semStatus, cosByKey, pool, text, rrMs, rrChars };
 }
 
 /** Listeler arası RRF (K=60) ile ilk `k` benzersiz anahtar — pencere kuruluşu deneyi. */
@@ -467,6 +560,152 @@ export function mixedWindow(lists: readonly (readonly { key: string }[])[], ownC
     }
   }
   return out;
+}
+
+/**
+ * Soru başına birleşik pencere: ilk `ownCount` liste özgün sorulardır; her sonraki (ek) liste ilk 10 adayında en çok ortak
+ * aday paylaştığı özgün soruya bağlanır (ortak yoksa kendi grubunu kurar). Grup içi RRF (K=60) → soru sırası; pencere gruplar
+ * arasında sırayla dolar. Saf.
+ */
+export function questionFusedWindow(lists: readonly (readonly { key: string }[])[], ownCount: number, k: number): string[] {
+  const own = Math.min(ownCount, lists.length);
+  const groups: number[][] = Array.from({ length: own }, (_, i) => [i]);
+  const top = (l: readonly { key: string }[]) => new Set(l.slice(0, 10).map((c) => c.key));
+  const ownTops = lists.slice(0, own).map(top);
+  for (let li = own; li < lists.length; li++) {
+    const t = top(lists[li]);
+    let best = -1;
+    let bestOverlap = 0;
+    ownTops.forEach((ot, oi) => {
+      let n = 0;
+      for (const key of t) if (ot.has(key)) n++;
+      if (n > bestOverlap) {
+        bestOverlap = n;
+        best = oi;
+      }
+    });
+    if (best >= 0) groups[best].push(li);
+    else groups.push([li]);
+  }
+  const ranked = groups.map((g) => fusedWindow(g.map((i) => lists[i]), Number.MAX_SAFE_INTEGER));
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const cur = ranked.map(() => 0);
+  let progressed = true;
+  while (out.length < k && progressed) {
+    progressed = false;
+    for (let gi = 0; gi < ranked.length && out.length < k; gi++) {
+      while (cur[gi] < ranked[gi].length) {
+        const key = ranked[gi][cur[gi]++];
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(key);
+        progressed = true;
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/** `understandingQueries` ile AYNI sıra/tekrar kuralı + her sorgunun istek indeksi (ölçüm için ikiz; üretim sorguyu değiştirmez). */
+export function understandingQueryRequests(u: MessageUnderstanding | null | undefined, max = 6): [string, number][] {
+  if (!u) return [];
+  const out: [string, number][] = [];
+  const seen = new Set<string>();
+  const requests = u.requests.map((r, i) => ({ r, i })).filter(({ r }) => r.intent !== "greeting_thanks");
+  for (const textOf of [(r: (typeof u.requests)[number]) => r.queryTr, (r: (typeof u.requests)[number]) => r.queryOriginal]) {
+    for (const { r, i } of requests) {
+      const text = textOf(r);
+      if (!text) continue;
+      const k = text.toLocaleLowerCase("tr");
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push([text, i]);
+      if (out.length >= max) return out;
+    }
+  }
+  return out;
+}
+
+/**
+ * İstek gruplu pencere: `req[i]` ≥ 0 olan listeler o anlama isteğinin grubudur; özgün listeler (−1) her biri kendi grubu
+ * olarak SONA eklenir. Grup içi RRF sırası; pencere gruplar arasında sırayla dolar. Hiç istek yoksa sırayla birleşimin aynısı.
+ */
+export function requestGroupedWindow(lists: readonly (readonly { key: string }[])[], req: readonly number[], k: number): string[] {
+  const byReq = new Map<number, number[]>();
+  const ownGroups: number[][] = [];
+  lists.forEach((_, li) => {
+    const r = req[li] ?? -1;
+    if (r >= 0) byReq.set(r, [...(byReq.get(r) ?? []), li]);
+    else ownGroups.push([li]);
+  });
+  const groups = [...[...byReq.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) => g), ...ownGroups];
+  const ranked = groups.map((g) => (g.length === 1 ? lists[g[0]].map((c) => c.key) : fusedWindow(g.map((i) => lists[i]), Number.MAX_SAFE_INTEGER)));
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const cur = ranked.map(() => 0);
+  let progressed = true;
+  while (out.length < k && progressed) {
+    progressed = false;
+    for (let gi = 0; gi < ranked.length && out.length < k; gi++) {
+      while (cur[gi] < ranked[gi].length) {
+        const key = ranked[gi][cur[gi]++];
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(key);
+        progressed = true;
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * İstek başına AYRI pencere (her biri `kPer` aday): anlama isteği i'nin listeleri + ilk 10'unda en çok ortak aday paylaştığı
+ * özgün listeler (hiçbir istekle ortak adayı olmayan özgün liste her pencereye girer). İstek yoksa tek pencere = sırayla
+ * birleşim. Pencereler arası tekrar olabilir (her soru kendi adayını görür).
+ */
+export function requestSplitWindows(lists: readonly (readonly { key: string }[])[], req: readonly number[], kPer: number): string[][] {
+  const reqIds = [...new Set(req.filter((r) => r >= 0))].sort((a, b) => a - b);
+  if (reqIds.length === 0) return [unionTopCandidates(lists, kPer)];
+  const top = (l: readonly { key: string }[]) => new Set(l.slice(0, 10).map((c) => c.key));
+  const groups = new Map<number, number[]>(reqIds.map((r) => [r, [] as number[]]));
+  lists.forEach((_, li) => {
+    if ((req[li] ?? -1) >= 0) groups.get(req[li])!.push(li);
+  });
+  const reqTops = new Map(reqIds.map((r) => [r, new Set(groups.get(r)!.flatMap((li) => [...top(lists[li])]))]));
+  lists.forEach((l, li) => {
+    if ((req[li] ?? -1) >= 0) return;
+    const t = top(l);
+    let best = -1;
+    let bestN = 0;
+    for (const r of reqIds) {
+      let n = 0;
+      for (const k of t) if (reqTops.get(r)!.has(k)) n++;
+      if (n > bestN) {
+        bestN = n;
+        best = r;
+      }
+    }
+    if (best >= 0) groups.get(best)!.push(li);
+    else for (const r of reqIds) groups.get(r)!.push(li);
+  });
+  return reqIds.map((r) => unionTopCandidates(groups.get(r)!.map((li) => lists[li]), kPer));
+}
+
+/**
+ * "reqx": her anlama isteğinin YALNIZ kendi sorgu listeleri (Türkçe + özgün dil) RRF ile tek sıraya iner, ilk `kPer`i o
+ * isteğin penceresi; özgün (deterministik) listeler ayrı küçük pencere (`kOwn`, sırayla) — anlama katmanı düşerse ya da
+ * bir soruyu kaçırırsa taban. İstek yoksa sırayla birleşimin kendisi (`kPer`).
+ */
+export function requestOnlyWindows(lists: readonly (readonly { key: string }[])[], req: readonly number[], kPer: number, kOwn: number): string[][] {
+  const reqIds = [...new Set(req.filter((r) => r >= 0))].sort((a, b) => a - b);
+  if (reqIds.length === 0) return [unionTopCandidates(lists, kPer)];
+  const own = lists.filter((_, li) => (req[li] ?? -1) < 0);
+  const wins = reqIds.map((r) => fusedWindow(lists.filter((_, li) => req[li] === r), kPer));
+  return [...wins, unionTopCandidates(own, kOwn)];
 }
 
 /** Bir cevabın aşaması. */
