@@ -1416,7 +1416,10 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
     facts: [
       propertyFacts,
       // Bugünün tarihi / yarın koddan (doğrulanmış olgu): cevaptaki "26.09.2026" gibi bir tarih buna dayanabilir.
-      clockLine(timeline),
+      // 🚨 ANLIK SAAT YOK (09-26): şu anki saat hiçbir işletme saatinin dayanağı değildir. Saat satırı olduğu gibi
+      // giriyordu → İstanbul 08:00'de üretilen "Kahvaltı sabah 8'de" uydurması "dayanaklı" sayılıyordu (ölçüldü: batarya
+      // günde dört dakikada kırmızı; 05:00Z'deki tam kapı koşusu düştü). Tarihler kalır, saat ve gece yarısı ipucu çıkar.
+      clockLine({ ...timeline, hhmm: null }),
       reservation ? res : "",
       adjacencyDataLines(reservation, input.adjacency ?? null, property, timeline.timeZone),
       offerText ?? "",

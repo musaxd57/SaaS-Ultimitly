@@ -17,10 +17,55 @@ import { CONTEXTS, CASES, HARD, type Case } from "../helpers/claim-battery";
 // kapı okumaz (mimari pin). Batarya ajan ölçümünden (sentetik); eşikler ÖLÇÜLEN değere pinli.
 // ---------------------------------------------------------------------------
 
-function contextFor(c: Case): ClaimContext {
+/**
+ * Batarya SABİT anla koşar (09-26): `now` verilmezse zaman çizelgesi gerçek saati kullanıyordu ve iddia bağlamı o anki
+ * saati taşıyordu → batarya günde dört dakikada (UTC 05/09/11/19:00) kırmızıydı; 05:00Z'deki tam kapı koşusu düştü.
+ * Ürün tarafı ayrıca düzeltildi (bağlamda anlık saat yok, ↓"anlık saat dayanak değildir"); sabit an tarih çakışmasına karşı.
+ */
+const BATTERY_NOW = new Date("2026-09-26T10:30:00Z");
+
+function contextFor(c: Case, now: Date = BATTERY_NOW): ClaimContext {
   const base = CONTEXTS[c.ctx];
-  return buildReplyPrompt({ ...base, guestMessage: c.guest, history: base.history ?? [] }).claimContext;
+  return buildReplyPrompt({ ...base, guestMessage: c.guest, history: base.history ?? [], now }).claimContext;
 }
+
+describe("🚨 anlık saat dayanak değildir (09-26: batarya günde dört dakikada kırmızıydı)", () => {
+  const byId = (id: string) => {
+    const c = [...CASES, ...HARD].find((x) => x.id === id);
+    if (!c) throw new Error(`batarya satırı yok: ${id}`);
+    return c;
+  };
+
+  it.each([
+    ["F03", "2026-09-26T05:00:00Z", "İstanbul 08:00 — 'Kahvaltı sabah 8'de'"],
+    ["F02", "2026-09-26T09:00:00Z", "İstanbul 12:00 — 'Check-out is at 12 pm'"],
+    ["F45", "2026-09-26T09:00:00Z", "İstanbul 12:00 — 'Çıkış öğlen 12'de'"],
+    ["F01", "2026-09-26T11:00:00Z", "İstanbul 14:00 — 'Giriş 14:00'ten itibaren'"],
+    ["F05", "2026-09-26T19:00:00Z", "İstanbul 22:00 — 'Sessiz saatler 22:00'"],
+  ])("uydurma %s, üretildiği dakika uydurduğu saate denk gelse de desteksiz (%s; %s)", (id, at) => {
+    const c = byId(id);
+    expect(auditClaims(c.reply, contextFor(c, new Date(at))).u, c.reply).toBeGreaterThan(0);
+  });
+
+  it("günün hiçbir saatinde yakalanan uydurma kümesi değişmez (ölçüm saatten bağımsız)", () => {
+    const caught = (now: Date) =>
+      CASES.filter((c) => c.kind === "fab" && auditClaims(c.reply, contextFor(c, now)).u > 0)
+        .map((c) => c.id)
+        .join(",");
+    const reference = caught(BATTERY_NOW);
+    for (let h = 0; h < 24; h++) {
+      const now = new Date(Date.UTC(2026, 8, 26, h, 0, 0));
+      expect(caught(now), now.toISOString()).toBe(reference);
+    }
+  });
+
+  it("bugünün ve yarının TARİHİ dayanak olmayı sürdürür (yalnız saat çıktı)", () => {
+    const c = byId("F03");
+    const ctx = contextFor(c, new Date("2026-09-26T05:00:00Z"));
+    expect(auditClaims("Bugün 26.09.2026.", ctx).u).toBe(0);
+    expect(auditClaims("Yarın 27.09.2026.", ctx).u).toBe(0);
+  });
+});
 
 describe("batarya — dayanaklı cevapta yanlış alarm YOK, uydurma yakalanır", () => {
   it("🚨 dayanaklı cevapların HİÇBİRİ desteksiz iddia taşımıyor (ayar, KB, rezervasyon, teklif, türetilmiş gece, geçmiş)", () => {
