@@ -80,7 +80,39 @@ export function buildScaleLab(file: ScaleSetFile, size?: number): ScaleLab {
     supersededById: null,
     reviewState: "legacy",
   }));
-  const facts = file.facts.filter((f) => chosenIds.has(f.itemId));
+  let facts = file.facts.filter((f) => chosenIds.has(f.itemId)).map((f) => ({ ...f }));
+  // UZUN REHBER (üretici uzun metni tutturamadı → kodla kurulur): aynı kategorilerden ardışık kalemler TEK bir ≤2.950 karakterlik
+  // "Ev rehberi" kalemine birleşir, kaynak kalemler KB'den çıkar → rehberin sonundaki cevap yalnız son parçada yaşar.
+  const GUIDE_CATS = new Set(["faq", "general", "cleaning"]);
+  const nGuides = Math.max(1, Math.floor(items.length / 75));
+  const guideSources = items.filter((i) => GUIDE_CATS.has(i.category));
+  const used = new Set<string>();
+  for (let g = 0; g < nGuides; g++) {
+    const parts: LabItem[] = [];
+    let len = 0;
+    for (const it of guideSources) {
+      if (used.has(it.id)) continue;
+      if (len + it.content.length + 2 > 2_950) break;
+      parts.push(it);
+      used.add(it.id);
+      len += it.content.length + 2;
+      if (parts.length >= 10) break;
+    }
+    if (parts.length < 3) break;
+    const gid = `${file.split === "dev" ? "d" : "h"}_longguide_${g}`;
+    items.push({
+      id: gid,
+      category: "general",
+      title: g === 0 ? "Ev rehberi" : `Ev rehberi (${g + 1})`,
+      content: parts.map((p) => p.content).join("\n\n"),
+      updatedAt: parts[parts.length - 1].updatedAt,
+      supersededById: null,
+      reviewState: "legacy",
+    });
+    const ids = new Set(parts.map((p) => p.id));
+    facts = facts.map((f) => (ids.has(f.itemId) ? { ...f, itemId: gid } : f));
+  }
+  for (let i = items.length - 1; i >= 0; i--) if (used.has(items[i].id)) items.splice(i, 1);
   const factItem = new Map(items.map((i) => [i.id, i] as const));
   const queries: LabQuery[] = [];
   const special = new Set<string>();

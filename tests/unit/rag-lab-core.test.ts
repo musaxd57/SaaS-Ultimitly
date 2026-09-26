@@ -145,6 +145,15 @@ describe("rag-lab — gerçekçi set yükleyicisi", () => {
     expect(multi.every((q) => q.answers.length === 2 && q.answers[0].goldIds[0] !== q.answers[1].goldIds[0])).toBe(true);
     expect(multi.some((q) => q.history && q.history.length === 1)).toBe(true);
     expect(queries.filter((q) => q.group === "neg").length).toBeGreaterThan(20);
+    // Uzun rehber kodla kurulur: kaynak kalemler KB'den çıkar, olguları rehbere taşınır (iğne rehberin alt dizisi).
+    const guide = items.find((i) => i.id.endsWith("_longguide_0"))!;
+    expect(guide).toBeDefined();
+    expect(guide.content.length).toBeLessThanOrEqual(2_950);
+    const inGuide = queries.filter((q) => q.answers.some((a) => a.goldIds.includes(guide.id)));
+    expect(inGuide.length).toBeGreaterThan(0);
+    for (const q of inGuide) for (const a of q.answers) if (a.goldIds.includes(guide.id)) expect(guide.content.includes(a.needles[0])).toBe(true);
+    const merged = file.items.filter((it) => !items.some((i) => i.id === it.id) && !it.id.includes("longguide"));
+    expect(merged.length).toBeGreaterThanOrEqual(3);
   });
 
   it("boyut alt kümesi: yalnız seçilen kalemlerin soruları, kararlı sıra", () => {
