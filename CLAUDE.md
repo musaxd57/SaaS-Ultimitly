@@ -587,7 +587,14 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
 - **Hospitable'a özgü yeni ekran/özellik YAPILMAZ (kurucu 09-23: "amacımız Hospitable'ı kaldırmak"):**
   bağlantı sağlığı gibi yüzeyler sağlayıcıdan bağımsız `ChannelConnection` üzerine kurulur (Airbnb Direct'i de taşır).
 - **Ajanlar yalnız araştırır/ölçer/doğrular; kodu Claude yazar.** Bol paralel ajan, bulguları kodla doğrula
-  (yarısı yanlış), kısa format. Kararı uygula, soru sorma; klişe yok.
+  (yarısı yanlış), kısa format. Kurucunun AÇIK kararını uygula (yeniden sorma); klişe yok.
+- 🚨 **SORMADAN SİSTEM KURULMAZ (kurucu 09-26: "rezil bir durum, bir daha olmasın"):** kurucunun isteğini YORUMLAYARAK
+  yeni bir sistem / kapı / ürün davranışı kurulmaz — yorum gerekiyorsa ÖNCE kısa soru. Örnek: "kontrol etmeden cevap
+  vermesin" onayı sorulmadan KONUŞMA DÜZEYİ bir kapıya çevrildi, istenen ÖĞE bazıydı (`6c0e6b4`, gönderilmedi). ChatGPT /
+  Codex / ajan önerisi KARAR DEĞİLDİR ("ChatGPT de yanlış söylüyor olabilir, bana sor"): iddia kodda ölçülür, uygulanıp
+  uygulanmayacağı kurucuya sorulur. **ÖNERİ BİÇİMİ (kurucunun sözleri):** "bunu böyle yapıyorum · büyük şirketler böyle
+  yapıyor · önerim bu · ÖRNEK: şöyle bir mesaj gelirse şöyle cevap veriyor / şöyle davranıyor · böyle yapalım mı?" —
+  kararı değiştiren her öneride somut mesaj → davranış örnekleri (önce / sonra) gösterilir.
 - Kalıcı kararlar buraya, gerekçeler git log/arşive.
 
 ## Kalıcı kararlar (yeniden tartışma yok — gerekçe: arşiv + git log)
