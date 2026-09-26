@@ -44,28 +44,20 @@ import {
   type ModelProviderPersistentFailure,
 } from "@/lib/ai/provider-health";
 
-/**
- * Model. `text-embedding-3-small`: 1536 boyut, ölçülen maliyet kurucu org'un
- * TÜM bilgi tabanı için **0,18 sent** (tek sefer), sorgu tarafı mesaj başına
- * 67 token = sohbet isteminin %0,37'si.
- */
-export const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
-
-/**
- * 🚨 HER ÇAĞRIDA OKUNUR, import anında DONDURULMAZ.
- *
- * İlk yazımda `const EMBEDDING_MODEL = process.env… || default` idi ve test
- * bunu YAKALADI: env sonradan değişse bile modül eski değeri kullanmaya devam
- * ediyordu. Kardeş yol (`ai/index.ts:98`, `:396`) env'i çağrı anında okuyor;
- * ayrışma sessizdir ve önbellek anahtarı modeli içerdiği için EN KÖTÜ hâlde
- * "yeni modelin vektörü eski modelin anahtarıyla" saklanırdı.
- */
-export function embeddingModel(): string {
-  return process.env.OPENAI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
-}
+// Model adı ve okuyucusu YAPRAK modülde (açılış logu `instrumentation.ts` yalnız yaprak modül alabilir); burası yeniden verir.
+import { DEFAULT_EMBEDDING_MODEL, embeddingModel } from "@/lib/ai/embeddings/model";
+export { DEFAULT_EMBEDDING_MODEL, embeddingModel };
 
 /** Beklenen boyut. Sağlayıcı başka boyut dönerse vektör KABUL EDİLMEZ (↓). */
 export const EMBEDDING_DIMENSIONS = 1536;
+
+/**
+ * `text-embedding-3-*` ailesi `dimensions` ile kısaltılabilir (Matryoshka eğitimi; kısaltılmış vektör normalize DEĞİLDİR →
+ * `normalizeInPlace` zaten her vektörü normalize eder). Eski aileye (ada-002) parametre gönderilmez: sağlayıcı reddeder.
+ */
+export function embeddingRequestExtras(model: string): { dimensions?: number } {
+  return /^text-embedding-3-/.test(model) ? { dimensions: EMBEDDING_DIMENSIONS } : {};
+}
 
 /** Tek çağrıda en fazla kaç metin (sağlayıcı tavanının çok altında, ölçülü). */
 export const EMBEDDING_BATCH_MAX = 64;
@@ -296,7 +288,7 @@ export async function embedTexts(
       const res = await fetch("https://api.openai.com/v1/embeddings", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, input }),
+        body: JSON.stringify({ model, input, ...embeddingRequestExtras(model) }),
         signal: AbortSignal.timeout(Math.min(TIMEOUT_MS, remaining)),
       });
 

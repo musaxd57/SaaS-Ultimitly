@@ -3,6 +3,7 @@ import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
+import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 
 // Copy a knowledge-base entry to one or more OTHER apartments. Lets the host
 // fill one apartment fully, then clone its info across the rest and only tweak
@@ -71,6 +72,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
 
   let created = 0;
   let skippedAtLimit = 0;
+  const warmTargets: string[] = [];
   for (const t of targets) {
     if (source.isActive) {
       const activeCount = await prisma.knowledgeBaseItem.count({
@@ -103,9 +105,12 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       },
     });
     created++;
+    warmTargets.push(t.id);
   }
   // V1: hedef mülklerin hafızası anında eşitlenir (org kapsamı; fırlatmaz).
   if (created > 0) await refreshPropertyMemoryBestEffort(session.organizationId);
+  // #189: hedef mülklerin anlamsal vektörleri yazma anında (beklemez, fırlatmaz).
+  for (const id of warmTargets) warmPropertyKbVectorsBestEffort(id);
 
   return jsonOk({
     ok: true,

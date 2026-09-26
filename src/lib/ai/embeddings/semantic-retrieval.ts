@@ -38,7 +38,7 @@ import { kbRetrievalMode, semanticRetrievalInfo, type KbRetrievalMode } from "@/
 import { getOrBuildKbIndex } from "@/lib/ai/retrieval/index-cache";
 import { dropSuperseded, type Supersedable } from "@/lib/ai/retrieval/rerank";
 import { retrievalNeeded, retrievalQueries, type ExtraQuery } from "@/lib/ai/retrieval/select";
-import { thresholdTransform } from "@/lib/ai/retrieval/semantic";
+import { semanticThresholdFor, thresholdTransform } from "@/lib/ai/retrieval/semantic";
 import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { embedTexts, embeddingModel, EMBEDDING_BATCH_MAX } from "@/lib/ai/embeddings/provider";
 
@@ -114,13 +114,13 @@ function takeWarmBudget(n: number, now: number): boolean {
   return true;
 }
 
-/** Eksik parça metinlerini arka planda gömer (bekletmez, fırlatmaz, tekrarlamaz). */
-function scheduleWarm(model: string, texts: readonly string[]): void {
+/** Eksik parça metinlerini arka planda gömer (bekletmez, fırlatmaz, tekrarlamaz). Kuyruğa GERÇEKTEN alınan metin sayısını döner. */
+function scheduleWarm(model: string, texts: readonly string[]): number {
   const todo = [...new Set(texts)].filter((t) => {
     const k = storeKey(model, t);
     return !store.has(k) && !warming.has(k);
   });
-  if (todo.length === 0 || !takeWarmBudget(todo.length, Date.now())) return;
+  if (todo.length === 0 || !takeWarmBudget(todo.length, Date.now())) return 0;
   const keys = todo.map((t) => storeKey(model, t));
   for (const k of keys) warming.add(k);
   const job = (async () => {
@@ -141,6 +141,7 @@ function scheduleWarm(model: string, texts: readonly string[]): void {
   })();
   inflight.add(job);
   void job.finally(() => inflight.delete(job));
+  return todo.length;
 }
 
 function dot(a: readonly number[], b: Float32Array): number {
@@ -198,6 +199,8 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
     const queryVec = new Map(queryTexts.map((t, j) => [t, vecs[j]]));
 
     const bySubquery = new Map<string, Map<string, number>>();
+    // Eşik MODELE göre (kosinüs dağılımı modele özgü; #189).
+    const threshold = semanticThresholdFor(model);
     for (const q of queries) {
       const qvs = q.embedTexts.map((t) => queryVec.get(t));
       if (qvs.length === 0 || qvs.some((v) => !v)) return done("unavailable");
@@ -206,7 +209,7 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
         // Çoklu sorgu: alt sorgunun metinlerinden (ham cümle / alt sorgu) EN YÜKSEK benzerlik.
         let cos = -1;
         for (const qv of qvs as number[][]) cos = Math.max(cos, dot(qv, chunkVecs[i]));
-        const v = thresholdTransform(cos);
+        const v = thresholdTransform(cos, threshold);
         if (v > 0) scores.set(chunkKey(c), v);
       });
       bySubquery.set(q.subquery, scores);
@@ -215,6 +218,30 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
   } catch (err) {
     void reportError("kb-semantic-prepare", err);
     return done("unavailable");
+  }
+}
+
+/**
+ * YAZMA / AÇILIŞ ISITMASI (#189, `kb-warm.ts`): seçicinin bu kümeyle kuracağı parça metinlerinden depoda OLMAYANLARI arka plan
+ * ısıtmasına verir (misafiri beklemez; saatlik tavan aynen). Kuyruğa alınan metin sayısını döner. Anahtar kapalıyken, küçük
+ * KB'de (retrieval koşmayacak) ya da parça tavanını aşan KB'de hiçbir şey yapmaz. Fırlatmaz.
+ */
+export function warmKbVectors<T extends KbChunkSource>(items: readonly T[], now?: number): number {
+  try {
+    if (!semanticRetrievalInfo().enabled) return 0;
+    if (!retrievalNeeded(items)) return 0;
+    const { kept } = dropSuperseded(items as readonly (T & Supersedable)[]);
+    const index = getOrBuildKbIndex(kept, now);
+    if (index.chunks.length > SEMANTIC_MAX_CHUNKS) return 0;
+    const model = embeddingModel();
+    // Depoda olmayan ve hâlihazırda ısıtılmayan metinler (sayı kuyruğa GERÇEKTEN alınanlar; bütçe reddederse 0).
+    return scheduleWarm(
+      model,
+      index.chunks.map((c) => embeddingTextFor(c)),
+    );
+  } catch (err) {
+    void reportError("kb-semantic-warm-items", err);
+    return 0;
   }
 }
 

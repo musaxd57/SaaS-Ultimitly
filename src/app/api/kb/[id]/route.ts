@@ -5,6 +5,7 @@ import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
+import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 
 // ---------------------------------------------------------------------------
 // PLAN SINIRLARI DÜZENLEME YOLUNDA DA GEÇERLİ (denetim, 07-31).
@@ -77,6 +78,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   });
   // V1: içerik/pasif-aktif değişimi hafızaya anında yansır (pasif → retired).
   await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
+  warmPropertyKbVectorsBestEffort(existing.propertyId); // #189: yazma anında ısıtma
   return jsonOk(item);
 });
 
@@ -94,5 +96,6 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   if (result.count === 0) return notFound();
   // V1: hard delete → hafıza kalemi retired (silinmez; tarihçe).
   await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
+  warmPropertyKbVectorsBestEffort(existing.propertyId); // #189: yazma anında ısıtma
   return jsonOk({ ok: true });
 });

@@ -60,6 +60,16 @@ export const SOURCE_WEIGHTS = { bm25: 1, ngram: 0.7, semantic: 1 } as const;
 export const SEMANTIC_COSINE_THRESHOLD = 0.4;
 
 /**
+ * Modele göre ham kosinüs eşiği (#189, 09-26 gece): kosinüs dağılımı MODELE özgüdür, tek sayı iki modele taşınmaz.
+ * `text-embedding-3-large` (1536'ya kısaltılmış) için gerçekçi 276 kalemlik sette ölçülen 0,25: 0,30'a göre iki sorulu
+ * mesajın pencere tavanı %94 → %97, tek soru aynı, olumsuz sorularda bloğa giren parça sayısı ve geri çekilme DEĞİŞMEDİ
+ * (`docs/olcum/rag-lab-2026-09-26-10.md`, `-11.md`). Diğer modeller bugünkü eşikte.
+ */
+export function semanticThresholdFor(model: string): number {
+  return /^text-embedding-3-large/.test(model) ? 0.25 : SEMANTIC_COSINE_THRESHOLD;
+}
+
+/**
  * Ham kosinüsü seçicinin ölçeğine taşır: KESİN ARTAN ve `s ≥ t ⇔ s' ≥ SEMANTIC_QUALIFY_MIN`.
  * Böylece eşik seçicinin İÇİNE dokunmadan ayarlanır (aday şartı tek yerde, `hasEvidence`).
  * Negatif/sıfır kosinüs puan üretmez. E4 ölçüm düzeneği AYNI fonksiyonu kullanır (tek kaynak).

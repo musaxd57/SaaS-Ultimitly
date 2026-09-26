@@ -11,6 +11,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads, retentionCutoff } from "@/lib/data-retention";
 import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
+import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
 import { purgeExpiredConversationItems } from "@/lib/conversation-items/store";
 import { sweepUnverifiedRegistrations } from "@/lib/unverified-sweep";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
@@ -311,6 +312,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
   } catch (err) {
     void opsAlarm.fail("channel-connection-backfill", "channel-connection-backfill", err);
   }
+  // #189 AÇILIŞ ISITMASI: süreç başına bir kez, aktif bilgi tabanlarının anlamsal vektörleri arka planda üretilir (yayından
+  // sonra mülk başına ilk misafir mesajı sözcüksele düşmesin). Beklemez, fırlatmaz; anahtar kapalıyken no-op.
+  warmAllKbVectorsOnce();
   // Multi-tenant: no global token gate here. Each org self-gates on ITS OWN
   // Hospitable connection (syncHospitable + the automation senders return early
   // when the org has no token), so orgs that aren't connected are simply skipped.

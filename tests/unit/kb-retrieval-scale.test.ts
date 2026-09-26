@@ -6,6 +6,7 @@ import { KB_ITEM_CAP, KB_RETRIEVAL_FETCH_CAP } from "@/lib/ai/limits";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 import { selectKbForPrompt, type KbSelectSources } from "@/lib/ai/retrieval/select";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
+import { neutralPadding } from "../helpers/kb-padding";
 import { makeSyntheticKb, updatedItem, type SynQuestion, type SyntheticKb } from "../helpers/kb-retrieval-synthetic";
 
 // ---------------------------------------------------------------------------
@@ -314,27 +315,24 @@ describe("ölçek harness'ı — 30/100/300 kalem, gerçek retrieval yolu", () =
     }
   });
 
-  it("CANLI AKIŞ (Codex 09-09): kb-fetch tavanı 200 — 30/100'de varsayılanla BİREBİR; 300'de (336 kalem) tavan gerçekten uygulanır; sentetik sette kayıp YOK çünkü her konunun 8 varyantı var (dürüst okuma)", () => {
-    for (const n of [30, 100] as const) {
+  it("CANLI AKIŞ: kb-fetch tavanı (#189'dan beri 400) — 30/100/300'de (336 kalem) varsayılanla BİREBİR; tavan yalnız 400'ü aşan KB'de bağlar (aşağıdaki hedefli test)", () => {
+    for (const n of [30, 100, 300] as const) {
       const live = cfg(n, "hibrit CANLI");
       const def = cfg(n, "hibrit VARSAYILAN");
       expect(live.pool, `pool n=${n}`).toBe(def.pool);
       expect(live.inPrompt, `n=${n}`).toBe(def.inPrompt);
       expect(live.hit1, `n=${n}`).toBe(def.hit1);
     }
-    const live = cfg(300, "hibrit CANLI");
-    expect(live.pool).toBe(KB_RETRIEVAL_FETCH_CAP);
-    expect(cfg(300, "hibrit VARSAYILAN").pool).toBeGreaterThan(KB_RETRIEVAL_FETCH_CAP);
-    // Konu başına ~8 kalem (3 farklı cümle) olduğu için en yeni 200'de her konudan en az biri kalır:
-    // canlı isabet tavansızdan DÜŞMEZ. Bu, tavanın zararsız olduğunun kanıtı DEĞİLDİR — tek kalemli
-    // konu için kayıp aşağıdaki hedefli testte ölçülür.
-    expect(live.inPrompt).toBeGreaterThanOrEqual(cfg(300, "hibrit VARSAYILAN").inPrompt - 0.02);
-    expect(live.inPrompt).toBeGreaterThan(cfg(300, "legacy").inPrompt + 0.2);
-    expect(live.chars).toBeLessThanOrEqual(cfg(300, "hibrit VARSAYILAN").chars);
+    // 09-26 öncesi tavan 200'dü: 300 ölçeğinde (336 kalem) en eski 136 kalem seçiciye hiç ulaşmıyordu; gerçekçi ayrı
+    // olgulu sette bu cevapların %23'ünü düşürüyordu (sentetik sette her konunun 8 varyantı olduğu için görünmüyordu).
+    expect(cfg(300, "hibrit CANLI").pool).toBeLessThan(KB_RETRIEVAL_FETCH_CAP);
+    expect(cfg(300, "hibrit CANLI").inPrompt).toBeGreaterThan(cfg(300, "legacy").inPrompt + 0.2);
   });
 
-  it("CANLI TAVAN KAYBI (hedefli): TEK kalemi en yeni 200'ün dışında kalan konu canlı akışta ULAŞILAMAZ (geri çekilme + 'alınmadı' notu); tavansız havuzda bulunur", () => {
-    const kb = makeSyntheticKb(300);
+  it("CANLI TAVAN KAYBI (hedefli): TEK kalemi en yeni KB_RETRIEVAL_FETCH_CAP'in dışında kalan konu canlı akışta ULAŞILAMAZ (geri çekilme + 'alınmadı' notu); tavansız havuzda bulunur", () => {
+    const base = makeSyntheticKb(300);
+    // Tavanı (400) aşan KB: 336 sentetik + 100 nötr kalem → jakuzi kalemi en eski, 437. sırada.
+    const kb = { ...base, items: [...base.items, ...neutralPadding(100, Math.max(...base.items.map((i) => i.updatedAt.getTime())))] };
     const oldest = Math.min(...kb.items.map((i) => i.updatedAt.getTime()));
     const jacuzzi = {
       id: "syn_jacuzzi",

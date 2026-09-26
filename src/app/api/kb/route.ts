@@ -5,6 +5,7 @@ import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
+import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -69,5 +70,7 @@ export const POST = withManage(async (session, req) => {
   });
   // V1: KB = mülk hafızasının kaynağı → hafıza anında eşitlenir (fırlatmaz; KB kaydı başarılı kalır).
   await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
+  // #189: anlamsal vektörler yazma anında (misafirin bir sonraki mesajı sözcüksele düşmesin; beklemez, fırlatmaz).
+  warmPropertyKbVectorsBestEffort(d.propertyId);
   return jsonOk(item, 201);
 });

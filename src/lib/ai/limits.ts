@@ -44,8 +44,11 @@ export const KB_RETRIEVAL_MAX_CHUNKS = 12;
  * Hibritte `kb-fetch`in OKUMA tavanı (seçici bütün onaylı kümeyi görsün; plan
  * tavanı mülk başına 60 kalem). Modele giden miktarı belirleyen bu DEĞİL,
  * yukarıdaki bütçedir. Bayrak kapalıyken kullanılmaz.
+ * #189 (09-26 gece): 200 → 400. Gerçekçi 276 kalemlik sette 200 tavanı cevapların %23'ünü OKUMADA düşürüyordu (en eski
+ * kalemler seçiciye hiç ulaşmıyordu); 400'de okuma kaybı 0. Maliyet: sorgu + bellek içi dizin (tek sorgu, sayfalama yok).
+ * Bugün plan tavanı (mülk başına en çok 60 aktif kalem, kurucu dahil) yüzünden canlıda ETKİSİZ; tavan büyürse hazır.
  */
-export const KB_RETRIEVAL_FETCH_CAP = 200;
+export const KB_RETRIEVAL_FETCH_CAP = 400;
 
 /* ---------------------------------------------------------------------------
  * KONUŞMA GEÇMİŞİ PENCERESİ (kurucu, 2026-09-11: "context windowmuz iyi olsun

@@ -15,7 +15,10 @@
 // server-only modülleri bundle'a sokma" kuralını ihlal etmez. Env'i doğrudan
 // okumak da SEÇENEK DEĞİL: `KB_RETRIEVAL_MODE`un tek okuyucusunun flag.ts
 // olduğu mekanik olarak pinli (kb-retrieval-evidence-prompt.test.ts).
-import { kbRetrievalModeInfo, rerankRetrievalInfo, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
+import { kbRetrievalModeInfo, rerankPerQuestionInfo, rerankRetrievalInfo, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
+// Yaprak modüller (#189): gömme modeli adı ve modele göre eşik — açılışta hangi modelin kullanıldığı görünsün.
+import { embeddingModel } from "@/lib/ai/embeddings/model";
+import { semanticThresholdFor } from "@/lib/ai/retrieval/semantic";
 // İkinci yaprak modül (F10): merkezî redaksiyon — hiçbir şey import etmez, Prisma/nodemailer taşımaz.
 import { formatErrorForLog } from "@/lib/redact";
 
@@ -65,6 +68,20 @@ export async function register() {
     console.warn(`[kb-rerank] AÇIK ama etkisiz: ${kb.mode === "legacy" ? "legacy modda" : "KB_SEMANTIC_RETRIEVAL kapalı"}`);
   } else {
     console.log(`[kb-rerank] ${rr.enabled ? "AÇIK" : "kapalı"}`);
+  }
+  // Soru başına yeniden sıralama (#189, varsayılan KAPALI): yalnız yeniden sıralayıcı açıkken etkili.
+  const rrq = rerankPerQuestionInfo();
+  if (!rrq.recognized) {
+    console.warn(`[kb-rerank] KB_RERANK_PER_QUESTION="${rrq.raw}" TANINMADI — KAPALI. Açmak için: 1 | on | true`);
+  } else if (rrq.enabled && !rr.enabled) {
+    console.warn("[kb-rerank] KB_RERANK_PER_QUESTION AÇIK ama etkisiz: KB_RERANK_ENABLED kapalı");
+  } else if (rrq.enabled) {
+    console.log("[kb-rerank] soru başına pencere AÇIK");
+  }
+  // Gömme modeli (#189): yalnız anlamsal kaynak açıkken anlamlı; açılışta hangi modelin (ve eşiğin) kullanıldığı görünür.
+  if (sem.enabled) {
+    const model = embeddingModel();
+    console.log(`[kb-semantic] model=${model} eşik=${semanticThresholdFor(model)}`);
   }
 
   // Opt-out hatch if you rely solely on an external scheduler.
