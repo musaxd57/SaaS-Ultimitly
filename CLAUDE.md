@@ -1239,10 +1239,12 @@ sessiz saat ev sahibinde kalır. Saf çekirdek `house-rules/core.ts` canlıda, �
 kapılı `PUT …/house-rules`, mülk silme kuralı aynı işlemde siler, kart `HOUSE_RULES_CARD_ENABLED=1` iken (varsayılan KAPALI;
 "yapay zekâ henüz kullanmıyor" der). Dilim 3 GÖLGE ÖLÇÜM (`AI_HOUSE_RULES_SHADOW`, varsayılan KAPALI; anlama katmanı açıkken):
 katman istek başına kural konusu + tutum çıkarır, "kural olsaydı" YALNIZ kayda (`hr`) — KARAR DEĞİL, kanal + QR kararı
-birebir aynı (pinli); kapalıyken anlama istemi/şeması/önbellek anahtarı bayt bayt eski. Açmadan önce konaklama eval'i
-`EVAL_UNDERSTANDING_ITEMS=1 EVAL_UNDERSTANDING_RULES=1` ile (canlının kipi).
-Canlı değişkenler (kurucu 09-26 ekledi, sürüm Active — ekran görüntüsü): `AI_CONVERSATION_ITEMS_ENABLED=1` +
-`KB_SEMANTIC_RETRIEVAL=1`; yeniden sıralayıcı (`KB_RERANK_ENABLED`, #186) bağlandı, açmak ayrı adım.
+birebir aynı (pinli); kapalıyken anlama istemi/şeması/önbellek anahtarı bayt bayt eski. Konaklama eval'i iki kipte KOŞULDU
+(09-26, `EVAL_UNDERSTANDING_ITEMS=1` ± `EVAL_UNDERSTANDING_RULES=1`): tehlikeli kaçak 0; 🚨 "karar değişmez" yalnız KOD için —
+alanlar aynı çağrıya bindiği için model çıktısı oynayabilir (anlama 5/599 satır, gereksiz inceleme dev +1 / holdout +2; kipten
+bağımsız bekçi de 2/599 oynadı = gürültü tabanı; tasarım belgesi §6).
+Canlı değişkenler (kurucu 09-26 ekledi, sürüm Active — kurucu beyanı): `AI_CONVERSATION_ITEMS_ENABLED=1` +
+`KB_SEMANTIC_RETRIEVAL=1` + `KB_RERANK_ENABLED=1` (#186) + `HOUSE_RULES_CARD_ENABLED=1`; `AI_HOUSE_RULES_SHADOW` henüz YOK.
 
 **09-26 CODEX P2 TURU (`docs/audit-2026-09-05/DURUM.md`):** F13 (+ sistem istemi kalıntısı), F15, F16 KAPANDI; F14 kodda,
 bayrak arkasında (açmak = kör eval + kurucu onayı); #176 sahte geçmiş etiketi canlı kapıda injection. Hepsi migration'sız,

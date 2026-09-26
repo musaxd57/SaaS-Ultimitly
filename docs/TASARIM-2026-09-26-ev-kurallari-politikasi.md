@@ -102,6 +102,17 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
   (`EVAL_UNDERSTANDING_ITEMS` / `EVAL_UNDERSTANDING_RULES`): bayrağı açmadan önce canlıyla AYNI kipte ölçülür.
   Örnek kayıt: "Can we smoke on the balcony?" + onaylı YASAK → `hr: [{t: smoking, s: asks_permission, p: forbidden, k:
   state_rule}]` (misafire bugünkü gibi davranılır).
-- Sonraki: bayrağı açmadan önce konaklama eval'i öğe + kural kipinde → bayrak açık gölge süresi (gerçek trafikte `hr` ile
-  kelime listesinin kıyası) → ücretli kör ölçüm (etiketli konu/tutum seti) → kurucu onayı → karara bağlama. Yapay zekâ önerisi
-  (bilgi tabanından `suggested`) ayrı dilim.
+- **Konaklama eval'i iki kipte KOŞULDU (09-26, gpt-5.1, 599 istek + 747 cevap, iki tam koşu — raporlar
+  `docs/olcum/stay-change-eval-2026-09-26-gpt-5.1-items.md` ve `…-items-rules.md`):** tehlikeli kaçak iki kipte de 0/125 (dev) ·
+  0/170 (holdout). 🚨 **"Karar değişmez" yalnız KOD için doğrudur** (sahte modelli entegrasyon testi): kural alanları AYNI anlama
+  çağrısına bindiği için gerçek modelin öteki çıktıları da oynayabilir. Ölçülen fark: anlama katmanı 5/599 satırda farklı
+  (2 kaçırma — ikisini de bekçi yakaladı; 3 yeni yanlış alarm: rezervasyon tarihi teyidi, "9'da çıksak sorun olur mu", cumartesi
+  otopark), birleşimde gereksiz inceleme dev 12→13/143, holdout 29→31/161; bekçi cevap duruşu değişmedi (747/747 aynı).
+  Gürültü tabanı: kipten ETKİLENMEYEN bekçi de iki koşu arasında 2/599 istekte değişti. Tek koşuyla fark gürültüden ayrılamaz;
+  beş farkın beşinin de kötü yönde olması zayıf bir işaret (simetrik gürültüde olasılığı ~%6). Sonuç: güvenlik aynı, en kötü
+  durumda misafir mesajlarının ~%1'i fazladan ev sahibine düşebilir; gölge süresinde canlı `sc` / `hr` kayıtlarıyla izlenir.
+  Maliyet: iki tam koşu (bugünkü hâl + kural kipi, adil kıyas için aynı gün) — kurucuya söylenen "1-3 $" tahmininin üstünde.
+- Sonraki: bayrak açık gölge süresi (gerçek trafikte `hr` ile kelime listesinin kıyası) → ücretli kör ölçüm (etiketli
+  konu/tutum seti) → kurucu onayı → karara bağlama. Yapay zekâ önerisi (bilgi tabanından `suggested`) ayrı dilim. Konuşma
+  öğeleri (canlıda açık) de aynı anlama çıktısını kullanır: kural kipinde öğe eval'i (20 senaryo, küçük ücretli koşu) kurucu
+  onayıyla.
