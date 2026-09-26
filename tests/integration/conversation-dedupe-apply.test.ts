@@ -266,6 +266,7 @@ describe("apply — kapılar (varsayılan KAPALI)", () => {
 describe("apply — referans envanteri", () => {
   it("Conversation'a referans veren TÜM modeller biliniyor", () => {
     expect(inventoryConversationReferences()).toEqual([
+      "ConversationItem", // 09-26 (migration 56): FK Cascade — repoint listesinde (silinirse açık istek kaybolurdu)
       "Message",
       "MessageOutbox",
       "RiskEvent",
@@ -397,6 +398,21 @@ describe("apply — başarı yolu", () => {
       },
     });
 
+    // Konuşma öğesi (09-26): FK Cascade — repoint edilmezse kaybedenle birlikte SİLİNİR (ev sahibinde bekleyen hassas
+    // istek sessizce kaybolur). Keeper'a taşınması pinlenir.
+    await prisma.conversationItem.create({
+      data: {
+        organizationId: org.organizationId,
+        conversationId: b.id,
+        messageId: "apply-test-msg",
+        kind: "payment_invoice",
+        sensitivity: "sensitive",
+        riskType: "platform_policy",
+        sources: "lexical",
+        status: "pending_host",
+      },
+    });
+
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
     const out = await applyConversationDedupe(prisma, {
       ...GATE,
@@ -407,7 +423,8 @@ describe("apply — başarı yolu", () => {
       },
     });
 
-    expect(out.refsRepointed).toEqual({ messageOutbox: 1, riskEvent: 1, shadowVerdict: 1, signal: 1 });
+    expect(out.refsRepointed).toEqual({ messageOutbox: 1, riskEvent: 1, shadowVerdict: 1, signal: 1, conversationItem: 1 });
+    expect(await prisma.conversationItem.count({ where: { conversationId: a.id, status: "pending_host" } })).toBe(1);
     expect(await prisma.messageOutbox.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.riskEvent.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.shadowVerdict.count({ where: { conversationId: a.id } })).toBe(1);
