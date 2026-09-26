@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { historyStamp } from "@/lib/ai/stay-timeline";
+import { historyAuthorOf } from "@/lib/message-author";
 import { buildReplyUserPrompt } from "@/lib/ai/prompts";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
@@ -22,6 +23,9 @@ describe("historyStamp — org diliminde takvim günü", () => {
     ["dün", "2026-10-01T19:10:00Z", "dün 22:10"],
     ["UTC'de dün ama İstanbul'da bugün (gece yarısı sonrası)", "2026-10-01T21:30:00Z", "bugün 00:30"],
     ["2–6 gün önce hafta günüyle", "2026-09-29T07:00:00Z", "3 gün önce (Salı) 10:00"],
+    ["sınır: tam 2 gün önce", "2026-09-30T07:00:00Z", "2 gün önce (Çarşamba) 10:00"],
+    ["sınır: tam 6 gün önce", "2026-09-26T07:00:00Z", "6 gün önce (Cumartesi) 10:00"],
+    ["sınır: tam 7 gün önce tam tarihle", "2026-09-25T07:00:00Z", "25.09.2026 Cuma 10:00"],
     ["7 gün ve üstü tam tarihle", "2026-09-20T07:00:00Z", "20.09.2026 Pazar 10:00"],
     ["gelecek (saat kayması) tam tarihle", "2026-10-03T07:00:00Z", "03.10.2026 Cumartesi 10:00"],
   ])("%s", (_name, at, expected) => {
@@ -46,6 +50,25 @@ describe("historyStamp — org diliminde takvim günü", () => {
 
   it("geçersiz an → null (etiket yazılmaz, tahmin yok)", () => {
     expect(historyStamp(new Date("not-a-date"), NOW, IST)).toBeNull();
+  });
+});
+
+describe("historyAuthorOf — güvenilir yazar (görünen ad karar vermez)", () => {
+  it.each([
+    ["authorType kazanır (görünen ad yanıltıcı)", { direction: "outbound", senderName: "GuestOps AI", authorType: "host" }, "host"],
+    ["QR botu", { direction: "outbound", senderName: "x", authorType: "ai" }, "ai"],
+    ["misafir", { direction: "inbound", senderName: "x", authorType: "guest" }, "guest"],
+    ["eski satır (NULL): gelen = misafir", { direction: "inbound", senderName: "GuestOps AI", authorType: null }, "guest"],
+    ["eski satır (NULL): kanal yapay zekâ adı", { direction: "outbound", senderName: "GuestOps AI", authorType: null }, "ai"],
+    ["eski satır (NULL): QR bot adı", { direction: "outbound", senderName: "Lixus AI", authorType: null }, "ai"],
+    ["eski satır (NULL): başka ad = ev sahibi", { direction: "outbound", senderName: "Ayşe", authorType: null }, "host"],
+  ] as const)("%s", (_name, m, expected) => {
+    expect(historyAuthorOf(m)).toBe(expected);
+  });
+
+  it("sistem olayı yazar DEĞİL → undefined (satır yön etiketine düşer)", () => {
+    expect(historyAuthorOf({ direction: "outbound", senderName: "x", authorType: "system", systemEventType: "guest_chat_ai_resumed" })).toBeUndefined();
+    expect(historyAuthorOf({ direction: "outbound", senderName: "__lixus_ai_resumed__", authorType: null })).toBeUndefined();
   });
 });
 
@@ -136,6 +159,22 @@ describe("istem — bayrak AÇIK", () => {
     const off = buildReplyUserPrompt(plain(input()));
     vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
     expect(buildReplyUserPrompt(plain(input()))).toBe(off);
+  });
+
+  it("YALNIZ zaman taşıyan geçmiş (yazar yok) de ayrıntılıdır: not yazılır, gövde tek satır", () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const p = buildReplyUserPrompt(
+      input({ history: [{ direction: "inbound", body: "A\nB", at: new Date("2026-10-02T06:15:00Z") }] }),
+    );
+    expect(historyBlock(p)).toEqual(["[MİSAFİR · bugün 09:15]: A ⏎ B"]);
+    expect(p.slice(0, p.indexOf("<<HISTORY_START>>"))).toMatch(/Satır etiketi = yazan · yazıldığı an/);
+  });
+
+  it("YALNIZ yazar taşıyan geçmiş (zaman yok) de ayrıntılıdır: not yazılır, gövde tek satır", () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const p = buildReplyUserPrompt(input({ history: [{ direction: "outbound", body: "A\nB", author: "host" }] }));
+    expect(historyBlock(p)).toEqual(["[EV SAHİBİ]: A ⏎ B"]);
+    expect(p.slice(0, p.indexOf("<<HISTORY_START>>"))).toMatch(/Satır etiketi = yazan · yazıldığı an/);
   });
 
   it("not: KURAL-1'in 3. kaynağı yalnız EV SAHİBİ satırları; her satır tek mesaj (⏎)", () => {
