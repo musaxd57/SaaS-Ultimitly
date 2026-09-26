@@ -40,6 +40,11 @@ const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-") && existsSync(DATASET);
 const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.1";
 const LIMIT = Number(process.env.EVAL_ITEMS_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_ITEMS_LIMIT)) : null;
+// Anlama katmanının kural kipi (ev kuralları gölge ölçümü, #188) AÇIKÇA seçilir; kabuktaki başıboş bayrak ölçümü sessizce
+// değiştirmesin diye harness `AI_HOUSE_RULES_SHADOW`u kendisi yazar/siler. `EVAL_ITEMS_ARMS=items` yalnız öğe kolunu koşar
+// (canlının kipi; bugünkü kolun maliyetini harcamadan kural kipinin öğe güvenliğine etkisini ölçmek için).
+const RULES = process.env.EVAL_UNDERSTANDING_RULES === "1";
+const ARMS: readonly ("today" | "items")[] = process.env.EVAL_ITEMS_ARMS === "items" ? ["items"] : ["today", "items"];
 const GUEST = "Alex";
 const TZ = "Europe/Istanbul";
 
@@ -261,7 +266,7 @@ function writeReport(data: Dataset, rows: Row[], commit: string): string {
   const lines = [
     `# Konuşma öğeleri — gerçek model ölçümü (${MODEL}, ${new Date().toISOString().slice(0, 10)})`,
     "",
-    `Durum: **${status}** · commit \`${commit}\` · veri sürümü ${data.version} (TASARIM SETİ — görüldü, kör değil) · ${new Set(rows.map((r) => r.id)).size} senaryo × 2 kol`,
+    `Durum: **${status}** · commit \`${commit}\` · veri sürümü ${data.version} (TASARIM SETİ — görüldü, kör değil) · ${new Set(rows.map((r) => r.id)).size} senaryo × ${ARMS.length} kol · anlama kipi: ${RULES ? "kural kipi AÇIK (ev kuralları gölgesi)" : "kural kipi kapalı"}`,
     "",
     "## Özet",
     "",
@@ -269,7 +274,7 @@ function writeReport(data: Dataset, rows: Row[], commit: string): string {
     "",
     "| Ölçü | Değer |",
     "|---|---|",
-    ...summary("today"),
+    ...(ARMS.includes("today") ? summary("today") : ["| (bu koşuda bugünkü kol koşulmadı) | — |"]),
     "",
     "**Öğe kipi**",
     "",
@@ -309,12 +314,23 @@ function writeReport(data: Dataset, rows: Row[], commit: string): string {
   ];
   const dir = path.resolve(__dirname, "../../docs/olcum");
   mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, `konusma-ogeleri-eval-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}.md`);
+  const stem = `konusma-ogeleri-eval-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${RULES ? "-kural" : ""}${ARMS.length === 1 ? "-oge-kolu" : ""}`;
+  // Aynı gün ikinci koşu önceki raporun (belki commit edilmiş) üzerine YAZMAZ.
+  let file = path.join(dir, `${stem}.md`);
+  for (let n = 2; existsSync(file); n++) file = path.join(dir, `${stem}-${n}.md`);
   writeFileSync(file, lines.join("\n"));
   return file;
 }
 
-const FLAGS = ["AI_CONVERSATION_ITEMS_ENABLED", "AI_UNDERSTANDING_ENABLED", "AI_STAY_GUARD_ENABLED", "AI_CONVERSATION_STATE_ENABLED", "AI_ACTION_CLAIMS_ENABLED", "KB_SEMANTIC_RETRIEVAL"] as const;
+const FLAGS = [
+  "AI_CONVERSATION_ITEMS_ENABLED",
+  "AI_UNDERSTANDING_ENABLED",
+  "AI_STAY_GUARD_ENABLED",
+  "AI_CONVERSATION_STATE_ENABLED",
+  "AI_ACTION_CLAIMS_ENABLED",
+  "KB_SEMANTIC_RETRIEVAL",
+  "AI_HOUSE_RULES_SHADOW",
+] as const;
 
 describe.skipIf(!enabled)(`KONUŞMA ÖĞELERİ — gerçek model (${MODEL})`, () => {
   const saved: Partial<Record<(typeof FLAGS)[number], string | undefined>> = {};
@@ -325,6 +341,8 @@ describe.skipIf(!enabled)(`KONUŞMA ÖĞELERİ — gerçek model (${MODEL})`, ()
     for (const f of FLAGS) saved[f] = process.env[f];
     process.env.AI_UNDERSTANDING_ENABLED = "1";
     for (const f of ["AI_STAY_GUARD_ENABLED", "AI_CONVERSATION_STATE_ENABLED", "AI_ACTION_CLAIMS_ENABLED", "KB_SEMANTIC_RETRIEVAL"] as const) delete process.env[f];
+    if (RULES) process.env.AI_HOUSE_RULES_SHADOW = "1";
+    else delete process.env.AI_HOUSE_RULES_SHADOW;
     data = JSON.parse(readFileSync(DATASET, "utf8")) as Dataset;
   });
 
@@ -336,11 +354,11 @@ describe.skipIf(!enabled)(`KONUŞMA ÖĞELERİ — gerçek model (${MODEL})`, ()
   });
 
   it(
-    "iki kol, aynı senaryolar, ürünün yapı taşları",
+    "kollar (varsayılan iki), aynı senaryolar, ürünün yapı taşları",
     async () => {
       const list = data.scenarios.slice(0, LIMIT ?? undefined);
       // Kollar SIRAYLA (bayrak çağrı anında okunur); senaryolar kol içinde sırayla (token/dk sınırı).
-      for (const armName of ["today", "items"] as const) {
+      for (const armName of ARMS) {
         for (const s of list) rows.push(await runArm(data, s, armName));
       }
       let commit = "?";
