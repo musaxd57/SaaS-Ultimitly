@@ -5,6 +5,7 @@ import { withManage } from "@/lib/route-guard";
 import { serializeSupplyProfile } from "@/lib/supply";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 import { earlyCheckinRuleWhere } from "@/lib/early-checkin/rules";
+import { houseRulesWhere } from "@/lib/house-rules/store";
 import { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl } from "@/lib/storage/keys";
 import { enqueueStorageDeletions } from "@/lib/storage/deletion-queue";
 
@@ -125,8 +126,9 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
       },
       data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "property_deleted" },
     });
-    // Mülkün erken giriş kuralı da gider (FK yok; aynı kimlikle yeniden kullanılmasın, sahipsiz satır kalmasın).
+    // Mülkün erken giriş kuralı ve ev kuralları da gider (FK yok; aynı kimlikle yeniden kullanılmasın, sahipsiz satır kalmasın).
     await tx.automationRule.deleteMany({ where: earlyCheckinRuleWhere(session.organizationId, id) });
+    await tx.automationRule.deleteMany({ where: houseRulesWhere(session.organizationId, id) });
     // 🚨 F11 (Codex 09-05): görev fotoğraflarının SİLME NİYETİ aynı işlemde (görev silme rotasıyla aynı sözleşme).
     // Kaskad görevleri ve güncellemelerini götürür; nesneleri gösteren satırlar gidince kovadaki fotoğraf sahipsiz
     // kalıyordu. Anahtarlar kilitten SONRA, silmeden hemen önce okunur; kiracı süzgeci kuyruğun tek boğazında.
