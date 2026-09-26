@@ -92,8 +92,13 @@ describe("Konuşma Anlama Durumu eval'i — ürüne bağlantı", () => {
     const offInput = mockSuggest.mock.calls[0][0];
     expect(offInput.conversationState).toEqual({ isFirstOperatorReply: true, records: undefined });
     expect(mockUnderstand.mock.calls[0][0]).not.toHaveProperty("dateLine");
-    expect(offInput.history?.at(-1)).toEqual({ direction: "inbound", body: "Bir gelişme var mı?" });
+    const last = offInput.history?.at(-1);
+    expect([last?.direction, last?.body, last?.author]).toEqual(["inbound", "Bir gelişme var mı?", "guest"]);
     expect(offInput.history).toHaveLength(2);
+    // F14: satırın yazıldığı an eval aracının saatinden (varsayılan: cevaplanan mesaj bir dakika önce); cevaplanan
+    // mesajın anı AYRI alanda da gider (kanal yoluyla aynı).
+    expect(offInput.guestMessageAt?.getTime()).toBe(last?.at?.getTime());
+    expect(offInput.now!.getTime() - offInput.guestMessageAt!.getTime()).toBe(60_000);
     expect(off.records).toBeUndefined();
 
     process.env.AI_CONVERSATION_STATE_ENABLED = "1";
@@ -104,6 +109,34 @@ describe("Konuşma Anlama Durumu eval'i — ürüne bağlantı", () => {
     expect(on.records).toBe(1);
     // Aynı gün ve saat iki kolda (tarih satırı kolla değişir, "şimdi" değişmez).
     expect(onInput.now?.toISOString()).toBe(offInput.now?.toISOString());
+  });
+
+  it("F14: senaryodaki yazar + yazıldığı an (dün 22:10 → bugün 09:05) modele kanal yoluyla aynı alanlardan gider", async () => {
+    mockUnderstand.mockResolvedValue(understood(["checkin"]));
+    mockSuggest.mockResolvedValue(REPLY);
+    await runScenario(
+      DATA,
+      scenario({
+        localTime: "10:00",
+        history: [
+          { direction: "inbound", body: "Yarın 11'de girebilir miyiz?", at: { daysAgo: 1, time: "22:10" } },
+          { direction: "outbound", author: "host", body: "Kontrol edip yazacağım.", at: { daysAgo: 1, time: "22:30" } },
+        ],
+        message: "Bir gelişme var mı?",
+        messageAt: { daysAgo: 0, time: "09:05" },
+      }),
+      "off",
+      RUN_DAY,
+      { retryDelayMs: 0 },
+    );
+    const input = mockSuggest.mock.calls[0][0];
+    // İstanbul (+03:00): 25.09 22:10 = 19:10Z · 22:30 = 19:30Z · 26.09 09:05 = 06:05Z.
+    expect(input.history?.map((h) => [h.author, h.at?.toISOString()])).toEqual([
+      ["guest", "2026-09-25T19:10:00.000Z"],
+      ["host", "2026-09-25T19:30:00.000Z"],
+      ["guest", "2026-09-26T06:05:00.000Z"],
+    ]);
+    expect(input.guestMessageAt?.toISOString()).toBe("2026-09-26T06:05:00.000Z");
   });
 
   it("kol ile bayrak uyuşmazlığı sessiz karışık ölçüm olmaz — FIRLATIR", async () => {

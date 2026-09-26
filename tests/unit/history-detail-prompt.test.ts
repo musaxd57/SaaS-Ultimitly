@@ -48,6 +48,10 @@ describe("historyStamp — org diliminde takvim günü", () => {
     expect(historyStamp(new Date(at), new Date(now), "America/New_York")).toBe(expected);
   });
 
+  it("🚨 'bugün' de org diliminde: İstanbul'da gece 01:30'da (UTC'de hâlâ önceki gün) akşam 22:00'deki mesaj DÜN", () => {
+    expect(historyStamp(new Date("2026-10-02T19:00:00Z"), new Date("2026-10-02T22:30:00Z"), IST)).toBe("dün 22:00");
+  });
+
   it("geçersiz an → null (etiket yazılmaz, tahmin yok)", () => {
     expect(historyStamp(new Date("not-a-date"), NOW, IST)).toBeNull();
   });
