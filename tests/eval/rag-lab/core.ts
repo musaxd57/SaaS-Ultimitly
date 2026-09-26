@@ -37,7 +37,7 @@ import {
   UNDERSTANDING_SYSTEM_PROMPT,
 } from "@/lib/ai/semantic/understand";
 import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
-import { digest, dotF32, embedCached, llmCached } from "./cache";
+import { digest, dotF32, embedCached, embedCachedWith, llmCached } from "./cache";
 
 // ---------------------------------------------------------------------------
 // RAG LAB — ÜRETİM BORU HATTININ AŞAMA AŞAMA İZLENMESİ (#189, kurucu 09-26: "önce ölçüyü düzeltin").
@@ -80,8 +80,8 @@ export interface LabQuery {
 
 export interface LabConfig {
   name: string;
-  /** null = anlamsal kaynak yok (SOĞUK yol ya da anahtar kapalı). */
-  semantic: null | { t: number };
+  /** null = anlamsal kaynak yok (SOĞUK yol ya da anahtar kapalı). `model` = deney gömme modeli (yoksa üretimin). */
+  semantic: null | { t: number; model?: string };
   understanding: boolean;
   rerank: null | {
     k: number;
@@ -90,6 +90,8 @@ export interface LabConfig {
     window?: "rr" | "fused";
     /** Özgün sorgular isabetsizken (geri çekilme) anlama katmanı sorgularının adaylarını da sıralat (üretimde KAPALI). */
     onFallback?: boolean;
+    /** KURU: pencereyi kur ama modeli ÇAĞIRMA (ücretsiz tavan ölçümü: cevap pencereye giriyor mu). */
+    dry?: boolean;
   };
   fetchCap: number;
   /** Seçiciye ek girdiler (deney seçenekleri). */
@@ -112,6 +114,7 @@ export type Stage =
   | "no_candidate_other"
   | "beyond_window"
   | "budget_after_rerank"
+  | "window_ok"
   | "budget"
   | "fallback";
 
@@ -220,7 +223,7 @@ export interface LabRun {
   result: KbSelectResult<LabItem>;
   lists: readonly (readonly { id: string; key: string }[])[];
   rrScores: Map<string, number> | null;
-  rrStatus: "ok" | "failed" | "skipped" | "off";
+  rrStatus: "ok" | "failed" | "skipped" | "off" | "dry";
   window: string[];
   semStatus: "off" | "not_needed" | "ok" | "unavailable";
   cosByKey: Map<string, number> | null;
@@ -254,7 +257,9 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
       else {
         const chunkTexts = index.chunks.map((c) => embeddingTextFor(c));
         const queryTexts = [...new Set(queries.flatMap((x) => x.embedTexts))];
-        const vec = await embedCached([...chunkTexts, ...queryTexts]);
+        const vec = cfg.semantic.model
+          ? await embedCachedWith([...chunkTexts, ...queryTexts], cfg.semantic.model, 1536)
+          : await embedCached([...chunkTexts, ...queryTexts]);
         bySubquery = new Map();
         cosByKey = new Map();
         for (const sq of queries) {
@@ -290,6 +295,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
       return c ? [{ key: k, title: c.title, text: c.text }] : [];
     });
     if (cands.length < 2) rrStatus = "skipped";
+    else if (cfg.rerank.dry) rrStatus = "dry";
     else {
       const earlier = [...pendingGuestMessages(history, q.text)].reverse();
       rrScores = await labRerank(rerankQuestionText(q.text, earlier), cands, cfg.rerank);
@@ -347,6 +353,7 @@ export function traceAnswer(run: LabRun, a: LabAnswer, cfg: LabConfig, allItems:
     return { stage: below || cfg.semantic === null ? "no_candidate_below_t" : "no_candidate_other", ...t };
   }
   if (run.rrStatus === "ok") return { stage: inWindow ? "budget_after_rerank" : "beyond_window", ...t };
+  if (run.rrStatus === "dry") return { stage: inWindow ? "window_ok" : "beyond_window", ...t };
   return { stage: "budget", ...t };
 }
 
@@ -387,6 +394,7 @@ export const STAGES: readonly Stage[] = [
   "no_candidate_other",
   "beyond_window",
   "budget_after_rerank",
+  "window_ok",
   "budget",
 ];
 
@@ -434,8 +442,8 @@ export function reportLines(rows: readonly LabRow[], title: string, meta: Record
     "girmedi · bütçe = aday listesinde, bütçeye girmedi (yeniden sıralayıcı yok) · kırpma = pencerede ama kırpılmış metin iğneyi",
     "taşımıyor (bilgi). Negatif satırında blokta = — ; `neg parça` ortalama seçilen parça, `neg geri` geri çekilme sayısı.",
     "",
-    "| KB | boyut | yapılandırma | grup | n | blokta | okuma | parça | geri | eşik | aday-diğer | pencere | bütçe(rr) | bütçe | kırpma | neg parça | neg geri | sızıntı |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    "| KB | boyut | yapılandırma | grup | n | blokta | okuma | parça | geri | eşik | aday-diğer | pencere | bütçe(rr) | pencerede (kuru) | bütçe | kırpma | neg parça | neg geri | sızıntı |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
   ];
   const keys = [...sum.keys()].sort((a, b) => {
     const [ka, sa, ca, ga] = a.split("|");
@@ -449,7 +457,7 @@ export function reportLines(rows: readonly LabRow[], title: string, meta: Record
     const pct = isNeg ? "—" : `${s.ok}/${s.n} (%${Math.round((100 * s.ok) / s.n)})`;
     const st = (x: Stage) => s.stages[x] ?? 0;
     lines.push(
-      `| ${kbName} | ${size} | ${config} | ${group} | ${s.n} | ${pct} | ${st("fetch")} | ${st("chunk")} | ${st("fallback")} | ${st("no_candidate_below_t")} | ${st("no_candidate_other")} | ${st("beyond_window")} | ${st("budget_after_rerank")} | ${st("budget")} | ${s.cropCut} | ${isNeg ? (s.negChunks / s.n).toFixed(1) : ""} | ${isNeg ? s.negFb : ""} | ${s.leaks} |`,
+      `| ${kbName} | ${size} | ${config} | ${group} | ${s.n} | ${pct} | ${st("fetch")} | ${st("chunk")} | ${st("fallback")} | ${st("no_candidate_below_t")} | ${st("no_candidate_other")} | ${st("beyond_window")} | ${st("budget_after_rerank")} | ${st("window_ok")} | ${st("budget")} | ${s.cropCut} | ${isNeg ? (s.negChunks / s.n).toFixed(1) : ""} | ${isNeg ? s.negFb : ""} | ${s.leaks} |`,
     );
   }
   return lines;

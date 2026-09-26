@@ -38,7 +38,12 @@ export async function embedCached(texts: readonly string[]): Promise<Map<string,
     const batch = missing.slice(i, i + EMBEDDING_BATCH_MAX);
     embedCalls += 1;
     embedTextsSent += batch.length;
-    const vecs = await embedTexts(batch, { quiet: true });
+    // Geçici sağlayıcı arızası (hız sınırı / ağ): artan beklemeyle 4 deneme; yine olmazsa FIRLAT (eksik ölçüm sonuç sayılmaz).
+    let vecs: number[][] | null = null;
+    for (let attempt = 0; attempt < 4 && !vecs; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 2_000 * 2 ** attempt));
+      vecs = await embedTexts(batch, { quiet: true });
+    }
     if (!vecs) throw new Error("embedding provider failed");
     batch.forEach((t, j) => {
       const v = Float32Array.from(vecs[j]);
@@ -66,6 +71,59 @@ export async function llmCached<T>(kind: string, keyParts: unknown, run: () => P
   const v = await run();
   if (v !== null) writeFileSync(f, JSON.stringify(v));
   return v;
+}
+
+/**
+ * DENEY: üretim istemcisi dışında başka bir gömme modeli (ör. text-embedding-3-large, `dimensions` ile 1536'ya kısaltılmış —
+ * üretimin boyut sözleşmesi aynı kalsın). Yalnız ölçüm; üretime geçmesi ayrı karar. Disk önbellekli, geçici arızada yeniden dener.
+ */
+export async function embedCachedWith(texts: readonly string[], model: string, dimensions: number): Promise<Map<string, Float32Array>> {
+  const dir = path.join(RAG_LAB_CACHE, "emb", `${model}@${dimensions}`);
+  mkdirSync(dir, { recursive: true });
+  const out = new Map<string, Float32Array>();
+  const missing: string[] = [];
+  for (const t of new Set(texts)) {
+    const f = path.join(dir, `${digest(t)}.bin`);
+    if (existsSync(f)) {
+      const buf = readFileSync(f);
+      out.set(t, new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)));
+    } else missing.push(t);
+  }
+  const key = process.env.OPENAI_API_KEY?.trim() ?? "";
+  for (let i = 0; i < missing.length; i += EMBEDDING_BATCH_MAX) {
+    const batch = missing.slice(i, i + EMBEDDING_BATCH_MAX);
+    embedCalls += 1;
+    embedTextsSent += batch.length;
+    let vecs: number[][] | null = null;
+    for (let attempt = 0; attempt < 4 && !vecs; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 2_000 * 2 ** attempt));
+      try {
+        const res = await fetch("https://api.openai.com/v1/embeddings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+          body: JSON.stringify({ model, input: batch, dimensions }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!res.ok) continue;
+        const data = (await res.json()) as { data: { index: number; embedding: number[] }[] };
+        const sorted = [...data.data].sort((a, b) => a.index - b.index).map((d) => d.embedding);
+        if (sorted.length === batch.length) vecs = sorted;
+      } catch {
+        /* yeniden dene */
+      }
+    }
+    if (!vecs) throw new Error(`embedding provider failed (${model})`);
+    batch.forEach((t, j) => {
+      const v = Float32Array.from(vecs![j]);
+      let n = 0;
+      for (const x of v) n += x * x;
+      const norm = Math.sqrt(n) || 1;
+      for (let k = 0; k < v.length; k++) v[k] /= norm;
+      writeFileSync(path.join(dir, `${digest(t)}.bin`), Buffer.from(v.buffer));
+      out.set(t, v);
+    });
+  }
+  return out;
 }
 
 export function cacheStats(): { embedCalls: number; embedTextsSent: number; llm: Record<string, { hits: number; calls: number }> } {

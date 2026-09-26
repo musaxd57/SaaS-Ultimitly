@@ -33,39 +33,34 @@ const T_PROD = SEMANTIC_COSINE_THRESHOLD;
 const RR = { k: RERANK_MAX_CANDIDATES, crop: RERANK_TEXT_CHARS };
 const CAP = KB_RETRIEVAL_FETCH_CAP;
 
-export const LAB_CONFIGS: Record<string, LabConfig> = {
-  lex: { name: "lex", semantic: null, understanding: false, rerank: null, fetchCap: CAP },
-  "lex+und": { name: "lex+und", semantic: null, understanding: true, rerank: null, fetchCap: CAP },
-  [`sem${T_PROD}`]: { name: `sem${T_PROD}`, semantic: { t: T_PROD }, understanding: false, rerank: null, fetchCap: CAP },
-  "sem0.3": { name: "sem0.3", semantic: { t: 0.3 }, understanding: false, rerank: null, fetchCap: CAP },
-  [`sem${T_PROD}+und`]: { name: `sem${T_PROD}+und`, semantic: { t: T_PROD }, understanding: true, rerank: null, fetchCap: CAP },
-  "sem0.3+und": { name: "sem0.3+und", semantic: { t: 0.3 }, understanding: true, rerank: null, fetchCap: CAP },
-  prod: { name: "prod", semantic: { t: T_PROD }, understanding: true, rerank: RR, fetchCap: CAP },
-  "prod@0.3": { name: "prod@0.3", semantic: { t: 0.3 }, understanding: true, rerank: RR, fetchCap: CAP },
-  "sem0.4+rr": { name: "sem0.4+rr", semantic: { t: 0.4 }, understanding: false, rerank: RR, fetchCap: CAP },
-  "sem0.3+rr": { name: "sem0.3+rr", semantic: { t: 0.3 }, understanding: false, rerank: RR, fetchCap: CAP },
-  "prod+fb": { name: "prod+fb", semantic: { t: T_PROD }, understanding: true, rerank: { ...RR, onFallback: true }, fetchCap: CAP },
-  "prod@0.3+fb": { name: "prod@0.3+fb", semantic: { t: 0.3 }, understanding: true, rerank: { ...RR, onFallback: true }, fetchCap: CAP },
-  "prod@0.3+fb+fused": { name: "prod@0.3+fb+fused", semantic: { t: 0.3 }, understanding: true, rerank: { ...RR, onFallback: true, window: "fused" }, fetchCap: CAP },
-  "prod@0.3+fb+k30c400": { name: "prod@0.3+fb+k30c400", semantic: { t: 0.3 }, understanding: true, rerank: { k: 30, crop: 400, onFallback: true }, fetchCap: CAP },
-  "prod@0.3+fb+fused30c400": {
-    name: "prod@0.3+fb+fused30c400",
-    semantic: { t: 0.3 },
-    understanding: true,
-    rerank: { k: 30, crop: 400, onFallback: true, window: "fused" },
-    fetchCap: CAP,
-  },
-  "prod@0.3+fb+cap400": { name: "prod@0.3+fb+cap400", semantic: { t: 0.3 }, understanding: true, rerank: { ...RR, onFallback: true }, fetchCap: 400 },
-  "lex+und+cap400": { name: "lex+und+cap400", semantic: null, understanding: true, rerank: null, fetchCap: 400 },
-};
+/**
+ * Yapılandırma adı = "+" ile ayrılmış belirteçler (tek kaynak, deney eklemek kod değişikliği istemez):
+ * `lex` (anlamsal yok) · `s0.3` (anlamsal, ham kosinüs eşiği) · `und` (anlama katmanı sorguları) · `rr20/600` (yeniden sıralayıcı: ilk
+ * K aday / kırpma) · `fb` (geri çekilmede de sırala) · `fused` (pencere listeler arası RRF) · `cap400` (okuma tavanı). `prod` =
+ * canlının kendisi (s{canlı eşik}+und+rr20/600, okuma 200).
+ */
+export function parseConfig(name: string): LabConfig {
+  if (name === "prod") return { name, semantic: { t: T_PROD }, understanding: true, rerank: { ...RR }, fetchCap: CAP };
+  const cfg: LabConfig = { name, semantic: null, understanding: false, rerank: null, fetchCap: CAP };
+  for (const tok of name.split("+")) {
+    let m: RegExpMatchArray | null;
+    if (tok === "lex") cfg.semantic = null;
+    else if ((m = tok.match(/^s(0\.\d+)$/))) cfg.semantic = { t: Number(m[1]) };
+    else if (tok === "und") cfg.understanding = true;
+    else if ((m = tok.match(/^rr(\d+)\/(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? {}), k: Number(m[1]), crop: Number(m[2]) };
+    else if (tok === "fb") cfg.rerank = { ...(cfg.rerank ?? RR), onFallback: true };
+    else if (tok === "fused") cfg.rerank = { ...(cfg.rerank ?? RR), window: "fused" };
+    else if (tok === "dry") cfg.rerank = { ...(cfg.rerank ?? RR), dry: true };
+    else if ((m = tok.match(/^cap(\d+)$/))) cfg.fetchCap = Number(m[1]);
+    else if (tok === "e3l") cfg.semantic = { ...(cfg.semantic ?? { t: T_PROD }), model: "text-embedding-3-large" };
+    else throw new Error(`bilinmeyen yapılandırma belirteci ${tok} (${name})`);
+  }
+  return cfg;
+}
 
-const CONFIGS = (process.env.EVAL_RAG_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["lex", `sem${T_PROD}`, "sem0.3", `sem${T_PROD}+und`, "prod", "prod@0.3"]).map(
-  (n) => {
-    const c = LAB_CONFIGS[n];
-    if (!c) throw new Error(`bilinmeyen yapılandırma ${n}`);
-    return c;
-  },
-);
+const CONFIGS = (process.env.EVAL_RAG_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["lex", `s${T_PROD}`, "s0.3", `s${T_PROD}+und`, "prod", "s0.3+und+rr20/600"]).map(parseConfig);
+/** Tek soru gruplarından her N'inci soru (ücretli koşu bütçesi; 1 = hepsi). */
+const SAMPLE = Math.max(1, Math.trunc(Number(process.env.EVAL_RAG_SAMPLE) || 1));
 const SIZES = (process.env.EVAL_RAG_SIZES?.split(",").map((s) => Number(s.trim())).filter((n) => n > 0) ?? [100, 300]) as number[];
 const PAID_GROUPS = new Set(process.env.EVAL_RAG_PAID_GROUPS?.split(",").map((s) => s.trim()) ?? ["para", "multi", "neg"]);
 const GROUPS = new Set(
@@ -95,11 +90,15 @@ export function e4LabSet(size: number): { items: LabItem[]; queries: LabQuery[] 
   return { items, queries };
 }
 
-const isPaid = (c: LabConfig) => c.understanding || c.rerank !== null;
+const isPaid = (c: LabConfig) => c.understanding || (c.rerank !== null && c.rerank.dry !== true);
 
 describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + önbellekli model)", () => {
   const rows: LabRow[] = [];
   const saved = process.env.AI_UNDERSTANDING_ENABLED;
+  /** Koşan her `it` sonunda artar; afterAll beklenenle kıyaslar. */
+  let finished = 0;
+  let started = 0;
+  let complete = true;
   beforeAll(() => {
     process.env.AI_UNDERSTANDING_ENABLED = "1";
     __resetKbIndexCache();
@@ -109,6 +108,7 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
     if (saved === undefined) delete process.env.AI_UNDERSTANDING_ENABLED;
     else process.env.AI_UNDERSTANDING_ENABLED = saved;
     if (rows.length === 0) return;
+    complete = finished === started;
     let commit = "?";
     try {
       commit = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
@@ -127,7 +127,9 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
       önbellek: RAG_LAB_CACHE,
       çağrılar: cacheStats(),
     };
-    const lines = reportLines(rows, `RAG lab — aşama bazlı kayıp (${stamp})`, meta);
+    // EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ: bir `it` yarıda kaldıysa rapor başlığı GEÇERSİZ der (satırlar teşhis için yine yazılır).
+    const title = complete ? `RAG lab — aşama bazlı kayıp (${stamp})` : `GEÇERSİZ — koşu yarıda kaldı — RAG lab (${stamp})`;
+    const lines = reportLines(rows, title, { ...meta, durum: complete ? "tamam" : "YARIDA KALDI (sonuç sayılmaz)" });
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     let name = `rag-lab-${stamp}.md`;
@@ -138,7 +140,9 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
 
   async function runSet(kbName: string, size: number, items: LabItem[], queries: LabQuery[]) {
     for (const cfg of CONFIGS) {
-      const qs = queries.filter((q) => GROUPS.has(q.group) && (!isPaid(cfg) || PAID_GROUPS.has(q.group)));
+      const qs = queries.filter(
+        (q, qi) => GROUPS.has(q.group) && (!isPaid(cfg) || PAID_GROUPS.has(q.group)) && (!q.group.startsWith("single") || qi % SAMPLE === 0),
+      );
       let i = 0;
       await Promise.all(
         Array.from({ length: 4 }, async () => {
@@ -152,6 +156,7 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
   }
 
   it.skipIf(!KBS.has("scale") && !KBS.has("holdout"))("gerçekçi ayrı olgu seti (dev / holdout)", async () => {
+    started += 1;
     for (const split of ["dev", "holdout"] as const) {
       if (!KBS.has(split === "dev" ? "scale" : "holdout")) continue;
       const file = loadScaleFile(split);
@@ -161,25 +166,17 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
         await runSet(split === "dev" ? "scale-dev" : "scale-holdout", size || items.length, items, queries);
       }
     }
+    finished += 1;
     expect(rows.length).toBeGreaterThan(0);
   }, 120 * 60_000);
 
   it.skipIf(!KBS.has("e4"))("E4 kümesi: boyut × yapılandırma × grup", async () => {
+    started += 1;
     for (const size of SIZES) {
       const { items, queries } = e4LabSet(size);
-      for (const cfg of CONFIGS) {
-        const qs = queries.filter((q) => GROUPS.has(q.group) && (!isPaid(cfg) || PAID_GROUPS.has(q.group)));
-        let i = 0;
-        await Promise.all(
-          Array.from({ length: 4 }, async () => {
-            while (i < qs.length) {
-              const q = qs[i++];
-              rows.push(await labRow("e4", size, items, q, cfg, NOW));
-            }
-          }),
-        );
-      }
+      await runSet("e4", size, items, queries);
     }
+    finished += 1;
     expect(rows.length).toBeGreaterThan(0);
   }, 60 * 60_000);
 });

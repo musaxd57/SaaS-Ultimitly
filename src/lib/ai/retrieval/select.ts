@@ -186,6 +186,16 @@ export interface KbSelectInput<T extends KbChunkSource> {
    * sonra uygulanır.
    */
   rerankScores?: ReadonlyMap<string, number>;
+  /**
+   * SORU BAŞINA yeniden sıralayıcı puanları (alt sorgu → parça anahtarı → 0..3; #189 deneyi, üretimde VERİLMEZ). Verilen alt
+   * sorgunun listesi KENDİ sorusunun etiketleriyle sıralanır; verilmeyen listede `rerankScores` geçerli. Aday eklemez/çıkarmaz.
+   */
+  rerankScoresBySubquery?: ReadonlyMap<string, ReadonlyMap<string, number>>;
+  /**
+   * SEÇİM STRATEJİSİ deneyleri (#189; verilmezse davranış BİREBİR bugünkü): `packing: "skip"` = bütçeye sığmayan parçada
+   * durmak yerine atlayıp sonraki (daha kısa) parçayı dener · `maxChunksPerItem` = kalem başına parça tavanı (varsayılan 3).
+   */
+  strategy?: { packing?: "break" | "skip"; maxChunksPerItem?: number };
 }
 
 export type SelectedKbItem<T> = T & { chunk?: number; chunkCount?: number };
@@ -774,14 +784,18 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     );
     const ranked = rankedAll.map((r) => r.cands);
     input.onCandidates?.(ranked.map((list) => list.map((c) => ({ id: index.chunks[c.idx].id, key: chunkKey(index.chunks[c.idx]) }))));
-    if (input.rerankScores) {
-      const scores = input.rerankScores;
-      const tier = (idx: number): number => {
+    if (input.rerankScores || input.rerankScoresBySubquery) {
+      const tierOf = (scores: ReadonlyMap<string, number>) => (idx: number): number => {
         const r = scores.get(chunkKey(index.chunks[idx]));
         return r === undefined ? 3 : r >= 3 ? 0 : r === 2 ? 1 : r === 1 ? 2 : 4;
       };
       // Array.prototype.sort KARARLI (ES2019): kademe içinde bugünkü sıra korunur.
-      for (const list of ranked) list.sort((a, b) => tier(a.idx) - tier(b.idx));
+      ranked.forEach((list, qi) => {
+        const scores = input.rerankScoresBySubquery?.get(queries[qi].subquery) ?? input.rerankScores;
+        if (!scores) return;
+        const tier = tierOf(scores);
+        list.sort((a, b) => tier(a.idx) - tier(b.idx));
+      });
     }
     const isExtra = queries.map((q) => q.extra === true);
     // Kanıttaki `q` yalnız DETERMİNİSTİK alt sorgulardır; ek sorgular `uq`da (ikinci inceleme: `q` ikisini karıştırıyordu).
@@ -837,7 +851,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
           if (pickedSet.has(cand.idx)) continue;
           const chunk = index.chunks[cand.idx];
           const cnt = perItem.get(chunk.id) ?? 0;
-          if (cnt >= MAX_CHUNKS_PER_ITEM) continue;
+          if (cnt >= (input.strategy?.maxChunksPerItem ?? MAX_CHUNKS_PER_ITEM)) continue;
           picked.push(cand.idx);
           pickedSet.add(cand.idx);
           perItem.set(chunk.id, cnt + 1);
@@ -884,7 +898,11 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       // kontrolü gelince zaten atlanacak bir ek parça döngüyü bitirip sığacak özgün parçaları dışarıda bırakıyordu).
       const extra = origin.get(idx) === "extra";
       if (extra && (extraChunks >= extraChunkCap || extraChars + cost > extraCharCap)) continue;
-      if (chosen.length > 0 && (used + cost > budget || chosen.length >= maxChunks)) break;
+      if (chosen.length > 0 && chosen.length >= maxChunks) break;
+      if (chosen.length > 0 && used + cost > budget) {
+        if (input.strategy?.packing === "skip") continue;
+        break;
+      }
       if (extra) {
         extraChunks += 1;
         extraChars += cost;
