@@ -185,12 +185,16 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   "no water" → water, "how to get there" → get gibi). Kalıp eşleşmesi metnin birimlerini ister: arama / saat alanı /
   çelişki kapısı `units` geçirir — yeni bir çağıran da geçirmek ZORUNDA. "checkin" kökü korunur (`PROTECTED_STEMS`;
   "check" artık girişi tetiklemez). Bilinen, BİLEREK bırakılan kök çakışmaları: "parking"→park, "giriş"→gir.
-- 🚨 **OPENAI YENİDEN SIRALAYICI (#186, 09-26; kurucu "OpenAI ile", "Önce ücretli ölçüm, sonra siz") — YAZILDI, BAĞLANMADI:**
+- 🚨 **OPENAI YENİDEN SIRALAYICI (#186, 09-26; kurucu "OpenAI ile", "Önce ücretli ölçüm, sonra siz", "yapalım, en mantıklı
+  şekilde") — BAĞLANDI, anahtar `KB_RERANK_ENABLED` VARSAYILAN KAPALI (tek okuyucu `flag.ts`, açılış logu `[kb-rerank]`):**
   `semantic/rerank.ts` (anlam katmanının ağ kapısı; `retrieval/` modelsiz kalır) adaylardan "cevaplayan / ilgili" kimlikleri
   listeletir; seçiciye `rerankScores` YALNIZ SIRA sinyali (3→2→1→puansız→0, kararlı; aday eklemez/çıkarmaz, bütçe/çelişki/
-  sürüm aynen). Tavan teşhisi: embedding KAPALIYKEN işe yaramaz (cevap aday listesinde yok). Ölçüm (gpt-5.1, 288 çağrı, 0 hata,
-  0 kayıp): parafraz %67→%78 (100 kalem), %50→%57 (300); iki soru %62→%74, %31→%41; p50 0,86 sn. Aday başına puan şeması
-  REDDEDİLDİ (p50 1,7 sn). Bağlama + açma = embedding E5 ile birlikte kurucu kararı (`docs/TASARIM-2026-09-26-openai-yeniden-siralayici.md`).
+  sürüm aynen). TEK giriş `retrieveKbForPrompt` → `prepareRerankScores`; YALNIZ `sem: ok` + `fb: none` iken (tavan teşhisi:
+  embedding KAPALIYKEN cevap aday listesinde yok → çağrı YOK). İlk 20 aday alt sorgular arası sırayla (`unionTopCandidates`,
+  ölçümle aynı); isteme cevapsız önceki mesajlar + güncel mesaj (güncel hep kalır), ad redakte. Sıcak yol tavanı 2,5 sn;
+  her arıza BUGÜNKÜ sonuç. Kanıt `rr/rrMs/rrA`. Ölçüm (gpt-5.1, 288 çağrı, 0 hata, 0 kayıp): parafraz %67→%78 (100 kalem),
+  %50→%57 (300); iki soru %62→%74, %31→%41; p50 0,86 sn. Aday başına puan şeması REDDEDİLDİ (p50 1,7 sn).
+  (`docs/TASARIM-2026-09-26-openai-yeniden-siralayici.md` §5.)
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
@@ -1227,8 +1231,12 @@ emin olunmayan tur öğeye BÖLÜNMEZ (bugünkü kapı), model riski TÜM mesajl
 katmanı kapalıyken açık sayılmaz. Açma = migration + ücretli ölçüm + kurucu onayı. Ödeme/fatura isteği niyetten hassas
 (`d40a566`, her dilde). HAZIR TASLAK (kurucu "Otomatik hazır dursun"): turun tamamı tutulunca cevap ev sahibi ağzıyla
 `aiSuggestedReply`e yazılır, konuşma açılınca panelde durur (`prepared-draft.ts`); kısmen tutulan / müsaitlik vetolu / şablon
-cevap KAYDEDİLMEZ; gösterimde müsaitlik uyarısı yeniden hesaplanır; bayrak kapalıyken gösterilmez. Mülke özgü ev kuralı
-önerisi (#188) `docs/TASARIM-2026-09-26-ev-kurallari-politikasi.md` ONAY BEKLİYOR (yasak kural NAZİK söylenir — cevaplandı).
+cevap KAYDEDİLMEZ; gösterimde müsaitlik uyarısı yeniden hesaplanır; bayrak kapalıyken gösterilmez. Mülke özgü ev kuralları
+(#188, `docs/TASARIM-2026-09-26-ev-kurallari-politikasi.md`) ONAYLANDI ("en mantıklı şekilde"): yasak kural NAZİK söylenir;
+açma sırası migration 57 (taze yedek + onay) → kural kartı → gölge → ücretli ölçüm → onay; "izinli" parti / ek misafir /
+sessiz saat ev sahibinde kalır. Saf çekirdek `house-rules/core.ts` canlıda, çağıranı YOK.
+Kurucuya ÖNERİLEN canlı değişkenler (`b66bceb` Active sonrası; eklendiği TEYİT EDİLMEDİ — açılış logundan bakılır):
+`AI_CONVERSATION_ITEMS_ENABLED=1` + `KB_SEMANTIC_RETRIEVAL=1`; yeniden sıralayıcı (`KB_RERANK_ENABLED`, #186) bağlandı, açmak ayrı adım.
 
 **09-26 CODEX P2 TURU (`docs/audit-2026-09-05/DURUM.md`):** F13 (+ sistem istemi kalıntısı), F15, F16 KAPANDI; F14 kodda,
 bayrak arkasında (açmak = kör eval + kurucu onayı); #176 sahte geçmiş etiketi canlı kapıda injection. Hepsi migration'sız,

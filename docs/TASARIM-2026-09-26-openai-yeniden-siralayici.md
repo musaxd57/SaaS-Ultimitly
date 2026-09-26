@@ -2,8 +2,9 @@
 
 > Kurucu kararları (09-26): yeniden sıralayıcı **"OpenAI ile"** (yeni alt-işleyen yok — cevap modeli zaten OpenAI);
 > sıra **"Önce ücretli ölçüm, sonra siz"** (tam hat: anlama katmanı + embedding + yeniden sıralama, **< 1 $**).
-> Ölçüm TAMAM (↓§3b). Üretime bağlama ve açma kurucu kararı (embedding anahtarı E5 ile birlikte; bayrak arkasında,
-> varsayılan KAPALI).
+> Ölçüm TAMAM (↓§3b). **Kurucu 09-26: "yapalım, en mantıklı şekilde" → ÜRETİM YOLUNA BAĞLANDI (↓§5), anahtar
+> `KB_RERANK_ENABLED` varsayılan KAPALI.** Açmak = Railway'e `KB_RERANK_ENABLED=1` (yalnız `KB_SEMANTIC_RETRIEVAL=1` ile
+> birlikte etkili).
 
 ## 1. Neden
 
@@ -66,12 +67,36 @@ KB > 30 kalem). **Hiçbir soruda gerileme yok.** Şema dersi (deneme): aday baş
 (p50 1,7 sn) → model yalnız "cevaplayan" ve "ilgili" kimlikleri listeler; listede olmayan aday bugünkü sırasını korur.
 İki sorulu mesaj tavanın altında kaldı (100'de %74 / tavan %92) — sonraki iyileştirme adayı (alt soru başına ayrı liste).
 
-**Kod (bağlanmadı):** `semantic/rerank.ts` (istem, şema, katı ayrıştırıcı, `llmRerank`; ASLA fırlatmaz) · seçicide
+**Kod (ölçüm turu):** `semantic/rerank.ts` (istem, şema, katı ayrıştırıcı, `llmRerank`; ASLA fırlatmaz) · seçicide
 `rerankScores` (yalnız sıra; aday eklemez/çıkarmaz) + ölçüm kancası `onCandidates` · ölçüm düzenekleri
 `tests/eval/rerank-ceiling.eval.test.ts`, `tests/eval/rerank-llm.eval.test.ts` (ortak küme `e4-shared.ts`).
 
 ## 4. Bilinen sınırlar / açık sorular
 
-- Canlıda embedding anahtarı hâlâ KAPALI (E5 açma kararı kurucuda) — yeniden sıralayıcı onsuz da çalışır (sözcüksel
-  adaylar üzerinde) ama asıl kazanç ikisi birlikteyken beklenir; ölçüm iki kombinasyonu da gösterir.
-- Ek model çağrısı = ek gecikme + maliyet: yalnız seçim GERÇEKTEN yapılan mesajlarda (KB > 30 kalem) koşar.
+- Yeniden sıralayıcı YALNIZ anlamsal puanlar o kararda seçiciye ulaştıysa koşar (↓§5). Tavan teşhisi: embedding yokken
+  cevap aday listesinde yok → sözcüksel adaylar üzerinde koşmak maliyet + gecikme, kazanç yok.
+- Ek model çağrısı = ek gecikme + maliyet: yalnız seçim GERÇEKTEN yapılan mesajlarda (KB > 30 kalem ya da > 24k) koşar.
+- İki sorulu mesaj tavanın altında (100 kalemde %74 / tavan %92) — sonraki iyileştirme adayı: alt soru başına ayrı liste.
+
+## 5. Üretim bağlantısı (09-26, kurucu "yapalım, en mantıklı şekilde")
+
+**Tek giriş** `ai/kb-retrieve.ts` → `prepareRerankScores` (`semantic/rerank.ts`). Dört yüzey (oto-yanıt, QR, gelen kutusu
+önerisi, Ayarlar testi) bu girişten geçtiği için hepsi aynı davranır.
+
+- **Ne zaman koşar:** `KB_RERANK_ENABLED` açık (yazımlar anlamsal anahtarla aynı; tanınmayan değer KAPALI + açılış logunda
+  `[kb-rerank]` uyarısı) **VE** anlamsal puanlar bu kararda seçiciye ulaştı (`sem: ok`) **VE** seçici gerçekten sıraladı
+  (`fb: none`). Anahtar kapalı / KB soğuk / küçük KB / acil durdurma (`KB_RETRIEVAL_MODE=legacy`) / geri çekilme → çağrı YOK.
+- **Nasıl:** seçici bir kez koşar ve alt sorgu başına aday listelerini verir; alt sorgular arasında sırayla ilk 20 parça
+  (`unionTopCandidates`, ölçümle AYNI birleşim) modele gider; model "cevaplıyor / ilgili" der; seçici puanlarla YENİDEN koşar.
+  Küme aynı adaylardan kurulur, yalnız SIRA değişir; bütçe / çelişki / sürüm kuralları seçicide AYNEN.
+- **İsteme giden:** misafirin cevapsız önceki mesajları (eskisi önce, retrieval'ın kuralıyla aynı) + güncel mesaj (tavan
+  1.500 karakter; güncel mesaj hep kalır, taşarsa önceki mesajların başı kırpılır); bilinen ad redakte edilir (anlama
+  katmanıyla aynı); aday metni `C1…Cn` ile — kalem kimliği / parça anahtarı GİTMEZ. Sır süzgeci ve talimat-ele-geçirme
+  süzgeci seçiciden ÖNCE çalıştığı için modele cevap modelinin zaten gördüğünden fazlası gitmez.
+- **Sıcak yol tavanı 2,5 sn** (ölçülen p95 1,32 sn'nin ~2 katı); anlam katmanının zaman aşımı daha kısaysa o geçerli.
+  Aşılırsa / hata / şema ihlali → BUGÜNKÜ sonucun kendisi. Kalıcı sağlayıcı arızası anlam katmanının geçiş alarmına gider.
+- **Kanıt** (`kbEvidenceJson.retrieval`): `rr` (`ok` · `failed` · `skipped` = sıralanacak iki aday yoktu), `rrMs`, `rrA`
+  (modelin "cevaplıyor" dediği aday sayısı). Metin YOK.
+- **Testler:** `tests/unit/kb-rerank-retrieval.test.ts` (anahtar, çağrı yok yolları, sıra, kanıt, istem içeriği, önceki
+  mesaj sırası, ad redaksiyonu, geri çekilme) + `tests/unit/semantic-rerank-deadline.test.ts` (tavan). Kırmızı-önce 15,
+  mutasyon 26/26 öldürüldü.

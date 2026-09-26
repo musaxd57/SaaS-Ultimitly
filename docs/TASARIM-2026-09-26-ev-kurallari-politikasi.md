@@ -1,4 +1,4 @@
-# Mülke özgü ev kuralları — anlam + kural politikası · öneri (2026-09-26, ONAY BEKLİYOR)
+# Mülke özgü ev kuralları — anlam + kural politikası (2026-09-26, ONAYLANDI — dilim dilim uygulanıyor)
 
 > Kurucu kararları (09-26): **(1)** "Evet, anlam + mülk kuralı" — parti/evcil hayvan/sigara gibi konularda ihlal hükmü
 > global kelime listesinden değil, mülkün GERÇEK kuralından. **(2)** "Mesela evlerin içinde sigara yasak, adam 'sigara
@@ -7,7 +7,9 @@
 > **(4) 09-26 cevap:** "Evet, güzel bir dille yasak olduğunu da belirtsin, kızar gibi değil" → yasak kural nazik ve açık
 > söylenir (örnek: "Evin içinde sigara içilmesine izin verilmiyor, anlayışınız için teşekkür ederiz."); azarlama / uyarı
 > tonu / yaptırım cümlesi YOK. Metin KODDAN kurulur (doğrulanmış kural + 6 dil), model serbest yazmaz.
-> Bu belge bir ÖNERİDİR; kod yok. Migration 57 ister (yeni tablo, dolu tabloya dokunmaz).
+> **(5) 09-26 cevap (§5 soru 3 ve 4):** "mantıklıysa yapalım, en mantıklı şekilde" → açma sırası ve "izinli ama ev sahibinde
+> kalan konular" önerildiği gibi (↓§5). Migration 57 ister (yeni tablo, dolu tabloya dokunmaz) → push öncesi taze yedek +
+> açık onay AYRICA sorulur.
 
 ## 1. Bugün (kodda ölçüldü)
 
@@ -68,12 +70,12 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
    (ihlal ihtimali ev sahibinin işi). Soru metni: Misafir YASAK bir şeyi yapacağını söylerse ("Bu akşam parti yapacağız", kural yasak): AI kuralı hatırlatıp göndersin
    mi, ayrıca size de haber gitsin mi (açık iş + e-posta)? Önerim: **ikisi birden** — kural hatırlatması gider, siz de
    haberdar olursunuz (ihlal ihtimali ev sahibinin işidir).
-3. Açma sırası: migration 57 (taze yedek + onay) → kural kartı → gölge ölçüm (anlam alanları kayda, karar eski) →
-   ücretli kör ölçüm → sizin onayınız. Uygun mu? (AÇIK)
-4. (AÇIK, saf çekirdekte temkinli varsayıldı) "İzinli" kural otomatik izin cümlesine YALNIZ evet/hayır söylenebilen
-   konularda döner (sigara, evcil hayvan, ziyaretçi). Parti (platformların genel parti yasağı), ek misafir (kaç kişi? ücret?)
-   ve sessiz saatler (hangi saat?) "izinli" olsa da ev sahibinde kalır. Örnek: "6 kişi kalabilir miyiz?" + ek misafir
-   İZİNLİ → AI "kabul ediyoruz" DEMEZ, ev sahibinde açık iş. Böyle kalsın mı?
+3. **CEVAPLANDI 09-26 ("en mantıklı şekilde"):** açma sırası migration 57 (taze yedek + onay) → kural kartı → gölge ölçüm
+   (anlam alanları kayda, karar eski) → ücretli kör ölçüm → kurucu onayı.
+4. **CEVAPLANDI 09-26 (aynı cevap):** "İzinli" kural otomatik izin cümlesine YALNIZ evet/hayır söylenebilen konularda döner
+   (sigara, evcil hayvan, ziyaretçi). Parti (platformların genel parti yasağı), ek misafir (kaç kişi? ücret?) ve sessiz saatler
+   (hangi saat?) "izinli" olsa da ev sahibinde kalır. Örnek: "6 kişi kalabilir miyiz?" + ek misafir İZİNLİ → AI "kabul
+   ediyoruz" DEMEZ, ev sahibinde açık iş (saf çekirdekte zaten böyle, pinli).
 
 ## 6. Uygulama durumu
 
