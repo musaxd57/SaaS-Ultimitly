@@ -452,8 +452,9 @@ Bu dosyaya token/anahtar/parola yazma.
   üreticiyi kullanır; sayı ile listesi AYNI küme (düğme = açılan görev, kart = günlük rapor listesi). Yalnız-tarih vadede
   SAAT gösterilmez (`taskDueTimeLabel`; panoda "Çıkış temizliği · 03:00" yazıyordu). Takvim sayfası ve görev kartı (etiket,
   "Bugün" süzgeci, WhatsApp temizlik listesi) da `calendarDateOf` (166b-1; New York'ta her Hospitable girişi takvimde bir gün
-  erkendi). AÇIK (misafire görünmez, 166b-2; TR/AB'de doğru): doluluk/tahmin (gece semantiği), İptaller pencereleri, rapor
-  görev penceresi, tedarik, aylık rapor doluluğu.
+  erkendi). Raporlar da (166b-2): bu gece doluluk = giriş günü ≤ bugün ∧ çıkış günü ≥ yarın, aylık doluluk gün anahtarıyla
+  (sorgunun giriş ucu bir gün pay), performans puanı görev penceresi, İptaller gün/hafta/ay, tedarik ufku. Kalan tek ham
+  kıyas: üretimde KULLANILMAYAN `getOccupancyForecast` (ölü kod).
 - 🚨 **Ev sahibi metninde ödeme yöntemi/yeri TEK KAYNAK `payment-method-guard.ts` (09-25) — ŞÜPHEDE REDDET:** yanlış ret
   bir cümle yeniden yazdırır, kaçak ise yapay zekânın misafire platform dışı ödeme talimatı iletmesidir. Üç inceleme turu
   ölçtü: bağlamı daraltan her sürüm eski kalıbın yakaladığı gerçek talimatları geçirdi ("Ödeme: kapıda", "parayı kapıdaki

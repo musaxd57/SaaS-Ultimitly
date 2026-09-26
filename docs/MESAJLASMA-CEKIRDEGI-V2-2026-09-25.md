@@ -529,12 +529,30 @@ Kanıt (`tests/integration/host-day-rule.test.ts`, `day-where-exact.test.ts`):
   - ilgili 12 dosya yeşil (92 test);
   - mutasyon 6/6.
 
-Açık (166b-2, misafire görünmez; TR/AB'de doğru):
-- doluluk ve tahmin — gece semantiği: "giriş ≤ bugün ∧ çıkış ≥ yarın", iki aralıkla kesin ifade edilir;
-- İptaller sayfasının gün / hafta / ay pencereleri;
-- rapor görev penceresi (ay başı … dün);
-- tedarik ufku;
-- aylık rapor doluluğu (`dayKeyTz`).
+**166b-2 — ev sahibi raporları (09-26, commit `35b3494`):** New York'ta şunlar bir gün kayıyordu:
+- bu gece doluluk: yarın çıkan dolu sayılmıyor, yarın gelen sayılıyordu;
+- aylık doluluk: ay başındaki konaklama bir gece eksikti;
+- performans puanı: bugün vadeli açık görev "vadesi geçmiş" sayılıp puanı düşürüyordu;
+- İptaller "Bugün / Bu hafta": bugünün girişi dışarıda, ertesi günün girişi içerideydi;
+- tedarik ufku: aynı kayma.
+
+Auckland'da ayın son gününün 12:00Z girişi aylık sorgunun dışında kalıyordu.
+
+Düzeltme:
+- bu gece doluluk = giriş günü ≤ bugün ∧ çıkış günü ≥ yarın (iki kesin aralık);
+- aylık doluluk gün anahtarıyla (`calendarDateOf`, ay başına kırpılır);
+- sorgunun giriş ucu bir gün pay bırakır. Çıkış ucunda pay gerekmez: geçen ayda gece için çıkış ayın 2'si ya da sonrası,
+  onun çapası her dilimde yerel ay başından sonradır.
+
+Kanıt:
+- kırmızı-önce: eski kodda 6 test düştü (New York ×5, Auckland ×1);
+- İstanbul eşdeğerliği her yüzeyde pinli;
+- ilgili 23 dosya yeşil (209 test);
+- mutasyon 12/12. İlk koşuda 2 mutant yaşadı ve ikisi de gerçek test boşluğuydu:
+  - ay başı kırpması: önceki aydan taşan konaklama testi yoktu;
+  - "Iptal Pazar" ⊂ "Iptal Pazartesi" alt dizi tuzağı, iddiayı boşa çıkarıyordu.
+
+Kalan tek ham kıyas `getOccupancyForecast`: üretimde çağıranı YOK (ölü kod), dokunulmadı.
 
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 
