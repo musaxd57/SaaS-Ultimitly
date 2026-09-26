@@ -250,6 +250,21 @@ function typedQuantity(cls: ClaimClass, unit: string, v: number): string {
 const tkey = (h: number, m: number) => `t${((h % 24) + 24) % 24}:${String(m).padStart(2, "0")}`;
 const dkey = (d: number, m: number) => `d${d}.${m}`;
 
+/**
+ * Saat + gün dilimi → saat iddiası. `am` sabah · `pm` öğleden sonra/akşam · `night` gece · null = belirsiz (1–11 iki okuma:
+ * h ve h+12 — "um 3 Uhr" günlük dilde 15:00 da olabilir). 13–24 ve 0 zaten tek okumadır.
+ */
+function clockTime(h: number, mi: number, part: "am" | "pm" | "night" | null, raw: string): Omit<Claim, "at" | "end"> | null {
+  if (h > 24 || mi > 59) return null;
+  let hs: number[];
+  if (h >= 13 || h === 0) hs = [h];
+  else if (part === "am") hs = [h === 12 ? 0 : h];
+  else if (part === "pm") hs = [h === 12 ? 12 : h + 12];
+  else if (part === "night") hs = h === 12 ? [0] : h >= 7 ? [h + 12] : [h];
+  else hs = h === 12 ? [12] : [h, h + 12];
+  return { cls: "time", keys: hs.map((x) => tkey(x, mi)), raw };
+}
+
 /** Birim aileleri: `long` ek alabilir; `short` ardından harf gelmemeli (kesme + ek serbest). */
 const UNIT_FAMILIES: { cls: ClaimClass; long: string[]; short: string[] }[] = [
   { cls: "distance", long: ["kilometre", "kilometers?", "metrelik", "metre", "meters?", "metres?", "miles?", "adim", "steps"], short: ["km", "m", "mi"] },
@@ -387,6 +402,28 @@ function extract(text: string, raw: string): Claim[] {
     else hs = h === 12 ? [12] : [h, h + 12];
     return { cls: "time", keys: hs.map((x) => tkey(x, mi)), raw: m[0] };
   });
+  // Öteki dillerde YALNIZ kesin saat biçimleri (09-26): misafirin "um 12 Uhr" / "около 10 утра" yazdığı saati cevabın
+  // "12:00" diye tekrarlaması yankı sayılmıyor, desteksiz görünüyordu. Süre ya da sayı da olabilen biçimler ALINMAZ:
+  // "2 Stunden", "через 2 часа", "3 дня" (3 gün), "3 ночи" (3 gece), "à 2 heures de route", "a las 4 habitaciones".
+  take(/\b(\d{1,2}) ?uhr\b(?: (morgens|fruh|vormittags|mittags|nachmittags|abends|nachts))?/g, (m) =>
+    clockTime(+m[1], 0, m[2] === "morgens" || m[2] === "fruh" || m[2] === "vormittags" ? "am" : m[2] === "nachts" ? "night" : m[2] ? "pm" : null, m[0]),
+  );
+  // Rusça: gün dilimi "час" ile ("2 часа ночи") ya da zaman edatıyla ("около 10 утра", "в 8 вечера"); çıplak "в N час".
+  take(/(?<![\p{L}\d])(\d{1,2}) час(?:а|ов)? (утра|дня|вечера|ночи)(?![\p{L}])/gu, (m) =>
+    clockTime(+m[1], 0, m[2] === "утра" ? "am" : m[2] === "ночи" ? "night" : "pm", m[0]),
+  );
+  take(/(?<![\p{L}])(?:в|к|до|около|после|с|со) (\d{1,2}) (утра|вечера)(?![\p{L}])/gu, (m) =>
+    clockTime(+m[1], 0, m[2] === "утра" ? "am" : "pm", m[0]),
+  );
+  take(/(?<![\p{L}])в (\d{1,2})(?::(\d{2}))? час(?:а|ов)?(?![\p{L}])/gu, (m) => clockTime(+m[1], m[2] ? +m[2] : 0, null, m[0]));
+  take(
+    /\ba las? (\d{1,2})(?:[:.](\d{2}))?(?: de la (manana|mañana|tarde|noche))?(?![\d:.])(?! (?:personas|huespedes|huéspedes|habitaciones|camas|toallas|llaves|noches|dias|días|adultos|ninos|niños)\b)/g,
+    (m) => clockTime(+m[1], m[2] ? +m[2] : 0, m[3] ? (m[3] === "tarde" || m[3] === "noche" ? "pm" : "am") : null, m[0]),
+  );
+  take(
+    /(?<![\p{L}])(?:à|a|vers) (\d{1,2}) ?heures?(?: (du matin|de l'apres-midi|de l'après-midi|du soir))?(?![\p{L}])(?! de (?:route|voiture|train|marche|vol|trajet|bus))/gu,
+    (m) => clockTime(+m[1], 0, m[2] ? (m[2] === "du matin" ? "am" : "pm") : null, m[0]),
+  );
 
   take(/\b(\d{1,2})(?:\.|st|nd|rd|th)\s?(?:kat|floor)/g, (m) => ({ cls: "floor", keys: [`n${+m[1]}`], tkeys: [`floor|${+m[1]}`], raw: m[0] }));
 

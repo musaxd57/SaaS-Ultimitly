@@ -135,6 +135,89 @@ describe("sınıflama davranışı", () => {
   });
 });
 
+describe("öteki dillerde kesin saat biçimleri (09-26) — misafirin saatini tekrarlamak YANKIDIR, uydurma değil", () => {
+  const FACTS = ["Check-in saati: 15:00\nCheck-out saati: 11:00"];
+  const ctx = (guest: string[] = []): ClaimContext => ({ facts: FACTS, operator: [], guest });
+
+  it("🚨 gerçek model koşusunda desteksiz sayılan cevaplar: misafirin 'um 12 Uhr' / 'около 10 утра' / 'um 13 Uhr' saati → yankı", () => {
+    const cases: [string, string][] = [
+      [
+        "Können wir schon um 12 Uhr einchecken?",
+        "Hallo Alex, der reguläre Check-in ist ab 15:00 Uhr möglich. Ob ein Check-in schon um 12:00 Uhr möglich ist, liegt im Ermessen des Gastgebers.",
+      ],
+      [
+        "Можно заселиться пораньше, около 10 утра?",
+        "Здравствуйте, Alex. Стандартное время заселения у меня указано как 15:00. Возможность заселиться около 10:00 зависит от уборки квартиры.",
+      ],
+      [
+        "Wäre ein später Check-out um 13 Uhr möglich?",
+        "Hallo Alex, unser regulärer Check-out ist um 11:00 Uhr. Ein Check-out um 13:00 Uhr hängt von Verfügbarkeit und Reinigungsplan ab.",
+      ],
+    ];
+    for (const [guest, reply] of cases) {
+      const a = auditClaims(reply, ctx([guest]));
+      expect(a.u, reply).toBe(0);
+      expect(a.echo, reply).toBe(1);
+      expect(a.ctx, reply).toBe(1);
+    }
+  });
+
+  it("cevaptaki çıplak saat artık İDDİA: bağlamdakiyle aynıysa destekli, farklıysa desteksiz (DE/RU/ES/FR)", () => {
+    const supported = [
+      "Der Check-in ist ab 15 Uhr möglich.",
+      "Заселение в 3 часа дня.",
+      "El check-in es a las 3 de la tarde.",
+      "L'arrivée est possible à 15 heures.",
+      "Check-out bis 11 Uhr vormittags.",
+      "Check-in um 3 Uhr.", // belirsiz: 3 ya da 15 — 15:00 bağlamda
+    ];
+    for (const r of supported) expect(auditClaims(r, ctx()).u, r).toBe(0);
+    const fabricated = [
+      "Der Check-in ist ab 14 Uhr möglich.",
+      "Заселение в 14 часов.",
+      "Можно приехать к 9 утра.",
+      "El check-in es a las 2 de la tarde.",
+      "Le départ est à 10 heures du matin.",
+    ];
+    for (const r of fabricated) expect(auditClaims(r, ctx()), r).toMatchObject({ u: 1, uc: ["time"] });
+  });
+
+  it("süre ve sayı biçimleri SAAT sayılmaz (sayı olarak ölçülmeleri önceki davranıştır, değişmedi)", () => {
+    for (const r of [
+      "Der Strand ist 2 Stunden entfernt.",
+      "До пляжа около 2 часов езды.",
+      "Будем через 2 часа.",
+      "Мы бронируем на 3 дня.",
+      "Стоимость указана за 3 ночи.",
+      "Живём в 2 часах езды от центра.",
+      "La plage est à 2 heures de route.",
+      "Llevamos toallas a las 4 habitaciones.",
+      "El aeropuerto está a 2 horas.",
+    ]) {
+      expect(auditClaims(r, ctx()).uc, r).not.toContain("time");
+    }
+  });
+
+  it("gün dilimi okunur: 'nachts' / 'ночи' gece, 'abends' / 'вечера' akşam", () => {
+    const c = (t: string): ClaimContext => ({ facts: [t], operator: [], guest: [] });
+    expect(auditClaims("Die Rezeption schließt um 11 Uhr nachts.", c("Resepsiyon 23:00'te kapanır.")).u).toBe(0);
+    expect(auditClaims("Тишина с 2 часов ночи.", c("Sessizlik 02:00")).u).toBe(0); // "с 2 часов ночи" → 02:00
+    expect(auditClaims("Ужин в 8 вечера.", c("Akşam yemeği 20:00")).u).toBe(0);
+    expect(auditClaims("Die Rezeption schließt um 11 Uhr abends.", c("Resepsiyon 11:00'de kapanır.")).u).toBe(1); // 23 ≠ 11
+    // Gece sabahın erken saatidir ("2 Uhr nachts" = 02:00, 14:00 DEĞİL); "N часов вечера" akşamdır (23:00 ≠ 11:00).
+    expect(auditClaims("Ruhe ab 2 Uhr nachts.", c("Sessizlik 02:00")).u).toBe(0);
+    expect(auditClaims("Тишина с 11 часов вечера.", c("Sessizlik 11:00")).u).toBe(1);
+  });
+
+  it("BİLİNEN SINIR: '1 gibi' (13:00) bağlam okumadan çıkarılamaz — cevaptaki 13:00 desteksiz kalır", () => {
+    const a = auditClaims(
+      "Merhaba Alex, normal çıkış saatimiz 11:00. Saat 13:00'teki geç çıkış isteğiniz ev sahibinizin kararıdır.",
+      ctx(["yarın biraz geç çıksak olur mu, 1 gibi"]),
+    );
+    expect(a).toMatchObject({ u: 1, uc: ["time"] });
+  });
+});
+
 describe("gizlilik, güvenlik, dayanıklılık", () => {
   it("🚨 özet PII'siz: yalnız sayılar + kapalı-küme sınıflar; ham değer (kod, telefon) YOK", () => {
     const a = auditClaims("Kod 4827, telefon +90 532 999 88 77, şifre GizliX9.", { facts: [], operator: [], guest: [] });
