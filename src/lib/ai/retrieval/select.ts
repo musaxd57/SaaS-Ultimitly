@@ -1,6 +1,6 @@
 import { KB_CHAR_BUDGET, KB_ITEM_CAP, KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
 import { reportError } from "@/lib/report-error";
-import type { KbChunk, KbChunkSource } from "./chunker";
+import { chunkKey, type KbChunk, type KbChunkSource } from "./chunker";
 import { kbRetrievalMode, type KbRetrievalMode } from "./flag";
 import { fuseNormalizedScores, fuseRankings, type SourceRanking } from "./fusion";
 import { expandQuery, TIME_FIELD_LABELS } from "./lexicon";
@@ -163,6 +163,17 @@ export interface KbSelectInput<T extends KbChunkSource> {
   extraQueries?: readonly ExtraQuery[];
   sources?: KbSelectSources;
   now?: number;
+  /**
+   * YALNIZ ÖLÇÜM / TEŞHİS (üretim vermez): alt sorgu başına sıralı aday parçalar (kalem kimliği + parça anahtarı),
+   * bütçe kesiminden ve `rerankScores` yeniden sıralamasından ÖNCE (taban eşiğinden sonra). Seçimi DEĞİŞTİRMEZ.
+   */
+  onCandidates?: (perSubquery: readonly (readonly { id: string; key: string }[])[]) => void;
+  /**
+   * YENİDEN SIRALAYICI puanları (parça anahtarı → 0..3; `semantic/rerank.ts`, #186; üretimde bugün VERİLMEZ). Yalnız
+   * SIRALAMA sinyali: her alt sorgu listesi 3 → 2 → 1 → puansız → 0 kademesine göre KARARLI sıralanır (kademe içinde
+   * bugünkü sıra korunur). Aday EKLEMEZ, ÇIKARMAZ; bütçe / çelişki / sürüm kuralları aynen sonra uygulanır.
+   */
+  rerankScores?: ReadonlyMap<string, number>;
 }
 
 export type SelectedKbItem<T> = T & { chunk?: number; chunkCount?: number };
@@ -750,6 +761,16 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       }),
     );
     const ranked = rankedAll.map((r) => r.cands);
+    input.onCandidates?.(ranked.map((list) => list.map((c) => ({ id: index.chunks[c.idx].id, key: chunkKey(index.chunks[c.idx]) }))));
+    if (input.rerankScores) {
+      const scores = input.rerankScores;
+      const tier = (idx: number): number => {
+        const r = scores.get(chunkKey(index.chunks[idx]));
+        return r === undefined ? 3 : r >= 3 ? 0 : r === 2 ? 1 : r === 1 ? 2 : 4;
+      };
+      // Array.prototype.sort KARARLI (ES2019): kademe içinde bugünkü sıra korunur.
+      for (const list of ranked) list.sort((a, b) => tier(a.idx) - tier(b.idx));
+    }
     const isExtra = queries.map((q) => q.extra === true);
     // Kanıttaki `q` yalnız DETERMİNİSTİK alt sorgulardır; ek sorgular `uq`da (ikinci inceleme: `q` ikisini karıştırıyordu).
     const ownQ = isExtra.filter((x) => !x).length;
