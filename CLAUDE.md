@@ -502,7 +502,9 @@ Bu dosyaya token/anahtar/parola yazma.
   (eskiden `used: []`). Çift yönlü çıkarıcı DE/RU/ES/FR KESİN saat biçimlerini tanır (09-26; misafirin "um 12 Uhr"unu
   "12:00" diye tekrarlamak yankıdır); süre/sayı olabilen biçim ("2 Stunden", "3 дня", "à 2 heures de route") saat DEĞİL.
   P5 kanıtı `docs/olcum/iddia-destegi-p5-kanit-2026-09-26.md`: dört gerçek koşuda otomatik gidecek 221 cevabın 0'ı desteksiz
-  iddia taşıyor (ek taslak maliyeti yok); açılırsa önce `time/date/money` sınıfları.
+  iddia taşıyor (ek taslak maliyeti yok); açılırsa önce `time/date/money` sınıfları. 🚨 Bağlamda ANLIK SAAT YOK (09-26):
+  istemin saat satırı bağlama SAATSİZ girer (bugün/yarın tarihi kalır; modele giden istemde saat AYNEN durur) — o anki
+  saat bir işletme saati uydurmasını "dayanaklı" yapıyordu (batarya günde 4 dk kırmızı). Batarya SABİT anla koşar.
 - **Dil:** istem kuralları %100 Türkçe; `input.language` org ayarıdır ve istemde artık KULLANILMAZ (↓); `detectGuestLanguage`
   (şablon yolu) Almancayı İngilizce sanıyor (retrieval'ı etkilemiyor, ölçüldü).
 - 🚨 **MİSAFİRİN DİLİNDE CEVAP (09-25, `ai/language-signal.ts`; kurucu: "5.1'in zayıf noktasını düzelt"):** 5.1 İngilizce

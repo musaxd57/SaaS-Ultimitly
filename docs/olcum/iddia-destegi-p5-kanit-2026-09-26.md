@@ -57,3 +57,18 @@ Etkisi:
 - **Açma sırası.** Önce gölge kayıtta canlı oran izlenir (`kbEvidenceJson.claims`), sonra kurucu onayı.
 - **Tek yönlülük.** Kapı yalnız SIKILAŞTIRIR; tutulan cevap ev sahibine taslak olarak gider. Kanal ve QR aynı yüklemi
   kullanmalı.
+
+## 4. Saat bağımsızlığı düzeltmesi (09-26, sonradan)
+
+**Hata.** Ölçüm bağlamı istemin saat satırını olduğu gibi alıyordu ("Bugün: 26.09.2026 Cumartesi, saat 08:00"). Bu yüzden
+o anki saate denk gelen bir işletme saati uydurması "dayanaklı" sayılıyordu. Örnek: İstanbul 08:00'de üretilen "Kahvaltı
+sabah 8'de". Ölçüm günün saatine göre değişiyordu; batarya UTC 05:00, 09:00, 11:00 ve 19:00'da birer dakika kırmızıydı.
+
+**Düzeltme.** Saat satırı bağlama saatsiz girer. Bugünün ve yarının tarihi dayanak olmayı sürdürür. Modele giden istem
+değişmedi; saat orada aynen durur.
+
+**Bu belgedeki sayılara etkisi: YOK.** Kayıtlı dört koşu saatsiz bağlamla ve güncel çıkarıcıyla yeniden hesaplandı:
+
+- Otomatik gidecek 221 cevapta desteksiz iddia yine **0**.
+- Değişen 13 satırın hepsi desteksizden dayanaklıya geçti. Sebep §2'deki çok dilli saat yankısı düzeltmesi.
+- Dayanaklıdan desteksize geçen satır yok.
