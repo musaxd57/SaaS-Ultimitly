@@ -114,9 +114,15 @@ describe("warmAllKbVectorsOnce", () => {
       },
       { timeout: 15_000, interval: 100 },
     );
+    // İkinci çağrı hiçbir şey yapmaz — depo boşaltılsa bile (yoksa her 2 dakikada tüm mülkler yeniden sorgulanır ve depo
+    // tahliye edildiyse yeniden ödenir).
+    __resetSemanticRetrieval();
+    clearEmbeddingCache();
     const before = embedded.length;
     warmAllKbVectorsOnce();
+    await new Promise((r) => setTimeout(r, 300));
     await __awaitSemanticWarm();
     expect(embedded.length).toBe(before);
+    expect(__semanticStoreSize()).toBe(0);
   });
 });

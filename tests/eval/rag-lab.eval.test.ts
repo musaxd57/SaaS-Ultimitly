@@ -9,7 +9,7 @@ import { semanticModel } from "@/lib/ai/semantic/config";
 import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
 import { e4Queries } from "./e4-shared";
 import { writeSidecar } from "./sidecar";
-import { cacheStats, RAG_LAB_CACHE } from "./rag-lab/cache";
+import { cacheStats, OfflineMiss, RAG_LAB_CACHE } from "./rag-lab/cache";
 import { labRow, latencyLines, reportLines, type LabConfig, type LabItem, type LabQuery, type LabRow } from "./rag-lab/core";
 import { parseConfig, CAP, RR, T_PROD } from "./rag-lab/config";
 import { buildScaleLab, loadScaleFile } from "./rag-lab/scale-set";
@@ -73,6 +73,13 @@ function withWatchdog<T>(p: Promise<T>, label: string): Promise<T> {
 }
 
 const isPaid = (c: LabConfig) => c.understanding || (c.rerank !== null && c.rerank.dry !== true);
+/**
+ * EŞLEŞTİRİLMİŞ ÖNBELLEK ALT KÜMESİ (`RAG_LAB_OFFLINE=1` + `RAG_LAB_OFFLINE_SKIP=1`; 09-26 gece, kredi bitti): önbellekte
+ * çıktısı olmayan soru HİÇBİR yapılandırmada sayılmaz (paired) — ücretsiz ön tahmin. Alt küme rastgele değildir (yarım kalan
+ * koşunun başarılı çağrıları); rapor alt küme boyunu ve çıkarılan soru sayısını yazar, tam ölçümün yerini TUTMAZ.
+ */
+const OFFLINE_SKIP = process.env.RAG_LAB_OFFLINE === "1" && process.env.RAG_LAB_OFFLINE_SKIP === "1";
+const skippedQs = new Set<string>();
 
 describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + önbellekli model)", () => {
   const rows: LabRow[] = [];
@@ -89,6 +96,11 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
   afterAll(() => {
     if (saved === undefined) delete process.env.AI_UNDERSTANDING_ENABLED;
     else process.env.AI_UNDERSTANDING_ENABLED = saved;
+    if (skippedQs.size > 0) {
+      const keep = rows.filter((r) => !skippedQs.has(`${r.kb}|${r.size}|${r.qid}`));
+      rows.length = 0;
+      rows.push(...keep);
+    }
     if (rows.length === 0) return;
     complete = finished === started;
     let commit = "?";
@@ -108,6 +120,7 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
       "ücretli gruplar": [...PAID_GROUPS].join(","),
       önbellek: RAG_LAB_CACHE,
       çağrılar: cacheStats(),
+      ...(OFFLINE_SKIP ? { "EŞLEŞTİRİLMİŞ ÖNBELLEK ALT KÜMESİ": `önbellekte olmayan ${skippedQs.size} soru TÜM yapılandırmalardan çıkarıldı (ön tahmin, tam ölçüm DEĞİL)` } : {}),
     };
     // EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ: bir `it` yarıda kaldıysa rapor başlığı GEÇERSİZ der (satırlar teşhis için yine yazılır).
     const title = complete ? `RAG lab — aşama bazlı kayıp (${stamp})` : `GEÇERSİZ — koşu yarıda kaldı — RAG lab (${stamp})`;
@@ -137,7 +150,12 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
         Array.from({ length: 4 }, async () => {
           while (i < qs.length) {
             const q = qs[i++];
-            rows.push(await withWatchdog(labRow(kbName, size, items, q, cfg, NOW), `${cfg.name} · ${q.id}`));
+            try {
+              rows.push(await withWatchdog(labRow(kbName, size, items, q, cfg, NOW), `${cfg.name} · ${q.id}`));
+            } catch (err) {
+              if (!(OFFLINE_SKIP && err instanceof OfflineMiss)) throw err;
+              skippedQs.add(`${kbName}|${size}|${q.id}`);
+            }
             if (rows.length % 200 === 0) console.error(`[rag-lab] ${rows.length} satır · ${kbName}/${size} · ${cfg.name}`);
           }
         }),

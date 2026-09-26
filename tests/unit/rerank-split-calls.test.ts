@@ -12,9 +12,14 @@ vi.mock("@/lib/ai/semantic/structured-call", () => ({
   callStructuredJson: vi.fn(async (input: { user: string }) => {
     calls.push({ user: input.user });
     if (failWhen(input.user)) return { ok: false, error: "timeout", ms: 2500 };
-    // Cevap: metninde "CEVAP" geçen adayların kimlikleri (C1…Cn satırlarından).
+    // Cevap: metninde "CEVAP" geçen adayların kimlikleri (C1…Cn satırlarından). Ortak taban adayı "Genel bilgi 0": askı
+    // penceresinde "cevap", pil penceresinde yalnız "ilgili" (birleşim kuralı sınansın).
     const answers = [...input.user.matchAll(/\[(C\d+)\] <<<[^\n]*CEVAP/g)].map((m) => m[1]);
-    return { ok: true, data: { answers, related: [] }, ms: 40 };
+    const shared = /\[(C\d+)\] <<<[^\n]*Genel bilgi 0\./.exec(input.user)?.[1];
+    const related: string[] = [];
+    if (shared && input.user.includes("Askı notu")) answers.push(shared);
+    else if (shared) related.push(shared);
+    return { ok: true, data: { answers, related }, ms: 40 };
   }),
 }));
 
@@ -62,6 +67,8 @@ describe("soru başına ayrı çağrı", () => {
     expect(out.status === "ok" && out.scores.get("a25#0")).toBe(3);
     expect(out.status === "ok" && out.scores.get("b22#0")).toBe(3);
     expect(out.calls).toBe(2);
+    // İki pencerede de görülen aday: bir çağrıda "cevap" (3), ötekinde "ilgili" (2) → birleşim EN YÜKSEĞİ (sıra bağımsız).
+    expect(out.status === "ok" && out.scores.get("o0#0")).toBe(3);
   });
 
   it("bir çağrı düşerse diğerinin işaretleri kullanılır (düşen sorunun adayları bugünkü sırasında)", async () => {

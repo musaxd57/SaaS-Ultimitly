@@ -25,8 +25,11 @@ let embedTextsSent = 0;
  * ablasyonlar (ör. paketleme seçenekleri — yeniden sıralayıcı penceresi değişmediği için istekler önbellektedir) yanlışlıkla
  * ücretli çağrı yapmasın, eksik önbellek de sessizce "başarısız çağrı" diye sonuca karışmasın diye (09-26 gece: kredi bitti).
  */
+export class OfflineMiss extends Error {
+  override name = "OfflineMiss";
+}
 function assertOnline(what: string): void {
-  if (process.env.RAG_LAB_OFFLINE === "1") throw new Error(`RAG_LAB_OFFLINE: önbellekte yok (${what}) — ağa çıkılmadı`);
+  if (process.env.RAG_LAB_OFFLINE === "1") throw new OfflineMiss(`RAG_LAB_OFFLINE: önbellekte yok (${what}) — ağa çıkılmadı`);
 }
 
 /** Gömme (üretim istemcisi `embedTexts`), disk önbellekli. Sağlayıcı düşerse fırlatır (eksik ölçüm sonuç sayılmaz). */
