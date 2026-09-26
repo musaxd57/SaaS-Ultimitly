@@ -130,7 +130,8 @@ export interface KbSelectSources {
 export interface KbSelectInput<T extends KbChunkSource> {
   items: readonly T[];
   guestMessage: string;
-  history?: readonly { direction: "inbound" | "outbound"; body: string }[];
+  /** `at` = yazıldığı an; seçim OKUMAZ, yalnız anlama katmanının damgasına taşınır (`kb-retrieve.ts`, F14b). */
+  history?: readonly { direction: "inbound" | "outbound"; body: string; at?: Date }[];
   /** Bayrağı ezer (test/harness). Verilmezse env. */
   mode?: KbRetrievalMode;
   budgetChars?: number;

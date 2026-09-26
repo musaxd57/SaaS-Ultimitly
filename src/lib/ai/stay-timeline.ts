@@ -165,6 +165,18 @@ function dayEn(key: NightKey): string {
 }
 
 /**
+ * ANLAMA KATMANI için mesajın YAZILDIĞI an (F14b, 09-26; katmanın istemi İngilizce): org diliminde MUTLAK gün + saat —
+ * "2026-10-01 (Thursday) 22:10". Tarih satırı da mutlak gün yazar (`understandingDateLine`); göreli etiket ("yesterday")
+ * gece yarısında anlam değiştirirdi. Mesaj bir ANDIR → `todayKey` (`calendarDateOf` tam 00:00Z'yi yalnız-tarih sanardı).
+ * Geçersiz an → null (damga yazılmaz, tahmin yok).
+ */
+export function writtenAtEn(at: Date, timeZone: string): string | null {
+  if (Number.isNaN(at.getTime())) return null;
+  const hhmm = hhmmOf(minutesOfDayInTimeZone(timeZone, at));
+  return `${dayEn(todayKey(at, timeZone))}${hhmm ? ` ${hhmm}` : ""}`;
+}
+
+/**
  * ANLAMA KATMANININ TARİH SATIRI (Konuşma Anlama Durumu, 09-25; katmanın istemi İngilizce). "Yarın 11'de" gibi göreli
  * ifadelerin konaklamadaki yeri (varış günü mü, çıkış günü mü, başka gün mü) ancak bugünü ve rezervasyonun GÜNLERİNİ
  * bilerek okunur. YALNIZ GÜN hassasiyeti — dakika yazılmaz: satır anlama katmanının önbellek anahtarına girer ve gün

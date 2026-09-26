@@ -2042,7 +2042,8 @@ export async function applyChannelAutoReply(
   const kbSel = await retrieveKbForPrompt({
     items: kbVisible,
     guestMessage: last.body,
-    history: messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
+    // `at` (F14b): anlama katmanında yazıldığı an — yalnız Konuşma Anlama Durumu bayrağıyla görünür, seçim okumaz.
+    history: messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body, at: m.createdAt })),
     // Anlama katmanı (bayrak açıkken): standart saat kıyası + redaksiyon için.
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
     redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],

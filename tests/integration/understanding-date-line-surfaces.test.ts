@@ -33,7 +33,9 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
-import { understandGuestMessages } from "@/lib/ai/semantic/understand";
+import { buildUnderstandingUserContent, understandGuestMessages } from "@/lib/ai/semantic/understand";
+import { writtenAtEn } from "@/lib/ai/stay-timeline";
+import { ensureGuestChatConversation } from "@/lib/guest-chat";
 import { applyChannelAutoReply } from "@/lib/automation";
 import { POST as AI_SUGGEST } from "@/app/api/conversations/[id]/ai-suggest/route";
 import { POST as AI_TEST } from "@/app/api/ai/test/route";
@@ -182,5 +184,70 @@ describe("anlama katmanının tarih satırı — yüzey bağlantısı", () => {
     expect(res.status).toBe(200);
     expect(dateLineOf()).toMatch(/^Today \(property time zone\): \d{4}-\d{2}-\d{2}/);
     expect(dateLineOf()).not.toMatch(/booking/i);
+  });
+
+  // ── F14b (09-26): mesajın YAZILDIĞI an — tarih satırıyla aynı karar noktası ─────────────────────────────────────
+  const contentOf = (i = 0) => buildUnderstandingUserContent(spy.mock.calls[i]![0]);
+
+  it("🚨 F14b bayrak KAPALI: katmana damga fonksiyonu GİTMEZ, içerik damgasız (bugünküyle birebir)", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "");
+    const { conversationId } = await seedStay();
+    await applyChannelAutoReply(conversationId);
+    expect(spy.mock.calls[0][0]).not.toHaveProperty("writtenStamp");
+    expect(contentOf()).not.toMatch(/written/);
+  });
+
+  it("🚨 F14b bayrak AÇIK: kanal oto-yanıtı cevapsız mesajın YAZILDIĞI anı verir (org diliminde, mutlak gün)", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const { conversationId } = await seedStay();
+    await applyChannelAutoReply(conversationId);
+    const row = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "inbound" } });
+    expect(contentOf()).toContain(`[1] (written ${writtenAtEn(row.createdAt, "Europe/Istanbul")}) <<<Otopark var mı?>>>`);
+  });
+
+  it("F14b bayrak AÇIK: gelen kutusu 'AI öner' aynı damgayı verir (öneri saatler sonra istenebilir)", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const { conversationId } = await seedStay();
+    const res = await AI_SUGGEST(
+      new NextRequest(`http://localhost/api/conversations/${conversationId}/ai-suggest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id: conversationId }) },
+    );
+    expect(res.status).toBe(200);
+    const row = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "inbound" } });
+    expect(contentOf()).toContain(`[1] (written ${writtenAtEn(row.createdAt, "Europe/Istanbul")}) <<<Otopark var mı?>>>`);
+  });
+
+  it("F14b bayrak AÇIK: QR geçmişi damgalı; cevaplanan mesaj şimdi yazıldı → damgasız", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const { propertyId } = await seedStay();
+    const token = `qrtok_${Math.random().toString(36).slice(2)}${"x".repeat(12)}`;
+    await prisma.property.update({ where: { id: propertyId }, data: { chatEnabled: true, chatToken: token, checkInTime: "15:00", checkOutTime: "11:00" } });
+    const reservation = await prisma.reservation.create({
+      data: { propertyId, guestName: "Test Misafir", arrivalDate: new Date(Date.now() - DAY), departureDate: new Date(Date.now() + 2 * DAY), status: "confirmed", channel: "manual", currency: "EUR" },
+    });
+    const conversationId = await ensureGuestChatConversation(propertyId, { id: reservation.id, guestName: reservation.guestName });
+    const guestAt = new Date(Date.now() - 3 * 3_600_000);
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", authorType: "guest", senderName: "x", body: "Merhaba", language: "tr", createdAt: guestAt },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: "Buyurun.", language: "tr", createdAt: new Date(guestAt.getTime() + 60_000) },
+    });
+    const res = await CHAT(
+      new NextRequest(`http://localhost/api/chat/${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Otopark var mı?", requestId: `g-${Math.random().toString(36).slice(2)}` }),
+      }),
+      { params: Promise.resolve({ token }) },
+    );
+    expect(res.status).toBe(200);
+    const text = contentOf();
+    expect(text).toContain(`Guest (written ${writtenAtEn(guestAt, "Europe/Istanbul")}): <<<Merhaba>>>`);
+    expect(text).toContain("[1] <<<Otopark var mı?>>>");
   });
 });

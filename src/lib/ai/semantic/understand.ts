@@ -65,8 +65,11 @@ function fenceSafe(text: string): string {
 export interface UnderstandingInput {
   /** Cevaplanacak son misafir mesajı. */
   guestMessage: string;
-  /** Kronolojik konuşma (isteme giden pencere); son giden mesajdan sonraki misafir mesajları cevapsız sayılır. */
-  history?: readonly { direction: "inbound" | "outbound"; body: string }[];
+  /**
+   * Kronolojik konuşma (isteme giden pencere); son giden mesajdan sonraki misafir mesajları cevapsız sayılır. `at` =
+   * mesajın YAZILDIĞI an (F14b) — yalnız `writtenStamp` verildiğinde görünür.
+   */
+  history?: readonly { direction: "inbound" | "outbound"; body: string; at?: Date }[];
   stayTimes?: StayTimes | null;
   /** Redaksiyon için bilinen adlar. */
   names?: readonly (string | null | undefined)[];
@@ -75,6 +78,13 @@ export interface UnderstandingInput {
    * `kb-retrieve.ts` verir). Yoksa içerik — ve önbellek anahtarı — bayt bayt eskisi.
    */
   dateLine?: string | null;
+  /**
+   * Mesajın yazıldığı anın etiketi (F14b, 09-26; `stay-timeline.ts writtenAtEn`, org dilimi, MUTLAK gün). Konuşma Anlama
+   * Durumu bayrağı açıkken YALNIZ `kb-retrieve.ts` verir (tarih satırıyla aynı karar noktası): "yarın" o mesajın yazıldığı
+   * güne göredir — akşam yazılıp ertesi sabah işlenen mesajda katman günü bir kaydırıyordu. Verilmezse içerik — ve önbellek
+   * anahtarı — bayt bayt eskisi.
+   */
+  writtenStamp?: (at: Date) => string | null;
   fetchImpl?: typeof fetch;
 }
 
@@ -85,21 +95,34 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
   const hist = (input.history ?? []).filter((m) => typeof m.body === "string" && m.body.trim().length > 0);
   // Cevapsız misafir mesajları: son GİDEN mesajdan sonrakiler (güncel mesaj dâhil, tekrar etmeden).
   const lastOut = hist.map((m) => m.direction).lastIndexOf("outbound");
-  const pending = hist.slice(lastOut + 1).filter((m) => m.direction === "inbound").map((m) => m.body);
-  if (pending[pending.length - 1] !== input.guestMessage) pending.push(input.guestMessage);
+  const pending: { body: string; at?: Date }[] = hist.slice(lastOut + 1).filter((m) => m.direction === "inbound");
+  if (pending[pending.length - 1]?.body !== input.guestMessage) pending.push({ body: input.guestMessage });
   const unanswered = pending.slice(-MAX_UNANSWERED);
   const context = hist.slice(0, lastOut + 1).slice(-MAX_HISTORY);
   const ci = normalizeHhmm(input.stayTimes?.checkIn) ?? "unknown";
   const co = normalizeHhmm(input.stayTimes?.checkOut) ?? "unknown";
+  // F14b: yazıldığı an yalnız damga fonksiyonu verildiğinde (bayrak açık) ve satır anı taşıyorsa; açıklama yalnız en az bir
+  // damga yazıldıysa. Aksi hâlde çıktı bayt bayt eskisi.
+  const written = (at: Date | undefined) => {
+    const stamp = at && input.writtenStamp ? input.writtenStamp(at) : null;
+    return stamp ? ` (written ${stamp})` : "";
+  };
+  const contextLines = context.map((m) => `${m.direction === "inbound" ? "Guest" : "Host"}${written(m.at)}: <<<${clean(m.body)}>>>`);
+  const unansweredLines = unanswered.map((m, i) => `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>`);
+  const stamped = [...context, ...unanswered].some((m) => written(m.at) !== "");
   return [
     `Property standard check-in: ${ci}; standard check-out: ${co}.`,
     ...(input.dateLine ? [input.dateLine] : []),
+    ...(stamped
+      ? [
+          "Each message shows when it was written (property time zone). Relative days inside a message (tomorrow, tonight, " +
+            "today) refer to the day that message was WRITTEN, not to today.",
+        ]
+      : []),
     "RECENT CONVERSATION (oldest first):",
-    ...(context.length > 0
-      ? context.map((m) => `${m.direction === "inbound" ? "Guest" : "Host"}: <<<${clean(m.body)}>>>`)
-      : ["(none)"]),
+    ...(contextLines.length > 0 ? contextLines : ["(none)"]),
     "UNANSWERED GUEST MESSAGES:",
-    ...unanswered.map((m, i) => `[${i + 1}] <<<${clean(m)}>>>`),
+    ...unansweredLines,
   ].join("\n");
 }
 

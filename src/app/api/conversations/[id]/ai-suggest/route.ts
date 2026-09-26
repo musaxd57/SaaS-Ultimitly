@@ -100,9 +100,11 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],
     // Anlama katmanının tarih satırı (yalnız Konuşma Anlama Durumu bayrağı açıkken kullanılır).
     dateContext: { now: new Date(), timeZone: org?.timezone, reservation: conversation.reservation ?? null },
+    // `at` (F14b): anlama katmanında yazıldığı an — öneri saatler sonra istenebilir; yalnız bayrakla görünür.
     history: conversation.messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
+      at: m.createdAt,
     })),
   });
 

@@ -12,7 +12,7 @@ import { understandGuestMessages, understandingEnabled, type UnderstandingOutcom
 import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import type { StayTimes } from "@/lib/ai/semantic/stay-change";
 import { conversationStateEnabled } from "@/lib/ai/conversation-state";
-import { stayTimeline, understandingDateLine } from "@/lib/ai/stay-timeline";
+import { stayTimeline, understandingDateLine, writtenAtEn } from "@/lib/ai/stay-timeline";
 import { orgTimezone } from "@/lib/timezone";
 
 // ---------------------------------------------------------------------------
@@ -67,13 +67,16 @@ export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
 export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
   const { stayTimes, redactNames, dateContext, ...selectInput } = input;
   // Tarih satırı TEK karar noktası burada: bayrak kapalıyken hesaplanmaz, katmana alan hiç gitmez.
+  const timeZone = dateContext ? orgTimezone(dateContext.timeZone) : null;
   const dateLine =
-    dateContext && conversationStateEnabled()
+    dateContext && timeZone && conversationStateEnabled()
       ? understandingDateLine(
-          stayTimeline({ now: dateContext.now, timeZone: orgTimezone(dateContext.timeZone), reservation: dateContext.reservation }),
+          stayTimeline({ now: dateContext.now, timeZone, reservation: dateContext.reservation }),
           dateContext.reservation !== undefined,
         )
       : null;
+  // F14b: mesajların YAZILDIĞI an — tarih satırıyla AYNI karar (bayrak kapalıyken fonksiyon gitmez, girdi bayt bayt aynı).
+  const writtenStamp = dateLine && timeZone ? (at: Date) => writtenAtEn(at, timeZone) : null;
   // Çağrı HEMEN başlar (async fonksiyon ilk await'e kadar eşzamanlı koşar); kimse beklemese de paraleldir.
   const pending: Promise<UnderstandingOutcome> = understandGuestMessages({
     guestMessage: selectInput.guestMessage,
@@ -81,6 +84,7 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
     stayTimes,
     names: redactNames,
     ...(dateLine ? { dateLine } : {}),
+    ...(writtenStamp ? { writtenStamp } : {}),
   });
   const queriesNeeded =
     understandingEnabled() &&
