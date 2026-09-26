@@ -75,6 +75,16 @@ describe("ConversationThread — hazır taslak", () => {
       />,
     );
     expect(screen.getByText("Yeni taslak.")).toBeTruthy();
+    // Yeni mesajın taslağı da kapatılınca sonraki yenilemede geri GELMEZ.
+    fireEvent.click(screen.getByRole("button", { name: "AI önerisini kapat" }));
+    rerender(
+      <ConversationThread
+        {...baseProps}
+        messages={[...(baseProps.messages as object[]), { id: "m2", direction: "inbound", body: "Bir de fatura?", createdAtLabel: "10:05", senderName: "Ada" }] as Props["messages"]}
+        initialDraft={{ ...next }}
+      />,
+    );
+    expect(screen.queryByText("Yeni taslak.")).toBeNull();
   });
 
   it("'AI öner'in sonucu aynı mesajın kayıtlı özetiyle EZİLMEZ (sunucu aynı mesaja kaydetti)", async () => {

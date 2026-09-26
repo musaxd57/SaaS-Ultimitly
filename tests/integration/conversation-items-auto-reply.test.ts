@@ -707,6 +707,14 @@ describe("HAZIR TASLAK (kurucu: 'Otomatik hazır dursun')", () => {
     expect(await draftOf(conversationId)).toEqual(["Ödemeler yalnızca platform üzerinden yapılır."]);
   });
 
+  it("modelin cevabı BOŞ: taslak KAYDEDİLMEZ (boş metin 'hazır taslak' değildir)", async () => {
+    const { conversationId } = await seed(IBAN);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ reply: "   " }));
+    await applyChannelAutoReply(conversationId);
+    expect(await draftOf(conversationId)).toEqual([null]);
+  });
+
   it("kısmen tutulan tur (Wi-Fi gitti, IBAN ev sahibinde): taslak KAYDEDİLMEZ", async () => {
     const { conversationId } = await seed(BOTH);
     understands(

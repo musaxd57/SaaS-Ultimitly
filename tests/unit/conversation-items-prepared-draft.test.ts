@@ -35,6 +35,10 @@ describe("preparedDraftOf — hangi taslak gösterilir", () => {
     expect(preparedDraftOf([m("1", "inbound", "IBAN?", "taslak", "general"), m("2", "inbound", "Wi-Fi şifresi?")], opts)).toBeNull();
   });
 
+  it("son mesaj GİDEN ise taslak alanı dolu olsa bile gösterilmez (yalnız misafir mesajının taslağı)", () => {
+    expect(preparedDraftOf([m("1", "inbound", "IBAN?"), { ...m("2", "outbound", "Ödemeler platformdan."), aiSuggestedReply: "taslak" }], opts)).toBeNull();
+  });
+
   it("taslak yok / boş → gösterilmez; boş konuşma → gösterilmez", () => {
     expect(preparedDraftOf([m("1", "inbound", "Merhaba")], opts)).toBeNull();
     expect(preparedDraftOf([m("1", "inbound", "Merhaba", "   ")], opts)).toBeNull();

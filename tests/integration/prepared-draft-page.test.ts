@@ -152,6 +152,15 @@ describe("konuşma sayfası — hazır taslak bağlantısı", () => {
     expect(initialDraftOf(await render(conversationId))).toMatchObject({ messageId: ids[0], reply: DRAFT });
   });
 
+  it("mülkün giriş/çıkış saatleri uyarıya girer: standart çıkış saatini söyleyen taslak uyarısız (saat mülkünkiyle birebir)", async () => {
+    const { orgId, conversationId } = await seed([
+      { direction: "inbound", body: "Çıkış saati kaçta?", draft: "Çıkış günü saat 11:00'e kadar kalabilirsiniz.", intent: "checkout" },
+    ]);
+    mockAuth.mockResolvedValue(session(orgId, "owner"));
+    const d = initialDraftOf(await render(conversationId));
+    expect(d && d !== "no-thread" ? d.availabilityCheck : "x").toBeNull();
+  });
+
   it("konaklama isteği varken müsaitlik uyarısı sayfada yeniden hesaplanır", async () => {
     const { orgId, conversationId } = await seed([
       { direction: "inbound", body: "Erken giriş yapabilir miyiz?", draft: "Tabii, 12:00'de gelebilirsiniz.", intent: "early_checkin" },
