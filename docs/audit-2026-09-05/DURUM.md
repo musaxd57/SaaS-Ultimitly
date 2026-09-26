@@ -48,7 +48,7 @@ geri yüklendi; hiçbiri commit'lenmedi. İki testim ilk yazımda vacuous çıkt
 
 F09 CSP raporu path token'ı · F10 merkezi log redaksiyonu (`audit.ts`/`rate-limit.ts` doğrudan
 `console.error`) · F11 mülk silmede obje temizliği · F12 audit baseline şeması (`expires` zorunlu) ·
-~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26, `4832ab5`: profil yalnız üslup, eski profil isteme girmez ve senkron düşse de yenilenir — `ai/style-profile.ts`; kırmızı-önce 10 test, mutasyon 20/20) · F14 sohbet hafızası/zaman · F15 kalite denetimi `{}` · F16 iCal
+~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26, `4832ab5`: profil yalnız üslup, eski profil isteme girmez ve senkron düşse de yenilenir — `ai/style-profile.ts`; kırmızı-önce 10 test, mutasyon 20/20) · F14 sohbet hafızası/zaman · ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: durum `evaluated/inconclusive/empty`, zorunlu alan + mesaj üyeliği, ekranın yeşil "uygun" yazısı yalnız tam değerlendirmede; kırmızı-önce 9 test, mutasyon 13/13) · F16 iCal
 completeness · F17 cron adaleti · F18 login savunma tasarımı.
 
 ## CI sonucu

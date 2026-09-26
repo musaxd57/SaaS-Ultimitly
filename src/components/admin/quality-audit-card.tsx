@@ -26,6 +26,10 @@ interface Finding {
 
 interface AuditResult {
   organizationName: string;
+  /** "evaluated" = tam değerlendirme · "inconclusive" = rapor eksik (boş liste "uygun" DEMEK DEĞİL) · "empty" = örneklem yok. */
+  status: "evaluated" | "inconclusive" | "empty";
+  missing: string[];
+  dropped: { invalid: number; unknownMessage: number };
   sampleSize: number;
   days: number;
   model: string | null;
@@ -148,6 +152,17 @@ export function QualityAuditCard({
           </p>
           <p className="text-sm text-muted-foreground">{result.overall}</p>
 
+          {/* F15 (09-26): eksik rapor "bulgu yok" gibi okunmasın — boş liste YALNIZ tam değerlendirmede "uygun" demektir. */}
+          {result.status === "inconclusive" ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+              Değerlendirme eksik — denetçinin raporu tam değildi, &quot;sorun yok&quot; sonucu çıkarılamaz.
+              {result.missing.length > 0 ? ` Eksik alan: ${result.missing.join(", ")}.` : ""}
+              {result.dropped.invalid > 0 ? ` Okunamayan bulgu: ${result.dropped.invalid}.` : ""}
+              {result.dropped.unknownMessage > 0 ? ` İncelenen yanıtlarda olmayan mesaja ait bulgu: ${result.dropped.unknownMessage}.` : ""}{" "}
+              Denetimi yeniden çalıştırın.
+            </p>
+          ) : null}
+
           {result.findings.length > 0 ? (
             <ul className="divide-y divide-border rounded-lg border border-border">
               {result.findings.map((f, i) => (
@@ -168,7 +183,7 @@ export function QualityAuditCard({
                 </li>
               ))}
             </ul>
-          ) : result.sampleSize > 0 ? (
+          ) : result.status === "evaluated" && result.sampleSize > 0 ? (
             <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Bulgu yok — incelenen yanıtlar kurallara uygun.</p>
           ) : null}
 

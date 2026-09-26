@@ -71,7 +71,11 @@ export async function POST(req: NextRequest) {
         sampleSize: result.sampleSize,
         days: result.days,
         model: result.model,
+        // "0 bulgu" yalnız `evaluated` iken "uygun" demektir (F15); eksik rapor kayıtta da ayrı görünür.
+        status: result.status,
         findings: result.findings.length,
+        droppedInvalid: result.dropped.invalid,
+        droppedUnknownMessage: result.dropped.unknownMessage,
       },
     });
 

@@ -107,10 +107,18 @@ describe("POST /api/admin/quality-audit — Claude gölge denetçisi", () => {
     vi.clearAllMocks();
     vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR_EMAIL);
     vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
-    createMock.mockResolvedValue({
-      model: "claude-opus-4-8",
-      content: [{ type: "text", text: JSON.stringify(MODEL_REPORT) }],
-      usage: { input_tokens: 1200, output_tokens: 250 },
+    // Gerçekçi denetçi: bulguyu ÖRNEKLEMDEKİ bir mesaja yazar (F15, 09-26: örneklemde olmayan mesaja ait bulgu listeye
+    // girmez — eskiden sahte rapor "x" kimliğiyle geçiyordu).
+    createMock.mockImplementation(async (params: { messages: { content: string }[] }) => {
+      // İstemdeki şema tarifi de `"messageId": "..."` içerir → kimlik YALNIZ örneklem JSON bloğundan okunur.
+      const block = params.messages[0].content.split("```json")[1]?.split("```")[0] ?? "[]";
+      const sampledId = (JSON.parse(block) as { messageId: string }[])[0]?.messageId ?? "yok";
+      const report = { ...MODEL_REPORT, findings: MODEL_REPORT.findings.map((f) => ({ ...f, messageId: sampledId })) };
+      return {
+        model: "claude-opus-4-8",
+        content: [{ type: "text", text: JSON.stringify(report) }],
+        usage: { input_tokens: 1200, output_tokens: 250 },
+      };
     });
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -160,9 +168,32 @@ describe("POST /api/admin/quality-audit — Claude gölge denetçisi", () => {
 
     const audit = await prisma.auditLog.findFirst({ where: { action: "admin.quality_audit" } });
     expect(audit?.organizationId).toBe(org.id);
+    // Tam rapor → "evaluated"; durum denetim kaydında da (F15).
+    expect(data.status).toBe("evaluated");
+    expect(audit?.metadataJson).toContain('"status":"evaluated"');
 
     // SALT-OKUMA garantisi: denetim hiçbir mesaja/konuşmaya yazmadı.
     expect(await prisma.message.count()).toBe(2);
+  });
+
+  it("🚨 F15: denetçi boş nesne ya da örneklemde olmayan mesaja bulgu döndürürse rapor EKSİK — '0 bulgu = uygun' okunmaz", async () => {
+    const org = await seedCustomerOrg();
+    session = await makeOperatorSession();
+    createMock.mockResolvedValueOnce({
+      model: "claude-opus-4-8",
+      content: [{ type: "text", text: "{}" }],
+      usage: { input_tokens: 10, output_tokens: 2 },
+    });
+    const empty = await (await POST(req({ organizationId: org.id }))).json();
+    expect(empty).toMatchObject({ status: "inconclusive", missing: ["overall", "findings"], findings: [] });
+
+    createMock.mockResolvedValueOnce({
+      model: "claude-opus-4-8",
+      content: [{ type: "text", text: JSON.stringify(MODEL_REPORT) }], // "x" örneklemde yok
+      usage: { input_tokens: 10, output_tokens: 2 },
+    });
+    const unknown = await (await POST(req({ organizationId: org.id }))).json();
+    expect(unknown).toMatchObject({ status: "inconclusive", findings: [], dropped: { invalid: 0, unknownMessage: 1 } });
   });
 
   it("GÖNDERİLMEMİŞ TASLAK dışlanır (Codex): teslim edilmemiş outbox satırına bağlı AI mesajı örnekleme girmez", async () => {
@@ -198,6 +229,8 @@ describe("POST /api/admin/quality-audit — Claude gölge denetçisi", () => {
     const data = await res.json();
     expect(data.sampleSize).toBe(0);
     expect(data.findings).toEqual([]);
+    // Değerlendirilecek bir şey yoktu: "evaluated" DEĞİL (denetim kaydı "0 bulgu = uygun" diye okunmasın; mutasyon Q10).
+    expect(data.status).toBe("empty");
     expect(createMock).not.toHaveBeenCalled();
   });
 

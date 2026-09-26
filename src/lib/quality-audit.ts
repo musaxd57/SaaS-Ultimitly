@@ -323,11 +323,25 @@ export interface AuditFinding {
   suggestion: string | null;
 }
 
+/**
+ * Denetimin SONUCU (F15, Codex denetimi 09-05; düzeltme 09-26) — "değerlendiremedi" ile "bulgu yok" AYRI:
+ *  · evaluated    — rapor tam (genel değerlendirme + bulgu listesi var) ve her bulgu okundu, örneklemdeki bir mesaja bağlı;
+ *  · inconclusive — zorunlu alan eksik ya da bulgulardan biri okunamadı / örneklemde olmayan bir mesaja ait. Boş liste
+ *                   burada "kurallara uygun" DEMEK DEĞİLDİR (eskiden `{}` sıfır bulgu gibi görünüyordu);
+ *  · empty        — denetlenecek yanıt yoktu (model çağrılmadı).
+ */
+export type AuditStatus = "evaluated" | "inconclusive" | "empty";
+
 export interface AuditReport {
+  status: AuditStatus;
   overall: string;
   findings: AuditFinding[];
   promptSuggestions: string[];
   testSuggestions: string[];
+  /** Raporda olmayan ya da geçersiz zorunlu alanlar (`overall`, `findings`). */
+  missing: string[];
+  /** Listeye ALINMAYAN bulgular: okunamayan (şema dışı) ve örneklemde olmayan mesaja ait olanlar. */
+  dropped: { invalid: number; unknownMessage: number };
 }
 
 // Kapalı-set clamp'ler: bilinmeyen severity → low, bilinmeyen kriter → diger
@@ -360,8 +374,13 @@ function extractJson(text: string): string {
   return text.slice(start, end + 1);
 }
 
-/** Model yanıtını doğrulanmış rapora çevirir; bozuk yanıt = açık hata (sessiz boş rapor değil). */
-export function parseAuditReport(text: string): AuditReport {
+/**
+ * Model yanıtını doğrulanmış rapora çevirir; bozuk yanıt = açık hata (sessiz boş rapor değil).
+ * 🚨 Şemanın `.catch` varsayılanları eksik alanı sessizce doldurur — `{}` eskiden "0 bulgu" diye okunuyor ve ekran
+ * "kurallara uygun" diyordu (F15). Zorunlu alanlar HAM nesnede ayrıca denetlenir; okunamayan bulgu ve örneklemde
+ * olmayan mesaja ait bulgu listeye girmez ama SAYILIR, ikisi de raporu `inconclusive` yapar.
+ */
+export function parseAuditReport(text: string, sampleIds: ReadonlySet<string>): AuditReport {
   let raw: unknown;
   try {
     raw = JSON.parse(extractJson(text));
@@ -372,16 +391,33 @@ export function parseAuditReport(text: string): AuditReport {
   if (!shape.success) {
     throw new QualityAuditError("unparseable", "Claude yanıtı beklenen rapor şemasında değil.");
   }
-  const findings = shape.data.findings
-    .map((f) => findingSchema.safeParse(f))
-    .filter((r): r is Extract<typeof r, { success: true }> => r.success)
-    .map((r) => r.data)
-    .slice(0, 60);
+  const obj = raw as Record<string, unknown>;
+  const missing: string[] = [];
+  if (typeof obj.overall !== "string" || obj.overall.trim() === "") missing.push("overall");
+  if (!Array.isArray(obj.findings)) missing.push("findings");
+  const dropped = { invalid: 0, unknownMessage: 0 };
+  const findings: AuditFinding[] = [];
+  for (const f of shape.data.findings) {
+    const parsed = findingSchema.safeParse(f);
+    if (!parsed.success) {
+      dropped.invalid++;
+      continue;
+    }
+    if (!sampleIds.has(parsed.data.messageId)) {
+      dropped.unknownMessage++;
+      continue;
+    }
+    findings.push(parsed.data);
+  }
+  const complete = missing.length === 0 && dropped.invalid === 0 && dropped.unknownMessage === 0;
   return {
+    status: complete ? "evaluated" : "inconclusive",
     overall: shape.data.overall.trim() || "(genel değerlendirme verilmedi)",
-    findings,
+    findings: findings.slice(0, 60),
     promptSuggestions: shape.data.promptSuggestions,
     testSuggestions: shape.data.testSuggestions,
+    missing,
+    dropped,
   };
 }
 
@@ -408,6 +444,7 @@ export async function runQualityAudit(
   const pairs = await collectAuditSample(organizationId, { ...opts, days });
   if (pairs.length === 0) {
     return {
+      status: "empty",
       sampleSize: 0,
       days,
       model: null,
@@ -416,6 +453,8 @@ export async function runQualityAudit(
       findings: [],
       promptSuggestions: [],
       testSuggestions: [],
+      missing: [],
+      dropped: { invalid: 0, unknownMessage: 0 },
     };
   }
 
@@ -445,7 +484,8 @@ export async function runQualityAudit(
     .map((block) => (block.type === "text" ? block.text : ""))
     .filter(Boolean)
     .join("\n");
-  const report = parseAuditReport(text);
+  // Bulgunun mesaj kimliği örneklemde olmalı (denetçi olmayan bir mesaja bulgu yazarsa o bulgu bağlanamaz).
+  const report = parseAuditReport(text, new Set(pairs.map((p) => p.messageId)));
 
   return {
     ...report,

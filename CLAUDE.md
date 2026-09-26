@@ -617,8 +617,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   SINIR test-pinli. Bayrak kapalı davranış birebir eski. Bayrak açma onayı DEĞİL.
 - **Kalan P2 (ayrı modül turları):** F09 CSP raporu path token'ı · F10 merkezi log redaksiyonu · F11 mülk
   silmede obje temizliği · F12 audit baseline şeması · ~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26) · F14
-  sohbet hafızası/zaman · F15 kalite denetimi `{}` · F16 iCal completeness · F17 cron adaleti · F18 login savunma
-  tasarımı. F13 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
+  sohbet hafızası/zaman · ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: `evaluated/inconclusive/empty`; boş liste YALNIZ tam
+  değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · F16 iCal completeness · F17 cron adaleti · F18 login savunma
+  tasarımı. F13 ve F15 dışında hiçbiri dokunulmadı; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
 - Kaynak taraması tek yönlüdür → davranışsal test; `rejects.not.toThrow(/…/)` kullanma; senkron CPU
   zaman aşımıyla kesilemez; çapa `indexOf` −1 pinle; mutasyon `assert count==1`.
 - Ret edilenler: ETag testi (hedef yok) · HTTP/2 parser testi · kanonik-posta-kutusu kayıt limiti ·
