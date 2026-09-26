@@ -235,6 +235,16 @@ describe("serve — authenticated 302 to a SHORT-LIVED signed URL, tenant-checke
     await prisma.taskUpdate.create({ data: { taskId: other.id, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + key } });
     expect((await serveGET(req, serveCtx(key))).status).toBe(302);
   });
+
+  it("🚨 F11: bağ YALNIZ bu kiracının satırından sayılır — başka kiracının (zehirli) satırı nesneyi sunulur yapmaz", async () => {
+    const owner = await seed("owner");
+    const key = `org/${owner.orgId}/task/${owner.taskId}/888-x.png`;
+    const foreign = await seed("owner"); // oturum: yabancı kiracı; satırı bizim anahtarımızı gösteriyor
+    await prisma.taskUpdate.create({ data: { taskId: foreign.taskId, userId: foreign.userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + key } });
+    session = { userId: owner.userId, organizationId: owner.orgId, role: "owner", email: "o@x.com", name: "U", sessionEpoch: 0 };
+    stubStorageEnv(false);
+    expect((await serveGET(req, serveCtx(key))).status).toBe(404);
+  });
 });
 
 describe("property DELETE — F11: görev fotoğraflarının silme niyeti AYNI işlemde", () => {

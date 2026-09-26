@@ -81,6 +81,33 @@ describe("counterMismatch — sayaç ↔ çıkarılan danışma", () => {
   });
 });
 
+describe("betik (alt süreç) — okunamayan rapor KIRMIZI (sahte npm ile, ağ yok)", () => {
+  const ROOT = path.resolve(__dirname, "../..");
+  it("🚨 sayaç 1 zafiyet, çıkarılabilen danışma 0 → kapı 1 ile çıkar (eskiden 'yesil')", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "auditcount-"));
+    try {
+      for (const d of ["scripts", "security", "bin"]) mkdirSync(path.join(dir, d));
+      copyFileSync(path.join(ROOT, "scripts", "audit-check.mjs"), path.join(dir, "scripts", "audit-check.mjs"));
+      writeFileSync(path.join(dir, "security", "audit-baseline.json"), JSON.stringify({ accepted: [ok] }));
+      writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "t", version: "1.0.0" }));
+      writeFileSync(path.join(dir, "package-lock.json"), "{}");
+      // Biçimi değişmiş bir rapor: sayaç zafiyet diyor, `via` nesnesi (danışma) yok.
+      const report = JSON.stringify({ vulnerabilities: { pkg: { via: ["other"] } }, metadata: { vulnerabilities: { high: 1 } } });
+      writeFileSync(path.join(dir, "bin", "npm"), `#!/bin/sh\necho '${report}'\n`, { mode: 0o755 });
+      const res = spawnSync(process.execPath, [path.join(dir, "scripts", "audit-check.mjs")], {
+        cwd: dir,
+        encoding: "utf8",
+        timeout: 60_000,
+        env: { ...process.env, PATH: `${path.join(dir, "bin")}:${process.env.PATH ?? ""}`, AUDIT_RETRIES: "1" },
+      });
+      expect(res.status, res.stdout.slice(-600)).toBe(1);
+      expect(res.stdout).toContain("CIKARILAMADI");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("betik (alt süreç) — bozuk kayıt ağa çıkmadan KIRMIZI", () => {
   const ROOT = path.resolve(__dirname, "../..");
   it("🚨 expires'siz kayıt: kapı 1 ile çıkar ve sebebi söyler (lockfile/registry denetiminden ÖNCE)", () => {
