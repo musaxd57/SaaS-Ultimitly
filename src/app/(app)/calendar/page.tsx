@@ -3,6 +3,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, LogIn, LogOut } from "lucide-r
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
+import { calendarDateOf } from "@/modules/availability/core";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
@@ -105,8 +106,11 @@ export default async function CalendarPage({
     days.set(keyOf(d), { arrivals: [], departures: [], occupied: new Set() });
   }
   for (const r of reservations) {
-    const arrKey = dayKey(r.arrivalDate, tz);
-    const depKey = dayKey(r.departureDate, tz);
+    // Rezervasyonun günü TEK TARİH KURALIYLA (`calendarDateOf`, 09-26): yalnız-tarih çapası (D 00:00Z / D 12:00Z) UTC
+    // tarihidir. Ham `toLocaleDateString(tz)` New York'ta her Hospitable girişini BİR GÜN ERKEN gösteriyordu
+    // (İstanbul'da ikisi birebir aynı — pinli).
+    const arrKey = calendarDateOf(r.arrivalDate, tz).key;
+    const depKey = calendarDateOf(r.departureDate, tz).key;
     const entry = { guest: r.guestName, property: r.property.name };
     days.get(arrKey)?.arrivals.push(entry);
     days.get(depKey)?.departures.push(entry);

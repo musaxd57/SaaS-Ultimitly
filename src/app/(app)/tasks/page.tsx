@@ -114,10 +114,10 @@ export default async function TasksPage({
   ]);
 
   // Drives the Bugün / Bu hafta / Bu ay filter. Each task is bucketed by the
-  // org-local calendar day of its dueAt (daysUntilDate) — the SAME basis the
-  // card's date label uses (formatDayInTz) — so a task shown as "10 Haz" always
-  // lands in "Bugün" on the 10th (the host's local day), no matter what
-  // time-of-day it was stored at (UTC-midnight, iCal local-noon, or local-midnight).
+  // calendar day of its dueAt under the SINGLE DATE RULE (`calendarDateOf`, via
+  // `taskCardData`) — the SAME basis the card's date label uses — so a task shown
+  // as "10 Haz" always lands in "Bugün" on the 10th (the host's local day): a
+  // date-only anchor (00:00Z / 12:00Z) is its UTC date, a real instant its org-local day.
   const now = new Date();
 
   // Panoya tek dizi gider (bileşen zaten duruma göre sütunlara ayırıyor);

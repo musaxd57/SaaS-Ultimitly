@@ -166,3 +166,67 @@ describe("Takvim — gizlenen hareketler sessizce kaybolmaz", () => {
     expect(text).not.toContain("+5 diğer");
   });
 });
+
+// ---------------------------------------------------------------------------
+// TEK TARİH KURALI (09-26): rezervasyonun takvim günü `calendarDateOf` ile — yalnız-tarih çapası (D 00:00Z / D 12:00Z)
+// UTC tarihidir. Ham `toLocaleDateString(tz)` New York'ta her Hospitable girişini BİR GÜN ERKEN gösteriyordu.
+// ---------------------------------------------------------------------------
+describe("Takvim — rezervasyon günü tek tarih kuralıyla", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  /** Mobil ajandada bir günün satırının metni (React anahtarı = gün); o gün hareket yoksa null. */
+  function agendaDay(root: unknown, key: string): string | null {
+    let found: string | null = null;
+    const walk = (node: unknown): void => {
+      if (found !== null || node == null || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        for (const n of node) walk(n);
+        return;
+      }
+      if (React.isValidElement(node)) {
+        if (node.type === "li" && node.key === key) {
+          found = treeText(node);
+          return;
+        }
+        for (const v of Object.values((node.props ?? {}) as Record<string, unknown>)) walk(v);
+      }
+    };
+    walk(root);
+    return found;
+  }
+
+  async function stayIn(timezone: string, guestName: string) {
+    const org = await prisma.organization.create({ data: { name: "Tz Org", timezone } });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire T" } });
+    await prisma.reservation.create({
+      data: {
+        propertyId: property.id,
+        guestName,
+        arrivalDate: new Date("2026-09-26T00:00:00.000Z"),
+        departureDate: new Date("2026-09-29T00:00:00.000Z"),
+        status: "confirmed",
+      },
+    });
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+  }
+
+  it("🚨 New York: 26 Eylül (00:00Z) girişi 26'sında, çıkışı 29'unda — 25'inde DEĞİL", async () => {
+    await stayIn("America/New_York", "NyMisafir");
+    const tree = await CalendarPage({ searchParams: sp({ month: "2026-09" }) });
+    expect(agendaDay(tree, "2026-09-26")).toContain("NyMisafir");
+    expect(agendaDay(tree, "2026-09-29")).toContain("NyMisafir");
+    expect(agendaDay(tree, "2026-09-25")).toBeNull();
+    expect(agendaDay(tree, "2026-09-28")).toBeNull();
+  });
+
+  it("İstanbul: aynı kayıt aynı günlerde (eskisiyle birebir)", async () => {
+    await stayIn("Europe/Istanbul", "IstMisafir");
+    const tree = await CalendarPage({ searchParams: sp({ month: "2026-09" }) });
+    expect(agendaDay(tree, "2026-09-26")).toContain("IstMisafir");
+    expect(agendaDay(tree, "2026-09-29")).toContain("IstMisafir");
+    expect(agendaDay(tree, "2026-09-25")).toBeNull();
+  });
+});

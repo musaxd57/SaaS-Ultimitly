@@ -5,8 +5,8 @@
 // ---------------------------------------------------------------------------
 
 import type { TaskCardData } from "@/components/tasks/task-board";
-import { daysUntilDate, formatDayInTz, formatTime, safeJsonParse } from "@/lib/utils";
-import { calendarDateOf } from "@/modules/availability/core";
+import { formatDayInTz, formatTime, safeJsonParse } from "@/lib/utils";
+import { calendarDateOf, nightsBetween, todayKey } from "@/modules/availability/core";
 import { cleanerTaskTitle } from "./staff-view";
 
 /**
@@ -45,6 +45,9 @@ export function taskCardData(
   const checklist = Array.isArray(parsedChecklist) ? parsedChecklist : [];
   const latestUpdate = t.updates[0] ?? null;
   const cleanerTitle = cleanerTaskTitle(t);
+  // Vadenin GÜNÜ tek tarih kuralıyla (`calendarDateOf`, 09-26): yaşam döngüsü vadesi yalnız-tarih çapasıdır. Ham
+  // "an → yerel gün" New York'ta kartı ve "Bugün" süzgecini bir gün ERKEN gösteriyordu (İstanbul'da birebir aynı).
+  const due = t.dueAt ? calendarDateOf(t.dueAt, ctx.timeZone) : null;
   return {
     id: t.id,
     title: ctx.canManage ? t.title : cleanerTitle,
@@ -54,8 +57,8 @@ export function taskCardData(
     status: t.status,
     propertyName: t.property.name,
     assigneeName: t.assignedTo?.name ?? null,
-    dueLabel: t.dueAt ? formatDayInTz(t.dueAt, ctx.timeZone) : null,
-    dueDays: t.dueAt ? daysUntilDate(t.dueAt, ctx.now, ctx.timeZone) : null,
+    dueLabel: due ? formatDayInTz(new Date(`${due.key}T12:00:00.000Z`), "UTC") : null,
+    dueDays: due ? nightsBetween(todayKey(ctx.now, ctx.timeZone), due.key) : null,
     checklist: checklist.length > 0 ? { items: checklist } : null,
     latestPhotoUrl: ctx.latestPhotoUrl,
     latestNote: latestUpdate?.note ?? null,
