@@ -170,6 +170,7 @@ model Organization {
   ingestEvents       IngestEvent[]
   signals            Signal[]
   propertyMemories   PropertyMemory[]
+  conversationItems  ConversationItem[]
   properties         Property[]
   automationRules    AutomationRule[]
   auditLogs          AuditLog[]
@@ -603,10 +604,11 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  property    Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   messages    Message[]
   signals     Signal[]
+  items       ConversationItem[]
 
   // THREAD IDENTITY (migration 45). One provider thread = at most one row.
   //
@@ -1242,6 +1244,38 @@ model Signal {
 
   @@index([organizationId, occurredAt])
   @@index([propertyId, category, occurredAt])
+}
+
+// KONUŞMA ÖĞESİ (migration 56, 09-26 — kurucu kararları; tasarım `docs/TASARIM-2026-09-26-konusma-ogeleri.md`).
+// Misafirin bir mesajındaki TEK istek/soru. Hassas istek sessizce ev sahibinde açık kalır, güvenli istek cevaplanır;
+// eski risk yeni mesajla KAYBOLMAZ ama konuşmayı da BLOKE ETMEZ. METİN YOK (PII yok): yalnız kimlikler + kapalı-küme
+// kodlar (uygulama zorlar). `messageId` düz kimlik (FK yok, `RiskEvent` emsali: KVKK süpürgesi mesajı anonimleştirir).
+/// Misafirin bir mesajındaki TEK istek/soru (09-26, kurucu kararları; `src/lib/conversation-items/`). METİN/PII YOK:
+/// yalnız kimlikler + kapalı küme kodlar. Bir mesajda her tür (kind) BİR kez: kelime ağı (senkron uyarı geçişi) ve anlama
+/// katmanı (cevap geçişi) aynı öğeyi BİRLEŞTİRİR — hassaslık yalnız yükselir.
+model ConversationItem {
+  id                  String    @id @default(cuid())
+  organizationId      String
+  conversationId      String
+  messageId           String // kaynak misafir mesajı (düz kimlik, FK yok — RiskEvent emsali)
+  requestIndex        Int       @default(0) // mesaj içindeki ilk görülme sırası (yalnız görüntü sırası)
+  kind                String // anlama katmanı niyeti (kapalı küme; "other" dahil)
+  sensitivity         String    @default("none") // none | sensitive | emergency — yalnız YÜKSELİR
+  riskType            String? // hassaslığın ilk gerekçesi (kapalı küme etiket)
+  sources             String // virgüllü kapalı küme: lexical, understanding, reply_model
+  status              String    @default("open") // open | pending_host | answered | withdrawn | superseded | done
+  notifiedAt          DateTime? // ev sahibine acil e-posta (atomik claim; gönderilemezse geri alınır)
+  answeredByMessageId String?
+  resolvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, messageId, kind])
+  @@index([organizationId, status])
+  @@index([conversationId, status])
 }
 
 // PropertyMemory = "yaşayan hafıza" kalemi. Değişmez 13: evidence/source · confidence ·
