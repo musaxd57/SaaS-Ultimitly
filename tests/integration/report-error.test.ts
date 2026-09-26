@@ -436,7 +436,7 @@ describe("redactSensitive", () => {
     // Süre iddiası makineye bağlı; bu satır değil. İkisi birlikte, korumanın
     // hem VARLIĞINI hem ETKİSİNİ tutuyor.
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync("src/lib/report-error-core.ts", "utf8")
+    const src = readFileSync("src/lib/redact.ts", "utf8") // F10: redaksiyon yaprak modüle taşındı
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
       .join("\n");

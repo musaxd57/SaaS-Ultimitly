@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { BodyTooLargeError, readTextCapped } from "@/lib/api";
 import { cspDirectiveForLog, cspDispositionForLog, cspUrlForLog } from "@/lib/csp-report-fields";
-import { redactSensitive } from "@/lib/report-error";
+import { redactSensitive } from "@/lib/redact";
 
 export const dynamic = "force-dynamic";
 

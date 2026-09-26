@@ -10,12 +10,14 @@
 // same authenticated path the external scheduler uses. Both triggers are
 // idempotent and guarded by an in-process lock, so running both is safe.
 
-// ⚠️ TEK STATİK IMPORT ve bilinçli: `retrieval/flag.ts` bir YAPRAK modüldür
+// ⚠️ YALNIZ YAPRAK MODÜL IMPORTLARI ve bilinçli: `retrieval/flag.ts` bir YAPRAK modüldür
 // (hiçbir şey import etmez, Prisma/nodemailer taşımaz), yani yukarıdaki "ağır
 // server-only modülleri bundle'a sokma" kuralını ihlal etmez. Env'i doğrudan
 // okumak da SEÇENEK DEĞİL: `KB_RETRIEVAL_MODE`un tek okuyucusunun flag.ts
 // olduğu mekanik olarak pinli (kb-retrieval-evidence-prompt.test.ts).
 import { kbRetrievalModeInfo, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
+// İkinci yaprak modül (F10): merkezî redaksiyon — hiçbir şey import etmez, Prisma/nodemailer taşımaz.
+import { formatErrorForLog } from "@/lib/redact";
 
 const INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -88,7 +90,7 @@ export async function register() {
         );
       }
     } catch (err) {
-      console.error("[internal-cron] tick failed", err);
+      console.error(`[internal-cron] tick failed :: ${formatErrorForLog(err)}`);
     }
   };
 
@@ -122,7 +124,7 @@ export async function register() {
           });
           if (!res.ok) console.error(`[email-outbox-poller] tick HTTP ${res.status}`);
         } catch (err) {
-          console.error("[email-outbox-poller] tick failed", err);
+          console.error(`[email-outbox-poller] tick failed :: ${formatErrorForLog(err)}`);
         }
       };
       setTimeout(outboxTick, 20_000);

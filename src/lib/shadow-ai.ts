@@ -9,7 +9,7 @@ import {
   resolveCompatKey,
 } from "@/lib/ai/openai-compat";
 import { isReasoningModel } from "@/lib/ai/model-family";
-import { redactSensitive } from "@/lib/report-error";
+import { formatErrorForLog, redactSensitive } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
 import { RISK_TYPES } from "@/lib/risk-events";
 import { isSecureExternalUrl } from "@/lib/secure-url";
@@ -342,6 +342,6 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
   } catch (err) {
     // Her şey yutulur — gölge, mesajlaşmayı ASLA etkileyemez. Sessiz ölüm
     // görünür kalsın diye log (reportError e-postası burada aşırı olur).
-    console.error("[shadow-ai] persist/beklenmedik hata:", err instanceof Error ? err.message : err);
+    console.error(`[shadow-ai] persist/beklenmedik hata: ${formatErrorForLog(err)}`); // F10: ham ileti değil
   }
 }

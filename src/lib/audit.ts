@@ -117,7 +117,9 @@ export async function writeAudit(entry: {
     // guest-erasure) stays visible to operators. The action is folded into the
     // context so ops can tell WHICH mandatory legal record dropped (and re-record
     // it) without opening the payload. reportError never throws and redacts PII.
-    console.error("[audit] dropped entry", entry.action, err);
+    // ⚠️ AYRI bir ham `console.error(err)` satırı YOK (F10, Codex 09-05): `reportError` düşüşü zaten redakte ederek
+    // loga yazar; ham satır Prisma'nın "Invalid invocation" metnini (yazılan metadata dahil) ve `cause` zincirini
+    // olduğu gibi Railway loguna taşıyordu (ölçüldü: e-posta ve telefon aynen görünüyordu).
     void reportError(`audit.write:${entry.action}`, err);
   }
 }

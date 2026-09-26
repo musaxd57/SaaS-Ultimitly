@@ -10,6 +10,8 @@
 // If neither is configured, logs to the console (dev mode). Never throws.
 // ---------------------------------------------------------------------------
 
+import { redactSensitive } from "./redact";
+
 export interface SendEmailOptions {
   to: string;
   subject: string;
@@ -19,22 +21,15 @@ export interface SendEmailOptions {
 // A plain-text alternative for every email. HTML-only mail scores worse with spam
 // filters (Gmail/Outlook) and renders poorly in text clients; a text part raises
 // inbox placement — important for the account-takeover-sensitive password code.
-// Strip e-mail addresses + long digit runs from a provider error before it hits the
-// logs — a provider's 4xx body can echo the recipient. Self-contained (no import of
-// report-error's redactSensitive, which would create an email.ts ↔ report-error.ts
-// cycle). Not a full PII scrubber; just the shapes a mail-provider error can carry.
+// Provider error → log: a provider's 4xx body can echo the recipient (and a name /
+// phone). F10 (Codex 09-05): the CENTRAL redaction (`lib/redact.ts`, a leaf module)
+// is used — the old self-contained copy existed only because importing
+// report-error's redactor created an email ↔ report-error cycle, and it masked
+// just e-mail + long digit runs (a spaced phone number leaked; measured).
 function scrubForLog(s: string | undefined): string {
-  // ⚠️ ÖNCE KIRP, SONRA REGEX. Kardeş redaksiyon (`report-error-core.ts`) bu
-  // e-posta kalıbının niceliklerini ReDoS yüzünden sınırlamıştı; buradaki kopya
-  // sınırsız kalmıştı (ölçüldü: 64 KB girdi 20 sn). Bugün girdisi zaten
-  // kırpılmış olduğu için sömürülebilir DEĞİL — ama "çağıran kırpıyor" bir
-  // uzaklık varsayımıdır ve yeni bir çağıran onu bilmez. Kırpma en başa alındı:
-  // sonuç zaten 300 karaktere iniyordu, yani davranış değişmiyor.
-  return (s ?? "")
-    .slice(0, 2000)
-    .replace(/[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,24}/g, "[EMAIL]")
-    .replace(/\b\d{6,}\b/g, "[NUM]")
-    .slice(0, 300);
+  // ⚠️ ÖNCE KIRP, SONRA REDAKSİYON, SONRA 300: iş sınırlı kalır (girdi en fazla 2000);
+  // görünen pencere (ilk 300) redaksiyondan geçmiş metindir.
+  return redactSensitive((s ?? "").slice(0, 2000)).slice(0, 300);
 }
 
 function htmlToText(html: string): string {
@@ -144,10 +139,9 @@ class EmailService {
       return;
     }
     const result = await this.sendReporting(to, subject, html);
-    // Secret-free: never the recipient/subject/body/token — only a scrubbed provider
-    // error (a provider's 4xx body can echo the "to" address). email.ts can't import
-    // report-error's redactor (report-error imports emailService → cycle), so scrub
-    // e-mail addresses + long digit runs locally.
+    // Secret-free: never the recipient/subject/body/token — only a provider error
+    // passed through the central redaction (a provider's 4xx body can echo the "to"
+    // address, a name or a phone).
     if (!result.ok) console.error("[EmailService] send failed:", scrubForLog(result.error));
   }
 

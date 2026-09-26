@@ -7,6 +7,7 @@
 
 import { isIP } from "node:net";
 import { prisma } from "@/lib/db";
+import { formatErrorForLog } from "@/lib/redact";
 
 type Bucket = { count: number; resetAt: number };
 
@@ -95,8 +96,8 @@ function warnDbUnavailable(err: unknown) {
   const now = Date.now();
   if (now - lastDbWarnAt < 60_000) return;
   lastDbWarnAt = now;
-  const msg = err instanceof Error ? `${err.name}: ${err.message.slice(0, 200)}` : "unknown";
-  console.error(`[rate-limit] DB sayacına ulaşılamadı, yerel (instance-içi) sayaç devrede :: ${msg}`);
+  // F10: sürücünün DETAIL satırı çakışan anahtarın DEĞERİNİ taşır (`login-acct:<e-posta>`) → merkezî redaksiyon.
+  console.error(`[rate-limit] DB sayacına ulaşılamadı, yerel (instance-içi) sayaç devrede :: ${formatErrorForLog(err, 300)}`);
 }
 
 /** The old per-instance limiter, now the DB-error fallback. Same semantics. */
@@ -330,6 +331,7 @@ export function pickClientHop(parts: string[], hops: number): string {
  *  each test's resetDb). Kept synchronous — existing tests call it fire-and-forget. */
 export function __resetRateLimit() {
   buckets.clear();
+  lastDbWarnAt = 0; // uyarı kısıtı da (test: her test kendi uyarısını görebilsin)
 }
 
 // Drop expired buckets occasionally so the map can't grow without bound.
