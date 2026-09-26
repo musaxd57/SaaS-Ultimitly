@@ -1234,7 +1234,10 @@ katmanı kapalıyken açık sayılmaz. Açma = migration + ücretli ölçüm + k
 cevap KAYDEDİLMEZ; gösterimde müsaitlik uyarısı yeniden hesaplanır; bayrak kapalıyken gösterilmez. Mülke özgü ev kuralları
 (#188, `docs/TASARIM-2026-09-26-ev-kurallari-politikasi.md`) ONAYLANDI ("en mantıklı şekilde"): yasak kural NAZİK söylenir;
 açma sırası migration 57 (taze yedek + onay) → kural kartı → gölge → ücretli ölçüm → onay; "izinli" parti / ek misafir /
-sessiz saat ev sahibinde kalır. Saf çekirdek `house-rules/core.ts` canlıda, çağıranı YOK.
+sessiz saat ev sahibinde kalır. Saf çekirdek `house-rules/core.ts` canlıda, çağıranı YOK. Dilim 2 (migration'sız): depo
+`house-rules/store.ts` erken giriş kuralıyla AYNI tabloda (`AutomationRule`, mülk başına tek satır, aynı kilit sırası), yönetici
+kapılı `PUT …/house-rules`, mülk silme kuralı aynı işlemde siler, kart `HOUSE_RULES_CARD_ENABLED=1` iken (varsayılan KAPALI;
+"yapay zekâ henüz kullanmıyor" der).
 Canlı değişkenler (kurucu 09-26 ekledi, sürüm Active — ekran görüntüsü): `AI_CONVERSATION_ITEMS_ENABLED=1` +
 `KB_SEMANTIC_RETRIEVAL=1`; yeniden sıralayıcı (`KB_RERANK_ENABLED`, #186) bağlandı, açmak ayrı adım.
 

@@ -88,6 +88,9 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
   yok = her konu "bana sor"), `PUT /api/properties/[id]/house-rules` (yönetici; personel 403; başka kiracı 404; ev sahibinin seçimi
   ONAY; denetim kaydı konu adıyla, seçim değeri olmadan), mülk silme kuralı aynı işlemde siler, kart "Ev kuralları" (6 konu ×
   İzinli / Yasak / Bana sor). Kart ve rota `HOUSE_RULES_CARD_ENABLED=1` iken var (varsayılan KAPALI); kart "yapay zekâ bu
-  kuralları henüz kullanmıyor" der — karar hâlâ YOK, davranış değişmez.
+  kuralları henüz kullanmıyor" der — karar hâlâ YOK, davranış değişmez. Kırmızı-önce: mülk silme iki testi kırmızıydı (silinen
+  mülkün kuralı kalıyordu — gerçek eksik). Mutasyon 19/19 (iki yaşayan → "en yeni satır okunur" + "eşzamanlı silmede rota 404,
+  denetim yok" pinleri); iki doğrulayıcıdaki "en fazla 6 kalem" sınırı ÖLÜ KODDU (6 konu var, 7. kalem zaten tekrar/bilinmeyen),
+  silindi.
 - Sonraki: anlama katmanına `rule_topic`/`stance` (bayrak kapalı, istem bayt bayt aynı) → kapıya bağlama (gölge: kayıt,
   karar eski) → ücretli kör ölçüm → kurucu onayı. Yapay zekâ önerisi (bilgi tabanından `suggested`) ayrı dilim.
