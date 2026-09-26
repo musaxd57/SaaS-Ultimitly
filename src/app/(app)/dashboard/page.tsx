@@ -28,7 +28,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { CONVERSATION_STATUS, PRIORITY, TASK_TYPE } from "@/lib/constants";
-import { formatTime, truncate } from "@/lib/utils";
+import { truncate } from "@/lib/utils";
+import { taskDueTimeLabel } from "@/lib/tasks/card-data";
 import { guestCheckoutNote } from "@/lib/guest-checkout-time";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
@@ -441,22 +442,25 @@ export default async function DashboardPage() {
                 className="py-6"
               />
             ) : (
-              sortedTasksToday.map((t) => (
-                <Link
-                  key={t.id}
-                  href="/tasks"
-                  className="block rounded-lg border border-border px-3 py-2 hover:bg-accent"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">{t.title}</p>
-                    <Badge tone={PRIORITY.tone(t.priority)}>{PRIORITY.label(t.priority)}</Badge>
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {TASK_TYPE.label(t.type)} · {t.property.name}
-                    {t.dueAt ? ` · ${formatTime(t.dueAt, TZ)}` : ""}
-                  </p>
-                </Link>
-              ))
+              sortedTasksToday.map((t) => {
+                const dueTime = taskDueTimeLabel(t.dueAt, TZ);
+                return (
+                  <Link
+                    key={t.id}
+                    href="/tasks"
+                    className="block rounded-lg border border-border px-3 py-2 hover:bg-accent"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{t.title}</p>
+                      <Badge tone={PRIORITY.tone(t.priority)}>{PRIORITY.label(t.priority)}</Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {TASK_TYPE.label(t.type)} · {t.property.name}
+                      {dueTime ? ` · ${dueTime}` : ""}
+                    </p>
+                  </Link>
+                );
+              })
             )}
           </CardContent>
         </Card>

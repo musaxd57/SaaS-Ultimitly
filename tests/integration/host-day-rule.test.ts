@@ -234,6 +234,24 @@ describe("Pano — 'Bugünkü Girişler / Çıkışlar / Görevler' ve durum kar
   });
 });
 
+describe("Pano 'Bugünkü Görevler' — vadenin SAATİ yalnız gerçek anda (167a)", () => {
+  it("🚨 İstanbul: yalnız-tarih vade (yaşam döngüsü 00:00Z / iCal 12:00Z) saat göstermez; gerçek an org saatinde görünür", async () => {
+    freeze("2026-09-26T15:00:00Z");
+    const { orgId, propertyId } = await orgIn(IST);
+    const task = (title: string, dueAt: string) =>
+      prisma.task.create({ data: { propertyId, type: "cleaning", title, dueAt: new Date(dueAt) } });
+    await task("Tarih Vadeli A", "2026-09-26T00:00:00.000Z"); // eskiden "· 03:00" (gece üçte temizlik gibi)
+    await task("Tarih Vadeli B", "2026-09-26T12:00:00.000Z"); // eskiden "· 15:00"
+    await task("Saatli Is", "2026-09-26T07:30:00.000Z"); // İstanbul 10:30
+    asOwner(orgId);
+    const text = treeText(await DashboardPage());
+    for (const title of ["Tarih Vadeli A", "Tarih Vadeli B", "Saatli Is"]) expect(text, title).toContain(title);
+    expect(text).not.toContain("· 03:00");
+    expect(text).not.toContain("· 15:00");
+    expect(text).toContain("· 10:30");
+  });
+});
+
 describe("Görevler sayfası — 'Eksik görevleri oluştur' sayısı görev oluşturma ile AYNI kural", () => {
   it("🚨 New York: bugün çıkan, temizlik görevi olmayan konaklama sayılır; oluşturunca düğme kalkar", async () => {
     freeze("2026-09-26T15:00:00Z");

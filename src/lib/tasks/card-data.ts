@@ -5,8 +5,19 @@
 // ---------------------------------------------------------------------------
 
 import type { TaskCardData } from "@/components/tasks/task-board";
-import { daysUntilDate, formatDayInTz, safeJsonParse } from "@/lib/utils";
+import { daysUntilDate, formatDayInTz, formatTime, safeJsonParse } from "@/lib/utils";
+import { calendarDateOf } from "@/modules/availability/core";
 import { cleanerTaskTitle } from "./staff-view";
+
+/**
+ * Vadenin SAATİ yalnız gerçek bir anda anlamlıdır (09-26). Yaşam döngüsü görevinin vadesi rezervasyon TARİHİDİR — "yalnız
+ * tarih" çapası (D 00:00Z / D 12:00Z, `calendarDateOf`); saatini göstermek panoda İstanbul'da "Çıkış temizliği · 03:00"
+ * (iCal'de 15:00) yazıyordu, sanki temizlik gece üçteymiş gibi. Çapa → null (saat yok); gerçek an → org diliminde saat.
+ */
+export function taskDueTimeLabel(dueAt: Date | null, timeZone: string): string | null {
+  if (!dueAt || calendarDateOf(dueAt, timeZone).anchor !== "instant") return null;
+  return formatTime(dueAt, timeZone);
+}
 
 type ChecklistItem = { label: string; done: boolean };
 
