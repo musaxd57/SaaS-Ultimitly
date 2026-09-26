@@ -10,7 +10,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
-import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } from "@/lib/kb-placeholders";
+import { GUEST_NAME_FALLBACK, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
@@ -71,10 +71,12 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // the KB reaches the model, so a literal "{isim}" can never appear in the
   // suggestion. Single source: @/lib/kb-placeholders (four surfaces share it).
   // Inbox path: the counterpart IS the reservation holder → real first name.
-  const kb = fillGuestPlaceholdersInItems(kbRaw, {
+  // #189: ikame SEÇİMDEN SONRA (`retrieveKbForPrompt` `placeholders`) — seçim ham metinle koşar, misafir adı parça metnini
+  // misafire özgü yapıp anlamsal önbelleği soğutmaz. Legacy / geri çekilmede de sonuç kalemleri aynı değerlerle doldurulur.
+  const kbPlaceholders = {
     guestFirstName: guestFirstNameOf(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK,
     propertyName: conversation.property.name,
-  });
+  };
 
   // Same learned style profile the auto-reply pass uses, for consistent voice.
   const org = await prisma.organization.findUnique({
@@ -92,9 +94,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     : null;
 
   // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — oto-yanıt ve QR ile aynı seçici,
-  // bayrak kapalıyken kimlik (`kbSel.items === kb`, `droppedItems === 0`).
+  // bayrak kapalıyken kalemler aynı (yer tutucular doldurulmuş), `droppedItems === 0`.
   const kbSel = await retrieveKbForPrompt({
-    items: kb,
+    items: kbRaw,
+    placeholders: kbPlaceholders,
     guestMessage: lastInbound.body,
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
     redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],

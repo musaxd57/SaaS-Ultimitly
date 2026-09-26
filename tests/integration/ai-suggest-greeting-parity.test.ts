@@ -254,3 +254,39 @@ describe("POST /api/conversations/[id]/ai-suggest — geçmiş satırı yazar + 
     expect(payload.guestMessageAt?.getTime()).toBe(rows[2].createdAt.getTime());
   });
 });
+
+describe("gelen kutusu önerisi — yer tutucu ikamesi SEÇİMDEN SONRA (#189)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    mockSuggest.mockResolvedValue(REPLY);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  for (const mode of ["hybrid", "legacy"] as const) {
+    it(`${mode}: modele giden bilgi tabanında {isim} misafirin adıyla çözülmüş (ham belirteç yok)`, async () => {
+      vi.stubEnv("KB_RETRIEVAL_MODE", mode);
+      const id = await seed([{ direction: "inbound", body: "Karşılama notunuz nerede?" }]);
+      const conv = await prisma.conversation.findUniqueOrThrow({ where: { id }, select: { propertyId: true } });
+      await prisma.knowledgeBaseItem.create({
+        data: { propertyId: conv.propertyId, category: "general", title: "Karşılama {isim}", content: "Merhaba {isim}, karşılama notu buzdolabının üstündedir.", isActive: true, source: "host_manual", reviewState: "approved" },
+      });
+      const res = await aiSuggest(
+        new NextRequest(`http://localhost/api/conversations/${id}/ai-suggest`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        }),
+        { params: Promise.resolve({ id }) },
+      );
+      expect(res.status).toBe(200);
+      const kb = mockSuggest.mock.calls[0][0].knowledgeBase as { title: string; content: string }[];
+      const text = kb.map((k) => `${k.title}\n${k.content}`).join("\n");
+      expect(text).toContain("Merhaba Alex, karşılama notu");
+      expect(text).toContain("Karşılama Alex");
+      expect(text).not.toContain("{isim}");
+    });
+  }
+});

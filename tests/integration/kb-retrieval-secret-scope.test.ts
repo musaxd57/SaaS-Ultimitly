@@ -38,6 +38,8 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/chat/[token]/route";
 import { applyChannelAutoReply } from "@/lib/automation";
 import { sendOnChannel } from "@/lib/messaging";
+import { __awaitSemanticWarm, __resetSemanticRetrieval } from "@/lib/ai/embeddings/semantic-retrieval";
+import { EMBEDDING_DIMENSIONS } from "@/lib/ai/embeddings/provider";
 
 const DAY = 86_400_000;
 const SECRET_FAQ = { category: "faq", title: "Giriş notu", content: "Kapı kodu 4590, anahtar kutusu 2288." };
@@ -202,5 +204,99 @@ describe("Oto-yanıt yolu — hibrit AÇIK: onaysız konaklamada sır bacakları
     const sentIds = input.knowledgeBase.map((k) => k.id);
     expect(sentIds).toContain(ids["Giriş notu"]);
     expect(sentIds).not.toContain(ids["Otopark taslak"]);
+  });
+});
+
+describe("Oto-yanıt yolu — yer tutucu ikamesi SEÇİMDEN SONRA (#189): modele giden metin çözülmüş, sır kararı ikame SONRASI metinle", () => {
+  async function seed(status: string | null, propertyName: string, extra: { category: string; title: string; content: string }[]) {
+    const org = await prisma.organization.create({
+      data: { name: "Test Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
+    });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: propertyName } });
+    const reservation = status
+      ? await prisma.reservation.create({
+          data: { propertyId: property.id, guestName: "Alex", arrivalDate: new Date(Date.now() - DAY), departureDate: new Date(Date.now() + 2 * DAY), status, channel: "airbnb", currency: "EUR", sourceReference: "res-1" },
+        })
+      : null;
+    const conversation = await prisma.conversation.create({
+      data: {
+        propertyId: property.id,
+        channel: "airbnb",
+        guestIdentifier: "Alex",
+        status: "new",
+        externalReservationId: "res-1",
+        reservationId: reservation?.id ?? null,
+        messages: { create: [{ direction: "inbound", senderName: "Alex", body: "Karşılama notunuz ve kapı bilgisi nedir, otopark var mı?", createdAt: new Date(Date.now() - 60_000) }] },
+      },
+      select: { id: true },
+    });
+    const ids = await seedKb(property.id, extra);
+    return { conversationId: conversation.id, ids };
+  }
+
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "hybrid");
+    mockSuggest.mockResolvedValue(model());
+    vi.mocked(sendOnChannel).mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
+  });
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    await prisma.$disconnect();
+  });
+
+  it("seçilen karşılama kalemi misafirin ADIYLA ve daire numarasıyla modele gider (ham belirteç yok)", async () => {
+    const WELCOME = { category: "general", title: "Karşılama notu", content: "Merhaba {isim}, {daire} numaralı daireye hoş geldiniz. Karşılama notu buzdolabının üstündedir." };
+    const { conversationId, ids } = await seed("confirmed", "Lale 7", [WELCOME, PARKING]);
+    await applyChannelAutoReply(conversationId);
+    const input = mockSuggest.mock.calls[0][0] as Input;
+    expect(input.knowledgeBaseSelection).toBe("retrieved");
+    const welcome = input.knowledgeBase.find((k) => k.id === ids["Karşılama notu"]);
+    expect(welcome, "karşılama kalemi seçilmeli (ölçüm önkoşulu)").toBeDefined();
+    expect(welcome!.content).toContain("Merhaba Alex, 7 numaralı");
+    for (const k of input.knowledgeBase) expect(`${k.title} ${k.content}`).not.toMatch(/\{(isim|daire)\}/i);
+  });
+
+  it("🚨 seçim HAM metinle: anlamsal ısıtmaya giden parça metni '{isim}' taşır, misafirin ADINI değil (önbellek misafirler arası ortak)", async () => {
+    vi.stubEnv("KB_SEMANTIC_RETRIEVAL", "1");
+    __resetSemanticRetrieval();
+    const embedded: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: { body: string }) => {
+        if (!String(url).includes("/embeddings")) throw new Error(`beklenmeyen ağ çağrısı ${String(url)}`);
+        const { input } = JSON.parse(init.body) as { input: string[] };
+        embedded.push(...input);
+        const vec = (i: number) => Array.from({ length: EMBEDDING_DIMENSIONS }, (_, d) => (d === i % EMBEDDING_DIMENSIONS ? 1 : 0.001));
+        return { ok: true, status: 200, headers: new Headers(), json: async () => ({ data: input.map((_, index) => ({ index, embedding: vec(index) })) }) };
+      }),
+    );
+    try {
+      const WELCOME = { category: "general", title: "Karşılama notu", content: "Merhaba {isim}, karşılama notu buzdolabının üstündedir." };
+      const { conversationId } = await seed("confirmed", "Lale 7", [WELCOME, PARKING]);
+      await applyChannelAutoReply(conversationId);
+      await __awaitSemanticWarm();
+      const all = embedded.join("\n");
+      expect(all, "ısıtma hiç koşmadı (ölçüm önkoşulu)").toContain("karşılama notu buzdolabının");
+      expect(all).toContain("Merhaba {isim}");
+      expect(all).not.toContain("Merhaba Alex");
+    } finally {
+      vi.unstubAllGlobals();
+      __resetSemanticRetrieval();
+    }
+  });
+
+  it("🚨 sır kararı İKAME SONRASI metinle: '{daire}' kapı koduna dönüşen kalem rezervasyonsuz misafire seçiciye ULAŞMAZ", async () => {
+    // Mülk adı "Daire 4590" → "{daire}" = 4590 → "Kapı kodu: 4590" (sır kalıbı). Ham metin ("Kapı kodu: {daire}") sır gibi
+    // görünmez; karar ham metinle verilseydi kalem seçiciye gider, ikameden sonra kodu modele taşırdı.
+    const DOOR = { category: "faq", title: "Kapı notu", content: "Kapı kodu: {daire}" };
+    const { conversationId, ids } = await seed(null, "Daire 4590", [DOOR, PARKING]);
+    await applyChannelAutoReply(conversationId);
+    const input = mockSuggest.mock.calls[0][0] as Input;
+    expect(input.knowledgeBase.map((k) => k.id)).not.toContain(ids["Kapı notu"]);
+    expect(input.knowledgeBase.map((k) => k.content).join("\n")).not.toMatch(/4590/);
   });
 });

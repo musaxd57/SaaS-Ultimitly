@@ -21,11 +21,7 @@ import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
-import {
-  fillGuestPlaceholdersInItems,
-  guestFirstNameOf,
-  GUEST_NAME_FALLBACK,
-} from "@/lib/kb-placeholders";
+import { guestFirstNameOf, GUEST_NAME_FALLBACK } from "@/lib/kb-placeholders";
 
 // ---------------------------------------------------------------------------
 // AI reply PLAYGROUND — safe dry-run.
@@ -109,10 +105,11 @@ export const POST = withManage(async (session, req) => {
   // özelliği açıyor. Ayrışan bir önizleme, dayanaksız bir kalite onayıdır.
   // Hitap da `suggestReply`a verilen AYNI addan türer (↓ `TEST_GUEST_NAME`),
   // yoksa kart kendi içinde tutarsız olurdu.
-  const kb = fillGuestPlaceholdersInItems(kbRaw, {
+  // #189: ikame SEÇİMDEN SONRA — üretimle (oto-yanıt, öneri) aynı sıra (`retrieveKbForPrompt` `placeholders`).
+  const kbPlaceholders = {
     guestFirstName: guestFirstNameOf(TEST_GUEST_NAME) ?? GUEST_NAME_FALLBACK,
     propertyName: property.name,
-  });
+  };
 
   const org = await prisma.organization.findUnique({
     where: { id: session.organizationId },
@@ -134,7 +131,7 @@ export const POST = withManage(async (session, req) => {
   // as a real inbox conversation, which is always tied to a booking. The
   // result is only returned, never sent and never persisted.
   // RAG dilim 1 (09-09): üretimle PARİTE — test kartı da aynı seçiciden geçer
-  // (bayrak kapalıyken kimlik: `kbSel.items === kb`).
+  // (bayrak kapalıyken kalemler aynı, yer tutucular doldurulmuş).
   const now = new Date();
   // Örnek misafir DÜN girdi, çıkışa 3 gün var (konaklama sürüyor). 09-25 zaman bağlamı takvim günüyle çalışıyor: varış
   // "şimdi" olunca evre "Giriş BUGÜN" oluyordu — eski "şu an konaklamakta" çerçevesi ve 09-25 kıyası bozulmasın.
@@ -144,7 +141,8 @@ export const POST = withManage(async (session, req) => {
     status: "confirmed",
   };
   const kbSel = await retrieveKbForPrompt({
-    items: kb,
+    items: kbRaw,
+    placeholders: kbPlaceholders,
     guestMessage: message,
     history: [],
     stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },

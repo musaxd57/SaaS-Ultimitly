@@ -2145,8 +2145,14 @@ export async function applyChannelAutoReply(
     body: m.body,
     at: m.createdAt,
   }));
+  // #189: seçim HAM metinle (yer tutucular çözülmemiş). Misafir adı metne seçimden ÖNCE girince parça metni misafire özgü
+  // oluyor, anlamsal vektör deposu her yeni misafirin ilk mesajında o parçayı bulamıyor ve karar SÖZCÜKSEL kalıyordu. Sır
+  // kapısının kararı yukarıda İKAME SONRASI metinle verildi (değişmedi); seçime o kapıdan geçen kalemlerin HAM hâli gider,
+  // değerler yalnız seçilen parçalara uygulanır (`placeholders`).
+  const kbVisibleIds = new Set(kbVisible.map((i) => i.id));
   const kbSel = await retrieveKbForPrompt({
-    items: kbVisible,
+    items: kbRaw.filter((i) => kbVisibleIds.has(i.id)),
+    placeholders: { guestFirstName: guestFirst, propertyName: conversation.property.name },
     guestMessage: last.body,
     // `at` (F14b): anlama katmanında yazıldığı an — yalnız Konuşma Anlama Durumu bayrağıyla görünür, seçim okumaz.
     history: turnHistory,

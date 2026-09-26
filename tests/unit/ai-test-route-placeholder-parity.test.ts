@@ -59,7 +59,9 @@ describe("AI test rotası — yer tutucu kaynağı", () => {
     // Anti-vakum: yorum soyma rotayı boşaltmadıysa iddia gerçekten bir şey ölçer.
     expect(s.length, "yorum soyma dosyayı boşaltmış").toBeGreaterThan(2000);
     expect(s, "eski son-sayı kuralı geri gelmiş").not.toMatch(/match\(\/\\d\+\/g\)\?\.pop\(\)/);
-    expect(s).toContain("fillGuestPlaceholdersInItems");
+    // #189 (09-26): ikame seçimden SONRA, ortak girişin içinde (`retrieveKbForPrompt` `placeholders` → `fillGuestPlaceholdersInItems`).
+    // Davranış (modele giden metin çözülmüş mü) `tests/integration/ai-test-route-placeholder-behavior.test.ts`te.
+    expect(s).toMatch(/placeholders:\s*kbPlaceholders/);
     expect(s).toContain('from "@/lib/kb-placeholders"');
   });
 

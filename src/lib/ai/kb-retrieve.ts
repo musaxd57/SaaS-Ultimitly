@@ -18,6 +18,7 @@ import { stayTimeline, understandingDateLine, writtenAtEn } from "@/lib/ai/stay-
 import { orgTimezone } from "@/lib/timezone";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
+import { fillGuestPlaceholdersInItems, type GuestPlaceholderValues } from "@/lib/kb-placeholders";
 
 // ---------------------------------------------------------------------------
 // BİLGİ SEÇİMİ — YÜZEYLERİN TEK GİRİŞİ (09-23).
@@ -55,6 +56,16 @@ export interface KbRetrieveInput<T extends KbChunkSource> extends KbSelectInput<
     timeZone: string | null | undefined;
     reservation?: { status: string; arrivalDate: Date | string; departureDate: Date | string } | null;
   };
+  /**
+   * 🚨 YER TUTUCU İKAMESİ SEÇİMDEN SONRA (#189, 09-26). Verilirse `items` HAM kalemlerdir (`{isim}`/`{daire}` çözülmemiş):
+   * seçim, anlamsal puan ve yeniden sıralayıcı ham metinle çalışır; değerler YALNIZ seçilen parçalara uygulanır. Neden:
+   * misafir adı metne aramadan ÖNCE girince parça metni her misafirde farklı oluyordu → anlamsal vektör deposu (içerik
+   * anahtarlı) yeni misafirin ilk mesajında o parçayı bulamıyor, YARIM HARİTA YOK kuralıyla karar tamamen SÖZCÜKSEL
+   * kalıyordu ("cold"). Yer tutucu parça sınırında bölünmez (parçalayıcı cümle sonu ya da boşlukta keser, `{isim}`
+   * ikisini de taşımaz) → ikame sonrası parça, ikame edilmiş kalemin bitişik dilimidir. Sır kapısı kararı ÇAĞIRANDA ve
+   * ikame SONRASI metinle verilir (bugünkü gibi); buraya yalnız o kapıdan geçen kalemlerin ham hâli gelir.
+   */
+  placeholders?: GuestPlaceholderValues;
 }
 
 export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
@@ -73,7 +84,7 @@ export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
 };
 
 export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
-  const { stayTimes, redactNames, dateContext, ...selectInput } = input;
+  const { stayTimes, redactNames, dateContext, placeholders, ...selectInput } = input;
   // Tarih satırı TEK karar noktası burada: bayrak kapalıyken hesaplanmaz, katmana alan hiç gitmez.
   const timeZone = dateContext ? orgTimezone(dateContext.timeZone) : null;
   const dateLine =
@@ -141,6 +152,8 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
   const base = evidence;
   return {
     ...result,
+    // Yer tutucular YALNIZ seçilen parçalara (↑ `placeholders`); legacy / geri çekilme dalında da kalemlerin kendisine.
+    items: placeholders ? fillGuestPlaceholdersInItems(result.items, placeholders) : result.items,
     evidence,
     understanding: pending.then((o) => (o.status === "ok" ? o.value : undefined)),
     understandingStatus: pending.then((o) => (o.status === "ok" ? (o.cached ? "cached" : "ok") : o.status)),
