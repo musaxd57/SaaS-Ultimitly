@@ -634,7 +634,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: `evaluated/inconclusive/empty`; boş liste YALNIZ tam
   değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · ~~F16 iCal
   completeness~~ (KAPANDI 09-26, ↓Mesajlaşma / outbox / sync) · ~~F17 cron adaleti~~ (KAPANDI 09-26, ↓Sync motoru) · F18 login savunma
-  tasarımı (kimlik akışı → kurucu kararı). F18 dışında hepsine dokunuldu; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
+  tasarımı (ÖZÜ 09-23'te kapandı: tanınan cihaz kapısı + 2FA günlük tavanı; passkey/kademeli doğrulama kurucu kararı).
+  Hepsine dokunuldu; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
 - Kaynak taraması tek yönlüdür → davranışsal test; `rejects.not.toThrow(/…/)` kullanma; senkron CPU
   zaman aşımıyla kesilemez; çapa `indexOf` −1 pinle; mutasyon `assert count==1`.
 - Ret edilenler: ETag testi (hedef yok) · HTTP/2 parser testi · kanonik-posta-kutusu kayıt limiti ·
