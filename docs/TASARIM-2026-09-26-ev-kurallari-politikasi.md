@@ -92,5 +92,16 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
   mülkün kuralı kalıyordu — gerçek eksik). Mutasyon 19/19 (iki yaşayan → "en yeni satır okunur" + "eşzamanlı silmede rota 404,
   denetim yok" pinleri); iki doğrulayıcıdaki "en fazla 6 kalem" sınırı ÖLÜ KODDU (6 konu var, 7. kalem zaten tekrar/bilinmeyen),
   silindi.
-- Sonraki: anlama katmanına `rule_topic`/`stance` (bayrak kapalı, istem bayt bayt aynı) → kapıya bağlama (gölge: kayıt,
-  karar eski) → ücretli kör ölçüm → kurucu onayı. Yapay zekâ önerisi (bilgi tabanından `suggested`) ayrı dilim.
+- **Dilim 3 — gölge ölçüm (09-26, kurucu "yap hemen"; bayrak `AI_HOUSE_RULES_SHADOW`, varsayılan KAPALI, migration YOK):**
+  anlama katmanı her isteğe `rule_topic` (6 konu + none) ve `rule_stance` (4 tutum + none) ekler (kural kipi şeması + istem
+  eki; öğe kipiyle birlikte açılabilir; kapalıyken şema / istem / önbellek anahtarı bayt bayt eski). `house-rules/shadow.ts`
+  §2.C tablosuyla "kural açık olsaydı ne olurdu"yu hesaplar ve YALNIZ karar kaydına yazar (`kbEvidenceJson.hr`: konu · tutum ·
+  etkin politika · sonuç · ev sahibine haber; kapalı küme, metin yok). KARAR DEĞİL: kanal oto-yanıtı ve QR'da karar bayrak
+  açık/kapalı iki koşuda birebir aynı (entegrasyon testi). Konu yoksa depo okunmaz (`hr: []`), katman düştüyse kayıt yok,
+  depo okunamazsa kayıt atlanır. Kırmızı-önce 15, mutasyon 28/28. Konaklama değişikliği eval'ine anlama kipi anahtarları
+  (`EVAL_UNDERSTANDING_ITEMS` / `EVAL_UNDERSTANDING_RULES`): bayrağı açmadan önce canlıyla AYNI kipte ölçülür.
+  Örnek kayıt: "Can we smoke on the balcony?" + onaylı YASAK → `hr: [{t: smoking, s: asks_permission, p: forbidden, k:
+  state_rule}]` (misafire bugünkü gibi davranılır).
+- Sonraki: bayrağı açmadan önce konaklama eval'i öğe + kural kipinde → bayrak açık gölge süresi (gerçek trafikte `hr` ile
+  kelime listesinin kıyası) → ücretli kör ölçüm (etiketli konu/tutum seti) → kurucu onayı → karara bağlama. Yapay zekâ önerisi
+  (bilgi tabanından `suggested`) ayrı dilim.

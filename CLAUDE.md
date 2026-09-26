@@ -1237,7 +1237,10 @@ açma sırası migration 57 (taze yedek + onay) → kural kartı → gölge → 
 sessiz saat ev sahibinde kalır. Saf çekirdek `house-rules/core.ts` canlıda, çağıranı YOK. Dilim 2 (migration'sız): depo
 `house-rules/store.ts` erken giriş kuralıyla AYNI tabloda (`AutomationRule`, mülk başına tek satır, aynı kilit sırası), yönetici
 kapılı `PUT …/house-rules`, mülk silme kuralı aynı işlemde siler, kart `HOUSE_RULES_CARD_ENABLED=1` iken (varsayılan KAPALI;
-"yapay zekâ henüz kullanmıyor" der).
+"yapay zekâ henüz kullanmıyor" der). Dilim 3 GÖLGE ÖLÇÜM (`AI_HOUSE_RULES_SHADOW`, varsayılan KAPALI; anlama katmanı açıkken):
+katman istek başına kural konusu + tutum çıkarır, "kural olsaydı" YALNIZ kayda (`hr`) — KARAR DEĞİL, kanal + QR kararı
+birebir aynı (pinli); kapalıyken anlama istemi/şeması/önbellek anahtarı bayt bayt eski. Açmadan önce konaklama eval'i
+`EVAL_UNDERSTANDING_ITEMS=1 EVAL_UNDERSTANDING_RULES=1` ile (canlının kipi).
 Canlı değişkenler (kurucu 09-26 ekledi, sürüm Active — ekran görüntüsü): `AI_CONVERSATION_ITEMS_ENABLED=1` +
 `KB_SEMANTIC_RETRIEVAL=1`; yeniden sıralayıcı (`KB_RERANK_ENABLED`, #186) bağlandı, açmak ayrı adım.
 
