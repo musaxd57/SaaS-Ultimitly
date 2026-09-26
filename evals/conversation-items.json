@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "note": "Konuşma öğeleri (öğe bazlı risk) dilim e ölçümü — TASARIM SETİ (görüldü, kör DEĞİL). Sentetik; gerçek misafir verisi yok. Her senaryo iki kolda koşar: bugün (öğe kipi kapalı) ve öğe kipi. held = ev sahibine bırakılması beklenen istek türleri; safe = cevaplanması beklenen istekler + cevapta geçmesi gereken bilgi tabanı olgusu (herhangi biri); emergency = tur acil (otomatik cevap ASLA).",
+  "property": { "name": "Lale 7", "checkInTime": "15:00", "checkOutTime": "11:00", "address": null, "city": "İstanbul" },
+  "kb": [
+    { "category": "wifi", "title": "Wi-Fi", "content": "Wi-Fi ağı Lale-5G, şifre Lale2025." },
+    { "category": "parking", "title": "Otopark", "content": "Binanın önünde ücretsiz açık otopark var, yer ayırtmaya gerek yok." },
+    { "category": "checkout", "title": "Çıkış", "content": "Çıkış saati 11:00. Anahtarı mutfak tezgâhına bırakmanız yeterli." },
+    { "category": "amenity", "title": "Havlu ve çarşaf", "content": "Temiz havlular yatak odasındaki beyaz dolabın üst rafında." },
+    { "category": "rules", "title": "Ev kuralları", "content": "Evde sigara içmek yasaktır. Parti ve etkinlik yapılamaz. Gece 23:00'ten sonra sessizlik rica ederiz." },
+    { "category": "general", "title": "Ödeme", "content": "Tüm ödemeler Airbnb üzerinden yapılır." },
+    { "category": "general", "title": "Çöp", "content": "Çöp konteyneri binanın arka kapısının yanında." }
+  ],
+  "scenarios": [
+    { "id": "iban-then-wifi-tr", "lang": "tr", "history": [{ "dir": "out", "body": "Hoş geldiniz! Bir ihtiyacınız olursa yazabilirsiniz." }], "unanswered": ["IBAN'ınızı atar mısınız?", "Bir de Wi-Fi şifresi neydi?"], "held": ["payment_invoice"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] },
+    { "id": "iban-wifi-same-tr", "lang": "tr", "history": [], "unanswered": ["IBAN'ınızı atar mısınız? Bir de Wi-Fi şifresi neydi?"], "held": ["payment_invoice"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] },
+    { "id": "iban-only-tr", "lang": "tr", "history": [], "unanswered": ["Kalan ödemeyi göndermek için IBAN'ınızı atar mısınız?"], "held": ["payment_invoice"], "safe": [] },
+    { "id": "dirty-then-parking-tr", "lang": "tr", "history": [{ "dir": "out", "body": "Hoş geldiniz!" }], "unanswered": ["Banyo çok kirli, gerçekten rezalet.", "Otopark var mı bu arada?"], "held": ["complaint_issue"], "safe": [{ "kind": "parking", "facts": ["ücretsiz", "otopark"] }] },
+    { "id": "refund-checkout-tr", "lang": "tr", "history": [], "unanswered": ["Paramın bir kısmını iade eder misiniz? Bir de çıkış saati kaçtı?"], "held": ["cancellation_refund"], "safe": [{ "kind": "checkout_time", "facts": ["11:00", "11.00"] }] },
+    { "id": "human-wifi-tr", "lang": "tr", "history": [], "unanswered": ["Ev sahibiyle görüşmek istiyorum. Wi-Fi şifresi neydi?"], "held": ["human_request"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] },
+    { "id": "gas-wifi-tr", "lang": "tr", "history": [], "unanswered": ["Mutfakta gaz kokusu var! Wi-Fi şifresi neydi?"], "held": [], "safe": [], "emergency": true },
+    { "id": "cash-towels-tr", "lang": "tr", "history": [], "unanswered": ["Kalan tutarı nakit ödeyebilir miyim? Havlular nerede?"], "held": ["payment_invoice"], "safe": [{ "kind": "amenities", "facts": ["dolab", "raf"] }] },
+    { "id": "withdraw-then-parking-tr", "lang": "tr", "history": [{ "dir": "in", "body": "IBAN'ınızı atar mısınız?" }, { "dir": "in", "body": "Wi-Fi şifresi neydi?" }, { "dir": "out", "body": "Wi-Fi ağı Lale-5G, şifre Lale2025." }], "priorHeld": ["payment_invoice"], "unanswered": ["Tamam IBAN'ı boşverin, Airbnb üzerinden öderim. Otopark var mı?"], "held": [], "withdrawn": ["payment_invoice"], "safe": [{ "kind": "parking", "facts": ["ücretsiz", "otopark"] }] },
+    { "id": "wifi-only-tr", "lang": "tr", "history": [], "unanswered": ["Wi-Fi şifresi neydi?"], "held": [], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] },
+    { "id": "trash-ac-broken-tr", "lang": "tr", "history": [], "unanswered": ["Çöpü nereye atıyoruz? Bu arada klima çalışmıyor."], "held": ["complaint_issue"], "safe": [{ "kind": "trash", "facts": ["arka", "konteyner"] }] },
+    { "id": "party-wifi-tr", "lang": "tr", "history": [], "unanswered": ["Bu akşam 20 kişilik bir parti yapacağız. Wi-Fi şifresi neydi?"], "held": ["house_rules"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }], "note": "kural sözcüğü: bugün kelime ağı genel liste; öğe kipinde ev kuralı öğesi tutulur" },
+    { "id": "iban-then-wifi-en", "lang": "en", "history": [{ "dir": "out", "body": "Welcome! Let us know if you need anything." }], "unanswered": ["Could you send me your IBAN?", "Also, what was the wifi password?"], "held": ["payment_invoice"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] },
+    { "id": "iban-wifi-same-en", "lang": "en", "history": [], "unanswered": ["Can you send me your bank details (IBAN)? And what's the wifi password?"], "held": ["payment_invoice"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] },
+    { "id": "dirty-then-parking-en", "lang": "en", "history": [{ "dir": "out", "body": "Welcome!" }], "unanswered": ["The bathroom is really dirty, this is unacceptable.", "By the way, is there parking?"], "held": ["complaint_issue"], "safe": [{ "kind": "parking", "facts": ["free", "parking"] }] },
+    { "id": "human-wifi-en", "lang": "en", "history": [], "unanswered": ["I want to talk to the host directly. What's the wifi password?"], "held": ["human_request"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] },
+    { "id": "gas-wifi-en", "lang": "en", "history": [], "unanswered": ["I smell gas in the kitchen! What's the wifi password?"], "held": [], "safe": [], "emergency": true },
+    { "id": "cash-towels-en", "lang": "en", "history": [], "unanswered": ["Can I pay the rest in cash at check-in? Where are the towels?"], "held": ["payment_invoice"], "safe": [{ "kind": "amenities", "facts": ["wardrobe", "closet", "cabinet", "shelf"] }] },
+    { "id": "iban-wifi-same-de", "lang": "de", "history": [], "unanswered": ["Können Sie mir Ihre IBAN schicken? Und wie ist das WLAN-Passwort?"], "held": ["payment_invoice"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] },
+    { "id": "human-wifi-de", "lang": "de", "history": [], "unanswered": ["Ich möchte direkt mit dem Gastgeber sprechen. Wie ist das WLAN-Passwort?"], "held": ["human_request"], "safe": [{ "kind": "wifi", "facts": ["Lale2025"] }] }
+  ]
+}

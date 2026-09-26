@@ -102,6 +102,16 @@ describe("Tamamlandı uç noktası", () => {
     expect((await prisma.conversationItem.findUniqueOrThrow({ where: { id: itemB.id } })).status).toBe("pending_host");
   });
 
+  it("🚨 aynı kiracıda BAŞKA konuşmanın öğesi de 404 (öğe yolu konuşmaya bağlı)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c1 = await seedConversation(orgId, propertyId, "IBAN?");
+    const c2 = await seedConversation(orgId, propertyId, "Wi-Fi?");
+    const it1 = await item(orgId, c1.conversationId, c1.messageId);
+    as(orgId);
+    expect((await patch(c2.conversationId, it1.id, { action: "done" })).status).toBe(404);
+    expect((await prisma.conversationItem.findUniqueOrThrow({ where: { id: it1.id } })).status).toBe("pending_host");
+  });
+
   it("yalnız sahip/yönetici; tanınmayan işlem 400", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const { conversationId, messageId } = await seedConversation(orgId, propertyId, "IBAN?");
@@ -159,6 +169,18 @@ describe("liste rozeti + konuşma kartı + Dikkat", () => {
       data: { conversationId: c.conversationId, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Ödemeler Airbnb üzerinden." },
     });
     expect(await findAttentionItems(orgId)).toEqual([]);
+  });
+
+  it("Dikkat YALNIZ hassas bırakılan isteği gösterir: açık kalan güvenli istek (otopark) satır açmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await seedConversation(orgId, propertyId, "Wi-Fi? Otopark?", 600);
+    // Son söz bizde (güvenli kısım cevaplandı) → "cevapsız" satırı yok; kalan açık güvenli istek Dikkat'e düşmez.
+    await prisma.message.create({
+      data: { conversationId: c.conversationId, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "Wi-Fi: Lale2025." },
+    });
+    await item(orgId, c.conversationId, c.messageId, { kind: "parking", sensitivity: "none", status: "open" });
+    expect(await findAttentionItems(orgId)).toEqual([]);
+    expect(await heldRequestsByConversation(prisma, { organizationId: orgId, propertyIds: [propertyId], since: new Date(0) })).toEqual([]);
   });
 
   it("kiracı yalıtımı: başka org'un bırakılan isteği görünmez", async () => {

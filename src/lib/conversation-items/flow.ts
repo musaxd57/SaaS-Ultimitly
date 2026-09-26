@@ -8,6 +8,7 @@ import type { MessageUnderstanding, UnderstandingHistoryEntry } from "@/lib/ai/s
 import { buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemsGateInput } from "./core";
 import { extractTurnItems, type ItemsDegradedReason } from "./extract";
 import type { ReplyItemsInput } from "./reply-block";
+import { composeItemsPlan, hintKey } from "./plan";
 import {
   applyItemEvent,
   applyWithdrawals,
@@ -104,24 +105,8 @@ export async function planItemsTurn(
   const views = await listConversationItems(db, { organizationId: input.organizationId, conversationId: input.conversationId });
   const held: PersistedItem[] = views.filter((v) => v.sensitivity === "sensitive" && isOpenForHost(v.effective));
   const hints = new Map<string, string>();
-  for (const m of extracted.messages) for (const it of m.items) if (it.hint) hints.set(`${m.messageId}\u0000${it.kind}`, it.hint);
-  const answerable = turnItems.filter((i) => i.sensitivity === "none").map((item, idx) => ({ ref: `R${idx + 1}`, item }));
-  return {
-    mode: "items",
-    turnItems,
-    held,
-    answerable,
-    replyItems: {
-      answerable: answerable.map(({ ref, item }) => ({ ref, kind: item.kind, hint: hints.get(`${item.messageId}\u0000${item.kind}`) ?? "" })),
-      held: held.map((h) => ({ kind: h.kind })),
-    },
-    gateItems: {
-      held: held.map((h) => ({ kind: h.kind, sensitivity: h.sensitivity, riskType: h.riskType })),
-      paymentHeld: held.some((h) => h.kind === "payment_invoice" || h.riskType === "platform_policy"),
-      answerableKinds: answerable.map((a) => a.item.kind),
-    },
-    allHeld: answerable.length === 0,
-  };
+  for (const m of extracted.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind), it.hint);
+  return { mode: "items", turnItems, held, ...composeItemsPlan({ turnItems, held, hints }) };
 }
 
 /**
