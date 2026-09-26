@@ -106,6 +106,19 @@ describe("depo (migration'sız, `AutomationRule`)", () => {
     expect(await loadHouseRules(a.orgId, a.propertyId)).toEqual(RULES);
   });
 
+  it("aynı mülkte (eski bir hatadan kalma) iki satır varsa EN YENİSİ okunur", async () => {
+    const a = await org();
+    const where = houseRulesWhere(a.orgId, a.propertyId);
+    await prisma.automationRule.create({
+      data: { ...where, actionJson: JSON.stringify({ rules: RULES }), isEnabled: true, name: "Ev kuralları", updatedAt: new Date("2026-01-01T00:00:00Z") },
+    });
+    const newest = [{ topic: "visitors", policy: "forbidden", status: "confirmed" }] as const;
+    await prisma.automationRule.create({
+      data: { ...where, actionJson: JSON.stringify({ rules: newest }), isEnabled: true, name: "Ev kuralları", updatedAt: new Date("2026-02-01T00:00:00Z") },
+    });
+    expect(await loadHouseRules(a.orgId, a.propertyId)).toEqual(newest);
+  });
+
   it("🚨 mülk silinmişse kural YAZILMAZ (sahipsiz kural yok)", async () => {
     const a = await org();
     await prisma.property.delete({ where: { id: a.propertyId } });
@@ -213,6 +226,39 @@ describe("PUT /api/properties/[id]/house-rules", () => {
     expect(await prisma.automationRule.count()).toBe(0);
     // Anti-vakum: geçerli istek çalışır.
     expect((await put(a.propertyId, { rules: [{ topic: "pets", policy: "allowed" }] })).status).toBe(200);
+  });
+  it("🚨 kayıt sürerken mülk silinirse rota 404 döner: kural da denetim kaydı da YAZILMAZ", async () => {
+    const a = await org();
+    session = sessionFor(a.orgId, a.userId);
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    let holding!: () => void;
+    const held = new Promise<void>((r) => (holding = r));
+    // Mülk satırını kilitleyip silen eşzamanlı işlem (silme rotasıyla aynı sıra): rota mülkü GÖRÜR (kilit okumayı
+    // engellemez), kayıt kilitte bekler, kilit bırakılınca mülk artık yoktur.
+    const deleter = prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${a.propertyId} FOR UPDATE`;
+        holding();
+        await hold;
+        await tx.property.delete({ where: { id: a.propertyId } });
+      },
+      { timeout: 15_000 },
+    );
+    await held;
+    const res = put(a.propertyId, { rules: [{ topic: "pets", policy: "allowed" }] });
+    let settled = false;
+    void res.finally(() => (settled = true)).catch(() => undefined);
+    for (let i = 0; i < 300 && !settled; i++) {
+      const [{ n }] = await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_locks WHERE NOT granted`;
+      if (n > 0n) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    release();
+    await deleter;
+    expect((await res).status).toBe(404);
+    expect(await prisma.automationRule.count({ where: houseRulesWhere(a.orgId, a.propertyId) })).toBe(0);
+    expect(await prisma.auditLog.count({ where: { organizationId: a.orgId } })).toBe(0);
   });
 });
 
