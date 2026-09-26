@@ -69,4 +69,16 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
    mi, ayrıca size de haber gitsin mi (açık iş + e-posta)? Önerim: **ikisi birden** — kural hatırlatması gider, siz de
    haberdar olursunuz (ihlal ihtimali ev sahibinin işidir).
 3. Açma sırası: migration 57 (taze yedek + onay) → kural kartı → gölge ölçüm (anlam alanları kayda, karar eski) →
-   ücretli kör ölçüm → sizin onayınız. Uygun mu?
+   ücretli kör ölçüm → sizin onayınız. Uygun mu? (AÇIK)
+4. (AÇIK, saf çekirdekte temkinli varsayıldı) "İzinli" kural otomatik izin cümlesine YALNIZ evet/hayır söylenebilen
+   konularda döner (sigara, evcil hayvan, ziyaretçi). Parti (platformların genel parti yasağı), ek misafir (kaç kişi? ücret?)
+   ve sessiz saatler (hangi saat?) "izinli" olsa da ev sahibinde kalır. Örnek: "6 kişi kalabilir miyiz?" + ek misafir
+   İZİNLİ → AI "kabul ediyoruz" DEMEZ, ev sahibinde açık iş. Böyle kalsın mı?
+
+## 6. Uygulama durumu
+
+- **Dilim 1 — saf çekirdek (09-26, `src/lib/house-rules/core.ts`, çağıranı YOK, davranış değişmez):** kapalı kümeler,
+  "yalnız onaylı kural" + çelişen onaylılar = bana sor, §2.C karar tablosu, 6 dilde koddan metin (yasak cümlesi teşekkür
+  eder; azarlama / yaptırım sözcüğü yok; çıktı vetosu + "bilgim yok" + dil kapısı temiz). 19 test, mutasyon 17/17.
+- Sonraki: migration 57 (`HouseRule`) + mülk sayfası kartı → anlama katmanına `rule_topic`/`stance` (bayrak kapalı, istem
+  bayt bayt aynı) → kapıya bağlama (gölge) → ücretli ölçüm → kurucu onayı.
