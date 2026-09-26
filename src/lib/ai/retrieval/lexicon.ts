@@ -15,6 +15,12 @@ import { contentStems, stem } from "./text";
 // - `terms` hem TESPİT hem GENİŞLETME; `detectOnly` yalnız tespit (genel
 //   sözcükler: "kural", "saat", "yeri" ve çok kelimelik kalıplar). Genel sözcüğü
 //   genişletmeye sokmak ilgisiz kalemleri aday yapıyordu ("pets" → "kural").
+// - `expandOnly` yalnız GENİŞLETME (kurucu onayı 09-26, dış inceleme + ölçüm): TEK BAŞINA birden çok
+//   konuyu gösterebilen sözcük kavramı TETİKLEMEZ, kavram kalıpla tespit edilince yine eklenir.
+//   Ölçüldü: "Daire çok sıcak" sıcak su kalemini klimanın ÖNÜNE koyuyordu ("sıcak"), "Power outage" /
+//   "Elektrik kesintisi" su kesintisini, "bagajı depoya" su deposunu, "eşyalarımızı bırakabilir miyiz"
+//   kayıp eşyayı, "merdivenle mi çıkılıyor" / "alarm kodu" yangın kalemini çekiyordu. Saat alanı
+//   kuralının "başka konu" sezgisi bu sözcükleri YİNE görür (`matchConcepts(…, {loose})`, davranış aynı).
 // - Sözlük SIRALAMA ipucudur, politika değildir: sır elemesi, onay kapısı ve
 //   yetki filtresi burada değil, retrieval'ın önündedir.
 // - Terimler katlanmış (ASCII) yazılır; yüklenirken kök alınır ki sorguyla aynı
@@ -35,6 +41,8 @@ export interface Concept {
   terms: readonly string[];
   /** Yalnız tespit (genel sözcük ya da çok kelimelik kalıp). */
   detectOnly?: readonly string[];
+  /** Yalnız genişletme (tek kelime): kavramı TEK BAŞINA tetiklemeyecek kadar belirsiz sözcük. */
+  expandOnly?: readonly string[];
 }
 
 export const CONCEPTS: readonly Concept[] = [
@@ -74,8 +82,14 @@ export const CONCEPTS: readonly Concept[] = [
   { id: "tv", terms: ["tv", "televizyon", "television", "netflix", "kumanda", "remote", "uydu", "satellite", "kanal", "channel"] },
   { id: "ac", terms: ["klima", "sogutma", "aircon", "cooling", "ac"], detectOnly: ["air conditioning", "air conditioner", "cok sicak", "serinle"] },
   { id: "heating", terms: ["isitma", "kalorifer", "radyator", "heating", "heater", "radiator", "kombi"], detectOnly: ["cok soguk", "usuyor"] },
-  { id: "hot_water", terms: ["kombi", "boiler", "termosifon", "sicak", "isinmiyor"], detectOnly: ["sicak su", "hot water", "su isitici", "water heater", "dus suyu", "shower water"] },
-  { id: "water_cut", terms: ["kesinti", "outage", "depo"], detectOnly: ["su kesintisi", "water cut", "su gelmiyor", "no water"] },
+  // "sicak" TEK BAŞINA klima da olabilir ("Daire çok sıcak") → yalnız genişletme; "suyun sıcağı" kalıbı eklendi.
+  { id: "hot_water", terms: ["kombi", "boiler", "termosifon", "isinmiyor"], expandOnly: ["sicak"], detectOnly: ["sicak su", "su sicak", "hot water", "su isitici", "water heater", "dus suyu", "shower water"] },
+  // "kesinti"/"outage" elektrik de olabilir, "depo" bagaj deposu da → yalnız genişletme; kalıplar su kesintisini taşır.
+  // ⚠️ AÇIK (kurucu kararı bekliyor, 09-26): "no water" kalıbı durak sözcük ("no") düşünce TEK "water" köküne iniyor →
+  // her "water" sorusu ("Is there hot water?") su kesintisini tetikliyor; bu yüzden "water outage" kalıbı bugün etkisiz
+  // (mutasyon L11 eşdeğer). Aynı çöküş: "cok sicak"→sıcak (klima), "cok soguk"→soğuk, "when can i check in"→check,
+  // "how to get there"→get, "nereye park"→park. Ölçüm + örnekler: `docs/olcum/sozluk-belirsiz-kelime-2026-09-26.md`.
+  { id: "water_cut", terms: [], expandOnly: ["kesinti", "outage", "depo"], detectOnly: ["su kesintisi", "water cut", "water outage", "su deposu", "su gelmiyor", "no water"] },
   // power ↔ socket AYRILDI (09-10): torba kavram "plug adapter" sorusunu sigorta/şalter
   // kalemine, "elektrikler gitti"yi adaptör kalemine genişletiyordu (ölçüldü).
   { id: "power", terms: ["elektrik", "sigorta", "electricity", "power", "fuse", "salter"], detectOnly: ["elektrikler gitti", "power outage"] },
@@ -91,8 +105,10 @@ export const CONCEPTS: readonly Concept[] = [
   { id: "sights", category: "local_tips", terms: ["gezilecek", "tavsiye", "oneri", "muze", "recommend", "recommendation", "sights", "attractions", "museum", "yakin", "nearby"] },
   { id: "doorman", terms: ["kapici", "gorevli", "attendant", "concierge", "yonetici", "guvenlik", "security"], detectOnly: ["bina gorevlisi", "building attendant"] },
   { id: "packages", terms: ["kargo", "paket", "kurye", "siparis", "package", "delivery", "courier", "parcel", "teslimat"], detectOnly: ["yemek siparisi", "food delivery", "receive a package"] },
-  { id: "lost", terms: ["unuttum", "unutulan", "kayip", "kaybettim", "lost", "forgot", "forgotten", "esya"], detectOnly: ["esyami unuttum", "left something", "unutulan esya"] },
-  { id: "fire", terms: ["yangin", "fire", "sondurucu", "extinguisher", "alarm", "merdiven"], detectOnly: ["acil cikis", "fire escape", "yangin merdiveni", "emergency exit"] },
+  // "esya" bagaj da olabilir ("eşyalarımızı erken bırakabilir miyiz") → yalnız genişletme.
+  { id: "lost", terms: ["unuttum", "unutulan", "kayip", "kaybettim", "lost", "forgot", "forgotten"], expandOnly: ["esya"], detectOnly: ["esyami unuttum", "left something", "unutulan esya"] },
+  // "alarm" hırsız alarmı / çalar saat, "merdiven" bina merdiveni de olabilir → yalnız genişletme; duman alarmı kalıpla.
+  { id: "fire", terms: ["yangin", "fire", "sondurucu", "extinguisher"], expandOnly: ["alarm", "merdiven"], detectOnly: ["acil cikis", "fire escape", "yangin merdiveni", "emergency exit", "duman alarmi", "smoke alarm"] },
   { id: "emergency", terms: ["acil", "emergency", "ambulans", "ambulance", "polis", "police", "doktor", "doctor", "hastane", "hospital"] },
 ];
 
@@ -102,6 +118,8 @@ interface CompiledConcept {
   single: Set<string>;
   /** Yalnız tespit: kök dizileri (tek ya da çok kelime). */
   detect: string[][];
+  /** Yalnız genişletme: tek kelimelik belirsiz sözcüklerin kökleri. */
+  expandOnly: Set<string>;
 }
 
 function stemsOf(term: string): string[] {
@@ -123,7 +141,12 @@ const COMPILED: readonly CompiledConcept[] = CONCEPTS.map((concept) => {
     const stems = stemsOf(term);
     if (stems.length > 0) detect.push(stems);
   }
-  return { concept, single, detect };
+  const expandOnly = new Set<string>();
+  for (const term of concept.expandOnly ?? []) {
+    const stems = stemsOf(term);
+    if (stems.length === 1) expandOnly.add(stems[0]);
+  }
+  return { concept, single, detect, expandOnly };
 });
 
 export interface ConceptMatch {
@@ -143,14 +166,18 @@ function hasPhrase(stems: string[], phrase: string[]): boolean {
   return false;
 }
 
-/** Sorgu köklerinde geçen kavramlar (tekil, sözlük sırasıyla). */
-export function matchConcepts(stems: string[]): ConceptMatch[] {
+/**
+ * Sorgu köklerinde geçen kavramlar (tekil, sözlük sırasıyla). `loose`: yalnız-genişletme sözcükleri de kavramı
+ * tetikler — YALNIZ saat alanı kuralının "cümlecik başka bir konudan söz ediyor" sezgisi içindir (`time-fields.ts`):
+ * o kural bu sözcükleri ayrım öncesinde de görüyordu, davranışı değişmesin. Retrieval katı eşleşmeyi kullanır.
+ */
+export function matchConcepts(stems: string[], opts: { loose?: boolean } = {}): ConceptMatch[] {
   const out: ConceptMatch[] = [];
   const set = new Set(stems);
   for (const c of COMPILED) {
     let via: string | null = null;
     for (const s of set) {
-      if (c.single.has(s)) {
+      if (c.single.has(s) || (opts.loose && c.expandOnly.has(s))) {
         via = s;
         break;
       }
@@ -191,7 +218,7 @@ export function expandQuery(stems: string[], extra: readonly ConceptMatch[] = []
   for (const m of matched) {
     const compiled = COMPILED.find((c) => c.concept.id === m.concept.id);
     if (!compiled) continue;
-    for (const s of compiled.single) {
+    for (const s of [...compiled.single, ...compiled.expandOnly]) {
       if (!own.has(s)) expansion.set(s, Math.max(expansion.get(s) ?? 0, EXPANSION_WEIGHT));
     }
     if (m.concept.category) {

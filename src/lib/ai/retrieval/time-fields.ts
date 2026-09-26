@@ -136,7 +136,9 @@ function clauseFields(clause: string): { fields: string[]; otherConcept: boolean
   // Kendi çalışma saati olan yerler sözlükte kavram değil ama konaklama saati de DEĞİL: "Giriş"
   // başlıklı kalemde "Resepsiyon 09:00-18:00 arası açıktır" giriş saati sanılıyordu (ölçüldü 09-23).
   const ownHours = toks.some((t) => OWN_HOURS_STEMS.some((h) => t.startsWith(h)));
-  const otherConcept = homonym || ownHours || matchConcepts(stems).some((m) => !m.concept.timeField);
+  // `loose`: yalnız-genişletme sözcükleri ("merdiven", "alarm", "depo"…) de BAŞKA KONU sayılır — sözlüğün katı tespiti
+  // retrieval içindir, bu sezgi 09-26 ayrımından önceki hâliyle aynı kalır ("Merdiven kapısı 23:00'te kilitlenir" giriş saati değil).
+  const otherConcept = homonym || ownHours || matchConcepts(stems, { loose: true }).some((m) => !m.concept.timeField);
   return { fields, otherConcept };
 }
 

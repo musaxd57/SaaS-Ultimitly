@@ -174,6 +174,11 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   ilk-tur kısıtı. Sözlükten ÇIKARILDI, geri gelmesin: "varış→var", "şu→su", "ki" eki, torba "olanaklar". Bilinen kök
   sınırları: markete→mark, kilidi→ki, duşu→du, görevliniz→gorevl. `hasEvidence` yüklemi (güçlü kök / n-gram ≥0.3 /
   anlamsal ≥0.3) — `base > 0` yetmez.
+- **Belirsiz tek kelime yalnız GENİŞLETME (`expandOnly`, kurucu onayı 09-26):** "sıcak / outage / kesinti / depo / eşya /
+  alarm / merdiven" kavramı TEK BAŞINA tetiklemez (yanlış kavramın kalemi doğru kalemin önüne geçiyordu), kalıpla
+  tespitte ("sıcak su", "su kesintisi", "duman alarmı") genişletmeye girer — geri `terms`e ALINMAZ. Saat alanı kuralının
+  "başka konu" sezgisi bu sözcükleri `matchConcepts(…, {loose})` ile YİNE görür (davranış aynı, pinli). Kalan gürültü
+  (sözcük kalemin METNİNDE geçiyorsa BM25 eşleşir: "Daire çok sıcak" → sıcak su kalemi) sözlükle çözülmez → anlamsal arama.
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
