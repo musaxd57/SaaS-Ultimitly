@@ -445,9 +445,14 @@ Bu dosyaya token/anahtar/parola yazma.
   dilimi #161b (belge §1.9): yapamama / soru-istek (soru işareti OLMADAN da) / aktarım beyan değildir; başka aracın kalkışı ve
   UZUN YOL aracının kalkış İSMİ çıkış değildir (taksi/transfer değil: alma saati çıkış sayılır); 🚨 nötrlenen ifadenin
   yerine BOŞLUK DEĞİL işaret sözcüğü (`OTHER_EVENT_MARK`) — boşluk cümleciği "yalnız saat" yapıp ileri bakışa tren saatini
-  kabul ettiriyordu. QR aday ağı varışta 36 sa (UTC+13/+14'te yalnız-tarih iCal girişi). AÇIK (misafire görünmez):
-  pano/Görevler/İptaller/raporlar/tedarik ve yaşam döngüsü GÖREV oluşturma (`todayStart`) hâlâ gün başı kıyası — TR/AB'de
-  doğru, ABD/UTC+12 üstünde ayrı dilim.
+  kabul ettiriyordu. QR aday ağı varışta 36 sa (UTC+13/+14'te yalnız-tarih iCal girişi). 🚨 **EV SAHİBİ YÜZEYLERİ (09-26,
+  166a):** yaşam döngüsü görev oluşturma + Görevler eksik temizlik sayısı + pano "bugün" listeleri/kartları + günlük rapor
+  `lib/day-where.ts` KESİN where ile (sayım/liste sonradan süzülmez; bellekteki ikizi `onOrAfterToday`; eşdeğerlik 11 dilimde
+  veritabanı ızgarasıyla pinli; İstanbul eskisiyle birebir). Gün kıyaslayan YENİ sorgu ham `gte: gün başı` YAZMAZ, bu
+  üreticiyi kullanır; sayı ile listesi AYNI küme (düğme = açılan görev, kart = günlük rapor listesi). Yalnız-tarih vadede
+  SAAT gösterilmez (`taskDueTimeLabel`; panoda "Çıkış temizliği · 03:00" yazıyordu). AÇIK (misafire görünmez, 166b; TR/AB'de
+  doğru): doluluk/tahmin (gece semantiği), İptaller pencereleri, rapor görev penceresi, tedarik, aylık doluluk/takvim,
+  görev panosu kart tarihi/"Bugün" filtresi.
 - 🚨 **Ev sahibi metninde ödeme yöntemi/yeri TEK KAYNAK `payment-method-guard.ts` (09-25) — ŞÜPHEDE REDDET:** yanlış ret
   bir cümle yeniden yazdırır, kaçak ise yapay zekânın misafire platform dışı ödeme talimatı iletmesidir. Üç inceleme turu
   ölçtü: bağlamı daraltan her sürüm eski kalıbın yakaladığı gerçek talimatları geçirdi ("Ödeme: kapıda", "parayı kapıdaki
@@ -1119,6 +1124,12 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-26 EV SAHİBİ GÜN KURALI (166a + 167a; `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md` §1.11, migration'sız):** görev
+oluşturma / eksik görev sayısı / pano bugün listeleri + kartları / günlük rapor tek tarih kuralında (New York'ta pano ve günlük
+rapor bugünün yerine YARININ girişini listeliyordu); panoda yalnız-tarih vadede saat yok ("Çıkış temizliği · 03:00" kalktı).
+Kırmızı-önce + veritabanı ızgarası (11 dilim) + mutasyon 25/25 ve 3/3. ONAY BEKLEYEN (e-posta şablonu): 167b — elle girilen
+görev saati sunucuda UTC okunuyor (İstanbul'da 10:00 → panoda 13:00; atama e-postası dilimsiz biçimliyor).
+
 **09-25 HOST COPILOT — KAYIT + PLAN, UYGULANMADI (kurucu, 13 görsel; `docs/HOST-COPILOT-GEREKSINIMLERI-2026-09-25.md`):**
 ev sahibinin AI ile doğal dil / ses kumandası: karar kartı, talimat, bilgi güncellemesi (onaylı), sorgu, devralma; WhatsApp
 yalnız kanal, kayıt backend'de. Doğal dilden doğrudan yürütme YOK (para/saat → "Anladığım: …" önizlemesi), gönderimden önce

@@ -454,6 +454,78 @@ mail kaybı, çift gönderim, yeniden deneme ve sürüm davranışı değişmiyo
   ortasında kurtarma, lease yenileme, deneme bütçesi, süre dolumu, sürüm, alıcı/AAD, saklama.
 - **Mutasyon 3/3** (commit `f2f5e64`): satırı geri al, geleceğe damga, epoch damga.
 
+### 1.11 Ev sahibi yüzeylerinde tek tarih kuralı — dilim 166a (09-26)
+İkinci inceleme misafire görünen gün kıyaslarını `calendarDateOf`'a taşımış, ev sahibi yüzeylerini "AÇIK" bırakmıştı. Bunlar
+saklı tarihi ham `>= org gün başı` ile kıyaslıyordu. İstanbul'da (ve UTC ile +12 arasındaki her dilimde) bu doğrudur; ama:
+- **New York'ta** bugünün 00:00Z çapası gün başından (04:00Z) küçük kalır, yarının 00:00Z çapası ise bugünün penceresine
+  girer. Sonuç:
+  - aynı gün yapılan rezervasyona giriş hazırlığı görevi, bugün çıkana temizlik görevi AÇILMIYORDU;
+  - "Eksik görevleri oluştur" düğmesi görünmüyordu;
+  - pano ve günlük rapor bugünün girişi yerine YARININKİNİ listeliyordu (kırmızı koşuda ölçüldü: `['Yarin Gelen']`).
+- **Auckland'da** dünün 12:00Z çapası gün başına eşit düşer ve "bugün" sayılıyordu (geçmiş girişe hazırlık görevi).
+
+Düzeltme:
+- `onOrAfterToday` (bellekte, `calendarDateOf`).
+- `lib/day-where.ts`: sayım ve listeler için KESİN takvim günü aralığı `where`'i:
+  - tanım: kenar günlerin çapaları ∨ (yerel pencere ∧ komşu günlerin çapaları değil);
+  - gerekçe: ofset −12..+14 sa içinde iç günlerin çapaları hep penceredeyse, dışarıda kalabilen yalnız kenar günlerin, içeri
+    sızabilen yalnız komşu günlerin çapalarıdır.
+- Kullanan yüzeyler:
+  - `createReservationTasks`;
+  - Görevler sayfasındaki eksik temizlik sayısı (`reservationsMissingCleaningWhere`);
+  - pano bugünkü giriş / çıkış / görev listeleri;
+  - `getOpsStats` bugünkü giriş / çıkış;
+  - `api/reports/daily` listeleri. Bu rota kartlarla AYNI küme olmak zorunda; `date` sözleşmesi (org gece yarısı) değişmedi.
+- Vadesiz görev hiçbir aralığa girmez, sınırsız aralığa da (`dueAt: { not: null }`).
+
+Kanıt (`tests/integration/host-day-rule.test.ts`, `day-where-exact.test.ts`):
+- **Kırmızı-önce:** eski kodda işaretli 7 test düştü (New York ×5, Auckland ×2). İstanbul testleri, eski kodda da yeşil olan
+  değişmez ("düğmedeki sayı = açılan temizlik görevi", 7 dilim) ve B dosyası geçti.
+- **Veritabanı ızgarası:** 11 dilim (+14 … −12, yarım saatlik ofsetler ve üç DST günü dahil) × 4–6 "şimdi" anı × 5 aralık
+  biçimi (bugün / bugün ve sonrası / geçmiş / yedi gün / ters) × üç alan (giriş / çıkış / vade). ~2.100 değer: yarım saat
+  adımları, çapalar ve her dilimin yerel gece yarısı ±1 ms. Sorgu ile bellekteki karar HER hücrede aynı kümeyi seçti.
+- **İstanbul, UTC, Berlin, Kolkata, Tokyo'da** yeni karar eskisiyle BİREBİR (her "şimdi"nin ±3 günü). New York'ta tek fark
+  bugünün 00:00Z çapası, Auckland'da tek fark dünün 12:00Z çapası.
+- **İlgili 22 test dosyası yeşil** (272 test).
+- **Mutasyon 25/25 öldürüldü** (commit `427b9d2`, worktree koşucusu, M0 yeşil):
+  - eski kurala dönüş (giriş / çıkış);
+  - `>=` → `>`;
+  - kenar çapaları ve komşu hariç tutmanın her biri ayrı ayrı düşürüldü;
+  - ters aralık koruması;
+  - çapanın 00:00Z / 12:00Z yarısı;
+  - pencere uçlarında ±1 ms;
+  - iki uç boşken dönüş (rezervasyon / görev);
+  - eksik temizlik süzgecinin iki koşulu;
+  - sayfanın org dilimi yerine UTC kullanması;
+  - pano ve günlük rapor listelerinin süzgeci ya da alanı;
+  - `date` sözleşmesi.
+
+**167a — pano "Bugünkü Görevler" saati (09-26, commit `4a6f6e0`):**
+- Sorun: pano her vadenin SAATİNİ org diliminde basıyordu. Yaşam döngüsü görevinin vadesi rezervasyon TARİHİ olduğu için
+  İstanbul'da her Hospitable çıkış temizliği "· 03:00", iCal olanlar "· 15:00" görünüyordu (gece üçte temizlik gibi).
+- Düzeltme: `taskDueTimeLabel` — yalnız-tarih çapası → saat yok, gerçek an → org saati.
+- Kanıt: kırmızı-önce (eski kodda "· 03:00" göründü); mutasyon 3/3.
+
+**167b — ONAY BEKLİYOR (e-posta şablonuna dokunuyor):** elle girilen görev vadesinin saati tutarsız.
+- Form `datetime-local` gönderir; sunucu (`z.coerce.date()`) bunu SUNUCU saatinde (Railway = UTC) okur.
+- Sonuç, İstanbul'daki ev sahibi 10:00 girdiğinde:
+  - pano 13:00 gösterir;
+  - görev atama e-postası `toLocaleDateString("tr-TR")` ile dilimsiz, yani UTC biçimler ve tesadüfen 10:00 gösterir;
+  - 21:00–23:59 arası girilen vade kartta ertesi güne düşer.
+- Doğrusu: form saati org diliminde okunur (`zonedWallClockToUtc`), e-posta org diliminde biçimlenir ve çapada saat
+  göstermez.
+- Neden onay: e-posta içeriği değişir. Ayrıca eski satırların e-postada gösterilen saati kayar; yeniden atanan eski görevde
+  +3 sa görünür.
+
+Açık (166b, misafire görünmez; TR/AB'de doğru):
+- doluluk ve tahmin — gece semantiği: "giriş ≤ bugün ∧ çıkış ≥ yarın", iki aralıkla kesin ifade edilir;
+- İptaller sayfasının gün / hafta / ay pencereleri;
+- rapor görev penceresi (ay başı … dün);
+- tedarik ufku;
+- aylık doluluk ve takvim sayfası;
+- Görevler panosu kart tarihi ve "Bugün / Bu hafta" filtresi: `formatDayInTz` / `daysUntilDate` ham an → yerel gün yapıyor;
+  New York'ta yaşam döngüsü görevi bir gün erken görünür.
+
 ## 2. Konuşma Anlama Durumu (CUS) — hedef ve yol
 
 ### 2.1 Bugün ne var (ajan envanteri, 09-25)
