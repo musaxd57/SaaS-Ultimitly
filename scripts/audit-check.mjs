@@ -14,6 +14,10 @@
  *
  *   3. Denetim HIC KOSAMADI (registry erisilemez / cikti ayristirilamadi /
  *      lockfile yok)                        -> kapi HICBIR SEY dogrulamadi
+ *   4. Triaj kaydi GECERSIZ (F12, Codex 09-05: expires yok/bozuk, kimlik
+ *      bicimi, cift kayit, bos gerekce)     -> kabul suresiz ya da belirsiz
+ *   5. Sayac zafiyet bildiriyor ama tek danisma CIKARILAMADI (rapor bicimi
+ *      degismis)                            -> kapi raporu okuyamadi
  *
  * 🚨 FAIL-CLOSED (P1 #4, 08-09 (2)): 3. durum eskiden `exit 0 + uyari` idi.
  * Gerekce "kayit defteri hickirigi deploy'u bloklamasin"di ve YANLISTI: bir
@@ -70,6 +74,60 @@ export function extractAdvisories(auditJson) {
     }
   }
   return found;
+}
+
+const ID_RE = /^(?:GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|NO-GHSA:.+)$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Takvimde GERCEKTEN var olan YYYY-AA-GG mi ("2027-02-30", "2027-13-45" degil). */
+function isRealDate(s) {
+  if (typeof s !== "string" || !DATE_RE.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+/**
+ * TRIAJ KAYDI SEMASI — betigin KENDISI dogrular (F12, Codex 09-05).
+ *
+ * Bicim `audit-baseline.test.ts`te pinliydi ama betik denetlemiyordu: `expires` yoksa
+ * kabul SURESIZDI, bozuk tarih ("never", "2027-13-45") metin kiyasiyla "henuz dolmadi"
+ * sayiliyordu, ayni kimlik iki kez yazilirsa Map sessizce birlestiriyordu. `main`
+ * dalindaki haftalik is YALNIZ bu betigi kosar -> tek kapi betigin kendisi.
+ * Kimlik: GHSA ya da betigin kendi urettigi NO-GHSA yedegi (o da triaj edilebilmeli).
+ * Doner: hata iletileri (bos = gecerli).
+ */
+export function validateBaseline(baseline) {
+  if (!baseline || typeof baseline !== "object" || !Array.isArray(baseline.accepted)) {
+    return ["`accepted` dizisi yok"];
+  }
+  const errors = [];
+  const seen = new Set();
+  baseline.accepted.forEach((a, i) => {
+    const where = `accepted[${i}]${a && typeof a.id === "string" ? ` (${a.id})` : ""}`;
+    if (!a || typeof a !== "object") {
+      errors.push(`${where}: kayit nesne degil`);
+      return;
+    }
+    if (typeof a.id !== "string" || !ID_RE.test(a.id)) errors.push(`${where}: id GHSA-xxxx-xxxx-xxxx ya da NO-GHSA:... olmali`);
+    else if (seen.has(a.id)) errors.push(`${where}: ayni kimlik IKI KEZ yazilmis`);
+    else seen.add(a.id);
+    for (const f of ["package", "reason"]) {
+      if (typeof a[f] !== "string" || !a[f].trim()) errors.push(`${where}: \`${f}\` bos`);
+    }
+    if (!isRealDate(a.expires)) errors.push(`${where}: \`expires\` yok ya da gecerli bir YYYY-AA-GG tarihi degil (suresiz kabul YOK)`);
+  });
+  return errors;
+}
+
+/**
+ * Sayac zafiyet bildiriyor ama tek danisma cikarilamadiysa rapor OKUNAMADI demektir (npm
+ * bicimi degismis olabilir) -> sayac toplami; aksi halde 0. Kaba sayac ESITLIGI dayatilmaz:
+ * gecisli paketler sayaci sisirir (3 paket, 1 danisma mesru).
+ */
+export function counterMismatch(audit, found) {
+  const m = audit?.metadata?.vulnerabilities ?? {};
+  const total = ["info", "low", "moderate", "high", "critical"].reduce((s, k) => s + (Number(m[k]) || 0), 0);
+  return total > 0 && found.size === 0 ? total : 0;
 }
 
 /** Kac kez denenecek (registry titremesi fail-closed'i flaky yapmasin). */
@@ -167,6 +225,12 @@ function asAuditReport(parsed) {
 
 function main() {
   const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
+  // SEMA ONCE (F12): gecersiz kayit ag denetiminden once ve tek basina KIRMIZI.
+  const schemaErrors = validateBaseline(baseline);
+  if (schemaErrors.length > 0) {
+    for (const e of schemaErrors) annotate("error", `Baseline gecersiz: ${e}`);
+    return 1;
+  }
   const accepted = new Map(baseline.accepted.map((a) => [a.id, a]));
 
   // LOCKFILE once: yoksa denetimin kosmasi zaten anlamsiz ve sebebi NET soylenir.
@@ -198,6 +262,17 @@ function main() {
   const today = new Date().toISOString().slice(0, 10);
   let failed = false;
 
+  // 0) Sayac var, danisma yok -> rapor okunamadi (F12). Sessizce yesil GECILMEZ.
+  const unread = counterMismatch(audit, found);
+  if (unread > 0) {
+    failed = true;
+    annotate(
+      "error",
+      `npm audit ${unread} zafiyet sayiyor ama tek danisma CIKARILAMADI — rapor bicimi degismis olabilir, ` +
+        "kapi bulgulari okuyamadi (fail-closed).",
+    );
+  }
+
   // 1) Baseline'da olmayan YENI danisma → kirmizi.
   for (const [id, a] of found) {
     if (accepted.has(id)) continue;
@@ -211,7 +286,7 @@ function main() {
 
   // 2) Suresi dolmus kabul → kirmizi (bayat muafiyet = unutulmus acik).
   for (const a of accepted.values()) {
-    if (!a.expires || a.expires >= today) continue;
+    if (a.expires >= today) continue; // sema kapisi gecerli tarihi garanti eder
     failed = true;
     annotate(
       "error",

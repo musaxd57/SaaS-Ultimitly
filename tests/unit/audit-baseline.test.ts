@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import path from "node:path";
+import { validateBaseline } from "../../scripts/audit-check.mjs";
 
 // ---------------------------------------------------------------------------
 // BAĞIMLILIK ZAFİYET TRİAJ KAYDI — biçim pini.
@@ -50,11 +51,14 @@ describe("zafiyet triaj kaydı (security/audit-baseline.json)", () => {
     },
   );
 
-  it("kimlikler GHSA biçiminde ve TEKİL", () => {
+  it("kimlikler GHSA (ya da betiğin NO-GHSA yedeği) biçiminde ve TEKİL — kural betikle TEK kaynak", () => {
     // ⚠️ Anahtar paket adı DEĞİL danışma kimliği: aynı paket birden çok danışma
     // taşıyabilir (postcss'te 4 tane var) ve paket bazlı bir kabul, o pakete
     // gelecek YENİ danışmayı da sessizce yutardı.
-    for (const a of baseline.accepted) expect(a.id, a.id).toMatch(/^GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}$/);
+    // F12 (09-26): şema kuralı betiğin kendisinde (`validateBaseline`); bu pin onu ÇAĞIRIR, kopyalamaz. Betik 09-23'ten
+    // beri GHSA'sız danışmayı `NO-GHSA:` kimliğiyle sayıyor — o kimlik de triaj edilebilmeli (eski GHSA-only regex
+    // böyle bir danışmayı SONSUZA KADAR kırmızı bırakırdı).
+    expect(validateBaseline(baseline)).toEqual([]);
     const ids = baseline.accepted.map((a) => a.id);
     expect(ids.length).toBe(new Set(ids).size);
   });
