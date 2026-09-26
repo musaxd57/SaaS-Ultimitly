@@ -34,7 +34,7 @@ etiketi alıyor ("parti" alt dizesi). Karakterizasyon: `tests/unit/detect-risk-t
 | Durum | Onaylı kural `forbidden` | Onaylı kural `allowed` | Kural yok / `ask_host` / yalnız öneri |
 |---|---|---|---|
 | `asks_permission` | AI kuralı nazikçe söyler, gider ("Evin içinde sigara içilmesine izin verilmiyor, anlayışınız için teşekkür ederiz.") | AI izni kuraldan söyler, gider | Ev sahibinde açık iş (bugünkü gibi tutulur) |
-| `announces` | ❓ **karar sizin** (aşağıda) | normal cevap | Ev sahibinde açık iş |
+| `announces` | nazik hatırlatma gider **+** ev sahibine açık iş + e-posta (kurucu 09-26 "İkisi birden") | normal cevap | Ev sahibinde açık iş |
 | `asks_info` | kural söylenir, gider | kural söylenir, gider | bilgi tabanında yazıyorsa cevap; yoksa açık iş |
 | `not_about_guest` | kural devreye girmez (normal cevap) | aynı | aynı |
 
@@ -51,7 +51,8 @@ Kelime listesi YEDEK kalır: anlama katmanı düşerse bugünkü gibi tutar (bel
   saati sorusu normal cevaplanır.
 - "Parti yapmayacağız, sessiz bir aile tatili" → **sonra:** kural devreye girmez.
 - "Can I get a partial refund?" → **sonra:** yalnız iade (hassas, ev sahibinde); "parti" etiketi yok.
-- "Bu akşam parti yapacağız" · kural onaylı YASAK → ❓ aşağıdaki soru.
+- "Bu akşam parti yapacağız" · kural onaylı YASAK → **sonra:** "Evde parti ve etkinlik yapılmasına izin verilmiyor, anlayışınız
+  için teşekkür ederiz." gider **ve** ev sahibine açık iş + e-posta (kurucu 09-26).
 
 ## 4. Kurallar nereden gelir ("ikisi birden")
 
@@ -63,7 +64,8 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
 
 1. ~~Sigara örneğindeki "yasal olduğunu söylesin" → "yasak olduğunu söylesin" mi?~~ **CEVAPLANDI 09-26:** evet, yasak
    olduğu nazik bir dille söylenir (kızar gibi değil).
-2. **HÂLÂ AÇIK:** Misafir YASAK bir şeyi yapacağını söylerse ("Bu akşam parti yapacağız", kural yasak): AI kuralı hatırlatıp göndersin
+2. **CEVAPLANDI 09-26 — "İkisi birden":** kural nazik hatırlatması misafire gider + ev sahibine açık iş ve e-posta
+   (ihlal ihtimali ev sahibinin işi). Soru metni: Misafir YASAK bir şeyi yapacağını söylerse ("Bu akşam parti yapacağız", kural yasak): AI kuralı hatırlatıp göndersin
    mi, ayrıca size de haber gitsin mi (açık iş + e-posta)? Önerim: **ikisi birden** — kural hatırlatması gider, siz de
    haberdar olursunuz (ihlal ihtimali ev sahibinin işidir).
 3. Açma sırası: migration 57 (taze yedek + onay) → kural kartı → gölge ölçüm (anlam alanları kayda, karar eski) →
