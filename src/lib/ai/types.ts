@@ -45,6 +45,13 @@ export interface PropertyContext {
 export interface HistoryMessage {
   direction: "inbound" | "outbound";
   body: string;
+  /**
+   * Konuşma Anlama Durumu (F14, 09-26; bayrak `AI_CONVERSATION_STATE_ENABLED` açıkken istemde görünür): mesajı KİMİN
+   * yazdığı — `resolveMessageAuthor`dan kapalı küme, görünen ad DEĞİL — ve YAZILDIĞI an. Verilmezse satır yön etiketiyle
+   * (eski biçim) yazılır.
+   */
+  author?: "guest" | "host" | "ai";
+  at?: Date;
 }
 
 export interface SuggestReplyInput {
@@ -128,6 +135,11 @@ export interface SuggestReplyInput {
   timeZone?: string | null;
   /** Hesap anı (test/önizleme için sabitlenebilir); verilmezse şimdi. */
   now?: Date;
+  /**
+   * Cevaplanan misafir mesajının YAZILDIĞI an (F14; bayrak `AI_CONVERSATION_STATE_ENABLED` açıkken istemde görünür).
+   * Gelen kutusu önerisi ya da yeniden değerlendirme saatler/günler sonra üretilebilir: mesajdaki "yarın" o güne göredir.
+   */
+  guestMessageAt?: Date;
   /**
    * Eylem beyanı iste (`action-claims.ts`, bayrak `AI_ACTION_CLAIMS_ENABLED`): istemin GÖREV çerçevesine `claimedActions`
    * alan tanımı girer ve cevap STRICT çözülür. YALNIZ `suggestReply` bayraktan yazar; verilmezse istem bayt bayt aynı.

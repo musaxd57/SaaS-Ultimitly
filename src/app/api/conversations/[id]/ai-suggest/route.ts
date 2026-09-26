@@ -14,6 +14,7 @@ import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } f
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
+import { historyAuthorOf } from "@/lib/message-author";
 import { vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
 import { runEarlyCheckinWorkflow } from "@/lib/early-checkin/workflow";
@@ -137,10 +138,15 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     knowledgeBaseDropped: kbDropped + kbSel.droppedItems,
     knowledgeBaseSelection: kbSel.selection,
     knowledgeBaseNotes: kbSel.notes,
+    // Yazar + yazıldığı an (F14): istemde YALNIZ Konuşma Anlama Durumu bayrağı açıkken görünür. Öneri saatler/günler
+    // sonra istenebilir → cevaplanan mesajın kendi zamanı da gider ("yarın" o güne göre).
     history: conversation.messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
+      author: historyAuthorOf(m),
+      at: m.createdAt,
     })),
+    guestMessageAt: lastInbound.createdAt,
     conversationState: { isFirstOperatorReply: priorOperatorReplies === 0, records: conversationRecords },
     tone,
     language: lastInbound.language || "tr",

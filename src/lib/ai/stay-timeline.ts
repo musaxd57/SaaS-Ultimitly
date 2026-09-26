@@ -136,6 +136,27 @@ export function clockLine(t: StayTimeline): string {
   return `Bugün: ${formatDayTr(t.today)}${time} (${t.timeZone}) · Yarın: ${formatDayTr(t.tomorrow)}${smallHours}`;
 }
 
+/**
+ * Sohbet mesajının YAZILDIĞI anın istem etiketi (F14, 09-26; Konuşma Anlama Durumu): org diliminde, bugüne göre TAKVİM
+ * günüyle — "bugün 14:05" · "dün 22:10" · "3 gün önce (Salı) 09:00" · 7 gün ve üstü / gelecek: "12.09.2026 Cumartesi 09:00".
+ * Mesaj bir ANDIR (tarih-yalnız değil) → gün `todayKey` (anın dilimdeki günü) ile; `calendarDateOf` DEĞİL (tam 00:00Z'de
+ * yazılmış bir mesajı yalnız-tarih sanardı). Geçersiz an → null (etiket yazılmaz, tahmin yok).
+ */
+export function historyStamp(at: Date, now: Date, timeZone: string): string | null {
+  if (Number.isNaN(at.getTime())) return null;
+  const day = todayKey(at, timeZone);
+  const hhmm = hhmmOf(minutesOfDayInTimeZone(timeZone, at));
+  const time = hhmm ? ` ${hhmm}` : "";
+  const ago = nightsBetween(day, todayKey(now, timeZone));
+  if (ago === 0) return `bugün${time}`;
+  if (ago === 1) return `dün${time}`;
+  if (ago >= 2 && ago <= 6) {
+    const [y, m, d] = day.split("-").map(Number);
+    return `${ago} gün önce (${WEEKDAYS_TR[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]})${time}`;
+  }
+  return `${formatDayTr(day)}${time}`;
+}
+
 const WEEKDAYS_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function dayEn(key: NightKey): string {

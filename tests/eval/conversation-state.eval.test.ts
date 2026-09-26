@@ -25,6 +25,7 @@ import {
   runScenario,
   scoreReply,
   threadOf,
+  timesOf,
   unansweredOf,
   writeReport,
   type Arm,
@@ -311,6 +312,41 @@ describe("Konuşma Anlama Durumu eval'i — çevrimdışı pinler", () => {
     expect(diffs[0]).toContain("`s1`");
   });
 
+  it("F14 mesaj zamanları: varsayılan hepsi bugün ve kronolojik; açık zaman koşu gününe göre; eksik/karışık/ters/gelecek HATA", () => {
+    const base: CusScenario = { id: "t", class: "resolvable", lang: "tr", reservation: null, message: "Son soru", expect: { clarify: "none" } };
+    const now = localInstant("2026-10-02", "14:00");
+    const hist = [
+      { direction: "inbound" as const, body: "A" },
+      { direction: "outbound" as const, body: "B" },
+    ];
+    const d = timesOf({ ...base, history: hist }, "2026-10-02", now);
+    expect(d.map((t) => now.getTime() - t.getTime())).toEqual([360_000, 240_000, 60_000]);
+    const e = timesOf(
+      {
+        ...base,
+        history: [
+          { ...hist[0], at: { daysAgo: 1, time: "22:10" } },
+          { ...hist[1], at: { daysAgo: 1, time: "22:30" } },
+        ],
+        messageAt: { daysAgo: 0, time: "09:05" },
+      },
+      "2026-10-02",
+      now,
+    );
+    expect(e.map((t) => t.toISOString())).toEqual(["2026-10-01T19:10:00.000Z", "2026-10-01T19:30:00.000Z", "2026-10-02T06:05:00.000Z"]);
+    expect(() => timesOf({ ...base, history: [{ ...hist[0], at: { daysAgo: 1, time: "22:10" } }, hist[1]] }, "2026-10-02", now)).toThrow(
+      /ya hiçbir mesaja ya hepsine/,
+    );
+    expect(() => timesOf({ ...base, history: hist, messageAt: { daysAgo: 0, time: "09:00" } }, "2026-10-02", now)).toThrow(
+      /geçmişin tamamı zamanlı/,
+    );
+    expect(() =>
+      timesOf({ ...base, history: [{ ...hist[0], at: { daysAgo: 0, time: "10:00" } }, { ...hist[1], at: { daysAgo: 1, time: "10:00" } }] }, "2026-10-02", now),
+    ).toThrow(/kronolojik değil/);
+    expect(() => timesOf({ ...base, messageAt: { daysAgo: 0, time: "15:00" } }, "2026-10-02", now)).toThrow(/şimdiden sonra/);
+    expect(() => timesOf({ ...base, messageAt: { daysAgo: 0, time: "9:00" } }, "2026-10-02", now)).toThrow(/geçersiz zaman/);
+  });
+
   it.skipIf(!datasetExists)("veri seti biçimi: kimlik eşsiz, sınıf/dil kapalı küme, beklenti sınıfla tutarlı, konaklama bitmemiş", () => {
     const ds = JSON.parse(readFileSync(DATASET, "utf8")) as CusDataset;
     const ids = ds.scenarios.map((s) => s.id);
@@ -321,6 +357,8 @@ describe("Konuşma Anlama Durumu eval'i — çevrimdışı pinler", () => {
       expect(s.message.trim().length, s.id).toBeGreaterThan(0);
       for (const m of s.history ?? []) expect(m.body.trim().length, s.id).toBeGreaterThan(0);
       if (s.localTime !== undefined) expect(s.localTime, s.id).toMatch(/^([01]\d|2[0-3]):[0-5]\d$/);
+      // F14: mesaj zamanları tutarlı (hiç ya hepsi, kronolojik, şimdiden önce) — `timesOf` hatalı veri setinde fırlatır.
+      timesOf(s, "2026-10-02", localInstant("2026-10-02", s.localTime ?? "14:00"));
       if (s.reservation) expect(s.reservation.arrivalInDays + s.reservation.nights, `${s.id}: bitmiş konaklama ölçülmez`).toBeGreaterThanOrEqual(0);
       if (s.expect.stayKind !== undefined) expect(STAY_CHANGE_KINDS as readonly string[], s.id).toContain(s.expect.stayKind);
       if (s.class === "closing") expect(s.expect.silent, s.id).toBe(true);

@@ -13,6 +13,7 @@ import {
   type StateMessage,
 } from "@/lib/ai/conversation-state";
 import { selectHistoryForPrompt } from "@/lib/ai/prompts";
+import { historyAuthorOf } from "@/lib/message-author";
 import type { StayChangeKind } from "@/lib/ai/semantic/stay-change";
 import { addNights, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { writeSidecar } from "./sidecar";
@@ -54,11 +55,22 @@ export type CusClass = (typeof CUS_CLASSES)[number];
 
 export const CUS_LANGS = ["tr", "en", "de", "fr", "es", "ru", "ar"] as const;
 
+/** Bir mesajın yazıldığı an: koşu gününden kaç gün önce (0 = koşu günü), mülk diliminde "SS:DD". */
+export interface CusWhen {
+  daysAgo: number;
+  time: string;
+}
+
 export interface CusMessage {
   direction: "inbound" | "outbound";
   /** Giden mesajın yazarı (varsayılan yapay zekâ). */
   author?: "ai" | "host";
   body: string;
+  /**
+   * Yazıldığı an (F14 — istemde yalnız bayrak açıkken görünür). Ya geçmişin HİÇBİR mesajına ya HEPSİNE verilir; yoksa
+   * varsayılan: hepsi bugün, şimdiden geriye birkaç dakika arayla (↓`timesOf`).
+   */
+  at?: CusWhen;
   /**
    * Misafir mesajının KARAR KAYDI (kapalı-küme kodlar; kayıt bloğunun kaynağı). Yoksa o mesaj için kayıt yok =
    * "bilinmiyor" (blok o mesaj hakkında hiçbir şey söylemez).
@@ -95,6 +107,11 @@ export interface CusScenario {
   history?: CusMessage[];
   /** Cevaplanacak son misafir mesajı. */
   message: string;
+  /**
+   * Cevaplanacak mesajın yazıldığı an (varsayılan: bir dakika önce). Dün yazılıp bugün cevaplanan "yarın" senaryosu için
+   * (gelen kutusu önerisi / yeniden değerlendirme). Verilirse geçmişin de tamamı zamanlı olmalı.
+   */
+  messageAt?: CusWhen;
   expect: {
     /** Kapanış: ürün HİÇBİR ŞEY göndermemeli (true) / gerçek soru-istek: susturulmamalı (false). */
     silent?: boolean;
@@ -144,6 +161,34 @@ export function reservationOf(s: CusScenario, today: string) {
 }
 
 export type ThreadMessage = StateMessage & ClosingThreadMessage;
+
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Konuşmanın (geçmiş + cevaplanacak mesaj) yazılma anları, `threadOf` sırasıyla. Zaman ya hiç verilmez (varsayılan: geçmiş
+ * şimdiden geriye 2'şer dakika, cevaplanacak mesaj bir dakika önce — hepsi bugün) ya da geçmişin TAMAMINA verilir. Anlar
+ * kronolojik olmalı ve şimdiden sonra olamaz; aksi hâlde veri seti HATALIDIR (fırlatır — sessizce düzeltilmez).
+ */
+export function timesOf(s: CusScenario, runDay: string, now: Date): Date[] {
+  const hist = s.history ?? [];
+  const given = hist.filter((m) => m.at !== undefined).length;
+  if (given !== 0 && given !== hist.length) throw new Error(`${s.id}: geçmiş zamanı ya hiçbir mesaja ya hepsine verilir`);
+  if (s.messageAt && given !== hist.length) throw new Error(`${s.id}: messageAt verilince geçmişin tamamı zamanlı olmalı`);
+  const at = (w: CusWhen) => {
+    if (!Number.isInteger(w.daysAgo) || w.daysAgo < 0 || !HHMM_RE.test(w.time)) {
+      throw new Error(`${s.id}: geçersiz zaman ${JSON.stringify(w)}`);
+    }
+    return localInstant(addNights(runDay, -w.daysAgo), w.time);
+  };
+  const n = hist.length + 1;
+  const times = hist.map((m, i) => (m.at ? at(m.at) : new Date(now.getTime() - (n - i) * 120_000)));
+  times.push(s.messageAt ? at(s.messageAt) : new Date(now.getTime() - 60_000));
+  for (let i = 1; i < times.length; i++) {
+    if (times[i].getTime() < times[i - 1].getTime()) throw new Error(`${s.id}: zamanlar kronolojik değil`);
+  }
+  if (times[times.length - 1].getTime() > now.getTime()) throw new Error(`${s.id}: cevaplanacak mesaj şimdiden sonra`);
+  return times;
+}
 
 /** Senaryonun konuşması ürünün mesaj biçiminde (kronolojik; SON satır cevaplanacak misafir mesajı). */
 export function threadOf(s: CusScenario): ThreadMessage[] {
@@ -281,8 +326,15 @@ export async function runScenario(data: CusDataset, s: CusScenario, arm: Arm, ru
     if (pre) return { ...base, ok: true, silent: pre, ms: Date.now() - t0 };
 
     const reservation = reservationOf(s, runDay);
-    // Kanal yoluyla aynı: geçmiş cevaplanan mesajı da taşır (`messages.map`, son satır = `last`) — istem ayıklamaz.
-    const history = thread.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body }));
+    // Kanal yoluyla aynı: geçmiş cevaplanan mesajı da taşır (`messages.map`, son satır = `last`) — istem ayıklamaz. Yazar +
+    // yazıldığı an (F14) da kanal yoluyla aynı alanlardan; istemde yalnız açık kolda görünür (kapalıda bayt bayt eskisi).
+    const times = timesOf(s, runDay, now);
+    const history = thread.map((m, i) => ({
+      direction: m.direction as "inbound" | "outbound",
+      body: m.body,
+      author: historyAuthorOf(m),
+      at: times[i],
+    }));
     const unanswered = unansweredOf(thread);
     const pending = unanswered.slice(0, -1);
     const stayTimes = { checkIn: data.property.checkInTime, checkOut: data.property.checkOutTime };
@@ -319,6 +371,7 @@ export async function runScenario(data: CusDataset, s: CusScenario, arm: Arm, ru
       knowledgeBaseSelection: kbSel.selection,
       knowledgeBaseNotes: kbSel.notes,
       history,
+      guestMessageAt: times[times.length - 1],
       conversationState: { isFirstOperatorReply: isFirstOperatorReply(thread), records },
       tone: "warm",
       language: "tr",

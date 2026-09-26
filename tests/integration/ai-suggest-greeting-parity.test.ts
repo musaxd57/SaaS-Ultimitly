@@ -213,3 +213,44 @@ describe("POST /api/conversations/[id]/ai-suggest — konuşma kayıtları (CUS 
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// F14 (09-26): öneri saatler/günler sonra istenebilir → satırın YAZARI (güvenilir alan) ve YAZILDIĞI an modele gider;
+// cevaplanan mesajın kendi zamanı ayrı alanda. İstemde yalnız Konuşma Anlama Durumu bayrağıyla görünür (istem testi ayrı).
+// ---------------------------------------------------------------------------
+describe("POST /api/conversations/[id]/ai-suggest — geçmiş satırı yazar + zaman (F14)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    mockSuggest.mockResolvedValue(REPLY);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("yazar authorType'tan, zaman satırın createdAt'inden; cevaplanan mesajın zamanı guestMessageAt", async () => {
+    const id = await seed([
+      { direction: "inbound", body: "Hi!" },
+      { direction: "outbound", body: "Welcome!" },
+      { direction: "inbound", body: "Can we check in early tomorrow?" },
+    ]);
+    const res = await aiSuggest(
+      new NextRequest(`http://localhost/api/conversations/${id}/ai-suggest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(res.status).toBe(200);
+    const payload = mockSuggest.mock.calls[0][0];
+    const rows = await prisma.message.findMany({ where: { conversationId: id }, orderBy: { createdAt: "asc" } });
+    expect(payload.history?.map((h) => ({ author: h.author, at: h.at?.getTime() }))).toEqual([
+      { author: "guest", at: rows[0].createdAt.getTime() },
+      { author: "host", at: rows[1].createdAt.getTime() },
+      { author: "guest", at: rows[2].createdAt.getTime() },
+    ]);
+    expect(payload.guestMessageAt?.getTime()).toBe(rows[2].createdAt.getTime());
+  });
+});

@@ -72,6 +72,15 @@ export function resolveMessageAuthor(m: ClassifiableMessage): AuthorInfo {
 }
 
 /**
+ * Modele giden geçmiş satırının YAZARI (F14, 09-26): güvenilir yazar alanından (görünen ad DEĞİL). Sistem olayı geçmişe
+ * yazar olarak girmez → undefined (satır yön etiketine düşer; pencereler sistem olayını zaten dışarıda bırakır).
+ */
+export function historyAuthorOf(m: ClassifiableMessage): "guest" | "host" | "ai" | undefined {
+  const { authorType } = resolveMessageAuthor(m);
+  return authorType === "guest" || authorType === "host" || authorType === "ai" ? authorType : undefined;
+}
+
+/**
  * Guest-chat display role for one message. Keys off the RELIABLE author, never the
  * message text: guest / ai / host bubbles, or a "resume" system separator (the AI
  * being re-enabled). A technical system marker is NEVER a normal chat bubble.

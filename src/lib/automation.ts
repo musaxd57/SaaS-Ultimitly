@@ -60,7 +60,7 @@ import {
 } from "@/lib/ai/gate-evidence";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
 import { styleProfileForPrompt, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
-import { LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER } from "@/lib/message-author";
+import { historyAuthorOf, LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER } from "@/lib/message-author";
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
@@ -2119,10 +2119,14 @@ export async function applyChannelAutoReply(
     // o yol bu hatayı 07-31'de zaten yaşamış ve düzeltmişti. Hibrit seçimde
     // seçilmeyen kalemler de toplama girer (`kbSel.droppedItems`).
     knowledgeBaseDropped: kbDroppedTotal,
+    // Yazar + yazıldığı an (F14): istemde YALNIZ Konuşma Anlama Durumu bayrağı açıkken görünür.
     history: messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
+      author: historyAuthorOf(m),
+      at: m.createdAt,
     })),
+    guestMessageAt: last.createdAt,
     conversationState: { isFirstOperatorReply: priorOperatorReplies === 0, records: conversationRecords },
     tone: VALID_TONES.includes(org.aiReplyTone as ReplyTone)
       ? (org.aiReplyTone as ReplyTone)

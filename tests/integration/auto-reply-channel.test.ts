@@ -2204,3 +2204,36 @@ describe("applyChannelAutoReply — konuşma kayıtları (CUS v1 dilim B)", () =
     expect(mockSuggest.mock.calls[0][0].conversationState?.records?.items).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F14 (09-26): kanal oto-yanıtı modele satırın YAZARINI (güvenilir alan; NULL authorType'ta yön + eski AI adı kuralı —
+// görünen ad karar vermez) ve YAZILDIĞI anı verir; cevaplanan mesajın zamanı ayrı alanda. İstemde yalnız Konuşma Anlama
+// Durumu bayrağıyla görünür (istem testi `history-detail-prompt.test.ts`).
+// ---------------------------------------------------------------------------
+describe("applyChannelAutoReply — geçmiş satırı yazar + zaman (F14)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("eski AI satırı (authorType NULL, 'GuestOps AI') 'ai', misafir 'guest'; zamanlar satırların kendisinden", async () => {
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+    const { conversationId } = await seed({ guestMessage: "What time is check-in?" });
+    const aiAt = new Date(Date.now() - 120_000);
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "GuestOps AI", body: "Welcome to Deniz Daire!", createdAt: aiAt },
+    });
+    await applyChannelAutoReply(conversationId);
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
+    const payload = mockSuggest.mock.calls[0][0];
+    const guestRow = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "inbound" } });
+    expect(payload.history?.map((h) => ({ author: h.author, at: h.at?.getTime() }))).toEqual([
+      { author: "ai", at: aiAt.getTime() },
+      { author: "guest", at: guestRow.createdAt.getTime() },
+    ]);
+    expect(payload.guestMessageAt?.getTime()).toBe(guestRow.createdAt.getTime());
+  });
+});

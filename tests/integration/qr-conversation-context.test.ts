@@ -79,8 +79,10 @@ const okReply = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-type Hist = { direction: string; body: string };
+type Hist = { direction: string; body: string; author?: string; at?: Date };
 const lastHistory = (): Hist[] => (mockSuggest.mock.calls.at(-1)?.[0] as { history?: Hist[] }).history ?? [];
+/** Yön + metin (F14 sonrası satır yazar/zaman da taşır; bu testlerin konusu sıra ve yön). */
+const shape = (h: Hist[]) => h.map(({ direction, body }) => ({ direction, body }));
 
 describe("QR asistanı — konuşma bağlamı modele verilir", () => {
   beforeEach(async () => {
@@ -102,8 +104,8 @@ describe("QR asistanı — konuşma bağlamı modele verilir", () => {
 
     const hist = lastHistory();
     expect(hist.length).toBeGreaterThanOrEqual(2);
-    expect(hist[0]).toEqual({ direction: "inbound", body: "Merhaba, nasılsın?" });
-    expect(hist[1]).toEqual({ direction: "outbound", body: "Tabii, yardımcı olayım." });
+    expect(shape(hist)[0]).toEqual({ direction: "inbound", body: "Merhaba, nasılsın?" });
+    expect(shape(hist)[1]).toEqual({ direction: "outbound", body: "Tabii, yardımcı olayım." });
     // GÜNCEL mesaj geçmişte TEKRARLANMAZ (ayrı `guestMessage` alanında gider).
     expect(hist.some((h) => h.body === "Çöpü nereye atabiliriz?")).toBe(false);
   });
@@ -129,7 +131,7 @@ describe("QR asistanı — konuşma bağlamı modele verilir", () => {
 
     await ask(token, "Peki çöp nereye?");
     const hist = lastHistory();
-    expect(hist).toEqual([
+    expect(shape(hist)).toEqual([
       { direction: "inbound", body: "Klima bozuk." },
       { direction: "outbound", body: "Ustayı yolluyorum." },
     ]);
@@ -150,7 +152,7 @@ describe("QR asistanı — konuşma bağlamı modele verilir", () => {
 
     await ask(token, "Teşekkürler, buldum.");
     const hist = lastHistory();
-    expect(hist).toEqual([{ direction: "inbound", body: "Wifi şifresi?" }]);
+    expect(shape(hist)).toEqual([{ direction: "inbound", body: "Wifi şifresi?" }]);
   });
 
   it("TAVAN: uzun sohbette yalnız son turlar gider (istem bütçesi korunur) ve sıra kronolojik kalır", async () => {
@@ -170,5 +172,26 @@ describe("QR asistanı — konuşma bağlamı modele verilir", () => {
     expect(hist.length).toBeLessThanOrEqual(24);
     expect(hist.at(-1)?.body).toBe("soru 20"); // en yeni sonda
     expect(hist[0]?.body).toBe(`soru ${20 - hist.length + 1}`); // kronolojik pencere
+  });
+
+  it("F14: satır YAZARI güvenilir alandan (görünen ad değil) ve YAZILDIĞI an modele gider", async () => {
+    const { token, propertyId, reservation } = await seed();
+    const conversationId = await ensureGuestChatConversation(propertyId, { id: reservation.id, guestName: reservation.guestName });
+    const guestAt = new Date(Date.now() - 3 * 3_600_000);
+    const botAt = new Date(Date.now() - 3 * 3_600_000 + 60_000);
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", authorType: "guest", senderName: "x", body: "Klima bozuk.", language: "tr", createdAt: guestAt },
+    });
+    // Görünen ad yanıltıcı ("Ev sahibi"): yazar `authorType`tan gelir.
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", authorType: "ai", senderName: "Ev sahibi", body: "Kaydedildi.", language: "tr", createdAt: botAt },
+    });
+
+    await ask(token, "Peki çöp nereye?");
+    const hist = lastHistory();
+    expect(hist.map(({ author, at }) => ({ author, at: at?.getTime() }))).toEqual([
+      { author: "guest", at: guestAt.getTime() },
+      { author: "ai", at: botAt.getTime() },
+    ]);
   });
 });

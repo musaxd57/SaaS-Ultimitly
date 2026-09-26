@@ -14,6 +14,7 @@ import { styleProfileBody } from "@/lib/ai/style-profile";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
 import { foldTurkishLower, foldTurkishAscii, classifyFallback, isClosingAck } from "@/lib/ai/fallback";
 import {
+  historyAuthorOf,
   LEGACY_AI_RESUME_SENDER,
   LEGACY_AI_SENDER_NAMES,
   resolveMessageAuthor,
@@ -618,6 +619,9 @@ export const QR_TOPIC_SCAN_CHAR_BUDGET = 24_000;
 export interface GuestChatHistoryItem {
   direction: "inbound" | "outbound";
   body: string;
+  /** Yazar (güvenilir alan, `historyAuthorOf`) ve yazıldığı an — F14; istemde yalnız Konuşma Anlama Durumu bayrağıyla. */
+  author?: "guest" | "host" | "ai";
+  at?: Date;
 }
 
 export interface GuestChatContextWindow {
@@ -703,7 +707,7 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
     prisma.message.findMany({
       where: { conversationId, systemEventType: null, NOT: { body: "" } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { direction: true, body: true },
+      select: { direction: true, body: true, createdAt: true, authorType: true, senderName: true },
       take: QR_TOPIC_SCAN_CAP,
     }),
     countPriorOperatorReplies(conversationId),
@@ -717,7 +721,12 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
     const r = chronological[i];
     if (window.length >= QR_HISTORY_MESSAGE_CAP) break;
     if (chars + r.body.length > QR_HISTORY_CHAR_CAP && window.length > 0) break;
-    window.unshift({ direction: r.direction === "inbound" ? "inbound" : "outbound", body: r.body });
+    window.unshift({
+      direction: r.direction === "inbound" ? "inbound" : "outbound",
+      body: r.body,
+      author: historyAuthorOf(r),
+      at: r.createdAt,
+    });
     chars += r.body.length;
   }
 
