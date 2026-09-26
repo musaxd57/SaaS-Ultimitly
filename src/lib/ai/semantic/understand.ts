@@ -5,7 +5,16 @@ import { callStructuredJson } from "./structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
 import { normalizeHhmm, type StayTimes } from "./stay-change";
-import { UNDERSTANDING_JSON_SCHEMA, parseUnderstanding, type MessageUnderstanding } from "./understanding-schema";
+import {
+  UNDERSTANDING_JSON_SCHEMA,
+  UNDERSTANDING_JSON_SCHEMA_ITEMS,
+  UNDERSTANDING_MAX_UNANSWERED,
+  UNDERSTANDING_MESSAGE_CAP,
+  parseUnderstanding,
+  understandingWindow,
+  type MessageUnderstanding,
+  type UnderstandingHistoryEntry,
+} from "./understanding-schema";
 
 // ---------------------------------------------------------------------------
 // ANLAMA KATMANI — şema tabanlı niyet çıkarıcı + sorgu yeniden yazma / çoklu sorgu (09-24).
@@ -50,11 +59,21 @@ export const UNDERSTANDING_SYSTEM_PROMPT = [
   'Guest: "Gibt es einen Parkplatz?" -> {"language":"de","requests":[{"intent":"parking","query_tr":"otopark park yeri","query_original":"Parkplatz parken"}],"stay_change":{"requested":false,"kind":"none","checkin_time":null,"checkout_time":null}}',
 ].join("\n");
 
-const MAX_UNANSWERED = 5;
-const MAX_HISTORY = 6;
-const MESSAGE_CAP = 1_000;
+/**
+ * KONUŞMA ÖĞELERİ KİPİ eki (09-26; yalnız `items: true` çağrısında sistem istemine EKLENİR — kapalıyken istem bayt bayt eski).
+ * Her istek geldiği cevapsız mesajın numarasını taşır; misafirin açıkça vazgeçtiği önceki istekler ayrı listede.
+ */
+export const UNDERSTANDING_ITEMS_PROMPT_ADDENDUM = [
+  "",
+  "CONVERSATION ITEMS (additional fields):",
+  "- requests[].message: the number [n] of the UNANSWERED message the request comes from. Every unanswered message gets at least one entry (a message that only states something: the closest intent, e.g. checkin_time for an arrival time, else other).",
+  "- withdrawn: requests the guest now explicitly cancels or no longer needs: the request's intent and message = the [n] of the unanswered message that contained it, or 0 if it was asked in RECENT CONVERSATION. Example: 'Boşverin, 3'te geleceğiz' after asking to check in at 12 -> withdrawn [{\"intent\":\"early_checkin\",...}]. Empty when nothing is withdrawn. A new, changed or repeated request is NOT a withdrawal of itself.",
+  'Example: [1] "IBAN\'ınızı atar mısınız?" [2] "Bir de Wi-Fi şifresi neydi?" -> {"language":"tr","requests":[{"intent":"payment_invoice","query_tr":"ödeme yöntemi","query_original":"ödeme yöntemi","message":1},{"intent":"wifi","query_tr":"wifi şifresi","query_original":"wifi şifresi","message":2}],"stay_change":{"requested":false,"kind":"none","checkin_time":null,"checkout_time":null},"withdrawn":[]}',
+  'Example: [1] "12\'de giriş yapabilir miyiz?" [2] "Boşverin, 15\'te geleceğiz." -> {"language":"tr","requests":[{"intent":"early_checkin","query_tr":"erken giriş","query_original":"erken giriş","message":1},{"intent":"checkin_time","query_tr":"giriş saati","query_original":"giriş saati","message":2}],"stay_change":{"requested":false,"kind":"none","checkin_time":null,"checkout_time":null},"withdrawn":[{"intent":"early_checkin","message":1}]}',
+].join("\n");
+
 /** Katmanın gördüğü pencere (erken giriş akışı: pencereye sığmayan cevapsız mesaj varsa otomatik gönderim yok). */
-export const UNDERSTANDING_WINDOW = { maxMessages: MAX_UNANSWERED, messageCap: MESSAGE_CAP } as const;
+export const UNDERSTANDING_WINDOW = { maxMessages: UNDERSTANDING_MAX_UNANSWERED, messageCap: UNDERSTANDING_MESSAGE_CAP } as const;
 
 function fenceSafe(text: string): string {
   // İki+ açılı ayraç ÇALIŞMASI bütünüyle silinir: tek geçişte "<<<" silmek ">><<<>" girdisinden YENİ bir
@@ -67,9 +86,9 @@ export interface UnderstandingInput {
   guestMessage: string;
   /**
    * Kronolojik konuşma (isteme giden pencere); son giden mesajdan sonraki misafir mesajları cevapsız sayılır. `at` =
-   * mesajın YAZILDIĞI an (F14b) — yalnız `writtenStamp` verildiğinde görünür.
+   * mesajın YAZILDIĞI an (F14b) — yalnız `writtenStamp` verildiğinde görünür. `id` isteme GİRMEZ (öğe eşlemesi için).
    */
-  history?: readonly { direction: "inbound" | "outbound"; body: string; at?: Date }[];
+  history?: readonly UnderstandingHistoryEntry[];
   stayTimes?: StayTimes | null;
   /** Redaksiyon için bilinen adlar. */
   names?: readonly (string | null | undefined)[];
@@ -85,20 +104,21 @@ export interface UnderstandingInput {
    * anahtarı — bayt bayt eskisi.
    */
   writtenStamp?: (at: Date) => string | null;
+  /**
+   * Konuşma öğeleri kipi (`AI_CONVERSATION_ITEMS_ENABLED`; karar noktası `kb-retrieve.ts`): istek başına mesaj numarası +
+   * vazgeçilen istekler. Verilmezse şema, istem ve önbellek anahtarı bayt bayt eskisi.
+   */
+  items?: boolean;
   fetchImpl?: typeof fetch;
 }
 
 /** Modele giden kullanıcı içeriği (redakte, ayraçlı, tavanlı). Saf; test edilebilir. */
 export function buildUnderstandingUserContent(input: UnderstandingInput): string {
   const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
-  const clean = (t: string) => fenceSafe(redactForSemanticModel(t, names)).slice(0, MESSAGE_CAP);
-  const hist = (input.history ?? []).filter((m) => typeof m.body === "string" && m.body.trim().length > 0);
-  // Cevapsız misafir mesajları: son GİDEN mesajdan sonrakiler (güncel mesaj dâhil, tekrar etmeden).
-  const lastOut = hist.map((m) => m.direction).lastIndexOf("outbound");
-  const pending: { body: string; at?: Date }[] = hist.slice(lastOut + 1).filter((m) => m.direction === "inbound");
-  if (pending[pending.length - 1]?.body !== input.guestMessage) pending.push({ body: input.guestMessage });
-  const unanswered = pending.slice(-MAX_UNANSWERED);
-  const context = hist.slice(0, lastOut + 1).slice(-MAX_HISTORY);
+  const clean = (t: string) => fenceSafe(redactForSemanticModel(t, names)).slice(0, UNDERSTANDING_MESSAGE_CAP);
+  // Cevapsız misafir mesajları: son GİDEN mesajdan sonrakiler (güncel mesaj dâhil, tekrar etmeden) — TEK kaynak
+  // `understandingWindow` (konuşma öğeleri [n] numarasını aynı listeden mesaja eşler).
+  const { context, unanswered } = understandingWindow(input.history, input.guestMessage);
   const ci = normalizeHhmm(input.stayTimes?.checkIn) ?? "unknown";
   const co = normalizeHhmm(input.stayTimes?.checkOut) ?? "unknown";
   // F14b: yazıldığı an yalnız damga fonksiyonu verildiğinde (bayrak açık) ve satır anı taşıyorsa; açıklama yalnız en az bir
@@ -157,7 +177,9 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     if (!apiKey) return { status: "off" };
     const model = semanticModel();
     const user = buildUnderstandingUserContent(input);
-    const key = cacheKey(model, user);
+    const items = input.items === true;
+    // Öğe kipi ayrı önbellek girdisi (farklı şema); kapalıyken anahtar bayt bayt eskisi.
+    const key = items ? cacheKey(`${model}\u0000items`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
       cache.delete(key);
@@ -167,9 +189,9 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: UNDERSTANDING_SYSTEM_PROMPT,
+      system: items ? `${UNDERSTANDING_SYSTEM_PROMPT}\n${UNDERSTANDING_ITEMS_PROMPT_ADDENDUM}` : UNDERSTANDING_SYSTEM_PROMPT,
       user,
-      schema: UNDERSTANDING_JSON_SCHEMA,
+      schema: items ? UNDERSTANDING_JSON_SCHEMA_ITEMS : UNDERSTANDING_JSON_SCHEMA,
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 600,
       maxCompletionTokens: 4_000,
@@ -177,7 +199,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed", ms: Date.now() - started };
-    const value = parseUnderstanding(res.data);
+    const value = parseUnderstanding(res.data, items ? { items: true } : undefined);
     if (!value) return { status: "failed", ms: Date.now() - started };
     // Süresi dolmuş girdi de olabilir: önce SİL, sonra ekle — `set` var olan anahtarı eski sırasında
     // bırakır ve taze girdi ilk çıkarılan olurdu (inceleme 09-24).

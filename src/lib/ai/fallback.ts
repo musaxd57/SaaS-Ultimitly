@@ -2086,17 +2086,17 @@ const DISCRIMINATION_PHRASES = [
 ];
 
 /**
- * Deterministic riskType label from the keyword nets (Faz-B). Order = severity
- * precedence. A LABEL for UI/reports only — the auto-send gate has its own
- * vetoes and may additionally tighten on it.
+ * Deterministic risk nets (Faz-B), in SEVERITY PRECEDENCE order — the single source for both `detectRiskType`
+ * (first hit) and `detectRiskTypes` (every hit; konuşma öğeleri 09-26: bir mesajdaki İKİNCİ riskli istek, öncelikteki
+ * birincinin arkasında görünmez kalmasın).
  */
-export function detectRiskType(message: string): string | null {
-  if (detectPromptInjection(message)) return "prompt_injection";
-  if (includesAnyFold(message, SAFETY_CRITICAL_WORDS)) return "safety_emergency";
-  if (includesAnyFold(message, REVIEW_THREAT_PHRASES, true)) return "review_threat";
-  if (includesAnyFold(message, OFFPLATFORM_PAYMENT_PHRASES, true)) return "platform_policy";
-  if (matchesIntentKeywords(message, "refund")) return "money_refund";
-  if (matchesIntentKeywords(message, "early_departure")) return "cancellation";
+const RISK_NETS: ReadonlyArray<readonly [label: string, hit: (message: string) => boolean]> = [
+  ["prompt_injection", (m) => detectPromptInjection(m)],
+  ["safety_emergency", (m) => includesAnyFold(m, SAFETY_CRITICAL_WORDS)],
+  ["review_threat", (m) => includesAnyFold(m, REVIEW_THREAT_PHRASES, true)],
+  ["platform_policy", (m) => includesAnyFold(m, OFFPLATFORM_PAYMENT_PHRASES, true)],
+  ["money_refund", (m) => matchesIntentKeywords(m, "refund")],
+  ["cancellation", (m) => matchesIntentKeywords(m, "early_departure")],
   // discrimination + rule_violation had NO deterministic detector — the gate
   // relied solely on the model's self-reported label, so a model miss on a
   // pet/party/over-capacity/discriminatory-exclusion message auto-sent an
@@ -2108,13 +2108,26 @@ export function detectRiskType(message: string): string | null {
   // to human_request, which the gate's designed handoff-ack exemption can
   // auto-answer, silently downgrading a tier-3 escalation to a soft handoff. With
   // discrimination/rule_violation first, the co-occurring case escalates.
-  if (includesAnyFold(message, DISCRIMINATION_PHRASES)) return "discrimination";
+  ["discrimination", (m) => includesAnyFold(m, DISCRIMINATION_PHRASES)],
   // Squatting/tahliye-reddi = ev sahibi + hukuk kararı → rule_violation (host-only).
-  if (includesAnyFold(message, OVERSTAY_REFUSAL_PHRASES)) return "rule_violation";
-  if (includesAnyFold(message, RULE_VIOLATION_PHRASES)) return "rule_violation";
-  if (matchesIntentKeywords(message, "human_request")) return "human_request";
-  if (classifyFallback(message).isComplaint) return "complaint";
+  ["rule_violation", (m) => includesAnyFold(m, OVERSTAY_REFUSAL_PHRASES) || includesAnyFold(m, RULE_VIOLATION_PHRASES)],
+  ["human_request", (m) => matchesIntentKeywords(m, "human_request")],
+  ["complaint", (m) => classifyFallback(m).isComplaint],
+];
+
+/**
+ * Deterministic riskType label from the keyword nets (Faz-B). Order = severity
+ * precedence. A LABEL for UI/reports only — the auto-send gate has its own
+ * vetoes and may additionally tighten on it.
+ */
+export function detectRiskType(message: string): string | null {
+  for (const [label, hit] of RISK_NETS) if (hit(message)) return label;
   return null;
+}
+
+/** Her tutan ağın etiketi (öncelik sırasıyla; boş = hiçbiri). İlk eleman her zaman `detectRiskType` ile aynıdır. */
+export function detectRiskTypes(message: string): string[] {
+  return RISK_NETS.filter(([, hit]) => hit(message)).map(([label]) => label);
 }
 
 /**

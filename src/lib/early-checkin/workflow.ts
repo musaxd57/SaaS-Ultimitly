@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { stayRequestKinds, type AvailabilityPolicyOptions, type StayRequestKind } from "@/lib/ai/availability-claims";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
-import type { MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
+import { NOT_FULLY_READ_MARGIN, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import {
   agreeRequestedTime,
   decideEarlyCheckin,
@@ -24,11 +24,8 @@ import { earlyCheckinApprovalText, earlyCheckinLang } from "./reply";
 import { explicitTimeMentions, mentionsAnotherDay, timeMismatchInTexts } from "./text-checks";
 import type { EarlyCheckinAutoBlocker } from "./core";
 
-/**
- * Uzunluk payı: modeller mesajı ad/telefon maskesinden (`redactForSemanticModel`) SONRA ve tavanla keserek görür; maske
- * metni uzatabilir → ham uzunluk tavana bu kadar yaklaşınca da "tamamı okunmadı" sayılır (09-24 inceleme).
- */
-export const NOT_FULLY_READ_MARGIN = 100;
+/** Uzunluk payı — tek kaynak anlama katmanının pencere tanımı (`understanding-schema.ts`; konuşma öğeleri de kullanır). */
+export { NOT_FULLY_READ_MARGIN };
 
 /** İki model katmanının ORTAK penceresi: bundan fazla / uzun cevapsız mesajın bir kısmı modellerce görülmedi. */
 const MODEL_WINDOW = {

@@ -14,6 +14,7 @@ import type { StayTimes } from "@/lib/ai/semantic/stay-change";
 import { conversationStateEnabled } from "@/lib/ai/conversation-state";
 import { stayTimeline, understandingDateLine, writtenAtEn } from "@/lib/ai/stay-timeline";
 import { orgTimezone } from "@/lib/timezone";
+import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 
 // ---------------------------------------------------------------------------
 // BİLGİ SEÇİMİ — YÜZEYLERİN TEK GİRİŞİ (09-23).
@@ -85,6 +86,8 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
     names: redactNames,
     ...(dateLine ? { dateLine } : {}),
     ...(writtenStamp ? { writtenStamp } : {}),
+    // Konuşma öğeleri kipi — TEK karar noktası burada (bayrak kapalıyken alan hiç gitmez, çağrı bayt bayt eskisi).
+    ...(conversationItemsEnabled() ? { items: true } : {}),
   });
   const queriesNeeded =
     understandingEnabled() &&
