@@ -225,23 +225,38 @@ function fusedOrder(lists: readonly (readonly { key: string }[])[]): string[] {
  * birleşim (`RERANK_FALLBACK_CANDIDATES`). En çok `RERANK_MAX_CALLS` pencere; tekrar yok (pencere içinde); pencere başına
  * en çok `RERANK_MAX_CANDIDATES`. Saf.
  */
+/**
+ * Pencere kuruluşu seçenekleri (#189 ölçüm deneyi; verilmezse BUGÜNKÜ kural birebir). `perRequest`: istek başına aday
+ * (varsayılan `RERANK_PER_REQUEST_CANDIDATES`) · `own`: taban aday sayısı (varsayılan `RERANK_OWN_CANDIDATES`) ·
+ * `ownFusion`: taban "roundrobin" (varsayılan, sırayla birleşim) ya da "rrf" (listeler arası RRF — birkaç alt sorguda birden
+ * geçen aday önde) · `listFloor`: istek penceresinde her listenin ilk N adayı RRF'den ÖNCE güvenceli (varsayılan 0 = saf RRF;
+ * saf RRF'de tek listede 2. sıradaki aday, iki listede birden orta sırada geçenlerin gerisine düşebiliyordu).
+ */
+export interface RerankWindowOptions {
+  perRequest?: number;
+  own?: number;
+  ownFusion?: "roundrobin" | "rrf";
+  listFloor?: number;
+}
+
 export function rerankCandidateWindows(
   lists: readonly (readonly { key: string }[])[],
   meta: readonly { extra: boolean; request?: number }[] = [],
+  opts: RerankWindowOptions = {},
 ): string[][] {
   // İsteğe işaretli liste: anlama katmanının sorgusu ya da onunla birebir aynı olduğu için işaretlenen deterministik alt sorgu.
   const reqOf = (i: number): number | undefined => meta[i]?.request;
   const reqIds = [...new Set(lists.map((_, i) => reqOf(i)).filter((r): r is number => r !== undefined))].sort((a, b) => a - b);
   if (reqIds.length === 0) return [unionTopCandidates(lists, RERANK_FALLBACK_CANDIDATES)];
-  const own = unionTopCandidates(
-    lists.filter((_, i) => reqOf(i) === undefined),
-    RERANK_OWN_CANDIDATES,
-  );
+  const ownLists = lists.filter((_, i) => reqOf(i) === undefined);
+  const ownN = opts.own ?? RERANK_OWN_CANDIDATES;
+  const own = opts.ownFusion === "rrf" ? fusedOrder(ownLists).slice(0, ownN) : unionTopCandidates(ownLists, ownN);
+  const floor = Math.max(0, Math.trunc(opts.listFloor ?? 0));
   // Çağrı tavanı: fazla istekler sırayla son çağrıların kovasına düşer; kovadaki istekler payı bölüşür.
   const buckets: number[][] = Array.from({ length: Math.min(RERANK_MAX_CALLS, reqIds.length) }, () => []);
   reqIds.forEach((r, i) => buckets[i % buckets.length].push(r));
   return buckets.map((bucket) => {
-    const per = Math.max(1, Math.floor(RERANK_PER_REQUEST_CANDIDATES / bucket.length));
+    const per = Math.max(1, Math.floor((opts.perRequest ?? RERANK_PER_REQUEST_CANDIDATES) / bucket.length));
     const out: string[] = [];
     const seen = new Set<string>();
     const push = (k: string) => {
@@ -250,7 +265,11 @@ export function rerankCandidateWindows(
         out.push(k);
       }
     };
-    for (const r of bucket) for (const k of fusedOrder(lists.filter((_, i) => reqOf(i) === r)).slice(0, per)) push(k);
+    for (const r of bucket) {
+      const reqLists = lists.filter((_, i) => reqOf(i) === r);
+      const head = floor > 0 ? unionTopCandidates(reqLists.map((l) => l.slice(0, floor)), floor * reqLists.length) : [];
+      for (const k of [...new Set([...head, ...fusedOrder(reqLists)])].slice(0, per)) push(k);
+    }
     for (const k of own) push(k);
     return out;
   });
@@ -260,8 +279,9 @@ export function rerankCandidateWindows(
 export function rerankCandidateKeys(
   lists: readonly (readonly { key: string }[])[],
   meta: readonly { extra: boolean; request?: number }[] = [],
+  opts: RerankWindowOptions = {},
 ): string[] {
-  return [...new Set(rerankCandidateWindows(lists, meta).flat())];
+  return [...new Set(rerankCandidateWindows(lists, meta, opts).flat())];
 }
 
 /**

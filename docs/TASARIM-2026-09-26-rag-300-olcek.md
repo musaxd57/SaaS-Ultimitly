@@ -82,19 +82,42 @@ Kaybın iki büyük kaynağı: **okuma tavanı** (en eski kalemler seçiciye hi�
 cevapların ~%21'ini işaretlemiyor (tek soruda ~50 adayla %2). Çözüm üretimde yazıldı: her soru AYRI çağrı. Temiz ölçümü kredi
 bittiği için yarım kaldı (yarım koşu geçersiz sayıldı, rapora girmedi).
 
+### 4b. Ücretsiz ön tahmin — yarım koşunun önbellekteki çağrılarıyla (09-26 gece, kredi bittikten sonra)
+
+Ölçere "yalnız önbellek" kipi eklendi (`RAG_LAB_OFFLINE=1`, önbellekte olmayan çıktı ağa çıkmadan hata) ve **eşleştirilmiş alt
+küme** (`RAG_LAB_OFFLINE_SKIP=1`: önbellekte olmayan soru TÜM yapılandırmalardan çıkarılır). Yarıda kalan ayrı çağrı koşusunun
+başarılı çağrılarıyla (`docs/olcum/rag-lab-2026-09-26-12.md`; 25 soru çıkarıldı, iki soruda 97/120 kaldı — alt küme rastgele
+DEĞİL, tam ölçümün yerini TUTMAZ):
+
+| Grup (alt küme) | Taban | Tek çağrı | **Ayrı çağrı** |
+|---|---|---|---|
+| İki soru (ikisi birden) | %33 | %49 | **%86** |
+| Tek soru TR | %69 | %94 | %93 (yalnız ayrı çağrıya 2,5 sn tavanı uygulandı) |
+| Diğer diller | %73 | %99 | %99 |
+
+Aynı önbellekle (pencere değişmediği için ücretsiz) ablasyonlar: ayrı çağrıda soru başına etiket (`prl`) +1 soru; atla-paketle
+(`skip`), kalem başına 5 parça (`pi5`), anlama sorgusu payı 1/2 (`xs0.5`) **fark yok** → üretime alınmadı. Ayrı çağrıda kalan
+kayıp: pencere dışı (iki soru 4 cevap, TR 4), model işaretlemedi (iki soru 9, TR 2), işaretlendiği hâlde bloğa girmedi (iki soru
+3 — üçü de saat çelişkisi notlu satırlar; çelişki partnerleri bütçeyi alıyor), 600 karakter kırpma iğneyi kesti (TR 1), 2,5 sn
+tavanı (TR 1).
+
+**Pencere kuruluşu (modelsiz tavan, tam dev örneklemi, `-13.md`; pencere dışı kalan cevap):** bugünkü 40+10 → iki soru 6/240,
+TR 4/111, diğer 1/111 · **istek başına 50 → 2 / 3 / 1** · liste tabanı 10 (`wfloor10`) 5 · RRF taban (`wownrrf`) 6 · taban 20
+(`wown20`) 5. Seçenekler üretimin `rerankCandidateWindows` işlevinde (varsayılan birebir bugünkü); 50'ye geçmek çağrı başına
++%25 aday demek — kredi gelince son blok etkisiyle birlikte ölçülüp karara bağlanır.
+
 ## 5. Codex'in "sınanması gerekenler"i
 
-- **Sığmayan ilk parçada `break` / kalem başına 3 parça:** ölçer seçenekleri var (`skip`, `piN`); ücretsiz ölçüm (önbellekteki
-  yeniden sıralama çıktılarıyla, pencere değişmediği için) ↓§6'da.
-- **Tek çağrıda soru bazlı etiket (`pq`):** ölçer seçeneği var, ücretli — ayrı çağrı yolu seçildi (tek çağrı 90 adayda
-  işaretlemeyi kaçırıyordu); `pq` kıyası kredi gelince.
+- **Sığmayan ilk parçada `break` / kalem başına 3 parça:** ölçüldü (↑§4b, ücretsiz): fark YOK — değiştirilmedi.
+- **Düz etiket her alt sorguda:** ayrı çağrılarda soru başına etiket (`prl`) ölçüldü: +1 soru (97'de) — şimdilik üretime
+  alınmadı. Tek çağrıda soru bazlı etiket (`pq`) ücretli, ayrı çağrı yolu seçildiği için önceliksiz.
 - **600 karakter kırpma ablasyonu:** ücretli (istek değişir); kırpma sütunu aşama tablosunda bilgi olarak var (TR 2, diğer 2).
 - **Kalıcı vektör deposu (migration):** gerek görülmedi — `cold` kaybı yazma/açılış ısıtmasıyla kapatıldı; depo tahliyesi
   ölçümde görülmedi. Migration YOK.
 
 ## 6. Açık kalanlar (sıra)
 
-1. Kredi gelince: ayrı çağrılı yeniden sıralamanın temiz dev ölçümü (`EVAL_RAG_CONFIGS=base0926,prod …`), maliyet + p95.
+1. Kredi gelince: ayrı çağrılı yeniden sıralamanın temiz dev ölçümü (istek başına 40 ve 50 pencereyle), maliyet + p95.
 2. Holdout kabul koşusu (yalnız toplu sayı) — §1 kapısı.
 3. Cevap düzeyi ölçüm (`EVAL_RAG_ANSWER=1`), E4 sentetik setinin yeni hatla tekrarı.
 4. Kurucu kararı: `OPENAI_EMBEDDING_MODEL=text-embedding-3-large` ve `KB_RERANK_PER_QUESTION=1`.

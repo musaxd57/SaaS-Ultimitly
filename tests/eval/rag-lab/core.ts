@@ -29,6 +29,7 @@ import {
   rerankCandidateKeys,
   rerankCandidateWindows,
   rerankQuestionText,
+  type RerankWindowOptions,
   unionTopCandidates,
 } from "@/lib/ai/semantic/rerank";
 import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
@@ -121,6 +122,8 @@ export interface LabConfig {
      * birleşik etiketle. Ölçüm seçeneği — üretim bugün birleşik etiketi kullanır.
      */
     perRequestLabels?: boolean;
+    /** "prod" penceresinin kuruluş seçenekleri (üretimin `rerankCandidateWindows` deneyi; verilmezse üretim varsayılanı). */
+    windowOpts?: RerankWindowOptions;
     /**
      * Modelin GÖRÜP işaretlemediği aday 0 puan alır → seçicide işaretsiz (görülmemiş) adayların ARKASINA düşer (seçicinin
      * mevcut 0 → kademe 4 kuralı). Yalnız en az bir işaret varsa (model "hiçbiri" dediyse sıra bugünkü kalır).
@@ -432,7 +435,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
     const ownCount = retrievalQueries(q.text, history, { extraQueries }).queries.filter((x) => !x.extra).length;
     window =
       cfg.rerank.window === "prod"
-        ? rerankCandidateKeys(lists, listMeta)
+        ? rerankCandidateKeys(lists, listMeta, cfg.rerank.windowOpts)
         : cfg.rerank.window === "fused"
         ? fusedWindow(lists, cfg.rerank.k)
         : cfg.rerank.window === "mixed"
@@ -493,7 +496,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
       } else if (cfg.rerank.window === "prod" && cfg.rerank.split !== false) {
         // ÜRETİMİN İKİZİ: soru başına AYRI pencere → AYRI çağrı (paralel), puanlar en yükseğiyle birleşir; her çağrı üretimin
         // sıcak yol tavanına ayrı ayrı tabi (tavanı aşan çağrı düşmüş sayılır, diğerinin işaretleri kalır).
-        const allWins = rerankCandidateWindows(lists, listMeta).map((keys) =>
+        const allWins = rerankCandidateWindows(lists, listMeta, cfg.rerank.windowOpts).map((keys) =>
           keys.flatMap((k) => {
             const c = byKey.get(k);
             return c ? [{ key: k, title: c.title, text: c.text }] : [];

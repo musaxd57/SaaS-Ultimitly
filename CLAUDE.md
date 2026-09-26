@@ -204,8 +204,11 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   0,4; okuyucu YAPRAK `embeddings/model.ts`) · soru başına yeniden sıralama `KB_RERANK_PER_QUESTION` VARSAYILAN KAPALI
   (anlama isteği başına 40 + 10'luk taban, ≤3 PARALEL çağrı, birleşim en yüksek; kanıt `rrN`; kapalıyken ilk 20 tek çağrı
   BİREBİR, pinli) · anlama sorgusu alt sorguyla birebir aynıysa liste o isteğe işaretlenir. Dev ölçüm (tek çağrı): tek soru TR
-  %69→%95, diğer diller %73→%99, iki soru %33→%50. 🚨 OpenAI kredisi 09-26 gece BİTTİ: ayrı çağrı temiz ölçümü + holdout kabulü
-  + cevap düzeyi ölçüm bekliyor; iki bayrağı açmak kurucu kararı.
+  %69→%95, diğer diller %73→%99, iki soru %33→%50; ayrı çağrı (önbellekten eşleştirilmiş alt küme, ön tahmin) iki soru %86.
+  Ölçülüp etkisiz çıkan (geri önerme): atla-paketle, kalem başına 5 parça, anlama payı 1/2, RRF taban, taban 20. Pencere
+  kuruluşu seçenekleri (`RerankWindowOptions`, varsayılan birebir) — istek başına 50 modelsiz tavanda iki soruda pencere dışı
+  6→2. Ölçer "yalnız önbellek" kipi `RAG_LAB_OFFLINE=1` (+ `_SKIP=1` eşleştirilmiş alt küme). 🚨 OpenAI kredisi 09-26 gece
+  BİTTİ: ayrı çağrı temiz ölçümü + holdout kabulü + cevap düzeyi ölçüm bekliyor; iki bayrağı açmak kurucu kararı.
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model

@@ -177,3 +177,42 @@ describe("seçici → pencere bağlantısı: anlama isteği indeksi listelerin k
     expect(meta.filter((m) => !m.extra).every((m) => m.request === undefined)).toBe(true);
   });
 });
+
+describe("pencere kuruluşu seçenekleri (#189 deneyi; verilmezse bugünkü kural)", () => {
+  const lists = [L("o", 50), L("a", 50), L("b", 50)];
+  const meta: CandidateListMeta[] = [{ extra: false }, { extra: true, request: 0 }, { extra: true, request: 1 }];
+
+  it("seçenek verilmezse / boş nesne: birebir aynı", () => {
+    expect(rerankCandidateWindows(lists, meta, {})).toEqual(rerankCandidateWindows(lists, meta));
+  });
+
+  it("perRequest: istek başına aday sayısı", () => {
+    const w = rerankCandidateWindows(lists, meta, { perRequest: 50 });
+    expect(w[0].filter((k) => k.startsWith("a"))).toHaveLength(50);
+    expect(w[0]).toHaveLength(RERANK_MAX_CANDIDATES);
+  });
+
+  it("listFloor: tek listede ÖN sıradaki aday, iki listede birden orta sırada geçenlerin gerisine DÜŞMEZ", () => {
+    const shared = L("s", 60);
+    const withT = [...shared.slice(0, 2), { key: "t#0" }, ...shared.slice(2, 57)];
+    const two = [withT, shared];
+    const m2: CandidateListMeta[] = [{ extra: true, request: 0 }, { extra: true, request: 0 }];
+    // KONTROL: saf RRF'de t (yalnız bir listede, 3. sıra) 40'lık pencerenin DIŞINDA.
+    expect(rerankCandidateWindows(two, m2)[0]).not.toContain("t#0");
+    expect(rerankCandidateWindows(two, m2, { listFloor: 10 })[0]).toContain("t#0");
+  });
+
+  it("ownFusion rrf: birkaç deterministik listede birden geçen aday tabana girer (sıra-sıra birleşim kaçırır)", () => {
+    // Dört özgün listenin her birinde 6. sırada ortak aday "c"; kalanlar listeye özgü.
+    const own = ["p", "q", "r", "u"].map((pfx) => [...L(pfx, 5), { key: "c#0" }, ...L(pfx, 20, 5)]);
+    const all = [...own, L("a", 50)];
+    const m: CandidateListMeta[] = [...own.map(() => ({ extra: false })), { extra: true, request: 0 }];
+    expect(rerankCandidateWindows(all, m)[0]).not.toContain("c#0");
+    expect(rerankCandidateWindows(all, m, { ownFusion: "rrf" })[0]).toContain("c#0");
+  });
+
+  it("own: taban aday sayısı", () => {
+    const w = rerankCandidateWindows(lists, meta, { own: 20 });
+    expect(w[0].filter((k) => k.startsWith("o"))).toHaveLength(20);
+  });
+});
