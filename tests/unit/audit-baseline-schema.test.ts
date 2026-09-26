@@ -89,7 +89,7 @@ describe("betik (alt süreç) — bozuk kayıt ağa çıkmadan KIRMIZI", () => {
       mkdirSync(path.join(dir, "scripts"));
       mkdirSync(path.join(dir, "security"));
       copyFileSync(path.join(ROOT, "scripts", "audit-check.mjs"), path.join(dir, "scripts", "audit-check.mjs"));
-      const { expires: _drop, ...noExpires } = ok;
+      const noExpires = { id: ok.id, package: ok.package, severity: ok.severity, reason: ok.reason };
       writeFileSync(path.join(dir, "security", "audit-baseline.json"), JSON.stringify({ accepted: [noExpires] }));
       writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "t", version: "1.0.0" }));
       const res = spawnSync(process.execPath, [path.join(dir, "scripts", "audit-check.mjs")], { cwd: dir, encoding: "utf8", timeout: 60_000 });
