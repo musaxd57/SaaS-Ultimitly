@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { zonedDayRange } from "@/lib/automation";
+import { reservationDayRangeWhere, taskDueDayRangeWhere, todayRange } from "@/lib/day-where";
 import { orgTimezone } from "@/lib/timezone";
 import {
   LogIn,
@@ -45,7 +45,9 @@ export default async function DashboardPage() {
     select: { timezone: true, aiSignature: true, autoReplyHospitable: true },
   });
   const TZ = orgTimezone(org?.timezone);
-  const { start: dayStart, end: dayEnd } = zonedDayRange(now, TZ);
+  // Tek tarih kuralı (09-26): saklı tarih `calendarDateOf` ile güne çevrilir — ham gün başı/sonu penceresi New York'ta
+  // bugünün 00:00Z girişini dışarıda bırakıp YARININKİNİ "bugün" gösteriyordu. Durum kartları (`getOpsStats`) aynı kural.
+  const today = todayRange(now, TZ);
   const scope = { property: { organizationId: orgId } };
 
   const [stats, arrivalsRaw, departuresRaw, conversations, tasksToday] = await Promise.all([
@@ -54,7 +56,7 @@ export default async function DashboardPage() {
       where: {
         ...scope,
         status: { in: ["confirmed", "completed"] },
-        arrivalDate: { gte: dayStart, lte: dayEnd },
+        AND: [reservationDayRangeWhere("arrivalDate", today, TZ)],
       },
       include: { property: { select: { name: true, checkInTime: true } } },
       orderBy: { arrivalDate: "asc" },
@@ -63,7 +65,7 @@ export default async function DashboardPage() {
       where: {
         ...scope,
         status: { in: ["confirmed", "completed"] },
-        departureDate: { gte: dayStart, lte: dayEnd },
+        AND: [reservationDayRangeWhere("departureDate", today, TZ)],
       },
       include: { property: { select: { name: true, checkOutTime: true } } },
       orderBy: { departureDate: "asc" },
@@ -80,7 +82,7 @@ export default async function DashboardPage() {
     }),
     // Tasks due today (any priority) — the operational "to-do for today".
     prisma.task.findMany({
-      where: { ...scope, status: { not: "done" }, dueAt: { gte: dayStart, lte: dayEnd } },
+      where: { ...scope, status: { not: "done" }, AND: [taskDueDayRangeWhere(today, TZ)] },
       include: { property: { select: { name: true } } },
       orderBy: { dueAt: "asc" },
     }),

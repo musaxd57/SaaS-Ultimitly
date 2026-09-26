@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
 import { cn } from "@/lib/utils";
-import { zonedDayRange } from "@/lib/automation";
+import { reservationsMissingCleaningWhere } from "@/lib/tasks/missing-cleaning";
 import { orgTimezone } from "@/lib/timezone";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 import { latestRenderablePhotoByTask } from "@/lib/storage/keys";
@@ -107,15 +107,9 @@ export default async function TasksPage({
     // Current/future checkouts still missing their CLEANING task — so the backfill
     // button appears and one click fills the gap. MANAGER-ONLY: the org-wide count
     // (and the backfill button itself) is management UI; staff must not see it.
+    // Gün kuralı görev oluşturmayla AYNI (`reservationsMissingCleaningWhere`, tek tarih kuralı).
     canManage
-      ? prisma.reservation.count({
-          where: {
-            property: { organizationId: session.organizationId },
-            status: { not: "cancelled" },
-            tasks: { none: { type: "cleaning" } },
-            departureDate: { gte: zonedDayRange(new Date(), TZ).start },
-          },
-        })
+      ? prisma.reservation.count({ where: reservationsMissingCleaningWhere(session.organizationId, new Date(), TZ) })
       : Promise.resolve(0),
   ]);
 

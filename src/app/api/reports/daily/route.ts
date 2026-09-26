@@ -3,6 +3,7 @@ import { getOpsStats, buildDailySummary } from "@/lib/reports";
 import { jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { orgTimezone, zonedDayRange } from "@/lib/timezone";
+import { reservationDayRangeWhere, todayRange } from "@/lib/day-where";
 
 export const GET = withManage(async (session) => {
   const orgId = session.organizationId;
@@ -17,7 +18,12 @@ export const GET = withManage(async (session) => {
     where: { id: orgId },
     select: { timezone: true },
   });
-  const { start: dayStart, end: dayEnd } = zonedDayRange(new Date(), orgTimezone(org?.timezone));
+  const now = new Date();
+  const tz = orgTimezone(org?.timezone);
+  // `date` sözleşmesi aynı (org gece yarısı anı). Listeler TEK TARİH KURALIYLA (09-26, `calendarDateOf`) — `getOpsStats`
+  // sayılarıyla aynı küme; ham pencere New York'ta bugünün girişi yerine YARININKİNİ listeliyordu.
+  const dayStart = zonedDayRange(now, tz).start;
+  const today = todayRange(now, tz);
   const scope = { property: { organizationId: orgId } };
 
   const [stats, arrivals, departures] = await Promise.all([
@@ -30,7 +36,7 @@ export const GET = withManage(async (session) => {
       where: {
         ...scope,
         status: { in: ["confirmed", "completed"] },
-        arrivalDate: { gte: dayStart, lt: dayEnd },
+        AND: [reservationDayRangeWhere("arrivalDate", today, tz)],
       },
       include: { property: { select: { name: true } } },
       orderBy: { arrivalDate: "asc" },
@@ -39,7 +45,7 @@ export const GET = withManage(async (session) => {
       where: {
         ...scope,
         status: { in: ["confirmed", "completed"] },
-        departureDate: { gte: dayStart, lt: dayEnd },
+        AND: [reservationDayRangeWhere("departureDate", today, tz)],
       },
       include: { property: { select: { name: true } } },
       orderBy: { departureDate: "asc" },

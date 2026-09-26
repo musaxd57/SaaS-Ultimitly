@@ -94,6 +94,15 @@ export function stayEndedBefore(departure: Date, now: Date, timeZone: string): b
   return calendarDateOf(departure, timeZone).key < todayKey(now, timeZone);
 }
 
+/**
+ * Saklı tarih (giriş / çıkış / görev vadesi) org gününe göre BUGÜN ya da SONRASI mı — `calendarDateOf` ile (09-26, ev
+ * sahibi yüzeyleri). Ham `stored >= gün başı` kıyası New York'ta bugünün 00:00Z değerini "dün", Auckland'da dünün 12:00Z
+ * değerini "bugün" sayıyordu. Sorgu ikizi `@/lib/day-where` (kesin where; iki taraf aynı kararı verir, pinli).
+ */
+export function onOrAfterToday(stored: Date, now: Date, timeZone: string): boolean {
+  return calendarDateOf(stored, timeZone).key >= todayKey(now, timeZone);
+}
+
 /** `booked` confirmed|completed · `held` pending · `ignored` cancelled · tanınmayan → İŞGAL EDER. */
 export type StatusClass = "booked" | "held" | "ignored" | "unrecognized";
 

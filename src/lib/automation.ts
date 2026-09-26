@@ -46,7 +46,7 @@ import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
-import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
+import { calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
 // Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
 export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
@@ -1213,12 +1213,13 @@ export async function createReservationTasks(reservationId: string): Promise<num
   });
   const has = new Set(existing.map((t) => t.type));
 
-  // "Today" boundary in the HOST'S timezone (org.timezone) — matches the dashboard
-  // and the missing-tasks count. date-fns startOfDay uses the server's UTC day;
-  // reservation dates land at local midnight (BEFORE UTC midnight for UTC+ zones),
-  // so a UTC gate wrongly treats TODAY's checkout as past and creates nothing.
-  // That is exactly why "Eksik görevleri oluştur" reported 0 created.
-  const todayStart = zonedDayRange(new Date(), orgTimezone(r.property?.organization?.timezone)).start;
+  // "Bugün" = HOST'UN günü (org.timezone) ve TEK TARİH KURALI (09-26, `onOrAfterToday` → `calendarDateOf`): yalnız-tarih
+  // çapası (D 00:00Z / D 12:00Z) UTC tarihidir, gerçek an org diliminde okunur. Önceki ham `tarih >= org gün başı` kıyası
+  // İstanbul'da doğruydu (eskiden sunucunun UTC günüydü → "Eksik görevleri oluştur" 0 açıyordu), ama New York'ta bugünün
+  // 00:00Z değerini "dün" sayıyordu (aynı gün rezervasyona giriş hazırlığı, bugün çıkana temizlik AÇILMIYORDU), Auckland'da
+  // dünün 12:00Z değerini "bugün". Görevler sayfasındaki eksik görev sayısı aynı kararı verir (`reservationsMissingCleaningWhere`).
+  const now = new Date();
+  const tz = orgTimezone(r.property?.organization?.timezone);
   const data: {
     propertyId: string;
     reservationId: string;
@@ -1232,7 +1233,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
     checklistJson?: string;
   }[] = [];
 
-  if (r.arrivalDate >= todayStart && !has.has("checkin_prep")) {
+  if (onOrAfterToday(r.arrivalDate, now, tz) && !has.has("checkin_prep")) {
     data.push({
       propertyId: r.propertyId,
       reservationId: r.id,
@@ -1245,7 +1246,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
       priority: "standard",
     });
   }
-  if (r.departureDate >= todayStart && !has.has("cleaning")) {
+  if (onOrAfterToday(r.departureDate, now, tz) && !has.has("cleaning")) {
     data.push({
       propertyId: r.propertyId,
       reservationId: r.id,

@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { reservationAmount } from "@/lib/money";
 import { computeResponseEpisodes } from "@/lib/response-episodes";
 import { orgTimezone, zonedDayRange, zonedDateStart, addZonedDays } from "@/lib/timezone";
+import { reservationDayRangeWhere, todayRange } from "@/lib/day-where";
 
 // Reporting day/occupancy math is anchored to the HOST'S calendar day
 // (org.timezone, default Europe/Istanbul) — Railway runs UTC and arrivalDates
@@ -69,7 +70,11 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     where: { id: orgId },
     select: { timezone: true },
   });
-  const { start: dayStart, end: dayEnd } = zonedDayRange(now, orgTimezone(org?.timezone));
+  const tz = orgTimezone(org?.timezone);
+  const { end: dayEnd } = zonedDayRange(now, tz);
+  // Bugünkü giriş/çıkış = TEK TARİH KURALI (09-26, `calendarDateOf`; panonun listeleri ve günlük rapor aynı küme). Ham
+  // gün başı/sonu penceresi New York'ta bugünün 00:00Z girişini saymıyor, yarınınkini sayıyordu.
+  const today = todayRange(now, tz);
   const activeStatus = { in: ["confirmed", "completed"] };
 
   const [
@@ -86,7 +91,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
       where: {
         ...propertyScope(orgId),
         status: activeStatus,
-        arrivalDate: { gte: dayStart, lte: dayEnd },
+        AND: [reservationDayRangeWhere("arrivalDate", today, tz)],
       },
       // `propertyId` — aynı gün devir hesabı için. Ek sorgu değil, bir kolon.
       select: { sourceReference: true, id: true, propertyId: true },
@@ -95,7 +100,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
       where: {
         ...propertyScope(orgId),
         status: activeStatus,
-        departureDate: { gte: dayStart, lte: dayEnd },
+        AND: [reservationDayRangeWhere("departureDate", today, tz)],
       },
       // `propertyId` — aynı gün devir hesabı için (giriş kümesiyle kesişim).
       select: { sourceReference: true, id: true, propertyId: true },
