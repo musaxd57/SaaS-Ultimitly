@@ -122,6 +122,16 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
   gerçek kural mesajından 10'unu tanıyor, 25 kural konusu olmayan mesajın 8'ini tutuyor ("partial refund", "Our party of 5",
   "Quelle partie de la ville") — cevap modelinin kendi risk etiketi bu sayıya dahil DEĞİL (bugün o da tutar). Ücretli koşu
   (~82 çağrı) kurucu onayıyla.
+- **Ücretli koşular (09-26, kurucu "test et sorun yok"; bayrak CANLIDA AÇIK — kurucu `AI_HOUSE_RULES_SHADOW=1` ekledi):**
+  (a) konu + tutum dev seti 82 mesaj (`docs/olcum/ev-kurallari-eval-2026-09-26-gpt-5.1.md`): konu 58/59 (%98), tutum birebir
+  55/58 (%95), konu olmayanda olumlu konu 1/25; "misafir değil" diye atlanan 0; yanlış/gereksiz kural cümlesi 1 (olumsuzlama
+  "hiçbirimiz sigara içmiyor"); haber eksik 2; kural yokken gereksiz tutma 2. (b) konuşma öğeleri kural kipinde (yalnız öğe
+  kolu, `…-kural-oge-kolu.md`): sızıntı 0 · acilde otomatik 0 · güvenli kısım 16/17 (önceki koşu 17/17): "parti + Wi-Fi"
+  mesajında parti isteği `other` etiketlendi → öğe eşlenemedi → tur TAMAMEN tutuldu (güvenli yön). (c) aynı 102 mesaj iki kipte
+  (`kural-kipi-niyet-2026-09-26.md`): niyet kümesi değişen 8/102, İKİ YÖNDE ("other" artan 2 · azalan 2; aynı parti mesajı öğe
+  kipinde de `other` aldı) → kural kipi niyeti SİSTEMATİK bozmuyor; model gürültüsü. Bilinen zayıflık (bayraktan bağımsız):
+  yapacağını söyleyen parti mesajı bazen `other` → tur bütünüyle tutulur; ileride `rule_topic` öğe türüne bağlanırsa kapanır
+  (karara bağlama dilimi, onayla).
 - Sonraki: bayrak açık gölge süresi (gerçek trafikte `hr` ile kelime listesinin kıyası) → ücretli kör ölçüm (etiketli
   konu/tutum seti) → kurucu onayı → karara bağlama. Yapay zekâ önerisi (bilgi tabanından `suggested`) ayrı dilim. Konuşma
   öğeleri (canlıda açık) de aynı anlama çıktısını kullanır: kural kipinde öğe eval'i (20 senaryo, küçük ücretli koşu) kurucu

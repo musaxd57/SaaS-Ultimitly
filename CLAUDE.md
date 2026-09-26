@@ -1244,7 +1244,8 @@ birebir aynı (pinli); kapalıyken anlama istemi/şeması/önbellek anahtarı ba
 alanlar aynı çağrıya bindiği için model çıktısı oynayabilir (anlama 5/599 satır, gereksiz inceleme dev +1 / holdout +2; kipten
 bağımsız bekçi de 2/599 oynadı = gürültü tabanı; tasarım belgesi §6).
 Canlı değişkenler (kurucu 09-26 ekledi, sürüm Active — kurucu beyanı): `AI_CONVERSATION_ITEMS_ENABLED=1` +
-`KB_SEMANTIC_RETRIEVAL=1` + `KB_RERANK_ENABLED=1` (#186) + `HOUSE_RULES_CARD_ENABLED=1`; `AI_HOUSE_RULES_SHADOW` henüz YOK.
+`KB_SEMANTIC_RETRIEVAL=1` + `KB_RERANK_ENABLED=1` (#186) + `HOUSE_RULES_CARD_ENABLED=1` + `AI_HOUSE_RULES_SHADOW=1` (09-26 gece;
+ölçümler tasarım belgesi §6: tehlikeli sınıf 0, kural kipi niyeti sistematik bozmuyor).
 
 **09-26 CODEX P2 TURU (`docs/audit-2026-09-05/DURUM.md`):** F13 (+ sistem istemi kalıntısı), F15, F16 KAPANDI; F14 kodda,
 bayrak arkasında (açmak = kör eval + kurucu onayı); #176 sahte geçmiş etiketi canlı kapıda injection. Hepsi migration'sız,
