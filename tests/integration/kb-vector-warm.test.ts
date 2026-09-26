@@ -75,7 +75,13 @@ describe("warmPropertyKbVectors", () => {
   it("🚨 acil durdurma (KB_RETRIEVAL_MODE=legacy) anlamsal anahtar AÇIKKEN de ısıtmayı kapatır (ağ yok)", async () => {
     vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
     const { propertyId } = await makeOrgWithProperty();
-    await seedKb(propertyId, 35);
+    // Legacy okuma 30 kalemle sınırlı: kısa kalemlerde "küçük KB" sayılıp zaten ısıtılmazdı (kapı görünmezdi). Uzun kalemler
+    // (30 × ~1.000 > 24k karakter) retrieval'ın koşacağı büyüklüktür — kapıyı yalnız mod durdurur.
+    await seedKb(
+      propertyId,
+      0,
+      Array.from({ length: 35 }, (_, i) => ({ title: `Rehber ${i}`, content: `Uzun rehber ${i}. ${"Dairenin kullanım bilgisi. ".repeat(40)}` })),
+    );
     expect(await warmPropertyKbVectors(propertyId)).toBe(0);
     warmAllKbVectorsOnce();
     await new Promise((r) => setTimeout(r, 300));
