@@ -8,9 +8,9 @@
 //  · YANLIŞ KURAL CÜMLESİ — model bir konuda kural cümlesi doğururdu, etiket o konuda doğurmaz (misafire gereksiz / yanlış
 //    "izin verilmiyor");
 //  · HABER EKSİK — misafir yasak şeyi YAPACAĞINI söyledi (ev sahibine haber), model "soruyor" dedi → haber gitmezdi;
-//  · "MİSAFİR DEĞİL" DİYE ATLANDI — etiket kural uygular (cümle / tutma), model "misafirin eylemi değil" dedi → kelime
+//  · "MİSAFİR DEĞİL" DİYE ATLANDI — etiket kural cümlesi doğurur, model "misafirin eylemi değil" dedi → kelime
 //    listesinin tutuşunu EZEBİLECEK tek hata (karara bağlanırsa gerçek isteğin cevabı modele kalır) — TEHLİKELİ sınıf;
-//  · KONU KAÇTI — etiket kural uygular, model konuyu hiç görmedi → bugünkü davranış (kelime listesi) sürer; güvenli yön.
+//  · KONU KAÇTI — etiket kural cümlesi doğurur, model konuyu hiç görmedi → bugünkü davranış (kelime listesi) sürer; güvenli yön.
 // Kural yok ızgarası: GEREKSİZ TUTMA — model ev sahibine bırakırdı, etiket bırakmaz (bilgi sorusu / konu değil).
 // Kelime listesi (bugünkü `rule_violation` ağı) ayrı satır: gerçek kural konusunu yakalıyor mu, konu olmayanı tutuyor mu.
 // Metin taşımaz (kimlikler sentetik set satırları).
@@ -55,7 +55,7 @@ export function effectsByTopic(list: readonly RuleUnderstanding[], rules: readon
 }
 
 const isPositive = (u: RuleUnderstanding) => u.stance !== "not_about_guest";
-const applies = (e: Effect | undefined) => e === "state_rule" || e === "state_rule_notify" || e === "hold";
+// Yasak ızgarasında olumlu her tutum kural cümlesi doğurur (tutma çıkmaz): "kural uygulanır" = cümle.
 const states = (e: Effect | undefined) => e === "state_rule" || e === "state_rule_notify";
 
 export interface HouseRuleMetrics {
@@ -141,8 +141,8 @@ export function summarizeHouseRules(rows: readonly HouseRuleEvalRow[]): HouseRul
       const pe = predF.get(t);
       if (states(pe) && !states(te)) wrong = true;
       if (te === "state_rule_notify" && pe !== "state_rule_notify") notify = true;
-      if (applies(te) && pe === "not_applicable") override = true;
-      else if (applies(te) && pe === undefined) missed = true;
+      if (states(te) && pe === "not_applicable") override = true;
+      else if (states(te) && pe === undefined) missed = true;
     }
     if (wrong) m.wrongRuleStated.push(r.id);
     if (notify) m.missedNotify.push(r.id);

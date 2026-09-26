@@ -80,6 +80,8 @@ describe("ev kuralları eval — karar ölçüleri", () => {
   it("aynı konu iki istekte: en güçlü sonuç (haberli kural) kıyaslanır", () => {
     const e = effectsByTopic([u("party_event", "asks_info"), u("party_event", "announces")], FORBIDDEN_ALL);
     expect(e.get("party_event")).toBe("state_rule_notify");
+    // Sıra önemsiz: haberli kural önde gelse de sonraki zayıf sonuç onu ezmez.
+    expect(effectsByTopic([u("party_event", "announces"), u("party_event", "asks_info")], FORBIDDEN_ALL).get("party_event")).toBe("state_rule_notify");
     expect(effectsByTopic([u("party_event", "asks_info")], NO_RULES).get("party_event")).toBe("normal");
   });
 
