@@ -290,7 +290,10 @@ describe("mimari pinler", () => {
     const src = read("src/app/api/chat/[token]/route.ts");
     expect(src).toMatch(/retrieveKbForPrompt\(\{\s*items: ctx\.knowledgeBase/);
     const auto = read("src/lib/automation.ts");
-    // automation: `kbVisible` = sır süzgeçlerinden geçmiş küme.
-    expect(auto).toMatch(/retrieveKbForPrompt\(\{\s*items: kbVisible/);
+    // automation: seçim SIR SÜZGEÇLERİNDEN geçmiş kümenin (`kbVisible`) kalemleriyle — #189'dan beri HAM metinle (yer tutucu
+    // ikamesi seçimden sonra, `placeholders`); sır kararı ikame SONRASI metinle verilir (davranış pini
+    // `tests/integration/kb-retrieval-secret-scope.test.ts` "sır kararı İKAME SONRASI metinle").
+    expect(auto).toMatch(/const kbVisibleIds = new Set\(kbVisible\.map\(\(i\) => i\.id\)\)/);
+    expect(auto).toMatch(/retrieveKbForPrompt\(\{\s*items: kbRaw\.filter\(\(i\) => kbVisibleIds\.has\(i\.id\)\)/);
   });
 });
