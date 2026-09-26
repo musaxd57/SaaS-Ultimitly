@@ -15,6 +15,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { replyAuthorOf, type ClosingThreadMessage } from "@/lib/ai/closing-turn";
+import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 
 /** Kapanış kararının konuşmadaki izi (`persistRiskVisibility` / QR kaydı yazar). */
 export const CLOSING_HANDLED_REASON = "closing_ack";
@@ -107,6 +108,14 @@ export async function hasOpenHostWork(
     .slice(-OPEN_WORK_WINDOW);
   if (ids.length === 0) return false;
   try {
+    // Konuşma öğeleri (bayrak açıkken): bu mesajlarda ev sahibinde AÇIK öğe varsa (tutulan IBAN isteği, cevaplanmamış
+    // güvenli istek) iş açıktır — güvenli kısım otomatik cevaplansa da ("auto_sent") kapanış konuşmayı gizlemesin.
+    if (conversationItemsEnabled()) {
+      const open = await prisma.conversationItem.count({
+        where: { organizationId, messageId: { in: ids }, status: { in: ["open", "pending_host"] } },
+      });
+      if (open > 0) return true;
+    }
     const rows = await prisma.riskEvent.findMany({
       where: { organizationId, surface: { in: ["auto_reply", "guest_chat"] }, triggerId: { in: ids } },
       select: { triggerId: true, finalDecision: true, reason: true, kbEvidenceJson: true },

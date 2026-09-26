@@ -85,6 +85,8 @@ export default async function ReportsPage() {
     // Cevap yapılmamış bir işten söz etti / beyan eksikti (MÇ §4; yalnız eylem beyanı açıkken yazılır) — kendi satırı.
     "action_claim",
     "action_claim_undeclared",
+    // Konuşma öğeleri (09-26; yalnız bayrak açıkken yazılır): hassas istek sessizce size bırakıldı — "Hassas konu" satırında.
+    "items_held",
   ];
   const [riskRows, heldRows, heldResolved] = await Promise.all([
     prisma.riskEvent.groupBy({
@@ -359,10 +361,10 @@ export default async function ReportsPage() {
                       <Badge tone="muted">{heldCount("action_claim") + heldCount("action_claim_undeclared")}</Badge>
                     </div>
                   ) : null}
-                  {heldCount("understanding_risk") > 0 ? (
+                  {heldCount("understanding_risk") + heldCount("items_held") > 0 ? (
                     <div className="flex items-center justify-between px-3 py-2">
                       <span>Hassas konu — size bırakıldı</span>
-                      <Badge tone="muted">{heldCount("understanding_risk")}</Badge>
+                      <Badge tone="muted">{heldCount("understanding_risk") + heldCount("items_held")}</Badge>
                     </div>
                   ) : null}
                   <div className="flex items-center justify-between px-3 py-2">

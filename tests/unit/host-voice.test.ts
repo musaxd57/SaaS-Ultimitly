@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hostVoiceDraft } from "@/lib/ai/host-voice";
+import { hasRecordedHandoff, hostVoiceDraft } from "@/lib/ai/host-voice";
 
 // ---------------------------------------------------------------------------
 // TASLAK = EV SAHİBİNİN SESİ (09-25, kurucu). İstemin öğrettiği devir kalıpları ("mesajınız kaydedildi; ev sahibiniz
@@ -90,5 +90,22 @@ describe("hostVoiceDraft — istemin devir kalıpları ev sahibinin ağzına", (
     }
     const once = hostVoiceDraft("Tabii. Mesajınız kaydedildi; ev sahibiniz görebilir.");
     expect(hostVoiceDraft(once)).toBe(once);
+  });
+});
+
+describe("hasRecordedHandoff — konuşma öğeleri kapısının devir cümlesi yüklemi", () => {
+  it("istemin TR / EN kayıt cümlesini tanır; durumsuz (genel bayraklı kalıp art arda çağrıda aynı hükmü verir)", () => {
+    const tr = "Wi-Fi şifresi modemin altında. Ödeme talebiniz kaydedildi; ev sahibiniz görebilir.";
+    const en = "The password is on the router. Your request has been recorded and is visible to your host.";
+    for (let i = 0; i < 3; i++) {
+      expect(hasRecordedHandoff(tr)).toBe(true);
+      expect(hasRecordedHandoff(en)).toBe(true);
+    }
+    expect(hasRecordedHandoff("Mesajınız kaydedildi ve ev sahibiniz görebilir.")).toBe(true);
+  });
+  it("kayıt cümlesi olmayan cevap: hayır (\"kaydedildi\" tek başına yetmez)", () => {
+    expect(hasRecordedHandoff("Wi-Fi ağı Lale-5G, şifre modemin altında.")).toBe(false);
+    expect(hasRecordedHandoff("Rezervasyonunuz sisteme kaydedildi.")).toBe(false);
+    expect(hasRecordedHandoff("Your booking has been recorded.")).toBe(false);
   });
 });

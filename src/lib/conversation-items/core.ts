@@ -13,6 +13,7 @@
 // sahibiyle kapanır.
 // ---------------------------------------------------------------------------
 
+import { HIGH_STAKES_RISK_TYPE_LIST, NEVER_AUTO_REPLY_INTENT_LIST } from "@/lib/ai/gate-evidence";
 import { UNDERSTANDING_INTENTS, type UnderstandingIntent } from "@/lib/ai/semantic/understanding-schema";
 
 export const ITEM_KINDS = UNDERSTANDING_INTENTS;
@@ -39,6 +40,36 @@ export type ItemStatus = (typeof ITEM_STATUSES)[number];
 export type EffectiveItemStatus = ItemStatus | "host_replied";
 
 const TERMINAL: ReadonlySet<ItemStatus> = new Set(["answered", "withdrawn", "superseded", "done"]);
+
+/** Türün Türkçe adı — cevap modelinin öğe bloğu ve ev sahibi görünümü TEK kaynaktan. */
+export const ITEM_KIND_LABELS_TR: Readonly<Record<ItemKind, string>> = {
+  checkin_time: "giriş saati",
+  checkout_time: "çıkış saati",
+  early_checkin: "erken giriş",
+  late_checkout: "geç çıkış",
+  extend_stay: "konaklamayı uzatma",
+  date_change: "tarih değişikliği",
+  availability: "müsaitlik",
+  luggage: "bagaj",
+  access_keys: "giriş / anahtar",
+  wifi: "Wi-Fi",
+  parking: "otopark",
+  directions_transport: "ulaşım / yol tarifi",
+  amenities: "olanaklar",
+  appliance_help: "cihaz kullanımı",
+  house_rules: "ev kuralları",
+  pets: "evcil hayvan",
+  cleaning_linen: "temizlik / çarşaf",
+  trash: "çöp",
+  local_recommendations: "çevre önerileri",
+  payment_invoice: "ödeme / fatura",
+  cancellation_refund: "iptal / iade",
+  complaint_issue: "şikâyet / sorun",
+  emergency: "acil durum",
+  human_request: "ev sahibiyle görüşme isteği",
+  greeting_thanks: "selam / teşekkür",
+  other: "diğer",
+};
 
 /** Anlama katmanı niyetinden öğenin kendi hassaslığı (kelime ağı ayrıca birleşir). */
 const INTENT_SENSITIVITY: Readonly<Partial<Record<UnderstandingIntent, ItemSensitivity>>> = {
@@ -85,6 +116,8 @@ const NO_WORK_KINDS: ReadonlySet<UnderstandingIntent> = new Set(["greeting_thank
 
 export interface UnderstoodItemInput {
   intent: UnderstandingIntent;
+  /** Anlama katmanının kısa Türkçe arama sorgusu (cevap istemindeki ipucu; kalıcı DEĞİL). */
+  hint?: string;
 }
 
 export interface BuiltItem {
@@ -93,6 +126,8 @@ export interface BuiltItem {
   sensitivity: ItemSensitivity;
   riskType: string | null;
   sources: ItemSource[];
+  /** Cevap istemindeki kısa ipucu (yalnız bu turda; saklanmaz). */
+  hint?: string;
 }
 
 function rank(s: ItemSensitivity): number {
@@ -147,6 +182,7 @@ export function buildItemsForMessage(input: {
       sensitivity: INTENT_SENSITIVITY[r.intent] ?? "none",
       riskType: null,
       sources: ["understanding"],
+      ...(r.hint ? { hint: r.hint } : {}),
     });
   });
   for (const label of input.lexicalLabels) {
@@ -178,20 +214,74 @@ export function labelsHoldWholeTurn(labels: readonly string[]): boolean {
   return labels.some((l) => TURN_LEVEL_LABELS.has(l));
 }
 
+/** Kapı ve akış kararlarının öğeden okuduğu olgular (kalıcı satır da, kurulmuş öğe de taşır). */
+export type ItemRiskFacts = Pick<BuiltItem, "kind" | "sensitivity" | "riskType">;
+
 /**
  * Cevap modelinin TUR düzeyindeki yüksek riskli etiketi tutulan (hassas) bir öğeye ait mi. `true` → etiket o öğeyi
  * anlatıyor, güvenli kısmın cevabı bu yüzden tutulmaz. `false` → bugünkü gibi cevabın TAMAMI tutulur (güvenli yön):
  * etiketi taşıyan hassas öğe yok ya da etiket tur düzeyinde (enjeksiyon / acil).
  */
-export function replyRiskAttributable(riskType: string | null | undefined, items: readonly BuiltItem[]): boolean {
+export function replyRiskAttributable(riskType: string | null | undefined, items: readonly ItemRiskFacts[]): boolean {
   if (!riskType) return true;
   if (TURN_LEVEL_LABELS.has(riskType)) return false;
   const affinity = LABEL_KIND_AFFINITY[riskType] ?? [];
   return items.some((it) => it.sensitivity !== "none" && (it.riskType === riskType || affinity.includes(it.kind)));
 }
 
+/** Öğe kipinin kapı girdisi (akış kurar, kapı okur — `automation.ts` `GateItemsContext`). */
+export interface ItemsGateInput {
+  /** Ev sahibinde tutulan hassas öğeler (bu tur + önceki turlar; acil yok — acil tur bugünkü yoldan gider). */
+  held: readonly ItemRiskFacts[];
+  /** Ödeme öğesi tutuluyor: cevapta ödeme yöntemi / yeri adı geçerse cevap GİTMEZ (anlam katmanının kelime yedeği). */
+  paymentHeld: boolean;
+  /** Bu turun cevaplanabilir isteklerinin türleri (konaklama değişikliği ertelemesi beklenir mi — `STAY_CHANGE_KINDS`). */
+  answerableKinds: readonly ItemKind[];
+}
+
+/**
+ * Konaklama değişikliği türleri: cevabı tasarım gereği ertelemedir ("… ev sahibinizin kararıdır; talebiniz kaydedildi").
+ * Öğe kipinde bu türden cevaplanabilir istek YOKSA cevaptaki "kaydedildi / ev sahibiniz görebilir" cümlesi ancak bırakılan
+ * bir isteğe değinebilir → kapı tutar (kurucu 09-26: bırakılan istek için misafire otomatik "kaydedildi" GİTMEZ).
+ */
+export const STAY_CHANGE_KINDS: ReadonlySet<ItemKind> = new Set([
+  "early_checkin",
+  "late_checkout",
+  "extend_stay",
+  "date_change",
+  "availability",
+]);
+
+/** Cevap modelinin hassas niyetleri (kapının kümesi + insan talebi) ve yüksek riskli etiketleri — TEK kaynak kapı kanıtı. */
+const MODEL_SENSITIVE_INTENTS: ReadonlySet<string> = new Set([...NEVER_AUTO_REPLY_INTENT_LIST, "human_request"]);
+const MODEL_HIGH_STAKES: ReadonlySet<string> = new Set(HIGH_STAKES_RISK_TYPE_LIST);
+
+/**
+ * Cevap modelinin öğelere ATFEDİLEMEYEN hassas sinyalleri → modelin kendi öğeleri (birleşim: tutulan hiçbir öğeyle
+ * açıklanamayan sinyal kaybolmaz; çağıran son mesaja yazar, öğe ev sahibinde tutulur). Tur düzeyi etiketler (acil /
+ * enjeksiyon) buraya ait DEĞİLDİR — çağıran onları bugünkü acil yoldan geçirir. Yükseltilmiş risk düzeyi (orta/yüksek)
+ * atfedilebilir bir etiket taşımıyorsa ve başka sinyal yoksa "diğer" türünde hassas öğe olur.
+ */
+export function unattributedModelItems(
+  model: { intent: string; riskType: string | null | undefined; riskLevel: string },
+  held: readonly ItemRiskFacts[],
+): BuiltItem[] {
+  const labels: string[] = [];
+  if (MODEL_SENSITIVE_INTENTS.has(model.intent) && !replyRiskAttributable(model.intent, held)) labels.push(model.intent);
+  const riskType = model.riskType ?? null;
+  if (riskType && MODEL_HIGH_STAKES.has(riskType) && !TURN_LEVEL_LABELS.has(riskType) && !replyRiskAttributable(riskType, held)) {
+    labels.push(riskType);
+  }
+  const items: BuiltItem[] = buildLexicalItems(labels).map((it) => ({ ...it, sources: ["reply_model"] }));
+  const elevated = model.riskLevel !== "none" && model.riskLevel !== "low";
+  if (items.length === 0 && elevated && !(riskType && replyRiskAttributable(riskType, held))) {
+    items.push({ requestIndex: 0, kind: "other", sensitivity: "sensitive", riskType: null, sources: ["reply_model"] });
+  }
+  return items;
+}
+
 /** Tur içinde acil öğe var mı (bugünkü acil yol: konuşma ev sahibine geçer, yapay zekâ susar). */
-export function hasEmergency(items: readonly BuiltItem[]): boolean {
+export function hasEmergency(items: readonly ItemRiskFacts[]): boolean {
   return items.some((it) => it.sensitivity === "emergency");
 }
 

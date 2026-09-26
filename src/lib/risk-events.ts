@@ -70,6 +70,9 @@ const REASONS = new Set([
   // Eylem beyanı (MÇ §4, `ai/action-claims.ts`; bayrak kapalıyken yazılmaz): cevap makbuzsuz bir eylem iddia etti /
   // beyan istenip gelmedi. Kanal + QR; raporda kendi satırı.
   "action_claim", "action_claim_undeclared",
+  // Konuşma öğeleri (09-26; yalnız `AI_CONVERSATION_ITEMS_ENABLED` açıkken yazılır): turun hassas istekleri sessizce ev
+  // sahibinde tutuldu, misafire hiçbir şey gitmedi (kelime ağı uyarı geçişi + kanal cevabı).
+  "items_held",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

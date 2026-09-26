@@ -17,6 +17,7 @@ import {
   maySupersede,
   nextStatus,
   replyRiskAttributable,
+  unattributedModelItems,
   type BuiltItem,
   type ItemEvent,
   type ItemSensitivity,
@@ -345,5 +346,39 @@ describe("görünen durum — 'ev sahibi yazdı' türetilir", () => {
       expect(effectiveStatus(st, true)).toBe(st);
       expect(isOpenForHost(st)).toBe(false);
     }
+  });
+});
+
+describe("cevap modelinin öğelere atfedilemeyen sinyali (birleşim)", () => {
+  const payment = buildItemsForMessage({ requests: [{ intent: "payment_invoice" }], lexicalLabels: ["platform_policy"] });
+  const complaint = buildItemsForMessage({ requests: [{ intent: "complaint_issue" }], lexicalLabels: [] });
+  const pick = (m: { intent: string; riskType?: string | null; riskLevel?: string }, held: typeof payment) =>
+    unattributedModelItems({ intent: m.intent, riskType: m.riskType ?? null, riskLevel: m.riskLevel ?? "none" }, held).map((i) => [
+      i.kind,
+      i.sensitivity,
+      i.riskType,
+      i.sources,
+    ]);
+
+  it("hassas niyet ya da yüksek riskli etiket tutulan öğeye atfedilemiyorsa modelin öğesi olur (kaynak reply_model)", () => {
+    expect(pick({ intent: "complaint" }, payment)).toEqual([["complaint_issue", "sensitive", "complaint", ["reply_model"]]]);
+    expect(pick({ intent: "wifi", riskType: "review_threat" }, payment)).toEqual([["complaint_issue", "sensitive", "review_threat", ["reply_model"]]]);
+    expect(pick({ intent: "human_request" }, payment)).toEqual([["human_request", "sensitive", "human_request", ["reply_model"]]]);
+    // Aynı türe düşen niyet + etiket TEK öğe.
+    expect(pick({ intent: "complaint", riskType: "complaint" }, payment)).toHaveLength(1);
+  });
+
+  it("atfedilebilen sinyal öğe ÜRETMEZ; tur düzeyi etiket buraya ait değil", () => {
+    expect(pick({ intent: "complaint" }, complaint)).toEqual([]);
+    expect(pick({ intent: "wifi", riskType: "platform_policy", riskLevel: "high" }, payment)).toEqual([]);
+    expect(pick({ intent: "wifi", riskType: "safety_emergency" }, payment)).toEqual([]);
+    expect(pick({ intent: "wifi", riskType: "prompt_injection" }, payment)).toEqual([]);
+    expect(pick({ intent: "wifi" }, payment)).toEqual([]);
+  });
+
+  it("yükseltilmiş risk düzeyi etiketsiz / atfedilemeyen etiketle 'diğer' öğesi; atfedilebilen etiketle öğe yok", () => {
+    expect(pick({ intent: "wifi", riskLevel: "medium" }, payment)).toEqual([["other", "sensitive", null, ["reply_model"]]]);
+    expect(pick({ intent: "wifi", riskLevel: "high", riskType: "platform_policy" }, payment)).toEqual([]);
+    expect(pick({ intent: "wifi", riskLevel: "low" }, payment)).toEqual([]);
   });
 });

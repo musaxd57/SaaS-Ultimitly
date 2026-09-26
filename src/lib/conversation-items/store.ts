@@ -70,7 +70,7 @@ const SOURCE_SET: ReadonlySet<string> = new Set(ITEM_SOURCES);
  * Satırı kapalı kümelere geri çözer. Tanınmayan değer GÜVENLİ yöne düşer: tür → "other", hassaslık → "sensitive" (ev
  * sahibinde kalsın), durum → "open" (görünür kalsın). Satırları yalnız bu kod yazar; savunma elle düzenlemeye karşı.
  */
-function toPersisted(r: Row): PersistedItem {
+export function toPersisted(r: Row): PersistedItem {
   return {
     id: r.id,
     conversationId: r.conversationId,

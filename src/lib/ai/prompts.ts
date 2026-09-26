@@ -22,6 +22,7 @@ import { orgTimezone } from "@/lib/timezone";
 import { guestTurnLanguage, languageLabel, unansweredGuestTexts } from "./language-signal";
 import { conversationStateBlock as conversationRecordsBlock, conversationStateEnabled } from "./conversation-state";
 import { ACTION_CLAIMS_PROMPT_BLOCK } from "./action-claims";
+import { buildItemsPromptBlock } from "@/lib/conversation-items/reply-block";
 
 // ============================================================================
 // TONE SYSTEM — Detailed guidance for each tone mode
@@ -1291,6 +1292,8 @@ Zaman bağlamı: ${timelineLine(timeline, {
   const languageReminder = guestLanguage ? `\nreply dili: ${languageLabel(guestLanguage)} — yukarıdaki MİSAFİRİN DİLİ.` : "";
   // Eylem beyanı (`action-claims.ts`): yalnız `suggestReply` bayrak açıkken ister; kapalıyken boş dize → istem aynı.
   const actionClaimsBlock = input.declareActions === true ? ACTION_CLAIMS_PROMPT_BLOCK : "";
+  // Konuşma öğeleri (`conversation-items/reply-block.ts`): yalnız öğe kipindeki kanal oto-yanıtı verir; yoksa boş dize.
+  const itemsBlock = input.conversationItems ? buildItemsPromptBlock(input.conversationItems) : "";
 
   const adjacencyBlock = buildAdjacencyBlock(reservation, input.adjacency ?? null, property, timeline.timeZone);
 
@@ -1405,7 +1408,7 @@ ${guestMessage}
 
 ════════════════════════════════════════════════════
 GÖREV: Yukarıdaki bilgilere dayanarak yalnızca geçerli JSON döndür.
-Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanını kullan.${languageReminder}${actionClaimsBlock}
+Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanını kullan.${languageReminder}${actionClaimsBlock}${itemsBlock}
 ════════════════════════════════════════════════════`;
 
   // İDDİA DESTEĞİ GÖLGE ÖLÇÜMÜ (`claim-support.ts`) için bağlam — istemi kuran AYNI değişkenlerden

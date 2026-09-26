@@ -53,6 +53,17 @@ const EN_DECISION =
 const EN_RECORDED =
   /(^|[.!?;,]\s*|\n)(Y|y)our (message|request|dates|report) (?:has|have) been recorded and (?:is|are) visible to your host\./gu;
 
+/**
+ * Cevapta istemin DEVİR / KAYIT cümlesi var mı ("Mesajınız kaydedildi; ev sahibiniz görebilir." · "Your request has been
+ * recorded and is visible to your host."). Konuşma öğeleri kapısı okur: bırakılan bir istek için misafire otomatik
+ * "kaydedildi" GİTMEZ (kurucu 09-26). Yalnız istemin öğrettiği iki dildeki KALIP tanınır (serbest anlatım / başka dil
+ * bilinen sınır — birincil koruma cevap modelinin beyanı + istem kuralı). `search` genel bayraklı kalıbın `lastIndex`ine
+ * dokunmaz (durumsuz).
+ */
+export function hasRecordedHandoff(reply: string): boolean {
+  return reply.search(TR_RECORDED) !== -1 || reply.search(EN_RECORDED) !== -1;
+}
+
 const lowerFirst = (s: string) => (s ? s[0].toLocaleLowerCase("en") + s.slice(1) : s);
 
 function matchCase(template: string, sample: string): string {

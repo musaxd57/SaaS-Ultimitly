@@ -1,3 +1,4 @@
+import type { AnsweredRequestsDeclaration, ReplyItemsInput } from "@/lib/conversation-items/reply-block";
 import type { ClaimedActionsDeclaration } from "./action-claims";
 import type { ClaimAudit } from "./claim-support";
 import type { ConversationStateSummary } from "./conversation-state";
@@ -145,6 +146,12 @@ export interface SuggestReplyInput {
    * alan tanımı girer ve cevap STRICT çözülür. YALNIZ `suggestReply` bayraktan yazar; verilmezse istem bayt bayt aynı.
    */
   declareActions?: boolean;
+  /**
+   * Konuşma öğeleri (`conversation-items/reply-block.ts`; yalnız öğe kipindeki kanal oto-yanıtı verir): cevaplanacak
+   * istekler + ev sahibine bırakılanlar. Verilirse istemin GÖREV çerçevesine blok girer ve `answeredRequests` STRICT
+   * çözülür; verilmezse istem bayt bayt aynı, alan sonuçta YOK.
+   */
+  conversationItems?: ReplyItemsInput;
 }
 
 /** Model çağrısının token kullanımı (yalnız sayılar + sunulan model adı; metin YOK). */
@@ -239,6 +246,11 @@ export interface SuggestReplyResult {
    * istenmedi (bayrak kapalı, şablon, koddan kurulan metin) → kural koşmaz.
    */
   claimedActions?: ClaimedActionsDeclaration;
+  /**
+   * Konuşma öğeleri beyanı: cevabın kapsadığı istek kimlikleri (yalnız `conversationItems` verildiyse; eksik/bozuk ya da
+   * bırakılan/bilinmeyen kimlik → kapı tutar). Yokluğu = beyan istenmedi.
+   */
+  answeredRequests?: AnsweredRequestsDeclaration;
 }
 
 export interface ClassifyResult {

@@ -34,7 +34,12 @@ export type ItemsDegradedReason = (typeof ITEMS_DEGRADED_REASONS)[number];
 export type TurnWithdrawal = { kind: ItemKind; messageId: string } | { kind: ItemKind; earlier: true };
 
 export type TurnItems =
-  | { mode: "items"; messages: { messageId: string; items: BuiltItem[] }[]; withdrawals: TurnWithdrawal[] }
+  | {
+      mode: "items";
+      /** Cevapsız mesajlar (kronolojik): öğeler + kelime ağının o mesajdaki TÜM etiketleri (tur düzeyi karar için). */
+      messages: { messageId: string; items: BuiltItem[]; labels: string[] }[];
+      withdrawals: TurnWithdrawal[];
+    }
   | { mode: "degraded"; reason: ItemsDegradedReason };
 
 export function extractTurnItems(input: {
@@ -63,10 +68,17 @@ export function extractTurnItems(input: {
     if (!u.requests.some((r) => r.message === i)) return { mode: "degraded", reason: "message_without_request" };
   }
   const labelsOf = input.labelsOf ?? detectRiskTypes;
-  const messages = win.unanswered.map((m, i) => ({
-    messageId: m.id as string,
-    items: buildItemsForMessage({ requests: u.requests.filter((r) => r.message === i + 1), lexicalLabels: labelsOf(m.body) }),
-  }));
+  const messages = win.unanswered.map((m, i) => {
+    const labels = labelsOf(m.body);
+    return {
+      messageId: m.id as string,
+      items: buildItemsForMessage({
+        requests: u.requests.filter((r) => r.message === i + 1).map((r) => ({ intent: r.intent, hint: r.queryTr })),
+        lexicalLabels: labels,
+      }),
+      labels,
+    };
+  });
   const withdrawals: TurnWithdrawal[] = [];
   for (const w of u.withdrawn) {
     if (w.message === 0) withdrawals.push({ kind: w.intent, earlier: true });

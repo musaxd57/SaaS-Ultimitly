@@ -6,6 +6,7 @@ import type { ClassifyResult, LlmUsage, SuggestReplyInput, SuggestReplyResult } 
 import { auditClaimsSafe } from "./claim-support";
 import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
+import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel, replyReasoningEffort } from "./model-family";
 import { reportError } from "@/lib/report-error";
@@ -431,6 +432,10 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           timeConflicts: prompt.timeConflicts,
           // Eylem beyanı YALNIZ istendiyse: STRICT (eksik/bozuk → `unknown`; kapı tutar). İstenmediyse alan YOK.
           ...(declareActions ? { claimedActions: parseClaimedActions(parsed.claimedActions) } : {}),
+          // Konuşma öğeleri beyanı YALNIZ blok verildiyse: STRICT (eksik/bozuk/bırakılan kimlik → kapı tutar).
+          ...(input.conversationItems
+            ? { answeredRequests: parseAnsweredRequests(parsed.answeredRequests, input.conversationItems.answerable.map((a) => a.ref)) }
+            : {}),
         };
       }
     } catch {

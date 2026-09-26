@@ -6,6 +6,7 @@ vi.mock("@/lib/alert-state", () => ({ alertOnTransition: vi.fn(async () => "aler
 import { autoReplyGateFailure, autoReplyGateVerdict, gateEvidenceOf, HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
 import { cleanGateEvidence, GATE_BLOCK_DETAILS, HIGH_STAKES_RISK_TYPE_LIST } from "@/lib/ai/gate-evidence";
 import { buildKbEvidence } from "@/lib/ai/grounding";
+import { buildItemsForMessage } from "@/lib/conversation-items/core";
 
 // ---------------------------------------------------------------------------
 // KAPI KANITI (09-25, mesaj anlama çekirdeği denetimi). Kapı on dört güvenlik kontrolünü tek `blocked` gerekçesinde
@@ -22,6 +23,15 @@ const ok = {
   reply: "The Wi-Fi network is Lale-5G and the password is Lale2025.",
 };
 const WIFI_Q = "What is the wifi password?";
+// Konuşma öğeleri kipi (09-26): ödeme öğesi ev sahibinde tutuluyor, Wi-Fi isteği R1.
+const ITEMS = {
+  items: {
+    held: buildItemsForMessage({ requests: [{ intent: "payment_invoice" }], lexicalLabels: ["platform_policy"] }),
+    paymentHeld: true,
+    answerableKinds: ["wifi" as const],
+  },
+};
+const declared = { ...ok, answeredRequests: { ok: true as const, refs: ["R1"] } };
 
 describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", () => {
   const cases: [string, Parameters<typeof autoReplyGateVerdict>[0], string, Parameters<typeof autoReplyGateVerdict>[2], string][] = [
@@ -40,6 +50,16 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
     ["çıktı vetosu (makbuzsuz iddia)", { ...ok, reply: "I have arranged a taxi for you." }, "Can you book a taxi?", undefined, "reply_output_veto"],
     ["güven sonlu değil", { ...ok, confidence: Number.NaN }, WIFI_Q, undefined, "confidence_invalid"],
     ["düşük güven", { ...ok, confidence: 0.5 }, WIFI_Q, undefined, "low_confidence"],
+    ["öğe kipi: beyan yok", ok, WIFI_Q, ITEMS, "items_undeclared"],
+    ["öğe kipi: bırakılan isteğe değindi", { ...ok, answeredRequests: { ok: false, reason: "unknown_ref" } }, WIFI_Q, ITEMS, "items_touch_held"],
+    ["öğe kipi: hiçbir istek cevaplanmadı", { ...ok, answeredRequests: { ok: true, refs: [] } }, WIFI_Q, ITEMS, "items_nothing_answered"],
+    [
+      "öğe kipi: ödeme tutulurken cevapta ödeme yöntemi",
+      { ...declared, reply: "The Wi-Fi password is Lale2025. You can pay by bank transfer." },
+      WIFI_Q,
+      ITEMS,
+      "items_payment_held",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {

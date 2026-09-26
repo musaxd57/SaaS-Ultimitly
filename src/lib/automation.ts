@@ -97,7 +97,29 @@ import {
   holdingAckBlockedSignals,
   detectGuestLanguage,
   detectRiskType,
+  detectRiskTypes,
 } from "@/lib/ai/fallback";
+import {
+  STAY_CHANGE_KINDS,
+  labelsHoldWholeTurn,
+  replyRiskAttributable,
+  unattributedModelItems,
+  type ItemsGateInput,
+} from "@/lib/conversation-items/core";
+import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+import {
+  holdTurnLevelItems,
+  notifyHeldItems,
+  planItemsTurn,
+  recordLexicalAlertItems,
+  recordModelItems,
+  settleItemsTurn,
+  type ItemsTurn,
+  type ItemsTurnPlan,
+} from "@/lib/conversation-items/flow";
+import type { AnsweredRequestsDeclaration } from "@/lib/conversation-items/reply-block";
+import { namesPaymentMethod } from "@/lib/payment-method-guard";
+import { hasRecordedHandoff } from "@/lib/ai/host-voice";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { redactSensitive, reportError } from "@/lib/report-error";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
@@ -176,7 +198,17 @@ export interface AutoReplyGateContext {
    * (doğrulanmış erken giriş akışının tetiği — `heldOnlyByOutputVeto`; akış modelin metnini koddan kurulanla değiştirir).
    */
   skipOutputVetoForDiagnosis?: boolean;
+  /**
+   * KONUŞMA ÖĞELERİ KİPİ (09-26, kurucu kararları; `conversation-items`): verildiğinde cevapsız mesajların kelime ağı ve
+   * anlama katmanı sinyalleri ÖĞE kapsamında karar verir — hassas öğe ev sahibinde sessizce tutulur, güvenli kısmın
+   * cevabı bu yüzden tutulmaz. Tur düzeyi kalanlar (enjeksiyon, acil) ve cevap METNİ kontrolleri aynen koşar; cevap
+   * yalnız beyan ettiği güvenli istekleri kapsar. Verilmezse kapı bayt bayt eski.
+   */
+  items?: GateItemsContext | null;
 }
+
+/** Öğe kipinin kapı girdisi (tek tanım `conversation-items/core.ts`). */
+export type GateItemsContext = ItemsGateInput;
 
 /**
  * Kapı hükmü + `blocked` ise onu İLK kapatan kontrolün ayrıntısı (`ai/gate-evidence.ts`, yalnız karar kaydı için).
@@ -216,6 +248,8 @@ export function autoReplyGateVerdict(
     timeConflicts?: readonly TimeConflict[] | null;
     /** Modelin eylem beyanı (`ai/action-claims.ts`); yokluğu = beyan istenmedi → kural koşmaz. */
     claimedActions?: ClaimedActionsDeclaration | null;
+    /** Konuşma öğeleri beyanı (`conversation-items/reply-block.ts`); yalnız öğe kipinde okunur. */
+    answeredRequests?: AnsweredRequestsDeclaration | null;
   },
   guestMessage: string,
   /** What the MODEL sees beyond the last message: recent history bodies + the
@@ -228,7 +262,17 @@ export function autoReplyGateVerdict(
   // human instead of sending a canned message.
   if (result.source !== "openai") return hold("not_model");
   // Sensitive intents always go to a human (refund/cancellation/complaint).
-  if (NEVER_AUTO_REPLY_INTENTS.has(result.intent)) return hold("model_intent");
+  // Öğe kipi: niyet ev sahibinde tutulan bir hassas öğeyi anlatıyorsa (şikâyet öğesi tutuluyken model turu "complaint"
+  // etiketledi) güvenli kısmın cevabı bu yüzden tutulmaz; öğesi olmayan hassas niyet bugünkü gibi TUTAR. İnsan talebi
+  // niyeti de öğe kipinde yalnız tutulan bir insan talebi öğesine atfedilebiliyorsa geçer (kurucu 09-26: "sessiz + açık
+  // iş" — devir mesajı otomatik GİTMEZ; cevap ↓beyana göre yalnız güvenli istekleri kapsar).
+  const items = context?.items ?? null;
+  if (NEVER_AUTO_REPLY_INTENTS.has(result.intent) && !(items && replyRiskAttributable(result.intent, items.held))) {
+    return hold("model_intent");
+  }
+  if (items && result.intent === "human_request" && !replyRiskAttributable("human_request", items.held)) {
+    return hold("model_intent");
+  }
   // CROSS-CHECK the model against the deterministic keyword detector: if the
   // guest's OWN words clearly signal a complaint, refund, or early-departure/
   // cancellation, never auto-send — even when the model under-rated it as a
@@ -247,7 +291,14 @@ export function autoReplyGateVerdict(
   // uyarısı — "dünkü çözülmüş şikayet, bugünün wifi cevabını engellememeli" —
   // bu yüzden geçerliliğini korur: bir kez cevap verdiğimizde pencere sıfırlanır.
   const surfaces = [guestMessage, ...(context?.pendingGuestMessages ?? [])].filter(Boolean);
-  const fbAll = surfaces.map((t) => classifyFallback(t));
+  // Öğe kipi: bu taramanın sinyalleri öğelere atfedildi (akış hassas öğeyi tutar). Tur düzeyi kalanlar (enjeksiyon, acil)
+  // cevapsız mesajların HEPSİNDE aynen tutar — akış acil turu zaten öğe kipine sokmaz, bu savunma derinliğidir.
+  if (items) {
+    const turnLabels = surfaces.flatMap((t) => detectRiskTypes(t));
+    if (turnLabels.includes("prompt_injection")) return hold("lexical_injection");
+    if (labelsHoldWholeTurn(turnLabels)) return hold("lexical_risk");
+  }
+  const fbAll = items ? [] : surfaces.map((t) => classifyFallback(t));
   if (
     fbAll.some(
       (x) =>
@@ -261,6 +312,7 @@ export function autoReplyGateVerdict(
   }
   // Yüksek-riskli deterministik netler de TÜM cevaplanmamış mesajlara uygulanır.
   if (
+    !items &&
     surfaces.some((t) => {
       const d = detectRiskType(t);
       return d === "safety_emergency" || d === "rule_violation" || d === "discrimination";
@@ -277,10 +329,11 @@ export function autoReplyGateVerdict(
   // If the model labelled it anything else, its draft is a normal answer — the
   // one thing this guest did not want — so hold for a human.
   if (
-    fb.isComplaint ||
-    fb.intent === "refund" ||
-    fb.intent === "early_departure" ||
-    (fb.intent === "human_request" && result.intent !== "human_request")
+    !items &&
+    (fb.isComplaint ||
+      fb.intent === "refund" ||
+      fb.intent === "early_departure" ||
+      (fb.intent === "human_request" && result.intent !== "human_request"))
   ) {
     return hold("lexical_intent");
   }
@@ -337,7 +390,9 @@ export function autoReplyGateVerdict(
   // (İkisi de `holding-ack.test.ts`'te ayrı ayrı pinli.)
   const isHandoffAck = result.intent === "human_request" && result.riskType === "human_request";
   const deterministicRisk = detectRiskType(guestMessage);
+  // Öğe kipi: son mesajın etiketi de öğelere atfedildi (tur düzeyi kalanlar ↑tarandı).
   const deterministicBlocks =
+    !items &&
     deterministicRisk !== null &&
     HIGH_STAKES_RISK_TYPES.has(deterministicRisk) &&
     !(deterministicRisk === "human_request" && result.intent === "human_request");
@@ -348,10 +403,24 @@ export function autoReplyGateVerdict(
   // Sole exemption: the designed handoff ack — model intent AND label both say
   // human_request. Any OTHER high-stakes label (even alongside a human_request
   // intent) holds for a human.
-  if (result.riskType && !isHandoffAck && HIGH_STAKES_RISK_TYPES.has(result.riskType)) {
+  // Öğe kipi: etiket tutulan bir hassas öğeyi anlatıyorsa (IBAN öğesi tutuluyken "platform_policy") güvenli kısmın cevabı
+  // tutulmaz; öğesi olmayan etiket (ya da tur düzeyi: enjeksiyon/acil) bugünkü gibi TUTAR. Devir muafiyeti öğe kipinde yok.
+  if (
+    result.riskType &&
+    (items ? !replyRiskAttributable(result.riskType, items.held) : !isHandoffAck) &&
+    HIGH_STAKES_RISK_TYPES.has(result.riskType)
+  ) {
     return hold("model_risk_label");
   }
-  if (result.riskLevel !== "none" && result.riskLevel !== "low") return hold("model_risk_level");
+  // Öğe kipi: yükseltilmiş risk düzeyi, tutulan bir öğeye atfedilebilen etiketle geldiyse (IBAN öğesi tutuluyken "medium"
+  // + "platform_policy") o öğeyi anlatır; etiketsiz ya da atfedilemeyen yükseltilmiş düzey bugünkü gibi TUTAR.
+  if (
+    result.riskLevel !== "none" &&
+    result.riskLevel !== "low" &&
+    !(items && result.riskType && replyRiskAttributable(result.riskType, items.held))
+  ) {
+    return hold("model_risk_level");
+  }
   // ── "BİLGİM YOK" MİSAFİRE GİTMEZ (kurucu kuralı, 09-11) ───────────────────
   //
   // 🚨 GÜVEN EŞİĞİNDEN BAĞIMSIZ: ölçüldü ki güveni 0.75 ÜSTÜNDE olan bir "kayıtlı
@@ -420,6 +489,28 @@ export function autoReplyGateVerdict(
     const claim = actionClaimHold(result.claimedActions);
     if (claim !== null) return { reason: claim };
   }
+  // ── KONUŞMA ÖĞELERİ BEYANI (09-26) ─────────────────────────────────────────────────────────────────────────────
+  // Cevap YALNIZ beyan ettiği güvenli istekleri kapsar: beyan yok/bozuk → tut; bırakılan ya da bilinmeyen istek beyanı →
+  // tut; hiçbir istek cevaplanmadıysa gönderecek bir şey yok (gereksiz mesaj gitmez). Ödeme öğesi tutuluyken cevapta ödeme
+  // yöntemi / yeri adı → tut (anlam katmanının kelime yedeği; yalnız sıkılaştırır). Tutulan öğe varken ve bu turda
+  // konaklama değişikliği ertelemesi beklenmezken cevapta istemin "kaydedildi / ev sahibiniz görebilir" cümlesi → tut
+  // (kurucu 09-26: bırakılan istek için misafire otomatik "kaydedildi" GİTMEZ).
+  // Koddan kurulan DOĞRULANMIŞ metin (erken giriş onayı / politika; `verifiedGrant` birebir) tek bir doğrulanmış isteği
+  // kapsar: beyanı yoktur, bırakılan isteğe değinemez (ödeme yöntemi süzgeci ev sahibi notunda kayıtta koşar).
+  const codeBuiltGrant = context?.verifiedGrant != null && result.reply === context.verifiedGrant.text;
+  if (items && !codeBuiltGrant) {
+    const decl = result.answeredRequests;
+    if (!decl || !decl.ok) return hold(decl?.ok === false && decl.reason === "unknown_ref" ? "items_touch_held" : "items_undeclared");
+    if (decl.refs.length === 0) return hold("items_nothing_answered");
+    if (items.paymentHeld && namesPaymentMethod(result.reply ?? "", { paymentContext: true })) return hold("items_payment_held");
+    if (
+      items.held.length > 0 &&
+      !items.answerableKinds.some((k) => STAY_CHANGE_KINDS.has(k)) &&
+      hasRecordedHandoff(result.reply ?? "")
+    ) {
+      return hold("items_touch_held");
+    }
+  }
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24, `availability-claims.ts`) ──────────
   // Model takvimi GÖRMÜYOR → "o gece boş / kalabilirsiniz / fully booked" doğrulanmamış iddiadır;
   // müsaitliğe bağlı bir istek ancak kararı ev sahibine bırakan cevapla gider. Kapsam TÜM cevapsız
@@ -447,7 +538,11 @@ export function autoReplyGateVerdict(
   // okur. Güvenlik kontrollerinin SONUNCUSU: gerekçe `understanding_risk` yalnız başka HİÇBİR güvenlik kontrolü
   // kapatmadığında görünür ("yalnız anlama katmanı neyi yakaladı?"). Katman koştuysa her zaman karar verir (birleşim
   // değişmezi 09-24, gölge kip YOK).
-  const intentRisk = evaluateIntentRisk(context?.understandingRisk, { modelIntent: result.intent }).reason;
+  // Öğe kipi: risk niyetleri öğelere atfedildi (hassas öğe tutulur); yalnız acil tur düzeyinde kalır.
+  const intentRisk =
+    items && context?.understandingRisk !== "emergency"
+      ? null
+      : evaluateIntentRisk(context?.understandingRisk, { modelIntent: result.intent }).reason;
   if (intentRisk) return { reason: intentRisk };
   // ── MİSAFİRİN DİLİNDE DEĞİL (09-25, kurucu: "5.1'in zayıf noktasını düzelt", `ai/language-signal.ts`) ────────
   // Ölçüldü: gpt-5.1 İngilizce yazan misafirlerin 7/59'una Türkçe cevap verdi; biri buradan geçip otomatik gidiyordu.
@@ -2039,11 +2134,21 @@ export async function applyChannelAutoReply(
   // `kbVisible`'ın KENDİSİDİR (aynı dizi) ve `droppedItems` 0 → canlı davranış
   // karakteri karakterine aynı. Hibritte seçilmeyen kalemler devir notunu
   // besler: retrieval kaçırırsa model "bilgim yok" DEMEZ, insana devreder.
+  // Konuşma öğeleri (bayrak `AI_CONVERSATION_ITEMS_ENABLED`, varsayılan KAPALI): anlama katmanı öğe kipinde koşar (tek karar
+  // noktası `kb-retrieve.ts`) ve geçmiş mesaj KİMLİĞİ taşır — öğe eşlemesi katmanın gördüğü AYNI diziden. Kapalıyken dizi
+  // bayt bayt eskisi.
+  const itemsFlag = conversationItemsEnabled();
+  const turnHistory = messages.map((m) => ({
+    ...(itemsFlag ? { id: m.id } : {}),
+    direction: m.direction as "inbound" | "outbound",
+    body: m.body,
+    at: m.createdAt,
+  }));
   const kbSel = await retrieveKbForPrompt({
     items: kbVisible,
     guestMessage: last.body,
     // `at` (F14b): anlama katmanında yazıldığı an — yalnız Konuşma Anlama Durumu bayrağıyla görünür, seçim okumaz.
-    history: messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body, at: m.createdAt })),
+    history: turnHistory,
     // Anlama katmanı (bayrak açıkken): standart saat kıyası + redaksiyon için.
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
     redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],
@@ -2084,6 +2189,38 @@ export async function applyChannelAutoReply(
     reservationId: conversation.reservation?.id ?? null,
   });
 
+  // ── KONUŞMA ÖĞELERİ (09-26, kurucu kararları; `docs/TASARIM-2026-09-26-konusma-ogeleri.md`) ─────────────────────
+  // Bayrak açıkken cevapsız mesajlar öğelere bölünür: hassas öğe (ödeme yöntemi, şikâyet, iade, ev sahibiyle görüşme…)
+  // SESSİZCE ev sahibinde tutulur, güvenli istek cevaplanır, acil / enjeksiyon turu bugünkü yoldan gider. Anlama katmanı
+  // cevap modelinden ÖNCE beklenir (öğe bloğu isteme girer). Emin olunmayan tur bölünmez (`off` → bugünkü kapı, yazma
+  // yok); planlama hatası da bugünkü kapıya düşer. Önizleme (dryRun) yazmaz → bugünkü davranışı gösterir (bilinen fark).
+  let itemsTurn: ItemsTurn | null = null;
+  // Anlama katmanının penceresiyle AYNI kural: gövdesiz satır (yalnız fotoğraf) okunacak metin taşımaz (kapı da boş
+  // yüzeyi taramaz); pencereler yine de ayrışırsa tur bölünmez (`message_set_mismatch`).
+  const itemsTurnMessageIds = messages
+    .slice(lastOutboundIdx0 + 1)
+    .filter((m) => m.direction === "inbound" && m.body.trim().length > 0)
+    .map((m) => m.id);
+  if (itemsFlag && !options.dryRun) {
+    try {
+      itemsTurn = await planItemsTurn(prisma, {
+        organizationId: conversation.property.organizationId,
+        conversationId: conversation.id,
+        history: turnHistory,
+        guestMessage: last.body,
+        understanding: await kbSel.understanding,
+        // Kapının tarayacağı cevapsız misafir mesajları (son giden mesajdan sonrakiler, kronolojik) — öğeler TAM bu kümeyi
+        // kapsamalı.
+        expectedMessageIds: itemsTurnMessageIds,
+        now: new Date(),
+      });
+    } catch (err) {
+      void reportError(`conversation-items plan org=${conversation.property.organizationId}`, err);
+      itemsTurn = null;
+    }
+  }
+  const itemsPlan: ItemsTurnPlan | null = itemsTurn?.mode === "items" ? itemsTurn : null;
+
   let result = await suggestReply({
     guestMessage: last.body,
     property: {
@@ -2104,6 +2241,9 @@ export async function applyChannelAutoReply(
       : null,
     // "Bugün / yarın" ve konaklama evresi org diliminde (`stay-timeline.ts`).
     timeZone: org.timezone,
+    // Öğe bloğu yalnız cevaplanabilir istek varken: hepsi tutulduysa cevap ev sahibinde kalır (model bugünkü istemle koşar —
+    // üçüncü risk dedektörü olarak; metni gönderilmez).
+    ...(itemsPlan && !itemsPlan.allHeld ? { conversationItems: itemsPlan.replyItems } : {}),
     knowledgeBase: kbForModel,
     knowledgeBaseSelection: kbSel.selection,
     knowledgeBaseNotes: kbSel.notes,
@@ -2194,6 +2334,8 @@ export async function applyChannelAutoReply(
     understandingRisk: understandingRiskOf(understood),
     // İstemin gösterdiği AYNI sanitize teklif metni: host'un kendi sözü iddia sayılmaz.
     hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
+    // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.
+    ...(itemsPlan ? { items: itemsPlan.gateItems } : {}),
   };
   // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
   // Bayrak açıkken (`AI_STAY_GUARD_ENABLED`) önce bekçisiz kapı; ikinci model taslağı YALNIZ iki durumda okur:
@@ -2488,6 +2630,90 @@ export async function applyChannelAutoReply(
   }
 
   if (!gatePassed) {
+    // ── KONUŞMA ÖĞELERİ — TUTULAN TUR (kurucu kararları 09-26) ───────────────────────────────────────────────────
+    // Acil / enjeksiyon turu bugünkü yoldan (Sorunlu + acil e-posta): öğeler tutulur, e-postayı bugünkü yol atar.
+    if (itemsTurn?.mode === "turn_level") {
+      await holdTurnLevelItems(prisma, {
+        organizationId: conversation.property.organizationId,
+        turnItems: itemsTurn.turnItems,
+        now: new Date(),
+      }).catch((err) => void reportError(`conversation-items turn-level org=${conversation.property.organizationId}`, err));
+    }
+    // Öğe kipinde yalnız acil / enjeksiyon sinyali konuşmayı durdurur ("Acilde dursun, diğerleri cevap"). Öteki tutuşta
+    // "Sorunlu" YOK, misafire bekletme mesajı YOK: hassas öğeler + cevap modelinin öğelere atfedilemeyen sinyali ev sahibinde
+    // SESSİZCE açık kalır, ev sahibine mesaj başına bugünkü acil e-posta gider ("Sessiz + açık iş"). Cevap metni gitmez;
+    // taslak gelen kutusunda "AI öner" ile (bugünkü gibi). Anlama katmanının ACİL niyeti buraya hiç gelmez: acil istek turu
+    // öğe kipine sokmaz (`turn_level`, ↑); cevap modelinin acil / enjeksiyon etiketi ise bugünkü yükseltme yoluna düşer.
+    if (itemsPlan && result.riskType !== "safety_emergency" && result.riskType !== "prompt_injection") {
+      const heldAt = new Date();
+      try {
+        await settleItemsTurn(prisma, {
+          organizationId: conversation.property.organizationId,
+          turnItems: itemsPlan.turnItems,
+          answerable: itemsPlan.answerable,
+          now: heldAt,
+          answeredRefs: null,
+        });
+        if (result.source === "openai") {
+          await recordModelItems(prisma, {
+            organizationId: conversation.property.organizationId,
+            conversationId: conversation.id,
+            messageId: last.id,
+            items: unattributedModelItems(
+              { intent: result.intent, riskType: result.riskType, riskLevel: result.riskLevel },
+              itemsPlan.gateItems.held,
+            ),
+            now: heldAt,
+          });
+        }
+        await notifyItemsForHost({
+          organizationId: conversation.property.organizationId,
+          conversation,
+          messageIds: itemsTurnMessageIds,
+          now: heldAt,
+        });
+      } catch (err) {
+        void reportError(`conversation-items hold org=${conversation.property.organizationId}`, err);
+      }
+      await persistRiskVisibility(
+        conversation.id,
+        result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
+        result.riskLevel,
+        result.riskType ?? detectRiskType(last.body),
+      );
+      await recordRiskEvent({
+        organizationId: conversation.property.organizationId,
+        propertyId: conversation.propertyId,
+        conversationId: conversation.id,
+        surface: "auto_reply",
+        triggerId: last.id,
+        finalDecision: "human_review",
+        riskLevel: result.riskLevel,
+        riskType: result.riskType ?? detectRiskType(last.body),
+        // Turun HİÇBİR güvenli isteği yoktu → kendi kodu; güvenli istek varken tutuş bugünkü gerekçesiyle (ayrıntı kanıtta `g`).
+        reason: itemsPlan.allHeld ? "items_held" : heldReasonOf(gateFailure),
+        confidence: result.confidence,
+        ...groundingAudited,
+        srcDeclared: result.sourceAudit?.declared ?? null,
+        srcVerified: result.sourceAudit?.verified ?? null,
+      });
+      void recordShadowVerdict({
+        organizationId: conversation.property.organizationId,
+        conversationId: conversation.id,
+        triggerId: last.id,
+        guestMessage: last.body,
+        guestName: conversation.guestIdentifier,
+        reservationGuestName: conversation.reservation?.guestName,
+        gateDecision: "human_review",
+        gateRiskLevel: result.riskLevel,
+        gateRiskType: result.riskType ?? detectRiskType(last.body),
+      });
+      return {
+        sent: false,
+        skippedReason: result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
+        ...meta,
+      };
+    }
     // If the block was driven by a MODEL-detected sensitive signal (complaint /
     // refund / early-departure intent, medium/high risk, OR a high-stakes
     // riskType label) — not mere low confidence — actively escalate to the host
@@ -2749,16 +2975,7 @@ export async function applyChannelAutoReply(
         // da başka bir veto "Müsaitlik" satırına sayılmaz — inceleme 09-24).
         // Anlama katmanının risk niyeti (`understanding_risk`) BURAYA HİÇ GELMEZ: niyet varsa yukarıdaki acil yükseltme
         // dalı koşar, gerekçeyi o yazar ve döner (mutasyon turu 09-24: buradaki üçüncü kol ölü koddu, silindi).
-        reason:
-          gateFailure === "availability_claim" ||
-          gateFailure === "availability_unconfirmed" ||
-          gateFailure === "price_claim" ||
-          gateFailure === "kb_time_conflict" ||
-          gateFailure === "reply_language_mismatch" ||
-          gateFailure === "action_claim" ||
-          gateFailure === "action_claim_undeclared"
-            ? gateFailure
-            : "low_confidence_or_risky",
+        reason: heldReasonOf(gateFailure),
         confidence: result.confidence,
         ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,
@@ -2867,6 +3084,17 @@ export async function applyChannelAutoReply(
     // A concurrent run already queued this exact reply — don't double-count or re-run
     // the decision bookkeeping (the winner already did it).
     if (enq.deduped) return { sent: false, skippedReason: "already_queued", draft, ...meta };
+    // Konuşma öğeleri: karar KESİN (kuyruk teslim eder) → cevabın kapsadığı güvenli istekler "cevaplandı", hassaslar tutulur.
+    // Bilinen sınır (kuyruk bayrağı üretimde kapalı): teslim sonradan kalıcı düşerse öğe "cevaplandı" kalır.
+    if (itemsPlan) {
+      await settleSentTurnItems({
+        organizationId: conversation.property.organizationId,
+        conversation,
+        plan: itemsPlan,
+        answeredRefs: itemsAnsweredRefs(itemsPlan, result, earlyCheckinSent || earlyCheckinPolicySent),
+        messageIds: itemsTurnMessageIds,
+      });
+    }
 
     // Decision metadata only — NOT status/lastMessageAt (#6: the worker sets "answered"
     // + the delivery time on confirmed send). lastRiskLevel/Type describe the GUEST
@@ -3055,9 +3283,22 @@ export async function applyChannelAutoReply(
     await conversationDone;
   }
 
+  // Konuşma öğeleri: cevabın kapsadığı güvenli istekler "cevaplandı", hassaslar ev sahibinde tutulur + bildirilir.
+  if (itemsPlan) {
+    await settleSentTurnItems({
+      organizationId: conversation.property.organizationId,
+      conversation,
+      plan: itemsPlan,
+      answeredRefs: itemsAnsweredRefs(itemsPlan, result, earlyCheckinSent || earlyCheckinPolicySent),
+      messageIds: itemsTurnMessageIds,
+    });
+  }
+
   // Guest asked to speak to a human: we just sent the holding reply, now pause the
   // AI on this thread so the host can take over without the bot chiming in again.
-  if (result.intent === "human_request") {
+  // Öğe kipinde devir mesajı GİTMEZ (insan talebi ev sahibinde sessizce açık; giden cevap yalnız güvenli istekleri kapsar)
+  // → yapay zekâ duraklatılmaz, misafirin sonraki güvenli sorusu cevap alır.
+  if (result.intent === "human_request" && !itemsPlan) {
     const holdHours = org.handoffHoldHours ?? (Number(process.env.HUMAN_HANDOFF_HOLD_HOURS) || 12);
     await prisma.conversation
       .update({
@@ -3095,6 +3336,129 @@ export async function applyChannelAutoReply(
   });
   if (earlyCheckinSent && earlyCheckinRun) await noteEarlyCheckinApproval(conversation.reservation?.id ?? null, earlyCheckinRun);
   return { sent: true, draft, ...meta };
+}
+
+/**
+ * Tutulan kanal cevabının karar kaydı gerekçesi: kendi rapor satırı olan kapı kodları aynen (müsaitlik / para / saat / dil /
+ * eylem beyanı), gerisi "düşük güven / riskli". Konuşma öğeleri kipi de aynı kuralı kullanır (tek kaynak).
+ */
+function heldReasonOf(gateFailure: string | null): string {
+  return gateFailure === "availability_claim" ||
+    gateFailure === "availability_unconfirmed" ||
+    gateFailure === "price_claim" ||
+    gateFailure === "kb_time_conflict" ||
+    gateFailure === "reply_language_mismatch" ||
+    gateFailure === "action_claim" ||
+    gateFailure === "action_claim_undeclared"
+    ? gateFailure
+    : "low_confidence_or_risky";
+}
+
+/** Konuşma öğeleri yardımcılarının okuduğu konuşma alanları (kanal oto-yanıtının yüklediği satır bunları taşır). */
+type ItemsConversationRef = {
+  id: string;
+  guestIdentifier: string;
+  channel: string;
+  propertyId: string;
+  reservation: { id: string } | null;
+  property: { name: string; address: string | null; city: string | null };
+};
+
+/**
+ * Giden cevabın kapsadığı güvenli istekler: koddan kurulan doğrulanmış erken giriş metni YALNIZ erken giriş isteğini
+ * kapsar (akış tek konu ister); model cevabı ise beyan ettiği kimlikleri (kapı beyanı zaten doğruladı).
+ */
+export function itemsAnsweredRefs(
+  plan: ItemsTurnPlan,
+  result: { answeredRequests?: AnsweredRequestsDeclaration },
+  codeBuilt: boolean,
+): string[] {
+  if (codeBuilt) return plan.answerable.filter((a) => a.item.kind === "early_checkin").map((a) => a.ref);
+  return result.answeredRequests?.ok ? result.answeredRequests.refs : [];
+}
+
+/**
+ * Ev sahibine bildirim (kurucu: "acil e-posta aynen"): alıcı bugünkü kural (org'un uyarı adresi, yoksa SAHİBİN e-postası;
+ * personel ya da operatör ASLA), mesaj başına en fazla bir e-posta; host görev otomasyonunu açtıysa ev sahibinde tutulan
+ * mesajlar için görev (tekilleştirilmiş). E-posta düşerse claim geri alınır + tek alarm.
+ */
+async function notifyItemsForHost(input: {
+  organizationId: string;
+  conversation: ItemsConversationRef;
+  messageIds: readonly string[];
+  now: Date;
+}): Promise<void> {
+  const alertOrg = await prisma.organization.findUnique({
+    where: { id: input.organizationId },
+    select: {
+      name: true,
+      alertEmail: true,
+      autoTaskFromMessageEnabled: true,
+      users: { where: { role: "owner" }, orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
+    },
+  });
+  const to = alertOrg?.alertEmail?.trim() || alertOrg?.users[0]?.email?.trim() || null;
+  const notice = await notifyHeldItems(prisma, {
+    organizationId: input.organizationId,
+    to,
+    orgName: alertOrg?.name ?? "Lixus AI",
+    conversation: { id: input.conversation.id, guestIdentifier: input.conversation.guestIdentifier, channel: input.conversation.channel },
+    property: input.conversation.property,
+    messageIds: input.messageIds,
+    now: input.now,
+  });
+  if (notice.failed.length > 0) {
+    void reportError(
+      `conversation-items notify org=${input.organizationId}`,
+      new Error(`held-item e-mail failed for ${notice.failed.length} message(s); claim released for retry`),
+    );
+  }
+  if (alertOrg?.autoTaskFromMessageEnabled) {
+    for (const messageId of notice.held) {
+      const m = await prisma.message.findFirst({
+        where: { id: messageId, conversationId: input.conversation.id },
+        select: { body: true },
+      });
+      if (!m) continue;
+      await createOperationalTaskFromMessage({
+        propertyId: input.conversation.propertyId,
+        message: m.body,
+        sourceMessageId: messageId,
+        reservationId: input.conversation.reservation?.id ?? null,
+      }).catch(() => {});
+    }
+  }
+}
+
+/**
+ * Cevap GİTTİ (ya da kuyruğa kesin girdi): kapsanan güvenli istekler "cevaplandı", turun hassas öğeleri ev sahibinde
+ * tutulur ve bildirilir. Gönderim zaten oldu → öğe kaydı düşerse akış DURMAZ, alarm.
+ */
+async function settleSentTurnItems(input: {
+  organizationId: string;
+  conversation: ItemsConversationRef;
+  plan: ItemsTurnPlan;
+  answeredRefs: readonly string[];
+  messageIds: readonly string[];
+}): Promise<void> {
+  const now = new Date();
+  try {
+    await settleItemsTurn(prisma, {
+      organizationId: input.organizationId,
+      turnItems: input.plan.turnItems,
+      answerable: input.plan.answerable,
+      now,
+      answeredRefs: input.answeredRefs,
+    });
+    await notifyItemsForHost({
+      organizationId: input.organizationId,
+      conversation: input.conversation,
+      messageIds: input.messageIds,
+      now,
+    });
+  } catch (err) {
+    void reportError(`conversation-items sent org=${input.organizationId}`, err);
+  }
 }
 
 /**
@@ -4475,6 +4839,11 @@ export async function sendDueAlerts(
   // hiçbir şey kaybolmaz, yalnız gecikir).
   const alertsStartedAt = Date.now();
   const ALERT_BUDGET_MS = 60_000;
+  // Konuşma öğeleri kipi (bayrak + anlama katmanı açık): acil / enjeksiyon dışındaki şikâyet-iade uyarısı konuşmayı
+  // "Sorunlu" YAPMAZ (kurucu 09-26: "Acilde dursun, diğerleri cevap") ve misafire bekletme mesajı GİTMEZ; mesajın öğeleri ev
+  // sahibinde SESSİZCE tutulur + bugünkü acil e-posta (mesaj başına bir kez) + görev (host açtıysa). Cevap geçişi aynı turu
+  // öğelere böler, güvenli kısmı cevaplar. Bayrak kapalıyken bu dal koşmaz (bugünkü yol bayt bayt).
+  const itemsFlag = conversationItemsEnabled();
   for (const c of candidates) {
     if (Date.now() - alertsStartedAt > ALERT_BUDGET_MS) break;
     const last = c.messages[0];
@@ -4487,6 +4856,30 @@ export async function sendDueAlerts(
     const pending = (outboundAt === -1 ? c.messages : c.messages.slice(0, outboundAt)).filter(
       (m) => m.direction === "inbound",
     );
+    if (itemsFlag) {
+      const hits = pending.filter((m) => {
+        const k = classifyFallback(m.body);
+        return k.isComplaint || k.intent === "refund";
+      });
+      if (hits.length === 0) continue;
+      if (!hits.some((m) => labelsHoldWholeTurn(detectRiskTypes(m.body)))) {
+        const r = await alertItemsForHost({
+          organizationId,
+          conversation: { ...c, reservation: c.reservationId ? { id: c.reservationId } : null },
+          hits,
+          to,
+          orgName: org?.name ?? "GuestOps",
+          autoTask: org?.autoTaskFromMessageEnabled === true,
+        }).catch((err) => {
+          void reportError(`sendDueAlerts items org=${organizationId}`, err);
+          return { mailed: 0, failed: 0 };
+        });
+        alerted += r.mailed;
+        escalationEmailFailures += r.failed;
+        continue;
+      }
+      // Acil / enjeksiyon: bugünkü yol (Sorunlu + acil e-posta).
+    }
     const hit = pending.find((m) => {
       const k = classifyFallback(m.body);
       return k.isComplaint || k.intent === "refund";
@@ -4631,6 +5024,91 @@ export async function sendDueAlerts(
     );
   }
   return { alerted };
+}
+
+/**
+ * Uyarı geçişinin öğe kipi (`sendDueAlerts`): şikâyet/iade mesajları kelime ağı öğesi olarak ev sahibinde tutulur, mesaj
+ * başına bir acil e-posta, karar kaydı (`items_held`) ve host açtıysa görev. Bildirimi zaten yapılmış mesaj ATLANIR (2 dk'lık
+ * geçiş aynı mesajı yeniden işlemez; e-postası düşen mesaj claim'i geri alındığı için sonraki geçişte yeniden denenir).
+ */
+async function alertItemsForHost(input: {
+  organizationId: string;
+  conversation: ItemsConversationRef;
+  hits: readonly { id: string; body: string }[];
+  to: string;
+  orgName: string;
+  autoTask: boolean;
+}): Promise<{ mailed: number; failed: number }> {
+  const notified = await prisma.conversationItem.findMany({
+    where: {
+      organizationId: input.organizationId,
+      conversationId: input.conversation.id,
+      messageId: { in: input.hits.map((h) => h.id) },
+      notifiedAt: { not: null },
+    },
+    select: { messageId: true },
+  });
+  const done = new Set(notified.map((n) => n.messageId));
+  const todo = input.hits.filter((h) => !done.has(h.id));
+  if (todo.length === 0) return { mailed: 0, failed: 0 };
+  const now = new Date();
+  for (const h of todo) {
+    await recordLexicalAlertItems(prisma, {
+      organizationId: input.organizationId,
+      conversationId: input.conversation.id,
+      messageId: h.id,
+      body: h.body,
+      now,
+    });
+  }
+  const notice = await notifyHeldItems(prisma, {
+    organizationId: input.organizationId,
+    to: input.to,
+    orgName: input.orgName,
+    conversation: { id: input.conversation.id, guestIdentifier: input.conversation.guestIdentifier, channel: input.conversation.channel },
+    property: input.conversation.property,
+    messageIds: todo.map((h) => h.id),
+    now,
+  });
+  // Karar kaydı mesaj başına BİR kez: e-postası düşen mesaj sonraki geçişte yeniden işlenir, tekillik ihlali (yutulur ama
+  // Prisma hata satırı basar) önceden okunarak atlanır.
+  const recorded = new Set(
+    (
+      await prisma.riskEvent.findMany({
+        where: {
+          organizationId: input.organizationId,
+          surface: "alerts",
+          finalDecision: "human_review",
+          triggerId: { in: todo.map((h) => h.id) },
+        },
+        select: { triggerId: true },
+      })
+    ).map((r) => r.triggerId),
+  );
+  for (const h of todo) {
+    if (!recorded.has(h.id)) {
+      await recordRiskEvent({
+        organizationId: input.organizationId,
+        propertyId: input.conversation.propertyId,
+        conversationId: input.conversation.id,
+        surface: "alerts",
+        triggerId: h.id,
+        finalDecision: "human_review",
+        riskType: detectRiskType(h.body),
+        reason: "items_held",
+      });
+    }
+    if (input.autoTask && notice.held.includes(h.id)) {
+      await createOperationalTaskFromMessage({
+        propertyId: input.conversation.propertyId,
+        message: h.body,
+        sourceMessageId: h.id,
+        reservationId: input.conversation.reservation?.id ?? null,
+        ai: { riskType: detectRiskType(h.body) },
+      }).catch(() => {});
+    }
+  }
+  return { mailed: notice.mailed.length, failed: notice.failed.length };
 }
 
 /** Preview check-out messages for upcoming departures (no sending). */
