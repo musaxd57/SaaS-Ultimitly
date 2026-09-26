@@ -1161,7 +1161,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   `docs/ONAY-E2-…md` · **E4 ölçüm düzeneği REPODA** (`tests/eval/embedding-e4.eval.test.ts`, `npm run eval` +
   `RUN_REAL_EVAL=1`; 643 metin ~20k token < 0,1 sent; kâhin testi anlamsal kanalın seçiciye ulaştığını pinler).
   Sözcüksel taban: >30 kalemlik KB'de parafraz cevabı isteme %24–64 (legacy %54–91); ≤30 kalemde artık legacy ile
-  birebir. **E5 üretim yolu yazıldı (anahtar KAPALI, ↑Retrieval)**; açma E4 sonucu + ayrı onay. `embedTexts` kalıcı
+  birebir. **E4 KOŞULDU 09-26** (kurucu onayı, `docs/olcum/eval-e4-2026-09-26-074722-z0ai.md`; eşik 0,3): parafraz
+  cevabı isteme %38→%66 (100 kalem), %50→%76 (30), %38→%52 (300); ölçek %99–100 korunur; iki sorulu mesaj %23→%59;
+  100 kalemde 28 kazanç / 5 kayıp. Ölçüm anlama katmanı OLMADAN (canlıda açık — üstüne katkısı ölçülmedi).
+  **E5 üretim yolu yazıldı (anahtar KAPALI, ↑Retrieval)**; AÇMA KARARI KURUCUDA. `embedTexts` kalıcı
   arızada (kredi/anahtar/model) yeniden DENEMEZ; sağlayıcının TEK izinli üretim çağıranı `semantic-retrieval.ts`
   (mekanik pin, göreli import da sayılır).
 - **Saat alanı kuralı TEK KAYNAK `retrieval/time-fields.ts`** (retrieval çelişki koruması + istemin KB↔mülk
