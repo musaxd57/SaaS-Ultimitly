@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildRerankRequest, RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
-import { labFetch, labRerankRequest, runPipeline, traceAnswer, type LabConfig, type LabItem, type LabRun } from "../eval/rag-lab/core";
+import { fusedWindow, labFetch, labRerankRequest, latencyLines, mixedWindow, runPipeline, traceAnswer, type LabConfig, type LabItem, type LabRow, type LabRun } from "../eval/rag-lab/core";
 import { buildScaleLab, type ScaleSetFile } from "../eval/rag-lab/scale-set";
 
 // RAG LAB ölçerinin kendisi (#189): ölçer yanlışsa "kaçak aşaması" tablosu yanlış karar doğurur. Bu pinler ağsız koşar.
@@ -162,5 +162,25 @@ describe("rag-lab — gerçekçi set yükleyicisi", () => {
     expect(a.items.map((i) => i.id)).toEqual(b.items.map((i) => i.id));
     const ids = new Set(a.items.map((i) => i.id.replace(/_(old|conf)$/, "")));
     for (const q of a.queries) for (const ans of q.answers) for (const g of ans.goldIds) expect(ids.has(g.replace(/_(old|conf)$/, ""))).toBe(true);
+  });
+});
+
+describe("rag-lab — pencere kuruluşu ve gecikme tablosu", () => {
+  const L = (...keys: string[]) => keys.map((key) => ({ key }));
+  it("mixed: önce her ÖZGÜN listenin ilk N'i (sırayla), sonra listeler arası RRF; tekrar yok, tavan K", () => {
+    const lists = [L("a1", "a2", "a3"), L("b1", "b2", "b3"), L("x1", "a3", "b3")]; // üçüncü liste ek sorgu
+    expect(mixedWindow(lists, 2, 2, 5)).toEqual(["a1", "b1", "a2", "b2", "a3"]);
+    // RRF dolgusu: a3 ve b3 iki listede → x1'den önce.
+    expect(mixedWindow(lists, 2, 1, 4)).toEqual(["a1", "b1", "a3", "b3"]);
+    // Saf RRF: iki listede geçen aday (a3, b3) tek listenin birincisini (a1) geçer — tek soruda kuvvetli, çok soruda riskli.
+    expect(fusedWindow(lists, 3)).toEqual(["a3", "b3", "a1"]);
+  });
+
+  it("gecikme: yalnız süresi kayıtlı çağrılar sayılır, yoksa tire", () => {
+    const row = (config: string, rrMs: number | null): LabRow =>
+      ({ kb: "k", size: 1, config, qid: "q", group: "g", cls: "c", lang: "tr", inBlock: true, answers: [], fb: "none", sem: "ok", rr: "ok", blockChars: 100, selected: 1, negChunks: 0, leak: false, conflictNote: false, rrMs, rrChars: rrMs === null ? 0 : 350 }) as LabRow;
+    const lines = latencyLines([row("a", 100), row("a", 300), row("a", 200), row("b", null)]);
+    expect(lines.find((l) => l.includes("| a |"))).toBe("| k | 1 | a | 3 | 200 | 300 | 350 | 100 |");
+    expect(lines.find((l) => l.includes("| b |"))).toBe("| k | 1 | b | 0 | — | — | 0 | 100 |");
   });
 });

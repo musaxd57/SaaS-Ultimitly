@@ -5,7 +5,7 @@ import path from "node:path";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { SEMANTIC_COSINE_THRESHOLD } from "@/lib/ai/retrieval/semantic";
-import { RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
+import { RERANK_HOT_PATH_DEADLINE_MS, RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
 import { KB_RETRIEVAL_FETCH_CAP } from "@/lib/ai/limits";
 import { embeddingModel } from "@/lib/ai/embeddings/provider";
 import { semanticModel } from "@/lib/ai/semantic/config";
@@ -13,7 +13,7 @@ import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
 import { e4Queries } from "./e4-shared";
 import { writeSidecar } from "./sidecar";
 import { cacheStats, RAG_LAB_CACHE } from "./rag-lab/cache";
-import { labRow, reportLines, type LabConfig, type LabItem, type LabQuery, type LabRow } from "./rag-lab/core";
+import { labRow, latencyLines, reportLines, type LabConfig, type LabItem, type LabQuery, type LabRow } from "./rag-lab/core";
 import { buildScaleLab, loadScaleFile } from "./rag-lab/scale-set";
 
 // ---------------------------------------------------------------------------
@@ -36,11 +36,13 @@ const CAP = KB_RETRIEVAL_FETCH_CAP;
 /**
  * Yapılandırma adı = "+" ile ayrılmış belirteçler (tek kaynak, deney eklemek kod değişikliği istemez):
  * `lex` (anlamsal yok) · `s0.3` (anlamsal, ham kosinüs eşiği) · `und` (anlama katmanı sorguları) · `rr20/600` (yeniden sıralayıcı: ilk
- * K aday / kırpma) · `fb` (geri çekilmede de sırala) · `fused` (pencere listeler arası RRF) · `cap400` (okuma tavanı). `prod` =
- * canlının kendisi (s{canlı eşik}+und+rr20/600, okuma 200).
+ * K aday / kırpma) · `fb` (geri çekilmede de sırala) · `fused` (pencere listeler arası RRF) · `mixed6` (önce özgün soru başına 6,
+ * sonra RRF) · `pq` (soru başına etiket) · `dry` (modelsiz pencere tavanı) · `dl2500` (üretimin zaman aşımı tavanı) · `cap400`
+ * (okuma tavanı) · `b9000` / `mc16` (seçim bütçesi karakter / parça) · `skip` (sığmayan parçayı atla) · `pi5` (kalem başına parça).
+ * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200).
  */
 export function parseConfig(name: string): LabConfig {
-  if (name === "prod") return { name, semantic: { t: T_PROD }, understanding: true, rerank: { ...RR }, fetchCap: CAP };
+  if (name === "prod") return { name, semantic: { t: T_PROD }, understanding: true, rerank: { ...RR, deadlineMs: RERANK_HOT_PATH_DEADLINE_MS }, fetchCap: CAP };
   const cfg: LabConfig = { name, semantic: null, understanding: false, rerank: null, fetchCap: CAP };
   for (const tok of name.split("+")) {
     let m: RegExpMatchArray | null;
@@ -50,9 +52,16 @@ export function parseConfig(name: string): LabConfig {
     else if ((m = tok.match(/^rr(\d+)\/(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? {}), k: Number(m[1]), crop: Number(m[2]) };
     else if (tok === "fb") cfg.rerank = { ...(cfg.rerank ?? RR), onFallback: true };
     else if (tok === "fused") cfg.rerank = { ...(cfg.rerank ?? RR), window: "fused" };
+    else if ((m = tok.match(/^mixed(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), window: "mixed", ownQuota: Number(m[1]) };
     else if (tok === "dry") cfg.rerank = { ...(cfg.rerank ?? RR), dry: true };
+    else if (tok === "pq") cfg.rerank = { ...(cfg.rerank ?? RR), perQuestion: true };
     else if ((m = tok.match(/^cap(\d+)$/))) cfg.fetchCap = Number(m[1]);
     else if (tok === "e3l") cfg.semantic = { ...(cfg.semantic ?? { t: T_PROD }), model: "text-embedding-3-large" };
+    else if ((m = tok.match(/^b(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), budgetChars: Number(m[1]) };
+    else if ((m = tok.match(/^mc(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), maxChunks: Number(m[1]) };
+    else if (tok === "skip") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), packing: "skip" } };
+    else if ((m = tok.match(/^pi(\d+)$/))) cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), maxChunksPerItem: Number(m[1]) } };
+    else if ((m = tok.match(/^dl(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), deadlineMs: Number(m[1]) };
     else throw new Error(`bilinmeyen yapılandırma belirteci ${tok} (${name})`);
   }
   return cfg;
@@ -130,6 +139,7 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
     // EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ: bir `it` yarıda kaldıysa rapor başlığı GEÇERSİZ der (satırlar teşhis için yine yazılır).
     const title = complete ? `RAG lab — aşama bazlı kayıp (${stamp})` : `GEÇERSİZ — koşu yarıda kaldı — RAG lab (${stamp})`;
     const lines = reportLines(rows, title, { ...meta, durum: complete ? "tamam" : "YARIDA KALDI (sonuç sayılmaz)" });
+    lines.push("", ...latencyLines(rows));
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     let name = `rag-lab-${stamp}.md`;
@@ -140,9 +150,15 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
 
   async function runSet(kbName: string, size: number, items: LabItem[], queries: LabQuery[]) {
     for (const cfg of CONFIGS) {
-      const qs = queries.filter(
-        (q, qi) => GROUPS.has(q.group) && (!isPaid(cfg) || PAID_GROUPS.has(q.group)) && (!q.group.startsWith("single") || qi % SAMPLE === 0),
-      );
+      // Örnekleme GRUP İÇİ sırayla (09-26 hatası: genel sıra tr/xx dönüşümlü olduğu için "her 4." yalnız Türkçe soruları alıyordu).
+      const seen = new Map<string, number>();
+      const qs = queries.filter((q) => {
+        if (!GROUPS.has(q.group) || (isPaid(cfg) && !PAID_GROUPS.has(q.group))) return false;
+        if (!q.group.startsWith("single")) return true;
+        const n = seen.get(q.group) ?? 0;
+        seen.set(q.group, n + 1);
+        return n % SAMPLE === 0;
+      });
       let i = 0;
       await Promise.all(
         Array.from({ length: 4 }, async () => {

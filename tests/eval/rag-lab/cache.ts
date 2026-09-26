@@ -74,6 +74,36 @@ export async function llmCached<T>(kind: string, keyParts: unknown, run: () => P
 }
 
 /**
+ * `llmCached` + GECİKME: taze çağrının süresi yanına (`.ms`) yazılır, önbellekten okunurken geri verilir (üretimin sıcak yol
+ * tavanını ölçümde uygulamak ve p50/p95 raporlamak için). Süresi kaydedilmemiş eski girdi `ms: null` döner (tavan uygulanmaz,
+ * gecikme istatistiğine girmez — uydurma süre yazılmaz).
+ */
+export async function llmCachedTimed<T>(
+  kind: string,
+  keyParts: unknown,
+  run: () => Promise<{ value: T | null; ms: number }>,
+): Promise<{ value: T | null; ms: number | null; fresh: boolean }> {
+  const dir = path.join(RAG_LAB_CACHE, "llm", kind);
+  mkdirSync(dir, { recursive: true });
+  const f = path.join(dir, `${digest(keyParts)}.json`);
+  const s = llmStats.get(kind) ?? { hits: 0, calls: 0 };
+  llmStats.set(kind, s);
+  if (existsSync(f)) {
+    s.hits += 1;
+    const msFile = `${f}.ms`;
+    const ms = existsSync(msFile) ? Number(readFileSync(msFile, "utf8")) : null;
+    return { value: JSON.parse(readFileSync(f, "utf8")) as T, ms: ms !== null && Number.isFinite(ms) ? ms : null, fresh: false };
+  }
+  s.calls += 1;
+  const { value, ms } = await run();
+  if (value !== null) {
+    writeFileSync(f, JSON.stringify(value));
+    writeFileSync(`${f}.ms`, String(ms));
+  }
+  return { value, ms, fresh: true };
+}
+
+/**
  * DENEY: üretim istemcisi dışında başka bir gömme modeli (ör. text-embedding-3-large, `dimensions` ile 1536'ya kısaltılmış —
  * üretimin boyut sözleşmesi aynı kalsın). Yalnız ölçüm; üretime geçmesi ayrı karar. Disk önbellekli, geçici arızada yeniden dener.
  */
