@@ -30,6 +30,7 @@ vi.mock("@/lib/storage/adapter", () => ({
 import { POST as uploadPOST } from "@/app/api/upload/route";
 import { GET as serveGET } from "@/app/api/storage/photo/[...key]/route";
 import { DELETE as taskDELETE, PATCH as taskPATCH } from "@/app/api/tasks/[id]/route";
+import { DELETE as propertyDELETE } from "@/app/api/properties/[id]/route";
 
 const SECRET = "provider-secret-must-never-appear";
 const STORAGE_ENV = {
@@ -173,9 +174,11 @@ describe("serve — authenticated 302 to a SHORT-LIVED signed URL, tenant-checke
   const req = new NextRequest("http://localhost/api/storage/photo/x");
 
   it("owning-org member (staff included) gets a 302 whose target is signed, private and secret-free", async () => {
-    const { orgId, taskId } = await seed("staff", { assignToUser: true });
+    const { orgId, taskId, userId } = await seed("staff", { assignToUser: true });
     stubStorageEnv(false); // serving works WITHOUT the upload flag (rollback-safe)
     const key = `org/${orgId}/task/${taskId}/123-abc.png`;
+    // F11 (09-26): yalnız bir görev güncellemesinin HÂLÂ gösterdiği nesne sunulur (↓ayrı test) — fikstür o kaydı kurar.
+    await prisma.taskUpdate.create({ data: { taskId, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + key } });
     const res = await serveGET(req, serveCtx(key));
     expect(res.status).toBe(302);
     const loc = res.headers.get("location")!;
@@ -205,6 +208,74 @@ describe("serve — authenticated 302 to a SHORT-LIVED signed URL, tenant-checke
     vi.unstubAllEnvs(); // no storage env at all
     const { orgId, taskId } = await seed("owner");
     expect((await serveGET(req, serveCtx(`org/${orgId}/task/${taskId}/a.png`))).status).toBe(404);
+  });
+
+  it("🚨 F11: hiçbir görev güncellemesinin göstermediği nesne İMZALANMAZ (silinmiş görev/mülk, eski anahtar)", async () => {
+    // Nesne kovadan ancak silme kuyruğu boşalınca kalkar; o ana kadar eski anahtarı bilen aynı kiracı kullanıcısı
+    // imzalı URL alıyordu (kovada kalan nesne erişilebilirdi). Sunum artık DB'deki bağa bakar.
+    const { orgId, taskId, userId } = await seed("owner");
+    stubStorageEnv(false);
+    const key = `org/${orgId}/task/${taskId}/555-live.png`;
+    expect((await serveGET(req, serveCtx(key))).status).toBe(404); // hiç bağlanmamış
+    const row = await prisma.taskUpdate.create({ data: { taskId, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + key } });
+    expect((await serveGET(req, serveCtx(key))).status).toBe(302); // bağlı → sunulur
+    await prisma.taskUpdate.delete({ where: { id: row.id } });
+    expect((await serveGET(req, serveCtx(key))).status).toBe(404); // bağ kalktı → sunulmaz
+    await prisma.taskUpdate.create({ data: { taskId, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + key } });
+    await prisma.task.delete({ where: { id: taskId } });
+    expect((await serveGET(req, serveCtx(key))).status).toBe(404); // görev silindi → sunulmaz
+  });
+
+  it("F11 aşırı uygulama yok: görev-bağı kuralından ÖNCE başka göreve iliştirilmiş eski satır hâlâ sunulur", async () => {
+    // Pano bu satırları çiziyor (`isRenderablePhotoUrl` görev şartı aramaz) → sunum da kırılmamalı.
+    const { orgId, propertyId, taskId, userId } = await seed("owner");
+    stubStorageEnv(false);
+    const other = await prisma.task.create({ data: { propertyId, type: "cleaning", title: "B", status: "todo", priority: "standard" } });
+    const key = `org/${orgId}/task/${taskId}/777-old.png`;
+    await prisma.taskUpdate.create({ data: { taskId: other.id, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + key } });
+    expect((await serveGET(req, serveCtx(key))).status).toBe(302);
+  });
+});
+
+describe("property DELETE — F11: görev fotoğraflarının silme niyeti AYNI işlemde", () => {
+  const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
+  const delReq = (id: string) => new NextRequest(`http://localhost/api/properties/${id}`, { method: "DELETE" });
+
+  it("🚨 mülkün TÜM görevlerinin depo fotoğrafları kuyruğa girer; eski /uploads, yabancı anahtar ve başka mülk GİRMEZ", async () => {
+    const { orgId, propertyId, taskId, userId } = await seed("owner");
+    const task2 = await prisma.task.create({ data: { propertyId, type: "maintenance", title: "Bakım", status: "todo", priority: "standard" } });
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Diğer" } });
+    const otherTask = await prisma.task.create({ data: { propertyId: other.id, type: "cleaning", title: "T", status: "todo", priority: "standard" } });
+    const k1 = `org/${orgId}/task/${taskId}/111-a.png`;
+    const k2 = `org/${orgId}/task/${task2.id}/222-b.png`;
+    const kOther = `org/${orgId}/task/${otherTask.id}/333-c.png`;
+    await prisma.taskUpdate.createMany({
+      data: [
+        { taskId, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + k1 },
+        { taskId: task2.id, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + k2 },
+        { taskId, userId, photoUrl: "/uploads/legacy/old.png" },
+        { taskId, userId, photoUrl: `${STORAGE_PHOTO_URL_PREFIX}org/someone-else/task/${taskId}/9-x.png` }, // zehirli
+        { taskId: otherTask.id, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + kOther },
+      ],
+    });
+    const res = await propertyDELETE(delReq(propertyId), ctx(propertyId));
+    expect(res.status).toBe(200);
+    expect(await prisma.property.count({ where: { id: propertyId } })).toBe(0);
+    const queued = (await prisma.storageDeletion.findMany()).map((q) => q.objectKey).sort();
+    expect(queued).toEqual([k1, k2].sort());
+    expect(await prisma.taskUpdate.count({ where: { taskId: otherTask.id } })).toBe(1); // başka mülk dokunulmadı
+  });
+
+  it("fotoğrafsız mülk silinir, kuyruk boş; yabancı kiracının mülkü 404 ve kuyruk boş", async () => {
+    const victim = await seed("owner");
+    await prisma.taskUpdate.create({
+      data: { taskId: victim.taskId, userId: victim.userId, photoUrl: `${STORAGE_PHOTO_URL_PREFIX}org/${victim.orgId}/task/${victim.taskId}/1-v.png` },
+    });
+    const me = await seed("owner"); // oturum: başka org
+    expect((await propertyDELETE(delReq(victim.propertyId), ctx(victim.propertyId))).status).toBe(404);
+    expect(await prisma.storageDeletion.count()).toBe(0);
+    expect((await propertyDELETE(delReq(me.propertyId), ctx(me.propertyId))).status).toBe(200);
+    expect(await prisma.storageDeletion.count()).toBe(0);
   });
 });
 

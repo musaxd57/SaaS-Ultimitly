@@ -5,6 +5,8 @@ import { withManage } from "@/lib/route-guard";
 import { serializeSupplyProfile } from "@/lib/supply";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 import { earlyCheckinRuleWhere } from "@/lib/early-checkin/rules";
+import { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl } from "@/lib/storage/keys";
+import { enqueueStorageDeletions } from "@/lib/storage/deletion-queue";
 
 // ⚠️ GİZLİ TOKEN'LAR YANITTAN ÇIKARILIR — GERİ EKLEME.
 // `icalToken` takvim beslemesinin, `chatToken` QR concierge'in TEK kimlik
@@ -125,7 +127,17 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     });
     // Mülkün erken giriş kuralı da gider (FK yok; aynı kimlikle yeniden kullanılmasın, sahipsiz satır kalmasın).
     await tx.automationRule.deleteMany({ where: earlyCheckinRuleWhere(session.organizationId, id) });
-    return tx.property.deleteMany({ where: { id, organizationId: session.organizationId } });
+    // 🚨 F11 (Codex 09-05): görev fotoğraflarının SİLME NİYETİ aynı işlemde (görev silme rotasıyla aynı sözleşme).
+    // Kaskad görevleri ve güncellemelerini götürür; nesneleri gösteren satırlar gidince kovadaki fotoğraf sahipsiz
+    // kalıyordu. Anahtarlar kilitten SONRA, silmeden hemen önce okunur; kiracı süzgeci kuyruğun tek boğazında.
+    const photoRows = await tx.taskUpdate.findMany({
+      where: { task: { propertyId: id }, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },
+      select: { photoUrl: true },
+    });
+    const del = await tx.property.deleteMany({ where: { id, organizationId: session.organizationId } });
+    const keys = photoRows.map((r) => keyFromPhotoUrl(r.photoUrl)).filter((k): k is string => k !== null);
+    if (del.count > 0 && keys.length > 0) await enqueueStorageDeletions(tx, session.organizationId, keys);
+    return del;
     // Etkileşimli işlemin varsayılan 5 sn / 2 sn sınırı dizi biçiminde YOKTU: kaskad silme (indekssiz SetNull
     // kolonları) veri büyüdükçe uzar; kardeş yazma yollarının sınırları (inceleme 09-24).
   }, { timeout: 60_000, maxWait: 15_000 });
