@@ -68,6 +68,16 @@ describe("F10 — log çıkışları merkezî redaksiyondan geçer", () => {
     expect(text).toContain(DIAG);
     expect(text).not.toContain(PII_EMAIL);
     expect(text).not.toContain(PII_PHONE);
+
+    // Uyarı dakikada bir kısıtlıdır; test yardımcısı kısıtı da sıfırlar (her test kendi uyarısını görebilsin —
+    // yoksa aynı dosyada önce koşan bir arıza bu testi SESSİZCE boş geçirirdi).
+    vi.spyOn(prisma, "$queryRaw").mockRejectedValueOnce(piiError("Raw query failed."));
+    await rateLimit(`login-acct:${PII_EMAIL}`, 5, 60_000);
+    expect(cap.lines.filter((l) => l.includes("[rate-limit]"))).toHaveLength(1); // kısıt içinde: ikinci uyarı yok
+    __resetRateLimit();
+    vi.spyOn(prisma, "$queryRaw").mockRejectedValueOnce(piiError("Raw query failed."));
+    await rateLimit(`login-acct:${PII_EMAIL}`, 5, 60_000);
+    expect(cap.lines.filter((l) => l.includes("[rate-limit]"))).toHaveLength(2);
   });
 
   it("🚨 gölge AI beklenmedik hatası: ham ileti loga girmez", async () => {
