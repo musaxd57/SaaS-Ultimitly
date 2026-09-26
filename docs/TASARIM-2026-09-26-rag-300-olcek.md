@@ -95,8 +95,13 @@ DEĞİL, tam ölçümün yerini TUTMAZ):
 | Tek soru TR | %69 | %94 | %93 (yalnız ayrı çağrıya 2,5 sn tavanı uygulandı) |
 | Diğer diller | %73 | %99 | %99 |
 
+Gecikme (kayıtlı süreler, aynı alt küme): taban p50 950 / p95 1.363 ms → ayrı çağrı p50 1.121 / p95 1.737 ms (paralel
+çağrıların en yavaşı); istek boyu ortalama 5,8 bin → 17,3 bin karakter (~3 kat).
+
 Aynı önbellekle (pencere değişmediği için ücretsiz) ablasyonlar: ayrı çağrıda soru başına etiket (`prl`) +1 soru; atla-paketle
-(`skip`), kalem başına 5 parça (`pi5`), anlama sorgusu payı 1/2 (`xs0.5`) **fark yok** → üretime alınmadı. Ayrı çağrıda kalan
+(`skip`), kalem başına 5 parça (`pi5`), anlama sorgusu payı 1/2 (`xs0.5`) **fark yok** → üretime alınmadı. Modelin
+görüp işaretlemediği adayı görülmemişlerin arkasına atmak (`demote`, `-14.md`): iki soru +1, diğer diller +1 (pencere dışı
+cevap bloğa girdi), TR aynı, yanıtsız soruda blok boyu / geri çekilme aynı — 318'de +2, kesin ölçüme aday (üretime alınmadı). Ayrı çağrıda kalan
 kayıp: pencere dışı (iki soru 4 cevap, TR 4), model işaretlemedi (iki soru 9, TR 2), işaretlendiği hâlde bloğa girmedi (iki soru
 3 — üçü de saat çelişkisi notlu satırlar; çelişki partnerleri bütçeyi alıyor), 600 karakter kırpma iğneyi kesti (TR 1), 2,5 sn
 tavanı (TR 1).
@@ -117,7 +122,9 @@ TR 4/111, diğer 1/111 · **istek başına 50 → 2 / 3 / 1** · liste tabanı 1
 
 ## 6. Açık kalanlar (sıra)
 
-1. Kredi gelince: ayrı çağrılı yeniden sıralamanın temiz dev ölçümü (istek başına 40 ve 50 pencereyle), maliyet + p95.
+1. Kredi gelince: ayrı çağrılı yeniden sıralamanın temiz dev ölçümü (istek başına 40 ve 50 pencereyle, ± `demote`), maliyet +
+   p95. Tahmini maliyet (gpt-5.1 liste fiyatıyla, yaklaşık): dev ölçümü ~4 $, holdout kabulü ~5 $, cevap düzeyi ~2 $ —
+   önce ~1 $'lık küçük deneme (`EVAL_RAG_SAMPLE` büyük) + kurucu onayı.
 2. Holdout kabul koşusu (yalnız toplu sayı) — §1 kapısı.
 3. Cevap düzeyi ölçüm (`EVAL_RAG_ANSWER=1`), E4 sentetik setinin yeni hatla tekrarı.
 4. Kurucu kararı: `OPENAI_EMBEDDING_MODEL=text-embedding-3-large` ve `KB_RERANK_PER_QUESTION=1`.

@@ -522,6 +522,13 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
         if (okByWin.size > 0) {
           rrScores = new Map();
           for (const sc of okByWin.values()) for (const [k, v] of sc) rrScores.set(k, Math.max(rrScores.get(k) ?? 0, v));
+          // demote: modelin GÖRDÜĞÜ ama işaretlemediği aday 0 (görülmemişlerin arkasına) — yalnız en az bir işaret varsa.
+          if (cfg.rerank.demote && rrScores.size > 0) {
+            kept.forEach((w) => {
+              if (!okByWin.has(w.i)) return;
+              for (const c of w.c) if (!rrScores!.has(c.key)) rrScores!.set(c.key, 0);
+            });
+          }
           rrStatus = "ok";
           let bySub: Map<string, Map<string, number>> | undefined;
           if (cfg.rerank.perRequestLabels && reqIds.length > 1) {
