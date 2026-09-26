@@ -31,6 +31,8 @@ import { cn } from "@/lib/utils";
 import { earlyCheckinPanelLines, type EarlyCheckinPanelData } from "@/lib/early-checkin/panel";
 import { intentLabel, langLabel, displaySenderName, riskTypeLabel, sourceLabel, displayableSources } from "@/lib/ui-labels";
 import { applyTemplateBody } from "@/lib/template-apply";
+import type { PreparedDraft } from "@/lib/conversation-items/prepared-draft";
+import type { AvailabilityVetoReason } from "@/lib/ai/availability-claims";
 
 export interface ThreadMessage {
   id: string;
@@ -88,9 +90,24 @@ interface Suggestion {
   missingInfo?: string[];
   detectedLanguage?: string;
   /** Müsaitlik vetosu (sunucu yüklemi): taslak takvim iddiası taşıyor ya da isteği ertelemiyor. */
-  availabilityCheck?: "availability_claim" | "availability_unconfirmed" | null;
+  availabilityCheck?: AvailabilityVetoReason | null;
   /** Doğrulanmış erken giriş kontrolü (09-24): kontrol listesi + uygunsa koddan kurulan hazır cevap. */
   earlyCheckin?: (EarlyCheckinPanelData & { draft: string | null }) | null;
+  /** Kayıtlı taslak (sayfa açılınca yüklendi; misafire gitmedi) — güven rozeti yerine "hazır taslak" yazar. */
+  prepared?: boolean;
+}
+
+/** Kayıtlı HAZIR TASLAK → panelin öneri biçimi (uyarı sunucuda yeniden hesaplandı). */
+function preparedSuggestion(d: PreparedDraft): Suggestion {
+  return {
+    intent: d.intent,
+    confidence: d.confidence,
+    reply: d.reply,
+    risk: null,
+    source: "openai",
+    availabilityCheck: d.availabilityCheck,
+    prepared: true,
+  };
 }
 
 interface Props {
@@ -119,6 +136,11 @@ interface Props {
    * desendir (bu bileşen onu yalnız YERLEŞTİRİR, davranışına karışmaz).
    */
   headerActions?: React.ReactNode;
+  /**
+   * Konuşma açılınca öneri panelinde hazır duran kayıtlı taslak (kurucu 09-26, "Otomatik hazır dursun"). Yalnız en son
+   * misafir mesajının taslağı; ondan sonra cevap gittiyse sunucu `null` verir.
+   */
+  initialDraft?: PreparedDraft | null;
 }
 
 export function ConversationThread({
@@ -133,12 +155,23 @@ export function ConversationThread({
   templateVars,
   canReply = true,
   headerActions,
+  initialDraft = null,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [composer, setComposer] = useState("");
   const [tone, setTone] = useState<ReplyTone>("warm");
-  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(() => (initialDraft ? preparedSuggestion(initialDraft) : null));
+  // Hangi mesajın taslağı panele zaten geldi: sayfa 30 sn'de bir yenilenir — kapatılan taslak geri gelmesin, "AI öner"in
+  // zengin sonucu (kaynaklar, erken giriş kontrolü) aynı mesajın kayıtlı özetiyle EZİLMESİN. Yeni bir misafir mesajının
+  // taslağı gelirse panel onu gösterir.
+  const seenDraftRef = useRef<string | null>(initialDraft?.messageId ?? null);
+  useEffect(() => {
+    if (initialDraft && initialDraft.messageId !== seenDraftRef.current) {
+      seenDraftRef.current = initialDraft.messageId;
+      setSuggestion(preparedSuggestion(initialDraft));
+    }
+  }, [initialDraft]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -210,8 +243,11 @@ export function ConversationThread({
         body: JSON.stringify({ tone }),
       });
       const data = await res.json().catch(() => null);
-      if (res.ok) setSuggestion(data);
-      else setSuggestError(data?.error ?? "AI önerisi alınamadı. Lütfen tekrar deneyin.");
+      if (res.ok) {
+        setSuggestion(data);
+        // Sunucu bu öneriyi son misafir mesajına da kaydetti → yenilemede kayıtlı hâli bunun üstüne yazılmasın.
+        seenDraftRef.current = [...messages].reverse().find((m) => m.direction === "inbound")?.id ?? seenDraftRef.current;
+      } else setSuggestError(data?.error ?? "AI önerisi alınamadı. Lütfen tekrar deneyin.");
     } catch {
       setSuggestError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
@@ -917,16 +953,25 @@ export function ConversationThread({
                   Dil: {langLabel(suggestion.detectedLanguage)}
                 </span>
               ) : null}
-              <span
-                className={cn(
-                  "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                  suggestion.confidence >= 0.75
-                    ? "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
-                    : "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300",
-                )}
-              >
-                {suggestion.confidence >= 0.75 ? "AI bu cevaptan emin" : "AI emin değil — gözden geçirin"}
-              </span>
+              {suggestion.prepared ? (
+                <span
+                  data-testid="prepared-draft-badge"
+                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                >
+                  Hazır taslak · gönderilmedi
+                </span>
+              ) : (
+                <span
+                  className={cn(
+                    "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                    suggestion.confidence >= 0.75
+                      ? "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                      : "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300",
+                  )}
+                >
+                  {suggestion.confidence >= 0.75 ? "AI bu cevaptan emin" : "AI emin değil — gözden geçirin"}
+                </span>
+              )}
               {/* ÇIKMAZ (kullanıcı gözlemi, 08-09): panelin KAPATMA yolu YOKTU.
                   `setSuggestion(null)` yalnız İKİ yerde çağrılıyordu — yeni öneri
                   istenince ve mesaj BAŞARIYLA gönderilince. Yani öneriyi beğenmeyen
@@ -945,6 +990,12 @@ export function ConversationThread({
                 <X className="size-3.5" />
               </button>
             </div>
+
+            {suggestion.prepared ? (
+              <p className="text-xs text-muted-foreground">
+                AI bu taslağı sizin için hazırladı; misafire gönderilmedi. Göndermeden önce okuyun.
+              </p>
+            ) : null}
 
             {riskTypeLabel(suggestion.riskType) ? (
               <p className="flex items-start gap-2 rounded-md bg-orange-50 dark:bg-orange-500/10 px-2.5 py-2 text-xs text-orange-800 dark:text-orange-300">
@@ -987,7 +1038,11 @@ export function ConversationThread({
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 <span>
                   <span className="font-medium">Müsaitlik:</span>{" "}
-                  {suggestion.availabilityCheck === "availability_claim"
+                  {/* Kayıtlı taslakta uyarı modelin beyanı OLMADAN yeniden hesaplandı (kelime ağı + niyet etiketi) → hangi
+                      tarafın (misafirin isteği mi, taslağın iddiası mı) tetiklediği ayrılamaz; iki durumda da doğru olan cümle. */}
+                  {suggestion.prepared
+                    ? "Bu konuşmada tarih, saat ya da müsaitlik konusu var. Misafire söz vermeden önce kanal takviminden kontrol edin."
+                    : suggestion.availabilityCheck === "availability_claim"
                     ? "Bu taslak takvim hakkında kesin bir şey söylüyor. Göndermeden önce kanal takviminden kontrol edin."
                     : "Misafir tarih ya da saat değişikliği istiyor. Misafire söz vermeden önce kanal takviminden kontrol edin."}
                 </span>

@@ -43,6 +43,7 @@ import { understandGuestMessages } from "@/lib/ai/semantic/understand";
 import { parseUnderstanding, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { applyChannelAutoReply, sendDueAlerts } from "@/lib/automation";
 import { hasOpenHostWork } from "@/lib/conversation-attention";
+import { hostVoiceDraft } from "@/lib/ai/host-voice";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockMail = vi.mocked(emailService.sendReporting);
@@ -667,5 +668,96 @@ describe("planItemsTurn — kapıya giden öğe girdisi", () => {
     });
     expect(plan.mode).toBe("items");
     expect(plan.mode === "items" && plan.gateItems).toEqual({ held: [], paymentHeld: false, answerableKinds: ["early_checkin"] });
+  });
+});
+
+describe("HAZIR TASLAK (kurucu: 'Otomatik hazır dursun')", () => {
+  beforeEachTurn();
+
+  async function draftOf(conversationId: string) {
+    const rows = await prisma.message.findMany({
+      where: { conversationId, direction: "inbound" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { aiSuggestedReply: true, aiIntent: true, aiConfidence: true },
+    });
+    return rows.map((r) => r.aiSuggestedReply);
+  }
+
+  it("turun TÜM istekleri ev sahibinde: modelin cevabı EV SAHİBİNİN AĞZIYLA son misafir mesajına kaydedilir (ek model çağrısı yok)", async () => {
+    const msg = "Ev sahibiyle görüşmek istiyorum.";
+    const reply = "Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    const { conversationId } = await seed(msg);
+    understands(understood([{ intent: "human_request", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "human_request", riskType: "human_request", confidence: 0.91, reply }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
+    const expected = hostVoiceDraft(reply);
+    expect(expected).not.toBe(reply); // devir kalıbı gerçekten ev sahibinin ağzına çevrildi
+    const row = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "inbound" } });
+    expect(row).toMatchObject({ aiSuggestedReply: expected, aiIntent: "human_request", aiConfidence: 0.91 });
+  });
+
+  it("IBAN tek başına: cevap taslağı kaydedilir", async () => {
+    const { conversationId } = await seed(IBAN);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ reply: "Ödemeler yalnızca platform üzerinden yapılır." }));
+    await applyChannelAutoReply(conversationId);
+    expect(await draftOf(conversationId)).toEqual(["Ödemeler yalnızca platform üzerinden yapılır."]);
+  });
+
+  it("kısmen tutulan tur (Wi-Fi gitti, IBAN ev sahibinde): taslak KAYDEDİLMEZ", async () => {
+    const { conversationId } = await seed(BOTH);
+    understands(
+      understood([
+        { intent: "payment_invoice", message: 1 },
+        { intent: "wifi", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect(await draftOf(conversationId)).toEqual([null]);
+  });
+
+  it("kısmen tutulan tur ve cevap da tutuldu: taslak KAYDEDİLMEZ (cevap bırakılan istekleri bilerek atlar — eksik taslak)", async () => {
+    const { conversationId } = await seed(BOTH);
+    understands(
+      understood([
+        { intent: "payment_invoice", message: 1 },
+        { intent: "wifi", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ reply: "Wi-Fi: Lale-5G. Ödemeyi kapıda nakit alabiliriz." }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(await draftOf(conversationId)).toEqual([null]);
+  });
+
+  it("🚨 takvim iddiası taşıyan taslak KAYDEDİLMEZ (uyarıyı ancak 'AI öner' hesaplar)", async () => {
+    const msg = "Ev sahibiyle görüşmek istiyorum.";
+    const { conversationId } = await seed(msg);
+    understands(understood([{ intent: "human_request", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "human_request", riskType: "human_request", reply: "Tabii, o tarihlerde daire boş, kalabilirsiniz." }),
+    );
+    await applyChannelAutoReply(conversationId);
+    expect(await draftOf(conversationId)).toEqual([null]);
+  });
+
+  it("model yok (şablon yedeği): taslak KAYDEDİLMEZ", async () => {
+    const { conversationId } = await seed(IBAN);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ source: "fallback", reply: "Mesajınızı aldık." }));
+    await applyChannelAutoReply(conversationId);
+    expect(await draftOf(conversationId)).toEqual([null]);
+  });
+
+  it("KONTROL (bayrak kapalı): bugünkü davranış — taslak kaydedilmez", async () => {
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "");
+    const { conversationId } = await seed(IBAN);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ reply: "Ödemeler yalnızca platform üzerinden yapılır." }));
+    await applyChannelAutoReply(conversationId);
+    expect(await draftOf(conversationId)).toEqual([null]);
   });
 });

@@ -25,6 +25,9 @@ import { listConversationItems } from "@/lib/conversation-items/store";
 import { isOpenForHost } from "@/lib/conversation-items/core";
 import { ITEM_STATUS_LABELS_TR, itemKindLabel, itemTone } from "@/lib/conversation-items/view";
 import { ConversationItemsCard, type ConversationItemRow } from "@/components/inbox/conversation-items-card";
+import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+import { preparedDraftOf } from "@/lib/conversation-items/prepared-draft";
+import { hostOfferForGate } from "@/lib/automation";
 import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +65,7 @@ export default async function ConversationPage({
   // server's. Date-only reservation values below keep using formatDate (UTC).
   const orgRow = await prisma.organization.findUnique({
     where: { id: session.organizationId },
-    select: { timezone: true },
+    select: { timezone: true, lateCheckoutOfferText: true },
   });
   const TZ = orgTimezone(orgRow?.timezone);
 
@@ -179,6 +182,19 @@ export default async function ConversationPage({
       createdAtLabel: formatDateTime(m.createdAt, TZ),
     }));
 
+  // HAZIR TASLAK (kurucu 09-26, "Otomatik hazır dursun"; konuşma öğeleri): en son misafir mesajının kayıtlı taslağı,
+  // müsaitlik uyarısı yeniden hesaplanarak (`prepared-draft.ts`). Bayrak kapalıyken gösterilmez — bugünkü davranış.
+  const preparedDraft =
+    conversationItemsEnabled() && canManage(session)
+      ? preparedDraftOf(
+          conversation.messages.filter((m) => outboxByMessage.get(m.id) !== "canceled"),
+          {
+            stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
+            hostOfferText: hostOfferForGate(orgRow?.lateCheckoutOfferText),
+          },
+        )
+      : null;
+
   // Values for substituting {{placeholders}} in message templates.
   const wifiItem = kb.find((k) => k.category === "wifi");
   const templateVars: Record<string, string> = {
@@ -292,6 +308,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
             }
             templateVars={templateVars}
             canReply={canManage(session)}
+            initialDraft={preparedDraft}
             headerActions={
               <>
                 <LinkButton href={backHref} variant="outline" size="sm">

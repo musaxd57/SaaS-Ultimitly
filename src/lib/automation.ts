@@ -119,7 +119,7 @@ import {
 } from "@/lib/conversation-items/flow";
 import type { AnsweredRequestsDeclaration } from "@/lib/conversation-items/reply-block";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
-import { hasRecordedHandoff } from "@/lib/ai/host-voice";
+import { hasRecordedHandoff, hostVoiceDraft } from "@/lib/ai/host-voice";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { redactSensitive, reportError } from "@/lib/report-error";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
@@ -2642,7 +2642,7 @@ export async function applyChannelAutoReply(
     // Öğe kipinde yalnız acil / enjeksiyon sinyali konuşmayı durdurur ("Acilde dursun, diğerleri cevap"). Öteki tutuşta
     // "Sorunlu" YOK, misafire bekletme mesajı YOK: hassas öğeler + cevap modelinin öğelere atfedilemeyen sinyali ev sahibinde
     // SESSİZCE açık kalır, ev sahibine mesaj başına bugünkü acil e-posta gider ("Sessiz + açık iş"). Cevap metni gitmez;
-    // taslak gelen kutusunda "AI öner" ile (bugünkü gibi). Anlama katmanının ACİL niyeti buraya hiç gelmez: acil istek turu
+    // turun tamamı tutulduysa taslak olarak hazır durur (↓HAZIR TASLAK). Anlama katmanının ACİL niyeti buraya hiç gelmez: acil istek turu
     // öğe kipine sokmaz (`turn_level`, ↑); cevap modelinin acil / enjeksiyon etiketi ise bugünkü yükseltme yoluna düşer.
     if (itemsPlan && result.riskType !== "safety_emergency" && result.riskType !== "prompt_injection") {
       const heldAt = new Date();
@@ -2674,6 +2674,24 @@ export async function applyChannelAutoReply(
         });
       } catch (err) {
         void reportError(`conversation-items hold org=${conversation.property.organizationId}`, err);
+      }
+      // HAZIR TASLAK (kurucu 09-26, "Otomatik hazır dursun"): turun HİÇBİR güvenli isteği yoksa cevap modeli öğe bloğu
+      // OLMADAN bütün mesajlara yazdı → ev sahibinin ağzıyla (`hostVoiceDraft`) son misafir mesajına kaydedilir, konuşma
+      // açılınca öneri panelinde hazır durur (ek model çağrısı YOK; "AI öner"in yazdığı alanın aynısı). Kısmen tutulan
+      // turda KAYDEDİLMEZ: o cevap bırakılan istekleri bilerek atlar, ev sahibi eksik bir cevabı tek tıkla göndermesin.
+      // Müsaitlik vetosuna takılan taslak da KAYDEDİLMEZ — o uyarıyı ve erken giriş kontrolünü "AI öner" hesaplar.
+      if (
+        itemsPlan.allHeld &&
+        result.source === "openai" &&
+        result.reply.trim() &&
+        vetoAvailability(result.reply, [last.body, ...pendingGuestMessages], availabilityPolicyFor(result, gateContext)) === null
+      ) {
+        await prisma.message
+          .update({
+            where: { id: last.id },
+            data: { aiSuggestedReply: hostVoiceDraft(result.reply), aiConfidence: result.confidence, aiIntent: result.intent },
+          })
+          .catch((err) => void reportError(`conversation-items draft org=${conversation.property.organizationId}`, err));
       }
       await persistRiskVisibility(
         conversation.id,
