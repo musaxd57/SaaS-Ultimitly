@@ -185,6 +185,12 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   "no water" → water, "how to get there" → get gibi). Kalıp eşleşmesi metnin birimlerini ister: arama / saat alanı /
   çelişki kapısı `units` geçirir — yeni bir çağıran da geçirmek ZORUNDA. "checkin" kökü korunur (`PROTECTED_STEMS`;
   "check" artık girişi tetiklemez). Bilinen, BİLEREK bırakılan kök çakışmaları: "parking"→park, "giriş"→gir.
+- 🚨 **OPENAI YENİDEN SIRALAYICI (#186, 09-26; kurucu "OpenAI ile", "Önce ücretli ölçüm, sonra siz") — YAZILDI, BAĞLANMADI:**
+  `semantic/rerank.ts` (anlam katmanının ağ kapısı; `retrieval/` modelsiz kalır) adaylardan "cevaplayan / ilgili" kimlikleri
+  listeletir; seçiciye `rerankScores` YALNIZ SIRA sinyali (3→2→1→puansız→0, kararlı; aday eklemez/çıkarmaz, bütçe/çelişki/
+  sürüm aynen). Tavan teşhisi: embedding KAPALIYKEN işe yaramaz (cevap aday listesinde yok). Ölçüm (gpt-5.1, 288 çağrı, 0 hata,
+  0 kayıp): parafraz %67→%78 (100 kalem), %50→%57 (300); iki soru %62→%74, %31→%41; p50 0,86 sn. Aday başına puan şeması
+  REDDEDİLDİ (p50 1,7 sn). Bağlama + açma = embedding E5 ile birlikte kurucu kararı (`docs/TASARIM-2026-09-26-openai-yeniden-siralayici.md`).
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
