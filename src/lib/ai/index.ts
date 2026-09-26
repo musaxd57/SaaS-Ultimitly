@@ -74,9 +74,10 @@ function verifyUsedSources(list: string[], input: SuggestReplyInput): string[] {
         (field === "guestName" || field === "arrivalDate" || field === "departureDate" || field === "status")
       );
     }
-    // "history" also covers the host style guide BY CONTRACT — the prompt says
-    // facts taken from EV SAHİBİ REHBERİ are tagged "history" too.
-    if (src === "history") return Boolean(input.history && input.history.length > 0) || Boolean(input.styleProfile);
+    // "history" = YALNIZ bu sohbetin geçmişi (F13 kalıntısı, 09-26). Eskiden üslup rehberi de "history" sayılıyordu
+    // (istem "rehberden alınan olgular 'history' etiketlenir" diyordu): geçmiş BOŞKEN rehber varsa beyan doğrulanıyor,
+    // rehberden alınmış bir "olgu" arayüzde kanıtlı görünüyordu. Rehber yalnız üsluptur, dayanak değildir.
+    if (src === "history") return Boolean(input.history && input.history.length > 0);
     return false; // unknown shape → drop
   });
 }
