@@ -15,7 +15,7 @@
 // server-only modülleri bundle'a sokma" kuralını ihlal etmez. Env'i doğrudan
 // okumak da SEÇENEK DEĞİL: `KB_RETRIEVAL_MODE`un tek okuyucusunun flag.ts
 // olduğu mekanik olarak pinli (kb-retrieval-evidence-prompt.test.ts).
-import { kbRetrievalModeInfo, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
+import { kbRetrievalModeInfo, rerankRetrievalInfo, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
 // İkinci yaprak modül (F10): merkezî redaksiyon — hiçbir şey import etmez, Prisma/nodemailer taşımaz.
 import { formatErrorForLog } from "@/lib/redact";
 
@@ -55,6 +55,16 @@ export async function register() {
     console.warn(`[kb-semantic] KB_SEMANTIC_RETRIEVAL="${sem.raw}" TANINMADI — KAPALI. Açmak için: 1 | on | true`);
   } else {
     console.log(`[kb-semantic] ${sem.enabled ? "AÇIK" : "kapalı"}${kb.mode === "legacy" && sem.enabled ? " (legacy modda etkisiz)" : ""}`);
+  }
+  // Yeniden sıralayıcı (#186, varsayılan KAPALI): yalnız anlamsal kaynakla birlikte etkili — tek başına açık olması bir
+  // yapılandırma hatasıdır, gürültülü yazılır (davranış: çağrı yapılmaz).
+  const rr = rerankRetrievalInfo();
+  if (!rr.recognized) {
+    console.warn(`[kb-rerank] KB_RERANK_ENABLED="${rr.raw}" TANINMADI — KAPALI. Açmak için: 1 | on | true`);
+  } else if (rr.enabled && (!sem.enabled || kb.mode === "legacy")) {
+    console.warn(`[kb-rerank] AÇIK ama etkisiz: ${kb.mode === "legacy" ? "legacy modda" : "KB_SEMANTIC_RETRIEVAL kapalı"}`);
+  } else {
+    console.log(`[kb-rerank] ${rr.enabled ? "AÇIK" : "kapalı"}`);
   }
 
   // Opt-out hatch if you rely solely on an external scheduler.

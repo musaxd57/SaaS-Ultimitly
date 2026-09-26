@@ -100,3 +100,15 @@ export function semanticRetrievalInfo(): { enabled: boolean; raw: string; recogn
   const raw = (process.env.KB_SEMANTIC_RETRIEVAL ?? "").trim().toLowerCase();
   return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
 }
+
+/**
+ * YENİDEN SIRALAYICI ANAHTARI — `KB_RERANK_ENABLED` (#186, kurucu 09-26 "yapalım, en mantıklı şekilde").
+ *
+ * Anlamsal anahtarla AYNI yön ve yazımlar: VARSAYILAN KAPALI, tanınmayan değer KAPALI + boot'ta gürültülü. Açıkken bile
+ * yalnız anlamsal puanlar o kararda seçiciye ULAŞTIYSA koşar (`kb-retrieve.ts`): tavan teşhisi embedding yokken cevabın
+ * aday listesinde olmadığını ölçtü. Acil durdurma (`KB_RETRIEVAL_MODE=legacy`) bunu da kapatır.
+ */
+export function rerankRetrievalInfo(): { enabled: boolean; raw: string; recognized: boolean } {
+  const raw = (process.env.KB_RERANK_ENABLED ?? "").trim().toLowerCase();
+  return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
+}

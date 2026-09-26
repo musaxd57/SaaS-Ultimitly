@@ -99,6 +99,16 @@ export interface KbRetrievalEvidence {
   unMs?: number;
   /** Anlaşılan niyetler (kapalı küme `UNDERSTANDING_INTENTS`, en fazla 5; metin YOK). */
   ui?: string[];
+  /**
+   * YENİDEN SIRALAYICI durumu (#186; yalnız `KB_RERANK_ENABLED` açık + `sem: ok` + seçici sıraladıysa yazılır, aksi hâlde
+   * alan YOK): `ok` = model cevap verdi (boş liste dahil) · `failed` = arıza/zaman aşımı, BUGÜNKÜ sıra · `skipped` =
+   * sıralanacak iki aday yoktu (çağrı YAPILMADI). Kapalı küme, PII yok.
+   */
+  rr?: "ok" | "failed" | "skipped";
+  /** Yeniden sıralayıcının süresi (ms). */
+  rrMs?: number;
+  /** Modelin "cevaplıyor" dediği aday sayısı (yalnız `rr: ok`). */
+  rrA?: number;
 }
 
 export interface KbSelectSources {
@@ -164,14 +174,16 @@ export interface KbSelectInput<T extends KbChunkSource> {
   sources?: KbSelectSources;
   now?: number;
   /**
-   * YALNIZ ÖLÇÜM / TEŞHİS (üretim vermez): alt sorgu başına sıralı aday parçalar (kalem kimliği + parça anahtarı),
-   * bütçe kesiminden ve `rerankScores` yeniden sıralamasından ÖNCE (taban eşiğinden sonra). Seçimi DEĞİŞTİRMEZ.
+   * Alt sorgu başına sıralı aday parçalar (kalem kimliği + parça anahtarı), bütçe kesiminden ve `rerankScores` yeniden
+   * sıralamasından ÖNCE (taban eşiğinden sonra). Seçimi DEĞİŞTİRMEZ. Ölçüm kancası; üretimde YALNIZ yeniden sıralayıcı
+   * açıkken `ai/kb-retrieve.ts` verir (adaylar modele buradan gider).
    */
   onCandidates?: (perSubquery: readonly (readonly { id: string; key: string }[])[]) => void;
   /**
-   * YENİDEN SIRALAYICI puanları (parça anahtarı → 0..3; `semantic/rerank.ts`, #186; üretimde bugün VERİLMEZ). Yalnız
-   * SIRALAMA sinyali: her alt sorgu listesi 3 → 2 → 1 → puansız → 0 kademesine göre KARARLI sıralanır (kademe içinde
-   * bugünkü sıra korunur). Aday EKLEMEZ, ÇIKARMAZ; bütçe / çelişki / sürüm kuralları aynen sonra uygulanır.
+   * YENİDEN SIRALAYICI puanları (parça anahtarı → 0..3; `semantic/rerank.ts`, #186; üretimde yalnız `KB_RERANK_ENABLED`
+   * açıkken, `ai/kb-retrieve.ts`). Yalnız SIRALAMA sinyali: her alt sorgu listesi 3 → 2 → 1 → puansız → 0 kademesine göre
+   * KARARLI sıralanır (kademe içinde bugünkü sıra korunur). Aday EKLEMEZ, ÇIKARMAZ; bütçe / çelişki / sürüm kuralları aynen
+   * sonra uygulanır.
    */
   rerankScores?: ReadonlyMap<string, number>;
 }

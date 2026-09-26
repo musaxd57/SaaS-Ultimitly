@@ -1,13 +1,15 @@
 import type { KbChunkSource } from "@/lib/ai/retrieval/chunker";
 import {
+  pendingGuestMessages,
   retrievalNeeded,
   selectKbForPrompt,
   type KbRetrievalEvidence,
   type KbSelectInput,
   type KbSelectResult,
 } from "@/lib/ai/retrieval/select";
-import { kbRetrievalMode } from "@/lib/ai/retrieval/flag";
+import { kbRetrievalMode, rerankRetrievalInfo } from "@/lib/ai/retrieval/flag";
 import { prepareSemanticScores } from "@/lib/ai/embeddings/semantic-retrieval";
+import { prepareRerankScores, type RerankOutcome } from "@/lib/ai/semantic/rerank";
 import { understandGuestMessages, understandingEnabled, type UnderstandingOutcome } from "@/lib/ai/semantic/understand";
 import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import type { StayTimes } from "@/lib/ai/semantic/stay-change";
@@ -29,7 +31,11 @@ import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 //     `await result.understanding` ile alınır. Böylece misafir yalnız sorgular gerçekten kullanıldığında bekler.
 //  2. ANLAMSAL HAZIRLIK (`KB_SEMANTIC_RETRIEVAL`): alt sorgu başına gömme puanları — yeniden yazılmış
 //     sorgular da gömülür.
-// İki anahtar da kapalıyken sonuç `selectKbForPrompt(input)` ile BİREBİR aynıdır ve kanıta yeni alan
+//  3. YENİDEN SIRALAYICI (#186, `KB_RERANK_ENABLED`): YALNIZ anlamsal puanlar bu kararda seçiciye ulaştıysa
+//     (`sem: ok`) ve seçici gerçekten sıraladıysa (`fb: none`). Seçicinin aday listelerinden ilk 20'yi modele
+//     "cevaplıyor / ilgili" diye işaretletir; seçici puanlarla YENİDEN koşar — küme aynı adaylardan, yalnız SIRA
+//     değişir. Her arıza (zaman aşımı 2,5 sn dahil) bugünkü sonucun KENDİSİ + kanıtta `rr: failed`.
+// Anahtarlar kapalıyken sonuç `selectKbForPrompt(input)` ile BİREBİR aynıdır ve kanıta yeni alan
 // girmez (davranışsal pin).
 // ---------------------------------------------------------------------------
 
@@ -99,9 +105,35 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
   const withExtra: KbSelectInput<T> = extraQueries.length > 0 ? { ...selectInput, extraQueries } : selectInput;
 
   const sem = await prepareSemanticScores(withExtra);
-  const result = selectKbForPrompt(sem.bySubquery ? { ...withExtra, semanticBySubquery: sem.bySubquery } : withExtra);
+  const semInput: KbSelectInput<T> = sem.bySubquery ? { ...withExtra, semanticBySubquery: sem.bySubquery } : withExtra;
+  const rerankOn = sem.status === "ok" && rerankRetrievalInfo().enabled;
+  let lists: readonly (readonly { id: string; key: string }[])[] = [];
+  let result = selectKbForPrompt(
+    rerankOn
+      ? {
+          ...semInput,
+          onCandidates: (l) => {
+            lists = l;
+            semInput.onCandidates?.(l);
+          },
+        }
+      : semInput,
+  );
+  let rr: RerankOutcome | null = null;
+  if (rerankOn && result.evidence?.fb === "none") {
+    rr = await prepareRerankScores({
+      items: selectInput.items,
+      guestMessage: selectInput.guestMessage,
+      pending: pendingGuestMessages(selectInput.history, selectInput.guestMessage),
+      candidates: lists,
+      names: redactNames,
+    });
+    // Boş puan haritası ("hiçbiri cevaplamıyor") seçiciyi yeniden koşturmaz: sıra zaten bugünkü.
+    if (rr.status === "ok" && rr.scores.size > 0) result = selectKbForPrompt({ ...semInput, onCandidates: undefined, rerankScores: rr.scores });
+  }
   let evidence = result.evidence;
   if (evidence && sem.status !== "off") evidence = { ...evidence, sem: sem.status, semMs: sem.ms };
+  if (evidence && rr) evidence = withRerank(evidence, rr);
   if (evidence && und.status !== "off") evidence = withUnderstanding(evidence, und);
   const base = evidence;
   return {
@@ -114,6 +146,16 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
       const o = await pending;
       return o.status === "off" ? base : withUnderstanding(base, o);
     },
+  };
+}
+
+/** Kanıta yeniden sıralayıcının özetini ekler (metin YOK: durum, süre, "cevaplıyor" denen aday sayısı). */
+function withRerank(evidence: KbRetrievalEvidence, o: RerankOutcome): KbRetrievalEvidence {
+  return {
+    ...evidence,
+    rr: o.status,
+    rrMs: o.ms,
+    ...(o.status === "ok" ? { rrA: [...o.scores.values()].filter((s) => s === 3).length } : {}),
   };
 }
 

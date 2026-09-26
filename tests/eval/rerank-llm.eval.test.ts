@@ -8,7 +8,14 @@ import { chunkItems, chunkKey, type KbChunk } from "@/lib/ai/retrieval/chunker";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { cosineOfUnit, embeddingModel, embedTexts, EMBEDDING_BATCH_MAX } from "@/lib/ai/embeddings/provider";
-import { llmRerank, buildRerankRequest, RERANK_MAX_CANDIDATES, RERANK_SYSTEM_PROMPT, type RerankCandidate } from "@/lib/ai/semantic/rerank";
+import {
+  llmRerank,
+  buildRerankRequest,
+  unionTopCandidates,
+  RERANK_MAX_CANDIDATES,
+  RERANK_SYSTEM_PROMPT,
+  type RerankCandidate,
+} from "@/lib/ai/semantic/rerank";
 import { semanticModel } from "@/lib/ai/semantic/config";
 import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
 import { e4Queries, semanticBySubquery, type E4Query } from "./e4-shared";
@@ -53,28 +60,6 @@ const rows: RrRow[] = [];
 function inPromptOf(q: E4Query, r: ReturnType<typeof selectKbForPrompt>): boolean {
   const text = packKnowledgeBase(r.items, r.droppedItems, r.selection, r.notes).text;
   return (q.needleGroups ?? [q.needles]).every((g) => g.some((n) => text.includes(n)));
-}
-
-/** Alt sorgu listelerinden ROUND-ROBIN ile en fazla N benzersiz aday (çok sorulu mesajda her soru aday alır). */
-function unionTop(lists: readonly (readonly { key: string }[])[], n: number): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  const cur = lists.map(() => 0);
-  let progressed = true;
-  while (out.length < n && progressed) {
-    progressed = false;
-    for (let qi = 0; qi < lists.length && out.length < n; qi++) {
-      while (cur[qi] < lists[qi].length) {
-        const k = lists[qi][cur[qi]++].key;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        out.push(k);
-        progressed = true;
-        break;
-      }
-    }
-  }
-  return out;
 }
 
 async function pool<T, R>(items: readonly T[], n: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -171,7 +156,7 @@ describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçü
         const semInput = { semanticBySubquery: bySubquery, sources: { semanticFusion: "rrf" as const } };
         let lists: readonly (readonly { id: string; key: string }[])[] = [];
         const base = selectKbForPrompt({ items: s.pool, guestMessage: q.text, mode: "hybrid", now: NOW, ...semInput, onCandidates: (l) => (lists = l) });
-        const keys = unionTop(lists, RERANK_MAX_CANDIDATES);
+        const keys = unionTopCandidates(lists, RERANK_MAX_CANDIDATES);
         const cands: RerankCandidate[] = keys.map((k) => ({ key: k, title: byKey.get(k)?.title ?? "", text: byKey.get(k)?.text ?? "" }));
         const est = Math.ceil((RERANK_SYSTEM_PROMPT.length + buildRerankRequest(q.text, cands).user.length) / 4);
         const out = await llmRerank(q.text, cands, [], { model: MODEL });

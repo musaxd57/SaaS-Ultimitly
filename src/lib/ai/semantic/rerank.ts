@@ -3,6 +3,7 @@ import "server-only";
 import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "@/lib/ai/semantic/config";
 import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
+import { chunkItems, chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chunker";
 
 // ---------------------------------------------------------------------------
 // OPENAI YENİDEN SIRALAYICI (#186, kurucu kararı 09-26 "OpenAI ile"; tasarım docs/TASARIM-2026-09-26-openai-yeniden-siralayici.md).
@@ -13,11 +14,19 @@ import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
 // veritabanısızdır — ağ burada, anlam katmanının TEK ağ kapısından (`structured-call.ts`: şema zorlaması, alarm, zaman
 // aşımı) geçer. ASLA fırlatmaz: her arıza kapalı-küme bir duruma iner ve çağıran bugünkü sıralamayla devam eder.
 //
-// Bugün ÜRETİMDE ÇAĞIRANI YOK: önce ücretli ölçüm (kurucu "Önce ücretli ölçüm, sonra siz"), bağlama ayrı karar.
+// ÜRETİM GİRİŞİ `prepareRerankScores` (tek çağıran `ai/kb-retrieve.ts`, anahtar `KB_RERANK_ENABLED` varsayılan KAPALI, yalnız
+// anlamsal puanlar seçiciye ulaştıysa). Misafirin cevabını beklettiği için zaman aşımı SICAK YOL TAVANIYLA kısılır.
+// `llmRerank` doğrudan = ölçüm yolu (eval), anlam katmanının normal zaman aşımı.
 // ---------------------------------------------------------------------------
 
 /** Tek çağrıda puanlanan en fazla aday (tavan teşhisi 09-26: kurtarılabilir kaçakların neredeyse hepsi ilk 20'de). */
 export const RERANK_MAX_CANDIDATES = 20;
+/**
+ * Üretim yolunun (misafir bekler) zaman aşımı tavanı. Ölçüm (gpt-5.1, 288 çağrı): p50 0,86 sn, p95 1,32 sn → 2,5 sn p95'in
+ * yaklaşık iki katı. Aşılırsa `failed` ve BUGÜNKÜ sıra (anlamsal sıcak yolun 1,5 sn'lik bütçesiyle aynı mantık). Anlam
+ * katmanının zaman aşımı daha KISAYSA o geçerli (tavan yalnız kısar).
+ */
+export const RERANK_HOT_PATH_DEADLINE_MS = 2_500;
 /** Aday başına isteme giden metin tavanı (parça ~600–900 karakter; başı yeterli). */
 export const RERANK_TEXT_CHARS = 600;
 /** Misafir sorusu metin tavanı. */
@@ -112,6 +121,8 @@ export interface RerankDeps {
   fetchImpl?: typeof fetch;
   /** Ölçüm için model ezme; üretimde anlam katmanının modeli. */
   model?: string;
+  /** Zaman aşımı TAVANI (ms): anlam katmanının zaman aşımını yalnız KISAR. Üretim yolu `RERANK_HOT_PATH_DEADLINE_MS` verir. */
+  deadlineMs?: number;
 }
 
 /** Adayları puanlar. Anahtar yoksa / aday yoksa `skipped`; her arıza `failed` (çağıran bugünkü sırayla devam eder). */
@@ -125,13 +136,14 @@ export async function llmRerank(
   if (!apiKey || candidates.length === 0 || !guestMessage.trim()) return { status: "skipped", ms: 0 };
   const model = deps.model ?? semanticModel();
   const { user, ids } = buildRerankRequest(guestMessage, candidates, names);
+  const layerTimeout = semanticTimeoutMs(model);
   const res = await callStructuredJson({
     apiKey,
     model,
     system: RERANK_SYSTEM_PROMPT,
     user,
     schema: RERANK_SCHEMA,
-    timeoutMs: semanticTimeoutMs(model),
+    timeoutMs: deps.deadlineMs !== undefined ? Math.min(layerTimeout, deps.deadlineMs) : layerTimeout,
     maxTokens: 400,
     maxCompletionTokens: 2_000,
     reasoningEffort: semanticReasoningEffort(),
@@ -139,4 +151,81 @@ export async function llmRerank(
   });
   const scores = res.ok ? parseRerank(res.data, ids) : null;
   return scores ? { status: "ok", scores, ms: res.ms } : { status: "failed", ms: res.ms };
+}
+
+/**
+ * Alt sorgu listelerinden SIRAYLA (round-robin) en fazla `max` benzersiz parça anahtarı: çok sorulu mesajda her soru aday
+ * alır, tek konu 20'lik listeyi yutamaz. Ölçüm (`rerank-llm.eval`) ile üretim AYNI birleşimi kullanır (tek kaynak). Saf.
+ */
+export function unionTopCandidates(lists: readonly (readonly { key: string }[])[], max: number): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const cur = lists.map(() => 0);
+  let progressed = true;
+  while (out.length < max && progressed) {
+    progressed = false;
+    for (let qi = 0; qi < lists.length && out.length < max; qi++) {
+      while (cur[qi] < lists[qi].length) {
+        const k = lists[qi][cur[qi]++].key;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(k);
+        progressed = true;
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * İsteme giden misafir metni: cevapsız ÖNCEKİ mesajlar (eskisi önce) + güncel mesaj — retrieval'ın alt sorgu kuralıyla
+ * aynı küme (`pendingGuestMessages`). Güncel mesaj HER ZAMAN kalır; tavan aşılırsa önceki mesajların BAŞI kırpılır.
+ */
+export function rerankQuestionText(guestMessage: string, earlier: readonly string[] = []): string {
+  const current = guestMessage.slice(0, RERANK_QUESTION_CHARS);
+  const room = RERANK_QUESTION_CHARS - current.length - 1;
+  const before = earlier.filter((m) => m.trim()).join("\n");
+  if (room <= 0 || !before) return current;
+  return `${before.length > room ? before.slice(before.length - room) : before}\n${current}`;
+}
+
+export interface PrepareRerankInput {
+  /** Seçiciye verilen kalemler (parça metni buradan kurulur; kimlik/anahtar isteme GİTMEZ). */
+  items: readonly KbChunkSource[];
+  guestMessage: string;
+  /** Cevapsız önceki misafir mesajları, EN YENİSİ ÖNCE (`pendingGuestMessages` biçimi). */
+  pending?: readonly string[];
+  /** Seçicinin alt sorgu başına aday listeleri (`KbSelectInput.onCandidates`). */
+  candidates: readonly (readonly { key: string }[])[];
+  /** Redakte edilecek bilinen adlar (anlama katmanıyla aynı). */
+  names?: readonly (string | null | undefined)[];
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * ÜRETİM GİRİŞİ: aday anahtarlarını parça metnine çevirir, sıcak yol tavanıyla puanlatır. Sıralanacak iki aday yoksa ağa
+ * ÇIKMAZ (`skipped`). Asla fırlatmaz. Parça metni yalnız aday kalemlerden yeniden kurulur (≤20 kalem; seçicinin dizini ile
+ * aynı parçalayıcı → aynı anahtar).
+ */
+export async function prepareRerankScores(input: PrepareRerankInput): Promise<RerankOutcome> {
+  try {
+    const keys = unionTopCandidates(input.candidates, RERANK_MAX_CANDIDATES);
+    const wanted = new Set(keys.map((k) => k.slice(0, k.lastIndexOf("#"))));
+    const byKey = new Map(chunkItems(input.items.filter((it) => wanted.has(it.id))).map((c) => [chunkKey(c), c] as const));
+    const candidates: RerankCandidate[] = [];
+    for (const k of keys) {
+      const c = byKey.get(k);
+      if (c) candidates.push({ key: k, title: c.title, text: c.text });
+    }
+    if (candidates.length < 2) return { status: "skipped", ms: 0 };
+    const earlier = [...(input.pending ?? [])].reverse();
+    const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+    return await llmRerank(rerankQuestionText(input.guestMessage, earlier), candidates, names, {
+      fetchImpl: input.fetchImpl,
+      deadlineMs: RERANK_HOT_PATH_DEADLINE_MS,
+    });
+  } catch {
+    return { status: "failed", ms: 0 };
+  }
 }

@@ -237,6 +237,12 @@ export interface KbEvidenceInput {
     unMs?: number;
     /** Anlaşılan niyetler (kapalı küme). */
     ui?: string[];
+    /** Yeniden sıralayıcının durumu (ok/failed/skipped; #186). */
+    rr?: string;
+    /** Yeniden sıralayıcının süresi (ms). */
+    rrMs?: number;
+    /** Modelin "cevaplıyor" dediği aday sayısı. */
+    rrA?: number;
   } | null;
   /** İddia desteği gölge ölçümü (yalnız sayılar + kapalı-küme sınıflar; `claim-support.ts`). */
   claims?: ClaimAudit;
@@ -388,6 +394,8 @@ function cleanUsage(u: LlmUsage | undefined): LlmUsage | undefined {
 const SEM_STATUSES = new Set(["ok", "cold", "unavailable", "not_needed"]);
 /** Anlama katmanı durumları + niyetleri — kapalı kümeler (`ai/semantic/understanding-schema.ts`). */
 const UN_STATUSES = new Set(["ok", "cached", "failed"]);
+/** Yeniden sıralayıcı durumları — kapalı küme (`ai/semantic/rerank.ts`, #186). */
+const RR_STATUSES = new Set(["ok", "failed", "skipped"]);
 const INTENT_SET: ReadonlySet<string> = new Set(UNDERSTANDING_INTENTS);
 
 export function buildKbEvidence(input: KbEvidenceInput): string | null {
@@ -427,6 +435,12 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
           ...(typeof input.retrieval.semMs === "number" && Number.isFinite(input.retrieval.semMs) && input.retrieval.semMs >= 0
             ? { semMs: Math.round(input.retrieval.semMs * 10) / 10 }
             : {}),
+          // Yeniden sıralayıcı (#186): yalnız kapalı küme / sayı; aday metni ve model çıktısı kanıta GİRMEZ.
+          ...(RR_STATUSES.has(String(input.retrieval.rr)) ? { rr: String(input.retrieval.rr) } : {}),
+          ...(typeof input.retrieval.rrMs === "number" && Number.isFinite(input.retrieval.rrMs) && input.retrieval.rrMs >= 0
+            ? { rrMs: Math.round(input.retrieval.rrMs * 10) / 10 }
+            : {}),
+          ...(Number.isInteger(input.retrieval.rrA) && (input.retrieval.rrA as number) >= 0 ? { rrA: input.retrieval.rrA } : {}),
           // Anlama katmanı (09-24): yalnız kapalı küme / sayı; sorgu METNİ kanıta GİRMEZ.
           ...(Number.isInteger(input.retrieval.uq) && (input.retrieval.uq as number) > 0 ? { uq: input.retrieval.uq } : {}),
           ...(UN_STATUSES.has(String(input.retrieval.un)) ? { un: String(input.retrieval.un) } : {}),
