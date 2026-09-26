@@ -17,6 +17,7 @@ import { conversationStateEnabled } from "@/lib/ai/conversation-state";
 import { stayTimeline, understandingDateLine, writtenAtEn } from "@/lib/ai/stay-timeline";
 import { orgTimezone } from "@/lib/timezone";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
 
 // ---------------------------------------------------------------------------
 // BİLGİ SEÇİMİ — YÜZEYLERİN TEK GİRİŞİ (09-23).
@@ -94,6 +95,8 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
     ...(writtenStamp ? { writtenStamp } : {}),
     // Konuşma öğeleri kipi — TEK karar noktası burada (bayrak kapalıyken alan hiç gitmez, çağrı bayt bayt eskisi).
     ...(conversationItemsEnabled() ? { items: true } : {}),
+    // Ev kuralı gölge kipi (#188 dilim 3) — aynı karar noktası; kapalıyken alan hiç gitmez.
+    ...(houseRulesShadowEnabled() ? { rules: true } : {}),
   });
   const queriesNeeded =
     understandingEnabled() &&

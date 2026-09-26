@@ -1,10 +1,22 @@
+import { understandingEnabled } from "@/lib/ai/semantic/understand";
+
 // ---------------------------------------------------------------------------
-// EV KURALLARI KARTI — TEK OKUMA NOKTASI (#188 dilim 2). VARSAYILAN KAPALI: kart ve kayıt rotası yalnız
-// `HOUSE_RULES_CARD_ENABLED=1` iken görünür/çalışır. Açma sırası (kurucu 09-26): kart (kurallar girilir) → gölge ölçüm →
-// ücretli kör ölçüm → kurucu onayı → karar. Kart açıkken bile yapay zekâ bu kuralları henüz KULLANMAZ (kart bunu söyler).
-// Yaprak modül (import yok).
+// EV KURALLARI BAYRAKLARI — TEK OKUMA NOKTASI (#188).
+//
+// `HOUSE_RULES_CARD_ENABLED` (dilim 2): kart ve kayıt rotası; VARSAYILAN KAPALI. Kart açıkken bile yapay zekâ kuralları
+// KULLANMAZ (kart bunu söyler).
+//
+// `AI_HOUSE_RULES_SHADOW` (dilim 3, gölge ölçüm): anlama katmanı her isteğe ev kuralı konusu + misafirin tutumunu ekler;
+// "kural açık olsaydı ne olurdu" YALNIZ karar kaydına yazılır (`shadow.ts`, kanıtta `hr`). KARAR DEĞİL: hiçbir kapı okumaz,
+// cevap değişmez. Yalnız tam "1" açar; anlama katmanı kapalıyken açık SAYILMAZ (konu/tutum onun çıktısıdır). Kapalıyken
+// katmanın şeması / istemi / önbellek anahtarı bayt bayt eskisi ve kural deposu hiç okunmaz. Açmadan önce konaklama
+// değişikliği eval'i kural kipinde yeniden koşulur (anlama istemi değişir).
 // ---------------------------------------------------------------------------
 
 export function houseRulesCardEnabled(): boolean {
   return process.env.HOUSE_RULES_CARD_ENABLED?.trim() === "1";
+}
+
+export function houseRulesShadowEnabled(): boolean {
+  return process.env.AI_HOUSE_RULES_SHADOW === "1" && understandingEnabled();
 }

@@ -39,6 +39,9 @@ export interface RuleUnderstanding {
   stance: RuleStance;
 }
 
+/** Sonuç türleri — kapalı küme (gölge ölçüm kaydı `hr.k` bunu doğrular). */
+export const HOUSE_RULE_OUTCOME_KINDS = ["fallback", "not_applicable", "state_rule", "hold", "normal"] as const;
+
 export type HouseRuleOutcome =
   /** Anlama katmanı sonuç vermedi: çağıran bugünkü kelime listesiyle karar verir (tutar). */
   | { kind: "fallback" }

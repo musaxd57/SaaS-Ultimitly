@@ -5,6 +5,7 @@ import { STAY_REPLY_INTENTS } from "./semantic/stay-change";
 import { EARLY_CHECKIN_CHECKS } from "@/lib/early-checkin/core";
 import type { LlmUsage } from "./types";
 import { cleanGateEvidence, type GateEvidence } from "./gate-evidence";
+import { HOUSE_RULE_OUTCOME_KINDS, HOUSE_RULE_POLICIES, HOUSE_RULE_TOPICS, RULE_STANCES } from "@/lib/house-rules/core";
 // ---------------------------------------------------------------------------
 // TEMELLENDİRME SINIFLANDIRMASI (A2, 09-08) — OKUMA ZAMANINDA, HÜKÜM DEĞİL.
 //
@@ -248,6 +249,11 @@ export interface KbEvidenceInput {
   claims?: ClaimAudit;
   /** Model token kullanımı (yalnız sayılar + sunulan model adı). */
   llm?: LlmUsage;
+  /**
+   * Ev kuralı GÖLGE ölçümü (#188 dilim 3, `house-rules/shadow.ts`): istek başına konu · tutum · etkin politika · "olsaydı"
+   * sonucu. KARAR DEĞİL. Verilmezse alan yazılmaz (ölçülmedi); boş liste = ölçüldü, konu yok.
+   */
+  houseRules?: readonly { t: string; s: string; p: string; k: string; n?: number }[];
   /** Yapay zekâyı ele geçirme ifadesi taşıdığı için istemden çıkarılan kalem sayısı (`kb-fetch`). */
   hijackScreened?: number;
   /**
@@ -463,6 +469,7 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
   const ir = cleanIntentRisk(input.intentRisk);
   const ec = cleanEarlyCheckin(input.earlyCheckin);
   const g = cleanGateEvidence(input.gate);
+  const hr = cleanHouseRules(input.houseRules);
   const extra = {
     ...(claims ? { claims } : {}),
     ...(llm ? { llm } : {}),
@@ -471,8 +478,9 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
     ...(ir ? { ir } : {}),
     ...(ec ? { ec } : {}),
     ...(g ? { g } : {}),
+    ...(hr ? { hr } : {}),
   };
-  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec && !g) return null;
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec && !g && !hr) return null;
   const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa
@@ -488,4 +496,20 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
     if (truncated.length <= EVIDENCE_CHAR_CAP) return truncated;
   }
   return JSON.stringify({ retrieved: [], used: [], omitted: retrieved.length, ...(retrieval ? { retrieval } : {}), ...extra });
+}
+
+/** Ev kuralı gölge kaydı (`hr`): yalnız kapalı küme satırlar, en fazla 5; ek alan / metin taşınmaz. Verilmezse `undefined`. */
+function cleanHouseRules(
+  rows: readonly { t: string; s: string; p: string; k: string; n?: number }[] | undefined,
+): { t: string; s: string; p: string; k: string; n?: 1 }[] | undefined {
+  if (!Array.isArray(rows)) return undefined;
+  const inSet = (set: readonly string[], v: unknown): v is string => typeof v === "string" && set.includes(v);
+  const out: { t: string; s: string; p: string; k: string; n?: 1 }[] = [];
+  for (const r of rows) {
+    if (!r || typeof r !== "object") continue;
+    if (!inSet(HOUSE_RULE_TOPICS, r.t) || !inSet(RULE_STANCES, r.s) || !inSet(HOUSE_RULE_POLICIES, r.p) || !inSet(HOUSE_RULE_OUTCOME_KINDS, r.k)) continue;
+    out.push({ t: r.t, s: r.s, p: r.p, k: r.k, ...(r.n === 1 ? { n: 1 as const } : {}) });
+    if (out.length >= 5) break;
+  }
+  return out;
 }

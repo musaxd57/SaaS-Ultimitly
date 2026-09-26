@@ -107,6 +107,10 @@ const real = REAL_SET ? loadRealSet(REAL_SET) : null;
 const data = real ? { ...base, requests: [...base.requests, ...real.requests] } : base;
 const SPLITS = SEALED ? (real ? ["final", "real"] : ["final"]) : ["dev", "holdout"];
 const LIMIT = Number(process.env.EVAL_STAY_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_STAY_LIMIT)) : Infinity;
+// Anlama katmanının KİPİ canlıyla aynı ölçülsün (09-26): öğe kipi (`AI_CONVERSATION_ITEMS_ENABLED`) ve ev kuralı gölge kipi
+// (`AI_HOUSE_RULES_SHADOW`) istemi ve şemayı değiştirir → açmadan önce bu eval o kipte koşulur. Varsayılan temel kip (eski).
+const NLU_MODE = { items: process.env.EVAL_UNDERSTANDING_ITEMS === "1", rules: process.env.EVAL_UNDERSTANDING_RULES === "1" };
+const NLU_MODE_TAG = [NLU_MODE.items ? "items" : "", NLU_MODE.rules ? "rules" : ""].filter(Boolean).join("+") || "temel";
 const CONCURRENCY = 4;
 
 /** Tablo anahtarının bölüm kısmı: gerçek sette katmanla birlikte ("real/candidate") — oranlar yeniden ağırlıklanabilsin. */
@@ -217,7 +221,12 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
           add(guardReq, `${splitKey(r)}|${truth ? "istek" : "none"}|${r.lang}`, said === truth);
           rows.push({ layer: "guard-req", id: r.id, truth, said });
         }
-        const u = await understandGuestMessages({ guestMessage: r.text, stayTimes });
+        const u = await understandGuestMessages({
+          guestMessage: r.text,
+          stayTimes,
+          ...(NLU_MODE.items ? { items: true } : {}),
+          ...(NLU_MODE.rules ? { rules: true } : {}),
+        });
         if (u.status !== "ok") failures++;
         else {
           const said = u.value.stay.requested || slotTimesShifted(u.value.stay, stayTimes);
@@ -298,14 +307,15 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     const stamp = new Date().toISOString().slice(0, 10);
     // Model kıyası (09-25): aynı gün iki modelin koşusu birbirini EZMESİN → mühürsüz raporun adı modeli taşır.
     const modelTag = semanticModel().replace(/[^a-z0-9.-]+/gi, "_");
-    const name = SEALED ? `stay-change-FINAL-eval-${stamp}.md` : `stay-change-eval-${stamp}-${modelTag}.md`;
+    const modeSuffix = NLU_MODE_TAG === "temel" ? "" : `-${NLU_MODE_TAG.replace("+", "-")}`;
+    const name = SEALED ? `stay-change-FINAL-eval-${stamp}.md` : `stay-change-eval-${stamp}-${modelTag}${modeSuffix}.md`;
     const status = failures > 0 ? `GEÇERSİZ — ${failures} çağrı düştü` : "GEÇERLİ";
     const head = [
       `# Konaklama değişikliği anlam katmanı — eval (${stamp})`,
       "",
       `Durum: **${status}** · veri sürümü ${data.version} · istek ${data.requests.length} · cevap ${data.replies.length}` +
         (Number.isFinite(LIMIT) ? ` · örnek sınırı ${LIMIT}` : ""),
-      `Model: \`${semanticModel()}\` · reasoning_effort: ${semanticReasoningEffort() ?? "model varsayılanı"}`,
+      `Model: \`${semanticModel()}\` · reasoning_effort: ${semanticReasoningEffort() ?? "model varsayılanı"} · anlama kipi: ${NLU_MODE_TAG}`,
       "",
       SEALED
         ? "🚨 MÜHÜRLÜ FİNAL KOŞUSU: genelleme ölçüsü bu raporun TAMAMIdır. Koşu bitti → set YANDI (`evals/sealed/SEALS.json` durumu `burned`; sonraki karar için yeni kör set)."

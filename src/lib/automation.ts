@@ -107,6 +107,7 @@ import {
   type ItemsGateInput,
 } from "@/lib/conversation-items/core";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import {
   holdTurnLevelItems,
   notifyHeldItems,
@@ -2520,6 +2521,13 @@ export async function applyChannelAutoReply(
   // token kullanımı ile yeniden kurulur; tek kaynak bu nesne, dört RiskEvent yazımı onu yayar.
   // Anlama katmanı retrieval'da beklenmediyse (paralel koştu) özeti kanıta BURADA girer — kapı onu zaten bekledi.
   const retrievalEvidence = await kbSel.evidenceAfterUnderstanding();
+  // Ev kuralı GÖLGE ölçümü (#188 dilim 3, `AI_HOUSE_RULES_SHADOW`): "kural açık olsaydı ne olurdu" YALNIZ kayda — karar DEĞİL,
+  // yukarıdaki kapı ve gönderim bundan habersiz. Bayrak kapalıyken sorgu yok; her arıza kaydı atlar (asla fırlatmaz).
+  const houseRulesShadow = await houseRulesShadowFor({
+    organizationId: conversation.property.organizationId,
+    propertyId: conversation.propertyId,
+    understood,
+  });
   // Kapının son hükmünün ayrıntısı (yalnız son gerekçe `blocked` iken; başka bir adım gerekçeyi değiştirdiyse yok).
   const finalGateVerdict = gateFailure === "blocked" ? autoReplyGateVerdict(result, last.body, gateContext) : null;
   const groundingAudited = {
@@ -2542,6 +2550,7 @@ export async function applyChannelAutoReply(
       // Kapı kanıtı (09-25): SON sonuçla kapının ayrıntısı + kelime ağı / model sinyalleri ayrı. Ayrıntı yalnız son
       // gerekçe `blocked` iken ve yeniden hesaplanan hüküm de `blocked` ise (başka bir adım gerekçeyi değiştirdiyse yazılmaz).
       gate: gateEvidenceOf(result, last.body, gateContext, finalGateVerdict),
+      houseRules: houseRulesShadow,
     }),
   };
 

@@ -15,6 +15,7 @@
  * ------------------------------------------------------------------------- */
 
 import { STAY_CHANGE_KINDS, normalizeHhmm, type UnderstandingStaySignal } from "./stay-change";
+import { HOUSE_RULE_TOPICS, RULE_STANCES, type HouseRuleTopic, type RuleStance } from "@/lib/house-rules/core";
 
 /** Kapalı niyet kümesi — yönlendirme, arama ve analitik için ETİKET; karar vermez. */
 export const UNDERSTANDING_INTENTS = [
@@ -173,6 +174,44 @@ export const UNDERSTANDING_JSON_SCHEMA_ITEMS = {
   },
 } as const;
 
+/**
+ * EV KURALI GÖLGE KİPİ (#188 dilim 3, `AI_HOUSE_RULES_SHADOW`; karar noktası `kb-retrieve.ts`): her istek ev kuralı KONUSU +
+ * misafirin TUTUMU taşır ("none" = konu yok). Yalnız karar kaydına gider (`house-rules/shadow.ts`); hiçbir kapı okumaz.
+ * Kapalıyken `understandingSchemaFor` temel / öğe şemasının KENDİSİNİ döndürür (bayt bayt eski).
+ */
+export const UNDERSTANDING_RULE_TOPICS = [...HOUSE_RULE_TOPICS, "none"] as const;
+export const UNDERSTANDING_RULE_STANCES = [...RULE_STANCES, "none"] as const;
+
+const RULE_FIELDS = {
+  rule_topic: { type: "string", enum: [...UNDERSTANDING_RULE_TOPICS] },
+  rule_stance: { type: "string", enum: [...UNDERSTANDING_RULE_STANCES] },
+} as const;
+
+/** Kipe göre şema: öğe kipi (`items`) ve kural kipi (`rules`) birlikte açılabilir. Kural kipi kapalıyken var olan NESNE döner. */
+export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean } = {}) {
+  const base = opts.items ? UNDERSTANDING_JSON_SCHEMA_ITEMS : UNDERSTANDING_JSON_SCHEMA;
+  if (!opts.rules) return base;
+  const item = base.schema.properties.requests.items;
+  return {
+    name: `${base.name}_rules`,
+    strict: true as const,
+    schema: {
+      ...base.schema,
+      properties: {
+        ...base.schema.properties,
+        requests: {
+          type: "array",
+          items: {
+            ...item,
+            required: [...item.required, "rule_topic", "rule_stance"],
+            properties: { ...item.properties, ...RULE_FIELDS },
+          },
+        },
+      },
+    },
+  };
+}
+
 /** Misafirin vazgeçtiği istek: niyet + isteğin geçtiği cevapsız mesaj ([n]) ya da 0 = daha önceki (cevaplanmış) konuşma. */
 export interface WithdrawnRequest {
   intent: UnderstandingIntent;
@@ -185,6 +224,8 @@ export interface UnderstoodRequest {
   queryOriginal: string;
   /** Yalnız öğe kipinde: isteğin geldiği cevapsız mesajın numarası (1'den); geçersizse YOK (= eşlenemedi). */
   message?: number;
+  /** Yalnız kural kipinde: ev kuralı konusu + misafirin tutumu; konu yoksa / tanınmıyorsa YOK. */
+  rule?: { topic: HouseRuleTopic; stance: RuleStance };
 }
 
 export interface MessageUnderstanding {
@@ -210,13 +251,14 @@ function cleanQuery(v: unknown): string | null {
  * Model çıktısını STRICT çözer. Üst düzey biçim bozuksa `null` (= katman başarısız). Tek tek istek
  * kalemleri daha yumuşak: tanınmayan niyet taşıyan kalem DÜŞER (geri kalanı kullanılır); boş sorgu kalemi düşürmez.
  */
-export function parseUnderstanding(raw: unknown, opts?: { items?: boolean }): MessageUnderstanding | null {
+export function parseUnderstanding(raw: unknown, opts?: { items?: boolean; rules?: boolean }): MessageUnderstanding | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   if (!member(UNDERSTANDING_LANGUAGES, r.language) || !Array.isArray(r.requests)) return null;
   const sc = r.stay_change as Record<string, unknown> | null;
   if (!sc || typeof sc !== "object" || typeof sc.requested !== "boolean" || !member(STAY_CHANGE_KINDS, sc.kind)) return null;
   const items = opts?.items === true;
+  const rules = opts?.rules === true;
   const requests: UnderstoodRequest[] = [];
   for (const it of r.requests.slice(0, MAX_UNDERSTOOD_REQUESTS)) {
     if (!it || typeof it !== "object") continue;
@@ -231,6 +273,10 @@ export function parseUnderstanding(raw: unknown, opts?: { items?: boolean }): Me
     // Öğe kipi: geçersiz numara DÜŞÜRÜLMEZ, numarasız kalır — istek sinyali kaybolmasın; eşleme `conversation-items`te
     // numarasız isteği "eşlenemedi" sayar (tur bugünkü davranışa döner).
     if (items && typeof x.message === "number" && Number.isInteger(x.message) && x.message >= 1) request.message = x.message;
+    // Kural kipi: yalnız kapalı kümeden konu + tutum ("none" ve tanınmayan değer = alan YOK; istek yine tutulur).
+    if (rules && member(HOUSE_RULE_TOPICS, x.rule_topic) && member(RULE_STANCES, x.rule_stance)) {
+      request.rule = { topic: x.rule_topic, stance: x.rule_stance };
+    }
     requests.push(request);
   }
   const out: MessageUnderstanding = {

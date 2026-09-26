@@ -43,6 +43,7 @@ import {
 } from "@/lib/ai/closing-turn";
 import { CLOSING_HANDLED_REASON, CLOSING_OPEN_REASON, hasOpenHostWork } from "@/lib/conversation-attention";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
+import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { loadConversationStateForConversation } from "@/lib/ai/conversation-state-loader";
 
@@ -856,6 +857,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       intentRisk: understood
         ? intentRiskEvidenceOf(evaluateIntentRisk(stayCtx?.understandingRisk, { modelIntent: result.intent }))
         : undefined,
+      // Ev kuralı GÖLGE ölçümü (#188 dilim 3): kanal oto-yanıtıyla AYNI giriş; karar DEĞİL, bayrak kapalıyken sorgu yok.
+      houseRules: await houseRulesShadowFor({ organizationId: ctx.property.organizationId, propertyId: ctx.property.id, understood }),
     }),
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,

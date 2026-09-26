@@ -6,11 +6,10 @@ import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeout
 import { redactForSemanticModel } from "./redact";
 import { normalizeHhmm, type StayTimes } from "./stay-change";
 import {
-  UNDERSTANDING_JSON_SCHEMA,
-  UNDERSTANDING_JSON_SCHEMA_ITEMS,
   UNDERSTANDING_MAX_UNANSWERED,
   UNDERSTANDING_MESSAGE_CAP,
   parseUnderstanding,
+  understandingSchemaFor,
   understandingWindow,
   type MessageUnderstanding,
   type UnderstandingHistoryEntry,
@@ -72,6 +71,18 @@ export const UNDERSTANDING_ITEMS_PROMPT_ADDENDUM = [
   'Example: [1] "12\'de giriş yapabilir miyiz?" [2] "Boşverin, 15\'te geleceğiz." -> {"language":"tr","requests":[{"intent":"early_checkin","query_tr":"erken giriş","query_original":"erken giriş","message":1},{"intent":"checkin_time","query_tr":"giriş saati","query_original":"giriş saati","message":2}],"stay_change":{"requested":false,"kind":"none","checkin_time":null,"checkout_time":null},"withdrawn":[{"intent":"early_checkin","message":1}]}',
 ].join("\n");
 
+/**
+ * EV KURALI GÖLGE KİPİ eki (#188 dilim 3; yalnız `rules: true` çağrısında sistem istemine EKLENİR — kapalıyken istem bayt bayt
+ * eski). Konu + tutum yalnız karar kaydına gider ("kural açık olsaydı ne olurdu"); cevabı ve kapıyı değiştirmez.
+ */
+export const UNDERSTANDING_RULES_PROMPT_ADDENDUM = [
+  "",
+  "HOUSE RULES (additional fields for every request):",
+  "- rule_topic: the house-rule topic the request is about, else none: party_event (a party, event or celebration at the property), smoking (smoking or vaping at the property), pets (bringing an animal), extra_guests (more people staying overnight than booked), quiet_hours (noise or loud music at night), visitors (day visitors who are not staying).",
+  "- rule_stance (none when rule_topic is none): asks_permission (the guest asks whether THEY may do it), announces (the guest says they will do it or are doing it), asks_info (asks what the rule is without asking permission for themselves), not_about_guest (the topic word appears but it is not the guest doing it: 'our party of 4' is a group size, 'we won't smoke', a party elsewhere, noise from neighbours).",
+  'Examples: "Can we smoke on the balcony?" -> rule_topic smoking, rule_stance asks_permission. "Our party of 4 will arrive at 3pm" -> intent checkin_time, rule_topic party_event, rule_stance not_about_guest. "Bu akşam doğum günü partisi yapacağız" -> rule_topic party_event, rule_stance announces. "Evcil hayvan kabul ediyor musunuz?" -> rule_topic pets, rule_stance asks_info. "Wi-Fi şifresi ne?" -> rule_topic none, rule_stance none.',
+].join("\n");
+
 /** Katmanın gördüğü pencere (erken giriş akışı: pencereye sığmayan cevapsız mesaj varsa otomatik gönderim yok). */
 export const UNDERSTANDING_WINDOW = { maxMessages: UNDERSTANDING_MAX_UNANSWERED, messageCap: UNDERSTANDING_MESSAGE_CAP } as const;
 
@@ -109,6 +120,11 @@ export interface UnderstandingInput {
    * vazgeçilen istekler. Verilmezse şema, istem ve önbellek anahtarı bayt bayt eskisi.
    */
   items?: boolean;
+  /**
+   * Ev kuralı gölge kipi (`AI_HOUSE_RULES_SHADOW`; karar noktası `kb-retrieve.ts`): istek başına kural konusu + tutum. Verilmezse
+   * şema, istem ve önbellek anahtarı bayt bayt eskisi.
+   */
+  rules?: boolean;
   fetchImpl?: typeof fetch;
 }
 
@@ -178,8 +194,10 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const model = semanticModel();
     const user = buildUnderstandingUserContent(input);
     const items = input.items === true;
-    // Öğe kipi ayrı önbellek girdisi (farklı şema); kapalıyken anahtar bayt bayt eskisi.
-    const key = items ? cacheKey(`${model}\u0000items`, user) : cacheKey(model, user);
+    const rules = input.rules === true;
+    // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
+    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}`;
+    const key = mode ? cacheKey(`${model}${mode}`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
       cache.delete(key);
@@ -189,9 +207,13 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: items ? `${UNDERSTANDING_SYSTEM_PROMPT}\n${UNDERSTANDING_ITEMS_PROMPT_ADDENDUM}` : UNDERSTANDING_SYSTEM_PROMPT,
+      system: [
+        UNDERSTANDING_SYSTEM_PROMPT,
+        ...(items ? [UNDERSTANDING_ITEMS_PROMPT_ADDENDUM] : []),
+        ...(rules ? [UNDERSTANDING_RULES_PROMPT_ADDENDUM] : []),
+      ].join("\n"),
       user,
-      schema: items ? UNDERSTANDING_JSON_SCHEMA_ITEMS : UNDERSTANDING_JSON_SCHEMA,
+      schema: understandingSchemaFor({ items, rules }),
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 600,
       maxCompletionTokens: 4_000,
@@ -199,7 +221,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed", ms: Date.now() - started };
-    const value = parseUnderstanding(res.data, items ? { items: true } : undefined);
+    const value = parseUnderstanding(res.data, items || rules ? { items, rules } : undefined);
     if (!value) return { status: "failed", ms: Date.now() - started };
     // Süresi dolmuş girdi de olabilir: önce SİL, sonra ekle — `set` var olan anahtarı eski sırasında
     // bırakır ve taze girdi ilk çıkarılan olurdu (inceleme 09-24).
