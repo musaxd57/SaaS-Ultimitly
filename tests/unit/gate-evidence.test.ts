@@ -65,8 +65,8 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
 });
 
 describe("kelime ağı uyarıları ile model sinyalleri AYRI alanlarda", () => {
-  it("🚨 yalnız kelime ağının tuttuğu mesaj: uyarı var, model sinyali YOK ('fireplace' içindeki 'fire')", () => {
-    const msg = "Is the fireplace working?";
+  it("🚨 yalnız kelime ağının tuttuğu mesaj: uyarı var, model sinyali YOK (model dumanı görmedi)", () => {
+    const msg = "Mutfakta duman var";
     const v = autoReplyGateVerdict(ok, msg);
     expect(v).toEqual({ reason: "blocked", detail: "lexical_risk" });
     const g = gateEvidenceOf(ok, msg, undefined, v);

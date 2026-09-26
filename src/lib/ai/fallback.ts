@@ -1933,13 +1933,14 @@ export function matchesIntentKeywords(message: string, intent: Exclude<Intent, "
 // only means "no holding ack", never a wrong message.
 const SAFETY_CRITICAL_WORDS = [
   "gaz", "yangın", "yangin", "duman", "yaraland", "düştü", "dustu", "kaza", "ambulans",
-  "polis", "acil", "kilitli kaldı", "kilitli kaldi", "içeri giremiyor", "iceri giremiyor",
-  "fire", "smoke", "gas leak", "carbon monoxide", "injured", "hurt", "bleeding",
+  "polis", "kilitli kaldı", "kilitli kaldi", "içeri giremiyor", "iceri giremiyor",
+  "smoke", "gas leak", "carbon monoxide", "injured", "hurt", "bleeding",
   "ambulance", "police", "emergency", "locked out", "can't get in", "cant get in",
   // English / other-language safety vocab (TR is well-covered above; EN was thin,
   // e.g. "I smell gas" only matched "gas leak"). Bare "gas", a sparking outlet, a
   // burning smell, flooding. Over-matching is the safe side (never a wrong send).
-  "gas", "smell of gas", "smells like gas", "sparks", "sparking", "burning smell",
+  // (Çıplak "gas" / "fire" / "acil" artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK.)
+  "smell of gas", "smells like gas", "sparks", "sparking", "burning smell",
   "smells burning", "flooding", "water pouring", "pouring through", "electric shock", "monoxide",
   // TR electrical-fire / carbon-monoxide vocab (EN "sparks/monoxide" was covered,
   // the TR equivalents were not). Over-matching is the safe side — it only ever
@@ -1958,6 +1959,9 @@ const SAFETY_CRITICAL_WORDS = [
   // Saf ekleme = kısıtlayıcı; aşırı-eşleşme zaten belgeli güvenli taraf.
   "brennt", "es brennt", "feuer", "rauch", "notfall", "krankenwagen", "bewusstlos",
   "ausgesperrt", "verletzt", "blutet",
+  // Almanca GAZ bileşikleri: çıplak "gas" TAM SÖZCÜK olunca ("Gastgeber" düzeltmesi, 09-26) bitişik yazılan bileşikler
+  // açıkça listelenir — "Es riecht nach Gas" tam sözcükten, "Gasgeruch/Gasleck/Gasaustritt" buradan.
+  "gasgeruch", "gasleck", "gasaustritt",
   "incendie", "le feu", "fumée", "fumee", "urgence", "ambulance", "évanoui", "evanoui",
   "blessé", "blesse", "saigne", "enfermés dehors", "enfermes dehors",
   "fuego", "incendio", "humo", "emergencia", "ambulancia", "desmayó", "desmayo",
@@ -2086,13 +2090,55 @@ const DISCRIMINATION_PHRASES = [
 ];
 
 /**
+ * KISA ACİL SÖZCÜKLERİ — ALT DİZE DEĞİL, TAM SÖZCÜK (kurucu onayı 09-26, #51). Alt dize eşleşmesi canlıda yanlış acil
+ * üretiyordu: "Gastgeber" / "Gastfreundschaft" ("gas"), "fireplace" / "Firework" ("fire"), "Havuz ne zaman açılıyor?" /
+ * "facilities" / "C'est facile" ("acil" — ASCII katlamada "açıl" → "acil"). Sonuç: bu mesajlara hiç otomatik cevap
+ * gitmiyor, konuşmaya acil rozeti düşüyordu. Tam sözcük (önünde/ardında harf ya da rakam yok) gerçek acili korur: "I smell
+ * gas", "fire in the kitchen", "ACİL!", "acil durum", "acilen". Bitişik bileşikler (Almanca "Gasgeruch", "firefighter")
+ * ↑listede açıkça. Tüm aday biçimlerin ASCII katlamasında sınanır — yalnız EŞLEŞME EKLER.
+ */
+const SAFETY_CRITICAL_WHOLE_WORDS = [
+  "gas", "fire", "fires", "wildfire", "wildfires", "firefighter", "firefighters",
+  // Türkçe "acil"in ad çekimleri tek tek (eskiden alt dize hepsini tutuyordu): "acile gittik", "acilde", "acilden",
+  // "aciliyeti var", "acildir". "acili" / "acildi" BİLEREK YOK — ASCII katlamada "acılı" (baharatlı) / "açıldı" olur.
+  "acil", "acilen", "acile", "acilde", "acilden", "aciliyet", "aciliyeti", "acildir",
+];
+
+// Liste YALNIZ ASCII küçük harf (a–z) olabilir: tam sözcük eşleşmesi ASCII katlamaya dayanır (ASCII katlama, standart ve
+// Türkçe katlamanın bu sözcüklerdeki eşleşmelerinin üst kümesidir) ve düzenli ifade kaçışsız kurulur. Aykırı bir girdi
+// modül yüklenirken patlar — her test ve açılış bunu görür, üretimde sessizce yanlış eşleşme doğmaz.
+if (SAFETY_CRITICAL_WHOLE_WORDS.some((w) => !/^[a-z]+$/.test(w))) {
+  throw new Error("SAFETY_CRITICAL_WHOLE_WORDS: yalnız ASCII küçük harf sözcük (a-z) yazılabilir");
+}
+
+/**
+ * Her harf UZATILABİLİR ("ACİLLL", "fireee", "gasss" — alt dize eşleşmesi bunları tutuyordu, tam sözcük de tutsun):
+ * harf başına `+`. İç içe niceleyici yok; ileri/geri bakış yalnız sözcük başında denenir (doğrusal).
+ */
+const SAFETY_WHOLE_WORD_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${SAFETY_CRITICAL_WHOLE_WORDS.map((w) => [...w].map((ch) => `${ch}+`).join("")).join("|")})(?![\\p{L}\\p{N}])`,
+  "u",
+);
+
+/** `includesAnyFold`in tam sözcük ikizi: aynı aday biçimler, ASCII katlamada (↑neden tek katlama yeter). */
+function includesSafetyWholeWord(message: string): boolean {
+  for (const { ascii } of foldedCandidatesOf(message)) {
+    if (SAFETY_WHOLE_WORD_RE.test(ascii)) return true;
+  }
+  return false;
+}
+
+/**
  * Deterministic risk nets (Faz-B), in SEVERITY PRECEDENCE order — the single source for both `detectRiskType`
  * (first hit) and `detectRiskTypes` (every hit; konuşma öğeleri 09-26: bir mesajdaki İKİNCİ riskli istek, öncelikteki
  * birincinin arkasında görünmez kalmasın).
  */
 const RISK_NETS: ReadonlyArray<readonly [label: string, hit: (message: string) => boolean]> = [
   ["prompt_injection", (m) => detectPromptInjection(m)],
-  ["safety_emergency", (m) => includesAnyFold(m, SAFETY_CRITICAL_WORDS)],
+  [
+    "safety_emergency",
+    (m) => includesAnyFold(m, SAFETY_CRITICAL_WORDS) || includesSafetyWholeWord(m),
+  ],
   ["review_threat", (m) => includesAnyFold(m, REVIEW_THREAT_PHRASES, true)],
   ["platform_policy", (m) => includesAnyFold(m, OFFPLATFORM_PAYMENT_PHRASES, true)],
   ["money_refund", (m) => matchesIntentKeywords(m, "refund")],

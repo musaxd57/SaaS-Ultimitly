@@ -1,6 +1,14 @@
-# ONAY PAKETİ — `SAFETY_CRITICAL_WORDS` "acil" ↔ "açıl-" ASCII çarpışması (2026-09-10) — UYGULANMADI
+# ONAY PAKETİ — `SAFETY_CRITICAL_WORDS` "acil" ↔ "açıl-" ASCII çarpışması (2026-09-10) — UYGULANDI 09-26
 
-> Durum: **öneri**, kod değişikliği YOK. Bu bir GÜVENLİK AĞI DARALTMASIDIR (yalnız daha AZ mesaj
+> **09-26 güncelleme — kurucu onayı ("Evet, düzelt"), #51:** tercih edilen seçenek (kelime sınırı) uygulandı ve aynı sınıftaki
+> iki kısa sözcüğe genişletildi: `gas` ("Gastgeber" / "Gastfreundschaft") ve `fire` ("fireplace" / "firework") da canlıda
+> yanlış acil üretiyordu. Kod `SAFETY_CRITICAL_WHOLE_WORDS` (`src/lib/ai/fallback.ts`): tam sözcük + Türkçe ad çekimleri
+> tek tek (acile/acilde/acilden/aciliyet/aciliyeti/acildir/acilen; "acili"/"acildi" BİLEREK yok — ASCII'de "acılı"/"açıldı")
+> + harf uzatması ("ACİLLL" — aşağıdaki "bilinen sınır" böylece kapandı) + bileşikler (Gasgeruch/Gasleck/Gasaustritt,
+> firefighter(s), wildfire(s), fires). Batarya `tests/unit/safety-whole-words.test.ts` (aşağıdaki cümleler dahil); 7 dil ×
+> 7 kategori acil matrisi AYNEN geçer. Türkçe "gaz" alt dizesi ("gazete", "Gazipaşa") BU DEĞİŞİKLİĞİN DIŞINDA (ayrı soru).
+>
+> Özgün durum (09-10): **öneri**, kod değişikliği YOK. Bu bir GÜVENLİK AĞI DARALTMASIDIR (yalnız daha AZ mesaj
 > `safety_emergency` sayılır) → kurucu onayı olmadan uygulanmaz. Bulan: şikâyet dilimi inceleme ajanı
 > (salt-okuma), 09-10; ölçümler bu belgede kodla yeniden üretildi.
 

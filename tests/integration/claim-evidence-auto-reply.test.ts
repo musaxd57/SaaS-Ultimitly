@@ -155,15 +155,16 @@ describe("applyChannelAutoReply — karar kaydı kanıtı", () => {
   });
 
   it("🚨 kapı kanıtı (09-25): YALNIZ kelime ağının tuttuğu mesaj kayıtta ayırt edilir — model risk görmedi, ayrıntı lexical_risk", async () => {
-    // "fireplace" içindeki "fire" acil etiketi üretiyor (kelime ağının bilinen düşük kesinliği); karar DEĞİŞMEZ (tutulur),
-    // ama kayıt artık "kelime ağı mı, model mi" sorusunu cevaplar — sözcüksel yetkiyi azaltma kararı bu sayıya dayanacak.
-    mockSuggest.mockResolvedValue({ ...REPLY, intent: "amenities", reply: "Yes, the fireplace works; the switch is on the left wall." });
-    const conversationId = await seed("Is the fireplace working?");
+    // "party" grup anlamında da kural ihlali etiketi üretiyor (kelime ağının bilinen düşük kesinliği, #188); karar
+    // DEĞİŞMEZ (tutulur), ama kayıt "kelime ağı mı, model mi" sorusunu cevaplar — sözcüksel yetkiyi azaltma kararı bu sayıya
+    // dayanır. (Eski örnek "fireplace" içindeki "fire" 09-26'da tam sözcük düzeltmesiyle kalktı — #51.)
+    mockSuggest.mockResolvedValue({ ...REPLY, intent: "checkin", reply: "Check-in is from 15:00; see you then!" });
+    const conversationId = await seed("Our party of 4 will arrive around 3pm");
     const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(false);
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
     expect(ev.reason).toBe("low_confidence_or_risky");
-    expect(JSON.parse(String(ev.kbEvidenceJson)).g).toEqual({ d: "lexical_risk", lx: ["safety_emergency"] });
+    expect(JSON.parse(String(ev.kbEvidenceJson)).g).toEqual({ d: "lexical_risk", lx: ["rule_violation"] });
   });
 
   it("kapı kanıtı: gönderilen cevapta ayrıntı yok ve kelime ağı uyarısı boş", async () => {

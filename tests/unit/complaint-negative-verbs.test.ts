@@ -33,11 +33,10 @@ const CONTRACT: [string, string, string | null][] = [
   ["Su akmıyor.", "complaint", "complaint"],
   ["Isıtma gelmiyor.", "complaint", "complaint"],
   ["Elektrikler gitti.", "complaint", "complaint"],
-  // 🚨 riskType safety_emergency'nin sebebi KİLİT AĞI DEĞİL: `foldTurkishAscii("açıl") = "acil"` ve
-  // SAFETY_CRITICAL_WORDS çıplak "acil" altdizi eşleşir (ölçüldü 09-10: "Havuz ne zaman açılıyor?" da
-  // safety_emergency). Bu tur o ağa DOKUNMADI (ayrı iş #51); satır bugünkü davranışı dürüstçe pinler.
-  ["Kapı açılmıyor.", "complaint", "safety_emergency"],
-  ["Kilit açılmadı.", "complaint", "safety_emergency"],
+  // 09-26 (#51, kurucu onayı): "acil" artık TAM SÖZCÜK — `foldTurkishAscii("açıl") = "acil"` çarpışması kalktı; bu iki
+  // satır eskiden bu yüzden safety_emergency'ydi (kilit ağı değil). Şikâyet olarak tutulmaya devam ederler.
+  ["Kapı açılmıyor.", "complaint", "complaint"],
+  ["Kilit açılmadı.", "complaint", "complaint"],
   ["Kapı kapanmıyor.", "complaint", "complaint"],
   ["Klimadan soğuk hava gelmiyor.", "complaint", "complaint"],
   ["Sıcak su yok.", "complaint", "complaint"],
@@ -118,7 +117,8 @@ const CONTRACT: [string, string, string | null][] = [
   ["Tuvalet sifonu çekmiyor.", "complaint", "complaint"],
   ["Oda peteği ısınmıyor.", "complaint", "complaint"],
   ["Musluklar akmıyor.", "complaint", "complaint"],
-  ["Daire kapısı açılmıyor.", "complaint", "safety_emergency"],
+  // (09-26 #51: "acil" tam sözcük — ASCII "açıl→acil" çarpışması kalktı, etiket şikâyete oturdu.)
+  ["Daire kapısı açılmıyor.", "complaint", "complaint"],
   // (b) "ve" BAĞLACI: Türkçenin en sık bağlacı özne sanılıyordu — "ama/ancak/fakat" listede,
   // "ve" değildi. Bağlaç bir ÖZNEYİ gizleyemez, yön güvenli.
   ["Klimayı açtık ve bozuldu.", "complaint", "complaint"],
@@ -153,7 +153,7 @@ const CONTRACT: [string, string, string | null][] = [
   // `includesAnyFold` kelimeyi de katlar; bu satırlar o sözleşmeyi pinler.
   ["ELEKTRİKLER GİTTİ", "complaint", "complaint"],
   ["isitma gelmiyor", "complaint", "complaint"],
-  ["kapi acilmiyor", "complaint", "safety_emergency"],
+  ["kapi acilmiyor", "complaint", "complaint"], // (09-26 #51: ASCII yazımda da çarpışma yok)
   ["isiklar yanmiyor", "complaint", "complaint"],
 ];
 

@@ -241,9 +241,8 @@ const SCENARIOS: Scenario[] = [
   // Bilinçli karar korunur: "İnternet gelmiyor" bilgi tabanından yanıtlanabilir → wifi, complaint DEĞİL.
   { name: "internet gelmiyor → wifi (bilinçli, complaint DEĞİL)", message: "İnternet gelmiyor.", autoSendVeto: false, intent: "wifi" },
   { name: "kapı açılmıyor (TR)", message: "Kapı açılmıyor, kod çalışmıyor.", autoSendVeto: true, intent: "complaint" },
-  // (Tuzak "kapı … açıl" İÇERMEZ: "açıl" ASCII katlamada "acil"e katlanır ve SAFETY_CRITICAL_WORDS'ün
-  // çıplak "acil" girdisi altdizi eşleşir → "Kapı kolayca açıldı" da safety_emergency. Kilit ağı DEĞİL,
-  // katlama ÇARPIŞMASI — inceleme 09-10 ölçtü ("Havuz ne zaman açılıyor?" da acil); düzeltme ayrı iş #51.)
+  // (Tuzak "kapı … açıl" İÇERMEZ: eskiden "açıl" ASCII katlamada "acil"e katlanıp çıplak "acil" altdizi eşleşmesiyle
+  // acil sayılıyordu. 09-26 #51 düzeltildi — "acil" tam sözcük; çarpışma bataryası `safety-whole-words.test.ts`.)
   { name: "giriş kolaydı — övgü tuzağı (TR)", message: "Giriş çok kolaydı, teşekkürler.", autoSendVeto: false, riskType: null },
   // Arıza ailesi CİHAZ KURALI: fiil + cihaz adı aynı mesajda; çekimli cihaz ("klimamız") da sayılır.
   { name: "kombi bozuldu, arızalı (TR)", message: "Kombi bozuldu, arızalı.", autoSendVeto: true, intent: "complaint", riskType: "complaint" },

@@ -959,6 +959,12 @@ sınıfında, çıkarım backfill'i BİLEREK yok.
 `general` kalıyor (`docs/ACIK-2026-09-08-qr-cevap-kalitesi.md`).
 
 **Şikâyet sınıflandırıcı (`fallback.ts`; 8 inceleme turu, 09-10/11) — kurallar:**
+- 🚨 **Kısa acil sözcükleri TAM SÖZCÜK (09-26, kurucu onayı, #51):** `gas`/`fire`/`acil`/`acilen` alt dize DEĞİL
+  (`SAFETY_CRITICAL_WHOLE_WORDS`): "Gastgeber", "Gastfreundschaft", "fireplace", "Havuz ne zaman açılıyor?" (ASCII açıl→acil),
+  "facilities" canlıda yanlış acildi (oto-cevap kapanıyor + acil rozeti). Türkçe ad çekimleri TEK TEK (acile/acilde/aciliyeti/
+  acildir…; "acili"/"acildi" YOK = ASCII "acılı"/"açıldı"), harf uzatması ("ACİLLL") tutar, bileşikler (Gasgeruch/firefighter/
+  wildfire) açık listede; 7 dil × 7 kategori acil matrisi AYNEN; batarya `safety-whole-words.test.ts`. Türkçe "gaz" alt dizesi
+  ("gazete", "Gazipaşa") KAPSAM DIŞI — ayrı kurucu sorusu.
 - Olumsuz fiil kalıpları ÇAPALI (tesis adı + fiil; gövde "-yo" ile: gelmiyor/gelmiyo). Çıplak `gelmiyor · gitti ·
   kesildi · su yok · arıza · yanmıyor · bozuldu · blackout · no heat · elektrik yok · cereyan yok · ısınmıyor ·
   elektrik kesintisi · power cut` listeye GİRMEZ (tuzaklar pinli). "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ wifi.
