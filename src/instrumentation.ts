@@ -15,7 +15,9 @@
 // server-only modülleri bundle'a sokma" kuralını ihlal etmez. Env'i doğrudan
 // okumak da SEÇENEK DEĞİL: `KB_RETRIEVAL_MODE`un tek okuyucusunun flag.ts
 // olduğu mekanik olarak pinli (kb-retrieval-evidence-prompt.test.ts).
-import { kbRetrievalModeInfo, rerankPerQuestionInfo, rerankRetrievalInfo, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
+import { kbRetrievalModeInfo, rerankPerQuestionInfo, rerankRetrievalInfo, semanticRetrievalInfo, wideBudgetInfo } from "@/lib/ai/retrieval/flag";
+// Yaprak modül (hiçbir şey import etmez): geniş blok bütçesinin değerleri açılış logunda görünsün.
+import { KB_RETRIEVAL_WIDE_CHAR_BUDGET, KB_RETRIEVAL_WIDE_MAX_CHUNKS } from "@/lib/ai/limits";
 // Yaprak modüller (#189): gömme modeli adı ve modele göre eşik — açılışta hangi modelin kullanıldığı görünsün.
 import { embeddingModel } from "@/lib/ai/embeddings/model";
 import { semanticThresholdFor } from "@/lib/ai/retrieval/semantic";
@@ -77,6 +79,15 @@ export async function register() {
     console.warn("[kb-rerank] KB_RERANK_PER_QUESTION AÇIK ama etkisiz: KB_RERANK_ENABLED kapalı");
   } else if (rrq.enabled) {
     console.log("[kb-rerank] soru başına pencere AÇIK");
+  }
+  // Geniş blok bütçesi (#189, varsayılan KAPALI): tanınmayan değer gürültülü; legacy modda etkisiz.
+  const wbi = wideBudgetInfo();
+  if (!wbi.recognized) {
+    console.warn(`[kb-retrieval] KB_RETRIEVAL_WIDE_BUDGET="${wbi.raw}" TANINMADI — KAPALI. Açmak için: 1 | on | true`);
+  } else if (wbi.enabled && kb.mode === "legacy") {
+    console.warn("[kb-retrieval] geniş blok bütçesi AÇIK ama etkisiz: legacy modda");
+  } else if (wbi.enabled) {
+    console.log(`[kb-retrieval] geniş blok bütçesi AÇIK (${KB_RETRIEVAL_WIDE_CHAR_BUDGET} karakter / ${KB_RETRIEVAL_WIDE_MAX_CHUNKS} parça)`);
   }
   // Gömme modeli (#189): yalnız anlamsal kaynak açıkken anlamlı; açılışta hangi modelin (ve eşiğin) kullanıldığı görünür.
   if (sem.enabled) {

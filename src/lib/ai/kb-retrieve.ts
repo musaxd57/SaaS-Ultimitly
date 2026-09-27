@@ -8,7 +8,8 @@ import {
   type KbSelectInput,
   type KbSelectResult,
 } from "@/lib/ai/retrieval/select";
-import { kbRetrievalMode, rerankRetrievalInfo } from "@/lib/ai/retrieval/flag";
+import { kbRetrievalMode, rerankRetrievalInfo, wideBudgetInfo } from "@/lib/ai/retrieval/flag";
+import { KB_RETRIEVAL_WIDE_CHAR_BUDGET, KB_RETRIEVAL_WIDE_MAX_CHUNKS } from "@/lib/ai/limits";
 import { prepareSemanticScores } from "@/lib/ai/embeddings/semantic-retrieval";
 import { prepareRerankScores, type RerankOutcome } from "@/lib/ai/semantic/rerank";
 import { understandGuestMessages, understandingEnabled, type UnderstandingOutcome } from "@/lib/ai/semantic/understand";
@@ -85,7 +86,13 @@ export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
 };
 
 export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
-  const { stayTimes, redactNames, dateContext, placeholders, ...selectInput } = input;
+  const { stayTimes, redactNames, dateContext, placeholders, ...rest } = input;
+  // GENİŞ BLOK BÜTÇESİ (#189, kurucu 09-27 "hazırla, sonra aç"; `KB_RETRIEVAL_WIDE_BUDGET` varsayılan KAPALI): TEK karar noktası.
+  // Çağıran bütçeyi kendisi verdiyse (ölçer / test) dokunulmaz. Küçük bilgi tabanı ve legacy yolu bütçe okumaz (etkisiz).
+  const wide = wideBudgetInfo().enabled && rest.budgetChars === undefined && rest.maxChunks === undefined;
+  const selectInput: KbSelectInput<T> = wide
+    ? { ...rest, budgetChars: KB_RETRIEVAL_WIDE_CHAR_BUDGET, maxChunks: KB_RETRIEVAL_WIDE_MAX_CHUNKS }
+    : rest;
   // Tarih satırı TEK karar noktası burada: bayrak kapalıyken hesaplanmaz, katmana alan hiç gitmez.
   const timeZone = dateContext ? orgTimezone(dateContext.timeZone) : null;
   const dateLine =
@@ -150,6 +157,7 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
     if (rr.status === "ok" && rr.scores.size > 0) result = selectKbForPrompt({ ...semInput, onCandidates: undefined, rerankScores: rr.scores });
   }
   let evidence = result.evidence;
+  if (evidence && wide && result.selection === "retrieved") evidence = { ...evidence, wb: 1 };
   if (evidence && sem.status !== "off") evidence = { ...evidence, sem: sem.status, semMs: sem.ms };
   if (evidence && rr) evidence = withRerank(evidence, rr);
   if (evidence && und.status !== "off") evidence = withUnderstanding(evidence, und);

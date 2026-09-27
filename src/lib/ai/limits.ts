@@ -41,6 +41,18 @@ export const KB_CHAR_BUDGET = 24_000;
 export const KB_RETRIEVAL_CHAR_BUDGET = 6_000;
 export const KB_RETRIEVAL_MAX_CHUNKS = 12;
 /**
+ * GENİŞ BLOK BÜTÇESİ (#189, 09-27; bayrak `KB_RETRIEVAL_WIDE_BUDGET` varsayılan KAPALI — kurucu "hazırla, sonra aç": kredi
+ * gelince cevap düzeyinde doğrulanıp açılır). Gerçek müşteri boyutunda (60 kalem, soru başına bilgi tabanı, yeniden
+ * sıralayıcısız) en büyük kayıp 6k/12 bütçesiydi: iki sorulu mesajın ikinci cevabı aday listesinde ama bloğa sığmıyordu.
+ * Ölçüm (`docs/olcum/rag-lab-2026-09-27*.md`, TR / diğer diller / iki soru): 60 kalemde 95/98/71 → 100/99/98; 276 kalemde
+ * ayrı çağrılı yeniden sıralamayla 93/99/86 → 97/100/92. ≤30 kalem / ≤24k bilgi tabanı zaten TAMAMEN (24k'ya kadar) gider;
+ * bu değer o tavanı aşmaz. 24.000 değil 23.000: paketleyici (`packKnowledgeBase`) satır başına seçicinin hesabından 1 karakter
+ * fazla sayar ve kendi tavanı `KB_CHAR_BUDGET` (24k) — tam 24k seçim son parçayı sessizce "alınmadı" yapabilirdi (40 parça ×
+ * 1 karakter payı; 23k ile ölçülen sonuç 24k ile birebir). Yanıtsız soruda blok ortalama ~11 → ~34 parça büyür.
+ */
+export const KB_RETRIEVAL_WIDE_CHAR_BUDGET = 23_000;
+export const KB_RETRIEVAL_WIDE_MAX_CHUNKS = 40;
+/**
  * Hibritte `kb-fetch`in OKUMA tavanı (seçici bütün onaylı kümeyi görsün; plan
  * tavanı mülk başına 60 kalem). Modele giden miktarı belirleyen bu DEĞİL,
  * yukarıdaki bütçedir. Bayrak kapalıyken kullanılmaz.

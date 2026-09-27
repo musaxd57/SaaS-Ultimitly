@@ -20,6 +20,7 @@ beforeEach(() => {
   vi.stubEnv("KB_RERANK_ENABLED", "");
   vi.stubEnv("KB_RERANK_PER_QUESTION", "");
   vi.stubEnv("OPENAI_EMBEDDING_MODEL", "");
+  vi.stubEnv("KB_RETRIEVAL_WIDE_BUDGET", "");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -28,6 +29,7 @@ afterEach(() => {
 
 const rerankLines = () => logs.filter((l) => l.includes("[kb-rerank]"));
 const semLines = () => logs.filter((l) => l.includes("[kb-semantic]"));
+const wideLines = () => logs.filter((l) => l.includes("geniş blok") || l.includes("KB_RETRIEVAL_WIDE_BUDGET"));
 
 describe("açılış logu — retrieval bayrakları", () => {
   it("hepsi kapalı: soru başına satırı ve model satırı YOK", async () => {
@@ -59,5 +61,22 @@ describe("açılış logu — retrieval bayrakları", () => {
     vi.stubEnv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large");
     await register();
     expect(semLines()).toContain("[kb-semantic] model=text-embedding-3-large eşik=0.25");
+  });
+
+  it("geniş blok bütçesi: kapalıyken satır YOK; tanınmayan GÜRÜLTÜLÜ; legacy'de 'etkisiz'; açıkken değerleriyle AÇIK", async () => {
+    await register();
+    expect(wideLines()).toEqual([]);
+    vi.stubEnv("KB_RETRIEVAL_WIDE_BUDGET", "evet");
+    await register();
+    expect(wideLines()).toEqual(['WARN [kb-retrieval] KB_RETRIEVAL_WIDE_BUDGET="evet" TANINMADI — KAPALI. Açmak için: 1 | on | true']);
+    logs.length = 0;
+    vi.stubEnv("KB_RETRIEVAL_WIDE_BUDGET", "1");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    await register();
+    expect(wideLines()).toEqual(["WARN [kb-retrieval] geniş blok bütçesi AÇIK ama etkisiz: legacy modda"]);
+    logs.length = 0;
+    vi.stubEnv("KB_RETRIEVAL_MODE", "");
+    await register();
+    expect(wideLines()).toEqual(["[kb-retrieval] geniş blok bütçesi AÇIK (23000 karakter / 40 parça)"]);
   });
 });

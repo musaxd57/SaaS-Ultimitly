@@ -126,3 +126,14 @@ export function rerankPerQuestionInfo(): { enabled: boolean; raw: string; recogn
   const raw = (process.env.KB_RERANK_PER_QUESTION ?? "").trim().toLowerCase();
   return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
 }
+
+/**
+ * GENİŞ BLOK BÜTÇESİ — `KB_RETRIEVAL_WIDE_BUDGET` (#189, kurucu 09-27 "hazırla, sonra aç"). VARSAYILAN KAPALI (aynı yazımlar,
+ * tanınmayan değer KAPALI + boot'ta gürültülü). Açıkken seçim (30 kalemi / 24k'yı aşan bilgi tabanı) isteme 6k/12 parça yerine
+ * `KB_RETRIEVAL_WIDE_CHAR_BUDGET` / `KB_RETRIEVAL_WIDE_MAX_CHUNKS` gönderir; küçük bilgi tabanı (tamamı gider) ve acil durdurma
+ * (legacy) etkilenmez. Tek karar noktası `ai/kb-retrieve.ts`. Ölçüm ve gerekçe `limits.ts`.
+ */
+export function wideBudgetInfo(): { enabled: boolean; raw: string; recognized: boolean } {
+  const raw = (process.env.KB_RETRIEVAL_WIDE_BUDGET ?? "").trim().toLowerCase();
+  return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
+}
