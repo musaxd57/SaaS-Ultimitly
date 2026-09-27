@@ -208,10 +208,14 @@ describe("stem — SABİT NOKTA FRENLERİ (inceleme 09-10): havalimanı sınıf�
     same("havaalanina", "havaalani");
   });
 
-  it("🚨 HAVLU ÇARPIŞMASI YOK: havalimanı ailesi 'hav' kovasında DEĞİL (havlu/hava orada kalır)", () => {
-    expect(stem("havlu")).toBe(stem("hava")); // pre-existing birleşme, dokunulmadı
+  it("🚨 HAVLU ÇARPIŞMASI YOK: havalimanı ailesi 'hav' kovasında DEĞİL; 09-27'den beri havlu da 'hava'dan ayrı (#208)", () => {
+    // 09-10'da havlu/hava birleşmesi "önceden vardı, dokunulmadı" diye sabitlenmişti; 09-27'de ölçüldü: her Türkçe havlu sorusu havalimanı
+    // kavramını, "Hava nasıl?" havlu kavramını tetikliyordu → "havlu" TABAN KÖK (`PREFIX_FLOOR_STEMS`).
+    expect(stem("havlu")).not.toBe(stem("hava"));
+    expect(stem("havlulari")).toBe(stem("havlu"));
     for (const w of ["havalimani", "havalimanindan", "havaalanindan"]) {
       expect(stem(w), w).not.toBe(stem("havlu"));
+      expect(stem(w), w).not.toBe(stem("hava"));
     }
   });
 

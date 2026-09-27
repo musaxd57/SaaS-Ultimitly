@@ -141,7 +141,7 @@ const IRREGULAR_STEMS: Readonly<Record<string, string>> = { suy: "su" };
  * tetikliyordu. Sökme bu köke ulaşınca DURUR ("checkinler" → "checkin"). Simetrik: bilgi tabanındaki
  * "check-in" / "check in" (bileşik birleştirme) da "checkin" kalır.
  */
-const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin", "havlu", "firin"]);
+const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin"]);
 /**
  * TABAN KÖKLER (09-27, #208 — hata ayıklama ajanı ölçtü): "havlu" ve "hava" ikisi de "hav"a iniyordu (havalimanı kavramındaki
  * "havas" da) → her Türkçe havlu sorusu HAVALİMANI kavramını, "Hava nasıl?" havlu kavramını tetikliyordu; "fırın" ve "fire" ikisi de
