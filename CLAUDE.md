@@ -552,7 +552,12 @@ Bu dosyaya token/anahtar/parola yazma.
   (eskiden `used: []`). Çift yönlü çıkarıcı DE/RU/ES/FR KESİN saat biçimlerini tanır (09-26; misafirin "um 12 Uhr"unu
   "12:00" diye tekrarlamak yankıdır); süre/sayı olabilen biçim ("2 Stunden", "3 дня", "à 2 heures de route") saat DEĞİL.
   P5 kanıtı `docs/olcum/iddia-destegi-p5-kanit-2026-09-26.md`: dört gerçek koşuda otomatik gidecek 221 cevabın 0'ı desteksiz
-  iddia taşıyor (ek taslak maliyeti yok); açılırsa önce `time/date/money` sınıfları. 🚨 Bağlamda ANLIK SAAT YOK (09-26):
+  iddia taşıyor (ek taslak maliyeti yok); açılırsa önce `time/date/money` sınıfları. 🚨 P5 CANLIDA KAPALI (kurucu 09-27: "şimdi canlı
+  açma"). 09-27 gölge koşusu (552 cevap) yanlış alarm 21 → 1 (`iddia-destegi-p5-golge-2026-09-27.md`); kurallar: birim = eşleşen birim
+  sözcüğü (kesme ÖNCESİ; "4 km’lik" 4 metre okunuyordu) · değeri 1 sözcük ("bir/one") yalnız ÖLÇÜ biriminden önce ve sıfatsız iddia
+  ("yeni bir anahtar", "erken bir saat" değil; saat sözcüğünden sonra yalnız "birde") · Türkçe "on" (=10) yalnız Türkçe birimden önce ·
+  "night bus / gece otobüsü" gece sayısı değil · katlama çakışması "geçen"≠gece, "güneş/güncel"≠gün · genel sayma sözcüğü (adet/tane)
+  değerle eşleşir. Her gevşemenin FARKLI değer kontrolü pinli (`claim-support-translated-units.test.ts`). 🚨 Bağlamda ANLIK SAAT YOK (09-26):
   istemin saat satırı bağlama SAATSİZ girer (bugün/yarın tarihi kalır; modele giden istemde saat AYNEN durur) — o anki
   saat bir işletme saati uydurmasını "dayanaklı" yapıyordu (batarya günde 4 dk kırmızı). Batarya SABİT anla koşar.
 - **Dil:** istem kuralları %100 Türkçe; `input.language` org ayarıdır ve istemde artık KULLANILMAZ (↓); `detectGuestLanguage`

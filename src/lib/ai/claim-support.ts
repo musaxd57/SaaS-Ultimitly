@@ -134,11 +134,42 @@ const TRU = alt(TR_UNITS);
 const TRT = alt(TR_TENS);
 const ENS = alt(EN_SMALL);
 const ENT = alt(EN_TENS);
+/** Değeri 1 olan sözcük cevap tarafında AYRI kuralla çevrilir (↓`wordsToDigits`): çoğunlukla belirsizlik sıfatıdır. */
+const without = (o: Record<string, number>, k: string) => Object.fromEntries(Object.entries(o).filter(([w]) => w !== k));
+const TRU_NO_BIR = alt(without(TR_UNITS, "bir"));
+const ENS_NO_ONE = alt(without(EN_SMALL, "one"));
 
+/**
+ * "gece / night" otobüs, tren, vardiya… BİLEŞİĞİNDE gece sayısı DEĞİLDİR ("two night bus routes", "iki gece otobüsü hattı" — P5 kuru
+ * koşusu 09-27: "2 gece" iddiası sanılıyordu). Gerçek gece sayısı ("two nights", "iki gece konaklama") iddia kalır.
+ */
+const NOT_NIGHT_COMPOUND_EN =
+  "(?![\\s-](?:bus|buses|train|trains|tram|trams|ferry|ferries|shift|shifts|route|routes|line|lines|service|services|flight|flights|club|clubs|market|markets|life|owl|walk|walks|tour|tours)\\b)";
+const NOT_NIGHT_COMPOUND_TR = "(?![\\s-](?:otobus|tren|tramvay|vapur|feribot|sefer|hat|vardiya|pazar|kulub|hayat|tur|yuruyus))";
+/**
+ * Katlama (ç→c, ü→u) Türkçe fiil / sıfatı ölçü adına benzetir: "geçen / geçer / geçecek" → "gecen…" ("her 40 dakikada BİR GEÇEN servis"
+ * "1 gece" okunuyordu), "güneş / güney / güncel / gündem" → "gun…". Ölçü adı yalnız bu devamlar YOKKEN birimdir.
+ */
+const GECE = `gece${NOT_NIGHT_COMPOUND_TR}(?!n\\b|nler|cek|ceg|r\\b|rken|rli|rsin|bil)`;
+const GUN = "gun(?!es|ey|cel|dem)";
+/** Türkçe birim EK alabilir ("dakikada"); İngilizce birim sözcük SINIRIYLA biter ("on weekdays": "week", "weekdays"in öneki değildir). */
+const TR_MEASURE_WORDS = `dakika|dk|saniye|sn|saat|${GUN}|${GECE}|hafta|km|kilometre|metre|adim`;
+/**
+ * Sıfat + "bir" + ad BELİRSİZLİKTİR ("daha erken bir saat", "iyi bir gece", "güzel bir gün"); sayı okumasında "bir" sıfattan ÖNCE gelir
+ * ("bir güzel gün") ya da sıfat yoktur ("bir saat sürer"). Kapalı küme (katlanmış).
+ */
+const INDEF_ADJ =
+  "(?:erken|gec|uygun|baska|farkli|belirli|sabit|musait|sakin|guzel|harika|keyifli|iyi|kotu|uzun|kisa|rahat|huzurlu|yogun|sessiz|ozel|onemli|zor|kolay|hos|tatli|gunesli|serin|sicak)";
+const TR_COUNT_WORDS = "kisi|kisilik|misafir|yetiskin|cocuk|arac|araba|kat|havlu|yatak|oda|banyo|adet|tane|kapsul|anahtar";
+const EN_MEASURE_WORDS = `(?:minutes?|mins?|seconds?|hours?|days?|night${NOT_NIGHT_COMPOUND_EN}|nights|weeks?|miles?|meters?|metres?)\\b`;
+const EN_COUNT_WORDS =
+  "(?:floors?|guests?|people|persons?|adults?|children|kids|towels?|beds?|bedrooms?|rooms?|bathrooms?|cars?|blocks?|steps?)\\b";
 /** Sayı SÖZCÜĞÜNÜN önünde durabileceği birim sözcükleri (katlanmış). */
-const UNIT_WORDS =
-  "(?:dakika|dk|saniye|sn|saat|gun|gece|hafta|km|kilometre|metre|kisi|kisilik|misafir|yetiskin|cocuk|arac|araba|kat|havlu|yatak|oda|banyo|adet|tane|kapsul|anahtar|" +
-  "minutes?|mins?|seconds?|hours?|days?|nights?|weeks?|miles?|meters?|metres?|floors?|guests?|people|persons?|adults?|children|kids|towels?|beds?|bedrooms?|rooms?|bathrooms?|cars?|blocks?|steps?|adim)";
+const UNIT_WORDS = `(?:${TR_MEASURE_WORDS}|${TR_COUNT_WORDS}|${EN_MEASURE_WORDS}|${EN_COUNT_WORDS})`;
+/** Yalnız ÖLÇÜ birimleri (süre / mesafe) — değeri 1 olan sözcük yalnız bunların önünde iddiadır ("bir saat", "one night"). */
+const MEASURE_UNIT_WORDS = `(?:${TR_MEASURE_WORDS}|${EN_MEASURE_WORDS})`;
+/** Yalnız Türkçe birimler — Türkçe "on" (=10) İngilizce "on" edatıyla karışmasın ("on weekdays", "on days when it rains"). */
+const TR_UNIT_WORDS = `(?:${TR_MEASURE_WORDS}|${TR_COUNT_WORDS})`;
 /** Bu sözcüklerden SONRA gelen çıplak sayı (sözcüğü) saattir. */
 const CLOCK_BEFORE = "(?:saat|sabah|aksam|oglen|ogle|ogleden sonra|gece)";
 /** Sayı sözcüğünden sonraki Türkçe hâl eki ("dokuzda", "beste"). */
@@ -158,6 +189,9 @@ function wordsToDigits(f: string, mode: "all" | "unit"): string {
     s = s.replace(/\byarim (saat|dakika)/g, (_m, u: string) => `yarim ${u} (0.5 ${u} / 30 ${u === "saat" ? "dakika" : "saniye"})`);
     s = s.replace(/\bceyrek saat/g, "ceyrek saat (15 dakika)");
     s = s.replace(/\bhalf an hour/g, "half an hour (30 minutes)");
+    // Bağlamda İngilizce "a / an" + ölçü birimi = 1 ("stays over a week" → cevaptaki "bir haftayı aşan"ı destekler; P5 09-27). Yalnız
+    // desteği GENİŞLETİR; "half an hour" yukarıda 30 dakika.
+    s = s.replace(/(?<!half )\b(?:a|an)(?= (?:minute|hour|day|night|week|month|mile|kilometer|kilometre|meter|metre)s?\b)/g, "1");
   }
   const unitAfter = `(?=[\\s-]*${UNIT_WORDS})`;
   const clockB = `(?<=\\b${CLOCK_BEFORE}\\s)`;
@@ -174,12 +208,20 @@ function wordsToDigits(f: string, mode: "all" | "unit"): string {
     new RegExp(`\\b(${alt(ORDINALS)})\\b${mode === "unit" ? "(?=\\s?(?:kat|floor))" : ""}`, "g"),
     (_m, w: string) => `${ORDINALS[w]}.`,
   );
-  rep(`(${ENT}|${ENS})`, false, (w) => String(EN_TENS[w] ?? EN_SMALL[w]));
+  rep(`(${ENT}|${mode === "unit" ? ENS_NO_ONE : ENS})`, false, (w) => String(EN_TENS[w] ?? EN_SMALL[w]));
   const trTensNoOn = Object.keys(TR_TENS)
     .filter((k) => k !== "on")
     .join("|");
-  rep(`(${trTensNoOn}|${TRU})`, true, (w) => String(TR_TENS[w] ?? TR_UNITS[w]));
-  for (const p of [`\\bon${unitAfter}`, `${clockB}on(?=${TR_SUF}\\b)`]) s = s.replace(new RegExp(p, "g"), "10");
+  rep(`(${trTensNoOn}|${mode === "unit" ? TRU_NO_BIR : TRU})`, true, (w) => String(TR_TENS[w] ?? TR_UNITS[w]));
+  if (mode === "unit") {
+    // Değeri 1 olan sözcük ("bir" / "one") çoğunlukla BELİRSİZLİK SIFATIDIR ("yeni bir anahtar", "küçük bir çocuk oyun alanı" —
+    // P5 kuru koşusu 09-27, sayım / kişi iddiası sanılıyordu): yalnız ÖLÇÜ biriminden (süre / mesafe) önce iddia ("bir saat", "one
+    // night"); saat sözcüğünden sonra yalnız bulunma ekiyle ("gece birde" = 01:00; "Gece bir acil durumda" saat DEĞİL).
+    s = s.replace(new RegExp(`(?<!\\b${INDEF_ADJ}\\s)\\b(?:bir|one)(?=[\\s-]*${MEASURE_UNIT_WORDS})`, "g"), "1");
+    s = s.replace(new RegExp(`${clockB}bir(?='?(?:de|da)\\b)`, "g"), "1");
+  }
+  // Türkçe "on" (=10) yalnız TÜRKÇE birimden önce ya da saat sözcüğünden sonra (İngilizce "on weekdays" edattır).
+  for (const p of [`\\bon(?=[\\s-]*${TR_UNIT_WORDS})`, `${clockB}on(?=${TR_SUF}\\b)`]) s = s.replace(new RegExp(p, "g"), "10");
   if (mode === "all") {
     s = s.replace(/\b(\d+) ?yuz\b/g, (_m, a: string) => String(Number(a) * 100));
     s = s.replace(/\b(\d+) ?bin\b/g, (_m, a: string) => String(Number(a) * 1000));
@@ -273,7 +315,7 @@ const UNIT_FAMILIES: { cls: ClaimClass; long: string[]; short: string[] }[] = [
   { cls: "distance", long: ["kilometre", "kilometers?", "metrelik", "metre", "meters?", "metres?", "miles?", "adim", "steps"], short: ["km", "m", "mi"] },
   {
     cls: "duration",
-    long: ["dakika", "minutes?", "saniye", "seconds?", "saatlik", "hours?", "gunluk", "gun", "days?", "gecelik", "gece", "nights?", "hafta", "weeks?"],
+    long: ["dakika", "minutes?", "saniye", "seconds?", "saatlik", "hours?", "gunluk", GUN, "days?", "gecelik", GECE, `nights?${NOT_NIGHT_COMPOUND_EN}`, "hafta", "weeks?"],
     short: ["dk", "mins?", "sn", "secs?", "hrs?", "saat"],
   },
   { cls: "people", long: ["kisilik", "kisi", "misafir", "yetiskin", "cocuk", "guests?", "persons?", "people", "adults?", "children", "kids"], short: [] },
@@ -452,12 +494,16 @@ function extract(text: string, raw: string): Claim[] {
   // Birimli miktarlar (+ "10-15 dakika" aralığı).
   for (const fam of UNIT_FAMILIES) {
     const alts = [...fam.long.map((u) => `${u.replace(/ /g, "\\s")}[a-z']*`), ...fam.short.map((u) => `${u}(?:'[a-z]+)?(?![a-z])`)];
-    const re = new RegExp(`\\b(${NUM})(?: ?(?:-|ile|to|or|veya) ?(${NUM}))?(?:'[a-z]{1,4})?[\\s-]?(?:${alts.join("|")})`, "g");
+    const re = new RegExp(`\\b(${NUM})(?: ?(?:-|ile|to|or|veya) ?(${NUM}))?(?:'[a-z]{1,4})?[\\s-]?(?<unit>${alts.join("|")})`, "g");
     take(re, (m) => {
-      const unit = /[a-z°][a-z\s°]*$/.exec(m[0])?.[0].trim() ?? "";
+      // Birim = eşleşen birim sözcüğü, kesme işaretinden ÖNCESİ (P5 09-27): eskiden eşleşmenin SON harfleri alınıyordu → "4 km’lik"
+      // 4 METRE ("lik"), "100 Mbps’e" / "180°C’ye" genel sayım, cevaptaki "10 minutes’" birimsiz okunuyordu (yanlış alarm + kaçan uydurma).
+      const unit = (m.groups?.unit ?? "").replace(/'.*$/, "").trim();
+      // Genel sayma sözcüğü ("iki adet", "3 tane", "2 pieces") nesne taşımaz: diller arası ("two portable fans") DEĞERLE eşleşir.
+      const generic = fam.cls === "count" && /^(adet|tane|pieces?)$/.test(unit);
       return [m[1], m[2]].filter((x): x is string => Boolean(x)).map((x) => {
         const v = parseAmount(x);
-        return { cls: fam.cls, keys: [`n${v}`], tkeys: [typedQuantity(fam.cls, unit, v)], raw: m[0] };
+        return { cls: fam.cls, keys: [`n${v}`], ...(generic ? {} : { tkeys: [typedQuantity(fam.cls, unit, v)] }), raw: m[0] };
       });
     });
   }
