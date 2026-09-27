@@ -61,12 +61,121 @@ const clampLimit = (v: unknown) =>
 /**
  * Bir mesaj gövdesini Claude'a gitmeden önce redakte eder: önce bilinen misafir
  * ad(lar)ı (ad henüz metindeyken), sonra alan-bağımsız PII (e-posta/telefon/uzun
- * sayı) ve değer-şekilli sırlar. Sonda uzunluk tavanı uygulanır.
+ * sayı) ve değer-şekilli sırlar, sonra kapı / Wi-Fi / kasa KODLARI
+ * (`maskSecretValuesForAudit`). Sonda uzunluk tavanı uygulanır.
  */
 export function redactForAudit(text: string, guestNames: Array<string | null | undefined>): string {
   const names = guestNames.filter((n): n is string => Boolean(n && n.trim()));
-  const clean = redactSensitive(redactNameFromBody(text, names));
+  const clean = maskSecretValuesForAudit(redactSensitive(redactNameFromBody(text, names)));
   return clean.length > BODY_CAP ? `${clean.slice(0, BODY_CAP)} …[kısaltıldı]` : clean;
+}
+
+// ---------------------------------------------------------------------------
+// SIR DEĞERLERİ (#211, gece güvenlik turu 09-27; çalıştırılarak doğrulandı). `redactSensitive` merkezî log redaksiyonudur ve
+// Türkçe "şifre / kod" etiketini, kısa kodları tanımaz: "Wifi şifresi lale2024", "Kapı kodu 4821#", "lockbox combination is 0917"
+// denetçiye (Claude = İKİNCİ veri işleyen) AYNEN gidiyordu. Onu genişletmek anlam katmanına giden metni de değiştirirdi → yalnız
+// burada. Denetim ölçütleri (üslup, risk, dil, uydurma saat / adres / kural / ücret) kodun DEĞERİNİ istemez: fazla maskelemek
+// zararsız, eksik maskelemek sızıntıdır. Kural: sır ETİKETİNDEN (7 dil) sonra aynı cümlecikte rakam taşıyan her belirteç ve
+// ":" / "=" ile verilen ilk değer maskelenir; etiketsiz tuş takımı biçimi ("1470#", "*7391") her yerde. Saat (15:00) korunur.
+// Bilinen sınır: iki noktasız, rakamsız düz sözcük parola ("Wifi şifresi gunesli") tanınmaz.
+// ---------------------------------------------------------------------------
+
+const AUDIT_SECRET_MASK = "[GİZLİ]";
+/** Uzunluğu KORUYAN katlama: eşleşme katlanmış kopyada aranır, maske aynı konumlarla özgün metne uygulanır. */
+const SAME_LENGTH_FOLD: Readonly<Record<string, string>> = {
+  İ: "i", I: "i", ı: "i", Ş: "s", ş: "s", Ğ: "g", ğ: "g", Ü: "u", ü: "u", Ö: "o", ö: "o", Ç: "c", ç: "c",
+};
+function foldSameLength(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const lower = SAME_LENGTH_FOLD[ch] ?? ch.toLowerCase();
+    out += lower.length === 1 ? lower : ch;
+  }
+  return out;
+}
+const SECRET_LABEL_RE = new RegExp(
+  "(?<![\\p{L}\\p{N}])(?:" +
+    [
+      "sifre\\p{L}*",
+      "parola\\p{L}*",
+      "kod\\p{L}*",
+      "pin",
+      "\\p{L}*codes?",
+      "pass(?:word|wort|code|key)?\\p{L}*",
+      "kennwort\\p{L}*",
+      "combination",
+      "combo",
+      "keypad",
+      "lock ?box",
+      "mot de passe",
+      "contrase[nñ]a",
+      "clave",
+      "c[oó]digo",
+      "codice",
+      "пароль\\p{L}*",
+      "код\\p{L}*",
+      "كلمة (?:المرور|السر)",
+      "الرمز",
+      "رمز",
+      "كود",
+    ].join("|") +
+    ")(?![\\p{L}\\p{N}])",
+  "gu",
+);
+/** Etiketten sonra bakılan en uzun pencere ve pencereyi kapatan cümlecik sınırı. */
+const SECRET_WINDOW_CHARS = 60;
+const CLAUSE_END_RE = /\n|;|,\s|[.!?](?=\s|$)/u;
+/** Etiketle değer arasında en çok üç sözcük, sonra ":" / "=" → ilk değer (rakamsız da olsa) maskelenir. */
+const FIRST_VALUE_RE = /^\s*(?:[\p{L}-]+\s+){0,3}?[:=]\s*(\S+)/u;
+const KEYPAD_RE = /(?<![\p{L}\p{N}])(?:[#*]\p{Nd}{3,10}|\p{Nd}{3,10}[#*])(?![\p{L}\p{N}])/gu;
+const TIME_TOKEN_RE = /^\p{Nd}{1,2}[:.]\p{Nd}{2}(?:['’]\p{L}*)?$/u;
+const PLACEHOLDER_TOKEN_RE = /^\[[^\]]*\]$/u;
+const TOKEN_EDGE_RE = /^[(["'“‘«]+|[)\]"'”’»,.;:!?]+$/gu;
+
+/** `[start, end)` belirtecinin maskelenecek çekirdeği (kenar noktalama hariç); önceki redaksiyonun yer tutucusu → null. */
+function tokenCore(text: string, start: number, end: number): { from: number; to: number } | null {
+  const raw = text.slice(start, end);
+  if (PLACEHOLDER_TOKEN_RE.test(raw.replace(/^[("'“‘«]+|[)"'”’»,.;:!?]+$/gu, ""))) return null;
+  const lead = raw.length - raw.replace(/^[(["'“‘«]+/u, "").length;
+  const core = raw.replace(TOKEN_EDGE_RE, "");
+  if (!core) return null;
+  return { from: start + lead, to: start + lead + core.length };
+}
+
+export function maskSecretValuesForAudit(text: string): string {
+  const folded = foldSameLength(text);
+  const ranges: Array<{ from: number; to: number }> = [];
+  const maskCore = (c: { from: number; to: number } | null, force: boolean) => {
+    if (!c) return;
+    const core = text.slice(c.from, c.to);
+    if (!force && (!/\p{Nd}/u.test(core) || TIME_TOKEN_RE.test(core))) return;
+    ranges.push(c);
+  };
+  for (const m of folded.matchAll(SECRET_LABEL_RE)) {
+    const winStart = m.index + m[0].length;
+    const tail = folded.slice(winStart, winStart + SECRET_WINDOW_CHARS);
+    // Etiket ile ":" / "=" arasında yalnız harf sözcükleri olabilir (noktalama cümleciği keser) → ilk değer her biçimde maskelenir.
+    const first = FIRST_VALUE_RE.exec(tail);
+    if (first) {
+      const at = winStart + first[0].length - first[1].length;
+      maskCore(tokenCore(text, at, at + first[1].length), true);
+    }
+    const cut = tail.search(CLAUSE_END_RE);
+    const window = cut < 0 ? tail : tail.slice(0, cut);
+    for (const t of window.matchAll(/\S+/gu)) maskCore(tokenCore(text, winStart + t.index, winStart + t.index + t[0].length), false);
+  }
+  for (const k of folded.matchAll(KEYPAD_RE)) ranges.push({ from: k.index, to: k.index + k[0].length });
+  if (ranges.length === 0) return text;
+  ranges.sort((a, b) => a.from - b.from || b.to - a.to);
+  let out = "";
+  let pos = 0;
+  for (const r of ranges) {
+    if (r.to <= pos) continue;
+    out += text.slice(pos, Math.max(pos, r.from)) + (r.from >= pos ? AUDIT_SECRET_MASK : "");
+    pos = r.to;
+  }
+  return out + text.slice(pos);
 }
 
 /**
