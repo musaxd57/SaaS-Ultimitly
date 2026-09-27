@@ -252,8 +252,15 @@ kapalı (403).
 - Önce: rezervasyonsuz ön soru "Lockbox kodu ne?" → "genel" kategorideki "Lockbox combination is 4821." modele gider.
 - Sonra: kalem bu konuşmada modele gitmez; cevap ev sahibine bırakılır.
 - Bedel: aynı kalemdeki başka bilgi de (ör. kutunun yeri) o konuşmada kullanılamaz.
-- **Önerim: evet** — kod içindeki kural zaten "fazla eleme güvenli yön" diyor. Uygulama hazır tarif: denetçi maskesindeki 7 dilli
-  etiket listesi + "is / ist / est / es / lautet" ara sözcükleri; yanlış eleme bataryası genişletilerek ölçülür.
+- **Önerim: evet** — kod içindeki kural zaten "fazla eleme güvenli yön" diyor.
+- **Aday kural gece ölçüldü (üretime bağlı değil):** 7 dilli kod etiketi (lockbox, keypad, combo, door/safe code, Passwort, Türcode,
+  digicode, código, пароль, код, كلمة المرور …) + en çok 28 karakter ara + rakam taşıyan ≥4 karakterlik değer; saat, para ve posta
+  kodu bağlamı hariç, çıplak "pass" yalnız iki noktayla.
+  - sızıntı: 25 cümlenin 24'ü yakalanıyor (kalan: "Network LaleNet, pass SunnyDays99" — çıplak "pass" İngilizce fiille karışıyor);
+  - yanlış eleme: 25 zor zararsız cümlede ("bus pass 5 TL", "Código postal 08001", "Keypad batteries are in drawer 2", "Take bus 34 and
+    pass 3 stops" …) 0; dev setindeki 302 gerçekçi kalemde 0.
+- Ek bulgu (bugünkü süzgeç, zaten var): "Postal code 34710", "Google Maps pin: 41.02, 28.97", "Wi-Fi: ağ adı ve şifre karttadır, kart
+  2. rafta" ve "Giriş 15:00 …; kod 14:00'te gönderilir." onaysız konuşmada modele gitmiyor (fazla eleme, güvenli yön).
 
 ---
 
@@ -268,7 +275,7 @@ kapalı (403).
 | e | CSRF | SameSite + JSON zorunluluğu var; `Sec-Fetch-Site` kontrolü yok | durum değiştiren `/api` isteklerine ek katman |
 | f | Oturum süresi / GET çıkış / OAuth PKCE / Turnstile | açık tasarım kararları (CLAUDE.md) | Airbnb güvenlik incelemesi listesine |
 | g | Repo herkese açık | denetim belgeleri (bilinen açıklar dahil) herkese açık | hassas denetim belgelerini özel bir yere taşı |
-| h | Impersonation izi | denetim ajanı: bazı yazmalar operatör yerine müşteri adına kaydediliyor (HENÜZ DOĞRULANMADI) | doğrula; yazma yollarında `actorUserId` zorunlu (ayrı tur) |
+| h | Impersonation izi | doğrulandı: denetim kaydı YAZAN rotalar operatörü doğru yazıyor (`auditActor`), ama misafire cevap, bilgi tabanı ve rezervasyon düzenleme hiç iz bırakmıyor → operatörün müşteri hesabında yaptığı iş izlenemiyor | rota koruyucusunda (withAuth/withManage) yalnız bürünmüşken her yazma isteğine tek iz satırı (yeni davranış → onayınız) |
 
 ---
 
