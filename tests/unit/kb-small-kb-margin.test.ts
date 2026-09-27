@@ -149,6 +149,19 @@ describe("genel bütçe büyümez", () => {
     expect(block.length).toBeLessThanOrEqual(KB_CHAR_BUDGET);
   });
 
+  it("🚨 ayraç SAYILIR ve dar pay yalnız küçük-KB yolunda: 40 satır × 600 karakter (satırlar tam 24.000) → bir kalem düşer, blok ≤ 24.000", () => {
+    const items = Array.from({ length: 40 }, (_, i) => {
+      const base = { category: "rules", title: `B${String(i).padStart(2, "0")}`, content: "" };
+      return { ...base, content: "x".repeat(600 - kbLine(base).length) };
+    });
+    expect(items.every((k) => kbLine(k).length === 600)).toBe(true);
+    const packed = packKnowledgeBase(items);
+    expect(packed.omitted).toBe(1);
+    const block = packed.text.split("\n- [NOT]")[0];
+    expect(block.split("\n")).toHaveLength(39);
+    expect(block.length).toBeLessThanOrEqual(KB_CHAR_BUDGET);
+  });
+
   it("küçük-KB yolunda da paket bütçe + dar ek payı aşmaz", () => {
     const items = kbOfTotal(KB_ITEM_CAP, KB_CHAR_BUDGET + SMALL_KB_MARGIN_CHARS);
     expect(packKnowledgeBase(items).text.length).toBeLessThanOrEqual(KB_CHAR_BUDGET + SMALL_KB_MARGIN_CHARS);
