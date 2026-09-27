@@ -122,6 +122,7 @@ import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { hasRecordedHandoff, hostVoiceDraft } from "@/lib/ai/host-voice";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { redactSensitive, reportError } from "@/lib/report-error";
+import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
@@ -3944,7 +3945,7 @@ export async function refreshStyleProfile(
       ],
       conversation: { property: { organizationId } },
     },
-    select: { body: true },
+    select: { body: true, conversation: { select: { guestIdentifier: true, reservation: { select: { guestName: true } } } } },
     orderBy: { createdAt: "desc" },
     take: 40,
   });
@@ -3952,8 +3953,17 @@ export async function refreshStyleProfile(
   // KVKK: redact PII (e-mail/phone/long codes/keys) from the host's own reply
   // bodies BEFORE they reach OpenAI. Style (tone, structure) is preserved; a
   // door code or address a host happened to type doesn't cross the border raw.
+  // MİSAFİR ADI da (#211, 09-27): profil org'un BAŞKA konuşmalarının istemine girer — "Merhaba Ayşe," örneği başka misafire
+  // taşınmasın. Her cevabın KENDİ konuşmasının adları (görünen ad + rezervasyon adı), kalite denetçisiyle aynı yardımcı.
   const samples = hostReplies
-    .map((m) => redactSensitive(m.body))
+    .map((m) =>
+      redactSensitive(
+        redactNameFromBody(
+          m.body,
+          [m.conversation.reservation?.guestName, m.conversation.guestIdentifier].filter((n): n is string => Boolean(n && n.trim())),
+        ),
+      ),
+    )
     .filter((b) => b && b.trim().length > 0);
   if (samples.length < 5) return { refreshed: false };
 
