@@ -405,4 +405,7 @@ cevabı modele GİTMİYOR (rehberden 3 parça). Tavan misafirin KENDİ soru say�
 tek sorulu mesajda BİREBİR aynı. Gerçekçi dev setinde (1.038 soru, canlıya en yakın hat, önbellekten — `rag-lab-2026-09-27-12.md`)
 FINAL ↔ FINAL+`qcap` fark 0 (iki soru 116/120, TR 437/441, diğer 438/441). Kalan kayıplar başka: 5. soru hiç aranmıyor (alt sorgu
 tavanı 4, A5 F3) ve EN soru ↔ TR rehber sözcüksel (canlıda anlamsal arama açık). Blok çok sorulu mesajda ~+1.000 karakter.
-🚨 Seçenek VARSAYILAN KAPALI; açmak kurucu kararı (müşteri cevabını değiştirir).
+🚨 **09-27 KURUCU KARARI: "1.yi tabiki aç" → soru başına tavan ÜRETİM VARSAYILANI** (`itemCapScope` verilmezse "question"; "message" = eski
+mesaj geneli tavan, ölçüm tabanı `base0926` onda sabit, belirteç `mcap`). Varsayılan hâliyle yeniden ölçüldü (önbellekten, sıfır çağrı,
+`rag-lab-2026-09-27-13.md`): canlının 6k/12 bütçesinde ve geniş blokta yeni varsayılan ↔ eski tavan BİREBİR (iki soru 105/120 · 116/120,
+TR 421/441 · 437/441, diğer 436/441 · 438/441, sızıntı 0). Kazanç tek uzun rehberde çok sorulu mesajda (birim pini: 4 sorunun 4'ü).

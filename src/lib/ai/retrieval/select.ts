@@ -208,9 +208,10 @@ export interface KbSelectInput<T extends KbChunkSource> {
     extraShare?: number;
     answersFirst?: boolean;
     /**
-     * Kalem başına parça tavanının KAPSAMI (09-27 deneyi, verilmezse "message" = bugünkü): "question" = tavan misafirin KENDİ
-     * soru sayısıyla (özgün alt sorgular; anlama katmanının ek sorguları sayılmaz) çarpılır — tek uzun rehberde sorulan dört
-     * bilgiden dördüncüsü, rehber mesaj genelinde 3 parçaya ulaştı diye düşmez. Tek sorulu mesajda (ek sorgular dahil) BİREBİR aynı.
+     * Kalem başına parça tavanının KAPSAMI — VARSAYILAN "question" (kurucu 09-27: "1.yi tabiki aç"): tavan misafirin KENDİ soru
+     * sayısıyla (özgün alt sorgular; anlama katmanının ek sorguları sayılmaz) çarpılır — tek uzun rehberde sorulan dört bilgiden
+     * dördüncüsü, rehber mesaj genelinde 3 parçaya ulaştı diye düşmez (ücretsiz ölçüm: 4 soruda 0/10 → 9/10; dev setinde fark 0).
+     * Tek sorulu mesajda (ek sorgular dahil) BİREBİR eski. "message" = eski mesaj geneli tavan (ölçüm tabanı / geri alma).
      */
     itemCapScope?: "message" | "question";
   };
@@ -881,10 +882,11 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const picked: number[] = [];
     const pickedSet = new Set<number>();
     const perItem = new Map<string, number>();
-    // Kalem tavanı: bugün sabit; deneyde misafirin kendi soru sayısıyla çarpılır (ek sorgular sayılmaz → tek soruda aynı).
+    // Kalem tavanı SORU BAŞINA (varsayılan, kurucu 09-27): misafirin kendi soru sayısıyla çarpılır (ek sorgular sayılmaz → tek soruda
+    // eski tavan). "message" = eski mesaj geneli tavan.
     const ownQuestions = queries.filter((q) => !q.extra).length;
-    const itemCap =
-      (input.strategy?.maxChunksPerItem ?? MAX_CHUNKS_PER_ITEM) * (input.strategy?.itemCapScope === "question" ? Math.max(1, ownQuestions) : 1);
+    const perQuestionCap = (input.strategy?.itemCapScope ?? "question") === "question";
+    const itemCap = (input.strategy?.maxChunksPerItem ?? MAX_CHUNKS_PER_ITEM) * (perQuestionCap ? Math.max(1, ownQuestions) : 1);
     const cursors = ranked.map(() => 0);
     // Parçanın KÖKENİ (yalnız ek sorgu varken tutulur): ek sorguların payı bütçe döngüsünde köken bazında
     // uygulanır. Ek sorgu yoksa bu harita boş kalır ve davranış BİREBİR eskisidir.

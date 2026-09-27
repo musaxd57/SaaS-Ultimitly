@@ -17,7 +17,7 @@ export const CAP = KB_RETRIEVAL_FETCH_CAP;
  * (okuma tavanı) · `b9000` / `mc16` (seçim bütçesi karakter / parça) · `skip` (sığmayan parçayı atla) · `pi5` (kalem başına parça) ·
  * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına) · `xs0.5` (anlama sorgularının bütçe payı; varsayılan 1/3) · `prl` (ayrı çağrıda soru başına etiket) · `wper50` / `wown20` / `wownrrf` / `wfloor10` (üretim penceresi kuruluş deneyleri) ·
  * `wide` (üretimin geniş blok bütçesi `KB_RETRIEVAL_WIDE_BUDGET` — değerler üretim sabitlerinden, tek kaynak) · `ansfirst`
- * (yeniden sıralayıcının "cevaplıyor" dediği parçalar önce) · `rrm:<model>` / `rre:<çaba>` (yalnız yeniden sıralayıcının modeli / düşünme
+ * (yeniden sıralayıcının "cevaplıyor" dediği parçalar önce) · `qcap` / `mcap` (kalem parça tavanı soru başına — 09-27'den beri üretim varsayılanı — / eski mesaj geneli) · `rrm:<model>` / `rre:<çaba>` (yalnız yeniden sıralayıcının modeli / düşünme
  * çabası; ör. `rrm:gpt-6-luna+rre:low`).
  * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200; üretim penceresi, soru başına ayrı çağrı).
  * `prod` / `base0926` İLK belirteç olarak taban da olur, ardından gelen belirteçler üstüne uygulanır (`prod+wide`, `prod+e3l`).
@@ -25,7 +25,8 @@ export const CAP = KB_RETRIEVAL_FETCH_CAP;
 const BASES: Record<string, () => Omit<LabConfig, "name">> = {
   prod: () => ({ semantic: { t: T_PROD }, understanding: true, rerank: { ...RR, window: "prod", deadlineMs: RERANK_HOT_PATH_DEADLINE_MS }, fetchCap: CAP }),
   // 09-26 gece öncesi CANLI hâl (sabitler değişse de kıyas tabanı sabit kalsın): small gömme · eşik 0,4 · ilk 20 · 600 · 2,5 sn · okuma 200.
-  base0926: () => ({ semantic: { t: 0.4, model: "text-embedding-3-small" }, understanding: true, rerank: { k: 20, crop: 600, deadlineMs: 2_500 }, fetchCap: 200 }),
+  // Kalem parça tavanı 09-27'de soru başına oldu (üretim varsayılanı) → taban eski mesaj geneli tavanda SABİT kalır.
+  base0926: () => ({ semantic: { t: 0.4, model: "text-embedding-3-small" }, understanding: true, rerank: { k: 20, crop: 600, deadlineMs: 2_500 }, fetchCap: 200, select: { strategy: { itemCapScope: "message" } } }),
 };
 
 export function parseConfig(name: string): LabConfig {
@@ -67,6 +68,7 @@ export function parseConfig(name: string): LabConfig {
     else if (tok === "demote") cfg.rerank = { ...(cfg.rerank ?? RR), demote: true };
     else if (tok === "ansfirst") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), answersFirst: true } };
     else if (tok === "qcap") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), itemCapScope: "question" } };
+    else if (tok === "mcap") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), itemCapScope: "message" } };
     else if (tok === "wide") cfg.select = { ...(cfg.select ?? {}), budgetChars: KB_RETRIEVAL_WIDE_CHAR_BUDGET, maxChunks: KB_RETRIEVAL_WIDE_MAX_CHUNKS };
     else if ((m = tok.match(/^rrm:([a-z0-9.-]+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), model: m[1] };
     else if ((m = tok.match(/^rre:(none|minimal|low|medium|high)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), effort: m[1] };

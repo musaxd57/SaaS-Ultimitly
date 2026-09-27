@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { selectKbForPrompt, retrievalQueries } from "@/lib/ai/retrieval/select";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
+import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { neutralPadding } from "../helpers/kb-padding";
+import { parseConfig } from "../eval/rag-lab/config";
 
 // ---------------------------------------------------------------------------
 // #189 SEÇİM STRATEJİSİ DENEY SEÇENEKLERİ (`strategy`, `rerankScoresBySubquery`). Sözleşme: VERİLMEDİKLERİNDE davranış
@@ -209,7 +211,7 @@ describe("cevaplar önce (answersFirst) — yeniden sıralayıcının 'cevaplıy
 // KALEM TAVANININ KAPSAMI (09-27, kurucu sorusu "büyük bilgi tabanında bir kayıttan en fazla 3 parça — bu kötü değil mi?"):
 // tek uzun rehberde AYNI mesajda sorulan 4 bilgiden 4.'sü, tavan mesaj geneli 3 olduğu için düşüyordu (ücretsiz ölçüm: 4 soruda
 // 0/10 mesajda hepsi blokta). `itemCapScope: "question"` = tavan × misafirin KENDİ soru sayısı (ek sorgular sayılmaz → tek soruda
-// BİREBİR aynı). Varsayılan KAPALI; açmak kurucu kararı (müşteri cevabını değiştirir).
+// BİREBİR aynı). 🚨 VARSAYILAN (kurucu 09-27: "1.yi tabiki aç"); "message" = eski mesaj geneli tavan (ölçüm / geri alma).
 // ---------------------------------------------------------------------------
 
 const SECTIONS: [string, string][] = [
@@ -230,30 +232,54 @@ const guideItem = {
 const guideKb = [guideItem, ...neutralPadding(40)];
 const blockOf = (r: ReturnType<typeof selectKbForPrompt>) => r.items.map((i) => i.content).join("\n");
 
-describe("kalem tavanı soru başına (itemCapScope: \"question\")", () => {
+describe("kalem tavanı soru başına — VARSAYILAN (kurucu 09-27 \"1.yi tabiki aç\")", () => {
   beforeEach(() => __resetKbIndexCache());
 
-  it("🚨 tek rehberde 4 soru: bugün 4. cevap DÜŞER (tavan 3); soru başına tavanda 4 cevap da blokta", () => {
+  it("🚨 tek rehberde 4 soru: VARSAYILAN seçimde 4 cevap da blokta; eski mesaj geneli tavanda ('message') 4. cevap DÜŞER", () => {
     const msg = "Merhaba! Giriş saati kaçta? Anahtar kutusu nerede? Otopark var mı? Çöpleri nereye atıyoruz?";
-    const today = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW });
-    expect(today.items.filter((i) => i.id === "guide")).toHaveLength(3);
-    expect(SECTIONS.slice(0, 4).filter(([, n]) => blockOf(today).includes(n))).toHaveLength(3);
+    const def = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW });
+    for (const [, needle] of SECTIONS.slice(0, 4)) expect(blockOf(def), needle).toContain(needle);
     __resetKbIndexCache();
-    const q = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, strategy: { itemCapScope: "question" } });
-    for (const [, needle] of SECTIONS.slice(0, 4)) expect(blockOf(q), needle).toContain(needle);
+    const old = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, strategy: { itemCapScope: "message" } });
+    expect(old.items.filter((i) => i.id === "guide")).toHaveLength(3);
+    expect(SECTIONS.slice(0, 4).filter(([, n]) => blockOf(old).includes(n))).toHaveLength(3);
+    __resetKbIndexCache();
+    const explicit = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, strategy: { itemCapScope: "question" } });
+    expect(explicit.items.map((i) => `${i.id}#${i.chunk ?? 0}`)).toEqual(def.items.map((i) => `${i.id}#${i.chunk ?? 0}`));
   });
 
-  it("tek sorulu mesajda BİREBİR aynı (ek sorgular soru sayısını artırmaz)", () => {
+  it("🚨 ÜRETİM YOLU (`retrieveKbForPrompt`, strateji vermez) varsayılanı kullanır: 4 sorunun 4 cevabı da blokta", async () => {
+    vi.stubEnv("KB_RETRIEVAL_MODE", "");
+    try {
+      const msg = "Merhaba! Giriş saati kaçta? Anahtar kutusu nerede? Otopark var mı? Çöpleri nereye atıyoruz?";
+      const r = await retrieveKbForPrompt({ items: guideKb, guestMessage: msg, now: NOW });
+      const block = r.items.map((i) => i.content).join("\n");
+      for (const [, needle] of SECTIONS.slice(0, 4)) expect(block, needle).toContain(needle);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("tek sorulu mesajda varsayılan = eski mesaj geneli tavan, BİREBİR (ek sorgular soru sayısını artırmaz)", () => {
     for (const msg of ["Otopark var mı?", "Giriş saati kaçta?"]) {
       const extraQueries = [
         { text: "otopark park yeri araç", turkish: true, request: 0 },
         { text: "parking space car", turkish: false, request: 0 },
       ];
-      const a = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries });
+      const a = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries, strategy: { itemCapScope: "message" } });
       __resetKbIndexCache();
-      const b = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries, strategy: { itemCapScope: "question" } });
+      const b = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries });
       expect(b.items.map((i) => `${i.id}#${i.chunk ?? 0}`), msg).toEqual(a.items.map((i) => `${i.id}#${i.chunk ?? 0}`));
     }
+  });
+});
+
+describe("ölçer tabanları: `base0926` ESKİ tavanda sabit, `prod` üretim varsayılanını izler", () => {
+  it("base0926 = mesaj geneli tavan (09-26 hâli); prod strateji vermez; `mcap` / `qcap` belirteçleri", () => {
+    expect(parseConfig("base0926").select?.strategy?.itemCapScope).toBe("message");
+    expect(parseConfig("prod").select?.strategy?.itemCapScope).toBeUndefined();
+    expect(parseConfig("prod+mcap").select?.strategy?.itemCapScope).toBe("message");
+    expect(parseConfig("prod+qcap").select?.strategy?.itemCapScope).toBe("question");
   });
 });
 
@@ -272,15 +298,15 @@ describe("kalem tavanı soru başına — anlama katmanının EK sorguları soru
   };
   const kb = [parkGuide, ...neutralPadding(40)];
 
-  it("tek soru + iki ek sorgu: soru başına tavan AÇIKKEN de rehberden en fazla 3 parça (bugünkü gibi)", () => {
+  it("tek soru + iki ek sorgu: soru başına tavanda (varsayılan) da rehberden en fazla 3 parça (eski tavan gibi)", () => {
     const extraQueries = [
       { text: "otopark yeri nerede araç park", turkish: true, request: 0 },
       { text: "otopark girişi park yeri", turkish: true, request: 0 },
     ];
     const msg = "Otopark nerede?";
-    const off = selectKbForPrompt({ items: kb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries });
+    const off = selectKbForPrompt({ items: kb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries, strategy: { itemCapScope: "message" } });
     __resetKbIndexCache();
-    const on = selectKbForPrompt({ items: kb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries, strategy: { itemCapScope: "question" } });
+    const on = selectKbForPrompt({ items: kb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries });
     expect(on.items.filter((i) => i.id === "park-guide")).toHaveLength(off.items.filter((i) => i.id === "park-guide").length);
     expect(on.items.filter((i) => i.id === "park-guide").length).toBeLessThanOrEqual(3);
     // KONTROL: ek sorgular gerçekten rehberde daha fazla parça bulabiliyor (tavan 9 olsaydı fark görünürdü).

@@ -221,8 +221,8 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   gönderim kapısı AYRICA gerekir. Getirme düzeyinde (`rag-lab/acceptance.ts` `holdoutVerdict`) kırmızı = sızıntılı vaka + ölçülmemiş
   sızıntı + eksik koşu (2,5 sn tavan aşımı eksik DEĞİL). Ölçer önbellek anahtarı modele GİDEN isteği tanımlar (`replyRequestIdentity`
   + `cache-keys.ts`; cevap isteminin anı `REPLY_NOW` sabit — istem dakikayı taşır). İki sorulu cevapta her sorunun sayısı AYRI
-  (`answerAnchorHits`). Kalem parça tavanı soru başına seçeneği `strategy.itemCapScope: "question"` VARSAYILAN KAPALI (tek rehberde 4
-  soru 0/10 → 9/10, dev setinde fark 0; açmak kurucu kararı, belge §6e).
+  (`answerAnchorHits`). Kalem parça tavanı SORU BAŞINA — VARSAYILAN (kurucu 09-27 "1.yi tabiki aç"; `strategy.itemCapScope`; tek rehberde 4
+  soru 0/10 → 9/10, dev setinde fark 0 `rag-lab-2026-09-27-13.md`; "message" = eski tavan, taban `base0926` orada sabit; belge §6e).
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
