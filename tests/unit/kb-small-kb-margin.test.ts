@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 import { kbBlockChars, kbFitsWhole, kbLine, SMALL_KB_MARGIN_CHARS } from "@/lib/ai/retrieval/kb-line";
 import { retrievalNeeded, selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { KB_CHAR_BUDGET, KB_ITEM_CAP } from "@/lib/ai/limits";
 
@@ -103,6 +104,39 @@ describe("🚨 dar ek pay: ≤30 kalem, sınırı birkaç düzine karakter aşan
     const items = kbOfTotal(KB_ITEM_CAP + 1, KB_CHAR_BUDGET - 500);
     expect(kbFitsWhole(items)).toBe(false);
     expect(retrievalNeeded(items)).toBe(true);
+  });
+});
+
+describe("ölçü isteme GİRECEK metinle (yer tutucular doldurulmuş)", () => {
+  // Ham metin sınıra sığar (+20), "{isim}" 26 harflik bir ada dönünce doldurulmuş blok +80 olur (payın dışında).
+  const NAME = "Maximiliantheodorwilhelmfr";
+  const withNames = () => {
+    const items = kbOfTotal(KB_ITEM_CAP, KB_CHAR_BUDGET + 20);
+    for (let i = 0; i < 3; i++) items[i] = { ...items[i], content: `{isim}${items[i].content.slice(6)}` };
+    expect(kbBlockChars(items)).toBe(KB_CHAR_BUDGET + 20);
+    return items;
+  };
+
+  it("🚨 ham metne göre 'sığar' ama doldurulmuş metin sığmıyor → seçim yapılır; paket cevabı düşürmez (A5 F5 '{isim}' vakası)", async () => {
+    const items = withNames();
+    expect(retrievalNeeded(items)).toBe(false); // ham ölçü tek başına yanıltırdı
+    const r = await retrieveKbForPrompt({
+      items,
+      guestMessage: "Çamaşır makinesi kapsülleri nerede?",
+      now: T0,
+      placeholders: { guestFirstName: NAME, propertyName: "Lale" },
+    });
+    expect(r.evidence?.fb).not.toBe("small_kb");
+    const packed = packKnowledgeBase(r.items, r.droppedItems, r.selection, r.notes);
+    expect(packed.text).toContain(ANSWER);
+    expect(packed.text).not.toContain("{isim}");
+  });
+
+  it("KONTROL — yer tutucu yokken aynı ham bilgi tabanı küçük-KB yolunda kalır (tamamı gider)", async () => {
+    const items = withNames();
+    const r = await retrieveKbForPrompt({ items, guestMessage: "Çamaşır makinesi kapsülleri nerede?", now: T0 });
+    expect(r.evidence?.fb).toBe("small_kb");
+    expect(r.items).toHaveLength(KB_ITEM_CAP);
   });
 });
 
