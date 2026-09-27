@@ -118,26 +118,43 @@ interface DumpCase {
 }
 
 /**
- * Yanıttaki cevap-dışı sayıların blokta geçtiği cümleler: sayı başına, yanıtla SÖZCÜK ortaklığı en yüksek TEK cümle (en çok 4, kalem
- * başlığıyla). Salt sayı eşleşmesi gürültülüydü ("20 derece" ↔ taksi ücretindeki "yüzde 20").
+ * Yanıtın bilgi bloğundaki DAYANAKLARI — kör inceleyici "uydurma" ile "başka bilginin yanlış yerde kullanımı"nı ayırabilsin (kurucu
+ * 09-27 V01 notu: bisiklet askısı bilgi tabanında VARDI, sayfa göstermediği için uydurma sanıldı). İki yol, cevap cümleleri hariç:
+ *  · yanıttaki cevap-dışı her SAYI için onu taşıyan, yanıtla sözcük ortaklığı en yüksek tek blok cümlesi;
+ *  · yanıtın her CÜMLESİ için sözcük ortaklığı ≥ 3 içerik sözcüğü olan en iyi blok cümlesi (sayısız bilgi de görünsün; 2'de
+ *    "kilitli / sadece" gibi rastlantısal ortaklık ilgisiz kalemi getiriyordu).
+ * En çok 6, kalem başlığıyla; hüküm değil kanıt.
  */
 function blockEvidenceFor(reply: string, answers: readonly { needles: readonly string[] }[], items: readonly { title: string; content: string }[]): string[] {
   const own = new Set(answers.flatMap((a) => a.needles.flatMap((n) => numericAnchors(n))));
-  const wanted = numericAnchors(reply).filter((a) => !own.has(a));
-  if (wanted.length === 0) return [];
+  const answerTexts = answers.flatMap((a) => a.needles);
   const words = (t: string) => new Set(t.toLocaleLowerCase("tr").match(/\p{L}{5,}/gu) ?? []);
   const replyWords = words(reply);
-  const sentences = items.flatMap((it) => it.content.split(/(?<=[.!?])\s+/).map((sentence) => ({ it, sentence: sentence.trim(), anchors: new Set(numericAnchors(sentence)) })));
+  const sentences = items
+    .flatMap((it) => it.content.split(/(?<=[.!?])\s+/).map((sentence) => ({ it, sentence: sentence.trim(), anchors: new Set(numericAnchors(sentence)), words: words(`${it.title} ${sentence}`) })))
+    .filter((x) => x.sentence && !answerTexts.some((a) => a.includes(x.sentence) || x.sentence.includes(a)));
   const out: string[] = [];
-  for (const w of wanted) {
+  const push = (t: string) => {
+    if (!out.includes(t) && out.length < 6) out.push(t);
+  };
+  for (const w of numericAnchors(reply).filter((a) => !own.has(a))) {
     let best: { text: string; score: number } | null = null;
     for (const x of sentences) {
       if (!x.anchors.has(w)) continue;
-      const score = [...words(`${x.it.title} ${x.sentence}`)].filter((t) => replyWords.has(t)).length;
+      const score = [...x.words].filter((t) => replyWords.has(t)).length;
       if (!best || score > best.score) best = { text: `${x.it.title}: ${x.sentence}`, score };
     }
-    if (best && best.score > 0 && !out.includes(best.text)) out.push(best.text);
-    if (out.length >= 4) break;
+    if (best && best.score > 0) push(best.text);
+  }
+  for (const rs of reply.split(/(?<=[.!?;])\s+/)) {
+    const rw = words(rs);
+    if (rw.size === 0) continue;
+    let best: { text: string; score: number } | null = null;
+    for (const x of sentences) {
+      const score = [...x.words].filter((t) => rw.has(t)).length;
+      if (!best || score > best.score) best = { text: `${x.it.title}: ${x.sentence}`, score };
+    }
+    if (best && best.score >= 3) push(best.text);
   }
   return out;
 }
