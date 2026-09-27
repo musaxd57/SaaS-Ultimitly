@@ -306,6 +306,16 @@ kapalı (403).
     - uzun kalem bölünürken `[yer tutucu]` ortadan kesilmiyor.
   - Ölçüm (çevrimdışı, 60 kalem): getirme kaybı yok; sahte çelişki notu çok soruda 8 → 1, tek soruda 9 → 0; anlamsal + anlama
     yapılandırmasında çok soru 88 → 90.
+  - "Şifremi unuttum" (kararınız: bağlama bağlı, kesin yönlendirme yok): kök sökücü "şifremi"yi "sifrem" bırakıyordu, hiçbir şifre
+    kalemi gelmiyordu (302 kalemde garaj kumandası, kırılan eşya, hacimli çöp). Kök sökücüye "-m" kuralı ölçülüp REDDEDİLDİ (122 yeni
+    çakışma: akşam = aksi, modem = moda); yalnız kavram tespitinde tanınıyor. Şimdi: Wi-Fi şifresi + anahtar kutusu + kapı kodu birlikte
+    geliyor, hangisi olduğunu model konuşmadan çıkarır. Aynı düzeltme: "Arabamı nereye bırakayım?" (önce TV/sağlık, şimdi 5 otopark
+    kalemi), "Kumandam bozuk" (önce yalnız ev rehberi, şimdi TV).
+  - Sözlükte dört terim hiç çalışmıyordu ("noise", "waste", "hastane", "ısınmıyor" kökleri durak sözcüğe iniyordu) → düzeldi ve pinlendi.
+  - "Havuz ne zaman açılıyor?" artık acil durum kavramını tetiklemiyor (güvenlik kalemi havuzun önüne geçiyordu).
+  - Ölçüm: 2.128 soruda kazanç 1, kayıp 0; mutasyon 21/21.
+  - Ölçer: "live" yapılandırması canlıyı bayraklardan birebir kuruyor (eski "prod" soru başına ayrı çağrıyı ölçüyordu, canlı tek çağrı);
+    raporlar her yapılandırmanın gerçek parametrelerini yazıyor; yazıcı sorusu (bilgi tabanı aslında cevaplıyordu) negatiflerden çıktı.
 - **#211 gece güvenlik paketi (müşteriye giden metni değiştirmeyenler):**
   - Kalite denetçisine (Claude = ikinci veri işleyen) giden metinde kapı / Wi-Fi / kasa kodları maskeleniyor (19 sızıntı vakasının
     18'i açıktı; saat ve ücret korunuyor).
