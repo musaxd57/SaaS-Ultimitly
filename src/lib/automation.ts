@@ -59,7 +59,7 @@ import {
   type GateEvidence,
 } from "@/lib/ai/gate-evidence";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
-import { styleProfileForPrompt, kbForStayScope } from "@/lib/guest-chat";
+import { styleProfileForPrompt, kbForStayScopeRawAndFilled } from "@/lib/guest-chat";
 import { historyAuthorOf, LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER } from "@/lib/message-author";
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
@@ -73,7 +73,6 @@ import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import {
   GUEST_NAME_FALLBACK,
   fillGuestPlaceholders,
-  fillGuestPlaceholdersInItems,
   guestFirstNameOf,
   hasNamePlaceholder,
   kbPlaceholderTokens,
@@ -2087,10 +2086,7 @@ export async function applyChannelAutoReply(
     kbPendingApproval: kbFetch.pendingApproval,
     kbNewestUpdatedAt: kbFetch.newestUpdatedAt,
   };
-  const kb = fillGuestPlaceholdersInItems(kbRaw, {
-    guestFirstName: guestFirst,
-    propertyName: conversation.property.name,
-  });
+  const kbPlaceholders = { guestFirstName: guestFirst, propertyName: conversation.property.name };
   // 🚨 REZERVASYON ÖNCESİ SIR KAPISI — KOD, PROMPT DEĞİL (denetim 08-09).
   //
   // Rezervasyonu OLMAYAN bir kişi (Airbnb ön sorusu) yazdığında bilgi tabanı
@@ -2121,7 +2117,9 @@ export async function applyChannelAutoReply(
   // kategorisinde OLMADIĞI için değil, `looksLikeSecret`in RAKAM istemesi
   // yüzünden geçiyordu. Kategori bacağı bu sınıfı toptan kapatır. (09-27: kural tek kaynak `kbForStayScope` — yönetici "AI
   // öner" rotası da aynı kapsamı kullanır.)
-  const kbVisible = kbForStayScope(kb, conversation.reservation);
+  // 🚨 İKİ AŞAMA (B3, kurucu onayı 09-27): HAM metin VE ad / daire yerleştirilmiş metin taranır. Yalnız yerleştirilmiş metin
+  // taranınca misafirin uzun adı sır kalıbını bölüp Wi-Fi anahtarını geçiriyordu (ölçüldü). Dönen kalemler HAM hâlindedir.
+  const kbVisible = kbForStayScopeRawAndFilled(kbRaw, conversation.reservation, kbPlaceholders);
 
   // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — yetki/onay/sır süzgeçlerinden
   // SONRA, modelden ÖNCE. Bayrak (`KB_RETRIEVAL_MODE`) kapalıyken `kbSel.items`
@@ -2140,12 +2138,11 @@ export async function applyChannelAutoReply(
   }));
   // #189: seçim HAM metinle (yer tutucular çözülmemiş). Misafir adı metne seçimden ÖNCE girince parça metni misafire özgü
   // oluyor, anlamsal vektör deposu her yeni misafirin ilk mesajında o parçayı bulamıyor ve karar SÖZCÜKSEL kalıyordu. Sır
-  // kapısının kararı yukarıda İKAME SONRASI metinle verildi (değişmedi); seçime o kapıdan geçen kalemlerin HAM hâli gider,
+  // kapısının kararı yukarıda HAM ve yerleştirilmiş metinle verildi; seçime o kapıdan geçen kalemlerin HAM hâli gider,
   // değerler yalnız seçilen parçalara uygulanır (`placeholders`).
-  const kbVisibleIds = new Set(kbVisible.map((i) => i.id));
   const kbSel = await retrieveKbForPrompt({
-    items: kbRaw.filter((i) => kbVisibleIds.has(i.id)),
-    placeholders: { guestFirstName: guestFirst, propertyName: conversation.property.name },
+    items: kbVisible,
+    placeholders: kbPlaceholders,
     guestMessage: last.body,
     // `at` (F14b): anlama katmanında yazıldığı an — yalnız Konuşma Anlama Durumu bayrağıyla görünür, seçim okumaz.
     history: turnHistory,
@@ -2156,7 +2153,7 @@ export async function applyChannelAutoReply(
     dateContext: { now: new Date(), timeZone: org.timezone, reservation: conversation.reservation ?? null },
   });
   const kbForModel = kbSel.items;
-  const kbDroppedTotal = kbDropped + (kb.length - kbVisible.length) + kbSel.droppedItems;
+  const kbDroppedTotal = kbDropped + (kbRaw.length - kbVisible.length) + kbSel.droppedItems;
 
   // A2: istem-ÖNCESİ kb sayaçları. ⚠️ Bu satırlar İSTEMİN SON HÂLİNİ BİLMEZ —
   // `packKnowledgeBase` karakter bütçesi içeride birkaç kalem DAHA düşürebilir.
@@ -2167,7 +2164,7 @@ export async function applyChannelAutoReply(
     ...groundingBase,
     kbRetrieved: kbForModel.length,
     kbDropped: kbDroppedTotal,
-    // Yetkili iç denetim kanıtı — `kbVisible` yer tutucu ikamesinden GEÇMİŞ
+    // Yetkili iç denetim kanıtı — `kbForModel` yer tutucu ikamesinden GEÇMİŞ
     // nesnelerdir ama `id`/`updatedAt` alanları kaynaktan olduğu gibi taşınır.
     // Hibritte parça indeksi (`chunk`) ve retrieval özeti de kanıta girer.
     kbEvidenceJson: buildKbEvidence({ retrieved: kbForModel, usedLabels: [], retrieval: kbSel.evidence, hijackScreened: kbFetch.hijackScreened }),

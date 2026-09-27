@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { kbForStayScope, styleProfileForPrompt } from "@/lib/guest-chat";
+import { kbForStayScopeRawAndFilled, styleProfileForPrompt } from "@/lib/guest-chat";
 import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
 import { hostVoiceDraft } from "@/lib/ai/host-voice";
@@ -67,9 +67,6 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     propertyId: conversation.propertyId,
     isActive: true,
   });
-  // SIR KAPSAMI oto-yanıtla TEK kural (Codex 09-27): onaylı / tamamlanmış konaklama dışında Wi-Fi / giriş talimatı / kod içeren
-  // kalem modele gitmez — taslak ev sahibinin elinden aday misafire gönderilebilir. Onaylı konaklamada verilir.
-  const kbRaw = kbForStayScope(kbFetched, conversation.reservation);
   // Resolve any {isim}/{daire} placeholder (e.g. in the welcome template) before
   // the KB reaches the model, so a literal "{isim}" can never appear in the
   // suggestion. Single source: @/lib/kb-placeholders (four surfaces share it).
@@ -80,6 +77,11 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     guestFirstName: guestFirstNameOf(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK,
     propertyName: conversation.property.name,
   };
+  // SIR KAPSAMI oto-yanıtla TEK kural (Codex 09-27): onaylı / tamamlanmış konaklama dışında Wi-Fi / giriş talimatı / kod içeren
+  // kalem modele gitmez — taslak ev sahibinin elinden aday misafire gönderilebilir. Onaylı konaklamada verilir. İKİ AŞAMA (B3,
+  // 09-27): HAM ve ad / daire yerleştirilmiş metin taranır ("Kapı: {daire}" + "Daire 4590" → "Kapı: 4590" yalnız ham taramayla
+  // geçiyordu). Dönen kalemler ham hâlindedir.
+  const kbRaw = kbForStayScopeRawAndFilled(kbFetched, conversation.reservation, kbPlaceholders);
 
   // Same learned style profile the auto-reply pass uses, for consistent voice.
   const org = await prisma.organization.findUnique({

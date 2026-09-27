@@ -289,10 +289,11 @@ describe("Oto-yanıt yolu — yer tutucu ikamesi SEÇİMDEN SONRA (#189): modele
     }
   });
 
-  it("🚨 sır kararı İKAME SONRASI metinle: '{daire}' kapı koduna dönüşen kalem rezervasyonsuz misafire seçiciye ULAŞMAZ", async () => {
-    // Mülk adı "Daire 4590" → "{daire}" = 4590 → "Kapı kodu: 4590" (sır kalıbı). Ham metin ("Kapı kodu: {daire}") sır gibi
-    // görünmez; karar ham metinle verilseydi kalem seçiciye gider, ikameden sonra kodu modele taşırdı.
-    const DOOR = { category: "faq", title: "Kapı notu", content: "Kapı kodu: {daire}" };
+  it("🚨 sır kararı İKAME SONRASI metinle de: '{daire}' kapı koduna dönüşen kalem rezervasyonsuz misafire seçiciye ULAŞMAZ", async () => {
+    // Mülk adı "Daire 4590" → "{daire}" = 4590 → "Kapı: 4590" (giriş adı + bitişik rakam kalıbı). Ham metin ("Kapı: {daire}") sır
+    // gibi görünmez; karar yalnız ham metinle verilseydi kalem seçiciye gider, ikameden sonra kodu modele taşırdı. (B3 09-27: eski
+    // fikstür "Kapı kodu: {daire}" HAM hâliyle de "kapı + kod" kalıbına uyuyordu → bu aşamayı AYIRT ETMİYORDU.)
+    const DOOR = { category: "faq", title: "Kapı notu", content: "Kapı: {daire}" };
     const { conversationId, ids } = await seed(null, "Daire 4590", [DOOR, PARKING]);
     await applyChannelAutoReply(conversationId);
     const input = mockSuggest.mock.calls[0][0] as Input;

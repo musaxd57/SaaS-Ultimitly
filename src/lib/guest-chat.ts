@@ -11,7 +11,7 @@ import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { styleProfileBody } from "@/lib/ai/style-profile";
-import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
+import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, type GuestPlaceholderValues } from "@/lib/kb-placeholders";
 import { foldTurkishLower, foldTurkishAscii, classifyFallback, isClosingAck } from "@/lib/ai/fallback";
 import {
   historyAuthorOf,
@@ -382,6 +382,26 @@ export function kbForStayScope<T extends { category: string; title: string; cont
   const confirmedStay = reservation != null && (reservation.status === "confirmed" || reservation.status === "completed");
   if (confirmedStay) return items;
   return withoutSecretKbItems(items.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)));
+}
+
+/**
+ * SIR KAPSAMI İKİ AŞAMADA — HAM metin VE ad / daire yerleştirilmiş metin (B3, kurucu onayı 09-27: "hem ham metni hem isim
+ * yerleştirilmiş metni tara"). Kanal oto-yanıtı ile yönetici "AI öner" TEK kural; kalem iki taramanın İKİSİNDEN de geçmelidir.
+ * Ölçülen iki açık (rezervasyonsuz konuşma):
+ *  · oto-yanıt yalnız YERLEŞTİRİLMİŞ metni tarıyordu — misafirin uzun ADI (kendi kontrolünde) anahtar sözcükle değeri kalıbın
+ *    penceresinden çıkarıyordu: "Wi-Fi ağı {isim} için hazır, key: X9Q2AB" 33 harfli adla geçiyor, anahtar modele gidiyordu;
+ *  · öneri yalnız HAM metni tarıyordu — yerleştirme sır biçimi üretebilir: "Kapı: {daire}" + "Daire 4590" → "Kapı: 4590".
+ * Onaylı / tamamlanmış konaklamada iki aşama da no-op (sır ürünün kendisidir). Dönen kalemler HAM hâlindedir: seçim ham metinle
+ * koşar, değerler seçimden SONRA yerleştirilir (`retrieveKbForPrompt` `placeholders`). QR yolu zaten iki aşamalı (her zaman).
+ */
+export function kbForStayScopeRawAndFilled<T extends { id: string; category: string; title: string; content: string }>(
+  raw: T[],
+  reservation: { status: string } | null | undefined,
+  placeholders: GuestPlaceholderValues,
+): T[] {
+  const rawScoped = kbForStayScope(raw, reservation); // aşama 1: ham metin
+  const filledOk = new Set(kbForStayScope(fillGuestPlaceholdersInItems(rawScoped, placeholders), reservation).map((i) => i.id)); // aşama 2
+  return rawScoped.filter((i) => filledOk.has(i.id));
 }
 
 export function scrubStyleProfileForPublic(profile: string | null | undefined): string | null {

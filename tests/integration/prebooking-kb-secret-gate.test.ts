@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { kbForStayScope, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { kbForStayScope, kbForStayScopeRawAndFilled, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
 
 // ---------------------------------------------------------------------------
 // 🚨 REZERVASYON ÖNCESİ SORUDA KB SIRLARI PROMPT'A GİRMEZ (denetim 08-09).
@@ -54,7 +55,41 @@ describe("rezervasyon öncesi KB sır kapısı", () => {
 
     // 09-27 (Codex): kural TEK KAYNAK `kbForStayScope` (yönetici "AI öner" rotası da kullanır). Kanal yolu onu konuşmanın
     // rezervasyonuyla çağırır; kuralın kendisi ↓ DAVRANIŞLA pinlenir (kaynak taraması yalnız bağlantıyı gösterir).
-    expect(gate).toBe("const kbVisible = kbForStayScope(kb, conversation.reservation);");
+    // B3 (09-27): İKİ AŞAMA — ham VE yerleştirilmiş metin (`kbForStayScopeRawAndFilled`, uçtan uca pin
+    // `kb-secret-scan-two-stage.test.ts`).
+    expect(gate).toBe("const kbVisible = kbForStayScopeRawAndFilled(kbRaw, conversation.reservation, kbPlaceholders);");
+  });
+
+  it("🚨 B3 AŞAMA 1 — HAM metin: uzun ad sır kalıbını bölse de ham hâli sır olan kalem düşer (onaylı konaklamada kalır)", () => {
+    const long = "Maximiliantheodorwilhelmfriedrich";
+    const items = [
+      { id: "net", category: "general", title: "İnternet notu", content: "Wi-Fi ağı {isim} için hazır, key: X9Q2AB" },
+      { id: "park", category: "general", title: "Otopark", content: "Merhaba {isim}, otopark bina altındadır." },
+    ];
+    const values = { guestFirstName: long, propertyName: "Lale 7" };
+    // KONTROL: yalnız yerleştirilmiş metin taransaydı kalem GEÇERDİ (açığın kendisi) — bu olmadan test boş iddia olurdu.
+    expect(kbForStayScope(fillGuestPlaceholdersInItems(items, values), null).map((i) => i.id)).toContain("net");
+    expect(kbForStayScopeRawAndFilled(items, null, values).map((i) => i.id)).toEqual(["park"]);
+    expect(kbForStayScopeRawAndFilled(items, { status: "confirmed" }, values).map((i) => i.id)).toEqual(["net", "park"]);
+  });
+
+  it("🚨 B3 AŞAMA 2 — yerleştirilmiş metin: '{daire}' ile kapı koduna dönüşen kalem düşer (onaylı konaklamada kalır)", () => {
+    const items = [
+      { id: "door", category: "general", title: "Kapı notu", content: "Kapı: {daire}" },
+      { id: "park", category: "general", title: "Otopark", content: "Otopark bina altındadır." },
+    ];
+    const values = { guestFirstName: "Alex", propertyName: "Daire 4590" };
+    // KONTROL: yalnız ham metin taransaydı kalem GEÇERDİ.
+    expect(kbForStayScope(items, null).map((i) => i.id)).toContain("door");
+    expect(kbForStayScopeRawAndFilled(items, null, values).map((i) => i.id)).toEqual(["park"]);
+    expect(kbForStayScopeRawAndFilled(items, { status: "completed" }, values).map((i) => i.id)).toEqual(["door", "park"]);
+  });
+
+  it("B3: dönen kalemler HAM hâlindedir (seçim ham metinle koşar; değerler seçimden SONRA yerleştirilir)", () => {
+    const items = [{ id: "w", category: "general", title: "Karşılama", content: "Merhaba {isim}, hoş geldiniz." }];
+    const out = kbForStayScopeRawAndFilled(items, null, { guestFirstName: "Alex", propertyName: "Lale 7" });
+    expect(out).toEqual(items);
+    expect(out[0]).toBe(items[0]);
   });
 
   it("kbForStayScope: onaylı / tamamlanmış konaklamada HEPSİ; aksi hâlde İKİ bacak (kategori + içerik) — davranış", () => {
