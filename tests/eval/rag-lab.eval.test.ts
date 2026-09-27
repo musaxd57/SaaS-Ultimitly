@@ -11,7 +11,7 @@ import { e4Queries } from "./e4-shared";
 import { writeSidecar } from "./sidecar";
 import { cacheStats, OfflineMiss, RAG_LAB_CACHE } from "./rag-lab/cache";
 import { labRow, latencyLines, reportLines, type LabConfig, type LabItem, type LabQuery, type LabRow } from "./rag-lab/core";
-import { parseConfig, CAP, RR, T_PROD } from "./rag-lab/config";
+import { describeConfig, parseConfig, CAP, RR, T_PROD } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
 import { holdoutVerdict } from "./rag-lab/acceptance";
 
@@ -28,7 +28,7 @@ const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 const NOW = Date.UTC(2026, 8, 23, 12);
 
-const CONFIGS = (process.env.EVAL_RAG_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["lex", `s${T_PROD}`, "s0.3", `s${T_PROD}+und`, "prod", "s0.3+und+rr20/600"]).map(parseConfig);
+const CONFIGS = (process.env.EVAL_RAG_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["lex", `s${T_PROD}`, "s0.3", `s${T_PROD}+und`, "live", "prod", "s0.3+und+rr20/600"]).map(parseConfig);
 /** Tek soru gruplarından her N'inci soru (ücretli koşu bütçesi; 1 = hepsi). */
 const SAMPLE = Math.max(1, Math.trunc(Number(process.env.EVAL_RAG_SAMPLE) || 1));
 const SIZES = (process.env.EVAL_RAG_SIZES?.split(",").map((s) => Number(s.trim())).filter((n) => n > 0) ?? [100, 300]) as number[];
@@ -130,11 +130,13 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
             "holdout oranları (bilgi, kapı değil — kabul cevap düzeyinde)": holdout.rates,
           }
         : {}),
-      gömme: embeddingModel(),
+      "ortam gömmesi (yapılandırma başka model demiyorsa)": embeddingModel(),
       model: semanticModel(),
-      "canlı eşik": T_PROD,
+      "small eşiği (T_PROD)": T_PROD,
       "okuma tavanı": CAP,
-      "yeniden sıralayıcı": `ilk ${RR.k} · kırpma ${RR.crop}`,
+      "yeniden sıralayıcı sabitleri": `ilk ${RR.k} · kırpma ${RR.crop}`,
+      // A9 #3: başlık ortam varsayılanlarını basıyordu; satırlar başka eşik / model / pencereyle koşmuş olabilir → her yapılandırma çözülmüş hâliyle.
+      ...Object.fromEntries(CONFIGS.map((c) => [`yapılandırma ${c.name} (çözülmüş)`, describeConfig(c)])),
       "ücretli gruplar": [...PAID_GROUPS].join(","),
       önbellek: RAG_LAB_CACHE,
       çağrılar: cacheStats(),

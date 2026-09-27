@@ -91,6 +91,8 @@ export interface LabConfig {
   /** null = anlamsal kaynak yok (SOĞUK yol ya da anahtar kapalı). `model` = deney gömme modeli (yoksa üretimin). */
   semantic: null | { t: number; model?: string };
   understanding: boolean;
+  /** Üretim biçimli geçmiş (belirteç `phist`, A9 #4): güncel mesaj her satırda geçmişte. Yoksa eski ölçer biçimi. */
+  prodHistory?: boolean;
   rerank: null | {
     k: number;
     crop: number;
@@ -212,12 +214,23 @@ export function labFetch(items: readonly LabItem[], cap: number): LabItem[] {
     .filter((r) => !detectKbInstructionHijack(`${r.title}\n${r.content}`));
 }
 
+/**
+ * Seçiciye ve anlama katmanına giden geçmiş. Eski ölçer yalnız geçmişli satırlarda (`hist` grupları) geçmiş veriyordu; üretimin
+ * kanal / öneri yolu ise güncel mesaj DAHİL geçmişi HER mesajda verir (ince alt sorgu güncel mesajın köklerini taşır — A9 #4:
+ * aday listesi iki soruda 18/96, tek soruda 90/882 satırda değişiyor). `prodHistory` (belirteç `phist`) üretim biçimi; kapalıyken
+ * eski biçim BİREBİR (önbellek anahtarları değişmez). Bilinen sınır: veri setinde mülk saati yok → anlama isteminde "unknown".
+ */
+export function labHistory(q: LabQuery, prodHistory: boolean): { direction: "inbound" | "outbound"; body: string }[] | undefined {
+  const cur = { direction: "inbound" as const, body: q.text };
+  if (prodHistory) return [...(q.history ?? []), cur];
+  return q.history ? [...q.history, cur] : undefined;
+}
+
 // ─── anlama katmanı (disk önbellekli; canlının kipi: öğe + kural) ─────────────
 export const UNDERSTANDING_MODE = { items: true, rules: true } as const;
 export const UND_PROMPT_VERSION = digest([UNDERSTANDING_SYSTEM_PROMPT, UNDERSTANDING_ITEMS_PROMPT_ADDENDUM, UNDERSTANDING_RULES_PROMPT_ADDENDUM]);
 
-export async function labUnderstand(q: LabQuery): Promise<MessageUnderstanding | null> {
-  const history = q.history ? [...q.history, { direction: "inbound" as const, body: q.text }] : undefined;
+export async function labUnderstand(q: LabQuery, history = labHistory(q, false)): Promise<MessageUnderstanding | null> {
   const key = understandCacheKey({ version: UND_PROMPT_VERSION, model: semanticModel(), text: q.text, history, mode: UNDERSTANDING_MODE, effort: semanticReasoningEffort() });
   return llmCached<MessageUnderstanding>("understand", key, async () => {
     const o = await understandGuestMessages({ guestMessage: q.text, history, ...UNDERSTANDING_MODE });
@@ -383,13 +396,13 @@ export interface LabRun {
 
 export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg: LabConfig, now: number): Promise<LabRun> {
   const pool = labFetch(kbItems, cfg.fetchCap);
-  const history = q.history ? [...q.history, { direction: "inbound" as const, body: q.text }] : undefined;
+  const history = labHistory(q, cfg.prodHistory === true);
   const base: KbSelectInput<LabItem> = { items: pool, guestMessage: q.text, history, mode: "hybrid", now, ...(cfg.select ?? {}) };
   let extraQueries: ExtraQuery[] = [];
   /** Ek sorgunun (normalize alt sorgu) hangi anlama isteğinden geldiği — "req" penceresi için. */
   const extraReq = new Map<string, number>();
   if (cfg.understanding && retrievalNeeded(pool, base.fullSetMaxItems)) {
-    const u = await labUnderstand(q);
+    const u = await labUnderstand(q, history);
     extraQueries = understandingQueries(u ?? undefined);
     for (const [text, req] of understandingQueryRequests(u)) extraReq.set(normalizeForRetrieval(text).trim(), req);
   }

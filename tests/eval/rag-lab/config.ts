@@ -1,4 +1,6 @@
-import { SEMANTIC_COSINE_THRESHOLD } from "@/lib/ai/retrieval/semantic";
+import { SEMANTIC_COSINE_THRESHOLD, semanticThresholdFor } from "@/lib/ai/retrieval/semantic";
+import { embeddingModel } from "@/lib/ai/embeddings/model";
+import { rerankPerQuestionInfo, wideBudgetInfo } from "@/lib/ai/retrieval/flag";
 import { RERANK_HOT_PATH_DEADLINE_MS, RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
 import { KB_RETRIEVAL_FETCH_CAP, KB_RETRIEVAL_WIDE_CHAR_BUDGET, KB_RETRIEVAL_WIDE_MAX_CHUNKS } from "@/lib/ai/limits";
 import type { LabConfig } from "./core";
@@ -18,11 +20,28 @@ export const CAP = KB_RETRIEVAL_FETCH_CAP;
  * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına) · `xs0.5` (anlama sorgularının bütçe payı; varsayılan 1/3) · `prl` (ayrı çağrıda soru başına etiket) · `wper50` / `wown20` / `wownrrf` / `wfloor10` (üretim penceresi kuruluş deneyleri) ·
  * `wide` (üretimin geniş blok bütçesi `KB_RETRIEVAL_WIDE_BUDGET` — değerler üretim sabitlerinden, tek kaynak) · `ansfirst`
  * (yeniden sıralayıcının "cevaplıyor" dediği parçalar önce) · `qcap` / `mcap` (kalem parça tavanı soru başına — 09-27'den beri üretim varsayılanı — / eski mesaj geneli) · `rrm:<model>` / `rre:<çaba>` (yalnız yeniden sıralayıcının modeli / düşünme
- * çabası; ör. `rrm:gpt-6-luna+rre:low`).
- * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200; üretim penceresi, soru başına ayrı çağrı).
- * `prod` / `base0926` İLK belirteç olarak taban da olur, ardından gelen belirteçler üstüne uygulanır (`prod+wide`, `prod+e3l`).
+ * çabası; ör. `rrm:gpt-6-luna+rre:low`) · `phist` (üretim biçimli geçmiş: güncel mesaj her satırda geçmişte — A9 #4; kabul koşusu
+ * `live+phist` ile yapılır, önbellekte olmayan anlama / sıralama istekleri ücretlidir).
+ * `live` = CANLININ ÇÖZÜLMÜŞ hâli (A9 #3, 09-27): ürünün KENDİ bayrak okuyucularından — `KB_RERANK_PER_QUESTION` kapalıyken (canlı)
+ * ilk 20 aday TEK çağrı (üretimin bayrak kapalı yolu, birebir), açıkken üretim penceresi; gömme modeli `OPENAI_EMBEDDING_MODEL`,
+ * eşik o modele göre (`semanticThresholdFor`: large 0,25); `KB_RETRIEVAL_WIDE_BUDGET` açıksa üretimin geniş bütçesi; okuma tavanı
+ * üretimin. Anlama katmanı açık (canlıda açık). Raporda her yapılandırmanın çözülmüş parametreleri yazılır (`describeConfig`).
+ * `prod` = soru başına AYRI ÇAĞRI penceresi (`KB_RERANK_PER_QUESTION` AÇIK iken canlı olur; bugün canlı DEĞİL — eski yorum "canlının
+ * kendisi" diyordu, yanlıştı), eşik small modelin (0,4) — `prod+e3l` large'ı 0,4 ile koşar, canlının large eşiği DEĞİL.
+ * `live` / `prod` / `base0926` İLK belirteç olarak taban da olur, ardından gelen belirteçler üstüne uygulanır (`prod+wide`, `live+wide`).
  */
 const BASES: Record<string, () => Omit<LabConfig, "name">> = {
+  live: () => {
+    const model = embeddingModel();
+    const deadlineMs = RERANK_HOT_PATH_DEADLINE_MS;
+    return {
+      semantic: { t: semanticThresholdFor(model), model },
+      understanding: true,
+      rerank: rerankPerQuestionInfo().enabled ? { ...RR, window: "prod", deadlineMs } : { ...RR, deadlineMs },
+      fetchCap: CAP,
+      ...(wideBudgetInfo().enabled ? { select: { budgetChars: KB_RETRIEVAL_WIDE_CHAR_BUDGET, maxChunks: KB_RETRIEVAL_WIDE_MAX_CHUNKS } } : {}),
+    };
+  },
   prod: () => ({ semantic: { t: T_PROD }, understanding: true, rerank: { ...RR, window: "prod", deadlineMs: RERANK_HOT_PATH_DEADLINE_MS }, fetchCap: CAP }),
   // 09-26 gece öncesi CANLI hâl (sabitler değişse de kıyas tabanı sabit kalsın): small gömme · eşik 0,4 · ilk 20 · 600 · 2,5 sn · okuma 200.
   // Kalem parça tavanı 09-27'de soru başına oldu (üretim varsayılanı) → taban eski mesaj geneli tavanda SABİT kalır.
@@ -38,6 +57,7 @@ export function parseConfig(name: string): LabConfig {
     if (tok === "lex") cfg.semantic = null;
     else if ((m = tok.match(/^s(0\.\d+)$/))) cfg.semantic = { t: Number(m[1]) };
     else if (tok === "und") cfg.understanding = true;
+    else if (tok === "phist") cfg.prodHistory = true;
     else if ((m = tok.match(/^rr(\d+)\/(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? {}), k: Number(m[1]), crop: Number(m[2]) };
     else if (tok === "fb") cfg.rerank = { ...(cfg.rerank ?? RR), onFallback: true };
     else if (tok === "fused") cfg.rerank = { ...(cfg.rerank ?? RR), window: "fused" };
@@ -78,3 +98,26 @@ export function parseConfig(name: string): LabConfig {
   return cfg;
 }
 
+
+/**
+ * Yapılandırmanın ÇÖZÜLMÜŞ parametreleri (A9 #3): rapor başlığı ortamın varsayılanlarını basıyordu, satırlar ise başka eşik / model /
+ * pencereyle koşmuş olabiliyordu. Aynı ad commit'le anlam değiştirirse (`wide` 40 → 80 parça) eski satırla yeni satır burada ayrışır.
+ */
+export function describeConfig(cfg: LabConfig): string {
+  const parts: string[] = [];
+  parts.push(cfg.semantic ? `gömme ${cfg.semantic.model ?? embeddingModel()} @ eşik ${cfg.semantic.t}` : "anlamsal YOK");
+  parts.push(cfg.understanding ? "anlama AÇIK" : "anlama yok");
+  parts.push(cfg.prodHistory ? "geçmiş ÜRETİM biçimi" : "geçmiş yalnız geçmişli satırda (eski ölçer)");
+  if (cfg.rerank) {
+    const r = cfg.rerank;
+    const win = r.window === "prod" ? (r.split === false ? "üretim penceresi TEK çağrı" : "üretim penceresi soru başına çağrı") : r.window ? `pencere ${r.window}` : `ilk ${r.k} TEK çağrı`;
+    const extra = [r.model ? `model ${r.model}` : "", r.effort ? `çaba ${r.effort}` : "", r.dry ? "KURU" : "", r.perQuestion ? "soru başına etiket" : ""].filter(Boolean);
+    parts.push(`sıralayıcı ${win} · kırpma ${r.crop}${r.deadlineMs ? ` · tavan ${r.deadlineMs} ms` : ""}${extra.length ? ` · ${extra.join(" · ")}` : ""}`);
+  } else parts.push("sıralayıcı yok");
+  parts.push(`okuma ${cfg.fetchCap}`);
+  const sel = cfg.select;
+  parts.push(`blok ${sel?.budgetChars ?? "varsayılan"} kr / ${sel?.maxChunks ?? "varsayılan"} parça`);
+  const st = sel?.strategy;
+  if (st && Object.keys(st).length > 0) parts.push(`strateji ${JSON.stringify(st)}`);
+  return parts.join(" · ");
+}

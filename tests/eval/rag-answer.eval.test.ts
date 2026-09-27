@@ -12,7 +12,7 @@ import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { llmCached } from "./rag-lab/cache";
 import { replyCacheKey } from "./rag-lab/cache-keys";
 import { runPipeline, type LabQuery } from "./rag-lab/core";
-import { parseConfig } from "./rag-lab/config";
+import { describeConfig, parseConfig } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
 import { answerAnchorHits, foreignNumbers, numericAnchors } from "./rag-lab/answer-metrics";
 import { caseVerdict } from "./rag-lab/answer-acceptance";
@@ -42,7 +42,7 @@ const NOW = Date.UTC(2026, 8, 23, 12);
  * alırdı). Gün, v1 önbelleğinden taşınan 552 cevabın üretildiği gün (27.09 Pazar, İstanbul 12:00; dakika farkı dışında aynı).
  */
 const REPLY_NOW = new Date(Date.UTC(2026, 8, 27, 9));
-const CONFIGS = (process.env.EVAL_RAG_ANSWER_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["base0926", "prod"]).map(parseConfig);
+const CONFIGS = (process.env.EVAL_RAG_ANSWER_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["base0926", "live"]).map(parseConfig);
 const SPLIT = process.env.EVAL_RAG_ANSWER_SPLIT === "holdout" ? "holdout" : "dev";
 /** Grup başına en çok bu kadar soru (sabit adımlı örneklem, ücretli koşu bütçesi). */
 const PER_GROUP = Math.max(1, Number(process.env.EVAL_RAG_ANSWER_N) || 40);
@@ -195,6 +195,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
       "",
       `- commit: ${commit} · küme: ${SPLIT} · grup başına en çok ${PER_GROUP} soru · bilgi tabanı: ${KB_MODE === "perq" ? `soru başına ${PERQ_SIZE} kalem` : "tüm küme"}`,
       `- geçerli cevap: ${rows.length - invalid.length} · üretilemeyen (yeniden denemeden sonra): ${invalid.length} · eşleştirilmiş soru: ${paired.size}`,
+      ...CONFIGS.map((c) => `- yapılandırma \`${c.name}\` (çözülmüş): ${describeConfig(c)}`),
       "",
       "Ölçü: blokta = cevap cümlesi bilgi bloğunda · sayılı = cevap cümlesi sayı taşıyan soru · sayı cevapta = sayı taşıyan HER",
       "cevabın kendi sayısı yanıtta (iki sorulu mesajda İKİSİ de; 09-27'ye kadar herhangi biri yetiyordu) · cevap düzeyi = sayı taşıyan",
@@ -234,7 +235,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
     let name = `rag-answer-${stamp}.md`;
     for (let n = 2; existsSync(path.join(dir, name)); n++) name = `rag-answer-${stamp}-${n}.md`;
     writeFileSync(path.join(dir, name), `${lines.join("\n")}\n`);
-    writeSidecar(dir, name, { suite: "rag-answer", version: 1, meta: { commit, split: SPLIT, perGroup: PER_GROUP, kb: KB_MODE, ...(KB_MODE === "perq" ? { perqSize: PERQ_SIZE } : {}) }, rows });
+    writeSidecar(dir, name, { suite: "rag-answer", version: 1, meta: { commit, split: SPLIT, perGroup: PER_GROUP, kb: KB_MODE, ...(KB_MODE === "perq" ? { perqSize: PERQ_SIZE } : {}), configs: Object.fromEntries(CONFIGS.map((c) => [c.name, describeConfig(c)])) }, rows });
     if (DUMP && SPLIT === "dev") writeFileSync(DUMP, `${JSON.stringify({ commit, split: SPLIT, cases: dump }, null, 1)}\n`);
   });
 

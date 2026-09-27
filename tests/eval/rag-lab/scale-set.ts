@@ -66,6 +66,9 @@ function alterDigits(s: string): string {
 }
 
 /** Tam set (300'e yakın kalem) + zor durumlar; `size` verilirse kalemlerin tohumlu ilk `size`'ı ve onlara ait sorular. */
+/** Dev bölümünde bilgi tabanının aslında CEVAPLADIĞI negatif konular (indeks; kimlikler kaymasın diye dışlanır). */
+const DEV_MISLABELED_NEG = new Set([12]);
+
 export function buildScaleLab(file: ScaleSetFile, size?: number): ScaleLab {
   const rnd = seededRandom(file.split === "dev" ? 101 : 202);
   const order = file.items.map((it) => ({ it, r: rnd() })).sort((a, b) => a.r - b.r).map((x) => x.it);
@@ -203,6 +206,10 @@ export function buildScaleLab(file: ScaleSetFile, size?: number): ScaleLab {
     }
   }
   NEG_TOPICS.forEach((n, i) => {
+    // A9 #5 (09-27, doğrulandı): dev bilgi tabanında `d_workspace_6` ("For printing or scanning … Çınar Sokak 12") yazıcı sorusunu
+    // GERÇEKTEN cevaplıyor → neg_12 negatif değil (cevaptaki "12" yabancı sayı sayılıyordu). Yalnız dev bölümünde dışarıda (kimlikler
+    // kaymasın; holdout içeriği okunmadığı için orada etiket bilinmiyor → dokunulmaz).
+    if (file.split === "dev" && DEV_MISLABELED_NEG.has(i)) return;
     queries.push({ id: `neg_${i}_tr`, group: "neg", cls: "neg_tr", lang: "tr", text: n.tr, answers: [] });
     queries.push({ id: `neg_${i}_en`, group: "neg", cls: "neg_en", lang: "en", text: n.en, answers: [] });
   });
