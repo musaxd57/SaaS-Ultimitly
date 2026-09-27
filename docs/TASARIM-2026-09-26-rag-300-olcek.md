@@ -140,8 +140,12 @@ sorulu mesajda cevap aday listesinde ama 6k/12 bloğa sığmıyor. ≤30 kalem /
 kadar) isteme gidiyor; 31. kalemde bütçe birden 6k'ya düşüyor (uçurum). Sektör: OpenAI'nin dosya arama aracı varsayılan 20
 parçaya kadar (parça ~800 token) döndürür; Anthropic'in "contextual retrieval" ölçümünde ilk 20 parça ilk 5/10'dan iyiydi.
 Açık risk: uzun blokta cevap modelinin yanlış olguya sapması / dikkat dağılması — cevap düzeyi ölçüm ücretli (kredi bekliyor).
-Maliyet: 24k/40'ta cevap isteğine ortalama ~+1,6k token (~0,2 sent/mesaj). **Karar kurucuda** (öneri: bayrakla hazırla, kredi
-gelince cevap düzeyinde doğrula, sonra aç).
+Maliyet: 24k/40'ta cevap isteğine ortalama ~+1,6k token (~0,2 sent/mesaj). **Kurucu kararı 09-27: "hazırla, sonra aç"** →
+`KB_RETRIEVAL_WIDE_BUDGET` (varsayılan KAPALI; tek karar noktası `ai/kb-retrieve.ts`; kanıt `wb: 1`; `c9c7614`). Değer
+**23.000 / 40** (24k değil): paketleyici satır başına seçicinin hesabından 1 karakter fazla sayar ve kendi tavanı 24k — tam dolu
+24k seçimde son parça sessizce "alınmadı" olurdu (kesin dolan fikstürle pinli; 23k ile ölçülen sonuçlar 24k ile birebir).
+Çağıranın kendi bütçesi önceliklidir (ölçer); küçük bilgi tabanı ve legacy etkilenmez. Açma: kredi gelince cevap düzeyi ölçüm
+(± anahtar) + kurucu onayı.
 
 ## 5. Codex'in "sınanması gerekenler"i
 
@@ -158,5 +162,6 @@ gelince cevap düzeyinde doğrula, sonra aç).
    p95. Tahmini maliyet (gpt-5.1 liste fiyatıyla, yaklaşık): dev ölçümü ~4 $, holdout kabulü ~5 $, cevap düzeyi ~2 $ —
    önce ~1 $'lık küçük deneme (`EVAL_RAG_SAMPLE` büyük) + kurucu onayı.
 2. Holdout kabul koşusu (yalnız toplu sayı) — §1 kapısı.
-3. Cevap düzeyi ölçüm (`EVAL_RAG_ANSWER=1`), E4 sentetik setinin yeni hatla tekrarı.
-4. Kurucu kararı: `OPENAI_EMBEDDING_MODEL=text-embedding-3-large` ve `KB_RERANK_PER_QUESTION=1`.
+3. Cevap düzeyi ölçüm (`EVAL_RAG_ANSWER=1`; geniş blok ± `KB_RETRIEVAL_WIDE_BUDGET` eşleştirilmiş — uzun blokta yanlış
+   olguya sapma var mı), E4 sentetik setinin yeni hatla tekrarı.
+4. Kurucu kararı: `OPENAI_EMBEDDING_MODEL=text-embedding-3-large`, `KB_RERANK_PER_QUESTION=1` ve `KB_RETRIEVAL_WIDE_BUDGET=1`.
