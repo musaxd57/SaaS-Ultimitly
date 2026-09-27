@@ -330,7 +330,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const { token } = await params;
-  const ctx = await resolveGuestChat(token);
+  // Bu uç bilgi tabanını KULLANMAZ (istemci 5 sn'de bir çağırır) → çekilmez / taranmaz (#211). Yanıt birebir aynı.
+  const ctx = await resolveGuestChat(token, undefined, { knowledgeBase: false });
   if (!ctx) return notFound();
   if (!ctx.open || !ctx.activeReservation) return jsonOk({ open: false, messages: [] });
 

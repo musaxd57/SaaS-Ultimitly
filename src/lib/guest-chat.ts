@@ -924,6 +924,12 @@ export function escalationReply(opts?: { critical?: boolean }): string {
 export async function resolveGuestChat(
   token: string,
   now: Date = new Date(),
+  /**
+   * `knowledgeBase: false` (#211, 09-27): bilgi tabanı çekilmez ve taranmaz — çıktının geri kalanı BİREBİR aynı. Yalnız "açık mı / hangi
+   * konaklama" bilgisini kullanan halka açık sayfa ve istemcinin 5 sn'de bir çağırdığı GET ucu içindir; her çağrıda 200 kaleme kadar
+   * okuma + iki tam sır taraması boşa gidiyordu (sayfa hız sınırsız). Cevap üreten POST TAM çözümler.
+   */
+  opts: { knowledgeBase?: boolean } = {},
 ): Promise<GuestChatContext | null> {
   if (!token || token.length < 16) return null;
 
@@ -1067,6 +1073,9 @@ export async function resolveGuestChat(
   // screen) but no reservation and an empty knowledge base (nothing to answer).
   if (!open) {
     return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, knowledgeBaseHijackScreened: 0, pinRequired: false };
+  }
+  if (opts.knowledgeBase === false) {
+    return { property: propertyPublic, open: true, activeReservation, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, knowledgeBaseHijackScreened: 0, pinRequired };
   }
 
   // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız

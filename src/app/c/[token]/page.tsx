@@ -27,7 +27,9 @@ export const metadata: Metadata = {
  */
 export default async function GuestChatPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const ctx = process.env.GUEST_CHAT_ENABLED === "1" ? await resolveGuestChat(token) : null;
+  // Sayfa yalnız "açık mı" bilgisini kullanır → bilgi tabanı çekilmez / taranmaz (#211; sayfa hız sınırsız, her yükleme iki tam sır
+  // taraması yapıyordu). Ekran birebir aynı.
+  const ctx = process.env.GUEST_CHAT_ENABLED === "1" ? await resolveGuestChat(token, undefined, { knowledgeBase: false }) : null;
 
   // 🚨 BEŞ KOŞUL, TEK METİN (numaralandırma koruması — hangi sebep olduğu
   // SÖYLENMEZ): global anahtar kapalı · token bilinmiyor · mülk silinmiş ·
