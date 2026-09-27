@@ -143,3 +143,64 @@ describe("anlama sorgularının bütçe payı (extraShare)", () => {
     expect(none.items.map((i) => i.id)).toEqual(expect.arrayContaining(["wifi"]));
   });
 });
+
+describe("cevaplar önce (answersFirst) — yeniden sıralayıcının 'cevaplıyor' dediği, yalnız ek sorgudan gelen parça", () => {
+  // Ölçülen kusurun ikizi (276 kalem, multi_55): işaretler tüm listelere uygulanınca ek sorgunun başı özgün sorunun ilk
+  // adaylarından biri olur → "aynı konuyu tekrar eden ek sorgu" kuralı onu atlar → yalnız o sorgudan gelen, modelin
+  // "cevaplıyor" dediği parça bloğa HİÇ girmez.
+  const items = [
+    ...base,
+    { id: "bike", category: "general", title: "Bisiklet", content: "Bisiklet kilidi mutfak çekmecesinde durur.", updatedAt: new Date(t0 - 3000) },
+  ];
+  // Ek sorgunun en güçlü eşleşmesi özgün sorunun ilk adayı (park), bisiklet ancak ikinci: işaretlerle sıralanınca baş yine park.
+  const extraQueries = [{ text: "ücretsiz açık otopark bisiklet", turkish: true }];
+  const rerankScores = new Map([
+    ["park#0", 3],
+    ["park2#0", 3],
+    ["bike#0", 3],
+    ["wifi#0", 3],
+  ]);
+  const run = (strategy?: { answersFirst?: boolean; extraShare?: number }, scores: ReadonlyMap<string, number> = rerankScores) => {
+    __resetKbIndexCache();
+    return selectKbForPrompt({
+      items,
+      guestMessage: "Wi-Fi şifresi ne? Otopark var mı?",
+      mode: "hybrid",
+      now: NOW,
+      extraQueries,
+      rerankScores: scores,
+      ...(strategy ? { strategy } : {}),
+    });
+  };
+
+  it("KONTROL (bugünkü davranış): işaretli ama yalnız ek sorgudan gelen parça bloğa girmez", () => {
+    const ids = run().items.map((i) => i.id);
+    expect(ids).toEqual(expect.arrayContaining(["wifi", "park", "park2"]));
+    expect(ids).not.toContain("bike");
+  });
+
+  it("🚨 answersFirst: işaretli parçalar önce alınır — yalnız ek sorgudan gelen cevap da bloğa girer", () => {
+    const ids = run({ answersFirst: true }).items.map((i) => i.id);
+    expect(ids).toEqual(expect.arrayContaining(["wifi", "park", "park2", "bike"]));
+    expect(ids.indexOf("bike")).toBeLessThan(4);
+  });
+
+  it("işaretli cevaplar ek sorgu PAYINA sayılmaz (pay 0 iken de girer; model doğruladı)", () => {
+    expect(run({ answersFirst: true, extraShare: 0 }).items.map((i) => i.id)).toContain("bike");
+    // KONTROL: pay 0 + seçenek yok → ek sorgudan hiçbir şey girmez.
+    expect(run({ extraShare: 0 }).items.map((i) => i.id)).not.toContain("bike");
+  });
+
+  it("YALNIZ 'cevaplıyor' (3) öne alınır — 'ilgili' (2) işaretli ek-sorgu parçası kurtarılmaz", () => {
+    const related = new Map([...rerankScores].map(([k, v]) => [k, k === "bike#0" ? 2 : v] as const));
+    expect(run({ answersFirst: true }, related).items.map((i) => i.id)).not.toContain("bike");
+  });
+
+  it("puan yoksa seçenek etkisiz (sonuç birebir)", () => {
+    __resetKbIndexCache();
+    const a = selectKbForPrompt({ items, guestMessage: "Wi-Fi şifresi ne? Otopark var mı?", mode: "hybrid", now: NOW, extraQueries });
+    __resetKbIndexCache();
+    const b = selectKbForPrompt({ items, guestMessage: "Wi-Fi şifresi ne? Otopark var mı?", mode: "hybrid", now: NOW, extraQueries, strategy: { answersFirst: true } });
+    expect(b.items.map((i) => `${i.id}#${i.chunk ?? 0}`)).toEqual(a.items.map((i) => `${i.id}#${i.chunk ?? 0}`));
+  });
+});

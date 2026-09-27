@@ -198,9 +198,11 @@ export interface KbSelectInput<T extends KbChunkSource> {
   /**
    * SEÇİM STRATEJİSİ deneyleri (#189; verilmezse davranış BİREBİR bugünkü): `packing: "skip"` = bütçeye sığmayan parçada
    * durmak yerine atlayıp sonraki (daha kısa) parçayı dener · `maxChunksPerItem` = kalem başına parça tavanı (varsayılan 3) ·
-   * `extraShare` = anlama katmanı sorgularının bütçe payı (varsayılan `EXTRA_QUERY_SHARE`, 1/3; 0–1 dışı değer yok sayılır).
+   * `extraShare` = anlama katmanı sorgularının bütçe payı (varsayılan `EXTRA_QUERY_SHARE`, 1/3; 0–1 dışı değer yok sayılır) ·
+   * `answersFirst` = yeniden sıralayıcının "cevaplıyor" (3) dediği parçalar tur başlamadan, ek sorgu payı ve tekrar kuralı
+   * dışında önce alınır (yalnız puan varken; ölçüm `docs/TASARIM-2026-09-26-rag-300-olcek.md` §4d).
    */
-  strategy?: { packing?: "break" | "skip"; maxChunksPerItem?: number; extraShare?: number };
+  strategy?: { packing?: "break" | "skip"; maxChunksPerItem?: number; extraShare?: number; answersFirst?: boolean };
 }
 
 export type SelectedKbItem<T> = T & { chunk?: number; chunkCount?: number };
@@ -881,6 +883,34 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // de wifi kalemlerini seçip evcil hayvan sorusunu dışarıda bırakıyordu).
     const skipExtra = uq > 0 ? redundantExtraQueries(ranked, isExtra) : new Set<number>();
     let extraPicked = 0;
+    // Deney `answersFirst`: modelin "cevaplıyor" dediği parçalar (sıralanmış listelerin öneki) sırayla ÖNCE alınır — ek sorgu
+    // payına sayılmaz, tekrar kuralı uygulanmaz (model doğruladı); kalem başına tavan aynen.
+    if (input.strategy?.answersFirst && (input.rerankScores || input.rerankScoresBySubquery)) {
+      const answerCursors = ranked.map(() => 0);
+      let more = true;
+      while (more) {
+        more = false;
+        for (let qi = 0; qi < ranked.length; qi++) {
+          const scores = input.rerankScoresBySubquery?.get(queries[qi].subquery) ?? input.rerankScores;
+          const list = ranked[qi];
+          while (scores && answerCursors[qi] < list.length) {
+            const cand = list[answerCursors[qi]];
+            if ((scores.get(chunkKey(index.chunks[cand.idx])) ?? 0) < 3) break;
+            answerCursors[qi] += 1;
+            if (pickedSet.has(cand.idx)) continue;
+            const chunk = index.chunks[cand.idx];
+            const cnt = perItem.get(chunk.id) ?? 0;
+            if (cnt >= (input.strategy?.maxChunksPerItem ?? MAX_CHUNKS_PER_ITEM)) continue;
+            picked.push(cand.idx);
+            pickedSet.add(cand.idx);
+            perItem.set(chunk.id, cnt + 1);
+            if (uq > 0) origin.set(cand.idx, "own");
+            more = true;
+            break;
+          }
+        }
+      }
+    }
     let progressed = true;
     while (progressed) {
       progressed = false;
