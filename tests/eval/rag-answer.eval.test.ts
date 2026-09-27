@@ -40,11 +40,19 @@ const GROUPS = ["single_tr", "single_xx", "multi", "neg"] as const;
 const KB_MODE = process.env.EVAL_RAG_ANSWER_KB === "perq" ? "perq" : "full";
 const PERQ_SIZE = Math.max(1, Math.trunc(Number(process.env.EVAL_RAG_ANSWER_PERQ_SIZE) || 60));
 const PROPERTY = { name: "Lale Evleri", checkInTime: "15:00", checkOutTime: "11:00" };
+/**
+ * Eşzamanlı işçi (varsayılan 1) ve 429 sonrası yeniden deneme (09-27: 3 işçiyle gpt-5.1 dakikalık token sınırına takıldı; 252
+ * cevap yedeğe düştü ve rapora HİÇ girmeden kayboldu). Dakikalık tavan `RAG_LAB_RPM` ile (önerilen 8: cevap isteği ~17,5k token).
+ */
+const WORKERS = Math.max(1, Math.min(4, Math.trunc(Number(process.env.EVAL_RAG_ANSWER_WORKERS) || 1)));
+const RETRIES = 3;
 
 interface AnswerRow {
   config: string;
   qid: string;
   group: string;
+  /** Cevap modeli yeniden denemelere rağmen cevap üretemedi (429 / arıza) → ölçüye girmez, raporda GEÇERSİZ sayılır. */
+  invalid?: boolean;
   inBlock: boolean;
   anchored: boolean;
   anchorHit: boolean | null;
@@ -74,10 +82,21 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
       /* uydurma yazılmaz */
     }
     const stamp = new Date().toISOString().slice(0, 10);
+    const invalid = rows.filter((r) => r.invalid);
+    // EŞLEŞTİRME: yapılandırmalar YALNIZ hepsinde geçerli cevabı olan sorular üzerinde kıyaslanır (eksik soru bir kolu kayırmasın).
+    const validBy = new Map<string, Set<string>>();
+    for (const r of rows) if (!r.invalid) validBy.set(r.qid, (validBy.get(r.qid) ?? new Set()).add(r.config));
+    const paired = new Set([...validBy].filter(([, cs]) => CONFIGS.every((c) => cs.has(c.name))).map(([q]) => q));
+    const header = !complete
+      ? `# GEÇERSİZ — koşu yarıda kaldı — RAG cevap düzeyi (${stamp})`
+      : invalid.length > 0
+        ? `# EKSİK — ${invalid.length} cevap üretilemedi (eşleştirilmiş alt kümeyle) — RAG cevap düzeyi (${stamp})`
+        : `# RAG cevap düzeyi (${stamp})`;
     const lines = [
-      complete ? `# RAG cevap düzeyi (${stamp})` : `# GEÇERSİZ — koşu yarıda kaldı — RAG cevap düzeyi (${stamp})`,
+      header,
       "",
       `- commit: ${commit} · küme: ${SPLIT} · grup başına en çok ${PER_GROUP} soru · bilgi tabanı: ${KB_MODE === "perq" ? `soru başına ${PERQ_SIZE} kalem` : "tüm küme"}`,
+      `- geçerli cevap: ${rows.length - invalid.length} · üretilemeyen (yeniden denemeden sonra): ${invalid.length} · eşleştirilmiş soru: ${paired.size}`,
       "",
       "Ölçü: blokta = cevap cümlesi bilgi bloğunda · sayılı = cevap cümlesi sayı taşıyan soru · sayı cevapta = sayılı soruda",
       "cevabın sayılardan en az birini söylemesi · bilgim-yok = cevabın kendi yokluk itirafı · devir = cevap modelinin devir",
@@ -89,7 +108,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
     ];
     for (const cfg of CONFIGS) {
       for (const g of GROUPS) {
-        const rs = rows.filter((r) => r.config === cfg.name && r.group === g);
+        const rs = rows.filter((r) => r.config === cfg.name && r.group === g && !r.invalid && paired.has(r.qid));
         if (rs.length === 0) continue;
         const anchored = rs.filter((r) => r.anchored);
         lines.push(
@@ -118,7 +137,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
     for (const cfg of CONFIGS) {
       let i = 0;
       await Promise.all(
-        Array.from({ length: 3 }, async () => {
+        Array.from({ length: WORKERS }, async () => {
           while (i < sample.length) {
             const q = sample[i++];
             const run = await runPipeline(KB_MODE === "perq" ? kbForQuery(items, q, PERQ_SIZE) : items, q, cfg, NOW);
@@ -134,11 +153,18 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
               tone: "warm",
               language: "tr",
             };
-            const out = await llmCached("reply", { v: 1, input }, async () => {
-              const r = await suggestReply(input);
-              return r.source === "openai" ? { reply: r.reply, intent: r.intent, u: r.claimAudit?.u ?? 0 } : null;
-            });
-            if (!out) continue;
+            let out: { reply: string; intent: string; u: number } | null = null;
+            for (let attempt = 0; attempt <= RETRIES && !out; attempt++) {
+              if (attempt > 0) await new Promise((r) => setTimeout(r, 20_000 * attempt));
+              out = await llmCached("reply", { v: 1, input }, async () => {
+                const r = await suggestReply(input);
+                return r.source === "openai" ? { reply: r.reply, intent: r.intent, u: r.claimAudit?.u ?? 0 } : null;
+              });
+            }
+            if (!out) {
+              rows.push({ config: cfg.name, qid: q.id, group: q.group, invalid: true, inBlock: false, anchored: false, anchorHit: null, missing: false, unsupported: 0, handoff: false, foreign: false });
+              continue;
+            }
             const anchors = q.answers.flatMap((a) => numericAnchors(a.needles[0] ?? ""));
             rows.push({
               config: cfg.name,
@@ -164,6 +190,6 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
       );
     }
     complete = true;
-    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.filter((r) => !r.invalid).length).toBeGreaterThan(0);
   }, 90 * 60_000);
 });

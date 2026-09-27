@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildRerankRequest, RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { fusedWindow, labFetch, labRerankRequest, latencyLines, mixedWindow, runPipeline, traceAnswer, type LabConfig, type LabItem, type LabRow, type LabRun } from "../eval/rag-lab/core";
 import { buildScaleLab, kbForQuery, type ScaleSetFile } from "../eval/rag-lab/scale-set";
+import { modelCallGapMs, paceModelCall } from "../eval/rag-lab/cache";
 
 // RAG LAB ölçerinin kendisi (#189): ölçer yanlışsa "kaçak aşaması" tablosu yanlış karar doğurur. Bu pinler ağsız koşar.
 
@@ -212,5 +213,36 @@ describe("rag-lab — gerçek müşteri boyutu (soru başına bilgi tabanı)", (
   it("metinler tam setle BİREBİR aynı nesneler (önbellek anahtarı değişmez)", () => {
     const kb = kbForQuery(all, q("a", [["ÜST rafındadır"]]), 60);
     for (const it of kb) expect(all).toContain(it);
+  });
+});
+
+describe("rag-lab — dakikalık istek tavanı (canlıyla paylaşılan token sınırı)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  it("tavan yoksa bekleme yok; RAG_LAB_RPM=8 → çağrılar arası en az 7,5 sn; geçersiz değer tavansız", () => {
+    vi.stubEnv("RAG_LAB_RPM", "");
+    expect(modelCallGapMs()).toBe(0);
+    vi.stubEnv("RAG_LAB_RPM", "8");
+    expect(modelCallGapMs()).toBe(7_500);
+    vi.stubEnv("RAG_LAB_RPM", "hızlı");
+    expect(modelCallGapMs()).toBe(0);
+  });
+
+  it("🚨 ardışık üç çağrı sıraya girer: ilki hemen, sonrakiler aralıkla (eşzamanlı işçiler aynı yuvayı alamaz)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000_000);
+    vi.stubEnv("RAG_LAB_RPM", "60");
+    const done: number[] = [];
+    const calls = [0, 1, 2].map((i) => paceModelCall().then(() => done.push(i)));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toEqual([0]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(done).toEqual([0, 1]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await Promise.all(calls);
+    expect(done).toEqual([0, 1, 2]);
   });
 });

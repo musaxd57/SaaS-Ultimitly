@@ -32,6 +32,26 @@ function assertOnline(what: string): void {
   if (process.env.RAG_LAB_OFFLINE === "1") throw new OfflineMiss(`RAG_LAB_OFFLINE: önbellekte yok (${what}) — ağa çıkılmadı`);
 }
 
+/**
+ * DAKİKALIK İSTEK TAVANI (`RAG_LAB_RPM`, 09-27): ölçüm çağrıları canlıyla AYNI hesabın dakikalık token sınırını paylaşır. 09-27
+ * cevap düzeyi koşusu 3 işçiyle gpt-5.1 sınırına takıldı (252 istek 429; sorular sessizce düştü, canlı cevaplar da aynı dakikalarda
+ * sınıra takılabilirdi). Tavan verilirse model çağrıları (önbellekte olmayanlar) aralarında en az 60/RPM sn bırakarak sıraya girer;
+ * verilmezse davranış eskisi gibi. Önbellekten okunan çıktı tavana TAKILMAZ.
+ */
+let nextSlot = 0;
+export function modelCallGapMs(): number {
+  const rpm = Number(process.env.RAG_LAB_RPM);
+  return Number.isFinite(rpm) && rpm > 0 ? Math.ceil(60_000 / rpm) : 0;
+}
+export async function paceModelCall(): Promise<void> {
+  const gap = modelCallGapMs();
+  if (gap === 0) return;
+  const now = Date.now();
+  const at = Math.max(now, nextSlot);
+  nextSlot = at + gap;
+  if (at > now) await new Promise((r) => setTimeout(r, at - now));
+}
+
 /** Gömme (üretim istemcisi `embedTexts`), disk önbellekli. Sağlayıcı düşerse fırlatır (eksik ölçüm sonuç sayılmaz). */
 export async function embedCached(texts: readonly string[]): Promise<Map<string, Float32Array>> {
   const model = embeddingModel();
@@ -82,6 +102,7 @@ export async function llmCached<T>(kind: string, keyParts: unknown, run: () => P
   }
   assertOnline(`model çıktısı ${kind}`);
   s.calls += 1;
+  await paceModelCall();
   const v = await run();
   if (v !== null) writeFileSync(f, JSON.stringify(v));
   return v;
@@ -110,6 +131,7 @@ export async function llmCachedTimed<T>(
   }
   assertOnline(`model çıktısı ${kind}`);
   s.calls += 1;
+  await paceModelCall();
   const { value, ms } = await run();
   if (value !== null) {
     writeFileSync(f, JSON.stringify(value));
