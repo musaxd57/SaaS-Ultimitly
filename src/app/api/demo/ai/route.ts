@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
-import { badRequest, jsonOk, notFound, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
+import { badRequest, jsonOk, notFound, serverError, tooManyRequests, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { DEMO_HOURLY_LIMIT } from "@/lib/constants";
 
@@ -49,6 +49,10 @@ export async function POST(req: NextRequest) {
   // Master switch — this endpoint simply doesn't exist until the operator
   // deliberately enables the landing demo.
   if (process.env.LANDING_DEMO_ENABLED !== "1") return notFound();
+  // JSON kontrolü IP kovasından ÖNCE (#211; kimlik rotalarıyla aynı kural): yalnız BAŞLIK bakılır, gövde okunmaz — geçersiz JSON gövde
+  // aşağıda kovayı YİNE tüketir (09-11 kararı aynen), yalnız başka bir sitenin ziyaretçi tarayıcısıyla `text/plain` POST attırıp
+  // o ağın demo hakkını yakması kapanır.
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
 
   try {
     // 🚨 BÜTÇE ÖNCE TÜKETİLİR — VE BU BİLİNÇLİ (inceleme turu, 09-11 DÜZELTMESİ).

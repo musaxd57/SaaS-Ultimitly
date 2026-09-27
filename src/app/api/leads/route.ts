@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { leadSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
+import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
@@ -15,6 +15,9 @@ function esc(s: string): string {
 // review in the Operator Panel.
 export async function POST(req: NextRequest) {
   try {
+    // JSON kontrolü IP kovasından ÖNCE (#211; kimlik rotalarıyla aynı kural, `hasJsonContentType`): başka bir site ziyaretçisinin
+    // tarayıcısından `text/plain` POST'la o ağın kovasını yakamasın. Geçersiz JSON gövde kovayı YİNE tüketir.
+    if (!hasJsonContentType(req)) return unsupportedMediaType();
     const limited = await rateLimit(`lead:${rateLimitClientKey(req)}`, 5, 60 * 60_000); // 5 / hour
     if (!limited.ok) {
       return NextResponse.json(

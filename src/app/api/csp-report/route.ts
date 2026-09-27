@@ -41,20 +41,21 @@ const ACCEPTED_TYPES = new Set(["application/csp-report", "application/reports+j
 const MAX_BODY_BYTES = 8 * 1024;
 
 export async function POST(req: NextRequest) {
-  // ⚠️ BÜTÇE DOĞRULAMADAN ÖNCE TÜKETİLİR — kardeş `/api/leads` ile aynı gerekçe
-  // ve `reservations/import`ın TERSİ: burada istekte bulunan ANONİM ve kötüye
+  // Content-Type kapısı KOVADAN ÖNCE (#211; kimlik rotalarıyla aynı kural): tarayıcı raporu DAİMA bu MIME'lerden biriyle gelir ve
+  // hiçbiri CORS-safelisted değil. Rastgele bir form / `text/plain` POST'u (başka bir sitenin ziyaretçi tarayıcısıyla) buradan geçemez
+  // ve o ağın rapor kovasını YAKAMAZ. Yalnız başlık bakılır, gövde okunmaz.
+  const essence = (req.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+  if (!ACCEPTED_TYPES.has(essence)) {
+    return NextResponse.json({ ok: false }, { status: 415 });
+  }
+
+  // ⚠️ BÜTÇE GÖVDE DOĞRULAMASINDAN ÖNCE TÜKETİLİR — kardeş `/api/leads` ile aynı
+  // gerekçe ve `reservations/import`ın TERSİ: burada istekte bulunan ANONİM ve kötüye
   // kullanım vektörünün ta kendisi. Geçersiz gövdelerle sınırsız deneme
   // yapılabilseydi kova hiç dolmadan uç yorulurdu.
   const limited = await rateLimit(`csp-report:${rateLimitClientKey(req)}`, 30, 60 * 60_000); // 30/saat
   if (!limited.ok) {
     return NextResponse.json({ ok: false }, { status: 429, headers: { "Retry-After": String(limited.retryAfter) } });
-  }
-
-  // Content-Type kapısı: tarayıcı raporu DAİMA bu MIME'lerden biriyle gelir.
-  // Rastgele bir form POST'u (CSRF benzeri gürültü) buradan geçemez.
-  const essence = (req.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
-  if (!ACCEPTED_TYPES.has(essence)) {
-    return NextResponse.json({ ok: false }, { status: 415 });
   }
 
   let raw: string;

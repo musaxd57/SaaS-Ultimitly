@@ -26,7 +26,7 @@ import {
   sendQrEscalationAlertBounded,
   qrEscalationEventId,
 } from "@/lib/guest-chat-alerts";
-import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError } from "@/lib/api";
+import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
@@ -419,6 +419,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
 async function handleGuestChatPost(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   // Global kill-switch read at request time (flip without a rebuild).
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
+
+  // JSON kontrolü IP kovasından ÖNCE (#211; kimlik rotalarıyla aynı kural): başka bir site, misafirin tarayıcısından `text/plain` POST
+  // attırıp dairedeki ağın sohbet kovasını yakamasın. Geçersiz JSON gövde kovayı YİNE tüketir.
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
 
   // Public + unauthenticated → cap per IP first.
   const ipLimit = await rateLimit(`guestchat-ip:${rateLimitClientKey(req)}`, 20, 60_000);
