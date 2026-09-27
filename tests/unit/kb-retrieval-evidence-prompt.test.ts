@@ -291,9 +291,9 @@ describe("mimari pinler", () => {
     expect(src).toMatch(/retrieveKbForPrompt\(\{\s*items: ctx\.knowledgeBase/);
     const auto = read("src/lib/automation.ts");
     // automation: seçim SIR SÜZGEÇLERİNDEN geçmiş kümenin (`kbVisible`) kalemleriyle — #189'dan beri HAM metinle (yer tutucu
-    // ikamesi seçimden sonra, `placeholders`); sır kararı ikame SONRASI metinle verilir (davranış pini
-    // `tests/integration/kb-retrieval-secret-scope.test.ts` "sır kararı İKAME SONRASI metinle").
-    expect(auto).toMatch(/const kbVisibleIds = new Set\(kbVisible\.map\(\(i\) => i\.id\)\)/);
-    expect(auto).toMatch(/retrieveKbForPrompt\(\{\s*items: kbRaw\.filter\(\(i\) => kbVisibleIds\.has\(i\.id\)\)/);
+    // ikamesi seçimden sonra, `placeholders`); sır kararı HAM ve ikame SONRASI metinle verilir (B3 09-27; davranış pini
+    // `tests/integration/kb-secret-scan-two-stage.test.ts`).
+    expect(auto).toMatch(/const kbVisible = kbForStayScopeRawAndFilled\(kbRaw, conversation\.reservation, kbPlaceholders\);/);
+    expect(auto).toMatch(/retrieveKbForPrompt\(\{\s*items: kbVisible,/);
   });
 });
