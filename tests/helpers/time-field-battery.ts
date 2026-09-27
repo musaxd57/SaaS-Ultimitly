@@ -387,6 +387,9 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   X("checkout", "Anahtar", "Anahtarları çıkış günü 10:00'dan sonra kutuya bırakın."),
   // Başvurulu "by" ("before check-out by 10 am") çıkış saati değil; "the day you depart" çıkış günüdür.
   X("checkout", "Çöp", "Please take out the trash before check-out by 10 am."),
+  // Gün kaymalı başvurudaki TEK saat ("the day before arrival at 18:00") de değer değil (aralık / "by" olmadan; ikinci mutasyon turu).
+  X("checkin", "Depozito", "Please pay the deposit the day before arrival at 18:00."),
+  X("checkin", "Ön kayıt", "Varıştan bir gün önce saat 18:00'de online formu doldurun."),
   T("checkout", "Door code", "The door code is deactivated at 11 am on the day you depart.", ["checkout:11:00"]),
   // "-nmaz" kural dilidir; daireyi teslim ALMAK çıkış değildir; "misafir gelmiyorsa" müsaitliktir; giriş kontuarı bir hizmettir.
   T("rules", "Ev kuralları", "Gece 23:00'ten sonra yüksek sesle müzik çalınmaz.", ["quiet_hours:23:00"]),

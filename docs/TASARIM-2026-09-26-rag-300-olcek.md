@@ -212,14 +212,14 @@ noktasından sonraki ARALIK başka işin penceresidir (aynı cümlecikteki tek s
 
 | ölçüm | canlı kural (`7382338`) | yeni kural |
 |---|---|---|
-| iki yönlü batarya (`tests/helpers/time-field-battery.ts`, gerçek / tuzak) | 99/168 · 40/144 (dördüncü tur `8603f97`: 166/168 · 133/144) | **168/168 · 144/144** |
+| iki yönlü batarya (`tests/helpers/time-field-battery.ts`, gerçek / tuzak) | 99/168 · 40/146 (dördüncü tur `8603f97`: 166/168 · 135/146) | **168/168 · 146/146** |
 | kör batarya 1 (115 cümle; ikinci turda bakıldı → "görüldü") | 43/59 · 30/56 | 57/59 · 56/56 |
 | **kör batarya 2 (140 cümle; AYARSIZ, ikinci tur kuralıyla)** | 42/61 · 39/69 | **49/61 · 60/69** |
 | **kör batarya 3 (160 cümle; AYARSIZ, üçüncü tur kuralıyla)** | 35/65 · 42/80 | **51/65 · 72/80** |
 | kör batarya 2 / 3, sonraki turlardan sonra ("görüldü") | — | 61/61 · 69/69 / 64/65 · 79/80 |
 | 60 kalem, mülk saatiyle çelişen soru (yanlış alarm) | %30 (geniş blokla %58) | **%3,9 (%12,9) — hepsi gerçek** (beşinci turda aynı) |
 | 276 kalemlik dev setinde okunan gerçek saat | — | ilk turla birebir (kayıp yok; beşinci turda da fark 0) |
-| mutasyon (`scripts/mutation-run.mjs`, saat alanı kuralı) | — | 140/160 → yaşayanlar pinlendi / kaldırıldı (yeniden koşu ↓) |
+| mutasyon (`scripts/mutation-run.mjs`, saat alanı kuralı) | — | 140/160 → pin / silme → ikinci tur 178/179 (yaşayan R11 gün kaymalı tek saat: pinlendi) |
 
 Kalan %3,9 / %12,9'un tek kaynağı dev setine bilerek konmuş gerçek çelişkidir ("standart çıkış saati en geç 12:00" ↔ mülk 11:00): tutulması
 doğrudur. Kör bataryanın kalan iki farkı bilinçlidir: yere bağlı sessizlik kuralı ("havuz başında 22:00'den sonra müzik yasak") cümlecikte

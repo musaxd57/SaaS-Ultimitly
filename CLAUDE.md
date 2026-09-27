@@ -883,7 +883,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   🚨 **Vade kapısı TEK SAAT (`ENQUEUE_CLOCK`, CI #1170):** enqueue `availableAt`'i worker'ın kıyasladığı saatle YAZAR;
   şema varsayılanı (`@default(now())`) başka saattir ve timestamp(3)'e yuvarlanır → aynı milisaniyede satır "vadesi
   gelmedi" görünüyordu (rastgele kırmızı CI = atlanan yayın). JS saatiyle kıyaslanan YENİ zaman kolonu şema varsayılanına
-  BIRAKILMAZ. E-posta kuyruğu da aynı kuralla (`nextAttemptAt`, kurucu onayı 09-25; `email-outbox-enqueue-clock.test.ts`).
+  BIRAKILMAZ. E-posta kuyruğu da aynı kuralla (`nextAttemptAt`, kurucu onayı 09-25; `email-outbox-enqueue-clock.test.ts`). Satırı
+  DOĞRUDAN yazan test fikstürü de vade kolonunu JS saatiyle verir (CI #1240: AAD testinin `pending` satırı şema varsayılanıyla
+  kalmıştı → veritabanı saati birkaç ms ilerideyken "vadesi gelmedi", rastgele kırmızı).
 - CLAIM-THEN-NOTIFY: atomik işaret + yan etki → yan etkinin SONUCU okunur; `emailService.send` bildirim
   yollarında KULLANILMAZ (`sendReporting`); `reportError` `throttled/configured:false` başarısızlık değil.
 - Escalation üç yol (model · kelime alerts · `applyInboundMessageRules`); m48 triyaj ikinci model çağrısı
@@ -1229,8 +1231,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu.
   İkinci bir saat/çelişki kuralı YAZILMAZ. Host raporu yalnız cümlecik saatini sayar; misafir yolu temkinli.
   🚨 **09-27 yanlış alarm turu (kurucu "en iyi şekilde, didik didik"; belge `docs/TASARIM-2026-09-26-rag-300-olcek.md` §4d;
-  iki yönlü batarya `tests/helpers/time-field-battery.ts` — gerçek saat okunur + tuzak okunmaz; canlı kural 99/168 gerçek · 40/144
-  tuzak, yeni kural 168/168 · 144/144; kuralları görmemiş ajanın kör bataryası 3 AYARSIZ 35/65 · 42/80 → 51/65 · 72/80):** saatin BAĞLAMI okunur (`timeRole`: "…'e kadar / sonrası / önce", until/after/before): geç/erken sınırı ("11:00
+  iki yönlü batarya `tests/helpers/time-field-battery.ts` — gerçek saat okunur + tuzak okunmaz; canlı kural 99/168 gerçek · 40/146
+  tuzak, yeni kural 168/168 · 146/146; kuralları görmemiş ajanın kör bataryası 3 AYARSIZ 35/65 · 42/80 → 51/65 · 72/80):** saatin BAĞLAMI okunur (`timeRole`: "…'e kadar / sonrası / önce", until/after/before): geç/erken sınırı ("11:00
   sonrası geç çıkış ücreti"), başvuru noktası ("çıkıştan sonra … 14:00'e kadar") ve koşulun İÇİNDEKİ saat değer DEĞİL (Türkçe koşul
   fiilinden — "-rse/-sanız/müsaitse" — sonra cümlecik bölünür; "of course / persembe" koşul değil). Konaklama saati DEĞİL: valizle
   yapılan iş, araç girişi, "girişin arkası/önü", "check-in help/desk / giriş talimatı", iletişim saati (ödünç engeli), ulaşım
