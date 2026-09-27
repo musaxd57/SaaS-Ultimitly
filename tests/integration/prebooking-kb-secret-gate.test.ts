@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { kbForStayScope, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
 
 // ---------------------------------------------------------------------------
 // 🚨 REZERVASYON ÖNCESİ SORUDA KB SIRLARI PROMPT'A GİRMEZ (denetim 08-09).
@@ -52,13 +52,25 @@ describe("rezervasyon öncesi KB sır kapısı", () => {
     expect(from).toBeGreaterThan(-1); // çapa kayarsa test SESSİZCE no-op olmasın
     const gate = code.slice(from, code.indexOf(";", from) + 1);
 
-    // Kapı var.
-    expect(gate).toMatch(/withoutSecretKbItems\(/);
-    // Ve koşullu — koşulsuz uygulamak rezervasyonlu misafirden de kodu saklardı.
-    expect(gate).toMatch(/confirmedStay\s*\n?\s*\?\s*kb\s*\n?\s*:/);
-    // İKİNCİ BACAK (denetim 08-09): kategori elemesi. İlk yazımımda YOKTU ve
-    // oto-gönderen yüzey, insanın gözden geçirdiği QR yüzeyinden ZAYIF kalıyordu.
-    expect(gate).toMatch(/QR_SECRET_CATEGORIES/);
+    // 09-27 (Codex): kural TEK KAYNAK `kbForStayScope` (yönetici "AI öner" rotası da kullanır). Kanal yolu onu konuşmanın
+    // rezervasyonuyla çağırır; kuralın kendisi ↓ DAVRANIŞLA pinlenir (kaynak taraması yalnız bağlantıyı gösterir).
+    expect(gate).toBe("const kbVisible = kbForStayScope(kb, conversation.reservation);");
+  });
+
+  it("kbForStayScope: onaylı / tamamlanmış konaklamada HEPSİ; aksi hâlde İKİ bacak (kategori + içerik) — davranış", () => {
+    const items = [
+      { category: "wifi", title: "Wi-Fi", content: "Ağ: LaleEv_5G" },
+      { category: "checkin", title: "Anahtar kutusu", content: "Açılış dizisi: ABCD" },
+      { category: "faq", title: "Giriş notu", content: "Bina girişindeki anahtar kutusu kodu 4821" },
+      { category: "parking", title: "Otopark", content: "Bina altında ücretsiz otopark var" },
+    ];
+    for (const status of ["confirmed", "completed"]) {
+      expect(kbForStayScope(items, { status }).map((i) => i.title), status).toEqual(items.map((i) => i.title));
+    }
+    for (const reservation of [null, undefined, { status: "pending" }, { status: "inquiry" }, { status: "cancelled" }]) {
+      // Kategori bacağı (Wi-Fi, rakamsız anahtar kutusu) + içerik bacağı (faq'taki kod) birlikte; sıradan bilgi kalır.
+      expect(kbForStayScope(items, reservation).map((i) => i.title), JSON.stringify(reservation)).toEqual(["Otopark"]);
+    }
   });
 
   it("KATEGORİ BACAĞI, içerik sezgiselinin GÖRMEDİĞİ kalemi düşürür", () => {
