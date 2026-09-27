@@ -491,5 +491,49 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // STRICT "1" FEATURE FLAGS — UYARI, HATA DEGIL (A7 #1, 09-27). Asagidaki bayraklar calisma aninda `=== "1"` ile okunur:
+  // "true" / "yes" / "on" / " 1" KAPALI demektir. KB_* bayraklari "true"yu da kabul ettigi icin operator ayni aliskanlikla
+  // AI_UNDERSTANDING_ENABLED=true yazip bayragi SESSIZCE kapali birakabiliyordu. Davranis DEGISMEZ; yalniz acilista gorunur.
+  // Liste kaynakla pinli (tests/unit/env-strict-flags.test.ts): kodda `env.X === "1"` okunan her bayrak burada.
+  for (const name of STRICT_ONE_FLAGS) {
+    const raw = env[name] === undefined ? undefined : TRIMMED_STRICT_FLAGS.has(name) ? env[name].trim() : env[name];
+    if (raw === undefined || raw === "" || raw === "0" || raw === "1") continue;
+    const shown = /^[\w .+-]{1,16}$/.test(raw) ? `"${raw}"` : "an unrecognized value";
+    warnings.push(`${name} is set to ${shown}, which is read as OFF — only "1" turns this flag on (use 1 or 0).`);
+  }
+
   return { errors, warnings };
 }
+
+/** Calisma aninda YALNIZ "1" ile acilan bayraklar (kaynakla pinli). */
+export const STRICT_ONE_FLAGS = Object.freeze([
+  "AI_ACTION_CLAIMS_ENABLED",
+  "AI_CONVERSATION_ITEMS_ENABLED",
+  "AI_CONVERSATION_STATE_ENABLED",
+  "AI_HOUSE_RULES_SHADOW",
+  "AI_STAY_GUARD_ENABLED",
+  "AI_UNDERSTANDING_ENABLED",
+  "AUTO_REPLY_ENABLED",
+  "CALENDAR_URL_CONTRACT_ENABLED",
+  "CHANNEL_CONNECTION_READ",
+  "DURABLE_OUTBOX_ENABLED",
+  "EMAIL_OUTBOX_ENABLED",
+  "GUEST_CHAT_ENABLED",
+  "GUEST_ERASURE_ENABLED",
+  "HOUSE_RULES_CARD_ENABLED",
+  "ICAL_DISAPPEARANCE_RECONCILE_ENABLED",
+  "INTERNAL_CRON_DISABLED",
+  "KB_HISTORY_SUGGESTIONS_ENABLED",
+  "LANDING_DEMO_ENABLED",
+  "QR_ESCALATION_EMAIL_ENABLED",
+  "QR_INFORMATIONAL_BAND_ENABLED",
+  "QR_PIN_ENABLED",
+  "RETENTION_MESSAGE_AGE_ANCHOR",
+  "TRUST_CF_HEADER",
+  "TRUST_X_REAL_IP",
+  "UNVERIFIED_SWEEP_DRY_RUN",
+  "UNVERIFIED_SWEEP_ENABLED",
+]);
+
+/** Bunlar okurken bosluklari kirpar (`?.trim() === "1"`): " 1" ACIK sayilir, uyari verilmez. */
+const TRIMMED_STRICT_FLAGS = new Set(["HOUSE_RULES_CARD_ENABLED"]);
