@@ -195,8 +195,9 @@ export function lexiconProblems(concepts: readonly Concept[] = CONCEPTS): string
  * bulmuyordu (60 kalemde tek sonuç: garaj kumandası, "unuttum ~ unutmayın" üzerinden). Kök sökücüye "-m" kuralı ÖLÇÜLÜP REDDEDİLDİ
  * (değerlendirme metinlerinde 164 belirteç değişiyor, 122 yeni çakışma: "akşam → aks = aksi", "modem → mo = moda", "konaklama →
  * konak", "toplam → top"), sözlük dışı geri çekilme de (60 tetiklenmenin çoğu gürültü: "kalem → ka", "kapsam → kap"). Buradaki kural
- * DAR: yalnız Türkçe sorguda (çağıran söyler), "-m"siz kök bir KAVRAM TERİMİNİN köküyse kavram tanınır (genişletme + ipucu, ağırlık
- * her zamanki gibi); kök sökücü, BM25 ve bilgi tabanı tarafı DEĞİŞMEZ.
+ * DAR: "-m"siz kök bir KAVRAM TERİMİNİN köküyse kavram tanınır (genişletme + ipucu, ağırlık her zamanki gibi); kök sökücü, BM25 ve
+ * bilgi tabanı tarafı DEĞİŞMEZ. Kök en az 5 harf ("team" → "tea" kahve kavramı olmasın). Dil kapısı YOK: Türkçe olmayan 5.003
+ * değerlendirme metninde tek kavram eklemedi, kısa Türkçe mesajlar ise ("Kahvem bitti", "Kumandam bozuk") İngilizce tespit ediliyordu.
  */
 /**
  * YÜZEY BİÇİMİ KORUMALI KÖK (09-27, #208 A10): ASCII katlamada "açıl-" ("açılıyor", "açılır", "açılmıyor") da "acil"e iner → "Havuz ne
@@ -309,7 +310,7 @@ export function expandQuery(
   extra: readonly ConceptMatch[] = [],
   units?: readonly string[],
   opts: {
-    /** Türkçe sorguda ünlü-sonu iyelik "-m" kavram tespitinde de denenir (↑`possessiveBareStems`). */
+    /** Ünlü-sonu iyelik "-m" kavram tespitinde de denenir (↑`possessiveBareStems`; getirme çağıranı açar). */
     possessive?: boolean;
     /** Sorgunun HAM (katlanmış) belirteçleri — yüzey biçimi korumalı kökler için (↑`SURFACE_GUARDED_STEMS`). */
     tokens?: readonly string[];

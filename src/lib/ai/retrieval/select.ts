@@ -567,7 +567,8 @@ function rankForSubquery(
     opt.sources.foreign ? matchForeignConcepts(subquery) : [],
     phraseUnits(subquery),
     {
-      possessive: opt.queryIsTurkish,
+      // Dil kapısı YOK (ölçüldü 09-27: Türkçe olmayan 5.003 metinde kavram eklemedi; kısa Türkçe "Kahvem bitti" İngilizce tespit ediliyordu).
+      possessive: true,
       tokens: [...tokenize(normalizeForRetrieval(subquery)), ...(carried.length > 0 ? opt.carryTokens : [])],
     },
   );

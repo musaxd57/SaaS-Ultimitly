@@ -176,7 +176,8 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   sınırları: markete→mark, kilidi→ki, duşu→du, görevliniz→gorevl. `hasEvidence` yüklemi (güçlü kök / n-gram ≥0.3 /
   anlamsal ≥0.3) — `base > 0` yetmez. 🚨 Ünlü-sonu iyelik "-m" sökümü REDDEDİLDİ (09-27: 164 belirteç / 122 yeni çakışma — akşam=aksi,
   modem=moda, konaklama=konak, toplam=top) ve sözlük dışı geri çekilme de (tetiklenmelerin çoğu gürültü); "şifremi / arabamı /
-  kumandam" yalnız KAVRAM tespitinde tanınır (Türkçe sorgu, "-m"siz kök bir kavram teriminin köküyse; `possessiveBareStems`).
+  kumandam" yalnız KAVRAM tespitinde tanınır ("-m"siz kök ≥5 harf ve bir kavram teriminin köküyse; `possessiveBareStems`; dil kapısı
+  YOK — Türkçe olmayan 5.003 metinde etkisiz, kısa Türkçe "Kahvem bitti" İngilizce tespit ediliyordu).
   Sözlükte tek kelimelik terimin kökü DURAK sözcük olamaz (`lexiconProblems` pinli; "noise/waste/hastane" taban kök, "ısınmıyor"
   korumalı kök — dördü de yıllardır ölüydü). Getirmede "acil" kökü kavramı yalnız yüzey biçimi güvenlik sınıflandırıcısının tam
   sözcük listesindeyse tanır (`EMERGENCY_ACIL_FORMS`, parite pinli; "açılıyor" ≠ acil); belirteç vermeyen çağıran (saat alanı) değişmez.

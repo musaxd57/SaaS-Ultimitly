@@ -49,8 +49,9 @@ describe("ünlü-sonu iyelik '-m' — kavram tespiti", () => {
     // "u" + m (taban kökte "-um" sökülemiyor: "havlum" → "havlum") ve "a" + m.
     expect(matchConcepts(["havlum"], { possessive: true }).map((m) => m.concept.id)).toContain("towels");
     expect(matchConcepts(["arabam"], { possessive: true }).map((m) => m.concept.id)).toContain("parking");
-    // Kısa kök (4 harf) denenmez: "odam" / "adam" hiçbir kavrama bağlanmaz.
+    // Kısa kök (4 harf) denenmez: "adam" / "team" ("tea" + m → kahve kavramı) hiçbir kavrama bağlanmaz.
     expect(matchConcepts(["adam"], { possessive: true })).toEqual([]);
+    expect(matchConcepts(["team"], { possessive: true })).toEqual([]);
   });
 
   // Gerçek boyut (dev seti, 302 kalem — görülebilir set; holdout OKUNMAZ): küçük fikstürde karakter 3-gram kaynağı "şifremi ~ şifresi"yi
@@ -65,6 +66,10 @@ describe("ünlü-sonu iyelik '-m' — kavram tespiti", () => {
   it("🚨 gerçek boyut: 'Arabamı nereye bırakayım?' → otopark kalemleri · 'Kumandam çalışmıyor' → TV kalemi", () => {
     expect(pickDev("Arabamı nereye bırakayım?", 3).every((id) => id.startsWith("d_parking"))).toBe(true);
     expect(pickDev("Kumandam çalışmıyor", 5)).toContain("d_wifi_tv_6");
+  });
+
+  it("🚨 dil tespitinin İngilizce sandığı kısa Türkçe mesaj da ('Kumandam bozuk' → en): TV kalemi", () => {
+    expect(pickDev("Kumandam bozuk", 5)).toContain("d_wifi_tv_6");
   });
 
   it("KONTROL — iyeliksiz soru eskisi gibi; İngilizce 'team' çay (kahve kavramı) sanılmaz", () => {
@@ -115,6 +120,9 @@ describe("sözlük terimleri durak sözcüğe inmez + 'açılıyor' acil sayılm
     const ids = pick2("Havuz ne zaman açılıyor?");
     expect(ids[0]).toBe("pool");
     expect(ids).not.toContain("safety");
+    // Konusu bilgi tabanında olmayan "açıl-" sorusu: acil kavramının genişletmesi ("ambulans", "hastane") kalem ÇEKMEZ.
+    expect(pick2("Market ne zaman açılıyor?")).not.toContain("amb");
+    expect(pick2("Kapı açılmıyor")).not.toContain("hospital");
   });
 
   it("KONTROL — gerçek acil hâlâ acil: 'Acil durum var!' / 'acilen yardım lazım' → acil kavramı ve kalemi", () => {
@@ -122,14 +130,20 @@ describe("sözlük terimleri durak sözcüğe inmez + 'açılıyor' acil sayılm
       expect(pick2(msg), msg).toContain("safety");
     }
     // İnce takip sorusu: geçmişteki GERÇEK "acil" taşınır (taşınan mesajın ham belirteçleri de korumaya girer).
+    // Önceki "ACİL!" CEVAPLANMIŞ (bekleyen alt sorgu değil) → yalnız taşınan kökten gelir; kavram yolu taşınan belirteçle açılır.
     const thin = selectKbForPrompt({
       items: items2,
       guestMessage: "Ne yapayım?",
-      history: [{ direction: "inbound", body: "ACİL!" }, { direction: "inbound", body: "Ne yapayım?" }],
+      history: [
+        { direction: "inbound", body: "ACİL!" },
+        { direction: "outbound", body: "Hemen 112 arayın lütfen." },
+        { direction: "inbound", body: "Ne yapayım?" },
+      ],
       mode: "hybrid",
       now: NOW,
-    }).items.map((i) => i.id);
-    expect(thin).toContain("amb");
+    });
+    expect(thin.items.map((i) => i.id)).toContain("amb");
+    expect(thin.evidence.fb).toBe("none");
     // Belirteç verilmeyen çağıran (saat alanı kuralı) DEĞİŞMEDİ: kök tek başına eskisi gibi kavramı tanır.
     expect(matchConcepts(contentStems("Havuz ne zaman açılıyor?")).map((m) => m.concept.id)).toContain("emergency");
   });
