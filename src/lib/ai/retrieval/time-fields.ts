@@ -663,6 +663,23 @@ const TR_CONCESSIVE = /(?<![a-zçğıöşü])(?:[a-zçğıöşü]+s[ae]n[ıi]z|o
 const LATEST_NEAR = /(?<![a-zçğıöşü])en\s+geç(?![a-zçğıöşü])|\bat\s+the\s+latest\b|\b(?:no|not)\s+later\s+than\b|\blatest\b/;
 const latestNear = (clause: string, start: number, end: number) =>
   LATEST_NEAR.test(clause.slice(Math.max(0, start - 24), start).toLocaleLowerCase("tr")) || LATEST_NEAR.test(clause.slice(end, end + 24).toLocaleLowerCase("tr"));
+const DOOR_WORD = /^(?:kapi|door|doors|gate|gates)/;
+const DOOR_CLOSE = /^(?:kapan|kilitlen|close|closes|closed|closing|lock|locks|locked)/;
+/** "aç-" fiilinin çekimleri (ASCII katlanmış): "açabilirsiniz / açılıyor / açın / açar" — "ac" (AC) ve "acil" (acil) SÖZCÜKLERİ hariç. */
+const AC_WORDS = new Set(["ac", "acil", "acilen", "acile", "acilde", "acilden", "acilin", "acildir", "aciliyet", "aciliyeti"]);
+const NEUTRAL_VERB = (t: string) => (t.startsWith("ac") && !AC_WORDS.has(t) && /^ac(?:abil|il|ar|in|iyor|ma|mak|ti|tik|ik)/.test(t)) || ["get", "gets", "come", "comes"].includes(t);
+/**
+ * NESNELİ "leave" (09-27, A10 #2): "Please leave used towels in the bathtub by 10 am", "leave the trash before 9 am", "leave your car until
+ * 12:00" bir şeyi BIRAKMAKTIR, çıkış değil. Nesne konaklama yeri ya da erişim adıysa ("leave the apartment / the keys by 11") çıkış kalır.
+ */
+const LEAVE_DETERMINERS = new Set(["the", "your", "used", "all", "any", "dirty", "our", "their", "its", "a", "an"]);
+const LEAVE_NOT_OBJECT = /^(?:by|at|before|until|till|no|not|on|in|from|after|around|between|and|or|early|late|promptly|premises|place|unit|home|room|rooms|building)$/;
+function leaveObject(toks: readonly string[], i: number): boolean {
+  let j = i + 1;
+  while (LEAVE_DETERMINERS.has(toks[j] ?? "")) j++;
+  const n = toks[j] ?? "";
+  return n !== "" && !LEAVE_NOT_OBJECT.test(n) && !TIME_TOKEN.test(n) && !/^\d/.test(n) && !STAY_PLACE.test(n) && !ACCESS_NOUN.test(n);
+}
 /** Olumsuz / yasak anlatımı: "No check-in after 22:00", "22:00'den sonra giriş yapılamaz / yasaktır". */
 const NEGATION_TOKEN = (t: string) => t === "no" || t === "not" || t === "never" || t === "cannot" || NEG_VERB.test(t) || /(?:mamaktadir|memektedir|yasak)/.test(t);
 /**
@@ -737,6 +754,8 @@ interface ClauseInfo {
   negation: boolean;
   /** Konaklama çapası (daire / "check-in" / misafire hitap eden gir- / yerleş-): taşınan başka-yer girişi bu cümleciğe geçmez. */
   stayAnchor: boolean;
+  /** Kapının kapanma / kilitlenme saati (kapının kendi çalışma saati): aynı cümlenin sonraki cümleciği de başka konudur. */
+  doorSchedule: boolean;
 }
 
 function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; rule?: boolean; spanObj?: boolean; category?: string | null } = {}): ClauseInfo {
@@ -837,7 +856,11 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
   const stems = contentStems(keep.join(" "));
   const units = phraseUnits(keep.join(" "));
   const mentions = timeMentions(clause);
-  const foreign = matchConcepts(stems, { loose: true })
+  // GENEL FİİL "başka konu" değildir (09-27, A10 #1): "Kapıyı 14:00'ten itibaren açabilirsiniz" → "aç-" klimanın "ac"ına, "Kapı 14:00'te
+  // açılıyor" → "acil"e, "You can get in from 2 pm" → "get" adres kalıbına iniyordu → başlığın giriş alanı ödünç alınmıyor, mülkün 15:00'iyle
+  // GERÇEK çelişki kaçıyordu. Bu belirteçler yalnız "başka konu" sayımından çıkar (alan sözlüğü aynen görür); "AC" / "acil" sözcükleri kalır.
+  const foreignStems = contentStems(keep.filter((t) => !NEUTRAL_VERB(t)).join(" "));
+  const foreign = matchConcepts(foreignStems, { loose: true })
     .filter((m) => !m.concept.timeField)
     .map((m) => m.concept.id);
   const transport = toks.some(isTransport) || schedule(toks);
@@ -850,7 +873,7 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
       (t === "check" && toks[i + 1] === "out") ||
       // "yola çıkın" (yolculuğa başlamak) ve havalimanına varmak için çıkmak çıkış değil (09-27); DAİREDEN çıkmak çıkıştır.
       (YOU_LEAVE.test(t) && !/^yol/.test(toks[i - 1] ?? "") && !(transport && !toks.some((x) => STAY_PLACE_ABL.test(x)))) ||
-      (!transport && (t.startsWith("ayril") || t === "leave" || t === "leaving" || t === "departure")),
+      (!transport && (t.startsWith("ayril") || ((t === "leave" || t === "leaving") && !leaveObject(toks, i)) || t === "departure")),
   );
   const luggage = toks.some((t) => LUGGAGE_STEMS.some((h) => t.startsWith(h)));
   const luggageAction = luggage && toks.some((t) => LUGGAGE_ACTION_STEMS.some((h) => t.startsWith(h)));
@@ -969,10 +992,15 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
       !contactWindow &&
       !sending,
   );
+  // Kapının kapanma / kilitlenme saati (09-27, A10 ikizi): "Kapılar 23:00'te kapanır, 07:00'de açılır" kapının kendi çalışma saatidir, giriş
+  // saati değil (eski okuyucu giriş kaleminde 07:00 ve 23:00'i giriş saati sayıp sahte çelişki üretiyordu). Aynı cümlenin sonraki
+  // cümleciğine de geçer (↓`fieldTimeHits`). "Kapıyı 14:00'ten itibaren açabilirsiniz" (misafire hitap) etkilenmez.
+  const doorSchedule = toks.some((t) => DOOR_WORD.test(t)) && toks.some((t) => DOOR_CLOSE.test(t));
   // Kendi çalışma saati olan yerler sözlükte kavram değil ama konaklama saati de DEĞİL: "Giriş"
   // başlıklı kalemde "Resepsiyon 09:00-18:00 arası açıktır" giriş saati sanılıyordu (ölçüldü 09-23).
   const ownHours =
     toks.some((t) => OWN_HOURS_STEMS.some((h) => t.startsWith(h))) ||
+    doorSchedule ||
     // Bina / sokak kapısının açık olduğu saat ("bina kapısı ise 07:00–23:00 arası açık", "the main door").
     toks.some((t, i) => /^(?:kapi|door)/.test(t) && (isPlaceHead(toks[i - 1] ?? "") || ["main", "front", "street", "sokak"].includes(toks[i - 1] ?? "")));
   // "Çok geç (01.00 sonrası) varışlarda", "22:00'den sonraki varışlarda / girişler": geç kalışı anlatır ("en geç" = son saat,
@@ -1078,6 +1106,7 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
     placeEntry,
     pureAvailability: availability && raw.length === 0 && foreign.length === 0 && mentions.length === 0 && toks.length <= 5,
     negation: toks.some(NEGATION_TOKEN),
+    doorSchedule,
     stayAnchor: toks.some(
       (t) =>
         STAY_PLACE.test(t) ||
@@ -1204,6 +1233,8 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
     // Başka bir yerin girişi (09-27): "Topkapı Sarayı'na giriş 09:00'da başlıyor, son giriş 17:00'de" — sonraki çıplak "son giriş"
     // de o yerindir (konaklama çapası taşıyan cümlecik hariç).
     let carriedPlaceEntry = false;
+    // Kapı çizelgesi ("Kapılar 23:00'te kapanır, 07:00'de açılır"): sonraki cümlecik de kapının saatidir.
+    let carriedDoorSchedule = false;
     // Bu cümlede standart dışı anlatılmamış giriş/çıkış atıfları: sonda yalnız müsaitlik sözü gelirse ("…, subject to availability")
     // istisnaya (erken giriş / geç çıkış) döner.
     const convertible: number[] = [];
@@ -1272,6 +1303,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
           const otherConcept =
             info.otherConcept ||
             placeCarry ||
+            carriedDoorSchedule ||
             carriedTopic ||
             dashTopic ||
             inherited ||
@@ -1376,6 +1408,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
       if (whole.standard && (whole.availability || isConditionClause(c))) carriedStandard = true;
       else carriedAvailability ||= whole.availability;
       if (whole.placeEntry) carriedPlaceEntry = true;
+      if (whole.doorSchedule) carriedDoorSchedule = true;
       if (isConditionClause(c)) carriedTopic ||= whole.topic;
       if (whole.afterRefEnd >= 0 && timeMentions(c).length === 0) carriedAfterRef = true;
     }
@@ -1406,7 +1439,6 @@ function respectivePair(sentence: string): FieldTimeHit[] | null {
     const all = scanTimes(sentence);
     return all.length === 2 && rangeEnds(sentence, all).size === 2 ? [] : null;
   }
-  if (/(?<![a-zçğıöşü])(?:from|itibaren|kadar|until|till)(?![a-zçğıöşü])/.test(low)) return null;
   const before = tokenize(sentence.slice(0, m.index)).pop() ?? "";
   const after = tokenize(sentence.slice(m.index + m[0].length))[0] ?? "";
   if (isPlaceHead(before) || [...ENTRY_PLACE_TAILS, ...SERVICE_TAILS, "door", "gate"].some((p) => after.startsWith(p))) return null;

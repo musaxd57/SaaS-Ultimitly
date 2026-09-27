@@ -164,4 +164,33 @@ export const TIME_FIELD_REVIEW_BATTERY: ReviewCase[] = [
   R("T57", "baska_olay", "ikiz·yoga", "general", "Konaklama", "Konaklamanız 15:00'te başlar.", ["checkin:15:00"], { checkIn: "14:00", checkin: ["15:00"] }),
   R("T58", "baska_olay", "ikiz·kod", "checkin", "Kod", "The code works from 3 pm and is deactivated by 11 am.", [], { checkIn: "14:00", checkOut: "12:00", checkin: [], checkout: [] }),
   R("T59", "baska_olay", "ikiz·gece yarısı", "rules", "Sessizlik", "Gece yarısından sonra lütfen sessiz olun.", ["quiet_hours:00:00"]),
+
+  // ── A10 (dil kuralları ajanı): genel fiil "başka konu" sayılıp gerçek çelişki kaçıyordu; nesneli "leave" / "para" sahte saat üretiyordu ──
+  R("L01", "baslangic", "A10·1", "checkin", "Giriş saati", "Kapıyı saat 14:00'ten itibaren açabilirsiniz.", ["checkin:14:00"], { checkIn: "15:00", checkin: ["14:00"] }),
+  R("L02", "baslangic", "A10·1", "checkin", "Giriş saati", "Kapı 14:00'te açılıyor.", ["checkin:14:00"], { checkIn: "15:00", checkin: ["14:00"] }),
+  R("L03", "baslangic", "A10·1", "checkin", "Check-in", "You can get in from 2 pm.", ["checkin:14:00"], { checkIn: "15:00", checkin: ["14:00"] }),
+  R("L04", "baslangic", "A10·1", "checkin", "Check-in", "See you from 2 pm!", ["checkin:14:00"], { checkIn: "15:00", checkin: ["14:00"] }),
+  R("L05", "baska_olay", "A10·1 ikiz", "checkin", "Giriş", "Klimayı 16:00'da açın.", [], { checkIn: "15:00", checkin: [] }),
+  R("L06", "baska_olay", "A10·1 ikiz", "checkin", "Giriş", "Acil durumda 14:00'ten sonra resepsiyonu arayın.", [], { checkIn: "15:00", checkin: [] }),
+  R("L07", "baska_olay", "A10·1 ikiz", "checkin", "Giriş", "Kapılar 23:00'te kapanır, 07:00'de açılır.", [], { checkIn: "15:00", checkin: [] }),
+  R("L08", "baska_olay", "A10·2", "general", "Ödeme", "Kalan tutarı (para) 20:00'ye kadar ödemeniz rica olunur.", [], { checkIn: "15:00", checkOut: "11:00", checkin: [], checkout: [] }),
+  R("L09", "baska_olay", "A10·2", "checkout", "Towels", "Please leave used towels in the bathtub by 10 am.", [], { checkOut: "11:00", checkout: [] }),
+  R("L10", "baska_olay", "A10·2", "checkout", "Trash", "Please leave the trash in the bin before 9 am.", [], { checkOut: "11:00", checkout: [] }),
+  R("L11", "baska_olay", "A10·2", "general", "Parking", "Please leave your car in the lot until 12:00.", [], { checkOut: "11:00", checkout: [] }),
+  R("L12", "baslangic", "A10·2 ikiz", "checkout", "Check-out", "Please leave by 11 am.", ["checkout:11:00"], { checkOut: "12:00", checkout: ["11:00"] }),
+  R("L13", "baslangic", "A10·2 ikiz", "checkout", "Check-out", "Please leave the keys on the table by 11 am.", ["checkout:11:00"], { checkOut: "12:00", checkout: ["11:00"] }),
+  R("L14", "baslangic", "A10·2 ikiz", "checkout", "Check-out", "Please leave the premises by 11 am.", ["checkout:11:00"], { checkOut: "12:00", checkout: ["11:00"] }),
+
+  // ── Mutasyon turunun (88 mutant, 73 öldü) hayatta bıraktığı kural parçalarına YALNIZ ona dayanan pin ─────────────────────────
+  R("M01", "baska_olay", "mut·N03 tarih", "checkin", "Giriş", "Tesisimiz 15.05 tarihinde açılır.", [], { checkIn: "15:00", checkin: [] }),
+  R("M02", "baska_olay", "mut·N04 ay", "rules", "Havuz", "Havuz 01.06'dan itibaren açıktır.", []),
+  R("M03", "kosullu", "mut·N32 ücretsiz", "checkin", "Check-in", "You can check in at 15:00 free of charge.", ["checkin:15:00"], { checkIn: "14:00", checkin: ["15:00"] }),
+  R("M04", "kosullu", "mut·N50 or earlier", "checkin", "Check-in", "Check-in from 3 pm or earlier on request.", ["checkin:15:00"], { checkIn: "14:00", checkin: ["15:00"] }),
+  R("M05", "baska_olay", "mut·N53 başvuru", "checkout", "Çıkış", "Check-out'tan sonra 12:00'de anahtarı kutuya bırakın.", [], { checkOut: "11:00", checkout: [] }),
+  R("M06", "kosullu", "mut·N54 sonraki sıfat", "checkin", "Check-in", "Check-in anticipado desde las 12:00.", ["early_checkin:12:00"], { checkIn: "15:00", checkin: [] }),
+  R("M07", "aralik", "mut·N65 ortak işaret", "checkin", "Check-in", "Check-in: 3:00 – 10:00 PM.", ["checkin:15:00", "checkin:22:00"], { checkIn: "15:00", checkin: [] }),
+  R("M08", "aralik", "mut·N66 saat aralığı", "cleaning", "Temizlik", "Temizlik saat 11-14 yapılır.", ["cleaning:11:00", "cleaning:14:00"]),
+  R("M09", "aralik", "mut·N67 çıplak aralık", "checkout", "Çıkış", "Çıkış 10-11 arası yapılmalıdır.", ["checkout:10:00", "checkout:11:00"], { checkOut: "11:00", checkout: [] }),
+  R("M10", "baslangic", "mut·N11b dakika", "checkout", "Çıkış", "Çıkış saat 11'i birkaç dakika geçe yapılabilir.", [], { checkOut: "11:00", checkout: [] }),
+  R("M11", "baslangic", "mut·N70 eşleme", "general", "Saatler", "Check-in and check-out: 15:00 and 11:00 until further notice.", ["checkin:15:00", "checkout:11:00"], { checkIn: "14:00", checkin: ["15:00"] }),
 ];

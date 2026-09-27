@@ -100,6 +100,9 @@ describe("uçtan uca — istem çelişki bloğu + gönderim kapısı + ev sahibi
     expect([...timesIn("The deposit is €15.00 and the tourist tax 2.50 EUR.")]).toEqual([]);
     expect([...timesIn("Rezervasyonlar 15.04 tarihinde açılır.")]).toEqual([]);
     expect([...timesIn("Check-out by noon.")]).toEqual(["12:00"]);
+    // Noktasız / bitişik işaret: "11 a.m," (virgülden önce) ve "4p.m." — kapı cevap metnini normalleştirmeden tarar.
+    expect([...timesIn("Check-out at 11 a.m, thanks.")]).toEqual(["11:00"]);
+    expect([...timesIn("Check-in from 4p.m.")]).toEqual(["16:00"]);
     expect([...timesIn("Çıkış saat 11 buçukta.")]).toEqual(["11:30"]);
     expect([...timesIn("Check-in 3 – 10 pm.")].sort()).toEqual(["15:00", "22:00"]);
     // Kesin Türkçe dakika çözülür; çözülemeyen dakikada kesin saat yok (eskisi ikisini de 11:00 okuyordu).
