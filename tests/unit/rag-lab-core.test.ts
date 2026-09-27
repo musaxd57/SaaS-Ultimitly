@@ -176,12 +176,12 @@ describe("rag-lab — pencere kuruluşu ve gecikme tablosu", () => {
     expect(fusedWindow(lists, 3)).toEqual(["a3", "b3", "a1"]);
   });
 
-  it("gecikme: yalnız süresi kayıtlı çağrılar sayılır, yoksa tire", () => {
-    const row = (config: string, rrMs: number | null): LabRow =>
-      ({ kb: "k", size: 1, config, qid: "q", group: "g", cls: "c", lang: "tr", inBlock: true, answers: [], fb: "none", sem: "ok", rr: "ok", blockChars: 100, selected: 1, negChunks: 0, leak: false, conflictNote: false, rrMs, rrChars: rrMs === null ? 0 : 350 }) as LabRow;
-    const lines = latencyLines([row("a", 100), row("a", 300), row("a", 200), row("b", null)]);
-    expect(lines.find((l) => l.includes("| a |"))).toBe("| k | 1 | a | 3 | 200 | 300 | 350 | 100 |");
-    expect(lines.find((l) => l.includes("| b |"))).toBe("| k | 1 | b | 0 | — | — | 0 | 100 |");
+  it("gecikme: yalnız süresi kayıtlı çağrılar sayılır, yoksa tire; başarısız / tavanı aşan çağrı ayrı sayılır", () => {
+    const row = (config: string, rrMs: number | null, rr = "ok"): LabRow =>
+      ({ kb: "k", size: 1, config, qid: "q", group: "g", cls: "c", lang: "tr", inBlock: true, answers: [], fb: "none", sem: "ok", rr, blockChars: 100, selected: 1, negChunks: 0, leak: false, conflictNote: false, rrMs, rrChars: rrMs === null ? 0 : 350 }) as LabRow;
+    const lines = latencyLines([row("a", 100), row("a", 300), row("a", 200), row("b", null), row("b", null, "failed")]);
+    expect(lines.find((l) => l.includes("| a |"))).toBe("| k | 1 | a | 3 | 0 | 200 | 300 | 350 | 100 |");
+    expect(lines.find((l) => l.includes("| b |"))).toBe("| k | 1 | b | 0 | 1 | — | — | 0 | 100 |");
   });
 });
 

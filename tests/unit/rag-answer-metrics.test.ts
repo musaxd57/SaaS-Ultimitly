@@ -43,6 +43,16 @@ describe("yapılandırma belirteci `wide` ve taban + belirteç", () => {
     expect(prod.select).toBeUndefined();
   });
 
+  it("`rrm:` / `rre:` yalnız yeniden sıralayıcının modelini / çabasını değiştirir; geçersiz çaba fırlatır", () => {
+    const cfg = parseConfig("prod+rrm:gpt-6-luna+rre:low");
+    expect(cfg.rerank).toMatchObject({ model: "gpt-6-luna", effort: "low" });
+    expect({ ...cfg, name: "prod", rerank: { ...cfg.rerank, model: undefined, effort: undefined } }).toEqual({
+      ...parseConfig("prod"),
+      rerank: { ...parseConfig("prod").rerank, model: undefined, effort: undefined },
+    });
+    expect(() => parseConfig("prod+rre:turbo")).toThrow(/bilinmeyen/);
+  });
+
   it("`base0926` tabanı da belirteç alır; taban dışı zincir eskisi gibi; bilinmeyen belirteç fırlatır", () => {
     expect(parseConfig("base0926+wide").semantic).toEqual({ t: 0.4, model: "text-embedding-3-small" });
     expect(parseConfig("s0.4+und+wide")).toMatchObject({ semantic: { t: 0.4 }, understanding: true, rerank: null });

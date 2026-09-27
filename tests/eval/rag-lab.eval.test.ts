@@ -39,6 +39,11 @@ const GROUPS = new Set(
 const KBS = new Set(process.env.EVAL_RAG_KB?.split(",").map((s) => s.trim()) ?? ["e4"]);
 /** Gerçekçi set boyutları (0 = tamamı, ~300). */
 const SCALE_SIZES = (process.env.EVAL_RAG_SCALE_SIZES?.split(",").map((s) => Number(s.trim())) ?? [60, 0]).filter((n) => Number.isFinite(n) && n >= 0);
+/**
+ * Eşzamanlı soru işçisi (varsayılan 4). Dakikalık token sınırı düşük modelde (gpt-6-luna ~200k/dk) 1–2: sınıra takılan çağrı
+ * yeniden denemeden sonra "başarısız" sayılır ve sonucu kirletir (gecikme tablosunun "başarısız" sütunu).
+ */
+const WORKERS = Math.max(1, Math.min(8, Math.trunc(Number(process.env.EVAL_RAG_WORKERS) || 4)));
 /** `EVAL_RAG_KB=perq`: soru başına gerçekçi boyutlu bilgi tabanı (↓`kbForQuery`); ürünün plan tavanı mülk başına 60 kayıt. */
 const PERQ_SIZES = (process.env.EVAL_RAG_PERQ_SIZES?.split(",").map((s) => Number(s.trim())).filter((n) => n > 0) ?? [60]) as number[];
 
@@ -149,7 +154,7 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
       });
       let i = 0;
       await Promise.all(
-        Array.from({ length: 4 }, async () => {
+        Array.from({ length: WORKERS }, async () => {
           while (i < qs.length) {
             const q = qs[i++];
             try {

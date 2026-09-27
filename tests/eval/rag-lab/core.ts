@@ -107,6 +107,12 @@ export interface LabConfig {
     onFallback?: boolean;
     /** KURU: pencereyi kur ama modeli ÇAĞIRMA (ücretsiz tavan ölçümü: cevap pencereye giriyor mu). */
     dry?: boolean;
+    /**
+     * Yeniden sıralayıcının MODELİ ve düşünme çabası (09-27, kurucu: "gpt-6-luna 12 kat ucuz"): yoksa üretimin anlam katmanı
+     * modeli / çabası. Yalnız sıralayıcıya uygulanır — anlama katmanı canlıda güvenlik katmanıdır, modeli ayrı kör değerlendirme ister.
+     */
+    model?: string;
+    effort?: string;
     /** SORU BAŞINA etiket (Codex 09-26): mesajda ≥2 özgün soru varsa model her soru için ayrı cevap/ilgili listesi verir. */
     perQuestion?: boolean;
     /**
@@ -268,14 +274,15 @@ export async function labRerankPerQuestion(
   guestMessage: string,
   questions: readonly string[],
   candidates: readonly { key: string; title: string; text: string }[],
-  opts: { k: number; crop: number },
+  opts: { k: number; crop: number; model?: string; effort?: string },
 ): Promise<{ scores: Map<number, Map<string, number>>; ms: number | null; chars: number } | null> {
   const base = labRerankRequest(guestMessage, candidates, opts);
   const fence = (t: string) => t.replace(/[<>]{2,}/g, "");
   const qLines = questions.map((q, i) => `[Q${i + 1}] <<<${fence(redactForSemanticModel(q.slice(0, 500), []))}>>>`);
   const user = base.user.replace("\n\nCandidates:", `\n\nQuestions:\n${qLines.join("\n")}\n\nCandidates:`);
-  const model = semanticModel();
-  const timed = await llmCachedTimed<{ questions: { q: string; answers: string[]; related: string[] }[] }>("rerank-pq", { m: model, s: PERQ_SYSTEM_PROMPT, u: user }, async () => {
+  const model = opts.model ?? semanticModel();
+  const effort = opts.effort ?? semanticReasoningEffort();
+  const timed = await llmCachedTimed<{ questions: { q: string; answers: string[]; related: string[] }[] }>("rerank-pq", { m: model, s: PERQ_SYSTEM_PROMPT, u: user, ...(opts.effort ? { e: opts.effort } : {}) }, async () => {
     const apiKey = semanticApiKey();
     if (!apiKey) return { value: null, ms: 0 };
     const res = await callWithRetry({
@@ -287,7 +294,7 @@ export async function labRerankPerQuestion(
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 600,
       maxCompletionTokens: 2_000,
-      reasoningEffort: semanticReasoningEffort(),
+      reasoningEffort: effort,
     });
     return { value: res.ok ? (res.data as { questions: { q: string; answers: string[]; related: string[] }[] }) : null, ms: res.ms };
   });
@@ -322,11 +329,12 @@ async function callWithRetry(input: Parameters<typeof callStructuredJson>[0]): R
 export async function labRerank(
   question: string,
   candidates: readonly { key: string; title: string; text: string }[],
-  opts: { k: number; crop: number },
+  opts: { k: number; crop: number; model?: string; effort?: string },
 ): Promise<{ scores: Map<string, number>; ms: number | null; chars: number } | null> {
   const { user, ids } = labRerankRequest(question, candidates, opts);
-  const model = semanticModel();
-  const timed = await llmCachedTimed<Record<string, string[]>>("rerank", { m: model, s: RERANK_SYSTEM_PROMPT, u: user }, async () => {
+  const model = opts.model ?? semanticModel();
+  const effort = opts.effort ?? semanticReasoningEffort();
+  const timed = await llmCachedTimed<Record<string, string[]>>("rerank", { m: model, s: RERANK_SYSTEM_PROMPT, u: user, ...(opts.effort ? { e: opts.effort } : {}) }, async () => {
     const apiKey = semanticApiKey();
     if (!apiKey) return { value: null, ms: 0 };
     const res = await callWithRetry({
@@ -338,7 +346,7 @@ export async function labRerank(
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 400,
       maxCompletionTokens: 2_000,
-      reasoningEffort: semanticReasoningEffort(),
+      reasoningEffort: effort,
     });
     return { value: res.ok ? (res.data as Record<string, string[]>) : null, ms: res.ms };
   });
@@ -508,7 +516,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
         const winOfReq = new Map(reqIds.map((r, i) => [r, i % Math.max(1, nb)]));
         const kept = allWins.map((c, i) => ({ c, i })).filter((w) => w.c.length >= 2);
         const question = rerankQuestionText(q.text, earlier);
-        const outs = await Promise.all(kept.map((w) => labRerank(question, w.c, { k: Math.max(cfg.rerank!.k, w.c.length), crop: cfg.rerank!.crop })));
+        const outs = await Promise.all(kept.map((w) => labRerank(question, w.c, { k: Math.max(cfg.rerank!.k, w.c.length), crop: cfg.rerank!.crop, model: cfg.rerank!.model, effort: cfg.rerank!.effort })));
         const timed = outs.filter((o): o is NonNullable<typeof o> => o !== null);
         if (timed.length > 0) {
           rrMs = Math.max(...timed.map((o) => o.ms ?? 0));
@@ -891,10 +899,11 @@ export function reportLines(rows: readonly LabRow[], title: string, meta: Record
  * girdinin süresi yok → sayılmaz, uydurulmaz). Maliyet kestirimi: istek karakteri / 3,5 ≈ token.
  */
 export function latencyLines(rows: readonly LabRow[]): string[] {
-  const by = new Map<string, { ms: number[]; chars: number[]; block: number[] }>();
+  const by = new Map<string, { ms: number[]; chars: number[]; block: number[]; failed: number }>();
   for (const r of rows) {
     const k = `${r.kb}|${r.size}|${r.config}`;
-    const e = by.get(k) ?? { ms: [], chars: [], block: [] };
+    const e = by.get(k) ?? { ms: [], chars: [], block: [], failed: 0 };
+    if (r.rr === "failed") e.failed++;
     if (r.rrMs !== null) e.ms.push(r.rrMs);
     if (r.rrChars > 0) e.chars.push(r.rrChars);
     e.block.push(r.blockChars);
@@ -909,12 +918,12 @@ export function latencyLines(rows: readonly LabRow[]): string[] {
   const out = [
     "Yeniden sıralayıcı gecikmesi (ms, kaydı olan çağrılar) ve boyları:",
     "",
-    "| KB | boyut | yapılandırma | çağrı (süreli) | p50 | p95 | istek ort. karakter | blok ort. karakter |",
-    "|---|---|---|---|---|---|---|---|",
+    "| KB | boyut | yapılandırma | çağrı (süreli) | başarısız / tavan aşımı | p50 | p95 | istek ort. karakter | blok ort. karakter |",
+    "|---|---|---|---|---|---|---|---|---|",
   ];
   for (const [k, e] of [...by.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     const [kb, size, config] = k.split("|");
-    out.push(`| ${kb} | ${size} | ${config} | ${e.ms.length} | ${q(e.ms, 0.5)} | ${q(e.ms, 0.95)} | ${mean(e.chars)} | ${mean(e.block)} |`);
+    out.push(`| ${kb} | ${size} | ${config} | ${e.ms.length} | ${e.failed} | ${q(e.ms, 0.5)} | ${q(e.ms, 0.95)} | ${mean(e.chars)} | ${mean(e.block)} |`);
   }
   return out;
 }

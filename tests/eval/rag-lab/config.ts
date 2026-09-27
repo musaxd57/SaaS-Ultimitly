@@ -17,7 +17,8 @@ export const CAP = KB_RETRIEVAL_FETCH_CAP;
  * (okuma tavanı) · `b9000` / `mc16` (seçim bütçesi karakter / parça) · `skip` (sığmayan parçayı atla) · `pi5` (kalem başına parça) ·
  * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına) · `xs0.5` (anlama sorgularının bütçe payı; varsayılan 1/3) · `prl` (ayrı çağrıda soru başına etiket) · `wper50` / `wown20` / `wownrrf` / `wfloor10` (üretim penceresi kuruluş deneyleri) ·
  * `wide` (üretimin geniş blok bütçesi `KB_RETRIEVAL_WIDE_BUDGET` — değerler üretim sabitlerinden, tek kaynak) · `ansfirst`
- * (yeniden sıralayıcının "cevaplıyor" dediği parçalar önce).
+ * (yeniden sıralayıcının "cevaplıyor" dediği parçalar önce) · `rrm:<model>` / `rre:<çaba>` (yalnız yeniden sıralayıcının modeli / düşünme
+ * çabası; ör. `rrm:gpt-6-luna+rre:low`).
  * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200; üretim penceresi, soru başına ayrı çağrı).
  * `prod` / `base0926` İLK belirteç olarak taban da olur, ardından gelen belirteçler üstüne uygulanır (`prod+wide`, `prod+e3l`).
  */
@@ -66,6 +67,8 @@ export function parseConfig(name: string): LabConfig {
     else if (tok === "demote") cfg.rerank = { ...(cfg.rerank ?? RR), demote: true };
     else if (tok === "ansfirst") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), answersFirst: true } };
     else if (tok === "wide") cfg.select = { ...(cfg.select ?? {}), budgetChars: KB_RETRIEVAL_WIDE_CHAR_BUDGET, maxChunks: KB_RETRIEVAL_WIDE_MAX_CHUNKS };
+    else if ((m = tok.match(/^rrm:([a-z0-9.-]+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), model: m[1] };
+    else if ((m = tok.match(/^rre:(none|minimal|low|medium|high)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), effort: m[1] };
     else throw new Error(`bilinmeyen yapılandırma belirteci ${tok} (${name})`);
   }
   return cfg;
