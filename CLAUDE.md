@@ -224,6 +224,10 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   + `cache-keys.ts`; cevap isteminin anı `REPLY_NOW` sabit — istem dakikayı taşır). İki sorulu cevapta her sorunun sayısı AYRI
   (`answerAnchorHits`). Kalem parça tavanı SORU BAŞINA — VARSAYILAN (kurucu 09-27 "1.yi tabiki aç"; `strategy.itemCapScope`; tek rehberde 4
   soru 0/10 → 9/10, dev setinde fark 0 `rag-lab-2026-09-27-13.md`; "message" = eski tavan, taban `base0926` orada sabit; belge §6e).
+- **Alt sorgu yuvaları (#208, 09-27):** tavan (4) aşılınca yuvalar SERT bölümler (?, satır, ;) arasında SIRAYLA EŞİT dağıtılır,
+  bölüm içinde yazılış sırası (tavan aşılmıyorsa parçalar birebir eskisi). ÖLÇÜLÜP REDDEDİLDİ: "soru cümleciği önce", "içerikli
+  cümlecik önce" (bağlam cümleciği düşüyordu). Tekrar eden ek sorgu kararı yeniden sıralamadan ÖNCEKİ baş adaylarla ve ilk üç
+  adayın HEPSİ özgün sorguların başındaysa (tek ortak baş aday yetmez).
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
@@ -775,6 +779,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 **Tenant / rotalar**
 - `api-route-scoping.test.ts`: her rota org-kapsamlı ya da gerekçeli public listesinde; `admin/*`
   hepsi superadmin kapılı (`admin-superadmin-gate.test.ts` davranışsal); `REQUEST_DERIVED_ORG_ID` listesi.
+- **Anonim rotalarda da JSON kontrolü IP kovasından ÖNCE (#211, 09-27):** leads · demo/ai · chat POST · csp-report (üç MIME'ı);
+  yalnız BAŞLIK bakılır, geçersiz JSON gövde kovayı YİNE tüketir. Yeni kimliksiz POST rotası aynı sırayla yazılır.
+- **QR sayfası + GET `resolveGuestChat(…, { knowledgeBase: false })` (#211):** bilgi tabanını KULLANMAYAN yol onu çekmez / taramaz
+  (sayfa hız sınırsız, GET 5 sn'de bir). Cevap üreten POST tam çözümler (bağlantı pinli).
+- **Kiracılar arası davranışsal test reddin SEBEBİNİ sınar (#211):** 404/403; "2xx değil" YETMEZ (boş hedef listesinin 400'ü, sahte
+  modelin 500'ü kapsam silinse de geçiriyordu — mutasyonla doğrulandı).
 - `cron/sync` · `cron/email-outbox` · `leads` davranışsal pinli (`timingSafeEqual` yapısal pin dahil).
 - Hız limiti: `pickClientHop` sağdan `TRUSTED_PROXY_HOPS` (Railway 2); az tahmin güvenli, fazla tehlikeli;
   aralık dışı → 1; boot uyarır, durdurmaz. `clientIp` delil kayıtlarında da kullanılır (geçmiş satır
@@ -808,6 +818,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   mesaj re-import edilmez. `RETENTION_MESSAGE_AGE_ANCHOR` bayrağı: mesaj yaşı + yeniden-temizlenebilirlik
   bacakları; kapalı davranış birebir eski; açmadan önce onay paketi + taze `pg_dump`; smoke'ta "artık
   korunacak" sayısı düşerse DUR.
+- **Kalite denetçisi (Claude = ikinci işleyen) girdisinde sır DEĞERLERİ maskelenir (#211):** `maskSecretValuesForAudit` (7 dil
+  etiket + tuş takımı biçimi; saat/ücret korunur). `redactSensitive` GENİŞLETİLMEZ (anlam katmanına giden metni değiştirirdi).
 - Redaksiyon yapısal (`lib/redact.ts` — YAPRAK modül, hiçbir şey import etmez; `report-error-core` yeniden dışa
   verir): JSON ağacı gezilir, izin listesi deny'den önce, kv regex kalır, işlenemeyen aday
   `[REDACTED_UNPARSEABLE_JSON]`, oversized/budget koşulsuz sabit, `\uXXXX` çözülür. 🚨 **Sunucuda ham hata `console.*`a
@@ -907,6 +919,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yollarında KULLANILMAZ (`sendReporting`); `reportError` `throttled/configured:false` başarısızlık değil.
 - Escalation üç yol (model · kelime alerts · `applyInboundMessageRules`); m48 triyaj ikinci model çağrısı
   YOK, temizleme yok, `null` yazılır (undefined değil), `isTriageStale` rozeti.
+- **Rezervasyon durumu (#211):** açıkça olumsuz / soru değerleri ("not accepted", "not possible", "inquiry") onaylı DEĞİL; TANINMAYAN
+  değerin varsayılanı hâlâ "confirmed" (karar `docs/SABAH-KARARLARI-2026-09-28.md` K7, bilinen sınır pinli).
 - Yaşam-döngüsü sorguları `calendarSourceId: null` (kanal iCal işaretçisi DEĞİL); elle `.ics` `channel:"ics"`;
   CSV'de yalnız iptal ön eki eşlenir. Bozuk feed: hataya geçişte tek alarm, ham URL/host alarma girmez,
   `BEGIN:VCALENDAR` yoksa `feed_not_icalendar`. "N kaynak işlendi" = o geçişte vadesi gelen (kohort).

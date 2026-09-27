@@ -1,0 +1,299 @@
+# Sabah kararları (gece modu, 27→28.09)
+
+Kurucu 27.09 gece: "gece modundasın soru sorma projeyi ilerlet". Müşteriye giden cevabı değiştiren ve karar gerektiren her konu
+burada toplanır; her biri önce/sonra örneğiyle. Gece kararı gerektirmeyen işler yapıldı ve sonda listelendi.
+
+Kaynak: kurucunun kör inceleme notları (V01, V22–V35; kalan V02–V21 yarın) → beş hata ayıklama ajanı (kod okuyup saf
+fonksiyonları çalıştırarak; ücretli çağrı yok).
+
+---
+
+## K1 — "Mesajınız kaydedildi, ev sahibiniz görebilir" türü devir cümlesi otomatik gitmesin mi? (V34)
+
+**Kurucu notu (V34):** "bu tarz haber verme mesajları gitmemeli hiçbir yerde … mesajınız kaydedildi falan mümkün değil hiçbir
+otomatik mesajda gitmemeli."
+
+**Bugün ne oluyor:**
+- **V34** ("Yarın biraz geç ayrılmak istiyoruz, ekstra bir saat için ne kadar ödeme…") bugün kesin olarak engellenmiyor. Aynı cevap önbellekte 4 kez var:
+  - 3'ünde modelin niyet etiketi `refund`: kapı tutuyor, konuşma "Sorunlu + acil" oluyor.
+  - 1'inde etiket `late_checkout`: bekçi "erteliyor, fiyat sözü yok" derse cevap misafire **otomatik gidiyor**. Cümle: "Merhaba, geç çıkış ve buna bağlı ek ücretler ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir." Bu tasarım gereği: konaklama değişikliği isteğine verilen tek otomatik cevap bu erteleme (iki model ertelemesi kuralı).
+- **Cümlenin kaynağı iki yer:**
+  - istem kalıbı öğretiyor (`prompts.ts` bölüm 10.5 ve saat çelişkisi bloğu: "Misafire olgu cümlesi: … mesajınız kaydedildi, ev sahibiniz görebilir");
+  - koddaki sabit metinler (QR `escalationReply`, bekletme mesajı).
+- **Yüzeyler (ajan ölçümü):**
+
+| yüzey | bugün misafire giden |
+|---|---|
+| Kanal, konaklama değişikliği (geç çıkış / erken giriş) | modelin erteleme cümlesi, iki model ertelemesiyle otomatik |
+| Kanal, insan talebi (öğe kipi AÇIK — canlı) | gitmez, ev sahibine e-posta |
+| Kanal, Wi-Fi + geç çıkış aynı mesajda | Wi-Fi cevabı + "kaydedildi" cümlesi birlikte |
+| QR misafir sohbeti | her devirde sabit metin: "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir." |
+| Bekletme mesajı (isteğe bağlı, varsayılan kapalı) | "…Mesajınız kaydedildi ve ev sahibiniz için öncelikli olarak işaretlendi…" |
+
+**Seçenekler (V34 ile):**
+- **A — erteleme de tutulur:**
+  - misafire hiçbir şey gitmez;
+  - ev sahibinde hazır taslak olur ("…kontrol edip size dönüş yapacağım" ev sahibi ağzıyla);
+  - bedeli: geç çıkış / erken giriş isteklerine otomatik cevap tamamen kalkar (doğrulanmış erken giriş hariç).
+- **B — yalnız haber cümlesi düşer:**
+  - misafire "Merhaba, geç çıkış ve buna bağlı ek ücretler ev sahibinizin kararıdır." gider;
+  - istek ev sahibine açık iş olarak düşer (bugün düşmüyor).
+- **Önerim: A.**
+  - Kurucu notuyla birebir uyuşuyor.
+  - "Ev sahibinizin kararıdır" tek başına misafire bir şey kazandırmıyor, üstelik soruyu cevapsız bırakıyor.
+  - Ev sahibi zaten taslağı görüyor.
+
+**QR'da misafir cevapsız kalmasın diye üç yol:**
+1. sessiz;
+2. koddan kısa nötr metin ("Bu soruyu otomatik asistan yanıtlayamıyor.");
+3. yapay zekâ balonu yerine arayüzde durum satırı (bugünkü "İşletme ekibi görüşmeye katıldı" ayracı gibi).
+
+**Önerim: 3.** Fiziksel acilde (yangın/gaz/su) güvenlik yönergesi kalır.
+
+---
+
+## K2 — "Bilgim yok"un yakın biçimleri de misafire gitmesin mi? (V27)
+
+**Kurucu kuralı (09-11):** "Bilgim yok misafire ASLA gitmez."
+
+**Bugün:**
+- V27'nin cevabı ("…elimde net bir adres bilgisi yok; … kontrol etmenizi öneririm") kapıya takılıyor. Kanalda tutuluyor.
+- Ama şu biçimler kaçıyor, kanalda otomatik gidebiliyor (ajan ölçümü):
+  - "elimde net bir adres yok"
+  - "bir önerim yok"
+  - "net bir adres veremiyorum"
+  - "I don't have a specific bakery to recommend"
+- **Önerim:** kuralın kendisi değişmiyor; yalnız aynı kuralın yakaladığı biçimler genişliyor (sözcük listesi değil, dilbilgisi yüklemi). İkiz testlerle: "Otoparkta yer yok" gibi olgu cümleleri yakalanmayacak.
+
+---
+
+## K3 — Bilgi tabanında saat dışı çelişki (fiyat / sayı / var-yok) (V24, V26, V33)
+
+**Kurucu notları:**
+- V24/V26: "150 tl ve 120 tl muhabbeti orda devretsin ona cevap yok hosta haber"; "adamın kaç gün kaldığına bakmalı".
+- V33: "2si farklı basamak adeti söylüyor bunu ben bile anlamadım".
+
+**Bugün (ajan ölçümü, çevrimdışı yeniden üretildi):**
+- Saat dışındaki çelişkiyi sistem hiçbir yerde görmüyor: istemde yok, getirmede yok, gönderim kapısında yok, ev sahibi raporunda yok.
+- V24/V26'da iki havlu fiyatı da, V33'te 54 ve 52 basamak da modelin gördüğü bloktaydı. Model birini seçip misafire yazdı; bunu tutan kural yok.
+- İki kalem arasındaki havuz saati çelişkisi (09–19 / 08–20) de yalnız ev sahibi raporunda görünüyor, misafir yolunda görünmüyor.
+
+**Önerilen (saat kuralının kalıbıyla, tek kaynak saf modül):**
+- **Kapsam ve eşleştirme:**
+  - Para ("ücretsiz" = 0) ve kapalı bir sayım listesi: basamak, havlu seti, anahtar, yatak, yatak odası, kişi kapasitesi.
+  - Yalnız AYNI NESNE için: ortak içerik kökü + ortak kavram; "giriş" sözü tek başına konu kanıtı değil.
+  - Karşıt niteleyici (iç/dış, yetişkin/çocuk) çelişki değil.
+- **Kaba kural işe yaramıyor:** Konuya bakmayan kural 552 cevapta 15 cevabı işaretliyor, 13'ü sahte. Konu eşleştirmeli taslak kural yalnız bu dört vakayı buluyor. Ama bu sayı ayarlandığı veride ölçüldü; yeni kör, iki yönlü batarya şart.
+- **Bağlanacak yüzeyler:**
+  1. Ev sahibine "Uyuşmayan bilgiler" raporu (misafire gideni değiştirmez; yeni yüzey).
+  2. Kapı `kb_value_conflict`: cevap bloktaki bir çelişkinin tek tarafının değerini söylüyorsa tutar (saat kapısının ikizi).
+
+**Önce / sonra:**
+
+| mesaj | bugün | öneri |
+|---|---|---|
+| V24/V26: "6 gece kalacağız … havlular … ücreti nedir?" | "her ek set için 120 TL" otomatik gider | cevap ev sahibine taslak; raporda "Havlu ek seti: 120 TL (set başı) / 150 TL (kişi başı)" |
+| V33: "üçüncü kata kaç adım?" | "toplam 52 basamak" gider | tutulur; raporda "Merdiven basamağı: 54 / 52" |
+
+**Not:** Kurucu V24'te yalnız havlu kısmının devredilmesini istiyor, sigara kısmı gidebilir. Bu öğe bazlı devir ister; öğe kipinin kapsamına eklenmesi ayrı bir iş.
+
+**Ayrıca:**
+- **Gece sayısı istemde yok:** Yalnız giriş ve çıkış tarihleri var. "10 geceye kadar" gibi koşullu kuralı model bu yüzden uygulayamıyor.
+- **Öneri:** Rezervasyon satırına koddan "Konaklama: N gece" eklensin (tek tarih kuralıyla). Etkisi ücretli eval ile ölçülür.
+
+**Önerim:**
+- Önce rapor (1): ev sahibi kaynağı düzeltsin.
+- Sonra kapı (2), kör batarya + eval ile.
+- Gece satırı ölçümle.
+
+## K4 — Belirsiz atıf ("o küçük dükkân", "katılmak", "these places"): netleştirme mi devir mi? (V22, V28, V31) + önceki cevapsız soru (V32, V34)
+
+**Kurucu notları:**
+- V31: "sohbet bağlamına iyi odaklanmalı nerden bahsediyor … hiç anlamıyorsa devir edebilir".
+- V28: "doğru etkinliği anlamalı … riskliyse devir yapsın".
+- V22: "hangi placestan bahsettiklerini anlasın … şuanki tarihe baksın".
+
+**Bugün (ajan ölçümü, önbellekten):**
+- **İki katmanlı sorun.**
+  - Getirme: doğru kalem aday listesindeydi ama 6k/12'lik blok bütçesinde düştü (V27 sıra 1, V28 sıra 6, V31 sıra 13); geniş blokla üçü de giriyor.
+  - Cevap modeli: blokta doğru kalem yokken "o dükkân"ı bloktaki benzer kaleme bağlıyor. Farklı kalemlerin sayılarını birleştiriyor (V31: "10–15 dk" üç kalemden kurulmuş).
+- **Hiçbir kod kapısı görmüyor.** Sayılar blokta başka kalemlerde var, iddia denetimi "desteksiz" demiyor.
+- **İstem modeli tahmine itiyor.** "Soruyu yanıtsız bırakmak asla kabul edilmez", "hiçbirini atlama" var. Netleştirme ise son çare (hedef <%0,01).
+- **Önceki cevapsız soru:** Getirme ve anlama katmanı onu işliyor, cevabı 32 vakanın 30'unda bloğa geliyor. Ama öğe kipi DIŞINDAKİ istem modelden onu cevaplamasını istemiyor: 32 cevabın hiçbiri önceki soruya değinmedi. Canlı kanalda öğe kipi açık, orada "CEVAPLANACAK" listesi var; "AI öner" rotasında yok.
+
+**Öneri (müşteriye gideni değiştirir):**
+1. **"Aynı şey mi?" şartı.** Bilgi tabanı kalemi ancak misafirin kastettiği şeyi anlatıyorsa cevap sayılır; farklı kalemlerin sayıları birleştirilmez. Kast çözülemezse:
+   - tek aday varsa adıyla ("Taksi durağı yanındaki Anchor Mini'yi kastediyorsanız: 8 dk, 08:00–22:00");
+   - birden çok aday varsa adlarını veren TEK soru;
+   - hiç aday yoksa devir.
+2. **Doldurma yasağı.** "Hiçbirini atlama" baskısı yumuşar: karşılığı olmayan soru başka bir kalemle doldurulmaz.
+3. **Önceki cevapsız soru.** Son cevaptan sonraki cevapsız mesajlar koddan işaretlenir ("hepsini sırayla cevapla"). Kurucunun V32'ye "güzel", V34'e itiraz etmesi şu kuralla bağdaşıyor: "sonraki mesaj eski soruyu geçersiz kıldıysa tekrar etme". Hangisi?
+4. **Bugünün tarihi.** "Bu akşam kaça kadar açık?" gibi sorularda bilgi tabanındaki ay/mevsim kuralı bugüne göre uygulanır.
+
+**Önce / sonra (tasarım beklentisi, ölçülmedi):**
+
+| vaka | bugün | öneri |
+|---|---|---|
+| V31 | "anladığım kadarıyla … 10–15 dakika … Köşe Unlu Mamuller 07:00–20:00" | blokta yalnız fırın varken: "Limana inerken sağdaki Köşe Unlu Mamuller'i mi kastediyorsunuz?" |
+| V28 | sergi 40 TL, "kayıt gerekmez" (kayıt cümlesi sergi kaleminde yok) | kurye sorusu cevaplanır, etkinlik sorusu başka kalemle doldurulmaz |
+| V34 | yalnız geç çıkış devri | "Yedek anahtar giriş kapısı yanındaki beyaz askılığın üst rafında, mavi anahtarlıkla duruyor." + geç çıkış kısmı K1'e göre |
+
+## K5 — Üslup: kaynağı anlatma, dolgu, sorulmayan ayrıntı, "platform" süreç iddiası, ters yön (V23–V35)
+
+**Ölçüm:** 27.09'un 552 cevabı önbellekten; ayrıca model kıyası korpusu (gpt-5.1, 135 rezervasyonlu senaryo, gerçek kapı sonucu kayıtlı).
+
+| kalıp | 552 cevapta | 135 senaryoda (otomatik giden) | istemdeki kaynağı |
+|---|---|---|---|
+| empati dolgusu ("…istemenizi anlıyorum", V25) | 73 (70'i ilk cümlede) | 14 (4 otomatik) | `prompts.ts` sıcak ton satırı "Empati ifadelerini doğal biçimde kullan ('anlıyorum'…)" + ÖRNEK 19 ("I completely understand wanting…") + ÖRNEK 14 |
+| kaynağı anlatma ("ev rehberimde / kayıtlarıma göre", V35) | 28 | 1 (otomatik: "Kayıtlarıma göre bebek yatağı…") | "tek ev sahibi gibi ('kayıtlarımda şu yazıyor')" satırı + kalıp cümleler |
+| "platform" süreç iddiası (V30) | 12 | 8 (2 otomatik) | ÖRNEK 6 ("entry details are only ever shared through our verified check-in process") + ön-rezervasyon bloğu |
+| ters yön (V23: "terminale gitmek için" → "binaya gelmek için") | 1 | – | kalemi yönüyle kullan kuralı yok |
+
+**Önerilen istem değişiklikleri (müşteriye giden cevabı değiştirir), önce / sonra:**
+1. **Empati yalnız sorun/şikâyette, tek kısa cümle.** Bilgi sorusunda "anlıyorum" açılışı yok; ÖRNEK 19 ve ÖRNEK 14'teki dolgu silinir.
+   - Önce (V25): "Merhaba, sabah erken bir şeyler yemek istemenizi anlıyorum. Evden…"
+   - Sonra: "Merhaba, evden çıkınca sağa dönüp 3 dakika yürüyünce sağdaki Köşe Unlu Mamuller her gün 07:00'de açılıyor…"
+2. **Kaynak anlatılmaz.**
+   - Önce (V35): "…ev rehberimde … yazdırabildiğiniz belirtiliyor."
+   - Sonra: "Merhaba, dairede yazıcı yok; Çınar Sokak 12'deki Kumsal Ortak Çalışma Evi'nden çıktı alabilirsiniz."
+3. **Süreç iddiası yok.** "Platform / sistem / onaylı misafir" gibi süreç anlatımı yalnız bilgi tabanında yazıyorsa yapılır. Ön-rezervasyon bloğu "bu aşamada paylaşamıyorum" der; nasıl, ne zaman, hangi kanaldan paylaşılacağını söylemez.
+   - Önce (V30): "…follow the check-in directions from the platform messages, as access details are only shared with confirmed guests there."
+   - Sonra (onaylı konaklama): "Hi, the entrance is the white glass door on the right side of Sümbül Sokak 18; the sign says 'Lale Evleri 1-6'."
+4. **Kalem kopyalanmaz.** Yalnız soruyu cevaplayan kısım verilir. Bilgi kalemdeki yön ve koşuluyla kullanılır; misafirin anlattığı durum soru sayılmaz; kalemde olmayan gerekçe eklenmez.
+   - Önce (V24): "…küllüğe atıp asla aşağıya atmamaya dikkat etmenizi rica ederim."
+   - Sonra: "…izmaritleri masadaki küllüğe atmanızı rica ederim."
+5. **Çok sorulu mesajda bilinmeyen kısım.** Karar gerekiyor:
+   - ya "X için ev sahibiniz size kesin bilgi verebilir" kalıbı;
+   - ya hiç yazmamak.
+   - Bugün sona eklenen "bilgim yok" cümlesi doğru cevabın tamamını tutturuyor (V27 geniş yapılandırma).
+
+**Deterministik öneriler:**
+6. **"Bilgim yok" kapısı genişler.** Eklenecekler: "…kayıtlarımda / rehberimde yer almıyor", "My records do not list / mention…". Ücretsiz ölçüm: 1.839 cevapta 4 yeni tutma, dördü de gerçek itiraf; şu an tutulan hiçbir cevap düşmüyor. K2 ile birlikte karar.
+7. **Gölge üslup sayacı.** Kanıta ve ölçüm raporuna girer; karar DEĞİL, müşteriye gideni değiştirmez. Gece yapılabilir.
+
+**Ölçücüdeki hata (müşteriye gideni etkilemez, gece düzeltiliyor):**
+- Cevap ölçücüsü `reservation: null` veriyordu: 552 istemin hepsi "REZERVASYON ONAYLANMAMIŞ" bloğunu taşıyor. V30'daki "platform" cevabı kısmen bundan.
+- Ayrıca ölçücüde canlıdaki öğe bloğu ve güncel mesajın geçmişte yer alması yok.
+- Ölçücü canlıyla hizalanınca önbellek düşer. Yeni ölçüm ücretli: kurucu "kredi yüklendi" demeden koşulmaz.
+
+---
+
+## K6 — Rakip analizi: hangi boşluklar yol planına girsin? (`docs/RAKIP-ANALIZI-2026-09-27.md`)
+
+Web araştırması, kaynaklı. Satıcı iddiaları olgu değil; sayfaların çoğu yalnız arama özetinden okunabildi.
+
+**Pazar yönü:** 2025–26'da "taslak"tan "güven eşikli otopilot + mesajdan görev + ajan merkezi"ne geçildi (Guesty ReplyAI Autopilot ve Agent Hub, Hostaway AI CoHost, Hospitable Knowledge Hub ve MCP). Airbnb de 20.05.2026'dan beri ilan bilgisiyle SSS'lere kendisi otomatik cevap veriyor, ücretsiz.
+
+**Bizde olmayıp müşterinin fark edeceği özellikler (ajanın önerdiği sıra):**
+1. tek kutuda WhatsApp / SMS / e-posta misafir kanalı;
+2. KBS kimlik bildirimi + çevrimiçi giriş (7464, yasal yükümlülük; yabancı rakiplerde yok);
+3. mobil uygulama / anlık bildirim;
+4. host'un hangi konular otomatik gitsin seçmesi (yalnız SIKILAŞTIRAN ayar) + deneme alanı;
+5. bilgi tabanının kendiliğinden beslenmesi (host cevaplarından onay bekleyen öneri, belge içe aktarma, "eksik bilgi → ekle");
+6. ücretli ek satış / tahsilat;
+7. dinamik fiyat (V7);
+8. yorum cevabı (V6);
+9. sesli AI ve MCP.
+
+**Açık üstünlüklerimiz:**
+- Otomatik gönderme kararı kodda; model güveni tek başına mesaj gönderemiyor.
+- "Bilgim yok" ve makbuzsuz söz misafire gitmiyor.
+- Saat çelişkisi kapısı ve sır kapısı.
+- Türkçe öncelik ve ölçülmüş dil kapısı.
+- Sabit fiyat. Ama kanal mesajları bugün Hospitable'ın ücretli planını gerektiriyor; üstünlük köprü kalkınca tamamlanır.
+
+**Airbnb başvurusu için:** Rakiplerde SOC 2 Type II / PCI / ISO (Guesty) ve zorunlu 2FA (Hostaway) var. Bizde yok: bağımsız sızma testi, üç ayda bir tarama, güven sayfası, "PCI kapsamı dışında" beyanı, SOC 2 hazırlığı. Gece üç güvenlik denetim ajanı çalışıyor; sonuçlar buraya gelecek.
+
+**Önerim:**
+- KBS + çevrimiçi giriş: yerel ve yasal, rakiplerin boş bıraktığı alan. Yol planına ekleyelim mi?
+- WhatsApp kanalı: kanal bağımsızlığıyla uyumlu.
+
+İkisi de büyük iş; önce tasarım belgesi.
+
+---
+
+## K7 — Tanınmayan rezervasyon durumu "onaylı" sayılmaya devam etsin mi? (güvenlik denetimi, kodda doğrulandı)
+
+**Bugün:** Hospitable'dan gelen durum sözlükte yoksa rezervasyon **onaylı** sayılıyor. Onaylı konaklamada sır kapısı açılır
+(kapı kodu / Wi-Fi yapay zekâya gider) ve giriş bilgisi mesajı kodla gönderilebilir.
+
+**Gece düzeltildi (yalnız açıkça olumsuz / soru değerleri, fail-closed):** "not accepted", "not possible" → iptal;
+"inquiry" → beklemede. Eskiden üçü de onaylıydı: yalnız soru soran biri kapı koduna kadar giden yolu açıyordu.
+
+**Açık kalan:** yeni ya da beklenmedik bir değer (ör. "awaiting_payment") yine onaylı sayılır.
+- Örnek, bugün: durum "awaiting_payment", misafir "Kapı kodu ne?" yazar → kod modele gider, cevapta geçebilir.
+- A (varsayılan = beklemede): kod gitmez, giriş mesajı durum netleşene kadar gitmez. Risk: gerçekten onaylı ama farklı yazılmış
+  bir durum giriş talimatını durdurur.
+- B (bugünkü davranış + ilk görüşte operatör alarmı): davranış aynı; bilinmeyen değer görülünce tek alarm, sözlüğe eklenir.
+- **Önerim: önce B**, canlı veride hangi durumların geçtiği görülünce (salt-okuma sayım) **A**.
+
+---
+
+## K8 — Operatör, müşteri hesabına bürünmüşken (impersonation) ödeme onayı kaydedebilsin mi? (para akışı)
+
+**Bugün:** operatör müşteri hesabındayken ödeme sayfasını açarsa Mesafeli Satış onayı **müşterinin kullanıcı kimliğiyle**
+kaydediliyor — müşteri tıklamadığı hâlde "müşteri kabul etti" delili oluşuyor. Hesap silme ve şifre değiştirme bu durumda zaten
+kapalı (403).
+- A: bürünmüşken onay kaydı reddedilir (403) → ödeme sayfası açılmaz, müşteri kendisi öder.
+- B: izin verilir ama kayda operatör de yazılır (şema değişikliği gerekir).
+- **Önerim: A.** Mesafeli satış kabulü müşterinin kendi eylemi olmalı. Para akışı olduğu için onayınız + ilk deneme birlikte.
+
+---
+
+## K9 — Sır süzgeci İngilizce / yabancı dildeki kodları da tanısın mı? (misafire giden cevabı etkiler)
+
+**Ölçüldü (kod çalıştırılarak):** 25 kod cümlesinin 15'i süzgeçten geçiyor; 8 zararsız cümlede yanlış eleme 0. Geçenler:
+"Lockbox combination is 4821", "combo 0917", "Keypad: 5521#", "Wi-Fi pass: SunnyDays99", "The safe code is 2468",
+"WLAN-Passwort: Sonne123", "Der Türcode ist 7788", "Le digicode est 45B12", "El código de la puerta es 3344",
+"Пароль от вайфая: Mope2024", "Код двери 5566", "كلمة المرور: Bahr2024", "رمز الباب 5566".
+
+**Ne zaman önemli:** yalnız kalem wifi / giriş kategorisinde DEĞİLSE (ör. "genel") ve konuşma onaylı konaklamaya bağlı değilse
+(Airbnb ön sorusu, onaysız rezervasyon, doğrulanmamış QR). Onaylı konaklamada hiçbir şey değişmez.
+- Önce: rezervasyonsuz ön soru "Lockbox kodu ne?" → "genel" kategorideki "Lockbox combination is 4821." modele gider.
+- Sonra: kalem bu konuşmada modele gitmez; cevap ev sahibine bırakılır.
+- Bedel: aynı kalemdeki başka bilgi de (ör. kutunun yeri) o konuşmada kullanılamaz.
+- **Önerim: evet** — kod içindeki kural zaten "fazla eleme güvenli yön" diyor. Uygulama hazır tarif: denetçi maskesindeki 7 dilli
+  etiket listesi + "is / ist / est / es / lautet" ara sözcükleri; yanlış eleme bataryası genişletilerek ölçülür.
+
+---
+
+## K10 — Diğer güvenlik kararları (kısa; hepsi kodda doğrulandı ya da mevcut belgeden)
+
+| # | konu | bugün | önerim |
+|---|---|---|---|
+| a | Takvim beslemesi (OTA'lara verilen .ics) | TÜM geçmiş rezervasyonları veriyor (tarih penceresi yok) | son 30 gün + gelecek; ama ev sahibi kendi Google takviminde geçmişi görüyorsa kaybolur → önce sorun |
+| b | Dependabot | hedef dal yok → `main`e bakıyor (orada yalnız README) → güvenlik güncellemesi PR'ı HİÇ açılmıyor | hedef dalı ekle (PR'lar otomatik birleşmez) |
+| c | Giriş (bcrypt) kapasitesi | aynı anda 2 iş + 32 kuyruk; dağıtık deneme kuyruğu doldurup gerçek girişleri 503'e düşürebilir | ağ başına ön kısıt; scrypt'e geçiş ayrı iş |
+| d | QR PIN | kapalı; dairedeki çıkartmanın fotoğrafı konaklama boyunca sohbete erişim verir | mevcut karar; Airbnb başvurusundan önce yeniden bakılsın |
+| e | CSRF | SameSite + JSON zorunluluğu var; `Sec-Fetch-Site` kontrolü yok | durum değiştiren `/api` isteklerine ek katman |
+| f | Oturum süresi / GET çıkış / OAuth PKCE / Turnstile | açık tasarım kararları (CLAUDE.md) | Airbnb güvenlik incelemesi listesine |
+| g | Repo herkese açık | denetim belgeleri (bilinen açıklar dahil) herkese açık | hassas denetim belgelerini özel bir yere taşı |
+| h | Impersonation izi | denetim ajanı: bazı yazmalar operatör yerine müşteri adına kaydediliyor (HENÜZ DOĞRULANMADI) | doğrula; yazma yollarında `actorUserId` zorunlu (ayrı tur) |
+
+---
+
+## Gece yapılanlar (karar gerektirmeyen / onaylı)
+
+- **#207 saat okuma doğruluk turu (kurucu onayı):**
+  - 67 bulgu 6/67 → 67/67; 44 ikiz 24/44 → 44/44;
+  - rapor `docs/olcum/saat-okuma-2026-09-27.md`.
+- **#209 küçük bilgi tabanı sınırı (kurucu kararı 09-27, tarif aynen uygulandı):**
+  - ön hesap ile paketleme aynı biçimli uzunluğu ölçüyor (satır + ayraç);
+  - ≤30 kalem ve sınırı ≤60 karakter aşan bilgi tabanı tamamen gider;
+  - genel bütçe büyümedi.
+- **#208 getirme hataları (kurucu "Evet, ölçerek düzeltsin"):**
+  - Çok konulu mesaj: alt sorgu yuvaları sorular arasında eşit dağıtılıyor; "Havlu, çarşaf, yastık, battaniye nerede? Wifi şifresi
+    ne?" artık Wi-Fi'yi de arıyor, V01'deki çamaşır ipi sorusu yuva alıyor. Sır filtresi aynen: rezervasyonsuz konuşmada Wi-Fi şifresi
+    seçime hiç ulaşmıyor (uçtan uca test).
+  - 7 varyant çevrimdışı ölçüldü (60 kalem, dev): sözcüksel çok soru 42 → 45 (+3 / −0). "Soru cümleciği önce" sezgisi bağlam
+    cümleciğini ("Dört kişi geleceğiz") düşürüp kayıp verdi → reddedildi.
+  - Tekrar eden ek sorgu kuralı yeniden sıralamadan önce karar veriyor: üretim benzeri yapılandırmada çok soru 83 → 88.
+  - Kök çakışmaları (havlu / hava / havalimanı, fırın / yangın, para / parti, see / sea, "dogs") ve A10 saat okuma düzeltmeleri.
+- **#211 gece güvenlik paketi (müşteriye giden metni değiştirmeyenler):**
+  - Kalite denetçisine (Claude = ikinci veri işleyen) giden metinde kapı / Wi-Fi / kasa kodları maskeleniyor (19 sızıntı vakasının
+    18'i açıktı; saat ve ücret korunuyor).
+  - Rezervasyon durumu: "not accepted" / "not possible" iptal, "inquiry" beklemede (↑K7'nin kesin kısmı).
+  - QR sayfası ve 5 sn'lik GET ucu bilgi tabanını çekmiyor / taramıyor (çıktı birebir aynı; sayfa hız sınırsızdı).
+  - Demo formu, canlı demo, QR sohbet ve CSP raporunda JSON kontrolü IP kovasından önce (başka site ziyaretçi tarayıcısıyla kovayı
+    yakamıyor).
+  - Kiracılar arası test artık ret sebebini sınıyor (eskiden kapsam kontrolü silinse de geçiyordu).
