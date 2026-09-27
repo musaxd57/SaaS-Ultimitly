@@ -65,16 +65,21 @@ function heading(field: string): string {
   return `${capital(TIME_FIELD_LABELS[field] ?? field)} saati`;
 }
 
-function perItemFieldTimes(item: KbTimeConflictItem): Map<string, { times: Set<string>; sentence: string; hits: FieldTimeHit[] }> {
-  const out = new Map<string, { times: Set<string>; sentence: string; hits: FieldTimeHit[] }>();
+function perItemFieldTimes(item: KbTimeConflictItem): {
+  fields: Map<string, { times: Set<string>; sentence: string; hits: FieldTimeHit[] }>;
+  hits: FieldTimeHit[];
+} {
+  const fields = new Map<string, { times: Set<string>; sentence: string; hits: FieldTimeHit[] }>();
+  const hits: FieldTimeHit[] = [];
   for (const h of fieldTimeHits(item.title, item.content, item.category)) {
     if (h.via !== "clause") continue;
-    const cur = out.get(h.field) ?? { times: new Set<string>(), sentence: h.clause, hits: [] };
+    const cur = fields.get(h.field) ?? { times: new Set<string>(), sentence: h.clause, hits: [] };
     cur.times.add(h.time);
     cur.hits.push(h);
-    out.set(h.field, cur);
+    fields.set(h.field, cur);
+    hits.push(h);
   }
-  return out;
+  return { fields, hits };
 }
 
 /**
@@ -96,7 +101,7 @@ export function kbTimeConflicts(
   property: { checkInTime: string | null | undefined; checkOutTime: string | null | undefined },
   items: readonly KbTimeConflictItem[],
 ): KbTimeConflictRow[] {
-  const perItem = items.map((item) => ({ item, fields: perItemFieldTimes(item) }));
+  const perItem = items.map((item) => ({ item, ...perItemFieldTimes(item) }));
   const rows: KbTimeConflictRow[] = [];
   const comparedToProperty = new Set<string>();
 
@@ -106,11 +111,15 @@ export function kbTimeConflicts(
     if (!pv) continue;
     comparedToProperty.add(field);
     const sides: KbTimeConflictSide[] = [];
-    for (const { item, fields } of perItem) {
-      const f = fields.get(field);
-      const bad = kbPropertyMismatch(f?.hits ?? [], field, pv);
-      if (bad.length === 0 || !f) continue;
-      sides.push({ itemId: item.id, title: item.title, values: bad, sentence: f.sentence, sentAutomatically: AUTO_SENT.has(item.category) });
+    for (const { item, fields, hits } of perItem) {
+      // Kalemin TÜM cümlecik atıfları (09-27): giriş kıyası geç giriş penceresinin sonunu da okur (↑`kbPropertyMismatch` son kabul).
+      const bad = kbPropertyMismatch(hits, field, pv);
+      if (bad.length === 0) continue;
+      const sentence =
+        hits.find((h) => bad.includes(h.time) && (h.field === field || (field === "checkin" && h.field === "late_checkin")))?.clause ??
+        fields.get(field)?.sentence ??
+        "";
+      sides.push({ itemId: item.id, title: item.title, values: bad, sentence, sentAutomatically: AUTO_SENT.has(item.category) });
     }
     if (sides.length === 0) continue;
     const where = sides.map((s) => `“${s.title}” bilgisinde ${s.values.join(" / ")}`).join(", ");
