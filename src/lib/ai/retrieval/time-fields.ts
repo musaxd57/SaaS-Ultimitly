@@ -132,6 +132,7 @@ function splitKeeping(text: string, sep: RegExp, min: number): string[] {
 export function endsWithTime(s: string): boolean {
   let e = s.length;
   while (e > 0 && /\W/.test(s[e - 1])) e--;
+  // Son 5 karakter (4 de yeterdi: "d:dd" en kısa biçim — mutasyon 09-27 eşdeğer; 5 "dd:dd"yi okunaklı gösterir).
   if (/\d{1,2}[:.]\d{2}$/.test(s.slice(Math.max(0, e - 5), e))) return true;
   if (e < 2 || !/^(?:am|pm)$/i.test(s.slice(e - 2, e))) return false;
   let j = e - 2;
@@ -933,7 +934,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
               if (excludedTime(f, role, info)) continue;
               const point =
                 !role.until && !role.after && !role.before && !role.from && !role.by && !role.range &&
-                !info.dayQualified && !whole.dayQualified && !boundNear(part, m.start, m.end);
+                !whole.dayQualified && !boundNear(part, m.start, m.end);
               kept.set(m.time, (kept.get(m.time) ?? false) || point);
             }
             for (const [time, point] of kept) hits.push({ field: f, time, via, clause: part.trim(), point });

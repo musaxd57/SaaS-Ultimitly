@@ -104,6 +104,19 @@ describe("holdout — oran BİLGİ, kapı değil (kurucu kararı 09-27)", () => 
     expect(holdoutVerdict({ ...r, kb: "scale-holdout" }).failures).toEqual([]);
   });
 
+  it("🚨 holdout'ta sızıntı grubu HİÇ yoksa (tam sayı 0) da \"sızıntı ölçülmedi\" (mutasyon 09-27, H5)", () => {
+    const r = run(40);
+    const rows = r.rows.filter((x) => x.group !== "version");
+    const counts = new Map([...r.fullGroupCounts].filter(([g]) => g !== "version"));
+    const v = holdoutVerdict({ rows, expected: new Map([[KEY, rows.length]]), fullGroupCounts: counts, kb: "scale-holdout" });
+    expect(v.failures).toEqual([`${KEY} · version: sızıntı ölçülmedi — 0/0 soru (grup koşulmadı)`]);
+  });
+
+  it("tam %95 hedefin ÜSTÜNDE sayılır (sınır dahil; mutasyon 09-27, H6)", () => {
+    const r = run(40, { multi: 2 }); // 38/40 = %95
+    expect(holdoutVerdict({ ...r, kb: "scale-holdout" }).rates).toContain(`${KEY} · multi: 38/40 (%95) — hedef %95 üstünde (bilgi, kapı değil)`);
+  });
+
   it("küme koşulmadıysa kırmızı; başka kümenin satırları sayılmaz", () => {
     const r = run(40);
     expect(holdoutVerdict({ ...r, expected: new Map([["scale-dev|300|prod", 120]]), kb: "scale-holdout" }).failures).toEqual(["scale-holdout: küme koşulmadı"]);

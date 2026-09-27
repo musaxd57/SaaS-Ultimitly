@@ -427,6 +427,14 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   X("checkout", "Late departure", "After check-out the terrace is free 12:00 to 14:00."),
   T("checkout", "Çıkış", "Çıkış 10:00–11:00 arası yapılır.", ["checkout:10:00", "checkout:11:00"]),
 
+  // 🚨 Mutasyon turu 09-27 (P5): tireli ETİKET satırında kısa etiket ("Giriş —", "Check-in —") ilk parçayla birleşince parça yeterince
+  // uzundur ve SONRAKİ parça ayrı kalır — birleşmiş parçanın uzunluğu yeniden ölçülmezse bütün satır tek cümleciğe yapışıp giriş saati
+  // kayboluyordu (hızlandırmanın "büyüyen parça" kuralı).
+  T("general", "Saatler", "Check-in — from 3 pm onwards — quiet hours start at 10 pm every night.", ["checkin:15:00", "quiet_hours:22:00"]),
+  T("general", "Saatler", "Giriş — 15:00'ten itibaren yapılır — çıkış 11:00'de yapılır.", ["checkin:15:00", "checkout:11:00"]),
+  T("general", "Saatler", "Havuz — 09:00–20:00 arası açık — giriş saatimiz 15:00'tir.", ["pool:09:00", "pool:20:00", "checkin:15:00"]),
+  T("general", "Saatler", "Check-in — 3 pm — late arrivals after 11 pm must text us first.", ["checkin:15:00"]),
+
   // ── Savunulabilir iki okuma (puanlanmaz) ────────────────────────────────────────────────────────────────────────
   S("checkout", "Erken Sabah Çıkışı", "Sabah 07:00'den önce çıkarken koridorda yüksek sesle konuşmamaya özen gösterin.", ["quiet_hours:07:00"]),
   S("checkout", "Çıkış", "Temizlik ekibimiz 11:00 sonrası için planlama yapar.", ["cleaning:11:00"]),

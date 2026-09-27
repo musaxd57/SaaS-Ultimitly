@@ -256,3 +256,36 @@ describe("kalem tavanı soru başına (itemCapScope: \"question\")", () => {
     }
   });
 });
+
+describe("kalem tavanı soru başına — anlama katmanının EK sorguları soru sayısını ARTIRMAZ (mutasyon 09-27, Q2)", () => {
+  beforeEach(() => __resetKbIndexCache());
+
+  // Tek konu (otopark) rehberin SEKİZ bölümünde geçiyor: ek sorgular soru sayılsaydı tavan 3 × 3 = 9 olur, rehberden 3'ten fazla parça
+  // gelirdi. Tek soruda tavan bugünkü gibi 3 kalmalı.
+  const PARK: string[] = Array.from({ length: 8 }, (_, i) => `OTOPARK ${i + 1}: Otopark bölümü ${i + 1}, araç park yeri ve otopark girişi burada anlatılır.`);
+  const parkGuide = {
+    id: "park-guide",
+    category: "parking",
+    title: "Otopark rehberi",
+    content: PARK.map((p) => `${p} ${FILL}${FILL}${FILL}${FILL}`).join("\n\n"),
+    updatedAt: new Date(t0),
+  };
+  const kb = [parkGuide, ...neutralPadding(40)];
+
+  it("tek soru + iki ek sorgu: soru başına tavan AÇIKKEN de rehberden en fazla 3 parça (bugünkü gibi)", () => {
+    const extraQueries = [
+      { text: "otopark yeri nerede araç park", turkish: true, request: 0 },
+      { text: "otopark girişi park yeri", turkish: true, request: 0 },
+    ];
+    const msg = "Otopark nerede?";
+    const off = selectKbForPrompt({ items: kb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries });
+    __resetKbIndexCache();
+    const on = selectKbForPrompt({ items: kb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries, strategy: { itemCapScope: "question" } });
+    expect(on.items.filter((i) => i.id === "park-guide")).toHaveLength(off.items.filter((i) => i.id === "park-guide").length);
+    expect(on.items.filter((i) => i.id === "park-guide").length).toBeLessThanOrEqual(3);
+    // KONTROL: ek sorgular gerçekten rehberde daha fazla parça bulabiliyor (tavan 9 olsaydı fark görünürdü).
+    __resetKbIndexCache();
+    const wide = selectKbForPrompt({ items: kb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries, strategy: { maxChunksPerItem: 9 } });
+    expect(wide.items.filter((i) => i.id === "park-guide").length).toBeGreaterThan(3);
+  });
+});
