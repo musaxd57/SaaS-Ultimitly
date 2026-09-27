@@ -10,7 +10,8 @@ import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { llmCached } from "./rag-lab/cache";
 import { runPipeline, type LabQuery } from "./rag-lab/core";
 import { parseConfig } from "./rag-lab/config";
-import { buildScaleLab, loadScaleFile } from "./rag-lab/scale-set";
+import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
+import { foreignNumbers, numericAnchors, replyHasAnchor } from "./rag-lab/answer-metrics";
 import { writeSidecar } from "./sidecar";
 
 // ---------------------------------------------------------------------------
@@ -21,6 +22,10 @@ import { writeSidecar } from "./sidecar";
 //     (sayı dil değiştirmez; sözel olgunun doğruluğu burada ÖLÇÜLMEZ — yalnız blok kapsamı)
 //   · "bilgim yok" itirafı (`admitsMissingKnowledge`, misafire asla gitmeyen biçim) oranı
 //   · yanıtsız soruda: iddia desteği denetiminin (üretimin kendi `claimAudit`i) DESTEKSİZ somut iddia sayısı (u > 0 = uydurma)
+//   · YABANCI SAYI (#189 geniş blok): cevabın söylediği, dayanağı cevap cümlelerinde / mülk alanlarında / misafirin yazdığında
+//     OLMAYAN sayı — blokta başka kalemden alınmış olgu "dayanaklı" görünür, bu ölçü onu yakalar (yalnız eşleştirilmiş fark okunur)
+// Bilgi tabanı: varsayılan tüm küme; `EVAL_RAG_ANSWER_KB=perq` = soru başına gerçek müşteri boyutu (`kbForQuery`, varsayılan 60 —
+// plan tavanı; `EVAL_RAG_ANSWER_PERQ_SIZE`). Geniş blok (`KB_RETRIEVAL_WIDE_BUDGET`) yapılandırma belirteci `wide` ile kıyaslanır.
 // Model çıktıları disk önbellekli (girdi özeti anahtar). İKİ KAPI: RUN_REAL_EVAL=1 + anahtar.
 // ---------------------------------------------------------------------------
 
@@ -32,22 +37,9 @@ const SPLIT = process.env.EVAL_RAG_ANSWER_SPLIT === "holdout" ? "holdout" : "dev
 /** Grup başına en çok bu kadar soru (sabit adımlı örneklem, ücretli koşu bütçesi). */
 const PER_GROUP = Math.max(1, Number(process.env.EVAL_RAG_ANSWER_N) || 40);
 const GROUPS = ["single_tr", "single_xx", "multi", "neg"] as const;
-
-/** Cevap cümlesindeki sayısal çapalar: saat (15.00 / 15:00), ≥2 haneli sayı, ondalık. Tek haneli sayı çapa değil (gürültü). */
-export function numericAnchors(needle: string): string[] {
-  const out = new Set<string>();
-  for (const m of needle.matchAll(/\d{1,2}[.:]\d{2}|\d+(?:[.,]\d+)?/g)) {
-    const raw = m[0];
-    if (/^\d$/.test(raw)) continue;
-    out.add(raw.replace(":", ".").replace(",", "."));
-  }
-  return [...out];
-}
-
-export function replyHasAnchor(reply: string, anchors: readonly string[]): boolean {
-  const norm = reply.replace(/(\d{1,2}):(\d{2})/g, "$1.$2").replace(/(\d),(\d)/g, "$1.$2");
-  return anchors.some((a) => new RegExp(`(^|[^\\d])${a.replace(".", "\\.")}([^\\d]|$)`).test(norm));
-}
+const KB_MODE = process.env.EVAL_RAG_ANSWER_KB === "perq" ? "perq" : "full";
+const PERQ_SIZE = Math.max(1, Math.trunc(Number(process.env.EVAL_RAG_ANSWER_PERQ_SIZE) || 60));
+const PROPERTY = { name: "Lale Evleri", checkInTime: "15:00", checkOutTime: "11:00" };
 
 interface AnswerRow {
   config: string;
@@ -59,6 +51,7 @@ interface AnswerRow {
   missing: boolean;
   unsupported: number;
   handoff: boolean;
+  foreign: boolean;
 }
 
 describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
@@ -84,14 +77,15 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
     const lines = [
       complete ? `# RAG cevap düzeyi (${stamp})` : `# GEÇERSİZ — koşu yarıda kaldı — RAG cevap düzeyi (${stamp})`,
       "",
-      `- commit: ${commit} · küme: ${SPLIT} · grup başına en çok ${PER_GROUP} soru`,
+      `- commit: ${commit} · küme: ${SPLIT} · grup başına en çok ${PER_GROUP} soru · bilgi tabanı: ${KB_MODE === "perq" ? `soru başına ${PERQ_SIZE} kalem` : "tüm küme"}`,
       "",
       "Ölçü: blokta = cevap cümlesi bilgi bloğunda · sayılı = cevap cümlesi sayı taşıyan soru · sayı cevapta = sayılı soruda",
       "cevabın sayılardan en az birini söylemesi · bilgim-yok = cevabın kendi yokluk itirafı · devir = cevap modelinin devir",
-      "niyeti · desteksiz iddia = üretimin iddia denetiminde verisiz somut iddia taşıyan cevap (yanıtsız soruda uydurma).",
+      "niyeti · desteksiz iddia = üretimin iddia denetiminde verisiz somut iddia taşıyan cevap (yanıtsız soruda uydurma) · yabancı",
+      "sayı = cevap cümlelerinde / mülk alanlarında / misafirin yazdığında olmayan sayıyı söyleyen cevap (yalnız eşleştirilmiş fark).",
       "",
-      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | bilgim-yok | devir | desteksiz iddia |",
-      "|---|---|---|---|---|---|---|---|---|",
+      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | bilgim-yok | devir | desteksiz iddia | yabancı sayı |",
+      "|---|---|---|---|---|---|---|---|---|---|",
     ];
     for (const cfg of CONFIGS) {
       for (const g of GROUPS) {
@@ -99,7 +93,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
         if (rs.length === 0) continue;
         const anchored = rs.filter((r) => r.anchored);
         lines.push(
-          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} |`,
+          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} | ${rs.filter((r) => r.foreign).length} |`,
         );
       }
     }
@@ -108,7 +102,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
     let name = `rag-answer-${stamp}.md`;
     for (let n = 2; existsSync(path.join(dir, name)); n++) name = `rag-answer-${stamp}-${n}.md`;
     writeFileSync(path.join(dir, name), `${lines.join("\n")}\n`);
-    writeSidecar(dir, name, { suite: "rag-answer", version: 1, meta: { commit, split: SPLIT, perGroup: PER_GROUP }, rows });
+    writeSidecar(dir, name, { suite: "rag-answer", version: 1, meta: { commit, split: SPLIT, perGroup: PER_GROUP, kb: KB_MODE, ...(KB_MODE === "perq" ? { perqSize: PERQ_SIZE } : {}) }, rows });
   });
 
   it("boru hattı → cevap modeli", async () => {
@@ -127,10 +121,10 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
         Array.from({ length: 3 }, async () => {
           while (i < sample.length) {
             const q = sample[i++];
-            const run = await runPipeline(items, q, cfg, NOW);
+            const run = await runPipeline(KB_MODE === "perq" ? kbForQuery(items, q, PERQ_SIZE) : items, q, cfg, NOW);
             const input: SuggestReplyInput = {
               guestMessage: q.text,
-              property: { name: "Lale Evleri", checkInTime: "15:00", checkOutTime: "11:00" },
+              property: PROPERTY,
               reservation: null,
               knowledgeBase: run.result.items,
               knowledgeBaseDropped: run.result.droppedItems,
@@ -156,6 +150,14 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
               missing: admitsMissingKnowledge(out.reply),
               unsupported: out.u,
               handoff: out.intent === "human_request",
+              foreign:
+                foreignNumbers(out.reply, [
+                  ...q.answers.flatMap((a) => a.needles),
+                  PROPERTY.checkInTime,
+                  PROPERTY.checkOutTime,
+                  q.text,
+                  ...(q.history ?? []).map((h) => h.body),
+                ]).length > 0,
             });
           }
         }),

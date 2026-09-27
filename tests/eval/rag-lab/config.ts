@@ -1,6 +1,6 @@
 import { SEMANTIC_COSINE_THRESHOLD } from "@/lib/ai/retrieval/semantic";
 import { RERANK_HOT_PATH_DEADLINE_MS, RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
-import { KB_RETRIEVAL_FETCH_CAP } from "@/lib/ai/limits";
+import { KB_RETRIEVAL_FETCH_CAP, KB_RETRIEVAL_WIDE_CHAR_BUDGET, KB_RETRIEVAL_WIDE_MAX_CHUNKS } from "@/lib/ai/limits";
 import type { LabConfig } from "./core";
 
 // RAG LAB — yapılandırma adı çözücüsü (tek kaynak; `rag-lab.eval.test.ts` ve `rag-answer.eval.test.ts` paylaşır).
@@ -15,17 +15,22 @@ export const CAP = KB_RETRIEVAL_FETCH_CAP;
  * K aday / kırpma) · `fb` (geri çekilmede de sırala) · `fused` (pencere listeler arası RRF) · `mixed6` (önce özgün soru başına 6,
  * sonra RRF) · `pq` (soru başına etiket) · `dry` (modelsiz pencere tavanı) · `dl2500` (üretimin zaman aşımı tavanı) · `cap400`
  * (okuma tavanı) · `b9000` / `mc16` (seçim bütçesi karakter / parça) · `skip` (sığmayan parçayı atla) · `pi5` (kalem başına parça) ·
- * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına) · `xs0.5` (anlama sorgularının bütçe payı; varsayılan 1/3) · `prl` (ayrı çağrıda soru başına etiket) · `wper50` / `wown20` / `wownrrf` / `wfloor10` (üretim penceresi kuruluş deneyleri).
- * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200).
+ * `demote` (modelin görüp işaretlemediği aday görülmemişlerin arkasına) · `xs0.5` (anlama sorgularının bütçe payı; varsayılan 1/3) · `prl` (ayrı çağrıda soru başına etiket) · `wper50` / `wown20` / `wownrrf` / `wfloor10` (üretim penceresi kuruluş deneyleri) ·
+ * `wide` (üretimin geniş blok bütçesi `KB_RETRIEVAL_WIDE_BUDGET` — değerler üretim sabitlerinden, tek kaynak).
+ * `prod` = canlının kendisi (s{canlı eşik}+und+rr20/600, 2,5 sn tavan, okuma 200; üretim penceresi, soru başına ayrı çağrı).
+ * `prod` / `base0926` İLK belirteç olarak taban da olur, ardından gelen belirteçler üstüne uygulanır (`prod+wide`, `prod+e3l`).
  */
-export function parseConfig(name: string): LabConfig {
-  if (name === "prod")
-    return { name, semantic: { t: T_PROD }, understanding: true, rerank: { ...RR, window: "prod", deadlineMs: RERANK_HOT_PATH_DEADLINE_MS }, fetchCap: CAP };
+const BASES: Record<string, () => Omit<LabConfig, "name">> = {
+  prod: () => ({ semantic: { t: T_PROD }, understanding: true, rerank: { ...RR, window: "prod", deadlineMs: RERANK_HOT_PATH_DEADLINE_MS }, fetchCap: CAP }),
   // 09-26 gece öncesi CANLI hâl (sabitler değişse de kıyas tabanı sabit kalsın): small gömme · eşik 0,4 · ilk 20 · 600 · 2,5 sn · okuma 200.
-  if (name === "base0926")
-    return { name, semantic: { t: 0.4, model: "text-embedding-3-small" }, understanding: true, rerank: { k: 20, crop: 600, deadlineMs: 2_500 }, fetchCap: 200 };
-  const cfg: LabConfig = { name, semantic: null, understanding: false, rerank: null, fetchCap: CAP };
-  for (const tok of name.split("+")) {
+  base0926: () => ({ semantic: { t: 0.4, model: "text-embedding-3-small" }, understanding: true, rerank: { k: 20, crop: 600, deadlineMs: 2_500 }, fetchCap: 200 }),
+};
+
+export function parseConfig(name: string): LabConfig {
+  const [first, ...rest] = name.split("+");
+  const base = Object.hasOwn(BASES, first) ? BASES[first]() : null;
+  const cfg: LabConfig = { name, ...(base ?? { semantic: null, understanding: false, rerank: null, fetchCap: CAP }) };
+  for (const tok of base ? rest : [first, ...rest]) {
     let m: RegExpMatchArray | null;
     if (tok === "lex") cfg.semantic = null;
     else if ((m = tok.match(/^s(0\.\d+)$/))) cfg.semantic = { t: Number(m[1]) };
@@ -58,6 +63,7 @@ export function parseConfig(name: string): LabConfig {
     else if ((m = tok.match(/^xs(0(?:\.\d+)?|1)$/))) cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), extraShare: Number(m[1]) } };
     else if ((m = tok.match(/^dl(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), deadlineMs: Number(m[1]) };
     else if (tok === "demote") cfg.rerank = { ...(cfg.rerank ?? RR), demote: true };
+    else if (tok === "wide") cfg.select = { ...(cfg.select ?? {}), budgetChars: KB_RETRIEVAL_WIDE_CHAR_BUDGET, maxChunks: KB_RETRIEVAL_WIDE_MAX_CHUNKS };
     else throw new Error(`bilinmeyen yapılandırma belirteci ${tok} (${name})`);
   }
   return cfg;
