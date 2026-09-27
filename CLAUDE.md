@@ -1029,6 +1029,16 @@ EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ (beklenen/tamamlanan/geçersiz ayrı). LLM
 parse edilmez, `EVAL_COMPARE_YES=1` ücretli kapı); gölge katmanı yalnız GÜVENLİK sınıflandırmasını kıyaslar, cevap
 kalitesi bu harness'la ölçülür. 09-24 kredi yüklendi (OpenAI bakiyesi org geneli ve PEŞİN; panodaki harcama
 "limit"i yalnız UYARI, durdurmaz) → ücretli koşu önce küçük deneme (`EVAL_STAY_LIMIT`, 20 satır ≈ 0,10 $) + kurucu onayı.
+🚨 **ÜCRETLİ ÖLÇÜM BÜTÇESİ (09-27 olayı: ölçümler ~25–30 $ harcadı, kredi BİTTİ, canlı yapay zekâ aynı hesapta durdu):** ölçüm
+canlıyla AYNI OpenAI hesabında koşar → ÖNCE kurucudan kalan bakiye sorulur, her koşudan önce tahmini tutar yazılır, toplam kalan
+bakiyenin YARISINI geçmez; `RAG_LAB_RPM` ZORUNLU (cevap ölçümü 8, sıralama/anlama 30 — hesabın dakikalık token sınırı canlıyla
+paylaşılır; 3 işçi 09-27'de 552 isteğin 252'sini 429'a düşürdü). Kredi biterse tüm koşular durdurulur, kurucuya HEMEN söylenir;
+kurucu "kredi yüklendi" demeden ücretli çağrı YOK. Öneri (kurucuya iletildi): otomatik yeniden yükleme + ölçümlere ayrı proje/anahtar
+(aylık bütçe sınırlı; bu ortamın `OPENAI_API_KEY`i o anahtar olur, canlı Railway kendi anahtarında kalır).
+🚨 **ÖLÇÜM MODELİ KURALI (kurucu 09-27: "müşteriye ne gideceğini gerçekten test edelim, dümenden olmasın"):** keşif / ablasyon
+(retrieval yapılandırma kıyasları: pencere, bütçe, eşik…) UCUZ modelle (`rrm:gpt-6-luna+rre:none`; 09-27'de 5.1 ile aynı yönü verdi);
+misafire giden HER ŞEY — cevap modeli çıktısı, güvenlik katmanları (anlama / bekçi / kapı), son kabul (holdout) — CANLIDAKİ modelle
+(bugün gpt-5.1), örneklemle ucuzlatılır ama VEKİL modelle ölçülmez. Luna ile çıkan sonuç 5.1 kararına kanıt DEĞİLDİR.
 🚨 **MÜHÜRLÜ FİNAL SETİ (09-24, `docs/EVAL-MUHURLU-FINAL.md`):** konaklama eval'inin `dev` + `holdout` bölümleri
 GÖRÜLDÜ (ayar + denetim ölçümleri) → açma kararı YALNIZ `evals/sealed/` altındaki kör yazılmış setle. İçerik açılmaz/
 basılmaz/ajana verilmez; harness yalnız `EVAL_SEALED_FINAL=1` + gerçek model koşusunda okur (kısmi koşu hata);
@@ -1148,6 +1158,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   `const [, result]` kural sayısını okudu, kuralı olmayan her mülk silinip 404 döndü (yayın öncesi tam kapıda yakalandı).
   Sonucu kullanılan adım etkileşimli işlemde ADIYLA döner.
 - **Bulutta Node fetch proxy'yi okumaz:** OpenAI/embedding çağıran tsx/eval koşuları `NODE_USE_ENV_PROXY=1` ister.
+- **Aynı işlemde AYNI zaman damgasıyla yazılan satırların sıralaması `id` ile kesinleşir** (09-27): konuşma öğeleri bir turda tek
+  `createdAt` ile yazılıyor, `requestIndex` mesaj başına 0'dan başlıyordu → iki mesajın öğesi tam eşit, sıra rastgele (tam kapı bir kez
+  kırmızı; "Açık işler" sırası da oynayabilirdi). Eşitlik bozucu `{ id: "asc" }` (cuid yazılış sırasında artar).
 - **Ajan token maliyeti (kurucu 09-23):** her alt ajan CLAUDE.md'nin TAMAMINI + tüm araç tanımlarını yükler ve
   sayaç birikimlidir (her araç çağrısında bağlam yeniden okunur). Bu dosya KURAL + GÜNCEL DURUM olarak kalır;
   tur anlatısı `docs/history/`e gider. Ajanlar dar ve az tutulur; basit arama doğrudan yapılır.
@@ -1262,6 +1275,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   🚨 `gpt-6-*` reasoning modeli sayılır (`model-family.ts`); bu kod canlıya çıkmadan `OPENAI_MODEL`e gpt-6 YAZILMAZ
   (eski kodla her cevap 400). Kıyas aracı `tests/eval/model-reply-compare.eval.test.ts` (`OPENAI_MODEL=<model>`,
   ücretsiz yeniden puanlama `EVAL_COMPARE_RESCORE`); aynı modelin paralel koşuları token/dk sınırına takılır → tek tek.
+  **09-27 yeniden sıralayıcı olarak da Luna'ya GEÇİLMEDİ (kurucu: "5.1'de kalalım"):** aynı ~1.000 soruda Luna (`none`) iki soru 108 ↔
+  5.1 111/120, tek soru TR 430 ↔ 432/441; p95 1,4 ↔ 1,7 sn, ~8–12× ucuz; `minimal` bu modelde desteklenmiyor (400); `low` p95 2,8 sn
+  (2,5 sn tavanını aşar). Ölçer belirteci `rrm:` / `rre:` duruyor (`docs/TASARIM-2026-09-26-rag-300-olcek.md` §6b).
 - **Model sağlayıcısı kalıcı arızası** (429+`insufficient_quota`, 401/403, 404/`model_not_found`) geçiş tabanlı
   alarma gider (`ai/provider-health.ts`); düz 429/5xx/ağ hatası eski yolda. Misafir her durumda fallback alır.
 - **Müsaitlik host metni** "müsait/kiralanabilir/kalabilirsiniz" DEMEZ; en güçlü ifade "bağlı takvimlerinizde

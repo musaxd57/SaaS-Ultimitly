@@ -256,3 +256,60 @@ hâlinin ölçerdeki ikizi): `FINAL = s0.25+und+prodwin+dl2500+cap400+e3l+wide` 
 Okuma: 0. adımın `çağrılar` satırı soru başı maliyeti verir → 1–4 yeniden tahmin edilir, kurucuya söylenir. Cevap düzeyinde
 geniş blok ANCAK şu ikisi birlikte tutarsa açılmaya önerilir: `sayı cevapta` düşmez VE `yabancı sayı` (başka kalemin olgusu) +
 yanıtsız soruda `desteksiz iddia` artmaz (eşleştirilmiş; aynı sorular). Kabul kapısı §1.
+
+### 6b. 09-27 ücretli ölçümler (kurucu: "kredi geldi, testlerini yapabilirsin … sormana gerek yok, yeter ki en iyisi olsun")
+
+Tüm koşular gpt-5.1 (anlama + yeniden sıralayıcı; `AI_SEMANTIC_MODEL` boş → `OPENAI_MODEL`) ve `text-embedding-3-large`
+(1536) ile; çıktılar disk önbellekli (tekrar koşu ücretsiz). Raporlar `docs/olcum/rag-lab-2026-09-27-{4,5,7}.md`.
+
+**Temiz dev ölçümü (276 kalem, ~1.000 soru, önerilen hat `FINAL` = s0.25+und+prodwin+dl2500+cap400+e3l+wide):**
+
+| yapılandırma | iki soru (ikisi de blokta) | tek soru TR | diğer diller | yanıtsız: geri çekilme / sızıntı | sıralayıcı p50 / p95 |
+|---|---|---|---|---|---|
+| FINAL (pencere 40+10) | 111/120 (%92,5) | 432/441 (%98,0) | 438/441 (%99,3) | 0 / 0 | 1.020 / 1.693 ms |
+| FINAL + `wper50` (istek başına 50) | **112/120 (%93,3)** | **435/441 (%98,6)** | 438/441 | 0 / 0 | 1.092 / 1.635 ms (istek +%19) |
+| FINAL + `demote` | 106/120 | 428/441 | 438/441 | 0 / 0 | — → ELENDİ |
+
+**Luna (kurucu: "gpt-6-luna 12 kat ucuz"; yalnız yeniden sıralayıcının modeli değişti, aynı sorular / adaylar):**
+
+| sıralayıcı | iki soru | tek soru TR | diğer diller | p95 | başarısız / 2,5 sn aşımı |
+|---|---|---|---|---|---|
+| gpt-5.1 | 111/120 | 432/441 | 438/441 | 1.693 ms | 9 |
+| gpt-5.1 + wper50 | 112/120 | 435/441 | 438/441 | 1.635 ms | 4 |
+| Luna, düşünme `none` | 108/120 | 430/441 | 438/441 | 1.427 ms | 2 |
+| Luna `none` + wper50 | 110/120 | 432/441 | 438/441 | 1.334 ms | 1 |
+| Luna, düşünme `low` | 110/120 | 428/441 | 435/441 | 2.771 ms | 37 |
+
+Luna daha hızlı ve ~8–12 kat ucuz, doğrulukta gpt-5.1'in 2–3 soru gerisinde (`minimal` bu modelde desteklenmiyor, 400). Sıralayıcı
+için üretim anahtarı YAZILMADI (kurucu kararı; öneri: bugünkü hacimde gpt-5.1 kalsın).
+
+**Maliyet:** adım 0 + 1 ≈ 11–12 $ (1.733 sıralama + ~400 anlama çağrısı, istek ~15–17 bin karakter); tahmin (~4 $) grup başına
+111 soruluk örneklemeye göreydi, tam set 441 soru. Luna koşuları ≈ 1–2 $. Canlıda soru başına ek maliyet: tek soru ~0,5 sent, iki
+soru ~1–1,5 sent (gpt-5.1).
+
+🚨 **Hız sınırı olayı (09-27 11:14–11:19 TR):** cevap düzeyi ölçümü 3 işçiyle gpt-5.1'in hesap geneli dakikalık token sınırına
+dayandı (552 isteğin 252'si 429). Anahtar canlıyla aynı hesaptaysa o dakikalarda canlı cevaplar da sınıra takılmış olabilir (sistem
+otomatik göndermez, mesaj ev sahibinde kalır). Geçersiz rapor kullanılmadı. Ölçerlere `RAG_LAB_RPM` (dakikalık istek tavanı) + cevap
+ölçerinde tek işçi / yeniden deneme / GEÇERSİZ satır / eşleştirilmiş kıyas eklendi; sonraki koşular hesabın sınırının ~%30'unda.
+🚨 Kural: ücretli ölçüm canlıyla aynı hesapta koşuyorsa HER ZAMAN `RAG_LAB_RPM` ile (cevap ölçümü 8, sıralama/anlama 30).
+
+**Cevap düzeyi, gerçek müşteri boyutu (60 kalem, aynı 276 soru, 552 cevabın hepsi geçerli, 429 yok;
+`docs/olcum/rag-answer-2026-09-27.md`):**
+
+| grup | ölçü | bugünkü blok (6k/12) | geniş blok (23k/40) |
+|---|---|---|---|
+| tek soru TR (80) | cevap blokta · sayılı cevapta doğru sayı · desteksiz iddia | 75 · 30/36 · 5 | **80 · 34/36 · 1** |
+| diğer diller (80) | aynı | 77 · 32/36 · 5 | **80 · 33/36 · 4** |
+| iki soru (80) | aynı | 60 · 34/46 · 2 | **77 · 36/46 · 4** |
+| yanıtsız (36) | desteksiz iddia (uydurma) · yabancı sayı | 0 · 1 | 0 · 2 |
+| tümü | yabancı sayı (başka kalemin olgusu) | 63 | 57 |
+
+§6a'daki açma şartı sağlanıyor: doğru sayı düşmüyor (artıyor), yanıtsız soruda uydurma artmıyor (0 → 0), başka kaleme sapma azalıyor.
+Geniş bloğu açma kararı kurucuda; 276 kalemlik cevap ölçümü kredi bittiği için yarıda kaldı (GEÇERSİZ, rapora girmedi).
+
+**GEÇERSİZ (kredi bitti, yarıda kaldı):** holdout kabul koşusu (`durum: YARIDA KALDI`; çıktıların ödenmiş kısmı önbellekte, kaldığı
+yerden devam eder) ve 276 kalemlik cevap ölçümü. İkisi de kredi gelince, kurucu onayı + bütçe sınırıyla tamamlanır.
+
+**Ölçüm modeli kuralı (kurucu 09-27):** keşif / ablasyon ucuz modelle (Luna, `rrm:gpt-6-luna+rre:none`), misafire giden her şey
+(cevap, güvenlik katmanları, son kabul) canlıdaki modelle (gpt-5.1) — örneklemle ucuzlatılır, vekil modelle ölçülmez. Aynı işin
+bu yöntemle maliyeti ~25–30 $ yerine ~8–10 $.
