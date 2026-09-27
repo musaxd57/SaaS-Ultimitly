@@ -77,6 +77,6 @@ describe("açılış logu — retrieval bayrakları", () => {
     logs.length = 0;
     vi.stubEnv("KB_RETRIEVAL_MODE", "");
     await register();
-    expect(wideLines()).toEqual(["[kb-retrieval] geniş blok bütçesi AÇIK (23000 karakter / 40 parça)"]);
+    expect(wideLines()).toEqual(["[kb-retrieval] geniş blok bütçesi AÇIK (23000 karakter / 80 parça)"]);
   });
 });

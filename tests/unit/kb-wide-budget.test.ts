@@ -17,7 +17,7 @@ import { neutralPadding } from "../helpers/kb-padding";
 // ---------------------------------------------------------------------------
 // #189 GENİŞ BLOK BÜTÇESİ (kurucu 09-27 "hazırla, sonra aç"; `KB_RETRIEVAL_WIDE_BUDGET` varsayılan KAPALI). Gerçek müşteri
 // boyutunda (60 kalem) iki sorulu mesajın ikinci cevabı aday listesinde ama 6k/12 bloğa sığmıyordu. Sözleşme: kapalıyken
-// sonuç BİREBİR eski; açıkken yalnız seçim yapılan bilgi tabanında blok 23k / 40 parçaya kadar büyür, paketleyici seçilen
+// sonuç BİREBİR eski; açıkken yalnız seçim yapılan bilgi tabanında blok 23k / 80 parçaya kadar büyür, paketleyici seçilen
 // hiçbir parçayı atmaz; küçük bilgi tabanı ve acil durdurma etkilenmez; çağıranın kendi bütçesi önceliklidir.
 // ---------------------------------------------------------------------------
 
@@ -78,13 +78,29 @@ describe("KAPALI — birebir eski", () => {
 describe("AÇIK", () => {
   beforeEach(() => vi.stubEnv("KB_RETRIEVAL_WIDE_BUDGET", "1"));
 
-  it("🚨 seçimde blok büyür (12'den fazla parça), 23k / 40 tavanı aşılmaz; kanıtta wb: 1", async () => {
+  it("🚨 seçimde blok büyür (12'den fazla parça), 23k / 80 tavanı aşılmaz; kanıtta wb: 1", async () => {
     const r = await retrieveKbForPrompt({ items: big, guestMessage: MSG });
     expect(r.selection).toBe("retrieved");
     expect(r.items.length).toBeGreaterThan(KB_RETRIEVAL_MAX_CHUNKS);
     expect(r.items.length).toBeLessThanOrEqual(KB_RETRIEVAL_WIDE_MAX_CHUNKS);
     expect(rendered(r.items)).toBeLessThanOrEqual(KB_RETRIEVAL_WIDE_CHAR_BUDGET);
     expect(r.evidence).toMatchObject({ wb: 1 });
+  });
+
+  it("🚨 parça tavanı karakter bütçesinden ÖNCE bağlamaz: kısa kalemlerde blok 80 parçaya kadar büyür (kurucu 09-27, 40 → 80)", async () => {
+    // Ölçüm (`docs/olcum/rag-lab-2026-09-27-9.md`): 276 kalemde kaçan her cevapta blok 40 parçaya dayanmış, 23k'nın yarısı
+    // boş kalmıştı (çok sorgulu seçimde her listeye ~5 yer). 40 → 80: iki soru %93,3 → %96,7, 0 kayıp.
+    const short = Array.from({ length: 100 }, (_, i) => ({
+      id: `kisa${i}`,
+      category: "parking",
+      title: `Otopark ${i}`,
+      content: `Otopark bilgisi ${i}: araç bina önüne bırakılır.`,
+      updatedAt: new Date(T0 - i * 60_000),
+    }));
+    const r = await retrieveKbForPrompt({ items: [...short, ...neutralPadding(20, T0)], guestMessage: MSG });
+    expect(r.selection).toBe("retrieved");
+    expect(rendered(r.items)).toBeLessThan(KB_RETRIEVAL_WIDE_CHAR_BUDGET / 2);
+    expect(r.items).toHaveLength(80);
   });
 
   it("🚨 paketleyici seçilen HİÇBİR parçayı atmaz — bütçe tam dolsa da (23k payı; 24k'da son parça düşerdi)", async () => {

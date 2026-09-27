@@ -346,11 +346,11 @@ bırakıyor, listesinde 8.–30. sıradaki cevap sığmıyor. Parça tavanı yen
 gece katılabilir, ne işlem uygulanır?" — 40'ta ikinci cevap ("fazla konukta ek ücret veya iptal") blokta YOK, 80'de var. Blok boyu
 23k'da karakter bütçesi bağlar (küçük bilgi tabanının bugün zaten aldığı boy); cevap modeline istek başına ~+3k token (~0,35 sent).
 🚨 KARAR DEĞİL: (1) set GÖRÜLDÜ (dev), (2) yanıtsız soruda bloğa giren parça 32→52 — uydurma oranı ancak ücretli CEVAP ölçümüyle
-(`rag-answer`, gpt-5.1, `RAG_LAB_RPM=8`) bilinir, (3) holdout kabulü ücretli. `KB_RETRIEVAL_WIDE_MAX_CHUNKS` 40'ta KALDI; 80'e çekmek
-= kurucu onayı + kredi gelince cevap ölçümü (60 kalem, `wide` vs `wide+mc80`) + holdout.
+(`rag-answer`, gpt-5.1, `RAG_LAB_RPM=8`) bilinir, (3) holdout kabulü ücretli. `KB_RETRIEVAL_WIDE_MAX_CHUNKS` kurucu kararıyla 80 (09-27 "80'e çık"; bayrak yine KAPALI); AÇMAK
+= kurucu onayı + kredi gelince cevap ölçümü (60 kalem, `wide+mc40` vs `wide` — `wide` artık üretim sabitiyle 80) + holdout.
 Kredi gelince (kurucu onayıyla; ortak önek + `RAG_LAB_RPM=8 EVAL_RAG_ANSWER_WORKERS=1`): 60 kalem
-`EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_KB=perq EVAL_RAG_ANSWER_CONFIGS=s0.25+und+e3l+wide,s0.25+und+e3l+wide+mc80` (~1–2 $) ve 276 kalem
-`EVAL_RAG_ANSWER_CONFIGS=FINAL,FINAL+mc80` (~1–2 $); açma şartı 6a'daki ile aynı (doğru sayı düşmez, yabancı sayı ve yanıtsız soruda
+`EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_KB=perq EVAL_RAG_ANSWER_CONFIGS=s0.25+und+e3l+wide+mc40,s0.25+und+e3l+wide` (~1–2 $) ve 276 kalem
+`EVAL_RAG_ANSWER_CONFIGS=FINAL+mc40,FINAL` (~1–2 $); açma şartı 6a'daki ile aynı (doğru sayı düşmez, yabancı sayı ve yanıtsız soruda
 desteksiz iddia artmaz). Ardından holdout kabulü seçilen yapılandırmayla.
 İstek başına 50 aday (`wper50`, sıralayıcı çıktıları 09-27 ücretli koşudan önbellekte) `mc80`in ÜSTÜNE katkı vermiyor
 (`rag-lab-2026-09-27-10.md`: iki soru 115 ↔ 116/120, TR 437 ↔ 437, diğer 439 ↔ 438) → sıralayıcı isteğini %19 büyütmeye gerek yok;

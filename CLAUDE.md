@@ -210,7 +210,7 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   6→2. Ölçer "yalnız önbellek" kipi `RAG_LAB_OFFLINE=1` (+ `_SKIP=1` eşleştirilmiş alt küme). 🚨 GERÇEK BOYUT (09-27, soru başına
   60 kalem `EVAL_RAG_KB=perq`): en büyük kayıp BLOK BÜTÇESİ (6k/12) — 24k/40 ile iki soru %71→%98 (yeni gömme, sıralayıcısız); ≤30 kalem
   bugün zaten 24k'ya kadar tamamen gidiyor (uçurum). Kurucu 09-27 "hazırla, sonra aç" → `KB_RETRIEVAL_WIDE_BUDGET` VARSAYILAN
-  KAPALI (tek karar noktası `kb-retrieve.ts`; 23k/40 — 24k DEĞİL: paketleyici satır başına +1 sayar, tam dolu 24k son parçayı
+  KAPALI (tek karar noktası `kb-retrieve.ts`; 23k/80 — parça tavanı kurucu 09-27 "80'e çık": 40'ta blok karakterin yarısında dolup cevap kaçırıyordu; 24k DEĞİL: paketleyici satır başına +1 sayar, tam dolu 24k son parçayı
   düşürürdü, pinli; çağıranın bütçesi önceliklidir; kanıt `wb`). 🚨 OpenAI kredisi 09-26 gece BİTTİ: ayrı çağrı temiz ölçümü +
   holdout kabulü + cevap düzeyi ölçüm (± geniş blok) bekliyor; üç bayrağı açmak kurucu kararı. `strategy.answersFirst` ölçüm
   seçeneği (varsayılan KAPALI; 6k/12'de kayıp → varsayılan değil). Saat alanı yanlış alarmı KAPANDI (09-27, kurucu onayı; ↓Kalıcı

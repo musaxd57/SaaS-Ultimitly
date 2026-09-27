@@ -49,9 +49,13 @@ export const KB_RETRIEVAL_MAX_CHUNKS = 12;
  * bu değer o tavanı aşmaz. 24.000 değil 23.000: paketleyici (`packKnowledgeBase`) satır başına seçicinin hesabından 1 karakter
  * fazla sayar ve kendi tavanı `KB_CHAR_BUDGET` (24k) — tam 24k seçim son parçayı sessizce "alınmadı" yapabilirdi (40 parça ×
  * 1 karakter payı; 23k ile ölçülen sonuç 24k ile birebir). Yanıtsız soruda blok ortalama ~11 → ~34 parça büyür.
+ * PARÇA TAVANI 80 (kurucu 09-27 "80'e çık"; `rag-lab-2026-09-27-9/-10/-11.md`, önbellekten): 40'ta kaçan her cevapta blok 40
+ * parçaya dayanmış, karakterin yarısı boş kalmıştı (çok sorgulu seçimde her listeye ~5 yer). 80 ile karakter bütçesi bağlar:
+ * 276 kalemde iki soru %93,3 → %96,7, TR %98,0 → %99,1 (9 kazanç, 0 kayıp); 60 kalemde 6 kazanç, 0 kayıp. Yanıtsız soruda
+ * bloğa giren parça 32 → 52 — açmadan önce ücretli cevap ölçümü (uydurma artmamalı) + holdout.
  */
 export const KB_RETRIEVAL_WIDE_CHAR_BUDGET = 23_000;
-export const KB_RETRIEVAL_WIDE_MAX_CHUNKS = 40;
+export const KB_RETRIEVAL_WIDE_MAX_CHUNKS = 80;
 /**
  * Hibritte `kb-fetch`in OKUMA tavanı (seçici bütün onaylı kümeyi görsün; plan
  * tavanı mülk başına 60 kalem). Modele giden miktarı belirleyen bu DEĞİL,
