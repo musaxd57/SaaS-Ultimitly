@@ -81,7 +81,6 @@ export function timesIn(text: string): Set<string> {
 }
 
 /** Saatle biten / saatle başlayan metin: aralığın iki ucu ("09:00 – 18:00", "between 2 pm and 5 pm") birbirinden ayrılmaz. */
-const ENDS_WITH_TIME = /(?:\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm))\W*$/i;
 const STARTS_WITH_TIME = /^\W*\d{1,2}(?:[:.]\d{2}|\s*(?:am|pm)\b)/i;
 /** Boşluklu uzun / orta tire: "You're welcome to arrive after 4 pm — the lockbox works around the clock". */
 const DASH_SEP = /(\s[—–]\s)/;
@@ -96,7 +95,9 @@ const DASH_SEP = /(\s[—–]\s)/;
 const AND_SEP = /(\s(?:ve|and|&|[-–—/]|because|cunku|çünkü|zira|but|ama|fakat|ancak|whereas|while)\s)/i;
 /** İngilizce koşul bağlacından ÖNCE bölünür, bağlaç ikinci parçada kalır ("Check-out is at 11 am | unless you've arranged a late check-out until 1 pm"). */
 const EN_CONDITION_SPLIT = /\s(?=(?:unless|if|in case|provided)\s)/i;
-const PAREN_SEP = /(\s*[()]\s*)/;
+// `(?<!\s)`: eşleşme boşluk DİZİSİNİN başında başlar (en soldaki eşleşme zaten orasıdır → sonuç aynı); yoksa uzun boşluk dizisinde
+// her konumdan yeniden taranıyordu (A3 09-27: 24k boşlukta ~290 ms).
+const PAREN_SEP = /(?<!\s)(\s*[()]\s*)/;
 /**
  * Ayırıcıdan böler. Aralığın iki ucu ile `min` sözcükten kısa yan ("Giriş – 15:00" etiketi, "Check-in — 3 pm") yeniden
  * birleşir; birleşen metinde ayırıcı AYNEN kalır (host raporu cümleciği gösterir).
@@ -104,14 +105,38 @@ const PAREN_SEP = /(\s*[()]\s*)/;
 function splitKeeping(text: string, sep: RegExp, min: number): string[] {
   const bits = text.split(sep);
   const out = [bits[0]];
+  // BÜYÜYEN parçanın belirteç sayısı her turda yeniden hesaplanmaz (A3 09-27: 4.000 kısa parçada ~2,4 sn karesel iş): parça
+  // yalnız SONUNA ayırıcı + metin eklenerek büyür, önekin belirteçleri değişmez → "en az `min`" bir kez doğruysa hep doğrudur.
+  let prevEnough = tokenize(bits[0]).length >= min;
   for (let i = 1; i < bits.length; i += 2) {
     const prev = out[out.length - 1];
     const next = bits[i + 1] ?? "";
-    const range = ENDS_WITH_TIME.test(prev) && STARTS_WITH_TIME.test(next);
-    if (range || tokenize(prev).length < min || tokenize(next).length < min) out[out.length - 1] = prev + bits[i] + next;
-    else out.push(next);
+    const nextEnough = tokenize(next).length >= min;
+    const range = endsWithTime(prev) && STARTS_WITH_TIME.test(next);
+    if (range || !prevEnough || !nextEnough) {
+      out[out.length - 1] = prev + bits[i] + next;
+      if (!prevEnough) prevEnough = tokenize(out[out.length - 1]).length >= min;
+    } else {
+      out.push(next);
+      prevEnough = nextEnough;
+    }
   }
   return out;
+}
+
+/**
+ * Metin bir SAATLE bitiyor mu — `/(?:\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm))\W*$/i` ile BİREBİR (birim testi o kalıpla kıyaslar), ama
+ * yalnız sondan bakar (büyüyen parçada her turda tüm metni taramasın): sondaki sözcük-dışı karakterler atılır, kalan metin
+ * "SS:DD / S.DD" ya da "S am/pm" (arada boşluk olabilir) ile bitmeli.
+ */
+export function endsWithTime(s: string): boolean {
+  let e = s.length;
+  while (e > 0 && /\W/.test(s[e - 1])) e--;
+  if (/\d{1,2}[:.]\d{2}$/.test(s.slice(Math.max(0, e - 5), e))) return true;
+  if (e < 2 || !/^(?:am|pm)$/i.test(s.slice(e - 2, e))) return false;
+  let j = e - 2;
+  while (j > 0 && /\s/.test(s[j - 1])) j--;
+  return j > 0 && /\d/.test(s[j - 1]);
 }
 
 /**
@@ -162,8 +187,10 @@ const isTransport = (t: string) => TRANSPORT_EXACT.has(t) || TRANSPORT_STEMS.som
  * fiilden sonra İKİYE bölünür: koşul parçası ("Daireden çıkmanız gerekirse") ile ana parça ("22:00'den sonra kapıyı
  * kilitleyin") ayrı okunur; "Erken gelirseniz | giriş 15:00'ten sonra yapılır"ta saat ana parçada → gerçek giriş saati.
  */
+// `(?<![a-zçğıöşü])`: eşleşme SÖZCÜK başında başlar — sözcük içinden başlayan her eşleşme sözcük başından da başlar ve
+// `matchAll` onu önce bulur (sonuç aynı); yoksa uzun harf dizisinde her konumdan yeniden taranıyordu (A3 09-27: 24k'da ~1,6 sn).
 const TR_CONDITIONAL_VERB_G =
-  /[a-zçğıöşü]*(?:s[ae]n[ıi]z|[aeıiuü][rz]s[ae]|(?:acak|ecek|yor)s[ae]|m[ıiuü]şs[ae]|[dt][ıiuü]ys[ae])(?![a-zçğıöşü])|(?<![a-zçğıöşü])(?:müsaitse|uygunsa|mümkünse|yoksa|değilse|boşsa|doluysa|hazırsa)(?![a-zçğıöşü])/g;
+  /(?<![a-zçğıöşü])[a-zçğıöşü]*(?:s[ae]n[ıi]z|[aeıiuü][rz]s[ae]|(?:acak|ecek|yor)s[ae]|m[ıiuü]şs[ae]|[dt][ıiuü]ys[ae])(?![a-zçğıöşü])|(?<![a-zçğıöşü])(?:müsaitse|uygunsa|mümkünse|yoksa|değilse|boşsa|doluysa|hazırsa)(?![a-zçğıöşü])/g;
 /** Kalıba uyan ama koşul OLMAYAN sözcükler ("of course", "nurse", Türkçe karaktersiz "persembe / carsamba"). */
 const NOT_CONDITIONAL = new Set(["course", "nurse", "purse", "verse", "reverse", "universe", "diverse", "adverse", "converse", "traverse", "disperse", "immerse", "rehearse", "terse", "curse", "persembe", "carsamba", "kursa", "tersane"]);
 /** İlk gerçek koşul fiilinin BİTİŞ konumu (yoksa -1); `tr` küçük harf dönüşümü uzunluğu korur (İ → i, I → ı). */
@@ -183,8 +210,23 @@ const endsWithCondition = (text: string) => {
   const last = text.trimEnd().split(/\s+/).pop() ?? "";
   return last !== "" && conditionEnd(last) === last.length;
 };
-/** Saat koşulun içinde mi: parça bir Türkçe koşul fiiliyle BİTİYOR ya da saatten önce "if you / in case" var. */
-const insideCondition = (clause: string, start: number) => endsWithCondition(clause) || /\b(?:if you|in case|unless)\b/i.test(clause.slice(0, start));
+/**
+ * Saat koşulun içinde mi: parça bir Türkçe koşul fiiliyle BİTİYOR ya da saatten önce "if you / in case / unless" var. Parça
+ * başına BİR KEZ hesaplanır (A3 09-27: saat başına tüm cümleciği yeniden taramak 4.000 saatlik kalemde ~0,9 sn); dönüş
+ * `/\b(?:if you|in case|unless)\b/i.test(clause.slice(0, start))` ile BİREBİR: eşleşme [0, start) içinde bitmeli — sondaki
+ * `\b` dilimin sonunda kendiliğinden sağlanır, dilim içinde ise ardından sözcük-dışı karakter gelmelidir.
+ */
+export function conditionAt(clause: string): (start: number) => boolean {
+  if (endsWithCondition(clause)) return () => true;
+  let free = Infinity;
+  const exact = new Set<number>();
+  for (const m of clause.matchAll(/\b(?:if you|in case|unless)/gi)) {
+    const e = (m.index ?? 0) + m[0].length;
+    if (e >= clause.length || !/\w/.test(clause[e])) free = Math.min(free, e);
+    else exact.add(e);
+  }
+  return (start) => free <= start || exact.has(start);
+}
 /** Cümlecik bir KOŞUL mu (bağlamı aynı cümlenin sonraki cümleciklerine geçer): Türkçe koşul fiiliyle biter ya da "if …" ile başlar. */
 const isConditionClause = (text: string) => endsWithCondition(text) || /^\s*(?:if|in case|unless|provided|as long as)\b/i.test(text);
 /** "Değilse / aksi halde / otherwise" ile başlayan cümlecik önceki koşulu KAPATIR ("Daire hazırsa 13:00'te, değilse 15:00'te"). */
@@ -701,7 +743,8 @@ function rangeEnds<M extends { start: number; end: number }>(clause: string, men
   const out = new Set<M>();
   const sorted = [...mentions].sort((a, b) => a.start - b.start);
   for (let j = 1; j < sorted.length; j++) {
-    if (!RANGE_GAP.test(clause.slice(sorted[j - 1].end, sorted[j].start))) continue;
+    // Boşluk dizileri teke indirilir: kalıbın her boşluğu `\s*` → sonuç aynı; uzun boşlukta karesel geri izleme olmaz (A3 09-27).
+    if (!RANGE_GAP.test(clause.slice(sorted[j - 1].end, sorted[j].start).replace(/\s+/g, " "))) continue;
     out.add(sorted[j - 1]);
     out.add(sorted[j]);
   }
@@ -760,6 +803,8 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
   // YEREL TAVSİYE (09-27, kör batarya): kalem mahalleyi anlatır — "Kaleye giriş 09:00-19:00, son giriş 18:30", "belediyenin kapalı
   // havuzu 07:00-22:00", "spor merkezi 06:00-24:00" mülkün giriş / havuz / spor salonu saati DEĞİL (mülk saatiyle sahte çelişki).
   if (category === "local_tips") return [];
+  // Saat yalnız RAKAMLA yazılır (SS:DD, S am/pm, "saat S") → rakamsız metinde okuma yok; boşuna tam tarama yapılmaz (A3 09-27).
+  if (!/\d/.test(text)) return [];
   const titleFields = clauseFields(title, { category }).fields;
   const titleField = titleFields.length === 1 ? titleFields[0] : null;
   // KATEGORİ ÖDÜNCÜ — en zayıf dayanak, en son (inceleme 09-23): "Varış bilgileri" başlıklı `checkin`
@@ -874,13 +919,14 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
           const carried = via === "clause" && !STAY_FIELDS.has(field) ? pending.filter((f) => f !== field) : [];
           pending = [];
           const ranged = rangeEnds(part, mentions);
+          const inConditionAt = conditionAt(part);
           for (const f of [field, ...carried]) {
             // saat → koşulsuz mu (aynı saat birden çok kez geçerse biri koşulsuzsa koşulsuz)
             const kept = new Map<string, boolean>();
             for (const m of mentions) {
               const role = {
                 ...timeRole(part, m.start, m.end),
-                inCondition: insideCondition(part, m.start),
+                inCondition: inConditionAt(m.start),
                 range: ranged.has(m),
                 afterRef: (info.afterRefEnd >= 0 && m.start >= info.afterRefEnd) || (carriedAfterRef && (via !== "clause" || fromCarry)),
               };

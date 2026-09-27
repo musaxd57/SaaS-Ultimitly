@@ -980,13 +980,17 @@ export interface TimeConflict {
  */
 export function findTimeConflicts(property: PropertyContext, kb: KbContext[]): TimeConflict[] {
   const out: TimeConflict[] = [];
+  // Kalem başına atıflar BİR KEZ okunur (A3 09-27: alan başına yeniden okumak her cevapta saat okuyucusunu iki kez koşturuyordu —
+  // gerçekçi 24k rehberde ~2 × 130 ms eşzamanlı işlemci); mülkte hiç saat yoksa hiç okunmaz.
+  let hitsByItem: ReturnType<typeof fieldTimeHits>[] | null = null;
   for (const { field, property: key } of PROPERTY_TIME_FIELDS) {
     const propertyValue = normalizePropertyTime(property[key]);
     if (!propertyValue) continue;
+    hitsByItem ??= kb.map((item) => fieldTimeHits(item.title, item.content, item.category));
     const seen = new Set<string>();
-    for (const item of kb) {
+    for (const hits of hitsByItem) {
       // Kalem başına atıflar: küme kuralı + aynı kalemde iki koşulsuz saat (tek kural `kbPropertyMismatch`, ev sahibi raporuyla ortak).
-      for (const t of kbPropertyMismatch(fieldTimeHits(item.title, item.content, item.category), field, propertyValue)) seen.add(t);
+      for (const t of kbPropertyMismatch(hits, field, propertyValue)) seen.add(t);
     }
     if (seen.size > 0) out.push({ field: key, propertyValue, kbValues: [...seen].sort() });
   }
