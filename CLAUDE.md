@@ -215,7 +215,14 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   holdout kabulü + cevap düzeyi ölçüm (± geniş blok) bekliyor; üç bayrağı açmak kurucu kararı. `strategy.answersFirst` ölçüm
   seçeneği (varsayılan KAPALI; 6k/12'de kayıp → varsayılan değil). Saat alanı yanlış alarmı KAPANDI (09-27, kurucu onayı; ↓Kalıcı
   ürün kararları "Saat alanı kuralı"): 60 kalemde yanlış mülk-saati çelişkisi %30 → %0 (geniş blokla %58 → %0; kalan %3,9 / %12,9
-  dev setine bilerek konmuş GERÇEK çelişki).
+  dev setine bilerek konmuş GERÇEK çelişki). 🚨 **KABUL (kurucu kararı 09-27, Codex'le): %95 ZORUNLU GEÇME KURALI DEĞİL** — oran
+  raporda gelişim çizgisi; kabul testi VAKA başına müşteriye giden sonuca bakar (doğru kanıta dayalı cevap · bilinmeyende dürüst
+  bilmeme/devir · çelişkide kesin konuşmama · sıfır sır sızıntısı; biri bozulursa o vaka kırmızı; cevap düzeyi `rag-answer`); canlı
+  gönderim kapısı AYRICA gerekir. Getirme düzeyinde (`rag-lab/acceptance.ts` `holdoutVerdict`) kırmızı = sızıntılı vaka + ölçülmemiş
+  sızıntı + eksik koşu (2,5 sn tavan aşımı eksik DEĞİL). Ölçer önbellek anahtarı modele GİDEN isteği tanımlar (`replyRequestIdentity`
+  + `cache-keys.ts`; cevap isteminin anı `REPLY_NOW` sabit — istem dakikayı taşır). İki sorulu cevapta her sorunun sayısı AYRI
+  (`answerAnchorHits`). Kalem parça tavanı soru başına seçeneği `strategy.itemCapScope: "question"` VARSAYILAN KAPALI (tek rehberde 4
+  soru 0/10 → 9/10, dev setinde fark 0; açmak kurucu kararı, belge §6e).
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
@@ -515,7 +522,8 @@ Bu dosyaya token/anahtar/parola yazma.
   gerçekten çözmek anlama katmanı işi (öneri). 🚨 Kural (kurucu #28): test bir sözcük çakışmasıyla düşerse fikstür
   değiştirilip geçilmez — gerçek mesajda olabiliyorsa kök
   regresyon testi yazılır (örnek 13d).
-- **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
+- **KB sır kapısı:** konaklamaya göre kapsam TEK KURAL `kbForStayScope` (oto-yanıt + yönetici "AI öner", Codex 09-27: öneri rotası
+  hiç elemiyordu) · `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde TEK girişten (`styleProfileForPrompt` = sürüm kuralı + sır süzgeci).
   🚨 **ÜSLUP PROFİLİ OLGU KAYNAĞI DEĞİLDİR (F13, 09-26, `ai/style-profile.ts`):** org genelindeki host cevaplarından
   damıtılır; eski özetleyicinin "sık sorulan sorular" bölümü A dairesinin otopark cevabını B'ye olgu diye taşıyordu. Özetleyici
@@ -636,7 +644,10 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
   Codex / ajan önerisi KARAR DEĞİLDİR ("ChatGPT de yanlış söylüyor olabilir, bana sor"): iddia kodda ölçülür, uygulanıp
   uygulanmayacağı kurucuya sorulur. **ÖNERİ BİÇİMİ (kurucunun sözleri):** "bunu böyle yapıyorum · büyük şirketler böyle
   yapıyor · önerim bu · ÖRNEK: şöyle bir mesaj gelirse şöyle cevap veriyor / şöyle davranıyor · böyle yapalım mı?" —
-  kararı değiştiren her öneride somut mesaj → davranış örnekleri (önce / sonra) gösterilir.
+  kararı değiştiren her öneride somut mesaj → davranış örnekleri (önce / sonra) gösterilir. **09-27 inceltme (kurucu):** Codex /
+  ajan önerisi HEMEN kabul edilmez, kodda ÇALIŞTIRILARAK doğrulanır; kolay + doğru + müşteriye gideni ETKİLEMİYORSA yapılır ve
+  haber verilir; müşteriye gidecek cevaba dokunuyorsa önce/sonra örneğiyle SORULUR; daha iyisi biliniyorsa gerekçeyle itiraz
+  edilir. Kurucunun sözü Codex'inkinden önce gelir. Takip tablosu: `docs/INCELEME-2026-09-27-codex-ve-10-ajan.md`.
 - Kalıcı kararlar buraya, gerekçeler git log/arşive.
 
 ## Kalıcı kararlar (yeniden tartışma yok — gerekçe: arşiv + git log)
@@ -1226,6 +1237,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   **E5 üretim yolu yazıldı (anahtar KAPALI, ↑Retrieval)**; AÇMA KARARI KURUCUDA. `embedTexts` kalıcı
   arızada (kredi/anahtar/model) yeniden DENEMEZ; sağlayıcının TEK izinli üretim çağıranı `semantic-retrieval.ts`
   (mekanik pin, göreli import da sayılır).
+- **Saat okuyucusunda KARESEL İŞ YOK (A3 09-27, `kb-time-fields-perf.test.ts`):** tek kalem 1,6–2,5 sn kilitliyordu → ≤ ~80 ms;
+  `findTimeConflicts` kalem başına BİR KEZ okur. Hızlandırma çıktıyı DEĞİŞTİRMEZ (76k girdide fark 0) — doğruluk düzeltmeleri AYRI
+  commit ve ayrı onay. Yeni bir kalıp eklerken uzun harf / boşluk / tireli parça dizisinde süre pini koşulur.
 - **Saat alanı kuralı TEK KAYNAK `retrieval/time-fields.ts`** (retrieval çelişki koruması + istemin KB↔mülk
   bloğu + host "Uyuşmayan saatler"): erken giriş/geç çıkış ayrı alan, bina/otopark girişi + acil çıkış + çıkış GÜNÜ
   konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu.
