@@ -202,17 +202,24 @@ hata, İngilizce varış/çıkış saatlerini düşürüyordu); başka bir şeyi
 …" cümleciği önceki konuyu taşır; kısa etiket + virgül ("Geç giriş, … 01:00'e kadar") alanını verir; "because / unless" iki cümleciği
 ayırır ("unless" sonrası koşul); "ayrılış günü / departure day" gündür; anahtarı çıkış günü geri vermek çıkıştır; resepsiyon masası,
 cankurtaran ve bina kapısının saati kendi saatidir; "talep / istek" hizmet sözüdür; "misafir gelmiyorsa / if nobody …" müsaitlik,
-"geciktirmek" uzatmadır; "16:00'dan … 10:00'a kadar" başlangıç-bitiştir.
+"geciktirmek" uzatmadır; "16:00'dan … 10:00'a kadar" başlangıç-bitiştir. Beşinci tur (mutasyon koşusu, `8603f97`, 160 mutant): 140'ı
+öldü, 20 kural parçası hiçbir teste dayanmıyordu → 19'una YALNIZ ona dayanan pin eklendi; olumsuz emirle "gir-" elemesi ölü kuraldı
+(kök sökücü "girmeyin"i "gir"e indirmez, giriş kanıtı hep başka bir "gir-" biçiminden gelir) ve kaldırıldı. İnceleme iki yeni hata buldu:
+erişimin BİTMESİ ("kod çıkış günü 11:00'den sonra çalışmaz", "stops working", "will not work", "no longer works", "geçerliliğini yitirir")
+başlangıç fiili sayılıp çıkış günü saati GİRİŞ okunuyordu (mülkün 15:00 girişiyle sahte "giriş 11:00" çelişkisi) → olumsuzlanan / biten
+başlangıç fiili bitiştir; "ve" ile bölünen "çıkıştan sonra 10:00–20:00 arası [valiz] bırakabilirsiniz" çıkış saati sayılıyordu → başvuru
+noktasından sonraki ARALIK başka işin penceresidir (aynı cümlecikteki tek saat alanın değeri olarak kalır).
 
 | ölçüm | canlı kural (`7382338`) | yeni kural |
 |---|---|---|
-| iki yönlü batarya (`tests/helpers/time-field-battery.ts`, gerçek / tuzak) | 94/153 · 33/124 | **153/153 · 124/124** |
+| iki yönlü batarya (`tests/helpers/time-field-battery.ts`, gerçek / tuzak) | 99/168 · 40/144 (dördüncü tur `8603f97`: 166/168 · 133/144) | **168/168 · 144/144** |
 | kör batarya 1 (115 cümle; ikinci turda bakıldı → "görüldü") | 43/59 · 30/56 | 57/59 · 56/56 |
 | **kör batarya 2 (140 cümle; AYARSIZ, ikinci tur kuralıyla)** | 42/61 · 39/69 | **49/61 · 60/69** |
 | **kör batarya 3 (160 cümle; AYARSIZ, üçüncü tur kuralıyla)** | 35/65 · 42/80 | **51/65 · 72/80** |
 | kör batarya 2 / 3, sonraki turlardan sonra ("görüldü") | — | 61/61 · 69/69 / 64/65 · 79/80 |
-| 60 kalem, mülk saatiyle çelişen soru (yanlış alarm) | %30 (geniş blokla %58) | **%3,9 (%12,9) — hepsi gerçek** |
-| 276 kalemlik dev setinde okunan gerçek saat | — | ilk turla birebir (kayıp yok) |
+| 60 kalem, mülk saatiyle çelişen soru (yanlış alarm) | %30 (geniş blokla %58) | **%3,9 (%12,9) — hepsi gerçek** (beşinci turda aynı) |
+| 276 kalemlik dev setinde okunan gerçek saat | — | ilk turla birebir (kayıp yok; beşinci turda da fark 0) |
+| mutasyon (`scripts/mutation-run.mjs`, saat alanı kuralı) | — | 140/160 → yaşayanlar pinlendi / kaldırıldı (yeniden koşu ↓) |
 
 Kalan %3,9 / %12,9'un tek kaynağı dev setine bilerek konmuş gerçek çelişkidir ("standart çıkış saati en geç 12:00" ↔ mülk 11:00): tutulması
 doğrudur. Kör bataryanın kalan iki farkı bilinçlidir: yere bağlı sessizlik kuralı ("havuz başında 22:00'den sonra müzik yasak") cümlecikte

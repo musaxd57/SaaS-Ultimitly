@@ -9,8 +9,8 @@ import { TIME_FIELD_BATTERY } from "../helpers/time-field-battery";
 // saatiyle YANLIŞ çelişki üretiyordu ("21.00'den sonra varacaksanız", "12.00–14.30 valiz", "araç girişi 19–24",
 // "müzisyenler çıkıyor", "şofben 3 dakikaya çıkabilir") → istem mülk saatini gizliyor, giriş/çıkış cevabı onaya düşüyordu;
 // aynı kural "iskele sabah sakin", "kuaför salonu", "şezlong" cümlelerini sessizlik / spor salonu / havuz saati sayıp ev
-// sahibine sahte "uyuşmayan saat" gösteriyordu. Canlı kural (`7382338`) bu bataryada gerçek saatlerin 94/153'ünü, tuzakların
-// 33/124'ünü doğru okuyordu.
+// sahibine sahte "uyuşmayan saat" gösteriyordu. Canlı kural (`7382338`) bu bataryada gerçek saatlerin 99/168'ini, tuzakların
+// 40/144'ünü doğru okuyordu; dördüncü turun kuralı (`8603f97`) 166/168 · 133/144 (mutasyon incelemesinin bulduğu on üç cümle).
 // İki yön birlikte pinli: GERÇEK saat okunmaya devam eder (kaçarsa gerçek çelişki görünmez), tuzak okunmaz.
 // ---------------------------------------------------------------------------
 

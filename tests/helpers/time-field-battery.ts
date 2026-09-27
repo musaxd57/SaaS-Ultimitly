@@ -366,6 +366,55 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   // Süre: nesne cümlenin başka cümleciğinde, başlangıç ayrılma hâliyle ("16:00'dan").
   T("welcome", "Daireniz", "Daire, giriş gününüz saat 16:00'dan ayrılış gününüz saat 10:00'a kadar tamamen sizindir.", ["checkin:16:00", "checkout:10:00"]),
 
+  // ── 09-27 beşinci tur (mutasyon koşusu: 160 mutantın 20'si yaşadı → her kural parçasına YALNIZ ona dayanan pin) ────────
+  // Aracın çıkışı / girişi ("otobüs çıkışı"); geç varışların sınıfı; koşul cümleciğinin ulaşım konusu ("uygunsa", "isterseniz").
+  X("general", "Ulaşım", "Otobüs çıkışı her gün 17:00'de."),
+  X("checkin", "Giriş", "Geç varışlar 23:00'e kadar kabul edilir."),
+  X("checkin", "Giriş", "Havalimanı transferi uygunsa, sabah 10:30'da hazır olun."),
+  X("checkin", "Giriş", "Taksi isterseniz, lütfen 10:30'da hazır olun."),
+  // Başlıktan ödünç alınan çıkış + uzatma = geç çıkış; "en geç … 'e kadar" son saattir (geç çıkış değil); "geciktir-" uzatmadır.
+  T("checkout", "Çıkış", "Talep üzerine 13:00'e kadar uzatılabilir.", ["late_checkout:13:00"]),
+  T("checkout", "Çıkış", "Daireyi en geç 11:00'e kadar boşaltın.", ["checkout:11:00"]),
+  T("checkout", "Çıkış", "Çıkışınızı 12:00'ye kadar geciktirebilirsiniz.", ["late_checkout:12:00"]),
+  // Tireli kısa etiket saatiyle birlikte kalır; virgülle devam eden saat listesi önceki alanındır.
+  T("general", "Saatler", "15:00 — giriş, 11:00 — çıkış.", ["checkin:15:00", "checkout:11:00"]),
+  T("general", "Saatler", "Check-in is from 15:00, 16:00 on Sundays.", ["checkin:15:00", "checkin:16:00"]),
+  // "ve" ile bölünen parça bütün cümlenin valiz konusunu taşır (ödünç yok); ağ anahtarı Wi-Fi'dır, kapı erişimi değil.
+  X("checkout", "Çıkış", "Valizlerinizi girişten önce bırakabilirsiniz ve 14:00'e kadar alabilirsiniz."),
+  X("general", "Wi-Fi", "The network key works from 3 pm."),
+  // Erişim kuralından gelen girişte bitiş ("…'e kadar geçerli") değer değil; erişimi çıkış günü bırakmanın "…'den sonra"sı da değil.
+  T("checkin", "Kapı kodu", "Kapı kodu 15:00'te aktif olur ve 23:00'e kadar geçerlidir.", ["checkin:15:00"]),
+  X("checkout", "Anahtar", "Anahtarları çıkış günü 10:00'dan sonra kutuya bırakın."),
+  // Başvurulu "by" ("before check-out by 10 am") çıkış saati değil; "the day you depart" çıkış günüdür.
+  X("checkout", "Çöp", "Please take out the trash before check-out by 10 am."),
+  T("checkout", "Door code", "The door code is deactivated at 11 am on the day you depart.", ["checkout:11:00"]),
+  // "-nmaz" kural dilidir; daireyi teslim ALMAK çıkış değildir; "misafir gelmiyorsa" müsaitliktir; giriş kontuarı bir hizmettir.
+  T("rules", "Ev kuralları", "Gece 23:00'ten sonra yüksek sesle müzik çalınmaz.", ["quiet_hours:23:00"]),
+  T("checkin", "Giriş", "Daireyi 15:00'te teslim alabilirsiniz.", ["checkin:15:00"]),
+  T("checkin", "Giriş", "Önceki gece misafir gelmiyorsa 12:00'de girebilirsiniz.", ["early_checkin:12:00"]),
+  X("checkin", "Giriş", "Giriş kontuarı 09:00–17:00 arası açıktır."),
+  // 🚨 Erişimin BİTMESİ başlangıç değildir (mutasyon incelemesinde bulundu: beşi de mülkün 15:00 girişiyle sahte "giriş 11:00"
+  // çelişkisi üretiyordu). Olumsuzlanan / biten başlangıç fiili ("çalışmaz", "stops working", "will not work", "no longer works",
+  // "geçerliliğini yitirir") bitiştir; ikizi: olumlu başlangıç fiili giriş olarak kalır.
+  T("checkout", "Door code", "The door code stops working at 11 am on check-out day.", ["checkout:11:00"]),
+  T("checkout", "Kapı kodu", "Kod çıkış günü 11:00'de geçerliliğini yitirir.", ["checkout:11:00"]),
+  X("checkin", "Kapı kodu", "Kapı kodu çıkış günü 11:00'den sonra çalışmaz."),
+  X("checkin", "Door code", "The key code will not work after 11 am on check-out day."),
+  X("general", "Door code", "The code no longer works after 11 am on your departure day."),
+  X("checkin", "Kapı kodu", "Kapı kodu çıkış günü 11:00'den sonra çalışmıyor."),
+  X("checkin", "Kapı kodu", "Kapı kodu çıkış günü 11:00'den sonra geçerli değildir."),
+  X("checkin", "Door code", "The key code won't work after 11 am on check-out day."),
+  T("checkin", "Door code", "The door code works from 3 pm on arrival day.", ["checkin:15:00"]),
+  T("checkin", "Kapı kodu", "Kod 15:00'ten itibaren çalışır; çalışmazsa bizi arayın.", ["checkin:15:00"]),
+  // 🚨 Başvuru noktasından sonraki ARALIK başka işin penceresidir ("çıkıştan sonra 10:00–20:00 arası" valiz; mutasyon incelemesinde
+  // bulundu: "ve" bölmesi valiz sözünü ayırınca mülkün 11:00 çıkışıyla sahte çelişki üretiyordu). İkizi: başvurusuz aralık alanındır.
+  X("checkout", "Çıkış", "Valizlerinizi girişten önce ve çıkıştan sonra 10:00–20:00 arası bırakabilirsiniz."),
+  X("checkout", "Çıkış günü", "Çıkıştan sonra 12:00 ile 14:00 arası bahçeyi kullanabilirsiniz."),
+  X("checkout", "Çıkış günü", "Çıkıştan sonra 12:00'den 14:00'e kadar terası kullanabilirsiniz."),
+  X("checkout", "Late departure", "After check-out you may use the terrace between 12:00 and 14:00."),
+  X("checkout", "Late departure", "After check-out the terrace is free 12:00 to 14:00."),
+  T("checkout", "Çıkış", "Çıkış 10:00–11:00 arası yapılır.", ["checkout:10:00", "checkout:11:00"]),
+
   // ── Savunulabilir iki okuma (puanlanmaz) ────────────────────────────────────────────────────────────────────────
   S("checkout", "Erken Sabah Çıkışı", "Sabah 07:00'den önce çıkarken koridorda yüksek sesle konuşmamaya özen gösterin.", ["quiet_hours:07:00"]),
   S("checkout", "Çıkış", "Temizlik ekibimiz 11:00 sonrası için planlama yapar.", ["cleaning:11:00"]),

@@ -1229,8 +1229,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu.
   İkinci bir saat/çelişki kuralı YAZILMAZ. Host raporu yalnız cümlecik saatini sayar; misafir yolu temkinli.
   🚨 **09-27 yanlış alarm turu (kurucu "en iyi şekilde, didik didik"; belge `docs/TASARIM-2026-09-26-rag-300-olcek.md` §4d;
-  iki yönlü batarya `tests/helpers/time-field-battery.ts` — gerçek saat okunur + tuzak okunmaz; canlı kural 94/153 gerçek · 33/124
-  tuzak, yeni kural 153/153 · 124/124; kuralları görmemiş ajanın kör bataryası 3 AYARSIZ 35/65 · 42/80 → 51/65 · 72/80):** saatin BAĞLAMI okunur (`timeRole`: "…'e kadar / sonrası / önce", until/after/before): geç/erken sınırı ("11:00
+  iki yönlü batarya `tests/helpers/time-field-battery.ts` — gerçek saat okunur + tuzak okunmaz; canlı kural 99/168 gerçek · 40/144
+  tuzak, yeni kural 168/168 · 144/144; kuralları görmemiş ajanın kör bataryası 3 AYARSIZ 35/65 · 42/80 → 51/65 · 72/80):** saatin BAĞLAMI okunur (`timeRole`: "…'e kadar / sonrası / önce", until/after/before): geç/erken sınırı ("11:00
   sonrası geç çıkış ücreti"), başvuru noktası ("çıkıştan sonra … 14:00'e kadar") ve koşulun İÇİNDEKİ saat değer DEĞİL (Türkçe koşul
   fiilinden — "-rse/-sanız/müsaitse" — sonra cümlecik bölünür; "of course / persembe" koşul değil). Konaklama saati DEĞİL: valizle
   yapılan iş, araç girişi, "girişin arkası/önü", "check-in help/desk / giriş talimatı", iletişim saati (ödünç engeli), ulaşım
@@ -1256,7 +1256,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   Türkçe giriş/çıkış alan değil; virgülle devam (saat listesi, "which …") konuyu taşır, kısa etiket + virgül alanını verir (vetosuz parçaya);
   "because / unless" böler ("unless" sonrası koşul); "ayrılış günü / departure day" gün; anahtarı çıkış günü iade = çıkış; masa / cankurtaran /
   bina kapısı kendi saati; "talep/taleb/istek/isteğ" hizmet; "misafir gelmiyorsa / if nobody" müsaitlik; "geciktir-" uzatma; "16:00'dan …
-  10:00'a kadar" ablatif başlangıç. Yeni sözcük eklerken bataryaya İKİZ (doğru + tuzak) cümle yazılır; her kural parçasını YALNIZ kendisine
+  10:00'a kadar" ablatif başlangıç. Beşinci tur (mutasyon, 160 mutant, 20 yaşadı → pin / ölü kural silindi): olumsuzlanan / biten
+  başlangıç fiili ("çalışmaz", "stops working", "will not work", "no longer works", "geçerliliğini yitirir") erişimin BİTİŞİDİR (giriş
+  sayılıyordu); başvuru noktasından sonraki ARALIK ("çıkıştan sonra 10:00–20:00 arası") başka işin penceresidir; olumsuz emirle "gir-"
+  elemesi yoktur (kök sökücü "girmeyin"i "gir"e indirmez). Yeni sözcük eklerken bataryaya İKİZ (doğru + tuzak) cümle yazılır; her kural parçasını YALNIZ kendisine
   dayanan bir pin korur (mutasyon). Kör batarya bir kez ayarda kullanılınca "görüldü" sayılır; dürüst sayı YENİ kör bataryayla verilir.
   🚨 **Çelişki KAPIDA tutulur (09-25, `ai/time-conflict-gate.ts`):** istemin çelişki listesi `suggestReply` sonucunda
   (`timeConflicts`) kapıya gider; çelişkili alana (niyet · misafir/cevap konusu · çelişen saat) değen cevap kanal + QR +

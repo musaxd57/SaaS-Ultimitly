@@ -271,7 +271,28 @@ const STAY_END = /^(?:biter|bitiyor|bitmektedir|end|ends|finish)/;
  */
 const ACCESS_NOUN = /^(?:kod|anahtar|sifre|key|keys|code|codes|lockbox|keybox)/;
 const ACCESS_START = /^(?:calis|aktif|activ|gecerli|valid|work|yours|sizin|hazir|ready|teslim|alabilirsiniz|alinabilir|collect|available)/;
-const ACCESS_END = /^(?:gecersiz|devre|expir|deactiv|sona|biter|bitiyor|kapan|iptal|cancel)/;
+const ACCESS_END = /^(?:gecersiz|devre|expir|deactiv|sona|biter|bitiyor|kapan|iptal|cancel|yitir)/;
+/**
+ * Olumsuzlanan / biten başlangıç fiili (09-27, mutasyon incelemesi): "Kapı kodu çıkış günü 11:00'den sonra çalışmaz", "The door code
+ * stops working at 11 am", "will not / won't work", "no longer works", "geçerli değildir", "geçerliliğini yitirir" — erişimin BİTTİĞİ
+ * andır. Başlangıç fiili sayılınca çıkış günü saati GİRİŞ okunuyordu (mülkün 15:00 girişiyle sahte "giriş 11:00" çelişkisi).
+ */
+const EN_NEGATORS = new Set(["not", "never", "stop", "stops", "stopped", "cease", "ceases", "ceased"]);
+const EN_NEG_CONTRACTIONS = new Set(["won", "can", "don", "doesn", "isn", "aren", "wouldn", "didn"]);
+function negatedStart(toks: readonly string[], i: number): boolean {
+  const next = toks[i + 1] ?? "";
+  const prev = toks[i - 1] ?? "";
+  const prev2 = toks[i - 2] ?? "";
+  return (
+    NEG_VERB.test(toks[i]) ||
+    /m[iu]yor/.test(toks[i]) ||
+    next.startsWith("degil") ||
+    ACCESS_END.test(next) ||
+    EN_NEGATORS.has(prev) ||
+    (prev === "longer" && prev2 === "no") ||
+    (prev === "t" && EN_NEG_CONTRACTIONS.has(prev2))
+  );
+}
 /** Erişimin GEÇERLİ olduğu süre ("11:00'e kadar geçerlidir"): çıkış günüyle birlikte bitiş = çıkış. */
 const ACCESS_VALID = /^(?:gecerli|valid|calis|work|aktif|activ)/;
 /** Erişimi GERİ VERMEK ("hand back / return / leave the keys … on departure day", "anahtarları çıkış günü … bırakın"). */
@@ -466,7 +487,9 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
   const enterVerbOnly = !keep.some((t) => isIn(t)) && toks.some((t) => /^gir(?!is)/.test(t));
   const staff = toks.some((t) => STAFF.test(t));
   if (lexical.includes("checkin") && enterVerbOnly) {
-    const enters = toks.some((t) => (YOU_ENTER.test(t) && !NEG_IMPERATIVE.test(t)) || (STAY_PLACE_DAT.test(t) && !staff));
+    // Olumsuz emir ("girmeyin") burada ayrıca elenmez (09-27 mutasyon incelemesi): kök sökücü onu "gir"e indirmez, yani giriş
+    // kanıtı hep BAŞKA bir "gir-" biçiminden gelir ("15:00'ten önce girmek yasaktır lütfen girmeyin" = giriş 15:00).
+    const enters = toks.some((t) => YOU_ENTER.test(t) || (STAY_PLACE_DAT.test(t) && !staff));
     if (!enters || otherPlace) lexical = lexical.filter((f) => f !== "checkin");
   }
   const settles =
@@ -490,12 +513,12 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
   const accessNoun = toks.some((t) => ACCESS_NOUN.test(t));
   const accessFree = foreign.every((id) => id === "keys" || id === "credentials") && !toks.some((t) => WIFI.test(t)) && !luggage;
   const departing = departureDay(toks);
-  const endVerb = toks.some((t) => ACCESS_END.test(t));
+  const endVerb = toks.some((t, i) => ACCESS_END.test(t) || (ACCESS_START.test(t) && negatedStart(toks, i)));
   const accessStart =
     lexical.length === 0 &&
     accessFree &&
     accessNoun &&
-    toks.some((t) => ACCESS_START.test(t)) &&
+    toks.some((t, i) => ACCESS_START.test(t) && !negatedStart(toks, i)) &&
     (!endVerb || departing) &&
     roles.some((r) => !r.until && !r.before);
   // Erişimin ÇIKIŞ GÜNÜ bitmesi = çıkış ("… çıkış günü saat 11:00'de iptal edilir", "çıkış günü 11:00'e kadar geçerlidir").
@@ -637,6 +660,22 @@ function timeMentions(clause: string): { time: string; start: number; end: numbe
   return out;
 }
 
+/**
+ * Aralığın uçları: iki saat arasında yalnız tire / "ile / ve / and / to / until" (ve ilk saatin eki) var — "10:00–20:00",
+ * "15:00 ile 22:00", "between 2 pm and 5 pm", "11:00'den 14:00'e".
+ */
+const RANGE_GAP = /^\s*(?:['’`]\s*[a-zçğıöşü]{1,4}\s*)?(?:[-–—]|ile|ve|and|to|till|until)?\s*$/i;
+function rangeEnds<M extends { start: number; end: number }>(clause: string, mentions: readonly M[]): Set<M> {
+  const out = new Set<M>();
+  const sorted = [...mentions].sort((a, b) => a.start - b.start);
+  for (let j = 1; j < sorted.length; j++) {
+    if (!RANGE_GAP.test(clause.slice(sorted[j - 1].end, sorted[j].start))) continue;
+    out.add(sorted[j - 1]);
+    out.add(sorted[j]);
+  }
+  return out;
+}
+
 /** Saatin ardındaki sözcük ("14:00'e kadar", "11:00 sonrası", "15:00'ten önceki / itibaren") ya da önündeki ("until / after / before / from"). */
 function timeRole(clause: string, start: number, end: number): { until: boolean; after: boolean; before: boolean; from: boolean; by: boolean } {
   const tail = clause.slice(end, end + 16).toLocaleLowerCase("tr");
@@ -658,11 +697,13 @@ function timeRole(clause: string, start: number, end: number): { until: boolean;
  * saati başka bir işin saatidir; koşulun İÇİNDEKİ saat ve geç kalış cümleciğinde "22:00'den sonra" eşiktir; erişim
  * kuralından gelen girişte yalnız başlangıç saati okunur.
  */
-function excludedTime(field: string, role: ReturnType<typeof timeRole> & { inCondition: boolean }, info: ClauseInfo): boolean {
+function excludedTime(field: string, role: ReturnType<typeof timeRole> & { inCondition: boolean; range: boolean }, info: ClauseInfo): boolean {
   if ((field === "late_checkout" || field === "late_checkin") && role.after) return true;
   if ((field === "early_checkin" || field === "early_checkout") && role.before) return true;
   if (STAY_FIELDS.has(field) && role.inCondition) return true;
-  if ((field === "checkin" || field === "checkout") && info.reference && (role.until || role.by || info.strongReference)) return true;
+  // Başvuru noktasından sonraki ARALIK başka işin penceresidir ("çıkıştan sonra 10:00–20:00 arası …", 09-27 mutasyon incelemesi);
+  // aynı cümlecikte "at 11:00" gibi tek saat alanın değeri olarak kalır.
+  if ((field === "checkin" || field === "checkout") && info.reference && (role.until || role.by || role.range || info.strongReference)) return true;
   if ((field === "checkin" || field === "checkout") && info.lateness && role.after) return true;
   if (field === "checkin" && info.accessOnly && (role.until || role.before)) return true;
   if (field === "checkout" && info.accessEndOnly && (role.from || role.after)) return true;
@@ -785,10 +826,11 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
           if (!field) return;
           const carried = via === "clause" && !STAY_FIELDS.has(field) ? pending.filter((f) => f !== field) : [];
           pending = [];
+          const ranged = rangeEnds(part, mentions);
           for (const f of [field, ...carried]) {
             const kept = new Set<string>();
             for (const m of mentions) {
-              const role = { ...timeRole(part, m.start, m.end), inCondition: insideCondition(part, m.start) };
+              const role = { ...timeRole(part, m.start, m.end), inCondition: insideCondition(part, m.start), range: ranged.has(m) };
               if (!excludedTime(f, role, info)) kept.add(m.time);
             }
             for (const time of kept) hits.push({ field: f, time, via, clause: part.trim() });
