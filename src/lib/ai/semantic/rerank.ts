@@ -335,7 +335,14 @@ export async function prepareRerankScores(input: PrepareRerankInput): Promise<Re
     if (calls.length === 0) return { status: "skipped", ms: 0 };
     const earlier = [...(input.pending ?? [])].reverse();
     const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
-    const question = rerankQuestionText(input.guestMessage, earlier);
+    // ÖNCE redaksiyon, SONRA birleştirme + kırpma (#211, 09-27): ham metin kırpılınca kesime denk gelen telefon / e-posta parçası
+    // kalıba uymayıp açık gidiyordu. Geniş ön-kırpma (tavanın 2 katı; güncel mesajın başı, önceki mesajların sonu) redaksiyonun
+    // işini sınırlar — son kırpma bu bölgeyi zaten atar. PII taşımayan metinde soru BAYT BAYT aynı.
+    const redact = (t: string) => redactForSemanticModel(t, names);
+    const question = rerankQuestionText(
+      redact(input.guestMessage.slice(0, RERANK_QUESTION_CHARS * 2)),
+      earlier.map((m) => redact(m.slice(-RERANK_QUESTION_CHARS * 2))),
+    );
     // PARALEL: misafirin beklediği süre en yavaş çağrı kadar; her çağrı sıcak yol tavanıyla ayrı ayrı kısılır.
     const outs = await Promise.all(
       calls.map((cands) => llmRerank(question, cands, names, { fetchImpl: input.fetchImpl, deadlineMs: RERANK_HOT_PATH_DEADLINE_MS })),
