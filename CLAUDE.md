@@ -208,7 +208,7 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   Ölçülüp etkisiz çıkan (geri önerme): atla-paketle, kalem başına 5 parça, anlama payı 1/2, RRF taban, taban 20. Pencere
   kuruluşu seçenekleri (`RerankWindowOptions`, varsayılan birebir) — istek başına 50 modelsiz tavanda iki soruda pencere dışı
   6→2. Ölçer "yalnız önbellek" kipi `RAG_LAB_OFFLINE=1` (+ `_SKIP=1` eşleştirilmiş alt küme). 🚨 GERÇEK BOYUT (09-27, soru başına
-  60 kalem `EVAL_RAG_KB=perq`): en büyük kayıp BLOK BÜTÇESİ (6k/12) — 24k/40 ile iki soru %71→%98 (sıralayıcısız); ≤30 kalem
+  60 kalem `EVAL_RAG_KB=perq`): en büyük kayıp BLOK BÜTÇESİ (6k/12) — 24k/40 ile iki soru %71→%98 (yeni gömme, sıralayıcısız); ≤30 kalem
   bugün zaten 24k'ya kadar tamamen gidiyor (uçurum). Kurucu 09-27 "hazırla, sonra aç" → `KB_RETRIEVAL_WIDE_BUDGET` VARSAYILAN
   KAPALI (tek karar noktası `kb-retrieve.ts`; 23k/40 — 24k DEĞİL: paketleyici satır başına +1 sayar, tam dolu 24k son parçayı
   düşürürdü, pinli; çağıranın bütçesi önceliklidir; kanıt `wb`). 🚨 OpenAI kredisi 09-26 gece BİTTİ: ayrı çağrı temiz ölçümü +

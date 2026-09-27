@@ -145,7 +145,9 @@ Maliyet: 24k/40'ta cevap isteğine ortalama ~+1,6k token (~0,2 sent/mesaj). **Ku
 **23.000 / 40** (24k değil): paketleyici satır başına seçicinin hesabından 1 karakter fazla sayar ve kendi tavanı 24k — tam dolu
 24k seçimde son parça sessizce "alınmadı" olurdu (kesin dolan fikstürle pinli; 23k ile ölçülen sonuçlar 24k ile birebir).
 Çağıranın kendi bütçesi önceliklidir (ölçer); küçük bilgi tabanı ve legacy etkilenmez. Açma: kredi gelince cevap düzeyi ölçüm
-(± anahtar) + kurucu onayı.
+(± anahtar) + kurucu onayı. Bilinen etki (güvenli yön, küçük bilgi tabanındaki bugünkü davranışla aynı): blok büyüyünce mülk
+saatiyle çelişen eski bir kalem bloğa daha sık girer → istemin çelişki listesi dolar, o alana değen cevap taslağa düşer
+(`kb_time_conflict`); ilgisiz sorunun cevabı etkilenmez.
 
 ## 5. Codex'in "sınanması gerekenler"i
 
@@ -165,3 +167,21 @@ Maliyet: 24k/40'ta cevap isteğine ortalama ~+1,6k token (~0,2 sent/mesaj). **Ku
 3. Cevap düzeyi ölçüm (`EVAL_RAG_ANSWER=1`; geniş blok ± `KB_RETRIEVAL_WIDE_BUDGET` eşleştirilmiş — uzun blokta yanlış
    olguya sapma var mı), E4 sentetik setinin yeni hatla tekrarı.
 4. Kurucu kararı: `OPENAI_EMBEDDING_MODEL=text-embedding-3-large`, `KB_RERANK_PER_QUESTION=1` ve `KB_RETRIEVAL_WIDE_BUDGET=1`.
+
+### 6a. Kredi gelince — komutlar (🚨 kurucu "kredi yüklendi" demeden HİÇBİRİ koşulmaz; 09-27 kuralı)
+
+Ortak önek (bulutta proxy şart; anahtar ortamdan): `NODE_USE_ENV_PROXY=1 RUN_REAL_EVAL=1`. Önerilen canlı hat (üç bayrak açık
+hâlinin ölçerdeki ikizi): `FINAL = s0.25+und+prodwin+dl2500+cap400+e3l+wide` (`wide` üretim sabitlerini okur). Önbellek
+`/tmp/lixus-rag-lab-cache` korunursa 09-26 gece çağrıları yeniden ödenmez.
+
+| adım | ne | komut (ortak önekten sonra) | tahmini |
+|---|---|---|---|
+| 0 | deneme (her 10. soru) | `EVAL_RAG_KB=scale EVAL_RAG_SCALE_SIZES=0 EVAL_RAG_GROUPS=single_tr,single_xx,multi,neg EVAL_RAG_PAID_GROUPS=single_tr,single_xx,multi,neg EVAL_RAG_SAMPLE=10 EVAL_RAG_CONFIGS=FINAL npm run eval -- tests/eval/rag-lab.eval.test.ts` | ~1 $ |
+| 1 | temiz dev (276) | aynı, `EVAL_RAG_SAMPLE` yok, `EVAL_RAG_CONFIGS=FINAL,FINAL+wper50,FINAL+demote` | ~4 $ |
+| 2 | holdout kabulü | `EVAL_RAG_KB=holdout` + 1. adımda seçilen tek yapılandırma. 🚨 YALNIZ `.md` toplu tablosu okunur; yan JSON AÇILMAZ | ~5 $ |
+| 3 | cevap düzeyi, 60 kalem | `EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_KB=perq EVAL_RAG_ANSWER_CONFIGS=s0.25+und+e3l,s0.25+und+e3l+wide npm run eval -- tests/eval/rag-answer.eval.test.ts` | ~1 $ |
+| 4 | cevap düzeyi, 276 | `EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_CONFIGS=s0.25+und+prodwin+dl2500+cap400+e3l,FINAL` (aynı dosya) | ~1 $ |
+
+Okuma: 0. adımın `çağrılar` satırı soru başı maliyeti verir → 1–4 yeniden tahmin edilir, kurucuya söylenir. Cevap düzeyinde
+geniş blok ANCAK şu ikisi birlikte tutarsa açılmaya önerilir: `sayı cevapta` düşmez VE `yabancı sayı` (başka kalemin olgusu) +
+yanıtsız soruda `desteksiz iddia` artmaz (eşleştirilmiş; aynı sorular). Kabul kapısı §1.
