@@ -39,11 +39,14 @@ export interface FieldTimeHit {
  * Çıkış 11:00." TEK cümlecik olup iki alanı birden taşıyor ve iki saat de düşüyordu. "12.00"
  * yazımı yine bölünmez (noktanın ardında rakam var).
  * 09-27: cümle ile cümlecik AYRI tutulur — koşul cümleciği ("If the flat is free, …", "Taksi isterseniz, …") AYNI cümlenin
- * sonraki cümleciklerine bağlam taşır. "|" de cümle sınırıdır ("Check-in: 3 PM – 10 PM | Check-out: 11 AM"). SORU cümlesi
+ * sonraki cümleciklerine bağlam taşır. "|" ve madde işaretleri ("•") de cümle sınırıdır ("Check-in: 3 PM – 10 PM | Check-out: 11 AM",
+ * "Giriş: 15:00 • Çıkış: 11:00"). SORU cümlesi
  * ("?" ile biten: "S: 12:00'de girebilir miyiz?", "Arriving after 11 pm?") hiçbir saat BİLDİRMEZ → okunmaz.
  */
-const SENTENCE_SPLIT = /(\.(?!\d)|[!?;\n|]+)/;
+const SENTENCE_SPLIT = /(\.(?!\d)|[!?;\n|•·▪◦]+)/;
 const CLAUSE_SPLIT = /,+/;
+/** Virgülden sonra saatle ya da ilgi zamiriyle başlayan cümlecik bir DEVAMDIR (↓`fieldTimeHits`). */
+const CONTINUATION_START = /^\s*(?:\d{1,2}(?:[:.]\d{2}|\s*(?:am|pm)\b)|(?:which|who|whom|whose|where|that|ki)\b)/i;
 const HHMM_G = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b(\s*(?:a\.m\.|p\.m\.|am|pm)(?![a-z]))?/gi;
 /** "11am", "3 pm" — dakikasız 12 saat biçimi. Önünde ":"/"." varsa DEĞİL ("10:10 am"deki "10 am"). */
 const HOUR_AMPM_G = /(?<![:.\d])\b(1[0-2]|0?[1-9])\s*(a\.m\.|p\.m\.|am|pm)(?![a-z])/gi;
@@ -78,12 +81,15 @@ const STARTS_WITH_TIME = /^\W*\d{1,2}(?:[:.]\d{2}|\s*(?:am|pm)\b)/i;
 const DASH_SEP = /(\s[—–]\s)/;
 /**
  * İKİ alan adlandıran (ya da bir alanı konu vetosuyla düşen) cümleciğin ikinci bölücüsü: "ve / and / &" ve etiket satırının
- * ayırıcıları — "Check-in: 15:00 — Check-out: 11:00", "Giriş 15:00 / Çıkış 11:00" (09-27: ikisi de hiç okunmuyordu). Parantez
+ * ayırıcıları — "Check-in: 15:00 — Check-out: 11:00", "Giriş 15:00 / Çıkış 11:00" (09-27: ikisi de hiç okunmuyordu) ve iki
+ * cümleciği bağlayan "because / çünkü / but / ama" ("Check-out is at 10 am because our cleaning takes place 10 am–2 pm"). Parantez
  * yalnız bundan sonra HÂLÂ iki alan taşıyan parçayı böler ("Giriş 15:00 (erken giriş 12:00"); "Havuz (09:00-18:00) ve spor
  * salonu (07:00-22:00)" saati etiketinden koparmaz. Tek alanlı cümlecik bölünmez ("Çok geç (01.00 sonrası) varışlarda"); aralık
  * hiç bölünmez.
  */
-const AND_SEP = /(\s(?:ve|and|&|[-–—/])\s)/i;
+const AND_SEP = /(\s(?:ve|and|&|[-–—/]|because|cunku|çünkü|zira|but|ama|fakat|ancak|whereas|while)\s)/i;
+/** İngilizce koşul bağlacından ÖNCE bölünür, bağlaç ikinci parçada kalır ("Check-out is at 11 am | unless you've arranged a late check-out until 1 pm"). */
+const EN_CONDITION_SPLIT = /\s(?=(?:unless|if|in case|provided)\s)/i;
 const PAREN_SEP = /(\s*[()]\s*)/;
 /**
  * Ayırıcıdan böler. Aralığın iki ucu ile `min` sözcükten kısa yan ("Giriş – 15:00" etiketi, "Check-in — 3 pm") yeniden
@@ -124,9 +130,9 @@ const SPATIAL = /^(?:arka|on|yan|karsi|ic|dis|ust|alt)/;
  * "Check-in help / desk / talimatı / desteği" (09-27): giriş-çıkışın kendisi değil, bir HİZMET ya da BELGE ("call us 9–21",
  * "the check-in guide at 10am", "giriş bilgilerini göndermemiz için …", "check-out checklist at 6 pm", "giriş kodu").
  */
-const SERVICE_TAILS = ["help", "support", "desk", "counter", "assist", "instruction", "destek", "yardim", "talimat", "guide", "rehber", "checklist", "list", "bilgi", "info", "detail", "detay", "reminder", "hatirlat", "form", "link", "kod", "code", "mesaj", "message"];
+const SERVICE_TAILS = ["help", "support", "desk", "counter", "assist", "instruction", "destek", "yardim", "talimat", "guide", "rehber", "checklist", "list", "bilgi", "info", "detail", "detay", "reminder", "hatirlat", "form", "link", "kod", "code", "mesaj", "message", "talep", "taleb", "request", "istek", "isteg", "kontuar"];
 /** Kendi çalışma saati olan yerler (kalemin konaklama saatine ödünç verilmez). */
-const OWN_HOURS_STEMS = ["resepsiyon", "reception", "danisma", "concierge", "ofis", "office", "lobi", "lobby", "guvenlik", "security", "kapici"];
+const OWN_HOURS_STEMS = ["resepsiyon", "reception", "danisma", "concierge", "ofis", "office", "lobi", "lobby", "guvenlik", "security", "kapici", "desk", "lifeguard", "cankurtaran", "gate"];
 /** Valiz / bavul (09-27): bırakma ve saklama saati konaklama saati DEĞİLDİR ("storage room" de bir valiz yeridir). */
 const LUGGAGE_STEMS = ["valiz", "bavul", "bagaj", "luggage", "suitcase", "baggage", "bags", "storage"];
 /** Valizle YAPILAN iş: cümlecikteki saat valizin saatidir ("Çıkıştan sonra valizlerinizi 14:00'e kadar bırakabilirsiniz"). */
@@ -172,7 +178,7 @@ const endsWithCondition = (text: string) => {
   return last !== "" && conditionEnd(last) === last.length;
 };
 /** Saat koşulun içinde mi: parça bir Türkçe koşul fiiliyle BİTİYOR ya da saatten önce "if you / in case" var. */
-const insideCondition = (clause: string, start: number) => endsWithCondition(clause) || /\b(?:if you|in case)\b/i.test(clause.slice(0, start));
+const insideCondition = (clause: string, start: number) => endsWithCondition(clause) || /\b(?:if you|in case|unless)\b/i.test(clause.slice(0, start));
 /** Cümlecik bir KOŞUL mu (bağlamı aynı cümlenin sonraki cümleciklerine geçer): Türkçe koşul fiiliyle biter ya da "if …" ile başlar. */
 const isConditionClause = (text: string) => endsWithCondition(text) || /^\s*(?:if|in case|unless|provided|as long as)\b/i.test(text);
 /** "Değilse / aksi halde / otherwise" ile başlayan cümlecik önceki koşulu KAPATIR ("Daire hazırsa 13:00'te, değilse 15:00'te"). */
@@ -188,6 +194,7 @@ const EN_AVAILABILITY = [
   /\bif\s+it(?:'s|’s|\s+is)\s+(?:free|ready|available|vacant)\b/i,
   /\b(?:subject\s+to|depending\s+on|based\s+on)\s+availability\b/i,
   /\bif\s+(?:there\s+(?:is|are)\s+)?no\s+(?:other\s+)?(?:guests?|bookings?|reservations?|arrivals?)\b/i,
+  /\bif\s+(?:nobody|no\s+one|no-one)\b/i,
 ];
 function availabilityCondition(toks: readonly string[], text: string): boolean {
   for (let i = 0; i < toks.length; i++) {
@@ -196,7 +203,7 @@ function availabilityCondition(toks: readonly string[], text: string): boolean {
     if (/^(?:musait|hazir|bos)(?:sa|se|ise)$/.test(t)) return true;
     if (/^(?:musait|hazir|bos)$/.test(t) && /^(?:olursa|ise)$/.test(n)) return true;
     if (/^musaitli/.test(t) && (n === "gore" || n.startsWith("durum"))) return true;
-    if (/^(?:misafir|konuk|rezervasyon)/.test(t) && toks.slice(i + 1, i + 4).some((x) => /^(?:yoksa|olmazsa|gelmezse|bulunmazsa)$/.test(x))) return true;
+    if (/^(?:misafir|konuk|rezervasyon|kimse)/.test(t) && toks.slice(i + 1, i + 4).some((x) => /(?:yoksa|mazsa|mezse|m[iu]yorsa)$/.test(x))) return true;
   }
   return EN_AVAILABILITY.some((re) => re.test(text));
 }
@@ -217,7 +224,7 @@ const isOut = (t: string) => t.startsWith("cikis") || t === "checkout" || t.star
  * Uzatma (09-27): "müsaitse 12:00'ye kadar uzatılabilir", "check-out can be extended to 13:00" — standart çıkış değil,
  * GEÇ ÇIKIŞ seçeneğidir (mülkün 11:00'iyle çelişki sayılmaz; geç çıkış alanına okunur).
  */
-const EXTENSION = /^(?:uzat|extend|extension)/;
+const EXTENSION = /^(?:uzat|extend|extension|gecik|delay)/;
 /** Konaklama saati alanları (valiz / başvuru noktası kuralları bunlara uygulanır). */
 const STAY_FIELDS = new Set(["checkin", "checkout", "early_checkin", "late_checkin", "early_checkout", "late_checkout"]);
 /**
@@ -267,6 +274,8 @@ const ACCESS_START = /^(?:calis|aktif|activ|gecerli|valid|work|yours|sizin|hazir
 const ACCESS_END = /^(?:gecersiz|devre|expir|deactiv|sona|biter|bitiyor|kapan|iptal|cancel)/;
 /** Erişimin GEÇERLİ olduğu süre ("11:00'e kadar geçerlidir"): çıkış günüyle birlikte bitiş = çıkış. */
 const ACCESS_VALID = /^(?:gecerli|valid|calis|work|aktif|activ)/;
+/** Erişimi GERİ VERMEK ("hand back / return / leave the keys … on departure day", "anahtarları çıkış günü … bırakın"). */
+const ACCESS_RETURN = /^(?:return|hand|drop|leave|birak|iade)/;
 /**
  * ÇIKIŞ GÜNÜ işareti (09-27): "çıkış günü", "ayrılacağınız gün", "check-out day", "the day you leave", "son gün" — erişimin bu
  * günde BİTMESİ çıkış saatidir ("Kapı şifreniz … çıkış günü saat 11:00'de iptal edilir" → çıkış 11:00).
@@ -349,6 +358,8 @@ interface ClauseInfo {
   accessNoun: boolean;
   /** Kural dili var: "ve" ile bölünen parçalarda sessizlik kuralı buna dayanır. */
   rule: boolean;
+  /** Konu vetosu (valiz / iletişim / gönderim / ulaşım / kendi saati olan yer / tesis / başka yer / kapı-gün / geç kalış / düşen alan). */
+  vetoed: boolean;
   /** Ulaşım / valiz sözü: koşul cümleciğindeyse aynı cümlenin ana cümleciğinde de ödünç almayı engeller. */
   topic: boolean;
   /** Müsaitlik koşulu (↑`availabilityCondition`). */
@@ -362,7 +373,7 @@ interface ClauseInfo {
   standard: boolean;
 }
 
-function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; rule?: boolean } = {}): ClauseInfo {
+function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; rule?: boolean; spanObj?: boolean; category?: string | null } = {}): ClauseInfo {
   const toks = tokenize(clause);
   const keep: string[] = [];
   const extra: string[] = [];
@@ -377,6 +388,12 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
     // Saatin hemen ardındaki kısa ek belirteci ("23:00'te" → "te") bir kavram ateşlemesin
     // ("te" → çay/tea; ölçüldü: saat yazılı her parça kahve sorusuna çekiliyordu).
     if (TIME_TOKEN.test(prev) && t.length <= 3) continue;
+    // "ayrılış günü" = GÜN (09-27: "giriş günü 14:00'te başlar ve ayrılış günü 11:00'de sona erer" çıkış sözcüğü sayılıp başlangıcı da
+    // çıkış yapıyordu). "varış" sözlükte alan değil → gün sayılmaz (sayılsaydı yalnız ödüncü engellerdi).
+    if (t.startsWith("ayrilis") && next.startsWith("gun")) {
+      homonym = true;
+      continue;
+    }
     if (isIn(t) || isOut(t)) {
       const spatial = t === "girisin" && (SPATIAL.test(next) || (/^(?:hemen|tam)$/.test(next) && SPATIAL.test(toks[i + 2] ?? "")));
       const service = SERVICE_TAILS.some((p) => next.startsWith(p));
@@ -386,18 +403,30 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
         homonym = true;
         continue;
       }
-      if (isIn(t) && (isPlaceHead(prev) || ENTRY_PLACE_TAILS.some((p) => next.startsWith(p)))) {
+      // "ön" katlanınca İngilizce "on" olur: yer başı yalnız Türkçe giriş/çıkışta ("on arrival / on departure day" yer değil).
+      const placeBefore = isPlaceHead(prev) && !(prev === "on" && !/^(?:giris|cikis)/.test(t));
+      if (isIn(t) && (placeBefore || ENTRY_PLACE_TAILS.some((p) => next.startsWith(p)))) {
+        homonym = true;
+        continue;
+      }
+      // Başka bir şeyin girişi (09-27): "Check-in for the sunset boat tour", "tekne turu için giriş", "airport check-in"; Konum
+      // kalemindeki Türkçe giriş/çıkış bir YERİN girişi/çıkışıdır ("metro istasyonunun çıkışı 22:00'de kapanıyor").
+      const transportScoped =
+        isTransport(prev) ||
+        (next === "for" && toks.slice(i + 2, i + 7).some(isTransport)) ||
+        (toks.slice(Math.max(0, i - 3), i).includes("icin") && toks.slice(Math.max(0, i - 6), i).some(isTransport));
+      if (transportScoped || (ctx.category === "location" && /^(?:giris|cikis)/.test(t))) {
         homonym = true;
         continue;
       }
       // "Çıkış kapısı" yalnız YALIN biçimde kapıdır ("Çıkışta kapıyı kilitleyin" konaklama çıkışıdır).
       // 09-27: "otobüs çıkışı / ferry departure" da aracın kalkışıdır.
-      if (isOut(t) && (EXIT_HEADS.has(prev) || isPlaceHead(prev) || isTransport(prev) || ((t === "cikis" || t === "exit") && next.startsWith("kapi")))) {
+      if (isOut(t) && (EXIT_HEADS.has(prev) || placeBefore || ((t === "cikis" || t === "exit") && next.startsWith("kapi")))) {
         homonym = true;
         continue;
       }
-      // "giriş günü / çıkış günü" = GÜN, saat değil.
-      if (next.startsWith("gun")) {
+      // "giriş günü / çıkış günü / departure day" = GÜN, saat değil.
+      if (next.startsWith("gun") || next === "day" || next === "days") {
         homonym = true;
         continue;
       }
@@ -475,9 +504,9 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
     accessFree &&
     (accessNoun || ctx.access === true) &&
     departing &&
-    (endVerb || (toks.some((t) => ACCESS_VALID.test(t)) && roles.some((r) => r.until)));
+    (endVerb || toks.some((t) => ACCESS_RETURN.test(t)) || (toks.some((t) => ACCESS_VALID.test(t)) && roles.some((r) => r.until)));
   const span =
-    (accessNoun || toks.some((t) => STAY_PLACE.test(t) || STAY_PLACE_ACC.test(t))) &&
+    (accessNoun || ctx.spanObj === true || toks.some((t) => STAY_PLACE.test(t) || STAY_PLACE_ACC.test(t))) &&
     toks.some((t) => SPAN_VERB.test(t)) &&
     roles.some((r) => r.from || r.after) &&
     roles.some((r) => r.until);
@@ -529,7 +558,10 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
   );
   // Kendi çalışma saati olan yerler sözlükte kavram değil ama konaklama saati de DEĞİL: "Giriş"
   // başlıklı kalemde "Resepsiyon 09:00-18:00 arası açıktır" giriş saati sanılıyordu (ölçüldü 09-23).
-  const ownHours = toks.some((t) => OWN_HOURS_STEMS.some((h) => t.startsWith(h)));
+  const ownHours =
+    toks.some((t) => OWN_HOURS_STEMS.some((h) => t.startsWith(h))) ||
+    // Bina / sokak kapısının açık olduğu saat ("bina kapısı ise 07:00–23:00 arası açık", "the main door").
+    toks.some((t, i) => /^(?:kapi|door)/.test(t) && (isPlaceHead(toks[i - 1] ?? "") || ["main", "front", "street", "sokak"].includes(toks[i - 1] ?? "")));
   // "Çok geç (01.00 sonrası) varışlarda", "22:00'den sonraki varışlarda / girişler": geç kalışı anlatır ("en geç" = son saat,
   // hariç; "Girişler 14:00'ten sonra yapılabilir" SONRAKİ değil → gerçek giriş saati kalır).
   const lateness =
@@ -584,6 +616,8 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
     span,
     accessNoun,
     rule: ruleSignal(toks),
+    vetoed:
+      homonym || ownHours || luggageAction || contact || sending || transport || otherPlace || facility || lateness || fields.length < raw.length,
     topic: transport || luggage,
     availability: availabilityCondition(toks, clause),
     stayNoun,
@@ -612,7 +646,8 @@ function timeRole(clause: string, start: number, end: number): { until: boolean;
     until: suffixThen("kadar") || /\b(?:until|till|up to)\s*$/.test(head),
     after: suffixThen("sonra") || /\bafter\s*$/.test(head),
     before: suffixThen("önce") || /\bbefore\s*$/.test(head),
-    from: suffixThen("itibaren") || /\bfrom\s*$/.test(head),
+    // "16:00'dan … 10:00'a kadar": ablatif tek başına "…'den" başlangıçtır ("…'ten sonra / önce / itibaren" kendi rolünde).
+    from: suffixThen("itibaren") || /\bfrom\s*$/.test(head) || /^\s*['’`]?\s*(?:dan|den|tan|ten)(?![a-zçğıöşü])(?!\s*(?:sonra|önce|itibaren))/.test(tail),
     by: /\bby\s*$/.test(head),
   };
 }
@@ -647,7 +682,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
   // YEREL TAVSİYE (09-27, kör batarya): kalem mahalleyi anlatır — "Kaleye giriş 09:00-19:00, son giriş 18:30", "belediyenin kapalı
   // havuzu 07:00-22:00", "spor merkezi 06:00-24:00" mülkün giriş / havuz / spor salonu saati DEĞİL (mülk saatiyle sahte çelişki).
   if (category === "local_tips") return [];
-  const titleFields = clauseFields(title).fields;
+  const titleFields = clauseFields(title, { category }).fields;
   const titleField = titleFields.length === 1 ? titleFields[0] : null;
   // KATEGORİ ÖDÜNCÜ — en zayıf dayanak, en son (inceleme 09-23): "Varış bilgileri" başlıklı `checkin`
   // kalemindeki "14:00'ten sonra gelebilirsiniz" hiçbir alan adlandırmıyor; kategori bilgisi atılınca
@@ -655,7 +690,8 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
   // cümlecik başka bir konudan söz etmiyorsa kullanılır (başlık ödüncüyle aynı kural).
   const categoryField = category === "checkin" || category === "checkout" ? category : null;
   // "p.m." noktaları cümlecik sınırı sanılmasın (işaret kaybolur, 15:00 → 03:00 okunurdu).
-  const flat = text.replace(/\b([ap])\.m\./gi, "$1m");
+  // "11 a.m. A taxi …": işaretin noktası cümle sonuysa (ardından büyük harf) korunur, yoksa iki cümle birleşir.
+  const flat = text.replace(/\b([aApP])\.[mM]\.(?=\s+[A-ZÇĞİÖŞÜ])/g, "$1m.").replace(/\b([ap])\.m\./gi, "$1m");
   const hits: FieldTimeHit[] = [];
   const bits = flat.split(SENTENCE_SPLIT);
   for (let si = 0; si < bits.length; si += 2) {
@@ -664,17 +700,33 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
     const sentence = bits[si];
     let carriedTopic = false;
     let carriedAvailability = false;
+    // Süre nesnesi cümlenin herhangi bir cümleciğinde olabilir ("Daire, giriş gününüz 16:00'dan … 10:00'a kadar sizindir").
+    const sentenceToks = tokenize(sentence);
+    const spanObj = sentenceToks.some((t) => ACCESS_NOUN.test(t) || STAY_PLACE.test(t) || STAY_PLACE_ACC.test(t));
+    // Konaklama öznesi cümlenin başka cümleciğinde olabilir ("Konaklamanız … 15:00'te başlar, ayrılış günü 11:00'de sona erer").
+    const stayInSentence = sentenceToks.some((t) => STAY_NOUN.test(t) || t === "stay");
+    // Virgülle devam (09-27): saatle ya da ilgi zamiriyle başlayan cümlecik ("…at 05:30, 08:30 and 11:30", "…desk, which is staffed
+    // 8 am – 8 pm") önceki cümleciğin konusunu taşır; kısa ETİKET cümleciği ("Geç giriş, anahtar kutusu ile gece 01:00'e kadar")
+    // alanını sonrakine verir.
+    let prevOther = false;
+    let prevFields: string[] = [];
+    let prevLabel = false;
     // Tire ile ayrılan devam cümleciği önceki parçanın konusunu taşır ("we can book a taxi to the airport — most guests go for
     // 9:30 AM"; "take out the trash — the bin lorry comes at 8am"): ödünç almaz.
     const clauses = sentence.split(CLAUSE_SPLIT).flatMap((x) => splitKeeping(x, DASH_SEP, 3).map((c, di) => ({ c, dash: di > 0 })));
     let dashTopic = false;
     for (const { c, dash } of clauses) {
-      const whole = clauseFields(c);
+      const whole = clauseFields(c, { category });
       if (!dash) dashTopic = false;
+      const continuation = CONTINUATION_START.test(c);
+      const carryField = (prevLabel || (continuation && /^\s*\d/.test(c))) && prevFields.length === 1 ? prevFields[0] : null;
+      const inherited: boolean = continuation && prevOther;
       if (CONDITION_RESET.test(c)) carriedAvailability = false;
       const availability = carriedAvailability || whole.availability;
       const byAnd = whole.split
-        ? splitKeeping(c, AND_SEP, 1).flatMap((p) => (clauseFields(p).fields.length > 1 ? splitKeeping(p, PAREN_SEP, 1) : [p]))
+        ? splitKeeping(c, AND_SEP, 1)
+            .flatMap((p) => (clauseFields(p, { category }).fields.length > 1 ? splitKeeping(p, PAREN_SEP, 1) : [p]))
+            .flatMap((p) => (clauseFields(p, { category }).fields.length > 1 ? p.split(EN_CONDITION_SPLIT) : [p]))
         : [c];
       // Ortak yüklem ("Both the indoor pool and the gym are open 7:00–21:00", "Havuz ve spor salonu 08:00-20:00 arası açık"):
       // saatsiz, KISA (≤4 sözcük), kural dili taşımayan isim öbeğinin (konaklama dışı) alanı sonraki parçanın saatlerini de alır.
@@ -691,7 +743,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
         parts.forEach((part, pi) => {
           const mentions = timeMentions(part);
           if (mentions.length === 0) return;
-          const info = clauseFields(part, { stay: whole.stayNoun, access: whole.accessNoun, rule: whole.rule });
+          const info = clauseFields(part, { stay: whole.stayNoun || stayInSentence, access: whole.accessNoun, rule: whole.rule, spanObj, category });
           if (info.span) {
             // Süre: başlangıç saati giriş, bitiş saati çıkış.
             for (const m of mentions) {
@@ -702,10 +754,16 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
             return;
           }
           const otherConcept =
-            info.otherConcept || carriedTopic || dashTopic || (pi > 0 && conditionTopic) || (byAnd.length > 1 && whole.otherConcept);
+            info.otherConcept ||
+            carriedTopic ||
+            dashTopic ||
+            inherited ||
+            (pi > 0 && conditionTopic) ||
+            (byAnd.length > 1 && whole.otherConcept);
           let field: string | null = null;
           let via: FieldTimeHit["via"] = "clause";
           if (info.fields.length === 1) field = info.fields[0];
+          else if (info.fields.length === 0 && carryField && byAnd.length === 1 && !info.vetoed) field = carryField;
           else if (info.fields.length === 0 && titleField && !otherConcept) {
             field = titleField;
             via = "title";
@@ -738,6 +796,9 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
         });
       }
       dashTopic ||= whole.otherConcept;
+      prevOther = whole.otherConcept || inherited;
+      prevFields = whole.fields;
+      prevLabel = timeMentions(c).length === 0 && tokenize(c).length <= 3;
       // Müsaitlik ifadesi ("Subject to availability, …", "Müsaitliğe göre, …") kendiliğinden koşuldur: cümlenin devamına geçer.
       carriedAvailability ||= whole.availability;
       if (isConditionClause(c)) carriedTopic ||= whole.topic;

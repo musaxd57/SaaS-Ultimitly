@@ -195,14 +195,22 @@ belediye havuzu mülkün saati değil), gün kaymalı başvuru ("the day before 
 giriş/çıkış değildir, erişimin ÇIKIŞ GÜNÜ bitmesi çıkıştır ("kod çıkış günü 11:00'de iptal edilir"), "the flat is yours from 2 pm until
 11 am" giriş + çıkıştır, personel öznesiyle "gir-" misafirin girişi değildir, "yerleşebilirsiniz" / "daireyi teslim etmeniz" giriş /
 çıkıştır, havuz başında servis edilen kahvaltı havuz saati değildir, iki alanlı etiket satırı tire / eğik çizgi / parantezle ayrılır,
-kısa isim öbeği ortak yüklemi paylaşır ("Havuz ve spor salonu 08:00-20:00 arası açık").
+kısa isim öbeği ortak yüklemi paylaşır ("Havuz ve spor salonu 08:00-20:00 arası açık"). Dördüncü tur (üçüncü kör batarya, 160 cümle):
+madde işareti ("•") ve "a.m." noktası cümle sınırı; İngilizce "on" Türkçe "ön" sayılmaz ("on departure day" yer değil — ÖNCEDEN VAR OLAN
+hata, İngilizce varış/çıkış saatlerini düşürüyordu); başka bir şeyin girişi ("check-in for the boat tour", "tekne turu için giriş",
+"havalimanı check-in kontuarı") ve Konum kalemindeki Türkçe giriş/çıkış (metro çıkışı) alan değil; virgülle devam eden saat listesi / "which
+…" cümleciği önceki konuyu taşır; kısa etiket + virgül ("Geç giriş, … 01:00'e kadar") alanını verir; "because / unless" iki cümleciği
+ayırır ("unless" sonrası koşul); "ayrılış günü / departure day" gündür; anahtarı çıkış günü geri vermek çıkıştır; resepsiyon masası,
+cankurtaran ve bina kapısının saati kendi saatidir; "talep / istek" hizmet sözüdür; "misafir gelmiyorsa / if nobody …" müsaitlik,
+"geciktirmek" uzatmadır; "16:00'dan … 10:00'a kadar" başlangıç-bitiştir.
 
 | ölçüm | canlı kural (`7382338`) | yeni kural |
 |---|---|---|
-| iki yönlü batarya (`tests/helpers/time-field-battery.ts`, gerçek / tuzak) | 90/136 · 32/113 | **136/136 · 113/113** |
+| iki yönlü batarya (`tests/helpers/time-field-battery.ts`, gerçek / tuzak) | 94/153 · 33/124 | **153/153 · 124/124** |
 | kör batarya 1 (115 cümle; ikinci turda bakıldı → "görüldü") | 43/59 · 30/56 | 57/59 · 56/56 |
-| **kör batarya 2 (140 cümle; ayar YAPILMADAN, ikinci tur kuralıyla — dürüst tahmin)** | 42/61 · 39/69 | **49/61 · 60/69** |
-| kör batarya 2, üçüncü turdan sonra ("görüldü") | — | 61/61 · 69/69 |
+| **kör batarya 2 (140 cümle; AYARSIZ, ikinci tur kuralıyla)** | 42/61 · 39/69 | **49/61 · 60/69** |
+| **kör batarya 3 (160 cümle; AYARSIZ, üçüncü tur kuralıyla)** | 35/65 · 42/80 | **51/65 · 72/80** |
+| kör batarya 2 / 3, sonraki turlardan sonra ("görüldü") | — | 61/61 · 69/69 / 64/65 · 79/80 |
 | 60 kalem, mülk saatiyle çelişen soru (yanlış alarm) | %30 (geniş blokla %58) | **%3,9 (%12,9) — hepsi gerçek** |
 | 276 kalemlik dev setinde okunan gerçek saat | — | ilk turla birebir (kayıp yok) |
 

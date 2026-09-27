@@ -326,6 +326,46 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   T("checkout", "Son gün", "Çıkış günü daireyi saat 11:00'de teslim etmeniz gerekiyor.", ["checkout:11:00"]),
   T("checkin", "Anahtar", "Daire anahtarını 15:00'te teslim alabilirsiniz.", ["checkin:15:00"]),
 
+  // ── 09-27 dördüncü tur (kör batarya 3'ün sınıfları; ikiz + tek-kural pin) ──────────────────────────────────────────
+  // Madde işareti ve "a.m." noktası cümle sınırıdır; küçük harfle süren cümle bölünmez.
+  T("checkin", "Saatler", "Giriş: 15:00 • Çıkış: 11:00 • Erken giriş: 12:00 (müsaitliğe bağlı, 200 TL) • Bagaj bırakma: 10:00'dan itibaren", ["checkin:15:00", "checkout:11:00", "early_checkin:12:00"]),
+  X("general", "Menü", "Kahvaltı: 08:00 • Havuz barı: 11:00"),
+  T("checkout", "Check-out", "Check-out: at the latest 11 a.m. A taxi to the airport can be booked for 9:30 a.m.", ["checkout:11:00"]),
+  T("general", "Havuz", "The pool is open from 9 a.m. and closes at 7 p.m.", ["pool:09:00", "pool:19:00"]),
+  // İngilizce "on" Türkçe "ön" değildir; "ön giriş" yine bir yerdir.
+  T("checkin", "Arrival", "On arrival the flat is ready from 3 pm.", ["checkin:15:00"]),
+  X("checkin", "Kapı", "Ön giriş 23:00'te kilitlenir."),
+  // Başka bir şeyin girişi / check-in'i (tur, tekne, havalimanı kontuarı); konumdaki çıkış bir yerin çıkışıdır.
+  X("general", "Boat tour", "Check-in for the sunset boat tour is at 18:15 at the marina."),
+  X("welcome", "Tekne turu", "Cumartesi tekne turu için giriş 09:30'da iskelede yapılıyor."),
+  X("checkout", "Havalimanı", "Havalimanında check-in kontuarları sabah 05:00'te açılıyor."),
+  T("checkin", "Check-in", "Check-in for all guests is from 3 pm.", ["checkin:15:00"]),
+  X("location", "Metro çıkışı", "Metro istasyonunun bizim sokağa açılan çıkışı 22:00'de kapanıyor."),
+  T("location", "Konum", "Check-out is at 11 am; the metro is 5 minutes away.", ["checkout:11:00"]),
+  // Virgülle devam: saatle / ilgi zamiriyle başlayan cümlecik önceki konuyu taşır; tek alanlı cümleciğin saat listesi o alandır.
+  X("checkout", "Airport shuttle", "The airport shuttle leaves from our front door at 05:30, 08:30 and 11:30."),
+  X("general", "Gym", "Towels are available at the concierge desk, which is staffed 8 am – 8 pm."),
+  T("general", "Havuz", "Havuz 08:00'de açılır, 20:00'de kapanır.", ["pool:08:00", "pool:20:00"]),
+  // Kısa etiket + virgül: etiketin alanı sonraki cümleciğe geçer (valiz vetosu ise geçmez).
+  T("checkin", "Saatler", "Geç giriş, anahtar kutusu ile gece 01:00'e kadar mümkündür.", ["late_checkin:01:00"]),
+  // "because / unless" iki cümleciği ayırır; "unless" sonrası koşuldur.
+  T("checkout", "Check-out reason", "Check-out is at 10 am because our cleaning takes place between 10 am and 2 pm.", ["checkout:10:00", "cleaning:10:00", "cleaning:14:00"]),
+  T("checkout", "Check-out", "Check-out is at 11 am unless you've arranged a late check-out until 1 pm with us in advance.", ["checkout:11:00"]),
+  // "ayrılış günü / departure day" gündür; konaklama öznesi cümlenin başka cümleciğinden gelir.
+  T("general", "Hoş geldiniz", "Konaklamanız giriş günü saat 14:00'te başlar ve ayrılış günü 11:00'de sona erer.", ["checkin:14:00", "checkout:11:00"]),
+  X("checkout", "Luggage lockers", "The luggage locker code stays valid until 18:00 on your departure day."),
+  // Anahtarı çıkış günü geri vermek çıkıştır; resepsiyon masası / cankurtaran / bina kapısı kendi saatidir.
+  T("checkout", "Keys", "Please hand back the keys at the reception desk by 10:30 on departure day. The desk opens at 07:00.", ["checkout:10:30"]),
+  T("general", "Pool", "The pool is open 8:00–20:00; a lifeguard is on duty only between 10:00 and 18:00.", ["pool:08:00", "pool:20:00"]),
+  X("general", "Pool", "A lifeguard is on duty between 10:00 and 18:00."),
+  X("checkin", "Bina", "Bina kapısı 07:00–23:00 arası açık."),
+  // Talep sözcüğü giriş/çıkışı hizmet yapar; müsaitlik ("misafir gelmiyorsa", "if nobody") ve "geciktirmek" geç çıkıştır.
+  T("checkout", "Temizlik ve çıkış", "Çıkış 11:00'dedir. Daire temizliği 11:00–15:00 arasında yapıldığı için erken giriş talebi kabul edemiyoruz.", ["checkout:11:00", "cleaning:11:00", "cleaning:15:00"]),
+  T("faq", "Çıkışı geciktirmek", "S: Çıkışı biraz geciktirebilir miyiz? C: Aynı gün yeni misafir gelmiyorsa 13:00'e kadar ücretsiz kalabilirsiniz; standart çıkış saatimiz 11:00'dir.", ["late_checkout:13:00", "checkout:11:00"]),
+  T("checkout", "Staying longer", "If nobody is checking in after you, you may stay until 1 pm. Otherwise check-out is at 11 am sharp.", ["late_checkout:13:00", "checkout:11:00"]),
+  // Süre: nesne cümlenin başka cümleciğinde, başlangıç ayrılma hâliyle ("16:00'dan").
+  T("welcome", "Daireniz", "Daire, giriş gününüz saat 16:00'dan ayrılış gününüz saat 10:00'a kadar tamamen sizindir.", ["checkin:16:00", "checkout:10:00"]),
+
   // ── Savunulabilir iki okuma (puanlanmaz) ────────────────────────────────────────────────────────────────────────
   S("checkout", "Erken Sabah Çıkışı", "Sabah 07:00'den önce çıkarken koridorda yüksek sesle konuşmamaya özen gösterin.", ["quiet_hours:07:00"]),
   S("checkout", "Çıkış", "Temizlik ekibimiz 11:00 sonrası için planlama yapar.", ["cleaning:11:00"]),
