@@ -136,7 +136,8 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   `kbRetrievalModeInfo().recognized` + boot `[kb-retrieval] mode=…` + `.env.example`.
 - **TEK BOĞAZ `selectKbForPrompt`** — yetki/mülk/onay (`kb-fetch`) ve sır elemesi ÖNCE, `suggestReply` SONRA; dört
   AI yüzeyi geçer (pin). Hibrit legacy'den AZ bilgi taşımaz: küçük KB (🚨 ≤30 kalem VE ≤24k = legacy'nin KENDİ
-  kümesi → seçim YOK; 09-23'e kadar ≤12 kalem/≤6k idi ve tipik host KB'sinde parafraz soruların cevabını
+  kümesi → seçim YOK; 09-27 #209: ölçü biçimli blok + satır ayracı, TEK kural `retrieval/kb-line.ts` `kbFitsWhole` — seçici ve
+  paketleyici aynı; sınırı ≤60 karakter aşan ≤30 kalem de TAMAMEN gider, kurucu kararı, genel bütçe büyümez; 09-23'e kadar ≤12 kalem/≤6k idi ve tipik host KB'sinde parafraz soruların cevabını
   düşürüyordu — `docs/olcum/kb-retrieval-parafraz-2026-09-23.md`; seçim MEKANİĞİ testleri üretim varsayılanıyla,
   30 kalemi aşan nötr dolgulu fikstürde koşar — `tests/helpers/kb-padding.ts`, eşiği eğen sarmalayıcı YOK) ·
   cevapsız önceki misafir soruları (son cevaptan sonra, ≤3) alt sorgu olarak eklenir (kanıtta `pq`) · selamlaşma · sözcüksel

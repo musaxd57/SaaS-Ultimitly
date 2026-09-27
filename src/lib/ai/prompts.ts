@@ -13,6 +13,7 @@ import {
   normalizePropertyTime,
   PROPERTY_TIME_FIELDS,
 } from "./retrieval/time-fields";
+import { kbFitsWhole, kbLine, SMALL_KB_MARGIN_CHARS } from "./retrieval/kb-line";
 import type { ClaimContext } from "./claim-support";
 import { guestCheckoutMayBeLate, guestCheckoutRelation } from "@/lib/guest-checkout-time";
 import { normalizeHhmm } from "./semantic/stay-change";
@@ -784,9 +785,8 @@ function guestCheckoutPromptLine(guestTime: string, officialTime: string): strin
  * tarafından "DOLDURULMAMIŞ YER TUTUCU" sayılır ve dolu bir kaleme yanlış not
  * düşerdi (7. turda ölçülmüş tuzak). Görünmez karakter de kullanılmaz.
  */
-export function defuseBlockDelimiters(v: string): string {
-  return v.replace(/<<\s*([A-Z_]{2,})\s*>>/gu, "$1");
-}
+// Tek kaynak `retrieval/kb-line.ts` (satır biçimi + küçük-KB kuralı; 09-27 #209) — mevcut içe aktaranlar için yeniden dışa verilir.
+export { defuseBlockDelimiters } from "./retrieval/kb-line";
 
 export function sanitizePromptValue(v: string | null | undefined, max = 120): string {
   if (!v) return "";
@@ -911,14 +911,18 @@ export function packKnowledgeBase(
   let used = 0;
   let omitted = alreadyDropped;
   const placeholders: { title: string; tokens: string[] }[] = [];
+  // Bütçe biçimli satırı VE satır ayracını sayar (seçicinin ön hesabıyla AYNI ölçü, `kbBlockChars`). ≤30 kalemlik bilgi tabanı
+  // bütçeyi yalnız dar ek pay kadar aşıyorsa kalem düşmez (`kbFitsWhole`, kurucu kararı 09-27 #209); genel bütçe büyümez.
+  const budget = kbFitsWhole(items) ? KB_CHAR_BUDGET + SMALL_KB_MARGIN_CHARS : KB_CHAR_BUDGET;
   for (const k of items) {
-    const line = `- [${k.category.toUpperCase()}] ${defuseBlockDelimiters(k.title)}: ${defuseBlockDelimiters(k.content)}`;
-    if (used + line.length > KB_CHAR_BUDGET && lines.length > 0) {
+    const line = kbLine(k);
+    const add = line.length + (lines.length > 0 ? 1 : 0);
+    if (used + add > budget && lines.length > 0) {
       omitted += 1;
       continue;
     }
     lines.push(line);
-    used += line.length;
+    used += add;
     // 🚨 YALNIZ `content` TARANIR — 6. TURUN BAŞLIK TARAMASI GERİ ALINDI (7. tur incelemesi).
     // Gerekçe "başlık da isteme yazılıyor" DOĞRUYDU ama BEDELİ ÖLÇÜLMEMİŞTİ: başlıklar ETİKET
     // taşımaya elverişlidir ve `[...]` deseni etiketle yer tutucuyu ayırt edemez →

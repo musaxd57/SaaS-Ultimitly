@@ -1,4 +1,4 @@
-import { KB_CHAR_BUDGET, KB_ITEM_CAP, KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
+import { KB_ITEM_CAP, KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
 import { reportError } from "@/lib/report-error";
 import { chunkKey, type KbChunk, type KbChunkSource } from "./chunker";
 import { kbRetrievalMode, type KbRetrievalMode } from "./flag";
@@ -17,6 +17,7 @@ import {
 import { SOURCE_WEIGHTS, SEMANTIC_QUALIFY_MIN } from "./semantic";
 import { NGRAM_QUALIFY_MIN } from "./sources";
 import { contentStems, normalizeForRetrieval, phraseUnits } from "./text";
+import { kbFitsWhole } from "./kb-line";
 import { detectGuestLanguage } from "@/lib/ai/fallback";
 
 // ---------------------------------------------------------------------------
@@ -158,6 +159,11 @@ export interface KbSelectInput<T extends KbChunkSource> {
    * tamamı gider. Varsayılan `KB_ITEM_CAP` (legacy'nin gönderdiği küme). Test/ölçüm için ezilebilir.
    */
   fullSetMaxItems?: number;
+  /**
+   * Küçük-KB ÖLÇÜSÜ için isteme GİRECEK hâl (yer tutucular doldurulmuş; 09-27 #209 — "ön hesap ile gerçek paketleme aynı biçimlendirilmiş
+   * uzunluğu ölçmeli"). Yalnız "tamamı sığar mı" kararına girer; seçim ham metinle sürer (anlamsal önbellek). Verilmezse `items`.
+   */
+  sizeItems?: readonly T[];
   /** Anlamsal puanlar (parça anahtarı → 0..1), önceden hesaplanmış; yoksa kaynak yok. */
   semantic?: ReadonlyMap<string, number>;
   /**
@@ -477,17 +483,13 @@ export function retrievalQueries(
 export function retrievalNeeded<T extends KbChunkSource>(items: readonly T[], fullSetMaxItems: number = KB_ITEM_CAP): boolean {
   if (items.length === 0) return false;
   const { kept } = dropSuperseded(items as readonly (T & Supersedable)[]);
-  return !(kept.length <= fullSetMaxItems && renderedCharsAll(kept) <= KB_CHAR_BUDGET);
+  // Ön hesap paketleyicinin ölçtüğü biçimli bloğu ölçer (satır + ayraç) ve aynı dar ek payı kullanır (`kbFitsWhole`, 09-27 #209):
+  // eskiden kalem başına +6 sayılıyordu, paketleme +8 → "sığar" denen 30 kalemlik bilgi tabanının son kalemi düşebiliyordu.
+  return !kbFitsWhole(kept, fullSetMaxItems);
 }
 
 function renderedChars(c: { category: string; title: string; text: string }): number {
   return c.category.length + c.title.length + c.text.length + 6;
-}
-
-function renderedCharsAll(items: readonly KbChunkSource[]): number {
-  let n = 0;
-  for (const i of items) n += renderedChars({ category: i.category, title: i.title, text: i.content });
-  return n;
 }
 
 interface RankOptions {
@@ -805,7 +807,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // cevabı isteme TR %35–41 · EN %53–61 giriyordu, legacy'de %100. Kural artık tanım gereği:
     // legacy'nin HİÇBİR ŞEY düşürmeyeceği KB'de seçim yapılmaz; retrieval yalnız legacy'nin bilgi
     // KAYBEDECEĞİ yerde (>30 kalem ya da >24k) devreye girer — orada hibrit legacy'yi geçer.
-    if (!retrievalNeeded(input.items, input.fullSetMaxItems ?? KB_ITEM_CAP)) {
+    if (!retrievalNeeded(input.sizeItems ?? input.items, input.fullSetMaxItems ?? KB_ITEM_CAP)) {
       return legacyResult(sup > 0 ? items : input.items, "hybrid", evidence("small_kb", 0, items.length, items.length, { sup }));
     }
     const { queries, pending: pq, extra: uq } = retrievalQueries(input.guestMessage, input.history, { extraQueries: input.extraQueries });

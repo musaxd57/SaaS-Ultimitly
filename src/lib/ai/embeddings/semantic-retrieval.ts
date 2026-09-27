@@ -71,6 +71,8 @@ export interface SemanticPrepInput<T extends KbChunkSource> {
   extraQueries?: readonly ExtraQuery[];
   mode?: KbRetrievalMode;
   fullSetMaxItems?: number;
+  /** Küçük-KB ölçüsü için isteme girecek hâl (yer tutucular doldurulmuş) — seçiciyle AYNI karar (`KbSelectInput.sizeItems`). */
+  sizeItems?: readonly T[];
   now?: number;
 }
 
@@ -165,7 +167,7 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
     ...(bySubquery ? { bySubquery } : {}),
   });
   try {
-    if (!retrievalNeeded(input.items, input.fullSetMaxItems)) return done("not_needed");
+    if (!retrievalNeeded(input.sizeItems ?? input.items, input.fullSetMaxItems)) return done("not_needed");
     const { queries } = retrievalQueries(input.guestMessage, input.history, { embedTexts: true, extraQueries: input.extraQueries });
     if (queries.length === 0) return done("not_needed");
     // Seçiciyle AYNI küme (sürüm kuralı sonrası) → aynı indeks önbellek girdisi, aynı parça anahtarları.

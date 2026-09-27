@@ -90,9 +90,13 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
   // GENİŞ BLOK BÜTÇESİ (#189, kurucu 09-27 "hazırla, sonra aç"; `KB_RETRIEVAL_WIDE_BUDGET` varsayılan KAPALI): TEK karar noktası.
   // Çağıran bütçeyi kendisi verdiyse (ölçer / test) dokunulmaz. Küçük bilgi tabanı ve legacy yolu bütçe okumaz (etkisiz).
   const wide = wideBudgetInfo().enabled && rest.budgetChars === undefined && rest.maxChunks === undefined;
-  const selectInput: KbSelectInput<T> = wide
+  const budgeted: KbSelectInput<T> = wide
     ? { ...rest, budgetChars: KB_RETRIEVAL_WIDE_CHAR_BUDGET, maxChunks: KB_RETRIEVAL_WIDE_MAX_CHUNKS }
     : rest;
+  // Küçük-KB ölçüsü isteme GİRECEK hâlle (yer tutucular doldurulmuş) yapılır — paketleyiciyle aynı metin (09-27 #209, A5 F5:
+  // "{isim}" uzun bir ada dönünce sınırdaki bilgi tabanının kalemi düşüyordu). Seçimin kendisi ham metinle sürer.
+  const selectInput: KbSelectInput<T> =
+    placeholders && budgeted.sizeItems === undefined ? { ...budgeted, sizeItems: fillGuestPlaceholdersInItems([...budgeted.items], placeholders) } : budgeted;
   // Tarih satırı TEK karar noktası burada: bayrak kapalıyken hesaplanmaz, katmana alan hiç gitmez.
   const timeZone = dateContext ? orgTimezone(dateContext.timeZone) : null;
   const dateLine =
@@ -120,7 +124,7 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
   const queriesNeeded =
     understandingEnabled() &&
     (selectInput.mode ?? kbRetrievalMode()) === "hybrid" &&
-    retrievalNeeded(selectInput.items, selectInput.fullSetMaxItems);
+    retrievalNeeded(selectInput.sizeItems ?? selectInput.items, selectInput.fullSetMaxItems);
   const und: UnderstandingOutcome = queriesNeeded ? await pending : { status: "off" };
   const understood = und.status === "ok" ? und.value : undefined;
   const extraQueries = understandingQueries(understood);
