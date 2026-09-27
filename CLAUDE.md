@@ -213,9 +213,9 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   KAPALI (tek karar noktası `kb-retrieve.ts`; 23k/40 — 24k DEĞİL: paketleyici satır başına +1 sayar, tam dolu 24k son parçayı
   düşürürdü, pinli; çağıranın bütçesi önceliklidir; kanıt `wb`). 🚨 OpenAI kredisi 09-26 gece BİTTİ: ayrı çağrı temiz ölçümü +
   holdout kabulü + cevap düzeyi ölçüm (± geniş blok) bekliyor; üç bayrağı açmak kurucu kararı. `strategy.answersFirst` ölçüm
-  seçeneği (varsayılan KAPALI; 6k/12'de kayıp → varsayılan değil). 🚨 SAAT ALANI YANLIŞ ALARMI (belge §4d, ÖNERİ, kurucu onayı
-  bekliyor, kod canlıda DEĞİL): 60 kalemde soruların %30'u (geniş blokla %58) yanlış mülk-saati çelişkisi taşıyor (geç varış koşulu,
-  valiz penceresi, araç girişi, "çıkıyor" fiili, "girişin arkası"); dar düzeltme ölçüldü (yanlış 0, gerçek korunur) — geniş bloktan ÖNCE.
+  seçeneği (varsayılan KAPALI; 6k/12'de kayıp → varsayılan değil). Saat alanı yanlış alarmı KAPANDI (09-27, kurucu onayı; ↓Kalıcı
+  ürün kararları "Saat alanı kuralı"): 60 kalemde yanlış mülk-saati çelişkisi %30 → %0 (geniş blokla %58 → %0; kalan %3,9 / %12,9
+  dev setine bilerek konmuş GERÇEK çelişki).
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model
@@ -1215,6 +1215,26 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   bloğu + host "Uyuşmayan saatler"): erken giriş/geç çıkış ayrı alan, bina/otopark girişi + acil çıkış + çıkış GÜNÜ
   konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu.
   İkinci bir saat/çelişki kuralı YAZILMAZ. Host raporu yalnız cümlecik saatini sayar; misafir yolu temkinli.
+  🚨 **09-27 yanlış alarm turu (kurucu "en iyi şekilde, didik didik"; belge `docs/TASARIM-2026-09-26-rag-300-olcek.md` §4d;
+  iki yönlü batarya `tests/helpers/time-field-battery.ts` — gerçek saat okunur + tuzak okunmaz; canlı kural 81/108 gerçek · 32/101
+  tuzak, yeni kural 108/108 · 101/101; kuralları görmemiş ajanın kör bataryası 43/59 · 30/56 → 57/59 · 56/56):** saatin BAĞLAMI okunur (`timeRole`: "…'e kadar / sonrası / önce", until/after/before): geç/erken sınırı ("11:00
+  sonrası geç çıkış ücreti"), başvuru noktası ("çıkıştan sonra … 14:00'e kadar") ve koşulun İÇİNDEKİ saat değer DEĞİL (Türkçe koşul
+  fiilinden — "-rse/-sanız/müsaitse" — sonra cümlecik bölünür; "of course / persembe" koşul değil). Konaklama saati DEĞİL: valizle
+  yapılan iş, araç girişi, "girişin arkası/önü", "check-in help/desk / giriş talimatı", iletişim saati (ödünç engeli), ulaşım
+  ("leaves / departures"; ulaşım cümlesinde leave/ayrıl), "çık-" 3. şahıs ("müzisyenler çıkıyor", "3 dakikaya çıkabilir"), geç kalış
+  sınıfı ("sonraki varışlar", "arrivals after"). Uzatma ("uzatılabilir / extended") = geç çıkış. Sessizlik saati yalnız açık ifade ya
+  da KURAL diliyle ("iskele sabah sakin" değil); spor salonu / havuz yalnız açık sözcükle ("salon", "şezlong" değil). "Daireden
+  12:00'de ayrılmanız / çıkmalısınız" ÇIKIŞTIR (sözlük tanımıyordu → gerçek çelişki kaçıyordu). Bir alan bu kurallarla düşerse
+  cümlecik ödünç ALAMAZ. İkinci tur (kör batarya): cümle ↔ cümlecik ayrı; koşul cümleciğinin / önceki tire parçasının ulaşım-valiz
+  konusu ana parçaya geçer; erişimin başladığı an ("kod 15:00'ten itibaren çalışır", "keys are yours from 2 pm") giriştir; MÜSAİTLİK
+  koşulu ("daire hazırsa", "misafir yoksa", "subject to availability") ve bağımsız "erken / geç" sözü giriş-çıkışı erken giriş / geç
+  çıkış yapar ("değilse / otherwise" kapatır, "bile / normal / standart" eşlemez; koşuldaki erken sözü "…'ten sonra" STANDART
+  sınırını değiştirmez); konaklama başı/sonu ve konaklama YERİNİ boşaltmak çıkıştır; havuz barı/havlusu/bilardo masası, sauna, ders,
+  bakım, kuru temizleme, temizlik malzemesi alan değildir; gönderim anı ve iletişim PENCERESİ (aralık / "…'e kadar") hiçbir alanın
+  saati değildir; "gir-" fiili yalnız konaklama yerine / misafire hitapla giriştir (sözlükte "giriş" ile aynı kök). "ve / and" bölmesi
+  yalnız iki alan ya da KONU vetosunda (valiz / iletişim / gönderim) — sözcük süzgecinin düşürdüğü sahte eşleşme ("salonda") bölmez.
+  Yere bağlı sessizlik kuralı (havuz başı) iki alan adlandırır → hüküm yok (bilinçli; bataryada `soft`). Yeni sözcük eklerken
+  bataryaya İKİZ (doğru + tuzak) cümle yazılır; her kural parçasını YALNIZ kendisine dayanan bir pin korur (mutasyon).
   🚨 **Çelişki KAPIDA tutulur (09-25, `ai/time-conflict-gate.ts`):** istemin çelişki listesi `suggestReply` sonucunda
   (`timeConflicts`) kapıya gider; çelişkili alana (niyet · misafir/cevap konusu · çelişen saat) değen cevap kanal + QR +
   Ayarlar/demo önizlemesinde `kb_time_conflict` — karar model güvenine BIRAKILMAZ (model 0.80 verdi). Doğrulanmış onay /

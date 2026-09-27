@@ -168,8 +168,10 @@ describe("alan atfı (retrieval + rapor ortak)", () => {
 
   it("başlık ödüncü: cümlecik BAŞKA konudan söz ediyorsa alınmaz; alansız cümlecikte alınır", () => {
     expect(fields("Sessiz saatler", "Kahve makinesi 23:00'te kapanır.")).toEqual({});
-    expect(fields("Çıkış", "Saat 11:00'e kadar daireyi boşaltın.")).toEqual({ checkout: ["11:00"] });
-    expect(fieldTimeHits("Çıkış", "Saat 11:00'e kadar daireyi boşaltın.")[0].via).toBe("title");
+    expect(fields("Çıkış", "En geç 11:00'de.")).toEqual({ checkout: ["11:00"] });
+    expect(fieldTimeHits("Çıkış", "En geç 11:00'de.")[0].via).toBe("title");
+    // 09-27: "daireyi boşaltın" çıkışı KENDİSİ adlandırır (boşaltma kuralı) → ödünç değil, cümlecik (host raporunda görünür).
+    expect(fieldTimeHits("Çıkış", "Saat 11:00'e kadar daireyi boşaltın.").map((h) => `${h.field}:${h.time}:${h.via}`)).toEqual(["checkout:11:00:clause"]);
     expect(fieldTimeHits("Notlar", "Çıkış 11:00'dir.")[0].via).toBe("clause");
     // Saatin ardındaki kısa ek ("12:00'te" → "te") bir kavram ateşleyip ödüncü ENGELLEMEZ.
     expect(fields("Çıkış", "Lütfen 12:00'te daireyi boşaltın.")).toEqual({ checkout: ["12:00"] });
@@ -220,5 +222,46 @@ describe("çelişki kuralı SİMETRİK", () => {
     expect(propertyTimeMismatch(undefined, "11:00")).toEqual([]);
     expect(normalizePropertyTime("9:00")).toBe("09:00");
     expect(normalizePropertyTime("öğlen")).toBeNull();
+  });
+});
+
+describe("09-27 yanlış alarm sınıfları — gündelik saat anlatımı konaklama saati DEĞİL (60 kalemde soruların %30'u)", () => {
+  const PROP27 = { name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" };
+
+  it("🚨 koşul kipi / geç kalış anlatımı / valiz penceresi kategori-başlık ÖDÜNCÜ almaz", () => {
+    for (const [title, text] of [
+      ["Geç varış imkânı", "21.00'den sonra varacaksanız, lütfen önceden bildirin."],
+      ["Geç varış imkânı", "Çok geç (01.00 sonrası) varışlarda, komşuları rahatsız etmeyin."],
+      ["Erken valiz bırakma", "Resmi giriş saatinizden önce, 12.00 ile 14.30 arasında dairede valiz bırakmanıza izin veriyoruz."],
+      ["Varış", "If you arrive after 22:00, use the key box."],
+    ] as const) {
+      expect(fieldTimeHits(title, text, "checkin"), text).toEqual([]);
+      expect(findTimeConflicts(PROP27, [kb("checkin", title, text)]), text).toEqual([]);
+    }
+  });
+
+  it("🚨 araç girişi ve 'girişin arkası/önü' bir YERDİR; 'çık-' fiili (müzisyen / otobüs çıkıyor) çıkış DEĞİLDİR", () => {
+    for (const [cat, title, text] of [
+      ["parking", "Eski çarşı", "Eski Çarşı'da 19.00–24.00 saatleri arasında araç girişi yasaktır."],
+      ["building", "Çamaşırhane", "Girişin arkasındaki kapıdan çıkınca sağda kalır ve 08:00–22:00 saatleri arasında açıktır."],
+      ["local_tips", "Marina yürüyüşü", "Sahil yolu gün batımında canlı ve 19.00-22.00 saatleri arasında sokak müzisyenleri çıkıyor."],
+      ["location", "Otobüs", "Son otobüs 23:00'te çıkıyor."],
+    ] as const) {
+      expect(fieldTimeHits(title, text, cat), text).toEqual([]);
+      expect(findTimeConflicts(PROP27, [kb(cat, title, text)]), text).toEqual([]);
+    }
+  });
+
+  it("KONTROL — gerçek giriş/çıkış saati ifadeleri OKUNMAYA devam eder (çelişki kaçmaz)", () => {
+    const hit = (title: string, text: string, cat: string) => fieldTimeHits(title, text, cat).map((h) => `${h.field}:${h.time}`);
+    expect(hit("Kurallar", "Lütfen 12:00'de çıkın.", "rules")).toEqual(["checkout:12:00"]);
+    expect(hit("Giriş", "Valizinizle 14:00'ten sonra giriş yapabilirsiniz.", "checkin")).toEqual(["checkin:14:00"]);
+    expect(hit("Varış bilgileri", "14:00'ten sonra gelebilirsiniz.", "checkin")).toEqual(["checkin:14:00"]);
+    expect(hit("Çıkış", "Standart çıkış saati en geç 12:00'dır.", "checkout")).toEqual(["checkout:12:00"]);
+    expect(hit("Çıkış", "Daireden en geç 11:00'de çıkmanız gerekiyor.", "checkout")).toEqual(["checkout:11:00"]);
+    expect(hit("Check-out", "Check-out is at 12 pm.", "checkout")).toEqual(["checkout:12:00"]);
+    expect(findTimeConflicts(PROP27, [kb("checkout", "Çıkış", "Standart çıkış saati en geç 12:00'dır.")])).toEqual([
+      { field: "checkOutTime", propertyValue: "11:00", kbValues: ["12:00"] },
+    ]);
   });
 });

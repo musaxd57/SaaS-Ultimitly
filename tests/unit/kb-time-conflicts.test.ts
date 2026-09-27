@@ -34,11 +34,16 @@ describe("kbTimeConflicts — KB ↔ mülk ayarı", () => {
   });
 
   it("🚨 bilinçli fark: başlıktan ödünç saat host'a raporlanmaz ama misafir yolu temkinli davranır", () => {
-    const item = kb("checkout", "Çıkış", "Saat 12:00'ye kadar daireyi boşaltın.");
+    const item = kb("checkout", "Çıkış", "Saat 12:00'ye kadar hazır olun.");
     expect(kbTimeConflicts(PROP, [item])).toEqual([]);
     expect(findTimeConflicts({ name: "X", ...PROP }, [item])).toEqual([
       { field: "checkOutTime", propertyValue: "11:00", kbValues: ["12:00"] },
     ]);
+  });
+
+  it("09-27: \"daireyi boşaltın\" çıkışı cümleciğin KENDİSİ adlandırır → host'a da raporlanır", () => {
+    const rows = kbTimeConflicts(PROP, [kb("checkout", "Çıkış", "Saat 12:00'ye kadar daireyi boşaltın.")]);
+    expect(rows.map((r) => `${r.kind}:${r.field}:${r.sides.map((x) => x.values.join("/")).join("|")}`)).toEqual(["property:checkout:12:00"]);
   });
 
   it("mülk ayarıyla karşılaştırılan alan kalemler arasında TEKRAR raporlanmaz (tek satır)", () => {

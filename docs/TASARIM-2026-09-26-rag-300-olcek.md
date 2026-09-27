@@ -166,9 +166,10 @@ de atladı; o cevap yalnız bu sorgulardan geliyordu (blokta 30'dan fazla ilgisi
 `answersFirst` ölçüm seçeneği olarak eklendi (varsayılan KAPALI, birebir); 6k/12'de kayıp verdiği için varsayılan yapılmadı —
 geniş blokla birlikte ücretli temiz ölçümde yeniden bakılır. Diğer ikisi elendi (çelişki koruması bir güvenlik özelliği; kazancı ±1–2).
 
-**Saat alanı yanlış alarmı (ÖNERİ — KURUCU ONAYI BEKLİYOR, kod canlıya GİTMEDİ).** Aynı ölçümde bloğa giren kalemler mülkün giriş/çıkış
-saatiyle (`findTimeConflicts`, gönderim kapısının `kb_time_conflict`ı ve istemin mülk saatini gizlemesi) çelişki üretiyor. 60 kalemlik
-gerçekçi bilgi tabanında (soru başına): soruların **%30'u** (geniş blokla **%58**), giriş/çıkış sorularının %43'ü (%57). Çoğu yanlış alarm:
+**Saat alanı yanlış alarmı — KAPANDI (09-27, kurucu onayı: "yayınla kapıları yapıp o saat kuralını en iyi şekilde yap, didik
+didik").** Aynı ölçümde bloğa giren kalemler mülkün giriş/çıkış saatiyle (`findTimeConflicts`, gönderim kapısının `kb_time_conflict`ı ve
+istemin mülk saatini gizlemesi) çelişki üretiyordu: 60 kalemlik gerçekçi bilgi tabanında soruların **%30'u** (geniş blokla **%58**),
+giriş/çıkış sorularının %43'ü (%57). Çoğu yanlış alarmdı:
 
 | bugün "saat" sayılan ifade | okunan | gerçekte |
 |---|---|---|
@@ -179,13 +180,29 @@ gerçekçi bilgi tabanında (soru başına): soruların **%30'u** (geniş blokla
 | "sahil yolunda 19.00–22.00 arası sokak müzisyenleri çıkıyor", "son otobüs 23:00'te çıkıyor" | çıkış 19:00/22:00, 23:00 | "çık-" fiili, çıkış değil |
 | "girişin arkasındaki kapıdan çıkınca … 08:00–22:00 açıktır" | giriş 08:00/22:00 | girişin YERİ |
 
-Önerilen dar düzeltme (yerelde ölçüldü, yama saklı, commit edilmedi): koşul kipi / "geç" anlatımı / valiz sözcüğü kategori-başlık
-ÖDÜNCÜNÜ engeller (cümlecik alanı adlandırıyorsa saat yine okunur: "Valizinizle 14:00'ten sonra giriş yapabilirsiniz" → giriş 14:00);
-"araç/araba/car girişi" ve "girişin arkası/önü/yanı" yer sayılır; çıkış alanı yalnız açık bir çıkış sözcüğü ya da misafire hitap eden
-"çık-" ("çıkın", "çıkabilirsiniz") varken. Sonuç: yanlış mülk-saati çelişkisi **%30 → %0** (geniş blokla %58 → %0); tek gerçek çelişki
-("standart çıkış saati en geç 12:00" ↔ mülk 11:00) yakalanmaya devam ediyor; saat/çelişki/altın set testleri (349) yeşil. **Geniş blok
-açılmadan önce bu düzeltme önerilir** (geniş blok bugünkü kuralla yanlış alarmı ikiye katlıyor). Bilinen sınır: İngilizce "the bus leaves
-at 23:00" hâlâ çıkış okunur.
+Düzeltme iki turda yapıldı (`retrieval/time-fields.ts`, tek kaynak — üç tüketici aynı kuralı okur). Birinci tur yukarıdaki sınıfları
+kapattı; ikinci tur, kuralları GÖRMEMİŞ bir ajanın yazdığı kör bataryanın (115 cümle) gösterdiği sınıfları: erişimin başladığı an giriştir
+("kapı kodu 15:00'ten itibaren çalışır", "keys are yours from 2 pm"); müsaitliğe bağlı izin istisnadır ("daire hazırsa 13:00'te
+girebilirsiniz" → erken giriş, "müsaitliğe göre 12:00'ye kadar" → geç çıkış; "değilse / otherwise" koşulu kapatır, "bile / normal /
+standart" eşlemez); konaklamanın başı/sonu ("konaklamanız 15:00'te başlar"), konaklama yerini boşaltmak ("daireyi 11.00'de boşaltmanızı",
+"vacate the apartment") çıkıştır; havuz barı / havlusu / bilardo masası, sauna, ders, bakım havuz/spor saati değildir; gönderim anı ("kodu
+10:00'da gönderiyoruz", "check-in guide at 10am") ve iletişim penceresi ("ekibimize 09:00-18:00 arası yazabilirsiniz") hiçbir alanın
+saati değildir; "gir-" fiili yalnız konaklama yerine / misafire hitapla giriştir ("havuza 21:00'den sonra girmek yasak" havuzdur); koşul
+parçasındaki / önceki tire parçasındaki ulaşım ana parçanın saatini aracın saati yapar ("transfer ayarladıysanız şoför 10:30'da bekliyor");
+uzun tire iki yanı cümlecikse böler ("Giriş – 15:00" etiketi ve "09:00 – 20:00" aralığı bölünmez).
+
+| ölçüm | canlı kural (`7382338`) | yeni kural |
+|---|---|---|
+| iki yönlü batarya (`tests/helpers/time-field-battery.ts`, gerçek / tuzak) | 81/108 · 32/101 | **108/108 · 101/101** |
+| kör batarya 1 (115 cümle; ikinci turda bakıldı → artık "görüldü") | 43/59 · 30/56 | 57/59 · 56/56 |
+| 60 kalem, mülk saatiyle çelişen soru (yanlış alarm) | %30 (geniş blokla %58) | **%3,9 (%12,9) — hepsi gerçek** |
+| 276 kalemlik dev setinde okunan gerçek saat | — | ilk turla birebir (kayıp yok) |
+
+Kalan %3,9 / %12,9'un tek kaynağı dev setine bilerek konmuş gerçek çelişkidir ("standart çıkış saati en geç 12:00" ↔ mülk 11:00): tutulması
+doğrudur. Kör bataryanın kalan iki farkı bilinçlidir: yere bağlı sessizlik kuralı ("havuz başında 22:00'den sonra müzik yasak") cümlecikte
+iki alan (havuz + sessizlik) adlandırır → hüküm yok; genel sessizlik saati sayılsaydı "sessizlik 23:00" kalemiyle sahte çelişki notu
+üretirdi (bataryada `soft`). Bilinen sınırlar: İngilizce "by 11 am" bir teslim tarihi de olabilir (çıkış sayılır); "noise" sözcüğü köke
+inerken durak sözcüğe düşüyor — saat kuralı ham sözcüğe bakıyor, retrieval tarafı ayrı iş.
 
 ## 5. Codex'in "sınanması gerekenler"i
 

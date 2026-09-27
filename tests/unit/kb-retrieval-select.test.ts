@@ -386,8 +386,10 @@ describe("dilim 2 — kaynak birleşimi, sürüm kuralı, kategori-bağımsız �
     expect([...extractFieldTimes("Geç çıkış", "Çıkış saati 12:00'dir, temizlik öğleden sonra gelir.")]).toEqual([["checkout", new Set(["12:00"])]]);
     expect([...extractFieldTimes("Temizlik planı", "Temizlik ekibi 12:00'de gelir; lütfen o saatten önce daireyi boşaltın.")]).toEqual([["cleaning", new Set(["12:00"])]]);
     // Cümlecikte alan yoksa BAŞLIĞIN alanı; başlık da belirsizse hiçbiri.
-    expect([...extractFieldTimes("Çıkış", "Saat 11:00'e kadar daireyi boşaltın.")]).toEqual([["checkout", new Set(["11:00"])]]);
-    expect([...extractFieldTimes("Notlar", "Saat 11:00'e kadar daireyi boşaltın.")]).toEqual([]);
+    expect([...extractFieldTimes("Çıkış", "Saat 11:00'e kadar hazır olun.")]).toEqual([["checkout", new Set(["11:00"])]]);
+    expect([...extractFieldTimes("Notlar", "Saat 11:00'e kadar hazır olun.")]).toEqual([]);
+    // 09-27: "daireyi boşaltın" çıkışı KENDİSİ adlandırır (konaklama yerini boşaltmak) → başlık belirsiz olsa da çıkış.
+    expect([...extractFieldTimes("Notlar", "Saat 11:00'e kadar daireyi boşaltın.")]).toEqual([["checkout", new Set(["11:00"])]]);
   });
 
   it("ÇELİŞKİ ALAN BAZLI: aynı çıkış saati bilgisi FARKLI kategorilerde de karşılaştırılır (checkout ↔ general)", () => {
