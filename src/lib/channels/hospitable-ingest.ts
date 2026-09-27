@@ -49,6 +49,12 @@ export function toChannel(platform: unknown): string {
   return p || "other";
 }
 
+/**
+ * 🚨 Bilinmeyen durum bugün "confirmed" sayılır (V0.6 semantiği, BİLİNÇLİ korunuyor — gerçek durum sözlüğü canlı veriden doğrulanmadan
+ * varsayılanı değiştirmek onaylı misafirlerin giriş mesajını durdurabilir; karar: `docs/SABAH-KARARLARI-2026-09-28.md` K7). Ama AÇIKÇA
+ * olumsuz / soru değerleri onaylı sayılmaz (09-27 güvenlik denetimi: "not accepted" reddedilmiş talep, boşluklu "not possible" ve
+ * "inquiry" "confirmed" oluyordu → sır kapısı açılıyor, modelsiz giriş bilgisi mesajı kapı koduyla gidebiliyordu).
+ */
 export function mapReservationStatus(reservation: HospitableReservation): CanonicalReservationStatus {
   const rawStatus =
     `${reservation.status ?? ""} ${reservation.reservation_status?.current?.category ?? ""}`.toLowerCase();
@@ -56,9 +62,12 @@ export function mapReservationStatus(reservation: HospitableReservation): Canoni
     rawStatus.includes("declin") ||
     rawStatus.includes("expired") ||
     rawStatus.includes("not_possible") ||
+    rawStatus.includes("not possible") ||
+    rawStatus.includes("not accept") ||
+    rawStatus.includes("not_accept") ||
     rawStatus.includes("denied")
     ? "cancelled"
-    : rawStatus.includes("pending") || rawStatus.includes("request")
+    : rawStatus.includes("pending") || rawStatus.includes("request") || rawStatus.includes("inquir")
       ? "pending"
       : rawStatus.includes("complete") ||
           rawStatus.includes("checked_out") ||
