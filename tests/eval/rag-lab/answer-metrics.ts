@@ -1,10 +1,35 @@
 // RAG CEVAP DÜZEYİ — saf ölçü fonksiyonları (`rag-answer.eval.test.ts`; birim testi `tests/unit/rag-answer-metrics.test.ts`).
 // Cevap KODLA ölçülür (LLM hakem YOK). Sayı dil değiştirmez: saat, tutar, süre, kod.
 
-/** Metindeki sayısal çapalar: saat (15.00 / 15:00), ≥2 haneli sayı, ondalık. Tek haneli sayı çapa değil (gürültü). */
+const pad2 = (h: string | number): string => String(h).padStart(2, "0");
+
+/**
+ * Saat ve sayı YAZIMINI tek biçime indirir — iki tarafa da (cevap cümlesi + model yanıtı) aynı uygulanır (kurucu 09-27: "08h30,
+ * 5 pm = 17.00 … deterministik testlerle ele"; kuru koşuda doğru cevapların bir kısmı yalnız yazım farkıyla "yanlış sayı"
+ * sayılıyordu). Ölçücü kuralıdır, ürün kodu DEĞİL. Saat → "HH.MM": 12 saatlik (5 pm, 5:30 p.m., 11am, 12 am = 00.00, 12 pm =
+ * 12.00) · Fransız (08h30, 15 h 30; dakikasız "15h" yalnız 6–23 — küçük sayı süre olabilir: "2h") · Alman (15 Uhr, 15.30 Uhr) ·
+ * Türkçe dakikasız "saat 17" (yalnız 6–23; "saat 2" iki okumalı) · noon / midnight · öndeki sıfır (8.30 = 08.30 = 8:30). Binlik
+ * ayırıcı düşer (1.500 = 1,500 = 1500).
+ */
+export function normalizeNumbers(text: string): string {
+  return text
+    .replace(/(?<![\d.:,])(\d{1,2})(?:[:.](\d{2}))?\s?([ap])\.?\s?m\b\.?/gi, (_m, h: string, mm: string | undefined, ap: string) =>
+      `${pad2((Number(h) % 12) + (ap.toLowerCase() === "p" ? 12 : 0))}.${mm ?? "00"}`,
+    )
+    .replace(/(?<![\d.:,])(\d{1,2})\s?h\s?(\d{2})(?!\d)/gi, (_m, h: string, mm: string) => `${pad2(h)}.${mm}`)
+    .replace(/(?<![\d.:,])([6-9]|1\d|2[0-3])\s?h\b/gi, (_m, h: string) => `${pad2(h)}.00`)
+    .replace(/(?<![\d.:,])(\d{1,2})(?:[:.](\d{2}))?\s?Uhr\b/gi, (_m, h: string, mm: string | undefined) => `${pad2(h)}.${mm ?? "00"}`)
+    .replace(/\bsaat\s([6-9]|1\d|2[0-3])(?![\d.:,])/gi, (_m, h: string) => `saat ${pad2(h)}.00`)
+    .replace(/\b(?:12\s)?noon\b/gi, "12.00")
+    .replace(/\bmidnight\b/gi, "00.00")
+    .replace(/(?<![\d.:,])(\d{1,2})[:.](\d{2})(?!\d)/g, (_m, h: string, mm: string) => `${pad2(h)}.${mm}`)
+    .replace(/(?<![\d.,])\d{1,3}(?:[.,]\d{3})+(?![\d.,]*\d)/g, (m) => m.replace(/[.,]/g, ""));
+}
+
+/** Metindeki sayısal çapalar: saat (tek biçim "HH.MM"), ≥2 haneli sayı, ondalık. Tek haneli sayı çapa değil (gürültü). */
 export function numericAnchors(text: string): string[] {
   const out = new Set<string>();
-  for (const m of text.matchAll(/\d{1,2}[.:]\d{2}|\d+(?:[.,]\d+)?/g)) {
+  for (const m of normalizeNumbers(text).matchAll(/\d{1,2}[.:]\d{2}|\d+(?:[.,]\d+)?/g)) {
     const raw = m[0];
     if (/^\d$/.test(raw)) continue;
     out.add(raw.replace(":", ".").replace(",", "."));
@@ -12,9 +37,9 @@ export function numericAnchors(text: string): string[] {
   return [...out];
 }
 
-/** Cevap çapalardan en az birini (sayı sınırlarıyla: "115.00" ≠ "15.00") söylüyor mu. */
+/** Cevap çapalardan en az birini (sayı sınırlarıyla: "115.00" ≠ "15.00") söylüyor mu. İki taraf aynı normalizasyondan geçer. */
 export function replyHasAnchor(reply: string, anchors: readonly string[]): boolean {
-  const norm = reply.replace(/(\d{1,2}):(\d{2})/g, "$1.$2").replace(/(\d),(\d)/g, "$1.$2");
+  const norm = normalizeNumbers(reply).replace(/(\d{1,2}):(\d{2})/g, "$1.$2").replace(/(\d),(\d)/g, "$1.$2");
   return anchors.some((a) => new RegExp(`(^|[^\\d])${a.replace(".", "\\.")}([^\\d]|$)`).test(norm));
 }
 

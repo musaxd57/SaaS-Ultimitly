@@ -21,6 +21,53 @@ describe("sayısal çapalar", () => {
   });
 });
 
+describe("saat biçimleri tek biçime iner (kurucu 09-27: \"08h30, 5 pm = 17.00 … deterministik testlerle ele\")", () => {
+  // Kuru koşuda (09-27) doğru cevapların bir kısmı yalnız YAZIM farkı yüzünden "yanlış sayı" / "cevap yok" sayılıyordu.
+  it("Fransız / Alman yazımı: 08h30 · 8h30 · 15h · 15 Uhr · 15.30 Uhr", () => {
+    expect(replyHasAnchor("Arrivée possible dès 8h30.", numericAnchors("Giriş 08:30'dan itibaren."))).toBe(true);
+    expect(replyHasAnchor("L'arrivée se fait à 15h.", numericAnchors("Giriş 15:00."))).toBe(true);
+    expect(replyHasAnchor("Check-in ab 15 Uhr.", numericAnchors("Giriş 15.00."))).toBe(true);
+    expect(replyHasAnchor("Check-out bis 10.30 Uhr.", numericAnchors("Çıkış 10:30."))).toBe(true);
+    expect(numericAnchors("Arrivée à 08h30, départ à 11h")).toEqual(["08.30", "11.00"]);
+  });
+
+  it("12 saatlik yazım: 5 pm = 17.00 · 5:30 p.m. = 17.30 · 11am = 11.00 · 12 pm = 12.00 · 12 am = 00.00 · noon = 12.00", () => {
+    expect(replyHasAnchor("Check-in is from 5 pm.", numericAnchors("Giriş 17:00."))).toBe(true);
+    expect(replyHasAnchor("The pool closes at 5:30 p.m.", numericAnchors("Havuz 17.30'da kapanır."))).toBe(true);
+    expect(replyHasAnchor("Check-out by 11am.", numericAnchors("Çıkış 11:00."))).toBe(true);
+    expect(replyHasAnchor("Lunch is served at 12 pm.", numericAnchors("Öğle yemeği 12.00'de."))).toBe(true);
+    expect(replyHasAnchor("Quiet from 12 am.", numericAnchors("Sessizlik 00:00'da başlar."))).toBe(true);
+    expect(replyHasAnchor("Check-out is at noon.", numericAnchors("Çıkış 12:00."))).toBe(true);
+  });
+
+  it("Türkçe 'saat 17'de' = 17.00; öndeki sıfır farkı yok (8.30 = 08.30 = 8:30)", () => {
+    expect(replyHasAnchor("Giriş saat 17'de başlar.", numericAnchors("Giriş 17:00."))).toBe(true);
+    expect(replyHasAnchor("Kahvaltı 8.30'da.", numericAnchors("Kahvaltı 08:30'da."))).toBe(true);
+    expect(replyHasAnchor("Breakfast at 08:30.", numericAnchors("Kahvaltı 8.30'da."))).toBe(true);
+  });
+
+  it("🚨 KONTROL — farklı saat EŞLEŞMEZ: 5 pm ≠ 05.00 · 5 am ≠ 17.00 · 15h ≠ 15.30 · 12 am ≠ 12.00 · 8h30 ≠ 18.30", () => {
+    expect(replyHasAnchor("Check-in is from 5 pm.", numericAnchors("Giriş 05:00."))).toBe(false);
+    expect(replyHasAnchor("Check-in is from 5 am.", numericAnchors("Giriş 17:00."))).toBe(false);
+    expect(replyHasAnchor("Arrivée à 15h.", numericAnchors("Giriş 15:30."))).toBe(false);
+    expect(replyHasAnchor("Quiet from 12 am.", numericAnchors("Sessizlik 12:00'da."))).toBe(false);
+    expect(replyHasAnchor("Arrivée dès 8h30.", numericAnchors("Giriş 18:30."))).toBe(false);
+  });
+
+  it("süre saat SAYILMAZ: '2h drive' / '3 hours' / 'saat 2 gibi' tek hane → çapa üretmez; 'in 10 hours' 10 kalır", () => {
+    expect(numericAnchors("The taxi takes about 2h.")).toEqual([]);
+    expect(numericAnchors("The drive is 3 hours.")).toEqual([]);
+    expect(numericAnchors("A 10 hours flight.")).toEqual(["10"]);
+  });
+
+  it("binlik ayırıcı: 1.500 = 1,500 = 1500 (para); ondalık 12,5 = 12.5 korunur", () => {
+    expect(replyHasAnchor("The deposit is 1,500 TL.", numericAnchors("Depozito 1.500 TL."))).toBe(true);
+    expect(replyHasAnchor("Depozito 1500 TL.", numericAnchors("Depozito 1.500 TL."))).toBe(true);
+    expect(replyHasAnchor("Kaution 15.000 TL.", numericAnchors("Depozito 1.500 TL."))).toBe(false);
+    expect(numericAnchors("Ücret 12,5 €")).toEqual(["12.5"]);
+  });
+});
+
 describe("iki sorulu mesaj — her sorunun cevabı AYRI eşleşir (Codex 09-27)", () => {
   const answers = [{ needles: ["Giriş saati 15:00'tir."] }, { needles: ["Otopark günlük 250 TL'dir."] }];
 

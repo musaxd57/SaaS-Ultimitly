@@ -11,7 +11,7 @@ const allowedTexts = ["15:00", "11:00", "Soru?"];
 describe("vaka kabulü — kırmızı sebepleri", () => {
   it("doğru cevap (kendi sayısı yanıtta) → yeşil; fazladan dayanaklı bilgi yeşili bozmaz", () => {
     const v = caseVerdict({ group: "single_tr", answers: [{ needles: ["Havuz 09:00–20:00 açık."] }], reply: "Havuz 09:00–20:00 arası açık.", unsupported: 0, allowedTexts });
-    expect(v).toEqual({ red: false, reasons: [], answered: { anchored: 1, hit: 1 }, handedOff: false });
+    expect(v).toEqual({ red: false, reasons: [], answered: { anchored: 1, hit: 1 }, handedOff: false, missed: null });
   });
 
   it("🚨 kendi sayısı yok, dayanaksız sayı var → yanlis_sayi (başka olguyla cevaplamış)", () => {
@@ -43,6 +43,31 @@ describe("vaka kabulü — kırmızı sebepleri", () => {
     const base = { group: "version", answers: [{ needles: ["Wi-Fi şifresi 7788."] }], forbiddenNeedles: ["Wi-Fi şifresi 4455."], unsupported: 0, allowedTexts };
     expect(caseVerdict({ ...base, reply: "Şifre 4455." }).reasons).toContain("sizinti");
     expect(caseVerdict({ ...base, reply: "Şifre 7788." }).red).toBe(false);
+  });
+
+  it("🚨 'cevap kaçırıldı' ≠ 'getirme kaçırdı' (kurucu 09-27): cevap blokta varken devir BAŞARI DEĞİL, ayrı sayılır — kırmızı da değil", () => {
+    const base = { group: "single_tr", answers: [{ needles: ["Toplam 54 basamak."] }], reply: "Bunu ev sahibinize iletiyorum.", unsupported: 0, allowedTexts };
+    expect(caseVerdict({ ...base, inBlock: true })).toMatchObject({ red: false, missed: "answer", handedOff: true });
+    expect(caseVerdict({ ...base, inBlock: false })).toMatchObject({ red: false, missed: "retrieval", handedOff: true });
+    // Doğru cevapta ikisi de yok.
+    expect(caseVerdict({ ...base, inBlock: true, reply: "Toplam 54 basamak var." }).missed).toBeNull();
+  });
+
+  it("🚨 dayanaksız sayı iki tür (bilgi bloğu verilince): hiçbir yerde yok → yanlis_sayi; bloktaki BAŞKA kalemin olgusu → baska_olgu", () => {
+    const answers = [{ needles: ["Havuz 09:00–19:00 açık."] }];
+    const blockTexts = ["Spor salonu 07:00–22:00 açık.", "Havuz 09:00–19:00 açık."];
+    // Havuz sorusuna spor salonunun saatiyle cevap: bloktaki başka kalemin doğru sayısı — yanlış yere verilmiş bilgi ya da doğru ek bilgi.
+    expect(caseVerdict({ group: "single_tr", answers, reply: "Açılış 07:00, kapanış 22:00.", unsupported: 0, allowedTexts, blockTexts }).reasons).toEqual(["baska_olgu"]);
+    // Hiçbir yerde olmayan saat: uydurma sayı.
+    expect(caseVerdict({ group: "single_tr", answers, reply: "Havuz 08:00–18:00 açık.", unsupported: 0, allowedTexts, blockTexts }).reasons).toEqual(["yanlis_sayi"]);
+    // Blok verilmezse eski davranış (her dayanaksız sayı yanlis_sayi).
+    expect(caseVerdict({ group: "single_tr", answers, reply: "Açılış 07:00, kapanış 22:00.", unsupported: 0, allowedTexts }).reasons).toEqual(["yanlis_sayi"]);
+  });
+
+  it("🚨 yanıtsız soruda: hiçbir yerde olmayan sayı → uydurma; yalnız bloktaki başka kalemin sayısı → baska_olgu (aday)", () => {
+    const blockTexts = ["Havuz 09:00–19:00 açık."];
+    expect(caseVerdict({ group: "neg", answers: [], reply: "Sauna 10:00'da açılır.", unsupported: 0, allowedTexts, blockTexts }).reasons).toEqual(["uydurma"]);
+    expect(caseVerdict({ group: "neg", answers: [], reply: "Sauna bilgisi yok; havuz 09:00–19:00 açık.", unsupported: 0, allowedTexts, blockTexts }).reasons).toEqual(["baska_olgu"]);
   });
 
   it("iki sorulu mesaj: her sorunun sayısı ayrı sayılır", () => {

@@ -5,6 +5,8 @@ import path from "node:path";
 import { replyRequestIdentity, suggestReply } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
+import { auditClaims } from "@/lib/ai/claim-support";
+import { buildReplyPrompt } from "@/lib/ai/prompts";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { llmCached } from "./rag-lab/cache";
@@ -61,6 +63,13 @@ const PROPERTY = { name: "Lale Evleri", checkInTime: "15:00", checkOutTime: "11:
  */
 const WORKERS = Math.max(1, Math.min(4, Math.trunc(Number(process.env.EVAL_RAG_ANSWER_WORKERS) || 1)));
 const RETRIES = 3;
+/**
+ * KÖR İNCELEME DÖKÜMÜ (kurucu 09-27: "Kalan adayların son kararını bağımsız kör inceleyici versin"): kırmızı adaylarla "cevap
+ * kaçırıldı" vakalarının içeriği (soru · cevap cümleleri · model yanıtı) bu JSON dosyasına yazılır — RAPORA DEĞİL. YALNIZ dev kümesinde
+ * (holdout içeriği açılmaz; holdout'ta döküm istemek hatadır).
+ */
+const DUMP = process.env.EVAL_RAG_ANSWER_DUMP?.trim() || null;
+if (DUMP && SPLIT === "holdout") throw new Error("holdout içeriği dökülmez (EVAL_RAG_ANSWER_DUMP yalnız dev)");
 
 interface AnswerRow {
   config: string;
@@ -85,10 +94,29 @@ interface AnswerRow {
   reasons?: string[];
   /** Cevaplanabilir soruda somut cevap yok, yanlış da yok (dürüst devir / yalnız sözel). */
   handedOff?: boolean;
+  /** `answer` = cevap blokta VARKEN verilmedi ("cevap kaçırıldı") · `retrieval` = cevap bloğa girmedi (kurucu 09-27). */
+  missed?: "answer" | "retrieval" | null;
+  /** Önbellekteki (ücretli çağrı anındaki kodla hesaplanmış) iddia denetimi — `unsupported` BUGÜNKÜ kodla yeniden hesaplanır. */
+  unsupportedCached?: number;
+}
+
+interface DumpCase {
+  config: string;
+  qid: string;
+  group: string;
+  question: string;
+  history: string[];
+  answers: string[];
+  reply: string;
+  reasons: string[];
+  missed: "answer" | "retrieval" | null;
+  /** İddia denetiminin desteksiz bulduğu CÜMLELER (cümle cümle denetimle bulunur; inceleme kolaylığı, hüküm değil). */
+  unsupportedSentences: string[];
 }
 
 describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
   const rows: AnswerRow[] = [];
+  const dump: DumpCase[] = [];
   let complete = false;
   const saved = process.env.AI_UNDERSTANDING_ENABLED;
   beforeAll(() => {
@@ -129,8 +157,12 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
       "niyeti · desteksiz iddia = üretimin iddia denetiminde verisiz somut iddia taşıyan cevap (yanıtsız soruda uydurma) · yabancı",
       "sayı = cevap cümlelerinde / mülk alanlarında / misafirin yazdığında olmayan sayıyı söyleyen cevap (yalnız eşleştirilmiş fark).",
       "",
-      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | cevap düzeyi | bilgim-yok | devir | desteksiz iddia | yabancı sayı | KIRMIZI vaka | cevaplanabilirken devir |",
-      "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+      "Desteksiz iddia BUGÜNKÜ iddia denetimiyle yeniden hesaplanır (önbellekteki değer ücretli çağrı anındaki kodla; parantezde).",
+      "cevap kaçırıldı = cevap blokta VARKEN verilmedi (başarı değil, kırmızı değil; kurucu 09-27) · getirme kaçırdı = cevap bloğa girmedi",
+      "(dürüst devir o durumda doğru davranış).",
+      "",
+      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | cevap düzeyi | bilgim-yok | devir | desteksiz iddia | yabancı sayı | KIRMIZI aday | cevap kaçırıldı | getirme kaçırdı |",
+      "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ];
     for (const cfg of CONFIGS) {
       for (const g of GROUPS) {
@@ -139,7 +171,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
         const anchored = rs.filter((r) => r.anchored);
         const perAnswer = `${rs.reduce((n, r) => n + (r.anchorHits ?? 0), 0)}/${rs.reduce((n, r) => n + (r.anchoredAnswers ?? 0), 0)}`;
         lines.push(
-          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${perAnswer} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} | ${rs.filter((r) => r.foreign).length} | ${rs.filter((r) => r.red).length} | ${rs.filter((r) => r.handedOff).length} |`,
+          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${perAnswer} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} (${rs.filter((r) => (r.unsupportedCached ?? r.unsupported) > 0).length}) | ${rs.filter((r) => r.foreign).length} | ${rs.filter((r) => r.red).length} | ${rs.filter((r) => r.missed === "answer").length} | ${rs.filter((r) => r.missed === "retrieval").length} |`,
         );
       }
     }
@@ -147,9 +179,9 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
     const reds = rows.filter((r) => !r.invalid && r.red);
     lines.push(
       "",
-      `KIRMIZI ADAY vakalar (${reds.length}; kurucu kararı 09-27 — müşteriye giden cevap: kanıtsız iddia / yanlış sayı / uydurma / çelişkide kesin saat / sızıntı).`,
-      "⚠️ ADAY: kodla karar kuru koşuda (09-27, dev) ~%50 isabetli — biçim (08h30, 5 pm↔17.00), çeviride birim, doğru ek bilgi, çok doğru cevap",
-      "yanlış kırmızı üretiyor; kesin hüküm insan incelemesiyle (inceleme kuralı kurucu kararı bekliyor, task #202).",
+      `KIRMIZI ADAY vakalar (${reds.length}; kurucu kararı 09-27 — müşteriye giden cevap: kanıtsız iddia / yanlış sayı / başka olgu / uydurma /`,
+      "çelişkide kesin saat / sızıntı). ⚠️ ADAY: son hüküm bağımsız KÖR inceleyicinin (kurucu 09-27; yardımcı model yalnız ön eleme); `baska_olgu`",
+      "= yalnız bloktaki BAŞKA kalemin sayısı (yanlış yere verilmiş bilgi ya da doğru ek bilgi — kodla ayrılamaz).",
     );
     for (const r of reds) lines.push(`- ${r.config} · ${r.qid} · ${(r.reasons ?? []).join(", ")}`);
     const dir = path.resolve(__dirname, "../../docs/olcum");
@@ -158,6 +190,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
     for (let n = 2; existsSync(path.join(dir, name)); n++) name = `rag-answer-${stamp}-${n}.md`;
     writeFileSync(path.join(dir, name), `${lines.join("\n")}\n`);
     writeSidecar(dir, name, { suite: "rag-answer", version: 1, meta: { commit, split: SPLIT, perGroup: PER_GROUP, kb: KB_MODE, ...(KB_MODE === "perq" ? { perqSize: PERQ_SIZE } : {}) }, rows });
+    if (DUMP && SPLIT === "dev") writeFileSync(DUMP, `${JSON.stringify({ commit, split: SPLIT, cases: dump }, null, 1)}\n`);
   });
 
   it("boru hattı → cevap modeli", async () => {
@@ -208,26 +241,55 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
             // Cevap BAŞINA (Codex 09-27): iki sorulu mesajda yalnız bir sorunun sayısını söyleyen yanıt başarı değildir.
             const hits = answerAnchorHits(out.reply, q.answers);
             const allowedTexts = [PROPERTY.checkInTime, PROPERTY.checkOutTime, q.text, ...(q.history ?? []).map((h) => h.body)];
+            const inBlock = q.answers.length > 0 && q.answers.every((a) => a.needles.some((n) => run.text.includes(n)));
+            // İddia denetimi BUGÜNKÜ kodla, modelin gördüğü AYNI bağlamla (istem kurucusu ağa çıkmaz): önbellekteki `u` ücretli çağrı
+            // anındaki kodla hesaplanmıştı; denetim o günden beri değiştiyse eski yanlış alarm ölçüye taşınırdı.
+            const claimContext = buildReplyPrompt(input).claimContext;
+            const unsupported = auditClaims(out.reply, claimContext).u;
             const verdict = caseVerdict({
               group: q.group,
               answers: q.answers,
               forbiddenNeedles: q.forbiddenNeedles,
               conflict: q.conflictOk === true,
               reply: out.reply,
-              unsupported: out.u,
+              unsupported,
               allowedTexts,
+              inBlock,
+              blockTexts: run.result.items.map((i) => `${i.title} ${i.content}`),
             });
+            if (DUMP && (verdict.red || verdict.missed === "answer")) {
+              dump.push({
+                config: cfg.name,
+                qid: q.id,
+                group: q.group,
+                question: q.text,
+                history: (q.history ?? []).map((h) => `${h.direction}: ${h.body}`),
+                answers: q.answers.map((a) => a.needles[0] ?? ""),
+                reply: out.reply,
+                reasons: verdict.reasons,
+                missed: verdict.missed,
+                unsupportedSentences:
+                  unsupported > 0
+                    ? out.reply
+                        .split(/(?<=[.!?])\s+|\n+/)
+                        .map((t) => ({ t, a: auditClaims(t, claimContext) }))
+                        .filter(({ t, a }) => t.trim() && a.u > 0)
+                        .map(({ t, a }) => `[${a.uc.join("/")}] ${t}`)
+                    : [],
+              });
+            }
             rows.push({
               config: cfg.name,
               qid: q.id,
               group: q.group,
-              inBlock: q.answers.length > 0 && q.answers.every((a) => a.needles.some((n) => run.text.includes(n))),
+              inBlock,
               anchored: hits.anchored > 0,
               anchorHit: hits.all,
               anchoredAnswers: hits.anchored,
               anchorHits: hits.hit,
               missing: admitsMissingKnowledge(out.reply),
-              unsupported: out.u,
+              unsupported,
+              unsupportedCached: out.u,
               handoff: out.intent === "human_request",
               foreign:
                 foreignNumbers(out.reply, [
@@ -240,6 +302,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
               red: verdict.red,
               reasons: verdict.reasons,
               handedOff: verdict.handedOff,
+              missed: verdict.missed,
             });
           }
         }),
