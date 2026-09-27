@@ -1238,7 +1238,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 ## Durum
 **09-26 GECE #189 RAG ÖLÇEĞİ (kurucu /loop "300 kalemde bile ≥%95"; `docs/TASARIM-2026-09-26-rag-300-olcek.md`):** ölçer +
 gerçekçi dev/holdout seti + dört değişiklik (↑Retrieval #189); iki bayrak KAPALI. Gece ölçümleri OpenAI kredisini BİTİRDİ
-(kurucuya bildirildi) → ücretli koşu YOK; kalan ölçümler kredi gelince.
+(kurucuya bildirildi) → 🚨 **kurucu 09-27: "KESİNLİKLE ÜCRETLİ TEST YAPMA"** — kurucu kredi yüklendiğini SÖYLEYENE kadar hiçbir
+ücretli koşu / deneme / "tek token" yoklaması YOK; ölçüm yalnız `RAG_LAB_OFFLINE=1` (önbellek) ile.
 
 **09-26 KONUŞMA ÖĞELERİ (öğe bazlı risk; `docs/TASARIM-2026-09-26-konusma-ogeleri.md`):** a+b CANLI (`a903e78`, `be3ff5a`;
 bayrak kapalı → davranış aynı). c (akış + kapı) + d (liste rozeti / "Açık işler" kartı / Dikkat satırı) + migration 56 +
