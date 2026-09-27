@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { acceptanceFailures, ACCEPTANCE_MIN, ACCEPTANCE_GROUPS } from "../eval/rag-lab/acceptance";
+import { acceptanceFailures, ACCEPTANCE_MIN, ACCEPTANCE_GROUPS, LEAK_GROUPS } from "../eval/rag-lab/acceptance";
 import type { LabRow } from "../eval/rag-lab/core";
 
 // ---------------------------------------------------------------------------
@@ -32,15 +32,17 @@ function row(group: string, inBlock: boolean, extra: Partial<LabRow> = {}): LabR
     conflictNote: false,
     rrMs: 900,
     rrChars: 9000,
+    rrErrors: 0,
     ...extra,
   };
 }
 
-/** Her kabul grubunda `n` satır, ilk `miss` tanesi kaçan. */
+/** Her kabul grubunda `n` satır (ilk `miss` tanesi kaçan) + sızıntı gruplarında 4'er satır (taslak / eski sürüm). */
 function run(n: number, miss: Partial<Record<string, number>> = {}, extra: (g: string, i: number) => Partial<LabRow> = () => ({})) {
   const rows: LabRow[] = [];
   for (const g of ACCEPTANCE_GROUPS) for (let i = 0; i < n; i++) rows.push(row(g, i >= (miss[g] ?? 0), extra(g, i)));
-  const fullGroupCounts = new Map(ACCEPTANCE_GROUPS.map((g) => [g, n] as const));
+  for (const g of LEAK_GROUPS) for (let i = 0; i < 4; i++) rows.push(row(g, true));
+  const fullGroupCounts = new Map([...ACCEPTANCE_GROUPS.map((g) => [g, n] as const), ...LEAK_GROUPS.map((g) => [g, 4] as const)]);
   return { rows, expected: new Map([[KEY, rows.length]]), fullGroupCounts };
 }
 
@@ -78,16 +80,17 @@ describe("holdout kabul kapısı", () => {
     const r = run(40);
     r.rows.pop();
     const f = acceptanceFailures({ ...r, kb: "scale-holdout" });
-    expect(f[0]).toBe(`${KEY}: eksik koşu — 119/120 satır`);
+    expect(f[0]).toBe(`${KEY}: eksik koşu — 127/128 satır`);
   });
 
   it("🚨 örnekleme / ücretli grup süzgeci kabul değildir: grupta tam holdout'tan az soru ya da hiç soru yok", () => {
     const sampled = run(10);
-    const f1 = acceptanceFailures({ ...sampled, fullGroupCounts: new Map(ACCEPTANCE_GROUPS.map((g) => [g, 40] as const)), kb: "scale-holdout" });
+    const full40 = new Map([...ACCEPTANCE_GROUPS.map((g) => [g, 40] as const), ...LEAK_GROUPS.map((g) => [g, 4] as const)]);
+    const f1 = acceptanceFailures({ ...sampled, fullGroupCounts: full40, kb: "scale-holdout" });
     expect(f1).toHaveLength(3);
     expect(f1[0]).toMatch(/grup eksik — 10\/40 soru/);
     const noSingle = run(40);
-    const rows = noSingle.rows.filter((r) => r.group === "multi");
+    const rows = noSingle.rows.filter((r) => r.group === "multi" || LEAK_GROUPS.includes(r.group));
     const f2 = acceptanceFailures({ ...noSingle, rows, expected: new Map([[KEY, rows.length]]), kb: "scale-holdout" });
     expect(f2).toEqual([
       `${KEY} · single_tr: grup eksik — 0/40 soru (örnekleme / grup süzgeci kabul değildir)`,
@@ -95,9 +98,21 @@ describe("holdout kabul kapısı", () => {
     ]);
   });
 
-  it("🚨 düşen yeniden sıralama çağrısı = ölçülen yapılandırma koşmadı → reddeder", () => {
-    const r = run(40, {}, (g, i) => (g === "multi" && i === 0 ? { rr: "failed" } : {}));
-    expect(acceptanceFailures({ ...r, kb: "scale-holdout" })).toEqual([`${KEY}: 1 yeniden sıralama çağrısı başarısız — koşu eksik sayılır`]);
+  it("🚨 API / biçim hatasıyla düşen yeniden sıralama çağrısı = ölçülen yapılandırma koşmadı → reddeder (kısmi arıza dahil)", () => {
+    const r = run(40, {}, (g, i) => (g === "multi" && i === 0 ? { rr: "failed", rrErrors: 1 } : g === "single_tr" && i === 0 ? { rrErrors: 1 } : {}));
+    expect(acceptanceFailures({ ...r, kb: "scale-holdout" })).toEqual([`${KEY}: 2 satırda yeniden sıralama çağrısı hatayla düştü — koşu eksik sayılır`]);
+  });
+
+  it("sıcak yol TAVANINI aşan çağrı eksik koşu DEĞİL (üretimde de bugünkü sıra) — yalnız oranda sayılır (A9 09-27)", () => {
+    const r = run(40, {}, (g, i) => (g === "multi" && i < 2 ? { rr: "deadline" } : {}));
+    expect(acceptanceFailures({ ...r, kb: "scale-holdout" })).toEqual([]);
+  });
+
+  it("🚨 sızıntı grupları (taslak / eski sürüm) koşulmadıysa \"sızıntı 0\" boş iddiadır → reddeder (A9 09-27)", () => {
+    const r = run(40);
+    const rows = r.rows.filter((x) => x.group !== "draft");
+    const f = acceptanceFailures({ ...r, rows, expected: new Map([[KEY, rows.length]]), kb: "scale-holdout" });
+    expect(f).toEqual([`${KEY} · draft: sızıntı ölçülmedi — 0/4 soru (grup koşulmadı)`]);
   });
 
   it("kabul kümesi hiç koşulmadıysa reddeder; başka kümenin satırları sayılmaz", () => {

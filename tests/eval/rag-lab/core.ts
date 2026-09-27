@@ -199,6 +199,8 @@ export interface LabRow {
   rrMs: number | null;
   /** Yeniden sıralayıcı isteğinin kullanıcı kısmı (karakter; maliyet kestirimi). */
   rrChars: number;
+  /** API / biçim hatasıyla düşen yeniden sıralama çağrısı (tavan aşımı SAYILMAZ; kabul kapısında eksik koşu). */
+  rrErrors: number;
 }
 
 /** kb-fetch'in saf ikizi: onay kapısı + ele geçirme süzgeci + `updatedAt desc` + okuma tavanı. */
@@ -363,7 +365,13 @@ export interface LabRun {
   /** Listelerin kaynağı (seçicinin `onCandidates` ikinci argümanı; üretimin pencere girdisi). */
   listMeta: readonly CandidateListMeta[];
   rrScores: Map<string, number> | null;
-  rrStatus: "ok" | "failed" | "skipped" | "off" | "dry";
+  /**
+   * "deadline" = çağrı döndü ama üretimin sıcak yol tavanını aştı → üretimde de bugünkü sıra (GERÇEKÇİ sonuç, eksik ölçüm değil);
+   * "failed" = API / biçim hatası (ölçülen yapılandırma koşmadı). Kabul kapısı yalnız "failed"i eksik sayar (A9 09-27).
+   */
+  rrStatus: "ok" | "failed" | "deadline" | "skipped" | "off" | "dry";
+  /** Soru başına ayrı pencerelerde API / biçim hatasıyla düşen çağrı sayısı (kısmi arıza "ok" satırında da görünür). */
+  rrErrors: number;
   window: string[];
   semStatus: "off" | "not_needed" | "ok" | "unavailable";
   cosByKey: Map<string, number> | null;
@@ -435,6 +443,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
   });
   let rrScores: Map<string, number> | null = null;
   let rrStatus: LabRun["rrStatus"] = "off";
+  let rrErrors = 0;
   let window: string[] = [];
   let rrMs: number | null = null;
   let rrChars = 0;
@@ -502,7 +511,8 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
           });
           rrStatus = "ok";
           if (rrScores.size > 0) result = selectKbForPrompt({ ...semInput, rerankScores: rrScores, rerankScoresBySubquery: bySub });
-        } else rrStatus = "failed";
+        } else rrStatus = per ? "deadline" : "failed";
+        if (!per) rrErrors = 1;
       } else if (cfg.rerank.window === "prod" && cfg.rerank.split !== false) {
         // ÜRETİMİN İKİZİ: soru başına AYRI pencere → AYRI çağrı (paralel), puanlar en yükseğiyle birleşir; her çağrı üretimin
         // sıcak yol tavanına ayrı ayrı tabi (tavanı aşan çağrı düşmüş sayılır, diğerinin işaretleri kalır).
@@ -520,6 +530,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
         const question = rerankQuestionText(q.text, earlier);
         const outs = await Promise.all(kept.map((w) => labRerank(question, w.c, { k: Math.max(cfg.rerank!.k, w.c.length), crop: cfg.rerank!.crop, model: cfg.rerank!.model, effort: cfg.rerank!.effort })));
         const timed = outs.filter((o): o is NonNullable<typeof o> => o !== null);
+        rrErrors = outs.length - timed.length;
         if (timed.length > 0) {
           rrMs = Math.max(...timed.map((o) => o.ms ?? 0));
           rrChars = timed.reduce((a, o) => a + o.chars, 0);
@@ -551,7 +562,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
             });
           }
           if (rrScores.size > 0) result = selectKbForPrompt({ ...semInput, rerankScores: rrScores, ...(bySub ? { rerankScoresBySubquery: bySub } : {}) });
-        } else rrStatus = "failed";
+        } else rrStatus = rrErrors > 0 ? "failed" : "deadline";
       } else {
         const flat = await labRerank(rerankQuestionText(q.text, earlier), cands, cfg.rerank);
         if (flat) {
@@ -560,13 +571,14 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
         }
         rrScores = flat && !overDeadline(flat.ms) ? new Map(flat.scores) : null;
         if (rrScores && cfg.rerank.demote && rrScores.size > 0) for (const c of cands) if (!rrScores.has(c.key)) rrScores.set(c.key, 0);
-        rrStatus = rrScores ? "ok" : "failed";
+        rrStatus = rrScores ? "ok" : flat ? "deadline" : "failed";
+        if (!flat) rrErrors = 1;
         if (rrScores && rrScores.size > 0) result = selectKbForPrompt({ ...semInput, rerankScores: rrScores });
       }
     }
   }
   const text = packKnowledgeBase(result.items, result.droppedItems, result.selection, result.notes).text;
-  return { result, lists, listMeta, rrScores, rrStatus, window, semStatus, cosByKey, pool, text, rrMs, rrChars };
+  return { result, lists, listMeta, rrScores, rrStatus, rrErrors, window, semStatus, cosByKey, pool, text, rrMs, rrChars };
 }
 
 /** Listeler arası RRF (K=60) ile ilk `k` benzersiz anahtar — pencere kuruluşu deneyi. */
@@ -815,6 +827,7 @@ export async function labRow(kbName: string, size: number, items: readonly LabIt
     conflictNote,
     rrMs: run.rrMs,
     rrChars: run.rrChars,
+    rrErrors: run.rrErrors,
   };
 }
 
@@ -905,7 +918,7 @@ export function latencyLines(rows: readonly LabRow[]): string[] {
   for (const r of rows) {
     const k = `${r.kb}|${r.size}|${r.config}`;
     const e = by.get(k) ?? { ms: [], chars: [], block: [], failed: 0 };
-    if (r.rr === "failed") e.failed++;
+    if (r.rr === "failed" || r.rr === "deadline") e.failed++;
     if (r.rrMs !== null) e.ms.push(r.rrMs);
     if (r.rrChars > 0) e.chars.push(r.rrChars);
     e.block.push(r.blockChars);

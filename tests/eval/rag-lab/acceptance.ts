@@ -7,7 +7,9 @@ import type { LabRow } from "./core";
 //   · her kabul grubu (tek soru TR · tek soru diğer diller · iki sorulu mesaj — İKİ cevap da blokta) ≥ %95,
 //   · sızıntı (eski sürüm / onaysız / taslak metni blokta) 0,
 //   · koşu EKSİKSİZ: beklenen her soru satırı var (örnekleme, ücretli grup süzgeci ya da önbellek alt kümesi kabul DEĞİL) ve
-//     hiçbir yeniden sıralama çağrısı düşmedi (düşen çağrı = ölçülen yapılandırma koşmadı).
+//     hiçbir yeniden sıralama çağrısı API / biçim hatasıyla düşmedi (ölçülen yapılandırma koşmadı). Sıcak yol TAVANINI aşan
+//     çağrı eksik DEĞİLDİR (A9 09-27): üretimde de cevap o zaman bugünkü sırayla gider — gerçekçi sonuç, oranda zaten sayılır,
+//   · sızıntının ÖLÇÜLDÜĞÜ gruplar (taslak, eski sürüm) tam koşuldu — yoksa "sızıntı 0" boş iddiadır (A9 09-27).
 // Saf fonksiyon: kabul edilmezse hata listesi döner (boş = kabul). Eval testi `expect(...).toEqual([])` ile KIRMIZI olur.
 // ---------------------------------------------------------------------------
 
@@ -15,6 +17,8 @@ import type { LabRow } from "./core";
 export const ACCEPTANCE_MIN = 0.95;
 /** Oranı kapıya giren gruplar. Sızıntı ve eksiksizlik TÜM gruplarda aranır. */
 export const ACCEPTANCE_GROUPS: readonly string[] = ["single_tr", "single_xx", "multi"];
+/** Yasak metnin (taslak / eski sürüm) tanımlı olduğu gruplar: koşulmadıysa sızıntı ÖLÇÜLMEMİŞTİR. */
+export const LEAK_GROUPS: readonly string[] = ["draft", "version"];
 
 export interface AcceptanceInput {
   rows: readonly LabRow[];
@@ -40,10 +44,15 @@ export function acceptanceFailures(input: AcceptanceInput): string[] {
     const rows = input.rows.filter((r) => `${r.kb}|${r.size}|${r.config}` === key);
     const expected = input.expected.get(key) ?? 0;
     if (rows.length !== expected) failures.push(`${key}: eksik koşu — ${rows.length}/${expected} satır`);
-    const failedRr = rows.filter((r) => r.rr === "failed").length;
-    if (failedRr > 0) failures.push(`${key}: ${failedRr} yeniden sıralama çağrısı başarısız — koşu eksik sayılır`);
+    const failedRr = rows.filter((r) => r.rr === "failed" || (r.rrErrors ?? 0) > 0).length;
+    if (failedRr > 0) failures.push(`${key}: ${failedRr} satırda yeniden sıralama çağrısı hatayla düştü — koşu eksik sayılır`);
     const leaks = rows.filter((r) => r.leak).length;
     if (leaks > 0) failures.push(`${key}: ${leaks} sızıntı (eski sürüm / onaysız / taslak metni blokta)`);
+    for (const g of LEAK_GROUPS) {
+      const n = rows.filter((r) => r.group === g).length;
+      const full = input.fullGroupCounts.get(g) ?? 0;
+      if (full === 0 || n < full) failures.push(`${key} · ${g}: sızıntı ölçülmedi — ${n}/${full} soru (grup koşulmadı)`);
+    }
     for (const g of groups) {
       const gr = rows.filter((r) => r.group === g);
       const full = input.fullGroupCounts.get(g) ?? 0;

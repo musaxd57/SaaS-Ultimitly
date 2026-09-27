@@ -31,7 +31,10 @@ kabul BÜYÜK ve görülmemiş kümede verilir.
 Artık koşulan HER yapılandırma için tek soru TR / tek soru diğer diller / iki sorulu mesaj ≥ %95, sızıntı 0 ve koşu EKSİKSİZ
 (beklenen her satır var; örnekleme, ücretli grup süzgeci, önbellek alt kümesi, düşen yeniden sıralama çağrısı kabul DEĞİL) —
 sağlanmazsa eval KIRMIZI, rapora "holdout kabulü" satırı yazılır. Holdout'ta yalnız seçilen TEK yapılandırma koşulur (taban
-kıyası dev setinde); ücretli katmanın grupları `EVAL_RAG_PAID_GROUPS=single_tr,single_xx,multi,neg` ile tam verilir.
+kıyası dev setinde); ücretli katmanın grupları `EVAL_RAG_PAID_GROUPS=single_tr,single_xx,multi,neg,draft,version` ile tam verilir.
+A9 incelemesi (09-27): sızıntı yalnız taslak / eski sürüm gruplarında ölçülür → o gruplar koşulmadıysa kapı "sızıntı ölçülmedi" der;
+sıcak yol tavanını (2,5 sn) aşan sıralayıcı çağrısı EKSİK KOŞU DEĞİLDİR (üretimde de cevap bugünkü sırayla gider, oranda sayılır),
+yalnız API / biçim hatası eksiktir (`rrStatus` "deadline" ↔ "failed", kısmi arıza `rrErrors`).
 
 ## 2. Ölçer (RAG lab, `tests/eval/rag-lab/`)
 
@@ -266,7 +269,7 @@ hâlinin ölçerdeki ikizi): `FINAL = s0.25+und+prodwin+dl2500+cap400+e3l+wide` 
 |---|---|---|---|
 | 0 | deneme (her 10. soru) | `EVAL_RAG_KB=scale EVAL_RAG_SCALE_SIZES=0 EVAL_RAG_GROUPS=single_tr,single_xx,multi,neg EVAL_RAG_PAID_GROUPS=single_tr,single_xx,multi,neg EVAL_RAG_SAMPLE=10 EVAL_RAG_CONFIGS=FINAL npm run eval -- tests/eval/rag-lab.eval.test.ts` | ~1 $ |
 | 1 | temiz dev (276) | aynı, `EVAL_RAG_SAMPLE` yok, `EVAL_RAG_CONFIGS=FINAL,FINAL+wper50,FINAL+demote` | ~4 $ |
-| 2 | holdout kabulü | `EVAL_RAG_KB=holdout EVAL_RAG_PAID_GROUPS=single_tr,single_xx,multi,neg` + 1. adımda seçilen TEK yapılandırma, örnekleme YOK. Kapı kodda: her grup ≥ %95 + sızıntı 0 + eksiksiz koşu, değilse KIRMIZI (§1). 🚨 YALNIZ `.md` toplu tablosu okunur; yan JSON AÇILMAZ | ~5 $ |
+| 2 | holdout kabulü | `EVAL_RAG_KB=holdout EVAL_RAG_PAID_GROUPS=single_tr,single_xx,multi,neg,draft,version` + 1. adımda seçilen TEK yapılandırma, örnekleme YOK. Kapı kodda: her grup ≥ %95 + sızıntı 0 + eksiksiz koşu, değilse KIRMIZI (§1). 🚨 YALNIZ `.md` toplu tablosu okunur; yan JSON AÇILMAZ | ~5 $ |
 | 3 | cevap düzeyi, 60 kalem | `EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_KB=perq EVAL_RAG_ANSWER_CONFIGS=s0.25+und+e3l,s0.25+und+e3l+wide npm run eval -- tests/eval/rag-answer.eval.test.ts` | ~1 $ |
 | 4 | cevap düzeyi, 276 | `EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_CONFIGS=s0.25+und+prodwin+dl2500+cap400+e3l,FINAL` (aynı dosya) | ~1 $ |
 
