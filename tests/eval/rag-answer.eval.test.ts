@@ -14,7 +14,7 @@ import { replyCacheKey } from "./rag-lab/cache-keys";
 import { runPipeline, type LabQuery } from "./rag-lab/core";
 import { parseConfig } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
-import { answerAnchorHits, foreignNumbers } from "./rag-lab/answer-metrics";
+import { answerAnchorHits, foreignNumbers, numericAnchors } from "./rag-lab/answer-metrics";
 import { caseVerdict } from "./rag-lab/answer-acceptance";
 import { writeSidecar } from "./sidecar";
 
@@ -112,6 +112,34 @@ interface DumpCase {
   missed: "answer" | "retrieval" | null;
   /** İddia denetiminin desteksiz bulduğu CÜMLELER (cümle cümle denetimle bulunur; inceleme kolaylığı, hüküm değil). */
   unsupportedSentences: string[];
+  /** Yanıttaki (cevap cümlelerinde olmayan) sayıların modelin GÖRDÜĞÜ blokta geçtiği cümleler — kör inceleyici "yanlış bilgi" ile
+   * "doğru ek bilgi"yi ayırabilsin (hüküm değil, kanıt). */
+  blockEvidence: string[];
+}
+
+/**
+ * Yanıttaki cevap-dışı sayıların blokta geçtiği cümleler: sayı başına, yanıtla SÖZCÜK ortaklığı en yüksek TEK cümle (en çok 4, kalem
+ * başlığıyla). Salt sayı eşleşmesi gürültülüydü ("20 derece" ↔ taksi ücretindeki "yüzde 20").
+ */
+function blockEvidenceFor(reply: string, answers: readonly { needles: readonly string[] }[], items: readonly { title: string; content: string }[]): string[] {
+  const own = new Set(answers.flatMap((a) => a.needles.flatMap((n) => numericAnchors(n))));
+  const wanted = numericAnchors(reply).filter((a) => !own.has(a));
+  if (wanted.length === 0) return [];
+  const words = (t: string) => new Set(t.toLocaleLowerCase("tr").match(/\p{L}{5,}/gu) ?? []);
+  const replyWords = words(reply);
+  const sentences = items.flatMap((it) => it.content.split(/(?<=[.!?])\s+/).map((sentence) => ({ it, sentence: sentence.trim(), anchors: new Set(numericAnchors(sentence)) })));
+  const out: string[] = [];
+  for (const w of wanted) {
+    let best: { text: string; score: number } | null = null;
+    for (const x of sentences) {
+      if (!x.anchors.has(w)) continue;
+      const score = [...words(`${x.it.title} ${x.sentence}`)].filter((t) => replyWords.has(t)).length;
+      if (!best || score > best.score) best = { text: `${x.it.title}: ${x.sentence}`, score };
+    }
+    if (best && best.score > 0 && !out.includes(best.text)) out.push(best.text);
+    if (out.length >= 4) break;
+  }
+  return out;
 }
 
 describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
@@ -276,6 +304,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
                         .filter(({ t, a }) => t.trim() && a.u > 0)
                         .map(({ t, a }) => `[${a.uc.join("/")}] ${t}`)
                     : [],
+                blockEvidence: blockEvidenceFor(out.reply, q.answers, run.result.items),
               });
             }
             rows.push({
