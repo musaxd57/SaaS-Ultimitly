@@ -141,7 +141,18 @@ const IRREGULAR_STEMS: Readonly<Record<string, string>> = { suy: "su" };
  * tetikliyordu. Sökme bu köke ulaşınca DURUR ("checkinler" → "checkin"). Simetrik: bilgi tabanındaki
  * "check-in" / "check in" (bileşik birleştirme) da "checkin" kalır.
  */
-const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin"]);
+const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin", "havlu", "firin"]);
+/**
+ * TABAN KÖKLER (09-27, #208 — hata ayıklama ajanı ölçtü): "havlu" ve "hava" ikisi de "hav"a iniyordu (havalimanı kavramındaki
+ * "havas" da) → her Türkçe havlu sorusu HAVALİMANI kavramını, "Hava nasıl?" havlu kavramını tetikliyordu; "fırın" ve "fire" ikisi de
+ * "fir" → fırın sorusu YANGIN kavramını. Sözlükte kavramlar arası kök çakışması yalnız bunlardı ("heat" ve "kombi" bilerek paylaşılır).
+ * Bu kökle BAŞLAYAN belirteçte sökme kökün altına inmez: "havlunuz / havlumuz" → "havlu" (eskiden "havl"), "fırına / fırının" →
+ * "firin" (eskiden "fir"). "checkin" bilerek dışarıda (sökme durağı; "checking" davranışı değişmesin).
+ */
+// Aynı ölçüm turunda: "para" (ödeme) "parti" ile "par"a iniyordu → her ödeme cümlesi GÜRÜLTÜ / sessiz saat kavramını tetikliyordu
+// ("Kalan tutarı (para) 20:00'ye kadar ödeyin" sahte sessiz saat oluyordu); İngilizce "see" "sea" ile "se"ye → her "see you / you'll see"
+// PLAJ kavramını.
+const PREFIX_FLOOR_STEMS: readonly string[] = ["havlu", "firin", "parti", "sea"];
 const SUFFIXES_LONGEST_FIRST = [...SUFFIXES].sort((x, y) => y.length - x.length);
 /**
  * SABİT NOKTA (09-10): eski tur tavanı (3) çekimli biçim ile yalın biçimi FARKLI
@@ -190,22 +201,28 @@ export function stem(token: string): string {
   if (HAS_DIGIT.test(token)) return token;
   let cur = token;
   let strippedAny = false;
+  // Son sökülen ek İngilizce mi: Türkçe ünsüz yumuşaması yalnız TÜRKÇE ekten sonra geri alınır (09-27, #208: "dogs" → "dog" → "dok"
+  // oluyordu → "Are dogs allowed?" evcil hayvan kavramını hiç bulmuyordu; "Can we bring our dog?" buluyordu).
+  let lastEnglish = false;
+  // ↑TABAN KÖKLER: bu kökle başlayan belirteç kökün altına sökülmez.
+  const prefixFloor = PREFIX_FLOOR_STEMS.find((p) => token.startsWith(p))?.length ?? 0;
   for (let pass = 0; pass < STEM_PASSES_MAX; pass++) {
     if (PROTECTED_STEMS.has(cur)) break;
     let stripped = false;
     for (const suf of SUFFIXES_LONGEST_FIRST) {
       if (pass > 0 && FIRST_PASS_ONLY_SUFFIXES.has(suf)) continue; // ↑tamlayan freni
-      const floor = EN_SUFFIXES.has(suf) ? MIN_STEM_EN : MIN_STEM_3_SUFFIXES.has(suf) ? MIN_STEM_AFTER_VOWEL : MIN_STEM;
+      const floor = Math.max(prefixFloor, EN_SUFFIXES.has(suf) ? MIN_STEM_EN : MIN_STEM_3_SUFFIXES.has(suf) ? MIN_STEM_AFTER_VOWEL : MIN_STEM);
       if (cur.length - suf.length >= floor && cur.endsWith(suf)) {
         cur = cur.slice(0, -suf.length);
         stripped = true;
         strippedAny = true;
+        lastEnglish = EN_SUFFIXES.has(suf);
         break;
       }
     }
     if (!stripped) break;
   }
-  if (strippedAny && cur.length >= 3) {
+  if (strippedAny && !lastEnglish && cur.length >= 3) {
     const last = cur[cur.length - 1];
     if (UNSOFTEN[last]) cur = cur.slice(0, -1) + UNSOFTEN[last];
   }

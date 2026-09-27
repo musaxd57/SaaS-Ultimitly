@@ -61,7 +61,9 @@ export const CONCEPTS: readonly Concept[] = [
   { id: "checkout", category: "checkout", timeField: "checkout", terms: ["cikis", "checkout", "ayrilis", "ayril", "departure", "leaving", "leave"], detectOnly: ["gec cikis", "late checkout", "cikis saati", "what time is checkout"] },
   { id: "address", category: "location", terms: ["adres", "konum", "harita", "address", "location", "directions", "map"], detectOnly: ["yol tarifi", "gelinir"], phrases: ["get there"] },
   { id: "transit", category: "location", terms: ["metro", "otobus", "tramvay", "bus", "tram", "subway", "durak"], detectOnly: ["toplu tasima", "public transport", "ulasim karti"] },
-  { id: "airport", category: "location", terms: ["havalimani", "havaalani", "ucak", "airport", "flight", "shuttle", "transfer", "havas"], detectOnly: [] },
+  // "havas" (Havaş markası) 09-27'de ÇIKARILDI: kökü "hav" → "havlu / hava / havası / havasız" ile çakışıyordu (#208). Marka adı bilgi
+  // tabanında geçiyorsa sözcüksel eşleşme (BM25) onu yine bulur; kavram genişletmesi "havalimanı / shuttle / transfer"den gelir.
+  { id: "airport", category: "location", terms: ["havalimani", "havaalani", "ucak", "airport", "flight", "shuttle", "transfer"], detectOnly: [] },
   { id: "taxi", category: "location", terms: ["taksi", "taxi", "cab", "uber"], detectOnly: ["arac cagir", "call a taxi"] },
   { id: "rules", category: "rules", terms: [], detectOnly: ["ev kurallari", "house rules", "kural", "site kurallari"] },
   { id: "smoking", category: "rules", terms: ["sigara", "smoking", "smoke", "tutun", "cigarette"], detectOnly: ["sigara icebilir"] },
