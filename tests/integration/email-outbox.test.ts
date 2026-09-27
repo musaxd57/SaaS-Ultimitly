@@ -172,6 +172,10 @@ describe("email-outbox", () => {
         version: 2,
         payloadEnc: donor.payloadEnc,
         expiresAt: new Date(Date.now() + 600_000),
+        // ENQUEUE_CLOCK (CI #1240, 09-27): vade, drain'in `"nextAttemptAt" <= now` kıyasladığı JS saatiyle yazılır. Şema varsayılanı
+        // (`@default(now())`) VERİTABANININ saatidir ve timestamp(3)'e yuvarlanır → birkaç ms ileride kalınca satır "vadesi gelmedi"
+        // sayılıp `pending` kalıyordu (rastgele kırmızı CI = atlanan yayın). Üründeki enqueue aynı kuralı izler.
+        nextAttemptAt: new Date(),
       },
     });
     const send = okSend();
