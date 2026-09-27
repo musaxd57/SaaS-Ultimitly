@@ -212,7 +212,10 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   bugün zaten 24k'ya kadar tamamen gidiyor (uçurum). Kurucu 09-27 "hazırla, sonra aç" → `KB_RETRIEVAL_WIDE_BUDGET` VARSAYILAN
   KAPALI (tek karar noktası `kb-retrieve.ts`; 23k/40 — 24k DEĞİL: paketleyici satır başına +1 sayar, tam dolu 24k son parçayı
   düşürürdü, pinli; çağıranın bütçesi önceliklidir; kanıt `wb`). 🚨 OpenAI kredisi 09-26 gece BİTTİ: ayrı çağrı temiz ölçümü +
-  holdout kabulü + cevap düzeyi ölçüm (± geniş blok) bekliyor; üç bayrağı açmak kurucu kararı.
+  holdout kabulü + cevap düzeyi ölçüm (± geniş blok) bekliyor; üç bayrağı açmak kurucu kararı. `strategy.answersFirst` ölçüm
+  seçeneği (varsayılan KAPALI; 6k/12'de kayıp → varsayılan değil). 🚨 SAAT ALANI YANLIŞ ALARMI (belge §4d, ÖNERİ, kurucu onayı
+  bekliyor, kod canlıda DEĞİL): 60 kalemde soruların %30'u (geniş blokla %58) yanlış mülk-saati çelişkisi taşıyor (geç varış koşulu,
+  valiz penceresi, araç girişi, "çıkıyor" fiili, "girişin arkası"); dar düzeltme ölçüldü (yanlış 0, gerçek korunur) — geniş bloktan ÖNCE.
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model

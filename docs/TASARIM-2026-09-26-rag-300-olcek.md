@@ -149,6 +149,44 @@ Maliyet: 24k/40'ta cevap isteğine ortalama ~+1,6k token (~0,2 sent/mesaj). **Ku
 saatiyle çelişen eski bir kalem bloğa daha sık girer → istemin çelişki listesi dolar, o alana değen cevap taslağa düşer
 (`kb_time_conflict`); ilgisiz sorunun cevabı etkilenmez.
 
+### 4d. Kalan kaçakların teşhisi ve saat alanı yanlış alarmı (09-27, ücretsiz — yalnız önbellek)
+
+276 kalemde üç bayrak açıkken (yeni gömme + soru başına sıralama + geniş blok) kalan 9 cevap kaybı teşhis edildi: 4'ü sıralama
+penceresinin dışında (biri kendi listesinde 3. sırada — RRF tek listedeki üst adayı gömüyor; `wfloor10` / `wper50` ücretli ölçümde),
+4'ünü model "cevaplıyor" diye işaretlemedi (model kaçırması), **1'ini model işaretledi ama blokta yok**: işaretler tüm listelere
+uygulanınca anlama katmanının dört sorgusunun başı ortak işaretli parçalar oldu, "aynı konuyu tekrar eden ek sorgu" kuralı dördünü
+de atladı; o cevap yalnız bu sorgulardan geliyordu (blokta 30'dan fazla ilgisiz parça vardı).
+
+| deney (eşleştirilmiş, 337 soru) | geniş blok | 6k/12 yeni hat | 09-26 canlı hattı |
+|---|---|---|---|
+| `answersFirst` ("cevaplıyor" işaretli parçalar önce, ek sorgu payı/tekrar kuralı dışında) | +1 / kayıp 0 | +3 / kayıp 2 | +1 / 0 |
+| tekrar kararı yeniden sıralamadan ÖNCEKİ sırayla | +1 / kayıp 3 | +3 / kayıp 2 | +1 / kayıp 2 |
+| çelişki çekmesi kapalı (yalnız üst sınır deneyi) | +2 / 0 | +2 / 1 | +1 / 2 |
+
+`answersFirst` ölçüm seçeneği olarak eklendi (varsayılan KAPALI, birebir); 6k/12'de kayıp verdiği için varsayılan yapılmadı —
+geniş blokla birlikte ücretli temiz ölçümde yeniden bakılır. Diğer ikisi elendi (çelişki koruması bir güvenlik özelliği; kazancı ±1–2).
+
+**Saat alanı yanlış alarmı (ÖNERİ — KURUCU ONAYI BEKLİYOR, kod canlıya GİTMEDİ).** Aynı ölçümde bloğa giren kalemler mülkün giriş/çıkış
+saatiyle (`findTimeConflicts`, gönderim kapısının `kb_time_conflict`ı ve istemin mülk saatini gizlemesi) çelişki üretiyor. 60 kalemlik
+gerçekçi bilgi tabanında (soru başına): soruların **%30'u** (geniş blokla **%58**), giriş/çıkış sorularının %43'ü (%57). Çoğu yanlış alarm:
+
+| bugün "saat" sayılan ifade | okunan | gerçekte |
+|---|---|---|
+| "21.00'den sonra varacaksanız, önceden bildirin" (kategori ödüncü) | giriş 21:00 | geç varış koşulu |
+| "Çok geç (01.00 sonrası) varışlarda sessiz olun" | giriş 01:00 | geç kalış anlatımı |
+| "12.00 ile 14.30 arasında valiz bırakabilirsiniz" | giriş 12:00/14:30 | valiz penceresi |
+| "19.00–24.00 arası araç girişi yasaktır" | giriş 19:00 | araç girişi (kapı) |
+| "sahil yolunda 19.00–22.00 arası sokak müzisyenleri çıkıyor", "son otobüs 23:00'te çıkıyor" | çıkış 19:00/22:00, 23:00 | "çık-" fiili, çıkış değil |
+| "girişin arkasındaki kapıdan çıkınca … 08:00–22:00 açıktır" | giriş 08:00/22:00 | girişin YERİ |
+
+Önerilen dar düzeltme (yerelde ölçüldü, yama saklı, commit edilmedi): koşul kipi / "geç" anlatımı / valiz sözcüğü kategori-başlık
+ÖDÜNCÜNÜ engeller (cümlecik alanı adlandırıyorsa saat yine okunur: "Valizinizle 14:00'ten sonra giriş yapabilirsiniz" → giriş 14:00);
+"araç/araba/car girişi" ve "girişin arkası/önü/yanı" yer sayılır; çıkış alanı yalnız açık bir çıkış sözcüğü ya da misafire hitap eden
+"çık-" ("çıkın", "çıkabilirsiniz") varken. Sonuç: yanlış mülk-saati çelişkisi **%30 → %0** (geniş blokla %58 → %0); tek gerçek çelişki
+("standart çıkış saati en geç 12:00" ↔ mülk 11:00) yakalanmaya devam ediyor; saat/çelişki/altın set testleri (349) yeşil. **Geniş blok
+açılmadan önce bu düzeltme önerilir** (geniş blok bugünkü kuralla yanlış alarmı ikiye katlıyor). Bilinen sınır: İngilizce "the bus leaves
+at 23:00" hâlâ çıkış okunur.
+
 ## 5. Codex'in "sınanması gerekenler"i
 
 - **Sığmayan ilk parçada `break` / kalem başına 3 parça:** ölçüldü (↑§4b, ücretsiz): fark YOK — değiştirilmedi.
