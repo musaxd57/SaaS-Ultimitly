@@ -8,9 +8,9 @@ import { foldTurkishLower, foldTurkishAscii } from "@/lib/ai/fallback";
 export { KB_ITEM_CAP, KB_CHAR_BUDGET };
 import type { AdjacencyContext, HistoryMessage, KbContext, PropertyContext, SuggestReplyInput } from "./types";
 import {
-  extractFieldTimes,
+  fieldTimeHits,
+  kbPropertyMismatch,
   normalizePropertyTime,
-  propertyTimeMismatch,
   PROPERTY_TIME_FIELDS,
 } from "./retrieval/time-fields";
 import type { ClaimContext } from "./claim-support";
@@ -985,8 +985,8 @@ export function findTimeConflicts(property: PropertyContext, kb: KbContext[]): T
     if (!propertyValue) continue;
     const seen = new Set<string>();
     for (const item of kb) {
-      const times = extractFieldTimes(item.title, item.content, item.category).get(field);
-      for (const t of propertyTimeMismatch(times, propertyValue)) seen.add(t);
+      // Kalem başına atıflar: küme kuralı + aynı kalemde iki koşulsuz saat (tek kural `kbPropertyMismatch`, ev sahibi raporuyla ortak).
+      for (const t of kbPropertyMismatch(fieldTimeHits(item.title, item.content, item.category), field, propertyValue)) seen.add(t);
     }
     if (seen.size > 0) out.push({ field: key, propertyValue, kbValues: [...seen].sort() });
   }

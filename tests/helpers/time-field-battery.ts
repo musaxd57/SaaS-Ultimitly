@@ -412,6 +412,15 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   // 🚨 Başvuru noktasından sonraki ARALIK başka işin penceresidir ("çıkıştan sonra 10:00–20:00 arası" valiz; mutasyon incelemesinde
   // bulundu: "ve" bölmesi valiz sözünü ayırınca mülkün 11:00 çıkışıyla sahte çelişki üretiyordu). İkizi: başvurusuz aralık alanındır.
   X("checkout", "Çıkış", "Valizlerinizi girişten önce ve çıkıştan sonra 10:00–20:00 arası bırakabilirsiniz."),
+  // 🚨 "Çıkıştan sonra …" ifadesinden SONRA gelen saat çıkıştan sonraki işin anıdır (Codex 09-27: "Çıkıştan sonra 12:00'de anahtarı
+  // bırakın" çıkış 12:00 okunup mülkün 11:00'iyle sahte çelişki üretiyordu). İkizleri: saat başvurudan ÖNCE gelirse çıkıştır; "before
+  // check-out at 11:00" (önce türü) değerdir; önce türünde aralık yine başka işin penceresidir.
+  X("checkout", "Çıkış", "Çıkıştan sonra 12:00'de anahtarı bırakın."),
+  X("checkout", "Çıkış", "Çıkış yaptıktan sonra 12:00'de anahtarı kutuya bırakın."),
+  X("checkout", "Check-out", "After check-out, at 12:00, please drop the key in the box."),
+  T("checkout", "Check-out", "Please check out at 11:00 and after check-out leave the key in the box.", ["checkout:11:00"]),
+  T("checkout", "Check-out", "Please leave the keys on the table before check-out at 11:00.", ["checkout:11:00"]),
+  X("checkin", "Giriş günü", "Girişten önce 12:00 ile 14:00 arası bahçeyi kullanabilirsiniz."),
   X("checkout", "Çıkış günü", "Çıkıştan sonra 12:00 ile 14:00 arası bahçeyi kullanabilirsiniz."),
   X("checkout", "Çıkış günü", "Çıkıştan sonra 12:00'den 14:00'e kadar terası kullanabilirsiniz."),
   X("checkout", "Late departure", "After check-out you may use the terrace between 12:00 and 14:00."),

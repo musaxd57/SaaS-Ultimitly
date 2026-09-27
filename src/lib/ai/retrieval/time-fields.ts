@@ -30,6 +30,12 @@ export interface FieldTimeHit {
   /** "clause" = cümleciğin kendisi alanı adlandırıyor · "title" = başlığın alanından ödünç. */
   via: "clause" | "title" | "category";
   clause: string;
+  /**
+   * KOŞULSUZ saat: sınır rolü (…'e kadar / …'ten itibaren / önce / sonra / by), aralık ucu, "en geç / at the latest" ve gün
+   * koşulu ("hafta sonu", "on Sundays") YOK. Mülk ayarıyla kıyasta aynı kalemdeki iki koşulsuz saat çelişkidir
+   * (↓`kbPropertyMismatch`); pencere uçları değildir.
+   */
+  point?: boolean;
 }
 
 /**
@@ -354,6 +360,26 @@ const OTHER_FACILITY = /^(?:sauna|hamam|spa|spada|spaya|steam|buhar|jakuzi|jacuz
 const ACTIVITY = /^(?:ders|class|lesson|pilates|yoga|kurs|course|antrenman|antrenor|trainer|training|randevu|appointment|aerobi|zumba|aqua)/;
 const MAINTENANCE = /^(?:bakim(?:i|da|dan|a|lari|lar)?|maintenance|onarim|repair|repairs)$/;
 const TIME_TOKEN = /^\d{2}:\d{2}$/;
+/**
+ * "…'TEN SONRA" TÜRÜ BAŞVURU (Codex 09-27): "Çıkıştan sonra 12:00'de anahtarı bırakın", "After check-out, at 12:00, …" — başvuru
+ * noktasından SONRA gelen saat çıkıştan sonraki işin anıdır, çıkışın değeri olamaz. Önce türü ("before check-out at 11:00") değerdir,
+ * dokunulmaz. Metin `tr` küçük harfle aranır (uzunluk korunur → konumlar cümlecikle aynı).
+ */
+const AFTER_REF =
+  /(?:(?<![a-zçğıöşü])(?:çıkış|giriş|varış)[a-zçğıöşü]*?(?:tan|ten|dan|den)|(?<![a-zçğıöşü])(?:çıkış|giriş)\s+(?:yap|saat)[a-zçğıöşü]*?(?:tan|ten|dan|den)|(?<![a-zçğıöşü])(?:çık|gir|ayrıl|var|gel)[a-zçğıöşü]*?(?:dıktan|dikten|duktan|dükten|tıktan|tikten|tuktan|tükten))\s+sonra(?![a-zçğıöşü])|\bafter\s+(?:the\s+|your\s+)?(?:check[\s-]?out|check[\s-]?in|checkout|checkin|arrival|departure)\b/;
+function afterReferenceEnd(clause: string): number {
+  const m = AFTER_REF.exec(clause.toLocaleLowerCase("tr"));
+  return m ? m.index + m[0].length : -1;
+}
+/** Gün / dönem koşulu: saat o güne özgü istisnadır, koşulsuz değer değil ("hafta sonu 16:00", "16:00 on Sundays"). */
+const DAY_QUALIFIER =
+  /(?<![a-zçğıöşü])(?:pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar|hafta\s*sonu|hafta\s*içi|bayram|resmi\s+tatil|kış)[a-zçğıöşü]*|\b(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?|holidays?|winter|summer|high\s+season|low\s+season)\b/;
+/** Saatin yanındaki sınır sözü: "en geç 22:00", "22:00 at the latest", "no later than 11 am". */
+const BOUND_NEAR =
+  /(?<![a-zçğıöşü])en\s+(?:geç|erken)(?![a-zçğıöşü])|\bat\s+the\s+(?:latest|earliest)\b|\b(?:no|not)\s+(?:later|earlier)\s+than\b|\bnot\s+before\b|\b(?:latest|earliest)\b/;
+const boundNear = (clause: string, start: number, end: number) =>
+  BOUND_NEAR.test(clause.slice(Math.max(0, start - 24), start).toLocaleLowerCase("tr")) ||
+  BOUND_NEAR.test(clause.slice(end, end + 24).toLocaleLowerCase("tr"));
 
 interface ClauseInfo {
   fields: string[];
@@ -392,6 +418,10 @@ interface ClauseInfo {
   freeLate: boolean;
   /** Standart / olumsuz anlatım (↑`STANDARD_EXACT`). */
   standard: boolean;
+  /** "…'ten sonra" türü başvurunun BİTTİĞİ konum (yoksa -1): ardındaki saat giriş/çıkış değeri değil (↑`AFTER_REF`). */
+  afterRefEnd: number;
+  /** Gün / dönem koşulu var (↑`DAY_QUALIFIER`): saatler koşulsuz sayılmaz. */
+  dayQualified: boolean;
 }
 
 function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; rule?: boolean; spanObj?: boolean; category?: string | null } = {}): ClauseInfo {
@@ -647,6 +677,8 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
     freeEarly,
     freeLate,
     standard,
+    afterRefEnd: reference ? afterReferenceEnd(clause) : -1,
+    dayQualified: DAY_QUALIFIER.test(clause.toLocaleLowerCase("tr")),
   };
 }
 
@@ -697,7 +729,12 @@ function timeRole(clause: string, start: number, end: number): { until: boolean;
  * saati başka bir işin saatidir; koşulun İÇİNDEKİ saat ve geç kalış cümleciğinde "22:00'den sonra" eşiktir; erişim
  * kuralından gelen girişte yalnız başlangıç saati okunur.
  */
-function excludedTime(field: string, role: ReturnType<typeof timeRole> & { inCondition: boolean; range: boolean }, info: ClauseInfo): boolean {
+function excludedTime(
+  field: string,
+  role: ReturnType<typeof timeRole> & { inCondition: boolean; range: boolean; afterRef: boolean },
+  info: ClauseInfo,
+): boolean {
+  if ((field === "checkin" || field === "checkout") && role.afterRef) return true;
   if ((field === "late_checkout" || field === "late_checkin") && role.after) return true;
   if ((field === "early_checkin" || field === "early_checkout") && role.before) return true;
   if (STAY_FIELDS.has(field) && role.inCondition) return true;
@@ -741,6 +778,10 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
     const sentence = bits[si];
     let carriedTopic = false;
     let carriedAvailability = false;
+    // Saatsiz "After check-out," / "Çıkıştan sonra," çerçevesi (Codex 09-27): sonraki cümleciğin ÖDÜNÇ aldığı giriş/çıkış saati
+    // çıkıştan sonraki işin anıdır ("After check-out, at 12:00, please drop the key"). Kendi giriş/çıkış sözcüğünü taşıyan
+    // cümlecik etkilenmez ("…, check-in for the next stay is at 15:00").
+    let carriedAfterRef = false;
     // Süre nesnesi cümlenin herhangi bir cümleciğinde olabilir ("Daire, giriş gününüz 16:00'dan … 10:00'a kadar sizindir").
     const sentenceToks = tokenize(sentence);
     const spanObj = sentenceToks.some((t) => ACCESS_NOUN.test(t) || STAY_PLACE.test(t) || STAY_PLACE_ACC.test(t));
@@ -790,7 +831,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
             for (const m of mentions) {
               const r = timeRole(part, m.start, m.end);
               const f = r.until ? "checkout" : r.from || r.after ? "checkin" : null;
-              if (f) hits.push({ field: f, time: m.time, via: "clause", clause: part.trim() });
+              if (f) hits.push({ field: f, time: m.time, via: "clause", clause: part.trim(), point: false });
             }
             return;
           }
@@ -803,8 +844,14 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
             (byAnd.length > 1 && whole.otherConcept);
           let field: string | null = null;
           let via: FieldTimeHit["via"] = "clause";
+          // Alan kendi sözcüğünden değil, önceki kısa etiket/cümlecikten geliyorsa (↑carryField) — "After check-out," çerçevesi
+          // de böyle taşınır; o zaman saat çerçevenin ardındaki işin anıdır.
+          let fromCarry = false;
           if (info.fields.length === 1) field = info.fields[0];
-          else if (info.fields.length === 0 && carryField && byAnd.length === 1 && !info.vetoed) field = carryField;
+          else if (info.fields.length === 0 && carryField && byAnd.length === 1 && !info.vetoed) {
+            field = carryField;
+            fromCarry = true;
+          }
           else if (info.fields.length === 0 && titleField && !otherConcept) {
             field = titleField;
             via = "title";
@@ -828,12 +875,22 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
           pending = [];
           const ranged = rangeEnds(part, mentions);
           for (const f of [field, ...carried]) {
-            const kept = new Set<string>();
+            // saat → koşulsuz mu (aynı saat birden çok kez geçerse biri koşulsuzsa koşulsuz)
+            const kept = new Map<string, boolean>();
             for (const m of mentions) {
-              const role = { ...timeRole(part, m.start, m.end), inCondition: insideCondition(part, m.start), range: ranged.has(m) };
-              if (!excludedTime(f, role, info)) kept.add(m.time);
+              const role = {
+                ...timeRole(part, m.start, m.end),
+                inCondition: insideCondition(part, m.start),
+                range: ranged.has(m),
+                afterRef: (info.afterRefEnd >= 0 && m.start >= info.afterRefEnd) || (carriedAfterRef && (via !== "clause" || fromCarry)),
+              };
+              if (excludedTime(f, role, info)) continue;
+              const point =
+                !role.until && !role.after && !role.before && !role.from && !role.by && !role.range &&
+                !info.dayQualified && !whole.dayQualified && !boundNear(part, m.start, m.end);
+              kept.set(m.time, (kept.get(m.time) ?? false) || point);
             }
-            for (const time of kept) hits.push({ field: f, time, via, clause: part.trim() });
+            for (const [time, point] of kept) hits.push({ field: f, time, via, clause: part.trim(), point });
           }
         });
       }
@@ -844,6 +901,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
       // Müsaitlik ifadesi ("Subject to availability, …", "Müsaitliğe göre, …") kendiliğinden koşuldur: cümlenin devamına geçer.
       carriedAvailability ||= whole.availability;
       if (isConditionClause(c)) carriedTopic ||= whole.topic;
+      if (whole.afterRefEnd >= 0 && timeMentions(c).length === 0) carriedAfterRef = true;
     }
   }
   return hits;
@@ -892,4 +950,25 @@ export const PROPERTY_TIME_FIELDS = [
 export function propertyTimeMismatch(times: ReadonlySet<string> | undefined, propertyValue: string | null): string[] {
   if (!propertyValue || !times || times.size === 0 || times.has(propertyValue)) return [];
   return [...times].filter((t) => t !== propertyValue).sort();
+}
+
+/**
+ * Bir KB kaleminin atıfları mülk ayarıyla UYUŞMUYOR mu (istem çelişki bloğu + gönderim kapısı + ev sahibi raporu — tek kural).
+ * `propertyTimeMismatch`in küme kuralı + AYNI KALEMDE İKİ KOŞULSUZ SAAT (Codex 09-27): mülkün değeri kalemde koşulsuz geçiyor
+ * ve kalem başka bir koşulsuz saat de söylüyorsa ("Çıkış 11:00. Çıkış 12:00.") o saat çelişkidir. Pencere uçları ("15:00'ten
+ * itibaren, en geç 22:00", "10:00–11:00 arası"), gün koşulu ("hafta sonu 16:00") ve ayrı alanlar (erken giriş / geç çıkış)
+ * koşulsuz sayılmaz → eski davranış.
+ */
+export function kbPropertyMismatch(
+  hits: readonly Pick<FieldTimeHit, "field" | "time" | "point">[],
+  field: string,
+  propertyValue: string | null,
+): string[] {
+  const own = hits.filter((h) => h.field === field);
+  if (!propertyValue || own.length === 0) return [];
+  const times = new Set(own.map((h) => h.time));
+  if (!times.has(propertyValue)) return propertyTimeMismatch(times, propertyValue);
+  const points = new Set(own.filter((h) => h.point).map((h) => h.time));
+  if (!points.has(propertyValue)) return [];
+  return [...points].filter((t) => t !== propertyValue).sort();
 }

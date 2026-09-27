@@ -17,10 +17,11 @@
 
 import {
   fieldTimeHits,
+  kbPropertyMismatch,
   normalizePropertyTime,
-  propertyTimeMismatch,
   timeSetsConflict,
   PROPERTY_TIME_FIELDS,
+  type FieldTimeHit,
 } from "@/lib/ai/retrieval/time-fields";
 import { TIME_FIELD_LABELS } from "@/lib/ai/retrieval/lexicon";
 import { dropSuperseded } from "@/lib/ai/retrieval/rerank";
@@ -64,12 +65,13 @@ function heading(field: string): string {
   return `${capital(TIME_FIELD_LABELS[field] ?? field)} saati`;
 }
 
-function perItemFieldTimes(item: KbTimeConflictItem): Map<string, { times: Set<string>; sentence: string }> {
-  const out = new Map<string, { times: Set<string>; sentence: string }>();
+function perItemFieldTimes(item: KbTimeConflictItem): Map<string, { times: Set<string>; sentence: string; hits: FieldTimeHit[] }> {
+  const out = new Map<string, { times: Set<string>; sentence: string; hits: FieldTimeHit[] }>();
   for (const h of fieldTimeHits(item.title, item.content, item.category)) {
     if (h.via !== "clause") continue;
-    const cur = out.get(h.field) ?? { times: new Set<string>(), sentence: h.clause };
+    const cur = out.get(h.field) ?? { times: new Set<string>(), sentence: h.clause, hits: [] };
     cur.times.add(h.time);
+    cur.hits.push(h);
     out.set(h.field, cur);
   }
   return out;
@@ -106,7 +108,7 @@ export function kbTimeConflicts(
     const sides: KbTimeConflictSide[] = [];
     for (const { item, fields } of perItem) {
       const f = fields.get(field);
-      const bad = propertyTimeMismatch(f?.times, pv);
+      const bad = kbPropertyMismatch(f?.hits ?? [], field, pv);
       if (bad.length === 0 || !f) continue;
       sides.push({ itemId: item.id, title: item.title, values: bad, sentence: f.sentence, sentAutomatically: AUTO_SENT.has(item.category) });
     }
@@ -128,7 +130,7 @@ export function kbTimeConflicts(
     if (comparedToProperty.has(field)) continue;
     const holders = perItem
       .map(({ item, fields }) => ({ item, f: fields.get(field) }))
-      .filter((x): x is { item: KbTimeConflictItem; f: { times: Set<string>; sentence: string } } => Boolean(x.f));
+      .filter((x): x is { item: KbTimeConflictItem; f: { times: Set<string>; sentence: string; hits: FieldTimeHit[] } } => Boolean(x.f));
     const involved = new Set<number>();
     for (let i = 0; i < holders.length; i++) {
       for (let j = i + 1; j < holders.length; j++) {
