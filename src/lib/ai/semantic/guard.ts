@@ -3,6 +3,7 @@ import "server-only";
 import { callStructuredJson } from "./structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
+import { fenceSafe } from "./fence";
 import {
   STAY_GUARD_JSON_SCHEMA,
   normalizeHhmm,
@@ -47,12 +48,6 @@ const GUEST_MESSAGE_CAP = 1_200;
 export const GUARD_WINDOW = { maxMessages: MAX_GUEST_MESSAGES, messageCap: GUEST_MESSAGE_CAP } as const;
 const REPLY_CAP = 2_000;
 
-/** Ayraç enjeksiyonu: veri bloğunun sınırını taklit eden dizi veriden silinir. */
-function fenceSafe(text: string): string {
-  // İki+ açılı ayraç ÇALIŞMASI bütünüyle silinir: tek geçişte "<<<" silmek ">><<<>" girdisinden YENİ bir
-  // ">>>" üretiyordu (inceleme 09-24). Kalan tek ayraçlar arasında hep ayraç olmayan karakter kalır.
-  return text.replace(/[<>]{2,}/g, "");
-}
 
 export const STAY_GUARD_SYSTEM_PROMPT = [
   "You are a strict compliance checker for a short-term-rental guest messaging assistant. You do NOT write replies; you only classify.",

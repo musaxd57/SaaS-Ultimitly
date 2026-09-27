@@ -3,6 +3,7 @@ import "server-only";
 import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "@/lib/ai/semantic/config";
 import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
+import { fenceSafe } from "@/lib/ai/semantic/fence";
 import { chunkItems, chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chunker";
 import { rerankPerQuestionInfo } from "@/lib/ai/retrieval/flag";
 
@@ -94,10 +95,6 @@ export const RERANK_SCHEMA = {
   },
 };
 
-function fenceSafe(text: string): string {
-  // Anlama katmanıyla aynı kural: iki+ açılı ayraç ÇALIŞMASI bütünüyle silinir (tek geçişte silmek yeni ayraç üretebilir).
-  return text.replace(/[<>]{2,}/g, "");
-}
 
 /** İstemin kullanıcı kısmı + isteme giden kimliklerin (C1…Cn) aday anahtarlarına eşlemesi. Saf. */
 export function buildRerankRequest(

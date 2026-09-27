@@ -4,6 +4,7 @@ import { createHash } from "crypto";
 import { callStructuredJson } from "./structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
+import { fenceSafe } from "./fence";
 import { normalizeHhmm, type StayTimes } from "./stay-change";
 import {
   UNDERSTANDING_MAX_UNANSWERED,
@@ -86,11 +87,6 @@ export const UNDERSTANDING_RULES_PROMPT_ADDENDUM = [
 /** Katmanın gördüğü pencere (erken giriş akışı: pencereye sığmayan cevapsız mesaj varsa otomatik gönderim yok). */
 export const UNDERSTANDING_WINDOW = { maxMessages: UNDERSTANDING_MAX_UNANSWERED, messageCap: UNDERSTANDING_MESSAGE_CAP } as const;
 
-function fenceSafe(text: string): string {
-  // İki+ açılı ayraç ÇALIŞMASI bütünüyle silinir: tek geçişte "<<<" silmek ">><<<>" girdisinden YENİ bir
-  // ">>>" üretiyordu (inceleme 09-24). Kalan tek ayraçlar arasında hep ayraç olmayan karakter kalır.
-  return text.replace(/[<>]{2,}/g, "");
-}
 
 export interface UnderstandingInput {
   /** Cevaplanacak son misafir mesajı. */
