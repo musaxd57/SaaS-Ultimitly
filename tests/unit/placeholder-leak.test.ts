@@ -128,10 +128,15 @@ describe("bilgi bloğu — DOLDURULMAMIŞ YER TUTUCU notu (kod-üretimli girdi; 
   });
 
   it("not yalnız BLOĞA GİREN kalemler için: bütçeden düşen yer tutuculu kalem not üretmez; birden çok kalem tek satırda", () => {
-    const huge = { category: "faq", title: "Dev", content: "x".repeat(23_990) };
+    // #209 (kurucu kararı 09-27): ≤30 kalemlik blok sınırı ≤60 karakter aşıyorsa TAMAMEN gider → düşme ancak payın ÖTESİNDE
+    // (blok 24.064 > 24.000 + 60). Eski fikstür (23.990 → blok 24.044) artık payın içinde: iki kalem de gider ve not YAZILIR.
+    const huge = { category: "faq", title: "Dev", content: "x".repeat(24_010) };
     const { text, omitted } = packKnowledgeBase([huge, ph]);
     expect(omitted).toBe(1);
     expect(text).not.toContain("[NOT] DOLDURULMAMIŞ");
+    const withinMargin = packKnowledgeBase([{ ...huge, content: "x".repeat(23_990) }, ph]);
+    expect(withinMargin.omitted).toBe(0);
+    expect(withinMargin.text).toContain("[NOT] DOLDURULMAMIŞ");
     const two = packKnowledgeBase([ph, { category: "checkin", title: "Giriş", content: "Kapı kodu: <kod>" }]).text;
     expect(two.match(/\[NOT\] DOLDURULMAMIŞ/g)).toHaveLength(1);
     expect(two).toContain('"Notlar" ([ŞİFRE]); "Giriş" (<kod>)');
