@@ -33,7 +33,7 @@
 
 import { createHash } from "node:crypto";
 import { reportError } from "@/lib/report-error";
-import { chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chunker";
+import { chunkItems, chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chunker";
 import { kbRetrievalMode, semanticRetrievalInfo, type KbRetrievalMode } from "@/lib/ai/retrieval/flag";
 import { getOrBuildKbIndex } from "@/lib/ai/retrieval/index-cache";
 import { dropSuperseded, type Supersedable } from "@/lib/ai/retrieval/rerank";
@@ -225,19 +225,23 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
  * YAZMA / AÇILIŞ ISITMASI (#189, `kb-warm.ts`): seçicinin bu kümeyle kuracağı parça metinlerinden depoda OLMAYANLARI arka plan
  * ısıtmasına verir (misafiri beklemez; saatlik tavan aynen). Kuyruğa alınan metin sayısını döner. Anahtar kapalıyken, küçük
  * KB'de (retrieval koşmayacak) ya da parça tavanını aşan KB'de hiçbir şey yapmaz. Fırlatmaz.
+ * 🚨 Yalnız PARÇALAR (A7 #2, 09-27): sözcüksel dizini (BM25 + n-gram + parça başına saat alanı okuması) KURMAZ ve dizin
+ * önbelleğine YAZMAZ — 60 kalem × 20k'da dizin 5,9 sn senkron CPU'ydu (olay döngüsü her kiracı için durur), yazılan girdi de
+ * o an kullanılan başka bir kiracının dizinini tahliye edebiliyordu. Parçalar dizinin parçalarıyla aynı fonksiyondan
+ * (`chunkItems`) → gömülen metinler birebir aynı (pinli).
  */
-export function warmKbVectors<T extends KbChunkSource>(items: readonly T[], now?: number): number {
+export function warmKbVectors<T extends KbChunkSource>(items: readonly T[]): number {
   try {
     if (!semanticRetrievalInfo().enabled) return 0;
     if (!retrievalNeeded(items)) return 0;
     const { kept } = dropSuperseded(items as readonly (T & Supersedable)[]);
-    const index = getOrBuildKbIndex(kept, now);
-    if (index.chunks.length > SEMANTIC_MAX_CHUNKS) return 0;
+    const chunks = chunkItems(kept);
+    if (chunks.length > SEMANTIC_MAX_CHUNKS) return 0;
     const model = embeddingModel();
     // Depoda olmayan ve hâlihazırda ısıtılmayan metinler (sayı kuyruğa GERÇEKTEN alınanlar; bütçe reddederse 0).
     return scheduleWarm(
       model,
-      index.chunks.map((c) => embeddingTextFor(c)),
+      chunks.map((c) => embeddingTextFor(c)),
     );
   } catch (err) {
     void reportError("kb-semantic-warm-items", err);
