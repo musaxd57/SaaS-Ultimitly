@@ -69,6 +69,7 @@ export function parseConfig(name: string): LabConfig {
     else if (tok === "ansfirst") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), answersFirst: true } };
     else if (tok === "qcap") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), itemCapScope: "question" } };
     else if (tok === "mcap") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), itemCapScope: "message" } };
+    else if (tok === "nhf") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), noHitFill: true } };
     else if (tok === "wide") cfg.select = { ...(cfg.select ?? {}), budgetChars: KB_RETRIEVAL_WIDE_CHAR_BUDGET, maxChunks: KB_RETRIEVAL_WIDE_MAX_CHUNKS };
     else if ((m = tok.match(/^rrm:([a-z0-9.-]+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), model: m[1] };
     else if ((m = tok.match(/^rre:(none|minimal|low|medium|high)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), effort: m[1] };

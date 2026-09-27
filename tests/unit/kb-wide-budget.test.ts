@@ -58,7 +58,9 @@ describe("anahtar", () => {
 
   it("değerler: legacy'nin 24k tavanının ALTINDA (paketleyici payı), bugünkü bütçenin üstünde", () => {
     expect(KB_RETRIEVAL_WIDE_CHAR_BUDGET).toBeLessThan(KB_CHAR_BUDGET);
-    expect(KB_CHAR_BUDGET - KB_RETRIEVAL_WIDE_CHAR_BUDGET).toBeGreaterThanOrEqual(KB_RETRIEVAL_WIDE_MAX_CHUNKS);
+    // #208 A5 F9: pay parça başına 1 değil — çok parçalı kalemde başlık eki " (i/n)" (iki haneli sırada 8) + satır biçimi 1 + ayraç 1.
+    const worstPerChunk = " (99/99)".length + 1 + 1;
+    expect(KB_CHAR_BUDGET - KB_RETRIEVAL_WIDE_CHAR_BUDGET).toBeGreaterThanOrEqual(KB_RETRIEVAL_WIDE_MAX_CHUNKS * worstPerChunk);
     expect(KB_RETRIEVAL_WIDE_CHAR_BUDGET).toBeGreaterThan(KB_RETRIEVAL_CHAR_BUDGET);
     expect(KB_RETRIEVAL_WIDE_MAX_CHUNKS).toBeGreaterThan(KB_RETRIEVAL_MAX_CHUNKS);
   });
@@ -122,6 +124,25 @@ describe("AÇIK", () => {
     const r = await retrieveKbForPrompt({ items: exact, guestMessage: MSG });
     expect(r.items.length).toBeGreaterThan(KB_RETRIEVAL_MAX_CHUNKS);
     expect(rendered(r.items)).toBeGreaterThan(KB_RETRIEVAL_WIDE_CHAR_BUDGET - 600);
+    const packed = packKnowledgeBase(r.items, r.droppedItems, r.selection, r.notes);
+    expect(packed.omitted).toBe(r.droppedItems);
+    expect(packed.text.split("\n").filter((l) => l.startsWith("- [PARKING]"))).toHaveLength(r.items.length);
+  });
+
+  it("🚨 ÇOK PARÇALI kalemlerle de (başlık eki ' (i/n)') paketleyici seçilen hiçbir parçayı atmaz (#208 A5 F9)", async () => {
+    const sentence = (i: number, k: number) => `Otopark ${i} için ${k}. not: araç bina önündeki alana bırakılır ve gece de erişim vardır.`;
+    // Kalem başına parça tavanı (3) yüzünden bloğu doldurmak için yeterince kalem: 14 × 3 parça × ~600 karakter > 23k.
+    const multi = Array.from({ length: 14 }, (_, i) => ({
+      id: `cok${i}`,
+      category: "parking",
+      title: `Otopark rehberi ${i}`,
+      content: Array.from({ length: 120 }, (_, k) => sentence(i, k)).join(" "),
+      updatedAt: new Date(T0 - i * 60_000),
+    }));
+    const r = await retrieveKbForPrompt({ items: [...multi, ...neutralPadding(30, T0)], guestMessage: MSG });
+    expect(r.selection).toBe("retrieved");
+    expect(r.items.some((i) => (i.chunkCount ?? 1) >= 10)).toBe(true);
+    expect(rendered(r.items)).toBeGreaterThan(KB_RETRIEVAL_WIDE_CHAR_BUDGET - 1_000);
     const packed = packKnowledgeBase(r.items, r.droppedItems, r.selection, r.notes);
     expect(packed.omitted).toBe(r.droppedItems);
     expect(packed.text.split("\n").filter((l) => l.startsWith("- [PARKING]"))).toHaveLength(r.items.length);

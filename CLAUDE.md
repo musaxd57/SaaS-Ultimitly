@@ -228,6 +228,13 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   bölüm içinde yazılış sırası (tavan aşılmıyorsa parçalar birebir eskisi). ÖLÇÜLÜP REDDEDİLDİ: "soru cümleciği önce", "içerikli
   cümlecik önce" (bağlam cümleciği düşüyordu). Tekrar eden ek sorgu kararı yeniden sıralamadan ÖNCEKİ baş adaylarla ve ilk üç
   adayın HEPSİ özgün sorguların başındaysa (tek ortak baş aday yetmez).
+- **A5 getirme düzeltmeleri (#208, 09-27; çevrimdışı ölçüm: sözcükselde getirme +0/−0, sahte "insana devret" notu çok soruda
+  8→1, tek soru TR 9→0; anlamsal+anlamada çok soru 88→90):** çelişki ortağı her FARKLI saat değeri için TEK temsilci (12 bayat
+  kopya bloğu doldurmaz; temsilci önce seçilenlerden) · dizin KURALLI sırada kurulur (güncellik ↓, kimlik — aynı küme, önbellek
+  durumundan bağımsız aynı seçim) · özgün listenin ilk `maxChunks` adayı ek sorgu önce seçse de ÖZGÜN sayılır · hiçbir tarafı
+  bloğa girmeyen çelişkiye not YAZILMAZ (bir tarafı girip öbürü sığmayınca yazılır) · hata dalı da `dropSuperseded` · sert bölme
+  kısa `[…]`/`<…>` içinden kesmez. İsabetsiz soru dolgusu `strategy.noHitFill` ÖLÇÜLDÜ, varsayılan KAPALI (sözcükselde +16/−9,
+  bloklar büyüdü; anlamsalda etkisiz).
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM
   (sona, ayrı tavan 6, ÖNCE Türkçeler; hiçbir alt sorgunun yerine geçmez, kümeye kalem ekleyemez); 🚨 model

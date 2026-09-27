@@ -71,6 +71,30 @@ function sentenceSpans(content: string, line: Span): Span[] {
   return out.filter((s) => s.end > s.start);
 }
 
+/** Yer tutucu kısa bir ifadedir; pencere sonunda bundan uzun süredir açık parantez yer tutucu sayılmaz. */
+const PLACEHOLDER_SPAN_MAX = 80;
+
+/**
+ * Penceredeki son boşluk — köşeli / açılı parantez İÇİNDEKİ boşluk hariç (#208 A5 F10, 09-27): "[ŞİFRE BURAYA]" iki parçaya
+ * bölününce ikisinde de yer tutucu tanınmıyor, "DOLDURULMAMIŞ YER TUTUCU" notu yazılmıyordu. Pencere sonunda kısa süredir açık
+ * parantez (tavanı aşan yer tutucu) parantezin ÖNÜNDEN kesilir; uzun süredir açıksa (kapanmayan "[" — patolojik girdi) eski kural.
+ */
+function lastSafeSpace(window: string): number {
+  let depth = 0;
+  let openAt = -1;
+  let safe = -1;
+  for (let i = 0; i < window.length; i++) {
+    const ch = window[i];
+    if (ch === "[" || ch === "<") {
+      if (depth === 0) openAt = i;
+      depth += 1;
+    } else if ((ch === "]" || ch === ">") && depth > 0) depth -= 1;
+    else if (ch === " " && depth === 0) safe = i;
+  }
+  if (depth > 0 && window.length - openAt > PLACEHOLDER_SPAN_MAX) return window.lastIndexOf(" ");
+  return safe > 0 ? safe : window.lastIndexOf(" ");
+}
+
 /** Tek başına tavanı aşan aralığı kelime sınırından böler (son çare). */
 function hardSplit(content: string, span: Span): Span[] {
   const out: Span[] = [];
@@ -78,7 +102,7 @@ function hardSplit(content: string, span: Span): Span[] {
   while (span.end - start > CHUNK_MAX_CHARS) {
     const limit = start + CHUNK_MAX_CHARS;
     const window = content.slice(start, limit);
-    const ws = window.lastIndexOf(" ");
+    const ws = lastSafeSpace(window);
     // Boşluk yoksa (patolojik tek kelime) tavanda sert kes.
     const cut = ws > 0 ? start + ws : limit;
     out.push({ start, end: cut });

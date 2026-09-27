@@ -191,7 +191,13 @@ export function preserveTimeConflicts(
   if (anchors.size === 0) return { order: [...picked], conflicts: [] };
   const partnersByField = new Map<string, number[]>();
   const valuesByField = new Map<string, Set<string>>();
-  for (let i = 0; i < chunks.length; i++) {
+  // HER FARKLI DEĞER İÇİN TEK TEMSİLCİ (#208 A5 F1, 09-27): amaç modelin İKİ kaynağı görmesi, kopyaları değil. Eskiden 12 bayat
+  // "Çıkış 12:00" kalemi çapanın arkasına dizilip bloğu dolduruyor, sorulan öbür konunun (havalimanı) cevabını dışarıda bırakıyordu.
+  // Temsilci önce SEÇİLENLER arasından (alaka sırası), yoksa dizin sırasıyla (kurallı: güncellik ↓, kimlik) seçilir.
+  const pickedSet = new Set(picked);
+  const scanOrder = [...picked, ...chunks.map((_, i) => i).filter((i) => !pickedSet.has(i))];
+  const representedByField = new Map<string, Set<string>>();
+  for (const i of scanOrder) {
     for (const [field, times] of fieldTimes[i]) {
       const a = anchors.get(field);
       if (!a || a.idx === i) continue;
@@ -199,10 +205,15 @@ export function preserveTimeConflicts(
       // "22:00-08:00" ↔ "22:00") çelişki DEĞİL; eski tek yönlü kural çapa sırasına göre farklı
       // hüküm veriyordu.
       if (!timeSetsConflict(a.times, times)) continue;
-      partnersByField.set(field, [...(partnersByField.get(field) ?? []), i]);
       const vals = valuesByField.get(field) ?? new Set(a.times);
       for (const t of times) vals.add(t);
       valuesByField.set(field, vals);
+      const valueKey = [...times].sort().join("|");
+      const represented = representedByField.get(field) ?? new Set<string>();
+      if (represented.has(valueKey)) continue;
+      represented.add(valueKey);
+      representedByField.set(field, represented);
+      partnersByField.set(field, [...(partnersByField.get(field) ?? []), i]);
     }
   }
   if (partnersByField.size === 0) return { order: [...picked], conflicts: [] };

@@ -508,16 +508,18 @@ describe("dilim 2 — kaynak birleşimi, sürüm kuralı, kategori-bağımsız �
   it("TAZELİK PUANA GİRMEZ (Codex 09-09): rerank aynı parçaya farklı updatedAt ile AYNI puanı verir; sıralama yalnız 0.01 içinde yeniyi öne alır", () => {
     const older = mk(60, { id: "older", category: "parking", title: "Otopark", content: "Bina altı otopark ücretsizdir.", updatedAt: new Date(T0 - 86_400_000) });
     const newer = { ...older, id: "newer", updatedAt: new Date(T0 + 86_400_000) };
-    const index = getOrBuildKbIndex([older, newer]); // parça 0 = older, parça 1 = newer
+    // Puan parça KİMLİĞİNE göre verilir: dizin kurallı sırada kurulur (#208 A5 F7: güncellik ↓, kimlik), konum değil.
+    const index = getOrBuildKbIndex([older, newer]);
+    const scores = (by: Record<string, number>) => Float64Array.from(index.chunks.map((c) => by[c.id]));
     const ctx = { ownStems: new Set<string>(), expansionStems: new Set<string>(), bigrams: [], categoryHints: new Map() };
-    const equal = rerank(index.chunks, index.bm25.docs, new Float64Array([0.6, 0.6]), () => true, ctx);
+    const equal = rerank(index.chunks, index.bm25.docs, scores({ older: 0.6, newer: 0.6 }), () => true, ctx);
     expect(equal.map((c) => c.score)).toEqual([0.6, 0.6]);
     expect(sortCandidates(equal, index.chunks).map((c) => index.chunks[c.idx].id)).toEqual(["newer", "older"]);
     // 0.04 fark: yakın eşitlik DEĞİL → eski ama yüksek puanlı önde (eski davranış +0.05 tazelik bonusuyla yeniyi öne alırdı).
-    const apart = rerank(index.chunks, index.bm25.docs, new Float64Array([0.62, 0.58]), () => true, ctx);
+    const apart = rerank(index.chunks, index.bm25.docs, scores({ older: 0.62, newer: 0.58 }), () => true, ctx);
     expect(sortCandidates(apart, index.chunks).map((c) => index.chunks[c.idx].id)).toEqual(["older", "newer"]);
     // 0.003 fark (aynı 0.01 adımı): YAKIN eşitlik → yeni önde (tam eşitlik değil, yuvarlanmış eşitlik).
-    const near = rerank(index.chunks, index.bm25.docs, new Float64Array([0.604, 0.601]), () => true, ctx);
+    const near = rerank(index.chunks, index.bm25.docs, scores({ older: 0.604, newer: 0.601 }), () => true, ctx);
     expect(sortCandidates(near, index.chunks).map((c) => index.chunks[c.idx].id)).toEqual(["newer", "older"]);
     expect(SCORE_TIE_STEP).toBe(0.01);
   });

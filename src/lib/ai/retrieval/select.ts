@@ -220,6 +220,13 @@ export interface KbSelectInput<T extends KbChunkSource> {
      * Tek sorulu mesajda (ek sorgular dahil) BİREBİR eski. "message" = eski mesaj geneli tavan (ölçüm tabanı / geri alma).
      */
     itemCapScope?: "message" | "question";
+    /**
+     * İSABETSİZ SORU DOLGUSU (#208 A5 F2, 09-27; ölçüm seçeneği — varsayılanı ölçüm belirler): bir özgün alt sorgu HİÇ aday almadıysa
+     * (parafraz: "Kayak takımımı nereye koyabilirim?" ↔ "kış sporu ekipmanı") ötekilerin isabeti yüzünden geri çekilme hiç devreye
+     * girmiyor, o sorunun legacy'de gidecek cevabı kayboluyordu. Açıkken isabetsiz soru legacy sırasını (en yeni kalemler) kendi
+     * aday listesi olarak alır ve turda adil payını kullanır; bütçe (6k/12) aynen.
+     */
+    noHitFill?: boolean;
   };
 }
 
@@ -915,6 +922,14 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       return legacyResult(front.items, "hybrid", ev, cap.dropped - front.added);
     }
 
+    // İSABETSİZ SORU (#208 A5 F2, seçenek `noHitFill`): hiç aday almayan özgün alt sorgu, legacy sırasını (dizin kurallı:
+    // güncellik ↓, kimlik) KENDİ aday listesi olarak alır → tur sırasında adil payını en yeni kalemlerden kullanır.
+    if (input.strategy?.noHitFill) {
+      ranked.forEach((list, qi) => {
+        if (!isExtra[qi] && list.length === 0) ranked[qi] = index.chunks.map((_, idx) => ({ idx, score: 0 }));
+      });
+    }
+
     // Alt sorgular arasında sırayla (round-robin) → çok sorulu mesajda her
     // sorunun en iyi parçası bütçeden pay alır; tek konu bütçeyi yutamaz.
     const picked: number[] = [];
@@ -938,6 +953,13 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // Passwort" üçü de wifi kalemlerini seçip evcil hayvan sorusunu dışarıda bırakıyordu).
     const skipExtra = uq > 0 ? redundantExtraQueries(preRerankHeads, isExtra) : new Set<number>();
     let extraPicked = 0;
+    // ÖZGÜN UFUK (#208 A5 F4, 09-27): bir özgün listenin ilk `maxChunks` adayı içindeki parça, onu bir ek sorgu önce seçse de ÖZGÜN
+    // sayılır. "İlk seçen kazanır" kuralında cevabı ("pedal seti" ek sorgusu) ek sorgu seçiyor, ek payı dolunca bütçede atlanıyor,
+    // özgün liste onu "zaten seçilmiş" görüp bir daha almıyordu → "ek sorgu hiçbir alt sorgunun yerine geçmez" sözü çiğneniyordu.
+    const ownHorizon = new Set<number>();
+    if (uq > 0) ranked.forEach((list, qi) => {
+      if (!isExtra[qi]) for (const c of list.slice(0, maxChunks)) ownHorizon.add(c.idx);
+    });
     // Deney `answersFirst`: modelin "cevaplıyor" dediği parçalar (sıralanmış listelerin öneki) sırayla ÖNCE alınır — ek sorgu
     // payına sayılmaz, tekrar kuralı uygulanmaz (model doğruladı); kalem başına tavan aynen.
     if (input.strategy?.answersFirst && (input.rerankScores || input.rerankScoresBySubquery)) {
@@ -981,7 +1003,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
           picked.push(cand.idx);
           pickedSet.add(cand.idx);
           perItem.set(chunk.id, cnt + 1);
-          if (isExtra[qi]) {
+          if (isExtra[qi] && !ownHorizon.has(cand.idx)) {
             extraPicked += 1;
             origin.set(cand.idx, "extra");
           } else if (uq > 0) origin.set(cand.idx, "own");
@@ -1048,6 +1070,9 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const notes: string[] = [];
     let confDropped = 0;
     for (const c of conflicts) {
+      // Hiçbir tarafı bloğa girmeyen çelişki modele kısmi bilgi VERMEZ → not yok, sayılmaz (#208 A5 F6, 09-27: blokta yalnız Wi-Fi
+      // parçaları varken "çıkış saati … insana devret" notu gidiyordu). Bir tarafı girip öbürü sığmayınca YAZILIR.
+      if (!chosenIdx.has(c.anchorIdx) && !c.partnerIdx.some((i) => chosenIdx.has(i))) continue;
       const complete = chosenIdx.has(c.anchorIdx) && c.partnerIdx.every((i) => chosenIdx.has(i));
       if (complete) continue;
       confDropped += 1;
@@ -1075,7 +1100,14 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
   } catch (err) {
     // Retrieval hatası ürünü BOZMAZ: legacy küme gider, hata raporlanır.
     void reportError("kb-retrieval-select", err);
-    const cap = cappedForFallback(input.items);
+    // Hata dalında da sürüm kuralı (#208 A5 F8, 09-27): yerine yenisi geçmiş "Çıkış 12:00" yeni "11:00" ile notsuz gidiyordu.
+    let base: readonly T[] = input.items;
+    try {
+      base = dropSuperseded(input.items as readonly (T & Supersedable)[]).kept;
+    } catch {
+      /* sürüm ayıklaması da düşerse eldeki küme (eski davranış) */
+    }
+    const cap = cappedForFallback(base);
     return legacyResult(cap.items, "hybrid", evidence("error", 0, 0, 0), cap.dropped);
   }
 }

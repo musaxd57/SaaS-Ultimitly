@@ -46,9 +46,10 @@ export const KB_RETRIEVAL_MAX_CHUNKS = 12;
  * sıralayıcısız) en büyük kayıp 6k/12 bütçesiydi: iki sorulu mesajın ikinci cevabı aday listesinde ama bloğa sığmıyordu.
  * Ölçüm (`docs/olcum/rag-lab-2026-09-27*.md`, TR / diğer diller / iki soru): 60 kalemde yeni gömme modeliyle 95/98/71 →
  * 100/99/98, yalnız sözcüksel 93/89/63 → 95/95/83; 276 kalemde ayrı çağrılı yeniden sıralamayla 93/99/86 → 97/100/92. ≤30 kalem / ≤24k bilgi tabanı zaten TAMAMEN (24k'ya kadar) gider;
- * bu değer o tavanı aşmaz. 24.000 değil 23.000: paketleyici (`packKnowledgeBase`) satır başına seçicinin hesabından 1 karakter
- * fazla sayar ve kendi tavanı `KB_CHAR_BUDGET` (24k) — tam 24k seçim son parçayı sessizce "alınmadı" yapabilirdi (40 parça ×
- * 1 karakter payı; 23k ile ölçülen sonuç 24k ile birebir). Yanıtsız soruda blok ortalama ~11 → ~34 parça büyür.
+ * bu değer o tavanı aşmaz. 24.000 değil 23.000: paketleyici (`packKnowledgeBase`) parça başına seçicinin hesabından FAZLA sayar —
+ * çok parçalı kalemin başlığına " (i/n)" eki (iki haneli sırada 8 karakter) + satır biçimi 1 + ayraç 1 = en çok 10 karakter
+ * (#208 A5 F9 ölçtü: 22.995 seçici karakteri → 23.291 istem karakteri; eski yorum "1 karakter" diyordu) — ve kendi tavanı
+ * `KB_CHAR_BUDGET` (24k): 80 parça × 10 = 800 ≤ 1.000 pay (test-pinli). Yanıtsız soruda blok ortalama ~11 → ~34 parça büyür.
  * PARÇA TAVANI 80 (kurucu 09-27 "80'e çık"; `rag-lab-2026-09-27-9/-10/-11.md`, önbellekten): 40'ta kaçan her cevapta blok 40
  * parçaya dayanmış, karakterin yarısı boş kalmıştı (çok sorgulu seçimde her listeye ~5 yer). 80 ile karakter bütçesi bağlar:
  * 276 kalemde iki soru %93,3 → %96,7, TR %98,0 → %99,1 (9 kazanç, 0 kayıp); 60 kalemde 6 kazanç, 0 kayıp. Yanıtsız soruda
