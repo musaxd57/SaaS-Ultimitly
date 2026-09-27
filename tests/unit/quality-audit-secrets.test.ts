@@ -32,6 +32,8 @@ describe("sır değerleri denetçiye gitmez", () => {
     ["Kod: 9911", ["9911"]],
     ["Giriş için *7391 tuşlayın.", ["7391"]],
     ["Anahtar kutusu kodunu 6612 olarak güncelledik.", ["6612"]],
+    // Rakamsız değer yalnız ":" / "=" ile verildiğinde (merkezî redaksiyon Türkçe etiketi tanımıyor).
+    ["Kasa şifresi: gunesli", ["gunesli"]],
   ];
   for (const [text, secrets] of CASES) {
     it(`🚨 ${text}`, () => {
@@ -52,6 +54,8 @@ describe("KONTROL — denetimin ihtiyaç duyduğu olgular korunur", () => {
     ["Wi-Fi ağı LaleNet; şifre buzdolabındaki kartta yazıyor.", ["LaleNet", "buzdolabındaki kartta"]],
     ["Havalimanı 25 km, taksi yaklaşık 40 dakika.", ["25 km", "40 dakika"]],
     ["Kapı kodunu giriş günü 12:00'de gönderiyoruz.", ["12:00"]],
+    // Etiketin penceresi cümlecikte biter: virgülden sonraki ücret maskelenmez.
+    ["Wi-Fi şifresi karttadır, temizlik ücreti 500 TL.", ["karttadır", "500 TL"]],
   ];
   for (const [text, keep] of KEEP) {
     it(text, () => {
