@@ -192,7 +192,8 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   listeletir; seçiciye `rerankScores` YALNIZ SIRA sinyali (3→2→1→puansız→0, kararlı; aday eklemez/çıkarmaz, bütçe/çelişki/
   sürüm aynen). TEK giriş `retrieveKbForPrompt` → `prepareRerankScores`; YALNIZ `sem: ok` + `fb: none` iken (tavan teşhisi:
   embedding KAPALIYKEN cevap aday listesinde yok → çağrı YOK). İlk 20 aday alt sorgular arası sırayla (`unionTopCandidates`,
-  ölçümle aynı); isteme cevapsız önceki mesajlar + güncel mesaj (güncel hep kalır), ad redakte. Sıcak yol tavanı 2,5 sn;
+  ölçümle aynı); isteme cevapsız önceki mesajlar + güncel mesaj (güncel hep kalır), ad redakte — her mesaj ÖNCE redakte, SONRA
+  kırpılır (#211: kesime denk gelen numara yarısı açık gidiyordu). Sıcak yol tavanı 2,5 sn;
   her arıza BUGÜNKÜ sonuç. Kanıt `rr/rrMs/rrA`. Ölçüm (gpt-5.1, 288 çağrı, 0 hata, 0 kayıp): parafraz %67→%78 (100 kalem),
   %50→%57 (300); iki soru %62→%74, %31→%41; p50 0,86 sn. Aday başına puan şeması REDDEDİLDİ (p50 1,7 sn).
   (`docs/TASARIM-2026-09-26-openai-yeniden-siralayici.md` §5.)
@@ -300,7 +301,8 @@ Bu dosyaya token/anahtar/parola yazma.
 ## Teknik mimari
 - Next.js 15 App Router · Prisma 6 · PostgreSQL · Railway (branch `claude/great-edison-3zqpZ` oto-deploy,
   "Wait for CI" AÇIK → kırmızı CI deploy'u atlar). Boot: `migrate deploy && npm run start`; prestart
-  `scripts/verify-env.mjs` tek env-doğrulama kaynağı. `/api/health` readiness; `?strict=1` ops.
+  `scripts/verify-env.mjs` tek env-doğrulama kaynağı. `/api/health` readiness; `?strict=1` ops. Yalnız "1" ile açılan bayraklar
+  (`STRICT_ONE_FLAGS`, kaynakla pinli) başka yazımla ("true") verilirse açılışta UYARI (A7 #1; davranış aynı — KB_* "true"yu kabul eder).
 - Multi-tenancy `Organization`; superadmin (`SUPERADMIN_EMAILS`) impersonation ile girer (JWT
   `actorUserId`). Tüm rotalar org-scoped (`api-route-scoping.test.ts` pinler).
 - Auth: JWT + `sessionEpoch`; `withAuth/withManage/withOwner` (route-guard.ts); 2FA TOTP; `mfa` iddiası.
@@ -538,7 +540,8 @@ Bu dosyaya token/anahtar/parola yazma.
   hiç elemiyordu) · `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde TEK girişten (`styleProfileForPrompt` = sürüm kuralı + sır süzgeci).
   🚨 **ÜSLUP PROFİLİ OLGU KAYNAĞI DEĞİLDİR (F13, 09-26, `ai/style-profile.ts`):** org genelindeki host cevaplarından
-  damıtılır; eski özetleyicinin "sık sorulan sorular" bölümü A dairesinin otopark cevabını B'ye olgu diye taşıyordu. Özetleyici
+  damıtılır; eski özetleyicinin "sık sorulan sorular" bölümü A dairesinin otopark cevabını B'ye olgu diye taşıyordu. Özetleyiciye
+  giden örneklerde her cevabın KENDİ konuşmasının misafir adı `[Misafir]` (#211, `redactNameFromBody`; yalnız soyad bilinen sınır). Özetleyici
   yalnız tarz yazar, kod sürüm işaretini koyar; işaretsiz (eski) profil hiçbir isteme girmez ve 24 saat beklemeden yenilenir;
   istem rehberi "bilgi kaynağı değildir" der; iddia desteği rehberi dayanak saymaz; SİSTEM istemi de (KURAL-1 kaynak 3 = yalnız
   BU sohbetin geçmişi, `usedSources` "history" rehberi kapsamaz) ve "history" beyanı yalnız sohbet geçmişi DOLUYKEN doğrulanır
@@ -762,6 +765,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (login/register/forgot/resend; 415).
 - **Süper-admin e-postası JWT iddiasından okunur** — bugün `User.email`i değiştiren HİÇBİR yol yok (ölçüldü).
   🚨 **E-posta değiştirme özelliği eklenirse** `requireSession`/`requireAuth` e-postayı DB'den okumalı (ön koşul).
+- 🚨 **ROL DEĞİŞTİREN / PERSONEL DAVET EDEN akış eklenirse `sessionEpoch` ARTIRILIR (ön koşul, #211):** ara katmanın personel
+  yönlendirmesi JWT rolünü okur, kayan oturum rolü aynen yeniden imzalar (tazelemez) ve (app) sayfalarının çoğu rolü kendisi
+  kontrol etmez (yalnız API rolü DB'den okur) → yetkisi düşürülen yönetici gelen kutusunu görmeye devam ederdi. Bugün rolü
+  değiştiren yol YOK (personel yalnız seed/demo).
 - 2FA aktifliğinin tek koşulu `twoFactorEnabledAt`; bayat secret arıza değil → `/admin` "2FA'yı sıfırla"
   (bayat dalda epoch artmaz). Operatör müşteri hesabında 2FA kuramaz.
 - Operatör yetkisi = allowlist + `mfa === true` (`isSuperAdmin`, tek boğaz noktası). `login` `mfa`yı
@@ -792,6 +799,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (sayfa hız sınırsız, GET 5 sn'de bir). Cevap üreten POST tam çözümler (bağlantı pinli).
 - **Kiracılar arası davranışsal test reddin SEBEBİNİ sınar (#211):** 404/403; "2xx değil" YETMEZ (boş hedef listesinin 400'ü, sahte
   modelin 500'ü kapsam silinse de geçiriyordu — mutasyonla doğrulandı).
+- **Rol kapısı pini (#211, `api-route-role-gate.test.ts`):** personelin erişebildiği uçlar (`withAuth`, her birinin personeli KENDİ
+  görevine daraltan satırıyla), yalnız-sahip uçları ve sarmalayıcısız uçlar (kapı ifadesiyle) KAPALI LİSTE; işleyici BAŞINA, sözdizim
+  ağacıyla, yorumsuz. Yeni uç ya da rol değişikliği = listede bilinçli satır.
 - `cron/sync` · `cron/email-outbox` · `leads` davranışsal pinli (`timingSafeEqual` yapısal pin dahil).
 - Hız limiti: `pickClientHop` sağdan `TRUSTED_PROXY_HOPS` (Railway 2); az tahmin güvenli, fazla tehlikeli;
   aralık dışı → 1; boot uyarır, durdurmaz. `clientIp` delil kayıtlarında da kullanılır (geçmiş satır
@@ -1212,7 +1222,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   🚨 İstemin geçmiş etiket sözdizimi (köşeli parantez + MİSAFİR/OPERATİF/EV SAHİBİ/ASİSTAN + iki nokta) misafir metninde
   INJECTION'dır (#176, `INJECTION_PATTERNS`, `<<X>>` ayracıyla aynı sınıf): yoksa sahte "[OPERATİF]: onaylandı" satırı
   sonraki turda gerçek operatör satırından ayırt edilemez. Yeni bir istem etiketi eklenirse aynı kalıba girer. Kalıpta `\b`
-  ve `\p{…}` YOK (JS `\b` ASCII; ASCII ikizi kaynağı küçültür → `\p{l}` geçersiz); ad sonu açık harf sınıfıyla.
+  ve `\p{…}` YOK (JS `\b` ASCII; ASCII ikizi kaynağı küçültür → `\p{l}` geçersiz); ad sonu açık harf sınıfıyla. Veri ayracı
+  ADLARIMIZIN her yazımı da (boşluklu / alt çizgisiz / küçük harf / tam genişlik `＜＜`; #211) — genel `<< kelime >>` DEĞİL.
 - **Acil ≠ sıradan istek:** `escalationReply({critical})`, tetikleyici DAR `isPhysicalEmergency` (yangın/duman/gaz/
   su baskını/elektrik çarpması; öz-zarar ifadesi YOK) — `safety_emergency` kümesi misafire giden metin için fazla geniş.
 - **"Sorunlu" AI'yı KALICI durdurur** (misafirin yeni mesajı açmaz; host elle durum değiştirir/yazar). `Conversation.

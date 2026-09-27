@@ -296,6 +296,16 @@ kapalı (403).
     cümleciğini ("Dört kişi geleceğiz") düşürüp kayıp verdi → reddedildi.
   - Tekrar eden ek sorgu kuralı yeniden sıralamadan önce karar veriyor: üretim benzeri yapılandırmada çok soru 83 → 88.
   - Kök çakışmaları (havlu / hava / havalimanı, fırın / yangın, para / parti, see / sea, "dogs") ve A10 saat okuma düzeltmeleri.
+  - A5 hata ayıklama bulguları (eski kodda 9 kırmızı test; mutasyon 15/15):
+    - çelişen saatin her FARKLI değeri için bloğa TEK temsilci (12 bayat "Çıkış 12:00" kalemi bloğu doldurup sorulan havalimanı
+      cevabını dışarıda bırakıyordu);
+    - hiçbir tarafı bloğa girmeyen çelişkiye not yazılmıyor;
+    - dizin kalem sırasından bağımsız (eşit güncellemede seçim önbellek durumuna göre değişiyordu);
+    - soru kendi aramasında üst sıradaysa ek sorgu önce seçse de cevap payına takılmıyor;
+    - hata dalında da yerine yenisi gelmiş kalem gitmiyor;
+    - uzun kalem bölünürken `[yer tutucu]` ortadan kesilmiyor.
+  - Ölçüm (çevrimdışı, 60 kalem): getirme kaybı yok; sahte çelişki notu çok soruda 8 → 1, tek soruda 9 → 0; anlamsal + anlama
+    yapılandırmasında çok soru 88 → 90.
 - **#211 gece güvenlik paketi (müşteriye giden metni değiştirmeyenler):**
   - Kalite denetçisine (Claude = ikinci veri işleyen) giden metinde kapı / Wi-Fi / kasa kodları maskeleniyor (19 sızıntı vakasının
     18'i açıktı; saat ve ücret korunuyor).
@@ -304,3 +314,22 @@ kapalı (403).
   - Demo formu, canlı demo, QR sohbet ve CSP raporunda JSON kontrolü IP kovasından önce (başka site ziyaretçi tarayıcısıyla kovayı
     yakamıyor).
   - Kiracılar arası test artık ret sebebini sınıyor (eskiden kapsam kontrolü silinse de geçiyordu).
+  - Misafir mesajındaki SAHTE istem ayracının boşluklu / küçük harfli / tam genişlikli yazımı ("<< GUEST_MESSAGE_END >>",
+    "＜＜ KB_END ＞＞") artık enjeksiyon sayılıyor (eskiden yalnız bitişik büyük harfli biçim). Yalnız KENDİ ayraç adlarımız;
+    Fransızca tırnak ("<< bonjour >>") etkilenmiyor.
+  - Üslup profili özetleyicisine (OpenAI) giden ev sahibi cevaplarında misafir adı artık "[Misafir]" (eskiden yalnız e-posta /
+    telefon / uzun kod siliniyordu; özet adı taşırsa başka misafirin istemine sızabilirdi). Bilinen sınır: yalnız soyadı geçen cümle
+    (ör. "Kaya") silinmiyor — gündelik sözcük olabilir.
+  - Yeniden sıralayıcıya giden misafir metni önce redakte, sonra kırpılıyor (1.500 karakter kesimine denk gelen telefon numarasının
+    yarısı açık gidiyordu). PII taşımayan metinde istem birebir aynı.
+  - Anlam katmanı istemlerinde (yeniden sıralayıcı, anlama katmanı, bekçi) sahte veri ayracı: tam genişlikli "＞＞＞", "»»»", boşluklu
+    "> > >" ve görünmez karakterle ayrılmış biçimler de siliniyor (eskiden yalnız bitişik "<<" / ">>"). Üç kopya tek dosyada; normal
+    metin birebir aynı (geliştirme setlerinin 6.659 metninde fark 0).
+  - Açılış uyarısı: yalnız "1" ile açılan 26 bayrak (AI_UNDERSTANDING_ENABLED, GUEST_CHAT_ENABLED, AUTO_REPLY_ENABLED …) "true" yazılırsa
+    kapalı kalıyordu ve hiçbir yerde görünmüyordu; artık açılış kaydında uyarı var (davranış aynı).
+  - Rol kapısı pini: personelin (temizlikçi) erişebildiği 4 uç, yalnız sahibin 13 ucu ve kendi kapısını taşıyan 38 uç kapalı listede;
+    bir yönetici ucu personele açılırsa ya da ödeme ucu yöneticiye inerse test kırmızı (eskiden bütün süit yeşil kalıyordu).
+  - Not (ileride personel daveti yapılırken ön koşul): rol değişince oturum yenilenmeli; bugün sayfalar personeli JWT'deki rolden
+    yönlendiriyor, rolü düşürülen yönetici eski oturumla gelen kutusunu görmeye devam ederdi. Bugün rol değiştiren bir yol yok.
+  - İncelendi, değiştirilmedi: `{isim}` yer tutucusuna giren misafir adı — ad zaten kanaldan geliyor ve istemde veri ayracının
+    içinde; denetim karakteri / uzunluk sınırı küçük bir iyileştirme olarak açık.
