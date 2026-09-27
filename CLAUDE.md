@@ -1282,6 +1282,13 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   sayılıyordu); başvuru noktasından sonraki ARALIK ("çıkıştan sonra 10:00–20:00 arası") başka işin penceresidir; olumsuz emirle "gir-"
   elemesi yoktur (kök sökücü "girmeyin"i "gir"e indirmez). Yeni sözcük eklerken bataryaya İKİZ (doğru + tuzak) cümle yazılır; her kural parçasını YALNIZ kendisine
   dayanan bir pin korur (mutasyon). Kör batarya bir kez ayarda kullanılınca "görüldü" sayılır; dürüst sayı YENİ kör bataryayla verilir.
+  🚨 **SAAT OKUMA DOĞRULUK TURU (09-27, kurucu onayı, #207; `docs/olcum/saat-okuma-2026-09-27.md`, batarya
+  `tests/helpers/time-field-review-battery.ts` 67 bulgu + 44 ikiz, eski 6/67 → 67/67):** tarayıcı TEK (`scanTimes` → okuyucu + gönderim
+  kapısının `timesIn`i): para/tarih/ölçü saat değil; "noon / midnight / gece yarısı", "4p.m.", "11 buçuk", "11'i on geçe" (dakikası
+  çözülemeyen HİÇ okunmaz); "saat"siz "14'ten itibaren / 11'e kadar" ZAYIF kanıt (yalnız cümleciğin kendi alanı, 10–23). SON KABUL
+  (latest / son / en geç giriş, alt ucu olmayan until/by, "No check-in after") = `late_checkin`; mülkün girişinden ÖNCE/EŞİT biterse
+  çelişki. Sınırın yanlış tarafı çelişki (C1b, `FieldTimeHit.bound`). Taviz ("Even if", "gelseniz de") standart; ücretli seçenek erken
+  giriş / geç çıkış; karşılıklı eşleme ("Giriş ve çıkış saatleri 15:00 ve 11:00"). Ev sahibi raporu kalemin TÜM atıflarını okur.
   🚨 **Çelişki KAPIDA tutulur (09-25, `ai/time-conflict-gate.ts`):** istemin çelişki listesi `suggestReply` sonucunda
   (`timeConflicts`) kapıya gider; çelişkili alana (niyet · misafir/cevap konusu · çelişen saat) değen cevap kanal + QR +
   Ayarlar/demo önizlemesinde `kb_time_conflict` — karar model güvenine BIRAKILMAZ (model 0.80 verdi). Doğrulanmış onay /
