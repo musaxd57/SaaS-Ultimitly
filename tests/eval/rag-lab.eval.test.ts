@@ -12,7 +12,7 @@ import { writeSidecar } from "./sidecar";
 import { cacheStats, OfflineMiss, RAG_LAB_CACHE } from "./rag-lab/cache";
 import { labRow, latencyLines, reportLines, type LabConfig, type LabItem, type LabQuery, type LabRow } from "./rag-lab/core";
 import { parseConfig, CAP, RR, T_PROD } from "./rag-lab/config";
-import { buildScaleLab, loadScaleFile } from "./rag-lab/scale-set";
+import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
 
 // ---------------------------------------------------------------------------
 // RAG LAB — AŞAMA BAZLI KAYIP ÖLÇÜMÜ (#189, kurucu 09-26 gece modu: "300 kalemde bile ≥%95; önce ölçüyü düzeltin").
@@ -39,6 +39,8 @@ const GROUPS = new Set(
 const KBS = new Set(process.env.EVAL_RAG_KB?.split(",").map((s) => s.trim()) ?? ["e4"]);
 /** Gerçekçi set boyutları (0 = tamamı, ~300). */
 const SCALE_SIZES = (process.env.EVAL_RAG_SCALE_SIZES?.split(",").map((s) => Number(s.trim())) ?? [60, 0]).filter((n) => Number.isFinite(n) && n >= 0);
+/** `EVAL_RAG_KB=perq`: soru başına gerçekçi boyutlu bilgi tabanı (↓`kbForQuery`); ürünün plan tavanı mülk başına 60 kayıt. */
+const PERQ_SIZES = (process.env.EVAL_RAG_PERQ_SIZES?.split(",").map((s) => Number(s.trim())).filter((n) => n > 0) ?? [60]) as number[];
 
 export function e4LabSet(size: number): { items: LabItem[]; queries: LabQuery[] } {
   const kb = makeSyntheticKb(size);
@@ -134,7 +136,7 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
     writeSidecar(dir, name, { suite: "rag-lab", version: 1, meta, rows });
   });
 
-  async function runSet(kbName: string, size: number, items: LabItem[], queries: LabQuery[]) {
+  async function runSet(kbName: string, size: number, items: LabItem[] | ((q: LabQuery) => LabItem[]), queries: LabQuery[]) {
     for (const cfg of CONFIGS) {
       // Örnekleme GRUP İÇİ sırayla (09-26 hatası: genel sıra tr/xx dönüşümlü olduğu için "her 4." yalnız Türkçe soruları alıyordu).
       const seen = new Map<string, number>();
@@ -151,7 +153,8 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
           while (i < qs.length) {
             const q = qs[i++];
             try {
-              rows.push(await withWatchdog(labRow(kbName, size, items, q, cfg, NOW), `${cfg.name} · ${q.id}`));
+              const kb = typeof items === "function" ? items(q) : items;
+              rows.push(await withWatchdog(labRow(kbName, size, kb, q, cfg, NOW), `${cfg.name} · ${q.id}`));
             } catch (err) {
               if (!(OFFLINE_SKIP && err instanceof OfflineMiss)) throw err;
               skippedQs.add(`${kbName}|${size}|${q.id}`);
@@ -174,6 +177,16 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
         await runSet(split === "dev" ? "scale-dev" : "scale-holdout", size || items.length, items, queries);
       }
     }
+    finished += 1;
+    expect(rows.length).toBeGreaterThan(0);
+  }, 120 * 60_000);
+
+  it.skipIf(!KBS.has("perq"))("gerçek müşteri boyutu: soru başına N kalemlik bilgi tabanı (dev)", async () => {
+    started += 1;
+    const file = loadScaleFile("dev");
+    if (!file) throw new Error("evals/rag-scale/dev.json yok");
+    const { items, queries } = buildScaleLab(file);
+    for (const size of PERQ_SIZES) await runSet("perq-dev", size, (q) => kbForQuery(items, q, size), queries);
     finished += 1;
     expect(rows.length).toBeGreaterThan(0);
   }, 120 * 60_000);

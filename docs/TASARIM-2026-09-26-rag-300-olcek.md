@@ -111,6 +111,38 @@ TR 4/111, diğer 1/111 · **istek başına 50 → 2 / 3 / 1** · liste tabanı 1
 (`wown20`) 5. Seçenekler üretimin `rerankCandidateWindows` işlevinde (varsayılan birebir bugünkü); 50'ye geçmek çağrı başına
 +%25 aday demek — kredi gelince son blok etkisiyle birlikte ölçülüp karara bağlanır.
 
+### 4c. Gerçek müşteri boyutu ve blok bütçesi (09-27, ücretsiz — yalnız önbellek)
+
+Ürün mülk başına en çok **60 aktif kayda** izin verir (plan tavanı, kurucu dahil). Ölçer artık "soru başına N kalemlik bilgi
+tabanı" kurar (`EVAL_RAG_KB=perq`, `kbForQuery`: cevap kalemi + tam setten soruya göre tohumlanmış GÜNCEL dolgu; metinler tam
+setle birebir → gömme/anlama önbellekte, 0 soru düştü). Ölçü: cevap cümlesi istem bloğunda mı; yeniden sıralayıcısız (o boyutta
+sıralayıcı çıktıları önbellekte yok).
+
+**60 kalem** (`docs/olcum/rag-lab-2026-09-27-2.md`, `-3.md`; TR / diğer diller / iki soru, %):
+
+| Blok bütçesi | Yalnız sözcüksel | Yeni gömme | Blok ort. (yeni gömme) |
+|---|---|---|---|
+| 6k karakter / 12 parça (bugün) | 93 / 89 / 63 | 95 / 98 / 71 | 3,6k |
+| 9k / 18 | — | 97 / 99 / 84 | 5,0k |
+| 12k / 24 | 94 / 95 / 78 | 99 / 99 / 88 | 6,4k |
+| 24k / 40 | 95 / 95 / 83 | **100 / 99 / 98** | 9,4k (p95 12,6k) |
+
+**276 kalem** (`-27.md`, eşleştirilmiş alt küme, 41 soru düştü):
+
+| Blok | Yeni gömme, sıralayıcısız | + ayrı çağrılı yeniden sıralama |
+|---|---|---|
+| 6k / 12 | 76 / 83 / 30 | 93 / 99 / 86 |
+| 12k / 24 | 91 / 95 / 55 | 93 / 99 / 90 |
+| 24k / 40 | 97 / 97 / 77 | **97 / 100 / 92** |
+
+Yanıtsız soruda blok büyür (11,5 → 21 → 34 parça); geri çekilme ve sızıntı 0. **Gerçek boyutta en büyük kayıp BÜTÇE:** iki
+sorulu mesajda cevap aday listesinde ama 6k/12 bloğa sığmıyor. ≤30 kalem / ≤24k bilgi tabanı bugün zaten TAMAMEN (24k'ya
+kadar) isteme gidiyor; 31. kalemde bütçe birden 6k'ya düşüyor (uçurum). Sektör: OpenAI'nin dosya arama aracı varsayılan 20
+parçaya kadar (parça ~800 token) döndürür; Anthropic'in "contextual retrieval" ölçümünde ilk 20 parça ilk 5/10'dan iyiydi.
+Açık risk: uzun blokta cevap modelinin yanlış olguya sapması / dikkat dağılması — cevap düzeyi ölçüm ücretli (kredi bekliyor).
+Maliyet: 24k/40'ta cevap isteğine ortalama ~+1,6k token (~0,2 sent/mesaj). **Karar kurucuda** (öneri: bayrakla hazırla, kredi
+gelince cevap düzeyinde doğrula, sonra aç).
+
 ## 5. Codex'in "sınanması gerekenler"i
 
 - **Sığmayan ilk parçada `break` / kalem başına 3 parça:** ölçüldü (↑§4b, ücretsiz): fark YOK — değiştirilmedi.

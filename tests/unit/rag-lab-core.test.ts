@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildRerankRequest, RERANK_MAX_CANDIDATES, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { fusedWindow, labFetch, labRerankRequest, latencyLines, mixedWindow, runPipeline, traceAnswer, type LabConfig, type LabItem, type LabRow, type LabRun } from "../eval/rag-lab/core";
-import { buildScaleLab, type ScaleSetFile } from "../eval/rag-lab/scale-set";
+import { buildScaleLab, kbForQuery, type ScaleSetFile } from "../eval/rag-lab/scale-set";
 
 // RAG LAB ölçerinin kendisi (#189): ölçer yanlışsa "kaçak aşaması" tablosu yanlış karar doğurur. Bu pinler ağsız koşar.
 
@@ -182,5 +182,35 @@ describe("rag-lab — pencere kuruluşu ve gecikme tablosu", () => {
     const lines = latencyLines([row("a", 100), row("a", 300), row("a", 200), row("b", null)]);
     expect(lines.find((l) => l.includes("| a |"))).toBe("| k | 1 | a | 3 | 200 | 300 | 350 | 100 |");
     expect(lines.find((l) => l.includes("| b |"))).toBe("| k | 1 | b | 0 | — | — | 0 | 100 |");
+  });
+});
+
+describe("rag-lab — gerçek müşteri boyutu (soru başına bilgi tabanı)", () => {
+  const all = Array.from({ length: 80 }, (_, i) => item(`k${i}`, i === 37 ? "Havlular banyo dolabının ÜST rafındadır." : `Genel bilgi ${i}.`, i));
+  const q = (id: string, needles: string[][]) => ({ id, group: "single_tr", cls: "tr", lang: "tr", text: "?", answers: needles.map((n) => ({ needles: n, goldIds: [] })) });
+
+  it("cevap kalemi HER ZAMAN içeride; boyut tam; tekrar yok", () => {
+    const kb = kbForQuery(all, q("a", [["ÜST rafındadır"]]), 60);
+    expect(kb).toHaveLength(60);
+    expect(kb.map((i) => i.id)).toContain("k37");
+    expect(new Set(kb.map((i) => i.id)).size).toBe(60);
+  });
+
+  it("deterministik; farklı soru farklı dolgu; olumsuz soru (cevapsız) yalnız dolgu", () => {
+    const a1 = kbForQuery(all, q("a", [["ÜST rafındadır"]]), 60).map((i) => i.id);
+    expect(kbForQuery(all, q("a", [["ÜST rafındadır"]]), 60).map((i) => i.id)).toEqual(a1);
+    expect(kbForQuery(all, q("b", [["ÜST rafındadır"]]), 60).map((i) => i.id)).not.toEqual(a1);
+    const neg = kbForQuery(all, q("n", []), 40);
+    expect(neg).toHaveLength(40);
+  });
+
+  it("dolgu yerine yenisi geçmiş eski sürümü ALMAZ (yenisi olmadan canlıda olmayan durum)", () => {
+    const withOld = [...all, item("old1", "Eski bilgi.", 900, { supersededById: "k3" })];
+    for (const id of ["a", "b", "c", "d", "e"]) expect(kbForQuery(withOld, q(id, []), 79).map((i) => i.id)).not.toContain("old1");
+  });
+
+  it("metinler tam setle BİREBİR aynı nesneler (önbellek anahtarı değişmez)", () => {
+    const kb = kbForQuery(all, q("a", [["ÜST rafındadır"]]), 60);
+    for (const it of kb) expect(all).toContain(it);
   });
 });

@@ -207,7 +207,9 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   %69→%95, diğer diller %73→%99, iki soru %33→%50; ayrı çağrı (önbellekten eşleştirilmiş alt küme, ön tahmin) iki soru %86.
   Ölçülüp etkisiz çıkan (geri önerme): atla-paketle, kalem başına 5 parça, anlama payı 1/2, RRF taban, taban 20. Pencere
   kuruluşu seçenekleri (`RerankWindowOptions`, varsayılan birebir) — istek başına 50 modelsiz tavanda iki soruda pencere dışı
-  6→2. Ölçer "yalnız önbellek" kipi `RAG_LAB_OFFLINE=1` (+ `_SKIP=1` eşleştirilmiş alt küme). 🚨 OpenAI kredisi 09-26 gece
+  6→2. Ölçer "yalnız önbellek" kipi `RAG_LAB_OFFLINE=1` (+ `_SKIP=1` eşleştirilmiş alt küme). 🚨 GERÇEK BOYUT (09-27, soru başına
+  60 kalem `EVAL_RAG_KB=perq`): en büyük kayıp BLOK BÜTÇESİ (6k/12) — 24k/40 ile iki soru %71→%98 (sıralayıcısız); ≤30 kalem
+  bugün zaten 24k'ya kadar tamamen gidiyor (uçurum). Bütçe değişikliği kurucu kararı (belge §4c). 🚨 OpenAI kredisi 09-26 gece
   BİTTİ: ayrı çağrı temiz ölçümü + holdout kabulü + cevap düzeyi ölçüm bekliyor; iki bayrağı açmak kurucu kararı.
 - **Anlama katmanı sorguları** (`AI_UNDERSTANDING_ENABLED`, varsayılan kapalı): model sorulan her şeyi bağımsız,
   geçmişle çözülmüş Türkçe + özgün dil sorgusuna yazar (`extraQueries`); deterministik alt sorgulara BİRLEŞİM

@@ -208,3 +208,27 @@ export function buildScaleLab(file: ScaleSetFile, size?: number): ScaleLab {
   });
   return { items, queries };
 }
+
+/**
+ * GERÇEK MÜŞTERİ BOYUTU (09-27; ürün mülk başına en çok 60 aktif kayda izin verir): sorunun cevabını taşıyan kalem(ler) + tam
+ * setten soruya göre TOHUMLANMIŞ dolgu → `size` kalemlik bilgi tabanı. Metinler tam setle BİREBİR aynıdır (rehber birleşimi
+ * dahil), böylece gömme / anlama çıktıları önbellekte kalır (ücretsiz ölçüm). Cevap kalemi seçilmez, garanti edilir: ölçülen
+ * şey "cevap bilgi tabanındayken bulunuyor mu". Okuma adımı kalemleri güncelliğe göre sıraladığından dizi sırası sonucu
+ * etkilemez. Dolgu yalnız GÜNCEL kalemlerden (yerine yenisi geçmiş eski sürüm, yenisi olmadan kümeye girerse canlıda
+ * olmayan bir durum doğar ve tam sette hiç aranmadığı için vektörü de yoktur). Deterministik (aynı soru + boyut = aynı küme). Saf.
+ */
+export function kbForQuery(all: readonly LabItem[], q: LabQuery, size: number): LabItem[] {
+  const needles = q.answers.flatMap((a) => a.needles);
+  const answer = all.filter((it) => needles.some((n) => it.content.includes(n) || it.title.includes(n)));
+  const ids = new Set(answer.map((i) => i.id));
+  let h = 2166136261;
+  for (const ch of `${q.id}|${size}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const rnd = seededRandom(h);
+  const fill = all
+    .filter((i) => !ids.has(i.id) && !i.supersededById)
+    .map((it) => ({ it, r: rnd() }))
+    .sort((a, b) => a.r - b.r)
+    .map((x) => x.it)
+    .slice(0, Math.max(0, size - answer.length));
+  return [...answer, ...fill];
+}
