@@ -33,3 +33,16 @@
 | A8 | sır / kiracı | B1 = C3 · B2 QR sayfası her GET'te KB yüklüyor · B3 oto-yanıt sır taraması yalnız ikame SONRASI (uzun ad sırrı pencereden çıkarıyor; QR ham+ikame) · B4 KB kopyalama kiracı testi yok · B5 boşluklu yer tutucu parça sınırında · B6 ısıtma bütçesi | B3 evet (sıkılaştırma) | B3 KARAR BEKLİYOR (güvenlik paritesi) |
 | A9 | ölçer bütünlüğü | #1 çelişki grubunda ilgisiz not "blokta" sayılıyor · #2 = C6 · #3 `prod` canlı yol değil · #4 geçmiş biçimi üretimden farklı · #5 "uydurma 0" kör · #6 arıza muhasebesi · #7 holdout mühürsüz · #8 perq+wide bütçe > KB · #10 sızıntı grupları | hayır (ölçer) | #10 + kapı itirazları DÜZELDİ; #1 #3 #7 #8 sıradaki |
 | A10 | kök sökücü + sözlük | "hastane / noise / waste / üşüyor / ısınmıyor" hiç aranmıyor; "Gürültü kuralı" → kargo; "Şifremi unuttum" → internet yok; "Are dogs allowed?" → sonuç yok; "aç-" klima, "açılıyor" acil | evet | KARAR BEKLİYOR |
+
+## Kurucu kararları (09-27 akşam) ve durum
+
+| # | Karar (kurucu) | Durum |
+|---|---|---|
+| 1 | Soru başına parça tavanı: "1.yi tabiki aç" | ✅ varsayılan (`c5f630c`/RC13); dev setinde fark 0, tek rehberde 4 sorunun 4'ü; mutasyon 4/4 |
+| 2 | Saat okuma turu: ~45 örnek, 5 sınıf (başlangıç · son kabul · aralık · koşullu erken/geç · başka olayın saati); gerçek çelişki kaçmaz, sahte üretilmez; belirsizde kesin saat yok; eski/yeni + müşteriye giden örnek rapor | ⏳ sürüyor (#207): A1/A2/A3/A4 + C1b cümleleri sınıf bataryasına |
+| 3 | Getirme hataları ölçerek; BAĞLAM/AMAÇ: havlu+Wi-Fi iki konuyu da ara (sır süzgeci korunur) · "Şifremi unuttum" bağlama bağlı (Wi-Fi bağlamı yoksa kesin yönlendirme yok) · "Are dogs allowed?" Türkçe evcil hayvan kuralını bulur, kural yoksa tahmin yok | ⏳ sırada (#208) |
+| 4 | ≤30 kalem KB sınırı birkaç düzine karakter aşıyorsa dar ek payla tamamı; ön hesap = gerçek paketleme uzunluğu (satır ayraçları dahil); genel bütçe büyümez; son kalemdeki cevap testi — "sonradan bakabiliriz" | ⏳ sonra (#209) |
+| 5 | Dürüst devir kırmızı değil ama cevap blokta varken devir ayrı "cevap kaçırıldı"; gerçek yanlış bilgi / uydurma kırmızı; önce ölçücü (08h30, 5 pm = 17.00, birimler) deterministik; kalan adayların son kararı bağımsız KÖR inceleyici (model yalnız ön eleme, ücretli çağrı ayrı onay) | ✅ ölçücü (`6ed82b8`); kör inceleme sayfası yayında (35 vaka, eşleme sahibe özel) — etiket bekliyor |
+| 6 | P5 canlıda AÇILMAZ; "10 dakika = 10 minutes" geçer, farklı süre geçmez; gölge koşuda yanlış alarm + kaçan uydurma raporu | ✅ (`9d70e7f`): yanlış alarm 21 → 1, batarya aynı (0 yanlış alarm, 43/45 + 8/25), eski kodun kaçırdığı "4 metre ⇐ 4 km’lik" artık yakalanır; mutasyon 13/13; rapor `olcum/iddia-destegi-p5-golge-2026-09-27.md` |
+| 7 | Oto-yanıt sır taraması ham + isim yerleştirilmiş metin, iki aşama ayrı test | ✅ (`7405e69`): iki yüzey × iki aşama; öneri rotası da aynı kural; mutasyon 7/7 |
+| — | A7 #2 ısıtma sözcüksel dizini kurmasın (fark-sıfır) | ✅ (`f895db8`): 60×20k'da 5,9 sn → yalnız parçalama; mutasyon 4/4 |
