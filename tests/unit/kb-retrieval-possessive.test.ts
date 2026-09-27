@@ -143,7 +143,7 @@ describe("sözlük terimleri durak sözcüğe inmez + 'açılıyor' acil sayılm
       now: NOW,
     });
     expect(thin.items.map((i) => i.id)).toContain("amb");
-    expect(thin.evidence.fb).toBe("none");
+    expect(thin.evidence?.fb).toBe("none");
     // Belirteç verilmeyen çağıran (saat alanı kuralı) DEĞİŞMEDİ: kök tek başına eskisi gibi kavramı tanır.
     expect(matchConcepts(contentStems("Havuz ne zaman açılıyor?")).map((m) => m.concept.id)).toContain("emergency");
   });
