@@ -102,8 +102,9 @@ describe("uçtan uca — istem çelişki bloğu + gönderim kapısı + ev sahibi
     expect([...timesIn("Check-out by noon.")]).toEqual(["12:00"]);
     expect([...timesIn("Çıkış saat 11 buçukta.")]).toEqual(["11:30"]);
     expect([...timesIn("Check-in 3 – 10 pm.")].sort()).toEqual(["15:00", "22:00"]);
-    // Çözülemeyen dakika: kesin saat yok (eskisi 11:00 okuyordu).
-    expect([...timesIn("saat 11'i on geçe")]).toEqual([]);
+    // Kesin Türkçe dakika çözülür; çözülemeyen dakikada kesin saat yok (eskisi ikisini de 11:00 okuyordu).
+    expect([...timesIn("saat 11'i on geçe")]).toEqual(["11:10"]);
+    expect([...timesIn("saat 11'i biraz geçe")]).toEqual([]);
     // Çelişkili mülkte cevap çelişen saati "12 noon" diye söylese de tutulur.
     const conflicts = [{ field: "checkOutTime" as const, propertyValue: "11:00", kbValues: ["12:00"] }];
     expect(timeConflictHolds(conflicts, { intent: "general", reply: "You can leave at 12 noon.", guestTexts: ["Taxi?"] })).toBe(true);

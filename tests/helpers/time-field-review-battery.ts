@@ -118,10 +118,14 @@ export const TIME_FIELD_REVIEW_BATTERY: ReviewCase[] = [
   R("T02", "baslangic", "ikiz·noon", "checkout", "Check-out", "Check-out by noon, please.", ["checkout:12:00"], { checkOut: "11:00", checkout: ["12:00"] }),
   R("T03", "baslangic", "ikiz·noon", "checkin", "Check-in", "Check-in in the afternoon.", [], { checkIn: "15:00", checkin: [] }),
   R("T04", "baslangic", "ikiz·buçuk", "checkout", "Çıkış", "Çıkış saat 11'i çeyrek geçe yapılır.", ["checkout:11:15"], { checkOut: "11:00", checkout: ["11:15"] }),
-  // Çözülemeyen dakika anlatımında kesin saat UYDURULMAZ (eskisi 11:00 okuyordu).
-  R("T05", "baslangic", "ikiz·buçuk", "checkout", "Çıkış", "Çıkış saat 11'i on geçe yapılır.", [], { checkOut: "11:00", checkout: [] }),
+  // Kesin Türkçe dakika çözülür ("on geçe" = 11:10; eskisi 11:00 okuyup mülkün 11:00'iyle çelişkiyi gizliyordu); çözülemeyen dakikada
+  // ("biraz geçe") kesin saat UYDURULMAZ.
+  R("T05", "baslangic", "ikiz·dakika", "checkout", "Çıkış", "Çıkış saat 11'i on geçe yapılır.", ["checkout:11:10"], { checkOut: "11:00", checkout: ["11:10"] }),
+  R("T16", "baslangic", "ikiz·dakika", "checkout", "Çıkış", "Çıkış saat 11'i biraz geçe yapılabilir.", [], { checkOut: "11:00", checkout: [] }),
+  R("T17", "baslangic", "ikiz·dakika", "checkout", "Çıkış", "Çıkış 12'ye yirmi kala yapılır.", ["checkout:11:40"], { checkOut: "11:00", checkout: ["11:40"] }),
   R("T06", "baslangic", "ikiz·çıplak saat", "checkin", "Giriş", "Girişte 12'ye kadar misafir kabul edilir.", [], { checkIn: "15:00", checkin: [] }),
   R("T07", "baslangic", "ikiz·çıplak saat", "checkin", "Giriş", "Kapasite 12'de.", [], { checkIn: "15:00", checkin: [] }),
+  R("T18", "baslangic", "ikiz·çıplak saat", "checkin", "Giriş", "Girişte 12'ye kadar 4 misafir kabul edilir.", [], { checkIn: "15:00", checkin: [] }),
   R("T08", "baslangic", "ikiz·gün bölümü", "checkout", "Çıkış", "Çıkış sabah 11'de.", ["checkout:11:00"], { checkOut: "12:00", checkout: ["11:00"] }),
   R("T09", "baslangic", "ikiz·çıplak saat", "checkin", "Giriş", "Saat 3'te giriş yapabilirsiniz.", [], { checkIn: "15:00", checkin: [] }),
   R("T10", "baslangic", "ikiz·ziyaretçi", "checkin", "Giriş", "Misafirlerimizin daireye girişi 15:00'ten itibarendir.", ["checkin:15:00"], { checkIn: "14:00", checkin: ["15:00"] }),

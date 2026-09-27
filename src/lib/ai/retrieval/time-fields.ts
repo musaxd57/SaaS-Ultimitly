@@ -82,11 +82,12 @@ const SAAT_HOUR_G = /\bsaat\s+(1\d|2[0-3])(?![\d:.])/gi;
 const COUNTER =
   String.raw`(?:(?:kişi|kisi|misafir|konuk|yetişkin|yetiskin|çocuk|cocuk|evcil|köpek|kopek|kedi|hayvan|bavul|valiz|araç|arac|araba|yatak)[a-zçğıöşü]*|(?:gece|gün|gun|hafta|ay|yıl|yil|kg|km|metre|dakika|saat|lira|tl|euro|dolar|oda|kat)(?![a-zçğıöşü]))`;
 const BARE_HOUR_G = new RegExp(
-  String.raw`(?<![\d:.,/])\b(1\d|2[0-3])\s*['’]\s*(?:[dt][ae]n(?=\s+(?:itibaren|itibar[ıi]yla|itibariyle|sonra|önce|once)(?![a-zçğıöşü]))|y?[ae](?=\s+(?:kadar|dek|değin|degin)(?![a-zçğıöşü])(?!\s+${COUNTER}))|[dt][ae](?![a-zçğıöşü]))`,
+  String.raw`(?<![\d:.,/])\b(1\d|2[0-3])\s*['’]\s*(?:[dt][ae]n(?=\s+(?:itibaren|itibar[ıi]yla|itibariyle|sonra|önce|once)(?![a-zçğıöşü]))|y?[ae](?=\s+(?:kadar|dek|değin|degin)(?![a-zçğıöşü])(?!\s+(?:\d+\s+)?${COUNTER}))|[dt][ae](?![a-zçğıöşü]))`,
   "gi",
 );
-/** "11 buçukta" / "11'i çeyrek geçe" / "12'ye çeyrek var" — "saat"siz (↓`clockTail` dakikayı çözer). */
-const BARE_CLOCK_G = /(?<![\d:.,/])\b(1\d|2[0-3])(?=\s+bu[çc]u[kğg]|\s*['’]\s*(?:[ıiuü]\s+[çc]eyrek\s+ge[çc]e|y?[ae]\s+[çc]eyrek\s+(?:var|kala)))/gi;
+/** "11 buçukta" / "11'i çeyrek geçe" / "12'ye on kala" — "saat"siz (↓`clockTail` dakikayı çözer; çözülemeyen hiç okunmaz). */
+const BARE_CLOCK_G =
+  /(?<![\d:.,/])\b(1\d|2[0-3])(?=\s+bu[çc]u[kğg]|\s*['’]\s*(?:[ıiuü]\s+[^.,;]{1,24}?\s+ge[çc]e|y?[ae]\s+(?!kadar|dek)[^.,;]{1,24}?\s+kala|y?[ae]\s+(?:(?:yirmi|on)\s+be[şs]|be[şs]|on|[çc]eyrek|yirmi|\d{1,2})\s+var)(?![a-zçğıöşü]))/gi;
 /** "saat 10-11 arası", "10-11 arası" — iki uçlu dakikasız Türkçe aralık (ikinci uç ayrıca okunur). */
 const BARE_RANGE_G = /(?<![\d:.,/])\b(1\d|2[0-3])\s*[-–—]\s*(1\d|2[0-3])(?![\d:.])(?=\s+(?:arası|arasında|arasi|arasinda|saatleri|saatlerinde)(?![a-zçğıöşü]))/gi;
 /**
@@ -116,20 +117,39 @@ function sharedMarker(h1: number, h2: number, marker: string): string {
   return h1 % 12 < h2 % 12 ? (pm ? "pm" : "am") : pm ? "am" : "pm";
 }
 
+/** Dakikası çözülemeyen saat anlatımı ("geçe" / "kala" her zaman saat anlatımıdır; "…'e kadar … kala" değildir). */
+const UNPARSED_CLOCK = /^\s*['’]?\s*(?:[ıiuü]\s+[^.,;]{1,24}?\s+ge[çc]e|y?[ae]\s+(?!kadar|dek)[^.,;]{1,24}?\s+kala)(?![a-zçğıöşü])/;
+/** Türkçe dakika sözcüğü / rakamı ("on geçe", "yirmi beş kala", "10 geçe"); tanınmayan ("biraz", "birkaç") → null. */
+const MINUTE_WORDS: Record<string, number> = { beş: 5, bes: 5, on: 10, onbeş: 15, onbes: 15, çeyrek: 15, ceyrek: 15, yirmi: 20, yirmibeş: 25, yirmibes: 25 };
+function minuteWord(w: string): number | null {
+  if (/^\d{1,2}$/.test(w)) return Number(w) >= 1 && Number(w) <= 59 ? Number(w) : null;
+  return MINUTE_WORDS[w.replace(/\s+/g, "")] ?? null;
+}
+const MINUTE_ALT = String.raw`(?:yirmi|on)\s+be[şs]|yirmibe[şs]|onbe[şs]|be[şs]|on|[çc]eyrek|yirmi|\d{1,2}`;
+const PAST_TAIL = /^\s*['’]?\s*[ıiuü]\s+((?:yirmi|on)\s+be[şs]|[a-zçğıöşü]+|\d{1,2})\s+ge[çc]e(?![a-zçğıöşü])/;
+// "var" genel dilde de geçer ("12'ye kadar vaktiniz var"): yalnız TANINAN dakika sözcüğüyle saat anlatımıdır; "kala" hep saat anlatımı.
+const TO_TAIL = new RegExp(String.raw`^\s*['’]?\s*y?[ae]\s+(${MINUTE_ALT})\s+(?:var|kala)(?![a-zçğıöşü])`);
 /**
- * Dakika anlatımı (Türkçe): "11 buçuk" = 11:30, "11'i çeyrek geçe" = 11:15, "12'ye çeyrek var / kala" = 11:45. Başka dakika anlatımı
- * ("11'i on geçe", "12'ye yirmi kala") çözülmez → `null`: saat HİÇ okunmaz (kurucu 09-27: "belirsiz ifadede kesin saat uydurmasın" —
- * eski okuyucu "saat 11'i çeyrek geçe"yi 11:00 okuyordu).
+ * Dakika anlatımı (Türkçe): "11 buçuk" = 11:30, "11'i çeyrek / on geçe" = 11:15 / 11:10, "12'ye çeyrek / yirmi kala" = 11:45 / 11:40.
+ * Dakikası çözülemeyen anlatım ("11'i biraz geçe", "12'ye birkaç dakika kala") → `null`: saat HİÇ okunmaz (kurucu 09-27: "belirsiz
+ * ifadede kesin saat uydurmasın" — eski okuyucu "saat 11'i çeyrek geçe"yi de "11'i on geçe"yi de 11:00 okuyordu).
  */
 function clockTail(h: number, after: string): { time: string; len: number } | null {
   const a = after.toLocaleLowerCase("tr");
   let m = /^\s+bu[çc]u[kğg][a-zçğıöşü]*/.exec(a);
   if (m) return { time: pad(h, "30"), len: m[0].length };
-  m = /^\s*['’]?\s*[ıiuü]\s+[çc]eyrek\s+ge[çc]e/.exec(a);
-  if (m) return { time: pad(h, "15"), len: m[0].length };
-  m = /^\s*['’]?\s*y?[ae]\s+[çc]eyrek\s+(?:var|kala)/.exec(a);
-  if (m) return { time: pad(h === 0 ? 23 : h - 1, "45"), len: m[0].length };
-  if (/^\s*['’]?\s*(?:[ıiuü]\s+\S+\s+ge[çc]e|y?[ae]\s+\S+\s+(?:var|kala))(?![a-zçğıöşü])/.test(a)) return null;
+  m = PAST_TAIL.exec(a);
+  if (m) {
+    const min = minuteWord(m[1]);
+    return min === null ? null : { time: pad(h, String(min).padStart(2, "0")), len: m[0].length };
+  }
+  m = TO_TAIL.exec(a);
+  if (m) {
+    const min = minuteWord(m[1]);
+    return min === null ? null : { time: pad(h === 0 ? 23 : h - 1, String(60 - min).padStart(2, "0")), len: m[0].length };
+  }
+  // Başka biçimde "geçe / kala" ("11'i birkaç dakika geçe", "12'ye az kala"): dakika yok → saat de yok.
+  if (UNPARSED_CLOCK.test(a)) return null;
   return { time: pad(h, "00"), len: 0 };
 }
 
