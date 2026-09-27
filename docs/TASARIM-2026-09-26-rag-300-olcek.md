@@ -328,3 +328,32 @@ yerden devam eder) ve 276 kalemlik cevap ölçümü. İkisi de kredi gelince, ku
 **Ölçüm modeli kuralı (kurucu 09-27):** keşif / ablasyon ucuz modelle (Luna, `rrm:gpt-6-luna+rre:none`), misafire giden her şey
 (cevap, güvenlik katmanları, son kabul) canlıdaki modelle (gpt-5.1) — örneklemle ucuzlatılır, vekil modelle ölçülmez. Aynı işin
 bu yöntemle maliyeti ~25–30 $ yerine ~8–10 $.
+
+### 6c. 09-27 ücretsiz ölçüm: geniş blokta asıl tavan PARÇA SAYISI (`rag-lab-2026-09-27-9.md`, önbellekten, SIFIR yeni çağrı)
+
+Geniş blokta (`wide` = 23k karakter / 40 parça) kaçan her cevapta blok 40 parçaya dayanmıştı ama karakterin ancak yarısı dolmuştu
+(p50 ~12k / 23k): çok sorgulu seçimde (alt sorgular + anlama sorguları + cevapsız önceki sorular) sıra-sıra seçim her listeye ~5 yer
+bırakıyor, listesinde 8.–30. sıradaki cevap sığmıyor. Parça tavanı yeniden sıralayıcıya giden isteği DEĞİŞTİRMEZ (pencere seçimden
+önce kurulur) → önbellekle birebir ölçülür. Aynı ~1.000 dev sorusu, gpt-5.1 sıralayıcı çıktıları:
+
+| yapılandırma | iki soru | tek soru TR | diğer diller | blok karakter p50 / p95 | yanıtsız soruda ort. parça | sızıntı |
+|---|---|---|---|---|---|---|
+| FINAL (`wide`, 23k / 40) | 112/120 (%93,3) | 432/441 (%98,0) | 438/441 (%99,3) | 12,1k / 14,2k | 32,5 | 0 |
+| FINAL + `mc60` | 113/120 (%94,2) | 436/441 (%98,9) | 438/441 | 18,2k / 19,8k | 46,0 | 0 |
+| **FINAL + `mc80`** | **116/120 (%96,7)** | **437/441 (%99,1)** | 438/441 (%99,3) | 23,2k / 23,6k | 52,5 | 0 |
+
+`mc80`: 9 kazanç, 0 kayıp (eşleştirilmiş). Örnek (`multi_81`): "Kişisel bakım atıklarını nerede biriktirelim? … Bir arkadaşımız bir
+gece katılabilir, ne işlem uygulanır?" — 40'ta ikinci cevap ("fazla konukta ek ücret veya iptal") blokta YOK, 80'de var. Blok boyu
+23k'da karakter bütçesi bağlar (küçük bilgi tabanının bugün zaten aldığı boy); cevap modeline istek başına ~+3k token (~0,35 sent).
+🚨 KARAR DEĞİL: (1) set GÖRÜLDÜ (dev), (2) yanıtsız soruda bloğa giren parça 32→52 — uydurma oranı ancak ücretli CEVAP ölçümüyle
+(`rag-answer`, gpt-5.1, `RAG_LAB_RPM=8`) bilinir, (3) holdout kabulü ücretli. `KB_RETRIEVAL_WIDE_MAX_CHUNKS` 40'ta KALDI; 80'e çekmek
+= kurucu onayı + kredi gelince cevap ölçümü (60 kalem, `wide` vs `wide+mc80`) + holdout.
+Kredi gelince (kurucu onayıyla; ortak önek + `RAG_LAB_RPM=8 EVAL_RAG_ANSWER_WORKERS=1`): 60 kalem
+`EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_KB=perq EVAL_RAG_ANSWER_CONFIGS=s0.25+und+e3l+wide,s0.25+und+e3l+wide+mc80` (~1–2 $) ve 276 kalem
+`EVAL_RAG_ANSWER_CONFIGS=FINAL,FINAL+mc80` (~1–2 $); açma şartı 6a'daki ile aynı (doğru sayı düşmez, yabancı sayı ve yanıtsız soruda
+desteksiz iddia artmaz). Ardından holdout kabulü seçilen yapılandırmayla.
+İstek başına 50 aday (`wper50`, sıralayıcı çıktıları 09-27 ücretli koşudan önbellekte) `mc80`in ÜSTÜNE katkı vermiyor
+(`rag-lab-2026-09-27-10.md`: iki soru 115 ↔ 116/120, TR 437 ↔ 437, diğer 439 ↔ 438) → sıralayıcı isteğini %19 büyütmeye gerek yok;
+kaldıraç parça tavanı.
+Gerçek müşteri boyutunda (soru başına 60 kalem, `EVAL_RAG_KB=perq`, sıralayıcısız — `rag-lab-2026-09-27-11.md`) de aynı yön: iki soru
+117 → 119/120, tek soru TR 439 → 441/441, diğer 437 → 439/441 (6 kazanç, 0 kayıp); yanıtsız soruda bloğa giren parça 27 → 36.
