@@ -225,7 +225,10 @@ Kalan %3,9 / %12,9'un tek kaynağı dev setine bilerek konmuş gerçek çelişki
 doğrudur. Kör bataryanın kalan iki farkı bilinçlidir: yere bağlı sessizlik kuralı ("havuz başında 22:00'den sonra müzik yasak") cümlecikte
 iki alan (havuz + sessizlik) adlandırır → hüküm yok; genel sessizlik saati sayılsaydı "sessizlik 23:00" kalemiyle sahte çelişki notu
 üretirdi (bataryada `soft`). Bilinen sınırlar: İngilizce "by 11 am" bir teslim tarihi de olabilir (çıkış sayılır); "noise" sözcüğü köke
-inerken durak sözcüğe düşüyor — saat kuralı ham sözcüğe bakıyor, retrieval tarafı ayrı iş.
+inerken durak sözcüğe düşüyor — saat kuralı ham sözcüğe bakıyor, retrieval tarafı ayrı iş. Başvuru cümleciğindeki TEK saat alanın
+değeri sayılır: "Çıkıştan sonra 12:00'de anahtarı bırakın" çıkış 12:00 okunur, çünkü aynı biçim "Check-out is at 11:00 and after
+check-out bags can stay …" / "before check-out at 11:00"te gerçek değerdir — sözcük kuralıyla ayrılamıyor (anlam katmanı işi); aralık
+ve "…'e kadar / by" ise ayrılır (↑beşinci tur).
 
 ## 5. Codex'in "sınanması gerekenler"i
 
