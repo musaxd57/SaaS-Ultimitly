@@ -13,6 +13,7 @@ import { cacheStats, OfflineMiss, RAG_LAB_CACHE } from "./rag-lab/cache";
 import { labRow, latencyLines, reportLines, type LabConfig, type LabItem, type LabQuery, type LabRow } from "./rag-lab/core";
 import { parseConfig, CAP, RR, T_PROD } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
+import { acceptanceFailures } from "./rag-lab/acceptance";
 
 // ---------------------------------------------------------------------------
 // RAG LAB — AŞAMA BAZLI KAYIP ÖLÇÜMÜ (#189, kurucu 09-26 gece modu: "300 kalemde bile ≥%95; önce ölçüyü düzeltin").
@@ -87,6 +88,8 @@ const isPaid = (c: LabConfig) => c.understanding || (c.rerank !== null && c.rera
  */
 const OFFLINE_SKIP = process.env.RAG_LAB_OFFLINE === "1" && process.env.RAG_LAB_OFFLINE_SKIP === "1";
 const skippedQs = new Set<string>();
+/** Koşudan ÖNCE hesaplanan beklenen satır sayısı `${küme}|${boyut}|${yapılandırma}` → soru (kabul kapısının "eksiksiz koşu" ölçüsü). */
+const expectedRows = new Map<string, number>();
 
 describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + önbellekli model)", () => {
   const rows: LabRow[] = [];
@@ -95,6 +98,8 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
   let finished = 0;
   let started = 0;
   let complete = true;
+  /** Holdout kabul kapısının sonucu (holdout koşulmadıysa null; boş dizi = kabul). */
+  let acceptance: string[] | null = null;
   beforeAll(() => {
     process.env.AI_UNDERSTANDING_ENABLED = "1";
     __resetKbIndexCache();
@@ -119,6 +124,7 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
     const stamp = new Date().toISOString().slice(0, 10);
     const meta = {
       commit,
+      ...(acceptance ? { "holdout kabulü": acceptance.length === 0 ? "GEÇTİ (her grup ≥ %95 · sızıntı 0 · koşu tam)" : acceptance } : {}),
       gömme: embeddingModel(),
       model: semanticModel(),
       "canlı eşik": T_PROD,
@@ -152,6 +158,8 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
         seen.set(q.group, n + 1);
         return n % SAMPLE === 0;
       });
+      const ek = `${kbName}|${size}|${cfg.name}`;
+      expectedRows.set(ek, (expectedRows.get(ek) ?? 0) + qs.length);
       let i = 0;
       await Promise.all(
         Array.from({ length: WORKERS }, async () => {
@@ -173,6 +181,8 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
 
   it.skipIf(!KBS.has("scale") && !KBS.has("holdout"))("gerçekçi ayrı olgu seti (dev / holdout)", async () => {
     started += 1;
+    /** Holdout'un TAM grup sayıları (örnekleme / ücretli grup süzgecinden ÖNCE) — boyut başına. */
+    const holdoutGroups = new Map<number, Map<string, number>>();
     for (const split of ["dev", "holdout"] as const) {
       if (!KBS.has(split === "dev" ? "scale" : "holdout")) continue;
       const file = loadScaleFile(split);
@@ -180,10 +190,26 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
       for (const size of SCALE_SIZES) {
         const { items, queries } = buildScaleLab(file, size || undefined);
         await runSet(split === "dev" ? "scale-dev" : "scale-holdout", size || items.length, items, queries);
+        if (split === "holdout") {
+          const counts = new Map<string, number>();
+          for (const q of queries) counts.set(q.group, (counts.get(q.group) ?? 0) + 1);
+          holdoutGroups.set(size || items.length, counts);
+        }
       }
     }
     finished += 1;
     expect(rows.length).toBeGreaterThan(0);
+    if (holdoutGroups.size > 0) {
+      // 🚨 KABUL KAPISI (Codex 09-27): holdout yalnız son kabul içindir ve koşulan HER yapılandırma için her grup ≥ %95 (iki
+      // sorulu mesaj dahil) + sızıntı 0 + eksiksiz koşu (örnekleme, ücretli grup süzgeci, önbellek alt kümesi, düşen çağrı YOK).
+      // Sağlanmazsa eval KIRMIZI; rapor yine yazılır (sayılar + kabul satırı). İçerik okunmaz — yalnız toplu sayılar.
+      acceptance = [];
+      for (const [size, counts] of holdoutGroups) {
+        const expected = new Map([...expectedRows].filter(([k]) => k.startsWith(`scale-holdout|${size}|`)));
+        acceptance.push(...acceptanceFailures({ rows, expected, kb: "scale-holdout", fullGroupCounts: counts }));
+      }
+      expect(acceptance).toEqual([]);
+    }
   }, 120 * 60_000);
 
   it.skipIf(!KBS.has("perq"))("gerçek müşteri boyutu: soru başına N kalemlik bilgi tabanı (dev)", async () => {
