@@ -283,6 +283,11 @@ Tüm koşular gpt-5.1 (anlama + yeniden sıralayıcı; `AI_SEMANTIC_MODEL` boş 
 Luna daha hızlı ve ~8–12 kat ucuz, doğrulukta gpt-5.1'in 2–3 soru gerisinde (`minimal` bu modelde desteklenmiyor, 400). Sıralayıcı
 için üretim anahtarı YAZILMADI (kurucu kararı; öneri: bugünkü hacimde gpt-5.1 kalsın).
 
+**Düşünme kaybı yavaşlıktan mı? (kurucu: "Luna'ya reasoning eklesek 5.1'den iyi olmaz mı?")** Aynı üç koşu süre tavanı 9 sn ile
+önbellekten yeniden hesaplandı (`rag-lab-2026-09-27-8.md`, SIFIR yeni çağrı): gpt-5.1 111/120 · 432/441 · 438/441 · Luna `low`
+111 · 429 · 436 · Luna `none` 108 · 430 · 438. Süre sınırı kalksa da `low` iki soruda ancak eşit, tek soruda 2–3 soru geride;
+p95'i (2,8 sn) canlının 2,5 sn tavanını aşar. `medium`/`high` ölçülmedi (her kademe daha yavaş; kazanç beklentisi yok).
+
 **Maliyet:** adım 0 + 1 ≈ 11–12 $ (1.733 sıralama + ~400 anlama çağrısı, istek ~15–17 bin karakter); tahmin (~4 $) grup başına
 111 soruluk örneklemeye göreydi, tam set 441 soru. Luna koşuları ≈ 1–2 $. Canlıda soru başına ek maliyet: tek soru ~0,5 sent, iki
 soru ~1–1,5 sent (gpt-5.1).
