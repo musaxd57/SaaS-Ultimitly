@@ -179,10 +179,11 @@ describe("rag-lab — pencere kuruluşu ve gecikme tablosu", () => {
 
   it("gecikme: yalnız süresi kayıtlı çağrılar sayılır, yoksa tire; başarısız / tavanı aşan çağrı ayrı sayılır", () => {
     const row = (config: string, rrMs: number | null, rr = "ok"): LabRow =>
-      ({ kb: "k", size: 1, config, qid: "q", group: "g", cls: "c", lang: "tr", inBlock: true, answers: [], fb: "none", sem: "ok", rr, blockChars: 100, selected: 1, negChunks: 0, leak: false, conflictNote: false, rrMs, rrChars: rrMs === null ? 0 : 350 }) as LabRow;
-    const lines = latencyLines([row("a", 100), row("a", 300), row("a", 200), row("b", null), row("b", null, "failed")]);
+      ({ kb: "k", size: 1, config, qid: "q", group: "g", cls: "c", lang: "tr", inBlock: true, answers: [], fb: "none", sem: "ok", rr, blockChars: 100, selected: 1, negChunks: 0, leak: false, conflictNote: false, rrMs, rrChars: rrMs === null ? 0 : 350, rrErrors: rr === "failed" ? 1 : 0 }) as LabRow;
+    // "deadline" (döndü ama tavanı aştı) da bu sütuna girer — ikisi de üretimde bugünkü sıra demektir (A9 09-27 ayrımı kapı içindir).
+    const lines = latencyLines([row("a", 100), row("a", 300), row("a", 200), row("b", null), row("b", null, "failed"), row("b", null, "deadline")]);
     expect(lines.find((l) => l.includes("| a |"))).toBe("| k | 1 | a | 3 | 0 | 200 | 300 | 350 | 100 |");
-    expect(lines.find((l) => l.includes("| b |"))).toBe("| k | 1 | b | 0 | 1 | — | — | 0 | 100 |");
+    expect(lines.find((l) => l.includes("| b |"))).toBe("| k | 1 | b | 0 | 2 | — | — | 0 | 100 |");
   });
 });
 
