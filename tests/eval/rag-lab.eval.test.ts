@@ -13,7 +13,7 @@ import { cacheStats, OfflineMiss, RAG_LAB_CACHE } from "./rag-lab/cache";
 import { labRow, latencyLines, reportLines, type LabConfig, type LabItem, type LabQuery, type LabRow } from "./rag-lab/core";
 import { parseConfig, CAP, RR, T_PROD } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
-import { acceptanceFailures } from "./rag-lab/acceptance";
+import { holdoutVerdict } from "./rag-lab/acceptance";
 
 // ---------------------------------------------------------------------------
 // RAG LAB — AŞAMA BAZLI KAYIP ÖLÇÜMÜ (#189, kurucu 09-26 gece modu: "300 kalemde bile ≥%95; önce ölçüyü düzeltin").
@@ -98,8 +98,8 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
   let finished = 0;
   let started = 0;
   let complete = true;
-  /** Holdout kabul kapısının sonucu (holdout koşulmadıysa null; boş dizi = kabul). */
-  let acceptance: string[] | null = null;
+  /** Holdout geçerliliği + sızıntı (holdout koşulmadıysa null); oranlar yalnız bilgi. */
+  let holdout: { failures: string[]; rates: string[] } | null = null;
   beforeAll(() => {
     process.env.AI_UNDERSTANDING_ENABLED = "1";
     __resetKbIndexCache();
@@ -124,7 +124,12 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
     const stamp = new Date().toISOString().slice(0, 10);
     const meta = {
       commit,
-      ...(acceptance ? { "holdout kabulü": acceptance.length === 0 ? "GEÇTİ (her grup ≥ %95 · sızıntı 0 · koşu tam)" : acceptance } : {}),
+      ...(holdout
+        ? {
+            "holdout geçerlilik + sızıntı": holdout.failures.length === 0 ? "GEÇERLİ (sızıntılı vaka 0 · sızıntı grupları koşuldu · koşu tam)" : holdout.failures,
+            "holdout oranları (bilgi, kapı değil — kabul cevap düzeyinde)": holdout.rates,
+          }
+        : {}),
       gömme: embeddingModel(),
       model: semanticModel(),
       "canlı eşik": T_PROD,
@@ -200,15 +205,17 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
     finished += 1;
     expect(rows.length).toBeGreaterThan(0);
     if (holdoutGroups.size > 0) {
-      // 🚨 KABUL KAPISI (Codex 09-27): holdout yalnız son kabul içindir ve koşulan HER yapılandırma için her grup ≥ %95 (iki
-      // sorulu mesaj dahil) + sızıntı 0 + eksiksiz koşu (örnekleme, ücretli grup süzgeci, önbellek alt kümesi, düşen çağrı YOK).
-      // Sağlanmazsa eval KIRMIZI; rapor yine yazılır (sayılar + kabul satırı). İçerik okunmaz — yalnız toplu sayılar.
-      acceptance = [];
+      // 🚨 HOLDOUT (kurucu kararı 09-27): getirme düzeyinde KIRMIZI yapan yalnız sızıntılı vaka + ölçülmemiş sızıntı + eksik koşu;
+      // oranlar (hedef %95) bilgi satırıdır. KABUL cevap düzeyindedir (`rag-answer`: vaka başına müşteriye giden sonuç).
+      // Rapor her durumda yazılır; içerik okunmaz — yalnız toplu sayılar ve vaka kimlikleri.
+      holdout = { failures: [], rates: [] };
       for (const [size, counts] of holdoutGroups) {
         const expected = new Map([...expectedRows].filter(([k]) => k.startsWith(`scale-holdout|${size}|`)));
-        acceptance.push(...acceptanceFailures({ rows, expected, kb: "scale-holdout", fullGroupCounts: counts }));
+        const v = holdoutVerdict({ rows, expected, kb: "scale-holdout", fullGroupCounts: counts });
+        holdout.failures.push(...v.failures);
+        holdout.rates.push(...v.rates);
       }
-      expect(acceptance).toEqual([]);
+      expect(holdout.failures).toEqual([]);
     }
   }, 120 * 60_000);
 
