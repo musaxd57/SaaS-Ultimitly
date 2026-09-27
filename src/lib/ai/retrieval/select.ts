@@ -324,8 +324,6 @@ export function pendingGuestMessages(
   return out;
 }
 
-const SUBQUERY_SPLIT = /[?\n;,]+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i;
-
 /**
  * ZAYIF SORGU KÖKLERİ: tek başına bir parçayı ADAY yapmaz (BM25 puanına yine
  * girer). "Jakuzi var mı?" sorusunda "var", "vardır" içeren her parçayı
@@ -360,15 +358,46 @@ export const WEAK_QUERY_TERMS = new Set([
  */
 const WEAK_QUERY_WEIGHT = 0.25;
 
-/** Misafir mesajını alt sorgulara böl (çok soru → her biri ayrı retrieval). */
+/**
+ * SERT bölücü (soru işareti / satır / ";") ve YUMUŞAK bölücü (virgül / bağlaç). İkisi art arda eski tek bölücüyle
+ * (`/[?\n;,]+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i`) AYNI parçaları aynı sırayla verir.
+ */
+const HARD_SPLIT = /[?\n;]+/;
+const SOFT_SPLIT = /,+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i;
+
+/**
+ * Misafir mesajını alt sorgulara böl (çok soru → her biri ayrı retrieval). En fazla `MAX_SUBQUERIES`.
+ * 🚨 09-27 (#208, A5 F3 / B6): tavan aşılınca eskiden İLK dört parça alınıyordu → virgüllü bir liste ("Temiz havlu, yedek çarşaf,
+ * ek yastık ve kalın battaniye nerede? Wifi şifresi ne?") dört yuvayı doldurup ARKADAN gelen soruyu hiç sorgulatmıyordu; V01'de ilk
+ * sorunun üç cümleciği ikinci sorunun çamaşır ipi cümleciğini tavanın dışına itiyordu. Artık yuvalar SERT bölümler (soru işareti /
+ * satır / ";") arasında SIRAYLA, eşit dağıtılır; bölüm içinde cümlecikler yazıldığı sırayla alınır. Tavan aşılmıyorsa parçalar ve
+ * sıraları BİREBİR eskisi. Ölçüldü (rag-lab çevrimdışı, 60 kalem, dev): sözcüksel çok soru 42 → 45 (+3 / −0); bölüm içinde "soru
+ * biçimli cümlecik önce" ve "içerikli cümlecik önce" sezgileri de denendi, bağlam cümleciğini ("dört kişi geleceğiz") düşürüp kayıp
+ * verdi → REDDEDİLDİ; taşan cümleciği son yuvaya birleştirmek çevrimdışı ölçülemedi (gömme önbelleği yok) → seçilmedi.
+ */
 export function splitQuestions(message: string): string[] {
   const norm = normalizeForRetrieval(message);
-  const parts = norm
-    .split(SUBQUERY_SPLIT)
-    .map((p) => p.trim())
-    .filter((p) => p.length >= 3 && contentStems(p).length > 0);
-  if (parts.length === 0) return contentStems(norm).length > 0 ? [norm] : [];
-  return parts.slice(0, MAX_SUBQUERIES);
+  const keep = (p: string) => p.length >= 3 && contentStems(p).length > 0;
+  const segs = norm
+    .split(HARD_SPLIT)
+    .map((seg) => seg.split(SOFT_SPLIT).map((p) => p.trim()).filter(keep))
+    .filter((s) => s.length > 0);
+  const total = segs.reduce((n, s) => n + s.length, 0);
+  if (total === 0) return contentStems(norm).length > 0 ? [norm] : [];
+  if (total <= MAX_SUBQUERIES) return segs.flat();
+  const quota = segs.map(() => 0);
+  let left = MAX_SUBQUERIES;
+  while (left > 0) {
+    let gave = false;
+    for (let i = 0; i < segs.length && left > 0; i++) {
+      if (quota[i] >= segs[i].length) continue;
+      quota[i] += 1;
+      left -= 1;
+      gave = true;
+    }
+    if (!gave) break;
+  }
+  return segs.flatMap((s, i) => s.slice(0, quota[i]));
 }
 
 /** Gömülecek sorgu metninin tavanı (misafir mesajı QR'da zaten 2.000'de kırpılı gelir). */
@@ -748,23 +777,28 @@ function fallbackFront<T extends KbChunkSource>(
   return { items: [...frontItems, ...rest], count: front.length, added };
 }
 
-/** Konu kapsanmış mı: ek sorgunun EN İYİ adayı, özgün bir sorgunun ilk bu kadar adayından BİRİNİN KENDİSİYSE. */
+/** Konu kapsanmış mı: ek sorgunun İLK bu kadar adayının HEPSİ, özgün sorguların ilk bu kadar adayı içindeyse. */
 const REDUNDANT_EXTRA_TOP = 3;
 
 /**
  * Özgün sorguların zaten kapsadığı konuyu tekrar eden ek sorgular (seçimde pay almaz). Kıyas PARÇA düzeyinde
  * (son denetim 09-24): kalem kimliğiyle kıyas, çok parçalı bir kılavuzun wifi bölümü özgün soruda çıkınca AYNI
  * kılavuzun evcil hayvan bölümünü soran ek sorguyu da "tekrar" sayıp düşürüyordu.
+ * 09-27 (#208, hata ayıklama ajanları A6 #1 + B5): (a) karar yeniden sıralamadan ÖNCEKİ liste başlarıyla verilir — yeniden
+ * sıralayıcının "cevaplıyor" işareti başka bir sorunun kalemini (makineyi de anan wifi kalemi) ek sorgunun başına taşıyıp o
+ * sorunun listesini tamamen düşürüyordu; (b) ek sorgu ancak ilk adaylarının HEPSİ zaten özgün sorguların başındaysa tekrar sayılır
+ * — tek ortak baş aday yetmez ("sıcak hamur işi" → "Sıcak Su" rehberi iki listenin de başındaydı, cevabı taşıyan liste
+ * eleniyordu; 240 soruda kural kapalıyken 8 kazanç, 2 kayıp ölçülmüştü).
  */
-function redundantExtraQueries(ranked: readonly (readonly Candidate[])[], isExtra: readonly boolean[]): Set<number> {
+function redundantExtraQueries(heads: readonly (readonly number[])[], isExtra: readonly boolean[]): Set<number> {
   const ownTop = new Set<number>();
-  ranked.forEach((list, qi) => {
+  heads.forEach((head, qi) => {
     if (isExtra[qi]) return;
-    for (const c of list.slice(0, REDUNDANT_EXTRA_TOP)) ownTop.add(c.idx);
+    for (const idx of head) ownTop.add(idx);
   });
   const out = new Set<number>();
-  ranked.forEach((list, qi) => {
-    if (isExtra[qi] && list.length > 0 && ownTop.has(list[0].idx)) out.add(qi);
+  heads.forEach((head, qi) => {
+    if (isExtra[qi] && head.length > 0 && head.every((idx) => ownTop.has(idx))) out.add(qi);
   });
   return out;
 }
@@ -835,6 +869,8 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       }),
     );
     const ranked = rankedAll.map((r) => r.cands);
+    // "Tekrar eden ek sorgu" kararı yeniden sıralamadan ÖNCEKİ liste başlarıyla verilir (↓`redundantExtraQueries`).
+    const preRerankHeads = ranked.map((list) => list.slice(0, REDUNDANT_EXTRA_TOP).map((c) => c.idx));
     input.onCandidates?.(
       ranked.map((list) => list.map((c) => ({ id: index.chunks[c.idx].id, key: chunkKey(index.chunks[c.idx]) }))),
       queries.map((q) => ({ extra: q.extra === true, ...(q.request !== undefined ? { request: q.request } : {}) })),
@@ -897,10 +933,10 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const xs = input.strategy?.extraShare;
     const extraShare = typeof xs === "number" && xs >= 0 && xs <= 1 ? xs : EXTRA_QUERY_SHARE;
     const extraQuota = Math.floor(maxChunks * extraShare);
-    // AYNI KONUYU TEKRAR EDEN ek sorgu payı yemez (ikinci inceleme 09-24): en iyi adayı, özgün bir sorgunun ilk
-    // adaylarından birinin KALEMİYSE konu zaten kapsanmıştır ("Wifi?" + "wifi şifresi" + "WLAN Passwort" üçü
-    // de wifi kalemlerini seçip evcil hayvan sorusunu dışarıda bırakıyordu).
-    const skipExtra = uq > 0 ? redundantExtraQueries(ranked, isExtra) : new Set<number>();
+    // AYNI KONUYU TEKRAR EDEN ek sorgu payı yemez (ikinci inceleme 09-24): ilk adaylarının HEPSİ özgün sorguların ilk
+    // adayları içindeyse (yeniden sıralamadan ÖNCE, 09-27) konu zaten kapsanmıştır ("Wifi?" + "wifi şifresi" + "WLAN
+    // Passwort" üçü de wifi kalemlerini seçip evcil hayvan sorusunu dışarıda bırakıyordu).
+    const skipExtra = uq > 0 ? redundantExtraQueries(preRerankHeads, isExtra) : new Set<number>();
     let extraPicked = 0;
     // Deney `answersFirst`: modelin "cevaplıyor" dediği parçalar (sıralanmış listelerin öneki) sırayla ÖNCE alınır — ek sorgu
     // payına sayılmaz, tekrar kuralı uygulanmaz (model doğruladı); kalem başına tavan aynen.

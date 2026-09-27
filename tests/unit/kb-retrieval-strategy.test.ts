@@ -175,10 +175,11 @@ describe("cevaplar önce (answersFirst) — yeniden sıralayıcının 'cevaplıy
     });
   };
 
-  it("KONTROL (bugünkü davranış): işaretli ama yalnız ek sorgudan gelen parça bloğa girmez", () => {
+  it("🚨 09-27 (#208): 'tekrar' kararı yeniden sıralamadan ÖNCEKİ baş adaylarla → işaretli ek-sorgu parçası varsayılan yolda da girer", () => {
+    // Eskiden bu KONTROL kusuru sabitliyordu (bisiklet girmiyordu). Artık ek sorgunun ilk adayları özgün sorgunun başında olmadığı
+    // için ek sorgu tekrar sayılmaz, bisiklet ek sorgu payından girer.
     const ids = run().items.map((i) => i.id);
-    expect(ids).toEqual(expect.arrayContaining(["wifi", "park", "park2"]));
-    expect(ids).not.toContain("bike");
+    expect(ids).toEqual(expect.arrayContaining(["wifi", "park", "park2", "bike"]));
   });
 
   it("🚨 answersFirst: işaretli parçalar önce alınır — yalnız ek sorgudan gelen cevap da bloğa girer", () => {
@@ -193,9 +194,11 @@ describe("cevaplar önce (answersFirst) — yeniden sıralayıcının 'cevaplıy
     expect(run({ extraShare: 0 }).items.map((i) => i.id)).not.toContain("bike");
   });
 
-  it("YALNIZ 'cevaplıyor' (3) öne alınır — 'ilgili' (2) işaretli ek-sorgu parçası kurtarılmaz", () => {
+  it("YALNIZ 'cevaplıyor' (3) öne alınır — 'ilgili' (2) işaretli ek-sorgu parçası kurtarılmaz (ek sorgu payı 0)", () => {
     const related = new Map([...rerankScores].map(([k, v]) => [k, k === "bike#0" ? 2 : v] as const));
-    expect(run({ answersFirst: true }, related).items.map((i) => i.id)).not.toContain("bike");
+    expect(run({ answersFirst: true, extraShare: 0 }, related).items.map((i) => i.id)).not.toContain("bike");
+    // KONTROL: aynı pay ile "cevaplıyor" (3) öne alınır.
+    expect(run({ answersFirst: true, extraShare: 0 }).items.map((i) => i.id)).toContain("bike");
   });
 
   it("puan yoksa seçenek etkisiz (sonuç birebir)", () => {
