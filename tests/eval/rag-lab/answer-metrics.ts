@@ -19,6 +19,23 @@ export function replyHasAnchor(reply: string, anchors: readonly string[]): boole
 }
 
 /**
+ * CEVAP BAŞINA sayısal çapa isabeti (Codex 09-27): iki sorulu mesajda "herhangi bir çapa" başarı SAYILMAZ — yalnız birinci sorunun
+ * saatini söyleyen yanıt ikinci soruyu cevaplamamıştır. Sayı taşıyan HER cevabın KENDİ sayılarından en az biri yanıtta olmalı.
+ * `anchored` = sayı taşıyan cevap sayısı, `hit` = yanıtta sayısı geçen cevap sayısı, `all` = hepsi (sayılı cevap yoksa null).
+ */
+export function answerAnchorHits(reply: string, answers: readonly { needles: readonly string[] }[]): { anchored: number; hit: number; all: boolean | null } {
+  let anchored = 0;
+  let hit = 0;
+  for (const a of answers) {
+    const own = numericAnchors(a.needles[0] ?? "");
+    if (own.length === 0) continue;
+    anchored += 1;
+    if (replyHasAnchor(reply, own)) hit += 1;
+  }
+  return { anchored, hit, all: anchored > 0 ? hit === anchored : null };
+}
+
+/**
  * YABANCI SAYI (#189 geniş blok riski: "uzun blokta cevap modeli yanlış olguya sapar mı"): cevabın söylediği ama DAYANAĞI
  * BİLİNEN kaynaklarda (cevap cümleleri · mülk alanları · misafirin kendi yazdığı) OLMAYAN sayısal çapalar. Yanıtsız soruda
  * bilgi bloğundaki BAŞKA bir kalemin sayısını söylemek iddia denetiminde "dayanaklı" görünür (sayı bağlamda var) — bu ölçü onu

@@ -380,3 +380,7 @@ Gerçek müşteri boyutunda (soru başına 60 kalem, `EVAL_RAG_KB=perq`, sırala
   aynı (0 fark). Tek yaklaşık fark "Bugün" satırının DAKİKASI (cevaplar 27.09 ~11–13 İstanbul'da üretildi). Doğrulama: sahte anahtar +
   yalnız-önbellek kipiyle rapor yeniden üretildi, tablo BİREBİR aynı (`wide` → `wide+mc40` adıyla). Eski ara koşunun 317 girdisi (artık
   üretilmeyen girdiler) sayılmaz. Sonuç: 6c'deki 60 kalemlik kıyasın `wide+mc40` kolu önbellekte — yalnız `wide` (80) kolu ücretli.
+- **İki sorulu cevapta her soru AYRI (Codex 09-27, `answerAnchorHits`):** "sayı cevapta" herhangi bir çapayla başarı sayıyordu —
+  yalnız birinci sorunun saatini söyleyen yanıt da. Artık sayı taşıyan HER cevabın kendi sayısı yanıtta olmalı; ayrıca cevap düzeyi
+  sütunu. Aynı 552 cevabın ücretsiz yeniden puanlaması (`rag-answer-2026-09-27-2.md`): iki soru taban 34 → **31**/46, geniş (40)
+  36 → **33**/46; cevap düzeyinde 41/57 ve 44/57 — her kolda 3 mesaj yarım cevapla başarı sayılıyordu.

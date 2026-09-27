@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { foreignNumbers, numericAnchors, replyHasAnchor } from "../eval/rag-lab/answer-metrics";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { answerAnchorHits, foreignNumbers, numericAnchors, replyHasAnchor } from "../eval/rag-lab/answer-metrics";
 import { parseConfig } from "../eval/rag-lab/config";
 import { KB_RETRIEVAL_WIDE_CHAR_BUDGET, KB_RETRIEVAL_WIDE_MAX_CHUNKS } from "@/lib/ai/limits";
 
@@ -16,6 +18,34 @@ describe("sayısal çapalar", () => {
     expect(replyHasAnchor("Giriş saati 15:00'tir.", ["15.00"])).toBe(true);
     expect(replyHasAnchor("Ücret 115.00 TL.", ["15.00"])).toBe(false);
     expect(replyHasAnchor("Kod 4821.", ["48"])).toBe(false);
+  });
+});
+
+describe("iki sorulu mesaj — her sorunun cevabı AYRI eşleşir (Codex 09-27)", () => {
+  const answers = [{ needles: ["Giriş saati 15:00'tir."] }, { needles: ["Otopark günlük 250 TL'dir."] }];
+
+  it("🚨 yalnız bir sorunun sayısını söyleyen yanıt BAŞARI DEĞİL (eskiden herhangi bir çapa yetiyordu)", () => {
+    const reply = "Giriş 15:00'te yapılır.";
+    expect(replyHasAnchor(reply, answers.flatMap((a) => numericAnchors(a.needles[0])))).toBe(true); // eski ölçü: başarı
+    expect(answerAnchorHits(reply, answers)).toEqual({ anchored: 2, hit: 1, all: false });
+  });
+
+  it("iki cevabın sayısı da yanıtta → başarı; sayı sınırı korunur (115.00 ≠ 15.00)", () => {
+    expect(answerAnchorHits("Giriş 15:00, otopark günlük 250 TL.", answers)).toEqual({ anchored: 2, hit: 2, all: true });
+    expect(answerAnchorHits("Ücret 115.00; otopark 250 TL.", answers)).toEqual({ anchored: 2, hit: 1, all: false });
+  });
+
+  it("sayı taşımayan cevap sayılmaz; hiç sayılı cevap yoksa hüküm yok (null)", () => {
+    const mixed = [{ needles: ["Havlular dolapta."] }, { needles: ["Çıkış 11:00."] }];
+    expect(answerAnchorHits("Çıkış 11:00.", mixed)).toEqual({ anchored: 1, hit: 1, all: true });
+    expect(answerAnchorHits("Havlular dolapta.", [{ needles: ["Havlular dolapta."] }])).toEqual({ anchored: 0, hit: 0, all: null });
+  });
+
+  it("bağlantı: cevap ölçeri mesaj başarısını `answerAnchorHits(...).all` ile verir (kaynak pini — ücretli koşu burada sınanamaz)", () => {
+    const src = readFileSync(path.resolve(__dirname, "../eval/rag-answer.eval.test.ts"), "utf8");
+    expect(src).toMatch(/const hits = answerAnchorHits\(out\.reply, q\.answers\);/);
+    expect(src).toMatch(/anchorHit: hits\.all,/);
+    expect(src).not.toMatch(/replyHasAnchor\(out\.reply, anchors\)/);
   });
 });
 

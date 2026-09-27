@@ -12,7 +12,7 @@ import { replyCacheKey } from "./rag-lab/cache-keys";
 import { runPipeline, type LabQuery } from "./rag-lab/core";
 import { parseConfig } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
-import { foreignNumbers, numericAnchors, replyHasAnchor } from "./rag-lab/answer-metrics";
+import { answerAnchorHits, foreignNumbers } from "./rag-lab/answer-metrics";
 import { writeSidecar } from "./sidecar";
 
 // ---------------------------------------------------------------------------
@@ -61,8 +61,13 @@ interface AnswerRow {
   /** Cevap modeli yeniden denemelere rağmen cevap üretemedi (429 / arıza) → ölçüye girmez, raporda GEÇERSİZ sayılır. */
   invalid?: boolean;
   inBlock: boolean;
+  /** Sayı taşıyan en az bir cevap var. */
   anchored: boolean;
+  /** Sayı taşıyan HER cevabın kendi sayısı yanıtta (iki sorulu mesajda ikisi de; Codex 09-27). */
   anchorHit: boolean | null;
+  /** Cevap düzeyi: sayı taşıyan cevap sayısı / yanıtta sayısı geçen cevap sayısı. */
+  anchoredAnswers?: number;
+  anchorHits?: number;
   missing: boolean;
   unsupported: number;
   handoff: boolean;
@@ -105,21 +110,23 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
       `- commit: ${commit} · küme: ${SPLIT} · grup başına en çok ${PER_GROUP} soru · bilgi tabanı: ${KB_MODE === "perq" ? `soru başına ${PERQ_SIZE} kalem` : "tüm küme"}`,
       `- geçerli cevap: ${rows.length - invalid.length} · üretilemeyen (yeniden denemeden sonra): ${invalid.length} · eşleştirilmiş soru: ${paired.size}`,
       "",
-      "Ölçü: blokta = cevap cümlesi bilgi bloğunda · sayılı = cevap cümlesi sayı taşıyan soru · sayı cevapta = sayılı soruda",
-      "cevabın sayılardan en az birini söylemesi · bilgim-yok = cevabın kendi yokluk itirafı · devir = cevap modelinin devir",
+      "Ölçü: blokta = cevap cümlesi bilgi bloğunda · sayılı = cevap cümlesi sayı taşıyan soru · sayı cevapta = sayı taşıyan HER",
+      "cevabın kendi sayısı yanıtta (iki sorulu mesajda İKİSİ de; 09-27'ye kadar herhangi biri yetiyordu) · cevap düzeyi = sayı taşıyan",
+      "cevaplardan yanıtta sayısı geçenler / hepsi · bilgim-yok = cevabın kendi yokluk itirafı · devir = cevap modelinin devir",
       "niyeti · desteksiz iddia = üretimin iddia denetiminde verisiz somut iddia taşıyan cevap (yanıtsız soruda uydurma) · yabancı",
       "sayı = cevap cümlelerinde / mülk alanlarında / misafirin yazdığında olmayan sayıyı söyleyen cevap (yalnız eşleştirilmiş fark).",
       "",
-      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | bilgim-yok | devir | desteksiz iddia | yabancı sayı |",
-      "|---|---|---|---|---|---|---|---|---|---|",
+      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | cevap düzeyi | bilgim-yok | devir | desteksiz iddia | yabancı sayı |",
+      "|---|---|---|---|---|---|---|---|---|---|---|",
     ];
     for (const cfg of CONFIGS) {
       for (const g of GROUPS) {
         const rs = rows.filter((r) => r.config === cfg.name && r.group === g && !r.invalid && paired.has(r.qid));
         if (rs.length === 0) continue;
         const anchored = rs.filter((r) => r.anchored);
+        const perAnswer = `${rs.reduce((n, r) => n + (r.anchorHits ?? 0), 0)}/${rs.reduce((n, r) => n + (r.anchoredAnswers ?? 0), 0)}`;
         lines.push(
-          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} | ${rs.filter((r) => r.foreign).length} |`,
+          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${perAnswer} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} | ${rs.filter((r) => r.foreign).length} |`,
         );
       }
     }
@@ -176,14 +183,17 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
               rows.push({ config: cfg.name, qid: q.id, group: q.group, invalid: true, inBlock: false, anchored: false, anchorHit: null, missing: false, unsupported: 0, handoff: false, foreign: false });
               continue;
             }
-            const anchors = q.answers.flatMap((a) => numericAnchors(a.needles[0] ?? ""));
+            // Cevap BAŞINA (Codex 09-27): iki sorulu mesajda yalnız bir sorunun sayısını söyleyen yanıt başarı değildir.
+            const hits = answerAnchorHits(out.reply, q.answers);
             rows.push({
               config: cfg.name,
               qid: q.id,
               group: q.group,
               inBlock: q.answers.length > 0 && q.answers.every((a) => a.needles.some((n) => run.text.includes(n))),
-              anchored: anchors.length > 0,
-              anchorHit: anchors.length > 0 ? replyHasAnchor(out.reply, anchors) : null,
+              anchored: hits.anchored > 0,
+              anchorHit: hits.all,
+              anchoredAnswers: hits.anchored,
+              anchorHits: hits.hit,
               missing: admitsMissingKnowledge(out.reply),
               unsupported: out.u,
               handoff: out.intent === "human_request",
