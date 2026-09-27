@@ -32,6 +32,7 @@ vi.mock("@/lib/import/sync", async (orig) => ({
 }));
 
 import { syncCalendarSource } from "@/lib/import/sync";
+import { suggestReply } from "@/lib/ai";
 import { PATCH as kbPatch } from "@/app/api/kb/[id]/route";
 import { POST as kbCopy } from "@/app/api/kb/[id]/copy/route";
 import { PATCH as resPatch, DELETE as resDelete } from "@/app/api/reservations/[id]/route";
@@ -94,6 +95,7 @@ async function seedVictim() {
 
 describe("kiracılar arası yalıtım — sekiz tutamaç, davranışsal", () => {
   let v: Awaited<ReturnType<typeof seedVictim>>;
+  let attackerPropertyId: string;
 
   beforeEach(async () => {
     await resetDb();
@@ -104,15 +106,19 @@ describe("kiracılar arası yalıtım — sekiz tutamaç, davranışsal", () => 
     const attacker = await prisma.user.create({
       data: { organizationId: attackerOrg.id, name: "b", email: "b@x.com", passwordHash: "x", role: "owner" },
     });
-    await prisma.property.create({ data: { organizationId: attackerOrg.id, name: "B-1" } });
+    attackerPropertyId = (await prisma.property.create({ data: { organizationId: attackerOrg.id, name: "B-1" } })).id;
     session = owner(attackerOrg.id, attacker.id);
   });
 
-  const notOk = (status: number) => expect(status >= 200 && status < 300, `durum ${status}`).toBe(false);
+  // 🚨 #211 (gece güvenlik turu, S1 B2): eskiden "2xx değil" yetiyordu → kapsam kontrolü silinse bile BAŞKA bir hata (boş hedef
+  // listesinin 400'ü, sahte modelin fırlattığı hatanın 500'ü) testi geçiriyordu. Ret KAPSAMDAN gelmeli: 404 (kaynak "yok") ya da
+  // kapsamlı aramanın boş dönmesine verilen 403 (rotate-ical); saldırgan sahip rolünde, rol reddi olamaz.
+  const notOk = (status: number) => expect([403, 404], `durum ${status} (kapsam reddi olmalı)`).toContain(status);
 
   it("🚨 B kiracısı A'nın kaynaklarını ne okuyabilir ne değiştirebilir", async () => {
     notOk((await kbPatch(json({ content: "ele gecirildi" }), ctx(v.kb.id))).status);
-    notOk((await kbCopy(json({ targetPropertyIds: [] }), ctx(v.kb.id))).status);
+    // Gerçek saldırı: A'nın kaydını B'nin KENDİ dairesine kopyalamak (boş hedef listesi kapsam silinse de 400 alırdı).
+    notOk((await kbCopy(json({ targetPropertyIds: [attackerPropertyId] }), ctx(v.kb.id))).status);
     notOk((await resPatch(json({ notes: "ele gecirildi" }), ctx(v.reservation.id))).status);
     notOk((await resDelete(bare(), ctx(v.reservation.id))).status);
     notOk((await calSync(bare(), ctx(v.source.id))).status);
@@ -124,10 +130,12 @@ describe("kiracılar arası yalıtım — sekiz tutamaç, davranışsal", () => 
     notOk((await convPatch(json({ status: "closed" }), ctx(v.conversation.id))).status);
     notOk((await convDelete(bare(), ctx(v.conversation.id))).status);
     notOk((await aiSuggest(json({ tone: "warm" }), ctx(v.conversation.id))).status);
+    expect(vi.mocked(suggestReply), "kiracılar arası istek modele ulaştı").not.toHaveBeenCalled();
 
     // A'nın verisi BİREBİR aynı.
     expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: v.kb.id } })).content).toBe("Ag: Lale");
     expect(await prisma.knowledgeBaseItem.count()).toBe(1); // kopya da oluşmadı
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: attackerPropertyId } })).toBe(0);
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: v.reservation.id } })).notes).toBe("orijinal not");
     expect(vi.mocked(syncCalendarSource)).not.toHaveBeenCalled();
     const prop = await prisma.property.findUniqueOrThrow({ where: { id: v.property.id } });
@@ -144,5 +152,12 @@ describe("kiracılar arası yalıtım — sekiz tutamaç, davranışsal", () => 
     expect((await kbPatch(json({ content: "sahip guncelledi" }), ctx(v.kb.id))).status).toBe(200);
     expect((await calSync(bare(), ctx(v.source.id))).status).toBe(200);
     expect(vi.mocked(syncCalendarSource)).toHaveBeenCalledTimes(1);
+    // Kopya: A kendi ikinci dairesine kopyalayabilir (kaynak bulunur, hedef kapsamda).
+    const second = await prisma.property.create({ data: { organizationId: v.org.id, name: "Lale 2" } });
+    expect((await kbCopy(json({ targetPropertyIds: [second.id] }), ctx(v.kb.id))).status).toBeLessThan(300);
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: second.id } })).toBe(1);
+    // Öneri: A'nın kendi konuşması modele ULAŞIR (sahte model fırlatır; önemli olan kapsamı geçmesi).
+    await aiSuggest(json({ tone: "warm" }), ctx(v.conversation.id)).catch(() => null);
+    expect(vi.mocked(suggestReply)).toHaveBeenCalled();
   });
 });
