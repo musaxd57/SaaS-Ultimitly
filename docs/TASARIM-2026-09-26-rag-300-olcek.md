@@ -356,7 +356,7 @@ gece katılabilir, ne işlem uygulanır?" — 40'ta ikinci cevap ("fazla konukta
 (`rag-answer`, gpt-5.1, `RAG_LAB_RPM=8`) bilinir, (3) holdout kabulü ücretli. `KB_RETRIEVAL_WIDE_MAX_CHUNKS` kurucu kararıyla 80 (09-27 "80'e çık"; bayrak yine KAPALI); AÇMAK
 = kurucu onayı + kredi gelince cevap ölçümü (60 kalem, `wide+mc40` vs `wide` — `wide` artık üretim sabitiyle 80) + holdout.
 Kredi gelince (kurucu onayıyla; ortak önek + `RAG_LAB_RPM=8 EVAL_RAG_ANSWER_WORKERS=1`): 60 kalem
-`EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_KB=perq EVAL_RAG_ANSWER_CONFIGS=s0.25+und+e3l+wide+mc40,s0.25+und+e3l+wide` (~1–2 $) ve 276 kalem
+`EVAL_RAG_ANSWER=1 EVAL_RAG_ANSWER_KB=perq EVAL_RAG_ANSWER_CONFIGS=s0.25+und+e3l+wide+mc40,s0.25+und+e3l+wide` (~0,5–1 $; `wide+mc40` kolu önbellekte, §6d) ve 276 kalem
 `EVAL_RAG_ANSWER_CONFIGS=FINAL+mc40,FINAL` (~1–2 $); açma şartı 6a'daki ile aynı (doğru sayı düşmez, yabancı sayı ve yanıtsız soruda
 desteksiz iddia artmaz). Ardından holdout kabulü seçilen yapılandırmayla.
 İstek başına 50 aday (`wper50`, sıralayıcı çıktıları 09-27 ücretli koşudan önbellekte) `mc80`in ÜSTÜNE katkı vermiyor
@@ -364,3 +364,19 @@ desteksiz iddia artmaz). Ardından holdout kabulü seçilen yapılandırmayla.
 kaldıraç parça tavanı.
 Gerçek müşteri boyutunda (soru başına 60 kalem, `EVAL_RAG_KB=perq`, sıralayıcısız — `rag-lab-2026-09-27-11.md`) de aynı yön: iki soru
 117 → 119/120, tek soru TR 439 → 441/441, diğer 437 → 439/441 (6 kazanç, 0 kayıp); yanıtsız soruda bloğa giren parça 27 → 36.
+
+### 6d. Ölçer önbellek anahtarları (Codex 09-27) — ücretli önbellek KORUNDU
+
+- **Yeniden sıralama / anlama:** anahtara yalnız açık belirteç (`rre:`) giriyordu; çağrı env varsayılanını
+  (`AI_SEMANTIC_REASONING_EFFORT`) da gönderiyordu → env ile koşu çabasız çıktıyı okuyordu. Artık GÖNDERİLEN çaba girer
+  (`rag-lab/cache-keys.ts`); çabasız koşunun anahtarı eskisiyle birebir (bugünkü önbellek okunur).
+- **Cevap (`rag-answer`):** anahtar `{ v: 1, input }` idi — model ya da istem kurucusu (ör. saat çelişki bloğu) değişse de eski
+  cevap okunuyordu. v2 = model + gönderilen çaba + sistem ve kullanıcı isteminin özeti; istem üretimin
+  `replyRequestIdentity`sinden (`suggestReply` ile aynı kurucu, `ai/index.ts`). İstem rezervasyonsuz da "Bugün: … saat SS:DD"
+  taşıdığı için cevap isteminin anı sabit (`REPLY_NOW` = 27.09 İstanbul 12:00): eskiden her dakika farklı istem gidiyordu (eşleştirilmiş
+  iki yapılandırma bile farklı dakikada farklı istem alıyordu).
+- **Taşıma (bir kez, ücretsiz):** 09-27 raporunun 552 cevabı v2 anahtarına taşındı (533 tekil istem). Koşul: o günden beri istemi
+  değiştiren tek kod saat çelişki bloğu — dört ara sürümün (f263f92, 3c1b8c8, 4eedce9, 7a1a262) ve HEAD'in bloğu 552 girdinin HEPSİNDE
+  aynı (0 fark). Tek yaklaşık fark "Bugün" satırının DAKİKASI (cevaplar 27.09 ~11–13 İstanbul'da üretildi). Doğrulama: sahte anahtar +
+  yalnız-önbellek kipiyle rapor yeniden üretildi, tablo BİREBİR aynı (`wide` → `wide+mc40` adıyla). Eski ara koşunun 317 girdisi (artık
+  üretilmeyen girdiler) sayılmaz. Sonuç: 6c'deki 60 kalemlik kıyasın `wide+mc40` kolu önbellekte — yalnız `wide` (80) kolu ücretli.

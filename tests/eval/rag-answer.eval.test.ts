@@ -2,12 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
-import { suggestReply } from "@/lib/ai";
+import { replyRequestIdentity, suggestReply } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { llmCached } from "./rag-lab/cache";
+import { replyCacheKey } from "./rag-lab/cache-keys";
 import { runPipeline, type LabQuery } from "./rag-lab/core";
 import { parseConfig } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
@@ -32,6 +33,12 @@ import { writeSidecar } from "./sidecar";
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-") && process.env.EVAL_RAG_ANSWER === "1";
 const NOW = Date.UTC(2026, 8, 23, 12);
+/**
+ * Cevap isteminin ANI (Codex 09-27 önbellek anahtarı): istem rezervasyonsuz da "Bugün: … saat SS:DD" satırı taşır; an sabit
+ * değilse istem her dakika değişir (anahtar hiç isabet etmez, eşleştirilmiş iki yapılandırma da farklı dakikada farklı istem
+ * alırdı). Gün, v1 önbelleğinden taşınan 552 cevabın üretildiği gün (27.09 Pazar, İstanbul 12:00; dakika farkı dışında aynı).
+ */
+const REPLY_NOW = new Date(Date.UTC(2026, 8, 27, 9));
 const CONFIGS = (process.env.EVAL_RAG_ANSWER_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["base0926", "prod"]).map(parseConfig);
 const SPLIT = process.env.EVAL_RAG_ANSWER_SPLIT === "holdout" ? "holdout" : "dev";
 /** Grup başına en çok bu kadar soru (sabit adımlı örneklem, ücretli koşu bütçesi). */
@@ -152,11 +159,15 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
               history: q.history ?? [],
               tone: "warm",
               language: "tr",
+              now: REPLY_NOW,
             };
+            // Anahtar = modele GİDEN istek (model + çaba + sistem/kullanıcı istemi özeti; Codex 09-27): istem kurucusu ya da model
+            // değişince ıska, aynı istek isabet. Eski `{ v: 1, input }` girdileri §6d'deki taşımayla (istem birebir aynıysa) okunur.
+            const cacheKey = replyCacheKey(replyRequestIdentity(input));
             let out: { reply: string; intent: string; u: number } | null = null;
             for (let attempt = 0; attempt <= RETRIES && !out; attempt++) {
               if (attempt > 0) await new Promise((r) => setTimeout(r, 20_000 * attempt));
-              out = await llmCached("reply", { v: 1, input }, async () => {
+              out = await llmCached("reply", cacheKey, async () => {
                 const r = await suggestReply(input);
                 return r.source === "openai" ? { reply: r.reply, intent: r.intent, u: r.claimAudit?.u ?? 0 } : null;
               });

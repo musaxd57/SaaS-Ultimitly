@@ -108,6 +108,27 @@ function replyModel(): string {
   return process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
 }
 
+/** Cevap çağrısının modeli + GÖNDERİLEN düşünme çabası (yalnız ayarlıysa ve reasoning modelinde) — `callOpenAI` ve istek kimliği TEK kaynak. */
+function replyCallParams(): { model: string; effort: string | null } {
+  const model = replyModel();
+  const effort = replyReasoningEffort();
+  return { model, effort: effort && isReasoningModel(model) ? effort : null };
+}
+
+/** Cevap istemi — `suggestReply` ve istek kimliği AYNI kurucudan (eylem beyanı bayrağı çağıranın TEK okumasıyla gelir). */
+function replyPromptFor(input: SuggestReplyInput, declareActions: boolean): ReturnType<typeof buildReplyPrompt> {
+  return buildReplyPrompt(declareActions ? { ...input, declareActions: true } : input);
+}
+
+/**
+ * Cevap modeline GİDECEK isteğin kimliği — AĞA ÇIKMADAN (ölçerin önbellek anahtarı, Codex 09-27: model / düşünme çabası / istem
+ * değişince anahtar değişmeli, aynı istek aynı anahtarı almalı). `suggestReply` ile aynı kurucular: `replyPromptFor` +
+ * `replyCallParams`; ikisi ayrışamaz.
+ */
+export function replyRequestIdentity(input: SuggestReplyInput): { model: string; effort: string | null; system: string; user: string } {
+  return { ...replyCallParams(), system: REPLY_SYSTEM_PROMPT, user: replyPromptFor(input, actionClaimsEnabled()).text };
+}
+
 /** Normalize a model-returned language value to a short code (2–3 letters), else
  *  "und" (BCP-47 "undetermined") so garbage can't ride through as a real language. */
 function normalizeLang(v: unknown): string {
@@ -179,7 +200,7 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
     }
     return null;
   }
-  const model = replyModel();
+  const { model, effort } = replyCallParams();
   const payload: Record<string, unknown> = {
     model,
     response_format: { type: "json_object" },
@@ -197,8 +218,7 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
   if (isReasoningModel(model)) payload.max_completion_tokens = 2000;
   else payload.max_tokens = 900;
   // Düşünme çabası yalnız AYARLIYSA ve reasoning modelinde (09-25 model kıyası; ayarsız = modelin varsayılanı).
-  const effort = replyReasoningEffort();
-  if (effort && isReasoningModel(model)) payload.reasoning_effort = effort;
+  if (effort) payload.reasoning_effort = effort;
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -301,7 +321,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
   // Eylem beyanı (`action-claims.ts`): bayrak TEK YERDE, burada okunur; istem ve STRICT çözüm aynı karara bağlı.
   const declareActions = actionClaimsEnabled();
   // §C: istem TEK KEZ kurulur; metin modele, muhasebe karar kaydına gider.
-  const prompt = buildReplyPrompt(declareActions ? { ...input, declareActions: true } : input);
+  const prompt = replyPromptFor(input, declareActions);
   const call = await callOpenAI(REPLY_SYSTEM_PROMPT, prompt.text);
   const raw = call?.content ?? null;
   const llmUsage = call?.usage;
