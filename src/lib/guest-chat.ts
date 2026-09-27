@@ -369,6 +369,21 @@ export function withoutSecretKbItems<T extends { title: string; content: string 
   return items.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
 }
 
+/**
+ * Konaklamaya göre bilgi tabanının SIR KAPSAMI — oto-yanıt ve yönetici "AI öner" TEK kural (Codex 09-27: öneri rotası hiç
+ * elemiyordu; rezervasyonsuz / onaysız konuşmada Wi-Fi ve kapı kodu taslağa girip ev sahibi gönderirse aday misafire
+ * çıkabiliyordu). Onaylı / tamamlanmış konaklamada sır kalemi ürünün kendisidir (verilir); aksi hâlde İKİ bacak: kategori
+ * (`QR_SECRET_CATEGORIES`) + içerik sezgiseli (`withoutSecretKbItems`). Yüklem `prompts.ts` `isConfirmedStay` ile aynı.
+ */
+export function kbForStayScope<T extends { category: string; title: string; content: string }>(
+  items: T[],
+  reservation: { status: string } | null | undefined,
+): T[] {
+  const confirmedStay = reservation != null && (reservation.status === "confirmed" || reservation.status === "completed");
+  if (confirmedStay) return items;
+  return withoutSecretKbItems(items.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)));
+}
+
 export function scrubStyleProfileForPublic(profile: string | null | undefined): string | null {
   const raw = profile?.trim();
   if (!raw) return null;

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { styleProfileForPrompt } from "@/lib/guest-chat";
+import { kbForStayScope, styleProfileForPrompt } from "@/lib/guest-chat";
 import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
 import { hostVoiceDraft } from "@/lib/ai/host-voice";
@@ -63,10 +63,13 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   if (!budget.ok) return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
 
   // Tek yol `ai/kb-fetch.ts`: tavan + kaç kalemin düştüğü oradan gelir.
-  const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
+  const { items: kbFetched, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
     propertyId: conversation.propertyId,
     isActive: true,
   });
+  // SIR KAPSAMI oto-yanıtla TEK kural (Codex 09-27): onaylı / tamamlanmış konaklama dışında Wi-Fi / giriş talimatı / kod içeren
+  // kalem modele gitmez — taslak ev sahibinin elinden aday misafire gönderilebilir. Onaylı konaklamada verilir.
+  const kbRaw = kbForStayScope(kbFetched, conversation.reservation);
   // Resolve any {isim}/{daire} placeholder (e.g. in the welcome template) before
   // the KB reaches the model, so a literal "{isim}" can never appear in the
   // suggestion. Single source: @/lib/kb-placeholders (four surfaces share it).
@@ -140,7 +143,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         }
       : null,
     knowledgeBase: kbSel.items,
-    knowledgeBaseDropped: kbDropped + kbSel.droppedItems,
+    // Sır kapsamıyla elenen kalemler de "alınmadı" sayılır (oto-yanıtla aynı): model "bilgi yok" demez, devreder.
+    knowledgeBaseDropped: kbDropped + (kbFetched.length - kbRaw.length) + kbSel.droppedItems,
     knowledgeBaseSelection: kbSel.selection,
     knowledgeBaseNotes: kbSel.notes,
     // Yazar + yazıldığı an (F14): istemde YALNIZ Konuşma Anlama Durumu bayrağı açıkken görünür. Öneri saatler/günler

@@ -59,7 +59,7 @@ import {
   type GateEvidence,
 } from "@/lib/ai/gate-evidence";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
-import { styleProfileForPrompt, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { styleProfileForPrompt, kbForStayScope } from "@/lib/guest-chat";
 import { historyAuthorOf, LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER } from "@/lib/message-author";
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
@@ -2111,10 +2111,6 @@ export async function applyChannelAutoReply(
   // ulaşım, check-in saati KALIYOR → aday müşteri hâlâ cevap alabiliyor.
   // ⚠️ `address` KB'den DEĞİL property kaydından ayrıca geçiyor; bu kapı onu
   // durdurmaz ve durdurmayı da amaçlamaz (bilinen sınır).
-  const confirmedStay =
-    conversation.reservation != null &&
-    (conversation.reservation.status === "confirmed" ||
-      conversation.reservation.status === "completed");
   // ⚠️ İKİ BACAK, TEK BACAK DEĞİL (denetim 08-09 — DÜN YAZDIĞIM KAPININ EKSİĞİ).
   // QR yolu (`guest-chat.ts:626`) iki eleme uygular: KATEGORİ (`wifi`/`checkin`
   // hiç ÇEKİLMEZ) **ve** içerik sezgiseli. Ben buraya yalnız içerik bacağını
@@ -2123,12 +2119,9 @@ export async function applyChannelAutoReply(
   // gerçekçi kalem): kategori bacağı olmadan prompt'a ulaşan 7/7, bacakla 2/7.
   // Sızan tipik kalem: "Anahtar kutusunun açılış dizisi: ABCD" — `general`
   // kategorisinde OLMADIĞI için değil, `looksLikeSecret`in RAKAM istemesi
-  // yüzünden geçiyordu. Kategori bacağı bu sınıfı toptan kapatır.
-  const kbVisible = confirmedStay
-    ? kb
-    : withoutSecretKbItems(
-        kb.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)),
-      );
+  // yüzünden geçiyordu. Kategori bacağı bu sınıfı toptan kapatır. (09-27: kural tek kaynak `kbForStayScope` — yönetici "AI
+  // öner" rotası da aynı kapsamı kullanır.)
+  const kbVisible = kbForStayScope(kb, conversation.reservation);
 
   // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — yetki/onay/sır süzgeçlerinden
   // SONRA, modelden ÖNCE. Bayrak (`KB_RETRIEVAL_MODE`) kapalıyken `kbSel.items`
