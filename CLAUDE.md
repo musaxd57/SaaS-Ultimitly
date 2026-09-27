@@ -1029,11 +1029,11 @@ EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ (beklenen/tamamlanan/geçersiz ayrı). LLM
 parse edilmez, `EVAL_COMPARE_YES=1` ücretli kapı); gölge katmanı yalnız GÜVENLİK sınıflandırmasını kıyaslar, cevap
 kalitesi bu harness'la ölçülür. 09-24 kredi yüklendi (OpenAI bakiyesi org geneli ve PEŞİN; panodaki harcama
 "limit"i yalnız UYARI, durdurmaz) → ücretli koşu önce küçük deneme (`EVAL_STAY_LIMIT`, 20 satır ≈ 0,10 $) + kurucu onayı.
-🚨 **ÜCRETLİ ÖLÇÜM BÜTÇESİ (09-27 olayı: ölçümler ~25–30 $ harcadı, kredi BİTTİ, canlı yapay zekâ aynı hesapta durdu):** ölçüm
-canlıyla AYNI OpenAI hesabında koşar → ÖNCE kurucudan kalan bakiye sorulur, her koşudan önce tahmini tutar yazılır, toplam kalan
-bakiyenin YARISINI geçmez; `RAG_LAB_RPM` ZORUNLU (cevap ölçümü 8, sıralama/anlama 30 — hesabın dakikalık token sınırı canlıyla
-paylaşılır; 3 işçi 09-27'de 552 isteğin 252'sini 429'a düşürdü). Kredi biterse tüm koşular durdurulur, kurucuya HEMEN söylenir;
-kurucu "kredi yüklendi" demeden ücretli çağrı YOK. Öneri (kurucuya iletildi): otomatik yeniden yükleme + ölçümlere ayrı proje/anahtar
+🚨 **ÜCRETLİ ÖLÇÜM (09-27 olayı: ölçümler ~25–30 $ harcadı, kredi BİTTİ, canlı yapay zekâ aynı hesapta durdu):** harcama TAVANI YOK
+(kurucu 09-27: "gerekliyse istediğin kadar kullanabilirsin"), ama ölçüm canlıyla AYNI OpenAI hesabında koşar: her koşudan önce tahmini
+tutar yazılır; `RAG_LAB_RPM` ZORUNLU (cevap ölçümü 8, sıralama/anlama 30 — dakikalık token sınırı canlıyla paylaşılır; 3 işçi 09-27'de
+552 isteğin 252'sini 429'a düşürdü); otomatik yeniden yükleme açık DEĞİLSE bakiyeyi sıfırlayabilecek koşudan önce kurucuya haber
+verilir. Kredi biterse tüm koşular durdurulur, kurucuya HEMEN söylenir; kurucu "kredi yüklendi" demeden ücretli çağrı YOK. Öneri (kurucuya iletildi): otomatik yeniden yükleme + ölçümlere ayrı proje/anahtar
 (aylık bütçe sınırlı; bu ortamın `OPENAI_API_KEY`i o anahtar olur, canlı Railway kendi anahtarında kalır).
 🚨 **ÖLÇÜM MODELİ KURALI (kurucu 09-27: "müşteriye ne gideceğini gerçekten test edelim, dümenden olmasın"):** keşif / ablasyon
 (retrieval yapılandırma kıyasları: pencere, bütçe, eşik…) UCUZ modelle (`rrm:gpt-6-luna+rre:none`; 09-27'de 5.1 ile aynı yönü verdi);
