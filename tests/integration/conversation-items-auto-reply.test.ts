@@ -130,7 +130,9 @@ async function guestWrites(conversationId: string, body: string, minutesAgo: num
 async function itemsOf(conversationId: string) {
   const rows = await prisma.conversationItem.findMany({
     where: { conversationId },
-    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }],
+    // Bir turun öğeleri AYNI createdAt ile yazılır ve requestIndex mesaj başına 0'dan başlar: iki mesajın öğeleri tam eşit kalır →
+    // son eşitlik bozucu id (yazılış = mesaj sırası). 09-27: eşitlikte sıra rastgeleydi, tam kapı bir kez kırmızı verdi.
+    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }, { id: "asc" }],
   });
   const msgs = await prisma.message.findMany({ where: { conversationId }, select: { id: true, body: true } });
   const bodyOf = new Map(msgs.map((m) => [m.id, m.body]));

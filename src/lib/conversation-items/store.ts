@@ -146,7 +146,7 @@ export async function upsertTurnItems(
   }
   const out = await db.conversationItem.findMany({
     where: { organizationId: input.organizationId, conversationId: input.conversationId, messageId: { in: messageIds } },
-    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }],
+    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }, { id: "asc" }],
   });
   return out.map(toPersisted);
 }
@@ -289,7 +289,7 @@ export type ItemView = PersistedItem & {
 export async function listConversationItems(db: Db, input: { organizationId: string; conversationId: string }): Promise<ItemView[]> {
   const rows = await db.conversationItem.findMany({
     where: { organizationId: input.organizationId, conversationId: input.conversationId },
-    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }],
+    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }, { id: "asc" }],
   });
   if (rows.length === 0) return [];
   const items = rows.map(toPersisted);
@@ -387,7 +387,7 @@ export async function heldRequestsByConversation(
       createdAt: { gte: input.since },
       conversation: { propertyId: { in: [...input.propertyIds] } },
     },
-    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }],
+    orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }, { id: "asc" }],
     take: input.cap ?? 500,
     select: {
       conversationId: true,
