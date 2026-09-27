@@ -178,7 +178,8 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   T("checkin", "Self check-in", "Kapı kodu 15:00'te aktif olur.", ["checkin:15:00"]),
   T("checkin", "Keys", "The keys are yours from 2 pm.", ["checkin:14:00"]),
   X("checkin", "Otopark kodu", "Otopark kapısının kodu 07:00'den itibaren çalışır."),
-  X("checkin", "Kod süresi", "Kapı kodunuz çıkış günü 11:00'e kadar geçerlidir."),
+  // Erişimin ÇIKIŞ GÜNÜ bitmesi çıkış saatidir (kör batarya 2 etiketçisi; ilk turda temkinli boş bırakılmıştı).
+  T("checkin", "Kod süresi", "Kapı kodunuz çıkış günü 11:00'e kadar geçerlidir.", ["checkout:11:00"]),
   X("checkin", "Wi-Fi", "Wi-Fi şifresi 15:00'ten itibaren çalışır."),
   // Müsaitlik koşulu → erken giriş / geç çıkış; standart ya da olumsuz koşul → standart saat.
   T("checkin", "Erken giriş", "Daire hazırsa 13:00'te girebilirsiniz.", ["early_checkin:13:00"]),
@@ -235,6 +236,13 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   X("checkout", "Before you leave", "Before you leave, please take out the trash — the bin lorry comes at 8am."),
   T("general", "Saatler", "Giriş – 15:00, Çıkış – 11:00", ["checkin:15:00", "checkout:11:00"]),
   T("general", "Havuz", "Havuz her gün 09:00 – 20:00 arası açıktır.", ["pool:09:00", "pool:20:00"]),
+  // Tek satırda iki etiket: tire / eğik çizgi / parantez yalnız İKİ alanlı cümleciği böler; aralık ve tek alanlı aside bölünmez.
+  T("general", "Saatler", "Check-in: 15:00 — Check-out: 11:00", ["checkin:15:00", "checkout:11:00"]),
+  T("general", "Saatler", "Giriş 15:00 / Çıkış 11:00", ["checkin:15:00", "checkout:11:00"]),
+  T("checkin", "Giriş", "Giriş 15:00 (erken giriş 12:00, 300 TL).", ["checkin:15:00", "early_checkin:12:00"]),
+  T("general", "Tesis saatleri", "Havuz 09:00 – 20:00 ve spor salonu 07:00 – 22:00 arası açıktır.", ["pool:09:00", "pool:20:00", "gym:07:00", "gym:22:00"]),
+  T("general", "Tesis saatleri", "Havuz (09:00-18:00) ve spor salonu (07:00-22:00).", ["pool:09:00", "pool:18:00", "gym:07:00", "gym:22:00"]),
+  X("checkin", "Geç giriş", "Late check-in (after 10 pm) is possible with the key box."),
   // Boşaltma: konaklama YERİNİ boşaltmak çıkıştır; başka bir şeyi boşaltmak değil.
   T("checkout", "Çıkış saati", "Çıkış günü daireyi en geç 11.00'de boşaltmanızı rica ediyoruz.", ["checkout:11:00"]),
   T("checkout", "Check-out", "Please vacate the apartment by 11 am.", ["checkout:11:00"]),
@@ -255,7 +263,8 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   X("checkin", "Erken varış", "Valizlerinizi bırakabilirsiniz ve 10:00'dan itibaren şehri gezebilirsiniz."),
   T("checkout", "Çıkış", "Geç kalkan misafirlerimiz için de çıkış saati 11:00'dir.", ["checkout:11:00"]),
   T("checkin", "Giriş", "Hazırsanız 15:00'te giriş yapabilirsiniz.", ["checkin:15:00"]),
-  X("checkin", "Kod", "Kapı kodunuz giriş günü aktifleşir ve çıkış günü 11:00'de sona erer."),
+  T("checkin", "Kod", "Kapı kodunuz giriş günü aktifleşir ve çıkış günü 11:00'de sona erer.", ["checkout:11:00"]),
+  X("checkin", "Kod", "Kapı kodu 15:00'te aktif olur ve 11:00'de devre dışı kalır."),
   T("general", "Kurallar", "Her konaklama 16:00'da başlar ve 10:00'da sona erer.", ["checkin:16:00", "checkout:10:00"]),
   X("checkin", "Bina", "Binaya 23:00'ten sonra girilemez."),
   X("rules", "Kurallar", "22:00'den sonra girmek yasaktır."),
@@ -269,6 +278,53 @@ export const TIME_FIELD_BATTERY: TimeFieldCase[] = [
   T("checkout", "Check-out", "Subject to availability, you can stay until 1 pm.", ["late_checkout:13:00"]),
   T("checkout", "Check-out", "If no other guests arrive that day, you can check out at 1 pm.", ["late_checkout:13:00"]),
   T("checkin", "Check-in", "If it's free, you can check in at 12:00.", ["early_checkin:12:00"]),
+
+  // ── 09-27 üçüncü tur (kör batarya 2'nin gösterdiği sınıflar; ikiz + tek-kural pin) ─────────────────────────────────
+  // "|" cümle sınırı; soru cümlesi saat bildirmez (SSS'nin "S:" kısmı, "Arriving after 11 pm?").
+  T("general", "Key times", "Check-in: 3 PM – 10 PM | Check-out: 11 AM | Quiet hours from 10 PM", ["checkin:15:00", "checkin:22:00", "checkout:11:00", "quiet_hours:22:00"]),
+  X("general", "Menü", "Kahvaltı 08:00-10:00 | Havuz barı 11:00-18:00"),
+  T("faq", "Erken giriş?", "S: Saat 12:00'de girebilir miyiz? C: Giriş saatimiz 15:00'tir.", ["checkin:15:00"]),
+  X("checkin", "Gate after hours", "Arriving after 11 pm? The main gate will be closed, so please check in with the night guard."),
+  // "-mişse / -dıysa" koşulu.
+  T("faq", "Erken giriş", "Temizlik bitmişse 12:00'den itibaren erken giriş yapabilirsiniz.", ["early_checkin:12:00"]),
+  T("faq", "Erken giriş", "Temizlik bittiyse 12:00'den itibaren erken giriş yapabilirsiniz.", ["early_checkin:12:00"]),
+  // Yerel tavsiye mahalleyi anlatır; aynı cümle mülkün kaleminde mülkün saatidir.
+  X("local_tips", "Gezilecek yerler", "Kaleye giriş 09:00-19:00 arası, son giriş 18:30."),
+  X("local_tips", "Kapalı havuz", "Belediyenin kapalı yüzme havuzu 07:00-22:00 açık."),
+  T("general", "Kapalı havuz", "Sitenin kapalı yüzme havuzu 07:00-22:00 açık.", ["pool:07:00", "pool:22:00"]),
+  // Havuz ekipmanı; havuz / spor salonu YER olarak (başka işin saati); ders / antrenör başka konudur (ödünç de engellenir).
+  X("general", "Havuz ısıtma", "The pool heater runs from 6:00 to 10:00 every morning."),
+  X("general", "Kahvaltı", "Kahvaltı havuz başında 08:00-10:30 arası servis edilir."),
+  T("general", "Havuz", "Havuzda 08:00-20:00 arası yüzebilirsiniz.", ["pool:08:00", "pool:20:00"]),
+  X("general", "Antrenör", "Spor salonunda kişisel antrenörümüzden 18:00-20:00 arası randevu alabilirsiniz."),
+  X("general", "Spor salonu", "Salı ve perşembe 19:00'da pilates dersi var."),
+  // Gün kaymalı başvuru ("the day before / after arrival") ve "by" teslim tarihi; başvuru yoksa "by" çıkış saatidir.
+  X("checkin", "Online check-in", "Please complete the online check-in form by 6 pm the day before arrival."),
+  X("general", "Pasaport", "Please show your passports at the office between 9:00 and 12:00 on the day after arrival."),
+  T("checkout", "Check-out", "Please check out by 11 am.", ["checkout:11:00"]),
+  T("checkin", "Check-in", "Check-in on the day of arrival is from 15:00.", ["checkin:15:00"]),
+  // Erişim süresi / bitişi; konaklama yerinin süresi.
+  T("checkin", "Akıllı kilit", "Kapı şifreniz giriş gününüz saat 15:00'ten itibaren çalışır ve çıkış günü saat 11:00'de otomatik olarak iptal edilir.", ["checkin:15:00", "checkout:11:00"]),
+  T("general", "Your stay", "The flat is yours from 2 pm on the day you arrive until 11 am on the day you leave.", ["checkin:14:00", "checkout:11:00"]),
+  T("checkin", "Keys", "Keys are available from the key safe from 3 pm onwards.", ["checkin:15:00"]),
+  X("checkin", "Ekip", "Our team is available from 9 am to 9 pm."),
+  // Kural dili: "yapılmaz" (olumsuz edilgen geniş zaman).
+  T("rules", "Sessizlik", "Binada saat 22.00'den sonra gürültü yapılmaz.", ["quiet_hours:22:00"]),
+  // Personel öznesiyle "gir-" misafirin girişi değil; misafir öznesiyle giriştir. "Yerleş-" giriştir.
+  T("checkout", "Çıkış ve temizlik", "Lütfen 11.00'e kadar çıkış yapın; temizlik ekibimiz 11.30'da daireye giriyor.", ["checkout:11:00", "cleaning:11:30"]),
+  T("checkin", "Giriş", "Misafirlerimiz daireye 15:00'ten sonra girebilir.", ["checkin:15:00"]),
+  T("checkin", "Giriş", "Giriş günü saat 14'ten itibaren daireye yerleşebilirsiniz.", ["checkin:14:00"]),
+  // "temizlemeye" fiili temizliktir.
+  T("cleaning", "Kat hizmeti", "Kat görevlimiz her gün 10:00-12:00 arası odanızı temizlemeye gelir.", ["cleaning:10:00", "cleaning:12:00"]),
+  // "ve" ile bölünen parçada kural dili bütün cümleden gelir (havuz alanı + sessizlik = iki alan, hüküm yok).
+  X("general", "Havuz alanı", "Havuz alanında 22:00'den sonra müzik çalınması ve yüksek sesle konuşulması yasaktır."),
+  // Ortak yüklem yalnız kısa isim öbeğine geçer; kendi yüklemi olan parça ayrı kuraldır.
+  T("general", "Pool & gym", "Both the indoor pool and the gym are open from 7:00 to 21:00.", ["pool:07:00", "pool:21:00", "gym:07:00", "gym:21:00"]),
+  T("general", "Tesis", "Havuz ve spor salonu 08:00-20:00 arası açık.", ["pool:08:00", "pool:20:00", "gym:08:00", "gym:20:00"]),
+  T("rules", "Pool rules", "No glass by the pool and no music after 9 pm.", ["quiet_hours:21:00"]),
+  // Konaklama yerini teslim ETMEK çıkıştır; anahtarı teslim ALMAK giriştir.
+  T("checkout", "Son gün", "Çıkış günü daireyi saat 11:00'de teslim etmeniz gerekiyor.", ["checkout:11:00"]),
+  T("checkin", "Anahtar", "Daire anahtarını 15:00'te teslim alabilirsiniz.", ["checkin:15:00"]),
 
   // ── Savunulabilir iki okuma (puanlanmaz) ────────────────────────────────────────────────────────────────────────
   S("checkout", "Erken Sabah Çıkışı", "Sabah 07:00'den önce çıkarken koridorda yüksek sesle konuşmamaya özen gösterin.", ["quiet_hours:07:00"]),

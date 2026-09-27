@@ -39,9 +39,10 @@ export interface FieldTimeHit {
  * Çıkış 11:00." TEK cümlecik olup iki alanı birden taşıyor ve iki saat de düşüyordu. "12.00"
  * yazımı yine bölünmez (noktanın ardında rakam var).
  * 09-27: cümle ile cümlecik AYRI tutulur — koşul cümleciği ("If the flat is free, …", "Taksi isterseniz, …") AYNI cümlenin
- * sonraki cümleciklerine bağlam taşır.
+ * sonraki cümleciklerine bağlam taşır. "|" de cümle sınırıdır ("Check-in: 3 PM – 10 PM | Check-out: 11 AM"). SORU cümlesi
+ * ("?" ile biten: "S: 12:00'de girebilir miyiz?", "Arriving after 11 pm?") hiçbir saat BİLDİRMEZ → okunmaz.
  */
-const SENTENCE_SPLIT = /\.(?!\d)|[!?;\n]+/;
+const SENTENCE_SPLIT = /(\.(?!\d)|[!?;\n|]+)/;
 const CLAUSE_SPLIT = /,+/;
 const HHMM_G = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b(\s*(?:a\.m\.|p\.m\.|am|pm)(?![a-z]))?/gi;
 /** "11am", "3 pm" — dakikasız 12 saat biçimi. Önünde ":"/"." varsa DEĞİL ("10:10 am"deki "10 am"). */
@@ -75,7 +76,15 @@ const ENDS_WITH_TIME = /(?:\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm))\W*$/i;
 const STARTS_WITH_TIME = /^\W*\d{1,2}(?:[:.]\d{2}|\s*(?:am|pm)\b)/i;
 /** Boşluklu uzun / orta tire: "You're welcome to arrive after 4 pm — the lockbox works around the clock". */
 const DASH_SEP = /(\s[—–]\s)/;
-const AND_SEP = /(\s(?:ve|and|&)\s)/i;
+/**
+ * İKİ alan adlandıran (ya da bir alanı konu vetosuyla düşen) cümleciğin ikinci bölücüsü: "ve / and / &" ve etiket satırının
+ * ayırıcıları — "Check-in: 15:00 — Check-out: 11:00", "Giriş 15:00 / Çıkış 11:00" (09-27: ikisi de hiç okunmuyordu). Parantez
+ * yalnız bundan sonra HÂLÂ iki alan taşıyan parçayı böler ("Giriş 15:00 (erken giriş 12:00"); "Havuz (09:00-18:00) ve spor
+ * salonu (07:00-22:00)" saati etiketinden koparmaz. Tek alanlı cümlecik bölünmez ("Çok geç (01.00 sonrası) varışlarda"); aralık
+ * hiç bölünmez.
+ */
+const AND_SEP = /(\s(?:ve|and|&|[-–—/])\s)/i;
+const PAREN_SEP = /(\s*[()]\s*)/;
 /**
  * Ayırıcıdan böler. Aralığın iki ucu ile `min` sözcükten kısa yan ("Giriş – 15:00" etiketi, "Check-in — 3 pm") yeniden
  * birleşir; birleşen metinde ayırıcı AYNEN kalır (host raporu cümleciği gösterir).
@@ -142,7 +151,7 @@ const isTransport = (t: string) => TRANSPORT_EXACT.has(t) || TRANSPORT_STEMS.som
  * kilitleyin") ayrı okunur; "Erken gelirseniz | giriş 15:00'ten sonra yapılır"ta saat ana parçada → gerçek giriş saati.
  */
 const TR_CONDITIONAL_VERB_G =
-  /[a-zçğıöşü]*(?:s[ae]n[ıi]z|[aeıiuü][rz]s[ae]|(?:acak|ecek|yor)s[ae])(?![a-zçğıöşü])|(?<![a-zçğıöşü])(?:müsaitse|uygunsa|mümkünse|yoksa|değilse|boşsa|doluysa|hazırsa)(?![a-zçğıöşü])/g;
+  /[a-zçğıöşü]*(?:s[ae]n[ıi]z|[aeıiuü][rz]s[ae]|(?:acak|ecek|yor)s[ae]|m[ıiuü]şs[ae]|[dt][ıiuü]ys[ae])(?![a-zçğıöşü])|(?<![a-zçğıöşü])(?:müsaitse|uygunsa|mümkünse|yoksa|değilse|boşsa|doluysa|hazırsa)(?![a-zçğıöşü])/g;
 /** Kalıba uyan ama koşul OLMAYAN sözcükler ("of course", "nurse", Türkçe karaktersiz "persembe / carsamba"). */
 const NOT_CONDITIONAL = new Set(["course", "nurse", "purse", "verse", "reverse", "universe", "diverse", "adverse", "converse", "traverse", "disperse", "immerse", "rehearse", "terse", "curse", "persembe", "carsamba", "kursa", "tersane"]);
 /** İlk gerçek koşul fiilinin BİTİŞ konumu (yoksa -1); `tr` küçük harf dönüşümü uzunluğu korur (İ → i, I → ı). */
@@ -254,8 +263,38 @@ const STAY_END = /^(?:biter|bitiyor|bitmektedir|end|ends|finish)/;
  * başlangıç ("itibaren / from / after / at") okunur; bitiş ("…'e kadar geçerli") ve kapanış anlatımı hüküm üretmez.
  */
 const ACCESS_NOUN = /^(?:kod|anahtar|sifre|key|keys|code|codes|lockbox|keybox)/;
-const ACCESS_START = /^(?:calis|aktif|activ|gecerli|valid|work|yours|sizin|hazir|ready|teslim|alabilirsiniz|alinabilir|collect)/;
-const ACCESS_END = /^(?:gecersiz|devre|expir|deactiv|sona|biter|bitiyor|kapan)/;
+const ACCESS_START = /^(?:calis|aktif|activ|gecerli|valid|work|yours|sizin|hazir|ready|teslim|alabilirsiniz|alinabilir|collect|available)/;
+const ACCESS_END = /^(?:gecersiz|devre|expir|deactiv|sona|biter|bitiyor|kapan|iptal|cancel)/;
+/** Erişimin GEÇERLİ olduğu süre ("11:00'e kadar geçerlidir"): çıkış günüyle birlikte bitiş = çıkış. */
+const ACCESS_VALID = /^(?:gecerli|valid|calis|work|aktif|activ)/;
+/**
+ * ÇIKIŞ GÜNÜ işareti (09-27): "çıkış günü", "ayrılacağınız gün", "check-out day", "the day you leave", "son gün" — erişimin bu
+ * günde BİTMESİ çıkış saatidir ("Kapı şifreniz … çıkış günü saat 11:00'de iptal edilir" → çıkış 11:00).
+ */
+const departureDay = (toks: readonly string[]) =>
+  toks.some(
+    (t, i) =>
+      (/^(?:cikis|ayril)/.test(t) && /^gun/.test(toks[i + 1] ?? "")) ||
+      ((t === "checkout" || t === "departure") && /^day/.test(toks[i + 1] ?? "")) ||
+      (t === "son" && /^gun/.test(toks[i + 1] ?? "")) ||
+      (t === "last" && toks[i + 1] === "day") ||
+      (t === "day" && toks[i + 1] === "you" && /^(?:leave|depart|check)/.test(toks[i + 2] ?? "")),
+  );
+/**
+ * SÜRE (09-27): "The flat is yours from 2 pm … until 11 am", "Daireyi 15:00'ten 11:00'e kadar kullanabilirsiniz", "the code works
+ * from 3 pm until 11 am on check-out day" — konaklama yerinin / erişimin BAŞI giriş, SONU çıkıştır (tek cümlecikte iki alan; saat
+ * rolüne göre ayrılır).
+ */
+const SPAN_VERB = /^(?:yours|sizin|sizde|kullan|use|available|calis|aktif|activ|gecerli|valid|work)/;
+/** "Daireyi … teslim etmeniz" (09-27): konaklama yerini teslim ETMEK çıkıştır ("anahtarı teslim almak" değil). */
+const STAY_PLACE_ACC = /^(?:daire|oda|villa|apart|mulk|konut)[a-z]*(?:yi|yu|i|u)$|^(?:evi|evinizi)$/;
+/** "Yerleşebilirsiniz" (09-27): misafire hitap eden ya da konaklama yerine yönelen "yerleş-" giriştir. */
+const YOU_SETTLE = /^yerles[a-z]*(?:in|iniz|niz)$/;
+/**
+ * Personel öznesi (09-27): "Temizlik ekibimiz 11.30'da daireye giriyor" misafirin girişi DEĞİL — "gir- / yerleş-" kuralı
+ * personel öznesiyle giriş üretmez.
+ */
+const STAFF = /^(?:ekib|ekip|temizlikci|gorevli|personel|staff|team|cleaner|housekeep|teknisyen|usta|bekci|kapici|tamirci)/;
 const WIFI = /^(?:wifi|wi|internet|modem|network|password|parola)$/;
 /** "noise" köke inince durak sözcüğe ("no") düşüyor, "loud / noisy / volume" sözlükte yok → sessizlik kuralı görünmüyordu (09-27). */
 const NOISE_EXTRA = new Set(["noise", "noisy", "loud", "loudly", "volume"]);
@@ -269,20 +308,20 @@ const quietPhrase = (toks: readonly string[]) =>
  */
 const RULE_EXACT = new Set(["lutfen", "please", "must", "should", "no", "not", "avoid", "keep", "respect", "refrain", "prohibited", "forbidden", "allowed", "permitted", "curfew", "tutun", "tutunuz", "kisin", "kisiniz", "olun", "olunuz", "dikkat"]);
 const RULE_PREFIX = ["yasak", "kacin", "ozen", "rica", "izin", "kural", "rule", "serbest"];
-const RULE_SUFFIX = /(?:mayin|meyin|mayiniz|meyiniz|malisiniz|melisiniz|malidir|melidir|mali|meli)$/;
+const RULE_SUFFIX = /(?:mayin|meyin|mayiniz|meyiniz|malisiniz|melisiniz|malidir|melidir|mali|meli|[iu]lmaz|[iu]lmez|nmaz|nmez)$/;
 const ruleSignal = (toks: readonly string[]) =>
   toks.some((t) => RULE_EXACT.has(t) || RULE_PREFIX.some((p) => t.startsWith(p)) || RULE_SUFFIX.test(t));
 /** Spor salonu yalnız açık sözcükle ("salon" = oturma odası / kuaför salonu); havuz yalnız açık sözcükle ("şezlong" plajda da). */
 const GYM_WORD = /^(?:spor|fitness|gym)/;
 const POOL_WORD = /^(?:havuz|pool|yuzme|swim)/;
 /** Havuzun KENDİSİ değil (09-27): "havuz barı", "pool towels", "pool table" (bilardo), "havuz partisi" — saat o yerin / olayın saatidir. */
-const POOL_TAILS = ["bar", "kafe", "cafe", "restoran", "restaurant", "snack", "bufe", "masa", "table", "towel", "havlu", "part", "semsiye", "umbrella"];
+const POOL_TAILS = ["bar", "kafe", "cafe", "restoran", "restaurant", "snack", "bufe", "masa", "table", "towel", "havlu", "part", "semsiye", "umbrella", "heater", "isitic", "pump", "pompa", "filter", "filtre"];
 /**
  * Başka tesis / etkinlik / bakım (09-27): "The sauna next to the gym is open 4–10 pm", "spor salonunda 19:00'da pilates dersi",
  * "Havuz pazartesi 08:00–10:00 arası bakım nedeniyle kapalı" — spor salonunun / havuzun açık olduğu saat DEĞİL.
  */
 const OTHER_FACILITY = /^(?:sauna|hamam|spa|spada|spaya|steam|buhar|jakuzi|jacuzzi|tenis|tennis|bilardo|billiard)$/;
-const ACTIVITY = /^(?:ders|class|lesson|pilates|yoga|kurs|course|antrenman|training|aerobi|zumba|aqua)/;
+const ACTIVITY = /^(?:ders|class|lesson|pilates|yoga|kurs|course|antrenman|antrenor|trainer|training|randevu|appointment|aerobi|zumba|aqua)/;
 const MAINTENANCE = /^(?:bakim(?:i|da|dan|a|lari|lar)?|maintenance|onarim|repair|repairs)$/;
 const TIME_TOKEN = /^\d{2}:\d{2}$/;
 
@@ -300,6 +339,16 @@ interface ClauseInfo {
   extension: boolean;
   /** Giriş alanı YALNIZ erişim kuralından: "…'e kadar / until / before" saati girişin değeri değil. */
   accessOnly: boolean;
+  /** Çıkış alanı YALNIZ erişim bitişinden: "…'ten itibaren / from / after" saati çıkışın değeri değil. */
+  accessEndOnly: boolean;
+  /** Gün kaymalı başvuru: hiçbir saat giriş/çıkış değeri değil. */
+  strongReference: boolean;
+  /** Süre: başlangıç saati giriş, bitiş saati çıkış (↑SPAN_VERB). */
+  span: boolean;
+  /** Cümlecikte erişim adı var ("kod / anahtar / key"): "ve" ile bölünen parçalara bağlam olarak geçer. */
+  accessNoun: boolean;
+  /** Kural dili var: "ve" ile bölünen parçalarda sessizlik kuralı buna dayanır. */
+  rule: boolean;
   /** Ulaşım / valiz sözü: koşul cümleciğindeyse aynı cümlenin ana cümleciğinde de ödünç almayı engeller. */
   topic: boolean;
   /** Müsaitlik koşulu (↑`availabilityCondition`). */
@@ -313,7 +362,7 @@ interface ClauseInfo {
   standard: boolean;
 }
 
-function clauseFields(clause: string, ctx: { stay?: boolean } = {}): ClauseInfo {
+function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; rule?: boolean } = {}): ClauseInfo {
   const toks = tokenize(clause);
   const keep: string[] = [];
   const extra: string[] = [];
@@ -386,12 +435,21 @@ function clauseFields(clause: string, ctx: { stay?: boolean } = {}): ClauseInfo 
   const otherPlace = toks.some((t) => OTHER_PLACE_DAT.test(t));
   // Yalnız giriş kanıtı bir "gir-" fiiliyse (açık giriş sözcüğü yok): "Checking in after 15:00" gibi başka kanıt dokunulmaz.
   const enterVerbOnly = !keep.some((t) => isIn(t)) && toks.some((t) => /^gir(?!is)/.test(t));
+  const staff = toks.some((t) => STAFF.test(t));
   if (lexical.includes("checkin") && enterVerbOnly) {
-    const enters = toks.some((t) => (YOU_ENTER.test(t) && !NEG_IMPERATIVE.test(t)) || STAY_PLACE_DAT.test(t));
+    const enters = toks.some((t) => (YOU_ENTER.test(t) && !NEG_IMPERATIVE.test(t)) || (STAY_PLACE_DAT.test(t) && !staff));
     if (!enters || otherPlace) lexical = lexical.filter((f) => f !== "checkin");
   }
+  const settles =
+    !lexical.includes("checkin") &&
+    toks.some((t) => /^yerles/.test(t)) &&
+    (toks.some((t) => YOU_SETTLE.test(t) && !NEG_IMPERATIVE.test(t)) || (toks.some((t) => STAY_PLACE_DAT.test(t)) && !staff));
+  if (settles) lexical = [...lexical, "checkin"];
+  // "temizlemeye / temizlenir" fiili sözlükte temizlik kavramına inmiyor (09-27: "odanızı 10:00-12:00 arası temizlemeye gelir").
+  if (!lexical.includes("cleaning") && toks.some((t) => /^temizle/.test(t))) lexical = [...lexical, "cleaning"];
   if (!lexical.includes("quiet_hours") && toks.some((t) => NOISE_EXTRA.has(t))) lexical = [...lexical, "quiet_hours"];
-  const vacate = toks.some((t) => VACATE.test(t) && !NEG_IMPERATIVE.test(t)) && toks.some((t) => STAY_PLACE.test(t));
+  const handOver = toks.some((t, i) => t === "teslim" && /^(?:et|ed)/.test(toks[i + 1] ?? "")) && toks.some((t) => STAY_PLACE_ACC.test(t));
+  const vacate = (toks.some((t) => VACATE.test(t) && !NEG_IMPERATIVE.test(t)) && toks.some((t) => STAY_PLACE.test(t))) || handOver;
   const departsStay =
     !lexical.includes("checkout") &&
     (vacate || (toks.some((t) => STAY_PLACE_ABL.test(t)) && toks.some((t) => YOU_DEPART.test(t) && !NEG_IMPERATIVE.test(t))));
@@ -399,17 +457,34 @@ function clauseFields(clause: string, ctx: { stay?: boolean } = {}): ClauseInfo 
   const stayScope = (stayNoun || ctx.stay === true) && lexical.length === 0 && foreign.length === 0;
   const stayBegin = stayScope && toks.some((t) => STAY_BEGIN.test(t));
   const stayEnd = stayScope && toks.some((t, i) => STAY_END.test(t) || (t === "sona" && /^er/.test(toks[i + 1] ?? "")));
+  const roles = mentions.map((m) => timeRole(clause, m.start, m.end));
+  const accessNoun = toks.some((t) => ACCESS_NOUN.test(t));
+  const accessFree = foreign.every((id) => id === "keys" || id === "credentials") && !toks.some((t) => WIFI.test(t)) && !luggage;
+  const departing = departureDay(toks);
+  const endVerb = toks.some((t) => ACCESS_END.test(t));
   const accessStart =
     lexical.length === 0 &&
-    foreign.every((id) => id === "keys" || id === "credentials") &&
-    toks.some((t) => ACCESS_NOUN.test(t)) &&
+    accessFree &&
+    accessNoun &&
     toks.some((t) => ACCESS_START.test(t)) &&
-    !toks.some((t) => ACCESS_END.test(t) || WIFI.test(t)) &&
-    !luggage;
+    (!endVerb || departing) &&
+    roles.some((r) => !r.until && !r.before);
+  // Erişimin ÇIKIŞ GÜNÜ bitmesi = çıkış ("… çıkış günü saat 11:00'de iptal edilir", "çıkış günü 11:00'e kadar geçerlidir").
+  const accessEnd =
+    !lexical.includes("checkout") &&
+    accessFree &&
+    (accessNoun || ctx.access === true) &&
+    departing &&
+    (endVerb || (toks.some((t) => ACCESS_VALID.test(t)) && roles.some((r) => r.until)));
+  const span =
+    (accessNoun || toks.some((t) => STAY_PLACE.test(t) || STAY_PLACE_ACC.test(t))) &&
+    toks.some((t) => SPAN_VERB.test(t)) &&
+    roles.some((r) => r.from || r.after) &&
+    roles.some((r) => r.until);
   const extension = toks.some((t) => EXTENSION.test(t));
   const raw = [
     ...lexical,
-    ...(departsStay || stayEnd ? ["checkout"] : []),
+    ...(departsStay || stayEnd || accessEnd ? ["checkout"] : []),
     ...(stayBegin || accessStart ? ["checkin"] : []),
     ...extra,
   ].map((f) => (extension && f === "checkout" ? "late_checkout" : f));
@@ -419,6 +494,21 @@ function clauseFields(clause: string, ctx: { stay?: boolean } = {}): ClauseInfo 
   const sending = toks.some((t) => SEND_PREFIX.test(t) || SEND_EXACT.has(t));
   const facility = toks.some((t, i) => OTHER_FACILITY.test(t) || MAINTENANCE.test(t) || (ACTIVITY.test(t) && toks[i - 1] !== "of"));
   const poolOk = toks.some((t, i) => POOL_WORD.test(t) && !POOL_TAILS.some((p) => (toks[i + 1] ?? "").startsWith(p) || (toks[i + 2] ?? "").startsWith(p)));
+  // Havuz / spor salonu YER olarak ("havuz başında kahvaltı 08:00-10:30", "breakfast by the pool"): saat oradaki başka işin saatidir.
+  const facilityAsPlace =
+    foreign.length > 0 &&
+    toks.some((t, i) => {
+      if (!POOL_WORD.test(t) && !GYM_WORD.test(t) && t !== "poolside") return false;
+      const locative = (w: string | undefined) => !!w && /(?:da|de|ta|te)$/.test(w);
+      const near = ["at", "by", "in", "beside", "near", "around"];
+      return (
+        t === "poolside" ||
+        locative(t) ||
+        (/^(?:bas|kenar|salon|alan|yan|etraf)/.test(toks[i + 1] ?? "") && locative(toks[i + 1])) ||
+        near.includes(toks[i - 1] ?? "") ||
+        (toks[i - 1] === "the" && near.includes(toks[i - 2] ?? ""))
+      );
+    });
   // "Dry cleaner / kuru temizleme" bir DÜKKAN; "temizlik malzemesi" bir ÜRÜN — dairenin temizlik saati değil.
   const cleaningShop = toks.some(
     (t, i) =>
@@ -428,10 +518,10 @@ function clauseFields(clause: string, ctx: { stay?: boolean } = {}): ClauseInfo 
   );
   const fields = raw.filter(
     (f) =>
-      (f !== "checkout" || outWord || vacate || stayEnd) &&
-      (f !== "quiet_hours" || quietPhrase(toks) || ruleSignal(toks)) &&
-      (f !== "gym" || (toks.some((t) => GYM_WORD.test(t)) && !facility)) &&
-      (f !== "pool" || (poolOk && !facility)) &&
+      (f !== "checkout" || outWord || vacate || stayEnd || accessEnd) &&
+      (f !== "quiet_hours" || quietPhrase(toks) || ruleSignal(toks) || ctx.rule === true) &&
+      (f !== "gym" || (toks.some((t) => GYM_WORD.test(t)) && !facility && !facilityAsPlace)) &&
+      (f !== "pool" || (poolOk && !facility && !facilityAsPlace)) &&
       (f !== "cleaning" || !cleaningShop) &&
       !(luggageAction && STAY_FIELDS.has(f)) &&
       !contactWindow &&
@@ -456,6 +546,9 @@ function clauseFields(clause: string, ctx: { stay?: boolean } = {}): ClauseInfo 
     if ((t === "after" || t === "before") && /^(?:checkin|checkout|arrival|departure)$/.test(n1 === "the" || n1 === "your" ? n2 : n1)) return true;
     return false;
   });
+  // Gün kaymalı başvuru ("varıştan bir gün önce", "the day after arrival", "the evening before you leave"): saat başka bir işin
+  // saatidir — hiçbir rolde giriş/çıkış değeri değildir.
+  const strongReference = reference && toks.some((t) => /^(?:day|days|gun|evening|aksam|night|gece|morning|sabah)$|^gun[a-z]{0,2}$/.test(t));
   const freeEarly = toks.some((t, i) => EARLY_FREE.test(t) && !["en", "the"].includes(toks[i - 1] ?? "") && !isIn(toks[i + 1] ?? "") && !isOut(toks[i + 1] ?? "") && toks[i + 1] !== "check");
   const freeLate = toks.some((t, i) => LATE_FREE.test(t) && toks[i - 1] !== "en" && !isIn(toks[i + 1] ?? "") && !isOut(toks[i + 1] ?? "") && toks[i + 1] !== "check");
   const standard = toks.some((t) => STANDARD_EXACT.has(t) || NEG_VERB.test(t));
@@ -471,6 +564,7 @@ function clauseFields(clause: string, ctx: { stay?: boolean } = {}): ClauseInfo 
     sending ||
     transport ||
     otherPlace ||
+    facility ||
     lateness ||
     fields.length < raw.length ||
     foreign.length > 0;
@@ -483,8 +577,13 @@ function clauseFields(clause: string, ctx: { stay?: boolean } = {}): ClauseInfo 
     split: fields.length > 1 || raw.some((f) => (luggageAction && STAY_FIELDS.has(f)) || contactWindow || sending),
     lateness,
     reference,
+    strongReference,
     extension,
     accessOnly: accessStart,
+    accessEndOnly: accessEnd,
+    span,
+    accessNoun,
+    rule: ruleSignal(toks),
     topic: transport || luggage,
     availability: availabilityCondition(toks, clause),
     stayNoun,
@@ -505,7 +604,7 @@ function timeMentions(clause: string): { time: string; start: number; end: numbe
 }
 
 /** Saatin ardındaki sözcük ("14:00'e kadar", "11:00 sonrası", "15:00'ten önceki / itibaren") ya da önündeki ("until / after / before / from"). */
-function timeRole(clause: string, start: number, end: number): { until: boolean; after: boolean; before: boolean; from: boolean } {
+function timeRole(clause: string, start: number, end: number): { until: boolean; after: boolean; before: boolean; from: boolean; by: boolean } {
   const tail = clause.slice(end, end + 16).toLocaleLowerCase("tr");
   const head = clause.slice(Math.max(0, start - 10), start).toLocaleLowerCase("en");
   const suffixThen = (w: string) => new RegExp(`^\\s*(?:['’\`]\\s*)?[a-zçğıöşü]{0,4}\\s*${w}`).test(tail);
@@ -514,6 +613,7 @@ function timeRole(clause: string, start: number, end: number): { until: boolean;
     after: suffixThen("sonra") || /\bafter\s*$/.test(head),
     before: suffixThen("önce") || /\bbefore\s*$/.test(head),
     from: suffixThen("itibaren") || /\bfrom\s*$/.test(head),
+    by: /\bby\s*$/.test(head),
   };
 }
 
@@ -527,9 +627,10 @@ function excludedTime(field: string, role: ReturnType<typeof timeRole> & { inCon
   if ((field === "late_checkout" || field === "late_checkin") && role.after) return true;
   if ((field === "early_checkin" || field === "early_checkout") && role.before) return true;
   if (STAY_FIELDS.has(field) && role.inCondition) return true;
-  if ((field === "checkin" || field === "checkout") && info.reference && role.until) return true;
+  if ((field === "checkin" || field === "checkout") && info.reference && (role.until || role.by || info.strongReference)) return true;
   if ((field === "checkin" || field === "checkout") && info.lateness && role.after) return true;
   if (field === "checkin" && info.accessOnly && (role.until || role.before)) return true;
+  if (field === "checkout" && info.accessEndOnly && (role.from || role.after)) return true;
   return false;
 }
 
@@ -543,6 +644,9 @@ function excludedTime(field: string, role: ReturnType<typeof timeRole> & { inCon
  * geç çıkış yapar ("Daire hazırsa 13:00'te girebilirsiniz") — standart / olumsuz anlatımda yapmaz.
  */
 export function fieldTimeHits(title: string, text: string, category?: string | null): FieldTimeHit[] {
+  // YEREL TAVSİYE (09-27, kör batarya): kalem mahalleyi anlatır — "Kaleye giriş 09:00-19:00, son giriş 18:30", "belediyenin kapalı
+  // havuzu 07:00-22:00", "spor merkezi 06:00-24:00" mülkün giriş / havuz / spor salonu saati DEĞİL (mülk saatiyle sahte çelişki).
+  if (category === "local_tips") return [];
   const titleFields = clauseFields(title).fields;
   const titleField = titleFields.length === 1 ? titleFields[0] : null;
   // KATEGORİ ÖDÜNCÜ — en zayıf dayanak, en son (inceleme 09-23): "Varış bilgileri" başlıklı `checkin`
@@ -553,7 +657,11 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
   // "p.m." noktaları cümlecik sınırı sanılmasın (işaret kaybolur, 15:00 → 03:00 okunurdu).
   const flat = text.replace(/\b([ap])\.m\./gi, "$1m");
   const hits: FieldTimeHit[] = [];
-  for (const sentence of flat.split(SENTENCE_SPLIT)) {
+  const bits = flat.split(SENTENCE_SPLIT);
+  for (let si = 0; si < bits.length; si += 2) {
+    // Soru cümlesi bir saat BİLDİRMEZ ("S: 12:00'de girebilir miyiz?" / "Arriving after 11 pm?").
+    if ((bits[si + 1] ?? "").includes("?")) continue;
+    const sentence = bits[si];
     let carriedTopic = false;
     let carriedAvailability = false;
     // Tire ile ayrılan devam cümleciği önceki parçanın konusunu taşır ("we can book a taxi to the airport — most guests go for
@@ -565,14 +673,34 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
       if (!dash) dashTopic = false;
       if (CONDITION_RESET.test(c)) carriedAvailability = false;
       const availability = carriedAvailability || whole.availability;
-      const byAnd = whole.split ? splitKeeping(c, AND_SEP, 1) : [c];
+      const byAnd = whole.split
+        ? splitKeeping(c, AND_SEP, 1).flatMap((p) => (clauseFields(p).fields.length > 1 ? splitKeeping(p, PAREN_SEP, 1) : [p]))
+        : [c];
+      // Ortak yüklem ("Both the indoor pool and the gym are open 7:00–21:00", "Havuz ve spor salonu 08:00-20:00 arası açık"):
+      // saatsiz, KISA (≤4 sözcük), kural dili taşımayan isim öbeğinin (konaklama dışı) alanı sonraki parçanın saatlerini de alır.
+      // Kendi yüklemi olan parça ("No glass by the pool and no music after 9 pm") ayrı bir kuraldır, aktarılmaz.
+      let pending: string[] = [];
       for (const piece of byAnd) {
         const parts = splitAtCondition(piece);
         const conditionTopic = parts.length > 1 && clauseFields(parts[0]).topic;
+        if (byAnd.length > 1 && timeMentions(piece).length === 0) {
+          const pieceInfo = clauseFields(piece);
+          if (tokenize(piece).length <= 4 && !pieceInfo.rule) pending.push(...pieceInfo.fields.filter((f) => !STAY_FIELDS.has(f)));
+          continue;
+        }
         parts.forEach((part, pi) => {
           const mentions = timeMentions(part);
           if (mentions.length === 0) return;
-          const info = clauseFields(part, { stay: whole.stayNoun });
+          const info = clauseFields(part, { stay: whole.stayNoun, access: whole.accessNoun, rule: whole.rule });
+          if (info.span) {
+            // Süre: başlangıç saati giriş, bitiş saati çıkış.
+            for (const m of mentions) {
+              const r = timeRole(part, m.start, m.end);
+              const f = r.until ? "checkout" : r.from || r.after ? "checkin" : null;
+              if (f) hits.push({ field: f, time: m.time, via: "clause", clause: part.trim() });
+            }
+            return;
+          }
           const otherConcept =
             info.otherConcept || carriedTopic || dashTopic || (pi > 0 && conditionTopic) || (byAnd.length > 1 && whole.otherConcept);
           let field: string | null = null;
@@ -597,12 +725,16 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
             else if (field === "checkout" && (availability || late)) field = "late_checkout";
           }
           if (!field) return;
-          const kept = new Set<string>();
-          for (const m of mentions) {
-            const role = { ...timeRole(part, m.start, m.end), inCondition: insideCondition(part, m.start) };
-            if (!excludedTime(field, role, info)) kept.add(m.time);
+          const carried = via === "clause" && !STAY_FIELDS.has(field) ? pending.filter((f) => f !== field) : [];
+          pending = [];
+          for (const f of [field, ...carried]) {
+            const kept = new Set<string>();
+            for (const m of mentions) {
+              const role = { ...timeRole(part, m.start, m.end), inCondition: insideCondition(part, m.start) };
+              if (!excludedTime(f, role, info)) kept.add(m.time);
+            }
+            for (const time of kept) hits.push({ field: f, time, via, clause: part.trim() });
           }
-          for (const time of kept) hits.push({ field, time, via, clause: part.trim() });
         });
       }
       dashTopic ||= whole.otherConcept;

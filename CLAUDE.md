@@ -1216,8 +1216,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu.
   İkinci bir saat/çelişki kuralı YAZILMAZ. Host raporu yalnız cümlecik saatini sayar; misafir yolu temkinli.
   🚨 **09-27 yanlış alarm turu (kurucu "en iyi şekilde, didik didik"; belge `docs/TASARIM-2026-09-26-rag-300-olcek.md` §4d;
-  iki yönlü batarya `tests/helpers/time-field-battery.ts` — gerçek saat okunur + tuzak okunmaz; canlı kural 81/108 gerçek · 32/101
-  tuzak, yeni kural 108/108 · 101/101; kuralları görmemiş ajanın kör bataryası 43/59 · 30/56 → 57/59 · 56/56):** saatin BAĞLAMI okunur (`timeRole`: "…'e kadar / sonrası / önce", until/after/before): geç/erken sınırı ("11:00
+  iki yönlü batarya `tests/helpers/time-field-battery.ts` — gerçek saat okunur + tuzak okunmaz; canlı kural 90/136 gerçek · 32/113
+  tuzak, yeni kural 136/136 · 113/113; kuralları görmemiş ajanın kör bataryası 2 AYARSIZ 42/61 · 39/69 → 49/61 · 60/69):** saatin BAĞLAMI okunur (`timeRole`: "…'e kadar / sonrası / önce", until/after/before): geç/erken sınırı ("11:00
   sonrası geç çıkış ücreti"), başvuru noktası ("çıkıştan sonra … 14:00'e kadar") ve koşulun İÇİNDEKİ saat değer DEĞİL (Türkçe koşul
   fiilinden — "-rse/-sanız/müsaitse" — sonra cümlecik bölünür; "of course / persembe" koşul değil). Konaklama saati DEĞİL: valizle
   yapılan iş, araç girişi, "girişin arkası/önü", "check-in help/desk / giriş talimatı", iletişim saati (ödünç engeli), ulaşım
@@ -1233,8 +1233,13 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   bakım, kuru temizleme, temizlik malzemesi alan değildir; gönderim anı ve iletişim PENCERESİ (aralık / "…'e kadar") hiçbir alanın
   saati değildir; "gir-" fiili yalnız konaklama yerine / misafire hitapla giriştir (sözlükte "giriş" ile aynı kök). "ve / and" bölmesi
   yalnız iki alan ya da KONU vetosunda (valiz / iletişim / gönderim) — sözcük süzgecinin düşürdüğü sahte eşleşme ("salonda") bölmez.
-  Yere bağlı sessizlik kuralı (havuz başı) iki alan adlandırır → hüküm yok (bilinçli; bataryada `soft`). Yeni sözcük eklerken
-  bataryaya İKİZ (doğru + tuzak) cümle yazılır; her kural parçasını YALNIZ kendisine dayanan bir pin korur (mutasyon).
+  Yere bağlı sessizlik kuralı (havuz başı) iki alan adlandırır → hüküm yok (bilinçli; bataryada `soft`). Üçüncü tur (kör batarya 2):
+  SORU cümlesi ("?") saat bildirmez; "|" cümle sınırı; `local_tips` kalemi hiçbir alana saat vermez (mahalle); gün kaymalı başvuru
+  ("the day before arrival", "varıştan bir gün önce") ve başvurulu "by" giriş/çıkış değil; erişimin ÇIKIŞ GÜNÜ bitişi çıkış; "yours / sizin
+  … from X until Y" = giriş X + çıkış Y; personel öznesiyle "gir-" giriş değil; "yerleş-" ve "daireyi teslim et-" giriş / çıkış; havuz /
+  spor salonu YER olarak (başka kavramla) alan değil; iki alanlı etiket satırında tire / "/" / parantez bölücü; kısa isim öbeği ortak
+  yüklem alır. Yeni sözcük eklerken bataryaya İKİZ (doğru + tuzak) cümle yazılır; her kural parçasını YALNIZ kendisine dayanan bir pin
+  korur (mutasyon). Kör batarya bir kez ayarda kullanılınca "görüldü" sayılır; dürüst sayı YENİ kör bataryayla verilir.
   🚨 **Çelişki KAPIDA tutulur (09-25, `ai/time-conflict-gate.ts`):** istemin çelişki listesi `suggestReply` sonucunda
   (`timeConflicts`) kapıya gider; çelişkili alana (niyet · misafir/cevap konusu · çelişen saat) değen cevap kanal + QR +
   Ayarlar/demo önizlemesinde `kb_time_conflict` — karar model güvenine BIRAKILMAZ (model 0.80 verdi). Doğrulanmış onay /
