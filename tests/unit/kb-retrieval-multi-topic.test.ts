@@ -142,6 +142,24 @@ describe("tekrar eden ek sorgu: karar yeniden sıralamadan ÖNCE, tek ortak baş
     expect(run(new Map([["X#0", 3], ["Y#0", 2]]))).toContain("Y");
   });
 
+  it("🚨 yeniden sıralayıcı ek sorgunun İLK ÜÇ adayını özgün sorgunun kalemleriyle doldursa da ek sorgu tekrar SAYILMAZ (karar sıralamadan önce)", () => {
+    // Üç wifi kalemi de makineyi anıyor; yeniden sıralayıcı üçünü "cevaplıyor" işaretleyince makine sorusunun listesi sıralamadan SONRA
+    // [A, X, B, Y] olur — hepsi özgün sorgunun başında → sıralama sonrası karar makine sorusunu düşürürdü (mutasyon R2).
+    const wifiHeavy = [
+      item("X", "Wi-Fi", "Wi-Fi şifresi lale2024. Modem çamaşır makinesinin üstündeki raftadır.", 1000),
+      item("A", "Wi-Fi sinyali", "Wi-Fi sinyali çamaşır makinesi odasında zayıftır; şifre aynıdır.", 1100),
+      item("B", "Modem", "Wi-Fi modemini yeniden başlatmak için çamaşır makinesinin yanındaki prizi kullanın.", 1200),
+      item("Y", "Çamaşır makinesi", "Çamaşır makinesi kullanımı: 40 derece programını seçin, deterjan lavabonun altındadır.", 2000),
+      ...neutralPadding(40, T0),
+    ];
+    const pick = (rerankScores?: Map<string, number>) => {
+      __resetKbIndexCache();
+      return selectKbForPrompt({ items: wifiHeavy, guestMessage, history, extraQueries, mode: "hybrid", now: T0, ...(rerankScores ? { rerankScores } : {}) }).items.map((i) => i.id);
+    };
+    expect(pick()).toContain("Y");
+    expect(pick(new Map([["X#0", 3], ["A#0", 3], ["B#0", 3]]))).toContain("Y");
+  });
+
   it("KONTROL — gerçekten aynı konuyu tekrar eden ek sorgu ('wifi şifresi') yine pay almaz; wifi kalemi seçilir", () => {
     const ids = run(new Map([["X#0", 3]]));
     expect(ids).toContain("X");

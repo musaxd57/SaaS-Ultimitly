@@ -193,4 +193,8 @@ export const TIME_FIELD_REVIEW_BATTERY: ReviewCase[] = [
   R("M09", "aralik", "mut·N67 çıplak aralık", "checkout", "Çıkış", "Çıkış 10-11 arası yapılmalıdır.", ["checkout:10:00", "checkout:11:00"], { checkOut: "11:00", checkout: [] }),
   R("M10", "baslangic", "mut·N11b dakika", "checkout", "Çıkış", "Çıkış saat 11'i birkaç dakika geçe yapılabilir.", [], { checkOut: "11:00", checkout: [] }),
   R("M11", "baslangic", "mut·N70 eşleme", "general", "Saatler", "Check-in and check-out: 15:00 and 11:00 until further notice.", ["checkin:15:00", "checkout:11:00"], { checkIn: "14:00", checkin: ["15:00"] }),
+  // 09-27 ikinci mutasyon turu (#208/#211, 36 mutant): yaşayan üç parçaya YALNIZ ona dayanan pin.
+  R("M12", "baska_olay", "mut·T3 acil", "checkin", "Giriş", "Acil durum hattı 14:00'ten itibaren açıktır.", [], { checkIn: "15:00", checkin: [] }),
+  R("M13", "baska_olay", "mut·T8 kapı taşıma", "checkin", "Giriş", "Bina kapısı gece 23:00'te kilitlenir, sabah 07:00'de tekrar açılır.", [], { checkIn: "15:00", checkin: [] }),
+  R("M14", "baska_olay", "mut·T8 kapı taşıma EN", "checkin", "Check-in", "The doors close at 11 pm, and you can come in from 7 am.", [], { checkIn: "15:00", checkin: [] }),
 ];
