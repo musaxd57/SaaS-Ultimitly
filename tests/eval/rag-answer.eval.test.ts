@@ -13,6 +13,7 @@ import { runPipeline, type LabQuery } from "./rag-lab/core";
 import { parseConfig } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
 import { answerAnchorHits, foreignNumbers } from "./rag-lab/answer-metrics";
+import { caseVerdict } from "./rag-lab/answer-acceptance";
 import { writeSidecar } from "./sidecar";
 
 // ---------------------------------------------------------------------------
@@ -43,7 +44,14 @@ const CONFIGS = (process.env.EVAL_RAG_ANSWER_CONFIGS?.split(",").map((s) => s.tr
 const SPLIT = process.env.EVAL_RAG_ANSWER_SPLIT === "holdout" ? "holdout" : "dev";
 /** Grup başına en çok bu kadar soru (sabit adımlı örneklem, ücretli koşu bütçesi). */
 const PER_GROUP = Math.max(1, Number(process.env.EVAL_RAG_ANSWER_N) || 40);
-const GROUPS = ["single_tr", "single_xx", "multi", "neg"] as const;
+/**
+ * Gruplar: varsayılan dört grup (09-27 ücretli önbelleğiyle eşleşir). HOLDOUT KABULÜ (kurucu kararı 09-27) çelişki / eski sürüm / taslak
+ * gruplarını da ister — "çelişkide kesin konuşmama" ve "sıfır sızıntı" yalnız o gruplarda ölçülür; `EVAL_RAG_ANSWER_GROUPS` ile verilir.
+ */
+const ALL_GROUPS = ["single_tr", "single_xx", "multi", "neg", "conflict", "version", "draft"] as const;
+const GROUPS: readonly string[] =
+  process.env.EVAL_RAG_ANSWER_GROUPS?.split(",").map((g) => g.trim()).filter(Boolean) ??
+  (process.env.EVAL_RAG_ANSWER_SPLIT === "holdout" ? ALL_GROUPS : ["single_tr", "single_xx", "multi", "neg"]);
 const KB_MODE = process.env.EVAL_RAG_ANSWER_KB === "perq" ? "perq" : "full";
 const PERQ_SIZE = Math.max(1, Math.trunc(Number(process.env.EVAL_RAG_ANSWER_PERQ_SIZE) || 60));
 const PROPERTY = { name: "Lale Evleri", checkInTime: "15:00", checkOutTime: "11:00" };
@@ -72,6 +80,11 @@ interface AnswerRow {
   unsupported: number;
   handoff: boolean;
   foreign: boolean;
+  /** VAKA KABULÜ (kurucu kararı 09-27): müşteriye giden cevap kırmızı mı ve neden (kapalı küme, `answer-acceptance.ts`). */
+  red?: boolean;
+  reasons?: string[];
+  /** Cevaplanabilir soruda somut cevap yok, yanlış da yok (dürüst devir / yalnız sözel). */
+  handedOff?: boolean;
 }
 
 describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
@@ -116,8 +129,8 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
       "niyeti · desteksiz iddia = üretimin iddia denetiminde verisiz somut iddia taşıyan cevap (yanıtsız soruda uydurma) · yabancı",
       "sayı = cevap cümlelerinde / mülk alanlarında / misafirin yazdığında olmayan sayıyı söyleyen cevap (yalnız eşleştirilmiş fark).",
       "",
-      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | cevap düzeyi | bilgim-yok | devir | desteksiz iddia | yabancı sayı |",
-      "|---|---|---|---|---|---|---|---|---|---|---|",
+      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | cevap düzeyi | bilgim-yok | devir | desteksiz iddia | yabancı sayı | KIRMIZI vaka | cevaplanabilirken devir |",
+      "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ];
     for (const cfg of CONFIGS) {
       for (const g of GROUPS) {
@@ -126,10 +139,19 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
         const anchored = rs.filter((r) => r.anchored);
         const perAnswer = `${rs.reduce((n, r) => n + (r.anchorHits ?? 0), 0)}/${rs.reduce((n, r) => n + (r.anchoredAnswers ?? 0), 0)}`;
         lines.push(
-          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${perAnswer} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} | ${rs.filter((r) => r.foreign).length} |`,
+          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${perAnswer} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} | ${rs.filter((r) => r.foreign).length} | ${rs.filter((r) => r.red).length} | ${rs.filter((r) => r.handedOff).length} |`,
         );
       }
     }
+    // Kırmızı vakalar (kimlik + sebep; içerik YOK — holdout metni rapora girmez).
+    const reds = rows.filter((r) => !r.invalid && r.red);
+    lines.push(
+      "",
+      `KIRMIZI ADAY vakalar (${reds.length}; kurucu kararı 09-27 — müşteriye giden cevap: kanıtsız iddia / yanlış sayı / uydurma / çelişkide kesin saat / sızıntı).`,
+      "⚠️ ADAY: kodla karar kuru koşuda (09-27, dev) ~%50 isabetli — biçim (08h30, 5 pm↔17.00), çeviride birim, doğru ek bilgi, çok doğru cevap",
+      "yanlış kırmızı üretiyor; kesin hüküm insan incelemesiyle (inceleme kuralı kurucu kararı bekliyor, task #202).",
+    );
+    for (const r of reds) lines.push(`- ${r.config} · ${r.qid} · ${(r.reasons ?? []).join(", ")}`);
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     let name = `rag-answer-${stamp}.md`;
@@ -185,6 +207,16 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
             }
             // Cevap BAŞINA (Codex 09-27): iki sorulu mesajda yalnız bir sorunun sayısını söyleyen yanıt başarı değildir.
             const hits = answerAnchorHits(out.reply, q.answers);
+            const allowedTexts = [PROPERTY.checkInTime, PROPERTY.checkOutTime, q.text, ...(q.history ?? []).map((h) => h.body)];
+            const verdict = caseVerdict({
+              group: q.group,
+              answers: q.answers,
+              forbiddenNeedles: q.forbiddenNeedles,
+              conflict: q.conflictOk === true,
+              reply: out.reply,
+              unsupported: out.u,
+              allowedTexts,
+            });
             rows.push({
               config: cfg.name,
               qid: q.id,
@@ -205,6 +237,9 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
                   q.text,
                   ...(q.history ?? []).map((h) => h.body),
                 ]).length > 0,
+              red: verdict.red,
+              reasons: verdict.reasons,
+              handedOff: verdict.handedOff,
             });
           }
         }),
@@ -212,5 +247,12 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
     }
     complete = true;
     expect(rows.filter((r) => !r.invalid).length).toBeGreaterThan(0);
+    if (SPLIT === "holdout") {
+      // KABUL (kurucu kararı 09-27): holdout'ta eksik koşu kabul değildir — tüm gruplar koşulur (çelişki / sızıntı yalnız kendi
+      // gruplarında ölçülür), üretilemeyen cevap olmaz. Vaka kırmızıları şimdilik ADAY (rapor): ölçücü kuru koşuda ~%50 isabetli,
+      // kesin kırmızı insan incelemesiyle — kural kurucu kararı bekliyor (task #202); o zamana kadar kapı DEĞİL.
+      expect(ALL_GROUPS.filter((g) => !GROUPS.includes(g))).toEqual([]);
+      expect(rows.filter((r) => r.invalid).map((r) => `${r.config} · ${r.qid}`)).toEqual([]);
+    }
   }, 90 * 60_000);
 });
