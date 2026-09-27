@@ -16,7 +16,7 @@ import {
 } from "./rerank";
 import { SOURCE_WEIGHTS, SEMANTIC_QUALIFY_MIN } from "./semantic";
 import { NGRAM_QUALIFY_MIN } from "./sources";
-import { contentStems, normalizeForRetrieval, phraseUnits } from "./text";
+import { contentStems, normalizeForRetrieval, phraseUnits, tokenize } from "./text";
 import { kbFitsWhole } from "./kb-line";
 import { detectGuestLanguage } from "@/lib/ai/fallback";
 
@@ -530,6 +530,8 @@ function renderedChars(c: { category: string; title: string; text: string }): nu
 
 interface RankOptions {
   carryStems: readonly string[];
+  /** Taşınan geçmiş mesajlarının HAM belirteçleri (yüzey biçimi korumalı kökler için; `carryStems` ile aynı mesajlar). */
+  carryTokens: readonly string[];
   semantic: ReadonlyMap<string, number> | undefined;
   sources: Required<KbSelectSources>;
   /** Dil, HAM misafir mesajından algılanır (alt sorgular ASCII-katlanmıştır; oradan algılanamaz). */
@@ -564,6 +566,10 @@ function rankForSubquery(
     [...own, ...carried],
     opt.sources.foreign ? matchForeignConcepts(subquery) : [],
     phraseUnits(subquery),
+    {
+      possessive: opt.queryIsTurkish,
+      tokens: [...tokenize(normalizeForRetrieval(subquery)), ...(carried.length > 0 ? opt.carryTokens : [])],
+    },
   );
   for (const [s, w] of expansion) if (!weights.has(s)) weights.set(s, w);
 
@@ -858,10 +864,9 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       const cap = cappedForFallback(sup > 0 ? items : input.items);
       return legacyResult(cap.items, "hybrid", evidence("empty_query", 0, 0, index.chunks.length, { sup }), cap.dropped);
     }
-    const carryStems = (input.history ?? [])
-      .filter((m) => m.direction === "inbound")
-      .slice(-CARRY_HISTORY_MESSAGES)
-      .flatMap((m) => contentStems(m.body));
+    const carryMessages = (input.history ?? []).filter((m) => m.direction === "inbound").slice(-CARRY_HISTORY_MESSAGES);
+    const carryStems = carryMessages.flatMap((m) => contentStems(m.body));
+    const carryTokens = carryMessages.flatMap((m) => tokenize(normalizeForRetrieval(m.body)));
 
     const queryIsTurkish = detectGuestLanguage(input.guestMessage) === "tr";
     const rankedAll = queries.map((q) =>
@@ -870,6 +875,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
         // TAŞINMAZ (ikinci inceleme 09-24: kısa "sauna" sorgusuna eski "wifi" kökleri ekleniyor, geri
         // çekilmede wifi kalemleri öne alınıyordu).
         carryStems: q.extra ? [] : carryStems,
+        carryTokens: q.extra ? [] : carryTokens,
         semantic: input.semanticBySubquery?.get(q.subquery) ?? input.semantic,
         sources,
         queryIsTurkish: q.extra ? q.turkish === true : queryIsTurkish,

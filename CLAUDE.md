@@ -174,7 +174,12 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   değil); zayıf kök ağırlığı 0.25, taşınan `min`. Reddedilen: `ndan/nda/ni` eki · `alim/elim` taban 4 · optatif
   ilk-tur kısıtı. Sözlükten ÇIKARILDI, geri gelmesin: "varış→var", "şu→su", "ki" eki, torba "olanaklar". Bilinen kök
   sınırları: markete→mark, kilidi→ki, duşu→du, görevliniz→gorevl. `hasEvidence` yüklemi (güçlü kök / n-gram ≥0.3 /
-  anlamsal ≥0.3) — `base > 0` yetmez.
+  anlamsal ≥0.3) — `base > 0` yetmez. 🚨 Ünlü-sonu iyelik "-m" sökümü REDDEDİLDİ (09-27: 164 belirteç / 122 yeni çakışma — akşam=aksi,
+  modem=moda, konaklama=konak, toplam=top) ve sözlük dışı geri çekilme de (tetiklenmelerin çoğu gürültü); "şifremi / arabamı /
+  kumandam" yalnız KAVRAM tespitinde tanınır (Türkçe sorgu, "-m"siz kök bir kavram teriminin köküyse; `possessiveBareStems`).
+  Sözlükte tek kelimelik terimin kökü DURAK sözcük olamaz (`lexiconProblems` pinli; "noise/waste/hastane" taban kök, "ısınmıyor"
+  korumalı kök — dördü de yıllardır ölüydü). Getirmede "acil" kökü kavramı yalnız yüzey biçimi güvenlik sınıflandırıcısının tam
+  sözcük listesindeyse tanır (`EMERGENCY_ACIL_FORMS`, parite pinli; "açılıyor" ≠ acil); belirteç vermeyen çağıran (saat alanı) değişmez.
 - **Belirsiz tek kelime yalnız GENİŞLETME (`expandOnly`, kurucu onayı 09-26):** "sıcak / outage / kesinti / depo / eşya /
   alarm / merdiven" kavramı TEK BAŞINA tetiklemez (yanlış kavramın kalemi doğru kalemin önüne geçiyordu), kalıpla
   tespitte ("sıcak su", "su kesintisi", "duman alarmı") genişletmeye girer — geri `terms`e ALINMAZ. Saat alanı kuralının

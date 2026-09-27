@@ -176,12 +176,44 @@ export function lexiconProblems(concepts: readonly Concept[] = CONCEPTS): string
   const out: string[] = [];
   for (const c of concepts) {
     for (const t of c.terms) if (stemsOf(t).length !== 1) out.push(`${c.id}: terms "${t}" → [${stemsOf(t).join(",")}]`);
+    // Kökü DURAK sözcüğe inen tek kelimelik terim kavramı ASLA tetiklemez (içerik kökleri durakları atar) — 09-27 #208 A10: "noise" →
+    // "no", "waste" → "was", "hastane" → "has", "ısınmıyor" → "is" yıllardır ölüydü. Kök tabanı ya da korumalı kökle düzeltilir.
+    for (const t of c.terms) if (!t.includes(" ") && (isStopword(stem(t)) || isStopword(t))) out.push(`${c.id}: terms "${t}" → "${stem(t)}" (durak sözcük)`);
     for (const t of c.expandOnly ?? []) if (stemsOf(t).length !== 1) out.push(`${c.id}: expandOnly "${t}" → [${stemsOf(t).join(",")}]`);
     for (const t of c.detectOnly ?? []) {
       const words = t.trim().split(/\s+/).length;
       if (words > 1 && contentStems(t).length < 2) out.push(`${c.id}: detectOnly "${t}" → [${contentStems(t).join(",")}] (kalıp tek kelimeye iniyor — phrases'e taşı)`);
     }
     for (const p of c.phrases ?? []) if (phraseUnits(p).length < 2) out.push(`${c.id}: phrases "${p}" → tek birim`);
+  }
+  return out;
+}
+
+/**
+ * ÜNLÜ-SONU 1. TEKİL İYELİK — YALNIZ KAVRAM TESPİTİ (09-27, #208; kurucu kararı "getirme hatalarını ölçerek düzelt"): kök sökücü
+ * ünlüden sonraki "-m"i sökmez ("şifremi" → "sifrem", "çantam", "arabamı" → "arabam") → "Şifremi unuttum" hiçbir şifre kalemini
+ * bulmuyordu (60 kalemde tek sonuç: garaj kumandası, "unuttum ~ unutmayın" üzerinden). Kök sökücüye "-m" kuralı ÖLÇÜLÜP REDDEDİLDİ
+ * (değerlendirme metinlerinde 164 belirteç değişiyor, 122 yeni çakışma: "akşam → aks = aksi", "modem → mo = moda", "konaklama →
+ * konak", "toplam → top"), sözlük dışı geri çekilme de (60 tetiklenmenin çoğu gürültü: "kalem → ka", "kapsam → kap"). Buradaki kural
+ * DAR: yalnız Türkçe sorguda (çağıran söyler), "-m"siz kök bir KAVRAM TERİMİNİN köküyse kavram tanınır (genişletme + ipucu, ağırlık
+ * her zamanki gibi); kök sökücü, BM25 ve bilgi tabanı tarafı DEĞİŞMEZ.
+ */
+/**
+ * YÜZEY BİÇİMİ KORUMALI KÖK (09-27, #208 A10): ASCII katlamada "açıl-" ("açılıyor", "açılır", "açılmıyor") da "acil"e iner → "Havuz ne
+ * zaman açılıyor?" ACİL DURUM kavramını tetikliyor, havuz kalemi ilk sıralardan düşüyordu (güvenlik sınıflandırıcısında 09-26'da
+ * düzeltilen hatanın getirme tarafındaki ikizi). Getirme çağıranı ham belirteçleri verdiğinde "acil" kökü kavramı YALNIZ yüzey biçimi bu
+ * kapalı listedeyse tanır — sınıflandırıcının tam sözcük listesinin "acil" ailesiyle AYNI küme (parite testi). Belirteç verilmeyen
+ * çağıranlar (saat alanı kuralı) değişmez.
+ */
+export const EMERGENCY_ACIL_FORMS: readonly string[] = ["acil", "acilen", "acile", "acilde", "acilden", "aciliyet", "aciliyeti", "acildir"];
+const SURFACE_GUARDED_STEMS: ReadonlyMap<string, ReadonlySet<string>> = new Map([["acil", new Set(EMERGENCY_ACIL_FORMS)]]);
+
+function possessiveBareStems(stems: ReadonlySet<string>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const s of stems) {
+    if (s.length < 5 || !/[aeiou]m$/.test(s)) continue;
+    const b = stem(s.slice(0, -1));
+    if (b !== s) out.set(s, b);
   }
   return out;
 }
@@ -212,16 +244,29 @@ function hasPhrase(stems: readonly string[], phrase: readonly string[]): boolean
  */
 export function matchConcepts(
   stems: string[],
-  opts: { loose?: boolean; units?: readonly string[] } = {},
+  opts: { loose?: boolean; units?: readonly string[]; possessive?: boolean; tokens?: readonly string[] } = {},
 ): ConceptMatch[] {
   const out: ConceptMatch[] = [];
   const set = new Set(stems);
+  const bare = opts.possessive ? possessiveBareStems(set) : null;
+  const surfaceOk = (s: string): boolean => {
+    const forms = opts.tokens ? SURFACE_GUARDED_STEMS.get(s) : undefined;
+    return !forms || opts.tokens!.some((t) => forms.has(t));
+  };
   for (const c of COMPILED) {
     let via: string | null = null;
     for (const s of set) {
-      if (c.single.has(s) || (opts.loose && (c.expandOnly.has(s) || c.phraseContent.has(s)))) {
+      if ((c.single.has(s) && surfaceOk(s)) || (opts.loose && (c.expandOnly.has(s) || c.phraseContent.has(s)))) {
         via = s;
         break;
+      }
+    }
+    if (!via && bare) {
+      for (const [s, b] of bare) {
+        if (c.single.has(b)) {
+          via = s;
+          break;
+        }
       }
     }
     if (!via) {
@@ -263,8 +308,14 @@ export function expandQuery(
   stems: string[],
   extra: readonly ConceptMatch[] = [],
   units?: readonly string[],
+  opts: {
+    /** Türkçe sorguda ünlü-sonu iyelik "-m" kavram tespitinde de denenir (↑`possessiveBareStems`). */
+    possessive?: boolean;
+    /** Sorgunun HAM (katlanmış) belirteçleri — yüzey biçimi korumalı kökler için (↑`SURFACE_GUARDED_STEMS`). */
+    tokens?: readonly string[];
+  } = {},
 ): QueryExpansion {
-  const matched = matchConcepts(stems, { units });
+  const matched = matchConcepts(stems, { units, possessive: opts.possessive, tokens: opts.tokens });
   for (const e of extra) if (!matched.some((m) => m.concept.id === e.concept.id)) matched.push(e);
   const own = new Set(stems);
   const expansion = new Map<string, number>();

@@ -141,7 +141,9 @@ const IRREGULAR_STEMS: Readonly<Record<string, string>> = { suy: "su" };
  * tetikliyordu. Sökme bu köke ulaşınca DURUR ("checkinler" → "checkin"). Simetrik: bilgi tabanındaki
  * "check-in" / "check in" (bileşik birleştirme) da "checkin" kalır.
  */
-const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin"]);
+// "ısınmıyor" (sıcak su kavramının terimi) "is"e (durak) iniyordu; ısın- kökü "işin"le (iş + tamlayan) aynı yazıldığı için taban kök
+// değil, yalnız bu yüzey biçimi korunur (09-27, #208 A10).
+const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin", "isinmiyor"]);
 /**
  * TABAN KÖKLER (09-27, #208 — hata ayıklama ajanı ölçtü): "havlu" ve "hava" ikisi de "hav"a iniyordu (havalimanı kavramındaki
  * "havas" da) → her Türkçe havlu sorusu HAVALİMANI kavramını, "Hava nasıl?" havlu kavramını tetikliyordu; "fırın" ve "fire" ikisi de
@@ -152,7 +154,9 @@ const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin"]);
 // Aynı ölçüm turunda: "para" (ödeme) "parti" ile "par"a iniyordu → her ödeme cümlesi GÜRÜLTÜ / sessiz saat kavramını tetikliyordu
 // ("Kalan tutarı (para) 20:00'ye kadar ödeyin" sahte sessiz saat oluyordu); İngilizce "see" "sea" ile "se"ye → her "see you / you'll see"
 // PLAJ kavramını.
-const PREFIX_FLOOR_STEMS: readonly string[] = ["havlu", "firin", "parti", "sea"];
+// 09-27 (#208 A10, sözlük sözleşmesi pinli — `lexiconProblems`): "noise" → "no", "waste" → "was", "hastane" → "has" DURAK sözcüğe iniyordu
+// → bu terimler kavramlarını (gürültü / çöp / acil) HİÇ tetikleyemiyordu ve bilgi tabanındaki bu sözcükler sözcüksel aramada görünmüyordu.
+const PREFIX_FLOOR_STEMS: readonly string[] = ["havlu", "firin", "parti", "sea", "noise", "waste", "hastane"];
 const SUFFIXES_LONGEST_FIRST = [...SUFFIXES].sort((x, y) => y.length - x.length);
 /**
  * SABİT NOKTA (09-10): eski tur tavanı (3) çekimli biçim ile yalın biçimi FARKLI

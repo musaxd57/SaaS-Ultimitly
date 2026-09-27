@@ -2110,7 +2110,7 @@ const DISCRIMINATION_PHRASES = [
  * gas", "fire in the kitchen", "ACİL!", "acil durum", "acilen". Bitişik bileşikler (Almanca "Gasgeruch", "firefighter")
  * ↑listede açıkça. Tüm aday biçimlerin ASCII katlamasında sınanır — yalnız EŞLEŞME EKLER.
  */
-const SAFETY_CRITICAL_WHOLE_WORDS = [
+export const SAFETY_CRITICAL_WHOLE_WORDS: readonly string[] = [
   "gas", "fire", "fires", "wildfire", "wildfires", "firefighter", "firefighters",
   // Türkçe (ve Fransızca) "gaz" + ad çekimleri tek tek (09-26, kurucu onayı): alt dize "mağaza", "Gazipaşa", "Gaziantep",
   // "gazete", "gazoz", "gazino" içinde acil üretiyordu. "gazi" (belirtme "gazı") BİLEREK YOK — ASCII katlamada "Gazi"
