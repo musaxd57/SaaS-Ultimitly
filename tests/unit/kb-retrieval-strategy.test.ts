@@ -204,3 +204,55 @@ describe("cevaplar önce (answersFirst) — yeniden sıralayıcının 'cevaplıy
     expect(b.items.map((i) => `${i.id}#${i.chunk ?? 0}`)).toEqual(a.items.map((i) => `${i.id}#${i.chunk ?? 0}`));
   });
 });
+
+// ---------------------------------------------------------------------------
+// KALEM TAVANININ KAPSAMI (09-27, kurucu sorusu "büyük bilgi tabanında bir kayıttan en fazla 3 parça — bu kötü değil mi?"):
+// tek uzun rehberde AYNI mesajda sorulan 4 bilgiden 4.'sü, tavan mesaj geneli 3 olduğu için düşüyordu (ücretsiz ölçüm: 4 soruda
+// 0/10 mesajda hepsi blokta). `itemCapScope: "question"` = tavan × misafirin KENDİ soru sayısı (ek sorgular sayılmaz → tek soruda
+// BİREBİR aynı). Varsayılan KAPALI; açmak kurucu kararı (müşteri cevabını değiştirir).
+// ---------------------------------------------------------------------------
+
+const SECTIONS: [string, string][] = [
+  ["GİRİŞ", "Giriş saatimiz 15:00'ten itibarendir."],
+  ["ANAHTAR", "Anahtar kutusu bina kapısının solundaki duvarda."],
+  ["OTOPARK", "Binanın arkasındaki otoparkta 7 numaralı yer size ayrılmıştır."],
+  ["ÇÖP", "Çöp konteynerleri sokağın köşesinde, geri dönüşüm mavi kutuya atılır."],
+  ["ÇAMAŞIR", "Çamaşır makinesi banyoda, deterjan lavabonun altındaki dolapta."],
+];
+const FILL = "Bu bölümle ilgili aklınıza takılan bir şey olursa bize yazmanız yeterli, her zaman yardımcı oluruz. ";
+const guideItem = {
+  id: "guide",
+  category: "general",
+  title: "Ev rehberi",
+  content: SECTIONS.map(([h, needle]) => `${h}: ${FILL}${FILL}${needle} ${FILL}${FILL}${FILL}`).join("\n\n"),
+  updatedAt: new Date(t0),
+};
+const guideKb = [guideItem, ...neutralPadding(40)];
+const blockOf = (r: ReturnType<typeof selectKbForPrompt>) => r.items.map((i) => i.content).join("\n");
+
+describe("kalem tavanı soru başına (itemCapScope: \"question\")", () => {
+  beforeEach(() => __resetKbIndexCache());
+
+  it("🚨 tek rehberde 4 soru: bugün 4. cevap DÜŞER (tavan 3); soru başına tavanda 4 cevap da blokta", () => {
+    const msg = "Merhaba! Giriş saati kaçta? Anahtar kutusu nerede? Otopark var mı? Çöpleri nereye atıyoruz?";
+    const today = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW });
+    expect(today.items.filter((i) => i.id === "guide")).toHaveLength(3);
+    expect(SECTIONS.slice(0, 4).filter(([, n]) => blockOf(today).includes(n))).toHaveLength(3);
+    __resetKbIndexCache();
+    const q = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, strategy: { itemCapScope: "question" } });
+    for (const [, needle] of SECTIONS.slice(0, 4)) expect(blockOf(q), needle).toContain(needle);
+  });
+
+  it("tek sorulu mesajda BİREBİR aynı (ek sorgular soru sayısını artırmaz)", () => {
+    for (const msg of ["Otopark var mı?", "Giriş saati kaçta?"]) {
+      const extraQueries = [
+        { text: "otopark park yeri araç", turkish: true, request: 0 },
+        { text: "parking space car", turkish: false, request: 0 },
+      ];
+      const a = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries });
+      __resetKbIndexCache();
+      const b = selectKbForPrompt({ items: guideKb, guestMessage: msg, mode: "hybrid", now: NOW, extraQueries, strategy: { itemCapScope: "question" } });
+      expect(b.items.map((i) => `${i.id}#${i.chunk ?? 0}`), msg).toEqual(a.items.map((i) => `${i.id}#${i.chunk ?? 0}`));
+    }
+  });
+});

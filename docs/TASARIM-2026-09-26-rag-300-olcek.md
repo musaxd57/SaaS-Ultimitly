@@ -17,7 +17,7 @@ Kurucu "%95'i sen ver" dedi. Önerim — **gerçek 300 kalemlik, geliştirmede g
 |---|---|
 | Tek soru, Türkçe parafraz: cevap cümlesi bilgi bloğunda | ≥ %95 |
 | Tek soru, Türkçe dışı dil: cevap cümlesi bilgi bloğunda | ≥ %95 |
-| İki sorulu mesaj: İKİ cevap da blokta (mesaj düzeyi) | ≥ %95 (kurucu alt sınırı; 09-27'ye kadar burada %90 yazıyordu) |
+| İki sorulu mesaj: İKİ cevap da blokta (mesaj düzeyi) | ≥ %95 hedef (rapor çizgisi; kapı değil — ↓kurucu kararı 09-27) |
 | Yanıtsız soru: blok küçük kalır, geri çekilme yok, cevapta desteksiz somut iddia yok | 0 uydurma |
 | Kiracı / sır / onay sınırları | 0 sızıntı (mevcut pinler + ölçerin `sızıntı` sütunu) |
 | Gecikme | yeniden sıralama p95 ≤ 2,5 sn (sıcak yol tavanı zaten bu) |
@@ -27,14 +27,14 @@ Kurucu "%95'i sen ver" dedi. Önerim — **gerçek 300 kalemlik, geliştirmede g
 için 09-27'de (Codex) %95'e çekildi. Codex'in notu da doğru — 39 örnekte %95 = 38/39, tek kayıp sonucu değiştirir, bu yüzden
 kabul BÜYÜK ve görülmemiş kümede verilir.
 
-**Kabul KODDA kapıdır (09-27, `tests/eval/rag-lab/acceptance.ts`):** holdout koşusu eskiden yalnız "satır var mı" diye bakıyordu.
-Artık koşulan HER yapılandırma için tek soru TR / tek soru diğer diller / iki sorulu mesaj ≥ %95, sızıntı 0 ve koşu EKSİKSİZ
-(beklenen her satır var; örnekleme, ücretli grup süzgeci, önbellek alt kümesi, düşen yeniden sıralama çağrısı kabul DEĞİL) —
-sağlanmazsa eval KIRMIZI, rapora "holdout kabulü" satırı yazılır. Holdout'ta yalnız seçilen TEK yapılandırma koşulur (taban
-kıyası dev setinde); ücretli katmanın grupları `EVAL_RAG_PAID_GROUPS=single_tr,single_xx,multi,neg,draft,version` ile tam verilir.
-A9 incelemesi (09-27): sızıntı yalnız taslak / eski sürüm gruplarında ölçülür → o gruplar koşulmadıysa kapı "sızıntı ölçülmedi" der;
-sıcak yol tavanını (2,5 sn) aşan sıralayıcı çağrısı EKSİK KOŞU DEĞİLDİR (üretimde de cevap bugünkü sırayla gider, oranda sayılır),
-yalnız API / biçim hatası eksiktir (`rrStatus` "deadline" ↔ "failed", kısmi arıza `rrErrors`).
+🚨 **KURUCU KARARI 09-27 (Codex'le): %95 ZORUNLU GEÇME KURALI DEĞİLDİR.** Oran raporda gelişimi görmek için durur. KABUL testi her
+sorunun MÜŞTERİYE GİDECEK sonucuna bakar — doğru kanıta dayalı cevap · bilinmeyende dürüstçe bilmeme / devir · çelişkide kesin
+konuşmama · sıfır sır sızıntısı; biri bozulursa O VAKA kırmızı. Hiçbir sonlu test gelecekteki her soruyu garanti etmez → canlı
+gönderim kapısı AYRICA gerekir. Uygulama: getirme düzeyinde (`tests/eval/rag-lab/acceptance.ts` `holdoutVerdict`) KIRMIZI yapan yalnız
+sızıntılı vaka + ölçülmemiş sızıntı (taslak / eski sürüm grupları koşulmadı) + eksik koşu (satır / grup eksik, API hatasıyla düşen
+sıralayıcı çağrısı; 2,5 sn tavan aşımı eksik DEĞİL — üretimde de bugünkü sıra); oranlar "hedef %95 üstünde / ALTINDA (bilgi)" satırı.
+Vaka başına cevap kabulü `rag-answer`e kurulur (ücretli; kurucu kredi + onayla koşulur). Holdout'ta yalnız seçilen TEK yapılandırma;
+ücretli katmanın grupları `EVAL_RAG_PAID_GROUPS=single_tr,single_xx,multi,neg,draft,version` ile tam verilir.
 
 ## 2. Ölçer (RAG lab, `tests/eval/rag-lab/`)
 
@@ -387,3 +387,22 @@ Gerçek müşteri boyutunda (soru başına 60 kalem, `EVAL_RAG_KB=perq`, sırala
   yalnız birinci sorunun saatini söyleyen yanıt da. Artık sayı taşıyan HER cevabın kendi sayısı yanıtta olmalı; ayrıca cevap düzeyi
   sütunu. Aynı 552 cevabın ücretsiz yeniden puanlaması (`rag-answer-2026-09-27-2.md`): iki soru taban 34 → **31**/46, geniş (40)
   36 → **33**/46; cevap düzeyinde 41/57 ve 44/57 — her kolda 3 mesaj yarım cevapla başarı sayılıyordu.
+
+### 6e. "Bir kayıttan en fazla 3 parça" — tek uzun rehber + çok sorulu mesaj (09-27, kurucu sorusu; ücretsiz, sözcüksel)
+
+Kurucu: "Büyük bilgi tabanında bir kayıttan en fazla 3 parça seçiliyor, bu kötü değil mi?" Ölçüm (ağ / model yok): 50 dağıtıcı kalem +
+bölümleri kendi parçasında olan ~4,8k'lık "Ev rehberi"; misafir aynı mesajda rehberden 2–5 şey soruyor (TR + EN, 10'ar mesaj).
+
+| soru sayısı | bugün (tavan 3, mesaj geneli) | tavan 5 | **tavan 3 × soru sayısı** (`itemCapScope: "question"`) |
+|---|---|---|---|
+| 2 (TR / EN) | 10/10 · 8/10 | 10/10 · 8/10 | 10/10 · 8/10 |
+| 3 | 6/10 · 3/10 | 10/10 · 8/10 | **10/10 · 8/10** |
+| 4 | **0/10 · 0/10** | 9/10 · 8/10 | **9/10 · 8/10** |
+| 5 | 0/10 · 0/10 | 3/10 · 2/10 | **5/10 · 5/10** |
+
+Örnek (bugün): "Merhaba! Giriş saati kaçta? Çöpleri nereye atıyoruz? Çamaşır makinesi var mı? En yakın market nerede?" → market
+cevabı modele GİTMİYOR (rehberden 3 parça). Tavan misafirin KENDİ soru sayısıyla çarpılır (anlama katmanının ek sorguları sayılmaz) →
+tek sorulu mesajda BİREBİR aynı. Gerçekçi dev setinde (1.038 soru, canlıya en yakın hat, önbellekten — `rag-lab-2026-09-27-12.md`)
+FINAL ↔ FINAL+`qcap` fark 0 (iki soru 116/120, TR 437/441, diğer 438/441). Kalan kayıplar başka: 5. soru hiç aranmıyor (alt sorgu
+tavanı 4, A5 F3) ve EN soru ↔ TR rehber sözcüksel (canlıda anlamsal arama açık). Blok çok sorulu mesajda ~+1.000 karakter.
+🚨 Seçenek VARSAYILAN KAPALI; açmak kurucu kararı (müşteri cevabını değiştirir).

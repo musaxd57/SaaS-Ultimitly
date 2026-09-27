@@ -202,7 +202,18 @@ export interface KbSelectInput<T extends KbChunkSource> {
    * `answersFirst` = yeniden sıralayıcının "cevaplıyor" (3) dediği parçalar tur başlamadan, ek sorgu payı ve tekrar kuralı
    * dışında önce alınır (yalnız puan varken; ölçüm `docs/TASARIM-2026-09-26-rag-300-olcek.md` §4d).
    */
-  strategy?: { packing?: "break" | "skip"; maxChunksPerItem?: number; extraShare?: number; answersFirst?: boolean };
+  strategy?: {
+    packing?: "break" | "skip";
+    maxChunksPerItem?: number;
+    extraShare?: number;
+    answersFirst?: boolean;
+    /**
+     * Kalem başına parça tavanının KAPSAMI (09-27 deneyi, verilmezse "message" = bugünkü): "question" = tavan misafirin KENDİ
+     * soru sayısıyla (özgün alt sorgular; anlama katmanının ek sorguları sayılmaz) çarpılır — tek uzun rehberde sorulan dört
+     * bilgiden dördüncüsü, rehber mesaj genelinde 3 parçaya ulaştı diye düşmez. Tek sorulu mesajda (ek sorgular dahil) BİREBİR aynı.
+     */
+    itemCapScope?: "message" | "question";
+  };
 }
 
 export type SelectedKbItem<T> = T & { chunk?: number; chunkCount?: number };
@@ -870,6 +881,10 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const picked: number[] = [];
     const pickedSet = new Set<number>();
     const perItem = new Map<string, number>();
+    // Kalem tavanı: bugün sabit; deneyde misafirin kendi soru sayısıyla çarpılır (ek sorgular sayılmaz → tek soruda aynı).
+    const ownQuestions = queries.filter((q) => !q.extra).length;
+    const itemCap =
+      (input.strategy?.maxChunksPerItem ?? MAX_CHUNKS_PER_ITEM) * (input.strategy?.itemCapScope === "question" ? Math.max(1, ownQuestions) : 1);
     const cursors = ranked.map(() => 0);
     // Parçanın KÖKENİ (yalnız ek sorgu varken tutulur): ek sorguların payı bütçe döngüsünde köken bazında
     // uygulanır. Ek sorgu yoksa bu harita boş kalır ve davranış BİREBİR eskisidir.
@@ -900,7 +915,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
             if (pickedSet.has(cand.idx)) continue;
             const chunk = index.chunks[cand.idx];
             const cnt = perItem.get(chunk.id) ?? 0;
-            if (cnt >= (input.strategy?.maxChunksPerItem ?? MAX_CHUNKS_PER_ITEM)) continue;
+            if (cnt >= itemCap) continue;
             picked.push(cand.idx);
             pickedSet.add(cand.idx);
             perItem.set(chunk.id, cnt + 1);
@@ -922,7 +937,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
           if (pickedSet.has(cand.idx)) continue;
           const chunk = index.chunks[cand.idx];
           const cnt = perItem.get(chunk.id) ?? 0;
-          if (cnt >= (input.strategy?.maxChunksPerItem ?? MAX_CHUNKS_PER_ITEM)) continue;
+          if (cnt >= itemCap) continue;
           picked.push(cand.idx);
           pickedSet.add(cand.idx);
           perItem.set(chunk.id, cnt + 1);

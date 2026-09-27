@@ -66,6 +66,7 @@ export function parseConfig(name: string): LabConfig {
     else if ((m = tok.match(/^dl(\d+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), deadlineMs: Number(m[1]) };
     else if (tok === "demote") cfg.rerank = { ...(cfg.rerank ?? RR), demote: true };
     else if (tok === "ansfirst") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), answersFirst: true } };
+    else if (tok === "qcap") cfg.select = { ...(cfg.select ?? {}), strategy: { ...(cfg.select?.strategy ?? {}), itemCapScope: "question" } };
     else if (tok === "wide") cfg.select = { ...(cfg.select ?? {}), budgetChars: KB_RETRIEVAL_WIDE_CHAR_BUDGET, maxChunks: KB_RETRIEVAL_WIDE_MAX_CHUNKS };
     else if ((m = tok.match(/^rrm:([a-z0-9.-]+)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), model: m[1] };
     else if ((m = tok.match(/^rre:(none|minimal|low|medium|high)$/))) cfg.rerank = { ...(cfg.rerank ?? RR), effort: m[1] };
