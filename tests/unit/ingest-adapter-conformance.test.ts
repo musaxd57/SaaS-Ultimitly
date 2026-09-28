@@ -24,7 +24,7 @@ describeIngestConformance("ortak fake (tests/helpers/fake-ingest.ts)", () => {
         externalId: KIT.RES_A,
         channel: "airbnb",
         status: "confirmed",
-        guest: { externalId: "g-1", name: "Alex Guest", email: "alex@example.com", phone: "+900000" },
+        guest: { externalId: "g-1", name: "Alex Guest", givenName: "Alex", email: "alex@example.com", phone: "+900000" },
         conversationExternalId: "conv-A",
         lastMessageAt: new Date("2026-05-30T10:00:00Z"),
       });
@@ -33,7 +33,7 @@ describeIngestConformance("ortak fake (tests/helpers/fake-ingest.ts)", () => {
         channel: "booking",
         status: "cancelled",
         terminal: true,
-        guest: { externalId: "g-2", name: "Masked Guest", email: null, phone: null },
+        guest: { externalId: "g-2", name: "Masked Guest", givenName: null, email: null, phone: null },
       });
       switch (s) {
         case "two_reservations":

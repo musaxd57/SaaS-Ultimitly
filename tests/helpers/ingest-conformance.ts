@@ -71,7 +71,8 @@ export function describeIngestConformance(label: string, makeHarness: () => Inge
       expect(a.terminal).toBe(false);
       expect(a.arrivalDate?.toISOString().slice(0, 10)).toBe("2026-06-01");
       expect(a.departureDate?.toISOString().slice(0, 10)).toBe("2026-06-05");
-      expect(a.guest).toEqual({ externalId: "g-1", name: "Alex Guest", email: "alex@example.com", phone: "+900000" });
+      // Hitap adı (migration 57): sağlayıcının AYRI ad alanı `givenName`e taşınır — her adaptör için sözleşme.
+      expect(a.guest).toEqual({ externalId: "g-1", name: "Alex Guest", givenName: "Alex", email: "alex@example.com", phone: "+900000" });
       expect(a.conversationExternalId).toBe("conv-A");
       expect(a.lastMessageAt?.toISOString()).toBe("2026-05-30T10:00:00.000Z");
       const b = rs[1];
@@ -79,6 +80,7 @@ export function describeIngestConformance(label: string, makeHarness: () => Inge
       expect(b.status).toBe("cancelled");
       expect(b.terminal).toBe(true);
       expect(b.guest.email).toBeNull(); // maskelenmiş misafir → null, uydurulmaz
+      expect(b.guest.givenName ?? null).toBeNull(); // ayrı ad alanı yok → tam addan TÜRETİLMEZ (tahmin yok)
       expect(h.lastToken()).toBe(KIT.TOKEN);
     });
 
