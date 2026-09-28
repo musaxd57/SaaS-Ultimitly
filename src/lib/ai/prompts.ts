@@ -844,7 +844,7 @@ export function countGuestAsks(message: string): number {
     .filter(Boolean)
     .filter((l) => {
       if (/[?？]/.test(l)) return true;
-      const bare = l.replace(/[.,!;:…]+$/u, "").trim();
+      const bare = withoutTrailingAskPunct(l).trim();
       // ⚠️ TÜRKÇE KATLAMA ZORUNLU (CLAUDE.md "KATLAMA KURALI"). JS'in basit
       // case-folding'i `İ`(U+0130)→`i` ve `I`(U+0049)→`ı` YAPMAZ; düz `/iu`
       // bayrağıyla "İyi günler", "GÜNAYDIN", "SAYGILAR" gibi Türkçenin EN yaygın
@@ -852,11 +852,23 @@ export function countGuestAsks(message: string): number {
       // "istek" sayılıp çok-soru dalı gereksiz açılıyor, anti-spam kuralı
       // düşüyordu. Kural gereği burada uygulanması güvenli: bu KISITLAYICI bir
       // eleme, hiçbir oto-gönderim iznini genişletmez.
-      return !COURTESY_LINES.some(
-        (c) => foldTurkishLower(bare) === foldTurkishLower(c) || foldTurkishAscii(bare) === foldTurkishAscii(c),
-      );
+      // İki katlama satır başına BİR KEZ (eskiden her nezaket kalıbı için yeniden: 32 kalıp × 2 × satır uzunluğu; 09-28 CPU
+      // denetimi). `some(c => fl(bare) === fl(c) || fa(bare) === fa(c))` ile birebir.
+      return !(COURTESY_LOWER.has(foldTurkishLower(bare)) || COURTESY_ASCII.has(foldTurkishAscii(bare)));
     }).length;
   return Math.max(questionMarks, lines, 1);
+}
+
+/**
+ * Satır sonundaki noktalama dizisi silinir — eski `l.replace(/[.,!;:…]+$/u, "")` ile BİREBİR, ama sondan geriye doğrusal: çapasız
+ * kalıp her konumdan yeniden deneyip satır sonu olmayan uzun noktalama dizisinde karesel iş yapıyordu (09-28 ReDoS denetimi, misafir
+ * metni: 32.000 "…" + harf 0,7 sn, 128.000'de 11,5 sn).
+ */
+const TRAILING_ASK_PUNCT = new Set([".", ",", "!", ";", ":", "…"]);
+export function withoutTrailingAskPunct(line: string): string {
+  let end = line.length;
+  while (end > 0 && TRAILING_ASK_PUNCT.has(line[end - 1])) end--;
+  return line.slice(0, end);
 }
 
 /**
@@ -873,6 +885,8 @@ const COURTESY_LINES = [
   "hello", "hi", "hey", "good morning", "good evening", "good afternoon",
   "thanks", "thank you", "regards", "best regards", "kind regards", "cheers", "bye",
 ];
+const COURTESY_LOWER = new Set(COURTESY_LINES.map((c) => foldTurkishLower(c)));
+const COURTESY_ASCII = new Set(COURTESY_LINES.map((c) => foldTurkishAscii(c)));
 
 /**
  * Bilgi tabanını bütçeye sığdır. Kesme olduğunda modele AÇIKÇA söylenir — yoksa

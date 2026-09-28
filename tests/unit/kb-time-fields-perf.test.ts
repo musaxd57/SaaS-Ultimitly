@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { conditionAt, endsWithTime, fieldTimeHits } from "@/lib/ai/retrieval/time-fields";
+import { conditionAt, endsWithTime, fieldTimeHits, __resetFieldTimeHitsCache } from "@/lib/ai/retrieval/time-fields";
 
 // ---------------------------------------------------------------------------
 // SAAT OKUYUCUSU — KARESEL İŞ YOK (A3 09-27). Okuyucu her cevapta (istemin çelişki bloğu) ve her bilgi tabanı yazımında (dizin)
@@ -27,6 +27,8 @@ describe("üst süre (eski: 0,26–2,5 sn)", () => {
   for (const [label, title, text, bound] of cases) {
     it(label, () => {
       fieldTimeHits(title, text, "general"); // ısınma
+      // Sonuç önbelleği (09-28) ikinci okumayı hesaplamaz → ölçüm önbelleksiz yapılır, yoksa pin boş kalır.
+      __resetFieldTimeHitsCache();
       expect(ms(() => fieldTimeHits(title, text, "general"))).toBeLessThan(bound);
     });
   }

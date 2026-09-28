@@ -17,6 +17,7 @@
 // SAF: DB/ağ yok. Değişiklik = canlı AI davranışı → golden set + E7/R5 kontrolü ŞART.
 // ---------------------------------------------------------------------------
 
+import { createHash } from "node:crypto";
 import { contentStems, phraseUnits, tokenize } from "./text";
 import { matchConcepts, timeFieldsIn } from "./lexicon";
 
@@ -1125,6 +1126,13 @@ function clauseFields(clause: string, ctx: { stay?: boolean; access?: boolean; r
 const timeMentions = (clause: string): TimeMention[] => scanTimes(clause);
 
 /**
+ * Metin bir saat taşıyabilir mi: `scanTimes`in her kalıbı bir RAKAM ya da "noon / midday / midnight / gece yarısı" ister. Taşıyamayan
+ * metnin hiçbir parçası da taşıyamaz (parçalar alt dizidir).
+ */
+const NOON_WORD = /noon|midday|midnight|gece\s+yar/i;
+const mayHoldTime = (s: string): boolean => /\d/.test(s) || NOON_WORD.test(s);
+
+/**
  * Aralığın uçları: iki saat arasında yalnız tire / "ile / ve / and / to / until" (ve ilk saatin eki) var — "10:00–20:00",
  * "15:00 ile 22:00", "between 2 pm and 5 pm", "11:00'den 14:00'e".
  */
@@ -1196,8 +1204,83 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
   if (category === "local_tips") return [];
   // Saat RAKAMLA yazılır (SS:DD, S am/pm, "saat S") ya da "noon / midnight / gece yarısı" → ikisi de yoksa okuma yok; boşuna tam tarama
   // yapılmaz (A3 09-27).
-  if (!/\d/.test(text) && !/noon|midday|midnight|gece\s+yar/i.test(text)) return [];
-  const titleFields = clauseFields(title, { category }).fields;
+  if (!mayHoldTime(text)) return [];
+  const key = hitsCacheKey(title, text, category);
+  const cached = hitsCache.get(key);
+  if (cached) {
+    hitsCache.delete(key);
+    hitsCache.set(key, cached);
+    return cached.hits.map((h) => ({ ...h }));
+  }
+  const hits = readFieldTimeHits(title, text, category);
+  const chars = title.length + text.length;
+  if (chars <= hitsCacheLimits.chars) {
+    hitsCache.set(key, { hits: hits.map((h) => ({ ...h })), chars });
+    hitsCacheChars += chars;
+    for (const [oldKey, old] of hitsCache) {
+      if (hitsCache.size <= hitsCacheLimits.entries && hitsCacheChars <= hitsCacheLimits.chars) break;
+      hitsCache.delete(oldKey);
+      hitsCacheChars -= old.chars;
+    }
+  }
+  return hits;
+}
+
+/**
+ * SONUÇ ÖNBELLEĞİ (09-28 CPU denetimi, ölçüldü): okuyucu doğrusal ama pahalı (~10–16 µs/karakter) ve aynı metni tekrar tekrar
+ * okuyordu — dizin her 10 dakikada bir parça parça, Bilgi Tabanı sayfası her açılışta tüm mülklerin kalemlerini, istem her cevapta.
+ * 60 kalemlik gerçekçi bir bilgi tabanının dizini 1,4 sn, kötü niyetli içerik (60 × 20k) 20 sn olay döngüsünü kilitliyordu (ortak
+ * sunucu, tüm kiracılar). Sonuç yalnız başlık + metin + kategoriye bağlıdır (saf fonksiyon) → anahtar üçünün SHA-256 özeti: aynı
+ * girdi aynı sonucu verir, kiracılar arası sızıntı olamaz (içerik başka kiracıda da aynıdır). Kodlama `JSON.stringify` (sınırlar
+ * belirsiz değil, yalnız vekil karakterler kaçışlı). Sınır: 2.000 giriş + toplam 4M karakter girdi (atıflar metnin parçalarını
+ * taşır), en eski önce çıkar. Dönüş her çağrıda YENİ kopya — çağıran değiştirse de önbellek bozulmaz. Süreç başınadır; açılışta boş.
+ */
+const HITS_CACHE_LIMITS = Object.freeze({ entries: 2000, chars: 4_000_000 });
+let hitsCacheLimits: { entries: number; chars: number } = HITS_CACHE_LIMITS;
+const hitsCache = new Map<string, { hits: readonly FieldTimeHit[]; chars: number }>();
+let hitsCacheChars = 0;
+
+function hitsCacheKey(title: string, text: string, category: string | null | undefined): string {
+  return createHash("sha256")
+    .update(JSON.stringify([category === undefined ? 0 : category === null ? 1 : category, title, text]))
+    .digest("base64");
+}
+
+/** Test kancaları (`__resetKbIndexCache` emsali). */
+export function __resetFieldTimeHitsCache(): void {
+  hitsCache.clear();
+  hitsCacheChars = 0;
+}
+export function __fieldTimeHitsCacheStats(): { entries: number; chars: number; limits: { entries: number; chars: number } } {
+  return { entries: hitsCache.size, chars: hitsCacheChars, limits: { ...hitsCacheLimits } };
+}
+/** Test kancası: sınırları küçültür (binlerce okuma yapmadan tahliye sınanır); argümansız = üretim sınırları. */
+export function __setFieldTimeHitsCacheLimits(limits?: Partial<{ entries: number; chars: number }>): void {
+  hitsCacheLimits = { ...HITS_CACHE_LIMITS, ...limits };
+}
+
+function readFieldTimeHits(title: string, text: string, category?: string | null): FieldTimeHit[] {
+  // Aynı çağrıda aynı cümlecik birden çok kez taranıyordu (saat taraması + iki ayrı alan çözümlemesi); ikisi de saf → çağrı içinde
+  // bir kez hesaplanır (09-28 CPU denetimi; sonuç birebir aynı).
+  const mentionMemo = new Map<string, TimeMention[]>();
+  const mentionsOf = (s: string): TimeMention[] => {
+    let m = mentionMemo.get(s);
+    if (!m) mentionMemo.set(s, (m = scanTimes(s)));
+    return m;
+  };
+  const categoryFieldsMemo = new Map<string, ClauseInfo>();
+  const fieldsWithCategory = (s: string): ClauseInfo => {
+    let f = categoryFieldsMemo.get(s);
+    if (!f) categoryFieldsMemo.set(s, (f = clauseFields(s, { category })));
+    return f;
+  };
+  const bareFieldsMemo = new Map<string, ClauseInfo>();
+  const bareFields = (s: string): ClauseInfo => {
+    let f = bareFieldsMemo.get(s);
+    if (!f) bareFieldsMemo.set(s, (f = clauseFields(s)));
+    return f;
+  };
+  const titleFields = fieldsWithCategory(title).fields;
   const titleField = titleFields.length === 1 ? titleFields[0] : null;
   // KATEGORİ ÖDÜNCÜ — en zayıf dayanak, en son (inceleme 09-23): "Varış bilgileri" başlıklı `checkin`
   // kalemindeki "14:00'ten sonra gelebilirsiniz" hiçbir alan adlandırmıyor; kategori bilgisi atılınca
@@ -1217,6 +1300,9 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
     // Soru cümlesi bir saat BİLDİRMEZ ("S: 12:00'de girebilir miyiz?" / "Arriving after 11 pm?").
     if ((bits[si + 1] ?? "").includes("?")) continue;
     const sentence = bits[si];
+    // Saat taşıyamayan cümle hiçbir atıf üretmez ve cümleler arası durum yoktur (her durum değişkeni cümle başına) → okunmaz; sonuç
+    // birebir aynı (09-28 CPU denetimi: saatsiz cümlelerde boşuna cümlecik çözümlemesi yapılıyordu).
+    if (!mayHoldTime(sentence)) continue;
     const pair = respectivePair(sentence);
     if (pair) {
       hits.push(...pair);
@@ -1254,7 +1340,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
     const clauses = sentence.split(CLAUSE_SPLIT).flatMap((x) => splitKeeping(x, DASH_SEP, 3, true).map((c, di) => ({ c, dash: di > 0 })));
     let dashTopic = false;
     for (const { c, dash } of clauses) {
-      const whole = clauseFields(c, { category });
+      const whole = fieldsWithCategory(c);
       if (!dash) dashTopic = false;
       if (whole.pureAvailability && !carriedStandard) {
         for (const k of convertible.splice(0)) {
@@ -1269,8 +1355,8 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
       const availability = carriedAvailability || whole.availability;
       const byAnd = whole.split
         ? splitKeeping(c, AND_SEP, 1)
-            .flatMap((p) => (clauseFields(p, { category }).fields.length > 1 ? splitKeeping(p, PAREN_SEP, 1) : [p]))
-            .flatMap((p) => (clauseFields(p, { category }).fields.length > 1 ? p.split(EN_CONDITION_SPLIT) : [p]))
+            .flatMap((p) => (fieldsWithCategory(p).fields.length > 1 ? splitKeeping(p, PAREN_SEP, 1) : [p]))
+            .flatMap((p) => (fieldsWithCategory(p).fields.length > 1 ? p.split(EN_CONDITION_SPLIT) : [p]))
         : [c];
       // Ortak yüklem ("Both the indoor pool and the gym are open 7:00–21:00", "Havuz ve spor salonu 08:00-20:00 arası açık"):
       // saatsiz, KISA (≤4 sözcük), kural dili taşımayan isim öbeğinin (konaklama dışı) alanı sonraki parçanın saatlerini de alır.
@@ -1278,14 +1364,14 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
       let pending: string[] = [];
       for (const piece of byAnd) {
         const parts = splitAtCondition(piece);
-        const conditionTopic = parts.length > 1 && clauseFields(parts[0]).topic;
-        if (byAnd.length > 1 && timeMentions(piece).length === 0) {
-          const pieceInfo = clauseFields(piece);
+        const conditionTopic = parts.length > 1 && bareFields(parts[0]).topic;
+        if (byAnd.length > 1 && mentionsOf(piece).length === 0) {
+          const pieceInfo = bareFields(piece);
           if (tokenize(piece).length <= 4 && !pieceInfo.rule) pending.push(...pieceInfo.fields.filter((f) => !STAY_FIELDS.has(f)));
           continue;
         }
         parts.forEach((part, pi) => {
-          const mentions = timeMentions(part);
+          const mentions = mentionsOf(part);
           if (mentions.length === 0) return;
           const info = clauseFields(part, { stay: whole.stayNoun || stayInSentence, access: whole.accessNoun, rule: whole.rule, spanObj, category });
           if (info.span) {
@@ -1402,7 +1488,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
       dashTopic ||= whole.otherConcept;
       prevOther = whole.otherConcept || inherited;
       prevFields = whole.fields;
-      prevLabel = timeMentions(c).length === 0 && tokenize(c).length <= 3;
+      prevLabel = mentionsOf(c).length === 0 && tokenize(c).length <= 3;
       // Müsaitlik ifadesi ("Subject to availability, …", "Müsaitliğe göre, …") kendiliğinden koşuldur: cümlenin devamına geçer —
       // TAVİZ değilse ("Even if the apartment is ready, …" sonrakini standart bırakır).
       if (whole.standard && (whole.availability || isConditionClause(c))) carriedStandard = true;
@@ -1410,7 +1496,7 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
       if (whole.placeEntry) carriedPlaceEntry = true;
       if (whole.doorSchedule) carriedDoorSchedule = true;
       if (isConditionClause(c)) carriedTopic ||= whole.topic;
-      if (whole.afterRefEnd >= 0 && timeMentions(c).length === 0) carriedAfterRef = true;
+      if (whole.afterRefEnd >= 0 && mentionsOf(c).length === 0) carriedAfterRef = true;
     }
   }
   return hits;

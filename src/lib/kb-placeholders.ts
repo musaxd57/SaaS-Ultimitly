@@ -205,14 +205,16 @@ export function guestFirstNameForPrompt(guestIdentifier: string | null | undefin
  *     "Milano 12 | Daire 3" → **"12"** (doğrusu 3). Öndeki sınır şartı bunu eler.
  * Not: sondaki sınır BİLİNÇLİ YOK — "Daire 5A" gibi adlarda "5" dönmeye devam eder.
  */
-const APARTMENT_STRONG_LABEL = /(?<![\p{L}\p{N}])(?:daire|apart?ment|apartman|apt|d(?=\s*[:.]))\s*[:.]?\s*(\d+)/u;
+// Ayraç `\s*(?:[:.]\s*)?` = eski `\s*[:.]?\s*` ile AYNI dil; iki bitişik boşluk yıldızı etiketten sonraki uzun boşluk dizisinde
+// (ardından rakam gelmeyince) karesel geri izliyordu (09-28 ReDoS denetimi; CLAUDE.md "ikincisi isteğe bağlı ayraçta").
+const APARTMENT_STRONG_LABEL = /(?<![\p{L}\p{N}])(?:daire|apart?ment|apartman|apt|d(?=\s*[:.]))\s*(?:[:.]\s*)?(\d+)/u;
 /**
  * ZAYIF etiketler — "no"/"#" bir BİNA numarasını da gösterebilir. 🚨 ÖNCELİK ŞART
  * (inceleme turu 5, ölçüldü): "No:12 D:5" → eski tek regex ilk eşleşmeyi alıp **"12"**
  * (bina) diyordu; doğrusu "5". Güçlü etiket önce denenir. "d" YALNIZ iki nokta/nokta ile
  * ("D:5") — çıplak "d 5" bir kısaltma değil, rastgele harftir.
  */
-const APARTMENT_WEAK_LABEL = /(?<![\p{L}\p{N}])(?:no|#)\s*[:.]?\s*(\d+)/u;
+const APARTMENT_WEAK_LABEL = /(?<![\p{L}\p{N}])(?:no|#)\s*(?:[:.]\s*)?(\d+)/u;
 
 /**
  * Sayıdan SONRA gelen SAYAÇ sözcükleri — o sayı daire numarası DEĞİL, kapasite/ölçüdür.
@@ -303,9 +305,31 @@ function followedByCounter(form: string, from: number): boolean {
  */
 const COUNTER_BEFORE_NUMBER = new Set(["sleeps", "sleep", "for", "kapasite", "kapasitesi"]);
 
+/**
+ * Sayının SOLUNDAKİ son sözcük (eski `/(\p{L}+)[^\p{L}\p{N}]*$/u` ile BİREBİR): sondaki harf-dışı rakam-dışı dizi atlanır, ondan
+ * önceki harf dizisi alınır; araya rakam girerse sözcük yok. Sondan geriye doğrusal — çapasız kalıp uzun harf dizisinde her konumdan
+ * yeniden deniyordu (09-28 ReDoS denetimi: 16.000 harflik mülk adında 4,9 sn; ad senkronla sınırsız gelebilir).
+ */
 function precededByCounter(form: string, upto: number): boolean {
-  const m = /(\p{L}+)[^\p{L}\p{N}]*$/u.exec(form.slice(0, upto));
-  return !!m && COUNTER_BEFORE_NUMBER.has(m[1]);
+  const s = form.slice(0, upto);
+  let end = s.length;
+  for (let ch = charBefore(s, end); ch && !WORD_CHAR.test(ch); ch = charBefore(s, end)) end -= ch.length;
+  let start = end;
+  for (let ch = charBefore(s, start); ch && LETTER_CHAR.test(ch); ch = charBefore(s, start)) start -= ch.length;
+  return start < end && COUNTER_BEFORE_NUMBER.has(s.slice(start, end));
+}
+
+const LETTER_CHAR = /^\p{L}$/u;
+const WORD_CHAR = /^[\p{L}\p{N}]$/u;
+/** `i` konumundan hemen önceki KOD NOKTASI (vekil çifti bütün; tek başına vekil de bir kod noktasıdır). */
+function charBefore(s: string, i: number): string {
+  if (i <= 0) return "";
+  const low = s.charCodeAt(i - 1);
+  if (i >= 2 && low >= 0xdc00 && low <= 0xdfff) {
+    const high = s.charCodeAt(i - 2);
+    if (high >= 0xd800 && high <= 0xdbff) return s.slice(i - 2, i);
+  }
+  return s.slice(i - 1, i);
 }
 
 export function apartmentNumberOf(propertyName: string): string | null {
