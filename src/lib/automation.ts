@@ -4039,7 +4039,7 @@ export async function refreshStyleProfile(
 //  yüzeyde — QR asistanında — hiç yoktu. Tek kaynak, dört yüzey.)
 
 /** Şablon belirteçlerini canlı değerlere çözer (tek kaynak sarmalayıcısı). */
-function fillPlaceholders(text: string, firstName: string, propertyName?: string): string {
+function fillPlaceholders(text: string, firstName: string | null, propertyName?: string): string {
   return fillGuestPlaceholders(text, { guestFirstName: firstName, propertyName });
 }
 
@@ -4080,7 +4080,7 @@ function hasUnfilledPlaceholders(filledBody: string): boolean {
 
 function buildGuestMessageBody(
   content: string,
-  firstName: string,
+  firstName: string | null,
   signature?: string,
   propertyName?: string,
 ): string {
@@ -4089,7 +4089,9 @@ function buildGuestMessageBody(
   if (hasNamePlaceholder(trimmed)) {
     return filled; // host's own greeting + sign-off, tokens resolved
   }
-  return [`Merhaba ${firstName},`, "", filled, ...(signature ? ["", signature] : [])].join("\n");
+  // Ad bilinmiyorsa (yer tutucu ad: "Rezervasyon HM4K2" / "Misafir") selam adsız — kurucu kararı 09-28.
+  const greeting = firstName ? `Merhaba ${firstName},` : "Merhaba,";
+  return [greeting, "", filled, ...(signature ? ["", signature] : [])].join("\n");
 }
 
 /**
@@ -4228,7 +4230,7 @@ export async function sendDueWelcomes(
     });
     if (!welcome) continue; // this apartment has no welcome text → skip
 
-    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName);
     const body = buildGuestMessageBody(welcome.content, firstName, signature, r.property.name);
     // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
     // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
@@ -4421,7 +4423,7 @@ export async function sendDueCheckins(
     });
     if (!tpl) continue; // no check-in info entry for this apartment → skip
 
-    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName);
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
     // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
     // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
@@ -4566,7 +4568,7 @@ export async function previewWelcomes(
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
-    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName);
     previews.push({
       guest: r.guestName,
       property: r.property.name,
@@ -4628,7 +4630,7 @@ export async function previewCheckins(
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
-    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName);
     previews.push({
       guest: r.guestName,
       property: r.property.name,
@@ -4743,7 +4745,7 @@ export async function sendDueCheckouts(
     });
     if (!tpl) continue;
 
-    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName);
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
     // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
     // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
@@ -5250,7 +5252,7 @@ export async function previewCheckouts(
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
-    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName);
     previews.push({
       guest: r.guestName,
       property: r.property.name,

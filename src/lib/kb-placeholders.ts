@@ -332,8 +332,11 @@ export function hasNamePlaceholder(text: string): boolean {
 }
 
 export interface GuestPlaceholderValues {
-  /** Çözülmüş ad (QR'da `GUEST_NAME_FALLBACK`). Verilmezse `{isim}` DOKUNULMAZ. */
-  guestFirstName?: string;
+  /**
+   * Çözülmüş ad (QR'da `GUEST_NAME_FALLBACK`). Verilmezse `{isim}` DOKUNULMAZ. `null` = AD BİLİNMİYOR (yer tutucu ad, kurucu
+   * kararı 09-28): belirteç yanındaki boşluk / virgülle birlikte kalkar — "Merhaba {isim}, bugün" → "Merhaba, bugün".
+   */
+  guestFirstName?: string | null;
   /** Mülk adı; `{daire}` bundan türetilir. Verilmezse `{daire}` DOKUNULMAZ. */
   propertyName?: string;
 }
@@ -349,10 +352,65 @@ export interface GuestPlaceholderValues {
 export function fillGuestPlaceholders(text: string, values: GuestPlaceholderValues): string {
   const { guestFirstName, propertyName } = values;
   if (guestFirstName === undefined && propertyName === undefined) return text;
+  if (guestFirstName === null) return fillWithoutName(text, values);
   return text.replace(
     new RegExp(TOKEN.source, "gu"),
     (whole, key: string) => resolveGuestPlaceholder(key, values) ?? whole,
   );
+}
+
+const isHorizontalSpace = (c: string | undefined): boolean => c === " " || c === "\t";
+const NAMELESS_LETTER = /^\p{L}$/u;
+const WORD_CHAR = /^[\p{L}\p{N}]$/u;
+const NAME_SUFFIX_APOSTROPHES = new Set(["'", "\u2019"]);
+const COMMAS = new Set([",", "\u060C"]);
+
+/**
+ * AD BİLİNMİYORKEN tek geçiş (kurucu kararı 09-28: "Merhaba Rezervasyon HM4K2," yerine "Merhaba,"). Ad belirteci; önündeki satır içi
+ * boşluk, ardındaki ek ("{isim}'e"), boşluk ve virgülle birlikte kalkar: satır ortasında virgül KALIR ("Merhaba {isim}, bugün" →
+ * "Merhaba, bugün"), satır başında belirteçle birlikte gider ("{isim}, hoş geldiniz" → "hoş geldiniz"); sözcük arasında tek boşluk
+ * kalır ("Sevgili {isim} Hanım" → "Sevgili Hanım"). Ad dışı belirteçler (`{daire}`) her zamanki gibi çözülür.
+ * 🚨 DOĞRUSAL tarama — başı çapasız boşluk kalıbı (`[ \t]*\{…`) uzun boşluk dizisinde karesel iş yapardı (ReDoS kuralı, CLAUDE.md).
+ */
+function fillWithoutName(text: string, values: GuestPlaceholderValues): string {
+  let out = "";
+  let last = 0;
+  for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
+    const start = m.index;
+    const end = start + m[0].length;
+    if (keyKind(m[1]) !== "name") {
+      out += text.slice(last, start) + (resolveGuestPlaceholder(m[1], values) ?? m[0]);
+      last = end;
+      continue;
+    }
+    // Önceki parça + satır içi sondaki boşluğu (geriye doğru, doğrusal).
+    let cut = start;
+    while (cut > last && isHorizontalSpace(text[cut - 1])) cut -= 1;
+    const lineStart = cut === 0 || text[cut - 1] === "\n";
+    // Belirtecin ardı: ek ("'e") → boşluk → virgül → boşluk.
+    let p = end;
+    if (NAME_SUFFIX_APOSTROPHES.has(text[p]) && NAMELESS_LETTER.test(text[p + 1] ?? "")) {
+      p += 1;
+      while (p < text.length && NAMELESS_LETTER.test(text[p])) p += 1;
+    }
+    while (isHorizontalSpace(text[p])) p += 1;
+    let comma = "";
+    if (COMMAS.has(text[p])) {
+      const commaAt = p;
+      p += 1;
+      while (isHorizontalSpace(text[p])) p += 1;
+      comma = text.slice(commaAt, p);
+    }
+    if (lineStart) {
+      out += text.slice(last, start); // girinti korunur, belirteç + ardı gider
+    } else {
+      out += text.slice(last, cut);
+      if (comma) out += comma;
+      else if (WORD_CHAR.test(text[p] ?? "")) out += " ";
+    }
+    last = p;
+  }
+  return out + text.slice(last);
 }
 
 /**

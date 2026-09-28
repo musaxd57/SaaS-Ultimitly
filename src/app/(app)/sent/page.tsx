@@ -43,10 +43,10 @@ interface SentItem {
 
 // The guest's first name, used to resolve {isim}/{ad}/{name} tokens in the
 // preview exactly as the automation does when it actually sends the message.
-// ⚠️ Önizleme GÖNDERİCİYLE aynı değeri göstermek zorunda: gönderici yer tutucu
-// adlarda ("Rezervasyon 123") ilk kelimeyi DEĞİL tam adı kullanır (`?? r.guestName`).
-function firstNameOf(guestName: string): string {
-  return guestFirstNameOf(guestName) ?? guestName.trim();
+// ⚠️ Önizleme GÖNDERİCİYLE aynı değeri göstermek zorunda: yer tutucu adlarda ("Rezervasyon 123") ad YOK (`null`) —
+// gönderici de belirteci boşluğuyla kaldırır ("Merhaba {isim}," → "Merhaba,"; kurucu kararı 09-28).
+function firstNameOf(guestName: string): string | null {
+  return guestFirstNameOf(guestName);
 }
 
 // Resolve the host's template tokens to live values for a preview of the message
@@ -56,7 +56,7 @@ function firstNameOf(guestName: string): string {
 // şablonda ad belirteci YOKSA başa "Merhaba <ad>," + boş satır, sona org imzasını
 // EKLER. Burada yalnız belirteçler çözülür; selamlama ve imza görünmez. Tam parite
 // için o gövde kurucusunun paylaşılması gerekir (ayrı iş).
-function fillTokens(text: string, firstName: string, propertyName: string): string {
+function fillTokens(text: string, firstName: string | null, propertyName: string): string {
   return fillGuestPlaceholders(text, { guestFirstName: firstName, propertyName });
 }
 
