@@ -110,7 +110,7 @@ export default async function ReportsPage() {
       where: {
         property: { organizationId },
         lastMessageAt: { gte: since30 },
-        skippedReason: { in: ["escalated_to_human", "complaint", "low_confidence_or_risky", "ai_unusable"] },
+        skippedReason: { in: ["escalated_to_human", "complaint", "low_confidence_or_risky", "ai_unusable", "message_too_long"] },
         status: "answered",
       },
     }),

@@ -99,7 +99,14 @@ import {
   detectGuestLanguage,
   detectRiskType,
   detectRiskTypes,
+  isSafetyEmergencyText,
 } from "@/lib/ai/fallback";
+import type { ClassifyResult } from "@/lib/ai/types";
+import {
+  exceedsGuestMessageLimit,
+  unansweredExceedsGuestMessageLimit,
+  MESSAGE_TOO_LONG_REASON,
+} from "@/lib/ai/message-length";
 import {
   STAY_CHANGE_ITEM_KINDS,
   labelsHoldWholeTurn,
@@ -1900,6 +1907,14 @@ export async function applyChannelAutoReply(
   }
   // Only answer when the guest spoke last (don't reply to ourselves).
   if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
+
+  // 🚨 K10-t (kurucu kararı 09-28): cevapsız misafir mesajlarından biri 8.000 karakteri aşarsa yapay zekâ CEVAP ÜRETMEZ —
+  // model / kalıp işlemlerinden (kapanış tespiti, sınıflandırıcı, anlama katmanı, kapı) ÖNCE. Metin kırpılıp modele
+  // verilmez; mesaj saklı kalır, konuşma ev sahibine "elle yanıtla" uyarısıyla görünür. Acil sözcükler uyarı yolunda aranır.
+  if (unansweredExceedsGuestMessageLimit(messages)) {
+    if (!options.dryRun) await persistRiskVisibility(conversation.id, MESSAGE_TOO_LONG_REASON);
+    return { sent: false, skippedReason: MESSAGE_TOO_LONG_REASON, ...meta };
+  }
 
   // A bare "tamam / teşekkürler / ok 👍" closing needs no answer — skip BEFORE spending a model call, and never butt
   // into a thread a human just wrapped up. Deterministic and conservative: a question or any extra content
@@ -3846,7 +3861,9 @@ export async function runDueChannelAutoReplies(
       // bir kota birimi boşa yanardı (kalıcı 4xx döngüsünün kuyruk yolundaki eşi).
       // Bu mesaj için KALICI bir hayır: misafir YENİ mesaj yazarsa `lastMessageAt`
       // damgayı geçer, anahtar da değişir → konuşma kendiliğinden yeniden uygun olur.
-      outcome.skippedReason === "already_queued"
+      outcome.skippedReason === "already_queued" ||
+      // K10-t: bu mesaj için KALICI hayır (ev sahibi elle yanıtlar); misafir yeni yazsa da uzun mesaj cevapsız kaldıkça aynı hüküm.
+      outcome.skippedReason === MESSAGE_TOO_LONG_REASON
     ) {
       // Deterministic non-send for this message → don't re-model it next tick.
       // Transient reasons (send_failed / not_connected / already_claimed) are NOT
@@ -4822,6 +4839,11 @@ export async function sendDueCheckouts(
  * feature is off unless ALERT_EMAIL is set. Never throws: e-mail failures are
  * swallowed by the email service and the status write is guarded.
  */
+/** Uyarı yolunun kelime ağı hükmü: şikâyet ya da iade isteği. */
+function isAlertClass(k: ClassifyResult): boolean {
+  return k.isComplaint || k.intent === "refund";
+}
+
 export async function sendDueAlerts(
   organizationId: string,
 ): Promise<{ alerted: number }> {
@@ -4927,13 +4949,15 @@ export async function sendDueAlerts(
     const pending = (outboundAt === -1 ? c.messages : c.messages.slice(0, outboundAt)).filter(
       (m) => m.direction === "inbound",
     );
+    // K10-t: 8.000 karakteri aşan mesajda tam sınıflandırma KOŞMAZ, yalnız hafif acil sözcük ağı (kurucu: "acil sözcük
+    // aransın") — acil ise bugünkü acil yol (Sorunlu + ev sahibine acil e-posta). Acil değilse uyarı yok; konuşma "elle yanıtla"
+    // uyarısıyla görünür.
+    const alertHit = (m: { body: string }) =>
+      exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : isAlertClass(classifyFallback(m.body));
     if (itemsFlag) {
-      const hits = pending.filter((m) => {
-        const k = classifyFallback(m.body);
-        return k.isComplaint || k.intent === "refund";
-      });
+      const hits = pending.filter(alertHit);
       if (hits.length === 0) continue;
-      if (!hits.some((m) => labelsHoldWholeTurn(detectRiskTypes(m.body)))) {
+      if (!hits.some((m) => labelsHoldWholeTurn(exceedsGuestMessageLimit(m.body) ? ["safety_emergency"] : detectRiskTypes(m.body)))) {
         const r = await alertItemsForHost({
           organizationId,
           conversation: { ...c, reservation: c.reservationId ? { id: c.reservationId } : null },
@@ -4951,13 +4975,14 @@ export async function sendDueAlerts(
       }
       // Acil / enjeksiyon: bugünkü yol (Sorunlu + acil e-posta).
     }
-    const hit = pending.find((m) => {
-      const k = classifyFallback(m.body);
-      return k.isComplaint || k.intent === "refund";
-    });
+    const hit = pending.find(alertHit);
     if (!hit) continue;
-    const cls = classifyFallback(hit.body);
-    const riskType = detectRiskType(hit.body);
+    // Uzun acil mesajda tam sınıflandırma yok: acil ağının bugünkü karşılığı ŞİKAYET + acil etiketidir.
+    const hitTooLong = exceedsGuestMessageLimit(hit.body);
+    const cls: ClassifyResult = hitTooLong
+      ? { intent: "complaint", priority: "urgent", isComplaint: true, confidence: 1 }
+      : classifyFallback(hit.body);
+    const riskType = hitTooLong ? "safety_emergency" : detectRiskType(hit.body);
 
     // ATOMIC claim first (new → problem): routes the thread to a human, dedupes
     // the alert AND is the idempotency lock for the optional holding ack below —

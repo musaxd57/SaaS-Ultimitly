@@ -29,6 +29,7 @@ import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { preparedDraftOf } from "@/lib/conversation-items/prepared-draft";
 import { hostOfferForGate } from "@/lib/automation";
 import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
+import { unansweredExceedsGuestMessageLimit, MESSAGE_TOO_LONG_REASON } from "@/lib/ai/message-length";
 
 export const dynamic = "force-dynamic";
 
@@ -167,6 +168,8 @@ export default async function ConversationPage({
   const turnoverIn = !stayIsOver && adjacency?.previousSameDay === true;
   const turnoverOut = !stayIsOver && adjacency?.nextSameDay === true;
 
+  // K10-t: cevapsız misafir mesajlarından biri 8.000 karakteri aşıyor mu (oto-yanıt kaydından bağımsız).
+  const tooLongForAi = unansweredExceedsGuestMessageLimit(conversation.messages);
   const messages: ThreadMessage[] = conversation.messages
     // A superseded AI draft (its outbox row was CANCELED by the send-time veto) never reached
     // the guest — hide it from the thread. It is NOT deleted: the row stays for export/audit
@@ -228,6 +231,8 @@ const SKIP_REASON_LABELS: Record<string, string> = {
     "AI servisine geçici olarak ulaşılamadı — bağlantı düzelince bu konuşma otomatik olarak yeniden denenecek",
   // Model cevap verdi ama çıktı üst üste kullanılamadı (3 deneme, 09-28): bu mesaj bir daha OTOMATİK denenmez.
   ai_unusable: "AI bu mesaja kullanılabilir bir cevap üretemedi — lütfen elle yanıtlayın",
+  // K10-t (kurucu kararı 09-28): tek mesaj 8.000 karakteri aşıyor — yapay zekâ cevap üretmedi, metin modele verilmedi.
+  message_too_long: "Mesaj çok uzun (8.000 karakterden fazla) — yapay zekâ cevap üretmedi; lütfen mesajı okuyup elle yanıtlayın",
   // Mevcut müşterilerin gündüz mesajlarının sessizce cevapsız kalmasının TEK
   // sebebi buydu ve hiçbir ekranda yazmıyordu (şema varsayılanı hâlâ gece-only).
   outside_hours:
@@ -264,7 +269,12 @@ const SKIP_REASON_LABELS: Record<string, string> = {
           Bilgi kaybı YOK: iki düğme de aynı yerde, bir satır aşağıda. */}
       {/* "Cevap gerekmedi" etiketi TÜRETİLİR (inceleme 09-25): kayıttaki `closing_ack` misafir yeniden yazdıktan sonra da
           durur — yeni bir soru varken "sohbeti kapattı" yazmasın. Kapanış satırlarında eski risk gerekçesi gösterilmez. */}
-      {conversation.skippedReason &&
+      {/* K10-t: uzun mesaj uyarısı KAYITTAN BAĞIMSIZ türetilir — oto-yanıt kapalı / mesai dışı olsa da ev sahibi görür. */}
+      {tooLongForAi ? (
+        <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+          🤖 {SKIP_REASON_LABELS[MESSAGE_TOO_LONG_REASON]}
+        </p>
+      ) : conversation.skippedReason &&
       conversation.status !== "answered" &&
       (conversation.skippedReason !== CLOSING_HANDLED_REASON || isClosingHandled(conversation)) ? (
         <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">

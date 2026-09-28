@@ -1,4 +1,5 @@
 import { classifyFallback } from "@/lib/ai/fallback";
+import { exceedsGuestMessageLimit } from "@/lib/ai/message-length";
 
 // ---------------------------------------------------------------------------
 // SİNYAL TÜRETİMİ (V1) — saf, deterministik, LLM'siz.
@@ -65,6 +66,8 @@ export function deriveMessageSignal(
   if (message.authorType && message.authorType !== "guest") return null;
   const body = message.body?.trim();
   if (!body) return null;
+  // K10-t (kurucu kararı 09-28): 8.000 karakteri aşan mesaj kelime ağından geçmez (pahalı kalıp işlemi); sinyal üretilmez.
+  if (exceedsGuestMessageLimit(body)) return null;
   const c = classifyFallback(body);
   if (c.intent === "general") return null;
   return {

@@ -2165,16 +2165,21 @@ function includesSafetyWholeWord(message: string): boolean {
 }
 
 /**
+ * ACİL SÖZCÜK AĞI — `detectRiskType`in "safety_emergency" dalıyla TEK kaynak. Hafif (katlanmış metinde alt dize + tam sözcük);
+ * 8.000 karakteri aşan misafir mesajında tam sınıflandırma yerine YALNIZ bu koşar (K10-t, kurucu: "acil sözcük aransın").
+ */
+export function isSafetyEmergencyText(message: string): boolean {
+  return includesAnyFold(message, SAFETY_CRITICAL_WORDS) || includesSafetyWholeWord(message);
+}
+
+/**
  * Deterministic risk nets (Faz-B), in SEVERITY PRECEDENCE order — the single source for both `detectRiskType`
  * (first hit) and `detectRiskTypes` (every hit; konuşma öğeleri 09-26: bir mesajdaki İKİNCİ riskli istek, öncelikteki
  * birincinin arkasında görünmez kalmasın).
  */
 const RISK_NETS: ReadonlyArray<readonly [label: string, hit: (message: string) => boolean]> = [
   ["prompt_injection", (m) => detectPromptInjection(m)],
-  [
-    "safety_emergency",
-    (m) => includesAnyFold(m, SAFETY_CRITICAL_WORDS) || includesSafetyWholeWord(m),
-  ],
+  ["safety_emergency", (m) => isSafetyEmergencyText(m)],
   ["review_threat", (m) => includesAnyFold(m, REVIEW_THREAT_PHRASES, true)],
   ["platform_policy", (m) => includesAnyFold(m, OFFPLATFORM_PAYMENT_PHRASES, true)],
   ["money_refund", (m) => matchesIntentKeywords(m, "refund")],

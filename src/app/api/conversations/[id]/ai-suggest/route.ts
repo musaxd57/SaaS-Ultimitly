@@ -6,6 +6,8 @@ import { hostVoiceDraft } from "@/lib/ai/host-voice";
 import { getAdjacency } from "@/lib/turnover";
 import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { NextResponse } from "next/server";
+import { unansweredExceedsGuestMessageLimit, MESSAGE_TOO_LONG_SUGGEST_TEXT } from "@/lib/ai/message-length";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
@@ -51,6 +53,11 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     .find((m) => m.direction === "inbound");
   if (!lastInbound) {
     return badRequest({ _: "Öneri üretmek için bir misafir mesajı gerekli" });
+  }
+  // K10-t (kurucu kararı 09-28): cevapsız misafir mesajlarından biri 8.000 karakteri aşarsa öneri üretilmez — model çağrısı
+  // ve kota düşümü YOK, metin kırpılıp modele verilmez; panel bu açıklamayı gösterir (boş kalmaz).
+  if (unansweredExceedsGuestMessageLimit(conversation.messages)) {
+    return NextResponse.json({ error: MESSAGE_TOO_LONG_SUGGEST_TEXT }, { status: 422 });
   }
 
   // KOTA, ORG KAPSAMI VE MESAJ DOĞRULAMASINDAN SONRA (denetim, 08-01).
