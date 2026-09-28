@@ -12,7 +12,7 @@
 // Tasarım + kararlar: `docs/TASARIM-2026-09-28-misafir-adi.md`.
 // ---------------------------------------------------------------------------
 
-import { GUEST_NAME_FALLBACK, guestFirstNameForPrompt, guestFirstNameOf } from "@/lib/kb-placeholders";
+import { GUEST_NAME_FALLBACK, guestFirstNameForPrompt } from "@/lib/kb-placeholders";
 
 /** Anahtar TEK YERDE okunur; yalnız "1" açar. */
 export function codeGreetingEnabled(): boolean {
@@ -48,7 +48,8 @@ export function salutationNameOf(givenName: string | null | undefined): string |
   if (typeof givenName !== "string") return null;
   const words = givenName.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0 || words.length > SALUTATION_MAX_WORDS) return null;
-  if (guestFirstNameOf(words[0]) === null) return null;
+  // Her sözcük baştan sona ad biçimli olmalı. Yer tutucu sözcük ("Misafir", "Rezervasyon") da burada düşer: `guestFirstNameForPrompt`
+  // yer tutucuda `null` döner (ayrı bir yer tutucu kontrolü ölü koddu — mutasyon 09-28).
   for (const w of words) if (guestFirstNameForPrompt(w) !== w) return null;
   const joined = words.join(" ");
   return Array.from(joined).length > SALUTATION_MAX_CHARS ? null : joined;
