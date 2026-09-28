@@ -21,7 +21,7 @@ import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
-import { guestFirstNameForPrompt, GUEST_NAME_FALLBACK } from "@/lib/kb-placeholders";
+import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 
 // ---------------------------------------------------------------------------
 // AI reply PLAYGROUND — safe dry-run.
@@ -107,7 +107,8 @@ export const POST = withManage(async (session, req) => {
   // yoksa kart kendi içinde tutarsız olurdu.
   // #189: ikame SEÇİMDEN SONRA — üretimle (oto-yanıt, öneri) aynı sıra (`retrieveKbForPrompt` `placeholders`).
   const kbPlaceholders = {
-    guestFirstName: guestFirstNameForPrompt(TEST_GUEST_NAME) ?? GUEST_NAME_FALLBACK,
+    // Adsız yapay zekâ anahtarı açıkken HİÇBİR ad ("misafirimiz") — üretimle aynı kural (`modelGuestFirstName`).
+    guestFirstName: modelGuestFirstName(TEST_GUEST_NAME),
     propertyName: property.name,
   };
 

@@ -71,13 +71,12 @@ import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import {
-  GUEST_NAME_FALLBACK,
   fillGuestPlaceholders,
-  guestFirstNameForPrompt,
   guestFirstNameOf,
   hasNamePlaceholder,
   kbPlaceholderTokens,
 } from "@/lib/kb-placeholders";
+import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { closableAfter, closingMayHide, lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
 import {
@@ -1798,6 +1797,7 @@ export async function applyChannelAutoReply(
         select: {
           id: true,
           guestName: true,
+          guestGivenName: true,
           arrivalDate: true,
           departureDate: true,
           status: true,
@@ -2106,7 +2106,8 @@ export async function applyChannelAutoReply(
   // never leak into a reply.
   // 🚨 Modele giden ad yalnız AD biçimindeki baş kısım (`guestFirstNameForPrompt`, gece güvenlik turu 09-28): görünen ad misafirin
   // metnidir ve bu değer ev sahibinin KB kalemine yerleşir.
-  const guestFirst = guestFirstNameForPrompt(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK;
+  // Adsız yapay zekâ anahtarı açıkken HİÇBİR ad ("misafirimiz") — `modelGuestFirstName` (`code-greeting.ts`).
+  const guestFirst = modelGuestFirstName(conversation.guestIdentifier);
   // A2 — TEMELLENDİRME SAYAÇLARI (tek yerde kurulur, her karar kaydına aynen
   // gider). `kbRetrieved` istemin GÖRÜNEN kalem sayısıdır; aşağıda `kbVisible`
   // hesaplandıktan sonra tamamlanır — burada yalnız kapasite/yetki/sürüm
@@ -2177,7 +2178,7 @@ export async function applyChannelAutoReply(
     history: turnHistory,
     // Anlama katmanı (bayrak açıkken): standart saat kıyası + redaksiyon için.
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
-    redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],
+    redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName],
     // Anlama katmanının tarih satırı (yalnız Konuşma Anlama Durumu bayrağı açıkken kullanılır).
     dateContext: { now: new Date(), timeZone: org.timezone, reservation: conversation.reservation ?? null },
   });
@@ -2259,12 +2260,15 @@ export async function applyChannelAutoReply(
     reservation: conversation.reservation
       ? {
           guestName: conversation.reservation.guestName,
+          guestGivenName: conversation.reservation.guestGivenName,
           arrivalDate: conversation.reservation.arrivalDate,
           departureDate: conversation.reservation.departureDate,
           status: conversation.reservation.status,
           guestCheckoutTime: conversation.reservation.guestCheckoutTime,
         }
       : null,
+    // Yalnız adsız yapay zekâ anahtarı açıkken, istem metninden adı silmek için (modele gitmez).
+    guestIdentifier: conversation.guestIdentifier,
     // "Bugün / yarın" ve konaklama evresi org diliminde (`stay-timeline.ts`).
     timeZone: org.timezone,
     // Öğe bloğu yalnız cevaplanabilir istek varken: hepsi tutulduysa cevap ev sahibinde kalır (model bugünkü istemle koşar —
@@ -2408,7 +2412,7 @@ export async function applyChannelAutoReply(
       guestMessages: [...pendingGuestMessages, last.body],
       reply: result.reply,
       stayTimes: gateContext.stayTimes,
-      names: [conversation.guestIdentifier, conversation.reservation?.guestName],
+      names: [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName],
       hostOffer: gateContext.hostOfferText,
       // Cevapsızlardan ÖNCEKİ konuşma (takip izni bağlamla anlaşılır).
       history: messages

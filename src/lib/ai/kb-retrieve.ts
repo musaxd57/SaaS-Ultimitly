@@ -21,6 +21,8 @@ import { orgTimezone } from "@/lib/timezone";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
 import { fillGuestPlaceholdersInItems, type GuestPlaceholderValues } from "@/lib/kb-placeholders";
+import { codeGreetingEnabled } from "@/lib/ai/code-greeting";
+import { promptRedactionNames, redactGuestNamesForPrompt } from "@/lib/ai/prompt-name-redaction";
 
 // ---------------------------------------------------------------------------
 // BİLGİ SEÇİMİ — YÜZEYLERİN TEK GİRİŞİ (09-23).
@@ -85,8 +87,28 @@ export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
   evidenceAfterUnderstanding: () => Promise<KbRetrievalEvidence | null>;
 };
 
+/**
+ * ADSIZ YAPAY ZEKÂ (`code-greeting.ts`, anahtar açıkken): getirmenin girdisi — sözcüksel arama ve GÖMME sorguları — misafir adı
+ * "[Misafir]" olarak kurulur (ad hiçbir model isteğine girmez; gömme de bir model isteğidir). Güvenlik sözcüğü taşıyan ad silme
+ * anahtarı olmaz (`promptRedactionNames`). Anahtar kapalıyken girdi AYNEN döner (bayt bayt eski).
+ */
+function namelessRetrievalInput<T extends KbChunkSource>(
+  input: KbSelectInput<T>,
+  names: readonly (string | null | undefined)[] | undefined,
+): KbSelectInput<T> {
+  if (!codeGreetingEnabled()) return input;
+  const keys = promptRedactionNames(names ?? []);
+  if (keys.length === 0) return input;
+  return {
+    ...input,
+    guestMessage: redactGuestNamesForPrompt(input.guestMessage, keys),
+    ...(input.history ? { history: input.history.map((m) => ({ ...m, body: redactGuestNamesForPrompt(m.body, keys) })) } : {}),
+  };
+}
+
 export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
-  const { stayTimes, redactNames, dateContext, placeholders, ...rest } = input;
+  const { stayTimes, redactNames, dateContext, placeholders, ...rawRest } = input;
+  const rest = namelessRetrievalInput(rawRest, redactNames);
   // GENİŞ BLOK BÜTÇESİ (#189, kurucu 09-27 "hazırla, sonra aç"; `KB_RETRIEVAL_WIDE_BUDGET` varsayılan KAPALI): TEK karar noktası.
   // Çağıran bütçeyi kendisi verdiyse (ölçer / test) dokunulmaz. Küçük bilgi tabanı ve legacy yolu bütçe okumaz (etkisiz).
   const wide = wideBudgetInfo().enabled && rest.budgetChars === undefined && rest.maxChunks === undefined;

@@ -1,6 +1,8 @@
 import { defuseBlockDelimiters } from "./retrieval/kb-line";
 import "server-only";
-import { REPLY_SYSTEM_PROMPT, buildReplyPrompt } from "./prompts";
+import { REPLY_SYSTEM_PROMPT, REPLY_SYSTEM_PROMPT_CODE_GREETING, buildReplyPrompt } from "./prompts";
+import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
+import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
 import type { ClassifyResult, LlmUsage, SuggestReplyInput, SuggestReplyResult } from "./types";
@@ -73,7 +75,11 @@ function verifyUsedSources(list: string[], input: SuggestReplyInput): string[] {
       const field = src.slice("reservation:".length);
       return (
         input.reservation != null &&
-        (field === "guestName" || field === "arrivalDate" || field === "departureDate" || field === "status")
+        // Adsız yapay zekâ (`code-greeting.ts`): anahtar açıkken model adı GÖRMEZ → "reservation:guestName" beyanı uydurmadır.
+        ((field === "guestName" && !codeGreetingEnabled()) ||
+          field === "arrivalDate" ||
+          field === "departureDate" ||
+          field === "status")
       );
     }
     // "history" = YALNIZ bu sohbetin geçmişi (F13 kalıntısı, 09-26). Eskiden üslup rehberi de "history" sayılıyordu
@@ -117,6 +123,28 @@ function replyCallParams(): { model: string; effort: string | null } {
 }
 
 /** Cevap istemi — `suggestReply` ve istek kimliği AYNI kurucudan (eylem beyanı bayrağı çağıranın TEK okumasıyla gelir). */
+/** Cevap modelinin SİSTEM istemi — anahtar TEK YERDE (`code-greeting.ts`); kapalıyken taban istem bayt bayt aynı. */
+function replySystemPrompt(): string {
+  return codeGreetingEnabled() ? REPLY_SYSTEM_PROMPT_CODE_GREETING : REPLY_SYSTEM_PROMPT;
+}
+
+/**
+ * Anahtar açıkken misafire gidecek metin: modelin baştaki selamı silinir, İLK cevapta kodun selamı eklenir (dil: kodun kesin
+ * tespiti, yoksa modelin beyanı; hitap adı YALNIZ kanalın ayrı ad alanından). Kapı bu SON metni görür.
+ */
+function codeGreetingReply(reply: string, input: SuggestReplyInput, modelLanguage: unknown): string {
+  const language =
+    guestTurnLanguage(input.guestMessage, unansweredGuestTexts(input.history ?? [], input.guestMessage)) ??
+    normalizeLang(modelLanguage);
+  return applyCodeGreeting({
+    reply,
+    firstReply: input.conversationState?.isFirstOperatorReply !== false,
+    tone: input.tone,
+    language,
+    name: salutationNameOf(input.reservation?.guestGivenName),
+  });
+}
+
 function replyPromptFor(input: SuggestReplyInput, declareActions: boolean): ReturnType<typeof buildReplyPrompt> {
   return buildReplyPrompt(declareActions ? { ...input, declareActions: true } : input);
 }
@@ -127,7 +155,7 @@ function replyPromptFor(input: SuggestReplyInput, declareActions: boolean): Retu
  * `replyCallParams`; ikisi ayrışamaz.
  */
 export function replyRequestIdentity(input: SuggestReplyInput): { model: string; effort: string | null; system: string; user: string } {
-  return { ...replyCallParams(), system: REPLY_SYSTEM_PROMPT, user: replyPromptFor(input, actionClaimsEnabled()).text };
+  return { ...replyCallParams(), system: replySystemPrompt(), user: replyPromptFor(input, actionClaimsEnabled()).text };
 }
 
 /** Normalize a model-returned language value to a short code (2–3 letters), else
@@ -323,7 +351,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
   const declareActions = actionClaimsEnabled();
   // §C: istem TEK KEZ kurulur; metin modele, muhasebe karar kaydına gider.
   const prompt = replyPromptFor(input, declareActions);
-  const call = await callOpenAI(REPLY_SYSTEM_PROMPT, prompt.text);
+  const call = await callOpenAI(replySystemPrompt(), prompt.text);
   const raw = call?.content ?? null;
   const llmUsage = call?.usage;
   if (raw) {
@@ -394,7 +422,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // Cap every free-text field the model returns — an over-long value would
           // bloat the DB row / inbox UI / logs it lands on (no token guarantee
           // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
-          reply: cappedReply.text,
+          reply: codeGreetingEnabled() ? codeGreetingReply(cappedReply.text, input, parsed.detectedLanguage) : cappedReply.text,
           risk:
             typeof parsed.risk === "string" && parsed.risk.trim()
               ? parsed.risk.slice(0, 300)

@@ -1,6 +1,7 @@
 import type { Priority } from "@/lib/constants";
 import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
 import { guestFirstNameOf } from "@/lib/kb-placeholders";
+import { codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 
 // Deterministic, keyword-based AI fallback. Used when no OPENAI_API_KEY is set,
 // or when the OpenAI call fails. Keeps the product usable without external APIs.
@@ -2253,7 +2254,11 @@ const CLOSING_FREE_INTENTS = new Set(["complaint", "refund", "early_departure", 
 export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResult {
   const { intent, priority, confidence } = classifyFallback(input.guestMessage);
   // Ad bilinmiyorsa (yer tutucu ad: "Rezervasyon HM4K2" / "Misafir") selam adsız — karşılama mesajlarıyla AYNI kural (09-28).
-  const name = guestFirstNameOf(input.reservation?.guestName) ?? undefined;
+  // Adsız yapay zekâ anahtarı açıkken hitap adı YALNIZ kanalın ayrı ad alanından (ilk kelime tahmini yok) — kodla selamla aynı kural.
+  const name =
+    (codeGreetingEnabled()
+      ? salutationNameOf(input.reservation?.guestGivenName)
+      : guestFirstNameOf(input.reservation?.guestName)) ?? undefined;
   const p = input.property;
 
   // SECRET GATE — mirrors the model prompt's pre-booking guard so the

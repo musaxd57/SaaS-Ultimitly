@@ -13,6 +13,11 @@ export interface KbContext {
 
 export interface ReservationContext {
   guestName: string;
+  /**
+   * Kanalın AYRI hitap adı (migration 57). YALNIZ anahtar `AI_CODE_GREETING_ENABLED` açıkken kullanılır: kodun eklediği selamda
+   * ("Merhaba Ayşe,") ve modele giden metinden adın silinmesinde. Modele HİÇ gitmez.
+   */
+  guestGivenName?: string | null;
   arrivalDate: Date | string;
   departureDate: Date | string;
   status: string;
@@ -57,6 +62,11 @@ export interface HistoryMessage {
 
 export interface SuggestReplyInput {
   guestMessage: string;
+  /**
+   * Konuşmanın görünen misafir adı (`Conversation.guestIdentifier`) — YALNIZ anahtar `AI_CODE_GREETING_ENABLED` açıkken, modele giden
+   * istem metninden adı silmek için (rezervasyonsuz konuşmada da). Modele gitmez.
+   */
+  guestIdentifier?: string | null;
   property: PropertyContext;
   reservation?: ReservationContext | null;
   knowledgeBase: KbContext[];

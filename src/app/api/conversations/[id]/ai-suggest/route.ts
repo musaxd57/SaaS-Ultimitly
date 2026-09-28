@@ -12,7 +12,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
-import { GUEST_NAME_FALLBACK, guestFirstNameForPrompt } from "@/lib/kb-placeholders";
+import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
@@ -81,8 +81,9 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // #189: ikame SEÇİMDEN SONRA (`retrieveKbForPrompt` `placeholders`) — seçim ham metinle koşar, misafir adı parça metnini
   // misafire özgü yapıp anlamsal önbelleği soğutmaz. Legacy / geri çekilmede de sonuç kalemleri aynı değerlerle doldurulur.
   const kbPlaceholders = {
-    // Yalnız AD biçimindeki baş kısım (`guestFirstNameForPrompt`): görünen ad misafirin metnidir, ev sahibinin KB kalemine yerleşir.
-    guestFirstName: guestFirstNameForPrompt(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK,
+    // Anahtar kapalıyken yalnız AD biçimindeki baş kısım: görünen ad misafirin metnidir, ev sahibinin KB kalemine yerleşir.
+    // Adsız yapay zekâ anahtarı açıkken HİÇBİR ad ("misafirimiz") — `modelGuestFirstName`.
+    guestFirstName: modelGuestFirstName(conversation.guestIdentifier),
     propertyName: conversation.property.name,
   };
   // SIR KAPSAMI oto-yanıtla TEK kural (Codex 09-27): onaylı / tamamlanmış konaklama dışında Wi-Fi / giriş talimatı / kod içeren
@@ -113,7 +114,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     placeholders: kbPlaceholders,
     guestMessage: lastInbound.body,
     stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
-    redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName],
+    redactNames: [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName],
     // Anlama katmanının tarih satırı (yalnız Konuşma Anlama Durumu bayrağı açıkken kullanılır).
     dateContext: { now: new Date(), timeZone: org?.timezone, reservation: conversation.reservation ?? null },
     // `at` (F14b): anlama katmanında yazıldığı an — öneri saatler sonra istenebilir; yalnız bayrakla görünür.
@@ -146,12 +147,15 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     reservation: conversation.reservation
       ? {
           guestName: conversation.reservation.guestName,
+          guestGivenName: conversation.reservation.guestGivenName,
           arrivalDate: conversation.reservation.arrivalDate,
           departureDate: conversation.reservation.departureDate,
           status: conversation.reservation.status,
           guestCheckoutTime: conversation.reservation.guestCheckoutTime,
         }
       : null,
+    // Yalnız adsız yapay zekâ anahtarı açıkken, istem metninden adı silmek için (modele gitmez).
+    guestIdentifier: conversation.guestIdentifier,
     knowledgeBase: kbSel.items,
     // Sır kapsamıyla elenen kalemler de "alınmadı" sayılır (oto-yanıtla aynı): model "bilgi yok" demez, devreder.
     knowledgeBaseDropped: kbDropped + (kbFetched.length - kbRaw.length) + kbSel.droppedItems,

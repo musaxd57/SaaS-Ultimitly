@@ -508,6 +508,7 @@ export function checkProductionEnv(env) {
 /** Calisma aninda YALNIZ "1" ile acilan bayraklar (kaynakla pinli). */
 export const STRICT_ONE_FLAGS = Object.freeze([
   "AI_ACTION_CLAIMS_ENABLED",
+  "AI_CODE_GREETING_ENABLED",
   "AI_CONVERSATION_ITEMS_ENABLED",
   "AI_CONVERSATION_STATE_ENABLED",
   "AI_HOUSE_RULES_SHADOW",
