@@ -66,7 +66,10 @@ const clampLimit = (v: unknown) =>
  */
 export function redactForAudit(text: string, guestNames: Array<string | null | undefined>): string {
   const names = guestNames.filter((n): n is string => Boolean(n && n.trim()));
-  const clean = maskSecretValuesForAudit(redactSensitive(redactNameFromBody(text, names)));
+  // Maskeleme tavanın biraz üstündeki önekte koşar (09-28: etiket yoğun uzun metinde iş sınırlı); pay, kırpma sınırındaki etiket →
+  // değer çiftinin maskelenmesine yeter (pencere 60 karakter). Tavanın ötesi zaten denetçiye gitmez.
+  const head = text.length > BODY_CAP + 200 ? text.slice(0, BODY_CAP + 200) : text;
+  const clean = maskSecretValuesForAudit(redactSensitive(redactNameFromBody(head, names)));
   return clean.length > BODY_CAP ? `${clean.slice(0, BODY_CAP)} …[kısaltıldı]` : clean;
 }
 
@@ -102,12 +105,24 @@ const SECRET_LABEL_RE = new RegExp(
       "kod\\p{L}*",
       "pin",
       "\\p{L}*codes?",
-      "pass(?:word|wort|code|key)?\\p{L}*",
+      // "pass" yalnız çıplak ya da bileşik (09-28: "passenger" / "passport" / "passed" etiket DEĞİL — o cümlenin ücreti maskeleniyordu).
+      "pass(?:word|wort|code|key|wd|phrase)\\p{L}*",
+      "pass",
       "kennwort\\p{L}*",
       "combination",
       "combo",
       "keypad",
       "lock ?box",
+      // 09-28 inceleme ajanı: eksik etiketler (katlanmış yazım: ı→i, ş→s, ü→u).
+      "key ?box\\p{L}*",
+      "anahtar kutu\\p{L}*",
+      "kasa\\p{L}*",
+      "kapi\\p{L}*",
+      "door",
+      "tus takim\\p{L}*",
+      "\\p{L}*schlussel\\p{L}*",
+      "wi-?fi",
+      "wlan",
       "mot de passe",
       "contrase[nñ]a",
       "clave",
@@ -127,9 +142,19 @@ const SECRET_LABEL_RE = new RegExp(
 const SECRET_WINDOW_CHARS = 60;
 const CLAUSE_END_RE = /\n|;|,\s|[.!?](?=\s|$)/u;
 /** Etiketle değer arasında en çok üç sözcük, sonra ":" / "=" → ilk değer (rakamsız da olsa) maskelenir. */
-const FIRST_VALUE_RE = /^\s*(?:[\p{L}-]+\s+){0,3}?[:=]\s*(\S+)/u;
+// 09-28: son sözcük ":"ye bitişik olabilir ("Password for wifi:"), sözcük parantezli olabilir ("Şifre (wifi):"). Belirsizlik yok: ara
+// sözcükler boşlukla ayrılır, yalnız sonuncusu bitişik.
+const FIRST_VALUE_RE = /^\s*(?:[\p{L}()\-]+\s+){0,2}(?:[\p{L}()\-]+\s*)?[:=]\s*(\S+)/u;
 const KEYPAD_RE = /(?<![\p{L}\p{N}])(?:[#*]\p{Nd}{3,10}|\p{Nd}{3,10}[#*])(?![\p{L}\p{N}])/gu;
 const TIME_TOKEN_RE = /^\p{Nd}{1,2}[:.]\p{Nd}{2}(?:['’]\p{L}*)?$/u;
+/** 09-28: denetçinin aradığı olgular — "3pm", "14:00-16:00" aralığı, para birimi yapışık tutar ("30€", "€30", "450₺"). */
+const TIME_OR_MONEY_TOKEN_RE =
+  /^(?:\p{Nd}{1,2}(?:[:.]\p{Nd}{2})?(?:am|pm|a\.m\.|p\.m\.)|\p{Nd}{1,2}[:.]\p{Nd}{2}[-–]\p{Nd}{1,2}[:.]\p{Nd}{2}(?:['’]\p{L}*)?|[€$£₺]\p{Nd}[\p{Nd}.,]*|\p{Nd}[\p{Nd}.,]*[€$£₺])$/iu;
+/** Ardından gelince önceki sayıyı olgu yapan belirteç: para birimi ("450 TL") ya da 1–12 sayıdan sonra am/pm ("11 am"; "1234 am" DEĞİL). */
+const CURRENCY_WORD_RE = /^(?:tl|try|eur|euro|usd|gbp|lira|dolar|dollars?|₺|€|\$|£)[.,;:!?)]*$/iu;
+const AM_PM_RE = /^(?:am|pm|a\.m\.|p\.m\.)[.,;:!?)]*$/iu;
+/** Etiketten ÖNCE aynı cümlecikte yazılan değer ("Use 4821 to open the lockbox") — geriye bakılan pencere. */
+const SECRET_LOOKBACK_CHARS = 40;
 const PLACEHOLDER_TOKEN_RE = /^\[[^\]]*\]$/u;
 const TOKEN_EDGE_RE = /^[(["'“‘«]+|[)\]"'”’»,.;:!?]+$/gu;
 
@@ -141,6 +166,29 @@ function tokenCore(text: string, start: number, end: number): { from: number; to
   const core = raw.replace(TOKEN_EDGE_RE, "");
   if (!core) return null;
   return { from: start + lead, to: start + lead + core.length };
+}
+
+/**
+ * Penceredeki rakam taşıyan belirteçleri maskeler — denetçinin aradığı olgular HARİÇ (09-28): saat ("3pm", "11 am", "14:00-16:00"),
+ * para ("450 TL", "30€"). Belirtecin olgu olup olmadığına bir SONRAKİ belirteçle de bakılır (para birimi / am-pm).
+ */
+function maskWindowTokens(
+  text: string,
+  base: number,
+  window: string,
+  maskCore: (c: { from: number; to: number } | null, force: boolean) => void,
+): void {
+  const tokens = Array.from(window.matchAll(/\S+/gu));
+  tokens.forEach((t, i) => {
+    const core = tokenCore(text, base + t.index, base + t.index + t[0].length);
+    if (!core) return;
+    const coreText = text.slice(core.from, core.to);
+    const next = tokens[i + 1]?.[0] ?? "";
+    if (TIME_OR_MONEY_TOKEN_RE.test(coreText)) return;
+    if (/^\p{Nd}[\p{Nd}.,]*$/u.test(coreText) && CURRENCY_WORD_RE.test(next)) return;
+    if (/^\p{Nd}{1,2}$/u.test(coreText) && Number(coreText) >= 1 && Number(coreText) <= 12 && AM_PM_RE.test(next)) return;
+    maskCore(core, false);
+  });
 }
 
 export function maskSecretValuesForAudit(text: string): string {
@@ -163,7 +211,13 @@ export function maskSecretValuesForAudit(text: string): string {
     }
     const cut = tail.search(CLAUSE_END_RE);
     const window = cut < 0 ? tail : tail.slice(0, cut);
-    for (const t of window.matchAll(/\S+/gu)) maskCore(tokenCore(text, winStart + t.index, winStart + t.index + t[0].length), false);
+    maskWindowTokens(text, winStart, window, maskCore);
+    // Etiketten ÖNCE, aynı cümlecikte (09-28): "Use 4821 to open the lockbox".
+    const backFrom = Math.max(0, m.index - SECRET_LOOKBACK_CHARS);
+    const before = folded.slice(backFrom, m.index);
+    let clauseStart = 0;
+    for (const e of before.matchAll(new RegExp(CLAUSE_END_RE.source, "gu"))) clauseStart = e.index + e[0].length;
+    maskWindowTokens(text, backFrom + clauseStart, before.slice(clauseStart), maskCore);
   }
   for (const k of folded.matchAll(KEYPAD_RE)) ranges.push({ from: k.index, to: k.index + k[0].length });
   if (ranges.length === 0) return text;

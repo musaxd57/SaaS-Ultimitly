@@ -78,3 +78,43 @@ describe("KONTROL — denetimin ihtiyaç duyduğu olgular korunur", () => {
     expect(out).not.toContain("1234");
   });
 });
+
+// ---------------------------------------------------------------------------
+// 09-28 inceleme ajanı (çalıştırılarak doğrulandı): etiket listesinde anahtar kutusu / kasa / kapı / keybox / Schlüssel / tuş takımı
+// / Wi-Fi yoktu; "(wifi):" ve "for wifi:" ilk değer kuralını kırıyordu; etiketten ÖNCE yazılan değer bakılmıyordu. Ters yönde
+// "pass…" kalıbı passenger / passport'u da tutup aynı cümlecikteki ücreti, "3pm" / "11 am" saatini ve saat aralığını maskeliyordu —
+// denetçinin tam aradığı olgular.
+// ---------------------------------------------------------------------------
+
+describe("09-28 — eksik sır etiketleri ve değer önce yazımı", () => {
+  it.each([
+    ["Anahtar kutusu: 4821", "4821"],
+    ["Kasa: 0917", "0917"],
+    ["Kasa 0917", "0917"],
+    ["Kapı: 4821", "4821"],
+    ["Bina kapısı 4821", "4821"],
+    ["Otopark kapısı: 1234", "1234"],
+    ["keybox 4821", "4821"],
+    ["Schlüsselbox 4821", "4821"],
+    ["WLAN-Schlüssel: sonne2024", "sonne2024"],
+    ["Kapıdaki tuş takımına 4821 girin", "4821"],
+    ["Use 4821 to open the lockbox", "4821"],
+    ["Password for wifi: gunesli", "gunesli"],
+    ["Şifre (wifi): gunesli", "gunesli"],
+    ["WiFi: gunesli2024", "gunesli2024"],
+  ])("🚨 %j → %j gitmez", (text, secret) => {
+    expect(audit(text)).not.toContain(secret);
+    expect(audit(text)).toContain("[GİZLİ]");
+  });
+
+  it.each([
+    ["Kapı kodu 4821, check-in is from 3pm", "3pm"],
+    ["Kapı kodu 4821 ve erken giriş ücreti 450 TL", "450 TL"],
+    ["Kod 4821, check-out by 11 am", "11 am"],
+    ["Kapı kodu 4821 giriş 14:00-16:00 arası", "14:00-16:00"],
+    ["Passengers pay 30€ for the shuttle", "30€"],
+    ["Passport number is not needed, the fee is 40 EUR", "40 EUR"],
+  ])("KONTROL — denetçinin aradığı olgu korunur: %j → %j kalır", (text, fact) => {
+    expect(audit(text)).toContain(fact);
+  });
+});
