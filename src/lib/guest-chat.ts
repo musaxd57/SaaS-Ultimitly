@@ -100,6 +100,53 @@ export function guestChatAiPausedFromMessages(
   return false; // no host activity at all → AI active
 }
 
+/** `guestChatAiPausedFromMessages`in atlamadığı yazar türleri dışında her şey (bilinmeyen tür de — tarayıcı onu "ev sahibi" sayar). */
+const PAUSE_SKIPPED_AUTHOR_TYPES = ["guest", "ai", "system", ""];
+
+/**
+ * Bu konaklamanın QR sohbetinde yapay zekâ ev sahibine devredilmiş mi — `guestChatAiPausedFromMessages(tüm konuşma)` ile AYNI
+ * hüküm, ama yalnız hükmü veren TEK satır okunur.
+ *
+ * 🚨 GECE DENETİMİ (09-28, ölçüldü): misafir rotası her mesajda bu kontrolü iki kez yapıyor — biri ev sahibi cevabının da
+ * beklediği konuşma kilidinin ALTINDA — ve eskiden konuşmanın BÜTÜN mesajlarını okuyordu. Konuşmayı büyüten cihazı bağlı
+ * misafirdir (dakikada 20 istek, yapay zekâ kotası dolduktan sonra da mesajlar kaydediliyor): istek başına okuma sınırsız
+ * büyüyordu.
+ *
+ * Hükmü veren satır = tarayıcının atlamadığı EN YENİ satır: ev sahibi (ve bilinmeyen yazar türü — tarayıcı onu da "ev sahibi"
+ * sayar) ya da "yapay zekâ yeniden açıldı" sistem olayı. Misafir, yapay zekâ ve nötr sistem olayları atlanır; yazar alanı boş
+ * (eski) satırda karar yön + görünen addan (`resolveMessageAuthor` ile aynı kural). Sıra `(createdAt, id)` (panodaki rozetle aynı).
+ * Eşdeğerlik tarayıcı kâhin alınarak rastgele dizilerle pinli (`tests/integration/guest-chat-pause-one-row.test.ts`).
+ */
+export async function guestChatAiPausedForStay(
+  propertyId: string,
+  reservationId: string,
+  db: GuestChatDb = prisma,
+): Promise<boolean> {
+  const marker = `${QR_CONVERSATION_MARKER_PREFIX}${propertyId}:${reservationId}`;
+  const convo = await db.conversation.findFirst({
+    where: { propertyId, externalReservationId: marker },
+    select: { id: true },
+  });
+  if (!convo) return false;
+  const decisive = await db.message.findFirst({
+    where: {
+      conversationId: convo.id,
+      OR: [
+        { authorType: { not: null, notIn: PAUSE_SKIPPED_AUTHOR_TYPES } },
+        { authorType: "system", systemEventType: SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED },
+        {
+          OR: [{ authorType: null }, { authorType: "" }],
+          direction: { not: "inbound" },
+          senderName: { notIn: [...LEGACY_AI_SENDER_NAMES] },
+        },
+      ],
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { direction: true, senderName: true, authorType: true, systemEventType: true },
+  });
+  return decisive ? guestChatAiPausedFromMessages([decisive]) : false;
+}
+
 // ---------------------------------------------------------------------------
 // Per-thread advisory lock (Codex 07-24 #4). The host-handoff contract is "the
 // AI must never talk over the host", but the guest route's send-time re-check

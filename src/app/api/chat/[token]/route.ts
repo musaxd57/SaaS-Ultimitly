@@ -9,7 +9,7 @@ import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
   resolveGuestChat,
   bindOrCheckStay,
-  guestChatAiPausedFromMessages,
+  guestChatAiPausedForStay,
   acquireGuestChatThreadLock,
   ensureGuestChatConversation,
   styleProfileForPrompt,
@@ -244,31 +244,13 @@ async function recordGuestChatExchange(
 }
 
 /**
- * HOST HANDOFF (migration-free): is the AI currently PAUSED for this stay's thread?
- * The AI hands off when a human host replies and stays paused until the host
- * EXPLICITLY re-enables it — never on a timer (the host may have stepped into a
- * sensitive matter the AI would misread later). State is derived from the most
- * recent NON-bot outbound event: a host reply (senderName ≠ "Lixus AI") pauses; a
- * resume marker (senderName = AI_RESUME_MARKER, written by the panel button)
- * re-opens. No schema flag. A new reservation opens a fresh thread → AI active.
+ * HOST HANDOFF (migration-free): the AI hands off when a human host replies and stays paused until the host EXPLICITLY
+ * re-enables it — never on a timer (the host may have stepped into a sensitive matter the AI would misread later). State is
+ * derived from the most recent NON-bot outbound event: a host reply pauses; a resume event (written by the panel button)
+ * re-opens. A new reservation opens a fresh thread → AI active. Single source + one-row read: `guestChatAiPausedForStay`
+ * (`@/lib/guest-chat`; night audit 09-28 — this route used to read the WHOLE thread, twice per guest message, once under the
+ * thread lock).
  */
-async function guestChatAiPaused(
-  propertyId: string,
-  reservationId: string,
-  db: GuestChatDb = prisma,
-): Promise<boolean> {
-  const marker = `qr-chat:${propertyId}:${reservationId}`;
-  const convo = await db.conversation.findFirst({
-    where: { propertyId, externalReservationId: marker },
-    select: {
-      messages: {
-        orderBy: { createdAt: "asc" },
-        select: { direction: true, senderName: true, authorType: true, systemEventType: true },
-      },
-    },
-  });
-  return convo ? guestChatAiPausedFromMessages(convo.messages) : false;
-}
 
 // ---------------------------------------------------------------------------
 // PIN unlock (Faz 5): the guest submits the host-provided PIN to CLAIM this
@@ -556,7 +538,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
     const out = await prisma.$transaction(async (tx) => {
       await acquireGuestChatThreadLock(tx, conversationId);
-      if (botReply !== null && (await guestChatAiPaused(ctx.property.id, res.id, tx))) {
+      if (botReply !== null && (await guestChatAiPausedForStay(ctx.property.id, res.id, tx))) {
         const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, null, true, ctx.property.organizationId);
         return { ...r, handedOff: true };
       }
@@ -575,7 +557,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // the host and DON'T spend a (paid) model call — the human owns the conversation.
   // Re-checked once more just before an AI reply would be stored (send-time veto
   // below), which also catches a host reply that lands WHILE the model is running.
-  if (await guestChatAiPaused(ctx.property.id, res.id)) {
+  if (await guestChatAiPausedForStay(ctx.property.id, res.id)) {
     await record(null, true);
     return finalize({ handoff: true, reply: HANDOFF_REPLY });
   }
