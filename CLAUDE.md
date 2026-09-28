@@ -947,12 +947,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kalmıştı → veritabanı saati birkaç ms ilerideyken "vadesi gelmedi", rastgele kırmızı).
 - CLAIM-THEN-NOTIFY: atomik işaret + yan etki → yan etkinin SONUCU okunur; `emailService.send` bildirim
   yollarında KULLANILMAZ (`sendReporting`); `reportError` `throttled/configured:false` başarısızlık değil.
+  E-posta KONUSU tek satır (`singleLineSubject`, gönderim çekirdeğinde; konuya misafir adı / mesajı girer, 09-28).
 - Escalation üç yol (model · kelime alerts · `applyInboundMessageRules`); m48 triyaj ikinci model çağrısı
   YOK, temizleme yok, `null` yazılır (undefined değil), `isTriageStale` rozeti.
 - **Rezervasyon durumu (#211):** açıkça olumsuz / soru değerleri ("not accepted", "not possible", "inquiry") onaylı DEĞİL; TANINMAYAN
   değerin varsayılanı hâlâ "confirmed" (karar `docs/SABAH-KARARLARI-2026-09-28.md` K7, bilinen sınır pinli).
 - Yaşam-döngüsü sorguları `calendarSourceId: null` (kanal iCal işaretçisi DEĞİL); elle `.ics` `channel:"ics"`;
-  CSV'de yalnız iptal ön eki eşlenir. Bozuk feed: hataya geçişte tek alarm, ham URL/host alarma girmez,
+  CSV'de yalnız iptal ön eki eşlenir. Elle oluşturma (`POST /api/reservations`) referans verilince kanalı "manual" yazar (09-28;
+  elle girilen referans sağlayıcı kimliği DEĞİL — göndericiler onu POST ediyordu). Rezervasyon yazan YENİ yol aynı kuralı uygular. Bozuk feed: hataya geçişte tek alarm, ham URL/host alarma girmez,
   `BEGIN:VCALENDAR` yoksa `feed_not_icalendar`. "N kaynak işlendi" = o geçişte vadesi gelen (kohort).
 - 🚨 **EKSİK iCal OKUMASI HÜKÜM VERMEZ (F16, 09-26):** `parseIcsDetailed().incomplete` kapalı küme (yarım dosya ·
   10.000 tavanı · RRULE/RDATE/EXDATE/RECURRENCE-ID — tekrar AÇILMAZ, bilinçli · tarihi eksik/bozuk/ters/sıfır süreli ya
