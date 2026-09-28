@@ -60,6 +60,7 @@ export const POST = withManage(async (session, req) => {
       data: {
         propertyId: d.propertyId,
         guestName: d.guestName,
+        guestNameSource: "host", // köken etiketi (migration 57): ev sahibi elle girdi
         guestPhone: d.guestPhone || null,
         guestEmail: d.guestEmail || null,
         arrivalDate: d.arrivalDate,

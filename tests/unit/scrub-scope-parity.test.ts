@@ -134,6 +134,7 @@ describe("KVKK süpürgeleri — süre-bazlı ↔ açık-silme paritesi", () => 
         "Reservation.guestCheckoutTime",
         "Reservation.guestEmail",
         "Reservation.guestExternalId",
+        "Reservation.guestGivenName",
         "Reservation.guestName",
         "Reservation.guestPhone",
         "Reservation.notes",
@@ -188,9 +189,13 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //     misafir metni/adı taşımaz (kategori + ölçü + opak id); saklama sınıfı ayrı ele alınır
       //     (misafir-kaynaklı sinyal purge: modules/intelligence/retention.ts, scheduled-sync'te
       //     retention ile birlikte). PropertyMemory host'un KB metnidir, misafir verisi değil.
+      //   · Reservation.guestGivenName (String?, migration 57, 09-28) → KAPSAM İÇİ: kanalın hitap adı = misafirin adı;
+      //     iki süpürge de null yapar (↑parite listesi) ve giden gövdelerden ayıklar.
+      //   · Reservation.guestNameSource (String?, migration 57) → KAPSAM DIŞI: kapalı küme köken etiketi
+      //     (channel · calendar · file · host · placeholder); kimseyi tanımlamaz, anonim satırda da doğrudur.
       Message: 17,
       Conversation: 26,
-      Reservation: 35,
+      Reservation: 37,
       Task: 15,
       TaskUpdate: 6,
       MessageOutbox: 23,

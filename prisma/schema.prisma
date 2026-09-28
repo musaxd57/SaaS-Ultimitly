@@ -416,6 +416,13 @@ model Reservation {
   guestPhone                 String?
   guestEmail                 String?
   guestExternalId            String? // Hospitable stable guest id — links the SAME person across stays (returning-guest)
+  // Misafirin hitap adı (K10-o, migration 57, kurucu kararı 09-28): YALNIZ kanalın AYRI ad alanından (bugün Hospitable
+  // `guest.first_name`) — eski `guestName` bölünerek DOLDURULMAZ (tahmin yok; eski satırlar NULL). Misafirin yazdığı metindir:
+  // hitap içindir, olgu / talimat DEĞİL, modele ve bilgi tabanına girmez. Saklama / silme / maske `guestName` ile aynı.
+  guestGivenName             String?
+  // `guestName`in NEREDEN yazıldığı — kapalı küme `lib/guest-name-source.ts` (channel · calendar · file · host · placeholder).
+  // Köken etiketidir, "doğrulanmış / güvenilir" DEĞİL. NULL = bu sürümden önce yazılmış, kaynağı gözlenmemiş satır.
+  guestNameSource            String?
   arrivalDate                DateTime
   departureDate              DateTime
   channel                    String    @default("manual") // manual | airbnb | booking | direct | other

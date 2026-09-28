@@ -217,3 +217,29 @@ describe("POST /api/reservations/import — dosyadan içe aktar (önizleme + ayn
     expect(await r.json()).toMatchObject({ imported: 1 });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Migration 57 (K10-o, 09-28): ev sahibinin dosyasından yazılan adın KÖKENİ "file"; dosya hitap adı YAZMAZ.
+// ---------------------------------------------------------------------------
+describe("dosyadan içe aktar — ad kaynağı 'file' (migration 57)", () => {
+  let propertyId: string;
+
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    const made = await makeOrgWithProperty();
+    propertyId = made.propertyId;
+    session = { userId: "u", organizationId: made.orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+  });
+
+  it("🚨 oluşturma ve güncelleme kaynağı 'file' yazar; hitap adı yazılmaz", async () => {
+    await call(req(propertyId, calendar(vevent(UID))));
+    const row = await prisma.reservation.findFirstOrThrow({ where: { propertyId, sourceReference: UID } });
+    expect(row).toMatchObject({ guestNameSource: "file", guestGivenName: null });
+
+    await prisma.reservation.update({ where: { id: row.id }, data: { guestNameSource: null } });
+    await call(req(propertyId, calendar(vevent(UID, { from: 12, to: 15 }))));
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: row.id } })).guestNameSource).toBe("file");
+  });
+});
+

@@ -144,7 +144,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
             },
             reservations: {
               select: {
-                id: true, guestName: true, guestPhone: true, guestEmail: true,
+                id: true, guestName: true, guestGivenName: true, guestNameSource: true, guestPhone: true, guestEmail: true,
                 guestExternalId: true, arrivalDate: true, departureDate: true,
                 channel: true, status: true, sourceReference: true, calendarSourceId: true,
                 totalAmount: true, totalAmountDec: true, currency: true, notes: true,

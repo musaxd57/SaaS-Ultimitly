@@ -701,3 +701,30 @@ describe("KVKK explicit erasure (m40) — sync resurrection guards", () => {
     expect(result.messages).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Migration 57 (K10-o, 09-28): açık silme kanalın hitap adını da siler ve giden gövdelerden ayıklar — süre-bazlı süpürgeyle
+// PARİTE (`scrub-scope-parity.test.ts`). Hitap adı tam adın ilk sözcüğünden uzun olabilir ("Ada Augusta").
+// ---------------------------------------------------------------------------
+describe("KVKK açık silme — kanalın hitap adı (migration 57)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    mockReservations.mockResolvedValue([]);
+    mockMessages.mockResolvedValue([]);
+  });
+
+  it("🚨 hitap adı silinir ve giden gövdeden tamamı ayıklanır", async () => {
+    const { orgId, reservationId, conversationId } = await seedErasedStay();
+    await prisma.reservation.update({ where: { id: reservationId }, data: { guestGivenName: "Ada Augusta", guestNameSource: "channel" } });
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Ev sahibi", body: "Merhaba Ada Augusta, hoş geldiniz.", externalId: "m-given" },
+    });
+    await eraseReservationData(orgId, reservationId);
+    const res = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(res.guestGivenName).toBeNull();
+    const out = await prisma.message.findFirstOrThrow({ where: { conversationId, externalId: "m-given" } });
+    expect(out.body).toBe("Merhaba [Misafir], hoş geldiniz.");
+  });
+});
+

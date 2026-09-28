@@ -6,6 +6,7 @@ import { toAmountDec } from "@/lib/money";
 import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
+import { givenNameForStorage } from "@/lib/guest-name-source";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
 import { recordIngestEvent as emit, INGEST_EVENT_SCHEMA_VERSION } from "./events";
@@ -89,6 +90,8 @@ export async function upsertCanonicalReservation(
   // the channel has masked the guest can't regress a stored name to "Misafir".
   const resolvedGuestName = r.guest.name;
   const guestName = resolvedGuestName ?? (r.code ? `Rezervasyon ${r.code}` : "Misafir");
+  // Hitap adı YALNIZ kanalın ayrı ad alanından (migration 57, K10-o 09-28); tam addan bölünerek ÜRETİLMEZ.
+  const givenName = givenNameForStorage(r.guest.givenName);
   const guestEmail = r.guest.email;
   const guestPhone = r.guest.phone;
   const guestExternalId = r.guest.externalId;
@@ -102,6 +105,8 @@ export async function upsertCanonicalReservation(
       guestEmail: true,
       guestPhone: true,
       guestExternalId: true,
+      guestGivenName: true,
+      guestNameSource: true,
       arrivalDate: true,
       departureDate: true,
       channel: true,
@@ -117,7 +122,17 @@ export async function upsertCanonicalReservation(
     // (guestName === ANON_NAME), NEVER let a re-sync write the guest's PII back.
     const scrubbed = existing.guestName === ANON_NAME;
     const data: Prisma.ReservationUncheckedUpdateInput = {};
-    if (!scrubbed && resolvedGuestName !== null && resolvedGuestName !== existing.guestName) data.guestName = resolvedGuestName;
+    if (!scrubbed && resolvedGuestName !== null && resolvedGuestName !== existing.guestName) {
+      data.guestName = resolvedGuestName;
+      // Ad değişti: eski hitap adı yeni ada ait olmayabilir → kanalın verdiği (vermediyse boş) yazılır.
+      if (givenName !== existing.guestGivenName) data.guestGivenName = givenName;
+    } else if (!scrubbed && givenName !== null && givenName !== existing.guestGivenName) {
+      // Ad aynı: hitap adı yalnız kanal VERDİĞİNDE yazılır (boş gelince eskisi silinmez — tam adla aynı kural).
+      data.guestGivenName = givenName;
+    }
+    // Köken: kanal gerçek bir ad gönderdiyse "channel" (gözlem; eski NULL satır da damgalanır). Ad gelmediyse dokunulmaz — saklı ad
+    // önceki bir senkronun gerçek adı da, bizim yer tutucumuz da olabilir.
+    if (!scrubbed && resolvedGuestName !== null && existing.guestNameSource !== "channel") data.guestNameSource = "channel";
     if (!scrubbed && guestEmail !== null && guestEmail !== existing.guestEmail) data.guestEmail = guestEmail;
     if (!scrubbed && guestPhone !== null && guestPhone !== existing.guestPhone) data.guestPhone = guestPhone;
     if (!scrubbed && guestExternalId !== null && guestExternalId !== existing.guestExternalId) data.guestExternalId = guestExternalId;
@@ -136,7 +151,11 @@ export async function upsertCanonicalReservation(
       data.connectionId = ctx.connectionId;
       data.connectionEvidence = "observed";
     }
-    const contentChanged = Object.keys(data).some((k) => k !== "connectionId" && k !== "connectionEvidence");
+    // Köken / hitap adı alanları OLAY DEĞİLDİR (bağlantı damgası gibi): yalnız onlar değişince `reservation.updated` üretilmez,
+    // alan listesine de girmez (olay şeması aynı kalır).
+    const isMetadataKey = (k: string) =>
+      k === "connectionId" || k === "connectionEvidence" || k === "guestGivenName" || k === "guestNameSource";
+    const contentChanged = Object.keys(data).some((k) => !isMetadataKey(k));
     if (Object.keys(data).length > 0) {
       await db.reservation.update({ where: { id: existing.id }, data });
     }
@@ -152,7 +171,7 @@ export async function upsertCanonicalReservation(
         "reservation",
         existing.id,
         cancelledNow ? "reservation.cancelled" : "reservation.updated",
-        Object.keys(data).filter((k) => k !== "connectionId" && k !== "connectionEvidence"),
+        Object.keys(data).filter((k) => !isMetadataKey(k)),
       );
     }
     return existing.id;
@@ -163,6 +182,8 @@ export async function upsertCanonicalReservation(
       data: {
         propertyId,
         guestName,
+        guestGivenName: givenName ?? undefined,
+        guestNameSource: resolvedGuestName !== null ? "channel" : "placeholder",
         guestEmail: guestEmail ?? undefined,
         guestPhone: guestPhone ?? undefined,
         guestExternalId: guestExternalId ?? undefined,

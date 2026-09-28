@@ -154,6 +154,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
               { guestPhone: { not: null } },
               { guestEmail: { not: null } },
               { guestExternalId: { not: null } },
+              { guestGivenName: { not: null } }, // hitap adı (migration 57) — süpürge null yapar → sonlanır
               { guestCheckoutTime: { not: null } },
               { notes: { not: null } },
               { conversations: { some: { guestIdentifier: { not: ANON_ID } } } },
@@ -170,12 +171,15 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
           }
         : { guestName: { not: ANON_NAME } }),
     },
-    select: { id: true, guestName: true },
+    select: { id: true, guestName: true, guestGivenName: true },
     take: RETENTION_BATCH,
   });
   if (oldRes.length > 0) {
     const resIds = oldRes.map((r) => r.id);
-    const resNameById = new Map(oldRes.map((r) => [r.id, r.guestName]));
+    // Tam ad + kanalın hitap adı (migration 57): hitap adı tam adın ilk sözcüğünden uzun olabilir ("Mehmet Ali").
+    const resNamesById = new Map(
+      oldRes.map((r) => [r.id, [r.guestName, r.guestGivenName].filter((n): n is string => Boolean(n))]),
+    );
     const convs = await prisma.conversation.findMany({
       where: { reservationId: { in: resIds } },
       select: { id: true, reservationId: true, guestIdentifier: true },
@@ -189,7 +193,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     for (const c of convs) {
       namesByConv.set(
         c.id,
-        [c.reservationId ? resNameById.get(c.reservationId) ?? null : null, c.guestIdentifier].filter(
+        [...(c.reservationId ? resNamesById.get(c.reservationId) ?? [] : []), c.guestIdentifier].filter(
           (n): n is string => Boolean(n),
         ),
       );
@@ -224,8 +228,8 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     // süpürge ona dokunmuyordu. CLAUDE.md'nin kendi SCRUB KAPSAMI KURALI:
     // "misafir metni/adı taşıyan HER yeni kolon İKİ süpürgeye birden bağlanır".
     const namesByRes = new Map<string, string[]>();
-    for (const [resId, name] of resNameById) {
-      if (name) namesByRes.set(resId, [name]);
+    for (const [resId, names] of resNamesById) {
+      if (names.length) namesByRes.set(resId, [...names]);
     }
     for (const c of convs) {
       if (!c.reservationId || !c.guestIdentifier) continue;
@@ -375,6 +379,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
         where: { id: { in: resIds } },
         data: {
           guestName: ANON_NAME,
+          guestGivenName: null,
           guestPhone: null,
           guestEmail: null,
           guestExternalId: null,

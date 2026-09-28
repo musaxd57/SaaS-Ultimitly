@@ -111,6 +111,8 @@ export function normalizeReservation(r: HospitableReservation): CanonicalReserva
       // Falsy guard (not just != null): an empty-string id must never become a shared match key.
       externalId: g?.id ? String(g.id) : null,
       name: reservationGuestName(r),
+      // Hitap adı YALNIZ sağlayıcının ayrı `first_name` alanından (K10-o, 09-28); tam addan bölünerek üretilmez.
+      givenName: canonicalStr(g?.first_name),
       email: canonicalStr(g?.email),
       phone: canonicalStr(g?.phone),
     },

@@ -363,6 +363,7 @@ async function loadScope(organizationId: string, reservationId: string) {
     select: {
       id: true,
       guestName: true,
+      guestGivenName: true,
       guestEmail: true,
       guestPhone: true,
       guestExternalId: true,
@@ -540,6 +541,7 @@ async function maskReservationRows(
     where: { id: reservationId },
     data: {
       guestName: ANON_NAME,
+      guestGivenName: null,
       guestPhone: null,
       guestEmail: null,
       guestExternalId: null,
@@ -613,6 +615,7 @@ export async function eraseReservationData(
   const erasedAt = new Date();
   const names = [
     reservation.guestName,
+    reservation.guestGivenName, // kanalın hitap adı (migration 57) — tam adın ilk sözcüğünden uzun olabilir
     ...conversations.map((c) => c.guestIdentifier),
   ].filter((n): n is string => Boolean(n));
 

@@ -565,3 +565,33 @@ describe("deleteAccountData (KVKK erasure)", () => {
     expect(otherCust!.payloadJson).toBe(payloadCustB);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Migration 57 (K10-o, 09-28): kanalın hitap adı da misafir verisidir — süpürge onu siler ve giden gövdelerden ayıklar.
+// Hitap adı tam adın ilk sözcüğünden UZUN olabilir ("Mehmet Ali"); yalnız tam ad + ilk sözcük ayıklansaydı "Ali" kalırdı.
+// ---------------------------------------------------------------------------
+describe("anonymizeOldGuestData — kanalın hitap adı (migration 57)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("🚨 hitap adı silinir ve giden gövdeden tamamı ayıklanır; köken etiketi (kişisel veri değil) kalır", async () => {
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const { reservationId, conversationId } = await seedStay({
+      departedMonthsAgo: 40,
+      guestName: "Mehmet Ali Kaya",
+      body: "Eski mesaj",
+      outboundBody: "Merhaba Mehmet Ali, hoş geldiniz.",
+    });
+    await prisma.reservation.update({ where: { id: reservationId }, data: { guestGivenName: "Mehmet Ali", guestNameSource: "channel" } });
+    await anonymizeOldGuestData();
+    const res = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(res.guestGivenName).toBeNull();
+    expect(res.guestNameSource).toBe("channel");
+    expect(await outboundBodyOf(conversationId)).toBe("Merhaba [Misafir], hoş geldiniz.");
+  });
+});
+

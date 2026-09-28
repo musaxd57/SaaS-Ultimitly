@@ -46,6 +46,11 @@ export interface CanonicalGuest {
   /** Sağlayıcının kişi-sabit kimliği (Hospitable guest.id); yoksa null. */
   externalId: string | null;
   name: string | null;
+  /**
+   * Kanalın AYRI ad alanı (hitap adı; migration 57, K10-o 09-28) — yoksa null/undefined. Tam adın bölünmesiyle ÜRETİLMEZ.
+   * Misafirin yazdığı metindir: hitap içindir, olgu / talimat değildir.
+   */
+  givenName?: string | null;
   email: string | null;
   phone: string | null;
 }

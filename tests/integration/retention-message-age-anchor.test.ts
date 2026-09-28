@@ -169,6 +169,8 @@ describe("retention — mesaj yaşı çapası", () => {
         { field: "notes", data: { notes: "Ahmet arayıp geç check-in istedi" } },
         { field: "guestExternalId", data: { guestExternalId: "guest-ext-77" } },
         { field: "guestCheckoutTime", data: { guestCheckoutTime: "10:30" } },
+        // Migration 57: kanalın hitap adı da süpürgenin null yaptığı alandır → bacak (sonlanır).
+        { field: "guestGivenName", data: { guestGivenName: "Ahmet" } },
       ] as const;
       for (const c of cases) {
         const { reservationId } = await seedSweptStay();

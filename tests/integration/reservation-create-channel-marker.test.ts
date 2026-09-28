@@ -82,3 +82,13 @@ describe("elle rezervasyon: sağlayıcıya yönlendirilemez", () => {
     expect((await create({ channel: "airbnb", sourceReference: "HX-1" })).status).toBe(400);
   });
 });
+
+// Migration 57 (K10-o, 09-28): ev sahibinin elle girdiği adın KÖKENİ "host"; elle girişte hitap adı alanı YOK.
+describe("elle rezervasyon — ad kaynağı 'host' (migration 57)", () => {
+  it("🚨 ev sahibinin girdiği ad 'host' damgalanır; hitap adı yazılmaz", async () => {
+    await create({});
+    const row = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+    expect(row).toMatchObject({ guestName: "Ada", guestNameSource: "host", guestGivenName: null });
+  });
+});
+

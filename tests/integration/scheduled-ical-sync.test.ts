@@ -428,3 +428,45 @@ describe("iCal: değişmemiş satırda görev onarımı", () => {
   // Vacuous bir testi tutmak, olmayan bir korumayı var sanmaktır.
 
 });
+
+// ---------------------------------------------------------------------------
+// Migration 57 (K10-o, 09-28): takvimden yazılan adın KÖKENİ "calendar"; takvim hitap adı YAZMAZ (ayrı ad alanı yok).
+// ---------------------------------------------------------------------------
+describe("iCal: ad kaynağı 'calendar' (migration 57)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  it("🚨 oluşturma ve ad değişen güncelleme kaynağı 'calendar' yazar; hitap adı hiç yazılmaz", async () => {
+    const { syncCalendarSource } = await import("@/lib/import/sync");
+    const { propertyId } = await orgWithProperty("name-source");
+    const feed = (summary: string) =>
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "UID:ad-kaynagi-1@airbnb.com",
+        "DTSTART;VALUE=DATE:20260901",
+        "DTEND;VALUE=DATE:20260904",
+        `SUMMARY:${summary}`,
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n");
+    vi.mocked(fetchFeedText).mockResolvedValue(feed("Deniz") as never);
+    const source = await addSource(propertyId);
+    await syncCalendarSource(source.id);
+    const created = await prisma.reservation.findFirstOrThrow({
+      where: { propertyId },
+      select: { id: true, guestNameSource: true, guestGivenName: true },
+    });
+    expect(created).toMatchObject({ guestNameSource: "calendar", guestGivenName: null });
+
+    await prisma.reservation.update({ where: { id: created.id }, data: { guestNameSource: null } });
+    vi.mocked(fetchFeedText).mockResolvedValue(feed("Deniz Yılmaz") as never);
+    await syncCalendarSource(source.id);
+    expect(
+      await prisma.reservation.findUniqueOrThrow({ where: { id: created.id }, select: { guestNameSource: true, guestGivenName: true } }),
+    ).toEqual({ guestNameSource: "calendar", guestGivenName: null });
+  });
+});
+

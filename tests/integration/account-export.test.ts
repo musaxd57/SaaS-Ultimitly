@@ -61,7 +61,7 @@ describe("GET /api/account/export — complete + secret-free", () => {
     });
     const reservation = await prisma.reservation.create({
       data: {
-        propertyId, guestName: "Ada", arrivalDate: daysFromNow(1), departureDate: daysFromNow(3),
+        propertyId, guestName: "Ada", guestGivenName: "Ada", guestNameSource: "channel", arrivalDate: daysFromNow(1), departureDate: daysFromNow(3),
         channel: "airbnb", status: "confirmed", totalAmount: 100.1, currency: "EUR",
         welcomeSentAt: new Date(),
       },
@@ -157,6 +157,8 @@ describe("GET /api/account/export — complete + secret-free", () => {
     expect(prop.calendarSources[0].hasUrl).toBe(true);
     expect(prop.supplyRequests[0]).toMatchObject({ itemKey: "towel", qty: 2 });
     expect(prop.reservations[0].welcomeSentAt).toBeTruthy();
+    // Migration 57: kanalın hitap adı misafir verisidir → KVKK erişim hakkı kapsamında dışa aktarılır (köken etiketiyle).
+    expect(prop.reservations[0]).toMatchObject({ guestGivenName: "Ada", guestNameSource: "channel" });
     expect(prop.conversations[0].lastRiskType).toBe("complaint");
     expect(prop.conversations[0].messages[0]).toMatchObject({ aiIntent: "wifi", externalId: "ext-9" });
     expect(data.billing.subscription).toMatchObject({ planCode: "pro", providerRef: "sub_123" });
