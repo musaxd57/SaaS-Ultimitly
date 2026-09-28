@@ -6,6 +6,18 @@ burada toplanır; her biri önce/sonra örneğiyle. Gece kararı gerektirmeyen i
 Kaynak: kurucunun kör inceleme notları (V01, V22–V35; kalan V02–V21 yarın) → beş hata ayıklama ajanı (kod okuyup saf
 fonksiyonları çalıştırarak; ücretli çağrı yok).
 
+**Kısa özet (sabah için):**
+- **Gece canlıya çıkanlar** (her biri tam kapılar + CI yeşil; müşteriye giden cevabı DEĞİŞTİRMEYEN ya da sizin onayladığınız işler):
+  saat okuma turu, küçük bilgi tabanı sınırı, getirme hataları ("Şifremi unuttum", "Arabamı nereye bırakayım?", "noise / waste /
+  hastane" sözlüğü, "açılıyor" ≠ acil, çok konulu mesaj), güvenlik paketi (enjeksiyon ayraçları, çit taklidi, misafir adı ve telefon
+  redaksiyonu, rol kapısı pini, bayrak yazım uyarısı, gömme yapılandırma alarmı), ölçer sadakati. Ayrıntı ↓"Gece yapılanlar".
+- **Sizden karar bekleyenler** (her biri aşağıda önce / sonra örnekli): K1 devir cümlesi otomatik gitmesin mi · K2 "bilgim yok"un yakın
+  biçimleri · K3 saat dışı çelişki (fiyat / sayı / var-yok) · K4 belirsiz atıf: netleştirme mi devir mi · K5 üslup · K6 rakip
+  boşlukları · K7 tanınmayan rezervasyon durumu · K8 bürünmüşken ödeme onayı · K9 sır süzgeci yabancı dil · K10 diğer güvenlik.
+  Ayrıca: geniş blok bayrağı (`KB_RETRIEVAL_WIDE_BUDGET`) — İngilizce kalemlerin %25'i bugünkü bütçede bloğa girmiyor.
+- **Krediye bağlı bekleyenler:** holdout kabul ölçümü, cevap düzeyi ölçüm (± geniş blok), "Şifremi unuttum"un anlamsal katmanla
+  doğrulanması, ölçerin üretim biçimli geçmişle (`live+phist`) koşusu. Kredi yüklendiğini söyleyene kadar ücretli çağrı yok.
+
 ---
 
 ## K1 — "Mesajınız kaydedildi, ev sahibiniz görebilir" türü devir cümlesi otomatik gitmesin mi? (V34)
