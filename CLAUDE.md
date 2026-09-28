@@ -974,7 +974,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `linkProperty` org-kapsamlı; 540 gün geri pencere kısaltılmaz; gövdesiz sağlayıcı mesajı sayacı
   (`messagesUnimportable`); `str()` trimlemez → `!body.trim()`.
 - Provider mesajı sessiz atlanır ve imleç ilerler (bilinçli; ölçüm sayacı var).
-- Günlük AI kotası oto-yanıtı da sayar; tavana çarpınca konuşma `new` kalır; kart "AI işlemi" der.
+- Günlük AI kotası oto-yanıtı da sayar; tavana çarpınca konuşma `new` kalır; kart "AI işlemi" der. Model cevap verip çıktı
+  kullanılamadıysa (`llmUsage` dolu yedek: çıktı tavanı / bozuk JSON) o da SAYILIR ve aynı mesaj en çok `AI_UNUSABLE_MAX_ATTEMPTS`
+  (3) kez denenir, sonra damgalanır (09-28; eskiden 2 dakikada bir sınırsız, faturalı). Modele HİÇ ulaşılamayan kesinti sınırsız
+  yeniden denenir (damga yok) — iki durumu karıştıran yeni dal yazılmaz.
 - Yeni org 7/24 açık doğar. 🚨 **09-12 GÜNCELLEME — bu satır "şema varsayılanı DEĞİŞMEDİ" diyordu ve
   ARTIK YANLIŞ:** migration 55 `autoReplyEndHour` varsayılanını **9 → 0** yaptı, yani 7/24 artık
   ŞEMANIN kendi varsayılanı. Eski hâlde koruma yalnız UYGULAMA katmanındaydı (`NEW_ORG_AUTO_REPLY_WINDOW`

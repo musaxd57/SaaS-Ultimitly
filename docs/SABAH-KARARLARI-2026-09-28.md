@@ -321,6 +321,9 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
 | m | Sayfa düzeyinde rol kapısı | personelin (temizlikçi) yalnız Görevler'i görmesini ara katman ÇEREZDEKİ rolle sağlıyor; mülk sayfası (bilgi tabanı, rezervasyonlar, takvim beslemesi bağlantısı) ve diğer panel sayfaları rolü kendisi kontrol etmiyor. Bugün rol değiştiren yol yok → açık değil | personel daveti / rol değiştirme gelmeden ÖNCE: her panel sayfasına veritabanı rolüyle kapı + rol kapısı pininin sayfa ikizi (bugün yalnız API'de) |
 | n | QR devir kontrolü dizini | tek satır uygulamaya geliyor ama devir yoksa veritabanı konuşmanın tüm mesajlarını tarıyor. **Ölçüldü (yerel PG, en kötü durum):** 1.000 / 10.000 / 30.000 mesajda yeni 3,2 / 5,0 / 8,6 ms, eski 6,8 / 56 / 196 ms (30.000 mesaj = azami hızla ~25 saat spam) | düşük öncelik: `Message` üzerinde yalnız ev sahibi / sistem satırları için KISMİ dizin (migration → taze yedek + onayınız); o zamana kadar hüküm doğru, maliyet küçük |
 | o | Misafir adı ev sahibi bilgi tabanında | `{isim}` misafirin görünen adını ev sahibi kalemine koyuyor; karakter süzgeci görünmez ayırıcıyı kesiyor ama ayırıcısız metni ("EvcilHayvanSerbest", Çince / Japonca cümle) kesemez | yapısal çözüm: modele giden bilgi tabanında `{isim}` yerine nötr "misafirimiz" (ad istemde zaten "Misafir: …" veri satırında). Önce: kalem "Merhaba Ayşe, hoş geldiniz" → model "Merhaba Ayşe"; sonra: kalem "Merhaba misafirimiz, hoş geldiniz" → model adı veri satırından alır, ÇOĞU cevapta aynı hitap (ölçüm ücretli — kredi gelince) |
+| p | Oto-yanıt önizlemesi (Ayarlar, sahip / yönetici) | tek önizleme 1 bütçe birimi düşüyor ama 12 konuşmayı modelliyor (07-31'de bilinçli: "meşru kullanıcıyı kilitleme") → deneme hesabının 500 birimi günde ~6.000 model çağrısı | önizlenen konuşma başına 1 birim ya da günde en çok ~20 önizleme; meşru kullanımda fark yok |
+| q | Deneme süresi istismarı | küresel yapay zekâ tavanı yok; kayıt IP başına saatte 5; "ad+etiket@" adresleri ayrı hesap → her yeni hesap 14 gün × günde 500 birim | küresel günlük tavan (tüm deneme hesapları toplamı) + kayıtta aynı posta kutusunun etiketli adreslerini tek hesap say (bugün yalnız ölçümde kullanılıyor) |
+| r | Oturum açmış kullanıcının tetiklediği e-posta | şikâyet sözcüklü konuşma oluşturma ve elle rezervasyon oluşturma her sahip / yöneticiye e-posta atıyor; dakikada 60 / org, günlük tavan yok (kendi org'una, ama bizim alan adımızdan) | org başına günlük bildirim e-postası tavanı |
 
 ---
 
@@ -423,6 +426,10 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
     - Sunucudan tarayıcıya giden veri: personel ve anonim ziyaretçiye giden hiçbir gizli alan yok. Düzeltildi: rezervasyon API'si (yalnız
       sahip / yönetici, arayüz kullanmıyor) QR PIN / cihaz bağlama özetlerini ve kilit durumunu JSON'a koyuyordu — artık çıkarılıyor
       (mülk API'sindeki gizli alan ayıklamasının ikizi; mutasyon 5/5). Karar gerektiren kısım ↑K10-m.
+    - Maliyet / istismar denetimi: model cevap verip çıktı kullanılamadığında (çıktı tavanı / bozuk JSON) oto-yanıt aynı misafir
+      mesajını 2 dakikada bir yeniden modelliyordu — faturalı ve bütçeye sayılmadan (günde ~720 çağrı / konuşma; kötü niyetli
+      misafir tetikleyebilir). Düzeltildi: bu çağrılar bütçeye sayılıyor ve mesaj başına en çok 3 deneme, sonra insana kalıyor.
+      Modele hiç ulaşılamayan kesintide bugünkü sınırsız yeniden deneme aynen (mutasyon 7/7). Karar gerektirenler ↑K10 p–r.
     - Personel (temizlikçi) sayfa erişimi: bugün personel yalnız Görevler sayfasına ulaşabiliyor, atlatma yolu bulunmadı (izinli yol
       tam eşleşme, sunucu eylemi yok, bilinen ara katman açığına karşı yamalı sürüm). Bilinen ön koşul aynen geçerli: ileride rol
       değiştiren / personel davet eden bir akış eklenirse oturum yenilenmeli — sayfaların çoğu rolü kendisi kontrol etmiyor, yalnız
