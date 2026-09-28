@@ -50,6 +50,16 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+/**
+ * Konu satırı TEK satırdır: denetim karakterleri (CR/LF, NEL, sekme …) ve Unicode satır/paragraf ayırıcısı boşluğa iner.
+ * Konuya misafirin görünen adı ve mesajı girer (şikâyet / devir / yeni mesaj bildirimleri); iCal `\n` kaçışı ve sağlayıcı adı
+ * gerçek satır sonu taşıyabiliyor (gece güvenlik denetimi 09-28). SMTP kütüphanesi başlıkta satır sonunu zaten boşluğa
+ * çeviriyor, Resend'e konu JSON alanıyla gidiyor — bu, sağlayıcıdan bağımsız savunma derinliği (tek yer: iki gönderim yolu da buradan geçer).
+ */
+export function singleLineSubject(subject: string): string {
+  return subject.replace(/[\p{Cc}\u2028\u2029]+/gu, " ");
+}
+
 class EmailService {
   private isConfigured(): boolean {
     return Boolean(process.env.RESEND_API_KEY || process.env.EMAIL_HOST);
@@ -154,8 +164,9 @@ class EmailService {
     subject: string,
     html: string,
   ): Promise<{ ok: boolean; error?: string }> {
-    if (process.env.RESEND_API_KEY) return this.viaResend(to, subject, html);
-    if (process.env.EMAIL_HOST) return this.viaSmtp(to, subject, html);
+    const oneLine = singleLineSubject(subject);
+    if (process.env.RESEND_API_KEY) return this.viaResend(to, oneLine, html);
+    if (process.env.EMAIL_HOST) return this.viaSmtp(to, oneLine, html);
     return { ok: false, error: "E-posta ayarlı değil (RESEND_API_KEY veya EMAIL_HOST gerekli)." };
   }
 }

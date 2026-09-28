@@ -45,6 +45,13 @@ export const POST = withManage(async (session, req) => {
   // uyarı e-postası üretiyordu — host'a da hiçbir şey açıklamayan bir hata.
   // İçe aktarma yolu bunu zaten yapıyor (`import/route.ts`), tekil yol
   // unutulmuştu.
+  // 🚨 KANAL BİR YÖNLENDİRME İŞARETÇİSİDİR (gece güvenlik denetimi 09-28; CSV içe aktarmanın 08-08 kuralının aynısı): yaşam
+  // döngüsü göndericileri `channel notIn ["ics","manual"]` + dolu `sourceReference` satırını sağlayıcıda mesajlanabilir sayar
+  // (`PROVIDER_MESSAGEABLE_RESERVATION_WHERE`). Elle girilen referans sağlayıcıda DOĞRULANMIŞ bir kimlik değildir — "airbnb" +
+  // serbest referans bu satırı göndericilere sokuyor, referans sağlayıcı rezervasyon kimliği sanılıp POST ediliyordu (uydurma
+  // kimlikte her koşuda 4xx + alarm; org'un kendi hesabındaki gerçek bir kimlikte bu mülkün giriş bilgisi başka bir
+  // rezervasyonun misafirine). Referans verilince kanal "manual"; referans yoksa etiket aynen (zaten mesajlanabilir değil).
+  const channel = d.sourceReference ? "manual" : d.channel;
   let reservation;
   try {
     reservation = await prisma.reservation.create({
@@ -55,7 +62,7 @@ export const POST = withManage(async (session, req) => {
         guestEmail: d.guestEmail || null,
         arrivalDate: d.arrivalDate,
         departureDate: d.departureDate,
-        channel: d.channel,
+        channel,
         status: d.status,
         totalAmount: typeof d.totalAmount === "number" ? d.totalAmount : null,
         totalAmountDec: toAmountDec(typeof d.totalAmount === "number" ? d.totalAmount : null),
