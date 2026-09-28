@@ -1232,8 +1232,9 @@ export function fieldTimeHits(title: string, text: string, category?: string | n
  * 60 kalemlik gerçekçi bir bilgi tabanının dizini 1,4 sn, kötü niyetli içerik (60 × 20k) 20 sn olay döngüsünü kilitliyordu (ortak
  * sunucu, tüm kiracılar). Sonuç yalnız başlık + metin + kategoriye bağlıdır (saf fonksiyon) → anahtar üçünün SHA-256 özeti: aynı
  * girdi aynı sonucu verir, kiracılar arası sızıntı olamaz (içerik başka kiracıda da aynıdır). Kodlama `JSON.stringify` (sınırlar
- * belirsiz değil, yalnız vekil karakterler kaçışlı). Sınır: 2.000 giriş + toplam 4M karakter girdi (atıflar metnin parçalarını
- * taşır), en eski önce çıkar. Dönüş her çağrıda YENİ kopya — çağıran değiştirse de önbellek bozulmaz. Süreç başınadır; açılışta boş.
+ * belirsiz değil, yalnız vekil karakterler kaçışlı); kategori yoksa `null` (okuyucu `undefined` ile `null`u ayırmaz). Sınır: 2.000
+ * giriş + toplam 4M karakter girdi (atıflar metnin parçalarını taşır), en uzun süre kullanılmayan çıkar. Dönüş her çağrıda YENİ
+ * kopya — çağıran değiştirse de önbellek bozulmaz. Süreç başınadır; açılışta boş.
  */
 const HITS_CACHE_LIMITS = Object.freeze({ entries: 2000, chars: 4_000_000 });
 let hitsCacheLimits: { entries: number; chars: number } = HITS_CACHE_LIMITS;
@@ -1242,7 +1243,7 @@ let hitsCacheChars = 0;
 
 function hitsCacheKey(title: string, text: string, category: string | null | undefined): string {
   return createHash("sha256")
-    .update(JSON.stringify([category === undefined ? 0 : category === null ? 1 : category, title, text]))
+    .update(JSON.stringify([category ?? null, title, text]))
     .digest("base64");
 }
 
@@ -1261,7 +1262,8 @@ export function __setFieldTimeHitsCacheLimits(limits?: Partial<{ entries: number
 
 function readFieldTimeHits(title: string, text: string, category?: string | null): FieldTimeHit[] {
   // Aynı çağrıda aynı cümlecik birden çok kez taranıyordu (saat taraması + iki ayrı alan çözümlemesi); ikisi de saf → çağrı içinde
-  // bir kez hesaplanır (09-28 CPU denetimi; sonuç birebir aynı).
+  // bir kez hesaplanır (09-28 CPU denetimi; sonuç birebir aynı). YALNIZ HIZ: 24k'lık tekrarlı girdide 161 → 35 ms ("1," × 12k: 419 →
+  // 112 ms). Mutasyonda eşdeğer (çıktı aynı); süre farkı makine farkına dayanıklı bir pin için fazla dar — bilinçli pinsiz.
   const mentionMemo = new Map<string, TimeMention[]>();
   const mentionsOf = (s: string): TimeMention[] => {
     let m = mentionMemo.get(s);

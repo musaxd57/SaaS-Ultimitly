@@ -121,7 +121,15 @@ describe("saatsiz cümle okunmaz", () => {
   it("🚨 20k karakterlik saatsiz cümleler + tek saatli cümle: yalnız saatli cümle çözümlenir", () => {
     fieldTimeHits("ısınma", "Giriş 15:00, çıkış 11:00.", "general");
     __resetFieldTimeHitsCache();
-    const filler = rep("Otopark binanın arkasında, ücretsiz ve her zaman açık. Çöpleri aşağıdaki konteynere bırakın, teşekkürler. ", 20_000);
+    // Cümleler TEKRARSIZ (tekrarlı dolgu çağrı içi notla zaten ucuzdu — atlama kaldırılınca bu pin yaşıyordu, mutasyon 09-28).
+    const WORDS = ["otopark", "bahçe", "mutfak", "salon", "balkon", "çamaşır", "ütü", "havlu", "çarşaf", "yastık", "kilim", "perde"];
+    const tag = (i: number) => {
+      let s = "";
+      for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(97 + ((n - 1) % 26)) + s;
+      return s;
+    };
+    const filler = Array.from({ length: 700 }, (_, i) => `Not ${tag(i)}: ${WORDS[i % 12]} ve ${WORDS[(i * 7 + 3) % 12]} temiz, ${tag(i * 31 + 7)} tarafta.`).join(" ");
+    expect(/\d/.test(filler)).toBe(false);
     const text = `Giriş 15:00. ${filler}`;
     let hits: ReturnType<typeof fieldTimeHits> = [];
     expect(ms(() => (hits = fieldTimeHits("Kurallar", text, "general")))).toBeLessThan(40);

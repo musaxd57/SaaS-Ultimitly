@@ -48,6 +48,7 @@ describe("davranış aynı (eski kalıplarla birebir örnekler)", () => {
     ["𝐒𝐥𝐞𝐞𝐩𝐬 4", "4"], // matematik harfleri küçülmez → "sleeps" değil
     ["Sleeps𝐀 4", "4"], // vekil çifti TEK harf: son sözcük "sleeps𝐀" (sayaç değil) — yarım vekili harf-dışı saymak "sleeps" okurdu
     ["\ud800 5", "5"], // tek başına vekil harf değil
+    ["Sleeps² 4", "4"], // ASCII olmayan rakam ("²") sözcükle sayı arasında: son sözcük yok (eski kalıp da okumuyordu)
     ["Sleeps 2 4", null], // iki sayı → belirsiz
     ["Sleeps2 4", null],
   ])("%j → %j", (name, expected) => {
