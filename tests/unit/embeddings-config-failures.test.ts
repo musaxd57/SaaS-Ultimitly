@@ -20,7 +20,7 @@ vi.mock("@/lib/report-error", async (orig) => ({
   reportError: (...args: unknown[]) => reported(...(args as [])),
 }));
 
-import { embedTexts, clearEmbeddingCache, EMBEDDING_DIMENSIONS } from "@/lib/ai/embeddings/provider";
+import { embedTexts, clearEmbeddingCache, embeddingRequestRejected, EMBEDDING_DIMENSIONS } from "@/lib/ai/embeddings/provider";
 
 const vec = (n: number) => Array.from({ length: n }, (_, i) => (i === 0 ? 1 : 0));
 
@@ -76,5 +76,19 @@ describe("gömme yapılandırma arızası sessiz kalmaz", () => {
     const out = await embedTexts(["havlu"], { quiet: true });
     expect(out).toHaveLength(1);
     expect(persistent).not.toHaveBeenCalled();
+  });
+});
+
+describe("istek biçimi reddi — saf sınıflandırıcı", () => {
+  const dims = JSON.stringify({ error: { message: "This model does not support specifying dimensions.", param: "dimensions" } });
+  it("yalnız 400 / 422: aynı gövde 503'te (geçici, yeniden denenir) yapılandırma arızası SAYILMAZ", () => {
+    expect(embeddingRequestRejected(400, dims)).toBe(true);
+    expect(embeddingRequestRejected(422, dims)).toBe(true);
+    expect(embeddingRequestRejected(503, dims)).toBe(false);
+    expect(embeddingRequestRejected(429, dims)).toBe(false);
+  });
+  it("desteklenmeyen parametre kodu da reddir; token sınırı değildir", () => {
+    expect(embeddingRequestRejected(400, JSON.stringify({ error: { code: "unsupported_parameter" } }))).toBe(true);
+    expect(embeddingRequestRejected(400, JSON.stringify({ error: { message: "maximum context length is 8192 tokens" } }))).toBe(false);
   });
 });
