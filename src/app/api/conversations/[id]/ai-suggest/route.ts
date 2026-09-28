@@ -7,7 +7,11 @@ import { getAdjacency } from "@/lib/turnover";
 import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { NextResponse } from "next/server";
-import { unansweredExceedsGuestMessageLimit, MESSAGE_TOO_LONG_SUGGEST_TEXT } from "@/lib/ai/message-length";
+import {
+  exceedsGuestMessageLimit,
+  unansweredExceedsGuestMessageLimit,
+  MESSAGE_TOO_LONG_SUGGEST_TEXT,
+} from "@/lib/ai/message-length";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
@@ -55,8 +59,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     return badRequest({ _: "Öneri üretmek için bir misafir mesajı gerekli" });
   }
   // K10-t (kurucu kararı 09-28): cevapsız misafir mesajlarından biri 8.000 karakteri aşarsa öneri üretilmez — model çağrısı
-  // ve kota düşümü YOK, metin kırpılıp modele verilmez; panel bu açıklamayı gösterir (boş kalmaz).
-  if (unansweredExceedsGuestMessageLimit(conversation.messages)) {
+  // ve kota düşümü YOK, metin kırpılıp modele verilmez; panel bu açıklamayı gösterir (boş kalmaz). Cevap verilen mesajın
+  // KENDİSİ de sayılır (09-28 inceleme): rota son GELEN mesaja cevap önerir; arkasından bir giden mesaj varsa o mesaj
+  // "cevapsız" kümede değildir ama modele yine TAM gidiyordu.
+  if (unansweredExceedsGuestMessageLimit(conversation.messages) || exceedsGuestMessageLimit(lastInbound.body)) {
     return NextResponse.json({ error: MESSAGE_TOO_LONG_SUGGEST_TEXT }, { status: 422 });
   }
 

@@ -270,11 +270,14 @@ const SKIP_REASON_LABELS: Record<string, string> = {
       {/* "Cevap gerekmedi" etiketi TÜRETİLİR (inceleme 09-25): kayıttaki `closing_ack` misafir yeniden yazdıktan sonra da
           durur — yeni bir soru varken "sohbeti kapattı" yazmasın. Kapanış satırlarında eski risk gerekçesi gösterilmez. */}
       {/* K10-t: uzun mesaj uyarısı KAYITTAN BAĞIMSIZ türetilir — oto-yanıt kapalı / mesai dışı olsa da ev sahibi görür. */}
-      {tooLongForAi ? (
+      {/* 09-28 inceleme: ev sahibi "Cevaplandı" / "Tamamlandı" yaptıysa uyarı gizlenir; uyarı yolunun risk sebebi (uzun acil mesaj →
+          "Sebep: güvenlik / acil durum") uyarıyla BİRLİKTE gösterilir — eskiden uyarı sebebi saklıyordu. */}
+      {tooLongForAi && conversation.status !== "answered" && conversation.status !== "closed" ? (
         <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           🤖 {SKIP_REASON_LABELS[MESSAGE_TOO_LONG_REASON]}
+          {riskTypeLabel(conversation.lastRiskType) ? ` · Sebep: ${riskTypeLabel(conversation.lastRiskType)}` : ""}
         </p>
-      ) : conversation.skippedReason &&
+      ) : tooLongForAi ? null : conversation.skippedReason &&
       conversation.status !== "answered" &&
       (conversation.skippedReason !== CLOSING_HANDLED_REASON || isClosingHandled(conversation)) ? (
         <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">

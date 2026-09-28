@@ -17,7 +17,7 @@ export const MESSAGE_TOO_LONG_REASON = "message_too_long";
 
 /** "AI öner" bu mesajda modele gitmez; panelde bu açıklama görünür. */
 export const MESSAGE_TOO_LONG_SUGGEST_TEXT =
-  "Bu mesaj 8.000 karakterden uzun. Yapay zekâ bu uzunluktaki bir mesaja cevap önermiyor; lütfen mesajı okuyup kendiniz yanıtlayın.";
+  "Misafirin mesajlarından biri 8.000 karakterden uzun. Yapay zekâ bu uzunluktaki bir mesaja cevap önermiyor; lütfen mesajı okuyup kendiniz yanıtlayın.";
 
 /**
  * Metin sınırı aşıyor mu — KOD NOKTASI sayısıyla (emoji tek karakter). Erken çıkışlı ve doğrusal: sınırın altındaki uzunlukta

@@ -167,4 +167,25 @@ describe("K10-t — 8.000 karakteri aşan kanal mesajı", () => {
     const budget = await prisma.rateLimitCounter.findUnique({ where: { key: `ai-daily:${orgId}` } });
     expect(budget?.count ?? 0).toBe(0);
   });
+
+  it("🚨 AI öner: uzun mesajdan SONRA ev sahibi yazmış olsa da (cevap verilen mesaj yine o) 422 — model çağrılmaz (09-28 inceleme)", async () => {
+    // Eski kural yalnız "cevapsız" mesajlara bakıyordu; rota ise son GELEN mesaja cevap önerir — araya giden bir mesaj girince
+    // uzun metin modele TAM gidiyordu (anlama katmanına kırpılarak) ve kota düşüyordu.
+    const { orgId, conversationId, when } = await seed(LONG("Otopark var mı?"));
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Bakıyorum.", createdAt: new Date(when.getTime() + 1000) },
+    });
+    const res = await aiSuggest(
+      new NextRequest(`http://localhost/api/conversations/${conversationId}/ai-suggest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ id: conversationId }) },
+    );
+    expect(res.status).toBe(422);
+    expect(mockSuggest).not.toHaveBeenCalled();
+    const budget = await prisma.rateLimitCounter.findUnique({ where: { key: `ai-daily:${orgId}` } });
+    expect(budget?.count ?? 0).toBe(0);
+  });
 });
