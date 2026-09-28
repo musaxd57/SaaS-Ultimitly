@@ -3,8 +3,9 @@
 > **Kurucu kararları 09-28 sabah (uygulandı / uygulanıyor):** K10-t EVET (8.000 karakter; e-posta yok, acil sözcük aranır, "AI öner"
 > açıklama gösterir) · K10-s EVET (misafirden türeyen metin veri olarak işaretli) · K8 A + SALT-OKUNUR bürünme + 2 saat + başlangıç kaydı
 > zorunlu (kurucu: "elleyemeyeyim, karışamayayım, salt okuma gibi olsun") · K10-o: öneri ajanı → `docs/TASARIM-2026-09-28-misafir-adi.md`
-> · karşılama düzeltmesi EVET (ad bilinmiyorsa "Merhaba,") · Codex önerisi D (adsız yapay zekâ + kodla selam) örnekli risklerle
-> kurucuya yazıldı; dört karar bekliyor (D kapalı anahtarla · sütunsuz hitap kuralı · resmî ton selamı · migration zamanı).
+> · karşılama düzeltmesi EVET (ad bilinmiyorsa "Merhaba,") — UYGULANDI · migration 57 (hitap adı + adın kökeni) EVET — UYGULANDI
+> (yedek + prova kanıtı `docs/TASARIM-2026-09-28-misafir-adi.md` §5) · resmî ton selamı "Merhaba Ayşe," · Codex önerisi D (adsız yapay
+> zekâ + kodla selam) kapalı anahtarla sonraki dilim (önce ücretsiz kanıt testleri; ikinci tur geçmiş sızıntısı R1 kapanmadan açılmaz).
 
 Kurucu 27.09 gece: "gece modundasın soru sorma projeyi ilerlet". Müşteriye giden cevabı değiştiren ve karar gerektiren her konu
 burada toplanır; her biri önce/sonra örneğiyle. Gece kararı gerektirmeyen işler yapıldı ve sonda listelendi.

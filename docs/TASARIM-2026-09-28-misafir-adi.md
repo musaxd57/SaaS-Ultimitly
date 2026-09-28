@@ -71,7 +71,34 @@ tahmini); gerçek tutar 20 satırlık denemeden çıkarılır.
 4. **Canlıda ölçüm şu an yapılamıyor:** ayrı ad alanı hiç saklanmıyor ve Hospitable verisi akmıyor (kurucu org aboneliği 402, başka
    bağlı org yok) → "ne kadar dolu" sorusu ancak alan saklanmaya başlayınca ölçülebilir.
 
-## 5. Migration (yalnız C seçilirse)
+## 5. Migration 57 — UYGULANDI (kurucu onayı 09-28: "sütunu ekleyelim"; Codex kapsamı: "iki boş olabilir sütun, mevcut adları
+değiştirme, tahminî doldurma yapma")
+
+**Sağlayıcı alan eşlemesi (Codex isteği — ayrı gösterim):**
+
+| Giriş yolu | `guestName` (tam ad, değişmedi) | `guestGivenName` (YENİ) | `guestNameSource` (YENİ) |
+|---|---|---|---|
+| Hospitable (kanal) | `guest.full_name` → `guest.name` → `first_name + last_name` | YALNIZ `guest.first_name` (kırpılır, ≤100 kod noktası) | ad geldiyse `channel` |
+| Hospitable, ad yok | `Rezervasyon <kod>` / `Misafir` (yer tutucu) | yok | `placeholder` |
+| Takvim (iCal) | SUMMARY | hiç yazılmaz | `calendar` |
+| Dosyadan içe aktar (.ics/.csv) | dosyadaki ad | hiç yazılmaz | `file` |
+| Elle rezervasyon | ev sahibinin yazdığı | hiç yazılmaz | `host` |
+| Eski satırlar (bu sürümden önce) | aynen | NULL (bölünerek doldurulmaz) | NULL; kanal aynı adı yeniden gönderince `channel` |
+
+Kurallar: kanal ad değiştirirse hitap adı yeni adınki (vermezse boş); ad aynıyken hitap adı yalnız kanal VERİRSE yazılır (boş gelince
+silinmez); anonimleşmiş satıra yazılmaz; iki alan da OLAY değil (`reservation.updated` üretmez, alan listesine girmez). KVKK: saklama
+süpürgesi + açık silme hitap adını null yapar ve giden gövdelerden ayıklar ("Merhaba Mehmet Ali," → "Merhaba [Misafir],"), bayrak açık
+yeniden temizleme bacağı, dışa aktarımda. Hiçbir yüzey bugün OKUMAZ — hitap kuralı D ayrı dilim.
+
+**Push kapısı kanıtı (09-28, kurucu makinesi, klon `LixusPreflight-43ccd3c` @ `0111b22`):** `ops-backup-prod.ps1` (PostgreSQL 18) →
+`lixus-prod-post-contract-2026-09-28-102846.dump` · 1.484.622 bayt · TOC 234 · "YEDEK TAMAM" · SHA256
+`168BD9EC5810FAF97E05FD0ECEE63AB80CBE25654BC0D10066C85221394734B2`. `ops-restore-drill.ps1 -ExpectCalendarSources 0` (PostgreSQL 17):
+SHA doğrulandı · geri yükleme 0,4 sn exit 0 · org 10 · mülk 11 · rezervasyon 1.542 · konuşma 1.329 · mesaj 17.462 · takvim 0 · ASSERT
+migration=57, bitmemiş=0 · şifreli alan kontrolü VAKUMLU (takvim tablosu boş) · geçici küme temizlendi. Sıfır fark: gölge + taze
+veritabanında `migrate diff --exit-code` 0; iki sütun `text`, boş olabilir, varsayılansız. ⚠️ Yedek `OneDrive\Desktop`a düştü —
+misafir verisi Microsoft bulutuna eşitleniyor olabilir; kurucuya taşıması önerildi.
+
+### (eski) Migration taslağı
 
 - `Reservation.guestGivenName String?` — sağlayıcının ayrı ad alanı.
 - `Reservation.guestNameSource String?` — kapalı küme: `provider_given · provider_full · ical · csv · manual · host`.
@@ -81,11 +108,15 @@ tahmini); gerçek tutar 20 satırlık denemeden çıkarılır.
 - Sıra: önce canlıda salt-okuma sayım (sağlayıcının ad alanı ne sıklıkta dolu) → taze yedek
   (`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\ops-backup-prod.ps1`, SHA256 not edilir) → onay → migration.
 
-## 6. Kurucu kararı bekleyenler
+## 6. Kararlar (09-28)
 
-1. B'yi kapalı anahtarla kurayım mı? (öneri: evet; kredi gelince ölçüp açarız)
-2. Karşılama hatası: ad yoksa "Merhaba," — düzeltilsin mi? (öneri: evet)
-3. İsim migration'ı (C): şimdi mi, ölçümden sonra mı? (öneri: sonra, önce canlı sayım)
+- Karşılama hatası: **EVET** — ad bilinmiyorsa "Merhaba," (uygulandı).
+- Migration (sütun): **EVET, şimdi** (uygulandı, §5). Canlıda Hospitable verisi akmadığı için "önce ölç" adımı yapılamıyordu.
+- Resmî ton selamı: **"Merhaba Ayşe,"** (kurucu).
+- D (adsız yapay zekâ + kodla selam): kurucu detaylara cevap verdi (resmî ton) → kapalı anahtarla kurulacak; önce ücretsiz kanıt
+  testleri (kanarya ad hiçbir model isteğine — ikinci tur geçmiş dahil — girmez; ev sahibi ekranında tam ad; selam bir kez; 7 dil × 3
+  ton; model selam yazarsa çift selam yok), sonra 20 satırlık ücretli deneme → gerçek tutar → kıyas → onay. R1 kapanmadan açılmaz.
+- Sütunsuz kayıtlarda hitap: öneri Codex'in katı kuralı ("Merhaba,"; ilk kelime tahmini YOK) — kod selamı yazılırken kesinleşir.
 
 Kaynaklar: OWASP LLM01/LLM02 2025 · Microsoft Spotlighting (2024) ve MSRC (2025) · CaMeL (DeepMind, 2025) · Willison "prompt injection
 design patterns" (2025).

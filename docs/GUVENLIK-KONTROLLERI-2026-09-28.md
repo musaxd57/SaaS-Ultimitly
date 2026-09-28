@@ -27,7 +27,7 @@
 | Kiracılar arası davranışsal testler reddin SEBEBİNİ sınar (404/403) | `tests/integration/cross-tenant-handlers.test.ts` | "2xx değil" yetmez |
 | Sayfa sorguları (23 sayfa + yardımcılar) org süzgeçli; ayrıntı sayfaları kimliği org süzgeciyle arar (yoksa 404) | gece denetimi 28.09 | açık bulunmadı |
 | Personel yalnız Görevler'i görür; görev görünümü misafir adı / mesajı taşımaz | `src/middleware.ts`, `lib/tasks/staff-view.ts` | ⚠️ sayfalar rolü kendisi kontrol etmiyor → rol değiştiren akıştan ÖNCE sayfa düzeyinde kapı (karar K10-m) |
-| Operatör bürünmesi: izin listesi + 2FA'lı oturum, her istekte yeniden doğrulama; bürünmüşken şifre / 2FA / hesap silme kapalı | `src/lib/api.ts`, `lib/admin.ts` | ⚠️ ödeme uçları ve bazı yazmalar iz bırakmıyor, süre sınırı yok (karar K8) |
+| Operatör bürünmesi = SALT-OKUNUR destek görünümü: izin listesi + 2FA'lı oturum, her istekte yeniden doğrulama; müşteri hesabında HİÇBİR yazma (ödeme, misafire mesaj, bilgi tabanı dahil), tüm veriyi dışa aktarma ve kanal bağlama kapalı; en çok 2 saat; başlangıç kaydı zorunlu | `lib/auth/impersonation.ts`, `lib/route-guard.ts`, `lib/admin.ts`, `impersonation-read-only-pin.test.ts` | K8 uygulandı (09-28); yeni yazma ucu ya sarmalı ya kontrollü ya da gerekçeli listede (mekanik pin) |
 
 ## 3. Veri koruma
 
@@ -49,6 +49,7 @@
 | Açık yönlendirme yok (izin listeli taban adres, `?next=` doğrulaması) | `lib/auth/email-verify.ts`, `lib/safe-redirect.ts` | |
 | Güvensiz ham SQL yok; kullanıcı içeriği HTML'e ham basılmıyor; e-posta şablonları kaçışlı, konu tek satır | `lib/email-templates.ts`, `lib/email-core.ts` | |
 | Halka açık QR sohbeti: tahmin edilemez belirteç, konaklama başına cihaz bağlama (httpOnly çerez), hız sınırı, mesaj tavanı | `api/chat/[token]` | devir kontrolü tek satır (28.09) |
+| Tek kanal mesajı 8.000 karakteri aşarsa yapay zekâ cevap üretmez (kırpılıp modele verilmez); ev sahibine "elle yanıtla" uyarısı; acil sözcük yine aranır | `lib/ai/message-length.ts` | K10-t (09-28) |
 | Misafir metnine uygulanan kalıplar doğrusal süreli (düzenli ifade kaynaklı hizmet dışı bırakma yok): düşmanca girdi süre pinleri (tek uzun sözcük, boşluk dizisi, tekrarlanan kök; 4.000–40.000 karakter) | `tests/unit/*-cost.test.ts` | ReDoS denetimi 28.09: sınıflandırıcı 66 sn → 54 ms, çıktı vetosu 2,6 sn → 4 ms |
 
 ## 5. Yapay zekâ güvenliği (ürünün kalbi)
@@ -60,6 +61,8 @@
 | Sırlar konaklama durumuna göre süzülür (onaylı konaklama dışında Wi-Fi / kapı kodu modele gitmez); ham ve ad yerleştirilmiş metin ayrı taranır | `lib/guest-chat.ts` `kbForStayScope`, `withoutSecretKbItems` |
 | Misafire "bilgim yok", makbuzsuz söz, bekleme sözü, yer tutucu gitmez; saat çelişkisi ve ödeme yöntemi süzgeci | `ai/absence.ts`, `ai/output-veto.ts`, `ai/time-conflict-gate.ts`, `lib/payment-method-guard.ts` |
 | Anlam modellerine giden metinde kişisel veri redaksiyonu (önce redakte, sonra kırp); misafir adı ev sahibi bilgisine yalnız ad biçiminde | `ai/semantic/redact.ts`, `kb-placeholders.ts` |
+| Misafirden türeyen metin (konuşma ipucu, üslup rehberi, özetleyici örnekleri, çeviri) istemde VERİ olarak işaretli, sahte ayraçlar etkisiz | `conversation-items/reply-block.ts`, `ai/prompts.ts`, `ai/translate.ts` | K10-s (09-28) |
+| Misafir adı: yer tutucu ad misafire yazılmaz ("Merhaba,"); kanalın ayrı hitap adı + adın kökeni saklanır, modele girmez, KVKK süpürgelerinde | `kb-placeholders.ts`, `lib/guest-name-source.ts` (migration 57) | adsız yapay zekâ + kodla selam ayrı dilim (`docs/TASARIM-2026-09-28-misafir-adi.md`) |
 
 ## 6. İzleme, olay ve iz
 

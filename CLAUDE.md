@@ -874,6 +874,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   mesaj re-import edilmez. `RETENTION_MESSAGE_AGE_ANCHOR` bayrağı: mesaj yaşı + yeniden-temizlenebilirlik
   bacakları; kapalı davranış birebir eski; açmadan önce onay paketi + taze `pg_dump`; smoke'ta "artık
   korunacak" sayısı düşerse DUR.
+- 🚨 **MİSAFİR HİTAP ADI + ADIN KÖKENİ (migration 57, kurucu onayı 09-28, `lib/guest-name-source.ts`):** `Reservation.guestGivenName`
+  YALNIZ kanalın AYRI ad alanından (Hospitable `guest.first_name`); tam ad BÖLÜNMEZ, geriye dönük doldurma YOK (eski satırlar NULL).
+  `guestNameSource` kapalı küme `channel · placeholder · calendar · file · host` — köken etiketidir, "güvenilir" DEĞİL. İkisi de OLAY
+  değil (yalnız onlar değişince `reservation.updated` yok, alan listesine girmez); anonim satıra hitap adı geri yazılmaz. KVKK: iki
+  süpürge hitap adını null yapar + giden gövdelerden ayıklar (tam adın ilk sözcüğünden uzun olabilir: "Mehmet Ali"); bayrak açık
+  bacak; dışa aktarımda. 🚨 Bugün HİÇBİR yüzey okumaz — hitap kuralı (adsız yapay zekâ + kodla selam, `docs/TASARIM-2026-09-28-misafir-adi.md`)
+  ayrı dilim; ad modele / bilgi tabanına GİRMEZ. Adı yazan YENİ yol kökeni de yazar. Yedek + prova kanıtı belgede §5.
 - **Kalite denetçisi (Claude = ikinci işleyen) girdisinde sır DEĞERLERİ maskelenir (#211):** `maskSecretValuesForAudit` (7 dil
   etiket + tuş takımı biçimi; saat/ücret korunur). `redactSensitive` GENİŞLETİLMEZ (anlam katmanına giden metni değiştirirdi).
 - Redaksiyon yapısal (`lib/redact.ts` — YAPRAK modül, hiçbir şey import etmez; `report-error-core` yeniden dışa
@@ -1286,6 +1293,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Misafir QR'ı kapalı/bozuksa** markalı `GuestNotice` (tek metin beş koşul, dış bağlantı yok, 200).
 - **Otomatik giriş/çıkış/karşılama mesajları** doldurulmamış `[…]`/`{{…}}` taşıyorsa FAIL-CLOSED (gönderilmez,
   damgalanmaz; KB'de "Doldurulmamış alan" rozeti). Oto-yanıt anahtarı kapalıyken bu üç gönderici ÇALIŞIR (dürüst ad).
+  🚨 **Ad bilinmiyorsa "Merhaba," (kurucu onayı 09-28):** yer tutucu ad ("Rezervasyon HM4K2" / "Misafir") misafire YAZILMAZ — kodun
+  selamı adsız, şablondaki `{isim}` boşluğu / virgülü / ekiyle kalkar (`fillGuestPlaceholders` `guestFirstName: null`, doğrusal
+  tarama); yedek şablon ve Gönderilenler önizlemesi aynı kural. Resmî tonda da selam "Merhaba Ayşe," (kurucu 09-28).
 - **Çıktı vetosu** (`output-veto.ts`, iki kapıda): `placeholder_in_reply` + ETKEN `unverified_commitment`; edilgen
   dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi + iki incelemeyle düzeltildi: kıvrık kesme işareti düz
   olana çevrilir; haber verdim/aradım/onayladım/güncelledim/iletiyorum · booked/notified/let the host know/I'm forwarding/
@@ -1433,7 +1443,7 @@ katmanı kapalıyken açık sayılmaz. Açma = migration + ücretli ölçüm + k
 `aiSuggestedReply`e yazılır, konuşma açılınca panelde durur (`prepared-draft.ts`); kısmen tutulan / müsaitlik vetolu / şablon
 cevap KAYDEDİLMEZ; gösterimde müsaitlik uyarısı yeniden hesaplanır; bayrak kapalıyken gösterilmez. Mülke özgü ev kuralları
 (#188, `docs/TASARIM-2026-09-26-ev-kurallari-politikasi.md`) ONAYLANDI ("en mantıklı şekilde"): yasak kural NAZİK söylenir;
-açma sırası migration 57 (taze yedek + onay) → kural kartı → gölge → ücretli ölçüm → onay; "izinli" parti / ek misafir /
+açma sırası (ilk planın migration'ı gerekmedi — depo migration'sız ↓Dilim 2; "57" numarası 09-28'de misafir adı sütunlarına verildi) → kural kartı → gölge → ücretli ölçüm → onay; "izinli" parti / ek misafir /
 sessiz saat ev sahibinde kalır. Saf çekirdek `house-rules/core.ts` canlıda, çağıranı YOK. Dilim 2 (migration'sız): depo
 `house-rules/store.ts` erken giriş kuralıyla AYNI tabloda (`AutomationRule`, mülk başına tek satır, aynı kilit sırası), yönetici
 kapılı `PUT …/house-rules`, mülk silme kuralı aynı işlemde siler, kart `HOUSE_RULES_CARD_ENABLED=1` iken (varsayılan KAPALI;

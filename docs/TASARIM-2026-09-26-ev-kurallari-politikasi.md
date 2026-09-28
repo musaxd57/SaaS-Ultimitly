@@ -71,7 +71,7 @@ değişince bir kez, ücretli çağrı — mülk başına kuruşlar), ev sahibi 
    (ihlal ihtimali ev sahibinin işi). Soru metni: Misafir YASAK bir şeyi yapacağını söylerse ("Bu akşam parti yapacağız", kural yasak): AI kuralı hatırlatıp göndersin
    mi, ayrıca size de haber gitsin mi (açık iş + e-posta)? Önerim: **ikisi birden** — kural hatırlatması gider, siz de
    haberdar olursunuz (ihlal ihtimali ev sahibinin işidir).
-3. **CEVAPLANDI 09-26 ("en mantıklı şekilde"):** açma sırası migration 57 (taze yedek + onay) → kural kartı → gölge ölçüm
+3. **CEVAPLANDI 09-26 ("en mantıklı şekilde"):** açma sırası (migration gerekmedi — depo migration'sız; "57" numarası 09-28'de misafir adı sütunlarına verildi) → kural kartı → gölge ölçüm
    (anlam alanları kayda, karar eski) → ücretli kör ölçüm → kurucu onayı.
 4. **CEVAPLANDI 09-26 (aynı cevap):** "İzinli" kural otomatik izin cümlesine YALNIZ evet/hayır söylenebilen konularda döner
    (sigara, evcil hayvan, ziyaretçi). Parti (platformların genel parti yasağı), ek misafir (kaç kişi? ücret?) ve sessiz saatler
