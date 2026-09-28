@@ -260,6 +260,20 @@ kapalı (403).
 - B: izin verilir ama kayda operatör de yazılır (şema değişikliği gerekir).
 - **Önerim: A.** Mesafeli satış kabulü müşterinin kendi eylemi olmalı. Para akışı olduğu için onayınız + ilk deneme birlikte.
 
+**Gece denetimi (bürünme sınırları, kodda doğrulandı) aynı sınıftan dört ek bulgu — hepsi karar ister, kod değişmedi:**
+- Bürünmüşken **ödeme portalı bağlantısı** (abonelik iptali / kart değişikliği) operatöre veriliyor ve **iz yazılmıyor**; **plan
+  değişikliği** engelli değil (yükseltme kartı hemen çeker; bu uç en azından operatörü kayda yazıyor). 09-23 önerisi §9.4-3 ile aynı yön:
+  bürünmüşken para uçları kapalı.
+- **Misafire giden cevap, bilgi tabanı, mülk / rezervasyon / görev düzenlemeleri** bürünmüşken iz bırakmıyor ve gönderici adı müşterinin
+  kendisi görünüyor (↓K10-h).
+- **Bürünmeye başlama kaydı** en iyi çaba: çerez yazıldıktan SONRA yazılıyor, veritabanı hatasında sessizce atlanıyor (audit yazılamazsa
+  eylemi durdurma politikası zaten açık karar — F10). Öneri: bürünme başlangıcında kayıt yazılamazsa bürünme başlamasın.
+- **Süre sınırı yok:** operatör yetkisi "beni hatırla" çerezinden de geliyor (30 gün, kodsuz) ve aktif kullanılan oturum hiç dolmuyor.
+  §9.4-2 (operatörde "beni hatırla" yetki vermesin) ve §9.4-7 (mutlak oturum ömrü) ile aynı öneri; bürünme için ayrıca kısa tavan
+  (ör. 2 saat) önerilir.
+Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapalı; operatörün oturumu her istekte yeniden doğrulanıyor
+(şifresi değişirse ya da listeden çıkarılırsa bürünme bir sonraki istekte düşüyor); başka siteden bürünme başlatılamıyor.
+
 ---
 
 ## K9 — Sır süzgeci İngilizce / yabancı dildeki kodları da tanısın mı? (misafire giden cevabı etkiler)
