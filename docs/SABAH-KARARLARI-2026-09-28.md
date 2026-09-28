@@ -457,8 +457,10 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
       - Çıktı vetosu (tarama buldu): 4.000 karakterlik boşluk dizisinde 2,6 sn → 4 ms. Veto ev sahibinin kaydettiği erken giriş notu
         ve geç çıkış teklifine de uygulanıyor — oturum açmış bir kullanıcı tüm kiracıların paylaştığı süreci kilitleyebilirdi.
       - Dil tespiti (0,4 sn) ve soru bölücü (0,16 sn, 20.000 karakterde) doğrusal.
-      - Kalan, düzeltilmedi (orta): iddia desteği ölçümü 20.000 karakterlik "a-a-a…" misafir metninde 0,2 sn (cevap başına bir kez,
-        karar vermez); saat okuyucu 20.000 karakterlik saat listesinde 0,14 sn (ev sahibi bilgi tabanı). Uzunluk tavanı ↑K10-t.
+      - İddia desteği ölçümü (her cevaptan sonra misafir metnine): 100.000 karakterde 7,7 sn → 26 ms. Harf+rakam belirteci artık
+        doğrusal bir tarayıcıyla bulunuyor; düzenli ifadeyle birebir aynı (300.000 rastgele dizgede fark 0, test ifadeyi kâhin tutar).
+      - Kalan, düzeltilmedi (küçük): saat okuyucu 20.000 karakterlik saat listesinde 0,14 sn (ev sahibi bilgi tabanı). Uzunluk
+        tavanı ↑K10-t.
     - Personel (temizlikçi) sayfa erişimi: bugün personel yalnız Görevler sayfasına ulaşabiliyor, atlatma yolu bulunmadı (izinli yol
       tam eşleşme, sunucu eylemi yok, bilinen ara katman açığına karşı yamalı sürüm). Bilinen ön koşul aynen geçerli: ileride rol
       değiştiren / personel davet eden bir akış eklenirse oturum yenilenmeli — sayfaların çoğu rolü kendisi kontrol etmiyor, yalnız
