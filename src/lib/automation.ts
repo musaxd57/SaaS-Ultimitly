@@ -88,6 +88,7 @@ import {
 } from "@/lib/conversation-attention";
 import type { MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   classifyFallback,
   isClosingAck,
@@ -1713,7 +1714,16 @@ export interface ChannelAutoReplyOutcome {
    * decision fired + is durable), but the guest receives it once the worker settles.
    */
   queued?: boolean;
+  /**
+   * `ai_unavailable` iken: model CEVAP VERDİ (token faturalandı) ama çıktı kullanılamadı (çıktı tavanı aşıldı / bozuk JSON /
+   * boş cevap alanı). Modele hiç ulaşılamayan kesintiden AYRI tutulur: kesinti sınırsız yeniden denenir, faturalanan kullanılamaz
+   * cevap mesaj başına en çok `AI_UNUSABLE_MAX_ATTEMPTS` kez (gece maliyet denetimi 09-28).
+   */
+  modelBilled?: boolean;
 }
+
+/** Aynı misafir mesajı için faturalanan ama kullanılamayan model cevabından sonra en çok kaç deneme (sonra insana kalır). */
+export const AI_UNUSABLE_MAX_ATTEMPTS = 3;
 
 /**
  * Geri çekilme pencereleri — KALICI bir gönderim hatasından sonra AI'nın o
@@ -2597,11 +2607,15 @@ export async function applyChannelAutoReply(
   // (name + contact) so guests get a personal, on-brand sign-off. Build a new
   // string — never mutate the AI result object (it may be shared / reused).
   // Kota TÜKETİMİ burada: model gerçekten yanıt verdiyse (`source === "openai"`)
-  // bir birim düşer. Fallback (anahtar yok / 4xx / 5xx / timeout / bozuk JSON)
-  // hiçbir şeye mal olmadığı için sayılmaz — ↑`peekDailyAiBudget` gerekçesi.
-  if (!options.dryRun && result.source === "openai") {
+  // bir birim düşer. Fallback (anahtar yok / 4xx / 5xx / timeout) hiçbir şeye mal
+  // olmadığı için sayılmaz — ↑`peekDailyAiBudget` gerekçesi. 🚨 AMA model cevap verip
+  // çıktı kullanılamadıysa (çıktı tavanı / bozuk JSON — `llmUsage` dolu) token
+  // FATURALANDI: o da sayılır (gece maliyet denetimi 09-28; eskiden sayılmıyor ve
+  // konuşma 2 dakikada bir yeniden modelleniyordu).
+  if (!options.dryRun && (result.source === "openai" || result.llmUsage)) {
     await consumeDailyAiBudget(conversation.property.organizationId).catch(() => {});
   }
+  const modelBilled = result.source !== "openai" && Boolean(result.llmUsage);
 
   const signature = org.aiSignature?.trim();
   // Draft / manual "AI suggest" stays clean: the host's words + their signature.
@@ -2738,6 +2752,7 @@ export async function applyChannelAutoReply(
       return {
         sent: false,
         skippedReason: result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
+        ...(modelBilled ? { modelBilled: true } : {}),
         ...meta,
       };
     }
@@ -3033,6 +3048,7 @@ export async function applyChannelAutoReply(
     return {
       sent: false,
       skippedReason: result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
+      ...(modelBilled ? { modelBilled: true } : {}),
       ...meta,
     };
   }
@@ -3846,6 +3862,23 @@ export async function runDueChannelAutoReplies(
       await prisma.conversation
         .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: c.lastMessageAt } })
         .catch(() => {});
+    } else if (outcome.skippedReason === "ai_unavailable" && outcome.modelBilled) {
+      // 🚨 FATURALANAN AMA KULLANILAMAYAN CEVAP SINIRLI DENENİR (gece maliyet denetimi 09-28). Model cevap verdi ama çıktı
+      // kullanılamadı (çıktı tavanı / bozuk JSON): damgasız hâlde bu mesaj 2 dakikada bir yeniden modelleniyordu — her deneme
+      // faturalı (günde ~720 çağrı / konuşma), aday yerlerini de dolduruyordu; kötü niyetli bir misafir tavanı aşan mesajla
+      // bunu tetikleyebilir. Geçici bir kesme tekrar denemede düzelebilir → mesaj başına en çok AI_UNUSABLE_MAX_ATTEMPTS
+      // deneme, sonra "model emin olamadı" gibi damgalanır (insana kalır; misafir YENİ mesaj yazınca yeniden uygun). Sayaç
+      // veritabanında (yeniden başlatmada sıfırlanmaz). Modele HİÇ ulaşılamayan kesinti bu dala girmez (sınırsız yeniden deneme).
+      const attempts = await rateLimit(
+        `ai-unusable:${c.id}:${c.lastMessageAt.getTime()}`,
+        AI_UNUSABLE_MAX_ATTEMPTS - 1,
+        7 * 24 * 60 * 60 * 1000,
+      ).catch(() => ({ ok: true, retryAfter: 0 }));
+      if (!attempts.ok) {
+        await prisma.conversation
+          .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: c.lastMessageAt } })
+          .catch(() => {});
+      }
     } else if (
       outcome.skippedReason?.startsWith("send_failed") ||
       outcome.skippedReason?.startsWith("enqueue_failed")
