@@ -1,3 +1,4 @@
+import { ANON_ID, ANON_NAME } from "@/lib/anon-sentinels";
 import { subMonths, startOfDay } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -22,8 +23,8 @@ import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 
 // Exported so the sync engine can DETECT an already-anonymized row and refuse to
 // overwrite the sentinel with fresh channel PII (KVKK resurrection guard).
-export const ANON_NAME = "Eski misafir";
-export const ANON_ID = "Misafir";
+// Sentinel değerler yaprak modülde (istemci bileşenleri de okur); buradan yeniden dışa verilir.
+export { ANON_ID, ANON_NAME };
 // Exported for the explicit-erasure executor (src/lib/erasure.ts): it reuses the
 // EXACT same scrub sentinels as the retention sweep, so every existing
 // resurrection guard / classifier keeps working unchanged on erased threads.

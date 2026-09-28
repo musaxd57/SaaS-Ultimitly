@@ -4089,7 +4089,9 @@ function buildGuestMessageBody(
   propertyName?: string,
 ): string {
   const trimmed = content.trim();
-  const filled = fillPlaceholders(trimmed, firstName, propertyName);
+  // Doldurmadan SONRA da kırpılır (09-28): ad bilinmiyorken şablonun ilk satırı yalnız "{isim}," ise satır gider ve arkasındaki
+  // boş satır mesajın başında kalıyordu.
+  const filled = fillPlaceholders(trimmed, firstName, propertyName).trim();
   if (hasNamePlaceholder(trimmed)) {
     return filled; // host's own greeting + sign-off, tokens resolved
   }

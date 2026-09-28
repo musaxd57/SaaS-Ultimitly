@@ -22,6 +22,7 @@
 // `kbPlaceholderTokens` onu koddan "[NOT] DOLDURULMAMIŞ YER TUTUCU" diye
 // işaretler — buraya EKLENMEZ (uydurma değer üretmek yasak).
 // ---------------------------------------------------------------------------
+import { ANON_NAME } from "@/lib/anon-sentinels";
 
 /** Muhatabın rezervasyon sahibi olduğu KANITLI olmadığında kullanılan nötr hitap. */
 export const GUEST_NAME_FALLBACK = "misafirimiz";
@@ -50,8 +51,11 @@ function keyKind(raw: string): "name" | "apartment" | null {
  * verir; bunları ad sanmak misafire "Merhaba Rezervasyon," yazdırır.
  */
 export function guestFirstNameOf(guestIdentifier: string | null | undefined): string | null {
-  const first = (guestIdentifier ?? "").trim().split(/\s+/)[0];
+  const whole = (guestIdentifier ?? "").trim();
+  const first = whole.split(/\s+/)[0];
   if (!first) return null;
+  // Saklama / silme sentineli ("Eski misafir") ad DEĞİL (09-28 inceleme ajanı: "Merhaba Eski," yazıyordu).
+  if ([whole.toLocaleLowerCase("tr"), whole.toLowerCase()].includes(ANON_NAME.toLocaleLowerCase("tr"))) return null;
   // ⚠️ BÜYÜK/KÜÇÜK HARFE DUYARLI DEĞİL (inceleme 09-10): sağlayıcı "rezervasyon 12345" (küçük)
   // yazdığında eski kontrol kaçırıyor ve misafire "Merhaba rezervasyon," gidiyordu. Türkçe
   // katlama şart: "MİSAFİR" → `toLowerCase()` ile "mi̇safir" olur, `toLocaleLowerCase("tr")` ile
@@ -359,17 +363,30 @@ export function fillGuestPlaceholders(text: string, values: GuestPlaceholderValu
   );
 }
 
-const isHorizontalSpace = (c: string | undefined): boolean => c === " " || c === "\t";
+/** Satır içi boşluk: satır sonu HARİÇ her boşluk (NBSP / dar NBSP dahil — 09-28 inceleme: "Merhaba {isim}," "Merhaba ," oluyordu). */
+const isHorizontalSpace = (c: string | undefined): boolean => c !== undefined && c !== "\n" && c !== "\r" && /^\s$/u.test(c);
+const isLineBreak = (c: string | undefined): boolean => c === "\n" || c === "\r";
 const NAMELESS_LETTER = /^\p{L}$/u;
-const WORD_CHAR = /^[\p{L}\p{N}]$/u;
-const NAME_SUFFIX_APOSTROPHES = new Set(["'", "\u2019"]);
-const COMMAS = new Set([",", "\u060C"]);
+/** Ad ekinin kesme işaretleri (ad kuralındaki kesme ailesiyle aynı: ' ’ ‘ ʼ ` ＇ ve İspanyol klavyesinin ´ işareti). */
+const NAME_SUFFIX_APOSTROPHES = new Set(["'", "’", "‘", "ʼ", "`", "＇", "´"]);
+const COMMAS = new Set([",", "،", "，", "、"]);
+/** Belirteçten SONRA gelince önündeki virgülü de düşüren noktalama ("Welcome, {name}!" → "Welcome!"). */
+const TERMINAL_PUNCT = new Set([".", "!", "?", ";", ":", "…", ")", "]", "}", "»", "\"", "”", "’", "'", "。", "！", "？", "؟", "۔"]);
+/** Satır başındaki belirteçle birlikte gidebilen tek noktalama ("{isim}! Hoş geldiniz" → "Hoş geldiniz"). */
+const LINE_START_PUNCT = new Set([...COMMAS, "!", ".", ":", ";"]);
 
 /**
  * AD BİLİNMİYORKEN tek geçiş (kurucu kararı 09-28: "Merhaba Rezervasyon HM4K2," yerine "Merhaba,"). Ad belirteci; önündeki satır içi
- * boşluk, ardındaki ek ("{isim}'e"), boşluk ve virgülle birlikte kalkar: satır ortasında virgül KALIR ("Merhaba {isim}, bugün" →
- * "Merhaba, bugün"), satır başında belirteçle birlikte gider ("{isim}, hoş geldiniz" → "hoş geldiniz"); sözcük arasında tek boşluk
- * kalır ("Sevgili {isim} Hanım" → "Sevgili Hanım"). Ad dışı belirteçler (`{daire}`) her zamanki gibi çözülür.
+ * boşluk ve ardındaki ek ("{isim}'e") ile kalkar, çevresindeki noktalama doğal kalır (09-28 inceleme ajanı, ölçülen kusurlar kırmızı-önce):
+ *  · satır ortasında ardından virgül: "Merhaba {isim}, bugün" → "Merhaba, bugün"; önünde de virgül varsa tek virgül ("Hi, {name},
+ *    welcome" → "Hi, welcome" — eskiden "Hi,, welcome");
+ *  · ardından cümle sonu / satır sonu: "Hi {name}!" → "Hi!"; önünde virgül varsa o da gider ("Welcome, {name}!" → "Welcome!" —
+ *    eskiden "Welcome,!");
+ *  · ardından sözcük ya da başka bir şey: tek boşluk kalır ("Sevgili {isim} Hanım" → "Sevgili Hanım", "Merhaba {isim} 👋" →
+ *    "Merhaba 👋" — eskiden "Merhaba👋");
+ *  · satır başında: belirteç + ardındaki tek noktalama gider ("{isim}, hoş geldiniz" → "hoş geldiniz", "{isim}! Hoş geldiniz" →
+ *    "Hoş geldiniz"); satır bütünüyle boşalırsa satır da gider ("Line1\n{isim},\nLine3" → "Line1\nLine3").
+ * Ad dışı belirteçler (`{daire}`) her zamanki gibi çözülür.
  * 🚨 DOĞRUSAL tarama — başı çapasız boşluk kalıbı (`[ \t]*\{…`) uzun boşluk dizisinde karesel iş yapardı (ReDoS kuralı, CLAUDE.md).
  */
 function fillWithoutName(text: string, values: GuestPlaceholderValues): string {
@@ -378,6 +395,7 @@ function fillWithoutName(text: string, values: GuestPlaceholderValues): string {
   for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
     const start = m.index;
     const end = start + m[0].length;
+    if (start < last) continue; // önceki belirtecin ardı tüketti (satır başı noktalaması)
     if (keyKind(m[1]) !== "name") {
       out += text.slice(last, start) + (resolveGuestPlaceholder(m[1], values) ?? m[0]);
       last = end;
@@ -386,29 +404,50 @@ function fillWithoutName(text: string, values: GuestPlaceholderValues): string {
     // Önceki parça + satır içi sondaki boşluğu (geriye doğru, doğrusal).
     let cut = start;
     while (cut > last && isHorizontalSpace(text[cut - 1])) cut -= 1;
-    const lineStart = cut === 0 || text[cut - 1] === "\n";
-    // Belirtecin ardı: ek ("'e") → boşluk → virgül → boşluk.
-    let p = end;
-    if (NAME_SUFFIX_APOSTROPHES.has(text[p]) && NAMELESS_LETTER.test(text[p + 1] ?? "")) {
-      p += 1;
-      while (p < text.length && NAMELESS_LETTER.test(text[p])) p += 1;
+    const lineStart = cut === 0 || isLineBreak(text[cut - 1]);
+    // Belirtecin ardı: ek ("'e") → boşluk.
+    let q = end;
+    if (NAME_SUFFIX_APOSTROPHES.has(text[q]) && NAMELESS_LETTER.test(text[q + 1] ?? "")) {
+      q += 1;
+      while (q < text.length && NAMELESS_LETTER.test(text[q])) q += 1;
     }
-    while (isHorizontalSpace(text[p])) p += 1;
-    let comma = "";
-    if (COMMAS.has(text[p])) {
-      const commaAt = p;
-      p += 1;
-      while (isHorizontalSpace(text[p])) p += 1;
-      comma = text.slice(commaAt, p);
-    }
+    while (isHorizontalSpace(text[q])) q += 1;
+    const next = text[q];
     if (lineStart) {
-      out += text.slice(last, start); // girinti korunur, belirteç + ardı gider
-    } else {
-      out += text.slice(last, cut);
-      if (comma) out += comma;
-      else if (WORD_CHAR.test(text[p] ?? "")) out += " ";
+      if (next !== undefined && LINE_START_PUNCT.has(next)) {
+        q += 1;
+        while (isHorizontalSpace(text[q])) q += 1;
+      }
+      if (q >= text.length || isLineBreak(text[q])) {
+        // Satır bütünüyle boşaldı: girintisi ve satır sonuyla birlikte gider.
+        out += text.slice(last, cut);
+        if (text[q] === "\r" && text[q + 1] === "\n") q += 2;
+        else if (q < text.length) q += 1;
+      } else {
+        out += text.slice(last, start); // girinti korunur, belirteç + ardı gider
+      }
+      last = q;
+      continue;
     }
-    last = p;
+    const precededByComma = COMMAS.has(text[cut - 1]);
+    if (next !== undefined && COMMAS.has(next)) {
+      let after = q + 1;
+      while (isHorizontalSpace(text[after])) after += 1;
+      // "Hi, {name}, welcome" → "Hi, welcome" (önceki virgül kalır); "Merhaba {isim}, bugün" → "Merhaba, bugün".
+      out += text.slice(last, cut) + (precededByComma ? " " : text.slice(q, after));
+      last = after;
+    } else if (next === undefined || isLineBreak(next) || TERMINAL_PUNCT.has(next)) {
+      let keep = cut;
+      if (precededByComma) {
+        keep = cut - 1; // "Welcome, {name}!" → "Welcome!"
+        while (keep > last && isHorizontalSpace(text[keep - 1])) keep -= 1;
+      }
+      out += text.slice(last, keep);
+      last = q;
+    } else {
+      out += text.slice(last, cut) + " ";
+      last = q;
+    }
   }
   return out + text.slice(last);
 }

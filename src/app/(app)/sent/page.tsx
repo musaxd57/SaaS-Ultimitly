@@ -316,7 +316,7 @@ export default async function SentPage({
       continue;
     }
     const resolved = fillTokens(content.trim(), firstNameOf(it.guest), it.property);
-    it.preview = truncate(resolved.replace(/\s+/g, " "), 120);
+    it.preview = truncate(resolved.replace(/\s+/g, " ").trim(), 120);
   }
 
   const filters: { value: string; label: string; count: number }[] = [

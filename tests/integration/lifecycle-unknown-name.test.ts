@@ -103,6 +103,25 @@ describe("yaşam döngüsü mesajları — ad bilinmiyorsa 'Merhaba,'", () => {
     expect(checkoutPreview.body).toBe("Merhaba, bugün çıkış günü.");
   });
 
+  it("🚨 şablonun ilk satırı yalnız '{isim},' ise gövde boş satırla BAŞLAMAZ (09-28 inceleme ajanı)", async () => {
+    const orgId = await seed("Rezervasyon HM4K2", {
+      welcome: "{isim},\n\nLale'ye hoş geldiniz!",
+      checkin: "Hoş geldiniz, {isim}!\nKapı kodu 1234.",
+      checkout: "Bugün çıkış.",
+    });
+    vi.setSystemTime(new Date("2026-06-20T07:00:00Z"));
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    expect(sentBodies()).toEqual(["Lale'ye hoş geldiniz!", "Hoş geldiniz!\nKapı kodu 1234."]);
+  });
+
+  it("🚨 anonim satırın sentinel adı ('Eski misafir') selama girmez", async () => {
+    const orgId = await seed("Eski misafir", { welcome: "Hoş geldiniz.", checkin: "Kapı kodu 1234.", checkout: "Bugün çıkış." });
+    vi.setSystemTime(new Date("2026-06-20T07:00:00Z"));
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+    expect(sentBodies()).toEqual(["Merhaba,\n\nHoş geldiniz."]);
+  });
+
   it("KONTROL — gerçek adda ilk ad (davranış aynı)", async () => {
     const orgId = await seed("Ayşe Yılmaz", {
       welcome: "Hoş geldiniz.",
