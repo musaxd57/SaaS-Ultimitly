@@ -395,7 +395,6 @@ function fillWithoutName(text: string, values: GuestPlaceholderValues): string {
   for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
     const start = m.index;
     const end = start + m[0].length;
-    if (start < last) continue; // önceki belirtecin ardı tüketti (satır başı noktalaması)
     if (keyKind(m[1]) !== "name") {
       out += text.slice(last, start) + (resolveGuestPlaceholder(m[1], values) ?? m[0]);
       last = end;
