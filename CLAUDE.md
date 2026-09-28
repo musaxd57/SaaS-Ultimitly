@@ -566,9 +566,12 @@ Bu dosyaya token/anahtar/parola yazma.
   EDİLMEZ (`apartmentNumberOf`: güçlü etiket daire/apartment/apt/D: önce, zayıf no/# sonra; sayaç sözcüğü/3+ hane/
   birden çok sayı → null; sayısız ad → null; iki katlama; önde kelime sınırı). 🚨 MODELE giden `{isim}` değeri
   `guestFirstNameForPrompt` (09-28): görünen ad misafirin metnidir ve ev sahibinin KB kalemine (ev sahibi olgusu) yerleşir →
-  yalnız AD biçimindeki baş kısım (harfle başlar; ≤3 parça ad birleştiricisiyle — tire, kesme işaretleri, NOKTA "M.Ali", geresh;
-  ZWNJ/ZWJ yalnız onu isteyen alfabelerde; görünmez "harf" (Hangul dolgu) / iki nokta / rakam keser; 40 kod noktası). Gerçek ad
-  bataryası eski kuralla birebir (ilk sürüm "M.Ali"yi "M" yapıyordu — inceleme). Ayırıcısız metin geçer (bilinen sınır, K10-o).
+  yalnız AD biçimindeki baş kısım (harfle başlar; ≤3 ÇOK HARFLİ parça ad birleştiricisiyle — tire / en tire, kesme işaretleri,
+  NOKTA "M.Ali", geresh / maqaf, ゠; tek harfli baş harf parça SAYMAZ "K.V.S.Lakshmi"; yazımın iç denetim karakteri — ZWNJ/ZWJ Arap
+  ve Hint yazımlarında, tsheg Tibet, seçici Moğolca — yalnız KENDİ yazımında; görünmez "harf" (Hangul dolgu) / iki nokta / rakam
+  keser; 40 kod noktası). Çok alfabeli gerçek ad bataryası eski kuralla birebir (iki inceleme: ilk sürüm "M.Ali"yi "M", ikincisi
+  "K.V.S.Lakshmi"yi "K.V.S" yapıyordu). HARF olan her şey geçer — ayırıcısız, harf harf noktalı, harf sınıfındaki ayırıcı benzeri
+  (bilinen sınır; karakter kuralı kapatamaz, yapısal çözüm K10-o).
   Model yolu (oto-yanıt, öneri, Ayarlar testi) bunu kullanır; şablonla misafire giden metin `guestFirstNameOf`.
 - **İstem bütçesi:** `REPLY_SYSTEM_PROMPT` ~46k karakter ("~75KB" yorumu YANLIŞ); BÖLÜM 13 = 24 few-shot, istemin
   %35'i, 19'u pinsiz, 5'i sahte Wi-Fi şifresi öğretiyor — daraltma ÖLÇÜMLE (golden + eval), tek hamlede değil.
@@ -976,8 +979,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Provider mesajı sessiz atlanır ve imleç ilerler (bilinçli; ölçüm sayacı var).
 - Günlük AI kotası oto-yanıtı da sayar; tavana çarpınca konuşma `new` kalır; kart "AI işlemi" der. Model cevap verip çıktı
   kullanılamadıysa (`llmUsage` dolu yedek: çıktı tavanı / bozuk JSON) o da SAYILIR ve aynı mesaj en çok `AI_UNUSABLE_MAX_ATTEMPTS`
-  (3) kez denenir, sonra damgalanır (09-28; eskiden 2 dakikada bir sınırsız, faturalı). Modele HİÇ ulaşılamayan kesinti sınırsız
-  yeniden denenir (damga yok) — iki durumu karıştıran yeni dal yazılmaz.
+  (3) kez denenir, sonra damgalanır (09-28; eskiden 2 dakikada bir sınırsız, faturalı); damgada sebep `ai_unusable` ("elle yanıtlayın"
+  — `ai_unavailable`in "yeniden denenecek" metni yanlış olurdu). Modele HİÇ ulaşılamayan kesinti sınırsız yeniden denenir (damga yok)
+  — iki durumu karıştıran yeni dal yazılmaz.
 - Yeni org 7/24 açık doğar. 🚨 **09-12 GÜNCELLEME — bu satır "şema varsayılanı DEĞİŞMEDİ" diyordu ve
   ARTIK YANLIŞ:** migration 55 `autoReplyEndHour` varsayılanını **9 → 0** yaptı, yani 7/24 artık
   ŞEMANIN kendi varsayılanı. Eski hâlde koruma yalnız UYGULAMA katmanındaydı (`NEW_ORG_AUTO_REPLY_WINDOW`
@@ -1383,8 +1387,9 @@ küçük KB, getirme hataları, ölçer sadakati · 11 güvenlik denetimi (kirac
 misafir adı ev sahibi bilgisine yalnız ad biçiminde, e-posta konusu tek satır, elle rezervasyonda kanal işaretçisi, QR devir kontrolü
 tek satır, rezervasyon API'sinde iç alan yok, faturalı-kullanılamaz model cevabı bütçeye sayılır + mesaj başına 3 deneme) · RAG / gömme
 araştırması (`docs/RAG-EMBEDDING-SON-DURUM-2026-09-28.md`) · güvenlik kontrolleri envanteri (`docs/GUVENLIK-KONTROLLERI-2026-09-28.md`).
-Hepsi kırmızı-önce + mutasyon + tam kapılar + CI yeşil; ücretli çağrı YOK. Ders: gece incelemesi ad kuralının ilk sürümünde gerçek ad
-gerilemesi buldu ("M.Ali" → "M") — gerçek ad bataryası ÇOK ALFABELİ yazılır.
+Hepsi kırmızı-önce + mutasyon + tam kapılar + CI yeşil; ücretli çağrı YOK. Ders: iki gece incelemesi ad kuralında gerçek ad
+gerilemesi buldu ("M.Ali" → "M", sonra "K.V.S.Lakshmi" → "K.V.S") — gerçek ad bataryası ÇOK ALFABELİ yazılır; karakter süzgeci
+gerçek adı korumak için gevşedikçe harf sınıfı açık kalır → yapısal çözüm (K10-o) kurucu kararı.
 **09-26 GECE #189 RAG ÖLÇEĞİ (kurucu /loop "300 kalemde bile ≥%95"; `docs/TASARIM-2026-09-26-rag-300-olcek.md`):** ölçer +
 gerçekçi dev/holdout seti + dört değişiklik (↑Retrieval #189); iki bayrak KAPALI. Gece ölçümleri OpenAI kredisini BİTİRDİ
 (kurucuya bildirildi) → 🚨 **kurucu 09-27: "KESİNLİKLE ÜCRETLİ TEST YAPMA"** — kurucu kredi yüklendiğini SÖYLEYENE kadar hiçbir
