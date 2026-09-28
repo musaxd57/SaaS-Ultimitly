@@ -353,6 +353,8 @@ export async function prepareRerankScores(input: PrepareRerankInput): Promise<Re
     for (const o of ok) for (const [k, v] of o.scores) scores.set(k, Math.max(scores.get(k) ?? 0, v));
     // KISMİ ARIZA kayıtta görünür (A6 #5, 09-27): iki çağrıdan biri düşünce de `rr: ok` yazılıyordu — düşen sorunun adayları bugünkü
     // sırasında kalıyor ve bu iz bırakmıyordu. Yalnız > 0 iken (tek çağrılı canlı yolda kayıt bayt bayt aynı).
+    // Not (mutasyon, eşdeğer): burada "ok" olmayan çağrı hep "failed"dir — `skipped` koşulları (anahtar yok / soru boş) çağrı
+    // başına değil İSTEK geneli, aday listesi de ≥2'ye süzülü; hepsi skipped ise yukarıdaki dal döner.
     const failedCalls = outs.filter((o) => o.status === "failed").length;
     return { status: "ok", scores, ms, calls: calls.length, ...(failedCalls > 0 ? { failedCalls } : {}) };
   } catch (err) {

@@ -54,6 +54,9 @@ function fakeVec(text: string): number[] {
 }
 
 const chatBodies: string[] = [];
+/** Kısmi arıza (A6 #5): true iken İLK sohbet çağrısı başarılı, sonrakilerin HEPSİ (yeniden denemeler dahil) 500 döner. */
+let failAfterFirstChat = false;
+let chatCalls = 0;
 function routerFetch() {
   return vi.fn(async (url: string, init: { body: string }) => {
     if (url === EMB_URL) {
@@ -61,6 +64,7 @@ function routerFetch() {
       return { ok: true, status: 200, headers: new Headers(), json: async () => ({ data: input.map((t, index) => ({ index, embedding: fakeVec(t) })) }) };
     }
     if (url === CHAT_URL) {
+      if (failAfterFirstChat && ++chatCalls > 1) return new Response("upstream error", { status: 500 });
       const payload = JSON.parse(init.body) as { messages: { role: string; content: string }[] };
       const user = payload.messages.find((m) => m.role === "user")?.content ?? "";
       chatBodies.push(user);
@@ -91,6 +95,8 @@ beforeEach(() => {
   __resetUnderstandingCache();
   clearEmbeddingCache();
   chatBodies.length = 0;
+  failAfterFirstChat = false;
+  chatCalls = 0;
   vi.stubEnv("OPENAI_API_KEY", "test-key");
   vi.stubEnv("KB_RETRIEVAL_MODE", "");
   vi.stubEnv("KB_SEMANTIC_RETRIEVAL", "1");
@@ -127,5 +133,14 @@ describe("soru başına yeniden sıralama bağlantısı", () => {
     const ids = r.items.map((i) => i.id);
     expect(ids).toContain("kb_hanger");
     expect(ids).toContain("kb_battery");
+    // İki çağrı da başarılı → düşen çağrı alanı YOK.
+    expect(r.evidence).not.toHaveProperty("rrF");
+  });
+
+  it("🚨 bayrak AÇIK, iki çağrıdan biri düşer → kanıtta rrF: 1 (kısmi arıza karar kaydında görünür — A6 #5)", async () => {
+    vi.stubEnv("KB_RERANK_PER_QUESTION", "1");
+    failAfterFirstChat = true;
+    const r = await warmThenDecide();
+    expect(r.evidence).toMatchObject({ sem: "ok", rr: "ok", rrN: 2, rrF: 1 });
   });
 });

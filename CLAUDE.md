@@ -562,7 +562,10 @@ Bu dosyaya token/anahtar/parola yazma.
   (`{isim}·{ad}·{name}` · `{daire}·{apartment}·{apt}`; tek geçiş `replace`+callback; `Object.hasOwn`). 🚨 QR'da
   GERÇEK AD KULLANILMAZ ("misafirimiz"); QR'da sır kapısı ham VE ikame sonrası çalışır. `{daire}` belirsizde ikame
   EDİLMEZ (`apartmentNumberOf`: güçlü etiket daire/apartment/apt/D: önce, zayıf no/# sonra; sayaç sözcüğü/3+ hane/
-  birden çok sayı → null; sayısız ad → null; iki katlama; önde kelime sınırı).
+  birden çok sayı → null; sayısız ad → null; iki katlama; önde kelime sınırı). 🚨 MODELE giden `{isim}` değeri
+  `guestFirstNameForPrompt` (09-28): görünen ad misafirin metnidir ve ev sahibinin KB kalemine (ev sahibi olgusu) yerleşir →
+  yalnız AD biçimindeki baş kısım (harfle başlar, ≤3 parça tire/kesme/orta nokta, 40 kod noktası; görünmez ayırıcı / iki nokta /
+  rakam keser). Model yolu (oto-yanıt, öneri, Ayarlar testi) bunu kullanır; şablonla misafire giden metin `guestFirstNameOf`.
 - **İstem bütçesi:** `REPLY_SYSTEM_PROMPT` ~46k karakter ("~75KB" yorumu YANLIŞ); BÖLÜM 13 = 24 few-shot, istemin
   %35'i, 19'u pinsiz, 5'i sahte Wi-Fi şifresi öğretiyor — daraltma ÖLÇÜMLE (golden + eval), tek hamlede değil.
   Prompt cache sırası doğru; `cached_tokens` artık OKUNUYOR (09-23: kanıt `llm.cpt`). `REPLY_CHAR_CAP` 4.000 ≠
