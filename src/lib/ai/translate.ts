@@ -88,13 +88,20 @@ function languageName(code: string): string {
   return LANGUAGE_NAMES[code.toLowerCase()] ?? code;
 }
 
+/**
+ * Dil KODU biçimi ("en", "pt-BR", "zh_Hans"). Kaynak dil SAĞLAYICIDAN gelir (Hospitable `conversation_language`, doğrulanmadan
+ * saklanıyor) ve istemin SİSTEM satırına yazılıyordu (gece denetimi 09-28): biçimi tutmayan değer istemden çıkarılır — "from …"
+ * yazılmaz, çeviri kaynak dili kendisi anlar. Geçerli kodda istem birebir aynı.
+ */
+const LANGUAGE_CODE = /^[a-z]{2,3}(?:[-_][a-z0-9]{2,8})?$/i;
+
 // Hospitality-grade translation system prompt. The goal is a translation a
 // native-speaking host would actually send — natural, warm, and faithful —
 // while protecting the data that must NOT be altered (codes, passwords,
 // addresses, proper nouns, links).
 function buildSystemPrompt(targetLang: string, sourceLang?: string): string {
   const target = languageName(targetLang);
-  const from = sourceLang ? ` from ${languageName(sourceLang)}` : "";
+  const from = sourceLang && LANGUAGE_CODE.test(sourceLang) ? ` from ${languageName(sourceLang)}` : "";
   return `You are a professional translator specialized in short-term rental (Airbnb/Booking) guest communication.
 
 Translate the user's message${from} into ${target}.
