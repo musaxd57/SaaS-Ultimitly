@@ -39,6 +39,7 @@ import { createHash } from "node:crypto";
 import { reportError } from "@/lib/report-error";
 import {
   classifyModelProviderFailure,
+  isUnsupportedRequestFailure,
   noteModelProviderPersistentFailure,
   noteModelProviderSuccess,
   type ModelProviderPersistentFailure,
@@ -298,7 +299,7 @@ export async function embedTexts(
         // hesabın 429'u `isRetryableStatus` için geçici görünür ama hiçbir deneme başarılı olamaz (09-23
         // ölçüldü). Gövde YALNIZ sınıflandırma için okunur; alarma geçmez (↓ yalnız durum kodu).
         const errBody = await res.text().catch(() => "");
-        persistent = classifyModelProviderFailure(res.status, errBody);
+        persistent = classifyModelProviderFailure(res.status, errBody) ?? (embeddingRequestRejected(res.status, errBody) ? "request" : null);
         if (persistent) break;
         // 🚨 KALICI HATADA ISRAR YOK ve BEKLEME KALAN BÜTÇEYİ AŞAMAZ — karar
         // saf `retryPlan`da (tek başına test-pinli).
@@ -314,7 +315,14 @@ export async function embedTexts(
         continue;
       }
 
-      const json: unknown = await res.json();
+      // JSON olmayan 200 (ağ geçidinin HTML'i) sağlayıcı sözleşme ihlalidir — ağ hatası sanılıp yeniden DENENMEZ (A7 #3, 09-27).
+      let json: unknown;
+      try {
+        json = await res.json();
+      } catch {
+        void reportError("openai-embeddings shape violation", new Error("non-JSON body"));
+        return null;
+      }
       const data = (json as { data?: unknown }).data;
       if (!Array.isArray(data) || data.length !== input.length) {
         void reportError(
@@ -332,7 +340,13 @@ export async function embedTexts(
         const r = row as { index?: unknown; embedding?: unknown };
         const i = typeof r.index === "number" ? r.index : -1;
         if (!Number.isInteger(i) || i < 0 || i >= input.length) return null;
-        if (!Array.isArray(r.embedding) || r.embedding.length !== EMBEDDING_DIMENSIONS) return null;
+        if (!Array.isArray(r.embedding)) return null;
+        if (r.embedding.length !== EMBEDDING_DIMENSIONS) {
+          // 🚨 1536 dışı boyut YAPILANDIRMA arızasıdır (model / `dimensions` desteği): her çağrı faturalanıp atılır, anlamsal arama
+          // kalıcı "soğuk" kalır. Gömme kanalının geçiş tabanlı kalıcı alarmı (`request`), bir kez (A7 #3, 09-27; eskiden sessizdi).
+          void noteModelProviderPersistentFailure("request", res.status, "", "embedding");
+          return null;
+        }
         const unit = normalizeInPlace(r.embedding as number[]);
         if (!unit) return null;
         fetched[i] = unit;
@@ -376,6 +390,15 @@ export async function embedTexts(
     if (!opts.quiet) void reportError(`openai-embeddings ${lastStatus}`, new Error(`HTTP ${lastStatus}`));
   }
   return null;
+}
+
+/**
+ * Gömme isteğinin BİÇİMİ reddedildi mi (yapılandırma arızası): desteklenmeyen parametre / değer, ya da gönderdiğimiz tek ek parametre
+ * `dimensions` (modeli boyut kısaltmayı desteklemiyor). Tek girdiye özgü 400 (token sınırı) bu değildir → alarm YOK (A7 #3, 09-27).
+ */
+export function embeddingRequestRejected(status: number, body: string): boolean {
+  if (status !== 400 && status !== 422) return false;
+  return isUnsupportedRequestFailure(400, body) || /\bdimensions\b/i.test(body);
 }
 
 /** Tek metin için kolaylık sarmalayıcı. */
