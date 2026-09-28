@@ -406,6 +406,9 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
       konuşmanın TAMAMINI okuyordu (biri ev sahibi cevabının da beklediği kilidin altında; konuşmayı büyüten, cihazı bağlı misafir).
       Artık yalnız hükmü veren tek satır okunuyor; hüküm birebir aynı (eski tarama kâhin alınarak 60 rastgele dizi + sınır
       durumları; mutasyon 9/9). Aynı denetimin karar gerektiren bulguları ↑K10 i–l.
+    - Sayfa sorgularının kiracı kapsamı (23 sayfa / yerleşim + çağırdıkları yardımcılar): açık yok — ayrıntı sayfaları kimliği org
+      süzgeciyle arıyor (yoksa 404), raporlar ve pano her sorguda org süzgeçli, adres çubuğundaki mülk / konuşma kimliği yeniden
+      doğrulanıyor.
     - Personel (temizlikçi) sayfa erişimi: bugün personel yalnız Görevler sayfasına ulaşabiliyor, atlatma yolu bulunmadı (izinli yol
       tam eşleşme, sunucu eylemi yok, bilinen ara katman açığına karşı yamalı sürüm). Bilinen ön koşul aynen geçerli: ileride rol
       değiştiren / personel davet eden bir akış eklenirse oturum yenilenmeli — sayfaların çoğu rolü kendisi kontrol etmiyor, yalnız
