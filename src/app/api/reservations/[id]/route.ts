@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { reservationUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { stripReservationInternals } from "@/lib/reservation-view";
 
 async function findScoped(id: string, orgId: string) {
   return prisma.reservation.findFirst({
@@ -21,7 +22,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     where: { id },
     data: parsed.data,
   });
-  return jsonOk(reservation);
+  return jsonOk(stripReservationInternals(reservation));
 });
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {

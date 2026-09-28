@@ -6,6 +6,7 @@ import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull, tooManyRequest
 import { withManage } from "@/lib/route-guard";
 import { applyReservationCreatedRules } from "@/lib/automation";
 import { rateLimit } from "@/lib/rate-limit";
+import { stripReservationInternals } from "@/lib/reservation-view";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -22,7 +23,8 @@ export const GET = withManage(async (session, req) => {
     orderBy: { arrivalDate: "desc" },
     take: 500, // bound the payload — full guest PII, no pagination yet
   });
-  return jsonOk(reservations);
+  // QR PIN / cihaz bağlama iç durumu yanıta girmez (`stripReservationInternals`, gece denetimi 09-28).
+  return jsonOk(reservations.map(stripReservationInternals));
 });
 
 export const POST = withManage(async (session, req) => {
@@ -83,5 +85,5 @@ export const POST = withManage(async (session, req) => {
   // Fixed automation: prepare check-in & cleaning tasks.
   await applyReservationCreatedRules(reservation.id);
 
-  return jsonOk(reservation, 201);
+  return jsonOk(stripReservationInternals(reservation), 201);
 });
