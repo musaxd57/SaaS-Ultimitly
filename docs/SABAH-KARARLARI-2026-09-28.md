@@ -316,6 +316,7 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
 | j | Demo / iletişim formu (leads) | IP başına saatte 5, genel tavan yok; her kayıt operatöre e-posta → çok IP'li saldırgan kutunuzu doldurur | kayıt HER ZAMAN tutulur (satış kaybı yok); operatör e-postası günde en çok ~30, fazlası panelde görünür |
 | k | Paddle webhook'u | imzasız / sahte imzalı istek başına 2 veritabanı yazması + log satırı, hız sınırı yok | imza doğrulamasından önce IP başına hafif kısıt (gerçek Paddle IP'leri etkilenmez). Para akışı → onayınız |
 | l | QR acil e-postası (bayrak KAPALI) | açılırsa her farklı yazılmış acil mesaj ayrı e-posta (bekleme süresi yok, bilinçli risk olarak belgeli) | açmadan önce konaklama başına bekleme süresi (ör. 10 dk'da 1) |
+| m | Sayfa düzeyinde rol kapısı | personelin (temizlikçi) yalnız Görevler'i görmesini ara katman ÇEREZDEKİ rolle sağlıyor; mülk sayfası (bilgi tabanı, rezervasyonlar, takvim beslemesi bağlantısı) ve diğer panel sayfaları rolü kendisi kontrol etmiyor. Bugün rol değiştiren yol yok → açık değil | personel daveti / rol değiştirme gelmeden ÖNCE: her panel sayfasına veritabanı rolüyle kapı + rol kapısı pininin sayfa ikizi (bugün yalnız API'de) |
 
 ---
 
@@ -409,6 +410,9 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
     - Sayfa sorgularının kiracı kapsamı (23 sayfa / yerleşim + çağırdıkları yardımcılar): açık yok — ayrıntı sayfaları kimliği org
       süzgeciyle arıyor (yoksa 404), raporlar ve pano her sorguda org süzgeçli, adres çubuğundaki mülk / konuşma kimliği yeniden
       doğrulanıyor.
+    - Sunucudan tarayıcıya giden veri: personel ve anonim ziyaretçiye giden hiçbir gizli alan yok. Düzeltildi: rezervasyon API'si (yalnız
+      sahip / yönetici, arayüz kullanmıyor) QR PIN / cihaz bağlama özetlerini ve kilit durumunu JSON'a koyuyordu — artık çıkarılıyor
+      (mülk API'sindeki gizli alan ayıklamasının ikizi; mutasyon 5/5). Karar gerektiren kısım ↑K10-m.
     - Personel (temizlikçi) sayfa erişimi: bugün personel yalnız Görevler sayfasına ulaşabiliyor, atlatma yolu bulunmadı (izinli yol
       tam eşleşme, sunucu eylemi yok, bilinen ara katman açığına karşı yamalı sürüm). Bilinen ön koşul aynen geçerli: ileride rol
       değiştiren / personel davet eden bir akış eklenirse oturum yenilenmeli — sayfaların çoğu rolü kendisi kontrol etmiyor, yalnız

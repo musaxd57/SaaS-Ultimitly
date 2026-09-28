@@ -823,6 +823,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   istisna (anonim). 429 metni süreyi söyler.
 - Ayar değişikliği audit'li (alan adları, değerler değil). `properties/[id]` DELETE ve `admin/leads` PATCH
   audit'siz (açık).
+- **API yanıtında gizli / iç alan yok:** mülk `stripPropertySecrets` (icalToken, chatToken), rezervasyon `stripReservationInternals`
+  (QR PIN / cihaz bağlama özeti + kilit durumu, 09-28). `select`siz satır döndüren YENİ uç aynı ayıklamayı yapar.
 - Yükleme: private mimari (imzalı GET, `orgIdFromKey` 404, sihirli bayt, SVG/HTML yok); prod'da yerel
   diske düşüş 503 (`ALLOW_LEGACY_LOCAL_UPLOADS=1` kaçış). Bucket sağlayıcı görünürlüğü operatör adımı.
   `photoUrl` yalnız göreli. 🚨 Sunum YALNIZ bu org'da bir TaskUpdate'in HÂLÂ gösterdiği nesneyi imzalar (F11, 09-26);
