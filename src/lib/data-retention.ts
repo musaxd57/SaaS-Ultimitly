@@ -48,10 +48,30 @@ export function redactNameFromBody(body: string, names: string[]): string {
     .sort((a, b) => b.length - a.length);
   let out = body;
   for (const t of tokens) {
-    const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, "giu"), ANON_BODY_NAME);
+    out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${nameSource(t)}(?![\\p{L}\\p{N}])`, "giu"), ANON_BODY_NAME);
   }
   return out;
+}
+
+/**
+ * Türkçe harf aileleri (09-28 inceleme ajanları, ölçüldü): JS'in /i bayrağı "ı"yı "I"ya, "İ"yi "i"ye katlamaz — "İsmail"in
+ * "ISMAIL"i, "Işıl"ın "IŞIL"ı silinmiyor, büyük harfle yazılan "AYŞE YILMAZ"da soyadı kalıyordu. Klavyesiz yazım ("Ayse Yilmaz")
+ * da aynı ad. Her harf ailesinin bütün biçimleri tek sınıf; sözcükler arasındaki boşluk esnek ("Mehmet  Ali" kaydı "Mehmet Ali"
+ * metnini tutar). Ad yoksa ya da eşleşmezse metin bayt bayt aynı.
+ */
+const TR_LETTER_FAMILY: Record<string, string> = {};
+for (const family of ["iIıİ", "sSşŞ", "cCçÇ", "gGğĞ", "oOöÖ", "uUüÜ"]) {
+  for (const ch of family) TR_LETTER_FAMILY[ch] = family;
+}
+export function nameSource(token: string): string {
+  return token
+    .split(/\s+/)
+    .map((part) =>
+      Array.from(part)
+        .map((ch) => (TR_LETTER_FAMILY[ch] ? `[${TR_LETTER_FAMILY[ch]}]` : ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+        .join(""),
+    )
+    .join("\\s+");
 }
 
 /** How many old reservations to scrub per call — bounds work / lock time. */

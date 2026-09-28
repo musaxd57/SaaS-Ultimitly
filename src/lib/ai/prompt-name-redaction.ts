@@ -16,7 +16,7 @@
 // yalnız modele giden istem metnidir.
 // ---------------------------------------------------------------------------
 
-import { ANON_ID, ANON_NAME, redactNameFromBody } from "@/lib/data-retention";
+import { ANON_ID, ANON_NAME, nameSource, redactNameFromBody } from "@/lib/data-retention";
 import { guestFirstNameOf } from "@/lib/kb-placeholders";
 import { isSafetyEmergencyText } from "./fallback";
 
@@ -37,9 +37,8 @@ export function redactGuestNamesForPrompt(text: string, names: readonly string[]
   return names.length ? redactNameFromBody(text, [...names]) : text;
 }
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** `redactNameFromBody` ile AYNI sınır kuralı (Unicode harf / rakam bitişik değil, büyük-küçük harf duyarsız). */
-const wordRe = (token: string, flags: string) => new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(token)}(?![\\p{L}\\p{N}])`, flags);
+/** `redactNameFromBody` ile AYNI eşleşme kuralı (Unicode sınırı, büyük-küçük harf duyarsız, Türkçe harf aileleri, esnek boşluk). */
+const wordRe = (token: string, flags: string) => new RegExp(`(?<![\\p{L}\\p{N}])${nameSource(token)}(?![\\p{L}\\p{N}])`, flags);
 const isKey = (t: string) => t.length >= 3 && t !== ANON_NAME && t !== ANON_ID;
 
 /**
