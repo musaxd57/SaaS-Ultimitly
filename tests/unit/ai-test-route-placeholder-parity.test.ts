@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   apartmentNumberOf,
   fillGuestPlaceholdersInItems,
+  guestFirstNameForPrompt,
   guestFirstNameOf,
 } from "@/lib/kb-placeholders";
 
@@ -131,12 +132,18 @@ describe("AI test rotası — yer tutucu kaynağı", () => {
   });
 
   it("hitap ÜRETİMLE aynı kaynaktan (rota kendi sabitini yazmaz)", () => {
-    const s = read(ROUTE);
+    const s = code(ROUTE);
     // Rota `suggestReply`a bir misafir adı veriyor; yer tutucu da AYNI addan
-    // türemeli, yoksa kart kendi içinde tutarsız olur.
-    expect(s).toContain("guestFirstNameOf");
+    // türemeli, yoksa kart kendi içinde tutarsız olur. Kaynak = üretimin MODELE giden
+    // ad kuralı (09-28'den beri `guestFirstNameForPrompt`: görünen adın yalnız AD
+    // biçimindeki baş kısmı) — iki üretim yüzeyi de aynısını kullanır.
+    expect(s).toContain("guestFirstNameForPrompt(TEST_GUEST_NAME)");
+    for (const prod of ["src/lib/automation.ts", "src/app/api/conversations/[id]/ai-suggest/route.ts"]) {
+      expect(code(prod), prod).toContain("guestFirstNameForPrompt(conversation.guestIdentifier)");
+    }
     expect(s).not.toMatch(/replace\([^)]*\)\s*\.replace\(/);
-    // Anti-vakum: o ad gerçekten bir ilk ada çözülüyor.
+    // Anti-vakum: o ad gerçekten bir ilk ada çözülüyor (ve iki kural gerçek adda aynı).
+    expect(guestFirstNameForPrompt("Test Misafir")).toBe("Test");
     expect(guestFirstNameOf("Test Misafir")).toBe("Test");
   });
 });
