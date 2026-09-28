@@ -70,19 +70,32 @@ export function guestFirstNameOf(guestIdentifier: string | null | undefined): st
 /** Ad karakteri: harf / birleşen işaret — görünmez "harf"ler (Hangul dolgu U+3164, U+115F, U+1160, U+FFA0) HARİÇ. */
 const NAME_CHAR = /^(?!\p{Default_Ignorable_Code_Point})[\p{L}\p{M}]$/u;
 /**
- * Adın parçalarını birleştiren işaretler (inceleme 09-28, ölçüldü — ilk sürüm bunları keserek gerçek adı bozuyordu): tire (bölünmez
- * dahil), kesme işaretleri (' ’ ‘ ` ʼ — Özbekçe "G‘ayrat", Ukraynaca "В`ячеслав"), NOKTA (Türkçe "M.Ali", "A.Kadir"), Katalanca orta
- * nokta (Gal·la), İbranice geresh / gershayim (ג׳ני).
+ * Adın parçalarını birleştiren işaretler (iki inceleme 09-28, ölçüldü — ilk sürüm bunları keserek gerçek adı bozuyordu): tire (bölünmez,
+ * en tire, tam genişlik, Ermenice), kesme işaretleri (' ’ ‘ ` ʼ ′ ＇ — Özbekçe "G‘ayrat", Ukraynaca "В`ячеслав"), NOKTA (Türkçe "M.Ali"),
+ * Katalanca orta nokta (Gal·la), İbranice geresh / gershayim / maqaf (ג׳ני, בת־שבע), Japonca yabancı ad eşittiri (ジャン゠ポール, ＝, =).
  */
-const NAME_JOINERS = new Set(["-", "\u2010", "\u2011", "'", "\u2019", "\u2018", "`", "\u02BC", ".", "\u00B7", "\u05F3", "\u05F4"]);
+const NAME_JOINERS = new Set([
+  "-", "\u2010", "\u2011", "\u2013", "\uFF0D", "\u058A",
+  "'", "\u2019", "\u2018", "`", "\u02BC", "\u2032", "\uFF07",
+  ".", "\u00B7", "\u05F3", "\u05F4", "\u05BE", "\u30A0", "\uFF1D", "=",
+]);
+/** Adın başında durabilen kesme işaretleri (Hawaii ‘Iolani / 'Iolani) — ardından harf gelirse. */
+const LEADING_APOSTROPHES = new Set(["'", "\u2019", "\u2018", "\u02BB", "\u02BC"]);
 /**
- * Sıfır genişlikli birleştirici (ZWNJ / ZWJ) yalnız YAZIMI onu isteyen alfabelerde adın İÇİNDE kalır (Farsça "علی‌رضا", Sinhala
- * "ශ්‍රී"); Latin / Kiril / Yunan adında görünmez ayırıcıdır (kesilir).
+ * YAZIMIN İÇ DENETİM KARAKTERLERİ yalnız o yazımda adın İÇİNDE kalır (sayılmaz, parça açmaz): ZWNJ / ZWJ Arap ve Hint yazımlarında
+ * (Farsça "علی‌رضا", Sinhala "ශ්‍රී", eski Malayalam son ZWJ "ജയന്‍"), Tibet hece işareti (བསྟན་འཛིན), Moğolca serbest değişke seçicileri.
+ * Latin / Kiril / Yunan adında görünmez ayırıcıdır (kesilir). Yazım `Script_Extensions` ile okunur — harekeler (Arapça ünlü işaretleri)
+ * Script=Inherited'dır, Script_Extensions'ta Arapça.
  */
-const JOINER_SCRIPTS = /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Gurmukhi}\p{Script=Gujarati}\p{Script=Oriya}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Kannada}\p{Script=Malayalam}\p{Script=Sinhala}\p{Script=Myanmar}\p{Script=Khmer}]/u;
+const JOINER_SCRIPTS = /[\p{Script_Extensions=Arabic}\p{Script_Extensions=Syriac}\p{Script_Extensions=Devanagari}\p{Script_Extensions=Bengali}\p{Script_Extensions=Gurmukhi}\p{Script_Extensions=Gujarati}\p{Script_Extensions=Oriya}\p{Script_Extensions=Tamil}\p{Script_Extensions=Telugu}\p{Script_Extensions=Kannada}\p{Script_Extensions=Malayalam}\p{Script_Extensions=Sinhala}\p{Script_Extensions=Myanmar}\p{Script_Extensions=Khmer}]/u;
+const ZW_JOINERS = new Set(["\u200C", "\u200D"]);
+const TIBETAN = /\p{Script_Extensions=Tibetan}/u;
+const TIBETAN_TSHEG = new Set(["\u0F0B", "\u0F0C"]);
+const MONGOLIAN = /\p{Script_Extensions=Mongolian}/u;
+const MONGOLIAN_SELECTORS = new Set(["\u180B", "\u180C", "\u180D", "\u180E", "\u180F"]);
 /** Baştaki yön işaretleri / görünmez biçim karakterleri atlanır (RTL görünen adların çoğu RLM ile başlar). */
 const LEADING_IGNORABLE = /^\p{Default_Ignorable_Code_Point}+/u;
-/** En çok parça (birleştiriciyle ayrılmış): "Anne-Marie-Louise", "M.A.K". */
+/** En çok ÇOK HARFLİ parça (birleştiriciyle ayrılmış): "Anne-Marie-Louise". Tek harfli baş harfler sayılmaz ("K.V.S.Lakshmi"). */
 const MAX_NAME_PARTS = 3;
 /**
  * Modele giden ilk adın en fazla kod noktası sayısı. Gerçek ilk adlar bunun çok altında. 40, B3 sır taramasının "uzun ad"
@@ -100,8 +113,10 @@ export const PROMPT_FIRST_NAME_MAX = 40;
  * süzgeci (`detectKbInstructionHijack`) ikameden ÖNCE koşar, bu metni görmez. Artık: baştaki görünmez biçim karakteri atlanır; harfle
  * başlayan, ad birleştiricileriyle en çok üç parçalı baş kısım (sondaki nokta korunur: "J."), 40 kod noktası; harfle başlamıyorsa
  * `null` (çağıran nötr hitaba düşer). Gerçek adlar (Ayşe, M.Ali, Jean-Luc, O'Brien, G‘ayrat, José, محمد, علی‌رضا, ג׳ני, 李) AYNEN.
- * ⚠️ BİLİNEN SINIR (inceleme 09-28): ayırıcısız yazılmış metin karakter süzgecinden geçer ("EvcilHayvanSerbest", Çince / Japonca /
- * Tayca cümle) — yapısal çözüm (misafir adını ev sahibi bloğuna hiç koymamak) kurucu kararı, `docs/SABAH-KARARLARI-2026-09-28.md`.
+ * ⚠️ BİLİNEN SINIR (iki inceleme 09-28): karakter süzgeci HARF olan her şeyi geçirir — ayırıcısız metin ("EvcilHayvanSerbest", Çince /
+ * Japonca / Tayca cümle), harf harf noktalı yazım ("E.v.c.i.l", tek harfli parça sayılmaz — "K.V.S.Lakshmi" için) ve harf sınıfındaki
+ * ayırıcı benzerleri (U+A78F, U+02D1 gibi değiştirici harfler). Karakter kuralı bunları ayıramaz; yapısal çözüm (misafir adını ev
+ * sahibi bloğuna hiç koymamak) kurucu kararı, `docs/SABAH-KARARLARI-2026-09-28.md` K10-o.
  * YALNIZ modele giden yollar kullanır (oto-yanıt, gelen kutusu önerisi, Ayarlar testi); şablonla misafirin KENDİSİNE giden metin
  * (`template-apply`) `guestFirstNameOf`u kullanmaya devam eder — orada model yok.
  */
@@ -109,34 +124,58 @@ export function guestFirstNameForPrompt(guestIdentifier: string | null | undefin
   const first = guestFirstNameOf(guestIdentifier);
   if (!first) return null;
   const cps = Array.from(first.replace(LEADING_IGNORABLE, ""));
-  if (cps.length === 0 || !NAME_CHAR.test(cps[0]) || !/^\p{L}$/u.test(cps[0])) return null;
-  const out: string[] = [];
+  // Baştaki kesme işareti ("‘Iolani") yalnız ardından HARF gelirse kalır — gelmiyorsa aşağıdaki harf şartı null döndürür.
+  const start = LEADING_APOSTROPHES.has(cps[0]) ? 1 : 0;
+  if (cps.length <= start || !NAME_CHAR.test(cps[start]) || !/^\p{L}$/u.test(cps[start])) return null;
+  const out: string[] = cps.slice(0, start);
   let parts = 1;
-  for (let i = 0; i < cps.length && out.length < PROMPT_FIRST_NAME_MAX; i++) {
+  let partLen = 0; // geçerli parçanın harf sayısı (tek harfli baş harf parça saymaz)
+  const scriptInternal = (c: string, prev: string | undefined, next: string | undefined): boolean => {
+    if (!prev) return false;
+    if (ZW_JOINERS.has(c)) return JOINER_SCRIPTS.test(prev) && (next === undefined || JOINER_SCRIPTS.test(next));
+    if (TIBETAN_TSHEG.has(c)) return TIBETAN.test(prev) && next !== undefined && TIBETAN.test(next);
+    if (MONGOLIAN_SELECTORS.has(c)) return MONGOLIAN.test(prev) && (next === undefined || MONGOLIAN.test(next));
+    return false;
+  };
+  for (let i = start; i < cps.length && out.length < PROMPT_FIRST_NAME_MAX; i++) {
     const c = cps[i];
-    if (NAME_CHAR.test(c)) {
-      out.push(c);
-      continue;
-    }
     const next = cps[i + 1];
     const prev = cps[i - 1];
-    if ((c === "\u200C" || c === "\u200D") && next && NAME_CHAR.test(next) && JOINER_SCRIPTS.test(prev) && JOINER_SCRIPTS.test(next)) {
+    if (NAME_CHAR.test(c)) {
+      out.push(c);
+      partLen += 1;
+      continue;
+    }
+    if (scriptInternal(c, prev, next)) {
       out.push(c);
       continue;
     }
     if (NAME_JOINERS.has(c)) {
-      if (next && NAME_CHAR.test(next) && parts < MAX_NAME_PARTS) {
-        parts += 1;
+      const countsAsPart = partLen >= 2;
+      if (next && NAME_CHAR.test(next) && (!countsAsPart || parts < MAX_NAME_PARTS)) {
+        if (countsAsPart) parts += 1;
+        partLen = 0;
         out.push(c);
         continue;
       }
-      if (c === "." && !(next && NAME_CHAR.test(next))) out.push(c); // sondaki nokta ("J.") korunur
+      // Sondaki nokta ("J.") ve kesme işareti ("Rabi'") korunur.
+      if ((c === "." || c === "'" || c === "\u2019") && !(next && NAME_CHAR.test(next))) out.push(c);
     }
     break;
   }
-  // Tavanda kesildiyse sonda birleştirici kalmasın (sondaki nokta hariç).
-  while (out.length > 0 && !NAME_CHAR.test(out[out.length - 1]) && out[out.length - 1] !== ".") out.pop();
-  return out.length > 0 ? out.join("") : null;
+  // Tavanda kesildiyse sonda birleştirici kalmasın (sondaki nokta / kesme işareti ve yazımın iç denetim karakteri hariç).
+  while (out.length > 0) {
+    const last = out[out.length - 1];
+    if (NAME_CHAR.test(last) || last === "." || last === "'" || last === "\u2019") break;
+    if (scriptInternal(last, out[out.length - 2], undefined)) break;
+    out.pop();
+  }
+  // `out` boş olamaz: `start`taki harf hiçbir koşulda atılmaz.
+  const name = out.join("");
+  // Baştaki görünmez karakter atıldıktan sonra da yer tutucu ad gerçek ad değildir ("\u200FMisafir").
+  const folded = [name.toLocaleLowerCase("tr"), name.toLowerCase()];
+  if (folded.some((f) => f === "rezervasyon" || f === "misafir")) return null;
+  return name;
 }
 
 /**
