@@ -1377,6 +1377,14 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-27/28 GECE MODU (kurucu: "soru sorma, projeyi ilerlet, RAG/gömme + rakipler, bol güvenlik"; kararlar
+`docs/SABAH-KARARLARI-2026-09-28.md` K1–K10 a–r):** Codex 6 bulgu + 10 ajan bulgusu kapandı (kalanlar kurucu kararı) · saat okuma,
+küçük KB, getirme hataları, ölçer sadakati · 11 güvenlik denetimi (kiracılar arası açık YOK; doğrulanan küçük bulgular düzeltildi:
+misafir adı ev sahibi bilgisine yalnız ad biçiminde, e-posta konusu tek satır, elle rezervasyonda kanal işaretçisi, QR devir kontrolü
+tek satır, rezervasyon API'sinde iç alan yok, faturalı-kullanılamaz model cevabı bütçeye sayılır + mesaj başına 3 deneme) · RAG / gömme
+araştırması (`docs/RAG-EMBEDDING-SON-DURUM-2026-09-28.md`) · güvenlik kontrolleri envanteri (`docs/GUVENLIK-KONTROLLERI-2026-09-28.md`).
+Hepsi kırmızı-önce + mutasyon + tam kapılar + CI yeşil; ücretli çağrı YOK. Ders: gece incelemesi ad kuralının ilk sürümünde gerçek ad
+gerilemesi buldu ("M.Ali" → "M") — gerçek ad bataryası ÇOK ALFABELİ yazılır.
 **09-26 GECE #189 RAG ÖLÇEĞİ (kurucu /loop "300 kalemde bile ≥%95"; `docs/TASARIM-2026-09-26-rag-300-olcek.md`):** ölçer +
 gerçekçi dev/holdout seti + dört değişiklik (↑Retrieval #189); iki bayrak KAPALI. Gece ölçümleri OpenAI kredisini BİTİRDİ
 (kurucuya bildirildi) → 🚨 **kurucu 09-27: "KESİNLİKLE ÜCRETLİ TEST YAPMA"** — kurucu kredi yüklendiğini SÖYLEYENE kadar hiçbir
