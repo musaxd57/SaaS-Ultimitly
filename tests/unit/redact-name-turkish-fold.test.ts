@@ -17,6 +17,8 @@ describe("Türkçe harf ve büyük/küçük harf eşleşmesi", () => {
     ["IŞIL geldi", ["Işıl Demir"], "[Misafir] geldi"],
     ["Merhaba Mehmet Ali,", ["Mehmet  Ali"], "Merhaba [Misafir],"],
     ["GÜL ÇİÇEK aradı", ["Gül Çiçek"], "[Misafir] aradı"],
+    ["Merhaba Mehmet  Ali,", ["Mehmet Ali Kaya", "Mehmet Ali"], "Merhaba [Misafir],"], // metindeki çift boşluk (mutasyon F2)
+    ["Merhaba Mehmet\nAli,", ["Mehmet Ali"], "Merhaba [Misafir],"],
   ])("🚨 %j (%j) → %j", (text, names, expected) => {
     expect(redactNameFromBody(text, names)).toBe(expected);
   });

@@ -102,6 +102,7 @@ describe("09-28 — eksik sır etiketleri ve değer önce yazımı", () => {
     ["Password for wifi: gunesli", "gunesli"],
     ["Şifre (wifi): gunesli", "gunesli"],
     ["WiFi: gunesli2024", "gunesli2024"],
+    ["The pass 4821 opens the gate", "4821"], // çıplak "pass" etiket kalır ("Pass: x" zaten merkezî redaksiyonda)
   ])("🚨 %j → %j gitmez", (text, secret) => {
     expect(audit(text)).not.toContain(secret);
     expect(audit(text)).toContain("[GİZLİ]");
@@ -111,6 +112,8 @@ describe("09-28 — eksik sır etiketleri ve değer önce yazımı", () => {
     ["Kapı kodu 4821, check-in is from 3pm", "3pm"],
     ["Kapı kodu 4821 ve erken giriş ücreti 450 TL", "450 TL"],
     ["Kod 4821, check-out by 11 am", "11 am"],
+    ["Kapı kodu 4821 ve çıkış 11 am", "11 am"], // aynı cümlecikte: 1–12 + am/pm saattir (mutasyon M5)
+    ["Shuttle for passengers 2 adults and 1 child", "2 adults"], // passenger etiket değil (mutasyon M1)
     ["Kapı kodu 4821 giriş 14:00-16:00 arası", "14:00-16:00"],
     ["Passengers pay 30€ for the shuttle", "30€"],
     ["Passport number is not needed, the fee is 40 EUR", "40 EUR"],
