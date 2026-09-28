@@ -8,8 +8,7 @@ import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJso
 import { withManage } from "@/lib/route-guard";
 import { NextResponse } from "next/server";
 import {
-  exceedsGuestMessageLimit,
-  unansweredExceedsGuestMessageLimit,
+  aiSuggestExceedsLength,
   MESSAGE_TOO_LONG_SUGGEST_TEXT,
 } from "@/lib/ai/message-length";
 import { rateLimit } from "@/lib/rate-limit";
@@ -62,7 +61,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // ve kota düşümü YOK, metin kırpılıp modele verilmez; panel bu açıklamayı gösterir (boş kalmaz). Cevap verilen mesajın
   // KENDİSİ de sayılır (09-28 inceleme): rota son GELEN mesaja cevap önerir; arkasından bir giden mesaj varsa o mesaj
   // "cevapsız" kümede değildir ama modele yine TAM gidiyordu.
-  if (unansweredExceedsGuestMessageLimit(conversation.messages) || exceedsGuestMessageLimit(lastInbound.body)) {
+  if (aiSuggestExceedsLength(conversation.messages)) {
     return NextResponse.json({ error: MESSAGE_TOO_LONG_SUGGEST_TEXT }, { status: 422 });
   }
 

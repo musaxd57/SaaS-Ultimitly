@@ -53,3 +53,16 @@ export function unansweredExceedsGuestMessageLimit(
   }
   return false;
 }
+
+/**
+ * "AI öner" bu konuşmada uzunluk kuralına takılır mı — rota ve konuşma sayfası AYNI kural: cevapsız misafir mesajlarından biri ya da
+ * önerinin cevap vereceği SON GELEN mesaj sınırı aşıyor. Son gelen mesajın arkasında giden bir mesaj (ör. otomatik giriş mesajı) olsa da
+ * "AI öner" onu cevaplar; sayfa uyarıyı gizliyordu (09-28 CPU denetimi — rota 422 dönüyor, ev sahibi uyarıyı görmüyordu).
+ */
+export function aiSuggestExceedsLength(messages: readonly { direction: string; body: string | null }[]): boolean {
+  if (unansweredExceedsGuestMessageLimit(messages)) return true;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].direction === "inbound") return exceedsGuestMessageLimit(messages[i].body);
+  }
+  return false;
+}

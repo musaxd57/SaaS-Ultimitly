@@ -29,7 +29,7 @@ import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { preparedDraftOf } from "@/lib/conversation-items/prepared-draft";
 import { hostOfferForGate } from "@/lib/automation";
 import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
-import { unansweredExceedsGuestMessageLimit, MESSAGE_TOO_LONG_REASON } from "@/lib/ai/message-length";
+import { aiSuggestExceedsLength, MESSAGE_TOO_LONG_REASON } from "@/lib/ai/message-length";
 
 export const dynamic = "force-dynamic";
 
@@ -168,8 +168,9 @@ export default async function ConversationPage({
   const turnoverIn = !stayIsOver && adjacency?.previousSameDay === true;
   const turnoverOut = !stayIsOver && adjacency?.nextSameDay === true;
 
-  // K10-t: cevapsız misafir mesajlarından biri 8.000 karakteri aşıyor mu (oto-yanıt kaydından bağımsız).
-  const tooLongForAi = unansweredExceedsGuestMessageLimit(conversation.messages);
+  // K10-t: cevapsız misafir mesajlarından biri ya da "AI öner"in cevaplayacağı son gelen mesaj 8.000 karakteri aşıyor mu (oto-yanıt
+  // kaydından bağımsız; "AI öner" rotasıyla AYNI kural).
+  const tooLongForAi = aiSuggestExceedsLength(conversation.messages);
   const messages: ThreadMessage[] = conversation.messages
     // A superseded AI draft (its outbox row was CANCELED by the send-time veto) never reached
     // the guest — hide it from the thread. It is NOT deleted: the row stays for export/audit

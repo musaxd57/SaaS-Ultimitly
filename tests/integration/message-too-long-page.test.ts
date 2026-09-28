@@ -34,7 +34,11 @@ function textOf(node: unknown): string {
 const LONG = "Merhaba, uzun bir mesaj. ".repeat(330) + "Dairede duman var!";
 const WARNING = "Mesaj çok uzun (8.000 karakterden fazla)";
 
-async function render(status: "new" | "problem" | "answered" | "closed", lastRiskType: string | null): Promise<string> {
+async function render(
+  status: "new" | "problem" | "answered" | "closed",
+  lastRiskType: string | null,
+  after: { direction: "outbound"; authorType: string; senderName: string; body: string }[] = [],
+): Promise<string> {
   const org = await prisma.organization.create({ data: { name: "Uzun Org" } });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 3" } });
   const conversation = await prisma.conversation.create({
@@ -46,7 +50,12 @@ async function render(status: "new" | "problem" | "answered" | "closed", lastRis
       lastRiskType,
       skippedReason: lastRiskType ? "complaint" : null,
       lastMessageAt: new Date(),
-      messages: { create: [{ direction: "inbound", authorType: "guest", senderName: "Ada", body: LONG }] },
+      messages: {
+        create: [
+          { direction: "inbound", authorType: "guest", senderName: "Ada", body: LONG, createdAt: new Date(Date.now() - 60_000) },
+          ...after.map((m, i) => ({ ...m, createdAt: new Date(Date.now() - 30_000 + i) })),
+        ],
+      },
     },
   });
   mockAuth.mockResolvedValue({ userId: "u1", organizationId: org.id, role: "owner", email: "o@x.com" } as never);
@@ -70,6 +79,12 @@ describe("uzun mesaj uyarısı — konuşma sayfası", () => {
     expect(await render("answered", null)).not.toContain(WARNING);
     await resetDb();
     expect(await render("closed", null)).not.toContain(WARNING);
+  });
+
+  it("🚨 uzun mesajın ardından otomatik giden bir mesaj (giriş bilgisi) olsa da uyarı görünür — 'AI öner' o mesajı cevaplar ve reddeder", async () => {
+    // 09-28 CPU denetimi: sayfa yalnız "cevapsız" kümeye bakıyordu, rota son gelen mesaja da bakıyordu → uyarı gizli, düğme 422.
+    const text = await render("new", null, [{ direction: "outbound", authorType: "system", senderName: "Lixus", body: "Giriş bilgileriniz: kapı kodu yakında." }]);
+    expect(text).toContain(WARNING);
   });
 
   it("KONTROL — yeni konuşmada uyarı görünür (risk sebebi yoksa sebep satırı yok)", async () => {
