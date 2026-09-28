@@ -26,7 +26,8 @@ export const GUEST_GIVEN_NAME_MAX = 100;
 /** Kanalın ayrı ad alanını saklanacak biçime getirir: kırpılır, boşsa `null`, tavan kod noktasıyla (vekil çifti bölünmez). */
 export function givenNameForStorage(raw: string | null | undefined): string | null {
   if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
+  // NUL veritabanına yazılamaz (↑`canonicalStr` ile aynı kural; başka çağıran da güvende olsun).
+  const trimmed = raw.replaceAll("\u0000", "").trim();
   if (!trimmed) return null;
   const cps = Array.from(trimmed);
   return cps.length > GUEST_GIVEN_NAME_MAX ? cps.slice(0, GUEST_GIVEN_NAME_MAX).join("").trimEnd() : trimmed;

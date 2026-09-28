@@ -152,8 +152,14 @@ export function __setIngestAdapterForTest(provider: OutboundProvider, adapter: I
 
 // ---- Canonical normalizasyon yardımcıları (sağlayıcı-nötr; adaptörler kullanır) ----
 
+/**
+ * Sağlayıcı dizesinin tek girişi. NUL (U+0000) silinir (09-28): PostgreSQL `text` onu saklayamaz — NUL taşıyan ad / mesaj gövdesi
+ * o rezervasyonun yazmasını HER senkronda düşürüyordu. Başka hiçbir karaktere dokunulmaz.
+ */
 export function canonicalStr(value: unknown): string | null {
-  return typeof value === "string" && value.length ? value : null;
+  if (typeof value !== "string") return null;
+  const v = value.includes("\u0000") ? value.replaceAll("\u0000", "") : value;
+  return v.length ? v : null;
 }
 
 export function canonicalDate(value: unknown): Date | null {
