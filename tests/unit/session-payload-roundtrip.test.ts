@@ -35,6 +35,8 @@ const FULL: Required<SessionPayload> = {
   actorEmail: "actor@example.com",
   actorName: "Gerçek Operatör",
   actorSessionEpoch: 3,
+  // K8 (09-28): bürünme başlangıcı — düşerse bürünme 2 saat sınırıyla hemen "süresi doldu" sayılır.
+  impersonatedAt: 1_790_000_000,
   mfa: true,
 };
 

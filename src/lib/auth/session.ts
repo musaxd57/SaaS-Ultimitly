@@ -93,6 +93,11 @@ export interface SessionPayload {
   // is skipped for them (backward compatible; nobody is logged out on rollout).
   actorSessionEpoch?: number;
   /**
+   * Bürünmenin başladığı an (UNIX saniye; K8, 09-28). Bürünme en çok 2 saat sürer (`auth/impersonation.ts`); damgasız bürünme
+   * belirteci süresi dolmuş sayılır. Müşteriden müşteriye geçişte İLK başlangıç korunur.
+   */
+  impersonatedAt?: number;
+  /**
    * BU OTURUM İKİNCİ FAKTÖRDEN GEÇTİ Mİ (08-05).
    *
    * ⚠️ "Hesapta 2FA yapılandırılmış" ile AYNI ŞEY DEĞİL — kasten. Airbnb'nin
@@ -163,6 +168,7 @@ export async function verifySession(token: string | undefined): Promise<SessionP
         ...(typeof payload.actorEmail === "string" ? { actorEmail: payload.actorEmail } : {}),
         ...(typeof payload.actorName === "string" ? { actorName: payload.actorName } : {}),
         ...(typeof payload.actorSessionEpoch === "number" ? { actorSessionEpoch: payload.actorSessionEpoch } : {}),
+        ...(typeof payload.impersonatedAt === "number" ? { impersonatedAt: payload.impersonatedAt } : {}),
         ...(typeof payload.mfa === "boolean" ? { mfa: payload.mfa } : {}),
       };
     }

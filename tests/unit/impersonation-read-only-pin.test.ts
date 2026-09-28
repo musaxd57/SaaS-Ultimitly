@@ -1,0 +1,110 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
+import ts from "typescript";
+
+// ---------------------------------------------------------------------------
+// K8 (kurucu kararı 09-28) MEKANİK PİN: bürünmüşken müşteri hesabında yazma YOK. API'deki her YAZMA işleyicisi (POST / PUT /
+// PATCH / DELETE) ya `withAuth` / `withManage` / `withOwner` sarmalından geçer (salt-okuma orada TEK boğazda), ya kendi
+// bürünme kontrolünü taşır (`impersonationReadOnly(` / `isImpersonating(` / `session.actorUserId`), ya da aşağıdaki GEREKÇELİ
+// listededir. Yeni sarmalayıcısız yazma ucu eklenirse test kırmızı: ya kontrol eklenir ya listeye bilinçli satır yazılır.
+// Ayrıca GET olduğu hâlde müşteri verisini toplu indiren / bağlantı yazan uçlar açık kontrol taşır.
+// ---------------------------------------------------------------------------
+
+const API_DIR = path.resolve(__dirname, "../../src/app/api");
+const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const WRAPPERS = new Set(["withAuth", "withManage", "withOwner"]);
+const printer = ts.createPrinter({ removeComments: true });
+
+/** Oturumsuz / kimlik / operatör paneli uçları — müşteri oturumu ADINA yazmazlar. */
+const ALLOWED_WITHOUT_CHECK: Record<string, string> = {
+  "account/forgot-password POST": "oturumsuz şifre sıfırlama",
+  "auth/login POST": "oturumsuz giriş",
+  "auth/logout POST": "çıkış (yalnız çerezi siler)",
+  "auth/register POST": "oturumsuz kayıt",
+  "auth/resend-verification POST": "oturumsuz doğrulama e-postası",
+  "auth/verify-email POST": "e-posta doğrulama (belirteç + parola)",
+  "chat/[token] POST": "halka açık QR sohbeti (misafir, belirteçle)",
+  "cron/email-outbox POST": "zamanlayıcı (sır)",
+  "cron/sync POST": "zamanlayıcı (sır)",
+  "csp-report POST": "tarayıcı CSP raporu",
+  "demo/ai POST": "halka açık demo",
+  "leads POST": "halka açık iletişim formu",
+  "webhooks/paddle POST": "ödeme sağlayıcısı (imza)",
+  "admin/customers POST": "operatör paneli (süper-admin kendi yetkisiyle)",
+  "admin/exit POST": "bürünmeden çıkış",
+  "admin/impersonate POST": "bürünmeye giriş / müşteri değiştirme",
+  "admin/leads/[id] PATCH": "operatör paneli",
+  "admin/quality-audit POST": "operatör paneli",
+  "admin/reset-2fa POST": "operatör paneli",
+};
+
+type Handler = { key: string; wrapped: boolean; body: string };
+
+function handlersOf(rel: string, text: string): Handler[] {
+  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const dir = rel.replace(/\/?route\.ts$/, "");
+  const out: Handler[] = [];
+  const exported = (n: ts.Node) => (ts.getCombinedModifierFlags(n as ts.Declaration) & ts.ModifierFlags.Export) !== 0;
+  for (const st of sf.statements) {
+    if (ts.isFunctionDeclaration(st) && st.name && exported(st)) {
+      out.push({ key: `${dir} ${st.name.text}`, wrapped: false, body: printer.printNode(ts.EmitHint.Unspecified, st, sf) });
+    } else if (ts.isVariableStatement(st) && exported(st)) {
+      for (const d of st.declarationList.declarations) {
+        if (!ts.isIdentifier(d.name) || !d.initializer) continue;
+        const init = d.initializer;
+        const wrapped = ts.isCallExpression(init) && ts.isIdentifier(init.expression) && WRAPPERS.has(init.expression.text);
+        out.push({ key: `${dir} ${d.name.text}`, wrapped, body: printer.printNode(ts.EmitHint.Unspecified, init, sf) });
+      }
+    } else if (ts.isExportDeclaration(st) && st.exportClause && ts.isNamedExports(st.exportClause)) {
+      for (const el of st.exportClause.elements) out.push({ key: `${dir} ${el.name.text}`, wrapped: false, body: "" });
+    }
+  }
+  return out;
+}
+
+function walk(dir: string): string[] {
+  return readdirSync(dir).flatMap((e) => {
+    const full = path.join(dir, e);
+    return statSync(full).isDirectory() ? walk(full) : [full];
+  });
+}
+
+const all = walk(API_DIR)
+  .map((f) => path.relative(API_DIR, f).split(path.sep).join("/"))
+  .filter((rel) => rel.endsWith("route.ts"))
+  .flatMap((rel) => handlersOf(rel, readFileSync(path.join(API_DIR, rel), "utf8")));
+const mutating = all.filter((h) => MUTATING.has(h.key.split(" ").pop()!));
+const OWN_CHECK = /impersonationReadOnly\(|isImpersonating\(|session\.actorUserId\)/;
+
+describe("K8 — her yazma ucu salt-okunur bürünmeyi uygular", () => {
+  it("anti-vakum: ayrıştırıcı yazma uçlarını gerçekten buluyor", () => {
+    expect(mutating.length).toBeGreaterThan(60);
+    expect(mutating.filter((h) => h.wrapped).length).toBeGreaterThan(40);
+  });
+
+  it("🚨 sarmalayıcısız her yazma ucu kendi kontrolünü taşır ya da gerekçeli listededir", () => {
+    const offenders = mutating
+      .filter((h) => !h.wrapped && !OWN_CHECK.test(h.body) && !(h.key in ALLOWED_WITHOUT_CHECK))
+      .map((h) => h.key);
+    expect(offenders).toEqual([]);
+  });
+
+  it("listede artık var olmayan uç kalmaz (bayat satır yok)", () => {
+    const keys = new Set(mutating.map((h) => h.key));
+    expect(Object.keys(ALLOWED_WITHOUT_CHECK).filter((k) => !keys.has(k))).toEqual([]);
+  });
+
+  it("🚨 GET olsa da müşteri verisini toplu indiren / kanal bağlantısı yazan uçlar açık kontrol taşır", () => {
+    for (const key of ["account/export GET", "hospitable/oauth/authorize GET", "hospitable/oauth/callback GET"]) {
+      const h = all.find((x) => x.key === key);
+      expect(h, key).toBeDefined();
+      expect(h!.body, key).toMatch(/isImpersonating\(/);
+    }
+  });
+
+  it("🚨 tek boğaz: `withAuth` salt-okuma kontrolünü uygular", () => {
+    const guard = readFileSync(path.resolve(__dirname, "../../src/lib/route-guard.ts"), "utf8");
+    expect(guard).toMatch(/impersonationReadOnly\(session, req\.method\)/);
+  });
+});

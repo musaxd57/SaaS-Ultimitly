@@ -1,3 +1,4 @@
+import { impersonationExpired, isImpersonating, isReadOnlyMethod, IMPERSONATION_READ_ONLY_MESSAGE } from "@/lib/auth/impersonation";
 import { NextResponse } from "next/server";
 import { getSession, type SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -19,6 +20,9 @@ export type { SessionPayload };
 export async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession();
   if (!session) return null;
+  // K8 (kurucu kararı 09-28): bürünme en çok 2 saat; süresi dolmuş (ya da damgasız, eski) bürünme hiçbir API'ye erişemez.
+  // Çıkış rotası (`/api/admin/exit`) bu kapıdan geçmez — operatör kendi oturumuna yine dönebilir.
+  if (impersonationExpired(session)) return null;
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
@@ -133,6 +137,16 @@ export function notFound(message = "Bu kayıt bulunamadı.") {
 
 export function forbidden(message = "Bu işlem için yetkiniz bulunmuyor. Gerekiyorsa işletme sahibinizle iletişime geçin.") {
   return NextResponse.json({ error: message }, { status: 403 });
+}
+
+/**
+ * K8 (kurucu kararı 09-28): bürünmüşken müşteri hesabında YAZMA yok. GET / HEAD / OPTIONS dışındaki istek 403 (sade ileti);
+ * bürünme değilse `null`. `withAuth` her sarmalı uçta uygular; sarmalayıcısız müşteri uçları doğrudan çağırır (pin
+ * `impersonation-read-only-pin.test.ts`).
+ */
+export function impersonationReadOnly(session: { actorUserId?: string }, method: string): NextResponse | null {
+  if (!isImpersonating(session) || isReadOnlyMethod(method)) return null;
+  return forbidden(IMPERSONATION_READ_ONLY_MESSAGE);
 }
 
 /** 402: a paid/AI feature is used while the subscription is not active. */

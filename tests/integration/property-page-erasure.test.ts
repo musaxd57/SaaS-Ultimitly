@@ -140,3 +140,41 @@ describe("properties/[id] — KVKK silme kartı görünürlüğü (server-side g
     expect(erasureControls(tree)).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// K8 (kurucu kararı 09-28): bürünme SALT-OKUNUR — sayfa açılışı da müşteri hesabına YAZMAZ. Takvim belirteci yoksa sayfa onu ilk
+// açılışta üretip kaydediyordu; bürünmüşken üretilmez (takvim beslemesi kartı da görünmez), müşterinin kendi açılışı üretir.
+// ---------------------------------------------------------------------------
+describe("properties/[id] — bürünmüşken sayfa açılışı yazmaz (K8)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  async function seedTokenless() {
+    const org = await prisma.organization.create({ data: { name: "K8 Org" } });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Belirteçsiz Daire" } });
+    return { org, property };
+  }
+
+  it("🚨 bürünmüşken takvim belirteci ÜRETİLMEZ (veritabanı değişmez)", async () => {
+    const { org, property } = await seedTokenless();
+    mockAuth.mockResolvedValue({
+      ...(sessionFor(org.id, "owner") as object),
+      actorUserId: "op1",
+      actorEmail: "ops@lixusai.com",
+      impersonatedAt: Math.floor(Date.now() / 1000),
+    } as never);
+    await renderPage(property.id);
+    const after = await prisma.property.findUniqueOrThrow({ where: { id: property.id } });
+    expect(after.icalToken).toBeNull();
+  });
+
+  it("KONTROL — müşterinin kendi açılışı belirteci üretir", async () => {
+    const { org, property } = await seedTokenless();
+    mockAuth.mockResolvedValue(sessionFor(org.id, "owner"));
+    await renderPage(property.id);
+    const after = await prisma.property.findUniqueOrThrow({ where: { id: property.id } });
+    expect(after.icalToken).toEqual(expect.any(String));
+  });
+});

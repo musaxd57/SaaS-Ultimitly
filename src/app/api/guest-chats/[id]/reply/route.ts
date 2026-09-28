@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound, readJsonCappedOrNull } from "@/lib/api";
+import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound, readJsonCappedOrNull, impersonationReadOnly } from "@/lib/api";
 import { claimOutboundSend } from "@/lib/outbound-claim";
 import { acquireGuestChatThreadLock } from "@/lib/guest-chat";
 
@@ -11,6 +11,9 @@ import { acquireGuestChatThreadLock } from "@/lib/guest-chat";
 // a qr-chat ("chat") thread.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
+  // K8 (kurucu kararı 09-28): bürünmüşken müşteri hesabında yazma yok.
+  const readOnly = session ? impersonationReadOnly(session, req.method) : null;
+  if (readOnly) return readOnly;
   if (!session) return unauthorized();
   if (!canManage(session)) return forbidden();
 

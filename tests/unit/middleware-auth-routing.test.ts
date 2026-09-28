@@ -125,3 +125,41 @@ describe("middleware — e-posta doğrulama sayfası", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// K8 (kurucu kararı 09-28): bürünme en çok 2 SAAT — ara katman süresi dolmuş (ya da damgasız, eski) bürünme belirtecini sayfa
+// açılmadan ÇIKIŞA yollar; geçerli bürünme sayfaya geçer.
+// ---------------------------------------------------------------------------
+describe("middleware — bürünme süresi (K8)", () => {
+  async function reqImpersonating(impersonatedAt: number | undefined) {
+    const req = new NextRequest("https://www.lixusai.com/inbox");
+    const payload: SessionPayload = {
+      userId: "u1",
+      organizationId: "o1",
+      role: "owner",
+      email: "host@example.com",
+      name: "Host",
+      sessionEpoch: 0,
+      actorUserId: "op1",
+      actorEmail: "ops@lixusai.com",
+      actorName: "Operator",
+      actorSessionEpoch: 0,
+      ...(impersonatedAt === undefined ? {} : { impersonatedAt }),
+    };
+    req.cookies.set(SESSION_COOKIE, await signSession(payload));
+    return middleware(req);
+  }
+  const nowSec = () => Math.floor(Date.now() / 1000);
+
+  it("🚨 2 saati aşan bürünme çıkışa yönlendirilir", async () => {
+    expect(redirectTo(await reqImpersonating(nowSec() - 2 * 60 * 60 - 60))).toBe("/api/auth/logout");
+  });
+
+  it("🚨 damgasız (eski) bürünme belirteci çıkışa yönlendirilir", async () => {
+    expect(redirectTo(await reqImpersonating(undefined))).toBe("/api/auth/logout");
+  });
+
+  it("KONTROL — 2 saatin içindeki bürünme sayfaya geçer", async () => {
+    expect(redirectTo(await reqImpersonating(nowSec() - 60))).toBeNull();
+  });
+});

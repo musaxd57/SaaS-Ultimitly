@@ -57,6 +57,15 @@ describe("POST /api/guest-chats/[id]/resume-ai (host re-enables the AI)", () => 
     expect((await call("x")).status).toBe(401);
   });
 
+  it("🚨 K8: bürünmüşken (salt-okunur destek görünümü) 403 — yapay zekâ yeniden açılmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const id = await makeChatConvo(propertyId);
+    session = { ...sess(orgId, "owner"), actorUserId: "op1", actorEmail: "ops@lixusai.com", impersonatedAt: Math.floor(Date.now() / 1000) };
+    const res = await call(id);
+    expect(res.status).toBe(403);
+    expect(await markerCount(id)).toBe(0);
+  });
+
   it("403 for staff — owner/manager only", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const id = await makeChatConvo(propertyId);

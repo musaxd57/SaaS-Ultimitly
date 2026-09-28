@@ -7,6 +7,7 @@ import {
   signSession,
   verifySession,
 } from "@/lib/auth/session";
+import { impersonationExpired } from "@/lib/auth/impersonation";
 
 /** Oturum GEREKTİRMEYEN kimlik sayfaları — çıkış yapmış ziyaretçi görebilir. */
 const AUTH_PATHS = ["/login", "/register", "/sifremi-unuttum", "/e-posta-dogrula"];
@@ -37,6 +38,14 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = readSessionCookie((name) => req.cookies.get(name)?.value);
   const session = await verifySession(token);
+  // K8 (kurucu kararı 09-28): süresi dolan bürünme (en çok 2 saat) hiçbir sayfayı görmez → çıkış rotası çerezleri temizler ve
+  // girişe yollar (`/api` ara katmandan geçmez, döngü olmaz). Veritabanı yok: yalnız imzalı başlangıç damgası.
+  if (session && impersonationExpired(session)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/api/auth/logout";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
   const matches = (paths: string[]) =>
     paths.some((p) => pathname === p || pathname.startsWith(p + "/"));
   // İKİ AYRI SORU, tek bayrakta toplanmamalı: "bu sayfa oturumsuz görülebilir mi"

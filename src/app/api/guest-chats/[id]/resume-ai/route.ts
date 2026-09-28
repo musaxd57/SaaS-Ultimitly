@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, canManage, forbidden, jsonOk, notFound } from "@/lib/api";
+import { requireSession, unauthorized, canManage, forbidden, jsonOk, notFound, impersonationReadOnly } from "@/lib/api";
 import { AI_RESUME_MARKER, guestChatAiPausedFromMessages } from "@/lib/guest-chat";
 import { SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED } from "@/lib/message-author";
 
@@ -15,6 +15,9 @@ import { SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED } from "@/lib/message-author";
 // Idempotent: a no-op (200) when the AI is already active.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
+  // K8 (kurucu kararı 09-28): bürünmüşken müşteri hesabında yazma yok.
+  const readOnly = session ? impersonationReadOnly(session, _req.method) : null;
+  if (readOnly) return readOnly;
   if (!session) return unauthorized();
   if (!canManage(session)) return forbidden();
 

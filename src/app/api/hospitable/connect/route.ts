@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { requireSession, unauthorized, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+import { impersonationReadOnly, requireSession, unauthorized, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { verifyToken, HospitableError } from "@/lib/hospitable";
 import { isSuperAdmin } from "@/lib/admin";
@@ -29,8 +29,11 @@ import { writeAudit } from "@/lib/audit";
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // K8 (kurucu kararı 09-28): bürünmüşken (salt-okunur destek görünümü) bağlantı kurulamaz — sahip kendisi bağlar.
+  const readOnly = impersonationReadOnly(session, req.method);
+  if (readOnly) return readOnly;
   // The account's OWNER may manage their own connection; the operator (super-admin,
-  // incl. while impersonating) may also do it for them. Others cannot.
+  // outside impersonation) may also do it for them. Others cannot.
   if (!(session.role === "owner" || isSuperAdmin(session))) return unauthorized();
 
   // Each verify hits Hospitable (outbound) on user input — throttle to stop
@@ -119,6 +122,9 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // K8 (kurucu kararı 09-28): bürünmüşken bağlantı kaldırılamaz (salt-okunur destek görünümü).
+  const readOnly = impersonationReadOnly(session, "DELETE");
+  if (readOnly) return readOnly;
   // The account's OWNER may manage their own connection; the operator (super-admin,
   // incl. while impersonating) may also do it for them. Others cannot.
   if (!(session.role === "owner" || isSuperAdmin(session))) return unauthorized();

@@ -1,3 +1,4 @@
+import { isImpersonating } from "@/lib/auth/impersonation";
 import { NextResponse } from "next/server";
 import { forbidden, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
@@ -15,6 +16,8 @@ export const dynamic = "force-dynamic";
 // the secrets-exclusion contract; a parity test pins the two routes together.
 // ---------------------------------------------------------------------------
 export const GET = withManage(async (session) => {
+  // K8 (kurucu kararı 09-28): destek görünümü (bürünme) tüm misafir verisini indiremez — GET olsa da.
+  if (isImpersonating(session)) return forbidden("Destek görünümünde müşteri verisi dışa aktarılamaz.");
   // OWNER-ONLY (Codex): the export carries the org's calendar-feed URLs
   // (bearer-like credentials), invoices and consent evidence — manager-level
   // access is not enough for a full-account data handover. withManage already

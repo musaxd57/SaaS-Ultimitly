@@ -97,6 +97,16 @@ describe("OAuth state ↔ session context binding", () => {
     expect(mockSave.mock.calls[0][0]).toBe("org_a");
   });
 
+  it("🚨 K8: akış bürünmüşken tamamlanamaz — dönüşte ayarlara geri gider, kod takas EDİLMEZ, hiçbir şey kaydedilmez", async () => {
+    session = owner("org_a", "user_1");
+    const { cookie, state } = await startFlow();
+    session = { ...owner("org_a", "user_1"), actorUserId: "op1", actorEmail: "ops@lixusai.com", impersonatedAt: Math.floor(Date.now() / 1000) };
+    const res = await callback(callbackReq(state, cookie));
+    expect(res.headers.get("location")).toContain("hospitable=forbidden");
+    expect(mockExchange).not.toHaveBeenCalled();
+    expect(mockSave).not.toHaveBeenCalled();
+  });
+
   it("ORG DRIFT: session switches to another org mid-flow → rejected, NOTHING saved, code never exchanged", async () => {
     session = owner("org_a", "user_1");
     const { cookie, state } = await startFlow();

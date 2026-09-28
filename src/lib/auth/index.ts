@@ -1,3 +1,4 @@
+import { impersonationExpired } from "@/lib/auth/impersonation";
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -73,6 +74,8 @@ export async function requireAuth(): Promise<SessionPayload> {
   // ⚠️ Yalnız IMPERSONATION oturumlarını ilgilendirir (`actorUserId` yoksa hiç
   // koşmaz), yani normal müşteri oturumları bu satırdan etkilenmez.
   if (session.actorUserId && !isSuperAdmin(session)) redirect("/api/auth/logout");
+  // K8 (kurucu kararı 09-28): bürünme en çok 2 saat (damgasız eski bürünme de dolmuş sayılır) → çıkış; operatör yeniden girer.
+  if (impersonationExpired(session)) redirect("/api/auth/logout");
 
   // Epoch check outside try/catch's control flow: redirect() throws NEXT_REDIRECT,
   // which must NOT be swallowed by the fail-open catch below.

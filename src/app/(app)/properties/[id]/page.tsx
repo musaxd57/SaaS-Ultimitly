@@ -1,3 +1,4 @@
+import { isImpersonating } from "@/lib/auth/impersonation";
 import Link from "next/link";
 import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import { headers } from "next/headers";
@@ -154,7 +155,9 @@ export default async function PropertyDetailPage({
   // Lazily ensure the property has a calendar feed token (backfill for
   // properties created before the feature existed).
   let icalToken = property.icalToken;
-  if (!icalToken) {
+  // K8 (kurucu kararı 09-28): destek görünümü (bürünme) salt okunur — sayfa açılışı da YAZMAZ; anahtar sahibin ilk ziyaretinde
+  // üretilir, o zamana kadar besleme kartı gösterilmez.
+  if (!icalToken && !isImpersonating(session)) {
     icalToken = generateCalendarToken();
     await prisma.property.update({ where: { id: property.id }, data: { icalToken } });
   }
@@ -310,7 +313,7 @@ export default async function PropertyDetailPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <CalendarFeed feedUrl={feedUrl} propertyId={property.id} />
+              {icalToken ? <CalendarFeed feedUrl={feedUrl} propertyId={property.id} /> : null}
             </CardContent>
           </Card>
 

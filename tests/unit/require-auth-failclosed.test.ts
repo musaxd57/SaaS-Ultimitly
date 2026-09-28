@@ -106,6 +106,8 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     actorEmail: OPERATOR,
     actorName: "Operator",
     actorSessionEpoch: 0,
+    // K8 (09-28): damgasız bürünme belirteci süresi dolmuş sayılır — damga olmadan bu testler yetki kontrolünü değil süreyi ölçerdi.
+    impersonatedAt: Math.floor(Date.now() / 1000),
     // `isSuperAdmin` İKİ koşul ister: e-posta listede VE bu oturum ikinci
     // faktörden geçmiş (08-05). Taban oturum iddiayı taşır ki ölçülen şey
     // env'den silmenin etkisi olsun.
@@ -171,6 +173,21 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
     TOKEN = await signSession(impersonation);
     await expect(requireAuth()).resolves.toMatchObject({ actorEmail: OPERATOR });
+  });
+
+  // K8 (09-28): bürünme en çok 2 saat — sayfa yolu API ile AYNI kuralı uygular (yoksa API 401'lerken sayfalar okunurdu).
+  it("🚨 K8: 2 saati aşan bürünme sayfa yolunda da çıkışa düşer (yetki dursa bile)", async () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
+    TOKEN = await signSession({ ...impersonation, impersonatedAt: Math.floor(Date.now() / 1000) - 2 * 60 * 60 - 60 });
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("🚨 K8: damgasız (bu sürümden önce basılmış) bürünme belirteci sayfa yolunda da çıkışa düşer", async () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
+    const legacy = { ...impersonation } as SessionPayload & { impersonatedAt?: number };
+    delete legacy.impersonatedAt;
+    TOKEN = await signSession(legacy);
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
   });
 
   it("e-posta SUPERADMIN_EMAILS'ten SİLİNİNCE sayfa yolu da oturumu DÜŞÜRÜR", async () => {
@@ -304,6 +321,8 @@ describe("requireAuth — operatör sayfası DB arızasında fail-closed (F06)",
       actorEmail: FOUNDER,
       actorName: "Founder",
       actorSessionEpoch: 0,
+      // K8: damga olmasa çıkış SÜRE yüzünden olurdu ve bu test veritabanı arızası yolunu ölçmezdi.
+      impersonatedAt: Math.floor(Date.now() / 1000),
       mfa: true,
     } as SessionPayload);
     await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");

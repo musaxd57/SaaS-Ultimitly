@@ -81,6 +81,9 @@ function impersonationSession(s: {
     actorEmail: OPERATOR,
     actorName: "Operator",
     actorSessionEpoch: 1,
+    // K8 (09-28): bugünkü kodun bastığı her bürünme belirteci başlangıç damgası taşır; damgasız belirteç SÜRESİ DOLMUŞ sayılır
+    // (ayrı pin `impersonation-read-only.test.ts`) — damga yoksa buradaki testler yetki silinmesini değil süre dolmasını ölçerdi.
+    impersonatedAt: Math.floor(Date.now() / 1000),
     // ⚠️ 08-05: operatör yetkisi artık BU OTURUMUN ikinci faktörden geçmiş
     // olmasını da istiyor. İddiasız bir impersonation oturumu `requireSession`
     // tarafından KOMPLE reddedilir (api.ts:54 fail-closed) — burada ölçülen şey

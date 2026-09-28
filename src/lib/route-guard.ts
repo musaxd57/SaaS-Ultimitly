@@ -5,6 +5,7 @@ import {
   forbidden,
   serverError,
   canManage,
+  impersonationReadOnly,
   type SessionPayload,
 } from "@/lib/api";
 
@@ -42,6 +43,9 @@ export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
   return async (req: NextRequest, ctx: RouteCtx<P>): Promise<Response> => {
     const session = await requireSession();
     if (!session) return unauthorized();
+    // K8 (kurucu kararı 09-28): bürünmüşken (destek görünümü) müşteri hesabında yazma yok — TEK boğaz.
+    const readOnly = impersonationReadOnly(session, req.method);
+    if (readOnly) return readOnly;
     try {
       return await handler(session, req, ctx);
     } catch (err) {

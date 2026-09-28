@@ -1,3 +1,4 @@
+import { isImpersonating } from "@/lib/auth/impersonation";
 import { type NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
@@ -26,6 +27,8 @@ export async function GET(req: NextRequest) {
   const base = baseUrlFromHost(req.headers.get("host"));
   const session = await requireSession();
   if (!session) return NextResponse.redirect(`${base}/login`);
+  // K8 (kurucu kararı 09-28): bürünmüşken (salt-okunur destek görünümü) kanal bağlantısı kurulamaz — akış sonunda YAZAR.
+  if (isImpersonating(session)) return NextResponse.redirect(`${base}/settings?hospitable=forbidden`);
   if (!(session.role === "owner" || isSuperAdmin(session))) {
     return NextResponse.redirect(`${base}/settings?hospitable=forbidden`);
   }

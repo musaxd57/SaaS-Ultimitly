@@ -59,6 +59,22 @@ export async function enterOrganization(
   // The operator's OWN epoch (preserved across customer→customer hops), so the
   // operator resetting their password invalidates a stolen impersonation token.
   const actorSessionEpoch = current.actorSessionEpoch ?? current.sessionEpoch;
+  // K8 (kurucu kararı 09-28): bürünme en çok 2 saat — müşteriden müşteriye geçişte İLK başlangıç korunur (süre uzatılamaz).
+  const impersonatedAt = current.impersonatedAt ?? Math.floor(Date.now() / 1000);
+
+  // 🚨 BAŞLANGIÇ KAYDI ZORUNLU VE ÇEREZDEN ÖNCE (K8, 09-28): eskiden çerez yazıldıktan SONRA en iyi çabayla yazılıyordu
+  // (veritabanı hatasında sessizce atlanıyordu). Operatörün müşteri verisine erişimi iz bırakmadan başlayamaz: kayıt
+  // yazılamazsa hata fırlar, çerez yazılmaz, bürünme BAŞLAMAZ. `writeAudit` hatayı yuttuğu için burada doğrudan yazılır.
+  await prisma.auditLog.create({
+    data: {
+      organizationId: target.id,
+      actorUserId,
+      action: "impersonate.enter",
+      // ⚠️ Operatörün e-postası/adı YAZILMAZ — müşterinin KVKK ihracına ham giriyor
+      // (süper-admin adresinin ifşası). Aktör opak `actorUserId` ile kayıtlı.
+      metadataJson: JSON.stringify({ assumedUserId: owner.id, readOnly: true }),
+    },
+  });
 
   await setSessionCookie({
     userId: owner.id,
@@ -71,20 +87,12 @@ export async function enterOrganization(
     actorEmail: actor,
     actorName,
     actorSessionEpoch,
+    impersonatedAt,
     // ⚠️ İDDİA TAŞINMALI. Bu payload SIFIRDAN kuruluyor; taşımazsak operatör
     // müşteri org'una girer girmez `isSuperAdmin` false döner ve orada operatör
     // yetkisi kalmaz (org'lar arası atlama da yapamaz). Yükseltme değil AKTARIM:
     // iddia zaten bu oturumda vardı, girişte ikinci faktörden geçilmişti.
     mfa: current.mfa,
-  });
-  // Leave a trace: an operator just gained access to this customer's guest PII.
-  await writeAudit({
-    organizationId: target.id,
-    actorUserId,
-    action: "impersonate.enter",
-    // ⚠️ Operatörün e-postası/adı YAZILMAZ — müşterinin KVKK ihracına ham giriyor
-    // (süper-admin adresinin ifşası). Aktör opak `actorUserId` ile kayıtlı.
-    metadata: { assumedUserId: owner.id },
   });
   return true;
 }
