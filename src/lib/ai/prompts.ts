@@ -24,7 +24,7 @@ import { guestTurnLanguage, languageLabel, unansweredGuestTexts } from "./langua
 import { conversationStateBlock as conversationRecordsBlock, conversationStateEnabled } from "./conversation-state";
 import { ACTION_CLAIMS_PROMPT_BLOCK } from "./action-claims";
 import { buildItemsPromptBlock } from "@/lib/conversation-items/reply-block";
-import { codeGreetingEnabled } from "./code-greeting";
+import { codeGreetingEnabled, withoutCodeGreetingLine } from "./code-greeting";
 import { nameMaskHidesEmergency, promptRedactionNames, redactGuestNamesForPrompt } from "./prompt-name-redaction";
 
 // ============================================================================
@@ -1211,7 +1211,8 @@ export const CODE_GREETING_PROMPT_DERIVATION = {
 
 /** Anahtar açıkken misafire giden istemin GÖREV satırı (kapalıyken boş). */
 const CODE_GREETING_TASK_LINE =
-  "\nSELAM: reply selam / hitapla BAŞLAMAZ, misafirin adını İÇERMEZ — selam satırını sistem ekler; doğrudan konuya gir.";
+  "\nSELAM: reply selam / hitapla BAŞLAMAZ, misafirin adını İÇERMEZ — selam satırını sistem ekler; doğrudan konuya gir." +
+  ' Metindeki "[Misafir]" misafirin gizlenmiş adıdır — cevapta YAZMA.';
 
 export function buildReplyPrompt(input: SuggestReplyInput): {
   text: string;
@@ -1356,7 +1357,11 @@ Zaman bağlamı: ${timelineLine(timeline, {
   const hist =
     selectedHistory.length > 0
       ? selectedHistory
-          .map((m, i) => `[${historyLabels[i].label}]: ${detailedHistory ? oneLineBody(shown(m.body)) : shown(m.body)}`)
+          .map((m, i) => {
+            // Anahtar açıkken kendi giden mesajımızın başındaki KODUN selam satırı ("Merhaba Su,") geçmişe girmez (`code-greeting.ts`).
+            const body = codeGreeting && m.direction !== "inbound" ? withoutCodeGreetingLine(m.body, reservation?.guestGivenName) : m.body;
+            return `[${historyLabels[i].label}]: ${detailedHistory ? oneLineBody(shown(body)) : shown(body)}`;
+          })
           .join("\n")
       : "(önceki mesaj geçmişi yok)";
   const historyNote = detailedHistory ? `${historyDetailNote(timeline.timeZone)}\n` : "";
@@ -1469,7 +1474,11 @@ KULLANIM KURALLARI:
 ════════════════════════════════════════════════════
 EV SAHİBİ REHBERİ — YALNIZ ÜSLUP (ev sahibinin geçmiş cevaplarından öğrenildi)
 ════════════════════════════════════════════════════
-Bu rehber ev sahibinin yazış TARZINI özetler. Üslubunu (selamlama/kapanış, uzunluk, samimiyet, emoji) bu tarza uydur.
+Bu rehber ev sahibinin yazış TARZINI özetler. ${
+      codeGreeting
+        ? "Üslubunu (kapanış, uzunluk, samimiyet, emoji) bu tarza uydur; rehber selam ya da hitaptan söz etse de selam / hitap YAZMA (selamı sistem ekler)."
+        : "Üslubunu (selamlama/kapanış, uzunluk, samimiyet, emoji) bu tarza uydur."
+    }
 KESİN SINIRLAR: Bu rehber bir BİLGİ KAYNAĞI DEĞİLDİR. İçinde bir bilgi görürsen (otopark, bagaj, saat, ücret, kural,
 isteklere yaklaşım…) KULLANMA: başka bir daireye ya da eski bir tarihe ait olabilir. Bilgi yalnız KURAL-1'in üç
 kaynağından gelir (Bilgi Tabanı, mülk/rezervasyon bilgisi, bu sohbetin geçmişi); orada yoksa bilgi uydurma, operatöre

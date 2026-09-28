@@ -323,6 +323,36 @@ describe("anahtar AÇIK — bağlantıların her parçası (mutasyon pinleri)", 
     expect(r.reply).toBe(`Merhaba ${GIVEN},\n\nWi-Fi ağı Lale-5G, şifre Lale2025.`);
   });
 
+  it("🚨 geçmişteki KODUN selam satırı istemden çıkar — silme anahtarı olamayan kısa ad ('Su') modele dönmez (09-28 inceleme)", () => {
+    const input = baseInput({
+      reservation: { ...baseInput().reservation!, guestName: "Su Kanaryaoglu", guestGivenName: "Su" },
+      guestIdentifier: "Su Kanaryaoglu",
+      history: [
+        { direction: "inbound", body: "Selam, bugün geliyoruz." },
+        { direction: "outbound", body: "Merhaba Su,\n\nGirişiniz 15:00'ten itibaren." },
+      ],
+    });
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const on = buildReplyPrompt(input).text;
+    expect(on).not.toContain("Merhaba Su");
+    expect(on).toContain("Girişiniz 15:00'ten itibaren.");
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "");
+    expect(buildReplyPrompt(input).text).toContain("Merhaba Su,"); // anahtar kapalı: geçmiş aynen
+  });
+
+  it("🚨 GÖREV satırı '[Misafir]' işaretini açıklar; üslup rehberi selamı EMREDEMEZ (anahtar kapalıyken eski cümle)", () => {
+    const input = baseInput({ styleProfile: "Her mesaja 'Merhaba [isim]' ile başlar, samimi yazar." });
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const on = buildReplyPrompt(input).text;
+    expect(on).toContain('"[Misafir]" misafirin gizlenmiş adıdır — cevapta YAZMA');
+    expect(on).toContain("rehber selam ya da hitaptan söz etse de selam / hitap YAZMA");
+    expect(on).not.toContain("Üslubunu (selamlama/kapanış");
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "");
+    const off = buildReplyPrompt(input).text;
+    expect(off).toContain("Üslubunu (selamlama/kapanış, uzunluk, samimiyet, emoji) bu tarza uydur.");
+    expect(off).not.toContain("[Misafir]");
+  });
+
   it("selam dili: kodun KESİN tespiti modelin beyanından önce gelir (model 'en' dese de Türkçe misafire 'Merhaba')", async () => {
     vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
     captureModel({ ...MODEL, detectedLanguage: "en", reply: "Wi-Fi ağı Lale-5G." });
