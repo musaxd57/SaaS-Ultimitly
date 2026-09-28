@@ -78,10 +78,13 @@ function captureAllModelCalls() {
   return calls;
 }
 
-async function seed(opts: { withReservation?: boolean; firstReply?: boolean; fullName?: string } = {}) {
+async function seed(
+  opts: { withReservation?: boolean; firstReply?: boolean; fullName?: string; lastMessage?: string; givenName?: string } = {},
+) {
   const withReservation = opts.withReservation ?? true;
   const firstReply = opts.firstReply ?? false;
   const FULL = opts.fullName ?? FULL_DEFAULT;
+  const given = opts.givenName ?? GIVEN;
   const org = await prisma.organization.create({
     data: { name: "Kanarya Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
   });
@@ -114,7 +117,7 @@ async function seed(opts: { withReservation?: boolean; firstReply?: boolean; ful
     data: {
       propertyId: property.id,
       guestName: FULL,
-      guestGivenName: GIVEN,
+      guestGivenName: given,
       guestNameSource: "channel",
       arrivalDate: new Date(Date.now() - day),
       departureDate: new Date(Date.now() + 3 * day),
@@ -141,11 +144,16 @@ async function seed(opts: { withReservation?: boolean; firstReply?: boolean; ful
                   direction: "outbound",
                   authorType: "ai",
                   senderName: "GuestOps AI",
-                  body: `Merhaba ${GIVEN},\n\nGirişiniz 15:00'ten itibaren.`,
+                  body: `Merhaba ${given},\n\nGirişiniz 15:00'ten itibaren.`,
                   createdAt: new Date(Date.now() - 2 * 3_600_000),
                 },
               ]),
-          { direction: "inbound", senderName: FULL, body: `Ben ${FULL}. Wi-Fi şifresi nedir?`, createdAt: new Date(Date.now() - 60_000) },
+          {
+            direction: "inbound",
+            senderName: FULL,
+            body: opts.lastMessage ?? `Ben ${FULL}. Wi-Fi şifresi nedir?`,
+            createdAt: new Date(Date.now() - 60_000),
+          },
         ],
       },
     },
@@ -245,6 +253,49 @@ describe("tam akış kanaryası — adsız yapay zekâ", () => {
           )?.aiSuggestedReply ?? "",
         );
     expect(text.startsWith(`Merhaba ${GIVEN},`)).toBe(true);
+  });
+
+  it("ANAHTAR KAPALI — D'nin getirdiği TEK fark: anlam katmanlarında kanalın ayrı adı da silinir (Codex 09-28: ayrıca pinli)", async () => {
+    // Soyadı önde yazılmış tam ad + mesajda yalnız ad: D'den önce anlam katmanlarının silme anahtarları "Kanaryaoglu Zqxwvu" ve
+    // "Kanaryaoglu" idi → tek başına "Zqxwvu" anlama katmanına / sıralayıcıya açık gidiyordu. Şimdi kanalın ayrı adı da anahtar.
+    // Cevap modeli ve gömme sorgusu anahtar kapalıyken BUGÜNKÜ gibi ham metni görür (yalnız anahtar açıkken adsız) — bu da pinli.
+    const calls = captureAllModelCalls();
+    const { conversationId, propertyId } = await seed({
+      fullName: "Kanaryaoglu Zqxwvu",
+      lastMessage: `Ben ${GIVEN}. Wi-Fi şifresi nedir?`,
+    });
+    await warmPropertyKbVectors(propertyId);
+    await applyChannelAutoReply(conversationId);
+    const reply = calls.filter((c) => c.body.includes("Sen Lixus AI"));
+    const semantic = calls.filter((c) => !c.url.includes("/embeddings") && !c.body.includes("Sen Lixus AI"));
+    expect(semantic.length).toBeGreaterThan(0); // anlama katmanı gerçekten koştu
+    expect(semantic.filter((c) => c.body.toLocaleLowerCase("tr").includes("zqxwvu")).length).toBe(0);
+    expect(reply.some((c) => c.body.includes(`Ben ${GIVEN}.`))).toBe(true); // cevap istemi anahtar kapalıyken değişmedi
+  });
+
+  it("🚨 ad 'Yangın Kaya' + 'Dairede yangın var!' (anahtar AÇIK): ad HİÇBİR istekte yok; anlama katmanı acil KOD NOTUNU alır", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const calls = captureAllModelCalls();
+    const { conversationId, propertyId } = await seed({
+      fullName: "Yangın Kaya",
+      givenName: "Yangın",
+      lastMessage: "Dairede yangın var!",
+    });
+    await warmPropertyKbVectors(propertyId);
+    await applyChannelAutoReply(conversationId);
+    const userSide = (body: string) => {
+      try {
+        const parsed = JSON.parse(body) as { messages?: { role: string; content: string }[]; input?: unknown };
+        return parsed.messages ? parsed.messages.filter((m) => m.role !== "system").map((m) => m.content).join("\n") : JSON.stringify(parsed.input ?? "");
+      } catch {
+        return body;
+      }
+    };
+    expect(calls.filter((c) => userSide(c.body).toLocaleLowerCase("tr").includes("kaya")).map((c) => c.url)).toEqual([]);
+    expect(calls.filter((c) => userSide(c.body).toLocaleLowerCase("tr").includes("yangın")).map((c) => c.url)).toEqual([]);
+    const understanding = calls.filter((c) => !c.url.includes("/embeddings") && !c.body.includes("Sen Lixus AI"));
+    expect(understanding.some((c) => c.body.includes("code note: masking the guest's name"))).toBe(true);
+    expect(calls.find((c) => c.body.includes("Sen Lixus AI"))?.body).toContain("KOD NOTU (kesin)");
   });
 
   it("🚨 soyad önde yazılmış ad ('Kanaryaoglu Zqxwvu'): hitap adı tam adın ilk sözcüğü DEĞİLKEN de hiçbir istekte yok", async () => {

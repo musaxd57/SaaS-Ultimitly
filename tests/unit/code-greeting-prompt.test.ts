@@ -78,6 +78,15 @@ function captureModel(content: Record<string, unknown> = MODEL) {
 
 const leaks = (text: string) => CANARY_PARTS.filter((p) => text.toLocaleLowerCase("tr").includes(p));
 
+/** İstek gövdesinin YALNIZ kullanıcı mesajı (sistem istemi "yangın" gibi sözcükleri kendi kurallarında taşır). */
+function userContent(body: string): string {
+  const parsed = JSON.parse(body) as { messages: { role: string; content: string }[] };
+  return parsed.messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.content)
+    .join("\n");
+}
+
 // Normal takım anahtarı ZORLA boşaltır; sahte model yolu için test anahtarı (ağa çıkılmaz — `fetch` sahte).
 beforeEach(() => vi.stubEnv("OPENAI_API_KEY", "test-key"));
 afterEach(() => {
@@ -164,18 +173,62 @@ describe("anahtar AÇIK — ad hiçbir model isteğine girmez, selamı kod ekler
     expect(bodies[0]).toContain("Otopark ücretli mi?"); // misafirin sorusu SİLİNMEZ (tam sözcük eşleşmesi değil)
   });
 
-  it("🚨 R2: güvenlik sözcüğü taşıyan ad SİLME ANAHTARI olmaz — 'yangın' modele gider", async () => {
+  // R2 (Codex önerisi 09-28, kurucu "mantıklıysa yap"): güvenlik sözcüğü taşıyan ad DA silinir (ad hiçbir isteğe girmez); silme bir
+  // acil durum sözcüğünü de götürdüyse istemin KODDAN yazılan kısmına not düşülür. İki durum AYRI test: olay ↔ adın kendisi.
+  const YANGIN = {
+    reservation: { ...baseInput().reservation!, guestName: "Yangın Kaya", guestGivenName: "Yangın" },
+    guestIdentifier: "Yangın Kaya",
+    history: [],
+  };
+
+  it("🚨 R2 'Dairede yangın var' (ad 'Yangın Kaya'): ad modele GİTMEZ, acil sinyali KOD NOTU ile taşınır", async () => {
     vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
     const bodies = captureModel();
+    await suggestReply(baseInput({ ...YANGIN, guestMessage: "Dairede yangın var!" }));
+    const user = userContent(bodies[0]).toLocaleLowerCase("tr");
+    expect(user).toContain("dairede [misafir] var!");
+    expect(user).toContain("kod notu (kesin)");
+    expect(user).not.toContain("yangın"); // ne ad ne de maskelenen sözcük (sinyal notta, sözcüksüz)
+    expect(user).not.toContain("kaya");
+  });
+
+  it("🚨 R2 'Merhaba, adım Yangın Kaya' (adın kendisi): ad silinir, olay SANILMAZ — KOD NOTU YOK", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const bodies = captureModel();
+    await suggestReply(baseInput({ ...YANGIN, guestMessage: "Merhaba, adım Yangın Kaya. Wi-Fi şifresi nedir?" }));
+    const user = userContent(bodies[0]).toLocaleLowerCase("tr");
+    expect(user).toContain("merhaba, adım [misafir]. wi-fi şifresi nedir?");
+    expect(user).not.toContain("kod notu");
+    expect(user).not.toContain("yangın");
+  });
+
+  it("R2 geçmişte cevapsız misafir mesajı da sayılır; cevaplanmış eski mesaj SAYILMAZ", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    let bodies = captureModel();
+    await suggestReply(
+      baseInput({ ...YANGIN, history: [{ direction: "inbound", body: "Mutfakta yangın var" }], guestMessage: "Lütfen acele edin" }),
+    );
+    expect(userContent(bodies[0])).toContain("KOD NOTU (kesin)");
+    bodies = captureModel();
     await suggestReply(
       baseInput({
-        reservation: { ...baseInput().reservation!, guestName: "Yangın Kaya", guestGivenName: "Yangın" },
-        guestIdentifier: "Yangın Kaya",
-        guestMessage: "Dairede yangın var!",
-        history: [],
+        ...YANGIN,
+        history: [
+          { direction: "inbound", body: "Dün mutfakta yangın vardı" },
+          { direction: "outbound", body: "Geçmiş olsun, ekip ilgilendi." },
+        ],
+        guestMessage: "Wi-Fi şifresi nedir?",
       }),
     );
-    expect(bodies[0]).toContain("Dairede yangın var!");
+    expect(userContent(bodies[0])).not.toContain("KOD NOTU");
+  });
+
+  it("anahtar KAPALIYKEN not yok, istem bugünkü gibi (ad ve mesaj aynen)", async () => {
+    const bodies = captureModel();
+    await suggestReply(baseInput({ ...YANGIN, guestMessage: "Dairede yangın var!" }));
+    const user = userContent(bodies[0]);
+    expect(user).toContain("Dairede yangın var!");
+    expect(user).not.toContain("KOD NOTU");
   });
 
   it("resmî tonda da 'Merhaba Zqxwvu,'; kısa tonda selam yok; İngilizce misafire 'Hello Zqxwvu,'", async () => {

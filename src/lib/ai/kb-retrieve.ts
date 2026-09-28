@@ -132,8 +132,11 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
   const writtenStamp = dateLine && timeZone ? (at: Date) => writtenAtEn(at, timeZone) : null;
   // Çağrı HEMEN başlar (async fonksiyon ilk await'e kadar eşzamanlı koşar); kimse beklemese de paraleldir.
   const pending: Promise<UnderstandingOutcome> = understandGuestMessages({
-    guestMessage: selectInput.guestMessage,
-    history: selectInput.history,
+    // Anlama katmanı adı KENDİSİ siler (`redactForSemanticModel`, aynı adlar — anahtar kümesi adsız getirmeninkini kapsar) → ham
+    // metin verilir: ad maskesi bir acil sözcüğü gizlediyse kod notunu ancak ham metinden kurabilir (Codex 09-28). Anahtar
+    // kapalıyken `rest` zaten `rawRest`in kendisi — girdi bayt bayt aynı.
+    guestMessage: rawRest.guestMessage,
+    history: rawRest.history,
     stayTimes,
     names: redactNames,
     ...(dateLine ? { dateLine } : {}),

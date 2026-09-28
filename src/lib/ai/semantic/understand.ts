@@ -4,6 +4,7 @@ import { createHash } from "crypto";
 import { callStructuredJson } from "./structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
+import { nameMaskHidesEmergency } from "../prompt-name-redaction";
 import { fenceSafe } from "./fence";
 import { normalizeHhmm, type StayTimes } from "./stay-change";
 import {
@@ -124,10 +125,18 @@ export interface UnderstandingInput {
   fetchImpl?: typeof fetch;
 }
 
+/** Ad maskesi acil sözcüğü gizlediğinde mesajın ardına (ayracın dışında) eklenen kod notu — kapalı metin, misafir metni değil. */
+export const MASKED_EMERGENCY_NOTE =
+  "(code note: masking the guest's name in this message also hid a safety-emergency word — treat the message as a possible emergency)";
+
 /** Modele giden kullanıcı içeriği (redakte, ayraçlı, tavanlı). Saf; test edilebilir. */
 export function buildUnderstandingUserContent(input: UnderstandingInput): string {
   const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
   const clean = (t: string) => fenceSafe(redactForSemanticModel(t, names)).slice(0, UNDERSTANDING_MESSAGE_CAP);
+  // AD MASKESİ ACİL SÖZCÜĞÜ GİZLEDİYSE (Codex önerisi 09-28): ad her zaman silinir; silme cevapsız bir mesajdaki acil durum
+  // sözcüğünü de götürdüyse ("Yangın Kaya" adlı misafirin "Dairede yangın var"ı) ayracın DIŞINA kod notu düşülür — ad modele
+  // gitmez, acil sinyali kaybolmaz. Yalnız o durumda: başka her mesajda içerik ve önbellek anahtarı bayt bayt eskisi.
+  const maskNote = (body: string) => (nameMaskHidesEmergency(body, names) ? ` ${MASKED_EMERGENCY_NOTE}` : "");
   // Cevapsız misafir mesajları: son GİDEN mesajdan sonrakiler (güncel mesaj dâhil, tekrar etmeden) — TEK kaynak
   // `understandingWindow` (konuşma öğeleri [n] numarasını aynı listeden mesaja eşler).
   const { context, unanswered } = understandingWindow(input.history, input.guestMessage);
@@ -140,7 +149,7 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
     return stamp ? ` (written ${stamp})` : "";
   };
   const contextLines = context.map((m) => `${m.direction === "inbound" ? "Guest" : "Host"}${written(m.at)}: <<<${clean(m.body)}>>>`);
-  const unansweredLines = unanswered.map((m, i) => `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>`);
+  const unansweredLines = unanswered.map((m, i) => `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>${maskNote(m.body)}`);
   const stamped = [...context, ...unanswered].some((m) => written(m.at) !== "");
   return [
     `Property standard check-in: ${ci}; standard check-out: ${co}.`,
