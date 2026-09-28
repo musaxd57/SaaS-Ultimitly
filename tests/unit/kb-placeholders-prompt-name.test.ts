@@ -172,3 +172,28 @@ describe("KONTROL — şablonla misafirin KENDİSİNE giden metin değişmez (mo
     expect(guestFirstNameOf(name)).toBe(name);
   });
 });
+
+describe("üçüncü inceleme (09-28) — gerçek adlar kesilmez, '=' yalnız katakanada", () => {
+  it.each([
+    ["O´Brien Smith", "O´Brien"], // İspanyol / Portekiz klavyesinin kesme işareti — eskiden "O"
+    ["D´Angelo", "D´Angelo"],
+    ["N´Diaye", "N´Diaye"],
+    ["Ma´ruf", "Ma´ruf"],
+    ["O‛Neil", "O‛Neil"],
+    ["Jean—Luc", "Jean—Luc"],
+    ["Jean−Luc", "Jean−Luc"],
+    ["Ｍ．Ａｌｉ", "Ｍ．Ａｌｉ"],
+    ["Anna­Maria", "Anna­Maria"],
+    ["葛\u{E0100}城", "葛\u{E0100}城"], // varyasyon seçicisi Han harfine aittir
+    ["ジャン=ポール", "ジャン=ポール"],
+    ["ジャン＝ポール", "ジャン＝ポール"],
+  ])("🚨 %j → %j", (input, expected) => {
+    expect(guestFirstNameForPrompt(input)).toBe(expected);
+  });
+
+  it("🚨 Latin metinde '=' birleştirici DEĞİL ('pets=allowed' ev sahibi bloğuna ad olarak girmez)", () => {
+    expect(guestFirstNameForPrompt("pets=allowed Smith")).toBe("pets");
+    expect(guestFirstNameForPrompt("Ada＝Ev")).toBe("Ada");
+    expect(guestFirstNameForPrompt("ada\u{E0100}ev")).toBe("ada"); // varyasyon seçicisi Latin harfine ait değil
+  });
+});

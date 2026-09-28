@@ -79,10 +79,21 @@ const NAME_CHAR = /^(?!\p{Default_Ignorable_Code_Point})[\p{L}\p{M}]$/u;
  * Katalanca orta nokta (Gal·la), İbranice geresh / gershayim / maqaf (ג׳ני, בת־שבע), Japonca yabancı ad eşittiri (ジャン゠ポール, ＝, =).
  */
 const NAME_JOINERS = new Set([
-  "-", "\u2010", "\u2011", "\u2013", "\uFF0D", "\u058A",
-  "'", "\u2019", "\u2018", "`", "\u02BC", "\u2032", "\uFF07",
-  ".", "\u00B7", "\u05F3", "\u05F4", "\u05BE", "\u30A0", "\uFF1D", "=",
+  "-", "\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212", "\uFE63", "\uFF0D", "\u058A",
+  "'", "\u2019", "\u2018", "\u201B", "`", "\u00B4", "\u02BC", "\u2032", "\uFF07",
+  ".", "\uFF0E", "\u00B7", "\u00AD", "\u05F3", "\u05F4", "\u05BE", "\u30A0", "\uFF1D", "=",
 ]);
+/**
+ * Üçüncü inceleme (09-28, ölçüldü — gerçek adlar kesiliyordu): İspanyol / Portekiz klavyesinin kesme işareti ´ ("O´Brien" → "O",
+ * "D´Angelo" → "D"), ‛ ("O‛Neil"), tire çeşitleri (U+2012 / 2014 / 2212 / FE63), tam genişlik nokta ("Ｍ．Ａｌｉ"), yumuşak tire
+ * ("Anna­Maria") birleştiricidir. ASCII / tam genişlik "=" YALNIZ iki katakana arasında (Japonca yabancı ad: ジャン=ポール) — Latin
+ * metinde "pets=allowed" ev sahibi bloğuna "ad" olarak giriyordu.
+ */
+const KATAKANA_ONLY_JOINERS = new Set(["=", "\uFF1D"]);
+const KATAKANA = /\p{Script_Extensions=Katakana}/u;
+/** Varyasyon seçicisi (Çince / Japonca ideogram varyantı: 葛󠄀城) — önündeki Han harfine aittir. */
+const VARIATION_SELECTOR = /^[\uFE00-\uFE0F\u{E0100}-\u{E01EF}]$/u;
+const HAN = /\p{Script_Extensions=Han}/u;
 /** Adın başında durabilen kesme işaretleri (Hawaii ‘Iolani / 'Iolani) — ardından harf gelirse. */
 const LEADING_APOSTROPHES = new Set(["'", "\u2019", "\u2018", "\u02BB", "\u02BC"]);
 /**
@@ -139,6 +150,7 @@ export function guestFirstNameForPrompt(guestIdentifier: string | null | undefin
     if (ZW_JOINERS.has(c)) return JOINER_SCRIPTS.test(prev) && (next === undefined || JOINER_SCRIPTS.test(next));
     if (TIBETAN_TSHEG.has(c)) return TIBETAN.test(prev) && next !== undefined && TIBETAN.test(next);
     if (MONGOLIAN_SELECTORS.has(c)) return MONGOLIAN.test(prev) && (next === undefined || MONGOLIAN.test(next));
+    if (VARIATION_SELECTOR.test(c)) return HAN.test(prev);
     return false;
   };
   for (let i = start; i < cps.length && out.length < PROMPT_FIRST_NAME_MAX; i++) {
@@ -154,7 +166,7 @@ export function guestFirstNameForPrompt(guestIdentifier: string | null | undefin
       out.push(c);
       continue;
     }
-    if (NAME_JOINERS.has(c)) {
+    if (NAME_JOINERS.has(c) && (!KATAKANA_ONLY_JOINERS.has(c) || (prev !== undefined && KATAKANA.test(prev) && next !== undefined && KATAKANA.test(next)))) {
       const countsAsPart = partLen >= 2;
       if (next && NAME_CHAR.test(next) && (!countsAsPart || parts < MAX_NAME_PARTS)) {
         if (countsAsPart) parts += 1;
