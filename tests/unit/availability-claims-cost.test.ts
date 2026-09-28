@@ -22,12 +22,14 @@ const PREFIX = "I \u015f \u00e9 \u043e a.b.c.d x'y ";
 const ADVERSARIAL: [string, string][] = [
   ["önek + tek uzun sözcük", PREFIX + "a".repeat(4000)],
   ["önek + tekrarlanan Kiril kökü (ранн)", PREFIX + "\u0440\u0430\u043d\u043d".repeat(1000)],
-  ["tekrarlanan Kiril kökü (поздн)", "\u043f\u043e\u0437\u0434\u043d".repeat(800)],
-  ["tekrarlanan Kiril kökü (дополнительн)", "\u0434\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d".repeat(330)],
+  // Tek kök ~8.000 karakter: eski kod 0,66–0,88 sn (4.000'de sınırdaydı — mutasyon turu 09-28 bunu yakaladı), yeni kod ≤ 10 ms.
+  ["tekrarlanan Kiril kökü (поздн)", "\u043f\u043e\u0437\u0434\u043d".repeat(1600)],
+  // Bu kök yalnız kendi kalıbıyla ~24.000 karakterde 1 sn'yi aşıyordu (8.000'de sınırda — mutasyon turu 09-28).
+  ["tekrarlanan Kiril kökü (дополнительн)", "\u0434\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d".repeat(2000)],
 ];
 
 describe("müsaitlik kelime ağı — düşmanca girdide sınırlı süre", () => {
-  it.each(ADVERSARIAL)("%s (~4.000 karakter) → 200 ms altında", (_ad, girdi) => {
+  it.each(ADVERSARIAL)("%s (4.000–24.000 karakter) → 200 ms altında", (_ad, girdi) => {
     detectAvailabilityRequestKinds(girdi.slice(0, 40)); // ısınma (JIT) — ölçüme girmez
     const t = ms(() => {
       detectAvailabilityRequestKinds(girdi);

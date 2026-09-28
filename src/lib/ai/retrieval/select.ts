@@ -372,7 +372,11 @@ const WEAK_QUERY_WEIGHT = 0.25;
  * (`/[?\n;,]+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i`) AYNI parçaları aynı sırayla verir.
  */
 const HARD_SPLIT = /[?\n;]+/;
-const SOFT_SPLIT = /,+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i;
+// Boşluk dizisinin BAŞINDAN başlar (ReDoS denetimi 09-28): eski `\s+` uzun boşluk dizisinin her konumundan dizinin sonuna kadar
+// tarıyordu (20.000 boşlukta 0,16 sn). Bölme konumu aynı: bir eşleşme dizinin herhangi bir yerinden başlayabiliyorsa başından da
+// başlar ve `split` konumları soldan sınar; önceki eşleşme ardındaki boşluğun tamamını yuttuğu için tarama hiç dizinin ortasında
+// başlamaz.
+const SOFT_SPLIT = /,+|(?<!\s)\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i;
 
 /**
  * Misafir mesajını alt sorgulara böl (çok soru → her biri ayrı retrieval). En fazla `MAX_SUBQUERIES`.

@@ -163,10 +163,21 @@ const FOREIGN_WORDS: ReadonlySet<string> = new Set([
  * ("it's", "15:00'te") — ayıklanmaz.
  */
 function strip(text: string): string {
-  return stripQuoted(text)
-    .replace(/https?:\/\/\S+/gi, " ")
-    .replace(/\S+@\S+/g, " ")
-    .replace(/\S*\d\S*/g, " ");
+  return (
+    stripQuoted(text)
+      .replace(/https?:\/\/\S+/gi, " ")
+      // 🚨 BELİRTEÇ BAŞINA TEK GEÇİŞ (ReDoS denetimi 09-28, ölçüldü): eski `\S+@\S+` ve `\S*\d\S*` kalıpları uzun tek sözcükte
+      // her konumdan sözcük sonuna kadar tarıyordu (20.000 karakterde 0,4 sn; kanal mesajında uzunluk tavanı yok). İkisi de
+      // belirtecin TAMAMINI siler ya da hiç dokunmaz: `@` iç konumdaysa (önünde ve ardında en az bir karakter) e-posta
+      // biçimi, belirteçte ASCII rakam varsa kod / saat. Sonuç birebir aynı.
+      .replace(/\S+/g, (tok) => (hasInnerAt(tok) || /\d/.test(tok) ? " " : tok))
+  );
+}
+
+/** `@` belirtecin iç konumunda mı (ilk ve son karakter hariç) — eski `\S+@\S+` eşleşmesinin koşulu. */
+function hasInnerAt(tok: string): boolean {
+  const at = tok.indexOf("@", 1);
+  return at !== -1 && at <= tok.length - 2;
 }
 
 /**
