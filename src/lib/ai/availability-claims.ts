@@ -99,6 +99,12 @@ const NL = "(?<![\\p{L}\\p{N}])";
 const NR = "(?![\\p{L}\\p{N}])";
 /** Türkçe ek kuyruğu. */
 const L = "\\p{L}*";
+/**
+ * SINIRLI ek kuyruğu — başı ÇAPASIZ kalıplar için (ReDoS denetimi 09-28, ölçüldü): `ранн\p{L}*\s+…` gibi bir kalıp, aynı kök
+ * tek uzun sözcükte tekrarlanınca her geçişte sözcüğün sonuna kadar tarar (karesel). Gerçek sözcüklerde kökten sonraki ek en
+ * çok birkaç harftir; 24 harf sonucu değiştirmez, taramayı sabit tutar.
+ */
+const LB = "\\p{L}{0,24}";
 /** Cümlecik içi sözcük (cümlecikler önceden bölündüğü için sınır aşmaz). */
 const T = "\\S+";
 /** İki sözcük arasına en fazla `n` sözcük girebilir (sınırlı → geri izleme patlaması yok). */
@@ -149,7 +155,9 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `${NL}uzat(?:abilir|abilecek|abilme|mak|mamiz|mayi|alim|sak|tirabilir|irsak|ir\\s+mi|ilabilir|ilir\\s+mi)${L}`,
     `${NL}(?:daha\\s+(?:fazla|uzun)|biraz\\s+daha|bir\\s+sure\\s+daha|bir\\s*kac\\s+gun\\s+daha)\\s+(?:kal|konakla)${L}`,
     `${NL}ertesi\\s+gun${L}${gap(1)}(?:kadar\\s+)?kal${L}`,
-    `${T}\\s+(?:kadar|dek)\\s+kal(?:abil|sak|mak|mamiz|alim|ir\\s+mi|ma\\s+imkan)${L}`,
+    // Önde tek boşluk-dışı karakter yeter (`\\S+` ile AYNI sonuç — kalıp yalnız `test` ile sınanır); `\\S+` uzun sözcükte
+    // her konumdan sözcük sonuna kadar tarıyordu (ReDoS denetimi 09-28: 20.000 karakterde 12,5 sn).
+    `\\S\\s+(?:kadar|dek)\\s+kal(?:abil|sak|mak|mamiz|alim|ir\\s+mi|ma\\s+imkan)${L}`,
     // EN
     `${NL}(?:one|1|two|2|three|3|an|another|a\\s+few|few|a\\s+couple(?:\\s+of)?|couple(?:\\s+of)?|some)\\s+(?:more|extra|additional)\\s+(?:night|nights|day|days)${NR}`,
     `${NL}(?:extra|additional)\\s+(?:night|nights|day|days)${NR}`,
@@ -176,7 +184,7 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `${NL}quedar(?:nos|me|se|te)?\\s+(?:m(?:á|a)s|una\\s+noche|otro\\s+d(?:í|i)a)${NR}`,
     `ещ[её]\\s+(?:одн[ау]\\s+|на\\s+одну\\s+|две\\s+|на\\s+две\\s+|пару\\s+|на\\s+пару\\s+|на\\s+)?(?:ноч|сут|дн|ден)`,
     `продл`,
-    `дополнительн${L}\\s+(?:ноч|сут|ден|дн)`,
+    `дополнительн${LB}\\s+(?:ноч|сут|ден|дн)`,
     `остаться\\s+(?:ещ[её]|подольше|дольше|на\\s+(?:ноч|день|сут))`,
     `ليل(?:ة|ه)\\s+(?:إضافية|اضافية|أخرى|اخرى|ثانية)`,
     `ليلتين\\s+(?:إضافيتين|اضافيتين)`,
@@ -200,8 +208,8 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `${NL}(?:${CI}|arriv(?:é|e)e)\\s+anticip(?:é|e)e?${NR}`,
     `${NL}(?:llegar|entrar|hacer\\s+(?:el\\s+)?${CI}|registrarnos)\\s+(?:m(?:á|a)s\\s+)?(?:temprano|antes)${NR}`,
     `${NL}${CI}\\s+(?:anticipado|temprano)${NR}`,
-    `ранн${L}\\s+(?:заезд|заселен|въезд|check)`,
-    `(?:заселит|заехат|въехат|приехат)${L}\\s+(?:раньше|пораньше)`,
+    `ранн${LB}\\s+(?:заезд|заселен|въезд|check)`,
+    `(?:заселит|заехат|въехат|приехат)${LB}\\s+(?:раньше|пораньше)`,
     `(?:دخول|وصول|تسجيل\\s+(?:ال)?دخول)\\s+(?:مبكر|مبكرا|مبكراً|أبكر|ابكر)`,
     `(?:الوصول|الدخول|نصل|ندخل)\\s+(?:مبكرا|مبكراً|أبكر|ابكر)`,
   ]),
@@ -220,8 +228,8 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `${NL}(?:d(?:é|e)part|${CO})\\s+tardif${NR}`,
     `${NL}(?:salir|irnos|dejar\\s+el\\s+apartamento|hacer\\s+(?:el\\s+)?${CO})\\s+(?:m(?:á|a)s\\s+)?tarde${NR}`,
     `${NL}(?:salida|${CO})\\s+tard(?:í|i)[oa]${NR}`,
-    `поздн${L}\\s+(?:выезд|выселен|check)`,
-    `(?:выехат|выселит|уехат|съехат)${L}\\s+(?:позже|попозже)`,
+    `поздн${LB}\\s+(?:выезд|выселен|check)`,
+    `(?:выехат|выселит|уехат|съехат)${LB}\\s+(?:позже|попозже)`,
     `(?:خروج|مغادرة|تسجيل\\s+(?:ال)?خروج)\\s+(?:متأخر|متاخر|متأخرا|متأخراً)`,
     `(?:المغادرة|الخروج|نغادر|نخرج)\\s+(?:متأخرا|متأخراً|لاحقا|لاحقاً)`,
   ]),
@@ -432,9 +440,9 @@ const DEFERRALS = rx([
   `${NL}(?:la\\s+|lo\\s+)?(?:confirma|decide|confirmar(?:á|a))\\s+su\\s+anfitri(?:ó|o)n${NR}`,
   `${NL}depende\\s+del\\s+anfitri(?:ó|o)n${NR}`,
   `${NL}(?:sujeto\\s+a|seg(?:ú|u)n)\\s+(?:la\\s+)?disponibilidad${NR}`,
-  `решени${L}\\s+(?:хозя|владель|арендодател)`,
-  `на\\s+усмотрени${L}\\s+(?:хозя|владель|арендодател)`,
-  `(?:хозя|владел|арендодател)${L}\\s+(?:долж|подтверд|решит|решает)`,
+  `решени${LB}\\s+(?:хозя|владель|арендодател)`,
+  `на\\s+усмотрени${LB}\\s+(?:хозя|владель|арендодател)`,
+  `(?:хозя|владел|арендодател)${LB}\\s+(?:долж|подтверд|решит|решает)`,
   `(?:решает|решит|подтвердит|подтверждает)\\s+(?:ваш\\s+)?(?:хозя|владел|арендодател)`,
   `решение\\s+принимает\\s+(?:хозя|владел|арендодател)`,
   `(?:قرار\\s+المضيف|القرار\\s+(?:لل|ل)مضيف|يعود\\s+(?:لقرار|إلى)\\s+المضيف|حسب\\s+(?:التوفر|توفر)|(?:موافقة|تأكيد)\\s+المضيف)`,

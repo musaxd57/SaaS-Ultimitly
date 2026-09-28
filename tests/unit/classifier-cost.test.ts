@@ -31,6 +31,12 @@ const ADVERSARIAL: [string, string][] = [
   ["özne + dolgu + fiil tekrarı", ("plan " + "çok ".repeat(8) + "bozuldu ").repeat(90)],
   ["ayıraçlı yazım", "a.".repeat(2000)],
   ["birleştirici işaret", "á".repeat(2000)],
+  // ReDoS denetimi 09-28 (ÖLÇÜLDÜ): cihaz adı + TEK uzun sözcük + arıza fiili sonek kalıplarını (`\p{L}{2,}(…)$`) uzun
+  // sözcükte karesel koşturuyordu; aday biçim çoğaltan önekle 2.000 harfte 0,65 sn, 20.000'de 66 sn.
+  ["cihaz + tek uzun sözcük + fiil", "klima " + "a".repeat(3990) + " bozuldu"],
+  ["aday çoğaltan önek + cihaz + tek uzun sözcük + fiil", "\u00e9 \u043e a.b.c.d x'y klima " + "a".repeat(3970) + " bozuldu"],
+  // İyelikli ad ("rengi") tamlayan zincirini açar: tamlayan kalıbı SOLDAKİ uzun sözcükte koşar (pencere yokken 0,9 sn).
+  ["önek + cihaz + uzun sözcük + iyelikli ad + fiil", "\u00e9 \u043e a.b.c.d x'y klima " + "a".repeat(3955) + " rengi bozuldu"],
 ];
 
 describe("sınıflandırıcı — düşmanca girdide sınırlı süre", () => {
@@ -42,6 +48,19 @@ describe("sınıflandırıcı — düşmanca girdide sınırlı süre", () => {
       detectRiskType(girdi);
     });
     expect(t).toBeLessThan(200);
+  });
+});
+
+describe("sonek kalıpları sözcüğün SON harflerine bakar — uzun sözcükte hüküm aynı (ReDoS denetimi 09-28)", () => {
+  // Kalıp yalnız son 32 kod noktasına uygulanır; en uzun sonek ("ıyorsunuz") + öndeki 2 harf pencereye sığmalı.
+  it.each(["ıyorsunuz", "dığında", "iyordu", "tik", "mıştı"])("%s: kısa ve 40 harflik sözcükte aynı hüküm", (suf) => {
+    const short = classifyFallback(`klima kk${suf} bozuldu`).intent;
+    expect(short).toBe("complaint");
+    expect(classifyFallback(`klima ${"k".repeat(40)}${suf} bozuldu`).intent).toBe(short);
+  });
+
+  it("KONTROL — eksiz sözcükte hüküm farklı (pin gerçekten sonek okumasını sınar)", () => {
+    expect(classifyFallback("klima kk bozuldu").intent).not.toBe("complaint");
   });
 });
 

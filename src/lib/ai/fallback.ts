@@ -1073,6 +1073,20 @@ const NUMBER_WORDS = ["bir", "iki", "üç", "dört", "beş", "altı", "yedi", "s
  * cihaz değil → RET (ölçüldü).
  */
 const THIRD_PERSON_POSSESSIVE = /\p{L}{2,}(?:s[ıiuü]|[ıiuü])$/u;
+/**
+ * 🚨 SONEK KALIPLARI YALNIZ SÖZCÜĞÜN SON HARFLERİNE UYGULANIR (ReDoS denetimi 09-28, ÖLÇÜLDÜ): `\p{L}{2,}(…)$` biçimli üç
+ * kalıp (↑`THIRD_PERSON_POSSESSIVE`, ↓`GENITIVE`, ↓`VERB_LIKE`) başı çapasız + sınırsız `{2,}` olduğu için UZUN tek sözcükte
+ * KARESELDİR: "klima <2.000 harf> bozuldu" aday çoğaltan bir önekle sınıflandırıcıyı 0,65 sn, 20.000 harfte 66 sn
+ * kilitliyordu (olay döngüsü; kanal mesajında uzunluk tavanı yok, QR'da 2.000). Eşleşme yalnız harflerden oluşur ve sonda
+ * biter; en uzun sonek 9 harf ("ıyorsunuz") + öndeki en az 2 harf → sözcüğün SON 32 kod noktası sonucu BİREBİR aynı verir.
+ * Daha uzun bir sonek eklenirse pencere de büyür (pin `classifier-cost.test.ts`).
+ */
+const SUFFIX_WINDOW = 32;
+function suffixTail(s: string): string {
+  if (s.length <= SUFFIX_WINDOW) return s;
+  // Son 2×W UTF-16 birimi en az W kod noktası taşır; baştaki olası yarım vekil pencere dışında kalır.
+  return Array.from(s.slice(-SUFFIX_WINDOW * 2)).slice(-SUFFIX_WINDOW).join("");
+}
 /** Tamlayan (sahiplik) eki — zincirin SAHİP tarafını işaretler. */
 const GENITIVE = /\p{L}{2,}(?:n[ıiuü]n|[ıiuü]n)$/u;
 
@@ -1349,11 +1363,12 @@ function reportSubjectSlot(toks: string[], verbIndex: number): boolean {
     // 🚨 FİİL TESTİNDEN ÖNCE: zincir KESİN bilgidir, `VERB_LIKE` ise t/d eşsesliliğinde
     // tahmindir — "babamın SIHHATİ bozuldu" tamlayan cihaz DEĞİL diye reddedilmeli, ama
     // "sıhhati" biçimsel olarak "-ti" fiil ekine benziyor (ölçüldü, yanlış complaint üretiyordu).
-    if (THIRD_PERSON_POSSESSIVE.test(std) && j > 0 && GENITIVE.test(foldTurkishLower(toks[j - 1]))) {
+    const tail = suffixTail(std);
+    if (THIRD_PERSON_POSSESSIVE.test(tail) && j > 0 && GENITIVE.test(suffixTail(foldTurkishLower(toks[j - 1])))) {
       return matchesInflectedWord(toks[j - 1], BREAKDOWN_DEVICES);
     }
-    if (BARE_PREDICATES.has(std) || VERB_LIKE.test(std)) return true;
-    return j > 0 && THIRD_PERSON_POSSESSIVE.test(std) && matchesInflectedWord(toks[j - 1], BREAKDOWN_DEVICES);
+    if (BARE_PREDICATES.has(std) || VERB_LIKE.test(tail)) return true;
+    return j > 0 && THIRD_PERSON_POSSESSIVE.test(tail) && matchesInflectedWord(toks[j - 1], BREAKDOWN_DEVICES);
   }
   return true;
 }
