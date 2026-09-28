@@ -205,6 +205,7 @@ describe("geçmişteki KODUN selam satırı (anahtar açıkken istemden çıkar)
     ["Merhaba Ali,\n\nWi-Fi 1234.", "Su"], // başka ad: kodun satırı değil
     ["Merhaba Su, Wi-Fi 1234.", "Su"], // aynı satırda devam: kodun biçimi değil
     ["Merhaba,", null], // geriye metin kalmıyor
+    ["Merhaba Su,\n\n  \n", "Su"], // selam satırından sonra yalnız boş satırlar: gövde aynen (boş geçmiş satırı olmaz)
     ["Wi-Fi 1234.\nMerhaba Su,", "Su"], // yalnız İLK satır
   ])("KONTROL — dokunulmaz: %j", (body, name) => {
     expect(withoutCodeGreetingLine(body, name)).toBe(body);

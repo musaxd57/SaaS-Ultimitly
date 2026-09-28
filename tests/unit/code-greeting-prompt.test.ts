@@ -328,7 +328,7 @@ describe("anahtar AÇIK — bağlantıların her parçası (mutasyon pinleri)", 
       reservation: { ...baseInput().reservation!, guestName: "Su Kanaryaoglu", guestGivenName: "Su" },
       guestIdentifier: "Su Kanaryaoglu",
       history: [
-        { direction: "inbound", body: "Selam, bugün geliyoruz." },
+        { direction: "inbound", body: "Hola,\n\nLlegamos hoy." }, // misafirin KENDİ selam satırı: dokunulmaz (yalnız bizim giden mesajımız)
         { direction: "outbound", body: "Merhaba Su,\n\nGirişiniz 15:00'ten itibaren." },
       ],
     });
@@ -336,6 +336,7 @@ describe("anahtar AÇIK — bağlantıların her parçası (mutasyon pinleri)", 
     const on = buildReplyPrompt(input).text;
     expect(on).not.toContain("Merhaba Su");
     expect(on).toContain("Girişiniz 15:00'ten itibaren.");
+    expect(on).toContain("[MİSAFİR]: Hola,\n\nLlegamos hoy.");
     vi.stubEnv("AI_CODE_GREETING_ENABLED", "");
     expect(buildReplyPrompt(input).text).toContain("Merhaba Su,"); // anahtar kapalı: geçmiş aynen
   });

@@ -167,7 +167,8 @@ export function withoutCodeGreetingLine(body: string, givenName: string | null |
   const isCodeLine = (Object.keys(GREETINGS) as GreetingLanguage[]).some(
     (lang) => first === GREETINGS[lang].nameless || (name !== null && first === GREETINGS[lang].named(name)),
   );
-  if (!isCodeLine || nl === -1) return body;
+  if (!isCodeLine) return body;
+  // Satır sonu yoksa (gövde yalnız selam satırı) `slice(0)` gövdenin kendisidir → aşağıda aynen döner.
   const rest = body.slice(nl + 1).replace(/^(?:[ \t]*\r?\n)+/, "");
   return rest.trim() ? rest : body;
 }
