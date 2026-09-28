@@ -327,6 +327,64 @@ const UNIT_FAMILIES: { cls: ClaimClass; long: string[]; short: string[] }[] = [
   },
 ];
 
+const isAsciiDigit = (c: number) => c >= 48 && c <= 57;
+const isAsciiLower = (c: number) => c >= 97 && c <= 122;
+/** JS `\w` (ASCII) — `\b` bunun sınırıdır. */
+const isAsciiWord = (c: number) => isAsciiDigit(c) || isAsciiLower(c) || (c >= 65 && c <= 90) || c === 95;
+
+/**
+ * Harf + rakam karışık tekil belirteç ("3b", "lalenet_5g") eşleşmeleri — `/\b(?=[a-z_-]*\d)(?=\d*[a-z])[a-z0-9_-]{2,24}\b/g`nin
+ * `exec` dizisini BİREBİR üretir, DOĞRUSAL. 🚨 Düzenli ifade biçimi rakamsız uzun tireli dizide ("a-a-a-…") her sözcük sınırından
+ * dizinin sonuna kadar tarıyordu (ReDoS denetimi 09-28, ölçüldü: 100.000 karakterlik misafir metninde 5 sn; iddia ölçümü her
+ * cevaptan sonra misafir metnine koşar, kanal mesajında uzunluk tavanı yok). Koşu sonları sağdan sola BİR kez hesaplanır; her
+ * konum sabit iş + en çok 24 adım. Seçim (en soldaki konum, en uzun uzunluk, eşleşmeden sonra kaldığı yerden) düzenli ifadeyle
+ * aynı — eşdeğerlik düzenli ifadenin kendisine karşı rastgele girdiyle pinli (`claim-support-cost.test.ts`).
+ */
+export function mixedCodeTokenMatches(text: string): RegExpExecArray[] {
+  const n = text.length;
+  const azEnd = new Int32Array(n + 1); // [a-z_-] koşusunun sonu
+  const digitEnd = new Int32Array(n + 1); // \d koşusunun sonu
+  const tokenEnd = new Int32Array(n + 1); // [a-z0-9_-] koşusunun sonu
+  azEnd[n] = digitEnd[n] = tokenEnd[n] = n;
+  for (let i = n - 1; i >= 0; i -= 1) {
+    const c = text.charCodeAt(i);
+    const az = isAsciiLower(c) || c === 95 || c === 45;
+    const dg = isAsciiDigit(c);
+    azEnd[i] = az ? azEnd[i + 1] : i;
+    digitEnd[i] = dg ? digitEnd[i + 1] : i;
+    tokenEnd[i] = az || dg ? tokenEnd[i + 1] : i;
+  }
+  const word = (i: number) => i >= 0 && i < n && isAsciiWord(text.charCodeAt(i));
+  const boundary = (i: number) => word(i - 1) !== word(i);
+  const out: RegExpExecArray[] = [];
+  let p = 0;
+  while (p < n) {
+    let at = -1;
+    let len = 0;
+    for (; p < n; p += 1) {
+      if (!boundary(p)) continue;
+      const a = azEnd[p];
+      if (a >= n || !isAsciiDigit(text.charCodeAt(a))) continue; // (?=[a-z_-]*\d)
+      const d = digitEnd[p];
+      if (d >= n || !isAsciiLower(text.charCodeAt(d))) continue; // (?=\d*[a-z])
+      for (let l = Math.min(24, tokenEnd[p] - p); l >= 2; l -= 1) {
+        if (boundary(p + l)) {
+          len = l;
+          break;
+        }
+      }
+      if (len > 0) {
+        at = p;
+        break;
+      }
+    }
+    if (at < 0) break;
+    out.push(Object.assign([text.slice(at, at + len)], { index: at, input: text, groups: undefined }) as RegExpExecArray);
+    p = at + len;
+  }
+  return out;
+}
+
 /** Katlanmış + sayıya çevrilmiş metinden iddialar. `raw` = özgün metin (kod büyük/küçük harfi için). */
 function extract(text: string, raw: string): Claim[] {
   const out: Claim[] = [];
@@ -334,7 +392,22 @@ function extract(text: string, raw: string): Claim[] {
   const rawToken = (foldedTok: string) => (rawIndex ??= rawTokenIndex(raw)).get(foldedTok) ?? foldedTok;
   // Karakter başına bayrak: bir karakter iki iddiaya giremez (O(1) örtüşme — liste O(n²) idi).
   const used = new Uint8Array(text.length + 1);
-  const take = (re: RegExp, fn: (m: RegExpExecArray) => Omit<Claim, "at" | "end"> | Omit<Claim, "at" | "end">[] | null) => {
+  const take = (
+    re: RegExp | Iterable<RegExpExecArray>,
+    fn: (m: RegExpExecArray) => Omit<Claim, "at" | "end"> | Omit<Claim, "at" | "end">[] | null,
+  ) => {
+    if (!(re instanceof RegExp)) {
+      for (const m of re) {
+        const s = m.index;
+        const e = m.index + m[0].length;
+        if (used.subarray(s, e).includes(1)) continue;
+        const c = fn(m);
+        if (!c) continue;
+        used.fill(1, s, e);
+        for (const x of Array.isArray(c) ? c : [c]) out.push({ ...x, at: s, end: e });
+      }
+      return;
+    }
     re.lastIndex = 0;
     for (let m = re.exec(text); m; m = re.exec(text)) {
       const s = m.index;
@@ -475,7 +548,9 @@ function extract(text: string, raw: string): Claim[] {
   // Gizli-benzeri anahtar sözcükten sonraki kod (belirteçte rakam ya da tırnak şart).
   const KW =
     "\\b(?:sifre[a-z]*|parola[a-z]*|password|passcode|pin|kod[a-z]*|code|ssid|ag adi|agin adi|ag ismi|network(?: name)?|wi-?fi(?: agi[a-z]*| adi)?|wlan|zil|kapi no|door code|keybox)(?![a-z])";
-  take(new RegExp(`${KW}[^\\S\\n]*(?:[:=]|(?:is|olarak|de|da)(?![a-z]))?[^\\S\\n]*(["']?)([^\\s"',;()]{3,40})`, "g"), (m) => {
+  // İkinci boşluk dizisi isteğe bağlı ayracın İÇİNDE (ReDoS denetimi 09-28): iki bitişik `[^\S\n]*` uzun boşluk dizisinde
+  // karesel geri izliyordu (50.000 boşlukta 2,1 sn). Dil ve yakalamalar aynı (ayraç yoksa iki boşluk dizisi tek dizidir).
+  take(new RegExp(`${KW}[^\\S\\n]*(?:(?:[:=]|(?:is|olarak|de|da)(?![a-z]))[^\\S\\n]*)?(["']?)([^\\s"',;()]{3,40})`, "g"), (m) => {
     const tok = m[2].replace(/[.!?:]+$/, "");
     if (!/\d/.test(tok) && m[1] === "") return null;
     if (/^(ve|and|or|veya|yok|none|nedir|neydi|ne|what)$/.test(tok)) return null;
@@ -483,7 +558,7 @@ function extract(text: string, raw: string): Claim[] {
     return { cls: "code", keys: [`c${r}`], raw: r };
   });
   // Harf + rakam karışık tekil belirteç ("3b", "lalenet_5g"); "15te", "2nd", "10dk" DEĞİL.
-  take(/\b(?=[a-z_-]*\d)(?=\d*[a-z])[a-z0-9_-]{2,24}\b/g, (m) => {
+  take(mixedCodeTokenMatches(text), (m) => {
     const t = m[0];
     if (/^\d{1,4}[a-z]{2,}$/.test(t)) return null;
     if (/^m2$/.test(t)) return null;
