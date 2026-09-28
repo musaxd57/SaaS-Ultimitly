@@ -27,6 +27,10 @@ describe("çelişki notu yalnız sorunun KENDİ çelişkisi için kredi alır", 
     expect(conflictNoteForQuery([note("giriş", "15:00 / 16:00")], q("Giriş 15:00'ten itibaren.", "Giriş 16:00'ten itibaren."))).toBe(true);
     expect(conflictNoteForQuery([note("giriş", "15:00 / 16:00")], q("Giriş 15.00'ten itibaren.", "Giriş 16.00'ten itibaren."))).toBe(true);
     expect(conflictNoteForQuery([note("giriş", "09:30 / 10:30")], q("Giriş 9:30.", "Giriş 10:30."))).toBe(true);
+    // Dolgu şart: "9:30" başka bir notun "19:30"unda alt dize olarak geçer — sorunun 09:30'u o notta YOK.
+    expect(conflictNoteForQuery([note("çıkış", "19:30 / 20:30")], q("Giriş 9:30.", "Giriş 20:30."))).toBe(false);
+    // Saatsiz taraf → kredi yok.
+    expect(conflictNoteForQuery([note("giriş", "15:00 / 16:00")], q("Giriş 15:00.", "Giriş saati değişti."))).toBe(false);
   });
 
   it("🚨 başka alanın notu (çıkış 11:00 / 12:00) → başarı DEĞİL (eski ölçer sayıyordu)", () => {

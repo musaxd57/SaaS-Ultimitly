@@ -825,7 +825,7 @@ export function conflictNoteForQuery(notes: readonly string[], q: LabQuery): boo
   const timesOf = (needles: readonly string[]) =>
     needles.flatMap((n) => [...n.matchAll(/\b(\d{1,2})[:.](\d{2})\b/g)].map((m) => `${m[1].padStart(2, "0")}:${m[2]}`));
   const sides = q.answers.map((a) => timesOf(a.needles));
-  if (sides.some((t) => t.length === 0)) return false;
+  // Saatsiz taraf → `t.some` yanlış → hüküm yanlış (ayrı boş-taraf kontrolü gereksizdi; mutasyonla ölçüldü).
   return notes.some((n) => n.includes("farklı değerler") && sides.every((t) => t.some((x) => n.includes(x))));
 }
 
