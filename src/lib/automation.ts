@@ -73,6 +73,7 @@ import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import {
   GUEST_NAME_FALLBACK,
   fillGuestPlaceholders,
+  guestFirstNameForPrompt,
   guestFirstNameOf,
   hasNamePlaceholder,
   kbPlaceholderTokens,
@@ -2078,7 +2079,9 @@ export async function applyChannelAutoReply(
   // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
   // the guest's name before it reaches the model, so a literal "{isim}" can
   // never leak into a reply.
-  const guestFirst = guestFirstNameOf(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK;
+  // 🚨 Modele giden ad yalnız AD biçimindeki baş kısım (`guestFirstNameForPrompt`, gece güvenlik turu 09-28): görünen ad misafirin
+  // metnidir ve bu değer ev sahibinin KB kalemine yerleşir.
+  const guestFirst = guestFirstNameForPrompt(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK;
   // A2 — TEMELLENDİRME SAYAÇLARI (tek yerde kurulur, her karar kaydına aynen
   // gider). `kbRetrieved` istemin GÖRÜNEN kalem sayısıdır; aşağıda `kbVisible`
   // hesaplandıktan sonra tamamlanır — burada yalnız kapasite/yetki/sürüm

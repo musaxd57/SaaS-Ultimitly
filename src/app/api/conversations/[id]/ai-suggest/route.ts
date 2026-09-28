@@ -10,7 +10,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
-import { GUEST_NAME_FALLBACK, guestFirstNameOf } from "@/lib/kb-placeholders";
+import { GUEST_NAME_FALLBACK, guestFirstNameForPrompt } from "@/lib/kb-placeholders";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
@@ -74,7 +74,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // #189: ikame SEÇİMDEN SONRA (`retrieveKbForPrompt` `placeholders`) — seçim ham metinle koşar, misafir adı parça metnini
   // misafire özgü yapıp anlamsal önbelleği soğutmaz. Legacy / geri çekilmede de sonuç kalemleri aynı değerlerle doldurulur.
   const kbPlaceholders = {
-    guestFirstName: guestFirstNameOf(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK,
+    // Yalnız AD biçimindeki baş kısım (`guestFirstNameForPrompt`): görünen ad misafirin metnidir, ev sahibinin KB kalemine yerleşir.
+    guestFirstName: guestFirstNameForPrompt(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK,
     propertyName: conversation.property.name,
   };
   // SIR KAPSAMI oto-yanıtla TEK kural (Codex 09-27): onaylı / tamamlanmış konaklama dışında Wi-Fi / giriş talimatı / kod içeren
