@@ -92,7 +92,7 @@ export type KbRetrieveResult<T extends KbChunkSource> = KbSelectResult<T> & {
  * "[Misafir]" olarak kurulur (ad hiçbir model isteğine girmez; gömme de bir model isteğidir). Güvenlik sözcüğü taşıyan ad silme
  * anahtarı olmaz (`promptRedactionNames`). Anahtar kapalıyken girdi AYNEN döner (bayt bayt eski).
  */
-function namelessRetrievalInput<T extends KbChunkSource>(
+export function namelessRetrievalInput<T extends KbChunkSource>(
   input: KbSelectInput<T>,
   names: readonly (string | null | undefined)[] | undefined,
 ): KbSelectInput<T> {

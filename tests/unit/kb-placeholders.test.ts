@@ -264,7 +264,8 @@ describe("TEK KAYNAK PİNİ — dört yüzey de bu modülü kullanır, kendi reg
   ];
 
   it.each(SURFACES)("%s modülü import eder", (rel) => {
-    expect(read(rel)).toMatch(/from "@\/lib\/kb-placeholders"/);
+    // `@/lib/ai/code-greeting` bu modülün sarmalayıcısıdır (`modelGuestFirstName`: adsız yapay zekâ anahtarı, 09-28) — ikisi de tek kaynak.
+    expect(read(rel)).toMatch(/from "@\/lib\/(?:kb-placeholders|ai\/code-greeting)"/);
   });
 
   it.each(SURFACES)("%s içinde ELLE yazılmış yer tutucu belirteci KALMADI (bayt-birebir DEĞİL, sınıf taraması)", (rel) => {

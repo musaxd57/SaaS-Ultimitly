@@ -57,6 +57,7 @@ describe("hitap adı — YALNIZ kanalın ayrı ad alanından, ad biçimli", () =
     ["Ada:Not"],
     ["Ada\u2800Evcil"],
     ["A".repeat(41)],
+    ["Aaaaaaaaaaaaa Bbbbbbbbbbbbbb Ccccccccccccccc"], // üç ad biçimli sözcük ama toplam 44 kod noktası
   ])("%j → adsız", (given) => {
     expect(salutationNameOf(given)).toBeNull();
   });

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import {
   CODE_GREETING_PROMPT_DERIVATION,
   REPLY_SYSTEM_PROMPT,
@@ -78,6 +78,8 @@ function captureModel(content: Record<string, unknown> = MODEL) {
 
 const leaks = (text: string) => CANARY_PARTS.filter((p) => text.toLocaleLowerCase("tr").includes(p));
 
+// Normal takım anahtarı ZORLA boşaltır; sahte model yolu için test anahtarı (ağa çıkılmaz — `fetch` sahte).
+beforeEach(() => vi.stubEnv("OPENAI_API_KEY", "test-key"));
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -208,3 +210,73 @@ describe("anahtar AÇIK — ad hiçbir model isteğine girmez, selamı kod ekler
     expect(suggestReplyFallback({ ...baseInput(), guestMessage: "Giriş saati nedir?" }).reply).toMatch(new RegExp(`^Merhaba ${GIVEN},`));
   });
 });
+
+describe("anahtar AÇIK — bağlantıların her parçası (mutasyon pinleri)", () => {
+  it("🚨 istem: selam kuralı yerine 'selam yazma' kuralı + GÖREV satırı; adıyla selam / 'Sayın' kalmaz", () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const warm = buildReplyPrompt(baseInput()).text;
+    expect(warm).not.toContain("misafiri adıyla selamla");
+    expect(warm).toContain("SELAM: reply selam / hitapla BAŞLAMAZ");
+    expect(warm).toContain("Cevaba selam ya da hitapla BAŞLAMA");
+    expect(buildReplyPrompt(baseInput({ tone: "formal" })).text).not.toContain('"Sayın" hitabıyla başla');
+    expect(buildReplyPrompt(baseInput({ tone: "luxury" })).text).not.toContain("isim yalnızca mesajın başında");
+  });
+
+  it("🚨 modele giden SİSTEM istemi türetilmiş olan (örnek selamlar yok)", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const bodies = captureModel();
+    await suggestReply(baseInput());
+    expect(bodies[0]).not.toContain("Merhaba Ayşe");
+    expect(bodies[0]).toContain("Selam satırı YAZMA");
+  });
+
+  it("🚨 hitap adı tam adın ilk sözcüğü DEĞİLSE de silinir (soyad önde yazılmış ad)", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const bodies = captureModel();
+    await suggestReply(
+      baseInput({
+        reservation: { ...baseInput().reservation!, guestName: "Kanaryaoglu Zqxwvu", guestGivenName: GIVEN },
+        guestIdentifier: "Kanaryaoglu Zqxwvu",
+      }),
+    );
+    expect(leaks(bodies.join("\n"))).toEqual([]);
+  });
+
+  it("🚨 rezervasyonsuz konuşmada görünen ad da silinir", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const bodies = captureModel();
+    await suggestReply(baseInput({ reservation: null }));
+    expect(leaks(bodies.join("\n"))).toEqual([]);
+  });
+
+  it("🚨 yer tutucu ve anonim adlar SİLME ANAHTARI olmaz ('rezervasyon' / 'eski' sözcükleri kalır)", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const bodies = captureModel();
+    await suggestReply(
+      baseInput({
+        reservation: { ...baseInput().reservation!, guestName: "Rezervasyon HM4K2", guestGivenName: null },
+        guestIdentifier: "Eski misafir",
+        guestMessage: "Rezervasyon numaram HM4K2, eski odamızı sorabilir miyim?",
+        history: [],
+      }),
+    );
+    expect(bodies[0]).toContain("Rezervasyon numaram HM4K2, eski odamızı sorabilir miyim?");
+  });
+
+  it("ilk cevap bilgisi yoksa (tek mesajlık önizleme) ilk cevap sayılır — selam eklenir", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    captureModel();
+    const r = await suggestReply(baseInput({ conversationState: undefined, history: [] }));
+    expect(r.reply).toBe(`Merhaba ${GIVEN},\n\nWi-Fi ağı Lale-5G, şifre Lale2025.`);
+  });
+
+  it("selam dili: kodun KESİN tespiti modelin beyanından önce gelir (model 'en' dese de Türkçe misafire 'Merhaba')", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    captureModel({ ...MODEL, detectedLanguage: "en", reply: "Wi-Fi ağı Lale-5G." });
+    const r = await suggestReply(
+      baseInput({ conversationState: { isFirstOperatorReply: true }, history: [], guestMessage: "Merhaba, Wi-Fi şifresini öğrenebilir miyim lütfen?" }),
+    );
+    expect(r.reply).toBe(`Merhaba ${GIVEN},\n\nWi-Fi ağı Lale-5G.`);
+  });
+});
+

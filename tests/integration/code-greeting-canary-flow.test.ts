@@ -31,7 +31,7 @@ import { warmPropertyKbVectors } from "@/lib/ai/embeddings/kb-warm";
 const mockSend = vi.mocked(sendOnChannel);
 
 const GIVEN = "Zqxwvu";
-const FULL = "Zqxwvu Kanaryaoglu";
+const FULL_DEFAULT = "Zqxwvu Kanaryaoglu";
 const CANARY_PARTS = ["zqxwvu", "kanaryaoglu"];
 
 const REPLY_MODEL = {
@@ -78,7 +78,10 @@ function captureAllModelCalls() {
   return calls;
 }
 
-async function seed() {
+async function seed(opts: { withReservation?: boolean; firstReply?: boolean; fullName?: string } = {}) {
+  const withReservation = opts.withReservation ?? true;
+  const firstReply = opts.firstReply ?? false;
+  const FULL = opts.fullName ?? FULL_DEFAULT;
   const org = await prisma.organization.create({
     data: { name: "Kanarya Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
   });
@@ -107,7 +110,7 @@ async function seed() {
     })),
   });
   const day = 86_400_000;
-  const reservation = await prisma.reservation.create({
+  const reservation = !withReservation ? null : await prisma.reservation.create({
     data: {
       propertyId: property.id,
       guestName: FULL,
@@ -123,7 +126,7 @@ async function seed() {
   const conversation = await prisma.conversation.create({
     data: {
       propertyId: property.id,
-      reservationId: reservation.id,
+      reservationId: reservation?.id ?? null,
       channel: "airbnb",
       guestIdentifier: FULL,
       status: "new",
@@ -131,13 +134,17 @@ async function seed() {
       messages: {
         create: [
           { direction: "inbound", senderName: FULL, body: `Merhaba, ben ${FULL}, bugün geliyoruz.`, createdAt: new Date(Date.now() - 3 * 3_600_000) },
-          {
-            direction: "outbound",
-            authorType: "ai",
-            senderName: "GuestOps AI",
-            body: `Merhaba ${GIVEN},\n\nGirişiniz 15:00'ten itibaren.`,
-            createdAt: new Date(Date.now() - 2 * 3_600_000),
-          },
+          ...(firstReply
+            ? []
+            : [
+                {
+                  direction: "outbound",
+                  authorType: "ai",
+                  senderName: "GuestOps AI",
+                  body: `Merhaba ${GIVEN},\n\nGirişiniz 15:00'ten itibaren.`,
+                  createdAt: new Date(Date.now() - 2 * 3_600_000),
+                },
+              ]),
           { direction: "inbound", senderName: FULL, body: `Ben ${FULL}. Wi-Fi şifresi nedir?`, createdAt: new Date(Date.now() - 60_000) },
         ],
       },
@@ -194,15 +201,59 @@ describe("tam akış kanaryası — adsız yapay zekâ", () => {
     const { conversationId, propertyId } = await seed();
     await warmPropertyKbVectors(propertyId);
     const out = await applyChannelAutoReply(conversationId);
-    if (out.sent) {
-      expect(mockSend.mock.calls[0][1]).not.toMatch(/^Merhaba/);
-    } else {
-      const draft = await prisma.message.findFirst({
-        where: { conversationId, direction: "inbound" },
-        orderBy: { createdAt: "desc" },
-        select: { aiSuggestedReply: true },
-      });
-      expect(draft?.aiSuggestedReply ?? "").not.toMatch(/^Merhaba/);
-    }
+    const text = out.sent
+      ? String(mockSend.mock.calls[0][1])
+      : String(
+          (
+            await prisma.message.findFirst({
+              where: { conversationId, direction: "inbound" },
+              orderBy: { createdAt: "desc" },
+              select: { aiSuggestedReply: true },
+            })
+          )?.aiSuggestedReply ?? "",
+        );
+    expect(text).toContain("Wi-Fi"); // boş metin "selamsız" diye boşa geçmesin
+    expect(text).not.toMatch(/^Merhaba/);
+  });
+
+  it("🚨 rezervasyonsuz konuşma: görünen ad da HİÇBİR model isteğinde yok", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const calls = captureAllModelCalls();
+    const { conversationId, propertyId } = await seed({ withReservation: false });
+    await warmPropertyKbVectors(propertyId);
+    await applyChannelAutoReply(conversationId);
+    expect(calls.some((c) => c.body.includes("Sen Lixus AI"))).toBe(true);
+    expect(calls.filter((c) => leaks(c.body).length > 0).map((c) => c.url)).toEqual([]);
+  });
+
+  it("🚨 ilk cevap: misafire giden metin kodun selamıyla başlar ('Merhaba Zqxwvu,') — ad yalnız burada, modelde değil", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const calls = captureAllModelCalls();
+    const { conversationId, propertyId } = await seed({ firstReply: true });
+    await warmPropertyKbVectors(propertyId);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(calls.filter((c) => leaks(c.body).length > 0).map((c) => c.url)).toEqual([]);
+    const text = out.sent
+      ? String(mockSend.mock.calls[0][1])
+      : String(
+          (
+            await prisma.message.findFirst({
+              where: { conversationId, direction: "inbound" },
+              orderBy: { createdAt: "desc" },
+              select: { aiSuggestedReply: true },
+            })
+          )?.aiSuggestedReply ?? "",
+        );
+    expect(text.startsWith(`Merhaba ${GIVEN},`)).toBe(true);
+  });
+
+  it("🚨 soyad önde yazılmış ad ('Kanaryaoglu Zqxwvu'): hitap adı tam adın ilk sözcüğü DEĞİLKEN de hiçbir istekte yok", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const calls = captureAllModelCalls();
+    const { conversationId, propertyId } = await seed({ fullName: "Kanaryaoglu Zqxwvu" });
+    await warmPropertyKbVectors(propertyId);
+    await applyChannelAutoReply(conversationId);
+    expect(calls.some((c) => c.body.includes("Sen Lixus AI"))).toBe(true);
+    expect(calls.filter((c) => leaks(c.body).length > 0).map((c) => c.url)).toEqual([]);
   });
 });
