@@ -190,6 +190,8 @@ export interface LabRow {
   sem: string;
   rr: string;
   blockChars: number;
+  /** Okuma tavanından sonraki bilgi tabanının boyu (başlık + içerik) — blok / bilgi tabanı oranı için (A9 #8). */
+  kbChars?: number;
   selected: number;
   /** Negatif sorguda: blokta seçilen parça sayısı (şişme). */
   negChunks: number;
@@ -813,13 +815,33 @@ export function traceAnswer(run: LabRun, a: LabAnswer, cfg: LabConfig, allItems:
   return { stage: "budget", ...t };
 }
 
+/**
+ * Çelişki sorusunun NOT yolu (A9 #1, 09-27, doğrulandı): eskiden notlarda HERHANGİ bir "farklı değerler" geçmesi başarı sayılıyordu —
+ * sorunun kendi çelişkisi yerine başka alanın notu ("çıkış saati (11:00 / 12:00)", "temizlik saati") da kredi alıyordu. Artık not,
+ * iki tarafın (altın iğne + çelişen iğne) saatlerinden EN AZ BİRER tanesini birlikte taşımalı. Yalnız puanlama; girdiler aynı.
+ */
+export function conflictNoteForQuery(notes: readonly string[], q: LabQuery): boolean {
+  if (q.conflictOk !== true || q.answers.length < 2) return false;
+  const timesOf = (needles: readonly string[]) =>
+    needles.flatMap((n) => [...n.matchAll(/\b(\d{1,2})[:.](\d{2})\b/g)].map((m) => `${m[1].padStart(2, "0")}:${m[2]}`));
+  const sides = q.answers.map((a) => timesOf(a.needles));
+  if (sides.some((t) => t.length === 0)) return false;
+  return notes.some((n) => n.includes("farklı değerler") && sides.every((t) => t.some((x) => n.includes(x))));
+}
+
+/** Satırın "blokta" hükmü (saf; `labRow`un TEK kuralı): sızıntı yoksa ya tüm cevaplar blokta ya da sorunun KENDİ çelişki notu. */
+export function rowInBlock(notes: readonly string[], q: LabQuery, answers: readonly { stage: string }[], leak: boolean): boolean {
+  if (leak) return false;
+  const allOk = answers.length > 0 && answers.every((a) => a.stage === "ok");
+  return allOk || conflictNoteForQuery(notes, q);
+}
+
 export async function labRow(kbName: string, size: number, items: readonly LabItem[], q: LabQuery, cfg: LabConfig, now: number): Promise<LabRow> {
   const run = await runPipeline(items, q, cfg, now);
   const answers = q.answers.map((a) => traceAnswer(run, a, cfg, items));
   const selected = run.result.items.length;
   const leak = (q.forbiddenNeedles ?? []).some((n) => run.text.includes(n));
   const conflictNote = run.result.notes.some((n) => n.includes("farklı değerler"));
-  const allOk = answers.length > 0 && answers.every((a) => a.stage === "ok");
   return {
     kb: kbName,
     size,
@@ -828,12 +850,13 @@ export async function labRow(kbName: string, size: number, items: readonly LabIt
     group: q.group,
     cls: q.cls,
     lang: q.lang,
-    inBlock: !leak && (allOk || (q.conflictOk === true && conflictNote)),
+    inBlock: rowInBlock(run.result.notes, q, answers, leak),
     answers,
     fb: run.result.evidence?.fb ?? "legacy",
     sem: run.semStatus,
     rr: run.rrStatus,
     blockChars: run.text.length,
+    kbChars: run.pool.reduce((n, it) => n + it.title.length + it.content.length, 0),
     selected,
     negChunks: q.answers.length === 0 ? selected : 0,
     leak,
@@ -927,10 +950,11 @@ export function reportLines(rows: readonly LabRow[], title: string, meta: Record
  * girdinin süresi yok → sayılmaz, uydurulmaz). Maliyet kestirimi: istek karakteri / 3,5 ≈ token.
  */
 export function latencyLines(rows: readonly LabRow[]): string[] {
-  const by = new Map<string, { ms: number[]; chars: number[]; block: number[]; failed: number }>();
+  const by = new Map<string, { ms: number[]; chars: number[]; block: number[]; share: number[]; failed: number }>();
   for (const r of rows) {
     const k = `${r.kb}|${r.size}|${r.config}`;
-    const e = by.get(k) ?? { ms: [], chars: [], block: [], failed: 0 };
+    const e = by.get(k) ?? { ms: [], chars: [], block: [], share: [], failed: 0 };
+    if (r.kbChars && r.kbChars > 0) e.share.push((100 * r.blockChars) / r.kbChars);
     if (r.rr === "failed" || r.rr === "deadline") e.failed++;
     if (r.rrMs !== null) e.ms.push(r.rrMs);
     if (r.rrChars > 0) e.chars.push(r.rrChars);
@@ -944,14 +968,16 @@ export function latencyLines(rows: readonly LabRow[]): string[] {
   };
   const mean = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0);
   const out = [
-    "Yeniden sıralayıcı gecikmesi (ms, kaydı olan çağrılar) ve boyları:",
+    "Yeniden sıralayıcı gecikmesi (ms, kaydı olan çağrılar) ve boyları. `blok / KB` = blok karakteri / bilgi tabanı karakteri",
+    "(ortanca, %; A9 #8): %90'a yaklaşan yapılandırmada bilgi tabanının neredeyse TAMAMI gidiyor — \"blokta\" oranı orada getirme",
+    "başarısı değil, bütçenin bilgi tabanından büyük olmasıdır (soru başına 60 kalem + geniş bütçe).",
     "",
-    "| KB | boyut | yapılandırma | çağrı (süreli) | başarısız / tavan aşımı | p50 | p95 | istek ort. karakter | blok ort. karakter |",
-    "|---|---|---|---|---|---|---|---|---|",
+    "| KB | boyut | yapılandırma | çağrı (süreli) | başarısız / tavan aşımı | p50 | p95 | istek ort. karakter | blok ort. karakter | blok / KB |",
+    "|---|---|---|---|---|---|---|---|---|---|",
   ];
   for (const [k, e] of [...by.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     const [kb, size, config] = k.split("|");
-    out.push(`| ${kb} | ${size} | ${config} | ${e.ms.length} | ${e.failed} | ${q(e.ms, 0.5)} | ${q(e.ms, 0.95)} | ${mean(e.chars)} | ${mean(e.block)} |`);
+    out.push(`| ${kb} | ${size} | ${config} | ${e.ms.length} | ${e.failed} | ${q(e.ms, 0.5)} | ${q(e.ms, 0.95)} | ${mean(e.chars)} | ${mean(e.block)} | ${e.share.length ? `%${q(e.share, 0.5)}` : "—"} |`);
   }
   return out;
 }

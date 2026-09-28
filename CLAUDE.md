@@ -215,7 +215,10 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   %69→%95, diğer diller %73→%99, iki soru %33→%50; ayrı çağrı (önbellekten eşleştirilmiş alt küme, ön tahmin) iki soru %86.
   Ölçülüp etkisiz çıkan (geri önerme): atla-paketle, kalem başına 5 parça, anlama payı 1/2, RRF taban, taban 20. Pencere
   kuruluşu seçenekleri (`RerankWindowOptions`, varsayılan birebir) — istek başına 50 modelsiz tavanda iki soruda pencere dışı
-  6→2. Ölçer "yalnız önbellek" kipi `RAG_LAB_OFFLINE=1` (+ `_SKIP=1` eşleştirilmiş alt küme). 🚨 GERÇEK BOYUT (09-27, soru başına
+  6→2. Ölçer "yalnız önbellek" kipi `RAG_LAB_OFFLINE=1` (+ `_SKIP=1` eşleştirilmiş alt küme). 🚨 Ölçer sadakati (A9, 09-27): canlıyı
+  ölçen taban `live` (ürün bayraklarından çözülür: bugün ilk 20 aday TEK çağrı; `prod` = soru başına pencere, canlı DEĞİL), rapor her
+  yapılandırmanın çözülmüş parametrelerini ve blok / bilgi tabanı oranını yazar (%90'a yaklaşırsa "blokta" getirme başarısı değil),
+  çelişki notu yalnız sorunun KENDİ iki saatini taşıyorsa kredi, üretim biçimli geçmiş `phist` (kabul koşusu `live+phist`). 🚨 GERÇEK BOYUT (09-27, soru başına
   60 kalem `EVAL_RAG_KB=perq`): en büyük kayıp BLOK BÜTÇESİ (6k/12) — 24k/40 ile iki soru %71→%98 (yeni gömme, sıralayıcısız); ≤30 kalem
   bugün zaten 24k'ya kadar tamamen gidiyor (uçurum). Kurucu 09-27 "hazırla, sonra aç" → `KB_RETRIEVAL_WIDE_BUDGET` VARSAYILAN
   KAPALI (tek karar noktası `kb-retrieve.ts`; 23k/80 — parça tavanı kurucu 09-27 "80'e çık": 40'ta blok karakterin yarısında dolup cevap kaçırıyordu; 24k DEĞİL: paketleyici satır başına +1 sayar, tam dolu 24k son parçayı

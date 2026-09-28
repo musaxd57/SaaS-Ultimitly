@@ -182,8 +182,16 @@ describe("rag-lab — pencere kuruluşu ve gecikme tablosu", () => {
       ({ kb: "k", size: 1, config, qid: "q", group: "g", cls: "c", lang: "tr", inBlock: true, answers: [], fb: "none", sem: "ok", rr, blockChars: 100, selected: 1, negChunks: 0, leak: false, conflictNote: false, rrMs, rrChars: rrMs === null ? 0 : 350, rrErrors: rr === "failed" ? 1 : 0 }) as LabRow;
     // "deadline" (döndü ama tavanı aştı) da bu sütuna girer — ikisi de üretimde bugünkü sıra demektir (A9 09-27 ayrımı kapı içindir).
     const lines = latencyLines([row("a", 100), row("a", 300), row("a", 200), row("b", null), row("b", null, "failed"), row("b", null, "deadline")]);
-    expect(lines.find((l) => l.includes("| a |"))).toBe("| k | 1 | a | 3 | 0 | 200 | 300 | 350 | 100 |");
-    expect(lines.find((l) => l.includes("| b |"))).toBe("| k | 1 | b | 0 | 2 | — | — | 0 | 100 |");
+    expect(lines.find((l) => l.includes("| a |"))).toBe("| k | 1 | a | 3 | 0 | 200 | 300 | 350 | 100 | — |");
+    expect(lines.find((l) => l.includes("| b |"))).toBe("| k | 1 | b | 0 | 2 | — | — | 0 | 100 | — |");
+  });
+
+  it("blok / bilgi tabanı oranı (A9 #8): ortanca yüzde; bilgi tabanı boyu kaydı olmayan eski satır tire", () => {
+    const row = (config: string, blockChars: number, kbChars?: number): LabRow =>
+      ({ kb: "k", size: 60, config, qid: "q", group: "g", cls: "c", lang: "tr", inBlock: true, answers: [], fb: "none", sem: "ok", rr: "off", blockChars, kbChars, selected: 1, negChunks: 0, leak: false, conflictNote: false, rrMs: null, rrChars: 0, rrErrors: 0 }) as LabRow;
+    const lines = latencyLines([row("wide", 9_000, 10_000), row("wide", 9_500, 10_000), row("wide", 8_000, 10_000), row("dar", 3_000, 10_000)]);
+    expect(lines.find((l) => l.includes("| wide |"))!.endsWith("| %90 |")).toBe(true);
+    expect(lines.find((l) => l.includes("| dar |"))!.endsWith("| %30 |")).toBe(true);
   });
 });
 
