@@ -168,7 +168,7 @@ const HABITUAL_BEFORE =
   "|rezervasyon\\p{L}*|giriş\\p{L}*|çıkış\\p{L}*|konaklama\\p{L}*))\\s+(?:(?!(?:ama|fakat|ancak|lakin)(?!\\p{L}))\\p{L}+\\s+){0,8})";
 /**
  * 🚨 GÖVDE ÖNCE, GERİYE BAKIŞ SONRA (ReDoS denetimi 09-28, ÖLÇÜLDÜ): 1. tekil geniş zaman alternatifinde "olsam" ve
- * `HABITUAL_BEFORE` geriye bakışları (değişken uzunluklu: `[^.!?\\n]{0,60}`, `\\s+`, sözcük dizisi) fiil gövdesinden ÖNCE
+ * `HABITUAL_BEFORE` geriye bakışları (değişken uzunluklu: `[^.!?\n]{0,60}`, `\s+`, sözcük dizisi) fiil gövdesinden ÖNCE
  * yazılıydı → her konumda koşuyordu: 4.000 karakterlik boşluk dizisinde veto 2,6 sn olay döngüsünü kilitledi (veto ev sahibinin
  * erken giriş notuna / geç çıkış teklifine de uygulanır — oturum açmış bir kullanıcı tetikleyebilir). Gövde önce İLERİYE
  * BAKIŞLA sınanır: geriye bakışlar yalnız gövdenin başladığı konumda koşar. Kabul edilen dil birebir aynı. Diğer `HABITUAL_BEFORE`

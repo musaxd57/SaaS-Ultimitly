@@ -155,7 +155,7 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `${NL}uzat(?:abilir|abilecek|abilme|mak|mamiz|mayi|alim|sak|tirabilir|irsak|ir\\s+mi|ilabilir|ilir\\s+mi)${L}`,
     `${NL}(?:daha\\s+(?:fazla|uzun)|biraz\\s+daha|bir\\s+sure\\s+daha|bir\\s*kac\\s+gun\\s+daha)\\s+(?:kal|konakla)${L}`,
     `${NL}ertesi\\s+gun${L}${gap(1)}(?:kadar\\s+)?kal${L}`,
-    // Önde tek boşluk-dışı karakter yeter (`\\S+` ile AYNI sonuç — kalıp yalnız `test` ile sınanır); `\\S+` uzun sözcükte
+    // Önde tek boşluk-dışı karakter yeter (`\S+` ile AYNI sonuç — kalıp yalnız `test` ile sınanır); `\S+` uzun sözcükte
     // her konumdan sözcük sonuna kadar tarıyordu (ReDoS denetimi 09-28: 20.000 karakterde 12,5 sn).
     `\\S\\s+(?:kadar|dek)\\s+kal(?:abil|sak|mak|mamiz|alim|ir\\s+mi|ma\\s+imkan)${L}`,
     // EN
