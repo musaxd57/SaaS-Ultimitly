@@ -40,6 +40,7 @@ describe("ad bilinmiyorken `{isim}` boşluğuyla kalkar", () => {
     ["Hi, {name}, welcome", "Hi, welcome"], // eskiden "Hi,, welcome"
     ["Thank you for booking with us, {name}. See you", "Thank you for booking with us. See you"],
     ["Merhaba, {isim}.", "Merhaba."],
+    ["Merhaba , {isim}!", "Merhaba!"], // virgülden önceki boşluk da gider (mutasyon W13)
     ["Hoş geldiniz, {isim}!", "Hoş geldiniz!"],
     ["Здравствуйте, {name}!", "Здравствуйте!"],
     ["Merhaba, {isim} hoş geldiniz", "Merhaba, hoş geldiniz"],
