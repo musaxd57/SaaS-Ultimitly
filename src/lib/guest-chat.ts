@@ -606,6 +606,8 @@ export interface GuestChatContext {
   activeReservation: {
     id: string;
     guestName: string;
+    /** Kanalın ayrı hitap adı (migration 57) — YALNIZ modele giden metinden adı silmek için; yanıta konmaz. */
+    guestGivenName?: string | null;
     arrivalDate: Date;
     departureDate: Date;
     status: string;
@@ -1041,7 +1043,16 @@ export async function resolveGuestChat(
     // chatPinHash is selected ONLY to derive the pinRequired boolean below — it is
     // stripped from the returned activeReservation (the hash never leaves this fn).
     // `sourceReference` KVKK tombstone eşleşmesi için (↓DÖRDÜNCÜ INGRESS).
-    select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true, chatPinHash: true, sourceReference: true },
+    select: {
+      id: true,
+      guestName: true,
+      guestGivenName: true,
+      arrivalDate: true,
+      departureDate: true,
+      status: true,
+      chatPinHash: true,
+      sourceReference: true,
+    },
   });
 
   // Evaluate EVERY candidate, not just one row: the 12h look-ahead pulls the NEXT
@@ -1110,6 +1121,7 @@ export async function resolveGuestChat(
     ? {
         id: activeRow.id,
         guestName: activeRow.guestName,
+        guestGivenName: activeRow.guestGivenName ?? null,
         arrivalDate: activeRow.arrivalDate,
         departureDate: activeRow.departureDate,
         status: activeRow.status,

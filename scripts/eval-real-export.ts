@@ -86,6 +86,7 @@ interface MsgRow {
   body: string;
   guestIdentifier: string | null;
   guestName: string | null;
+  guestGivenName: string | null;
   propertyId: string;
 }
 
@@ -135,7 +136,7 @@ async function main(): Promise<void> {
       const props = await tx.$queryRaw<{ id: string; name: string; address: string | null; checkInTime: string | null; checkOutTime: string | null }[]>`
         SELECT id, name, address, "checkInTime", "checkOutTime" FROM "Property" WHERE "organizationId" = ${org.id}`;
       const msgs = await tx.$queryRaw<MsgRow[]>`
-        SELECT m.body, c."guestIdentifier", r."guestName", c."propertyId"
+        SELECT m.body, c."guestIdentifier", r."guestName", r."guestGivenName", c."propertyId"
         FROM "Message" m
         JOIN "Conversation" c ON c.id = m."conversationId"
         JOIN "Property" p ON p.id = c."propertyId"
@@ -156,7 +157,8 @@ async function main(): Promise<void> {
       .map((m) => {
         const p = propById.get(m.propertyId);
         const text = anonymizeGuestText(m.body, {
-          personNames: [m.guestIdentifier ?? "", m.guestName ?? "", ...hostNames].filter(Boolean),
+          // Kanalın ayrı hitap adı da (migration 57; 09-28 inceleme): tam adın ilk sözcüğü değilse yalnız bununla anonimleşir.
+          personNames: [m.guestIdentifier ?? "", m.guestName ?? "", m.guestGivenName ?? "", ...hostNames].filter(Boolean),
           placeNames,
         });
         return { text, checkIn: p?.checkInTime || "15:00", checkOut: p?.checkOutTime || "11:00" };

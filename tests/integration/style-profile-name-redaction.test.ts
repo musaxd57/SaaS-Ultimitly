@@ -71,4 +71,28 @@ describe("üslup profili örneklerinde misafir adı yok", () => {
     expect(joined).toContain("havlular dolapta");
     expect(joined).toContain("Rica ederim, her zaman yazabilirsiniz.");
   });
+
+  it("🚨 kanalın AYRI hitap adı da silinir (tam ad 'Robert Smith', hitap adı 'Bob' — ilk sözcük kuralı tutmuyordu)", async () => {
+    const orgId = await seed();
+    const property = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId } });
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId: property.id,
+        guestName: "Robert Smith",
+        guestGivenName: "Bob",
+        arrivalDate: new Date(Date.now() - 86_400_000),
+        departureDate: new Date(Date.now() + 86_400_000),
+        status: "confirmed",
+        channel: "airbnb",
+      },
+    });
+    const c3 = await prisma.conversation.create({ data: { propertyId: property.id, guestIdentifier: "Robert Smith", reservationId: reservation.id } });
+    await prisma.message.create({
+      data: { conversationId: c3.id, direction: "outbound", senderName: "Ev sahibi", authorType: "host", body: "Hello Bob, the towels are in the closet." },
+    });
+    await refreshStyleProfile(orgId);
+    const joined = (mockSummarize.mock.calls[0][0] as string[]).join("\n");
+    expect(joined).not.toContain("Bob");
+    expect(joined).toContain("the towels are in the closet");
+  });
 });

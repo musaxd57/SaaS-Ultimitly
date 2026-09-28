@@ -2020,6 +2020,7 @@ export async function applyChannelAutoReply(
           guestMessage: last.body,
           guestName: conversation.guestIdentifier,
           reservationGuestName: conversation.reservation?.guestName,
+          reservationGivenName: conversation.reservation?.guestGivenName,
           gateDecision: "auto_sent",
         });
         return { sent: true, ...meta };
@@ -2764,6 +2765,7 @@ export async function applyChannelAutoReply(
         guestMessage: last.body,
         guestName: conversation.guestIdentifier,
         reservationGuestName: conversation.reservation?.guestName,
+        reservationGivenName: conversation.reservation?.guestGivenName,
         gateDecision: "human_review",
         gateRiskLevel: result.riskLevel,
         gateRiskType: result.riskType ?? detectRiskType(last.body),
@@ -3007,6 +3009,7 @@ export async function applyChannelAutoReply(
         guestMessage: last.body,
         guestName: conversation.guestIdentifier,
         reservationGuestName: conversation.reservation?.guestName,
+        reservationGivenName: conversation.reservation?.guestGivenName,
         gateDecision: "human_review",
         gateRiskLevel: result.riskLevel,
         gateRiskType: result.riskType ?? detectRiskType(last.body),
@@ -3049,6 +3052,7 @@ export async function applyChannelAutoReply(
         guestMessage: last.body,
         guestName: conversation.guestIdentifier,
         reservationGuestName: conversation.reservation?.guestName,
+        reservationGivenName: conversation.reservation?.guestGivenName,
         gateDecision: "human_review",
         gateRiskLevel: result.riskLevel,
         gateRiskType: result.riskType ?? detectRiskType(last.body),
@@ -3205,6 +3209,7 @@ export async function applyChannelAutoReply(
       guestMessage: last.body,
       guestName: conversation.guestIdentifier,
       reservationGuestName: conversation.reservation?.guestName,
+      reservationGivenName: conversation.reservation?.guestGivenName,
       gateDecision: "auto_sent",
       gateRiskLevel: result.riskLevel,
       gateRiskType: result.riskType,
@@ -3392,6 +3397,7 @@ export async function applyChannelAutoReply(
     guestMessage: last.body,
     guestName: conversation.guestIdentifier,
     reservationGuestName: conversation.reservation?.guestName,
+    reservationGivenName: conversation.reservation?.guestGivenName,
     gateDecision: "auto_sent",
     gateRiskLevel: result.riskLevel,
     gateRiskType: result.riskType,
@@ -4004,7 +4010,10 @@ export async function refreshStyleProfile(
       ],
       conversation: { property: { organizationId } },
     },
-    select: { body: true, conversation: { select: { guestIdentifier: true, reservation: { select: { guestName: true } } } } },
+    select: {
+      body: true,
+      conversation: { select: { guestIdentifier: true, reservation: { select: { guestName: true, guestGivenName: true } } } },
+    },
     orderBy: { createdAt: "desc" },
     take: 40,
   });
@@ -4019,7 +4028,10 @@ export async function refreshStyleProfile(
       redactSensitive(
         redactNameFromBody(
           m.body,
-          [m.conversation.reservation?.guestName, m.conversation.guestIdentifier].filter((n): n is string => Boolean(n && n.trim())),
+          // Kanalın ayrı hitap adı da (migration 57; ev sahibinin onayladığı yapay zekâ taslağı "Merhaba Mehmet Ali," ile örneğe girer).
+          [m.conversation.reservation?.guestName, m.conversation.reservation?.guestGivenName, m.conversation.guestIdentifier].filter(
+            (n): n is string => Boolean(n && n.trim()),
+          ),
         ),
       ),
     )

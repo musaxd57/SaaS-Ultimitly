@@ -176,6 +176,24 @@ describe("POST /api/admin/quality-audit — Claude gölge denetçisi", () => {
     expect(await prisma.message.count()).toBe(2);
   });
 
+  it("🚨 kanalın AYRI hitap adı da denetçiye gitmez (tam ad 'Robert Smith', kodun selamı 'Hello Bob,' — 09-28 inceleme)", async () => {
+    const org = await seedCustomerOrg();
+    const reservation = await prisma.reservation.findFirstOrThrow({ where: { property: { organizationId: org.id } } });
+    await prisma.reservation.update({ where: { id: reservation.id }, data: { guestName: "Robert Smith", guestGivenName: "Bob" } });
+    const conversation = await prisma.conversation.findFirstOrThrow({ where: { reservationId: reservation.id } });
+    await prisma.conversation.update({ where: { id: conversation.id }, data: { guestIdentifier: "Robert Smith" } });
+    await prisma.message.updateMany({
+      where: { conversationId: conversation.id, direction: "outbound" },
+      data: { body: "Hello Bob,\n\nThe wifi card is at the entrance." },
+    });
+    session = await makeOperatorSession();
+    const res = await POST(req({ organizationId: org.id }));
+    expect(res.status).toBe(200);
+    const sent = JSON.stringify(createMock.mock.calls[0][0]);
+    expect(sent).not.toContain("Bob");
+    expect(sent).toContain("The wifi card is at the entrance.");
+  });
+
   it("🚨 F15: denetçi boş nesne ya da örneklemde olmayan mesaja bulgu döndürürse rapor EKSİK — '0 bulgu = uygun' okunmaz", async () => {
     const org = await seedCustomerOrg();
     session = await makeOperatorSession();

@@ -719,7 +719,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     history,
     // Anlama katmanı (bayrak açıkken): standart saat kıyası + redaksiyon için.
     stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
-    redactNames: [res.guestName],
+    // Kanalın ayrı hitap adı da (migration 57; 09-28 inceleme): tam adın ilk sözcüğü değilse yalnız bununla silinir.
+    redactNames: [res.guestName, res.guestGivenName],
     // Anlama katmanının tarih satırı (bayrak açıkken): QR'da rezervasyon ayrıntısı bilinçli verilmez → yalnız bugün/yarın.
     dateContext: { now: new Date(), timeZone: org?.timezone },
   });
@@ -738,6 +739,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // their stay dates. (The host's private "Misafir Sohbetleri" record DOES carry
     // the guest name — that's the host's own booking data.)
     reservation: null,
+    // Adsız yapay zekâ anahtarı AÇIKKEN cevap isteminden adı silmek için (09-28 inceleme: QR'da silme anahtarı hiç yoktu). Anahtar
+    // kapalıyken bu alan istemde KULLANILMAZ — ad modele bu alandan gitmez.
+    guestIdentifier: res.guestName,
     // ...but the stay IS verified (chat only opens during an active booking) —
     // without this flag the pre-booking guard would treat the current guest as
     // a prospect and invite them to "complete your booking" mid-stay. Secrets
@@ -795,7 +799,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       guestMessages: [message],
       reply: result.reply,
       stayTimes: stayCtx?.stayTimes,
-      names: [res.guestName],
+      names: [res.guestName, res.guestGivenName],
       // Modelin gördüğü AYNI pencere (takip izni bağlamla anlaşılır).
       history,
     });

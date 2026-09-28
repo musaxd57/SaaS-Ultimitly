@@ -132,6 +132,8 @@ export interface ShadowInput {
    *  placeholder-kimlikli konuşmalarda gerçek ad modele ham gider (quality-audit
    *  ile parite). */
   reservationGuestName?: string | null;
+  /** Kanalın AYRI hitap adı (migration 57) — tam adın ilk sözcüğü değilse ("Bob" / "Robert Smith") yalnız bununla silinir. */
+  reservationGivenName?: string | null;
   gateDecision: "auto_sent" | "human_review";
   gateRiskLevel?: string | null;
   gateRiskType?: string | null;
@@ -266,7 +268,7 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
                 input.guestMessage,
                 // BOTH names: the reservation's real booking name AND the
                 // (possibly placeholder) identifier — parity with quality-audit.
-                [input.reservationGuestName, input.guestName].filter((n): n is string => Boolean(n)),
+                [input.reservationGuestName, input.reservationGivenName, input.guestName].filter((n): n is string => Boolean(n)),
               ),
             ).slice(0, MESSAGE_CAP),
           },

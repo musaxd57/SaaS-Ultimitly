@@ -296,7 +296,7 @@ export async function collectAuditSample(
           lastRiskLevel: true,
           lastRiskType: true,
           property: { select: { name: true } },
-          reservation: { select: { guestName: true } },
+          reservation: { select: { guestName: true, guestGivenName: true } },
         },
       },
     },
@@ -353,7 +353,9 @@ export async function collectAuditSample(
         where: { conversationId: m.conversationId, direction: "inbound" },
         take: 1,
       })) > 0;
-    const names = [m.conversation.reservation?.guestName, m.conversation.guestIdentifier];
+    // Kanalın ayrı hitap adı da (migration 57): kodun selamı "Hello Bob," (tam ad "Robert Smith") ya da "Mehmet Ali" yazar — ilk sözcük
+    // kuralı onu tutmuyordu (09-28 inceleme ajanı).
+    const names = [m.conversation.reservation?.guestName, m.conversation.reservation?.guestGivenName, m.conversation.guestIdentifier];
     const guestText = priorInbound.length
       ? priorInbound
           .slice()

@@ -76,6 +76,26 @@ describe("recordShadowVerdict — gölge Aşama-1", () => {
     expect(JSON.stringify(row)).not.toContain("paramı geri");
   });
 
+  it("🚨 kanalın AYRI hitap adı da gölge modele gitmez (tam ad 'Robert Smith', mesajda 'Bob' — 09-28 inceleme)", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => modelResponse({ verdict: "auto_ok", riskType: null, confidence: 0.9 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    await recordShadowVerdict({
+      organizationId: org.id,
+      triggerId: "m-bob",
+      guestMessage: "Hi, it's Bob here. Where are the towels?",
+      guestName: "Robert Smith",
+      reservationGuestName: "Robert Smith",
+      reservationGivenName: "Bob",
+      gateDecision: "auto_sent",
+    });
+    const sentBody = String(fetchMock.mock.calls[0]?.[1]?.body);
+    expect(sentBody).not.toContain("Bob");
+    expect(sentBody).toContain("Where are the towels?");
+  });
+
   it("ayrışma yönü: kapı GÖNDERDİ + gölge escalate → agrees=false (gölge daha sıkı)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => modelResponse({ verdict: "escalate", riskType: "complaint", confidence: 0.8 })));
     const org = await seedOrg();
