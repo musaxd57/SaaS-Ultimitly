@@ -52,8 +52,10 @@ async function seedWithPinState() {
   });
 }
 
+// Liste testte AYRICA yazılı (mutasyon: modülün listesinden okumak, listeden silinen alanı testten de siliyordu).
+const MUST_NOT_LEAK = ["chatPinHash", "chatBoundHash", "chatPinFailedCount", "chatPinLockedUntil", "qrEscalationEmailMessageId"];
 const expectNoInternals = (row: Record<string, unknown>) => {
-  for (const f of RESERVATION_INTERNAL_FIELDS) expect(row, f).not.toHaveProperty(f);
+  for (const f of MUST_NOT_LEAK) expect(row, f).not.toHaveProperty(f);
 };
 
 describe("rezervasyon API yanıtı QR iç durumunu taşımaz", () => {
@@ -97,6 +99,10 @@ describe("rezervasyon API yanıtı QR iç durumunu taşımaz", () => {
     const row = (await res.json()) as Record<string, unknown>;
     expectNoInternals(row);
     expect(row).toMatchObject({ guestName: "Bora" });
+  });
+
+  it("modülün listesi testin listesini kapsar (tek kaynak kayması olmasın)", () => {
+    expect([...RESERVATION_INTERNAL_FIELDS].sort()).toEqual([...MUST_NOT_LEAK].sort());
   });
 
   it("KONTROL — veritabanındaki PIN durumu dokunulmadan kalır (yalnız yanıttan çıkarılır)", async () => {
