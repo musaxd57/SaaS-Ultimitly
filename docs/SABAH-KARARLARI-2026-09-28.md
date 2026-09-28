@@ -18,7 +18,9 @@ fonksiyonları çalıştırarak; ücretli çağrı yok).
   boşlukları · K7 tanınmayan rezervasyon durumu · K8 bürünmüşken ödeme onayı · K9 sır süzgeci yabancı dil · K10 diğer güvenlik.
   Ayrıca: geniş blok bayrağı (`KB_RETRIEVAL_WIDE_BUDGET`) — İngilizce kalemlerin %25'i bugünkü bütçede bloğa girmiyor. K10'a gece
   dört satır eklendi (i şifre sıfırlama e-postası günlük tavanı · j iletişim formu e-posta tavanı · k Paddle webhook ön kısıtı ·
-  l QR acil e-postası bekleme süresi). RAG / gömme araştırması K6'da.
+  l QR acil e-postası bekleme süresi); sonra m (sayfa düzeyinde rol kapısı), n (QR devir dizini, ölçüldü: düşük öncelik), o (misafir
+  adının ev sahibi bilgisine girmesi — yapısal çözüm). RAG / gömme araştırması K6'da. Airbnb başvurusu için güvenlik kontrolleri
+  envanteri (kod kaynaklı, dürüst açık listesiyle): `docs/GUVENLIK-KONTROLLERI-2026-09-28.md`.
 - **Krediye bağlı bekleyenler:** holdout kabul ölçümü, cevap düzeyi ölçüm (± geniş blok), "Şifremi unuttum"un anlamsal katmanla
   doğrulanması, ölçerin üretim biçimli geçmişle (`live+phist`) koşusu. Kredi yüklendiğini söyleyene kadar ücretli çağrı yok.
 
