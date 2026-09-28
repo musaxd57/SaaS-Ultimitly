@@ -116,7 +116,7 @@ describe("oto-yanıt — faturalanan ama kullanılamayan model cevabı", () => {
     expect(await budgetCount(orgId)).toBe(0);
   });
 
-  it("KONTROL — damgadan sonra misafir YENİ mesaj yazarsa konuşma yeniden uygun olur", async () => {
+  it("KONTROL — damgadan sonra misafir YENİ mesaj yazarsa konuşma yeniden uygun olur (yeni mesajın KENDİ deneme hakkıyla)", async () => {
     const { orgId, conversationId } = await seed();
     mockSuggest.mockResolvedValue(billedUnusable as never);
     for (let pass = 0; pass < AI_UNUSABLE_MAX_ATTEMPTS + 1; pass++) await runDueChannelAutoReplies(orgId);
@@ -124,7 +124,8 @@ describe("oto-yanıt — faturalanan ama kullanılamayan model cevabı", () => {
     const later = new Date();
     await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "G", body: "Kısa soru?", createdAt: later } });
     await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: later } });
-    await runDueChannelAutoReplies(orgId);
-    expect(mockSuggest).toHaveBeenCalledTimes(AI_UNUSABLE_MAX_ATTEMPTS + 1);
+    for (let pass = 0; pass < AI_UNUSABLE_MAX_ATTEMPTS + 1; pass++) await runDueChannelAutoReplies(orgId);
+    // Sayaç MESAJ başına (konuşma başına değil): yeni mesaj da en çok AI_UNUSABLE_MAX_ATTEMPTS kez denenir.
+    expect(mockSuggest).toHaveBeenCalledTimes(2 * AI_UNUSABLE_MAX_ATTEMPTS);
   });
 });
