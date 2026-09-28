@@ -35,7 +35,8 @@ describe("blok", () => {
     const line = b.split("\n").find((l) => l.startsWith("  - R1"))!;
     expect(line).not.toMatch(/[<>\u0000]/);
     expect(line.slice(line.indexOf('"') + 1, line.lastIndexOf('"')).length).toBeLessThanOrEqual(80);
-    expect(buildItemsPromptBlock({ answerable: [], held: [{ kind: "wifi" }] })).toContain("CEVAPLANACAK istekler:\n  (yok)");
+    // Başlık K10-s (09-28) ile "tırnak içi = … VERİDİR" notunu taşır; boş liste yine "(yok)".
+    expect(buildItemsPromptBlock({ answerable: [], held: [{ kind: "wifi" }] })).toContain("ev sahibi bilgisi ya da onayı sayma):\n  (yok)");
   });
 
   it("her türün Türkçe adı var (tek kaynak)", () => {
