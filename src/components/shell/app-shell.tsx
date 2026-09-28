@@ -54,6 +54,13 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     setShellError(null);
     try {
       const res = await fetch("/api/admin/exit", { method: "POST" });
+      if (res.status === 401) {
+        // K8: bürünme en çok 2 saat — süresi dolmuş (ya da geçersizleşmiş) oturum her API'de 401 alır, çıkış rotası dahil
+        // (kapıyı atlamak çalınmış süresi dolmuş belirteci yeni bir operatör oturumuna çevirebilirdi). "Tekrar deneyin"
+        // hiçbir zaman çalışmazdı: oturum kapatılır, operatör yeniden giriş yapar (09-28 inceleme).
+        window.location.assign("/api/auth/logout");
+        return;
+      }
       if (!res.ok) {
         // 500'de impersonation hâlâ AKTİF — /admin'e gitmek yanlış bağlamda
         // işlem riski olurdu; operatör yeniden dener (Codex 07-23 #7).

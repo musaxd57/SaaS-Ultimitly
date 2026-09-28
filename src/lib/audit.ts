@@ -131,8 +131,10 @@ export async function writeAudit(entry: {
  * when the audit is legally required to be inseparable from the action it records:
  * KVKK guest-erasure (Deletion Regulation art. 7 requires the destruction to be
  * LOGGED, so "destroy without a log" is not an acceptable success state). Do NOT
- * use for ordinary audits — a login/impersonation must never fail because its log
- * write hiccuped; those keep the fire-and-forget writeAudit.
+ * use for ordinary audits — a login must never fail because its log write hiccuped;
+ * those keep the fire-and-forget writeAudit. (Exception, K8 09-28: impersonation START
+ * is now mandatory too — `enterOrganization` writes its record BEFORE the cookie and
+ * a failed write blocks the impersonation.)
  */
 export async function writeAuditInTx(
   tx: Prisma.TransactionClient,

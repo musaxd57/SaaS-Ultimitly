@@ -82,6 +82,33 @@ describe("AppShell — mobil drawer modal sözleşmesi + logout res.ok", () => {
     vi.unstubAllGlobals();
   });
 
+  it("🚨 impersonation exit: 401 (bürünme süresi doldu) → 'tekrar deneyin' DEĞİL, oturum kapatılır (09-28 inceleme)", async () => {
+    // Süresi dolmuş bürünme her API'de 401 alır; çıkış rotası da (kapıyı atlamak çalınmış belirteci yeni operatör oturumuna
+    // çevirebilirdi). Eski kabuk "hâlâ bu hesaptasınız, tekrar deneyin" diyordu — tekrar hiçbir zaman çalışmıyordu.
+    const assign = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, "location", { configurable: true, value: { ...original, assign } });
+    render(
+      <AppShell
+        user={{ name: "Owner", email: "o@x.com", role: "owner", orgName: "Org" } as never}
+        superAdmin={false}
+        guestChatEnabled={false}
+        impersonating={{ orgName: "Müşteri", actorName: "Operatör" } as never}
+      >
+        <div>içerik</div>
+      </AppShell>,
+    );
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 401 })));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Kendi hesabıma dön/ }));
+    });
+    expect(assign).toHaveBeenCalledWith("/api/auth/logout");
+    expect(screen.queryByText(/Tekrar deneyin/)).toBeNull();
+    expect(push).not.toHaveBeenCalled();
+    Object.defineProperty(window, "location", { configurable: true, value: original });
+    vi.unstubAllGlobals();
+  });
+
   it("logout: HTTP 500'de YÖNLENDİRME YOK (buton geri açılır); 200'de /login'e gider", async () => {
     renderShell();
     const logoutBtn = screen.getAllByRole("button", { name: /Çıkış/ })[0];

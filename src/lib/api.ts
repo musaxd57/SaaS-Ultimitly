@@ -21,7 +21,8 @@ export async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession();
   if (!session) return null;
   // K8 (kurucu kararı 09-28): bürünme en çok 2 saat; süresi dolmuş (ya da damgasız, eski) bürünme hiçbir API'ye erişemez.
-  // Çıkış rotası (`/api/admin/exit`) bu kapıdan geçmez — operatör kendi oturumuna yine dönebilir.
+  // Çıkış rotası (`/api/admin/exit`) da bu kapıdan GEÇER (atlamak, çalınmış süresi dolmuş belirteci taze bir operatör oturumuna
+  // çevirebilirdi); süresi dolunca kabuk oturumu kapatıp girişe yönlendirir (09-28 inceleme — eski yorum tersini söylüyordu).
   if (impersonationExpired(session)) return null;
   try {
     const user = await prisma.user.findUnique({
