@@ -10,11 +10,15 @@ fonksiyonları çalıştırarak; ücretli çağrı yok).
 - **Gece canlıya çıkanlar** (her biri tam kapılar + CI yeşil; müşteriye giden cevabı DEĞİŞTİRMEYEN ya da sizin onayladığınız işler):
   saat okuma turu, küçük bilgi tabanı sınırı, getirme hataları ("Şifremi unuttum", "Arabamı nereye bırakayım?", "noise / waste /
   hastane" sözlüğü, "açılıyor" ≠ acil, çok konulu mesaj), güvenlik paketi (enjeksiyon ayraçları, çit taklidi, misafir adı ve telefon
-  redaksiyonu, rol kapısı pini, bayrak yazım uyarısı, gömme yapılandırma alarmı), ölçer sadakati. Ayrıntı ↓"Gece yapılanlar".
+  redaksiyonu, rol kapısı pini, bayrak yazım uyarısı, gömme yapılandırma alarmı), ölçer sadakati; gecenin ikinci yarısı: beş güvenlik
+  denetimi (kiracılar arası açık yok), misafir adının bilgi tabanına yalnız ad olarak girmesi, e-posta konusu tek satır, elle
+  rezervasyonda kanal işaretçisi, QR devir kontrolü tek satır. Ayrıntı ↓"Gece yapılanlar".
 - **Sizden karar bekleyenler** (her biri aşağıda önce / sonra örnekli): K1 devir cümlesi otomatik gitmesin mi · K2 "bilgim yok"un yakın
   biçimleri · K3 saat dışı çelişki (fiyat / sayı / var-yok) · K4 belirsiz atıf: netleştirme mi devir mi · K5 üslup · K6 rakip
   boşlukları · K7 tanınmayan rezervasyon durumu · K8 bürünmüşken ödeme onayı · K9 sır süzgeci yabancı dil · K10 diğer güvenlik.
-  Ayrıca: geniş blok bayrağı (`KB_RETRIEVAL_WIDE_BUDGET`) — İngilizce kalemlerin %25'i bugünkü bütçede bloğa girmiyor.
+  Ayrıca: geniş blok bayrağı (`KB_RETRIEVAL_WIDE_BUDGET`) — İngilizce kalemlerin %25'i bugünkü bütçede bloğa girmiyor. K10'a gece
+  dört satır eklendi (i şifre sıfırlama e-postası günlük tavanı · j iletişim formu e-posta tavanı · k Paddle webhook ön kısıtı ·
+  l QR acil e-postası bekleme süresi). RAG / gömme araştırması K6'da.
 - **Krediye bağlı bekleyenler:** holdout kabul ölçümü, cevap düzeyi ölçüm (± geniş blok), "Şifremi unuttum"un anlamsal katmanla
   doğrulanması, ölçerin üretim biçimli geçmişle (`live+phist`) koşusu. Kredi yüklendiğini söyleyene kadar ücretli çağrı yok.
 
@@ -214,7 +218,13 @@ Web araştırması, kaynaklı. Satıcı iddiaları olgu değil; sayfaların ço�
 - Türkçe öncelik ve ölçülmüş dil kapısı.
 - Sabit fiyat. Ama kanal mesajları bugün Hospitable'ın ücretli planını gerektiriyor; üstünlük köprü kalkınca tamamlanır.
 
-**Airbnb başvurusu için:** Rakiplerde SOC 2 Type II / PCI / ISO (Guesty) ve zorunlu 2FA (Hostaway) var. Bizde yok: bağımsız sızma testi, üç ayda bir tarama, güven sayfası, "PCI kapsamı dışında" beyanı, SOC 2 hazırlığı. Gece üç güvenlik denetim ajanı çalışıyor; sonuçlar buraya gelecek.
+**Airbnb başvurusu için:** Rakiplerde SOC 2 Type II / PCI / ISO (Guesty) ve zorunlu 2FA (Hostaway) var. Bizde yok: bağımsız sızma testi, üç ayda bir tarama, güven sayfası, "PCI kapsamı dışında" beyanı, SOC 2 hazırlığı. Gece beş güvenlik denetimi daha koştu (e-posta, SSRF, toplu atama, personel sayfaları, halka açık uçlar): kiracılar arası açık bulunmadı; doğrulanan küçük bulgular düzeltildi (↓"Gece yapılanlar"), karar gerektirenler ↑K10 i–l.
+
+**RAG / gömme özel araştırması (28.09, `docs/RAG-EMBEDDING-SON-DURUM-2026-09-28.md`):** rakiplerin hiçbiri getirme mimarisini ya da Türkçe
+ölçümünü yayımlamıyor; farkları bilgi tabanını BESLEME tarafında. Değer / efor sırası: (1) konuşmada "eksik bilgi → tek tıkla ekle"
+(model çağrısı ve yeni alt işleyen yok; ev sahibi onaylar), (2) kalem başına sentetik misafir sorusu (ölçüm < 1 $, kredi gelince),
+(3) barındırılan yeniden sıralayıcı (Cohere / Voyage; gecikme + OpenAI kotasından bağımsızlık, ama YENİ ALT İŞLEYEN = KVKK adımı),
+(4) yapılandırılmış mülk profili alanları, (5) gömme modeli değişimi (Türkçe kanıt zayıf). İddialar arama özetinden; karardan önce açılmalı.
 
 **Önerim:**
 - KBS + çevrimiçi giriş: yerel ve yasal, rakiplerin boş bıraktığı alan. Yol planına ekleyelim mi?
