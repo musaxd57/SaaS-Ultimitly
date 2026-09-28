@@ -226,6 +226,8 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   // konuşma damgalanmaz, servis dönünce kendiliğinden yeniden denenir.
   ai_unavailable:
     "AI servisine geçici olarak ulaşılamadı — bağlantı düzelince bu konuşma otomatik olarak yeniden denenecek",
+  // Model cevap verdi ama çıktı üst üste kullanılamadı (3 deneme, 09-28): bu mesaj bir daha OTOMATİK denenmez.
+  ai_unusable: "AI bu mesaja kullanılabilir bir cevap üretemedi — lütfen elle yanıtlayın",
   // Mevcut müşterilerin gündüz mesajlarının sessizce cevapsız kalmasının TEK
   // sebebi buydu ve hiçbir ekranda yazmıyordu (şema varsayılanı hâlâ gece-only).
   outside_hours:

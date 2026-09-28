@@ -97,6 +97,17 @@ describe("oto-yanıt — faturalanan ama kullanılamayan model cevabı", () => {
     expect(mockSuggest).toHaveBeenCalledTimes(AI_UNUSABLE_MAX_ATTEMPTS);
     const row = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
     expect(row.autoReplyAttemptedAt?.getTime()).toBe(when.getTime());
+    // 🚨 Sebep de değişir: "bağlantı düzelince yeniden denenecek" (ai_unavailable) artık yanlış olurdu (ikinci inceleme 09-28).
+    expect(row.skippedReason).toBe("ai_unusable");
+  });
+
+  it("KONTROL — sınır dolmadan önce sebep ai_unavailable kalır (yeniden denenecek)", async () => {
+    const { orgId, conversationId } = await seed();
+    mockSuggest.mockResolvedValue(billedUnusable as never);
+    await runDueChannelAutoReplies(orgId);
+    const row = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(row.skippedReason).toBe("ai_unavailable");
+    expect(row.autoReplyAttemptedAt).toBeNull();
   });
 
   it("🚨 faturalanan her kullanılamaz cevap günlük bütçeye sayılır", async () => {

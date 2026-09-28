@@ -3875,8 +3875,10 @@ export async function runDueChannelAutoReplies(
         7 * 24 * 60 * 60 * 1000,
       ).catch(() => ({ ok: true, retryAfter: 0 }));
       if (!attempts.ok) {
+        // Sebep de aynı yazmada değişir (ikinci inceleme 09-28): `ai_unavailable` etiketi host'a "bağlantı düzelince yeniden
+        // denenecek" diyordu — damgadan sonra bu mesaj bir daha denenmiyor. `ai_unusable` = "elle yanıtlayın".
         await prisma.conversation
-          .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: c.lastMessageAt } })
+          .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: c.lastMessageAt, skippedReason: "ai_unusable" } })
           .catch(() => {});
       }
     } else if (
