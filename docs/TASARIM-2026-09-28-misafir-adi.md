@@ -113,9 +113,13 @@ misafir verisi Microsoft bulutuna eşitleniyor olabilir; kurucuya taşıması ö
 - Karşılama hatası: **EVET** — ad bilinmiyorsa "Merhaba," (uygulandı).
 - Migration (sütun): **EVET, şimdi** (uygulandı, §5). Canlıda Hospitable verisi akmadığı için "önce ölç" adımı yapılamıyordu.
 - Resmî ton selamı: **"Merhaba Ayşe,"** (kurucu).
-- D (adsız yapay zekâ + kodla selam): kurucu detaylara cevap verdi (resmî ton) → kapalı anahtarla kurulacak; önce ücretsiz kanıt
-  testleri (kanarya ad hiçbir model isteğine — ikinci tur geçmiş dahil — girmez; ev sahibi ekranında tam ad; selam bir kez; 7 dil × 3
-  ton; model selam yazarsa çift selam yok), sonra 20 satırlık ücretli deneme → gerçek tutar → kıyas → onay. R1 kapanmadan açılmaz.
+- D (adsız yapay zekâ + kodla selam): kurucu 09-28 "kurabilirsin" → **KODDA, anahtar `AI_CODE_GREETING_ENABLED` KAPALI** (`ai/code-greeting.ts`,
+  `ai/prompt-name-redaction.ts`). Ücretsiz kanıt (Codex şartı): tam akış kanaryası — kanal oto-yanıtı canlıdaki katmanlarla (anlama, bekçi,
+  gömme, sıralayıcı, cevap modeli) koşar, sahte `fetch` HER model isteğini yakalar; anahtar açıkken kanarya ad hiçbirinde yok (misafirin
+  kendi mesajı, geçmişteki kendi selamımız = ikinci tur R1, rezervasyonsuz konuşma, soyad önde ad dahil); KONTROL: kapalıyken ad bugün
+  gidiyor. Selam yalnız ilk cevapta ve tek (modelin selamı silinir), 7 dil tablosu, resmî ton "Merhaba Ayşe,", kısa ton selamsız, kanal adı
+  yoksa "Merhaba,". R2: güvenlik sözcüğü taşıyan ad silme anahtarı olmaz. Ev sahibi ekranında tam ad aynen (değişmedi). Açma sırası: 20
+  satırlık ücretli deneme (gerçek tutar) → cevap kıyası → kurucu onayı.
 - Sütunsuz kayıtlarda hitap: öneri Codex'in katı kuralı ("Merhaba,"; ilk kelime tahmini YOK) — kod selamı yazılırken kesinleşir.
 
 Kaynaklar: OWASP LLM01/LLM02 2025 · Microsoft Spotlighting (2024) ve MSRC (2025) · CaMeL (DeepMind, 2025) · Willison "prompt injection

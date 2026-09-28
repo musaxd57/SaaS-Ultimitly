@@ -879,8 +879,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `guestNameSource` kapalı küme `channel · placeholder · calendar · file · host` — köken etiketidir, "güvenilir" DEĞİL. İkisi de OLAY
   değil (yalnız onlar değişince `reservation.updated` yok, alan listesine girmez); anonim satıra hitap adı geri yazılmaz. KVKK: iki
   süpürge hitap adını null yapar + giden gövdelerden ayıklar (tam adın ilk sözcüğünden uzun olabilir: "Mehmet Ali"); bayrak açık
-  bacak; dışa aktarımda. 🚨 Bugün HİÇBİR yüzey okumaz — hitap kuralı (adsız yapay zekâ + kodla selam, `docs/TASARIM-2026-09-28-misafir-adi.md`)
-  ayrı dilim; ad modele / bilgi tabanına GİRMEZ. Adı yazan YENİ yol kökeni de yazar. Yedek + prova kanıtı belgede §5.
+  bacak; dışa aktarımda. Adı yazan YENİ yol kökeni de yazar. Yedek + prova kanıtı `docs/TASARIM-2026-09-28-misafir-adi.md` §5.
+- 🚨 **ADSIZ YAPAY ZEKÂ + KODLA SELAM ("D", kurucu onayı 09-28; anahtar `AI_CODE_GREETING_ENABLED` VARSAYILAN KAPALI, `ai/code-greeting.ts`):**
+  açıkken model misafirin adını HİÇ görmez — istem rezervasyon satırı yok, bilgi tabanı `{isim}` → "misafirimiz" (`modelGuestFirstName`),
+  geçmiş + güncel mesaj + getirme / gömme sorgularında ad → "[Misafir]" (`prompt-name-redaction.ts`; güvenlik sözcüğü taşıyan, yer
+  tutucu ya da anonim ad SİLME ANAHTARI olmaz), `reservation:guestName` kaynağı doğrulanmaz; model selam YAZMAZ (türetilmiş istem: ÇAPALI
+  değişiklik, çapa bulunamazsa açılış çökmez, pin eksik listesinin boş olduğunu ister); selamı KOD ekler — YALNIZ ilk cevapta, dil kodun
+  kesin tespiti ya da modelin beyanı (7 dil tablosu, yoksa selamsız), hitap adı YALNIZ `guestGivenName` (yoksa "Merhaba,"; ilk kelime
+  tahmini YOK), kısa tonda yok, resmî tonda da "Merhaba Ayşe,"; modelin baştaki selamı silinir. Kapı SON metni görür. Kapalıyken istem
+  bayt bayt aynı (pinli). Kanıt: tam akış kanaryası (`code-greeting-canary-flow.test.ts`: cevap + anlama + bekçi + gömme + sıralayıcı,
+  ikinci tur dahil). Açma = ücretli cevap kıyası (önce 20 satırlık deneme, gerçek tutar ondan) + kurucu onayı.
 - **Kalite denetçisi (Claude = ikinci işleyen) girdisinde sır DEĞERLERİ maskelenir (#211):** `maskSecretValuesForAudit` (7 dil
   etiket + tuş takımı biçimi; saat/ücret korunur). `redactSensitive` GENİŞLETİLMEZ (anlam katmanına giden metni değiştirirdi).
 - Redaksiyon yapısal (`lib/redact.ts` — YAPRAK modül, hiçbir şey import etmez; `report-error-core` yeniden dışa
