@@ -348,8 +348,9 @@ Bu dosyaya token/anahtar/parola yazma.
   PII'siz `openTopics` — devir sebebi değil). Her karar `RiskEvent` (`surface:"guest_chat"`, kapalı-küme gerekçe, PII
   yok, await). 🚨 **Geçmiş de taranır** (`history_injection`: yalnız injection; modele giden AYNI dizi). 🚨 Yeni
   gerekçe `risk-events.ts` REASONS'a da eklenir (pin `risk-event-reason-parity`); bağlantı davranışsal pinli.
-- **QR misafir rotası:** devir (duraklatma) kontrolü TEK satır okur (`guestChatAiPausedForStay`, 09-28; eskiden her mesajda
-  konuşmanın tamamı, biri kilit altında) — hüküm tarayıcıyla birebir, rastgele dizilerle pinli. Mesaj penceresi `GUEST_CHAT_MESSAGE_WINDOW` 200 + tam sıra (cursor REDDEDİLDİ); istemcide
+- **QR misafir rotası:** devir (duraklatma) kontrolü uygulamaya TEK satır taşır (`guestChatAiPausedForStay`, 09-28; eskiden her
+  mesajda konuşmanın tamamı, biri kilit altında) — hüküm tarayıcıyla birebir, rastgele dizilerle pinli; devir satırı YOKSA veritabanı
+  taraması konuşma boyunda kalır (tam sınır kısmi dizin = migration, sabah belgesi K10-n). Mesaj penceresi `GUEST_CHAT_MESSAGE_WINDOW` 200 + tam sıra (cursor REDDEDİLDİ); istemcide
   görünürlük kapısı, terminal durumda `clearInterval`, 3 ardışık hatada uyarı. Devir metni gerçeğe uygun
   (`escalationReply()`: "kaydedildi; ev sahibiniz görebilir" — "ilettim" İDDİA EDİLMEZ); devir yapışkan değil.
 - 🚨 **"BİLGİM YOK" MİSAFİRE ASLA GİTMEZ (kurucu kuralı 09-11, `ai/absence.ts`):** `admitsMissingKnowledge` iki
@@ -565,8 +566,10 @@ Bu dosyaya token/anahtar/parola yazma.
   EDİLMEZ (`apartmentNumberOf`: güçlü etiket daire/apartment/apt/D: önce, zayıf no/# sonra; sayaç sözcüğü/3+ hane/
   birden çok sayı → null; sayısız ad → null; iki katlama; önde kelime sınırı). 🚨 MODELE giden `{isim}` değeri
   `guestFirstNameForPrompt` (09-28): görünen ad misafirin metnidir ve ev sahibinin KB kalemine (ev sahibi olgusu) yerleşir →
-  yalnız AD biçimindeki baş kısım (harfle başlar, ≤3 parça tire/kesme/orta nokta, 40 kod noktası; görünmez ayırıcı / iki nokta /
-  rakam keser). Model yolu (oto-yanıt, öneri, Ayarlar testi) bunu kullanır; şablonla misafire giden metin `guestFirstNameOf`.
+  yalnız AD biçimindeki baş kısım (harfle başlar; ≤3 parça ad birleştiricisiyle — tire, kesme işaretleri, NOKTA "M.Ali", geresh;
+  ZWNJ/ZWJ yalnız onu isteyen alfabelerde; görünmez "harf" (Hangul dolgu) / iki nokta / rakam keser; 40 kod noktası). Gerçek ad
+  bataryası eski kuralla birebir (ilk sürüm "M.Ali"yi "M" yapıyordu — inceleme). Ayırıcısız metin geçer (bilinen sınır, K10-o).
+  Model yolu (oto-yanıt, öneri, Ayarlar testi) bunu kullanır; şablonla misafire giden metin `guestFirstNameOf`.
 - **İstem bütçesi:** `REPLY_SYSTEM_PROMPT` ~46k karakter ("~75KB" yorumu YANLIŞ); BÖLÜM 13 = 24 few-shot, istemin
   %35'i, 19'u pinsiz, 5'i sahte Wi-Fi şifresi öğretiyor — daraltma ÖLÇÜMLE (golden + eval), tek hamlede değil.
   Prompt cache sırası doğru; `cached_tokens` artık OKUNUYOR (09-23: kanıt `llm.cpt`). `REPLY_CHAR_CAP` 4.000 ≠

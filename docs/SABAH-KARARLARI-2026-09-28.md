@@ -317,6 +317,8 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
 | k | Paddle webhook'u | imzasız / sahte imzalı istek başına 2 veritabanı yazması + log satırı, hız sınırı yok | imza doğrulamasından önce IP başına hafif kısıt (gerçek Paddle IP'leri etkilenmez). Para akışı → onayınız |
 | l | QR acil e-postası (bayrak KAPALI) | açılırsa her farklı yazılmış acil mesaj ayrı e-posta (bekleme süresi yok, bilinçli risk olarak belgeli) | açmadan önce konaklama başına bekleme süresi (ör. 10 dk'da 1) |
 | m | Sayfa düzeyinde rol kapısı | personelin (temizlikçi) yalnız Görevler'i görmesini ara katman ÇEREZDEKİ rolle sağlıyor; mülk sayfası (bilgi tabanı, rezervasyonlar, takvim beslemesi bağlantısı) ve diğer panel sayfaları rolü kendisi kontrol etmiyor. Bugün rol değiştiren yol yok → açık değil | personel daveti / rol değiştirme gelmeden ÖNCE: her panel sayfasına veritabanı rolüyle kapı + rol kapısı pininin sayfa ikizi (bugün yalnız API'de) |
+| n | QR devir kontrolü dizini | tek satır uygulamaya geliyor ama devir yoksa veritabanı konuşmanın tüm mesajlarını tarıyor (misafir konuşmayı büyütebilir; dakikada 20 istek) | `Message(conversationId, createdAt)` üzerinde yalnız ev sahibi / sistem satırları için KISMİ dizin (migration → taze yedek + onayınız); o zamana kadar tarama veritabanında kalır, hüküm doğru |
+| o | Misafir adı ev sahibi bilgi tabanında | `{isim}` misafirin görünen adını ev sahibi kalemine koyuyor; karakter süzgeci görünmez ayırıcıyı kesiyor ama ayırıcısız metni ("EvcilHayvanSerbest", Çince / Japonca cümle) kesemez | yapısal çözüm: modele giden bilgi tabanında `{isim}` yerine nötr "misafirimiz" (ad istemde zaten "Misafir: …" veri satırında). Önce: kalem "Merhaba Ayşe, hoş geldiniz" → model "Merhaba Ayşe"; sonra: kalem "Merhaba misafirimiz, hoş geldiniz" → model adı veri satırından alır, ÇOĞU cevapta aynı hitap (ölçüm ücretli — kredi gelince) |
 
 ---
 
@@ -392,6 +394,10 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
       geldiniz" (model bunu ev sahibinin kuralı gibi okuyabilir);
     - sonra: "Merhaba Ada, hoş geldiniz". Gerçek adlar (Ayşe, Jean-Luc, O'Brien, José, Arapça / Çince / Tayca adlar) birebir aynı; yalnız
       yapay zekâya giden yolda (oto-yanıt, gelen kutusu önerisi, Ayarlar testi). Şablonla misafirin kendisine giden metin değişmedi.
+    - ⚠️ Gece incelemesi bu düzeltmenin ilk sürümünde GERİLEME buldu (yaklaşık bir saat canlıda kaldı): "M.Ali Yılmaz" → "M", "A.Kadir"
+      → "A", Özbekçe "G‘ayrat" → "G", Farsça / İbranice / Sinhala adlar kesiliyordu. Düzeltildi (RC28): ad birleştiricileri (nokta,
+      kesme işaretleri, geresh, gerekli alfabelerde sıfır genişlikli birleştirici) korunuyor; ayrıca "harf" sayılan görünmez Hangul
+      dolgu karakteri artık ayırıcı. Bilinen sınır → ↓K10-o.
   - Yeniden sıralayıcı (A6 #5, bayrak kapalı → canlıda kayıt birebir aynı): soru başına ayrı çağrı kipinde çağrılardan biri düşerse
     kayıtta görünüyor (`rrF`); beklenmedik program hatası sessiz kalmıyor, bildiriliyor (misafirin yolu yine bugünkü sıra).
   - Üç güvenlik denetimi (ajan okudu, bulgular kodda doğrulandı):
@@ -405,8 +411,10 @@ Doğrulanan korumalar: şifre / 2FA / hesap silme bürünmüşken her uçta kapa
       08-08 kuralı burada da uygulanıyor: referans verilince kanal "Manuel" (rozet), gönderim denenmez.
     - Halka açık uçlar (kaynak tüketimi): QR sohbetinde misafirin her mesajında "yapay zekâ ev sahibine devredildi mi" kontrolü
       konuşmanın TAMAMINI okuyordu (biri ev sahibi cevabının da beklediği kilidin altında; konuşmayı büyüten, cihazı bağlı misafir).
-      Artık yalnız hükmü veren tek satır okunuyor; hüküm birebir aynı (eski tarama kâhin alınarak 60 rastgele dizi + sınır
-      durumları; mutasyon 9/9). Aynı denetimin karar gerektiren bulguları ↑K10 i–l.
+      Artık uygulamaya yalnız hükmü veren tek satır taşınıyor; hüküm birebir aynı (eski tarama kâhin alınarak 60 rastgele dizi +
+      sınır durumları; mutasyon 9/9). ⚠️ Düzeltme (gece incelemesi): veritabanı, hükmü veren satır YOKSA (en sık durum) konuşmanın
+      dizinini yine baştan sona tarıyor — tam sınır bir kısmi dizin ister (migration → ↓K10-n). Aynı denetimin karar gerektiren
+      bulguları ↑K10 i–l.
     - Sayfa sorgularının kiracı kapsamı (23 sayfa / yerleşim + çağırdıkları yardımcılar): açık yok — ayrıntı sayfaları kimliği org
       süzgeciyle arıyor (yoksa 404), raporlar ve pano her sorguda org süzgeçli, adres çubuğundaki mülk / konuşma kimliği yeniden
       doğrulanıyor.
