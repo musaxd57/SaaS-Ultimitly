@@ -49,6 +49,7 @@
 | Açık yönlendirme yok (izin listeli taban adres, `?next=` doğrulaması) | `lib/auth/email-verify.ts`, `lib/safe-redirect.ts` | |
 | Güvensiz ham SQL yok; kullanıcı içeriği HTML'e ham basılmıyor; e-posta şablonları kaçışlı, konu tek satır | `lib/email-templates.ts`, `lib/email-core.ts` | |
 | Halka açık QR sohbeti: tahmin edilemez belirteç, konaklama başına cihaz bağlama (httpOnly çerez), hız sınırı, mesaj tavanı | `api/chat/[token]` | devir kontrolü tek satır (28.09) |
+| Misafir metnine uygulanan kalıplar doğrusal süreli (düzenli ifade kaynaklı hizmet dışı bırakma yok): düşmanca girdi süre pinleri (tek uzun sözcük, boşluk dizisi, tekrarlanan kök; 4.000–40.000 karakter) | `tests/unit/*-cost.test.ts` | ReDoS denetimi 28.09: sınıflandırıcı 66 sn → 54 ms, çıktı vetosu 2,6 sn → 4 ms |
 
 ## 5. Yapay zekâ güvenliği (ürünün kalbi)
 
@@ -81,4 +82,4 @@
 - Bağımsız sızma testi, SOC 2 / ISO 27001 hazırlığı YOK; haftalık otomatik zafiyet denetimi zamanlayıcısı canlı değil (runbook hazır).
 - `security@lixusai.com` posta kutusu açılmalı (güvenlik açığı bildirim sayfası ona yönlendiriyor).
 - CSP'nin script-src kısmı zorlanmıyor (ölçüm → nonce → zorlama sırası belgeli).
-- Kurucu kararı bekleyenler: `docs/SABAH-KARARLARI-2026-09-28.md` K8 (bürünmüşken ödeme / iz / süre), K10 a–s (takvim beslemesi penceresi, Dependabot hedef dalı, giriş kapasitesi, QR PIN, CSRF ek katmanı, oturum ömrü / PKCE, repo görünürlüğü, bürünme izi, şifre sıfırlama günlük tavanı, iletişim formu e-posta tavanı, Paddle webhook ön kısıtı, QR acil e-postası bekleme süresi, sayfa düzeyinde rol kapısı, QR devir dizini, misafir adının ev sahibi bilgisine girmesi — karakter süzgeci harf sınıfını kapatamaz, önizlemenin bütçe çarpanı, deneme süresi istismarı, oturumlu kullanıcının tetiklediği bildirim e-postası tavanı, misafirden türeyen metnin istemdeki etiketi).
+- Kurucu kararı bekleyenler: `docs/SABAH-KARARLARI-2026-09-28.md` K8 (bürünmüşken ödeme / iz / süre), K10 a–t (takvim beslemesi penceresi, Dependabot hedef dalı, giriş kapasitesi, QR PIN, CSRF ek katmanı, oturum ömrü / PKCE, repo görünürlüğü, bürünme izi, şifre sıfırlama günlük tavanı, iletişim formu e-posta tavanı, Paddle webhook ön kısıtı, QR acil e-postası bekleme süresi, sayfa düzeyinde rol kapısı, QR devir dizini, misafir adının ev sahibi bilgisine girmesi — karakter süzgeci harf sınıfını kapatamaz, önizlemenin bütçe çarpanı, deneme süresi istismarı, oturumlu kullanıcının tetiklediği bildirim e-postası tavanı, misafirden türeyen metnin istemdeki etiketi, kanal mesajı uzunluk tavanı).

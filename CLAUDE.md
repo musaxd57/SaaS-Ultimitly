@@ -1237,6 +1237,12 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   `const [, result]` kural sayısını okudu, kuralı olmayan her mülk silinip 404 döndü (yayın öncesi tam kapıda yakalandı).
   Sonucu kullanılan adım etkileşimli işlemde ADIYLA döner.
 - **Bulutta Node fetch proxy'yi okumaz:** OpenAI/embedding çağıran tsx/eval koşuları `NODE_USE_ENV_PROXY=1` ister.
+- 🚨 **MİSAFİR METNİNE UYGULANAN KALIPTA KARESEL İŞ YOK (ReDoS denetimi 09-28, ölçüldü):** başı çapasız + sınırsız tekrar
+  (`\S+X`, `\p{L}{2,}…$`, `KÖK\p{L}*\s+`) ve sabit gövdeden ÖNCE gelen değişken uzunluklu geriye bakış, uzun tek sözcükte / boşluk
+  dizisinde karesel → olay döngüsü kilitlenir (sınıflandırıcı 20.000 karakterde 66 sn, çıktı vetosu 4.000'de 2,6 sn; kanal mesajında
+  uzunluk tavanı YOK, QR 2.000). Kurallar: sonek kalıbı yalnız son harflere (`suffixTail`), çapasız kökten sonra `\p{L}{0,24}`,
+  öndeki `\S+` yerine `\S`, geriye bakıştan ÖNCE gövde ileriye bakışı. Yeni kalıp eklerken 4.000–24.000 karakterlik tek sözcük /
+  boşluk dizisi / tekrarlanan kök süre pini (`*-cost.test.ts`) + eski/yeni sonuç kıyası.
 - **Aynı işlemde AYNI zaman damgasıyla yazılan satırların sıralaması `id` ile kesinleşir** (09-27): konuşma öğeleri bir turda tek
   `createdAt` ile yazılıyor, `requestIndex` mesaj başına 0'dan başlıyordu → iki mesajın öğesi tam eşit, sıra rastgele (tam kapı bir kez
   kırmızı; "Açık işler" sırası da oynayabilirdi). Eşitlik bozucu `{ id: "asc" }` (cuid yazılış sırasında artar).
