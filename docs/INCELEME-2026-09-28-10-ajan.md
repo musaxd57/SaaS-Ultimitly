@@ -35,17 +35,25 @@ Durum: **F** = düzeldi · **K** = kurucu kararı · **N** = bilinen sınır / n
 | a5-3 | Migration 57 | NUL karakteri → rezervasyon yazması her senkronda düşer | F (`canonicalStr`) |
 | a5-4 | Migration 57 | `GUEST_NAME_SOURCES` yazma yerlerinde tip değil; iCal / dosya eski satırı damgalamıyor; anonim satır kökeni "channel" | N |
 | a6-1 | D selam | "Ateş" / "Alev" adlı misafirin yangın bildirimi (kelime ağında ateş/alev yok) | K (ateş/alev kalıbı) — D açılmadan önce şart |
-| a6-2..6 | D selam | Selam soyucu içerik siliyor ("Günaydın Steakhouse"), "¡Hola!" / "Good morning" / "Sayın misafirimiz" / yalnız-selam, Rusça "!", büyük harf yerel ayarı, Ayarlar önizlemesinde hitap adı | Açık (anahtar KAPALI; açmadan önce) |
+| a6-2..5 | D selam | Selam soyucu içerik siliyor ("Günaydın Steakhouse"), "¡Hola!" / "Good morning" / "Sayın misafirimiz" / yalnız-selam, Rusça "Здравствуйте, [Misafir]!", büyük harf yerel ayarı | F (`65e6c76`, anahtar KAPALI) — kapalı hitap listesi; tanınmayan hitap / içerik → dokunulmaz + kod selamı eklenmez |
+| a6-6 | D selam | Ayarlar önizlemesi hitap adını hiç vermiyor (hep "Merhaba,") | Açık (D öncesi; önizlemede örnek ad mı, adsız mı — ürün sorusu) |
+| a6-7 | D selam | 3 karakterden kısa hitap adı ("Su") giden mesajdaki selamda kalır, saklama süpürgesi silmez (KVKK kalıntısı) | K (D öncesi: selam satırını süpürgeye ekle ya da kısa adla selamlama) |
 | a7-1 / a8-1 | Ad maskesi | İlk ad misafirin kendi metninden siliniyor: "Checkout Smith" → bekçi "late [Misafir]"; "15 Nisan'da" → tarih kaybı; "Can we" → "[Misafir] we" (anlam katmanları CANLI) | K (tasarım) |
 | a7-2 / a8-8 | Ad maskesi | Türkçe I/İ/ı ve harf aileleri, esnek boşluk (canlı saklama süpürgesi dahil) | F |
-| a7-3 | D istem | Üslup bloğunda "selamlama" talimatı kaldı (anahtar açıkken) | Açık (D öncesi) |
+| a7-3 | D istem | Üslup bloğunda "selamlama" talimatı kaldı (anahtar açıkken); "[Misafir]" istemde açıklanmıyordu | F (`65e6c76`) |
 | a8-5 | QR | Cevap isteminde silme anahtarı yoktu (anahtar açıkken) | F (`guestIdentifier`) |
-| a8-6 | D | 2 harfli ad ("Su") ve CJK ad anahtar olmuyor; selam onu her mesaja yazar | Açık (öneri: kodun selam satırını geçmişten çıkar) |
+| a8-6 | D | 2 harfli ad ("Su") ve CJK ad anahtar olmuyor; selam onu her turda modele geri taşır | F (`65e6c76`: geçmişteki kodun selam satırı istemden çıkar) |
 | a10-1 | Denetçi | Kasa / kapı / anahtar kutusu / keybox / Schlüssel / tuş takımı / Wi-Fi kodları; saat ve ücret fazla maskeleniyordu | F |
 | a10-2 | Ad kuralı | "O´Brien" → "O" (´ ‛ tire çeşitleri, tam genişlik nokta, yumuşak tire, Han varyasyon seçicisi); "=" Latin metinde | F |
 | E1 | Kelime ağı | "kaza / polis / düştü / hurt / emergency" alt dize: "Kazağımı unuttum", "tatil kazandık", "Polisiye", "fiyatlar düştü", "Hurtigruten", "Emergency exit nerede?" acil | K |
 | E2 | Kelime ağı | "Mutfak alev aldı", "Evde ateş var" acil sayılmıyor | K |
-| a9 | ReDoS / CPU | Rapor bekleniyor | — |
+| a9-1 | CPU | "AI öner" 8k kuralını arkasında giden mesaj varken atlıyordu | F (`d61e448`, a2-2 ile aynı) + sayfa uyarısı aynı kural (`fb04823`) |
+| a9-2 | CPU (misafir metni) | `countGuestAsks` sondaki noktalama kalıbı karesel: 32k "…" 0,7 sn, 128k 11,5 sn | F (`5fb62c5`, geriye doğrusal; 445k kıyas fark 0) |
+| a9-3 | CPU (ev sahibi metni) | Saat okuyucusu doğrusal ama pahalı: 60 kalemlik dizin 1,4 sn (2k), 10,6 sn (20k), kötü niyetli 19,7 sn; Bilgi Tabanı sayfası her açılışta | F (`5fb62c5`: içerik özetli LRU önbellek + saatsiz cümle atlama; 354k kıyas fark 0; yeniden kurulum 89 → 18 ms) |
+| a9-4 | CPU (mülk adı) | `apartmentNumberOf` karesel: 16k harflik ad 4,9 sn | F (`5fb62c5`, 145k kıyas fark 0) |
+| a9-5 | Ad maskesi | "Ateş" / "Alev" adlı misafirin yangın bildirimi anlam katmanlarında görünmez (kelime ağında ateş / alev yok) | K (E2 ile aynı karar) |
+| a9-6 | CPU (iyileştirme) | `matchForeignConcepts` ~10 µs/karakter; eski bağlam mesajları redaksiyondan önce kırpılabilir | N (doğrusal, 8k tavanı içinde) |
+| RC38 | Tam kapı | "[EV-SAHİBİ]:" sahte yetki etiketi — sınıf "ölü kod" sanılıp çıkarılmıştı, iki pinli test kırmızı | F (`e636dc9`, iki kalıpta; 6/6 mutant öldü) |
 
 ## Codex önerisi (ad maskesi + acil sinyal)
 

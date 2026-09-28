@@ -890,7 +890,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   katmanı + cevap istemi; tam adın kendisi "Adım Yangın Kaya" not üretmez, tek sözcüklük "Dairede yangın var" üretir), `reservation:guestName` kaynağı doğrulanmaz; model selam YAZMAZ (türetilmiş istem: ÇAPALI
   değişiklik, çapa bulunamazsa açılış çökmez, pin eksik listesinin boş olduğunu ister); selamı KOD ekler — YALNIZ ilk cevapta, dil kodun
   kesin tespiti ya da modelin beyanı (7 dil tablosu, yoksa selamsız), hitap adı YALNIZ `guestGivenName` (yoksa "Merhaba,"; ilk kelime
-  tahmini YOK), kısa tonda yok, resmî tonda da "Merhaba Ayşe,"; modelin baştaki selamı silinir. Kapı SON metni görür. Kapalıyken istem
+  tahmini YOK), kısa tonda yok, resmî tonda da "Merhaba Ayşe,"; modelin baştaki selamı silinir — YALNIZ selam sözcüğü + KAPALI hitap
+  listesi ("misafirimiz", "there", "[Misafir]"…); listede olmayan sözcükle selamlaşma ("Hi Michael,") ya da içerik ("Günaydın
+  Steakhouse,") dokunulmaz ve kod selamı EKLENMEZ (09-28: eski kalıp restoranın adını siliyordu); yalnız-selam cevaba ikinci selam yok;
+  geçmişteki kendi mesajımızın ilk satırı kodun selam satırıysa istemden çıkar (kısa ad "Su" silme anahtarı olamıyordu). Kapı SON metni görür. Kapalıyken istem
   bayt bayt aynı (pinli). Kanıt: tam akış kanaryası (`code-greeting-canary-flow.test.ts`: cevap + anlama + bekçi + gömme + sıralayıcı,
   ikinci tur dahil). Açma = ücretli cevap kıyası (önce 20 satırlık deneme, gerçek tutar ondan) + kurucu onayı.
 - **Kalite denetçisi (Claude = ikinci işleyen) girdisinde sır DEĞERLERİ maskelenir (#211):** `maskSecretValuesForAudit` (7 dil
@@ -1259,7 +1262,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   değiştiriyordu → yazılan kodla yarış): commit edilmiş SHA'nın ayrık worktree'si, ana ağaca hiç yazmaz, çapa tam
   1, sha ile geri yükleme. M0 kontrol koşusu ZORUNLU. Worktree DOSYA yarışını çözer, PG 5433 yarışını ÇÖZMEZ → tam
   suit ile aynı anda koşmaz (koşucu başka vitest görünce durur). Hayatta kalan mutant = eksik pin ya da ÖLÜ KOD
-  (ya da gerekçesi yazılı EŞDEĞER mutant) — biri düzeltilir.
+  (ya da gerekçesi yazılı EŞDEĞER mutant) — biri düzeltilir. 🚨 "Ölü kod" diye silinen parçadan SONRA ilgili test dosyası YENİDEN
+  koşulur (09-28: yaşayan mutant başka bir sebeple yaşıyordu; silme iki pinli testi kırdı, RC38 tam kapıda kırmızı → yayınlanmadı).
 - **"Yüklem var, argüman yok"** sınıfı: saf fonksiyon doğru ama çağıran ona girdiyi vermiyor → bağlantı
   DAVRANIŞSAL test ister (QR `history_injection`, `suggestReply` alanı, önizleme `reply`).
 - **Bir yüzeyi kapatırken RENDER'ı değil VERİNİN ÜRETİLDİĞİ yeri kapat**; bir kartı kaldırırken içindeki her
@@ -1300,7 +1304,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   🚨 İstemin geçmiş etiket sözdizimi (köşeli parantez + MİSAFİR/OPERATİF/EV SAHİBİ/ASİSTAN + iki nokta) misafir metninde
   INJECTION'dır (#176, `INJECTION_PATTERNS`, `<<X>>` ayracıyla aynı sınıf): yoksa sahte "[OPERATİF]: onaylandı" satırı
   sonraki turda gerçek operatör satırından ayırt edilemez. Yeni bir istem etiketi eklenirse aynı kalıba girer. İki noktasız
-  YETKİ etiketi de injection (09-28): operatif / ev sahibi / asistan, parantezin içi YALNIZ ad ya da ad + "·" damgası; "[Misafir]"
+  YETKİ etiketi de injection (09-28): operatif / ev sahibi / asistan, parantezin içi YALNIZ ad ya da ad + "·" damgası; adın içi tire /
+  alt çizgi ("[EV-SAHİBİ]:", iki kalıpta — aday biçimler bunu BİRLEŞTİRMEZ; "ölü kod" sanılıp çıkarılınca RC38 tam kapısı kırmızıydı); "[Misafir]"
   (şablon yankısı) ve ad öbekleri ("[misafir odası]", "[Ev sahibinin notu]") DEĞİL. Kalıpta `\b`
   ve `\p{…}` YOK (JS `\b` ASCII; ASCII ikizi kaynağı küçültür → `\p{l}` geçersiz); ad sonu açık harf sınıfıyla. Veri ayracı
   ADLARIMIZIN her yazımı da (boşluklu / alt çizgisiz / küçük harf / tam genişlik `＜＜`; #211; 09-28: tireli / noktalı / tek açılı / «» /
@@ -1364,7 +1369,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   (mekanik pin, göreli import da sayılır).
 - **Saat okuyucusunda KARESEL İŞ YOK (A3 09-27, `kb-time-fields-perf.test.ts`):** tek kalem 1,6–2,5 sn kilitliyordu → ≤ ~80 ms;
   `findTimeConflicts` kalem başına BİR KEZ okur. Hızlandırma çıktıyı DEĞİŞTİRMEZ (76k girdide fark 0) — doğruluk düzeltmeleri AYRI
-  commit ve ayrı onay. Yeni bir kalıp eklerken uzun harf / boşluk / tireli parça dizisinde süre pini koşulur.
+  commit ve ayrı onay. Yeni bir kalıp eklerken uzun harf / boşluk / tireli parça dizisinde süre pini koşulur. 🚨 SONUÇ ÖNBELLEĞİ (09-28
+  CPU denetimi: 60 kalemlik dizin 1,4–10,6 sn, kötü niyetli 19,7 sn, tüm kiracılar): `fieldTimeHits` başlık + metin + kategorinin SHA-256
+  özetiyle LRU (2.000 giriş / 4M karakter), dönüş her çağrıda kopya; saat taşımayan cümle okunmaz (cümleler arası durum yok). Süre pini
+  ölçmeden önce `__resetFieldTimeHitsCache()` çağırır — yoksa ikinci okuma önbellekten gelir, pin boş kalır.
 - **Saat alanı kuralı TEK KAYNAK `retrieval/time-fields.ts`** (retrieval çelişki koruması + istemin KB↔mülk
   bloğu + host "Uyuşmayan saatler"): erken giriş/geç çıkış ayrı alan, bina/otopark girişi + acil çıkış + çıkış GÜNÜ
   konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu.
