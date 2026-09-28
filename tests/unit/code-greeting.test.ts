@@ -6,6 +6,7 @@ import {
   modelGuestFirstName,
   salutationNameOf,
   stripLeadingGreeting,
+  withoutCodeGreetingLine,
 } from "@/lib/ai/code-greeting";
 
 // ---------------------------------------------------------------------------
@@ -186,5 +187,33 @@ describe("kodla selam — yalnız İLK cevapta, tek selam", () => {
     expect(applyCodeGreeting({ ...base, language: "it", reply: "Il check-out è alle 11.", firstReply: true })).toBe(
       "Il check-out è alle 11.",
     );
+  });
+});
+
+describe("geçmişteki KODUN selam satırı (anahtar açıkken istemden çıkar)", () => {
+  it.each([
+    ["Merhaba Su,\n\nWi-Fi 1234.", "Su", "Wi-Fi 1234."],
+    ["Merhaba,\n\nWi-Fi 1234.", null, "Wi-Fi 1234."],
+    ["Hello Su,\nThe code is 1234.", "Su", "The code is 1234."],
+    ["Здравствуйте, Су!\n\nКод 1234.", "Су", "Код 1234."],
+    ["Hello,\n\nThe code is 1234.", "Su", "The code is 1234."],
+  ])("🚨 %j (ad %j) → %j", (body, name, expected) => {
+    expect(withoutCodeGreetingLine(body, name)).toBe(expected);
+  });
+
+  it.each([
+    ["Merhaba Ali,\n\nWi-Fi 1234.", "Su"], // başka ad: kodun satırı değil
+    ["Merhaba Su, Wi-Fi 1234.", "Su"], // aynı satırda devam: kodun biçimi değil
+    ["Merhaba,", null], // geriye metin kalmıyor
+    ["Wi-Fi 1234.\nMerhaba Su,", "Su"], // yalnız İLK satır
+  ])("KONTROL — dokunulmaz: %j", (body, name) => {
+    expect(withoutCodeGreetingLine(body, name)).toBe(body);
+  });
+});
+
+describe("uzun yalnız-selam cevap (tarama penceresinden uzun)", () => {
+  it("selam + uzun boşluk: yine selamdan ibaret sayılır — dokunulmaz, kodun selamı eklenmez", () => {
+    const reply = `Merhaba!${" ".repeat(300)}`;
+    expect(applyCodeGreeting({ tone: "warm", language: "tr", name: "Ayşe", reply, firstReply: true })).toBe(reply);
   });
 });
