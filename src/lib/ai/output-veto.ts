@@ -166,6 +166,15 @@ const STAFF_PROMISE_STEMS =
 const HABITUAL_BEFORE =
   "(?<!(?<!\\p{L})(?:genelde|genellikle|normalde|her\\s+(?:zaman|gün|sabah|akşam|hafta|sefer\\p{L}*|misafir\\p{L}*" +
   "|rezervasyon\\p{L}*|giriş\\p{L}*|çıkış\\p{L}*|konaklama\\p{L}*))\\s+(?:(?!(?:ama|fakat|ancak|lakin)(?!\\p{L}))\\p{L}+\\s+){0,8})";
+/**
+ * 🚨 GÖVDE ÖNCE, GERİYE BAKIŞ SONRA (ReDoS denetimi 09-28, ÖLÇÜLDÜ): 1. tekil geniş zaman alternatifinde "olsam" ve
+ * `HABITUAL_BEFORE` geriye bakışları (değişken uzunluklu: `[^.!?\\n]{0,60}`, `\\s+`, sözcük dizisi) fiil gövdesinden ÖNCE
+ * yazılıydı → her konumda koşuyordu: 4.000 karakterlik boşluk dizisinde veto 2,6 sn olay döngüsünü kilitledi (veto ev sahibinin
+ * erken giriş notuna / geç çıkış teklifine de uygulanır — oturum açmış bir kullanıcı tetikleyebilir). Gövde önce İLERİYE
+ * BAKIŞLA sınanır: geriye bakışlar yalnız gövdenin başladığı konumda koşar. Kabul edilen dil birebir aynı. Diğer `HABITUAL_BEFORE`
+ * alternatifi ölçüldü, yavaş değil (dokunulmadı).
+ */
+const FIRST_PERSON_AORIST = "(?:sora|danışı|yaza|baka|söyle|öğreni|dönüş sağla|kontrol ede|teyit ede|bilgi veri)r[iı]m";
 const ACTIVE_FUTURE_CLAIM = new RegExp(
   // İkinci inceleme: sıfat-fiil ("göndereceğimiz mesajda", "yazacağı mesajda") ve kalıp ("Sorunuza dönecek olursak")
   // söz değildir.
@@ -187,7 +196,7 @@ const ACTIVE_FUTURE_CLAIM = new RegExp(
     // 1. TEKİL geniş zaman (09-25): "Bunu ev sahibinize sorarım", "Öğrenip size yazarım", "dönüş sağlarım". 1. çoğul YOK:
     // "Girişte kimliğinizi sorarız" ev sahibinin alışkanlık/süreç anlatımıdır.
     // "Ben olsam … bakarım" bir TAVSİYEDİR (ikinci inceleme 09-25).
-    `|${NL}(?<!(?<!\\p{L})olsam[^.!?\\n]{0,60})${HABITUAL_BEFORE}(?:sora|danışı|yaza|baka|söyle|öğreni|dönüş sağla|kontrol ede|teyit ede|bilgi veri)r[iı]m${NR}(?!\\s+diye)` +
+    `|${NL}(?=${FIRST_PERSON_AORIST}${NR})(?<!(?<!\\p{L})olsam[^.!?\\n]{0,60})${HABITUAL_BEFORE}${FIRST_PERSON_AORIST}${NR}(?!\\s+diye)` +
     // İkinci inceleme (09-25): 1. TEKİL İSTEK KİPİ = "izin verin ben yapayım" sözü — "Hemen ev sahibinize sorayım",
     // "Kontrol edeyim", "Bir bakayım", "İleteyim". Misafire sorulan netleştirme ("Size bir şey sorayım: …?") DEĞİL.
     `|${NL}(?:sor|danış|kontrol\\s+ed|bak|öğren|araştır|ilet|haber\\s+ver|bilgi\\s+ver|bildir|ara|teyit\\s+ed|onayla|gönder|ayarla|halled|takip\\s+ed|not\\s+al|ilgilen)(?:[ey]?eyim|[ay]?ayım)${NR}(?![^.!?\\n]*[:?])`,
