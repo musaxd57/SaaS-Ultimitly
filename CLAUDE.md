@@ -162,7 +162,8 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   (`retrievalQueries` tek kaynak), her alt sorgu ait olduğu HAM cümle + virgülle bölündüyse kendisiyle sorulur
   (en yüksek kosinüs); sıcak yol 1,5 sn; soğuk KB bekletmez (arka plan ısıtma, saatlik tavan); YARIM HARİTA YOK;
   rerank'te anlamsal uyum bonusu (= kavram ipucu büyüklüğü; kâhin iki soruda %87→≥%90); kalıcı sağlayıcı arızası
-  AYRI anahtarlı geçiş alarmı (`model-provider:embedding`). 🚨 **Mutlak alaka eşiği ("≥%80, en iyi 3–5") ÖLÇÜLÜP
+  AYRI anahtarlı geçiş alarmı (`model-provider:embedding`); YAPILANDIRMA arızası da (1536 dışı boyut, `dimensions` / desteklenmeyen
+  parametre 400'ü) aynı alarma `request` sınıfıyla gider (A7 #3; tek girdilik 400 gitmez), JSON olmayan gövde yeniden DENENMEZ. 🚨 **Mutlak alaka eşiği ("≥%80, en iyi 3–5") ÖLÇÜLÜP
   REDDEDİLDİ** — puan sorgu içinde göreli, negatif sorgu da 1,0–1,35 alır; her kesme cevap kaybettirir.
   Yerel çapraz-kodlayıcı ŞİMDİLİK HAYIR (gecikme/olay döngüsü/lisans; `docs/olcum/kb-retrieval-parafraz-…` 3. tur).
 - **Ölçek harness'ı** `tests/unit/kb-retrieval-scale.test.ts` (38 konu, 30/100/300): ölçü inPrompt(METİN) = cevap

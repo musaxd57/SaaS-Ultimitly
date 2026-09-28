@@ -337,6 +337,9 @@ kapalı (403).
     metin birebir aynı (geliştirme setlerinin 6.659 metninde fark 0).
   - Açılış uyarısı: yalnız "1" ile açılan 26 bayrak (AI_UNDERSTANDING_ENABLED, GUEST_CHAT_ENABLED, AUTO_REPLY_ENABLED …) "true" yazılırsa
     kapalı kalıyordu ve hiçbir yerde görünmüyordu; artık açılış kaydında uyarı var (davranış aynı).
+  - Gömme (anlamsal arama, canlıda açık): yanlış model / boyut ayarı sessizdi — arama kalıcı "soğuk" kalırken açılış kaydı "AÇIK"
+    diyordu, boyut uyuşmazlığında gömmeler faturalanıp atılıyordu. Artık bir kez alarm geliyor; tek mesajlık hata (ör. çok uzun metin)
+    alarm üretmiyor. Arama davranışı aynı.
   - Rol kapısı pini: personelin (temizlikçi) erişebildiği 4 uç, yalnız sahibin 13 ucu ve kendi kapısını taşıyan 38 uç kapalı listede;
     bir yönetici ucu personele açılırsa ya da ödeme ucu yöneticiye inerse test kırmızı (eskiden bütün süit yeşil kalıyordu).
   - Not (ileride personel daveti yapılırken ön koşul): rol değişince oturum yenilenmeli; bugün sayfalar personeli JWT'deki rolden
