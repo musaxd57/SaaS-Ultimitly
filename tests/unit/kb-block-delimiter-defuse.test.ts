@@ -50,12 +50,19 @@ describe("defuseBlockDelimiters", () => {
       "Fiyat 10 << 20 değildir.",
       "Ağ adı Lale<<>>Apt",
       "çift açı: << ve >>",
-      "<<kb_end>>",
       "<<Ab>>",
+      "C'est <<super>> ?",
       "Havlular dolapta. Satır sonu\nkorunur.",
     ]) {
       expect(defuseBlockDelimiters(ok), ok).toBe(ok);
     }
+  });
+
+  it("🚨 KENDİ ayraç ADLARIMIZ küçük harfle / ayırıcıyla da kırılır (09-28: misafir dedektörüyle aynı sınıf)", () => {
+    // Eskiden "<<kb_end>>" meşru sayılıp dokunulmuyordu; misafir tarafı aynı yazımı enjeksiyon sayarken ev sahibi bloğunda
+    // (bilgi tabanı / üslup / özetleyici örnekleri) sahte ayraç olarak kalıyordu.
+    expect(defuseBlockDelimiters("<<kb_end>>")).toBe("kb_end");
+    expect(defuseBlockDelimiters("a <<Style End>> b")).toBe("a Style End b");
   });
 
   it("satır sonu ve uzunluk KORUNUR (sanitizePromptValue'dan farkı)", () => {

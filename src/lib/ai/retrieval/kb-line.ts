@@ -13,8 +13,15 @@ import { KB_CHAR_BUDGET, KB_ITEM_CAP } from "@/lib/ai/limits";
 
 /** Kalem metnindeki blok ayraç biçimini ("<<KB_END>>") etkisizleştirir — isteme giren her kalem bundan geçer. */
 export function defuseBlockDelimiters(v: string): string {
-  return v.replace(/<<\s*([A-Z_]{2,})\s*>>/gu, "$1");
+  return v.replace(/<<\s*([A-Z_]{2,})\s*>>/gu, "$1").replace(OUR_FENCE_NAME, "$1");
 }
+
+/**
+ * KENDİ ayraç ADLARIMIZIN diğer yazımları (09-28 inceleme ajanı — misafir dedektörüyle AYNI sınıf, `fallback.ts`): küçük harf,
+ * boşluk / tire / nokta ayırıcı, tek açılı, «» / ≪≫ / tam genişlik parantez. Genel "<<sözcük>>" DEĞİL (Fransızca tırnak).
+ */
+const OUR_FENCE_NAME =
+  /[<«≪＜]{1,2}\s*((?:guest[\s_.\-]*message|history|kb|offer|style|samples)[\s_.\-]*(?:start|end))\s*[>»≫＞]{1,2}/giu;
 
 /** İsteme giren bilgi tabanı satırı (paketleyicinin yazdığı AYNEN). */
 export function kbLine(k: { category: string; title: string; content: string }): string {

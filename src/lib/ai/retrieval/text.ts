@@ -38,12 +38,12 @@ const COMPOUNDS: ReadonlyArray<readonly [RegExp, string]> = [
 
 /**
  * Görünmez karakter sınıfı `fallback.ts` ile AYNI (CLAUDE.md: liste değil özellik):
- * `\p{Default_Ignorable_Code_Point}` + U+2800. NFKC önce (tam genişlik/matematiksel
+ * `\p{Default_Ignorable_Code_Point}` + `\p{Cf}` (09-28: Default_Ignorable Cf'nin tamamını kapsamıyor) + U+2800. NFKC önce (tam genişlik/matematiksel
  * harfler). Sonra ASCII-kanonik Türkçe katlama (I/ı/İ/i tek harfe iner) ve kesme
  * işareti kelime sınırı sayılır (CLAUDE.md kuralı: `'` ve `’` sınırdır).
  */
 export function normalizeForRetrieval(s: string): string {
-  const base = s.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\u2800]/gu, "");
+  const base = s.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "");
   let out = foldTurkishAscii(base).replace(APOSTROPHES, " ");
   for (const [re, rep] of COMPOUNDS) out = out.replace(re, rep);
   return out;
