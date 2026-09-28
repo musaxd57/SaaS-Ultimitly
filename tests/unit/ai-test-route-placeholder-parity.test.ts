@@ -1,12 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   apartmentNumberOf,
   fillGuestPlaceholdersInItems,
+  GUEST_NAME_FALLBACK,
   guestFirstNameForPrompt,
   guestFirstNameOf,
 } from "@/lib/kb-placeholders";
+import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 
 // ---------------------------------------------------------------------------
 // "AI'YI DENEYİN" KARTI ÜRETİMİ YANLIŞ TEMSİL EDİYORDU
@@ -63,7 +65,10 @@ describe("AI test rotası — yer tutucu kaynağı", () => {
     // #189 (09-26): ikame seçimden SONRA, ortak girişin içinde (`retrieveKbForPrompt` `placeholders` → `fillGuestPlaceholdersInItems`).
     // Davranış (modele giden metin çözülmüş mü) `tests/integration/ai-test-route-placeholder-behavior.test.ts`te.
     expect(s).toMatch(/placeholders:\s*kbPlaceholders/);
-    expect(s).toContain('from "@/lib/kb-placeholders"');
+    // Ad kaynağı ortak modül (K10-o "D", 09-28): rota `modelGuestFirstName`i (`code-greeting.ts`) çağırır; o da `kb-placeholders`in
+    // kuralına düşer (anahtar kapalıyken birebir — ↓ "hitap ÜRETİMLE aynı kaynaktan").
+    expect(s).toContain('from "@/lib/ai/code-greeting"');
+    expect(code("src/lib/ai/code-greeting.ts")).toContain('from "@/lib/kb-placeholders"');
   });
 
   it("🚨 kendi belirteç regex'lerini TAŞIMAZ", () => {
@@ -135,15 +140,27 @@ describe("AI test rotası — yer tutucu kaynağı", () => {
     const s = code(ROUTE);
     // Rota `suggestReply`a bir misafir adı veriyor; yer tutucu da AYNI addan
     // türemeli, yoksa kart kendi içinde tutarsız olur. Kaynak = üretimin MODELE giden
-    // ad kuralı (09-28'den beri `guestFirstNameForPrompt`: görünen adın yalnız AD
-    // biçimindeki baş kısmı) — iki üretim yüzeyi de aynısını kullanır.
-    expect(s).toContain("guestFirstNameForPrompt(TEST_GUEST_NAME)");
+    // ad kuralı — 09-28'den beri TEK giriş `modelGuestFirstName` (`code-greeting.ts`: adsız yapay zekâ anahtarı
+    // kapalıyken `guestFirstNameForPrompt ?? GUEST_NAME_FALLBACK`, açıkken "misafirimiz") — iki üretim yüzeyi de aynısını kullanır.
+    expect(s).toContain("modelGuestFirstName(TEST_GUEST_NAME)");
     for (const prod of ["src/lib/automation.ts", "src/app/api/conversations/[id]/ai-suggest/route.ts"]) {
-      expect(code(prod), prod).toContain("guestFirstNameForPrompt(conversation.guestIdentifier)");
+      expect(code(prod), prod).toContain("modelGuestFirstName(conversation.guestIdentifier)");
     }
     expect(s).not.toMatch(/replace\([^)]*\)\s*\.replace\(/);
     // Anti-vakum: o ad gerçekten bir ilk ada çözülüyor (ve iki kural gerçek adda aynı).
     expect(guestFirstNameForPrompt("Test Misafir")).toBe("Test");
     expect(guestFirstNameOf("Test Misafir")).toBe("Test");
   });
+
+  it("🚨 anahtar KAPALIYKEN tek giriş bugünkü kuralın BİREBİR aynısı (yer tutucu / gerçek ad / boş)", () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "");
+    for (const n of ["Test Misafir", "Rezervasyon HM4K2", "Misafir", "M.Ali Kaya", "K.V.S.Lakshmi", "", null, undefined]) {
+      expect([n, modelGuestFirstName(n)]).toEqual([n, guestFirstNameForPrompt(n) ?? GUEST_NAME_FALLBACK]);
+    }
+    // Anti-vakum: yer tutucu adda gerçekten yedeğe düşülüyor (iki dal da sınanıyor).
+    expect(modelGuestFirstName("Rezervasyon HM4K2")).toBe(GUEST_NAME_FALLBACK);
+    expect(modelGuestFirstName("Test Misafir")).toBe("Test");
+  });
 });
+
+afterEach(() => vi.unstubAllEnvs());
