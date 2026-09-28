@@ -246,6 +246,8 @@ export interface KbEvidenceInput {
     rrA?: number;
     /** Yeniden sıralayıcı çağrı sayısı (soru başına ayrı çağrı; yalnız 1'den çoksa). */
     rrN?: number;
+    /** Düşen yeniden sıralayıcı çağrısı (kısmi arıza; yalnız > 0). */
+    rrF?: number;
     /** Geniş blok bütçesiyle seçildi (yalnız 1). */
     wb?: number;
   } | null;
@@ -452,6 +454,7 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
             : {}),
           ...(Number.isInteger(input.retrieval.rrA) && (input.retrieval.rrA as number) >= 0 ? { rrA: input.retrieval.rrA } : {}),
           ...(Number.isInteger(input.retrieval.rrN) && (input.retrieval.rrN as number) > 1 ? { rrN: input.retrieval.rrN } : {}),
+          ...(Number.isInteger(input.retrieval.rrF) && (input.retrieval.rrF as number) > 0 ? { rrF: input.retrieval.rrF } : {}),
           ...(input.retrieval.wb === 1 ? { wb: 1 } : {}),
           // Anlama katmanı (09-24): yalnız kapalı küme / sayı; sorgu METNİ kanıta GİRMEZ.
           ...(Number.isInteger(input.retrieval.uq) && (input.retrieval.uq as number) > 0 ? { uq: input.retrieval.uq } : {}),

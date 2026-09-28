@@ -4,6 +4,7 @@ import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "@/lib/ai/semantic/config";
 import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
 import { fenceSafe } from "@/lib/ai/semantic/fence";
+import { reportError } from "@/lib/report-error";
 import { chunkItems, chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chunker";
 import { rerankPerQuestionInfo } from "@/lib/ai/retrieval/flag";
 
@@ -65,7 +66,7 @@ export interface RerankCandidate {
 }
 
 export type RerankOutcome =
-  | { status: "ok"; scores: Map<string, number>; ms: number; calls?: number }
+  | { status: "ok"; scores: Map<string, number>; ms: number; calls?: number; failedCalls?: number }
   | { status: "skipped" | "failed"; ms: number; calls?: number };
 
 export const RERANK_SYSTEM_PROMPT = [
@@ -350,8 +351,14 @@ export async function prepareRerankScores(input: PrepareRerankInput): Promise<Re
     if (ok.length === 0) return { status: outs.every((o) => o.status === "skipped") ? "skipped" : "failed", ms, calls: calls.length };
     const scores = new Map<string, number>();
     for (const o of ok) for (const [k, v] of o.scores) scores.set(k, Math.max(scores.get(k) ?? 0, v));
-    return { status: "ok", scores, ms, calls: calls.length };
-  } catch {
+    // KISMİ ARIZA kayıtta görünür (A6 #5, 09-27): iki çağrıdan biri düşünce de `rr: ok` yazılıyordu — düşen sorunun adayları bugünkü
+    // sırasında kalıyor ve bu iz bırakmıyordu. Yalnız > 0 iken (tek çağrılı canlı yolda kayıt bayt bayt aynı).
+    const failedCalls = outs.filter((o) => o.status === "failed").length;
+    return { status: "ok", scores, ms, calls: calls.length, ...(failedCalls > 0 ? { failedCalls } : {}) };
+  } catch (err) {
+    // Buraya yalnız PROGRAMLAMA hatası düşer (ağ / model arızası `llmRerank` içinde sınıflanır): sessizce "failed" yazmak onu
+    // gizliyordu (A6 #5). Kısıtlı bildirim; misafirin yolu yine bugünkü sıra.
+    void reportError("kb-rerank-prepare", err);
     return { status: "failed", ms: 0 };
   }
 }

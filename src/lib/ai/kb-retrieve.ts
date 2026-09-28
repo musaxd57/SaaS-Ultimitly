@@ -189,6 +189,7 @@ function withRerank(evidence: KbRetrievalEvidence, o: RerankOutcome): KbRetrieva
     rrMs: o.ms,
     ...(o.status === "ok" ? { rrA: [...o.scores.values()].filter((s) => s === 3).length } : {}),
     ...(o.calls !== undefined && o.calls > 1 ? { rrN: o.calls } : {}),
+    ...(o.status === "ok" && o.failedCalls !== undefined && o.failedCalls > 0 ? { rrF: o.failedCalls } : {}),
   };
 }
 

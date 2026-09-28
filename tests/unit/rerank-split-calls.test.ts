@@ -77,6 +77,14 @@ describe("soru başına ayrı çağrı", () => {
     expect(out.status).toBe("ok");
     expect(out.status === "ok" && out.scores.get("a25#0")).toBe(3);
     expect(out.status === "ok" && out.scores.has("b22#0")).toBe(false);
+    // A6 #5: kısmi arıza kayıtta görünür (eskiden yalnız `rr: ok`).
+    expect(out.status === "ok" && out.failedCalls).toBe(1);
+  });
+
+  it("KONTROL — iki çağrı da başarılıysa düşen çağrı alanı YOK (kayıt bayt bayt eskisi)", async () => {
+    const out = await prepareRerankScores({ items, guestMessage: "Askılık nerede? Bir de pil var mı?", candidates, candidateMeta });
+    expect(out.status).toBe("ok");
+    expect(out).not.toHaveProperty("failedCalls");
   });
 
   it("hepsi düşerse `failed` (bugünkü sıra)", async () => {

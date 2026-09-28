@@ -383,4 +383,9 @@ describe("karar kaydı — kanıt yalnız kapalı küme / sayı taşır", () => 
     expect(parse({ ...base, rr: "ok", rrN: 2 })).toMatchObject({ rrN: 2 });
     for (const bad of [1, 0, -2, 2.5, "2"]) expect(parse({ ...base, rr: "ok", rrN: bad })).not.toHaveProperty("rrN");
   });
+
+  it("rrF (düşen çağrı, kısmi arıza — A6 #5) yalnız pozitif tam sayıysa kayda geçer", () => {
+    expect(parse({ ...base, rr: "ok", rrN: 2, rrF: 1 })).toMatchObject({ rrN: 2, rrF: 1 });
+    for (const bad of [0, -1, 1.5, "1", null]) expect(parse({ ...base, rr: "ok", rrF: bad })).not.toHaveProperty("rrF");
+  });
 });

@@ -112,6 +112,8 @@ export interface KbRetrievalEvidence {
   rrA?: number;
   /** Yeniden sıralayıcı çağrı sayısı (soru başına ayrı çağrı, #189; yalnız 1'den çoksa yazılır). */
   rrN?: number;
+  /** Düşen yeniden sıralayıcı çağrısı (kısmi arıza, `rr: ok` iken; yalnız > 0 — A6 #5). */
+  rrF?: number;
   /** Geniş blok bütçesiyle seçildi (`KB_RETRIEVAL_WIDE_BUDGET`, #189; yalnız seçim gerçekten koştuysa). */
   wb?: 1;
 }
