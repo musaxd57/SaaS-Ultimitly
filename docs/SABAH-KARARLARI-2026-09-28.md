@@ -288,6 +288,10 @@ kapalı (403).
 | f | Oturum süresi / GET çıkış / OAuth PKCE / Turnstile | açık tasarım kararları (CLAUDE.md) | Airbnb güvenlik incelemesi listesine |
 | g | Repo herkese açık | denetim belgeleri (bilinen açıklar dahil) herkese açık | hassas denetim belgelerini özel bir yere taşı |
 | h | Impersonation izi | doğrulandı: denetim kaydı YAZAN rotalar operatörü doğru yazıyor (`auditActor`), ama misafire cevap, bilgi tabanı ve rezervasyon düzenleme hiç iz bırakmıyor → operatörün müşteri hesabında yaptığı iş izlenemiyor | rota koruyucusunda (withAuth/withManage) yalnız bürünmüşken her yazma isteğine tek iz satırı (yeni davranış → onayınız) |
+| i | Şifre sıfırlama e-postası (gece denetimi, kodda doğrulandı) | adres başına 15 dk'da 4, GÜNLÜK tavan yok → tek IP bir kurbanın kutusuna günde ~380 sıfırlama e-postası yağdırabilir (doğrulama e-postasında günlük tavan var, burada yok) | adres başına günde 6 (doğrulama e-postasıyla aynı); fazlası sessizce gönderilmez, ekranda aynı genel mesaj. Kimlik / e-posta akışı → onayınız + ilk deneme birlikte |
+| j | Demo / iletişim formu (leads) | IP başına saatte 5, genel tavan yok; her kayıt operatöre e-posta → çok IP'li saldırgan kutunuzu doldurur | kayıt HER ZAMAN tutulur (satış kaybı yok); operatör e-postası günde en çok ~30, fazlası panelde görünür |
+| k | Paddle webhook'u | imzasız / sahte imzalı istek başına 2 veritabanı yazması + log satırı, hız sınırı yok | imza doğrulamasından önce IP başına hafif kısıt (gerçek Paddle IP'leri etkilenmez). Para akışı → onayınız |
+| l | QR acil e-postası (bayrak KAPALI) | açılırsa her farklı yazılmış acil mesaj ayrı e-posta (bekleme süresi yok, bilinçli risk olarak belgeli) | açmadan önce konaklama başına bekleme süresi (ör. 10 dk'da 1) |
 
 ---
 
@@ -374,6 +378,10 @@ kapalı (403).
       uç noktası (arayüzde kullanılmıyor, yalnız doğrudan API çağrısıyla) "airbnb" kanalı + serbest referansla satırı karşılama /
       giriş / çıkış göndericilerine sokuyordu; referans sağlayıcı rezervasyon kimliği sanılıp gönderiliyordu. CSV içe aktarmanın
       08-08 kuralı burada da uygulanıyor: referans verilince kanal "Manuel" (rozet), gönderim denenmez.
+    - Halka açık uçlar (kaynak tüketimi): QR sohbetinde misafirin her mesajında "yapay zekâ ev sahibine devredildi mi" kontrolü
+      konuşmanın TAMAMINI okuyordu (biri ev sahibi cevabının da beklediği kilidin altında; konuşmayı büyüten, cihazı bağlı misafir).
+      Artık yalnız hükmü veren tek satır okunuyor; hüküm birebir aynı (eski tarama kâhin alınarak 60 rastgele dizi + sınır
+      durumları; mutasyon 9/9). Aynı denetimin karar gerektiren bulguları ↑K10 i–l.
     - Personel (temizlikçi) sayfa erişimi: bugün personel yalnız Görevler sayfasına ulaşabiliyor, atlatma yolu bulunmadı (izinli yol
       tam eşleşme, sunucu eylemi yok, bilinen ara katman açığına karşı yamalı sürüm). Bilinen ön koşul aynen geçerli: ileride rol
       değiştiren / personel davet eden bir akış eklenirse oturum yenilenmeli — sayfaların çoğu rolü kendisi kontrol etmiyor, yalnız

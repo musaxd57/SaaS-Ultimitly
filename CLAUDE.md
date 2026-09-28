@@ -348,7 +348,8 @@ Bu dosyaya token/anahtar/parola yazma.
   PII'siz `openTopics` — devir sebebi değil). Her karar `RiskEvent` (`surface:"guest_chat"`, kapalı-küme gerekçe, PII
   yok, await). 🚨 **Geçmiş de taranır** (`history_injection`: yalnız injection; modele giden AYNI dizi). 🚨 Yeni
   gerekçe `risk-events.ts` REASONS'a da eklenir (pin `risk-event-reason-parity`); bağlantı davranışsal pinli.
-- **QR misafir rotası:** mesaj penceresi `GUEST_CHAT_MESSAGE_WINDOW` 200 + tam sıra (cursor REDDEDİLDİ); istemcide
+- **QR misafir rotası:** devir (duraklatma) kontrolü TEK satır okur (`guestChatAiPausedForStay`, 09-28; eskiden her mesajda
+  konuşmanın tamamı, biri kilit altında) — hüküm tarayıcıyla birebir, rastgele dizilerle pinli. Mesaj penceresi `GUEST_CHAT_MESSAGE_WINDOW` 200 + tam sıra (cursor REDDEDİLDİ); istemcide
   görünürlük kapısı, terminal durumda `clearInterval`, 3 ardışık hatada uyarı. Devir metni gerçeğe uygun
   (`escalationReply()`: "kaydedildi; ev sahibiniz görebilir" — "ilettim" İDDİA EDİLMEZ); devir yapışkan değil.
 - 🚨 **"BİLGİM YOK" MİSAFİRE ASLA GİTMEZ (kurucu kuralı 09-11, `ai/absence.ts`):** `admitsMissingKnowledge` iki
