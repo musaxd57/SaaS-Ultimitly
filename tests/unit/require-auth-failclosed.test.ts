@@ -50,13 +50,21 @@ describe("requireAuth — fail-open session, fail-closed capability", () => {
     expect(s.organizationId).toBe("o1"); // session stays alive — not logged out
   });
 
-  it("uses the DB-current role when the read succeeds (demoted manager → staff)", async () => {
+  it("🚨 rolü DEĞİŞMİŞ oturum (düşürülen yönetici → personel) çıkışa yönlenir (Codex 09-30 B2)", async () => {
+    // Eskiden rol burada personele çekilip sayfa render ediliyordu — ama ara katman çerezdeki (eski) role bakıyor ve
+    // (app) sayfalarının çoğu rolü kendisi kontrol etmiyor → gelen kutusu açık kalıyordu. Yeni giriş taze rolü taşır.
     findUnique.mockResolvedValue({ sessionEpoch: 0, role: "staff", organizationId: "o1" });
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("KONTROL — rol ve epoch aynıysa oturum sürer (yönetici yönetici kalır)", async () => {
+    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "manager", organizationId: "o1" });
     const s = await requireAuth();
-    expect(s.role).toBe("staff");
+    expect(s.role).toBe("manager");
   });
 
   it("keeps owner when the DB confirms it and the epoch matches", async () => {
+    TOKEN = await signSession({ ...base, role: "owner" });
     findUnique.mockResolvedValue({ sessionEpoch: 0, role: "owner", organizationId: "o1" });
     const s = await requireAuth();
     expect(s.role).toBe("owner");
@@ -217,7 +225,9 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     // Kapı YALNIZ impersonation oturumlarını ilgilendirir. Bu olmadan
     // "herkesi düşür" gibi bir kaza da testten geçerdi.
     vi.stubEnv("SUPERADMIN_EMAILS", "");
-    TOKEN = await signSession(base); // actorUserId YOK
+    // Rol veritabanıyla AYNI (owner): rol uyuşmazlığı ayrı bir çıkış sebebidir (Codex 09-30 B2, ↑ayrı pin) — bu test yalnız
+    // bürünme kapısının normal oturuma dokunmadığını ölçer.
+    TOKEN = await signSession({ ...base, role: "owner" }); // actorUserId YOK
     await expect(requireAuth()).resolves.toMatchObject({ userId: "u1" });
   });
 });

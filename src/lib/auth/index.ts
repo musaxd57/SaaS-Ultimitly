@@ -87,7 +87,11 @@ export async function requireAuth(): Promise<SessionPayload> {
       // powers on the page path too, not only on API routes.
       select: { sessionEpoch: true, role: true, organizationId: true, twoFactorEnabledAt: true },
     });
-    if (!user || user.sessionEpoch !== session.sessionEpoch) invalid = true;
+    // 🚨 ROL DEĞİŞTİYSE OTURUM KAPANIR (Codex 09-30, B2): ara katmanın personel yönlendirmesi ÇEREZDEKİ role bakar ve (app)
+    // sayfalarının çoğu rolü kendisi kontrol etmez → rolü düşürülen yöneticinin eski çerezi gelen kutusu sayfalarını açmaya
+    // devam ederdi (burada rol personele çekilse de sayfa buna bakmıyordu). Uyuşmazlıkta çıkış: yeni giriş taze rolü taşır,
+    // ara katman doğru yönlendirir. Bugün rolü değiştiren yol YOK; ileride eklenecek yol epoch da artırmalı (CLAUDE.md ön koşul).
+    if (!user || user.sessionEpoch !== session.sessionEpoch || user.role !== session.role) invalid = true;
     else {
       session.role = user.role as SessionPayload["role"];
       session.organizationId = user.organizationId;
