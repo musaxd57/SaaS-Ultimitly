@@ -4,7 +4,10 @@ Kurucu talimatı (09-30): "Mevcut onaylı düzeltmelerden sonra Luna geçişini 
 raporla; gerçek değerlendirmelerde model ve reasoning ayarını kaydet. Eski önbellek cevaplarını yeni Luna sonucu sayma.
 Ücretli koşu ve canlı geçiş ayrı onay beklesin."
 
-**Durum:** hazırlık kodu yazıldı (↓§2). **Ücretli koşu YAPILMADI, canlıda hiçbir şey değişmedi.** Ücretli ölçüm planı (§4) ve
+**Güncelleme (09-30 gece):** ücretli ölçüm YAPILDI (≈$5,9) → sonuç ve karar önerisi `docs/olcum/LUNA-KARSILASTIRMA-2026-09-30.md`;
+geçiş önerilmedi (kör kabulde 1 hata), canlıda hiçbir şey değişmedi.
+
+**Durum (ilk sürüm):** hazırlık kodu yazıldı (↓§2). **Ücretli koşu YAPILMADI, canlıda hiçbir şey değişmedi.** Ücretli ölçüm planı (§4) ve
 canlı geçiş sırası (§5) kurucu onayı bekliyor. Önceki kıyas: `docs/MODEL-KIYASI-2026-09-25-gpt-6-luna.md` (karar: o gün
 değiştirilmedi).
 

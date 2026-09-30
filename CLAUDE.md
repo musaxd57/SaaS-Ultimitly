@@ -330,6 +330,8 @@ Bu dosyaya token/anahtar/parola yazma.
 ## AI güvenlik mimarisi (ürünün kalbi)
 - **Tek kaynak:** `src/lib/ai/prompts.ts` + `fallback.ts`; tüm yüzeyler (oto-yanıt, inbox öneri, Ayarlar testi, landing
   demo, QR) buradan. Demoya özel hiçbir şey yok.
+  Sistem istemi varyantları KATMAN (`replySystemPromptFor`, 09-30): kod selamı → ücret kuralı → bildirimsiz erteleme → giriş
+  kodu, taban istemin üstüne çapalı; yeni varyant YENİ KATMAN olarak eklenir (birleşimlerde kayıp çapa yok + kapalıyken bayt bayt pinli).
 - 🚨 **UZUN MİSAFİR MESAJI (K10-t, kurucu kararı 09-28, tek kaynak `ai/message-length.ts`):** cevapsız misafir mesajlarından biri
   8.000 KOD NOKTASINI aşarsa yapay zekâ cevap üretmez — kontrol model / kalıp işlemlerinden ÖNCE; metin kırpılıp modele VERİLMEZ;
   mesaj tam saklı; oto-yanıt `message_too_long` damgası; gelen kutusunda kayıttan bağımsız TÜRETİLEN "elle yanıtla" uyarısı (e-posta
@@ -1506,6 +1508,12 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   (`storedRunRuntime`, ortamı okumaz); canlı karar kaydı `llm.e` = gönderilen çaba (yalnız gönderildiyse). 🚨 `OPENAI_MODEL` tek
   başına BEŞ katmanı taşır (`AI_SEMANTIC_*` / `OPENAI_TRANSLATE_MODEL` / `OPENAI_STYLE_MODEL` boş) → Luna'ya geçmeden önce bu üçü
   `gpt-5.1`e sabitlenir (davranış birebir). Ücretli koşu ve canlı geçiş AYRI onay.
+  **09-30 ÖLÇÜM (`docs/olcum/LUNA-KARSILASTIRMA-2026-09-30.md`, ≈$5,9):** en iyi ayar Luna + düşünme `none` (düşünme açıkken
+  ücret reddi + p95 11 sn); üç eksik bayrak arkasında (`AI_CODE_GREETING_ENABLED` · `AI_STAY_DEFERRAL_PLAIN_ENABLED` ·
+  `AI_ACCESS_CODE_COMPLETE_ENABLED`, KAPALI); ücret kuralı iki modelde nötr (kapalı kalsın). 🚨 Kör kabulde 1 hata → GEÇİŞ YOK:
+  anlama katmanı şikâyetin "ne yapacağız" kısmını ayrı öğe yaptı (~1/11, 5.1'de de açık yol), Luna azarlayan + 112 cevabı gönderdi.
+  Kabul seti `evals/luna-acceptance.json` artık GÖRÜLDÜ — sonraki kabul YENİ kör setle. Canlı hat ölçeri `tests/eval/live-pipeline.eval.test.ts`
+  (`vitest.eval-live.config.ts`, AYRI veritabanı — 5433 değil).
 - **Model sağlayıcısı kalıcı arızası** (429+`insufficient_quota`, 401/403, 404/`model_not_found`) geçiş tabanlı
   alarma gider (`ai/provider-health.ts`); düz 429/5xx/ağ hatası eski yolda. Misafir her durumda fallback alır.
 - **Müsaitlik host metni** "müsait/kiralanabilir/kalabilirsiniz" DEMEZ; en güçlü ifade "bağlı takvimlerinizde
@@ -1517,6 +1525,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-30 gece — LUNA ÖLÇÜMÜ (≈$5,9 / $12; `docs/olcum/LUNA-KARSILASTIRMA-2026-09-30.md`):** Luna `none` olgu ve hızda 5.1'e eşit/iyi,
+üç eksik bayrak arkasında düzeltildi (19/19 mutasyon); kör kabulde 1 şikâyet cevabı gitti → geçiş önerilmedi. KARAR BEKLEYEN: anlama
+katmanı öğe bölme düzeltmesi + cevap istemi kuralı (şikâyetçiye kural / 112 yok) + yeni kör set; erteleme gidince ev sahibine haber
+(bugün 5.1'de de YOK — "cevaplandı" oluyor); üç bayrağın canlı açılışı. Canlıda hiçbir şey değişmedi.
 **09-30 akşam — KURUCU KARARLARI K1–K18 (sonuç tablosu `docs/INCELEME-2026-09-30-codex-ve-ajanlar.md` sonu):** K1 (CSV negatif tutar
 satır hatası) · K2 (fotoğraf = görev erişimi) · K3 (olumsuzlanan KB saati okunmaz, düzeltme okunur) · K4 (başka aboneliğin olayı planı
 değiştirmez) · K6 (acil ağı bağlamla) · K8 / K9 (yeni risk ayrı öğe; hassas öğeler birleşmez, mesaj başına e-posta) · K10 (devir cümlesi
