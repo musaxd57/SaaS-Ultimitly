@@ -9,10 +9,16 @@ import { BATTERY } from "../helpers/veto-blind-battery-2026-09-25";
 // kör ölçüm değil; bilinçli sınırlar ayrı pinli, davranışları değişirse görünür.
 // ---------------------------------------------------------------------------
 
-/** Edilgen çatı: "Talebiniz ev sahibinize iletildi" — olgu cümlesinden ayrılamaz, dal hiç yok (bilinçli). */
+/**
+ * Edilgen çatı: "Talebiniz ev sahibinize iletildi". Genel edilgen dal hâlâ YOK (olgu cümlesinden ayrılamaz), ama K10 (kurucu
+ * kararı 09-30, "ev sahibine gönderdim demesin") bu devir iddialarını DAR bir kalıpla tutar — özne misafirin mesajı / talebi ya
+ * da ev sahibi / ekip (`handoff_notice`). On ikisinin hepsi artık tutuluyor (eskiden hiçbiri).
+ */
 const PASSIVE_OUT_OF_SCOPE = new Set([
   "tr-v25", "tr-v26", "tr-v52", "tr-v53", "en-v14", "en-v15", "en-v36", "de-v04", "fr-v04", "es-v04", "ru-v04", "ar-v05",
 ]);
+/** K10 (09-30): ajanın "geçer" dediği istem devir cümlesi artık misafire GİTMEZ ("Hiçbir şey gitmesin"). */
+const K10_HANDOFF = new Set(["tr-p69", "en-p40"]);
 /**
  * Etiketi tartışmalı (ajanın kendi notu): "Bu konuda ev sahibiniz size yardımcı olacaktır" (belirsiz yönlendirme),
  * "Teknik ekibimiz yarın sabah klimayı kontrol edecek" / "Our technician will come by tomorrow to fix the air
@@ -27,16 +33,16 @@ const DEBATABLE_PASS = new Set(["tr-v46", "tr-v49", "en-v34"]);
 const KNOWN_FALSE_POSITIVES = new Set(["tr-p14", "tr-p15", "tr-p16", "tr-p67"]);
 
 const pinned = BATTERY.filter(
-  (c) => !PASSIVE_OUT_OF_SCOPE.has(c.id) && !DEBATABLE_PASS.has(c.id) && !KNOWN_FALSE_POSITIVES.has(c.id),
+  (c) => !PASSIVE_OUT_OF_SCOPE.has(c.id) && !DEBATABLE_PASS.has(c.id) && !KNOWN_FALSE_POSITIVES.has(c.id) && !K10_HANDOFF.has(c.id),
 );
 
 describe("kör veto bataryası (09-25) — regresyon pini", () => {
   it("anti-vakum: batarya ve istisna listeleri beklenen boyutta", () => {
     expect(BATTERY).toHaveLength(368);
-    for (const id of [...PASSIVE_OUT_OF_SCOPE, ...DEBATABLE_PASS, ...KNOWN_FALSE_POSITIVES]) {
+    for (const id of [...PASSIVE_OUT_OF_SCOPE, ...DEBATABLE_PASS, ...KNOWN_FALSE_POSITIVES, ...K10_HANDOFF]) {
       expect(BATTERY.some((c) => c.id === id), id).toBe(true);
     }
-    expect(pinned).toHaveLength(349);
+    expect(pinned).toHaveLength(347);
   });
 
   it.each(pinned.map((c) => [c.id, c.label, c.text] as const))("%s %s: %s", (_id, label, text) => {
@@ -45,9 +51,12 @@ describe("kör veto bataryası (09-25) — regresyon pini", () => {
     else expect(verdict).toBeNull();
   });
 
-  it("bilinçli sınırlar: edilgen söz ve tartışmalı etiketler geçer; kabul edilmiş yanlış pozitifler tutulur", () => {
-    for (const c of BATTERY.filter((x) => PASSIVE_OUT_OF_SCOPE.has(x.id) || DEBATABLE_PASS.has(x.id))) {
+  it("bilinçli sınırlar: tartışmalı etiketler geçer; kabul edilmiş yanlış pozitifler tutulur; K10 devir iddiaları tutulur", () => {
+    for (const c of BATTERY.filter((x) => DEBATABLE_PASS.has(x.id))) {
       expect(vetoOutgoingReply(c.text), c.id).toBeNull();
+    }
+    for (const c of BATTERY.filter((x) => PASSIVE_OUT_OF_SCOPE.has(x.id) || K10_HANDOFF.has(x.id))) {
+      expect(vetoOutgoingReply(c.text), c.id).toBe("handoff_notice");
     }
     for (const c of BATTERY.filter((x) => KNOWN_FALSE_POSITIVES.has(x.id))) {
       expect(vetoOutgoingReply(c.text), c.id).toBe("unverified_commitment");

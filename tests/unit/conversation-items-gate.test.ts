@@ -114,25 +114,34 @@ describe("öğe kipi — insan talebi, risk düzeyi, devir cümlesi", () => {
   });
 
   it("🚨 bırakılan istek için 'kaydedildi / ev sahibiniz görebilir' cümlesi misafire GİTMEZ (TR + EN)", () => {
+    // K10 (kurucu kararı 09-30): istemin devir cümlesi artık HER kipte çıktı vetosunda, öğe kontrolünden ÖNCE tutulur.
+    // Öğe kontrolü yalnız teşhis kipinde ("veto olmasa kapı geçer miydi" — erken giriş akışının sorusu) görünür kalır.
     for (const reply of [
       "Wi-Fi ağı Lale-5G, şifre modemin altında. Ödeme talebiniz kaydedildi; ev sahibiniz görebilir.",
       "The Wi-Fi network is Lale-5G. Your request has been recorded and is visible to your host.",
     ]) {
-      expect([reply, autoReplyGateVerdict({ ...wifiReply, reply }, WIFI, ctx({ items }))?.detail]).toEqual([reply, "items_touch_held"]);
+      expect([reply, autoReplyGateVerdict({ ...wifiReply, reply }, WIFI, ctx({ items }))?.detail]).toEqual([reply, "reply_output_veto"]);
+      expect([reply, autoReplyGateVerdict({ ...wifiReply, reply }, WIFI, ctx({ items, skipOutputVetoForDiagnosis: true }))?.detail]).toEqual([
+        reply,
+        "items_touch_held",
+      ]);
     }
   });
 
-  it("aşırı uygulama yok: tutulan öğe yoksa ya da bu turda konaklama değişikliği ertelemesi beklenirse cümle serbest", () => {
+  it("aşırı uygulama yok (teşhis kipi): tutulan öğe yoksa ya da bu turda konaklama değişikliği ertelemesi beklenirse cümle öğe kontrolünden geçer", () => {
     const deferral = "Erken giriş ev sahibinizin kararıdır; talebiniz kaydedildi, ev sahibiniz görebilir.";
     const early = { ...wifiReply, intent: "early_checkin", reply: deferral };
     const noHeld: GateItemsContext = { held: [], paymentHeld: false, answerableKinds: ["early_checkin"] };
-    expect(autoReplyGateVerdict(early, "Erken girebilir miyiz?", { items: noHeld })?.detail).not.toBe("items_touch_held");
+    const diag = { skipOutputVetoForDiagnosis: true };
+    expect(autoReplyGateVerdict(early, "Erken girebilir miyiz?", { items: noHeld, ...diag })?.detail).not.toBe("items_touch_held");
     const heldWithEarly: GateItemsContext = { ...items, answerableKinds: ["early_checkin"] };
-    expect(autoReplyGateVerdict(early, "Erken girebilir miyiz?", { pendingGuestMessages: [IBAN], items: heldWithEarly })?.detail).not.toBe(
-      "items_touch_held",
-    );
+    expect(
+      autoReplyGateVerdict(early, "Erken girebilir miyiz?", { pendingGuestMessages: [IBAN], items: heldWithEarly, ...diag })?.detail,
+    ).not.toBe("items_touch_held");
     // Aynı cümle, tutulan öğe varken ve konaklama isteği yokken tutulur (kıyas).
-    expect(autoReplyGateVerdict({ ...wifiReply, reply: deferral }, WIFI, ctx({ items }))?.detail).toBe("items_touch_held");
+    expect(autoReplyGateVerdict({ ...wifiReply, reply: deferral }, WIFI, ctx({ items, ...diag }))?.detail).toBe("items_touch_held");
+    // Teşhis kipi dışında K10 vetosu hepsini tutar (misafire "kaydedildi" hiçbir kipte gitmez).
+    expect(autoReplyGateVerdict(early, "Erken girebilir miyiz?", { items: noHeld })?.detail).toBe("reply_output_veto");
   });
 });
 

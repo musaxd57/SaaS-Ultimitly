@@ -70,7 +70,13 @@ async function outboundBodies(conversationId: string): Promise<string[]> {
   return rows.map((r) => r.body);
 }
 
-describe("tier-2 holding acknowledgement — keyword path (sendDueAlerts)", () => {
+// ---------------------------------------------------------------------------
+// BEKLETME MESAJI EMEKLİYE AYRILDI — K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"). Eski tier-2 metni ("Mesajınız
+// kaydedildi ve ev sahibiniz için öncelikli olarak işaretlendi") tam da misafire gitmemesi kararlaştırılan devir / bildirim
+// cümlesiydi. Ev sahibi eski ayarı açmış olsa da (`autoHoldingReplyEnabled` sütunu duruyor) şikâyette misafire otomatik
+// mesaj GİTMEZ; konuşma "Sorunlu" olur ve ev sahibine e-posta gider (bugünkü yükseltme).
+// ---------------------------------------------------------------------------
+describe("K10 — bekletme mesajı emekliye ayrıldı: kelime yolu (sendDueAlerts)", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
@@ -79,81 +85,26 @@ describe("tier-2 holding acknowledgement — keyword path (sendDueAlerts)", () =
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("mild complaint + opt-in → ONE ack in the guest's language, thread stays problem, host still emailed", async () => {
-    const { org, conversation } = await seed({
-      holdingAck: true,
-      guestMessage: "Klima çalışmıyor, içerisi çok sıcak!",
-    });
-    const r = await sendDueAlerts(org.id);
-    expect(r.alerted).toBe(1);
-    expect(mockEmail).toHaveBeenCalledTimes(1);
-    expect(mockSend).toHaveBeenCalledTimes(1);
-
-    const bodies = await outboundBodies(conversation.id);
-    expect(bodies).toHaveLength(1);
-    expect(bodies[0]).toContain("özür dileriz"); // Turkish ack picked by heuristic
-    expect(bodies[0]).not.toMatch(/iade|indirim|tazminat/i); // never promises a remedy
-
-    const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
-    expect(conv?.status).toBe("problem"); // host still owns the thread
-    expect(conv?.skippedReason).toBe("complaint"); // Faz-A: inbox badge source
-
-    // Idempotent: a second pass finds nothing claimable.
-    vi.clearAllMocks();
-    const r2 = await sendDueAlerts(org.id);
-    expect(r2.alerted).toBe(0);
-    expect(mockSend).not.toHaveBeenCalled();
-  });
-
-  it("DEFAULT (opt-in off): complaint gets NO automatic message — only the alert", async () => {
-    const { org, conversation } = await seed({
-      guestMessage: "Daire çok kirli, hiç memnun kalmadık",
-    });
-    const r = await sendDueAlerts(org.id);
-    expect(r.alerted).toBe(1);
-    expect(mockEmail).toHaveBeenCalledTimes(1);
-    expect(mockSend).not.toHaveBeenCalled();
-    expect(await outboundBodies(conversation.id)).toHaveLength(0);
-  });
-
-  it("money / review-threat / safety / human-request signals NEVER get the ack (even opted in)", async () => {
-    for (const guestMessage of [
-      "Daire kirli, para iadesi istiyorum", // refund
-      "Bunu düzeltmezseniz kötü yorum yapacağım, bir yıldız veririm", // review threat
-      "Dairede yoğun gaz kokusu var!", // safety-critical
-      "Klima bozuk, ev sahibiyle konuşmak istiyorum", // wants a human
-      // (Codex 07-22, P2) detectRiskType bu sınıfları yakalıyordu ama holding-ack
-      // blok listesi onları içermiyordu → tier-3 eskalasyonla BİRLİKTE otomatik
-      // özür/holding mesajı gidebiliyordu. Şikayet + yüksek-riskli sinyal
-      // co-occurrence'ında ack SUSMALI (eskalasyon e-postası yine gider):
-      "Daire çok kirli, temizlikçi suriyeli olmasın lütfen", // discrimination
-      "Klima bozuk, ayrıca yarın burada parti yapacağız", // rule violation (party)
-      "Ev çok kirli, ayrıca yarın çıkmayacağım buradan", // overstay refusal
-      "Daire kirli geldi, isterseniz elden ödeme yapayım kalan geceler için", // off-platform payment
-    ]) {
-      vi.clearAllMocks();
-      const { org, conversation } = await seed({ holdingAck: true, guestMessage });
-      await sendDueAlerts(org.id);
-      expect(mockEmail).toHaveBeenCalledTimes(1); // escalation always happens
-      expect(mockSend).not.toHaveBeenCalled(); // ...but no automatic guest message
+  for (const holdingAck of [true, false]) {
+    it(`hafif şikâyet (eski ayar ${holdingAck ? "AÇIK" : "kapalı"}) → misafire HİÇBİR otomatik mesaj yok; konuşma Sorunlu, ev sahibine e-posta`, async () => {
+      const { org, conversation } = await seed({ holdingAck, guestMessage: "Klima çalışmıyor, içerisi çok sıcak!" });
+      const r = await sendDueAlerts(org.id);
+      expect(r.alerted).toBe(1);
+      expect(mockEmail).toHaveBeenCalledTimes(1);
+      expect(mockSend).not.toHaveBeenCalled();
       expect(await outboundBodies(conversation.id)).toHaveLength(0);
-    }
-  });
-
-  it("respects the global master switch (AUTO_REPLY_ENABLED unset → no ack)", async () => {
-    vi.stubEnv("AUTO_REPLY_ENABLED", "");
-    const { org, conversation } = await seed({
-      holdingAck: true,
-      guestMessage: "Klima çalışmıyor, içerisi çok sıcak!",
+      const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+      expect(conv?.status).toBe("problem");
+      expect(conv?.skippedReason).toBe("complaint");
+      // Idempotent: ikinci geçiş sahiplenecek bir şey bulmaz.
+      vi.clearAllMocks();
+      expect((await sendDueAlerts(org.id)).alerted).toBe(0);
+      expect(mockSend).not.toHaveBeenCalled();
     });
-    await sendDueAlerts(org.id);
-    expect(mockEmail).toHaveBeenCalledTimes(1);
-    expect(mockSend).not.toHaveBeenCalled();
-    expect(await outboundBodies(conversation.id)).toHaveLength(0);
-  });
+  }
 });
 
-describe("tier-2 holding acknowledgement — model path (applyChannelAutoReply)", () => {
+describe("K10 — bekletme mesajı emekliye ayrıldı: model yolu (applyChannelAutoReply)", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
@@ -178,69 +129,25 @@ describe("tier-2 holding acknowledgement — model path (applyChannelAutoReply)"
     statedCheckoutTime: null,
   });
 
-  it("model-detected MILD complaint (keywords missed) → escalate + ack in the model's language", async () => {
-    // No complaint keywords ("hiç hoş değil" dışında kalsın): keywords miss, model catches.
-    const { conversation } = await seed({
-      holdingAck: true,
-      guestMessage: "The vibe here is not what we hoped for at all, quite let down.",
+  for (const riskLevel of ["medium", "high"] as const) {
+    it(`modelin gördüğü şikâyet (${riskLevel}, eski ayar AÇIK) → yükseltme + e-posta, misafire HİÇBİR otomatik mesaj yok`, async () => {
+      // Şikâyet sözcüğü YOK: kelime ağı kaçırır, model yakalar.
+      const { conversation } = await seed({
+        holdingAck: true,
+        guestMessage: "The vibe here is not what we hoped for at all, quite let down.",
+      });
+      mockSuggest.mockResolvedValue(modelComplaint(riskLevel));
+      const r = await applyChannelAutoReply(conversation.id);
+      expect(r.sent).toBe(false);
+      expect(r.skippedReason).toBe("escalated_to_human");
+      expect(mockSend).not.toHaveBeenCalled();
+      expect(await outboundBodies(conversation.id)).toHaveLength(0);
+      const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+      expect(conv?.status).toBe("problem");
+      expect(conv?.lastRiskLevel).toBe(riskLevel);
+      expect(mockEmail).toHaveBeenCalledTimes(1);
     });
-    mockSuggest.mockResolvedValue(modelComplaint("medium"));
-    const r = await applyChannelAutoReply(conversation.id);
-    expect(r.sent).toBe(false);
-    expect(r.skippedReason).toBe("escalated_to_human");
-    const bodies = await outboundBodies(conversation.id);
-    expect(bodies).toHaveLength(1);
-    expect(bodies[0]).toContain("Apologies for the trouble"); // EN from the model verdict
-    const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
-    expect(conv?.status).toBe("problem");
-    expect(conv?.skippedReason).toBe("escalated_to_human"); // Faz-A badge
-    expect(conv?.lastRiskLevel).toBe("medium"); // Faz-A reports aggregation
-    expect(mockEmail).toHaveBeenCalledTimes(1);
-  });
-
-  it("bekletme mesajının dili kodun tespitinden: model 'tr' beyan etse de İngilizce misafire İngilizce (09-25)", async () => {
-    const { conversation } = await seed({
-      holdingAck: true,
-      guestMessage: "The vibe here is not what we hoped for at all, quite let down.",
-    });
-    mockSuggest.mockResolvedValue({ ...modelComplaint("medium"), detectedLanguage: "tr" });
-    await applyChannelAutoReply(conversation.id);
-    const bodies = await outboundBodies(conversation.id);
-    expect(bodies).toHaveLength(1);
-    expect(bodies[0]).toContain("Apologies for the trouble");
-    expect(bodies[0]).not.toContain("özür dileriz");
-  });
-
-  it("HIGH-risk model verdict never gets the ack (silent draft + escalation only)", async () => {
-    const { conversation } = await seed({
-      holdingAck: true,
-      guestMessage: "Something feels seriously wrong with this place.",
-    });
-    mockSuggest.mockResolvedValue(modelComplaint("high"));
-    const r = await applyChannelAutoReply(conversation.id);
-    expect(r.skippedReason).toBe("escalated_to_human");
-    expect(mockSend).not.toHaveBeenCalled();
-    expect(await outboundBodies(conversation.id)).toHaveLength(0);
-  });
-
-  it("(Codex 07-22, P2) model MILD şikayet dese bile mesajda AYRIMCILIK talebi varsa ack SUSAR (co-occurrence)", async () => {
-    // Şikayet keyword'leri bilerek YOK ("not what we hoped" — mevcut mild-model testinin
-    // deseni) → keyword yolu atlar, model medium-complaint der → escalation dalı
-    // complaintConfirmed=true ile holdingAckBlockedSignals'a düşer. Mesajın içindeki
-    // "no syrians" deterministik discrimination ağına takılır: eskalasyon olur ama
-    // otomatik özür/holding mesajı GÖNDERİLMEZ (tier-3'e tier-2 nezaketi eklenmez).
-    const { conversation } = await seed({
-      holdingAck: true,
-      guestMessage: "The vibe here is not what we hoped for at all. Also, no syrians as cleaners please.",
-    });
-    mockSuggest.mockResolvedValue(modelComplaint("medium"));
-    const r = await applyChannelAutoReply(conversation.id);
-    expect(r.sent).toBe(false);
-    expect(r.skippedReason).toBe("escalated_to_human");
-    expect(mockSend).not.toHaveBeenCalled(); // ack YOK
-    expect(await outboundBodies(conversation.id)).toHaveLength(0);
-    expect(mockEmail).toHaveBeenCalledTimes(1); // eskalasyon e-postası yine gitti
-  });
+  }
 });
 
 describe("human_request gate refinement (regression for the over-broad veto)", () => {
@@ -254,13 +161,40 @@ describe("human_request gate refinement (regression for the over-broad veto)", (
 
   const HUMAN_MSG = "Gerçek bir kişiyle görüşmek istiyorum lütfen";
 
-  it("model ALSO says human_request → the handoff ack sends and the AI pauses (designed flow)", async () => {
+  const humanAck = (reply: string) => ({
+    intent: "human_request",
+    confidence: 0.9,
+    reply,
+    risk: "insan talebi",
+    priority: "standard" as const,
+    source: "openai" as const,
+    actionSuggestion: null,
+    riskLevel: "low" as const,
+    detectedLanguage: "tr",
+    riskType: null,
+    usedSources: [],
+    missingInfo: [],
+    statedCheckoutTime: null,
+  });
+
+  it("🚨 K10: istemin devir cümlesi ('Mesajınız kaydedildi; ev sahibiniz görebilir') GİTMEZ — ev sahibine acil yükseltme", async () => {
+    const { conversation } = await seed({ guestMessage: HUMAN_MSG });
+    mockSuggest.mockResolvedValue(humanAck("Tabii ki. Mesajınız kaydedildi; ev sahibiniz görebilir."));
+    const r = await applyChannelAutoReply(conversation.id);
+    expect(r.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+    expect(conv?.status).toBe("problem");
+    expect(mockEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("model ALSO says human_request → devir cümlesiz onay gider ve AI duraklar (tasarlanmış akış)", async () => {
     const { conversation } = await seed({ guestMessage: HUMAN_MSG });
     mockSuggest.mockResolvedValue({
       intent: "human_request",
       confidence: 0.9,
-      // İstemin devir örneği (OLGU; 09-25'ten beri "ilettim / size dönecek" sözü vetoya takılır — muafiyet kalktı).
-      reply: "Tabii ki. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      // Devir cümlesi YOK (K10, 09-30: "Mesajınız kaydedildi; ev sahibiniz görebilir" çıktı vetosunda tutulur ↑).
+      reply: "Tabii ki, anlıyorum.",
       risk: "insan talebi",
       priority: "standard" as const,
       source: "openai" as const,

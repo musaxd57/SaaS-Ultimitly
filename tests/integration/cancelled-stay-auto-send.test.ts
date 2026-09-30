@@ -7,7 +7,7 @@
 //  · `automation.ts` bekletme-mesajı (holding ack) yolu — `sendDueAlerts`'in
 //    aday sorgusunda REZERVASYON DURUMU FİLTRESİ YOK ve `maybeSendHoldingAck`
 //    de bakmıyordu → BAĞLI + İPTAL bir konaklamada misafire otomatik mesaj.
-//    ⇒ GERÇEK.
+//    ⇒ GERÇEK. (K10 09-30: bekletme mesajı emekliye ayrıldı — bu yol artık hiçbir durumda misafire mesaj göndermez.)
 //
 //  · `applyChannelAutoReply`'ın iptal kapılarının `if (conversation.reservation)`
 //    bloğunun İÇİNDE olması → BAĞSIZ konuşmada kapı hiç değerlendirilmiyor.
@@ -56,9 +56,8 @@ const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
 const mockEmail = vi.mocked(emailService.sendReporting);
 
-// Kelime ağının ŞİKAYET saydığı, ama para/güvenlik/tehdit/insan-talebi
-// sinyali TAŞIMAYAN bir mesaj: `holdingAckEligible` true → ack ADAYI.
-// (Aynı cümle `holding-ack.test.ts`'te de "ack gider" tarafını pinliyor.)
+// Kelime ağının ŞİKAYET saydığı, ama para/güvenlik/tehdit/insan-talebi sinyali TAŞIMAYAN bir mesaj (eski bekletme mesajının
+// adayı; K10 09-30'dan beri hiçbir durumda misafire otomatik mesaj gitmez).
 const MILD_COMPLAINT = "Klima çalışmıyor, içerisi çok sıcak!";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -138,9 +137,11 @@ async function outboundBodies(conversationId: string): Promise<string[]> {
 }
 
 // ---------------------------------------------------------------------------
-// 1) KELİME YOLU — sendDueAlerts → maybeSendHoldingAck
+// 1) KELİME YOLU — sendDueAlerts. Bekletme mesajı K10 (kurucu kararı 09-30) ile emekliye ayrıldı: şikâyette misafire HİÇBİR
+//    konaklama durumunda otomatik mesaj gitmez (eski ayar açık olsa da). İnsana giden bildirim her durumda gider — iptal /
+//    bağsız konaklama bildirimi SUSTURMAZ ("riskli mesaj insana gider" sözü).
 // ---------------------------------------------------------------------------
-describe("bekletme mesajı (holding ack) — iptal edilmiş konaklama", () => {
+describe("kelime yolu şikâyeti — konaklama durumundan bağımsız: misafire mesaj YOK, ev sahibine uyarı VAR", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
@@ -149,87 +150,27 @@ describe("bekletme mesajı (holding ack) — iptal edilmiş konaklama", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("KONTROL: AYNI tohum, rezervasyon 'confirmed' → ack GİDER (senaryo kapıya ulaşıyor)", async () => {
-    // Bu vaka olmadan aşağıdaki "gitmedi" iddiaları hiçbir şey kanıtlamaz:
-    // mesaj erken bir aşamada (uygunluk / premium / token / pencere) elenmiş
-    // olabilirdi. Kontrol yeşil = kapıya GERÇEKTEN varılıyor.
-    const { org, conversation } = await seed({
-      reservationStatus: "confirmed",
-      holdingAck: true,
+  const CASES: { label: string; reservationStatus: string | null; skippedReason?: string | null }[] = [
+    { label: "confirmed", reservationStatus: "confirmed" },
+    { label: "BAĞLI + İPTAL", reservationStatus: "cancelled" },
+    { label: "pending", reservationStatus: "pending" },
+    { label: "completed", reservationStatus: "completed" },
+    { label: "BAĞSIZ (rezervasyon öncesi)", reservationStatus: null },
+    { label: "BAĞSIZ + senkron çiti damgalı", reservationStatus: null, skippedReason: "reservation_ended" },
+  ];
+  for (const c of CASES) {
+    it(`${c.label}: uyarı gider, konuşma 'Sorunlu', misafire otomatik mesaj YOK`, async () => {
+      const { org, conversation } = await seed({ reservationStatus: c.reservationStatus, skippedReason: c.skippedReason, holdingAck: true });
+      const r = await sendDueAlerts(org.id);
+      expect(r.alerted).toBe(1);
+      expect(mockEmail).toHaveBeenCalledTimes(1);
+      expect(mockSend).not.toHaveBeenCalled();
+      expect(await outboundBodies(conversation.id)).toHaveLength(0);
+      const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+      expect(conv?.status).toBe("problem");
+      expect(conv?.skippedReason).toBe("complaint");
     });
-    const r = await sendDueAlerts(org.id);
-    expect(r.alerted).toBe(1);
-    expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(await outboundBodies(conversation.id)).toHaveLength(1);
-  });
-
-  it("BAĞLI + İPTAL rezervasyon → misafire HİÇBİR otomatik mesaj gitmez", async () => {
-    const { org, conversation } = await seed({
-      reservationStatus: "cancelled",
-      holdingAck: true,
-    });
-    await sendDueAlerts(org.id);
-    expect(mockSend).not.toHaveBeenCalled();
-    expect(await outboundBodies(conversation.id)).toHaveLength(0);
-  });
-
-  it("BAĞLI + İPTAL: host UYARISI YİNE GİDER ve thread 'Sorunlu' olur", async () => {
-    // Düzeltmenin misafire giden mesajı susturması gerekir — İNSANA giden
-    // bildirimi DEĞİL. Bu ayrım ürünün "riskli mesaj insana gider" sözünün
-    // tam kendisi; aday sorgusuna rezervasyon filtresi koymak (kolay çözüm)
-    // bu satırı KIRARDI.
-    const { org, conversation } = await seed({
-      reservationStatus: "cancelled",
-      holdingAck: true,
-    });
-    const r = await sendDueAlerts(org.id);
-    expect(r.alerted).toBe(1);
-    expect(mockEmail).toHaveBeenCalledTimes(1);
-    const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
-    expect(conv?.status).toBe("problem");
-    expect(conv?.skippedReason).toBe("complaint");
-  });
-
-  it("BAĞSIZ + senkron çiti damgalı (reservation_ended) → ack gitmez", async () => {
-    // `fenceUnlinkedTerminalStay` (hospitable-sync) bağsız + ölü konaklamayı
-    // damgalar. O damgayı YALNIZ model yolunun aday sorgusu okuyor;
-    // `sendDueAlerts` `skippedReason`/`autoReplyAttemptedAt`'e hiç bakmıyordu →
-    // çitin kör noktası.
-    const { org, conversation } = await seed({
-      reservationStatus: null,
-      skippedReason: "reservation_ended",
-      holdingAck: true,
-    });
-    await sendDueAlerts(org.id);
-    expect(mockSend).not.toHaveBeenCalled();
-    expect(await outboundBodies(conversation.id)).toHaveLength(0);
-    // Uyarı yine gitmeli.
-    expect(mockEmail).toHaveBeenCalledTimes(1);
-  });
-
-  it("AŞIRI ENGELLEME YOK: bağsız + damgasız (rezervasyon ÖNCESİ soru) → ack GİDER", async () => {
-    // Bağsız konuşmanın tamamını susturmak bilinçli bir ürün davranışını
-    // (rezervasyon öncesi satış sorusuna cevap) öldürürdü. Bu vaka, düzeltmenin
-    // o yöne taşmadığını pinler.
-    const { org, conversation } = await seed({
-      reservationStatus: null,
-      holdingAck: true,
-    });
-    await sendDueAlerts(org.id);
-    expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(await outboundBodies(conversation.id)).toHaveLength(1);
-  });
-
-  it("KONTROL: 'pending' ve 'completed' konaklamalarda ack GİDER (yalnız iptal engellenir)", async () => {
-    for (const status of ["pending", "completed"]) {
-      await resetDb();
-      vi.clearAllMocks();
-      mockSend.mockResolvedValue({ ok: true } as never);
-      const { org } = await seed({ reservationStatus: status, holdingAck: true });
-      await sendDueAlerts(org.id);
-      expect(mockSend, `status=${status}`).toHaveBeenCalledTimes(1);
-    }
-  });
+  }
 });
 
 // ---------------------------------------------------------------------------

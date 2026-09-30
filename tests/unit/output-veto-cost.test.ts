@@ -18,7 +18,11 @@ describe("çıktı vetosu — düşmanca girdide sınırlı süre", () => {
     ["uzun boşluk dizisi", "otopark" + " ".repeat(3990) + "x"],
     ["uzun boşluk dizisi + söz", "Ben olsam" + " ".repeat(3980) + "sorarım"],
   ])("%s (4.000 karakter) → 100 ms altında", (_ad, girdi) => {
-    vetoOutgoingReply("Kontrol edip dönerim."); // ısınma
+    // Isınma: düzenli ifadelerin derlenmesi süreç başına BİR KEZ ödenir (V8 uzun girdide yerel koda derler; K10 09-30 ile
+    // kalıplar büyüdü, ilk çağrı derlemeyle ~130 ms) — pin KARESEL İŞİ ölçer (eski 2,6 sn), derlemeyi değil. Isınma metni
+    // hiçbir kalıba uymaz → her kalıp tam taranıp derlenir.
+    vetoOutgoingReply("Kontrol edip dönerim.");
+    for (let i = 0; i < 2; i++) vetoOutgoingReply("otopark " + "a ".repeat(700));
     expect(ms(() => vetoOutgoingReply(girdi))).toBeLessThan(100);
   });
 

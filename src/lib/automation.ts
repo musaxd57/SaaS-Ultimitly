@@ -4,7 +4,8 @@ import type { Prisma } from "@prisma/client";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
-import { vetoOutgoingReply } from "@/lib/ai/output-veto";
+import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
+import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import {
   evaluateAvailability,
@@ -96,8 +97,6 @@ import {
   isClosingAck,
   isPositiveFeedback,
   detectPromptInjection,
-  holdingAckEligible,
-  holdingAckBlockedSignals,
   detectGuestLanguage,
   detectRiskType,
   detectRiskTypes,
@@ -125,6 +124,7 @@ import {
   recordLexicalAlertItems,
   recordModelItems,
   settleItemsTurn,
+  type HeldItemsNotice,
   type ItemsTurn,
   type ItemsTurnPlan,
 } from "@/lib/conversation-items/flow";
@@ -135,7 +135,6 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { redactSensitive, reportError } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
-import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE } from "@/lib/outbox/state";
@@ -454,40 +453,11 @@ export function autoReplyGateVerdict(
   // Kapsam `output-veto.ts`te ÖLÇÜLEREK daraltıldı (yalnız ETKEN dallar;
   // 77 meşru cevapta 0 yanlış pozitif). Yön yalnız KISITLAYICI.
   //
-  // 🚨 `isHandoffAck` MUAF — bu satır ilk yazımda YOKTU ve SUIT YAKALADI (üç
-  // kırmızı: human_request devir akışı). Gerekçe sınırın kendisidir: bu veto
-  // MODELİN ÜRETTİĞİ metin içindir. Devir bildirimi (`HOLDING_ACK_TEXTS`) ise
-  // ürünün KENDİ deterministik sabitidir ve tasarlanmış bir akışın parçasıdır
-  // (`HIGH_STAKES_RISK_TYPES` satırı da aynı muafiyeti taşıyor — emsal).
-  //
-  // ⚠️ O SABİTİN KENDİSİ DÜRÜST DEĞİL ve bu BİLİNİYOR: altı dilin altısı da
-  // "Mesajınızı ev sahibimize İLETTİM; en kısa sürede sizinle İLGİLENECEK"
-  // diyor; "ilgilenecek" fiilinin makbuzu HİÇBİR yolda yok ve model yolunda
-  // e-posta `if (to)` bloğunun içinde, `maybeSendHoldingAck` ise DIŞINDA —
-  // yani alıcısı olmayan org'da host'a hiçbir şey gitmezken misafir o cümleyi
-  // okuyor. Bu AYRI bir iş (denetim §B) ve metni DÜZELTEREK çözülür, kapıyı
-  // kendi sabitimize çevirerek değil: veto burada devreye girseydi tasarlanmış
-  // devir akışı sessizce ölürdü (testlerin ölçtüğü tam bu).
-  // 🚨 MUAFİYET `intent === "human_request"` — `isHandoffAck` DEĞİL. İlk yazımda
-  // dar tuttum (`isHandoffAck` ayrıca `riskType === "human_request"` ister) ve
-  // SUIT YAKALADI: modelin `riskType` vermediği tipik devir cevabı
-  // ("Talebinizi ev sahibimize ilettim…") vetoya takılıp TASARLANMIŞ devir
-  // akışını sessizce öldürüyordu (`out.sent` false, hold hiç kurulmuyor).
-  // Kapının kendi belgelenmiş sözleşmesi zaten "TEK MUAFİYET: human_request
-  // devir" — veto o muafiyeti daraltamaz.
-  //
-  // ⚠️ BEDELİ AÇIK VE BU TURDA KAPATILMADI: devir yolunda modelin "ilettim"
-  // cümlesi misafire GİTMEYE DEVAM EDİYOR. Bu, denetim §B'nin işi ve METNİ
-  // DÜZELTEREK çözülür (fallback/holding metinleri tek dürüstlük sözleşmesine
-  // bağlanır), kapıyı devir akışının üstüne kapatarak değil — aksi hâlde
-  // misafir hiçbir şey almaz ve host da devir sinyalini kaybeder.
-  //
-  // 🚨 09-25 (kurucu: "Guest hiçbir 'soruyorum/döneceğim' mesajı almayacak" + inceleme P2): insan talebi muafiyeti
-  // KALKTI. Muafiyet modelin "Talebinizi ev sahibimize ilettim; size dönecektir" devir cevabı için vardı; istem artık
-  // devri OLGU olarak yazdırıyor ("Mesajınız kaydedildi; ev sahibiniz görebilir." — örnek 16) ve muafiyet tam da
-  // yasaklanan sözü geçiriyordu ("ev sahibinize soracağım ve size döneceğim" otomatik gidiyordu). Söz/iddia taşıyan
-  // devir cevabı artık tutulur: model insan talebini etiketlediyse (`riskType` human_request) ya da anlama katmanı
-  // insan talebi gördüyse aşağıdaki yükseltme yolu ev sahibine ACİL bildirir — devir sessizce ölmez.
+  // İnsan talebi muafiyeti YOK (09-25, kurucu: misafir "soruyorum / döneceğim" almaz). 🚨 K10 (kurucu kararı 09-30, "Hiçbir
+  // şey gitmesin"): istemin devir / bildirim cümlesi ("Mesajınız kaydedildi; ev sahibiniz görebilir") da burada tutulur
+  // (`handoff_notice`) — misafire hiçbir şey gitmez; insan talebinde aşağıdaki yükseltme yolu ev sahibine ACİL bildirir, öteki
+  // tutuşta ev sahibine "Misafir cevabınızı bekliyor" e-postası gider (`notifyHostReplyWaiting`). Bekletme mesajı (tier-2) aynı
+  // gerekçeyle emekliye ayrıldı. Eski muafiyet tartışması: git log.
   if (!context?.skipOutputVetoForDiagnosis && vetoOutgoingReply(result.reply) !== null) {
     return hold("reply_output_veto");
   }
@@ -729,284 +699,12 @@ async function persistRiskVisibility(
 }
 
 // ---------------------------------------------------------------------------
-// Tier-2 "holding acknowledgement" (OPT-IN, default OFF).
-//
-// The three-tier model: (1) low-risk questions auto-send; (3) high-risk
-// messages get a silent draft + host escalation. This is tier (2): a MILD
-// complaint (NO deterministic high-stakes signal — money/cancellation/human-
-// request/review-threat/safety/injection/discrimination/rule-violation/
-// off-platform payment; see holdingAckEligible) gets ONE immediate, deterministic,
-// non-committal acknowledgement so the guest isn't left hanging at 3am, while
-// the conversation STAYS flagged "problem" and the host is still emailed. The
-// text never promises a remedy, never admits fault, only acknowledges + asks
-// for a detail/photo + hands off to the host. Per-org opt-in
-// (autoHoldingReplyEnabled) so the default product keeps the landing promise
-// ("complaints are never auto-answered") to the letter.
+// BEKLETME MESAJI (tier-2 "holding acknowledgement") EMEKLİYE AYRILDI — K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"):
+// metni ("Mesajınız kaydedildi ve ev sahibiniz için öncelikli olarak işaretlendi") tam da misafire gitmemesi kararlaştırılan
+// devir / bildirim cümlesiydi. Şikâyette misafire otomatik mesaj GİTMEZ; konuşma "Sorunlu" olur, ev sahibine e-posta gider.
+// `Organization.autoHoldingReplyEnabled` sütunu durur (migration yok) ama hiçbir yol onu okumaz; kuyruktaki eski
+// `holding_ack` satırlarını işçi hâlâ tanır (teslim konuşmayı "Sorunlu"da bırakır).
 // ---------------------------------------------------------------------------
-// 🚨 DÜRÜSTLÜK TURU (denetim §B, 09-12) — METİNLER YENİDEN YAZILDI.
-//
-// Altı dilin altısı da İKİ makbuzsuz iddia taşıyordu:
-//   · "ilettim / I've passed / Ich habe … weitergeleitet" → AI'ın KENDİ eylem
-//     iddiası; `actionReceipt` hiç uygulanmadığı için makbuzu YOK.
-//   · "en kısa sürede sizinle ilgilenecek / will follow up shortly" → ÜÇÜNCÜ
-//     ŞAHSIN (host'un) GELECEK eylemi. Ürün bunu hiçbir koşulda garanti edemez.
-// Üstelik model yolunda escalation e-postası `if (to)` bloğunun İÇİNDE,
-// `maybeSendHoldingAck` ise DIŞINDA (ve e-posta başarısızlığı bilinçli olarak
-// bu çağrıyı iptal ETMİYOR) — yani alıcısı olmayan ya da e-postası bozuk bir
-// org'da host'a hiçbir şey gitmezken misafir "ilettim, ilgilenecek" okuyordu.
-//
-// ⚠️ Bu metinler ÇIKTI VETOSUNDAN GEÇMEZ (veto yalnız MODELİN ürettiği metin
-// içindir; tasarlanmış devir akışının kendi sabitine kapanamaz) — dolayısıyla
-// dürüstlükleri KAYNAĞINDA pinlidir: `tests/unit/holding-ack-honesty.test.ts`.
-//
-// ÇAĞRI ANINDA GARANTİ OLAN TEK ŞEY, `maybeSendHoldingAck`in kendi sözleşmesi:
-// çağıran konuşmayı ATOMİK olarak "problem"e claim ETMİŞ olmak zorundadır.
-// Yani mesaj kayıtlıdır ve konuşma host'un panelinde ÖNCELİKLİ işaretlidir —
-// bu e-postadan da modelden de bağımsız SERT bir olgudur. Metin yalnız onu
-// söyler; `escalationReply()` ve `prompts.ts` çapasıyla aynı sınıf (kayıt +
-// görünürlük bildirilir, SÖZ verilmez).
-const HOLDING_ACK_TEXTS: Record<string, string> = {
-  // ⚠️ "paylaşırsanız … hızlandırır" ÖZNESİZDİ (denetim 08-08): koşul cümlesinden
-  // sonra gelen yüklemin öznesi yok. Metin misafire OTOMATİK gidiyor, yani bozuk
-  // Türkçe doğrudan müşteriye ulaşıyordu. Doğru kuruluş isim-fiil öznesidir.
-  tr: "Bunun için özür dileriz. Mesajınız kaydedildi ve ev sahibiniz için öncelikli olarak işaretlendi. Sorunun kısa bir açıklamasını ya da fotoğrafını paylaşmanız çözümü hızlandırır.",
-  en: "Apologies for the trouble. Your message has been recorded and marked as a priority for your host. Sharing a short detail or a photo of the issue helps speed things up.",
-  // ⚠️ "er meldet sich" ev sahibinin ERKEK olduğunu varsayıyordu; ev sahibi
-  // müşterimizdir ve cinsiyetini bilmiyoruz. Cümle yeniden kuruldu (zamir yok).
-  de: "Entschuldigen Sie die Unannehmlichkeit. Ihre Nachricht wurde erfasst und für Ihren Gastgeber als vorrangig gekennzeichnet. Ein kurzes Detail oder ein Foto des Problems hilft, die Sache zu beschleunigen.",
-  fr: "Veuillez nous excuser pour ce désagrément. Votre message a été enregistré et signalé en priorité à votre hôte. Un court détail ou une photo du problème permet d'accélérer la résolution.",
-  ar: "نعتذر عن هذا الإزعاج. تم تسجيل رسالتكم وتم تمييزها كأولوية لدى المضيف. مشاركة تفصيل قصير أو صورة للمشكلة تساعد على تسريع الحل.",
-  // ⚠️ "Я передал" YAZANIN erkek olduğunu, "он свяжется" ev sahibinin erkek
-  // olduğunu varsayıyordu — ikisini de bilmiyoruz. Edilgen kuruluş her ikisini
-  // de çözer ve Rusçada tamamen doğaldır.
-  ru: "Приносим извинения за неудобство. Ваше сообщение сохранено и отмечено как приоритетное для хозяина. Короткое описание или фото проблемы поможет решить вопрос быстрее.",
-};
-
-/**
- * Desteklenen diller. Test tarafı bu listeyi okur — kaynak taraması TEK
- * YÖNLÜDÜR, dil düşerse pin sessizce daralırdı.
- */
-export const HOLDING_ACK_LANGS = ["tr", "en", "de", "fr", "ar", "ru"] as const;
-
-/**
- * Bekletme mesajının metni. Bilinmeyen dil İngilizceye düşer.
- *
- * 🚨 DIŞA AÇIK OLMASININ SEBEBİ TEST DEĞİL, SÖZLEŞME: bu metinler misafire
- * DOĞRUDAN gider ve çıktı vetosundan GEÇMEZ (veto yalnız MODELİN ürettiği
- * metin içindir; devir akışının kendi sabitine kapanamaz, yoksa tasarlanmış
- * akış sessizce ölür). Dolayısıyla dürüstlükleri kaynağında pinlenir:
- * `tests/unit/holding-ack-honesty.test.ts`.
- */
-export function holdingAckText(lang: string): string {
-  return HOLDING_ACK_TEXTS[lang] ?? HOLDING_ACK_TEXTS.en;
-}
-
-/**
- * ⛔ İPTAL EDİLMİŞ KONAKLAMAYA OTOMATİK MİSAFİR MESAJI GİTMEZ (denetim, 08-08).
- *
- * `applyChannelAutoReply` bu kapıyı `:1176`'da ZATEN tutuyor, ama BEKLETME
- * MESAJI (holding ack) yolunun ikinci çağıranı `sendDueAlerts`'tir ve ORADA
- * hiçbir rezervasyon kontrolü YOKTU: aday sorgusu yalnız `status:"new"` +
- * 72 saatlik tazelik penceresine bakıyor. Ölçülmüş senaryo — misafirin
- * rezervasyonu İPTAL, misafir "Klima çalışmıyor" yazıyor → kelime yolu
- * konuşmayı "Sorunlu" claim ediyor, host'a uyarı gidiyor ve ARDINDAN misafire
- * "özür dileriz, ev sahibimiz en kısa sürede ilgilenecek" mesajı OTOMATİK
- * gidiyordu. Artık gitmiyor.
- *
- * KARAR TABLOSU (fail-safe yön = GÖNDERME):
- *   · bağlı rezervasyon + status "cancelled"  → ENGELLE
- *   · bağlı rezervasyon + başka her durum      → izin ver (pending/confirmed/
- *     completed; "completed" bir konaklama YAŞANMIŞTIR, çıkış sonrası şikayete
- *     bekletme mesajı meşrudur — burada DARALTMA yapılmadı)
- *   · BAĞSIZ + senkron çiti damgalı             → ENGELLE (↓)
- *   · BAĞSIZ + damgasız                         → izin ver (↓)
- *   · konuşma satırı yok / okuma fırlattı       → ENGELLE
- *
- * ⚠️ BAĞSIZ KONUŞMA TOPTAN SUSTURULMAZ. Yerel rezervasyonu olmayan bir thread
- *    aynı zamanda REZERVASYON ÖNCESİ satış sorusudur (`prompts.ts`
- *    preBookingBlock) ve ona cevap vermek bilinçli ürün davranışıdır. Bağsız +
- *    ÖLÜ konaklamanın doğru yeri senkron katmanındaki `fenceUnlinkedTerminalStay`
- *    çitidir; o çit `skippedReason:"reservation_ended"` damgasını basar. Damgayı
- *    bugüne kadar YALNIZ model yolunun aday sorgusu okuyordu (`autoReplyAttemptedAt`
- *    üzerinden) — `sendDueAlerts` ne o alana ne bu alana bakıyordu, yani çitin
- *    kör noktası tam da buydu. Damga CLAIM'DEN ÖNCE okunmak zorunda: claim onu
- *    "complaint" ile EZER, sonradan okumak daima yanlış cevap verir.
- */
-async function autoGuestMessageBlockedByStay(opts: {
-  conversationId: string;
-  /** `skippedReason === "reservation_ended"`, çağıran thread'i claim etmeden ÖNCE. */
-  stayFencedBeforeClaim?: boolean;
-}): Promise<boolean> {
-  try {
-    const row = await prisma.conversation.findUnique({
-      where: { id: opts.conversationId },
-      select: { reservation: { select: { status: true } } },
-    });
-    if (!row) return true; // satır kayboldu → bilinmeyen durum, gönderme
-    if (row.reservation) return row.reservation.status === "cancelled";
-    return opts.stayFencedBeforeClaim === true;
-  } catch {
-    // Durum OKUNAMADI. Bu modülde bilinmeyenin güvenli yönü SUSMAKTIR: kaçırılan
-    // bir bekletme mesajı gecikmedir, iptal edilmiş konaklamaya giden bir mesaj
-    // geri alınamaz.
-    return true;
-  }
-}
-
-/**
- * Send the tier-2 holding acknowledgement if every gate allows it. The CALLER
- * must have already atomically claimed the conversation into "problem" — that
- * claim is the idempotency lock (a second replica/run loses the claim and never
- * reaches this call), so the guest can never receive the ack twice.
- */
-async function maybeSendHoldingAck(opts: {
-  organizationId: string;
-  conversation: {
-    id: string;
-    channel: string;
-    guestIdentifier: string;
-    externalReservationId: string | null;
-  };
-  guestMessage: string;
-  org: { autoHoldingReplyEnabled: boolean; autoReplyDisclosure: boolean; aiSignature: string | null };
-  /** Model-detected language when available; falls back to the heuristic. */
-  language?: string | null;
-  /** True on the model path: the model already labelled this a (non-high)
-   * complaint, so keyword-complaint isn't required — only the deterministic
-   * blocking signals (any non-complaint risk label; see
-   * holdingAckBlockedSignals) are checked. */
-  complaintConfirmed?: boolean;
-  /** `skippedReason === "reservation_ended"` as observed BEFORE the caller
-   * claimed the thread into "problem" (the claim overwrites it with
-   * "complaint", so it can never be re-read here). See
-   * autoGuestMessageBlockedByStay. */
-  stayFencedBeforeClaim?: boolean;
-}): Promise<boolean> {
-  // Same master switches as every other automatic guest message.
-  if (process.env.AUTO_REPLY_ENABLED !== "1") return false;
-  if (!opts.org.autoHoldingReplyEnabled) return false;
-  const eligible = opts.complaintConfirmed
-    ? !holdingAckBlockedSignals(opts.guestMessage)
-    : holdingAckEligible(opts.guestMessage);
-  if (!eligible) return false;
-  // İptal edilmiş (ya da senkronca ölü işaretlenmiş) konaklamaya otomatik
-  // misafir mesajı YOK. Ucuz kapıların ARDINA konuldu: sorgu yalnız gerçekten
-  // bir ack'in eşiğine gelindiğinde harcanır, sıcak yol etkilenmez.
-  if (
-    await autoGuestMessageBlockedByStay({
-      conversationId: opts.conversation.id,
-      stayFencedBeforeClaim: opts.stayFencedBeforeClaim,
-    })
-  ) {
-    return false;
-  }
-  if (!(await premiumAllowed(opts.organizationId))) return false;
-  const token = await getOrgHospitableToken(opts.organizationId);
-  if (!token) return false;
-
-  const lang = (opts.language ?? detectGuestLanguage(opts.guestMessage)).slice(0, 2).toLowerCase();
-  const text = holdingAckText(lang);
-  const note = automatedReplyNote(lang, opts.org.autoReplyDisclosure);
-  const signature = opts.org.aiSignature?.trim();
-  const body = [text, ...(note ? [note] : []), ...(signature ? [signature] : [])].join("\n\n");
-
-  // ── Durable Outbox (flag ON) ──────────────────────────────────────────────
-  // Record the ack as a durable send-intent; the worker delivers it. messageType
-  // "holding_ack" → the worker KEEPS the thread in "problem" on delivery (deliveryEffect:
-  // none), so the host still owns it. The escalation's "problem" claim the caller already
-  // made is the primary lock; the deterministic key (conversation + complaint content)
-  // makes a retry a clean dedupe-hit. Flag OFF → the inline best-effort send below runs.
-  if (durableOutboxEnabled() && opts.conversation.externalReservationId) {
-    const digest = createHash("sha256").update(opts.guestMessage).digest("base64url").slice(0, 24);
-    try {
-      await enqueueOutbound({
-        organizationId: opts.organizationId,
-        conversationId: opts.conversation.id,
-        channel: opts.conversation.channel,
-        externalReservationId: opts.conversation.externalReservationId,
-        body,
-        senderName: "GuestOps AI", // classification magic string (unchanged)
-        authorType: "ai",
-        messageType: "holding_ack",
-        aiIntent: "complaint",
-        idempotencyKey: `holding:${opts.conversation.id}:${digest}`,
-      });
-    } catch (err) {
-      // ⚠️ SESSİZ DEĞİL (denetim, 08-01 — üçüncü tur, ajan bulgusu). Çağıran
-      // konuşmayı ZATEN atomik olarak "problem"a claim etti ve o claim ack'in
-      // idempotency kilidi — yani buradan `false` dönmek, opt-in Seviye-2 sözünün
-      // ("misafir gecenin 3'ünde sahipsiz kalmasın") o konuşma için SESSİZCE
-      // çiğnenmesi demek. Gövde/ad ASLA loglanmaz, yalnız konuşma id'si.
-      void reportError(
-        "holding-ack-enqueue",
-        new Error(`conversation=${opts.conversation.id} — bekletme mesajı kuyruğa alınamadı`, {
-          cause: err,
-        }),
-      );
-      return false; // best-effort — a failed enqueue must not break the escalation
-    }
-    return true;
-  }
-
-  const delivery = await sendOnChannel(
-    {
-      channel: opts.conversation.channel,
-      guestIdentifier: opts.conversation.guestIdentifier,
-      externalReservationId: opts.conversation.externalReservationId,
-    },
-    body,
-    token,
-  );
-  if (!delivery.ok) {
-    // Aynı gerekçe (↑): claim tüketildi, ack bir daha denenmeyecek — iz kalmalı.
-    // Sağlayıcının HAM hata metni DB'ye/alarma girmez, yalnız konuşma id'si.
-    void reportError(
-      "holding-ack-send",
-      new Error(`conversation=${opts.conversation.id} — bekletme mesajı gönderilemedi`),
-    );
-    return false; // escalation already happened; ack is best-effort
-  }
-
-  // Bookkeeping (delivery already succeeded — best-effort): record the outbound
-  // message; the conversation deliberately STAYS "problem" so the host still
-  // owns the thread.
-  await prisma
-    .$transaction([
-      prisma.message.create({
-        data: {
-          conversationId: opts.conversation.id,
-          direction: "outbound",
-          authorType: "ai",
-          senderName: "GuestOps AI",
-          body,
-          aiIntent: "complaint",
-          // Dedup this ack against its own re-import from the channel thread.
-          ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
-        },
-      }),
-      prisma.conversation.update({
-        where: { id: opts.conversation.id },
-        data: { lastMessageAt: new Date() },
-      }),
-    ])
-    // Mesaj ZATEN misafire gitti; persist düşerse geri alınamaz. Ama sessiz
-    // kalamaz: host'un thread'inde görünmez (sync yeniden import edene kadar) ve
-    // import edilince AI atfını kaybeder → `senderName "GuestOps AI"` sayan
-    // raporlar eksik sayar. Kayıp kaçınılmazsa bile GÖRÜNÜR olmalı.
-    // ⚠️ Context string'ine konuşma id'si KOYMA: `report-error-core.ts` e-posta
-    // throttle'ını CONTEXT bazlı tutuyor, yani her konuşma ayrı bir anahtar olur
-    // ve 10 dakikalık koruma fiilen kalkar (toplu bir DB hıçkırığı = konuşma
-    // başına uyarı e-postası). Id, throttle anahtarı OLMAYAN hata mesajında.
-    .catch((err) =>
-      reportError(
-        "holding-ack persist",
-        err instanceof Error
-          ? new Error(`${err.message} (conversation ${opts.conversation.id})`)
-          : new Error(`${String(err)} (conversation ${opts.conversation.id})`),
-      ),
-    );
-  return true;
-}
 
 // ---------------------------------------------------------------------------
 // Opt-in COURTESY reply to a bare closing ("teşekkürler / thanks / 👍"). By
@@ -2685,6 +2383,10 @@ export async function applyChannelAutoReply(
     });
   }
 
+  // K10 (kurucu kararı 09-30): tutulan cevap konuyu ev sahibine bırakıyor mu (devir / bildirim cümlesi) — karar kaydı gerekçesi
+  // ve ev sahibine "Misafir cevabınızı bekliyor" e-postası için. Yalnız MODELİN cevabı: şablon yedeği (model yok) bu sinyali
+  // taşımaz — kesintide her mesaja e-posta gitmesin.
+  const handoffHeld = result.source === "openai" && carriesHandoffNotice(result.reply);
   if (!gatePassed) {
     // ── KONUŞMA ÖĞELERİ — TUTULAN TUR (kurucu kararları 09-26) ───────────────────────────────────────────────────
     // Acil / enjeksiyon turu bugünkü yoldan (Sorunlu + acil e-posta): öğeler tutulur, e-postayı bugünkü yol atar.
@@ -2723,12 +2425,23 @@ export async function applyChannelAutoReply(
             now: heldAt,
           });
         }
-        await notifyItemsForHost({
+        const notice = await notifyItemsForHost({
           organizationId: conversation.property.organizationId,
           conversation,
           messageIds: itemsTurnMessageIds,
           now: heldAt,
         });
+        // K10: cevap konuyu ev sahibine bırakıyordu ve tutuldu → misafire hiçbir şey gitmedi. Bu turun mesajları için hassas öğe
+        // e-postası zaten gittiyse (ya da daha önce gittiyse) ikinci e-posta YOK — mesaj başına tek bildirim.
+        if (handoffHeld && notice.held.length === 0) {
+          await notifyHostReplyWaiting({
+            organizationId: conversation.property.organizationId,
+            conversation,
+            property: conversation.property,
+            messageId: last.id,
+            messageBody: last.body,
+          });
+        }
       } catch (err) {
         void reportError(`conversation-items hold org=${conversation.property.organizationId}`, err);
       }
@@ -2766,7 +2479,7 @@ export async function applyChannelAutoReply(
         riskLevel: result.riskLevel,
         riskType: result.riskType ?? detectRiskType(last.body),
         // Turun HİÇBİR güvenli isteği yoktu → kendi kodu; güvenli istek varken tutuş bugünkü gerekçesiyle (ayrıntı kanıtta `g`).
-        reason: itemsPlan.allHeld ? "items_held" : heldReasonOf(gateFailure),
+        reason: itemsPlan.allHeld ? "items_held" : heldReasonOf(gateFailure, handoffHeld),
         confidence: result.confidence,
         ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,
@@ -2865,10 +2578,7 @@ export async function applyChannelAutoReply(
             select: {
               name: true,
               alertEmail: true,
-              autoHoldingReplyEnabled: true,
               autoTaskFromMessageEnabled: true,
-              autoReplyDisclosure: true,
-              aiSignature: true,
               // The OWNER's email (role-filtered) — NOT merely the oldest user: a
               // staff-first org would otherwise leak the guest name + message body
               // + property to a staff account (same class of bug fixed in the QR
@@ -2939,38 +2649,8 @@ export async function applyChannelAutoReply(
               );
             }
           }
-          // Tier-2 holding acknowledgement (opt-in): a MILD model-detected
-          // complaint (never high risk, never money/cancellation) may get one
-          // immediate non-committal ack. The claim above is the idempotency
-          // lock; the thread stays "problem" for the host either way.
-          // ⚠️ E-POSTA BAŞARISIZLIĞI BU İKİ ŞEYİ İPTAL ETMEZ (denetim düzeltmesi).
-          // Bir ara burada `!escalationMailFailed` kapısı vardı; o kapı claim'in
-          // GERİ ALINDIĞI tasarıma aitti ("sonraki geçiş baştan alır"). Geri alma
-          // kaldırılınca sonraki geçiş de kalmadı: konuşma kalıcı "problem" olur,
-          // yani kapı, misafire gidecek bekletme mesajını ve panele düşecek görevi
-          // KALICI olarak iptal ediyordu. Üstelik savunma "kanalı e-posta değil
-          // PANEL" derken tam o panel sinyalini siliyordu. İkisi de e-postadan
-          // BAĞIMSIZ; idempotency kilidi zaten claim.
-          if (alertOrg && result.intent === "complaint" && result.riskLevel !== "high") {
-            await maybeSendHoldingAck({
-              organizationId: conversation.property.organizationId,
-              conversation: {
-                id: conversation.id,
-                channel: conversation.channel,
-                guestIdentifier: conversation.guestIdentifier,
-                externalReservationId: conversation.externalReservationId,
-              },
-              guestMessage: last.body,
-              org: alertOrg,
-              language: guestLanguage ?? result.detectedLanguage,
-              complaintConfirmed: true,
-              // `conversation` fonksiyonun BAŞINDA okundu → bu alan claim'den
-              // ÖNCEKİ değer. Aday sorgusu (`dueAutoReplyWhere`) çitlenmiş
-              // satırları zaten eliyor, ama bu fonksiyon doğrudan da çağrılıyor;
-              // kapı çağıranın kim olduğuna bağlı kalmamalı.
-              stayFencedBeforeClaim: conversation.skippedReason === "reservation_ended",
-            }).catch(() => false);
-          }
+          // Bekletme mesajı (tier-2) K10 ile emekliye ayrıldı (↑): şikâyette misafire otomatik mesaj GİTMEZ. Görev e-postadan
+          // BAĞIMSIZ açılır (idempotency kilidi claim).
           // Smart operational task (opt-in): if this escalation carries a
           // physical-operations signal (fault / restock / cleaning), open a
           // deduped, SLA-dated task so the host can action it — not just the
@@ -3053,7 +2733,7 @@ export async function applyChannelAutoReply(
         // da başka bir veto "Müsaitlik" satırına sayılmaz — inceleme 09-24).
         // Anlama katmanının risk niyeti (`understanding_risk`) BURAYA HİÇ GELMEZ: niyet varsa yukarıdaki acil yükseltme
         // dalı koşar, gerekçeyi o yazar ve döner (mutasyon turu 09-24: buradaki üçüncü kol ölü koddu, silindi).
-        reason: heldReasonOf(gateFailure),
+        reason: heldReasonOf(gateFailure, handoffHeld),
         confidence: result.confidence,
         ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,
@@ -3071,6 +2751,18 @@ export async function applyChannelAutoReply(
         gateRiskLevel: result.riskLevel,
         gateRiskType: result.riskType ?? detectRiskType(last.body),
       });
+      // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): cevap konuyu ev sahibine bırakıyordu ("mesajınız kaydedildi; ev
+      // sahibiniz görebilir") ve tutuldu → misafire hiçbir şey gitmedi; ev sahibine mesaj başına BİR "Misafir cevabınızı
+      // bekliyor" e-postası. Yükseltme dalı (↑) kendi e-postasını atar ve buraya gelmez.
+      if (handoffHeld) {
+        await notifyHostReplyWaiting({
+          organizationId: conversation.property.organizationId,
+          conversation,
+          property: conversation.property,
+          messageId: last.id,
+          messageBody: last.body,
+        });
+      }
     }
     // ⚠️ "MODEL EMİN OLAMADI" ile "MODELE HİÇ ULAŞILAMADI" AYNI ŞEY DEĞİL
     // (denetim, 07-31). İkisi de buraya düşüyordu ve `runDueChannelAutoReplies`
@@ -3438,17 +3130,23 @@ export async function applyChannelAutoReply(
 /**
  * Tutulan kanal cevabının karar kaydı gerekçesi: kendi rapor satırı olan kapı kodları aynen (müsaitlik / para / saat / dil /
  * eylem beyanı), gerisi "düşük güven / riskli". Konuşma öğeleri kipi de aynı kuralı kullanır (tek kaynak).
+ * K10 (09-30): genel kovadaki tutuşta cevap konuyu ev sahibine BIRAKIYORSA (devir / bildirim cümlesi) gerekçe `handoff_notice`
+ * — ev sahibi panelde "Misafir cevabınızı bekliyor" görür (kapının İLK düşen kontrolü kanıtta `g.d` olarak kalır). Kendi rapor
+ * satırı olan kodlar önceliklidir.
  */
-function heldReasonOf(gateFailure: string | null): string {
-  return gateFailure === "availability_claim" ||
+function heldReasonOf(gateFailure: string | null, deferredToHost: boolean): string {
+  if (
+    gateFailure === "availability_claim" ||
     gateFailure === "availability_unconfirmed" ||
     gateFailure === "price_claim" ||
     gateFailure === "kb_time_conflict" ||
     gateFailure === "reply_language_mismatch" ||
     gateFailure === "action_claim" ||
     gateFailure === "action_claim_undeclared"
-    ? gateFailure
-    : "low_confidence_or_risky";
+  ) {
+    return gateFailure;
+  }
+  return deferredToHost ? HANDOFF_NOTICE_REASON : "low_confidence_or_risky";
 }
 
 /** Konuşma öğeleri yardımcılarının okuduğu konuşma alanları (kanal oto-yanıtının yüklediği satır bunları taşır). */
@@ -3484,7 +3182,7 @@ async function notifyItemsForHost(input: {
   conversation: ItemsConversationRef;
   messageIds: readonly string[];
   now: Date;
-}): Promise<void> {
+}): Promise<HeldItemsNotice> {
   const alertOrg = await prisma.organization.findUnique({
     where: { id: input.organizationId },
     select: {
@@ -3525,6 +3223,7 @@ async function notifyItemsForHost(input: {
       }).catch(() => {});
     }
   }
+  return notice;
 }
 
 /**
@@ -4917,10 +4616,7 @@ export async function sendDueAlerts(
     select: {
       name: true,
       alertEmail: true,
-      autoHoldingReplyEnabled: true,
       autoTaskFromMessageEnabled: true,
-      autoReplyDisclosure: true,
-      aiSignature: true,
       // The OWNER's email (role-filtered) — used as the per-tenant fallback so a
       // customer who didn't set an alert address still gets THEIR own alerts.
       // MUST be role-scoped, not "oldest user": a staff-first org would otherwise
@@ -5136,24 +4832,6 @@ export async function sendDueAlerts(
     }
     alerted++;
 
-    // Tier-2 holding acknowledgement (opt-in; keyword path — no model verdict
-    // here, so holdingAckEligible alone decides mildness).
-    if (org) {
-      await maybeSendHoldingAck({
-        organizationId,
-        conversation: {
-          id: c.id,
-          channel: c.channel,
-          guestIdentifier: c.guestIdentifier,
-          externalReservationId: c.externalReservationId,
-        },
-        guestMessage: hit.body,
-        org,
-        language: null,
-        // Claim `skippedReason`'ı çoktan ezdi — çit damgası aday satırından okunur.
-        stayFencedBeforeClaim: c.skippedReason === "reservation_ended",
-      }).catch(() => false);
-    }
 
     // Smart operational task (opt-in): keyword-detected complaints are the
     // primary escalation path (this runs before the model pass), so the task

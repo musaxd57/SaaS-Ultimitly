@@ -54,7 +54,7 @@ const RULE: EarlyCheckinRule = { mode: "auto", earliest: "12:00", fee: null, not
 const MODEL = {
   intent: "early_checkin",
   confidence: 0.9,
-  reply: "Thanks! Early check-in is the host's call; your request has been recorded and is visible to your host.",
+  reply: "Thanks! Early check-in is the host's call.",
   risk: null,
   priority: "standard" as const,
   source: "openai" as const,

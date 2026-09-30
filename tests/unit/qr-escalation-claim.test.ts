@@ -35,24 +35,15 @@ describe("QR devir metni — gerçekleşmemiş aktarım iddia etmez", () => {
     enabled.value = false;
   });
 
-  it("bayrak KAPALI: kaydedildiğini söyler, aktarım iddia etmez", () => {
-    const r = escalationReply();
-    expect(r).toContain("kaydedildi");
-    expect(r).not.toMatch(/ilettim|iletildi/i);
+  // 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devirde misafire HİÇBİR metin gitmez — ne "kaydedildi" ne "ev
+  // sahibiniz görebilir" ne "ilettim". Misafirin mesajı kaydedilir, ev sahibi panelde görür.
+  it("🚨 K10 bayrak KAPALI: devir metni YOK", () => {
+    expect(escalationReply()).toBeNull();
   });
 
-  it("🚨 bayrak AÇIK: yine de 'ilettim' DEMEZ (e-posta dedupe/cooldown/alıcı-yok ile bastırılmış olabilir)", () => {
+  it("🚨 K10 bayrak AÇIK: yine devir metni YOK (e-posta bayrağı misafire gideni değiştirmez)", () => {
     enabled.value = true;
-    const r = escalationReply();
-    expect(r).not.toMatch(/ilettim/i);
-    // Garanti edilen kanal söylenir: host sohbet ekranından görür.
-    expect(r).toMatch(/sohbet ekranından/i);
-  });
-
-  it("metin her iki bayrak durumunda da AYNI (koşullu söz kalmadı)", () => {
-    const off = escalationReply();
-    enabled.value = true;
-    expect(escalationReply()).toBe(off);
+    expect(escalationReply()).toBeNull();
   });
 });
 
@@ -70,18 +61,14 @@ describe("QR devir metni — acil durumda güvenlik yönergesi eklenir", () => {
     enabled.value = false;
   });
 
-  it("🚨 critical: güvenlik yönergesi EKLENİR ve çapa cümlesi AYNEN korunur", () => {
-    const normal = escalationReply();
+  it("🚨 K10 critical: YALNIZ güvenlik yönergesi gider (kurucunun onayladığı cümle), devir / kayıt bildirimi YOK", () => {
     const critical = escalationReply({ critical: true });
-    expect(critical).not.toBe(normal);
-    // Çapa kaybolmaz — "kaydedildi + host görebilir" garantisi her iki dalda da var.
-    expect(critical).toContain(normal);
-    expect(critical).toMatch(/güvenli bir alana/i);
-    expect(critical).toMatch(/acil servis/i);
+    expect(critical).toBe("Tehlike varsa hemen 112'yi arayın.");
+    expect(critical).not.toMatch(/kaydedildi|görüntüleyebilir|görebilir|ev sahibi/i);
   });
 
   it("🚨 acil metin de AYNI sözleşmeye tabi: makbuzsuz iddia yok, ünlem yok, kurumsal dil yok", () => {
-    const critical = escalationReply({ critical: true });
+    const critical = escalationReply({ critical: true }) ?? "";
     // Yönerge misafire VERİLEN bir talimattır; bizim yaptığımız bir eylem iddiası DEĞİL.
     expect(unverifiedActionClaims(critical), critical).toEqual([]);
     expect(critical).not.toMatch(/!/);

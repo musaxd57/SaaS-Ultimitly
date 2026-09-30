@@ -53,11 +53,18 @@ describe("kanal kapısı — yanlış dilde cevap otomatik gitmez", () => {
   it("🚨 kısmi kayma: misafirin dilindeki cevaba Türkçe devir cümlesi yapıştırılmışsa da tutulur (ölçülen kopya, Almanca)", () => {
     // Ölçülen vaka bir acil durumdu (orada kapı zaten güvenlik gerekçesiyle tutar); aynı kopya risksiz soruda da olabilir.
     const de = "Wie ist das WLAN-Passwort für die Wohnung?";
-    const mixed = "Das WLAN heißt Lale-5G und das Passwort ist Lale2025. Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    // K10 (09-30): devir cümlesi artık dilden bağımsız TUTULUR (çıktı vetosu, dil kontrolünden önce) — dil kuralını sınamak
+    // için yapıştırılan Türkçe cümle devir DEĞİL, sıradan bir bilgi cümlesi.
+    const mixed = "Das WLAN heißt Lale-5G und das Passwort ist Lale2025. Şifreyi girdikten sonra bağlantı birkaç saniye içinde kurulur ve internet hemen çalışır.";
     expect(autoReplyGateFailure({ ...passing, reply: mixed }, de)).toBe("reply_language_mismatch");
-    // KONTROL: aynı cevap devir cümlesi Almanca → geçer.
-    const clean = "Das WLAN heißt Lale-5G und das Passwort ist Lale2025. Ihre Nachricht wurde vermerkt; Ihr Gastgeber kann sie sehen.";
+    // KONTROL: aynı bilgi cümlesi Almanca → geçer.
+    const clean = "Das WLAN heißt Lale-5G und das Passwort ist Lale2025. Der Router steht im Wohnzimmer neben dem Fernseher.";
     expect(autoReplyGateFailure({ ...passing, reply: clean }, de)).toBeNull();
+    // K10: Türkçe ya da Almanca devir cümlesi dilinden bağımsız tutulur.
+    const handoffTr = "Das WLAN heißt Lale-5G und das Passwort ist Lale2025. Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    const handoffDe = "Das WLAN heißt Lale-5G und das Passwort ist Lale2025. Ihre Nachricht wurde vermerkt; Ihr Gastgeber kann sie sehen.";
+    expect(autoReplyGateFailure({ ...passing, reply: handoffTr }, de)).toBe("blocked");
+    expect(autoReplyGateFailure({ ...passing, reply: handoffDe }, de)).toBe("blocked");
     // Güvenlik ÖNCE: acil durumda gerekçe dil değil.
     const emergency = "Mein Sohn hat beim Einstecken des Ladegeräts einen Stromschlag bekommen, er zittert.";
     expect(autoReplyGateFailure({ ...passing, reply: mixed }, emergency)).toBe("blocked");
@@ -77,11 +84,11 @@ describe("kanal kapısı — yanlış dilde cevap otomatik gitmez", () => {
     );
   });
 
-  it("devir cevabı da dil kuralına tabi: İngilizce misafire Türkçe devir cümlesi GİTMEZ (bilinçli; insan talebinde yükseltme yolu koşar)", () => {
+  it("K10 (09-30): devir cevabı HİÇBİR dilde gitmez (dil kuralından önce çıktı vetosu tutar; insan talebinde yükseltme yolu koşar)", () => {
     const handoff = { ...passing, intent: "human_request", riskType: "human_request", reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." };
-    expect(autoReplyGateFailure(handoff, "Can I speak with the owner directly please?")).toBe("reply_language_mismatch");
-    // KONTROL: misafirin dilindeki devir gider.
-    expect(autoReplyGateFailure({ ...handoff, reply: "Your message has been saved; your host can see it." }, "Can I speak with the owner directly please?")).toBeNull();
+    expect(autoReplyGateFailure(handoff, "Can I speak with the owner directly please?")).toBe("blocked");
+    // Eskiden misafirin dilindeki devir GİDERDİ; K10 kararıyla o da tutulur.
+    expect(autoReplyGateFailure({ ...handoff, reply: "Your message has been saved; your host can see it." }, "Can I speak with the owner directly please?")).toBe("blocked");
   });
 
   it("AŞIRI UYGULAMA YOK: misafirin dili belirsizse ('ok', emoji, özel ad) kontrol yok", () => {

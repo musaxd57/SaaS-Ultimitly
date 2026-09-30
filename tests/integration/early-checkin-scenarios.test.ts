@@ -127,7 +127,7 @@ async function vacantNight(now: Date) {
 
 // ─── sahte OpenAI ───────────────────────────────────────────────────────────
 
-const DEFER = "Thanks! Early check-in is the host's call; your request has been recorded and is visible to your host.";
+const DEFER = "Thanks! Early check-in is the host's call.";
 const reply = (over: Record<string, unknown> = {}) => ({
   intent: "early_checkin",
   confidence: 0.9,
@@ -745,7 +745,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     const v = await vacantNight(now);
     await saveEarlyCheckinRule(v.orgId, v.propertyId, { ...RULE, earliest: "10:00" });
     openAi({
-      reply: reply({ reply: "Erken giriş ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir." }),
+      reply: reply({ reply: "Erken giriş ev sahibinizin kararıdır; bu durum o günkü temizliğin ne zaman biteceğine bağlıdır." }),
       understanding: nlu("10:00"),
       guard: guard("10:00", { reply_defers_to_host: true }),
     });
@@ -754,12 +754,13 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 10:00.")).toBe(true);
     expect((await decision(id)).reason).toBe("early_checkin_verified");
 
-    // KONTROL: kural taslakta (otomatik onay yok) → Türkçe erteleme de GİTMEZ, gerekçe dil.
+    // KONTROL: kural taslakta (otomatik onay yok) → Türkçe erteleme de GİTMEZ, gerekçe dil. (Erteleme devir cümlesi
+    // taşımaz: K10 09-30'dan beri "mesajınız kaydedildi" her dilde önce çıktı vetosunda tutulur ve gerekçe `handoff_notice` olur.)
     await fresh();
     const w = await vacantNight(now);
     await saveEarlyCheckinRule(w.orgId, w.propertyId, { ...RULE, earliest: "10:00", mode: "draft" });
     openAi({
-      reply: reply({ reply: "Erken giriş ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir." }),
+      reply: reply({ reply: "Erken giriş ev sahibinizin kararıdır; bu durum o günkü temizliğin ne zaman biteceğine bağlıdır." }),
       understanding: nlu("10:00"),
       guard: guard("10:00", { reply_defers_to_host: true }),
     });

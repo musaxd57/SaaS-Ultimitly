@@ -164,14 +164,17 @@ describe("QR devir gerekçesi — RiskEvent izlenebilirliği", () => {
     expect(ev.conversationId).toBeTruthy();
     expect(ev.triggerId).toBeTruthy();
   });
-  it("kayıt yan etkidir: RiskEvent yazılamasa da misafir yanıtını alır", async () => {
+  it("kayıt yan etkidir: RiskEvent yazılamasa da istek düşmez (devir yanıtı döner)", async () => {
     const { token } = await seed();
     mockSuggest.mockResolvedValue(okReply({ confidence: 0.2 }));
     const spy = vi.spyOn(prisma.riskEvent, "create").mockRejectedValueOnce(new Error("db down"));
 
     const res = await ask(token, "Otopark var mı?");
     expect(res.status).toBe(200);
-    expect((await res.json()).reply).toBeTruthy();
+    const body = await res.json();
+    expect(body.escalated).toBe(true);
+    // K10 (kurucu kararı 09-30): devirde misafire metin GİTMEZ ("mesajınız kaydedildi" yok) — yalnız mesajı kaydedilir.
+    expect(body.reply ?? null).toBeNull();
     spy.mockRestore();
   });
 });

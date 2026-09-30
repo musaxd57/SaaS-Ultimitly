@@ -240,7 +240,8 @@ describe("QR — eksik bilgide dürüst cevap (dar bant)", () => {
 
     const body = await (await ask(token, "çöpü nereye atabiliriz")).json();
     expect(body.escalated).toBe(true);
-    expect(body.reply).not.toContain("arkasında");
+    // K10 (09-30): devirde misafire hiçbir metin gitmez — uydurma iddia da, "kaydedildi" de.
+    expect(body.reply ?? null).toBeNull();
     expect((await lastReason(orgId))?.reason).toBe("unsourced_claim");
   });
 

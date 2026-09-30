@@ -115,9 +115,10 @@ export const ESCALATION_REASONS = [
   "unsourced_claim",
   "absence_admission",
   "informational_low_confidence",
-  // Çıktı vetosu (§A) — `output-veto.ts` `OutputVetoReason` ile BİREBİR.
+  // Çıktı vetosu (§A) — `output-veto.ts` `OutputVetoReason` ile BİREBİR (K10, 09-30: devir / bildirim cümlesi `handoff_notice`).
   "placeholder_in_reply",
   "unverified_commitment",
+  "handoff_notice",
   // Müsaitlik vetosu (09-24) — `availability-claims.ts` `AVAILABILITY_VETO_REASONS` ile BİREBİR.
   "availability_claim",
   "availability_unconfirmed",

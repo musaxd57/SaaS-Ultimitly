@@ -38,7 +38,6 @@ const LEGIT = [
     "Kontrol edecekleriniz: kapı kodu ve Wi-Fi.",
     "Soracaklarınız olursa buradayız.",
     // 2. çoğul sıfat-fiil (09-12 gövdeleri + "-lerini(z)"): mutasyon turu (09-25) bu frenin pinsiz olduğunu ölçtü.
-    "Paylaşacaklarınızı ev sahibiniz uygulamadan görebilir.",
     "Göndereceklerinizi buradan iletebilirsiniz.",
     // "confirm your ID/booking" süreç anlatımıdır (mutasyon turu 09-25: bu fren pinsizdi).
     "At check-in we will confirm your ID in line with local registration rules.",
@@ -419,22 +418,35 @@ describe("ikinci inceleme (09-25) — tavsiye / duyuru / alışkanlık / atıf /
   });
 });
 
-describe("gerçek model cevapları (09-25 cevap kıyası, 540 cevap, iki model) — HİÇBİRİ tutulmaz", () => {
-  it("model-reply-compare raporlarının cevaplarında yanlış pozitif yok", () => {
+describe("gerçek model cevapları (09-25 cevap kıyası, 540 cevap, iki model) — yalnız K10 devir cümlesi tutulur", () => {
+  it("model-reply-compare raporlarının cevaplarında söz / yer tutucu yanlış pozitifi yok; devir cümlesi (K10) sayılı", () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
     const files = readdirSync(dir).filter((f) => /^model-reply-compare-2026-09-25-.*\.json$/.test(f));
     expect(files.length).toBeGreaterThanOrEqual(2); // anti-vakum
     let n = 0;
+    let handoff = 0;
     const vetoed: string[] = [];
     for (const f of files) {
       const rows = (JSON.parse(readFileSync(path.join(dir, f), "utf8")) as { rows: { id: string; reply?: unknown }[] }).rows;
       for (const r of rows) {
         if (typeof r.reply !== "string") continue;
         n++;
-        if (vetoOutgoingReply(r.reply) !== null) vetoed.push(`${f}#${r.id}`);
+        const v = vetoOutgoingReply(r.reply);
+        // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): istemin devir cümlesi artık tutulur — ölçülen etki: 540 cevabın 193'ü
+        // bu cümleyi taşıyor; o koşularda OTOMATİK giden cevaplardan koşu başına 5'i (hepsi insan talebi onayı) artık tutuluyor
+        // (kalanı zaten başka sebeple tutuluyordu). Başka gerekçeyle tutulan gerçek cevap YOK.
+        if (v === "handoff_notice") handoff++;
+        else if (v !== null) vetoed.push(`${f}#${r.id}`);
       }
     }
     expect(n).toBeGreaterThan(400);
     expect(vetoed).toEqual([]);
+    expect(handoff).toBe(193);
+  });
+});
+
+describe("K10 (09-30) — 'ev sahibiniz görebilir' biçimi talimat cümlesinde de tutulur", () => {
+  it("'Paylaşacaklarınızı ev sahibiniz uygulamadan görebilir.' → handoff_notice (kurucu: 'host görebilir gibi bir şey yazmasın')", () => {
+    expect(vetoOutgoingReply("Paylaşacaklarınızı ev sahibiniz uygulamadan görebilir.")).toBe("handoff_notice");
   });
 });

@@ -426,8 +426,9 @@ describe("POST /api/chat/[token] — escalation wires the e-mail", () => {
       const json = await res.json();
       expect(json.escalated).toBe(true);
       expect(mockSendReporting).toHaveBeenCalledTimes(2); // bekleme süresi içinde de gider
-      // Misafir metni: acil talimatı YALNIZ dar fiziksel acil durum yüklemiyle (bu mesaj onu tetiklemiyor).
-      expect(json.reply).toMatch(/kaydedildi/i);
+      // Misafir metni: güvenlik satırı YALNIZ dar fiziksel acil durum yüklemiyle (bu mesaj onu tetiklemiyor) → K10 (09-30):
+      // devir metni de GİTMEZ ("kaydedildi" yok).
+      expect(json.reply ?? null).toBeNull();
     } finally {
       vi.unstubAllGlobals();
       vi.unstubAllEnvs();
@@ -477,13 +478,9 @@ describe("POST /api/chat/[token] — escalation wires the e-mail", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.escalated).toBe(true);
-    // Misafir yine bir devir yanıtı alır — AMA (Codex 09-08) e-posta GİTMEDİĞİ
-    // hâlde "ilettim" DENMEZ. Eski beklenti (`toContain("ilettim")`) tam da bu
-    // yanlış beyanı pinliyordu: sağlayıcı hatası dalında bile aktarım iddia
-    // ediliyordu. Metin artık yalnız garanti edileni söyler.
-    expect(json.reply).toBeTruthy();
-    expect(json.reply).not.toMatch(/ilettim/i);
-    expect(json.reply).toMatch(/kaydedildi/i);
+    // E-posta GİTMEDİĞİ hâlde "ilettim" DENMEZ (Codex 09-08). K10 (kurucu kararı 09-30): devirde misafire hiçbir metin
+    // gitmez ("mesajınız kaydedildi" de yok) — istek yine 200 ve devir döner.
+    expect(json.reply ?? null).toBeNull();
     expect(mockReportError).toHaveBeenCalled();
   });
 });

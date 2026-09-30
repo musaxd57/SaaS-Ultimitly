@@ -62,11 +62,16 @@ describe("'bilgim yok' misafire GİTMEZ — oto-yanıt kapısı", () => {
     // beyanı yakalar; savuşturmanın ayrı bir sorun olduğu ölçüldü (gerçek koşuda
     // `gpt-5.6-luna` legacy modda tam bunu yapıyordu) ama bu kapının işi değil.
     for (const reply of [
-      "Otopark konusunda ev sahibiniz yardımcı olabilir; mesajınız kaydedildi.",
+      "Otopark konusunda ev sahibiniz yardımcı olabilir.",
       "Bu konuyu ev sahibinizle konuşabilirsiniz.",
     ]) {
       expect(passesAutoReplySafetyGate({ ...BENIGN, reply }, "Otopark var mı?"), reply).toBe(true);
     }
+    // K10 (kurucu kararı 09-30): aynı savuşturma devir cümlesiyle ("mesajınız kaydedildi") GİTMEZ — yokluk kuralı yüzünden
+    // DEĞİL, çıktı vetosu yüzünden (yokluk yüklemi yine yanlış pozitif vermez).
+    const withHandoff = "Otopark konusunda ev sahibiniz yardımcı olabilir; mesajınız kaydedildi.";
+    expect(admitsMissingKnowledge(withHandoff)).toBe(false);
+    expect(passesAutoReplySafetyGate({ ...BENIGN, reply: withHandoff }, "Otopark var mı?")).toBe(false);
   });
 
   it("`reply` VERİLMEZSE kural hiç çalışmaz (eski çağıranlar bozulmaz)", () => {

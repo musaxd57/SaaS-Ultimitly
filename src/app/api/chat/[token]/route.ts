@@ -92,7 +92,7 @@ const DAILY_AI_CAP_FALLBACK = 200;
 // ⚠️ KAPSAM DÜRÜSTLÜĞÜ: bu metin bugün misafire GÖRÜNMÜYOR — `finalize` yalnız JSON döndürür
 // (Message olarak yazılmaz) ve istemci POST'un `reply` alanını okumaz (GET otoriter). Yani
 // düzeltilen şey CANLI kusur değil, sözleşmeyi delen LATENT iddiadır (test-pinli).
-const HANDOFF_REPLY = "Mesajınız kaydedildi; bu sohbeti ev sahibiniz devraldı.";
+// K10 (kurucu kararı 09-30): devir metni misafire GİTMEZ — ev sahibi devraldığında yanıt yalnız `handoff: true` taşır (metin yok).
 
 // ESKALASYON CEVABI — gövde `src/lib/guest-chat.ts` `escalationReply()`.
 // Söz gerçeğe uygun olmak zorunda (denetim 08-01 + Codex 09-08): metin YALNIZ
@@ -576,7 +576,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // below), which also catches a host reply that lands WHILE the model is running.
   if (await guestChatAiPausedForStay(ctx.property.id, res.id)) {
     await record(null, true);
-    return finalize({ handoff: true, reply: HANDOFF_REPLY });
+    return finalize({ handoff: true });
   }
 
   // ── KAPANIŞA SESSİZLİK (kurucu kuralı 09-25, `ai/closing-turn.ts`) ─────────────────────────────────────────────
@@ -642,7 +642,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     const { inboundMessageId, handedOff } = await record(reply, true);
     // A host reply raced in → the human owns the thread; the canned line was
     // vetoed under the lock and only the guest's message was stored.
-    if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
+    if (handedOff) return finalize({ handoff: true });
     // "İlettim" is only true if the host finds out — env-gated (default OFF),
     // deduped per EVENT, response-time bounded, never throws (Codex #15).
     await sendQrEscalationAlertBounded({
@@ -684,7 +684,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   if (!budget.ok) {
     const escalationText = escalationReply({ critical: physicalEmergency });
     const { inboundMessageId, handedOff } = await record(escalationText, true);
-    if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
+    if (handedOff) return finalize({ handoff: true });
     await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,
@@ -916,7 +916,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     ? escalationReply({ critical: physicalEmergency })
     : result.reply;
   const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
-  if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
+  if (handedOff) return finalize({ handoff: true });
   // İZLENEBİLİRLİK (kurucu AI kalite turu, 09-08): KARARIN GEREKÇESİ kaydedilir —
   // devir DE, otomatik cevap DA. Kapalı küme; misafir metni ASLA girmez. Yan
   // etkidir: `recordRiskEvent` ASLA fırlatmaz (kendi try/catch'i var), o yüzden

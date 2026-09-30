@@ -2422,31 +2422,6 @@ export function detectRiskTypes(message: string): string[] {
 }
 
 /**
- * May a MILD complaint get the automatic tier-2 "holding acknowledgement"?
- * Deliberately conservative: complaint-class only, and NONE of the signals that
- * demand a human's judgement. Anything excluded here still follows the normal
- * escalate-to-host path — this gate only ever WITHHOLDS the ack.
- */
-export function holdingAckBlockedSignals(message: string): boolean {
-  // Single-source severity check (Codex 07-22, P2): ANY deterministic risk label
-  // other than a plain "complaint" demands a human — money, cancellation,
-  // human-request, review threat, safety, injection, AND (previously missing
-  // from the old inline list) discrimination, rule violation / overstay refusal,
-  // off-platform payment. Without those, "the flat is dirty AND don't send a
-  // <group> cleaner" was escalated as tier-3 yet ALSO got an automatic apology.
-  // Routing through detectRiskType keeps this blocklist in lockstep with the
-  // severity taxonomy: a net added there is blocked here automatically. Strictly
-  // tightening — every signal the old list blocked maps to a non-complaint label.
-  const risk = detectRiskType(message);
-  return risk !== null && risk !== "complaint";
-}
-
-export function holdingAckEligible(message: string): boolean {
-  if (!classifyFallback(message).isComplaint) return false;
-  return !holdingAckBlockedSignals(message);
-}
-
-/**
  * Intents whose reply must NOT carry a courtesy closing: an apology or an
  * escalation followed by a cheerful sign-off contradicts itself. Kept next to
  * the reply builder so a new high-stakes intent is added in one place.

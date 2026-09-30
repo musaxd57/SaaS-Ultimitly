@@ -179,7 +179,8 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     const { token } = await seed();
     const out = await ask(token, ASK);
     expect(out.escalated).toBe(true);
-    expect(out.reply).not.toContain("see you at 11");
+    // K10 (09-30): devirde misafire metin GİTMEZ — ne taslak ne "kaydedildi".
+    expect(out.reply ?? null).toBeNull();
     const { ev, sc } = await lastEvent();
     expect(ev.reason).toBe("availability_claim");
     expect(sc).toMatchObject({ v: "availability_claim", d: "early_checkin/grants" });
@@ -334,7 +335,8 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     const { token: t2 } = await seed();
     const enforced = await ask(t2, MSG);
     expect(enforced.escalated).toBe(true);
-    expect(enforced.reply).not.toContain("2 km");
+    // Anlama katmanının acil NİYETİ dar fiziksel acil yüklemi değildir (güvenlik satırı yok) → K10: misafire metin GİTMEZ.
+    expect(enforced.reply ?? null).toBeNull();
     expect((await lastEvent()).ev.reason).toBe("understanding_risk");
     expect(await irOf()).toEqual({ v: "understanding_risk", ev: "understanding_risk", k: "emergency" });
   });

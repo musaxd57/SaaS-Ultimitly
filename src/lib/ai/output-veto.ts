@@ -61,7 +61,10 @@ import { kbPlaceholderTokens, leftoverGuestTokens } from "@/lib/kb-placeholders"
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 
 /** Kapalı küme — `RiskEvent.reason` ile aynı sözleşme (PII taşımaz). */
-export type OutputVetoReason = "placeholder_in_reply" | "unverified_commitment";
+export type OutputVetoReason = "placeholder_in_reply" | "unverified_commitment" | "handoff_notice";
+
+/** K10: devir / bildirim cümlesi gerekçesi — kanal karar kaydı ve gelen kutusu notu aynı sabiti okur. */
+export const HANDOFF_NOTICE_REASON = "handoff_notice" satisfies OutputVetoReason;
 
 /** Unicode-farkında kelime sınırı: JS `\b` yalnız ASCII bilir. */
 const NL = "(?<!\\p{L})";
@@ -76,12 +79,14 @@ const NR = "(?!\\p{L})";
 const ACTIVE_PAST_CLAIM = new RegExp(
   // Üçüncü inceleme (kör batarya 09-25): alıcısı MİSAFİR olan "size (dün) ilettim" önceki mesaja atıftır; amaç cümleciği
   // ("size dönmesi için ilettim", "size dönsün diye ilettim") ise ev sahibine iletme İDDİASIDIR — istisna ona uygulanmaz.
-  `${NL}(?:(?<!(?<!\\p{L})size\\s(?:(?!(?:için|diye)(?!\\p{L}))\\p{L}+\\s){0,3})(?:ilett[iı]m|ilettik)|oluşturdum|oluşturduk|kontrol ettim|kontrol ettik|ayarladım|ayarladık|bildirdim|bildirdik|not ettim|talep oluşturdum` +
+  // K10 (kurucu kararı 09-30): aynı istisna "size … haber verdim / bildirdim / bilgi verdim" için de — "Dün size haber verdim:
+  // havuz pazartesi kapalı" misafirin KENDİSİNE gitmiş mesaja atıftır (misafir doğrulayabilir), ev sahibine iletme iddiası değil.
+  `${NL}(?:(?<!(?<!\\p{L})size\\s(?:(?!(?:için|diye)(?!\\p{L}))\\p{L}+\\s){0,3})(?:ilett[iı]m|ilettik|haber verdim|haber verdik|bildirdim|bildirdik|bilgi verdim|bilgi verdik)|oluşturdum|oluşturduk|kontrol ettim|kontrol ettik|ayarladım|ayarladık|not ettim|talep oluşturdum` +
     // 09-25 (mesaj anlama çekirdeği denetimi): aynı ETKEN 1. şahıs geçmiş sınıfının kaçan üyeleri — "Ev sahibinize haber
     // verdim", "Temizlikçiyi aradım", "Taksinizi rezerve ettim". Ölçüm: 1.287 model cevabında (cevap kıyası ×4 + konaklama
     // eval'i) yalnız 1 yeni veto ve o da gerçek iddia ("Ertelemeyi hallettim"); 2. şahıs / sıfat-fiil biçimleri
     // ("gönderdiğiniz", "paylaştığım gibi") kelime sınırı yüzünden eşleşmez.
-    `|haber verdim|haber verdik|bilgi verdim|bilgi verdik|bilgilendirdim|bilgilendirdik|aradım|aradık|ulaştım|ulaştık` +
+    `|bilgilendirdim|bilgilendirdik|aradım|aradık|ulaştım|ulaştık` +
     `|rezerve ettim|rezerve ettik|rezervasyon yaptım|rezervasyon yaptık|ayırttım|ayırttık|yönlendirdim|yönlendirdik` +
     `|aktardım|aktardık|hallettim|hallettik|çağırdım|çağırdık|sipariş ettim|sipariş verdim` +
     // İnceleme (09-25): "Erken girişinizi onayladım", "Kaydınızı güncelledim", "Ev sahibiyle görüştüm", "mesaj attım",
@@ -111,7 +116,13 @@ const ACTIVE_PAST_CLAIM = new RegExp(
     // kontrol ediyorum").
     `|${NL}(?<!(?<!\\p{L})her\\s+(?:\\p{L}+\\s+){1,5})(?:danışı|kontrol edi|bakı|dönü|araştırı|arı|çağırı|takip edi|ilgileni)yorum${NR}` +
     // "soruyorum" yalnız EV SAHİBİNE soruluyorsa söz: "Emin olmak için soruyorum: …" misafire sorulan netleştirmedir.
-    `|${NL}sahib\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}?(?:soru|danışı)yor(?:um|uz)${NR}`,
+    `|${NL}sahib\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}?(?:soru|danışı)yor(?:um|uz)${NR}` +
+    // K10 (kurucu kararı 09-30): "Mesajınızı şimdi ev sahibine gönderiyorum" — alıcısı ev sahibi / ekip olan GÖNDERME (şimdiki
+    // zaman) iddiadır; alıcısız "Faturaları e-posta ile gönderiyoruz" bir süreç anlatımıdır (yakalanmaz).
+    `|${NL}(?:sahib|ekib|ekip|görevli|yönetici|temizlikçi)\\p{L}*[ea]\\s+(?:\\p{L}+\\s+){0,3}?gönderiyor(?:um|uz)${NR}` +
+    // … ve ev sahibine yönelik TEKLİF, soru ekiyle de ("İsterseniz ev sahibinize sorayım mı?", "Ev sahibine ileteyim mi?"):
+    // yapay zekâ ev sahibine soramaz / iletemez — yapılamayacak eylemin teklifi (soru eki burada netleştirme değildir).
+    `|${NL}(?:sahib|ekib|görevli|yönetici)\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}?(?:sora|danışa|ilete|söyleye|yaza|haber vere|bildire)y[iı]m(?:\\s+m[iı])?${NR}`,
   "iu",
 );
 
@@ -243,7 +254,8 @@ const EN_PAST_CLAIM = new RegExp(
     `|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+(?:on\\s+)?to|let\\s+(?:the|your|our)\\s+(?:host|team|cleaner|cleaning\\s+team)\\s+know` +
     // "I've sent a message to your host", "I've reached out to the cleaner" (yalnız ALICI ev sahibi/ekip iken; "the
     // instructions we sent" gibi misafire giden önceki mesaj atfı değil).
-    `|sent\\s+(?:a\\s+)?(?:message|note|request)\\s+to\\s+(?:the|your|our)\\s+(?:host|team|cleaner|cleaning\\s+team)|reached\\s+out)${NR}` +
+    // K10 (09-30): "I have sent your request to the host", "I sent it to your host" — iyelik / belirteç / zamirli nesne de.
+    `|sent\\s+(?:(?:a|your|the|this|that)\\s+)?(?:message|note|request|question|details|complaint|it|this|that)\\s+(?:over\\s+)?to\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|cleaning\\s+team|manager)|reached\\s+out)${NR}` +
     `|${NL}i(?:'ve| have)?\\s+(?:just\\s+|already\\s+|also\\s+)?(?:booked|reserved|called|phoned|ordered|scheduled|requested|forwarded` +
     // "I've sent someone to fix the shower" — kişi gönderme iddiası ("sent you the code" önceki mesaja atıf, YOK).
     `|sent\\s+(?:someone|somebody|(?:a|the|our)\\s+(?:technician|plumber|cleaner|electrician|handyman|repairman|maintenance\\s+\\p{L}+)))${NR}` +
@@ -254,6 +266,8 @@ const EN_PAST_CLAIM = new RegExp(
     `|${NL}(?:leave\\s+it\\s+with\\s+me|i'?m\\s+on\\s+it|bear\\s+with\\s+me)${NR}` +
     `|${NL}give\\s+me\\s+(?:a\\s+)?(?:few\\s+|couple\\s+of\\s+)?(?:minutes?|moments?|seconds?|moment|sec)\\s+to\\s+(?:check|confirm|ask|find\\s+out|look)${NR}` +
     `|${NL}would\\s+you\\s+like\\s+me\\s+to\\s+(?:check\\s+with|ask\\s+(?:the|your|our)|contact\\s+(?:the|your)|forward|find\\s+out)${NR}` +
+    // K10 (09-30): "Shall I ask the host for you?", "Should I check with the host?", "Want me to ask the host?" — teklif.
+    `|${NL}(?:(?:shall|should|can|may)\\s+i|(?:do\\s+you\\s+)?want\\s+me\\s+to)\\s+(?:ask|check\\s+with|contact|message|forward\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+to|notify|let)\\s+(?:the|your|our)\\s+(?:host|owner|team|manager)${NR}` +
     // "Let me forward this / ask the host / check with the host / Let me check." (bekleme sözü — kurucu kararı 09-25,
     // ↓gelecek dalı). 🚨 Aynı cümlede misafire sorulan NETLEŞTİRME söz değildir (inceleme 09-25): "Let me check if I
     // understood correctly: …?", "Let me double-check: is it two adults?" — iki nokta / "if I understood" dalı yok.
@@ -433,6 +447,51 @@ const OTHER_FUTURE_CLAIM = new RegExp(
 );
 
 /**
+ * DEVİR / BİLDİRİM CÜMLESİ (K10, kurucu kararı 09-30: "host görebilir gibi bir şey yazmasın, gerekirse hiç cevap üretilmesin,
+ * hosta haber verilsin"; seçim "Hiçbir şey gitmesin"): "Mesajınız kaydedildi", "ev sahibiniz görebilir", "Your request has been
+ * recorded and is visible to your host" misafire GİTMEZ — cevap tutulur, ev sahibine haber verilir (kanal: `automation.ts`,
+ * QR: `guest-chat-gate.ts`). Yalnız BİTİŞİK yapı: misafirin mesajı / talebi + kayıt fiili, ev sahibi + görme fiili (3. şahıs).
+ * "…masada görebilirsiniz" (2. şahıs), "kararı ev sahibiniz verir" (karar ertelemesi, bildirim değil) YAKALANMAZ. Kapanış
+ * modülünün `RECORDED_FOR_HOST` eşlemesi bilerek GEVŞEKTİR (orada fazla eşleşme yalnız konuşmayı görünür tutar); burada
+ * fazla eşleşme meşru cevabı tutardı — bu yüzden ayrı ve dar.
+ */
+const HANDOFF_NOTICE = new RegExp(
+  // Sözcük sınırı TEK kez, bütün Latin / Kiril seçeneklerinin önünde (her seçenekte ayrı geriye bakış uzun boşluk dizisinde
+  // her konumda on beş kez deneniyordu — süre pini `output-veto-cost.test.ts`).
+  `${NL}(?:` +
+    // TR: "mesajınız / talebiniz / isteğiniz / bildiriminiz / şikâyetiniz / tarihleriniz … kaydedildi / not edildi / iletildi"
+    `(?:mesaj|talep|taleb|istek|isteğ|bildirim|şik[aâ]yet|sorun|rica|tarih|not)\\p{L}{0,8}\\s+(?:\\p{L}+\\s+){0,3}?(?:kaydedildi|kayda\\s+alındı|not\\s+edildi|iletildi|aktarıldı|ulaştırıldı|alındı)${NR}(?!\\s+m[iı](?!\\p{L}))` +
+    // TR gelecek edilgen ("Talebiniz ev sahibinize iletilecektir") ve ekip / ev sahibi öznesiyle bildirim ("Ekibimiz durumdan
+    // haberdar edildi", "Ev sahibiniz bilgilendirildi"), "Size en kısa sürede dönüş yapılacaktır" — aynı "ilettik" iddiası.
+    `|(?:mesaj|talep|taleb|istek|isteğ|bildirim|şik[aâ]yet|sorun|rica)\\p{L}{0,8}\\s+(?:\\p{L}+\\s+){0,3}?(?:iletilecek|aktarılacak|kaydedilecek|bildirilecek|ulaştırılacak)\\p{L}*` +
+    `|(?:ekib|ekip|ev\\s+sahib|görevli|yönetici|temizlik\\s+ekib)\\p{L}*\\s+(?:\\p{L}+\\s+){0,2}?(?:haberdar\\s+edildi|bilgilendirildi|bildirildi|uyarıldı)${NR}` +
+    `|dönüş\\s+yapılaca[kğ]\\p{L}*` +
+    // TR: "ev sahibiniz görebilir / görüntüleyebilir / görecek / görüyor" (3. şahıs; "görebilirsiniz" değil)
+    `|ev\\s+sahib\\p{L}{0,6}\\s+(?:\\p{L}+\\s+){0,2}?(?:görebilir|görüntüleyebilir|görecek|görüyor|okuyabilir)(?!s[iı]n[iı]z)${NR}` +
+    // EN
+    `|(?:your|the)\\s+(?:message|request|report|note|question|query|feedback|dates?|details|complaint|concern)s?\\s+(?:has|have)\\s+been\\s+(?:recorded|noted|logged|registered|forwarded|passed\\s+on|shared|received|saved)${NR}` +
+    `|(?:is|are)\\s+(?:now\\s+)?visible\\s+to\\s+(?:your|the)\\s+(?:host|owner|team)${NR}` +
+    // EN: "The cleaning team has been notified", "Your request will be passed on to the host".
+    `|(?:host|owner|team|cleaner|manager|housekeeping|staff)\\s+(?:has|have)\\s+(?:already\\s+)?been\\s+(?:notified|informed|told|alerted|contacted)${NR}` +
+    `|(?:your|the)\\s+(?:message|request|report|note|question|complaint|concern)s?\\s+will\\s+be\\s+(?:passed\\s+on|forwarded|shared|sent)\\s+(?:to|with)${NR}` +
+    `|(?:your|the)\\s+(?:host|owner)\\s+(?:can|will\\s+be\\s+able\\s+to|is\\s+able\\s+to|will)\\s+(?:see|view|read)\\s+(?:it|this|that|them|your)${NR}` +
+    // DE / FR / ES / RU — istemin devir cümlesinin çevirileri
+    `|(?:ihre|deine|die)\\s+(?:nachricht|anfrage|bitte|beschwerde|meldung)\\s+(?:wurde|ist)\\s+(?:\\p{L}+\\s+){0,2}?(?:gespeichert|notiert|vermerkt|erfasst|weitergeleitet|aufgenommen)${NR}` +
+    `|(?:gastgeber|vermieter)\\p{L}*\\s+(?:kann|wird)\\s+(?:\\p{L}+\\s+){0,2}?(?:einsehen|sehen|lesen)${NR}` +
+    `|(?:gastgeber|vermieter)\\p{L}*\\s+wurde\\s+(?:\\p{L}+\\s+){0,2}?(?:informiert|benachrichtigt|kontaktiert|verständigt)${NR}` +
+    `|votre\\s+(?:message|demande|requête|réclamation)\\s+(?:a\\s+été|est)\\s+(?:bien\\s+)?(?:enregistré|noté|transmis|pris\\s+en\\s+compte|reçu)\\p{L}*` +
+    `|h[ôo]te(?:sse)?\\s+(?:peut|pourra|verra|va)\\s+(?:(?:la|le|les|votre|y)\\s+)?(?:consulter|voir|lire)${NR}` +
+    `|su\\s+(?:mensaje|solicitud|petición|consulta|queja)\\s+(?:ha\\s+sido|fue|queda|está)\\s+(?:registrad|anotad|enviad|trasladad|recibid)\\p{L}*` +
+    `|anfitri[óo]na?\\s+(?:puede|podrá)\\s+ver(?:lo|la|los|las)?${NR}` +
+    `|ваш[ае]?\\s+(?:сообщение|обращение|запрос|просьба|жалоба)\\s+(?:\\p{L}+\\s+){0,2}?(?:зарегистрирован|записан|сохранен|сохранён|передан|отмечен|принят)\\p{L}*` +
+    `|(?:хозя\\p{L}*|владел\\p{L}*)\\s+(?:\\p{L}+\\s+){0,1}?(?:видит|увидит|сможет\\s+(?:увидеть|посмотреть|прочитать))${NR}` +
+    `)` +
+    // AR (sözcük sınırı Latin sınıfıyla anlamsız — kendi biçimi)
+    `|تم\\s+(?:تسجيل|حفظ|استلام)\\s+(?:رسالت|طلب)|تم\\s+(?:إبلاغ|إخطار)\\s+(?:المضيف|مضيفك|مضيفكم)|(?:يمكن|سيتمكن)\\s+(?:لل)?(?:مضيف|المضيف)\\S*\\s+(?:من\\s+)?(?:الاطلاع|رؤية)`,
+  "iu",
+);
+
+/**
  * DOLDURULMAMIŞ YER TUTUCU cevabın İÇİNDE.
  *
  * 🚨 SIFIR BELİRSİZLİK: `[ŞİFRE]` misafire giden bir cevapta HER ZAMAN yanlış.
@@ -461,12 +520,7 @@ function hasUnfilledPlaceholder(reply: string): boolean {
 export function vetoOutgoingReply(reply: string | null | undefined): OutputVetoReason | null {
   if (typeof reply !== "string" || reply.trim() === "") return null;
   if (hasUnfilledPlaceholder(reply)) return "placeholder_in_reply";
-  // Cümle başı "İlettim"/"Döneceğim": `/i` bayrağı noktalı İ ↔ i katlamaz →
-  // ham metnin YANINDA Türkçe küçük harfe indirilmiş metin de sınanır
-  // (yalnız EŞLEŞME EKLER, eksiltmez). `claim-detectors` ile aynı desen.
-  // Kıvrık kesme işareti ("I’ve", "I’ll") düz olana çevrilir — model çıktısında sık (inceleme 09-25: hepsi geçiyordu).
-  const text = reply.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
-  const lower = text.toLocaleLowerCase("tr");
+  const { text, lower } = vetoForms(reply);
   if (
     ACTIVE_PAST_CLAIM.test(text) ||
     ACTIVE_PAST_CLAIM.test(lower) ||
@@ -479,5 +533,28 @@ export function vetoOutgoingReply(reply: string | null | undefined): OutputVetoR
   ) {
     return "unverified_commitment";
   }
+  if (HANDOFF_NOTICE.test(text) || HANDOFF_NOTICE.test(lower)) return "handoff_notice";
   return null;
+}
+
+/**
+ * Cümle başı "İlettim"/"Döneceğim": `/i` bayrağı noktalı İ ↔ i katlamaz → ham metnin YANINDA Türkçe küçük harfe indirilmiş metin
+ * de sınanır (yalnız EŞLEŞME EKLER, eksiltmez; `claim-detectors` ile aynı desen). Kıvrık kesme işareti ("I’ve", "I’ll") düz
+ * olana çevrilir — model çıktısında sık (inceleme 09-25: hepsi geçiyordu).
+ */
+function vetoForms(reply: string): { text: string; lower: string } {
+  const text = reply.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
+  return { text, lower: text.toLocaleLowerCase("tr") };
+}
+
+/**
+ * Cevap konuyu ev sahibine BIRAKIYOR mu: devir / bildirim cümlesi ("mesajınız kaydedildi; ev sahibiniz görebilir") taşıyor mu
+ * (K10). KAPI DEĞİL — tutulan kanal cevabında ev sahibine "Misafir cevap bekliyor" bildirimi ve karar kaydı gerekçesi için
+ * (`automation.ts`). Başka bir veto önce tutsa da (yer tutucu, söz) cümle oradaysa `true`. Yüklem vetonun AYNI kalıbı ve AYNI
+ * biçimleri (ayrışamaz).
+ */
+export function carriesHandoffNotice(reply: string | null | undefined): boolean {
+  if (typeof reply !== "string" || reply.trim() === "") return false;
+  const { text, lower } = vetoForms(reply);
+  return HANDOFF_NOTICE.test(text) || HANDOFF_NOTICE.test(lower);
 }

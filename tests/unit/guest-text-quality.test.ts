@@ -389,23 +389,8 @@ describe("otomatik gönderilen misafir metinleri", () => {
     expect(automatedReplyNote("tr", false)).toBeNull();
   });
 
-  it("bekletme mesajı ev sahibinin ya da yazanın CİNSİYETİNİ varsaymaz", () => {
-    // Ev sahibi bizim MÜŞTERİMİZ; cinsiyetini bilmiyoruz. Almanca "er meldet
-    // sich" ve Rusça "Я передал" (eril geçmiş zaman) bunu varsayıyordu.
-    expect(codeOnly).not.toMatch(/er meldet sich/);
-    expect(codeOnly).not.toMatch(/Я передал\b/);
-    expect(codeOnly).not.toMatch(/он свяжется/);
-    // TERS YÖN: metinler HÂLÂ VAR (silinerek "düzeltilmiş" olmasın).
-    expect(codeOnly).toMatch(/Entschuldigen Sie die Unannehmlichkeit/);
-    expect(codeOnly).toMatch(/Приносим извинения за неудобство/);
-  });
-
-  it("Türkçe bekletme mesajındaki koşul cümlesinin ÖZNESİ var", () => {
-    // "…paylaşırsanız çözümü hızlandırır" → yüklemin öznesi yok. Doğru kuruluş
-    // isim-fiildir: "…paylaşmanız çözümü hızlandırır".
-    expect(codeOnly).not.toMatch(/paylaşırsanız çözümü hızlandırır/);
-    expect(codeOnly).toMatch(/paylaşmanız çözümü hızlandırır/);
-  });
+  // Bekletme mesajının (tier-2) cinsiyet / özne pinleri K10 (09-30) ile emekliye ayrıldı: metin artık yok (↓ünlem bloğundaki
+  // emeklilik pini).
 });
 
 // ===========================================================================
@@ -502,18 +487,11 @@ describe("misafire giden metinde ünlem yok", () => {
       .toContain("!");
   });
 
-  it("bekletme mesajı (tier-2 holding ack) altı dilde de ünlemsiz", () => {
+  it("bekletme mesajı (tier-2) EMEKLİYE AYRILDI — K10 (kurucu kararı 09-30): metin sabiti ve gönderici kaynakta yok", () => {
     const src = readFileSync(join(process.cwd(), "src/lib/automation.ts"), "utf8");
-    const block = src.match(/const HOLDING_ACK_TEXTS[^=]*=\s*\{([\s\S]*?)\n\};/);
-    expect(block, "HOLDING_ACK_TEXTS bloğu bulunamadı — pin vacuous olurdu").toBeTruthy();
-    const body = block![1];
-    const values = [...body.matchAll(/^\s*(tr|en|de|fr|ar|ru):\s*"((?:[^"\\]|\\.)*)"/gm)];
-    // Anti-vacuity: altı dilin altısı da gerçekten okundu.
-    expect(values.map((m) => m[1]).sort()).toEqual(["ar", "de", "en", "fr", "ru", "tr"]);
-    for (const m of values) {
-      expect(m[2], `holding ack ${m[1]}`).not.toMatch(/!/);
-      expect(m[2].length, `holding ack ${m[1]}`).toBeGreaterThan(40);
-    }
+    // Anti-vakum: doğru dosya okundu (emeklilik notu orada).
+    expect(src).toContain("BEKLETME MESAJI (tier-2");
+    expect(src).not.toMatch(/const HOLDING_ACK_TEXTS|function maybeSendHoldingAck|maybeSendHoldingAck\(|Entschuldigen Sie die Unannehmlichkeit/);
   });
 
   it("oto-yanıt dipnotu altı dilde de ünlemsiz", async () => {
@@ -662,10 +640,12 @@ describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", 
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
       .join("\n");
-    // Anti-vacuity: gerçekten misafire giden iki sabit metni okuduğumuzu kanıtla.
-    expect(qrCode).toMatch(/const HANDOFF_REPLY\s*=/);
-    expect(qrCode).toMatch(/bu sohbeti ev sahibiniz devraldı/);
+    // Anti-vacuity: rotanın misafire dönen metinlerini gerçekten okuduğumuzu kanıtla (K10, 09-30: devir metni artık YOK —
+    // kalan sabit metinlerden biri başka cihaz uyarısı).
+    expect(qrCode).toMatch(/başka bir cihaz/i);
     for (const m of qrCode.matchAll(/"((?:[^"\\]|\\.)*)"/g)) expect(m[1]).not.toMatch(CORP);
+    // QR'ın misafire giden tek devir sabiti (gerçek acil) de kurumsal ad taşımaz.
+    expect(escalationReply({ critical: true }) ?? "").not.toMatch(CORP);
     // QR'ın misafire dönen sabit metinlerinde ünlem de yok.
     expect(qrCode).not.toMatch(/ev sahib[^"\n]*!/);
   });
@@ -679,12 +659,13 @@ describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", 
     // ⚠️ KAPSAM DÜRÜSTLÜĞÜ (ölçüldü): bu metin bugün misafire GÖRÜNMÜYOR — `finalize` yalnız JSON
     // döndürür (Message olarak YAZILMAZ) ve istemci POST'un `reply` alanını OKUMAZ (GET otoriter).
     // Yani düzeltilen şey CANLI bir kusur değil, sözleşmeyi delen LATENT bir iddiadır.
+    // 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir metni artık HİÇ yok — ev sahibi devraldığında yanıt yalnız
+    // `handoff: true` taşır, devirde misafire metin gitmez; tek sabit metin gerçek acildeki güvenlik yönergesi.
     const qrSource = readFileSync(join(process.cwd(), "src/app/api/chat/[token]/route.ts"), "utf8");
-    const handoff = /const HANDOFF_REPLY\s*=\s*"((?:[^"\\]|\\.)*)"/.exec(qrSource);
-    expect(handoff, "HANDOFF_REPLY sabiti bulunamadı").toBeTruthy();
-    expect(unverifiedActionClaims(handoff![1]), handoff![1]).toEqual([]);
-    // Kardeş metin de temiz kalmalı (regresyon çapası).
-    expect(unverifiedActionClaims(escalationReply())).toEqual([]);
+    expect(qrSource).not.toMatch(/const HANDOFF_REPLY\s*=/);
+    expect(qrSource).not.toMatch(/kaydedildi; bu sohbeti/);
+    expect(escalationReply()).toBeNull();
+    expect(unverifiedActionClaims(escalationReply({ critical: true }) ?? "")).toEqual([]);
     // TERS YÖN: dedektör bu sınıfı gerçekten yakalıyor (ölü assert değil).
     expect(unverifiedActionClaims("Mesajınız ev sahibinize iletildi; sohbet ekranından size dönecek."))
       .toEqual(expect.arrayContaining(["past_action", "future_commitment"]));

@@ -163,11 +163,17 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect(held.wouldAutoSend).toBe(false);
     expect(held.reply.startsWith("Anlıyorum. Mesajınızı aldım; kontrol edip size dönüş yapacağım.")).toBe(true);
     expect(held.reply).not.toContain("ev sahibiniz görebilir");
-    // Otomatik gidecek cevap: misafire giden metnin birebir önizlemesi — çevrilmez.
+    // K10 (kurucu kararı 09-30): devir cümlesi taşıyan cevap artık hiçbir konuda otomatik GİTMEZ → önizlemede de
+    // "gönderilmezdi" ve ev sahibinin ağzından gösterilir.
     mockSuggest.mockResolvedValue({ ...SAFE_WIFI, reply: "Wi-Fi şifresi kartta. Mesajınız kaydedildi; ev sahibiniz görebilir." });
+    const k10 = await (await POST(req("Merhaba, wifi şifresi nedir?"), ctx)).json();
+    expect(k10.wouldAutoSend).toBe(false);
+    expect(k10.reply.startsWith("Wi-Fi şifresi kartta. Mesajınızı aldım; kontrol edip size dönüş yapacağım.")).toBe(true);
+    // KONTROL: otomatik gidecek cevap misafire giden metnin birebir önizlemesidir — çevrilmez.
+    mockSuggest.mockResolvedValue({ ...SAFE_WIFI, reply: "Wi-Fi şifresi kartta." });
     const auto = await (await POST(req("Merhaba, wifi şifresi nedir?"), ctx)).json();
     expect(auto.wouldAutoSend).toBe(true);
-    expect(auto.reply.startsWith("Wi-Fi şifresi kartta. Mesajınız kaydedildi; ev sahibiniz görebilir.")).toBe(true);
+    expect(auto.reply.startsWith("Wi-Fi şifresi kartta.")).toBe(true);
   });
 
   it("gate-blocked reply (refund) → wouldAutoSend false and the DRAFT stays note-free", async () => {

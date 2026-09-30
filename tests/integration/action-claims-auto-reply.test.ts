@@ -137,7 +137,8 @@ describe("applyChannelAutoReply — eylem beyanı", () => {
       ...REPLY,
       intent: "human_request",
       riskType: "human_request",
-      reply: "Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      // Devir cümlesi YOK (K10, 09-30: o cümle beyandan bağımsız tutulur) — tutan tek şey eylem beyanı.
+      reply: "Tabii ki, anlıyorum.",
       usedSources: [],
       claimedActions: { status: "declared", actions: ["forwarded_to_host"] },
     });
@@ -148,7 +149,8 @@ describe("applyChannelAutoReply — eylem beyanı", () => {
     expect(conv.status).toBe("problem");
     expect(conv.priority).toBe("urgent");
     expect(vi.mocked(emailService.sendReporting)).toHaveBeenCalledTimes(1);
-    // KONTROL: aynı devir cevabı beyansız (boş liste) → misafire gider.
+    // KONTROL: devir cümlesi TAŞIMAYAN insan talebi onayı beyansız (boş liste) → misafire gider. (K10, 09-30: "Mesajınız
+    // kaydedildi; ev sahibiniz görebilir" artık beyandan bağımsız çıktı vetosunda tutulur — kontrol onsuz kurulur.)
     await resetDb();
     vi.clearAllMocks();
     mockSend.mockResolvedValue({ ok: true, externalId: "ext-2" } as never);
@@ -156,7 +158,7 @@ describe("applyChannelAutoReply — eylem beyanı", () => {
       ...REPLY,
       intent: "human_request",
       riskType: "human_request",
-      reply: "Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      reply: "Tabii ki, anlıyorum.",
       usedSources: [],
       claimedActions: { status: "declared", actions: [] },
     });

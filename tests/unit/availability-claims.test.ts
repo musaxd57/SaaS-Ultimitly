@@ -160,7 +160,8 @@ describe("gönderim kapısı (kanal) — bağlantı DAVRANIŞSAL", () => {
   it("KONTROL: kararı erteleyen cevap (iki model hemfikir) ve sıradan soru-cevap GİDER (aşırı engelleme yok)", () => {
     const deferring = {
       ...OK,
-      reply: "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      // Devir cümlesi YOK (K10, 09-30: "mesajınız kaydedildi" her durumda önce çıktı vetosunda tutulur).
+      reply: "Bu ev sahibinizin kararıdır.",
       stayChange: { asked: "extend", stance: "defers" } as const,
     };
     const guardDefers = { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const, replyDefersToHost: true } };
@@ -176,22 +177,29 @@ describe("gönderim kapısı (kanal) — bağlantı DAVRANIŞSAL", () => {
     ).toBe(false);
   });
 
-  it("devir akışı: konaklama isteğine devir cevabı ancak iki model 'erteliyor' derse gider (09-24); saf devir her zaman gider", () => {
+  it("devir akışı: konaklama isteğine erteleme ancak iki model 'erteliyor' derse gider (09-24); K10 (09-30): devir cümlesi HİÇ gitmez", () => {
     const handoff = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "human_request" };
     const msg = "Ev sahibiyle konuşmak istiyorum, bir gece daha kalabilir miyiz?";
     const req = { stayGuard: { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const } } };
     const defers = { stayGuard: { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const, replyDefersToHost: true } } };
     const none = { asked: "extend", stance: "none" } as const;
     const def = { asked: "extend", stance: "defers" } as const;
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: none, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, msg, req)).toBe(false);
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, msg, defers)).toBe(true);
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınız kaydedildi; o gece boş." }, msg, defers)).toBe(false);
-    // Bekçi yokken de gitmez (tutulan devir kanal yolunda acil e-postayla bildirilir).
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, msg)).toBe(false);
-    // KONTROL: konaklama konusu olmayan saf devir gider.
-    expect(
-      passesAutoReplySafetyGate({ ...handoff, stayChange: { asked: "none", stance: "none" }, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir." }, "Ev sahibiyle konuşmak istiyorum."),
-    ).toBe(true);
+    const DEFER = "Bu ev sahibinizin kararıdır.";
+    const DEVIR = "Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: none, reply: DEFER }, msg, req)).toBe(false);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: DEFER }, msg, defers)).toBe(true);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Bu ev sahibinizin kararıdır; o gece boş." }, msg, defers)).toBe(false);
+    // Bekçi yokken de gitmez (tutulan cevap kanal yolunda acil e-postayla bildirilir).
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: DEFER }, msg)).toBe(false);
+    // KONTROL: konaklama konusu olmayan erteleme gider.
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: { asked: "none", stance: "none" }, reply: DEFER }, "Ev sahibiyle konuşmak istiyorum.")).toBe(
+      true,
+    );
+    // 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir cümlesi iki model ertelese de, konaklama konusu olmasa da GİTMEZ.
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: DEVIR }, msg, defers)).toBe(false);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: { asked: "none", stance: "none" }, reply: DEVIR }, "Ev sahibiyle konuşmak istiyorum.")).toBe(
+      false,
+    );
     // 🚨 09-25 (kurucu: misafir "soracağım/döneceğim" almaz; inceleme P2): insan talebinin çıktı vetosu MUAFİYETİ KALKTI —
     // söz ya da sahte eylem taşıyan devir cevabı gitmez (kanal yolunda yükseltme ev sahibine acil bildirir).
     for (const reply of [

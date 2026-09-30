@@ -176,7 +176,7 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
     // 🚨 ÜRÜNÜN CEVABI taslak DEĞİL: model `complaint` dedi → ESCALATE_INTENTS.
     expect(out.escalated).toBe(true);
     expect(out.reply).toBe(escalationReply());
-    expect(out.reply).not.toContain("ilettim");
+    expect(out.reply ?? "").not.toContain("ilettim");
     // Devir metni hiçbir eylem/taahhüt iddiası taşımıyor.
     expect(unverifiedActionClaims(out.reply ?? "")).toEqual([]);
   });
@@ -191,7 +191,7 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
     // 09-10 öncesi: kelime ağı "sıcak su gelmiyor"u general sayıyordu → bu taslak misafire GİDERDİ.
     expect(out.escalated).toBe(true);
     expect(out.reply).toBe(escalationReply());
-    expect(out.reply).not.toContain("ilettim");
+    expect(out.reply ?? "").not.toContain("ilettim");
     // Karar günlüğü: gerekçe MODEL değil KELİME AĞI (resetDb → bu testte tek guest_chat satırı).
     const ev = await prisma.riskEvent.findFirst({ where: { surface: "guest_chat" }, orderBy: { occurredAt: "desc" } });
     expect(ev?.reason).toBe("keyword_escalated");
@@ -275,8 +275,9 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
     expect(out.escalated).toBe(true);
     expect(out.reply).toBe(escalationReply());
     expect(out.reply ?? "", "yokluk cümlesi misafire DÖNMEZ").not.toMatch(/bilgim yok/);
-    // 🚨 BEDEL ÖLÇÜSÜ: taslağın misafir için işe yarayan yarısı devir metninde ZATEN var.
-    expect(out.reply ?? "").toMatch(/kaydedildi/);
+    // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devirde misafire metin YOK — taslağın "kaydedildi, ev sahibiniz
+    // görebilir" yarısı da artık misafire gitmez (ev sahibi panelde görür).
+    expect(out.reply ?? null).toBeNull();
     // Devir metni de dürüst kalır (uydurma tesis bilgisi yok, makbuzsuz söz yok).
     expect(out.reply ?? "").not.toMatch(/bina altında|ücretsiz|vardır|mevcuttur|bulunmaktadır|otoparkımız/);
     expect(unverifiedActionClaims(out.reply ?? "")).toEqual([]);
@@ -346,7 +347,7 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
     //   şimdi: `vetoOutgoingReply` → `placeholder_in_reply` → devir.
     expect(out.escalated).toBe(true);
     expect(out.reply).toBe(escalationReply());
-    expect(out.reply, "yer tutucu misafire DÖNMEMELİ").not.toContain("[ŞİFRE]");
+    expect(out.reply ?? "", "yer tutucu misafire DÖNMEMELİ").not.toContain("[ŞİFRE]");
     // Taslakta sızıntı GERÇEKTEN vardı (kusur kurgusal değil).
     expect(placeholderVerdict(MEASURED_E4_RUN4.reply)).toBe("leak");
 

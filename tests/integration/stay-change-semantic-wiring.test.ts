@@ -457,7 +457,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
 
   it("🚨 ev sahibinin teklif metni kanal kapısına ULAŞIR: aynen aktarıp erteleyen cevap (iki model) gider; teklif tanımlı değilse aynı cevap iddiadır", async () => {
     const offer = "Müsaitlik varsa çıkışınızı 13:00'e kadar uzatabiliriz.";
-    const relay = `${offer} Uygunluğu ev sahibinizin kararıdır; mesajınız kaydedildi.`;
+    // Devir cümlesi YOK (K10, 09-30: "mesajınız kaydedildi" her kipte önce çıktı vetosunda tutulur).
+    const relay = `${offer} Uygunluğu ev sahibinizin kararıdır.`;
     const late = { ...BASE, intent: "late_checkout", reply: relay, stayChange: { asked: "late_checkout" as const, stance: "defers" as const } };
     const ask = [{ direction: "inbound" as const, body: "Geç çıkış mümkün mü?" }];
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
@@ -487,7 +488,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     vi.stubGlobal("fetch", f);
     mockSuggest.mockResolvedValue({
       ...BASE,
-      reply: "Early check-in is up to your host; your message has been recorded and your host can see it.",
+      // Devir cümlesi YOK (K10, 09-30).
+      reply: "Early check-in is up to your host.",
       stayChange: { asked: "early_checkin", stance: "defers" },
     });
     const id = await seed({

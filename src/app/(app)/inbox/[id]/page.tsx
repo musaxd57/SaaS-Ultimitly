@@ -30,6 +30,7 @@ import { preparedDraftOf } from "@/lib/conversation-items/prepared-draft";
 import { hostOfferForGate } from "@/lib/automation";
 import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
 import { aiSuggestExceedsLength, MESSAGE_TOO_LONG_REASON } from "@/lib/ai/message-length";
+import { HANDOFF_NOTICE_REASON } from "@/lib/ai/output-veto";
 
 export const dynamic = "force-dynamic";
 
@@ -91,7 +92,11 @@ export default async function ConversationPage({
     ? stayEndedBefore(conversation.reservation.departureDate, new Date(), TZ)
     : false;
 
-  const [kb, adjacency, tasks, outboxRows, stayEdges, itemViews] = await Promise.all([
+  // K10 (kurucu kararı 09-30): son oto-yanıt tutuşu konuyu ev sahibine bırakan bir cevap yüzündense (karar kaydı `handoff_notice`)
+  // not "Misafir cevabınızı bekliyor" der. `skippedReason` bilerek aynı kalır (on tüketicisi var) — not, son misafir mesajının
+  // karar kaydından TÜRETİLİR (benzersiz anahtar; okuma hatası bugünkü notu gösterir).
+  const lastInboundId = [...conversation.messages].reverse().find((m) => m.direction === "inbound")?.id ?? null;
+  const [kb, adjacency, tasks, outboxRows, stayEdges, itemViews, heldEvent] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { propertyId: conversation.propertyId, isActive: true },
       orderBy: { category: "asc" },
@@ -133,7 +138,26 @@ export default async function ConversationPage({
       : null,
     // Konuşma öğeleri (09-26): misafirin isteklerinden ev sahibinde açık kalanlar. Okuma hatası sayfayı düşürmez.
     listConversationItems(prisma, { organizationId: session.organizationId, conversationId: conversation.id }).catch(() => []),
+    conversation.skippedReason === "low_confidence_or_risky" && lastInboundId
+      ? prisma.riskEvent
+          .findUnique({
+            where: {
+              organizationId_surface_triggerId_finalDecision: {
+                organizationId: session.organizationId,
+                surface: "auto_reply",
+                triggerId: lastInboundId,
+                finalDecision: "human_review",
+              },
+            },
+            select: { reason: true },
+          })
+          .catch(() => null)
+      : null,
   ]);
+  const skipNoteReason =
+    conversation.skippedReason === "low_confidence_or_risky" && heldEvent?.reason === HANDOFF_NOTICE_REASON
+      ? HANDOFF_NOTICE_REASON
+      : conversation.skippedReason;
   // Açıklar üstte, sonra en yeni. Kart dar bir rayda: en fazla 20 satır.
   const itemRows: ConversationItemRow[] = [...itemViews]
     .sort(
@@ -215,6 +239,8 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   escalated_to_human: "AI riskli konu tespit etti — cevap size bırakıldı",
   complaint: "Şikayet algılandı — otomatik cevap gönderilmedi, size bırakıldı",
   low_confidence_or_risky: "AI emin olamadı — taslak onayınızı bekliyor",
+  // K10 (kurucu kararı 09-30): cevap konuyu size bırakıyordu ("mesajınız kaydedildi" gibi) → misafire hiçbir şey gönderilmedi.
+  [HANDOFF_NOTICE_REASON]: "Misafir cevabınızı bekliyor — yapay zekâ bu mesajı size bıraktı, misafire bir şey gönderilmedi",
   closing_ack: "Misafir sohbeti kapattı — cevap gerekmedi",
   // Kapanışa yine cevap gitmedi ama konuşmada açık bir konu olabilir (teklif kabulü, devir, bekleyen soru).
   closing_ack_open: "Misafir teşekkür etti; otomatik cevap gönderilmedi. Açık bir konu varsa yanıtlayın.",
@@ -282,7 +308,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
       conversation.status !== "answered" &&
       (conversation.skippedReason !== CLOSING_HANDLED_REASON || isClosingHandled(conversation)) ? (
         <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
-          🤖 {SKIP_REASON_LABELS[conversation.skippedReason] ?? "Otomatik yanıt beklemede"}
+          🤖 {SKIP_REASON_LABELS[skipNoteReason ?? conversation.skippedReason] ?? "Otomatik yanıt beklemede"}
           {riskTypeLabel(conversation.lastRiskType) && !conversation.skippedReason.startsWith("closing_ack")
             ? ` · Sebep: ${riskTypeLabel(conversation.lastRiskType)}`
             : ""}

@@ -149,12 +149,13 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect(convos).toHaveLength(1);
     expect(convos[0].channel).toBe("chat");
     expect(convos[0].priority).toBe("urgent"); // escalated → flagged
-    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(2);
+    // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devirde yalnız misafirin mesajı kaydedilir — bot devir metni YOK.
+    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(1);
 
     // A second message from the same guest (same cookie) reuses the same thread.
     await call(token, "Park var mı?", cookie);
     expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1);
-    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(4);
+    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(2);
   });
 
   it("blocks a DIFFERENT device once the stay is bound (no history hijack, no write)", async () => {
@@ -249,7 +250,8 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     const convos = await prisma.conversation.findMany({ where: { propertyId } });
     expect(convos).toHaveLength(1);
     expect(convos[0].priority).toBe("urgent");
-    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(2);
+    // K10 (09-30): yalnız misafirin mesajı — devir metni kaydedilmez.
+    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(1);
   });
 
   it("returns 'closed' (no model call, no inbox write) when there is no active stay", async () => {

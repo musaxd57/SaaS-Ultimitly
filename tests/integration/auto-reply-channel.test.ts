@@ -66,6 +66,10 @@ if (!AUTO_NOTE_TR || AUTO_NOTE_TR.length < 10) {
   throw new Error("automatedReplyNote boş/çok kısa döndü — dipnot iddiaları vacuous olurdu");
 }
 
+// İnsan talebine devir cümlesi TAŞIMAYAN onay (K10, 09-30: "Mesajınız kaydedildi; ev sahibiniz görebilir" artık GİTMEZ) —
+// tutuş / teslim mekaniği testleri bununla koşar.
+const HUMAN_ACK = "Tabii ki, anlıyorum.";
+
 const SAFE_REPLY = {
   intent: "checkin",
   confidence: 0.9,
@@ -239,6 +243,159 @@ describe("applyChannelAutoReply — model-detected complaint escalation", () => 
 
     const alerts = await sendDueAlerts(orgId); // only looks at status "new" → finds nothing
     expect(alerts.alerted).toBe(0);
+    expect(mockEmail).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir / bildirim cümlesi ("mesajınız kaydedildi; ev sahibiniz görebilir")
+// taşıyan cevap misafire GİTMEZ; hassas olmayan tutuşta ev sahibine mesaj başına TEK "Misafir cevabınızı bekliyor" e-postası,
+// karar kaydı `handoff_notice` (gelen kutusu notu ondan türetilir). İKİ YÖNLÜ: devir cümlesiz tutuş bugünkü gibi sessiz.
+// ---------------------------------------------------------------------------
+describe("K10 — devir cümlesi taşıyan tutulan kanal cevabı: ev sahibine 'cevap bekliyor'", () => {
+  const HANDOFF_REPLY = "Mahalledeki önerileri ev sahibiniz paylaşabilir; mesajınız kaydedildi, ev sahibiniz görebilir.";
+  const GUEST = "Yakınlarda iyi bir fırın var mı?";
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true });
+    mockEmail.mockResolvedValue({ ok: true });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  const replyWaitingMails = () => mockEmail.mock.calls.filter((c) => /^Misafir cevabınızı bekliyor/.test(String(c[1])));
+
+  it("🚨 cevap gitmez; karar kaydı handoff_notice; ev sahibine TEK 'Misafir cevabınızı bekliyor' e-postası (ikinci geçişte yinelenmez)", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("low_confidence_or_risky");
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.status).toBe("new"); // "Sorunlu" DEĞİL — hassas değil
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(ev.reason).toBe("handoff_notice");
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("reply_output_veto");
+    expect(mockEmail).toHaveBeenCalledTimes(1);
+    expect(replyWaitingMails()).toHaveLength(1);
+    expect(mockEmail.mock.calls[0]![0]).toBe("owner@test.com");
+    expect(String(mockEmail.mock.calls[0]![2])).toContain("Yakınlarda iyi bir fırın var mı?");
+
+    // Aynı mesaj yeniden değerlendirilse de ikinci e-posta GİTMEZ (mesaj başına tek bildirim).
+    await applyChannelAutoReply(conversationId);
+    expect(mockEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("yeni misafir mesajı yeni bir bildirimdir (tekillik MESAJ başına)", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+    await applyChannelAutoReply(conversationId);
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Peki yakında bir market de var mı?", createdAt: new Date() },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
+    await applyChannelAutoReply(conversationId);
+    expect(replyWaitingMails()).toHaveLength(2);
+  });
+
+  it("KONTROL — devir cümlesi TAŞIMAYAN düşük güven tutuşu bugünkü gibi: gerekçe low_confidence_or_risky, e-posta YOK", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: "Mahallede birkaç fırın bulunuyor.", confidence: 0.4 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(ev.reason).toBe("low_confidence_or_risky");
+    expect(mockEmail).not.toHaveBeenCalled();
+  });
+
+  it("devir cümlesi vetodan ÖNCE başka bir kontrolle (\"bilgim yok\") tutulsa da ev sahibi bilgilendirilir ve gerekçe handoff_notice", async () => {
+    mockSuggest.mockResolvedValue({
+      ...SAFE_REPLY,
+      intent: "general",
+      reply: "Bu konuda kayıtlı bir bilgim yok; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      confidence: 0.9,
+    });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+    await applyChannelAutoReply(conversationId);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(ev.reason).toBe("handoff_notice");
+    // Kapıyı İLK kapatan kontrol kanıtta kalır.
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("reply_absence");
+    expect(replyWaitingMails()).toHaveLength(1);
+  });
+
+  it("KONTROL — yalnız \"bilgim yok\" (devir cümlesi yok): gerekçe low_confidence_or_risky, e-posta YOK", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: "Bu konuda kayıtlı bir bilgim yok.", confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+    await applyChannelAutoReply(conversationId);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(ev.reason).toBe("low_confidence_or_risky");
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("reply_absence");
+    expect(mockEmail).not.toHaveBeenCalled();
+  });
+
+  it("e-posta GİTMEZSE talep geri verilir: aynı mesaj yeniden değerlendirilince yeniden denenir", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+    mockEmail.mockResolvedValueOnce({ ok: false, error: "smtp down" });
+    await applyChannelAutoReply(conversationId);
+    expect(replyWaitingMails()).toHaveLength(1);
+    await applyChannelAutoReply(conversationId);
+    expect(replyWaitingMails()).toHaveLength(2);
+    // Başarılı gönderimden sonra artık yinelenmez.
+    await applyChannelAutoReply(conversationId);
+    expect(replyWaitingMails()).toHaveLength(2);
+  });
+
+  it("alıcı yoksa (sahip / uyarı adresi yok) e-posta gitmez ve talep TÜKETİLMEZ — sahip eklenince bildirilir", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await applyChannelAutoReply(conversationId);
+    expect(mockEmail).not.toHaveBeenCalled();
+    await addOwner(orgId);
+    await applyChannelAutoReply(conversationId);
+    expect(replyWaitingMails()).toHaveLength(1);
+  });
+
+  it("personel e-postasına ASLA gitmez: alıcı uyarı adresi, yoksa SAHİP", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await prisma.user.create({ data: { organizationId: orgId, name: "Staff", email: "staff@test.com", passwordHash: "x", role: "staff" } });
+    await applyChannelAutoReply(conversationId);
+    expect(mockEmail).not.toHaveBeenCalled();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "alerts@test.com" } });
+    await applyChannelAutoReply(conversationId);
+    expect(replyWaitingMails()).toHaveLength(1);
+    expect(mockEmail.mock.calls[0]![0]).toBe("alerts@test.com");
+  });
+
+  it("şablon yedeği (model yok) devir cümlesi taşısa da e-posta YOK — kesintide her mesaja e-posta gitmesin", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, source: "fallback", intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockEmail).not.toHaveBeenCalled();
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(ev.reason).toBe("low_confidence_or_risky");
+  });
+
+  it("önizleme (dryRun) e-posta atmaz", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
+    const { orgId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+    await previewChannelAutoReplies(orgId);
     expect(mockEmail).not.toHaveBeenCalled();
   });
 });
@@ -468,7 +625,26 @@ describe("applyChannelAutoReply", () => {
     }
   });
 
-  it("sends a holding reply and pauses the AI when the guest asks for a human", async () => {
+  it("devir cümlesi TAŞIMAYAN insan talebi onayı gider ve AI'yı bu konuşmada duraklatır", async () => {
+    mockSuggest.mockResolvedValue({
+      ...SAFE_REPLY,
+      intent: "human_request",
+      reply: HUMAN_ACK,
+      riskLevel: "low",
+      confidence: 0.9,
+    });
+    // Misafirin dilinde (09-25 dil kapısı): Türkçe istek, Türkçe cevap.
+    const { conversationId } = await seed({ guestMessage: "Ev sahibiyle görüşmek istiyorum lütfen" });
+
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(true);
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.autoReplyHoldUntil).toBeInstanceOf(Date);
+    expect(conv!.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("🚨 K10 (kurucu kararı 09-30): 'Mesajınız kaydedildi; ev sahibiniz görebilir' insan talebinde de GİTMEZ — ev sahibine acil bildirim", async () => {
     mockSuggest.mockResolvedValue({
       ...SAFE_REPLY,
       intent: "human_request",
@@ -476,15 +652,22 @@ describe("applyChannelAutoReply", () => {
       riskLevel: "low",
       confidence: 0.9,
     });
-    // Misafirin dilinde devir (09-25 dil kapısı): Türkçe istek, Türkçe devir cevabı.
-    const { conversationId } = await seed({ guestMessage: "Ev sahibiyle görüşmek istiyorum lütfen" });
+    const { orgId, conversationId } = await seed({ guestMessage: "Ev sahibiyle görüşmek istiyorum lütfen" });
+    await addOwner(orgId);
 
     const out = await applyChannelAutoReply(conversationId);
 
-    expect(out.sent).toBe(true); // the one holding reply goes out
-    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
-    expect(conv?.autoReplyHoldUntil).toBeInstanceOf(Date);
-    expect(conv!.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.status).toBe("problem");
+    expect(conv.skippedReason).toBe("escalated_to_human");
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+    // Ev sahibine TEK e-posta: yükseltme e-postası (ikinci "cevap bekliyor" e-postası yok).
+    expect(mockEmail).toHaveBeenCalledTimes(1);
+    expect(String(mockEmail.mock.calls[0]![1])).toMatch(/^⚠️ Acil misafir mesajı/);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("reply_output_veto");
   });
 
   it("🚨 09-25: SÖZ taşıyan devir cevabı ('soracağım ve döneceğim') GİTMEZ — ev sahibine acil yükseltilir, AI susmaz değil 'Sorunlu'", async () => {
@@ -1261,7 +1444,7 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     mockSuggest.mockResolvedValue({
       ...SAFE_REPLY,
       intent: "human_request",
-      reply: "Tabii ki. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      reply: HUMAN_ACK,
       riskLevel: "low",
       confidence: 0.9,
     });
@@ -1288,7 +1471,7 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     mockSuggest.mockResolvedValue({
       ...SAFE_REPLY,
       intent: "human_request",
-      reply: "Tabii ki. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      reply: HUMAN_ACK,
       riskLevel: "low",
       confidence: 0.9,
     });

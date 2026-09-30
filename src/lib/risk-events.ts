@@ -50,6 +50,9 @@ const REASONS = new Set([
   "history_injection",
   // Çıktı vetosu (Codex §A, 09-12): misafire GİDECEK metin son kez denetlenir.
   "placeholder_in_reply", "unverified_commitment",
+  // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): cevap istemin devir / bildirim cümlesini taşıyordu ("mesajınız kaydedildi;
+  // ev sahibiniz görebilir") — misafire gitmedi, ev sahibine haber verildi. Kanal yolunda da yazılır.
+  "handoff_notice",
   // Müsaitlik vetosu (09-24): doğrulanmamış takvim iddiası / ertelemeyen cevap. Kanal yolunda da
   // yazılır (düşük güven kovasından AYRI, raporda kendi satırı).
   "availability_claim", "availability_unconfirmed",

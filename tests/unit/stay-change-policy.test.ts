@@ -20,7 +20,7 @@ import {
   stayEvidenceOf,
   vetoAvailability,
 } from "@/lib/ai/availability-claims";
-import { autoReplyGateFailure, availabilityPolicyFor, passesAutoReplySafetyGate } from "@/lib/automation";
+import { autoReplyGateFailure, autoReplyGateVerdict, availabilityPolicyFor, passesAutoReplySafetyGate } from "@/lib/automation";
 import { qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 
@@ -704,11 +704,12 @@ describe("🚨 BELİRSİZLİK GÜVENLİ DEĞİLDİR — hassas istek + eksik/dü
     expect(vetoAvailability(DEFERS, ["Erken giriş yapabilir miyiz?"], { declared, guard: FAILED }), "failed").toBe("availability_unconfirmed");
   });
 
-  it("🚨 bekçi DÜŞTÜ: devir cevabı da hassas istekte gönderilmez (hakem yok)", () => {
+  it("🚨 bekçi DÜŞTÜ: insan talebinin ertelemesi de hassas istekte gönderilmez (hakem yok)", () => {
     const handoff = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "human_request" };
     const msg = "Ev sahibiyle konuşmak istiyorum, bir gece daha kalabilir miyiz?";
     const declared = { asked: "extend", stance: "defers" } as const;
-    expect(autoReplyGateFailure({ ...handoff, reply: "Mesajınız kaydedildi; ev sahibiniz görebilir.", stayChange: declared }, msg, { stayGuard: FAILED })).toBe(
+    // Devir cümlesi YOK (K10, 09-30: o cümle bu kontrolden ÖNCE çıktı vetosunda tutulur).
+    expect(autoReplyGateFailure({ ...handoff, reply: "Bu ev sahibinizin kararıdır.", stayChange: declared }, msg, { stayGuard: FAILED })).toBe(
       "availability_unconfirmed",
     );
   });
@@ -746,7 +747,8 @@ describe("🚨 BELİRSİZLİK GÜVENLİ DEĞİLDİR — hassas istek + eksik/dü
   });
 
   it("🚨 aynı konuya benzeyen İZİN talebi ('Saat 12'de gelebilir miyiz?') belirsizlikte ASLA gitmez", () => {
-    const permission = { ...MODEL, intent: "early_checkin", reply: "Standart giriş saatimiz 15:00; erken giriş ev sahibinizin kararıdır, mesajınız kaydedildi." };
+    // Devir cümlesi YOK (K10, 09-30).
+    const permission = { ...MODEL, intent: "early_checkin", reply: "Standart giriş saatimiz 15:00; erken giriş ev sahibinizin kararıdır." };
     const msg = "Saat 12'de gelebilir miyiz?";
     expect(autoReplyGateFailure({ ...permission, stayChange: { asked: "early_checkin", stance: "defers" } }, msg, { stayTimes: STAY })).toBe(
       "availability_unconfirmed",
@@ -823,11 +825,13 @@ describe("düşmanca inceleme 09-24 — bekçi AÇIKKEN değişmez", () => {
     );
   });
 
-  it("🚨 P1-2: devir cevabı ('Tabii. Mesajınız kaydedildi…') konaklama isteğinde muaf DEĞİL — iki model ertelemesi şart", () => {
+  it("🚨 P1-2: insan talebinin ertelemesi konaklama isteğinde muaf DEĞİL — iki model ertelemesi şart; K10: devir cümlesi HİÇ gitmez", () => {
     const handoff = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "human_request" };
-    // Türkçe devir cümlesi Türkçe yazan misafire (dil kapısı 09-25 ayrı ölçülür: `reply-language-gate.test.ts`).
+    // Türkçe cevap Türkçe yazan misafire (dil kapısı 09-25 ayrı ölçülür: `reply-language-gate.test.ts`).
     const msg = "Pazar günü 13:00'te çıksak olur mu? Ev sahibiyle konuşmak istiyorum.";
-    const reply = "Tabii. Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    // Devir cümlesi YOK: K10 (kurucu kararı 09-30) "Mesajınız kaydedildi; ev sahibiniz görebilir" cümlesini her durumda
+    // bu kontrolden ÖNCE tutar (↓sonda pinli).
+    const reply = "Bu ev sahibinizin kararıdır.";
     const guardReq = { status: "ok" as const, verdict: verdict({ guestRequestsChange: true, kind: "late_checkout", requestedCheckoutTime: "13:00" }) };
     expect(
       autoReplyGateFailure({ ...handoff, reply, stayChange: { asked: "late_checkout", stance: "none" } }, msg, { stayTimes: STAY, stayGuard: guardReq }),
@@ -837,10 +841,20 @@ describe("düşmanca inceleme 09-24 — bekçi AÇIKKEN değişmez", () => {
     expect(
       autoReplyGateFailure({ ...handoff, reply, stayChange: { asked: "late_checkout", stance: "defers" } }, msg, { stayTimes: STAY, stayGuard: guardDefers }),
     ).toBeNull();
-    // KONTROL: konaklama konusu olmayan saf devir her zamanki gibi gider.
+    // KONTROL: konaklama konusu olmayan erteleme her zamanki gibi gider.
     expect(
       autoReplyGateFailure({ ...handoff, reply, stayChange: { asked: "none", stance: "none" } }, "Ev sahibiyle konuşmak istiyorum.", { stayTimes: STAY }),
     ).toBeNull();
+    // 🚨 K10: devir cümlesi iki model ertelese de, konaklama konusu olmasa da GİTMEZ (çıktı vetosu).
+    const devir = "Tabii. Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    expect(
+      autoReplyGateVerdict({ ...handoff, reply: devir, stayChange: { asked: "late_checkout", stance: "defers" } }, msg, { stayTimes: STAY, stayGuard: guardDefers })
+        ?.detail,
+    ).toBe("reply_output_veto");
+    expect(
+      autoReplyGateVerdict({ ...handoff, reply: devir, stayChange: { asked: "none", stance: "none" } }, "Ev sahibiyle konuşmak istiyorum.", { stayTimes: STAY })
+        ?.detail,
+    ).toBe("reply_output_veto");
   });
 
   it("P2-2 → birleşim (09-24 üçüncü tur): konu etiketi `early_checkin` olan bilgi sorusu da insana gider — 'iddia' değil 'onaylanmadı' (bekçi çağrılabilsin)", () => {

@@ -609,8 +609,18 @@ describe("GOLDEN SET — müsaitlik vetosu (mesaj + cevap)", () => {
     {
       name: "TUZAK: erken giriş + erteleme, beyan 'defers' + bekçi 'erteliyor' (iki model) GİDER (TR)",
       guest: "Erken giriş yapabilir miyiz?",
-      reply: "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      reply: "Bu ev sahibinizin kararıdır.",
       veto: false,
+      stayChange: { asked: "early_checkin", stance: "defers" },
+      guard: GUARD_DEFERS,
+    },
+    // 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): iki model ertelese de "kaydedildi / ev sahibiniz görebilir" devir
+    // cümlesi misafire GİTMEZ — cevap tutulur, ev sahibine haber verilir.
+    {
+      name: "K10: aynı erteleme + devir cümlesi ('kaydedildi, ev sahibiniz görebilir') → GİTMEZ (TR)",
+      guest: "Erken giriş yapabilir miyiz?",
+      reply: "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      veto: true,
       stayChange: { asked: "early_checkin", stance: "defers" },
       guard: GUARD_DEFERS,
     },
@@ -630,10 +640,18 @@ describe("GOLDEN SET — müsaitlik vetosu (mesaj + cevap)", () => {
       stayChange: { asked: "early_checkin", stance: "defers" },
     },
     {
-      name: "TUZAK: aynı cevap, beyan + bekçi hemfikir (iki model) GİDER (EN)",
+      name: "TUZAK: erteleme, beyan + bekçi hemfikir (iki model) GİDER (EN)",
+      guest: "Could we get into the flat at 11?",
+      reply: "Whether an earlier arrival is possible is the host's call.",
+      veto: false,
+      stayChange: { asked: "early_checkin", stance: "defers" },
+      guard: GUARD_DEFERS,
+    },
+    {
+      name: "K10: aynı erteleme + 'recorded and is visible to your host' → GİTMEZ (EN)",
       guest: "Could we get into the flat at 11?",
       reply: "Whether an earlier arrival is possible is the host's call; your request has been recorded and is visible to your host.",
-      veto: false,
+      veto: true,
       stayChange: { asked: "early_checkin", stance: "defers" },
       guard: GUARD_DEFERS,
     },

@@ -153,8 +153,9 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     const res = await ask(token, "Otopark var mı?", deviceCookie(first));
     const body = await res.json();
 
-    expect(body.reply).not.toContain("ilettim");
-    expect(body.reply).toContain("kaydedildi");
+    // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devirde misafire metin YOK — ne "ilettim" ne "kaydedildi".
+    expect(body.escalated).toBe(true);
+    expect(body.reply ?? null).toBeNull();
   });
 
   it("🚨 uyarı bayrağı AÇIKKEN DE 'ilettim' DENMEZ (Codex 09-08: bayrak ≠ gönderim garantisi)", async () => {
@@ -174,9 +175,9 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     const res = await ask(token, "Otopark var mı?", deviceCookie(first));
     const body = await res.json();
 
-    expect(body.reply).not.toMatch(/ilettim/i);
-    expect(body.reply).toContain("kaydedildi");
-    expect(body.reply).toMatch(/sohbet ekranından/i);
+    // K10: bayrak açıkken de misafire metin YOK (bayrak yalnız ev sahibine e-postayı açar).
+    expect(body.escalated).toBe(true);
+    expect(body.reply ?? null).toBeNull();
   });
 
   it("güvenlik eskalasyonunda da söz bayrağa göre dürüst (bayrak KAPALI)", async () => {
@@ -186,8 +187,9 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     const body = await res.json();
 
     expect(body.escalated).toBe(true);
-    expect(body.reply).not.toContain("ilettim");
-    expect(body.reply).toContain("kaydedildi");
+    // K10: acilde YALNIZ güvenlik yönergesi — "ilettim" / "kaydedildi" yok.
+    expect(body.reply).not.toMatch(/ilettim|kaydedildi/i);
+    expect(body.reply).toBe("Tehlike varsa hemen 112'yi arayın.");
   });
 
   // -------------------------------------------------------------------------
@@ -207,10 +209,8 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     const body = await res.json();
 
     expect(body.escalated).toBe(true);
-    expect(body.reply).toMatch(/güvenli bir alana/i);
-    expect(body.reply).toMatch(/acil servis/i);
-    // Çapa cümlesi KAYBOLMAZ — garanti edilen şey hâlâ söyleniyor.
-    expect(body.reply).toContain("kaydedildi");
+    // K10 (09-30): yalnız kurucunun onayladığı güvenlik yönergesi — devir / kayıt bildirimi YOK.
+    expect(body.reply).toBe("Tehlike varsa hemen 112'yi arayın.");
   });
 
   it("🚨 TERS YÖN: acil OLMAYAN devirde güvenlik yönergesi GİTMEZ", async () => {
@@ -221,9 +221,8 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     const body = await res.json();
 
     expect(body.escalated).toBe(true);
-    expect(body.reply).toContain("kaydedildi");
-    // Bu satır olmadan "her devirde yönergeyi bas" mutantı hayatta kalırdı.
-    expect(body.reply).not.toMatch(/acil servis/i);
-    expect(body.reply).not.toMatch(/güvenli bir alana/i);
+    // K10: acil olmayan devirde misafire HİÇBİR metin gitmez (güvenlik yönergesi de). Bu satır olmadan "her devirde yönergeyi
+    // bas" mutantı hayatta kalırdı.
+    expect(body.reply ?? null).toBeNull();
   });
 });

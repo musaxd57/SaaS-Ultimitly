@@ -619,15 +619,20 @@ describe("QR misafir sohbeti — kapanışa sessizlik", () => {
     expect(isClosingHandled(await prisma.conversation.findFirstOrThrow({ where: { id: convo.id } }))).toBe(false);
   });
 
-  it("🚨 P1: QR devrinden sonraki 'Tamam teşekkürler' görünür kalır (karar kaydı: ev sahibine bırakıldı)", async () => {
+  it("🚨 P1: QR devrinden sonraki 'Tamam teşekkürler' görünür kalır (K10: devirde misafire metin yok → teşekkür kapanış sayılmaz)", async () => {
     const { propertyId, token } = await seedQr();
     mockSuggest.mockResolvedValueOnce({ ...CLOSING_DRAFT, intent: "complaint", confidence: 0.9, reply: "…" });
     const first = await ask(token, "Klima çalışmıyor");
     expect(first.body.escalated).toBe(true);
+    // K10 (kurucu kararı 09-30): devirde misafire hiçbir metin gitmez.
+    expect(first.body.reply ?? null).toBeNull();
+    mockSuggest.mockResolvedValueOnce(CLOSING_DRAFT);
     const { body } = await ask(token, "Tamam teşekkürler", first.cookie);
-    expect(body.noReply).toBe(true);
+    // Misafir hiç cevap almadı → önceki cevap yok, kapanış kısayolu koşmaz; bekleyen şikâyet yine ev sahibinde.
+    expect(body.noReply).toBeFalsy();
+    expect(body.escalated).toBe(true);
+    expect(body.reply ?? null).toBeNull();
     const convo = await prisma.conversation.findFirstOrThrow({ where: { propertyId, channel: "chat" } });
-    expect(convo.skippedReason).toBe("closing_ack_open");
     expect(isClosingHandled(convo)).toBe(false);
   });
 

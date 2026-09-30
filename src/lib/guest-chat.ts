@@ -986,13 +986,16 @@ export function isPhysicalEmergency(message: string): boolean {
   return PHYSICAL_EMERGENCY_PATTERNS.some((re) => re.test(folded) || re.test(ascii));
 }
 
-export function escalationReply(opts?: { critical?: boolean }): string {
-  const anchor = "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.";
-  if (!opts?.critical) return anchor;
-  return (
-    "Güvenliğiniz her şeyden önemli. Lütfen güvenli bir alana geçin ve tehlike hissederseniz " +
-    `vakit kaybetmeden yerel acil servisleri arayın. ${anchor}`
-  );
+/**
+ * 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir durumunda misafire "Mesajınız kaydedildi; ev sahibiniz …" GİTMEZ —
+ * yalnız misafirin mesajı kaydedilir, ev sahibi QR sohbetleri panelinde görür (e-posta `QR_ESCALATION_EMAIL_ENABLED` ile). Tek
+ * istisna GERÇEK fiziksel acil (`isPhysicalEmergency`: yangın, duman, gaz, su baskını, elektrik çarpması): yalnız güvenlik
+ * yönergesi gider — kurucunun onayladığı cümle, başka hiçbir şey (kayıt / görünürlük bildirimi yok).
+ */
+export const QR_SAFETY_LINE = "Tehlike varsa hemen 112'yi arayın.";
+
+export function escalationReply(opts?: { critical?: boolean }): string | null {
+  return opts?.critical ? QR_SAFETY_LINE : null;
 }
 
 export async function resolveGuestChat(

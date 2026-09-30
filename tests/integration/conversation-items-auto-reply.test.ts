@@ -848,3 +848,52 @@ describe("HAZIR TASLAK (kurucu: 'Otomatik hazır dursun')", () => {
     expect(await draftOf(conversationId)).toEqual([null]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): öğe kipinde cevap devir / bildirim cümlesi taşıyorsa ("mesajınız kaydedildi")
+// tutulur. Bu turun hassas öğesi için ev sahibine zaten e-posta gittiyse ikinci "cevap bekliyor" e-postası YOK (mesaj başına tek
+// bildirim); hiç hassas öğe yoksa ev sahibine "Misafir cevabınızı bekliyor" gider — misafir hiçbir şey almadı.
+// ---------------------------------------------------------------------------
+describe("K10 — öğe kipinde devir cümlesi", () => {
+  beforeEachTurn();
+  const HANDOFF = "Wi-Fi ağı Lale-5G, şifre modemin altında yazıyor. Mesajınız kaydedildi, ev sahibiniz görebilir.";
+  const waitingMails = () => mockMail.mock.calls.filter((c) => /^Misafir cevabınızı bekliyor/.test(String(c[1])));
+
+  it("🚨 yalnız güvenli istek (Wi-Fi) + devir cümlesi: cevap GİTMEZ, gerekçe handoff_notice, ev sahibine TEK 'cevap bekliyor'", async () => {
+    const { conversationId } = await seed(WIFI);
+    understands(understood([{ intent: "wifi", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ reply: HANDOFF }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await reasons(conversationId)).toEqual(["auto_reply:human_review:handoff_notice"]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(waitingMails()).toHaveLength(1);
+    expect(mockMail.mock.calls[0]![0]).toBe("host@example.com");
+  });
+
+  it("hassas öğe (IBAN) + güvenli istek + devir cümlesi: yalnız öğenin acil e-postası — ikinci 'cevap bekliyor' YOK", async () => {
+    const { conversationId } = await seed(BOTH);
+    understands(
+      understood([
+        { intent: "payment_invoice", message: 1 },
+        { intent: "wifi", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ reply: HANDOFF }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(waitingMails()).toHaveLength(0);
+    expect(String(mockMail.mock.calls[0]![1])).toMatch(/^⚠️ Acil misafir mesajı/);
+  });
+
+  it("KONTROL — devir cümlesi yoksa güvenli istek cevaplanır, e-posta YOK", async () => {
+    const { conversationId } = await seed(WIFI);
+    understands(understood([{ intent: "wifi", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(wifiAnswer());
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+});

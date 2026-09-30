@@ -115,10 +115,15 @@ describe("P1 — istem kanıtsız taahhüt EMRETMEZ", () => {
     // Anti-vakumluk: İngilizce örnek GERÇEKTEN var (yoksa bu test boş küme
     // üzerinde "geçer" ve boşluğu kapattığı iddiası yalan olur).
     expect(english.length, "İngilizce few-shot örneği bulunamadı").toBeGreaterThanOrEqual(1);
+    // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir cümlesi ("mesajınız kaydedildi; ev sahibiniz görebilir") artık
+    // misafire GİTMEZ — o örnekler bilerek istemde kalır: cevap tutulur, ev sahibine taslak olarak (kendi ağzıyla, `host-voice`)
+    // düşer. İstemden çıkarmak ertelemeleri devir cümlesiz GÖNDERİLİR yapardı (ayrı karar + ücretli ölçüm). Söz / yer tutucu
+    // taşıyan örnek YİNE olamaz.
     const vetoed = rows
       .map((r) => ({ intent: r.intent, veto: vetoOutgoingReply(r.reply), reply: r.reply }))
-      .filter((r) => r.veto !== null);
+      .filter((r) => r.veto !== null && r.veto !== "handoff_notice");
     expect(vetoed, JSON.stringify(vetoed, null, 1)).toEqual([]);
+    expect(rows.some((r) => vetoOutgoingReply(r.reply) === "handoff_notice"), "K10 anti-vakum").toBe(true);
   });
 
   it("🚨 ANTI-VAKUMLUK: üretim vetosu da GERÇEKTEN ateşliyor (iki dil)", () => {

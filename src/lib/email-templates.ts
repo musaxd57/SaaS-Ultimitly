@@ -238,6 +238,72 @@ export function complaintEscalationEmail(
 }
 
 // ---------------------------------------------------------------------------
+// Template 2b: Misafir cevap bekliyor (K10, kurucu kararı 09-30)
+// Yapay zekâ cevabı konuyu ev sahibine bırakıyordu ("mesajınız kaydedildi; ev sahibiniz görebilir") → misafire HİÇBİR ŞEY
+// gitmedi. Şikâyet / acil değil: sade bir "cevabınızı bekliyor" bildirimi. Misafir adı ve mesajı `esc` ile kaçışlı.
+// ---------------------------------------------------------------------------
+export function hostReplyWaitingEmail(
+  conversation: ConversationEmailData,
+  message: string,
+  property: PropertyEmailData,
+  orgName: string,
+): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Misafir cevabınızı bekliyor
+    </h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
+      <strong>${esc(property.name)}</strong> mülkünüzdeki bir misafir mesajını yapay zekâ size bıraktı.
+      Misafire otomatik bir cevap gönderilmedi. Lütfen konuşmayı açıp yanıtlayın.
+    </p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR MESAJI</p>
+          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${esc(message.slice(0, 600))}${message.length > 600 ? "…" : ""}"</p>
+        </td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 24px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width:50%;padding-right:8px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(conversation.guestIdentifier)}</p>
+              </td>
+              <td style="width:50%;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MÜLK</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(property.name)}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top:12px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">İŞLETME</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(orgName)}</p>
+              </td>
+              <td style="padding-top:12px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">KANAL</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(conversation.channel)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <p style="color:#64748b;font-size:14px;">
+      Lixus AI'de konuşmayı görüntüleyerek misafire hemen yanıt verebilirsiniz.
+    </p>
+  `;
+
+  return wrapEmail(body);
+}
+
+// ---------------------------------------------------------------------------
 // Template 3: Reservation Created
 // ---------------------------------------------------------------------------
 export interface ReservationEmailData {

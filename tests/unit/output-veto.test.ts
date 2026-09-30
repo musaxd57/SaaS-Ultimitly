@@ -243,9 +243,10 @@ describe("sözleşme", () => {
   });
 
   it("⚠️ İngilizcede de EDİLGEN dal YOK (Türkçeyle aynı gerekçe)", () => {
-    // "has been passed on" ile "is served at 8" aynı belirsizliği taşır.
-    expect(vetoOutgoingReply("Your message has been passed on to your host.")).toBeNull();
+    // "is served at 8" gibi edilgen olgu cümlesi geçer.
     expect(vetoOutgoingReply("The details will be shared with you shortly.")).toBeNull();
+    // K10 (kurucu kararı 09-30): MİSAFİRİN MESAJI / TALEBİ öznesiyle devir bildirimi artık tutulur ("Hiçbir şey gitmesin").
+    expect(vetoOutgoingReply("Your message has been passed on to your host.")).toBe("handoff_notice");
   });
 
   it("✅ DE/FR/ES/RU/AR 1. şahıs iletişim/rezervasyon iddiası da durur (09-25: dil kapısı artık misafirin dilinde cevap verdiriyor)", () => {
@@ -262,9 +263,10 @@ describe("sözleşme", () => {
     ]) {
       expect(vetoOutgoingReply(t), t).toBe("unverified_commitment");
     }
+    // K10 (09-30): misafirin mesajı öznesiyle devir bildirimi ("Ihre Nachricht wurde weitergeleitet") tutulur.
+    expect(vetoOutgoingReply("Ihre Nachricht wurde weitergeleitet.")).toBe("handoff_notice");
     // Edilgen ve olgu cümleleri bu dillerde de geçer (Türkçe/İngilizce ile aynı gerekçe).
     for (const t of [
-      "Ihre Nachricht wurde weitergeleitet.",
       "Ich habe keine Informationen dazu.",
       "He visto su mensaje.",
       "Vous pouvez appeler l'hôte via la plateforme.",
@@ -309,9 +311,13 @@ describe("sözleşme", () => {
   });
 
   it("KONTROL (aşırı uygulama): kararı OLGU olarak söyleyen standart cümle ve şimdiki zaman olgu cümleleri geçer", () => {
+    // K10 (kurucu kararı 09-30): istemin devir cümlesi ("mesajınız kaydedildi, ev sahibiniz görebilir") artık misafire GİTMEZ;
+    // kararı olgu olarak söyleyen cümle ("ev sahibinizin kararıdır") yine geçer.
+    expect(vetoOutgoingReply("Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.")).toBe("handoff_notice");
+    expect(vetoOutgoingReply("Early check-in is the host's call; your request has been recorded and is visible to your host.")).toBe("handoff_notice");
     for (const s of [
-      "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
-      "Early check-in is the host's call; your request has been recorded and is visible to your host.",
+      "Bu ev sahibinizin kararıdır.",
+      "Early check-in is the host's call.",
       "Check-in will be at 15:00.",
       "Je vous confirme que l'arrivée est à partir de 15h.",
       "Le confirmo que el check-in es a las 15:00.",
@@ -324,9 +330,9 @@ describe("sözleşme", () => {
   });
 
   it("⚠️ EDİLGEN dal kapıda YOK — ölçülmüş bedel, test-pinli", () => {
-    // Bu ikisi GERÇEK makbuzsuz iddiadır ama kapıya bağlanamaz: aynı dilbilgisi
-    // meşru olgu bildirimini de yakalıyor (↑ sınıf). Bedel BURADA yazılı.
-    expect(vetoOutgoingReply("Mesajınız ev sahibine iletildi.")).toBeNull();
+    // Edilgen SSS cümlesi geçer: aynı dilbilgisi meşru olgu bildirimini de taşır (↑ sınıf). Bedel BURADA yazılı.
     expect(vetoOutgoingReply("Giriş detayları size iletilir.")).toBeNull();
+    // K10 (09-30): MİSAFİRİN MESAJI öznesiyle edilgen devir bildirimi ayrı ve dar kalıpla tutulur (eskiden bilinen boşluktu).
+    expect(vetoOutgoingReply("Mesajınız ev sahibine iletildi.")).toBe("handoff_notice");
   });
 });
