@@ -10,7 +10,9 @@ import {
 import { impersonationExpired } from "@/lib/auth/impersonation";
 
 /** Oturum GEREKTİRMEYEN kimlik sayfaları — çıkış yapmış ziyaretçi görebilir. */
-const AUTH_PATHS = ["/login", "/register", "/sifremi-unuttum", "/e-posta-dogrula"];
+// `/uyari-adresi-dogrula` (09-30): uyarı adresi onay bağlantısı — alıcı ekip dışı olabilir (oturumsuz); oturum AÇIKKEN de
+// yönlendirilmez (↓SIGNED_IN_REDIRECT_PATHS'te değil).
+const AUTH_PATHS = ["/login", "/register", "/sifremi-unuttum", "/e-posta-dogrula", "/uyari-adresi-dogrula"];
 
 /**
  * Oturum AÇIKKEN panele geri yollanan kimlik sayfaları.

@@ -1,11 +1,21 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
+import { badRequest, jsonOk, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { withManage } from "@/lib/route-guard";
 import { isValidTimeZone } from "@/lib/timezone";
-import { isOrgMemberEmail, isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
+import { canonicalMailbox, isOrgMemberEmail, isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
 import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
+import { rateLimit } from "@/lib/rate-limit";
+import { emailService } from "@/lib/email";
+import { appBaseUrl } from "@/lib/auth/email-verify";
+import {
+  ALERT_EMAIL_VERIFY_SUBJECT,
+  alertEmailVerifyEnabled,
+  alertEmailVerifyHtml,
+  signAlertEmailToken,
+} from "@/lib/alert-email-verify";
 
 // Organization-level settings the UI can change. Booleans are the auto-reply
 // switches; the hour fields define the channel auto-reply active window;
@@ -28,6 +38,33 @@ function toIntOrNaN(value: unknown): number {
   return NaN;
 }
 const CLOSING_TEXT_MAX = 300; // a courtesy is one line, not a letter
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Doğrulama e-postası günlük tavanları: işletme başına ve ALICI başına (röle / taciz koruması). */
+const ALERT_VERIFY_PER_ORG_PER_DAY = 5;
+const ALERT_VERIFY_PER_ADDRESS_PER_DAY = 3;
+
+/**
+ * Ekip dışı uyarı adresi için doğrulama bağlantısı gönderir (`lib/alert-email-verify.ts`). Adres KAYDEDİLMEZ; onay gelince
+ * kaydedilir. Bütçe doğrulamadan SONRA tüketilir (depo kuralı); e-posta kişiselleştirilmez.
+ */
+async function requestAlertEmailVerification(organizationId: string, email: string): Promise<NextResponse | null> {
+  const perOrg = await rateLimit(`alert-verify-org:${organizationId}`, ALERT_VERIFY_PER_ORG_PER_DAY, DAY_MS);
+  if (!perOrg.ok) return tooManyRequests(perOrg.retryAfter, "Bugün için çok fazla doğrulama e-postası istendi. Lütfen yarın tekrar deneyin.");
+  const perAddress = await rateLimit(`alert-verify-to:${canonicalMailbox(email)}`, ALERT_VERIFY_PER_ADDRESS_PER_DAY, DAY_MS);
+  if (!perAddress.ok) {
+    return tooManyRequests(perAddress.retryAfter, "Bu adrese bugün çok fazla doğrulama e-postası gönderildi. Lütfen yarın tekrar deneyin.");
+  }
+  const current = await prisma.organization.findUnique({ where: { id: organizationId }, select: { alertEmail: true } });
+  const token = signAlertEmailToken({ organizationId, email, previous: current?.alertEmail ?? null });
+  const unavailable = NextResponse.json(
+    { error: "Doğrulama e-postası şu an gönderilemedi. Lütfen biraz sonra tekrar deneyin." },
+    { status: 503 },
+  );
+  if (!token) return unavailable;
+  const url = `${appBaseUrl()}/uyari-adresi-dogrula#t=${encodeURIComponent(token)}`;
+  const mail = await emailService.sendReporting(email, ALERT_EMAIL_VERIFY_SUBJECT, alertEmailVerifyHtml(url));
+  return mail.ok ? null : unavailable;
+}
 const OFFER_TEXT_MAX = 400; // late-checkout offer: a short price/terms line (matches the prompt sanitizer cap)
 
 /** Update organization-level settings (auto-reply window/toggle + AI tone/signature). */
@@ -39,6 +76,8 @@ export const PATCH = withManage(async (session, req) => {
 
   const update: Record<string, boolean | number | string | null> = {};
   const errors: Record<string, string> = {};
+  /** Ekip dışı uyarı adresi: kaydedilmez, önce doğrulama bağlantısı gider (bayrak açıkken). */
+  let pendingAlertEmail: string | null = null;
 
   for (const field of BOOLEAN_FIELDS) {
     if (field in data) {
@@ -170,10 +209,14 @@ export const PATCH = withManage(async (session, req) => {
         // doğrulama e-postaları teslim edilmez.
         //
         // Çözüm en dar kapsam: uyarılar yalnız BU İŞLETMENİN kendi ekibine gider.
-        // Bu zaten özelliğin amacı; farklı bir adres istenirse doğrulama akışı
-        // ayrı bir turdur (o zamana kadar röle kapalı kalır).
-        errors.alertEmail =
-          "Uyarı adresi, bu işletmedeki bir kullanıcının e-postası olmalı. Önce o kişiyi ekibe ekleyin.";
+        // Ekip dışı adres (kurucu kararı 09-30, "Doğrulama bağlantısı"; bayrak `ALERT_EMAIL_VERIFY_ENABLED`) yalnız O ADRESİN
+        // sahibi onaylarsa kaydedilir — bayrak kapalıyken bugünkü gibi reddedilir.
+        if (alertEmailVerifyEnabled()) {
+          pendingAlertEmail = trimmed;
+        } else {
+          errors.alertEmail =
+            "Uyarı adresi, bu işletmedeki bir kullanıcının e-postası olmalı. Önce o kişiyi ekibe ekleyin.";
+        }
       } else {
         // 🚨 YORUM DÜZELTİLDİ (denetim 08-07 (5)) — burada bir dönem "boş
         // bırakınca env `ALERT_EMAIL`'e düşer" yazıyordu ve bu YANLIŞTI:
@@ -214,6 +257,18 @@ export const PATCH = withManage(async (session, req) => {
   }
 
   if (Object.keys(errors).length > 0) return badRequest(errors);
+  if (pendingAlertEmail) {
+    const refused = await requestAlertEmailVerification(session.organizationId, pendingAlertEmail);
+    if (refused) return refused;
+    // Adres DEĞERİ kayda girmez (↓denetim kuralı: yalnız alan adları).
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: auditActor(session),
+      action: "settings.alert_email_verification_sent",
+      metadata: { ...auditImpersonation(session) },
+    });
+    if (Object.keys(update).length === 0) return jsonOk({ alertEmailPending: true });
+  }
   if (Object.keys(update).length === 0) {
     return badRequest({ _: "Güncellenecek geçerli bir alan yok." });
   }
@@ -254,5 +309,5 @@ export const PATCH = withManage(async (session, req) => {
     metadata: { fields: Object.keys(update).sort(), ...auditImpersonation(session) },
   });
 
-  return jsonOk(update);
+  return jsonOk(pendingAlertEmail ? { ...update, alertEmailPending: true } : update);
 });

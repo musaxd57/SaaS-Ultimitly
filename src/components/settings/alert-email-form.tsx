@@ -17,6 +17,8 @@ export function AlertEmailForm({ initial }: { initial: string }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ekip dışı adres (09-30): adres KAYDEDİLMEDİ, doğrulama bağlantısı gönderildi — onaylanınca kaydedilir.
+  const [pending, setPending] = useState<string | null>(null);
   // Lowercase like the server does — otherwise typing the STORED address with
   // different casing would look like an unsaved change (phantom dirty).
   const dirty = email.trim().toLowerCase() !== baseline.trim().toLowerCase();
@@ -26,6 +28,7 @@ export function AlertEmailForm({ initial }: { initial: string }) {
     setBusy(true);
     setError(null);
     setSaved(false);
+    setPending(null);
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
@@ -33,7 +36,10 @@ export function AlertEmailForm({ initial }: { initial: string }) {
         body: JSON.stringify({ alertEmail: email.trim() }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok) {
+      if (res.ok && data.alertEmailPending) {
+        // Kayıtlı değer DEĞİŞMEDİ: taban aynı kalır, alan yazılanı göstermeye devam eder.
+        setPending(email.trim().toLowerCase());
+      } else if (res.ok) {
         setSaved(true);
         // Mirror the server's normalization (trim + lowercase) so the visible
         // value equals what was actually stored.
@@ -75,6 +81,11 @@ export function AlertEmailForm({ initial }: { initial: string }) {
         {saved && !dirty ? "Kaydedildi" : "Kaydet"}
       </Button>
       {error ? <p className="w-full text-xs text-destructive">{error}</p> : null}
+      {pending ? (
+        <p className="w-full text-xs text-muted-foreground" role="status">
+          Doğrulama bağlantısı {pending} adresine gönderildi. Bağlantı onaylanınca uyarılar bu adrese gider.
+        </p>
+      ) : null}
     </form>
   );
 }

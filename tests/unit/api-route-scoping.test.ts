@@ -51,10 +51,13 @@ const NOT_ORG_SCOPED: Record<string, string> = {
   "leads/route.ts": "public: landing formu; YALNIZ POST (listeleme yok) + 5/saat IP limiti",
   "admin/exit/route.ts": "global: impersonation'dan çıkış — operatörün KENDİ oturumunu geri alır",
   "admin/leads/[id]/route.ts": "global: Lead org'a bağlı değil; superadmin kapılı",
-  // ↓ ÜÇÜ DE `organizationId` DİZGİSİNİ TAŞIR AMA KAPSAMLI DEĞİLDİR (↓REQUEST_DERIVED_ORG_ID).
+  // ↓ HEPSİ `organizationId` DİZGİSİNİ TAŞIR AMA OTURUMDAN KAPSAMLI DEĞİLDİR (↓REQUEST_DERIVED_ORG_ID).
   "admin/export/route.ts": "operatör: org id `?orgId=` ile İSTEKTEN gelir; tek yetki isSuperAdmin",
   "admin/impersonate/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
   "admin/quality-audit/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
+  "alert-email/verify/route.ts":
+    "public: org id İMZALI belirteçten gelir (HMAC, alan ayrımlı, 24 saat; bayrak kapalı → 404); YALNIZ o org'un uyarı " +
+    "adresini ve yalnız belirteçteki eski adres hâlâ kayıtlıysa (CAS) değiştirir",
 };
 
 /**
@@ -80,6 +83,7 @@ const REQUEST_DERIVED_ORG_ID = new Set([
   "admin/export/route.ts",
   "admin/impersonate/route.ts",
   "admin/quality-audit/route.ts",
+  "alert-email/verify/route.ts",
 ]);
 
 function walk(dir: string): string[] {

@@ -142,6 +142,11 @@ const nextConfig = {
         source: "/e-posta-dogrula",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
+      {
+        // Uyari adresi onay sayfasi (09-30): imzali belirtec FRAGMENT'te (#t=); ayni ikinci savunma.
+        source: "/uyari-adresi-dogrula",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
       // Brand assets are MEANT to be embedded by OTHER sites (Hospitable's OAuth
       // consent screen hotlinks the app logo; partner directories do the same).
       // The global CORP: same-site above makes browsers BLOCK exactly that

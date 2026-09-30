@@ -19,6 +19,7 @@ const printer = ts.createPrinter({ removeComments: true });
 /** Oturumsuz / kimlik / operatör paneli uçları — müşteri oturumu ADINA yazmazlar. */
 const ALLOWED_WITHOUT_CHECK: Record<string, string> = {
   "account/forgot-password POST": "oturumsuz şifre sıfırlama",
+  "alert-email/verify POST": "uyarı adresi onayı (imzalı belirteç = alıcının posta kutusu; oturumdan bağımsız)",
   "auth/login POST": "oturumsuz giriş",
   "auth/logout POST": "çıkış (yalnız çerezi siler)",
   "auth/register POST": "oturumsuz kayıt",

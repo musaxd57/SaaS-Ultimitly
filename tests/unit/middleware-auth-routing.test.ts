@@ -64,6 +64,12 @@ describe("middleware — kimlik sayfası yönlendirmeleri", () => {
     expect(redirectTo(await reqAs("/sifremi-unuttum", null))).toBeNull();
   });
 
+  it("uyarı adresi onay sayfası (09-30): oturumsuz alıcı açabilir; oturum açıkken de panele yollanmaz (staff dahil)", async () => {
+    for (const role of [null, "owner", "manager", "staff"] as (UserRole | null)[]) {
+      expect(redirectTo(await reqAs("/uyari-adresi-dogrula", role)), String(role)).toBeNull();
+    }
+  });
+
   // ── Değişikliğin DAR olduğunun pini ────────────────────────────────────────
   it.each(["/login", "/register"])(
     "oturum AÇIKKEN %s HÂLÂ /dashboard'a yönlendirilir (dokunulmadı)",

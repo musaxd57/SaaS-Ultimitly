@@ -142,6 +142,7 @@ const SELF_GATED: Record<string, { gate: RegExp[] | null; reason: string; where?
   "admin/leads/[id] PATCH": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
   "admin/quality-audit POST": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
   "admin/reset-2fa POST": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
+  "alert-email/verify POST": { gate: null, reason: "kimliksiz: uyarı adresi onayı (imzalı belirteç = alıcının posta kutusu; bayrak kapılı)" },
   "auth/login POST": { gate: null, reason: "kimliksiz: giriş" },
   "auth/logout GET": { gate: null, reason: "kimliksiz: yalnız çerezi siler" },
   "auth/logout POST": { gate: null, reason: "kimliksiz: yalnız çerezi siler" },
