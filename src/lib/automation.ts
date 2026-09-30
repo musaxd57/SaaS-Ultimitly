@@ -135,7 +135,7 @@ import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
-import { classifySendResult, sendFailureHoldMs } from "@/lib/outbox/state";
+import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE } from "@/lib/outbox/state";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
@@ -3223,11 +3223,22 @@ export async function applyChannelAutoReply(
   // lock-TTL overrun) can't both send a reply to the same guest. The loser sees
   // count 0 and backs off; on a delivery failure we release the claim so the
   // winner still retries next cycle. Mirrors the welcome/checkin/checkout senders.
+  //
+  // 🚨 BAYAT CEVAP GİTMEZ (Codex 09-30, C2): model düşünürken misafir YENİ bir mesaj yazdıysa (konuşma yüklendiğinde olmayan
+  // gelen mesaj) bu cevap o mesajı görmeden üretildi — talep ALINMAZ. Geçici atlama (damgalanmaz): konuşma aday kalır, bir
+  // sonraki geçiş TÜM mesajlarla yeniden modeller. Koşul talebin KENDİSİNDE (tek UPDATE, ilişki filtresi): kontrol ile talep
+  // arasına mesaj giremez.
+  const seenInboundIds = conversation.messages.filter((m) => m.direction === "inbound").map((m) => m.id);
+  const unseenInbound = { direction: "inbound", id: { notIn: seenInboundIds } };
   const claim = await prisma.conversation.updateMany({
-    where: { id: conversation.id, status: { in: ["new", "waiting"] } },
+    where: { id: conversation.id, status: { in: ["new", "waiting"] }, messages: { none: unseenInbound } },
     data: { status: "answered" },
   });
   if (claim.count === 0) {
+    const unseen = await prisma.message
+      .count({ where: { conversationId: conversation.id, ...unseenInbound } })
+      .catch(() => 0);
+    if (unseen > 0) return { sent: false, skippedReason: SUPERSEDED_BY_NEWER_MESSAGE, draft, ...meta };
     return { sent: false, skippedReason: "already_claimed", draft, ...meta };
   }
 

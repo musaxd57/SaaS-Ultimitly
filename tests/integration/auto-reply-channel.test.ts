@@ -2237,3 +2237,127 @@ describe("applyChannelAutoReply — geçmiş satırı yazar + zaman (F14)", () =
     expect(payload.guestMessageAt?.getTime()).toBe(guestRow.createdAt.getTime());
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// CODEX 09-30 (C2): MODEL DÜŞÜNÜRKEN GELEN MİSAFİR MESAJI. Cevap, modelin görmediği yeni bir misafir mesajından sonra
+// GİTMEZ — bir sonraki geçiş iki mesajı birlikte cevaplar. Sahte model, çağrı sırasında konuşmaya yeni bir misafir mesajı
+// ekleyerek eşzamanlı içe aktarımı taklit eder (sağlayıcı damgası cevaptan ÖNCE: eski kıyasın kör noktası).
+// ---------------------------------------------------------------------------
+describe("C2 — model düşünürken gelen misafir mesajı (Codex 09-30)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  function modelWhileGuestWritesAgain(conversationId: string) {
+    let inserted = false;
+    mockSuggest.mockImplementation(async () => {
+      if (!inserted) {
+        inserted = true;
+        await prisma.message.create({
+          data: {
+            conversationId,
+            direction: "inbound",
+            senderName: "Alex",
+            body: "Also, is there parking?",
+            createdAt: new Date(Date.now() - 30_000),
+          },
+        });
+      }
+      return SAFE_REPLY;
+    });
+  }
+
+  it("🚨 satır içi (canlı) yol: yeni misafir mesajı gelince bayat cevap GİTMEZ, konuşma aday kalır; sonraki geçiş iki mesajla cevaplar", async () => {
+    const { conversationId } = await seed();
+    modelWhileGuestWritesAgain(conversationId);
+
+    const first = await applyChannelAutoReply(conversationId);
+    expect(first.sent).toBe(false);
+    expect(first.skippedReason).toBe("superseded_by_newer_message");
+    expect(mockSend).not.toHaveBeenCalled();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.status).toBe("new");
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+
+    const second = await applyChannelAutoReply(conversationId);
+    expect(second.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    // İkinci model çağrısı yeni mesajı GÖRDÜ.
+    expect(JSON.stringify(mockSuggest.mock.calls[1])).toContain("Also, is there parking?");
+  });
+
+  it("geçiş yöneticisi bayat turu DAMGALAMAZ (geçici atlama; mesaj kalıcı cevapsız kalmaz)", async () => {
+    const { orgId, conversationId } = await seed();
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date(Date.now() - 60_000) } });
+    modelWhileGuestWritesAgain(conversationId);
+
+    await runDueChannelAutoReplies(orgId);
+
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.autoReplyAttemptedAt).toBeNull();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL — model çalışırken mesaj gelmezse cevap gider (talep şartı yanlış engellemiyor)", async () => {
+    const { conversationId } = await seed();
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("KONTROL — model çalışırken EV SAHİBİ yazdıysa (giden) bu şart değil talebin durum kontrolü karar verir (davranış aynı)", async () => {
+    const { conversationId } = await seed();
+    mockSuggest.mockImplementation(async () => {
+      await prisma.message.create({
+        data: { conversationId, direction: "outbound", senderName: "Host", body: "Yazıyorum", createdAt: new Date(Date.now() - 20_000) },
+      });
+      return SAFE_REPLY;
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).not.toBe("superseded_by_newer_message");
+  });
+
+  it("🚨 kuyruk yolu: tetikten SONRA gelen misafir mesajı (cevaptan önceki damgayla) gönderimi VETO eder", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    const { conversationId } = await seed();
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.queued).toBe(true);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    const reply = await prisma.message.findUniqueOrThrow({ where: { id: row.messageId! } });
+    // Misafir model çalışırken yazmıştı; sağlayıcı damgası cevabın kaydından ÖNCE, tetikten SONRA.
+    await prisma.message.create({
+      data: {
+        conversationId,
+        direction: "inbound",
+        senderName: "Alex",
+        body: "Also, is there parking?",
+        createdAt: new Date(reply.createdAt.getTime() - 5_000),
+      },
+    });
+
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-stale" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+
+    expect(deliver).not.toHaveBeenCalled();
+    const after = await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } });
+    expect(after.status).toBe("canceled");
+    expect(after.lastErrorCode).toBe("superseded_by_newer_message");
+  });
+
+  it("KONTROL — kuyruk yolu: tetikten sonra yeni misafir mesajı yoksa teslim edilir", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    const { conversationId } = await seed();
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+    await applyChannelAutoReply(conversationId);
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-ok" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    expect(deliver).toHaveBeenCalledTimes(1);
+  });
+});

@@ -9,6 +9,8 @@ import {
   backoffMs,
   attemptsExhausted,
   OUTBOX_MAX_ATTEMPTS,
+  triggerMessageIdOf,
+  SUPERSEDED_BY_NEWER_MESSAGE,
 } from "@/lib/outbox/state";
 
 describe("outbox state machine — closed set + validated transitions", () => {
@@ -113,5 +115,24 @@ describe("backoff — bounded exponential + deterministic jitter", () => {
   it("attemptsExhausted at the ceiling", () => {
     expect(attemptsExhausted(OUTBOX_MAX_ATTEMPTS - 1)).toBe(false);
     expect(attemptsExhausted(OUTBOX_MAX_ATTEMPTS)).toBe(true);
+  });
+});
+
+describe("triggerMessageIdOf — yapay zekâ satırının cevapladığı mesaj (Codex 09-30 C2)", () => {
+  it("oto-yanıt ve kapanış anahtarlarından tetik mesajını okur", () => {
+    expect(triggerMessageIdOf("auto:c1:m1", "c1")).toBe("m1");
+    expect(triggerMessageIdOf("closing:c1:m9", "c1")).toBe("m9");
+  });
+  it("başka konuşmanın / başka biçimin anahtarı tetik DEĞİL", () => {
+    expect(triggerMessageIdOf("auto:c2:m1", "c1")).toBeNull();
+    expect(triggerMessageIdOf("holding:c1:abc", "c1")).toBeNull();
+    expect(triggerMessageIdOf("manual:c1:m1", "c1")).toBeNull();
+    expect(triggerMessageIdOf("auto:c1:", "c1")).toBeNull();
+    expect(triggerMessageIdOf("auto:c1:m1:x", "c1")).toBeNull();
+    expect(triggerMessageIdOf(null, "c1")).toBeNull();
+    expect(triggerMessageIdOf(undefined, "c1")).toBeNull();
+  });
+  it("sebep kodu tek kaynak", () => {
+    expect(SUPERSEDED_BY_NEWER_MESSAGE).toBe("superseded_by_newer_message");
   });
 });

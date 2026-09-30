@@ -257,3 +257,26 @@ export function sendFailureReason(kind: SendResultKind): string {
 export function sendFailureHoldMs(kind: SendResultKind): number {
   return kind === "rate_limited" ? SEND_RATE_LIMIT_HOLD_MS : SEND_FAILURE_HOLD_MS;
 }
+
+/**
+ * Cevap güncel tur değil: cevabın cevapladığı misafir mesajından SONRA yeni bir misafir mesajı geldi (ya da cevaptan sonra
+ * herhangi bir mesaj). Satır içi yolda geçici atlama (damgalanmaz — bir sonraki geçiş tüm mesajlarla yeniden modeller),
+ * kuyruk yolunda gönderim vetosu. TEK sebep kodu (Codex 09-30 C2).
+ */
+export const SUPERSEDED_BY_NEWER_MESSAGE = "superseded_by_newer_message";
+
+/**
+ * Yapay zekâ satırının CEVAPLADIĞI misafir mesajı (tetik): kuyruk anahtarı `auto:<konuşma>:<mesaj>` (oto-yanıt) ya da
+ * `closing:<konuşma>:<mesaj>` (kapanış nezaketi) — `automation.ts` bu biçimde yazar. Başka biçim / başka konuşma → null.
+ */
+export function triggerMessageIdOf(idempotencyKey: string | null | undefined, conversationId: string): string | null {
+  if (!idempotencyKey) return null;
+  for (const prefix of ["auto:", "closing:"]) {
+    const head = `${prefix}${conversationId}:`;
+    if (idempotencyKey.startsWith(head)) {
+      const id = idempotencyKey.slice(head.length);
+      return id && !id.includes(":") ? id : null;
+    }
+  }
+  return null;
+}

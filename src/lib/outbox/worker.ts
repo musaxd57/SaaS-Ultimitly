@@ -18,6 +18,8 @@ import {
   type SendResultKind,
   canTransition,
   isOutboxStatus,
+  SUPERSEDED_BY_NEWER_MESSAGE,
+  triggerMessageIdOf,
 } from "./state";
 
 // ---------------------------------------------------------------------------
@@ -439,7 +441,31 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
   const newer = await prisma.message.count({
     where: { conversationId: row.conversationId as string, id: { not: row.messageId as string }, createdAt: { gt: msg.createdAt } },
   });
-  if (newer > 0) return "superseded_by_newer_message";
+  if (newer > 0) return SUPERSEDED_BY_NEWER_MESSAGE;
+  // 🚨 MODEL DÜŞÜNÜRKEN GELEN MİSAFİR MESAJI (Codex 09-30, C2). Yukarıdaki kıyas cevabın KENDİ kayıt anına göre: misafirin
+  // model çalışırken yazdığı mesajın zamanı (sağlayıcı damgası) cevaptan ÖNCE kalıyor ve bayat cevap gidiyordu. Doğru çapa
+  // cevabın CEVAPLADIĞI tetik mesajı: ondan sonra gelen her misafir mesajı modelin görmediği yeni turdur.
+  const triggerId = triggerMessageIdOf(
+    (await prisma.messageOutbox.findUnique({ where: { id: row.id }, select: { idempotencyKey: true } }))?.idempotencyKey,
+    row.conversationId as string,
+  );
+  if (triggerId) {
+    const trigger = await prisma.message.findUnique({
+      where: { id: triggerId },
+      select: { createdAt: true, conversationId: true },
+    });
+    if (trigger && trigger.conversationId === row.conversationId) {
+      const newerGuest = await prisma.message.count({
+        where: {
+          conversationId: row.conversationId as string,
+          direction: "inbound",
+          id: { not: triggerId },
+          OR: [{ createdAt: { gt: trigger.createdAt } }, { createdAt: trigger.createdAt, id: { gt: triggerId } }],
+        },
+      });
+      if (newerGuest > 0) return SUPERSEDED_BY_NEWER_MESSAGE;
+    }
+  }
   return null;
 }
 
