@@ -213,10 +213,13 @@ describe("GET /api/account/export — complete + secret-free", () => {
   it("PARİTE: admin export ↔ account export aynı yapıyı döner ve admin de secret-free", async () => {
     await seedRichOrg();
 
-    // Operatör (super-admin) kimliğiyle admin export — org DIŞI bir oturum.
+    // Operatör (super-admin) kimliğiyle admin export — org DIŞI bir oturum. Kayıt ZORUNLU (kurucu kararı 09-30): operatör gerçek bir
+    // kullanıcı satırı olmalı (`AuditLog.actorUserId` FK'sı sahte kimliği reddeder → kayıt yazılamaz → indirme yok).
     vi.stubEnv("SUPERADMIN_EMAILS", "op@lixusai.com");
-    session = { userId: "op", organizationId: "operator-org", role: "owner", email: "op@lixusai.com", name: "Op", sessionEpoch: 0, mfa: true };
-    const adminRes = await adminExportRoute(new NextRequest(`http://localhost/api/admin/export?orgId=${orgId}`));
+    const opOrg = await prisma.organization.create({ data: { name: "Operatör Org" } });
+    const op = await prisma.user.create({ data: { organizationId: opOrg.id, name: "Op", email: "op@lixusai.com", passwordHash: "x", role: "owner" } });
+    session = { userId: op.id, organizationId: opOrg.id, role: "owner", email: "op@lixusai.com", name: "Op", sessionEpoch: 0, mfa: true };
+    const adminRes = await adminExportRoute(new NextRequest(`http://localhost/api/admin/export?orgId=${orgId}&purpose=kvkk_request`));
     expect(adminRes.status).toBe(200);
     expect(adminRes.headers.get("cache-control")).toBe("no-store");
     const adminText = await adminRes.text();

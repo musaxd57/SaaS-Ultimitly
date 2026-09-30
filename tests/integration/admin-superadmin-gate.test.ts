@@ -47,8 +47,9 @@ import { POST as impersonatePost } from "@/app/api/admin/impersonate/route";
 const OPERATOR_EMAIL = "operator@lixusai.com";
 const CUSTOMER_EMAIL = "musteri@example.com";
 
+// Kurucu kararı 09-30: operatör dışa aktarımı AMAÇ ister (kapalı küme) — kapı testleri geçerli bir amaçla koşar.
 const exportReq = (orgId: string) =>
-  new NextRequest(`http://localhost/api/admin/export?orgId=${encodeURIComponent(orgId)}`);
+  new NextRequest(`http://localhost/api/admin/export?orgId=${encodeURIComponent(orgId)}&purpose=support_request`);
 
 const impersonateReq = (organizationId: string) =>
   new NextRequest("http://localhost/api/admin/impersonate", {

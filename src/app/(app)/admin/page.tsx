@@ -16,6 +16,7 @@ import { qualityAuditConfigured } from "@/lib/quality-audit";
 import { shadowAiEnabled, shadowModel } from "@/lib/shadow-ai";
 import { LeadActions } from "@/components/admin/lead-actions";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
+import { OPERATOR_EXPORT_PURPOSES } from "@/lib/operator-export";
 
 export const dynamic = "force-dynamic";
 
@@ -253,13 +254,40 @@ export default async function AdminPage() {
                       <td className="px-4 py-3 text-muted-foreground">{dateFmt.format(org.createdAt)}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <a
-                            href={`/api/admin/export?orgId=${org.id}`}
-                            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
-                            title="KVKK veri dışa aktarımı (JSON)"
-                          >
-                            Veri indir
-                          </a>
+                          {/* Kurucu kararı 09-30: amaç ZORUNLU (kapalı küme), talep no isteğe bağlı; indirme zorunlu kayıttan sonra. */}
+                          <form action="/api/admin/export" method="GET" className="flex items-center gap-1">
+                            <input type="hidden" name="orgId" value={org.id} />
+                            <select
+                              name="purpose"
+                              required
+                              defaultValue=""
+                              aria-label="Dışa aktarma amacı"
+                              className="h-7 rounded border bg-background px-1 text-xs"
+                            >
+                              <option value="" disabled>
+                                Amaç
+                              </option>
+                              {Object.entries(OPERATOR_EXPORT_PURPOSES).map(([key, label]) => (
+                                <option key={key} value={key}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              name="ticket"
+                              placeholder="Talep no"
+                              aria-label="Talep numarası (isteğe bağlı)"
+                              maxLength={40}
+                              className="h-7 w-20 rounded border bg-background px-1 text-xs"
+                            />
+                            <button
+                              type="submit"
+                              className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                              title="KVKK veri dışa aktarımı (JSON) — kayıt altına alınır"
+                            >
+                              Veri indir
+                            </button>
+                          </form>
                           {isSelf ? null : <ImpersonateButton organizationId={org.id} orgName={org.name} />}
                         </div>
                       </td>
