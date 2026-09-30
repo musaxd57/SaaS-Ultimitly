@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   automatedBodyHash,
   normalizeAutomatedBody,
@@ -26,6 +26,9 @@ describe("gövde özeti — sağlayıcı biçimlendirmesine dayanıklı, metin D
     const base = "Merhaba Alex,\n\nHoş geldiniz!\nGiriş 15:00.";
     expect(automatedBodyHash("Merhaba Alex,\r\n\r\n\r\nHoş geldiniz!  \r\nGiriş 15:00.\u0000  ")).toBe(automatedBodyHash(base));
     expect(normalizeAutomatedBody("a  \n\n\n\nb")).toBe("a\n\nb");
+  });
+  it("yalnız CR satır sonu (eski Mac biçimi) da LF sayılır", () => {
+    expect(automatedBodyHash("Merhaba,\rHoş geldiniz!")).toBe(automatedBodyHash("Merhaba,\nHoş geldiniz!"));
   });
   it("KONTROL — içerik farkı özeti değiştirir", () => {
     expect(automatedBodyHash("Giriş 15:00.")).not.toBe(automatedBodyHash("Giriş 16:00."));
@@ -85,6 +88,12 @@ describe("eşleşme planı — sağlayıcı kimliği, özet + pencere, bire bir"
       { externalId: "c", body: "Hoş geldiniz!", createdAt: SENT },
     ]);
     expect(again.get("c")?.recordId).toBe("t1");
+  });
+  it("daha önce BU mesaja bağlanmış iz, gövde sonradan değişse de aynı mesaja yeniden bağlanır (normalleştirme kuralı değişse bile)", async () => {
+    const plan = await planAutomatedMatches(fakeDb([row({ matchedExternalId: "e" })]), SCOPE, [
+      { externalId: "e", body: "Sağlayıcı metni biçimlendirmiş", createdAt: SENT },
+    ]);
+    expect(plan.get("e")?.recordId).toBe("t1");
   });
   it("tanınmayan tür eşleşmez (kapalı küme)", async () => {
     const plan = await planAutomatedMatches(fakeDb([row({ kind: "ai_reply" })]), SCOPE, [
@@ -151,6 +160,36 @@ describe("istem — otomatik mesaj güvenlik penceresini KAPATMAZ, kendi etiketi
     const p = buildReplyUserPrompt(input([G1, H]));
     expect(p).not.toContain(AUTOMATION_HISTORY_NOTE);
     expect(p).toContain("[OPERATİF]: Özelden yazıyorum.");
+  });
+});
+
+describe("istem — ad maskesi acil notu otomatik mesajın ARKASINDAKİ cevapsız misafir mesajını da görür (anahtar açık)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("🚨 'Ben Yangın, mutfakta duman var' + karşılama mesajı + yeni soru → KOD NOTU var", () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const base: SuggestReplyInput = {
+      guestMessage: "Wi-Fi şifresi nedir?",
+      property: { name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" },
+      knowledgeBase: [],
+      reservation: {
+        guestName: "Yangın Kaya",
+        arrivalDate: new Date("2026-10-01T00:00:00Z"),
+        departureDate: new Date("2026-10-05T00:00:00Z"),
+        channel: "airbnb",
+      } as unknown as SuggestReplyInput["reservation"],
+      history: [
+        { direction: "inbound", body: "Ben Yangın, mutfakta duman var", author: "guest" },
+        { direction: "outbound", body: "Merhaba,\n\nHoş geldiniz!", author: "automation" },
+      ],
+      tone: "warm",
+      language: "tr",
+      timeZone: "Europe/Istanbul",
+      now: new Date("2026-10-02T09:00:00Z"),
+    };
+    expect(buildReplyUserPrompt(base)).toContain("ACİL DURUM sözcüğü");
+    // KONTROL — ev sahibinin gerçek cevabı arkadaysa o mesaj cevaplanmıştır → not yok.
+    const answered = { ...base, history: [base.history![0], { direction: "outbound" as const, body: "Hemen arıyorum.", author: "host" as const }] };
+    expect(buildReplyUserPrompt(answered)).not.toContain("ACİL DURUM sözcüğü");
   });
 });
 

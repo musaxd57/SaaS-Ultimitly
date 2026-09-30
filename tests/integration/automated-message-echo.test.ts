@@ -24,7 +24,7 @@ import { syncHospitable } from "@/lib/hospitable-sync";
 import { setOrgHospitableToken, resetPrimaryOrgCache } from "@/lib/hospitable-credentials";
 import { openItemCounts } from "@/lib/conversation-items/store";
 import { closableAfter } from "@/lib/ai/closing-turn";
-import { purgeAutomatedSends, AUTOMATED_SEND_RETENTION_MS } from "@/lib/automated-sends";
+import { purgeAutomatedSends, AUTOMATED_SEND_RETENTION_MS, automatedBodyHash } from "@/lib/automated-sends";
 import { drainOutboxOnce } from "@/lib/outbox/worker";
 
 const mockSend = vi.mocked(sendOnChannel);
@@ -133,6 +133,38 @@ describe("K7 — otomatik mesajımız senkronla geri gelince ev sahibi cevabı s
     await echo(orgId, `${body.replace(/\n/g, "\r\n")}  `, "get-id-9", echoAt);
     expect(await prisma.message.count({ where: { conversationId } })).toBe(2);
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
+  });
+
+  it("🚨 ikinci otomatik mesaj geldiğinde (yeniden içe aktarma) önceden kayıtlı otomatik mesaj da cevap sayılmaz", async () => {
+    const { orgId, propertyId, conversationId } = await seed();
+    const body = await sendWelcome(orgId, "w-1");
+    const t1 = new Date(Date.now() + 30_000);
+    await echo(orgId, body, "w-1", t1);
+    // Giriş bilgisi mesajı (ikinci otomatik mesaj) gönderilmiş gibi iz.
+    const checkinBody = "Giriş bilgileri: kapı kodu kartta.";
+    await prisma.automatedMessageSend.create({
+      data: {
+        organizationId: orgId,
+        propertyId,
+        externalReservationId: "res-k7",
+        kind: "checkin",
+        bodyHash: automatedBodyHash(checkinBody),
+        state: "sent",
+        sentAt: new Date(),
+      },
+    });
+    const t2 = new Date(Date.now() + 60_000);
+    fake.setReservations(HP, [reservation(t2)]);
+    fake.setMessages("res-k7", [
+      IBAN_Q,
+      canonicalMessage({ externalId: "w-1", direction: "outbound", senderName: "Ev Sahibi", body, createdAt: t1 }),
+      canonicalMessage({ externalId: "c-1", direction: "outbound", senderName: "Ev Sahibi", body: checkinBody, createdAt: t2 }),
+    ]);
+    await syncHospitable(orgId);
+    expect((await prisma.message.findFirstOrThrow({ where: { conversationId, externalId: "c-1" } })).authorType).toBe("automation");
+    const convo = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(convo.status).toBe("new");
+    expect(convo.lastMessageAt.getTime()).toBe(GUEST_AT.getTime());
   });
 
   it("sağlayıcı kimliği POST kimliğiyle aynıysa gövde farklı olsa da eşleşir (kanal metni biçimlendirmiş olabilir)", async () => {

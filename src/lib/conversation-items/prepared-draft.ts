@@ -1,5 +1,5 @@
 import { vetoAvailability, type AvailabilityVetoReason } from "@/lib/ai/availability-claims";
-import { isAnsweringOutbound, isAutomationMessage } from "@/lib/message-author";
+import { isAutomationMessage } from "@/lib/message-author";
 
 /**
  * HAZIR TASLAK — konuşma açılınca öneri panelinde gösterilecek kayıtlı taslak (kurucu 09-26, "Otomatik hazır dursun";
@@ -41,7 +41,7 @@ export function preparedDraftOf(
   if (!last || last.direction !== "inbound") return null;
   const reply = last.aiSuggestedReply;
   if (!reply || !reply.trim()) return null;
-  const lastOut = real.findLastIndex((m) => isAnsweringOutbound(m));
+  const lastOut = real.findLastIndex((m) => m.direction !== "inbound"); // `real` otomatik mesaj taşımaz
   const guestTexts = real
     .slice(lastOut + 1)
     .filter((m) => m.direction === "inbound")
