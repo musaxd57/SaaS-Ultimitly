@@ -10,7 +10,6 @@ import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form
 const PROPS = {
   disclosure: true,
   holdHours: 12,
-  holdingAck: false,
   closingReply: false,
   closingText: "",
   lateCheckoutOffer: "",

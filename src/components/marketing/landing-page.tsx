@@ -59,8 +59,8 @@ const STEPS = [
 ];
 
 // Honest 3-tier sales scenarios — mirror the REAL safety architecture:
-// tier 1 auto-sends, tier 2 calms + gathers info (host approves; optional
-// auto pre-reply the host knowingly enables), tier 3 always waits for the host.
+// tier 1 auto-sends, tier 2 calms + gathers info (host approves; the optional
+// auto pre-reply was retired with K10, 09-30), tier 3 always waits for the host.
 const DEMO_SCENARIOS: { tier: 1 | 2 | 3; message: string; outcome: string }[] = [
   {
     tier: 1,
@@ -81,7 +81,7 @@ const DEMO_SCENARIOS: { tier: 1 | 2 | 3; message: string; outcome: string }[] = 
     tier: 2,
     message: "Ev çok soğuk, hiç memnun kalmadık.",
     outcome:
-      "Sakin bir cevap taslağı hazırlar, foto/detay ister, sorunu size işaretler — söz vermez, suçu kabul etmez. Dilerseniz \"aldık, ilgileniyoruz\" ön-yanıtını otomatik de gönderir (siz açarsanız).",
+      "Sakin bir cevap taslağı hazırlar, foto/detay ister, sorunu size işaretler — söz vermez, suçu kabul etmez.",
   },
   {
     tier: 3,
@@ -247,7 +247,7 @@ const FAQS = [
   },
   {
     q: "Yanlış ya da uygunsuz cevap verir mi?",
-    a: "Şikayet, iade, iptal gibi hassas mesajları asla otomatik sonuçlandırmaz — doğrudan size düşer. Dilerseniz (siz açarsanız) yalnızca kısa bir \"mesajınızı aldık, ilgileniyoruz\" bekletme yanıtı otomatik gider; çözüm ve karar her zaman sizdedir. Emin olmadığı her durumda taslağı hazırlar, göndermeden önce onayınızı bekler.",
+    a: "Şikayet, iade, iptal gibi hassas mesajları asla otomatik sonuçlandırmaz — doğrudan size düşer; çözüm ve karar her zaman sizdedir. Emin olmadığı her durumda taslağı hazırlar, göndermeden önce onayınızı bekler.",
   },
   {
     q: "Misafirim yabancı; AI onun dilinde mi cevap verir?",
@@ -287,7 +287,7 @@ const FAQS = [
 
 // Honest trust chips: "KVKK odaklı" (not an absolute compliance certification
 // claim while the DPA/legal work is in progress) and "otomatik sonuçlandırmaz"
-// (the opt-in holding acknowledgement exists — resolution is always human).
+// (no automatic pre-reply since K10, 09-30 — resolution is always human).
 const TRUST = ["Türkiye’de geliştirildi", "KVKK odaklı tasarım", "Yanıt Sürenizi Kısaltır", "Kullanıcı dostu arayüz"];
 
 // The real panels a customer uses — shown as little "screens" on the landing.

@@ -71,7 +71,6 @@ export default async function SettingsPage({
         alertEmail: true,
         timezone: true,
         autoReplyDisclosure: true,
-        autoHoldingReplyEnabled: true,
         autoClosingReplyEnabled: true,
         closingReplyText: true,
         lateCheckoutOfferText: true,
@@ -178,7 +177,6 @@ export default async function SettingsPage({
           <AutomationPrefsForm
             disclosure={org?.autoReplyDisclosure ?? true}
             holdHours={org?.handoffHoldHours ?? 12}
-            holdingAck={org?.autoHoldingReplyEnabled ?? false}
             closingReply={org?.autoClosingReplyEnabled ?? false}
             closingText={org?.closingReplyText ?? ""}
             lateCheckoutOffer={org?.lateCheckoutOfferText ?? ""}
