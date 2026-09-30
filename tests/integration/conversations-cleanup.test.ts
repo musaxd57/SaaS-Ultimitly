@@ -26,6 +26,8 @@ async function makeConv(
     lastMessageAt?: Date;
     channel?: string;
     reservationId?: string;
+    /** Sağlayıcı mesaj kimlikleri (gerçek yarış artığında iki kopya AYNI sağlayıcı mesajlarını taşır). */
+    messageIds?: (string | null)[];
   },
 ) {
   return prisma.conversation.create({
@@ -42,6 +44,7 @@ async function makeConv(
           direction: "inbound",
           senderName: opts.guest,
           body,
+          externalId: opts.messageIds?.[i] ?? null,
           createdAt: new Date(Date.now() + i * 1000),
         })),
       },
@@ -319,8 +322,9 @@ describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR"
     // (unique etmez), unique ise farklı guestIdentifier'lı çifti bloklar
     // (cleanup onları guest'e göre grupladığı için hiç karşılaştırmaz).
     const { propertyId, orgId } = await makeOrgWithProperty();
-    const stale = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba"] });
-    await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba", "Anahtar?"] });
+    // Yarış artığı: iki satır AYNI sağlayıcı mesajlarını içe aktarmış (aynı sağlayıcı mesaj kimliği).
+    const stale = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba"], messageIds: ["m-1"] });
+    await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba", "Anahtar?"], messageIds: ["m-1", "m-2"] });
 
     const res = await cleanupDuplicateConversations(orgId);
     expect(res.removed).toBe(1);
@@ -350,5 +354,158 @@ describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR"
     const res = await cleanupDuplicateConversations(orgId);
     expect(res.removed).toBe(0);
     expect(res.needsReview).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CODEX 09-30 (A1): MESAJ METNİ KİMLİK DEĞİLDİR. Eski alt küme testi yalnız normalize GÖVDEYE bakıyordu: tutulan sohbette
+// ev sahibinin "Merhaba"sı varken kopyadaki misafirin (sonraki, başka) "Merhaba"sı "zaten var" sayılıyor ve kopya — misafirin
+// mesajıyla birlikte — geri alınamaz biçimde siliniyordu. Aynı mesaj artık: aynı sağlayıcı mesaj kimliği + yön + gövde
+// (kimlik yoksa aynı yön + an + gövde), BİRE BİR sayılarak.
+// ---------------------------------------------------------------------------
+describe("cleanupDuplicateConversations — mesaj kimliği (Codex 09-30 A1)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  async function sameStayPair(propertyId: string) {
+    const r = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Ada Demir",
+        arrivalDate: new Date("2026-11-02"),
+        departureDate: new Date("2026-11-05"),
+        status: "confirmed",
+        channel: "airbnb",
+      },
+      select: { id: true },
+    });
+    return r.id;
+  }
+
+  async function conv(
+    propertyId: string,
+    reservationId: string,
+    ext: string,
+    messages: { body: string; direction: "inbound" | "outbound"; externalId: string | null; at: string }[],
+  ) {
+    return prisma.conversation.create({
+      data: {
+        propertyId,
+        channel: "airbnb",
+        guestIdentifier: "Ada Demir",
+        status: "new",
+        externalReservationId: ext,
+        reservationId,
+        messages: {
+          create: messages.map((m) => ({
+            direction: m.direction,
+            senderName: m.direction === "inbound" ? "Ada Demir" : "Ev sahibi",
+            authorType: m.direction === "inbound" ? "guest" : "host",
+            body: m.body,
+            externalId: m.externalId,
+            createdAt: new Date(m.at),
+          })),
+        },
+      },
+      select: { id: true },
+    });
+  }
+
+  it("🚨 ev sahibinin 'Merhaba'sı misafirin sonraki 'Merhaba'sını kapsamaz → kopya SİLİNMEZ, misafirin mesajı yerinde", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const rid = await sameStayPair(propertyId);
+    await conv(propertyId, rid, "res-A", [
+      { body: "Merhaba", direction: "outbound", externalId: "h-1", at: "2026-11-01T09:00:00Z" },
+      { body: "Giriş 15:00'te.", direction: "outbound", externalId: "h-2", at: "2026-11-01T09:01:00Z" },
+    ]);
+    const dup = await conv(propertyId, rid, "res-B", [
+      { body: "Merhaba", direction: "inbound", externalId: "g-9", at: "2026-11-03T20:00:00Z" },
+    ]);
+
+    const res = await cleanupDuplicateConversations(orgId);
+
+    expect(res).toMatchObject({ removed: 0, groups: 1, needsReview: 1 });
+    expect(await prisma.message.count({ where: { conversationId: dup.id, direction: "inbound", body: "Merhaba" } })).toBe(1);
+  });
+
+  it("🚨 aynı metinli İKİ misafir mesajı tutulandaki TEK mesajla kapanmaz (çoklu küme)", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const rid = await sameStayPair(propertyId);
+    await conv(propertyId, rid, "res-A", [
+      { body: "Tamam", direction: "inbound", externalId: "g-1", at: "2026-11-02T10:00:00Z" },
+      { body: "Anahtar nerede?", direction: "inbound", externalId: "g-2", at: "2026-11-02T11:00:00Z" },
+      { body: "Kutuda.", direction: "outbound", externalId: "h-1", at: "2026-11-02T11:05:00Z" },
+    ]);
+    const dup = await conv(propertyId, rid, "res-B", [
+      { body: "Tamam", direction: "inbound", externalId: "g-1", at: "2026-11-02T10:00:00Z" },
+      { body: "tamam ", direction: "inbound", externalId: "g-7", at: "2026-11-04T18:00:00Z" },
+    ]);
+
+    const res = await cleanupDuplicateConversations(orgId);
+
+    expect(res).toMatchObject({ removed: 0, needsReview: 1 });
+    expect(await prisma.message.count({ where: { conversationId: dup.id } })).toBe(2);
+  });
+
+  it("aynı sağlayıcı kimliği ama FARKLI yön → eşleşmez (inceleme)", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const rid = await sameStayPair(propertyId);
+    await conv(propertyId, rid, "res-A", [
+      { body: "Merhaba", direction: "outbound", externalId: "x-1", at: "2026-11-02T10:00:00Z" },
+      { body: "Hoş geldiniz", direction: "outbound", externalId: "x-2", at: "2026-11-02T10:01:00Z" },
+    ]);
+    await conv(propertyId, rid, "res-B", [{ body: "Merhaba", direction: "inbound", externalId: "x-1", at: "2026-11-02T10:00:00Z" }]);
+
+    expect(await cleanupDuplicateConversations(orgId)).toMatchObject({ removed: 0, needsReview: 1 });
+  });
+
+  it("sağlayıcı kimliği bir tarafta var, öbüründe yok → eşleşmez (şüphede inceleme)", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const rid = await sameStayPair(propertyId);
+    await conv(propertyId, rid, "res-A", [
+      { body: "Otopark var mı?", direction: "inbound", externalId: "g-1", at: "2026-11-02T10:00:00Z" },
+      { body: "Evet.", direction: "outbound", externalId: "h-1", at: "2026-11-02T10:05:00Z" },
+    ]);
+    await conv(propertyId, rid, "res-B", [{ body: "Otopark var mı?", direction: "inbound", externalId: null, at: "2026-11-02T10:00:00Z" }]);
+
+    expect(await cleanupDuplicateConversations(orgId)).toMatchObject({ removed: 0, needsReview: 1 });
+  });
+
+  it("kimliksiz yerel mesaj: aynı yön + aynı an + aynı gövde eşleşir, farklı an eşleşmez", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const rid = await sameStayPair(propertyId);
+    await conv(propertyId, rid, "res-A", [
+      { body: "Merhaba", direction: "inbound", externalId: null, at: "2026-11-02T10:00:00Z" },
+      { body: "Teşekkürler", direction: "inbound", externalId: null, at: "2026-11-02T12:00:00Z" },
+    ]);
+    const same = await conv(propertyId, rid, "res-B", [{ body: "  merhaba ", direction: "inbound", externalId: null, at: "2026-11-02T10:00:00Z" }]);
+    const later = await conv(propertyId, rid, "res-C", [{ body: "Merhaba", direction: "inbound", externalId: null, at: "2026-11-04T10:00:00Z" }]);
+
+    const res = await cleanupDuplicateConversations(orgId);
+
+    expect(res).toMatchObject({ removed: 1, needsReview: 1 });
+    expect(await prisma.conversation.count({ where: { id: same.id } })).toBe(0);
+    expect(await prisma.conversation.count({ where: { id: later.id } })).toBe(1);
+  });
+
+  it("KONTROL — kopyanın her mesajı tutulanda AYNI sağlayıcı mesajı olarak varsa (aynı konaklama) kopya silinir", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const rid = await sameStayPair(propertyId);
+    await conv(propertyId, rid, "res-A", [
+      { body: "Merhaba", direction: "inbound", externalId: "g-1", at: "2026-11-02T10:00:00Z" },
+      { body: "Merhaba", direction: "outbound", externalId: "h-1", at: "2026-11-02T10:02:00Z" },
+      { body: "Wi-Fi şifresi?", direction: "inbound", externalId: "g-2", at: "2026-11-02T10:05:00Z" },
+    ]);
+    const dup = await conv(propertyId, rid, "res-B", [
+      { body: "Merhaba", direction: "inbound", externalId: "g-1", at: "2026-11-02T10:00:00Z" },
+      { body: "Merhaba", direction: "outbound", externalId: "h-1", at: "2026-11-02T10:02:00Z" },
+    ]);
+
+    const res = await cleanupDuplicateConversations(orgId);
+
+    expect(res).toMatchObject({ removed: 1, needsReview: 0 });
+    expect(await prisma.conversation.count({ where: { id: dup.id } })).toBe(0);
+    expect(await prisma.message.count()).toBe(3);
   });
 });

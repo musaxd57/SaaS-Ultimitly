@@ -15,10 +15,12 @@ import { prisma } from "@/lib/db";
 //   * Only Hospitable-sourced conversations (externalReservationId set).
 //   * Groups by (propertyId, guest name).
 //   * In each group the conversation with the MOST messages is the "keeper".
-//   * A duplicate is deleted ONLY when EVERY one of its messages (compared by
-//     normalised body) already exists in the keeper — i.e. the keeper is a strict
-//     content superset. If a duplicate holds ANY message the keeper lacks, it is
-//     LEFT untouched (counted in needsReview) for the host to review by hand.
+//   * A duplicate is deleted ONLY when EVERY one of its messages already exists
+//     in the keeper as the SAME message (provider id + direction + body, or —
+//     without a provider id — direction + timestamp + body), counted one to one.
+//     Body text alone is NOT identity (Codex 09-30: the host's "Merhaba" matched
+//     the guest's later "Merhaba"). If a duplicate holds ANY message the keeper
+//     lacks, it is LEFT untouched (counted in needsReview) for manual review.
 //
 // CONTENT SUBSET IS NOT ENOUGH — IDENTITY MUST BE PROVEN (audit 07-25).
 // The body-subset test alone deleted REAL data: a returning guest in the SAME
@@ -56,6 +58,39 @@ function normBody(body: string): string {
 /** Normalise a guest identifier for grouping. */
 function normGuest(name: string | null): string {
   return (name ?? "").trim().toLowerCase();
+}
+
+type MessageIdentity = { externalId: string | null; direction: string; createdAt: Date; body: string };
+
+/**
+ * MESAJ KİMLİĞİ (Codex 09-30, A1): yalnız GÖVDE karşılaştırması ev sahibinin "Merhaba"sını misafirin sonraki
+ * "Merhaba"sıyla eşliyordu → kopya sohbet "alt küme" sayılıp misafirin mesajı SİLİNİYORDU. Artık aynı mesaj = aynı
+ * sağlayıcı kimliği + yön + gövde; sağlayıcı kimliği yoksa aynı yön + aynı an + gövde. Kimliği bir tarafta olup
+ * öbüründe olmayan mesaj EŞLEŞMEZ (şüphede inceleme — silme geri alınamaz).
+ */
+function messageKey(m: MessageIdentity): string {
+  return m.externalId
+    ? JSON.stringify(["x", m.externalId, m.direction, normBody(m.body)])
+    : JSON.stringify(["l", m.direction, m.createdAt.getTime(), normBody(m.body)]);
+}
+
+/**
+ * Kopyanın HER mesajı tutulan sohbette AYRI bir mesajla eşleşiyor mu (çoklu küme: kopyadaki iki "Tamam", tutulandaki
+ * tek "Tamam" ile kapanmaz).
+ */
+function coveredByKeeper(keeper: readonly MessageIdentity[], dup: readonly MessageIdentity[]): boolean {
+  const left = new Map<string, number>();
+  for (const m of keeper) {
+    const k = messageKey(m);
+    left.set(k, (left.get(k) ?? 0) + 1);
+  }
+  for (const m of dup) {
+    const k = messageKey(m);
+    const n = left.get(k) ?? 0;
+    if (n === 0) return false;
+    left.set(k, n - 1);
+  }
+  return true;
 }
 
 /** The identity signals a conversation carries about WHICH stay it belongs to. */
@@ -131,7 +166,7 @@ export async function cleanupDuplicateConversations(
       reservationId: true,
       externalReservationId: true,
       externalConversationId: true,
-      messages: { select: { body: true } },
+      messages: { select: { body: true, externalId: true, direction: true, createdAt: true } },
     },
   });
 
@@ -155,12 +190,10 @@ export async function cleanupDuplicateConversations(
       return (b.lastMessageAt?.getTime() ?? 0) - (a.lastMessageAt?.getTime() ?? 0);
     });
     const keeper = sorted[0];
-    const keeperBodies = new Set(keeper.messages.map((m) => normBody(m.body)));
 
     for (const dup of sorted.slice(1)) {
-      // Delete only when the keeper already contains EVERYTHING this duplicate has.
-      const isSubset = dup.messages.every((m) => keeperBodies.has(normBody(m.body)));
-      if (!isSubset) {
+      // Delete only when the keeper already contains EVERYTHING this duplicate has — message by message (identity, not text).
+      if (!coveredByKeeper(keeper.messages, dup.messages)) {
         result.needsReview++; // divergent — never risk losing a message
         continue;
       }
