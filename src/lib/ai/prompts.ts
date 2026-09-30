@@ -1237,6 +1237,58 @@ export const KB_FEE_RULE_PROMPT_DERIVATION = {
   greetingMissing: derivedFeeGreetingSystem.missing,
 };
 
+// ── KONAKLAMA ERTELEMESİ BİLDİRİMSİZ (`stay-deferral-plain.ts`; anahtar `AI_STAY_DEFERRAL_PLAIN_ENABLED` KAPALI) ─────────────
+// K10'dan beri "mesajınız kaydedildi / ev sahibiniz görebilir" misafire gitmez; Bölüm 7.5'in standart erteleme cümleleri ve üç
+// konaklama örneği bu kuyruğu yine de öğretiyordu (gpt-6-luna harfiyen izliyor → erteleme tutuluyor). YALNIZ bu yerlerde kuyruk
+// kalkar ve açık kural eklenir; devir örnekleri / kuralları (insan talebi, şikâyet, öz-zarar, çıkışı reddetme, sosyal mühendislik)
+// AYNEN kalır. Dört tabanın her birinin üstüne uygulanır (kod selamı / ücret kuralı çapalarıyla çakışmaz).
+export const STAY_DEFERRAL_PLAIN_REPLACEMENTS: readonly Replacement[] = [
+  ['"Bu ev sahibinizin kararıdır; mesajınız\n    kaydedildi, ev sahibiniz görebilir." → defers', '"Bu ev sahibinizin kararıdır." → defers'],
+  ['bu ev sahibinizin kararıdır,\n        mesajınız kaydedildi ve ev sahibiniz görebilir." → "', 'bu ev sahibinizin kararıdır." → "'],
+  ['seçeneği ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir."', 'seçeneği ev sahibinizin kararıdır."'],
+  ['nötr "ev sahibinizin kararı; mesajınız\n        kaydedildi";', 'nötr "ev sahibinizin kararıdır";'],
+  [
+    'Tek standart cümle: "Bu ev sahibinizin\n    kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir." Kararı actionSuggestion ile ev sahibine bırak.',
+    'Tek standart cümle: "Bu ev sahibinizin\n    kararıdır." Kararı actionSuggestion ile ev sahibine bırak. Bu taleplerde "mesajınız kaydedildi / ev sahibiniz\n' +
+      "    görebilir / iletildi\" gibi BİLDİRİM cümlesi YAZMA — sistem o cümleyi misafire göndermez; erteleme cümlesi yeter.",
+  ],
+  ['Standart cümle: "Bu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz\n    görebilir."', 'Standart cümle: "Bu ev sahibinizin kararıdır."'],
+  [
+    "Whether an earlier arrival is possible is the host's call; your request has been recorded and is visible to your host.\"",
+    "Whether an earlier arrival is possible is the host's call.\"",
+  ],
+  ["Availability is the host's call; your dates have been recorded and are visible to your host.\"", "Availability is the host's call.\""],
+  [
+    "Whether luggage drop-off before check-in is possible is the host's call; your request has been recorded and is visible to your host.\"",
+    "Whether luggage drop-off before check-in is possible is the host's call.\"",
+  ],
+];
+
+type SystemPromptBase = "base" | "codeGreeting" | "kbFeeRule" | "codeGreetingKbFeeRule";
+const SYSTEM_PROMPT_BASES: Record<SystemPromptBase, string> = {
+  base: REPLY_SYSTEM_PROMPT,
+  codeGreeting: REPLY_SYSTEM_PROMPT_CODE_GREETING,
+  kbFeeRule: REPLY_SYSTEM_PROMPT_KB_FEE_RULE,
+  codeGreetingKbFeeRule: REPLY_SYSTEM_PROMPT_CODE_GREETING_KB_FEE_RULE,
+};
+const derivedStayDeferral = Object.fromEntries(
+  (Object.keys(SYSTEM_PROMPT_BASES) as SystemPromptBase[]).map((k) => [k, deriveByAnchors(SYSTEM_PROMPT_BASES[k], STAY_DEFERRAL_PLAIN_REPLACEMENTS)]),
+) as Record<SystemPromptBase, { text: string; missing: string[] }>;
+
+/** Pin testi için: türetmede bulunamayan çapalar (her taban için BOŞ olmalı). */
+export const STAY_DEFERRAL_PLAIN_PROMPT_DERIVATION = Object.fromEntries(
+  (Object.keys(derivedStayDeferral) as SystemPromptBase[]).map((k) => [k, derivedStayDeferral[k].missing]),
+) as Record<SystemPromptBase, string[]>;
+
+/**
+ * Cevap modelinin SİSTEM istemi — üç anahtarın birleşimi TEK kaynaktan (`ai/index.ts` bayrakları okur, bu fonksiyon seçer). Üçü de
+ * kapalıyken `REPLY_SYSTEM_PROMPT`; erteleme anahtarı kapalıyken önceki dört sabitin aynısı (pinli).
+ */
+export function replySystemPromptFor(o: { codeGreeting: boolean; kbFeeRule: boolean; stayDeferralPlain: boolean }): string {
+  const key: SystemPromptBase = o.codeGreeting ? (o.kbFeeRule ? "codeGreetingKbFeeRule" : "codeGreeting") : o.kbFeeRule ? "kbFeeRule" : "base";
+  return o.stayDeferralPlain ? derivedStayDeferral[key].text : SYSTEM_PROMPT_BASES[key];
+}
+
 /** Pin testi için: türetmede bulunamayan çapalar (BOŞ olmalı) ve ton başına değişen parça sayısı. */
 export const CODE_GREETING_PROMPT_DERIVATION = {
   systemMissing: derivedSystem.missing,
