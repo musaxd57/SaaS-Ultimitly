@@ -61,6 +61,7 @@ const REASON_TEXT: Record<string, string> = {
   invalid_arrival: "giriş tarihi geçersiz",
   invalid_departure: "çıkış tarihi geçersiz",
   invalid_range: "çıkış tarihi girişten önce",
+  invalid_amount: "tutar negatif olamaz",
 };
 
 const ACTION_TEXT: Record<PreviewRow["action"], string> = {

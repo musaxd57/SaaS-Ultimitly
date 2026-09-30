@@ -84,6 +84,7 @@ type SkipReason =
   | "invalid_arrival"
   | "invalid_departure"
   | "invalid_range"
+  | "invalid_amount"
   | "erased"
   | "cancel_no_ref"
   | "cancel_no_match"
@@ -309,6 +310,12 @@ export const POST = withManage(async (session, req) => {
     }
     if (row.departureDate <= row.arrivalDate) {
       skip("invalid_range", `${rowLabel}: Çıkış tarihi girişten önce olamaz`);
+      continue;
+    }
+    // K1 (kurucu kararı 09-30): negatif tutar ("-100", "(100)") sessizce pozitife çevrilmez — satır açık hatayla reddedilir
+    // (iade / düzeltme anlamı ayrıca kararlaştırılana kadar). Dosyanın diğer satırları normal aktarılır.
+    if (row.totalAmount !== undefined && row.totalAmount < 0) {
+      skip("invalid_amount", `${rowLabel}: Tutar negatif olamaz`);
       continue;
     }
 

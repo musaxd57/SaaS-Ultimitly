@@ -125,10 +125,11 @@ function parseDate(raw: string): Date | null {
 function parseAmount(raw: string): number | undefined {
   const cleaned = raw.replace(/[^\d.,]/g, "");
   if (!cleaned) return undefined;
+  const sign = amountSign(raw);
   const lastSep = Math.max(cleaned.lastIndexOf("."), cleaned.lastIndexOf(","));
   if (lastSep === -1) {
     const n = parseFloat(cleaned);
-    return Number.isNaN(n) ? undefined : n;
+    return Number.isNaN(n) ? undefined : sign * n;
   }
   const afterLast = cleaned.slice(lastSep + 1);
   const sepCount = (cleaned.match(/[.,]/g) ?? []).length;
@@ -138,7 +139,25 @@ function parseAmount(raw: string): number | undefined {
     ? cleaned.replace(/[.,]/g, "")
     : `${cleaned.slice(0, lastSep).replace(/[.,]/g, "")}.${afterLast}`;
   const n = parseFloat(normalized);
-  return Number.isNaN(n) ? undefined : n;
+  return Number.isNaN(n) ? undefined : sign * n;
+}
+
+const MINUS_SIGNS = /[-\u2212\u2013]/; // ASCII eksi, matematik eksisi (U+2212), en tire (U+2013)
+
+/**
+ * Tutarın İŞARETİ (K1, kurucu kararı 09-30): eskiden rakam dışı her şey silindiği için "-100" / "(100)" sessizce +100
+ * kaydediliyordu (kayıtlı tutar yanlış). Negatif = ilk rakamdan ÖNCE ya da son rakamdan SONRA eksi işareti ("-₺100",
+ * "TRY -1.500", "100-") ya da muhasebe parantezi "(100)". Negatif satır içe aktarmada açık hatayla REDDEDİLİR (rota);
+ * iade / düzeltme anlamı ayrıca kararlaştırılana kadar. Doğrusal.
+ */
+function amountSign(raw: string): 1 | -1 {
+  const t = raw.trim();
+  const first = t.search(/\d/);
+  if (first === -1) return 1;
+  let last = t.length - 1;
+  while (last >= 0 && !(t[last] >= "0" && t[last] <= "9")) last--;
+  if (MINUS_SIGNS.test(t.slice(0, first)) || MINUS_SIGNS.test(t.slice(last + 1))) return -1;
+  return t.startsWith("(") && t.endsWith(")") ? -1 : 1;
 }
 
 /**
