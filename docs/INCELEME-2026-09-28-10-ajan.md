@@ -13,7 +13,7 @@ Durum: **F** = düzeldi · **K** = kurucu kararı · **N** = bilinen sınır / n
 |---|---|---|---|
 | a1-1 | K8 bürünme | Süre dolunca "Kendi hesabıma dön" 401 alıyor, kabuk "tekrar deneyin" diyordu (hiç çalışmaz) | F — oturum kapatılır |
 | a1-2 | K8 | `api.ts` / `audit.ts` yorumları yanlıştı (çıkış kapıdan geçer; başlangıç kaydı zorunlu) | F |
-| a1-3 | K8 | Mekanik pin: `export *`, `route.tsx`, metin eşleşmesiyle kontrol — bugün kodda örnek YOK | N (pin davranışsal yapılabilir) |
+| a1-3 | K8 | Mekanik pin: `export *`, `route.tsx`, metin eşleşmesiyle kontrol — bugün kodda örnek YOK | F (`1a0fe4b`, `7f171e4`: `export *` ve temiz ayrıştırılamayan rota dosyası tanınmayan kayıt, route.tsx / .js taranır; mutasyon 5/5) |
 | a1-4 | K8 | Operatör QR bağlantısını açarsa konaklamayı kendi tarayıcısına bağlar; `/api/admin/export` bürünmede çalışır; teşhis rotası token yeniler | K |
 | a2-1 | K10-t | 8.000+ karakterlik zararsız mesajda tek "gas station" / "Acil değil ama" → Sorunlu + acil e-posta (kelime ağı alt dize) | K (kelime ağı kararıyla) |
 | a2-2 | K10-t | "AI öner" cevap verdiği uzun mesajı, arkasında giden mesaj varsa modele TAM gönderiyordu | F |
@@ -33,7 +33,7 @@ Durum: **F** = düzeldi · **K** = kurucu kararı · **N** = bilinen sınır / n
 | a5-1 | Migration 57 | Hitap adı maskeleme listelerinde yok (denetçi, gölge, üslup, QR, eval) | F |
 | a5-2 | Migration 57 | Selam adı ↔ silme anahtarı çelişkisi (güvenlik sözcüğü) | F (Codex değişikliği: ad her zaman anahtar) |
 | a5-3 | Migration 57 | NUL karakteri → rezervasyon yazması her senkronda düşer | F (`canonicalStr`) |
-| a5-4 | Migration 57 | `GUEST_NAME_SOURCES` yazma yerlerinde tip değil; iCal / dosya eski satırı damgalamıyor; anonim satır kökeni "channel" | N |
+| a5-4 | Migration 57 | `GUEST_NAME_SOURCES` yazma yerlerinde tip değil; iCal / dosya eski satırı damgalamıyor; anonim satır kökeni "channel" | F (tip: `2b7c276`, her yazma `satisfies GuestNameSource` + pin) · N (iCal güncellemesi zaten damgalar; değişmeyen satıra yazma yok — kural; anonim satırın kökeni bugün hiçbir yüzeyce okunmuyor) |
 | a6-1 | D selam | "Ateş" / "Alev" adlı misafirin yangın bildirimi (kelime ağında ateş/alev yok) | K (ateş/alev kalıbı) — D açılmadan önce şart |
 | a6-2..5 | D selam | Selam soyucu içerik siliyor ("Günaydın Steakhouse"), "¡Hola!" / "Good morning" / "Sayın misafirimiz" / yalnız-selam, Rusça "Здравствуйте, [Misafir]!", büyük harf yerel ayarı | F (`65e6c76`, anahtar KAPALI) — kapalı hitap listesi; tanınmayan hitap / içerik → dokunulmaz + kod selamı eklenmez |
 | a6-6 | D selam | Ayarlar önizlemesi hitap adını hiç vermiyor (hep "Merhaba,") | Açık (D öncesi; önizlemede örnek ad mı, adsız mı — ürün sorusu) |
