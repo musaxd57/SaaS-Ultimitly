@@ -690,8 +690,23 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
             })
           ).map((r) => r.triggerId),
     );
+    // 🚨 TESLİM EDİLMEMİŞ GİDEN MESAJ CEVAP DEĞİLDİR (Codex 09-30, A6) — ↓`getAiOpsReport` ile AYNI kural: kuyrukta bekleyen,
+    // gönderim anında iptal edilen, kalıcı düşen ya da incelemeye park edilen taslak misafire ULAŞMADI; yanıt oranını
+    // şişiriyordu (aynı kartta yapay zekâ sayımı onları zaten dışlıyordu). Kuyruk bayrağı kapalıyken tablo boş → davranış aynı.
+    const outboundIds = recentMessages.filter((m) => m.direction === "outbound").map((m) => m.id);
+    const undelivered = new Set(
+      outboundIds.length === 0
+        ? []
+        : (
+            await prisma.messageOutbox.findMany({
+              where: { organizationId: orgId, status: { not: "sent" }, messageId: { in: outboundIds } },
+              select: { messageId: true },
+            })
+          ).map((r) => r.messageId),
+    );
     const grouped = new Map<string, { direction: string; createdAt: Date; noReplyNeeded: boolean }[]>();
     for (const m of recentMessages) {
+      if (m.direction === "outbound" && undelivered.has(m.id)) continue;
       const row = { direction: m.direction, createdAt: m.createdAt, noReplyNeeded: noReplyIds.has(m.id) };
       const arr = grouped.get(m.conversationId);
       if (arr) arr.push(row);

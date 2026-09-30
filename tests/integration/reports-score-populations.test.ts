@@ -137,6 +137,40 @@ describe("performans skoru — pay ve payda AYNI popülasyondan gelir", () => {
     expect(score.breakdown.complaintRate).toBe(50);
   });
 
+  it("🚨 teslim EDİLMEMİŞ giden mesaj (kuyrukta / iptal / düşmüş) yanıt SAYILMAZ; teslim edilen sayılır (Codex 09-30 A6)", async () => {
+    async function thread(outboxStatus: string | null) {
+      const c = await conv({ createdAt: ago(3), lastMessageAt: ago(2) });
+      await prisma.message.create({
+        data: { conversationId: c.id, direction: "inbound", senderName: "G", body: "soru", createdAt: agoMs(40 * 60 * 60 * 1000) },
+      });
+      const reply = await prisma.message.create({
+        data: { conversationId: c.id, direction: "outbound", senderName: "GuestOps AI", authorType: "ai", body: "cevap", createdAt: agoMs(39 * 60 * 60 * 1000) },
+      });
+      if (outboxStatus) {
+        await prisma.messageOutbox.create({
+          data: {
+            organizationId: orgId,
+            conversationId: c.id,
+            messageId: reply.id,
+            channel: "airbnb",
+            externalReservationId: `r-${c.id}`,
+            body: "cevap",
+            status: outboxStatus,
+            idempotencyKey: `k-${c.id}`,
+            availableAt: new Date(),
+          },
+        });
+      }
+    }
+    for (const status of ["pending", "canceled", "failed", "review"]) await thread(status);
+    await thread("sent");
+    await thread(null); // kuyruksuz (satır içi) teslim
+
+    const score = await getHostPerformanceScore(orgId);
+    // 6 bölüm: yalnız "sent" ve kuyruksuz teslim cevap → 2/6 = %33 (eskiden 6/6 = %100).
+    expect(score.breakdown.responseRate).toBe(33);
+  });
+
   it("YENİ ORG: dairesi var, rezervasyonu yok → boş durum (F/Kritik DEĞİL)", async () => {
     const score = await getHostPerformanceScore(orgId);
     expect(score.breakdown.occupancyRate).toBeNull();
