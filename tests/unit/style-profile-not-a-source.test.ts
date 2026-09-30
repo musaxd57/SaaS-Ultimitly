@@ -122,4 +122,17 @@ describe("kaynak doğrulaması: 'history' yalnız gerçek sohbet geçmişi varke
     expect(r.usedSources).toEqual(["history"]);
     expect(r.sourceAudit).toEqual({ declared: 1, verified: 1 });
   });
+
+  it("🚨 geçmişte YALNIZ misafir satırı varsa 'history' doğrulanmaz — kanal / gelen kutusu güncel mesajı da geçmişe koyar (inceleme b4)", async () => {
+    // Kanal oto-yanıtı ve gelen kutusu önerisi güncel misafir mesajını geçmişe de koyar → "geçmiş boş değil" hiç yanlış olmuyordu ve
+    // rehberden alınmış bir olgu "history" beyanıyla doğrulanıyordu. Dayanak ev sahibinin / bizim önceki CEVABIMIZDIR; misafirin
+    // kendi yazdığı olgu değildir (yankı).
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    openAiReturns(OUTPUT);
+    const r = await suggestReply(
+      input({ styleProfile: "- Otopark günlük 150 TL", history: [{ direction: "inbound", body: "Otopark var mı?" }] }),
+    );
+    expect(r.usedSources).toEqual([]);
+    expect(r.sourceAudit).toEqual({ declared: 1, verified: 0 });
+  });
 });

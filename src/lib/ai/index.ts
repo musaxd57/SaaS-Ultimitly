@@ -85,7 +85,10 @@ function verifyUsedSources(list: string[], input: SuggestReplyInput): string[] {
     // "history" = YALNIZ bu sohbetin geçmişi (F13 kalıntısı, 09-26). Eskiden üslup rehberi de "history" sayılıyordu
     // (istem "rehberden alınan olgular 'history' etiketlenir" diyordu): geçmiş BOŞKEN rehber varsa beyan doğrulanıyor,
     // rehberden alınmış bir "olgu" arayüzde kanıtlı görünüyordu. Rehber yalnız üsluptur, dayanak değildir.
-    if (src === "history") return Boolean(input.history && input.history.length > 0);
+    // İnceleme b4 (09-30): "geçmiş boş değil" yetmez — kanal oto-yanıtı ve gelen kutusu önerisi güncel misafir mesajını da geçmişe
+    // koyar, koşul ana yüzeylerde hiç yanlış olmuyordu. Dayanak ev sahibinin / bizim önceki CEVABIMIZDIR (giden satır); misafirin
+    // kendi yazdığı olgu dayanak değildir (yankı).
+    if (src === "history") return Boolean(input.history?.some((m) => m.direction === "outbound"));
     return false; // unknown shape → drop
   });
 }

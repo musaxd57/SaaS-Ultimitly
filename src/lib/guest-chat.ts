@@ -12,7 +12,14 @@ import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { styleProfileBody } from "@/lib/ai/style-profile";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, type GuestPlaceholderValues } from "@/lib/kb-placeholders";
-import { foldTurkishLower, foldTurkishAscii, classifyFallback, isClosingAck } from "@/lib/ai/fallback";
+import {
+  foldTurkishLower,
+  foldTurkishAscii,
+  classifyFallback,
+  isClosingAck,
+  detectKbInstructionHijack,
+  detectPromptInjection,
+} from "@/lib/ai/fallback";
 import {
   historyAuthorOf,
   LEGACY_AI_RESUME_SENDER,
@@ -468,7 +475,14 @@ export function scrubStyleProfileForPublic(profile: string | null | undefined): 
  * (yapısal pin `style-profile-channel-scrub.test.ts`).
  */
 export function styleProfileForPrompt(stored: string | null | undefined): string | null {
-  return scrubStyleProfileForPublic(styleProfileBody(stored));
+  const scrubbed = scrubStyleProfileForPublic(styleProfileBody(stored));
+  if (!scrubbed) return null;
+  // 🚨 TALİMAT SATIRI İSTEME GİRMEZ (inceleme b4, 09-30): profil yalnız sürüm işareti + sır süzgecinden geçiyordu — bilgi
+  // tabanına uygulanan talimat-ele-geçirme süzgeci ("Ignore all previous instructions…", "Yeni rolün: …") ve sahte geçmiş
+  // etiketi ("[OPERATİF]: …") profilde hiç koşmuyordu. Profil yalnız üsluptur; talimat taşıyan satır düşer, üslup satırları kalır.
+  const kept = scrubbed.split("\n").filter((line) => !detectKbInstructionHijack(line) && !detectPromptInjection(line));
+  const out = kept.join("\n").trim();
+  return out.length > 0 ? out : null;
 }
 
 /** Unguessable per-apartment chat token — two UUIDs, ~256-bit (icalToken style). */
