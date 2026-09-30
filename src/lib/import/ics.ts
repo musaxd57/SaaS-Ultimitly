@@ -16,7 +16,8 @@ export interface IcsReservation {
 
 /** Unfold RFC 5545 long lines (continuation lines start with space or tab). */
 function unfoldLines(text: string): string {
-  return text.replace(/\r?\n[ \t]/g, "");
+  // Satır sonu CRLF, LF ya da (eski Mac dışa aktarımı) YALNIZ CR olabilir — üçü de katlama sınırıdır (inceleme b1, 09-30).
+  return text.replace(/(?:\r\n|\n|\r)[ \t]/g, "");
 }
 
 /**
@@ -192,7 +193,7 @@ export function parseIcs(text: string): IcsReservation[] {
 
 export function parseIcsDetailed(text: string): IcsParseResult {
   const unfolded = unfoldLines(text);
-  const lines = unfolded.split(/\r?\n/);
+  const lines = unfolded.split(/\r\n|\n|\r/);
 
   const results: IcsReservation[] = [];
   const reasons = new Set<IcsIncompleteReason>();
@@ -221,7 +222,9 @@ export function parseIcsDetailed(text: string): IcsParseResult {
       continue;
     }
 
-    if (line === "BEGIN:VEVENT") {
+    // Bileşen adları büyük/küçük harf duyarsızdır (RFC 5545 §3.1 — takvim sınırlarıyla aynı kural; küçük harfli "begin:vevent"
+    // etkinliği sessizce düşürüyordu, inceleme b1 09-30).
+    if (upper === "BEGIN:VEVENT") {
       // Önceki etkinlik END:VEVENT görmeden yenisi başladı → önceki etkinlik kayboldu.
       if (inEvent) reasons.add("unreadable_event");
       inEvent = true;
@@ -229,7 +232,7 @@ export function parseIcsDetailed(text: string): IcsParseResult {
       continue;
     }
 
-    if (line === "END:VEVENT") {
+    if (upper === "END:VEVENT") {
       // Başlangıcı olmayan bitiş: bir etkinliğin BEGIN satırı kayıp (özellikleri okunmadan geçildi).
       // Eskiden ÖNCEKİ etkinliğin alanlarıyla ikinci kez işleniyordu (aynı etkinlik iki kez).
       if (!inEvent) {

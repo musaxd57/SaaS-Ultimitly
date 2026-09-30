@@ -285,6 +285,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // Every UID seen in THIS feed (incl. cancelled ones) → used below to reconcile
   // reservations that silently disappeared from the feed.
   const seenRefs = new Set<string>();
+  // 🚨 BİR GEÇİŞTE KAYIT BAŞINA İLK SATIR (inceleme b1, 09-30 — dosyadan içe aktarmayla AYNI kural): aynı UID (ya da UID'siz
+  // satırda aynı tarih çifti) ikinci kez gelirse atlanır. Aksi hâlde tekrarlayan etkinliğin iptal edilmiş örneği (aynı UID)
+  // rezervasyonu her geçişte iptal ↔ yeniden onay arasında çalkalıyordu; geçiş iptalle bittiği için dışa aktarılan takvim o
+  // geceleri kapatmıyordu. Okuma zaten `duplicate_uid` ile eksik sayılır (kaynak 'partial', neden ev sahibine görünür).
+  const actedKeys = new Set<string>();
   // #4 (Codex): keep only the FIRST row-failure sample; a SINGLE aggregate
   // reportError fires after the loop (never one-per-row → no event/log flood).
   let firstRowError: unknown;
@@ -303,6 +308,14 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       result.skipped++;
       continue;
     }
+    const identityKey = row.sourceReference
+      ? `uid:${row.sourceReference}`
+      : `dates:${row.arrivalDate.getTime()}|${row.departureDate.getTime()}`;
+    if (actedKeys.has(identityKey)) {
+      result.skipped++;
+      continue;
+    }
+    actedKeys.add(identityKey);
     // WRITE-TX (RACE MODEL, erasure.ts): every row write runs inside the
     // org-scoped erasure advisory lock with a FRESH guard read — either this
     // commits before an erasure (which then masks it) or it sees the fresh
@@ -349,7 +362,22 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
                   select: SYNC_COMPARE_SELECT,
                 })
               : null;
-          const existing = bound ?? legacy;
+          // 🚨 UID'SİZ ETKİNLİK (inceleme b1, 09-30): kimliği olmadığı için her geçişte YENİ rezervasyon (ve görevleri) açılıyordu
+          // (günde ~96 kopya). Dosyadan içe aktarmayla aynı doğal anahtar: BU kaynağın aynı tarihli UID'siz satırı aynı kayıttır.
+          const uidless = !row.sourceReference
+            ? await tx.reservation.findFirst({
+                where: {
+                  propertyId: source.propertyId,
+                  calendarSourceId: source.id,
+                  sourceReference: null,
+                  arrivalDate: row.arrivalDate,
+                  departureDate: row.departureDate,
+                },
+                orderBy: { createdAt: "asc" },
+                select: SYNC_COMPARE_SELECT,
+              })
+            : null;
+          const existing = bound ?? legacy ?? uidless;
 
           // Feed explicitly marks the booking CANCELLED → reflect it locally (cancel +
           // drop the auto tasks), never import it as a live stay.
