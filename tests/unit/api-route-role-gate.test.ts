@@ -98,8 +98,8 @@ const STAFF_REACHABLE: Record<string, { reason: string; scope: RegExp }> = {
     scope: /if \(!canManage\(session\) && task\.assignedToId !== session\.userId\)/,
   },
   "storage/photo/[...key] GET": {
-    reason: "yalnız bu org'un nesnesi ve bir TaskUpdate'in HÂLÂ gösterdiği fotoğraf (F11)",
-    scope: /if \(orgIdFromKey\(key\) !== session\.organizationId\)/,
+    reason: "yalnız bu org'un nesnesi, bir TaskUpdate'in HÂLÂ gösterdiği fotoğraf (F11) ve personel için KENDİNE atanmış görev (K2)",
+    scope: /\.\.\.\(canManage\(session\) \? \{\} : \{ assignedToId: session\.userId \}\)/,
   },
 };
 

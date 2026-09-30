@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/route-guard";
-import { notFound } from "@/lib/api";
+import { canManage, notFound } from "@/lib/api";
 import { getStorageConfig } from "@/lib/storage/config";
 import { isSafeObjectKey, orgIdFromKey, photoUrlForKey, taskIdFromKey } from "@/lib/storage/keys";
 import { prisma } from "@/lib/db";
@@ -13,8 +13,8 @@ import { presignGetUrl, SIGNED_URL_DEFAULT_TTL_S } from "@/lib/storage/s3";
 // same-origin path, so <img>/<a> rendering works unchanged and the browser
 // follows the redirect.
 //
-//   • withAuth: any signed-in member of the OWNING org (staff included — task
-//     photos are their core flow). Middleware/API boundaries stay as they are.
+//   • withAuth: any signed-in member of the OWNING org. Staff only for a task CURRENTLY assigned to them (K2, 09-30:
+//     a reassigned task's photos close for the previous assignee); owner / manager see every task's photos.
 //   • Tenant check = the key's org segment vs the session org. A foreign or
 //     malformed key is a 404 (never confirm existence cross-tenant).
 //   • Works whenever the provider CREDENTIALS are configured — deliberately
@@ -41,7 +41,14 @@ export const GET = withAuth<{ key: string[] }>(async (session, _req, { params })
   // Indexed lookup first (the upload flow attaches a key to ITS OWN task); the broad lookup only on a miss, because
   // rows written before the PATCH task-binding rule may point at another task's key and are still rendered.
   const servePath = photoUrlForKey(key);
-  const inOrg = { task: { property: { organizationId: session.organizationId } } };
+  // 🚨 K2 (kurucu kararı 09-30): personel YALNIZ kendisine ŞU AN atanmış görevin fotoğrafını açar — görev başkasına geçince
+  // eski bağlantı da kapanır (aynı işletme içinde bile). Yönetici / sahip hepsini açar. Görev erişimiyle aynı kural.
+  const inOrg = {
+    task: {
+      property: { organizationId: session.organizationId },
+      ...(canManage(session) ? {} : { assignedToId: session.userId }),
+    },
+  };
   const referenced =
     (await prisma.taskUpdate.findFirst({ where: { taskId: taskIdFromKey(key) ?? "", photoUrl: servePath, ...inOrg }, select: { id: true } })) ??
     (await prisma.taskUpdate.findFirst({ where: { photoUrl: servePath, ...inOrg }, select: { id: true } }));

@@ -226,6 +226,22 @@ describe("serve — authenticated 302 to a SHORT-LIVED signed URL, tenant-checke
     expect((await serveGET(req, serveCtx(key))).status).toBe(404); // görev silindi → sunulmaz
   });
 
+  it("🚨 K2: görev başka personele geçince ESKİ personel fotoğrafı açamaz; yeni atanan ve yönetici açar", async () => {
+    const { orgId, taskId, userId } = await seed("staff", { assignToUser: true });
+    stubStorageEnv(false);
+    const key = `org/${orgId}/task/${taskId}/900-photo.png`;
+    await prisma.taskUpdate.create({ data: { taskId, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + key } });
+    expect((await serveGET(req, serveCtx(key))).status).toBe(302); // atanmışken açar
+    const other = await prisma.user.create({ data: { organizationId: orgId, name: "V", email: "v-k2@x.com", passwordHash: "x", role: "staff" } });
+    await prisma.task.update({ where: { id: taskId }, data: { assignedToId: other.id } });
+    expect((await serveGET(req, serveCtx(key))).status).toBe(404); // görevden alındı → kapandı
+    session = { userId: other.id, organizationId: orgId, role: "staff", email: other.email, name: "V", sessionEpoch: 0 };
+    expect((await serveGET(req, serveCtx(key))).status).toBe(302); // yeni atanan açar
+    const manager = await prisma.user.create({ data: { organizationId: orgId, name: "M", email: "m-k2@x.com", passwordHash: "x", role: "manager" } });
+    session = { userId: manager.id, organizationId: orgId, role: "manager", email: manager.email, name: "M", sessionEpoch: 0 };
+    expect((await serveGET(req, serveCtx(key))).status).toBe(302); // yönetici hepsini açar
+  });
+
   it("F11 aşırı uygulama yok: görev-bağı kuralından ÖNCE başka göreve iliştirilmiş eski satır hâlâ sunulur", async () => {
     // Pano bu satırları çiziyor (`isRenderablePhotoUrl` görev şartı aramaz) → sunum da kırılmamalı.
     const { orgId, propertyId, taskId, userId } = await seed("owner");
