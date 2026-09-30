@@ -49,6 +49,9 @@ function handlersOf(rel: string, text: string): Handler[] {
   const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, kind);
   const dir = rel.replace(ROUTE_FILE, "");
   const out: Handler[] = [];
+  // Temiz ayrıştırılamayan dosyada tarayıcının gördüğü uçlar eksik / bozuk olabilir → TANINMAYAN kayıt (kırmızı), sessizce geçmez.
+  const parseDiagnostics = (sf as unknown as { parseDiagnostics?: readonly unknown[] }).parseDiagnostics;
+  if (!Array.isArray(parseDiagnostics) || parseDiagnostics.length > 0) out.push({ key: `${dir} !parse`, wrapped: false, body: "" });
   const exported = (n: ts.Node) => (ts.getCombinedModifierFlags(n as ts.Declaration) & ts.ModifierFlags.Export) !== 0;
   for (const st of sf.statements) {
     if (ts.isFunctionDeclaration(st) && st.name && exported(st)) {
@@ -110,14 +113,17 @@ describe("K8 — her yazma ucu salt-okunur bürünmeyi uygular", () => {
     }
   });
 
-  it("🚨 hiçbir rota dosyası işleyicilerini `export *` ile gizlemez (tarayıcı göremez)", () => {
-    expect(all.filter((h) => h.key.endsWith(" *")).map((h) => h.key)).toEqual([]);
+  it("🚨 hiçbir rota dosyası işleyicilerini `export *` ile gizlemez ve her rota dosyası temiz ayrıştırılır", () => {
+    expect(all.filter((h) => h.key.endsWith(" *") || h.key.endsWith(" !parse")).map((h) => h.key)).toEqual([]);
   });
 
   it("tarayıcının kendisi: `export *`, yeniden adlandırılmış dışa verme ve route.tsx görünür (09-28 inceleme)", () => {
     expect(handlersOf("x/route.ts", 'export * from "./impl";').map((h) => h.key)).toEqual(["x *"]);
     expect(handlersOf("x/route.ts", "const h = async () => 1;\nexport { h as POST };").map((h) => [h.key, h.wrapped])).toEqual([["x POST", false]]);
     expect(handlersOf("y/route.tsx", "export const POST = withAuth(async () => 1);").map((h) => [h.key, h.wrapped])).toEqual([["y POST", true]]);
+    // JSX taşıyan route.tsx kendi diliyle ayrıştırılır (TS olarak okunsa ayrıştırma hatası → tanınmayan kayıt).
+    expect(handlersOf("y/route.tsx", "export const GET = withAuth(async () => <div>a</div>);").map((h) => h.key)).toEqual(["y GET"]);
+    expect(handlersOf("z/route.ts", "export const GET = withAuth(async () => <div>a</div>);").map((h) => h.key)).toContain("z !parse");
     expect(ROUTE_FILE.test("a/b/route.tsx") && ROUTE_FILE.test("a/route.js") && !ROUTE_FILE.test("a/router.ts")).toBe(true);
   });
 
