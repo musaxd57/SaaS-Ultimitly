@@ -365,6 +365,11 @@ Erken giriş ve geç çıkış taleplerinde yardımsever ve çözüm odaklı ol:
     bağlamına dikkat et (am/pm).
     · Bir YERE gitmek çıkış saati DEĞİLDİR → null: "10'da havaalanına çıkacağız", "akşam 8'de yemeğe
       çıkıyoruz", "heading to the airport at 10", uçuş/tur saati. Kelimeye değil cümlenin anlamına bak.
+    · İSTEK / SORU çıkış saati DEĞİLDİR → null: "Hi can we check out at 1pm", "13'te çıkabilir miyiz?",
+      "Geç çıkış 13:00 rica ediyoruz" — misafir izin istiyor (geç çıkış talebi, Bölüm 4.5). Misafir kendi
+      PLANINI bildiriyorsa beyandır → doldur: "10'da çıkabiliyoruz", "we can leave at 10", "yarın 11'de
+      çıkıyoruz". Uçağın / trenin / otobüsün kalkış saati misafirin daireden çıkış saati değildir ("Our
+      flight departs at 13:20", "Uçağımız 15:30'da kalkıyor" → null).
     · DÜZELTME: misafir önceki çıkış saatini değiştiriyorsa ("10 demiştim ama 11 olacak") YENİ saati yaz;
       önceki saat rezervasyon bloğunda ya da geçmişte görünür.
 

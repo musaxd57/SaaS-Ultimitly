@@ -119,6 +119,17 @@ const QUESTION_CLAUSE =
   /(?:^|\s)m[ıiuü](?:y[ıiuü][mz]|s[ıiuü]n(?:[ıiuü]z)?|d[ıiuü]r)?(?=\s|$)|ç[ıi]ksa[kmn]|ayr[ıi]lsa[kmn]|(?:çıkış|cikis)\s+yapsa[kmn]|^\s*(?:can|could|may|might|would|will|shall|should|is|are|do|does)\s+(?:we|i|it|a|the|there|you)(?=\s)|any\s+chance|(?:^|\s)(?:können|dürfen|könnten)\s+wir|est-ce\s+qu|pouvons-nous|peut-on|¿|(?:^|\s)(?:podemos|podríamos)\s/;
 
 /**
+ * İSTEK / İZİN İSTEME biçimi de beyan değildir (K11, kurucu kararı 09-30: "bağlamdan, sorudan anlamalı — 'Hi can we check out
+ * at 1pm' çıkış saati beyanı DEĞİL; '10'da çıkabiliyoruz' beyandır"). Soru SIRASI (yardımcı fiil + özne: "can we", "could we",
+ * "is it", "do we") cümleciğin BAŞINDA olmak zorunda değil — selamdan sonra da ("Hi can we…", "Hey guys can we…") sorudur; düz
+ * sıra ("we can leave at 10") beyandır. Rica / izin kalıpları: "rica", "mümkünse", "izin verirseniz", "possible", "if we could",
+ * "I wonder if", "let us", "would like to …", "we'd love". Sözcük yasağı değil, BİÇİM: aynı "can" düz sırada beyan kalır.
+ * Yanlış tanıma güvenli yöndedir (saat kaydedilmez, mesaj yine ev sahibinin önünde).
+ */
+const REQUEST_CLAUSE =
+  /(?:^|\s)(?:can|could|may|might|would|will|shall|should)\s+(?:we|i|you)(?=\s)|(?:^|\s)(?:is|are|do|does|did)\s+(?:it|there|we|you)(?=\s)|possible|m[öo]glich|posible|if\s+(?:we|i)\s+(?:can|could|may|might)(?=\s)|wonder(?:ing)?\s+if|(?:^|\s)(?:let|allow)\s+us(?=\s)|(?:would|'d)\s+(?:like|love)\s+(?:to|a)(?=\s)|(?:^|\s)request|rica|m[üu]mk[üu]n|izin\s+ver|m[üu]saade/;
+
+/**
  * BAŞKA BİR ARACIN kalkışı ve NESNELİ "leave" çıkış değildir (kör batarya 09-25): "Our train leaves at 10", "Our flight
  * departs at 13:20", "Our bus departs at 12, so we'll leave at 11", "Trenimiz 10'da gidiyor", "We'll leave the car at the
  * airport at 9". İpucu testinden ÖNCE nötrlenir (↓ulaç gibi); aynı mesajdaki gerçek ipucu ("we'll leave at 11") kalır.
@@ -172,6 +183,8 @@ function normalizeMessage(message: string): string {
       .replace(/[\u2018\u2019\u02BC\u2032\u00B4`]/g, "'")
       .replace(/[^\S\n]+/g, " ")
       .toLowerCase()
+      // "İ" küçük harfe "i" + birleştirici nokta (U+0307) olarak iner: "İzin verirseniz" ipucu kalıplarına uymuyordu (K11, 09-30).
+      .replace(/\u0307/g, "")
       // "10 a.m." — noktalar cümle bölücüsüne takılıp saati ipucundan ayırıyordu (kör batarya 09-25).
       .replace(/(?<![a-z])([ap])\.\s?m\.?(?![a-z])/g, "$1m")
   );
@@ -235,7 +248,10 @@ export function timeStatedInMessage(hhmm: string, message: string): boolean {
     // ⚠️ İKİ NOKTA rakamlar ARASINDA bölünemez — "18:00" saatin kendisidir.
     const clauses = sentence.split(CLAUSE_SEPARATOR);
     const notStatement = (j: number) =>
-      DEPARTURE_INABILITY.test(clauses[j]) || QUESTION_CLAUSE.test(clauses[j]) || (question && j === clauses.length - 1);
+      DEPARTURE_INABILITY.test(clauses[j]) ||
+      QUESTION_CLAUSE.test(clauses[j]) ||
+      REQUEST_CLAUSE.test(clauses[j]) ||
+      (question && j === clauses.length - 1);
     for (let i = 0; i < clauses.length; i++) {
       if (!CHECKOUT_CUE.test(clauses[i])) continue;
       // Genel olumsuz kalıplar, yapamama ve soru YALNIZ kendi cümleciğini bağlar (↑CLAUSE_NEGATION, ↑DEPARTURE_INABILITY).
@@ -494,7 +510,7 @@ export function timeCorrectedInMessage(previousHhmm: string, newHhmm: string, me
     const newTimeClauseOk = (at: number) => {
       const clause = clauseAround(sentence, at);
       // Yapamama ve soru/istek cümleciğindeki saat yeni beyan değildir ("11 değil 12'de çıkabilir miyiz?").
-      if (DEPARTURE_INABILITY.test(clause) || QUESTION_CLAUSE.test(clause)) return false;
+      if (DEPARTURE_INABILITY.test(clause) || QUESTION_CLAUSE.test(clause) || REQUEST_CLAUSE.test(clause)) return false;
       if (question && sentence.slice(at).search(CLAUSE_SEPARATOR) === -1) return false;
       return CORRECTION_CUE.test(clause) || CHECKOUT_CUE.test(clause) || isTimeOnlyClause(clause);
     };
