@@ -100,7 +100,8 @@ describe("parseAuditReport — kapalı-set doğrulama", () => {
       IDS,
     );
     expect(r.findings).toHaveLength(1);
-    expect(r.findings[0].severity).toBe("low");
+    // Bilinmeyen önem derecesi YÜKSEK sayılır (inceleme b4, 09-30: "critical" düşük görünüyordu).
+    expect(r.findings[0].severity).toBe("high");
     expect(r.findings[0].criterion).toBe("diger");
     // Düşen bulgu SAYILIR ve rapor eksik sayılır (F15): "1 bulgu" tam değerlendirme değildir.
     expect(r.dropped.invalid).toBe(1);
@@ -131,6 +132,27 @@ describe("F15 — değerlendirme durumu", () => {
     expect(report({ overall: "   ", findings: [] })).toMatchObject({ status: "inconclusive", missing: ["overall"] });
     expect(report({ overall: "Uygun." })).toMatchObject({ status: "inconclusive", missing: ["findings"] });
     expect(report({ overall: "Uygun.", findings: "yok" })).toMatchObject({ status: "inconclusive", missing: ["findings"] });
+  });
+
+  it("🚨 okuma tavanını (200) aşan bulgu listesi 'Bulgu yok' OLMAZ — ilk 200 okunur, fazlası okunmamış sayılır → eksik (inceleme b4)", () => {
+    const f = (i: number) => ({ messageId: "m1", severity: "low", criterion: "uslup", issue: `bulgu ${i}` });
+    const r = report({ overall: "Çok bulgu.", findings: Array.from({ length: 201 }, (_, i) => f(i)) });
+    expect(r.status).toBe("inconclusive");
+    expect(r.dropped.invalid).toBe(1);
+    expect(r.findings).toHaveLength(60);
+    expect(r.hiddenFindings).toBe(140);
+  });
+
+  it("🚨 uzun genel değerlendirme atılmaz, kırpılır; 60'tan fazla geçerli bulgu sessizce kesilmez (gizlenen sayılır)", () => {
+    const r = report({ overall: "a".repeat(3500), findings: [] });
+    expect(r.overall).toBe("a".repeat(3000));
+    expect(r.status).toBe("evaluated");
+    const many = report({
+      overall: "x",
+      findings: Array.from({ length: 70 }, (_, i) => ({ messageId: "m1", severity: "low", criterion: "uslup", issue: `b${i}` })),
+    });
+    expect(many).toMatchObject({ status: "evaluated", hiddenFindings: 10 });
+    expect(many.findings).toHaveLength(60);
   });
 
   it("tam rapor + bulgusuz → evaluated (yeşil 'uygun' YALNIZ burada)", () => {

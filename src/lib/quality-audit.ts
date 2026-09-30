@@ -505,15 +505,28 @@ export interface AuditReport {
   testSuggestions: string[];
   /** Raporda olmayan ya da geçersiz zorunlu alanlar (`overall`, `findings`). */
   missing: string[];
-  /** Listeye ALINMAYAN bulgular: okunamayan (şema dışı) ve örneklemde olmayan mesaja ait olanlar. */
+  /**
+   * Listeye ALINMAYAN bulgular: okunamayan (şema dışı ya da okuma tavanının — 200 — ötesinde) ve örneklemde olmayan mesaja ait
+   * olanlar.
+   */
   dropped: { invalid: number; unknownMessage: number };
+  /** Geçerli ama gösterim tavanının (60) ötesinde kalan bulgu sayısı — kart "+N bulgu daha" der (sessizce kesilmez). */
+  hiddenFindings: number;
 }
 
-// Kapalı-set clamp'ler: bilinmeyen severity → low, bilinmeyen kriter → diger
-// (gate'teki intent-clamp ile aynı ilke — model çıktısı asla serbest bırakılmaz).
+/** Bir raporda okunan en çok bulgu; ötesi okunmaz ve rapor EKSİK sayılır (inceleme b4: 201 bulgu "Bulgu yok" oluyordu). */
+const FINDINGS_READ_CAP = 200;
+/** Kartta gösterilen en çok bulgu. */
+const FINDINGS_SHOWN_CAP = 60;
+/** Genel değerlendirmenin en uzun hâli — uzun metin atılmaz, KIRPILIR (inceleme b4: 3.000 üstü "verilmedi" oluyordu). */
+const OVERALL_MAX = 3000;
+
+// Kapalı-set clamp'ler: bilinmeyen severity → HIGH (inceleme b4, 09-30: "critical" düşük görünüyordu — denetim konsolu önem
+// derecesini asla küçük göstermez; F01 "tanınmayan risk = yüksek" ilkesi), bilinmeyen kriter → diger (model çıktısı asla serbest
+// bırakılmaz).
 const findingSchema = z.object({
   messageId: z.string().max(120).catch("?"),
-  severity: z.enum(["low", "medium", "high"]).catch("low"),
+  severity: z.enum(["low", "medium", "high"]).catch("high"),
   criterion: z.enum(["uslup", "risk", "dil", "dogruluk", "diger"]).catch("diger"),
   issue: z.string().min(1).max(1200),
   suggestion: z
@@ -525,8 +538,8 @@ const findingSchema = z.object({
 });
 
 const reportShapeSchema = z.object({
-  overall: z.string().max(3000).catch(""),
-  findings: z.array(z.unknown()).max(200).catch([]),
+  overall: z.string().catch(""),
+  findings: z.array(z.unknown()).catch([]),
   promptSuggestions: z.array(z.string().max(1500)).max(25).catch([]),
   testSuggestions: z.array(z.string().max(1500)).max(25).catch([]),
 });
@@ -560,9 +573,9 @@ export function parseAuditReport(text: string, sampleIds: ReadonlySet<string>): 
   const missing: string[] = [];
   if (typeof obj.overall !== "string" || obj.overall.trim() === "") missing.push("overall");
   if (!Array.isArray(obj.findings)) missing.push("findings");
-  const dropped = { invalid: 0, unknownMessage: 0 };
+  const dropped = { invalid: Math.max(0, shape.data.findings.length - FINDINGS_READ_CAP), unknownMessage: 0 };
   const findings: AuditFinding[] = [];
-  for (const f of shape.data.findings) {
+  for (const f of shape.data.findings.slice(0, FINDINGS_READ_CAP)) {
     const parsed = findingSchema.safeParse(f);
     if (!parsed.success) {
       dropped.invalid++;
@@ -577,12 +590,13 @@ export function parseAuditReport(text: string, sampleIds: ReadonlySet<string>): 
   const complete = missing.length === 0 && dropped.invalid === 0 && dropped.unknownMessage === 0;
   return {
     status: complete ? "evaluated" : "inconclusive",
-    overall: shape.data.overall.trim() || "(genel değerlendirme verilmedi)",
-    findings: findings.slice(0, 60),
+    overall: shape.data.overall.trim().slice(0, OVERALL_MAX) || "(genel değerlendirme verilmedi)",
+    findings: findings.slice(0, FINDINGS_SHOWN_CAP),
     promptSuggestions: shape.data.promptSuggestions,
     testSuggestions: shape.data.testSuggestions,
     missing,
     dropped,
+    hiddenFindings: Math.max(0, findings.length - FINDINGS_SHOWN_CAP),
   };
 }
 
@@ -620,6 +634,7 @@ export async function runQualityAudit(
       testSuggestions: [],
       missing: [],
       dropped: { invalid: 0, unknownMessage: 0 },
+      hiddenFindings: 0,
     };
   }
 

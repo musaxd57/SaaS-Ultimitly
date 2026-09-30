@@ -30,6 +30,8 @@ interface AuditResult {
   status: "evaluated" | "inconclusive" | "empty";
   missing: string[];
   dropped: { invalid: number; unknownMessage: number };
+  /** Gösterim tavanının ötesinde kalan geçerli bulgu sayısı (eski yanıtlarda alan yok → 0). */
+  hiddenFindings?: number;
   sampleSize: number;
   days: number;
   model: string | null;
@@ -182,6 +184,9 @@ export function QualityAuditCard({
                   ) : null}
                 </li>
               ))}
+              {(result.hiddenFindings ?? 0) > 0 ? (
+                <li className="px-3 py-2 text-xs text-muted-foreground">+{result.hiddenFindings} bulgu daha (gösterilmedi)</li>
+              ) : null}
             </ul>
           ) : result.status === "evaluated" && result.sampleSize > 0 ? (
             <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Bulgu yok — incelenen yanıtlar kurallara uygun.</p>
