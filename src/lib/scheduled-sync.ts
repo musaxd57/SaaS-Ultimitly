@@ -31,6 +31,7 @@ import {
   sendDueAlerts,
   refreshStyleProfile,
 } from "@/lib/automation";
+import { purgeAutomatedSends } from "@/lib/automated-sends";
 
 // ---------------------------------------------------------------------------
 // The one scheduled pass: pull new Hospitable messages for every organization,
@@ -847,6 +848,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // Kimlik e-postası kuyruğunun SAKLAMA silmesi (terminal satırlar). Kurtarma + drain
         // artık HER geçişte (↑); burada yalnız silme kaldı.
         await hourly("email-outbox-purge", "scheduled-sync email-outbox", () => purgeEmailOutbox());
+        // K7: otomatik mesaj gönderim izleri 14 gün sonra silinir (eşleşme penceresi 24 sa; metin taşımaz).
+        await hourly("automated-send-purge", "scheduled-sync automated-send-purge", () => purgeAutomatedSends(prisma));
         // Alarm durum satırlarının kendisi: 30 gündür dokunulmamış (sahibi silinmiş org vb.).
         await hourly("alert-state-sweep", "scheduled-sync alert-state-sweep", () => sweepStaleAlertStates());
       }

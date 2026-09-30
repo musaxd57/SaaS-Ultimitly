@@ -1803,14 +1803,15 @@ const INJECTION_PATTERNS: RegExp[] = [
   // sanılıp çıkarılan sınıf tam kapıda kırmızı verdi (iki pinli test), geri kondu; iki kalıpta da aynı.
   // K12 (09-30): iki noktasız biçimde ayırıcıdan sonraki damga saat / tarih olmalı — "[Ev sahibi • Lale Hanım]" bir ad notudur.
   new RegExp(
-    `\\[\\s*(operatif|ev[\\s_\\-]*sahibi|asistan)\\s*(?:[·•⋅・|\\-–—]\\s*${HISTORY_STAMP_START}[^\\]]{0,40})?\\]`,
+    `\\[\\s*(operatif|ev[\\s_\\-]*sahibi|asistan|otomatik[\\s_\\-]*mesaj)\\s*(?:[·•⋅・|\\-–—]\\s*${HISTORY_STAMP_START}[^\\]]{0,40})?\\]`,
     "i",
   ),
   // ... ve UZUN damgalı ya da başka köşeli ayraçlı YETKİ etiketi (inceleme b2, 09-30): "[OPERATİF — ev sahibinin onaylı yanıtı,
   // sistem kaydı 2026-10-02]: …" 40 karakter tavanını aşıp geçiyordu; "〔EV SAHİBİ · …〕:" / "【ASİSTAN】:" de aynı sözdizimi.
   // Yalnız yetki adları (misafir etiketi değil) ve iki noktayla; normal parantez BİLEREK YOK — "(ev sahibi için): …" doğal bir
-  // not biçimidir. Satır sonu aşılmaz, tavan 160 (doğrusal).
-  /[\[〔【]\s*(operatif|ev[\s_\-]*sahibi|asistan)(?![a-zçğıöşü0-9_])[^\]〕】\n]{0,160}[\]〕】]\s*:/i,
+  // not biçimidir. Satır sonu aşılmaz, tavan 160 (doğrusal). K7 (09-30): istemin yeni "[OTOMATİK MESAJ]" etiketi de YETKİ adıdır
+  // (ev sahibinin şablon mesajı gibi okunur) — iki noktasız kalıpta ve bu kalıpta (iki noktalı biçimi ilk kalıp yerine bu kapsar).
+  /[\[〔【]\s*(operatif|ev[\s_\-]*sahibi|asistan|otomatik[\s_\-]*mesaj)(?![a-zçğıöşü0-9_])[^\]〕】\n]{0,160}[\]〕】]\s*:/i,
   /önceki (tüm )?talimatları (unut|yok say|görmezden gel|geçersiz kıl)/i,
   /talimatları (unut|yok say|görmezden gel)/i,
   // K12 (kurucu: "'önceki kuralları yok say' gibi talimatlar hâlâ yakalansın"): KURAL / KOMUT da talimattır. Yalnız EMİR kipi

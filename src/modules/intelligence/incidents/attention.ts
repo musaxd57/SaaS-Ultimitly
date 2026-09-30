@@ -8,6 +8,7 @@ import { estimateConflictImpact, type MoneyImpact, type NightlyRateRange } from 
 import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conversation-items/store";
 import type { ItemKind } from "@/lib/conversation-items/core";
+import { notAutomationMessageWhere } from "@/lib/message-author";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ, migration İSTEMEZ.
@@ -212,8 +213,9 @@ export async function findAttentionItems(
         lastMessageAt: true,
         reservation: { select: { departureDate: true, status: true } },
         messages: {
-          // Misafirin GÖRMEDİĞİ satırlar (sistem olayı, gövdesiz) mesaj sayılmaz.
-          where: { systemEventType: null, NOT: { body: "" } },
+          // Misafirin GÖRMEDİĞİ satırlar (sistem olayı, gövdesiz) mesaj sayılmaz; otomatik şablon mesajı (K7) cevap değildir —
+          // misafirin cevapsız sorusunu gizlemesin.
+          where: { systemEventType: null, NOT: { body: "" }, ...notAutomationMessageWhere() },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 1,
           select: { direction: true, createdAt: true },

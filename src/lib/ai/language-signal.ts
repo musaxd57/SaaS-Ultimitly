@@ -15,6 +15,8 @@
 // listede OLMAYAN sözcükte ve yarım ağırlıkla sayılır.
 // ---------------------------------------------------------------------------
 
+import { isAnsweringOutbound } from "@/lib/message-author";
+
 export type ConfidentLanguage = "tr" | "en" | "de" | "fr" | "es" | "ru" | "ar";
 type LatinLanguage = Exclude<ConfidentLanguage, "ru" | "ar">;
 
@@ -310,10 +312,11 @@ function mentionsLanguageName(text: string): boolean {
  * iki kez sayılırsa belirsiz bir "thanks" kesin hükme dönerdi (kapı `pendingGuestMessages`ta onu zaten saymaz).
  */
 export function unansweredGuestTexts(
-  history: readonly { direction: "inbound" | "outbound"; body: string }[],
+  history: readonly { direction: "inbound" | "outbound"; body: string; author?: string }[],
   latest?: string,
 ): string[] {
-  const lastOutbound = history.map((m) => m.direction).lastIndexOf("outbound");
+  // Otomatik şablon mesajı (K7) cevap değildir: kapının `pendingGuestMessages`iyle aynı pencere.
+  const lastOutbound = history.findLastIndex((m) => isAnsweringOutbound(m));
   const texts = history.slice(lastOutbound + 1).filter((m) => m.direction === "inbound").map((m) => m.body);
   if (latest !== undefined && texts.length > 0 && texts[texts.length - 1] === latest) texts.pop();
   return texts;

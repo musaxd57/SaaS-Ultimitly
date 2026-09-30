@@ -719,7 +719,7 @@ export interface GuestChatHistoryItem {
   direction: "inbound" | "outbound";
   body: string;
   /** Yazar (güvenilir alan, `historyAuthorOf`) ve yazıldığı an — F14; istemde yalnız Konuşma Anlama Durumu bayrağıyla. */
-  author?: "guest" | "host" | "ai";
+  author?: "guest" | "host" | "ai" | "automation";
   at?: Date;
 }
 

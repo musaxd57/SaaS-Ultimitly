@@ -9,6 +9,8 @@
 // YAPRAK modül: hiçbir şey içe aktarmaz (oto-yanıt, uyarı, mülk hafızası, "AI öner" ve sayfa aynı sınırı kullanır).
 // ---------------------------------------------------------------------------
 
+import { isAnsweringOutbound } from "@/lib/message-author";
+
 /** Yapay zekânın işleyeceği tek misafir mesajının en fazla KOD NOKTASI sayısı. */
 export const GUEST_MESSAGE_AI_MAX_CHARS = 8000;
 
@@ -44,11 +46,12 @@ export function exceedsGuestMessageLimit(body: string | null | undefined): boole
  * `messages` kronolojik (eskiden yeniye).
  */
 export function unansweredExceedsGuestMessageLimit(
-  messages: readonly { direction: string; body: string | null }[],
+  messages: readonly { direction: string; body: string | null; authorType?: string | null }[],
 ): boolean {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i];
-    if (m.direction === "outbound") return false;
+    // Otomatik şablon mesajı (K7) cevap değildir: arkasındaki uzun misafir mesajı hâlâ cevapsızdır.
+    if (isAnsweringOutbound(m)) return false;
     if (m.direction === "inbound" && exceedsGuestMessageLimit(m.body)) return true;
   }
   return false;
@@ -59,7 +62,9 @@ export function unansweredExceedsGuestMessageLimit(
  * önerinin cevap vereceği SON GELEN mesaj sınırı aşıyor. Son gelen mesajın arkasında giden bir mesaj (ör. otomatik giriş mesajı) olsa da
  * "AI öner" onu cevaplar; sayfa uyarıyı gizliyordu (09-28 CPU denetimi — rota 422 dönüyor, ev sahibi uyarıyı görmüyordu).
  */
-export function aiSuggestExceedsLength(messages: readonly { direction: string; body: string | null }[]): boolean {
+export function aiSuggestExceedsLength(
+  messages: readonly { direction: string; body: string | null; authorType?: string | null }[],
+): boolean {
   if (unansweredExceedsGuestMessageLimit(messages)) return true;
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     if (messages[i].direction === "inbound") return exceedsGuestMessageLimit(messages[i].body);

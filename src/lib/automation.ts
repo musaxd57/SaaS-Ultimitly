@@ -63,7 +63,14 @@ import {
 } from "@/lib/ai/gate-evidence";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
 import { styleProfileForPrompt, kbForStayScopeRawAndFilled } from "@/lib/guest-chat";
-import { historyAuthorOf, LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER } from "@/lib/message-author";
+import {
+  historyAuthorOf,
+  isAnsweringOutbound,
+  isAutomationMessage,
+  LEGACY_AI_SENDER_NAMES,
+  LEGACY_AI_RESUME_SENDER,
+} from "@/lib/message-author";
+import { recordAutomatedSend, settleAutomatedSend, type AutomatedSendKind } from "@/lib/automated-sends";
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
@@ -794,7 +801,7 @@ async function maybeSendClosingCourtesy(opts: {
     externalReservationId: string | null;
   };
   /** Thread messages (oldest→newest) — used for the courtesy-to-courtesy loop guard. */
-  messages: { direction: string; aiIntent: string | null }[];
+  messages: { direction: string; aiIntent: string | null; authorType?: string | null }[];
   lastInbound: { id: string; body: string };
   /** "ack" = bare thanks/ok; "praise" = pure compliment (isPositiveFeedback). */
   kind: CourtesyKind;
@@ -809,7 +816,8 @@ async function maybeSendClosingCourtesy(opts: {
   if (!opts.org.autoClosingReplyEnabled) return false;
   // LOOP GUARD: our latest outbound was itself the courtesy → the guest is
   // thanking the thank-you. Stay silent, or the two sides ping-pong forever.
-  const lastOutbound = [...opts.messages].reverse().find((m) => m.direction === "outbound");
+  // Otomatik şablon mesajı (K7) cevap değildir: araya giren karşılama / çıkış mesajı döngü korumasını delmesin.
+  const lastOutbound = [...opts.messages].reverse().find((m) => isAnsweringOutbound(m));
   if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) return false;
   if (!(await premiumAllowed(opts.organizationId))) return false;
   const token = await getOrgHospitableToken(opts.organizationId);
@@ -1616,6 +1624,16 @@ export async function applyChannelAutoReply(
       last = messages[messages.length - 1];
     }
   }
+  // K7 (09-30): thread'in SONUNDAKİ otomatik şablon mesajları (karşılama / giriş / çıkış) bir cevap DEĞİLDİR ve cevaplanacak
+  // misafir mesajından SONRA gittiler → değerlendirme son GERÇEK mesaja kadar (misafir sorusu otomatik mesajın arkasında
+  // kalıp "cevaplandı" sayılmasın). Aradaki otomatik mesajlar geçmişte kalır ("[OTOMATİK MESAJ]").
+  let realEnd = messages.length;
+  while (realEnd > 0 && isAutomationMessage(messages[realEnd - 1])) realEnd--;
+  if (realEnd < messages.length) {
+    messages = messages.slice(0, realEnd);
+    if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
+    last = messages[messages.length - 1];
+  }
   // Only answer when the guest spoke last (don't reply to ourselves).
   if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
 
@@ -1639,7 +1657,7 @@ export async function applyChannelAutoReply(
   // "Bir gece daha kalabilir miyiz?" / "Mutfakta duman var" + aynı döngüde "Tamam, teşekkürler" → model hiç
   // çağrılmıyor, istek 'closing_ack' damgasıyla kuyruktan düşüyor, nezaket açıksa konuşma "cevaplandı" oluyordu.
   // Son giden mesajdan sonraki misafir mesajlarından biri bile gerçek içerikse normal akış (model + kapı) koşar.
-  const lastOutboundIdx0 = messages.map((m) => m.direction).lastIndexOf("outbound");
+  const lastOutboundIdx0 = messages.findLastIndex((m) => isAnsweringOutbound(m));
   const unansweredGuestTexts = messages
     .slice(lastOutboundIdx0 + 1)
     .filter((m) => m.direction === "inbound")
@@ -2037,7 +2055,7 @@ export async function applyChannelAutoReply(
   // arkaya yazdığında (şikayet + zararsız takip) kapı yalnız sonuncuyu görüyordu;
   // artık pencerenin tamamını görüyor. Pencere, biz cevap verince sıfırlanır —
   // yani "dünkü çözülmüş şikayet" bugünü engellemez.
-  const lastOutboundIdx = messages.map((m) => m.direction).lastIndexOf("outbound");
+  const lastOutboundIdx = messages.findLastIndex((m) => isAnsweringOutbound(m));
   const pendingGuestMessages = messages
     .slice(lastOutboundIdx + 1)
     .filter((m) => m.direction === "inbound" && m.id !== last.id)
@@ -2060,8 +2078,9 @@ export async function applyChannelAutoReply(
     // `pendingGuestMessages` bacağı kurtarmaz: o yalnız son GİDEN mesajdan
     // sonrasını kapsar, yük ondan ÖNCEDEDİR.
     history: [
+      // Yazar da geçer (K7): istemin seçimiyle AYNI pencere — otomatik mesaj ikisinde de pencereyi kapatmaz.
       ...selectHistoryForPrompt(
-        messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
+        messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body, author: historyAuthorOf(m) })),
       ).map((m) => m.body),
       conversation.guestIdentifier ?? "",
     ],
@@ -3857,6 +3876,29 @@ function buildGuestMessageBody(
 }
 
 /**
+ * K7 (09-30): yaşam döngüsü mesajının GÖNDERİM İZİ — POST'tan ÖNCE yazılır (`automated-sends.ts`), sonuçla kapanır. Senkron
+ * aynı mesajı geri getirince "ev sahibi yazdı" değil "otomatik mesaj" olur. En iyi çaba: iz yazılamazsa gönderim yine yapılır.
+ */
+async function traceLifecycleSend(
+  organizationId: string,
+  r: { id: string; propertyId: string; sourceReference: string | null },
+  kind: AutomatedSendKind,
+  body: string,
+  sentAt: Date,
+): Promise<string | null> {
+  if (!r.sourceReference) return null;
+  return recordAutomatedSend(prisma, {
+    organizationId,
+    propertyId: r.propertyId,
+    reservationId: r.id,
+    externalReservationId: r.sourceReference,
+    kind,
+    body,
+    sentAt,
+  });
+}
+
+/**
  * Fence the flag-OFF lifecycle sender against the durable outbox (post-rollback coherence,
  * final-review). If a row for this (org, reservation, messageType) already exists in the outbox
  * in ANY state EXCEPT terminal `failed`, the outbox owns/owned this send: the direct path must
@@ -4046,6 +4088,7 @@ export async function sendDueWelcomes(
     });
     if (claim.count === 0) continue; // another run already claimed/sent this booking
 
+    const traceId = await traceLifecycleSend(organizationId, r, "welcome", body, stampedAt);
     const delivery = await sendOnChannel(
       {
         channel: r.channel,
@@ -4063,6 +4106,7 @@ export async function sendDueWelcomes(
       // manual-reply route via the shared isDefinitiveSendFailure(). Durable Outbox
       // (flag ON) handles this via reconcile/review; this is the flag-OFF direct path.
       const definitive = isDefinitiveSendFailure(delivery.error);
+      await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
       failures.push(definitive ? "definitive" : "ambiguous");
       if (definitive) {
         // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
@@ -4088,6 +4132,7 @@ export async function sendDueWelcomes(
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
+    await settleAutomatedSend(prisma, traceId, "sent", delivery.providerMessageId);
     sent++;
   }
 
@@ -4230,6 +4275,7 @@ export async function sendDueCheckins(
     });
     if (claim.count === 0) continue;
 
+    const traceId = await traceLifecycleSend(organizationId, r, "checkin", body, stampedAt);
     const delivery = await sendOnChannel(
       { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
       body,
@@ -4241,6 +4287,7 @@ export async function sendDueCheckins(
       // guest → KEEP checkinSentAt so we never re-POST it (duplicate). Mirrors the
       // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
       const definitive = isDefinitiveSendFailure(delivery.error);
+      await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
       failures.push(definitive ? "definitive" : "ambiguous");
       if (definitive) {
         // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
@@ -4266,6 +4313,7 @@ export async function sendDueCheckins(
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
+    await settleAutomatedSend(prisma, traceId, "sent", delivery.providerMessageId);
     sent++;
   }
 
@@ -4552,6 +4600,7 @@ export async function sendDueCheckouts(
     });
     if (claim.count === 0) continue;
 
+    const traceId = await traceLifecycleSend(organizationId, r, "checkout", body, stampedAt);
     const delivery = await sendOnChannel(
       { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
       body,
@@ -4563,6 +4612,7 @@ export async function sendDueCheckouts(
       // guest → KEEP checkoutSentAt so we never re-POST it (duplicate). Mirrors the
       // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
       const definitive = isDefinitiveSendFailure(delivery.error);
+      await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
       failures.push(definitive ? "definitive" : "ambiguous");
       if (definitive) {
         // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
@@ -4588,6 +4638,7 @@ export async function sendDueCheckouts(
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
+    await settleAutomatedSend(prisma, traceId, "sent", delivery.providerMessageId);
     sent++;
   }
 
@@ -4700,14 +4751,16 @@ export async function sendDueAlerts(
   const itemsFlag = conversationItemsEnabled();
   for (const c of candidates) {
     if (Date.now() - alertsStartedAt > ALERT_BUDGET_MS) break;
-    const last = c.messages[0];
+    // K7: en yenideki otomatik şablon mesajları (karşılama / çıkış) cevap değildir — arkalarındaki şikâyet uyarısız kalmasın.
+    const realMessages = c.messages.filter((m) => !isAutomationMessage(m));
+    const last = realMessages[0];
     if (!last || last.direction !== "inbound") continue;
     // Skip stale backlog surfaced by a re-sync — only alert on fresh messages.
     if (Date.now() - last.createdAt.getTime() > ALERT_MAX_AGE_MS) continue;
     // Mesajlar YENİDEN ESKİYE geldi; cevaplanmamış pencere = ilk giden mesaja
     // kadar olan kısım. O pencerenin HERHANGİ birinde şikayet varsa uyarı gider.
-    const outboundAt = c.messages.findIndex((m) => m.direction === "outbound");
-    const pending = (outboundAt === -1 ? c.messages : c.messages.slice(0, outboundAt)).filter(
+    const outboundAt = realMessages.findIndex((m) => isAnsweringOutbound(m));
+    const pending = (outboundAt === -1 ? realMessages : realMessages.slice(0, outboundAt)).filter(
       (m) => m.direction === "inbound",
     );
     // K10-t: 8.000 karakteri aşan mesajda tam sınıflandırma KOŞMAZ, yalnız hafif acil sözcük ağı (kurucu: "acil sözcük

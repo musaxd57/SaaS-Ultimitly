@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { reportError } from "@/lib/report-error";
@@ -527,6 +528,24 @@ async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   return replyVeto(row, now);
 }
 
+/** K7: yaşam döngüsü satırı (karşılama / giriş / çıkış) için gönderim izi; diğer satırlar ve eksik hedef → null (en iyi çaba). */
+async function traceOutboxLifecycleSend(row: OutboxRow, now: Date): Promise<string | null> {
+  if (!isAutomatedSendKind(row.messageType) || !row.externalReservationId || !row.reservationId) return null;
+  const reservation = await prisma.reservation
+    .findUnique({ where: { id: row.reservationId }, select: { propertyId: true } })
+    .catch(() => null);
+  if (!reservation) return null;
+  return recordAutomatedSend(prisma, {
+    organizationId: row.organizationId,
+    propertyId: reservation.propertyId,
+    reservationId: row.reservationId,
+    externalReservationId: row.externalReservationId,
+    kind: row.messageType,
+    body: row.body,
+    sentAt: now,
+  });
+}
+
 /**
  * Stamp a lifecycle reservation's *SentAt (welcome/checkin/checkout) — the CONFIRMED-DELIVERY
  * marker. Called ONLY on a provider success (or a reliable reconciliation), NEVER for an
@@ -903,8 +922,17 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     return;
   }
 
+  // K7 (09-30): yaşam döngüsü satırının GÖNDERİM İZİ — POST'tan ÖNCE (`automated-sends.ts`), sonuçla kapanır: senkron aynı
+  // mesajı geri getirince "ev sahibi yazdı" değil "otomatik mesaj" olur. Yalnız teslim olmuş olabilecekler eşleşmeye açık.
+  const traceId = await traceOutboxLifecycleSend(row, now);
   const outcome = await deps.send(row, providerToken);
   const kind = classifySendResult(outcome);
+  await settleAutomatedSend(
+    prisma,
+    traceId,
+    kind === "definitive_success" ? "sent" : kind === "ambiguous" ? "unverified" : "failed",
+    outcome.providerMessageId,
+  );
   if (kind === "rate_limited") {
     // 429 — nothing was delivered. Defer to the provider's Retry-After (or a bounded
     // backoff) WITHOUT consuming a terminal attempt, so a rate-limit storm can never

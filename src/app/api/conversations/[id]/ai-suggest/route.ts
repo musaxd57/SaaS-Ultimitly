@@ -19,7 +19,7 @@ import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
-import { historyAuthorOf } from "@/lib/message-author";
+import { historyAuthorOf, isAnsweringOutbound } from "@/lib/message-author";
 import { vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
 import { runEarlyCheckinWorkflow } from "@/lib/early-checkin/workflow";
@@ -208,7 +208,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // mesajdan sonraki cevapsız misafir mesajları; host zaten yazdıysa son misafir mesajı). Taslak
   // takvim iddiası taşıyorsa ya da müsaitlik isteğini ertelemiyorsa host onaylamadan önce görür —
   // yoksa oto-gönderimin durdurduğu iddiayı host tek tıkla misafire gönderebilirdi.
-  const lastOut = conversation.messages.map((m) => m.direction).lastIndexOf("outbound");
+  // Otomatik şablon mesajı (K7) cevap değildir: pencereyi kapatmaz.
+  const lastOut = conversation.messages.findLastIndex((m) => isAnsweringOutbound(m));
   const unanswered = conversation.messages
     .slice(lastOut + 1)
     .filter((m) => m.direction === "inbound")

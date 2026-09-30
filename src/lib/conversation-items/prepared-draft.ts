@@ -1,4 +1,5 @@
 import { vetoAvailability, type AvailabilityVetoReason } from "@/lib/ai/availability-claims";
+import { isAnsweringOutbound, isAutomationMessage } from "@/lib/message-author";
 
 /**
  * HAZIR TASLAK — konuşma açılınca öneri panelinde gösterilecek kayıtlı taslak (kurucu 09-26, "Otomatik hazır dursun";
@@ -19,6 +20,7 @@ export interface PreparedDraftMessage {
   aiSuggestedReply: string | null;
   aiIntent: string | null;
   aiConfidence: number | null;
+  authorType?: string | null;
 }
 
 export interface PreparedDraft {
@@ -33,12 +35,14 @@ export function preparedDraftOf(
   messages: readonly PreparedDraftMessage[],
   opts: { stayTimes: { checkIn: string; checkOut: string } | null; hostOfferText: string | null },
 ): PreparedDraft | null {
-  const last = messages.at(-1);
+  // Otomatik şablon mesajı (K7) cevap değildir: arkasında kalan misafir mesajının taslağı görünür kalır.
+  const real = messages.filter((m) => !isAutomationMessage(m));
+  const last = real.at(-1);
   if (!last || last.direction !== "inbound") return null;
   const reply = last.aiSuggestedReply;
   if (!reply || !reply.trim()) return null;
-  const lastOut = messages.map((m) => m.direction).lastIndexOf("outbound");
-  const guestTexts = messages
+  const lastOut = real.findLastIndex((m) => isAnsweringOutbound(m));
+  const guestTexts = real
     .slice(lastOut + 1)
     .filter((m) => m.direction === "inbound")
     .map((m) => m.body);

@@ -26,8 +26,37 @@
 // gate the money migration used.
 // ---------------------------------------------------------------------------
 
-export const AUTHOR_TYPES = ["guest", "ai", "host", "system"] as const;
+export const AUTHOR_TYPES = ["guest", "ai", "host", "system", "automation"] as const;
 export type AuthorType = (typeof AUTHOR_TYPES)[number];
+
+// ---------------------------------------------------------------------------
+// OTOMATİK ŞABLON MESAJI (K7, migration 58, kurucu onayı 09-30): karşılama / giriş / çıkış mesajlarımız senkronla geri
+// gelince `authorType: "automation"` yazılır (`automated-sends.ts` izinden). Misafire GİTTİ ama bir CEVAP DEĞİLDİR:
+// konuşmayı "cevaplandı" yapmaz, cevapsız misafir penceresini (güvenlik penceresi dâhil) sıfırlamaz, tutulan öğeyi
+// kapatmaz, ardından gelen "Teşekkürler"i kapanış yapmaz; ev sahibinin sesi / üslubu da sayılmaz. İstem geçmişinde
+// "[OTOMATİK MESAJ]" satırıdır. "Cevap mı" sorusu TEK kuraldan: `isAnsweringOutbound` (bellekte) ve
+// `notAutomationMessageWhere()` (sorguda). Selam kuralı (`countPriorOperatorReplies`) bilerek SAYAR: misafir o selamı gördü.
+// ---------------------------------------------------------------------------
+export const AUTOMATION_AUTHOR = "automation" as const;
+
+/** Bizim otomatik şablon mesajımız mı (karşılama / giriş / çıkış). */
+export function isAutomationMessage(m: { authorType?: string | null; author?: string | null }): boolean {
+  return m.authorType === AUTOMATION_AUTHOR || m.author === AUTOMATION_AUTHOR;
+}
+
+/**
+ * Konuşmayı YANITLAYAN giden mesaj mı: giden VE otomatik şablon mesajı değil. "Son cevaptan sonraki misafir mesajları",
+ * "cevaplandı mı", kapanış ve rapor cevap oranı bununla. Girdi yazar alanı (`authorType`) ya da istem geçmişinin `author`ı
+ * taşıyabilir; ikisi de yoksa eski davranış (her giden mesaj cevaptır).
+ */
+export function isAnsweringOutbound(m: { direction: string; authorType?: string | null; author?: string | null }): boolean {
+  return m.direction !== "inbound" && !isAutomationMessage(m);
+}
+
+/** Prisma: otomatik şablon mesajı OLMAYAN satırlar — NULL yazarlı eski satırlar DAHİL (`{ not: … }` NULL'u dışlardı). */
+export function notAutomationMessageWhere(): { OR: ({ authorType: null } | { authorType: { not: string } })[] } {
+  return { OR: [{ authorType: null }, { authorType: { not: AUTOMATION_AUTHOR } }] };
+}
 
 /** Closed set of system-event names (authorType = "system"). */
 export const SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED = "guest_chat_ai_resumed";
@@ -75,9 +104,11 @@ export function resolveMessageAuthor(m: ClassifiableMessage): AuthorInfo {
  * Modele giden geçmiş satırının YAZARI (F14, 09-26): güvenilir yazar alanından (görünen ad DEĞİL). Sistem olayı geçmişe
  * yazar olarak girmez → undefined (satır yön etiketine düşer; pencereler sistem olayını zaten dışarıda bırakır).
  */
-export function historyAuthorOf(m: ClassifiableMessage): "guest" | "host" | "ai" | undefined {
+export function historyAuthorOf(m: ClassifiableMessage): "guest" | "host" | "ai" | "automation" | undefined {
   const { authorType } = resolveMessageAuthor(m);
-  return authorType === "guest" || authorType === "host" || authorType === "ai" ? authorType : undefined;
+  return authorType === "guest" || authorType === "host" || authorType === "ai" || authorType === AUTOMATION_AUTHOR
+    ? authorType
+    : undefined;
 }
 
 /**

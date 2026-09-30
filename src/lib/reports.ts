@@ -7,6 +7,7 @@ import { computeResponseEpisodes } from "@/lib/response-episodes";
 import { orgTimezone, zonedDayRange, zonedDateStart, addZonedDays } from "@/lib/timezone";
 import { reservationDayRangeWhere, taskDueDayRangeWhere, todayRange } from "@/lib/day-where";
 import { addNights, calendarDateOf, todayKey } from "@/modules/availability/core";
+import { isAutomationMessage } from "@/lib/message-author";
 
 // Reporting day/occupancy math is anchored to the HOST'S calendar day
 // (org.timezone, default Europe/Istanbul) — Railway runs UTC and arrivalDates
@@ -674,7 +675,7 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
     // One query for all messages (was N+1: a findMany per conversation).
     const recentMessages = await prisma.message.findMany({
       where: { conversationId: { in: recentConversations.map((c) => c.id) } },
-      select: { id: true, conversationId: true, direction: true, createdAt: true },
+      select: { id: true, conversationId: true, direction: true, createdAt: true, authorType: true },
       orderBy: { createdAt: "asc" },
     });
     // Kapanışa sessizlik (kurucu kuralı 09-25): yapay zekânın BİLEREK cevapsız bıraktığı teşekkür/onay mesajları
@@ -707,6 +708,8 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
     const grouped = new Map<string, { direction: string; createdAt: Date; noReplyNeeded: boolean }[]>();
     for (const m of recentMessages) {
       if (m.direction === "outbound" && undelivered.has(m.id)) continue;
+      // Otomatik şablon mesajı (K7) misafirin sorusuna cevap değildir — yanıt oranını şişirmesin.
+      if (isAutomationMessage(m)) continue;
       const row = { direction: m.direction, createdAt: m.createdAt, noReplyNeeded: noReplyIds.has(m.id) };
       const arr = grouped.get(m.conversationId);
       if (arr) arr.push(row);

@@ -28,6 +28,7 @@ export async function resetDb(): Promise<void> {
   await prisma.rateLimitCounter.deleteMany(); // no FK; DB-backed limits must not leak across tests
   await prisma.property.deleteMany();
   await prisma.emailOutbox.deleteMany(); // FK → User; clear before users
+  await prisma.automatedMessageSend.deleteMany(); // K7 — FK → Organization (cascade kapsar; açık)
   await prisma.user.deleteMany();
   await prisma.channelConnection.deleteMany(); // FK → Organization (cascade would cover it; explicit for clarity)
   await prisma.ingestEvent.deleteMany(); // V0.6 — FK → Organization (cascade kapsar; açık)

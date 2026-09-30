@@ -56,7 +56,7 @@ export interface HistoryMessage {
    * yazdığı — `resolveMessageAuthor`dan kapalı küme, görünen ad DEĞİL — ve YAZILDIĞI an. Verilmezse satır yön etiketiyle
    * (eski biçim) yazılır.
    */
-  author?: "guest" | "host" | "ai";
+  author?: "guest" | "host" | "ai" | "automation";
   at?: Date;
 }
 

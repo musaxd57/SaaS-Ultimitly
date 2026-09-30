@@ -58,6 +58,8 @@ export function aiSourceLabel(source: string): string {
 // the legacy "GuestOps AI" storage string is the transitional fallback for rows whose
 // authorType is still NULL. Guest / host names pass through unchanged.
 export function displaySenderName(senderName: string, authorType?: string | null): string {
+  // K7 (09-30): senkronla geri gelen karşılama / giriş / çıkış mesajımız — ev sahibinin adıyla değil, ne olduğuyla görünür.
+  if (authorType === "automation") return "Otomatik mesaj";
   const isAi = authorType ? authorType === "ai" : senderName === "GuestOps AI";
   return isAi ? "Lixus AI" : senderName;
 }

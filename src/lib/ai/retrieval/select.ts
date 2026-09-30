@@ -19,6 +19,7 @@ import { NGRAM_QUALIFY_MIN } from "./sources";
 import { contentStems, normalizeForRetrieval, phraseUnits, tokenize } from "./text";
 import { kbFitsWhole } from "./kb-line";
 import { detectGuestLanguage } from "@/lib/ai/fallback";
+import { isAnsweringOutbound } from "@/lib/message-author";
 
 // ---------------------------------------------------------------------------
 // HİBRİT BİLGİ SEÇİCİ — TEK BOĞAZ NOKTASI (RAG dilim 1+2, 09-09).
@@ -312,13 +313,14 @@ export const EXTRA_FALLBACK_CHARS = Math.floor(KB_RETRIEVAL_CHAR_BUDGET / 2);
  * girdisidir. Tüm yüzeyler `history` verdiği için tek yerden (yüzeyler ayrışamaz).
  */
 export function pendingGuestMessages(
-  history: readonly { direction: "inbound" | "outbound"; body: string }[] | undefined,
+  history: readonly { direction: "inbound" | "outbound"; body: string; author?: string }[] | undefined,
   current: string,
 ): string[] {
   const h = history ?? [];
   let lastOut = -1;
   for (let i = h.length - 1; i >= 0; i--) {
-    if (h[i].direction !== "inbound") {
+    // Otomatik şablon mesajı (K7) cevap değildir — ondan önceki cevapsız soru sorguya girer.
+    if (isAnsweringOutbound(h[i])) {
       lastOut = i;
       break;
     }

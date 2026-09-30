@@ -7,6 +7,8 @@ import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { givenNameForStorage, type GuestNameSource } from "@/lib/guest-name-source";
+import { AUTOMATION_AUTHOR } from "@/lib/message-author";
+import { claimAutomatedSend, planAutomatedMatches } from "@/lib/automated-sends";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
 import { recordIngestEvent as emit, INGEST_EVENT_SCHEMA_VERSION } from "./events";
@@ -245,16 +247,43 @@ export async function importCanonicalThread(
     reservation.guest.name ?? ordered.find((m) => m.direction === "inbound")?.senderName ?? null;
   const guestName = resolvedGuestName ?? (reservation.code ? `Rezervasyon ${reservation.code}` : "Misafir");
 
-  // Status reflects who spoke last: guest → awaiting a reply ("new"); host → "answered".
-  const lastMessage = ordered[ordered.length - 1];
-  const computedStatus = lastMessage && lastMessage.direction === "inbound" ? "new" : "answered";
-
   // CANONICAL READ — authoritative because it runs INSIDE the identity lock.
   const existing = await db.conversation.findFirst({
     where: { propertyId, externalReservationId: reservationId },
     select: { id: true, status: true, reservationId: true, guestIdentifier: true, skippedReason: true, connectionId: true },
   });
   if (__importThreadHooks.afterCanonicalRead) await __importThreadHooks.afterCanonicalRead();
+
+  // K7 (09-30) — BİZİM OTOMATİK MESAJIMIZ MI? Daha önce yazılmış satırın yazarı + yeni giden mesajların gönderim iziyle
+  // SALT OKUMA eşleşmesi (`automated-sends.ts`; sahiplenme mesaj yazılırken). Otomatik şablon mesajı bir CEVAP değildir:
+  // konuşma durumunu ve etkinlik anını belirlemez (↓). Thread kilidi altında: arada başka yazan yok.
+  const storedRows = existing
+    ? await db.message.findMany({
+        where: { conversationId: existing.id, externalId: { not: null } },
+        select: { externalId: true, authorType: true },
+      })
+    : [];
+  const storedAuthor = new Map(storedRows.map((row) => [row.externalId!, row.authorType]));
+  const automationPlan = await planAutomatedMatches(
+    db,
+    { organizationId: ctx.organizationId, propertyId, externalReservationId: reservationId },
+    ordered
+      .filter((m) => m.direction !== "inbound" && m.externalId && m.body && m.body.trim() && !storedAuthor.has(m.externalId))
+      .map((m) => ({ externalId: m.externalId!, body: m.body!, createdAt: m.createdAt ?? null })),
+  );
+  const isAutomation = (m: CanonicalMessage): boolean =>
+    !!m.externalId && m.direction !== "inbound" && (storedAuthor.get(m.externalId) === AUTOMATION_AUTHOR || automationPlan.has(m.externalId));
+
+  // Status reflects who spoke last: guest → awaiting a reply ("new"); host / AI → "answered". Otomatik şablon mesajı
+  // (K7) konuşan sayılmaz: misafirin cevapsız mesajından sonra giden karşılama / giriş mesajı konuşmayı cevaplamaz.
+  const answeringOrdered = ordered.filter((m) => !isAutomation(m));
+  const lastMessage = answeringOrdered[answeringOrdered.length - 1];
+  const computedStatus = lastMessage && lastMessage.direction === "inbound" ? "new" : "answered";
+  // Etkinlik anı (`lastMessageAt`): thread'in SONU otomatik mesajsa son gerçek mesajın anı — yoksa otomatik mesaj
+  // konuşmayı oto-yanıt için yeniden "yeni" gösterir (aynı misafir mesajına ikinci değerlendirme) ve kapanış kararını
+  // bayatlatır. İmleç (`syncCursorAt`) sağlayıcının anı kalır (thread her geçişte yeniden çekilmesin).
+  const tailIsAutomation = ordered.length > 0 && isAutomation(ordered[ordered.length - 1]);
+  const activityAt = tailIsAutomation && lastMessage?.createdAt ? lastMessage.createdAt : lastMessageAt;
 
   // Cursor idempotency: create with a conservative value / keep the old value on
   // update, then bump to `lastMessageAt` only after the loop completes.
@@ -329,12 +358,8 @@ export async function importCanonicalThread(
   const retention = scrubbedThread ? retentionCutoff() : null;
   const eraCutoff = retention && erasureCutoff ? (retention > erasureCutoff ? retention : erasureCutoff) : (retention ?? erasureCutoff);
 
-  // Load THIS conversation's existing message externalIds ONCE (N+1 yok).
-  const seenExternalIds = new Set(
-    (await db.message.findMany({ where: { conversationId, externalId: { not: null } }, select: { externalId: true } })).map(
-      (row) => row.externalId!,
-    ),
-  );
+  // THIS conversation's existing message externalIds (N+1 yok) — kilit altında yukarıda okundu; yeni konuşmada boş.
+  const seenExternalIds = new Set(storedRows.map((row) => row.externalId!));
   let newMessages = 0;
   let unimportable = 0;
   const supplyJobs: SupplyJob[] = [];
@@ -372,13 +397,16 @@ export async function importCanonicalThread(
         continue;
       }
     }
+    // K7: gönderim izine bağlanan giden mesaj bizim otomatik mesajımızdır (bire bir sahiplenme; bağlanamazsa eski yol).
+    const automation = inbound ? undefined : automationPlan.get(externalId);
+    const isOurAutomation = automation ? await claimAutomatedSend(db, automation.recordId, externalId, new Date()) : false;
     let created: { id: string };
     try {
       created = await db.message.create({
         data: {
           conversationId,
           direction: inbound ? "inbound" : "outbound",
-          authorType: inbound ? "guest" : "host",
+          authorType: inbound ? "guest" : isOurAutomation ? AUTOMATION_AUTHOR : "host",
           senderName: m.senderName ?? (inbound ? guestName : "Ev sahibi"),
           body,
           language,
@@ -420,8 +448,8 @@ export async function importCanonicalThread(
     await emit(db, ctx, "conversation", conversationId, "conversation.updated");
   }
 
-  // All messages are now written — safe to advance the cursors to the provider's latest.
-  await db.conversation.update({ where: { id: conversationId }, data: { lastMessageAt, syncCursorAt: lastMessageAt } });
+  // All messages are now written — safe to advance the cursors to the provider's latest (etkinlik anı ↑ K7).
+  await db.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: activityAt, syncCursorAt: lastMessageAt } });
 
   return { imported: newMessages, unimportable, supplyJobs };
 }

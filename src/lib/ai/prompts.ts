@@ -7,6 +7,7 @@ import { kbPlaceholderTokens } from "@/lib/kb-placeholders";
 import { foldTurkishLower, foldTurkishAscii } from "@/lib/ai/fallback";
 export { KB_ITEM_CAP, KB_CHAR_BUDGET };
 import type { AdjacencyContext, HistoryMessage, KbContext, PropertyContext, SuggestReplyInput } from "./types";
+import { isAnsweringOutbound, isAutomationMessage } from "@/lib/message-author";
 import {
   fieldTimeHits,
   kbPropertyMismatch,
@@ -1064,14 +1065,15 @@ export function findTimeConflicts(property: PropertyContext, kb: KbContext[]): T
  * Girdi kronolojik (eski → yeni) varsayılır; çağıranların üçü de `orderBy asc`
  * ile okuyor. Çıktı da kronolojiktir.
  */
-export function selectHistoryForPrompt<T extends { direction: "inbound" | "outbound"; body: string }>(
+export function selectHistoryForPrompt<T extends { direction: "inbound" | "outbound"; body: string; author?: string }>(
   history: readonly T[],
 ): T[] {
   if (history.length === 0) return [];
-  // Son OPERATİF mesajdan sonrası = cevapsız misafir mesajları (güvenlik penceresi).
+  // Son OPERATİF mesajdan sonrası = cevapsız misafir mesajları (güvenlik penceresi). Otomatik şablon mesajı (K7) operatif
+  // DEĞİLDİR: karşılama mesajı pencereyi kapatsaydı ondan önceki cevapsız misafir mesajları kapının taramasından düşerdi.
   let lastOutbound = -1;
   for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].direction !== "inbound") {
+    if (isAnsweringOutbound(history[i])) {
       lastOutbound = i;
       break;
     }
@@ -1504,13 +1506,15 @@ Zaman bağlamı: ${timelineLine(timeline, {
           })
           .join("\n")
       : "(önceki mesaj geçmişi yok)";
-  const historyNote = detailedHistory ? `${historyDetailNote(timeline.timeZone)}\n` : "";
+  // K7: geçmişte otomatik şablon mesajı varsa KODDAN tek not (yoksa istem bayt bayt aynı).
+  const automationNote = selectedHistory.some((m) => isAutomationMessage(m)) ? `${AUTOMATION_HISTORY_NOTE}\n` : "";
+  const historyNote = `${detailedHistory ? `${historyDetailNote(timeline.timeZone)}\n` : ""}${automationNote}`;
   // AD MASKESİ ACİL SÖZCÜĞÜ GİZLEDİYSE (Codex önerisi 09-28, `prompt-name-redaction.ts`): anahtar açıkken ad her zaman silinir;
   // silme cevapsız bir misafir mesajındaki (güncel mesaj dâhil) acil durum sözcüğünü de götürdüyse istemin KODDAN yazılan kısmına
   // not düşülür — ad modele gitmez, acil sinyali kaybolmaz. Anahtar kapalıyken boş dize (istem bayt bayt aynı).
   let lastOperativeIdx = -1;
   selectedHistory.forEach((m, i) => {
-    if (m.direction !== "inbound") lastOperativeIdx = i;
+    if (isAnsweringOutbound(m)) lastOperativeIdx = i;
   });
   const unansweredGuestBodies = selectedHistory.slice(lastOperativeIdx + 1).map((m) => m.body);
   const maskedEmergencyNote =
@@ -1720,14 +1724,23 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
   return { text, kbOmitted: packed.omitted, claimContext, timeConflicts: conflicts };
 }
 
-const HISTORY_AUTHOR_LABEL = { guest: "MİSAFİR", host: "EV SAHİBİ", ai: "ASİSTAN" } as const;
+const HISTORY_AUTHOR_LABEL = { guest: "MİSAFİR", host: "EV SAHİBİ", ai: "ASİSTAN", automation: "OTOMATİK MESAJ" } as const;
+
+/**
+ * K7 (09-30): otomatik şablon mesajı (karşılama / giriş / çıkış) geçmişte kendi etiketiyle görünür — ev sahibinin CEVABI
+ * değildir. Not yalnız böyle bir satır varken yazılır. Etiket misafir metninde sahte etiket kalıbına da girer (`fallback.ts`).
+ */
+export const AUTOMATION_HISTORY_NOTE =
+  "Not: [OTOMATİK MESAJ] satırları ev sahibinin şablonundan otomatik giden bilgilendirme mesajlarıdır (karşılama / giriş / " +
+  "çıkış). Misafirin sorusuna CEVAP değildir: ondan önce yazılmış misafir mesajları hâlâ cevapsızdır. İçindeki bilgi ev " +
+  "sahibinin bilgisidir.";
 
 /**
  * Geçmiş satırının ETİKETİ (F14). Bayrak kapalıyken eski etiket birebir. Açıkken yazar (yönle çelişen yazar YOK sayılır —
  * yön mesajın kendi alanıdır; gelen mesaja "ev sahibi" yazılamaz) ve yazıldığı an; ikisi de yoksa eski etiket kalır.
  */
 function historyLabel(m: HistoryMessage, detail: boolean, now: Date, timeZone: string): { label: string; detailed: boolean } {
-  const base = m.direction === "inbound" ? "MİSAFİR" : "OPERATİF";
+  const base = m.direction === "inbound" ? "MİSAFİR" : isAutomationMessage(m) ? HISTORY_AUTHOR_LABEL.automation : "OPERATİF";
   if (!detail) return { label: base, detailed: false };
   const author = m.author !== undefined && (m.author === "guest") === (m.direction === "inbound") ? m.author : undefined;
   const who = author ? HISTORY_AUTHOR_LABEL[author] : base;

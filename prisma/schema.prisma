@@ -161,23 +161,24 @@ model Organization {
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
-  users              User[]
-  riskEvents         RiskEvent[]
-  shadowVerdicts     ShadowVerdict[]
-  erasureTombstones  ErasureTombstone[]
-  messageOutbox      MessageOutbox[]
-  channelConnections ChannelConnection[]
-  ingestEvents       IngestEvent[]
-  signals            Signal[]
-  propertyMemories   PropertyMemory[]
-  conversationItems  ConversationItem[]
-  properties         Property[]
-  automationRules    AutomationRule[]
-  auditLogs          AuditLog[]
-  messageTemplates   MessageTemplate[]
-  subscription       Subscription?
-  invoices           Invoice[]
-  checkoutConsents   CheckoutConsent[]
+  users                 User[]
+  riskEvents            RiskEvent[]
+  shadowVerdicts        ShadowVerdict[]
+  erasureTombstones     ErasureTombstone[]
+  messageOutbox         MessageOutbox[]
+  automatedMessageSends AutomatedMessageSend[]
+  channelConnections    ChannelConnection[]
+  ingestEvents          IngestEvent[]
+  signals               Signal[]
+  propertyMemories      PropertyMemory[]
+  conversationItems     ConversationItem[]
+  properties            Property[]
+  automationRules       AutomationRule[]
+  auditLogs             AuditLog[]
+  messageTemplates      MessageTemplate[]
+  subscription          Subscription?
+  invoices              Invoice[]
+  checkoutConsents      CheckoutConsent[]
 }
 
 model User {
@@ -1131,6 +1132,38 @@ model MessageOutbox {
   // Worker due-query: claimable rows ordered by (status, availableAt).
   @@index([status, availableAt])
   @@index([organizationId, status])
+}
+
+// ---------------------------------------------------------------------------
+// AutomatedMessageSend (K7, migration 58, kurucu onayı 09-30) — GÖNDERDİĞİMİZ otomatik şablon mesajının izi
+// (karşılama / giriş / çıkış). Senkron aynı mesajı sağlayıcıdan geri getirdiğinde "ev sahibi yazdı" SAYILMAZ:
+// `Message.authorType = "automation"` yazılır → açık öğeyi kapatmaz, konuşmayı "cevaplandı" yapmaz, cevapsız misafir
+// penceresini sıfırlamaz, ardından gelen "Teşekkürler" konuşmayı gizlemez (`message-author.ts`).
+//
+// METİN SAKLANMAZ — yalnız normalize edilmiş gövdenin SHA-256 özeti (`automated-sends.ts`). Eşleşme: önce sağlayıcı
+// mesaj kimliği, sonra aynı thread + aynı özet + sağlayıcı anı [gönderim − 2 dk, gönderim + 24 sa]; bire bir
+// (`matchedExternalId`). Satır gönderimden ÖNCE yazılır (süreç POST ile kayıt arasında düşse de mesaj tanınır) ve
+// sonuçla kapanır (sent · unverified = belirsiz, teslim edilmiş olabilir · failed = teslim edilmedi, eşleşmez). 14 gün
+// sonra silinir. FK politikası MessageOutbox ile aynı: YALNIZ organizationId (hesap silme); rezervasyon kimliği opak.
+model AutomatedMessageSend {
+  id                    String    @id @default(cuid())
+  organizationId        String
+  propertyId            String // eşleşme kapsamı: dış rezervasyon kimliği mülk başına tekildir
+  reservationId         String? // opak (FK yok)
+  externalReservationId String // sağlayıcı thread'i (Reservation.sourceReference = Conversation.externalReservationId)
+  kind                  String // kapalı küme: welcome | checkin | checkout
+  bodyHash              String // normalize edilmiş gövdenin SHA-256'sı (metin yok)
+  state                 String // pending | sent | unverified | failed
+  providerMessageId     String?
+  sentAt                DateTime // UYGULAMA saati (tek saat kuralı; şema varsayılanına bırakılmaz)
+  matchedExternalId     String? // senkronda eşleştiği sağlayıcı mesaj kimliği (bire bir)
+  matchedAt             DateTime?
+  createdAt             DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, propertyId, externalReservationId])
+  @@index([sentAt])
 }
 
 // ---------------------------------------------------------------------------
