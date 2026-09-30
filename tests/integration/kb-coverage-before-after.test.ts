@@ -153,10 +153,11 @@ describe("ÖNCE / SONRA — bilgi tabanı kapsamının ürüne etkisi", () => {
     expect(beforePrompt).toContain("bilgi tabanı boş");
 
     const res = await ask(token, QUESTION);
-    const body = (await res.json()) as { escalated?: boolean; reply: string };
+    const body = (await res.json()) as { escalated?: boolean; reply: string | null };
     expect(body.escalated).toBe(true);
-    // Misafir cevabı ALMIYOR; ev sahibine devrediliyor.
-    expect(body.reply).not.toContain("Otopark bina altındadır");
+    // Misafir cevabı ALMIYOR; ev sahibine devrediliyor. K10 (kurucu kararı 09-30, "hiçbir şey gitmesin"): devir cümlesi de
+    // misafire YAZILMAZ — fiziksel acil dışında cevap metni yok.
+    expect(body.reply).toBeNull();
 
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { organizationId: orgId } });
     expect(ev.kbRetrieved).toBe(0);

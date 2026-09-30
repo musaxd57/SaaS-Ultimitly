@@ -8,7 +8,7 @@ import {
   understandingRiskOf,
 } from "@/lib/ai/semantic/intent-risk";
 import type { MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
-import { autoReplyGateFailure } from "@/lib/automation";
+import { autoReplyGateFailure, autoReplyGateVerdict } from "@/lib/automation";
 import { evaluateEscalation, ESCALATION_REASONS } from "@/lib/guest-chat-gate";
 import { ESCALATION_REASON_CODES, RISK_TYPES } from "@/lib/risk-events";
 import { buildKbEvidence } from "@/lib/ai/grounding";
@@ -127,12 +127,20 @@ describe("kanal kapısı (`autoReplyGateFailure`)", () => {
     expect(autoReplyGateFailure({ ...OK, confidence: Number.NaN }, msg, { understandingRisk: "complaint_issue" })).toBe("blocked");
   });
 
-  it("devir cevabı insan talebinde GİDER; aynı devir cevabı acil durumda TUTULUR", () => {
+  it("🚨 K10 (kurucu kararı 09-30, 'hiçbir şey gitmesin'): devir cevabı insan talebinde de GİTMEZ; acil durumda da tutulur", () => {
     // Devir cümlesi misafirin dilinde (istemin İngilizce devir kalıbı; dil kapısı ayrı ölçülür).
     const handoff = { ...OK, intent: "human_request", reply: "Your message has been saved; your host can see it." };
     const msg = "Can I speak with the owner directly please?";
-    expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "human_request" })).toBeNull();
-    expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "emergency" })).toBe("understanding_risk");
+    // Çıktı vetosu (`handoff_notice`) risk niyetinden ÖNCE: kayıt gerekçesi ilk düşen kontrol ("blocked", ayrıntı çıktı vetosu).
+    // Acil yükseltme (Sorunlu + acil + e-posta) ilk düşen kontrole BAĞLI DEĞİL (`automation.ts` `modelSensitive`) — niyet
+    // sinyali yine yükseltir.
+    const vetoed = { reason: "blocked", detail: "reply_output_veto" };
+    expect(autoReplyGateVerdict(handoff, msg, { understandingRisk: "human_request" })).toEqual(vetoed);
+    expect(autoReplyGateVerdict(handoff, msg, { understandingRisk: "emergency" })).toEqual(vetoed);
+    // Veto atlanırsa (teşhis kipi) sıra eskisi: insan talebindeki devir geçer, acil durumda risk niyeti tutar.
+    const diag = { skipOutputVetoForDiagnosis: true };
+    expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "human_request", ...diag })).toBeNull();
+    expect(autoReplyGateFailure(handoff, msg, { understandingRisk: "emergency", ...diag })).toBe("understanding_risk");
   });
 });
 
