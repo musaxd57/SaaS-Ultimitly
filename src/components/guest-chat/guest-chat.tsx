@@ -1,20 +1,15 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-
-type Role = "guest" | "ai" | "host" | "resume";
-interface ChatMessage {
-  id: string;
-  role: Role;
-  text: string;
-}
-
-// Guest-facing title. Deliberately a FIXED brand string, never the internal
-// Property.name — that name is the host's private label (often an owner name or
-// informal code, e.g. "Serdar'ı Ekrem 2") and must not leak onto this public,
-// unauthenticated QR page. The guest is physically in the unit, so no
-// per-property label is needed to orient them.
-const GUEST_ASSISTANT_TITLE = "Lixus AI Misafir Asistanı";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  GUEST_ASSISTANT_TITLE,
+  GUEST_CHAT_CLOSED,
+  GUEST_CHAT_DISCLOSURE,
+  GUEST_CHAT_FOOTER,
+  GUEST_CHAT_INTRO,
+  GuestChatThread,
+  type GuestChatMessage as ChatMessage,
+} from "@/components/guest-chat/guest-chat-thread";
 /**
  * Kaç ARDIŞIK başarısız yenilemeden sonra misafire söylenir.
  *
@@ -338,17 +333,12 @@ export function GuestChat({ token }: { token: string }) {
       <header className="border-b border-border bg-card px-4 py-3">
         <p className="text-sm font-semibold">{GUEST_ASSISTANT_TITLE}</p>
         {/* One-time disclosure — shown ONCE here, never repeated under each message. */}
-        <p className="text-xs text-muted-foreground">
-          Yanıtlar yapay zekâ tarafından hazırlanabilir. Gerektiğinde işletme ekibi görüşmeye katılabilir.
-        </p>
+        <p className="text-xs text-muted-foreground">{GUEST_CHAT_DISCLOSURE}</p>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 && !closed && !boundElsewhere ? (
-          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
-            Merhaba! 👋 Konaklamanızla ilgili sorularınızı (çöp günü, cihazlar, kurallar, çevre
-            önerileri…) buraya yazabilirsiniz.
-          </div>
+          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{GUEST_CHAT_INTRO}</div>
         ) : null}
 
         {boundElsewhere ? (
@@ -359,65 +349,10 @@ export function GuestChat({ token }: { token: string }) {
         ) : null}
 
         {closed ? (
-          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
-            Konaklamanız sona erdiği için sohbet kapandı. İyi günler dileriz!
-          </div>
+          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{GUEST_CHAT_CLOSED}</div>
         ) : null}
 
-        {messages.map((m, i) => {
-          const guest = m.role === "guest";
-          const host = m.role === "host";
-          const resume = m.role === "resume";
-          // Separators mark the handoff transitions: the team joining and the AI
-          // being re-enabled. Derived from the sequence — n is tiny so the back-scan
-          // is cheap. A host message starts a "team joined" run only when the previous
-          // handoff marker was a resume (or there was none); a resume marker is
-          // rendered as its own "AI re-enabled" line (no bubble).
-          const prevMarker = [...messages.slice(0, i)].reverse().find((x) => x.role === "host" || x.role === "resume");
-          const startsHostRun = host && (!prevMarker || prevMarker.role === "resume");
-          const separator = resume
-            ? "Lixus AI yeniden etkinleştirildi"
-            : startsHostRun
-              ? "İşletme ekibi görüşmeye katıldı"
-              : null;
-          return (
-            <Fragment key={m.id}>
-              {separator ? (
-                <div className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span className="h-px flex-1 bg-border" />
-                  {separator}
-                  <span className="h-px flex-1 bg-border" />
-                </div>
-              ) : null}
-              {resume ? null : (
-                <div className={guest ? "flex justify-end" : "flex justify-start"}>
-                  <div
-                    className={
-                      guest
-                        ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
-                        : host
-                          ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
-                          : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
-                    }
-                  >
-                    {!guest ? (
-                      <p
-                        className={
-                          host
-                            ? "mb-0.5 text-[10px] font-semibold text-emerald-700"
-                            : "mb-0.5 text-[10px] font-semibold text-muted-foreground"
-                        }
-                      >
-                        {host ? "👥 İşletme ekibi" : "🤖 Lixus AI"}
-                      </p>
-                    ) : null}
-                    <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                  </div>
-                </div>
-              )}
-            </Fragment>
-          );
-        })}
+        <GuestChatThread messages={messages} />
 
         {sending ? (
           <div className="flex justify-start">
@@ -487,7 +422,7 @@ export function GuestChat({ token }: { token: string }) {
       ) : null}
 
       <footer className="bg-card px-4 pb-4 text-center text-[11px] text-muted-foreground">
-        Otomatik asistan + ev sahibi. Kapı kodu/Wi-Fi gibi bilgiler güvenlik için burada paylaşılmaz.{" "}
+        {GUEST_CHAT_FOOTER}{" "}
         <a href="/gizlilik" className="underline">
           Gizlilik
         </a>

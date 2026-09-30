@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft, User, UserRound } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Eye, User, UserRound } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
@@ -129,6 +129,13 @@ export default async function GuestChatDetailPage({
           className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
         >
           <ArrowLeft className="size-3.5" /> Tüm sohbetler
+        </Link>
+        {/* K14 (kurucu kararı 09-30): misafirin ekranının salt okunur önizlemesi — cihaz bağlamaz, gönderim yok. */}
+        <Link
+          href={`/guest-chats/${convo.id}/misafir-ekrani`}
+          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+        >
+          <Eye className="size-3.5" /> Misafirin gördüğü ekran
         </Link>
       </PageHeader>
 
