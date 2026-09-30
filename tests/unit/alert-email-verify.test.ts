@@ -73,6 +73,18 @@ describe("uyarı adresi doğrulama belirteci", () => {
     expect(verifyAlertEmailToken("a".repeat(2_001), NOW)).toBeNull();
   });
 
+  it("🚨 uzunluk tavanı İMZALI belirteçte de geçerli (HMAC'e dev girdi verilmez; gerçek adres 254 karakteri geçmez)", () => {
+    const long = { ...CLAIM, email: `${"a".repeat(1_500)}@example.com` };
+    const token = signAlertEmailToken(long, NOW)!;
+    expect(token.length).toBeGreaterThan(2_000);
+    expect(verifyAlertEmailToken(token, NOW)).toBeNull();
+    // KONTROL: tavanın altındaki aynı biçim doğrulanır.
+    const shortish = { ...CLAIM, email: `${"a".repeat(1_000)}@example.com` };
+    const ok = signAlertEmailToken(shortish, NOW)!;
+    expect(ok.length).toBeLessThan(2_000);
+    expect(verifyAlertEmailToken(ok, NOW)).toEqual(shortish);
+  });
+
   it("🚨 sır tanımlı değilse imzasız belirteç ÜRETİLMEZ ve hiçbiri doğrulanmaz", () => {
     const token = signAlertEmailToken(CLAIM, NOW)!;
     vi.stubEnv("AUTH_SECRET", "");

@@ -115,6 +115,14 @@ describe("uyarı adresi doğrulaması", () => {
     expect(mockMail).not.toHaveBeenCalled();
   });
 
+  it("kayıtlı bir uyarı adresi varken de onay çalışır (belirteç o adresi taşır, CAS onunla eşleşir)", async () => {
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "owner@example.com" } });
+    await patch({ alertEmail: OUTSIDE });
+    expect(await alertEmailOf(orgId)).toBe("owner@example.com"); // onaya kadar eski adres geçerli
+    expect((await verify(tokenFromMail())).status).toBe(200);
+    expect(await alertEmailOf(orgId)).toBe(OUTSIDE);
+  });
+
   it("🚨 eski bağlantı sonradan seçilen adresi GERİ ALAMAZ (CAS: belirteç istek anındaki adrese bağlı)", async () => {
     await patch({ alertEmail: OUTSIDE });
     const stale = tokenFromMail();
