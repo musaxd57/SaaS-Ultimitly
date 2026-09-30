@@ -489,6 +489,35 @@ describe("cleanupDuplicateConversations — mesaj kimliği (Codex 09-30 A1)", ()
     expect(await prisma.conversation.count({ where: { id: later.id } })).toBe(1);
   });
 
+  it("kimliksiz yerel mesaj: aynı an + aynı gövde ama FARKLI yön → eşleşmez (mutasyon 09-30)", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const rid = await sameStayPair(propertyId);
+    await conv(propertyId, rid, "res-A", [
+      { body: "Merhaba", direction: "outbound", externalId: null, at: "2026-11-02T10:00:00Z" },
+      { body: "Hoş geldiniz", direction: "outbound", externalId: null, at: "2026-11-02T10:01:00Z" },
+    ]);
+    await conv(propertyId, rid, "res-B", [{ body: "Merhaba", direction: "inbound", externalId: null, at: "2026-11-02T10:00:00Z" }]);
+
+    expect(await cleanupDuplicateConversations(orgId)).toMatchObject({ removed: 0, needsReview: 1 });
+  });
+
+  it("çoklu küme: kopyada AYNI anahtarlı iki yerel mesaj, tutulanda TEK → kopya silinmez (mutasyon 09-30)", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const rid = await sameStayPair(propertyId);
+    await conv(propertyId, rid, "res-A", [
+      { body: "Tamam", direction: "inbound", externalId: null, at: "2026-11-02T10:00:00Z" },
+      { body: "Kapı kodu?", direction: "inbound", externalId: null, at: "2026-11-02T10:05:00Z" },
+      { body: "Mesajınızda.", direction: "outbound", externalId: null, at: "2026-11-02T10:06:00Z" },
+    ]);
+    const dup = await conv(propertyId, rid, "res-B", [
+      { body: "Tamam", direction: "inbound", externalId: null, at: "2026-11-02T10:00:00Z" },
+      { body: "Tamam", direction: "inbound", externalId: null, at: "2026-11-02T10:00:00Z" },
+    ]);
+
+    expect(await cleanupDuplicateConversations(orgId)).toMatchObject({ removed: 0, needsReview: 1 });
+    expect(await prisma.message.count({ where: { conversationId: dup.id } })).toBe(2);
+  });
+
   it("KONTROL — kopyanın her mesajı tutulanda AYNI sağlayıcı mesajı olarak varsa (aynı konaklama) kopya silinir", async () => {
     const { propertyId, orgId } = await makeOrgWithProperty();
     const rid = await sameStayPair(propertyId);
