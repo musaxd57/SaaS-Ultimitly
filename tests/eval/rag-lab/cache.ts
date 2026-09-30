@@ -89,6 +89,12 @@ export async function embedCached(texts: readonly string[]): Promise<Map<string,
 
 const llmStats = new Map<string, { hits: number; calls: number }>();
 
+/** Önbellekte VARSA değeri döndürür — ağ yok, çevrimdışı hatası yok, istatistiğe yazılmaz; yoksa null. */
+export function peekLlmCache<T>(kind: string, keyParts: unknown): T | null {
+  const f = path.join(RAG_LAB_CACHE, "llm", kind, `${digest(keyParts)}.json`);
+  return existsSync(f) ? (JSON.parse(readFileSync(f, "utf8")) as T) : null;
+}
+
 /** Model çıktısı, disk önbellekli. `run` null dönerse (arıza) yazılmaz ve null döner. */
 export async function llmCached<T>(kind: string, keyParts: unknown, run: () => Promise<T | null>): Promise<T | null> {
   const dir = path.join(RAG_LAB_CACHE, "llm", kind);

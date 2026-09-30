@@ -9,7 +9,8 @@ import { auditClaims } from "@/lib/ai/claim-support";
 import { buildReplyPrompt } from "@/lib/ai/prompts";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
-import { llmCached } from "./rag-lab/cache";
+import { peekLlmCache } from "./rag-lab/cache";
+import { withRawReplyCache } from "./rag-lab/raw-reply-cache";
 import { replyCacheKey } from "./rag-lab/cache-keys";
 import { runPipeline, type LabQuery } from "./rag-lab/core";
 import { describeConfig, parseConfig } from "./rag-lab/config";
@@ -75,6 +76,8 @@ interface AnswerRow {
   config: string;
   qid: string;
   group: string;
+  /** Cevap eski İŞLENMİŞ önbellek kaydından (işleme o günkü kodla; Codex 09-30 C6) — raporda ayrı sayılır. */
+  legacyProcessed?: boolean;
   /** Cevap modeli yeniden denemelere rağmen cevap üretemedi (429 / arıza) → ölçüye girmez, raporda GEÇERSİZ sayılır. */
   invalid?: boolean;
   inBlock: boolean;
@@ -161,6 +164,8 @@ function blockEvidenceFor(reply: string, answers: readonly { needles: readonly s
 
 describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
   const rows: AnswerRow[] = [];
+  /** Cevabın kaynağı: ham kayıt (bugünkü işleme) · taze çağrı · eski İŞLENMİŞ kayıt (işleme eski — raporda ayrı). */
+  const replySources = { raw: 0, fresh: 0, legacy: 0 };
   const dump: DumpCase[] = [];
   let complete = false;
   const saved = process.env.AI_UNDERSTANDING_ENABLED;
@@ -195,6 +200,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
       "",
       `- commit: ${commit} · küme: ${SPLIT} · grup başına en çok ${PER_GROUP} soru · bilgi tabanı: ${KB_MODE === "perq" ? `soru başına ${PERQ_SIZE} kalem` : "tüm küme"}`,
       `- geçerli cevap: ${rows.length - invalid.length} · üretilemeyen (yeniden denemeden sonra): ${invalid.length} · eşleştirilmiş soru: ${paired.size}`,
+      `- cevap kaynağı: ham kayıt (bugünkü işleme) ${replySources.raw} · taze çağrı ${replySources.fresh} · ESKİ İŞLENMİŞ kayıt ${replySources.legacy}${replySources.legacy > 0 ? " (işleme o günkü kodla — `RAG_ANSWER_RAW_REFRESH=1` ücretli yeniler)" : ""}`,
       ...CONFIGS.map((c) => `- yapılandırma \`${c.name}\` (çözülmüş): ${describeConfig(c)}`),
       "",
       "Ölçü: blokta = cevap cümlesi bilgi bloğunda · sayılı = cevap cümlesi sayı taşıyan soru · sayı cevapta = sayı taşıyan HER",
@@ -269,16 +275,25 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
               language: "tr",
               now: REPLY_NOW,
             };
-            // Anahtar = modele GİDEN istek (model + çaba + sistem/kullanıcı istemi özeti; Codex 09-27): istem kurucusu ya da model
-            // değişince ıska, aynı istek isabet. Eski `{ v: 1, input }` girdileri §6d'deki taşımayla (istem birebir aynıysa) okunur.
-            const cacheKey = replyCacheKey(replyRequestIdentity(input));
+            // 🚨 HAM ÇIKTI (Codex 09-30, C6): cevap çağrısının HAM API yanıtı, gönderilen gövdenin birebir özetiyle saklanır; her koşuda
+            // BUGÜNKÜ `suggestReply` işlemesi ham yanıt üzerinde yeniden çalışır (işleme değişince ölçüm eski işlemeyi okumasın). Ham
+            // kaydı olmayan ama eski İŞLENMİŞ kaydı olan soru ücret ödenmeden eski kayıtla ölçülür ve AYRI sayılır ("eski işleme");
+            // `RAG_ANSWER_RAW_REFRESH=1` (ücretli) o soruları ham kayıtla yeniler. Eski anahtar = istek kimliği (Codex 09-27).
+            const legacy = peekLlmCache<{ reply: string; intent: string; u: number }>("reply", replyCacheKey(replyRequestIdentity(input)));
+            const onMiss = legacy && process.env.RAG_ANSWER_RAW_REFRESH !== "1" ? "block" : "network";
             let out: { reply: string; intent: string; u: number } | null = null;
+            let legacyProcessed = false;
             for (let attempt = 0; attempt <= RETRIES && !out; attempt++) {
               if (attempt > 0) await new Promise((r) => setTimeout(r, 20_000 * attempt));
-              out = await llmCached("reply", cacheKey, async () => {
-                const r = await suggestReply(input);
-                return r.source === "openai" ? { reply: r.reply, intent: r.intent, u: r.claimAudit?.u ?? 0 } : null;
-              });
+              const call = await withRawReplyCache(() => suggestReply(input), { onMiss });
+              if (call.value.source === "openai") {
+                out = { reply: call.value.reply, intent: call.value.intent, u: call.value.claimAudit?.u ?? 0 };
+                replySources[call.hit ? "raw" : "fresh"] += 1;
+              } else if (call.blocked && legacy) {
+                out = legacy;
+                legacyProcessed = true;
+                replySources.legacy += 1;
+              }
             }
             if (!out) {
               rows.push({ config: cfg.name, qid: q.id, group: q.group, invalid: true, inBlock: false, anchored: false, anchorHit: null, missing: false, unsupported: 0, handoff: false, foreign: false });
@@ -337,6 +352,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
               missing: admitsMissingKnowledge(out.reply),
               unsupported,
               unsupportedCached: out.u,
+              legacyProcessed,
               handoff: out.intent === "human_request",
               foreign:
                 foreignNumbers(out.reply, [

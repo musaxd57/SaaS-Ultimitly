@@ -184,11 +184,13 @@ describe("yeniden sıralama / anlama anahtarı — GÖNDERİLEN çaba", () => {
 });
 
 describe("bağlantı: cevap ölçeri yeni anahtarı ve sabit anı KULLANIR (ücretli koşu burada sınanamaz — kaynak pini)", () => {
-  it("rag-answer anahtarı `replyCacheKey(replyRequestIdentity(input))`; eski `{ v: 1, input }` yok; istem anı sabit", () => {
+  it("rag-answer: cevap HAM önbellekten (Codex 09-30 C6); eski işlenmiş kayıt yalnız istek kimliği anahtarıyla YEDEK; istem anı sabit", () => {
     const src = readFileSync(path.resolve(__dirname, "../eval/rag-answer.eval.test.ts"), "utf8");
-    expect(src).toContain("const cacheKey = replyCacheKey(replyRequestIdentity(input));");
-    expect(src).toMatch(/llmCached\("reply", cacheKey,/);
-    expect(src).not.toMatch(/llmCached\("reply",\s*\{\s*v:\s*1/);
+    expect(src).toMatch(/withRawReplyCache\(\(\) => suggestReply\(input\), \{ onMiss \}\)/);
+    expect(src).toContain('peekLlmCache<{ reply: string; intent: string; u: number }>("reply", replyCacheKey(replyRequestIdentity(input)))');
+    // İşlenmiş çıktı artık YAZILMAZ (yalnız eski kayıt okunur) ve eski `{ v: 1, input }` anahtarı yok.
+    expect(src).not.toMatch(/llmCached\("reply"/);
+    expect(src).not.toMatch(/\{\s*v:\s*1,\s*input\s*\}/);
     expect(src).toMatch(/now: REPLY_NOW,/);
   });
 });
