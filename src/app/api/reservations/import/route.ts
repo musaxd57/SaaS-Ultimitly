@@ -267,6 +267,15 @@ export const POST = withManage(async (session, req) => {
 
   // ── SINIFLANDIRMA (salt okuma; önizleme ve aktarım için ortak) ─────────────
   const classified: Classified[] = [];
+  // 🚨 DOSYA İÇİ TEKRAR (Codex 09-30, B4): sınıflandırma her satırı VERİTABANINA karşı denetliyordu; aynı dosyadaki önceki
+  // satırlar henüz yazılmadığı için iki özdeş satırın İKİSİ de "oluştur" oluyordu → çift rezervasyon + çift görev (referanslı
+  // satırda ikincisi benzersizlik kısıtına çarpıp hata sayılıyordu). İlk satır kazanır, sonrakiler "tekrar" diye atlanır.
+  const actedRefs = new Set<string>();
+  const createdNaturalKeys = new Set<string>();
+  const act = (c: Classified) => {
+    classified.push(c);
+    if (c.sourceReference) actedRefs.add(c.sourceReference);
+  };
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowLabel = `Satır ${i + 2}`;
@@ -313,6 +322,10 @@ export const POST = withManage(async (session, req) => {
     // referansın satırına yine de yazmak demek olurdu.
     if (!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(sourceReference)) {
       skip("erased");
+      continue;
+    }
+    if (sourceReference && actedRefs.has(sourceReference)) {
+      skip("duplicate");
       continue;
     }
 
@@ -372,7 +385,7 @@ export const POST = withManage(async (session, req) => {
         skip("owned_by_other");
         continue;
       }
-      classified.push({ ...base, action: "cancel", existingId: existing.id });
+      act({ ...base, action: "cancel", existingId: existing.id });
       continue;
     }
 
@@ -407,7 +420,7 @@ export const POST = withManage(async (session, req) => {
         skip("unchanged");
         continue;
       }
-      classified.push({ ...base, action: "update", existingId: existing.id, scrubbed, changedFields });
+      act({ ...base, action: "update", existingId: existing.id, scrubbed, changedFields });
       continue;
     }
 
@@ -415,6 +428,11 @@ export const POST = withManage(async (session, req) => {
     // there is no reference — so a double-clicked / re-uploaded plain CSV with
     // no id column doesn't create full duplicate reservations + tasks.
     if (!sourceReference) {
+      const naturalKey = `${row.guestName.slice(0, 200)}|${row.arrivalDate.getTime()}|${row.departureDate.getTime()}`;
+      if (createdNaturalKeys.has(naturalKey)) {
+        skip("duplicate");
+        continue;
+      }
       const dupe = await prisma.reservation.findFirst({
         where: {
           propertyId,
@@ -428,8 +446,9 @@ export const POST = withManage(async (session, req) => {
         skip("duplicate");
         continue;
       }
+      createdNaturalKeys.add(naturalKey);
     }
-    classified.push({ ...base, action: "create" });
+    act({ ...base, action: "create" });
   }
 
   const counts = { create: 0, update: 0, cancel: 0, skipped: 0 };

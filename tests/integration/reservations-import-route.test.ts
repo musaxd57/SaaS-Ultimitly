@@ -97,6 +97,46 @@ describe("POST /api/reservations/import — CSV fail-closed", () => {
 });
 
 // ---------------------------------------------------------------------------
+// CODEX 09-30 (B4): DOSYA İÇİ TEKRAR. Sınıflandırma her satırı veritabanına karşı denetliyordu; aynı dosyadaki önceki satırlar
+// henüz yazılmadığı için iki özdeş satırın ikisi de "oluştur" oluyordu → çift rezervasyon + çift görev.
+// ---------------------------------------------------------------------------
+describe("POST /api/reservations/import — dosya içi tekrar (Codex 09-30 B4)", () => {
+  let propertyId: string;
+
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    const made = await makeOrgWithProperty();
+    propertyId = made.propertyId;
+    session = { userId: "u", organizationId: made.orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+  });
+
+  it("🚨 referanssız CSV'de aynı misafir + tarih İKİ kez → TEK rezervasyon", async () => {
+    const csv = "guest_name,arrival,departure\nAda,2026-07-10,2026-07-14\nAda,2026-07-10,2026-07-14\nCem,2026-09-01,2026-09-04";
+    const res = await POST(importReq(propertyId, csv), { params: Promise.resolve({}) });
+    expect(res.status).toBe(200);
+    const names = (await prisma.reservation.findMany({ where: { propertyId }, select: { guestName: true } })).map((r) => r.guestName);
+    expect(names.sort()).toEqual(["Ada", "Cem"]);
+  });
+
+  it("🚨 referanslı CSV'de aynı referans İKİ kez → TEK rezervasyon, ikinci satır hata değil 'tekrar'", async () => {
+    const csv = "guest_name,arrival,departure,reference\nAda,2026-07-10,2026-07-14,R-1\nAda,2026-07-10,2026-07-14,R-1";
+    const res = await POST(importReq(propertyId, csv), { params: Promise.resolve({}) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(await prisma.reservation.count({ where: { propertyId, sourceReference: "R-1" } })).toBe(1);
+    expect(JSON.stringify(body.errors ?? [])).not.toMatch(/Satır 3/);
+  });
+
+  it("KONTROL — aynı misafir FARKLI tarihlerle iki konaklama → iki rezervasyon", async () => {
+    const csv = "guest_name,arrival,departure\nAda,2026-07-10,2026-07-14\nAda,2026-08-10,2026-08-14";
+    const res = await POST(importReq(propertyId, csv), { params: Promise.resolve({}) });
+    expect(res.status).toBe(200);
+    expect(await prisma.reservation.count({ where: { propertyId, guestName: "Ada" } })).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // KVKK ERASURE INGRESS — ELLE YÜKLEME ÜÇÜNCÜ GİRİŞ YOLU (denetim, 08-06)
 //
 // 🚨 BULUNAN AÇIK: `erasure.ts`'in başlık yorumu "every tombstone-scoped ingress
