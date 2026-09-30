@@ -61,7 +61,6 @@ export function nameMaskHidesEmergency(text: string, names: readonly (string | n
   }
   if (!isSafetyEmergencyText(withoutFullNames)) return false;
   const masked = maskGuestIdentity(withoutFullNames, keys, "guest");
-  if (masked === withoutFullNames) return false; // hiçbir kimlik konumu maskelenmedi → hiçbir sözcük gizlenmedi
   if (!isSafetyEmergencyText(masked)) return true;
   // İpucu görünür kalsa da maskelenen tek sözcüklük anahtarın KENDİSİ acil sözcüğüyse (kimlik konumunda "Ben Yangın, duman var").
   const singleWordKeys = new Set(keys.flatMap((k) => [k, k.split(/\s+/)[0] ?? ""]).filter((t) => isKey(t) && !/\s/u.test(t)));

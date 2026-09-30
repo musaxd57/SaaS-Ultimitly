@@ -255,6 +255,25 @@ describe("anahtar AÇIK — ad hiçbir model isteğine girmez, selamı kod ekler
     expect(user).toContain("15 Nisan'da gelebilir miyiz? Adım [Misafir].");
   });
 
+  it("🚨 bizim geçmiş mesajımızda selam satırı DIŞINDAKİ hitap da maskelenir ('Deniz Hanım, …'); misafir satırında aynı biçim değil", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const bodies = captureModel();
+    await suggestReply(
+      baseInput({
+        reservation: { ...baseInput().reservation!, guestName: "Deniz Kaya", guestGivenName: "Deniz" },
+        guestIdentifier: "Deniz Kaya",
+        history: [
+          { direction: "inbound", body: "Deniz Hanım bizimle mi kalacak?" },
+          { direction: "outbound", body: "Deniz Hanım, girişiniz 15:00'ten itibaren." },
+        ],
+        guestMessage: "Otopark var mı?",
+      }),
+    );
+    const user = userContent(bodies[0]);
+    expect(user).toContain("[Misafir] Hanım, girişiniz 15:00'ten itibaren.");
+    expect(user).toContain("Deniz Hanım bizimle mi kalacak?");
+  });
+
   it("anahtar KAPALIYKEN not yok, istem bugünkü gibi (ad ve mesaj aynen)", async () => {
     const bodies = captureModel();
     await suggestReply(baseInput({ ...YANGIN, guestMessage: "Dairede yangın var!" }));

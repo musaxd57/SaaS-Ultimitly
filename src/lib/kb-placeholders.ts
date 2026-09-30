@@ -564,8 +564,8 @@ export function fillGuestPlaceholdersInItems<T extends { title?: string; content
 ): T[] {
   return items.map((k) => ({
     ...k,
-    ...(typeof k.title === "string" ? { title: markUnresolvedApartment(fillGuestPlaceholders(k.title, values), values) } : {}),
-    content: markUnresolvedApartment(fillGuestPlaceholders(k.content, values), values),
+    ...(typeof k.title === "string" ? { title: markUnresolvedApartment(fillGuestPlaceholders(k.title, values)) } : {}),
+    content: markUnresolvedApartment(fillGuestPlaceholders(k.content, values)),
   }));
 }
 
@@ -577,8 +577,7 @@ export function fillGuestPlaceholdersInItems<T extends { title?: string; content
  */
 export const UNRESOLVED_APARTMENT_MARK = "[DAİRE NO]";
 
-function markUnresolvedApartment(text: string, values: GuestPlaceholderValues): string {
-  if (values.propertyName === undefined) return text;
+function markUnresolvedApartment(text: string): string {
   return text.replace(new RegExp(TOKEN.source, "gu"), (whole, key: string) => (keyKind(key) === "apartment" ? UNRESOLVED_APARTMENT_MARK : whole));
 }
 

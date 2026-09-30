@@ -163,6 +163,10 @@ describe("saygı hitabı (kurucu kararı 09-30)", () => {
     expect(nameless("{isim}, hoş geldiniz")).toBe("hoş geldiniz");
     // Sözcüğün PARÇASI hitap değildir.
     expect(nameless("Kaysayın {isim}, x")).toBe("Kaysayın, x");
+    // Belirteçten sonra ek varsa ("{isim}'e") ya da hitapla belirteç arasında boşluk yoksa eski kural ("misafirimiz'e" /
+    // "Sayınmisafirimiz" üretilmez).
+    expect(nameless("Sayın {isim}'e teşekkürler")).toBe("Sayın teşekkürler");
+    expect(nameless("Sayın{isim}, hoş geldiniz")).toBe("Sayın, hoş geldiniz");
     // Addan sonra saygı sözü varsa hitap zaten tam ("Sayın Bey," / "Sevgili Hanım,") — isim eklenmez.
     expect(nameless("Sayın {isim} Bey, hoş geldiniz")).toBe("Sayın Bey, hoş geldiniz");
     expect(nameless("Sevgili {isim} Hanım, hoş geldiniz")).toBe("Sevgili Hanım, hoş geldiniz");
