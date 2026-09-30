@@ -101,7 +101,15 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // C-17 (09-24): durum ve geçmiş kaydı TEK işlemde. Ayrı yazımda durum "bitti" olup kayıt düşerse "hazır" kanıtı
   // eksik kalıyordu (güvenli yön ama tutarsız); tersinde kayıt bir durumu anlatıp görev başka durumda kalabiliyordu.
   // Satır kilidi (update) iki eşzamanlı güncellemeyi sıralar → son geçmiş kaydı görevin son durumunu anlatır.
+  // 🚨 PERSONEL KAPSAMI YAZMA ANINDA (Codex 09-30, A4): yetki yukarıda okunan atamaya göreydi, yazma koşulsuzdu → arada
+  // yönetici görevi BAŞKASINA atadıysa eski personelin "bitti"si / notu yeni atananın görevine yazılıyordu. Personelin
+  // yazması artık "görev hâlâ bana atalı" koşuluyla (koşullu yazma, satır kilidi); tutmazsa hiçbir şey yazılmaz.
+  const staffScoped = !canManage(session);
   const task = await prisma.$transaction(async (tx) => {
+    if (staffScoped) {
+      const own = await tx.task.updateMany({ where: { id, assignedToId: session.userId }, data: { updatedAt: new Date() } });
+      if (own.count === 0) return null;
+    }
     const updated = await tx.task.update({
       where: { id },
       data: {
@@ -132,6 +140,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     }
     return updated;
   });
+  if (!task) return forbidden("Bu görev size atanmamış.");
 
   // Send email to the newly assigned user. Personele giden e-posta misafir adını / mesajını taşımaz (temizlikçi
   // görünümü; e-posta onun kutusunda, saklama süremizin dışında kalır).
