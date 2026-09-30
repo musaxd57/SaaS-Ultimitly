@@ -3,8 +3,9 @@ import net from "node:net";
 import { emailService } from "@/lib/email-core";
 
 // ---------------------------------------------------------------------------
-// SMTP TAŞIYICI SÖZLEŞMESİ — nodemailer major geçişinin (8.0.11 → 9.1.1)
-// GERÇEK regresyon testi (2026-09-09).
+// SMTP TAŞIYICI SÖZLEŞMESİ — nodemailer major geçişlerinin (8.0.11 → 9.1.1, 2026-09-09; 9.1.1 → 10.0.13, 2026-09-30:
+// TypeScript'e yeniden yazım, ESM + CommonJS derlemeleri, tek kırıcı değişiklik Node ≥ 20 — biz 22'deyiz; kendi tip bildirimleri
+// geldiği için @types/nodemailer kaldırıldı) GERÇEK regresyon testi. 10.0.13 dört danışmayı kapatır (triyaj kayıtları silindi).
 //
 // 🚨 NEDEN YENİ BİR TEST GEREKTİ: `viaSmtp` yolunun suit'te HİÇ testi yoktu.
 // Mevcut e-posta testlerinin HEPSİ `EMAIL_HOST: ""` kuruyor, yani nodemailer

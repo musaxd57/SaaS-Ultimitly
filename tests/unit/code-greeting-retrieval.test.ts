@@ -36,7 +36,7 @@ describe("getirme girdisi", () => {
         ],
       } as never,
       ["Deniz Kaya"],
-    ) as { guestMessage: string; history: { body: string }[] };
+    ) as unknown as { guestMessage: string; history: { body: string }[] };
     expect(out.guestMessage).toBe("Deniz manzarası var mı?");
     expect(out.history[0].body).toBe("[Misafir] Hanım, giriş 15:00.");
     expect(out.history[1].body).toBe("Deniz Hanım bizimle mi?");
