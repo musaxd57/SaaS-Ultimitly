@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
+import type { GuestNameSource } from "@/lib/guest-name-source";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { reportError } from "@/lib/report-error";
@@ -428,7 +429,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
                   ? {}
                   : {
                       guestName: row.guestName.slice(0, 200),
-                      guestNameSource: "calendar", // köken etiketi (migration 57) — olay alanı değil
+                      guestNameSource: "calendar" satisfies GuestNameSource, // köken etiketi (migration 57) — olay alanı değil
                       notes: row.notes ? row.notes.slice(0, 5000) : null,
                     }),
                 arrivalDate: row.arrivalDate,
@@ -451,7 +452,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             data: {
               propertyId: source.propertyId,
               guestName: row.guestName.slice(0, 200),
-              guestNameSource: "calendar",
+              guestNameSource: "calendar" satisfies GuestNameSource,
               arrivalDate: row.arrivalDate,
               departureDate: row.departureDate,
               channel,

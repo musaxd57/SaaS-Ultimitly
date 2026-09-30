@@ -6,7 +6,7 @@ import { toAmountDec } from "@/lib/money";
 import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
-import { givenNameForStorage } from "@/lib/guest-name-source";
+import { givenNameForStorage, type GuestNameSource } from "@/lib/guest-name-source";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
 import { recordIngestEvent as emit, INGEST_EVENT_SCHEMA_VERSION } from "./events";
@@ -132,7 +132,7 @@ export async function upsertCanonicalReservation(
     }
     // Köken: kanal gerçek bir ad gönderdiyse "channel" (gözlem; eski NULL satır da damgalanır). Ad gelmediyse dokunulmaz — saklı ad
     // önceki bir senkronun gerçek adı da, bizim yer tutucumuz da olabilir.
-    if (!scrubbed && resolvedGuestName !== null && existing.guestNameSource !== "channel") data.guestNameSource = "channel";
+    if (!scrubbed && resolvedGuestName !== null && existing.guestNameSource !== "channel") data.guestNameSource = "channel" satisfies GuestNameSource;
     if (!scrubbed && guestEmail !== null && guestEmail !== existing.guestEmail) data.guestEmail = guestEmail;
     if (!scrubbed && guestPhone !== null && guestPhone !== existing.guestPhone) data.guestPhone = guestPhone;
     if (!scrubbed && guestExternalId !== null && guestExternalId !== existing.guestExternalId) data.guestExternalId = guestExternalId;
@@ -183,7 +183,7 @@ export async function upsertCanonicalReservation(
         propertyId,
         guestName,
         guestGivenName: givenName ?? undefined,
-        guestNameSource: resolvedGuestName !== null ? "channel" : "placeholder",
+        guestNameSource: (resolvedGuestName !== null ? "channel" : "placeholder") satisfies GuestNameSource,
         guestEmail: guestEmail ?? undefined,
         guestPhone: guestPhone ?? undefined,
         guestExternalId: guestExternalId ?? undefined,

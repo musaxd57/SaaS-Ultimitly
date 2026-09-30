@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
+import type { GuestNameSource } from "@/lib/guest-name-source";
 import { toAmountDec } from "@/lib/money";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeError, tooManyRequests } from "@/lib/api";
@@ -548,7 +549,7 @@ export const POST = withManage(async (session, req) => {
                   ? {}
                   : {
                       guestName: row.guestName.slice(0, 200),
-                      guestNameSource: "file", // köken etiketi (migration 57)
+                      guestNameSource: "file" satisfies GuestNameSource, // köken etiketi (migration 57)
                       notes: row.notes ? row.notes.slice(0, 5000) : null,
                     }),
               },
@@ -582,7 +583,7 @@ export const POST = withManage(async (session, req) => {
       // Clamp to the same caps the manual path enforces (validators.ts) —
       // the import path otherwise wrote unbounded CSV fields straight to DB.
       guestName: row.guestName.slice(0, 200),
-      guestNameSource: "file",
+      guestNameSource: "file" satisfies GuestNameSource,
       arrivalDate: row.arrivalDate,
       departureDate: row.departureDate,
       // 🚨 CSV'DEKİ KANAL SÜTUNU KULLANILMAZ (denetim 08-08, ÖLÇÜLDÜ).

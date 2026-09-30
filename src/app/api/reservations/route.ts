@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
+import type { GuestNameSource } from "@/lib/guest-name-source";
 import { toAmountDec } from "@/lib/money";
 import { reservationSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
@@ -60,7 +61,7 @@ export const POST = withManage(async (session, req) => {
       data: {
         propertyId: d.propertyId,
         guestName: d.guestName,
-        guestNameSource: "host", // köken etiketi (migration 57): ev sahibi elle girdi
+        guestNameSource: "host" satisfies GuestNameSource, // köken etiketi (migration 57): ev sahibi elle girdi
         guestPhone: d.guestPhone || null,
         guestEmail: d.guestEmail || null,
         arrivalDate: d.arrivalDate,
