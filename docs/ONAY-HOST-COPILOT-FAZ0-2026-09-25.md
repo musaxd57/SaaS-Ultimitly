@@ -1,6 +1,8 @@
 # Host Copilot — Faz 0 onay paketi (09-25)
 
-> **Durum:** ONAY BEKLİYOR. Kod YOK, migration YOK.
+> **Durum:** ONAY BEKLİYOR. Kod YOK, migration YOK. **09-30 (K18):** değişmedi — aşağıdaki karar tablosu ONAYLANMADI; bu güncelleme
+> kod / migration izni DEĞİLDİR. Belge konuşma öğeleri (migration 56, 09-26) ve salt-okunur destek görünümü (K8, 09-28) ÖNCESİ yazıldı;
+> farklar ↓§9.
 > **Kaynaklar:** `docs/HOST-COPILOT-GEREKSINIMLERI-2026-09-25.md` §14 (Faz 0) ve `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md`
 > §3 (Host Karar Motoru; aşağıda **MÇ §x**).
 > **Kurucu:** "Her şeyi bitirince bu sisteme bakarız."
@@ -188,3 +190,15 @@ Ev sahibi düğmeye bastığında, göndermeden hemen önce aynı işlemde:
 - yeniden doğrulama modülü;
 - testler.
 - Kabaca 2–3 iş günü + inceleme turu.
+
+## 9. 09-30 güncellemesi (K18) — belge yazıldıktan sonra değişenler
+
+| Konu | Etki |
+|---|---|
+| Konuşma öğeleri canlıda (`ConversationItem`, migration 56; bayrak açık) | `DecisionRequest` öğeyle AYNI isteği ikinci kez temsil etmemeli: karar kartı mevcut öğeye bağlanmalı (öğe kimliği) — tasarım §2 buna göre yeniden yazılacak (açık) |
+| K9 (09-30): her hassas mesaj kendi öğesi + kendi e-postası | Faz 1'in "Karar bekliyor" e-postası (K5) aynı mesaj için ikinci e-posta OLMAMALI — tek bildirim kuralı (açık) |
+| K10 (09-30): devir cümlesi misafire gitmez; kanalda tutulan devir cevabı ev sahibine "Misafir cevabınızı bekliyor" e-postası | K3'teki "QR'da olgu cümlesi" artık YOK (QR'da devirde metin gitmiyor). "Karar bekliyor" e-postası bununla birleştirilmeli (açık) |
+| K8 (09-28): bürünme salt okunur | K9'daki "operatör karar veremez" kodda zaten zorunlu (bürünmede hiçbir yazma) |
+| K7 (kodda, yayın bekliyor): otomatik mesajlarımız "ev sahibi yazdı" sayılmaz | K6'daki "karar sonrası giden mesaj raporda nasıl sayılır" sorusu bu ayrımla birlikte ele alınmalı |
+| Gönderim / kayıt sırası, yarışlar, KVKK saklama (b6) | §3–§4 durum makinesi ve yeniden doğrulama bölümleri bu üç başlıkla güncellenmeli (açık); `DecisionRequest` satırlarının saklama süresi + silme paritesi tanımlanmalı |
+

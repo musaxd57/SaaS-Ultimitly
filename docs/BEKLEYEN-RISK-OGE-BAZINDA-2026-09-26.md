@@ -1,5 +1,9 @@
 # Bekleyen risk — öğe (istek) bazında temsil · inceleme + öneri (2026-09-26)
 
+> **Durum (09-30, K18):** 09-26 tarihli İNCELEME + ÖNERİ. Öneri o tarihten sonra kodda kısmen uygulandı (konuşma öğeleri,
+> `ConversationItem`, migration 56; bayrak canlıda açık). Aşağıdaki "bugünkü davranış" tabloları 09-26 öncesini anlatır.
+> §6'daki kararlar (D1–D6) **ONAYLANMADI**; bu güncelleme kod ya da canlı izni DEĞİLDİR. Sonraki değişiklikler ↓§7.
+
 > Kurucu isteği (09-26): eski cevapsız gerçek risk yeni mesajla **kaybolmamalı**, ama eski risk **tüm konuşmayı bloke
 > etmemeli**; risk istek bazında tutulmalı. Örnek: 1) "IBAN'ınızı atar mısınız?" 2) "Wi-Fi şifresi neydi?" → IBAN açık
 > hassas öğe olarak ev sahibinde kalır (tehlikeli otomatik cevap yok), Wi-Fi bağımsız ve güvenliyse normal cevaplanır.
@@ -106,3 +110,17 @@ raporda ayrı satır). Senaryo 3 (tek mesajda iki istek) bu yolda da **tek öğe
 - **D4** Güvenli cevap tutulan öğeye değinebilir mi (ör. "Ödemeler platform üzerinden yapılır") yoksa hiç değinmez mi?
 - **D5** "Boşverin" hangi sınıflarda öğeyi kapatır (acil / şikâyet de mi?), hangi katman(lar)ın hükmüyle?
 - **D6** Senaryo 3: tek mesajdaki istekler bölünecek mi (istek defteri = migration) yoksa mesaj tek öğe mi kalacak?
+
+## 7. 09-30 güncellemesi — b6 bulguları ve sonraki kararlar
+
+| Konu | Durum |
+|---|---|
+| Yeni turun risk sinyali ESKİ turun tutulan öğesine atfediliyordu (b6-3) | Kurucu kararı **K8** uygulandı: bu turun öğeleriyle açıklanamayan sinyal son mesajda AYRI öğe olur; güvenli kısım yine gider |
+| Öğe TÜRÜ istek kimliği gibi kullanılıyordu — iki farklı şikâyet birleşiyor, yenisi e-posta almıyordu (b6-4) | **K9** uygulandı: hassas öğeler birleşmez, her yeni hassas mesaj kendi öğesi + kendi e-postası; aynı mesajın yeniden senkronu ikinci öğe / e-posta üretmez |
+| Otomatik karşılama / giriş / çıkış mesajlarımız senkronla "ev sahibi yazdı" sayılıyor → tutulan öğe "Yanıtladınız" oluyor (b6-1 / b2-2, CANLI) | **K7** kodda (migration 58) — yayın, taze yedek onayı bekliyor |
+| Öğeye bölünemeyen tur eski konuşma düzeyi kapıya düşüyor, bekleyen IBAN'ı göremiyor (b6-2) | Bilinen sınır — D1–D6 kararlarına bağlı |
+| §1 tablosundaki QR emsali ("riskli mesaja hemen deterministik devir metni") | **ARTIK GEÇERSİZ** (K10, 09-30): devir cümlesi hiçbir yolda misafire gitmez; QR'da devirde metin yok, yalnız gerçek fiziksel acilde "Tehlike varsa hemen 112'yi arayın." |
+| Gönderim / kayıt sırası | Cevap gittikten sonra öğe kaydı düşerse akış DURMAZ, alarm üretir (kodda). Belge bu sırayı ve kayıp senaryosunu henüz tanımlamıyor — açık |
+| Yarışlar (eşzamanlı iki geçiş, senkron ile oto-yanıt) | Öğe yazımı mesaj kimliğiyle tekilleştirilir (K9 testleri); bildirim talebi öğe başına. Belgede ayrı bölüm yok — açık |
+| KVKK saklama | Öğe satırlarının saklama süresi ve silme paritesi bu belgede tanımlı değil — karar bekliyor |
+

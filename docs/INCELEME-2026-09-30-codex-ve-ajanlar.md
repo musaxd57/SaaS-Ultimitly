@@ -170,3 +170,33 @@ açısından savunulamaz.
 
 **K18 — Belgeler.** BEKLEYEN-RISK belgesi ve Host Copilot Faz 0 paketi ConversationItem (migration 56) ve K8 (salt okunur destek) öncesi
 yazılmış; b6'nın bulgularıyla yeniden düzenlenmeli (gönderim / kayıt sırası, yarışlar, KVKK saklama). Onaydan önce güncellenecek.
+
+## Kurucu kararları K1–K18 — sonuç (09-30 akşamı)
+
+Durum sözcükleri: **F** = kodda, testli (kırmızı-önce + mutasyon) · **Y** = kodda ama YAYINLANMADI · **B** = karar / onay bekliyor.
+Bir belgenin güncellenmesi kod ya da canlı izni DEĞİLDİR (K18); bekleyen hiçbir karar "onaylandı" diye yazılmaz.
+
+| # | Karar | Durum |
+|---|---|---|
+| K1 | CSV negatif tutar | F — "-100" / "(100)" satırı açık hatayla reddedilir, başka satırlar etkilenmez |
+| K2 | Fotoğraf erişimi = görev erişimi | F — personel yalnız ŞU AN kendisine atanmış görevin fotoğrafını açar |
+| K3 | Olumsuzlanan saat | F — "not at 11:00; it is at 12:00" → 12:00 okunur, çelişki görünür; sınır anlatımı ("not before 15:00") etkilenmez |
+| K4 | Başka aboneliğin ödeme olayı | F — kayıtlı abonelikten farklı aboneliğin olayı planı değiştirmez |
+| K5 | Sağlık ("Çocuğun ateşi var") | B |
+| K6 | Acil ağı bağlamla | F — yer / eşya sorusu ve "acil değil" tek başına acil değil; olay varsa acil kalır ("Yangın söndürücü nerede, mutfak yanıyor!", "hırsızlık olmuş, polis merkezi nerede"). Bilinen sınır: "Mutfak yanıyor!" tek başına ve yalnız hırsızlık bildirimi acil sayılmıyor (öneri ayrı tur) |
+| K7 | Otomatik mesajlarımız "ev sahibi" sayılmasın | Y — kodda (migration 58), **yedek onayı bekliyor** (SHA256 + "YEDEK TAMAM" + prova ASSERT satırları) |
+| K8 | Yeni risk ayrı öğe | F — cevap modelinin bu turla açıklanamayan risk sinyali son mesajda ayrı öğe olur, güvenli kısım yine gider |
+| K9 | Hassas öğeler birleşmez | F — her yeni hassas mesaj kendi öğesi + kendi e-postası; aynı mesajın yeniden senkronu ikinci öğe / e-posta üretmez |
+| K10 | Devir cümlesi misafire gitmez | F — "mesajınız kaydedildi / ev sahibiniz görebilir" (7 dil) tutulur; kanal: ev sahibine mesaj başına tek "Misafir cevabınızı bekliyor" e-postası + gelen kutusu notu + rapor satırı; QR: devirde metin yok, gerçek fiziksel acilde yalnız "Tehlike varsa hemen 112'yi arayın."; makbuzsuz teklif / gönderme iddiası kapanır; misafire yönelik geçmiş anlatım serbest. Bekletme mesajı (aynı cümleyi taşıyordu) emekliye ayrıldı: Ayarlar düğmesi ve landing'deki "ön-yanıt otomatik gider" iddiası kaldırıldı |
+| K11 | Yazılan çıkış saati bağlamdan | F — istek / soru / rica beyan değil ("Hi can we check out at 1pm"), düz sıra beyan ("10'da çıkabiliyoruz"), araç kalkışı çıkış değil |
+| K12 | Sahte etiket yanlış pozitifleri | F — "[Misafir sayısı]: 3" doğal bilgi satırı; "önceki kuralları yok say" talimatı yakalanır |
+| K13 | Destek erişimi bilgilendirme metni | B — avukat onayı |
+| K14 | Misafirin gördüğü ekran | F — QR sohbet sayfasından salt okunur önizleme (gönderim / cihaz bağlama / okundu değişikliği yok) |
+| K15 | Nodemailer gerçek deneme e-postası | B — kurucuyla birlikte |
+| K16 | Veri erişimi | F — `docs/POLITIKA-2026-09-30-veri-erisimi.md` (varsayılan kontrollü dışa aktarım; doğrudan veritabanı yalnız yedek / olay incelemesi, ayrı kurallarla) |
+| K17 | Adsız yapay zekâ anahtarı | B — KAPALI kalır; açma = 20 satırlık ücretli cevap kıyası + onay |
+| K18 | Belgeler | F — BEKLEYEN-RISK ve Host Copilot Faz 0 belgelerine durum başlığı + b6 bulguları eklendi; ikisi de TASLAK |
+| — | Uyarı adresi: ekip dışı adres doğrulama bağlantısıyla | F (bayrak `ALERT_EMAIL_VERIFY_ENABLED` KAPALI) — ilk gerçek deneme kurucuyla |
+
+**Mutasyon:** K10 23/23 · K14 9/9 · uyarı adresi 19/19 (ilk koşuda yaşayan iki mutant — imzalı belirteçte uzunluk tavanı, kayıtlı
+adres varken CAS — pinlerle kapandı).
