@@ -1,7 +1,7 @@
 import "server-only";
 
 import { redactSensitive } from "@/lib/report-error";
-import { redactNameFromBody } from "@/lib/data-retention";
+import { maskGuestIdentity, type TextAuthor } from "@/lib/ai/guest-identity-mask";
 import { isDateOrTimeToken, isProtectedNumericRun, NUMERIC_RUN_SOURCE } from "./date-time-tokens";
 
 // Testler ve eski çağıranlar için aynı adlarla (tek kaynak `date-time-tokens.ts`).
@@ -31,9 +31,14 @@ const MARK = "⁣";
 const MARK_RE = new RegExp(MARK, "g");
 const PLACEHOLDER_RE = new RegExp(`${MARK}KEEP(\\d+)${MARK}`, "g");
 
-export function redactForSemanticModel(text: string, names: readonly string[]): string {
+/**
+ * Anlam katmanına giden metin: ad YALNIZ kimlik konumunda maskelenir (kurucu kararı 09-30, `guest-identity-mask.ts` — "Deniz
+ * manzarası" / "15 Nisan" artık silinmez), tarih / saat korunur, telefon / e-posta / uzun kod redakte edilir. `author` = metnin
+ * yazarı: misafir (varsayılan) ya da biz (taslak, ev sahibi teklifi, giden geçmiş satırı).
+ */
+export function redactForSemanticModel(text: string, names: readonly string[], author: TextAuthor = "guest"): string {
   const kept: string[] = [];
-  const masked = redactNameFromBody(text.replace(MARK_RE, ""), [...names]).replace(new RegExp(NUMERIC_RUN_SOURCE, "g"), (run) => {
+  const masked = maskGuestIdentity(text.replace(MARK_RE, ""), names, author).replace(new RegExp(NUMERIC_RUN_SOURCE, "g"), (run) => {
     if (!isProtectedNumericRun(run)) return run;
     kept.push(run);
     return `${MARK}KEEP${kept.length - 1}${MARK}`;

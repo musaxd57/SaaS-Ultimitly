@@ -3,6 +3,8 @@ import { subMonths, startOfDay } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { redactNameInCodeGreetingLine } from "@/lib/ai/code-greeting";
+import { nameSource } from "@/lib/name-source";
 
 // ---------------------------------------------------------------------------
 // KVKK / data-retention + erasure.
@@ -40,39 +42,25 @@ const MIN_NAME_LEN = 3; // skip 2-char names ("Al"/"Su") — too collision-prone
  * and breaks on Turkish ç/ğ/ı/ö/ş/ü). Insertion is literal; idempotent.
  */
 export function redactNameFromBody(body: string, names: string[]): string {
-  const tokens = Array.from(
+  const all = Array.from(
     new Set(names.flatMap((n) => { const full = n.trim(); return [full, full.split(/\s+/)[0] ?? ""]; })),
   )
     .map((t) => t.trim())
-    .filter((t) => t.length >= MIN_NAME_LEN && t !== ANON_NAME && t !== ANON_ID)
-    .sort((a, b) => b.length - a.length);
+    .filter((t) => t.length > 0 && t !== ANON_NAME && t !== ANON_ID);
+  const tokens = all.filter((t) => t.length >= MIN_NAME_LEN).sort((a, b) => b.length - a.length);
   let out = body;
   for (const t of tokens) {
     out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${nameSource(t)}(?![\\p{L}\\p{N}])`, "giu"), ANON_BODY_NAME);
   }
+  // 🚨 KISA AD YALNIZ KODUN SELAM SATIRINDAN (kurucu kararı 09-30): 2 harfli adlar ("Su", "Al") gövdede aranmaz — "Su gelmiyor"
+  // şikâyeti bozulurdu — ama kodun / karşılama mesajının ilk satırı ("Merhaba Su,") adı kalıcı taşıyordu. O satır tablodaki adlı
+  // selamla BİREBİR aynıysa ad gizlenir; başka hiçbir yere dokunulmaz.
+  for (const t of all.filter((x) => x.length < MIN_NAME_LEN)) out = redactNameInCodeGreetingLine(out, t, ANON_BODY_NAME);
   return out;
 }
 
-/**
- * Türkçe harf aileleri (09-28 inceleme ajanları, ölçüldü): JS'in /i bayrağı "ı"yı "I"ya, "İ"yi "i"ye katlamaz — "İsmail"in
- * "ISMAIL"i, "Işıl"ın "IŞIL"ı silinmiyor, büyük harfle yazılan "AYŞE YILMAZ"da soyadı kalıyordu. Klavyesiz yazım ("Ayse Yilmaz")
- * da aynı ad. Her harf ailesinin bütün biçimleri tek sınıf; sözcükler arasındaki boşluk esnek ("Mehmet  Ali" kaydı "Mehmet Ali"
- * metnini tutar). Ad yoksa ya da eşleşmezse metin bayt bayt aynı.
- */
-const TR_LETTER_FAMILY: Record<string, string> = {};
-for (const family of ["iIıİ", "sSşŞ", "cCçÇ", "gGğĞ", "oOöÖ", "uUüÜ"]) {
-  for (const ch of family) TR_LETTER_FAMILY[ch] = family;
-}
-export function nameSource(token: string): string {
-  return token
-    .split(/\s+/)
-    .map((part) =>
-      Array.from(part)
-        .map((ch) => (TR_LETTER_FAMILY[ch] ? `[${TR_LETTER_FAMILY[ch]}]` : ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
-        .join(""),
-    )
-    .join("\\s+");
-}
+/** Ad eşleşme kalıbı — tek kaynak yaprak modül `name-source.ts` (istem ad maskesi de kullanır); eski içe aktaranlar için yeniden dışa. */
+export { nameSource };
 
 /** How many old reservations to scrub per call — bounds work / lock time. */
 const RETENTION_BATCH = 300;

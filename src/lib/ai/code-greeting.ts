@@ -3,7 +3,8 @@
 //
 // Misafirin adı MİSAFİRİN metnidir (sağlayıcıdaki görünen ad): istemin "rezervasyon" bölümünde güvenilir olgu gibi duruyordu
 // ("Ada Otopark Ücretsiz" gibi bir ad talimat taşıyabilir) ve her cevapta soyadıyla modele gidiyordu. Anahtar açıkken:
-//   · model adı GÖRMEZ (istem rezervasyon satırı, bilgi tabanı `{isim}` → "misafirimiz", geçmişte ad → "[Misafir]"),
+//   · model adı rezervasyon alanından GÖRMEZ (istem rezervasyon satırı yok, bilgi tabanı `{isim}` → "misafirimiz"); misafir
+//     metninde ad YALNIZ kimlik konumunda "[Misafir]" olur (kurucu kararı 09-30 — "Deniz manzarası" silinmez; tam gizlilik iddiası YOK),
 //   · model selam YAZMAZ (istem + örnek cevaplar),
 //   · selamı KOD ekler — YALNIZ ilk cevapta, misafirin dilinde, hitap adı YALNIZ kanalın ayrı ad alanından
 //     (`Reservation.guestGivenName`, migration 57); yoksa adsız ("Merhaba,"). İlk kelimeyi ad sanmak YOK (Codex kuralı).
@@ -59,6 +60,25 @@ export function salutationNameOf(givenName: string | null | undefined): string |
 export function modelGuestFirstName(guestIdentifier: string | null | undefined): string {
   if (codeGreetingEnabled()) return GUEST_NAME_FALLBACK;
   return guestFirstNameForPrompt(guestIdentifier) ?? GUEST_NAME_FALLBACK;
+}
+
+/**
+ * SAKLAMA TEMİZLİĞİ — KODUN SELAM SATIRINDAKİ AD (kurucu kararı 09-30). Kısa adlar ("Su", "Al") gövdenin geri kalanında ARANMAZ
+ * ("Su gelmiyor" şikâyeti bozulmasın), ama İLK satır tablodaki adlı selamla ("Merhaba Su,", "Hello Al,") BİREBİR aynıysa o satırdaki
+ * ad `mark` ile değiştirilir. Başka satırlara ve başka biçimlere dokunulmaz; eşleşme yoksa gövde bayt bayt aynı.
+ */
+export function redactNameInCodeGreetingLine(body: string, name: string, mark: string): string {
+  const nl = body.indexOf("\n");
+  const firstRaw = nl === -1 ? body : body.slice(0, nl);
+  const first = firstRaw.trim();
+  if (!first || !name) return body;
+  for (const lang of Object.keys(GREETINGS) as GreetingLanguage[]) {
+    if (first === GREETINGS[lang].named(name)) {
+      const at = firstRaw.indexOf(first);
+      return body.slice(0, at) + GREETINGS[lang].named(mark) + body.slice(at + first.length);
+    }
+  }
+  return body;
 }
 
 /** Selam satırı; dil tabloda yoksa `null` (cevap selamsız başlar). */

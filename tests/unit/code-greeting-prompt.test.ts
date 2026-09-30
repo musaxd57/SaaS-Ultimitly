@@ -10,9 +10,10 @@ import { suggestReplyFallback } from "@/lib/ai/fallback";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
 // ---------------------------------------------------------------------------
-// ADSIZ YAPAY ZEKÂ + KODLA SELAM — ÜCRETSİZ KANIT (Codex şartı, 09-28): kanarya ad (tam ad, hitap adı ya da türevi) HİÇBİR model
-// isteğine girmez — sohbet geçmişindeki kendi selamımız dahil (ikinci tur, R1); selam yalnız ilk cevapta ve tek; anahtar kapalıyken
-// istem eskisi gibi. Model çağrısı sahte `fetch` ile yakalanır; ağa çıkılmaz, ücretli değil.
+// ADSIZ YAPAY ZEKÂ + KODLA SELAM — ÜCRETSİZ KANIT (Codex şartı, 09-28; kural 09-30): kanarya ad KİMLİK konumlarında (tam ad, misafirin
+// "ben X" / "adım X" / imzası, bizim hitabımız, geçmişteki kendi selamımız — ikinci tur, R1) HİÇBİR model isteğine girmez; adla
+// çakışan anlamlı sözcük ("Deniz manzarası") silinmez — tam gizlilik iddiası yok (kurucu kararı). Selam yalnız ilk cevapta ve tek;
+// anahtar kapalıyken istem eskisi gibi. Model çağrısı sahte `fetch` ile yakalanır; ağa çıkılmaz, ücretli değil.
 // ---------------------------------------------------------------------------
 
 const GIVEN = "Zqxwvu";
@@ -173,22 +174,22 @@ describe("anahtar AÇIK — ad hiçbir model isteğine girmez, selamı kod ekler
     expect(bodies[0]).toContain("Otopark ücretli mi?"); // misafirin sorusu SİLİNMEZ (tam sözcük eşleşmesi değil)
   });
 
-  // R2 (Codex önerisi 09-28, kurucu "mantıklıysa yap"): güvenlik sözcüğü taşıyan ad DA silinir (ad hiçbir isteğe girmez); silme bir
-  // acil durum sözcüğünü de götürdüyse istemin KODDAN yazılan kısmına not düşülür. İki durum AYRI test: olay ↔ adın kendisi.
+  // R2 (Codex önerisi 09-28) → KURAL 09-30 (kurucu kararı): ad YALNIZ kimlik konumunda maskelenir; anlamlı sözcük silinmez. Adı
+  // "Yangın Kaya" olan misafirin "Dairede yangın var" mesajı modele AYNEN gider (acil sözcüğü görünür, not gerekmez). Not yalnız
+  // kimlik konumundaki maske bir acil sözcüğünü gizlediğinde ("Ben Yangın, …" — ad mı olay mı belirsiz → güvenli taraf).
   const YANGIN = {
     reservation: { ...baseInput().reservation!, guestName: "Yangın Kaya", guestGivenName: "Yangın" },
     guestIdentifier: "Yangın Kaya",
     history: [],
   };
 
-  it("🚨 R2 'Dairede yangın var' (ad 'Yangın Kaya'): ad modele GİTMEZ, acil sinyali KOD NOTU ile taşınır", async () => {
+  it("🚨 'Dairede yangın var' (ad 'Yangın Kaya'): acil sözcüğü modele GİDER (silinmez), kod notu gerekmez", async () => {
     vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
     const bodies = captureModel();
     await suggestReply(baseInput({ ...YANGIN, guestMessage: "Dairede yangın var!" }));
     const user = userContent(bodies[0]).toLocaleLowerCase("tr");
-    expect(user).toContain("dairede [misafir] var!");
-    expect(user).toContain("kod notu (kesin)");
-    expect(user).not.toContain("yangın"); // ne ad ne de maskelenen sözcük (sinyal notta, sözcüksüz)
+    expect(user).toContain("dairede yangın var!");
+    expect(user).not.toContain("kod notu");
     expect(user).not.toContain("kaya");
   });
 
@@ -202,11 +203,11 @@ describe("anahtar AÇIK — ad hiçbir model isteğine girmez, selamı kod ekler
     expect(user).not.toContain("yangın");
   });
 
-  it("R2 geçmişte cevapsız misafir mesajı da sayılır; cevaplanmış eski mesaj SAYILMAZ", async () => {
+  it("R2 kimlik konumundaki maske acil sözcüğünü gizlerse not; geçmişte cevapsız mesaj sayılır, cevaplanmış eski mesaj SAYILMAZ", async () => {
     vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
     let bodies = captureModel();
     await suggestReply(
-      baseInput({ ...YANGIN, history: [{ direction: "inbound", body: "Mutfakta yangın var" }], guestMessage: "Lütfen acele edin" }),
+      baseInput({ ...YANGIN, history: [{ direction: "inbound", body: "Ben Yangın, mutfakta duman var" }], guestMessage: "Lütfen acele edin" }),
     );
     expect(userContent(bodies[0])).toContain("KOD NOTU (kesin)");
     bodies = captureModel();
@@ -214,13 +215,44 @@ describe("anahtar AÇIK — ad hiçbir model isteğine girmez, selamı kod ekler
       baseInput({
         ...YANGIN,
         history: [
-          { direction: "inbound", body: "Dün mutfakta yangın vardı" },
+          { direction: "inbound", body: "Ben Yangın, dün mutfakta duman vardı" },
           { direction: "outbound", body: "Geçmiş olsun, ekip ilgilendi." },
         ],
         guestMessage: "Wi-Fi şifresi nedir?",
       }),
     );
     expect(userContent(bodies[0])).not.toContain("KOD NOTU");
+  });
+
+  it("🚨 kurucu kararı 09-30: adla çakışan anlamlı sözcük silinmez ('Deniz manzarası', '15 Nisan'); kimlik ifadesi maskelenir", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    let bodies = captureModel();
+    await suggestReply(
+      baseInput({
+        reservation: { ...baseInput().reservation!, guestName: "Deniz Kaya", guestGivenName: "Deniz" },
+        guestIdentifier: "Deniz Kaya",
+        history: [
+          { direction: "inbound", body: "Merhaba, ben Deniz, yarın geliyoruz." },
+          { direction: "outbound", body: "Merhaba Deniz,\n\nGirişiniz 15:00'ten itibaren." },
+        ],
+        guestMessage: "Deniz manzarası var mı?",
+      }),
+    );
+    let user = userContent(bodies[0]);
+    expect(user).toContain("Deniz manzarası var mı?");
+    expect(user).toContain("Merhaba, ben [Misafir], yarın geliyoruz.");
+    expect(user).not.toContain("Merhaba Deniz");
+    bodies = captureModel();
+    await suggestReply(
+      baseInput({
+        reservation: { ...baseInput().reservation!, guestName: "Nisan Er", guestGivenName: "Nisan" },
+        guestIdentifier: "Nisan Er",
+        history: [],
+        guestMessage: "15 Nisan'da gelebilir miyiz? Adım Nisan Er.",
+      }),
+    );
+    user = userContent(bodies[0]);
+    expect(user).toContain("15 Nisan'da gelebilir miyiz? Adım [Misafir].");
   });
 
   it("anahtar KAPALIYKEN not yok, istem bugünkü gibi (ad ve mesaj aynen)", async () => {

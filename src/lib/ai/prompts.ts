@@ -1228,7 +1228,9 @@ export function buildReplyPrompt(input: SuggestReplyInput): {
   const redactionNames = codeGreeting
     ? promptRedactionNames([reservation?.guestName, reservation?.guestGivenName, input.guestIdentifier])
     : [];
-  const shown = (text: string) => (codeGreeting ? redactGuestNamesForPrompt(text, redactionNames) : text);
+  // Ad YALNIZ kimlik konumunda maskelenir (kurucu kararı 09-30): misafir metninde "adım X" / imza, bizim metnimizde hitap.
+  const shown = (text: string, author: "guest" | "ours" = "guest") =>
+    codeGreeting ? redactGuestNamesForPrompt(text, redactionNames, author) : text;
 
   // ZAMAN VE KONAKLAMA EVRESİ — KODDA, org diliminde, takvim günü kuralıyla (`stay-timeline.ts`). Eskiden sunucu saati ham
   // damgayla kıyaslanıyordu: çıkış sabahı "konaklama tamamlandı", varıştan önceki akşam "girişe 0 gün" (09-25 ölçüldü).
@@ -1360,7 +1362,8 @@ Zaman bağlamı: ${timelineLine(timeline, {
           .map((m, i) => {
             // Anahtar açıkken kendi giden mesajımızın başındaki KODUN selam satırı ("Merhaba Su,") geçmişe girmez (`code-greeting.ts`).
             const body = codeGreeting && m.direction !== "inbound" ? withoutCodeGreetingLine(m.body, reservation?.guestGivenName) : m.body;
-            return `[${historyLabels[i].label}]: ${detailedHistory ? oneLineBody(shown(body)) : shown(body)}`;
+            const author = m.direction === "inbound" ? "guest" : "ours";
+            return `[${historyLabels[i].label}]: ${detailedHistory ? oneLineBody(shown(body, author)) : shown(body, author)}`;
           })
           .join("\n")
       : "(önceki mesaj geçmişi yok)";

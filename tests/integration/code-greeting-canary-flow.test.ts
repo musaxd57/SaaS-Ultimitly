@@ -4,9 +4,9 @@ import { prisma, resetDb } from "../helpers/db";
 // ---------------------------------------------------------------------------
 // ADSIZ YAPAY ZEKÂ — TAM AKIŞ KANARYASI (Codex şartı 09-28: "saldırgan ad, tam ad veya türevi hiçbir gerçek model isteğine girmez").
 // Kanal oto-yanıtı canlıdaki katmanlarla koşar: anlama katmanı, bekçi, anlamsal arama (gömme), yeniden sıralayıcı, cevap modeli.
-// HER model isteği sahte `fetch` ile yakalanır (ağ yok, ücret yok); kanarya ad (tam ad + hitap adı) hiçbirinde geçmemeli — misafirin
-// kendi mesajında ve geçmişteki kendi selamımızda (ikinci tur) geçse bile. KONTROL koşusu (anahtar kapalı) adın bugün modele gittiğini
-// gösterir: test anlamlı.
+// HER model isteği sahte `fetch` ile yakalanır (ağ yok, ücret yok); kanarya ad KİMLİK konumlarında (tam ad, misafirin "ben X", geçmişteki
+// kendi selamımız — ikinci tur) hiçbirinde geçmemeli. Kural 09-30 (kurucu kararı): adla çakışan anlamlı sözcük ("Deniz manzarası",
+// "Dairede yangın var") SİLİNMEZ — tam gizlilik iddiası yok. KONTROL koşusu (anahtar kapalı) adın bugün modele gittiğini gösterir.
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/messaging", async (orig) => ({
@@ -273,7 +273,7 @@ describe("tam akış kanaryası — adsız yapay zekâ", () => {
     expect(reply.some((c) => c.body.includes(`Ben ${GIVEN}.`))).toBe(true); // cevap istemi anahtar kapalıyken değişmedi
   });
 
-  it("🚨 ad 'Yangın Kaya' + 'Dairede yangın var!' (anahtar AÇIK): ad HİÇBİR istekte yok; anlama katmanı acil KOD NOTUNU alır", async () => {
+  it("🚨 ad 'Yangın Kaya' + 'Dairede yangın var!' (anahtar AÇIK, kural 09-30): ad hiçbir istekte yok; olay sözcüğü SİLİNMEZ, not gerekmez", async () => {
     vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
     const calls = captureAllModelCalls();
     const { conversationId, propertyId } = await seed({
@@ -291,11 +291,33 @@ describe("tam akış kanaryası — adsız yapay zekâ", () => {
         return body;
       }
     };
+    // Tam ad (ilk mesajdaki "ben Yangın Kaya") ve bizim selamımız ("Merhaba Yangın,") hiçbir istekte yok.
     expect(calls.filter((c) => userSide(c.body).toLocaleLowerCase("tr").includes("kaya")).map((c) => c.url)).toEqual([]);
-    expect(calls.filter((c) => userSide(c.body).toLocaleLowerCase("tr").includes("yangın")).map((c) => c.url)).toEqual([]);
+    expect(calls.filter((c) => userSide(c.body).includes("Merhaba Yangın")).map((c) => c.url)).toEqual([]);
+    // Olay sözcüğü anlama katmanına ve cevap modeline AYNEN gider — maske onu gizlemediği için kod notu da yok.
     const understanding = calls.filter((c) => !c.url.includes("/embeddings") && !c.body.includes("Sen Lixus AI"));
-    expect(understanding.some((c) => c.body.includes("code note: masking the guest's name"))).toBe(true);
-    expect(calls.find((c) => c.body.includes("Sen Lixus AI"))?.body).toContain("KOD NOTU (kesin)");
+    expect(understanding.some((c) => c.body.includes("Dairede yangın var!"))).toBe(true);
+    expect(understanding.some((c) => c.body.includes("code note: masking the guest's name"))).toBe(false);
+    const reply = calls.find((c) => c.body.includes("Sen Lixus AI"))?.body ?? "";
+    expect(reply).toContain("Dairede yangın var!");
+    expect(reply).not.toContain("KOD NOTU (kesin)");
+  });
+
+  it("🚨 kurucu kararı 09-30: ad 'Deniz Kaya' + 'Deniz manzarası var mı?' — anlamlı sözcük hiçbir katmanda silinmez, tam ad yok", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const calls = captureAllModelCalls();
+    const { conversationId, propertyId } = await seed({
+      fullName: "Deniz Kaya",
+      givenName: "Deniz",
+      lastMessage: "Deniz manzarası var mı?",
+    });
+    await warmPropertyKbVectors(propertyId);
+    await applyChannelAutoReply(conversationId);
+    const model = calls.filter((c) => !c.url.includes("/embeddings"));
+    expect(model.some((c) => c.body.includes("Sen Lixus AI") && c.body.includes("Deniz manzarası var mı?"))).toBe(true);
+    expect(model.some((c) => !c.body.includes("Sen Lixus AI") && c.body.includes("Deniz manzarası var mı?"))).toBe(true);
+    expect(calls.filter((c) => c.body.includes("Deniz Kaya")).map((c) => c.url)).toEqual([]);
+    expect(calls.filter((c) => c.body.includes("Merhaba Deniz")).map((c) => c.url)).toEqual([]);
   });
 
   it("🚨 soyad önde yazılmış ad ('Kanaryaoglu Zqxwvu'): hitap adı tam adın ilk sözcüğü DEĞİLKEN de hiçbir istekte yok", async () => {

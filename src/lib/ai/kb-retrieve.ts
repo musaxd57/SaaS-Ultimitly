@@ -102,7 +102,9 @@ export function namelessRetrievalInput<T extends KbChunkSource>(
   return {
     ...input,
     guestMessage: redactGuestNamesForPrompt(input.guestMessage, keys),
-    ...(input.history ? { history: input.history.map((m) => ({ ...m, body: redactGuestNamesForPrompt(m.body, keys) })) } : {}),
+    ...(input.history
+      ? { history: input.history.map((m) => ({ ...m, body: redactGuestNamesForPrompt(m.body, keys, m.direction === "inbound" ? "guest" : "ours") })) }
+      : {}),
   };
 }
 

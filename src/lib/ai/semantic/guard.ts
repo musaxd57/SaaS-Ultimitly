@@ -97,23 +97,24 @@ const knownNames = (input: Pick<StayGuardInput, "names">) =>
  * derdi (inceleme 09-24). Sığmıyorsa bekçi hüküm vermez → düşmüş sayılır (hassas istek insana).
  */
 export function guardSeesWholeReply(input: Pick<StayGuardInput, "reply" | "names">): boolean {
-  return fenceSafe(redactForSemanticModel(input.reply, knownNames(input))).length <= REPLY_CAP;
+  return fenceSafe(redactForSemanticModel(input.reply, knownNames(input), "ours")).length <= REPLY_CAP;
 }
 
 export function buildStayGuardUserContent(input: StayGuardInput): string {
   const names = knownNames(input);
-  const clean = (t: string, cap: number) => fenceSafe(redactForSemanticModel(t, names)).slice(0, cap);
+  const clean = (t: string, cap: number, author: "guest" | "ours" = "guest") =>
+    fenceSafe(redactForSemanticModel(t, names, author)).slice(0, cap);
   const msgs = input.guestMessages
     .filter((m): m is string => typeof m === "string" && m.trim().length > 0)
     .slice(-MAX_GUEST_MESSAGES)
     .map((m, i) => `[${i + 1}] <<<${clean(m, GUEST_MESSAGE_CAP)}>>>`);
   const ci = normalizeHhmm(input.stayTimes?.checkIn) ?? "unknown";
   const co = normalizeHhmm(input.stayTimes?.checkOut) ?? "unknown";
-  const offer = typeof input.hostOffer === "string" && input.hostOffer.trim() ? clean(input.hostOffer, 400) : null;
+  const offer = typeof input.hostOffer === "string" && input.hostOffer.trim() ? clean(input.hostOffer, 400, "ours") : null;
   const context = (input.history ?? [])
     .filter((m) => typeof m.body === "string" && m.body.trim().length > 0)
     .slice(-MAX_CONTEXT_MESSAGES)
-    .map((m) => `${m.direction === "inbound" ? "Guest" : "Host"}: <<<${clean(m.body, GUEST_MESSAGE_CAP)}>>>`);
+    .map((m) => `${m.direction === "inbound" ? "Guest" : "Host"}: <<<${clean(m.body, GUEST_MESSAGE_CAP, m.direction === "inbound" ? "guest" : "ours")}>>>`);
   return [
     `Property standard check-in: ${ci}; standard check-out: ${co}.`,
     ...(offer ? [`HOST'S STANDING OFFER (written by the host): <<<${offer}>>>`] : []),
@@ -121,7 +122,7 @@ export function buildStayGuardUserContent(input: StayGuardInput): string {
     "GUEST MESSAGES (unanswered, oldest first):",
     ...(msgs.length > 0 ? msgs : ["(none)"]),
     "DRAFT REPLY:",
-    `<<<${clean(input.reply, REPLY_CAP)}>>>`,
+    `<<<${clean(input.reply, REPLY_CAP, "ours")}>>>`,
   ].join("\n");
 }
 

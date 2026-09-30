@@ -132,7 +132,8 @@ export const MASKED_EMERGENCY_NOTE =
 /** Modele giden kullanıcı içeriği (redakte, ayraçlı, tavanlı). Saf; test edilebilir. */
 export function buildUnderstandingUserContent(input: UnderstandingInput): string {
   const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
-  const clean = (t: string) => fenceSafe(redactForSemanticModel(t, names)).slice(0, UNDERSTANDING_MESSAGE_CAP);
+  const clean = (t: string, author: "guest" | "ours" = "guest") =>
+    fenceSafe(redactForSemanticModel(t, names, author)).slice(0, UNDERSTANDING_MESSAGE_CAP);
   // AD MASKESİ ACİL SÖZCÜĞÜ GİZLEDİYSE (Codex önerisi 09-28): ad her zaman silinir; silme cevapsız bir mesajdaki acil durum
   // sözcüğünü de götürdüyse ("Yangın Kaya" adlı misafirin "Dairede yangın var"ı) ayracın DIŞINA kod notu düşülür — ad modele
   // gitmez, acil sinyali kaybolmaz. Yalnız o durumda: başka her mesajda içerik ve önbellek anahtarı bayt bayt eskisi.
@@ -148,7 +149,9 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
     const stamp = at && input.writtenStamp ? input.writtenStamp(at) : null;
     return stamp ? ` (written ${stamp})` : "";
   };
-  const contextLines = context.map((m) => `${m.direction === "inbound" ? "Guest" : "Host"}${written(m.at)}: <<<${clean(m.body)}>>>`);
+  const contextLines = context.map(
+    (m) => `${m.direction === "inbound" ? "Guest" : "Host"}${written(m.at)}: <<<${clean(m.body, m.direction === "inbound" ? "guest" : "ours")}>>>`,
+  );
   const unansweredLines = unanswered.map((m, i) => `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>${maskNote(m.body)}`);
   const stamped = [...context, ...unanswered].some((m) => written(m.at) !== "");
   return [
