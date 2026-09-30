@@ -153,11 +153,17 @@ async function applySubscriptionEvent(
   // near-simultaneous past_due events (minutes vs a 14-day grace: immaterial).
   const existing = await prisma.subscription.findUnique({
     where: { organizationId },
-    select: { lastEventAt: true, pastDueSince: true },
+    select: { lastEventAt: true, pastDueSince: true, providerRef: true },
   });
 
   const providerRef = str(data.id);
   const status = paddleStatusToLocal(str(data.status));
+
+  // 🚨 ABONELİK KİMLİĞİ (K4, kurucu onayı 09-30): kayıtlı abonelikten FARKLI bir aboneliğin olayı satırı yalnız o abonelik
+  // AKTİFLEŞİYORSA değiştirir (yeni abonelik eskisinin yerine geçer). Aksi hâlde (eski aboneliğin iptali, ödeme gecikmesi,
+  // güncellemesi) yalnız kaydedilir: iki ödeme akışı açılıp olaylar ters sırada gelince ESKİ aboneliğin iptali, taze onay
+  // kaydıyla kuruluşa bağlanıp yeni AKTİF aboneliği "iptal edildi" yazıyordu (Codex 3-7). Kayıtlı kimlik yoksa (ilk bağ) eski yol.
+  if (existing?.providerRef && providerRef && existing.providerRef !== providerRef && status !== "active") return;
 
   // First subscription item's price → plan code (env-mapped).
   let planCode: string | null = null;

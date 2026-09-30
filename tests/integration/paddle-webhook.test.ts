@@ -92,6 +92,42 @@ describe("POST /api/webhooks/paddle", () => {
     expect(evt?.status).toBe("processed");
   });
 
+  describe("K4 — abonelik kimliği: başka aboneliğin olayı kayıtlı aboneliği ezmez (yalnız yeni abonelik aktifleşince)", () => {
+    const subEvent = (eventId: string, subId: string, status: string, occurredAt: string) =>
+      JSON.stringify({
+        event_id: eventId,
+        event_type: status === "canceled" ? "subscription.canceled" : "subscription.updated",
+        occurred_at: occurredAt,
+        data: { id: subId, status, custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+      });
+
+    it("🚨 iki ödeme akışı: yeni abonelik aktifken ESKİ aboneliğin (sonradan gelen) iptali satırı DEĞİŞTİRMEZ", async () => {
+      const t0 = new Date(Date.now() - 60_000).toISOString();
+      const t1 = new Date().toISOString();
+      const activate = subEvent("evt_new_active", "sub_new", "active", t0);
+      expect((await POST(req(activate, sign(activate)))).status).toBe(200);
+      const cancelOld = subEvent("evt_old_cancel", "sub_old", "canceled", t1);
+      expect((await POST(req(cancelOld, sign(cancelOld)))).status).toBe(200);
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.providerRef).toBe("sub_new");
+      expect(sub.status).toBe("active");
+      // Olay yine kayıtlı (yok sayılmadı, yalnız uygulanmadı).
+      expect((await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_old_cancel" } }))?.status).toBe("processed");
+    });
+
+    it("yeni abonelik AKTİFLEŞİNCE eskisinin yerine geçer; kayıtlı aboneliğin kendi iptali uygulanır", async () => {
+      const a = subEvent("evt_a", "sub_a", "active", new Date(Date.now() - 120_000).toISOString());
+      await POST(req(a, sign(a)));
+      const b = subEvent("evt_b", "sub_b", "active", new Date(Date.now() - 60_000).toISOString());
+      await POST(req(b, sign(b)));
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).providerRef).toBe("sub_b");
+      const cancelB = subEvent("evt_b_cancel", "sub_b", "canceled", new Date().toISOString());
+      await POST(req(cancelB, sign(cancelB)));
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub).toMatchObject({ providerRef: "sub_b", status: "canceled" });
+    });
+  });
+
   it("resolves the org from the server-trusted consentId, IGNORING a forged custom_data.organizationId", async () => {
     // Consent row created from the paying user's OWN session (org = orgId).
     const user = await prisma.user.create({
