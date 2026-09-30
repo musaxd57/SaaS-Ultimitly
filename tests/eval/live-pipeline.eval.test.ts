@@ -296,6 +296,8 @@ interface Row {
   nameInBody?: boolean;
   panelName?: string | null;
   claimU: number | null;
+  /** Cevap modelinin KENDİ etiketleri (taslağı üreten çağrı) — tutulma sebebini modelde mi kapıda mı ayırmak için. */
+  model?: { intent: string; riskLevel: string; riskType: string | null; confidence: number } | null;
   ms: number;
   error?: string;
 }
@@ -411,6 +413,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     stayClaim: sentText ? detectAvailabilityClaim(sentText) : null,
     ...(s.guest ? greetingFields(s, sentText ?? draft, conv?.guestIdentifier ?? null) : {}),
     claimU: typeof evidence.claims?.u === "number" ? evidence.claims.u : null,
+    model: raw?.source === "openai" ? { intent: raw.intent, riskLevel: raw.riskLevel, riskType: raw.riskType, confidence: raw.confidence } : null,
     ms,
   };
 }
