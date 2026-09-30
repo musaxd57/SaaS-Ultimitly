@@ -45,6 +45,8 @@ describe("K3 — olumsuzlanan saat okunmaz, düzeltme saati okunur", () => {
     ["Check-out is not at 11:00. Thank you. See you at 16:00!", []],
     ["Check-out is not at 11:00. Questions? See you at 16:00.", []],
     ["Check-out is not at 11:00. Check-in and check-out are 15:00 and 12:00. See you at 16:00.", ["12:00"]],
+    // Taşıma TEK cümlecik yaşar: düzeltmeden sonraki cümleye sızmaz.
+    ["Check-out is not at 11:00; it is at 12:00. See you at 16:00.", ["12:00"]],
     // Aynı cümlecikte düzeltme saati okunduysa alan taşınmaz.
     ["Check-out is not 11:00 but 12:00. See you at 16:00.", ["12:00"]],
     // "not exactly" = yaklaşık: olumsuzlama değil.

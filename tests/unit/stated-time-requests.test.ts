@@ -29,7 +29,12 @@ const REQUESTS: [msg: string, hhmm: string][] = [
   ["Wondering if check out at 1pm works for you", "13:00"],
   ["We would like to check out at 1pm", "13:00"],
   ["Requesting checkout at 1pm", "13:00"],
-  ["Wäre es möglich um 13 Uhr auszuchecken", "13:00"],
+  ["Wäre es möglich dass wir um 13 Uhr abreisen", "13:00"],
+  // Yalnız istek işaretinden oluşan kısa cümlecik sonrakine de geçer ("Mümkünse, …").
+  ["Mümkünse, 13'te çıkalım", "13:00"],
+  ["If possible, we check out at 1pm", "13:00"],
+  ["Wäre es möglich, dass wir um 13 Uhr abreisen", "13:00"],
+  ["İzin verirseniz, 13'te çıkalım", "13:00"],
   ["Si es posible saldremos a las 13", "13:00"],
   // Bugün de istek sayılanlar (değişmedi): soru eki, -sAk, cümle başında soru.
   ["Merhaba 13'te çıkabilir miyiz", "13:00"],
@@ -45,6 +50,8 @@ const STATEMENTS: [msg: string, hhmm: string][] = [
   ["Hi, we will check out at 9am tomorrow", "09:00"],
   ["Merhaba, yarın sabah 9'da çıkıyoruz", "09:00"],
   ["Hi we will leave at 10, is it ok?", "10:00"], // soru ayrı cümlecikte: beyan etkilenmez
+  // İstek işaretli cümleciğin başka içeriği varsa sonraki beyan etkilenmez.
+  ["Mümkünse temizlikçi erken gelsin, biz 11'de çıkıyoruz", "11:00"],
   ["We leave for the airport at 10", "10:00"],
   ["Flight at 14:00, we'll leave the apartment at 11", "11:00"],
   ["Uçak kalkış saatimiz 16:00, 12'de çıkarız", "12:00"],
@@ -74,6 +81,9 @@ describe("K11 — yazılan çıkış saati bağlamdan: istek / soru beyan değil
 describe("K11 — düzeltme yolu: istek cümleciğindeki yeni saat düzeltme değildir", () => {
   it("🚨 'Hi can we make it 13:00 instead of 11' kayıtlı 11:00'i 13:00'e TAŞIMAZ", () => {
     expect(timeCorrectedInMessage("11:00", "13:00", "Hi can we make it 13:00 instead of 11")).toBe(false);
+  });
+  it("🚨 'Mümkünse, 11 yerine 13'te çıkalım' düzeltme değildir (istek işareti sonraki cümleciğe geçer)", () => {
+    expect(timeCorrectedInMessage("11:00", "13:00", "Mümkünse, 11 yerine 13'te çıkalım")).toBe(false);
   });
   it("KONTROL — beyan düzeltmesi taşır ('Checkout 11 değil, 13'te çıkarız')", () => {
     expect(timeCorrectedInMessage("11:00", "13:00", "Checkout 11 değil, 13'te çıkarız.")).toBe(true);

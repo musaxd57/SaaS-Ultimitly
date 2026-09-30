@@ -130,6 +130,16 @@ const REQUEST_CLAUSE =
   /(?:^|\s)(?:can|could|may|might|would|will|shall|should)\s+(?:we|i|you)(?=\s)|(?:^|\s)(?:is|are|do|does|did)\s+(?:it|there|we|you)(?=\s)|possible|m[öo]glich|posible|if\s+(?:we|i)\s+(?:can|could|may|might)(?=\s)|wonder(?:ing)?\s+if|(?:^|\s)(?:let|allow)\s+us(?=\s)|(?:would|'d)\s+(?:like|love)\s+(?:to|a)(?=\s)|(?:^|\s)request|rica|m[üu]mk[üu]n|izin\s+ver|m[üu]saade/;
 
 /**
+ * YALNIZ istek işaretinden oluşan kısa cümlecik ("Mümkünse,", "If possible,", "İzin verirseniz,", "Wäre es möglich,") SONRAKİ
+ * cümleciği de istek yapar: "Mümkünse, 13'te çıkalım" bir ricadır. İşaretli cümleciğin başka içeriği varsa ("Mümkünse temizlikçi
+ * erken gelsin, biz 11'de çıkıyoruz") sonraki beyan etkilenmez (en çok üç sözcük).
+ */
+function isBareRequestMarker(clause: string): boolean {
+  const words = clause.trim().split(/\s+/).filter(Boolean);
+  return words.length > 0 && words.length <= 3 && REQUEST_CLAUSE.test(clause);
+}
+
+/**
  * BAŞKA BİR ARACIN kalkışı ve NESNELİ "leave" çıkış değildir (kör batarya 09-25): "Our train leaves at 10", "Our flight
  * departs at 13:20", "Our bus departs at 12, so we'll leave at 11", "Trenimiz 10'da gidiyor", "We'll leave the car at the
  * airport at 9". İpucu testinden ÖNCE nötrlenir (↓ulaç gibi); aynı mesajdaki gerçek ipucu ("we'll leave at 11") kalır.
@@ -251,6 +261,7 @@ export function timeStatedInMessage(hhmm: string, message: string): boolean {
       DEPARTURE_INABILITY.test(clauses[j]) ||
       QUESTION_CLAUSE.test(clauses[j]) ||
       REQUEST_CLAUSE.test(clauses[j]) ||
+      (j > 0 && isBareRequestMarker(clauses[j - 1])) ||
       (question && j === clauses.length - 1);
     for (let i = 0; i < clauses.length; i++) {
       if (!CHECKOUT_CUE.test(clauses[i])) continue;
@@ -511,6 +522,7 @@ export function timeCorrectedInMessage(previousHhmm: string, newHhmm: string, me
       const clause = clauseAround(sentence, at);
       // Yapamama ve soru/istek cümleciğindeki saat yeni beyan değildir ("11 değil 12'de çıkabilir miyiz?").
       if (DEPARTURE_INABILITY.test(clause) || QUESTION_CLAUSE.test(clause) || REQUEST_CLAUSE.test(clause)) return false;
+      if (isBareRequestMarker(clauseBefore(sentence, at))) return false;
       if (question && sentence.slice(at).search(CLAUSE_SEPARATOR) === -1) return false;
       return CORRECTION_CUE.test(clause) || CHECKOUT_CUE.test(clause) || isTimeOnlyClause(clause);
     };
@@ -520,6 +532,19 @@ export function timeCorrectedInMessage(previousHhmm: string, newHhmm: string, me
     if (b.readings.includes(prevMin) && readsNew(a) && newTimeClauseOk(a.at)) return true;
   }
   return false;
+}
+
+/** `at` konumunu içeren cümlecikten ÖNCEKİ cümlecik (ilk cümlecikse ""). */
+function clauseBefore(sentence: string, at: number): string {
+  let start = 0;
+  let prev = "";
+  for (const m of sentence.matchAll(CLAUSE_SEPARATOR)) {
+    const i = m.index ?? 0;
+    if (i >= at) return prev;
+    prev = sentence.slice(start, i);
+    start = i + m[0].length;
+  }
+  return prev;
 }
 
 /** `at` konumunu içeren cümlecik (↑CLAUSE_SEPARATOR — ileri bakışla aynı sınırlar). */
