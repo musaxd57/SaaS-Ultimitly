@@ -1208,6 +1208,35 @@ const derivedSystem = deriveByAnchors(REPLY_SYSTEM_PROMPT, SYSTEM_CODE_GREETING_
 /** Anahtar açıkken kullanılan sistem istemi (kapalıyken `REPLY_SYSTEM_PROMPT`). */
 export const REPLY_SYSTEM_PROMPT_CODE_GREETING = derivedSystem.text;
 
+// ── BİLGİ TABANI SABİT HİZMET ÜCRETİ (KURAL-4 netleştirmesi, `kb-fee-rule.ts`; anahtar `AI_KB_FEE_RULE_ENABLED` KAPALI) ────
+// YALNIZ ölçüm için (kurucu 09-30). Tek çapa: KURAL-4'ün ilk iki satırı; ilk satır AYNEN kalır, istisna araya girer, "Para
+// konuları" → "Diğer para konuları". Kod selamı anahtarıyla birlikte de türetilir (iki anahtar bağımsız).
+const KB_FEE_RULE_REPLACEMENTS: readonly Replacement[] = [
+  [
+    '  Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.\n  Para konuları her zaman "bu konu ev sahibinizin kararıdır"',
+    "  Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.\n" +
+      "  TEK İSTİSNA — BİLGİ TABANINDA YAZAN SABİT HİZMET ÜCRETİ: misafir bir hizmetin (ör. otopark, ara temizlik, ek yatak,\n" +
+      "  evcil hayvan, bagaj) ücretini soruyor VE bilgi tabanı o hizmetin sabit ücretini açıkça yazıyorsa tutarı bilgi\n" +
+      "  tabanındaki gibi AYNEN yaz — yuvarlama, hesaplama, indirim yok. Konaklama / gece fiyatı, erken giriş / geç çıkış ücreti\n" +
+      '  (Bölüm 7.5 ve "EV SAHİBİ GEÇ ÇIKIŞ / UZATMA TEKLİFİ" bloğu geçerli), iade, indirim, tazminat bu istisnaya GİRMEZ;\n' +
+      "  bilgi tabanında yazmayan hiçbir tutarı söyleme.\n" +
+      '  Diğer para konuları her zaman "bu konu ev sahibinizin kararıdır"',
+  ],
+];
+const derivedFeeSystem = deriveByAnchors(REPLY_SYSTEM_PROMPT, KB_FEE_RULE_REPLACEMENTS);
+const derivedFeeGreetingSystem = deriveByAnchors(REPLY_SYSTEM_PROMPT_CODE_GREETING, KB_FEE_RULE_REPLACEMENTS);
+
+/** Ücret kuralı anahtarı açıkken (kod selamı kapalı). */
+export const REPLY_SYSTEM_PROMPT_KB_FEE_RULE = derivedFeeSystem.text;
+/** Ücret kuralı + kod selamı anahtarları birlikte açıkken. */
+export const REPLY_SYSTEM_PROMPT_CODE_GREETING_KB_FEE_RULE = derivedFeeGreetingSystem.text;
+
+/** Pin testi için: türetmede bulunamayan çapalar (BOŞ olmalı). */
+export const KB_FEE_RULE_PROMPT_DERIVATION = {
+  systemMissing: derivedFeeSystem.missing,
+  greetingMissing: derivedFeeGreetingSystem.missing,
+};
+
 /** Pin testi için: türetmede bulunamayan çapalar (BOŞ olmalı) ve ton başına değişen parça sayısı. */
 export const CODE_GREETING_PROMPT_DERIVATION = {
   systemMissing: derivedSystem.missing,

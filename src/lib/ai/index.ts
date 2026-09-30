@@ -1,7 +1,14 @@
 import { defuseBlockDelimiters } from "./retrieval/kb-line";
 import "server-only";
-import { REPLY_SYSTEM_PROMPT, REPLY_SYSTEM_PROMPT_CODE_GREETING, buildReplyPrompt } from "./prompts";
+import {
+  REPLY_SYSTEM_PROMPT,
+  REPLY_SYSTEM_PROMPT_CODE_GREETING,
+  REPLY_SYSTEM_PROMPT_CODE_GREETING_KB_FEE_RULE,
+  REPLY_SYSTEM_PROMPT_KB_FEE_RULE,
+  buildReplyPrompt,
+} from "./prompts";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
+import { kbFeeRuleEnabled } from "./kb-fee-rule";
 import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
@@ -129,9 +136,14 @@ export function replyCallParams(): { model: string; effort: string | null } {
 }
 
 /** Cevap istemi — `suggestReply` ve istek kimliği AYNI kurucudan (eylem beyanı bayrağı çağıranın TEK okumasıyla gelir). */
-/** Cevap modelinin SİSTEM istemi — anahtar TEK YERDE (`code-greeting.ts`); kapalıyken taban istem bayt bayt aynı. */
+/**
+ * Cevap modelinin SİSTEM istemi — anahtarlar TEK YERDE (`code-greeting.ts`, `kb-fee-rule.ts`); ikisi de kapalıyken taban istem
+ * bayt bayt aynı.
+ */
 function replySystemPrompt(): string {
-  return codeGreetingEnabled() ? REPLY_SYSTEM_PROMPT_CODE_GREETING : REPLY_SYSTEM_PROMPT;
+  const fee = kbFeeRuleEnabled();
+  if (codeGreetingEnabled()) return fee ? REPLY_SYSTEM_PROMPT_CODE_GREETING_KB_FEE_RULE : REPLY_SYSTEM_PROMPT_CODE_GREETING;
+  return fee ? REPLY_SYSTEM_PROMPT_KB_FEE_RULE : REPLY_SYSTEM_PROMPT;
 }
 
 /**

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { evalRuntime, evalRuntimeMarkdown, PIPELINE_FLAGS, reasoningLabel, storedRunRuntime, type EvalRuntime } from "../eval/run-meta";
 import { writeSidecar } from "../eval/sidecar";
+import { STRICT_ONE_FLAGS } from "../../scripts/env-check.mjs";
 
 // ---------------------------------------------------------------------------
 // KOŞU KİMLİĞİ (Aşama 1, kurucu 09-30): "Gerçek değerlendirmelerde model ve reasoning ayarını kaydet. Eski önbellek
@@ -85,6 +86,12 @@ describe("evalRuntime — katman bazında model + gönderilen düşünme çabas�
     expect(rt.flags.AI_UNDERSTANDING_ENABLED).toBe("1");
     expect(rt.flags.KB_RERANK_ENABLED).toBe("(boş)");
     expect(Object.keys(rt.flags).sort()).toEqual([...PIPELINE_FLAGS].sort());
+  });
+
+  it("ürünün yalnız '1' ile açılan HER AI_* bayrağı koşu kimliğinde (yeni bayrak ölçümü sessizce değiştirmesin)", () => {
+    const aiFlags = STRICT_ONE_FLAGS.filter((f: string) => f.startsWith("AI_"));
+    expect(aiFlags.length).toBeGreaterThanOrEqual(8); // anti-vakum
+    expect(aiFlags.filter((f: string) => !(PIPELINE_FLAGS as readonly string[]).includes(f))).toEqual([]);
   });
 
   it("reasoningLabel: klasik / gönderilmez / gönderilen", () => {

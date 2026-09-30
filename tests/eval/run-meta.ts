@@ -48,6 +48,7 @@ export const PIPELINE_FLAGS = [
   "AI_ACTION_CLAIMS_ENABLED",
   "AI_CODE_GREETING_ENABLED",
   "AI_HOUSE_RULES_SHADOW",
+  "AI_KB_FEE_RULE_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */
