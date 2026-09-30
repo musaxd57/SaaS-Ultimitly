@@ -2202,14 +2202,94 @@ const SAFETY_WHOLE_WORD_RE = new RegExp(
  * Katlamalar "ı/i", "ç/c", "ş/s" ve kesme işaretini ("wouldn t") farklı yazabildiği için kalıplar hepsini kabul eder.
  */
 const EXIT_PHRASE_PATTERNS: readonly RegExp[] = [
-  /(?:emergency|fire)\s+(?:exits?|doors?|escapes?|stairs?|stairways?)/gu,
+  /(?:emergency|fire)\s+(?:ex[iı]ts?|doors?|escapes?|sta[iı]rs?|sta[iı]rways?)/gu,
   /ac[iı]l\s+(?:durum\s+)?[cç][iı]k[iı][sş]\p{L}*/gu,
   /yang[iı]n\s+(?:[cç][iı]k[iı][sş]|merd[iı]ven)\p{L}*/gu,
 ];
-const NON_EMERGENCY_PATTERNS: readonly RegExp[] = [
-  ...EXIT_PHRASE_PATTERNS,
-  /(?:(?:does|did|would|will|can|could|should)(?:n['’ ]?t|\s+not)|won['’ ]?t|never|not)\s+(?:really\s+)?hurts?(?![\p{L}\p{N}])/gu,
+/**
+ * YER / GÜVENLİK EŞYASI ADI (kurucu kararı K6, 09-30): acil sözcüğü bir yerin ya da eşyanın ADININ parçasıysa ("Polis merkezi
+ * nerede?", "Yangın söndürücü nerede?", "Where is the police station / fire extinguisher?") mesaj tek başına acil bildirmez.
+ * Yalnız Türkçe + İngilizce — öbür dillerde bugünkü davranış (acil) sürer (güvenli taraf; olay sözcükleri o dillerde ölçülmedi).
+ * "polis / police / fire / acil" tam sözcük ya da "ı"sız yazımıyla aranır: Türkçe katlamanın "ı"lı biçimi ("polıce", "fıre") hiçbir
+ * listede eşleşmez (mutasyonla ölçüldü) — "ı" yalnız alt dize listesindeki sözcüklerde ("yangın", "emergency" çevresi) gerekir.
+ */
+const SAFETY_PLACE_PATTERNS: readonly RegExp[] = [
+  /polis\s+(?:merkez|karakol|istasyon)\p{L}{0,8}/gu,
+  /police\s+(?:stations?|precincts?|offices?|departments?|headquarters)(?![\p{L}\p{N}])/gu,
+  /yang[iı]n\s+(?:s[oö]nd[uü]r|t[uü]p|battan[iı]ye)\p{L}{0,10}/gu,
+  /fire\s*-?\s*(?:extinguishers?|blankets?)(?![\p{L}\p{N}])/gu,
 ];
+/**
+ * "ACİL DEĞİL" (kurucu kararı K6): misafir acil olmadığını SÖYLÜYORSA "acil / emergency" sözcüğü sayılmaz ("Acil değil ama havlu
+ * lazım", "No emergency, just wondering…"). Yalnız SÖZCÜĞÜN KENDİSİ nötrlenir — yanındaki gerçek tehlike sözcüğü ("Acil değil ama
+ * gaz kokusu var") yine tutar. Soru biçimi ("Bu acil değil mi?!") olumsuzlama DEĞİLDİR, bugünkü gibi acil.
+ */
+const NOT_URGENT_PATTERNS: readonly RegExp[] = [
+  /ac[iı]l\s+(?:b[iı]r\s+)?(?:(?:durum|[sş]ey|sorun|mesele|konu|[iı][sş]|talep|[iı]stek|soru|problem)\p{L}{0,3}\s+)?(?:de[gğ][iı]l(?:d[iı]r|se)?(?!\s*m[iı](?![\p{L}\p{N}]))|yok(?!\s*mu(?![\p{L}\p{N}]))|olmay\p{L}{0,6}|olmasa|olmad\p{L}{0,6}|say[iı]lmaz)(?![\p{L}\p{N}])/gu,
+  /ac[iı]l[iı]yet\p{L}{0,3}\s+yok(?![\p{L}\p{N}])/gu,
+  /(?<![\p{L}\p{N}])(?:no\s+|not\s+(?:really\s+)?(?:an?\s+)?|(?:[iı]sn|wasn)['’ ]?t\s+(?:really\s+)?(?:an?\s+)?|non\s*-?\s*)emergency(?![\p{L}\p{N}])/gu,
+];
+const HURT_NEGATION_RE =
+  /(?:(?:does|did|would|will|can|could|should)(?:n['’ ]?t|\s+not)|won['’ ]?t|never|not)\s+(?:really\s+)?hurts?(?![\p{L}\p{N}])/gu;
+const NON_EMERGENCY_PATTERNS: readonly RegExp[] = [...EXIT_PHRASE_PATTERNS, HURT_NEGATION_RE, ...SAFETY_PLACE_PATTERNS, ...NOT_URGENT_PATTERNS];
+/**
+ * Her kalıbın eşleşmesinde MUTLAKA geçen alt dizeler (biri yoksa kalıp o metinde hiç koşmaz — uzun mesajda her karakterde geriye
+ * bakış denemesin; sonuç birebir aynı). Katlama biçimleri "i" / "ı" ikisini de taşıyabildiği için iki yazım da listede.
+ */
+const NON_EMERGENCY_NEEDLES: ReadonlyMap<RegExp, readonly string[]> = new Map<RegExp, readonly string[]>([
+  [EXIT_PHRASE_PATTERNS[0], ["emergency", "fire"]],
+  [EXIT_PHRASE_PATTERNS[1], ["acil", "acıl"]],
+  [EXIT_PHRASE_PATTERNS[2], ["yangin", "yangın"]],
+  [HURT_NEGATION_RE, ["hurt"]],
+  [SAFETY_PLACE_PATTERNS[0], ["polis"]],
+  [SAFETY_PLACE_PATTERNS[1], ["police"]],
+  [SAFETY_PLACE_PATTERNS[2], ["yangin", "yangın"]],
+  [SAFETY_PLACE_PATTERNS[3], ["fire"]],
+  [NOT_URGENT_PATTERNS[0], ["acil", "acıl"]],
+  [NOT_URGENT_PATTERNS[1], ["acil", "acıl"]],
+  [NOT_URGENT_PATTERNS[2], ["emergency"]],
+]);
+if (NON_EMERGENCY_PATTERNS.some((re) => !NON_EMERGENCY_NEEDLES.has(re))) {
+  throw new Error("NON_EMERGENCY_NEEDLES: her nötrleme kalıbının gerekli alt dizesi yazılmalı");
+}
+/**
+ * OLAY BAĞLAMI (kurucu kararı K6, 09-30 — "hırsızlık olmuş, polis merkezi nerede, sizi şikâyet edicem derse acil"; "Yangın söndürücü
+ * nerede, mutfak yanıyor! acil kalsın"; "'Acil değil' ifadesi gerçek tehlikeyi bastırmasın"): nötrlenmiş metinde bir tehlike / olay
+ * işareti kaldıysa HİÇBİR nötrleme yapılmaz — mesaj bugünkü gibi acil. Aynı kural çıkış yeri ve "not hurt" nötrlemelerine de uygulanır
+ * ("Yangın merdiveni nerede, mutfak yanıyor!" 09-30'dan beri acil DEĞİLDİ). Liste bilerek GENİŞ: yanlış eşleşme yalnız bugünkü davranışı
+ * (acil) korur, kaçan işaret gerçek bir tehlikeyi acilden çıkarırdı. Nötrlenmiş metne bakılır (nötrlenen ifadenin kendi sözcüğü — "fire
+ * extinguisher"ın "fire"ı, "not hurt"ün "hurt"ü — işaret sayılmaz). Her seçenek sabit harfle başlar, iç içe niceleyici yok (doğrusal).
+ */
+const INCIDENT_CONTEXT_RE = new RegExp(
+  [
+    // yanma / duman / kıvılcım
+    "(?<![\\p{L}\\p{N}])yan(?:[iı]yo|d[iı]|m[iı][sş]|[iı]k)", "alev", "ate[sş]", "duman", "t[uü]t[uü]yo", "k[iı]sa\\s+devre",
+    "(?<![\\p{L}\\p{N}])burn", "on\\s+fire", "flam(?:e|es|ing)(?![\\p{L}\\p{N}])", "blaze", "smok(?:e|es|ing|y)(?![\\p{L}\\p{N}])", "spark",
+    // hırsızlık / saldırı / tehdit / hukuki şikâyet
+    "h[iı]rs[iı]z", "[cç]al[iı]n(?:d[iı]|m[iı][sş])", "(?<![\\p{L}\\p{N}])[cç]al(?:d[iı]|m[iı][sş])", "soyul", "soygun", "gasp", "zorla",
+    "sald[iı]r", "tehdit", "kavga", "(?<![\\p{L}\\p{N}])d[oö]v(?:d[uü]|[uü]yo|[uü]l)", "darp", "taciz", "b[iı][cç]a[kgğ]", "silah",
+    "doland[iı]r", "[sş]ik[aâ]yet(?:\\s+ed|[cç]i)", "tutanak", "ifade\\s+ver", "dava\\s+a[cç]", "mahkeme", "avukat",
+    "stol(?:e|en)(?![\\p{L}\\p{N}])", "steal", "theft", "thie(?:f|ves)", "(?<![\\p{L}\\p{N}])rob(?:bed|bery|beries|bing|s)?(?![\\p{L}\\p{N}])",
+    "burgl", "break\\s*-?\\s*in(?![\\p{L}\\p{N}])", "broke\\s+in", "broken\\s+into", "intruder", "attack", "assault", "threat", "harass",
+    "(?<![\\p{L}\\p{N}])fight", "(?<![\\p{L}\\p{N}])gun(?![\\p{L}\\p{N}])", "knife", "weapon", "report\\s+(?:you|u)(?![\\p{L}\\p{N}])",
+    "(?<![\\p{L}\\p{N}])sue(?![\\p{L}\\p{N}])", "lawyer", "press\\s+charges", "scam", "fraud",
+    // yaralanma / sağlık
+    "yaral", "(?<![\\p{L}\\p{N}])kan(?:[iı]yo|ama)", "(?<![\\p{L}\\p{N}])kan\\s+(?:var|geliyo|ak)", "bay[iı]l", "d[uü][sş]t[uü]", "nefes",
+    "kriz", "(?<![\\p{L}\\p{N}])hasta", "a[gğ]r[iı]", "(?<![\\p{L}\\p{N}])kus(?:tu|uyo|ma)", "zehir", "alerj", "ila[cç]", "doktor",
+    "(?<![\\p{L}\\p{N}])sok(?:tu|mu[sş])", "[iı]s[iı]rd[iı]", "bo[gğ]ul",
+    "injur", "bleed", "blood", "faint", "(?<![\\p{L}\\p{N}])fell(?![\\p{L}\\p{N}])", "(?<![\\p{L}\\p{N}])sick", "fever",
+    "(?<![\\p{L}\\p{N}])pain", "vomit", "poison", "allerg", "medic", "doctor", "hospital", "breath", "chok", "(?<![\\p{L}\\p{N}])sting",
+    "bitten", "drown",
+    // kilitli / mahsur kalma
+    "kilit", "d[iı][sş]ar[iı]da\\s+kal", "giremiyo", "a[cç][iı]l(?:m|am)[iı]yo", "mahsur", "s[iı]k[iı][sş]t",
+    "locked", "stuck", "trapped", "(?:can['’ ]?t|cannot)\\s+get\\s+(?:in|out)",
+    // su sızıntısı
+    "s[iı]z[iı]nt[iı]", "s[iı]zd[iı]r", "(?<![\\p{L}\\p{N}])leak",
+  ].join("|"),
+  "u",
+);
+/** "Işık / lamba / gösterge yanıyor" bir yanma değildir (ör. "Kombinin ışığı yanıyor") — olay bağlamına bakmadan önce nötrlenir. */
+const LIGHT_ON_RE = /(?:[iı][sş][iı][kgğ]\p{L}{0,5}|lamba\p{L}{0,5}|(?<![\p{L}\p{N}])led\p{L}{0,5}|g[oö]sterge\p{L}{0,5})\s+yan/gu;
 /**
  * KİLİTLİ / ENGELLİ ÇIKIŞ ACİL KALIR: çıkış ifadesi mesajın herhangi bir yerinde kilit / engel sözcüğüyle birlikteyse nötrleme
  * YAPILMAZ ("Acil çıkış kapısı kilitli", "Fire exit is blocked by boxes", "Emergency exit nerede? Kapı kilitli") — bugünkü
@@ -2221,14 +2301,29 @@ const EXIT_BLOCKED_RE =
   /locked|jammed|stuck|obstructed|chained|(?:won|doesn|don|can)['’ ]?t\s+(?:be\s+)?open|cannot\s+(?:be\s+)?open|kilitl|kapal[iı]|kapat[iı]lm[iı][sş]|a[cç][iı]lm[iı]yor|a[cç][iı]lam[iı]yor|engellenm[iı][sş]|t[iı]kal[iı]|t[iı]kanm[iı][sş]/u;
 const NON_EMERGENCY_MARK = " | ";
 
-function neutralizeNonEmergency(folded: string): string {
+function neutralizePhrases(folded: string): string {
   const blockedExit = EXIT_BLOCKED_RE.test(folded) && EXIT_PHRASE_PATTERNS.some((re) => folded.search(re) !== -1);
   let out = folded;
   for (const re of NON_EMERGENCY_PATTERNS) {
     if (blockedExit && EXIT_PHRASE_PATTERNS.includes(re)) continue;
+    if (!NON_EMERGENCY_NEEDLES.get(re)!.some((n) => out.includes(n))) continue;
     out = out.replace(re, NON_EMERGENCY_MARK);
   }
   return out;
+}
+
+/** Nötrlenmiş metinde olay işareti var mı? (Kalıpların hepsi ASCII ikizini de kabul eder — ASCII biçimde bakmak yeter.) */
+function hasIncidentContext(neutralized: string): boolean {
+  return INCIDENT_CONTEXT_RE.test(neutralized.replace(LIGHT_ON_RE, NON_EMERGENCY_MARK));
+}
+
+/**
+ * Katlanmış (küçük harf) metinde acil OLMAYAN kalıpları nötrler — mesajda olay bağlamı yoksa. Olay bağlamı varsa metin AYNEN döner
+ * (bugünkü davranış). Acil ağı (`isSafetyEmergencyText`) ve QR'ın fiziksel acil yüklemi (`isPhysicalEmergency`) aynı kuralı kullanır.
+ */
+export function neutralizeNonEmergency(folded: string): string {
+  const out = neutralizePhrases(folded);
+  return out !== folded && hasIncidentContext(out) ? folded : out;
 }
 
 /**
@@ -2239,9 +2334,13 @@ function neutralizeNonEmergency(folded: string): string {
 export function isSafetyEmergencyText(message: string): boolean {
   const asciiWords = asciiFoldedWords(SAFETY_CRITICAL_WORDS);
   for (const cand of foldedCandidatesOf(message)) {
-    const std = neutralizeNonEmergency(cand.std);
-    const tr = neutralizeNonEmergency(cand.tr);
-    const ascii = neutralizeNonEmergency(cand.ascii);
+    // Olay bağlamına aday başına BİR kez, ASCII biçimde bakılır (üç biçimde ayrı ayrı bakmak aynı hükmü üç kez verirdi); olay
+    // varsa üç biçim de AYNEN kalır.
+    const asciiNeutral = neutralizePhrases(cand.ascii);
+    const keep = asciiNeutral !== cand.ascii && hasIncidentContext(asciiNeutral);
+    const std = keep ? cand.std : neutralizePhrases(cand.std);
+    const tr = keep ? cand.tr : neutralizePhrases(cand.tr);
+    const ascii = keep ? cand.ascii : asciiNeutral;
     for (let k = 0; k < SAFETY_CRITICAL_WORDS.length; k++) {
       if (std.includes(SAFETY_CRITICAL_WORDS[k]) || tr.includes(SAFETY_CRITICAL_WORDS[k]) || ascii.includes(asciiWords[k])) return true;
     }

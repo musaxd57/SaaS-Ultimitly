@@ -19,6 +19,7 @@ import {
   isClosingAck,
   detectKbInstructionHijack,
   detectPromptInjection,
+  neutralizeNonEmergency,
 } from "@/lib/ai/fallback";
 import {
   historyAuthorOf,
@@ -976,10 +977,12 @@ const PHYSICAL_EMERGENCY_PATTERNS: readonly RegExp[] = [
  * Mesaj FİZİKSEL bir acil durum bildiriyor mu? Saf, LLM'siz, deterministik.
  * ⚠️ `detectRiskType`in yerini ALMAZ — o güvenlik kapısının kendisidir ve geniş
  * kalmalıdır. Bu yüklem YALNIZ misafire giden devir METNİNİ seçer.
+ * 🚨 K6 (09-30): acil ağıyla AYNI bağlam kuralı (`neutralizeNonEmergency`) — güvenlik eşyası / çıkış YERİ sorusu ("Yangın
+ * söndürücü nerede?", "Yangın merdiveni nerede?") fiziksel acil değildir; mesajda olay işareti varsa ("…, mutfak yanıyor!") acil kalır.
  */
 export function isPhysicalEmergency(message: string): boolean {
-  const folded = foldTurkishLower(message);
-  const ascii = foldTurkishAscii(message);
+  const folded = neutralizeNonEmergency(foldTurkishLower(message));
+  const ascii = neutralizeNonEmergency(foldTurkishAscii(message));
   return PHYSICAL_EMERGENCY_PATTERNS.some((re) => re.test(folded) || re.test(ascii));
 }
 

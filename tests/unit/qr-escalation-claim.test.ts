@@ -153,6 +153,20 @@ describe("QR devir metni — acil durumda güvenlik yönergesi eklenir", () => {
     }
   });
 
+  it("🚨 K6 (09-30): güvenlik eşyası / çıkış YERİ sorusu fiziksel acil değil; yanında olay varsa acil kalır", () => {
+    for (const m of ["Yangın söndürücü nerede?", "Yangın tüpü nerede?", "Yangın merdiveni nerede?", "YANGIN SÖNDÜRÜCÜ NEREDE?"]) {
+      expect(isPhysicalEmergency(m), m).toBe(false);
+    }
+    for (const m of [
+      "Yangın söndürücü nerede, mutfak yanıyor!",
+      "Yangın merdiveni nerede, mutfak yanıyor!",
+      "Yangın var, yangın merdivenine koşuyoruz",
+      "Yangın merdiveni kilitli, yangın var",
+    ]) {
+      expect(isPhysicalEmergency(m), m).toBe(true);
+    }
+  });
+
   it("sıradan istek acil dalına DÜŞMEZ", () => {
     expect(isPhysicalEmergency("Bir yastık daha alabilir miyiz?")).toBe(false);
     expect(isPhysicalEmergency("Geç çıkış mümkün mü?")).toBe(false);

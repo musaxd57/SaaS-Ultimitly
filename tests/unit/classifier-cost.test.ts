@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { classifyFallback, detectRiskType, isClosingAck, joinInWordApostrophes, __asciiFoldMissCount } from "@/lib/ai/fallback";
+import { classifyFallback, detectRiskType, isClosingAck, isSafetyEmergencyText, joinInWordApostrophes, __asciiFoldMissCount } from "@/lib/ai/fallback";
+import { isPhysicalEmergency } from "@/lib/guest-chat";
 
 // ---------------------------------------------------------------------------
 // SINIFLANDIRICI MALİYETİ — düşmanca girdide sınırlı kalır (09-23 denetimi, ÖLÇÜLDÜ)
@@ -37,6 +38,12 @@ const ADVERSARIAL: [string, string][] = [
   ["aday çoğaltan önek + cihaz + tek uzun sözcük + fiil", "\u00e9 \u043e a.b.c.d x'y klima " + "a".repeat(3970) + " bozuldu"],
   // İyelikli ad ("rengi") tamlayan zincirini açar: tamlayan kalıbı SOLDAKİ uzun sözcükte koşar (pencere yokken 0,9 sn).
   ["önek + cihaz + uzun sözcük + iyelikli ad + fiil", "\u00e9 \u043e a.b.c.d x'y klima " + "a".repeat(3955) + " rengi bozuldu"],
+  // K6 (09-30): acil ağının bağlam nötrlemesi (yer / eşya adı, "acil değil") + olay bağlamı denetimi.
+  ["acil değil + tek uzun sözcük", "acil değil " + "a".repeat(3990)],
+  ["aday çoğaltan önek + acil değil + lamba tekrarı", "\u00e9 \u043e a.b.c.d x'y acil değil " + "lamba ".repeat(660)],
+  ["yangın söndürücü tekrarı", "yangın söndürücü ".repeat(235)],
+  ["no emergency tekrarı", "no emergency ".repeat(307)],
+  ["değil + uzun boşluk + mi", "acil değil" + " ".repeat(3990) + "mi"],
 ];
 
 describe("sınıflandırıcı — düşmanca girdide sınırlı süre", () => {
@@ -48,6 +55,25 @@ describe("sınıflandırıcı — düşmanca girdide sınırlı süre", () => {
       detectRiskType(girdi);
     });
     expect(t).toBeLessThan(200);
+  });
+});
+
+// UZUN MESAJ YOLU (K10-t): 8.000 kod noktasını aşan kanal mesajında YALNIZ acil ağı koşar ve kanal mesajında uzunluk tavanı yok.
+// K6 (09-30) bağlam nötrlemesi doğrusal kalmalı: 50.000 karakterde bugün ~15–75 ms; karesel bir gerileme saniyeler sürerdi.
+const LONG_PATH: [string, string][] = [
+  ["acil değil + tek uzun sözcük", "acil değil " + "a".repeat(50_000)],
+  ["aday çoğaltan önek + acil değil + lamba tekrarı", "\u00e9 \u043e a.b.c.d x'y acil değil " + "lamba ".repeat(8_300)],
+  ["polis merkezi tekrarı", "polis merkezi ".repeat(3_570)],
+  ["acil + uzun boşluk + değil", "acil" + " ".repeat(50_000) + "değil"],
+];
+describe("uzun mesaj yolu — acil ağı + fiziksel acil 50.000 karakterde sınırlı süre (K6)", () => {
+  it.each(LONG_PATH)("%s → 1.000 ms altında", (_ad, girdi) => {
+    isSafetyEmergencyText(girdi.slice(0, 40)); // ısınma
+    const t = ms(() => {
+      isSafetyEmergencyText(girdi);
+      isPhysicalEmergency(girdi);
+    });
+    expect(t).toBeLessThan(1_000);
   });
 });
 

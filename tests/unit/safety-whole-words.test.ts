@@ -178,3 +178,102 @@ describe("kurucu kararı 09-30 — acil ağı daraltma + yangın ifadeleri", () 
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// KURUCU KARARI K6 (09-30) — ACİL AĞI BAĞLAMLA: acil sözcüğü bir YERİN / GÜVENLİK EŞYASININ adıysa ("Polis merkezi nerede?",
+// "Yangın söndürücü nerede?") ya da misafir acil olmadığını SÖYLÜYORSA ("Acil değil ama havlu lazım") mesaj tek başına acil değil.
+// 🚨 Kurucu: "hırsızlık olmuş, polis merkezi nerede, sizi şikâyet edicem" ve "Yangın söndürücü nerede, mutfak yanıyor!" ACİL kalır;
+// "acil değil" ifadesi gerçek tehlikeyi BASTIRMAZ. Kural: mesajda bir OLAY işareti (yanma, duman, hırsızlık, saldırı, tehdit /
+// şikâyet, yaralanma, sağlık, kilitli kalma, su sızıntısı) varsa HİÇBİR nötrleme yapılmaz. Aynı kural 09-30'un çıkış yeri ve
+// "not hurt" nötrlemelerine de uygulanır — "Yangın merdiveni nerede, mutfak yanıyor!" o turdan beri acil DEĞİLDİ (gerileme).
+// İKİ YÖNLÜ: her yanlış alarmın yanında gerçek acil ikizi.
+// ---------------------------------------------------------------------------
+const K6_FALSE: [string, string][] = [
+  ["Polis merkezi nerede?", "kurucu örneği: yer sorusu"],
+  ["En yakın polis merkezi nerede?", "TR yer sorusu"],
+  ["POLİS MERKEZİ NEREDE?", "TR büyük harf"],
+  ["Polis karakolu uzak mı?", "TR karakol"],
+  ["Polis merkezi nerede? Pasaportumu kaybettim", "kayıp eşya tehlike değil"],
+  ["Where is the nearest police station?", "EN yer sorusu"],
+  ["Is the police station far from the apartment?", "EN yer sorusu"],
+  ["Yangın söndürücü nerede?", "kurucu örneği: güvenlik eşyası"],
+  ["Yangın söndürücüsü var mı dairede?", "TR söndürücüsü"],
+  ["Yangın tüpü nerede?", "TR yangın tüpü"],
+  ["Yangın söndürme cihazı var mı?", "TR söndürme cihazı"],
+  ["Where is the fire extinguisher?", "EN fire extinguisher"],
+  ["Is there a fire blanket in the kitchen?", "EN fire blanket"],
+  ["Acil değil ama havlu lazım", "kurucu örneği: acil değil"],
+  ["ACİL DEĞİL ama çarşaf lazım", "TR büyük harf"],
+  ["Acil degil ama havlu lazim", "TR ASCII"],
+  ["Acil değil, müsait olunca wifi şifresini yazar mısınız?", "TR acil değil + istek"],
+  ["Acil bir durum yok, sadece wifi soracaktım", "TR acil bir durum yok"],
+  ["Hiç acil değil, yarın bakarsınız", "TR hiç acil değil"],
+  ["Acil olmayan bir sorum var: otopark nerede?", "TR acil olmayan"],
+  ["Acil bir sorun değil, ütü nerede?", "TR acil bir sorun değil"],
+  ["No emergency, just wondering where the fire extinguisher is", "EN no emergency + eşya"],
+  ["Not an emergency but the towels are missing", "EN not an emergency"],
+  ["This isn't an emergency, but could you send the wifi password?", "EN isn't an emergency"],
+  ["Non-emergency question: where is the iron?", "EN non-emergency"],
+  ["Acil değil ama kombinin ışığı yanıyor", "ışık yanıyor yanma değil"],
+  // Büyük harf İngilizce: Türkçe katlama "I"yı "ı" yapar ("ISN'T" → "ısn't") — kalıplar iki biçimi de kabul eder.
+  ["THIS ISN'T AN EMERGENCY, BUT COULD YOU SEND THE WIFI PASSWORD?", "EN büyük harf isn't"],
+  ["WHERE IS THE POLICE STATION?", "EN büyük harf police station"],
+  ["EMERGENCY EXIT NEREDE?", "EN büyük harf çıkış yeri (09-30 kalıbı)"],
+  ["WHERE ARE THE EMERGENCY STAIRS?", "EN büyük harf emergency stairs"],
+  ["IS THE EMERGENCY STAIRWAY OPEN AT NIGHT", "EN büyük harf emergency stairway"],
+  ["POLIS MERKEZI NEREDE?", "TR ASCII büyük harf"],
+  ["Polis istasyonu nerede?", "TR polis istasyonu"],
+  ["Where is the police department?", "EN police department"],
+  ["Yangın battaniyesi var mı?", "TR yangın battaniyesi"],
+  ["Yangın söndürme aleti nerede?", "TR söndürme aleti"],
+  ["Acil olmasa da bakabilir misiniz, musluk damlatıyor", "TR acil olmasa da"],
+  ["Acil olmadığı için yarın gelebilirsiniz", "TR acil olmadığı"],
+  ["Acil sayılmaz ama ütü lazım", "TR acil sayılmaz"],
+  ["Aciliyeti yok, müsait olduğunuzda wifi şifresini gönderir misiniz?", "TR aciliyeti yok"],
+  ["It's not really an emergency, but the TV remote is missing", "EN not really an emergency"],
+  ["It wasn't an emergency, the alarm was a test", "EN wasn't an emergency"],
+];
+const K6_TRUE: [string, string][] = [
+  ["Hırsızlık olmuş polis merkezi nerede sizi şikayet edicem", "kurucu örneği: hırsızlık + şikâyet"],
+  ["Polis merkezi nerede? Sizi şikayet edeceğim", "şikâyet tehdidi"],
+  ["Polis merkezi nerede? Çantamızı çaldılar", "TR çaldılar"],
+  ["Evimize hırsız girdi, polis merkezi nerede?", "TR hırsız"],
+  ["Someone stole our bags, where is the police station?", "EN stole"],
+  ["We were robbed. Where is the police station?", "EN robbed"],
+  ["Where is the police station? A man attacked us", "EN attacked"],
+  ["Yangın söndürücü nerede, mutfak yanıyor!", "kurucu örneği: eşya + yanıyor"],
+  ["Where is the fire extinguisher? The kitchen is burning!", "EN burning"],
+  ["Where is the fire extinguisher? Something is smoking in the oven", "EN smoking"],
+  ["Acil değil ama mutfakta gaz kokusu var", "kurucu kuralı: acil değil tehlikeyi bastırmaz (gaz)"],
+  ["Acil değil ama mutfak yanıyor", "acil değil + yanıyor"],
+  ["Acil durum değil ama kapı kilitli kaldı", "acil değil + kilitli kaldı"],
+  ["Acil değil ama çocuğum düştü, dizi kanıyor", "acil değil + yaralanma"],
+  ["Acil değil ama asansörde sıkıştık", "acil değil + mahsur"],
+  ["No emergency, but I think I smell something burning", "EN no emergency + burning"],
+  ["Klima çalışmıyor, bu acil değil mi?!", "soru biçimi olumsuzlama değil"],
+  ["Acil bir durum yok mu? Kapıda biri bağırıyor", "soru biçimi olumsuzlama değil (yok mu)"],
+  ["Polis merkezi nerede? Kapıyı zorla açmaya çalışıyorlar", "zorla (olay)"],
+  ["Where is the police station? Our car was broken into", "EN broken into"],
+  ["Acil değil ama elim kanıyor", "yaralanma (kanıyor)"],
+  ["Not an emergency but my daughter has a high fever", "sağlık (fever)"],
+  ["Acil değil ama asansörde mahsur kaldık", "mahsur"],
+  ["No emergency, but we're stuck outside the building", "kilitli kalma (stuck)"],
+  ["Acil değil ama tavandan sızıntı var", "su sızıntısı"],
+  ["Acil değil, acil!", "olumsuzlamadan sonra ayrı acil"],
+  ["Yangın merdiveni nerede, mutfak yanıyor!", "09-30 gerilemesi: çıkış yeri + yanıyor"],
+  ["Acil çıkış nerede? Mutfak yanıyor", "09-30 gerilemesi: acil çıkış + yanıyor"],
+  ["I'm not hurt but the kitchen is burning", "09-30 gerilemesi: not hurt + burning"],
+];
+
+describe("kurucu kararı K6 (09-30) — acil ağı bağlamla: yer / eşya sorusu ve 'acil değil'", () => {
+  for (const [m, why] of K6_FALSE) {
+    it(`🚨 yanlış alarm YOK: ${why} — "${m}"`, () => {
+      expect(detectRiskTypes(m)).not.toContain("safety_emergency");
+    });
+  }
+  for (const [m, why] of K6_TRUE) {
+    it(`🚨 gerçek acil: ${why} — "${m}"`, () => {
+      expect(detectRiskType(m)).toBe("safety_emergency");
+    });
+  }
+});
