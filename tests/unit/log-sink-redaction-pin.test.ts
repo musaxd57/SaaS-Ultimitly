@@ -17,7 +17,7 @@ import ts from "typescript";
 const SRC = path.resolve(__dirname, "../../src");
 const CONSOLE_METHODS = new Set(["error", "warn", "log", "info", "debug", "trace"]);
 /** Argümanı redaksiyondan geçiren çağrılar — içleri güvenli sayılır. */
-const REDACTORS = new Set(["formatErrorForLog", "redactSensitive", "scrubErr", "scrubForLog"]);
+const REDACTORS = new Set(["formatErrorForLog", "redactSensitive", "scrubErr", "scrubForLog", "prismaLogEventSummary"]);
 /** Hata taşıdığı varsayılan değişken adları (catch parametresi geleneği). */
 const ERROR_NAMES = new Set(["err", "error", "e", "ex", "exception", "cause", "reason"]);
 /** Hata metnini taşıyan özellikler. */
@@ -96,6 +96,9 @@ describe("F10 — ham hata console.*'a verilmez (sözdizim ağacı pini)", () =>
     expect(flagged(`try {} catch (err) { console.error(\`[x] :: \${formatErrorForLog(err)}\`); }`)).toBe(0);
     expect(flagged(`console.error("[x] failed", scrubErr(err));`)).toBe(0);
     expect(flagged(`console.warn(redactSensitive(\`[csp] \${line}\`));`)).toBe(0);
+    // Prisma hata olayı yalnız yapısal özetle (09-30, inceleme b5 — `redact.ts prismaLogEventSummary`, ileti yazılmaz).
+    expect(flagged(`client.$on("error", (e) => { console.error(prismaLogEventSummary(e)); });`)).toBe(0);
+    expect(flagged(`client.$on("error", (e) => { console.error("prisma:error", e.message); });`)).toBe(1);
     expect(flagged(`console.error("App error: boom", res.status, detail);`)).toBe(0);
   });
 

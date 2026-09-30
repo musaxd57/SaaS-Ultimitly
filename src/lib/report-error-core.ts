@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { emailService } from "./email-core";
-import { redactSensitive } from "./redact";
+import { prismaErrorSummary, redactSensitive } from "./redact";
 
 // Redaksiyon yaprak modüle taşındı (F10); eski import yolları için yeniden dışa verilir.
-export { formatErrorForLog, redactJsonStructurally, redactSensitive } from "./redact";
+export { formatErrorForLog, prismaErrorSummary, redactJsonStructurally, redactSensitive } from "./redact";
 
 // Pure core of the error reporter — the WHOLE thing: redaction, the
 // dependency-free Sentry envelope client, the alert-email leg and its
@@ -51,11 +51,19 @@ export interface ReportOutcome {
 }
 
 export async function reportError(context: string, err: unknown): Promise<ReportOutcome> {
+  // Prisma hatası VERİ taşır (sorgunun argümanları, "Failing row contains …") → yalnız yapısal özet + yığın ÇERÇEVELERİ (bizim
+  // kodumuzun satırları; ilk satırı iletiyi tekrarlar, yazılmaz). İnceleme b5, 09-30.
+  const prismaSummary = prismaErrorSummary(err);
+  const frames = err instanceof Error && err.stack ? err.stack.split("\n").filter((l) => /^\s+at /.test(l)).slice(0, 15).join("\n") : "";
   const detail = redactSensitive(
-    err instanceof Error ? `${err.name}: ${err.message}\n${err.stack ?? ""}` : String(err),
+    prismaSummary !== null
+      ? `${prismaSummary}\n${frames}`
+      : err instanceof Error
+        ? `${err.name}: ${err.message}\n${err.stack ?? ""}`
+        : String(err),
   );
   const errName = err instanceof Error ? err.name : "Error";
-  const errMessage = redactSensitive(err instanceof Error ? err.message : String(err));
+  const errMessage = redactSensitive(prismaSummary ?? (err instanceof Error ? err.message : String(err)));
 
   // Always log — structured and greppable (redacted: Railway logs are retained).
   console.error(`[reportError] ${context} :: ${detail}`);

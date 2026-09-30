@@ -362,9 +362,9 @@ export function formatErrorForLog(err: unknown, max = 500): string {
   try {
     let text: string;
     if (err instanceof Error) {
-      text = `${err.name}: ${err.message}`;
+      text = prismaErrorSummary(err) ?? `${err.name}: ${err.message}`;
       const cause = (err as { cause?: unknown }).cause;
-      if (cause instanceof Error) text += ` (cause: ${cause.name}: ${cause.message})`;
+      if (cause instanceof Error) text += ` (cause: ${prismaErrorSummary(cause) ?? `${cause.name}: ${cause.message}`})`;
     } else {
       text = String(err);
     }
@@ -372,4 +372,53 @@ export function formatErrorForLog(err: unknown, max = 500): string {
   } catch {
     return "unformattable error";
   }
+}
+
+// ---------------------------------------------------------------------------
+// PRISMA HATASI = VERİ TAŞIYAN METİN (inceleme b5, 09-30). Prisma'nın hata iletisi sorgunun kendisini basar: doğrulama hatası
+// argüman ağacını (mesaj gövdesi, taslak cevap, not — `aiSuggestedReply` / `note` gibi alan adları hassas listede değil), ham sorgu
+// hatası "Failing row contains (…)" / "Key (…)=(…)" satırını (misafir adı, kapı kodu, e-posta). Bu metin redaksiyonun tanımadığı
+// biçimde log'a, Sentry'ye ve alarm e-postasına gidiyordu. Prisma hatası için YALNIZ yapısal özet yazılır: ad · kod · model.işlem ·
+// kısıt alan adları · PostgreSQL kodu — serbest metin hiç geçmez. Hata ayıklamaya yeter (hangi sorgu, hangi kısıt).
+// ---------------------------------------------------------------------------
+const PRISMA_OP = /Invalid `(?:prisma|tx)\.(\w{1,64})\.(\w{1,64})\(\)` invocation/;
+const PG_CODE = /Code: `([0-9A-Z]{5})`/;
+
+function prismaSummaryParts(message: string, code?: unknown, meta?: unknown): string[] {
+  const parts: string[] = [];
+  if (typeof code === "string" && /^P\d{4}$/.test(code)) parts.push(code);
+  const op = PRISMA_OP.exec(message);
+  const m = meta && typeof meta === "object" ? (meta as { modelName?: unknown; target?: unknown }) : undefined;
+  if (op) parts.push(`${op[1]}.${op[2]}`);
+  else if (m && typeof m.modelName === "string" && /^\w{1,64}$/.test(m.modelName)) parts.push(m.modelName);
+  const target = m?.target;
+  if (Array.isArray(target) && target.length > 0 && target.every((t) => typeof t === "string" && /^\w{1,64}$/.test(t))) {
+    parts.push(`target=${target.join(",")}`);
+  } else if (typeof target === "string" && /^[\w.]{1,128}$/.test(target)) {
+    parts.push(`target=${target}`);
+  }
+  const pg = PG_CODE.exec(message);
+  if (pg) parts.push(`pg=${pg[1]}`);
+  if (/Unique constraint/i.test(message)) parts.push("unique_violation");
+  else if (/Foreign key constraint/i.test(message)) parts.push("foreign_key_violation");
+  // Dar kalıp: "connectionId" gibi bir alan adı taşıyan doğrulama iletisi bağlantı arızası sayılmasın.
+  else if (/Can't reach database server|Connection (?:refused|reset|closed|terminated)|Timed out fetching a new connection/i.test(message)) {
+    parts.push("connection");
+  }
+  return parts;
+}
+
+/** Prisma hatasıysa yapısal özet (serbest metin YOK); değilse `null`. */
+export function prismaErrorSummary(err: unknown): string | null {
+  if (!(err instanceof Error) || !/^PrismaClient\w*Error$/.test(err.name)) return null;
+  const e = err as Error & { code?: unknown; meta?: unknown };
+  return [e.name, ...prismaSummaryParts(e.message ?? "", e.code, e.meta)].join(" ");
+}
+
+/** Prisma'nın kendi hata olayı (`$on("error")`) için tek satır — iletinin kendisi YAZILMAZ. */
+export function prismaLogEventSummary(event: { message?: unknown; target?: unknown }): string {
+  const message = typeof event.message === "string" ? event.message : "";
+  const target = typeof event.target === "string" && /^[\w:.]{1,128}$/.test(event.target) ? ` target=${event.target}` : "";
+  const parts = prismaSummaryParts(message);
+  return `prisma:error${target}${parts.length > 0 ? ` ${parts.join(" ")}` : ""}`;
 }
