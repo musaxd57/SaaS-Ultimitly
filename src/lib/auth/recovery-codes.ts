@@ -64,6 +64,31 @@ export async function regenerateRecoveryCodes(userId: string): Promise<string[]>
   return codes;
 }
 
+/**
+ * Kurtarma kodlarını YALNIZ doğrulanan 2FA kurulumu hâlâ duruyorsa yeniden üret (Codex 09-30, C1 kardeşi). Rota kodu başta
+ * okuduğu sırra göre doğrular; arada 2FA kapatılıp YENİ bir sırla kurulduysa eski sırrın koduna dayanarak yeni kurulum için
+ * 10 kalıcı atlama kodu üretilirdi. Koşullu yazma satırı işlem sonuna kadar kilitler: eşzamanlı kapatma / yeniden kurma
+ * bizden SONRA koşar ve kodlarımızı zaten siler. Kurulum değiştiyse null (hiçbir şey yazılmaz).
+ */
+export async function regenerateRecoveryCodesIfUnchanged(
+  userId: string,
+  guard: { twoFactorSecret: string | null; twoFactorEnabledAt: Date | null },
+): Promise<string[] | null> {
+  const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
+  return prisma.$transaction(async (tx) => {
+    const still = await tx.user.updateMany({
+      where: { id: userId, twoFactorSecret: guard.twoFactorSecret, twoFactorEnabledAt: guard.twoFactorEnabledAt },
+      data: { twoFactorSecret: guard.twoFactorSecret },
+    });
+    if (still.count === 0) return null;
+    await tx.twoFactorRecoveryCode.deleteMany({ where: { userId } });
+    await tx.twoFactorRecoveryCode.createMany({
+      data: codes.map((c) => ({ userId, codeHash: hashRecoveryCode(normalizeRecoveryCode(c)) })),
+    });
+    return codes;
+  });
+}
+
 /** Delete every recovery code of a user (2FA disable — codes die with it). */
 export async function clearRecoveryCodes(userId: string): Promise<void> {
   await prisma.twoFactorRecoveryCode.deleteMany({ where: { userId } });

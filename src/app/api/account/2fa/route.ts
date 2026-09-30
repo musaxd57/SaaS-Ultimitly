@@ -8,7 +8,7 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto";
 // koşullu `updateMany` kullanır. Geri eklemek yakma adımını atlamayı kolaylaştırır.
 import { generateSecret, otpauthUri, verifyTotpStep } from "@/lib/auth/totp";
 import {
-  regenerateRecoveryCodes,
+  regenerateRecoveryCodesIfUnchanged,
   remainingRecoveryCodes,
   RECOVERY_CODE_COUNT,
 } from "@/lib/auth/recovery-codes";
@@ -311,13 +311,25 @@ export async function POST(req: NextRequest) {
       // Two separate awaits had a gap — if the clear failed after the update,
       // 2FA was off with live codes on disk, and a later re-enable would have
       // resurrected them as valid second factors (diff-review finding).
-      await prisma.$transaction([
-        prisma.user.update({
-          where: { id: session.userId },
+      // 🚨 KOŞULLU (Codex 09-30, C1): kod YUKARIDA okunan sırra göre doğrulandı; temizleme de YALNIZ o sır + o açılış anı
+      // hâlâ duruyorsa olur. Eskiden koşulsuzdu: arada 2FA yeni bir sırla yeniden kurulduysa eski sırrın koduna dayanan
+      // istek YENİ kurulumu siliyordu. Etkileşimli işlem: kaybeden bacak kurtarma kodlarına da DOKUNMAZ.
+      const cleared = await prisma.$transaction(async (tx) => {
+        const r = await tx.user.updateMany({
+          where: {
+            id: session.userId,
+            twoFactorSecret: user?.twoFactorSecret ?? null,
+            twoFactorEnabledAt: user?.twoFactorEnabledAt ?? null,
+          },
           data: { twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null },
-        }),
-        prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: session.userId } }),
-      ]);
+        });
+        if (r.count === 0) return false;
+        await tx.twoFactorRecoveryCode.deleteMany({ where: { userId: session.userId } });
+        return true;
+      });
+      if (!cleared) {
+        return badRequest({ _: "Güvenlik ayarınız az önce değişti. Sayfayı yenileyip yeniden deneyin." });
+      }
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: session.actorUserId ?? session.userId,
@@ -370,8 +382,14 @@ export async function POST(req: NextRequest) {
         await noteFailure();
         return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
       }
-      // Regeneration atomically invalidates every previous code.
-      const codes = await regenerateRecoveryCodes(session.userId);
+      // Regeneration atomically invalidates every previous code — YALNIZ doğrulanan kurulum hâlâ duruyorsa (C1 kardeşi).
+      const codes = await regenerateRecoveryCodesIfUnchanged(session.userId, {
+        twoFactorSecret: user.twoFactorSecret,
+        twoFactorEnabledAt: user.twoFactorEnabledAt,
+      });
+      if (!codes) {
+        return badRequest({ _: "Güvenlik ayarınız az önce değişti. Sayfayı yenileyip yeniden deneyin." });
+      }
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: session.actorUserId ?? session.userId,
