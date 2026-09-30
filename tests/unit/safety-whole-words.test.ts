@@ -112,3 +112,69 @@ describe("kısa acil sözcükleri — tam sözcük", () => {
     expect(detectRiskType("Kapı açılmıyor, kod çalışmıyor.")).toBe("complaint");
   });
 });
+
+// ---------------------------------------------------------------------------
+// KURUCU KARARI 09-30 — ACİL AĞI DARALTMA + YANGIN İFADELERİ. "kaza / polis / hurt" alt dize yerine TAM SÖZCÜK + gerçek
+// çekimler; çıkış YERİ sorusu ("Emergency exit nerede?") tek başına acil değil; "Çocuğun ateşi var" yangın DEĞİL (sağlık ayrı).
+// Kurucunun örnekleri birebir burada. İKİ YÖNLÜ: her yanlış alarmın yanında gerçek acil ikizi.
+// ---------------------------------------------------------------------------
+const DECISION_0930_FALSE: [string, string][] = [
+  ["Kazağımı unuttum", "kurucu örneği: kazak"],
+  ["Kazandık! Harika bir tatildi", "TR kazanmak"],
+  ["Kombi kazanı ses yapıyor", "TR kazan (kombi)"],
+  ["Polisiye kitap var mı?", "TR polisiye"],
+  ["Metropolis sineması nerede?", "EN metropolis"],
+  ["It wouldn't hurt to ask for extra towels", "EN deyim wouldn't hurt"],
+  ["It wouldn’t hurt to ask", "EN kıvrık kesme işareti"],
+  ["I'm not hurt, just asking about the gym", "EN not hurt"],
+  ["Emergency exit nerede?", "kurucu örneği: çıkış yeri"],
+  ["Acil çıkış nerede?", "TR acil çıkış yeri"],
+  ["ACİL ÇIKIŞ NEREDE?", "TR büyük harf"],
+  ["Where is the fire exit?", "EN fire exit"],
+  ["Yangın merdiveni hangi tarafta?", "TR yangın merdiveni yeri"],
+  ["Çocuğun ateşi var, yakında eczane var mı?", "kurucu örneği: ateş = yüksek ateş, yangın değil"],
+  ["Mangal ateşi nasıl yakılır?", "TR mangal ateşi"],
+  ["Alev Hanım yarın gelecek", "TR ad: Alev"],
+];
+const DECISION_0930_TRUE: [string, string][] = [
+  ["Kaza yaptık, yardım gerekiyor", "kurucu örneği: kaza"],
+  ["Kazada yaralandık", "TR kazada"],
+  ["Trafik kazası geçirdik, gelemiyoruz", "TR kazası"],
+  ["Kazaya karıştık", "TR kazaya"],
+  ["Polisi aradık, kapıda biri var", "TR polisi"],
+  ["Polis geldi", "TR polis"],
+  ["Polise haber verin lütfen", "TR polise"],
+  ["My son is hurt", "EN hurt"],
+  ["My back hurts badly, I fell", "EN hurts"],
+  ["He is hurting a lot", "EN hurting"],
+  ["Doesn't hurt? It hurts a lot!", "EN deyimden sonra gerçek bildirim"],
+  ["Acil çıkış kilitli, içeride duman var", "kurucu örneği: çıkış + duman"],
+  ["Emergency! The emergency exit is blocked", "EN çıkıştan önce ayrı 'Emergency!'"],
+  // KİLİTLİ / ENGELLİ ÇIKIŞ bugünkü gibi ACİL (yalnız çıkışın YERİNİ soran mesaj acilden çıktı).
+  ["Acil çıkış kapısı kilitli", "TR kilitli acil çıkış"],
+  ["Acil çıkış kilitli!", "TR kilitli acil çıkış (kısa)"],
+  ["The emergency exit is locked", "EN locked emergency exit"],
+  ["Fire exit is blocked by boxes", "EN blocked fire exit"],
+  ["Yangın merdiveninin kapısı açılmıyor", "TR açılmayan yangın merdiveni"],
+  ["The fire door won't open", "EN fire door won't open"],
+  ["Emergency exit nerede? Kapı kilitli", "yer sorusu + ayrı cümlede kilit"],
+  ["Yangın var, yangın merdivenine koşuyoruz", "TR yangın var + merdiven"],
+  ["Ocak alev aldı!", "yangın ifadesi: alev aldı"],
+  ["Perde tutuştu", "yangın ifadesi: tutuştu"],
+  ["Mutfakta ateş çıktı", "yangın ifadesi: ateş çıktı"],
+  ["Alevler yükseliyor", "yangın ifadesi: alevler"],
+  ["There are flames in the kitchen", "EN flames"],
+];
+
+describe("kurucu kararı 09-30 — acil ağı daraltma + yangın ifadeleri", () => {
+  for (const [m, why] of DECISION_0930_FALSE) {
+    it(`🚨 yanlış alarm YOK: ${why} — "${m}"`, () => {
+      expect(detectRiskTypes(m)).not.toContain("safety_emergency");
+    });
+  }
+  for (const [m, why] of DECISION_0930_TRUE) {
+    it(`🚨 gerçek acil: ${why} — "${m}"`, () => {
+      expect(detectRiskType(m)).toBe("safety_emergency");
+    });
+  }
+});

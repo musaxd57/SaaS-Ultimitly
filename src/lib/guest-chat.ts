@@ -938,6 +938,14 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
  */
 const PHYSICAL_EMERGENCY_PATTERNS: readonly RegExp[] = [
   /yang[ıi]n/u,
+  // YANGIN İFADELERİ (kurucu kararı 09-30; acil ağıyla aynı sınıf): yalnız yanma bildiren kalıplar — çıplak "ateş" ("ateşi var"
+  // = yüksek ateş) ve çıplak "alev" ("Alev" bir addır) YOK.
+  /alev\s+ald[ıi]/u,
+  /alevler/u,
+  /ate[şs]\s+(?:ald[ıi]|[çc][ıi]kt[ıi])/u,
+  /tutu[şs]tu/u,
+  /caught\s+fire/u,
+  /flames/u,
   /duman\s+(var|geliyor|dolu)/u,
   /gaz\s*(kokusu|ka[çc]a[ğg][ıi]|ka[çc][ıi]yor|kok[uy]or)/u,
   /do[ğg]algaz\s*(kokusu|ka[çc]a[ğg][ıi])/u,

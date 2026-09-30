@@ -111,6 +111,15 @@ describe("QR devir metni — acil durumda güvenlik yönergesi eklenir", () => {
     }
   });
 
+  it("🚨 yangın ifadeleri (kurucu kararı 09-30) fiziksel acil metnini seçer; ateşi var / Alev adı seçmez", () => {
+    for (const m of ["Ocak alev aldı!", "Mutfakta ateş çıktı", "Perde tutuştu", "Alevler yükseliyor", "The kitchen caught fire", "There are flames in the kitchen"]) {
+      expect(isPhysicalEmergency(m), m).toBe(true);
+    }
+    for (const m of ["Çocuğun ateşi var, eczane nerede?", "Alev Hanım yarın gelecek", "Mangal ateşi nasıl yakılır?", "Tartışma alevlendi"]) {
+      expect(isPhysicalEmergency(m), m).toBe(false);
+    }
+  });
+
   // 🚨 BU BLOK BİR GERİLEMENİN PİNİDİR. İlk yazımda ölçüt
   // `detectRiskType(message) === "safety_emergency"` idi; inceleme turu İKİ
   // ölçülmüş kusur çıkardı ve ikisi de ürünün KENDİ yazılı kurallarına aykırıydı.

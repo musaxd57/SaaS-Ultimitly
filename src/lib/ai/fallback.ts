@@ -1969,10 +1969,16 @@ export function matchesIntentKeywords(message: string, intent: Exclude<Intent, "
 // only means "no holding ack", never a wrong message.
 const SAFETY_CRITICAL_WORDS = [
   // (Çıplak "gaz" artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK: "mağaza", "Gazipaşa", "gazete" acil değil, 09-26.)
-  "yangın", "yangin", "duman", "yaraland", "düştü", "dustu", "kaza", "ambulans",
-  "polis", "kilitli kaldı", "kilitli kaldi", "içeri giremiyor", "iceri giremiyor",
-  "smoke", "gas leak", "carbon monoxide", "injured", "hurt", "bleeding",
+  // (Çıplak "kaza" / "polis" / "hurt" artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK + çekimleri; kurucu kararı 09-30:
+  // "Kazağımı unuttum" / "polisiye" / "It wouldn't hurt to ask" acil değildi.)
+  "yangın", "yangin", "duman", "yaraland", "düştü", "dustu", "ambulans",
+  "kilitli kaldı", "kilitli kaldi", "içeri giremiyor", "iceri giremiyor",
+  "smoke", "gas leak", "carbon monoxide", "injured", "bleeding",
   "ambulance", "police", "emergency", "locked out", "can't get in", "cant get in",
+  // YANGIN İFADELERİ (kurucu kararı 09-30): "Ocak alev aldı", "Mutfakta ateş çıktı", "Perde tutuştu" yakalanmıyordu. Çıplak
+  // "ateş" BİLEREK YOK — "Çocuğun ateşi var" (yüksek ateş) yangın değildir, sağlık konusu ayrı ele alınır; çıplak "alev" de YOK
+  // ("Alev Hanım" bir addır). Yalnız yanma bildiren kalıplar.
+  "alev aldı", "alev aldi", "alevler", "alev alev", "ateş aldı", "ates aldi", "ateş çıktı", "ates cikti", "tutuştu", "tutustu",
   // English / other-language safety vocab (TR is well-covered above; EN was thin,
   // e.g. "I smell gas" only matched "gas leak"). Bare "gas", a sparking outlet, a
   // burning smell, flooding. Over-matching is the safe side (never a wrong send).
@@ -2149,6 +2155,13 @@ export const SAFETY_CRITICAL_WHOLE_WORDS: readonly string[] = [
   // Türkçe "acil"in ad çekimleri tek tek (eskiden alt dize hepsini tutuyordu): "acile gittik", "acilde", "acilden",
   // "aciliyeti var", "acildir". "acili" / "acildi" BİLEREK YOK — ASCII katlamada "acılı" (baharatlı) / "açıldı" olur.
   "acil", "acilen", "acile", "acilde", "acilden", "aciliyet", "aciliyeti", "acildir",
+  // KAZA / POLİS / HURT — TAM SÖZCÜK + çekimler (kurucu kararı 09-30). Alt dize "Kazağımı unuttum" (kazak), "kazan" (kombi),
+  // "polisiye", "metropolis" içinde acil üretiyordu. "kazan" ve "kazanın" BİLEREK YOK (kombi / kazanmak ile aynı yazılır);
+  // "hurt"ün olumsuz deyimleri ("wouldn't hurt to ask", "not hurt") ↓`neutralizeNonEmergency` ile nötrlenir.
+  "kaza", "kazada", "kazadan", "kazaya", "kazayi", "kazayla", "kazasi", "kazasina", "kazasini", "kazasinda", "kazasindan",
+  "kazalar", "kazam", "kazamiz",
+  "polis", "polise", "polisi", "polisin", "polisle", "polisler", "polisleri", "polislere", "polisten", "poliste",
+  "hurt", "hurts", "hurting", "flames",
 ];
 
 // Liste YALNIZ ASCII küçük harf (a–z) olabilir: tam sözcük eşleşmesi ASCII katlamaya dayanır (ASCII katlama, standart ve
@@ -2167,20 +2180,60 @@ const SAFETY_WHOLE_WORD_RE = new RegExp(
   "u",
 );
 
-/** `includesAnyFold`in tam sözcük ikizi: aynı aday biçimler, ASCII katlamada (↑neden tek katlama yeter). */
-function includesSafetyWholeWord(message: string): boolean {
-  for (const { ascii } of foldedCandidatesOf(message)) {
-    if (SAFETY_WHOLE_WORD_RE.test(ascii)) return true;
+/**
+ * ACİL OLMAYAN KALIPLAR NÖTRLENİR (kurucu kararı 09-30): acil sözcüğü taşıyan ama acil BİLDİRMEYEN ifadeler, her katlama biçiminde
+ * eşleştirmeden ÖNCE işaret sözcüğüne çevrilir. Yalnız BU kalıplar — yanlarındaki gerçek acil sözcük ("Acil çıkış kilitli, içeride
+ * duman var") yine tutar.
+ *   · ÇIKIŞ YERİ: "Emergency exit nerede?", "Acil çıkış nerede?", "Fire exit", "Yangın merdiveni" — bir yerin sorusu.
+ *   · "hurt"ün olumsuz deyimleri: "It wouldn't hurt to ask", "doesn't hurt", "I'm not hurt" — yaralanma bildirmez.
+ * Katlamalar "ı/i", "ç/c", "ş/s" ve kesme işaretini ("wouldn t") farklı yazabildiği için kalıplar hepsini kabul eder.
+ */
+const EXIT_PHRASE_PATTERNS: readonly RegExp[] = [
+  /(?:emergency|fire)\s+(?:exits?|doors?|escapes?|stairs?|stairways?)/gu,
+  /ac[iı]l\s+(?:durum\s+)?[cç][iı]k[iı][sş]\p{L}*/gu,
+  /yang[iı]n\s+(?:[cç][iı]k[iı][sş]|merd[iı]ven)\p{L}*/gu,
+];
+const NON_EMERGENCY_PATTERNS: readonly RegExp[] = [
+  ...EXIT_PHRASE_PATTERNS,
+  /(?:(?:does|did|would|will|can|could|should)(?:n['’ ]?t|\s+not)|won['’ ]?t|never|not)\s+(?:really\s+)?hurts?(?![\p{L}\p{N}])/gu,
+];
+/**
+ * KİLİTLİ / ENGELLİ ÇIKIŞ ACİL KALIR: çıkış ifadesi mesajın herhangi bir yerinde kilit / engel sözcüğüyle birlikteyse nötrleme
+ * YAPILMAZ ("Acil çıkış kapısı kilitli", "Fire exit is blocked by boxes", "Emergency exit nerede? Kapı kilitli") — bugünkü
+ * davranış (acil) korunur; kurucu kararı yalnız çıkışın YERİNİ soran mesajı acilden çıkarır. Aşırı eşleşme güvenli taraftır
+ * ("unlocked" de tutar). Kalıplar sabit sözcükle başlar, sınırsız tekrar yok (doğrusal).
+ */
+const EXIT_BLOCKED_RE =
+  /locked|blocked|jammed|stuck|obstructed|chained|(?:won|doesn|don|can)['’ ]?t\s+(?:be\s+)?open|cannot\s+(?:be\s+)?open|kilitl|kapal[iı]|kapat[iı]lm[iı][sş]|a[cç][iı]lm[iı]yor|a[cç][iı]lam[iı]yor|engellenm[iı][sş]|t[iı]kal[iı]|t[iı]kanm[iı][sş]/u;
+const NON_EMERGENCY_MARK = " | ";
+
+function neutralizeNonEmergency(folded: string): string {
+  const blockedExit = EXIT_BLOCKED_RE.test(folded) && EXIT_PHRASE_PATTERNS.some((re) => folded.search(re) !== -1);
+  let out = folded;
+  for (const re of NON_EMERGENCY_PATTERNS) {
+    if (blockedExit && EXIT_PHRASE_PATTERNS.includes(re)) continue;
+    out = out.replace(re, NON_EMERGENCY_MARK);
   }
-  return false;
+  return out;
 }
 
 /**
  * ACİL SÖZCÜK AĞI — `detectRiskType`in "safety_emergency" dalıyla TEK kaynak. Hafif (katlanmış metinde alt dize + tam sözcük);
  * 8.000 karakteri aşan misafir mesajında tam sınıflandırma yerine YALNIZ bu koşar (K10-t, kurucu: "acil sözcük aransın").
+ * Aday biçimler × üç katlama (`includesAnyFold` ile aynı) — acil olmayan kalıplar her biçimde ÖNCE nötrlenir.
  */
 export function isSafetyEmergencyText(message: string): boolean {
-  return includesAnyFold(message, SAFETY_CRITICAL_WORDS) || includesSafetyWholeWord(message);
+  const asciiWords = asciiFoldedWords(SAFETY_CRITICAL_WORDS);
+  for (const cand of foldedCandidatesOf(message)) {
+    const std = neutralizeNonEmergency(cand.std);
+    const tr = neutralizeNonEmergency(cand.tr);
+    const ascii = neutralizeNonEmergency(cand.ascii);
+    for (let k = 0; k < SAFETY_CRITICAL_WORDS.length; k++) {
+      if (std.includes(SAFETY_CRITICAL_WORDS[k]) || tr.includes(SAFETY_CRITICAL_WORDS[k]) || ascii.includes(asciiWords[k])) return true;
+    }
+    if (SAFETY_WHOLE_WORD_RE.test(ascii)) return true;
+  }
+  return false;
 }
 
 /**
