@@ -418,9 +418,10 @@ describe("politika: hassas istekte ERTELEYEN cevap para taşıyamaz", () => {
 
 describe("bekçi taslağın TAMAMINI görmeli (inceleme 09-24)", () => {
   it("redaksiyonla uzayıp tavanı aşan taslakta bekçi hüküm vermez → düşmüş sayılır, model ÇAĞRILMAZ", async () => {
-    const name = "Ali"; // ≥3 harf: redaksiyon "[Misafir]" yazar (her geçişte +6 karakter)
-    // 2.000 karakterlik otomatik gönderim tavanının altında; her ad yer tutucuyla uzar.
-    const reply = `${`${name} `.repeat(600)}`.slice(0, 1990);
+    const name = "Ali";
+    // 2.000 karakterlik otomatik gönderim tavanının altında; redaksiyon her hitabı uzatır. Kural 09-30 (kurucu kararı): bizim
+    // metnimizde ad YALNIZ hitap konumunda maskelenir — her satır "Merhaba Ali," → "Merhaba [Misafir]," (+6 karakter).
+    const reply = `Merhaba ${name},\n`.repeat(160).slice(0, 1990);
     expect(reply.length).toBeLessThanOrEqual(2000);
     expect(guardSeesWholeReply({ reply, names: [name] })).toBe(false);
     expect(guardSeesWholeReply({ reply: "Thanks! I'll check with the host.", names: [name] })).toBe(true);

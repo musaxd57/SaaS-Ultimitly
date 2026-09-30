@@ -110,11 +110,13 @@ describe("AI test rotası — yer tutucu kaynağı", () => {
     // Eski dalın `?? property.name` düşüşü: "Kapı kodu: Cozy Seaside Flat".
     expect(legacyApartmentOf("Cozy Seaside Flat")).toBe("Cozy Seaside Flat");
     expect(apartmentNumberOf("Cozy Seaside Flat")).toBeNull();
-    // `null` → belirteç DOKUNULMADAN kalır (uydurma değer yazılmaz).
+    // `null` → uydurma değer yazılmaz; kurucu kararı 09-30: modele doldurulmamış işaret "[DAİRE NO]" gider (istem "DOLDURULMAMIŞ
+    // YER TUTUCU" notu yazar, cevapta kalırsa çıktı vetosu tutar).
     const [item] = fillGuestPlaceholdersInItems([{ content: "Kapı kodu: {daire}" }], {
       propertyName: "Cozy Seaside Flat",
     });
-    expect(item.content).toBe("Kapı kodu: {daire}");
+    expect(item.content).toBe("Kapı kodu: [DAİRE NO]");
+    expect(item.content).not.toContain("Cozy");
   });
 
   it("🚨 BAŞLIK da çözülür (eski dal yalnız `content` map'liyordu)", () => {

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorized, badRequest, forbidden } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
-import { writeAuditInTx } from "@/lib/audit";
+import { auditActor, writeAuditInTx } from "@/lib/audit";
 import { isImpersonating } from "@/lib/auth/impersonation";
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
@@ -41,7 +41,9 @@ export async function GET(req: NextRequest) {
   try {
     await writeAuditInTx(prisma, {
       organizationId: orgId,
-      actorUserId: session.userId,
+      // Bürünme yukarıda reddedildiği için fail oturumun kendisi; yine de ortak kural (`auditActor`) — kapı bir gün kalkarsa
+      // kayıt müşteriyi değil operatörü göstermeye devam eder (denetim pini).
+      actorUserId: auditActor(session),
       action: "data.export",
       // Operatör kimliği opak `actorUserId` ile kayıtlı; e-posta müşterinin KVKK ihracına ham girdiği için YAZILMAZ (denetim,
       // 08-01 — beşinci tur). Amaç kapalı küme; talep numarası yalnız harf / rakam / tire.
