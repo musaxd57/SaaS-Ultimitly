@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { timeStatedInMessage } from "@/lib/ai/stated-time";
+import { timeCorrectedInMessage, timeStatedInMessage } from "@/lib/ai/stated-time";
 import { REPLY_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,15 @@ const REQUESTS: [msg: string, hhmm: string][] = [
   ["Geç çıkış 13:00 rica ediyoruz", "13:00"],
   ["Mümkünse 13'te çıkmak istiyoruz", "13:00"],
   ["İzin verirseniz 13'te çıkalım", "13:00"],
+  ["Müsaade ederseniz 13'te çıkalım", "13:00"],
+  ["Hey do you mind if we leave at 1pm", "13:00"],
+  ["Late checkout at 1pm possible", "13:00"],
+  ["Hi guys if we could check out at 1pm that would be great", "13:00"],
+  ["Wondering if check out at 1pm works for you", "13:00"],
+  ["We would like to check out at 1pm", "13:00"],
+  ["Requesting checkout at 1pm", "13:00"],
+  ["Wäre es möglich um 13 Uhr auszuchecken", "13:00"],
+  ["Si es posible saldremos a las 13", "13:00"],
   // Bugün de istek sayılanlar (değişmedi): soru eki, -sAk, cümle başında soru.
   ["Merhaba 13'te çıkabilir miyiz", "13:00"],
   ["13'te çıksak olur mu", "13:00"],
@@ -59,6 +68,15 @@ describe("K11 — yazılan çıkış saati bağlamdan: istek / soru beyan değil
   });
   it.each(VEHICLES)("başka aracın kalkışı → kayıt YOK: %s (%s)", (msg, t) => {
     expect(timeStatedInMessage(t, msg)).toBe(false);
+  });
+});
+
+describe("K11 — düzeltme yolu: istek cümleciğindeki yeni saat düzeltme değildir", () => {
+  it("🚨 'Hi can we make it 13:00 instead of 11' kayıtlı 11:00'i 13:00'e TAŞIMAZ", () => {
+    expect(timeCorrectedInMessage("11:00", "13:00", "Hi can we make it 13:00 instead of 11")).toBe(false);
+  });
+  it("KONTROL — beyan düzeltmesi taşır ('Checkout 11 değil, 13'te çıkarız')", () => {
+    expect(timeCorrectedInMessage("11:00", "13:00", "Checkout 11 değil, 13'te çıkarız.")).toBe(true);
   });
 });
 
