@@ -2715,9 +2715,10 @@ export async function applyChannelAutoReply(
             organizationId: conversation.property.organizationId,
             conversationId: conversation.id,
             messageId: last.id,
+            // K8 (09-30): yalnız BU turun tutulan öğelerine atfedilir — önceki turun öğesi bugünkü yeni riski açıklamaz.
             items: unattributedModelItems(
               { intent: result.intent, riskType: result.riskType, riskLevel: result.riskLevel },
-              itemsPlan.gateItems.held,
+              itemsPlan.turnHeld,
             ),
             now: heldAt,
           });
@@ -3172,6 +3173,8 @@ export async function applyChannelAutoReply(
         plan: itemsPlan,
         answeredRefs: itemsAnsweredRefs(itemsPlan, result, earlyCheckinSent || earlyCheckinPolicySent),
         messageIds: itemsTurnMessageIds,
+        model: result,
+        lastMessageId: last.id,
       });
     }
 
@@ -3382,6 +3385,8 @@ export async function applyChannelAutoReply(
       plan: itemsPlan,
       answeredRefs: itemsAnsweredRefs(itemsPlan, result, earlyCheckinSent || earlyCheckinPolicySent),
       messageIds: itemsTurnMessageIds,
+      model: result,
+      lastMessageId: last.id,
     });
   }
 
@@ -3524,7 +3529,9 @@ async function notifyItemsForHost(input: {
 
 /**
  * Cevap GİTTİ (ya da kuyruğa kesin girdi): kapsanan güvenli istekler "cevaplandı", turun hassas öğeleri ev sahibinde
- * tutulur ve bildirilir. Gönderim zaten oldu → öğe kaydı düşerse akış DURMAZ, alarm.
+ * tutulur ve bildirilir. K8 (kurucu kararı 09-30): cevap modelinin BU turun öğeleriyle açıklanamayan risk sinyali (kapı onu
+ * önceki turun tutulan öğesine bağlayıp güvenli kısmı gönderdiyse de) son mesajda AYRI öğe olur, tutulur ve bildirilir —
+ * "yeni risk kaybolmamalı". Gönderim zaten oldu → öğe kaydı düşerse akış DURMAZ, alarm.
  */
 async function settleSentTurnItems(input: {
   organizationId: string;
@@ -3532,6 +3539,8 @@ async function settleSentTurnItems(input: {
   plan: ItemsTurnPlan;
   answeredRefs: readonly string[];
   messageIds: readonly string[];
+  model: { intent: string; riskType: string | null | undefined; riskLevel: string };
+  lastMessageId: string;
 }): Promise<void> {
   const now = new Date();
   try {
@@ -3541,6 +3550,17 @@ async function settleSentTurnItems(input: {
       answerable: input.plan.answerable,
       now,
       answeredRefs: input.answeredRefs,
+    });
+    // Gönderilen cevap her zaman modelindir (kapının ilk kontrolü) — kaynak ayrıca sınanmaz.
+    await recordModelItems(prisma, {
+      organizationId: input.organizationId,
+      conversationId: input.conversation.id,
+      messageId: input.lastMessageId,
+      items: unattributedModelItems(
+        { intent: input.model.intent, riskType: input.model.riskType, riskLevel: input.model.riskLevel },
+        input.plan.turnHeld,
+      ),
+      now,
     });
     await notifyItemsForHost({
       organizationId: input.organizationId,

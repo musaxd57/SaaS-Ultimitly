@@ -323,8 +323,12 @@ describe("yaşam döngüsü — hassas öğe kaybolmaz", () => {
 
   it("yerine geçme: aynı konu + eski acil değil + yeni en az onun kadar hassas", () => {
     expect(maySupersede({ kind: "early_checkin", sensitivity: "none" }, { kind: "early_checkin", sensitivity: "none" })).toBe(true);
-    expect(maySupersede({ kind: "payment_invoice", sensitivity: "sensitive" }, { kind: "payment_invoice", sensitivity: "sensitive" })).toBe(true);
-    expect(maySupersede({ kind: "complaint_issue", sensitivity: "sensitive" }, { kind: "complaint_issue", sensitivity: "emergency" })).toBe(true);
+    expect(maySupersede({ kind: "wifi", sensitivity: "none" }, { kind: "wifi", sensitivity: "sensitive" })).toBe(true);
+    // 🚨 K9 (kurucu kararı 09-30): hassas öğe başka bir mesajın öğesiyle BİRLEŞMEZ — "Klima çalışmıyor" ile "Komşular çok
+    // gürültülü" ayrı açık işler; tekrar sorulan IBAN da yeni mesajın kendi işi (mesaj başına acil e-posta).
+    expect(maySupersede({ kind: "payment_invoice", sensitivity: "sensitive" }, { kind: "payment_invoice", sensitivity: "sensitive" })).toBe(false);
+    expect(maySupersede({ kind: "complaint_issue", sensitivity: "sensitive" }, { kind: "complaint_issue", sensitivity: "sensitive" })).toBe(false);
+    expect(maySupersede({ kind: "complaint_issue", sensitivity: "sensitive" }, { kind: "complaint_issue", sensitivity: "emergency" })).toBe(false);
     // IBAN isteğinin yerini sıradan fatura sorusu ALAMAZ (risk düşerdi):
     expect(maySupersede({ kind: "payment_invoice", sensitivity: "sensitive" }, { kind: "payment_invoice", sensitivity: "none" })).toBe(false);
     expect(maySupersede({ kind: "early_checkin", sensitivity: "none" }, { kind: "late_checkout", sensitivity: "none" })).toBe(false);

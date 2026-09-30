@@ -26,8 +26,11 @@ export function hintKey(messageId: string, kind: ItemKind): string {
 export function composeItemsPlan<T extends PlanItem>(input: {
   /** Bu turun açık öğeleri, mesaj sırasıyla. */
   turnItems: readonly T[];
-  /** Ev sahibinde açık hassas öğeler (bu tur + önceki turlar). */
-  held: readonly ItemRiskFacts[];
+  /**
+   * Ev sahibinde açık hassas öğeler (bu tur + önceki turlar). `earlier`: öğe ÖNCEKİ bir turun mesajında (K8, 09-30) — cevap
+   * modeline ayrı bölümde gösterilir, modelin risk etiketi ona göre verilmez; kapı yine hepsini tutulan sayar.
+   */
+  held: readonly (ItemRiskFacts & { earlier?: boolean })[];
   /** Anlama katmanının kısa Türkçe sorguları (`hintKey`). */
   hints: ReadonlyMap<string, string>;
 }): ComposedItemsPlan<T> {
@@ -36,7 +39,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
     answerable,
     replyItems: {
       answerable: answerable.map(({ ref, item }) => ({ ref, kind: item.kind, hint: input.hints.get(hintKey(item.messageId, item.kind)) ?? "" })),
-      held: input.held.map((h) => ({ kind: h.kind })),
+      held: input.held.map((h) => (h.earlier ? { kind: h.kind, earlier: true } : { kind: h.kind })),
     },
     gateItems: {
       held: input.held.map((h) => ({ kind: h.kind, sensitivity: h.sensitivity, riskType: h.riskType })),

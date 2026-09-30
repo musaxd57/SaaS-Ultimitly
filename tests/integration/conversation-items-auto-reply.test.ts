@@ -326,6 +326,83 @@ describe("modelin öğelere atfedilemeyen sinyali kaybolmaz (birleşim)", () => 
   });
 });
 
+// K8 (kurucu kararı 09-30): "Dünkü ödeme isteğiyle bugünkü riskli istek ayrı izlenmeli. Yeni risk kaybolmamalı; aynı mesajdaki
+// güvenli soru cevaplanabilir ama riskli kısım otomatik cevaplanmamalı. Ayrı öğe açılsın." Önceki turun tutulan IBAN öğesi,
+// bugünkü mesajdaki YENİ ödeme riskini açıklamaz: modelin etiketi yalnız BU turun öğelerine atfedilir.
+describe("K8 — önceki turun tutulan öğesi bugünkü yeni riski açıklamaz", () => {
+  beforeEachTurn();
+  const PARK_PAY = "Otopark var mı? Ödemeyi elden versek olur mu?";
+  const parkingAnswer = (over: Partial<SuggestReplyResult> = {}) =>
+    verdict({ intent: "parking", reply: "Binanın önünde ücretsiz otopark var.", answeredRequests: { ok: true, refs: ["R1"] }, ...over });
+
+  async function yesterdayIbanAnsweredWifi() {
+    const { orgId, conversationId } = await seed(BOTH);
+    understands(
+      understood([
+        { intent: "payment_invoice", message: 1 },
+        { intent: "wifi", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ riskType: "platform_policy", riskLevel: "medium" }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    // Giden cevap "şimdi" damgasıyla yazıldı; bugünkü misafir mesajı ondan SONRA gelsin diye cevabı geriye al (sonraki tur
+    // yalnız bugünkü mesajı kapsar — IBAN öğesi önceki turda kalır).
+    const out = await prisma.message.updateMany({
+      where: { conversationId, direction: "outbound" },
+      data: { createdAt: new Date(Date.now() - 10 * 60_000) },
+    });
+    expect(out.count).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    return { orgId, conversationId };
+  }
+
+  it("🚨 güvenli soru cevaplanır, bugünkü ödeme riski AYRI öğe olur (tutulur) + bugünkü mesaj için e-posta", async () => {
+    const { conversationId } = await yesterdayIbanAnsweredWifi();
+    await guestWrites(conversationId, PARK_PAY, 5);
+    understands(understood([{ intent: "parking", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(parkingAnswer({ riskType: "platform_policy", riskLevel: "medium" }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    // Model bloğunda dünkü ödeme isteği "önceki mesajlardan bekleyen" olarak işaretli.
+    expect(mockSuggest.mock.calls[1][0].conversationItems).toEqual({
+      answerable: [{ ref: "R1", kind: "parking", hint: "parking sorusu" }],
+      held: [{ kind: "payment_invoice", earlier: true }],
+    });
+    expect(await itemsOf(conversationId)).toEqual(
+      expect.arrayContaining([
+        { body: BOTH, kind: "payment_invoice", sensitivity: "sensitive", status: "pending_host", notified: true },
+        { body: PARK_PAY, kind: "parking", sensitivity: "none", status: "answered", notified: false },
+        { body: PARK_PAY, kind: "payment_invoice", sensitivity: "sensitive", status: "pending_host", notified: true },
+      ]),
+    );
+    expect(mockMail).toHaveBeenCalledTimes(2);
+  });
+
+  it("🚨 cevap başka sebeple tutulsa da bugünkü risk ayrı öğe olur", async () => {
+    const { conversationId } = await yesterdayIbanAnsweredWifi();
+    await guestWrites(conversationId, PARK_PAY, 5);
+    understands(understood([{ intent: "parking", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(parkingAnswer({ confidence: 0.5, riskType: "platform_policy", riskLevel: "medium" }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(await itemsOf(conversationId)).toEqual(
+      expect.arrayContaining([{ body: PARK_PAY, kind: "payment_invoice", sensitivity: "sensitive", status: "pending_host", notified: true }]),
+    );
+    expect(mockMail).toHaveBeenCalledTimes(2);
+  });
+
+  it("KONTROL — bugünkü mesajda risk sinyali yoksa yeni öğe / e-posta YOK", async () => {
+    const { conversationId } = await yesterdayIbanAnsweredWifi();
+    await guestWrites(conversationId, "Otopark var mı?", 5);
+    understands(understood([{ intent: "parking", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(parkingAnswer());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    const payment = (await itemsOf(conversationId)).filter((i) => i.kind === "payment_invoice");
+    expect(payment).toHaveLength(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("acil durum turu bugünkü yoldan (kurucu: 'Acilde dursun')", () => {
   beforeEachTurn();
 

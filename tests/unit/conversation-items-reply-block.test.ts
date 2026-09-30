@@ -39,6 +39,25 @@ describe("blok", () => {
     expect(buildItemsPromptBlock({ answerable: [], held: [{ kind: "wifi" }] })).toContain("ev sahibi bilgisi ya da onayı sayma):\n  (yok)");
   });
 
+  it("🚨 K8: ÖNCEKİ mesajlardan bekleyen istekler ayrı bölümde — model etiketlerini yalnız bu turun mesajlarına verir", () => {
+    const b = buildItemsPromptBlock({
+      answerable: [{ ref: "R1", kind: "parking", hint: "otopark" }],
+      held: [{ kind: "complaint_issue" }, { kind: "payment_invoice", earlier: true }],
+    });
+    const [thisTurn, earlier] = b.split("ÖNCEKİ MESAJLARDAN");
+    expect(earlier).toBeDefined();
+    expect(thisTurn).toContain("  - şikâyet / sorun");
+    expect(thisTurn).not.toContain("  - ödeme / fatura");
+    expect(earlier).toContain("  - ödeme / fatura");
+    expect(earlier.replace(/\s+/g, " ")).toContain("intent, riskLevel ve riskType bunlar için VERİLMEZ");
+  });
+
+  it("önceki mesajdan bekleyen istek yoksa blok BAYT BAYT eski biçim", () => {
+    const withFlag = buildItemsPromptBlock({ answerable: ITEMS.answerable, held: ITEMS.held.map((h) => ({ ...h, earlier: false })) });
+    expect(withFlag).toBe(buildItemsPromptBlock(ITEMS));
+    expect(withFlag).not.toContain("ÖNCEKİ MESAJLARDAN");
+  });
+
   it("her türün Türkçe adı var (tek kaynak)", () => {
     for (const k of ITEM_KINDS) expect([k, typeof ITEM_KIND_LABELS_TR[k]]).toEqual([k, "string"]);
   });

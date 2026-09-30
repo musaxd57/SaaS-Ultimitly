@@ -179,7 +179,7 @@ describe("vazgeçme — acil hariç", () => {
 });
 
 describe("yerine geçme + e-posta devri", () => {
-  it("aynı istek tekrar sorulunca eski öğe 'yerine yenisi geldi'; e-posta devralınır (ikinci e-posta yok)", async () => {
+  it("🚨 K9: aynı hassas istek tekrar sorulunca eski öğe KAPANMAZ; yeni mesajın kendi işi, e-posta DEVRALINMAZ (mesaj başına e-posta)", async () => {
     const { conversationId, ids } = await seedConversation(orgId, propertyId, [
       ["a", "inbound", "IBAN?", 0],
       ["b", "inbound", "IBAN'ı atar mısınız artık?", 30],
@@ -194,11 +194,43 @@ describe("yerine geçme + e-posta devri", () => {
       organizationId: orgId, conversationId, now: at(31),
       messages: [{ messageId: ids[1], items: buildItemsForMessage({ requests: [{ intent: "payment_invoice" }], lexicalLabels: ["platform_policy"] }) }],
     });
-    expect(await supersedeOlderItems(prisma, { organizationId: orgId, conversationId, turnItems: turn, turnMessageOrder: [ids[1]], now: at(32) })).toBe(1);
+    expect(await supersedeOlderItems(prisma, { organizationId: orgId, conversationId, turnItems: turn, turnMessageOrder: [ids[1]], now: at(32) })).toBe(0);
     const rows = await prisma.conversationItem.findMany({ orderBy: { createdAt: "asc" } });
     expect(rows.map((r) => [r.messageId === ids[0] ? "old" : "new", r.status, r.notifiedAt?.toISOString() ?? null])).toEqual([
-      ["old", "superseded", at(3).toISOString()],
-      ["new", "open", at(3).toISOString()],
+      ["old", "pending_host", at(3).toISOString()],
+      ["new", "open", null],
+    ]);
+  });
+
+  it("🚨 K9: 'Klima çalışmıyor' + ertesi gün 'Komşular çok gürültülü' → İKİ açık iş, yeni şikâyet ayrıca bildirilir; aynı mesaj yeniden gelince ikinci iş / e-posta YOK", async () => {
+    const { conversationId, ids } = await seedConversation(orgId, propertyId, [
+      ["a", "inbound", "Klima çalışmıyor", 0],
+      ["b", "inbound", "Komşular çok gürültülü", 24 * 60],
+    ]);
+    const [klima] = await upsertTurnItems(prisma, {
+      organizationId: orgId, conversationId, now: at(1),
+      messages: [{ messageId: ids[0], items: buildItemsForMessage({ requests: [{ intent: "complaint_issue" }], lexicalLabels: ["complaint"] }) }],
+    });
+    await applyItemEvent(prisma, { organizationId: orgId, ids: [klima.id], event: "held", now: at(2) });
+    expect(await claimItemNotification(prisma, { organizationId: orgId, id: klima.id, now: at(3) })).toEqual(at(3));
+    const komsu = () =>
+      upsertTurnItems(prisma, {
+        organizationId: orgId, conversationId, now: at(24 * 60 + 1),
+        messages: [{ messageId: ids[1], items: buildItemsForMessage({ requests: [{ intent: "complaint_issue" }], lexicalLabels: ["complaint"] }) }],
+      });
+    const turn = await komsu();
+    await supersedeOlderItems(prisma, { organizationId: orgId, conversationId, turnItems: turn, turnMessageOrder: [ids[1]], now: at(24 * 60 + 2) });
+    await applyItemEvent(prisma, { organizationId: orgId, ids: turn.map((r) => r.id), event: "held", now: at(24 * 60 + 2) });
+    // Yeni şikâyet kendi e-postasını alır (claim alınabilir = bildirilmemiş).
+    expect(await claimItemNotification(prisma, { organizationId: orgId, id: turn[0].id, now: at(24 * 60 + 3) })).toEqual(at(24 * 60 + 3));
+    // Aynı mesaj senkronla yeniden gelir → aynı öğe (ikinci iş yok), claim zaten alınmış (ikinci e-posta yok).
+    const again = await komsu();
+    expect(again.map((r) => r.id)).toEqual(turn.map((r) => r.id));
+    expect(await claimItemNotification(prisma, { organizationId: orgId, id: turn[0].id, now: at(24 * 60 + 9) })).toBeNull();
+    const rows = await prisma.conversationItem.findMany({ where: { conversationId }, orderBy: { createdAt: "asc" } });
+    expect(rows.map((r) => [r.messageId === ids[0] ? "klima" : "komşu", r.kind, r.status])).toEqual([
+      ["klima", "complaint_issue", "pending_host"],
+      ["komşu", "complaint_issue", "pending_host"],
     ]);
   });
 

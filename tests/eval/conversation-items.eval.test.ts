@@ -162,10 +162,11 @@ async function runArm(data: Dataset, s: Scenario, arm: "today" | "items"): Promi
             row.offReason = "no_items";
           } else {
             row.mode = "items";
-            const prior: ItemRiskFacts[] = (s.priorHeld ?? [])
+            // Önceki turların öğeleri ürünle aynı işaretle ("önceki mesajlardan bekleyen" — K8, `flow.ts`).
+            const prior: (ItemRiskFacts & { earlier: boolean })[] = (s.priorHeld ?? [])
               .filter((k) => !withdrawnEarlier.has(k))
-              .map((k) => ({ kind: k, sensitivity: "sensitive", riskType: null }));
-            const held: ItemRiskFacts[] = [...prior, ...turnItems.filter((i) => i.sensitivity === "sensitive")];
+              .map((k) => ({ kind: k, sensitivity: "sensitive", riskType: null, earlier: true }));
+            const held: (ItemRiskFacts & { earlier?: boolean })[] = [...prior, ...turnItems.filter((i) => i.sensitivity === "sensitive")];
             const hints = new Map<string, string>();
             for (const m of ex.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind), it.hint);
             const plan = composeItemsPlan({ turnItems, held, hints });

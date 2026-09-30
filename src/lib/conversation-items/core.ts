@@ -9,7 +9,7 @@
 // ama başka, ilgisiz bir öğeye de taşınmaz. Kelime ağı mesaj başına kesindir; etiketi mesajın içindeki UYGUN niyetli
 // isteğe atfedilir, hiçbir isteğe atfedilemezse mesajın TAMAMI hassas sayılır (güvenli yön).
 // 🚨 KAYBOLMAZ: hassas öğe yapay zekânın cevabıyla ASLA "cevaplandı" olmaz; yalnız ev sahibi kapatır, ev sahibi yazar
-// (türetilir), misafir vazgeçer ya da aynı konuda en az onun kadar hassas yeni öğe yerini alır. Acil öğe yalnız ev
+// (türetilir) ya da misafir vazgeçer; hassas öğe başka bir mesajın öğesiyle BİRLEŞMEZ (K9, 09-30). Acil öğe yalnız ev
 // sahibiyle kapanır.
 // ---------------------------------------------------------------------------
 
@@ -31,7 +31,7 @@ export type ItemSource = (typeof ITEM_SOURCES)[number];
  *  · pending_host — tutuldu; misafire HİÇBİR ŞEY gitmedi, ev sahibinde açık (sessiz);
  *  · answered     — yapay zekâ (ya da kod) cevapladı — YALNIZ hassas olmayan öğe;
  *  · withdrawn    — misafir vazgeçti (acil öğe ASLA);
- *  · superseded   — aynı konuda daha yeni, en az onun kadar hassas bir öğe yerini aldı (acil öğe ASLA);
+ *  · superseded   — aynı konuda daha yeni bir öğe yerini aldı — YALNIZ hassas olmayan öğe (K9, 09-30);
  *  · done         — ev sahibi kapattı.
  * "Ev sahibi yazdı" SAKLANMAZ, okuma anında türetilir (`effectiveStatus`) — kaçan bir yazma yolu olamaz.
  */
@@ -307,12 +307,17 @@ export function nextStatus(current: ItemStatus, sensitivity: ItemSensitivity, ev
   }
 }
 
-/** Yeni öğe eskisinin yerini alabilir mi: aynı konu, eski acil değil, yeni en az onun kadar hassas (risk düşmesin). */
+/**
+ * Yeni öğe eskisinin yerini alabilir mi: aynı konu ve eski öğe HASSAS DEĞİL (tekrar sorulan Wi-Fi sorusu). 🚨 K9 (kurucu kararı
+ * 09-30): hassas / acil öğe başka bir mesajın öğesiyle BİRLEŞMEZ — "Klima çalışmıyor" ile ertesi günün "Komşular çok gürültülü"sü
+ * ayrı açık işlerdir, yeni şikâyet ayrıca bildirilir (mesaj başına acil e-posta). Aynı mesajın yeniden içe aktarımı aynı öğedir
+ * (mesaj + tür tekil) — ikinci iş / e-posta doğmaz.
+ */
 export function maySupersede(
   older: Pick<BuiltItem, "kind" | "sensitivity">,
   newer: Pick<BuiltItem, "kind" | "sensitivity">,
 ): boolean {
-  return older.kind === newer.kind && older.sensitivity !== "emergency" && rank(newer.sensitivity) >= rank(older.sensitivity);
+  return older.kind === newer.kind && older.sensitivity === "none";
 }
 
 /**

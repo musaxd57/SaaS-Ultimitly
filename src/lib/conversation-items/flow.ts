@@ -36,6 +36,11 @@ export interface ItemsTurnPlan {
   turnItems: PersistedItem[];
   /** Ev sahibinde tutulan hassas öğeler (bu tur + önceki turlar; ev sahibinin yazdıkları düşülür; acil yok). */
   held: PersistedItem[];
+  /**
+   * Yalnız BU turun mesajlarındaki tutulan hassas öğeler (K8, kurucu kararı 09-30): cevap modelinin risk sinyali yalnız bunlara
+   * atfedilir — önceki turun tutulan öğesi bugünkü mesajdaki YENİ riski açıklamaz, o risk ayrı öğe olur.
+   */
+  turnHeld: PersistedItem[];
   /** Cevaplanabilir istekler: kimlik (R1…) → öğe. */
   answerable: { ref: string; item: PersistedItem }[];
   replyItems: ReplyItemsInput;
@@ -104,9 +109,12 @@ export async function planItemsTurn(
   // ev sahibinin elinde). Bu turun hassas öğeleri henüz "open" olabilir; ikisi birlikte.
   const views = await listConversationItems(db, { organizationId: input.organizationId, conversationId: input.conversationId });
   const held: PersistedItem[] = views.filter((v) => v.sensitivity === "sensitive" && isOpenForHost(v.effective));
+  const inTurn = new Set(turnMessageIds);
+  const turnHeld = held.filter((h) => inTurn.has(h.messageId));
   const hints = new Map<string, string>();
   for (const m of extracted.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind), it.hint);
-  return { mode: "items", turnItems, held, ...composeItemsPlan({ turnItems, held, hints }) };
+  const heldForPlan = held.map((h) => ({ ...h, earlier: !inTurn.has(h.messageId) }));
+  return { mode: "items", turnItems, held, turnHeld, ...composeItemsPlan({ turnItems, held: heldForPlan, hints }) };
 }
 
 /**
