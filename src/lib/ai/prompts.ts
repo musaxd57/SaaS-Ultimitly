@@ -1264,30 +1264,81 @@ export const STAY_DEFERRAL_PLAIN_REPLACEMENTS: readonly Replacement[] = [
   ],
 ];
 
-type SystemPromptBase = "base" | "codeGreeting" | "kbFeeRule" | "codeGreetingKbFeeRule";
-const SYSTEM_PROMPT_BASES: Record<SystemPromptBase, string> = {
-  base: REPLY_SYSTEM_PROMPT,
-  codeGreeting: REPLY_SYSTEM_PROMPT_CODE_GREETING,
-  kbFeeRule: REPLY_SYSTEM_PROMPT_KB_FEE_RULE,
-  codeGreetingKbFeeRule: REPLY_SYSTEM_PROMPT_CODE_GREETING_KB_FEE_RULE,
-};
-const derivedStayDeferral = Object.fromEntries(
-  (Object.keys(SYSTEM_PROMPT_BASES) as SystemPromptBase[]).map((k) => [k, deriveByAnchors(SYSTEM_PROMPT_BASES[k], STAY_DEFERRAL_PLAIN_REPLACEMENTS)]),
-) as Record<SystemPromptBase, { text: string; missing: string[] }>;
-
-/** Pin testi için: türetmede bulunamayan çapalar (her taban için BOŞ olmalı). */
-export const STAY_DEFERRAL_PLAIN_PROMPT_DERIVATION = Object.fromEntries(
-  (Object.keys(derivedStayDeferral) as SystemPromptBase[]).map((k) => [k, derivedStayDeferral[k].missing]),
-) as Record<SystemPromptBase, string[]>;
+// ── GİRİŞ TARİFİNDE KOD (`access-code-complete.ts`; anahtar `AI_ACCESS_CODE_COMPLETE_ENABLED` KAPALI) ────────────────────────────
+// Luna giriş / anahtar sorusunda tarifi verip kodu yazmıyordu ("kodu girin"). Tek çapa: KURAL-3'ün ilk satırı AYNEN kalır, ardına
+// kural girer; onaylanmamış rezervasyon / QR blokları önceliklidir (kodun isteme girip girmediği zaten kodda karar).
+export const ACCESS_CODE_COMPLETE_REPLACEMENTS: readonly Replacement[] = [
+  [
+    "  Wi-Fi ağ adı, şifre, kapı kodu, giriş kodu, adres — bu bilgiler yalnızca bilgi tabanında geçiyorsa kullan.\n",
+    "  Wi-Fi ağ adı, şifre, kapı kodu, giriş kodu, adres — bu bilgiler yalnızca bilgi tabanında geçiyorsa kullan.\n" +
+      "  Misafir binaya / daireye nasıl gireceğini ya da anahtarı nasıl alacağını soruyorsa ve bilgi tabanı bu adımlar için gereken\n" +
+      '  kodu / şifreyi yazıyorsa tarifle birlikte o kodu da AYNEN yaz — "kodu girin" deyip kodu vermemek cevabı eksik bırakır\n' +
+      "  (aşağıdaki REZERVASYON ONAYLANMAMIŞ / AKTİF KONAKLAMA blokları varsa onlar geçerlidir).\n",
+  ],
+];
 
 /**
- * Cevap modelinin SİSTEM istemi — üç anahtarın birleşimi TEK kaynaktan (`ai/index.ts` bayrakları okur, bu fonksiyon seçer). Üçü de
- * kapalıyken `REPLY_SYSTEM_PROMPT`; erteleme anahtarı kapalıyken önceki dört sabitin aynısı (pinli).
+ * Sistem istemi KATMANLARI — taban istemin üstüne SABİT SIRAYLA uygulanır (kod selamı → ücret kuralı → bildirimsiz erteleme → giriş
+ * kodu). Sıra, önceki sabitlerle (`REPLY_SYSTEM_PROMPT_CODE_GREETING`, `…_KB_FEE_RULE`, `…_CODE_GREETING_KB_FEE_RULE`) aynıdır; çapalar
+ * birbirine değmez (her birleşimde eksik çapa yok — pinli).
  */
-export function replySystemPromptFor(o: { codeGreeting: boolean; kbFeeRule: boolean; stayDeferralPlain: boolean }): string {
-  const key: SystemPromptBase = o.codeGreeting ? (o.kbFeeRule ? "codeGreetingKbFeeRule" : "codeGreeting") : o.kbFeeRule ? "kbFeeRule" : "base";
-  return o.stayDeferralPlain ? derivedStayDeferral[key].text : SYSTEM_PROMPT_BASES[key];
+export interface ReplyPromptFlags {
+  codeGreeting: boolean;
+  kbFeeRule: boolean;
+  stayDeferralPlain: boolean;
+  accessCodeComplete?: boolean;
 }
+const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, readonly Replacement[]])[] = [
+  ["codeGreeting", SYSTEM_CODE_GREETING_REPLACEMENTS],
+  ["kbFeeRule", KB_FEE_RULE_REPLACEMENTS],
+  ["stayDeferralPlain", STAY_DEFERRAL_PLAIN_REPLACEMENTS],
+  ["accessCodeComplete", ACCESS_CODE_COMPLETE_REPLACEMENTS],
+];
+const derivedPromptCache = new Map<string, { text: string; missing: string[] }>();
+
+function derivePrompt(f: ReplyPromptFlags): { text: string; missing: string[] } {
+  const key = PROMPT_LAYERS.map(([flag]) => (f[flag] ? "1" : "0")).join("");
+  const hit = derivedPromptCache.get(key);
+  if (hit) return hit;
+  let text = REPLY_SYSTEM_PROMPT;
+  const missing: string[] = [];
+  for (const [flag, replacements] of PROMPT_LAYERS) {
+    if (!f[flag]) continue;
+    const d = deriveByAnchors(text, replacements);
+    text = d.text;
+    missing.push(...d.missing.map((m) => `${flag}: ${m}`));
+  }
+  const out = { text, missing };
+  derivedPromptCache.set(key, out);
+  return out;
+}
+
+/**
+ * Cevap modelinin SİSTEM istemi — anahtarların birleşimi TEK kaynaktan (`ai/index.ts` bayrakları okur, bu fonksiyon kurar). Hepsi
+ * kapalıyken `REPLY_SYSTEM_PROMPT`; yeni anahtarlar kapalıyken önceki sabitlerin BAYT BAYT aynısı (pinli).
+ */
+export function replySystemPromptFor(f: ReplyPromptFlags): string {
+  return derivePrompt(f).text;
+}
+
+/** Pin testi için: dört anahtarın 16 birleşiminin her birinde türetmede bulunamayan çapalar (hepsi BOŞ olmalı). */
+export function REPLY_SYSTEM_PROMPT_DERIVATION_MISSING(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (let mask = 0; mask < 1 << PROMPT_LAYERS.length; mask++) {
+    const f = Object.fromEntries(PROMPT_LAYERS.map(([flag], i) => [flag, (mask & (1 << i)) !== 0])) as unknown as ReplyPromptFlags;
+    const name = PROMPT_LAYERS.filter((_, i) => (mask & (1 << i)) !== 0).map(([flag]) => flag).join("+") || "base";
+    out[name] = derivePrompt(f).missing;
+  }
+  return out;
+}
+
+/** Pin testi için (bildirimsiz erteleme): dört tabanın üstünde türetmede bulunamayan çapalar (her biri BOŞ olmalı). */
+export const STAY_DEFERRAL_PLAIN_PROMPT_DERIVATION = {
+  base: derivePrompt({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: true }).missing,
+  codeGreeting: derivePrompt({ codeGreeting: true, kbFeeRule: false, stayDeferralPlain: true }).missing,
+  kbFeeRule: derivePrompt({ codeGreeting: false, kbFeeRule: true, stayDeferralPlain: true }).missing,
+  codeGreetingKbFeeRule: derivePrompt({ codeGreeting: true, kbFeeRule: true, stayDeferralPlain: true }).missing,
+};
 
 /** Pin testi için: türetmede bulunamayan çapalar (BOŞ olmalı) ve ton başına değişen parça sayısı. */
 export const CODE_GREETING_PROMPT_DERIVATION = {

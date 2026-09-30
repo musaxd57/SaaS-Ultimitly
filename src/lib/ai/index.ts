@@ -4,6 +4,7 @@ import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { kbFeeRuleEnabled } from "./kb-fee-rule";
 import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
+import { accessCodeCompleteEnabled } from "./access-code-complete";
 import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
@@ -132,14 +133,15 @@ export function replyCallParams(): { model: string; effort: string | null } {
 
 /** Cevap istemi — `suggestReply` ve istek kimliği AYNI kurucudan (eylem beyanı bayrağı çağıranın TEK okumasıyla gelir). */
 /**
- * Cevap modelinin SİSTEM istemi — anahtarlar TEK YERDE (`code-greeting.ts`, `kb-fee-rule.ts`, `stay-deferral-plain.ts`), seçim
- * `replySystemPromptFor`da; üçü de kapalıyken taban istem bayt bayt aynı.
+ * Cevap modelinin SİSTEM istemi — anahtarlar TEK YERDE (`code-greeting.ts`, `kb-fee-rule.ts`, `stay-deferral-plain.ts`,
+ * `access-code-complete.ts`), kurulum `replySystemPromptFor`da; hepsi kapalıyken taban istem bayt bayt aynı.
  */
 function replySystemPrompt(): string {
   return replySystemPromptFor({
     codeGreeting: codeGreetingEnabled(),
     kbFeeRule: kbFeeRuleEnabled(),
     stayDeferralPlain: stayDeferralPlainEnabled(),
+    accessCodeComplete: accessCodeCompleteEnabled(),
   });
 }
 
