@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { buildIcsCalendar, buildIcalEvents } from "@/lib/export/ics";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
+import { orgTimezone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export async function GET(
   const property = await prisma.property.findUnique({
     where: { id: found.id },
     include: {
-      organization: { select: { icalShowGuestName: true } },
+      organization: { select: { icalShowGuestName: true, timezone: true } },
       reservations: {
         where: { status: { in: ["confirmed", "completed", "pending"] } },
         orderBy: { arrivalDate: "asc" },
@@ -61,7 +62,8 @@ export async function GET(
   // case only needs busy windows. A host can opt in (per-org setting) to see the
   // name in their own calendar.
   const showGuestName = property.organization?.icalShowGuestName ?? false;
-  const events = buildIcalEvents(property.reservations, showGuestName);
+  // Gün org diliminde okunur (tek tarih kuralı; saat dilimli giriş UTC gününe kaymasın — Codex 09-30 A2).
+  const events = buildIcalEvents(property.reservations, showGuestName, orgTimezone(property.organization?.timezone));
 
   const ics = buildIcsCalendar(`${property.name} — Lixus AI`, events);
 

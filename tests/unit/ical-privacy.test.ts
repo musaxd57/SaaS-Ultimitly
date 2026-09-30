@@ -16,7 +16,7 @@ const reservations = [
 
 describe("iCal feed guest-name privacy", () => {
   it("ships ONLY busy dates by default — no name, channel, or reference (KVKK)", () => {
-    const [e] = buildIcalEvents(reservations, false);
+    const [e] = buildIcalEvents(reservations, false, "Europe/Istanbul");
     expect(e.summary).toBe("Rezervasyon");
     expect(e.summary).not.toContain("Ada");
     // Privacy mode = pure busy/free: description carries nothing identifying.
@@ -27,7 +27,7 @@ describe("iCal feed guest-name privacy", () => {
   });
 
   it("includes name + channel + reference only when the host opts in", () => {
-    const [e] = buildIcalEvents(reservations, true);
+    const [e] = buildIcalEvents(reservations, true, "Europe/Istanbul");
     expect(e.summary).toBe("Rezervasyon — Ada Lovelace");
     expect(e.description).toContain("Misafir: Ada Lovelace");
     expect(e.description).toContain("Kanal: airbnb");

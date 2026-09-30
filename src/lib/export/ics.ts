@@ -3,6 +3,8 @@
 // channels (Airbnb, Booking.com, Google Calendar) can subscribe and block
 // the corresponding dates.
 
+import { calendarDateOf } from "@/modules/availability/core";
+
 export interface IcsEvent {
   uid: string;
   summary: string;
@@ -117,6 +119,16 @@ export type IcalReservation = {
 };
 
 /**
+ * 🚨 DIŞA AKTARILAN GÜN = TEK TARİH KURALI (`calendarDateOf`, Codex 09-30 A2). Saklı değer ya yalnız tarihtir (00:00Z / 12:00Z)
+ * ya da bir ANDIR (saat dilimli iCal girişi — Google / Vrbo / PMS `TZID` yollar — ya da saatli kayıt). Eskiden gün her
+ * zaman UTC'den okunuyordu: İstanbul'da gece yarısı başlayan konaklama (`…T21:00Z`) beslemede BİR GÜN ERKEN görünüyor,
+ * çıkış gecesi abone kanalda BOŞ kalıyordu (çift rezervasyon riski). Artık an org diliminin günüdür; yalnız tarih aynen.
+ */
+function exportDay(stored: Date, timeZone: string): Date {
+  return new Date(`${calendarDateOf(stored, timeZone).key}T00:00:00.000Z`);
+}
+
+/**
  * Build the VEVENT list for a property's public feed. Pure + testable. When
  * showGuestName is false (the default), the event carries ONLY busy dates — no
  * guest name, and ALSO no channel or booking reference (the reference is a
@@ -124,12 +136,16 @@ export type IcalReservation = {
  * system in a feed that third parties (Airbnb / Booking / Google) subscribe to.
  * With the host's explicit opt-in (showGuestName=true) the details are included.
  */
-export function buildIcalEvents(reservations: IcalReservation[], showGuestName: boolean): IcsEvent[] {
+export function buildIcalEvents(
+  reservations: IcalReservation[],
+  showGuestName: boolean,
+  timeZone: string,
+): IcsEvent[] {
   return reservations.map((r) => ({
     uid: `${r.id}@guestops-ai`,
     summary: showGuestName && r.guestName ? `Rezervasyon — ${r.guestName}` : "Rezervasyon",
-    start: r.arrivalDate,
-    end: r.departureDate,
+    start: exportDay(r.arrivalDate, timeZone),
+    end: exportDay(r.departureDate, timeZone),
     // Details (name/channel/reference) are all gated behind the host opt-in —
     // when the feed is in privacy mode it stays a pure busy/free calendar.
     description: showGuestName

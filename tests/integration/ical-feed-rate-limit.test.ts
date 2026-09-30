@@ -61,3 +61,49 @@ describe("takvim beslemesi hız sınırı", () => {
     expect((await fetchFeed(TOKEN_A, "2001:db8:beef:3::1")).status).toBe(200);
   }, 60_000);
 });
+
+// ---------------------------------------------------------------------------
+// CODEX 09-30 (A2): besleme günü ORG DİLİMİNDE okur — rota org'un saat dilimini dışa aktarıma geçiriyor mu (bağlantı pini).
+// ---------------------------------------------------------------------------
+describe("takvim beslemesi — gün org diliminde", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+  });
+
+  it("🚨 İstanbul org'unda saat dilimli giriş (…T21:00Z) beslemede İstanbul günüyle görünür", async () => {
+    const org = await prisma.organization.create({ data: { name: "Org", timezone: "Europe/Istanbul" } });
+    const p = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 3", icalToken: TOKEN_A } });
+    await prisma.reservation.create({
+      data: {
+        propertyId: p.id,
+        guestName: "Misafir",
+        arrivalDate: new Date("2026-10-04T21:00:00Z"),
+        departureDate: new Date("2026-10-07T21:00:00Z"),
+        channel: "ics",
+        status: "confirmed",
+      },
+    });
+    const text = await (await fetchFeed(TOKEN_A, "203.0.113.9")).text();
+    expect(text).toContain("DTSTART;VALUE=DATE:20261005");
+    expect(text).toContain("DTEND;VALUE=DATE:20261008");
+  });
+
+  it("New York org'unda aynı anlar New York günüdür (org dilimi gerçekten okunuyor)", async () => {
+    const org = await prisma.organization.create({ data: { name: "Org", timezone: "America/New_York" } });
+    const p = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 3", icalToken: TOKEN_A } });
+    await prisma.reservation.create({
+      data: {
+        propertyId: p.id,
+        guestName: "Misafir",
+        arrivalDate: new Date("2026-10-04T21:00:00Z"),
+        departureDate: new Date("2026-10-07T21:00:00Z"),
+        channel: "ics",
+        status: "confirmed",
+      },
+    });
+    const text = await (await fetchFeed(TOKEN_A, "203.0.113.9")).text();
+    expect(text).toContain("DTSTART;VALUE=DATE:20261004");
+    expect(text).toContain("DTEND;VALUE=DATE:20261007");
+  });
+});
