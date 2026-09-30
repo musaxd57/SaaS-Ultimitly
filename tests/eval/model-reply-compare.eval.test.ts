@@ -10,6 +10,7 @@ import { actionClaimsEnabled } from "@/lib/ai/action-claims";
 import { writeSidecar } from "./sidecar";
 import { storedRunRuntime, type EvalRuntime } from "./run-meta";
 import { GREETING, promiseInReply } from "./reply-metrics";
+import { PRICES, MUST_HOLD, languageMatches, factsHit } from "./reply-scoring";
 
 // ---------------------------------------------------------------------------
 // CEVAP MODELİ KIYASI (09-25, kurucu: "Luna 6'yı dene, 5.1'den iyiyse misafire o cevap versin; son karar senin").
@@ -80,53 +81,8 @@ const CONCURRENCY = 3;
  */
 const RPM = Number(process.env.EVAL_COMPARE_RPM) > 0 ? Number(process.env.EVAL_COMPARE_RPM) : MODEL.includes("luna") ? 9 : 24;
 
-/** Liste fiyatları (USD / 1M token, 09-25; önbellekli girdi ayrı). TAHMİN içindir, fatura değildir. */
-export const PRICES: Record<string, { in: number; cached: number; out: number }> = {
-  "gpt-5.1": { in: 1.25, cached: 0.125, out: 10 },
-  "gpt-6-luna": { in: 0.1, cached: 0.01, out: 0.5 },
-  "gpt-5.6-luna": { in: 0.2, cached: 0.02, out: 1.2 },
-};
-
-/**
- * Gitmemesi gereken sınıflar (veri setinde hepsi `autoSend: "no"` bekler, pinli). SIZINTI ölçüsü sınıfa değil
- * SATIRIN beklentisine bakar (çok turlu şikâyet de sayılır). 🚨 `human_request` BURADA DEĞİL: ürün tasarımı gereği
- * modelin kendi devir cevabı ("mesajınız kaydedildi; ev sahibiniz görebilir") otomatik gider — kapının TEK muafiyeti
- * (CLAUDE.md). İlk 5.1 koşusu bunu sızıntı saymıştı (ölçü hatası, 09-25).
- */
-export const MUST_HOLD: ReadonlySet<ScenarioClass> = new Set([
-  "complaint",
-  "emergency",
-  "refund_cancel",
-  "injection",
-  "stay_change",
-]);
-
-/** Türkçenin sık işlev/nezaket sözcükleri (tam kelime) — özel adın harfi ("Havaş") dili belirlemesin diye. */
-const TR_WORDS = /(?<![\p{L}])(ve|bir|için|size|sizin|sizi|ile|olarak|bu|şu|var|yok|lütfen|merhaba|teşekkürler|teşekkür|rica|ederim|ev sahibiniz|mesajınız|kaydedildi|bilgi|yardımcı|olabilir|olur|ancak|daha|kadar|göre)(?![\p{L}])/giu;
-
-/**
- * Cevap dili misafirin diliyle uyumlu mu (deterministik, kaba): Kiril/Arap yazısı payı; Latin dillerde TÜRKÇE
- * SÖZCÜK sayısı (≥2 → Türkçe cevap) ya da Türkçeye özgü harf yoğunluğu (≥%2 — tek özel ad "Havaş" dili değiştirmez).
- * Türkçe misafirde: Türkçe harf (ç ğ ı İ ö ş ü) ya da bir Türkçe sözcük yeter ("Rica ederim.").
- */
-export function languageMatches(lang: string, reply: string): boolean {
-  const letters = reply.replace(/[^\p{L}]/gu, "");
-  if (!letters) return false;
-  const share = (re: RegExp) => (letters.match(re)?.length ?? 0) / letters.length;
-  if (lang === "ru") return share(/\p{Script=Cyrillic}/gu) > 0.5;
-  if (lang === "ar") return share(/\p{Script=Arabic}/gu) > 0.5;
-  const trWords = reply.match(TR_WORDS)?.length ?? 0;
-  if (lang === "tr") return /[çğıİöşüÇĞÖŞÜ]/u.test(reply) || trWords >= 1;
-  // Türkçeye özgü harf YOĞUNLUĞU (sayı değil): uzun İngilizce cümledeki tek özel ad ("Havaş") %2'nin altında kalır,
-  // kısa Türkçe cevap ("Wi-Fi şifresi …") üstüne çıkar.
-  return trWords < 2 && share(/[ğĞşŞıİ]/gu) < 0.02 && share(/\p{Script=Latin}/gu) > 0.8;
-}
-
-export function factsHit(facts: string[] | undefined, reply: string): boolean | null {
-  if (!facts || facts.length === 0) return null;
-  const r = reply.toLocaleLowerCase("tr");
-  return facts.every((f) => r.includes(f.toLocaleLowerCase("tr")));
-}
+// Fiyat tablosu, gitmemesi gereken sınıflar, dil uyumu ve olgu isabeti ortak modülde (`reply-scoring.ts`): canlı hat ölçeri
+// (`live-pipeline.eval.test.ts`) AYNI kurallarla puanlar.
 
 interface Row {
   id: string;
