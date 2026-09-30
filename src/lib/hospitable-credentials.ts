@@ -551,12 +551,27 @@ export type ProviderAuthFailureOutcome = "refresh_forced" | "revoked" | "noop";
  *     "not connected"; queued rows park (no provider call) until the host reconnects.
  * Never throws — callers are on the worker hot path.
  */
-export async function handleProviderAuthFailure(orgId: string, status: 401 | 403): Promise<ProviderAuthFailureOutcome> {
+export async function handleProviderAuthFailure(
+  orgId: string,
+  status: 401 | 403,
+  /** 401 / 403'ü ALAN isteğin kullandığı token (düz). Kayıttaki token artık bu değilse hüküm verilmez. */
+  failedToken: string,
+): Promise<ProviderAuthFailureOutcome> {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
     select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true },
   });
   if (!org || !org.hospitableTokenEnc) return "noop"; // already disconnected
+  // 🚨 GEÇ GELEN RED YENİ BAĞLANTIYI DÜŞÜRMEZ (Codex 09-30, A5). Aşağıdaki koşullu yazma işleyicinin O AN okuduğu token'a
+  // göreydi: gönderim sürerken ev sahibi yeniden bağlandıysa (ya da token yenilendiyse) ESKİ token'ın geç gelen 401'i YENİ
+  // bağlantıyı iptal ediyordu. Hüküm yalnız reddedilen token HÂLÂ kayıttaki token ise verilir.
+  let current: string | null = null;
+  try {
+    current = decryptSecret(org.hospitableTokenEnc);
+  } catch {
+    current = null;
+  }
+  if (current !== failedToken) return "noop";
 
   const conn = await getConnection(orgId, PROVIDER);
   const lastRefreshAt = conn

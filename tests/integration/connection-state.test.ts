@@ -120,7 +120,7 @@ describe("V0.7 — bağlantı durumu (getConnectionInfo) saklı veriden", () => 
     const stamped = await prisma.reservation.create({
       data: { propertyId, guestName: "G", arrivalDate: daysFromNow(3), departureDate: daysFromNow(5), channel: "airbnb", sourceReference: "r-1", connectionId: row!.id, connectionEvidence: "ingest", ingestedAt: new Date() },
     });
-    expect(await handleProviderAuthFailure(orgId, 401)).toBe("revoked");
+    expect(await handleProviderAuthFailure(orgId, 401, "PAT-1")).toBe("revoked");
     const info = await getConnectionInfo(orgId);
     expect(info).toMatchObject({ state: "revoked", revokedReason: "send_401", connected: false, ownToken: false, credentialSource: null, connectionId: row!.id });
     expect(info.revokedAt).toBeInstanceOf(Date);
@@ -140,7 +140,7 @@ describe("V0.7 — bağlantı durumu (getConnectionInfo) saklı veriden", () => 
     const { orgId } = await makeOrgWithProperty();
     await setOrgHospitableToken(orgId, "PAT-1", null);
     const row = await getConnection(orgId);
-    await handleProviderAuthFailure(orgId, 401);
+    await handleProviderAuthFailure(orgId, 401, "PAT-1");
     envFallback(orgId);
     const info = await getConnectionInfo(orgId);
     expect(info).toMatchObject({ state: "revoked", revokedReason: "send_401", connected: true, ownToken: false, envAvailable: true, credentialSource: "env", connectionId: row!.id });
@@ -153,7 +153,7 @@ describe("V0.7 — bağlantı durumu (getConnectionInfo) saklı veriden", () => 
     const b = await makeOrgWithProperty();
     await setOrgHospitableToken(a.orgId, "PAT-A", null);
     await setOrgHospitableToken(b.orgId, "PAT-B", null);
-    await handleProviderAuthFailure(a.orgId, 403);
+    await handleProviderAuthFailure(a.orgId, 403, "PAT-A");
     expect((await getConnectionInfo(a.orgId)).state).toBe("revoked");
     const infoB = await getConnectionInfo(b.orgId);
     expect(infoB.state).toBe("connected");
@@ -186,7 +186,7 @@ describe("V0.7 — resolveHospitableCredential: damgalı satır yalnız kendi ba
     const { orgId } = await makeOrgWithProperty();
     await setOrgHospitableToken(orgId, "PAT-1", null);
     const row = await getConnection(orgId);
-    await handleProviderAuthFailure(orgId, 401);
+    await handleProviderAuthFailure(orgId, 401, "PAT-1");
     envFallback(orgId);
     expect(await resolveHospitableCredential(orgId, { forConnectionId: row!.id })).toMatchObject({ token: null, reason: "connection_inactive", connectionId: row!.id });
     // Damgasız satır (env altında kuyruklanmış) env ile gider.

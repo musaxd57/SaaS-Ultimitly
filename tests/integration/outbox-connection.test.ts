@@ -11,6 +11,7 @@ import {
   clearOrgHospitableToken,
   handleProviderAuthFailure,
   resetPrimaryOrgCache,
+  resolveHospitableCredential,
 } from "@/lib/hospitable-credentials";
 
 // ---------------------------------------------------------------------------
@@ -143,6 +144,37 @@ describe("outbox × ChannelConnection", () => {
     expect(await getConnection(orgId)).toMatchObject({ status: "active" });
   });
 
+  // CODEX 09-30 (A5): GEÇ GELEN 401 YENİ BAĞLANTIYI DÜŞÜRMEZ. Koşullu yazma işleyicinin O AN okuduğu token'a göreydi —
+  // gönderim sürerken ev sahibi yeniden bağlandıysa eski token'ın geç gelen reddi YENİ bağlantıyı iptal ediyordu.
+  it("🚨 gönderim sürerken yeniden bağlanıldı: ESKİ token'ın 401'i YENİ bağlantıyı iptal ETMEZ", async () => {
+    const { orgId, conversationId } = await seed();
+    await setOrgHospitableToken(orgId, "PAT-old", null);
+    const { outboxId } = await enqueue(orgId, conversationId, "k-late-401");
+    const send = vi.fn(async (_row: unknown, token?: string) => {
+      expect(token).toBe("PAT-old");
+      await setOrgHospitableToken(orgId, "PAT-new", null); // ev sahibi bu sırada yeniden bağlandı
+      return { ok: false, error: "Hospitable API hatası (HTTP 401)", kind: "auth_revoked" as const };
+    });
+
+    await drainOutboxOnce({ send });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(await getConnection(orgId)).toMatchObject({ status: "active" });
+    expect(await resolveHospitableCredential(orgId)).toMatchObject({ token: "PAT-new" });
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "channel.connection_revoked" } })).toBe(0);
+    expect(await row(outboxId)).toMatchObject({ status: "pending", lastErrorKind: "auth_revoked" });
+  });
+
+  it("🚨 işleyici: reddedilen token artık kayıtta değilse hiçbir şey yapmaz; kayıttaysa iptal eder", async () => {
+    const { orgId } = await seed();
+    await setOrgHospitableToken(orgId, "PAT-1", null);
+    await setOrgHospitableToken(orgId, "PAT-2", null);
+    expect(await handleProviderAuthFailure(orgId, 401, "PAT-1")).toBe("noop");
+    expect(await getConnection(orgId)).toMatchObject({ status: "active" });
+    expect(await handleProviderAuthFailure(orgId, 401, "PAT-2")).toBe("revoked");
+    expect(await getConnection(orgId)).toMatchObject({ status: "revoked" });
+  });
+
   it("403 de aynı sınıf: auth_revoked + send_403", async () => {
     const { orgId, conversationId } = await seed();
     await setOrgHospitableToken(orgId, "PAT-x", null);
@@ -203,7 +235,7 @@ describe("outbox × ChannelConnection", () => {
     const conn = await getConnection(orgId);
     const { outboxId } = await enqueue(orgId, conversationId, "k-rev-env");
     expect((await row(outboxId)).connectionId).toBe(conn!.id);
-    expect(await handleProviderAuthFailure(orgId, 401)).toBe("revoked");
+    expect(await handleProviderAuthFailure(orgId, 401, "PAT-A")).toBe("revoked");
     // Kurucu org: env fallback devrede — ama bu satır bağlantı X altında kuyruklandı.
     vi.stubEnv("PRIMARY_ORG_ID", orgId);
     vi.stubEnv("HOSPITABLE_API_TOKEN", "ENV-TOK");

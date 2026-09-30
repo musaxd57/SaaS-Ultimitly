@@ -943,7 +943,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       claimExpiresAt: null,
     });
     try {
-      await handleProviderAuthFailure(row.organizationId, httpStatus);
+      await handleProviderAuthFailure(row.organizationId, httpStatus, providerToken);
     } catch (err) {
       // The row is already parked safely; the lifecycle decision failing must be visible,
       // not fatal to the batch.
