@@ -1166,6 +1166,22 @@ function timeRole(clause: string, start: number, end: number): { until: boolean;
 }
 
 /**
+ * OLUMSUZLANAN SAAT (K3, kurucu kararı 09-30; Codex 3-5): "Check-out is not at 11:00; it is at 12:00", "Checkout is at 12:00, not
+ * 11:00", "(not 11 am as before)", "Çıkış 11:00 değil, 12:00'dir", "11:00'de değildir" — olumsuzlanan saat alanın DEĞERİ değildir,
+ * okunmaz; düzeltme saati okunur (↓`readFieldTimeHits` alanı sonraki alansız cümleciğe taşır). Eskiden yalnız 11:00 okunuyor, mülkün
+ * 11:00'iyle "uyumlu" görünüp çelişki gizleniyordu. "not before / after / until / later than", "15:00'ten önce değil" sınır
+ * anlatımıdır: "not" ile saat arasında başka sözcük var → etkilenmez. "not exactly 11:00" = "yaklaşık 11" (olumsuzlama değil).
+ * Pencereler sabit uzunlukta (doğrusal).
+ */
+const NEGATED_TIME_BEFORE = /(?:^|[^a-z])(?:not|isn['’`]?t|no\s+longer)\s+(?:at\s+)?$/;
+const NEGATED_TIME_AFTER = /^\s*(?:['’`]\s*[a-zçğıöşü]{1,4}\s*)?de[gğ][iı]l/;
+function negatedTime(clause: string, start: number, end: number): boolean {
+  const head = clause.slice(Math.max(0, start - 24), start).toLocaleLowerCase("en");
+  const tail = clause.slice(end, end + 16).toLocaleLowerCase("tr");
+  return NEGATED_TIME_BEFORE.test(head) || NEGATED_TIME_AFTER.test(tail);
+}
+
+/**
  * Saatin alanın DEĞERİ olmadığı durumlar (09-27): geç çıkış / geç girişte "11:00 sonrası" standart saattir (sınır),
  * erken girişte "15:00'ten önceki" de öyle; başvuru noktası cümleciğinde ("çıkıştan sonra … 14:00'e kadar") "kadar"
  * saati başka bir işin saatidir; koşulun İÇİNDEKİ saat ve geç kalış cümleciğinde "22:00'den sonra" eşiktir; erişim
@@ -1298,16 +1314,26 @@ function readFieldTimeHits(title: string, text: string, category?: string | null
     .replace(/(?<![a-z])([ap])\.m\.?(?![a-z])/gi, "$1m");
   const hits: FieldTimeHit[] = [];
   const bits = flat.split(SENTENCE_SPLIT);
+  // K3 (09-30): saatini OLUMSUZLAYAN cümleciğin alanı ("Check-out is not at 11:00") HEMEN sonraki cümleciğe taşınır — alansız düzeltme
+  // ("; it is at 12:00", ", 12:00'dir") o alanın saatidir. Cümleler arası TEK durum budur; yalnız bir cümlecik yaşar.
+  let negatedCarry: string | null = null;
   for (let si = 0; si < bits.length; si += 2) {
     // Soru cümlesi bir saat BİLDİRMEZ ("S: 12:00'de girebilir miyiz?" / "Arriving after 11 pm?").
-    if ((bits[si + 1] ?? "").includes("?")) continue;
+    if ((bits[si + 1] ?? "").includes("?")) {
+      negatedCarry = null;
+      continue;
+    }
     const sentence = bits[si];
-    // Saat taşıyamayan cümle hiçbir atıf üretmez ve cümleler arası durum yoktur (her durum değişkeni cümle başına) → okunmaz; sonuç
-    // birebir aynı (09-28 CPU denetimi: saatsiz cümlelerde boşuna cümlecik çözümlemesi yapılıyordu).
-    if (!mayHoldTime(sentence)) continue;
+    // Saat taşıyamayan cümle hiçbir atıf üretmez ve (olumsuzlama taşıması dışında) cümleler arası durum yoktur (her durum değişkeni
+    // cümle başına) → okunmaz; sonuç birebir aynı (09-28 CPU denetimi: saatsiz cümlelerde boşuna cümlecik çözümlemesi yapılıyordu).
+    if (!mayHoldTime(sentence)) {
+      negatedCarry = null;
+      continue;
+    }
     const pair = respectivePair(sentence);
     if (pair) {
       hits.push(...pair);
+      negatedCarry = null;
       continue;
     }
     let carriedTopic = false;
@@ -1344,6 +1370,10 @@ function readFieldTimeHits(title: string, text: string, category?: string | null
     for (const { c, dash } of clauses) {
       const whole = fieldsWithCategory(c);
       if (!dash) dashTopic = false;
+      const negCarry = negatedCarry;
+      negatedCarry = null;
+      const negatedHere = new Set<string>();
+      const keptHere = new Set<string>();
       if (whole.pureAvailability && !carriedStandard) {
         for (const k of convertible.splice(0)) {
           const h = hits[k];
@@ -1407,6 +1437,10 @@ function readFieldTimeHits(title: string, text: string, category?: string | null
             field = carryField;
             fromCarry = true;
           }
+          else if (ownFields.length === 0 && negCarry && !info.vetoed && !placeCarry && !otherConcept) {
+            field = negCarry;
+            fromCarry = true;
+          }
           else if (ownFields.length === 0 && titleField && !otherConcept) {
             field = titleField;
             via = "title";
@@ -1443,6 +1477,11 @@ function readFieldTimeHits(title: string, text: string, category?: string | null
             mentions.forEach((m, mi) => {
               // Zayıf kanıt ("saat"siz "14'ten", ↑BARE_HOUR_G) yalnız cümleciğin KENDİ alanına: başlık / kategori / taşınan alan olmaz.
               if (m.bare && (via !== "clause" || fromCarry)) return;
+              // K3: olumsuzlanan saat değer değildir (↑negatedTime); alan sonraki alansız cümleciğe taşınır.
+              if (negatedTime(part, m.start, m.end)) {
+                negatedHere.add(f);
+                return;
+              }
               const r = roles[mi];
               const upper = r.until || r.by || latestNear(part, m.start, m.end);
               let ff = f;
@@ -1480,6 +1519,7 @@ function readFieldTimeHits(title: string, text: string, category?: string | null
               const prev = kept.get(key);
               kept.set(key, { field: ff, time: m.time, point: (prev?.point ?? false) || point, bound: prev?.bound ?? bound });
             });
+            if (kept.size > 0) keptHere.add(f);
             for (const k of kept.values()) {
               if ((k.field === "checkin" || k.field === "checkout") && !standard && !availability) convertible.push(hits.length);
               hits.push({ field: k.field, time: k.time, via, clause: part.trim(), point: k.point, ...(k.bound ? { bound: k.bound } : {}) });
@@ -1499,6 +1539,10 @@ function readFieldTimeHits(title: string, text: string, category?: string | null
       if (whole.doorSchedule) carriedDoorSchedule = true;
       if (isConditionClause(c)) carriedTopic ||= whole.topic;
       if (whole.afterRefEnd >= 0 && mentionsOf(c).length === 0) carriedAfterRef = true;
+      if (negatedHere.size === 1) {
+        const [nf] = negatedHere;
+        if (!keptHere.has(nf)) negatedCarry = nf;
+      }
     }
   }
   return hits;
