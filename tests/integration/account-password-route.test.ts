@@ -32,6 +32,7 @@ vi.mock("@/lib/email-outbox", async (orig) => {
 });
 
 import { POST } from "@/app/api/account/password/route";
+import { issueChallenge, verifyChallenge } from "@/lib/auth/password-reset-challenge";
 import { drainEmailOutboxOnce, kickEmailOutboxDrain } from "@/lib/email-outbox";
 import { emailService } from "@/lib/email";
 
@@ -92,6 +93,30 @@ describe("POST /api/account/password (e-mail code flow)", () => {
     expect(await verifyPassword("brandnew123", u!.passwordHash)).toBe(true);
     expect(u?.pwChangeCodeHash).toBeNull(); // code burned after use
     expect(u?.sessionEpoch).toBe(1); // bumped 0→1 → invalidates stolen tokens
+  });
+
+  it("🚨 oturum içi şifre değişikliği BEKLEYEN sıfırlama bağlantılarını iptal eder (Codex 09-30 A3)", async () => {
+    // Şifre değişikliğinden ÖNCE istenmiş bir sıfırlama (e-postası kutuda / ele geçirilmiş olabilir).
+    const pending = await issueChallenge(prisma, session.userId);
+    await POST(req({ action: "request" }));
+    const res = await POST(req({ action: "confirm", code: codeFromEmail(), newPassword: "brandnew123" }));
+    expect(res.status).toBe(200);
+
+    const rows = await prisma.passwordResetChallenge.findMany({ where: { userId: session.userId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].invalidatedAt).toBeInstanceOf(Date);
+    // Bağlantı + doğru kod artık İŞE YARAMAZ.
+    expect(await verifyChallenge(pending.token, pending.code)).toMatchObject({ ok: false, reason: "not_found" });
+  });
+
+  it("KONTROL — başka kullanıcının bekleyen sıfırlaması etkilenmez", async () => {
+    const other = await prisma.user.create({
+      data: { organizationId: session.organizationId, name: "O", email: "o@example.com", passwordHash: "x", role: "manager" },
+    });
+    const theirs = await issueChallenge(prisma, other.id);
+    await POST(req({ action: "request" }));
+    await POST(req({ action: "confirm", code: codeFromEmail(), newPassword: "brandnew123" }));
+    expect(await verifyChallenge(theirs.token, theirs.code)).toMatchObject({ ok: true });
   });
 
   it("🚨 PAROLA KIRPILMAZ (09-23, F7): baştaki/sondaki boşluk dahil YAZILDIĞI GİBİ saklanır — giriş aynı değeri kabul eder", async () => {

@@ -212,6 +212,13 @@ export async function POST(req: NextRequest) {
           },
         });
         if (consumed.count === 0) return null;
+        // 🚨 BEKLEYEN SIFIRLAMA BAĞLANTILARI DA ÖLÜR (Codex 09-30, A3): sıfırlama yolu diğer canlı sıfırlamaları kapatıyordu,
+        // bu yol kapatmıyordu → şifre değiştirildikten sonra eski bir sıfırlama e-postası (ya da onu ele geçiren) şifreyi
+        // yeniden değiştirebiliyordu. Aynı işlemde: şifre değişti ⇔ bekleyen hiçbir sıfırlama yolu kalmadı.
+        await tx.passwordResetChallenge.updateMany({
+          where: { userId: session.userId, consumedAt: null, invalidatedAt: null },
+          data: { invalidatedAt: new Date() },
+        });
         const row = await tx.user.findUniqueOrThrow({ where: { id: session.userId }, select: { sessionEpoch: true } });
         return row.sessionEpoch;
       });
