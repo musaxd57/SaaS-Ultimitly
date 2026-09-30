@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { vetoOutgoingReply } from "@/lib/ai/output-veto";
+import { carriesHandoffNotice, vetoOutgoingReply } from "@/lib/ai/output-veto";
 
 // ---------------------------------------------------------------------------
 // K10 (kurucu kararı 09-30): "host görebilir gibi bir şey yazmasın, gerekirse hiç cevap üretilmesin, hosta haber verilsin" ·
@@ -75,5 +75,30 @@ describe("K10 — makbuzsuz söz / teklif kapanır (kurucunun örnekleri + ikizl
 describe("K10 — meşru cümleler geçer", () => {
   it.each(LEGIT)("geçer: %s", (reply) => {
     expect(vetoOutgoingReply(reply)).toBeNull();
+  });
+});
+
+describe("K10 — carriesHandoffNotice (tutulan kanal cevabında ev sahibi bildirimi + karar kaydı gerekçesi)", () => {
+  it.each(HANDOFF)("devir cümlesi tanınır: %s", (reply) => {
+    expect(carriesHandoffNotice(reply)).toBe(true);
+  });
+  it.each(LEGIT)("meşru cümle devir DEĞİL: %s", (reply) => {
+    expect(carriesHandoffNotice(reply)).toBe(false);
+  });
+  it("başka bir veto önce tutsa da (söz / yer tutucu) cümle oradaysa tanınır", () => {
+    const withPromise = "Ev sahibinize soracağım. Mesajınız kaydedildi; ev sahibiniz görebilir.";
+    expect(vetoOutgoingReply(withPromise)).toBe("unverified_commitment");
+    expect(carriesHandoffNotice(withPromise)).toBe(true);
+  });
+  it("büyük noktalı İ (Türkçe küçük harf biçimi) ve kıvrık kesme işareti de tanınır", () => {
+    expect(carriesHandoffNotice("İsteğiniz kaydedildi, ev sahibiniz görebilir.")).toBe(true);
+    expect(carriesHandoffNotice("İSTEĞİNİZ KAYDEDİLDİ.")).toBe(true);
+    expect(vetoOutgoingReply("İSTEĞİNİZ KAYDEDİLDİ.")).toBe("handoff_notice");
+  });
+  it("boş / metin olmayan girdi devir değildir", () => {
+    expect(carriesHandoffNotice("")).toBe(false);
+    expect(carriesHandoffNotice("   ")).toBe(false);
+    expect(carriesHandoffNotice(null)).toBe(false);
+    expect(carriesHandoffNotice(undefined)).toBe(false);
   });
 });

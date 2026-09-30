@@ -998,6 +998,26 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(mockSend).not.toHaveBeenCalled();
     // İş akışı yine koşar (host'un kontrol listesi / kanıt kaydı üretilir); gönderimi tutan saat çelişkisidir.
     expect(await decision(idC)).toMatchObject({ finalDecision: "human_review", reason: "kb_time_conflict", ec: { s: "approvable" } });
+
+    // (d) K10 (09-30): modelin ertelemesi devir cümlesi de taşısa ("your request has been recorded…") gerekçe YİNE saat
+    // çelişkisidir — kendi rapor satırı olan kod, "cevap bekliyor" (`handoff_notice`) genel kovasından önce gelir.
+    await fresh();
+    const d = await turnover();
+    await conflictingKb(d.propertyId);
+    await cleaning(d, d.departing.id, "2026-10-14", [
+      ["in_progress", "2026-10-14T05:15:00.000"],
+      ["done", "2026-10-14T05:45:00.000"],
+    ]);
+    await saveEarlyCheckinRule(d.orgId, d.propertyId, { ...RULE, readyBeforeCheckout: true });
+    openAi({
+      reply: reply({ reply: `${DEFER} Your request has been recorded and is visible to your host.` }),
+      understanding: nlu("09:00"),
+      guard: guard("09:00"),
+    });
+    const idD = await conversationFor(d.propertyId, d.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(idD)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await decision(idD)).toMatchObject({ finalDecision: "human_review", reason: "kb_time_conflict", ec: { s: "approvable" } });
   });
 
   it("20 · eski READY yeni devirde tekrar kullanılamaz: arada başka konaklama varsa önceki temizlik sayılmaz", async () => {

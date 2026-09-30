@@ -380,6 +380,16 @@ describe("K10 — devir cümlesi taşıyan tutulan kanal cevabı: ev sahibine 'c
     expect(mockEmail.mock.calls[0]![0]).toBe("alerts@test.com");
   });
 
+  it("uyarı adresi tanımlıysa SAHİPTEN önce o alır (acil e-postayla aynı kural)", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: GUEST });
+    await addOwner(orgId);
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "alerts@test.com" } });
+    await applyChannelAutoReply(conversationId);
+    expect(replyWaitingMails()).toHaveLength(1);
+    expect(mockEmail.mock.calls[0]![0]).toBe("alerts@test.com");
+  });
+
   it("şablon yedeği (model yok) devir cümlesi taşısa da e-posta YOK — kesintide her mesaja e-posta gitmesin", async () => {
     mockSuggest.mockResolvedValue({ ...SAFE_REPLY, source: "fallback", intent: "general", reply: HANDOFF_REPLY, confidence: 0.9 });
     const { orgId, conversationId } = await seed({ guestMessage: GUEST });
