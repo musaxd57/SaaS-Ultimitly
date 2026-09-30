@@ -224,7 +224,7 @@ describe("ÖNCE / SONRA — bilgi tabanı kapsamının ürüne etkisi", () => {
     const beforePrompt = packKnowledgeBase(before.items, before.dropped).text;
     const beforeRes = await ask(token, QUESTION);
     const stayCookie = cookieOf(beforeRes);
-    const beforeBody = (await beforeRes.json()) as { escalated?: boolean; reply: string };
+    const beforeBody = (await beforeRes.json()) as { escalated?: boolean; reply: string | null };
     const beforeEvent = await prisma.riskEvent.findFirstOrThrow({ where: { organizationId: orgId } });
     const beforeGaps = await findKbGaps(orgId);
 
@@ -257,6 +257,8 @@ describe("ÖNCE / SONRA — bilgi tabanı kapsamının ürüne etkisi", () => {
     const afterEvent = allEvents[1];
     const afterGaps = await findKbGaps(orgId);
 
+    // K10 (kurucu kararı 09-30): devirde misafire metin GİTMEZ — raporda "null" yerine okunur ifade.
+    const guestSees = (reply: string | null | undefined) => (reply == null ? "hiçbir şey (devir cümlesi gitmez)" : JSON.stringify(reply));
     const report = `# ÖLÇÜM — bilgi tabanı boşken / A5 akışıyla doldurulduktan sonra
 
 > Bu dosya \`tests/integration/kb-coverage-before-after.test.ts\` tarafından ÜRETİLİR; elle yazılmaz.
@@ -286,7 +288,7 @@ ${HOST_TEXT}
 | Modelin beyanı / doğrulanan | ${beforeEvent.srcDeclared} / ${beforeEvent.srcVerified} | ${afterEvent.srcDeclared} / ${afterEvent.srcVerified} |
 | Temellendirme sınıfı | \`${classifyGrounding(beforeEvent).label}\` | \`${classifyGrounding(afterEvent).label}\` |
 | Ürünün kararı | ${beforeBody.escalated ? "**DEVİR** (ev sahibine)" : "cevap"} | ${afterBody.escalated ? "DEVİR" : "**CEVAP** (misafire)"} |
-| Misafirin gördüğü | ${JSON.stringify(beforeBody.reply)} | ${JSON.stringify(afterBody.reply)} |
+| Misafirin gördüğü | ${guestSees(beforeBody.reply)} | ${guestSees(afterBody.reply)} |
 | Host ekranındaki "eksik" satırı | ${beforeGaps.filter((g) => g.category === "parking").length} var | ${afterGaps.filter((g) => g.category === "parking").length} (düştü) |
 
 ## Okuma

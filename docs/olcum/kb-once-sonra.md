@@ -30,7 +30,7 @@ Otopark bina altındadır ve misafirlerimiz için ücretsizdir.
 | Modelin beyanı / doğrulanan | 0 / 0 | 1 / 1 |
 | Temellendirme sınıfı | `absent` | `grounded` |
 | Ürünün kararı | **DEVİR** (ev sahibine) | **CEVAP** (misafire) |
-| Misafirin gördüğü | "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir." | "Otopark bina altındadır ve ücretsizdir." |
+| Misafirin gördüğü | hiçbir şey (devir cümlesi gitmez) | "Otopark bina altındadır ve ücretsizdir." |
 | Host ekranındaki "eksik" satırı | 1 var | 0 (düştü) |
 
 ## Okuma
