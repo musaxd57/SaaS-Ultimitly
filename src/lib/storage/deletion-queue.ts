@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { getStorageAdapter, type StorageAdapter } from "./adapter";
 import { storageConfigured } from "./config";
-import { isSafeObjectKey, orgIdFromKey } from "./keys";
+import { isSafeObjectKey, keyFromPhotoUrl, orgIdFromKey } from "./keys";
 
 // ---------------------------------------------------------------------------
 // Idempotent deletion queue for private object storage.
@@ -57,11 +57,32 @@ export async function enqueueStorageDeletions(db: Db, organizationId: string, ob
     new Set(objectKeys.filter((k) => isSafeObjectKey(k) && orgIdFromKey(k) === organizationId)),
   );
   if (keys.length === 0) return 0;
+  // 🚨 Vade kapısı TEK SAAT (CLAUDE.md, CI #1170/#1240 deseni): boşaltıcı `availableAt`i UYGULAMA saatiyle kıyaslar; şema
+  // varsayılanı veritabanı saatidir (inceleme b1, 09-30). Aynı saatle yazılır.
+  const availableAt = new Date();
   const res = await db.storageDeletion.createMany({
-    data: keys.map((objectKey) => ({ objectKey, organizationId })),
+    data: keys.map((objectKey) => ({ objectKey, organizationId, availableAt })),
     skipDuplicates: true, // objectKey @unique → double-enqueue = dedupe-hit
   });
   return res.count;
+}
+
+/**
+ * Silinen satırların gösterdiği fotoğraflardan YALNIZ artık bu org'da HİÇBİR görev güncellemesinin göstermediklerinin silme
+ * niyetini yazar (inceleme b1, 09-30): bağlama kuralından önceki eski satırlar aynı nesneyi başka bir görevde de gösterebilir —
+ * A mülkü silinince B'nin görevindeki fotoğraf kovadan gidiyordu. Silmeyle AYNI işlemde ve silmeden SONRA çağrılır (kalan
+ * gösterenler o an kesinleşmiştir). Eski `/uploads` ve yabancı / bozuk anahtarlar `enqueueStorageDeletions` kapısında düşer.
+ */
+export async function enqueueUnreferencedPhotoDeletions(db: Db, organizationId: string, photoUrls: readonly (string | null)[]): Promise<number> {
+  const urls = [...new Set(photoUrls.filter((u): u is string => keyFromPhotoUrl(u) !== null))];
+  if (urls.length === 0) return 0;
+  const still = await db.taskUpdate.findMany({
+    where: { photoUrl: { in: urls }, task: { property: { organizationId } } },
+    select: { photoUrl: true },
+  });
+  const shown = new Set(still.map((r) => r.photoUrl));
+  const keys = urls.filter((u) => !shown.has(u)).map((u) => keyFromPhotoUrl(u) as string);
+  return enqueueStorageDeletions(db, organizationId, keys);
 }
 
 /** Cheap indexed check — lets the scheduler skip the drain entirely when idle. */

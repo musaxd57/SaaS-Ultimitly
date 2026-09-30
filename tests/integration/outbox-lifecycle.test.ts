@@ -134,6 +134,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     });
     await prisma.messageOutbox.create({
       data: {
+        availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
         organizationId: orgId, conversationId: c.id, messageId: m.id, channel: "airbnb",
         externalReservationId: "res-h", messageType: "holding_ack", body: "ack",
         idempotencyKey: "h1", status: "pending",
@@ -262,6 +263,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       });
       await prisma.messageOutbox.create({
         data: {
+          availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
           organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
           externalReservationId: ref, messageType: type, body: "x", idempotencyKey: key, status: "pending",
         },

@@ -35,6 +35,7 @@ async function mkRow(
 ) {
   return prisma.messageOutbox.create({
     data: {
+      availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
       organizationId,
       conversationId: over.conversationId ?? null,
       messageId: null,

@@ -205,8 +205,13 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
         DEMO_PHOTO_KEY.test(k),
       );
       const queued = keys.length
-        ? (await tx.storageDeletion.createMany({ data: keys.map((objectKey) => ({ objectKey, organizationId: DEMO_ORG_ID })), skipDuplicates: true }))
-            .count
+        ? (
+            await tx.storageDeletion.createMany({
+              // Vade kapısı TEK SAAT: boşaltıcı uygulama saatiyle kıyaslar (şema varsayılanı veritabanı saati).
+              data: keys.map((objectKey) => ({ objectKey, organizationId: DEMO_ORG_ID, availableAt: new Date() })),
+              skipDuplicates: true,
+            })
+          ).count
         : 0;
 
       // --- Demo org'unun işletme verisi silinir (denetim kaydı KORUNUR) ---

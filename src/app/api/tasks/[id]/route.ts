@@ -5,8 +5,8 @@ import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import { taskAssignedEmail } from "@/lib/email-templates";
-import { enqueueStorageDeletions } from "@/lib/storage/deletion-queue";
-import { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl, isAcceptablePhotoUrl } from "@/lib/storage/keys";
+import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
+import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
@@ -187,13 +187,13 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     },
     select: { photoUrl: true },
   });
-  const keys = photoRows.map((r) => keyFromPhotoUrl(r.photoUrl)).filter((k): k is string => k !== null);
   const result = await prisma.$transaction(async (tx) => {
     const del = await tx.task.deleteMany({
       where: { id, property: { organizationId: session.organizationId } },
     });
-    if (del.count > 0 && keys.length > 0) {
-      await enqueueStorageDeletions(tx, session.organizationId, keys);
+    // Yalnız artık hiçbir görevin göstermediği nesne (eski satırlar aynı nesneyi başka görevde de gösterebilir — inceleme b1).
+    if (del.count > 0 && photoRows.length > 0) {
+      await enqueueUnreferencedPhotoDeletions(tx, session.organizationId, photoRows.map((r) => r.photoUrl));
     }
     return del;
   });

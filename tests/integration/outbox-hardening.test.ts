@@ -38,6 +38,7 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
     const { orgId } = await seedOrgProp();
     const created = await prisma.messageOutbox.create({
       data: {
+        availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
         organizationId: orgId, conversationId: null, messageId: null, reservationId: null,
         channel: "airbnb", externalReservationId: "res-g1", messageType: "manual", body: "x",
         idempotencyKey: "gate-1", status: "reconciling", claimedBy: "tok-1",
@@ -77,6 +78,7 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
     });
     await prisma.messageOutbox.create({
       data: {
+        availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
         organizationId: orgId, conversationId: c1.id, messageId: m1.id, channel: "airbnb",
         externalReservationId: "res-g1", messageType: "manual", body: "x", idempotencyKey: "h1",
         status: "sent", sentAt: new Date(Date.now() - 60 * 60 * 1000), providerMessageId: "PMX-1",
@@ -86,6 +88,7 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
     const c2 = await mkConv("closed", "g2");
     await prisma.messageOutbox.create({
       data: {
+        availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
         organizationId: orgId, conversationId: c2.id, messageId: null, channel: "airbnb",
         externalReservationId: "res-g2", messageType: "manual", body: "x", idempotencyKey: "h2",
         status: "sent", sentAt: new Date(Date.now() - 60 * 60 * 1000),
@@ -95,6 +98,7 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
     const c3 = await mkConv("problem", "g3");
     await prisma.messageOutbox.create({
       data: {
+        availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
         organizationId: orgId, conversationId: c3.id, messageId: null, channel: "airbnb",
         externalReservationId: "res-g3", messageType: "holding_ack", body: "x", idempotencyKey: "h3",
         status: "sent", sentAt: new Date(Date.now() - 60 * 60 * 1000),
@@ -142,6 +146,7 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
       });
       await prisma.messageOutbox.create({
         data: {
+          availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
           organizationId: orgId, conversationId: c.id, messageId: m.id, channel: "airbnb",
           externalReservationId: `res-${gid}`, messageType: "ai", body: "x",
           idempotencyKey: `hh-${gid}`, status: "sent", sentAt,
@@ -185,6 +190,7 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
       }
       await prisma.messageOutbox.create({
         data: {
+          availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
           organizationId: orgId, conversationId: c.id, messageId: null, channel: "airbnb",
           externalReservationId: `res-${gid}`, messageType: "manual", body: "x",
           idempotencyKey: `nb-${gid}`, status: "sent", sentAt,
@@ -241,6 +247,7 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
     });
     await prisma.messageOutbox.create({
       data: {
+        availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
         organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id,
         channel: "airbnb", externalReservationId: "res-heal", messageType: "checkout", body: "x",
         idempotencyKey: "hl1", status: "sent", sentAt: deliveredAt,

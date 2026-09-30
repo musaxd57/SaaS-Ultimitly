@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { Prisma } from "@prisma/client";
+import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
+import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
@@ -1386,21 +1388,31 @@ export async function createReservationTasks(reservationId: string): Promise<num
 export async function removeAutoTasksForCancelledReservation(reservationId: string): Promise<number> {
   const r = await prisma.reservation.findUnique({
     where: { id: reservationId },
-    select: { status: true },
+    select: { status: true, property: { select: { organizationId: true } } },
   });
   if (!r || r.status !== "cancelled") return 0;
-  const { count } = await prisma.task.deleteMany({
-    where: {
-      reservationId,
-      status: { not: "done" },
-      type: { in: ["checkin_prep", "cleaning"] },
-      // ONLY lifecycle-generated tasks: a host's own task tied to this
-      // reservation (origin manual) or a message-driven one (ai) must survive
-      // the booking being cancelled — deleting them destroyed user data.
-      origin: "system",
-    },
+  const doomed: Prisma.TaskWhereInput = {
+    reservationId,
+    status: { not: "done" },
+    type: { in: ["checkin_prep", "cleaning"] },
+    // ONLY lifecycle-generated tasks: a host's own task tied to this
+    // reservation (origin manual) or a message-driven one (ai) must survive
+    // the booking being cancelled — deleting them destroyed user data.
+    origin: "system",
+  };
+  // 🚨 Temizlikçinin bu görevlere yüklediği fotoğraflar kovada sahipsiz kalıyordu (inceleme b1, 09-30): güncellemeler görevle
+  // birlikte silinince hesap silme de onları bulamaz. Silme niyeti AYNI işlemde (görev / mülk silmeyle aynı sözleşme).
+  return prisma.$transaction(async (tx) => {
+    const photos = await tx.taskUpdate.findMany({
+      where: { task: doomed, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },
+      select: { photoUrl: true },
+    });
+    const { count } = await tx.task.deleteMany({ where: doomed });
+    if (count > 0 && photos.length > 0) {
+      await enqueueUnreferencedPhotoDeletions(tx, r.property.organizationId, photos.map((p) => p.photoUrl));
+    }
+    return count;
   });
-  return count;
 }
 
 /**

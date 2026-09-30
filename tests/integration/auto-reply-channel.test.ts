@@ -1439,6 +1439,7 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     });
     await prisma.messageOutbox.create({
       data: {
+        availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
         organizationId: orgId, conversationId, messageId: msg.id, channel: "airbnb",
         externalReservationId: "res-1", messageType: "manual", body: "elle yazdım",
         idempotencyKey: "manual-fail-1", status: "pending",
@@ -1448,6 +1449,9 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     const deliver = vi.fn().mockResolvedValue({ ok: false, status: 402, error: "HTTP 402 - subscription not active" });
     await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
 
+    // Satır GERÇEKTEN işlendi (inceleme b1, 09-30: vadesi şema saatine kalan satır atlanınca test yine geçiyordu — hiçbir şey
+    // kanıtlamıyordu). Sağlayıcı bir kez çağrıldı; sebebin yazılmaması onun sonucudur, atlanmanın değil.
+    expect(deliver).toHaveBeenCalledTimes(1);
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     // Host kendi mesajını zaten görüyor; buraya AI atlama sebebi yazmak yanlış bilgi.
     expect(conv?.skippedReason).toBeNull();
@@ -1592,6 +1596,7 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     });
     await prisma.messageOutbox.create({
       data: {
+        availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
         organizationId: orgId, conversationId, messageId: draft.id, channel: "airbnb",
         externalReservationId: "res-1", body: "taslak", idempotencyKey: "canceled-1", status: "canceled",
       },
