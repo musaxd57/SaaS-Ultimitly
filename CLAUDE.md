@@ -897,7 +897,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - 🚨 **ADSIZ YAPAY ZEKÂ + KODLA SELAM ("D", kurucu onayı 09-28; anahtar `AI_CODE_GREETING_ENABLED` VARSAYILAN KAPALI, `ai/code-greeting.ts`):**
   açıkken model misafirin adını HİÇ görmez — istem rezervasyon satırı yok, bilgi tabanı `{isim}` → "misafirimiz" (`modelGuestFirstName`),
   🚨 geçmiş + güncel mesaj + getirme / gömme / anlama / bekçi / sıralayıcı sorgularında ad YALNIZ KİMLİK KONUMUNDA "[Misafir]" (kurucu
-  kararı 09-30, tek kaynak `ai/guest-identity-mask.ts`): tam ad (ve ters sırası) her yerde; tek sözcük yalnız misafir metninde "adım / ismim /
+  kararı 09-30, tek kaynak `ai/guest-identity-mask.ts`): tam ad iki DOĞAL sırada her yerde (ad önde ↔ soyad önde; ad bloğu sırasını korur, tam ters sıra değil); tek sözcük yalnız misafir metninde "adım / ismim /
   ben / I'm / my name is / this is / call me / Alex here / Name: / Ad:" + imza, BİZİM metnimizde yalnız hitap ("Merhaba X," / "X Hanım");
   kimlik konumundaki adın ardındaki ≤2 ad sözcüğü de. ANLAMLI SÖZCÜK SİLİNMEZ ("Deniz manzarası", "15 Nisan", "Dairede yangın var") — TAM
   GİZLİLİK İDDİASI YOK. Yazar geçmiş satırının yönünden (misafir / bizim). Yer tutucu / anonim ad anahtar olmaz; kimlik konumundaki maske bir

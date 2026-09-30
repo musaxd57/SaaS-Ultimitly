@@ -48,7 +48,7 @@ Durum: **F** = düzeldi · **K** = kurucu kararı (↓ örnekli) · **N** = bili
 | # | Karar | Uygulama |
 |---|---|---|
 | 1 | Acil ağı: kaza / polis / hurt daralsın (gerçek çekimler kalsın), yangın ifadeleri eklensin | F — "Kazağımı unuttum" acil değil, "Kaza yaptık, yardım gerekiyor" acil; "Emergency exit nerede?" yer sorusu; "Acil çıkış kilitli, içeride duman var" acil. **İnceleme bulgusu (aynı tur):** ilk sürüm "Acil çıkış kapısı kilitli" / "Fire exit is blocked" / "Yangın merdiveninin kapısı açılmıyor"u da acilden çıkarıyordu (canlıda acil) → kilit / engel sözcüğü varsa acil kalır. Yangın: alev aldı, alevler, ateş aldı / çıktı, tutuştu, caught fire, flames (çıplak "ateş" / "alev" YOK) |
-| 2 | Ad: model rezervasyon adını görmez, kod selamı ekler, anlamlı sözcük silinmez | F — ad YALNIZ kimlik konumunda maskelenir ("adım / ben / I'm / my name is / Alex here / Name: / imza"; bizim metnimizde hitap). "Deniz manzarası", "15 Nisan" korunur. Tam gizlilik iddiası YOK. Soyad önde yazılmış tam ad da tam addır. İkinci tur (kendi selamımız) testli |
+| 2 | Ad: model rezervasyon adını görmez, kod selamı ekler, anlamlı sözcük silinmez | F — ad YALNIZ kimlik konumunda maskelenir ("adım / ben / I'm / my name is / Alex here / Name: / imza"; bizim metnimizde hitap). "Deniz manzarası", "15 Nisan" korunur. Tam gizlilik iddiası YOK. Tam ad iki doğal sırada da tam addır (ad önde saklanan "Mehmet Ali Kaya" → "Kaya Mehmet Ali"; soyad önde saklanan "Kaya Mehmet Ali" → "Mehmet Ali Kaya"; mutasyon turu buldu). İkinci tur (kendi selamımız) testli |
 | 3 | `{daire}` çözülemezse yalnız o mesaj gitmez, ev sahibi görür | F — karşılama / giriş / çıkış GİTMEZ; yapay zekâ bağlamında "[DAİRE NO]" (uydurma yok), cevapta kalırsa veto; mülk sayfasında uyarı + düzeltme yolu |
 | 4 | "Sayın {isim}," → "Sayın misafirimiz,"; "Dear {name}," → "Dear guest," | F — "Sevgili / Değerli" aynı sınıf; "Sayın {isim} Bey," eski kural ("Sayın Bey,") |
 | 5 | Operatör dışa aktarımı + QR | F — yalnız kendi hesabından (bürünmede 403), 2FA, AMAÇ zorunlu (kapalı küme) + isteğe bağlı talep no, zorunlu kayıt (yazılamazsa 503, veri çıkmaz). bürünmüş operatör QR sohbetini açamaz / bağlayamaz (uçlar + sayfa), mülk sayfası destek görünümünde bağlantıyı / karekodu göstermez |
@@ -88,6 +88,11 @@ Durum: **F** = düzeldi · **K** = kurucu kararı (↓ örnekli) · **N** = bili
 | b6-3 | Modelin yeni turdaki risk etiketi ESKİ turun tutulan öğesine atfediliyor | **K8** |
 | b6-4 | Öğe TÜRÜ istek kimliği gibi kullanılıyor (iki farklı şikâyet birleşiyor, yenisi e-posta almıyor) | **K9** |
 | b6-5..7 | BEKLEYEN-RISK belgesi ve Host Copilot Faz 0 onay paketi güncel değil | **K18** |
+
+**Mutasyon (bu turun düzeltmeleri, 28 + 5 mutant):** ilk koşuda 24/28 öldü; yaşayan dördü kapandı — Prisma kaydı testi sızdırmayan hata
+türünü deniyordu (artık doğrulama hatası + ham sorgu "Failing row contains" / "Key (…)=(…)", ölçülerek seçildi), iCal CR katlama testi
+değeri okunmayan alanı katlıyordu (artık kimliğin kendisi), üslup profili testi yalnız iki süzgecin ortak yakaladığı satırları taşıyordu,
+ad maskesinin tam ters sıra satırı iki sözcükte eşdeğer / üç sözcükte yanlış sıraydı (ikinci doğal sırayla değişti, kırmızı-önce).
 
 ## Karar bekleyenler — önce / sonra örnekleriyle
 
