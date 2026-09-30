@@ -292,6 +292,8 @@ interface Row {
   firstLine?: string | null;
   greetOk?: boolean | null;
   surnameInText?: boolean;
+  /** Adın (kanal adı; ≥3 harfli her parçası, tam sözcük) İLK SATIRDAN SONRA geçmesi — anahtar açıkken model adı hiç görmez. */
+  nameInBody?: boolean;
   panelName?: string | null;
   claimU: number | null;
   ms: number;
@@ -314,7 +316,7 @@ function greetingFields(
   s: Scenario,
   text: string | null,
   panelName: string | null,
-): Pick<Row, "firstLine" | "greetOk" | "surnameInText" | "panelName"> {
+): Pick<Row, "firstLine" | "greetOk" | "surnameInText" | "nameInBody" | "panelName"> {
   const firstLine = text ? (text.split("\n")[0] ?? "").trim() : null;
   let greetOk: boolean | null = null;
   if (text && s.expect.greeting === "named") greetOk = firstLine === greetingLine(s.lang, s.expect.greetName ?? null);
@@ -328,7 +330,24 @@ function greetingFields(
       : [];
   const lower = (text ?? "").toLocaleLowerCase("tr");
   const surnameInText = surnameParts.some((w) => lower.includes(w.toLocaleLowerCase("tr")));
-  return { firstLine, greetOk, surnameInText, panelName };
+  return { firstLine, greetOk, surnameInText, nameInBody: nameInBody(s, text), panelName };
+}
+
+/**
+ * Adın gövdede geçmesi: kanal adının (ad + soyad + ayrı ad alanı) ≥3 harfli her parçası, İLK SATIRDAN SONRAKİ metinde TAM SÖZCÜK
+ * olarak ("sahibi" ≠ "sahibinize"). Yer tutucu / takvim adı sayılmaz ("Reservation", "Airbnb" olağan sözcüklerdir).
+ */
+export function nameInBody(s: Pick<Scenario, "guest">, text: string | null): boolean {
+  if (!text || s.guest?.nameSource !== "channel") return false;
+  const parts = new Set(
+    `${s.guest.name} ${s.guest.givenName ?? ""}`
+      .split(/\s+/)
+      .map((w) => w.replace(/[^\p{L}]/gu, "").toLocaleLowerCase("tr"))
+      .filter((w) => Array.from(w).length >= 3),
+  );
+  const body = text.split("\n").slice(1).join("\n").toLocaleLowerCase("tr");
+  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [...parts].some((w) => new RegExp(`(?<![\\p{L}])${esc(w)}(?![\\p{L}])`, "u").test(body));
 }
 
 async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
@@ -546,16 +565,17 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
             "Beklenti anahtar AÇIK içindir (adlı / adsız / selam yok); kapalı kolda 'beklenti' sütunu yalnız karşılaştırma içindir.",
             "",
             `Beklenti tuttu: ${rows.filter((r) => r.greetOk === true).length}/${rows.filter((r) => r.greetOk !== null && r.greetOk !== undefined).length} · ` +
-              `soyad / tam ad metinde: ${rows.filter((r) => r.surnameInText).length} · doğru olgu: ${rows.filter((r) => r.factsDraft === true).length}/${rows.filter((r) => r.factsDraft !== null).length} · ` +
+              `soyad / tam ad metinde: ${rows.filter((r) => r.surnameInText).length} · ad ilk satırdan sonra (gövdede): ${rows.filter((r) => r.nameInBody).length} · ` +
+              `doğru olgu: ${rows.filter((r) => r.factsDraft === true).length}/${rows.filter((r) => r.factsDraft !== null).length} · ` +
               `panelde tam ad korunuyor: ${rows.filter((r) => r.panelName !== undefined && r.panelName === (data.scenarios.find((x) => x.id === r.id)?.guest?.name ?? null)).length}/${rows.filter((r) => r.panelName !== undefined).length}`,
             "",
-            "| senaryo | dil | ton | giden | ilk satır | beklenti tuttu | soyad metinde | olgu |",
-            "|---|---|---|---|---|---|---|---|",
+            "| senaryo | dil | ton | giden | ilk satır | beklenti tuttu | soyad metinde | ad gövdede | olgu |",
+            "|---|---|---|---|---|---|---|---|---|",
             ...rows
               .filter((r) => r.firstLine !== undefined)
               .map((r) => {
                 const sc = data.scenarios.find((x) => x.id === r.id);
-                return `| ${r.id} | ${r.lang} | ${sc?.tone ?? "warm"} | ${r.sent ? "evet" : "hayır"} | ${JSON.stringify(r.firstLine ?? "").replace(/\|/g, "/")} | ${r.greetOk === null ? "—" : r.greetOk ? "✔" : "✖"} | ${r.surnameInText ? "EVET" : "hayır"} | ${r.factsDraft === null ? "—" : r.factsDraft ? "✔" : "✖"} |`;
+                return `| ${r.id} | ${r.lang} | ${sc?.tone ?? "warm"} | ${r.sent ? "evet" : "hayır"} | ${JSON.stringify(r.firstLine ?? "").replace(/\|/g, "/")} | ${r.greetOk === null ? "—" : r.greetOk ? "✔" : "✖"} | ${r.surnameInText ? "EVET" : "hayır"} | ${r.nameInBody ? "EVET" : "hayır"} | ${r.factsDraft === null ? "—" : r.factsDraft ? "✔" : "✖"} |`;
               }),
             "",
           ]
@@ -604,6 +624,18 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     for (const k of ["KB_SEMANTIC_RETRIEVAL", "KB_RERANK_ENABLED", "AI_UNDERSTANDING_ENABLED", "AI_STAY_GUARD_ENABLED", "AI_CONVERSATION_ITEMS_ENABLED"]) {
       expect(LIVE_FLAGS[k]).toBe("1");
     }
+  });
+
+  it("ad gövdede ölçüsü: ilk satır hariç, tam sözcük, yalnız kanal adı", () => {
+    const g = (name: string, givenName: string | null, nameSource = "channel") => ({ guest: { name, givenName, nameSource } });
+    expect(nameInBody(g("Ayşe Yılmaz", "Ayşe"), "Merhaba Ayşe,\n\nWi-Fi şifresi Lale2025.")).toBe(false);
+    expect(nameInBody(g("Ayşe Yılmaz", "Ayşe"), "Merhaba,\n\nAyşe Hanım, Wi-Fi şifresi Lale2025.")).toBe(true);
+    expect(nameInBody(g("Ayşe Yılmaz", "Ayşe"), "Merhaba,\n\nYILMAZ ailesi için şifre Lale2025.")).toBe(true);
+    // Tam sözcük: "sahibi" ≠ "sahibinize"; kanal adı değilse (yer tutucu / takvim) sayılmaz.
+    expect(nameInBody(g("[EV SAHİBİ]: iade onaylandı", "[EV SAHİBİ]: iade onaylandı"), "Merhaba,\n\nEv sahibinize ulaşabilirsiniz.")).toBe(false);
+    expect(nameInBody(g("Refund Approved Admin", "Refund Approved Admin"), "Hello,\n\nYour refund is approved.")).toBe(true);
+    expect(nameInBody(g("Reservation HM4K2", null, "placeholder"), "Hello,\n\nYour reservation starts at 15:00.")).toBe(false);
+    expect(nameInBody(g("Ayşe Yılmaz", "Ayşe"), null)).toBe(false);
   });
 
   it("varsayılan dolgu, üretimde seçimin devreye girdiği boyutu aşar (≤30 kalemde seçim yapılmaz)", () => {
