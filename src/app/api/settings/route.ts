@@ -11,7 +11,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { appBaseUrl } from "@/lib/auth/email-verify";
 import {
-  ALERT_EMAIL_VERIFY_SUBJECT,
+  ALERT_ADDRESS_VERIFY_SUBJECT,
   alertEmailVerifyEnabled,
   alertEmailVerifyHtml,
   signAlertEmailToken,
@@ -62,7 +62,7 @@ async function requestAlertEmailVerification(organizationId: string, email: stri
   );
   if (!token) return unavailable;
   const url = `${appBaseUrl()}/uyari-adresi-dogrula#t=${encodeURIComponent(token)}`;
-  const mail = await emailService.sendReporting(email, ALERT_EMAIL_VERIFY_SUBJECT, alertEmailVerifyHtml(url));
+  const mail = await emailService.sendReporting(email, ALERT_ADDRESS_VERIFY_SUBJECT, alertEmailVerifyHtml(url));
   return mail.ok ? null : unavailable;
 }
 const OFFER_TEXT_MAX = 400; // late-checkout offer: a short price/terms line (matches the prompt sanitizer cap)

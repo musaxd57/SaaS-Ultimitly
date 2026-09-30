@@ -102,4 +102,4 @@ export function alertEmailVerifyHtml(url: string): string {
   });
 }
 
-export const ALERT_EMAIL_VERIFY_SUBJECT = "Lixus AI uyarı adresi doğrulaması";
+export const ALERT_ADDRESS_VERIFY_SUBJECT = "Lixus AI uyarı adresi doğrulaması";

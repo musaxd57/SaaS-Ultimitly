@@ -22,7 +22,7 @@ vi.mock("@/lib/email", () => ({
 import { PATCH } from "@/app/api/settings/route";
 import { POST as VERIFY } from "@/app/api/alert-email/verify/route";
 import { emailService } from "@/lib/email";
-import { ALERT_EMAIL_VERIFY_SUBJECT } from "@/lib/alert-email-verify";
+import { ALERT_ADDRESS_VERIFY_SUBJECT } from "@/lib/alert-email-verify";
 
 const mockMail = vi.mocked(emailService.sendReporting);
 const ctx = { params: Promise.resolve({} as Record<string, never>) };
@@ -93,7 +93,7 @@ describe("uyarı adresi doğrulaması", () => {
     expect(await alertEmailOf(orgId)).toBeNull();
     expect(mockMail).toHaveBeenCalledTimes(1);
     expect(mockMail.mock.calls[0]![0]).toBe(OUTSIDE);
-    expect(mockMail.mock.calls[0]![1]).toBe(ALERT_EMAIL_VERIFY_SUBJECT);
+    expect(mockMail.mock.calls[0]![1]).toBe(ALERT_ADDRESS_VERIFY_SUBJECT);
     // Kişiselleştirilmez: işletme adı e-postada yok.
     expect(String(mockMail.mock.calls[0]![2])).not.toContain("Org<");
     const sent = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "settings.alert_email_verification_sent" } });
