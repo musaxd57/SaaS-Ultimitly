@@ -109,8 +109,8 @@ const GUEST = "Alex Doe";
 /**
  * Canlının bayrakları (CLAUDE.md "Canlı değişkenler", kurucu beyanı 09-26): harness bunları KENDİSİ yazar — kabuktaki başıboş bir
  * bayrak ölçümü sessizce değiştirmesin. Anlam katmanları 5.1'e SABİT (Luna planı §5-1: cevap modeli tek başına değişir).
- * Cevap modeli (`OPENAI_MODEL`), düşünme çabası, ücret kuralı (`AI_KB_FEE_RULE_ENABLED`) ve kod selamı (`AI_CODE_GREETING_ENABLED`, K17)
- * ölçülen koldur — kabuktan gelir (yoksa kapalı).
+ * Cevap modeli (`OPENAI_MODEL`), düşünme çabası, ücret kuralı (`AI_KB_FEE_RULE_ENABLED`), kod selamı (`AI_CODE_GREETING_ENABLED`, K17)
+ * ve bildirimsiz konaklama ertelemesi (`AI_STAY_DEFERRAL_PLAIN_ENABLED`) ölçülen koldur — kabuktan gelir (yoksa kapalı).
  */
 const LIVE_FLAGS: Record<string, string> = {
   AUTO_REPLY_ENABLED: "1",
@@ -528,7 +528,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       "",
       `Durum: **${status}** · commit \`${commit}\` · satır ${rows.length}/${planned} · bilgi tabanı ${PAD_TO > 0 ? `nötr dolguyla ${PAD_TO} kaleme (seçim + gömme + sıralayıcı koşar)` : "dolgusuz"}`,
       `Bayraklar harness'ta sabit (canlı): ${Object.entries(LIVE_FLAGS).map(([k, v]) => `\`${k}=${v || "(boş)"}\``).join(" · ")}`,
-      `Set: \`evals/${SET}\` · ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · kod selamı: \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
+      `Set: \`evals/${SET}\` · ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · kod selamı: \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\` · erteleme bildirimsiz: \`AI_STAY_DEFERRAL_PLAIN_ENABLED=${process.env.AI_STAY_DEFERRAL_PLAIN_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
       "",
       ...summarizeLive(rows),
       "",
@@ -621,7 +621,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
 describe("canlı hat ölçeri — çevrimdışı pinler", () => {
   it("canlı bayrak listesi anlam katmanlarını 5.1'e sabitler ve ölçülen kolları (cevap modeli, çaba, ücret kuralı) YAZMAZ", () => {
     expect(LIVE_FLAGS.AI_SEMANTIC_MODEL).toBe("gpt-5.1");
-    for (const k of ["OPENAI_MODEL", "OPENAI_REASONING_EFFORT", "AI_KB_FEE_RULE_ENABLED", "AI_CODE_GREETING_ENABLED"]) {
+    for (const k of ["OPENAI_MODEL", "OPENAI_REASONING_EFFORT", "AI_KB_FEE_RULE_ENABLED", "AI_CODE_GREETING_ENABLED", "AI_STAY_DEFERRAL_PLAIN_ENABLED"]) {
       expect(Object.hasOwn(LIVE_FLAGS, k)).toBe(false);
     }
     for (const k of ["KB_SEMANTIC_RETRIEVAL", "KB_RERANK_ENABLED", "AI_UNDERSTANDING_ENABLED", "AI_STAY_GUARD_ENABLED", "AI_CONVERSATION_ITEMS_ENABLED"]) {
