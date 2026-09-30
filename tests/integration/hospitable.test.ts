@@ -155,6 +155,102 @@ describe("hospitable client", () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain("page=2");
   });
 
+  // -------------------------------------------------------------------------
+  // CODEX 09-30 (B1): TAM LİSTE YA DA HATA. Okunamayan sayfa ({} / bozuk JSON) eskiden "boş sayfa" sayılıp KISMİ liste tam
+  // gibi dönüyordu → senkron thread imlecini ilerletiyor, hayalet rezervasyon temizliği gerçek rezervasyonları silebiliyordu.
+  // -------------------------------------------------------------------------
+  function brokenJson(): Response {
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => {
+        throw new SyntaxError("Unexpected end of JSON input");
+      },
+      text: async () => '{"data": [{"id": "m3"',
+    } as unknown as Response;
+  }
+
+  it("🚨 2. sayfa bozuk JSON → mesaj listesi HATA verir, ilk sayfayı tam liste diye DÖNDÜRMEZ", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ data: [{ id: "m1", body: "a" }, { id: "m2", body: "b" }], meta: { current_page: 1, last_page: 2 } }))
+      .mockResolvedValueOnce(brokenJson());
+
+    await expect(listMessages("r1")).rejects.toBeInstanceOf(HospitableError);
+  });
+
+  it("🚨 ilk sayfa bozuk JSON → hata (eskiden boş liste = 'thread boş' sayılıyordu)", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(brokenJson());
+
+    await expect(listMessages("r1")).rejects.toBeInstanceOf(HospitableError);
+  });
+
+  it("🚨 zarfsız yanıt ({} / data dizi değil) → hata", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(jsonResponse({}));
+    await expect(listReservations({ propertyIds: ["p1"] })).rejects.toBeInstanceOf(HospitableError);
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(jsonResponse({ data: { id: "r1" } }));
+    await expect(listReservations({ propertyIds: ["p1"] })).rejects.toBeInstanceOf(HospitableError);
+  });
+
+  it("🚨 'daha fazla sayfa var' diyen BOŞ sayfa → hata (meta.last_page ve links.next)", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ data: [{ id: "r1" }], meta: { current_page: 1, last_page: 3 } }))
+      .mockResolvedValueOnce(jsonResponse({ data: [], meta: { current_page: 2, last_page: 3 } }));
+    await expect(listReservations({ propertyIds: ["p1"] })).rejects.toBeInstanceOf(HospitableError);
+
+    vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ data: [{ id: "r1" }], links: { next: "https://x/2" } }))
+      .mockResolvedValueOnce(jsonResponse({ data: [], links: { next: "https://x/3" } }));
+    await expect(listReservations({ propertyIds: ["p1"] })).rejects.toBeInstanceOf(HospitableError);
+  });
+
+  it("🚨 sayfa tavanı (40) aşılınca hata — sessiz kesme yok", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    let n = 0;
+    vi.spyOn(global, "fetch").mockImplementation(async () => {
+      n += 1;
+      return jsonResponse({ data: [{ id: `r${n}` }], meta: { current_page: n, last_page: 999 } });
+    });
+    await expect(listReservations({ propertyIds: ["p1"] })).rejects.toBeInstanceOf(HospitableError);
+    expect(n).toBe(40);
+  });
+
+  it("🚨 satır tavanı (10.000) aşılınca hata; tam 10.000 satır ve son sayfa → TAM liste", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    const rows = (from: number, count: number) => Array.from({ length: count }, (_, i) => ({ id: `r${from + i}` }));
+    vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ data: rows(0, 6_000), meta: { current_page: 1, last_page: 2 } }))
+      .mockResolvedValueOnce(jsonResponse({ data: rows(6_000, 4_001), meta: { current_page: 2, last_page: 2 } }));
+    await expect(listReservations({ propertyIds: ["p1"] })).rejects.toBeInstanceOf(HospitableError);
+
+    vi.spyOn(global, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ data: rows(0, 6_000), meta: { current_page: 1, last_page: 2 } }))
+      .mockResolvedValueOnce(jsonResponse({ data: rows(6_000, 4_000), meta: { current_page: 2, last_page: 2 } }));
+    expect(await listReservations({ propertyIds: ["p1"] })).toHaveLength(10_000);
+  });
+
+  it("KONTROL — boş ilk sayfa (gerçekten boş liste) ve zarflı tek sayfa TAM liste döner", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(jsonResponse({ data: [], meta: { current_page: 1, last_page: 1 } }));
+    expect(await listMessages("r1")).toEqual([]);
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(jsonResponse({ data: [] }));
+    expect(await listMessages("r1")).toEqual([]);
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(jsonResponse({ data: [{ id: "m1" }], links: { next: null } }));
+    expect(await listMessages("r1")).toHaveLength(1);
+  });
+
+  it("KONTROL — gönderimde (POST) okunamayan 2xx gövde teslim sayılır (hata DEĞİL: mesaj gitmiş olabilir, yeniden gönderilmesin)", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    vi.spyOn(global, "fetch").mockResolvedValueOnce(brokenJson());
+    const result = await sendMessage("res-uuid", "Merhaba");
+    expect(result.ok).toBe(true);
+    expect(result.id).toBeUndefined();
+  });
+
   it("sends a message via POST to the reservation messages endpoint", async () => {
     vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
     const fetchMock = vi

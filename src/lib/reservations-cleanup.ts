@@ -15,7 +15,9 @@ import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 // SAFE BY DESIGN:
 //   * listReservations returns the COMPLETE set for a property or THROWS — it
 //     never returns partial data (see fetchAllPages) — so a successful fetch is
-//     authoritative truth.
+//     authoritative truth. ⚠️ Until Codex 09-30 (B1) this was NOT true: an
+//     unreadable page 2 ended the loop as if empty and a real reservation on it
+//     was deleted as a "ghost" (pinned: hospitable-partial-list.test.ts).
 //   * A property is pruned only when its fetch SUCCEEDED and returned at least
 //     one reservation. An empty/failed fetch is treated as "couldn't verify" and
 //     SKIPPED — a property is never wiped wholesale.

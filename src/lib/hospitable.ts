@@ -242,6 +242,18 @@ const MAX_PAGES = 40;
  */
 const MAX_ITEMS = 10_000;
 
+function isListEnvelope<T>(res: unknown): res is ListEnvelope<T> & { data: T[] } {
+  return typeof res === "object" && res !== null && Array.isArray((res as { data?: unknown }).data);
+}
+
+/**
+ * 🚨 TAM LİSTE YA DA HATA (Codex 09-30, B1). Eskiden okunamayan bir sayfa (bozuk / yarım JSON → `{}`) "boş sayfa" sayılıp
+ * döngü bitiyor ve KISMİ liste tam gibi dönüyordu: senkron o thread'in imlecini sağlayıcının son mesaj anına ilerletiyordu
+ * (eksik mesajlar bir sonraki misafir mesajına kadar hiç gelmiyordu), "hayalet rezervasyon" temizliği ise kısmi listede
+ * olmayan GERÇEK rezervasyonları silebiliyordu (o araç bu sözleşmeyi zaten varsayıyordu). Sayfa ve satır tavanı da sessizce
+ * kesiyordu (denetim 08-01 #24). Artık: zarfı olmayan sayfa, "daha fazla sayfa var" diyen boş sayfa ve tavan aşımı HATADIR
+ * — çağıranlar hatayı zaten "bu daire / thread bu geçişte atlandı" diye sayıyor (imleç ilerlemez, temizlik o mülkü atlar).
+ */
 async function fetchAllPages<T>(
   path: string,
   params?: URLSearchParams,
@@ -251,22 +263,26 @@ async function fetchAllPages<T>(
   for (let page = 1; page <= MAX_PAGES; page++) {
     const p = new URLSearchParams(params);
     p.set("page", String(page));
-    const res = await hospitableFetch<ListEnvelope<T>>(`${path}?${p.toString()}`, {}, token);
-    const batch = res.data ?? [];
-    items.push(...batch);
-
-    // Satır tavanı: sayfa sayısı değil TOPLAM satır. Sessizce kesiyoruz —
-    // fırlatmak, geçmişi derin tek bir hesabın TÜM senkronunu durdururdu.
-    if (items.length >= MAX_ITEMS) return items.slice(0, MAX_ITEMS);
-    if (batch.length === 0) break;
-    const lastPage = res.meta?.last_page;
-    if (typeof lastPage === "number") {
-      if (page >= lastPage) break;
-    } else if (!res.links?.next) {
-      break;
+    const res = await hospitableFetch<unknown>(`${path}?${p.toString()}`, {}, token);
+    if (!isListEnvelope<T>(res)) {
+      throw new HospitableError("Hospitable liste yanıtı okunamadı (geçersiz ya da eksik JSON) — kısmi liste kullanılmadı.");
     }
+    const batch = res.data;
+    items.push(...batch);
+    if (items.length > MAX_ITEMS) {
+      throw new HospitableError(`Hospitable listesi ${MAX_ITEMS} satır tavanını aştı — kısmi liste kullanılmadı.`);
+    }
+    const lastPage = res.meta?.last_page;
+    const morePages = typeof lastPage === "number" ? page < lastPage : Boolean(res.links?.next);
+    if (batch.length === 0) {
+      if (morePages) {
+        throw new HospitableError("Hospitable boş sayfa döndü ama daha fazla sayfa bildirdi — kısmi liste kullanılmadı.");
+      }
+      return items;
+    }
+    if (!morePages) return items;
   }
-  return items;
+  throw new HospitableError(`Hospitable listesi ${MAX_PAGES} sayfa tavanını aştı — kısmi liste kullanılmadı.`);
 }
 
 export interface HospitableProperty {
