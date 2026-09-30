@@ -568,8 +568,10 @@ Bu dosyaya token/anahtar/parola yazma.
   giden örneklerde her cevabın KENDİ konuşmasının misafir adı `[Misafir]` (#211, `redactNameFromBody`; yalnız soyad bilinen sınır). Özetleyici
   yalnız tarz yazar, kod sürüm işaretini koyar; işaretsiz (eski) profil hiçbir isteme girmez ve 24 saat beklemeden yenilenir;
   istem rehberi "bilgi kaynağı değildir" der; iddia desteği rehberi dayanak saymaz; SİSTEM istemi de (KURAL-1 kaynak 3 = yalnız
-  BU sohbetin geçmişi, `usedSources` "history" rehberi kapsamaz) ve "history" beyanı yalnız sohbet geçmişi DOLUYKEN doğrulanır
-  (`e97e508`). 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
+  BU sohbetin geçmişi, `usedSources` "history" rehberi kapsamaz) ve "history" beyanı yalnız geçmişte GİDEN (ev sahibi / bizim) satır
+  varken doğrulanır (09-30, inceleme b4: kanal / gelen kutusu güncel misafir mesajını da geçmişe koyar — "dolu" koşulu hiç yanlış
+  olmuyordu). Profil isteme girmeden talimat / sahte etiket satırlarından süzülür (`styleProfileForPrompt`: KB talimat süzgeci +
+  enjeksiyon ağı; üslup satırları kalır). 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).
 - **Yer tutucu:** `packKnowledgeBase` bloğa giren `[…]/<…>/___` (içinde harf) için KODDAN "DOLDURULMAMIŞ YER TUTUCU"
   notu yazar (başlık taraması GERİ ALINDI — etiketleri yer tutucu sanıyordu). İkame tek kaynak `kb-placeholders.ts`
@@ -744,7 +746,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ↓Tedarik zinciri) · ~~F13 üslup profili ↔ tesis gerçeği~~ (KAPANDI 09-26) · F14
   sohbet hafızası/zaman (KODDA 09-26, bayrak arkasında — ↑KONUŞMA KAYITLARI; açık: CUS v2 defteri, bayrağı açmak) ·
   ~~F15 kalite denetimi `{}`~~ (KAPANDI 09-26: `evaluated/inconclusive/empty`; boş liste YALNIZ tam
-  değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar) · ~~F16 iCal
+  değerlendirmede "uygun"; okunamayan / örneklemde olmayan mesaja ait bulgu sayılır, raporu eksik yapar; 09-30: 200'ü aşan bulgu
+  listesi eksik rapor, uzun özet kırpılır, 60 üstü gizlenen sayılır, bilinmeyen önem YÜKSEK) · ~~F16 iCal
   completeness~~ (KAPANDI 09-26, ↓Mesajlaşma / outbox / sync) · ~~F17 cron adaleti~~ (KAPANDI 09-26, ↓Sync motoru) · F18 login savunma
   tasarımı (ÖZÜ 09-23'te kapandı: tanınan cihaz kapısı + 2FA günlük tavanı; passkey/kademeli doğrulama kurucu kararı).
   Hepsine dokunuldu; Codex'in "Mevcut iyi temeller" ve V0 mimari önerileri raporda.
@@ -763,6 +766,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   geçişte İLK başlangıç korunur; başlangıç kaydı ZORUNLU ve çerezden ÖNCE (yazılamazsa bürünme başlamaz). Çıkış rotası da süre kapısından GEÇER
   (atlamak çalınmış süresi dolmuş belirteci taze operatör oturumuna çevirirdi); süresi dolunca kabuk 401'i görüp oturumu kapatır (09-28). Mekanik pin
   `impersonation-read-only-pin.test.ts`: YENİ yazma ucu ya sarmalı ya kontrollü ya da listede gerekçeli satır.
+  🚨 09-30 (kurucu kararı): bürünmüş operatör misafir QR sohbetini AÇAMAZ / konaklamayı cihazına BAĞLAYAMAZ (GET / POST / PIN + sayfa;
+  `lib/guest-chat-support-view.ts`, imzası doğrulanmış çerezden); mülk sayfası destek görünümünde bağlantıyı / karekodu yazmaz; inceleme
+  "QR Misafir Sohbetleri" sayfasından. Operatör DIŞA AKTARIMI yalnız kendi hesabından (bürünmede 403) + 2FA + AMAÇ (kapalı küme
+  `lib/operator-export.ts`) + isteğe bağlı talep no + ZORUNLU kayıt İNDİRMEDEN ÖNCE (`writeAuditInTx`; yazılamazsa 503, veri çıkmaz);
+  ev sahibine anlık bildirim / panelde erişim geçmişi YOK (kurucu kararı), destek erişimi hizmet metninde açıklanacak (avukat).
 - 🚨 **OTURUM ÇEREZİ `__Host-guestops_session` (09-23 ikinci tur, kurucu onayı):** üretimde yeni adla yazılır;
   okuma `readSessionCookie` (önce yeni ad, 2026-10-15'e kadar eski ad); middleware + `setSessionCookie` eski çerezi
   siler; çıkış İKİ adı temizler; geliştirmede YALNIZ eski ad okunur/yazılır. 🚨 Oturum çerezini doğrudan
@@ -827,7 +835,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   paritesi tek bcrypt (`dummyVerifyPassword`); `hashPassword` ile parite YAZMA. Açık UX: bağlantısız
   kod girişi çıkmaz (formda düzelt, rotada DEĞİL).
 - `readJsonCapped` `Content-Type: application/json` ister (öz karşılaştırma; virgül ham değerde).
-- Login: hesap kovası kilit silahı değil (doğru parola girer); 2FA hesap-başına kota var.
+- Login: hesap kovası doluyken doğru parolayla da YALNIZ tanınan cihaz girer (09-23; bilinmeyen tarayıcı 429, sahibin yeni
+  cihazı saldırı boyunca bekler — çıkış şifre sıfırlama); 2FA hesap-başına günlük 20 hata tavanı var.
 - `GET /logout` CSRF'i, per-session `jti`, halka açık sayfada çerez yenileme → açık tasarım kararları.
 
 **Tenant / rotalar**
@@ -854,8 +863,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Yükleme: private mimari (imzalı GET, `orgIdFromKey` 404, sihirli bayt, SVG/HTML yok); prod'da yerel
   diske düşüş 503 (`ALLOW_LEGACY_LOCAL_UPLOADS=1` kaçış). Bucket sağlayıcı görünürlüğü operatör adımı.
   `photoUrl` yalnız göreli. 🚨 Sunum YALNIZ bu org'da bir TaskUpdate'in HÂLÂ gösterdiği nesneyi imzalar (F11, 09-26);
-  görev VE mülk silme fotoğrafların silme niyetini aynı işlemde yazar (`enqueueStorageDeletions`). Nesneleri yetim
-  bırakan YENİ bir silme yolu aynısını yapar. AÇIK: PATCH düşerse/eşzamanlı silmede sahipsiz nesne uzlaştırması.
+  görev VE mülk silme VE rezervasyon iptalinin görev silmesi fotoğrafların silme niyetini aynı işlemde yazar
+  (`enqueueUnreferencedPhotoDeletions`: silmeden SONRA, yalnız bu org'da artık hiçbir TaskUpdate'in göstermediği nesne — eski satırlar aynı
+  nesneyi başka görevde gösterebilir, 09-30). Kuyruk vadesi UYGULAMA saatiyle. Nesneleri yetim bırakan YENİ bir silme yolu aynısını yapar.
+  AÇIK: PATCH düşerse/eşzamanlı silmede sahipsiz nesne uzlaştırması.
 - CSP: enforce'ta `form-action 'self'`, `script-src` enforce EDİLMEZ; report-only'ye `report-uri`
   (`/api/csp-report`: 8KB, 3 MIME, 30/saat/IP, allowlist alanlar, ham rapor saklanmaz, `reportError` YOK,
   daima 204). Enforce sırası: ≥2 hafta ölç → nonce turu → report-only doğrula → enforce. 🚨 Rapor alanları loga
@@ -885,9 +896,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   bacak; dışa aktarımda. Adı yazan YENİ yol kökeni de yazar. Yedek + prova kanıtı `docs/TASARIM-2026-09-28-misafir-adi.md` §5.
 - 🚨 **ADSIZ YAPAY ZEKÂ + KODLA SELAM ("D", kurucu onayı 09-28; anahtar `AI_CODE_GREETING_ENABLED` VARSAYILAN KAPALI, `ai/code-greeting.ts`):**
   açıkken model misafirin adını HİÇ görmez — istem rezervasyon satırı yok, bilgi tabanı `{isim}` → "misafirimiz" (`modelGuestFirstName`),
-  geçmiş + güncel mesaj + getirme / gömme sorgularında ad → "[Misafir]" (`prompt-name-redaction.ts`; ad HER ZAMAN silinir — yer tutucu /
-  anonim / kısa ad anahtar olmaz; Codex 09-28: silme bir acil sözcüğünü gizlerse `nameMaskHidesEmergency` modele KOD NOTU verir — anlama
-  katmanı + cevap istemi; tam adın kendisi "Adım Yangın Kaya" not üretmez, tek sözcüklük "Dairede yangın var" üretir), `reservation:guestName` kaynağı doğrulanmaz; model selam YAZMAZ (türetilmiş istem: ÇAPALI
+  🚨 geçmiş + güncel mesaj + getirme / gömme / anlama / bekçi / sıralayıcı sorgularında ad YALNIZ KİMLİK KONUMUNDA "[Misafir]" (kurucu
+  kararı 09-30, tek kaynak `ai/guest-identity-mask.ts`): tam ad (ve ters sırası) her yerde; tek sözcük yalnız misafir metninde "adım / ismim /
+  ben / I'm / my name is / this is / call me / Alex here / Name: / Ad:" + imza, BİZİM metnimizde yalnız hitap ("Merhaba X," / "X Hanım");
+  kimlik konumundaki adın ardındaki ≤2 ad sözcüğü de. ANLAMLI SÖZCÜK SİLİNMEZ ("Deniz manzarası", "15 Nisan", "Dairede yangın var") — TAM
+  GİZLİLİK İDDİASI YOK. Yazar geçmiş satırının yönünden (misafir / bizim). Yer tutucu / anonim ad anahtar olmaz; kimlik konumundaki maske bir
+  acil sözcüğünü gizlerse `nameMaskHidesEmergency` KOD NOTU ("Ben Yangın, …"). `reservation:guestName` kaynağı doğrulanmaz; model selam YAZMAZ (türetilmiş istem: ÇAPALI
   değişiklik, çapa bulunamazsa açılış çökmez, pin eksik listesinin boş olduğunu ister); selamı KOD ekler — YALNIZ ilk cevapta, dil kodun
   kesin tespiti ya da modelin beyanı (7 dil tablosu, yoksa selamsız), hitap adı YALNIZ `guestGivenName` (yoksa "Merhaba,"; ilk kelime
   tahmini YOK), kısa tonda yok, resmî tonda da "Merhaba Ayşe,"; modelin baştaki selamı silinir — YALNIZ selam sözcüğü + KAPALI hitap
@@ -908,7 +922,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   VERİLMEZ (F10, 09-26):** alarmsız log satırı `formatErrorForLog(err)` (ad: ileti + cause, redakte, yığın yok), alarm
   `reportError`; e-posta istemcisi ve `instrumentation.ts` de aynı yaprak modülü kullanır (eski dar kopyalar kalktı).
   Mekanik pin TypeScript sözdizim ağacı (`log-sink-redaction-pin.test.ts`); önce değişkene kopyalanan hata ona
-  görünmez → yeni bir log yazıcısı davranışsal teste de girer (`log-sink-redaction.test.ts`).
+  görünmez → yeni bir log yazıcısı davranışsal teste de girer (`log-sink-redaction.test.ts`). 🚨 PRİSMA HATA METNİ VERİ TAŞIR (09-30,
+  inceleme b5): argüman ağacı / "Failing row contains" → Prisma hatası log'a, Sentry'ye ve alarm e-postasına YALNIZ yapısal özetle
+  (`prismaErrorSummary`: ad · kod · model.işlem · kısıt alanı · pg kodu + yığın çerçeveleri); üretim istemcisi hatayı OLAY olarak alır
+  (`db.ts`, `prismaLogEventSummary`) — Prisma'nın kendi kaydedicisi (`log: ["error"]`) kullanılmaz (iletinin tamamını basıyordu).
 - Hesap silme Invoice/Consent/AuditLog'u da siler (migration ister, açık). `Organization.plan` kolonu ölü.
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 
@@ -1008,6 +1025,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   CSV'de yalnız iptal ön eki eşlenir. Elle oluşturma (`POST /api/reservations`) referans verilince kanalı "manual" yazar (09-28;
   elle girilen referans sağlayıcı kimliği DEĞİL — göndericiler onu POST ediyordu). Rezervasyon yazan YENİ yol aynı kuralı uygular. Bozuk feed: hataya geçişte tek alarm, ham URL/host alarma girmez,
   `BEGIN:VCALENDAR` yoksa `feed_not_icalendar`. "N kaynak işlendi" = o geçişte vadesi gelen (kohort).
+- **iCal abonelik senkronunda kayıt kimliği (09-30, inceleme b1):** bir geçişte kayıt başına İLK satır (UID; UID'siz satırda tarih çifti) —
+  tekrarlayan etkinliğin iptal edilmiş örneği (aynı UID) rezervasyonu her geçişte iptal ↔ onay arasında çalkalıyordu (dosyadan içe aktarmayla
+  aynı kural). UID'siz etkinlik: aynı kaynağın aynı tarihli UID'siz satırı aynı kayıttır (her geçişte kopya açılıyordu). BEGIN/END:VEVENT
+  büyük/küçük harf duyarsız, yalnız CR satır sonu okunur.
 - 🚨 **EKSİK iCal OKUMASI HÜKÜM VERMEZ (F16, 09-26):** `parseIcsDetailed().incomplete` kapalı küme (yarım dosya ·
   10.000 tavanı · RRULE/RDATE/EXDATE/RECURRENCE-ID — tekrar AÇILMAZ, bilinçli · tarihi eksik/bozuk/ters/sıfır süreli ya
   da BEGIN/END'i bozuk etkinlik · aynı UID çelişen iki hâl). Eksikse okunanlar yazılır ve açık STATUS:CANCELLED işlenir,
@@ -1119,7 +1140,12 @@ sınıfında, çıkarım backfill'i BİLEREK yok.
   acildir…; "acili"/"acildi" YOK = ASCII "acılı"/"açıldı"), harf uzatması ("ACİLLL") tutar, bileşikler (Gasgeruch/firefighter/
   wildfire) açık listede; 7 dil × 7 kategori acil matrisi AYNEN; batarya `safety-whole-words.test.ts`. Türkçe "gaz" da TAM SÖZCÜK
   (ikinci onay 09-26: "mağaza", "Gazipaşa", "gazete", "Doğalgaz faturası" acil değil; ekler tek tek, "gazi" YOK = "Gazi";
-  "doğalgaz/tüpgaz + koku/kaçak/sızıntı" kalıp listede).
+  "doğalgaz/tüpgaz + koku/kaçak/sızıntı" kalıp listede). 🚨 09-30 (kurucu kararı): "kaza / polis / hurt" de TAM SÖZCÜK + gerçek çekimler
+  ("Kazağımı unuttum", "polisiye", "It wouldn't hurt" acil değil; "kazan/kazanın" bilerek yok); çıkış YERİ ifadesi (emergency / fire exit,
+  acil çıkış, yangın merdiveni) eşleşmeden önce nötrlenir — AMA mesajda kilit / engel sözcüğü varsa ("Acil çıkış kilitli", "Fire exit is
+  blocked") nötrlenmez, acil kalır. Yangın ifadeleri (alev aldı / alevler / ateş aldı-çıktı / tutuştu / caught fire / flames) acil + QR
+  fiziksel acil; çıplak "ateş" ("ateşi var" = sağlık) ve "alev" (ad) YOK. Söküm kapısı Latin YAZI SİSTEMİ harfi arar (tamamen küçük-kapital
+  "ᴅᴀɪʀᴇᴅᴇ ʏᴀɴɢɪɴ" sökülür; ꜰ ꜱ ǫ haritada); saf Rusça sökülmez.
 - Olumsuz fiil kalıpları ÇAPALI (tesis adı + fiil; gövde "-yo" ile: gelmiyor/gelmiyo). Çıplak `gelmiyor · gitti ·
   kesildi · su yok · arıza · yanmıyor · bozuldu · blackout · no heat · elektrik yok · cereyan yok · ısınmıyor ·
   elektrik kesintisi · power cut` listeye GİRMEZ (tuzaklar pinli). "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ wifi.
@@ -1323,6 +1349,12 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   tarama); yedek şablon ve Gönderilenler önizlemesi aynı kural. Resmî tonda da selam "Merhaba Ayşe," (kurucu 09-28). Noktalama doğal
   kalır (09-28 inceleme): "Welcome, {name}!" → "Welcome!", "Hi, {name}, welcome" → "Hi, welcome", "Merhaba {isim} 👋" → "Merhaba 👋",
   satır başında "{isim}!" → "", boşalan satır gider, gövde doldurmadan SONRA kırpılır; saklama sentineli "Eski misafir" ad değil.
+  🚨 09-30 (kurucu kararları): saygı hitabı adsız kalmaz — "Sayın / Sevgili / Değerli {isim}," → "… misafirimiz,", "Dear {name}," → "Dear
+  guest," (addan sonra "Bey/Hanım" varsa ya da belirteçte ek varsa eski kural). ÇÖZÜLEMEYEN `{daire}` (mülk adında tek belirgin numara yok)
+  TAHMİN EDİLMEZ: karşılama / giriş / çıkış mesajı GİTMEZ (`leftoverGuestTokens`), yapay zekâ bağlamında "[DAİRE NO]" (istem "doldurulmamış
+  yer tutucu" der), cevapta kalan `{isim}/{daire}/{apt}` çıktı vetosunda tutulur (AI cevabı gönderimde DOLDURULMAZ — eski "gönderimde
+  çözülür" yorumu yanlıştı); mülk sayfası hangi metnin durduğunu ve düzeltme yolunu gösterir. Kısa adın saklama temizliği yalnız kodun selam
+  satırında ("Merhaba Su," temizlenir, "Su gelmiyor" kalır).
 - **Çıktı vetosu** (`output-veto.ts`, iki kapıda): `placeholder_in_reply` + ETKEN `unverified_commitment`; edilgen
   dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi + iki incelemeyle düzeltildi: kıvrık kesme işareti düz
   olana çevrilir; haber verdim/aradım/onayladım/güncelledim/iletiyorum · booked/notified/let the host know/I'm forwarding/
@@ -1448,6 +1480,12 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-30 — CODEX ÜÇ PARTİ + KURUCU KARARLARI 1–8 + İNCELEME AJANLARI b1–b6 (takip `docs/INCELEME-2026-09-30-codex-ve-ajanlar.md`):**
+Codex'in 19 bulgusundan 15'i düzeldi (RC41 canlıda), 4'ü kurucu kararında (K1 negatif tutar · K2 fotoğraf erişimi · K3 olumsuzlanan saat ·
+K4 Paddle abonelik kimliği). Kararlar 1–8 uygulandı (acil ağı, ad yalnız kimlik konumunda, `{daire}`, Sayın/Dear, operatör dışa aktarımı +
+QR, kısa ad saklama, önizleme selamı, nodemailer 10.0.13). b1–b6'dan 17 düzeltme (iCal UID / UID'siz / küçük harf, iptal fotoğrafları,
+paylaşılan nesne, tek saat, küçük-kapital, history kaynağı, üslup profili, kalite denetimi, Prisma log redaksiyonu, sahte etiket uzun damga,
+gece yarısı kuralı…). KURUCU KARARI bekleyen: K1–K18 (özellikle K7: otomatik mesajlarımız senkronla "ev sahibi yazdı" sayılıyor — CANLI).
 **09-28 ÖĞLEDEN SONRA — 10 İNCELEME AJANI (kurucu: "didik didik, hataları düzelt"; takip `docs/INCELEME-2026-09-28-10-ajan.md`):**
 13 düzeltme (görünmez biçim karakteri · ayraç taklidi · Fransızca "<<bonjour>>" FP · karşılama noktalaması · K10-t "AI öner" · K8 çıkış · NUL ·
 ad kuralı ´ · Türkçe ad eşleşmesi · hitap adı maskeleri · denetçi maskeleyicisi) + Codex ad maskesi notu; hepsi kırmızı-önce + mutasyon.

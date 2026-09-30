@@ -85,7 +85,9 @@ export async function POST(req: NextRequest) {
     // hesaba daha önce BAŞARIYLA girmiş tarayıcı (`KNOWN_DEVICE_COOKIE`) devam eder:
     //   · hesap sahibi kendi cihazında KİLİTLENMEZ (08-01'in özü korunur),
     //   · yeni IP'deki saldırgan bcrypt'e bile ULAŞMAZ (CPU DoS'u da hafifler),
-    //   · bedel: saldırı sürerken sahibin YENİ cihazı pencere (≤15 dk) dolana kadar bekler.
+    //   · bedel: saldırı sürerken sahibin YENİ cihazı BEKLER — "≤15 dk" değil: sabit pencere süresi dolunca ilk istekle yeniden
+    //     başlar, IP döndüren saldırgan her sıfırlamada kovayı saniyeler içinde yeniden doldurur (inceleme b5, 09-30). Tek çıkış
+    //     şifre sıfırlama (tamamlayan tarayıcı tanınan cihaz olur).
     // ⚠️ SAYIM SIZINTISI YOK: kova doluyken çerezsiz istek — hesap var ya da yok — AYNI hızlı
     // 429'u alır (bilinmeyen e-posta da kovayı doldurur, ↓). Kova dolu değilken akış birebir eski.
     const acctPeek = await rateLimitPeek(`login-acct:${email}`, LOGIN_ACCT_LIMIT);
@@ -121,12 +123,9 @@ export async function POST(req: NextRequest) {
       // giriş dışı bırakamaz. Bilinmeyen e-posta da sayılır: aksi hâlde sayacın
       // varlığı hesabın VARLIĞINI sızdırırdı (enumeration).
       //
-      // ⚠️ KAPSAM (silinen yorumdan taşındı): bu kova PAROLA denemelerini sayar.
-      // 2FA/kurtarma kodu denemeleri bu dala HİÇ girmez (parola doğru olduğu için)
-      // — yani hesap-bazlı bir TOTP sınırı YOK. Eski `peek` kapısı da TOTP
-      // hatalarıyla dolmuyordu, yani bu bir REGRESYON DEĞİL; ama tek dokümantasyonu
-      // silinmişti. Ayrı bir `login-2fa:{userId}` kovası açık iş olarak kayıtlı
-      // (`docs/MIGRATION-BEKLEYEN-ISLER.md`).
+      // ⚠️ KAPSAM: bu kova PAROLA denemelerini sayar. 2FA / kurtarma kodu denemeleri bu dala HİÇ girmez (parola doğru olduğu
+      // için); onların sınırı AYRI: hesap başına günlük 20 hatalı ikinci adım tavanı (↓ ikinci adım dalı — dolunca doğru kod da
+      // 429, kurtarma kodu muaf; 09-23). (Eski yorum "hesap-bazlı TOTP sınırı YOK" diyordu — 09-23'ten beri yanlış, inceleme b5.)
       // Record a failed attempt against a KNOWN account (targeted-attack signal).
       // Unknown emails have no org to scope to — the rate limiter covers those.
       // 🚨 PARALEL (09-23 saldırgan turu): denetim yazımı YALNIZ bilinen hesapta vardı ve kova
