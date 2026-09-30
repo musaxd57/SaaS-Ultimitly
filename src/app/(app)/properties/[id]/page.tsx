@@ -37,6 +37,8 @@ import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import { HouseRulesForm } from "@/components/properties/house-rules-form";
 import { houseRulesCardEnabled } from "@/lib/house-rules/flag";
 import { houseRuleFormValues, loadHouseRules } from "@/lib/house-rules/store";
+import { apartmentResolvable, usesApartmentToken } from "@/lib/kb-placeholders";
+import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import { stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import { understandingEnabled } from "@/lib/ai/semantic/understand";
 import { sentimentTone, signalCategoryLabel, signalKindLabel } from "@/modules/intelligence/labels";
@@ -145,6 +147,21 @@ export default async function PropertyDetailPage({
     ? reservationList.filter((r) => r.status !== "cancelled" && !r.chatPinHash).length
     : 0;
 
+  // 🚨 DAİRE NUMARASI OKUNAMADI (kurucu kararı 09-30): `{daire}` kullanan misafire gidebilir kalemler bu mülk için
+  // doldurulamıyorsa karşılama / giriş / çıkış mesajı GİTMEZ ve yapay zekâ numarayı söylemez — ev sahibi hangi metnin neden
+  // durduğunu burada görür (düzeltme mülk adında). Numara okunabiliyorsa sorgu bile yapılmaz. Kalemler mülke bağlıdır.
+  const apartmentBlocked =
+    canManage && !apartmentResolvable(property.name)
+      ? (
+          await prisma.knowledgeBaseItem.findMany({
+            where: { propertyId: property.id, ...GUEST_DELIVERABLE_KB_WHERE },
+            select: { id: true, title: true, content: true },
+            orderBy: { updatedAt: "desc" },
+            take: 400,
+          })
+        ).filter((k) => usesApartmentToken(k.title) || usesApartmentToken(k.content))
+      : [];
+
   // Sibling properties (for "copy supply profile to selected apartments").
   const siblings = await prisma.property.findMany({
     where: { organizationId: session.organizationId },
@@ -198,6 +215,27 @@ export default async function PropertyDetailPage({
           küçülmesine izin verir; kısaltma o zaman gerçekten çalışır. */}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
+          {apartmentBlocked.length > 0 ? (
+            <Card className="border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40" data-testid="apartment-number-warning">
+              <CardHeader>
+                <CardTitle className="text-base">Daire numarası okunamadı</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  Mülk adında daire numarası bulunamadı. Bu yüzden &#123;daire&#125; yazan şu metinler bu mülk için doldurulamıyor:
+                </p>
+                <ul className="list-disc pl-5">
+                  {apartmentBlocked.slice(0, 8).map((k) => (
+                    <li key={k.id}>{k.title}</li>
+                  ))}
+                </ul>
+                <p>
+                  Bunlardan karşılama, giriş ve çıkış mesajları bu mülke gönderilmez; yapay zekâ da daire numarasını söylemez. Düzeltmek
+                  için mülk adına daire numarasını ekleyin (örnek: &quot;Lale Daire 5&quot;).
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Mülk Ayarları</CardTitle>

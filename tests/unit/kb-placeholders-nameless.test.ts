@@ -131,3 +131,40 @@ describe("saklama sentineli ad değildir", () => {
     expect(guestFirstNameOf("Eskiz Kaya")).toBe("Eskiz");
   });
 });
+
+// ---------------------------------------------------------------------------
+// KURUCU KARARI 09-30 — SAYGI HİTABI ADSIZ KALMAZ: ad bilinmezken "Sayın {isim}," → "Sayın misafirimiz,", "Dear {name}," →
+// "Dear guest," (Türkçe "Sevgili" = Dear, aynı kural). Ad biliniyorsa değişmez; hitapsız / kısa mesaja yeni hitap EKLENMEZ.
+// ---------------------------------------------------------------------------
+describe("saygı hitabı (kurucu kararı 09-30)", () => {
+  const nameless = (t: string) => fillGuestPlaceholders(t, { guestFirstName: null });
+  const named = (t: string) => fillGuestPlaceholders(t, { guestFirstName: "Ada" });
+
+  it.each([
+    ["Sayın {isim},\n\nGirişiniz 15:00'te.", "Sayın misafirimiz,\n\nGirişiniz 15:00'te."],
+    ["Dear {name},\nWelcome!", "Dear guest,\nWelcome!"],
+    ["Dear {name}\nCheck-in is at 3pm.", "Dear guest\nCheck-in is at 3pm."],
+    ["Sevgili {isim}, iyi tatiller", "Sevgili misafirimiz, iyi tatiller"],
+    ["Değerli {isim},", "Değerli misafirimiz,"],
+    ["SAYIN {isim},", "SAYIN misafirimiz,"],
+  ])("🚨 ad bilinmiyor: %j → %j", (text, expected) => {
+    expect(nameless(text)).toBe(expected);
+  });
+
+  it("ad biliniyorsa değişmez", () => {
+    expect(named("Sayın {isim},")).toBe("Sayın Ada,");
+    expect(named("Dear {name},")).toBe("Dear Ada,");
+  });
+
+  it("KONTROL — hitapsız / sıradan selam eski kuralla (yeni hitap eklenmez)", () => {
+    expect(nameless("Merhaba {isim}, bugün")).toBe("Merhaba, bugün");
+    expect(nameless("Hi {name}!")).toBe("Hi!");
+    expect(nameless("Hoş geldiniz!")).toBe("Hoş geldiniz!");
+    expect(nameless("{isim}, hoş geldiniz")).toBe("hoş geldiniz");
+    // Sözcüğün PARÇASI hitap değildir.
+    expect(nameless("Kaysayın {isim}, x")).toBe("Kaysayın, x");
+    // Addan sonra saygı sözü varsa hitap zaten tam ("Sayın Bey," / "Sevgili Hanım,") — isim eklenmez.
+    expect(nameless("Sayın {isim} Bey, hoş geldiniz")).toBe("Sayın Bey, hoş geldiniz");
+    expect(nameless("Sevgili {isim} Hanım, hoş geldiniz")).toBe("Sevgili Hanım, hoş geldiniz");
+  });
+});

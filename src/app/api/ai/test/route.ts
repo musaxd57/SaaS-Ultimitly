@@ -41,7 +41,12 @@ type Tone = (typeof TONES)[number];
  * `reservation.guestName` hem KB yer tutucularının hitabı buradan türer —
  * ikisi ayrı yazılırsa kart, kendi istemiyle çelişen bir cevap gösterir.
  */
-const TEST_GUEST_NAME = "Test Misafir";
+const TEST_GUEST_NAME = "Ada Demir";
+/**
+ * Örnek rezervasyonun KANAL HİTAP ADI (güvenilir kaynak — `Reservation.guestGivenName`; kurucu kararı 09-30). Kod selamı açıkken
+ * önizleme GERÇEK selam kurucusunun çıktısını gösterir ("Merhaba Ada,"); kapalıyken model kendi selamını yazar (bugünkü davranış).
+ */
+const TEST_GUEST_GIVEN_NAME = "Ada";
 
 export const POST = withManage(async (session, req) => {
   // Paid AI feature: blocked once the trial lapses (dormant-safe until enforced).
@@ -160,7 +165,7 @@ export const POST = withManage(async (session, req) => {
       address: property.address,
       city: property.city,
     },
-    reservation: { guestName: TEST_GUEST_NAME, ...sampleStay },
+    reservation: { guestName: TEST_GUEST_NAME, guestGivenName: TEST_GUEST_GIVEN_NAME, ...sampleStay },
     knowledgeBase: kbSel.items,
     knowledgeBaseDropped: kbDropped + kbSel.droppedItems,
     knowledgeBaseSelection: kbSel.selection,

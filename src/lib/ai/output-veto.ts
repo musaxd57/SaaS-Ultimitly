@@ -57,7 +57,7 @@
  * ⚠️ BU MODÜL SAF: DB yok, ağ yok, LLM yok, `server-only` yok. Tek girdi metin.
  * ------------------------------------------------------------------------- */
 
-import { kbPlaceholderTokens } from "@/lib/kb-placeholders";
+import { kbPlaceholderTokens, leftoverGuestTokens } from "@/lib/kb-placeholders";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 
 /** Kapalı küme — `RiskEvent.reason` ile aynı sözleşme (PII taşımaz). */
@@ -442,11 +442,13 @@ const OTHER_FUTURE_CLAIM = new RegExp(
  * Önerisi `docs/ONAY-yer-tutucu-cikti-vetosu-2026-09-09.md`te duruyordu.
  *
  * Yüklem GÖNDERİCİ KAPISIYLA AYNI KAYNAKTAN türer (`kbPlaceholderTokens` +
- * `ANY_DOUBLE_BRACE`) — yaşam-döngüsü göndericisi ile AI yolu ayrışamaz.
- * `{isim}`/`{daire}` BİLEREK dışarıda: onlar gönderim anında çözülür.
+ * `ANY_DOUBLE_BRACE` + `leftoverGuestTokens`) — yaşam-döngüsü göndericisi ile AI yolu ayrışamaz.
+ * `{isim}`/`{daire}` 09-30'a kadar "gönderim anında çözülür" diye dışarıdaydı — yapay zekâ cevabı için YANLIŞTI (kanal / kuyruk /
+ * gelen kutusu gönderimi cevabı doldurmaz; ham gidiyordu). Kurucu kararı 09-30: cevapta kalmış belirteç misafire gitmez.
  */
 function hasUnfilledPlaceholder(reply: string): boolean {
-  return kbPlaceholderTokens(reply).length > 0 || ANY_DOUBLE_BRACE.test(reply);
+  // Cevapta kalmış ad / daire belirteci ("Dairenizin numarası {daire}", "Merhaba {isim}") de misafire GİTMEZ (kurucu kararı 09-30).
+  return kbPlaceholderTokens(reply).length > 0 || ANY_DOUBLE_BRACE.test(reply) || leftoverGuestTokens(reply).length > 0;
 }
 
 /**

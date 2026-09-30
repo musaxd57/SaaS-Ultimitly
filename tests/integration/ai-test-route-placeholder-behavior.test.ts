@@ -107,13 +107,13 @@ describe("AI test kartı — modele giden KB'de yer tutucular", () => {
     expect(kb[0].content).not.toContain("3");
   });
 
-  it("🚨 SAYAÇ daire numarası SAYILMAZ → belirteç dokunulmadan kalır", async () => {
-    // Eski kural "4"ü (kapasite) basıyordu; ortak modül `null` döner ve uydurma
-    // değer YAZMAZ.
+  it("🚨 SAYAÇ daire numarası SAYILMAZ → tahmin yok, modele doldurulmamış işaret gider", async () => {
+    // Eski kural "4"ü (kapasite) basıyordu; ortak modül `null` döner ve uydurma değer YAZMAZ. Kurucu kararı 09-30: çözülemeyen
+    // belirteç modele "[DAİRE NO]" olarak gider (istem onu "DOLDURULMAMIŞ YER TUTUCU" diye işaretler; cevapta kalırsa veto tutar).
     await seed("Trabzon 4 Kişilik Daire", "Kapı kodu: {daire}");
     await POST(req({ message: "Kapı kodu nedir?" }), ctx);
 
-    expect(kbSentToModel()[0].content).toBe("Kapı kodu: {daire}");
+    expect(kbSentToModel()[0].content).toBe("Kapı kodu: [DAİRE NO]");
   });
 
   it("🚨 SAYISIZ adda MÜLK ADININ TAMAMI basılmaz", async () => {
@@ -123,7 +123,7 @@ describe("AI test kartı — modele giden KB'de yer tutucular", () => {
 
     const c = kbSentToModel()[0].content;
     expect(c).not.toContain("Cozy");
-    expect(c).toBe("Kapı kodu: {daire}");
+    expect(c).toBe("Kapı kodu: [DAİRE NO]");
   });
 
   it("🚨 BAŞLIK da çözülür (packKnowledgeBase başlığı isteme yazıyor)", async () => {
@@ -131,15 +131,15 @@ describe("AI test kartı — modele giden KB'de yer tutucular", () => {
     await POST(req({ message: "Merhaba" }), ctx);
 
     const item = kbSentToModel()[0];
-    expect(item.title).toBe("Hoş geldiniz Test");
-    expect(item.content).toBe("Merhaba Test");
+    expect(item.title).toBe("Hoş geldiniz Ada");
+    expect(item.content).toBe("Merhaba Ada");
   });
 
   it("🚨 noktalı İ taşıyan belirteç çözülür (eski `/gi` katlamıyordu)", async () => {
     await seed("Lale Daire 7", "Merhaba {İSİM}, daire {DAİRE}");
     await POST(req({ message: "Merhaba" }), ctx);
 
-    expect(kbSentToModel()[0].content).toBe("Merhaba Test, daire 7");
+    expect(kbSentToModel()[0].content).toBe("Merhaba Ada, daire 7");
   });
 
   it("anti-vakum: belirteçsiz içerik AYNEN geçer (ikame her şeyi bozmuyor)", async () => {
@@ -147,5 +147,28 @@ describe("AI test kartı — modele giden KB'de yer tutucular", () => {
     await POST(req({ message: "Saatler?" }), ctx);
 
     expect(kbSentToModel()[0].content).toBe("Giriş 15:00, çıkış 11:00.");
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// KURUCU KARARI 09-30 — ÖNİZLEME GERÇEK SELAM KURUCUSUNU KULLANIR: örnek rezervasyon kanal hitap adını (güvenilir kaynak) taşır;
+// kod selamı açıkken `suggestReply` içindeki kurucu "Merhaba Ada," yazar (adsız "Merhaba," değil), kapalıyken model kendi selamını.
+// ---------------------------------------------------------------------------
+describe("önizleme — örnek rezervasyonun hitap adı (kurucu kararı 09-30)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    mockSuggest.mockReset();
+    mockSuggest.mockResolvedValue(DRAFT);
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+    await prisma.property.update({ where: { id: propertyId }, data: { name: "Lale Daire 7" } });
+  });
+
+  it("🚨 suggestReply'a örnek ad + GÜVENİLİR hitap adı gider (selam kurucusu 'Merhaba Ada,' yazabilsin)", async () => {
+    await POST(req({ message: "Merhaba" }), ctx);
+    const input = mockSuggest.mock.calls[0][0] as { reservation: { guestName: string; guestGivenName?: string } };
+    expect(input.reservation.guestName).toBe("Ada Demir");
+    expect(input.reservation.guestGivenName).toBe("Ada");
   });
 });

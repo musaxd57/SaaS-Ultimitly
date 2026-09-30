@@ -25,12 +25,21 @@ describe("çıktı vetosu — YER TUTUCU (sıfır belirsizlik)", () => {
     expect(vetoOutgoingReply("Wi-Fi: {{wifiInfo}}")).toBe("placeholder_in_reply");
   });
 
-  it("ÇÖZÜLEN belirteçler durdurmaz (aşırı uygulama kontrolü)", () => {
-    // `{isim}`/`{daire}` gönderim anında çözülür — yer tutucu SAYILMAZ.
-    expect(vetoOutgoingReply("Merhaba {isim}, hoş geldiniz.")).toBeNull();
-    expect(vetoOutgoingReply("Daire {daire}")).toBeNull();
-    // Madde imi yer tutucu değildir.
+  it("🚨 cevapta KALMIŞ ad / daire belirteci misafire GİTMEZ (kurucu kararı 09-30)", () => {
+    // Eski yorum "`{isim}`/`{daire}` gönderim anında çözülür" diyordu — yapay zekâ cevabı için YANLIŞTI: kanal / kuyruk / gelen
+    // kutusu gönderimi cevabı doldurmaz (ölçüldü: `messaging.ts`, `outbox/`, `channels/` belirteç doldurmuyor), ham gidiyordu.
+    // Bilgi tabanı modele DOLDURULMUŞ gider; çözülemeyen daire "[DAİRE NO]" olur. Cevapta ham belirteç = model kopyaladı.
+    expect(vetoOutgoingReply("Merhaba {isim}, hoş geldiniz.")).toBe("placeholder_in_reply");
+    expect(vetoOutgoingReply("Daire {daire}")).toBe("placeholder_in_reply");
+    expect(vetoOutgoingReply("Your apartment is {apt}.")).toBe("placeholder_in_reply");
+    expect(vetoOutgoingReply("Dairenizin numarası [DAİRE NO].")).toBe("placeholder_in_reply");
+  });
+
+  it("KONTROL — belirteç olmayan süslü / köşeli parantez durdurmaz (aşırı uygulama kontrolü)", () => {
+    // Madde imi yer tutucu değildir; tanınmayan süslü parantez sözcüğü ad / daire belirteci değildir.
     expect(vetoOutgoingReply("Kurallar [1] sessizlik [2] sigara yok")).toBeNull();
+    expect(vetoOutgoingReply("Merhaba Ada, hoş geldiniz. Daire 5 ikinci katta.")).toBeNull();
+    expect(vetoOutgoingReply("Kod {x} değil, 4521.")).toBeNull();
   });
 });
 

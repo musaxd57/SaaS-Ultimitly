@@ -412,6 +412,40 @@ const TERMINAL_PUNCT = new Set([".", "!", "?", ";", ":", "…", ")", "]", "}", "
 const LINE_START_PUNCT = new Set([...COMMAS, "!", ".", ":", ";"]);
 
 /**
+ * Adsız kalamayan saygı hitapları → ad bilinmezken yerine gelen isim (kurucu kararı 09-30: "Sayın" / "Dear"). "Sevgili" ve "Değerli"
+ * aynı sınıf: adsız "Sevgili," misafire "Sevgilim," gibi okunur.
+ */
+const HONORIFIC_NOUN: ReadonlyMap<string, string> = new Map([
+  ["sayın", "misafirimiz"],
+  ["sayin", "misafirimiz"],
+  ["sevgili", "misafirimiz"],
+  ["değerli", "misafirimiz"],
+  ["degerli", "misafirimiz"],
+  ["dear", "guest"],
+]);
+/** Addan SONRA gelen saygı sözü ("Sayın {isim} Bey"): varsa hitap zaten tamdır ("Sayın Bey,") — isim eklenmez. */
+const TITLE_AFTER_NAME = new Set(["hanım", "hanim", "bey", "hanımefendi", "hanimefendi", "beyefendi", "hn"]);
+
+/** `end`ten sonra (satır içi boşluktan sonra) addan sonraki saygı sözü var mı. Doğrusal. */
+function titleAfter(text: string, end: number): boolean {
+  let p = end;
+  while (p < text.length && isHorizontalSpace(text[p])) p += 1;
+  if (p === end) return false;
+  let q = p;
+  while (q < text.length && /\p{L}/u.test(text[q])) q += 1;
+  return q > p && TITLE_AFTER_NAME.has(text.slice(p, q).toLocaleLowerCase("tr"));
+}
+
+/** `cut`ten hemen önceki sözcük (satır içinde, `floor`un gerisine gitmeden) bir saygı hitabıysa yerine gelecek isim. Doğrusal. */
+function honorificNounBefore(text: string, cut: number, floor: number): string | null {
+  let w = cut;
+  while (w > floor && /\p{L}/u.test(text[w - 1])) w -= 1;
+  if (w === cut) return null;
+  if (w > 0 && /[\p{L}\p{N}]/u.test(text[w - 1])) return null;
+  return HONORIFIC_NOUN.get(text.slice(w, cut).toLocaleLowerCase("tr")) ?? HONORIFIC_NOUN.get(text.slice(w, cut).toLowerCase()) ?? null;
+}
+
+/**
  * AD BİLİNMİYORKEN tek geçiş (kurucu kararı 09-28: "Merhaba Rezervasyon HM4K2," yerine "Merhaba,"). Ad belirteci; önündeki satır içi
  * boşluk ve ardındaki ek ("{isim}'e") ile kalkar, çevresindeki noktalama doğal kalır (09-28 inceleme ajanı, ölçülen kusurlar kırmızı-önce):
  *  · satır ortasında ardından virgül: "Merhaba {isim}, bugün" → "Merhaba, bugün"; önünde de virgül varsa tek virgül ("Hi, {name},
@@ -439,6 +473,16 @@ function fillWithoutName(text: string, values: GuestPlaceholderValues): string {
     // Önceki parça + satır içi sondaki boşluğu (geriye doğru, doğrusal).
     let cut = start;
     while (cut > last && isHorizontalSpace(text[cut - 1])) cut -= 1;
+    // 🚨 SAYGI HİTABI (kurucu kararı 09-30): "Sayın {isim}," ad bilinmezken "Sayın, …" oluyordu (hitap adsız kalamaz) →
+    // "Sayın misafirimiz,"; "Dear {name}," → "Dear guest,". YALNIZ hitap sözcüğü belirtecin hemen önündeyse ve belirteçten sonra
+    // ek yoksa; hitapsız metne yeni hitap EKLENMEZ, ad biliniyorsa bu yol hiç koşmaz.
+    const honorific =
+      cut < start && !NAME_SUFFIX_APOSTROPHES.has(text[end]) && !titleAfter(text, end) ? honorificNounBefore(text, cut, last) : null;
+    if (honorific) {
+      out += text.slice(last, start) + honorific;
+      last = end;
+      continue;
+    }
     const lineStart = cut === 0 || isLineBreak(text[cut - 1]);
     // Belirtecin ardı: ek ("'e") → boşluk.
     let q = end;
@@ -520,9 +564,48 @@ export function fillGuestPlaceholdersInItems<T extends { title?: string; content
 ): T[] {
   return items.map((k) => ({
     ...k,
-    ...(typeof k.title === "string" ? { title: fillGuestPlaceholders(k.title, values) } : {}),
-    content: fillGuestPlaceholders(k.content, values),
+    ...(typeof k.title === "string" ? { title: markUnresolvedApartment(fillGuestPlaceholders(k.title, values), values) } : {}),
+    content: markUnresolvedApartment(fillGuestPlaceholders(k.content, values), values),
   }));
+}
+
+/**
+ * 🚨 ÇÖZÜLEMEYEN DAİRE NUMARASI TAHMİN EDİLMEZ (kurucu kararı 09-30). Mülk adından numara okunamadıysa (`apartmentNumberOf` null)
+ * `{daire}` MODELE ham gitmiyor — `[DAİRE NO]` olur: istem bunu koddan "DOLDURULMAMIŞ YER TUTUCU" diye işaretler (gerçek değer
+ * değil, uydurma), cevapta geçerse çıktı vetosu tutar. Yalnız bilgi tabanı KALEMLERİNE (yapay zekâ bağlamı) uygulanır; misafire
+ * AYNEN giden mesaj metni (`fillGuestPlaceholders`) belirteci korur ve gönderici onu görüp mesajı DURDURUR.
+ */
+export const UNRESOLVED_APARTMENT_MARK = "[DAİRE NO]";
+
+function markUnresolvedApartment(text: string, values: GuestPlaceholderValues): string {
+  if (values.propertyName === undefined) return text;
+  return text.replace(new RegExp(TOKEN.source, "gu"), (whole, key: string) => (keyKind(key) === "apartment" ? UNRESOLVED_APARTMENT_MARK : whole));
+}
+
+/**
+ * Doldurmadan SONRA metinde kalan ad / daire belirteçleri (`{daire}` numara okunamadığı için çözülemediyse kalır; `{isim}`
+ * her durumda çözülür ya da kalkar). Misafire giden metin bunları TAŞIYAMAZ: yaşam döngüsü göndericisi ve çıktı vetosu aynı
+ * yüklemi kullanır (kurucu kararı 09-30: "yalnız o mesaj gönderilmez").
+ */
+export function leftoverGuestTokens(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
+    if (keyKind(m[1]) !== null) out.push(m[0]);
+  }
+  return out;
+}
+
+/** Bu mülk adıyla `{daire}` çözülebiliyor mu (numara adda tek ve belirgin mi) — mülk sayfası uyarısı ve gönderici aynı kural. */
+export function apartmentResolvable(propertyName: string): boolean {
+  return apartmentNumberOf(propertyName) !== null;
+}
+
+/** Metin bir daire belirteci (`{daire}` / `{apartment}` / `{apt}`) içeriyor mu. */
+export function usesApartmentToken(text: string): boolean {
+  for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
+    if (keyKind(m[1]) === "apartment") return true;
+  }
+  return false;
 }
 
 /* ---------------------------------------------------------------------------
