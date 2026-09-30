@@ -534,9 +534,17 @@ const CONFUSABLE_TO_LATIN: Record<string, string> = {
   "\u1d0b": "k", "\u029f": "l", "\u1d0d": "m", "\u0274": "n", "\u1d0f": "o",
   "\u1d18": "p", "\u0280": "r", "\u1d1b": "t", "\u1d1c": "u", "\u1d20": "v",
   "\u1d21": "w", "\u028f": "y", "\u1d22": "z", "\u1d26": "G", "\u1d27": "L",
+  // Metin üreticilerinin küçük-kapital dizisinde eksik kalan üç harf (inceleme b4, 09-30): ꜰ ꜱ ǫ (+ q'nun ikinci biçimi ꞯ,
+  // f yerine kullanılan Kiril ғ).
+  "\ua730": "f", "\ua731": "s", "\u01eb": "q", "\ua7af": "q", "\u0493": "f",
 };
 const CONFUSABLE_RE = new RegExp(`[${Object.keys(CONFUSABLE_TO_LATIN).join("")}]`, "gu");
-const LATIN_RE = /[A-Za-z]/;
+/**
+ * Söküm kapısı: metinde LATİN YAZI SİSTEMİ harfi var mı. Eskiden yalnız ASCII harf (`[A-Za-z]`) arıyordu → tamamen küçük-kapital
+ * yazılmış metin ("ᴅᴀɪʀᴇᴅᴇ ʏᴀɴɢɪɴ ᴠᴀʀ" — küçük-kapitaller Latin yazı sistemindedir ama ASCII değildir) hiç sökülmüyordu
+ * (inceleme b4, 09-30). Saf Rusça / Yunanca / Ermenice metinde Latin harfi yok → eskisi gibi sökülmez.
+ */
+const LATIN_RE = /\p{Script=Latin}/u;
 
 /**
  * HOMOGLİF (görsel ikiz) SÖKEN EK ADAY (saldırgan denetimi, 08-01 — beşinci tur).
