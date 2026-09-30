@@ -64,6 +64,42 @@
       "expires": "2027-02-01",
       "reason": "BUILD-TIME ONLY + saldirgan kontrollu CSS gerekiyor. Bu uygulamada kullanici tarafindan yazilan CSS YOK.",
       "closedBy": "next@16 (major)"
+    },
+    {
+      "id": "GHSA-v53p-9fqp-m79j",
+      "package": "nodemailer",
+      "severity": "high",
+      "title": "Quadratic backtracking in the addressparser free-text fallback allows remote denial of service",
+      "expires": "2026-10-14",
+      "reason": "URETIMDE KOSMAYAN YEDEK YOL. Canlida e-posta Resend HTTP API ile gider (email-core.ts sendReporting: RESEND_API_KEY varsa Resend, nodemailer yalniz o yokken ve EMAIL_HOST varken; Railway giden SMTP portlarini kapatir, canli SMTP ile hic gonderemez). nodemailer tembel import edilir (await import), yani Resend yolunda modul yuklenmez bile. Duzeltme yalniz nodemailer@10'da (ANA surum: TypeScript'e yeniden yazim, 10.0.11'de CommonJS uyumlulugu duzeltildi, 09-30'da bile yama cikiyor) - e-posta yolu degisikligi CLAUDE.md kurali geregi kurucu onayi + SMTP yolunun ilk denemesi birlikte. KISA SURE: iki hafta icinde yukseltilir ya da kurucu karariyla yenilenir. Girdi: 'from' env sabiti, 'to' kayitta dogrulanmis e-posta adresi ya da env alarm adresi - serbest metin adres gecmez.",
+      "closedBy": "nodemailer@10.0.13+ (major) - kurucu onayi + SMTP yolu ilk deneme"
+    },
+    {
+      "id": "GHSA-6vj9-mwq6-2f5v",
+      "package": "nodemailer",
+      "severity": "moderate",
+      "title": "Process-global DNS cache reuses TLS servername across transports (cross-tenant SMTP credential disclosure)",
+      "expires": "2026-10-14",
+      "reason": "URETIMDE KOSMAYAN YEDEK YOL. Canlida e-posta Resend HTTP API ile gider (email-core.ts sendReporting: RESEND_API_KEY varsa Resend, nodemailer yalniz o yokken ve EMAIL_HOST varken; Railway giden SMTP portlarini kapatir, canli SMTP ile hic gonderemez). nodemailer tembel import edilir (await import), yani Resend yolunda modul yuklenmez bile. Duzeltme yalniz nodemailer@10'da (ANA surum: TypeScript'e yeniden yazim, 10.0.11'de CommonJS uyumlulugu duzeltildi, 09-30'da bile yama cikiyor) - e-posta yolu degisikligi CLAUDE.md kurali geregi kurucu onayi + SMTP yolunun ilk denemesi birlikte. KISA SURE: iki hafta icinde yukseltilir ya da kurucu karariyla yenilenir. Ayrica uygulanamaz: tek SMTP sunucusu (env EMAIL_HOST); kiraci basina transport yok.",
+      "closedBy": "nodemailer@10.0.13+ (major) - kurucu onayi + SMTP yolu ilk deneme"
+    },
+    {
+      "id": "GHSA-8vvx-rff5-p5rq",
+      "package": "nodemailer",
+      "severity": "moderate",
+      "title": "Nested structured recipient arrays bypass the parser depth limit (stack exhaustion DoS)",
+      "expires": "2026-10-14",
+      "reason": "URETIMDE KOSMAYAN YEDEK YOL. Canlida e-posta Resend HTTP API ile gider (email-core.ts sendReporting: RESEND_API_KEY varsa Resend, nodemailer yalniz o yokken ve EMAIL_HOST varken; Railway giden SMTP portlarini kapatir, canli SMTP ile hic gonderemez). nodemailer tembel import edilir (await import), yani Resend yolunda modul yuklenmez bile. Duzeltme yalniz nodemailer@10'da (ANA surum: TypeScript'e yeniden yazim, 10.0.11'de CommonJS uyumlulugu duzeltildi, 09-30'da bile yama cikiyor) - e-posta yolu degisikligi CLAUDE.md kurali geregi kurucu onayi + SMTP yolunun ilk denemesi birlikte. KISA SURE: iki hafta icinde yukseltilir ya da kurucu karariyla yenilenir. Alici her zaman TEK dize ('to: string'); ic ice yapisal alici dizisi hicbir yoldan gecmez.",
+      "closedBy": "nodemailer@10.0.13+ (major) - kurucu onayi + SMTP yolu ilk deneme"
+    },
+    {
+      "id": "GHSA-g57g-f23g-4646",
+      "package": "nodemailer",
+      "severity": "moderate",
+      "title": "Quoted local-part can produce malformed envelope recipient through RFC 5322 comment parsing",
+      "expires": "2026-10-14",
+      "reason": "URETIMDE KOSMAYAN YEDEK YOL. Canlida e-posta Resend HTTP API ile gider (email-core.ts sendReporting: RESEND_API_KEY varsa Resend, nodemailer yalniz o yokken ve EMAIL_HOST varken; Railway giden SMTP portlarini kapatir, canli SMTP ile hic gonderemez). nodemailer tembel import edilir (await import), yani Resend yolunda modul yuklenmez bile. Duzeltme yalniz nodemailer@10'da (ANA surum: TypeScript'e yeniden yazim, 10.0.11'de CommonJS uyumlulugu duzeltildi, 09-30'da bile yama cikiyor) - e-posta yolu degisikligi CLAUDE.md kurali geregi kurucu onayi + SMTP yolunun ilk denemesi birlikte. KISA SURE: iki hafta icinde yukseltilir ya da kurucu karariyla yenilenir. Alici adresi kayitta e-posta dogrulayicisindan gecer; alintili yerel kisim / yorum iceren adres tipik olarak reddedilir.",
+      "closedBy": "nodemailer@10.0.13+ (major) - kurucu onayi + SMTP yolu ilk deneme"
     }
   ]
 }
