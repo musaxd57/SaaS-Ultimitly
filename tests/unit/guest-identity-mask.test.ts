@@ -25,6 +25,10 @@ describe("maskGuestIdentity — misafir metni", () => {
     ["Ad: Deniz", DENIZ, "Ad: [Misafir]"],
     // Kimlik konumunda adın ardındaki ad sözcükleri de (kanal tam adı soyad önde yazsa da).
     ["ben Brown Alex, merhaba", ["Alex Brown", "Alex"], "ben [Misafir], merhaba"],
+    // Tam ad iki DOĞAL sırada da her yerde (mutasyon 09-30): kanal adı önde saklıyorsa soyad önde yazılışı, soyad önde saklıyorsa
+    // ad önde yazılışı. Ad bloğu kendi sırasını korur ("Mehmet Ali"); tam ters sıra ("Kaya Ali Mehmet") doğal bir yazılış değildir.
+    ["Rezervasyon Kaya Mehmet Ali adına.", ["Mehmet Ali Kaya"], "Rezervasyon [Misafir] adına."],
+    ["Rezervasyon Mehmet Ali Kaya adına.", ["Kaya Mehmet Ali"], "Rezervasyon [Misafir] adına."],
   ])("🚨 kimlik konumu maskelenir: %j", (text, names, expected) => {
     expect(maskGuestIdentity(text, names, "guest")).toBe(expected);
   });

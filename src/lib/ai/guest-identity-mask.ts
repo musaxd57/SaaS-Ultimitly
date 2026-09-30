@@ -65,10 +65,12 @@ function keysOf(names: readonly (string | null | undefined)[]): { full: string[]
     const parts = n.split(" ");
     if (parts.length > 1) {
       full.add(n);
-      // Soyad önde yazılmış tam ad da tam addır ("Brown Alex", "Kaya Mehmet Ali"): tek başına soyad maskelenmez (anlamlı sözcük
-      // olabilir: "kaya", "young"), ama ad ile birlikte ters sırada da her yerde maskelenir.
-      full.add([...parts].reverse().join(" "));
+      // Tam ad iki DOĞAL sırada da tam addır: kanal adı önde saklıyorsa soyad önde yazılışı ("Mehmet Ali Kaya" → "Kaya Mehmet Ali"),
+      // soyad önde saklıyorsa ad önde yazılışı ("Kaya Mehmet Ali" → "Mehmet Ali Kaya"); ad bloğu kendi sırasını korur. Tek başına
+      // soyad maskelenmez (anlamlı sözcük olabilir: "kaya", "young"). Tam ters sıra ("Kaya Ali Mehmet") doğal bir yazılış değil —
+      // eski satır iki sözcükte ilk dönüşümün aynısıydı, üç sözcükte yanlış sırayı üretiyordu (mutasyon 09-30).
       full.add([parts[parts.length - 1], ...parts.slice(0, -1)].join(" "));
+      full.add([...parts.slice(1), parts[0]].join(" "));
     }
     const long = parts.filter((w) => Array.from(w).length >= 2);
     if (long.length > 0 && long[0] === parts[0]) first.add(parts[0]);

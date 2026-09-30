@@ -108,8 +108,10 @@ describe("iCal abonelik senkronu — kayıt kimliği (inceleme b1)", () => {
     const parsed = parseIcsDetailed(crOnly);
     expect(parsed.events.map((e) => e.sourceReference)).toEqual(["cr-1", "cr-2"]);
     expect(parsed.incomplete).toEqual([]);
-    // Katlanmış (devam satırlı) özellik CR ile de açılır.
-    const folded = cal(ev("fold-1", 10, 12, ["DESCRIPTION:uzun", " devam"])).replace(/\n/g, "\r");
+    // Katlanmış (devam satırlı) özellik CR ile de açılır — kimliğin KENDİSİ iki satıra bölünmüş (açılmazsa kimlik "fold" okunur).
+    const folded = cal(ev("fold-1", 10, 12)).replace("UID:fold-1", "UID:fold\n -1").replace(/\n/g, "\r");
     expect(parseIcsDetailed(folded).events.map((e) => e.sourceReference)).toEqual(["fold-1"]);
+    const foldedCrlf = cal(ev("fold-2", 10, 12)).replace("UID:fold-2", "UID:fold\n -2").replace(/\n/g, "\r\n");
+    expect(parseIcsDetailed(foldedCrlf).events.map((e) => e.sourceReference)).toEqual(["fold-2"]);
   });
 });
