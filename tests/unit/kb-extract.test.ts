@@ -128,3 +128,32 @@ describe("A5 — deterministik öneri çıkarımı", () => {
     expect(r.items[0]?.category).toBe("parking");
   });
 });
+
+// ---------------------------------------------------------------------------
+// CODEX 09-30 (A7): SAAT KENDİ CÜMLECİĞİNİN SÖZCÜĞÜNE BAĞLANIR. Satırın ilk saati alınıyor ve satırda "çıkış" geçtiği için
+// "Giriş saati 15:00, çıkış saati 11:00" ÇIKIŞ = 15:00 öneriyordu; giriş saati kayboluyordu.
+// ---------------------------------------------------------------------------
+describe("tek satırda iki saat (Codex 09-30 A7)", () => {
+  const pairs = (text: string) => extractKbSuggestions(text).fields.map((f) => [f.target, f.value]);
+
+  it.each([
+    ["Giriş saati 15:00, çıkış saati 11:00.", [["checkInTime", "15:00"], ["checkOutTime", "11:00"]]],
+    ["Çıkış saati 11:00; giriş saati 15:00", [["checkOutTime", "11:00"], ["checkInTime", "15:00"]]],
+    ["Giriş saati 15:00. Çıkış saati 11.00.", [["checkInTime", "15:00"], ["checkOutTime", "11:00"]]],
+    ["Giriş saati 15:00 ve çıkış saati 11:00", [["checkInTime", "15:00"], ["checkOutTime", "11:00"]]],
+    ["Check-in 15:00 - check-out 11:00", [["checkInTime", "15:00"], ["checkOutTime", "11:00"]]],
+    ["Check-in 3:00, checkout 11:00", [["checkInTime", "03:00"], ["checkOutTime", "11:00"]]],
+  ])("🚨 %j", (text, expected) => {
+    expect(pairs(text)).toEqual(expected);
+  });
+
+  it("🚨 başka bir saat önde olsa da (kahvaltı 08:00) çıkış saati kendi cümleciğinden; 11.00 biçimi bölünmez", () => {
+    expect(pairs("Çıkış saati 11.00'dir, anahtarı kutuya bırakın.")).toEqual([["checkOutTime", "11:00"]]);
+    expect(pairs("Kahvaltı 08:00, çıkış saati 11:00.")).toEqual([["checkOutTime", "11:00"]]);
+  });
+
+  it("KONTROL — aynı satırda aynı alan ikinci kez: ilki tutulur, satır 'çelişki' diye de bildirilmez (alan alındı)", () => {
+    const r = extractKbSuggestions("Çıkış saati 11:00, çıkış saati 12:00");
+    expect(r.fields.map((f) => [f.target, f.value])).toEqual([["checkOutTime", "11:00"]]);
+  });
+});

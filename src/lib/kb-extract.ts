@@ -140,25 +140,37 @@ export function extractKbSuggestions(raw: string): KbExtraction {
     const low = lower(line);
 
     // 1) Yapılandırılmış alanlar — KB kalemi OLARAK YAZILMAZ (çift kopya yasağı).
-    const time = TIME.exec(line);
-    if (time) {
+    // 🚨 SAAT KENDİ CÜMLECİĞİNİN SÖZCÜĞÜNE BAĞLANIR (Codex 09-30, A7): satırın İLK saati alınıyordu ve satırda "çıkış" da
+    // geçtiği için "Giriş saati 15:00, çıkış saati 11:00" ÇIKIŞ = 15:00 öneriyor, giriş saati kayboluyordu. Cümlecik sınırı
+    // virgül / noktalı virgül / boşluklu nokta ("15:00. Çıkış"; "11.00" bölünmez) / boşluklu tire / "ve" · "and".
+    const clauses = line.split(/[,;]|\.\s+|\s[-–—]\s|\s(?:ve|and)\s/i);
+    let fieldTaken = false;
+    let fieldDuplicate = false;
+    for (const clause of clauses) {
+      const time = TIME.exec(clause);
+      if (!time) continue;
+      const lowClause = lower(clause);
       const value = `${time[1].padStart(2, "0")}:${time[2]}`;
-      if (hasAny(low, CHECKOUT_WORDS) && !seenField.has("checkOutTime")) {
-        seenField.add("checkOutTime");
-        fields.push({ target: "checkOutTime", value, line: no, excerpt });
-        return;
+      const target: KbFieldTarget | null = hasAny(lowClause, CHECKOUT_WORDS)
+        ? "checkOutTime"
+        : hasAny(lowClause, CHECKIN_WORDS)
+          ? "checkInTime"
+          : null;
+      if (!target) continue;
+      if (seenField.has(target)) {
+        // Aynı alan ikinci kez geçtiyse ÇELİŞKİ olabilir; ilkini tutup ikincisini
+        // atlanmış olarak bildiriyoruz — sessizce ezmek yanlış değeri kalıcılaştırırdı.
+        fieldDuplicate = true;
+        continue;
       }
-      if (hasAny(low, CHECKIN_WORDS) && !seenField.has("checkInTime")) {
-        seenField.add("checkInTime");
-        fields.push({ target: "checkInTime", value, line: no, excerpt });
-        return;
-      }
-      // Aynı alan ikinci kez geçtiyse ÇELİŞKİ olabilir; ilkini tutup ikincisini
-      // atlanmış olarak bildiriyoruz — sessizce ezmek yanlış değeri kalıcılaştırırdı.
-      if (hasAny(low, CHECKOUT_WORDS) || hasAny(low, CHECKIN_WORDS)) {
-        skipped.push({ reason: "duplicate", line: no, excerpt });
-        return;
-      }
+      seenField.add(target);
+      fields.push({ target, value, line: no, excerpt });
+      fieldTaken = true;
+    }
+    if (fieldTaken) return;
+    if (fieldDuplicate) {
+      skipped.push({ reason: "duplicate", line: no, excerpt });
+      return;
     }
 
     // 2) KB kalemi kategorileri — ilk eşleşen kategori kazanır (dar ve deterministik).
