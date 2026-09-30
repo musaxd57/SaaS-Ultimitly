@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { semanticModel } from "@/lib/ai/semantic/config";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 
 // ---------------------------------------------------------------------------
 // KURAL KİPİ NİYET ETİKETİNİ BOZUYOR MU? (#188, 09-26). Ev kuralı gölge kipi (`AI_HOUSE_RULES_SHADOW`) anlama çağrısına iki
@@ -76,7 +77,7 @@ describe.skipIf(!enabled)("kural kipi — niyet etiketi kıyası (gerçek model)
     mkdirSync(dir, { recursive: true });
     let name = `kural-kipi-niyet-${new Date().toISOString().slice(0, 10)}.md`;
     for (let n = 2; existsSync(path.join(dir, name)); n++) name = `kural-kipi-niyet-${new Date().toISOString().slice(0, 10)}-${n}.md`;
-    writeFileSync(path.join(dir, name), lines.join("\n"));
+    writeFileSync(path.join(dir, name), lines.join("\n") + evalRuntimeMarkdown(evalRuntime()));
     console.log(`[eval] REPORT=${path.join(dir, name)}`);
     expect(failed).toBeLessThanOrEqual(Math.floor(rows.length * 0.05));
   }, 20 * 60_000);

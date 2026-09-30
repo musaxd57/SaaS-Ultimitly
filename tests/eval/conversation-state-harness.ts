@@ -17,6 +17,7 @@ import { historyAuthorOf } from "@/lib/message-author";
 import type { StayChangeKind } from "@/lib/ai/semantic/stay-change";
 import { addNights, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { writeSidecar } from "./sidecar";
+import type { EvalRuntime } from "./run-meta";
 import { GREETING, isGenericClarification, promiseInReply, questionSentences } from "./reply-metrics";
 
 // ---------------------------------------------------------------------------
@@ -520,7 +521,16 @@ export function rescoreRow(row: CusRow, scenario: CusScenario | undefined): CusR
   return scoreReply(withExpect, row.reply, !isFirstOperatorReply(threadOf(scenario)));
 }
 
-export function writeReport(data: CusDataset, rows: CusRow[], meta: ReportMeta, dir: string, name: string, note?: string): void {
+export function writeReport(
+  data: CusDataset,
+  rows: CusRow[],
+  meta: ReportMeta,
+  dir: string,
+  name: string,
+  note?: string,
+  /** Yeniden puanlamada ESKİ koşunun kimliği (`storedRunRuntime`); yoksa `writeSidecar` şu anki ortamı yazar. */
+  runtime?: EvalRuntime,
+): void {
   const stamp = new Date().toISOString().slice(0, 10);
   const failed = rows.filter(invalidRow).length;
   const status =
@@ -572,5 +582,5 @@ export function writeReport(data: CusDataset, rows: CusRow[], meta: ReportMeta, 
     ...rows.filter(invalidRow).map((r) => `- \`${r.id}\` [${r.arm}] source=${r.source ?? "-"} anlama=${r.uStatus ?? "-"} ${r.error ?? ""}`),
   ];
   writeFileSync(path.join(dir, name), lines.join("\n"), "utf8");
-  writeSidecar(dir, name, { suite: "conversation-state", version: data.version, meta: { ...meta, status, note: note ?? null }, rows });
+  writeSidecar(dir, name, { suite: "conversation-state", version: data.version, meta: { ...meta, status, note: note ?? null }, rows, runtime });
 }

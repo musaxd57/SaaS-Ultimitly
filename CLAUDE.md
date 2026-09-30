@@ -1500,6 +1500,12 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   **09-27 yeniden sıralayıcı olarak da Luna'ya GEÇİLMEDİ (kurucu: "5.1'de kalalım"):** aynı ~1.000 soruda Luna (`none`) iki soru 108 ↔
   5.1 111/120, tek soru TR 430 ↔ 432/441; p95 1,4 ↔ 1,7 sn, ~8–12× ucuz; `minimal` bu modelde desteklenmiyor (400); `low` p95 2,8 sn
   (2,5 sn tavanını aşar). Ölçer belirteci `rrm:` / `rre:` duruyor (`docs/TASARIM-2026-09-26-rag-300-olcek.md` §6b).
+  **09-30 Luna hazırlığı (Aşama 1, ücretsiz; `docs/LUNA-GECIS-HAZIRLIGI-2026-09-30.md`):** her ölçüm raporu + yan dosyası katman
+  bazında model + GÖNDERİLEN düşünme çabası + commit + bayrak taşır (`tests/eval/run-meta.ts`, cevap katmanı ürünün
+  `replyCallParams`inden; `docs/olcum`a yazan her ölçer taşımak zorunda, mekanik pin); yeniden puanlama ESKİ koşunun kimliğini korur
+  (`storedRunRuntime`, ortamı okumaz); canlı karar kaydı `llm.e` = gönderilen çaba (yalnız gönderildiyse). 🚨 `OPENAI_MODEL` tek
+  başına BEŞ katmanı taşır (`AI_SEMANTIC_*` / `OPENAI_TRANSLATE_MODEL` / `OPENAI_STYLE_MODEL` boş) → Luna'ya geçmeden önce bu üçü
+  `gpt-5.1`e sabitlenir (davranış birebir). Ücretli koşu ve canlı geçiş AYRI onay.
 - **Model sağlayıcısı kalıcı arızası** (429+`insufficient_quota`, 401/403, 404/`model_not_found`) geçiş tabanlı
   alarma gider (`ai/provider-health.ts`); düz 429/5xx/ağ hatası eski yolda. Misafir her durumda fallback alır.
 - **Müsaitlik host metni** "müsait/kiralanabilir/kalabilirsiniz" DEMEZ; en güçlü ifade "bağlı takvimlerinizde

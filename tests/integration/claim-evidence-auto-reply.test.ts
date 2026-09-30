@@ -122,6 +122,21 @@ describe("applyChannelAutoReply — karar kaydı kanıtı", () => {
     });
   });
 
+  it("🚨 Luna geçişi (09-30): GÖNDERİLEN düşünme çabası kayda girer (kapalı küme); tanınmayan değer yazılmaz", async () => {
+    mockSuggest.mockResolvedValue({ ...REPLY, llmUsage: { pt: 9000, ct: 60, m: "gpt-6-luna", e: "low" } });
+    const conversationId = await seed();
+    await applyChannelAutoReply(conversationId);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(JSON.parse(String(ev.kbEvidenceJson)).llm).toEqual({ pt: 9000, ct: 60, m: "gpt-6-luna", e: "low" });
+
+    await resetDb();
+    mockSuggest.mockResolvedValue({ ...REPLY, llmUsage: { pt: 9000, ct: 60, m: "gpt-6-luna", e: "turbo <script>" } });
+    const other = await seed();
+    await applyChannelAutoReply(other);
+    const ev2 = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: other, surface: "auto_reply" } });
+    expect(JSON.parse(String(ev2.kbEvidenceJson)).llm).toEqual({ pt: 9000, ct: 60, m: "gpt-6-luna" });
+  });
+
   it("🚨 misafirin dilinde olmayan cevap GİTMEZ (09-25): İngilizce misafire Türkçe cevap → taslak, gerekçe reply_language_mismatch", async () => {
     // Ölçülen vaka (cevap kıyası, gpt-5.1): İngilizce sohbette Türkçe cevap kapıdan geçip otomatik gidiyordu.
     mockSuggest.mockResolvedValue({ ...REPLY, reply: "Bina altı otopark misafirlerimiz için ücretsizdir, dilediğiniz zaman kullanabilirsiniz." });

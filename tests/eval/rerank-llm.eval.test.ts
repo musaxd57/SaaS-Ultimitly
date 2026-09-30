@@ -19,6 +19,7 @@ import {
 import { semanticModel } from "@/lib/ai/semantic/config";
 import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
 import { e4Queries, semanticBySubquery, type E4Query } from "./e4-shared";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 
 // ---------------------------------------------------------------------------
 // #186 OPENAI YENİDEN SIRALAYICI — GERÇEK ÖLÇÜM (ücretli; kurucu kararı 09-26 "Önce ücretli ölçüm, sonra siz", < 1 $).
@@ -121,7 +122,7 @@ describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçü
     lines.push("", "Ölçü: cevap cümlesi istem bloğunda (çok sorulu mesajda İKİ cevap da). Kayıp = yeniden sıralama sonrası düşen.");
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, `rerank-olcum-${stamp}${LIMIT ? "-deneme" : ""}.md`), lines.join("\n") + "\n", "utf8");
+    writeFileSync(path.join(dir, `rerank-olcum-${stamp}${LIMIT ? "-deneme" : ""}.md`), lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()), "utf8");
   });
 
   it("embedding + yeniden sıralama vs yalnız embedding", async () => {

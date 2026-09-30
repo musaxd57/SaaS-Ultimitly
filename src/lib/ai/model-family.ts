@@ -27,7 +27,8 @@ export function isReasoningModel(model: string): boolean {
  */
 export const DEFAULT_OPENAI_MODEL = "gpt-5.1";
 
-const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
+/** Düşünme çabasının kapalı kümesi — gönderim (`replyReasoningEffort`) ve karar kaydı (`grounding.ts` `cleanUsage`) aynı küme. */
+export const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
 
 /**
  * Cevap modeli için düşünme çabası (`OPENAI_REASONING_EFFORT`, 09-25 model kıyası). Kapalı küme; boş/tanınmayan →

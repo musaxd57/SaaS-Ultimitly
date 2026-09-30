@@ -7,6 +7,7 @@ import { STAY_CHANGE_KINDS } from "@/lib/ai/semantic/stay-change";
 import { stayTimeline } from "@/lib/ai/stay-timeline";
 import { todayKey } from "@/modules/availability/core";
 import { isGenericClarification, questionSentences } from "./reply-metrics";
+import { storedRunRuntime, type EvalRuntime } from "./run-meta";
 import {
   CUS_CLASSES,
   CUS_LANGS,
@@ -136,7 +137,7 @@ const RESCORE = process.env.EVAL_CUS_RESCORE?.trim();
 describe.skipIf(!RESCORE)("Konuşma Anlama Durumu eval'i — yeniden puanlama (ücretsiz)", () => {
   it("yan-dosyadaki ham cevaplar güncel kurallarla puanlanır", () => {
     const file = path.resolve(RESCORE as string);
-    const side = JSON.parse(readFileSync(file, "utf8")) as { version: number; meta: ReportMeta; rows: CusRow[] };
+    const side = JSON.parse(readFileSync(file, "utf8")) as { version: number; meta: ReportMeta; rows: CusRow[]; runtime?: EvalRuntime };
     const data: CusDataset = datasetExists
       ? (JSON.parse(readFileSync(DATASET, "utf8")) as CusDataset)
       : { version: side.version, property: { name: "?", checkInTime: "?", checkOutTime: "?" }, scenarios: [] };
@@ -150,6 +151,7 @@ describe.skipIf(!RESCORE)("Konuşma Anlama Durumu eval'i — yeniden puanlama (�
       path.dirname(file),
       path.basename(file).replace(/\.json$/, ".md"),
       `Yeniden puanlandı (${new Date().toISOString().slice(0, 10)}, model çağrısı yok): ham cevaplar \`${side.meta.commit}\` koşusundan.`,
+      storedRunRuntime(side),
     );
   });
 });

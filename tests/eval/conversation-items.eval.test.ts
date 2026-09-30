@@ -10,6 +10,7 @@ import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { historyAuthorOf } from "@/lib/message-author";
 import { hasRecordedHandoff } from "@/lib/ai/host-voice";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { extractTurnItems } from "@/lib/conversation-items/extract";
 import { composeItemsPlan, hintKey } from "@/lib/conversation-items/plan";
@@ -319,7 +320,7 @@ function writeReport(data: Dataset, rows: Row[], commit: string): string {
   // Aynı gün ikinci koşu önceki raporun (belki commit edilmiş) üzerine YAZMAZ.
   let file = path.join(dir, `${stem}.md`);
   for (let n = 2; existsSync(file); n++) file = path.join(dir, `${stem}-${n}.md`);
-  writeFileSync(file, lines.join("\n"));
+  writeFileSync(file, lines.join("\n") + evalRuntimeMarkdown(evalRuntime()));
   return file;
 }
 

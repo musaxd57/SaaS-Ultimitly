@@ -8,6 +8,7 @@ import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { autoReplyGateFailure } from "@/lib/automation";
 import { actionClaimsEnabled } from "@/lib/ai/action-claims";
 import { writeSidecar } from "./sidecar";
+import { storedRunRuntime, type EvalRuntime } from "./run-meta";
 import { GREETING, promiseInReply } from "./reply-metrics";
 
 // ---------------------------------------------------------------------------
@@ -392,7 +393,7 @@ function sum(rows: Row[], k: "pt" | "ct" | "cpt" | "rt"): number {
 
 const SCENARIO_BY_ID = new Map(data.scenarios.map((s) => [s.id, s]));
 
-function writeReport(dir: string, name: string, model: string, commit: string, rows: Row[], note?: string): void {
+function writeReport(dir: string, name: string, model: string, commit: string, rows: Row[], note?: string, runtime?: EvalRuntime): void {
   const failed = rows.filter((r) => !r.ok).length;
   const status = failed > rows.length * 0.02 ? `GEÇERSİZ — ${failed} satır yedeğe düştü/hata` : failed > 0 ? `GEÇERLİ (${failed} düşüş raporda)` : "GEÇERLİ";
   const stamp = new Date().toISOString().slice(0, 10);
@@ -421,7 +422,7 @@ function writeReport(dir: string, name: string, model: string, commit: string, r
     ...rows.filter((r) => !r.ok).map((r) => `- \`${r.id}\` source=${r.source ?? "-"} ${r.error ?? ""}`),
   ];
   writeFileSync(path.join(dir, name), lines.join("\n"), "utf8");
-  writeSidecar(dir, name, { suite: "model-reply-compare", version: data.version, meta: { model, commit, status, note: note ?? null }, rows });
+  writeSidecar(dir, name, { suite: "model-reply-compare", version: data.version, meta: { model, commit, status, note: note ?? null }, rows, runtime });
 }
 
 describe.skipIf(!enabled)(`CEVAP MODELİ KIYASI — ${MODEL}`, () => {
@@ -468,7 +469,7 @@ const RESCORE = process.env.EVAL_COMPARE_RESCORE?.trim();
 describe.skipIf(!RESCORE)("model kıyası — yeniden puanlama (ücretsiz)", () => {
   it("yan-dosyadaki ham cevaplar güncel kurallarla puanlanır", () => {
     const file = path.resolve(RESCORE as string);
-    const side = JSON.parse(readFileSync(file, "utf8")) as { meta: { model: string; commit: string }; rows: Row[] };
+    const side = JSON.parse(readFileSync(file, "utf8")) as { meta: { model: string; commit: string }; rows: Row[]; runtime?: EvalRuntime };
     const rows = side.rows.map((r) => rescore(r, SCENARIO_BY_ID.get(r.id)));
     expect(rows.length).toBeGreaterThan(0);
     writeReport(
@@ -478,6 +479,7 @@ describe.skipIf(!RESCORE)("model kıyası — yeniden puanlama (ücretsiz)", () 
       side.meta.commit,
       rows,
       `Yeniden puanlandı (${new Date().toISOString().slice(0, 10)}, model çağrısı yok): ham cevaplar \`${side.meta.commit}\` koşusundan; puanlama/veri beklentisi düzeltmeleri iki modele de aynı uygulandı.`,
+      storedRunRuntime(side),
     );
   });
 });

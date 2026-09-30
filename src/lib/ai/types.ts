@@ -176,6 +176,8 @@ export interface LlmUsage {
   rt?: number;
   /** Sağlayıcının yanıtta bildirdiği (sunulan) model. */
   m?: string;
+  /** GÖNDERİLEN düşünme çabası (`reasoning_effort`; yalnız gönderildiyse — sağlayıcı yanıtta bildirmez). Luna geçişi, 09-30. */
+  e?: string;
 }
 
 export interface SuggestReplyResult {

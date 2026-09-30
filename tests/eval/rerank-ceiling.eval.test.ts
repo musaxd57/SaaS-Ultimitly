@@ -10,6 +10,7 @@ import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { cosineOfUnit, embeddingModel, embedTexts, EMBEDDING_BATCH_MAX } from "@/lib/ai/embeddings/provider";
 import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
 import { e4Queries, semanticBySubquery, type E4Query } from "./e4-shared";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 
 // ---------------------------------------------------------------------------
 // #186 YENİDEN SIRALAYICI — TAVAN TEŞHİSİ (09-26, ücretsiz: yalnız gömme, < 0,1 sent). Soru: E4'ün "kaçan" soruları
@@ -109,7 +110,7 @@ describe.skipIf(!enabled)("#186 tavan teşhisi — kaçan cevap aday listesinde 
     lines.push("", "Not: çok sorulu satırda \"kaçan\" = iki cevaptan en az biri blokta değil; her kaçan cevap KENDİ altın kalemiyle ölçülür.");
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, `rerank-tavan-${stamp}.md`), lines.join("\n") + "\n", "utf8");
+    writeFileSync(path.join(dir, `rerank-tavan-${stamp}.md`), lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()), "utf8");
   });
 
   it("E4 kümesinde lex ve sem@0.3 için kaçanların aday listesindeki yeri", async () => {

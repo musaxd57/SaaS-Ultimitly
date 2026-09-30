@@ -118,8 +118,11 @@ function replyModel(): string {
   return process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
 }
 
-/** Cevap çağrısının modeli + GÖNDERİLEN düşünme çabası (yalnız ayarlıysa ve reasoning modelinde) — `callOpenAI` ve istek kimliği TEK kaynak. */
-function replyCallParams(): { model: string; effort: string | null } {
+/**
+ * Cevap çağrısının modeli + GÖNDERİLEN düşünme çabası (yalnız ayarlıysa ve reasoning modelinde) — `callOpenAI`, istek kimliği ve
+ * ölçerin koşu kimliği (`tests/eval/run-meta.ts`) TEK kaynak.
+ */
+export function replyCallParams(): { model: string; effort: string | null } {
   const model = replyModel();
   const effort = replyReasoningEffort();
   return { model, effort: effort && isReasoningModel(model) ? effort : null };
@@ -283,7 +286,11 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
     noteModelProviderSuccess();
     const data = await res.json();
     const choice = data?.choices?.[0];
-    const usage = parseLlmUsage(data);
+    const parsedUsage = parseLlmUsage(data);
+    // Gönderilen düşünme çabası yanıtta YOK → karar kaydına koddan eklenir (Luna geçişi, 09-30: hangi ayarın hangi kararı
+    // verdiği). Yalnız kullanım kaydı VARKEN: tek başına `{ e }` "model cevap verdi" sayılırdı (kullanılamaz cevap sayacı
+    // `llmUsage`ın varlığına bakar).
+    const usage = parsedUsage && effort ? { ...parsedUsage, e: effort } : parsedUsage;
     // Truncated output (hit max_completion_tokens): the JSON is almost certainly
     // incomplete and any "reply" is cut off. Treat it as a failure → the caller
     // uses the deterministic fallback (source="fallback") and the auto-send gate

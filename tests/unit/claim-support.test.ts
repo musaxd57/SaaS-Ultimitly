@@ -281,6 +281,21 @@ describe("gizlilik, güvenlik, dayanıklılık", () => {
     expect(JSON.parse(json).llm).toEqual({ pt: 10, cpt: 4 });
   });
 
+  it("gönderilen düşünme çabası (Luna geçişi, 09-30): yalnız kapalı kümeden ve gerçek kullanım kaydının YANINDA yazılır", () => {
+    const llmOf = (llm: unknown) => {
+      const raw = buildKbEvidence({ retrieved: [], usedLabels: ["history"], llm: llm as never });
+      return raw == null ? undefined : JSON.parse(String(raw)).llm;
+    };
+    expect(llmOf({ pt: 10, m: "gpt-6-luna", e: "low" })).toEqual({ pt: 10, m: "gpt-6-luna", e: "low" });
+    expect(llmOf({ pt: 10, e: "none" })).toEqual({ pt: 10, e: "none" });
+    // Kapalı küme dışı / biçim dışı değer yazılmaz (serbest metin kayda sızamaz).
+    expect(llmOf({ pt: 10, e: "LOW" })).toEqual({ pt: 10 });
+    expect(llmOf({ pt: 10, e: "turbo <sız>" })).toEqual({ pt: 10 });
+    expect(llmOf({ pt: 10, e: 3 })).toEqual({ pt: 10 });
+    // 🚨 Tek başına çaba kayıt UYDURMAZ ("model cevap verdi" gibi görünmesin).
+    expect(llmOf({ e: "low" })).toBeUndefined();
+  });
+
   it("sağlayıcı kullanım gövdesi SAYIYA indirgenir: bozuk alan ölçülmemiş sayılır, model adı biçim dışıysa yazılmaz", () => {
     expect(
       parseLlmUsage({ model: "gpt 5.1 <x>", usage: { prompt_tokens: -3, completion_tokens: "80", prompt_tokens_details: { cached_tokens: Number.NaN } } }),

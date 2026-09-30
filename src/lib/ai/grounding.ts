@@ -4,6 +4,7 @@ import { INTENT_RISK_KINDS, INTENT_RISK_REASON } from "./semantic/intent-risk";
 import { STAY_REPLY_INTENTS } from "./semantic/stay-change";
 import { EARLY_CHECKIN_CHECKS } from "@/lib/early-checkin/core";
 import type { LlmUsage } from "./types";
+import { REASONING_EFFORTS } from "./model-family";
 import { cleanGateEvidence, type GateEvidence } from "./gate-evidence";
 import { HOUSE_RULE_OUTCOME_KINDS, HOUSE_RULE_POLICIES, HOUSE_RULE_TOPICS, RULE_STANCES } from "@/lib/house-rules/core";
 // ---------------------------------------------------------------------------
@@ -390,6 +391,9 @@ function cleanUsage(u: LlmUsage | undefined): LlmUsage | undefined {
     if (typeof v === "number" && Number.isInteger(v) && v >= 0) out[k] = v;
   }
   if (typeof u.m === "string" && /^[A-Za-z0-9._:-]{1,64}$/.test(u.m)) out.m = u.m;
+  // Gönderilen düşünme çabası (Luna geçişi, 09-30): yalnız kapalı kümeden ve gerçek kullanım kaydının YANINDA — tek başına
+  // `{ e }` kayıt uydurmaz.
+  if (Object.keys(out).length > 0 && typeof u.e === "string" && (REASONING_EFFORTS as readonly string[]).includes(u.e)) out.e = u.e;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

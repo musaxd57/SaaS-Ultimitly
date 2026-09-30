@@ -1,5 +1,6 @@
-import { writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { evalRuntime, evalRuntimeMarkdown, type EvalRuntime } from "./run-meta";
 
 // ---------------------------------------------------------------------------
 // EVAL SIDECAR — makine-okunur koşu çıktısı (09-11).
@@ -30,6 +31,8 @@ export interface SidecarPayload {
   version: string | number;
   meta: Record<string, unknown>;
   rows: unknown[];
+  /** Katman bazında model + düşünme ayarı + commit + bayraklar (`run-meta.ts`) — `writeSidecar` KENDİSİ doldurur. */
+  runtime?: EvalRuntime;
 }
 
 /**
@@ -40,7 +43,12 @@ export interface SidecarPayload {
 export function writeSidecar(dir: string, reportFileName: string, payload: SidecarPayload): string {
   const jsonName = reportFileName.replace(/\.md$/u, ".json");
   const jsonPath = path.join(dir, jsonName);
-  writeFileSync(jsonPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  // KOŞU KİMLİĞİ (Aşama 1, 09-30): katman bazında model + düşünme ayarı her yan dosyaya ve (varsa) raporun sonuna — koşucu
+  // bunu unutamaz. Çağıran kendi `runtime`ını verdiyse (yeniden puanlama: ESKİ koşunun kimliği) o korunur.
+  const runtime = payload.runtime ?? evalRuntime();
+  writeFileSync(jsonPath, `${JSON.stringify({ ...payload, runtime }, null, 2)}\n`, "utf8");
+  const mdPath = path.join(dir, reportFileName);
+  if (existsSync(mdPath)) appendFileSync(mdPath, evalRuntimeMarkdown(runtime), "utf8");
   // Bu iki satır KOŞUCU İÇİN sözleşmedir; biçimi değiştirilirse
   // `scripts/eval-compare-models.mjs` koşuyu bulamaz (test-pinli).
   console.log(`${REPORT_MARKER}${path.join(dir, reportFileName)}`);
