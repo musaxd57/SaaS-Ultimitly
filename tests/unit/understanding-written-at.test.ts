@@ -58,7 +58,8 @@ describe("buildUnderstandingUserContent — yazıldığı an", () => {
       "Property standard check-in: 15:00; standard check-out: 11:00.",
       "Today (property time zone): 2026-10-02 (Friday); tomorrow: 2026-10-03 (Saturday).",
       "Each message shows when it was written (property time zone). Relative days inside a message (tomorrow, tonight, " +
-        "today) refer to the day that message was WRITTEN, not to today.",
+        "today) refer to the day that message was WRITTEN, not to today; in a message written between 00:00 and 04:59, " +
+        '"tomorrow" usually means the day it was written (the day that starts after waking up).',
       "RECENT CONVERSATION (oldest first):",
       "Guest (written 2026-10-01 (Thursday) 20:00): <<<Merhaba>>>",
       "Host (written 2026-10-01 (Thursday) 20:05): <<<Merhaba, buyurun.>>>",

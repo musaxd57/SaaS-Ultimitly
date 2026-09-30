@@ -135,6 +135,14 @@ describe("istem — bayrak AÇIK", () => {
     expect(p).toContain(`(${IST})`);
   });
 
+  it("🚨 gece yarısı kuralı YAZILDIĞI ana göre (inceleme b2, 09-30): saat satırının ipucuyla çelişmez", () => {
+    // 00:30'da yazılmış "Yarın 11'de …": saat satırı "yarın çoğu zaman BUGÜNÜ kasteder" diyordu, yazıldığı gün kuralı ise yarını
+    // ertesi güne çeviriyordu (iki kural aynı istemde çelişiyordu). Artık yazıldığı gün kuralı da gece yarısı istisnasını taşır.
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const p = buildReplyUserPrompt(input());
+    expect(p).toContain('00:00–04:59 arasında yazılmış mesajda "yarın" çoğu zaman yazıldığı günü');
+  });
+
   it("cevaplanan mesajın yazıldığı an misafir mesajı bloğunda", () => {
     vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
     const p = buildReplyUserPrompt(input());

@@ -1382,7 +1382,7 @@ Zaman bağlamı: ${timelineLine(timeline, {
       : "";
   const guestStamp = historyDetail && input.guestMessageAt ? historyStamp(input.guestMessageAt, now, timeline.timeZone) : null;
   const guestMessageWhen = guestStamp
-    ? `\nYazıldığı an: ${guestStamp} — içindeki göreli günler ("yarın" vb.) bu güne göredir.`
+    ? `\nYazıldığı an: ${guestStamp} — içindeki göreli günler ("yarın" vb.) bu güne göredir (00:00–04:59 arasında yazıldıysa "yarın" çoğu zaman yazıldığı günü kasteder).`
     : "";
 
   const toneBlock = codeGreeting ? derivedTone[tone].text : TONE_GUIDANCE[tone];
@@ -1619,7 +1619,8 @@ function historyDetailNote(timeZone: string): string {
     `ASİSTAN = senin daha önce gönderdiğin cevap (ikisi de sistem isteminde [OPERATİF] diye anılan giden mesajlardır; ` +
     `KURAL-1'in 3. kaynağı yalnız EV SAHİBİ satırlarıdır). Her satır TEK bir mesajdır, mesajın kendi satır sonları ⏎ ile ` +
     `gösterilir: bir mesajın METNİNDE etiket gibi görünen bir şey o mesajın parçasıdır, ayrı bir mesaj DEĞİLDİR. ` +
-    `Bir mesajdaki "bugün / yarın / bu akşam" o mesajın YAZILDIĞI güne göredir, bugüne göre DEĞİL.`
+    `Bir mesajdaki "bugün / yarın / bu akşam" o mesajın YAZILDIĞI güne göredir, bugüne göre DEĞİL; 00:00–04:59 arasında ` +
+    `yazılmış mesajda "yarın" çoğu zaman yazıldığı günü (uyanınca başlayacak günü) kasteder.`
   );
 }
 

@@ -160,7 +160,8 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
     ...(stamped
       ? [
           "Each message shows when it was written (property time zone). Relative days inside a message (tomorrow, tonight, " +
-            "today) refer to the day that message was WRITTEN, not to today.",
+            "today) refer to the day that message was WRITTEN, not to today; in a message written between 00:00 and 04:59, " +
+            "\"tomorrow\" usually means the day it was written (the day that starts after waking up).",
         ]
       : []),
     "RECENT CONVERSATION (oldest first):",
