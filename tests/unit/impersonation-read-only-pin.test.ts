@@ -41,9 +41,13 @@ const ALLOWED_WITHOUT_CHECK: Record<string, string> = {
 
 type Handler = { key: string; wrapped: boolean; body: string };
 
+/** Next.js rota dosyası (09-28 inceleme: yalnız `route.ts` taranıyordu — `route.tsx` / `route.js` görünmezdi). */
+const ROUTE_FILE = /(?:^|\/)route\.(?:ts|tsx|js|jsx|mjs)$/;
+
 function handlersOf(rel: string, text: string): Handler[] {
-  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const dir = rel.replace(/\/?route\.ts$/, "");
+  const kind = /\.tsx$/.test(rel) ? ts.ScriptKind.TSX : /\.jsx?$|\.mjs$/.test(rel) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, kind);
+  const dir = rel.replace(ROUTE_FILE, "");
   const out: Handler[] = [];
   const exported = (n: ts.Node) => (ts.getCombinedModifierFlags(n as ts.Declaration) & ts.ModifierFlags.Export) !== 0;
   for (const st of sf.statements) {
@@ -58,6 +62,9 @@ function handlersOf(rel: string, text: string): Handler[] {
       }
     } else if (ts.isExportDeclaration(st) && st.exportClause && ts.isNamedExports(st.exportClause)) {
       for (const el of st.exportClause.elements) out.push({ key: `${dir} ${el.name.text}`, wrapped: false, body: "" });
+    } else if (ts.isExportDeclaration(st) && !st.exportClause) {
+      // `export * from "…"`: hangi işleyicinin dışa verildiği görünmez → TANINMAYAN uç (sarmalı değil, kontrolsüz).
+      out.push({ key: `${dir} *`, wrapped: false, body: "" });
     }
   }
   return out;
@@ -72,7 +79,7 @@ function walk(dir: string): string[] {
 
 const all = walk(API_DIR)
   .map((f) => path.relative(API_DIR, f).split(path.sep).join("/"))
-  .filter((rel) => rel.endsWith("route.ts"))
+  .filter((rel) => ROUTE_FILE.test(rel))
   .flatMap((rel) => handlersOf(rel, readFileSync(path.join(API_DIR, rel), "utf8")));
 const mutating = all.filter((h) => MUTATING.has(h.key.split(" ").pop()!));
 const OWN_CHECK = /impersonationReadOnly\(|isImpersonating\(|session\.actorUserId\)/;
@@ -101,6 +108,17 @@ describe("K8 — her yazma ucu salt-okunur bürünmeyi uygular", () => {
       expect(h, key).toBeDefined();
       expect(h!.body, key).toMatch(/isImpersonating\(/);
     }
+  });
+
+  it("🚨 hiçbir rota dosyası işleyicilerini `export *` ile gizlemez (tarayıcı göremez)", () => {
+    expect(all.filter((h) => h.key.endsWith(" *")).map((h) => h.key)).toEqual([]);
+  });
+
+  it("tarayıcının kendisi: `export *`, yeniden adlandırılmış dışa verme ve route.tsx görünür (09-28 inceleme)", () => {
+    expect(handlersOf("x/route.ts", 'export * from "./impl";').map((h) => h.key)).toEqual(["x *"]);
+    expect(handlersOf("x/route.ts", "const h = async () => 1;\nexport { h as POST };").map((h) => [h.key, h.wrapped])).toEqual([["x POST", false]]);
+    expect(handlersOf("y/route.tsx", "export const POST = withAuth(async () => 1);").map((h) => [h.key, h.wrapped])).toEqual([["y POST", true]]);
+    expect(ROUTE_FILE.test("a/b/route.tsx") && ROUTE_FILE.test("a/route.js") && !ROUTE_FILE.test("a/router.ts")).toBe(true);
   });
 
   it("🚨 tek boğaz: `withAuth` salt-okuma kontrolünü uygular", () => {
