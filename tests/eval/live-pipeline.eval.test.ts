@@ -52,6 +52,7 @@ import { suggestReply } from "@/lib/ai";
 import { warmPropertyKbVectors } from "@/lib/ai/embeddings/kb-warm";
 import { MUST_HOLD, factsHit, languageMatches, priceFor } from "./reply-scoring";
 import { detectAvailabilityClaim } from "@/lib/ai/availability-claims";
+import { greetingLine } from "@/lib/ai/code-greeting";
 import { GREETING, promiseInReply } from "./reply-metrics";
 import { writeSidecar } from "./sidecar";
 
@@ -62,7 +63,17 @@ interface Scenario {
   kb: "full" | "sparse";
   history?: { direction: "inbound" | "outbound"; body: string }[];
   message: string;
-  expect: { autoSend: "yes" | "no" | "any"; facts?: string[] };
+  /** Kod selamı seti (`evals/code-greeting.json`): misafirin adı, kanalın ayrı ad alanı, adın kökeni. Yoksa sabit "Alex Doe". */
+  guest?: { name: string; givenName: string | null; nameSource: string };
+  /** Org cevap tonu (yoksa şema varsayılanı "warm"). */
+  tone?: string;
+  expect: {
+    autoSend: "yes" | "no" | "any";
+    facts?: string[];
+    /** Anahtar AÇIKKEN beklenen ilk satır: adlı selam · adsız selam · selam yok. */
+    greeting?: "named" | "nameless" | "none";
+    greetName?: string;
+  };
 }
 interface Dataset {
   version: number;
@@ -71,7 +82,9 @@ interface Dataset {
   scenarios: Scenario[];
 }
 
-const DATASET = path.resolve(__dirname, "../../evals/model-reply-compare.json");
+/** Senaryo seti (`evals/` altında dosya adı): varsayılan cevap kıyası seti; `code-greeting.json` K17 kıyası; kör kabul seti. */
+const SET = (process.env.EVAL_LIVE_SET?.trim() || "model-reply-compare.json").replace(/[^a-z0-9._-]/gi, "");
+const DATASET = path.resolve(__dirname, "../../evals", SET);
 const data = JSON.parse(readFileSync(DATASET, "utf8")) as Dataset;
 
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
@@ -96,7 +109,8 @@ const GUEST = "Alex Doe";
 /**
  * Canlının bayrakları (CLAUDE.md "Canlı değişkenler", kurucu beyanı 09-26): harness bunları KENDİSİ yazar — kabuktaki başıboş bir
  * bayrak ölçümü sessizce değiştirmesin. Anlam katmanları 5.1'e SABİT (Luna planı §5-1: cevap modeli tek başına değişir).
- * Cevap modeli (`OPENAI_MODEL`), düşünme çabası ve ücret kuralı (`AI_KB_FEE_RULE_ENABLED`) ölçülen koldur — kabuktan gelir.
+ * Cevap modeli (`OPENAI_MODEL`), düşünme çabası, ücret kuralı (`AI_KB_FEE_RULE_ENABLED`) ve kod selamı (`AI_CODE_GREETING_ENABLED`, K17)
+ * ölçülen koldur — kabuktan gelir (yoksa kapalı).
  */
 const LIVE_FLAGS: Record<string, string> = {
   AUTO_REPLY_ENABLED: "1",
@@ -111,7 +125,6 @@ const LIVE_FLAGS: Record<string, string> = {
   AI_HOUSE_RULES_SHADOW: "1",
   AI_CONVERSATION_STATE_ENABLED: "",
   AI_ACTION_CLAIMS_ENABLED: "",
-  AI_CODE_GREETING_ENABLED: "",
   DURABLE_OUTBOX_ENABLED: "",
   SHADOW_AI_ENABLED: "",
   AI_SEMANTIC_MODEL: "gpt-5.1",
@@ -168,7 +181,14 @@ function meteredFetch(input: Parameters<typeof fetch>[0], init?: Parameters<type
 async function seed(s: Scenario): Promise<{ conversationId: string }> {
   const now = Date.now();
   const org = await prisma.organization.create({
-    data: { name: "Eval Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: TZ },
+    data: {
+      name: "Eval Org",
+      autoReplyHospitable: true,
+      autoReplyStartHour: 0,
+      autoReplyEndHour: 0,
+      timezone: TZ,
+      ...(s.tone ? { aiReplyTone: s.tone } : {}),
+    },
   });
   // Ev sahibi bildirimlerinin alıcısı org'un en eski SAHİBİ (alertEmail yoksa) — sahipsiz org'da e-posta hiç denenmez.
   await prisma.user.create({
@@ -198,12 +218,13 @@ async function seed(s: Scenario): Promise<{ conversationId: string }> {
     ].map((k) => ({ ...k, propertyId: property.id, isActive: true, source: "host_manual", reviewState: "approved" })),
   });
   const day = 86_400_000;
+  const guestName = s.guest?.name ?? GUEST;
   const reservation = await prisma.reservation.create({
     data: {
       propertyId: property.id,
-      guestName: GUEST,
-      guestGivenName: "Alex",
-      guestNameSource: "channel",
+      guestName,
+      guestGivenName: s.guest ? s.guest.givenName : "Alex",
+      guestNameSource: s.guest?.nameSource ?? "channel",
       arrivalDate: new Date(now - day),
       departureDate: new Date(now + 3 * day),
       channel: "airbnb",
@@ -217,19 +238,19 @@ async function seed(s: Scenario): Promise<{ conversationId: string }> {
       propertyId: property.id,
       reservationId: reservation.id,
       channel: "airbnb",
-      guestIdentifier: GUEST,
+      guestIdentifier: guestName,
       status: "new",
       externalReservationId: `res-${s.id}`,
       messages: {
         create: [
           ...history.map((h, i) => ({
             direction: h.direction,
-            senderName: h.direction === "inbound" ? GUEST : "GuestOps AI",
+            senderName: h.direction === "inbound" ? guestName : "GuestOps AI",
             ...(h.direction === "outbound" ? { authorType: "ai" } : {}),
             body: h.body,
             createdAt: new Date(now - (history.length - i + 1) * 10 * 60_000),
           })),
-          { direction: "inbound", senderName: GUEST, body: s.message, createdAt: new Date(now - 60_000) },
+          { direction: "inbound", senderName: guestName, body: s.message, createdAt: new Date(now - 60_000) },
         ],
       },
     },
@@ -267,6 +288,11 @@ interface Row {
   greetingRepeat: boolean;
   /** Giden metinde kelime ağının izin / takvim iddiası kalıbı (konaklama isteğinde tasarım yalnız ERTELEMEYİ gönderir). */
   stayClaim: string | null;
+  /** Kod selamı seti: metnin (giden, yoksa taslak) ilk satırı · anahtar AÇIK beklentisi tuttu mu · soyad / tam ad metinde mi · panel adı. */
+  firstLine?: string | null;
+  greetOk?: boolean | null;
+  surnameInText?: boolean;
+  panelName?: string | null;
   claimU: number | null;
   ms: number;
   error?: string;
@@ -278,6 +304,31 @@ async function throttle(): Promise<void> {
   const wait = lastStart + gap - Date.now();
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastStart = Date.now();
+}
+
+/**
+ * Kod selamı (K17) ölçüsü. Beklenti ANAHTAR AÇIK içindir (ürünün kendi tablosu `greetingLine`): adlı → "Merhaba Ayşe," · adsız →
+ * "Merhaba," · selam yok → ilk satır selam değil. Kapalı kolda aynı alanlar bugünkü davranışı gösterir (kıyas için).
+ */
+function greetingFields(
+  s: Scenario,
+  text: string | null,
+  panelName: string | null,
+): Pick<Row, "firstLine" | "greetOk" | "surnameInText" | "panelName"> {
+  const firstLine = text ? (text.split("\n")[0] ?? "").trim() : null;
+  let greetOk: boolean | null = null;
+  if (text && s.expect.greeting === "named") greetOk = firstLine === greetingLine(s.lang, s.expect.greetName ?? null);
+  else if (text && s.expect.greeting === "nameless") greetOk = firstLine === greetingLine(s.lang, null);
+  else if (text && s.expect.greeting === "none") greetOk = !GREETING.test(firstLine ?? "");
+  const given = s.guest?.givenName ?? "";
+  // Yalnız kanal adında anlamlı: yer tutucu / takvim adı ("Reservation HM4K2", "Airbnb (Not available)") soyad değildir.
+  const surnameParts =
+    s.guest?.nameSource === "channel"
+      ? (s.guest?.name ?? "").split(/\s+/).filter((w) => w.length > 1 && !given.split(/\s+/).includes(w))
+      : [];
+  const lower = (text ?? "").toLocaleLowerCase("tr");
+  const surnameInText = surnameParts.some((w) => lower.includes(w.toLocaleLowerCase("tr")));
+  return { firstLine, greetOk, surnameInText, panelName };
 }
 
 async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
@@ -302,7 +353,10 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
   } catch {
     evidence = {};
   }
-  const conv = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { status: true, priority: true } });
+  const conv = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { status: true, priority: true, guestIdentifier: true },
+  });
   const items = await prisma.conversationItem.findMany({ where: { conversationId }, select: { status: true } });
   const inbound = await prisma.message.findFirst({
     where: { conversationId, direction: "inbound" },
@@ -336,6 +390,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     promise: sentText ? promiseInReply(sentText) : false,
     greetingRepeat: sentText ? history.some((h) => h.direction === "outbound") && GREETING.test(sentText) : false,
     stayClaim: sentText ? detectAvailabilityClaim(sentText) : null,
+    ...(s.guest ? greetingFields(s, sentText ?? draft, conv?.guestIdentifier ?? null) : {}),
     claimU: typeof evidence.claims?.u === "number" ? evidence.claims.u : null,
     ms,
   };
@@ -426,7 +481,8 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
-    const name = `live-pipeline-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${TAG ? `-${TAG}` : ""}.md`;
+    const setTag = SET === "model-reply-compare.json" ? "" : `-${SET.replace(/\.json$/, "")}`;
+    const name = `live-pipeline-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${setTag}${TAG ? `-${TAG}` : ""}.md`;
     let commit = "?";
     try {
       commit = execSync("git rev-parse --short HEAD", { cwd: path.resolve(__dirname, "../.."), stdio: ["ignore", "pipe", "ignore"] })
@@ -450,7 +506,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       "",
       `Durum: **${status}** · commit \`${commit}\` · satır ${rows.length}/${planned} · bilgi tabanı ${PAD_TO > 0 ? `nötr dolguyla ${PAD_TO} kaleme (seçim + gömme + sıralayıcı koşar)` : "dolgusuz"}`,
       `Bayraklar harness'ta sabit (canlı): ${Object.entries(LIVE_FLAGS).map(([k, v]) => `\`${k}=${v || "(boş)"}\``).join(" · ")}`,
-      `Ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
+      `Set: \`evals/${SET}\` · ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · kod selamı: \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
       "",
       ...summarizeLive(rows),
       "",
@@ -483,6 +539,27 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         .sort((a, b) => b[1] - a[1])
         .map(([k, n]) => `- ${k}: ${n}`),
       "",
+      ...(rows.some((r) => r.firstLine !== undefined)
+        ? [
+            `## Kod selamı (K17) — \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\``,
+            "",
+            "Beklenti anahtar AÇIK içindir (adlı / adsız / selam yok); kapalı kolda 'beklenti' sütunu yalnız karşılaştırma içindir.",
+            "",
+            `Beklenti tuttu: ${rows.filter((r) => r.greetOk === true).length}/${rows.filter((r) => r.greetOk !== null && r.greetOk !== undefined).length} · ` +
+              `soyad / tam ad metinde: ${rows.filter((r) => r.surnameInText).length} · doğru olgu: ${rows.filter((r) => r.factsDraft === true).length}/${rows.filter((r) => r.factsDraft !== null).length} · ` +
+              `panelde tam ad korunuyor: ${rows.filter((r) => r.panelName !== undefined && r.panelName === (data.scenarios.find((x) => x.id === r.id)?.guest?.name ?? null)).length}/${rows.filter((r) => r.panelName !== undefined).length}`,
+            "",
+            "| senaryo | dil | ton | giden | ilk satır | beklenti tuttu | soyad metinde | olgu |",
+            "|---|---|---|---|---|---|---|---|",
+            ...rows
+              .filter((r) => r.firstLine !== undefined)
+              .map((r) => {
+                const sc = data.scenarios.find((x) => x.id === r.id);
+                return `| ${r.id} | ${r.lang} | ${sc?.tone ?? "warm"} | ${r.sent ? "evet" : "hayır"} | ${JSON.stringify(r.firstLine ?? "").replace(/\|/g, "/")} | ${r.greetOk === null ? "—" : r.greetOk ? "✔" : "✖"} | ${r.surnameInText ? "EVET" : "hayır"} | ${r.factsDraft === null ? "—" : r.factsDraft ? "✔" : "✖"} |`;
+              }),
+            "",
+          ]
+        : []),
       "## Misafire giden cevaplar (sentetik veri; insan gözü için)",
       "",
       ...rows.filter((r) => r.sent).map((r) => `- **${r.id}** (${r.cls}/${r.lang}): ${JSON.stringify((r.sentText ?? "").slice(0, 320))}`),
@@ -521,7 +598,9 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
 describe("canlı hat ölçeri — çevrimdışı pinler", () => {
   it("canlı bayrak listesi anlam katmanlarını 5.1'e sabitler ve ölçülen kolları (cevap modeli, çaba, ücret kuralı) YAZMAZ", () => {
     expect(LIVE_FLAGS.AI_SEMANTIC_MODEL).toBe("gpt-5.1");
-    for (const k of ["OPENAI_MODEL", "OPENAI_REASONING_EFFORT", "AI_KB_FEE_RULE_ENABLED"]) expect(Object.hasOwn(LIVE_FLAGS, k)).toBe(false);
+    for (const k of ["OPENAI_MODEL", "OPENAI_REASONING_EFFORT", "AI_KB_FEE_RULE_ENABLED", "AI_CODE_GREETING_ENABLED"]) {
+      expect(Object.hasOwn(LIVE_FLAGS, k)).toBe(false);
+    }
     for (const k of ["KB_SEMANTIC_RETRIEVAL", "KB_RERANK_ENABLED", "AI_UNDERSTANDING_ENABLED", "AI_STAY_GUARD_ENABLED", "AI_CONVERSATION_ITEMS_ENABLED"]) {
       expect(LIVE_FLAGS[k]).toBe("1");
     }
