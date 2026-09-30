@@ -19,11 +19,14 @@ export function GuestChatSettings({
   pinFeatureEnabled = false,
   strictMode = false,
   pinlessActiveUpcoming = 0,
+  supportView = false,
 }: {
   propertyId: string;
   propertyName: string;
   enabled: boolean;
   url: string | null;
+  /** Destek görünümü (bürünmüş operatör): misafir bağlantısı / karekod GÖSTERİLMEZ, yerine açıklama (kurucu kararı 09-30). */
+  supportView?: boolean;
   /** Faz 5: whether the QR PIN feature is on (env). Shows the strict-mode toggle. */
   pinFeatureEnabled?: boolean;
   /** Org-wide: require a PIN for EVERY stay (not just those with a generated PIN). */
@@ -147,6 +150,13 @@ export function GuestChatSettings({
       >
         {busy ? "…" : enabled ? "Misafir sohbetini kapat" : "Misafir sohbetini aç"}
       </button>
+
+      {enabled && supportView ? (
+        <p className="text-xs text-muted-foreground">
+          Destek görünümünde misafir bağlantısı ve karekod gösterilmez — bağlantıyı açmak misafirin sohbetini o cihaza kilitlerdi.
+          Konuşmaları &apos;QR Misafir Sohbetleri&apos; sayfasından okuyabilirsiniz.
+        </p>
+      ) : null}
 
       {enabled && url ? (
         <div className="space-y-1">

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { resolveGuestChat } from "@/lib/guest-chat";
 import { GuestChat } from "@/components/guest-chat/guest-chat";
 import { GuestNotice } from "@/components/guest-chat/guest-notice";
+import { headers } from "next/headers";
+import { isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,17 @@ export const metadata: Metadata = {
  */
 export default async function GuestChatPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  // 🚨 Destek görünümü (bürünmüş operatör) misafir sohbetine GİRMEZ (kurucu kararı 09-30): sohbet açılsaydı konaklama bu cihaza
+  // kilitlenir, gerçek misafir dışarıda kalırdı. Karar her şeyden önce — sohbet bileşeni (bağlayan uçlar) hiç yüklenmez.
+  if (await isSupportViewCookieHeader((await headers()).get("cookie"))) {
+    return (
+      <GuestNotice
+        title="Destek görünümünde misafir sohbeti açılmaz"
+        body="Bu bağlantıyı açmak misafirin sohbetini bu cihaza kilitlerdi."
+        hint="Konuşmaları panelde 'QR Misafir Sohbetleri' sayfasından okuyabilirsiniz."
+      />
+    );
+  }
   // Sayfa yalnız "açık mı" bilgisini kullanır → bilgi tabanı çekilmez / taranmaz (#211; sayfa hız sınırsız, her yükleme iki tam sır
   // taraması yapıyordu). Ekran birebir aynı.
   const ctx = process.env.GUEST_CHAT_ENABLED === "1" ? await resolveGuestChat(token, undefined, { knowledgeBase: false }) : null;

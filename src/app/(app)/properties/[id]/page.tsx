@@ -368,10 +368,12 @@ export default async function PropertyDetailPage({
                   propertyName={property.name}
                   enabled={property.chatEnabled}
                   url={
-                    property.chatEnabled && property.chatToken
+                    // Destek görünümünde bağlantı sayfaya HİÇ yazılmaz (kurucu kararı 09-30: operatör sohbeti açıp cihaz bağlamasın).
+                    property.chatEnabled && property.chatToken && !isImpersonating(session)
                       ? `${baseUrl}/c/${property.chatToken}`
                       : null
                   }
+                  supportView={isImpersonating(session)}
                   pinFeatureEnabled={pinFeatureEnabled}
                   strictMode={property.organization.qrChatPinRequired}
                   pinlessActiveUpcoming={pinlessActiveUpcoming}

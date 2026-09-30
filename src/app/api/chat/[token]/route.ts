@@ -28,6 +28,7 @@ import {
 } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
+import { SUPPORT_VIEW_GUEST_CHAT_MESSAGE, isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
 import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
@@ -101,6 +102,18 @@ const HANDOFF_REPLY = "Mesajınız kaydedildi; bu sohbeti ev sahibiniz devraldı
 // field") — bu yüzden kütüphanede durur ve testler oradan okur.
 
 const notFound = () => new Response("Not found", { status: 404 });
+
+/**
+ * 🚨 DESTEK GÖRÜNÜMÜ MİSAFİR SOHBETİNE GİRMEZ (kurucu kararı 09-30): bürünmüş operatörün tarayıcısı bu uçlara geldiğinde sohbet
+ * AÇILMAZ ve konaklama cihaza BAĞLANMAZ — ilk açan cihaz sohbeti kilitlediği için operatörün bir göz atması gerçek misafiri dışarıda
+ * bırakırdı. Karar bağlama / okuma / gönderme ÖNCESİ verilir. Konuşmalar panelde ("QR Misafir Sohbetleri") cihaz bağlamadan okunur.
+ * Yalnız imzası doğrulanmış bürünme oturumu (`actorUserId`) sayılır; çerezsiz tarayıcı sıradan ziyaretçidir (bağlantı destek
+ * görünümünde zaten gösterilmez).
+ */
+async function supportViewRefusal(req: Request): Promise<Response | null> {
+  if (!(await isSupportViewCookieHeader(req.headers.get("cookie")))) return null;
+  return NextResponse.json({ ok: false, error: SUPPORT_VIEW_GUEST_CHAT_MESSAGE }, { status: 403 });
+}
 
 // Per-stay device-binding cookie: an httpOnly secret unique to the FIRST device
 // that opened the chat this stay, scoped per apartment. Read from the raw Cookie
@@ -310,6 +323,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
   const limited = await rateLimit(`guestchat-get:${rateLimitClientKey(req)}`, 60, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const supportView = await supportViewRefusal(req);
+  if (supportView) return supportView;
 
   const { token } = await params;
   // Bu uç bilgi tabanını KULLANMAZ (istemci 5 sn'de bir çağırır) → çekilmez / taranmaz (#211). Yanıt birebir aynı.
@@ -409,6 +424,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Public + unauthenticated → cap per IP first.
   const ipLimit = await rateLimit(`guestchat-ip:${rateLimitClientKey(req)}`, 20, 60_000);
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
+  const supportView = await supportViewRefusal(req);
+  if (supportView) return supportView;
 
   const { token } = await params;
 
