@@ -62,13 +62,19 @@ function parseIcsDate(value: string, tzid?: string | null): Date | null {
   const dtMatch = clean.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$/);
   if (dtMatch) {
     const [, y, mo, d, h, mi, s, z] = dtMatch;
-    if (z === "Z") {
-      return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
-    }
     const [ny, nmo, nd, nh, nmi, ns] = [y, mo, d, h, mi, s].map((v) => parseInt(v, 10));
+    // 🚨 TAKVİMDE OLMAYAN AN OKUNMAZ (Codex 09-30, B3): tarih-yalnız yol bileşenleri doğruluyordu, saatli yol DOĞRULAMIYORDU —
+    // `20260230T120000Z` sessizce 2 Mart'a kayıyor (konaklama yanlış günde, okuma "tam"), saat 25 ise GEÇERSİZ Date'li bir
+    // etkinlik üretiyordu. Geçersiz değer null döner → etkinlik "okunamadı" (`unreadable_event`), okuma eksik işaretlenir.
+    if (!isCalendarWallClock(ny, nmo, nd, nh, nmi, ns)) return null;
+    // Artık saniye (…T235960) JS'de bir sonraki dakikaya — gece yarısında ERTESİ GÜNE — taşar; gün kaymasın diye 59.
+    const nsec = Math.min(ns, 59);
+    if (z === "Z") {
+      return new Date(Date.UTC(ny, nmo - 1, nd, nh, nmi, nsec));
+    }
     if (tzid) {
       // Duvar saati NAMED ZONE'da okunur → doğru UTC anı (DST dâhil, iki geçiş).
-      const at = zonedWallClockToUtc(ny, nmo, nd, nh, nmi, ns, tzid);
+      const at = zonedWallClockToUtc(ny, nmo, nd, nh, nmi, nsec, tzid);
       // ⚠️ Bilinmeyen/geçersiz TZID'de `tzOffsetMs` 0 döner, yani sonuç sessizce
       // UTC olur ve saat ≥21:00 ise GÜN yine kayar. Bunu tespit edip ÖĞLEN
       // ÇAPASINA düşüyoruz: saat kaybolur ama TAKVİM GÜNÜ her ofsette doğru kalır
@@ -82,9 +88,18 @@ function parseIcsDate(value: string, tzid?: string | null): Date | null {
     return new Date(Date.UTC(ny, nmo - 1, nd, 12, 0, 0));
   }
 
-  // Fallback: try native Date parse
+  // Fallback: try native Date parse — ISO biçimli gün de takvimde olmalı (`new Date("2026-02-30")` 2 Mart'a kayar).
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(clean);
+  if (iso && !isCalendarWallClock(Number(iso[1]), Number(iso[2]), Number(iso[3]), 0, 0, 0)) return null;
   const fallback = new Date(clean);
   return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+/** Takvimde VAR olan duvar saati mi (ay 1–12, gün ayın içinde, saat 0–23, dakika 0–59, saniye 0–60 — RFC 5545 artık saniye). */
+function isCalendarWallClock(y: number, mo: number, d: number, h: number, mi: number, s: number): boolean {
+  if (mo < 1 || mo > 12 || d < 1 || h > 23 || mi > 59 || s > 60) return false;
+  const probe = new Date(Date.UTC(y, mo - 1, d));
+  return probe.getUTCFullYear() === y && probe.getUTCMonth() === mo - 1 && probe.getUTCDate() === d;
 }
 
 /** Decode common iCal escaped characters. */

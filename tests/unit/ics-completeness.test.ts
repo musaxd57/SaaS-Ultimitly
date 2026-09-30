@@ -171,3 +171,44 @@ describe("sözleşme", () => {
     expect(parseIcs(text)).toEqual(parseIcsDetailed(text).events);
   });
 });
+
+// ---------------------------------------------------------------------------
+// CODEX 09-30 (B3): TAKVİMDE OLMAYAN SAATLİ AN OKUNMAZ. Tarih-yalnız yol bileşenleri doğruluyordu, saatli yol doğrulamıyordu:
+// `20260230T120000Z` sessizce 2 Mart'a kayıyor ve okuma "tam" sayılıyordu (konaklama YANLIŞ günde → çift rezervasyon riski);
+// saat 25 ise geçersiz Date'li bir etkinlik üretiyordu. Artık "okunamadı" + eksik okuma.
+// ---------------------------------------------------------------------------
+describe("saatli geçersiz an (Codex 09-30 B3)", () => {
+  const cal = (start: string, end: string) =>
+    ["BEGIN:VCALENDAR", "BEGIN:VEVENT", "UID:u-1", start, end, "SUMMARY:R", "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
+
+  it.each([
+    ["DTSTART:20260230T120000Z", "DTEND:20260303T100000Z"],
+    ["DTSTART;TZID=Europe/Istanbul:20260230T120000", "DTEND;TZID=Europe/Istanbul:20260303T100000"],
+    ["DTSTART:20260230T120000", "DTEND:20260303T100000"],
+    ["DTSTART:20260228T250000Z", "DTEND:20260303T100000Z"],
+    ["DTSTART:20260228T126000Z", "DTEND:20260303T100000Z"],
+    ["DTSTART:20261301T120000Z", "DTEND:20270103T100000Z"],
+    ["DTSTART:20260228T120000Z", "DTEND:20260431T100000Z"],
+    ["DTSTART:2026-02-30", "DTEND:2026-03-03"],
+  ])("🚨 %s / %s → etkinlik okunmaz, okuma eksik", (start, end) => {
+    const r = parseIcsDetailed(cal(start, end));
+    expect(r.events).toEqual([]);
+    expect(r.incomplete).toContain("unreadable_event");
+  });
+
+  it("KONTROL — geçerli anlar aynen: artık yıl 29 Şubat, TZID, yerel saat, ISO tarih", () => {
+    const days = (start: string, end: string) =>
+      parseIcsDetailed(cal(start, end)).events.map((e) => [e.arrivalDate.toISOString(), e.departureDate.toISOString()]);
+    expect(days("DTSTART:20280229T120000Z", "DTEND:20280303T100000Z")).toEqual([["2028-02-29T12:00:00.000Z", "2028-03-03T10:00:00.000Z"]]);
+    expect(days("DTSTART;TZID=Europe/Istanbul:20261005T000000", "DTEND;TZID=Europe/Istanbul:20261008T000000")).toEqual([
+      ["2026-10-04T21:00:00.000Z", "2026-10-07T21:00:00.000Z"],
+    ]);
+    expect(days("DTSTART:20261005T150000", "DTEND:20261008T110000")).toEqual([["2026-10-05T12:00:00.000Z", "2026-10-08T12:00:00.000Z"]]);
+    expect(days("DTSTART:2026-02-27", "DTEND:2026-03-03")).toEqual([["2026-02-27T00:00:00.000Z", "2026-03-03T00:00:00.000Z"]]);
+  });
+
+  it("artık saniye (23:59:60) günü kaydırmaz", () => {
+    const [e] = parseIcsDetailed(cal("DTSTART:20261231T235960Z", "DTEND:20270102T100000Z")).events;
+    expect(e.arrivalDate.toISOString()).toBe("2026-12-31T23:59:59.000Z");
+  });
+});
