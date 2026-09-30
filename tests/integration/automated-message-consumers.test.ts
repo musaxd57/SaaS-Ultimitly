@@ -132,6 +132,46 @@ describe("K7 — otomatik şablon mesajı cevap değildir (tüketiciler)", () =>
     expect(g?.lx).toContain("context_injection");
   });
 
+  it("🚨 kapının kelime ağı çapraz kontrolü: otomatik mesajın ARKASINDA kalan şikâyet cevapsız sayılır → otomatik gönderim yok", async () => {
+    const { conversationId } = await seed([
+      { direction: "inbound", body: "Klima çalışmıyor, çok sıcak, berbat bir durum!", minutesAgo: 4 },
+      { direction: "outbound", body: WELCOME, minutesAgo: 3, authorType: "automation" },
+      { direction: "inbound", body: "Wi-Fi şifresi nedir?", minutesAgo: 2 },
+    ]);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 kapanış kısayolu: otomatik mesajın ARKASINDA kalan gerçek istek varken 'Teşekkürler' sessizlik değildir", async () => {
+    const { conversationId } = await seed([
+      { direction: "inbound", body: "Merhaba", minutesAgo: 10 },
+      { direction: "outbound", body: "Merhaba, hoş geldiniz.", minutesAgo: 9 },
+      { direction: "inbound", body: "Havlu ve çarşaf nerede?", minutesAgo: 4 },
+      { direction: "outbound", body: WELCOME, minutesAgo: 3, authorType: "automation" },
+      { direction: "inbound", body: "Teşekkürler", minutesAgo: 2 },
+    ]);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).not.toBe("closing_ack");
+    expect(mockSuggest).toHaveBeenCalledTimes(1); // model cevapsız soruyu görür
+  });
+
+  it("🚨 nezaket döngü koruması: kendi 'Rica ederiz'imizden sonra otomatik mesaj gelse de ikinci teşekküre ikinci nezaket gitmez", async () => {
+    const { orgId, conversationId } = await seed([
+      { direction: "inbound", body: "Wi-Fi şifresi?", minutesAgo: 10 },
+      { direction: "outbound", body: "Wi-Fi şifresi Lale2025.", minutesAgo: 9 },
+      { direction: "inbound", body: "Tamam, çok teşekkürler! 🙏", minutesAgo: 8 },
+      { direction: "outbound", body: "Rica ederiz, iyi günler!", minutesAgo: 7, authorType: "ai" },
+      { direction: "outbound", body: WELCOME, minutesAgo: 5, authorType: "automation" },
+      { direction: "inbound", body: "Sağ olun 🙏", minutesAgo: 2 },
+    ]);
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
+    await prisma.message.updateMany({ where: { conversationId, body: "Rica ederiz, iyi günler!" }, data: { aiIntent: "closing_courtesy" } });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("🚨 şikâyet + ARKASINDAN otomatik mesaj: acil uyarı yine gider", async () => {
     const { orgId, conversationId } = await seed([
       { direction: "inbound", body: "Klima çalışmıyor, çok sıcak, berbat bir durum!", minutesAgo: 3 },

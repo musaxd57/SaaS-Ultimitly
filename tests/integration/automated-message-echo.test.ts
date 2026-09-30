@@ -25,6 +25,7 @@ import { setOrgHospitableToken, resetPrimaryOrgCache } from "@/lib/hospitable-cr
 import { openItemCounts } from "@/lib/conversation-items/store";
 import { closableAfter } from "@/lib/ai/closing-turn";
 import { purgeAutomatedSends, AUTOMATED_SEND_RETENTION_MS } from "@/lib/automated-sends";
+import { drainOutboxOnce } from "@/lib/outbox/worker";
 
 const mockSend = vi.mocked(sendOnChannel);
 const fake = new FakeIngestProvider();
@@ -150,16 +151,53 @@ describe("K7 — otomatik mesajımız senkronla geri gelince ev sahibi cevabı s
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
   });
 
-  it("KONTROL — kesin başarısız gönderimin izi eşleşmez; pencere dışı (24 saatten sonra) aynı metin de eşleşmez", async () => {
+  it("KONTROL — kesin başarısız gönderimin izi eşleşmez (aynı metin pencere içinde görünse de)", async () => {
     const { orgId, conversationId } = await seed();
     mockSend.mockResolvedValue({ ok: false, error: "HTTP 422" } as never);
     await sendDueWelcomes(orgId);
     const failed = await prisma.automatedMessageSend.findFirstOrThrow({ where: { organizationId: orgId } });
     expect(failed.state).toBe("failed");
-    mockSend.mockClear();
+    const body = mockSend.mock.calls[0][1];
+    await echo(orgId, body, "same-text-1", new Date(Date.now() + 60_000));
+    expect((await prisma.message.findFirstOrThrow({ where: { conversationId, externalId: "same-text-1" } })).authorType).toBe("host");
+  });
+
+  it("belirsiz (zaman aşımı) gönderimin izi eşleşmeye açık kalır (mesaj teslim edilmiş olabilir)", async () => {
+    const { orgId, conversationId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "timeout" } as never);
+    await sendDueWelcomes(orgId);
+    expect((await prisma.automatedMessageSend.findFirstOrThrow({ where: { organizationId: orgId } })).state).toBe("unverified");
+    await echo(orgId, mockSend.mock.calls[0][1], "amb-1", new Date(Date.now() + 60_000));
+    expect((await prisma.message.findFirstOrThrow({ where: { conversationId, externalId: "amb-1" } })).authorType).toBe("automation");
+  });
+
+  it("KONTROL — pencere dışı (24 saatten sonra) aynı metin eşleşmez", async () => {
+    const { orgId, conversationId } = await seed();
     const body = await sendWelcome(orgId, null);
     await echo(orgId, body, "late-1", new Date(Date.now() + 25 * 3_600_000));
     expect((await prisma.message.findFirstOrThrow({ where: { conversationId, externalId: "late-1" } })).authorType).toBe("host");
+  });
+
+  it("kalıcı kuyruk yolu (bayrak açık): işçi gönderimden ÖNCE iz yazar, sağlayıcı kimliğiyle kapatır; yankı 'otomatik'", async () => {
+    const { orgId, conversationId } = await seed();
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+    expect(mockSend).not.toHaveBeenCalled(); // kuyruğa girdi
+    expect(await prisma.automatedMessageSend.count()).toBe(0); // iz gönderim anında (işçide) yazılır
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    let seenTraceBeforeSend = -1;
+    await drainOutboxOnce({
+      tokenFor: async () => "t",
+      send: async () => {
+        seenTraceBeforeSend = await prisma.automatedMessageSend.count({ where: { state: "pending" } });
+        return { ok: true, providerMessageId: "outbox-pm-1" };
+      },
+    });
+    expect(seenTraceBeforeSend).toBe(1); // POST sırasında iz zaten vardı
+    const trace = await prisma.automatedMessageSend.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(trace).toMatchObject({ state: "sent", providerMessageId: "outbox-pm-1", kind: "welcome" });
+    await echo(orgId, row.body, "outbox-pm-1", new Date(Date.now() + 60_000));
+    expect((await prisma.message.findFirstOrThrow({ where: { conversationId, externalId: "outbox-pm-1" } })).authorType).toBe("automation");
   });
 
   it("izler 14 gün sonra silinir (metin taşımasa da süresiz tutulmaz)", async () => {
