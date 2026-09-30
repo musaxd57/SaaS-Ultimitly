@@ -218,3 +218,21 @@ describe("uzun yalnız-selam cevap (tarama penceresinden uzun)", () => {
     expect(applyCodeGreeting({ tone: "warm", language: "tr", name: "Ayşe", reply, firstReply: true })).toBe(reply);
   });
 });
+
+// ---------------------------------------------------------------------------
+// CODEX 09-30 (C3): "Merhaba" ile başlayan İÇERİK cümlesi selam sayılıp silinmez (eski ayıklayıcı "Merhaba çıkış 11.00." içinden
+// içeriği yutabiliyordu; 65e6c76'daki kapalı hitap listesiyle kapandı — Codex'in iki örneği burada pinli).
+// ---------------------------------------------------------------------------
+describe("selam ayıklayıcı içeriğe dokunmaz (Codex 09-30 C3)", () => {
+  it.each(["Merhaba çıkış 11.00. Anahtarı masaya bırakın.", "Merhaba otopark ücretsiz. Çıkış 11:00."])("%j aynen kalır", (reply) => {
+    expect(stripLeadingGreeting(reply, "tr")).toBe(reply);
+    expect(applyCodeGreeting({ reply, firstReply: true, tone: "warm", language: "tr", name: "Ada" })).toBe(reply);
+  });
+
+  it("KONTROL — gerçek selam (virgüllü / satır sonlu) ayıklanır, kodun selamı eklenir", () => {
+    expect(stripLeadingGreeting("Merhaba, çıkış 11.00.", "tr")).toBe("Çıkış 11.00.");
+    expect(applyCodeGreeting({ reply: "Merhaba!\nÇıkış 11:00.", firstReply: true, tone: "warm", language: "tr", name: "Ada" })).toBe(
+      "Merhaba Ada,\n\nÇıkış 11:00.",
+    );
+  });
+});
