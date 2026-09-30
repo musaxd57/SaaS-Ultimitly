@@ -21,4 +21,24 @@ describe("getirme girdisi", () => {
     expect(out.guestMessage).toBe("Ben [Misafir], Wi-Fi?");
     expect(out.history[0].body).toBe("Merhaba, ben [Misafir].");
   });
+
+  it("🚨 kural 09-30: geçmişte BİZİM satırımızda hitap maskelenir, misafirin satırında aynı biçim anlamlı sözcüktür (kaldırılmaz)", () => {
+    // Getirme girdisi anlama katmanına da taşınır; her tüketici yazarına göre maskelenmiş geçmişi görür (katman kendi maskesini de
+    // uygular — iki kat güvence; yeni bir tüketici geçmişi doğrudan kullanırsa ad yine yazarına göre kapalıdır).
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const out = namelessRetrievalInput(
+      {
+        items: [],
+        guestMessage: "Deniz manzarası var mı?",
+        history: [
+          { direction: "outbound" as const, body: "Deniz Hanım, giriş 15:00." },
+          { direction: "inbound" as const, body: "Deniz Hanım bizimle mi?" },
+        ],
+      } as never,
+      ["Deniz Kaya"],
+    ) as { guestMessage: string; history: { body: string }[] };
+    expect(out.guestMessage).toBe("Deniz manzarası var mı?");
+    expect(out.history[0].body).toBe("[Misafir] Hanım, giriş 15:00.");
+    expect(out.history[1].body).toBe("Deniz Hanım bizimle mi?");
+  });
 });

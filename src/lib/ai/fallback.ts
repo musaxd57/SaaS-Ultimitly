@@ -2203,8 +2203,9 @@ const NON_EMERGENCY_PATTERNS: readonly RegExp[] = [
  * davranış (acil) korunur; kurucu kararı yalnız çıkışın YERİNİ soran mesajı acilden çıkarır. Aşırı eşleşme güvenli taraftır
  * ("unlocked" de tutar). Kalıplar sabit sözcükle başlar, sınırsız tekrar yok (doğrusal).
  */
+// "locked" sınırsız eşleştiği için "blocked" / "unlocked" da tutar (ayrı alternatif gerekmez — mutasyon eşdeğer çıkardı).
 const EXIT_BLOCKED_RE =
-  /locked|blocked|jammed|stuck|obstructed|chained|(?:won|doesn|don|can)['’ ]?t\s+(?:be\s+)?open|cannot\s+(?:be\s+)?open|kilitl|kapal[iı]|kapat[iı]lm[iı][sş]|a[cç][iı]lm[iı]yor|a[cç][iı]lam[iı]yor|engellenm[iı][sş]|t[iı]kal[iı]|t[iı]kanm[iı][sş]/u;
+  /locked|jammed|stuck|obstructed|chained|(?:won|doesn|don|can)['’ ]?t\s+(?:be\s+)?open|cannot\s+(?:be\s+)?open|kilitl|kapal[iı]|kapat[iı]lm[iı][sş]|a[cç][iı]lm[iı]yor|a[cç][iı]lam[iı]yor|engellenm[iı][sş]|t[iı]kal[iı]|t[iı]kanm[iı][sş]/u;
 const NON_EMERGENCY_MARK = " | ";
 
 function neutralizeNonEmergency(folded: string): string {
