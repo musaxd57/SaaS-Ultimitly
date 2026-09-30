@@ -32,7 +32,12 @@ const GUEST_IDENTITY_LEADS = [
   String.raw`(?:me\s+llamo|mi\s+nombre\s+es|soy)\s+`,
   String.raw`(?:меня\s+зовут)\s+`,
   String.raw`(?:اسمي|أنا)\s+`,
+  // Form / imza biçimi ve "Hier ist …" (inceleme 09-30: tam kapı "Hi, Alex here." ile yakaladı).
+  String.raw`(?:(?:full\s+|guest\s+)?name|ad[ıi]?|isim|ad\s+soyad)\s*[:\-–]\s*`,
+  String.raw`hier\s+ist\s+`,
 ];
+/** Adın ARDINDAN gelen tanıtma sözü — cümle / cümlecik başında "Alex here", "Alex hier", "Alex ici". */
+const GUEST_IDENTITY_TRAILS = String.raw`(?:here|hier|ici)`;
 /** Cümle / cümlecik başında "Ben Deniz" (Türkçe) — metin başı, satır başı ya da . ! ? , ardı ("Merhaba, ben Deniz"). */
 const SENTENCE_START = String.raw`(?:^|[.!?,\n]\s*)`;
 /** İmza öncesi kapanış sözcükleri ("Teşekkürler, Deniz"). */
@@ -58,7 +63,13 @@ function keysOf(names: readonly (string | null | undefined)[]): { full: string[]
     const n = typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : "";
     if (!n || n === ANON_NAME || n === ANON_ID) continue;
     const parts = n.split(" ");
-    if (parts.length > 1) full.add(n);
+    if (parts.length > 1) {
+      full.add(n);
+      // Soyad önde yazılmış tam ad da tam addır ("Brown Alex", "Kaya Mehmet Ali"): tek başına soyad maskelenmez (anlamlı sözcük
+      // olabilir: "kaya", "young"), ama ad ile birlikte ters sırada da her yerde maskelenir.
+      full.add([...parts].reverse().join(" "));
+      full.add([parts[parts.length - 1], ...parts.slice(0, -1)].join(" "));
+    }
     const long = parts.filter((w) => Array.from(w).length >= 2);
     if (long.length > 0 && long[0] === parts[0]) first.add(parts[0]);
     for (const w of long) words.add(w);
@@ -93,6 +104,7 @@ export function maskGuestIdentity(text: string, names: readonly (string | null |
   if (author === "guest") {
     for (const lead of GUEST_IDENTITY_LEADS) keepPrefix(`${NOT_LETTER_BEFORE}(${lead})${name}`);
     keepPrefix(`(${SENTENCE_START}ben\\s+)${name}`);
+    keepBoth(`(${SENTENCE_START})${name}(\\s+${GUEST_IDENTITY_TRAILS}${NOT_LETTER_AFTER})`);
     // İmza: son satır yalnız ad ("Deniz", "- Deniz") ya da metin sonunda kapanış sözcüğü + ad ("Teşekkürler, Deniz").
     keepBoth(`((?:^|\\n)[ \\t]*(?:[-–—~][ \\t]*)?)${name}([ \\t]*(?:[.!][ \\t]*)?)$`);
     keepBoth(`(${NOT_LETTER_BEFORE}${SIGN_OFF}[,.!]?(?:[ \\t]+|[ \\t]*\\n[ \\t]*)(?:[-–—~][ \\t]*)?)${name}([ \\t]*(?:[.!][ \\t]*)?)$`);
