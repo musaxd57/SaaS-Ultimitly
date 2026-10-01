@@ -219,6 +219,12 @@
   (aynı "anlam ilişkisi" sorusu: "İade istiyorum, şimdi ne yapacağız?" → bağlı, hiçbir şey gitmez).
 - **Müşteriye etkisi:** bağımsız soru cevapsız kalmaz; şikâyete bağlı soruya genel bilgiyle "cevap" gitmez.
 - **Beklerken yapılmayan:** anlama alanı + kod koruması (ücretli ölçüm ister: konaklama eval'i 5.1 ≈ $1,5 + konuşma öğeleri ≈ $0,2).
+- **KARAR (kurucu, 10-01 sabah):** "Evet, bu kapsamda kodla; iade ve ev sahibiyle görüşme taleplerine de aynı ilişki kuralını uygula.
+  Bağımsızlık etiketi tek başına gönderim izni olmasın … İlişki belirsizse ilgili soruyu tut. Güvenli sorunun cevaplanması hassas öğeyi
+  kapatmasın; host bildirimi korunsun ve yinelenmesin. Hatalı 'bağımsız' etiketi doğrudan kapıya verildiğinde de bağlı isteğin tutulduğunu
+  test et." → **KODLANDI** (`54b8260` + `d4674b4`; `conversation-items/relation.ts`; anahtar `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` arkasında,
+  kapalıyken bugünkü liste birebir). Kırmızı-önce (eski kodda 4 davranış kırmızı) + 6 entegrasyon testi (tek e-posta, yineleme yok, hassas
+  talep açık) + mutasyon. Canlıya açılış = son kör kabulden (madde 19) sonra.
 
 ## 18. Arıza + çözüm tarifi: yalnız ONAYLI TARİF KADAR, tehlike sınıfında otomatik değil (madde 14'ün yerine)
 - **Durum:** madde 14'teki ilk önerim sigorta / sıcak su düğmesini de istisnaya katıyordu (fazla geniş). Bugün canlıda Wi-Fi tarifi
@@ -241,6 +247,9 @@
   diye işaretlerse otomatik mi? (b) kalem başına yeni bir alan ister.
 - **Müşteriye etkisi:** güvenli arızada misafir beklemeden çözüm adımını alır; tehlikeli cihaza müdahale adımı ev sahibi görmeden gitmez.
 - **Beklerken yapılmayan:** istisna kodu + anlama istemi cümlesi.
+- **KARAR (kurucu, 10-01 sabah):** "2.a olsun önerin iyi" + "Elektrik/gaz/sıcak su cihazına müdahaleyi çözüm istisnasına alma." →
+  **KODLANDI** (madde 17 ile aynı commit): tehlike sınıfı yedi dilli sözlük + sıcak su / ısıtma kavramı; tehlikede tur tutulur, tarif ev
+  sahibinin hazır taslağında; tehlikesiz çözüm `kb:` kaynağı olmadan gitmez.
 
 ## 19. Son kör kabul canlı geçişten ÖNCE (ilettiğiniz inceleme — DOĞRU, rapor düzeltildi)
 - **Durum:** rapor §6'da "geçişten sonra yeni kör set" yazıyordu; yanlış sıraydı. Düzeltildi (§6 adım 6): 13 / 17 / 18 kodlandıktan sonra
@@ -256,3 +265,18 @@
 - **Uydurma gerekçe tek yerde:** Luna'nın İngilizce taslağı "For security, the safe is not available for guest use." — "For security"
   bilgi tabanında yok. Misafire GİTMEDİ (kapı tuttu), ev sahibinin taslağında duruyor. Bilinen sınır: sözel gerekçe uydurmasını yakalayan
   kapı yok (iddia ölçümü yalnız saat / tarih / tutar / kod görür).
+
+## 21. "For security" gibi KAYNAKSIZ GEREKÇE — ayrı bulgu (kurucu: veto eklemeden önce kapsam + meşru cevaplara etkisi)
+- **Ölçüm (ücretsiz, kayıtlı 19 canlı hat raporu, 1.456 satır, 718 giden cevap):** gerekçe kalıbı ("for security / safety reasons",
+  "güvenlik nedeniyle", "güvenliğiniz için", "aus Sicherheitsgründen", "only after a confirmed reservation"…) 24 cevapta geçiyor:
+  - **misafire giden: 1** — 5.1, 30 Eylül canlı ayar koşusu: "güvenlik nedeniyle telefon numaramı platform üzerinden paylaşmıyorum" (bilgi
+    tabanında böyle bir gerekçe yok; ev sahibinin numarası sorulmuştu);
+  - **23'ü taslak** — zaten başka kapılar tutmuştu (sır / enjeksiyon / acil); bunların bir kısmı MEŞRU güvenlik uyarısı ("for your safety,
+    turn off the electricity" — su baskını taslağı).
+- **Değerlendirme:** genel bir kelime yasağı bütün kayıtlarda yalnız 1 gönderimi değiştirirdi; meşru güvenlik uyarılarını da tutardı (acil
+  durumlar zaten otomatik gitmiyor). Kasa cevabındaki "misafir kullanımına kapalıdır" ise bilgi tabanına DAYANIYOR (madde 20).
+- **Öneri:** şimdilik veto YOK. Seçenekler: (a) cevap istemine "bilgi tabanında olmayan gerekçe yazma" kuralı (ücretli cevap kıyası ister);
+  (b) yalnız RET cümlesinde ("paylaşamıyorum / can't share … because / for … reasons") ve bilgi tabanında karşılığı olmayan gerekçe için dar
+  bir kontrol — önce kayıtlarda yanlış tutma ölçümü. Sıklık düşük (1/718) → acil değil.
+- **Müşteriye etkisi:** bugün nadiren uydurma bir gerekçe gidebilir; cevabın kendisi (kod / numara vermeme) doğru.
+- **Beklerken yapılmayan:** veto / istem değişikliği.

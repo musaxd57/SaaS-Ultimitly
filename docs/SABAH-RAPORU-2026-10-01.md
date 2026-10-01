@@ -181,9 +181,9 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 | `OPENAI_STYLE_REASONING_EFFORT` | `none` | Luna kararıyla | üslupta düşünme kapalı |
 | `OPENAI_MODEL` | `gpt-6-luna` | Luna kararıyla (adım 6) | cevap modeli Luna |
 | `OPENAI_REASONING_EFFORT` | `none` | Luna kararıyla | düşünme kapalı (en iyi ölçülen) |
-| `AI_HOST_DECISION_HOLD_ENABLED` | `1` | karar 1 | "ev sahibinizin kararıdır" misafire gitmez, tek e-posta |
-| `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` | `1` | karar 17 + 18 | şikâyete bağlı yardım sorusu ayrı istek değil (tarif istisnası 18 kodlanınca) |
-| `AI_KB_FEE_RULE_ENABLED` | `1` | karar 7 | KB'deki sabit hizmet ücreti söylenir |
+| `AI_HOST_DECISION_HOLD_ENABLED` | `1` | ŞİMDİ yazılabilir (5.1 ile ölçüldü; kararınız) | "ev sahibinizin kararıdır" misafire gitmez, tek e-posta. Madde 13 kodlanana kadar çok sorulu mesajda güvenli soru da bekler |
+| `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` | `1` | 17 / 18 kodu canlıda (RC53) + son kör kabul yeşil | anlam ilişkisi (17) + tehlikesiz arıza tarifi (18 "a"); ŞİMDİ açılırsa eski kodla modem tarifi kesilir |
+| `AI_KB_FEE_RULE_ENABLED` | `1` | ŞİMDİ yazılabilir (iki modelde ölçüldü) | KB'deki sabit hizmet ücreti koşuluyla söylenir; konaklama fiyatı / indirim / iade / tazminat üretilmez |
 | `AI_ACCESS_CODE_COMPLETE_ENABLED` | `1` | ayrı karar | giriş tarifinde kod |
 | `AI_CODE_GREETING_ENABLED` | `1` | K17 | adsız yapay zekâ + kodla selam |
 

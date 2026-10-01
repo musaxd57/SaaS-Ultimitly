@@ -1131,7 +1131,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   verilse tutar (`items_complaint_dependent`); cevaplanabilir istek yoksa cevap gitmez (`items_nothing_answered`, ikinci kemer).
   "Gürültüden uyuyamadık, yine olursa ne yapacağız?" → hiçbir şey gitmez; "… Wi-Fi ağı hangisi?" → yalnız Wi-Fi. Önceki turun şikâyeti
   bağlamaz (K8). Kök neden istem katmanları `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` KAPALI (anlama: şikâyete bağlı yardım sorusu ayrı
-  istek değil; cevap: şikâyetçiye kural hatırlatma yok, 112 yalnız gerçek can güvenliği). Kapsam genişletme (iade / görüşme) sabah kararı.
+  istek değil; cevap: şikâyetçiye kural hatırlatma yok, 112 yalnız gerçek can güvenliği). 🚨 10-01 sabah (kurucu kararı, Sabah Kararları
+  17 + 18 "a"; `conversation-items/relation.ts`): öğe kipi + bu anahtar BİRLİKTE açıkken liste karar VERMEZ — önce anlam ilişkisi: anlama
+  katmanı istek başına `relation` (own_topic / fix_request / follow_up / unclear; eksik = unclear = TUT), bağlayıcı talepler şikâyet + iade /
+  iptal + ev sahibi talebi; kod koruması yalnız sıkılaştırır ("kendi konusu" denen istek talebin konu kavramını paylaşıyorsa / konusuzsa /
+  şikâyette ev kuralıysa bağlı). Arıza çözümü yalnız şikâyette, cihaz / tesis türünde, tehlike sınıfı (sigorta / şalter / elektrik, gaz /
+  kombi / şofben / sıcak su cihazı, yangın / duman) DIŞINDA; kapı `kb:` kaynağı ister (`items_fix_unverified`) ve cevabı tehlike sözlüğünde
+  tarar (`items_fix_hazard`). Bağımsızlık işareti gönderim izni DEĞİL (bütün kapılar aynen); hassas talep açık + mesaj başına tek e-posta;
+  tehlikede tarif hazır taslakta. İşaret yokken (anahtar kapalı) liste BİREBİR.
 - 🚨 **BEKLEYEN RİSK ÖĞE BAZINDA (kurucu 09-26):** eski cevapsız risk yeni mesajla KAYBOLMAZ ama TÜM konuşmayı BLOKE
   ETMEZ. "Bekleyen herhangi bir yüksek riskli etiket → cevabın tamamı tutulur" KONUŞMA DÜZEYİ kapısı REDDEDİLDİ (`6c0e6b4`
   gönderilmedi, yedek dal `backup/pending-highstakes-conversation-gate-2026-09-26`) — geri getirme. Kanalda istek düzeyi
@@ -1569,7 +1576,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 **10-01 GECE (kurucu /loop; kararlar `docs/SABAH-KARARLARI-2026-10-01.md` 1–16, rapor `docs/SABAH-RAPORU-2026-10-01.md`):** Codex
 K10 / K4 / K11 / K3 / K6 / K9 doğrulandı + düzeltildi; ev sahibi kararı tutulur (`AI_HOST_DECISION_HOLD_ENABLED`, KAPALI); şikâyete bağlı istek
 kodda (anahtarsız); ücret kuralı kurucu ifadesi; katman bazında model; K7 migration 58 + hepsi RC50 ile CANLI (08:37). Gece ölçümü (≈$11 / $25):
-Luna `none` cevap modeli kör kabulde 5.1 + aynı bayraklara göre geri düşmüyor; "bilgim yok" kuralı yedi dile genişletildi (RC51, itilecek).
+Luna `none` cevap modeli kör kabulde 5.1 + aynı bayraklara göre geri düşmüyor; "bilgim yok" kuralı yedi dile genişletildi (RC51 CANLI, CI #1275).
+10-01 sabah kurucu kararları: 17 (anlam ilişkisi, iade + ev sahibi talebi dahil) + 18 "a" (tehlike sınıfı otomatik değil) KODDA (anahtar arkasında);
+son kör kabul (set 3) canlı geçişten ÖNCE, son kod + bayraklar + modellerle.
 Railway 10-01 içinde kapanacak (kurucu); yedek alındı, şifreli arşivde.
 **09-30 gece — LUNA ÖLÇÜMÜ (≈$5,9 / $12; `docs/olcum/LUNA-KARSILASTIRMA-2026-09-30.md`):** Luna `none` olgu ve hızda 5.1'e eşit/iyi,
 üç eksik bayrak arkasında düzeltildi (19/19 mutasyon); kör kabulde 1 şikâyet cevabı gitti → geçiş önerilmedi. KARAR BEKLEYEN: anlama
