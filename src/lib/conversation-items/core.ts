@@ -15,6 +15,7 @@
 
 import { HIGH_STAKES_RISK_TYPE_LIST, NEVER_AUTO_REPLY_INTENT_LIST } from "@/lib/ai/gate-evidence";
 import { UNDERSTANDING_INTENTS, type UnderstandingIntent } from "@/lib/ai/semantic/understanding-schema";
+import type { ItemsRelationGate } from "./relation";
 
 export const ITEM_KINDS = UNDERSTANDING_INTENTS;
 export type ItemKind = UnderstandingIntent;
@@ -236,6 +237,8 @@ export function replyRiskAttributable(riskType: string | null | undefined, items
  * şikâyete bağlıdır: planda cevaplanabilir sayılmaz ve doğrudan kapıya gelse de tutulur (kapıda ikinci kemer — model / anlama katmanı
  * aynı hatayı tekrar yaparsa kod korur). Bağımsız bilgi ("Wi-Fi ağı hangisi?", otopark, giriş / çıkış saati, bagaj, ulaşım, çevre
  * önerisi, giriş / anahtar) sır kuralları uygunsa cevaplanır. Önceki turun şikâyeti bugünkü isteği bağlamaz (K8).
+ * 🚨 10-01 sabah (kurucu kararı, Sabah Kararları 17): bu liste YALNIZ ilişki işareti yokken (öğe kipi açık, şikâyet takibi anahtarı
+ * kapalı — bugünkü canlı yol) karar verir. İşaret varken karar `relation.ts`te: önce anlam ilişkisi, sonra kod koruması.
  */
 export const COMPLAINT_INDEPENDENT_KINDS: ReadonlySet<ItemKind> = new Set<ItemKind>([
   "wifi",
@@ -269,6 +272,11 @@ export interface ItemsGateInput {
   paymentHeld: boolean;
   /** Bu turun cevaplanabilir isteklerinin türleri (konaklama değişikliği ertelemesi beklenir mi — `STAY_CHANGE_ITEM_KINDS`). */
   answerableKinds: readonly ItemKind[];
+  /**
+   * İlişki kipi (anlama katmanı işaret verdi): cevaplanabilir isteklerin + bu turun bağlayıcı taleplerinin olguları. Varken kapının ikinci
+   * kemeri `relation.relationGateHold` (liste DEĞİL); yokken bugünkü `complaintDependentHold`.
+   */
+  relation?: ItemsRelationGate;
 }
 
 /**

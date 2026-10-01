@@ -13,7 +13,7 @@ import { hasRecordedHandoff } from "@/lib/ai/host-voice";
 import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { extractTurnItems } from "@/lib/conversation-items/extract";
-import { composeItemsPlan, hintKey } from "@/lib/conversation-items/plan";
+import { composeItemsPlan, hintKey, relationFactsOf } from "@/lib/conversation-items/plan";
 import {
   hasEmergency,
   labelsHoldWholeTurn,
@@ -170,7 +170,9 @@ async function runArm(data: Dataset, s: Scenario, arm: "today" | "items"): Promi
             const held: (ItemRiskFacts & { earlier?: boolean })[] = [...prior, ...turnItems.filter((i) => i.sensitivity === "sensitive")];
             const hints = new Map<string, string>();
             for (const m of ex.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind), it.hint);
-            const plan = composeItemsPlan({ turnItems, held, hints });
+            // İlişki kipi (kurucu kararı 10-01 sabah): anlama katmanı işaret verdiyse ürünle AYNI olgular (`plan.relationFactsOf`).
+            const relations = relationFactsOf(ex.messages);
+            const plan = composeItemsPlan({ turnItems, held, hints, ...(relations ? { relations } : {}) });
             row.answerable = plan.answerable.map((a) => `${a.ref}:${a.item.kind}`).join(" ");
             row.heldKinds = [...new Set(held.map((h) => h.kind))].join(" ");
             if (!plan.allHeld) conversationItems = plan.replyItems;

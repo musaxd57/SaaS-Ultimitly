@@ -8,7 +8,7 @@ import type { MessageUnderstanding, UnderstandingHistoryEntry } from "@/lib/ai/s
 import { buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemsGateInput } from "./core";
 import { extractTurnItems, type ItemsDegradedReason } from "./extract";
 import type { ReplyItemsInput } from "./reply-block";
-import { composeItemsPlan, hintKey } from "./plan";
+import { composeItemsPlan, hintKey, relationFactsOf } from "./plan";
 import {
   applyItemEvent,
   applyWithdrawals,
@@ -113,8 +113,16 @@ export async function planItemsTurn(
   const turnHeld = held.filter((h) => inTurn.has(h.messageId));
   const hints = new Map<string, string>();
   for (const m of extracted.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind), it.hint);
+  // İlişki kipi (kurucu kararı 10-01 sabah): anlama katmanı istek başına işaret verdiyse olgular plana gider; yoksa bugünkü liste kuralı.
+  const relations = relationFactsOf(extracted.messages);
   const heldForPlan = held.map((h) => ({ ...h, earlier: !inTurn.has(h.messageId) }));
-  return { mode: "items", turnItems, held, turnHeld, ...composeItemsPlan({ turnItems, held: heldForPlan, hints }) };
+  return {
+    mode: "items",
+    turnItems,
+    held,
+    turnHeld,
+    ...composeItemsPlan({ turnItems, held: heldForPlan, hints, ...(relations ? { relations } : {}) }),
+  };
 }
 
 /**

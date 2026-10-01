@@ -124,6 +124,7 @@ import {
   type ItemsGateInput,
 } from "@/lib/conversation-items/core";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+import { relationGateHold } from "@/lib/conversation-items/relation";
 import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import {
   holdTurnLevelItems,
@@ -269,6 +270,11 @@ export function autoReplyGateVerdict(
     claimedActions?: ClaimedActionsDeclaration | null;
     /** Konuşma öğeleri beyanı (`conversation-items/reply-block.ts`); yalnız öğe kipinde okunur. */
     answeredRequests?: AnsweredRequestsDeclaration | null;
+    /**
+     * Kodda DOĞRULANMIŞ kaynak beyanı (`ai/index.ts verifyUsedSources`). Yalnız ilişki kipindeki arıza çözümü okur (bilgi tabanına
+     * dayanmayan çözüm GİTMEZ — kurucu kararı 10-01 sabah, Sabah Kararları 18 "a"); verilmezse "kaynak yok" sayılır.
+     */
+    usedSources?: readonly string[];
   },
   guestMessage: string,
   /** What the MODEL sees beyond the last message: recent history bodies + the
@@ -497,8 +503,19 @@ export function autoReplyGateVerdict(
     if (decl.refs.length === 0) return hold("items_nothing_answered");
     if (items.paymentHeld && namesPaymentMethod(result.reply ?? "", { paymentContext: true })) return hold("items_payment_held");
     // Kurucu kararı 10-01: bu turun tutulan şikâyetine BAĞLI istek cevaplanabilir sayılmışsa (plan dışı yol / gelecekteki değişiklik)
-    // cevap gitmez — planın ikinci kemeri (`core.complaintDependentHold`). Bağımsız bilgi (Wi-Fi, otopark…) etkilenmez.
-    if (complaintDependentHold(items)) return hold("items_complaint_dependent");
+    // cevap gitmez — planın ikinci kemeri. İlişki kipinde (10-01 sabah, Sabah Kararları 17 + 18 "a") karar `relation.relationGateHold`:
+    // yanlış "bağımsız" işaretiyle gelen bağlı istek de tutulur (kod koruması), cevaplanan arıza çözümü bilgi tabanına dayanmalı ve
+    // tehlike sınıfına (elektrik / gaz / sıcak su cihazı / yangın) değmemeli. İşaret yokken bugünkü liste kuralı (`core`).
+    if (items.relation) {
+      const relationHold = relationGateHold(items.relation, {
+        text: result.reply ?? "",
+        answeredRefs: decl.refs,
+        usedSources: result.usedSources,
+      });
+      if (relationHold) return hold(relationHold);
+    } else if (complaintDependentHold(items)) {
+      return hold("items_complaint_dependent");
+    }
     if (
       items.held.length > 0 &&
       !items.answerableKinds.some((k) => STAY_CHANGE_ITEM_KINDS.has(k)) &&

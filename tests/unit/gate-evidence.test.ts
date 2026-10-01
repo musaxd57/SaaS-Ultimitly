@@ -42,6 +42,19 @@ const ITEMS_COMPLAINT = {
   },
 };
 
+// İlişki kipi (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a"): şikâyet turunda R1 = cevaplanan arıza çözümü (Wi-Fi modemi).
+const ITEMS_FIX = {
+  items: {
+    held: buildItemsForMessage({ requests: [{ intent: "complaint_issue" }], lexicalLabels: [] }),
+    paymentHeld: false,
+    answerableKinds: ["wifi" as const],
+    relation: {
+      requests: [{ ref: "R1", kind: "wifi" as const, relation: "fix_request" as const, topics: ["wifi"], generic: false, hazard: false }],
+      anchors: [{ kind: "complaint_issue" as const, topics: ["wifi"], hazard: false }],
+    },
+  },
+};
+
 describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", () => {
   const cases: [string, Parameters<typeof autoReplyGateVerdict>[0], string, Parameters<typeof autoReplyGateVerdict>[2], string][] = [
     ["model cevabı yok", { ...ok, source: "fallback" }, WIFI_Q, undefined, "not_model"],
@@ -70,6 +83,14 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       "items_payment_held",
     ],
     ["öğe kipi: şikâyete bağlı istek cevaplanabilir sayılmış", declared, WIFI_Q, ITEMS_COMPLAINT, "items_complaint_dependent"],
+    ["öğe kipi: arıza çözümü bilgi tabanına dayanmıyor", { ...declared, usedSources: [] }, WIFI_Q, ITEMS_FIX, "items_fix_unverified"],
+    [
+      "öğe kipi: arıza çözümü tehlike sınıfına değiyor",
+      { ...declared, usedSources: ["kb:wifi"], reply: "Restart the router; if that fails, reset the breaker in the fuse box." },
+      WIFI_Q,
+      ITEMS_FIX,
+      "items_fix_hazard",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {

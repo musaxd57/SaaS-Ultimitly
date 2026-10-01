@@ -96,13 +96,26 @@ export const UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM = [
   'Example: "Gürültü yüzünden uyuyamadık, yine olursa ne yapacağız?" -> requests [complaint_issue] only. "Gürültüden uyuyamadık. Bu arada Wi-Fi ağı hangisi?" -> requests [complaint_issue, wifi].',
 ].join("\n");
 
+/**
+ * İLİŞKİ eki (kurucu kararı 10-01 sabah, Sabah Kararları 17 + 18 "a"; `conversation-items/relation.ts`): öğe kipi + şikâyet takibi anahtarı
+ * birlikte açıkken şikâyet takibi ekinin YERİNE geçer — bağlı yardım sorusu yine talebin parçasıdır (iade / iptal ve ev sahibi talebi
+ * dahil), ayrı kalan her istek `relation` işareti taşır. Kod bu işareti yalnız sıkılaştırarak okur; belirsiz → tutulur.
+ */
+export const UNDERSTANDING_RELATION_ADDENDUM = [
+  "",
+  "COMPLAINTS, REFUNDS AND REQUESTS TO REACH THE HOST: a help question that follows from a complaint or problem, from a refund / cancellation request or from a request to reach the host in the same unanswered messages ('what should we do if it happens again?', 'can someone come?', 'who do we call?', 'is this normal?', 'what happens now?') is PART of that request: ONE request with that intent (complaint_issue / cancellation_refund / human_request), not a separate request. A question about an unrelated topic stays a separate request.",
+  "- requests[].relation (every request): own_topic = it has its own subject and can be answered on its own, also when the guest complains, asks for a refund or asks for the host in the same messages; fix_request = it asks how to fix, restart, reset or work around something the guest reports as broken or not working (intent = the broken thing: wifi, appliance_help, parking, access_keys, amenities); follow_up = it depends on a complaint, a refund / cancellation or a request to reach the host; unclear = you cannot tell. The complaint, refund or host request itself is own_topic.",
+  'Examples: "Gürültü yüzünden uyuyamadık, yine olursa ne yapacağız?" -> [complaint_issue own_topic]. "Gürültüden uyuyamadık. Bu arada Wi-Fi ağı hangisi?" -> [complaint_issue own_topic, wifi own_topic]. "Klima çalışmıyor; çöp konteyneri nerede?" -> [complaint_issue own_topic, trash own_topic]. "İnternet iki saattir yok, modemi nasıl resetleriz?" -> [complaint_issue own_topic, wifi fix_request]. "Otopark kapısı açılmıyor, nasıl çıkacağız?" -> [complaint_issue own_topic, parking fix_request]. "İade istiyorum, şimdi ne olacak?" -> [cancellation_refund own_topic].',
+].join("\n");
+
 /** Anlama katmanının sistem istemi — kiplere göre TEK kurucu (çağrı ve ölçer istem kimliği aynı fonksiyondan). */
 export function understandingSystemPromptFor(opts: { items?: boolean; rules?: boolean; complaintFollowup?: boolean }): string {
+  const relation = opts.items === true && opts.complaintFollowup === true;
   return [
     UNDERSTANDING_SYSTEM_PROMPT,
     ...(opts.items ? [UNDERSTANDING_ITEMS_PROMPT_ADDENDUM] : []),
     ...(opts.rules ? [UNDERSTANDING_RULES_PROMPT_ADDENDUM] : []),
-    ...(opts.complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
+    ...(relation ? [UNDERSTANDING_RELATION_ADDENDUM] : opts.complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
   ].join("\n");
 }
 
@@ -246,7 +259,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
       model,
       system: understandingSystemPromptFor({ items, rules, complaintFollowup }),
       user,
-      schema: understandingSchemaFor({ items, rules }),
+      schema: understandingSchemaFor({ items, rules, followup: complaintFollowup }),
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 600,
       maxCompletionTokens: 4_000,
@@ -254,7 +267,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed", ms: Date.now() - started };
-    const value = parseUnderstanding(res.data, items || rules ? { items, rules } : undefined);
+    const value = parseUnderstanding(res.data, items || rules ? { items, rules, followup: complaintFollowup } : undefined);
     if (!value) return { status: "failed", ms: Date.now() - started };
     // Süresi dolmuş girdi de olabilir: önce SİL, sonra ekle — `set` var olan anahtarı eski sırasında
     // bırakır ve taze girdi ilk çıkarılan olurdu (inceleme 09-24).

@@ -11,8 +11,11 @@
 import { ITEM_KIND_LABELS_TR, type ItemKind } from "./core";
 
 export interface ReplyItemsInput {
-  /** Cevaplanabilir istekler. `hint` anlama katmanının kısa Türkçe arama sorgusu (PII'siz; yoksa tür adı). */
-  answerable: readonly { ref: string; kind: ItemKind; hint: string }[];
+  /**
+   * Cevaplanabilir istekler. `hint` anlama katmanının kısa Türkçe arama sorgusu (PII'siz; yoksa tür adı). `fix`: şikâyet edilen arızanın
+   * çözümü (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a") — yalnız bilgi tabanındaki adımlarla cevaplanır.
+   */
+  answerable: readonly { ref: string; kind: ItemKind; hint: string; fix?: boolean }[];
   /** Ev sahibine bırakılan istekler (bu tur + önceki turlar; `earlier` = önceki bir turun mesajında — K8). */
   held: readonly { kind: ItemKind; earlier?: boolean }[];
 }
@@ -33,7 +36,16 @@ function cleanHint(s: string): string {
  * VERMEZ (bugünkü mesajdaki yeni bir riski önceki öğeden ayırabilmek için). Önceki öğe yoksa blok bayt bayt eski biçim.
  */
 export function buildItemsPromptBlock(items: ReplyItemsInput): string {
-  const answerable = items.answerable.map((a) => `  - ${a.ref} · ${ITEM_KIND_LABELS_TR[a.kind]}${a.hint ? ` · "${cleanHint(a.hint)}"` : ""}`);
+  const answerable = items.answerable.map(
+    (a) => `  - ${a.ref} · ${ITEM_KIND_LABELS_TR[a.kind]}${a.hint ? ` · "${cleanHint(a.hint)}"` : ""}${a.fix ? " · ARIZA ÇÖZÜMÜ" : ""}`,
+  );
+  // Arıza çözümü yoksa blok bayt bayt eski biçim (pinli).
+  const fixRule = items.answerable.some((a) => a.fix)
+    ? `
+ARIZA ÇÖZÜMÜ istekleri: YALNIZ bilgi tabanında yazan adımları ver (adım ekleme, tahmin yürütme) ve usedSources'a o bilgi tabanı
+kaynağını yaz; bilgi tabanında bu arızanın çözümü yoksa o isteği CEVAPLAMA (answeredRequests'e koyma). Elektrik panosu / sigorta,
+gaz, kombi / şofben / sıcak su cihazı ya da yangınla ilgili bir adım YAZMA.`
+    : "";
   const held = [...new Set(items.held.filter((h) => !h.earlier).map((h) => ITEM_KIND_LABELS_TR[h.kind]))].map((l) => `  - ${l}`);
   const earlier = [...new Set(items.held.filter((h) => h.earlier).map((h) => ITEM_KIND_LABELS_TR[h.kind]))].map((l) => `  - ${l}`);
   const earlierBlock =
@@ -53,7 +65,7 @@ ${held.length > 0 ? held.join("\n") : "  (yok)"}${earlierBlock}
 KURALLAR: reply YALNIZ cevaplanacak istekleri cevaplar; bırakılan bir isteği (ödeme yöntemi, şikâyet, iade, ev sahibiyle
 görüşme vb.) onaylama, reddetme, özür dileme, ödeme yöntemi / hesap bilgisi yazma. intent, riskLevel ve riskType'ı her
 zamanki gibi TÜM cevapsız mesajlara göre ver (bırakılanlar dahil — ayrımı kod yapar). JSON'a "answeredRequests" alanını
-da EKLE (zorunlu): cevapladığın isteklerin kimlikleri, ör. ["R1"]; hiçbirini cevaplamadıysan [].`;
+da EKLE (zorunlu): cevapladığın isteklerin kimlikleri, ör. ["R1"]; hiçbirini cevaplamadıysan [].${fixRule}`;
 }
 
 /**

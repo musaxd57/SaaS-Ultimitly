@@ -16,6 +16,7 @@
 
 import { STAY_CHANGE_KINDS, normalizeHhmm, type UnderstandingStaySignal } from "./stay-change";
 import { HOUSE_RULE_TOPICS, RULE_STANCES, type HouseRuleTopic, type RuleStance } from "@/lib/house-rules/core";
+import { ITEM_RELATIONS, type ItemRelation } from "@/lib/conversation-items/relation-kinds";
 
 /** Kapalı niyet kümesi — yönlendirme, arama ve analitik için ETİKET; karar vermez. */
 export const UNDERSTANDING_INTENTS = [
@@ -187,13 +188,25 @@ const RULE_FIELDS = {
   rule_stance: { type: "string", enum: [...UNDERSTANDING_RULE_STANCES] },
 } as const;
 
-/** Kipe göre şema: öğe kipi (`items`) ve kural kipi (`rules`) birlikte açılabilir. Kural kipi kapalıyken var olan NESNE döner. */
-export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean } = {}) {
+/**
+ * ŞİKÂYET / İADE / EV SAHİBİ TALEBİ YANINDAKİ SORU (kurucu kararı 10-01 sabah, Sabah Kararları 17 + 18 "a"; `conversation-items/relation.ts`):
+ * öğe kipi + şikâyet takibi anahtarı (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED`) birlikte açıkken her istek ilişki işareti taşır. Biri kapalıyken
+ * şema bayt bayt eskisi (pinli).
+ */
+const RELATION_FIELD = { relation: { type: "string", enum: [...ITEM_RELATIONS] } } as const;
+
+/**
+ * Kipe göre şema: öğe kipi (`items`), kural kipi (`rules`) ve ilişki kipi (`followup`, yalnız öğe kipiyle) birlikte açılabilir. Ek alan
+ * yokken var olan NESNE döner.
+ */
+export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean; followup?: boolean } = {}) {
   const base = opts.items ? UNDERSTANDING_JSON_SCHEMA_ITEMS : UNDERSTANDING_JSON_SCHEMA;
-  if (!opts.rules) return base;
+  const relation = opts.items === true && opts.followup === true;
+  if (!opts.rules && !relation) return base;
   const item = base.schema.properties.requests.items;
+  const extraRequired = [...(opts.rules ? ["rule_topic", "rule_stance"] : []), ...(relation ? ["relation"] : [])];
   return {
-    name: `${base.name}_rules`,
+    name: `${base.name}${opts.rules ? "_rules" : ""}${relation ? "_rel" : ""}`,
     strict: true as const,
     schema: {
       ...base.schema,
@@ -203,8 +216,8 @@ export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean 
           type: "array",
           items: {
             ...item,
-            required: [...item.required, "rule_topic", "rule_stance"],
-            properties: { ...item.properties, ...RULE_FIELDS },
+            required: [...item.required, ...extraRequired],
+            properties: { ...item.properties, ...(opts.rules ? RULE_FIELDS : {}), ...(relation ? RELATION_FIELD : {}) },
           },
         },
       },
@@ -226,6 +239,11 @@ export interface UnderstoodRequest {
   message?: number;
   /** Yalnız kural kipinde: ev kuralı konusu + misafirin tutumu; konu yoksa / tanınmıyorsa YOK. */
   rule?: { topic: HouseRuleTopic; stance: RuleStance };
+  /**
+   * Yalnız ilişki kipinde (öğe kipi + şikâyet takibi): isteğin bu turdaki şikâyet / iade / ev sahibi talebiyle ilişkisi. Eksik ya da
+   * tanınmayan değer "unclear" olur (kurucu: "İlişki belirsizse ilgili soruyu tut").
+   */
+  relation?: ItemRelation;
 }
 
 export interface MessageUnderstanding {
@@ -251,7 +269,10 @@ function cleanQuery(v: unknown): string | null {
  * Model çıktısını STRICT çözer. Üst düzey biçim bozuksa `null` (= katman başarısız). Tek tek istek
  * kalemleri daha yumuşak: tanınmayan niyet taşıyan kalem DÜŞER (geri kalanı kullanılır); boş sorgu kalemi düşürmez.
  */
-export function parseUnderstanding(raw: unknown, opts?: { items?: boolean; rules?: boolean }): MessageUnderstanding | null {
+export function parseUnderstanding(
+  raw: unknown,
+  opts?: { items?: boolean; rules?: boolean; followup?: boolean },
+): MessageUnderstanding | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   if (!member(UNDERSTANDING_LANGUAGES, r.language) || !Array.isArray(r.requests)) return null;
@@ -259,6 +280,7 @@ export function parseUnderstanding(raw: unknown, opts?: { items?: boolean; rules
   if (!sc || typeof sc !== "object" || typeof sc.requested !== "boolean" || !member(STAY_CHANGE_KINDS, sc.kind)) return null;
   const items = opts?.items === true;
   const rules = opts?.rules === true;
+  const relation = items && opts?.followup === true;
   const requests: UnderstoodRequest[] = [];
   for (const it of r.requests.slice(0, MAX_UNDERSTOOD_REQUESTS)) {
     if (!it || typeof it !== "object") continue;
@@ -277,6 +299,8 @@ export function parseUnderstanding(raw: unknown, opts?: { items?: boolean; rules
     if (rules && member(HOUSE_RULE_TOPICS, x.rule_topic) && member(RULE_STANCES, x.rule_stance)) {
       request.rule = { topic: x.rule_topic, stance: x.rule_stance };
     }
+    // İlişki kipi: tanınmayan / eksik işaret "unclear" — istek DÜŞMEZ, yanındaki soruyu cevaplanabilir de saymaz (güvenli yön).
+    if (relation) request.relation = member(ITEM_RELATIONS, x.relation) ? x.relation : "unclear";
     requests.push(request);
   }
   const out: MessageUnderstanding = {

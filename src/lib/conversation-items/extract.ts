@@ -18,6 +18,7 @@ import {
   type UnderstandingHistoryEntry,
 } from "@/lib/ai/semantic/understanding-schema";
 import { buildItemsForMessage, type BuiltItem, type ItemKind } from "./core";
+import { fixHazard, isGenericFollowup, requestTopics, stricterRelation, type ItemRelationFacts } from "./relation";
 
 export const ITEMS_DEGRADED_REASONS = [
   "understanding_unavailable",
@@ -36,8 +37,11 @@ export type TurnWithdrawal = { kind: ItemKind; messageId: string } | { kind: Ite
 export type TurnItems =
   | {
       mode: "items";
-      /** Cevapsız mesajlar (kronolojik): öğeler + kelime ağının o mesajdaki TÜM etiketleri (tur düzeyi karar için). */
-      messages: { messageId: string; items: BuiltItem[]; labels: string[] }[];
+      /**
+       * Cevapsız mesajlar (kronolojik): öğeler + kelime ağının o mesajdaki TÜM etiketleri (tur düzeyi karar için) + ilişki kipinde öğe
+       * türü başına ilişki olguları (aynı türden iki istek birleşir: en kısıtlayıcı işaret, konuların birleşimi).
+       */
+      messages: { messageId: string; items: BuiltItem[]; labels: string[]; relations?: Partial<Record<ItemKind, ItemRelationFacts>> }[];
       withdrawals: TurnWithdrawal[];
     }
   | { mode: "degraded"; reason: ItemsDegradedReason };
@@ -68,15 +72,42 @@ export function extractTurnItems(input: {
     if (!u.requests.some((r) => r.message === i)) return { mode: "degraded", reason: "message_without_request" };
   }
   const labelsOf = input.labelsOf ?? detectRiskTypes;
+  // İlişki kipi: anlama katmanı istek başına işaret verdiyse (öğe kipi + şikâyet takibi anahtarı). Yoksa olgu kurulmaz → plan bugünkü
+  // liste kuralını koşar.
+  const relationMode = u.requests.some((r) => r.relation !== undefined);
   const messages = win.unanswered.map((m, i) => {
     const labels = labelsOf(m.body);
+    const requests = u.requests.filter((r) => r.message === i + 1);
+    let relations: Partial<Record<ItemKind, ItemRelationFacts>> | undefined;
+    if (relationMode) {
+      relations = {};
+      const bodyHazard = fixHazard(m.body);
+      for (const r of requests) {
+        const prev = relations[r.intent];
+        const facts: ItemRelationFacts = {
+          relation: r.relation ?? "unclear",
+          topics: requestTopics(r.queryTr, r.queryOriginal, r.intent),
+          generic: isGenericFollowup(r.queryTr, r.queryOriginal),
+          hazard: bodyHazard || fixHazard(r.queryTr) || fixHazard(r.queryOriginal),
+        };
+        relations[r.intent] = prev
+          ? {
+              relation: stricterRelation(prev.relation, facts.relation) ?? "unclear",
+              topics: [...new Set([...prev.topics, ...facts.topics])].sort(),
+              generic: prev.generic && facts.generic,
+              hazard: prev.hazard || facts.hazard,
+            }
+          : facts;
+      }
+    }
     return {
       messageId: m.id as string,
       items: buildItemsForMessage({
-        requests: u.requests.filter((r) => r.message === i + 1).map((r) => ({ intent: r.intent, hint: r.queryTr })),
+        requests: requests.map((r) => ({ intent: r.intent, hint: r.queryTr })),
         lexicalLabels: labels,
       }),
       labels,
+      ...(relations ? { relations } : {}),
     };
   });
   const withdrawals: TurnWithdrawal[] = [];

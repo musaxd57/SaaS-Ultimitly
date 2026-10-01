@@ -31,7 +31,10 @@ export const GATE_BLOCK_DETAILS = [
   "items_touch_held", // bırakılan ya da bilinmeyen istek beyan edildi
   "items_nothing_answered", // hiçbir güvenli istek cevaplanmadı (gönderecek bir şey yok)
   "items_payment_held", // ödeme öğesi tutuluyken cevapta ödeme yöntemi / yeri
-  "items_complaint_dependent", // bu turun tutulan şikâyetine bağlı istek cevaplanmış (kurucu kararı 10-01)
+  "items_complaint_dependent", // bu turun tutulan şikâyetine / iadesine / ev sahibi talebine bağlı istek cevaplanmış (kurucu kararı 10-01)
+  // Arıza çözümü (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a"; `conversation-items/relation.ts`):
+  "items_fix_unverified", // cevaplanan arıza çözümü bilgi tabanına dayanmıyor (`kb:` kaynağı yok)
+  "items_fix_hazard", // cevaplanan arıza çözümü tehlike sınıfına değiyor (elektrik / gaz / sıcak su cihazı / yangın)
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 
