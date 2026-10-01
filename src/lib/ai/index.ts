@@ -5,6 +5,7 @@ import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code
 import { kbFeeRuleEnabled } from "./kb-fee-rule";
 import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
 import { accessCodeCompleteEnabled } from "./access-code-complete";
+import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
@@ -142,6 +143,7 @@ function replySystemPrompt(): string {
     kbFeeRule: kbFeeRuleEnabled(),
     stayDeferralPlain: stayDeferralPlainEnabled(),
     accessCodeComplete: accessCodeCompleteEnabled(),
+    complaintFollowup: complaintFollowupRuleEnabled(),
   });
 }
 

@@ -85,6 +85,17 @@ export const UNDERSTANDING_RULES_PROMPT_ADDENDUM = [
   'Examples: "Can we smoke on the balcony?" -> rule_topic smoking, rule_stance asks_permission. "Our party of 4 will arrive at 3pm" -> intent checkin_time, rule_topic party_event, rule_stance not_about_guest. "Bu akşam doğum günü partisi yapacağız" -> rule_topic party_event, rule_stance announces. "Evcil hayvan kabul ediyor musunuz?" -> rule_topic pets, rule_stance asks_info. "Wi-Fi şifresi ne?" -> rule_topic none, rule_stance none.',
 ].join("\n");
 
+/**
+ * ŞİKÂYET TAKİBİ eki (kök neden, kurucu kararı 10-01; `complaint-followup.ts`, anahtar `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED`; yalnız
+ * `complaintFollowup: true` çağrısında sistem istemine EKLENİR — kapalıyken istem ve önbellek anahtarı bayt bayt eski). Şikâyete
+ * bağlı yardım sorusu ayrı istek değildir; bağımsız soru ayrı kalır.
+ */
+export const UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM = [
+  "",
+  "COMPLAINT FOLLOW-UPS: a help question that follows from a complaint or problem in the same unanswered messages ('what should we do if it happens again?', 'can someone come?', 'who do we call?', 'is this normal?') is PART of that complaint: ONE request with intent complaint_issue, not a separate request. A question about an unrelated topic stays a separate request.",
+  'Example: "Gürültü yüzünden uyuyamadık, yine olursa ne yapacağız?" -> requests [complaint_issue] only. "Gürültüden uyuyamadık. Bu arada Wi-Fi ağı hangisi?" -> requests [complaint_issue, wifi].',
+].join("\n");
+
 /** Katmanın gördüğü pencere (erken giriş akışı: pencereye sığmayan cevapsız mesaj varsa otomatik gönderim yok). */
 export const UNDERSTANDING_WINDOW = { maxMessages: UNDERSTANDING_MAX_UNANSWERED, messageCap: UNDERSTANDING_MESSAGE_CAP } as const;
 
@@ -122,6 +133,11 @@ export interface UnderstandingInput {
    * şema, istem ve önbellek anahtarı bayt bayt eskisi.
    */
   rules?: boolean;
+  /**
+   * Şikâyet takibi kuralı (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED`; karar noktası `kb-retrieve.ts`): şikâyete bağlı yardım sorusu ayrı
+   * istek sayılmaz. Verilmezse istem ve önbellek anahtarı bayt bayt eskisi.
+   */
+  complaintFollowup?: boolean;
   fetchImpl?: typeof fetch;
 }
 
@@ -204,8 +220,10 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const user = buildUnderstandingUserContent(input);
     const items = input.items === true;
     const rules = input.rules === true;
+    const complaintFollowup = input.complaintFollowup === true;
     // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
-    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}`;
+    // Şikâyet takibi eki de ayrı girdi (farklı istem); kapalıyken anahtar değişmez.
+    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}`;
     const key = mode ? cacheKey(`${model}${mode}`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -220,6 +238,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
         UNDERSTANDING_SYSTEM_PROMPT,
         ...(items ? [UNDERSTANDING_ITEMS_PROMPT_ADDENDUM] : []),
         ...(rules ? [UNDERSTANDING_RULES_PROMPT_ADDENDUM] : []),
+        ...(complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
       ].join("\n"),
       user,
       schema: understandingSchemaFor({ items, rules }),

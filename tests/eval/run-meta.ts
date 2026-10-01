@@ -52,6 +52,7 @@ export const PIPELINE_FLAGS = [
   "AI_STAY_DEFERRAL_PLAIN_ENABLED",
   "AI_ACCESS_CODE_COMPLETE_ENABLED",
   "AI_HOST_DECISION_HOLD_ENABLED",
+  "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

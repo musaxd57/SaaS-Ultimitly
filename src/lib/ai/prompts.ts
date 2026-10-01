@@ -1280,6 +1280,21 @@ export const ACCESS_CODE_COMPLETE_REPLACEMENTS: readonly Replacement[] = [
   ],
 ];
 
+// ── ŞİKÂYET TAKİBİ (`complaint-followup.ts`; anahtar `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` KAPALI) ─────────────────────────────────
+// Luna kör kabulünde gürültüden şikâyet edene "sessiz saatlere uyun" hatırlatması + 112 önerisi gitti (kod koruması artık tutar;
+// bu katman taslağın kendisini düzeltir). Tek çapa: Bölüm 10.6'nın empati satırı AYNEN kalır, ardına iki kural girer.
+export const COMPLAINT_FOLLOWUP_REPLACEMENTS: readonly Replacement[] = [
+  [
+    "  - Empati/özür EN FAZLA BİR cümle; hemen çözüme geç.\n",
+    "  - Empati/özür EN FAZLA BİR cümle; hemen çözüme geç.\n" +
+      "  - ŞİKÂYET EDENE KURAL HATIRLATMASI YAZMA: şikâyet eden misafir kuralı çiğneyen değildir (gürültüden şikâyet edene \"sessiz\n" +
+      "    saatlere uyun\" denmez, kirden şikâyet edene \"çöpü dışarı çıkarın\" denmez). Şikâyete bağlı \"yine olursa ne yapalım / biri\n" +
+      "    gelecek mi\" sorusuna çözüm, süre ya da eylem UYDURMA.\n" +
+      "  - 112 / polis / acil servis yönlendirmesi YALNIZ gerçek can güvenliği durumunda (yangın, duman, gaz kokusu, su baskını,\n" +
+      "    elektrik çarpması, yaralanma, saldırı / şiddet). Gürültü, arıza, temizlik, konfor şikâyetinde 112 / polis / acil servis ÖNERME.\n",
+  ],
+];
+
 /**
  * Sistem istemi KATMANLARI — taban istemin üstüne SABİT SIRAYLA uygulanır (kod selamı → ücret kuralı → bildirimsiz erteleme → giriş
  * kodu). Sıra, önceki sabitlerle (`REPLY_SYSTEM_PROMPT_CODE_GREETING`, `…_KB_FEE_RULE`, `…_CODE_GREETING_KB_FEE_RULE`) aynıdır; çapalar
@@ -1290,12 +1305,14 @@ export interface ReplyPromptFlags {
   kbFeeRule: boolean;
   stayDeferralPlain: boolean;
   accessCodeComplete?: boolean;
+  complaintFollowup?: boolean;
 }
 const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, readonly Replacement[]])[] = [
   ["codeGreeting", SYSTEM_CODE_GREETING_REPLACEMENTS],
   ["kbFeeRule", KB_FEE_RULE_REPLACEMENTS],
   ["stayDeferralPlain", STAY_DEFERRAL_PLAIN_REPLACEMENTS],
   ["accessCodeComplete", ACCESS_CODE_COMPLETE_REPLACEMENTS],
+  ["complaintFollowup", COMPLAINT_FOLLOWUP_REPLACEMENTS],
 ];
 const derivedPromptCache = new Map<string, { text: string; missing: string[] }>();
 
@@ -1324,7 +1341,7 @@ export function replySystemPromptFor(f: ReplyPromptFlags): string {
   return derivePrompt(f).text;
 }
 
-/** Pin testi için: dört anahtarın 16 birleşiminin her birinde türetmede bulunamayan çapalar (hepsi BOŞ olmalı). */
+/** Pin testi için: anahtarların TÜM birleşimlerinin her birinde türetmede bulunamayan çapalar (hepsi BOŞ olmalı). */
 export function REPLY_SYSTEM_PROMPT_DERIVATION_MISSING(): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (let mask = 0; mask < 1 << PROMPT_LAYERS.length; mask++) {

@@ -20,6 +20,7 @@ import { stayTimeline, understandingDateLine, writtenAtEn } from "@/lib/ai/stay-
 import { orgTimezone } from "@/lib/timezone";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
+import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { fillGuestPlaceholdersInItems, type GuestPlaceholderValues } from "@/lib/kb-placeholders";
 import { codeGreetingEnabled } from "@/lib/ai/code-greeting";
 import { promptRedactionNames, redactGuestNamesForPrompt } from "@/lib/ai/prompt-name-redaction";
@@ -147,6 +148,8 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
     ...(conversationItemsEnabled() ? { items: true } : {}),
     // Ev kuralı gölge kipi (#188 dilim 3) — aynı karar noktası; kapalıyken alan hiç gitmez.
     ...(houseRulesShadowEnabled() ? { rules: true } : {}),
+    // Şikâyet takibi kuralı (kurucu kararı 10-01) — aynı karar noktası; kapalıyken alan hiç gitmez.
+    ...(complaintFollowupRuleEnabled() ? { complaintFollowup: true } : {}),
   });
   const queriesNeeded =
     understandingEnabled() &&

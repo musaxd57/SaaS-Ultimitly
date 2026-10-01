@@ -43,9 +43,9 @@ const flags = (codeGreeting: boolean, kbFeeRule: boolean, stayDeferralPlain: boo
 afterEach(() => vi.unstubAllEnvs());
 
 describe("giriş tarifinde kod — istem türevi", () => {
-  it("dört anahtarın 16 birleşiminin HİÇBİRİNDE kayıp çapa yok", () => {
+  it("anahtarların TÜM birleşimlerinin HİÇBİRİNDE kayıp çapa yok (beş anahtar → 32; şikâyet takibi katmanı 10-01)", () => {
     const missing = REPLY_SYSTEM_PROMPT_DERIVATION_MISSING();
-    expect(Object.keys(missing)).toHaveLength(16);
+    expect(Object.keys(missing)).toHaveLength(32);
     for (const [combo, list] of Object.entries(missing)) expect(list, combo).toEqual([]);
   });
 
