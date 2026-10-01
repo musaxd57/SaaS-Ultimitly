@@ -184,6 +184,19 @@ describe("email-outbox", () => {
     const planted = await prisma.emailOutbox.findUniqueOrThrow({ where: { id: "00000000-0000-4000-8000-000000000001" } });
     expect(planted.status).toBe("canceled");
     expect(planted.payloadEnc).toBeNull();
+    // 🚨 15 ajan A13: şifresi çözülemeyen satır SESSİZ iptal edilmez — geçiş tabanlı alarm durumu açılır.
+    expect(await prisma.systemLock.count({ where: { name: "alert-state:email-outbox:undecryptable" } })).toBe(1);
+    // Temiz bir parti alarm durumunu kapatır.
+    await enqueueReset(u.id, "22222222", u.email);
+    await drainEmailOutboxOnce({ send: okSend() });
+    expect(await prisma.systemLock.count({ where: { name: "alert-state:email-outbox:undecryptable" } })).toBe(0);
+  });
+
+  it("KONTROL: temiz gönderim alarm durumu AÇMAZ", async () => {
+    const u = await makeUser();
+    await enqueueReset(u.id, "33333333", u.email);
+    await drainEmailOutboxOnce({ send: okSend() });
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "alert-state:email-outbox:" } } })).toBe(0);
   });
 
   it("RETRY/BACKOFF: provider failure keeps the payload and schedules the future attempt; terminal failed NULLs it", async () => {

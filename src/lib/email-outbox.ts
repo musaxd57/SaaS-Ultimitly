@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { encryptSecretBound, decryptSecretBound } from "@/lib/crypto";
 import { emailService } from "@/lib/email";
 import { errorWithContext, reportError } from "@/lib/report-error";
+import { alertTracker } from "@/lib/alert-state";
 import { verifyUrl, verifyEmailHtml, appBaseUrl } from "@/lib/auth/email-verify";
 
 // ---------------------------------------------------------------------------
@@ -488,12 +489,13 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
   `);
   result.claimed = rows.length;
 
+  let undecryptable = 0;
   for (const row of rows) {
     try {
       // NO batch-level clock is passed on: each row re-reads time at the moment
       // it needs it (lease from DB now(), liveness/backoff/sentAt from a fresh
       // Date). A long batch must not make later rows reason about a stale past.
-      await processClaimedRow(row, claimToken, send, result);
+      if ((await processClaimedRow(row, claimToken, send, result)) === "undecryptable") undecryptable++;
     } catch (err) {
       // One poison row must not abort the batch; the claim TTL re-frees it.
       // Id CONTEXT'te DEĞİL mesajda: throttle context bazlı, satır başına ayrı
@@ -504,6 +506,26 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
       );
     }
   }
+  // ŞİFRESİ ÇÖZÜLEMEYEN satır (anahtar değişti / AAD uyuşmuyor / bozuk yük) SESSİZCE iptal ediliyordu (15 ajan A13): `ENCRYPTION_KEY`
+  // (ya da anahtar yokken `AUTH_SECRET`) kuyruğa alma ile gönderim arasında değişirse uçuştaki her sıfırlama / doğrulama e-postası
+  // alarmsız kayboluyordu. Geçiş tabanlı alarm (CLAUDE.md periyodik alarm kuralı): ilk arızada bir kez + 24 sa hatırlatma; temiz
+  // partide temizlenir. Yalnız satır alındıysa (boş geçiş durum okumaz).
+  if (rows.length > 0) {
+    try {
+      const alarm = await alertTracker("email-outbox:");
+      if (undecryptable > 0) {
+        await alarm.fail(
+          "undecryptable",
+          "email-outbox undecryptable",
+          new Error(`email outbox: ${undecryptable} row(s) could not be decrypted and were canceled`),
+        );
+      } else {
+        await alarm.ok("undecryptable");
+      }
+    } catch {
+      // Alarm durumu okunamadı — gönderimi etkilemez.
+    }
+  }
   return result;
 }
 
@@ -512,7 +534,7 @@ async function processClaimedRow(
   claimToken: string,
   send: NonNullable<EmailDrainDeps["send"]>,
   result: EmailDrainResult,
-): Promise<void> {
+): Promise<void | "undecryptable"> {
   const cancelSelf = async (): Promise<void> => {
     await prisma.emailOutbox.updateMany({
       where: { id: row.id, claimedBy: claimToken, status: "claimed" },
@@ -529,8 +551,9 @@ async function processClaimedRow(
     if (typeof parsed?.secret !== "string" || typeof parsed?.recipient !== "string") return cancelSelf();
     payload = parsed;
   } catch {
-    // Wrong AAD (ciphertext moved between rows) / tamper / key change.
-    return cancelSelf();
+    // Wrong AAD (ciphertext moved between rows) / tamper / key change — iptal + alarm (↑ drain sonu).
+    await cancelSelf();
+    return "undecryptable";
   }
 
   // PRE-SEND GATE (one short locked TX): the row must still be the CURRENT
