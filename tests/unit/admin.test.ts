@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { isSuperAdmin, isImpersonating, actorEmail } from "@/lib/admin";
+import { isSuperAdmin, isImpersonating, actorEmail, isSuperAdminEmail } from "@/lib/admin";
 import type { SessionPayload } from "@/lib/auth";
 
 // ⚠️ `mfa: true` 08-05'te EKLENDİ. Operatör yetkisi artık yalnız e-posta
@@ -71,6 +71,13 @@ describe("operator panel authorization", () => {
     expect(isSuperAdmin(orphan)).toBe(false);
     // KONTROL: aynı alanlar operatör kimliğiyle birlikte → bürünen operatörün yetkisi (bugünkü davranış).
     expect(isSuperAdmin({ ...orphan, actorUserId: "u1" })).toBe(true);
+  });
+
+  it("isSuperAdminEmail: büyük harf / boşluk farkı listeyi atlatmaz (10-01, A02-F12; mutasyonda yaşayan küçük harf katlaması)", () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", "operator@example.com");
+    expect(isSuperAdminEmail("operator@example.com")).toBe(true);
+    expect(isSuperAdminEmail("  Operator@EXAMPLE.com ")).toBe(true);
+    expect(isSuperAdminEmail("customer@client.com")).toBe(false);
   });
 });
 
