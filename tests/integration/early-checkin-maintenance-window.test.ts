@@ -75,6 +75,17 @@ describe("mülkte açık bakım — varış gününe kadar, her bağlamda", () =
     expect((await facts(t, own.id))?.maintenanceOpen).toBe(true);
   });
 
+  it("KONTROL: ayrılan / gelen konaklamaya bağlı açık bakım 'açık sorun'dur (openIssue), burada ÇİFT sayılmaz", async () => {
+    const t = await org();
+    const previous = await reservation(t.propertyId, "2026-10-12", "2026-10-14");
+    const own = await reservation(t.propertyId, "2026-10-14", "2026-10-16");
+    await task(t.propertyId, { reservationId: previous.id });
+    await task(t.propertyId, { reservationId: own.id });
+    const f = await facts(t, own.id);
+    expect(f?.maintenanceOpen).toBe(false);
+    expect(f?.openIssue).toBe(true);
+  });
+
   it("KONTROL: başka mülkün açık bakımı sayılmaz", async () => {
     const t = await org();
     const other = await org();

@@ -4,6 +4,8 @@ import { extractTurnItems } from "@/lib/conversation-items/extract";
 import { composeItemsPlan, relationFactsOf } from "@/lib/conversation-items/plan";
 import { fixHazard, isFixRecipeText, kbRecipeTopics, topicsOf, touchesHeldDevice } from "@/lib/conversation-items/relation";
 import type { ItemKind } from "@/lib/conversation-items/core";
+import { autoReplyGateVerdict } from "@/lib/automation";
+import type { SuggestReplyResult } from "@/lib/ai/types";
 
 // ---------------------------------------------------------------------------
 // ÖNCE ANLAM İLİŞKİSİ — 15 ajan incelemesi A06 (10-01 gece, ölçüldü). Kurucu kararları 17 + 18 "a" + 23'ün KOD tarafındaki açıklar:
@@ -217,6 +219,44 @@ describe("5 — cevap bırakılan cihazı ADSIZ anıp adım veriyor", () => {
     const wifi = run({ intent: "wifi", q: "wifi şifresi", relation: "own_topic" });
     expect(wifi.gateItems.heldDeviceTopics).toEqual(["dishwasher"]);
     expect(wifi.gateItems.heldDeviceGenericRef).toBeUndefined();
+  });
+});
+
+describe("5 — kapı bağlantısı: plan bayrağı autoReplyGateVerdict'e ulaşır (liste kipi, canlı yapılandırma)", () => {
+  const verdict = (reply: string): SuggestReplyResult => ({
+    intent: "general",
+    confidence: 0.95,
+    reply,
+    risk: null,
+    priority: "standard",
+    source: "openai",
+    actionSuggestion: null,
+    riskLevel: "none",
+    detectedLanguage: "tr",
+    riskType: null,
+    usedSources: ["kb:luggage"],
+    missingInfo: [],
+    statedCheckoutTime: null,
+    answeredRequests: { ok: true, refs: ["R1"] },
+  });
+  const complaint = { kind: "complaint_issue" as const, sensitivity: "sensitive" as const, riskType: null };
+  // Liste kipinde şikâyetten BAĞIMSIZ tür (bavul) — bağlı tür (çöp) önce `items_complaint_dependent` ile tutulurdu.
+  const MSG = "Bulaşık makinesi çalışmıyor. Bavulları nereye bırakabiliriz?";
+  const items = (generic: boolean) => ({
+    items: {
+      held: [complaint],
+      paymentHeld: false,
+      answerableKinds: ["luggage" as const],
+      heldDeviceTopics: ["dishwasher"],
+      ...(generic ? { heldDeviceGenericRef: true as const } : {}),
+    },
+  });
+  const reply = "Bavullarınızı girişteki dolaba bırakabilirsiniz. Makineyi kapatıp fişini 1 dakika çekin, sonra tekrar başlatın.";
+  it("🚨 bayrak varken adsız 'makine' adımı → items_held_touched", () => {
+    expect(autoReplyGateVerdict(verdict(reply), MSG, items(true))?.detail).toBe("items_held_touched");
+  });
+  it("KONTROL: bayrak yokken (cevaplanan istek cihaz) aynı cevap bu sebeple tutulmaz", () => {
+    expect(autoReplyGateVerdict(verdict(reply), MSG, items(false))?.detail ?? "geçti").not.toBe("items_held_touched");
   });
 });
 
