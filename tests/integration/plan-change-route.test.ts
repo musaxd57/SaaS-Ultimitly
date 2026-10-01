@@ -180,6 +180,10 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(502);
     expect((await res.json()).detail).toContain("subscription_locked");
+    // 15 ajan A10 F6: reddedilen deneme de iz bırakır; "değiştirildi" kaydı YAZILMAZ.
+    const rows = await prisma.auditLog.findMany({ where: { action: { startsWith: "billing.plan_change" } } });
+    expect(rows.map((r) => r.action)).toEqual(["billing.plan_change_rejected"]);
+    expect(JSON.parse(rows[0].metadataJson ?? "{}")).toMatchObject({ from: "pro", to: "business" });
   });
 
   it("change: 400 when no preview token is supplied (no blind apply)", async () => {
@@ -283,6 +287,10 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
     expect(first.status).toBe(202);
     expect((await first.json()).pending).toBe(true);
+    // 🚨 15 ajan A10 F6: tahsilat gerçekleşmiş olabilir → "bekliyor" kaydı; "değiştirildi" kaydı YAZILMAZ.
+    const rows = await prisma.auditLog.findMany({ where: { action: { startsWith: "billing.plan_change" } } });
+    expect(rows.map((r) => r.action)).toEqual(["billing.plan_change_pending"]);
+    expect(JSON.parse(rows[0].metadataJson ?? "{}")).toMatchObject({ from: "pro", to: "business" });
     // We must NOT blindly re-send (could double-apply) → the same token is still spent.
     const retry = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
     expect(retry.status).toBe(409);

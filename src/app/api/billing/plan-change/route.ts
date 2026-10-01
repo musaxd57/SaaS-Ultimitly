@@ -157,6 +157,13 @@ export const POST = withOwner(async (session, req) => {
       // → release the nonce so the same token can be retried after fixing the cause.
       await releasePlanChangeNonce(token.jti);
       await clearPending(); // definitive: nothing applied → nothing pending
+      // Para rotasında denenen ama Paddle'ın REDDETTİĞİ değişiklik de iz bırakır (15 ajan A10 F6): kim, hangi plandan hangisine.
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: auditActor(session),
+        action: "billing.plan_change_rejected",
+        metadata: { from: r.currentCode, to: planCode, mode: r.mode, ...auditImpersonation(session) },
+      }).catch(() => {});
       // Surface Paddle's reason (e.g. "Paddle HTTP 400 (subscription_locked...)") so
       // the owner can see WHY without digging the logs. No ids/secrets in the string.
       return NextResponse.json(
@@ -172,6 +179,14 @@ export const POST = withOwner(async (session, req) => {
     // settle and tell the customer we're confirming.
     const currentPrice = await getSubscriptionCurrentPriceId(r.providerRef);
     if (currentPrice !== r.priceId) {
+      // 🚨 Tahsilat GERÇEKLEŞMİŞ OLABİLİR (cevap kayboldu) ama iz yoktu (15 ajan A10 F6; hızlı dalın 08-09 düzeltmesinin kardeşi):
+      // "bekliyor" kaydı yazılır, gerçekleşen değişikliğin eylemi ("billing.plan_change") webhook / mutabakat netleştirince anlamını korur.
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: auditActor(session),
+        action: "billing.plan_change_pending",
+        metadata: { from: r.currentCode, to: planCode, mode: r.mode, ...auditImpersonation(session) },
+      }).catch(() => {});
       return NextResponse.json(
         {
           pending: true,
