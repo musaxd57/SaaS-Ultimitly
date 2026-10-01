@@ -11,10 +11,26 @@ import { KB_CHAR_BUDGET, KB_ITEM_CAP } from "@/lib/ai/limits";
 // YAPRAK: yalnız sabitleri içe aktarır (retrieval ile istem arasında döngü olmasın).
 // ---------------------------------------------------------------------------
 
-/** Kalem metnindeki blok ayraç biçimini ("<<KB_END>>") etkisizleştirir — isteme giren her kalem bundan geçer. */
+/**
+ * Kalem metnindeki blok ayraç biçimini ("<<KB_END>>") etkisizleştirir — isteme giren her kalem bundan geçer.
+ * 🚨 SABİT NOKTAYA KADAR (10-01, 15 ajan incelemesi A07, ölçüldü): tek geçiş iç katmanı silip dış katmanı GERÇEK ayraca çeviriyordu —
+ * "<<<«KB_END»>>>" → "<<KB_END>>" (bilgi tabanı bloğunu kapatıp sahte bir blok açabilirdi). Değişiklik bitene kadar en çok 4 geçiş;
+ * hâlâ ayraç biçimi kalıyorsa (iç içe ayraç saldırısı) ayraç karakterleri TÜMDEN silinir — ayraç biçimi hiçbir yolla kalamaz, maliyet
+ * sınırlı (geçiş sayısı sabit).
+ */
 export function defuseBlockDelimiters(v: string): string {
-  return v.replace(/<<\s*([A-Z_]{2,})\s*>>/gu, "$1").replace(OUR_FENCE_NAME, "$1");
+  let out = v;
+  for (let pass = 0; pass < 4; pass++) {
+    const next = out.replace(GENERIC_FENCE, "$1").replace(OUR_FENCE_NAME, "$1");
+    if (next === out) return out;
+    out = next;
+  }
+  return GENERIC_FENCE_TEST.test(out) || OUR_FENCE_NAME_TEST.test(out) ? out.replace(FENCE_BRACKETS, "") : out;
 }
+
+const GENERIC_FENCE = /<<\s*([A-Z_]{2,})\s*>>/gu;
+const GENERIC_FENCE_TEST = /<<\s*[A-Z_]{2,}\s*>>/u;
+const FENCE_BRACKETS = /[<>«»≪≫＜＞]/gu;
 
 /**
  * KENDİ ayraç ADLARIMIZIN diğer yazımları (09-28 inceleme ajanı — misafir dedektörüyle AYNI sınıf, `fallback.ts`): küçük harf,
@@ -22,6 +38,8 @@ export function defuseBlockDelimiters(v: string): string {
  */
 const OUR_FENCE_NAME =
   /[<«≪＜]{1,2}\s*((?:guest[\s_.\-]*message|history|kb|offer|style|samples)[\s_.\-]*(?:start|end))\s*[>»≫＞]{1,2}/giu;
+const OUR_FENCE_NAME_TEST =
+  /[<«≪＜]{1,2}\s*(?:guest[\s_.\-]*message|history|kb|offer|style|samples)[\s_.\-]*(?:start|end)\s*[>»≫＞]{1,2}/iu;
 
 /** İsteme giren bilgi tabanı satırı (paketleyicinin yazdığı AYNEN). */
 export function kbLine(k: { category: string; title: string; content: string }): string {
