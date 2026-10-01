@@ -382,7 +382,11 @@ Bu dosyaya token/anahtar/parola yazma.
   kuralı KALIR (uydurmayı engeller); gönderim kapıda kapanır. Ölçüt cevabın KENDİ itirafıdır, "kaynak yok" DEĞİL
   (mülk alanından gelen cevap kaynaksız görünür ama dayanaklıdır). Yüklem NESNE + OLUMSUZLAMA dilbilgisidir: `yok`
   nesneye bitişik, cümle sınırı boşluğu keser ama `15.00` bölünmez, İKİ katlama (standart + tr) ayrı pinli;
-  belirsizlik ve savuşturma BİLİNÇLİ dışarıda. Eval harness'ı ürün yüklemini yeniden dışa aktarır (tek kaynak).
+  belirsizlik ve savuşturma BİLİNÇLİ dışarıda. Eval harness'ı ürün yüklemini yeniden dışa aktarır (tek kaynak). 🚨 YEDİ DİL (10-01 gece;
+  Luna ölçümünde tr "…bilgisi elimde olmadığı için", fr "…ne sont pas précisées ici", kıvrık "I don’t have information" ve 5.1'in Almanca
+  itirafı kapıdan geçmişti): FR / DE / ES / RU / AR + TR "elimde değil / bilgim olmadığı / belirtilmemiş"; kıvrık kesme işareti düz olana,
+  NFD aksan birleşir; yeni kalıplar KAPALI tekrar. Çıplak olumsuzluk itiraf değildir ("Il n'y a pas de frais", "No se permiten", "Нет,"),
+  "indiqué" (FR tavsiye) / "no se" (aksansız) / "keinen" / "غير متاح" bilerek yok; iki yönlü batarya `absence-multilingual.test.ts`.
   Önizleme rotaları (`api/ai/test`, `api/demo/ai`) kapıya `reply` VERMEK zorunda (parite pinli).
 - **Çıktı vetosu / makbuzsuz iddia:** ↓Kalıcı ürün kararları. `hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE KOŞMAZ
   (yalnız `QR_INFORMATIONAL_BAND_ENABLED` açıkken; varsayılan kapalı). QR bilgi bandı (0.45–0.75, kapalı): bant
@@ -1251,6 +1255,9 @@ koşar (kol ↔ bayrak uyuşmazlığı fırlatır), kanal yolunun yapı taşlar�
 taşır), bekçi KOŞMAZ (kapanış birebir, sızıntı temkinli); bağlantı pini `conversation-state-wiring.test.ts`. Ölçüler ortak
 `reply-metrics.ts`; bekleme sözü ölçüsü TEK kaynak ürünün çıktı vetosu (09-25 dört koşunun 540 cevabında söz 0). Kör
 set `evals/conversation-state.json` ajanla (30 Eylül sonrası); ilk ücretli koşudan sonra set "görüldü".
+**Konaklama eval'i ölçer sözleşmesi (10-01):** model gövdesi tamamlanmadıysa (zaman aşımı) rapor GEÇERSİZ (yarım tablo "GEÇERLİ" yazılıyordu);
+rapor adı anlama / bekçi modelini VE düşünme ayarını taşır (Luna low koşusu Luna none raporunu ezdi); süre `EVAL_STAY_TIMEOUT_MS`; anlama
+istemi ürünle aynı bayraktan (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` → cfu).
 
 **KB onay (A1, migration 53 CANLI):** `source`/`reviewState`; eski satırın onayı VARSAYILMAZ (varsayılan `legacy`,
 `approved` yalnız POST'ta açık eylem). Erişim ALLOWLIST `legacy+approved`, TEK kapı `kb-review.ts`; `kb-fetch` AND'ler
@@ -1542,7 +1549,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   ücret reddi + p95 11 sn); üç eksik bayrak arkasında (`AI_CODE_GREETING_ENABLED` · `AI_STAY_DEFERRAL_PLAIN_ENABLED` ·
   `AI_ACCESS_CODE_COMPLETE_ENABLED`, KAPALI); ücret kuralı iki modelde nötr (kapalı kalsın). 🚨 Kör kabulde 1 hata → GEÇİŞ YOK:
   anlama katmanı şikâyetin "ne yapacağız" kısmını ayrı öğe yaptı (~1/11, 5.1'de de açık yol), Luna azarlayan + 112 cevabı gönderdi.
-  Kabul seti `evals/luna-acceptance.json` artık GÖRÜLDÜ — sonraki kabul YENİ kör setle. Canlı hat ölçeri `tests/eval/live-pipeline.eval.test.ts`
+  Kabul seti `evals/luna-acceptance.json` artık GÖRÜLDÜ — sonraki kabul YENİ kör setle. **10-01 GECE (son kod; `docs/SABAH-RAPORU-2026-10-01.md`
+  §3):** kör kabul 2 (88) Luna `none` aday ↔ 5.1 aynı bayraklar: gitmez-giden 0 ↔ 1, olgu 44 ↔ 43/48, maliyet 0,34 ↔ 0,94 $ — geri düşmüyor;
+  düşünme low / medium / high hatayı düzeltmiyor (daha çok tutuş, p95 9,8 / 14,5 / 18,5 sn, high'da beyan kaybı) → `none`. Katman kararı
+  (öneri): anlama + bekçi + sıralayıcı + çeviri 5.1'de (Luna bekçisi Türkçe izin cevabını kaçırdı 32/36 ↔ 36/36; çeviri belirteç kaybı),
+  üslup özeti Luna. Set 2 de tanı için okundu → GÖRÜLDÜ. Canlı hat ölçeri `tests/eval/live-pipeline.eval.test.ts`
   (`vitest.eval-live.config.ts`, AYRI veritabanı — 5433 değil).
 - **Model sağlayıcısı kalıcı arızası** (429+`insufficient_quota`, 401/403, 404/`model_not_found`) geçiş tabanlı
   alarma gider (`ai/provider-health.ts`); düz 429/5xx/ağ hatası eski yolda. Misafir her durumda fallback alır.
@@ -1555,6 +1566,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**10-01 GECE (kurucu /loop; kararlar `docs/SABAH-KARARLARI-2026-10-01.md` 1–16, rapor `docs/SABAH-RAPORU-2026-10-01.md`):** Codex
+K10 / K4 / K11 / K3 / K6 / K9 doğrulandı + düzeltildi; ev sahibi kararı tutulur (`AI_HOST_DECISION_HOLD_ENABLED`, KAPALI); şikâyete bağlı istek
+kodda (anahtarsız); ücret kuralı kurucu ifadesi; katman bazında model; K7 migration 58 + hepsi RC50 ile CANLI (08:37). Gece ölçümü (≈$11 / $25):
+Luna `none` cevap modeli kör kabulde 5.1 + aynı bayraklara göre geri düşmüyor; "bilgim yok" kuralı yedi dile genişletildi (RC51, itilecek).
+Railway 10-01 içinde kapanacak (kurucu); yedek alındı, şifreli arşivde.
 **09-30 gece — LUNA ÖLÇÜMÜ (≈$5,9 / $12; `docs/olcum/LUNA-KARSILASTIRMA-2026-09-30.md`):** Luna `none` olgu ve hızda 5.1'e eşit/iyi,
 üç eksik bayrak arkasında düzeltildi (19/19 mutasyon); kör kabulde 1 şikâyet cevabı gitti → geçiş önerilmedi. KARAR BEKLEYEN: anlama
 katmanı öğe bölme düzeltmesi + cevap istemi kuralı (şikâyetçiye kural / 112 yok) + yeni kör set; erteleme gidince ev sahibine haber
