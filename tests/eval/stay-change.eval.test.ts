@@ -155,6 +155,10 @@ async function pool<T>(items: readonly T[], fn: (x: T) => Promise<void>): Promis
 const lines: string[] = [];
 const rows: unknown[] = [];
 let failures = 0;
+// Model gövdesi SONUNA kadar koştu mu (10-01: zaman aşımına uğrayan koşu yarım tabloyla "GEÇERLİ" raporlanıyordu — eksik koşu
+// "geçti" diye okunamaz). Süre `EVAL_STAY_TIMEOUT_MS` ile uzatılır (Luna + düşünme + düşük eşzamanlılık 1 saati aşabilir).
+let modelBodyCompleted = false;
+const TIMEOUT_MS = Number(process.env.EVAL_STAY_TIMEOUT_MS) > 0 ? Math.trunc(Number(process.env.EVAL_STAY_TIMEOUT_MS)) : 3_600_000;
 const saved: Record<string, string | undefined> = {};
 
 describe("konaklama değişikliği anlam katmanı — eval", () => {
@@ -300,8 +304,9 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       for (const [sp, rs] of [...unionRows].sort(([a], [b]) => a.localeCompare(b))) {
         lines.push(...unionMetricsLines(`Karar ölçüleri — ${sp} (cevap modeli beyanı / konu etiketi hariç: alt sınır)`, summarizeUnion(rs)));
       }
+      modelBodyCompleted = true;
     },
-    3_600_000,
+    TIMEOUT_MS,
   );
 
   afterAll(() => {
@@ -319,10 +324,18 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     // Katman bazında model (10-01): anlama ve bekçi ayrı modelde koşabilir → ad ikisini de taşır (ikisi ortak ayardaysa eski ad).
     const tagOf = (m: string) => m.replace(/[^a-z0-9.-]+/gi, "_");
     const [uModel, gModel] = [semanticModel("understanding"), semanticModel("guard")];
-    const modelTag = uModel === gModel ? tagOf(uModel) : `u-${tagOf(uModel)}_g-${tagOf(gModel)}`;
+    // Düşünme ayarı da adda (10-01: Luna low koşusu Luna none raporunu EZDİ — aynı model, aynı kip).
+    const [uEffort, gEffort] = [semanticReasoningEffort("understanding"), semanticReasoningEffort("guard")];
+    const withEffort = (m: string, e: string | undefined) => (e ? `${tagOf(m)}-${e}` : tagOf(m));
+    const modelTag =
+      uModel === gModel && uEffort === gEffort ? withEffort(uModel, uEffort) : `u-${withEffort(uModel, uEffort)}_g-${withEffort(gModel, gEffort)}`;
     const modeSuffix = NLU_MODE_TAG === "temel" ? "" : `-${NLU_MODE_TAG.replaceAll("+", "-")}`;
     const name = SEALED ? `stay-change-FINAL-eval-${stamp}.md` : `stay-change-eval-${stamp}-${modelTag}${modeSuffix}.md`;
-    const status = failures > 0 ? `GEÇERSİZ — ${failures} çağrı düştü` : "GEÇERLİ";
+    const status = !modelBodyCompleted
+      ? "GEÇERSİZ — koşu TAMAMLANMADI (zaman aşımı / hata); tablolar yarım"
+      : failures > 0
+        ? `GEÇERSİZ — ${failures} çağrı düştü`
+        : "GEÇERLİ";
     const head = [
       `# Konaklama değişikliği anlam katmanı — eval (${stamp})`,
       "",
