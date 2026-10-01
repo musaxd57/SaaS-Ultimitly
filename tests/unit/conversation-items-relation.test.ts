@@ -181,6 +181,9 @@ describe("kurucu örnekleri — önce anlam ilişkisi (ürün zinciri)", () => {
       ])),
     ).toEqual([]);
     expect(answerableKinds(planOf("Havuz kaçta açılıyor?", [{ intent: "amenities", q: "havuz saatleri", relation: "own_topic" }], { earlierComplaint: true }))).toEqual(["amenities"]);
+    // Bugünkü bir şikâyet bu soruları bağlardı (konusuz soru / şikâyette ev kuralı); ÖNCEKİ turun şikâyeti bağlamaz.
+    expect(answerableKinds(planOf("Bir şey daha soracağım.", [{ intent: "other", q: "soru", relation: "own_topic" }], { earlierComplaint: true }))).toEqual(["other"]);
+    expect(answerableKinds(planOf("Balkonda sigara içilebilir mi?", [{ intent: "house_rules", q: "balkonda sigara", relation: "own_topic" }], { earlierComplaint: true }))).toEqual(["house_rules"]);
   });
 
   it("KONTROL: ödeme talebi bağlayıcı DEĞİL (kurucu: şikâyet / iade / ev sahibi) — yanındaki konusuz soru bugünkü gibi cevaplanır", () => {
@@ -208,13 +211,44 @@ describe("kurucu örnekleri — önce anlam ilişkisi (ürün zinciri)", () => {
     expect(p.replyItems.answerable[0].fix).toBe(true);
   });
 
-  it("aynı mesajda aynı türden iki istek bir öğe olur: en kısıtlayıcı işaret kalır (kendi konusu + devam → bağlı)", () => {
-    const p = planOf("Klima bozuk. Wi-Fi şifresi neydi, Wi-Fi yine giderse ne yapalım?", [
-      { intent: "complaint_issue", q: "klima bozuk", relation: "own_topic" },
-      { intent: "wifi", q: "wifi şifresi", relation: "own_topic" },
-      { intent: "wifi", q: "wifi giderse ne yapmalı", relation: "follow_up" },
-    ]);
-    expect(answerableKinds(p)).toEqual([]);
+  it("aynı mesajda aynı türden iki istek bir öğe olur: en kısıtlayıcı işaret kalır (kendi konusu + devam → bağlı), sıradan bağımsız", () => {
+    const complaint: Req = { intent: "complaint_issue", q: "klima bozuk", relation: "own_topic" };
+    const own: Req = { intent: "wifi", q: "wifi şifresi", relation: "own_topic" };
+    const follow: Req = { intent: "wifi", q: "wifi giderse ne yapmalı", relation: "follow_up" };
+    const msg = "Klima bozuk. Wi-Fi şifresi neydi, Wi-Fi yine giderse ne yapalım?";
+    expect(answerableKinds(planOf(msg, [complaint, own, follow]))).toEqual([]);
+    expect(answerableKinds(planOf(msg, [complaint, follow, own]))).toEqual([]);
+  });
+
+  it("birleşen istekler: konular BİRLEŞİR (biri şikâyetin konusunu taşıyorsa bağlı), genel soru yalnız hepsi genelse, tehlike biri varsa", () => {
+    // Konu birleşimi: ikinci sorgu yalnız "wifi" der ama birincisi klimayı (şikâyetin konusunu) taşır → bağlı.
+    expect(
+      answerableKinds(planOf("Klima bozuk. Klimanın Wi-Fi uygulaması ve Wi-Fi şifresi?", [
+        { intent: "complaint_issue", q: "klima arızası", relation: "own_topic" },
+        { intent: "wifi", q: "klima wifi uygulaması", relation: "own_topic" },
+        { intent: "wifi", q: "wifi şifresi", relation: "own_topic" },
+      ])),
+    ).toEqual([]);
+    // Genel soru: biri konulu-genel değil ("bilgi lazım"), sonraki genel ("ne yapmalı") → öğe genel SAYILMAZ (kendi konusu var).
+    expect(
+      answerableKinds(planOf("İade istiyorum. Havuz hakkında bilgi lazım; ne yapmalıyız?", [
+        { intent: "cancellation_refund", q: "iade talebi", relation: "own_topic" },
+        { intent: "amenities", q: "bilgi lazım", relation: "own_topic" },
+        { intent: "amenities", q: "ne yapmalı", relation: "own_topic" },
+      ])),
+    ).toEqual(["amenities"]);
+    // Tehlike: mesajda tehlike sözcüğü yok, ama birleşen sorgulardan biri kombiyi soruyor → çözüm tutulur (sıra fark etmez).
+    for (const order of [0, 1]) {
+      const fixes: Req[] = [
+        { intent: "appliance_help", q: "kombi resetleme", relation: "fix_request" },
+        { intent: "appliance_help", q: "televizyon açma", relation: "fix_request" },
+      ];
+      if (order) fixes.reverse();
+      expect(
+        answerableKinds(planOf("Cihaz çalışmıyor, nasıl resetleriz? Televizyon da açılmıyor.", [{ intent: "complaint_issue", q: "cihaz çalışmıyor", relation: "own_topic" }, ...fixes])),
+        String(order),
+      ).toEqual([]);
+    }
   });
 
   it("🚨 olgusu bulunmayan aday (plan dışı girdi) 'belirsiz' sayılır → tutulur", () => {
