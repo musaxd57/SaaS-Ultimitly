@@ -129,13 +129,21 @@
 - **Müşteriye etkisi:** Misafir güvenli sorusunun cevabını alır; karar gerektiren istek hakkında ondan hiçbir şey duymaz.
 - **Beklerken yapılmayan:** plan / kapı değişikliği.
 
-## 14. Wi-Fi arızası + sinirli misafir ("Şifre çalışmıyor, iki saattir internet yok, çok sinir bozucu!")
-- **Durum (ölçüldü):** Bugün canlıda (5.1, aday bayraklar kapalı) şifre + modem yeniden başlatma tarifi GİDER, ev sahibine haber
-  GİTMEZ (Wi-Fi arızası kelime ağında bilerek "Wi-Fi sorusu"). Aday bayraklarla (5.1 ve Luna) cevap TUTULUR + ev sahibine e-posta.
-- **Öneri:** İkisinin ortası — sorun giderme tarifi gitsin VE ev sahibine "Wi-Fi arızası bildirildi" haberi gitsin (arıza gerçekse
-  teknik müdahale gerekir).
-- **Müşteriye etkisi:** Misafir beklemeden tarifi alır; ev sahibi arızadan haberdar olur.
-- **Beklerken yapılmayan:** kural değişikliği.
+## 14. Arıza şikâyeti + bilgi tabanında çözüm tarifi var ("Şifre çalışmıyor, iki saattir internet yok, çok sinir bozucu!")
+- **Durum (ölçüldü — İLK yazdığım "ev sahibine haber gitmiyor" YANLIŞTI, kayıtlarla düzeltildi):**
+  - *Bugün canlıda (5.1, aday bayraklar kapalı):* mesaj iki öğeye bölünüyor → şifre + modem yeniden başlatma tarifi GİDER, şikâyet ev
+    sahibinde açık iş + **e-posta GİDER** (luna-dev-2 R0 ve kör kabul A2'de aynı: "The wifi hasn't worked at all since last night…" →
+    tarif gitti + 1 e-posta). Öğe tasarımınızla uyumlu ("güvenli kısım cevaplanır, hassas kısım ev sahibinde").
+  - *Aday bayraklarla (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED`, 5.1 ve Luna):* anlama katmanı yardım isteğini şikâyetin parçası sayıyor →
+    misafire HİÇBİR ŞEY gitmez, ev sahibine e-posta gider.
+  - Aynı kural "Gürültüden uyuyamadık, yine olursa ne yapacağız?" vakasında doğru çalışıyor (orada güvenli bir cevap yok, model kural
+    hatırlatması + 112 yazıyordu).
+- **Öneri:** Şikâyet takibi kuralı kalsın ama istisnası olsun: bilgi tabanında o arızanın ÇÖZÜM TARİFİ varsa (modem yeniden başlatma,
+  sigorta, sıcak su düğmesi) tarif gitsin + ev sahibine e-posta (bugünkü canlı davranış). Tarif yoksa bugünkü aday davranış (hiçbir şey
+  gitmez). Anlama istemine eklenecek bir cümle + ücretli ölçüm (~$1).
+  - *Örnek:* "Wi-Fi çalışmıyor" → tarif gider + e-posta · "Gürültüden uyuyamadık, yine olursa?" → hiçbir şey gitmez + e-posta.
+- **Müşteriye etkisi:** Arızada misafir beklemeden çözüm adımını alır; ev sahibi her durumda haberdar.
+- **Beklerken yapılmayan:** istem değişikliği. Not: kör kabulde 5.1'e "sızıntı 1/12" yazan satır budur (tarif + e-posta), gerçek sızıntı değil.
 
 ## 15. Şikâyetli turda güvenli soru da cevapsız kalıyor (model-bağımsız) — örnek devir cümleleri
 - **Durum (ölçüldü, 5.1 ve Luna):** "Çöpü nereye atıyoruz? Bu arada klima çalışmıyor." → cevap modeli çöp sorusunu cevaplayıp sonuna
