@@ -419,8 +419,8 @@ const RECIPE_STRONG_PHRASES: readonly string[] = [
   "tekrar baslat",
   // RC60 regresyon koşusu (10-01 gece, set 6): "İnternet kesilirse modemi kapatın, 30 saniye bekleyip yeniden açın" (Türkçe güç döngüsü,
   // İngilizce "turn it back on"un karşılığı) ve dokunmatik "touch and hold the key symbol" tarif sayılmıyordu.
+  // ("yeniden açınız" ayrı girdi DEĞİL: alt dize karşılaştırması "yeniden açın"la zaten tutar — mutasyonda eşdeğerdi, silindi.)
   "yeniden acin",
-  "yeniden aciniz",
   "yeniden acip",
   "yeniden acabilirsiniz",
   "tekrar acin",

@@ -440,6 +440,32 @@ describe("7 — RC60 regresyonu: gerçek tarifler geri, A06 korumaları yerinde"
     expect([...kbRecipeTopics([qa])]).toContain("coffee");
   });
 
+  it("çok satırlı SSS: cihaz ANMAYAN tarif cümlesi cihazı yalnız soru / arıza BAŞLIĞINDAN alır (yedek kural devreye girmez — mutasyon)", () => {
+    // İlk satırın kendi cihazlı tarifi var → "hiç cihaz yok" yedeği koşmaz; ikinci satırın tarifi cihazı başlıktan alır.
+    const header = {
+      title: "Sık sorulanlar",
+      content: "Klima soğutmuyorsa MODE tuşuna basın.\nÇamaşır makinesinin kapağı açılmıyor mu? Sağdaki düğmeye 5 saniye basılı tutun.",
+    };
+    expect([...kbRecipeTopics([header])].sort()).toEqual(["ac", "laundry"]);
+    // KONTROL: önceki cümle başlık değil (bilgi) ve tarif cümlesi cihaz anmıyor → miras YOK.
+    const info = {
+      title: "Sık sorulanlar",
+      content: "Klima soğutmuyorsa MODE tuşuna basın.\nÇamaşır makinesi banyoda. Sağdaki düğmeye 5 saniye basılı tutun.",
+    };
+    expect([...kbRecipeTopics([info])]).toEqual(["ac"]);
+  });
+
+  it.each([
+    // Başlık ölçütü başına TEK işaret (mutasyon): yalnız soru · yalnız "-mıyor" · yalnız koşul (bize yazın satırı tarif değil) · yalnız arıza ifadesi.
+    ["Kahve makinesini nasıl açarım? Sağdaki düğmeye 5 saniye basılı tutun.", "coffee"],
+    ["Çamaşır makinesinin kapağı açılmıyor. Sağdaki düğmeye 5 saniye basılı tutun.", "laundry"],
+    ["Çamaşır makinesi çalışmıyorsa bize haber verin; önce sağdaki düğmeye 5 saniye basılı tutun.", "laundry"],
+    ["If the washing machine is not working, message us; first hold the left button for 5 seconds.", "laundry"],
+  ])("başlık ölçütü tek başına mirası taşır: %j", (line, device) => {
+    const item = { title: "Sık sorulanlar", content: `Klima soğutmuyorsa MODE tuşuna basın.\n${line}` };
+    expect([...kbRecipeTopics([item])].sort()).toEqual(["ac", device].sort());
+  });
+
   it("Türkçe arıza koşulu: 3. şahıs '-mazsa' ve kapalı küme ('sıkışırsa / kesilirse'); 2. şahıs ve 'unutmazsa' değil", () => {
     expect(isFixRecipeText("Kumanda çalışmazsa bariyerin yanındaki tuş takımına 1987 kodunu girin.")).toBe(true);
     expect(isFixRecipeText("Kol yarıda sıkışırsa kolu sonuna kadar aşağı çevirin.")).toBe(true);

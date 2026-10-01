@@ -103,4 +103,9 @@ describe("15 ajan A11 — görev ağı alt dize eşleştirmez (sahte görev yok)
     expect(detectOperationalTask("Havlular bitmiş.", {})?.topic).toBe("havlu");
     expect(detectOperationalTask("Klima bozulmuş.", {})?.topic).toBe("bozulmuş");
   });
+
+  it("🚨 Türkçe sözcük BAŞI şartı: sözcük içindeki eşleşme görev açmaz (\"ko-CAY-a\" çay değildir); sözcük başındaki ekli biçim açar", () => {
+    expect(detectOperationalTask("Kocaya söyledim, sorun yok.", {})).toBeNull();
+    expect(detectOperationalTask("Bitmiş çaylar var mı?", {})?.topic).toBe("çay");
+  });
 });
