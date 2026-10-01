@@ -30,6 +30,8 @@ import { GET, POST } from "@/app/api/chat/[token]/route";
 import GuestChatPage from "@/app/c/[token]/page";
 import PropertyDetailPage from "@/app/(app)/properties/[id]/page";
 import { GuestChatSettings } from "@/components/properties/guest-chat-settings";
+import { CalendarFeed } from "@/components/properties/calendar-feed";
+import { generateCalendarToken } from "@/lib/export/ics";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockAuth = vi.mocked(requireAuth);
@@ -179,5 +181,47 @@ describe("mülk sayfası — destek görünümünde bağlantı / karekod YOK", (
     const settings = findSettings(await render());
     expect(settings!.url).toContain(`/c/${token}`);
     expect(settings!.supportView).toBe(false);
+  });
+
+  // 10-01 (15 ajan incelemesi A02-F1): takvim beslemesinin adresi de kalıcı gizli bağlantıdır — 2 saatlik sınırdan sonra da çalışır.
+  function containsString(node: unknown, needle: string): boolean {
+    if (typeof node === "string") return node.includes(needle);
+    if (node == null || typeof node !== "object") return false;
+    if (Array.isArray(node)) return node.some((n) => containsString(n, needle));
+    if (React.isValidElement(node)) return containsString(node.props, needle);
+    return Object.values(node as Record<string, unknown>).some((v) => containsString(v, needle));
+  }
+  function findFeed(node: unknown): { feedUrl: string } | null {
+    if (node == null || typeof node !== "object") return null;
+    if (Array.isArray(node)) {
+      for (const n of node) {
+        const hit = findFeed(n);
+        if (hit) return hit;
+      }
+      return null;
+    }
+    if (React.isValidElement(node)) {
+      const props = node.props as Record<string, unknown>;
+      if (node.type === CalendarFeed) return props as { feedUrl: string };
+      return findFeed(props.children);
+    }
+    return null;
+  }
+
+  it("🚨 bürünme oturumu → takvim besleme bağlantısı (gizli belirteç) sayfanın HİÇBİR yerinde yok", async () => {
+    const icalToken = generateCalendarToken();
+    await prisma.property.update({ where: { id: propertyId }, data: { icalToken } });
+    mockAuth.mockResolvedValue(supportSession() as never);
+    const tree = await render();
+    expect(findFeed(tree)).toBeNull();
+    expect(containsString(tree, icalToken)).toBe(false);
+  });
+
+  it("KONTROL — sahibin oturumunda takvim besleme bağlantısı belirteçle görünür", async () => {
+    const icalToken = generateCalendarToken();
+    await prisma.property.update({ where: { id: propertyId }, data: { icalToken } });
+    mockAuth.mockResolvedValue(ownerSession() as never);
+    const feed = findFeed(await render());
+    expect(feed!.feedUrl).toContain(`/api/calendar/${icalToken}`);
   });
 });

@@ -189,7 +189,10 @@ export default async function PropertyDetailPage({
   // mutlak URL kurmasın" — bu sayfa o kuralın dışında kalmış tek yerdi.)
   const headerList = await headers();
   const baseUrl = baseUrlFromHost(headerList.get("host"));
-  const feedUrl = `${baseUrl}/api/calendar/${icalToken}`;
+  // Destek görünümünde (bürünme) takvim bağlantısı sayfaya YAZILMAZ (10-01, 15 ajan incelemesi A02-F1): bağlantı kalıcı bir gizli
+  // adrestir — 2 saatlik bürünme sınırından, çıkıştan ve operatör listesinden çıkarılmadan SONRA da çalışır, kullanımı denetim kaydına
+  // girmez, misafir adını taşıyabilir. QR bağlantısıyla aynı kural (kurucu kararı 09-30).
+  const feedUrl = icalToken && !isImpersonating(session) ? `${baseUrl}/api/calendar/${icalToken}` : null;
 
   return (
     <>
@@ -351,7 +354,11 @@ export default async function PropertyDetailPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {icalToken ? <CalendarFeed feedUrl={feedUrl} propertyId={property.id} /> : null}
+              {feedUrl ? (
+                <CalendarFeed feedUrl={feedUrl} propertyId={property.id} />
+              ) : isImpersonating(session) ? (
+                <p className="text-sm text-muted-foreground">Destek görünümünde takvim bağlantısı gösterilmez.</p>
+              ) : null}
             </CardContent>
           </Card>
 
