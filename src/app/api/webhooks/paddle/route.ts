@@ -232,6 +232,13 @@ async function applySubscriptionEvent(
   const orderingGuard = occurredAt
     ? { OR: [{ lastEventAt: null }, { lastEventAt: { lte: occurredAt } }] }
     : {};
+  // 🚨 ABONELİK KİMLİĞİ ATOMİK (K4 ikinci tur, Codex 10-01): yukarıdaki kimlik kontrolü BAYAT okumaya bakar — eski aboneliğin
+  // iptali satırı (A) okuduktan sonra yeni abonelik (B) aktifleşirse güncelleme yalnız kuruluş + olay zamanına bakıp satırı
+  // yeniden "A / iptal" yapıyordu. Aktifleşmeyen olay ancak satır HÂLÂ kendi aboneliğiyse (ya da kimliksizse) yazar; şart
+  // UPDATE'in içinde değerlendirilir (okuma-yazma penceresi yok). Aktifleşen olay (yeni abonelik eskisinin yerine geçer) serbest.
+  const identityGuard =
+    providerRef && status !== "active" ? { OR: [{ providerRef: null }, { providerRef }] } : {};
+  const guardedWhere = { organizationId, AND: [orderingGuard, identityGuard] };
 
   // Settles a pending in-app plan change ONLY when this event actually applied
   // (ordering guard passed) AND it carries the pending TARGET price (holder) —
@@ -312,7 +319,7 @@ async function applySubscriptionEvent(
 
   if (existing) {
     const resU = await prisma.subscription.updateMany({
-      where: { organizationId, ...orderingGuard },
+      where: guardedWhere,
       data: updateData,
     });
     if (resU.count === 1) await settlePending();
@@ -340,7 +347,7 @@ async function applySubscriptionEvent(
     // update — the ordering WHERE decides which of the two events sticks.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       const resF = await prisma.subscription.updateMany({
-        where: { organizationId, ...orderingGuard },
+        where: guardedWhere,
         data: updateData,
       });
       if (resF.count === 1) await settlePending();
