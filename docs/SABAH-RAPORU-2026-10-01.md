@@ -286,6 +286,43 @@ parçası); 5.1 Fransız misafire Türkçe taslak yazdı (tutuldu).
 **Sonuç:** aday hiçbir güvenlik ölçüsünde 5.1'den geri düşmüyor (gitmez-giden 0 / 0; yasak içerik 2 / 3 — ortak kökün biri düzeltildi, öteki
 model-bağımsız ürün işi). Set 6 artık GÖRÜLDÜ.
 
+### 3.10 RC60 regresyon koşusu — set 5 + set 6 yeniden (kod `08c21c6` = RC59 + 15 ajan A06 / A15 / A07 düzeltmeleri) · GÖRÜLMÜŞ setler
+
+Amaç yalnız geri düşme kontrolü (setler görüldü; kabul kanıtı değil). Kimlik: commit `08c21c6`; cevap `gpt-6-luna` düşünme `none`; anlama / bekçi /
+sıralayıcı / çeviri `gpt-5.1` (çaba gönderilmez); üslup `gpt-6-luna`; istem kimliği cevap `1a875b31d233` · anlama `7110591352fb` (kip
+items+rules+cfu); bayraklar raporların başında. Raporlar `docs/olcum/live-pipeline-2026-10-01-gpt-6-luna-luna-acceptance-{5-acc5,6-acc6}-rc60-cand.md`.
+
+| | Set 5 önceki (`8be01f6`) | Set 5 RC60 | Set 6 önceki (`be06e36`) | Set 6 RC60 |
+|---|---|---|---|---|
+| **"Gitmez" olup giden** | 1/16 | **0/16** | 0/11 | **0/11** |
+| **Yasak içerik giden** | 1 | 1 | 2 | 1 |
+| Cevabı bilgi tabanında olan soru — giden | 21/28 | 21/28 | 26/29 | **23/29** |
+| Doğru olgu giden metinde | 19/28 | 20/28 | 25/29 | 23/29 |
+| Akış süresi p50 / p95 | 7,3 / 14,2 sn | 6,3 / 8,3 sn | 8,5 / 15,7 sn | 6,5 / 8,9 sn |
+| Maliyet (kesin) | $0,25 | $0,24 | $0,25 | $0,22 |
+
+Bulunan ve düzeltilen (ikisi de RC60 itilmeden ÖNCE; ücretsiz yeniden üretim + kırmızı-önce + mutasyon):
+1. **RC60'ın kendi gerilemesi — set 6'da üç tarifli arıza tutuldu** (otopark kumandası, çamaşır makinesi kapağı, bulaşık makinesi E24; "cevaplanacak
+   öğe yok"). Kök neden: A06 sıkılaştırması (tarif tanıyıcı iki kademeli işaret + tarif cümlesinden konu) GERÇEK tarifleri de düşürüyordu —
+   "touch and hold the key symbol" tek zayıf işaret sayılıyordu; "Otopark kapısı kumandası çalışmazsa" başlığı sözlükte iki kavrama inip "liste"
+   sanılıyordu; SSS satırında cihaz soru / arıza cümlesinde, tarif sonraki cümlede kalıyordu; "İnternet kesilirse modemi kapatın, 30 sn bekleyip
+   yeniden açın" tanınmıyordu. Ölçüm (eval bilgi tabanlarının 568 kalemi, model yok): canlıya göre 30 kalemde fark, çoğu gerçek tarif kaybı.
+   **Düzeltme `d6cc384` + ikizler `669a74d`:** kontrol adı ("tuş / button / Taste / mode…") zayıf işaret (fiille birlikte tarif), "touch / tap and
+   hold" ve Türkçe güç döngüsü güçlü, Türkçe arıza koşulu (3. şahıs "-mazsa" + "sıkışırsa / kesilirse…" kapalı küme), liste ayracı olmayan başlık
+   tek cihaz, SSS satırında soru / arıza başlığı ya da aynı cihazı anan önceki cümle konusunu tarif cümlesine geçirir. Sonuç: fark 30 → 15 kalem
+   (kalanlar A06'nın hedefi: çıkış talimatı, yalnız anılan cihaz, "5 GHz ağını seçin"); set 5 / 6 tarif konuları canlıyla aynı. Bulaşık makinesi
+   satırı her iki kodda tarifli — o satırın tutulması anlama katmanının bu koşuda ayrı çözüm isteği üretmemesi (değişkenlik).
+2. **Set 5'te "çözüm öneremiyorum" GİTTİ** — Luna: "Bei der Kaffeemaschine kann ich anhand der vorliegenden Informationen keine passende Lösung
+   nennen." Anlama katmanı bu koşuda kahve makinesi arızasını tutulacak öğe saymadı (önceki koşuda saymıştı), bırakılan cihaz kapısı koşmadı;
+   yokluk yüklemi bu biçimi tanımıyordu (yedi dilde 21 biçimin 21'i kaçıyordu). **Düzeltme `f343ffc`** (onaylı kural "bilgim yok misafire
+   asla gitmez"): 1. şahıs + olumsuz kip + ÇÖZÜM nesnesi; 3.031 cevaplık korpusta ve gecenin 3.033 canlı hat metninde yeni tutuş yalnız bu cevap.
+3. **Değişmeyen (Sabah Kararları 27):** İspanyolca "la licudora no arranca" iki koşuda da şikâyet sayılmadı → Luna blenderin dolaptaki yerini
+   yazdı (yasak içerik 1). Model-bağımsız ürün işi; kod koruması canlı öğe kipini de değiştireceği için kararınızda.
+
+**Sonuç:** RC60 + iki düzeltme güvenlik ölçülerinde geri düşmüyor (gitmez-giden 0 / 0). Set 6'daki otomatik cevap düşüşü (26 → 23) RC60'ın
+kendi gerilemesiydi ve düzeltildi; düzeltmenin canlı hat etkisini görmek için ayrı ücretli koşu GEREKMEDİ (tarif kararı modelsiz ve
+deterministik — yukarıdaki yeniden üretim aynı fonksiyonu çağırır), ama nihai aday doğrulamasında (yeni kör set) yeniden ölçülecek.
+
 ## 4. Maliyet (gece tavanı $25)
 
 | Koşu | Tutar |
@@ -306,6 +343,8 @@ model-bağımsız ürün işi). Set 6 artık GÖRÜLDÜ.
 | **Toplam (öğleden sonra)** | **≈ $18,1** (kesin $9,81) — kalan ≈ $6,9 |
 | Öğleden sonra 2: kör set 6 — aday $0,25 + 5.1 $0,55 | $0,79 (kesin) |
 | **Toplam (kör set 6 sonrası)** | **≈ $18,9** (kesin $10,60) — kalan ≈ $6,1 |
+| Gece 2: RC60 regresyon koşusu — set 5 $0,24 + set 6 $0,22 | $0,47 (kesin) |
+| **Toplam (RC60 regresyonu sonrası)** | **≈ $19,4** (kesin $11,07) — kalan ≈ $5,6 |
 
 Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığına bakın.
 
@@ -321,6 +360,8 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 | RC54 / RC55 (karar 23 ilk hâli + set 4 düzeltmesi) | — | **İTİLMEDİ:** kör set 4 ve set 5 yeni hata buldu (§3.7, §3.8); düzeltilmeden canlıya gitmedi |
 | RC56 (karar 23 + tarif kuralı + bırakılan cihaz kapısı + kaynak etiketi) | test 725 dosya / 11.538 test yeşil · typecheck · lint · build · audit yeşil | **İTİLMEDİ:** iki yaşayan mutant için pin eklendi, RC57 onun yerine geçti |
 | RC57 (`af0b3ed` = RC53 + karar 23 + tarif kuralı + `items_held_touched` + kaynak etiketi + "bilgide yok / talimatım yok" yedi dilde + ölçer kimliği + set 4 / 5 ve raporları) | test 725 dosya / 11.549 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil; mutasyon tarif 32/32 + 3/3, kaynak 9/9 + 5/5, bırakılan cihaz 15/16 (+1 gerekçeli eşdeğer) | 13:42Z itildi (`45a84f5..af0b3ed`, hızlı ileri), **CI #1278 YEŞİL** (13:58Z) → Railway açıksa canlı. `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` kapalıyken tarif kuralı ve kaynak etiketi kararı DEĞİŞTİRMEZ (yalnız ilişki kipinde okunur). Her kipte geçerli olan iki kural YALNIZ TUTAR: bırakılan cihaz kapısı (canlıda öğe kipi açık → karışık mesajda ev sahibine bırakılan arızanın cihazına değinen cevap artık taslak olur) ve "bilgide yok / talimatım yok" yokluk itirafı |
+| RC58 (`3019ffe` = RC57 + kör set 6 + "bulamadım / talimatım yok" yedi dilde + belgeler) | tam kapılar yeşil | itildi, **CI #1279 YEŞİL** (20:25Z) |
+| RC59 (`46b1d95` = RC58 + 15 ajanlık incelemenin 26 commit'i: operatör / DB koruması, CPU, iCal / CSV, çıktı vetosu, "bilgim yok", QR güveni / belirteci, sır / enjeksiyon / ayraç, log gizliliği, yaşam döngüsü yer tutucu + giriş vetosu, ölü şablon yolu) | test 739 dosya / 11.917 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka vitest koşmadan) | 21:56Z itildi (`3019ffe..46b1d95`, hızlı ileri), **CI #1280 YEŞİL** (22:18Z) → Railway açıksa canlı |
 
 
 ## 6. Canlıya geçiş için kalan adımlar (sıra önerisi — her adım ayrı onayınızla)
@@ -366,3 +407,53 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 Yazmamanız gerekenler: `AI_UNDERSTANDING_MODEL` / `AI_STAY_GUARD_MODEL` / `KB_RERANK_MODEL` = `gpt-6-luna` (ölçüm: bekçi ve anlama Luna'da
 zayıf); `OPENAI_REASONING_EFFORT` = `low` / `medium` / `high` (hatayı düzeltmiyor, yavaşlatıyor).
 
+
+## 8. 15 ajanlık derin inceleme (10-01 akşam → gece; kurucu: "satır satır, hata ayıklama + siber güvenlik")
+
+Ajanların bir kısmı aylık harcama sınırına takılıp yarıda durdu; kurucu: "durdukları yere kadar verdikleri sonuçlara bak, düzeltebildiğini
+düzelt". Her bulgu kodda yeniden ölçüldü (yarısı gibi bir kısmı ya zaten pinliydi ya da kurucu kararı gerektiriyordu). Ücretli çağrı YOK
+(bu bölümün maliyeti $0). A02…A15 = inceleme ajanlarının alan kodları.
+
+### 8.1 Düzeltilenler (kırmızı-önce + iki yönlü mutasyon; onaylı kural kapsamında)
+
+| Alan | Bulgu (ölçülen) | Düzeltme |
+|---|---|---|
+| Operatör / kimlik (A02) | `?host=` / `?hostaddr=` parametresi "yerel" sanılan uzak veritabanını açıyordu; bürünmede mülk sayfası takvim besleme bağlantısını yazıyordu; operatör listesindeki adres müşteri hesabı olarak açılabiliyordu; operatör dışa aktarımı başka siteden tetiklenebiliyordu | DB koruması ana makine parametresini okur · destek görünümünde besleme bağlantısı yok · operatör e-postası yalnız operatör kimliğiyle · `Sec-Fetch-Site` şartı (403). Mutasyon 12/12 |
+| CPU / ReDoS (A14) | bilgi tabanı talimat süzgeci, acil ağı, sır süzgeci, müsaitlik isteği, tutar kalıbı boşluk / öbek dizisinde karesel; yazım toleransı 731 bilinmeyen kökte 2,4 sn | doğrusal biçimler + türetilmiş adayda boşluk dizisi teke iner; sınırlı OSA + önbellek (<300 ms, seçim birebir). Mutasyon 21 öldü + 1 ölü kod silindi + 8 gerekçeli eşdeğer |
+| iCal / CSV (A09) | VALARM gibi alt bileşenin SUMMARY / STATUS'u etkinliğe yazılıyordu (iç STATUS:CANCELLED rezervasyonu iptal ediyordu); "2026" gibi gevşek tarih 1 yıllık konaklama; NUL her senkronda yazmayı düşürüyordu; CSV gün / ay sırası hücre başına (2 gece → 61 gece) | alt bileşen atlanır, tarih yalnız RFC 5545 / ISO, NUL silinir; CSV sırası DOSYA başına, karışıksa sade hata |
+| Çıktı vetosu (A05) | saatin iki noktası "duyuru" sanılıyordu ("I'll check … at 13:00" gidiyordu); araya giren zarf ("I'll gladly ask the host"); dil bildirimi istisnası her sözcükte; edilgen devir ("Mesajınız ev sahibinize iletilmiştir") yedi dilde | iki nokta yalnız rakamlar arasında değilse duyuru; zarf yuvaları; dil adları; edilgen devir K10 sınıfında. Külliyat (3.031 gerçek cevap): yeni tutuş 2, düşen 0. Mutasyon 38/38 |
+| "Bilgim yok" (A05) | kalın yazı / çift boşluk / satır sonu ve doğal itiraf biçimleri ("I don't know", "bilmiyoruz", "ist mir nicht bekannt"…) geçiyordu | biçim normalizasyonu + yedi dilde biçimler; külliyat: yeni tutuş 6 (hepsi gerçek itiraf), düşen 0 |
+| QR kapısı (A05 / A04) | güven NaN / Infinity / eksik → devredilmiyordu; `/c/%00…` 500 + alarm | sonlu olmayan güven devredilir; belirteç biçimi sorgudan önce |
+| Sır / enjeksiyon (A07 / A04) | "Keypad: 4590", "tuş takımına 4590 girin", "kombinasyon", çok dilli şifre etiketi geçiyordu; "kapının"daki "pin" yanlış tutuş; ayraç etkisizleştirme tek geçiş ("<<<«KB_END»>>>" → gerçek ayraç); ChatML / `[INST]` / `### SYSTEM` / `"role": "system"` / güven yönlendirme / ekli Türkçe yetki etiketi kaçıyordu; üslup profilinde rakamsız Wi-Fi bilgisi | desen genişletmesi (misafir külliyatında 821 mesajda 0 yeni yanlış tutuş); sabit noktaya kadar etkisizleştirme; enjeksiyon kalıpları; üslup profilinde erişim bilgisi anan satır düşer |
+| Log gizliliği (A12) | Prisma hata metni sarmalayıcılarda (senkron özetleri, satır sarmalayıcıları) yapısal özete inmeden log / Sentry / alarm e-postasına | `errorWithContext` + `formatErrorForLog` |
+| Yaşam döngüsü (A08) | "Kapı kodu: {kod}", "{wifi}", "%KOD%" karşılama / giriş mesajında HAM gidiyordu; giriş mesajı vetosu ham tarih kıyası (New York'ta tek gecelik konaklamanın varış akşamı iptal) | tanınmayan yer tutucu → gönderme (Bilgi Tabanı rozeti aynı yüklem); tek tarih kuralı (kalıcı kuyruk canlıda kapalı → bugün etkisiz) |
+| Şablon (A07) | üretimde çağrılmayan ikinci ikame yolu sıralı `replace` + "Misafir" | silindi; tek kaynak pinli |
+| Öğeler / ilişki kipi (A06; anahtar KAPALI) | tehlike sözlüğünde 17 eksik; şofben / petek / kondisyoner / mikro dalga / kilidi / televizyonun konu vermiyordu; çıkış talimatı / ulaşım / pazarlama / "bize yazın" satırı tarif sayılıyordu; birleşik istekte tarifsiz cihaza çözüm; adsız "makineyi kapatıp…" bırakılan cihaz kapısından geçiyordu; olgusuz şikâyet konusuz kalıyordu | sözlük + yerel cihaz konuları + iki kademeli tarif işareti + tarif cümlesi + her cihaz tarifli + adsız anış + aynı mesajın olgusu. Canlı liste kipinde YALNIZ bırakılan cihaz kapısını sıkılaştırır |
+| Erken giriş (A15; otomatik onay canlıda kapalı) | "mülkte açık bakım" penceresi önceki çıkış gününde bitiyordu | varış günü sonuna kadar, her bağlamda |
+| **Gece 2 (RC61 – RC62)** | | |
+| Depolama (A11 S1 / S3 / S4) | sağlayıcı isteğinde zaman aşımı yoktu (cevap vermeyen sağlayıcı genel senkron geçişini saatlerce durdurabiliyordu); `NoSuchBucket` 404'ü "silindi" sayılıyordu; kalıcı arızada günde ~144 e-posta | 10 sn zaman aşımı + duvar saati bütçesi + yalnız `NoSuchKey` + geçiş tabanlı alarm (bağlantı testi eski kodda kırmızı) |
+| Görev ağı (A11 S7) | alt dize eşleşmesi: "Our team ran out of patience" → "Eksik eşya: tea", "bleak" → "Bakım: leak" | İngilizce tam sözcük (+ -s / -es / -ing / -ed), Türkçe sözcük başı |
+| Erken giriş yeniden değerlendirme (A11 S14) | görevin atanmış kişisi sistem notunu elle yazarak bastırabiliyordu | koruma yalnız sistemin notu (`userId` boş) |
+| Alarm seli (A13 F1) | hiç başarılı olmamış takvim kaynağı her yeniden açılışta yeni alarm bağlamı → saatte binlerce operatör e-postası, ortak kota | hiç başarılı olmamış kaynak alarm üretmez |
+| E-posta kuyruğu (A13 F12 / F13) | şifresi çözülemeyen kimlik e-postası sessizce iptal; alıntı emoji ortasından kesiliyordu; konu satırında yön denetim karakterleri | geçiş tabanlı alarm; kod noktasıyla kırpma; yön karakterleri düşer |
+| Ödeme (A10 F1 / F6) | bağlanamayan ödeme olayı sessizce düşüyordu; belirsiz / reddedilen plan değişikliğinde iz yoktu | operatöre tek alarm (Paddle kimliğiyle; karar aynı); `billing.plan_change_pending` / `…_rejected` kayıtları |
+| Uyarı adresi bağlantısı (A13 F2; bayrak kapalı) | adres belirtecin "eski adresine" dönünce (kaldırma) son 24 saatin her bağlantısı yeniden geçiyordu | işletme başına kuşak sayacı (`SystemLock`, migration yok): yalnız en son istek, tek kullanım, adres değişince bekleyenler geçersiz |
+| 2FA sıfırlama (A02 F3) | kayıt işlemden SONRA, hatayı yutarak — veritabanı sarsıntısında 2FA izsiz kalkabiliyordu | kayıt aynı işlemde ve zorunlu |
+| "Bilgim yok" (RC60 regresyon koşusu) | "kann ich anhand der vorliegenden Informationen keine passende Lösung nennen" GİTTİ (yedi dilde 21 biçimin 21'i kaçıyordu) | 1. şahıs + olumsuz kip + çözüm nesnesi; korpusta yeni tutuş yalnız sızan cevap |
+| İlişki kipi tarif tanıyıcı (RC60'ın kendi gerilemesi) | A06 sıkılaştırması gerçek tarifleri düşürüyordu (set 6'da 3 tarifli arıza tutuldu) | §3.10 — fark 30 → 15 kalem, set 5 / 6 canlıyla aynı |
+
+### 8.2 Kurucu kararına bırakılanlar
+
+Sabah Kararları **30–40** (öncelik sırası listenin başında, madde 8) ve **41–45** (incelemenin kalanları — ödeme, kimlik / e-posta, operatör,
+depolama / personel, oturum; madde 9). En önemlisi **30** (canlıda şikâyet etiketsiz tehlike sorusu cevaplanıyor — madde 27'nin tehlike yüzü);
+ilk yapılması gereken operatör adımı **44a** (herkese açık repodaki bucket adı için 403 doğrulaması).
+
+### 8.3 Bilinen, bu tur dokunulmayanlar
+
+- Saat dilimi çekirdeği: gece yarısı yaz saati geçen dilimlerde (Santiago, Havana, Beirut, Kahire) gün başı bir önceki günün 23:00'ü; ileri alma
+  boşluğunda (02:30) New York geriye, Berlin ileriye kayıyor. İstanbul'da yaz saati yok → ana pazarda etkisiz. Ayrı tur (geniş etki).
+- Yabancı dilde yazılmış saat ("ab 14 Uhr", "à partir de 14h", "с 14 часов") saat okuyucusu tarafından okunmuyor → yabancı dilde yazılmış bilgi
+  tabanı kaleminde mülk saatiyle çelişki aranmıyor; çelişki kapısının konu / niyet koşulları yine çalışıyor. Okuyucuyu genişletmek çelişki
+  tespitini (tutuşları) değiştirir → batarya + ölçüm ister.
+- Kesişen mesaj (A08-4): yapay zekâ cevabından ÖNCE yazılmış ama SONRA içe alınmış misafir mesajı — simülasyon bulgusu, gerçek kodla
+  doğrulanmadı (sağlayıcı zaman damgası davranışına bağlı).

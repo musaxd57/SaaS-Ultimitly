@@ -393,7 +393,14 @@ Bu dosyaya token/anahtar/parola yazma.
   keine Anleitung", "je ne trouve aucune", "no he encontrado", "не нахожу", "لا أجد", "bilgiye ulaşamadım") — özne 1. şahıs + bilgi / talimat
   nesnesi ŞART (2. şahıs koşul "Wenn Sie … nicht finden" ve "finden Sie keine Angaben" olgu, pinli). Bilinen: İngilizce eski "can't find"
   kalıbı özneye bakmaz (kayıtlarda 0 cevap, Sabah Kararları 29).
-  Önizleme rotaları (`api/ai/test`, `api/demo/ai`) kapıya `reply` VERMEK zorunda (parite pinli).
+  Önizleme rotaları (`api/ai/test`, `api/demo/ai`) kapıya `reply` VERMEK zorunda (parite pinli). 10-01 gece (A05): biçim normalleşir
+  (kalın / satır içi kod işareti, boşluk dizisi, satır sonu — "Unfortunately, I **don't have** that information" geçiyordu) + doğal itiraf
+  biçimleri yedi dilde ("I don't know / I have no idea / not in the guide", "bilmiyoruz / fikrim yok / haberim yok / bende de yok", "ist mir
+  nicht bekannt", "aucune idée", "no me consta", "Информации нет"); belirsizlik ("I'm unsure") ve savuşturma BİLEREK dışarıda. Külliyat: yeni
+  tutuş 6 (hepsi gerçek itiraf), düşen 0. QR kapısında sonlu olmayan güven (NaN / Infinity / eksik) devredilir (kanalın `confidence_invalid` paritesi).
+  10-01 gece 2 (RC60 regresyon koşusu, Luna — GİTTİ: "kann ich anhand der vorliegenden Informationen keine passende Lösung nennen"): "ÇÖZÜM
+  ÖNEREMİYORUM" sınıfı yedi dilde — 1. şahıs + olumsuz kip + ÇÖZÜM nesnesi ŞART ("Çözüm: düğmeye basın", "Sie können keine Lösung falsch
+  machen", "Je ne peux QUE vous proposer une solution", "Ich kann mir keine bessere Lösung vorstellen" tutulmaz); korpusta yeni tutuş 0.
 - **Çıktı vetosu / makbuzsuz iddia:** ↓Kalıcı ürün kararları. `hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE KOŞMAZ
   (yalnız `QR_INFORMATIONAL_BAND_ENABLED` açıkken; varsayılan kapalı). QR bilgi bandı (0.45–0.75, kapalı): bant
   güvenlik dallarının ARDINDA; kaynaksız somut iddia gönderilmez (`unsourced_claim`); açma sırası eval → tek mülk.
@@ -492,7 +499,9 @@ Bu dosyaya token/anahtar/parola yazma.
   misafirin yazdığı saatle çelişki (yarım/çeyrek anlatımları dahil), modellerin görmediği mesaj (100 karakter maske
   payı), saat okunamadı, kalıcı kuyruk açık (bayat "bugün" onayı), mülkte açık bakım, temizlikçinin bugünkü notu.
   Karar kaydı `ec` = durum + kodlar + dayanak kimlikleri (`dr/rm/rt/rh/n/dc`; metin/saat/tutar YOK, alan alan
-  doğrulanır). Kural deposu tek `where`, mülk satırı kilitli kayıt, mülk silinince kural silinir.
+  doğrulanır). Kural deposu tek `where`, mülk satırı kilitli kayıt, mülk silinince kural silinir. "Mülkte açık bakım" (10-01 gece,
+  A15): bağsız bakım / kontrol ya da BAŞKA konaklamaya bağlı açık BAKIM, vadesi VARIŞ günü sonuna kadar (tek tarih kuralının sorgu ikizi
+  `taskDueDayRangeWhere`) ya da tarihsiz; ayrılan / gelen konaklamanınki `openIssue`ta (çift sayılmaz); önceki konaklaması olmayan mülkte de.
   🚨 **PARA (dilim 8):** hassas istekte iki modelin doğruladığı ERTELEME de tutar/yüzde/indirim/muafiyet söyleyemez →
   `price_claim`. Birleşim: biçim dedektörü `ai/stay-money.ts` ∨ bekçinin fiyat sözü (`reply_price_terms`) ∨ bekçinin
   çıkardığı tutar (`reply_amounts`) host'un kaydında yoksa — kıyas KODDA. Host'un geç çıkış teklif tutarı YALNIZ geç çıkış
@@ -550,7 +559,7 @@ Bu dosyaya token/anahtar/parola yazma.
   (istem, anlam modelde); düzeltme (`timeCorrectedInMessage`, halüsinasyon durdurucu) ancak düzeltme/çıkış işareti + cümlede
   TAM iki saat belirteci, eski ve yeni FARKLI belirteçte (sayaç/numara/tarih saat değil; "10 pm" yalnız 22:00).
   🚨 **TEK TARİH KURALI HER GÜN KIYASINDA (ikinci inceleme 09-25):** QR sohbet açılışı, karşılama/giriş/çıkış seçimi (+
-  önizleme), outbox çıkış vetosu, gelen kutusu devir blokları `calendarDateOf` / `todayKey` / `stayEndedBefore` kullanır —
+  önizleme), outbox çıkış vetosu (+ giriş vetosu 10-01 gece: çıkış GÜNÜ başlayınca bayat), gelen kutusu devir blokları `calendarDateOf` / `todayKey` / `stayEndedBefore` kullanır —
   rezervasyon tarihini `dateKeyInTimeZone` / `daysUntilDate` / ham `Date` ile "bugün"e kıyaslayan YENİ kod YAZILMAZ (New
   York'ta çıkış hatırlatması bir gün önce gidiyordu, QR sohbeti devir akşamı gelecek konaklamaya açılıyordu). Yazılan
   saatin kanıtı (`stated-time.ts`, uydurma durdurucu; K11 09-30: istek / soru / rica / izin isteme biçimi — cümlenin neresinde olursa
@@ -584,7 +593,8 @@ Bu dosyaya token/anahtar/parola yazma.
   gerçekten çözmek anlama katmanı işi (öneri). 🚨 Kural (kurucu #28): test bir sözcük çakışmasıyla düşerse fikstür
   değiştirilip geçilmez — gerçek mesajda olabiliyorsa kök
   regresyon testi yazılır (örnek 13d).
-- **KB sır kapısı:** konaklamaya göre kapsam TEK KURAL `kbForStayScope` (oto-yanıt + yönetici "AI öner", Codex 09-27: öneri rotası
+- **KB sır kapısı** (10-01 gece, A07/A04: tuş takımı / anahtar kasası / kilit kutusu / "kombinasyon" + şifre sözcüğünün yedi dili; kod sözcüğü
+  sözcük İÇİNDE sayılmaz — "kapının"daki "pin"; misafir külliyatında 0 yeni yanlış tutuş; QR belirteci biçimi sorgudan ÖNCE `[A-Za-z0-9_-]{16,200}`): konaklamaya göre kapsam TEK KURAL `kbForStayScope` (oto-yanıt + yönetici "AI öner", Codex 09-27: öneri rotası
   hiç elemiyordu) · `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde TEK girişten (`styleProfileForPrompt` = sürüm kuralı + sır süzgeci).
   🚨 **ÜSLUP PROFİLİ OLGU KAYNAĞI DEĞİLDİR (F13, 09-26, `ai/style-profile.ts`):** org genelindeki host cevaplarından
@@ -595,7 +605,8 @@ Bu dosyaya token/anahtar/parola yazma.
   BU sohbetin geçmişi, `usedSources` "history" rehberi kapsamaz) ve "history" beyanı yalnız geçmişte GİDEN (ev sahibi / bizim) satır
   varken doğrulanır (09-30, inceleme b4: kanal / gelen kutusu güncel misafir mesajını da geçmişe koyar — "dolu" koşulu hiç yanlış
   olmuyordu). Profil isteme girmeden talimat / sahte etiket satırlarından süzülür (`styleProfileForPrompt`: KB talimat süzgeci +
-  enjeksiyon ağı; üslup satırları kalır). 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
+  enjeksiyon ağı; üslup satırları kalır). 10-01 gece (A07): profilde ERİŞİM BİLGİSİ anan satır (şifre / Wi-Fi / ağ adı / kod / tuş takımı /
+  anahtar kasası, yedi dil) değer görünmese de düşer ("Wi-Fi: LaleEv / denizkenari" sır süzgecinden geçiyordu). 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).
 - **Yer tutucu:** `packKnowledgeBase` bloğa giren `[…]/<…>/___` (içinde harf) için KODDAN "DOLDURULMAMIŞ YER TUTUCU"
   notu yazar (başlık taraması GERİ ALINDI — etiketleri yer tutucu sanıyordu). İkame tek kaynak `kb-placeholders.ts`
@@ -842,10 +853,15 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kontrol etmez (yalnız API rolü DB'den okur) → yetkisi düşürülen yönetici gelen kutusunu görmeye devam ederdi. Bugün rolü
   değiştiren yol YOK (personel yalnız seed/demo).
 - 2FA aktifliğinin tek koşulu `twoFactorEnabledAt`; bayat secret arıza değil → `/admin` "2FA'yı sıfırla"
-  (bayat dalda epoch artmaz). Operatör müşteri hesabında 2FA kuramaz.
+  (bayat dalda epoch artmaz). Operatör müşteri hesabında 2FA kuramaz. Sıfırlama kaydı AYNI işlemde ve ZORUNLU (`writeAuditInTx`, 10-01
+  A02 F3 — yazılamazsa sıfırlama olmaz).
 - Operatör yetkisi = allowlist + `mfa === true` (`isSuperAdmin`, tek boğaz noktası). `login` `mfa`yı
   2FA'dan yazar; `verify-email` `mfa:false`; impersonation iddiayı taşır. Sayfa yolu `requireAuth`: DB
-  arızasında rol staff + `mfa=false`; impersonation çıkar; normal oturum fail-open.
+  arızasında rol staff + `mfa=false`; impersonation çıkar; normal oturum fail-open. 10-01 gece (A02): operatör
+  e-postası yalnız OPERATÖR kimliğiyle (`actorUserId` varken `actorEmail`) sayılır — operatör listesindeki adres müşteri hesabı olarak
+  AÇILAMAZ (`isSuperAdminEmail`, büyük harf / boşluk katlanır); operatör dışa aktarımı `Sec-Fetch-Site` same-origin / none ister (başka
+  siteden 403, kayıt yazılmaz); destek görünümünde mülk sayfası takvim besleme bağlantısını yazmaz. Test DB koruması `?host=` /
+  `?hostaddr=` parametresini ana makine sayar (yerel sanılan uzak veritabanı reddedilir).
 - "Beni hatırla" (trusted-device) iki epoch'a bağlı (2FA + `sessionEpoch`); şifre değişimi/sıfırlama ve 2FA
   sıfırlama güveni düşürür; legacy çerez fail-closed. **Çıkış güven çerezini SİLMEZ** (kullanıcı kararı
   09-07; 08-09 sertleştirmesi geri alındı — cihaz güveni çıkışı aşar, kutuyu ortak bilgisayarda
@@ -867,7 +883,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - **Uyarı adresi (09-30, bayrak `ALERT_EMAIL_VERIFY_ENABLED` KAPALI → bugünkü "yalnız ekip üyesi" kuralı):** ekip dışı adres YALNIZ o
   adresin sahibi onaylarsa kaydedilir — imzalı belirteç (`AUTH_SECRET`, alan ayrımlı, 24 saat, istek anındaki eski adrese BAĞLI → CAS),
   parçada (`#t=`), onay AÇIK tıklama + POST (`/api/alert-email/verify`; JSON kontrolü IP kovasından önce), e-posta kişiselleştirilmez,
-  günlük tavan org 5 / alıcı 3, denetim kaydına adres DEĞERİ girmez. İlk gerçek deneme kurucuyla.
+  günlük tavan org 5 / alıcı 3, denetim kaydına adres DEĞERİ girmez. İlk gerçek deneme kurucuyla. 🚨 10-01 (15 ajan A13 F2): CAS tek başına
+  yetmiyordu (adres belirtecin eski değerine dönünce bağlantı yeniden geçiyordu) → belirteç işletmenin uyarı adresi KUŞAĞINI taşır
+  (`alert-email-generation.ts`, `SystemLock` sayacı, migration yok): her yeni istek ve her doğrudan adres değişikliği kuşağı ARTIRIR, onay
+  TÜKETİR (tek kullanım, yalnız en son istek). `Organization.updatedAt` KULLANILMAZ (OAuth yenilemesi / üslup profili satırı arka planda günceller).
 - `api-route-scoping.test.ts`: her rota org-kapsamlı ya da gerekçeli public listesinde; `admin/*`
   hepsi superadmin kapılı (`admin-superadmin-gate.test.ts` davranışsal); `REQUEST_DERIVED_ORG_ID` listesi.
 - **Anonim rotalarda da JSON kontrolü IP kovasından ÖNCE (#211, 09-27):** leads · demo/ai · chat POST · csp-report (üç MIME'ı);
@@ -955,6 +974,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   inceleme b5): argüman ağacı / "Failing row contains" → Prisma hatası log'a, Sentry'ye ve alarm e-postasına YALNIZ yapısal özetle
   (`prismaErrorSummary`: ad · kod · model.işlem · kısıt alanı · pg kodu + yığın çerçeveleri); üretim istemcisi hatayı OLAY olarak alır
   (`db.ts`, `prismaLogEventSummary`) — Prisma'nın kendi kaydedicisi (`log: ["error"]`) kullanılmaz (iletinin tamamını basıyordu).
+  🚨 Hata SARMALANIRKEN ham `err.message` ile yeni `Error` KURULMAZ (10-01 gece, A12: senkron özetleri ve satır sarmalayıcıları argüman
+  ağacını / misafir adını taşıyordu) → `errorWithContext(err, " (row …)")` (yaprak `redact.ts`; önce `formatErrorForLog`).
 - Hesap silme Invoice/Consent/AuditLog'u da siler (migration ister, açık). `Organization.plan` kolonu ölü.
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 
@@ -1064,6 +1085,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ama kaynak `partial` (satır hatası BASKIN → `error`), kayıp uzlaştırması kayıp SAYMAZ + tabanı ezmez (görülen satırın
   serisi sıfırlanır — şüpheli düşüşte de), müsaitlik motoru o kaynakla "boş" DEMEZ (`source_incomplete`), dosya önizlemesi
   not gösterir. `reconcileFeedDisappearance` `complete` alanı ZORUNLU. Neden metni tek kaynak `icsIncompleteCause`.
+  🚨 (10-01 gece, A09) Etkinliğin İÇİNDEKİ alt bileşenin (VALARM / X-…) özellikleri etkinliğe YAZILMAZ (iç STATUS:CANCELLED rezervasyonu
+  iptal ediyor, alarm SUMMARY misafir adı oluyordu); kapanmamış / başıboş alt bileşen = okunamayan etkinlik. Tarih YALNIZ RFC 5545 / ISO 8601
+  ("2026" gibi gevşek değer → 1 yıllık konaklama); NUL okumadan önce silinir. CSV gün / ay sırası DOSYA başına (`fileDayOrder`; hücre başına
+  tahmin 2 geceyi 61 gece okuyordu), karışık dosya sade hata.
 - Sync motoru: fencing token + TTL 15 dk; heartbeat ilerleme-tetikli; `renewLock` geçici hata ≠ kayıp; 🚨 org sırası
   kimliğe göre SABİT + adil sıra imleci (F17, `scheduled-sync:resume-from`): bütçe yüzünden atlanan ilk org sonraki geçişte
   önce gelir (eski sırasız liste aynı son org'ları kalıcı aç bırakıyordu);
@@ -1090,6 +1115,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Kayıtlı abonelikten FARKLI aboneliğin olayı planı değiştirmez (K4, 09-30: ters sırada gelen eski iptal yeni aboneliği ezmiyordu).
   Şart UPDATE'in WHERE'inde (10-01, Codex: bayat okuma yarışı; ilk kayıt çatışması P2002 dalında da) — yalnız aktifleşen yeni abonelik
   eskisinin yerine geçer.
+- **Bağlanamayan ödeme sessiz kalmaz (10-01, 15 ajan A10 F1):** imzası doğru ÖDEMELİ olay (abonelik active / trialing / past_due,
+  `transaction.completed / paid`) hiçbir işletmeye bağlanamazsa operatöre geçiş tabanlı alarm (`paddle-webhook:unlinked:<Paddle kimliği>`;
+  yalnız Paddle kimlikleri, müşteri verisi yok); bağlama kararı ve olay durumu AYNEN ("bağlanamadı" durumu + operatör bağlama yolu Sabah 41a).
+  Belirsiz (202) / reddedilen (502) plan değişikliği `billing.plan_change_pending` / `…_rejected` kaydı yazar (A10 F6).
 - previewToken HMAC + `jti` tek kullanım; apply öncesi re-preview (409 amountChanged); definitive/ambiguous
   Paddle hataları; pending kilidi; `resolveOrgId` providerRef-first; **`CheckoutConsent`e consumedAt EKLEME**;
   `occurred_at` vetosu; portal plan DEĞİŞTİRMEZ (in-app upgrade/downgrade canlı doğrulandı); `canceled`
@@ -1153,7 +1182,22 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ortak ayırt edici sözcük (≥5 harf, genel sözcük değil) o kategoriye iner (`ai/index.ts kbSourceLabel`; ilgisiz atıf düşer). 🚨 Kör set 5:
   karışık mesajda (tarifsiz arıza + başka soru) modeller BIRAKILAN cihaza değindi (uydurma adım / "talimatım yok", ikisi de gitti) → plan bu
   turun bırakılan cihaz kavramlarını kapıya verir (`heldDeviceTopics`; cevaplanan isteğin konusu çıkarılır), cevap değinirse
-  `items_held_touched` (liste + ilişki kipinde; yalnız tutar).
+  `items_held_touched` (liste + ilişki kipinde; yalnız tutar). 10-01 gece (A06): konu sözlüğünde olmayan cihazlar (şofben, petek,
+  kondisyoner, mikro dalga, kilidi, televizyonun, klimanın "kar tanesi" simgesi) YEREL sözlükten (`relation.ts LOCAL_DEVICE_WORDS`; getirme
+  sözlüğüne EKLENMEZ — canlı seçimi değiştirir); cevaplanan isteklerin hiçbiri cihaz değilse adsız "makineyi / cihazı / the device …" +
+  aynı cümlede tarif adımı bırakılan cihaza değinmedir (`heldDeviceGenericRef`). İlişki kipinde: tehlike sözlüğü 17 terim genişledi
+  (sayaç panosu, ana şalter, çakmak / kibrit, tornavida, petek / Heizkörper / radiateur, FI / УЗО / рубильник; "FI" tek sözcük OLAMAZ —
+  katlanmış "wi-fi"); tarif işareti İKİ KADEMELİ (güçlü: bas / dokun / yeniden başlat / sıfırla / fişten çek; zayıf — kapat / aç / bekle /
+  seç / değiştir — ancak iki farklısıyla; arıza anma + yalnız "bize yazın" tarif DEĞİL; "bilmiyorsanız / istemiyorsanız" arıza değil;
+  İngilizce "the basin" ≠ "basın", "drucken" ≠ "drücken"); başlık konusuz / çok konuluysa konu TARİF CÜMLESİNDEN; birleşik istekte HER cihaz
+  tarifli olmalı; olgusuz bağlayıcı (uyarı geçişinin şikâyeti) aynı mesajın öteki isteklerinin konusunu alır. Kalıp listeleri de KATLANIR
+  (Arapça "ئ" → "ي"). 🚨 10-01 gece 2 (RC60 regresyon koşusu — bu sıkılaştırma GERÇEK tarifleri düşürüyordu, set 6'da 3 tarifli arıza tutuldu):
+  kontrol adı ("tuş / düğme / mod / button / mode / symbol / Taste / bouton / botón / кнопка / زر"; kapı anahtarı DEĞİL) TEK zayıf işaret
+  (fiille tarif); "touch / tap and hold" + Türkçe güç döngüsü ("yeniden / tekrar açın · açıp · açabilirsiniz · takın") güçlü; Türkçe arıza
+  koşulu 3. şahıs "-mazsa" + kapalı küme "sıkışırsa / takılırsa / kesilirse / bozulursa / arızalanırsa"; liste ayracı OLMAYAN çok kavramlı
+  başlık ("Otopark kapısı kumandası çalışmazsa") TEK cihaz → başlığın cihazları; SSS satırında tarif cümlesi cihazı aynı SATIRIN önceki
+  cümlesinden alır — o cümle SORU (?) / arıza anışıysa ya da aynı cihazı anıyorsa (yalnız iki nokta başlık DEĞİL: "Ağ adı: …"). Tarif
+  tanıyıcıyı değiştiren tur eval bilgi tabanlarının TÜM kalemlerinde (568) canlıyla farkı yeniden üretir.
 - 🚨 **BEKLEYEN RİSK ÖĞE BAZINDA (kurucu 09-26):** eski cevapsız risk yeni mesajla KAYBOLMAZ ama TÜM konuşmayı BLOKE
   ETMEZ. "Bekleyen herhangi bir yüksek riskli etiket → cevabın tamamı tutulur" KONUŞMA DÜZEYİ kapısı REDDEDİLDİ (`6c0e6b4`
   gönderilmedi, yedek dal `backup/pending-highstakes-conversation-gate-2026-09-26`) — geri getirme. Kanalda istek düzeyi
@@ -1387,7 +1431,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   öndeki `\S+` yerine `\S`, geriye bakıştan ÖNCE gövde ileriye bakışı, iki bitişik boşluk yıldızı yerine ikincisi isteğe bağlı
   ayraçta; düzenli ifadeyle çözülemeyen yerde doğrusal tarayıcı + düzenli ifade testte KÂHİN (`mixedCodeTokenMatches`, iddia
   ölçümü 100.000 karakterde 7,7 sn → 26 ms). Yeni kalıp eklerken 4.000–50.000 karakterlik tek sözcük / boşluk dizisi / tekrarlanan
-  kök süre pini (`*-cost.test.ts`) + eski/yeni sonuç kıyası.
+  kök süre pini (`*-cost.test.ts`) + eski/yeni sonuç kıyası. 🚨 (10-01 gece, 15 ajan A14) BİTİŞİK İKİ boşluk niceleyicisi
+  arasında isteğe bağlı ayraç (`\s*X?\s*`) boşluk dizisinde karesel → `\s*(?:X\s*)?`; TÜRETİLMİŞ eşleşme adayları (kesme / aksan söküm)
+  boşluk dizisi YENİDEN üretir → `matchCandidates` adayında dizi teke iner (`collapseSpaceRuns`); bu yüzden yalnız aday yolundan erişilen
+  kalıp yeniden yazımları mutasyonda gerekçeli EŞDEĞER, ham metin yolları (acil ağı, müsaitlik standart çıkış ayıklaması) süre pinli.
+  Yazım toleransı (BM25) sınırlı OSA (`osaDistanceWithin` = min(osa, max+1)) + dizin başına önbellek; seçim birebir (30.000 çift kâhin).
 - **Aynı işlemde AYNI zaman damgasıyla yazılan satırların sıralaması `id` ile kesinleşir** (09-27): konuşma öğeleri bir turda tek
   `createdAt` ile yazılıyor, `requestIndex` mesaj başına 0'dan başlıyordu → iki mesajın öğesi tam eşit, sıra rastgele (tam kapı bir kez
   kırmızı; "Açık işler" sırası da oynayabilirdi). Eşitlik bozucu `{ id: "asc" }` (cuid yazılış sırasında artar).
@@ -1410,14 +1458,20 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   ve `\p{…}` YOK (JS `\b` ASCII; ASCII ikizi kaynağı küçültür → `\p{l}` geçersiz); ad sonu açık harf sınıfıyla. Veri ayracı
   ADLARIMIZIN her yazımı da (boşluklu / alt çizgisiz / küçük harf / tam genişlik `＜＜`; #211; 09-28: tireli / noktalı / tek açılı / «» /
   ≪≫ ve SAMPLES; ev sahibi bloklarının etkisizleştiricisi aynı yazımları kırar) — genel `<< kelime >>` DEĞİL. ASCII ikizi YALNIZ /i kalıplardan
-  kurulur (büyük harfe duyarlı `<<[A-Z_]{2,}>>` ikizi her "<<bonjour>>"u tutuyordu).
+  kurulur (büyük harfe duyarlı `<<[A-Z_]{2,}>>` ikizi her "<<bonjour>>"u tutuyordu). 10-01 gece (A07): ChatML (`<|im_start|>`),
+  `<system>` / `</assistant>`, `[INST]`, satır başı `### SYSTEM`, `"role": "system"`, çıktı alanı yönlendirme ("riskLevel: none",
+  "confidence: 0.99"), EKLİ Türkçe yetki etiketi ("[Ev sahibinin cevabı]:", "[Operatifimiz]:") ve Türkçe rol değişimi enjeksiyondur (misafir
+  külliyatı 821 mesajda 0 yeni yanlış tutuş; İngilizce "[Host]:" / "[asistanım]:" pinli serbest). Bilgi tabanı ayraç etkisizleştirmesi SABİT
+  NOKTAYA kadar (≤4 geçiş, sonra açılı parantez silinir) — "<<<«KB_END»>>>" tek geçişte GERÇEK ayraç üretiyordu.
 - **Acil ≠ sıradan istek:** `escalationReply({critical})` yalnız güvenlik satırı (K10), tetikleyici DAR `isPhysicalEmergency`
   (yangın/duman/gaz/su baskını/elektrik çarpması; öz-zarar ifadesi YOK) — `safety_emergency` kümesi misafire giden metin için fazla geniş.
 - **"Sorunlu" AI'yı KALICI durdurur** (misafirin yeni mesajı açmaz; host elle durum değiştirir/yazar). `Conversation.
   priority` tamamen görsel. **"Beklemede" kaldırıldı** (belgelenmemiş AI kilidiydi; aday sorgusunda `waiting` var).
 - **Misafir QR'ı kapalı/bozuksa** markalı `GuestNotice` (tek metin beş koşul, dış bağlantı yok, 200).
 - **Otomatik giriş/çıkış/karşılama mesajları** doldurulmamış `[…]`/`{{…}}` taşıyorsa FAIL-CLOSED (gönderilmez,
-  damgalanmaz; KB'de "Doldurulmamış alan" rozeti). Oto-yanıt anahtarı kapalıyken bu üç gönderici ÇALIŞIR (dürüst ad).
+  damgalanmaz; KB'de "Doldurulmamış alan" rozeti). 10-01 gece (A08): tanınmayan TEK parantezli harfli belirteç ("Kapı kodu: {kod}", "{wifi}",
+  "{ KOD }") ve `%KOD%` de doldurulmamış alandır (`unfilledTemplateTokens`; bilinen `{isim}/{daire}` ailesi hariç) — rozet AYNI yüklem. AI
+  CEVABININ çıktı vetosunda DEĞİL (iki pin "Kod {x} değil, 4521." serbest; Sabah Kararları 31). Oto-yanıt anahtarı kapalıyken bu üç gönderici ÇALIŞIR (dürüst ad).
   🚨 **Ad bilinmiyorsa "Merhaba," (kurucu onayı 09-28):** yer tutucu ad ("Rezervasyon HM4K2" / "Misafir") misafire YAZILMAZ — kodun
   selamı adsız, şablondaki `{isim}` boşluğu / virgülü / ekiyle kalkar (`fillGuestPlaceholders` `guestFirstName: null`, doğrusal
   tarama); yedek şablon ve Gönderilenler önizlemesi aynı kural. Resmî tonda da selam "Merhaba Ayşe," (kurucu 09-28). Noktalama doğal
@@ -1470,6 +1524,11 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   DAR kalır — amaç cümleciği ("size dönmesi için ilettim"), "notun sonuna ekledim", "her şeyi iletirim" SÖZDÜR;
   alışkanlık istisnası tek sabit `HABITUAL_BEFORE`; OLUMSUZ yetki cümlesi ("No puedo verificar") söz değildir. Yeni
   istisna eklerken bataryada OLMAYAN ikiz iddiayı da yaz (ilk yama sürümü 6 gerçek iddiayı geçiriyordu).
+  🚨 (10-01 gece, A05) "…:" istisnası (duyuru / netleştirme) SAATİN iki noktasına uygulanmaz (`ANNOUNCE_COLON` = rakamlar arası değil):
+  "I'll check … at 13:00" gidiyor, "1 pm" ile tutuluyordu; Türkçe ev sahibi öznesi kalıbı saat noktasında bölünmez. Araya giren ≤2 zarf
+  ("I'll gladly / certainly ask the host", "I've now let the host know") sözü gizlemez; dil bildirimi istisnası YALNIZ dil adıyla ("I'll
+  reply in English", "in a few minutes" değil); edilgen devir ("Mesajınız ev sahibinize iletilmiştir", "Your message was forwarded to your
+  host") yedi dilde K10 sınıfı. Külliyat (3.031 gerçek cevap) ölçüsü: yeni tutuş 2, düşen 0.
 - **Temellendirme kaydı:** geri çekilme kırpması + pack bütçesi `kbDropped`e SAYILIR (`capacity` ≠ `ungrounded`);
   `supersededById` düşüşü sayılmaz; kalite denetçisi `aiSourcesJson` görür (null ≠ "kaynak yok").
 - **Bütçe:** "12 çağrı = 1 birim" Inbox önizlemesidir (Ayarlar kartı değil); oran fiyatlandırma kararı.
@@ -1590,6 +1649,14 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**10-01 GECE 2 — 15 AJANLIK DERİN İNCELEME (kurucu: "satır satır, hata ayıklama + siber güvenlik"; ajanların bir kısmı harcama sınırında
+durdu → kısmi sonuçlar kodda doğrulandı; rapor §8, kararlar 30–45):** 30 commit, hepsi kırmızı-önce + mutasyon; RC59 (`46b1d95`) tam kapılar
+yeşil (739 dosya / 11.917 test) → itildi, **CI #1280 YEŞİL**. RC60 (ilişki kipi A06 + erken giriş bakım penceresi + üslup profili erişim satırı)
+regresyon koşusu (set 5 + 6, $0,47): gitmez-giden 0 / 0, ama RC60'ın tarif sıkılaştırması gerçek tarifleri düşürüyordu (set 6'da 3 tarifli arıza
+tutuldu) → itilmeden düzeltildi (`d6cc384`); koşunun gösterdiği "çözüm öneremiyorum" sızıntısı yedi dilde tutuluyor (`f343ffc`). RC61 (depolama /
+görev ağı / iCal alarmı / e-posta kuyruğu) + RC62 (bağlanamayan ödeme alarmı, plan değişikliği izi, uyarı adresi kuşağı, 2FA sıfırlama kaydı
+zorunlu) kapıda. KARAR BEKLEYEN en önemli: 30 (canlıda şikâyet etiketsiz kombi / şofben / sigorta sorusu cevaplanıyor); ilk operatör adımı 44a
+(herkese açık repoda bucket adı → 403 doğrulaması).
 **10-01 GECE (kurucu /loop; kararlar `docs/SABAH-KARARLARI-2026-10-01.md` 1–16, rapor `docs/SABAH-RAPORU-2026-10-01.md`):** Codex
 K10 / K4 / K11 / K3 / K6 / K9 doğrulandı + düzeltildi; ev sahibi kararı tutulur (`AI_HOST_DECISION_HOLD_ENABLED`, KAPALI); şikâyete bağlı istek
 kodda (anahtarsız); ücret kuralı kurucu ifadesi; katman bazında model; K7 migration 58 + hepsi RC50 ile CANLI (08:37). Gece ölçümü (≈$11 / $25):

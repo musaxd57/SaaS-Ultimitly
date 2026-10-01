@@ -18,6 +18,14 @@
 7. **(10-01 öğleden sonra) 27 → 22 → 26 → 28 → 25** — arıza şikâyet sayılmadığında ev sahibine haber gitmemesi (27, modelden bağımsız, canlıda
    da var) en önemlisi; bilgi tabanı içi çelişki (22); bırakılan cihaza değinen cevap (26); ocak tehlike yanlış tutuşu (28); şikâyetteki eşyanın
    yeri (25). **29, 24, 21, 20** yalnız bilgi.
+8. **(10-01 gece, 15 ajanlık inceleme) 30 → 40 → 32 → 34 → 36 → 31 → 33 → 37 → 38b → 35** — canlıda şikâyet etiketsiz tehlike sorusu (30, madde 27'yle
+   birlikte), yapay zekâ cevabıyla aynı anda yazılan mesajın kaybolması (40), model cevabında platform dışı ödeme (32), sırların aylar sonraki rezervasyona gitmesi (34), imza yüzünden duran otomatik mesajlar (36),
+   cevapta tanınmayan yer tutucu (31), teklif metninde "yerinde ödenir" (33), gizlilik üçlüsü (37), erken giriş "hazır" kanıtı (38b), elle senkron
+   kilidi (35). **39** yalnız bilgi.
+9. **(10-01 gece 2, incelemenin kalanları) 44a → 41b → 42b → 41a / 41d → 43a → 27 eki → geri kalanı** — herkese açık repodaki bucket adı
+   için 403 doğrulaması (44a, operatör adımı, hemen), paylaşılan Paddle müşterisinde portal (41b), Gmail varyantlarıyla e-posta bombası (42b),
+   bağlanamayan ödeme / iade (41a, 41d), 2FA sıfırlamada amaç + sahibe e-posta (43a); RC60 regresyon koşusunun gösterdiği arıza etiketi
+   değişkenliği madde 27'ye eklendi. 42–45'in kalanı P3.
 
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
@@ -360,6 +368,10 @@
   | "La licuadora no arranca. ¿Hay un supermercado cerca?" (blender tarifi yok) | blenderin yeri + market gider, e-posta yok | yalnız market cevabı gider; blender ev sahibinde + tek e-posta |
   | "Der Lautsprecher verbindet sich nicht. Welche Badestelle ist am nächsten?" (tarif yok) | (artık) cevabın tamamı tutulur, e-posta yok | yalnız koy cevabı gider; hoparlör ev sahibinde + tek e-posta |
 - **Müşteriye etkisi:** arıza her zaman ev sahibine ulaşır; misafire bilgi tabanı dışında adım gitmez.
+- **RC60 regresyon koşusu eki (10-01 gece 2, set 5 + 6 yeniden):** aynı sınıf iki satırda daha görüldü — Almanca "Die Kaffemaschine pumpt
+  ganz laut, aber es kommt kein Kaffee raus …" (önceki koşuda şikâyet sayılmıştı, bu koşuda sayılmadı → Luna "kann ich … keine passende Lösung
+  nennen" yazdı, GİTTİ; bu cümle artık yokluk yüklemiyle tutuluyor, `f343ffc`) ve İspanyolca blender (iki koşuda da → blenderin yeri GİTTİ). Yani
+  anlama katmanının arıza etiketi KOŞUDAN KOŞUYA değişiyor; ev sahibine haber gitmemesi (1) hâlâ açık. Öneri değişmedi: (c).
 - **Beklerken yapılmayan:** anlama istemi değişikliği, arıza sözlüğü, kapı değişikliği.
 
 ## 28. İndüksiyon ocağı "ısınmıyor" tehlike sayılıyor (kör set 6 — güvenli yönde yanlış tutuş)
@@ -376,3 +388,234 @@
 - **Durum:** İngilizce "can't find" kalıbı özneye bakmıyor; 2. şahıs koşul cümlesi tutulur. Kayıtlı 4.000 cevapta bu biçim HİÇ geçmedi (etkisi
   ölçülmedi, teorik). Diğer altı dilin yeni kalıplarında 1. şahıs şartı var ve pinli.
 - **Öneri:** şimdilik dokunma (yanlış tutuş güvenli yönde, ölçülmüş etki yok); ileride İngilizce kalıba da 1. şahıs şartı.
+
+---
+
+> **10-01 gece — 15 ajanlık derin inceleme (hata ayıklama + güvenlik, satır satır).** Ajanların bir kısmı aylık harcama sınırına takılıp yarıda
+> durdu; kurucu: "durdukları yere kadar verdikleri sonuçlara bak, düzeltebildiğini düzelt". Doğrulanan ve onaylı kural kapsamındaki bulgular
+> kırmızı-önce + mutasyonla düzeltildi (liste: `docs/SABAH-RAPORU-2026-10-01.md` §11). Aşağıdakiler **müşteriye giden davranışı ya da
+> politikayı değiştirdiği** için sizde.
+
+## 30. Canlıda ŞİKÂYET etiketi almayan TEHLİKELİ arıza sorusu cevaplanıyor (madde 27'nin tehlike yüzü — 15 ajan A06)
+- **Durum (ölçüldü):** "Kombi E01 hatası veriyor, nasıl resetleriz?", "Şofben yanmıyor, nasıl yakarız?", "The boiler shows error E01, how do we reset
+  it?", "Die Therme zeigt Fehler F28, wie setzen wir sie zurück?", "Котёл не греет, как его перезапустить?" → kelime ağı şikâyet saymıyor, anlama
+  katmanı da çoğu zaman "cihaz yardımı" der → istek **bağımsız** sayılır → canlı liste kipinde cevap modeli cevaplar (bilgi tabanında kombi tarifi
+  varsa adımları, yoksa ne bulursa). Kurucu 18 "a": "tehlike sınıfında otomatik çözüm YOK" — bu kural bugün yalnız ŞİKÂYETE BAĞLI istekte koşuyor.
+- **Öneri:** tehlike sınıfı (elektrik panosu / sigorta / şalter, gaz / kombi / şofben / termosifon, yangın / duman) bir ARIZA ÇÖZÜMÜ isteğiyse
+  şikâyet etiketi olmasa da otomatik cevap gitmesin; ev sahibine mesaj başına tek e-posta (madde 27 (b) kod koruması bunun genel hâli).
+- **Önce → sonra:**
+
+  | Mesaj | Bugün | Öneri |
+  |---|---|---|
+  | "Kombi E01 hatası veriyor, nasıl resetleriz?" | model cevabı gider (ör. "reset düğmesine 5 sn basın") | otomatik cevap yok; ev sahibine tek e-posta |
+  | "Şofben yanmıyor, nasıl yakarız?" | model cevabı gider | otomatik cevap yok; ev sahibine tek e-posta |
+  | "Kombi E01 veriyor. Wi-Fi şifresi neydi?" | ikisi de cevaplanır | yalnız Wi-Fi cevabı gider; kombi ev sahibinde |
+- **Müşteriye etkisi:** kombi / şofben / sigorta sorusuna otomatik cevap gitmez (ev sahibi cevaplar).
+- **Beklerken yapılmayan:** canlı liste kipinde bu kural. (İlişki kipinde — anahtar kapalı — tehlike sözlüğünün 17 eksiği kapatıldı: sayaç panosu,
+  ana şalter, çakmak / kibrit, tornavida, petek / Heizkörper / radiateur, FI / УЗО / рубильник, interruptor general …)
+
+## 31. Yapay zekâ CEVABINDA tanınmayan yer tutucu biçimleri gidiyor (15 ajan A05 / A08)
+- **Durum:** yaşam döngüsü mesajında (karşılama / giriş / çıkış) "Kapı kodu: {kod}", "{wifi}", "%KOD%" artık GİTMİYOR (onaylı "doldurulmamış
+  alan → gönderme" kuralı; Bilgi Tabanı rozeti de aynı yüklemi gösterir). Yapay zekâ cevabında ise çıktı vetosu yalnız `[KOD]` / `{{kod}}` /
+  `{isim}` / `{daire}` tanıyor: "{kod}", "{kapi_kodu}", "［KOD］" (tam genişlik), "【KOD】", "XXXXXXXX", "****", "TBD", "(password here)" gidiyor.
+  Tek parantezli belirteç için iki eski pin bunu BİLEREK serbest bırakıyor ("Kod {x} değil, 4521." · "Kahvaltı {sabah} 9'da." — misafirin yazdığını
+  tekrar eden cevap).
+- **Seçenekler:** (a) tek parantezli HARFLİ belirteç + tam genişlik / mercek parantez her zaman tutulur (eski iki pin ters çevrilir); (b) yalnız
+  sır bağlamında ("kod / şifre / password / Wi-Fi … : {kod}" ya da "XXXX / **** / TBD") tutulur; (c) bugünkü gibi.
+- **Öneri: (b)** — *Önce:* "Kapı kodunuz {kod}." gider. *Sonra:* tutulur (taslak, ev sahibi doldurur). "Kahvaltı {sabah} 9'da." gitmeye devam eder.
+- **Beklerken yapılmayan:** cevap vetosunda yeni yer tutucu biçimi.
+
+## 32. Model cevabında PLATFORM DIŞI ÖDEME talimatı gidiyor (15 ajan A05)
+- **Durum:** `payment-method-guard` yalnız EV SAHİBİ metnine uygulanıyor (bilinçli). Model cevabında "The cleaning fee of 300 TL is paid in cash at
+  check-in", "Ev sahibinin IBAN'ına havale edebilirsiniz", "Please pay directly to the host" GİDİYOR (cevap modelinin kendi kurallarına güveniliyor;
+  bilgi tabanında böyle bir kalem varsa model aynen aktarır).
+- **Ölçüm (ücretsiz, gece yapıldı):** ev sahibi yüklemi model cevaplarına AYNEN uygulansaydı kayıtlı 3.031 gerçek cevabın **66'sı** tutulurdu —
+  neredeyse hepsi MEŞRU üçüncü taraf ödemesi: "Gül Sokak'taki açık otopark günlük 150 TL, ödemeyi gişede nakit veya kartla yapabilirsiniz",
+  "Biletleri duraktaki makineden alabilirsiniz". Birkaçı gerçekten ev sahibine nakit ("bisiklet kiralama 250 TL, ödeme nakit").
+- **Öneri:** yüklem aynen DEĞİL; yalnız ALICISI ev sahibi / mülk / bizim olan ödeme talimatı (nakit / IBAN / havale / "doğrudan bana / ev
+  sahibine") tutulsun, üçüncü taraf (otopark gişesi, otobüs, restoran) serbest kalsın; kural yazıldıktan sonra aynı külliyatta yeniden ölçülür.
+- **Müşteriye etkisi:** bilgi tabanında "bisiklet kiralama nakit, ev sahibine" yazan ev sahibinin o otomatik cevabı tutulur (taslak) —
+  Airbnb / Booking platform dışı ödeme yasağıyla uyumlu; otopark / ulaşım cevapları aynen gider.
+- **Beklerken yapılmayan:** cevap kapısında ödeme yüklemi.
+
+## 33. Ev sahibinin geç çıkış / erken giriş teklif metninde "yerinde ödenir" kabul ediliyor (15 ajan A05)
+- **Durum:** "payable on site", "at the property", "at reception", "pay the cleaner", "yerinde ödenir", "görevliye", "vor Ort", "sur place", "en el
+  alojamiento" kabul ediliyor ("at the door", "in cash", "nakit" reddediliyor).
+- **Öneri:** bu yer sözcükleri ödeme bağlamında (teklif metni zaten ödeme bağlamı) reddedilsin; ev sahibine bugünkü sade hata.
+- **Müşteriye etkisi:** bu ifadelerle teklif kaydedilemez → misafire platform dışı ödeme talimatı gitmez.
+- **Beklerken yapılmayan:** sözlük genişletmesi.
+
+## 34. Sır kalemleri (kapı kodu / Wi-Fi şifresi) aylar sonraki rezervasyona da veriliyor (15 ajan A07)
+- **Durum:** `kbForStayScope` yalnız rezervasyon DURUMUNA bakıyor: 200 gün sonraki onaylı rezervasyonun misafiri kapı kodunu sorarsa yapay zekâ
+  bugünkü kodu söyler. Kod konaklamaya göre değişiyorsa gelecekteki misafir şimdikinin kodunu alır.
+- **Öneri:** sır kalemleri yalnız girişten **3 gün önce → çıkış günü sonuna** kadar; dışında model sırrı görmez (soran misafire "giriş bilgileri
+  girişinize yakın paylaşılır" — bu cümle kodla, ev sahibi metni değil).
+- **Müşteriye etkisi:** erken soran misafir kodu alamaz (ev sahibine devir / bilgi cümlesi).
+- **Beklerken yapılmayan:** zaman penceresi.
+
+## 35. Bir kiracının elle "Mesajları çek" senkronu TÜM kiracıların 2 dakikalık geçişini durduruyor (15 ajan A03)
+- **Durum (ölçüldü):** elle senkron genel "scheduled-sync" kilidini tutuyor; derin senkron (540 gün) uzun sürerse o süre boyunca herkesin
+  oto-yanıtı / senkronu bekler.
+- **Öneri:** elle senkron kiracı başına kilit; genel geçiş yalnız o kiracıyı atlar (tasarım değişikliği; migration yok).
+- **Beklerken yapılmayan:** kilit değişikliği.
+
+## 36. Ev sahibi İMZASI köşeli parantez taşıyorsa bütün otomatik mesajlar sessizce duruyor (15 ajan A08)
+- **Durum:** imza "Lale Apart [7/24 destek]", "Ali <ali@…>" ya da "______" ise karşılama / giriş / çıkış mesajlarının hepsi "doldurulmamış alan"
+  sayılıp gönderilmiyor; Bilgi Tabanı rozeti imzayı göstermediği için ev sahibi nedenini bilmiyor.
+- **Seçenekler:** (a) Ayarlar'da imza alanının altında uyarı ("Köşeli parantez içindeki metin doldurulmamış alan sayılır; otomatik mesajlar
+  gönderilmez") + mülk sayfasında "otomatik mesajlar duruyor: imza" satırı; (b) imzadaki köşeli parantezi yer tutucu saymamak.
+- **Öneri: (a)** — kural aynı kalır, ev sahibi nedeni görür.
+- **Beklerken yapılmayan:** imza kuralı / uyarı.
+
+## 37. Gizlilik (15 ajan A12) — üç madde
+- **(a) Potansiyel müşteri (Lead) kayıtları süresiz:** `LEAD_RETENTION_MONTHS` canlıda ayarlı değil; saklama politikası "operatör paneli manuel
+  silme" diyor ama panelde silme düğmesi YOK (yalnız durum / not). **Öneri:** Railway'e `LEAD_RETENTION_MONTHS=24` + panelde "Sil" (onaylı).
+- **(b) Silinen Bilgi Tabanı kalemi Mülk Hafızası'nda kopya kalıyor:** kalem kalıcı silinince hafıza satırı "emekli" olur ama başlık + METİN durur
+  (dışa aktarımda da). Ev sahibi eski kapı kodunu silmek için kalemi sildiyse kod veritabanında kalır. **Öneri:** silinen kalemin hafıza
+  satırında metin boşaltılır (başlık tarihçe için kalır).
+- **(c) Saklama süresi sonunda ad silme orta adı / soyadı bırakıyor:** "Merhaba Mehmet Ali Bey, Kaya ailesi için hazırız" → "Merhaba [Misafir]
+  Ali Bey, Kaya ailesi…"; "Dear Mr. Smith", "Sayın Yıldırımtest" aynen kalıyor (bilinen sınır: yalnız soyad). **Öneri:** YALNIZ saklama / silme
+  süpürgesinde adın HER parçası (≥3 harf) silinsin — anonimleştirilen metinde fazla silme kabul edilebilir ("Kaya plajı" → "[Misafir] plajı");
+  yapay zekâ / denetçi maskeleri bugünkü gibi kalır.
+- **Beklerken yapılmayan:** üçü de.
+
+## 38. Erken giriş kanıt modeli — "hazır" kanıtında iki açık (15 ajan A15; otomatik erken giriş canlıda kapalı)
+- **(a) Düzeltildi (onaylı kural "mülkte açık bakım otomatik gönderimi durdurur"):** bakım penceresi önceki çıkış gününde bitiyordu → araya boş
+  gün giren varışta bugüne / dünkü vadeli açık bakım, eski bir konaklamaya bağlı açık bakım ve ilk rezervasyondaki açık bakım otomatik onayı
+  durdurmuyordu. Artık durdurur (bakım görevi, vadesi varış günü sonuna kadar ya da tarihsiz).
+- **(b) Karar:** belgeli kural "devrin temizlik görevlerinin HEPSİ kapalı + **bir** 'bitti' kaydı çıkıştan ≥5 dk sonra". Asıl çıkış temizliği
+  çıkıştan ÖNCE (09:00, rıza yok) "bitti" işaretlenmiş, konaklama içi ek temizlik görevi 11:05'te "bitti" → bugün "hazır" sayılıyor. **Öneri:**
+  her devir temizliği görevinin "bitti"si kendi başına geçerli olmalı (çıkıştan sonra ya da rızalı kanıtlı erken); biri geçersizse "hazır değil"
+  (ev sahibine kontrol listesi).
+- **Müşteriye etkisi (b):** yalnız otomatik erken giriş onayı (canlıda kapalı) daha temkinli olur.
+- **Beklerken yapılmayan:** (b).
+
+## 39. QR'da önceki turda devredilen hassas istek sonraki turun kapısına girmiyor (bilgi — 15 ajan A05)
+- **Durum:** "13:00'te giriş yapabilir miyiz?" (devredildi) → "Wi-Fi şifresi nedir?" → ikinci turun kapısı yalnız güncel mesaja bakar. Bekçi modeli
+  geçmişi gördüğü için cevap ilk isteğe "evet" derse tutulur; kelime ağı ve modelin beyanı yalnız güncel mesajdan. Bütün konuşmayı bloke etmek
+  09-26'da reddettiğiniz tasarım; doğru çözüm QR'a öğe bazlı devir (D1–D6 paketi).
+- **Öneri:** şimdilik dokunma; öğe bazlı QR paritesi işinde ele alınsın.
+
+## 40. Yapay zekâ cevabıyla AYNI ANDA yazılan misafir mesajı sessizce "cevaplandı" sayılıyor (15 ajan A08-4 — kodda doğrulandı)
+- **Durum:** misafir 10:00:00'da M1'i yazar; senkron M1'i alır, yapay zekâ ~15 sn düşünür ve 10:00:20'de cevaplar. Misafir bu arada 10:00:05'te
+  M2'yi yazmıştır; M2 ancak bir SONRAKİ senkronda (≤2 dk) gelir. İçe alım konuşmanın durumunu sağlayıcı ZAMANINA göre "son konuşan"dan hesaplar
+  (`write-service.ts`): sıralama M1 · M2 · cevap → son konuşan biz → "cevaplandı". "Cevapsız mesaj" her yerde son cevaptan SONRAKİ mesajlardır
+  (oto-yanıt, istemin güvenlik penceresi, dil sinyali, konuşma durumu) → M2 hiçbir yerde cevapsız sayılmaz: yapay zekâ cevaplamaz, gelen kutusu
+  "cevaplandı" gösterir, kapı / uyarı taraması M2'yi görmez. (09-30'daki C2 düzeltmesi yalnız cevap gönderilmeden ÖNCE içe alınmış mesajı
+  yakalar.) Ajan benzetimi: iki mesaj arası 10–60 sn olduğunda vakaların %9–38'i.
+- **Seçenekler:** (a) *Ev sahibi görsün:* içe alımda cevabımızdan ÖNCE tarihli ama cevaptan SONRA gelen misafir mesajı konuşmayı yeniden açar
+  ("yeni") + gelen kutusunda "Misafir cevabınızla aynı anda yazdı" notu; yapay zekâ bu mesaja otomatik cevap YAZMAZ. (b) *Tam:* "cevapsız"
+  tanımı içe alım anına bakar (cevabımızdan sonra ALINAN misafir mesajı cevapsızdır) → yapay zekâ M2'yi bir sonraki geçişte cevaplar (kapı,
+  güvenlik penceresi aynı kümeyle). (c) ikisi: önce (a), ölçümden sonra (b).
+- **Öneri: (c).** *Önce:* M2 "Havlu da lazım" kaybolur (kimse cevaplamaz, konuşma "cevaplandı"). *(a) sonrası:* konuşma "yeni" + not, ev sahibi
+  cevaplar. *(b) sonrası:* yapay zekâ "Havlular yatak odasındaki dolapta." diye cevaplar (kapılar aynen).
+- **Müşteriye etkisi:** (a) misafirin ikinci mesajı ev sahibine görünür olur; (b) misafir cevap alır.
+- **Beklerken yapılmayan:** içe alım durum kuralı ve "cevapsız" tanımı (mesajlaşma çekirdeği; çok yüzeyli değişiklik).
+
+---
+
+> **10-01 gece 2 — 15 ajanlık incelemenin KALAN bulguları.** Ajanların (A01, A02, A10, A11, A13) bulgularından onaylı kural kapsamındaki
+> teknik düzeltmeler bu gece yapıldı (`docs/SABAH-RAPORU-2026-10-01.md` §8). Aşağıdakiler para / kimlik / e-posta akışını, müşteriye giden
+> metni ya da politikayı değiştirdiği için sizde. Her madde: durum → öneri → müşteriye etkisi; **beklerken hiçbiri uygulanmadı.**
+
+## 41. Ödeme (15 ajan A10) — kalanlar
+- **Bu gece yapılan (bilgi):** F1'in görünürlük kısmı — imzası doğru ama hiçbir işletmeye bağlanamayan ÖDEMELİ olay (abonelik
+  active / trialing / past_due, `transaction.completed / paid`) artık operatöre tek alarm üretir (Paddle kimliğiyle anahtarlı; plan ve olay
+  durumu AYNEN). F6: belirsiz (202) ve Paddle'ın reddettiği (502) plan değişikliği denetim kaydı yazar (`billing.plan_change_pending` /
+  `…_rejected`).
+- **a) F1 kalanı:** bağlanamayan olayı "işlendi" yerine "bağlanamadı" tutmak + operatörün olayı işletmeye bağlayabileceği bir yol. Öneri:
+  evet (ödeme yapıp denemede kalan müşteri — ödeme sayfasını bir gün sonra tamamlayan, panelden elle açılan abonelik — elle düzeltilebilsin).
+- **b) F2 (P2, olası):** Paddle aynı fatura e-postasındaki müşterileri birleştiriyor; bir işletme başkasının fatura e-postasıyla ödeme yaparsa
+  "Aboneliği yönet" ötekinin faturalarını / iptal düğmesini gösterebilir (muhasebeci tek e-postayla birden çok işletme öderse de). Öneri: portal,
+  aynı Paddle müşterisi başka işletmenin aboneliğinde de kayıtlıysa açılmasın + alarm; webhook ilk bağlamada alarm. Etki: bu nadir durumda müşteri
+  portalı açamaz, destekle çözülür.
+- **c) F3:** K4 yalnız `active` olayını "aktifleşen" sayıyor; Paddle fiyatında deneme süresi varsa yeni aboneliğin `trialing` olayı düşer, abonelik
+  yetim kalır (bugünkü fiyatlarda deneme yoksa erişilemez). Öneri: `trialing` da aktifleşen.
+- **d) F4:** iade / ters ibraz (`adjustment.*`) saklanıyor ama işlenmiyor — fatura 10 yıl "ödendi" kalır, alarm yok. Öneri: onaylı iade / ters
+  ibrazda faturayı güncelle + alarm (aboneliği iptal etmek ayrı karar).
+- **e) F5:** gönüllü küçük plana geçişte mülk sayısı kontrol edilmiyor (25 mülk → Başlangıç ₺449). Öneri: hedef planın sınırı mevcut mülk
+  sayısının altındaysa geçiş reddedilsin ("Önce mülk sayınızı X'e indirin"). Etki: küçülmek isteyen müşteri önce mülk kapatır.
+- **f) F7:** değişiklikten hemen sonra yerel plan bayat (webhook gelene kadar) → sonraki önizleme yönü yanlış gösterebilir ("Düşür" yazan
+  yükseltme). Öneri: bekleyen kilit webhook gelene kadar dursun ya da yön canlı Paddle fiyatından çıkarılsın.
+- **g) F8:** fatura `paidAt` = webhook varış anı (gecikmeli teslimde günlerce kayık, 10 yıllık kayıtta); fatura başka aboneliğe bağlanabiliyor.
+  Öneri: Paddle `billed_at`; abonelik kimliği eşleşirse bağla.
+- **h) F9 (koşullu):** işlenmeyen olay türleri de süresiz saklanıyor; Paddle bildirim ayarında `transaction.created / updated` açıksa bedava
+  ödeme sayfalarıyla tablo şişirilip hesap silme (180 sn işlem) zaman aşımına düşürülebilir. Öneri: yalnız işlenen türlerin gövdesi saklansın,
+  işlenmişler budansın; Paddle panelinde bildirim türlerini kontrol edin (operatör adımı).
+
+## 42. Kimlik / e-posta (15 ajan A13) — kalanlar
+- **Bu gece yapılan (bilgi):** F1 takvim alarm seli, F12 şifresi çözülemeyen kimlik e-postası alarmı, F13 alıntı / konu satırı (RC61); F2
+  uyarı adresi bağlantısı tek kullanımlık + yalnız en son istek geçerli + adres değişince bekleyen bağlantılar geçersiz (bayrak KAPALI; ajanın
+  önerdiği `Organization.updatedAt` KULLANILMADI — OAuth belirteç yenilemesi / üslup profili satırı arka planda güncelliyor, bağlantılar
+  kendiliğinden ölürdü; yerine `SystemLock` sayacı, migration yok).
+- **a) F2 kalanı + F5:** uyarı adresi değişince hesap sahibine e-posta; onay tek tıklama (bağlantı tıklayan güvenlik tarayıcısı / her adresi
+  kabul eden alan adı onaylayabilir). Öneri: onayda e-postadaki kodu yazdır ya da yöneticinin ikinci onayı + sahibe bildirim (bayrağı açmadan önce).
+- **b) F3 (P2):** alıcı başına e-posta tavanları TAM adrese göre — Gmail nokta / +etiket varyantlarıyla tek kutuya günde ~2.000 kimlik e-postası
+  (tek IPv4'ten). Öneri: tüm alıcı tavanları `canonicalMailbox` ile + genel üst tavan; K10-i'deki sert "günde 6 sıfırlama" yerine AZALAN tavan
+  (sert tavan saldırganın sabah 00:01'de harcayıp gerçek sahibi gün boyu kilitlemesine dönüşür). Etki: meşru kullanıcı etkilenmez.
+- **c) F4:** e-postaların düz metin kısmında bağlantılar düşüyor (yalnız metin gösteren istemcide şifre sıfırlanamıyor; metin "aşağıdaki
+  bağlantı" diyor ama yok). Öneri: düz metinde "etiket (adres)". Etki: e-postaların düz metin hâli değişir (HTML aynı).
+- **d) F6:** SMTP yedeğinde fırsatçı STARTTLS (canlı Resend kullanıyor). Öneri: üretimde 465 dışı portta `requireTLS`.
+- **e) F7:** açılış kapısı `RESEND_FROM` istemiyor → eksikse tüm müşteri e-postası Resend sandbox'ında 403 alır. Öneri: üretimde zorunlu +
+  alan adı denetimi.
+- **f) F8:** takılan e-posta kuyruğu satırlarının kurtarması yalnız genel senkron kilidi içinde, org döngüsünden sonra → dağıtım ortasında
+  10 dakikalık şifre kodu ölebilir. Öneri: kurtarmayı 15 sn'lik boşaltıcıya taşı.
+- **g) F9:** hassas öğe e-postaları ve test e-postasında üst tavan yok. Öneri: soğuma / özet + günlük tavan.
+- **h) F10:** misafir metnindeki adresler ve sahte "destek" metni bizim markalı ev sahibi uyarısında tıklanabilir görünüyor (XSS değil). Öneri:
+  misafir metnindeki adresleri etkisizleştir ("hxxp"), konuda misafir kimliğine uzunluk tavanı, panel bağlantısı. Etki: ev sahibine giden
+  uyarıdaki misafir alıntısının görünümü değişir.
+- **i) F11:** doğrulama e-postası yeniden gönderme yanıt süresi "kayıtlı ve doğrulanmamış" dalında farklı (zamanlama kâhini; ağır hız sınırlı,
+  her deneme kurbana e-posta atar). Öneri: diğer dallara eşdeğer iş.
+
+## 43. Operatör / bürünme (15 ajan A02) — kalanlar
+- **Bu gece yapılan (bilgi):** F3'ün kayıt kısmı — müşterinin 2FA'sını kaldırma kaydı artık AYNI işlemde ve zorunlu (yazılamazsa sıfırlama olmaz).
+- **a) F3 kalanı:** 2FA sıfırlamada amaç / talep no (dışa aktarımdaki gibi) + hesap sahibine e-posta + süper-yönetici hesabının hedef olmasını
+  engelleme. Öneri: üçü de.
+- **b) F2:** bürünmenin bitişi yalnız "çıkış" tıklamasıyla kaydediliyor (2 saatlik dolum / müşteriden müşteriye geçiş kayıtsız). Öneri: girişte
+  {başlangıç, bitiş} + geçişte önceki müşteriye çıkış kaydı.
+- **c) F6:** çıkıştan sonra başka sekmede açık kalan müşteri sayfası kaydedilirse, kayıt o anki çerezin işletmesine gidebiliyor. Öneri:
+  yazmalarda sayfanın işletme kimliği gönderilsin, uyuşmazsa reddedilsin.
+- **d) F7:** bürünmede liste uçları (rezervasyon / bilgi tabanı / konuşma) amaçsız ve kayıtsız okunuyor; "toplu dışa aktarım yok" kuralı yalnız
+  dışa aktarım ucunu kapatıyor. Öneri: K16 veri erişim politikasına göre liste okuması kaydı ya da kapsam.
+- **e) F8:** demo hesabı yöneticisi takvim beslemesi ekleyebiliyor → sonraki demo yenilemesi `live_connection_present` ile hep reddediliyor.
+  Öneri: yenilemede demo işletmesinin takvim kaynaklarını sil ya da demoda besleme eklemeyi kapat.
+- **f) F10:** operatör panelinde aday ve denetim listeleri yalnız son 50 satır; IP döndüren saldırgan saatte ~240 satırla bürünme / dışa aktarma
+  kayıtlarını panelden dakikalar içinde düşürebilir. Öneri: sayfalama + eylem süzgeci.
+- **g) F11:** operatörün iç denetim kayıtları müşterinin kendi veri dışa aktarımına aynen giriyor. Öneri: politika kararı (dışla / redakte et).
+- **h) F13:** "bu cihazı hatırla" çerezi her hatırlanan girişte 30 gün tazeleniyor → operatör o cihazda bir daha TOTP girmiyor. Öneri: operatör
+  için tazeleme yok / mutlak tavan.
+
+## 44. Depolama / görev / personel (15 ajan A11) — kalanlar
+- **Bu gece yapılan (bilgi):** S1 / S3 / S4 depolama zaman aşımı + bütçe + `NoSuchKey` + geçiş tabanlı alarm, S7 görev ağı sözcük sınırı, S14
+  yeniden değerlendirme koruması (RC61).
+- **a) S2 (repo PUBLIC):** gerçek üretim bucket adı + uç nokta + bölge izlenen dosyalarda. Öneri: **hemen** runbook adım 1 — imzasız GET ve
+  anonim ListObjectsV2 ikisi de 403 dönmeli (operatör adımı; bu oturumdan ağa çıkılmadı); izlenen dosyalarda adı kurgusal adla değiştirmek
+  (geçmiş commit'lerde kalır — asıl koruma 403).
+- **b) S5:** ev sahibinin sildiği yaşam döngüsü görevi kendi kendini onarmayla geri geliyor. Öneri: "kapatıldı" işareti ya da yalnız yeni /
+  değişen rezervasyonda onarım (+ sistem görevleri için kısmi tekil dizin — migration).
+- **c) S6:** fotoğraf veritabanına bağlanmadan depoya yazılıyor; kota yok; hesap silme yalnız görev güncellemelerindeki fotoğrafları siliyor.
+  Öneri: süreli geçici önek, silmede `org/{id}/` önekinin tamamı, işletme başına kota.
+- **d) S8 / S9:** personel görünümü yalnız `origin`e bakıyor (ev sahibinin elle düzenlediği sistem görevine yapıştırılan misafir metni personele
+  gider); `origin` varsayılanı `manual`. Öneri: personel daveti açılmadan önce SQL kontrolü + yeniden sınıflama + `origin` zorunlu + düzenleme
+  işareti (kararınız).
+- **e) S10:** görev kontrol listesi bütün dizi olarak yazılıyor; eşzamanlı işaretlemede bir işaret kaybolabilir. Öneri: satır kilidi altında
+  oku ya da öğe bazında işlem.
+- **f) S11:** KVKK taslağı fotoğrafları "yerel disk" diye anlatıyor (gerçekte Tigris + silme kuyruğu); fotoğrafların saklama süresi yok. Öneri:
+  belge düzeltilsin + saklama süresi (avukat paketiyle).
+- **g) S12:** yüklemede piksel boyutu denetimi yok (5 MB'lık 30k × 30k PNG ev sahibinin sekmesini çökertebilir; güvenilir üye ister). Öneri:
+  başlıktan boyut oku + tavan.
+- **h) S13:** komşu rezervasyon satırı (cevap istemi) yalnız `confirmed / completed` sayıyor; müsaitlik çekirdeği bekleyen / bilinmeyeni dolu
+  sayıyor. Öneri: `statusClassOf(...) !== "ignored"`. Etki: istemde ertesi günün bekleyen rezervasyonu görünür (konaklama kapısı zaten tutuyor).
+
+## 45. Oturum / giriş (15 ajan A01) — kalanlar (hepsi P3)
+- **a) A01-1:** kayıt rotasında "e-posta zaten kayıtlı" dalı daha az iş yapıyor (zamanlama kâhini); şifre sıfırlamadaki eşdeğer iş kalıbı
+  taşınmamış. Öneri: eşdeğer iş.
+- **b) A01-2:** "tanınan cihaz" çerezi ele geçirilirse hesap kilit tavanı o hesap için yalnız bcrypt ve IP döndürmeyle sınırlı kalıyor. Öneri:
+  çerez "kilidi bir kez atla" olsun, hesap tavanından tümden muaf değil.
+- **c) A01-3:** oturum çerezi `__Host-` önekli, güvenilir / tanınan cihaz çerezleri değil. Öneri: güvenilir cihaz `__Host-` (tanınan cihazın
+  yolu `/api/auth` → belgelensin); en düşük öncelik.
+- **d) A01-4:** tüm işletme verisinin KVKK dışa aktarımı yalnız canlı sahip oturumu istiyor; hesap silme / 2FA işlemleri şifre ister. Öneri: aynı
+  yeniden doğrulama (şifre) adımı.
+- **e) A01-5:** `GET /api/auth/logout` başka siteden tetiklenebilir (zararsız çıkış; bilinen açık tasarım kararı).
+- **f) A01-6 (olası):** köken sunucusu doğrudan erişilebilirse IP başlığı taklit edilebilir. Öneri: canlıda `/admin` teşhis kartından seçilen
+  sıçramayı doğrulayın; köken doğrudan açıksa güvenilir vekil IP listesi.
