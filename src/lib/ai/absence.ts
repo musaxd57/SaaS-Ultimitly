@@ -150,13 +150,20 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   // FR — "je n'ai pas (d')information", "aucune information", "ne sont pas précisées ici", "je ne dispose pas de…", "je ne sais pas".
   // "indiqué" BİLEREK yok ("il n'est pas indiqué de…" = tavsiye edilmez).
   new RegExp(`n'(?:ai|avons) pas (?:d'|de |des |les |l'|cette |ces |cet |la |le )?${gap(1)}${FR_OBJ}`, "u"),
-  new RegExp(`${L}aucune? ${gap(1)}${FR_OBJ}`, "u"),
+  // "aucune information" yalnız 1. şahısla ya da "… n'est disponible" yüklemiyle: "Vous n'avez besoin d'aucune information" (gerek yok)
+  // itiraf DEĞİLDİR.
+  new RegExp(`n'(?:ai|avons) aucune? ${gap(1)}${FR_OBJ}`, "u"),
+  new RegExp(
+    `${L}aucune? ${gap(1)}${FR_OBJ} (?:n'est|n'a été|ne sont|n'ont été) (?:disponible|pr[ée]cis[ée]|mentionn[ée]|indiqu[ée]|fourni|connu)`,
+    "u",
+  ),
   /(?:n'est|ne sont) pas (?:pr[ée]cis[ée]|mentionn[ée]|renseign[ée])e?s? (?:ici|dans)/u,
   new RegExp(`ne dispos\\p{L}{0,8} pas (?:d'|de |des )?${gap(1)}${FR_OBJ}`, "u"),
   /je ne (?:le )?sais pas|je ne (?:trouve|retrouve) pas|je n'ai pas (?:trouvé|retrouvé)/u,
-  // DE — "keine (genauen) Informationen/Angaben", "nicht angegeben", "weiß ich nicht", "kann ich nicht finden".
-  // "keine " BOŞLUKLA: "keinen Schlüssel" eşleşmez; "können" (2. şahıs koşul) eşleşmez.
-  new RegExp(`${L}keine ${gap(2)}${DE_OBJ}`, "u"),
+  // DE — "(habe / liegen mir / gibt) keine (genauen) Informationen", "nicht angegeben", "weiß ich nicht", "kann ich nicht finden".
+  // "keine" YALNIZ sahiplik / varlık fiiliyle: "Sie brauchen keine weiteren Angaben" (gerek yok) itiraf DEĞİLDİR; "keinen Schlüssel"
+  // ve "können" (2. şahıs koşul) eşleşmez.
+  new RegExp(`(?:habe|haben|hab|hätte|liegen|liegt|gibt)(?: \\p{L}{1,30}){0,6} keine ${gap(1)}${DE_OBJ}`, "u"),
   /nicht (?:angegeben|vermerkt|hinterlegt|aufgeführt)(?![\p{L}])/u,
   /(?:ich weiß|weiß ich) (?:es |das )?(?:leider )?nicht/u,
   /(?:kann|konnte) (?:ich )?(?:\p{L}{1,30} ){0,2}nicht finden/u,

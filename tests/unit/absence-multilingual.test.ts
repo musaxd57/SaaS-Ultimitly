@@ -35,6 +35,7 @@ const ADMITS: Record<string, string[]> = {
     "Je ne dispose pas de cette information.",
     "Je ne sais pas si le restaurant est ouvert le dimanche.",
     "Ce point n'est pas mentionné dans mes informations.",
+    "Je n'ai aucune information à ce sujet.",
   ],
   de: [
     "Dazu liegen mir keine Informationen vor.",
@@ -43,6 +44,7 @@ const ADMITS: Record<string, string[]> = {
     "Das weiß ich leider nicht.",
     "Ich weiß es nicht genau.",
     "Den Friseur kann ich leider nicht finden.",
+    "Es gibt dazu keine Informationen.",
   ],
   es: [
     "No tengo información sobre el aparcamiento.",
@@ -58,6 +60,7 @@ const ADMITS: Record<string, string[]> = {
     "Это не указано в моих записях.",
     "Я не знаю, работает ли бассейн.",
     "Не могу найти эту информацию.",
+    "Информация о парковке отсутствует.",
   ],
   ar: [
     "ليس لدي معلومات عن موقف السيارات.",
@@ -84,6 +87,8 @@ const LEGIT: Record<string, string[]> = {
     "Aucun problème, l'arrivée est possible à partir de 15h.",
     "Les animaux ne sont pas acceptés dans l'appartement.",
     "Il n'est pas indiqué de laisser les fenêtres ouvertes la nuit.",
+    // Olumsuz İHTİYAÇ ("…gerek yok") itiraf değildir.
+    "Vous n'avez besoin d'aucune information supplémentaire pour l'arrivée.",
   ],
   de: [
     "Es fallen keine zusätzlichen Kosten an.",
@@ -92,6 +97,8 @@ const LEGIT: Record<string, string[]> = {
     "Keine Sorge, der Check-in ist ab 15 Uhr möglich.",
     "Alle Informationen finden Sie im Gästebuch.",
     "Falls Sie den Schlüssel nicht finden können, liegt er im Briefkasten.",
+    "Sie brauchen keine weiteren Angaben zu machen, der Check-in ist ab 15 Uhr.",
+    "Sie müssen uns keine Informationen vorab schicken.",
   ],
   es: [
     "No hay ningún cargo adicional.",
