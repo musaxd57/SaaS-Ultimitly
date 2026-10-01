@@ -110,6 +110,12 @@ const ACTIVE_PAST_CLAIM = new RegExp(
     // Şimdiki zaman: "Durumu ev sahibine iletiyorum / aktarıyorum / yönlendiriyorum" (eylem şu an yapılıyor iddiası).
     // İkinci inceleme: ardından iki nokta gelen biçim bir DUYURU kalıbıdır ("Sizi bilgilendiriyoruz: yarın su kesintisi var").
     `|${NL}(?:ileti|aktarı|yönlendiri|bildiri|haber veri|ulaştırı|bilgilendiri)yor(?:um|uz)${NR}(?![^.!?\\n]*:)` +
+    // K10 ikinci tur (Codex 10-01): duyuru istisnası ALICISI üçüncü kişi olan iletmeye uygulanmaz — "Mesajınızı ev sahibine
+    // iletiyorum: giriş solda." geçiyordu (QR kararında da). Ev sahibi / ekip / görevli YÖNELME ya da BELİRTME hâlinde aynı
+    // cümlecikte fiilden önce geliyorsa iki nokta duyuru değil, iddiadır. Misafirin talebini nesne alan iletme de ("Talebinizi
+    // aktarıyorum: …"). "Sizi bilgilendiriyoruz: havuz kapalı" (alıcı misafir) duyuru kalır.
+    `|${NL}(?:sahib|ekib|ekip|görevli|yönetici|temizlikçi|teknisyen|tesisatçı|resepsiyon)\\p{L}*(?:[ea]|[ıiuü])\\s+(?:\\p{L}+\\s+){0,3}?(?:ileti|aktarı|yönlendiri|bildiri|haber veri|ulaştırı|bilgilendiri)yor(?:um|uz)${NR}` +
+    `|${NL}(?:mesaj|talep|taleb|istek|isteğ|şikayet|şikâyet|soru|rica)\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}?(?:ileti|aktarı|yönlendiri|ulaştırı)yor(?:um|uz)${NR}` +
     // BEKLEME SÖZÜ (09-25), inceleme düzeltmesi: yalnız 1. TEKİL ("Takvimi kontrol ediyorum", "Hemen bakıyorum", "Kontrol
     // edip dönüyorum") — 1. çoğul ev sahibinin SÜREÇ anlatımıdır ("Her misafirden önce daireyi kontrol ediyoruz").
     // "teyit ediyorum" YOK: "Teyit ediyorum, giriş 15:00" bilinen bir olgunun onayıdır.
@@ -320,6 +326,9 @@ const EN_ADVERB = "(?:just\\s+|quickly\\s+|also\\s+|now\\s+|personally\\s+|short
 const EN_FUTURE_CLAIM = new RegExp(
   // Ardından iki nokta gelen 1. şahıs biçim bir DUYURUDUR ("I'll respond to each of your questions below: …").
   `${NL}${EN_I}(?![^.!?\\n]*:)\\s+${EN_ADVERB}(?:${EN_COMMON_PROMISE}|${EN_FIRST_ONLY_PROMISE})${NR}` +
+    // K10 ikinci tur (Codex 10-01): duyuru istisnası ev sahibine / ekibe İLETME sözüne uygulanmaz — "I'll forward your message to
+    // the host: check-in is on the left." geçiyordu. Alıcı üçüncü kişi (ya da iletme fiili) varken iki nokta duyuru değil, sözdür.
+    `|${NL}${EN_I}\\s+${EN_ADVERB}(?:forward|pass\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+(?:on|along)|notify|let\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|manager)\\s+know|ask\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|manager)|message\\s+(?:the|your)\\s+host|contact\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|manager))${NR}` +
     // İkinci inceleme: "I can ask the host", "I'd be happy to check with the owner" — yapılamayacak eylemin teklifi.
     `|${NL}(?:i\\s+can|i'?d\\s+be\\s+(?:happy|glad)\\s+to|i'?d\\s+love\\s+to)\\s+${EN_ADVERB}(?:ask\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|manager)|ask\\s+them|check\\s+with|forward|pass\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+(?:on|along)|contact\\s+(?:the|your)\\s+(?:host|owner)|notify|message\\s+(?:the|your)\\s+host|let\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner)\\s+know|reach\\s+out|find\\s+out|look\\s+into)${NR}` +
     `|${NL}${EN_OTHER_AGENT}\\s+${EN_ADVERB}(?:${EN_COMMON_PROMISE})${NR}` +
