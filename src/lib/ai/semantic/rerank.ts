@@ -156,7 +156,7 @@ export async function llmRerank(
 ): Promise<RerankOutcome> {
   const apiKey = semanticApiKey();
   if (!apiKey || candidates.length === 0 || !guestMessage.trim()) return { status: "skipped", ms: 0 };
-  const model = deps.model ?? semanticModel();
+  const model = deps.model ?? semanticModel("rerank");
   const { user, ids } = buildRerankRequest(guestMessage, candidates, names);
   const layerTimeout = semanticTimeoutMs(model);
   const res = await callStructuredJson({
@@ -168,7 +168,7 @@ export async function llmRerank(
     timeoutMs: deps.deadlineMs !== undefined ? Math.min(layerTimeout, deps.deadlineMs) : layerTimeout,
     maxTokens: 400,
     maxCompletionTokens: 2_000,
-    reasoningEffort: semanticReasoningEffort(),
+    reasoningEffort: semanticReasoningEffort("rerank"),
     fetchImpl: deps.fetchImpl,
   });
   const scores = res.ok ? parseRerank(res.data, ids) : null;

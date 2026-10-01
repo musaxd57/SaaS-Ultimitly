@@ -17,8 +17,27 @@ export function semanticApiKey(): string | undefined {
   return resolveCompatKey(process.env.AI_SEMANTIC_API_KEY, OPENAI_BASE_URL);
 }
 
-export function semanticModel(): string {
-  return process.env.AI_SEMANTIC_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
+/**
+ * KATMAN BAZINDA MODEL (kurucu 10-01: "her katmanı ayrı doğrulayalım"): anlama katmanı, konaklama bekçisi ve yeniden sıralayıcı
+ * kendi ortam değişkeniyle ayrı modele / düşünme çabasına alınabilir; tanımsızsa bugünkü ortak ayara (`AI_SEMANTIC_*`) düşer —
+ * hepsi boşken davranış BİREBİR eski. Erken giriş akışının "iki bağımsız model" şartı da (anlama + bekçi) böylece gerçekten iki
+ * farklı modelle karşılanabilir.
+ */
+export type SemanticLayer = "understanding" | "guard" | "rerank";
+export const SEMANTIC_LAYER_MODEL_ENV: Readonly<Record<SemanticLayer, string>> = {
+  understanding: "AI_UNDERSTANDING_MODEL",
+  guard: "AI_STAY_GUARD_MODEL",
+  rerank: "KB_RERANK_MODEL",
+};
+export const SEMANTIC_LAYER_EFFORT_ENV: Readonly<Record<SemanticLayer, string>> = {
+  understanding: "AI_UNDERSTANDING_REASONING_EFFORT",
+  guard: "AI_STAY_GUARD_REASONING_EFFORT",
+  rerank: "KB_RERANK_REASONING_EFFORT",
+};
+
+export function semanticModel(layer?: SemanticLayer): string {
+  const own = layer ? process.env[SEMANTIC_LAYER_MODEL_ENV[layer]]?.trim() : undefined;
+  return own || process.env.AI_SEMANTIC_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
 }
 
 /**
@@ -26,8 +45,9 @@ export function semanticModel(): string {
  * varsayılanı). gpt-5 ailesinin varsayılanı "medium" olabilir → anlam katmanı için "low" önerilir
  * (inceleme 09-24; ölçmeden varsayılan yapılmadı).
  */
-export function semanticReasoningEffort(): string | undefined {
-  const v = process.env.AI_SEMANTIC_REASONING_EFFORT?.trim();
+export function semanticReasoningEffort(layer?: SemanticLayer): string | undefined {
+  const own = layer ? process.env[SEMANTIC_LAYER_EFFORT_ENV[layer]]?.trim() : undefined;
+  const v = own || process.env.AI_SEMANTIC_REASONING_EFFORT?.trim();
   return v && ["none", "minimal", "low", "medium", "high"].includes(v) ? v : undefined;
 }
 

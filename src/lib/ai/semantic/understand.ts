@@ -96,6 +96,16 @@ export const UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM = [
   'Example: "Gürültü yüzünden uyuyamadık, yine olursa ne yapacağız?" -> requests [complaint_issue] only. "Gürültüden uyuyamadık. Bu arada Wi-Fi ağı hangisi?" -> requests [complaint_issue, wifi].',
 ].join("\n");
 
+/** Anlama katmanının sistem istemi — kiplere göre TEK kurucu (çağrı ve ölçer istem kimliği aynı fonksiyondan). */
+export function understandingSystemPromptFor(opts: { items?: boolean; rules?: boolean; complaintFollowup?: boolean }): string {
+  return [
+    UNDERSTANDING_SYSTEM_PROMPT,
+    ...(opts.items ? [UNDERSTANDING_ITEMS_PROMPT_ADDENDUM] : []),
+    ...(opts.rules ? [UNDERSTANDING_RULES_PROMPT_ADDENDUM] : []),
+    ...(opts.complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
+  ].join("\n");
+}
+
 /** Katmanın gördüğü pencere (erken giriş akışı: pencereye sığmayan cevapsız mesaj varsa otomatik gönderim yok). */
 export const UNDERSTANDING_WINDOW = { maxMessages: UNDERSTANDING_MAX_UNANSWERED, messageCap: UNDERSTANDING_MESSAGE_CAP } as const;
 
@@ -216,7 +226,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
   try {
     const apiKey = semanticApiKey();
     if (!apiKey) return { status: "off" };
-    const model = semanticModel();
+    const model = semanticModel("understanding");
     const user = buildUnderstandingUserContent(input);
     const items = input.items === true;
     const rules = input.rules === true;
@@ -234,18 +244,13 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: [
-        UNDERSTANDING_SYSTEM_PROMPT,
-        ...(items ? [UNDERSTANDING_ITEMS_PROMPT_ADDENDUM] : []),
-        ...(rules ? [UNDERSTANDING_RULES_PROMPT_ADDENDUM] : []),
-        ...(complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
-      ].join("\n"),
+      system: understandingSystemPromptFor({ items, rules, complaintFollowup }),
       user,
       schema: understandingSchemaFor({ items, rules }),
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 600,
       maxCompletionTokens: 4_000,
-      reasoningEffort: semanticReasoningEffort(),
+      reasoningEffort: semanticReasoningEffort("understanding"),
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed", ms: Date.now() - started };

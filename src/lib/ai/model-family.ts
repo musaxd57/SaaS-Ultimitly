@@ -40,3 +40,12 @@ export function replyReasoningEffort(): (typeof REASONING_EFFORTS)[number] | und
   const v = process.env.OPENAI_REASONING_EFFORT?.trim();
   return (REASONING_EFFORTS as readonly string[]).includes(v ?? "") ? (v as (typeof REASONING_EFFORTS)[number]) : undefined;
 }
+
+/**
+ * Katman bazında düşünme çabası (10-01; çeviri `OPENAI_TRANSLATE_REASONING_EFFORT`, üslup özeti `OPENAI_STYLE_REASONING_EFFORT`):
+ * aynı kapalı küme, boş / tanınmayan → `undefined` = gönderilmez (bugünkü davranış). Çağıran yalnız reasoning modelinde gönderir.
+ */
+export function layerReasoningEffort(raw: string | undefined): (typeof REASONING_EFFORTS)[number] | undefined {
+  const v = raw?.trim();
+  return (REASONING_EFFORTS as readonly string[]).includes(v ?? "") ? (v as (typeof REASONING_EFFORTS)[number]) : undefined;
+}

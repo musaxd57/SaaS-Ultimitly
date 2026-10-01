@@ -15,7 +15,7 @@ import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
 import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
 import type { Priority } from "@/lib/constants";
-import { DEFAULT_OPENAI_MODEL, isReasoningModel, replyReasoningEffort } from "./model-family";
+import { DEFAULT_OPENAI_MODEL, isReasoningModel, layerReasoningEffort, replyReasoningEffort } from "./model-family";
 import { reportError } from "@/lib/report-error";
 import {
   classifyModelProviderFailure,
@@ -571,6 +571,9 @@ export async function summarizeHostStyle(sampleReplies: string[]): Promise<strin
     ],
   };
   if (!isReasoningModel(model)) payload.temperature = 0.2;
+  // Katman bazında düşünme çabası (10-01): yalnız reasoning modelinde, kapalı kümeden; tanımsızsa gönderilmez (bugünkü davranış).
+  const styleEffort = layerReasoningEffort(process.env.OPENAI_STYLE_REASONING_EFFORT);
+  if (isReasoningModel(model) && styleEffort) payload.reasoning_effort = styleEffort;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {

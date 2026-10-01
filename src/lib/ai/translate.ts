@@ -1,6 +1,6 @@
 import "server-only";
 
-import { DEFAULT_OPENAI_MODEL, isReasoningModel } from "./model-family";
+import { DEFAULT_OPENAI_MODEL, isReasoningModel, layerReasoningEffort } from "./model-family";
 
 // ---------------------------------------------------------------------------
 // translate — hospitality-aware translation via OpenAI (model from
@@ -146,6 +146,10 @@ export async function translate(
     ],
   };
   if (!reasoning) payload.temperature = 0.2;
+  // Katman bazında düşünme çabası (10-01, Luna değerlendirmesi): yalnız reasoning modelinde ve yalnız kapalı kümeden; tanımsızsa
+  // GÖNDERİLMEZ (bugünkü davranış birebir — model varsayılanı).
+  const effort = layerReasoningEffort(process.env.OPENAI_TRANSLATE_REASONING_EFFORT);
+  if (reasoning && effort) payload.reasoning_effort = effort;
   // Output token cap — a runaway generation must not run up spend.
   if (reasoning) payload.max_completion_tokens = 4000;
   else payload.max_tokens = 3000;

@@ -137,7 +137,7 @@ export async function runStayChangeGuard(input: StayGuardInput): Promise<StayGua
     const apiKey = semanticApiKey();
     if (!apiKey) return undefined;
     if (!guardSeesWholeReply(input)) return { status: "failed" };
-    const model = semanticModel();
+    const model = semanticModel("guard");
     const res = await callStructuredJson({
       apiKey,
       model,
@@ -147,7 +147,7 @@ export async function runStayChangeGuard(input: StayGuardInput): Promise<StayGua
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 300,
       maxCompletionTokens: 4_000,
-      reasoningEffort: semanticReasoningEffort(),
+      reasoningEffort: semanticReasoningEffort("guard"),
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed" };
