@@ -124,10 +124,13 @@ const QUESTION_CLAUSE =
  * "is it", "do we") cümleciğin BAŞINDA olmak zorunda değil — selamdan sonra da ("Hi can we…", "Hey guys can we…") sorudur; düz
  * sıra ("we can leave at 10") beyandır. Rica / izin kalıpları: "rica", "mümkünse", "izin verirseniz", "possible", "if we could",
  * "I wonder if", "let us", "would like to …", "we'd love". Sözcük yasağı değil, BİÇİM: aynı "can" düz sırada beyan kalır.
+ * K11 ikinci tur (Codex 10-01): TEKİL izin isteği de ("Please let me / allow me to check out at 1pm", "Darf ich um 13 Uhr
+ * auschecken?", "Puis-je partir à 13h ?", "¿Puedo salir a las 13?") — çoğulla birlikte sınanır; düz "We will check out at 1pm"
+ * beyan kalır.
  * Yanlış tanıma güvenli yöndedir (saat kaydedilmez, mesaj yine ev sahibinin önünde).
  */
 const REQUEST_CLAUSE =
-  /(?:^|\s)(?:can|could|may|might|would|will|shall|should)\s+(?:we|i|you)(?=\s)|(?:^|\s)(?:is|are|do|does|did)\s+(?:it|there|we|you)(?=\s)|possible|m[öo]glich|posible|if\s+(?:we|i)\s+(?:can|could|may|might)(?=\s)|wonder(?:ing)?\s+if|(?:^|\s)(?:let|allow)\s+us(?=\s)|(?:would|'d)\s+(?:like|love)\s+(?:to|a)(?=\s)|(?:^|\s)request|rica|m[üu]mk[üu]n|izin\s+ver|m[üu]saade/;
+  /(?:^|\s)(?:can|could|may|might|would|will|shall|should)\s+(?:we|i|you)(?=\s)|(?:^|\s)(?:is|are|do|does|did)\s+(?:it|there|we|you)(?=\s)|possible|m[öo]glich|posible|if\s+(?:we|i)\s+(?:can|could|may|might)(?=\s)|wonder(?:ing)?\s+if|(?:^|\s)(?:let|allow|permit)\s+(?:us|me)(?=\s)|(?:^|\s)(?:kann|darf|könnte|dürfte|dürften)\s+(?:ich|wir)(?=\s)|puis-je|pourrais-je|pourrions-nous|(?:^|\s)(?:puedo|podría|podria)(?=\s)|(?:would|'d)\s+(?:like|love)\s+(?:to|a)(?=\s)|(?:^|\s)request|rica|m[üu]mk[üu]n|izin\s+ver|m[üu]saade/;
 
 /**
  * YALNIZ istek işaretinden oluşan kısa cümlecik ("Mümkünse,", "If possible,", "İzin verirseniz,", "Wäre es möglich,") SONRAKİ
