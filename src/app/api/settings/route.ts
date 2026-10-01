@@ -10,6 +10,7 @@ import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { appBaseUrl } from "@/lib/auth/email-verify";
+import { bumpAlertEmailGeneration } from "@/lib/alert-email-generation";
 import {
   ALERT_ADDRESS_VERIFY_SUBJECT,
   alertEmailVerifyEnabled,
@@ -55,7 +56,9 @@ async function requestAlertEmailVerification(organizationId: string, email: stri
     return tooManyRequests(perAddress.retryAfter, "Bu adrese bugün çok fazla doğrulama e-postası gönderildi. Lütfen yarın tekrar deneyin.");
   }
   const current = await prisma.organization.findUnique({ where: { id: organizationId }, select: { alertEmail: true } });
-  const token = signAlertEmailToken({ organizationId, email, previous: current?.alertEmail ?? null });
+  // Yeni istek kuşağı ARTIRIR: önceki (onaylanmamış) bağlantılar geçersizleşir — en son istek geçerli (15 ajan A13 F2).
+  const generation = await bumpAlertEmailGeneration(organizationId);
+  const token = signAlertEmailToken({ organizationId, email, previous: current?.alertEmail ?? null, generation });
   const unavailable = NextResponse.json(
     { error: "Doğrulama e-postası şu an gönderilemedi. Lütfen biraz sonra tekrar deneyin." },
     { status: 503 },
@@ -273,6 +276,9 @@ export const PATCH = withManage(async (session, req) => {
     return badRequest({ _: "Güncellenecek geçerli bir alan yok." });
   }
 
+  // Uyarı adresi doğrudan değişiyor (ekip üyesi / temizleme): bekleyen doğrulama bağlantıları geçersizleşir — adres eski değerine
+  // dönse de eski bağlantı canlanmaz (15 ajan A13 F2). Güncellemeden ÖNCE: artırma düşerse hiçbir şey değişmeden hata döner.
+  if ("alertEmail" in update) await bumpAlertEmailGeneration(session.organizationId);
   await prisma.organization.update({
     where: { id: session.organizationId },
     data: update,

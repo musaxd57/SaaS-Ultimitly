@@ -15,7 +15,11 @@ import { identityEmailShell, plainLinkFallback } from "@/lib/email-shell";
 //     açması onay DEĞİLDİR (sayfa açık bir "Onayla" tıklaması + POST ister).
 //   · Belirteç istek anındaki eski adrese BAĞLIDIR (CAS): arada adres değiştiyse eski bağlantı geçersizdir — tekrar
 //     kullanılan bir bağlantı sonradan seçilmiş başka bir adresi geri alamaz.
-// Migration YOK (durumsuz imza).
+//   · 🚨 CAS TEK BAŞINA YETMİYORDU (15 ajan A13 F2, 10-01): adres belirtecin "eski adres" değerine DÖNÜNCE (dış adresi kaldırıp
+//     boşaltmak = varsayılan) son 24 saatin her bağlantısı yeniden geçerli oluyordu — kaldırılan dış alıcı aynı bağlantıyı açıp
+//     sessizce yeniden uyarı alıcısı olabiliyordu. Belirteç artık işletmenin uyarı adresi KUŞAĞINI taşır (`alert-email-generation.ts`,
+//     `SystemLock`'ta sayaç): her yeni istek ve her doğrudan adres değişikliği kuşağı artırır, onay onu tüketir.
+// Migration YOK (imza + `SystemLock` sayacı).
 // ---------------------------------------------------------------------------
 
 export const ALERT_EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -31,9 +35,15 @@ export interface AlertEmailClaim {
   email: string;
   /** İstek anındaki kayıtlı uyarı adresi (yoksa null) — onayda karşılaştırılır. */
   previous: string | null;
+  /**
+   * İşletmenin uyarı adresi KUŞAĞI (`alert-email-generation.ts`; 15 ajan A13 F2): her yeni doğrulama isteği ve her doğrudan adres
+   * değişikliği kuşağı artırır, onay onu TÜKETİR → bağlantı tek kullanımlık, en son istek geçerli; adres eski değerine dönünce
+   * (kaldırma / temizleme) eski bağlantılar yeniden geçerli OLMAZ.
+   */
+  generation: number;
 }
 
-type Payload = { p: "alert-email"; o: string; e: string; v: string | null; x: number };
+type Payload = { p: "alert-email"; o: string; e: string; v: string | null; g: number; x: number };
 
 function secret(): string {
   return process.env.AUTH_SECRET ?? "";
@@ -51,6 +61,7 @@ export function signAlertEmailToken(claim: AlertEmailClaim, now: Date = new Date
     o: claim.organizationId,
     e: claim.email,
     v: claim.previous,
+    g: claim.generation,
     x: now.getTime() + ALERT_EMAIL_VERIFY_TTL_MS,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -80,12 +91,15 @@ export function verifyAlertEmailToken(token: unknown, now: Date = new Date()): A
     typeof payload.e !== "string" ||
     payload.e.length === 0 ||
     !(payload.v === null || typeof payload.v === "string") ||
+    typeof payload.g !== "number" ||
+    !Number.isSafeInteger(payload.g) ||
+    payload.g < 1 ||
     typeof payload.x !== "number" ||
     now.getTime() > payload.x
   ) {
     return null;
   }
-  return { organizationId: payload.o, email: payload.e, previous: payload.v };
+  return { organizationId: payload.o, email: payload.e, previous: payload.v, generation: payload.g };
 }
 
 /**

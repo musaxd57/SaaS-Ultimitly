@@ -133,6 +133,41 @@ describe("uyarı adresi doğrulaması", () => {
     expect(await alertEmailOf(orgId)).toBe("owner@example.com");
   });
 
+  // ── 15 ajan A13 F2 (10-01): CAS adres belirtecin "eski adresine" DÖNÜNCE yeniden geçiyordu ──────────────────────────────────
+  it("🚨 onaylanıp KALDIRILAN dış adres aynı bağlantıyla geri GELEMEZ (kaldırma = boşaltma, belirtecin eski adresi)", async () => {
+    await patch({ alertEmail: OUTSIDE });
+    const link = tokenFromMail();
+    expect((await verify(link)).status).toBe(200);
+    expect(await alertEmailOf(orgId)).toBe(OUTSIDE);
+    // Ev sahibi dış alıcıyı kaldırdı (varsayılana döndü — belirtecin "eski adres" değeri null).
+    expect((await patch({ alertEmail: "" })).status).toBe(200);
+    expect(await alertEmailOf(orgId)).toBeNull();
+    // Kaldırılan alıcı aynı bağlantıyı yeniden açtı → geçersiz, adres boş kalır.
+    expect((await verify(link)).status).toBe(409);
+    expect(await alertEmailOf(orgId)).toBeNull();
+  });
+
+  it("🚨 iki bekleyen istek: yalnız EN SON bağlantı geçer (önce tıklanan eski bağlantı kazanamaz)", async () => {
+    await patch({ alertEmail: "typo@example.net" });
+    const older = tokenFromMail(0);
+    await patch({ alertEmail: OUTSIDE });
+    const latest = tokenFromMail(1);
+    expect((await verify(older)).status).toBe(409);
+    expect(await alertEmailOf(orgId)).toBeNull();
+    expect((await verify(latest)).status).toBe(200);
+    expect(await alertEmailOf(orgId)).toBe(OUTSIDE);
+  });
+
+  it("🚨 ekip adresi doğrudan seçilip sonra temizlenince bekleyen bağlantı da geçersiz", async () => {
+    await patch({ alertEmail: OUTSIDE });
+    const pending = tokenFromMail();
+    await patch({ alertEmail: "owner@example.com" });
+    await patch({ alertEmail: "" });
+    expect(await alertEmailOf(orgId)).toBeNull(); // belirtecin "eski adres" değeriyle aynı
+    expect((await verify(pending)).status).toBe(409);
+    expect(await alertEmailOf(orgId)).toBeNull();
+  });
+
   it("🚨 bir işletmenin bağlantısı YALNIZ o işletmeyi değiştirir", async () => {
     const other = await prisma.organization.create({ data: { name: "Başka" } });
     await patch({ alertEmail: OUTSIDE });

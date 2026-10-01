@@ -13,7 +13,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const NOW = new Date("2026-10-01T10:00:00.000Z");
-const CLAIM = { organizationId: "org_1", email: "ops@example.net", previous: null as string | null };
+const CLAIM = { organizationId: "org_1", email: "ops@example.net", previous: null as string | null, generation: 1 };
 
 describe("uyarı adresi doğrulama belirteci", () => {
   beforeEach(() => vi.stubEnv("AUTH_SECRET", "test-secret-0123456789abcdef"));
@@ -57,8 +57,13 @@ describe("uyarı adresi doğrulama belirteci", () => {
       const mac = createHmac("sha256", "test-secret-0123456789abcdef").update(`lixus/alert-email-verify/v1.${body}`).digest("base64url");
       return `${body}.${mac}`;
     };
-    const ok = { p: "alert-email", o: "org_1", e: "a@b.co", v: null, x: NOW.getTime() + 1e6 };
-    expect(verifyAlertEmailToken(sign(ok), NOW)).toEqual({ organizationId: "org_1", email: "a@b.co", previous: null });
+    const ok = { p: "alert-email", o: "org_1", e: "a@b.co", v: null, g: 3, x: NOW.getTime() + 1e6 };
+    expect(verifyAlertEmailToken(sign(ok), NOW)).toEqual({ organizationId: "org_1", email: "a@b.co", previous: null, generation: 3 });
+    // 15 ajan A13 F2: kuşak ZORUNLU, pozitif güvenli tamsayı (kuşaksız eski biçim / metin / kesirli / sıfır geçmez).
+    expect(verifyAlertEmailToken(sign({ ...ok, g: undefined }), NOW)).toBeNull();
+    expect(verifyAlertEmailToken(sign({ ...ok, g: "3" }), NOW)).toBeNull();
+    expect(verifyAlertEmailToken(sign({ ...ok, g: 1.5 }), NOW)).toBeNull();
+    expect(verifyAlertEmailToken(sign({ ...ok, g: 0 }), NOW)).toBeNull();
     expect(verifyAlertEmailToken(sign({ ...ok, p: "plan-change" }), NOW)).toBeNull();
     expect(verifyAlertEmailToken(sign({ ...ok, o: "" }), NOW)).toBeNull();
     expect(verifyAlertEmailToken(sign({ ...ok, e: 5 }), NOW)).toBeNull();
