@@ -466,6 +466,14 @@ describe("7 — RC60 regresyonu: gerçek tarifler geri, A06 korumaları yerinde"
     expect([...kbRecipeTopics([item])].sort()).toEqual(["ac", device].sort());
   });
 
+  it("KONTROL: bilmek / istemek / kullanmak '-mıyor'u arıza başlığı DEĞİL (miras yok — koşulun istisna listesiyle aynı)", () => {
+    const item = {
+      title: "Sık sorulanlar",
+      content: "Klima soğutmuyorsa MODE tuşuna basın.\nMisafirlerin çoğu çamaşır makinesini kullanmıyor. Sağdaki düğmeye 5 saniye basılı tutun.",
+    };
+    expect([...kbRecipeTopics([item])]).toEqual(["ac"]);
+  });
+
   it("Türkçe arıza koşulu: 3. şahıs '-mazsa' ve kapalı küme ('sıkışırsa / kesilirse'); 2. şahıs ve 'unutmazsa' değil", () => {
     expect(isFixRecipeText("Kumanda çalışmazsa bariyerin yanındaki tuş takımına 1987 kodunu girin.")).toBe(true);
     expect(isFixRecipeText("Kol yarıda sıkışırsa kolu sonuna kadar aşağı çevirin.")).toBe(true);
