@@ -430,11 +430,41 @@ export function kbRecipeTopics(items: readonly { title: string; content: string 
   for (const it of items) {
     const text = `${it.title}\n${it.content}`;
     if (!isFixRecipeText(text)) continue;
-    const fromTitle = topicsOf(it.title);
-    for (const t of fromTitle.length > 0 ? fromTitle : topicsOf(text)) out.add(t);
+    const fromTitle = topicsOf(it.title).filter((t) => DEVICE_TOPICS.has(t));
+    for (const t of fromTitle.length > 0 ? fromTitle : topicsOf(text).filter((t) => DEVICE_TOPICS.has(t))) out.add(t);
   }
   return out;
 }
+
+/**
+ * Tarifle giderilebilecek CİHAZ / TESİS kavramları (getirme sözlüğü kimlikleri). Ulaşım, yer, kural, hizmet kavramı tarif konusu değildir:
+ * "Kapı kilidi ve tuş takımı" başlığı sözlükte yalnız "taksi"ye iniyordu (yazım toleransı — ölçüldü) ve kilidin kendi kavramı metinden
+ * gelmiyordu. Başlıkta cihaz kavramı yoksa metnin cihaz kavramları alınır.
+ */
+const DEVICE_TOPICS: ReadonlySet<string> = new Set([
+  "wifi",
+  "keys",
+  "parking",
+  "elevator",
+  "balcony",
+  "baby",
+  "iron",
+  "hairdryer",
+  "laundry",
+  "dishwasher",
+  "stove",
+  "fridge",
+  "microwave",
+  "coffee",
+  "tv",
+  "ac",
+  "heating",
+  "hot_water",
+  "power",
+  "socket",
+  "pool",
+  "gym",
+]);
 
 /**
  * Kendi konusu olmayan genel takip sorusu ("tekrar olursa ne yapmalı", "what should we do", "что делать"): anlama katmanının Türkçe ve

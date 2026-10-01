@@ -480,6 +480,17 @@ describe("arıza TARİFİ kalemi (karar 23 kör doğrulaması, 10-01 öğlen)", 
     // Bilgi kalemi konu vermez.
     expect([...kbRecipeTopics([{ title: "Kahve makinesi", content: "Kapsüller üst çekmecede." }])]).toEqual([]);
   });
+  it("tarif konusu yalnız CİHAZ / TESİS kavramı: 'Kapı kilidi ve tuş takımı' başlığı sözlükte 'taksi'ye iniyor → metindeki kilit kavramı alınır", () => {
+    const keypad = {
+      title: "Kapı kilidi ve tuş takımı",
+      content: "Daire kapısında şifreli kilit var. Tuş takımı kararmışsa avucunuzla tuş takımının tamamına 2 saniye dokunun.",
+    };
+    const topics = [...kbRecipeTopics([keypad])];
+    expect(topics).toContain("keys");
+    expect(topics).not.toContain("taxi");
+    // Başlıkta cihaz varsa metnin yan kavramları eklenmez (modem tarifi televizyon / klima tarifi sayılmaz).
+    expect([...kbRecipeTopics([{ title: "Klima", content: "Soğutmazsa MODE tuşuna basın; TV ünitesinin yanındaki askıda kumanda var." }])]).toEqual(["ac"]);
+  });
 });
 
 describe("konu kavramları ve genel takip sorusu", () => {
