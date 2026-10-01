@@ -151,6 +151,40 @@ const LEGIT_IN_INFO: Record<string, string[]> = {
   ar: ["غير متاح في الشتاء.", "المسبح غير متاح بعد الساعة 20:00."],
 };
 
+// ── Kör set 5 (10-01 öğlen): "TALİMATIM yok" — misafire GİDEN iki cümle ("I don't have specific troubleshooting steps in my guide" — 5.1;
+// "Je n'ai pas de consigne disponible pour résoudre le problème du micro-ondes" — Luna). Yalnız 1. şahıs / varlık yüklemiyle; "özel talimat
+// yok" (olgu) ve "You don't have any steps to climb" tutulmaz.
+const ADMITS_INSTRUCTIONS: string[] = [
+  "For the terrace jacuzzi, I don’t have specific troubleshooting steps in my guide, so I can’t give a reliable fix remotely.",
+  "We don't have any guidance for the jacuzzi pump.",
+  "There are no troubleshooting instructions for the jacuzzi.",
+  "Votre place est la P-14. Je n’ai pas de consigne disponible pour résoudre le problème du micro-ondes.",
+  "Nous n'avons aucune instruction pour le jacuzzi.",
+  "Wenn die Kaffeemaschine laut pumpt, ist dazu keine Anleitung verfügbar.",
+  "No tengo instrucciones para la cafetera.",
+  "У меня нет инструкций для кофемашины.",
+  "ليس لدي تعليمات بخصوص آلة القهوة.",
+];
+const LEGIT_INSTRUCTIONS: string[] = [
+  "You don't have any steps to climb, the entrance is level.",
+  "You don't have to follow any special steps for checkout.",
+  "No special instructions for checkout, just close the door.",
+  "Vous n'avez besoin d'aucune instruction particulière pour l'arrivée.",
+  "Sie brauchen keine Anleitung, die Maschine startet automatisch.",
+  "No hay instrucciones especiales para el check-in; la llave está en el buzón.",
+  "Нет особых инструкций, ключ в почтовом ящике.",
+  "لا توجد تعليمات خاصة للمغادرة.",
+];
+
+describe("'talimatım yok' (kör set 5, 10-01 öğlen) — iki yön", () => {
+  it("1. şahıs / varlık yüklemli 'talimat yok' itirafı TUTULUR", () => {
+    for (const m of ADMITS_INSTRUCTIONS) expect(admitsMissingKnowledge(m), m).toBe(true);
+  });
+  it("'özel talimat gerekmez / yok' olgusu ve 2. şahıs cümleler TUTULMAZ", () => {
+    for (const m of LEGIT_INSTRUCTIONS) expect(admitsMissingKnowledge(m), m).toBe(false);
+  });
+});
+
 describe("'… bilgide yok' kalıbı (karar 23 kör doğrulaması, 10-01 öğlen) — yedi dil, iki yön", () => {
   for (const [lang, list] of Object.entries(ADMITS_IN_INFO)) {
     it(`${lang}: "bilgide yok / mevcut değil" itirafı TUTULUR`, () => {

@@ -124,7 +124,7 @@ import {
   type ItemsGateInput,
 } from "@/lib/conversation-items/core";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
-import { relationGateHold } from "@/lib/conversation-items/relation";
+import { relationGateHold, touchesHeldDevice } from "@/lib/conversation-items/relation";
 import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import {
   holdTurnLevelItems,
@@ -516,6 +516,9 @@ export function autoReplyGateVerdict(
     } else if (complaintDependentHold(items)) {
       return hold("items_complaint_dependent");
     }
+    // Cevap ev sahibine BIRAKILAN arızanın cihazına değiniyorsa (uydurma adım, "talimatım yok", özür) GİTMEZ — istemin "değinme" kuralının
+    // kod kemeri (kör set 5, 10-01 öğlen: 5.1 tarifsiz bulaşık makinesi için adım uydurdu ve gönderdi). Liste ve ilişki kipinde aynı.
+    if (items.heldDeviceTopics && touchesHeldDevice(items.heldDeviceTopics, result.reply ?? "")) return hold("items_held_touched");
     if (
       items.held.length > 0 &&
       !items.answerableKinds.some((k) => STAY_CHANGE_ITEM_KINDS.has(k)) &&

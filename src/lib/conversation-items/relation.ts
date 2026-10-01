@@ -436,6 +436,23 @@ export function kbRecipeTopics(items: readonly { title: string; content: string 
   return out;
 }
 
+/** Yalnız cihaz / tesis kavramları (`DEVICE_TOPICS`). */
+export function deviceTopicsOf(topics: readonly string[]): string[] {
+  return topics.filter((t) => DEVICE_TOPICS.has(t));
+}
+
+/**
+ * Cevap, ev sahibine BIRAKILAN bir arızanın cihazına değiniyor mu (kör set 5, 10-01 öğlen): tarifsiz arıza + başka soru içeren mesajda
+ * modeller bırakılan cihaz için ya bilgi tabanında olmayan adım uydurdu ("Bulaşık makinesini kapatıp fişini 1 dakika çekin" — 5.1, GİTTİ)
+ * ya da "talimatım yok" yazdı ("Je n'ai pas de consigne… micro-ondes" — Luna, GİTTİ). Bırakılan istek için istem zaten "değinme" der; bu,
+ * kodun ikinci kemeri. `heldDeviceTopics` cevaplanan isteklerin konularını İÇERMEZ (plan çıkarır) — arıza tarifi kendi cihazına değinir.
+ */
+export function touchesHeldDevice(heldDeviceTopics: readonly string[], reply: string): boolean {
+  if (heldDeviceTopics.length === 0 || !reply.trim()) return false;
+  const held = new Set(heldDeviceTopics);
+  return topicsOf(reply).some((t) => held.has(t));
+}
+
 /**
  * Tarifle giderilebilecek CİHAZ / TESİS kavramları (getirme sözlüğü kimlikleri). Ulaşım, yer, kural, hizmet kavramı tarif konusu değildir:
  * "Kapı kilidi ve tuş takımı" başlığı sözlükte yalnız "taksi"ye iniyordu (yazım toleransı — ölçüldü) ve kilidin kendi kavramı metinden
@@ -607,6 +624,7 @@ export interface ItemsRelationGate {
 }
 
 export type RelationHoldDetail = "items_complaint_dependent" | "items_fix_unverified" | "items_fix_hazard";
+export type HeldTouchDetail = "items_held_touched";
 
 /**
  * Kapının ikinci kemeri: plan bağlı isteği cevaplanabilir saymışsa (yanlış "bağımsız" işareti, plan dışı yol, gelecekteki değişiklik)

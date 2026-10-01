@@ -5,6 +5,7 @@ import { composeItemsPlan, relationFactsOf } from "@/lib/conversation-items/plan
 import { buildItemsPromptBlock } from "@/lib/conversation-items/reply-block";
 import {
   fixHazard,
+  touchesHeldDevice,
   isFixRecipeText,
   isGenericFollowup,
   kbRecipeTopics,
@@ -423,6 +424,44 @@ describe("karar fonksiyonu (saf)", () => {
     const g = { requests: [{ ...r({ kind: "wifi", relation: "fix_request", topics: ["wifi"], recipe: true }), ref: "R1" }], anchors: [a(["wifi"])] };
     expect(relationGateHold(g, { text: "x", answeredRefs: [], usedSources: [] })).toBeNull();
     expect(relationGateHold(g, { text: "Modemin fişini 30 saniye çekip takın.", answeredRefs: ["R1"], usedSources: ["kb:wifi"] })).toBeNull();
+  });
+});
+
+describe("bırakılan arızanın CİHAZI (kör set 5, 10-01 öğlen): plan çıkarır, kapı cevaba değmesini tutar", () => {
+  it("🚨 tarifsiz arıza + bağımsız soru → planın kapı girdisi bırakılan cihazı taşır; cevaplanan isteğin konusu çıkarılır", () => {
+    const p = planOf("Bulaşık makinesi programın ortasında durdu. Çıkış saati kaçta?", [
+      { intent: "complaint_issue", q: "bulaşık makinesi programın ortasında durdu", relation: "own_topic" },
+      { intent: "appliance_help", q: "bulaşık makinesi hata ışıkları", relation: "fix_request" },
+      { intent: "checkout_time", q: "çıkış saati", relation: "own_topic" },
+    ]);
+    expect(answerableKinds(p)).toEqual(["checkout_time"]);
+    expect(p.gateItems.heldDeviceTopics).toEqual(["dishwasher"]);
+    // Tarifli arıza çözümü cevaplanınca o cihaz bırakılan sayılmaz (tarif kendi cihazına değinir).
+    const fix = planOf("İnternet bir saattir yok.", [
+      { intent: "complaint_issue", q: "internet yok", relation: "own_topic" },
+      { intent: "wifi", q: "modem yeniden başlatma", relation: "fix_request" },
+    ]);
+    expect(fix.replyItems.answerable[0]).toMatchObject({ kind: "wifi", fix: true });
+    expect(fix.gateItems).not.toHaveProperty("heldDeviceTopics");
+  });
+  it("liste kipinde de (işaret yok, bugünkü canlı yol) şikâyetin ipucu sorgusundan", () => {
+    const turnItems = [
+      { messageId: "m1", kind: "complaint_issue" as const, sensitivity: "sensitive" as const },
+      { messageId: "m1", kind: "wifi" as const, sensitivity: "none" as const },
+    ];
+    const hints = new Map([
+      ["m1\u0000complaint_issue", "mikrodalga ısıtmıyor"],
+      ["m1\u0000wifi", "wifi şifresi"],
+    ]);
+    const p = composeItemsPlan({ turnItems, held: [{ ...turnItems[0], riskType: null }], hints });
+    expect(p.gateItems.heldDeviceTopics).toEqual(["microwave"]);
+  });
+  it("cevap bırakılan cihaza değiniyor mu — yedi dilde cihaz adı; değmeyen cevap serbest", () => {
+    expect(touchesHeldDevice(["dishwasher"], "Bulaşık makinesini kapatıp fişini 1 dakika çekin. Çıkış saati 11:00.")).toBe(true);
+    expect(touchesHeldDevice(["microwave"], "Votre place est la P-14. Je n'ai pas de consigne pour le micro-ondes.")).toBe(true);
+    expect(touchesHeldDevice(["coffee"], "Wenn die Kaffeemaschine laut pumpt, ist dazu keine Anleitung verfügbar.")).toBe(true);
+    expect(touchesHeldDevice(["dishwasher"], "Çıkış saati 11:00; çıkarken kapıyı çekmeniz yeterli.")).toBe(false);
+    expect(touchesHeldDevice([], "Bulaşık makinesini kapatın.")).toBe(false);
   });
 });
 

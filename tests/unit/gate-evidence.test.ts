@@ -32,6 +32,15 @@ const ITEMS = {
   },
 };
 const declared = { ...ok, answeredRequests: { ok: true as const, refs: ["R1"] } };
+// Bırakılan arızanın cihazı (kör set 5): şikâyet bulaşık makinesi hakkında, cevaplanabilir istek Wi-Fi.
+const ITEMS_HELD_DEVICE = {
+  items: {
+    held: buildItemsForMessage({ requests: [{ intent: "complaint_issue" }], lexicalLabels: [] }),
+    paymentHeld: false,
+    answerableKinds: ["wifi" as const],
+    heldDeviceTopics: ["dishwasher"],
+  },
+};
 // Şikâyete bağlı istek (kurucu kararı 10-01): bu turun şikâyeti tutulurken "yine olursa ne yapacağız?" (diğer) cevaplanabilir
 // sayılmış — planın dışından kapıya doğrudan verilen girdi; kapının ikinci kemeri tutar.
 const ITEMS_COMPLAINT = {
@@ -85,6 +94,13 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
     ],
     ["öğe kipi: şikâyete bağlı istek cevaplanabilir sayılmış", declared, WIFI_Q, ITEMS_COMPLAINT, "items_complaint_dependent"],
     ["öğe kipi: arıza çözümü bilgi tabanına dayanmıyor", { ...declared, usedSources: [] }, WIFI_Q, ITEMS_FIX, "items_fix_unverified"],
+    [
+      "öğe kipi: cevap ev sahibine bırakılan arızanın cihazına değiniyor",
+      { ...declared, reply: "The Wi-Fi password is Lale2025. For the dishwasher, unplug it for a minute and restart it." },
+      WIFI_Q,
+      ITEMS_HELD_DEVICE,
+      "items_held_touched",
+    ],
     [
       "öğe kipi: arıza çözümü tehlike sınıfına değiyor",
       { ...declared, usedSources: ["kb:wifi"], reply: "Restart the router; if that fails, reset the breaker in the fuse box." },

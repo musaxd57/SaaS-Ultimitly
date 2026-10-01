@@ -136,7 +136,11 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
   // "We don't have (specific) instructions for the coffee machine" — "You don't have to take any steps" eşleşmez (fiil + edat şart).
   /(?:don't|do not) have (?:any )?(?:\p{L}{1,20} )?(?:instructions|steps) (?:for|on|about)(?![\p{L}])/u,
-  /(?<![\p{L}])no (?:\p{L}{1,20} )?instructions (?:for|on|about)(?![\p{L}])/u,
+  // "No special / additional instructions for checkout" bir OLGUDUR (gerek yok) — o sıfatlar hariç.
+  /(?<![\p{L}])no (?!(?:special|particular|additional|extra|further) )(?:\p{L}{1,20} )?instructions (?:for|on|about)(?![\p{L}])/u,
+  // Kör set 5 (5.1, GİTTİ): "For the terrace jacuzzi, I don't have specific troubleshooting steps in my guide". Özne 1. şahıs ŞART:
+  // "You don't have any steps to climb" bir erişilebilirlik olgusudur.
+  /(?<![\p{L}])(?:i|we) (?:don't|do not) have (?:any )?(?:\p{L}{1,20} ){0,2}(?:instructions|steps|guidance)(?![\p{L}])/u,
 ];
 
 // ── DİĞER DESTEKLENEN DİLLER + TÜRKÇE EK BİÇİMLER (10-01 gece ölçümü) ─────────
@@ -177,11 +181,15 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
   new RegExp(`ne dispos\\p{L}{0,8} pas (?:d'|de |des )?${gap(1)}${FR_OBJ}`, "u"),
   /je ne (?:le )?sais pas|je ne (?:trouve|retrouve) pas|je n'ai pas (?:trouvé|retrouvé)/u,
+  // Kör set 5 (Luna, GİTTİ): "Je n'ai pas de consigne disponible pour résoudre le problème du micro-ondes" — 1. şahıs + talimat nesnesi.
+  /n'(?:ai|avons) (?:pas|aucune?) (?:de |d'|la |les )?(?:consignes?|instructions?|proc[ée]dures?)(?![\p{L}])/u,
   // DE — "(habe / liegen mir / gibt) keine (genauen) Informationen", "nicht angegeben", "weiß ich nicht", "kann ich nicht finden".
   // "keine" YALNIZ sahiplik / varlık fiiliyle: "Sie brauchen keine weiteren Angaben" (gerek yok) itiraf DEĞİLDİR; "keinen Schlüssel"
   // ve "können" (2. şahıs koşul) eşleşmez.
   new RegExp(`(?:habe|haben|hab|hätte|liegen|liegt|gibt)(?: \\p{L}{1,30}){0,6} keine ${gap(1)}${DE_OBJ}`, "u"),
   /nicht (?:angegeben|vermerkt|hinterlegt|aufgeführt)(?![\p{L}])/u,
+  // Kör set 5 (Luna): "… ist dazu keine Anleitung verfügbar" — varlık yüklemi şart ("Sie brauchen keine Anleitung" gerek yoktur).
+  new RegExp(`${L}keine ${gap(1)}(?:anleitung(?:en)?|anweisungen?|informationen?|angaben) ${gap(2)}(?:verfügbar|vorhanden|hinterlegt)`, "u"),
   // 10-01 öğlen: "… sind in den vorliegenden Informationen nicht verfügbar" — BİLGİ nesnesine çapalı.
   new RegExp(
     `${L}in (?:den |meinen |unseren |diesen |der )?(?:\\p{L}{1,20} )?${DE_OBJ} (?:leider )?nicht (?:verfügbar|enthalten|vorhanden)`,
@@ -197,6 +205,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
   new RegExp(`${L}no (?:tengo|tenemos|dispongo de|disponemos de) ${gap(2)}datos(?![\\p{L}])`, "u"),
   /no se (?:especifica|menciona)n?(?![\p{L}])/u,
+  // Kör set 5 türü: "No tengo instrucciones para la cafetera" — YALNIZ 1. şahıs ("No hay instrucciones especiales" olgudur).
+  new RegExp(`${L}no (?:tengo|tenemos|dispongo de|disponemos de|cuento con|contamos con) ${gap(2)}(?:instrucciones|indicaciones)(?![\\p{L}])`, "u"),
   // 10-01 öğlen: "… no están disponibles en la información proporcionada" — BİLGİ nesnesine çapalı ("no está disponible en invierno" olgudur).
   new RegExp(
     `${L}no (?:está|están|se encuentra|se encuentran|aparece|aparecen|figura|figuran) (?:disponibles? |incluid[oa]s? |indicad[oa]s? )?en (?:la |las |mi |mis |nuestra |nuestras |esta )?(?:\\p{L}{1,20} )?${ES_OBJ}`,
@@ -209,6 +219,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`${L}нет ${gap(2)}${RU_OBJ}`, "u"),
   /(?<![\p{L}])не (?:указан[аоы]?|упомянут[аоы]?)(?![\p{L}])/u,
   /(?<![\p{L}])не знаю(?![\p{L}])/u,
+  // "У меня нет инструкций для кофемашины" — YALNIZ sahiplik ("Нет особых инструкций" olgudur).
+  new RegExp(`${L}у (?:меня|нас) нет ${gap(2)}инструкци\\p{L}{0,4}`, "u"),
   /(?<![\p{L}])не (?:могу|смог|смогла|удалось) (?:\p{L}{1,30} )?найти/u,
   new RegExp(`${RU_OBJ} ${gap(2)}отсутству\\p{L}{0,8}`, "u"),
   // 10-01 öğlen: "в предоставленной информации нет / не указано".
@@ -217,6 +229,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`(?:ليس|ليست) ${gap(1)}(?:لدي|لدينا|عندي|عندنا) ${gap(2)}${AR_OBJ}`, "u"),
   new RegExp(`لا (?:تتوفر|يتوفر|توجد|يوجد) ${gap(2)}${AR_OBJ}`, "u"),
   /لا (?:أعرف|اعرف|أعلم|اعلم|أدري|ادري)(?![\p{L}])/u,
+  // "ليس لدي تعليمات" — YALNIZ sahiplik ("لا توجد تعليمات خاصة" olgudur).
+  new RegExp(`(?:ليس|ليست) ${gap(1)}(?:لدي|لدينا|عندي|عندنا) ${gap(2)}تعليمات`, "u"),
   /غير (?:مذكورة?|محددة?)(?![\p{L}])/u,
   // 10-01 öğlen: "غير متوفرة في المعلومات المقدمة" — yalnız BİLGİ nesnesiyle ("غير متاح" tek başına olgudur, BİLEREK yok).
   new RegExp(`غير (?:متوفرة?|متاحة?|موجودة?) في (?:ال)?${AR_OBJ}`, "u"),

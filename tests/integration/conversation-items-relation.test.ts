@@ -373,6 +373,32 @@ describe("ilişki kipi — kanal akışı (kurucu kararı 10-01 sabah)", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 kör set 5: model bırakılan arızanın cihazına DEĞİNİRSE (uydurma adım / 'talimatım yok') cevap gitmez — tek e-posta; değinmezse gider", async () => {
+    // 5.1, set 5: "bulaşık makinesi durdu + çıkış saati?" → "makineyi kapatıp fişini 1 dakika çekin… Çıkış saati 11:00" GİTTİ (adım bilgi
+    // tabanında yok). Bırakılan istek için istem "değinme" der; kapı kemeri cihaz kavramıyla tutar.
+    const msg = "Kahve makinesi çalışmıyor, sadece turuncu yanıp sönüyor. Otopark yerimiz hangisi?";
+    const reqs = [
+      { intent: "complaint_issue", relation: "own_topic", q: "kahve makinesi çalışmıyor" },
+      { intent: "appliance_help", relation: "fix_request", q: "kahve makinesi turuncu ışık" },
+      { intent: "parking", relation: "own_topic", q: "otopark yeri" },
+    ];
+    const id = await seed(msg, [KB_COFFEE_INFO, KB_PARKING_INFO]);
+    understands(understood(reqs));
+    mockSuggest.mockResolvedValue(
+      verdict({
+        intent: "parking",
+        reply: "Size ayrılan otopark yeri 27 numara. Kahve makinesini kapatıp fişini 1 dakika çekip yeniden açmayı deneyin.",
+        usedSources: ["kb:parking"],
+        answeredRequests: { ok: true, refs: ["R1"] },
+      }),
+    );
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    const ev = await prisma.riskEvent.findFirst({ where: { conversationId: id }, orderBy: { occurredAt: "desc" } });
+    expect(JSON.parse(ev?.kbEvidenceJson ?? "{}").g?.d).toBe("items_held_touched");
+  });
+
   it("🚨 ilişki belirsiz ('unclear') → o soru tutulur; bağımsızlık işareti bile kapının öteki kontrollerini atlatmaz (bilgim yok)", async () => {
     const id = await seed("Klima çalışmıyor; çöp konteyneri nerede?");
     understands(

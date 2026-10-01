@@ -6,7 +6,15 @@
 // ---------------------------------------------------------------------------
 
 import { complaintDependent, type ItemKind, type ItemRiskFacts, type ItemSensitivity, type ItemsGateInput } from "./core";
-import { RELATION_ANCHOR_KINDS, requestDependency, type AnchorFacts, type ItemRelationFacts, type RequestFacts } from "./relation";
+import {
+  RELATION_ANCHOR_KINDS,
+  deviceTopicsOf,
+  requestDependency,
+  requestTopics,
+  type AnchorFacts,
+  type ItemRelationFacts,
+  type RequestFacts,
+} from "./relation";
 import type { ReplyItemsInput } from "./reply-block";
 
 type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity };
@@ -72,6 +80,19 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   const relationGate: ItemsGateInput["relation"] = relation
     ? { requests: answerable.map(({ ref, item }) => ({ ...relation.factsOf(item), ref })), anchors: relation.anchors }
     : undefined;
+  // Ev sahibine bırakılan arızaların cihazları (kör set 5): bu turun tutulan öğeleri + bağlı istekler; cevaplanan isteklerin konuları
+  // çıkarılır (arıza tarifi kendi cihazına değinir). İlişki kipinde olgulardan, yoksa anlama katmanının ipucu sorgusundan.
+  const topicsOfItem = (item: { messageId?: string; kind: ItemKind }): readonly string[] => {
+    const key = item.messageId ? hintKey(item.messageId, item.kind) : null;
+    const facts = key && relations ? relations.get(key) : undefined;
+    return facts ? facts.topics : requestTopics((key && input.hints.get(key)) || "", "", item.kind);
+  };
+  const answeredTopics = new Set(answerable.flatMap(({ item }) => topicsOfItem(item)));
+  const heldDeviceTopics = [
+    ...new Set(deviceTopicsOf([...input.held.filter((h) => !h.earlier), ...dependent].flatMap((i) => topicsOfItem(i)))),
+  ]
+    .filter((t) => !answeredTopics.has(t))
+    .sort();
   return {
     answerable,
     replyItems: {
@@ -91,6 +112,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
       paymentHeld: input.held.some((h) => h.kind === "payment_invoice" || h.riskType === "platform_policy"),
       answerableKinds: answerable.map((a) => a.item.kind),
       ...(relationGate ? { relation: relationGate } : {}),
+      ...(heldDeviceTopics.length > 0 ? { heldDeviceTopics } : {}),
     },
     allHeld: answerable.length === 0,
   };

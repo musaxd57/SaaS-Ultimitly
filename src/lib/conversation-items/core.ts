@@ -277,6 +277,11 @@ export interface ItemsGateInput {
    * kemeri `relation.relationGateHold` (liste DEĞİL); yokken bugünkü `complaintDependentHold`.
    */
   relation?: ItemsRelationGate;
+  /**
+   * Bu turda ev sahibine BIRAKILAN arızaların cihaz kavramları (bağlayıcı talep + bağlı istek; cevaplanan isteklerin konuları çıkarılmış).
+   * Cevap bunlardan birine değinirse GİTMEZ (`relation.touchesHeldDevice`, kör set 5). Boşsa alan yok.
+   */
+  heldDeviceTopics?: readonly string[];
 }
 
 /**
