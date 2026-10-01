@@ -91,3 +91,19 @@
 
 ## 10. Devreden: K13 (destek erişimi metni — avukat), K15 (Nodemailer gerçek deneme e-postası), K17 (kod selamı anahtarı)
 - **Durum:** Değişmedi.
+
+## 11. Sık okunan belgelerin arşive taşınması (öneri: `docs/ARSIV-ONERISI-2026-10-01.md`)
+- **Durum:** Öneri hazır, HİÇBİR metin taşınmadı / silinmedi. CLAUDE.md'nin ~%8,6'sı (≈16k karakter) tur anlatısı, kural içindeki
+  eski ölçüm sayısı ve kopya; kural metinleri, siren işaretli cümleler, kurucu kararları ve bekleyen onaylar olduğu gibi kalır.
+  Taşımadan önce dört eski / eksik ifade düzeltilmeli (yedi canlı bayrak "Canlı durum" tablosunda yok; "E2 = migration 56" ve
+  "AÇMA KARARI KURUCUDA" eskimiş; Railway notu — madde 12).
+- **Öneri:** Onaylarsanız tek commit'te taşıma + önce / sonra sayım kontrolü (siren, "ONAY BEKLEYEN", bayrak adları düşmemeli).
+- **Müşteriye etkisi:** Yok (yalnız belge).
+- **Beklerken yapılmayan:** taşıma.
+
+## 12. Railway — "ayın 1'ine kadar aktif" (09-24 notu) — bugün 10-01
+- **Durum:** CLAUDE.md'ye göre push = CI yeşilse canlı yayın, bu varsayım "ayın 1'ine kadar" geçerliydi. Gece yayınları (RC50)
+  bu varsayımla itildi; Railway bugün kapanırsa yayın canlıya ULAŞMAZ (kod dalda durur, sonraki açılışta yayınlanır).
+- **Öneri:** Railway'in durumunu teyit edin; açık kalacaksa notu güncelleyelim.
+- **Müşteriye etkisi:** Railway kapanırsa QR sohbeti / oto-yanıt / senkron durur (09-19 duraklatma belgesi).
+- **Beklerken yapılmayan:** —
