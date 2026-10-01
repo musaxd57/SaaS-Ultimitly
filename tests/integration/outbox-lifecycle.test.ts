@@ -394,6 +394,72 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     expect((await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "co-ny-past" } })).status).toBe("canceled");
   });
 
+  it("C5 (15 ajan A08, 10-01): GİRİŞ mesajı vetosu da TEK TARİH KURALI — New York'ta tek gecelik konaklamanın VARIŞ AKŞAMI iptal edilmez; çıkış GÜNÜ bayattır", async () => {
+    // Eski kıyas ham `departureDate < now` idi: yalnız tarih çıkış (D 00:00Z) New York'ta bir önceki günün 20:00'si → tek gecelik
+    // konaklamada giriş bilgisi varış akşamı 20:00'den sonra teslim edilecekse "geçti" diye iptal ediliyordu (geç gelen misafir giriş
+    // bilgisini alamazdı). Kural: org gününe göre çıkış GÜNÜ başlayınca bayat (İstanbul'un yerel gece yarısı saklama biçiminde eski
+    // davranışla birebir — aşağıdaki ikiz).
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
+    const mkRow = async (arrival: Date, departure: Date, ref: string, key: string) => {
+      const res = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "G", channel: "airbnb", status: "confirmed",
+          arrivalDate: arrival, departureDate: departure, sourceReference: ref,
+        },
+      });
+      await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
+          externalReservationId: ref, messageType: "checkin", body: "x", idempotencyKey: key, status: "pending",
+          availableAt: new Date("2026-01-01T00:00:00Z"),
+        },
+      });
+      return res.id;
+    };
+    const now = new Date("2026-06-15T01:00:00Z"); // 14 Haziran 21:00 EDT
+    // Tek gece: varış 14, çıkış 15 → bugün (14) varış akşamı, teslim EDİLİR.
+    const eveningId = await mkRow(new Date("2026-06-14T00:00:00Z"), new Date("2026-06-15T00:00:00Z"), "res-ny-ci-evening", "ci-ny-evening");
+    // Çıkış günü bugün (14) → bayat, iptal.
+    await mkRow(new Date("2026-06-13T00:00:00Z"), new Date("2026-06-14T00:00:00Z"), "res-ny-ci-depday", "ci-ny-depday");
+    const { send, calls } = okDeliver();
+    const res = await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now: () => now });
+    expect(calls()).toBe(1);
+    expect(res.canceled).toBe(1);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: eveningId } })).checkinSentAt).toBeInstanceOf(Date);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "ci-ny-depday" } })).status).toBe("canceled");
+  });
+
+  it("C5 ikizi: İstanbul'un yerel gece yarısı saklama biçiminde giriş vetosu eskisiyle BİREBİR (çıkış günü 00:30 bayat; bir önceki gece teslim)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Europe/Istanbul" } });
+    const mkRow = async (departure: Date, ref: string, key: string) => {
+      const res = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "G", channel: "airbnb", status: "confirmed",
+          arrivalDate: new Date(departure.getTime() - 86_400_000), departureDate: departure, sourceReference: ref,
+        },
+      });
+      await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
+          externalReservationId: ref, messageType: "checkin", body: "x", idempotencyKey: key, status: "pending",
+          availableAt: new Date("2026-01-01T00:00:00Z"),
+        },
+      });
+      return res.id;
+    };
+    const now = new Date("2026-06-14T21:30:00Z"); // 15 Haziran 00:30 İstanbul
+    await mkRow(new Date("2026-06-14T21:00:00Z"), "res-ist-ci-dep", "ci-ist-dep"); //        çıkış günü 15 = bugün → bayat
+    const nextId = await mkRow(new Date("2026-06-15T21:00:00Z"), "res-ist-ci-next", "ci-ist-next"); // çıkış 16 → teslim
+    const { send, calls } = okDeliver();
+    const res = await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now: () => now });
+    expect(calls()).toBe(1);
+    expect(res.canceled).toBe(1);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: nextId } })).checkinSentAt).toBeInstanceOf(Date);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "ci-ist-dep" } })).status).toBe("canceled");
+  });
+
   it("proactive enqueue is idempotent on the deterministic key (replay/restart safe)", async () => {
     const { orgId, reservationId } = await seedWelcome();
     const args = {

@@ -505,12 +505,17 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   // `departureDate + 24h` canceled a queued checkout an hour EARLY on a 25-hour DST fall-back
   // day (before the local day ended) and let it linger an hour LATE on a 23-hour spring-forward
   // day. Date-key comparison is also representation-agnostic within the day.
-  if (type === "checkin" && res.departureDate < now) return "window_passed";
-  if (type === "checkout") {
-    // TEK TARİH KURALI (`calendarDateOf`, ikinci inceleme 09-25): "yalnız tarih" değeri (D 00:00Z / D 12:00Z) org dilimine
-    // ÇEVRİLMEZ — eski kıyas New York'ta çıkış gününün sabahı kuyruktaki mesajı "geçti" diye iptal ediyordu.
+  // TEK TARİH KURALI (`calendarDateOf`, ikinci inceleme 09-25): "yalnız tarih" değeri (D 00:00Z / D 12:00Z) org dilimine
+  // ÇEVRİLMEZ — eski kıyas New York'ta çıkış gününün sabahı kuyruktaki mesajı "geçti" diye iptal ediyordu. Giriş mesajı da
+  // aynı kuralla (15 ajan A08, 10-01): org gününe göre çıkış GÜNÜ başlayınca bayat — ham `departureDate < now` New York'ta
+  // tek gecelik konaklamanın varış akşamı 20:00'den sonra giriş bilgisini iptal ediyordu (İstanbul'un yerel gece yarısı
+  // saklama biçiminde sonuç eskisiyle aynı).
+  if (type === "checkin" || type === "checkout") {
     const tz = orgTimezone(res.property?.organization?.timezone);
-    if (todayKey(now, tz) > calendarDateOf(res.departureDate, tz).key) return "window_passed";
+    const today = todayKey(now, tz);
+    const departureDay = calendarDateOf(res.departureDate, tz).key;
+    if (type === "checkin" && today >= departureDay) return "window_passed";
+    if (type === "checkout" && today > departureDay) return "window_passed";
   }
   return null;
 }
