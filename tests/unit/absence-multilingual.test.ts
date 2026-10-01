@@ -204,8 +204,14 @@ const LEGIT_NOT_FOUND: Record<string, string[]> = {
     "Sie finden keine Gebühren für das Parken.",
     "Im Schrank finden Sie keine Bettwäsche, diese liegt im Flur.",
     "Ich finde keine Worte, so schön ist die Bucht.",
+    // 2. şahıs + bilgi nesnesi (olgu: bilginin NEREDE olmadığı) — özne şartının pini.
+    "Im Gästebuch finden Sie keine Angaben zu Preisen, diese stehen in der App.",
   ],
-  en: ["You won't find any fees for parking.", "If we don't see any issues, the deposit is returned in full."],
+  en: [
+    "You won't find any fees for parking.",
+    "If we don't see any issues, the deposit is returned in full.",
+    "You won't find any information about prices in the folder; they are on the booking page.",
+  ],
   fr: ["Si vous ne trouvez pas la télécommande, elle est dans le tiroir.", "Vous ne trouverez aucun frais de parking."],
   es: ["Si no encuentra el mando, está en el cajón.", "No encontrará ningún cargo por el aparcamiento."],
   ru: ["Если не найдёте пульт, он в ящике.", "Вы не найдёте лучшего пляжа поблизости."],
