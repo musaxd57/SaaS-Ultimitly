@@ -66,6 +66,7 @@
  * ------------------------------------------------------------------------- */
 
 import { foldTurkishAscii, restrictiveMatchForms } from "@/lib/ai/fallback";
+import { hostDecisionHoldEnabled } from "@/lib/ai/host-decision-hold";
 import { hasUnallowedMoney, moneyAmountsOf } from "@/lib/ai/stay-money";
 import { sameMoney, type MoneyAmount } from "@/lib/ai/money-lexicon";
 import {
@@ -448,6 +449,51 @@ const DEFERRALS = rx([
   `(?:قرار\\s+المضيف|القرار\\s+(?:لل|ل)مضيف|يعود\\s+(?:لقرار|إلى)\\s+المضيف|حسب\\s+(?:التوفر|توفر)|(?:موافقة|تأكيد)\\s+المضيف)`,
 ]);
 
+// ─── EV SAHİBİ KARARI (dar liste; kurucu kararı 10-01) ───────────────────────
+// `DEFERRALS` konaklama bağlamında erteleme TANIMAK içindir (bekçiyle birlikte) ve geniş yazıldı ("for the host", "your host
+// will check", "ev sahibi kontrol eder"). Bu liste ise HER cevaba uygulanan tutma kuralının yüklemidir → yalnız kararı AÇIKÇA
+// ev sahibine veren biçimler: karar / takdir / onay / "kim karar verir". "Anahtarı ev sahibi için bırakın", "Ev sahibiniz
+// girişte sizi karşılar / her sabah kontrol eder" gibi olgu cümleleri tutulmaz (aşırı-uygulama pinli). Koşul cümlesi tek başına
+// ("müsaitliğe bağlıdır", "subject to availability") ev sahibi kararı DEĞİLDİR.
+const HOST_DECISION = rx([
+  // TR — "ev sahibinizin kararıdır / kararına bağlı / takdirindedir / onayına bağlı", "kararı ev sahibiniz verir".
+  // "kararınızı" (misafirin kararı: "Ev sahibiniz kararınızı bekliyor") ev sahibi kararı DEĞİL.
+  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:karar(?!iniz)${L}|takdir${L}|degerlendirmesin${L})`,
+  `${NL}karar(?:i)?\\s+ev\\s+sahib${L}`,
+  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:onay|teyi[td])(?:ina|ine|i|ı)?\\s+(?:bagli${L}|tabi${L}|gerek${L})`,
+  // EN
+  `${NL}(?:host|owner|property\\s+manager)(?:'s|’s)?\\s+(?:call|decision|discretion)${NR}`,
+  `${NL}(?:up\\s+to|at\\s+the\\s+discretion\\s+of|decided\\s+by)\\s+(?:your|the)\\s+host${NR}`,
+  `${NL}for\\s+(?:your|the)\\s+host\\s+to\\s+(?:decide|confirm|approve)${NR}`,
+  `${NL}(?:your|the)\\s+host\\s+(?:will\\s+|'ll\\s+|can\\s+|should\\s+)?(?:decide|decides)${NR}`,
+  `${NL}(?:host|owner)\\s+who\\s+decides${NR}`,
+  `${NL}(?:needs?|requires?)\\s+(?:your|the)\\s+host['’]?s\\s+approval${NR}`,
+  `${NL}(?:to\\s+be|must\\s+be|needs?\\s+to\\s+be|has\\s+to\\s+be|would\\s+need\\s+to\\s+be)\\s+(?:confirmed|approved)\\s+by\\s+(?:your|the)\\s+host${NR}`,
+  `${NL}(?:subject\\s+to|depends\\s+on|depending\\s+on|dependent\\s+on|pending)\\s+(?:your\\s+|the\\s+)?host${NR}`,
+  `${NL}(?:host|owner)\\s+(?:will\\s+need\\s+to|needs\\s+to|has\\s+to|must|would\\s+need\\s+to|will\\s+have\\s+to)\\s+(?:confirm|approve|decide)${NR}`,
+  // DE / FR / ES / RU / AR
+  `${NL}entscheidung\\s+(?:des|ihres|deines|vom)\\s+(?:gastgeber|vermieter)${L}`,
+  `${NL}(?:liegt|obliegt)\\s+(?:beim|bei\\s+ihrem|bei\\s+deinem)\\s+(?:gastgeber|vermieter)${L}`,
+  `${NL}(?:gastgeber|vermieter)${L}\\s+(?:muss|wird|m(?:ü|u)sste)(?:\\s+${T})?\\s+(?:best(?:ä|a)tigen|entscheiden)${NR}`,
+  `${NL}(?:entscheidet|best(?:ä|a)tigt)\\s+(?:ihr|der|dein|euer)\\s+(?:gastgeber|vermieter)${L}`,
+  `${NL}(?:muss|wird|m(?:ü|u)sste|kann|soll)\\s+(?:ihr|der|dein|euer)\\s+(?:gastgeber|vermieter)${L}\\s+(?:best(?:ä|a)tigen|entscheiden)${NR}`,
+  `${NL}(?:ihr|der|dein|euer)\\s+(?:gastgeber|vermieter)${L}\\s+(?:entscheidet|best(?:ä|a)tigt)${NR}`,
+  `${NL}d(?:é|e)cision\\s+de\\s+(?:l['’]h(?:ô|o)te|votre\\s+h(?:ô|o)te)`,
+  `${NL}(?:revient|appartient)\\s+(?:à|a)\\s+(?:l['’]h(?:ô|o)te|votre\\s+h(?:ô|o)te)`,
+  `${NL}(?:votre|l['’])\\s*h(?:ô|o)te\\s+(?:qui\\s+)?d(?:é|e)cide`,
+  `${NL}(?:à|a)\\s+la\\s+discr(?:é|e)tion\\s+de\\s+(?:votre|l['’])\\s*h(?:ô|o)te`,
+  `${NL}(?:à|a)\\s+confirmer\\s+par\\s+(?:votre|l['’])\\s*h(?:ô|o)te`,
+  `${NL}decisi(?:ó|o)n\\s+(?:del|de\\s+su)\\s+anfitri(?:ó|o)n${NR}`,
+  `${NL}(?:la\\s+|lo\\s+)?(?:confirma|decide|confirmar(?:á|a))\\s+su\\s+anfitri(?:ó|o)n${NR}`,
+  `${NL}depende\\s+del\\s+anfitri(?:ó|o)n${NR}`,
+  `решени${LB}\\s+(?:хозя|владель|арендодател)`,
+  `на\\s+усмотрени${LB}\\s+(?:хозя|владель|арендодател)`,
+  `(?:хозя|владел|арендодател)${LB}\\s+(?:долж${LB}\\s+)?(?:подтверд|реш)`,
+  `(?:решает|решит|подтвердит|подтверждает)\\s+(?:ваш\\s+)?(?:хозя|владел|арендодател)`,
+  `решени${LB}\\s+принима${LB}\\s+(?:ваш${LB}\\s+)?(?:хозя|владел|арендодател)`,
+  `(?:قرار\\s+المضيف|القرار\\s+(?:لل|ل)مضيف|يعود\\s+(?:لقرار|إلى)\\s+المضيف|(?:موافقة|تأكيد)\\s+المضيف)`,
+]);
+
 // ─── çekirdek ────────────────────────────────────────────────────────────────
 
 /** Cümleciklere böl: nokta (rakam arası değil), ünlem, soru, noktalı virgül, satır. */
@@ -541,6 +587,17 @@ export function hasAvailabilityDeferral(reply: string | null | undefined): boole
   if (typeof reply !== "string" || reply.trim() === "") return false;
   const form = permissiveForm(reply);
   return DEFERRALS.some((re) => re.test(form));
+}
+
+/**
+ * Cevap kararı AÇIKÇA ev sahibine veriyor mu ("…ev sahibinizin kararıdır", "is up to your host", "Ihr Gastgeber entscheidet")?
+ * Dar liste (`HOST_DECISION`); koşul cümlesi tek başına ("müsaitliğe bağlıdır") DEĞİL. Tutma kuralının yüklemi
+ * (`host-decision-hold.ts`, çıktı vetosu) — izin yönlü değil, yalnız durdurur.
+ */
+export function defersDecisionToHost(reply: string | null | undefined): boolean {
+  if (typeof reply !== "string" || reply.trim() === "") return false;
+  const form = permissiveForm(reply);
+  return HOST_DECISION.some((re) => re.test(form));
 }
 
 // ─── POLİTİKA: dört katmanın birleşimi (yalnız SIKILAŞTIRIR) ──────────────────
@@ -779,6 +836,12 @@ export interface AvailabilityEvaluation {
    */
   enforceReason: AvailabilityVetoReason | null;
   signals: AvailabilitySignals;
+  /**
+   * Hassas istekte iki modelin doğruladığı ERTELEME, kurucu kararıyla (10-01, `AI_HOST_DECISION_HOLD_ENABLED`) GÖNDERİLMEDİ:
+   * gerekçe `availability_unconfirmed`, çağıran bunu devir tutuşu sayar (ev sahibine mesaj başına tek "Misafir cevabınızı
+   * bekliyor" bildirimi). Yalnız o tutuşta `true`; anahtar kapalıyken alan YOK.
+   */
+  deferralHeld?: true;
 }
 
 function guardFlags(v: StayGuardVerdict, stay: StayTimes | null | undefined): string {
@@ -914,8 +977,21 @@ export function evaluateAvailability(
   const guardPriced =
     guard !== null && (guard.replyPriceTerms || guard.replyAmounts.some((a) => !allowedMoney.some((b) => sameMoney(a, b))));
   const priced = lexMoney || guardPriced;
-  const reason: AvailabilityVetoReason | null = !sensitive ? null : !deferred ? "availability_unconfirmed" : priced ? "price_claim" : null;
-  return { reason, enforceReason: reason, signals };
+  // 🚨 ERTELEME MİSAFİRE GİTMEZ (kurucu kararı 10-01: "ev sahibinizin kararıdır hiç bir şekilde gitmemeli, sussa bile daha iyi";
+  // anahtar `AI_HOST_DECISION_HOLD_ENABLED`, VARSAYILAN KAPALI): doğrulanmış erteleme de (ev sahibini adlandırmasa da —
+  // "müsaitlik ve temizliğe bağlı") tutulur; para söyleyen erteleme önceliği değişmeden `price_claim`. Koddan kurulan
+  // doğrulanmış erken giriş onayı ↑muaf (birebir metin).
+  const deferralHeld = sensitive && deferred && !priced && hostDecisionHoldEnabled();
+  const reason: AvailabilityVetoReason | null = !sensitive
+    ? null
+    : !deferred
+      ? "availability_unconfirmed"
+      : priced
+        ? "price_claim"
+        : deferralHeld
+          ? "availability_unconfirmed"
+          : null;
+  return { reason, enforceReason: reason, signals, ...(deferralHeld ? { deferralHeld: true as const } : {}) };
 }
 
 /** Karar kaydı için PII'siz özet (`grounding.ts` `sc` alanı; kapalı küme kodlar). */

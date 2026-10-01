@@ -59,6 +59,8 @@
 
 import { kbPlaceholderTokens, leftoverGuestTokens } from "@/lib/kb-placeholders";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
+import { defersDecisionToHost } from "@/lib/ai/availability-claims";
+import { hostDecisionHoldEnabled } from "@/lib/ai/host-decision-hold";
 
 /** Kapalı küme — `RiskEvent.reason` ile aynı sözleşme (PII taşımaz). */
 export type OutputVetoReason = "placeholder_in_reply" | "unverified_commitment" | "handoff_notice";
@@ -534,6 +536,9 @@ export function vetoOutgoingReply(reply: string | null | undefined): OutputVetoR
     return "unverified_commitment";
   }
   if (HANDOFF_NOTICE.test(text) || HANDOFF_NOTICE.test(lower)) return "handoff_notice";
+  // Kurucu kararı 10-01 (anahtar `AI_HOST_DECISION_HOLD_ENABLED`, VARSAYILAN KAPALI): kararı ev sahibine bırakan cümle ("…ev
+  // sahibinizin kararıdır", "is up to your host") devir cümlesidir → misafire gitmez, K10 yolu.
+  if (hostDecisionHoldEnabled() && defersDecisionToHost(reply)) return "handoff_notice";
   return null;
 }
 
@@ -556,5 +561,5 @@ function vetoForms(reply: string): { text: string; lower: string } {
 export function carriesHandoffNotice(reply: string | null | undefined): boolean {
   if (typeof reply !== "string" || reply.trim() === "") return false;
   const { text, lower } = vetoForms(reply);
-  return HANDOFF_NOTICE.test(text) || HANDOFF_NOTICE.test(lower);
+  return HANDOFF_NOTICE.test(text) || HANDOFF_NOTICE.test(lower) || (hostDecisionHoldEnabled() && defersDecisionToHost(reply));
 }

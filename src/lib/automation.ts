@@ -2405,7 +2405,9 @@ export async function applyChannelAutoReply(
   // K10 (kurucu kararı 09-30): tutulan cevap konuyu ev sahibine bırakıyor mu (devir / bildirim cümlesi) — karar kaydı gerekçesi
   // ve ev sahibine "Misafir cevabınızı bekliyor" e-postası için. Yalnız MODELİN cevabı: şablon yedeği (model yok) bu sinyali
   // taşımaz — kesintide her mesaja e-posta gitmesin.
-  const handoffHeld = result.source === "openai" && carriesHandoffNotice(result.reply);
+  // Kurucu kararı 10-01 (`AI_HOST_DECISION_HOLD_ENABLED`): hassas konaklama isteğinde tutulan doğrulanmış erteleme de devir
+  // tutuşudur — misafire bir şey gitmedi, ev sahibi kararı bekliyor (aynı tek bildirim).
+  const handoffHeld = result.source === "openai" && (carriesHandoffNotice(result.reply) || stayEval.deferralHeld === true);
   if (!gatePassed) {
     // ── KONUŞMA ÖĞELERİ — TUTULAN TUR (kurucu kararları 09-26) ───────────────────────────────────────────────────
     // Acil / enjeksiyon turu bugünkü yoldan (Sorunlu + acil e-posta): öğeler tutulur, e-postayı bugünkü yol atar.

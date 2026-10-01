@@ -528,7 +528,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       "",
       `Durum: **${status}** · commit \`${commit}\` · satır ${rows.length}/${planned} · bilgi tabanı ${PAD_TO > 0 ? `nötr dolguyla ${PAD_TO} kaleme (seçim + gömme + sıralayıcı koşar)` : "dolgusuz"}`,
       `Bayraklar harness'ta sabit (canlı): ${Object.entries(LIVE_FLAGS).map(([k, v]) => `\`${k}=${v || "(boş)"}\``).join(" · ")}`,
-      `Set: \`evals/${SET}\` · ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · kod selamı: \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\` · erteleme bildirimsiz: \`AI_STAY_DEFERRAL_PLAIN_ENABLED=${process.env.AI_STAY_DEFERRAL_PLAIN_ENABLED?.trim() || "(boş)"}\` · giriş kodu: \`AI_ACCESS_CODE_COMPLETE_ENABLED=${process.env.AI_ACCESS_CODE_COMPLETE_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
+      `Set: \`evals/${SET}\` · ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · kod selamı: \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\` · erteleme bildirimsiz: \`AI_STAY_DEFERRAL_PLAIN_ENABLED=${process.env.AI_STAY_DEFERRAL_PLAIN_ENABLED?.trim() || "(boş)"}\` · giriş kodu: \`AI_ACCESS_CODE_COMPLETE_ENABLED=${process.env.AI_ACCESS_CODE_COMPLETE_ENABLED?.trim() || "(boş)"}\` · ev sahibi kararı tutulur: \`AI_HOST_DECISION_HOLD_ENABLED=${process.env.AI_HOST_DECISION_HOLD_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
       "",
       ...summarizeLive(rows),
       "",
@@ -621,7 +621,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
 describe("canlı hat ölçeri — çevrimdışı pinler", () => {
   it("canlı bayrak listesi anlam katmanlarını 5.1'e sabitler ve ölçülen kolları (cevap modeli, çaba, ücret kuralı) YAZMAZ", () => {
     expect(LIVE_FLAGS.AI_SEMANTIC_MODEL).toBe("gpt-5.1");
-    for (const k of ["OPENAI_MODEL", "OPENAI_REASONING_EFFORT", "AI_KB_FEE_RULE_ENABLED", "AI_CODE_GREETING_ENABLED", "AI_STAY_DEFERRAL_PLAIN_ENABLED", "AI_ACCESS_CODE_COMPLETE_ENABLED"]) {
+    for (const k of ["OPENAI_MODEL", "OPENAI_REASONING_EFFORT", "AI_KB_FEE_RULE_ENABLED", "AI_CODE_GREETING_ENABLED", "AI_STAY_DEFERRAL_PLAIN_ENABLED", "AI_ACCESS_CODE_COMPLETE_ENABLED", "AI_HOST_DECISION_HOLD_ENABLED"]) {
       expect(Object.hasOwn(LIVE_FLAGS, k)).toBe(false);
     }
     for (const k of ["KB_SEMANTIC_RETRIEVAL", "KB_RERANK_ENABLED", "AI_UNDERSTANDING_ENABLED", "AI_STAY_GUARD_ENABLED", "AI_CONVERSATION_ITEMS_ENABLED"]) {
