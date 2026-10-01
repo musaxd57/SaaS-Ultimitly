@@ -20,12 +20,17 @@ function isLoopback(host: string): boolean {
 
 export function decideDemoRun(env: Readonly<Record<string, string | undefined>>): DemoCliDecision {
   let host: string;
+  let hostOverride: boolean;
   try {
-    host = new URL(env.DATABASE_URL ?? "").hostname;
+    const url = new URL(env.DATABASE_URL ?? "");
+    host = url.hostname;
+    // 10-01 (15 ajan incelemesi A02-F9): libpq / Prisma `?host=` / `?hostaddr=` parametresini adresteki ana makinenin YERİNE okur —
+    // "postgresql://u@localhost/db?host=prod-db" uzak veritabanıdır ama ana makine adı "localhost" görünür. Böyle adres reddedilir.
+    hostOverride = [...url.searchParams.keys()].some((k) => /^(?:host|hostaddr)$/i.test(k));
   } catch {
     return { mode: "refuse", reason: "bad_database_url" };
   }
-  if (!host) return { mode: "refuse", reason: "bad_database_url" };
+  if (!host || hostOverride) return { mode: "refuse", reason: "bad_database_url" };
 
   const password = env.DEMO_TENANT_PASSWORD ? env.DEMO_TENANT_PASSWORD : null;
   if (password !== null && password.length < DEMO_PASSWORD_MIN_LENGTH) return { mode: "refuse", reason: "password_too_short" };

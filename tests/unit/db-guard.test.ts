@@ -33,6 +33,20 @@ describe("isLocalDatabaseUrl (pure)", () => {
     expect(isLocalDatabaseUrl(undefined)).toBe(false);
     expect(isLocalDatabaseUrl("not-a-url")).toBe(false);
   });
+
+  it("🚨 a ?host= / ?hostaddr= query parameter overrides the authority host → NOT local (10-01, A02-F9)", () => {
+    expect(isLocalDatabaseUrl("postgresql://u@localhost:5432/railway?host=prod-db.example")).toBe(false);
+    expect(isLocalDatabaseUrl("postgresql://u@localhost:5432/db?HOST=/cloudsql/proj:region:inst")).toBe(false);
+    expect(isLocalDatabaseUrl("postgresql://u@127.0.0.1:5432/db?sslmode=disable&hostaddr=10.0.0.5")).toBe(false);
+    // KONTROL: other query parameters keep a loopback URL local.
+    expect(isLocalDatabaseUrl("postgresql://u@localhost:5432/db?schema=public&connection_limit=1")).toBe(true);
+  });
+
+  it("the destructive gate refuses a loopback URL that overrides the host in its query", () => {
+    const r = gate({ DATABASE_URL: "postgresql://u@localhost:5432/railway?host=prod-db.example" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/Refusing/);
+  });
 });
 
 describe("scripts/guard-local-db.mjs — the destructive-command gate", () => {

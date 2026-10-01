@@ -280,6 +280,10 @@ describe("betik kararı (yıkıcı betik ÇALIŞTIRILMADAN sınanır)", () => {
     [{ DATABASE_URL: LOCAL, DEMO_TENANT_APPLY: "1", DEMO_TENANT_EXPECT_ORG: DEMO_ORG_ID, DEMO_TENANT_ROTATE_PASSWORD: "1" }, { mode: "refuse", reason: "rotate_without_password" }],
     [{ DATABASE_URL: "" }, { mode: "refuse", reason: "bad_database_url" }],
     [{}, { mode: "refuse", reason: "bad_database_url" }],
+    // 10-01 (A02-F9): sorgudaki host parametresi adresteki ana makinenin yerine geçer → yerel GÖRÜNEN uzak veritabanı reddedilir.
+    [{ DATABASE_URL: `${LOCAL}?host=prod-db.example`, DEMO_TENANT_APPLY: "1", DEMO_TENANT_EXPECT_ORG: DEMO_ORG_ID }, { mode: "refuse", reason: "bad_database_url" }],
+    [{ DATABASE_URL: `${LOCAL}?sslmode=disable&HostAddr=10.0.0.5` }, { mode: "refuse", reason: "bad_database_url" }],
+    [{ DATABASE_URL: `${LOCAL}?schema=public`, DEMO_TENANT_APPLY: "1", DEMO_TENANT_EXPECT_ORG: DEMO_ORG_ID }, { mode: "apply" }],
   ])("%j → %j", (env, expected) => {
     expect(decideDemoRun(env)).toMatchObject(expected);
   });
