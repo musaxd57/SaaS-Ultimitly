@@ -229,10 +229,42 @@ export function replyRiskAttributable(riskType: string | null | undefined, items
   return items.some((it) => it.sensitivity !== "none" && (it.riskType === riskType || affinity.includes(it.kind)));
 }
 
+/**
+ * ŞİKÂYETE BAĞLI İSTEK (kurucu kararı 10-01; Luna kör kabul bulgusu): "Gürültü yüzünden uyuyamadık, yine olursa ne yapacağız?" TEK
+ * şikâyet + ona bağlı yardım talebidir. Anlama katmanı ikiye bölünce "ne yapacağız?" cevaplanabilir sayılıyor, misafire şikâyetçiye
+ * yöneltilmiş kural hatırlatması + 112 önerisi gidiyordu. Bu turda TUTULAN bir şikâyet varken, bağımsız bilgi türü OLMAYAN istek
+ * şikâyete bağlıdır: planda cevaplanabilir sayılmaz ve doğrudan kapıya gelse de tutulur (kapıda ikinci kemer — model / anlama katmanı
+ * aynı hatayı tekrar yaparsa kod korur). Bağımsız bilgi ("Wi-Fi ağı hangisi?", otopark, giriş / çıkış saati, bagaj, ulaşım, çevre
+ * önerisi, giriş / anahtar) sır kuralları uygunsa cevaplanır. Önceki turun şikâyeti bugünkü isteği bağlamaz (K8).
+ */
+export const COMPLAINT_INDEPENDENT_KINDS: ReadonlySet<ItemKind> = new Set<ItemKind>([
+  "wifi",
+  "parking",
+  "checkin_time",
+  "checkout_time",
+  "luggage",
+  "directions_transport",
+  "local_recommendations",
+  "access_keys",
+]);
+
+/** Bu turda tutulan şikâyet varken `kind` şikâyete bağlı mı (↑COMPLAINT_INDEPENDENT_KINDS)? */
+export function complaintDependent(kind: ItemKind, held: readonly { kind: ItemKind; earlier?: boolean }[]): boolean {
+  return !COMPLAINT_INDEPENDENT_KINDS.has(kind) && held.some((h) => !h.earlier && h.kind === "complaint_issue");
+}
+
+/** Kapının ikinci kemeri: cevaplanabilir sayılmış bir istek bu turun tutulan şikâyetine bağlıysa cevap GİTMEZ. */
+export function complaintDependentHold(items: Pick<ItemsGateInput, "held" | "answerableKinds">): boolean {
+  return items.answerableKinds.some((k) => complaintDependent(k, items.held));
+}
+
 /** Öğe kipinin kapı girdisi (akış kurar, kapı okur — `automation.ts` `GateItemsContext`). */
 export interface ItemsGateInput {
-  /** Ev sahibinde tutulan hassas öğeler (bu tur + önceki turlar; acil yok — acil tur bugünkü yoldan gider). */
-  held: readonly ItemRiskFacts[];
+  /**
+   * Ev sahibinde tutulan hassas öğeler (bu tur + önceki turlar; acil yok — acil tur bugünkü yoldan gider). `earlier`: öğe ÖNCEKİ bir
+   * turun mesajında (K8) — şikâyete bağlılık kuralı yalnız bu turun şikâyetine bakar.
+   */
+  held: readonly (ItemRiskFacts & { earlier?: boolean })[];
   /** Ödeme öğesi tutuluyor: cevapta ödeme yöntemi / yeri adı geçerse cevap GİTMEZ (anlam katmanının kelime yedeği). */
   paymentHeld: boolean;
   /** Bu turun cevaplanabilir isteklerinin türleri (konaklama değişikliği ertelemesi beklenir mi — `STAY_CHANGE_ITEM_KINDS`). */

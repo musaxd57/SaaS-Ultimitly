@@ -31,6 +31,7 @@ export const GATE_BLOCK_DETAILS = [
   "items_touch_held", // bırakılan ya da bilinmeyen istek beyan edildi
   "items_nothing_answered", // hiçbir güvenli istek cevaplanmadı (gönderecek bir şey yok)
   "items_payment_held", // ödeme öğesi tutuluyken cevapta ödeme yöntemi / yeri
+  "items_complaint_dependent", // bu turun tutulan şikâyetine bağlı istek cevaplanmış (kurucu kararı 10-01)
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 

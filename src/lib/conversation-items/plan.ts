@@ -5,7 +5,7 @@
 // öğeler (bu tur + önceki turlar).
 // ---------------------------------------------------------------------------
 
-import type { ItemKind, ItemRiskFacts, ItemSensitivity, ItemsGateInput } from "./core";
+import { complaintDependent, type ItemKind, type ItemRiskFacts, type ItemSensitivity, type ItemsGateInput } from "./core";
 import type { ReplyItemsInput } from "./reply-block";
 
 type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity };
@@ -34,15 +34,23 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   /** Anlama katmanının kısa Türkçe sorguları (`hintKey`). */
   hints: ReadonlyMap<string, string>;
 }): ComposedItemsPlan<T> {
-  const answerable = input.turnItems.filter((i) => i.sensitivity === "none").map((item, idx) => ({ ref: `R${idx + 1}`, item }));
+  // Şikâyete bağlı istek (kurucu kararı 10-01, `core.complaintDependent`): bu turda tutulan şikâyet varken bağımsız bilgi türü
+  // olmayan istek cevaplanabilir SAYILMAZ — cevap modeline bırakılan istek olarak gösterilir.
+  const dependent = input.turnItems.filter((i) => i.sensitivity === "none" && complaintDependent(i.kind, input.held));
+  const answerable = input.turnItems
+    .filter((i) => i.sensitivity === "none" && !dependent.includes(i))
+    .map((item, idx) => ({ ref: `R${idx + 1}`, item }));
   return {
     answerable,
     replyItems: {
       answerable: answerable.map(({ ref, item }) => ({ ref, kind: item.kind, hint: input.hints.get(hintKey(item.messageId, item.kind)) ?? "" })),
-      held: input.held.map((h) => (h.earlier ? { kind: h.kind, earlier: true } : { kind: h.kind })),
+      held: [
+        ...input.held.map((h) => (h.earlier ? { kind: h.kind, earlier: true } : { kind: h.kind })),
+        ...dependent.map((d) => ({ kind: d.kind })),
+      ],
     },
     gateItems: {
-      held: input.held.map((h) => ({ kind: h.kind, sensitivity: h.sensitivity, riskType: h.riskType })),
+      held: input.held.map((h) => ({ kind: h.kind, sensitivity: h.sensitivity, riskType: h.riskType, ...(h.earlier ? { earlier: true } : {}) })),
       paymentHeld: input.held.some((h) => h.kind === "payment_invoice" || h.riskType === "platform_policy"),
       answerableKinds: answerable.map((a) => a.item.kind),
     },

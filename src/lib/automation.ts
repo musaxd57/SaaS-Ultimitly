@@ -117,6 +117,7 @@ import {
 } from "@/lib/ai/message-length";
 import {
   STAY_CHANGE_ITEM_KINDS,
+  complaintDependentHold,
   labelsHoldWholeTurn,
   replyRiskAttributable,
   unattributedModelItems,
@@ -488,10 +489,16 @@ export function autoReplyGateVerdict(
   // kapsar: beyanı yoktur, bırakılan isteğe değinemez (ödeme yöntemi süzgeci ev sahibi notunda kayıtta koşar).
   const codeBuiltGrant = context?.verifiedGrant != null && result.reply === context.verifiedGrant.text;
   if (items && !codeBuiltGrant) {
+    // Turun cevaplanabilir isteği YOKSA (hepsi tutuldu — şikâyete bağlı istek dahil) cevap gitmez; taslak olarak hazır durur. Bugün
+    // ayrıştırıcı blok verilmeyen turda beyan üretmez (`items_undeclared`); bu satır o varsayıma dayanmayan ikinci kemer (10-01).
+    if (items.answerableKinds.length === 0) return hold("items_nothing_answered");
     const decl = result.answeredRequests;
     if (!decl || !decl.ok) return hold(decl?.ok === false && decl.reason === "unknown_ref" ? "items_touch_held" : "items_undeclared");
     if (decl.refs.length === 0) return hold("items_nothing_answered");
     if (items.paymentHeld && namesPaymentMethod(result.reply ?? "", { paymentContext: true })) return hold("items_payment_held");
+    // Kurucu kararı 10-01: bu turun tutulan şikâyetine BAĞLI istek cevaplanabilir sayılmışsa (plan dışı yol / gelecekteki değişiklik)
+    // cevap gitmez — planın ikinci kemeri (`core.complaintDependentHold`). Bağımsız bilgi (Wi-Fi, otopark…) etkilenmez.
+    if (complaintDependentHold(items)) return hold("items_complaint_dependent");
     if (
       items.held.length > 0 &&
       !items.answerableKinds.some((k) => STAY_CHANGE_ITEM_KINDS.has(k)) &&
