@@ -11,7 +11,9 @@ export const CURRENCY_AFTER = "(?:tl|try|₺|lira|eur|euros?|avro|€|\\$|usd|do
 /** Tutardan ÖNCE gelen para birimi: "₺500", "€30", "eur 30". */
 export const CURRENCY_BEFORE = "(?:₺|\\$|€|£|tl|eur|usd|try)";
 /** Tutar: binlik ayraçlı ("1.500", "1,250.00") ya da düz ("30", "29,90"). */
-export const NUM = "(?:\\d{1,3}(?:[.,]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)";
+// Binlik öbek sayısı SINIRLI (`{1,5}` = 999 katrilyona kadar): sınırsız `+` her öbek başından yeniden denenip öbek dizisinde karesel
+// geri izliyordu ("111,111,…" 20.000 karakterde 1,8 sn — iddia ölçümü misafir mesajını da tarar; 10-01, 15 ajan incelemesi A14).
+export const NUM = "(?:\\d{1,3}(?:[.,]\\d{3}){1,5}(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)";
 
 /** "1.500" → 1500 · "29,90" → 29.9 · "1,250.50" → 1250.5. */
 export function parseAmount(raw: string): number {

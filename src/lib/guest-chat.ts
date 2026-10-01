@@ -289,7 +289,7 @@ const SECRET_PATTERNS: RegExp[] = [
   /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w{0,24}[\s:]{0,3}\w{0,6}[\s:]{0,3}(kod|şifre|sifre|parola|code|pin)/i,
   // a code/PIN/password word followed by a value, e.g. "PIN: 5678", "kodu 0000",
   // "şifre HUNTER2", "parola: abc12".
-  /(pin|kod|code|şifre|sifre|parola|password|passcode)\w{0,24}\s*[:=#]?\s*([0-9]{3,}|[^\s.\n]{0,64}\d)/i,
+  /(pin|kod|code|şifre|sifre|parola|password|passcode)\w{0,24}\s*(?:[:=#]\s*)?([0-9]{3,}|[^\s.\n]{0,64}\d)/i,
   // Wi-Fi / wireless / internet ... password word.
   /(wi-?fi|kablosuz|internet)\w{0,24}[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key)/i,
   // a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
@@ -305,7 +305,9 @@ const SECRET_PATTERNS: RegExp[] = [
   // Kategori elemesi de kurtarmıyor: elle ekleme formunun VARSAYILANI `general`
   // ve `wifi`/`checkin` dışındaki her kategori isteme giriyor.
   //
-  // 🚨 BİTİŞİKLİK ŞARTI (`\s*[:=#.\-–—]?\s*`) BU KALIBIN CAN DAMARI — araya
+  // 🚨 BİTİŞİKLİK ŞARTI (`\s*(?:[:=#.\-–—]\s*)?` — eski yazımı `\s*[:=#.\-–—]?\s*` ile AYNI dil; iki bitişik boşluk
+  // yıldızı kod sözcüğünden sonraki uzun boşluk dizisinde karesel geri izliyordu: 20.000 boşlukta 3 sn, kalem her yapay zekâ
+  // çağrısında taranır — 10-01, 15 ajan incelemesi A14) BU KALIBIN CAN DAMARI — araya
   // "serbest metin" (`[^.\n]{0,20}` gibi) İZNİ VERME. İlk yazımı tam olarak
   // öyleydi ve ÖLÇÜLDÜ: 12 meşru bilgi-tabanı kaleminin 6'sını birden eliyordu —
   // ADRES ("Kapı 3, 34710 Kadıköy" → posta kodu), ACİL TELEFON ("girişindeki
@@ -330,7 +332,7 @@ const SECRET_PATTERNS: RegExp[] = [
   //
   // ÖLÇÜLDÜ (kalıp yok / serbest-metin / bugünkü): yanlış-pozitif 0 → 6 → 0,
   // yakalanan saldırı 0 → 11 → 13. Yani bugünkü hâl İKİ eksene göre de en iyisi.
-  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w{0,24}\s*[:=#.\-–—]?\s*\d{4,8}(?!\d)(?![\s\-.]\d)/i,
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w{0,24}\s*(?:[:=#.\-–—]\s*)?\d{4,8}(?!\d)(?![\s\-.]\d)/i,
 ];
 
 /**

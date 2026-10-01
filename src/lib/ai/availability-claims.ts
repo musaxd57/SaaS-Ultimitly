@@ -218,7 +218,7 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `${NL}gec\\s+(?:cikis|check|cik|ayril|birak|teslim)${L}`,
     `${NL}daha\\s+gec\\s+(?:cik|ayril|birak)${L}`,
     `${NL}(?:cikis|${CO})${L}${gap(3)}(?:geciktir|ertele|uzat|sonraya|daha\\s+gec)${L}`,
-    `\\d{1,2}(?:[:.]\\d{2})?(?:\\s*['’]?\\s*\\p{L}{1,3})?\\s+(?:kadar|dek)${gap(1)}kal${L}`,
+    `\\d{1,2}(?:[:.]\\d{2})?(?:\\s*(?:['’]\\s*)?\\p{L}{1,3})?\\s+(?:kadar|dek)${gap(1)}kal${L}`,
     `${NL}late\\s+${CO}${NR}`,
     `${NL}(?:check|checking)\\s+out\\s+(?:late|later|after)${NR}`,
     `${NL}(?:leave|leaving|depart|departing)${gap(2)}(?:later|late)${NR}`,
@@ -368,7 +368,7 @@ const GRANT_CLAIMS = rx([
   `${NL}kalmaya\\s+devam\\s+edebilirsiniz${NR}`,
   `${NL}(?:konaklama|rezervasyon|kalis|tatil)${L}${gap(2)}(?:uzatabilirsiniz|uzatabiliriz|uzattik|uzatildi|uzatilmistir|uzatiyoruz|uzatmaniz\\s+(?:mumkun|uygun))${NR}`,
   `${NL}(?:uzatabiliriz|uzattik|uzatmanizda\\s+(?:bir\\s+)?(?:sorun|sakinca)\\s+yok)${NR}`,
-  `\\d{1,2}(?:[:.]\\d{2})?(?:\\s*['’]?\\s*\\p{L}{1,3})?\\s+(?:kadar|dek)\\s+(?:dairede\\s+|evde\\s+|odada\\s+)?(?:kalabilirsiniz|konaklayabilirsiniz)${NR}`,
+  `\\d{1,2}(?:[:.]\\d{2})?(?:\\s*(?:['’]\\s*)?\\p{L}{1,3})?\\s+(?:kadar|dek)\\s+(?:dairede\\s+|evde\\s+|odada\\s+)?(?:kalabilirsiniz|konaklayabilirsiniz)${NR}`,
   `${NL}(?:sizi|sizleri)${gap(1)}(?:bir|1|iki|2)\\s+(?:gece|gun)\\s+daha\\s+(?:agirla|bekle|misafir\\s+et)${L}`,
   `${NL}(?:bir|1|iki|2)\\s+(?:gece|gun)\\s+daha\\s+(?:agirlamaktan|misafir\\s+etmekten|agirlariz|bekleriz)${L}`,
   `${NL}(?:erken|gec)\\s+(?:gelebilirsiniz|girebilirsiniz|cikabilirsiniz|ayrilabilirsiniz|yerlesebilirsiniz)${NR}`,
@@ -736,7 +736,7 @@ function untilMinutes(h: string, mm: string | undefined, ap: string | undefined)
 const CLAUSE_SPLIT = /((?:(?<!\d)\.(?!\d)|[!?;\n…؟]|。)+)/u;
 const EN_UNTIL = /(?<![\p{L}\p{N}])(?:until|till)\s+(\d{1,2})(?:[:.](\d{2}))?(?:\s*(a\.?\s?m\.?|p\.?\s?m\.?))?(?![\p{L}\p{N}])/giu;
 // Türkçe yönelme eki YALNIZ ('e/'a/'ye/'ya): eski `\p{L}{1,3}` yuvası "8 GÜN kadar" / "Ayın 10'UNA kadar" yutuyordu.
-const TR_UNTIL = /(?<![\p{L}\p{N}])(\d{1,2})(?:[:.](\d{2}))?(?:\s*['’ʼ]?\s*y?[ae])?\s+(?:kadar|dek)(?![\p{L}\p{N}])/giu;
+const TR_UNTIL = /(?<![\p{L}\p{N}])(\d{1,2})(?:[:.](\d{2}))?(?:\s*(?:['’ʼ]\s*)?y?[ae])?\s+(?:kadar|dek)(?![\p{L}\p{N}])/giu;
 /** Öğleden sonra / akşam / gece: rakam standart çıkışla aynı olsa da saat öğleden sonrasıdır ("11 in the evening"). */
 const EVENING_CUE = new RegExp(
   [`${NL}(?:evening|night|nights|tonight|afternoon|midnight|p\\.?\\s?m\\.?)${NR}`, `${NL}(?:aksam|gece|ogleden|oglen|ogle|ikindi)${L}`].join("|"),

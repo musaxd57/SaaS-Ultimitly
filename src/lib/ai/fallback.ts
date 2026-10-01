@@ -620,13 +620,24 @@ function splitApostrophes(s: string): string {
 function matchCandidates(norm: string): string[] {
   const out = [norm];
   for (const f of [stripCombining, deconfuse, collapseSeparated, splitApostrophes]) {
-    const v = f(norm);
+    const v = collapseSpaceRuns(f(norm));
     if (v !== norm && !out.includes(v)) out.push(v);
   }
   // Kombinasyon: hem homoglif hem birleştirici işaret kullanan girdi.
-  const both = splitApostrophes(collapseSeparated(deconfuse(stripCombining(norm))));
+  const both = collapseSpaceRuns(splitApostrophes(collapseSeparated(deconfuse(stripCombining(norm)))));
   if (!out.includes(both)) out.push(both);
   return out;
+}
+
+/**
+ * Türetilmiş adaydaki boşluk DİZİSİ tek boşluğa iner (10-01, 15 ajan incelemesi A14 — ÖLÇÜLDÜ). `normalizeForMatch` ham metnin
+ * boşluklarını zaten teke indirir; ama kesme işareti adayı bir kesme dizisini ("'''…") ve birleştirici söküm adayı NFKC'nin
+ * "´" → boşluk + U+0301 dizisini YENİDEN boşluk dizisine çevirir. Bir kalıpta yan yana iki boşluk niceleyicisi varsa o dizide
+ * karesel geri izler (acil ağı 50.000 karakterde 3–5 sn, müsaitlik isteği 3 sn). Kalıpların hepsi boşluğu `\s+` / `\s*` ile
+ * okur → tek boşluk aynı eşleşmeyi verir; sınırlı pencereler (`.{0,40}`) yalnız daha çok eşleşir (KISITLAYICI yön, KATLAMA KURALI).
+ */
+function collapseSpaceRuns(s: string): string {
+  return s.includes("  ") ? s.replace(/ {2,}/g, " ") : s;
 }
 
 /**
@@ -1870,14 +1881,19 @@ export function detectPromptInjection(message: string): boolean {
 // Türkçede TEKİL emir ("unut", "yok say") — host misafire çoğul/nazik emirle yazar ("unutun",
 // "görmezden gelin"), yapay zekâya yazan saldırgan tekil. Kalıplar ASCII-katlanmış küçük harf
 // metin içindir; aday biçimler misafir dedektörüyle AYNI (görünmez karakter, homoglif, NFKC).
+// 🚨 MALİYET (10-01, 15 ajan incelemesi A14 — ÖLÇÜLDÜ): iki boşluk niceleyicisi arasına İSTEĞE BAĞLI tek işaret konmaz
+// (`\s*"?\s*`, `\s*\/?\s*`, `\s*[:,-]?\s*`): kesme işareti adayı bir kesme dizisini boşluk dizisine çevirir ve kalıp o dizide
+// karesel (art arda dört yuvada dördüncü kuvvet) geri izler — "confidence" + 411 kesme 3,5 sn, "ai" + 4.000 kesme 1,7 sn; kalem
+// her yapay zekâ çağrısında taranır ve bir kiracının kalemi sunucuyu HERKES için donduruyordu. Doğru biçim aynı dili tanıyan
+// `\s*(?:"\s*)?`: ikinci boşluk yuvası yalnız işaretin ARDINDA. Süre pini `whitespace-run-cost.test.ts`.
 // ---------------------------------------------------------------------------
 const KB_HIJACK_PATTERNS: readonly RegExp[] = [
   // Sahte blok/rol işaretleri (bizim çitlerimiz + yaygın sohbet biçimleri).
   /<<[a-z_]{2,}>>/,
-  /\[\s*\/?\s*(system|sistem|assistant|developer|inst)\s*\]/,
-  /<\s*\/?\s*(system|assistant|developer|knowledge_?base|instructions?)\s*>/,
+  /\[\s*(?:\/\s*)?(system|sistem|assistant|developer|inst)\s*\]/,
+  /<\s*(?:\/\s*)?(system|assistant|developer|knowledge_?base|instructions?)\s*>/,
   /<\|\s*im_(start|end)\s*\|>/,
-  /\brole\s*"?\s*[:=]\s*"?\s*(system|developer|assistant)\b/,
+  /\brole\s*(?:"\s*)?[:=]\s*(?:"\s*)?(system|developer|assistant)\b/,
   /(^|\s)#{1,6}\s*(system|sistem|assistant|instructions?)\b/,
   /<!--\s*(ai|assistant|system|yapay|asistan)\b/,
   />>>\s*.{0,30}\b(talimat|instruction)/,
@@ -1888,8 +1904,8 @@ const KB_HIJACK_PATTERNS: readonly RegExp[] = [
   // Modelin KENDİ çıktı alanlarını yönlendirme (meşru host metninde hiç geçmez).
   /\brisk_?level\b/,
   /\b(used_?sources|risk_?type|action_?suggestion)\b/,
-  /\bconfidence\s*"?\s*(:|=|to|degeri|degerini|olarak)?\s*"?\s*(1(\.0+)?|0?\.\d+|%?\d{2,3})\b/,
-  /\bintent\s*"?\s*[:=]\s*"?[a-z_]+/,
+  /\bconfidence\s*(?:"\s*)?(?:(?::|=|to|degeri|degerini|olarak)\s*)?(?:"\s*)?(1(\.0+)?|0?\.\d+|%?\d{2,3})\b/,
+  /\bintent\s*(?:"\s*)?[:=]\s*"?[a-z_]+/,
   // İngilizce talimat/kural iptali ve rol değiştirme.
   /\b(ignore|disregard|forget|override)\s+(all\s+|any\s+)?(of\s+)?(your|all|the\s+above|previous|prior|earlier|preceding)\s+((previous|prior|earlier|preceding|above|system)\s+)?(instructions|prompts?|directives|guidelines)\b/,
   /\b(ignore|disregard|forget|override)\s+(all\s+|any\s+)?(of\s+)?your\s+(rules|safety|restrictions|guardrails|guidelines|instructions)\b/,
@@ -1907,7 +1923,7 @@ const KB_HIJACK_PATTERNS: readonly RegExp[] = [
   // "developer mode'a almayın": kesme işareti normalizasyonda boşluk olur → Türkçe hâl ekleri hariç.
   /\bdeveloper\s+mode\b(?!\s?['’]?\s?(a|e|i|u|ya|ye|yi|yu|da|de|ta|te|dan|den|tan|ten|un|in|nun|nin)\b)/,
   /\bjailbreak/,
-  /\byou\s+are\s+now\s+(a|an|the)?\s*(new\s+|different\s+|unrestricted\s+|uncensored\s+)?(ai|assistant|bot|chatbot|model|system|admin|dan)\b/,
+  /\byou\s+are\s+now\s+(?:(?:a|an|the)\s*)?(new\s+|different\s+|unrestricted\s+|uncensored\s+)?(ai|assistant|bot|chatbot|model|system|admin|dan)\b/,
   /\byou\s+are\s+no\s+longer\s+(a|an|the|bound|restricted|an?\s+\w+\s+(ai|assistant|bot|model))\b/,
   /\byou\s+are\s+(a|an)\s+(helpful\s+|new\s+)?(ai|assistant|chatbot|model)\s+(with|without)\s+(no\s+)?(restrictions|rules|limits|filters)\b/,
   /\bfrom\s+now\s+on\b.{0,30}\b(act\s+as|you\s+are\s+(an?|the)\s+(\w+\s+)?(ai|assistant|bot|model))\b/,
@@ -1921,7 +1937,7 @@ const KB_HIJACK_PATTERNS: readonly RegExp[] = [
   /\b(talimat|kural|yonerge|komut|kisitlama|guvenlik\s+kural)(lar|ler)?(iniz|inizi|larinizi|lerinizi)\s+(unut|yok\s+say|gormezden\s+gel|gecersiz\s+kil|dikkate\s+alma|goz\s?ardi\s+et|devre\s+disi\s+birak|bir\s+kenara\s+birak|askiya\s+al|atla|birak)/,
   /\bsistem\s+(prompt\w*|talimat(i|ini|lari|larini|lariniz|larinizi))\b/,
   // Yapay zekâya HİTAP + iptal fiili (tekil ya da nazik çoğul).
-  /\b(yapay\s+zek[aâ]|asistan|model|bot|chatbot|ai)\b\w*\s*[:,-]?\s*.{0,60}\b(unut|yok\s+say|gormezden\s+gel|goz\s?ardi\s+et|devre\s+disi\s+birak|bir\s+kenara\s+birak|askiya\s+al)(un|in|iniz|unuz)?(?![a-z])/,
+  /\b(yapay\s+zek[aâ]|asistan|model|bot|chatbot|ai)\b\w*\s*(?:[:,-]\s*)?.{0,60}\b(unut|yok\s+say|gormezden\s+gel|goz\s?ardi\s+et|devre\s+disi\s+birak|bir\s+kenara\s+birak|askiya\s+al)(un|in|iniz|unuz)?(?![a-z])/,
   /\bartik\s+(sen\s+)?(kisitlamasiz|kuralsiz|sansursuz|yeni\s+bir)\s+(bir\s+)?(asistan|yapay\s+zek[aâ]|model|bot)/,
   // Rol değiştirme (tekil hitap: "yeni rolün / görevin değişti / bundan sonra sen …").
   /\byeni\s+(rolun|gorevin|kimligin|persona)\b/,
@@ -2245,7 +2261,7 @@ const SAFETY_PLACE_PATTERNS: readonly RegExp[] = [
   /polis\s+(?:merkez|karakol|istasyon)\p{L}{0,8}/gu,
   /police\s+(?:stations?|precincts?|offices?|departments?|headquarters)(?![\p{L}\p{N}])/gu,
   /yang[iı]n\s+(?:s[oö]nd[uü]r|t[uü]p|battan[iı]ye)\p{L}{0,10}/gu,
-  /fire\s*-?\s*(?:extinguishers?|blankets?)(?![\p{L}\p{N}])/gu,
+  /fire\s*(?:-\s*)?(?:extinguishers?|blankets?)(?![\p{L}\p{N}])/gu,
 ];
 /**
  * "ACİL DEĞİL" (kurucu kararı K6): misafir acil olmadığını SÖYLÜYORSA "acil / emergency" sözcüğü sayılmaz ("Acil değil ama havlu
@@ -2255,7 +2271,7 @@ const SAFETY_PLACE_PATTERNS: readonly RegExp[] = [
 const NOT_URGENT_PATTERNS: readonly RegExp[] = [
   /ac[iı]l\s+(?:b[iı]r\s+)?(?:(?:durum|[sş]ey|sorun|mesele|konu|[iı][sş]|talep|[iı]stek|soru|problem)\p{L}{0,3}\s+)?(?:de[gğ][iı]l(?:d[iı]r|se)?(?!\s*m[iı](?![\p{L}\p{N}]))|yok(?!\s*mu(?![\p{L}\p{N}]))|olmay\p{L}{0,6}|olmasa|olmad\p{L}{0,6}|say[iı]lmaz)(?![\p{L}\p{N}])/gu,
   /ac[iı]l[iı]yet\p{L}{0,3}\s+yok(?![\p{L}\p{N}])/gu,
-  /(?<![\p{L}\p{N}])(?:no\s+|not\s+(?:really\s+)?(?:an?\s+)?|(?:[iı]sn|wasn)['’ ]?t\s+(?:really\s+)?(?:an?\s+)?|non\s*-?\s*)emergency(?![\p{L}\p{N}])/gu,
+  /(?<![\p{L}\p{N}])(?:no\s+|not\s+(?:really\s+)?(?:an?\s+)?|(?:[iı]sn|wasn)['’ ]?t\s+(?:really\s+)?(?:an?\s+)?|non\s*(?:-\s*)?)emergency(?![\p{L}\p{N}])/gu,
 ];
 const HURT_NEGATION_RE =
   /(?:(?:does|did|would|will|can|could|should)(?:n['’ ]?t|\s+not)|won['’ ]?t|never|not)\s+(?:really\s+)?hurts?(?![\p{L}\p{N}])/gu;
@@ -2298,7 +2314,7 @@ const INCIDENT_CONTEXT_RE = new RegExp(
     "sald[iı]r", "tehdit", "kavga", "(?<![\\p{L}\\p{N}])d[oö]v(?:d[uü]|[uü]yo|[uü]l)", "darp", "taciz", "b[iı][cç]a[kgğ]", "silah",
     "doland[iı]r", "[sş]ik[aâ]yet(?:\\s+ed|[cç]i)", "tutanak", "ifade\\s+ver", "dava\\s+a[cç]", "mahkeme", "avukat",
     "stol(?:e|en)(?![\\p{L}\\p{N}])", "steal", "theft", "thie(?:f|ves)", "(?<![\\p{L}\\p{N}])rob(?:bed|bery|beries|bing|s)?(?![\\p{L}\\p{N}])",
-    "burgl", "break\\s*-?\\s*in(?![\\p{L}\\p{N}])", "broke\\s+in", "broken\\s+into", "intruder", "attack", "assault", "threat", "harass",
+    "burgl", "break\\s*(?:-\\s*)?in(?![\\p{L}\\p{N}])", "broke\\s+in", "broken\\s+into", "intruder", "attack", "assault", "threat", "harass",
     "(?<![\\p{L}\\p{N}])fight", "(?<![\\p{L}\\p{N}])gun(?![\\p{L}\\p{N}])", "knife", "weapon", "report\\s+(?:you|u)(?![\\p{L}\\p{N}])",
     "(?<![\\p{L}\\p{N}])sue(?![\\p{L}\\p{N}])", "lawyer", "press\\s+charges", "scam", "fraud",
     // yaralanma / sağlık
