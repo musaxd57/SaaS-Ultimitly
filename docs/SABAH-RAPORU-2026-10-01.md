@@ -377,6 +377,8 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 ## 6. Canlıya geçiş için kalan adımlar (sıra önerisi — her adım ayrı onayınızla)
 
 1. **RC51'i yayınla** (yedi dilli "bilgim yok" kuralı + ölçer düzeltmeleri + belgeler; kapılar + CI). Railway kapalıysa açılışta yayınlanır.
+   **YAPILDI:** RC51 CI #1275; sonra RC53 / RC57 / RC58 / RC59 / RC62 de itildi (§5). Dalın son kodu RC62 (`b2b386a`) — Railway açıksa
+   CI yeşil olunca canlıya çıkar; kapalıysa açılışta en son yeşil sürüm yayınlanır.
 2. **Sabah kararları** — özellikle 13 (çok sorulu mesajda konaklama isteği), 17 (şikâyet + bağımsız soru: anlam ilişkisi; 3 ve 15'in
    yerini alır), 18 (arıza tarifi: yalnız onaylı tarif kadar, tehlike sınıfında otomatik değil; 14'ün yerini alır), 2 (politika metni).
    Anlama / istem değişikliği küçük ücretli ölçüm ister (~$1–2).
