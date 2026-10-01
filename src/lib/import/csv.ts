@@ -98,20 +98,52 @@ function makeDate(y: number, m: number, d: number): Date | null {
   return dt;
 }
 
-function parseDate(raw: string): Date | null {
+/** Gün / ay sırası DOSYA başına (↓`fileDayOrder`). */
+type DayOrder = "dmy" | "mdy";
+
+const SLASH_DATE = /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/;
+
+function parseDate(raw: string, order: DayOrder): Date | null {
   const s = raw.trim();
   if (!s) return null;
 
   const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
   if (iso) return makeDate(+iso[1], +iso[2], +iso[3]);
 
-  // DD/MM/YYYY (or with dots) — European first (most common for TR operators),
-  // then MM/DD/YYYY, each calendar-validated so a bad date can't slip through.
-  const dmy = s.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
-  if (dmy) {
-    return makeDate(+dmy[3], +dmy[2], +dmy[1]) ?? makeDate(+dmy[3], +dmy[1], +dmy[2]);
+  // DD/MM/YYYY (or with dots) or MM/DD/YYYY — the order is decided once for the whole FILE (↓fileDayOrder), each cell
+  // calendar-validated so a bad date can't slip through.
+  const parts = s.match(SLASH_DATE);
+  if (parts) {
+    return order === "mdy" ? makeDate(+parts[3], +parts[1], +parts[2]) : makeDate(+parts[3], +parts[2], +parts[1]);
   }
   return null; // no native-Date fallback: it accepts garbage and locale-drifts
+}
+
+/**
+ * 🚨 GÜN / AY SIRASI DOSYA BAŞINA (10-01, 15 ajan incelemesi A09 — ölçüldü). Eskiden HÜCRE başına "önce gün/ay, olmazsa ay/gün"
+ * deneniyordu: ABD biçimli bir Airbnb dışa aktarımında "3/10/2026 – 3/12/2026" (2 gece) 3 Ekim – 3 Aralık (61 gece) okunuyor, aynı
+ * satırda "3/10/2026 – 3/14/2026" giriş 3 Ekim / çıkış 14 Mart çıkıyordu. Artık tarih sütunlarındaki TÜM hücreler birlikte okunur:
+ * ilk sayısı 12'den büyük bir hücre varsa gün/ay, ikinci sayısı 12'den büyük bir hücre varsa ay/gün; ikisi birden varsa dosya
+ * karışıktır (açık hata, tahmin yok); hiçbiri yoksa eskisi gibi gün/ay (Türkiye varsayılanı).
+ */
+function fileDayOrder(rows: readonly string[][], dateCols: readonly number[]): DayOrder {
+  let dayFirst = false;
+  let monthFirst = false;
+  for (let i = 1; i < rows.length; i++) {
+    for (const idx of dateCols) {
+      if (idx < 0) continue;
+      const m = (rows[i][idx] ?? "").trim().match(SLASH_DATE);
+      if (!m) continue;
+      const a = +m[1];
+      const b = +m[2];
+      if (a > 12 && b <= 12) dayFirst = true;
+      else if (b > 12 && a <= 12) monthFirst = true;
+    }
+  }
+  if (dayFirst && monthFirst) {
+    throw new CsvParseError("Tarihlerde gün ve ay sırası karışık. Dosyayı tek bir tarih biçimiyle kaydedip yeniden yükleyin.");
+  }
+  return monthFirst ? "mdy" : "dmy";
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +311,7 @@ export function parseCsv(text: string): CsvReservation[] {
   const statusIdx = findCol(headers, STATUS_COLS);
 
   const results: CsvReservation[] = [];
+  const dayOrder = fileDayOrder(rows, [arrivalIdx, departureIdx]);
 
   for (let i = 1; i < rows.length; i++) {
     const cols = rows[i];
@@ -295,8 +328,8 @@ export function parseCsv(text: string): CsvReservation[] {
     const guestName = get(guestIdx);
     if (!guestName) continue; // row-level skip (semantic, not structural)
 
-    const arrivalDate = parseDate(get(arrivalIdx));
-    const departureDate = parseDate(get(departureIdx));
+    const arrivalDate = parseDate(get(arrivalIdx), dayOrder);
+    const departureDate = parseDate(get(departureIdx), dayOrder);
     if (!arrivalDate || !departureDate) continue;
 
     const totalAmount = parseAmount(get(amountIdx));
