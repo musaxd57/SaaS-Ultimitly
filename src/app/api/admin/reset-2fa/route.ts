@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
-import { writeAudit } from "@/lib/audit";
+import { writeAuditInTx } from "@/lib/audit";
 import { normalizeEmail } from "@/lib/email-identity";
 
 // ---------------------------------------------------------------------------
@@ -76,8 +76,8 @@ export async function POST(req: NextRequest) {
       return badRequest({ email: "Bu hesapta 2FA zaten kapalı — temizlenecek bir şey yok." });
     }
 
-    await prisma.$transaction([
-      prisma.user.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: user.id },
         data: {
           twoFactorSecret: null,
@@ -86,21 +86,23 @@ export async function POST(req: NextRequest) {
           // Yalnız CANLI bir faktör kaldırılırken oturumlar düşürülür (↑gerekçe).
           ...(active ? { sessionEpoch: { increment: 1 } } : {}),
         },
-      }),
+      });
       // Bayat dalda da çalışır: `twoFactorEnabledAt` NULL iken kurtarma kodu
       // ZATEN kullanılamaz (login o dala hiç girmez), yani bu satırlar ölü
       // ağırlıktır. Silmek durumu sadeleştirir, hiçbir yeteneği kaldırmaz.
-      prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: user.id } }),
-    ]);
-
-    await writeAudit({
-      organizationId: user.organizationId,
-      actorUserId: session.actorUserId ?? session.userId,
-      // İki işlem AYRI eylem adı taşır: denetim kaydına bakan biri "müşterinin
-      // canlı 2FA'sı kaldırıldı" ile "yarım kalmış kurulum artığı silindi"yi
-      // ayırt edebilmeli — güvenlik açısından bambaşka ağırlıktalar.
-      action: active ? "admin.2fa_reset" : "admin.2fa_stale_secret_cleared",
-      metadata: { targetUserId: user.id, targetEmail: user.email },
+      await tx.twoFactorRecoveryCode.deleteMany({ where: { userId: user.id } });
+      // 🚨 KAYIT AYNI İŞLEMDE ve ZORUNLU (15 ajan A02 F3, 10-01): eskiden işlemden SONRA, hatayı yutan `writeAudit` ile yazılıyordu →
+      // veritabanı sarsıntısında müşterinin canlı 2FA'sı İZSİZ kalkabiliyordu. Bürünme başlangıcı ve operatör dışa aktarımıyla aynı
+      // kural: kayıt yazılamazsa sıfırlama da olmaz.
+      await writeAuditInTx(tx, {
+        organizationId: user.organizationId,
+        actorUserId: session.actorUserId ?? session.userId,
+        // İki işlem AYRI eylem adı taşır: denetim kaydına bakan biri "müşterinin
+        // canlı 2FA'sı kaldırıldı" ile "yarım kalmış kurulum artığı silindi"yi
+        // ayırt edebilmeli — güvenlik açısından bambaşka ağırlıktalar.
+        action: active ? "admin.2fa_reset" : "admin.2fa_stale_secret_cleared",
+        metadata: { targetUserId: user.id, targetEmail: user.email },
+      });
     });
 
     // Çağıran hangi işlemin olduğunu BİLMELİ: arayüz "tüm oturumları düşürüldü"
