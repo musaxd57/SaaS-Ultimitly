@@ -45,8 +45,27 @@ export interface EvalRuntime {
   };
   /** Ürün hattını değiştiren bayraklar — ham değer (boş = "(boş)"). */
   flags: Record<string, string>;
-  /** İstem kimliği (10-01, kurucu: "her raporda istem kimliği"): modele giden sistem istemlerinin SHA-256 ilk 12 hanesi. */
-  prompts?: { reply: string; understanding: string };
+  /**
+   * İstem kimliği (10-01, kurucu: "her raporda istem kimliği"): modele giden sistem istemlerinin SHA-256 ilk 12 hanesi.
+   * `understandingMode`: anlama isteminin hangi kiple kurulduğu (`understandingModeLabel`) — kimlik bu kipin istemidir.
+   */
+  prompts?: { reply: string; understanding: string; understandingMode?: string };
+}
+
+/**
+ * Anlama katmanının kipi (öğe / ev kuralı gölgesi / şikâyet takibi): istemi ve şemayı değiştirir. Ölçer kipi KENDİSİ veriyorsa
+ * (konaklama eval'i `EVAL_UNDERSTANDING_*`) istem kimliği o kiple hesaplanır; vermiyorsa ürünün TEK karar noktasıyla
+ * (`kb-retrieve.ts`) aynı bayraklardan.
+ */
+export interface UnderstandingMode {
+  items?: boolean;
+  rules?: boolean;
+  complaintFollowup?: boolean;
+}
+
+/** Kip etiketi — ölçerlerin "anlama kipi" satırıyla aynı söz dizimi (`items+rules+cfu`; hiçbiri yoksa `temel`). */
+export function understandingModeLabel(m: UnderstandingMode): string {
+  return [m.items === true ? "items" : "", m.rules === true ? "rules" : "", m.complaintFollowup === true ? "cfu" : ""].filter(Boolean).join("+") || "temel";
 }
 
 /** Hattı değiştiren bayraklar (yalnız okunur; değer yorumu ürünün işi). */
@@ -87,7 +106,7 @@ function gitCommit(): string | null {
   }
 }
 
-export function evalRuntime(): EvalRuntime {
+export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): EvalRuntime {
   // Cevap katmanı ÜRÜNÜN çağrı parametrelerinden (`replyCallParams` — `callOpenAI` ile aynı fonksiyon): ölçer ayrı kural uyduramaz.
   const reply = replyCallParams();
   const semantic = semanticModel();
@@ -105,11 +124,13 @@ export function evalRuntime(): EvalRuntime {
     tone: "warm",
     language: "tr",
   }).system;
-  const understandingSystem = understandingSystemPromptFor({
-    items: conversationItemsEnabled(),
-    rules: houseRulesShadowEnabled(),
-    complaintFollowup: complaintFollowupRuleEnabled(),
-  });
+  // Anlama kipi (10-01 bulgusu): konaklama eval'i kipi KENDİ ortam değişkeniyle verir, kimlik ürün bayraklarından hesaplanınca
+  // raporlar gerçekte koşan öğe + kural + şikâyet takibi istemi yerine yalnız şikâyet takibi isteminin kimliğini yazdı.
+  const given = opts.understanding;
+  const mode: UnderstandingMode = given
+    ? { items: given.items === true, rules: given.rules === true, complaintFollowup: given.complaintFollowup === true }
+    : { items: conversationItemsEnabled(), rules: houseRulesShadowEnabled(), complaintFollowup: complaintFollowupRuleEnabled() };
+  const understandingSystem = understandingSystemPromptFor(mode);
   return {
     commit: gitCommit(),
     layers: {
@@ -123,7 +144,7 @@ export function evalRuntime(): EvalRuntime {
       embedding: { model: embeddingModel() },
     },
     flags: Object.fromEntries(PIPELINE_FLAGS.map((f) => [f, process.env[f]?.trim() || "(boş)"])),
-    prompts: { reply: sha12(replySystem), understanding: sha12(understandingSystem) },
+    prompts: { reply: sha12(replySystem), understanding: sha12(understandingSystem), understandingMode: understandingModeLabel(mode) },
   };
 }
 
@@ -173,7 +194,13 @@ export function evalRuntimeMarkdown(rt: EvalRuntime): string {
     `| Gömme (anlamsal getirme) | \`${rt.layers.embedding.model}\` | — |`,
     "",
     `Bayraklar: ${flags}`,
-    ...(rt.prompts ? ["", `İstem kimliği (SHA-256 ilk 12): cevap \`${rt.prompts.reply}\` · anlama \`${rt.prompts.understanding}\``] : []),
+    ...(rt.prompts
+      ? [
+          "",
+          `İstem kimliği (SHA-256 ilk 12): cevap \`${rt.prompts.reply}\` · anlama \`${rt.prompts.understanding}\`` +
+            (rt.prompts.understandingMode ? ` (kip: ${rt.prompts.understandingMode})` : ""),
+        ]
+      : []),
     "",
     "Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.",
     "",

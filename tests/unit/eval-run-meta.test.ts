@@ -2,9 +2,21 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { evalRuntime, evalRuntimeMarkdown, PIPELINE_FLAGS, reasoningLabel, storedRunRuntime, type EvalRuntime } from "../eval/run-meta";
+import { createHash } from "node:crypto";
+import {
+  evalRuntime,
+  evalRuntimeMarkdown,
+  PIPELINE_FLAGS,
+  reasoningLabel,
+  storedRunRuntime,
+  understandingModeLabel,
+  type EvalRuntime,
+} from "../eval/run-meta";
 import { writeSidecar } from "../eval/sidecar";
+import { understandingSystemPromptFor } from "@/lib/ai/semantic/understand";
 import { STRICT_ONE_FLAGS } from "../../scripts/env-check.mjs";
+
+const sha12 = (t: string) => createHash("sha256").update(t).digest("hex").slice(0, 12);
 
 // ---------------------------------------------------------------------------
 // KOŞU KİMLİĞİ (Aşama 1, kurucu 09-30): "Gerçek değerlendirmelerde model ve reasoning ayarını kaydet. Eski önbellek
@@ -94,6 +106,42 @@ describe("evalRuntime — katman bazında model + gönderilen düşünme çabas�
     expect(aiFlags.filter((f: string) => !(PIPELINE_FLAGS as readonly string[]).includes(f))).toEqual([]);
   });
 
+  it("🚨 ölçer anlama kipini KENDİSİ veriyorsa istem kimliği O kiple (10-01: konaklama raporları gerçekte koşan öğe + kural istemi yerine yalnız şikâyet takibinin kimliğini yazdı)", () => {
+    for (const f of PIPELINE_FLAGS) vi.stubEnv(f, "");
+    vi.stubEnv("AI_COMPLAINT_FOLLOWUP_RULE_ENABLED", "1");
+    const full = { items: true, rules: true, complaintFollowup: true };
+    const rt = evalRuntime({ understanding: full });
+    expect(rt.prompts?.understanding).toBe(sha12(understandingSystemPromptFor(full)));
+    expect(rt.prompts?.understanding).not.toBe(sha12(understandingSystemPromptFor({ complaintFollowup: true })));
+    expect(rt.prompts?.understandingMode).toBe("items+rules+cfu");
+    // Yalnız `true` kip açar (ölçerin `=== "1"` okumasıyla aynı katılık); eksik alan kapalı.
+    const itemsOnly = evalRuntime({ understanding: { items: true } });
+    expect(itemsOnly.prompts?.understanding).toBe(sha12(understandingSystemPromptFor({ items: true })));
+    expect(itemsOnly.prompts?.understandingMode).toBe("items");
+  });
+
+  it("kip verilmezse ürünün karar noktasıyla AYNI bayraklardan (`kb-retrieve.ts`): öğe / kural kipi anlama katmanı açıkken sayılır", () => {
+    for (const f of PIPELINE_FLAGS) vi.stubEnv(f, "");
+    vi.stubEnv("AI_SEMANTIC_API_KEY", "");
+    vi.stubEnv("OPENAI_API_KEY", "");
+    vi.stubEnv("AI_COMPLAINT_FOLLOWUP_RULE_ENABLED", "1");
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "1");
+    vi.stubEnv("AI_HOUSE_RULES_SHADOW", "1");
+    // Anlama katmanı kapalı (anahtar yok) → öğe / kural kipi AÇIK SAYILMAZ (ürün kuralı).
+    expect(evalRuntime().prompts?.understandingMode).toBe("cfu");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-run-meta");
+    const rt = evalRuntime();
+    expect(rt.prompts?.understandingMode).toBe("items+rules+cfu");
+    expect(rt.prompts?.understanding).toBe(sha12(understandingSystemPromptFor({ items: true, rules: true, complaintFollowup: true })));
+  });
+
+  it("understandingModeLabel: ölçerlerin 'anlama kipi' söz dizimi; hiçbiri yoksa 'temel'", () => {
+    expect(understandingModeLabel({})).toBe("temel");
+    expect(understandingModeLabel({ rules: true, complaintFollowup: true })).toBe("rules+cfu");
+    expect(understandingModeLabel({ items: true, rules: false, complaintFollowup: true })).toBe("items+cfu");
+  });
+
   it("reasoningLabel: klasik / gönderilmez / gönderilen", () => {
     expect(reasoningLabel("gpt-4.1", "high")).toBe("yok (klasik model)");
     expect(reasoningLabel("gpt-6-luna", null)).toBe("gönderilmez (model varsayılanı)");
@@ -170,6 +218,12 @@ describe("storedRunRuntime — ESKİ koşunun kimliği (ortamı okumaz)", () => 
     expect(storedRunRuntime({}).layers.reply.model).toMatch(/bilinmiyor/);
   });
 
+  it("markdown: istem kimliğinin yanında anlama kipi yazılır (kimlik hangi istemin)", () => {
+    for (const f of PIPELINE_FLAGS) vi.stubEnv(f, "");
+    const md = evalRuntimeMarkdown(evalRuntime({ understanding: { items: true, rules: true, complaintFollowup: true } }));
+    expect(md).toContain(`anlama \`${sha12(understandingSystemPromptFor({ items: true, rules: true, complaintFollowup: true }))}\` (kip: items+rules+cfu)`);
+  });
+
   it("markdown: bayrak listesi boşsa 'bilinmiyor' yazar (eski koşu); yapılandırma geçersiz kılma notu hep var", () => {
     const md = evalRuntimeMarkdown(storedRunRuntime({ meta: { model: "gpt-5.1", commit: "abc" } }));
     expect(md).toMatch(/Bayraklar: bilinmiyor/);
@@ -192,6 +246,26 @@ describe("bağlantı pinleri (kaynak taraması, tek yönlü — davranış ↑yu
     expect(cus.indexOf("const RESCORE")).toBeGreaterThan(0);
     expect(cusBlock).toContain("storedRunRuntime(side)");
     expect(read("conversation-state-harness.ts")).toMatch(/rows, runtime \}\);/);
+  });
+
+  it("🚨 konaklama ölçeri kimliği KENDİ anlama kipiyle verir (kip `EVAL_UNDERSTANDING_*` ile gelir, ürün bayrağıyla değil)", () => {
+    const s = read("stay-change.eval.test.ts");
+    const call = s.slice(s.indexOf("writeSidecar(dir, name, {"));
+    expect(s.indexOf("writeSidecar(dir, name, {")).toBeGreaterThan(0);
+    expect(call.slice(0, call.indexOf("});"))).toContain("runtime: evalRuntime({ understanding: NLU_MODE })");
+  });
+
+  it("🚨 canlı hat ölçeri kimliği canlı bayraklar GERİ ALINMADAN önce alır ve rapora o kimliği verir (10-01: bayraklar '(boş)' yazılıyordu)", () => {
+    const s = read("live-pipeline.eval.test.ts");
+    const after = s.slice(s.indexOf("afterAll(() => {"));
+    expect(s.indexOf("afterAll(() => {")).toBeGreaterThan(0);
+    const take = after.indexOf("const runtime = evalRuntime();");
+    const unstub = after.indexOf("vi.unstubAllEnvs();");
+    expect(take).toBeGreaterThan(0);
+    expect(unstub).toBeGreaterThan(take);
+    const sidecar = after.slice(after.indexOf("writeSidecar(dir, name, {"));
+    expect(after.indexOf("writeSidecar(dir, name, {")).toBeGreaterThan(unstub);
+    expect(sidecar.slice(0, sidecar.indexOf("});"))).toMatch(/^\s+runtime,$/m);
   });
 
   it("docs/olcum'a rapor yazan HER ölçer dosyası kimliği taşır (writeSidecar ya da evalRuntimeMarkdown)", () => {

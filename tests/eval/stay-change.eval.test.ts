@@ -15,6 +15,7 @@ import { understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/sem
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { slotTimesShifted, type StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
 import { writeSidecar } from "./sidecar";
+import { evalRuntime } from "./run-meta";
 import { summarizeUnion, unionMetricsLines, type UnionRow } from "./stay-metrics";
 
 // ---------------------------------------------------------------------------
@@ -362,6 +363,14 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       "",
     ];
     writeFileSync(path.join(dir, name), [...head, ...lines].join("\n"), "utf8");
-    writeSidecar(dir, name, { suite: "stay-change", version: data.version, meta: { status, failures, enabled }, rows });
+    // İstem kimliği ölçerin KENDİ anlama kipiyle (10-01 bulgusu: kip `EVAL_UNDERSTANDING_*` ile verilir, ürün bayraklarından
+    // hesaplanan kimlik gerçekte koşan öğe + kural istemini göstermiyordu).
+    writeSidecar(dir, name, {
+      suite: "stay-change",
+      version: data.version,
+      meta: { status, failures, enabled },
+      rows,
+      runtime: evalRuntime({ understanding: NLU_MODE }),
+    });
   });
 });

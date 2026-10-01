@@ -56,6 +56,7 @@ import { greetingLine } from "@/lib/ai/code-greeting";
 import { GREETING, promiseInReply } from "./reply-metrics";
 import { moneyAmountsOf } from "@/lib/ai/stay-money";
 import { writeSidecar } from "./sidecar";
+import { evalRuntime } from "./run-meta";
 
 interface Scenario {
   id: string;
@@ -536,6 +537,10 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
   });
 
   afterAll(() => {
+    // Koşu kimliği canlı bayraklar GERİ ALINMADAN önce (10-01 bulgusu): eskiden `writeSidecar` kimliği `vi.unstubAllEnvs()`
+    // SONRASI hesaplıyordu → rapor koşunun bayraklarını "(boş)" ve anlama istemini öğe / kural kipsiz yazıyordu (koşunun
+    // kendisi `LIVE_FLAGS` ile doğru yapılmıştı).
+    const runtime = evalRuntime();
     globalThis.fetch = realFetch;
     vi.unstubAllEnvs();
     if (!enabled || rows.length === 0) return;
@@ -638,6 +643,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       version: data.version,
       meta: { model: MODEL, commit, status, pad: PAD_TO, usd: usd(), usage: Object.fromEntries(usageByModel) },
       rows,
+      runtime,
     });
   });
 
