@@ -18,6 +18,11 @@ const NOT_EMERGENCY = [
   "Where is the fire extinguisher? My friend is a doctor and asked.",
   "Where is the police station? We are meeting a lawyer friend there.",
   "Not an emergency — how do I get to the hospital for my routine check-up?",
+  // her çerçeve kendi örneğiyle (mutasyon 10-01)
+  "Acil değil, rutin kontrol için hastaneye nasıl giderim?",
+  "Where is the fire extinguisher? I'm a nurse, just checking the flat.",
+  "Not an emergency, how do I get to my routine doctor visit?",
+  "Where is the police station? After that I have a check-up at the hospital.",
 ];
 
 const STILL_EMERGENCY = [

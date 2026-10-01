@@ -113,6 +113,21 @@ describe("K9 — mesaj başına TEK e-posta, eşzamanlı çağrıda da", () => {
     expect(unnotified).toBe(0);
   });
 
+  it("🚨 yarışta KAZANANIN e-postası gidemezse kaybeden de damgasını geri vermiş olmalı — sonraki geçiş bir kez gönderir (e-posta kaybolmaz)", async () => {
+    const { conversation, message } = await seedTwoSensitiveItems();
+    mockMail.mockResolvedValueOnce({ ok: false } as never);
+    const db = barrierDb(2);
+    const now = new Date();
+    await Promise.all([
+      notifyHeldItems(db, input(conversation.id, message.id, now)),
+      notifyHeldItems(db, input(conversation.id, message.id, now)),
+    ]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    const retry = await notifyHeldItems(prisma, input(conversation.id, message.id, new Date()));
+    expect(retry.mailed).toEqual([message.id]);
+    expect(mockMail).toHaveBeenCalledTimes(2);
+  });
+
   it("KONTROL: e-posta gidemezse talep geri verilir — sonraki geçiş yeniden dener ve bir kez gönderir", async () => {
     const { conversation, message } = await seedTwoSensitiveItems();
     mockMail.mockResolvedValueOnce({ ok: false } as never);

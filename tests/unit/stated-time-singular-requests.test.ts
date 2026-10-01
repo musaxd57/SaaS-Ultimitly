@@ -26,8 +26,9 @@ const SINGULAR_AND_PLURAL_REQUESTS: [msg: string, hhmm: string][] = [
   ["Pourrais-je partir à 13h", "13:00"],
   ["Pourrions-nous partir à 13h", "13:00"],
   // ES
-  ["Puedo salir a las 13", "13:00"],
-  ["Podría salir a las 13", "13:00"],
+  // "salir" (mastar) ipucu değil → ipucu taşıyan "dejar el piso" ile (mutasyon 10-01: önceki örnek isteği hiç sınamıyordu)
+  ["Puedo dejar el piso a las 13", "13:00"],
+  ["Podría dejar el piso a las 13", "13:00"],
   // TR — tekil + çoğul (bugün de istek; birlikte pinli)
   ["13'te çıkabilir miyim", "13:00"],
   ["13'te çıksam olur mu", "13:00"],
@@ -42,6 +43,7 @@ const STATEMENTS: [msg: string, hhmm: string][] = [
   ["Ich reise um 13 Uhr ab", "13:00"],
   ["Je pars à 13h", "13:00"],
   ["Saldremos a las 13", "13:00"],
+  ["Dejaremos el piso a las 13", "13:00"],
   ["13'te çıkacağım", "13:00"],
 ];
 
