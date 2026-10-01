@@ -2350,16 +2350,18 @@ function neutralizePhrases(folded: string): string {
  */
 const NON_INCIDENT_FRAMES: readonly RegExp[] = [
   // TR — "doktor olan arkadaşım", "avukat arkadaşımızla", "doktor bir arkadaşım"
-  /(?:doktor|avukat|hem[sş]ire)\s+(?:olan|(?:bir\s+)?arkada[sş])/gu,
-  // TR — "arkadaşım doktordur", "eşim avukat", "ben doktorum" (yalnız ek fiil / yalın; "doktora gitti" DEĞİL)
-  /(?:arkada[sş]\p{L}{0,6}|e[sş]im\p{L}{0,2}|kocam|kar[iı]m|annem|babam|k[iı]z[iı]m|o[gğ]lum|ben|biz)\s+(?:de\s+)?(?:bir\s+)?(?:doktor|avukat|hem[sş]ire)(?:d[uü]r|[uü]m|[uü]z|y[iı]z)?(?![\p{L}\p{N}])/gu,
+  /(?:doktor|avukat)\s+(?:olan|(?:bir\s+)?arkada[sş])/gu,
+  // TR — "arkadaşım doktordur", "eşim avukat", "ben doktorum" (yalnız ek fiil / yalın; "doktora gitti" DEĞİL). Hemşire / nurse olay
+  // listesinde YOK → çerçevesi de yok (mutasyon 10-01: etkisiz parça ölü koddu).
+  /(?:arkada[sş]\p{L}{0,6}|e[sş]im\p{L}{0,2}|kocam|kar[iı]m|annem|babam|k[iı]z[iı]m|o[gğ]lum|ben|biz)\s+(?:de\s+)?(?:bir\s+)?(?:doktor|avukat)(?:d[uü]r|[uü]m|[uü]z)?(?![\p{L}\p{N}])/gu,
   // TR — rutin bakım yeri: "hastanedeki rutin kontrol randevuma", "rutin kontrol için hastaneye"
   /hastane\p{L}{0,6}\s+(?:\p{L}+\s+){0,2}?(?:randevu|rutin|kontrol|ziyaret)/gu,
   /(?:rutin|randevu)\p{L}{0,6}\s+(?:\p{L}+\s+){0,3}?hastane\p{L}{0,6}/gu,
-  // EN — "a doctor friend", "my friend is a lawyer", "I'm a nurse", "routine hospital check-up"
-  /(?:doctor|lawyer|nurse)\s+friend/gu,
-  /(?:friend|wife|husband|partner|mother|mom|mum|father|dad|brother|sister|colleague|son|daughter)\s+(?:who\s+)?is\s+an?\s+(?:doctor|lawyer|nurse)/gu,
-  /(?:i['’]?m|i\s+am|we['’]?re|we\s+are)\s+(?:an?\s+)?(?:doctor|lawyer|nurse)s?(?![\p{L}\p{N}])/gu,
+  // EN — "a doctor friend", "my friend is a lawyer", "I'm a doctor" (kesme işareti eşleşmede BOŞLUĞA iner: "i m"), "routine hospital
+  // check-up"
+  /(?:doctor|lawyer)\s+friend/gu,
+  /(?:friend|wife|husband|partner|mother|mom|mum|father|dad|brother|sister|colleague|son|daughter)\s+(?:who\s+)?is\s+an?\s+(?:doctor|lawyer)/gu,
+  /(?:i['’ ]?m|i\s+am|we['’ ]?re|we\s+are)\s+(?:an?\s+)?(?:doctor|lawyer)s?(?![\p{L}\p{N}])/gu,
   /hospital\s+(?:\p{L}+\s+){0,3}?(?:appointment|check-?up|visit)/gu,
   /(?:routine|scheduled)\s+(?:\p{L}+\s+){0,2}?(?:hospital|doctor)/gu,
   /(?:appointment|check-?up)\s+(?:at|in)\s+(?:the\s+)?hospital/gu,
