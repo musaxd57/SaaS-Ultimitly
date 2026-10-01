@@ -2340,9 +2340,36 @@ function neutralizePhrases(folded: string): string {
   return out;
 }
 
+/**
+ * MESLEK KİMLİĞİ / RUTİN BAKIM ÇERÇEVESİ OLAY DEĞİLDİR (K6 ikinci tur, Codex 10-01): "Doktor olan arkadaşım cihazın yerini merak
+ * ediyor", "Avukat arkadaşımızla orada buluşacağız", "hastanedeki rutin kontrol randevuma nasıl giderim?" — kişinin mesleği ya da
+ * rutin randevunun yeri bir tehlike işareti değil; nötrlenmiş acil sözcüğünü ("yangın söndürücü nerede", "acil değil") geri AÇMAZ.
+ * YALNIZ olay bağlamı kontrolünde etkisizleşir (acil sözcüğünün kendisine dokunmaz). İhtiyaç / eylem biçimi ("doktor lazım",
+ * "avukatımla gideceğim", "hastaneye kaldırıldı", "need a doctor") ve gerçek olay sözcüğü ("bayıldı", "çalındı", "yanıyor") olay
+ * kalır. Kalıplar sabit sözcükle başlar, tekrarlar sınırlı (doğrusal).
+ */
+const NON_INCIDENT_FRAMES: readonly RegExp[] = [
+  // TR — "doktor olan arkadaşım", "avukat arkadaşımızla", "doktor bir arkadaşım"
+  /(?:doktor|avukat|hem[sş]ire)\s+(?:olan|(?:bir\s+)?arkada[sş])/gu,
+  // TR — "arkadaşım doktordur", "eşim avukat", "ben doktorum" (yalnız ek fiil / yalın; "doktora gitti" DEĞİL)
+  /(?:arkada[sş]\p{L}{0,6}|e[sş]im\p{L}{0,2}|kocam|kar[iı]m|annem|babam|k[iı]z[iı]m|o[gğ]lum|ben|biz)\s+(?:de\s+)?(?:bir\s+)?(?:doktor|avukat|hem[sş]ire)(?:d[uü]r|[uü]m|[uü]z|y[iı]z)?(?![\p{L}\p{N}])/gu,
+  // TR — rutin bakım yeri: "hastanedeki rutin kontrol randevuma", "rutin kontrol için hastaneye"
+  /hastane\p{L}{0,6}\s+(?:\p{L}+\s+){0,2}?(?:randevu|rutin|kontrol|ziyaret)/gu,
+  /(?:rutin|randevu)\p{L}{0,6}\s+(?:\p{L}+\s+){0,3}?hastane\p{L}{0,6}/gu,
+  // EN — "a doctor friend", "my friend is a lawyer", "I'm a nurse", "routine hospital check-up"
+  /(?:doctor|lawyer|nurse)\s+friend/gu,
+  /(?:friend|wife|husband|partner|mother|mom|mum|father|dad|brother|sister|colleague|son|daughter)\s+(?:who\s+)?is\s+an?\s+(?:doctor|lawyer|nurse)/gu,
+  /(?:i['’]?m|i\s+am|we['’]?re|we\s+are)\s+(?:an?\s+)?(?:doctor|lawyer|nurse)s?(?![\p{L}\p{N}])/gu,
+  /hospital\s+(?:\p{L}+\s+){0,3}?(?:appointment|check-?up|visit)/gu,
+  /(?:routine|scheduled)\s+(?:\p{L}+\s+){0,2}?(?:hospital|doctor)/gu,
+  /(?:appointment|check-?up)\s+(?:at|in)\s+(?:the\s+)?hospital/gu,
+];
+
 /** Nötrlenmiş metinde olay işareti var mı? (Kalıpların hepsi ASCII ikizini de kabul eder — ASCII biçimde bakmak yeter.) */
 function hasIncidentContext(neutralized: string): boolean {
-  return INCIDENT_CONTEXT_RE.test(neutralized.replace(LIGHT_ON_RE, NON_EMERGENCY_MARK));
+  let text = neutralized.replace(LIGHT_ON_RE, NON_EMERGENCY_MARK);
+  for (const re of NON_INCIDENT_FRAMES) text = text.replace(re, NON_EMERGENCY_MARK);
+  return INCIDENT_CONTEXT_RE.test(text);
 }
 
 /**
