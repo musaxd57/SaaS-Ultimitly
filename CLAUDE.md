@@ -326,12 +326,19 @@ Bu dosyaya token/anahtar/parola yazma.
 - Model: OpenAI `gpt-5.1` (`OPENAI_MODEL`; `DEFAULT_OPENAI_MODEL` kod içi son çare). Değiştirme =
   gönderim hot-path'i rekalibrasyon; yalnız gerçek arıza + A/B. `ai/openai-compat.ts` TEK KAYNAK DEĞİL
   (`ai/index.ts` ve `translate.ts` OpenAI'yi doğrudan çağırır; `openai-request-contract.test.ts` pinler).
+  Katman bazında model / çaba (10-01, kurucu "her katmanı ayrı doğrulayalım"): `AI_UNDERSTANDING_MODEL` · `AI_STAY_GUARD_MODEL` ·
+  `KB_RERANK_MODEL` (+ `*_REASONING_EFFORT`) boşken `AI_SEMANTIC_*` ortak ayarı; `OPENAI_TRANSLATE_REASONING_EFFORT` /
+  `OPENAI_STYLE_REASONING_EFFORT` yalnız reasoning modelinde gönderilir. Ölçüm raporu katman bazında model + gönderilen çaba + istem
+  kimliği (SHA-256 ilk 12) taşır (`tests/eval/run-meta.ts`).
 
 ## AI güvenlik mimarisi (ürünün kalbi)
 - **Tek kaynak:** `src/lib/ai/prompts.ts` + `fallback.ts`; tüm yüzeyler (oto-yanıt, inbox öneri, Ayarlar testi, landing
   demo, QR) buradan. Demoya özel hiçbir şey yok.
   Sistem istemi varyantları KATMAN (`replySystemPromptFor`, 09-30): kod selamı → ücret kuralı → bildirimsiz erteleme → giriş
-  kodu, taban istemin üstüne çapalı; yeni varyant YENİ KATMAN olarak eklenir (birleşimlerde kayıp çapa yok + kapalıyken bayt bayt pinli).
+  kodu → şikâyet takibi (10-01), taban istemin üstüne çapalı; yeni varyant YENİ KATMAN olarak eklenir (birleşimlerde kayıp çapa yok +
+  kapalıyken bayt bayt pinli). Ücret kuralı katmanı (`AI_KB_FEE_RULE_ENABLED`, KAPALI) 10-01'den beri KURUCU İFADESİDİR: "Onaylı bilgi
+  tabanındaki sabit hizmet ücretini, koşullarıyla birlikte söyle. Konaklama fiyatı, indirim, iade veya tazminat konusunda fiyat üretme ya
+  da onay verme." — açıkken "ASLA yazma" yasağının YERİNE geçer (talimat ile istenen davranış çelişmesin).
 - 🚨 **UZUN MİSAFİR MESAJI (K10-t, kurucu kararı 09-28, tek kaynak `ai/message-length.ts`):** cevapsız misafir mesajlarından biri
   8.000 KOD NOKTASINI aşarsa yapay zekâ cevap üretmez — kontrol model / kalıp işlemlerinden ÖNCE; metin kırpılıp modele VERİLMEZ;
   mesaj tam saklı; oto-yanıt `message_too_long` damgası; gelen kutusunda kayıttan bağımsız TÜRETİLEN "elle yanıtla" uyarısı (e-posta
@@ -538,7 +545,7 @@ Bu dosyaya token/anahtar/parola yazma.
   York'ta çıkış hatırlatması bir gün önce gidiyordu, QR sohbeti devir akşamı gelecek konaklamaya açılıyordu). Yazılan
   saatin kanıtı (`stated-time.ts`, uydurma durdurucu; K11 09-30: istek / soru / rica / izin isteme biçimi — cümlenin neresinde olursa
   olsun, 1–3 sözcüklük istek işareti cümleciği sonrakine de geçer — beyan DEĞİL, düz sıra "10'da çıkabiliyoruz" beyandır; istem aynı
-  kuralı söyler): saat/tarih içindeki rakam, sabah/akşam okunuşu, değiştirilen
+  kuralı söyler; 10-01: TEKİL izin isteği de — "let / allow / permit me", "Darf / Kann ich", "Puis-je", "Puedo"): saat/tarih içindeki rakam, sabah/akşam okunuşu, değiştirilen
   saat ("10'da değil"), giriş etiketi, başka cümleciğin saati kanıt DEĞİL; aynı cümlecikteki başka eylemin saati bilinen
   sınır (anlam modelde). CPU: satır içi boşluk dizisi teke iner, 4.000 karakter üstünde kanıt ARANMAZ (ayırıcı karesel);
   belirtecin ÖNÜNE bakan kalıplar yalnız son 64 karakteri görür (`beforeOf`; tam önek karesel iş, 33→9 ms). Kör batarya
@@ -1071,6 +1078,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 
 **Faturalandırma**
 - Kayıtlı abonelikten FARKLI aboneliğin olayı planı değiştirmez (K4, 09-30: ters sırada gelen eski iptal yeni aboneliği ezmiyordu).
+  Şart UPDATE'in WHERE'inde (10-01, Codex: bayat okuma yarışı; ilk kayıt çatışması P2002 dalında da) — yalnız aktifleşen yeni abonelik
+  eskisinin yerine geçer.
 - previewToken HMAC + `jti` tek kullanım; apply öncesi re-preview (409 amountChanged); definitive/ambiguous
   Paddle hataları; pending kilidi; `resolveOrgId` providerRef-first; **`CheckoutConsent`e consumedAt EKLEME**;
   `occurred_at` vetosu; portal plan DEĞİŞTİRMEZ (in-app upgrade/downgrade canlı doğrulandı); `canceled`
@@ -1110,7 +1119,15 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - 🚨 **K8 / K9 (kurucu kararı 09-30):** hassas öğeler birbirinin yerine GEÇMEZ (yalnız hassas olmayan aynı tür); her yeni hassas mesaj
   kendi öğesi + kendi e-postası, aynı mesajın yeniden senkronu ikinci öğe / e-posta üretmez; cevap modelinin BU turun öğeleriyle
   açıklanamayan risk sinyali son mesajda ayrı öğe (güvenli kısım yine gider); önceki mesajların tutulan öğeleri cevap bloğunda ayrı
-  bölümde ("intent / risk bunlar için verilmez").
+  bölümde ("intent / risk bunlar için verilmez"). Mesaj başına e-posta tekilliği ATOMİK (10-01, Codex): `held-items-mail:<mesaj>`
+  SystemLock talebini alan çağrı atar; kaybeden öğe damgasını geri verir, e-posta gidemezse talep geri verilir.
+- 🚨 **ŞİKÂYETE BAĞLI İSTEK CEVAPLANMAZ (kurucu kararı 10-01, ANAHTARSIZ; `conversation-items/core.ts complaintDependent`):** bu turda
+  TUTULAN şikâyet varken bağımsız bilgi türü (`COMPLAINT_INDEPENDENT_KINDS`: wifi · parking · checkin_time · checkout_time · luggage ·
+  directions_transport · local_recommendations · access_keys) OLMAYAN istek planda cevaplanabilir sayılmaz; kapı da iki öğe doğrudan
+  verilse tutar (`items_complaint_dependent`); cevaplanabilir istek yoksa cevap gitmez (`items_nothing_answered`, ikinci kemer).
+  "Gürültüden uyuyamadık, yine olursa ne yapacağız?" → hiçbir şey gitmez; "… Wi-Fi ağı hangisi?" → yalnız Wi-Fi. Önceki turun şikâyeti
+  bağlamaz (K8). Kök neden istem katmanları `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` KAPALI (anlama: şikâyete bağlı yardım sorusu ayrı
+  istek değil; cevap: şikâyetçiye kural hatırlatma yok, 112 yalnız gerçek can güvenliği). Kapsam genişletme (iade / görüşme) sabah kararı.
 - 🚨 **BEKLEYEN RİSK ÖĞE BAZINDA (kurucu 09-26):** eski cevapsız risk yeni mesajla KAYBOLMAZ ama TÜM konuşmayı BLOKE
   ETMEZ. "Bekleyen herhangi bir yüksek riskli etiket → cevabın tamamı tutulur" KONUŞMA DÜZEYİ kapısı REDDEDİLDİ (`6c0e6b4`
   gönderilmedi, yedek dal `backup/pending-highstakes-conversation-gate-2026-09-26`) — geri getirme. Kanalda istek düzeyi
@@ -1154,7 +1171,10 @@ sınıfında, çıkarım backfill'i BİLEREK yok.
 - 🚨 **Acil ağı BAĞLAMLA (K6, kurucu kararı 09-30, `neutralizeNonEmergency`):** yer / eşya sorusu ("polis merkezi / yangın söndürücü
   nerede") ve "acil değil" olumsuzlaması tek başına acil DEĞİL; aynı mesajda olay sözcüğü (yangın, hırsızlık, tehdit, yaralanma, sağlık,
   kilitli kalma, su kaçağı…) varsa acil KALIR ("Yangın söndürücü nerede, mutfak yanıyor!"). Koruma ASCII biçimde aday başına bir kez
-  (maliyet pinli). Bilinen sınır: "Mutfak yanıyor!" tek başına ve yalnız hırsızlık bildirimi acil sayılmıyor.
+  (maliyet pinli). Bilinen sınır: "Mutfak yanıyor!" tek başına ve yalnız hırsızlık bildirimi acil sayılmıyor. 10-01 (Codex): meslek
+  KİMLİĞİ ("doktor olan arkadaşım", "avukat arkadaşımızla", "I'm a doctor") ve RUTİN BAKIM yeri ("hastanedeki rutin kontrol randevum")
+  olay kontrolünde etkisiz (`NON_INCIDENT_FRAMES`); ihtiyaç / eylem ("doktor lazım", "hastaneye kaldırıldı") olay kalır. Kesme işareti
+  eşleşme biçiminde BOŞLUĞA iner ("I'm" → "i m") — yeni İngilizce kalıp bunu kapsamalı.
 - 🚨 **Kısa acil sözcükleri TAM SÖZCÜK (09-26, kurucu onayı, #51):** `gas`/`fire`/`acil`/`acilen` alt dize DEĞİL
   (`SAFETY_CRITICAL_WHOLE_WORDS`): "Gastgeber", "Gastfreundschaft", "fireplace", "Havuz ne zaman açılıyor?" (ASCII açıl→acil),
   "facilities" canlıda yanlış acildi (oto-cevap kapanıyor + acil rozeti). Türkçe ad çekimleri TEK TEK (acile/acilde/aciliyeti/
@@ -1385,7 +1405,15 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   TEK "Misafir cevabınızı bekliyor" e-postası (`host-reply-waiting.ts`, SystemLock talebi, düşerse geri verilir; yükseltme / hassas öğe
   e-postası varsa ikincisi YOK), gelen kutusu notu karar kaydından türetilir (`skippedReason` aynı). Makbuzsuz teklif ("sorayım mı?",
   "Shall I ask the host?") ve alıcısı ev sahibi olan gönderme iddiası söz sınıfında; alıcısı misafir olan geçmiş anlatım serbest.
-  İstemin few-shot devirleri AYNEN duruyor (değişikliği ücretli ölçüm ister) — o cevaplar artık taslak olur.
+  İstemin few-shot devirleri AYNEN duruyor (değişikliği ücretli ölçüm ister) — o cevaplar artık taslak olur. 10-01 (Codex): iki noktalı
+  "duyuru" istisnası ALICISI ev sahibi / ekip olan ya da misafirin talebini nesne alan iletmeye uygulanmaz ("Mesajınızı ev sahibine
+  iletiyorum: …", "I'll forward your message to the host: …" tutulur; "Sizi bilgilendiriyoruz: havuz kapalı" duyuru).
+- 🚨 **"EV SAHİBİNİZİN KARARIDIR" MİSAFİRE GİTMEZ (kurucu kararı 10-01, `ai/host-decision-hold.ts`; anahtar `AI_HOST_DECISION_HOLD_ENABLED`
+  VARSAYILAN KAPALI):** açıkken kararı ev sahibine bırakan cümle (7 dil, DAR liste `defersDecisionToHost` — `DEFERRALS`tan AYRI, o liste
+  değişmedi; koşul cümlesi "müsaitliğe bağlıdır" tek başına DEĞİL) çıktı vetosunda `handoff_notice` (K10 yolu: mesaj başına tek e-posta);
+  hassas konaklama isteğinde iki modelin doğruladığı erteleme de gitmez (`deferralHeld`, gerekçe `availability_unconfirmed`); koddan
+  kurulan doğrulanmış erken giriş ONAYI muaf; politika metni ("kararı ev sahibiniz verir") açıkken tutulur — yeniden yazımı sabah kararı.
+  "Karar bekliyor" kartı + Onayla / Reddet = Host Karar Motoru (Faz 0 onayı bekliyor).
 - **Çıktı vetosu** (`output-veto.ts`, iki kapıda): `placeholder_in_reply` + ETKEN `unverified_commitment`; edilgen
   dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi + iki incelemeyle düzeltildi: kıvrık kesme işareti düz
   olana çevrilir; haber verdim/aradım/onayladım/güncelledim/iletiyorum · booked/notified/let the host know/I'm forwarding/
@@ -1438,7 +1466,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   ölçmeden önce `__resetFieldTimeHitsCache()` çağırır — yoksa ikinci okuma önbellekten gelir, pin boş kalır.
 - **Saat alanı kuralı TEK KAYNAK `retrieval/time-fields.ts`** (retrieval çelişki koruması + istemin KB↔mülk
   bloğu + host "Uyuşmayan saatler"): erken giriş/geç çıkış ayrı alan, bina/otopark girişi + acil çıkış + çıkış GÜNÜ
-  konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu. K3 (09-30):
+  konaklama saati değil (başlık ödüncü de alınmaz), simetrik küme kuralı, mülk ayarı kümenin içindeyse uyumlu. K3 10-01 (Codex): olumsuzlanan
+  alan YALNIZ gerçek düzeltme cümleciğine taşınır (`correctionOnlyClause`: saat dışındaki sözcüklerin hepsi kapalı düzeltme dolgusu —
+  "12:00 olacaktır", "It will be 12:00"; "13:00 saatinde toplantı var" taşımaz; sözcük yasağı değil, biçim). K3 (09-30):
   olumsuzlanan saat ("not at 11:00", "11:00 değil") okunmaz, düzeltme saati okunur → çelişki görünür; sınır anlatımı ("not before
   15:00", "15:00'ten önce değil") etkilenmez; taşıma yalnız HEMEN ardındaki alansız cümleciğe.
   İkinci bir saat/çelişki kuralı YAZILMAZ. Host raporu yalnız cümlecik saatini sayar; misafir yolu temkinli.
