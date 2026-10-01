@@ -47,7 +47,10 @@ gerekmedi.
 
 ## 5. Kapı / CI
 
-(RC49 sonucu)
+| Aday | Tam kapılar | Sonuç |
+|---|---|---|
+| RC49 (`fcb441d`: canlı `d80e7e2` + K7 migration 58 + K düzeltmeleri + şikâyet koruması + ücret / şikâyet takibi katmanları) | test 4 dosya / 11 test KIRMIZI; typecheck / lint / build / audit yeşil | **İTİLMEDİ.** 10 kırmızı yük altında zaman aşımı (üç dosya tek başına 49/49 yeşil, 0,7–1,8 sn). 1 gerçek eksik: yeni kapı ayrıntı kodu `items_complaint_dependent` kapı kanıtı pininde vakasızdı → vaka eklendi |
+| RC50 (`20682de` = RC49 + katman ayarı + ölçer araçları + kapı kanıtı vakası + belgeler; ağaç ana dalla BİREBİR) | test 720 dosya / 11.428 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka ağır iş koşmadan) | 05:15'te itildi (`d80e7e2..20682de`, hızlı ileri). CI #1274: (sonuç aşağıda) |
 
 ## 6. Canlıya geçiş için kalan adımlar
 

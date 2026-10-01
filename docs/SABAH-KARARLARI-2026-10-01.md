@@ -102,8 +102,11 @@
 - **Beklerken yapılmayan:** taşıma.
 
 ## 12. Railway — "ayın 1'ine kadar aktif" (09-24 notu) — bugün 10-01
-- **Durum:** CLAUDE.md'ye göre push = CI yeşilse canlı yayın, bu varsayım "ayın 1'ine kadar" geçerliydi. Gece yayınları (RC50)
-  bu varsayımla itildi; Railway bugün kapanırsa yayın canlıya ULAŞMAZ (kod dalda durur, sonraki açılışta yayınlanır).
-- **Öneri:** Railway'in durumunu teyit edin; açık kalacaksa notu güncelleyelim.
+- **Durum:** Kurucu (10-01 sabah): "Railway daha kapanmadı ama birkaç saate kapanacak." RC50 (K7 migration 58 dahil) 05:15'te
+  itildi; CI yeşilse Railway kapanmadan yayınlanır. Kapandıktan sonraki push'lar dalda bekler, açılınca son sürüm yayınlanır;
+  geliştirme ve ölçüm bu ortamda sürer (Railway'e bağlı değil). Yerel çalıştırma komutları ve kapatmadan önceki yedek adımları
+  kurucuya iletildi (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md` §1–§2, §6).
+- **Öneri:** RC50 yayınlandıktan SONRA taze yedek + prova (30 Eylül yedeği migration 58'den önce). Dış müşteri / yaklaşan QR
+  kullanımı yoksa kapatmak uygun (kurucu org'un Hospitable aboneliği zaten 402); varsa en düşük ücretli planla açık tutmak.
 - **Müşteriye etkisi:** Railway kapanırsa QR sohbeti / oto-yanıt / senkron durur (09-19 duraklatma belgesi).
 - **Beklerken yapılmayan:** —
