@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { encryptSecretBound, decryptSecretBound } from "@/lib/crypto";
 import { emailService } from "@/lib/email";
-import { reportError } from "@/lib/report-error";
+import { errorWithContext, reportError } from "@/lib/report-error";
 import { verifyUrl, verifyEmailHtml, appBaseUrl } from "@/lib/auth/email-verify";
 
 // ---------------------------------------------------------------------------
@@ -500,9 +500,7 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
       // kova açmak 10 dk'lık korumayı kaldırır (↑outbox/worker.ts gerekçesi).
       void reportError(
         "email-outbox.row",
-        err instanceof Error
-          ? new Error(`${err.message} (row ${row.id})`)
-          : new Error(`${String(err)} (row ${row.id})`),
+        errorWithContext(err, ` (row ${row.id})`),
       );
     }
   }

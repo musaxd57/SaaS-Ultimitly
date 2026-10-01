@@ -374,6 +374,16 @@ export function formatErrorForLog(err: unknown, max = 500): string {
   }
 }
 
+/**
+ * Yakalanan bir hatayı bağlam ekiyle YENİ bir hataya sarar — iletisi `formatErrorForLog`tan (Prisma hatası yalnız yapısal özet, merkezî
+ * redaksiyon, kısaltma). 🚨 10-01 (15 ajan incelemesi A12, ölçüldü): sarmalayıcılar `${err.message} (row …)` yazıyordu → yeni hatanın adı
+ * "Error" olduğu için `reportError`ın Prisma özeti DEVRE DIŞI kalıyor, doğrulama hatasının argüman ağacı (misafir adı / mesaj gövdesi)
+ * log'a, Sentry'ye ve alarm e-postasına gidiyordu. Bağlam eki (`suffix`) yalnız kimlik / sayı taşır.
+ */
+export function errorWithContext(err: unknown, suffix: string): Error {
+  return new Error(`${formatErrorForLog(err)}${suffix}`);
+}
+
 // ---------------------------------------------------------------------------
 // PRISMA HATASI = VERİ TAŞIYAN METİN (inceleme b5, 09-30). Prisma'nın hata iletisi sorgunun kendisini basar: doğrulama hatası
 // argüman ağacını (mesaj gövdesi, taslak cevap, not — `aiSuggestedReply` / `note` gibi alan adları hassas listede değil), ham sorgu

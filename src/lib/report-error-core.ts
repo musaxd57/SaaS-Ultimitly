@@ -3,7 +3,7 @@ import { emailService } from "./email-core";
 import { prismaErrorSummary, redactSensitive } from "./redact";
 
 // Redaksiyon yaprak modüle taşındı (F10); eski import yolları için yeniden dışa verilir.
-export { formatErrorForLog, prismaErrorSummary, redactJsonStructurally, redactSensitive } from "./redact";
+export { errorWithContext, formatErrorForLog, prismaErrorSummary, redactJsonStructurally, redactSensitive } from "./redact";
 
 // Pure core of the error reporter — the WHOLE thing: redaction, the
 // dependency-free Sentry envelope client, the alert-email leg and its

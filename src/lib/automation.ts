@@ -141,7 +141,7 @@ import type { AnsweredRequestsDeclaration } from "@/lib/conversation-items/reply
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { hasRecordedHandoff, hostVoiceDraft } from "@/lib/ai/host-voice";
 import { premiumAllowed } from "@/lib/billing/subscription";
-import { redactSensitive, reportError } from "@/lib/report-error";
+import { errorWithContext, redactSensitive, reportError } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
@@ -944,9 +944,7 @@ async function maybeSendClosingCourtesy(opts: {
     .catch((err) =>
       reportError(
         "closing-courtesy persist",
-        err instanceof Error
-          ? new Error(`${err.message} (conversation ${opts.conversation.id})`)
-          : new Error(`${String(err)} (conversation ${opts.conversation.id})`),
+        errorWithContext(err, ` (conversation ${opts.conversation.id})`),
       ),
     );
   return true;

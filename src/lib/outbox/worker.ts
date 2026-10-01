@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
-import { reportError } from "@/lib/report-error";
+import { errorWithContext, reportError } from "@/lib/report-error";
 import { getOrgHospitableToken, handleProviderAuthFailure } from "@/lib/hospitable-credentials";
 import { dispatchOutbound, resolveOutboundRoute } from "@/lib/channels";
 import { ANON_BODY } from "@/lib/data-retention";
@@ -1273,9 +1273,7 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
         // e-postası + 20 ayrı Sentry Issue üretir (drain 2 dakikada bir koşar).
         await reportError(
           "outbox-row",
-          err instanceof Error
-            ? new Error(`${err.message} (row ${row.id})`)
-            : new Error(`${String(err)} (row ${row.id})`),
+          errorWithContext(err, ` (row ${row.id})`),
         );
     }
   }

@@ -16,7 +16,7 @@ import {
 // V0.6: yazma katmanı ingest write service'e taşındı (canonical tipler, aynı TX'te domain
 // event). Kimlik kilidi ve test kancası oradan re-export — mevcut çağıranlar için.
 export { acquireConversationIdentityLock, __importThreadHooks };
-import { reportError, redactSensitive } from "@/lib/report-error";
+import { formatErrorForLog, reportError } from "@/lib/report-error";
 import { alertTracker } from "@/lib/alert-state";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { recordSupplyRequestFromMessage, sweepMissedSupplyDerivations } from "@/lib/supply";
@@ -103,7 +103,8 @@ async function resolvePropertyLimitState(organizationId: string): Promise<Proper
 // guest's name/email/phone — Railway logs must never carry them (KVKK). Message
 // only, no raw object/stack (the stack adds no PII but the object echoes inputs).
 function scrubErr(err: unknown): string {
-  return redactSensitive(err instanceof Error ? err.message : String(err));
+  // Prisma hatası YALNIZ yapısal özet (10-01, A12): `redactSensitive(err.message)` doğrulama hatasının argüman ağacını (misafir adı) bırakıyordu.
+  return formatErrorForLog(err);
 }
 
 
@@ -559,7 +560,7 @@ export async function syncHospitable(
     () =>
       new Error(
         `${supplyFailures} supply derivation(s) failed; first: ${
-          firstSupplyError instanceof Error ? firstSupplyError.message : String(firstSupplyError)
+          formatErrorForLog(firstSupplyError)
         }`,
       ),
   );
@@ -572,7 +573,7 @@ export async function syncHospitable(
     () =>
       new Error(
         `${fetchFailures} Hospitable fetch(es) failed — those apartments/threads imported NOTHING this run; first: ${
-          firstFetchError instanceof Error ? firstFetchError.message : String(firstFetchError)
+          formatErrorForLog(firstFetchError)
         }`,
       ),
   );
@@ -583,7 +584,7 @@ export async function syncHospitable(
     () =>
       new Error(
         `${linkFailures} listing link(s) failed — those apartments imported NOTHING this run; first: ${
-          firstLinkError instanceof Error ? firstLinkError.message : String(firstLinkError)
+          formatErrorForLog(firstLinkError)
         }`,
       ),
   );
@@ -625,7 +626,7 @@ export async function syncHospitable(
     () =>
       new Error(
         `${reservationUpsertFailures} reservation upsert(s) failed; first: ${
-          firstReservationError instanceof Error ? firstReservationError.message : String(firstReservationError)
+          formatErrorForLog(firstReservationError)
         }`,
       ),
   );
@@ -640,7 +641,7 @@ export async function syncHospitable(
     () =>
       new Error(
         `${threadImportFailures} thread import(s) failed; first: ${
-          firstThreadImportError instanceof Error ? firstThreadImportError.message : String(firstThreadImportError)
+          formatErrorForLog(firstThreadImportError)
         }`,
       ),
   );
