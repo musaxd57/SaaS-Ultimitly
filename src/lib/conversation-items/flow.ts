@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { emailService } from "@/lib/email";
 import { complaintEscalationEmail } from "@/lib/email-templates";
 import { detectRiskTypes } from "@/lib/ai/fallback";
@@ -181,6 +181,24 @@ export interface HeldItemsNotice {
 }
 
 /**
+ * MESAJ BAŞINA E-POSTA TALEBİ (K9 ikinci tur, Codex 10-01): öğe düzeyindeki claim, aynı mesajın İKİ hassas öğesini (ödeme + şikâyet)
+ * eşzamanlı iki çağrının ayrı ayrı sahiplenmesine izin veriyordu → iki e-posta. E-postayı yalnız mesajın talep satırını (benzersiz
+ * `SystemLock` adı; `create` yarışını tek kazanan — `host-reply-waiting.ts` ile aynı ilke) alan çağrı atar. Talep e-posta gidemezse
+ * geri verilir; süresi dolan talep fırsatçı süpürülür (oto-yanıt bu kadar eski mesajı modellemez).
+ */
+const HELD_MAIL_PREFIX = "held-items-mail:";
+const HELD_MAIL_TTL_MS = 45 * 24 * 60 * 60 * 1000;
+async function claimMessageMail(db: Db, messageId: string, now: Date): Promise<"claimed" | "taken" | "unavailable"> {
+  try {
+    await db.systemLock.create({ data: { name: `${HELD_MAIL_PREFIX}${messageId}`, lockedUntil: new Date(now.getTime() + HELD_MAIL_TTL_MS) } });
+    return "claimed";
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "taken";
+    return "unavailable";
+  }
+}
+
+/**
  * Ev sahibinde bekleyen, henüz bildirilmemiş hassas öğeler için ACİL e-posta (kurucu: "acil e-posta aynen"): verilen
  * mesajlarla sınırlı, mesaj başına EN FAZLA bir e-posta — mesajın başka bir öğesi için e-posta zaten gittiyse yeni öğenin
  * claim'i sessizce alınır. Gönderilemezse claim geri alınır (sonraki geçiş yeniden dener). Alıcı yoksa claim de yapılmaz.
@@ -212,6 +230,9 @@ export async function notifyHeldItems(
     byMessage.set(r.messageId, [...(byMessage.get(r.messageId) ?? []), r.id]);
   }
   if (!input.to) return notice;
+  if (byMessage.size > 0) {
+    await db.systemLock.deleteMany({ where: { name: { startsWith: HELD_MAIL_PREFIX }, lockedUntil: { lt: input.now } } }).catch(() => {});
+  }
   for (const messageId of input.messageIds) {
     const ids = byMessage.get(messageId);
     if (!ids) continue;
@@ -220,6 +241,14 @@ export async function notifyHeldItems(
       if (await claimItemNotification(db, { organizationId: input.organizationId, id, now: input.now })) claimed.push(id);
     }
     if (claimed.length === 0 || alreadyNotified.has(messageId)) continue;
+    // Mesaj düzeyinde TEK kazanan (↑claimMessageMail). Kaybeden çağrı kendi öğe damgalarını geri verir: kazananın e-postası
+    // giderse sonraki geçiş onları sessizce damgalar (e-posta yok); gidemezse hepsi yeniden denenir.
+    const lock = await claimMessageMail(db, messageId, input.now);
+    if (lock !== "claimed") {
+      for (const id of claimed) await releaseItemNotification(db, { organizationId: input.organizationId, id, claimedAt: input.now });
+      if (lock === "unavailable") notice.failed.push(messageId);
+      continue;
+    }
     const message = await db.message.findFirst({ where: { id: messageId, conversationId: input.conversation.id }, select: { body: true } });
     const html = complaintEscalationEmail(
       { id: input.conversation.id, guestIdentifier: input.conversation.guestIdentifier, channel: input.conversation.channel, priority: "urgent" },
@@ -234,6 +263,7 @@ export async function notifyHeldItems(
     );
     if (!mail.ok) {
       for (const id of claimed) await releaseItemNotification(db, { organizationId: input.organizationId, id, claimedAt: input.now });
+      await db.systemLock.deleteMany({ where: { name: `${HELD_MAIL_PREFIX}${messageId}` } }).catch(() => {});
       notice.failed.push(messageId);
       continue;
     }
