@@ -35,6 +35,11 @@ gerekmedi.
   döner.
 - **Katman bazında model** — anlama / bekçi / sıralayıcı / çeviri / üslup ayrı model + düşünme ayarına alınabilir (boşken bugünkü
   ayar birebir); ölçüm raporları katman bazında model, gönderilen düşünme ayarı ve istem kimliğini (SHA) taşır.
+- **"Bilgim yok" kuralı yedi dilde (sizin 09-11 kuralınız, gece ölçümünde bulunan açık)** — FR / DE / ES / RU / AR + Türkçe "elimde olmadığı /
+  bilgim olmadığı için / belirtilmemiş" + kıvrık kesme işareti + ayrıştırılmış aksan. Kanıt: kırmızı-önce; gece öncesi kurala karşı 4.526
+  kayıtlı model cevabında yeni tutulan 10 gerçek itiraf (5.1 İspanyolca + Almanca, Luna Rusça / Türkçe / Fransızca / İngilizce), eskiden
+  tutulup artık tutulmayan 0; "gerek yok" anlamındaki olumsuz cümleler ("Sie brauchen keine weiteren Angaben", "Vous n'avez besoin
+  d'aucune information") tutulmaz; mutasyon 41/41; 50.000 karakterlik düşmanca girdide en kötü ~19 ms (süre pini).
 - **K7 (migration 58)** — kurucunun yedeğiyle (SHA `4167864111E8…`, prova gerekmez) RC49'a alındı.
 
 ## 3. Luna ölçümleri (gece, son kod)

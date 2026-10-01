@@ -4,6 +4,17 @@
 > yanıtlanan madde "KARAR: …" satırıyla kapanır. Her maddede: **durum** · **öneri** · **müşteriye etkisi** · **beklerken yapılmayan**.
 > Önceki listeler: `docs/SABAH-KARARLARI-2026-09-28.md` (K1–K10 a–t) ve `docs/INCELEME-2026-09-30-codex-ve-ajanlar.md` (K1–K18).
 
+## Öncelik sırası (okuma kılavuzu — maddeler aşağıda, hiçbiri silinmedi)
+
+1. **12 Railway** — bugün kapanıyor; yedek alındı ve şifreli. Kapatma / açık tutma kararı sizde.
+2. **6 Luna geçişi** — kör kabulde Luna `none` cevap modeli 5.1'den geri düşmedi; anlama / bekçi / sıralayıcı / çeviri 5.1'de kalmalı, üslup
+   Luna olabilir. Adımlar ve değişkenler: `docs/SABAH-RAPORU-2026-10-01.md` §6–§7.
+3. **1, 7, 8 bayrakları** — ev sahibi kararı tutulur (1), ücret kuralı (7), şikâyet takibi (8) — 8, madde 14'teki istisnayla birlikte.
+4. **13, 14, 15 misafire giden davranış** — çok sorulu mesajda konaklama isteği, arıza + çözüm tarifi, şikâyetli turda güvenli soru
+   (önce / sonra örnekli).
+5. **3, 2, 1b, 1c** — şikâyete bağlı istek kapsamı, politika metni, fotoğraf şartı, kanıtları taslağa verme.
+6. **11 arşiv**, **4–5 (K6 / K5)**, **9 (Aşama 2)**, **10 (devreden)**; **16** yalnız bilgi.
+
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
   "ev sahibinizin kararıdır" cümlesi ve iki modelin doğruladığı konaklama ertelemesi misafire **gitmez**; ev sahibine mesaj başına
@@ -71,10 +82,16 @@
 ## 5. K5 — Sağlık ("Çocuğun ateşi var") — 09-30'dan devreden
 - **Durum:** Değişmedi; karar modelde. **Öneri:** "sağlık" sınıfı: otomatik gönderim yok, ev sahibine bildirim (acil e-posta değil).
 
-## 6. Luna (gpt-6-luna) katman bazında geçiş — ölçüm sonuçlarına göre (bu belgenin sonunda tablo)
-- **Durum:** Ölçüm sürüyor (gece bütçesi ~25 USD). Katman bazında model ayarı eklendi (`AI_UNDERSTANDING_MODEL`,
-  `AI_STAY_GUARD_MODEL`, `KB_RERANK_MODEL` + `*_REASONING_EFFORT`; boşken bugünkü ortak ayar).
-- **Beklerken yapılmayan:** canlı model / bayrak değişikliği.
+## 6. Luna (gpt-6-luna) katman bazında geçiş — ölçüm SONUÇLANDI (`docs/SABAH-RAPORU-2026-10-01.md` §3, §6, §7)
+- **Durum:** Gece ölçümü bitti (≈$11 / $25). Kör kabul (88 senaryo, son kod): Luna `none` cevap modeli, 5.1 + aynı bayraklara göre geri
+  düşmüyor (gitmemesi gerekirken giden 0 ↔ 1, doğru olgu 44 ↔ 43/48, maliyet $0,34 ↔ $0,94, p95 8,0 ↔ 8,9 sn). Düşünme low / medium / high
+  hatayı düzeltmiyor (yalnız daha çok tutuyor + yavaşlatıyor). Anlama + bekçi Luna'da güvenlik açısından zayıf (bekçi Türkçe izin cevabını
+  kaçırıyor; `low`da 3 tehlikeli kaçak). Çeviride Luna fazladan belirteç kaybediyor; üslupta Luna daha iyi.
+- **Öneri:** cevap modeli Luna `none` + üslup Luna; anlama / bekçi / sıralayıcı / çeviri 5.1'e SABİT (`AI_SEMANTIC_MODEL=gpt-5.1`,
+  `OPENAI_TRANSLATE_MODEL=gpt-5.1`). Geçiş sırası raporun §6'sında; önce 13–15 davranış kararları.
+- **Müşteriye etkisi:** Kabul ölçümünde cevap kalitesi aynı; "ev sahibinizin kararıdır" ertelemeleri (bayrakla) gitmez; maliyet ~⅓.
+- **Beklerken yapılmayan:** canlı model / bayrak değişikliği. "Yalnız modeli değiştirmek kaldı" DEĞİL — sabitleme değişkenleri + bayrak
+  kararları + 13–15 gerekir.
 
 ## 7. Ücret kuralı (kurucu ifadesi) — anahtar `AI_KB_FEE_RULE_ENABLED`
 - **Durum:** İstem metni kurucunun ifadesiyle güncellendi ("Onaylı bilgi tabanındaki sabit hizmet ücretini, koşullarıyla birlikte
