@@ -20,6 +20,7 @@ import { prisma } from "@/lib/db";
 import { minutesOfDayInTimeZone, orgTimezone } from "@/lib/timezone";
 import { addNights, calendarDateOf, describeNights, statusClassOf, todayKey } from "@/modules/availability/core";
 import { loadAvailabilityInputs } from "@/modules/availability/load";
+import { taskDueDayRangeWhere } from "@/lib/day-where";
 import { hhmmToMinutes, normalizeHhmm } from "@/lib/ai/semantic/stay-change";
 import type { EarlyCheckinFacts, EarlyCheckinRule } from "./core";
 import { laterTime, readinessDetailOf, readyMarkOf, wallClockMoment, type ReadinessMark } from "./readiness";
@@ -207,19 +208,29 @@ export async function loadEarlyCheckinFacts(args: {
         (t.reservationId === reference.id || t.reservationId === own.id || (t.reservationId === null && onTurnoverDay(t))),
     );
     facts.cleaningNote = cleaning.some((t) => t._count.updates > 0);
-    // Mülkte bağsız AÇIK bakım/kontrol görevi (tarihsiz ya da devir gününden önce vadesi geçmiş) → host bir baksın.
-    const dayEnd = dayStart ? new Date(dayStart.getTime() + DAY_MS) : null;
-    facts.maintenanceOpen =
-      (await prisma.task.count({
-        where: {
-          propertyId: args.propertyId,
-          reservationId: null,
-          type: { in: [...EARLY_CHECKIN_ISSUE_TASK_TYPES] },
-          status: { not: "done" },
-          OR: [{ dueAt: null }, ...(dayEnd ? [{ dueAt: { lt: dayEnd } }] : [])],
-        },
-      })) > 0;
   }
+
+  // Mülkte AÇIK bakım/kontrol görevi (tarihsiz ya da vadesi VARIŞ GÜNÜ sonuna kadar) → host bir baksın: bağsız bakım / kontrol ya da
+  // BAŞKA bir konaklamaya bağlı açık BAKIM (ayrılan / gelen konaklamanınki `openIssue`ta). 15 ajan A15 (10-01, ölçüldü): pencere ÖNCEKİ
+  // çıkış gününde bitiyordu → araya boş gün giren varışta bugüne / dünkü vadeli açık bakım, eski bir konaklamaya bağlı açık bakım ve
+  // önceki konaklaması olmayan mülkteki açık bakım otomatik onayı DURDURMUYORDU. Gün kıyası tek tarih kuralının sorgu ikiziyle.
+  const covered = reference ? [reference.id, own.id] : [];
+  facts.maintenanceOpen =
+    (await prisma.task.count({
+      where: {
+        propertyId: args.propertyId,
+        status: { not: "done" },
+        AND: [
+          { OR: [{ dueAt: null }, taskDueDayRangeWhere({ from: null, to: arrivalKey }, tz)] },
+          {
+            OR: [
+              { reservationId: null, type: { in: [...EARLY_CHECKIN_ISSUE_TASK_TYPES] } },
+              { reservationId: covered.length > 0 ? { notIn: covered } : { not: null }, type: "maintenance" },
+            ],
+          },
+        ],
+      },
+    })) > 0;
 
   if (!previous) {
     // Dün gece boş mu — YALNIZ motorun kanıtlı "boş" hükmü (taze kaynaklar). Köprü mülklerinde bugün "bilinmiyor".
