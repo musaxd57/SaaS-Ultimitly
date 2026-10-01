@@ -32,6 +32,15 @@ const ITEMS = {
   },
 };
 const declared = { ...ok, answeredRequests: { ok: true as const, refs: ["R1"] } };
+// Şikâyete bağlı istek (kurucu kararı 10-01): bu turun şikâyeti tutulurken "yine olursa ne yapacağız?" (diğer) cevaplanabilir
+// sayılmış — planın dışından kapıya doğrudan verilen girdi; kapının ikinci kemeri tutar.
+const ITEMS_COMPLAINT = {
+  items: {
+    held: buildItemsForMessage({ requests: [{ intent: "complaint_issue" }], lexicalLabels: [] }),
+    paymentHeld: false,
+    answerableKinds: ["other" as const],
+  },
+};
 
 describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", () => {
   const cases: [string, Parameters<typeof autoReplyGateVerdict>[0], string, Parameters<typeof autoReplyGateVerdict>[2], string][] = [
@@ -60,6 +69,7 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       ITEMS,
       "items_payment_held",
     ],
+    ["öğe kipi: şikâyete bağlı istek cevaplanabilir sayılmış", declared, WIFI_Q, ITEMS_COMPLAINT, "items_complaint_dependent"],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {
