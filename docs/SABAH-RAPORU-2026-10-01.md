@@ -77,13 +77,18 @@ için…", fr "…ne sont pas précisées ici", en "I don’t have information a
 
 ### 3.3 Konaklama eval'i (599 istek + 747 cevap; anlama + bekçi)
 
-| | 5.1 (S1) | Luna none (S2) | Luna low (S3) |
+| | 5.1 (S1) | Luna none (S2) | Luna low (S3b) |
 |---|---|---|---|
-| Tehlikeli kaçak (dev / holdout) | 0/125 · 0/170 | 0/125 · 0/170 | (S3 sonucu) |
-| Gereksiz inceleme (dev / holdout) | 12/143 · 29/161 | 10/143 · 32/161 | |
-| Bekçi: izin cevabını kaçırma | 5 | 9 (Türkçe 4) | |
-| Bekçi: erteleme tanıma (dev en / tr) | 27/28 · 30/33 | 20/28 · 22/33 | |
-| Anlama: gerçek isteği kaçırma | 0 | 3 | |
+| 🚨 Tehlikeli kaçak — istek tutulmadı (dev / holdout) | 0/125 · 0/170 | 0/125 · 0/170 | **2/125 · 1/170** |
+| Gereksiz inceleme (dev / holdout) | 12/143 · 29/161 | 10/143 · 32/161 | 9/142 · 27/161 |
+| Bekçi: izin cevabını kaçırma (toplam) | 5 | 9 (Türkçe 4) | 13 (Türkçe 4) |
+| Bekçi: erteleme tanıma (dev en / tr) | 27/28 · 30/33 | 20/28 · 22/33 | 25/28 · 29/33 |
+| Anlama: gerçek isteği kaçırma | 0 | 3 | 3 |
+
+S3b'de 1 çağrı düştü → rapor teknik olarak GEÇERSİZ, ama yön net: Luna'da düşünmeyi artırmak bu katmanlarda güvenliği DÜZELTMİYOR, birleşik
+karar 3 gerçek isteği kaçırdı. İlk S3 koşusu (eşzamanlılık 1) 1 saatlik süre tavanını aştı ve ölçer yarım tabloyu "GEÇERLİ" yazıyordu; aynı
+adla S2 raporunu da ezdi — ölçer düzeltildi (yarım koşu GEÇERSİZ, adda düşünme ayarı; `54d5a20`). S2 rakamları koşu anında alınan notlardan.
+**Sonuç: anlama ve bekçi 5.1'de kalmalı** (`AI_SEMANTIC_MODEL=gpt-5.1`).
 
 ### 3.4 Konuşma öğeleri (20 senaryo, tasarım seti)
 
