@@ -488,6 +488,9 @@ export function styleProfileForPrompt(stored: string | null | undefined): string
   return out.length > 0 ? out : null;
 }
 
+/** Geçerli QR sohbet belirteci biçimi (üretilen: 64 onaltılık); eski / elle girilmiş belirteçler için harf-rakam ve `_-` da kabul. */
+const GUEST_CHAT_TOKEN_SHAPE = /^[A-Za-z0-9_-]{16,200}$/;
+
 /** Unguessable per-apartment chat token — two UUIDs, ~256-bit (icalToken style). */
 export function generateChatToken(): string {
   return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
@@ -1010,7 +1013,9 @@ export async function resolveGuestChat(
    */
   opts: { knowledgeBase?: boolean } = {},
 ): Promise<GuestChatContext | null> {
-  if (!token || token.length < 16) return null;
+  // Belirteç biçimi sorgudan ÖNCE (10-01, 15 ajan incelemesi A04): `generateChatToken` yalnız [0-9a-f] üretir; "/c/%00…" gibi NUL ya da
+  // başka denetim karakteri taşıyan yol PostgreSQL'de sorgu hatasına (500 + alarm e-postası) dönüşüyordu. Biçim dışı = bulunamadı (404).
+  if (!token || token.length < 16 || !GUEST_CHAT_TOKEN_SHAPE.test(token)) return null;
 
   const property = await prisma.property.findFirst({
     where: { chatToken: token },
