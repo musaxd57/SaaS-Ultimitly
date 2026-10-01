@@ -14,9 +14,12 @@ import { replyRequestIdentity } from "@/lib/ai";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import {
   UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM,
+  UNDERSTANDING_ITEMS_PROMPT_ADDENDUM,
+  UNDERSTANDING_RELATION_ADDENDUM,
   UNDERSTANDING_SYSTEM_PROMPT,
   __resetUnderstandingCache,
   understandGuestMessages,
+  understandingSystemPromptFor,
 } from "@/lib/ai/semantic/understand";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import type { SuggestReplyInput } from "@/lib/ai/types";
@@ -129,5 +132,46 @@ describe("şikâyet takibi — anlama katmanı çağrısı", () => {
     vi.stubEnv("AI_COMPLAINT_FOLLOWUP_RULE_ENABLED", "true");
     await (await retrieveKbForPrompt(base)).understanding;
     expect(bodyOf(f, 2).messages[0].content).toBe(UNDERSTANDING_SYSTEM_PROMPT);
+  });
+});
+
+describe("ilişki kipi — öğe kipi + şikâyet takibi BİRLİKTE (kurucu kararı 10-01 sabah, Sabah Kararları 17 + 18 a)", () => {
+  it("istem: ilişki eki eski şikâyet takibi ekinin YERİNE geçer; yalnız biri açıkken bugünkü istem", () => {
+    expect(understandingSystemPromptFor({ items: true, complaintFollowup: true })).toBe(
+      `${UNDERSTANDING_SYSTEM_PROMPT}\n${UNDERSTANDING_ITEMS_PROMPT_ADDENDUM}\n${UNDERSTANDING_RELATION_ADDENDUM}`,
+    );
+    expect(understandingSystemPromptFor({ complaintFollowup: true })).toBe(`${UNDERSTANDING_SYSTEM_PROMPT}\n${UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM}`);
+    expect(understandingSystemPromptFor({ items: true })).toBe(`${UNDERSTANDING_SYSTEM_PROMPT}\n${UNDERSTANDING_ITEMS_PROMPT_ADDENDUM}`);
+    // Ek iade / iptal ve ev sahibi talebini de kapsar (kurucu) ve dört işareti tanımlar.
+    for (const s of ["cancellation_refund", "human_request", "own_topic", "fix_request", "follow_up", "unclear", "Klima çalışmıyor; çöp konteyneri nerede?"]) {
+      expect(UNDERSTANDING_RELATION_ADDENDUM, s).toContain(s);
+    }
+  });
+
+  it("çağrı: şema her istekte 'relation' ister; çözücü işareti taşır (önbellek kipi ayrı)", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    const body = "İnternet iki saattir yok, modemi nasıl resetleriz?";
+    const f = modelReturns({
+      language: "tr",
+      requests: [
+        { intent: "complaint_issue", query_tr: "internet yok", query_original: "internet yok", message: 1, relation: "own_topic" },
+        { intent: "wifi", query_tr: "modem yeniden başlatma", query_original: "modem yeniden başlatma", message: 1, relation: "fix_request" },
+      ],
+      stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+      withdrawn: [],
+    });
+    const out = await understandGuestMessages({
+      guestMessage: body,
+      history: [{ id: "m1", direction: "inbound", body }],
+      items: true,
+      complaintFollowup: true,
+      fetchImpl: f,
+    });
+    const sent = bodyOf(f);
+    expect(sent.messages[0].content).toBe(understandingSystemPromptFor({ items: true, complaintFollowup: true }));
+    expect(sent.response_format.json_schema.schema.properties.requests.items.required).toContain("relation");
+    expect(out.status).toBe("ok");
+    if (out.status === "ok") expect(out.value.requests.map((r) => r.relation)).toEqual(["own_topic", "fix_request"]);
   });
 });

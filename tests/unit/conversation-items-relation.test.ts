@@ -183,6 +183,50 @@ describe("kurucu örnekleri — önce anlam ilişkisi (ürün zinciri)", () => {
     expect(answerableKinds(planOf("Havuz kaçta açılıyor?", [{ intent: "amenities", q: "havuz saatleri", relation: "own_topic" }], { earlierComplaint: true }))).toEqual(["amenities"]);
   });
 
+  it("KONTROL: ödeme talebi bağlayıcı DEĞİL (kurucu: şikâyet / iade / ev sahibi) — yanındaki konusuz soru bugünkü gibi cevaplanır", () => {
+    const p = planOf("IBAN'ınızı atar mısınız? Bir de bir şey soracağım.", [
+      { intent: "payment_invoice", q: "ödeme yöntemi", relation: "own_topic" },
+      { intent: "other", q: "soru", relation: "own_topic" },
+    ]);
+    expect(answerableKinds(p)).toEqual(["other"]);
+  });
+
+  it("🚨 tehlike yalnız MESAJDA (sorgular temiz): 'Elektrik gitti; modemi nasıl resetleriz?' → çözüm de tutulur", () => {
+    const p = planOf("Elektrik gitti; modemi nasıl resetleriz?", [
+      { intent: "complaint_issue", q: "internet yok", relation: "own_topic" },
+      { intent: "wifi", q: "modem yeniden başlatma", relation: "fix_request" },
+    ]);
+    expect(answerableKinds(p)).toEqual([]);
+  });
+
+  it("tehlikesiz cihaz arızası: 'Televizyon açılmıyor, nasıl açarız?' → çözüm cevaplanabilir", () => {
+    const p = planOf("Televizyon açılmıyor, nasıl açarız?", [
+      { intent: "complaint_issue", q: "televizyon açılmıyor", relation: "own_topic" },
+      { intent: "appliance_help", q: "televizyon açma kumanda", relation: "fix_request" },
+    ]);
+    expect(answerableKinds(p)).toEqual(["appliance_help"]);
+    expect(p.replyItems.answerable[0].fix).toBe(true);
+  });
+
+  it("aynı mesajda aynı türden iki istek bir öğe olur: en kısıtlayıcı işaret kalır (kendi konusu + devam → bağlı)", () => {
+    const p = planOf("Klima bozuk. Wi-Fi şifresi neydi, Wi-Fi yine giderse ne yapalım?", [
+      { intent: "complaint_issue", q: "klima bozuk", relation: "own_topic" },
+      { intent: "wifi", q: "wifi şifresi", relation: "own_topic" },
+      { intent: "wifi", q: "wifi giderse ne yapmalı", relation: "follow_up" },
+    ]);
+    expect(answerableKinds(p)).toEqual([]);
+  });
+
+  it("🚨 olgusu bulunmayan aday (plan dışı girdi) 'belirsiz' sayılır → tutulur", () => {
+    const turnItems = [
+      { messageId: "m1", kind: "complaint_issue" as const, sensitivity: "sensitive" as const },
+      { messageId: "m1", kind: "trash" as const, sensitivity: "none" as const },
+    ];
+    const relations = new Map([["m1\u0000complaint_issue", { relation: "own_topic" as const, topics: ["ac"], generic: false, hazard: false }]]);
+    const p = composeItemsPlan({ turnItems, held: [{ ...turnItems[0], riskType: null }], hints: new Map(), relations });
+    expect(p.answerable).toEqual([]);
+  });
+
   it("KONTROL: bağlayıcı talep yokken işaret karar vermez (bugünkü davranış) — 'belirsiz' işaretli tek soru da cevaplanır", () => {
     expect(answerableKinds(planOf("Havuz kaçta açılıyor?", [{ intent: "amenities", q: "havuz saatleri", relation: "unclear" }]))).toEqual(["amenities"]);
   });
@@ -271,6 +315,9 @@ describe("karar fonksiyonu (saf)", () => {
   });
   it("arıza çözümü: yalnız şikâyet + cihaz / tesis türü + tehlike yok", () => {
     expect(requestDependency(r({ kind: "wifi", relation: "fix_request", topics: ["wifi"] }), [a(["wifi"])])).toBe("fix");
+    for (const kind of ["appliance_help", "access_keys", "parking", "amenities"] as ItemKind[]) {
+      expect(requestDependency(r({ kind, relation: "fix_request", topics: [] }), [a([])]), kind).toBe("fix");
+    }
     expect(requestDependency(r({ kind: "wifi", relation: "fix_request" }), [a([], "human_request")])).toBe("dependent");
     expect(requestDependency(r({ kind: "trash", relation: "fix_request" }), [a([])])).toBe("dependent");
     expect(requestDependency(r({ kind: "wifi", relation: "fix_request", hazard: true }), [a([])])).toBe("dependent");
@@ -304,7 +351,7 @@ describe("konu kavramları ve genel takip sorusu", () => {
     expect(requestTopics("Parkplatz", "Parkplatz", "other")).toContain("parking");
   });
   it("genel takip sorusu yedi dilde; konulu soru genel değil", () => {
-    for (const q of ["tekrar olursa ne yapmalı", "ne olacak şimdi", "what should we do", "was sollen wir tun", "que faire", "qué hacemos", "что делать", "ماذا نفعل"]) {
+    for (const q of ["tekrar olursa ne yapmalı", "ne yapmalıyız", "ne olacak şimdi", "what should we do", "was sollen wir tun", "que faire", "qué hacemos", "что делать", "ماذا نفعل"]) {
       expect(isGenericFollowup(q), q).toBe(true);
     }
     for (const q of ["çöp konteyneri yeri", "wifi şifresi", "where is the trash"]) expect(isGenericFollowup(q), q).toBe(false);
@@ -323,6 +370,7 @@ describe("tehlike sınıfı (kurucu: elektrik / gaz / sıcak su cihazı çözüm
       "Gaz kokusu varsa çıkın.",
       "Sıcak su cihazının kapağını açın.",
       "Duman çıkıyorsa",
+      "Yangın merdiveninden çıkın.",
       "Reset the breaker in the fuse box.",
       "Relight the pilot light on the boiler.",
       "Check the water heater.",
