@@ -323,6 +323,16 @@ Bulunan ve düzeltilen (ikisi de RC60 itilmeden ÖNCE; ücretsiz yeniden üretim
 kendi gerilemesiydi ve düzeltildi; düzeltmenin canlı hat etkisini görmek için ayrı ücretli koşu GEREKMEDİ (tarif kararı modelsiz ve
 deterministik — yukarıdaki yeniden üretim aynı fonksiyonu çağırır), ama nihai aday doğrulamasında (yeni kör set) yeniden ölçülecek.
 
+### 3.11 Nihai aday doğrulaması — PLAN (koşudan ÖNCE yazıldı; RC62 kodu)
+
+Döngü kuralı: "K düzeltmelerinden sonra nihai aday yapılandırmayı son kodla tekrar doğrula; ek ücretli koşu gerekiyorsa kalan bütçeyi ve
+kapsamı önce bildir." Set 5 ve 6 görüldü (yalnız gerileme kontrolü), RC60–RC62 tarif tanıyıcıyı, "bilgim yok" yüklemini ve kapıları değiştirdi.
+- **Kapsam:** (1) YENİ kör set 7 (~46 senaryo, 7 dil; ajan yazdı, içerik koşudan önce OKUNMADI) — aday (Luna `none` + bayraklar C) ve 5.1 +
+  aynı bayraklar; (2) set 6'yı aday ile RC62 koduyla yeniden (tarif gerilemesi düzeltmesinin canlı hat teyidi; görülmüş set).
+- **Tahmini tutar:** set 7 aday ≈ $0,30 + 5.1 ≈ $0,80 + set 6 aday ≈ $0,25 → **≈ $1,4** (`EVAL_BUDGET_USD` koşu başına tavan 1).
+- **Bütçe durumu:** gece tavanı $25; harcanan ≈ $19,4 (kesin $11,07 + ölçerin kaydetmediği koşuların tahmini) → kalan ≈ $5,6. Koşu sonrası
+  kesin tutarlar §4'e yazılır. Canlı trafikle ortak dakika sınırı için `EVAL_LIVE_RPM=8`.
+
 ## 4. Maliyet (gece tavanı $25)
 
 | Koşu | Tutar |
