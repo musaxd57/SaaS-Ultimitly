@@ -115,3 +115,42 @@
   (`C:\LixusYedek`, test "Everything is Ok"), şifresizleri sildi, OneDrive geri dönüşüm kutusu boş. Prova bilerek atlandı (kurucu
   kararı; aynı araç zinciriyle alınan 09-19 yedeği prova edilmişti). Araç notu: prova betiği dosyayı yalnız Masaüstünde arıyor —
   `-DumpDir` seçeneği eklenmeli (OneDrive dışı klasörle prova için).
+
+## 13. Çok sorulu mesajda konaklama isteği — güvenli kısım cevaplansın mı? (`AI_HOST_DECISION_HOLD_ENABLED` açıkken)
+- **Durum (ölçüldü, R1 5.1 + aday bayraklar):** "13:00'te çıkabilir miyiz, anahtarları nereye bırakalım?" → cevap modeli geç çıkış için
+  erteleme cümlesi yazıyor → cümle misafire gitmeyeceği için cevabın TAMAMI tutuluyor; anahtar sorusu da cevapsız kalıyor; ev
+  sahibine 1 e-posta.
+- **Öneri:** Anahtar açıkken konaklama isteği (erken giriş / geç çıkış / uzatma / tarih değişikliği) "sessizce ev sahibinde" öğe olsun
+  (öğe bazlı risk kuralınız: güvenli kısım cevaplanır, hassas istek ev sahibinde açık iş). Cevap modeli o isteğe değinmez.
+  - *Önce:* hiçbir şey gitmez.
+  - *Sonra:* "Anahtarları mutfak tezgâhına bırakabilirsiniz." gider; panelde "13:00 geç çıkış — açık iş", ev sahibine tek e-posta.
+  - Tek istekli mesajda ("13:00'te çıkabilir miyiz?") bugünkü gibi hiçbir şey gitmez. Koddan kurulan doğrulanmış erken giriş onayı
+    değişmez.
+- **Müşteriye etkisi:** Misafir güvenli sorusunun cevabını alır; karar gerektiren istek hakkında ondan hiçbir şey duymaz.
+- **Beklerken yapılmayan:** plan / kapı değişikliği.
+
+## 14. Wi-Fi arızası + sinirli misafir ("Şifre çalışmıyor, iki saattir internet yok, çok sinir bozucu!")
+- **Durum (ölçüldü):** Bugün canlıda (5.1, aday bayraklar kapalı) şifre + modem yeniden başlatma tarifi GİDER, ev sahibine haber
+  GİTMEZ (Wi-Fi arızası kelime ağında bilerek "Wi-Fi sorusu"). Aday bayraklarla (5.1 ve Luna) cevap TUTULUR + ev sahibine e-posta.
+- **Öneri:** İkisinin ortası — sorun giderme tarifi gitsin VE ev sahibine "Wi-Fi arızası bildirildi" haberi gitsin (arıza gerçekse
+  teknik müdahale gerekir).
+- **Müşteriye etkisi:** Misafir beklemeden tarifi alır; ev sahibi arızadan haberdar olur.
+- **Beklerken yapılmayan:** kural değişikliği.
+
+## 15. Şikâyetli turda güvenli soru da cevapsız kalıyor (model-bağımsız) — örnek devir cümleleri
+- **Durum (ölçüldü, 5.1 ve Luna):** "Çöpü nereye atıyoruz? Bu arada klima çalışmıyor." → cevap modeli çöp sorusunu cevaplayıp sonuna
+  "mesajınız kaydedildi, ev sahibiniz görebilir" ekliyor; K10 kararıyla bu cümle misafire gitmediği için cevabın tamamı tutuluyor.
+  Ayrıca bu gecenin şikâyete bağlı istek kuralı (madde 3) çöpü bağımsız tür saymıyor.
+- **Öneri:** (a) istemdeki örnek devir cümlelerini K10 kararına uydurmak (misafire "kaydedildi" denmez; ücretli cevap kıyası gerekir,
+  ~$1–2) · (b) madde 3'teki bağımsız türlere `trash` (konum bilgisi) eklemek.
+  - *Önce:* hiçbir şey gitmez.
+  - *Sonra:* "Çöp konteyneri binanın arka kapısının yanında." gider; klima arızası ev sahibinde açık iş + e-posta.
+- **Müşteriye etkisi:** Şikâyetli turda bağımsız bilgi sorusu cevaplanır.
+- **Beklerken yapılmayan:** istem ve liste değişikliği.
+
+## 16. "Bilgim yok" kuralı yedi dile genişletildi (uygulandı — bilgi için)
+- **Durum:** Kuralınız ("müşteriye hiçbir zaman 'bilgim yok' gitmez") yalnız Türkçe / İngilizce uygulanıyordu. Gece ölçümünde Luna'nın
+  iki itirafı (tr "kuaför bilgisi elimde olmadığı için…", fr "…ne sont pas précisées ici") ve kıvrık kesme işaretli İngilizce
+  "I don’t have information…" kapıdan geçti; 5.1'in 30 Eylül kabul koşusundaki Almanca itirafı da. Hepsi artık tutuluyor (FR / DE / ES / RU
+  / AR + Türkçe ek biçimler); 3.726 kayıtlı model cevabında yeni tutulan 8'in hepsi gerçek itiraf, meşru cevap tutulmadı.
+- **Müşteriye etkisi:** Diğer dillerdeki misafire de "bilgim yok" gitmez; o cevaplar ev sahibine kalır.
