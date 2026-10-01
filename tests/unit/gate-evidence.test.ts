@@ -49,7 +49,8 @@ const ITEMS_FIX = {
     paymentHeld: false,
     answerableKinds: ["wifi" as const],
     relation: {
-      requests: [{ ref: "R1", kind: "wifi" as const, relation: "fix_request" as const, topics: ["wifi"], generic: false, hazard: false }],
+      // Bilgi tabanında Wi-Fi TARİFİ var (karar 23 kör doğrulaması: tarifsiz arıza çözümü bağlı sayılır — `items_complaint_dependent`).
+      requests: [{ ref: "R1", kind: "wifi" as const, relation: "fix_request" as const, topics: ["wifi"], generic: false, hazard: false, recipe: true }],
       anchors: [{ kind: "complaint_issue" as const, topics: ["wifi"], hazard: false }],
     },
   },

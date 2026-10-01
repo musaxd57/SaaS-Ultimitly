@@ -5,7 +5,9 @@ import { composeItemsPlan, relationFactsOf } from "@/lib/conversation-items/plan
 import { buildItemsPromptBlock } from "@/lib/conversation-items/reply-block";
 import {
   fixHazard,
+  isFixRecipeText,
   isGenericFollowup,
+  kbRecipeTopics,
   relationGateHold,
   requestDependency,
   requestTopics,
@@ -30,7 +32,16 @@ const STAY_NONE = { requested: false, kind: "none", checkin_time: null, checkout
 type Req = { intent: ItemKind; q: string; relation?: string; message?: number; qo?: string };
 
 /** Ürün zinciri: anlama çıktısı → öğeler → plan. `followup` false = bugünkü canlı kip (işaret yok → liste kuralı). */
-function planOf(bodies: string | string[], requests: Req[], opts: { followup?: boolean; earlierComplaint?: boolean } = {}) {
+/**
+ * Varsayılan bilgi tabanı: otopark / Wi-Fi / televizyon / klima için TARİF kalemi olan bir mülk (karar 23 kör doğrulaması: arıza çözümü
+ * yalnız tarifi olan konuya sunulur). `recipeTopics: []` = tarifsiz bilgi tabanı.
+ */
+const DEFAULT_RECIPE_TOPICS = ["parking", "wifi", "tv", "ac"];
+function planOf(
+  bodies: string | string[],
+  requests: Req[],
+  opts: { followup?: boolean; earlierComplaint?: boolean; recipeTopics?: string[] } = {},
+) {
   const list = Array.isArray(bodies) ? bodies : [bodies];
   const history = list.map((body, i) => ({ id: `m${i + 1}`, direction: "inbound" as const, body }));
   const followup = opts.followup ?? true;
@@ -57,7 +68,12 @@ function planOf(bodies: string | string[], requests: Req[], opts: { followup?: b
     ...(opts.earlierComplaint ? [{ messageId: "m0", kind: "complaint_issue" as const, sensitivity: "sensitive" as const, riskType: null, earlier: true }] : []),
   ];
   const relations = relationFactsOf(ex.messages);
-  return composeItemsPlan({ turnItems, held, hints: new Map(), ...(relations ? { relations } : {}) });
+  return composeItemsPlan({
+    turnItems,
+    held,
+    hints: new Map(),
+    ...(relations ? { relations, kbRecipeTopics: new Set(opts.recipeTopics ?? DEFAULT_RECIPE_TOPICS) } : {}),
+  });
 }
 const answerableKinds = (p: ReturnType<typeof planOf>) => p.answerable.map((a) => a.item.kind);
 
@@ -93,7 +109,33 @@ describe("kurucu örnekleri — önce anlam ilişkisi (ürün zinciri)", () => {
     ]);
     expect(answerableKinds(p)).toEqual(["parking"]);
     expect(p.replyItems.answerable[0]).toMatchObject({ ref: "R1", kind: "parking", fix: true });
-    expect(p.gateItems.relation?.requests[0]).toMatchObject({ ref: "R1", relation: "fix_request" });
+    expect(p.gateItems.relation?.requests[0]).toMatchObject({ ref: "R1", relation: "fix_request", recipe: true });
+  });
+
+  it("🚨 karar 23 kör doğrulaması: bilgi tabanında bu konunun TARİFİ yoksa arıza çözümü SUNULMAZ — istek şikâyetle ev sahibinde", () => {
+    // Kör set 4: tarifsiz arızada model BOŞ cevap verdi / "adımlar bilgide yok" yazdı / şifre kalemine dayanıp adım uydurdu.
+    const reqs: Req[] = [
+      { intent: "complaint_issue", q: "internet yok", relation: "own_topic" },
+      { intent: "wifi", q: "internet bağlantısı nasıl düzelir", relation: "fix_request" },
+    ];
+    const none = planOf("İnternet bir saattir yok.", reqs, { recipeTopics: [] });
+    expect(answerableKinds(none)).toEqual([]);
+    expect(none.allHeld).toBe(true);
+    expect(none.replyItems.held.map((h) => h.kind)).toEqual(["complaint_issue", "wifi"]);
+    // Başka konunun tarifi yetmez (klima tarifi internet arızasını cevaplamaz).
+    expect(answerableKinds(planOf("İnternet bir saattir yok.", reqs, { recipeTopics: ["ac"] }))).toEqual([]);
+    // KONTROL: tarif varsa çözüm olarak sunulur.
+    const withRecipe = planOf("İnternet bir saattir yok.", reqs, { recipeTopics: ["wifi"] });
+    expect(withRecipe.replyItems.answerable).toEqual([expect.objectContaining({ ref: "R1", kind: "wifi", fix: true })]);
+    // Tarifsiz arıza + bağımsız soru: model yalnız bağımsız soruyu görür (kahve makinesi, kör set 4).
+    const mixed = planOf("Kahve makinesi çalışmıyor. Otopark yerimiz hangisi?", [
+      { intent: "complaint_issue", q: "kahve makinesi çalışmıyor", relation: "own_topic" },
+      { intent: "appliance_help", q: "kahve makinesi turuncu ışık", relation: "fix_request" },
+      { intent: "parking", q: "otopark yeri", relation: "own_topic" },
+    ]);
+    expect(answerableKinds(mixed)).toEqual(["parking"]);
+    expect(mixed.replyItems.answerable[0]).not.toHaveProperty("fix");
+    expect(mixed.replyItems.held.map((h) => h.kind)).toEqual(["complaint_issue", "appliance_help"]);
   });
 
   it("🚨 gürültü + 'yine olursa ne yapacağız?' bölünüp 'kendi konusu' işaretlense de TUTULUR (konu yok / aynı konu / ev kuralı)", () => {
@@ -293,6 +335,7 @@ describe("kapı — hatalı 'bağımsız' işareti DOĞRUDAN verilse de bağlı 
     topics: ["parking"],
     generic: false,
     hazard: false,
+    recipe: true,
     ...over,
   });
   const gate = (requests: (RequestFacts & { ref: string })[], anchors: AnchorFacts[]) => ({
@@ -310,6 +353,12 @@ describe("kapı — hatalı 'bağımsız' işareti DOĞRUDAN verilse de bağlı 
   it("🚨 arıza çözümü bilgi tabanına dayanmıyor (kb: kaynağı yok) → items_fix_unverified", () => {
     expect(autoReplyGateVerdict(verdict({ usedSources: [] }), MSG, gate([req({ relation: "fix_request" })], [anchor(["parking"])]))?.detail).toBe("items_fix_unverified");
     expect(autoReplyGateVerdict(verdict({ usedSources: ["property:checkInTime"] }), MSG, gate([req({ relation: "fix_request" })], [anchor(["parking"])]))?.detail).toBe("items_fix_unverified");
+  });
+  it("🚨 karar 23 kör doğrulaması: tarifi OLMAYAN arıza çözümü doğrudan kapıya verilse de bağlı sayılır → items_complaint_dependent", () => {
+    for (const recipe of [false, undefined]) {
+      const r = req({ relation: "fix_request", recipe });
+      expect(autoReplyGateVerdict(verdict(), MSG, gate([r], [anchor(["parking"])]))?.detail, String(recipe)).toBe("items_complaint_dependent");
+    }
   });
   it("🚨 arıza çözümü cevabı tehlike sınıfına değiyor → items_fix_hazard", () => {
     const hot = verdict({ reply: "Kombinin altındaki sıfırlama düğmesine 5 saniye basılı tutun.", usedSources: ["kb:faq"] });
@@ -347,11 +396,14 @@ describe("karar fonksiyonu (saf)", () => {
     expect(requestDependency(r({ kind: "house_rules", topics: ["smoking"] }), [a(["ac"])])).toBe("dependent");
     expect(requestDependency(r({ kind: "house_rules", topics: ["smoking"] }), [a([], "cancellation_refund")])).toBe("independent");
   });
-  it("arıza çözümü: yalnız şikâyet + cihaz / tesis türü + tehlike yok", () => {
-    expect(requestDependency(r({ kind: "wifi", relation: "fix_request", topics: ["wifi"] }), [a(["wifi"])])).toBe("fix");
+  it("arıza çözümü: yalnız şikâyet + cihaz / tesis türü + tehlike yok + bilgi tabanında TARİF var", () => {
+    expect(requestDependency(r({ kind: "wifi", relation: "fix_request", topics: ["wifi"], recipe: true }), [a(["wifi"])])).toBe("fix");
     for (const kind of ["appliance_help", "access_keys", "parking", "amenities"] as ItemKind[]) {
-      expect(requestDependency(r({ kind, relation: "fix_request", topics: [] }), [a([])]), kind).toBe("fix");
+      expect(requestDependency(r({ kind, relation: "fix_request", topics: [], recipe: true }), [a([])]), kind).toBe("fix");
     }
+    // Karar 23 kör doğrulaması: tarif yok ya da bilinmiyor → bağlı (TUT).
+    expect(requestDependency(r({ kind: "wifi", relation: "fix_request", topics: ["wifi"], recipe: false }), [a(["wifi"])])).toBe("dependent");
+    expect(requestDependency(r({ kind: "wifi", relation: "fix_request", topics: ["wifi"] }), [a(["wifi"])])).toBe("dependent");
     expect(requestDependency(r({ kind: "wifi", relation: "fix_request" }), [a([], "human_request")])).toBe("dependent");
     expect(requestDependency(r({ kind: "trash", relation: "fix_request" }), [a([])])).toBe("dependent");
     expect(requestDependency(r({ kind: "wifi", relation: "fix_request", hazard: true }), [a([])])).toBe("dependent");
@@ -368,9 +420,54 @@ describe("karar fonksiyonu (saf)", () => {
     expect(stricterRelation(undefined, undefined)).toBeUndefined();
   });
   it("kapı kemeri: cevaplanmamış çözüm kaynak şartını tetiklemez", () => {
-    const g = { requests: [{ ...r({ kind: "wifi", relation: "fix_request", topics: ["wifi"] }), ref: "R1" }], anchors: [a(["wifi"])] };
+    const g = { requests: [{ ...r({ kind: "wifi", relation: "fix_request", topics: ["wifi"], recipe: true }), ref: "R1" }], anchors: [a(["wifi"])] };
     expect(relationGateHold(g, { text: "x", answeredRefs: [], usedSources: [] })).toBeNull();
     expect(relationGateHold(g, { text: "Modemin fişini 30 saniye çekip takın.", answeredRefs: ["R1"], usedSources: ["kb:wifi"] })).toBeNull();
+  });
+});
+
+describe("arıza TARİFİ kalemi (karar 23 kör doğrulaması, 10-01 öğlen)", () => {
+  it("sorun giderme adımı taşıyan kalem tarif sayılır (yedi dil)", () => {
+    for (const t of [
+      "İnternet yoksa: modemin arkasındaki ON/OFF düğmesine basarak kapatın, 30 saniye bekleyip yeniden açın.",
+      "Klima soğutmuyorsa kumandadaki MODE tuşuna basarak kar tanesi simgesini seçin.",
+      "Tuş takımı kararmışsa avucunuzla tuş takımının tamamına 2 saniye dokunun.",
+      "Otopark kapısı açılmıyorsa kumandanın büyük tuşuna 3 saniye basılı tutun.",
+      "Wi-Fi'ye bağlanamıyorsanız telefonunuzda Lale_2G ağını seçin.",
+      "If the TV shows 'No signal', press SOURCE and select HDMI 2.",
+      "Router not working? Unplug it, wait 30 seconds and plug it back in.",
+      "Bei Störungen den Router 30 Sekunden ausschalten und wieder einschalten.",
+      "Si la télévision ne fonctionne pas, appuyez sur SOURCE.",
+      "Si el router no funciona, apague el aparato y espere 30 segundos.",
+      "Если роутер не работает, выключите его и подождите 30 секунд.",
+      "إذا لم يعمل الراوتر اضغط على زر التشغيل وانتظر ثلاثين ثانية.",
+    ]) {
+      expect(isFixRecipeText(t), t).toBe(true);
+    }
+  });
+  it("yalnız bilgi veren kalem tarif DEĞİLDİR (kör set 4: kahve kapsülü, asansör, bulaşık tableti, ağ adı / şifre)", () => {
+    for (const t of [
+      "Mutfakta kapsüllü kahve makinesi var; ilk kutu kapsül bizden. Ek kapsülü marketten alabilirsiniz.",
+      "Bina asansörlüdür. Daireniz 4. katta; asansörden çıkınca sağdaki kapı.",
+      "Mutfakta bulaşık makinesi var; tabletler evyenin altındaki dolapta. Lütfen yalnızca bu tabletleri kullanın.",
+      "Ağ adı: Lale_5G. Şifre: Lale2025.",
+      "Daire kapısında tuşlu kilit var, kodunuz giriş günü gönderilir.",
+      "Çıkış saati 11:00. Çıkarken klimayı ve ışıkları kapatın.",
+      "The building has a lift; your flat is on the 4th floor.",
+      "Coffee capsules are in the top drawer.",
+    ]) {
+      expect(isFixRecipeText(t), t).toBe(false);
+    }
+  });
+  it("tarif konusu ÖNCE başlıktan: modem tarifindeki 'yeniden açın' klimayı, 'TV ünitesi' televizyonu konu yapmaz; başlık konusuzsa metnin tamamı", () => {
+    const modem = {
+      title: "İnternet yoksa: modemi yeniden başlatma",
+      content: "Modem TV ünitesinin alt rafındadır. ON/OFF düğmesine basarak kapatın, 30 saniye bekleyip yeniden açın.",
+    };
+    expect([...kbRecipeTopics([modem])]).toEqual(["wifi"]);
+    expect([...kbRecipeTopics([{ title: "Sık sorulanlar", content: "Klima soğutmuyorsa MODE tuşuna basın." }])]).toContain("ac");
+    // Bilgi kalemi konu vermez.
+    expect([...kbRecipeTopics([{ title: "Kahve makinesi", content: "Kapsüller üst çekmecede." }])]).toEqual([]);
   });
 });
 

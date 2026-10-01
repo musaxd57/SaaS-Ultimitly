@@ -83,7 +83,7 @@ function verdict(over: Partial<SuggestReplyResult> = {}): SuggestReplyResult {
   };
 }
 
-async function seed(body: string) {
+async function seed(body: string, kb: readonly { category: string; title: string; content: string }[] = []) {
   const org = await prisma.organization.create({
     data: {
       name: "Org",
@@ -95,6 +95,7 @@ async function seed(body: string) {
     },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 7" } });
+  for (const k of kb) await prisma.knowledgeBaseItem.create({ data: { propertyId: property.id, ...k } });
   const createdAt = new Date(Date.now() - 20 * 60_000);
   const conversation = await prisma.conversation.create({
     data: {
@@ -109,6 +110,19 @@ async function seed(body: string) {
   });
   return conversation.id;
 }
+
+/** Bilgi tabanı TARİF kalemleri (sorun giderme fiili taşır) ve yalnız BİLGİ kalemleri (tarif değil — karar 23 kör doğrulaması). */
+const KB_PARKING_RECIPE = { category: "parking", title: "Otopark kapısı açılmıyorsa", content: "Kumandanın 2. tuşuna 3 saniye basılı tutun." };
+// Kategori "faq": Wi-Fi kategorisi doğrulanmış konaklama ister (sır kapsamı, `kbForStayScope`) — bu tohumda rezervasyon yok.
+const KB_MODEM_RECIPE = {
+  category: "faq",
+  title: "İnternet yoksa: modemi yeniden başlatma",
+  content: "Modemin arkasındaki ON/OFF düğmesine basarak kapatın, 30 saniye bekleyip yeniden açın.",
+};
+// Aynı konuda (internet) BİLGİ kalemi — tarif değil. (Ağ adı / şifre kalemi sır süzgecine takılır; konu aynı, sınanan kural aynı.)
+const KB_INTERNET_INFO = { category: "general", title: "İnternet", content: "Dairede fiber internet var; modem TV ünitesinin alt rafında." };
+const KB_COFFEE_INFO = { category: "faq", title: "Kahve makinesi", content: "Mutfakta kapsüllü kahve makinesi var; ek kapsül köşedeki marketten." };
+const KB_PARKING_INFO = { category: "parking", title: "Otopark", content: "Otopark binanın arkasında, size ayrılan yer 27 numara." };
 
 async function itemsOf(conversationId: string) {
   const rows = await prisma.conversationItem.findMany({
@@ -195,7 +209,7 @@ describe("ilişki kipi — kanal akışı (kurucu kararı 10-01 sabah)", () => {
     ]);
     const tarif = "Kapı açılmazsa kumandanın 2. tuşuna 3 saniye basılı tutun.";
 
-    const okId = await seed(msg);
+    const okId = await seed(msg, [KB_PARKING_RECIPE]);
     understands(u);
     mockSuggest.mockResolvedValue(verdict({ intent: "parking", reply: tarif, usedSources: ["kb:parking"], answeredRequests: { ok: true, refs: ["R1"] } }));
     expect((await applyChannelAutoReply(okId)).sent).toBe(true);
@@ -211,7 +225,7 @@ describe("ilişki kipi — kanal akışı (kurucu kararı 10-01 sabah)", () => {
     await resetDb();
     mockSend.mockClear();
     mockMail.mockClear();
-    const noKbId = await seed(msg);
+    const noKbId = await seed(msg, [KB_PARKING_RECIPE]);
     understands(u);
     mockSuggest.mockResolvedValue(verdict({ intent: "parking", reply: tarif, usedSources: [], answeredRequests: { ok: true, refs: ["R1"] } }));
     expect((await applyChannelAutoReply(noKbId)).sent).toBe(false);
@@ -278,7 +292,7 @@ describe("ilişki kipi — kanal akışı (kurucu kararı 10-01 sabah)", () => {
 
   it("karar 23 (onaylı 18. madde): soru SORMADAN arıza bildirimi — anlama katmanı çözüm isteği eklerse tarif gider, şikâyet açık + tek e-posta", async () => {
     // Model davranışı (istemin yeni cümlesi) ücretli ölçümle sınanır; burada çözüm isteği GELDİĞİNDE akışın mekaniği pinli.
-    const id = await seed("İnternet bir saattir yok.");
+    const id = await seed("İnternet bir saattir yok.", [KB_MODEM_RECIPE]);
     understands(
       understood([
         { intent: "complaint_issue", relation: "own_topic", q: "internet yok" },
@@ -289,7 +303,7 @@ describe("ilişki kipi — kanal akışı (kurucu kararı 10-01 sabah)", () => {
       verdict({
         intent: "wifi",
         reply: "Modemin arkasındaki ON/OFF düğmesiyle kapatıp 30 saniye sonra yeniden açabilirsiniz.",
-        usedSources: ["kb:wifi"],
+        usedSources: ["kb:faq"],
         answeredRequests: { ok: true, refs: ["R1"] },
       }),
     );
@@ -297,6 +311,64 @@ describe("ilişki kipi — kanal akışı (kurucu kararı 10-01 sabah)", () => {
     expect(await itemsOf(id)).toEqual([
       ["complaint_issue", "pending_host"],
       ["wifi", "answered"],
+    ]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 karar 23 kör doğrulaması: bilgi tabanında bu arızanın TARİFİ yoksa (yalnız bilgi kalemi) çözüm isteği modele SUNULMAZ — tur ev sahibinde, tek e-posta", async () => {
+    // Kör set 4: tarifsiz arızada Luna BOŞ cevap verdi (ürün "kullanılamaz çıktı" sayıp yeniden deniyordu), 5.1 şifre kalemine dayanıp
+    // "bağlantıyı kesip yeniden bağlanın" adımını uydurdu ve GÖNDERDİ. Tarif yoksa istek şikâyetle birlikte tutulur.
+    const id = await seed("İnternet bir saattir yok.", [KB_INTERNET_INFO]);
+    understands(
+      understood([
+        { intent: "complaint_issue", relation: "own_topic", q: "internet yok" },
+        { intent: "wifi", relation: "fix_request", q: "internet bağlantısı nasıl düzelir" },
+      ]),
+    );
+    mockSuggest.mockResolvedValue(
+      verdict({
+        intent: "wifi",
+        // Kör set 4'teki 5.1 cevabının biçimi: bilgi kalemine DAYANAN (doğrulanan kaynak) ama tarifte olmayan bir adım.
+        reply: "Modem TV ünitesinin alt rafında; bağlantıyı kesip yeniden bağlanmayı deneyin.",
+        usedSources: ["kb:general"],
+        answeredRequests: { ok: true, refs: ["R1"] },
+      }),
+    );
+    const out = await applyChannelAutoReply(id);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    // Kalem modele GERÇEKTEN gitti (yoksa test boşa geçerdi) — konu var, tarif yok.
+    expect(mockSuggest.mock.calls[0][0].knowledgeBase.map((k) => k.title)).toContain("İnternet");
+    // Cevaplanabilir istek kalmadı → öğe bloğu hiç verilmez (bugünkü "hepsi tutuldu" yolu).
+    expect(mockSuggest.mock.calls[0][0]).not.toHaveProperty("conversationItems");
+    expect(await itemsOf(id)).toEqual([
+      ["complaint_issue", "pending_host"],
+      ["wifi", "open"],
+    ]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("karar 23 kör doğrulaması: tarifsiz arıza + bağımsız soru → modele YALNIZ bağımsız soru sunulur (arızadan söz edilecek istek yok), cevap gider", async () => {
+    // Kör set 4: "Kahve makinesi çalışmıyor. Otopark yerimiz hangisi?" — Luna arızayı da gördüğü için "kahve makinesi adımları bilgide
+    // yok" yazdı ve bu cümle misafire GİTTİ. Tarif yoksa arıza isteği şikâyetle birlikte tutulur; model yalnız otopark sorusunu görür.
+    const id = await seed("Kahve makinesi çalışmıyor, sadece turuncu yanıp sönüyor. Otopark yerimiz hangisi?", [KB_COFFEE_INFO, KB_PARKING_INFO]);
+    understands(
+      understood([
+        { intent: "complaint_issue", relation: "own_topic", q: "kahve makinesi çalışmıyor" },
+        { intent: "appliance_help", relation: "fix_request", q: "kahve makinesi turuncu ışık" },
+        { intent: "parking", relation: "own_topic", q: "otopark yeri" },
+      ]),
+    );
+    mockSuggest.mockResolvedValue(
+      verdict({ intent: "parking", reply: "Size ayrılan otopark yeri 27 numara.", usedSources: ["kb:parking"], answeredRequests: { ok: true, refs: ["R1"] } }),
+    );
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    expect(mockSuggest.mock.calls[0][0].conversationItems?.answerable).toEqual([expect.objectContaining({ ref: "R1", kind: "parking" })]);
+    expect(mockSuggest.mock.calls[0][0].conversationItems?.answerable[0]).not.toHaveProperty("fix");
+    expect(await itemsOf(id)).toEqual([
+      ["complaint_issue", "pending_host"],
+      ["appliance_help", "open"],
+      ["parking", "answered"],
     ]);
     expect(mockMail).toHaveBeenCalledTimes(1);
   });

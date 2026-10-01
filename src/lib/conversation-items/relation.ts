@@ -277,6 +277,173 @@ export function fixHazard(text: string): boolean {
 }
 
 /**
+ * ARIZA TARİFİ KALEMİ (karar 23 kör doğrulaması, 10-01 öğlen): bilgi tabanı kalemi bir cihaz / tesis için ADIM taşıyor mu — "tuşuna
+ * basın", "30 saniye bekleyin", "yeniden başlatın", "HDMI 2'yi seçin", "açılmıyorsa…". Yalnız bilgi veren kalem ("Mutfakta kapsüllü kahve
+ * makinesi var", "Bina asansörlüdür", "Ağ adı X, şifre Y") tarif DEĞİLDİR. Kurucunun 18. maddesi: arıza çözümü yalnız bilgi tabanında O
+ * ARIZANIN tarifi varsa gider. Kör sette (set 4) tarifi olmayan arızada model ya BOŞ cevap verdi (ürün bunu "kullanılamaz çıktı" sayıp
+ * yeniden deniyordu), ya "adımlar bilgide yok" yazdı ya da genel bir adım uydurup şifre kalemine dayandırdı — üçü de istek modele
+ * sunulmadan önlenir. İşaretler sorun giderme fiilleridir (bas / bekle / seç / yeniden başlat / "-mıyorsa"); genel kullanım fiili
+ * ("kullanın", "kapatın", "getirin") BİLEREK yok ("Çıkışta klimayı kapatın" klima tarifi değildir). Yedi dil, katlanmış biçim; ev sahibi
+ * metni üzerinde, doğrusal.
+ */
+const RECIPE_WORDS = wordRe([
+  // tr
+  "basin",
+  "basiniz",
+  "basarak",
+  "basip",
+  "basili",
+  "basinca",
+  "basilinca",
+  "basmaniz",
+  "dokunun",
+  "dokunup",
+  "dokunarak",
+  "bekleyin",
+  "bekleyiniz",
+  "bekleyip",
+  "bekledikten",
+  "secin",
+  "seciniz",
+  "secip",
+  "secerek",
+  "ayarlayin",
+  "ayarlayip",
+  "ayarlayarak",
+  "cevirin",
+  "cevirip",
+  "cevirerek",
+  "kapatip",
+  // en
+  "press",
+  "pressing",
+  "hold",
+  "holding",
+  "restart",
+  "reboot",
+  "reset",
+  "unplug",
+  "replug",
+  "select",
+  "seconds",
+  // de
+  "drucken",
+  "neustart",
+  "neustarten",
+  "zurucksetzen",
+  "ausschalten",
+  "einschalten",
+  "sekunden",
+  "warten",
+  "wahlen",
+  // fr
+  "appuyez",
+  "appuyer",
+  "maintenez",
+  "redemarrez",
+  "redemarrer",
+  "eteignez",
+  "rallumez",
+  "debranchez",
+  "rebranchez",
+  "secondes",
+  "attendez",
+  "selectionnez",
+  // es
+  "pulse",
+  "presione",
+  "mantenga",
+  "reinicie",
+  "reiniciar",
+  "apague",
+  "encienda",
+  "desenchufe",
+  "segundos",
+  "espere",
+  "seleccione",
+  // ru (katlanmış: й → и)
+  "нажмите",
+  "нажать",
+  "удерживаите",
+  "перезагрузите",
+  "выключите",
+  "включите",
+  "отключите",
+  "секунд",
+  "секунды",
+  "подождите",
+  "выберите",
+  // ar
+  "اضغط",
+  "اضغطوا",
+  "اضغطي",
+  "ثوان",
+  "ثواني",
+  "ثانية",
+  "انتظر",
+  "انتظروا",
+  "اختر",
+  "اختاروا",
+]);
+/**
+ * Kök + çekim (tr): sıfırla / saniye. Çıplak "tuş / düğme / button / Taste / bouton / botón / кнопка / زر" BİLEREK yok: "Kapıda tuşlu kilit
+ * var" bilgi kalemidir, tarif değil — tarif "basın / press / drücken / appuyez / pulse / нажмите / اضغط" fiilini taşır.
+ */
+const RECIPE_STEMS = stemRe(["sifirla", "saniye"]);
+/** Olumsuz koşul ("çalışmıyorsa", "açılmıyorsa", "bağlanamıyorsanız") — sorun giderme başlığı. Sınırlı tekrar (karesel iş yok). */
+const RECIPE_CONDITIONAL = new RegExp(`${L}\\p{L}{2,24}m[iu]yorsa(?:niz)?${R}`, "u");
+const RECIPE_PHRASES: readonly string[] = [
+  "yeniden baslat",
+  "tekrar baslat",
+  "switch it off",
+  "switch off",
+  "turn it off",
+  "turn it back on",
+  "turn off and on",
+  "power cycle",
+  "not working",
+  "doesn't work",
+  "does not work",
+  "isn't working",
+  "won't turn on",
+  "won't connect",
+  "funktioniert nicht",
+  "geht nicht",
+  "ne fonctionne pas",
+  "ne marche pas",
+  "no funciona",
+  "не работает",
+  "اعادة تشغيل",
+  "اعد تشغيل",
+  "لا يعمل",
+];
+
+/** Bilgi tabanı kalemi bir sorun giderme TARİFİ taşıyor mu (başlık + metin). Saf, doğrusal. */
+export function isFixRecipeText(text: string): boolean {
+  if (!text || !text.trim()) return false;
+  const f = fold(text);
+  return RECIPE_WORDS.test(f) || RECIPE_STEMS.test(f) || RECIPE_CONDITIONAL.test(f) || RECIPE_PHRASES.some((p) => f.includes(p));
+}
+
+/**
+ * İsteme giren bilgi tabanı kalemlerinden TARİF taşıyanların konu kavramları: arıza çözümü isteği ancak konusu bu kümedeyse cevap
+ * modeline sunulur (`requestDependency`, `recipe`). Konu kavramı bulunmayan cihaz ("jakuzi") tarifle eşlenemez → ev sahibinde kalır.
+ * Konu ÖNCE BAŞLIKTAN ("Klima", "Çamaşır makinesi", "Otopark kapısı açılmıyorsa"): metnin tamamı tarifin geçtiği yeri / fiilini de
+ * kavrama çeviriyor (modem tarifindeki "yeniden açın" → klima, "TV ünitesinin rafında" → televizyon, şifredeki "Deniz" → plaj — ölçüldü);
+ * başlık konu taşımıyorsa ("Sık sorulanlar") metnin tamamı.
+ */
+export function kbRecipeTopics(items: readonly { title: string; content: string }[]): Set<string> {
+  const out = new Set<string>();
+  for (const it of items) {
+    const text = `${it.title}\n${it.content}`;
+    if (!isFixRecipeText(text)) continue;
+    const fromTitle = topicsOf(it.title);
+    for (const t of fromTitle.length > 0 ? fromTitle : topicsOf(text)) out.add(t);
+  }
+  return out;
+}
+
+/**
  * Kendi konusu olmayan genel takip sorusu ("tekrar olursa ne yapmalı", "what should we do", "что делать"): anlama katmanının Türkçe ve
  * özgün dildeki sorgusunda aranır. Konu kavramı taşıyan sorgu bu yüzden bağlı SAYILMAZ (kavram önce bakılır, `ownTopic`).
  */
@@ -355,6 +522,11 @@ export interface RequestFacts {
   generic: boolean;
   /** Sorgusu tehlike sınıfına değiyor (`fixHazard`). */
   hazard: boolean;
+  /**
+   * İsteme giren bilgi tabanında bu isteğin konusunda bir TARİF kalemi var mı (`kbRecipeTopics`). Arıza çözümü yalnız `true` iken
+   * cevaplanabilir; eksik = bilinmiyor = tarif yok (TUT). Plan her istek için yazar; kapı aynı olguyla aynı kararı verir.
+   */
+  recipe?: boolean;
 }
 
 /** Bu turun tutulan bağlayıcı talebi (şikâyet / iade / ev sahibi talebi). */
@@ -388,6 +560,9 @@ export function requestDependency(req: RequestFacts, anchors: readonly AnchorFac
   }
   if (req.relation === "fix_request") {
     if (!complaint || !FIX_KINDS.has(req.kind) || req.hazard || anchors.some((a) => a.hazard)) return "dependent";
+    // Kurucunun 18. maddesi ("bilgi tabanında O ARIZANIN tarifi varsa"): tarif yoksa istek şikâyetle birlikte ev sahibinde kalır
+    // (karar 23 kör doğrulaması — tarifsiz arızada boş cevap / "bilgide yok" / uydurma adım).
+    if (req.recipe !== true) return "dependent";
     return "fix";
   }
   return "dependent";

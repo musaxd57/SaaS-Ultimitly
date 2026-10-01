@@ -61,40 +61,86 @@ export { RISK_TYPES };
  */
 function verifyUsedSources(list: string[], input: SuggestReplyInput): string[] {
   const kbCats = new Set(input.knowledgeBase.map((k) => k.category));
-  return list.filter((src) => {
-    if (src.startsWith("kb:")) return kbCats.has(src.slice(3));
-    if (src === "property:address") return Boolean(input.property.address);
-    if (src.startsWith("property:")) {
-      // Whitelist the REAL property fields — a blanket `true` let the model inject
-      // a fabricated source (e.g. "property:door_code") that then showed as a
-      // "used context" chip, contradicting the invented-source-dropped guarantee.
-      const field = src.slice("property:".length);
-      return field === "checkInTime" || field === "checkOutTime" || field === "name" || field === "city";
-    }
-    if (src.startsWith("reservation:")) {
-      // Whitelist the REAL reservation-context fields (same rationale as the
-      // property:* whitelist): the model sees guestName / arrivalDate /
-      // departureDate / status — any other suffix ("reservation:door_code") is
-      // an invented source and must drop.
-      const field = src.slice("reservation:".length);
-      return (
-        input.reservation != null &&
-        // Adsız yapay zekâ (`code-greeting.ts`): anahtar açıkken model adı GÖRMEZ → "reservation:guestName" beyanı uydurmadır.
-        ((field === "guestName" && !codeGreetingEnabled()) ||
-          field === "arrivalDate" ||
-          field === "departureDate" ||
-          field === "status")
-      );
-    }
-    // "history" = YALNIZ bu sohbetin geçmişi (F13 kalıntısı, 09-26). Eskiden üslup rehberi de "history" sayılıyordu
-    // (istem "rehberden alınan olgular 'history' etiketlenir" diyordu): geçmiş BOŞKEN rehber varsa beyan doğrulanıyor,
-    // rehberden alınmış bir "olgu" arayüzde kanıtlı görünüyordu. Rehber yalnız üsluptur, dayanak değildir.
-    // İnceleme b4 (09-30): "geçmiş boş değil" yetmez — kanal oto-yanıtı ve gelen kutusu önerisi güncel misafir mesajını da geçmişe
-    // koyar, koşul ana yüzeylerde hiç yanlış olmuyordu. Dayanak ev sahibinin / bizim önceki CEVABIMIZDIR (giden satır); misafirin
-    // kendi yazdığı olgu dayanak değildir (yankı).
-    if (src === "history") return Boolean(input.history?.some((m) => m.direction === "outbound"));
-    return false; // unknown shape → drop
-  });
+  // Bilgi tabanı atfı KATEGORİ etiketine indirilir (`kbSourceLabel`); öteki biçimler aynen süzülür. Aynı etiket bir kez.
+  const out: string[] = [];
+  for (const src of list) {
+    const label = /^kb:/i.test(src) ? kbSourceLabel(src, input.knowledgeBase, kbCats) : verifyNonKbSource(src, input) ? src : null;
+    if (label && !out.includes(label)) out.push(label);
+  }
+  return out;
+}
+
+/** Karşılaştırma biçimi: aksan / büyük harf / Türkçe ı katlanır, harf-rakam dışı her dizi tek "_". */
+function sourceSlug(s: string): string {
+  return s
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/ı/g, "i")
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+/**
+ * Modelin "kb:" atfı → kalemin KATEGORİ etiketi (10-01 öğlen, karar 23 kör doğrulaması). Modeller kalemi çoğu zaman BAŞLIĞIYLA
+ * gösteriyor: 5.1 "kb:klima" (kalem "Klima") ve "kb:FAQ_Televizyon_ve_kumanda" (satırdaki "[FAQ]" etiketi + başlık) yazdı; doğrulama
+ * yalnız harfi harfine kategori adını kabul ettiği için bu GERÇEK atıflar düşüyor, bilgi tabanındaki arıza tarifi "kaynaksız" sayılıp
+ * tutuluyordu (beyan 1, doğrulanan 0 — dört tarifin dördü). Eşleşme yalnız isteme giren GERÇEK kaleme: kategori (büyük / küçük harf
+ * duyarsız), kalem başlığı ya da "kategori + başlık"; uydurma atıf yine DÜŞER. Etiket 60 karakter tavanında kesildiyse başlığın başı
+ * yeter (en az 12 karakter).
+ */
+function kbSourceLabel(
+  src: string,
+  kb: readonly { category: string; title: string }[],
+  kbCats: ReadonlySet<string>,
+): string | null {
+  const ref = src.slice(3).trim();
+  if (kbCats.has(ref)) return `kb:${ref}`;
+  const r = sourceSlug(ref);
+  if (!r) return null;
+  for (const k of kb) if (sourceSlug(k.category) === r) return `kb:${k.category}`;
+  const capped = src.length >= 60 && r.length >= 12;
+  for (const k of kb) {
+    const title = sourceSlug(k.title);
+    const both = `${sourceSlug(k.category)}_${title}`;
+    if (title && (r === title || r === both || (capped && (title.startsWith(r) || both.startsWith(r))))) return `kb:${k.category}`;
+  }
+  return null;
+}
+
+/** Bilgi tabanı DIŞINDAKİ beyan: mülk / rezervasyon alanı ya da sohbet geçmişi gerçekten var mı. */
+function verifyNonKbSource(src: string, input: SuggestReplyInput): boolean {
+  if (src === "property:address") return Boolean(input.property.address);
+  if (src.startsWith("property:")) {
+    // Whitelist the REAL property fields — a blanket `true` let the model inject
+    // a fabricated source (e.g. "property:door_code") that then showed as a
+    // "used context" chip, contradicting the invented-source-dropped guarantee.
+    const field = src.slice("property:".length);
+    return field === "checkInTime" || field === "checkOutTime" || field === "name" || field === "city";
+  }
+  if (src.startsWith("reservation:")) {
+    // Whitelist the REAL reservation-context fields (same rationale as the
+    // property:* whitelist): the model sees guestName / arrivalDate /
+    // departureDate / status — any other suffix ("reservation:door_code") is
+    // an invented source and must drop.
+    const field = src.slice("reservation:".length);
+    return (
+      input.reservation != null &&
+      // Adsız yapay zekâ (`code-greeting.ts`): anahtar açıkken model adı GÖRMEZ → "reservation:guestName" beyanı uydurmadır.
+      ((field === "guestName" && !codeGreetingEnabled()) ||
+        field === "arrivalDate" ||
+        field === "departureDate" ||
+        field === "status")
+    );
+  }
+  // "history" = YALNIZ bu sohbetin geçmişi (F13 kalıntısı, 09-26). Eskiden üslup rehberi de "history" sayılıyordu
+  // (istem "rehberden alınan olgular 'history' etiketlenir" diyordu): geçmiş BOŞKEN rehber varsa beyan doğrulanıyor,
+  // rehberden alınmış bir "olgu" arayüzde kanıtlı görünüyordu. Rehber yalnız üsluptur, dayanak değildir.
+  // İnceleme b4 (09-30): "geçmiş boş değil" yetmez — kanal oto-yanıtı ve gelen kutusu önerisi güncel misafir mesajını da geçmişe
+  // koyar, koşul ana yüzeylerde hiç yanlış olmuyordu. Dayanak ev sahibinin / bizim önceki CEVABIMIZDIR (giden satır); misafirin
+  // kendi yazdığı olgu dayanak değildir (yankı).
+  if (src === "history") return Boolean(input.history?.some((m) => m.direction === "outbound"));
+  return false; // unknown shape → drop
 }
 
 /** Max evidence entries / entry length — the model must never flood the DB/UI. */

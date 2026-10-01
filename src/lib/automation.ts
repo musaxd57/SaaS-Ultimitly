@@ -1994,6 +1994,8 @@ export async function applyChannelAutoReply(
         // kapsamalı.
         expectedMessageIds: itemsTurnMessageIds,
         now: new Date(),
+        // Arıza çözümü yalnız modelin GÖRECEĞİ bilgi tabanında o konunun tarifi varsa sunulur (karar 23 kör doğrulaması, 10-01).
+        knowledgeBase: kbForModel,
       });
     } catch (err) {
       void reportError(`conversation-items plan org=${conversation.property.organizationId}`, err);

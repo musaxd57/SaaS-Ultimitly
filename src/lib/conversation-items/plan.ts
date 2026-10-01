@@ -52,10 +52,15 @@ export function composeItemsPlan<T extends PlanItem>(input: {
    * Tutulan öğeler için mesaj kimliği `held[].messageId`den okunur.
    */
   relations?: ReadonlyMap<string, ItemRelationFacts>;
+  /**
+   * İsteme giren bilgi tabanının TARİF kalemlerinin konuları (`relation.kbRecipeTopics`). Arıza çözümü yalnız konusu burada olan
+   * isteğe sunulur; verilmezse hiçbir istek tarifli sayılmaz (bilinmiyor = tut).
+   */
+  kbRecipeTopics?: ReadonlySet<string>;
 }): ComposedItemsPlan<T> {
   const relations = input.relations;
   // İlişki kipi (kurucu kararı 10-01 sabah): olgular varsa karar `relation.requestDependency`, yoksa bugünkü liste kuralı BİREBİR.
-  const relation = relations ? relationPlan(input.turnItems, input.held, relations) : null;
+  const relation = relations ? relationPlan(input.turnItems, input.held, relations, input.kbRecipeTopics ?? new Set()) : null;
   // Şikâyete bağlı istek (kurucu kararı 10-01, `core.complaintDependent`): bu turda tutulan şikâyet varken bağımsız bilgi türü
   // olmayan istek cevaplanabilir SAYILMAZ — cevap modeline bırakılan istek olarak gösterilir.
   const dependent = relation
@@ -100,6 +105,7 @@ function relationPlan<T extends PlanItem>(
   turnItems: readonly T[],
   held: readonly (ItemRiskFacts & { earlier?: boolean; messageId?: string })[],
   relations: ReadonlyMap<string, ItemRelationFacts>,
+  recipeTopics: ReadonlySet<string>,
 ): { dependent: T[]; fix: Set<T>; anchors: AnchorFacts[]; factsOf: (item: T) => RequestFacts } {
   const lookup = (messageId: string | undefined, kind: ItemKind) => (messageId ? relations.get(hintKey(messageId, kind)) : undefined);
   const anchors: AnchorFacts[] = held
@@ -110,7 +116,16 @@ function relationPlan<T extends PlanItem>(
     });
   const factsOf = (i: T): RequestFacts => {
     const f = lookup(i.messageId, i.kind);
-    return { kind: i.kind, relation: f?.relation ?? "unclear", topics: f?.topics ?? [], generic: f?.generic ?? false, hazard: f?.hazard ?? false };
+    const topics = f?.topics ?? [];
+    return {
+      kind: i.kind,
+      relation: f?.relation ?? "unclear",
+      topics,
+      generic: f?.generic ?? false,
+      hazard: f?.hazard ?? false,
+      // Karar 23 kör doğrulaması (10-01 öğlen): bilgi tabanında bu isteğin konusunda tarif kalemi var mı — kapı aynı olguyu okur.
+      recipe: topics.some((t) => recipeTopics.has(t)),
+    };
   };
   const dependent: T[] = [];
   const fix = new Set<T>();

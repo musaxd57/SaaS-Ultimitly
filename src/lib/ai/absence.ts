@@ -94,7 +94,9 @@ const TR_TIGHT = `yok(?:tur)?(?![\\p{L}])`;
 /** Bunlar tek başına yokluk bildirir → boşluk daha geniş olabilir. */
 const TR_LOOSE =
   "(?:bulunmuyor|bulunmamakta(?:dır)?|mevcut değil|kayıtlı değil|bulamadım|bulamıyorum|" +
-  "göremiyorum|göremedim|görünmüyor|erişimim yok|sahip değilim)";
+  "göremiyorum|göremedim|görünmüyor|erişimim yok|sahip değilim|" +
+  // 10-01 öğlen (karar 23 kör doğrulaması): "…adımları elimdeki bilgilerde yer almıyor".
+  "yer almıyor|yer almamaktadır|yer verilmemiş)";
 
 // ── İngilizce: BİLGİ NESNESİ (tekil VE çoğul — ilk sürümde karışıktı) ──────
 const EN_OBJ = "(?:information|info|records?|details?|data|notes?)(?![\\p{L}])";
@@ -126,6 +128,15 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   /not listed (?:in|on) (?:my|our|the)/u,
   // "aren't specified here" / "not mentioned in my notes" — yer çapası şart ("not specified as closed" olgudur).
   /(?:isn't|is not|aren't|are not|not) (?:specified|mentioned) (?:here|in (?:my|our|the))/u,
+  // 10-01 öğlen (karar 23 kör doğrulaması — Luna'nın misafire GİDEN cümlesi): "The coffee machine troubleshooting steps aren't available
+  // in the information provided." Yer BİLGİ nesnesine çapalı: "The pool isn't available in the morning" bu kalıba girmez.
+  new RegExp(
+    `(?:isn't|is not|aren't|are not|not) (?:available|included|listed|provided|covered) in (?:the |my |our |this )?(?:\\p{L}{1,20} )?${EN_OBJ}`,
+    "u",
+  ),
+  // "We don't have (specific) instructions for the coffee machine" — "You don't have to take any steps" eşleşmez (fiil + edat şart).
+  /(?:don't|do not) have (?:any )?(?:\p{L}{1,20} )?(?:instructions|steps) (?:for|on|about)(?![\p{L}])/u,
+  /(?<![\p{L}])no (?:\p{L}{1,20} )?instructions (?:for|on|about)(?![\p{L}])/u,
 ];
 
 // ── DİĞER DESTEKLENEN DİLLER + TÜRKÇE EK BİÇİMLER (10-01 gece ölçümü) ─────────
@@ -158,6 +169,12 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
     "u",
   ),
   /(?:n'est|ne sont) pas (?:pr[ée]cis[ée]|mentionn[ée]|renseign[ée])e?s? (?:ici|dans)/u,
+  // 10-01 öğlen (karar 23 kör doğrulaması): "… ne sont pas disponibles dans les informations fournies" — yer BİLGİ nesnesine çapalı
+  // ("La piscine n'est pas disponible dans la journée" olgudur).
+  new RegExp(
+    `(?:n'est|ne sont) pas (?:disponibles?|indiqu[ée]e?s?|fourni(?:e|s|es)?|inclus(?:e|es)?) dans (?:les |l'|mes |nos |ces |cette )?(?:\\p{L}{1,20} )?${FR_OBJ}`,
+    "u",
+  ),
   new RegExp(`ne dispos\\p{L}{0,8} pas (?:d'|de |des )?${gap(1)}${FR_OBJ}`, "u"),
   /je ne (?:le )?sais pas|je ne (?:trouve|retrouve) pas|je n'ai pas (?:trouvé|retrouvé)/u,
   // DE — "(habe / liegen mir / gibt) keine (genauen) Informationen", "nicht angegeben", "weiß ich nicht", "kann ich nicht finden".
@@ -165,6 +182,11 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   // ve "können" (2. şahıs koşul) eşleşmez.
   new RegExp(`(?:habe|haben|hab|hätte|liegen|liegt|gibt)(?: \\p{L}{1,30}){0,6} keine ${gap(1)}${DE_OBJ}`, "u"),
   /nicht (?:angegeben|vermerkt|hinterlegt|aufgeführt)(?![\p{L}])/u,
+  // 10-01 öğlen: "… sind in den vorliegenden Informationen nicht verfügbar" — BİLGİ nesnesine çapalı.
+  new RegExp(
+    `${L}in (?:den |meinen |unseren |diesen |der )?(?:\\p{L}{1,20} )?${DE_OBJ} (?:leider )?nicht (?:verfügbar|enthalten|vorhanden)`,
+    "u",
+  ),
   /(?:ich weiß|weiß ich) (?:es |das )?(?:leider )?nicht/u,
   /(?:kann|konnte) (?:ich )?(?:\p{L}{1,30} ){0,2}nicht finden/u,
   // ES — "no tengo / no hay información", "no dispongo de esos datos", "no se especifica", "no lo sé".
@@ -175,6 +197,11 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
   new RegExp(`${L}no (?:tengo|tenemos|dispongo de|disponemos de) ${gap(2)}datos(?![\\p{L}])`, "u"),
   /no se (?:especifica|menciona)n?(?![\p{L}])/u,
+  // 10-01 öğlen: "… no están disponibles en la información proporcionada" — BİLGİ nesnesine çapalı ("no está disponible en invierno" olgudur).
+  new RegExp(
+    `${L}no (?:está|están|se encuentra|se encuentran|aparece|aparecen|figura|figuran) (?:disponibles? |incluid[oa]s? |indicad[oa]s? )?en (?:la |las |mi |mis |nuestra |nuestras |esta )?(?:\\p{L}{1,20} )?${ES_OBJ}`,
+    "u",
+  ),
   /(?<![\p{L}])no (?:lo )?sé(?![\p{L}])/u,
   /ninguna informaci[óo]n|ningún (?:detalle|dato)/u,
   // RU — "нет (точной) информации / данных", "не указано", "не знаю", "не могу найти", "информация отсутствует".
@@ -184,11 +211,15 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   /(?<![\p{L}])не знаю(?![\p{L}])/u,
   /(?<![\p{L}])не (?:могу|смог|смогла|удалось) (?:\p{L}{1,30} )?найти/u,
   new RegExp(`${RU_OBJ} ${gap(2)}отсутству\\p{L}{0,8}`, "u"),
+  // 10-01 öğlen: "в предоставленной информации нет / не указано".
+  new RegExp(`${L}в (?:\\p{L}{1,20} )?${RU_OBJ} (?:нет|не указан\\p{L}{0,2}|не приведен\\p{L}{0,2})(?![\\p{L}])`, "u"),
   // AR — "ليس لدي معلومات", "لا تتوفر لدي معلومات", "لا أعرف", "غير مذكورة". "غير متاح" (olgu) BİLEREK yok.
   new RegExp(`(?:ليس|ليست) ${gap(1)}(?:لدي|لدينا|عندي|عندنا) ${gap(2)}${AR_OBJ}`, "u"),
   new RegExp(`لا (?:تتوفر|يتوفر|توجد|يوجد) ${gap(2)}${AR_OBJ}`, "u"),
   /لا (?:أعرف|اعرف|أعلم|اعلم|أدري|ادري)(?![\p{L}])/u,
   /غير (?:مذكورة?|محددة?)(?![\p{L}])/u,
+  // 10-01 öğlen: "غير متوفرة في المعلومات المقدمة" — yalnız BİLGİ nesnesiyle ("غير متاح" tek başına olgudur, BİLEREK yok).
+  new RegExp(`غير (?:متوفرة?|متاحة?|موجودة?) في (?:ال)?${AR_OBJ}`, "u"),
 ];
 
 /** Tek liste (her çağrıda yeniden kurulmasın). Yeni kalıplar KAPALI tekrar (`{0,n}`) kullanır — CLAUDE.md karesel iş kuralı. */

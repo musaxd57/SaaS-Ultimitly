@@ -9,6 +9,7 @@ import { buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, ty
 import { extractTurnItems, type ItemsDegradedReason } from "./extract";
 import type { ReplyItemsInput } from "./reply-block";
 import { composeItemsPlan, hintKey, relationFactsOf } from "./plan";
+import { kbRecipeTopics } from "./relation";
 import {
   applyItemEvent,
   applyWithdrawals,
@@ -77,6 +78,11 @@ export async function planItemsTurn(
     understanding: MessageUnderstanding | null | undefined;
     expectedMessageIds: readonly string[];
     now: Date;
+    /**
+     * Cevap modeline giden bilgi tabanı kalemleri (getirmenin seçtiği): arıza çözümü yalnız bunların içinde o konunun TARİFİ varsa
+     * sunulur (`relation.kbRecipeTopics`, karar 23 kör doğrulaması). Verilmezse hiçbir arıza çözümü sunulmaz.
+     */
+    knowledgeBase?: readonly { title: string; content: string }[];
   },
 ): Promise<ItemsTurn> {
   const extracted = extractTurnItems({ history: input.history, guestMessage: input.guestMessage, understanding: input.understanding });
@@ -121,7 +127,12 @@ export async function planItemsTurn(
     turnItems,
     held,
     turnHeld,
-    ...composeItemsPlan({ turnItems, held: heldForPlan, hints, ...(relations ? { relations } : {}) }),
+    ...composeItemsPlan({
+      turnItems,
+      held: heldForPlan,
+      hints,
+      ...(relations ? { relations, kbRecipeTopics: kbRecipeTopics(input.knowledgeBase ?? []) } : {}),
+    }),
   };
 }
 

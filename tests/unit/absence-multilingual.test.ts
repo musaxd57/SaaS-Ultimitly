@@ -118,6 +118,52 @@ const LEGIT: Record<string, string[]> = {
   ar: ["لا يوجد رسوم إضافية.", "لا يسمح بالتدخين في الشقة.", "المسبح غير متاح بعد الساعة 20:00."],
 };
 
+// ── 10-01 öğlen (karar 23 kör doğrulaması): "… bilgide YOK" kalıbı — yer BİLGİ nesnesine çapalı. Luna'nın misafire GİDEN cümlesi:
+// "The coffee machine troubleshooting steps aren't available in the information provided." Her dilde meşru ikiz (yer bilgi değil) pinli.
+const ADMITS_IN_INFO: Record<string, string[]> = {
+  en: [
+    "Your parking spot is number 27, on level -1 at the back of the building. The coffee machine troubleshooting steps aren't available in the information provided.",
+    "The coffee machine troubleshooting steps are not available in the information provided.",
+    "This isn't included in the details I have.",
+    "We don't have specific instructions for the coffee machine.",
+    "There are no instructions for the coffee machine.",
+  ],
+  tr: ["Kahve makinesi için arıza adımları elimdeki bilgilerde yer almıyor."],
+  es: ["Los pasos para la cafetera no están disponibles en la información proporcionada."],
+  fr: ["Les étapes pour la machine à café ne sont pas disponibles dans les informations fournies."],
+  de: ["Die Schritte für die Kaffeemaschine sind in den vorliegenden Informationen nicht verfügbar."],
+  ru: ["В предоставленной информации нет инструкций для кофемашины."],
+  ar: ["خطوات إصلاح آلة القهوة غير متوفرة في المعلومات المقدمة."],
+};
+const LEGIT_IN_INFO: Record<string, string[]> = {
+  en: [
+    "Breakfast is not included in the price.",
+    "Parking is not included in the rate.",
+    "You don't have to take any steps, the heating starts automatically.",
+    "There are no steps at the entrance, it is wheelchair accessible.",
+    "Instructions for the coffee machine are on the fridge door.",
+  ],
+  tr: ["Havuz bilgileri ev kurallarında yer alıyor.", "Otopark ücreti fiyata dahil değil."],
+  es: ["La piscina no está disponible en invierno.", "El desayuno no está incluido en el precio."],
+  fr: ["La piscine n'est pas disponible dans la journée.", "Le petit-déjeuner n'est pas inclus dans le prix."],
+  de: ["Das Frühstück ist im Preis nicht enthalten.", "Die Sauna ist in den Wintermonaten nicht verfügbar."],
+  ru: ["В квартире нет утюга, но есть отпариватель.", "Нет, курить нельзя."],
+  ar: ["غير متاح في الشتاء.", "المسبح غير متاح بعد الساعة 20:00."],
+};
+
+describe("'… bilgide yok' kalıbı (karar 23 kör doğrulaması, 10-01 öğlen) — yedi dil, iki yön", () => {
+  for (const [lang, list] of Object.entries(ADMITS_IN_INFO)) {
+    it(`${lang}: "bilgide yok / mevcut değil" itirafı TUTULUR`, () => {
+      for (const m of list) expect(admitsMissingKnowledge(m), m).toBe(true);
+    });
+  }
+  for (const [lang, list] of Object.entries(LEGIT_IN_INFO)) {
+    it(`${lang}: yeri bilgi olmayan "dahil değil / mevcut değil" olgusu TUTULMAZ`, () => {
+      for (const m of list) expect(admitsMissingKnowledge(m), m).toBe(false);
+    });
+  }
+});
+
 describe("'bilgim yok' yüklemi — yedi dil (kurucu kuralı dilden bağımsız)", () => {
   for (const [lang, list] of Object.entries(ADMITS)) {
     it(`${lang}: açık yokluk itirafı TUTULUR`, () => {

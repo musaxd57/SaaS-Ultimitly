@@ -14,6 +14,7 @@ import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { extractTurnItems } from "@/lib/conversation-items/extract";
 import { composeItemsPlan, hintKey, relationFactsOf } from "@/lib/conversation-items/plan";
+import { kbRecipeTopics } from "@/lib/conversation-items/relation";
 import {
   hasEmergency,
   labelsHoldWholeTurn,
@@ -172,7 +173,13 @@ async function runArm(data: Dataset, s: Scenario, arm: "today" | "items"): Promi
             for (const m of ex.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind), it.hint);
             // İlişki kipi (kurucu kararı 10-01 sabah): anlama katmanı işaret verdiyse ürünle AYNI olgular (`plan.relationFactsOf`).
             const relations = relationFactsOf(ex.messages);
-            const plan = composeItemsPlan({ turnItems, held, hints, ...(relations ? { relations } : {}) });
+            // Arıza çözümü yalnız modelin GÖRECEĞİ bilgi tabanında o konunun tarifi varsa (ürünle aynı: `flow.planItemsTurn`).
+            const plan = composeItemsPlan({
+              turnItems,
+              held,
+              hints,
+              ...(relations ? { relations, kbRecipeTopics: kbRecipeTopics(kbSel.items) } : {}),
+            });
             row.answerable = plan.answerable.map((a) => `${a.ref}:${a.item.kind}`).join(" ");
             row.heldKinds = [...new Set(held.map((h) => h.kind))].join(" ");
             if (!plan.allHeld) conversationItems = plan.replyItems;
