@@ -86,3 +86,21 @@ describe("buildOperationalTaskData", () => {
     expect(data.dedupeKey).toBe("p:restock:havlu:2026-07-11");
   });
 });
+
+describe("15 ajan A11 — görev ağı alt dize eşleştirmez (sahte görev yok)", () => {
+  it.each([
+    "Our team ran out of patience with the noise.",
+    "The steakhouse nearby is closed, any other idea?",
+    "It's a bleak day, but the flat is lovely.",
+  ])("🚨 alt dize görev açmaz: %j", (m) => {
+    expect(detectOperationalTask(m, {})).toBeNull();
+  });
+
+  it("KONTROL: gerçek sözcük + İngilizce çekim eki / Türkçe ek hâlâ eşleşir", () => {
+    expect(detectOperationalTask("The towels are missing.", {})?.topic).toBe("towel");
+    expect(detectOperationalTask("We ran out of tea.", {})?.topic).toBe("tea");
+    expect(detectOperationalTask("The sink keeps leaking.", {})?.topic).toBe("leaking");
+    expect(detectOperationalTask("Havlular bitmiş.", {})?.topic).toBe("havlu");
+    expect(detectOperationalTask("Klima bozulmuş.", {})?.topic).toBe("bozulmuş");
+  });
+});

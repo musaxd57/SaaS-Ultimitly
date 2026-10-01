@@ -60,8 +60,32 @@ const RESTOCK_LACK = [
   "out of", "ran out", "missing", "need more", "no more", "empty",
 ];
 
+/**
+ * İngilizce sözcükler yalnız TAM sözcük + İngilizce çekim eki (-s / -es / -ing / -ed); Türkçe (ve ASCII'ye katlanmış Türkçe) sözcükler
+ * sözcük BAŞINDA, ek serbest ("havlular", "bozulmuş"). 15 ajan A11 (10-01, ölçüldü): ham `includes` "Our team ran out of patience"
+ * mesajından "Eksik Eşya: tea", "steakhouse"tan "tea", "bleak"ten "Bakım: leak" görevi açıyordu.
+ */
+const ENGLISH_TASK_WORDS: ReadonlySet<string> = new Set([
+  "broken", "not working", "doesn't work", "does not work", "won't turn on", "wont turn on", "leaking", "leak", "clogged",
+  "no hot water", "no water", "no electricity", "no power", "out of order",
+  "towel", "shampoo", "soap", "toilet paper", "toilet roll", "napkin", "detergent", "trash bag", "coffee", "tea",
+  "out of", "ran out", "missing", "need more", "no more", "empty",
+]);
+const WORD_RE = new Map<string, RegExp>();
+function wordRe(w: string): RegExp {
+  let re = WORD_RE.get(w);
+  if (!re) {
+    const body = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    re = ENGLISH_TASK_WORDS.has(w)
+      ? new RegExp(`(?<![\\p{L}\\p{N}])${body}(?:s|es|ing|ed)?(?![\\p{L}\\p{N}])`, "u")
+      : new RegExp(`(?<![\\p{L}\\p{N}])${body}`, "u");
+    WORD_RE.set(w, re);
+  }
+  return re;
+}
+
 function firstHit(msg: string, words: string[]): string | null {
-  for (const w of words) if (msg.includes(w)) return w;
+  for (const w of words) if (wordRe(w).test(msg)) return w;
   return null;
 }
 
