@@ -12,6 +12,7 @@ import { explicitTimeMentions, mentionsAnotherDay } from "@/lib/early-checkin/te
 import { runStayChangeGuard } from "@/lib/ai/semantic/guard";
 import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import { understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
+import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { slotTimesShifted, type StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
 import { writeSidecar } from "./sidecar";
 import { summarizeUnion, unionMetricsLines, type UnionRow } from "./stay-metrics";
@@ -109,8 +110,15 @@ const SPLITS = SEALED ? (real ? ["final", "real"] : ["final"]) : ["dev", "holdou
 const LIMIT = Number(process.env.EVAL_STAY_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_STAY_LIMIT)) : Infinity;
 // Anlama katmanının KİPİ canlıyla aynı ölçülsün (09-26): öğe kipi (`AI_CONVERSATION_ITEMS_ENABLED`) ve ev kuralı gölge kipi
 // (`AI_HOUSE_RULES_SHADOW`) istemi ve şemayı değiştirir → açmadan önce bu eval o kipte koşulur. Varsayılan temel kip (eski).
-const NLU_MODE = { items: process.env.EVAL_UNDERSTANDING_ITEMS === "1", rules: process.env.EVAL_UNDERSTANDING_RULES === "1" };
-const NLU_MODE_TAG = [NLU_MODE.items ? "items" : "", NLU_MODE.rules ? "rules" : ""].filter(Boolean).join("+") || "temel";
+// Şikâyet takibi kipi (10-01): ürün anlama katmanına `complaintFollowup`ı `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` ile verir
+// (`kb-retrieve.ts`) — ölçer AYNI bayraktan okur, aday yapılandırma canlıdaki istemle ölçülsün.
+const NLU_MODE = {
+  items: process.env.EVAL_UNDERSTANDING_ITEMS === "1",
+  rules: process.env.EVAL_UNDERSTANDING_RULES === "1",
+  complaintFollowup: complaintFollowupRuleEnabled(),
+};
+const NLU_MODE_TAG =
+  [NLU_MODE.items ? "items" : "", NLU_MODE.rules ? "rules" : "", NLU_MODE.complaintFollowup ? "cfu" : ""].filter(Boolean).join("+") || "temel";
 // Eşzamanlılık (10-01): gpt-6-luna'nın dakikalık token sınırı 5.1'den düşük (≈200k) — `EVAL_STAY_CONCURRENCY` ile düşürülür.
 const CONCURRENCY = Number(process.env.EVAL_STAY_CONCURRENCY) > 0 ? Math.min(8, Math.trunc(Number(process.env.EVAL_STAY_CONCURRENCY))) : 4;
 
@@ -227,6 +235,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
           stayTimes,
           ...(NLU_MODE.items ? { items: true } : {}),
           ...(NLU_MODE.rules ? { rules: true } : {}),
+          ...(NLU_MODE.complaintFollowup ? { complaintFollowup: true } : {}),
         });
         if (u.status !== "ok") failures++;
         else {
@@ -307,8 +316,11 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
     // Model kıyası (09-25): aynı gün iki modelin koşusu birbirini EZMESİN → mühürsüz raporun adı modeli taşır.
-    const modelTag = semanticModel().replace(/[^a-z0-9.-]+/gi, "_");
-    const modeSuffix = NLU_MODE_TAG === "temel" ? "" : `-${NLU_MODE_TAG.replace("+", "-")}`;
+    // Katman bazında model (10-01): anlama ve bekçi ayrı modelde koşabilir → ad ikisini de taşır (ikisi ortak ayardaysa eski ad).
+    const tagOf = (m: string) => m.replace(/[^a-z0-9.-]+/gi, "_");
+    const [uModel, gModel] = [semanticModel("understanding"), semanticModel("guard")];
+    const modelTag = uModel === gModel ? tagOf(uModel) : `u-${tagOf(uModel)}_g-${tagOf(gModel)}`;
+    const modeSuffix = NLU_MODE_TAG === "temel" ? "" : `-${NLU_MODE_TAG.replaceAll("+", "-")}`;
     const name = SEALED ? `stay-change-FINAL-eval-${stamp}.md` : `stay-change-eval-${stamp}-${modelTag}${modeSuffix}.md`;
     const status = failures > 0 ? `GEÇERSİZ — ${failures} çağrı düştü` : "GEÇERLİ";
     const head = [
@@ -316,7 +328,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       "",
       `Durum: **${status}** · veri sürümü ${data.version} · istek ${data.requests.length} · cevap ${data.replies.length}` +
         (Number.isFinite(LIMIT) ? ` · örnek sınırı ${LIMIT}` : ""),
-      `Model: \`${semanticModel()}\` · reasoning_effort: ${semanticReasoningEffort() ?? "model varsayılanı"} · anlama kipi: ${NLU_MODE_TAG}`,
+      `Anlama: \`${uModel}\` · reasoning_effort: ${semanticReasoningEffort("understanding") ?? "model varsayılanı"} · Bekçi: \`${gModel}\` · reasoning_effort: ${semanticReasoningEffort("guard") ?? "model varsayılanı"} · anlama kipi: ${NLU_MODE_TAG}`,
       "",
       SEALED
         ? "🚨 MÜHÜRLÜ FİNAL KOŞUSU: genelleme ölçüsü bu raporun TAMAMIdır. Koşu bitti → set YANDI (`evals/sealed/SEALS.json` durumu `burned`; sonraki karar için yeni kör set)."
