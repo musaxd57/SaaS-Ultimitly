@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { registerSchema, zodFieldErrors } from "@/lib/validators";
 import { hashPassword } from "@/lib/auth/password";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
-import { isSuperAdmin } from "@/lib/admin";
+import { isSuperAdmin, isSuperAdminEmail } from "@/lib/admin";
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
@@ -39,6 +39,12 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
     const email = normalizeEmail(parsed.data.email);
+    // 10-01 (15 ajan incelemesi A02-F12): operatör listesindeki adres müşteri hesabı olarak AÇILMAZ — bu yol e-postayı doğrulanmış
+    // sayar; listede olup hesabı henüz olmayan bir adres (ikinci operatör, takma ad) çalınmış bir operatör oturumuyla açılıp kendi 2FA'sı
+    // kurularak kalıcı operatör kimliğine dönüşürdü.
+    if (isSuperAdminEmail(email)) {
+      return badRequest({ email: "Bu adres operatör hesabı için ayrılmış; müşteri hesabında kullanılamaz." });
+    }
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
 

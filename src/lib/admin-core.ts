@@ -39,7 +39,10 @@ function superAdminEmails(): Set<string> {
  * judged on THIS, so an operator keeps their powers while impersonating.
  */
 export function actorEmail(session: SessionPayload): string {
-  return (session.actorEmail ?? session.email).toLowerCase();
+  // 10-01 (15 ajan incelemesi A02-F14): operatör e-postası YALNIZ operatör kimliğiyle (`actorUserId`, bürünme) birlikte sayılır. Öteki
+  // bütün operatör kontrolleri (operatör epoch'u, 2FA, 2 saatlik sınır, salt-okunur kapı) `actorUserId`e bakar; yalnız `actorEmail`
+  // taşıyan bir belirteç (bugün hiçbir yol üretmiyor) müşteri org'unda sınırsız, yazabilir bir operatör oturumu olurdu.
+  return (session.actorUserId ? (session.actorEmail ?? session.email) : session.email).toLowerCase();
 }
 
 /**
@@ -74,6 +77,15 @@ export function isSuperAdmin(session: SessionPayload | null): boolean {
   if (session.mfa !== true) return false;
   const emails = superAdminEmails();
   return emails.has(actorEmail(session));
+}
+
+/**
+ * Adres operatör listesinde (`SUPERADMIN_EMAILS`) mi. Operatörün müşteri hesabı açarken bu adresi kullanmasını reddetmek için
+ * (10-01, 15 ajan incelemesi A02-F12): o yol e-postayı doğrulanmış sayar, listede olup hesabı henüz olmayan bir adres çalınmış bir
+ * operatör oturumuyla açılıp kendi 2FA'sı kurularak kalıcı bir operatör kimliğine dönüşürdü.
+ */
+export function isSuperAdminEmail(email: string): boolean {
+  return superAdminEmails().has(email.trim().toLowerCase());
 }
 
 /** True when the current session is an operator impersonating a customer org. */

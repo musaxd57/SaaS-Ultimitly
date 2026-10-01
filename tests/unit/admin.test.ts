@@ -60,6 +60,18 @@ describe("operator panel authorization", () => {
     };
     expect(isSuperAdmin(sneaky)).toBe(false);
   });
+
+  it("🚨 operatör e-postası operatör KİMLİĞİ (actorUserId) olmadan sayılmaz (10-01, A02-F14)", () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", "operator@example.com");
+    // Müşteri e-postası + operatör e-postası alanı + mfa, ama actorUserId YOK: bürünme sayılmaz (sınır / salt-okunur kapı bakmaz) —
+    // operatör yetkisi de verilmemeli.
+    const orphan: SessionPayload = { ...base, email: "customer@client.com", actorEmail: "operator@example.com" };
+    expect(isImpersonating(orphan)).toBe(false);
+    expect(actorEmail(orphan)).toBe("customer@client.com");
+    expect(isSuperAdmin(orphan)).toBe(false);
+    // KONTROL: aynı alanlar operatör kimliğiyle birlikte → bürünen operatörün yetkisi (bugünkü davranış).
+    expect(isSuperAdmin({ ...orphan, actorUserId: "u1" })).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

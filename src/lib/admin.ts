@@ -18,7 +18,7 @@ import type { UserRole } from "@/lib/constants";
 // `isSuperAdmin`'e ihtiyaç duyuyor ve buradan almak DAİRESEL bir bağ kuruyordu
 // (ölçüldü: `exit-impersonation.test.ts`'in 5 testi anında kırıldı). Gövde TEK,
 // burada yalnız yeniden dışa aktarılıyor → 14 çağrı yerinin hiçbiri değişmedi.
-export { actorEmail, isSuperAdmin, isImpersonating } from "@/lib/admin-core";
+export { actorEmail, isSuperAdmin, isSuperAdminEmail, isImpersonating } from "@/lib/admin-core";
 
 
 
