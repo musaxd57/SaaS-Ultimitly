@@ -23,6 +23,20 @@ describe("üslup profili — erişim bilgisi anan satır düşer", () => {
     expect(scrubStyleProfileForPublic(line)).toBeNull();
   });
 
+  // Mutasyon turu (10-01 gece): üstteki satırların çoğu İKİ işaret taşıyordu ("ağ adı … şifre", "keypad and lockbox"); her terim TEK BAŞINA:
+  it.each([
+    "Şifreyi ilk mesajda verir.",
+    "Ağ adını hemen paylaşır.",
+    "Shares the password right away.",
+    "Explains the keypad step by step.",
+    "Mentions the lockbox early.",
+    "Nennt das Passwort sofort.",
+    "Da la contraseña enseguida.",
+    "Kodu ilk mesajda verir.",
+  ])("🚨 tek işaretli satır düşer: %j", (line) => {
+    expect(scrubStyleProfileForPublic(line)).toBeNull();
+  });
+
   it.each([
     "TARZ: Samimi ve kısa yazar, 'Merhaba' ile başlar.",
     "SIK SORULAN: Otopark için bina altını tarif ediyor.",

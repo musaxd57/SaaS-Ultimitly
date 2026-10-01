@@ -479,7 +479,7 @@ const STYLE_CREDENTIAL_LINE = new RegExp(
     "wi-?fi",
     "wlan",
     "ssid",
-    "ag adi",
+    "ag adi\\p{L}{0,6}",
     "kod(?:u|unu|lari|larini|unuz)?",
     "pin",
     "tus takim\\p{L}{0,4}",

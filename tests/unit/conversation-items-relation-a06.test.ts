@@ -74,6 +74,27 @@ describe("1 — tehlike sözlüğü (kurucu 18 'a': elektrik / gaz / sıcak su /
     expect(fixHazard(t)).toBe(true);
   });
 
+  // Mutasyon turu (10-01 gece): üstteki cümlelerin bir kısmı İKİ tehlike işareti taşıdığı için tek tek terimler pinsizdi
+  // ("Petek vanasını tornavidayla…", "Heizkörper entlüften", "Light the stove with a match", "Den FI wieder…"). Her terim TEK BAŞINA:
+  it.each([
+    "Vidayı tornavidayla sıkın.",
+    "Petek soğuk kalıyor.",
+    "Der Heizkörper bleibt kalt.",
+    "Die Leitung entlüften.",
+    "Le radiateur reste froid.",
+    "El radiador está frío.",
+    "Purgez la conduite.",
+    "Purgue la tubería.",
+    "Light it with a match.",
+    "Light the stove carefully.",
+    "Den FI hochdrücken.",
+    "Danach FI wieder einschalten.",
+    "Стравите воздух.",
+    "Выпустите воздух из батареи.",
+  ])("🚨 tek işaretli tehlike: %j", (t) => {
+    expect(fixHazard(t)).toBe(true);
+  });
+
   it.each([
     // "FI" yalnız kalıpla: katlanmış "wi-fi" içinde tam sözcük olurdu.
     "Wi-Fi şifresi buzdolabının üstünde.",
@@ -165,6 +186,9 @@ describe("3 — tarif tanıyıcı: iki kademeli işaret + yalnız tırmandırma 
     expect([...kbRecipeTopics([faq])]).toEqual(["ac"]);
     const combo = { title: "TV ve İnternet", content: "TV görüntü vermiyorsa SOURCE tuşuna basın. Modem salonda, TV ünitesinin altında." };
     expect([...kbRecipeTopics([combo])]).toEqual(["tv"]);
+    // Çok konulu başlıkta tarif cümlesinin BAŞLIK DIŞI cihazı (burada klima) tarifli sayılmaz (mutasyon turu: süzgeç pinsizdi).
+    const comboExtra = { title: "TV ve İnternet", content: "TV görüntü vermiyorsa SOURCE tuşuna basın, klimayı da kapatın." };
+    expect([...kbRecipeTopics([comboExtra])]).toEqual(["tv"]);
     // KONTROL: tek cihazlı başlık eski kural (başlık konusu), tarif cümlesi cihaz adı taşımasa da.
     expect([...kbRecipeTopics([{ title: "Klima", content: "Soğutmazsa MODE tuşuna basın." }])]).toEqual(["ac"]);
   });
