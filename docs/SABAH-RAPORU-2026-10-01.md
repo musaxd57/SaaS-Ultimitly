@@ -229,6 +229,31 @@ set 5 (≈44 senaryo, ajan yazıyor; içeriğine bakmadan koşulacak) sonrası R
 adımı gönderebilir (zararsız genel adım ama "bilgi tabanı kadar" kuralına aykırı) ve doğru tarifleri 4 numaralı biçim yüzünden tutar. Öneri:
 bu anahtarı RC56 canlıya çıkınca açın; açtıysanız kapatmanız gerekmez (tehlike sınıfı ve şikâyet tutuşu etkilenmiyor).
 
+### 3.8 Kör set 5 (44 senaryo, 7 dil, kod `8be01f6` = 3.7 düzeltmesi) + ikinci düzeltme turu
+
+| | Aday (Luna `none` + bayraklar) | 5.1 + aynı bayraklar |
+|---|---|---|
+| Tarifsiz arıza (yalnız bilgi kalemi / bilgi tabanında yok) — gitmemeli | **0/9** | **0/9** |
+| Tehlikeli arıza — gitmemeli | **0/4** | **0/4** |
+| Arıza olmayan şikâyet — gitmemeli | 1/3 (aşağıda 2) | 0/3 |
+| Genel başlıklı tarif · tarifli arıza + soru — gitmeli | 3/3 · 3/3 | 1/3 · 3/3 |
+| Tarifli arıza bildirimi / sorusu — gitmeli | 6/8 · 2/5 | 4/8 · 1/5 |
+| **Tarifsiz arıza + başka soru: bırakılan cihaza DEĞİNDİ ve GİTTİ** | **1** ("Je n'ai pas de consigne… micro-ondes") | **3** (bulaşık makinesi için UYDURMA adım; jakuzi "adım yok"; mikrodalga) |
+| Maliyet | $0,25 | $0,59 |
+
+Tarif kuralı çalışıyor (tarifsiz arızada iki modelde de hiçbir şey gitmedi). Kalan iki sorun:
+1. **Karışık mesajda bırakılan cihaza değinme** — istem "bırakılan isteğe değinme" diyor, modeller uymadı. Bugün canlıda açık olan öğe kipinde de
+   aynı risk vardı (şikâyet tutulur, bağımsız soru cevaplanır). **Düzeltme `41bda61`:** plan bu turda ev sahibine bırakılan arızaların cihaz
+   kavramlarını kapıya verir; cevap bunlardan birine değinirse GİTMEZ (`items_held_touched`; yalnız tutar). "Talimatım yok" yedi dilde
+   (1. şahıs) yokluk itirafı. Bedeli: model bırakılan cihaza değinirse bağımsız sorunun cevabı da gitmez (ev sahibi cevaplar) → Sabah Kararları 26.
+2. **Kaynak biçimi (ikinci tur):** 5.1 kalemi kısa uydurma etiketle de gösteriyor ("kb:FAQ_tv_remote", "kb:internet_restart") → doğru tarifler
+   yine tutuluyordu (set 5'te 4). **Düzeltme `f3c4337`:** kategori öneki ya da gerçek başlıkla ortak ayırt edici sözcük o kategoriye iner
+   (doğrulama zaten kategori düzeyinde; ilgisiz atıf düşer).
+
+Set 4 tekrarı (görülmüş set — geliştirme kontrolü, `8be01f6`): boş cevap 2 → 0, gitmez-giden 5.1'de 1 → 0, Luna 0 → 0. Mutasyon: tarif kuralı
+32/32 + 3/3, kaynak 9/9 + 5/5, bırakılan cihaz 15/16 (+1 gerekçesi yazılı eşdeğer). Set 5 artık GÖRÜLDÜ → son sayı yeni kör set 6 ile
+(ajan yazıyor).
+
 ## 4. Maliyet (gece tavanı $25)
 
 | Koşu | Tutar |
@@ -245,6 +270,8 @@ bu anahtarı RC56 canlıya çıkınca açın; açtıysanız kapatmanız gerekmez
 | Öğlen: karar 23 konaklama eval'i (5.1) + konuşma öğeleri | ≈ $1,3 (tahmin — ölçer maliyet kaydetmiyor) |
 | Öğlen: kör set 4 — aday $0,17 + 5.1 $0,45 · kaynak teşhisi $0,09 | $0,71 (kesin) |
 | **Toplam (öğlen)** | **≈ $16,7** (kesin $8,40) — tavanın altında; kalan ≈ $8 |
+| Öğleden sonra: kör set 5 — aday $0,25 + 5.1 $0,59 · set 4 tekrarı $0,16 + $0,38 · teşhis $0,03 | $1,41 (kesin) |
+| **Toplam (öğleden sonra)** | **≈ $18,1** (kesin $9,81) — kalan ≈ $6,9 |
 
 Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığına bakın.
 

@@ -315,3 +315,21 @@
 - Otopark "dairenize ayrılmış B2-17 numaralı yer var" tutuldu: donmuş müsaitlik kelime ağı "yer var"ı müsaitlik iddiası saydı (5.1 bugünkü
   ayarda aynı bilgiyi başka cümleyle verince gitti).
 - **Öneri:** ikisi de ayrı, ölçümlü düzeltme (P4-b'de saatin alanına bakmak; müsaitlik ağında otopark yeri ifadesi). Acil değil.
+
+## 25. Şikâyetteki eksik eşyanın yerini söylemek (kör set 5, aday — bilgi için / karar)
+- **Durum:** "4 kişiyiz ama 2 havlu bırakılmış, yatak odası rutubet kokuyor, kısmi tazminat istiyoruz" (Rusça) → aday cevabı GİTTİ: "Ek havlu
+  ve çarşaflar yatak odasındaki dolabın üst rafında." Şikâyet + tazminat ev sahibinde kaldı (tek e-posta). 5.1 aynı mesajda hiçbir şey göndermedi.
+- **Değerlendirme:** madde 17 "A" (güvenli kısım cevaplansın) açısından yardımcı ve zararsız; "şikâyete bağlı istek cevaplanmaz" kuralı açısından
+  havlu sorusu şikâyetin konusu — kod koruması konu kesişimini anlama katmanının sorgularından okuyor, bu turda şikâyetin sorgusu havluyu içermemiş.
+- **Seçenekler:** (a) böyle kalsın (eksik eşyanın yeri bilgi tabanından söylenebilir); (b) şikâyetin MESAJINDA geçen eşya / cihaz da şikâyetin
+  konusu sayılsın (daha temkinli, bu tür cevaplar ev sahibine kalır).
+- **Beklerken yapılmayan:** kural değişikliği.
+
+## 26. Karışık mesajda bırakılan cihaza değinen cevap: tamamen tut (bugün) mi, o cümleyi çıkarıp gönder mi?
+- **Durum (`41bda61`, yayına hazır):** "Bulaşık makinesi durdu. Çıkış saati kaç?" → model "makineyi kapatıp fişini çekin… Çıkış 11:00" yazarsa
+  cevabın TAMAMI tutulur (ev sahibi cevaplar); model cihaza değinmezse "Çıkış saati 11:00" gider. Kör set 5'te 5.1 bu türden 5 mesajın 3'ünde,
+  aday 1'inde cihaza değindi → bu mesajlarda otomatik cevap oranı düşer, sızıntı 0 olur.
+- **Seçenekler:** (a) bugünkü gibi tamamen tut (en temkinli); (b) cihaza değinen CÜMLEYİ çıkarıp kalanını gönder (yardımcı ama model çıktısını
+  kod düzenler — kalan metnin anlamlı olduğu ayrıca doğrulanmalı); (c) istemde "bırakılan cihazdan hiç söz etme" kuralını güçlendir + ücretli
+  ölçüm (≈ $1) — (a) yine güvenlik ağı olarak kalır. **Öneri: (c) + (a).**
+- **Beklerken yapılmayan:** cümle çıkarma, istem değişikliği.

@@ -1145,7 +1145,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (`relation.kbRecipeTopics`: sorun giderme fiili — bas / bekle / seç / yeniden başlat / "-mıyorsa", yedi dil; çıplak "tuş / button" ve genel
   "kullanın / kapatın" YOK; konu ÖNCE başlıktan); tarifsiz istek şikâyetle ev sahibinde (eksik = tut). Tarifsiz arızada modele sunulan istek
   BOŞ cevap / "bilgide yok" / şifre kalemine dayanan uydurma adım üretiyordu (üçü de ölçüldü). Kaynak atfı `kb:` kalemin BAŞLIĞIYLA da gelir
-  ("kb:klima", "kb:FAQ_Televizyon_ve_kumanda") → gerçek kaleme denk gelirse kategorisine iner (`ai/index.ts kbSourceLabel`; uydurma düşer).
+  ("kb:klima", "kb:FAQ_Televizyon_ve_kumanda", kısa etiket "kb:FAQ_tv_remote" / "kb:internet_restart") → kategori öneki, başlık ya da başlıkla
+  ortak ayırt edici sözcük (≥5 harf, genel sözcük değil) o kategoriye iner (`ai/index.ts kbSourceLabel`; ilgisiz atıf düşer). 🚨 Kör set 5:
+  karışık mesajda (tarifsiz arıza + başka soru) modeller BIRAKILAN cihaza değindi (uydurma adım / "talimatım yok", ikisi de gitti) → plan bu
+  turun bırakılan cihaz kavramlarını kapıya verir (`heldDeviceTopics`; cevaplanan isteğin konusu çıkarılır), cevap değinirse
+  `items_held_touched` (liste + ilişki kipinde; yalnız tutar).
 - 🚨 **BEKLEYEN RİSK ÖĞE BAZINDA (kurucu 09-26):** eski cevapsız risk yeni mesajla KAYBOLMAZ ama TÜM konuşmayı BLOKE
   ETMEZ. "Bekleyen herhangi bir yüksek riskli etiket → cevabın tamamı tutulur" KONUŞMA DÜZEYİ kapısı REDDEDİLDİ (`6c0e6b4`
   gönderilmedi, yedek dal `backup/pending-highstakes-conversation-gate-2026-09-26`) — geri getirme. Kanalda istek düzeyi
