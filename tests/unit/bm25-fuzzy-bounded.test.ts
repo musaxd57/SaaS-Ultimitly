@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Bm25Index, FUZZY_MIN_LEN, fuzzyAllowance, osaDistance, osaDistanceWithin } from "@/lib/ai/retrieval/bm25";
+import { Bm25Index, FUZZY_MIN_LEN, __fuzzyScanCount, fuzzyAllowance, osaDistance, osaDistanceWithin } from "@/lib/ai/retrieval/bm25";
 
 // ---------------------------------------------------------------------------
 // YAZIM HATASI EŞLEŞMESİ (BM25 fuzzy) — sınırlı uzaklık + önbellek, SONUÇ BİREBİR (10-01, 15 ajan incelemesi A14 — ÖLÇÜLDÜ).
@@ -81,6 +81,17 @@ describe("Bm25Index.fuzzy — sınırlı hesap + önbellek, seçim eski algoritm
       // Önbellekten ikinci okuma aynı.
       expect(idx.fuzzy(term)).toBe(referenceFuzzy(vocab, term));
     }
+  });
+
+  it("önbellek: aynı bilinmeyen kök ikinci kez (başka alt sorguda) sözlüğü YENİDEN TARAMAZ, sonuç aynı", () => {
+    const idx = new Bm25Index([{ key: "a", title: "Otopark", text: "otopark arka sokakta, havlular dolapta" }]);
+    const before = __fuzzyScanCount();
+    const first = idx.fuzzy("otopakr");
+    expect(__fuzzyScanCount()).toBe(before + 1);
+    expect(idx.fuzzy("otopakr")).toBe(first);
+    idx.scores(new Map([["otopakr", 1]]));
+    expect(__fuzzyScanCount()).toBe(before + 1);
+    expect(first).toBe("otopark");
   });
 
   it("731 bilinmeyen kök × ~1.400 sözlük kökü → 300 ms altında (eski 2,4 sn)", () => {

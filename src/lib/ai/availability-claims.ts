@@ -218,6 +218,8 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `${NL}gec\\s+(?:cikis|check|cik|ayril|birak|teslim)${L}`,
     `${NL}daha\\s+gec\\s+(?:cik|ayril|birak)${L}`,
     `${NL}(?:cikis|${CO})${L}${gap(3)}(?:geciktir|ertele|uzat|sonraya|daha\\s+gec)${L}`,
+    // Ayraç yuvası doğrusal (`\\s*(?:['’]\\s*)?`, 10-01 A14); istek kalıpları aday biçimlerde koşar ve aday boşluk dizisi teke iner →
+    // eski yazım bugün eşdeğer (mutasyon), kural gereği doğrusal tutulur.
     `\\d{1,2}(?:[:.]\\d{2})?(?:\\s*(?:['’]\\s*)?\\p{L}{1,3})?\\s+(?:kadar|dek)${gap(1)}kal${L}`,
     `${NL}late\\s+${CO}${NR}`,
     `${NL}(?:check|checking)\\s+out\\s+(?:late|later|after)${NR}`,

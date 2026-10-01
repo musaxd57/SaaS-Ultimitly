@@ -40,15 +40,14 @@ export function osaDistance(a: string, b: string): number {
 /**
  * `osaDistance` ile AYNI uzaklık, yalnız `max`a kadar hesaplanır: sonuç `min(osaDistance(a, b), max + 1)` (10-01, 15 ajan
  * incelemesi A14 — ÖLÇÜLDÜ). Eski tarama her sözlük kökü için TAM bir 2B tablo kuruyordu; misafirin uzun mesajındaki 731 bilinmeyen kök
- * × 1.438 sözlük kökü 2,4 sn sürüyordu (bekleyen mesajlarla 7,7 sn — paylaşılan süreçte herkes bekler). Burada: uzunluk farkı `max`ı
- * aşarsa hiç hesap yok; üç satırlık döner tampon (OSA yer değiştirmesi i-2'ye bakar); bir satırın en küçüğü `max`ı aşınca dur —
+ * × 1.438 sözlük kökü 2,4 sn sürüyordu (bekleyen mesajlarla 7,7 sn — paylaşılan süreçte herkes bekler). Burada (uzunluk farkı süzgeci
+ * çağıranda, `fuzzy`): üç satırlık döner tampon (OSA yer değiştirmesi i-2'ye bakar); bir satırın en küçüğü `max`ı aşınca dur —
  * geçerli, çünkü satır en küçüğü azalmaz (yer değiştirme hücresi d[i-2][j-2]+1 ≥ d[i-1][j-1]). `fuzzy` yalnız `≤ max` uzaklığı kabul
  * ettiği için seçim BİREBİR aynı (rastgele dizilerle eşdeğerlik pinli: `bm25-fuzzy-bounded.test.ts`).
  */
 export function osaDistanceWithin(a: string, b: string, max: number): number {
   const n = a.length;
   const m = b.length;
-  if (Math.abs(n - m) > max) return max + 1;
   let prev2 = new Array<number>(m + 1).fill(0);
   let prev = new Array<number>(m + 1);
   let cur = new Array<number>(m + 1);
@@ -74,6 +73,11 @@ export function osaDistanceWithin(a: string, b: string, max: number): number {
 
 /** `fuzzy` sonucunun dizin başına önbelleği (aynı kök alt sorgular / bekleyen mesajlar arasında tekrar eder); taşarsa boşalır. */
 const FUZZY_MEMO_MAX = 4_096;
+/** Sözlük taraması sayacı — YALNIZ test (önbelleğin tekrar taramayı gerçekten önlediğini pinler). */
+let fuzzyScans = 0;
+export function __fuzzyScanCount(): number {
+  return fuzzyScans;
+}
 
 export function fuzzyAllowance(len: number): number {
   if (len < FUZZY_MIN_LEN) return 0;
@@ -143,6 +147,7 @@ export class Bm25Index {
     if (allow === 0 || /\d/.test(term)) return null;
     const memo = this.fuzzyMemo.get(term);
     if (memo !== undefined) return memo;
+    fuzzyScans++;
     let best: string | null = null;
     let bestDist = Number.POSITIVE_INFINITY;
     for (const v of this.vocab) {

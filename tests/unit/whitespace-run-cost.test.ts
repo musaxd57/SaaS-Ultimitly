@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { detectKbInstructionHijack, detectRiskTypes, isSafetyEmergencyText } from "@/lib/ai/fallback";
-import { withoutSecretKbItems } from "@/lib/guest-chat";
-import { detectAvailabilityRequestKinds } from "@/lib/ai/availability-claims";
+import { isPhysicalEmergency, withoutSecretKbItems } from "@/lib/guest-chat";
+import { detectAvailabilityRequestKinds, evaluateAvailability } from "@/lib/ai/availability-claims";
 import { auditClaims } from "@/lib/ai/claim-support";
 import { hasMoneyStatement, moneyAmountsOf } from "@/lib/ai/stay-money";
 
@@ -91,6 +91,19 @@ describe("acil ağı — kesme / aksan dizisinde sınırlı süre, hüküm aynı
     expect(r).toEqual([]);
   });
 
+  // QR'ın fiziksel acil yüklemi nötrlemeyi HAM (katlanmış, boşluğu normalize edilmemiş) mesaja uygular: yazım burada da doğrusal olmalı
+  // (QR mesajı 2.000 karakterle sınırlı ama yüklemin kendisi sınır taşımaz).
+  it.each([
+    ["xfire + 50.000 boşluk", "xfire" + SP(50_000) + "x"],
+    ["no emergency non + 50.000 boşluk", "no emergency non" + SP(50_000) + "x"],
+    ["yangın söndürücü break + 50.000 boşluk", "yangın söndürücü nerede break" + SP(50_000) + "x"],
+  ])("%s → isPhysicalEmergency 300 ms altında, acil değil", (_ad, girdi) => {
+    isPhysicalEmergency("Isınma: havlu nerede?");
+    let r = true;
+    expect(ms(() => (r = isPhysicalEmergency(girdi)))).toBeLessThan(300);
+    expect(r).toBe(false);
+  });
+
   it.each([
     ["Fire - extinguisher nerede?", false],
     ["Where is the fire-extinguisher?", false],
@@ -128,6 +141,12 @@ describe("müsaitlik isteği — rakamdan sonra kesme dizisinde sınırlı süre
     let r: readonly string[] = ["?"];
     expect(ms(() => (r = detectAvailabilityRequestKinds("1" + AP(50_000) + "x")))).toBeLessThan(300);
     expect(r).toEqual([]);
+  });
+
+  it("cevap tarafı: standart çıkış ayıklaması HAM cevapta '1' + 50.000 boşluk → 300 ms altında", () => {
+    const opts = { stayTimes: { checkIn: "15:00", checkOut: "11:00" } };
+    evaluateAvailability("Isınma: çıkış 11:00.", ["Çıkış kaçta?"], opts);
+    expect(ms(() => evaluateAvailability("1" + SP(50_000) + "x", ["Çıkış kaçta?"], opts))).toBeLessThan(300);
   });
 
   it.each(["Saat 14'e kadar kalabilir miyiz?", "14 ' e kadar kalabilir miyiz?", "13:00 'a kadar kalmak mümkün mü?"])(

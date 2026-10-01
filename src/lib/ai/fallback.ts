@@ -1886,6 +1886,9 @@ export function detectPromptInjection(message: string): boolean {
 // karesel (art arda dört yuvada dördüncü kuvvet) geri izler — "confidence" + 411 kesme 3,5 sn, "ai" + 4.000 kesme 1,7 sn; kalem
 // her yapay zekâ çağrısında taranır ve bir kiracının kalemi sunucuyu HERKES için donduruyordu. Doğru biçim aynı dili tanıyan
 // `\s*(?:"\s*)?`: ikinci boşluk yuvası yalnız işaretin ARDINDA. Süre pini `whitespace-run-cost.test.ts`.
+// Not (mutasyon 10-01): bu kalıplar YALNIZ aday biçimlere uygulanır ve aday boşluk dizisi artık teke iner (`collapseSpaceRuns`) — eski
+// yazıma dönmek bugün ne hükmü ne süreyi değiştirir (gerekçeli EŞDEĞER mutant); kalıp yine doğrusal yazılır (misafir / kiracı metnine
+// uygulanan kalıpta karesel iş yok kuralı), çağıran bir gün ham metin verirse kilit geri gelmesin.
 // ---------------------------------------------------------------------------
 const KB_HIJACK_PATTERNS: readonly RegExp[] = [
   // Sahte blok/rol işaretleri (bizim çitlerimiz + yaygın sohbet biçimleri).
