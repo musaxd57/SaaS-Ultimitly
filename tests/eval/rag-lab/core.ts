@@ -233,7 +233,7 @@ export const UNDERSTANDING_MODE = { items: true, rules: true } as const;
 export const UND_PROMPT_VERSION = digest([UNDERSTANDING_SYSTEM_PROMPT, UNDERSTANDING_ITEMS_PROMPT_ADDENDUM, UNDERSTANDING_RULES_PROMPT_ADDENDUM]);
 
 export async function labUnderstand(q: LabQuery, history = labHistory(q, false)): Promise<MessageUnderstanding | null> {
-  const key = understandCacheKey({ version: UND_PROMPT_VERSION, model: semanticModel(), text: q.text, history, mode: UNDERSTANDING_MODE, effort: semanticReasoningEffort() });
+  const key = understandCacheKey({ version: UND_PROMPT_VERSION, model: semanticModel("understanding"), text: q.text, history, mode: UNDERSTANDING_MODE, effort: semanticReasoningEffort("understanding") });
   return llmCached<MessageUnderstanding>("understand", key, async () => {
     const o = await understandGuestMessages({ guestMessage: q.text, history, ...UNDERSTANDING_MODE });
     return o.status === "ok" ? o.value : null;
@@ -299,8 +299,8 @@ export async function labRerankPerQuestion(
   const fence = (t: string) => t.replace(/[<>]{2,}/g, "");
   const qLines = questions.map((q, i) => `[Q${i + 1}] <<<${fence(redactForSemanticModel(q.slice(0, 500), []))}>>>`);
   const user = base.user.replace("\n\nCandidates:", `\n\nQuestions:\n${qLines.join("\n")}\n\nCandidates:`);
-  const model = opts.model ?? semanticModel();
-  const effort = opts.effort ?? semanticReasoningEffort();
+  const model = opts.model ?? semanticModel("rerank");
+  const effort = opts.effort ?? semanticReasoningEffort("rerank");
   const timed = await llmCachedTimed<{ questions: { q: string; answers: string[]; related: string[] }[] }>("rerank-pq", rerankCacheKey({ model, system: PERQ_SYSTEM_PROMPT, user, effort }), async () => {
     const apiKey = semanticApiKey();
     if (!apiKey) return { value: null, ms: 0 };
@@ -351,8 +351,8 @@ export async function labRerank(
   opts: { k: number; crop: number; model?: string; effort?: string },
 ): Promise<{ scores: Map<string, number>; ms: number | null; chars: number } | null> {
   const { user, ids } = labRerankRequest(question, candidates, opts);
-  const model = opts.model ?? semanticModel();
-  const effort = opts.effort ?? semanticReasoningEffort();
+  const model = opts.model ?? semanticModel("rerank");
+  const effort = opts.effort ?? semanticReasoningEffort("rerank");
   const timed = await llmCachedTimed<Record<string, string[]>>("rerank", rerankCacheKey({ model, system: RERANK_SYSTEM_PROMPT, user, effort }), async () => {
     const apiKey = semanticApiKey();
     if (!apiKey) return { value: null, ms: 0 };

@@ -131,7 +131,7 @@ describe.skipIf(!enabled)("RAG LAB — aşama bazlı kayıp (gerçek gömme + ö
           }
         : {}),
       "ortam gömmesi (yapılandırma başka model demiyorsa)": embeddingModel(),
-      model: semanticModel(),
+      model: semanticModel("rerank"),
       "small eşiği (T_PROD)": T_PROD,
       "okuma tavanı": CAP,
       "yeniden sıralayıcı sabitleri": `ilk ${RR.k} · kırpma ${RR.crop}`,
