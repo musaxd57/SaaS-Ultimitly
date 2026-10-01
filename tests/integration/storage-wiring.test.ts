@@ -10,6 +10,7 @@ import {
   hasPendingStorageDeletions,
 } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
+import type { StorageAdapter } from "@/lib/storage/adapter";
 import { deleteAccountData } from "@/lib/data-retention";
 import type { SessionPayload } from "@/lib/auth";
 
@@ -370,7 +371,14 @@ describe("deletion queue — idempotent, provider failure is NEVER a fake succes
     await enqueueStorageDeletions(prisma, "o", ["org/o/task/t/a.png", "org/o/task/t/b.png", "org/o/task/t/c.png"]);
     let t = 0;
     // Her sağlayıcı çağrısı 20 sn sürmüş gibi: bütçe 30 sn → ilk iki satır işlenir, üçüncüye başlanmaz.
-    const slow = { ...fake, delete: async (key: string) => { t += 20_000; await fake.delete(key); } };
+    // Sınıf örneği YAYILMAZ (prototip metodu `put` düşer — typecheck yakaladı): sözleşmenin iki metodu açıkça.
+    const slow: StorageAdapter = {
+      put: (key, body, contentType) => fake.put(key, body, contentType),
+      delete: async (key: string) => {
+        t += 20_000;
+        await fake.delete(key);
+      },
+    };
     const r = await drainStorageDeletions({ adapter: slow, clock: () => t, budgetMs: 30_000 });
     expect(r).toEqual({ skipped: false, deleted: 2, failed: 0 });
     const pending = await prisma.storageDeletion.findMany({ where: { status: "pending" } });
