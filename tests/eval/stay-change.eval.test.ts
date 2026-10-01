@@ -111,7 +111,8 @@ const LIMIT = Number(process.env.EVAL_STAY_LIMIT) > 0 ? Math.trunc(Number(proces
 // (`AI_HOUSE_RULES_SHADOW`) istemi ve şemayı değiştirir → açmadan önce bu eval o kipte koşulur. Varsayılan temel kip (eski).
 const NLU_MODE = { items: process.env.EVAL_UNDERSTANDING_ITEMS === "1", rules: process.env.EVAL_UNDERSTANDING_RULES === "1" };
 const NLU_MODE_TAG = [NLU_MODE.items ? "items" : "", NLU_MODE.rules ? "rules" : ""].filter(Boolean).join("+") || "temel";
-const CONCURRENCY = 4;
+// Eşzamanlılık (10-01): gpt-6-luna'nın dakikalık token sınırı 5.1'den düşük (≈200k) — `EVAL_STAY_CONCURRENCY` ile düşürülür.
+const CONCURRENCY = Number(process.env.EVAL_STAY_CONCURRENCY) > 0 ? Math.min(8, Math.trunc(Number(process.env.EVAL_STAY_CONCURRENCY))) : 4;
 
 /** Tablo anahtarının bölüm kısmı: gerçek sette katmanla birlikte ("real/candidate") — oranlar yeniden ağırlıklanabilsin. */
 const splitKey = (r: { split: string; stratum?: string }) => (r.stratum ? `${r.split}/${r.stratum}` : r.split);
