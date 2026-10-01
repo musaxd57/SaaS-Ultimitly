@@ -1655,7 +1655,8 @@ yeşil (739 dosya / 11.917 test) → itildi, **CI #1280 YEŞİL**. RC60 (ilişki
 regresyon koşusu (set 5 + 6, $0,47): gitmez-giden 0 / 0, ama RC60'ın tarif sıkılaştırması gerçek tarifleri düşürüyordu (set 6'da 3 tarifli arıza
 tutuldu) → itilmeden düzeltildi (`d6cc384`); koşunun gösterdiği "çözüm öneremiyorum" sızıntısı yedi dilde tutuluyor (`f343ffc`). RC61 (depolama /
 görev ağı / iCal alarmı / e-posta kuyruğu) + RC62 (bağlanamayan ödeme alarmı, plan değişikliği izi, uyarı adresi kuşağı, 2FA sıfırlama kaydı
-zorunlu) kapıda. KARAR BEKLEYEN en önemli: 30 (canlıda şikâyet etiketsiz kombi / şofben / sigorta sorusu cevaplanıyor); ilk operatör adımı 44a
+zorunlu) tek sürümde: RC62 (`b2b386a`) tam kapılar yeşil (748 dosya / 12.141 test) → 23:34Z itildi, **CI #1281 YEŞİL**. Nihai Luna adayı son
+kodla kör set 7'de (48 senaryo, 7 dil) yeniden doğrulanıyor (rapor §3.11). KARAR BEKLEYEN en önemli: 30 (canlıda şikâyet etiketsiz kombi / şofben / sigorta sorusu cevaplanıyor); ilk operatör adımı 44a
 (herkese açık repoda bucket adı → 403 doğrulaması).
 **10-01 GECE (kurucu /loop; kararlar `docs/SABAH-KARARLARI-2026-10-01.md` 1–16, rapor `docs/SABAH-RAPORU-2026-10-01.md`):** Codex
 K10 / K4 / K11 / K3 / K6 / K9 doğrulandı + düzeltildi; ev sahibi kararı tutulur (`AI_HOST_DECISION_HOLD_ENABLED`, KAPALI); şikâyete bağlı istek
