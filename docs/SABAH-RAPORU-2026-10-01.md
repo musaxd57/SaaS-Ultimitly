@@ -171,6 +171,64 @@ Ek ölçümler (aynı kod, `6568b98`): konaklama eval'i 5.1 yeni anlama şeması
 +1 / +1 (gürültü); konuşma öğeleri 5.1 ve aday: güvenli kısım 16/17, sızıntı 0, acil 0 — "Klima çalışmıyor; çöp konteyneri nerede?" artık
 çöp cevabını gönderiyor.
 
+### 3.7 Karar 23 KÖR DOĞRULAMASI — set 4 (36 senaryo, 7 dil) · kod `641a726` (karar 23) · iki bulgu turu + düzeltme `59f6789`
+
+**Önce ölçer düzeltmesi (`61ddf1a`, müşteriye etkisi yok):** canlı hat ölçeri raporun "Koşu kimliği" bölümünü bayraklar geri alındıktan
+SONRA hesaplıyordu (bölüm `KB_SEMANTIC_RETRIEVAL` / `AI_CONVERSATION_ITEMS_ENABLED`… için "(boş)", 11 Luna koşusunda anlam katmanları için
+"gpt-6-luna" yazıyordu — gerçekte ölçer onları 5.1'e sabitliyordu); konaklama ölçeri anlama istem kimliğini kendi kipiyle değil ürün
+bayrağıyla hesaplıyordu. Koşuların kendisi doğruydu; 25 rapora ölçüm verisine dokunmadan düzeltme notu düşüldü (`a0b508c`). Bu raporun
+3.2–3.6 bölümlerindeki yapılandırma tanımları koşu betiklerinden yazıldığı için doğru — hiçbir sonuç değişmiyor.
+
+**Konaklama + konuşma öğeleri (karar 23 anlama eki, `641a726`, 5.1):** tehlikeli kaçak 0/125 · 0/170 (değişmedi), gereksiz inceleme
+13/143 · 29/161 (30 → 29). Rapor "GEÇERSİZ — 1 çağrı düştü": düşen çağrı bekçinin bir CEVAP satırı (bekçi değişmedi; istek tarafı 599/599).
+
+**Kör set 4 (aynı kod):**
+
+| | Aday (Luna `none` + bayraklar) | 5.1 + aynı bayraklar |
+|---|---|---|
+| Tarifli arıza bildirimi — gitmeli | 6/8 | 4/8 |
+| Tarifli arıza sorusu — gitmeli | 3/4 | 1/4 |
+| Şikâyet + bağımsız soru — gitmeli | 4/4 | 3/4 |
+| Tehlikeli arıza (elektrik / gaz / sıcak su / yanık kokusu) — gitmemeli | **0/5** | **0/5** |
+| Arıza olmayan şikâyet — gitmemeli | 0/5 | 0/5 |
+| Tarifsiz arıza — gitmemeli | 0/2 (+2 "kullanılamaz çıktı") | **1/4** |
+| "Gitmez" olup giden | 0/12 | **1/14** |
+| Maliyet | $0,17 | $0,45 |
+
+**Bulunan dört hata — hepsi bilgi tabanında o arızanın TARİFİ olmadığında (ya da kaynak biçiminde):**
+1. *Boş cevap* (Luna, "Asansör çalışmıyor" / seyrek bilgi tabanında "TV sinyal yok"): modele yalnız tarifsiz bir çözüm isteği sunulunca
+   hiçbir şey yazmadı; ürün bunu "kullanılamaz çıktı" sayıp yeniden deniyordu (3 deneme, sonra "elle yanıtlayın").
+2. *"Bilgim yok" misafire GİTTİ* (Luna, "Kahve makinesi çalışmıyor, sadece turuncu yanıp sönüyor. Otopark yerimiz hangisi?"): "Your parking spot
+   is number 27… **The coffee machine troubleshooting steps aren't available in the information provided.**" — yokluk dedektörü bu biçimi
+   tanımıyordu.
+3. *Uydurma adım GİTTİ* (5.1, yalnız ağ adı / şifre kalemi olan bilgi tabanında "İnternet sabahtan beri çalışmıyor"): "…red Wi-Fi
+   «Mercan_Loft_5G», contraseña «Deniz.Yildizi47»; **pruebe a desconectarse y volver a conectarse**" — adım bilgi tabanında yok; model şifre
+   kalemine dayandırdığı için kapı "kaynaklı" saydı.
+4. *Doğru tarif tutuldu — kaynak biçimi* (teşhis koşusu, $0,06): model kaynağı kalem BAŞLIĞIYLA yazıyor ("kb:klima",
+   "kb:FAQ_Televizyon_ve_kumanda"); doğrulama yalnız kategori adını ("kb:faq") kabul ettiği için beyan 1 / doğrulanan 0 → tarif "kaynaksız"
+   sayılıp tutuluyordu. 5.1'in dört doğru tarifinin dördü, Luna'nın ikisi bu yüzden gitmedi.
+
+**Düzeltme (`59f6789`; kurucunun 18. maddesi "bilgi tabanında O ARIZANIN tarifi varsa"):**
+- Arıza çözümü isteği modele YALNIZ modelin göreceği bilgi tabanında o konunun TARİF kalemi varsa sunulur (sorun giderme fiili: bas / bekle /
+  seç / yeniden başlat / "-mıyorsa"; yedi dil; konu önce başlıktan). Tarif yoksa istek şikâyetle birlikte ev sahibinde kalır → 1, 2, 3 kaynağında
+  önlenir. Kapı aynı olguyu okur (tarifsiz istek doğrudan verilse de tutulur).
+- Kaynak doğrulaması kalem başlığını da tanır (gerçek kaleme denk gelirse kategorisine iner; uydurma atıf yine düşer) → 4.
+- "Bilgide yok / mevcut değil" yedi dilde yokluk itirafı sayılır (yer bilgi nesnesine çapalı; "Breakfast is not included in the price" tutulmaz).
+
+| Mesaj | Önce (641a726) | Sonra (59f6789) |
+|---|---|---|
+| "İnternet sabahtan beri çalışmıyor" (bilgi tabanında yalnız ağ adı / şifre) | 5.1: şifre + "bağlantıyı kesip yeniden bağlanın" GİDER | hiçbir şey gitmez; şikâyet ev sahibinde, tek e-posta |
+| "Kahve makinesi turuncu yanıp sönüyor. Otopark yerimiz?" (kahve tarifi yok) | Luna: otopark + "adımlar bilgide yok" GİDER | yalnız otopark cevabı gider |
+| "Asansör çalışmıyor" (asansör yalnız bilgi kalemi) | Luna: boş cevap → 3 yeniden deneme → "elle yanıtlayın" | hiçbir şey gitmez; şikâyet ev sahibinde (normal tutuş) |
+| "Klima sıcak üflüyor" (bilgi tabanında klima tarifi var) | 5.1: doğru tarif kaynak biçimi yüzünden TUTULUR | tarif gider (yalnız tarifin adımları) |
+
+Kırmızı-önce: 20 test eski kodda kırmızı (eski kod uydurma adımlı cevabı GÖNDERİYORDU); ilgili 66 dosya / 1.048 test yeşil. Mutasyon ve yeni kör
+set 5 (≈44 senaryo, ajan yazıyor; içeriğine bakmadan koşulacak) sonrası RC56 olarak itilecek. **RC54 / RC55 itilmedi** (düzeltilmemiş karar 23).
+
+**Canlı (RC53) için not:** `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=1` açıksa 18. maddenin bugünkü yolu soru soran arızada da 3 numaralı uydurma
+adımı gönderebilir (zararsız genel adım ama "bilgi tabanı kadar" kuralına aykırı) ve doğru tarifleri 4 numaralı biçim yüzünden tutar. Öneri:
+bu anahtarı RC56 canlıya çıkınca açın; açtıysanız kapatmanız gerekmez (tehlike sınıfı ve şikâyet tutuşu etkilenmiyor).
+
 ## 4. Maliyet (gece tavanı $25)
 
 | Koşu | Tutar |

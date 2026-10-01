@@ -387,6 +387,8 @@ Bu dosyaya token/anahtar/parola yazma.
   itirafı kapıdan geçmişti): FR / DE / ES / RU / AR + TR "elimde değil / bilgim olmadığı / belirtilmemiş"; kıvrık kesme işareti düz olana,
   NFD aksan birleşir; yeni kalıplar KAPALI tekrar. Çıplak olumsuzluk itiraf değildir ("Il n'y a pas de frais", "No se permiten", "Нет,"),
   "indiqué" (FR tavsiye) / "no se" (aksansız) / "keinen" / "غير متاح" bilerek yok; iki yönlü batarya `absence-multilingual.test.ts`.
+  10-01 öğlen (kör set 4'te Luna'nın GİDEN cümlesi "…steps aren't available in the information provided"): "bilgide / verilen bilgilerde
+  yok / mevcut değil" yedi dilde — yer BİLGİ nesnesine çapalı ("Breakfast is not included in the price" olgudur, tutulmaz).
   Önizleme rotaları (`api/ai/test`, `api/demo/ai`) kapıya `reply` VERMEK zorunda (parite pinli).
 - **Çıktı vetosu / makbuzsuz iddia:** ↓Kalıcı ürün kararları. `hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE KOŞMAZ
   (yalnız `QR_INFORMATIONAL_BAND_ENABLED` açıkken; varsayılan kapalı). QR bilgi bandı (0.45–0.75, kapalı): bant
@@ -1138,7 +1140,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   şikâyette ev kuralıysa bağlı). Arıza çözümü yalnız şikâyette, cihaz / tesis türünde, tehlike sınıfı (sigorta / şalter / elektrik, gaz /
   kombi / şofben / sıcak su cihazı, yangın / duman) DIŞINDA; kapı `kb:` kaynağı ister (`items_fix_unverified`) ve cevabı tehlike sözlüğünde
   tarar (`items_fix_hazard`). Bağımsızlık işareti gönderim izni DEĞİL (bütün kapılar aynen); hassas talep açık + mesaj başına tek e-posta;
-  tehlikede tarif hazır taslakta. İşaret yokken (anahtar kapalı) liste BİREBİR.
+  tehlikede tarif hazır taslakta. İşaret yokken (anahtar kapalı) liste BİREBİR. 🚨 Karar 23 (soru SORMADAN arıza bildirimi de çözüm isteği
+  alır) + kör set 4 düzeltmesi (10-01 öğlen): arıza çözümü YALNIZ modele giden bilgi tabanında O konunun TARİF kalemi varsa sunulur
+  (`relation.kbRecipeTopics`: sorun giderme fiili — bas / bekle / seç / yeniden başlat / "-mıyorsa", yedi dil; çıplak "tuş / button" ve genel
+  "kullanın / kapatın" YOK; konu ÖNCE başlıktan); tarifsiz istek şikâyetle ev sahibinde (eksik = tut). Tarifsiz arızada modele sunulan istek
+  BOŞ cevap / "bilgide yok" / şifre kalemine dayanan uydurma adım üretiyordu (üçü de ölçüldü). Kaynak atfı `kb:` kalemin BAŞLIĞIYLA da gelir
+  ("kb:klima", "kb:FAQ_Televizyon_ve_kumanda") → gerçek kaleme denk gelirse kategorisine iner (`ai/index.ts kbSourceLabel`; uydurma düşer).
 - 🚨 **BEKLEYEN RİSK ÖĞE BAZINDA (kurucu 09-26):** eski cevapsız risk yeni mesajla KAYBOLMAZ ama TÜM konuşmayı BLOKE
   ETMEZ. "Bekleyen herhangi bir yüksek riskli etiket → cevabın tamamı tutulur" KONUŞMA DÜZEYİ kapısı REDDEDİLDİ (`6c0e6b4`
   gönderilmedi, yedek dal `backup/pending-highstakes-conversation-gate-2026-09-26`) — geri getirme. Kanalda istek düzeyi
@@ -1264,7 +1271,9 @@ taşır), bekçi KOŞMAZ (kapanış birebir, sızıntı temkinli); bağlantı pi
 set `evals/conversation-state.json` ajanla (30 Eylül sonrası); ilk ücretli koşudan sonra set "görüldü".
 **Konaklama eval'i ölçer sözleşmesi (10-01):** model gövdesi tamamlanmadıysa (zaman aşımı) rapor GEÇERSİZ (yarım tablo "GEÇERLİ" yazılıyordu);
 rapor adı anlama / bekçi modelini VE düşünme ayarını taşır (Luna low koşusu Luna none raporunu ezdi); süre `EVAL_STAY_TIMEOUT_MS`; anlama
-istemi ürünle aynı bayraktan (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` → cfu).
+istemi ürünle aynı bayraktan (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` → cfu). 🚨 Ölçer KİMLİĞİ koşunun ortamında alınır (10-01 öğlen: 25 raporda
+yanlıştı, düzeltme notu düşüldü): stub'lı bayraklar geri ALINMADAN önce; ölçer anlama kipini kendi değişkeniyle veriyorsa `evalRuntime({ understanding })`
+(istem kimliğinin yanında "kip:" yazar).
 
 **KB onay (A1, migration 53 CANLI):** `source`/`reviewState`; eski satırın onayı VARSAYILMAZ (varsayılan `legacy`,
 `approved` yalnız POST'ta açık eylem). Erişim ALLOWLIST `legacy+approved`, TEK kapı `kb-review.ts`; `kb-fetch` AND'ler
