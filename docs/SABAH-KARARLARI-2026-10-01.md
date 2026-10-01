@@ -280,3 +280,33 @@
   bir kontrol — önce kayıtlarda yanlış tutma ölçümü. Sıklık düşük (1/718) → acil değil.
 - **Müşteriye etkisi:** bugün nadiren uydurma bir gerekçe gidebilir; cevabın kendisi (kod / numara vermeme) doğru.
 - **Beklerken yapılmayan:** veto / istem değişikliği.
+
+## 22. Bilgi tabanının KENDİ İÇİNDEKİ çelişki kesin cevapla gidiyor (son kör kabul bulgusu — üç yapılandırmada da aynı)
+- **Durum (ölçüldü, set 3):** "Havuz 09:00–19:00" ↔ "Ortak havuz 08:00–21:30" → "Pool bis 19:00 / 21:30 geöffnet" GİTTİ; "Sessiz saatler
+  22:00–08:00" ↔ "23:30'dan sonra müzik yasak" → 5.1'de "22:00'ye kadar" GİTTİ; sigara "balkonda içilebilir" ↔ "balkon dahil yasak" → üç
+  yapılandırmada da "Oui, vous pouvez fumer sur le balcon" GİTTİ; evcil hayvan "kabul edilmez" ↔ "250 TL ile kabul" → "not allowed" GİTTİ.
+  Saat çelişkisi kapısı (P4-b, kararınız 09-09) yalnız MÜLK AYARI ↔ bilgi tabanı giriş / çıkış çelişkisini tutuyor; bilgi tabanı içi çelişki
+  yalnız isteme not olarak gidiyor, karar modelde.
+- **Öneri:** (a) P4-b'yi bilgi tabanı içindeki SAAT çelişkisine genişlet (havuz, sessiz saat, spor salonu, temizlik… — aynı alan, farklı saat →
+  o alana değen cevap tutulur; ev sahibine "Uyuşmayan saatler" zaten listeliyor). (b) Kural çelişkisi (izinli ↔ yasak, aynı konu): kalem
+  kaydedilirken ev sahibine "Çelişen kurallar" uyarısı + o konudaki cevap tutulur (anlam katmanıyla tespit — daha büyük iş, ölçüm ister).
+  - *Önce:* "Havuz kaçta kapanıyor?" → "19:00" (ya da "21:30") gider. *Sonra:* hiçbir şey gitmez; ev sahibine e-posta + "Uyuşmayan saatler".
+- **Müşteriye etkisi:** çelişkili bilgide misafire yanlış olabilecek kesin cevap gitmez; ev sahibi bilgi tabanını düzeltene kadar o konu ona kalır.
+- **Beklerken yapılmayan:** kapı genişletmesi (canlı davranış değişikliği). Luna geçişini ENGELLEMEZ (5.1'de de aynı).
+
+## 23. Soru sormadan arıza bildirimi → onaylı tarif (18. maddenin eksik kalan kısmı)
+- **Durum (set 3):** "Die Klimaanlage bläst nur warme Luft", "The internet stopped working about an hour ago" → anlama katmanı yalnız
+  şikâyet çıkarıyor, ayrı "çözüm" isteği yok → tarif GİTMİYOR (taslakta doğru tarif var: MODE / COOL, ON/OFF + 30 sn). Soruyla gelen arızada
+  ("Что делать?", TV "ماذا نفعل؟") tarif gidiyor. Onayladığınız 18. madde tablosu bu durumu kapsıyordu ("Otopark kapısı açılmıyor" + tarif →
+  tarif gider); uygulamam yalnız açık "nasıl düzeltirim" sorusunu kapsadı.
+- **Yapılacak (onaylı kapsam):** anlama katmanı arıza bildiriminde soru olmasa da ayrı bir "çözüm" isteği ekler (cihaz / tesis türü) → mevcut
+  kurallar aynen: yalnız bilgi tabanı tarifi, tehlike sınıfı hariç, şikâyet açık + tek e-posta. Kod + ölçüm (konaklama eval'i + yeni küçük kör
+  set, ≈ $2) — CANLIYA ancak ayrı kör doğrulamadan sonra ve size haber vererek.
+- **Müşteriye etkisi:** "İnternet yok" diyen misafir, bilgi tabanında tarif varsa beklemeden modem adımlarını alır.
+
+## 24. Eskiden beri süren iki yanlış tutuş (bilgi için — set 3'te üç yapılandırmada da)
+- Sauna "16:00–21:00" cevabı tutuldu: bilgi tabanında giriş saati çelişkisi var ve cevaptaki 16:00 o çelişkili saatlerden birine denk geldi
+  (P4-b "cevap çelişen saati söylüyor" kuralı; saatin hangi alana ait olduğuna bakmıyor).
+- Otopark "dairenize ayrılmış B2-17 numaralı yer var" tutuldu: donmuş müsaitlik kelime ağı "yer var"ı müsaitlik iddiası saydı (5.1 bugünkü
+  ayarda aynı bilgiyi başka cümleyle verince gitti).
+- **Öneri:** ikisi de ayrı, ölçümlü düzeltme (P4-b'de saatin alanına bakmak; müsaitlik ağında otopark yeri ifadesi). Acil değil.
