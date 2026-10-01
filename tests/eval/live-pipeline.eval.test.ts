@@ -309,6 +309,11 @@ interface Row {
   priceSent?: boolean;
   /** Cevap modelinin KENDİ etiketleri (taslağı üreten çağrı) — tutulma sebebini modelde mi kapıda mı ayırmak için. */
   model?: { intent: string; riskLevel: string; riskType: string | null; confidence: number } | null;
+  /**
+   * 10-01 teşhis: modelin kaynak beyanı — doğrulanan liste + beyan / doğrulanan SAYISI (`sourceAudit`). Arıza tarifinde `items_fix_unverified`
+   * tutuşlarının sebebi (beyan hiç yok mu, yoksa biçimi doğrulamadan mı düştü) buradan okunur.
+   */
+  sources?: { verified: readonly string[]; declared: number } | null;
   ms: number;
   error?: string;
 }
@@ -451,6 +456,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     forbiddenSent: sentText ? forbiddenIn(s.expect.forbidden, sentText) : false,
     priceSent: sentText && s.expect.noPrice ? moneyAmountsOf(sentText).length > 0 : false,
     model: raw?.source === "openai" ? { intent: raw.intent, riskLevel: raw.riskLevel, riskType: raw.riskType, confidence: raw.confidence } : null,
+    sources: raw?.source === "openai" ? { verified: raw.usedSources ?? [], declared: raw.sourceAudit?.declared ?? 0 } : null,
     ms,
   };
 }
