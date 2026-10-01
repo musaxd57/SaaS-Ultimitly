@@ -282,6 +282,11 @@ export interface ItemsGateInput {
    * Cevap bunlardan birine değinirse GİTMEZ (`relation.touchesHeldDevice`, kör set 5). Boşsa alan yok.
    */
   heldDeviceTopics?: readonly string[];
+  /**
+   * Cevaplanan isteklerin hiçbiri cihaz / tesis kavramı taşımıyor: cevaptaki adı verilmeyen "makine / cihaz / the device" yalnız bırakılan
+   * cihaz olabilir (`relation.touchesHeldDevice` `genericRef`, 15 ajan A06). Yalnız `heldDeviceTopics` doluyken.
+   */
+  heldDeviceGenericRef?: true;
 }
 
 /**

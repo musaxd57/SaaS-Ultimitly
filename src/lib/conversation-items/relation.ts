@@ -53,14 +53,16 @@ const KIND_TOPICS: Readonly<Partial<Record<ItemKind, readonly string[]>>> = {
  */
 const HAZARD_TOPICS: ReadonlySet<string> = new Set(["hot_water", "heating"]);
 
-/** Metnin konu kavramları (getirme sözlüğü; Türkçe kök + yabancı yüzey biçimi). Genel kavramlar düşer. */
+/** Metnin konu kavramları (getirme sözlüğü; Türkçe kök + yabancı yüzey biçimi + yerel cihaz sözlüğü). Genel kavramlar düşer. */
 export function topicsOf(text: string): string[] {
   if (!text || !text.trim()) return [];
   const { matched } = expandQuery(contentStems(text), matchForeignConcepts(text), phraseUnits(text), {
     possessive: true,
     tokens: tokenize(text),
   });
-  return [...new Set(matched.map((m) => m.concept.id))].filter((id) => !GENERIC_TOPICS.has(id)).sort();
+  const f = fold(text);
+  const local = LOCAL_DEVICE_WORDS.filter(([re]) => re.test(f)).map(([, id]) => id);
+  return [...new Set([...matched.map((m) => m.concept.id), ...local])].filter((id) => !GENERIC_TOPICS.has(id)).sort();
 }
 
 /** İsteğin konuları: Türkçe + özgün dildeki sorgu + türün kendi konusu. */
@@ -79,6 +81,25 @@ const R = "(?![\\p{L}\\p{N}])";
 const stemRe = (stems: readonly string[]) => new RegExp(`${L}(?:${stems.join("|")})\\p{L}{0,12}${R}`, "u");
 /** Tam sözcük (yalnız verilen biçimler). */
 const wordRe = (words: readonly string[]) => new RegExp(`${L}(?:${words.join("|")})${R}`, "u");
+
+/**
+ * YEREL CİHAZ SÖZLÜĞÜ (15 ajan A06, 10-01 — ölçüldü): getirme sözlüğünde olmayan ya da kök sökücünün kaçırdığı cihaz adları konu
+ * vermiyordu ("şofben", "petek", "kondisyoner", "mikro dalga", "kilidi", "televizyonun", klima kumandasının "kar tanesi" simgesi,
+ * "lave-linge", "televisor") → örtüşme koruması (şofben şikâyeti + "kendi konusu" denen şofben sorusu) ve bırakılan cihaz kapısı
+ * ("Kumandada MODE tuşuna basıp kar tanesini seçin" klima adımıdır) göremiyordu. Getirme sözlüğüne EKLENMEZ: o canlı bilgi tabanı
+ * seçimini değiştirir (ölçüm ister); burada yalnız konu eşlemesi. Katlanmış metin, sınırlı tekrar (doğrusal).
+ */
+const LOCAL_DEVICE_WORDS: readonly (readonly [RegExp, string])[] = [
+  [new RegExp(`${L}sofben\\p{L}{0,10}${R}`, "u"), "hot_water"],
+  [new RegExp(`${L}pete[kg]\\p{L}{0,10}${R}`, "u"), "heating"],
+  [new RegExp(`${L}kondisyoner\\p{L}{0,10}${R}`, "u"), "ac"],
+  [new RegExp(`${L}mikro[ -]?dalga\\p{L}{0,10}${R}`, "u"), "microwave"],
+  [new RegExp(`${L}kilid\\p{L}{0,8}${R}`, "u"), "keys"],
+  [new RegExp(`${L}televizyon\\p{L}{0,10}${R}`, "u"), "tv"],
+  [new RegExp(`${L}televisor(?:es)?${R}`, "u"), "tv"],
+  [new RegExp(`${L}(?:kar tanes\\p{L}{0,6}|snowflake\\p{L}{0,2}|schneeflocke\\p{L}{0,2}|flocon\\p{L}{0,2}|copo de nieve|снежинк\\p{L}{0,3})${R}`, "u"), "ac"],
+  [new RegExp(`${L}lave[ -]linge${R}`, "u"), "laundry"],
+];
 
 /**
  * TEHLİKE SINIFI (kurucu 18 "a" + 10-01 "Elektrik/gaz/sıcak su cihazına müdahaleyi çözüm istisnasına alma"): elektrik panosu / sigorta /
@@ -103,6 +124,12 @@ const HAZARD_STEMS = stemRe([
   "kivilcim",
   "atesle",
   "tamir",
+  // 15 ajan A06 (10-01, ölçüldü — "Petek vanasını tornavidayla gevşetin", "Ocak düğmesini bastırarak çakmakla yakın" gidiyordu)
+  "tornavida",
+  "cakmak",
+  "kibrit",
+  "petek",
+  "peteg",
   // en
   "fuse",
   "breaker",
@@ -131,6 +158,11 @@ const HAZARD_STEMS = stemRe([
   "aufschraub",
   "schraubenzieher",
   "reparier",
+  "hauptschalter",
+  "gaszahler",
+  "gasleitung",
+  "heizkorper",
+  "entluft",
   // fr
   "fusible",
   "disjoncteur",
@@ -143,6 +175,7 @@ const HAZARD_STEMS = stemRe([
   "deviss",
   "tournevis",
   "repar",
+  "radiateur",
   // es
   "disyuntor",
   "electricidad",
@@ -153,6 +186,8 @@ const HAZARD_STEMS = stemRe([
   "chispa",
   "desatornill",
   "destornillador",
+  "radiador",
+  "diferencial",
   // ru
   "предохранител",
   "электрощит",
@@ -167,6 +202,7 @@ const HAZARD_STEMS = stemRe([
   "открут",
   "отвертк",
   "ремонт",
+  "рубильник",
   // ar (önek ekleri ayrı: "ال")
   "فيوز",
   "الفيوز",
@@ -207,6 +243,11 @@ const HAZARD_WORDS = wordRe([
   "feu",
   "termo",
   "humo",
+  "purgez",
+  "purger",
+  "purgue",
+  "purgar",
+  "узо",
   "автомат",
   "автомата",
   "автоматы",
@@ -237,6 +278,7 @@ const HAZARD_PHRASES: readonly string[] = [
   "kacak akim",
   "elektrik pano",
   "sigorta kutu",
+  "sayac pano",
   "kapagini ac",
   "kapagi ac",
   "water heater",
@@ -253,8 +295,19 @@ const HAZARD_PHRASES: readonly string[] = [
   "burning smell",
   "open the cover",
   "remove the cover",
+  "main switch",
+  "with a match",
+  "with a lighter",
+  "light the stove",
+  "light the burner",
+  "light the oven",
+  "light the hob",
+  "light the gas",
   "fi-schalter",
   "fi schalter",
+  // "FI" (kaçak akım rölesi) tek başına sözcük OLAMAZ: katlanmış "wi-fi" içinde tam sözcük olarak eşleşirdi → yalnız kalıp.
+  "den fi ",
+  "fi wieder",
   "tableau electrique",
   "chauffe eau",
   "ballon d'eau chaude",
@@ -262,9 +315,14 @@ const HAZARD_PHRASES: readonly string[] = [
   "robinet de gaz",
   "cuadro electrico",
   "llave de gas",
+  "interruptor general",
+  "стравите воздух",
+  "воздух из батаре",
+  "المفتاح الرئيسي",
   "لوحة الكهرباء",
   "انقطاع الكهرباء",
-];
+  // Kalıplar da KATLANIR: Arapça "ئ" katlamada "ي"ye iner ("الرئيسي" katlanmış metinde "الرييسي") — ölçüldü.
+].map((p) => fold(p));
 
 /** Metin tehlike sınıfına değiyor mu (kavram sınıfı ∨ yedi dilli sözlük). Saf, doğrusal. */
 export function fixHazard(text: string): boolean {
@@ -286,9 +344,21 @@ export function fixHazard(text: string): boolean {
  * ("kullanın", "kapatın", "getirin") BİLEREK yok ("Çıkışta klimayı kapatın" klima tarifi değildir). Yedi dil, katlanmış biçim; ev sahibi
  * metni üzerinde, doğrusal.
  */
-const RECIPE_WORDS = wordRe([
-  // tr
-  "basin",
+/**
+ * İKİ KADEMELİ İŞARET (15 ajan A06, 10-01 — ölçüldü): tek kademede çıkış talimatı ("Çıkarken klimayı kapatıp anahtarı bırakın",
+ * "Beim Verlassen die Klimaanlage ausschalten", "apague el aire al salir"), ev kuralı ("Mantenga la puerta cerrada"), ulaşım ("otobüsü
+ * bekleyin", "warten Sie auf den Aufzug"), pazarlama ("select your pool day"), yalnız tırmandırma satırı ("If the TV is not working,
+ * please message us", "Klima çalışmıyorsa bize yazın") ve İngilizce "basin" (lavabo = katlanmış "basın") TARİF sayılıyordu → o cihazın
+ * arıza çözümü modele sunuluyordu (kurucu 18: yalnız O ARIZANIN tarifi varsa).
+ *  · GÜÇLÜ işaret tek başına yeter: bas / dokun / yeniden başlat / sıfırla / fişten çek–tak (press, restart, reset, unplug…).
+ *  · ZAYIF işaret (kapat / aç / bekle / seç / ayarla / çevir / değiştir / tut) ancak İKİ FARKLI zayıf işaretle ("Modemi kapatıp 30 saniye
+ *    bekleyin", "ausschalten und wieder einschalten").
+ *  · ARIZA ANMA ("-mıyorsa", "not working", "no funciona"…) sorun giderme başlığıdır ve tek başına yeter — YALNIZ tırmandırma satırı
+ *    (arıza anma + "bize yazın / contact us" + hiçbir adım) tarif DEĞİLDİR. Bilgi / iş istemeyen koşul ("bilmiyorsanız", "istemiyorsanız",
+ *    "kullanmıyorsanız") arıza anma sayılmaz.
+ */
+const RECIPE_STRONG_WORDS = wordRe([
+  // tr ("basın" ayrı: İngilizce "basin" lavabodur)
   "basiniz",
   "basarak",
   "basip",
@@ -299,101 +369,139 @@ const RECIPE_WORDS = wordRe([
   "dokunun",
   "dokunup",
   "dokunarak",
-  "bekleyin",
-  "bekleyiniz",
-  "bekleyip",
-  "bekledikten",
-  "secin",
-  "seciniz",
-  "secip",
-  "secerek",
-  "ayarlayin",
-  "ayarlayip",
-  "ayarlayarak",
-  "cevirin",
-  "cevirip",
-  "cevirerek",
-  "kapatip",
   // en
   "press",
   "pressing",
-  "hold",
-  "holding",
   "restart",
   "reboot",
   "reset",
   "unplug",
   "replug",
-  "select",
-  // de
-  "drucken",
+  // de ("drücken" ayrı: katlanmış "drucken" yazdırmaktır)
+  "druecken",
   "neustart",
   "neustarten",
   "zurucksetzen",
-  "ausschalten",
-  "einschalten",
-  "warten",
-  "wahlen",
   // fr
   "appuyez",
   "appuyer",
-  "maintenez",
   "redemarrez",
   "redemarrer",
-  "eteignez",
-  "rallumez",
   "debranchez",
   "rebranchez",
-  "attendez",
-  "selectionnez",
   // es
   "pulse",
   "presione",
-  "mantenga",
   "reinicie",
   "reiniciar",
-  "apague",
-  "encienda",
   "desenchufe",
-  "espere",
-  "seleccione",
   // ru (katlanmış: й → и)
   "нажмите",
   "нажать",
-  "удерживаите",
   "перезагрузите",
-  "выключите",
-  "включите",
-  "отключите",
-  "подождите",
-  "выберите",
   // ar
   "اضغط",
   "اضغطوا",
   "اضغطي",
-  "انتظر",
-  "انتظروا",
-  "اختر",
-  "اختاروا",
 ]);
-/**
- * Kök + çekim (tr): sıfırla. Çıplak "tuş / düğme / button / Taste / bouton / botón / кнопка / زر" BİLEREK yok: "Kapıda tuşlu kilit var"
- * bilgi kalemidir, tarif değil — tarif "basın / press / drücken / appuyez / pulse / нажмите / اضغط" fiilini taşır. Süre sözcüğü
- * ("saniye / seconds / Sekunden…") da tek başına tarif DEĞİL ("Plaj 30 saniye yürüme mesafesinde", "Asansör kapısı 10 saniye sonra kapanır");
- * tarifte süreyle birlikte "bekleyin / basılı tutun / wait…" fiili zaten bulunur.
- */
+/** Türkçe "basın" — İngilizce "the / wash / bathroom … basin" (lavabo) değil. */
+const RECIPE_TR_BASIN = new RegExp(
+  // Önceki sözcük TAM sözcük olmalı: "tuşuna basın"daki "…a " İngilizce "a basin" sayılmasın (ölçüldü).
+  `(?<!(?:^|[^\\p{L}\\p{N}])(?:the|a|wash|hand|bathroom|kitchen|sink|this|each|your|stone|marble|double|small|large|big) )${L}basin${R}`,
+  "u",
+);
+/** Almanca "drücken" — katlanmadan önce (katlanmış "drucken" = yazdırmak). */
+const RECIPE_DE_DRUECKEN = new RegExp(`${L}drück(?:en|e|t)?${R}`, "u");
+/** Kök + çekim (tr): sıfırla. Çıplak "tuş / düğme / button / Taste / bouton / botón / кнопка / زر" BİLEREK yok ("Kapıda tuşlu kilit var"). */
 const RECIPE_STEMS = stemRe(["sifirla"]);
-/** Olumsuz koşul ("çalışmıyorsa", "açılmıyorsa", "bağlanamıyorsanız") — sorun giderme başlığı. Sınırlı tekrar (karesel iş yok). */
-const RECIPE_CONDITIONAL = new RegExp(`${L}\\p{L}{2,24}m[iu]yorsa(?:niz)?${R}`, "u");
-const RECIPE_PHRASES: readonly string[] = [
+const RECIPE_STRONG_PHRASES: readonly string[] = [
   "yeniden baslat",
   "tekrar baslat",
-  "switch it off",
-  "switch off",
-  "turn it off",
   "turn it back on",
   "turn off and on",
   "power cycle",
+  "اعادة تشغيل",
+  "اعد تشغيل",
+].map((p) => fold(p));
+/** Zayıf işaretler (genel kullanım da olabilir): ancak İKİ FARKLI zayıf işaret tarif sayılır. Küresel bayrak: farklı eşleşmeler sayılır. */
+const RECIPE_WEAK_WORDS = new RegExp(
+  `${L}(?:${[
+    // tr
+    "bekleyin",
+    "bekleyiniz",
+    "bekleyip",
+    "bekledikten",
+    "secin",
+    "seciniz",
+    "secip",
+    "secerek",
+    "ayarlayin",
+    "ayarlayip",
+    "ayarlayarak",
+    "cevirin",
+    "cevirip",
+    "cevirerek",
+    "kapatip",
+    "degistirin",
+    "degistirip",
+    "takin",
+    // en
+    "hold",
+    "holding",
+    "select",
+    "wait",
+    "replace",
+    // de
+    "drucken",
+    "ausschalten",
+    "einschalten",
+    "warten",
+    "wahlen",
+    "wechseln",
+    "austauschen",
+    // fr
+    "maintenez",
+    "eteignez",
+    "rallumez",
+    "attendez",
+    "selectionnez",
+    "remplacez",
+    "changez",
+    // es
+    "mantenga",
+    "apague",
+    "encienda",
+    "espere",
+    "seleccione",
+    "cambie",
+    "reemplace",
+    // ru
+    "удерживаите",
+    "выключите",
+    "включите",
+    "отключите",
+    "подождите",
+    "выберите",
+    "замените",
+    // ar
+    "انتظر",
+    "انتظروا",
+    "اختر",
+    "اختاروا",
+    "استبدل",
+  ].join("|")})${R}`,
+  "gu",
+);
+const RECIPE_WEAK_PHRASES: readonly string[] = ["switch it off", "switch off", "turn it off", "fisini cek", "fisten cek", "fisini cikar"].map((p) => fold(p));
+/**
+ * Olumsuz koşul ("çalışmıyorsa", "açılmıyorsa", "bağlanamıyorsanız") — sorun giderme başlığı. Bilmek / istemek / kullanmak / sevmek / tercih
+ * etmek / gerekmek / anlamak arıza değildir ("Kahve makinesini kullanmayı bilmiyorsanız…"). Sınırlı tekrar (karesel iş yok).
+ */
+const RECIPE_CONDITIONAL = new RegExp(
+  `${L}(?!(?:bil|iste|kullan|sev|begen|tercih|gerek|anla)\\p{L}{0,3}m[iu]yorsa)\\p{L}{2,24}m[iu]yorsa(?:niz)?${R}`,
+  "u",
+);
+const RECIPE_FAULT_PHRASES: readonly string[] = [
   "not working",
   "doesn't work",
   "does not work",
@@ -406,16 +514,103 @@ const RECIPE_PHRASES: readonly string[] = [
   "ne marche pas",
   "no funciona",
   "не работает",
-  "اعادة تشغيل",
-  "اعد تشغيل",
   "لا يعمل",
-];
+].map((p) => fold(p));
+/** Yalnız tırmandırma satırının işareti: "bize yazın / contact us …" (katlanmış biçim). */
+const ESCALATION_CONTACT: readonly string[] = [
+  "bize yaz",
+  "bize ulas",
+  "bize haber",
+  "bize mesaj",
+  "bizi ara",
+  "ev sahibine yaz",
+  "ev sahibine haber",
+  "ev sahibini ara",
+  "haber verin",
+  "bildirin",
+  "iletisime gec",
+  "message us",
+  "contact us",
+  "let us know",
+  "call us",
+  "text us",
+  "reach out",
+  "get in touch",
+  "contact the host",
+  "message the host",
+  "let the host know",
+  "inform us",
+  "schreiben sie uns",
+  "kontaktieren sie uns",
+  "melden sie sich",
+  "rufen sie uns an",
+  "geben sie uns bescheid",
+  "sagen sie uns bescheid",
+  "informieren sie uns",
+  "contactez-nous",
+  "contactez nous",
+  "ecrivez-nous",
+  "ecrivez nous",
+  "prevenez-nous",
+  "prevenez nous",
+  "appelez-nous",
+  "faites-nous savoir",
+  "contactenos",
+  "escribanos",
+  "avisenos",
+  "llamenos",
+  "pongase en contacto",
+  "напишите нам",
+  "свяжитесь с нами",
+  "сообщите нам",
+  "позвоните нам",
+  "تواصل معنا",
+  "اتصل بنا",
+  "راسلنا",
+  "اخبرنا",
+].map((p) => fold(p));
 
 /** Bilgi tabanı kalemi bir sorun giderme TARİFİ taşıyor mu (başlık + metin). Saf, doğrusal. */
 export function isFixRecipeText(text: string): boolean {
   if (!text || !text.trim()) return false;
   const f = fold(text);
-  return RECIPE_WORDS.test(f) || RECIPE_STEMS.test(f) || RECIPE_CONDITIONAL.test(f) || RECIPE_PHRASES.some((p) => f.includes(p));
+  if (RECIPE_STRONG_WORDS.test(f) || RECIPE_TR_BASIN.test(f) || RECIPE_DE_DRUECKEN.test(text.toLowerCase()) || RECIPE_STEMS.test(f)) {
+    return true;
+  }
+  if (RECIPE_STRONG_PHRASES.some((p) => f.includes(p))) return true;
+  const weak = new Set<string>();
+  for (const m of f.matchAll(RECIPE_WEAK_WORDS)) weak.add(m[0]);
+  for (const p of RECIPE_WEAK_PHRASES) if (f.includes(p)) weak.add(p);
+  if (weak.size >= 2) return true;
+  if (!RECIPE_CONDITIONAL.test(f) && !RECIPE_FAULT_PHRASES.some((p) => f.includes(p))) return false;
+  // Arıza anma tek başına başlıktır — yalnız tırmandırma satırı ("…çalışmıyorsa bize yazın", adım yok) değildir.
+  return weak.size > 0 || !ESCALATION_CONTACT.some((p) => f.includes(p));
+}
+
+/** Kalemin cümleleri (nokta / ünlem / soru / noktalı virgül / satır / madde işareti). Saat ve ondalık noktası bölmez. */
+function sentencesOf(text: string): string[] {
+  return text.split(/(?<!\d)[.!?;]+(?!\d)|[\n•]+/u).filter((s) => s.trim() !== "");
+}
+
+/**
+ * Tek kalemin tarif konuları: başlık TEK cihaz taşıyorsa o; başlık konusuz ("Sık sorulanlar") ya da çok konuluysa ("TV ve İnternet")
+ * konu TARİF CÜMLESİNDEN (15 ajan A06: "Sık sorulanlar" kalemindeki tek klima adımı, yalnız ANILAN kahve makinesi / çamaşır makinesi /
+ * mikrodalga / Wi-Fi'yi de tarifli yapıyordu). Tarif cümlesi cihaz adı taşımıyorsa eski kural (başlık ya da metnin tamamı).
+ */
+function recipeTopicsOfItem(title: string, content: string): string[] {
+  const text = `${title}\n${content}`;
+  if (!isFixRecipeText(text)) return [];
+  const titleDevices = deviceTopicsOf(topicsOf(title));
+  if (titleDevices.length === 1) return titleDevices;
+  const fromSentences = new Set<string>();
+  for (const sentence of sentencesOf(content)) {
+    if (!isFixRecipeText(sentence)) continue;
+    for (const t of deviceTopicsOf(topicsOf(sentence))) {
+      if (titleDevices.length === 0 || titleDevices.includes(t)) fromSentences.add(t);
+    }
+  }
+  if (fromSentences.size > 0) return [...fromSentences];
+  return titleDevices.length > 0 ? titleDevices : deviceTopicsOf(topicsOf(text));
 }
 
 /**
@@ -423,16 +618,11 @@ export function isFixRecipeText(text: string): boolean {
  * modeline sunulur (`requestDependency`, `recipe`). Konu kavramı bulunmayan cihaz ("jakuzi") tarifle eşlenemez → ev sahibinde kalır.
  * Konu ÖNCE BAŞLIKTAN ("Klima", "Çamaşır makinesi", "Otopark kapısı açılmıyorsa"): metnin tamamı tarifin geçtiği yeri / fiilini de
  * kavrama çeviriyor (modem tarifindeki "yeniden açın" → klima, "TV ünitesinin rafında" → televizyon, şifredeki "Deniz" → plaj — ölçüldü);
- * başlık konu taşımıyorsa ("Sık sorulanlar") metnin tamamı.
+ * başlık konusuz / çok konuluysa tarif cümlesinden (`recipeTopicsOfItem`).
  */
 export function kbRecipeTopics(items: readonly { title: string; content: string }[]): Set<string> {
   const out = new Set<string>();
-  for (const it of items) {
-    const text = `${it.title}\n${it.content}`;
-    if (!isFixRecipeText(text)) continue;
-    const fromTitle = topicsOf(it.title).filter((t) => DEVICE_TOPICS.has(t));
-    for (const t of fromTitle.length > 0 ? fromTitle : topicsOf(text).filter((t) => DEVICE_TOPICS.has(t))) out.add(t);
-  }
+  for (const it of items) for (const t of recipeTopicsOfItem(it.title, it.content)) out.add(t);
   return out;
 }
 
@@ -447,12 +637,40 @@ export function deviceTopicsOf(topics: readonly string[]): string[] {
  * ya da "talimatım yok" yazdı ("Je n'ai pas de consigne… micro-ondes" — Luna, GİTTİ). Bırakılan istek için istem zaten "değinme" der; bu,
  * kodun ikinci kemeri. `heldDeviceTopics` cevaplanan isteklerin konularını İÇERMEZ (plan çıkarır) — arıza tarifi kendi cihazına değinir.
  */
-export function touchesHeldDevice(heldDeviceTopics: readonly string[], reply: string): boolean {
+export function touchesHeldDevice(
+  heldDeviceTopics: readonly string[],
+  reply: string,
+  opts: { genericRef?: boolean } = {},
+): boolean {
   // Boş liste kısa yolu yalnız gereksiz `topicsOf` çağrısını önler (sonuç aynı — mutasyon turunda eşdeğer mutant, bilerek).
   if (heldDeviceTopics.length === 0 || !reply.trim()) return false;
   const held = new Set(heldDeviceTopics);
-  return topicsOf(reply).some((t) => held.has(t));
+  if (topicsOf(reply).some((t) => held.has(t))) return true;
+  // Adı ANILMAYAN bırakılan cihaz (15 ajan A06, 10-01): "Makineyi kapatıp fişini 1 dakika çekin, sonra tekrar başlatın" — cevaplanan
+  // isteklerin hiçbiri cihaz değilse (`genericRef`, plan verir) "makine / cihaz / the device / l'appareil …" yalnız bırakılan cihaz
+  // olabilir; aynı cümle bir adım (tarif işareti) taşıyorsa cevap ona değinmiştir.
+  if (!opts.genericRef) return false;
+  return sentencesOf(reply).some((sentence) => GENERIC_DEVICE_REF.test(fold(sentence)) && isFixRecipeText(sentence));
 }
+
+/**
+ * Adı verilmeyen cihaz anışı (katlanmış metin): niteleyicisiz "makine / cihaz" ("bulaşık makinesi" adlandırır, konu oradan gelir),
+ * "the machine / device / appliance", "das Gerät", "l'appareil", "el aparato", "прибор / устройство", "الجهاز". Sınırlı tekrar.
+ */
+const GENERIC_DEVICE_REF = new RegExp(
+  [
+    `(?<!(?:bulasik|camasir|kahve|kurutma|dikis|tiras|espresso|filtre|cay|buz|ekmek|sac|tost) )${L}makin[ae](?:yi|nin|ye|de|da|den|dan|niz|nizi|nizin|miz|mizi)?${R}`,
+    `${L}cihaz(?:i|in|a|da|dan|iniz|inizi|imiz|imizi)?${R}`,
+    `${L}(?:the|this|that|your) (?:machine|device|appliance)${R}`,
+    `${L}(?:das|dem|des) gerat(?:s|es)?${R}`,
+    `${L}(?:die|der) maschine${R}`,
+    `${L}(?:l'appareil|cet appareil|la machine)${R}`,
+    `${L}(?:el aparato|la maquina|el equipo|el electrodomestico)${R}`,
+    `${L}(?:прибор\\p{L}{0,3}|устройств\\p{L}{0,3})${R}`,
+    `${L}(?:الجهاز|الالة)${R}`,
+  ].join("|"),
+  "u",
+);
 
 /**
  * Tarifle giderilebilecek CİHAZ / TESİS kavramları (getirme sözlüğü kimlikleri). Ulaşım, yer, kural, hizmet kavramı tarif konusu değildir:

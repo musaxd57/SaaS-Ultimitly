@@ -113,6 +113,8 @@ export function composeItemsPlan<T extends PlanItem>(input: {
       answerableKinds: answerable.map((a) => a.item.kind),
       ...(relationGate ? { relation: relationGate } : {}),
       ...(heldDeviceTopics.length > 0 ? { heldDeviceTopics } : {}),
+      // Cevaplanan isteklerin hiçbiri cihaz değilse cevaptaki adsız "makine / cihaz" yalnız bırakılan cihaz olabilir (15 ajan A06).
+      ...(heldDeviceTopics.length > 0 && deviceTopicsOf([...answeredTopics]).length === 0 ? { heldDeviceGenericRef: true } : {}),
     },
     allHeld: answerable.length === 0,
   };
@@ -130,10 +132,20 @@ function relationPlan<T extends PlanItem>(
   recipeTopics: ReadonlySet<string>,
 ): { dependent: T[]; fix: Set<T>; anchors: AnchorFacts[]; factsOf: (item: T) => RequestFacts } {
   const lookup = (messageId: string | undefined, kind: ItemKind) => (messageId ? relations.get(hintKey(messageId, kind)) : undefined);
+  // Bağlayıcı talebin kendi olgusu yoksa (kelime ağının uyarı geçişinde açtığı şikâyet; anlama katmanı aynı mesajı başka türle — ör.
+  // otopark — okudu) AYNI MESAJIN öteki isteklerinin konuları + tehlikesi: konusuz bağlayıcı "Otopark kapısı açılmıyor!" yanındaki
+  // "Arabayla nasıl çıkarız?" sorusunu bağımsız bırakıyordu (15 ajan A06). Yalnız sıkılaştırır.
+  const messageFacts = (messageId: string | undefined): { topics: string[]; hazard: boolean } | undefined => {
+    if (!messageId) return undefined;
+    const prefix = `${messageId}\u0000`;
+    const same = [...relations.entries()].filter(([key]) => key.startsWith(prefix)).map(([, f]) => f);
+    if (same.length === 0) return undefined;
+    return { topics: [...new Set(same.flatMap((f) => f.topics))].sort(), hazard: same.some((f) => f.hazard) };
+  };
   const anchors: AnchorFacts[] = held
     .filter((h) => !h.earlier && RELATION_ANCHOR_KINDS.has(h.kind))
     .map((h) => {
-      const f = lookup(h.messageId, h.kind);
+      const f = lookup(h.messageId, h.kind) ?? messageFacts(h.messageId);
       return { kind: h.kind, topics: f?.topics ?? [], hazard: f?.hazard ?? false };
     });
   const factsOf = (i: T): RequestFacts => {
@@ -146,7 +158,9 @@ function relationPlan<T extends PlanItem>(
       generic: f?.generic ?? false,
       hazard: f?.hazard ?? false,
       // Karar 23 kör doğrulaması (10-01 öğlen): bilgi tabanında bu isteğin konusunda tarif kalemi var mı — kapı aynı olguyu okur.
-      recipe: topics.some((t) => recipeTopics.has(t)),
+      // İsteğin HER cihaz konusu tarifli olmalı (15 ajan A06: "klima ve TV çalışmıyor" isteğinde yalnız klima tarifi varken TV'ye de
+      // çözüm sunuluyordu); cihaz konusu yoksa tarif yok.
+      recipe: deviceTopicsOf(topics).length > 0 && deviceTopicsOf(topics).every((t) => recipeTopics.has(t)),
     };
   };
   const dependent: T[] = [];

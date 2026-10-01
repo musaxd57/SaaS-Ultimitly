@@ -519,7 +519,12 @@ export function autoReplyGateVerdict(
     }
     // Cevap ev sahibine BIRAKILAN arızanın cihazına değiniyorsa (uydurma adım, "talimatım yok", özür) GİTMEZ — istemin "değinme" kuralının
     // kod kemeri (kör set 5, 10-01 öğlen: 5.1 tarifsiz bulaşık makinesi için adım uydurdu ve gönderdi). Liste ve ilişki kipinde aynı.
-    if (items.heldDeviceTopics && touchesHeldDevice(items.heldDeviceTopics, result.reply ?? "")) return hold("items_held_touched");
+    if (
+      items.heldDeviceTopics &&
+      touchesHeldDevice(items.heldDeviceTopics, result.reply ?? "", { genericRef: items.heldDeviceGenericRef === true })
+    ) {
+      return hold("items_held_touched");
+    }
     if (
       items.held.length > 0 &&
       !items.answerableKinds.some((k) => STAY_CHANGE_ITEM_KINDS.has(k)) &&
