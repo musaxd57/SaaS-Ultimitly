@@ -85,3 +85,40 @@ describe("K3 — çelişki görünür (ev sahibi raporu + istem aynı kural)", (
     expect(kbPropertyMismatch(hits, "checkout", "11:00")).toEqual([]);
   });
 });
+
+describe("K3 ikinci tur (Codex 10-01) — olumsuzlanan alan yalnız GERÇEK düzeltme cümleciğine taşınır", () => {
+  it.each([
+    // Codex örnekleri: başka olayın saati çıkışa taşınmaz (mülk 12:00 iken sahte 13:00 çelişkisi doğuyordu).
+    ["Çıkış 11:00 değil. 13:00 saatinde toplantı var.", []],
+    ["Check-out is not at 11:00. At 13:00 the ceremony starts.", []],
+    ["Çıkış 11:00 değil. Saat 13:00'te kahvaltı salonu kapanır.", []],
+    ["Check-out is not at 11:00. The shuttle leaves at 13:00.", []],
+  ])("başka olay: %s → çıkış %j", (text, want) => {
+    expect(checkout(text)).toEqual(want);
+  });
+
+  it.each([
+    // İkiz düzeltmeler (Codex: "12:00 olacaktır" ile "13:00 toplantı var" ikiz test).
+    ["Çıkış 11:00 değil. 12:00 olacaktır.", ["12:00"]],
+    ["Çıkış 11:00 değil. Doğrusu 12:00.", ["12:00"]],
+    ["Çıkış 11:00 değil. Saat 12:00'dir.", ["12:00"]],
+    ["Çıkış 11:00 değil, artık 12:00.", ["12:00"]],
+    ["Check-out is not at 11:00. It will be 12:00.", ["12:00"]],
+    ["Check-out is not at 11:00. The correct time is 12:00.", ["12:00"]],
+    ["Check-out is not at 11:00. Rather 12:00.", ["12:00"]],
+  ])("düzeltme: %s → çıkış %j", (text, want) => {
+    expect(checkout(text)).toEqual(want);
+  });
+
+  it("🚨 mülk 12:00: 'Çıkış 11:00 değil. 13:00 saatinde toplantı var.' sahte çelişki üretmez; ikizi '12:00 olacaktır' uyumludur", () => {
+    const property = { name: "Lale", checkInTime: "15:00", checkOutTime: "12:00" } as PropertyContext;
+    const kb = (content: string) => [{ category: "general", title: "Ev bilgileri", content }] as KbContext[];
+    expect(findTimeConflicts(property, kb("Çıkış 11:00 değil. 13:00 saatinde toplantı var."))).toEqual([]);
+    expect(findTimeConflicts(property, kb("Check-out is not at 11:00. At 13:00 the ceremony starts."))).toEqual([]);
+    expect(findTimeConflicts(property, kb("Çıkış 11:00 değil. 12:00 olacaktır."))).toEqual([]);
+    // KONTROL: düzeltme mülkten farklıysa çelişki yine görünür.
+    expect(findTimeConflicts(property, kb("Çıkış 11:00 değil. 13:00 olacaktır."))).toEqual([
+      { field: "checkOutTime", propertyValue: "12:00", kbValues: ["13:00"] },
+    ]);
+  });
+});

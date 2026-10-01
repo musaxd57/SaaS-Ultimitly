@@ -1182,6 +1182,37 @@ function negatedTime(clause: string, start: number, end: number): boolean {
 }
 
 /**
+ * DÜZELTME BAĞI (K3 ikinci tur, Codex 10-01): olumsuzlanan alan ("Çıkış 11:00 değil.") yalnız GERÇEK bir düzeltme cümleciğine taşınır —
+ * saat dışındaki bütün sözcükleri kapalı düzeltme dolgusundan olan cümlecik: "12:00 olacaktır", "Doğrusu 12:00", "12:00'de", "It is
+ * 12:00", "The correct time is 12:00", "It will be 12:00 now". Başka bir olayın saati ("13:00 saatinde toplantı var", "At 13:00 the
+ * ceremony starts") taşınmaz — sözcük YASAĞI değil, BİÇİM: içerik sözcüğü kalan cümlecik düzeltme değildir. Belirteçler katlanmış
+ * (`tokenize`: Türkçe ASCII, kesme işareti sınır).
+ */
+const CORRECTION_FILLER: ReadonlySet<string> = new Set([
+  // TR
+  "saat", "saati", "saatte", "saatinde", "de", "da", "te", "ta", "dir", "tir", "dur", "tur", "olacak", "olacaktir", "olur", "oluyor",
+  "olarak", "dogrusu", "dogru", "aslinda", "yerine", "bunun", "artik", "yeni", "guncel", "guncellendi", "degisti", "degistirildi",
+  "kadar", "e", "a", "ye", "ya", "den", "dan", "ten", "tan", "itibaren", "itibariyle", "itibariyla", "ise", "yani",
+  // EN
+  "it", "its", "s", "is", "will", "be", "at", "the", "correct", "correctly", "actually", "rather", "instead", "but", "time", "now",
+  "by", "until", "till", "from", "updated", "changed", "new",
+  // DE / FR / ES
+  "es", "ist", "sondern", "um", "uhr", "bis", "ab", "richtig", "eigentlich", "c", "est", "mais", "plutot", "plutôt", "à", "h",
+  "jusqu", "sino", "las", "la", "hasta", "desde",
+]);
+function correctionOnlyClause(clause: string, mentions: readonly TimeMention[]): boolean {
+  if (mentions.length === 0) return false;
+  let rest = "";
+  let last = 0;
+  for (const m of mentions) {
+    rest += `${clause.slice(last, m.start)} `;
+    last = m.end;
+  }
+  rest += clause.slice(last);
+  return tokenize(rest).every((t) => CORRECTION_FILLER.has(t));
+}
+
+/**
  * Saatin alanın DEĞERİ olmadığı durumlar (09-27): geç çıkış / geç girişte "11:00 sonrası" standart saattir (sınır),
  * erken girişte "15:00'ten önceki" de öyle; başvuru noktası cümleciğinde ("çıkıştan sonra … 14:00'e kadar") "kadar"
  * saati başka bir işin saatidir; koşulun İÇİNDEKİ saat ve geç kalış cümleciğinde "22:00'den sonra" eşiktir; erişim
@@ -1437,7 +1468,7 @@ function readFieldTimeHits(title: string, text: string, category?: string | null
             field = carryField;
             fromCarry = true;
           }
-          else if (ownFields.length === 0 && negCarry && !info.vetoed && !placeCarry && !otherConcept) {
+          else if (ownFields.length === 0 && negCarry && !info.vetoed && !placeCarry && !otherConcept && correctionOnlyClause(part, mentions)) {
             field = negCarry;
             fromCarry = true;
           }
