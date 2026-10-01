@@ -51,3 +51,11 @@ describe("konu satırı tek satır", () => {
     expect(subject).toBe(singleLineSubject(HOSTILE));
   });
 });
+
+describe("15 ajan A13 — yön denetimi ve vekil çift", () => {
+  it("🚨 konu satırında yön denetim karakterleri düşer (misafir adındaki U+202E konuyu tersine çeviremez); normal metin aynen", () => {
+    expect(singleLineSubject("Şikâyet: ‮atsed nilxuL‬ — Lale 7")).toBe("Şikâyet: atsed nilxuL — Lale 7");
+    expect(singleLineSubject("a⁦b⁩c‏d؜e")).toBe("abcde");
+    expect(singleLineSubject("Misafir “Ayşe” 👍")).toBe("Misafir “Ayşe” 👍");
+  });
+});

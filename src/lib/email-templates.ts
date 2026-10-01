@@ -1,6 +1,15 @@
 import "server-only";
 import { RESERVATION_CHANNEL } from "@/lib/constants";
 
+/**
+ * Misafir metninden alıntı — KOD NOKTASIYLA kırpılır (15 ajan A13): `slice(0, 600)` UTF-16 birimiyle kesiyordu ve 600. birim bir emoji
+ * vekil çiftinin ortasına denk gelince e-postada yalnız `\ud83d` kalıyordu. Uzunsa "…" eklenir.
+ */
+function excerptByCodePoint(text: string, max: number): string {
+  const cps = Array.from(text);
+  return cps.length > max ? `${cps.slice(0, max).join("")}…` : text;
+}
+
 // ---------------------------------------------------------------------------
 // Lixus AI — Email Templates
 // All emails are in Turkish, use inline styles for maximum email client support.
@@ -195,7 +204,7 @@ export function complaintEscalationEmail(
       <tr>
         <td style="padding:16px 20px;">
           <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR MESAJI</p>
-          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${esc(message.slice(0, 600))}${message.length > 600 ? "…" : ""}"</p>
+          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${esc(excerptByCodePoint(message, 600))}"</p>
         </td>
       </tr>
     </table>
@@ -261,7 +270,7 @@ export function hostReplyWaitingEmail(
       <tr>
         <td style="padding:16px 20px;">
           <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR MESAJI</p>
-          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${esc(message.slice(0, 600))}${message.length > 600 ? "…" : ""}"</p>
+          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${esc(excerptByCodePoint(message, 600))}"</p>
         </td>
       </tr>
     </table>

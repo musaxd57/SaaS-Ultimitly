@@ -57,7 +57,9 @@ function htmlToText(html: string): string {
  * çeviriyor, Resend'e konu JSON alanıyla gidiyor — bu, sağlayıcıdan bağımsız savunma derinliği (tek yer: iki gönderim yolu da buradan geçer).
  */
 export function singleLineSubject(subject: string): string {
-  return subject.replace(/[\p{Cc}\u2028\u2029]+/gu, " ");
+  // Yön denetim karakterleri (U+202A–202E, U+2066–2069, U+200E/200F, U+061C) da düşer (15 ajan A13): misafir adındaki U+202E konuyu
+  // görsel olarak tersine çevirip yanıltıcı bir konu satırı kurabiliyordu. Başlık enjeksiyonu zaten imkânsız (satır sonları teke iner).
+  return subject.replace(/[\p{Cc}\u2028\u2029]+/gu, " ").replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]/gu, "");
 }
 
 class EmailService {
