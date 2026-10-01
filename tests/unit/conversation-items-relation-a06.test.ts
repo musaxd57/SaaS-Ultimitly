@@ -303,3 +303,80 @@ describe("6 — olgusuz bağlayıcı talep (kelime ağının uyarı geçişi) ay
     expect(p.answerable).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 7 — RC60 REGRESYON KOŞUSU (10-01 gece, kör set 6 — ücretli koşu GÖSTERDİ, ölçüm ücretsiz yeniden üretildi): A06 sıkılaştırması üç GERÇEK
+// tarifi düşürüyordu → set 6'nın üç tarifli arızası (otopark kumandası, çamaşır makinesi kapağı, bulaşık makinesi) misafire gitmedi:
+//  · "touch and hold the key symbol for 3 seconds" (dokunmatik ocak) tek zayıf işaretti;
+//  · "Otopark kapısı kumandası çalışmazsa" başlığı sözlükte iki kavrama iniyor (otopark + kumanda) ama TEK cihazdır;
+//  · SSS satırında cihaz soru / arıza başlığında anılır, tarif sonraki cümlededir ("…kapağı açılmıyor: … 2 dakika bekleyin; açılmazsa
+//    START/PAUSE tuşuna basılı tutun").
+// Eval bilgi tabanlarının 568 kaleminde canlıya göre fark 30 → 15 kalem; kalan kayıplar A06'nın hedefi (çıkış talimatı, yalnız anılan cihaz).
+// ---------------------------------------------------------------------------
+describe("7 — RC60 regresyonu: gerçek tarifler geri, A06 korumaları yerinde", () => {
+  it("🚨 dokunmatik 'touch and hold … key symbol' tarifi (set 6 'Induction hob')", () => {
+    const hob = {
+      title: "Induction hob",
+      content:
+        "The kitchen hob is induction. If it beeps but no zone heats up, the child lock is on: touch and hold the key symbol for 3 seconds until the small red dot next to it goes out, then switch the hob on with the ON/OFF field.",
+    };
+    expect([...kbRecipeTopics([hob])]).toEqual(["stove"]);
+    expect(isFixRecipeText("Tap and hold the lock icon until it beeps.")).toBe(true);
+  });
+
+  it("🚨 liste ayracı olmayan çok kavramlı başlık TEK cihazdır; listeli başlık ('… ve …') tarif cümlesine bakar", () => {
+    const remote = {
+      title: "Otopark kapısı kumandası çalışmazsa",
+      content:
+        "Kapıyı açmak için kumandadaki büyük gri düğmeye 2 saniye basılı tutun ve kapıya en fazla 10 metre yaklaşın. Kapı tepki vermiyor ve kumandanın küçük kırmızı ışığı yanıp sönmüyorsa pil bitmiştir: arka kapağı bozuk parayla çevirerek açın, içindeki CR2032 pili değiştirin.",
+    };
+    expect([...kbRecipeTopics([remote])].sort()).toContain("parking");
+    // KONTROL (A06): listeli başlıkta yalnız tarif cümlesinin cihazı.
+    expect([...kbRecipeTopics([{ title: "TV ve İnternet", content: "TV görüntü vermiyorsa SOURCE tuşuna basın. Modem salonda." }])]).toEqual(["tv"]);
+  });
+
+  it("🚨 SSS satırı: soru / arıza başlığındaki cihaz aynı satırın tarif cümlesine geçer; sonraki ve ilgisiz önceki cümle geçmez", () => {
+    const faq = {
+      title: "Sık sorulanlar",
+      content:
+        "Çamaşır deterjanı nerede? Banyo lavabosunun altındaki dolapta.\nÇamaşır makinesinin kapağı açılmıyor: Program bittikten sonra kapak 2 dakika kapalı kalır. 2 dakika bekleyin; olmazsa START/PAUSE tuşuna 3 saniye basılı tutun.",
+    };
+    expect([...kbRecipeTopics([faq])]).toContain("laundry");
+    // Aynı cihazı anan önceki cümle (başlık değil) de miras verir: "Otopark kapısı kumandayla açılır. Kumanda çalışmazsa … basın."
+    const same = { title: "Sık sorulanlar", content: "Otopark kapısı anahtarlıktaki kumandayla açılır. Kumanda çalışmazsa onay tuşuna basın." };
+    expect([...kbRecipeTopics([same])]).toContain("parking");
+    // İlgisiz önceki bilgi cümlesi (başlık değil, ortak cihaz yok) miras VERMEZ.
+    const unrelated = { title: "Sık sorulanlar", content: "Wi-Fi şifresi buzdolabının üstünde. Klima soğutmuyorsa MODE tuşuna basın." };
+    expect([...kbRecipeTopics([unrelated])]).toEqual(["ac"]);
+    // Yalnız iki nokta başlık değil: "Ağ adı: …, şifre: …" sonraki klima tarifine Wi-Fi geçirmez.
+    const colon = { title: "Sık sorulanlar", content: "Ağ adı: Lale-5G, şifre: Lale2025. Klima soğutmuyorsa MODE tuşuna basın." };
+    expect([...kbRecipeTopics([colon])]).toEqual(["ac"]);
+    // Başka SATIRIN başlığı miras vermez.
+    const otherLine = { title: "Sık sorulanlar", content: "Kahve makinesi çalışmıyor mu?\nKlima soğutmuyorsa MODE tuşuna basın." };
+    expect([...kbRecipeTopics([otherLine])]).toEqual(["ac"]);
+  });
+
+  it("kontrol adı (tuş / button / Taste…) zayıf işarettir: fiille tarif, tek başına ya da iki ad fiilsiz değil", () => {
+    expect(isFixRecipeText("Kumandadaki Source tuşuyla 'TV' kaynağını seçin.")).toBe(true);
+    expect(isFixRecipeText("Maintenez le bouton enfoncé, puis attendez.")).toBe(true);
+    expect(isFixRecipeText("Kapıda tuşlu kilit var.")).toBe(false);
+    expect(isFixRecipeText("Tuş takımı ve düğme kapının solunda.")).toBe(false);
+    expect(isFixRecipeText("Select the 5 GHz network for faster speed.")).toBe(false);
+  });
+
+  it("Türkçe güç döngüsü ('kapatıp … yeniden açın / açabilirsiniz') tarif; 'yeniden açılır' (bilgi) değil", () => {
+    expect(isFixRecipeText("Sinyal zayıfsa modemi kapatıp 30 saniye sonra yeniden açabilirsiniz.")).toBe(true);
+    expect(isFixRecipeText("İnternet giderse modemin güç düğmesini kapatın, 30 saniye bekleyip yeniden açın.")).toBe(true);
+    expect(isFixRecipeText("Havuz 1 Mayıs'ta yeniden açılır.")).toBe(false);
+  });
+
+  it("Türkçe arıza koşulu: 3. şahıs '-mazsa' ve kapalı küme ('sıkışırsa / kesilirse'); 2. şahıs ve 'unutmazsa' değil", () => {
+    expect(isFixRecipeText("Kumanda çalışmazsa bariyerin yanındaki tuş takımına 1987 kodunu girin.")).toBe(true);
+    expect(isFixRecipeText("Kol yarıda sıkışırsa kolu sonuna kadar aşağı çevirin.")).toBe(true);
+    expect(isFixRecipeText("İnternet kesilirse modemin fişini 30 saniye çekip takın.")).toBe(true);
+    expect(isFixRecipeText("Saat 22'ye kadar gelmezseniz anahtar kutuda bekler.")).toBe(false);
+    expect(isFixRecipeText("Misafirimiz unutmazsa anahtarı kâseye bırakır.")).toBe(false);
+    // KONTROL: yalnız tırmandırma satırı yine tarif değil.
+    expect(isFixRecipeText("Klima çalışmazsa bize yazın.")).toBe(false);
+  });
+});

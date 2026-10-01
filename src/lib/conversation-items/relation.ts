@@ -417,6 +417,19 @@ const RECIPE_STEMS = stemRe(["sifirla"]);
 const RECIPE_STRONG_PHRASES: readonly string[] = [
   "yeniden baslat",
   "tekrar baslat",
+  // RC60 regresyon koşusu (10-01 gece, set 6): "İnternet kesilirse modemi kapatın, 30 saniye bekleyip yeniden açın" (Türkçe güç döngüsü,
+  // İngilizce "turn it back on"un karşılığı) ve dokunmatik "touch and hold the key symbol" tarif sayılmıyordu.
+  "yeniden acin",
+  "yeniden aciniz",
+  "yeniden acip",
+  "yeniden acabilirsiniz",
+  "tekrar acin",
+  "tekrar acip",
+  "tekrar acabilirsiniz",
+  "yeniden takin",
+  "tekrar takin",
+  "touch and hold",
+  "tap and hold",
   "turn it back on",
   "turn off and on",
   "power cycle",
@@ -494,11 +507,68 @@ const RECIPE_WEAK_WORDS = new RegExp(
 );
 const RECIPE_WEAK_PHRASES: readonly string[] = ["switch it off", "switch off", "turn it off", "fisini cek", "fisten cek", "fisini cikar"].map((p) => fold(p));
 /**
+ * KONTROL ADI (zayıf işaret, RC60 regresyon koşusu 10-01 gece): tek başına tarif DEĞİL ("Kapıda tuşlu kilit var", "The coil symbol on the
+ * bottom") ama bir zayıf fiille birlikte tarif cümlesidir — "Source tuşuyla TV kaynağını seçin", "MODE tuşuyla COOL seçin", "touch and hold the
+ * key symbol", "Maintenez le bouton enfoncé". Kapı anahtarı ("key / anahtar / Schlüssel / مفتاح") BİLEREK yok; "mod" tam sözcük ("modem" değil).
+ */
+const RECIPE_CONTROL_NOUNS = new RegExp(
+  `${L}(?:${[
+    // tr
+    "tus(?:u|una|uyla|unu|lari|larina)?",
+    "dugme(?:si|sine|ye|sini|yle)?",
+    "mod(?:u|unu|una|da|unda|undan)?",
+    "program(?:i|ini|ina|la)?",
+    "simge(?:si|sini|sine)?",
+    // en
+    "buttons?",
+    "mode",
+    "settings?",
+    "symbol",
+    "icon",
+    "dial",
+    "knob",
+    // de
+    "tasten?",
+    "knopf",
+    "modus",
+    "programm",
+    "schalter",
+    // fr
+    "bouton",
+    "touche",
+    "programme",
+    "interrupteur",
+    "symbole",
+    // es
+    "boton",
+    "tecla",
+    "modo",
+    "programa",
+    "interruptor",
+    "simbolo",
+    // ru (katlanmış)
+    "кнопк\\p{L}{0,3}",
+    "режим\\p{L}{0,3}",
+    "значок",
+    "переключател\\p{L}{0,3}",
+    // ar
+    "زر",
+    "الزر",
+  ].join("|")})${R}`,
+  "u",
+);
+/**
  * Olumsuz koşul ("çalışmıyorsa", "açılmıyorsa", "bağlanamıyorsanız") — sorun giderme başlığı. Bilmek / istemek / kullanmak / sevmek / tercih
  * etmek / gerekmek / anlamak arıza değildir ("Kahve makinesini kullanmayı bilmiyorsanız…"). Sınırlı tekrar (karesel iş yok).
  */
 const RECIPE_CONDITIONAL = new RegExp(
-  `${L}(?!(?:bil|iste|kullan|sev|begen|tercih|gerek|anla)\\p{L}{0,3}m[iu]yorsa)\\p{L}{2,24}m[iu]yorsa(?:niz)?${R}`,
+  [
+    `${L}(?!(?:bil|iste|kullan|sev|begen|tercih|gerek|anla)\\p{L}{0,3}m[iu]yorsa)\\p{L}{2,24}m[iu]yorsa(?:niz)?${R}`,
+    // RC60 regresyon koşusu (10-01 gece): geniş zamanın olumsuz koşulu YALNIZ 3. şahıs ("çalışmazsa / açılmazsa / boşalmazsa"; "gelmezseniz"
+    // misafirin eylemidir) ve kapalı küme olumlu arıza koşulu ("Kol yarıda sıkışırsa … çevirin", "İnternet kesilirse modemi …").
+    `${L}(?!(?:bil|iste|kullan|sev|begen|tercih|gerek|anla|unut)\\p{L}{0,3}m[ae]zs[ae])\\p{L}{2,24}m[ae]zs[ae]${R}`,
+    `${L}(?:sikisirsa|takilirsa|kesilirse|bozulursa|arizalanirsa)${R}`,
+  ].join("|"),
   "u",
 );
 const RECIPE_FAULT_PHRASES: readonly string[] = [
@@ -581,6 +651,9 @@ export function isFixRecipeText(text: string): boolean {
   const weak = new Set<string>();
   for (const m of f.matchAll(RECIPE_WEAK_WORDS)) weak.add(m[0]);
   for (const p of RECIPE_WEAK_PHRASES) if (f.includes(p)) weak.add(p);
+  // Kontrol adı TEK zayıf işaret sayılır (kaç kontrol adı geçerse geçsin): iki kontrol adı fiilsiz tarif yapmaz ("Tuş takımı ve düğme
+  // kapının solunda").
+  if (RECIPE_CONTROL_NOUNS.test(f)) weak.add("control-noun");
   if (weak.size >= 2) return true;
   if (!RECIPE_CONDITIONAL.test(f) && !RECIPE_FAULT_PHRASES.some((p) => f.includes(p))) return false;
   // Arıza anma tek başına başlıktır — yalnız tırmandırma satırı ("…çalışmıyorsa bize yazın", adım yok) değildir.
@@ -592,21 +665,63 @@ function sentencesOf(text: string): string[] {
   return text.split(/(?<!\d)[.!?;]+(?!\d)|[\n•]+/u).filter((s) => s.trim() !== "");
 }
 
+/** Satırın cümleleri, sonlandırıcısıyla (soru işareti bilinsin). */
+function lineSentences(line: string): { text: string; question: boolean }[] {
+  const parts = line.split(/((?<!\d)[.!?;]+(?!\d))/u);
+  const out: { text: string; question: boolean }[] = [];
+  for (let i = 0; i < parts.length; i += 2) {
+    const text = parts[i] ?? "";
+    if (text.trim() !== "") out.push({ text, question: (parts[i + 1] ?? "").includes("?") });
+  }
+  return out;
+}
+
 /**
- * Tek kalemin tarif konuları: başlık TEK cihaz taşıyorsa o; başlık konusuz ("Sık sorulanlar") ya da çok konuluysa ("TV ve İnternet")
- * konu TARİF CÜMLESİNDEN (15 ajan A06: "Sık sorulanlar" kalemindeki tek klima adımı, yalnız ANILAN kahve makinesi / çamaşır makinesi /
- * mikrodalga / Wi-Fi'yi de tarifli yapıyordu). Tarif cümlesi cihaz adı taşımıyorsa eski kural (başlık ya da metnin tamamı).
+ * Soru / arıza BAŞLIĞI: "Çamaşır makinesinin kapağı açılmıyor: …", "Kahve makinesi çalışmıyor mu?", "If the router is not working". SSS
+ * satırında cihaz bu cümlede anılır, tarif sonraki cümlededir ("2 dakika bekleyin; açılmazsa START/PAUSE tuşuna 3 saniye basılı tutun").
+ * Yalnız iki nokta başlık DEĞİL: "Ağ adı: Lale-5G, şifre: …" bilgi cümlesidir, sonraki klima tarifine Wi-Fi'yi geçirmez.
+ */
+const TR_NEGATIVE_PRESENT = new RegExp(
+  `${L}(?!(?:bil|iste|kullan|sev|begen|tercih|gerek|anla)\\p{L}{0,3}m[iu]yor)\\p{L}{2,24}m[iu]yor${R}`,
+  "u",
+);
+function isProblemHeader(s: { text: string; question: boolean }): boolean {
+  if (s.question) return true;
+  const f = fold(s.text);
+  return RECIPE_CONDITIONAL.test(f) || TR_NEGATIVE_PRESENT.test(f) || RECIPE_FAULT_PHRASES.some((p) => f.includes(p));
+}
+
+/** Başlıkta liste ayracı ("TV ve İnternet", "Wi-Fi / TV", "Heating & hot water") — yoksa başlık TEK konuyu adlandırır. */
+const TITLE_LIST_SEPARATOR = /[,&+/|]|\s(?:ve|ile|and|und|et|y|и|или|or|oder|ou|o)\s|\sو/u;
+
+/**
+ * Tek kalemin tarif konuları (15 ajan A06 + RC60 regresyon koşusu 10-01 gece):
+ *  · başlık TEK konuyu adlandırıyorsa (tek cihaz kavramı ya da liste ayracı YOK — "Otopark kapısı kumandası çalışmazsa" sözlükte otopark +
+ *    kumanda kavramına iner ama tek cihazdır) başlığın cihazları;
+ *  · başlık konusuz ("Sık sorulanlar") ya da liste ise ("TV ve İnternet") konu TARİF CÜMLESİNDEN: "Sık sorulanlar" kalemindeki tek klima
+ *    adımı, yalnız ANILAN kahve makinesi / çamaşır makinesi / mikrodalga / Wi-Fi'yi tarifli yapmaz. Tarif cümlesi cihazı SATIRININ önceki
+ *    cümlesinden alabilir — o cümle soru / arıza başlığıysa ("Çamaşır makinesinin kapağı açılmıyor: … 2 dakika bekleyin; açılmazsa
+ *    START/PAUSE tuşuna basılı tutun") ya da tarif cümlesiyle aynı cihazı anıyorsa ("Otopark kapısı kumandayla açılır. Kumanda çalışmazsa
+ *    … onay tuşuna basın"). Sonraki cümle ("Modem salonda") ve başka satır miras vermez;
+ *  · tarif cümlesi hiç cihaz vermiyorsa eski kural (başlık ya da metnin tamamı).
  */
 function recipeTopicsOfItem(title: string, content: string): string[] {
   const text = `${title}\n${content}`;
   if (!isFixRecipeText(text)) return [];
   const titleDevices = deviceTopicsOf(topicsOf(title));
-  if (titleDevices.length === 1) return titleDevices;
+  if (titleDevices.length === 1 || (titleDevices.length > 1 && !TITLE_LIST_SEPARATOR.test(fold(title)))) return titleDevices;
   const fromSentences = new Set<string>();
-  for (const sentence of sentencesOf(content)) {
-    if (!isFixRecipeText(sentence)) continue;
-    for (const t of deviceTopicsOf(topicsOf(sentence))) {
-      if (titleDevices.length === 0 || titleDevices.includes(t)) fromSentences.add(t);
+  for (const line of content.split(/[\n•]+/u)) {
+    let previous: { devices: string[]; header: boolean } | null = null;
+    for (const s of lineSentences(line)) {
+      const own = deviceTopicsOf(topicsOf(s.text));
+      if (isFixRecipeText(s.text)) {
+        const inherited = previous && (previous.header || previous.devices.some((t) => own.includes(t))) ? previous.devices : [];
+        for (const t of [...own, ...inherited]) {
+          if (titleDevices.length === 0 || titleDevices.includes(t)) fromSentences.add(t);
+        }
+      }
+      if (own.length > 0) previous = { devices: own, header: isProblemHeader(s) };
     }
   }
   if (fromSentences.size > 0) return [...fromSentences];
