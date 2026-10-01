@@ -152,6 +152,11 @@ async function alarmOnErrorTransition(
   code: string,
 ): Promise<void> {
   if (source.lastStatus === "error") return; // zaten bozuk — ikinci kez uyarma
+  // HİÇ başarılı olmamış kaynak (`lastStatus` null) operatörü UYARMAZ (15 ajan A13, ölçüldü): her yeni kaynak yeni bir kimlik =
+  // yeni bir alarm bağlamı → bir deneme hesabı 70 bozuk adresli kaynağı 2 dakikada bir silip yeniden açarak operatöre saatte
+  // binlerce e-posta yazdırabiliyor ve tüm kiracıların kimlik e-postalarını taşıyan sağlayıcı kotasını tüketebiliyordu. Yeni
+  // kaynağın hatası ev sahibinin ekranında görünür; bir kez başarılı olup SONRA bozulan kaynak alarm vermeye devam eder.
+  if (source.lastStatus === null) return;
   await reportError(`ical-sync: feed failed (${sourceId})`, new Error(code));
 }
 

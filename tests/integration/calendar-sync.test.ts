@@ -316,10 +316,23 @@ END:VCALENDAR`;
   describe("bozuk besleme alarmı", () => {
     beforeEach(() => reportErrorMock.mockClear());
 
+    it("🚨 15 ajan A13: HİÇ başarılı olmamış kaynak operatörü uyarmaz (yeni kimlikli kaynak = yeni alarm bağlamı → sel); hata ev sahibinde görünür", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const sources = await Promise.all(
+        [1, 2, 3].map((i) => prisma.calendarSource.create({ data: { propertyId, label: "Booking", url: `https://example.com/never-${i}.ics` } })),
+      );
+      vi.mocked(fetchFeedText).mockRejectedValue(new Error("HTTP 404"));
+      for (const src of sources) await syncCalendarSource(src.id);
+      expect(reportErrorMock).not.toHaveBeenCalled();
+      for (const src of sources) {
+        expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: src.id } })).lastStatus).toBe("error");
+      }
+    });
+
     it("hataya GEÇİŞTE tek alarm; ikinci koşuda SUSAR", async () => {
       const { propertyId } = await makeOrgWithProperty();
       const source = await prisma.calendarSource.create({
-        data: { propertyId, label: "Booking", url: "https://example.com/bad.ics" },
+        data: { propertyId, label: "Booking", url: "https://example.com/bad.ics", lastStatus: "ok" },
       });
       vi.mocked(fetchFeedText).mockRejectedValue(new Error("HTTP 404"));
 
@@ -340,7 +353,7 @@ END:VCALENDAR`;
       // gidiyor → ham mesaj ASLA alarma girmez.
       const { propertyId } = await makeOrgWithProperty();
       const source = await prisma.calendarSource.create({
-        data: { propertyId, label: "Diğer", url: "https://gizli-takvim.example.com/feed/S3CRET-TOKEN.ics" },
+        data: { propertyId, label: "Diğer", url: "https://gizli-takvim.example.com/feed/S3CRET-TOKEN.ics", lastStatus: "ok" },
       });
       vi.mocked(fetchFeedText).mockRejectedValue(
         new Error("getaddrinfo ENOTFOUND gizli-takvim.example.com"),
@@ -361,7 +374,7 @@ END:VCALENDAR`;
     it("HTTP durumu KODA girer (teşhis kaybolmasın), gövde girmez", async () => {
       const { propertyId } = await makeOrgWithProperty();
       const source = await prisma.calendarSource.create({
-        data: { propertyId, label: "Booking", url: "https://example.com/x.ics" },
+        data: { propertyId, label: "Booking", url: "https://example.com/x.ics", lastStatus: "ok" },
       });
       vi.mocked(fetchFeedText).mockRejectedValue(new Error("HTTP 403"));
       await syncCalendarSource(source.id);
@@ -374,7 +387,7 @@ END:VCALENDAR`;
       // lastStatus:"ok" diye yazıyordu → KALICI bozuk besleme SAĞLIKLI görünüyordu.
       const { propertyId } = await makeOrgWithProperty();
       const source = await prisma.calendarSource.create({
-        data: { propertyId, label: "Diğer", url: "https://example.com/login.ics" },
+        data: { propertyId, label: "Diğer", url: "https://example.com/login.ics", lastStatus: "ok" },
       });
       mockFetch("<!doctype html><html><body>Please sign in</body></html>");
 
