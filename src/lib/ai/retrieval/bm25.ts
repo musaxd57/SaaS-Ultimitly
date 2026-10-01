@@ -37,6 +37,44 @@ export function osaDistance(a: string, b: string): number {
   return d[n][m];
 }
 
+/**
+ * `osaDistance` ile AYNI uzaklık, yalnız `max`a kadar hesaplanır: sonuç `min(osaDistance(a, b), max + 1)` (10-01, 15 ajan
+ * incelemesi A14 — ÖLÇÜLDÜ). Eski tarama her sözlük kökü için TAM bir 2B tablo kuruyordu; misafirin uzun mesajındaki 731 bilinmeyen kök
+ * × 1.438 sözlük kökü 2,4 sn sürüyordu (bekleyen mesajlarla 7,7 sn — paylaşılan süreçte herkes bekler). Burada: uzunluk farkı `max`ı
+ * aşarsa hiç hesap yok; üç satırlık döner tampon (OSA yer değiştirmesi i-2'ye bakar); bir satırın en küçüğü `max`ı aşınca dur —
+ * geçerli, çünkü satır en küçüğü azalmaz (yer değiştirme hücresi d[i-2][j-2]+1 ≥ d[i-1][j-1]). `fuzzy` yalnız `≤ max` uzaklığı kabul
+ * ettiği için seçim BİREBİR aynı (rastgele dizilerle eşdeğerlik pinli: `bm25-fuzzy-bounded.test.ts`).
+ */
+export function osaDistanceWithin(a: string, b: string, max: number): number {
+  const n = a.length;
+  const m = b.length;
+  if (Math.abs(n - m) > max) return max + 1;
+  let prev2 = new Array<number>(m + 1).fill(0);
+  let prev = new Array<number>(m + 1);
+  let cur = new Array<number>(m + 1);
+  for (let j = 0; j <= m; j++) prev[j] = j;
+  for (let i = 1; i <= n; i++) {
+    cur[0] = i;
+    let rowMin = i;
+    for (let j = 1; j <= m; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur[j] = v;
+      if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1;
+    const t = prev2;
+    prev2 = prev;
+    prev = cur;
+    cur = t;
+  }
+  return Math.min(prev[m], max + 1);
+}
+
+/** `fuzzy` sonucunun dizin başına önbelleği (aynı kök alt sorgular / bekleyen mesajlar arasında tekrar eder); taşarsa boşalır. */
+const FUZZY_MEMO_MAX = 4_096;
+
 export function fuzzyAllowance(len: number): number {
   if (len < FUZZY_MIN_LEN) return 0;
   return len >= 8 ? 2 : 1;
@@ -66,6 +104,7 @@ export class Bm25Index {
   readonly avgdl: number;
   readonly N: number;
   private readonly vocab: string[];
+  private readonly fuzzyMemo = new Map<string, string | null>();
 
   constructor(inputs: readonly Bm25DocInput[]) {
     this.docs = inputs.map((d) => {
@@ -102,17 +141,24 @@ export class Bm25Index {
   fuzzy(term: string): string | null {
     const allow = fuzzyAllowance(term.length);
     if (allow === 0 || /\d/.test(term)) return null;
+    const memo = this.fuzzyMemo.get(term);
+    if (memo !== undefined) return memo;
     let best: string | null = null;
     let bestDist = Number.POSITIVE_INFINITY;
     for (const v of this.vocab) {
       if (Math.abs(v.length - term.length) > allow || v.length < FUZZY_MIN_LEN) continue;
-      const dist = osaDistance(term, v);
+      // `allow`u aşan uzaklık seçilemez (↓son satır) → yalnız `allow`a kadar hesaplanır; seçim eski tam hesapla BİREBİR aynı.
+      const dist = osaDistanceWithin(term, v, allow);
+      if (dist > allow) continue;
       if (dist < bestDist || (dist === bestDist && best !== null && v < best)) {
         bestDist = dist;
         best = v;
       }
     }
-    return bestDist <= allow ? best : null;
+    const out = bestDist <= allow ? best : null;
+    if (this.fuzzyMemo.size >= FUZZY_MEMO_MAX) this.fuzzyMemo.clear();
+    this.fuzzyMemo.set(term, out);
+    return out;
   }
 
   /**
