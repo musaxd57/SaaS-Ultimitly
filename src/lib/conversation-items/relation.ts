@@ -448,6 +448,7 @@ export function deviceTopicsOf(topics: readonly string[]): string[] {
  * kodun ikinci kemeri. `heldDeviceTopics` cevaplanan isteklerin konularını İÇERMEZ (plan çıkarır) — arıza tarifi kendi cihazına değinir.
  */
 export function touchesHeldDevice(heldDeviceTopics: readonly string[], reply: string): boolean {
+  // Boş liste kısa yolu yalnız gereksiz `topicsOf` çağrısını önler (sonuç aynı — mutasyon turunda eşdeğer mutant, bilerek).
   if (heldDeviceTopics.length === 0 || !reply.trim()) return false;
   const held = new Set(heldDeviceTopics);
   return topicsOf(reply).some((t) => held.has(t));

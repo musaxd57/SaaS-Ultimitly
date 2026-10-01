@@ -444,6 +444,24 @@ describe("bırakılan arızanın CİHAZI (kör set 5, 10-01 öğlen): plan çık
     expect(fix.replyItems.answerable[0]).toMatchObject({ kind: "wifi", fix: true });
     expect(fix.gateItems).not.toHaveProperty("heldDeviceTopics");
   });
+  it("cihaz yalnız BAĞLI istekte geçiyorsa da (şikâyetin sorgusu cihazsız) bırakılan sayılır", () => {
+    // Mutasyon turu (10-01): şikâyetin kendi sorgusu cihazı taşıdığı için bağlı isteğin katkısı pinsizdi.
+    const p = planOf("Çok rahatsız olduk, mikrodalga ısıtmıyor. Otopark yerimiz hangisi?", [
+      { intent: "complaint_issue", q: "çok rahatsız olduk", relation: "own_topic" },
+      { intent: "appliance_help", q: "mikrodalga ısıtmıyor nasıl düzelir", relation: "fix_request" },
+      { intent: "parking", q: "otopark yeri", relation: "own_topic" },
+    ]);
+    expect(answerableKinds(p)).toEqual(["parking"]);
+    expect(p.gateItems.heldDeviceTopics).toEqual(["microwave"]);
+  });
+  it("yalnız CİHAZ kavramı taşınır: gürültü şikâyeti + Wi-Fi sorusu → kapı girdisinde bırakılan cihaz yok", () => {
+    const p = planOf("Gece gürültüden uyuyamadık. Wi-Fi şifresi neydi?", [
+      { intent: "complaint_issue", q: "gece gürültü uyuyamadık", relation: "own_topic" },
+      { intent: "wifi", q: "wifi şifresi", relation: "own_topic" },
+    ]);
+    expect(answerableKinds(p)).toEqual(["wifi"]);
+    expect(p.gateItems).not.toHaveProperty("heldDeviceTopics");
+  });
   it("liste kipinde de (işaret yok, bugünkü canlı yol) şikâyetin ipucu sorgusundan", () => {
     const turnItems = [
       { messageId: "m1", kind: "complaint_issue" as const, sensitivity: "sensitive" as const },
