@@ -241,7 +241,10 @@ bu anahtarı RC56 canlıya çıkınca açın; açtıysanız kapatmanız gerekmez
 | **Gece toplamı** | **≈ $11** (kesin kısım $5,35; kalan tahmin) — tavanın altında |
 | Sabah: konaklama eval'i (ilişki şeması) + konuşma öğeleri 5.1 / aday | ≈ $1,4 (tahmin) |
 | Sabah: SON KÖR KABUL set 3 — A4 $0,37 + A5 $0,99 + A6 $0,99 | $2,34 (kesin) |
-| **Genel toplam** | **≈ $14,7** (kesin $7,69) — kalan ≈ $10 |
+| **Genel toplam (sabah)** | **≈ $14,7** (kesin $7,69) |
+| Öğlen: karar 23 konaklama eval'i (5.1) + konuşma öğeleri | ≈ $1,3 (tahmin — ölçer maliyet kaydetmiyor) |
+| Öğlen: kör set 4 — aday $0,17 + 5.1 $0,45 · kaynak teşhisi $0,09 | $0,71 (kesin) |
+| **Toplam (öğlen)** | **≈ $16,7** (kesin $8,40) — tavanın altında; kalan ≈ $8 |
 
 Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığına bakın.
 

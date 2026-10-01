@@ -303,6 +303,11 @@
   kurallar aynen: yalnız bilgi tabanı tarifi, tehlike sınıfı hariç, şikâyet açık + tek e-posta. Kod + ölçüm (konaklama eval'i + yeni küçük kör
   set, ≈ $2) — CANLIYA ancak ayrı kör doğrulamadan sonra ve size haber vererek.
 - **Müşteriye etkisi:** "İnternet yok" diyen misafir, bilgi tabanında tarif varsa beklemeden modem adımlarını alır.
+- **DURUM (10-01 öğlen):** kodlandı (`641a726`); konaklama eval'i kaçak 0/125 · 0/170. Kör set 4 (36 senaryo) dört hata buldu — hepsi tarifsiz
+  arızada ya da kaynak biçiminde: Luna boş cevap (2), Luna "adımlar bilgide yok" cümlesi GİTTİ (1), 5.1 şifre kalemine dayanıp uydurma adım
+  GÖNDERDİ (1), doğru tarifler "kb:klima" gibi başlıklı atıf yüzünden tutuldu (5.1'de 4/4). Düzeltildi (`59f6789` + `f225b2e`, 18. maddenin
+  kendi şartı "bilgi tabanında O ARIZANIN tarifi varsa" koda geçti; ayrıntı ve önce/sonra örnekleri rapor §3.7). Yeni karar YOK — onaylı
+  kapsamın uygulaması. Yeni kör set 5 ile doğrulanmadan itilmez; RC54 / RC55 itilmedi.
 
 ## 24. Eskiden beri süren iki yanlış tutuş (bilgi için — set 3'te üç yapılandırmada da)
 - Sauna "16:00–21:00" cevabı tutuldu: bilgi tabanında giriş saati çelişkisi var ve cevaptaki 16:00 o çelişkili saatlerden birine denk geldi
