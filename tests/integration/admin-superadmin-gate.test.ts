@@ -48,8 +48,8 @@ const OPERATOR_EMAIL = "operator@lixusai.com";
 const CUSTOMER_EMAIL = "musteri@example.com";
 
 // Kurucu kararı 09-30: operatör dışa aktarımı AMAÇ ister (kapalı küme) — kapı testleri geçerli bir amaçla koşar.
-const exportReq = (orgId: string) =>
-  new NextRequest(`http://localhost/api/admin/export?orgId=${encodeURIComponent(orgId)}&purpose=support_request`);
+const exportReq = (orgId: string, headers?: Record<string, string>) =>
+  new NextRequest(`http://localhost/api/admin/export?orgId=${encodeURIComponent(orgId)}&purpose=support_request`, { headers });
 
 const impersonateReq = (organizationId: string) =>
   new NextRequest("http://localhost/api/admin/impersonate", {
@@ -135,6 +135,30 @@ describe("operatör kapısı: admin/export + admin/impersonate", () => {
       expect(res.status).toBe(200);
       expect(await res.text()).toContain("Kurban Konaklama");
       expect(await prisma.auditLog.count({ where: { action: "data.export" } })).toBe(1);
+    });
+
+    // 10-01 (15 ajan incelemesi A02-F5): GET ve durum değiştiren uç başka bir sitenin yönlendirmesiyle (SameSite=Lax çerez gider)
+    // tetiklenmesin — sahte amaçlı kayıt + operatörün indirme klasörüne döküm.
+    it("🚨 başka siteden gelen istek (Sec-Fetch-Site: cross-site / same-site) → 403, kayıt YAZILMAZ, döküm kurulmaz", async () => {
+      const victim = await seedVictimOrg();
+      session = await makeSession(OPERATOR_EMAIL, true);
+      for (const site of ["cross-site", "same-site"]) {
+        const res = await exportGet(exportReq(victim.id, { "sec-fetch-site": site }));
+        expect(res.status).toBe(403);
+        expect(await res.text()).not.toContain("Kurban Konaklama");
+      }
+      expect(await prisma.auditLog.count({ where: { action: "data.export" } })).toBe(0);
+    });
+
+    it("KONTROL: panel formu (same-origin) ve elle girilen adres (none) dökümü ALIR", async () => {
+      const victim = await seedVictimOrg();
+      session = await makeSession(OPERATOR_EMAIL, true);
+      for (const site of ["same-origin", "none"]) {
+        const req = exportReq(victim.id, { "sec-fetch-site": site });
+        expect(req.headers.get("sec-fetch-site")).toBe(site);
+        expect((await exportGet(req)).status).toBe(200);
+      }
+      expect(await prisma.auditLog.count({ where: { action: "data.export" } })).toBe(2);
     });
   });
 

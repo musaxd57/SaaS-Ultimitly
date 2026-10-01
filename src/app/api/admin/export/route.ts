@@ -29,6 +29,14 @@ export async function GET(req: NextRequest) {
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
   if (isImpersonating(session)) return forbidden("Dışa aktarma operatörün kendi hesabından yapılır — önce destek görünümünden çıkın.");
+  // 10-01 (15 ajan incelemesi A02-F5): uç GET ve durum değiştirir (zorunlu kayıt + tam döküm); oturum çerezi SameSite=Lax olduğu için
+  // başka bir sitenin üst düzey yönlendirmesi çerezi taşırdı → sahte amaçlı "yasal talep" kaydı + operatörün indirme klasörüne döküm.
+  // Tarayıcının kendi bildirdiği kaynak yalnız aynı site (panel formu) ya da elle girilen adres ("none") olabilir; başlık hiç yoksa
+  // (eski tarayıcı / komut satırı) bugünkü gibi.
+  const fetchSite = req.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
+    return forbidden("Dışa aktarma yalnız operatör panelinden başlatılır.");
+  }
 
   const parsed = parseOperatorExportRequest(new URL(req.url).searchParams);
   if (!parsed.ok) return badRequest(parsed.errors);
