@@ -768,13 +768,25 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // deleted as long as the provider credentials remain (drain itself skips
       // quietly when unconfigured — rows wait). No-op when the queue is empty.
       try {
+        let failedRows = 0;
         if (await hasPendingStorageDeletions()) {
           const r = await drainStorageDeletions();
           if (!r.skipped && (r.deleted > 0 || r.failed > 0)) {
             console.log(`[scheduled-sync] storage-deletions: ${JSON.stringify(r)}`);
           }
+          if (!r.skipped) failedRows = r.failed;
         }
-        await opsAlarm.ok("storage-deletions");
+        // Başarısız silme GEÇİŞ TABANLI alarma gider (15 ajan A11): eskiden kuyruk her başarısız geçişte doğrudan `reportError`
+        // çağırıyor, burası ise `ok` yazıyordu → kalıcı sağlayıcı arızasında günde ~144 e-posta, alarm durumu hiç "arızalı" olmuyordu.
+        if (failedRows > 0) {
+          await opsAlarm.fail(
+            "storage-deletions",
+            "scheduled-sync storage-deletions",
+            new Error(`storage deletions failing: ${failedRows} row(s) deferred`),
+          );
+        } else {
+          await opsAlarm.ok("storage-deletions");
+        }
       } catch (err) {
         await opsAlarm.fail("storage-deletions", "scheduled-sync storage-deletions", err);
       }

@@ -366,6 +366,21 @@ describe("deletion queue — idempotent, provider failure is NEVER a fake succes
     expect(fake.objects.size).toBe(0);
   });
 
+  it("🚨 15 ajan A11: parti duvar saati bütçesini aşınca KALAN satırlar dokunulmadan sonraki geçişe kalır (başarısız sayılmaz)", async () => {
+    await enqueueStorageDeletions(prisma, "o", ["org/o/task/t/a.png", "org/o/task/t/b.png", "org/o/task/t/c.png"]);
+    let t = 0;
+    // Her sağlayıcı çağrısı 20 sn sürmüş gibi: bütçe 30 sn → ilk iki satır işlenir, üçüncüye başlanmaz.
+    const slow = { ...fake, delete: async (key: string) => { t += 20_000; await fake.delete(key); } };
+    const r = await drainStorageDeletions({ adapter: slow, clock: () => t, budgetMs: 30_000 });
+    expect(r).toEqual({ skipped: false, deleted: 2, failed: 0 });
+    const pending = await prisma.storageDeletion.findMany({ where: { status: "pending" } });
+    expect(pending).toHaveLength(1);
+    expect(pending[0].attemptCount).toBe(0);
+    // Sonraki geçiş kalanı siler.
+    const r2 = await drainStorageDeletions({ adapter: fake });
+    expect(r2.deleted).toBe(1);
+  });
+
   it("unconfigured (adapter null) → skipped, rows wait untouched", async () => {
     await enqueueStorageDeletions(prisma, "o", ["org/o/task/t/a.png"]);
     const r = await drainStorageDeletions({ adapter: null });

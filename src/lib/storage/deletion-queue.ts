@@ -106,8 +106,14 @@ export interface StorageDrainResult {
  * (rows wait for the env to come back; a flag-off rollback keeps draining as
  * long as the credentials remain). Never throws.
  */
+/**
+ * Parti başına duvar saati bütçesi (15 ajan A11): silme kuyruğu genel senkron geçişinin içinde koşar; sağlayıcı yavaşlarsa parti
+ * bütçeyi aşınca KALAN satırlar dokunulmadan bir sonraki geçişe kalır (başarısız SAYILMAZ, deneme sayısı artmaz).
+ */
+export const DRAIN_BUDGET_MS = 45_000;
+
 export async function drainStorageDeletions(
-  deps: { adapter?: StorageAdapter | null; now?: () => Date; batchSize?: number } = {},
+  deps: { adapter?: StorageAdapter | null; now?: () => Date; batchSize?: number; budgetMs?: number; clock?: () => number } = {},
 ): Promise<StorageDrainResult> {
   const adapter = deps.adapter !== undefined ? deps.adapter : storageConfigured() ? getStorageAdapter() : null;
   if (!adapter) return { skipped: true, deleted: 0, failed: 0 };
@@ -122,7 +128,11 @@ export async function drainStorageDeletions(
 
   let deleted = 0;
   let failed = 0;
+  const clock = deps.clock ?? (() => Date.now());
+  const startedAt = clock();
+  const budget = deps.budgetMs ?? DRAIN_BUDGET_MS;
   for (const row of due) {
+    if (clock() - startedAt >= budget) break;
     try {
       await adapter.delete(row.objectKey);
       // Başarı yazması da fırlatmamalı: JSDoc "Never throws" diyor ve tek çağıran
@@ -156,11 +166,8 @@ export async function drainStorageDeletions(
         .catch((e) => void reportError("storage-deletion-backoff-write", e));
     }
   }
-  if (failed > 0) {
-    // One secret-free breadcrumb per drain (not per row) — visible, never a storm.
-    await reportError("storage-deletion-drain", new Error(`storage deletions failing: ${failed} row(s) deferred`)).catch(
-      () => {},
-    );
-  }
+  // Başarısız satır sayısı ÇAĞIRANA döner; alarm geçiş tabanlıdır (`scheduled-sync` `opsAlarm.fail("storage-deletions")`): eskiden
+  // her başarısız geçişte doğrudan `reportError` → kalıcı sağlayıcı arızasında günde ~144 e-posta (15 ajan A11; CLAUDE.md periyodik
+  // alarm kuralı).
   return { skipped: false, deleted, failed };
 }
