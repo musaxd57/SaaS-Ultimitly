@@ -131,14 +131,45 @@ async function resolveOrgId(
   return row.organizationId; // authoritative — session-derived
 }
 
+/** Ödeme alınmış / alınacak abonelik durumları: bunlar bir işletmeye bağlanamazsa operatöre haber verilir. */
+const PAYING_SUBSCRIPTION_STATUSES: ReadonlySet<string> = new Set(["active", "trialing", "past_due"]);
+
+/**
+ * BAĞLANAMAYAN ÖDEME SESSİZ KALMAZ (15 ajan A10 F1, 10-01): imzası doğru bir ödeme olayı hiçbir işletmeye bağlanamadığında (onay
+ * yok / bilinmiyor / 24 saatten eski, fiyat uyuşmuyor, işletme silinmiş — ör. ödeme sayfası bir gün sonra tamamlandı, panelden elle
+ * abonelik açıldı) olay "işlendi" sayılıp DÜŞÜYORDU: müşteri ödüyor, hesap denemede kalıyor, kimse bilmiyordu. Karar AYNEN (bağlama
+ * kuralı ve satır durumu değişmez); eklenen YALNIZ operatör alarmı — Paddle kimliğiyle anahtarlı geçiş tabanlı (aynı abonelik / işlem
+ * yinelenince yeni e-posta yok, 24 saatte bir hatırlatma). Alarma yalnız Paddle kimlikleri ve olay türü girer (müşteri verisi yok).
+ */
+async function alertUnlinkedPayment(kind: "subscription" | "transaction", data: Record<string, unknown>, reason: string): Promise<void> {
+  const id = str(data.id) ?? "unknown";
+  const customer = str(data.customer_id);
+  await alertOnTransition(
+    `paddle-webhook:unlinked:${id}`,
+    "paddle-webhook-unlinked-payment",
+    new Error(
+      `Paddle ${kind} ${id}${customer ? ` (müşteri ${customer})` : ""} hiçbir işletmeye bağlanamadı (${reason}) — ödeme alınmış olabilir; Paddle panelinden kontrol edin`,
+    ),
+  );
+}
+
 async function applySubscriptionEvent(
   data: Record<string, unknown>,
   occurredAt: Date | null,
 ): Promise<void> {
   const organizationId = await resolveOrgId(data, eventPriceIdFromData(data), occurredAt);
-  if (!organizationId) return; // not linked yet → recorded only
+  const paying = PAYING_SUBSCRIPTION_STATUSES.has(str(data.status) ?? "");
+  if (!organizationId) {
+    // not linked yet → recorded only (+ operatör alarmı, yalnız ödemeli durumda)
+    if (paying) await alertUnlinkedPayment("subscription", data, "onay yok / eski / fiyat uyuşmuyor");
+    return;
+  }
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
-  if (!org) return; // never write against an org that isn't ours
+  if (!org) {
+    // never write against an org that isn't ours
+    if (paying) await alertUnlinkedPayment("subscription", data, "işletme bulunamadı");
+    return;
+  }
 
   // Ordering guard: Paddle can deliver events out of order (and retries them).
   // Never let an OLDER event overwrite a fresher state — a late `subscription.
@@ -364,9 +395,15 @@ async function applyTransactionEvent(
   // Transactions skip the price-match (their line items differ from the sub price);
   // the consent freshness (by occurred_at) + org binding still apply.
   const organizationId = await resolveOrgId(data, null, occurredAt);
-  if (!organizationId) return;
+  if (!organizationId) {
+    await alertUnlinkedPayment("transaction", data, "onay yok / eski");
+    return;
+  }
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
-  if (!org) return;
+  if (!org) {
+    await alertUnlinkedPayment("transaction", data, "işletme bulunamadı");
+    return;
+  }
 
   const providerRef = str(data.id);
   // Idempotency: one Invoice per Paddle transaction id. Without a providerRef we
