@@ -227,3 +227,10 @@ Bayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_R
 İstem kimliği (SHA-256 ilk 12): cevap `f756008250f0` · anlama `fa702194e6a3`
 
 Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.
+
+## Düzeltme notu (10-01 öğlen — ölçüm verisine dokunulmadı)
+
+"Koşu kimliği" bölümündeki anlama istem kimliği ürün bayraklarından hesaplandı; bu ölçer anlama kipini kendi ortam değişkeniyle verir
+(`EVAL_UNDERSTANDING_ITEMS` / `EVAL_UNDERSTANDING_RULES`, başlıktaki "anlama kipi: items+rules+cfu"). Gerçekte koşan anlama isteminin kimliği
+`edfa73e7a6ea` (kip: items+rules+cfu); bölümdeki `fa702194e6a3` yalnız şikâyet takibi kipinin kimliğidir. Bölümdeki `AI_CONVERSATION_ITEMS_ENABLED=(boş)`
+da aynı sebepten: kip ürün bayrağıyla değil ölçerin kendi değişkeniyle açıldı. Ölçer `61ddf1a` ile düzeltildi.

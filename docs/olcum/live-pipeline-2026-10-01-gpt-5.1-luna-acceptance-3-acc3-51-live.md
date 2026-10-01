@@ -150,3 +150,13 @@ Bayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_R
 İstem kimliği (SHA-256 ilk 12): cevap `990d40f68cf2` · anlama `e0b06a18027f`
 
 Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.
+
+## Düzeltme notu (10-01 öğlen — ölçüm verisine dokunulmadı)
+
+Bu raporun "Koşu kimliği" bölümü koşu bittikten SONRA, ölçerin sabit canlı bayrakları geri alındıktan sonra hesaplandı (ölçer hatası;
+`61ddf1a` ile düzeltildi). Koşunun KENDİSİ raporun başındaki "Bayraklar harness'ta sabit (canlı)" listesiyle yapıldı: o bölümdeki
+`KB_SEMANTIC_RETRIEVAL` · `KB_RERANK_ENABLED` · `AI_UNDERSTANDING_ENABLED` · `AI_STAY_GUARD_ENABLED` · `AI_CONVERSATION_ITEMS_ENABLED` ·
+`AI_HOUSE_RULES_SHADOW` için yazan "(boş)" YANLIŞ — koşuda hepsi `1` idi. Kabuktan gelen değerler (cevap modeli ve düşünme çabası, kod selamı,
+ücret kuralı, şikâyet takibi, ev sahibi kararı, giriş kodu, çeviri / üslup modeli) bölümde doğrudur.
+
+- Anlama istem kimliği gerçekte `ab9d907e4461` (kip: items+rules); bölümdeki `e0b06a18027f` öğe / kural kipsiz istemin kimliğidir.

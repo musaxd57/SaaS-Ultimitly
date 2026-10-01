@@ -114,3 +114,14 @@ Commit: `1844fb8`
 Bayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_RERANK_ENABLED=(boş)` · `KB_RERANK_PER_QUESTION=(boş)` · `KB_RETRIEVAL_WIDE_BUDGET=(boş)` · `AI_UNDERSTANDING_ENABLED=(boş)` · `AI_STAY_GUARD_ENABLED=(boş)` · `AI_CONVERSATION_ITEMS_ENABLED=(boş)` · `AI_CONVERSATION_STATE_ENABLED=(boş)` · `AI_ACTION_CLAIMS_ENABLED=(boş)` · `AI_CODE_GREETING_ENABLED=1` · `AI_HOUSE_RULES_SHADOW=(boş)` · `AI_KB_FEE_RULE_ENABLED=(boş)`
 
 Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.
+
+## Düzeltme notu (10-01 öğlen — ölçüm verisine dokunulmadı)
+
+Bu raporun "Koşu kimliği" bölümü koşu bittikten SONRA, ölçerin sabit canlı bayrakları geri alındıktan sonra hesaplandı (ölçer hatası;
+`61ddf1a` ile düzeltildi). Koşunun KENDİSİ raporun başındaki "Bayraklar harness'ta sabit (canlı)" listesiyle yapıldı: o bölümdeki
+`KB_SEMANTIC_RETRIEVAL` · `KB_RERANK_ENABLED` · `AI_UNDERSTANDING_ENABLED` · `AI_STAY_GUARD_ENABLED` · `AI_CONVERSATION_ITEMS_ENABLED` ·
+`AI_HOUSE_RULES_SHADOW` için yazan "(boş)" YANLIŞ — koşuda hepsi `1` idi. Kabuktan gelen değerler (cevap modeli ve düşünme çabası, kod selamı,
+ücret kuralı, şikâyet takibi, ev sahibi kararı, giriş kodu, çeviri / üslup modeli) bölümde doğrudur.
+
+- Anlam katmanları (anlama + konaklama bekçisi + yeniden sıralayıcı) gerçekte `gpt-5.1` ile koştu, düşünme çabası gönderilmedi (ölçer
+  `AI_SEMANTIC_MODEL=gpt-5.1` sabitler; kabukta katmana özel model yoktu). Bölümdeki `gpt-6-luna` YANLIŞ.
