@@ -594,6 +594,25 @@ export function leftoverGuestTokens(text: string): string[] {
   return out;
 }
 
+/**
+ * TANINMAYAN tek parantezli / yüzde işaretli belirteç — doldurmadan SONRA metinde kalmışsa misafire GİTMEZ (10-01, 15 ajan incelemesi A08,
+ * ölçüldü): yaşam döngüsü kapısı ve çıktı vetosu yalnız `[…]` / `{{…}}` / `{isim}`·`{daire}`i tanıyordu → "Kapı kodu: {kod}", "{wifi}",
+ * "{guest_name}", "{ KOD }", "%KOD%" karşılama / giriş mesajında misafire HAM gidiyordu. Bilinen ad / daire belirteci kalırsa
+ * `leftoverGuestTokens` da yakalar (burada tekrar sayılması zararsız). İçinde en az bir harf ("{1}", "%50" değil); satır aşmaz; sınırlı
+ * uzunluk (doğrusal). `kbPlaceholderTokens`a eklenmedi: o tarayıcı eski düzenli ifadeyle kâhin eşdeğerliğine pinli.
+ */
+export function unfilledTemplateTokens(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/\{[^{}\n]{1,40}\}/gu)) {
+    // Bilinen ad / daire belirteci gönderimde DOLDURULUR (`fillGuestPlaceholders`) — Bilgi Tabanı rozeti doldurulmamış saymasın; doldurmadan
+    // sonra kalmışsa `leftoverGuestTokens` yakalar.
+    if (keyKind(m[0].slice(1, -1).trim()) !== null) continue;
+    if (/\p{L}/u.test(m[0])) out.push(m[0]);
+  }
+  for (const m of text.matchAll(/%[\p{L}_]{2,30}%/gu)) out.push(m[0]);
+  return out;
+}
+
 /** Bu mülk adıyla `{daire}` çözülebiliyor mu (numara adda tek ve belirgin mi) — mülk sayfası uyarısı ve gönderici aynı kural. */
 export function apartmentResolvable(propertyName: string): boolean {
   return apartmentNumberOf(propertyName) !== null;

@@ -90,6 +90,14 @@ describe("gönderici kapısı — fail-closed", () => {
     }
   });
 
+  it("🚨 kapı tanınmayan tek parantezli / yüzdeli belirteci de sayar (10-01, A08: \"Kapı kodu: {kod}\" misafire HAM gidiyordu)", () => {
+    const s = src();
+    const at = s.indexOf("function hasUnfilledPlaceholders(");
+    expect(at, "hasUnfilledPlaceholders bulunamadı").toBeGreaterThan(-1);
+    const body = s.slice(at, s.indexOf("\n}", at));
+    expect(body).toContain("unfilledTemplateTokens(filledBody)");
+  });
+
   it("sayaç `failures`'a İTİLMEZ (yanlış alarm metni + 6 saatlik kilit penceresi)", () => {
     const s = src();
     expect(s).toContain("let unfilled = 0;");
@@ -123,5 +131,7 @@ describe("Bilgi Tabanı ekranı — host DÜZELTMENİN YAPILACAĞI YERDE uyarıl
     const s = src();
     expect(s).toContain('from "@/lib/kb-placeholders"');
     expect(s).toContain('from "@/lib/template-apply"');
+    // 10-01 (A08): tanınmayan "{kod}" / "%KOD%" rozette de — gönderici durdurur, rozet göstermezse ev sahibi nedenini göremez.
+    expect(s).toMatch(/hasUnfilledField[\s\S]{0,400}unfilledTemplateTokens\(content\)/);
   });
 });

@@ -575,6 +575,9 @@ const HANDOFF_NOTICE = new RegExp(
  */
 function hasUnfilledPlaceholder(reply: string): boolean {
   // Cevapta kalmış ad / daire belirteci ("Dairenizin numarası {daire}", "Merhaba {isim}") de misafire GİTMEZ (kurucu kararı 09-30).
+  // ⚠️ Tanınmayan tek parantezli belirteç ("{kod}") burada BİLEREK yok: yapay zekâ cevabında tanınmayan süslü parantez önceki kararla veto
+  // sebebi değil (pinli: "Kahvaltı {sabah} 9'da."). Ev sahibi şablonlarında (yaşam döngüsü + Bilgi Tabanı rozeti) `unfilledTemplateTokens`
+  // uygulanır (10-01, A08). Cevap tarafına genişletmek Sabah Kararları sorusu.
   return kbPlaceholderTokens(reply).length > 0 || ANY_DOUBLE_BRACE.test(reply) || leftoverGuestTokens(reply).length > 0;
 }
 

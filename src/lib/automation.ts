@@ -86,6 +86,7 @@ import {
   hasNamePlaceholder,
   kbPlaceholderTokens,
   leftoverGuestTokens,
+  unfilledTemplateTokens,
 } from "@/lib/kb-placeholders";
 import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
@@ -3883,7 +3884,13 @@ function fillPlaceholders(text: string, firstName: string | null, propertyName?:
  */
 function hasUnfilledPlaceholders(filledBody: string): boolean {
   // `{daire}` çözülemediyse (mülk adında numara yok / belirsiz) belirteç kalır → mesaj GİTMEZ, tahmin YOK (kurucu kararı 09-30).
-  return kbPlaceholderTokens(filledBody).length > 0 || ANY_DOUBLE_BRACE.test(filledBody) || leftoverGuestTokens(filledBody).length > 0;
+  // Tanınmayan "{kod}" / "%KOD%" de (10-01, A08) — `unfilledTemplateTokens`.
+  return (
+    kbPlaceholderTokens(filledBody).length > 0 ||
+    ANY_DOUBLE_BRACE.test(filledBody) ||
+    leftoverGuestTokens(filledBody).length > 0 ||
+    unfilledTemplateTokens(filledBody).length > 0
+  );
 }
 
 function buildGuestMessageBody(

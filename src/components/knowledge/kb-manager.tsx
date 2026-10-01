@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 // YAPRAK modülden: `prompts.ts` (75 KB sistem promptu) tarayıcı paketinin
 // bağımlılık grafiğine ASLA girmemeli — depo tam da o dosya yüzünden private.
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
-import { kbPlaceholderTokens } from "@/lib/kb-placeholders";
+import { kbPlaceholderTokens, unfilledTemplateTokens } from "@/lib/kb-placeholders";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import type { KbTimeConflictRow } from "@/lib/kb-time-conflicts";
 import Link from "next/link";
@@ -35,7 +35,9 @@ const TRIGGER_CATEGORIES = new Set(["welcome", "checkin", "checkout"]);
  * anında doldurulur).
  */
 function hasUnfilledField(content: string): boolean {
-  return kbPlaceholderTokens(content).length > 0 || ANY_DOUBLE_BRACE.test(content);
+  // Gönderici kapısıyla AYNI yüklemler (10-01, A08: tanınmayan "{kod}" / "%KOD%" de — rozet göstermezse ev sahibi mesajın neden gitmediğini
+  // göremezdi).
+  return kbPlaceholderTokens(content).length > 0 || ANY_DOUBLE_BRACE.test(content) || unfilledTemplateTokens(content).length > 0;
 }
 const triggerOptions = KB_CATEGORY.options.filter((o) => TRIGGER_CATEGORIES.has(o.value));
 const infoOptions = KB_CATEGORY.options.filter((o) => !TRIGGER_CATEGORIES.has(o.value));
