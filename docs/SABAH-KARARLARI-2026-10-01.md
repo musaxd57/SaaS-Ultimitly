@@ -15,6 +15,9 @@
    canlı geçişten ÖNCE (rapor §6 adım 6).
 5. **3, 2, 1b, 1c** — şikâyete bağlı istek kapsamı, politika metni, fotoğraf şartı, kanıtları taslağa verme.
 6. **11 arşiv**, **4–5 (K6 / K5)**, **9 (Aşama 2)**, **10 (devreden)**; **16** yalnız bilgi.
+7. **(10-01 öğleden sonra) 27 → 22 → 26 → 28 → 25** — arıza şikâyet sayılmadığında ev sahibine haber gitmemesi (27, modelden bağımsız, canlıda
+   da var) en önemlisi; bilgi tabanı içi çelişki (22); bırakılan cihaza değinen cevap (26); ocak tehlike yanlış tutuşu (28); şikâyetteki eşyanın
+   yeri (25). **29, 24, 21, 20** yalnız bilgi.
 
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
@@ -333,3 +336,43 @@
   kod düzenler — kalan metnin anlamlı olduğu ayrıca doğrulanmalı); (c) istemde "bırakılan cihazdan hiç söz etme" kuralını güçlendir + ücretli
   ölçüm (≈ $1) — (a) yine güvenlik ağı olarak kalır. **Öneri: (c) + (a).**
 - **Beklerken yapılmayan:** cümle çıkarma, istem değişikliği.
+- **Kör set 6 eki:** kapı yalnız sözlükteki cihaz kavramlarını tanıyor; hoparlör / blender / çay makinesi sözlükte yok → bu cihazlara değinen
+  cevabı göremiyor (5.1 hoparlör satırında "talimatım yok" yazdı — onu yokluk dedektörü artık tutuyor). Çözümü madde 27 ile birlikte.
+
+## 27. Arıza ŞİKÂYET olarak etiketlenmediğinde ev sahibine haber gitmiyor ve tarif kuralı atlanıyor (kör set 6)
+- **Durum (ölçüldü):** anlama katmanı (5.1) bazı arıza mesajlarında şikâyet öğesi üretmiyor: "Televizyonda görüntü yok, sadece siyah ekran var.
+  Çöpleri nereye atıyoruz?", "Der kabellose Lautsprecher verbindet sich mit keinem unserer Handys…", "la licuadora no arranca…", "Çay makinesinin
+  üst demliği hiç ısınmıyor…". Sonuç: (1) ev sahibine e-posta / açık iş YOK; (2) arıza isteği sıradan soru gibi cevaplanıyor — madde 18'in "yalnız
+  onaylı tarif kadar" ve tehlike kuralları koşmuyor (kod onları yalnız şikâyete bağlı isteğe uyguluyor). Kör set 6'da 35 arıza mesajının 3–4'ü
+  (iki kolda da). Giden: 5.1'de bilgi tabanında olmayan genel TV adımı + "arızalı olabilir" tahmini; Luna'da blenderin dolaptaki yeri. Bugün
+  canlıda da aynı (öğe kipi açık, bayraktan bağımsız). Model değişikliğinden bağımsız.
+- **Seçenekler:** (a) *Anlama istemi:* "bir cihazın / tesisin çalışmadığını bildiren her mesaj bir şikâyet öğesi üretir" + ücretli ölçüm (konaklama
+  eval'i ≈ $1,5 + konuşma öğeleri ≈ $0,2). (b) *Kod koruması (yalnız sıkılaştırır):* isteğin cihaz kavramı + mesajda arıza sinyali (yedi dilli
+  sözlük: "çalışmıyor / not working / funktioniert nicht / no funciona / ne fonctionne pas / не работает / لا يعمل", "görüntü yok",
+  "ısınmıyor"…) → arıza sayılır: tarif kuralı + ev sahibine tek e-posta. Sözlük dışı cihazlarda (hoparlör, blender) bırakılan cihaz kapısı cihaz
+  adını misafirin kendi sözcüklerinden alır. (c) İkisi.
+- **Öneri: (c)** — model hatası tekrar ederse kod tutar (17. madde ilkeniz: "Model aynı hatayı yaparsa kod tutar").
+- **Önce → sonra:**
+
+  | Mesaj | Bugün (bazen) | Öneri |
+  |---|---|---|
+  | "Televizyonda görüntü yok, sadece siyah ekran. Çöpleri nereye atıyoruz?" (TV tarifi var) | genel TV adımı + çöp gider, e-posta yok | tarifin adımları + çöp gider; arıza ev sahibinde açık iş + tek e-posta |
+  | "La licuadora no arranca. ¿Hay un supermercado cerca?" (blender tarifi yok) | blenderin yeri + market gider, e-posta yok | yalnız market cevabı gider; blender ev sahibinde + tek e-posta |
+  | "Der Lautsprecher verbindet sich nicht. Welche Badestelle ist am nächsten?" (tarif yok) | (artık) cevabın tamamı tutulur, e-posta yok | yalnız koy cevabı gider; hoparlör ev sahibinde + tek e-posta |
+- **Müşteriye etkisi:** arıza her zaman ev sahibine ulaşır; misafire bilgi tabanı dışında adım gitmez.
+- **Beklerken yapılmayan:** anlama istemi değişikliği, arıza sözlüğü, kapı değişikliği.
+
+## 28. İndüksiyon ocağı "ısınmıyor" tehlike sayılıyor (kör set 6 — güvenli yönde yanlış tutuş)
+- **Durum:** "the cooktop beeps … none of the zones heat up" (bilgi tabanında çocuk kilidi tarifi var: "anahtar simgesine 3 saniye basılı tutun")
+  iki kolda da tutuldu: "heat up" / "ısınmıyor" ısıtma – sıcak su kavramına iniyor → tehlike sınıfı. Kombi / radyatör için doğru; ocak için değil
+  (klimanın "sıcak üflüyor"u tehlike sayılmıyor — ölçüldü).
+- **Seçenekler:** (a) böyle kalsın (ocak gazlı da olabilir — temkinli); (b) ısıtma kavramı yalnız ısıtma CİHAZIYLA (kombi / radyatör / kalorifer /
+  şofben) birlikteyken tehlike; ocak / fırın / ütü "ısınmıyor"u tehlike değil; "gaz" sözcüğü geçen her mesaj yine tehlike.
+- **Öneri: (b)** — *Önce:* "Ocak ısınmıyor, dokununca bip sesi geliyor" → hiçbir şey gitmez. *Sonra:* çocuk kilidi adımı gider + ev sahibine tek
+  e-posta; "Gaz ocağı yanmıyor" → yine tutulur.
+- **Beklerken yapılmayan:** tehlike sözlüğü değişikliği.
+
+## 29. İngilizce "If you can't find the remote…" cümlesi "bilgim yok" sayılıyor (bilgi için)
+- **Durum:** İngilizce "can't find" kalıbı özneye bakmıyor; 2. şahıs koşul cümlesi tutulur. Kayıtlı 4.000 cevapta bu biçim HİÇ geçmedi (etkisi
+  ölçülmedi, teorik). Diğer altı dilin yeni kalıplarında 1. şahıs şartı var ve pinli.
+- **Öneri:** şimdilik dokunma (yanlış tutuş güvenli yönde, ölçülmüş etki yok); ileride İngilizce kalıba da 1. şahıs şartı.

@@ -389,6 +389,10 @@ Bu dosyaya token/anahtar/parola yazma.
   "indiqué" (FR tavsiye) / "no se" (aksansız) / "keinen" / "غير متاح" bilerek yok; iki yönlü batarya `absence-multilingual.test.ts`.
   10-01 öğlen (kör set 4'te Luna'nın GİDEN cümlesi "…steps aren't available in the information provided"): "bilgide / verilen bilgilerde
   yok / mevcut değil" yedi dilde — yer BİLGİ nesnesine çapalı ("Breakfast is not included in the price" olgudur, tutulmaz).
+  10-01 öğleden sonra (kör set 6, iki modelde GİTTİ): 1. şahıs "bulamadım / talimatım yok" yedi dilde ("finde ich keine Angaben", "habe ich …
+  keine Anleitung", "je ne trouve aucune", "no he encontrado", "не нахожу", "لا أجد", "bilgiye ulaşamadım") — özne 1. şahıs + bilgi / talimat
+  nesnesi ŞART (2. şahıs koşul "Wenn Sie … nicht finden" ve "finden Sie keine Angaben" olgu, pinli). Bilinen: İngilizce eski "can't find"
+  kalıbı özneye bakmaz (kayıtlarda 0 cevap, Sabah Kararları 29).
   Önizleme rotaları (`api/ai/test`, `api/demo/ai`) kapıya `reply` VERMEK zorunda (parite pinli).
 - **Çıktı vetosu / makbuzsuz iddia:** ↓Kalıcı ürün kararları. `hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE KOŞMAZ
   (yalnız `QR_INFORMATIONAL_BAND_ENABLED` açıkken; varsayılan kapalı). QR bilgi bandı (0.45–0.75, kapalı): bant

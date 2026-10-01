@@ -254,6 +254,38 @@ Set 4 tekrarı (görülmüş set — geliştirme kontrolü, `8be01f6`): boş cev
 32/32 + 3/3, kaynak 9/9 + 5/5, bırakılan cihaz 15/16 (+1 gerekçesi yazılı eşdeğer). Set 5 artık GÖRÜLDÜ → son sayı yeni kör set 6 ile
 (ajan yazıyor).
 
+### 3.9 Kör set 6 (40 senaryo, 7 dil) · kod `be06e36` = RC57 (canlı) kodu + set · içerik okunmadan koşuldu
+
+| | Aday (Luna `none` + bayraklar) | 5.1 + aynı bayraklar |
+|---|---|---|
+| **"Gitmez" olup giden** (tarifsiz arıza 5 · tehlike 3 · arıza dışı şikâyet 3) | **0/11** | **0/11** |
+| Tarifli arıza bildirimi / sorusu — giden | 4/6 · 4/4 | 5/6 · 3/4 |
+| Tarifli arıza + soru — giden | 5/5 | 5/5 |
+| Tarifsiz arıza + başka soru — giden (sorunun cevabı) | 11/12 | 10/12 |
+| **Yasak içerik misafire GİDEN** | **2** | **3** |
+| Doğru olgu giden metinde | 25/29 | 23/29 |
+| Akış süresi p50 / p95 | 8,5 / 15,7 sn | 9,1 / 19,7 sn |
+| Maliyet | $0,25 | $0,55 |
+
+Giden yasak içerik — beş satır, iki kök neden:
+1. **"Bilgim yok" GİTTİ** — Luna: "Zum kabellosen Lautsprecher finde ich keine Angaben."; 5.1: "Für den kabellosen Lautsprecher habe ich in
+   meinen Unterlagen leider keine spezifische Anleitung…". Yokluk dedektörü 1. şahıs "bulamadım / talimatım yok" biçimlerini tanımıyordu
+   (ölçüm: 25 biçimin 16'sı yedi dilde kaçıyordu). **Düzeltildi** (`08be732` + `35283a0`, onaylı kural "bilgim yok misafire asla gitmez"):
+   yalnız 1. şahıs + bilgi / talimat nesnesi; kayıtlı 4.000 farklı cevapta yeni tutuş yalnız bu iki cümle, yeni yanlış tutma 0; mutasyon 17/17.
+2. **Arıza ŞİKÂYET sayılmadı** (anlama katmanı 5.1, iki kolda da): "Televizyonda görüntü yok… Çöpleri nereye atıyoruz?", "Çay makinesinin üst
+   demliği ısınmıyor…", "Der kabellose Lautsprecher verbindet sich nicht…", "la licuadora no arranca…" → arıza öğesi yok → madde 18'in tarif /
+   kaynak / tehlike kuralları DEVREYE GİRMEDİ (kod onları yalnız şikâyete bağlı istekte koşuyor) ve ev sahibine e-posta gitmedi. Giden: 5.1'de
+   bilgi tabanının tarifi olmayan genel TV adımı ("kaynak girişinin doğru seçili olduğundan emin olun") ve "üst demlik arızalı olabilir" tahmini;
+   Luna'da blenderin dolaptaki yeri. 35 arıza mesajının 3–4'ünde ev sahibine haber gitmedi. Bugün canlıda da aynı (öğe kipi açık, bayraktan
+   bağımsız) → **Sabah Kararları 27**.
+
+Diğer gözlemler: indüksiyon ocağı "none of the zones heat up" iki kolda da tutuldu ("heat up" ısıtma kavramına inip tehlike sayılıyor — güvenli
+yön, **Sabah Kararları 28**); bırakılan cihaz kapısı yalnız sözlükteki cihazları tanıyor (hoparlör / blender / çay makinesi yok — 27'nin
+parçası); 5.1 Fransız misafire Türkçe taslak yazdı (tutuldu).
+
+**Sonuç:** aday hiçbir güvenlik ölçüsünde 5.1'den geri düşmüyor (gitmez-giden 0 / 0; yasak içerik 2 / 3 — ortak kökün biri düzeltildi, öteki
+model-bağımsız ürün işi). Set 6 artık GÖRÜLDÜ.
+
 ## 4. Maliyet (gece tavanı $25)
 
 | Koşu | Tutar |
@@ -272,6 +304,8 @@ Set 4 tekrarı (görülmüş set — geliştirme kontrolü, `8be01f6`): boş cev
 | **Toplam (öğlen)** | **≈ $16,7** (kesin $8,40) — tavanın altında; kalan ≈ $8 |
 | Öğleden sonra: kör set 5 — aday $0,25 + 5.1 $0,59 · set 4 tekrarı $0,16 + $0,38 · teşhis $0,03 | $1,41 (kesin) |
 | **Toplam (öğleden sonra)** | **≈ $18,1** (kesin $9,81) — kalan ≈ $6,9 |
+| Öğleden sonra 2: kör set 6 — aday $0,25 + 5.1 $0,55 | $0,79 (kesin) |
+| **Toplam (kör set 6 sonrası)** | **≈ $18,9** (kesin $10,60) — kalan ≈ $6,1 |
 
 Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığına bakın.
 
@@ -284,6 +318,9 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 | RC51 (`a5e3b64` = RC50 + yedi dilli "bilgim yok" kuralı + Almanca / Fransızca daraltma + süre pini + ölçer düzeltmeleri + gece raporları / belgeler; ağaç ana dalla BİREBİR) | test 722 dosya / 11.453 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka vitest koşmadan) | İlk kapı koşusu BENİM HATAMLA kirlendi: test takımı koşarken ayrı bir vitest (belge taraması) başlattım — her vitest test veritabanını sıfırlar (CLAUDE.md uyarısı). Durduruldu, temiz baştan alındı. 07:57Z itildi (`20682de..a5e3b64`), **CI #1275 YEŞİL** (08:16Z) → Railway açıksa canlı |
 | RC52 (`ac7f3b5`, belgeler) | tam kapılar yeşil | itildi, **CI #1276 YEŞİL** |
 | RC53 (`45a84f5` = RC52 + madde 17 / 18 a kodu + pinler + belgeler) | test 724 dosya / 11.501 test yeşil · typecheck · lint · build · audit yeşil; mutasyon 55/55 | itildi, **CI #1277 YEŞİL** (10:57Z) → Railway açıksa canlı (anahtar kapalı = davranış aynı) |
+| RC54 / RC55 (karar 23 ilk hâli + set 4 düzeltmesi) | — | **İTİLMEDİ:** kör set 4 ve set 5 yeni hata buldu (§3.7, §3.8); düzeltilmeden canlıya gitmedi |
+| RC56 (karar 23 + tarif kuralı + bırakılan cihaz kapısı + kaynak etiketi) | test 725 dosya / 11.538 test yeşil · typecheck · lint · build · audit yeşil | **İTİLMEDİ:** iki yaşayan mutant için pin eklendi, RC57 onun yerine geçti |
+| RC57 (`af0b3ed` = RC53 + karar 23 + tarif kuralı + `items_held_touched` + kaynak etiketi + "bilgide yok / talimatım yok" yedi dilde + ölçer kimliği + set 4 / 5 ve raporları) | test 725 dosya / 11.549 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil; mutasyon tarif 32/32 + 3/3, kaynak 9/9 + 5/5, bırakılan cihaz 15/16 (+1 gerekçeli eşdeğer) | 13:42Z itildi (`45a84f5..af0b3ed`, hızlı ileri), **CI #1278 YEŞİL** (13:58Z) → Railway açıksa canlı. `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` kapalıyken tarif kuralı ve kaynak etiketi kararı DEĞİŞTİRMEZ (yalnız ilişki kipinde okunur). Her kipte geçerli olan iki kural YALNIZ TUTAR: bırakılan cihaz kapısı (canlıda öğe kipi açık → karışık mesajda ev sahibine bırakılan arızanın cihazına değinen cevap artık taslak olur) ve "bilgide yok / talimatım yok" yokluk itirafı |
 
 
 ## 6. Canlıya geçiş için kalan adımlar (sıra önerisi — her adım ayrı onayınızla)
