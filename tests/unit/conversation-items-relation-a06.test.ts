@@ -321,7 +321,9 @@ describe("7 — RC60 regresyonu: gerçek tarifler geri, A06 korumaları yerinde"
         "The kitchen hob is induction. If it beeps but no zone heats up, the child lock is on: touch and hold the key symbol for 3 seconds until the small red dot next to it goes out, then switch the hob on with the ON/OFF field.",
     };
     expect([...kbRecipeTopics([hob])]).toEqual(["stove"]);
-    expect(isFixRecipeText("Tap and hold the lock icon until it beeps.")).toBe(true);
+    // Tek işaretli ikizler (mutasyon): yalnız güçlü ifade ("screen / panel" kontrol adı değil).
+    expect(isFixRecipeText("Touch and hold the screen until it wakes up.")).toBe(true);
+    expect(isFixRecipeText("Tap and hold the panel until it beeps.")).toBe(true);
   });
 
   it("🚨 liste ayracı olmayan çok kavramlı başlık TEK cihazdır; listeli başlık ('… ve …') tarif cümlesine bakar", () => {
@@ -356,6 +358,45 @@ describe("7 — RC60 regresyonu: gerçek tarifler geri, A06 korumaları yerinde"
     expect([...kbRecipeTopics([otherLine])]).toEqual(["ac"]);
   });
 
+  it.each([
+    "Kumandanın tuşuyla COOL seçin.",
+    "Kumandanın düğmesine 3 saniye bekleyip tekrar dokunmayın.",
+    "Soğutma için COOL modunu seçin.",
+    "Günlük yıkama için 30 derece programını seçin.",
+    "Kar tanesi simgesini seçin.",
+    "Select the eco button.",
+    "Select the eco mode.",
+    "Select the right setting.",
+    "Select the snowflake symbol.",
+    "Select the snowflake icon.",
+    "Wait and turn the dial.",
+    "Wait and turn the knob.",
+    "Die Taste einschalten.",
+    "Den Knopf einschalten.",
+    "Den Modus wählen.",
+    "Das Programm wählen.",
+    "Den Schalter einschalten.",
+    "Sélectionnez le bouton éco.",
+    "Sélectionnez la touche éco.",
+    "Sélectionnez le programme éco.",
+    "Éteignez l'interrupteur.",
+    "Sélectionnez le symbole flocon.",
+    "Seleccione el botón eco.",
+    "Seleccione la tecla eco.",
+    "Seleccione el modo eco.",
+    "Seleccione el programa eco.",
+    "Apague el interruptor.",
+    "Seleccione el símbolo del copo.",
+    "Выберите кнопку ЭКО.",
+    "Выберите режим охлаждения.",
+    "Выберите значок снежинки.",
+    "Выключите переключатель.",
+    "اختر زر التبريد.",
+    "انتظر حتى ينطفئ الزر.",
+  ])("kontrol adı + TEK zayıf fiil = tarif: %j", (t) => {
+    expect(isFixRecipeText(t)).toBe(true);
+  });
+
   it("kontrol adı (tuş / button / Taste…) zayıf işarettir: fiille tarif, tek başına ya da iki ad fiilsiz değil", () => {
     expect(isFixRecipeText("Kumandadaki Source tuşuyla 'TV' kaynağını seçin.")).toBe(true);
     expect(isFixRecipeText("Maintenez le bouton enfoncé, puis attendez.")).toBe(true);
@@ -368,6 +409,35 @@ describe("7 — RC60 regresyonu: gerçek tarifler geri, A06 korumaları yerinde"
     expect(isFixRecipeText("Sinyal zayıfsa modemi kapatıp 30 saniye sonra yeniden açabilirsiniz.")).toBe(true);
     expect(isFixRecipeText("İnternet giderse modemin güç düğmesini kapatın, 30 saniye bekleyip yeniden açın.")).toBe(true);
     expect(isFixRecipeText("Havuz 1 Mayıs'ta yeniden açılır.")).toBe(false);
+  });
+
+  it.each([
+    "Modemi kapatın ve yeniden açın.",
+    "Modemi kapatın, sonra yeniden açınız.",
+    "Modemi yeniden açıp deneyin.",
+    "Modemi kapatın, 1 dakika sonra yeniden açabilirsiniz.",
+    "Modemi kapatın ve tekrar açın.",
+    "Router'ı tekrar açıp deneyin.",
+    "Modemi kapatın, sonra tekrar açabilirsiniz.",
+    "Fişi yeniden takın.",
+    "Fişi tekrar takın.",
+  ])("Türkçe güç döngüsü ifadesi TEK başına tarif: %j", (t) => {
+    expect(isFixRecipeText(t)).toBe(true);
+  });
+
+  it.each([
+    "Kol yarıda sıkışırsa kapıyı itip kapatın.",
+    "Kart okuyucuda takılırsa kartı çıkarıp silin.",
+    "İnternet kesilirse modemin fişini 30 saniye çekip takın.",
+    "Kumanda bozulursa yedek kumanda çekmecede.",
+    "Kombi arızalanırsa önce ekrandaki kodu okuyun.",
+  ])("Türkçe olumlu arıza koşulu (kapalı küme) TEK başına arıza anışı: %j", (t) => {
+    expect(isFixRecipeText(t)).toBe(true);
+  });
+
+  it("SSS: SORU başlığındaki cihaz (arıza sözcüğü olmadan) tarif cümlesine geçer", () => {
+    const qa = { title: "Sık sorulanlar", content: "Kahve makinesini nasıl kullanırım? Kapsülü takıp düğmeye basın." };
+    expect([...kbRecipeTopics([qa])]).toContain("coffee");
   });
 
   it("Türkçe arıza koşulu: 3. şahıs '-mazsa' ve kapalı küme ('sıkışırsa / kesilirse'); 2. şahıs ve 'unutmazsa' değil", () => {
