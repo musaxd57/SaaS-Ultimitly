@@ -89,7 +89,7 @@ describe("giriş tarifinde kod — istem türevi", () => {
     }
     const all = replyRequestIdentity(input).system;
     expect(all).toContain(RULE);
-    expect(all).toContain("TEK İSTİSNA — BİLGİ TABANINDA YAZAN SABİT HİZMET ÜCRETİ");
+    expect(all).toContain("ÜCRET KURALI: Onaylı bilgi tabanındaki sabit hizmet ücretini");
     expect(all).toContain("BİLDİRİM cümlesi YAZMA");
     expect(all).toContain('"reply":"Wi-Fi ağımız'); // kod selamı türevi
     vi.stubEnv("AI_ACCESS_CODE_COMPLETE_ENABLED", "");

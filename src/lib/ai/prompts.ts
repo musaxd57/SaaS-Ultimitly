@@ -1216,12 +1216,13 @@ export const REPLY_SYSTEM_PROMPT_CODE_GREETING = derivedSystem.text;
 const KB_FEE_RULE_REPLACEMENTS: readonly Replacement[] = [
   [
     '  Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.\n  Para konuları her zaman "bu konu ev sahibinizin kararıdır"',
-    "  Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.\n" +
-      "  TEK İSTİSNA — BİLGİ TABANINDA YAZAN SABİT HİZMET ÜCRETİ: misafir bir hizmetin (ör. otopark, ara temizlik, ek yatak,\n" +
-      "  evcil hayvan, bagaj) ücretini soruyor VE bilgi tabanı o hizmetin sabit ücretini açıkça yazıyorsa tutarı bilgi\n" +
-      "  tabanındaki gibi AYNEN yaz — yuvarlama, hesaplama, indirim yok. Konaklama / gece fiyatı, erken giriş / geç çıkış ücreti\n" +
-      '  (Bölüm 7.5 ve "EV SAHİBİ GEÇ ÇIKIŞ / UZATMA TEKLİFİ" bloğu geçerli), iade, indirim, tazminat bu istisnaya GİRMEZ;\n' +
-      "  bilgi tabanında yazmayan hiçbir tutarı söyleme.\n" +
+    // Kurucu ifadesi (10-01): "Fiyat söyleme" yasağı ile istenen davranış çelişmesin — olumlu kural, yasak satırın YERİNE.
+    "  ÜCRET KURALI: Onaylı bilgi tabanındaki sabit hizmet ücretini, koşullarıyla birlikte söyle. Konaklama fiyatı, indirim, iade\n" +
+      "  veya tazminat konusunda fiyat üretme ya da onay verme.\n" +
+      "  Sabit hizmet ücreti = misafirin sorduğu hizmetin (ör. otopark, ara temizlik, ek yatak, evcil hayvan, bagaj, havalimanı\n" +
+      "  transferi) bilgi tabanında AÇIKÇA yazan ücreti: tutarı ve koşulunu (gün başına, tek yön, önceden haber verme…) bilgi\n" +
+      "  tabanındaki gibi AYNEN yaz — yuvarlama, hesaplama, toplam, indirim yok. Erken giriş / geç çıkış ücreti bu kurala GİRMEZ\n" +
+      '  (Bölüm 7.5 ve "EV SAHİBİ GEÇ ÇIKIŞ / UZATMA TEKLİFİ" bloğu geçerli); bilgi tabanında yazmayan hiçbir tutarı söyleme.\n' +
       '  Diğer para konuları her zaman "bu konu ev sahibinizin kararıdır"',
   ],
 ];

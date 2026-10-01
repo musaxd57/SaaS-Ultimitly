@@ -13,7 +13,7 @@ import type { SuggestReplyInput } from "@/lib/ai/types";
 // ---------------------------------------------------------------------------
 // KURAL-4 netleştirmesi — bilgi tabanında YAZAN sabit hizmet ücreti (kurucu onayı 09-30: "iki modelde ölç"; YALNIZ ölçüm).
 // Anahtar `AI_KB_FEE_RULE_ENABLED` VARSAYILAN KAPALI: kapalıyken modele giden sistem istemi bayt bayt taban; açıkken TEK blok
-// değişir (istisna araya girer, "Para konuları" → "Diğer para konuları"), platform dışı ödeme kuralı ve geri kalan istem aynen.
+// değişir (kurucu ifadesi 10-01: "ASLA yazma" yasağının YERİNE olumlu ücret kuralı, "Para konuları" → "Diğer para konuları"), platform dışı ödeme kuralı ve geri kalan istem aynen.
 // ---------------------------------------------------------------------------
 
 const input: SuggestReplyInput = {
@@ -26,7 +26,7 @@ const input: SuggestReplyInput = {
   language: "tr",
 };
 
-const EXCEPTION = "TEK İSTİSNA — BİLGİ TABANINDA YAZAN SABİT HİZMET ÜCRETİ";
+const EXCEPTION = "ÜCRET KURALI: Onaylı bilgi tabanındaki sabit hizmet ücretini, koşullarıyla birlikte söyle.";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -51,8 +51,11 @@ describe("KURAL-4 sabit hizmet ücreti istisnası", () => {
     const sys = replyRequestIdentity(input).system;
     expect(sys).toBe(REPLY_SYSTEM_PROMPT_KB_FEE_RULE);
     expect(sys).toContain(EXCEPTION);
-    expect(sys).toContain("Konaklama / gece fiyatı, erken giriş / geç çıkış ücreti");
-    expect(sys).toContain("  Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.\n");
+    // Kurucu ifadesi (10-01) AYNEN; "ASLA yazma" yasağı açıkken YOK (talimat ile istenen davranış çelişmesin).
+    expect(sys).toContain("Konaklama fiyatı, indirim, iade\n  veya tazminat konusunda fiyat üretme ya da onay verme.");
+    expect(sys).toContain("Erken giriş / geç çıkış ücreti bu kurala GİRMEZ");
+    expect(sys).not.toContain("  Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.\n");
+    expect(REPLY_SYSTEM_PROMPT).toContain("  Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.\n");
     expect(sys).toContain('  Diğer para konuları her zaman "bu konu ev sahibinizin kararıdır"');
     expect(sys).not.toContain('\n  Para konuları her zaman "bu konu');
     expect(sys).toContain("PLATFORM DIŞI ÖDEME/İLETİŞİM");

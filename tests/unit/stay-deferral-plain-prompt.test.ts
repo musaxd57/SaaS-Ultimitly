@@ -126,7 +126,7 @@ describe("konaklama ertelemesi bildirimsiz — istem türevi", () => {
     vi.stubEnv("AI_STAY_DEFERRAL_PLAIN_ENABLED", "1");
     const all = replyRequestIdentity(input).system;
     expect(all).toContain(RULE);
-    expect(all).toContain("TEK İSTİSNA — BİLGİ TABANINDA YAZAN SABİT HİZMET ÜCRETİ");
+    expect(all).toContain("ÜCRET KURALI: Onaylı bilgi tabanındaki sabit hizmet ücretini");
     expect(all).toContain('"reply":"Our standard check-in is at 15:00. Whether an earlier arrival is possible is the host\'s call."');
     vi.stubEnv("AI_STAY_DEFERRAL_PLAIN_ENABLED", "");
     expect(replyRequestIdentity(input).system).toBe(REPLY_SYSTEM_PROMPT_CODE_GREETING_KB_FEE_RULE);
