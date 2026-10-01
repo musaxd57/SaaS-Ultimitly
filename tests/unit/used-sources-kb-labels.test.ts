@@ -54,6 +54,8 @@ const KB = [
   { category: "faq", title: "Klima", content: "Klima soğutmuyorsa MODE tuşuna basıp COOL seçin." },
   { category: "faq", title: "Televizyon ve kumanda", content: "Sinyal yoksa SOURCE tuşuna basıp HDMI 2'yi seçin." },
   { category: "wifi", title: "İnternet yoksa: modemi yeniden başlatma ve ışıkların anlamı", content: "Modemi kapatıp 30 saniye bekleyin." },
+  { category: "faq", title: "Çamaşır makinesi", content: "Program bitince kapak 2 dakika kilitli kalır." },
+  { category: "general", title: "TV", content: "Kumandanın kırmızı tuşu." },
 ];
 
 function input(): SuggestReplyInput {
@@ -112,7 +114,13 @@ describe("bilgi tabanı atfı kalemin KATEGORİSİNE iner (gerçek kaleme denk g
     expect((await verified(["kb:kumanda"])).used).toEqual(["kb:faq"]);
   });
 
+  it("kısa başlık yalnız BİREBİR eşleşir (ortak sözcük kuralı ≥5 harf ister): 'kb:tv' → TV kalemi", async () => {
+    expect((await verified(["kb:tv"])).used).toEqual(["kb:general"]);
+  });
+
   it("🚨 uydurma atıf yine DÜŞER: isteme girmeyen konu, olmayan kategori, yalnız genel sözcük", async () => {
+    // "makinesi" GENEL sözcüktür: "Çamaşır makinesi" kalemi varken "kb:kahve_makinesi" kahve kalemi diye doğrulanmaz.
+    expect((await verified(["kb:kahve_makinesi"])).used).toEqual([]);
     expect((await verified(["kb:jacuzzi_reset"])).used).toEqual([]);
     expect((await verified(["kb:parking"])).used).toEqual([]);
     expect((await verified(["kb:Kahve makinesi tamiri"])).used).toEqual([]);
