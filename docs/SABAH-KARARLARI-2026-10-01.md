@@ -35,6 +35,15 @@
 - **Müşteriye etkisi:** Fotoğraf yüklemeyen temizlikçide erken giriş otomatik onaylanmaz, ev sahibine düşer.
 - **Beklerken yapılmayan:** kural değişikliği.
 
+## 1c. Erken giriş kanıtlarını cevap modeline "bol bol" vermek (kurucu: "onu bol bol besleyip cevabı EN DOĞRU şekilde")
+- **Durum:** Kanıtlar (temizlik "bitti" kaydı ve saati, önceki misafirin çıkışı, sonraki / önceki rezervasyon, ücret kuralı) KODDA
+  değerlendiriliyor; otomatik onay yalnız koddan kurulan metinle gider (model izin cümlesi yazamaz). Cevap modeli bu kanıtları GÖRMÜYOR.
+- **Öneri:** Kanıtları cevap modeline YALNIZ ev sahibine hazırlanan TASLAK için salt-okuma özet olarak verelim ("Temizlik 12:40'ta
+  bitti · önceki misafir 11:05'te çıktı · ücret 300 TL"); misafire otomatik giden metin yine YALNIZ kodla kurulur (model kanıttan izin
+  ÇIKARAMAZ). Böylece ev sahibinin önündeki taslak doğru ve dolu olur, karar yine kanıtla verilir.
+- **Müşteriye etkisi:** Misafire giden metin değişmez; ev sahibinin taslağı kanıtlı hâle gelir.
+- **Beklerken yapılmayan:** istem / bağlam değişikliği.
+
 ## 2. Erken giriş BİLGİ cevabındaki "kararı ev sahibiniz verir" cümlesi
 - **Durum:** Koddan kurulan politika metni (ör. "Erken giriş ücreti 300 TL. Erken girişin mümkün olup olmadığı o günkü temizliğe
   bağlıdır; kararı ev sahibiniz verir.") 6 dilde bu cümleyi taşır. Anahtar (madde 1) açılırsa bu bilgi cevabı da **tutulur** (pinli).
