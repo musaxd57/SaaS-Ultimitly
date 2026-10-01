@@ -39,6 +39,8 @@ describe("plan — şikâyete bağlı istek cevaplanabilir sayılmaz", () => {
   it("KONTROL: ÖNCEKİ turun tutulan şikâyeti bugünkü isteği bağlamaz (K8)", () => {
     const p = plan([ask("amenities", "m2")], [held("complaint_issue", true)]);
     expect(p.answerable.map((a) => a.item.kind)).toEqual(["amenities"]);
+    // Kapı girdisi de önceki tur işaretini taşır — ikinci kemer bugünkü isteği tutmaz.
+    expect(complaintDependentHold(p.gateItems)).toBe(false);
   });
 
   it("KONTROL: şikâyet yokken (ödeme tutuluyor) istekler bugünkü gibi cevaplanabilir", () => {
