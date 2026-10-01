@@ -58,8 +58,10 @@ describe("sır dedektörü — iki eksenli karakterizasyon", () => {
   it("bugünkü kaçan/yanlış-elenen sayıları SABİT (değişirse bilinçli olsun)", () => {
     const missed = SECRETS.filter((x) => !flags(x));
     const falsePositives = LEGIT.filter((x) => flags(x));
+    // 10-01 (15 ajan incelemesi A07): "kombinasyon" + tuş takımı / anahtar kasası / şifre sözcüğünün diğer dilleri eklendi → kaçan 11 → 10
+    // ("Kasa kombinasyonu 4590"), yanlış eleme AYNI (1).
     expect({ missed: missed.length, falsePositives: falsePositives.length }).toEqual({
-      missed: 11,
+      missed: 10,
       falsePositives: 1,
     });
     // Tek bilinen yanlış-pozitif ADRES kalemidir (§7). Başka bir kalem düşerse

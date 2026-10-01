@@ -286,14 +286,20 @@ export async function ensureGuestChatConversation(
 const SECRET_PATTERNS: RegExp[] = [
   // door / keybox / entry / lock + code word (TR suffixes ok), e.g. "kapı kodu",
   // "anahtar kutusu kodu", "keybox code", "giriş şifresi", "door/lock code".
-  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w{0,24}[\s:]{0,3}\w{0,6}[\s:]{0,3}(kod|şifre|sifre|parola|code|pin)/i,
+  // 10-01 (15 ajan incelemesi A07/A04): tuş takımı / anahtar kasası / kilit kutusu ve "kombinasyon" + şifre sözcüğünün diğer dillerdeki
+  // karşılıkları (Passwort, mot de passe, contraseña, пароль) — yalnız SIR anlamı taşıyan sözcükler; "kasa" / "alarm" / "kilit" gibi
+  // tek başına çok anlamlı isimler BİLEREK yok (karakterizasyon: yıl / adres yanlış elemesi, `secret-detection-golden.test.ts`).
+  // Kod sözcüğü harf sınırında başlar: ASCII katlamada "kapının" → "ka·pin·in" kod sözcüğü sanılıyordu ("Giriş kapının yanında" eleniyordu).
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|door|lock|entry|gate)\w{0,24}[\s:]{0,3}\w{0,6}[\s:]{0,3}(?<![a-z0-9])(kod|şifre|sifre|parola|code|pin|kombinasyon|combination|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)/i,
   // a code/PIN/password word followed by a value, e.g. "PIN: 5678", "kodu 0000",
   // "şifre HUNTER2", "parola: abc12".
-  /(pin|kod|code|şifre|sifre|parola|password|passcode)\w{0,24}\s*(?:[:=#]\s*)?([0-9]{3,}|[^\s.\n]{0,64}\d)/i,
+  // "kombinasyon" BİLEREK yok: 3 haneli değer kabul eden bu kalıpta "Kahvaltı kombinasyonu 250 TL" fiyatı elenirdi (yalnız 4–8 hane
+  // bitişik ↓ ve kod sözcüklü ↑ kalıplarda).
+  /(pin|kod|code|şifre|sifre|parola|password|passcode|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)\w{0,24}\s*(?:[:=#]\s*)?([0-9]{3,}|[^\s.\n]{0,64}\d)/i,
   // Wi-Fi / wireless / internet ... password word.
-  /(wi-?fi|kablosuz|internet)\w{0,24}[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key)/i,
+  /(wi-?fi|wlan|kablosuz|internet)\w{0,24}[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|clave|пароль)/i,
   // a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
-  /(şifre|sifre|parola|password|passcode)\w{0,24}\s*[:=]/i,
+  /(şifre|sifre|parola|password|passcode|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)\w{0,24}\s*[:=]/i,
   // Wi-Fi / network NAME or PASSWORD stated conversationally WITHOUT a secret
   // keyword — e.g. "İnternet ağımız 'LaleEv', bağlanmak için 12345678 girin".
   // The value is quoted or digit-bearing (SSID / password), which the keyword
@@ -332,7 +338,7 @@ const SECRET_PATTERNS: RegExp[] = [
   //
   // ÖLÇÜLDÜ (kalıp yok / serbest-metin / bugünkü): yanlış-pozitif 0 → 6 → 0,
   // yakalanan saldırı 0 → 11 → 13. Yani bugünkü hâl İKİ eksene göre de en iyisi.
-  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w{0,24}\s*(?:[:=#.\-–—]\s*)?\d{4,8}(?!\d)(?![\s\-.]\d)/i,
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|kombinasyon|combination|door|lock|entry|gate)\w{0,24}\s*(?:[:=#.\-–—]\s*)?\d{4,8}(?!\d)(?![\s\-.]\d)/i,
 ];
 
 /**
