@@ -234,3 +234,39 @@ describe("maliyet — her cevaba uygulanan yüklem karesel iş yapmaz", () => {
     }
   });
 });
+
+describe("dar liste — her kalıp kendi örneğiyle pinli (mutasyon 10-01: örneksiz kalıp ölü kod sayılır)", () => {
+  it.each([
+    "It is for your host to decide.",
+    "It is the host who decides.",
+    "Late checkout needs the host's approval.",
+    "Early check-in is subject to host approval.",
+    "The host will need to confirm this.",
+    "Das ist die Entscheidung des Gastgebers.",
+    "Das liegt bei Ihrem Gastgeber.",
+    "Der Gastgeber muss das bestätigen.",
+    "Cela revient à votre hôte.",
+    "C'est à la discrétion de votre hôte.",
+    "À confirmer par votre hôte.",
+    "Lo confirma su anfitrión.",
+    "Depende del anfitrión.",
+    "Это на усмотрение хозяина.",
+    "Хозяин должен подтвердить.",
+    "Решает ваш хозяин.",
+  ])("ev sahibi kararı: %s", (r) => {
+    expect(defersDecisionToHost(r)).toBe(true);
+  });
+
+  it("hassas istek YOKSA (beyan 'defers' + bekçi 'erteliyor' olsa da) tutuş işareti konmaz — gönderilen cevap için e-posta gitmesin", () => {
+    vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "1");
+    const e = evaluateAvailability("Bu ev sahibinizin takdirindedir.", ["Havlu var mı?"], {
+      declared: { asked: "none", stance: "defers" },
+      guard: {
+        status: "ok",
+        verdict: verdict({ guestRequestsChange: false, kind: "none", requestedCheckoutTime: null, replyDefersToHost: true }),
+      },
+    });
+    expect(e.reason).toBeNull();
+    expect(e.deferralHeld).toBeFalsy();
+  });
+});
