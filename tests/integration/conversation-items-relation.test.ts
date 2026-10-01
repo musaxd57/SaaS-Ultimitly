@@ -276,6 +276,31 @@ describe("ilişki kipi — kanal akışı (kurucu kararı 10-01 sabah)", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
+  it("karar 23 (onaylı 18. madde): soru SORMADAN arıza bildirimi — anlama katmanı çözüm isteği eklerse tarif gider, şikâyet açık + tek e-posta", async () => {
+    // Model davranışı (istemin yeni cümlesi) ücretli ölçümle sınanır; burada çözüm isteği GELDİĞİNDE akışın mekaniği pinli.
+    const id = await seed("İnternet bir saattir yok.");
+    understands(
+      understood([
+        { intent: "complaint_issue", relation: "own_topic", q: "internet yok" },
+        { intent: "wifi", relation: "fix_request", q: "modem yeniden başlatma" },
+      ]),
+    );
+    mockSuggest.mockResolvedValue(
+      verdict({
+        intent: "wifi",
+        reply: "Modemin arkasındaki ON/OFF düğmesiyle kapatıp 30 saniye sonra yeniden açabilirsiniz.",
+        usedSources: ["kb:wifi"],
+        answeredRequests: { ok: true, refs: ["R1"] },
+      }),
+    );
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    expect(await itemsOf(id)).toEqual([
+      ["complaint_issue", "pending_host"],
+      ["wifi", "answered"],
+    ]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
   it("🚨 ilişki belirsiz ('unclear') → o soru tutulur; bağımsızlık işareti bile kapının öteki kontrollerini atlatmaz (bilgim yok)", async () => {
     const id = await seed("Klima çalışmıyor; çöp konteyneri nerede?");
     understands(

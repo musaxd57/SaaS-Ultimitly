@@ -148,6 +148,14 @@ describe("ilişki kipi — öğe kipi + şikâyet takibi BİRLİKTE (kurucu kara
     }
   });
 
+  it("karar 23 (onaylı 18. madde): soru SORMADAN arıza bildirimi de ayrı bir arıza çözümü isteği alır; arıza olmayan şikâyet almaz", () => {
+    expect(UNDERSTANDING_RELATION_ADDENDUM).toContain("even when no question is asked");
+    expect(UNDERSTANDING_RELATION_ADDENDUM).toContain('"The internet stopped working an hour ago." -> [complaint_issue own_topic, wifi fix_request]');
+    expect(UNDERSTANDING_RELATION_ADDENDUM).toContain('"Daire çok kirli." -> [complaint_issue own_topic]');
+    // Eski şikâyet takibi eki (öğe kipi kapalıyken) DEĞİŞMEDİ — bayt bayt.
+    expect(UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM).not.toContain("even when no question is asked");
+  });
+
   it("çağrı: şema her istekte 'relation' ister; çözücü işareti taşır (önbellek kipi ayrı)", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
