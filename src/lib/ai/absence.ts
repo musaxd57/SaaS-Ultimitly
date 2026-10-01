@@ -245,7 +245,9 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`(?:liegt|liegen) (?:mir|uns) ${gap(2)}nicht vor(?![\\p{L}])`, "u"),
   /(?:ist|sind) (?:mir|uns) (?:leider )?nicht bekannt/u,
   new RegExp(`(?<![\\p{L}])(?:ich|wir) kenne\\p{L}? ${gap(3)}nicht(?![\\p{L}])`, "u"),
-  /(?:kann|können) (?:ich|wir) (?:\p{L}{1,30} ){0,3}nichts sagen|(?:ich|wir) (?:kann|können) (?:\p{L}{1,30} ){0,3}nichts sagen/u,
+  // 10-01 gece: "kann ich dazu nichts Konkretes / Genaues / Verlässliches sagen" — sıfat KAPALI küme ("nichts anderes sagen als:
+  // willkommen" olumludur, girmez).
+  /(?:kann|können) (?:ich|wir) (?:\p{L}{1,30} ){0,3}nichts (?:(?:konkretes|genaues|verlässliches|sicheres|näheres|bestimmtes) )?sagen|(?:ich|wir) (?:kann|können) (?:\p{L}{1,30} ){0,3}nichts (?:(?:konkretes|genaues|verlässliches|sicheres|näheres|bestimmtes) )?sagen/u,
   new RegExp(`(?:kann|können|könnte) (?:ich|wir)(?: \\p{L}{1,30}){0,3} keine ${gap(1)}${DE_INFO} ${gap(1)}geben`, "u"),
   /(?:kann|konnte) (?:ich )?(?:\p{L}{1,30} ){0,2}nicht finden/u,
   // Kör set 6 (misafire GİTTİ — Luna: "Zum kabellosen Lautsprecher finde ich keine Angaben."; 5.1: "Für den kabellosen Lautsprecher habe
@@ -304,6 +306,51 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   /غير (?:مذكورة?|محددة?)(?![\p{L}])/u,
   // 10-01 öğlen: "غير متوفرة في المعلومات المقدمة" — yalnız BİLGİ nesnesiyle ("غير متاح" tek başına olgudur, BİLEREK yok).
   new RegExp(`غير (?:متوفرة?|متاحة?|موجودة?) في (?:ال)?${AR_OBJ}`, "u"),
+  // ── "ÇÖZÜM ÖNEREMİYORUM" (10-01 gece, RC60 regresyon koşusu — kör set 5, Luna, misafire GİTTİ): "Bei der Kaffeemaschine kann ich anhand
+  // der vorliegenden Informationen keine passende Lösung nennen." Anlama katmanı bu koşuda arızayı tutulacak öğe saymadı (önceki koşuda
+  // saymıştı); bırakılan cihaz kapısı bu yüzden koşmadı, son kemer bu yüklem. Ölçüm: yedi dilde 21 biçimin 21'i kaçıyordu. Özne 1. şahıs
+  // + olumsuz kip + ÇÖZÜM nesnesi ŞART: "Çözüm: düğmeye basın", "Size bir çözüm önerim var", "Sie können keine Lösung falsch machen", "Je ne
+  // peux que vous proposer une solution" (yalnız = olumlu), "I can't offer a discount" eşleşmez. Kapalı tekrar.
+  new RegExp(
+    `${L}çözüm(?:ü)? ${gap(2)}(?:öneremiyor|sunamıyor|veremiyor|söyleyemiyor|bulamıyor|getiremiyor)(?:um|uz)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(`${L}çözüm(?:ü)? ${gap(2)}(?:bulamad|öneremed|sunamad|veremed)ı(?:m|k)(?![\\p{L}])`, "u"),
+  new RegExp(
+    `${L}(?:i(?: am|'m)?|we(?: are|'re)?) (?:can't|cannot|can not|couldn't|could not|won't be able to|unable to|not able to) (?:offer|give|provide|suggest|recommend|propose|share|find)(?: you| any| a| an){0,2} (?:\\p{L}{1,20} )?(?:solutions?|fix(?:es)?|remed(?:y|ies)|troubleshooting)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `(?:kann|können|konnte|konnten|könnte|könnten) (?:ich|wir)(?: \\p{L}{1,30}){0,5} (?:keine|keinen|keinerlei) (?:\\p{L}{1,20} )?(?:lösung\\p{L}{0,12}|abhilfe)(?![\\p{L}])(?!(?: \\p{L}{1,30}){0,3} vorstellen)`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:ich|wir) (?:kann|können|konnte|konnten|könnte|könnten)(?: \\p{L}{1,30}){0,5} (?:keine|keinen|keinerlei) (?:\\p{L}{1,20} )?(?:lösung\\p{L}{0,12}|abhilfe)(?![\\p{L}])(?!(?: \\p{L}{1,30}){0,3} vorstellen)`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:je|nous) ne (?:peux|pouvons|pourrai|pourrons|suis|sommes|saurais|saurions) (?:pas|plus)(?: (?!que(?![\\p{L}]))\\p{L}{1,20}| [dl]'\\p{L}{1,20}){0,4} (?:de |d'|une |la |des )?(?:\\p{L}{1,20} )?solutions?(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(`${L}(?:je|nous) n'(?:ai|avons) (?:pas|aucune) (?:de |d')?(?:\\p{L}{1,20} )?solutions?(?![\\p{L}])`, "u"),
+  new RegExp(
+    `${L}no (?:puedo|podemos|podría|podríamos|sabría|sabríamos|estoy en condiciones de|estamos en condiciones de)(?: (?!que(?![\\p{L}]))\\p{L}{1,20}){0,4} (?:una |ninguna |la |alguna )?(?:\\p{L}{1,20} )?soluci[óo]n(?:es)?(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(`${L}no (?:tengo|tenemos) (?:una |ninguna )?(?:\\p{L}{1,20} )?soluci[óo]n(?:es)?(?![\\p{L}])`, "u"),
+  new RegExp(
+    `${L}не (?:могу|можем|смогу|сможем)(?: \\p{L}{1,20}){0,3} (?:предложить|подсказать|дать|назвать|найти|порекомендовать|посоветовать|предоставить)(?: \\p{L}{1,20}){0,2} решени\\p{L}{0,3}`,
+    "u",
+  ),
+  new RegExp(`${L}у (?:меня|нас) нет ${gap(1)}решени\\p{L}{0,3}`, "u"),
+  new RegExp(
+    `(?:لا|لن) (?:أستطيع|استطيع|نستطيع|يمكنني|يمكننا|أقدر|اقدر|نقدر) ${gap(2)}(?:تقديم|اقتراح|إعطاء|اعطاء|إيجاد|ايجاد|توفير)(?: \\p{L}{1,20}){0,2} (?:أي |اي )?(?:حل|حلا|حلول)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `لم (?:أتمكن|اتمكن|نتمكن|أستطع|استطع|نستطع) (?:من )?(?:تقديم|اقتراح|إيجاد|ايجاد|العثور على) (?:أي |اي )?(?:حل|حلا|حلول)(?![\\p{L}])`,
+    "u",
+  ),
 ];
 
 /** Tek liste (her çağrıda yeniden kurulmasın). Yeni kalıplar KAPALI tekrar (`{0,n}`) kullanır — CLAUDE.md karesel iş kuralı. */

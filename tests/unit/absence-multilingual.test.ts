@@ -222,6 +222,103 @@ const LEGIT_NOT_FOUND: Record<string, string[]> = {
   tr: ["Anahtarı bulamazsanız kutunun içinde.", "Otopark için ek ücret bulunmuyor."],
 };
 
+// ── 10-01 gece (RC60 regresyon koşusu, kör set 5 — Luna, misafire GİTTİ): "ÇÖZÜM ÖNEREMİYORUM" sınıfı. Anlama katmanı arızayı tutulacak öğe
+// saymadığında (model değişkenliği) bırakılan cihaz kapısı koşmuyor; son kemer bu yüklem. Ölçüm: 21 biçimin 21'i kaçıyordu; 3.031 cevaplık
+// korpusta ve gecenin 3.033 canlı hat metninde yeni tutma yalnız sızan cevap. Özne 1. şahıs + olumsuz kip + ÇÖZÜM nesnesi ŞART.
+const ADMITS_NO_SOLUTION: Record<string, string[]> = {
+  de: [
+    "Hallo Alex,\n\nBei der Kaffeemaschine kann ich anhand der vorliegenden Informationen keine passende Lösung nennen. Den Müll können Sie in den grauen Container links vom Hauseingang werfen.",
+    "Für die Kaffeemaschine kann ich Ihnen leider keine Lösung anbieten.",
+    "Ich kann Ihnen zur Kaffeemaschine keine Lösung nennen.",
+    "Zur Kaffeemaschine kann ich keinen Lösungsvorschlag machen.",
+    "Ich konnte keine Lösung für die Kaffeemaschine finden.",
+    "Anhand der vorliegenden Informationen kann ich dazu nichts Konkretes sagen.",
+  ],
+  en: [
+    "I can't offer a solution for the coffee machine based on the information I have.",
+    "Based on the information available, I'm unable to suggest a fix for the coffee machine.",
+    "I'm not able to provide a solution for the microwave.",
+    "I cannot recommend a fix for the dishwasher from here.",
+    "I'm unable to offer any troubleshooting for the jacuzzi.",
+    "We're not able to give you a fix for the dryer.",
+  ],
+  fr: [
+    "Je ne peux pas vous proposer de solution pour le micro-ondes.",
+    "Pour le micro-ondes, je ne suis pas en mesure de proposer une solution.",
+    "D'après les informations disponibles, je ne peux pas indiquer de solution pour le micro-ondes.",
+    "Je n'ai pas de solution pour le micro-ondes.",
+  ],
+  es: [
+    "No puedo ofrecerle una solución para la cafetera.",
+    "Con la información disponible no puedo indicarle ninguna solución para la cafetera.",
+    "No tengo una solución para la cafetera.",
+  ],
+  ru: [
+    "Я не могу предложить решение для кофемашины.",
+    "По имеющейся информации не могу подсказать решение для кофемашины.",
+    "У меня нет решения для кофемашины.",
+  ],
+  ar: ["لا أستطيع تقديم حل لمشكلة آلة القهوة.", "لا يمكنني اقتراح حل لآلة القهوة بناءً على المعلومات المتاحة.", "لم أتمكن من إيجاد حل لآلة القهوة."],
+  tr: [
+    "Kahve makinesi için bir çözüm öneremiyorum.",
+    "Mevcut bilgilere göre kahve makinesi için bir çözüm sunamıyorum.",
+    "Kahve makinesiyle ilgili size bir çözüm veremiyorum.",
+    "KAHVE MAKİNESİ İÇİN BİR ÇÖZÜM SUNAMIYORUM.",
+    "Kahve makinesi için bir çözüm bulamadım.",
+  ],
+};
+const LEGIT_SOLUTION: Record<string, string[]> = {
+  de: [
+    "Die Lösung: Halten Sie die Taste 3 Sekunden gedrückt.",
+    "Eine schnelle Lösung ist, den Stecker zu ziehen und neu zu starten.",
+    "Sie können keine Lösung falsch machen, beide Tasten funktionieren.",
+    "Laut den vorliegenden Informationen ist das Rauchen nicht erlaubt.",
+    "Ich kann mir keine bessere Lösung vorstellen, als den Bus zu nehmen.",
+    "Ich kann Ihnen eine Lösung anbieten: Halten Sie die Taste gedrückt.",
+    "Ich kann nichts anderes sagen als: herzlich willkommen!",
+  ],
+  en: [
+    "The solution is to hold the reset button for 5 seconds.",
+    "I can offer a solution: hold the reset button for 5 seconds.",
+    "We can't offer a discount on the cleaning fee.",
+    "If that doesn't fix it, the breaker is in the hallway.",
+  ],
+  fr: [
+    "La solution : maintenez le bouton enfoncé 5 secondes.",
+    "Je ne peux que vous proposer une solution : le bus de 8 h.",
+    "Je peux vous proposer une solution : redémarrez le routeur.",
+    "Vous ne pouvez pas rater la solution, elle est sur la porte.",
+    "Je ne peux pas garantir que cette solution fonctionne pour les gros bagages.",
+  ],
+  es: [
+    "La solución es mantener pulsado el botón 5 segundos.",
+    "Puedo ofrecerle una solución: reinicie el router.",
+    "Si no encuentra solución, llame al número de la caja.",
+    "No puedo esperar a recibirles, la solución de aparcamiento está lista.",
+  ],
+  ru: ["Решение: удерживайте кнопку 5 секунд.", "Могу предложить решение: перезагрузите роутер.", "Если вы не можете найти решение, позвоните по номеру на двери."],
+  ar: ["الحل هو الضغط على الزر لمدة 5 ثوان.", "أستطيع تقديم حل: أعد تشغيل الراوتر.", "إذا لم تستطيعوا إيجاد حل، اتصلوا بالرقم."],
+  tr: [
+    "Çözüm: düğmeye 5 saniye basılı tutun.",
+    "Size bir çözüm önerim var: fişi çekip 1 dakika bekleyin.",
+    "Çözüm bulamazsanız anahtar kutusundaki numarayı arayın.",
+    "Bu sorunun çözümü kolay: sigortayı kaldırın.",
+  ],
+};
+
+describe("'çözüm öneremiyorum' itirafı (10-01 gece, kör set 5 regresyonu) — yedi dil, iki yön", () => {
+  for (const [lang, list] of Object.entries(ADMITS_NO_SOLUTION)) {
+    it(`${lang}: 1. şahıs "çözüm öneremiyorum / bulamadım" TUTULUR`, () => {
+      for (const m of list) expect(admitsMissingKnowledge(m), m).toBe(true);
+    });
+  }
+  for (const [lang, list] of Object.entries(LEGIT_SOLUTION)) {
+    it(`${lang}: çözümü VEREN, 2. şahıs, "yalnız" ve başka nesneli olumsuz cümle TUTULMAZ`, () => {
+      for (const m of list) expect(admitsMissingKnowledge(m), m).toBe(false);
+    });
+  }
+});
+
 describe("'bulamadım' itirafı (kör set 6, 10-01 öğleden sonra) — yedi dil, iki yön", () => {
   for (const [lang, list] of Object.entries(ADMITS_NOT_FOUND)) {
     it(`${lang}: 1. şahıs "bilgi bulamadım / bulamıyorum" TUTULUR`, () => {
