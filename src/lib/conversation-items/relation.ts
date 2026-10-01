@@ -325,7 +325,6 @@ const RECIPE_WORDS = wordRe([
   "unplug",
   "replug",
   "select",
-  "seconds",
   // de
   "drucken",
   "neustart",
@@ -333,7 +332,6 @@ const RECIPE_WORDS = wordRe([
   "zurucksetzen",
   "ausschalten",
   "einschalten",
-  "sekunden",
   "warten",
   "wahlen",
   // fr
@@ -346,7 +344,6 @@ const RECIPE_WORDS = wordRe([
   "rallumez",
   "debranchez",
   "rebranchez",
-  "secondes",
   "attendez",
   "selectionnez",
   // es
@@ -358,7 +355,6 @@ const RECIPE_WORDS = wordRe([
   "apague",
   "encienda",
   "desenchufe",
-  "segundos",
   "espere",
   "seleccione",
   // ru (katlanmış: й → и)
@@ -369,27 +365,24 @@ const RECIPE_WORDS = wordRe([
   "выключите",
   "включите",
   "отключите",
-  "секунд",
-  "секунды",
   "подождите",
   "выберите",
   // ar
   "اضغط",
   "اضغطوا",
   "اضغطي",
-  "ثوان",
-  "ثواني",
-  "ثانية",
   "انتظر",
   "انتظروا",
   "اختر",
   "اختاروا",
 ]);
 /**
- * Kök + çekim (tr): sıfırla / saniye. Çıplak "tuş / düğme / button / Taste / bouton / botón / кнопка / زر" BİLEREK yok: "Kapıda tuşlu kilit
- * var" bilgi kalemidir, tarif değil — tarif "basın / press / drücken / appuyez / pulse / нажмите / اضغط" fiilini taşır.
+ * Kök + çekim (tr): sıfırla. Çıplak "tuş / düğme / button / Taste / bouton / botón / кнопка / زر" BİLEREK yok: "Kapıda tuşlu kilit var"
+ * bilgi kalemidir, tarif değil — tarif "basın / press / drücken / appuyez / pulse / нажмите / اضغط" fiilini taşır. Süre sözcüğü
+ * ("saniye / seconds / Sekunden…") da tek başına tarif DEĞİL ("Plaj 30 saniye yürüme mesafesinde", "Asansör kapısı 10 saniye sonra kapanır");
+ * tarifte süreyle birlikte "bekleyin / basılı tutun / wait…" fiili zaten bulunur.
  */
-const RECIPE_STEMS = stemRe(["sifirla", "saniye"]);
+const RECIPE_STEMS = stemRe(["sifirla"]);
 /** Olumsuz koşul ("çalışmıyorsa", "açılmıyorsa", "bağlanamıyorsanız") — sorun giderme başlığı. Sınırlı tekrar (karesel iş yok). */
 const RECIPE_CONDITIONAL = new RegExp(`${L}\\p{L}{2,24}m[iu]yorsa(?:niz)?${R}`, "u");
 const RECIPE_PHRASES: readonly string[] = [

@@ -445,6 +445,14 @@ describe("arıza TARİFİ kalemi (karar 23 kör doğrulaması, 10-01 öğlen)", 
       expect(isFixRecipeText(t), t).toBe(true);
     }
   });
+  it("her işaret sınıfı TEK BAŞINA yeter (fiil yok): 'sıfırla' kökü · '-mıyorsa' başlığı · sorun giderme kalıbı", () => {
+    // Mutasyon turu (10-01): üstteki cümlelerin hepsi bir fiil işareti de taşıdığı için kök / koşul / kalıp dalları pinsizdi.
+    expect(isFixRecipeText("Modem ışıkları yanmazsa modemi sıfırlayın.")).toBe(true);
+    expect(isFixRecipeText("Wi-Fi'ye bağlanamıyorsanız Lale_2G ağı da aynı şifreyle çalışır.")).toBe(true);
+    expect(isFixRecipeText("Modemi yeniden başlatmanız yeterli olur.")).toBe(true);
+    expect(isFixRecipeText("If the router is not working, the green light should be on.")).toBe(true);
+    expect(isFixRecipeText("Если телевизор не работает, проверьте кабель HDMI.")).toBe(true);
+  });
   it("yalnız bilgi veren kalem tarif DEĞİLDİR (kör set 4: kahve kapsülü, asansör, bulaşık tableti, ağ adı / şifre)", () => {
     for (const t of [
       "Mutfakta kapsüllü kahve makinesi var; ilk kutu kapsül bizden. Ek kapsülü marketten alabilirsiniz.",
@@ -455,6 +463,9 @@ describe("arıza TARİFİ kalemi (karar 23 kör doğrulaması, 10-01 öğlen)", 
       "Çıkış saati 11:00. Çıkarken klimayı ve ışıkları kapatın.",
       "The building has a lift; your flat is on the 4th floor.",
       "Coffee capsules are in the top drawer.",
+      // Süre sözcüğü tek başına tarif değil.
+      "Asansör kapısı 10 saniye sonra kendiliğinden kapanır.",
+      "The beach is just 30 seconds from the building.",
     ]) {
       expect(isFixRecipeText(t), t).toBe(false);
     }
