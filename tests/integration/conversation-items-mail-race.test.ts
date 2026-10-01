@@ -128,6 +128,16 @@ describe("K9 — mesaj başına TEK e-posta, eşzamanlı çağrıda da", () => {
     expect(mockMail).toHaveBeenCalledTimes(2);
   });
 
+  it("başka bir çağrı mesajın e-posta talebini tutuyorsa e-posta ATILMAZ ve bu çağrının öğe damgaları geri verilir (kayıp yok)", async () => {
+    const { conversation, message } = await seedTwoSensitiveItems();
+    await prisma.systemLock.create({ data: { name: `held-items-mail:${message.id}`, lockedUntil: new Date(Date.now() + 60_000) } });
+    const out = await notifyHeldItems(prisma, input(conversation.id, message.id, new Date()));
+    expect(mockMail).not.toHaveBeenCalled();
+    expect(out.mailed).toEqual([]);
+    const unnotified = await prisma.conversationItem.count({ where: { messageId: message.id, sensitivity: "sensitive", notifiedAt: null } });
+    expect(unnotified).toBe(2);
+  });
+
   it("KONTROL: e-posta gidemezse talep geri verilir — sonraki geçiş yeniden dener ve bir kez gönderir", async () => {
     const { conversation, message } = await seedTwoSensitiveItems();
     mockMail.mockResolvedValueOnce({ ok: false } as never);
