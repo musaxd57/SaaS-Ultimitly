@@ -55,6 +55,10 @@ const HOLD_COMMITMENT: readonly string[] = [
   "I'm currently checking with the host.",
   "I'm checking this with the host now.",
   "We'll see what we can do.",
+  "I'll also definitely let the host know.",
+  // misafire hitaplı bilgilendirme yalnız ardından içerik VERİLİYORSA duyurudur — tek başına "bilgi vereyim" sonraya söz
+  "Size bilgi vereyim.",
+  "Size hemen haber vereyim.",
   // 3 — dil bildirimi / ev sahibine yönelik onay
   "I'll reply in a few minutes.",
   "I'll respond in a moment with the details.",
