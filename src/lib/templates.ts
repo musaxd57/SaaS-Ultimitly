@@ -257,23 +257,7 @@ export async function getTemplatesForProperty(
   return [...custom, ...DEFAULT_TEMPLATES];
 }
 
-export interface TemplateVars {
-  guestName?: string;
-  checkInTime?: string;
-  checkOutTime?: string;
-  propertyName?: string;
-  wifiInfo?: string;
-}
-
-/**
- * Substitute {{placeholder}} tokens with actual values.
- * Unknown tokens are left as-is.
- */
-export function applyTemplate(template: MessageTemplate, vars: TemplateVars): string {
-  return template.body
-    .replace(/\{\{guestName\}\}/g, vars.guestName ?? "Misafir")
-    .replace(/\{\{checkInTime\}\}/g, vars.checkInTime ?? "")
-    .replace(/\{\{checkOutTime\}\}/g, vars.checkOutTime ?? "")
-    .replace(/\{\{propertyName\}\}/g, vars.propertyName ?? "")
-    .replace(/\{\{wifiInfo\}\}/g, vars.wifiInfo ?? "");
-}
+// Şablon UYGULAMA burada YOK (15 ajan A07, 10-01): değişken ikamesinin tek kaynağı `@/lib/template-apply` (`applyTemplateBody`, tek
+// geçiş). Buradaki eski `applyTemplate` üretimde hiç çağrılmıyordu (yalnız testi) ama iki kuralı çiğniyordu — sıralı `replace`
+// zinciri (ilk değerin içindeki "{{wifiInfo}}" ikinci adımda doldurulurdu) ve bilinmeyen ad için "Misafir" (kurucu 09-28: yer tutucu
+// ad misafire yazılmaz). İlk yeni çağıran onu benimsemesin diye kaldırıldı.

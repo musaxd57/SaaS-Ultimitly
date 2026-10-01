@@ -1,36 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { applyTemplate, DEFAULT_TEMPLATES, type MessageTemplate } from "@/lib/templates";
+import * as templatesModule from "@/lib/templates";
+import { DEFAULT_TEMPLATES } from "@/lib/templates";
+import { applyTemplateBody } from "@/lib/template-apply";
 import { TEMPLATE_CATEGORY } from "@/lib/constants";
 
-const base: MessageTemplate = {
-  id: "t1",
-  category: "checkin",
-  title: "Test",
-  language: "tr",
-  isDefault: true,
-  body: "Merhaba {{guestName}}, {{propertyName}} için giriş saati {{checkInTime}}, çıkış {{checkOutTime}}. {{wifiInfo}}",
-};
-
-describe("applyTemplate", () => {
-  it("substitutes every supported placeholder", () => {
-    const out = applyTemplate(base, {
-      guestName: "Ayşe",
-      propertyName: "Galata Loft",
-      checkInTime: "15:00",
-      checkOutTime: "11:00",
-      wifiInfo: "Ağ: Loft / Şifre: 1234",
-    });
-    expect(out).toContain("Ayşe");
-    expect(out).toContain("Galata Loft");
-    expect(out).toContain("15:00");
-    expect(out).toContain("11:00");
-    expect(out).toContain("Şifre: 1234");
-    expect(out).not.toContain("{{");
+// 15 ajan A07 (10-01): eski `applyTemplate` (sıralı `replace` zinciri + bilinmeyen ad için "Misafir") üretimde çağrılmıyordu ve
+// kaldırıldı; değişken ikamesinin TEK kaynağı `applyTemplateBody` (tek geçiş). Bu dosya ikinci bir ikame yolunun geri gelmesini pinler.
+describe("şablon ikamesi tek kaynak", () => {
+  it("@/lib/templates ikame fonksiyonu dışa AKTARMAZ (tek kaynak @/lib/template-apply)", () => {
+    expect(Object.keys(templatesModule)).not.toContain("applyTemplate");
+    for (const [name, value] of Object.entries(templatesModule)) {
+      expect(typeof value === "function" && /apply|fill|substitut/i.test(name), name).toBe(false);
+    }
   });
 
-  it("falls back to 'Misafir' when guestName is missing", () => {
-    const out = applyTemplate(base, { propertyName: "X", checkInTime: "14:00", checkOutTime: "10:00" });
-    expect(out).toContain("Misafir");
+  it("tek geçiş: değerin İÇİNDEKİ değişken yeniden doldurulmaz; ad yoksa 'Misafir' UYDURULMAZ", () => {
+    // Misafirin kontrolündeki görünen ad "{{wifiInfo}}" — wifi yer tutucusu GEÇMEYEN şablon kapı kodunu basmamalı.
+    const out = applyTemplateBody("Merhaba {{guestName}}, hoş geldiniz.", { guestName: "{{wifiInfo}}", wifiInfo: "Şifre: 1234" });
+    expect(out).not.toContain("1234");
+    expect(applyTemplateBody("Merhaba {{guestName}},", { propertyName: "X" })).not.toContain("Misafir");
   });
 });
 
