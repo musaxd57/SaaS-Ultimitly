@@ -176,6 +176,56 @@ const LEGIT_INSTRUCTIONS: string[] = [
   "لا توجد تعليمات خاصة للمغادرة.",
 ];
 
+// ── Kör set 6 (10-01 öğleden sonra, Luna — misafire GİTTİ): "Zum kabellosen Lautsprecher finde ich keine Angaben." — 1. şahıs "BULAMADIM"
+// itirafı yedi dilde (ölçüm: 25 biçimin 16'sı kaçıyordu). Yalnız 1. şahıs + bilgi nesnesi; 2. şahıs koşul ("Wenn Sie … nicht finden", "Si
+// no encuentra el mando…") ve "bulamazsınız / trouverez aucun frais" olguları tutulmaz.
+const ADMITS_NOT_FOUND: Record<string, string[]> = {
+  de: [
+    "Hallo Alex,\n\nZum kabellosen Lautsprecher finde ich keine Angaben. Die nächstgelegene Badestelle ist die Mavikum-Bucht.",
+    "Ich finde leider keine Informationen zum Lautsprecher.",
+    "Dazu finde ich keine Hinweise.",
+    "Zum Lautsprecher habe ich leider nichts gefunden.",
+    "Zum Mixer konnte ich keine Informationen finden.",
+    // 5.1, aynı satır (GİTTİ): talimat nesnesi + 1. şahıs sahiplik.
+    "Für den kabellosen Lautsprecher habe ich in meinen Unterlagen leider keine spezifische Anleitung, dazu kann ich daher nichts Verlässliches sagen.",
+  ],
+  en: ["I didn't find any information about the speaker.", "I did not find any details on the blender."],
+  fr: ["Je ne trouve aucune information sur l'enceinte.", "Je n'ai trouvé aucune information concernant l'enceinte."],
+  es: ["No he encontrado información sobre la licuadora."],
+  ru: ["Я не нахожу информации о колонке.", "Не нашёл информации о колонке.", "Не нашла сведений о блендере."],
+  ar: ["لا أجد معلومات عن مكبر الصوت.", "لم أجد أي معلومات حول الخلاط."],
+  tr: ["Hoparlör hakkında bilgiye ulaşamadım.", "Blender için bir bilgiye ulaşamıyorum.", "Hoparlörle ilgili bilgi bulamadık."],
+};
+const LEGIT_NOT_FOUND: Record<string, string[]> = {
+  de: [
+    "Wenn Sie den Schlüssel nicht finden, liegt er im Briefkasten.",
+    "Falls Sie keine Handtücher finden, liegen weitere im Schrank.",
+    "Ich finde, die Bucht ist der schönste Ort hier.",
+    "Sie finden keine Gebühren für das Parken.",
+    "Im Schrank finden Sie keine Bettwäsche, diese liegt im Flur.",
+    "Ich finde keine Worte, so schön ist die Bucht.",
+  ],
+  en: ["You won't find any fees for parking.", "If we don't see any issues, the deposit is returned in full."],
+  fr: ["Si vous ne trouvez pas la télécommande, elle est dans le tiroir.", "Vous ne trouverez aucun frais de parking."],
+  es: ["Si no encuentra el mando, está en el cajón.", "No encontrará ningún cargo por el aparcamiento."],
+  ru: ["Если не найдёте пульт, он в ящике.", "Вы не найдёте лучшего пляжа поблизости."],
+  ar: ["إذا لم تجدوا المفتاح فهو في الصندوق."],
+  tr: ["Anahtarı bulamazsanız kutunun içinde.", "Otopark için ek ücret bulunmuyor."],
+};
+
+describe("'bulamadım' itirafı (kör set 6, 10-01 öğleden sonra) — yedi dil, iki yön", () => {
+  for (const [lang, list] of Object.entries(ADMITS_NOT_FOUND)) {
+    it(`${lang}: 1. şahıs "bilgi bulamadım / bulamıyorum" TUTULUR`, () => {
+      for (const m of list) expect(admitsMissingKnowledge(m), m).toBe(true);
+    });
+  }
+  for (const [lang, list] of Object.entries(LEGIT_NOT_FOUND)) {
+    it(`${lang}: 2. şahıs koşul ve "bulamazsınız" olgusu TUTULMAZ`, () => {
+      for (const m of list) expect(admitsMissingKnowledge(m), m).toBe(false);
+    });
+  }
+});
+
 describe("'talimatım yok' (kör set 5, 10-01 öğlen) — iki yön", () => {
   it("1. şahıs / varlık yüklemli 'talimat yok' itirafı TUTULUR", () => {
     for (const m of ADMITS_INSTRUCTIONS) expect(admitsMissingKnowledge(m), m).toBe(true);

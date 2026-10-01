@@ -96,7 +96,9 @@ const TR_LOOSE =
   "(?:bulunmuyor|bulunmamakta(?:dır)?|mevcut değil|kayıtlı değil|bulamadım|bulamıyorum|" +
   "göremiyorum|göremedim|görünmüyor|erişimim yok|sahip değilim|" +
   // 10-01 öğlen (karar 23 kör doğrulaması): "…adımları elimdeki bilgilerde yer almıyor".
-  "yer almıyor|yer almamaktadır|yer verilmemiş)";
+  "yer almıyor|yer almamaktadır|yer verilmemiş|" +
+  // Kör set 6 (10-01 öğleden sonra): "bilgiye ulaşamadım", 1. çoğul "bilgi bulamadık" — yalnız BİLGİ nesnesinden sonra (↑`TR_OBJ`).
+  "ulaşamadım|ulaşamıyorum|ulaşamadık|ulaşamıyoruz|bulamadık|bulamıyoruz|göremedik|göremiyoruz)";
 
 // ── İngilizce: BİLGİ NESNESİ (tekil VE çoğul — ilk sürümde karışıktı) ──────
 const EN_OBJ = "(?:information|info|records?|details?|data|notes?)(?![\\p{L}])";
@@ -141,6 +143,12 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   // Kör set 5 (5.1, GİTTİ): "For the terrace jacuzzi, I don't have specific troubleshooting steps in my guide". Özne 1. şahıs ŞART:
   // "You don't have any steps to climb" bir erişilebilirlik olgusudur.
   /(?<![\p{L}])(?:i|we) (?:don't|do not) have (?:any )?(?:\p{L}{1,20} ){0,2}(?:instructions|steps|guidance)(?![\p{L}])/u,
+  // Kör set 6 (10-01 öğleden sonra): "I didn't find any information about the speaker" — 1. şahıs + BULMA fiili + bilgi nesnesi ("You won't
+  // find any fees", "If we don't see any issues…" eşleşmez: özne / nesne şartı).
+  new RegExp(
+    `(?<![\\p{L}])(?:i|we) (?:didn't|did not|don't|do not|couldn't|could not|can't|cannot|wasn't able to|was not able to) (?:find|locate|see) (?:any )?(?:\\p{L}{1,20} ){0,2}${EN_OBJ}`,
+    "u",
+  ),
 ];
 
 // ── DİĞER DESTEKLENEN DİLLER + TÜRKÇE EK BİÇİMLER (10-01 gece ölçümü) ─────────
@@ -154,6 +162,8 @@ const DE_OBJ = "(?:informationen|information|angaben|details|daten|hinweise)(?![
 const ES_OBJ = "(?:informaci[óo]n|detalles?)(?![\\p{L}])";
 const RU_OBJ = "(?:информаци\\p{L}{0,8}|данных|сведений)";
 const AR_OBJ = "(?:معلومات|معلومة|تفاصيل|بيانات)";
+/** Almanca bilgi nesnesi + talimat ("Anleitung / Anweisung") — yalnız 1. şahıs bulma / sahiplik kalıplarında (kör set 6). */
+const DE_INFO = `(?:${DE_OBJ}|anleitung(?:en)?(?![\\p{L}])|anweisung(?:en)?(?![\\p{L}]))`;
 
 const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   // TR — nesne + "elimde değil / olmadığı", "bilgim olmadığı için", "bilgi bulunmadığından", "burada belirtilmemiş".
@@ -183,6 +193,10 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   /je ne (?:le )?sais pas|je ne (?:trouve|retrouve) pas|je n'ai pas (?:trouvé|retrouvé)/u,
   // Kör set 5 (Luna, GİTTİ): "Je n'ai pas de consigne disponible pour résoudre le problème du micro-ondes" — 1. şahıs + talimat nesnesi.
   /n'(?:ai|avons) (?:pas|aucune?) (?:de |d'|la |les )?(?:consignes?|instructions?|proc[ée]dures?)(?![\p{L}])/u,
+  // Kör set 6: "Je ne trouve aucune information sur l'enceinte" / "Je n'ai trouvé aucune information" — 1. şahıs ŞART ("Vous ne trouverez
+  // aucun frais" bir olgudur).
+  new RegExp(`(?:je ne|nous ne) (?:trouve|trouvons|retrouve|retrouvons|vois|voyons) aucune? ${gap(1)}${FR_OBJ}`, "u"),
+  new RegExp(`(?:je n'ai|nous n'avons) (?:trouvé|retrouvé|vu) aucune? ${gap(1)}${FR_OBJ}`, "u"),
   // DE — "(habe / liegen mir / gibt) keine (genauen) Informationen", "nicht angegeben", "weiß ich nicht", "kann ich nicht finden".
   // "keine" YALNIZ sahiplik / varlık fiiliyle: "Sie brauchen keine weiteren Angaben" (gerek yok) itiraf DEĞİLDİR; "keinen Schlüssel"
   // ve "können" (2. şahıs koşul) eşleşmez.
@@ -197,6 +211,14 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
   /(?:ich weiß|weiß ich) (?:es |das )?(?:leider )?nicht/u,
   /(?:kann|konnte) (?:ich )?(?:\p{L}{1,30} ){0,2}nicht finden/u,
+  // Kör set 6 (misafire GİTTİ — Luna: "Zum kabellosen Lautsprecher finde ich keine Angaben."; 5.1: "Für den kabellosen Lautsprecher habe
+  // ich in meinen Unterlagen leider keine spezifische Anleitung"). Özne 1. şahıs ŞART: "Sie finden keine Gebühren", "Wenn Sie den Schlüssel
+  // nicht finden…", "Ich finde keine Worte" (nesne bilgi değil) eşleşmez.
+  new RegExp(`(?:finde|fand|finden|fanden) (?:ich|wir)(?: \\p{L}{1,30}){0,3} (?:keine|keinerlei) ${gap(1)}${DE_INFO}`, "u"),
+  new RegExp(`(?:ich|wir) (?:finde|fand|finden|fanden)(?: \\p{L}{1,30}){0,3} (?:keine|keinerlei) ${gap(1)}${DE_INFO}`, "u"),
+  new RegExp(`(?:kann|konnte|können|konnten) (?:ich|wir)(?: \\p{L}{1,30}){0,3} (?:keine|keinerlei) ${gap(1)}${DE_INFO}(?: \\p{L}{1,30}){0,3} finden`, "u"),
+  /(?:habe|haben) (?:ich|wir)(?: \p{L}{1,30}){0,4} nichts gefunden|(?:ich|wir) (?:habe|haben)(?: \p{L}{1,30}){0,4} nichts gefunden/u,
+  new RegExp(`(?:habe|haben|hätte|hätten) (?:ich|wir)(?: \\p{L}{1,30}){0,6} (?:keine|keinerlei) ${gap(1)}(?:anleitung(?:en)?|anweisung(?:en)?)(?![\\p{L}])`, "u"),
   // ES — "no tengo / no hay información", "no dispongo de esos datos", "no se especifica", "no lo sé".
   // "sé" AKSANLI: "no se permiten" bir kuraldır.
   new RegExp(
@@ -212,6 +234,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
     `${L}no (?:está|están|se encuentra|se encuentran|aparece|aparecen|figura|figuran) (?:disponibles? |incluid[oa]s? |indicad[oa]s? )?en (?:la |las |mi |mis |nuestra |nuestras |esta )?(?:\\p{L}{1,20} )?${ES_OBJ}`,
     "u",
   ),
+  // Kör set 6: "No he encontrado información sobre la licuadora" — 1. şahıs ("No encontrará ningún cargo" olgudur; "no encuentro" ↑).
+  new RegExp(`${L}no (?:he|hemos|había|habíamos) (?:encontrado|visto|localizado) ${gap(3)}${ES_OBJ}`, "u"),
   /(?<![\p{L}])no (?:lo )?sé(?![\p{L}])/u,
   /ninguna informaci[óo]n|ningún (?:detalle|dato)/u,
   // RU — "нет (точной) информации / данных", "не указано", "не знаю", "не могу найти", "информация отсутствует".
@@ -222,6 +246,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   // "У меня нет инструкций для кофемашины" — YALNIZ sahiplik ("Нет особых инструкций" olgudur).
   new RegExp(`${L}у (?:меня|нас) нет ${gap(2)}инструкци\\p{L}{0,4}`, "u"),
   /(?<![\p{L}])не (?:могу|смог|смогла|удалось) (?:\p{L}{1,30} )?найти/u,
+  // Kör set 6: "Я не нахожу информации о колонке" / "Не нашёл информации" — 1. şahıs ("Вы не найдёте…", "Если не найдёте…" eşleşmez).
+  new RegExp(`${L}не (?:нахожу|находим|нашёл|нашел|нашла|нашли|вижу|видим) ${gap(2)}${RU_OBJ}`, "u"),
   new RegExp(`${RU_OBJ} ${gap(2)}отсутству\\p{L}{0,8}`, "u"),
   // 10-01 öğlen: "в предоставленной информации нет / не указано".
   new RegExp(`${L}в (?:\\p{L}{1,20} )?${RU_OBJ} (?:нет|не указан\\p{L}{0,2}|не приведен\\p{L}{0,2})(?![\\p{L}])`, "u"),
@@ -229,6 +255,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`(?:ليس|ليست) ${gap(1)}(?:لدي|لدينا|عندي|عندنا) ${gap(2)}${AR_OBJ}`, "u"),
   new RegExp(`لا (?:تتوفر|يتوفر|توجد|يوجد) ${gap(2)}${AR_OBJ}`, "u"),
   /لا (?:أعرف|اعرف|أعلم|اعلم|أدري|ادري)(?![\p{L}])/u,
+  // Kör set 6: "لا أجد معلومات" / "لم أجد أي معلومات" — 1. şahıs (2. çoğul "إذا لم تجدوا المفتاح" eşleşmez).
+  new RegExp(`(?:لا|لم) (?:أجد|اجد|نجد|أعثر|اعثر|نعثر) ${gap(2)}${AR_OBJ}`, "u"),
   // "ليس لدي تعليمات" — YALNIZ sahiplik ("لا توجد تعليمات خاصة" olgudur).
   new RegExp(`(?:ليس|ليست) ${gap(1)}(?:لدي|لدينا|عندي|عندنا) ${gap(2)}تعليمات`, "u"),
   /غير (?:مذكورة?|محددة?)(?![\p{L}])/u,
