@@ -98,10 +98,16 @@ const TR_LOOSE =
   // 10-01 öğlen (karar 23 kör doğrulaması): "…adımları elimdeki bilgilerde yer almıyor".
   "yer almıyor|yer almamaktadır|yer verilmemiş|" +
   // Kör set 6 (10-01 öğleden sonra): "bilgiye ulaşamadım", 1. çoğul "bilgi bulamadık" — yalnız BİLGİ nesnesinden sonra (↑`TR_OBJ`).
-  "ulaşamadım|ulaşamıyorum|ulaşamadık|ulaşamıyoruz|bulamadık|bulamıyoruz|göremedik|göremiyoruz)";
+  "ulaşamadım|ulaşamıyorum|ulaşamadık|ulaşamıyoruz|bulamadık|bulamıyoruz|göremedik|göremiyoruz|" +
+  // 10-01 (15 ajan A05): "bilgi sahibi değilim", "bilgi verilmemiş", "kayıtlarda … değinilmemiş", "bu bilgiye rastlamadım",
+  // "kesin bilgi veremiyorum" — yalnız BİLGİ nesnesinden sonra.
+  "sahibi değilim|sahibi değiliz|verilmemiş|verilmemektedir|değinilmemiş|değinilmemektedir|rastlamadım|rastlamadık|" +
+  "rastlayamadım|veremiyorum|veremiyoruz)";
 
 // ── İngilizce: BİLGİ NESNESİ (tekil VE çoğul — ilk sürümde karışıktı) ──────
 const EN_OBJ = "(?:information|info|records?|details?|data|notes?)(?![\\p{L}])";
+/** Bilginin YERİ (rehber / notlar / kayıtlar) — "isn't in the guide", "the guide doesn't cover …" (10-01, A05). */
+const EN_PLACE = "(?:house\\s+)?(?:guide|manual|handbook|notes?|records?|files?|information|details|knowledge\\s+base)";
 
 const ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`${TR_OBJ} ${gap(1)}${TR_TIGHT}`, "u"),
@@ -149,6 +155,20 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
     `(?<![\\p{L}])(?:i|we) (?:didn't|did not|don't|do not|couldn't|could not|can't|cannot|wasn't able to|was not able to) (?:find|locate|see) (?:any )?(?:\\p{L}{1,20} ){0,2}${EN_OBJ}`,
     "u",
   ),
+  // 10-01 (15 ajan A05 — kurucu kuralı "bilgim yok misafire asla gitmez"; 1. şahıs / bilgi yeri çapalı): "I don't know …", "I have no
+  // idea", "I'm not aware of …", "not something I have information on", "I don't have that on file", "nothing about X in my notes",
+  // "my notes don't mention …", "that detail isn't in the guide", "the guide doesn't cover …", "I lack information", "There aren't any
+  // details about …". "You don't know" / "Did you know" (2. şahıs) eşleşmez; belirsizlik ("I'm unsure") BİLEREK dışarıda.
+  /(?<![\p{L}])(?:i|we) (?:don't|do not|didn't|did not) know(?![\p{L}])/u,
+  /(?<![\p{L}])(?:i|we) have no idea(?![\p{L}])/u,
+  /(?<![\p{L}])(?:i'm|i am|we're|we are) not aware(?![\p{L}])/u,
+  /not something (?:i|we) (?:have|know)|something (?:i|we) (?:don't|do not) (?:have|know)/u,
+  new RegExp(`(?:don't|do not|doesn't|does not) have ${gap(2)}on (?:file|record)(?![\\p{L}])`, "u"),
+  new RegExp(`nothing (?:about|on|regarding) (?:\\p{L}{1,20} ){0,3}in (?:my|our|the) ${EN_PLACE}(?![\\p{L}])`, "u"),
+  new RegExp(`(?:my|our|the) ${EN_PLACE} (?:don't|do not|doesn't|does not) (?:mention|cover|include|say|contain|specify|list)(?![\\p{L}])`, "u"),
+  new RegExp(`(?:isn't|is not|aren't|are not) (?:in|on) (?:my|our|the) ${EN_PLACE}(?![\\p{L}])`, "u"),
+  new RegExp(`(?<![\\p{L}])(?:i|we) lack ${gap(2)}${EN_OBJ}`, "u"),
+  new RegExp(`there (?:isn't|is not|aren't|are not) (?:any )?${gap(1)}${EN_OBJ}`, "u"),
 ];
 
 // ── DİĞER DESTEKLENEN DİLLER + TÜRKÇE EK BİÇİMLER (10-01 gece ölçümü) ─────────
@@ -157,7 +177,7 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
 // sınırlı boşlukla; çıplak olumsuzluk ("Il n'y a pas de frais", "No se permiten mascotas", "Нет, курить нельзя",
 // "لا يوجد رسوم") itiraf DEĞİLDİR — iki yönlü batarya `tests/unit/absence-multilingual.test.ts`.
 const FR_OBJ = "(?:informations?|renseignements?|d[ée]tails?|pr[ée]cisions?|donn[ée]es)(?![\\p{L}])";
-const DE_OBJ = "(?:informationen|information|angaben|details|daten|hinweise)(?![\\p{L}])";
+const DE_OBJ = "(?:informationen|information|angaben|details|daten|hinweise|infos?|auskunft|auskünfte)(?![\\p{L}])";
 /** `datos` YALNIZ sahiplik fiiliyle ("no hay datos móviles" bir olgudur). */
 const ES_OBJ = "(?:informaci[óo]n|detalles?)(?![\\p{L}])";
 const RU_OBJ = "(?:информаци\\p{L}{0,8}|данных|сведений)";
@@ -167,7 +187,12 @@ const DE_INFO = `(?:${DE_OBJ}|anleitung(?:en)?(?![\\p{L}])|anweisung(?:en)?(?![\
 
 const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   // TR — nesne + "elimde değil / olmadığı", "bilgim olmadığı için", "bilgi bulunmadığından", "burada belirtilmemiş".
-  new RegExp(`${TR_OBJ} ${gap(3)}elimde (?:değil|bulunmuyor|olmadığı\\p{L}{0,12}|olmadığından|mevcut değil)(?![\\p{L}])`, "u"),
+  new RegExp(`${TR_OBJ} ${gap(3)}elimde (?:yok|değil|bulunmuyor|olmadığı\\p{L}{0,12}|olmadığından|mevcut değil)(?![\\p{L}])`, "u"),
+  // 10-01 (A05): "Bu bilgi bende de yok", "bilmiyoruz / bilemiyorum", "fikrim yok", "haberim yok", "bununla ilgili bir şey yok".
+  new RegExp(`${TR_OBJ} ${gap(2)}bende (?:de |da )?(?:yok|bulunmuyor|mevcut değil)(?![\\p{L}])`, "u"),
+  /(?<![\p{L}])(?:bilmiyoruz|bilemiyorum|bilemiyoruz)(?![\p{L}])/u,
+  /(?<![\p{L}])(?:fikr|haber)(?:im|imiz) yok(?![\p{L}])/u,
+  /(?:bununla|bu konuyla|bu konuda|onunla) ilgili (?:bir |herhangi bir )?(?:şey|bilgi\p{L}*|not|kayıt) (?:yok|bulunmuyor|göremedim|bulamadım)(?![\p{L}])/u,
   // `olmadığı / bulunmadığı` yalnız BİLGİ nesnesiyle ("Kayıt olmadığı sürece…" bir kuraldır).
   new RegExp(`${L}(?:bilgi(?!sayar)\\p{L}{0,24}|detay\\p{L}{0,24}) ${gap(2)}(?:olmadığı|bulunmadığı)\\p{L}{0,12}`, "u"),
   // "Aksi belirtilmemişse" koşuldur → sağ sınır şart.
@@ -191,6 +216,11 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
   new RegExp(`ne dispos\\p{L}{0,8} pas (?:d'|de |des )?${gap(1)}${FR_OBJ}`, "u"),
   /je ne (?:le )?sais pas|je ne (?:trouve|retrouve) pas|je n'ai pas (?:trouvé|retrouvé)/u,
+  // 10-01 (A05): "Je n'ai aucune idée", "Cette information ne m'est pas connue", "Je ne connais pas les horaires", "Je ne dispose
+  // d'aucune information", "pas d'information / aucune information à ce sujet".
+  /aucune idée|ne (?:m'|nous )(?:est|sont) pas connue?s?|(?:je|nous) ne conna(?:is|issons) pas/u,
+  new RegExp(`ne dispos\\p{L}{0,8} d'aucune? ${gap(1)}${FR_OBJ}`, "u"),
+  new RegExp(`${L}(?:pas d'|aucune? )${gap(1)}${FR_OBJ} (?:à ce sujet|sur ce point|sur cela|là-dessus|concernant)`, "u"),
   // Kör set 5 (Luna, GİTTİ): "Je n'ai pas de consigne disponible pour résoudre le problème du micro-ondes" — 1. şahıs + talimat nesnesi.
   /n'(?:ai|avons) (?:pas|aucune?) (?:de |d'|la |les )?(?:consignes?|instructions?|proc[ée]dures?)(?![\p{L}])/u,
   // Kör set 6: "Je ne trouve aucune information sur l'enceinte" / "Je n'ai trouvé aucune information" — 1. şahıs ŞART ("Vous ne trouverez
@@ -210,6 +240,13 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
     "u",
   ),
   /(?:ich weiß|weiß ich) (?:es |das )?(?:leider )?nicht/u,
+  // 10-01 (A05): "liegt mir nicht vor", "ist mir nicht bekannt", "Ich kenne die Öffnungszeiten nicht", "kann Ihnen dazu nichts sagen",
+  // "kann ich keine Auskunft geben" (1. şahıs şart).
+  new RegExp(`(?:liegt|liegen) (?:mir|uns) ${gap(2)}nicht vor(?![\\p{L}])`, "u"),
+  /(?:ist|sind) (?:mir|uns) (?:leider )?nicht bekannt/u,
+  new RegExp(`(?<![\\p{L}])(?:ich|wir) kenne\\p{L}? ${gap(3)}nicht(?![\\p{L}])`, "u"),
+  /(?:kann|können) (?:ich|wir) (?:\p{L}{1,30} ){0,3}nichts sagen|(?:ich|wir) (?:kann|können) (?:\p{L}{1,30} ){0,3}nichts sagen/u,
+  new RegExp(`(?:kann|können|könnte) (?:ich|wir)(?: \\p{L}{1,30}){0,3} keine ${gap(1)}${DE_INFO} ${gap(1)}geben`, "u"),
   /(?:kann|konnte) (?:ich )?(?:\p{L}{1,30} ){0,2}nicht finden/u,
   // Kör set 6 (misafire GİTTİ — Luna: "Zum kabellosen Lautsprecher finde ich keine Angaben."; 5.1: "Für den kabellosen Lautsprecher habe
   // ich in meinen Unterlagen leider keine spezifische Anleitung"). Özne 1. şahıs ŞART: "Sie finden keine Gebühren", "Wenn Sie den Schlüssel
@@ -238,6 +275,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   // Kör set 6: "No he encontrado información sobre la licuadora" — 1. şahıs ("No encontrará ningún cargo" olgudur; "no encuentro" ↑).
   new RegExp(`${L}no (?:he|hemos|había|habíamos) (?:encontrado|visto|localizado) ${gap(3)}${ES_OBJ}`, "u"),
   /(?<![\p{L}])no (?:lo )?sé(?![\p{L}])/u,
+  // 10-01 (A05): "No me consta", "No tengo constancia", "Desconozco el horario".
+  /(?<![\p{L}])no (?:me|nos) consta(?![\p{L}])|(?<![\p{L}])no (?:tengo|tenemos) constancia|(?<![\p{L}])(?:desconozco|desconocemos)(?![\p{L}])/u,
   /ninguna informaci[óo]n|ningún (?:detalle|dato)/u,
   // RU — "нет (точной) информации / данных", "не указано", "не знаю", "не могу найти", "информация отсутствует".
   // "нет " BOŞLUKLA: "Нет, курить нельзя" eşleşmez.
@@ -250,6 +289,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   // Kör set 6: "Я не нахожу информации о колонке" / "Не нашёл информации" — 1. şahıs ("Вы не найдёте…", "Если не найдёте…" eşleşmez).
   new RegExp(`${L}не (?:нахожу|находим|нашёл|нашел|нашла|нашли|вижу|видим) ${gap(2)}${RU_OBJ}`, "u"),
   new RegExp(`${RU_OBJ} ${gap(2)}отсутству\\p{L}{0,8}`, "u"),
+  // 10-01 (A05): "Информации об этом нет", "Информации нет".
+  new RegExp(`${RU_OBJ} ${gap(2)}нет(?![\\p{L}])`, "u"),
   // 10-01 öğlen: "в предоставленной информации нет / не указано".
   new RegExp(`${L}в (?:\\p{L}{1,20} )?${RU_OBJ} (?:нет|не указан\\p{L}{0,2}|не приведен\\p{L}{0,2})(?![\\p{L}])`, "u"),
   // AR — "ليس لدي معلومات", "لا تتوفر لدي معلومات", "لا أعرف", "غير مذكورة". "غير متاح" (olgu) BİLEREK yok.
@@ -284,7 +325,14 @@ const ALL_ABSENCE_PATTERNS: readonly RegExp[] = [...ABSENCE_PATTERNS, ...MORE_AB
 export function admitsMissingKnowledge(reply: string | null | undefined): boolean {
   // 10-01: ayrıştırılmış aksan (NFD "précisées") birleştirilir; kıvrık kesme işareti düz olana iner — kalıplar
   // düz "'" yazılı ve modeller çoğu zaman "don’t / n’ai" yazar (İngilizce kalıplar da bu yüzden kaçırıyordu).
-  const normalized = (reply ?? "").normalize("NFC").replace(/[’‘ʼ]/g, "'");
+  // 10-01 (15 ajan A05): biçim kalıbı deliyordu — "**don't have**" (kalın), "`…`", çift boşluk / sekme / satır sonu ("I do not\nhave that
+  // information"). Vurgu işaretleri silinir, her boşluk dizisi TEK boşluk olur (sınıflandırıcının `normalizeForMatch`iyle aynı; yalnız
+  // EŞLEŞME EKLER — kısıtlayıcı kapı).
+  const normalized = (reply ?? "")
+    .normalize("NFC")
+    .replace(/[’‘ʼ]/g, "'")
+    .replace(/[*_`~]+/g, "")
+    .replace(/\s+/g, " ");
   const marked = normalized.replace(SENTENCE_END, `$1${SEP}$2`);
   const plain = foldTurkishLower(marked);
   const turkish = foldTurkishLowerTr(marked);
