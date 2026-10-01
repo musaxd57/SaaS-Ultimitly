@@ -337,7 +337,9 @@ export function evaluateEscalation(
     if (intentRisk) return yes(intentRisk);
     return { escalate: false, reason: "informational_low_confidence" };
   }
-  if (result.confidence < 0.75) return yes("low_confidence");
+  // Sonlu olmayan güven (NaN / Infinity / eksik) "yüksek güven" değildir — kanal kapısının `confidence_invalid` paritesi (F01; 10-01, 15 ajan
+  // A05: QR'da `NaN < 0.75` yanlış olduğu için kapı GEÇİYORDU). Yapay zekâ katmanı bugün güveni sonlu sayıya zorluyor; kapı ona güvenmez.
+  if (!Number.isFinite(result.confidence) || result.confidence < 0.75) return yes("low_confidence");
   if (intentRisk) return yes(intentRisk);
   return { escalate: false, reason: null };
 }
