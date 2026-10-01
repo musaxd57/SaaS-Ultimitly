@@ -55,6 +55,7 @@ const ADMITS: readonly string[] = [
   "Cette information ne m'est pas connue.",
   "Je ne connais pas les horaires de la piscine.",
   "Je ne dispose d'aucune information à ce sujet.",
+  "Je ne dispose d'aucune information sur la piscine.",
   "Malheureusement, pas d'information à ce sujet.",
   "Aucune information à ce sujet, désolé.",
   // ES

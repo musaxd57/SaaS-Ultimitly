@@ -28,6 +28,14 @@ describe("A07 — yeni yakalanan sır biçimleri", () => {
     "Contraseña del wifi: sol2024",
     "Пароль от Wi-Fi: solnce2024",
     "Kennwort: 4590",
+    // değer kalıbı (iki noktasız) ve etiket kalıbı (rakamsız değer) ayrı ayrı
+    "Kennwort 4590",
+    "Mot de passe soleil2024",
+    "Passwort: sonnig",
+    "Contraseña: solazul",
+    // isim + kod sözcüğü (değer yazılmasa da — "kapı kodu" ile aynı muhafazakâr kural)
+    "Anahtar kasasının şifresi resepsiyondan alınır.",
+    "Keypad code is printed on your booking confirmation.",
   ])("🚨 %j → kalem modele GİTMEZ", (icerik) => {
     expect(dropped(icerik)).toBe(true);
   });
