@@ -467,12 +467,60 @@ export function kbForStayScopeRawAndFilled<T extends { id: string; category: str
   return rawScoped.filter((i) => filledOk.has(i.id));
 }
 
+/**
+ * Üslup profilinde ERİŞİM BİLGİSİ anan satır (15 ajan A07, 10-01 — ölçüldü): sır süzgeci DEĞER biçimine bakar; "Wi-Fi: LaleEv /
+ * denizkenari" ve "Ağ adı LaleEv, şifre denizkenari diye paylaşır" (rakamsız, iki noktasız şifre) geçiyordu. Profil yalnız üsluptur
+ * (F13 — olgu kaynağı DEĞİL): şifre / Wi-Fi / kod / tuş takımı / anahtar kasası anan satır değer görünmese de düşer. Katlanmış metin.
+ */
+const STYLE_CREDENTIAL_LINE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${[
+    "sifre\\p{L}{0,8}",
+    "parola\\p{L}{0,6}",
+    "wi-?fi",
+    "wlan",
+    "ssid",
+    "ag adi",
+    "kod(?:u|unu|lari|larini|unuz)?",
+    "pin",
+    "tus takim\\p{L}{0,4}",
+    "anahtar (?:kasa|kutu)\\p{L}{0,4}",
+    "kilit kutu\\p{L}{0,4}",
+    "kombinasyon\\p{L}{0,4}",
+    "pass(?:word|code|key)s?",
+    "network name",
+    "(?:door|entry|access|gate) code",
+    "keypad",
+    "lockbox",
+    "key (?:safe|box)",
+    "combination",
+    "passwort",
+    "kennwort",
+    "zugangscode",
+    "turcode",
+    "tastenfeld",
+    "schlusselsafe",
+    "mot de passe",
+    "digicode",
+    "code d'acces",
+    "contrasena",
+    "codigo de acceso",
+    "пароль",
+    "код\\p{L}{0,3}",
+    "كلمة (?:السر|المرور)",
+  ].join("|")})(?![\\p{L}\\p{N}])`,
+  "u",
+);
+
+function styleFold(s: string): string {
+  return s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/ı/g, "i");
+}
+
 export function scrubStyleProfileForPublic(profile: string | null | undefined): string | null {
   const raw = profile?.trim();
   if (!raw) return null;
   const kept = raw
     .split(/\r?\n/)
-    .filter((line) => line.trim() && !looksLikeSecret(line));
+    .filter((line) => line.trim() && !looksLikeSecret(line) && !STYLE_CREDENTIAL_LINE.test(styleFold(line)));
   const out = kept.join("\n").trim();
   return out.length > 0 ? out : null;
 }
