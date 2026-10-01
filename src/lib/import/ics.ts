@@ -89,9 +89,12 @@ function parseIcsDate(value: string, tzid?: string | null): Date | null {
     return new Date(Date.UTC(ny, nmo - 1, nd, 12, 0, 0));
   }
 
-  // Fallback: try native Date parse — ISO biçimli gün de takvimde olmalı (`new Date("2026-02-30")` 2 Mart'a kayar).
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(clean);
-  if (iso && !isCalendarWallClock(Number(iso[1]), Number(iso[2]), Number(iso[3]), 0, 0, 0)) return null;
+  // Fallback: YALNIZ ISO 8601 biçimi ("2026-10-10", "2026-10-10T15:00:00Z", "…+03:00") — gün takvimde olmalı (`new Date("2026-02-30")`
+  // 2 Mart'a kayar). 🚨 Serbest `new Date()` ayrıştırması KALKTI (10-01, 15 ajan incelemesi A09): "2026" / "2027" bir yıllık, "1" / "12"
+  // 2001 yılı, "October 10 2026 23:30" sunucu diliminde okunuyordu — bozuk besleme sessizce uydurma konaklama yazıyordu. Biçim dışı
+  // değer okunamayan etkinliktir (`unreadable_event`, F16: eksik okuma hüküm vermez).
+  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)?$/i.exec(clean);
+  if (!iso || !isCalendarWallClock(Number(iso[1]), Number(iso[2]), Number(iso[3]), 0, 0, 0)) return null;
   const fallback = new Date(clean);
   return isNaN(fallback.getTime()) ? null : fallback;
 }
@@ -192,7 +195,9 @@ export function parseIcs(text: string): IcsReservation[] {
 }
 
 export function parseIcsDetailed(text: string): IcsParseResult {
-  const unfolded = unfoldLines(text);
+  // NUL (U+0000) silinir — PostgreSQL `text` onu saklayamaz; NUL'lu ad / UID o kaynağın yazmasını HER senkronda düşürürdü (sağlayıcı
+  // yolundaki `canonicalStr` kuralının aynısı; 10-01, 15 ajan incelemesi A09). Başka karaktere dokunulmaz.
+  const unfolded = unfoldLines(text.replace(/\u0000/g, ""));
   const lines = unfolded.split(/\r\n|\n|\r/);
 
   const results: IcsReservation[] = [];
@@ -200,6 +205,8 @@ export function parseIcsDetailed(text: string): IcsParseResult {
   // UID → ilk okunan hâlin imzası (tarihler + durum): aynı UID FARKLI imzayla gelirse belirsizdir.
   const signatureByUid = new Map<string, string>();
   let inEvent = false;
+  // Etkinliğin İÇİNDEKİ alt bileşen derinliği (VALARM, X-…): onların özellikleri etkinliğe YAZILMAZ (↓).
+  let nested = 0;
   let calendarOpen = false;
   let capped = false;
   let current: Record<string, string> = {};
@@ -228,6 +235,7 @@ export function parseIcsDetailed(text: string): IcsParseResult {
       // Önceki etkinlik END:VEVENT görmeden yenisi başladı → önceki etkinlik kayboldu.
       if (inEvent) reasons.add("unreadable_event");
       inEvent = true;
+      nested = 0;
       current = {};
       continue;
     }
@@ -240,6 +248,9 @@ export function parseIcsDetailed(text: string): IcsParseResult {
         continue;
       }
       inEvent = false;
+      // Kapanmamış alt bileşenle biten etkinlik: yapısı bozuk (alt bileşenden sonraki özellikleri okunmadı).
+      if (nested > 0) reasons.add("unreadable_event");
+      nested = 0;
 
       // Extract key:value — the key may have params (e.g. DTSTART;TZID=Europe/Istanbul)
       const get = (baseKey: string): string | undefined => {
@@ -327,6 +338,21 @@ export function parseIcsDetailed(text: string): IcsParseResult {
     }
 
     if (!inEvent) continue;
+
+    // 🚨 ALT BİLEŞEN (VALARM / X-…, RFC 5545 §3.6.6) — özellikleri ETKİNLİĞİN değildir (10-01, 15 ajan incelemesi A09, ölçüldü):
+    // eskiden düz okunuyordu → Google dışa aktarımındaki hatırlatıcının SUMMARY'si ("Alarm notification") misafir adı, iç
+    // bileşendeki "STATUS:CANCELLED" rezervasyonu İPTAL yapıyordu (müsaitlik "boş" der → çift rezervasyon riski).
+    if (upper.startsWith("BEGIN:")) {
+      nested++;
+      continue;
+    }
+    if (upper.startsWith("END:")) {
+      // Açılmamış alt bileşenin bitişi: yapı bozuk (hangi özelliğin kime ait olduğu bilinemez).
+      if (nested > 0) nested--;
+      else reasons.add("unreadable_event");
+      continue;
+    }
+    if (nested > 0) continue;
 
     // Parse property line: KEY;PARAM=val:VALUE
     const colonIdx = line.indexOf(":");
