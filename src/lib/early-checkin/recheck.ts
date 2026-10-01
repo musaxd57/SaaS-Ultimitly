@@ -128,8 +128,10 @@ export async function recheckEarlyCheckinsAfterCleaning(organizationId: string, 
       select: { id: true },
     });
     if (!prep) continue;
+    // Koruma YALNIZ sistemin kendi notunu sayar (`userId: null`, 15 ajan A11): görevin atanmış kişisi aynı metni elle yazarak
+    // yeniden değerlendirmeyi bastırabiliyordu (etkisi güvenli yönde, ama sistem kaydı taklit edilemesin).
     const already = await prisma.taskUpdate.findFirst({
-      where: { taskId: prep.id, note: EARLY_CHECKIN_RECHECK_NOTE, createdAt: { gte: loaded.readyAt } },
+      where: { taskId: prep.id, userId: null, note: EARLY_CHECKIN_RECHECK_NOTE, createdAt: { gte: loaded.readyAt } },
       select: { id: true },
     });
     if (already) continue;

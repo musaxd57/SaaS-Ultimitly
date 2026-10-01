@@ -199,6 +199,15 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     expect(String(mockSend.mock.calls[0][1])).toContain("you can check in today (14 October) from 13:00");
   });
 
+  it("🚨 15 ajan A11: görevin atanmış kişisi sistem notunu ELLE yazsa da yeniden değerlendirme bastırılmaz (koruma yalnız sistem kaydı)", async () => {
+    const s = await morningHold();
+    await markCleaned(s, CLEANED_AT);
+    // Temizlikçi (kimlikli kullanıcı) giriş hazırlığı görevine sistemin notunu birebir yazıyor.
+    await prisma.taskUpdate.create({ data: { taskId: s.prepTaskId, userId: s.cleanerId, note: EARLY_CHECKIN_RECHECK_NOTE, createdAt: AFTER_SETTLE } });
+    vi.setSystemTime(AFTER_SETTLE);
+    expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(1);
+  });
+
   it("🚨 yeniden koşu yine tutulursa (ör. bekçi düştü) tarama TEKRAR açmaz — sonsuz model çağrısı yok", async () => {
     const s = await morningHold();
     await markCleaned(s, CLEANED_AT);
