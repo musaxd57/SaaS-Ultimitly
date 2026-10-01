@@ -217,6 +217,7 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`(?:finde|fand|finden|fanden) (?:ich|wir)(?: \\p{L}{1,30}){0,3} (?:keine|keinerlei) ${gap(1)}${DE_INFO}`, "u"),
   new RegExp(`(?:ich|wir) (?:finde|fand|finden|fanden)(?: \\p{L}{1,30}){0,3} (?:keine|keinerlei) ${gap(1)}${DE_INFO}`, "u"),
   new RegExp(`(?:kann|konnte|können|konnten) (?:ich|wir)(?: \\p{L}{1,30}){0,3} (?:keine|keinerlei) ${gap(1)}${DE_INFO}(?: \\p{L}{1,30}){0,3} finden`, "u"),
+  new RegExp(`(?:ich|wir) (?:kann|konnte|können|konnten)(?: \\p{L}{1,30}){0,3} (?:keine|keinerlei) ${gap(1)}${DE_INFO}(?: \\p{L}{1,30}){0,3} finden`, "u"),
   /(?:habe|haben) (?:ich|wir)(?: \p{L}{1,30}){0,4} nichts gefunden|(?:ich|wir) (?:habe|haben)(?: \p{L}{1,30}){0,4} nichts gefunden/u,
   new RegExp(`(?:habe|haben|hätte|hätten) (?:ich|wir)(?: \\p{L}{1,30}){0,6} (?:keine|keinerlei) ${gap(1)}(?:anleitung(?:en)?|anweisung(?:en)?)(?![\\p{L}])`, "u"),
   // ES — "no tengo / no hay información", "no dispongo de esos datos", "no se especifica", "no lo sé".

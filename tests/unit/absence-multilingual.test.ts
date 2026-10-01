@@ -186,6 +186,9 @@ const ADMITS_NOT_FOUND: Record<string, string[]> = {
     "Dazu finde ich keine Hinweise.",
     "Zum Lautsprecher habe ich leider nichts gefunden.",
     "Zum Mixer konnte ich keine Informationen finden.",
+    // Talimat nesnesi bulma fiiliyle de ("Anleitung / Anweisung", `DE_INFO`).
+    "Für den Lautsprecher finde ich keine Anleitung.",
+    "Ich konnte keine Anweisungen zum Mixer finden.",
     // 5.1, aynı satır (GİTTİ): talimat nesnesi + 1. şahıs sahiplik.
     "Für den kabellosen Lautsprecher habe ich in meinen Unterlagen leider keine spezifische Anleitung, dazu kann ich daher nichts Verlässliches sagen.",
   ],
