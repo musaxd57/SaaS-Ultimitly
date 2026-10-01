@@ -110,3 +110,8 @@
   kullanımı yoksa kapatmak uygun (kurucu org'un Hospitable aboneliği zaten 402); varsa en düşük ücretli planla açık tutmak.
 - **Müşteriye etkisi:** Railway kapanırsa QR sohbeti / oto-yanıt / senkron durur (09-19 duraklatma belgesi).
 - **Beklerken yapılmayan:** —
+- **Gelişme (10-01 sabah):** RC50 canlıda (08:37). Kurucu yedeği aldı (05:18Z, SHA `E8FE9786…3333`; satır sayıları 09-19 ile aynı —
+  veritabanında o günden beri yeni mesaj yok, bu yedek son hâl), Masaüstündeki 22 şifresiz yedeği tek AES arşivine koydu
+  (`C:\LixusYedek`, test "Everything is Ok"), şifresizleri sildi, OneDrive geri dönüşüm kutusu boş. Prova bilerek atlandı (kurucu
+  kararı; aynı araç zinciriyle alınan 09-19 yedeği prova edilmişti). Araç notu: prova betiği dosyayı yalnız Masaüstünde arıyor —
+  `-DumpDir` seçeneği eklenmeli (OneDrive dışı klasörle prova için).
