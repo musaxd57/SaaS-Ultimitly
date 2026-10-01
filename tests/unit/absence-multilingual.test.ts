@@ -45,6 +45,8 @@ const ADMITS: Record<string, string[]> = {
     "Ich weiß es nicht genau.",
     "Den Friseur kann ich leider nicht finden.",
     "Es gibt dazu keine Informationen.",
+    // 5.1'in 09-30 kabul koşusunda misafire gidecek gerçek itirafı: fiil ile "keine" arasında 5 sözcük.
+    "Zu einer Badewanne habe ich in meinen Unterlagen leider keine eindeutige Information.",
   ],
   es: [
     "No tengo información sobre el aparcamiento.",
