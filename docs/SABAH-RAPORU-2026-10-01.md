@@ -147,21 +147,26 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 |---|---|---|
 | RC49 (`fcb441d`: canlı `d80e7e2` + K7 migration 58 + K düzeltmeleri + şikâyet koruması + ücret / şikâyet takibi katmanları) | test 4 dosya / 11 test KIRMIZI; typecheck / lint / build / audit yeşil | **İTİLMEDİ.** 10 kırmızı yük altında zaman aşımı (üç dosya tek başına 49/49 yeşil, 0,7–1,8 sn). 1 gerçek eksik: yeni kapı ayrıntı kodu `items_complaint_dependent` kapı kanıtı pininde vakasızdı → vaka eklendi |
 | RC50 (`20682de` = RC49 + katman ayarı + ölçer araçları + kapı kanıtı vakası + belgeler; ağaç ana dalla BİREBİR) | test 720 dosya / 11.428 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka ağır iş koşmadan) | 05:15'te itildi (`d80e7e2..20682de`, hızlı ileri). **CI #1274 YEŞİL** (05:35Z). **Railway CANLI** 08:37 yerel (kurucu ekran görüntüsü: dağıtım "Active", açılış logu kb-retrieval hibrit · kb-semantic AÇIK · kb-rerank AÇIK · Ready) — açılışın `migrate deploy` adımı geçtiği için migration 58 uygulandı |
-| RC51 (RC50 + yedi dilli "bilgim yok" kuralı + süre pini + ölçer düzeltmeleri + gece raporları / belgeler; ağaç ana dalla BİREBİR) | (koşuyor) | İlk kapı koşusu BENİM HATAMLA kirlendi: test takımı koşarken ayrı bir vitest (belge taraması) başlattım — her vitest test veritabanını sıfırlar (CLAUDE.md uyarısı). Koşu durduruldu, temiz baştan alındı |
+| RC51 (`a5e3b64` = RC50 + yedi dilli "bilgim yok" kuralı + Almanca / Fransızca daraltma + süre pini + ölçer düzeltmeleri + gece raporları / belgeler; ağaç ana dalla BİREBİR) | test 722 dosya / 11.453 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka vitest koşmadan) | İlk kapı koşusu BENİM HATAMLA kirlendi: test takımı koşarken ayrı bir vitest (belge taraması) başlattım — her vitest test veritabanını sıfırlar (CLAUDE.md uyarısı). Durduruldu, temiz baştan alındı. 07:57Z itildi (`20682de..a5e3b64`), **CI #1275 YEŞİL** (08:16Z) → Railway açıksa canlı |
 
 ## 6. Canlıya geçiş için kalan adımlar (sıra önerisi — her adım ayrı onayınızla)
 
 1. **RC51'i yayınla** (yedi dilli "bilgim yok" kuralı + ölçer düzeltmeleri + belgeler; kapılar + CI). Railway kapalıysa açılışta yayınlanır.
-2. **Sabah kararları** — özellikle 13 (çok sorulu mesajda konaklama isteği), 14 (arıza + çözüm tarifi istisnası), 15 (şikâyetli turda güvenli
-   soru / örnek devir cümleleri), 3 (bağımsız türler), 2 (politika metni). 14 ve 15 istem değişikliği ister → küçük ücretli ölçüm (~$1–2).
+2. **Sabah kararları** — özellikle 13 (çok sorulu mesajda konaklama isteği), 17 (şikâyet + bağımsız soru: anlam ilişkisi; 3 ve 15'in
+   yerini alır), 18 (arıza tarifi: yalnız onaylı tarif kadar, tehlike sınıfında otomatik değil; 14'ün yerini alır), 2 (politika metni).
+   Anlama / istem değişikliği küçük ücretli ölçüm ister (~$1–2).
 3. **Katmanları sabitle** (davranış birebir aynı kalır): `AI_SEMANTIC_MODEL=gpt-5.1`, `OPENAI_TRANSLATE_MODEL=gpt-5.1`.
 4. **Bayraklar** (birer birer, her biri ayrı karar): `AI_HOST_DECISION_HOLD_ENABLED` → `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` (madde 14'teki
    istisnayla) → `AI_KB_FEE_RULE_ENABLED` → `AI_ACCESS_CODE_COMPLETE_ENABLED` → `AI_CODE_GREETING_ENABLED` (K17).
 5. **Gölge (isteğe bağlı):** `SHADOW_AI_MODEL=gpt-6-luna` gerçek mesajda Luna'nın güvenlik sınıflandırmasını 5.1'in yanında kaydeder (cevap
    kalitesini değil). Bugün kurucu org'un trafiği yok (Hospitable 402) → gölge veri üretmez; ilk dış host trafiğinde anlamlı.
-6. **Cevap modeli:** `OPENAI_MODEL=gpt-6-luna` + `OPENAI_REASONING_EFFORT=none`; üslup `OPENAI_STYLE_MODEL=gpt-6-luna` +
+6. **Son kör kabul GEÇİŞTEN ÖNCE (düzeltildi — ilk yazımda "geçişten sonra" diyordu; kurucu geri bildirimi 10-01 sabah):** 13–15 ve
+   17–18 kararları kodlandıktan sonra SON kod + seçilen bayraklar + seçilen modeller BİRLİKTE yeni, kör yazılmış sette (set 3; iki eski
+   set de görüldü) ölçülür. Önceki kabul bu kararlardan önceki davranışı ölçtü — son davranışın kanıtı değildir. Kapsam / tutar: ~90
+   senaryo; aday (Luna `none` + bayraklar) ≈ $0,35 + aynı bayraklarla 5.1 kıyası ≈ $0,95 → ≈ $1,3. Anlama katmanına alan eklenirse
+   (madde 17) ayrıca konaklama eval'i 5.1 ≈ $1,5 + konuşma öğeleri ≈ $0,2. Kabul kırmızıysa geçiş YOK.
+7. **Cevap modeli:** `OPENAI_MODEL=gpt-6-luna` + `OPENAI_REASONING_EFFORT=none`; üslup `OPENAI_STYLE_MODEL=gpt-6-luna` +
    `OPENAI_STYLE_REASONING_EFFORT=none`. Geri alma: `OPENAI_MODEL=gpt-5.1`, `OPENAI_REASONING_EFFORT` sil.
-7. Geçişten sonra yeni kör set (her iki kabul seti de artık görüldü).
 
 ## 7. Eklenecek / değiştirilecek ortam değişkenleri (Railway → Variables)
 
@@ -177,7 +182,7 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 | `OPENAI_MODEL` | `gpt-6-luna` | Luna kararıyla (adım 6) | cevap modeli Luna |
 | `OPENAI_REASONING_EFFORT` | `none` | Luna kararıyla | düşünme kapalı (en iyi ölçülen) |
 | `AI_HOST_DECISION_HOLD_ENABLED` | `1` | karar 1 | "ev sahibinizin kararıdır" misafire gitmez, tek e-posta |
-| `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` | `1` | karar 14 | şikâyete bağlı yardım sorusu ayrı istek değil |
+| `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` | `1` | karar 17 + 18 | şikâyete bağlı yardım sorusu ayrı istek değil (tarif istisnası 18 kodlanınca) |
 | `AI_KB_FEE_RULE_ENABLED` | `1` | karar 7 | KB'deki sabit hizmet ücreti söylenir |
 | `AI_ACCESS_CODE_COMPLETE_ENABLED` | `1` | ayrı karar | giriş tarifinde kod |
 | `AI_CODE_GREETING_ENABLED` | `1` | K17 | adsız yapay zekâ + kodla selam |

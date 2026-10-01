@@ -10,8 +10,9 @@
 2. **6 Luna geçişi** — kör kabulde Luna `none` cevap modeli 5.1'den geri düşmedi; anlama / bekçi / sıralayıcı / çeviri 5.1'de kalmalı, üslup
    Luna olabilir. Adımlar ve değişkenler: `docs/SABAH-RAPORU-2026-10-01.md` §6–§7.
 3. **1, 7, 8 bayrakları** — ev sahibi kararı tutulur (1), ücret kuralı (7), şikâyet takibi (8) — 8, madde 14'teki istisnayla birlikte.
-4. **13, 14, 15 misafire giden davranış** — çok sorulu mesajda konaklama isteği, arıza + çözüm tarifi, şikâyetli turda güvenli soru
-   (önce / sonra örnekli).
+4. **13, 17, 18 misafire giden davranış** — çok sorulu mesajda konaklama isteği; şikâyet + bağımsız soru (anlam ilişkisi, 3 ve 15'in
+   yerini alır); arıza tarifi tehlike sınırıyla (14'ün yerini alır). Önce / sonra örnekli. Son kör kabul bunlar kodlandıktan SONRA,
+   canlı geçişten ÖNCE (rapor §6 adım 6).
 5. **3, 2, 1b, 1c** — şikâyete bağlı istek kapsamı, politika metni, fotoğraf şartı, kanıtları taslağa verme.
 6. **11 arşiv**, **4–5 (K6 / K5)**, **9 (Aşama 2)**, **10 (devreden)**; **16** yalnız bilgi.
 
@@ -72,6 +73,9 @@
   istiyorum, şimdi ne yapacağız?" → hiçbir şey gitmez, ev sahibinde). Öneri: (b).
 - **Müşteriye etkisi:** (b) seçilirse iade / görüşme turlarında bağımsız olmayan yardım sorusu da ev sahibine kalır.
 - **Beklerken yapılmayan:** iade / görüşme genişletmesi.
+- **GÜNCELLEME 10-01 sabah (ilettiğiniz inceleme, kodla doğrulandı):** sabit liste iki yönde yanlış karar veriyor → öneri (a) GERİ
+  ÇEKİLDİ, yerine **madde 17** (anlam ilişkisi önce, liste tek başına karar vermez). (b) iade / görüşme genişletmesi 17'nin içinde ayrıca
+  sorulur.
 
 ## 4. K6 — Meslek / rutin bakım anılması acil sayılmıyor (canlı davranış değişikliği)
 - **Durum:** Codex K6'ya göre düzeltildi (RC49): "Doktor olan arkadaşım…", "Avukat arkadaşımızla…", "hastanedeki rutin kontrol
@@ -161,6 +165,8 @@
   - *Örnek:* "Wi-Fi çalışmıyor" → tarif gider + e-posta · "Gürültüden uyuyamadık, yine olursa?" → hiçbir şey gitmez + e-posta.
 - **Müşteriye etkisi:** Arızada misafir beklemeden çözüm adımını alır; ev sahibi her durumda haberdar.
 - **Beklerken yapılmayan:** istem değişikliği. Not: kör kabulde 5.1'e "sızıntı 1/12" yazan satır budur (tarif + e-posta), gerçek sızıntı değil.
+- **GÜNCELLEME 10-01 sabah:** buradaki ilk önerim "sigorta, sıcak su düğmesi"ni de istisnaya katıyordu — FAZLA GENİŞ (ilettiğiniz
+  inceleme haklı: bilgi tabanında bulunmak tek başına güvenli demek değil). Yerini **madde 18** aldı.
 
 ## 15. Şikâyetli turda güvenli soru da cevapsız kalıyor (model-bağımsız) — örnek devir cümleleri
 - **Durum (ölçüldü, 5.1 ve Luna):** "Çöpü nereye atıyoruz? Bu arada klima çalışmıyor." → cevap modeli çöp sorusunu cevaplayıp sonuna
@@ -172,10 +178,81 @@
   - *Sonra:* "Çöp konteyneri binanın arka kapısının yanında." gider; klima arızası ev sahibinde açık iş + e-posta.
 - **Müşteriye etkisi:** Şikâyetli turda bağımsız bilgi sorusu cevaplanır.
 - **Beklerken yapılmayan:** istem ve liste değişikliği.
+- **GÜNCELLEME 10-01 sabah:** (b) listeye `trash` eklemek GERİ ÇEKİLDİ (liste yamasıdır; aynı liste otopark kapısı arızasında yanlış
+  yönde karar veriyor) → **madde 17**. (a) örnek devir cümleleri ayrı iş olarak duruyor.
 
 ## 16. "Bilgim yok" kuralı yedi dile genişletildi (uygulandı — bilgi için)
 - **Durum:** Kuralınız ("müşteriye hiçbir zaman 'bilgim yok' gitmez") yalnız Türkçe / İngilizce uygulanıyordu. Gece ölçümünde Luna'nın
   iki itirafı (tr "kuaför bilgisi elimde olmadığı için…", fr "…ne sont pas précisées ici") ve kıvrık kesme işaretli İngilizce
   "I don’t have information…" kapıdan geçti; 5.1'in 30 Eylül kabul koşusundaki Almanca itirafı da. Hepsi artık tutuluyor (FR / DE / ES / RU
-  / AR + Türkçe ek biçimler); 3.726 kayıtlı model cevabında yeni tutulan 8'in hepsi gerçek itiraf, meşru cevap tutulmadı.
+  / AR + Türkçe ek biçimler); son hâliyle 4.526 kayıtlı metinde gece öncesi kurala göre yeni tutulan 11 (10'u gerçek itiraf, 1'i rapor notu), eskiden
+  tutulup artık tutulmayan 0; "gerek yok" anlamındaki olumsuz cümleler tutulmuyor; mutasyon 41/41. RC51 ile canlıda (CI #1275 yeşil).
 - **Müşteriye etkisi:** Diğer dillerdeki misafire de "bilgim yok" gitmez; o cevaplar ev sahibine kalır.
+
+## 17. Şikâyet + başka soru aynı mesajda: önce ANLAM İLİŞKİSİ, sabit liste tek başına karar vermez (ilettiğiniz inceleme; Soru 2 → A)
+- **Doğrulama (kodla, ücretsiz — bugünkü kural madde 3'teki liste):**
+  - "Klima çalışmıyor; çöp konteyneri nerede?" → çöp sorusu TUTULUYOR: liste çöpü bağımsız saymıyor; anlama katmanı klimayı "cihaz
+    kullanımı" diye etiketlerse kelime ağının şikâyet etiketi hiçbir isteğe atfedilemiyor ve mesajın tamamı tutuluyor. Gece ölçümünde
+    üç yapılandırmada da (C1 5.1 · C2 · C3 Luna) çöp sorusu cevapsız kaldı.
+  - "Otopark kapısı açılmıyor, nasıl çıkacağız?" → anlama katmanı "nasıl çıkacağız"ı otopark ya da ulaşım isteği olarak ayırırsa
+    CEVAPLANABİLİR sayılıyor (liste otoparkı bağımsız sayıyor) — oysa soru arızaya bağlı.
+  - Doğru çalışanlar: "Gürültüden uyuyamadık, yine olursa ne yapacağız?" (hiçbir şey gitmez) · "İnternet yok, modemi nasıl
+    resetleriz?" (tarif gider + e-posta) · "Sıcak su yok…", "Sigorta attı…" (gitmez — ama tasarım gereği değil, liste yüzünden).
+- **Öneri (A + anlam ilişkisi):**
+  1. *Anlam (model):* anlama katmanı her isteği "şikâyetin devamı / sonucu" ya da "kendi konusu olan bağımsız soru" diye işaretler
+     (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` katmanına bir alan). İşaret yoksa / tanınmıyorsa → bağlı (belirsizlik güvenli değildir).
+  2. *Kod koruması (yalnız sıkılaştırır):* model "bağımsız" dese de istek şikâyetle AYNI nesneyi konu alıyorsa (otopark kapısı ↔
+     otopark sorusu) ya da kendi konusu yoksa ("ne yapacağız", "nasıl çıkacağız") → bağlı. Model aynı hatayı yaparsa kod tutar.
+  3. *Güvenli cevap kanıtı:* bağımsız soru yalnız bilgi tabanına / mülk alanına dayanan cevapla gider; bugünkü kapıların hepsi aynen
+     (bilgim yok, şikâyetçiye kural hatırlatması yok, 112 yalnız gerçek can güvenliği, "kaydedildi" yok). Şikâyet açık iş + ev sahibine
+     mesaj başına tek e-posta.
+  4. *Sabit liste kalkar* (anlama katmanı yoksa tur zaten öğeye bölünmüyor — bugünkü konuşma düzeyi kapı).
+- **Önce → sonra:**
+
+  | Mesaj | Bugün | Öneri |
+  |---|---|---|
+  | "Klima çalışmıyor; çöp konteyneri nerede?" | hiçbir şey gitmez | çöp yeri gider (bilgi tabanında varsa); klima şikâyeti açık iş + 1 e-posta |
+  | "Otopark kapısı açılmıyor, nasıl çıkacağız?" | bölünürse "çıkış" sorusu cevaplanabilir | şikâyete bağlı → madde 18 (tarif yoksa hiçbir şey) + 1 e-posta |
+  | "Gürültüden uyuyamadık, yine olursa ne yapacağız?" | hiçbir şey (doğru) | aynı |
+  | "Gürültüden uyuyamadık. Wi-Fi ağı hangisi?" | Wi-Fi gider | aynı |
+- **Ek soru (madde 3b):** aynı kural iade / iptal ve ev sahibiyle görüşme isteğinin yanındaki soruya da uygulansın mı? Öneri: evet
+  (aynı "anlam ilişkisi" sorusu: "İade istiyorum, şimdi ne yapacağız?" → bağlı, hiçbir şey gitmez).
+- **Müşteriye etkisi:** bağımsız soru cevapsız kalmaz; şikâyete bağlı soruya genel bilgiyle "cevap" gitmez.
+- **Beklerken yapılmayan:** anlama alanı + kod koruması (ücretli ölçüm ister: konaklama eval'i 5.1 ≈ $1,5 + konuşma öğeleri ≈ $0,2).
+
+## 18. Arıza + çözüm tarifi: yalnız ONAYLI TARİF KADAR, tehlike sınıfında otomatik değil (madde 14'ün yerine)
+- **Durum:** madde 14'teki ilk önerim sigorta / sıcak su düğmesini de istisnaya katıyordu (fazla geniş). Bugün canlıda Wi-Fi tarifi
+  gidiyor; sıcak su / sigorta sorusu gitmiyor — kural tasarımıyla değil, madde 3'teki liste yüzünden.
+- **Öneri:**
+  1. *Tarif istisnası:* şikâyete bağlı "nasıl düzeltirim" sorusu, bilgi tabanında O ARIZANIN onaylı tarifi varsa ve konu tehlike sınıfında
+     değilse gider. Cevap yalnız tarifin adımlarını taşır, ekleme yapmaz ("KB olduğu derece" — notunuz). Şikâyet açık kalır, ev sahibine
+     tek e-posta.
+  2. *Tehlike sınıfı* (elektrik panosu / sigorta, gaz / kombi / şofben, sıcak su cihazı, yangın / duman, cihazı açma / tamir): otomatik
+     GİTMEZ; bilgi tabanındaki tarif ev sahibinin hazır taslağına konur, tek tıkla gönderir.
+- **Önce → sonra:**
+
+  | Mesaj (bilgi tabanında ilgili tarif var) | Bugün | Öneri |
+  |---|---|---|
+  | "İnternet yok, modemi nasıl resetleriz?" | tarif gider + e-posta | aynı (yalnız tarifin adımları) |
+  | "Otopark kapısı açılmıyor" + tarif "kumandanın 2. tuşuna basın" | bölünmeye bağlı | tarif gider + e-posta |
+  | "Sıcak su yok, kombiyi nasıl resetleriz?" | hiçbir şey | hiçbir şey; ev sahibine hazır taslak (tarif içinde) + e-posta |
+  | "Sigorta attı, ne yapalım?" | hiçbir şey | aynı + hazır taslak |
+- **Sorulacak:** tehlike sınıfında (a) her zaman ev sahibinin onayı (öneri) mı, (b) ev sahibi bilgi tabanı kalemini "misafir yapabilir"
+  diye işaretlerse otomatik mi? (b) kalem başına yeni bir alan ister.
+- **Müşteriye etkisi:** güvenli arızada misafir beklemeden çözüm adımını alır; tehlikeli cihaza müdahale adımı ev sahibi görmeden gitmez.
+- **Beklerken yapılmayan:** istisna kodu + anlama istemi cümlesi.
+
+## 19. Son kör kabul canlı geçişten ÖNCE (ilettiğiniz inceleme — DOĞRU, rapor düzeltildi)
+- **Durum:** rapor §6'da "geçişten sonra yeni kör set" yazıyordu; yanlış sıraydı. Düzeltildi (§6 adım 6): 13 / 17 / 18 kodlandıktan sonra
+  son kod + seçilen bayraklar + seçilen modeller BİRLİKTE yeni kör sette (set 3) ölçülür, geçiş ancak ondan sonra. Önceki kabul bu
+  kararlardan önceki davranışı ölçtü.
+- **Tutar:** aday ≈ $0,35 + aynı bayraklarla 5.1 ≈ $0,95 → ≈ $1,3 (+ 17 için ≈ $1,7). Gece onayından kalan ≈ $14.
+
+## 20. "Bu kasa misafir kullanımına açık değildir" — dayanağı VAR (bilgi için)
+- **Doğrulama:** kabul setinin bilgi tabanında kalem (başlık "SADECE EV SAHİBİ VE EKİP İÇİN — misafirle paylaşılmaz"): "Yatak odası
+  dolabındaki ev sahibi kasası misafir kullanımına kapalıdır; kasa kodu … Bu kodlar misafirlere hiçbir koşulda verilmez." Küçük bilgi
+  tabanı (27 kalem) olduğu için kalem modele tam gidiyor; giden Türkçe cevap bu cümlenin yeniden ifadesi, kod gitmedi. 5.1'in taslağı da
+  aynı ("misafir kullanımına açık değil, bu nedenle şifresini paylaşamıyorum").
+- **Uydurma gerekçe tek yerde:** Luna'nın İngilizce taslağı "For security, the safe is not available for guest use." — "For security"
+  bilgi tabanında yok. Misafire GİTMEDİ (kapı tuttu), ev sahibinin taslağında duruyor. Bilinen sınır: sözel gerekçe uydurmasını yakalayan
+  kapı yok (iddia ölçümü yalnız saat / tarih / tutar / kod görür).
