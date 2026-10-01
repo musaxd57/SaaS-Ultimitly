@@ -100,18 +100,23 @@ describe("bilgi tabanı atfı kalemin KATEGORİSİNE iner (gerçek kaleme denk g
     expect(twice.audit).toEqual({ declared: 2, verified: 1 });
   });
 
-  it("60 karakter tavanında kesilmiş başlık atfı başlığın başıyla eşleşir (en az 12 karakter)", async () => {
+  it("60 karakter tavanında kesilmiş uzun başlık atfı da kaleme iner (başlıkla ortak ayırt edici sözcük)", async () => {
     const long = `kb:${KB[2].title}`.slice(0, 60);
     expect(long.length).toBe(60);
     expect((await verified([long])).used).toEqual(["kb:wifi"]);
-    // Kesilmemiş kısa önek EŞLEŞMEZ ("kb:İnternet" bir başlık değildir).
-    expect((await verified(["kb:İnternet"])).used).toEqual([]);
   });
 
-  it("🚨 uydurma atıf yine DÜŞER: isteme girmeyen kalem, olmayan kategori, başlığın parçası", async () => {
-    expect((await verified(["kb:Kahve makinesi tamiri"])).used).toEqual([]);
+  it("ikinci teşhis koşusunun beyanları (5.1): kategori önekli kısa etiket ve başlıkla ortak ayırt edici sözcük", async () => {
+    expect((await verified(["kb:FAQ_tv_remote"])).used).toEqual(["kb:faq"]);
+    expect((await verified(["kb:internet_restart"])).used).toEqual(["kb:wifi"]);
+    expect((await verified(["kb:kumanda"])).used).toEqual(["kb:faq"]);
+  });
+
+  it("🚨 uydurma atıf yine DÜŞER: isteme girmeyen konu, olmayan kategori, yalnız genel sözcük", async () => {
+    expect((await verified(["kb:jacuzzi_reset"])).used).toEqual([]);
     expect((await verified(["kb:parking"])).used).toEqual([]);
-    expect((await verified(["kb:kumanda"])).used).toEqual([]);
+    expect((await verified(["kb:Kahve makinesi tamiri"])).used).toEqual([]);
+    expect((await verified(["kb:machine_troubleshooting"])).used).toEqual([]);
     expect((await verified(["kb:"])).used).toEqual([]);
   });
 

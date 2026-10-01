@@ -86,8 +86,8 @@ function sourceSlug(s: string): string {
  * gösteriyor: 5.1 "kb:klima" (kalem "Klima") ve "kb:FAQ_Televizyon_ve_kumanda" (satırdaki "[FAQ]" etiketi + başlık) yazdı; doğrulama
  * yalnız harfi harfine kategori adını kabul ettiği için bu GERÇEK atıflar düşüyor, bilgi tabanındaki arıza tarifi "kaynaksız" sayılıp
  * tutuluyordu (beyan 1, doğrulanan 0 — dört tarifin dördü). Eşleşme yalnız isteme giren GERÇEK kaleme: kategori (büyük / küçük harf
- * duyarsız), kalem başlığı ya da "kategori + başlık"; uydurma atıf yine DÜŞER. Etiket 60 karakter tavanında kesildiyse başlığın başı
- * yeter (en az 12 karakter).
+ * duyarsız), kalem başlığı ya da "kategori + başlık"; uydurma atıf yine DÜŞER. (60 karakterde kesilmiş uzun başlık, başlıkla ortak
+ * ayırt edici sözcük kuralıyla eşleşir — ayrı kesik-önek kuralı gereksizleşti.)
  */
 function kbSourceLabel(
   src: string,
@@ -99,14 +99,49 @@ function kbSourceLabel(
   const r = sourceSlug(ref);
   if (!r) return null;
   for (const k of kb) if (sourceSlug(k.category) === r) return `kb:${k.category}`;
-  const capped = src.length >= 60 && r.length >= 12;
   for (const k of kb) {
     const title = sourceSlug(k.title);
-    const both = `${sourceSlug(k.category)}_${title}`;
-    if (title && (r === title || r === both || (capped && (title.startsWith(r) || both.startsWith(r))))) return `kb:${k.category}`;
+    if (title && (r === title || r === `${sourceSlug(k.category)}_${title}`)) return `kb:${k.category}`;
+  }
+  // İkinci teşhis koşusu (5.1): kalemi kısa bir ETİKETLE de gösteriyor — "kb:FAQ_tv_remote" (kategori öneki + İngilizce özet),
+  // "kb:internet_restart" ("İnternet yoksa: modemi yeniden başlatma"). Doğrulama zaten KATEGORİ düzeyinde ("kb:faq" her SSS kalemini
+  // kapsar) → kategori öneki ya da gerçek bir kalem BAŞLIĞIYLA ortak ayırt edici sözcük (≥5 harf, genel sözcük değil) o kategoriye iner.
+  // İsteme girmeyen konudaki atıf ("kb:jacuzzi_reset") yine düşer.
+  for (const k of kb) if (r.startsWith(`${sourceSlug(k.category)}_`)) return `kb:${k.category}`;
+  const words = r.split("_").filter((w) => w.length >= 5 && !SOURCE_GENERIC_WORDS.has(w));
+  if (words.length > 0) {
+    for (const k of kb) {
+      const titleWords = new Set(sourceSlug(k.title).split("_"));
+      if (words.some((w) => titleWords.has(w))) return `kb:${k.category}`;
+    }
   }
   return null;
 }
+
+/** Atıf etiketinde kalemi AYIRT ETMEYEN genel sözcükler (katlanmış). */
+const SOURCE_GENERIC_WORDS: ReadonlySet<string> = new Set([
+  "makine",
+  "makinesi",
+  "machine",
+  "cihaz",
+  "cihazi",
+  "device",
+  "bilgi",
+  "bilgileri",
+  "bilgisi",
+  "information",
+  "rehber",
+  "rehberi",
+  "guide",
+  "yoksa",
+  "nasil",
+  "kullanim",
+  "usage",
+  "sorun",
+  "sorunlar",
+  "problem",
+  "troubleshooting",
+]);
 
 /** Bilgi tabanı DIŞINDAKİ beyan: mülk / rezervasyon alanı ya da sohbet geçmişi gerçekten var mı. */
 function verifyNonKbSource(src: string, input: SuggestReplyInput): boolean {
