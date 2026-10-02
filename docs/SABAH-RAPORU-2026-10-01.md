@@ -575,7 +575,8 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 | RC67 (`c665042` = RC66 + kurucu onaylı acil ağı düzeltmesi 49 + Sabah Kararları 49 EK / 51 + CLAUDE.md sadeleştirme 3 + konaklama ölçeri ek set desteği) | test 748 dosya yeşil, **1 KIRMIZI**: mühürlü set erişim pini (`sealed-eval-access`) ölçerdeki `DATASET` satırını birebir arıyordu, çok satıra bölünce çapa kayboldu — gerçek hata, benim | **İTİLMEDİ** → düzeltildi (`OPEN_DATASET`, tek satır seçim) |
 | RC67b (`b984470` = RC67 + pin düzeltmesi + kör kabul seti acc10 + geliştirme seti dev2 + sabah raporu §7 / §9) | test 749 dosya / 12.292 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil | 06:16Z itildi (`ca94555..b984470`, hızlı ileri), **CI #1285 YEŞİL** (06:36Z) → Railway açıksa canlı: yanlış acil düzeltmesi CANLIDA |
 | RC68 (`7a77f0f` = RC67b + parti tam sözcük + anlama / bekçi istem düzeltmesi + "ev sahibinizin kararıdır" dedektörü 7 dil boşlukları + öğe ölçeri sadakati + raporlar) | test 749 dosya / 12.355 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; dedektör mutasyonu 16/16 | İTİLDİ 08:14Z → **CI #1286 YEŞİL** (08:35Z) → Railway açıksa canlı: parti tam sözcük + anlama / bekçi istem düzeltmesi + dedektör boşlukları CANLIDA |
-| Hazır, İTİLMEDİ (onay bekliyor): `prep/items-block-precedence` (53), `prep/ozel-ad-cevirme` (47), `prep/baskasi-adina-kod` (52); aday dal `prep/luna-aday` (53 + 47) | ilgili istem testleri yeşil (aday 17 dosya / 439 test; 52 dalı 5 dosya / 214 test) | kör set 11 ile ölçülüyor |
+| RC69 (`888f643` = RC68 + dişil ev sahibi kararı biçimleri ("Ihre Gastgeberin entscheidet", "Darüber entscheidet die Vermieterin") + İspanyolca otomatik yanıt dipnotu + ölçer kimliğinde çeviri / üslup çabası + kör set 11 + hizmet ücreti ölçümü + Sabah Kararları 54) | test 749 dosya / 12.390 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; mutasyon dişil biçimler 27 (21 öldü; 1 eksik pin eklendi, 5 ölü `(?:sse)?` silindi → yeniden 4/4) · dipnot 4/4 · ölçer kimliği 7/7 | İTİLDİ 09:39Z → **CI #1287 YEŞİL** (09:59Z) → Railway açıksa canlı: Almanca dişil "ev sahibinizin kararı" cümlesi artık tutuluyor (kör set 11'de bugünkü 5.1 GÖNDERMİŞTİ) + İspanyolca misafire İspanyolca dipnot |
+| Hazır, İTİLMEDİ (onay bekliyor): `prep/items-block-precedence` (53), `prep/ozel-ad-cevirme` (47), `prep/baskasi-adina-kod` (52); aday dal `prep/luna-aday-2` (RC69 + 53 + 47) | ilgili istem testleri yeşil (aday 17 dosya / 439 test; 52 dalı 5 dosya / 214 test) | **kör set 11 + son kodla kör set 12 YEŞİL** (§9.10, §9.11); onayınızla RC olarak tam kapılardan geçer |
 
 
 ## 6. Canlıya geçiş için kalan adımlar (sıra önerisi — her adım ayrı onayınızla)
@@ -635,6 +636,11 @@ Bugün canlıda (CLAUDE.md "Canlı durum"): `AI_SEMANTIC_MODEL=gpt-5.1`, `OPENAI
 | `OPENAI_REASONING_EFFORT` | **`low`** (ya da `medium`) | `OPENAI_MODEL` ile birlikte | kör set 12 (son kod, §9.11): ikisi de olgu 25/27 ↔ 5.1 24/27, sızıntı 0; `low` p95 12,3 ↔ 19,9 sn; `medium` bir anlatımda sabit ücreti ev sahibine bırakıyor (set 11) |
 
 Geri alma: katman değişkenlerini silin (bugünkü 5.1 davranışı birebir döner); `OPENAI_TRANSLATE_MODEL=gpt-5.1`.
+
+**Maliyet (kör set 12, aynı 52 mesaj, raporlardaki kesin tutar):** bugünkü 5.1 $0,68 (≈ $0,013 / mesaj) → önerilen Luna yapılandırması $0,15
+(≈ $0,003 / mesaj, **−%78**). Bu $0,15'in **%71'i 5.1 sıralayıcısı** ($0,109; 46 çağrı). Sıralayıcı da Luna `none` olsaydı ≈ $0,05 (tahmin, −%92)
+— bedeli iki sorulu mesajda ~%2,5 getirme kaybı (§9.8: 107 ↔ 110/120, iki ayrı ölçümde aynı yön) → önerim sıralayıcı 5.1'de kalsın. Maliyet
+önceliğinizse: `KB_RERANK_MODEL=gpt-6-luna` + `KB_RERANK_REASONING_EFFORT=none` (`low` DEĞİL — 2,5 sn tavanını 560 çağrıda 66 kez aştı).
 
 ### 7.1 Önceki öneri (10-01 / 10-02 gece — tarihçe)
 

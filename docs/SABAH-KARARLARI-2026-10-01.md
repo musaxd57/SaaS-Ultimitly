@@ -370,6 +370,10 @@
 - Otopark "dairenize ayrılmış B2-17 numaralı yer var" tutuldu: donmuş müsaitlik kelime ağı "yer var"ı müsaitlik iddiası saydı (5.1 bugünkü
   ayarda aynı bilgiyi başka cümleyle verince gitti).
 - **Öneri:** ikisi de ayrı, ölçümlü düzeltme (P4-b'de saatin alanına bakmak; müsaitlik ağında otopark yeri ifadesi). Acil değil.
+- **EK (10-02 sabah, kör set 12 — aynı aile, bugünkü 5.1):** iki cevap daha tutuldu — Arapça "الخدمة متاحة" (transfer HİZMETİ mevcut) ve İspanyolca
+  "un coche puede quedarse en vuestra plaza" (aracınız park yerinizde kalabilir) konaklama müsaitliği / kalış sanıldı. Güvenli yön (yanlış izin yok;
+  cevap taslağa düştü, ev sahibi elle gönderir); aynı mesajlarda aday + 5.1 ve Luna başka cümle kurduğu için cevap gitti. Öneri değişmedi: ağ
+  büyütülmez; bu tutuşları kaldırmak "kelime ağı yalnız ENGELLER" değişmezini gevşetmek olur → ancak sizin kararınız + kör ölçümle. Bekleyen iş YOK.
 
 ## 25. Şikâyetteki eksik eşyanın yerini söylemek (kör set 5, aday — bilgi için / karar)
 - **Durum:** "4 kişiyiz ama 2 havlu bırakılmış, yatak odası rutubet kokuyor, kısmi tazminat istiyoruz" (Rusça) → aday cevabı GİTTİ: "Ek havlu

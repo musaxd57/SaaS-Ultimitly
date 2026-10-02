@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 //  · YALNIZ `TEST_DATABASE_URL` ile çalışır (ayrı, atılabilir yerel veritabanı — 5433 DEĞİL); yoksa hiç başlamaz. `global-setup`
 //    o yolda sunucu kurmaz / 5433'e dokunmaz: yalnız F08 kapısından geçirip şemayı basar (`scripts/test-db-guard.mjs`).
 //  · `OPENAI_API_KEY`i boşaltmaz (gerçek model çağrısı ölçümün kendisi).
-//  · Yalnız canlı hat ölçerini toplar.
+//  · Yalnız canlı hat ölçerlerini toplar (kanal + QR misafir sohbeti, 10-02).
 // Kullanım: docs/LUNA-GECIS-HAZIRLIGI-2026-09-30.md §4.
 // ---------------------------------------------------------------------------
 
@@ -29,7 +29,7 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
-    include: ["tests/eval/live-pipeline.eval.test.ts"],
+    include: ["tests/eval/live-pipeline.eval.test.ts", "tests/eval/qr-live-pipeline.eval.test.ts"],
     fileParallelism: false,
     globalSetup: ["tests/global-setup.ts"],
     env: {

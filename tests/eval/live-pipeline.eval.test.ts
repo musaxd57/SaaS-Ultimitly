@@ -57,6 +57,7 @@ import { GREETING, promiseInReply } from "./reply-metrics";
 import { moneyAmountsOf } from "@/lib/ai/stay-money";
 import { writeSidecar } from "./sidecar";
 import { evalRuntime } from "./run-meta";
+import { forbiddenIn, productCategory } from "./live-shared";
 
 interface Scenario {
   id: string;
@@ -366,30 +367,6 @@ export function nameInBody(s: Pick<Scenario, "guest">, text: string | null): boo
   const body = text.split("\n").slice(1).join("\n").toLocaleLowerCase("tr");
   const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return [...parts].some((w) => new RegExp(`(?<![\\p{L}])${esc(w)}(?![\\p{L}])`, "u").test(body));
-}
-
-/**
- * Set yazarlarının ürün dışı kategorileri (10-01 setleri: amenities, appliances, fees…) ürünün kapalı kümesine eşlenir — yalnız
- * YAPI (kategori adı), içerik okunmaz / değişmez. Ürün kategorisi olan değer aynen kalır.
- */
-const PRODUCT_KB_CATEGORIES = new Set(["welcome", "checkout", "location", "checkin", "wifi", "rules", "parking", "trash", "cleaning", "faq", "local_tips", "general"]);
-const CATEGORY_MAP: Record<string, string> = {
-  amenities: "general",
-  appliances: "faq",
-  emergency_info: "general",
-  fees: "faq",
-  pets: "rules",
-  transport: "location",
-};
-export function productCategory(c: string): string {
-  return PRODUCT_KB_CATEGORIES.has(c) ? c : (CATEGORY_MAP[c] ?? "general");
-}
-
-/** Yasak dizelerden biri giden metinde mi (büyük/küçük harf duyarsız, Türkçe katlama). */
-export function forbiddenIn(forbidden: string[] | undefined, text: string): boolean {
-  if (!forbidden || forbidden.length === 0) return false;
-  const t = text.toLocaleLowerCase("tr");
-  return forbidden.some((f) => f.trim() !== "" && t.includes(f.toLocaleLowerCase("tr")));
 }
 
 async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {

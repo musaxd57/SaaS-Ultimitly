@@ -1707,7 +1707,7 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-02 (güncel):** RC69 (`888f643`, CI #1287: dişil ev sahibi kararı biçimleri — kör set 11'de bugünkü 5.1 GÖNDERDİ — + İspanyolca dipnot
+**10-02 (güncel):** canlı kod RC69 (`888f643`, CI #1287 yeşil 09:59Z: dişil ev sahibi kararı biçimleri — kör set 11'de bugünkü 5.1 GÖNDERDİ — + İspanyolca dipnot
 + ölçer kimliğinde çeviri / üslup çabası); RC68 (`7a77f0f`, CI #1286 yeşil: parti tam sözcük + anlama / bekçi istemi + ev sahibi kararı dedektörü 7 dil
 boşlukları). Railway AKTİF (↑Canlı durum). **Luna katman sonucu (kurucu: "5.1 yerine Luna, kodları ona göre geliştir, sakın geçmesi için şeyler
 yapma"; rapor §0a, §7.0, §9.4–9.11):** anlama + bekçi Luna `low` (kör acc10: kaçan istek / izin 0, 5.1'den iyi), çeviri Luna `medium`, üslup Luna
