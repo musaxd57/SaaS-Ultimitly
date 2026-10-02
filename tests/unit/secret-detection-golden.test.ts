@@ -60,8 +60,11 @@ describe("sır dedektörü — iki eksenli karakterizasyon", () => {
     const falsePositives = LEGIT.filter((x) => flags(x));
     // 10-01 (15 ajan incelemesi A07): "kombinasyon" + tuş takımı / anahtar kasası / şifre sözcüğünün diğer dilleri eklendi → kaçan 11 → 10
     // ("Kasa kombinasyonu 4590"), yanlış eleme AYNI (1).
+    // 10-02 (QR kör kabul seti 1 — canlıda 5.1 tuş paneli kodunu QR'da yazdı): tuş paneli / interkom adları + "tuşla-" fiili + kod
+    // sözcüğü + kapı adı + değer (`secret-filter-keypad.test.ts`) → kaçan 10 → 8 ("Zil paneline 4590 yazın", "İnterkomdan 4590
+    // tuşlayın"), yanlış eleme AYNI (1).
     expect({ missed: missed.length, falsePositives: falsePositives.length }).toEqual({
-      missed: 10,
+      missed: 8,
       falsePositives: 1,
     });
     // Tek bilinen yanlış-pozitif ADRES kalemidir (§7). Başka bir kalem düşerse

@@ -283,6 +283,13 @@ export async function ensureGuestChatConversation(
 // is dropped regardless of category. Over-redaction is the SAFE direction here:
 // at worst the chat says it can't help (and escalates), never leaks a code.
 // (\b avoided around Turkish letters like ş/ı — JS word boundaries are ASCII.)
+/** Tuş paneli / kapı paneli adları (10-02; ↓SECRET_PATTERNS sonu). Yalnız KAPI GİRİŞİ anlamı taşıyanlar: "panel" tek başına DEĞİL
+ *  ("Güneş paneli 2019"), "clavier" DEĞİL (bilgisayar klavyesi). */
+const KEYPAD_NOUNS =
+  "tu[şs]\\s*panel|zil\\s*panel|kap[ıi]\\s*panel|giri[şs]\\s*panel|interkom|intercom|domofon|keypad|key\\s+pad|digicode|tastenfeld|zahlenfeld|ziffernfeld|teclado|домофон|кодов\\S{0,3}\\s+замк|لوحة\\s*(?:المفاتيح|الأزرار|الأرقام)";
+/** 4–8 haneli değer; telefonun ilk öbeği (ardında rakam öbeği) ve SON öbeği (önünde rakam + ayraç) dışarıda. */
+const KEY_DIGITS = "(?<!\\d)(?<!\\d[\\s\\-.])\\d{4,8}(?!\\d)(?![\\s\\-.]\\d)";
+
 const SECRET_PATTERNS: RegExp[] = [
   // door / keybox / entry / lock + code word (TR suffixes ok), e.g. "kapı kodu",
   // "anahtar kutusu kodu", "keybox code", "giriş şifresi", "door/lock code".
@@ -339,6 +346,32 @@ const SECRET_PATTERNS: RegExp[] = [
   // ÖLÇÜLDÜ (kalıp yok / serbest-metin / bugünkü): yanlış-pozitif 0 → 6 → 0,
   // yakalanan saldırı 0 → 11 → 13. Yani bugünkü hâl İKİ eksene göre de en iyisi.
   /(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|kombinasyon|combination|door|lock|entry|gate)\w{0,24}\s*(?:[:=#.\-–—]\s*)?\d{4,8}(?!\d)(?![\s\-.]\d)/i,
+  // 🚨 10-02 (QR kör kabul seti 1 — canlıda 5.1, bina kapısının tuş kodunu QR'da İKİ kez misafire yazdı): yukarıdaki kalıplar ya
+  // "isim + BİTİŞİK rakam" ya da "kod / şifre sözcüğü + değer" arıyordu. Kalem şuydu: "Kilitliyken kapının sağındaki tuş paneline 6142
+  // yazıp anahtar simgeli tuşa basarak içeri girebilirsiniz." Kaçan yazımlar (`secret-filter-keypad.test.ts`, 24 sızıntı + 16 ikiz):
+  //  (a) TUŞ PANELİ adı ve değer ≤20 harflik ayraçla, iki sırada da ("tuş paneline 6142", "Le digicode est 4590", "Enter 4590 on the
+  //      keypad", "Geben Sie 4590 am Tastenfeld ein");
+  //  (b) Türkçe "tuşla-" fiili ("4590 tuşlayın", "4590'ı tuşlayıp", "Tuşlayın: 4590");
+  //  (c) "panele / paneline 4590 yazın / girin" (fiilsiz "Güneş paneli 2019'da" kalır);
+  //  (d) değerden HEMEN önce giriş fiili ("Punch in 4590", "Teclee 4590", "Введите 4590");
+  //  (e) kod sözcüğü + KAPI adı + değer ("The code for the front door is 4590", "Código de la puerta: 4590", "Код от двери: 4590",
+  //      "رمز الباب: 4590"); posta kodu ("Código postal: 34710", "الرمز البريدي") hariç.
+  // Rakam yuvası (`KEY_DIGITS`) bitişik kalıbınkiyle AYNI telefon korumasını taşır ve telefonun SON öbeğini de dışlar ("0532 111
+  // 2233" → "2233" öncesi rakam + ayraç). Ayraçlar sınırlı (doğrusal; 24k kötü niyetli girdide süre pinli). Kategori elemesi
+  // (`wifi` / `checkin`) bunları kurtarmıyordu: kalem `general` idi.
+  new RegExp(`(?:${KEYPAD_NOUNS})[^\\d\\n.]{0,20}?${KEY_DIGITS}`, "i"),
+  new RegExp(`${KEY_DIGITS}[^\\d\\n.]{0,20}?(?:${KEYPAD_NOUNS})`, "i"),
+  new RegExp(`${KEY_DIGITS}(?:\\s*[#*])?\\s*(?:['’][a-zçğıöşü]{0,4})?\\s*tu[şs]la`, "i"),
+  new RegExp(`tu[şs]la[a-zçğıöşü]{0,8}\\s*[:=]?\\s*${KEY_DIGITS}`, "i"),
+  new RegExp(`panel[a-zçğıöşü]{0,6}\\s+${KEY_DIGITS}(?:\\s*[#*])?\\s*(?:['’][a-zçğıöşü]{0,4})?\\s+(?:yaz|gir|tu[şs]la|bas)`, "i"),
+  new RegExp(
+    `(?:(?<![a-z])enter|punch\\s+in|key\\s+in|type\\s+in|tap\\s+in|eingeben|tippen\\s+sie|composez|tapez|teclee|tecleen|marque|introduzca|введите|наберите|أدخل|اكتب)[^\\d\\n.]{0,12}${KEY_DIGITS}`,
+    "i",
+  ),
+  new RegExp(
+    `(?:(?<![a-z])code|c[oó]digo|код|رمز|كود|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
+    "i",
+  ),
 ];
 
 /**
