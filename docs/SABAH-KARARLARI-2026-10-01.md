@@ -377,6 +377,13 @@
   "un coche puede quedarse en vuestra plaza" (aracınız park yerinizde kalabilir) konaklama müsaitliği / kalış sanıldı. Güvenli yön (yanlış izin yok;
   cevap taslağa düştü, ev sahibi elle gönderir); aynı mesajlarda aday + 5.1 ve Luna başka cümle kurduğu için cevap gitti. Öneri değişmedi: ağ
   büyütülmez; bu tutuşları kaldırmak "kelime ağı yalnız ENGELLER" değişmezini gevşetmek olur → ancak sizin kararınız + kör ölçümle. Bekleyen iş YOK.
+- **EK 2 (10-02 sabah, QR ölçeri — sonucu QR'da DAHA AĞIR):** "Arabamızı nereye park edebiliriz?" → modelin cevabı doğru ("…2 numaralı yer
+  dairenize ayrılmış durumda") ama "yer … ayrılmış" kelime ağında takvim iddiası sayılıyor (`detectAvailabilityClaim` → `calendar`; yoklandı).
+  Kanalda bu cevap ev sahibine taslak olur; QR'da devirde misafire metin gitmediği için (K10) misafir **hiçbir cevap almıyor**. QR geliştirme
+  setinde dört yapılandırmanın üçünde (bugünkü 5.1, aday 5.1, Luna `low`) tutuldu; Luna `medium` cümleyi başka kurduğu için gitti. Bilgi
+  tabanında "X numaralı yer daireye ayrılmıştır" yazan her mülkte bugün canlıda böyle. Öneri değişmedi (ağ büyütülmez / körlemesine
+  daraltılmaz); dar bir çözüm seçeneği: otopark konusu + "ayrılmış / reserved for your apartment" ifadesini konaklama müsaitliğinden ayıran tek
+  kalıp + iki yönlü batarya (konaklama "daireniz ayrıldı / reserved" hâlâ tutulur). Karar sizin.
 
 ## 25. Şikâyetteki eksik eşyanın yerini söylemek (kör set 5, aday — bilgi için / karar)
 - **Durum:** "4 kişiyiz ama 2 havlu bırakılmış, yatak odası rutubet kokuyor, kısmi tazminat istiyoruz" (Rusça) → aday cevabı GİTTİ: "Ek havlu
