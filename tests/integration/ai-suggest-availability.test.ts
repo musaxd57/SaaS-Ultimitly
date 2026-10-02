@@ -141,6 +141,32 @@ describe("POST /api/conversations/[id]/ai-suggest — müsaitlik uyarısı", () 
     expect(body.availabilityCheck).toBe("availability_unconfirmed");
   });
 
+  it("🚨 24 EK: bilgi tabanında yazılı sabit otopark yeri tahsisi rotaya ULAŞIR → uyarı yok; bilgi tabanı yoksa aynı taslak takvim iddiası", async () => {
+    mockSuggest.mockResolvedValue({
+      ...BASE,
+      intent: "parking",
+      detectedLanguage: "tr",
+      reply: "Binanın arkasındaki açık otoparkı kullanabilirsiniz; 2 numaralı yer dairenize ayrılmış durumda.",
+    });
+    const ask = [{ direction: "inbound" as const, body: "Arabamızı nereye park edebiliriz?" }];
+    const withKb = await seed(ask);
+    const { propertyId } = await prisma.conversation.findUniqueOrThrow({ where: { id: withKb }, select: { propertyId: true } });
+    await prisma.knowledgeBaseItem.create({
+      data: {
+        propertyId: propertyId!,
+        category: "parking",
+        title: "Otopark",
+        content: "Binanın arkasındaki açık otopark ücretsizdir; 2 numaralı yer dairenize ayrılmıştır.",
+        reviewState: "approved",
+        source: "host_manual",
+      },
+    });
+    expect((await suggest(withKb)).availabilityCheck).toBeNull();
+
+    await resetDb();
+    expect((await suggest(await seed(ask))).availabilityCheck).toBe("availability_claim");
+  });
+
   it("KONTROL: sıradan soru + sıradan cevap → uyarı yok (null)", async () => {
     mockSuggest.mockResolvedValue(BASE);
     const id = await seed([{ direction: "inbound", body: "What's the wifi password?" }]);

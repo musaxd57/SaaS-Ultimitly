@@ -85,6 +85,8 @@ describe("24 EK — bilgi tabanında yazılı otopark tahsisi takvim iddiası DE
     ["2 numaralı yer dairenize ayrılmış ve şu an boş.", KB_TR],
     ["Daireniz bu tarihlerde size ayrılmış durumda.", KB_TR],
     ["Dairenize ayrılmış yer var; daire de cumartesi gecesi boş.", KB_ONE],
+    // Ayıklanan yapının yerine "yer" kalır: tahsis ayıklanınca "şu an boş" müsaitlik iddiası özne kaybedip kaçmasın.
+    ["Dairenize ayrılmış yer şu an boş.", KB_TR],
     ["The apartment is reserved for you on those dates.", KB_TR],
     ["Pueden quedarse una noche más.", KB_ONE],
     // Araç izni SAATLİ: bir uzatma olabilir → istisna yok.

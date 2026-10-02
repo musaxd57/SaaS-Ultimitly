@@ -176,6 +176,44 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect(auto.reply.startsWith("Wi-Fi şifresi kartta.")).toBe(true);
   });
 
+  it("🚨 PARİTE (24 EK): bilgi tabanında yazılı sabit otopark yeri tahsisi → wouldAutoSend TRUE; bilgi tabanı yoksa aynı cevap FALSE (takvim iddiası)", async () => {
+    mockSuggest.mockResolvedValue({
+      ...SAFE_WIFI,
+      intent: "parking",
+      reply: "Binanın arkasındaki açık otoparkı kullanabilirsiniz; 2 numaralı yer dairenize ayrılmış durumda.",
+      stayChange: { asked: "none" as const, stance: "none" as const },
+    });
+    for (const withKb of [true, false]) {
+      await resetDb();
+      const { orgId, propertyId } = await makeOrgWithProperty();
+      const user = await prisma.user.create({
+        data: { organizationId: orgId, name: "O", email: `p${++n}@x.com`, passwordHash: "x", role: "owner" },
+      });
+      session = { userId: user.id, organizationId: orgId, role: "owner", email: user.email, name: "O", sessionEpoch: 0 };
+      if (withKb) {
+        await prisma.knowledgeBaseItem.create({
+          data: {
+            propertyId,
+            category: "parking",
+            title: "Otopark",
+            content: "Binanın arkasındaki açık otopark ücretsizdir; 2 numaralı yer dairenize ayrılmıştır.",
+            reviewState: "approved",
+            source: "host_manual",
+          },
+        });
+      }
+      const res = await POST(
+        new NextRequest("http://localhost/api/ai/test", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message: "Arabamızı nereye park edebiliriz?", propertyId }),
+        }),
+        ctx,
+      );
+      expect((await res.json()).wouldAutoSend, `bilgi tabanı: ${withKb}`).toBe(withKb);
+    }
+  });
+
   it("gate-blocked reply (refund) → wouldAutoSend false and the DRAFT stays note-free", async () => {
     await seed();
     mockSuggest.mockResolvedValue({ ...SAFE_WIFI, intent: "refund", reply: "İade talebinizi yöneticimize ilettim." });

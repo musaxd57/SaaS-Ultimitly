@@ -423,6 +423,11 @@ function clausesOf(folded: string): Clause[] {
 
 /** Cümlecik başına değerlendirilen anılış tavanı: tekrar eden sözcük dizisi ("duman duman duman…") doğrusal ve sınırlı iş kalsın. */
 const MENTION_CAP = 32;
+/** Değerlendirilen anılış sayacı — YALNIZ test (tavanın işi gerçekten sınırladığını pinler; tavansız 8.000 karakterde 145 ms ↔ 6 ms). */
+let mentionEvals = 0;
+export function __hazardMentionEvalCount(): number {
+  return mentionEvals;
+}
 
 function mentionsIn(clause: string): { kind: HazardKind; index: number; length: number }[] {
   const out: { kind: HazardKind; index: number; length: number }[] = [];
@@ -431,6 +436,7 @@ function mentionsIn(clause: string): { kind: HazardKind; index: number; length: 
     let seen = 0;
     for (const m of clause.matchAll(MENTION[kind])) {
       if (++seen > MENTION_CAP) break;
+      mentionEvals++;
       // Işık bağlamındaki "yanma" fiili tehlike anılışı değildir.
       if (kind === "fire" && light && BURN_VERB.test(m[0])) continue;
       // Gösterge simgesi olarak alev ("boiler display shows a flame") yangın anılışı değildir.
@@ -710,7 +716,9 @@ export function contextLabels(labels: readonly string[], decision: { lexicalClea
  *  d) Rusça nezaket "Помогите, пожалуйста, …" (tek başına "Помогите!" açık kalır).
  *  e) ağa / uygulamaya giriş yapamama ("No puedo entrar a la red wifi", "Не могу войти в сеть Wi-Fi", "لا أستطيع الدخول إلى شبكة الواي فاي").
  *  f) acil numara / varsayım / aile acil durumu ("What's the emergency number, just in case?", "Acil bir durumda hangi numarayı…",
- *     "cancel due to a family emergency").
+ *     "cancel due to a family emergency"). Arapça "رقم الطوارئ" / "في حالة الطوارئ" kalıbı YOK: Arapça acil sözcük ağı "طوارئ"yi acil saymıyor
+ *     (kaldırılacak etiket doğmuyor, ölçüldü; pinli) — ağa eklenirse buraya da eklenir. Rusça "номер скорой / экстренной службы" ve
+ *     "в экстренном случае" de öyle (ağ saymıyor; "скорой" ayrıca olay sözcüğü sayılır).
  * Kural ihlali ağının "party / parti" belirsizliği (51 g) bu modülün konusu DEĞİL: karar ev kuralı sinyalini (bugün gölgede) ister — ayrı onay.
  */
 const TR_PRAISE_NOUNS =
@@ -722,9 +730,7 @@ const AMBIGUOUS_EMERGENCY = rxg([
   `${NL}no\\s+(?:puedo|podemos)\\s+(?:entrar|acceder|conectar(?:me|nos)?)\\s+(?:a|al|en)\\s+(?:la\\s+|el\\s+|mi\\s+)?(?:red|wifi|wi-fi|internet|aplicaci[oó]n|app|cuenta)${NR}`,
   `(?:لا\\s+(?:أستطيع|نستطيع|يمكنني|يمكننا)\\s+(?:الدخول|الاتصال)\\s+(?:إلى|ب)\\s*(?:شبكة|الشبكة|الواي\\s*فاي|الإنترنت|التطبيق|الحساب))`,
   `${NL}(?:emergency\\s+(?:number|phone|contact)s?|notfall\\p{L}*nummer\\p{L}*|notrufnummer\\p{L}*|num[eé]ro\\s+d'urgence|n[uú]mero\\s+de\\s+emergencia|acil\\s+(?:durum\\s+)?numara\\p{L}*)${NR}`,
-  `(?:رقم\\s+(?:ال)?طوارئ)`,
   `${NL}(?:in\\s+case\\s+of\\s+(?:an\\s+)?emergenc\\p{L}*|just\\s+in\\s+case|im\\s+notfall|en\\s+cas\\s+d'urgence|en\\s+caso\\s+de\\s+emergencia|acil\\s+bir\\s+durumda|acil\\s+durumlarda)${NR}`,
-  `(?:في\\s+حالة\\s+(?:ال)?طوارئ)`,
   `${NL}(?:family\\s+emergenc\\p{L}*|aile(?:vi|mde|mizde)?\\s+(?:bir\\s+)?acil\\s+durum\\p{L}*|famili[äa]re[nrs]?\\s+notfall\\p{L}*|urgence\\s+familiale|emergencia\\s+familiar)${NR}`,
 ]);
 /**
@@ -734,8 +740,6 @@ const AMBIGUOUS_EMERGENCY = rxg([
 const AMBIGUOUS_EMERGENCY_RU = rxg([
   `${NL}помогите,?\\s+пожалуйста${NR}`,
   `${NL}не\\s+(?:могу|можем)\\s+(?:войти|зайти|подключиться)\\s+(?:в|к)\\s+(?:сеть|wi-?fi|вай-?фай|интернет|приложени\\p{L}*|аккаунт)`,
-  `${NL}(?:номер\\s+(?:экстренн\\p{L}*|скорой)(?:\\s+\\p{L}+)?)`,
-  `${NL}(?:в\\s+экстренном\\s+случае)`,
 ]);
 const RU_INCIDENT =
   /(?:упал|кров|травм|скор(?:ую|ая|ой)|сознани|не\s+дыш|сломал|перелом|бол[ьи]|приступ|ранен|порез|поранил|ож[её]г|обж[её]г|задыха|судорог|инсульт|инфаркт|аллерги|отравл|пожар|дым|газ|затоп|ударил|умира|плохо|врач|больниц|полици|украл|напал|угрож)/iu;

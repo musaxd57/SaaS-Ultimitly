@@ -142,6 +142,21 @@ describe("kanal oto-yanıtı — bağlamla tehlike (51)", () => {
     expect(ev.riskType).not.toBe("safety_emergency");
   });
 
+  it("model hassas dediğinde (insan talebi) yükseltme rozeti de bağlam kararını izler: anılan tehlike 'acil durum' rozeti DOĞURMAZ", async () => {
+    mockSuggest.mockResolvedValue({
+      ...BASE,
+      intent: "human_request",
+      riskLevel: "medium" as never,
+      reply: "Mesajınızı ev sahibinize iletiyorum.",
+    });
+    const id = await seed("Yangın çıkarsa hangi kapıdan çıkmalıyız?");
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id } });
+    // Yükseltme yolu koştu (insan talebi ev sahibine taşındı) ve rozet anılan tehlikeyi "acil durum" yazmadı.
+    expect(conv).toMatchObject({ status: "problem", skippedReason: "escalated_to_human", lastRiskType: null });
+  });
+
   it("🚨 AÇIK tehlike: anlama katmanı 'acil değil' dese de alarm KALKMAZ", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("appliance_help"));

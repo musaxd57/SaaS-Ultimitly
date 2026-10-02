@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   SAFETY_LINES,
+  __hazardMentionEvalCount,
   contextLabels,
   hasSafetyReassurance,
   hazardDecisionFor,
@@ -238,6 +239,10 @@ describe("yedi dil", () => {
     ["Es riecht nach Gas in der Wohnung!", "clear"],
     ["Il y a le feu dans la cuisine !", "clear"],
     ["Il y a de la fumée dans la chambre !", "possible"],
+    // Nefes alamama dumanı açık tehlikeye çıkarır (her dilde; İspanyolca iki biçim) — aynı duman nefessiz olası kalır.
+    ["Hay humo en el pasillo y no podemos respirar", "clear"],
+    ["Hay humo, nos estamos asfixiando", "clear"],
+    ["Hay humo en el pasillo", "possible"],
     ["¡Hay fuego en la cocina!", "clear"],
     ["¡Huele a gas en el apartamento!", "clear"],
     ["Пахнет газом в квартире!", "clear"],
@@ -380,6 +385,7 @@ describe("51: acil KARARI (bağlam ilkesi)", () => {
       "Fiyatlar düştü mü?",
       "Suyun basıncı düştü",
       "Помогите, пожалуйста, как подключиться к Wi-Fi?",
+      "Помогите, пожалуйста, какой номер экстренной службы?",
       "No puedo entrar a la red wifi",
       "Не могу войти в сеть Wi-Fi",
       "لا أستطيع الدخول إلى شبكة الواي فاي",
@@ -408,6 +414,19 @@ describe("51: acil KARARI (bağlam ilkesi)", () => {
     }
   });
 
+  it("Arapça / Rusça acil numara / varsayım sorusu sözcük ağında acil DEĞİL (kaldırılacak etiket yok); ağa eklenirse belirsiz kalıp maskesine de eklenir", () => {
+    for (const m of [
+      "ما هو رقم الطوارئ هنا؟",
+      "ماذا نفعل في حالة الطوارئ؟",
+      "Какой номер скорой помощи?",
+      "Какой номер экстренной службы?",
+      "Что делать в экстренном случае?",
+    ]) {
+      expect(isSafetyEmergencyText(m), m).toBe(false);
+      expect(decide(m, false, false).emergency, m).toBe(false);
+    }
+  });
+
   it("maske yalnız fiziksel tehlike sözcüklerini siler", () => {
     expect(isSafetyEmergencyText(maskHazardMentions("Yangın yok, gaz kokusu da yok."))).toBe(false);
     expect(isSafetyEmergencyText(maskHazardMentions("Duman var ve babam bayıldı!"))).toBe(true);
@@ -416,6 +435,12 @@ describe("51: acil KARARI (bağlam ilkesi)", () => {
 
 // SÜRE (ReDoS kuralı): kalıplar sınırlı ayraçlı; 8.000 karakterlik kötü niyetli girdide doğrusal kalır.
 describe("uzun girdide süre", () => {
+  it("tekrar eden sözcük dizisinde cümlecik başına en çok 32 anılış değerlendirilir (tavansız iş karesel: 8.000 karakterde 145 ms ↔ 6 ms)", () => {
+    const before = __hazardMentionEvalCount();
+    hazardEvidenceOf("duman ".repeat(1_000));
+    expect(__hazardMentionEvalCount() - before).toBe(32);
+  });
+
   it.each([
     ["duman ", 2_000],
     ["a".repeat(50) + " ", 200],
