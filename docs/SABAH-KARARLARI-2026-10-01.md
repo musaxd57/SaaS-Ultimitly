@@ -29,6 +29,9 @@
 10. **(10-02 gece, nihai Luna doğrulaması) 6 EK → 46 → 47** — son kodla kör set 7: adayın tek iade sızıntısı modelden bağımsız bir kapı açığıydı
    (ilişki kipinde kapatıldı; canlı liste kipindeki karşılığı 46), ölçülen tek tutarlı Luna gerilemesi olgu kesinliği (6 EK: set 2–7'de gerçek
    yanlış olgu 3 / 180 ↔ 1 / 169; özel ad çevirisi 47). Kör set 8 son kodla koşuluyor (rapor §3.13).
+11. **(10-02 gece, son durum) 49 → 6 EK 3 → 48 → 47 → 46 → 22 EK** — canlıda Almanca "brauche / brauchen" acil sayılıyor (49, hazır düzeltme
+   itilmedi, onayınızı bekliyor); kör set 9'a göre cevap modeli önerisi Luna `low` (6 EK 3); başka dairenin / personelin kodu (48); özel adlar
+   (47, üç modelde de); iade + ücret liste kipinde (46); bilgi tabanı içi çelişki (22 EK, üç modelde de). 50 yalnız bilgi.
 
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
@@ -121,6 +124,11 @@
   0 + 1 (5.1: 0 + 3), sır 0, doğru olgu 22/23 + 24/27 (5.1: 19/23 + 24/27), maliyet `none` ile aynı (~5.1'in %40'ı), p95 ~8,9 sn (5.1 ile aynı).
   Özel ad `low`da 1/3 (5.1 2/3; `medium` kısa teşhiste 3/3). **Güncel öneri: cevap modeli Luna `none` DEĞİL, Luna `low`** — kör set 9 (son
   kod, üç yapılandırma: `low` / `medium` / 5.1) sonucuna bağlı (§3.15).
+- **EK 3 (10-02 gece, KÖR SET 9 — son kod RC64, rapor §3.15):** Luna `low` 5.1 ile olgu kesinliğinde EŞİT (20/26 ↔ 20/26), gitmemesi gerekirken
+  gidende daha iyi (1 ↔ 2; ikisi de bilgi tabanı içi çelişki), sır 0 ↔ 0, maliyet ~%40, p95 9,2 ↔ 7,4 sn. `medium` 21/26 + 0 sızıntı ama p95 13,8
+  sn. Özel ad hatası üç modelde de var (Luna `low` 4, 5.1 4, `medium` 3) → 47 bütün modellerin işi. **Önerim: cevap modeli Luna `low` + üslup
+  Luna `none`; anlama / bekçi / sıralayıcı / çeviri 5.1'e sabit** (değişkenler rapor §7). Geçişten önce 47 + 48 kararları; 22 (bilgi tabanı içi
+  çelişki) modelden bağımsız açık. "Yalnız modeli değiştirmek kaldı" DEĞİL: sabitleme değişkenleri + bayrak kararları + 47 / 48 gerekir.
 
 ## 7. Ücret kuralı (kurucu ifadesi) — anahtar `AI_KB_FEE_RULE_ENABLED`
 - **Durum:** İstem metni kurucunun ifadesiyle güncellendi ("Onaylı bilgi tabanındaki sabit hizmet ücretini, koşullarıyla birlikte

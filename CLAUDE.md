@@ -1660,7 +1660,10 @@ regresyon koşusu (set 5 + 6, $0,47): gitmez-giden 0 / 0, ama RC60'ın tarif sı
 tutuldu) → itilmeden düzeltildi (`d6cc384`); koşunun gösterdiği "çözüm öneremiyorum" sızıntısı yedi dilde tutuluyor (`f343ffc`). RC61 (depolama /
 görev ağı / iCal alarmı / e-posta kuyruğu) + RC62 (bağlanamayan ödeme alarmı, plan değişikliği izi, uyarı adresi kuşağı, 2FA sıfırlama kaydı
 zorunlu) tek sürümde: RC62 (`b2b386a`) tam kapılar yeşil (748 dosya / 12.141 test) → 23:34Z itildi, **CI #1281 YEŞİL**. Nihai Luna adayı son
-kodla kör set 7'de (48 senaryo, 7 dil) yeniden doğrulanıyor (rapor §3.11). KARAR BEKLEYEN en önemli: 30 (canlıda şikâyet etiketsiz kombi / şofben / sigorta sorusu cevaplanıyor); ilk operatör adımı 44a
+kodla kör set 7–9'da doğrulandı (rapor §3.12–§3.15): Luna `none` başka dairenin kapı kodunu gönderdi (set 8, 3/3) → ÖNERİ Luna `low`
+(kör set 9: 5.1 ile olgu eşit 20/26, sızıntı 1 ↔ 2, sır 0, maliyet ~%40); k7-22 iade turunda ücret sızıntısı kapı açığıydı (`items_fix_money`,
+RC63 + inceltme RC64, CI #1282 / #1283 YEŞİL). Almanca "brauchen" canlıda yanlış acil — hazır düzeltme `prep/de-rauch-tam-sozcuk`, İTİLMEDİ
+(Sabah Kararları 49). Gece ücretli toplam ≈ $23,0 (kesin $14,66). KARAR BEKLEYEN en önemli: 30 (canlıda şikâyet etiketsiz kombi / şofben / sigorta sorusu cevaplanıyor); ilk operatör adımı 44a
 (herkese açık repoda bucket adı → 403 doğrulaması).
 **10-01 GECE (kurucu /loop; kararlar `docs/SABAH-KARARLARI-2026-10-01.md` 1–16, rapor `docs/SABAH-RAPORU-2026-10-01.md`):** Codex
 K10 / K4 / K11 / K3 / K6 / K9 doğrulandı + düzeltildi; ev sahibi kararı tutulur (`AI_HOST_DECISION_HOLD_ENABLED`, KAPALI); şikâyete bağlı istek
