@@ -1325,6 +1325,54 @@ export const ITEMS_HELD_REPLACEMENTS: readonly Replacement[] = [
   ],
 ];
 
+// ── HÂL HATIR (`courtesy-rule.ts`; anahtar `AI_COURTESY_RULE_ENABLED` KAPALI) ───────────────────────────────────────────────────
+// Kurucu tarifi (10-02 akşam). Üç çapa: Bölüm 11'in "soru sormadıysa → güven 0,4 altı" kuralı (hâl hatır o kuralın DIŞINDA + kural bloğu),
+// Son Kontrol 5. madde ve ÖRNEK 24'ün durum beyanı ("iyiyiz" → yalnız teşekkür; kurucu: "insanmış gibi duygu uydurmasın"). ÖRNEK 24'ün
+// açılışı kod selamı katmanında değiştiği için o çapa iki biçimde (taban / kod selamı) — katman birleşime göre seçilir.
+const COURTESY_RULE_BLOCK =
+  "  - Misafir bir soru SORMADIYSA ya da sadece teşekkür/onay/kapanış yazdıysa\n" +
+  '    ("teşekkürler", "tamam", "görüşürüz", "harika", "ok", "thanks") → confidence değerini\n' +
+  "    0.4'ün ALTINA koy. Böyle mesajlara otomatik cevap GÖNDERİLMEZ; boş konuşma = spam riski.\n" +
+  '    HÂL HATIR ("nasılsın", "nasılsınız", "how are you", "wie geht\'s", "comment allez-vous", "¿cómo está?", "как дела",\n' +
+  '    "كيف حالك") bu kurala GİRMEZ — misafir bir soru sordu; aşağıdaki HÂL HATIR kuralıyla cevapla. confidence\'ı yapay olarak ne\n' +
+  "    yükselt ne düşür: gerçek kesinliğini yaz.\n" +
+  '  - HÂL HATIR — ölçü "kaç mesaj geçti" DEĞİL: misafir bu cümleyi NE AMAÇLA yazdı, önce ne konuşuldu, sen daha önce nasıl\n' +
+  "    karşılık verdin (konuşma geçmişine bak). Örnekler kalıptır, birebir yazılacak metin değil:\n" +
+  '    · İlk temasta yalnız selam + hâl hatır → kısa teşekkür + karşı soru ("Teşekkür ederim. Siz nasılsınız?").\n' +
+  '    · Hâl hatır + soru / istek aynı mesajda ("Nasılsın? Wi-Fi şifresi neydi?") → kısa nezaket ("Teşekkür ederim.") + sorunun\n' +
+  "      cevabı; araya karşı soru KOYMA.\n" +
+  '    · Önceki mesajı cevapsız kalmışken yeniden yokluyor ("nasılsın?", "orada mısınız?", "merhaba?") → "Buradayım." de ve\n' +
+  "      cevapsız kalan soruyu ele al; selamlaşmayı baştan başlatma.\n" +
+  '    · Hâl hatır sorusuna karşılık alamadığını söylüyor ("Nasılsın dedim, cevap vermiyorsun") → kısaca kabul et ("Haklısınız,\n' +
+  '      sorunuza karşılık vermedim.") ve karşılık ver ("Teşekkür ederim; siz nasılsınız?").\n' +
+  '    · Hâl hatır bir şikâyetin / isteğin girişiyse ("Sen nasılsın bilmiyorum ama biz sıcaktan uyuyamıyoruz") → hâl hatıra değil\n' +
+  "      asıl konuya karşılık ver; şikâyet kuralları geçerli.\n" +
+  '    · Daha önce karşılık verdiğin hâl hatır tekrar ediliyorsa aynı cümleyi tekrarlama; daha kısa karşılık ver ("Teşekkürler,\n' +
+  '      buradayım."), karşı soruyu yeniden sorma.\n' +
+  '    SINIRLAR: (1) sıcaklık olsun ama DUYGU / kişisel yaşantı UYDURMA ("iyiyim", "harika hissediyorum", "biraz yoruldum" YOK —\n' +
+  '    "Teşekkür ederim", "Buradayım" yeter); (2) karşı soru yalnız GERÇEK amaçla (bir otopark / Wi-Fi cevabının sonuna "Siz\n' +
+  '    nasılsınız?" EKLEME); (3) tekrarı fark et, TEŞHİS KOYMA ("bir derdiniz var galiba", "üzgün görünüyorsunuz" YAZMA).\n';
+const COURTESY_SHARED_REPLACEMENTS: readonly Replacement[] = [
+  [
+    "  - Misafir bir soru SORMADIYSA ya da sadece teşekkür/onay/kapanış yazdıysa\n" +
+      '    ("teşekkürler", "tamam", "görüşürüz", "harika", "ok", "thanks") → confidence değerini\n' +
+      "    0.4'ün ALTINA koy. Böyle mesajlara otomatik cevap GÖNDERİLMEZ; boş konuşma = spam riski.\n",
+    COURTESY_RULE_BLOCK,
+  ],
+  [
+    "  5. Misafir gerçekten bir soru/talep iletti mi? İletmediyse (sadece teşekkür/onay/kapanış)\n     confidence 0.4'ün altında mı?",
+    "  5. Misafir gerçekten bir soru/talep iletti mi? (Hâl hatır bir sorudur.) İletmediyse (sadece teşekkür/onay/kapanış)\n     confidence 0.4'ün altında mı?",
+  ],
+];
+export const COURTESY_REPLACEMENTS: readonly Replacement[] = [
+  ...COURTESY_SHARED_REPLACEMENTS,
+  ['"reply":"Merhaba, iyiyiz, teşekkür ederiz.', '"reply":"Merhaba, teşekkür ederiz.'],
+];
+export const COURTESY_CODE_GREETING_REPLACEMENTS: readonly Replacement[] = [
+  ...COURTESY_SHARED_REPLACEMENTS,
+  ['"reply":"İyiyiz, teşekkür ederiz.', '"reply":"Teşekkür ederiz.'],
+];
+
 /**
  * Sistem istemi KATMANLARI — taban istemin üstüne SABİT SIRAYLA uygulanır (kod selamı → ücret kuralı → bildirimsiz erteleme → giriş
  * kodu). Sıra, önceki sabitlerle (`REPLY_SYSTEM_PROMPT_CODE_GREETING`, `…_KB_FEE_RULE`, `…_CODE_GREETING_KB_FEE_RULE`) aynıdır; çapalar
@@ -1340,8 +1388,12 @@ export interface ReplyPromptFlags {
   itemsMode?: boolean;
   /** Bu turda EV SAHİBİNE BIRAKILAN istek var (konuşma öğeleri) — anahtar değil, çağrı başına (`ai/index.ts`). */
   itemsHeld?: boolean;
+  /** Hâl hatır kuralı (`AI_COURTESY_RULE_ENABLED`). */
+  courtesy?: boolean;
 }
-const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, readonly Replacement[]])[] = [
+/** Katmanın çapaları; birleşime bağlıysa (önceki bir katman çapayı değiştirdiyse) işlev. */
+type LayerReplacements = readonly Replacement[] | ((f: ReplyPromptFlags) => readonly Replacement[]);
+const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, LayerReplacements])[] = [
   ["codeGreeting", SYSTEM_CODE_GREETING_REPLACEMENTS],
   ["kbFeeRule", KB_FEE_RULE_REPLACEMENTS],
   ["stayDeferralPlain", STAY_DEFERRAL_PLAIN_REPLACEMENTS],
@@ -1349,6 +1401,8 @@ const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, readonly Replac
   ["complaintFollowup", COMPLAINT_FOLLOWUP_REPLACEMENTS],
   ["itemsMode", ITEMS_MODE_REPLACEMENTS],
   ["itemsHeld", ITEMS_HELD_REPLACEMENTS],
+  // ÖRNEK 24'ün açılışı kod selamı katmanında değişir → hâl hatır katmanı o birleşimde kendi çapasını kullanır.
+  ["courtesy", (f) => (f.codeGreeting ? COURTESY_CODE_GREETING_REPLACEMENTS : COURTESY_REPLACEMENTS)],
 ];
 const derivedPromptCache = new Map<string, { text: string; missing: string[] }>();
 
@@ -1358,9 +1412,9 @@ function derivePrompt(f: ReplyPromptFlags): { text: string; missing: string[] } 
   if (hit) return hit;
   let text = REPLY_SYSTEM_PROMPT;
   const missing: string[] = [];
-  for (const [flag, replacements] of PROMPT_LAYERS) {
+  for (const [flag, layer] of PROMPT_LAYERS) {
     if (!f[flag]) continue;
-    const d = deriveByAnchors(text, replacements);
+    const d = deriveByAnchors(text, typeof layer === "function" ? layer(f) : layer);
     text = d.text;
     missing.push(...d.missing.map((m) => `${flag}: ${m}`));
   }

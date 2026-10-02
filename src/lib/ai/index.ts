@@ -6,6 +6,7 @@ import { kbFeeRuleEnabled } from "./kb-fee-rule";
 import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
 import { accessCodeCompleteEnabled } from "./access-code-complete";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
+import { courtesyRuleEnabled } from "@/lib/ai/courtesy-rule";
 import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
@@ -225,6 +226,7 @@ function replySystemPrompt(input: SuggestReplyInput): string {
     stayDeferralPlain: stayDeferralPlainEnabled(),
     accessCodeComplete: accessCodeCompleteEnabled(),
     complaintFollowup: complaintFollowupRuleEnabled(),
+    courtesy: courtesyRuleEnabled(),
     // Öğe kipi: çıktı formatı `answeredRequests` alanını da gösterir; bırakılan istek varsa (bu turun ya da önceki turun) sistem
     // istemi o istekler için kalıp öğretmez.
     itemsMode: input.conversationItems !== undefined,

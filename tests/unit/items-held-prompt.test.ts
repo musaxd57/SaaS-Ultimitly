@@ -19,7 +19,7 @@ import type { SuggestReplyInput } from "@/lib/ai/types";
 // tamamı tutuluyordu. Katman ÇAĞRI BAŞINA: yalnız bu turda bırakılan istek varken; yoksa sistem istemi bayt bayt aynı.
 // ---------------------------------------------------------------------------
 
-const LAYER_FLAGS = ["AI_CODE_GREETING_ENABLED", "AI_KB_FEE_RULE_ENABLED", "AI_STAY_DEFERRAL_PLAIN_ENABLED", "AI_ACCESS_CODE_COMPLETE_ENABLED", "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED"];
+const LAYER_FLAGS = ["AI_CODE_GREETING_ENABLED", "AI_KB_FEE_RULE_ENABLED", "AI_STAY_DEFERRAL_PLAIN_ENABLED", "AI_ACCESS_CODE_COMPLETE_ENABLED", "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED", "AI_COURTESY_RULE_ENABLED"];
 const base: SuggestReplyInput = {
   guestMessage: "Can you send me your IBAN? And what's the wifi password?",
   property: { name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" },
