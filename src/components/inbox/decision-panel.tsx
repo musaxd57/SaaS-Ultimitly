@@ -192,6 +192,7 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
     const r = await post({
       action: mode.action,
       body,
+      factsHash: d.factsHash,
       ...(mode.action === "approve" && parsedTime ? { time: parsedTime } : {}),
       ...(seenMessageId ? { seenMessageId } : {}),
     });
@@ -204,6 +205,13 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
     if (r.code === "guest_wrote_again" && r.latestMessageId) {
       setNotice({ tone: "warn", text: r.error ?? "Misafir bu talepten sonra yeniden yazdı.", seen: r.latestMessageId });
       // Yeni mesaj konuşmada görünsün (kartın durumu korunur).
+      router.refresh();
+      return;
+    }
+    if (r.code === "facts_changed") {
+      // Kontrol listesi tazelenir; düzenleyici AÇIK kalır (yazılan metin kaybolmaz) — ev sahibi yeni satırlara bakıp tekrar gönderir.
+      setNotice({ tone: "warn", text: r.error ?? "Bu talebin kontrol listesi değişti; güncel hâline bakın." });
+      setShowAll(true);
       router.refresh();
       return;
     }

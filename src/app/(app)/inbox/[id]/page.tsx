@@ -35,6 +35,7 @@ import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { listConversationDecisions } from "@/lib/decisions/store";
 import {
   buildDecisionCards,
+  decisionCardContextFor,
   decisionLinkedItemIds,
   neighborDecidedTimes,
   resolvedDecisionRows,
@@ -42,7 +43,6 @@ import {
 } from "@/lib/decisions/card";
 import { isImpersonating } from "@/lib/auth/impersonation";
 import { isOpenDecision } from "@/lib/decisions/core";
-import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import { DecisionPanel } from "@/components/inbox/decision-panel";
 
 export const dynamic = "force-dynamic";
@@ -184,29 +184,20 @@ export default async function ConversationPage({
         }).catch(() => [])
       : [];
   const shownDecisions = visibleDecisions(decisionViews);
-  const earlyRule = shownDecisions.some((v) => v.kind === "early_checkin")
-    ? await loadEarlyCheckinRule(session.organizationId, conversation.propertyId).catch(() => null)
-    : null;
+  // Kart bağlamı karar rotasıyla AYNI kurucudan (olgu parmak izi iki yerde aynı girdilerle); sayfanın zaten yüklediği komşu /
+  // gece özeti verilir (ikinci sorgu yok).
   const decisionCards =
     shownDecisions.length > 0
-      ? await buildDecisionCards(shownDecisions, {
+      ? await decisionCardContextFor({
           organizationId: session.organizationId,
-          property: {
-            id: conversation.propertyId,
-            checkInTime: conversation.property.checkInTime,
-            checkOutTime: conversation.property.checkOutTime,
-          },
-          reservationId: conversation.reservation?.id ?? null,
-          stay: conversation.reservation
-            ? { arrivalDate: conversation.reservation.arrivalDate, departureDate: conversation.reservation.departureDate }
-            : null,
-          messages: conversation.messages,
+          conversation,
           timeZone: TZ,
           now: new Date(),
-          adjacency,
-          stayEdgeLines: stayEdges?.lines ?? [],
-          earlyRule: earlyRule ? { fee: earlyRule.fee, note: earlyRule.note, ...(earlyRule.noteRejected ? { noteRejected: true as const } : {}) } : null,
-        }).catch(() => [])
+          needsEarlyRule: shownDecisions.some((v) => v.kind === "early_checkin"),
+          preloaded: { adjacency, stayEdgeLines: stayEdges?.lines ?? [] },
+        })
+          .then((ctx) => buildDecisionCards(shownDecisions, ctx))
+          .catch(() => [])
       : [];
   const resolvedRows = resolvedDecisionRows(decisionViews, TZ);
   // Kartı / sonuç satırı olan talebin konuşma öğesi "Açık işler"de ikinci kez görünmez.

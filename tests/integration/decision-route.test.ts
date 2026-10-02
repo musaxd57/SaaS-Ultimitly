@@ -28,6 +28,8 @@ vi.mock("@/lib/report-error", async (orig) => {
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { POST } from "@/app/api/conversations/[id]/decisions/[decisionId]/route";
+import { listConversationDecisions } from "@/lib/decisions/store";
+import { buildDecisionCards, decisionCardContextFor } from "@/lib/decisions/card";
 
 const mockSend = vi.mocked(sendOnChannel);
 const mockToken = vi.mocked(getOrgHospitableToken);
@@ -295,6 +297,61 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     expect(d.status).toBe("pending");
     expect((await res.json()).version).toBe(d.version);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 OLGULAR DEĞİŞTİ: ev sahibinin baktığı kontrol listesi artık güncel değilse (önceki misafire geç çıkış onaylandı) 409 facts_changed, gönderim YOK; güncel izle gider", async () => {
+    const s = await seed();
+    const TZ = "Europe/Istanbul";
+    // Sayfanın yaptığı gibi: kart bağlamı tek kurucudan, iz karttan.
+    const hashNow = async () => {
+      const views = await listConversationDecisions(prisma, { organizationId: s.orgId, conversationId: s.conversationId, timeZone: TZ, now: new Date() });
+      const conv = await prisma.conversation.findUniqueOrThrow({
+        where: { id: s.conversationId },
+        include: { property: true, reservation: true, messages: { orderBy: { createdAt: "asc" } } },
+      });
+      const ctx = await decisionCardContextFor({ organizationId: s.orgId, conversation: conv, timeZone: TZ, now: new Date(), needsEarlyRule: true });
+      return (await buildDecisionCards(views, ctx))[0].factsHash;
+    };
+    const seen = await hashNow();
+    // O arada: aynı gün çıkan önceki misafirin 14:00 geç çıkışı onaylandı → erken giriş kartının olguları değişti.
+    const cur = await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } });
+    const prev = await prisma.reservation.create({
+      data: {
+        propertyId: cur.propertyId,
+        guestName: "Önceki",
+        arrivalDate: new Date(cur.arrivalDate.getTime() - 3 * DAY),
+        departureDate: cur.arrivalDate,
+        status: "confirmed",
+        channel: "airbnb",
+      },
+    });
+    const prevConv = await prisma.conversation.create({
+      data: { propertyId: cur.propertyId, reservationId: prev.id, guestIdentifier: "Önceki", channel: "airbnb", externalReservationId: "res-prev" },
+    });
+    await prisma.decisionRequest.create({
+      data: {
+        organizationId: s.orgId,
+        conversationId: prevConv.id,
+        messageId: "m-prev",
+        reservationId: prev.id,
+        kind: "late_checkout",
+        lang: "tr",
+        status: "approved",
+        requestedTime: "14:00",
+        decidedTime: "14:00",
+        decidedAt: new Date(),
+      },
+    });
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR, factsHash: seen });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("facts_changed");
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
+    // Güncel kartın iziyle (ev sahibi yeni satırları gördü) gider.
+    const fresh = await hashNow();
+    expect(fresh).not.toBe(seen);
+    expect((await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR, factsHash: fresh })).status).toBe(200);
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
   it("girdi: erken giriş onayında geçerli saat zorunlu; boş metin 400; tanınmayan işlem 400", async () => {

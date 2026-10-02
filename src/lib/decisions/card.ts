@@ -1,10 +1,14 @@
 import "server-only";
 
+import { createHash } from "crypto";
 import { prisma } from "@/lib/db";
+import { getAdjacency } from "@/lib/turnover";
+import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
+import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
 import { decideEarlyCheckin, agreeRequestedTime } from "@/lib/early-checkin/core";
 import { earlyCheckinPanelLines } from "@/lib/early-checkin/panel";
-import { calendarDateOf } from "@/modules/availability/core";
+import { calendarDateOf, stayEndedBefore } from "@/modules/availability/core";
 import { formatDateTime } from "@/lib/utils";
 import type { DecisionCardData, DecisionLine, ResolvedDecisionRow } from "./view-types";
 import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
@@ -64,6 +68,77 @@ export interface DecisionCardContext {
   stayEdgeLines: readonly { text: string; tone: string }[];
   /** Erken giriş kuralı (ücret / not) — yalnız erken giriş kartında. */
   earlyRule: { fee: { amount: number; currency: string } | null; note: string | null; noteRejected?: true } | null;
+}
+
+/** Konuşmanın kart bağlamı için gereken alanları (sayfa ve karar rotası aynı biçimi verir). */
+export interface DecisionConversationShape {
+  propertyId: string;
+  property: { checkInTime: string; checkOutTime: string };
+  reservation: { id: string; arrivalDate: Date; departureDate: Date; status: string } | null;
+  messages: DecisionCardContext["messages"];
+}
+
+/**
+ * Kart bağlamı TEK yerden — konuşma sayfası ve karar rotası. Kontrol listesinin olgu parmak izi (`factsHash`) iki yerde AYNI
+ * girdilerle kurulmalı: biri farklı yüklerse onay her seferinde "olgular değişti" ile düşerdi. Sayfa zaten yüklediği komşu /
+ * gece özetini `preloaded` ile verir (aynı çağrılar — ikinci sorgu yok). Erken giriş kuralı yalnız gerekirse okunur.
+ */
+export async function decisionCardContextFor(input: {
+  organizationId: string;
+  conversation: DecisionConversationShape;
+  timeZone: string;
+  now: Date;
+  needsEarlyRule: boolean;
+  preloaded?: { adjacency: DecisionCardContext["adjacency"]; stayEdgeLines: DecisionCardContext["stayEdgeLines"] };
+}): Promise<DecisionCardContext> {
+  const { conversation: c, timeZone, now } = input;
+  const r = c.reservation;
+  const [adjacency, stayEdgeLines, rule] = await Promise.all([
+    input.preloaded ? input.preloaded.adjacency : r ? getAdjacency(c.propertyId, r.arrivalDate, r.departureDate) : null,
+    input.preloaded
+      ? input.preloaded.stayEdgeLines
+      : r && !stayEndedBefore(r.departureDate, now, timeZone)
+        ? loadStayEdgeSummary(
+            input.organizationId,
+            c.propertyId,
+            { id: r.id, arrival: r.arrivalDate, departure: r.departureDate, status: r.status },
+            { timeZone },
+          ).then((s) => s?.lines ?? [])
+        : [],
+    input.needsEarlyRule ? loadEarlyCheckinRule(input.organizationId, c.propertyId).catch(() => null) : null,
+  ]);
+  return {
+    organizationId: input.organizationId,
+    property: { id: c.propertyId, checkInTime: c.property.checkInTime, checkOutTime: c.property.checkOutTime },
+    reservationId: r?.id ?? null,
+    stay: r ? { arrivalDate: r.arrivalDate, departureDate: r.departureDate } : null,
+    messages: c.messages,
+    timeZone,
+    now,
+    adjacency,
+    stayEdgeLines,
+    earlyRule: rule ? { fee: rule.fee, note: rule.note, ...(rule.noteRejected ? { noteRejected: true as const } : {}) } : null,
+  };
+}
+
+/**
+ * Kartın OLGU parmak izi: ev sahibinin kararını dayandırdığı her şey (tür, istenen saat, gün, standart saat, ücret, not, kontrol
+ * listesinin her satırı). Göndermeden hemen önce rota aynı kartı yeniden kurar; iz farklıysa (o arada temizlik bitti, önceki
+ * misafire geç çıkış onaylandı, saat geçti…) karar ESKİ bilgiyle gitmez — kart tazelenir (Faz 0 §4 adım 3).
+ */
+export function decisionFactsHash(
+  c: Pick<DecisionCardData, "kind" | "requestedTime" | "dayKey" | "standardTime" | "fee" | "note" | "lines">,
+): string {
+  const payload = JSON.stringify([
+    c.kind,
+    c.requestedTime,
+    c.dayKey,
+    c.standardTime,
+    c.fee ? [c.fee.amount, c.fee.currency] : null,
+    c.note,
+    c.lines.map((l) => [l.ok ? 1 : 0, l.info ? 1 : 0, l.text]),
+  ]);
+  return createHash("sha256").update(payload).digest("hex").slice(0, 24);
 }
 
 /** Kartta görünen kartlar: karar bekleyen, gönderimi doğrulanamayan ve "yanıtladınız" (sönük; eylemler açık). */
@@ -311,6 +386,9 @@ export async function buildDecisionCards(views: readonly DecisionView[], ctx: De
     const later = [...ctx.messages].reverse().find((m) => m.direction === "inbound" && m.createdAt > v.messageAt) ?? null;
     const request = ctx.messages.find((m) => m.id === v.messageId) ?? null;
     const suffix = DAY_SUFFIX[v.kind];
+    const standardTime = v.kind === "early_checkin" ? ctx.property.checkInTime : ctx.property.checkOutTime;
+    const fee = v.kind === "early_checkin" ? (ctx.earlyRule?.fee ?? null) : null;
+    const note = v.kind === "early_checkin" && !ctx.earlyRule?.noteRejected ? (ctx.earlyRule?.note ?? null) : null;
     out.push({
       id: v.id,
       kind: v.kind,
@@ -324,12 +402,13 @@ export async function buildDecisionCards(views: readonly DecisionView[], ctx: De
       dayLabel: v.dayKey ? `${formatDecisionDay(v.dayKey, "tr")}${suffix ? ` (${suffix})` : ""}` : null,
       askedAt: formatDateTime(v.messageAt, ctx.timeZone),
       requestQuote: request?.direction === "inbound" ? requestQuoteOf(request.body) : null,
-      standardTime: v.kind === "early_checkin" ? ctx.property.checkInTime : ctx.property.checkOutTime,
+      standardTime,
       lang: decisionLang(v.lang),
-      fee: v.kind === "early_checkin" ? (ctx.earlyRule?.fee ?? null) : null,
-      note: v.kind === "early_checkin" && !ctx.earlyRule?.noteRejected ? (ctx.earlyRule?.note ?? null) : null,
+      fee,
+      note,
       lines,
       laterGuestMessageId: later?.id ?? null,
+      factsHash: decisionFactsHash({ kind: v.kind, requestedTime: v.requestedTime, dayKey: v.dayKey, standardTime, fee, note, lines }),
     });
   }
   return out;

@@ -39,6 +39,8 @@ export interface DecisionCardData {
   lines: DecisionLine[];
   /** Talepten sonra misafirin yazdığı son mesaj (varsa) — gönderimde "okudum" onayı için. */
   laterGuestMessageId: string | null;
+  /** Kontrol listesinin olgu parmak izi — gönderimde rota yeniden kurar; değiştiyse karar eski bilgiyle gitmez. */
+  factsHash: string;
 }
 
 /** Sonuçlanmış karar (onaylandı / reddedildi / otomatik onaylandı / kapatıldı) — panelde tek satırlık kayıt. */

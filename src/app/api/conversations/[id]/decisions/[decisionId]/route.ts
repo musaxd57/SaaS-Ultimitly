@@ -12,6 +12,8 @@ import { sendHostMessage } from "@/lib/host-send";
 import { applyItemEvent } from "@/lib/conversation-items/store";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { DECISION_SENDING_STALE_MS, TEXT_DECISION_KINDS, isDecisionKind, parseHostTime } from "@/lib/decisions/core";
+import { listConversationDecisions } from "@/lib/decisions/store";
+import { buildDecisionCards, decisionCardContextFor } from "@/lib/decisions/card";
 
 // ---------------------------------------------------------------------------
 // HOST KARAR MOTORU — KARAR (Faz 1, kurucu 10-02 akşam). Ev sahibi kartta Onayla / Reddet / Kapat der. Onay ve ret misafire
@@ -19,7 +21,9 @@ import { DECISION_SENDING_STALE_MS, TEXT_DECISION_KINDS, isDecisionKind, parseHo
 // kod kurar, `decisions/core.ts`). Göndermeden HEMEN önce yeniden doğrulama (TOCTOU, Faz 0 §4):
 //  1. kilit: `pending` + sürüm eşleşmeli (CAS) — çift tıklama / eşzamanlı ikinci karar 409, ikinci mesaj YOK;
 //  2. misafir talepten SONRA yeniden yazdıysa önce okutulur (409 `guest_wrote_again`; "okudum" = son mesaj kimliğiyle tekrar);
-//  3. rezervasyon iptal / hedef gün geçti → durur (kart kendiliğinden kapanır).
+//  3. rezervasyon iptal / hedef gün geçti → durur (kart kendiliğinden kapanır);
+//  4. kontrol listesi ev sahibi baktıktan sonra değiştiyse (`factsHash`: temizlik bitti, komşu misafire karar verildi, saat
+//     geçti…) karar ESKİ bilgiyle gitmez → 409 `facts_changed`, kart tazelenir (Faz 0 §4 adım 3).
 // Gönderim belirsizse kart "gönderim doğrulanamadı" kalır (mesaj ulaşmış OLABİLİR — kör tekrar yok); kesin hatada kart yeniden
 // açılır. Yalnız sahip / yönetici; bürünmede yazma yok (`withManage` boğazı). Denetim kaydı metin / tutar taşımaz.
 // ---------------------------------------------------------------------------
@@ -30,6 +34,8 @@ const bodySchema = z.object({
   time: z.string().max(5).optional(),
   body: z.string().max(10000).optional(),
   seenMessageId: z.string().max(64).optional(),
+  /** Ev sahibinin gördüğü kartın olgu parmak izi (`decisionFactsHash`). */
+  factsHash: z.string().max(64).optional(),
 });
 
 function conflict(code: string, error: string, extra: Record<string, unknown> = {}) {
@@ -58,8 +64,9 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
       channel: true,
       guestIdentifier: true,
       externalReservationId: true,
-      reservation: { select: { status: true } },
-      property: { select: { organization: { select: { timezone: true } } } },
+      propertyId: true,
+      reservation: { select: { id: true, status: true, arrivalDate: true, departureDate: true } },
+      property: { select: { checkInTime: true, checkOutTime: true, organization: { select: { timezone: true } } } },
     },
   });
   if (!conversation) return notFound();
@@ -126,6 +133,23 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
     return conflict("guest_wrote_again", "Misafir bu talepten sonra yeniden yazdı. Mesajı okuyun, sonra tekrar gönderin.", {
       latestMessageId: latestGuest.id,
     });
+  }
+
+  // Olgular değişti mi: kart, sayfayla AYNI kurucudan yeniden kurulur (mesajlar iz dışı). İz yoksa (eski istemci) kontrol atlanır.
+  if (input.factsHash) {
+    const views = await listConversationDecisions(prisma, { organizationId: session.organizationId, conversationId: id, timeZone: tz, now });
+    const view = views.find((v) => v.id === decision.id);
+    const ctx = await decisionCardContextFor({
+      organizationId: session.organizationId,
+      conversation: { ...conversation, messages: [] },
+      timeZone: tz,
+      now,
+      needsEarlyRule: decision.kind === "early_checkin",
+    });
+    const [fresh] = view ? await buildDecisionCards([view], ctx) : [];
+    if (!fresh || fresh.factsHash !== input.factsHash) {
+      return conflict("facts_changed", "Bu talebin kontrol listesi siz baktıktan sonra değişti. Güncel hâline bakıp tekrar karar verin.");
+    }
   }
 
   // Kilit (CAS): yalnız bu sürümdeki BEKLEYEN kart gönderime geçer.
