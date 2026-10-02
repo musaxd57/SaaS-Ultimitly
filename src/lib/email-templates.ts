@@ -332,7 +332,7 @@ export function decisionPendingEmail(input: {
     <p style="margin:0 0 16px;color:#64748b;font-size:15px;">
       <strong>${esc(input.guestIdentifier)}</strong> (${esc(input.propertyName)}) sizin kararınızı gerektiren bir talepte bulundu${
         input.dayLabel ? ` — <strong>${esc(input.dayLabel)}</strong>` : ""
-      }. Misafire henüz bir cevap gönderilmedi.
+      }. Bu talebe henüz cevap verilmedi.
     </p>
     <p style="margin:0 0 24px;color:#334155;font-size:14px;">
       Konuşmada kontrol listesini görüp tek tıkla onaylayabilir ya da reddedebilirsiniz; misafire gidecek mesajı göndermeden önce görürsünüz.

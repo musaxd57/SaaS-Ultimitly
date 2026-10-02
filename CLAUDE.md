@@ -1171,6 +1171,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   fonksiyonuyla (`cli.ts`) sınanır.
 
 **AI / QR / diğer ürün kararları**
+- 🚨 **HOST KARAR MOTORU (10-02 gece, kurucu: "cevap vermek talebi çözmek değil"; anahtar `HOST_DECISIONS_ENABLED` VARSAYILAN KAPALI; migration 59 —
+  push kurucu onayı + taze `pg_dump` bekliyor; tasarım `docs/TASARIM-2026-10-02-host-karar-motoru.md`):** kart AÇAN sinyal otomatik gönderimi
+  DURDURAN sinyalin AYNISI (`stayRequestKinds`; ayrışamaz); saat yalnız isteği gören modelin okuması ve standardın doğru tarafında, yoksa misafirin
+  TEK açık saati, yoksa BOŞ (tahmin yok). Kimlik `(konuşma, mesaj, tür)` tekil; her geçiş durum + sürüm CAS; "yanıtladınız / iptal / süresi geçti /
+  gönderim yarıda kaldı" TÜRETİLİR (karar mesajı "ev sahibi yazdı" sayılmaz — ne kartlar ne öğeler için). Mesaj başına TEK e-posta: K10 "Misafir
+  cevabınızı bekliyor" ile AYNI kilit, hassas öğe e-postası gittiyse yok. Karar ucu gönderimden HEMEN önce: sürüm · iptal · gün · misafir yeniden yazdı ·
+  OLGU PARMAK İZİ (`factsHash`, kart sayfayla AYNI kurucudan `decisionCardContextFor` — iki yer farklı yüklerse onay her seferinde düşer) → elle cevapla
+  AYNI çekirdek `host-send.ts` (ikinci gönderim yolu yazılmaz). Metni KOD kurar (7 dil, günü adlandırır, saate ek yok, ücret yalnız kayıtlı kuraldan);
+  belirsiz teslim kör tekrar edilmez. Karta bağlı öğe "açık iş" rozetinde / panoda / "Açık işler"de İKİNCİ kez sayılmaz. Yalnız sahip / yönetici;
+  bürünmede düğme yok, uç 403. Yeni bir karar yüzeyi (WhatsApp, ses) aynı uçtan ve aynı yeniden doğrulamadan geçer.
 - QR: per-stay device binding; `isOpenNow` simetrik; `chatToken` rotasyonu YOK (bilinçli); PIN DoS tasarımı
   var uygulanmadı (bütçeyi cihaza taşıma REDDEDİLDİ). QR rotasında hata sınırı `reportError`.
 - AI öneri paneli kapatılabilir, tercih KALICI DEĞİL. Bekleyen misafir mesajları dar taranıyor
@@ -1745,9 +1755,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 CI #1290 YEŞİL 20:18Z); **24 EK** (yazılı otopark tahsisi müsaitlik iddiası değil), **56** (QR dil kapısı + model ipucu), **55 + 51** (bağlam ilkesi:
 açık tehlikede koddan satır, olası tehlikede model, anılışta alarm yok, belirsiz kalıplarda model, kaynaksız güvence yok) + "nasılsın" katmanı
 (anahtar KAPALI, Sabah Kararları 61) → RC73 (mutasyon 101/112 → yaşayan 11'in 6'sına pin, 4 ölü kalıp silindi — Arapça / Rusça "acil numara",
-sözcük ağı o sözcükleri acil saymıyor —, 2 gerekçeli eşdeğer; hedefli tur 13/14). Sırada (kurucu sırası): Host Karar Motoru paneli ("karar
-bekliyor" kartı + Onayla / Reddet; Faz 0 belgesi; iki inceleme turu). Yeni sorular: Sabah Kararları 58–60 + 51 EK (Rusça sağlık
-acil sözcükleri). Yerel model / çaba değişkenleri: rapor §0b.
+sözcük ağı o sözcükleri acil saymıyor —, 2 gerekçeli eşdeğer; hedefli tur 13/14) → itildi 21:36Z, **CI #1291 YEŞİL**. Ardından (kurucu
+sırası) **Host Karar Motoru** kodda (yerel dal, İTİLMEDİ — migration 59 onayı + 7 dil karar metni onayı, Sabah Kararları 62): kart + rozet + pano
++ tek e-posta + Onayla / Reddet ucu (yeniden doğrulama + olgu parmak izi), iki UX turu (ekran görüntüleriyle), üç inceleme ajanı, mutasyon.
+Yeni sorular: Sabah Kararları 58–60 + 51 EK (Rusça sağlık acil sözcükleri) + 62. Yerel model / çaba değişkenleri: rapor §0b.
 **10-02 (sabah):** canlı kod RC70 (`bbbf24b`, CI #1288 yeşil 10:44Z; RC69 dişil ev sahibi kararı + İspanyolca dipnot dahil). RC71 kapıda: QR'da
 kapı kodu sızıntısı (sır süzgeci tuş paneli / sözcük sırası / kod sözcüğünün dilleri — bugünkü 5.1 kör QR setinde kodu iki kez yazdı) + geçmiş
 turdaki rol değişimi enjeksiyonu (Sabah Kararları 57, onaylı kurallar) + QR ölçeri ve kör QR seti. Railway AKTİF (↑Canlı durum). **Luna katman
