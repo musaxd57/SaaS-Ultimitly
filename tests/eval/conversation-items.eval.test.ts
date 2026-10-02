@@ -52,6 +52,7 @@ const ARMS: readonly ("today" | "items")[] = process.env.EVAL_ITEMS_ARMS === "it
 const TAG = (process.env.EVAL_ITEMS_TAG ?? "").trim().replace(/[^a-z0-9.-]+/gi, "_");
 const GUEST = "Alex";
 const TZ = "Europe/Istanbul";
+const NOW = new Date("2026-09-26T10:00:00Z");
 
 type Scenario = {
   id: string;
@@ -195,9 +196,20 @@ async function runArm(data: Dataset, s: Scenario, arm: "today" | "items"): Promi
     const input: SuggestReplyInput = {
       guestMessage: last.body,
       property: { ...data.property },
-      reservation: null,
+      // ÖLÇER SADAKATİ (10-02): senaryolar KONAKLAMA İÇİ (IBAN + Wi-Fi, havlu, çöp, arıza…). Eskiden `reservation: null` veriliyordu →
+      // istem "REZERVASYON ONAYLANMAMIŞ: Wi-Fi şifresi / kapı kodu ASLA paylaşma" diyordu ama bilgi tabanı süzülmeden (şifreyle)
+      // veriliyordu; üründe onaylanmamış konaklamada sır kalemi modele HİÇ gitmez (`kbForStayScope`). Bu çelişkide kurala uyan
+      // model "güvenli kısmı cevaplamadı" sayılıyor, kuralı çiğneyen geçiyordu. Artık canlı hat ölçeriyle aynı: onaylı, aktif
+      // konaklama (dün giriş, 3 gün sonra çıkış).
+      reservation: {
+        guestName: GUEST,
+        guestGivenName: GUEST,
+        arrivalDate: new Date(NOW.getTime() - 86_400_000),
+        departureDate: new Date(NOW.getTime() + 3 * 86_400_000),
+        status: "confirmed",
+      },
       timeZone: TZ,
-      now: new Date("2026-09-26T10:00:00Z"),
+      now: NOW,
       knowledgeBase: kbSel.items,
       knowledgeBaseDropped: kbSel.droppedItems,
       knowledgeBaseSelection: kbSel.selection,
@@ -280,7 +292,7 @@ function writeReport(data: Dataset, rows: Row[], commit: string): string {
   const lines = [
     `# Konuşma öğeleri — gerçek model ölçümü (${MODEL}, ${new Date().toISOString().slice(0, 10)})`,
     "",
-    `Durum: **${status}** · commit \`${commit}\` · veri sürümü ${data.version} (TASARIM SETİ — görüldü, kör değil) · ${new Set(rows.map((r) => r.id)).size} senaryo × ${ARMS.length} kol · anlama kipi: ${RULES ? "kural kipi AÇIK (ev kuralları gölgesi)" : "kural kipi kapalı"}`,
+    `Durum: **${status}** · commit \`${commit}\` · veri sürümü ${data.version} (TASARIM SETİ — görüldü, kör değil) · ${new Set(rows.map((r) => r.id)).size} senaryo × ${ARMS.length} kol · anlama kipi: ${RULES ? "kural kipi AÇIK (ev kuralları gölgesi)" : "kural kipi kapalı"} · konaklama: onaylı, aktif (10-02 ölçer sadakati — önceki raporlarda rezervasyon YOKTU)`,
     "",
     "## Özet",
     "",
