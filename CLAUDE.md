@@ -1368,6 +1368,11 @@ yanlıştı, düzeltme notu düşüldü): stub'lı bayraklar geri ALINMADAN önc
 (istem kimliğinin yanında "kip:" yazar). Anlama kipi canlıyla aynı ölçülür: `EVAL_UNDERSTANDING_ITEMS=1` + `EVAL_UNDERSTANDING_RULES=1`
 (+ ürün bayrağı `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` → "cfu"); 10-02'den beri `EVAL_STAY_SET=<dosya>` ek seti okur (`dev2` geliştirme,
 `acc10` kör kabul), cevap satırının `guest` alanı bekçiye gerçek misafir mesajını verir, rapor adı seti ve `EVAL_STAY_TAG`i taşır.
+**Konuşma öğeleri ölçeri (10-02 ölçer sadakati):** senaryolar konaklama içidir → harness ONAYLI AKTİF konaklama verir (canlı hat ölçeriyle aynı).
+10-02'ye kadar `reservation: null` veriliyordu: istem "rezervasyon onaylanmamış — Wi-Fi şifresini ASLA paylaşma" derken bilgi tabanı şifreyle
+gidiyordu (üründe `kbForStayScope` onaylanmamış konaklamada sırrı modele vermez); kurala uyan Luna `medium` "güvenli kısmı cevaplamadı" sayıldı,
+kuralı çiğneyen 5.1 / Luna `none` geçti. O tarihten önceki "güvenli kısım cevaplandı" sayıları bu koşulla okunur. Rapor adı `EVAL_ITEMS_TAG`.
+Bir ölçerde istem kuralı ile verilen bağlam çelişiyorsa ölçü kurala uyan modeli cezalandırır — yeni ölçer ürünün kod süzgeçlerini aynen uygular.
 
 **KB onay (A1, migration 53 CANLI):** `source`/`reviewState`; eski satırın onayı VARSAYILMAZ (varsayılan `legacy`,
 `approved` yalnız POST'ta açık eylem). Erişim ALLOWLIST `legacy+approved`, TEK kapı `kb-review.ts`; `kb-fetch` AND'ler
