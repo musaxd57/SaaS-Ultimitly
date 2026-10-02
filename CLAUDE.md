@@ -670,7 +670,7 @@ Bu dosyaya token/anahtar/parola yazma.
   `verifiedGrant` birebir) dil kapısından MUAF: dilini kod seçer (`guestLanguage ?? detectedLanguage` — modelin "tr"
   kayması onayı Türkçe kurdurmaz) ve host notu AYNEN eklenir (Türkçe not İngilizce onayı tutmasın); İspanyolca misafire
   onay İngilizce gider (desteklenmeyen onay dili yedeği). Dipnot ve bekletme mesajı da dilini aynı kuraldan alır (önizleme
-  paritesi). Devir cevabı muaf DEĞİL (yanlış dilde devir → tutulur, insan
+  paritesi); dipnot tablosu (`automatedReplyNote`) yedi dilin HEPSİNİ taşır (10-02: İspanyolca yoktu → İngilizce gidiyordu, 5.1'de de). Devir cevabı muaf DEĞİL (yanlış dilde devir → tutulur, insan
   talebinde yükseltme yolu koşar). QR kapısında BİLİNÇLİ YOK (devir metni + arayüz yalnız Türkçe; pinli). Bilinen sınır:
   kısa mesaj/cevapta ("Towels?", "Havlular dolapta.") hüküm çoğu zaman yok → kontrol yok; konuşma geçmişine dönüş YOK.
   Ölçüm: TR dışı dil uyumu 52/59 → 59/59 (Luna 58/59), sızıntı 0, olgu 55/55, gecikme aynı. Dil listesine sözcük
@@ -1549,7 +1549,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   Ihres Gastgebers" / "obliegt Ihrem Gastgeber", "a decision for your host" / "rests with your host", "relève de votre hôte", "depende de tu
   anfitrión" / "a criterio del anfitrión" / "en manos de", "зависит от хозяина", "تقدير المضيف" / "متروك للمضيف", "ev sahibinize kalmış" /
   "inisiyatifinde"; 5.052 kayıtlı model cevabında yeni tutuş 46 (hepsi gerçek), düşen 0. Yeni biçim eklerken aynı külliyat taraması
-  (`reply-corpus`: ölçüm raporlarındaki bütün model cevapları) + "kendi takdiriniz / başkasının işi" ikizleri koşulur.
+  (`reply-corpus`: ölçüm raporlarındaki bütün model cevapları) + "kendi takdiriniz / başkasının işi" ikizleri koşulur. 10-02 (kör set 11,
+  bugünkü 5.1 GÖNDERDİ: "dazu kann Ihre Gastgeberin am besten eine Entscheidung treffen"): DİŞİL biçimler (Gastgeberin / Vermieterin, hôtesse,
+  anfitriona, "de la") + Almanca karar VERMEK deyimi ("Entscheidung treffen", iki sıra + ters sıra); sağ sınırı OLMAYAN kalıpta önek dişili zaten
+  tutar (orada `(?:sse)?` ölü kod — mutasyon), sınırlı kalıpta dişil ek yazılır; her kalıbın dişil biçimi kendi örneğiyle pinli.
 - **Çıktı vetosu** (`output-veto.ts`, iki kapıda): `placeholder_in_reply` + ETKEN `unverified_commitment`; edilgen
   dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi + iki incelemeyle düzeltildi: kıvrık kesme işareti düz
   olana çevrilir; haber verdim/aradım/onayladım/güncelledim/iletiyorum · booked/notified/let the host know/I'm forwarding/
