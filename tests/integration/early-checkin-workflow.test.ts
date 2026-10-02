@@ -629,16 +629,32 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
 
   it("🚨 Host Karar Motoru açıkken doğrulanmış OTOMATİK onay: 'karar bekliyor' kartı / e-postası YOK; kart 'otomatik onaylandı' (onaylı saat yapısal)", async () => {
     vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    const decisionMails = () =>
+      vi.mocked(emailService.sendReporting).mock.calls.map((c) => String(c[1])).filter((x) => x.startsWith("Karar bekliyor"));
+    // KONTROL (aynı kurulum, kural yok → insana): kart BEKLİYOR + TEK "Karar bekliyor" e-postası — alıcı var, yol çalışıyor.
+    const k = await turnover({ cleaned: CLEANED_AT });
+    await prisma.organization.update({ where: { id: k.orgId }, data: { alertEmail: "host@example.com" } });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const kid = await conversationFor(k);
+    expect((await applyChannelAutoReply(kid)).sent).toBe(false);
+    expect(await prisma.decisionRequest.findFirstOrThrow({ where: { conversationId: kid } })).toMatchObject({ status: "pending", requestedTime: "13:00" });
+    expect(decisionMails()).toHaveLength(1);
+
+    await resetDb();
+    vi.clearAllMocks();
+    __resetUnderstandingCache();
+    mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
+    mockSuggest.mockResolvedValue(MODEL);
     const t = await turnover({ cleaned: CLEANED_AT });
+    await prisma.organization.update({ where: { id: t.orgId }, data: { alertEmail: "host@example.com" } });
     await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
     const id = await conversationFor(t);
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
     const rows = await prisma.decisionRequest.findMany({ where: { conversationId: id } });
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ kind: "early_checkin", status: "resolved_by_policy", decidedTime: "13:00" });
-    const subjects = vi.mocked(emailService.sendReporting).mock.calls.map((c) => String(c[1]));
-    expect(subjects.filter((x) => x.startsWith("Karar bekliyor"))).toEqual([]);
+    expect(rows[0]).toMatchObject({ kind: "early_checkin", status: "resolved_by_policy", decidedTime: "13:00", notifiedAt: null });
+    expect(decisionMails()).toEqual([]);
   });
 
   it("🚨 karar kaydı dayanakları: hangi devir (rezervasyon), hangi 'hazır' kaydı + anı, hangi kural sürümü, kaç model okudu", async () => {
