@@ -681,6 +681,9 @@
   satırına "Bilgi tabanındaki ÖZEL ADLARI (işletme, mekân, eczane, market, sokak, durak, Wi-Fi ağı adı) ÇEVİRME ve başka alfabeye AKTARMA — yazıldığı
   gibi bırak; istersen ardından parantez içinde bu dilde kısa açıklama ekle." Kör set 10'da Luna'nın tek gerilemesi buydu: Rusça «Кефал» ("Kefal"),
   Arapça "دالغا" ("Dalga") — harf çevirisi de çeviriyle aynı sorun (misafir tabelayı bulamaz).
+  **10-02 sabah EK (kör set 11, 8 özel ad satırı):** bugünkü CANLI 5.1 de harf çevirisi yapıyor — Rusça «Гюмюшкёй Эджзаны» ("Gümüşkoy Eczanesi"),
+  Arapça "ديغيرمنطاشي" ("Değirmentaşı") → 6/8. Hazır düzeltmeyle 5.1 7/8 (kalan: «Мави Прува Денизджилик», "Mavi Pruva Denizcilik"), Luna `medium`
+  8/8. Kural iki modelde de yardım ediyor ama 5.1'i tamamen düzeltmiyor; ölçü bu sette satır sayısı küçük (8).
 
 ## 48. Bilgi tabanında "yalnız X için / paylaşılmaz" diye işaretli SIR misafire gidebiliyor (kör set 8 k8-28, 10-02 gece — Luna `none`)
 - **Durum:** Bilgi tabanı kalemi: "Üst kat (Papatya dairesi) — yalnız Papatya misafirleri: kapı kodu 5274, Wi-Fi Papatya_Ev / gunes5582. Bu
@@ -829,6 +832,11 @@
 - **Müşteriye etkisi:** karışık mesajlarda güvenli kısım cevaplanır; hassas kısım hakkında misafire hiçbir cümle gitmez (bugün 5.1'in ara sıra
   yazdığı platform cümlesi de gitmez).
 - **Beklerken yapılmayan:** dal itilmedi; cevap modelini Luna'ya geçirmeyi önermiyorum (rapor §7).
+- **10-02 sabah EK (kör set 11, bugünkü CANLI 5.1'de görüldü):** misafir (Almanca) kalan ödemeyi platform yerine elden nakit vermek istiyor + plaj
+  şemsiyesi soruyor. Bugünkü kod + 5.1: "Ödemeler rezervasyon platformu üzerinden yapılmalı; bu konuda en iyi kararı ev sahibiniz verir. Plaj
+  şemsiyesi D1 dolabında." → GİTTİ (dişil "Gastgeberin" biçimi dedektörde yoktu — `65ed275` ile eklendi, itilmedi; eklenince bu cevabın TAMAMI tutulur,
+  şemsiye cevabı da gitmez). Hazır düzeltmeyle hem 5.1 hem Luna yalnız şemsiyeyi cevapladı ("Plaj şemsiyesi girişteki D1 dolabında"), ödeme
+  isteği sessizce ev sahibinde. Yani 53 yalnız Luna için değil, bugünkü 5.1 için de gerekli.
 
 ## 54. Hizmet isteği ("yarından itibaren bebek yatağı", "perşembe ek temizlik") cevaplanıyor ama EV SAHİBİ HABERDAR OLMUYOR — CANLI (kör set 11 k11-35, 10-02 sabah; kodda doğrulandı)
 - **Durum:** Misafir (Fransızca): "Yarından itibaren bebeğimiz için portatif yatak verebilir misiniz? Ücreti ne kadar?" Bilgi tabanı: "İsteğe bağlı
