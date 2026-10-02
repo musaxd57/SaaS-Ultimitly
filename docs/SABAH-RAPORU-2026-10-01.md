@@ -731,3 +731,19 @@ Gereksiz incelemelerin 16 / 18'inde İKİ model de doğru şekilde "istek yok" d
 **SONUÇ:** anlama + bekçi için **Luna `low` + yeni istem**, kör kabulde 5.1'den geri değil (iki tehlikeli ölçüde 0 / 0, gereksiz inceleme 18 ↔ 19)
 ve bugünkü canlıdan iyi (1 kaçak → 0). Değişken: `AI_SEMANTIC_MODEL=gpt-6-luna` + `AI_SEMANTIC_REASONING_EFFORT=low` (sıralayıcı ↓ ayrı).
 Maliyet: Luna bu iki katmanda 5.1'in ~1/8'i.
+
+### 9.6 Çeviri katmanında Luna — SONUÇ (76 satır: ev sahibi cevabı → 6 dil + misafir mesajı → Türkçe; `translate.ts` 10-01'den beri değişmedi)
+
+| | başarısız | korunan belirteçlerin hepsi birebir | hedef dil | p50 / p95 |
+|---|---|---|---|---|
+| 5.1 (bugün) | 0/76 | 75/76 | %100 | 0,9 / 1,9 sn |
+| Luna `none` | 0/76 | 74/76 | %100 | 1,2 / 2,0 sn |
+| Luna `low` | 0/76 | 73/76 | %100 | 1,2 / 1,7 sn |
+| **Luna `medium`** | 0/76 | **75/76** | %100 | 1,8 / 2,4 sn |
+| Luna (çaba gönderilmez) | 0/76 | 75/76 | %100 | 1,7 / 3,0 sn |
+
+Kayıpların HEPSİ biçim yerelleştirmesi, anlam kaybı 0 (her biri 3 kez yeniden üretildi): Fransızcada saat "21:00" → "21 h" (5.1 de "21h00"
+yazıyor — beş yapılandırmanın hepsinde aynı satır), Arapçada "150 TL" → "150 ليرة تركية" (150 Türk lirası; tutar ve para birimi doğru). Kod, şifre,
+bağlantı, telefon, adres, tutar kaybı hiçbir yapılandırmada yok. Çeviri yalnız ev sahibinin KENDİ cevabında ve misafir mesajını göstermede kullanılır
+(otomatik cevap yolunda değil). Öneri: `OPENAI_TRANSLATE_MODEL=gpt-6-luna` + `OPENAI_TRANSLATE_REASONING_EFFORT=medium` (her ölçüde 5.1'e eşit; tek
+bedeli +0,9 sn, ev sahibinin gönder düğmesinde). Raporlar `docs/olcum/ceviri-katmani-2026-10-0{1,2}-*`.

@@ -32,6 +32,8 @@
 11. **(10-02 gece, son durum) 49 → 6 EK 3 → 48 → 47 → 46 → 22 EK** — canlıda Almanca "brauche / brauchen" acil sayılıyor (49, hazır düzeltme
    itilmedi, onayınızı bekliyor); kör set 9'a göre cevap modeli önerisi Luna `low` (6 EK 3); başka dairenin / personelin kodu (48); özel adlar
    (47, üç modelde de); iade + ücret liste kipinde (46); bilgi tabanı içi çelişki (22 EK, üç modelde de). 50 yalnız bilgi.
+12. **(10-02 sabah, Luna katman çalışması) 51 → 52** — anlam gerektiren yanlış aciller ve parti / grup belirsizliği (51 a–g); başkası adına sorulan
+   girişte kapı kodları (52, 5.1 ve Luna — canlıda da var).
 
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
@@ -770,3 +772,21 @@
 - **Müşteriye etkisi:** bugün bu mesajlar cevapsız kalır ve ev sahibi yanlış acil e-posta alır (alarmın değeri düşer). Onaylanırsa model + bütün
   kapılar normal çalışır; mesajda olay sözcüğü varsa (yangın, duman var, yaralandı…) acil kalır.
 - **Beklerken yapılmayan:** hiçbiri değiştirilmedi. Onayınızla her biri için iki yönlü batarya + misafir külliyatında yanlış / kaçan ölçümü + mutasyon.
+
+## 52. Başka kişiler / başka rezervasyon adına sorulan girişte KAPI KODLARI gidiyor (kör set 10 k10-24, 10-02 sabah — 5.1 VE Luna)
+- **Durum:** Konaklayan misafir (İspanyolca): "Arkadaşlarımız gelecek hafta dairenizi kiraladı. O gün saat kaçta girebilirler, anahtar için biriyle
+  buluşmaları gerekiyor mu?" Cevap İKİ modelde de GİTTİ — 5.1 (bugünkü canlı yapılandırma): "Giriş 15:00'ten itibaren… bina kapısı tuş takımında
+  3851, Papatya dairesinin kapısında kod 4719"; Luna `medium`: "Arkadaşlarınız 15:00'ten itibaren girebilir… sokak kapısına 3851, daire kapısına 4719".
+  Sır süzgeci misafirin KENDİ aktif konaklamasında kodları modele verir (doğru — kendi girişi için gerekli); kodun KİME ve HANGİ rezervasyon için
+  yazılacağını bugün yalnız model belirliyor. Canlıda açık `AI_ACCESS_CODE_COMPLETE_ENABLED` giriş sorusunda kodu tarifle birlikte yazdırır
+  ("misafir nasıl girecek" için kuruldu; başka kişiler adına sorulduğunda da uygulanıyor). Kodlar her rezervasyonda değişiyorsa arkadaşlar yanlış
+  kodla gelir; değişmiyorsa kodlar rezervasyon sahibi olmayan birine, ev sahibinin haberi olmadan dağılır.
+- **Örnek — önce / sonra:**
+  - *Bugün:* "…sokak kapısına 3851, daire kapısına 4719." misafire gider.
+  - *Öneri A (istem, dar cümle, ölçümle):* giriş kodu kuralına "kod YALNIZ bu konuşmanın kendi konaklaması için; başka kişiler / başka (gelecek)
+    rezervasyon adına sorulursa kodu yazma, giriş bilgilerinin o rezervasyonla iletileceğini söyle" → "Arkadaşlarınız 15:00'ten itibaren girebilir;
+    kimseyle buluşmalarına gerek yok — giriş bilgileri kendi rezervasyonlarıyla iletilir."
+  - *Öneri B (kod, sonra):* anlama katmanına "başkası / başka rezervasyon adına" işareti + kod içeren cevabı tutan kapı (yeni alan → ölçüm).
+- **Öneri:** A; iki yönlü ölçümle (kendi girişini soran misafir kodu ALMAYA devam etmeli — giriş tarifinde kod kuralının amacı bu).
+- **Müşteriye etkisi:** Giriş kodları yalnız rezervasyon sahibine, kendi rezervasyonu yoluyla gider; kendi girişini soran misafir etkilenmez.
+- **Beklerken yapılmayan:** istem değişmedi (misafire giden davranış — kararınız).
