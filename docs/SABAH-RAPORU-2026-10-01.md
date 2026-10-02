@@ -747,3 +747,47 @@ yazıyor — beş yapılandırmanın hepsinde aynı satır), Arapçada "150 TL" 
 bağlantı, telefon, adres, tutar kaybı hiçbir yapılandırmada yok. Çeviri yalnız ev sahibinin KENDİ cevabında ve misafir mesajını göstermede kullanılır
 (otomatik cevap yolunda değil). Öneri: `OPENAI_TRANSLATE_MODEL=gpt-6-luna` + `OPENAI_TRANSLATE_REASONING_EFFORT=medium` (her ölçüde 5.1'e eşit; tek
 bedeli +0,9 sn, ev sahibinin gönder düğmesinde). Raporlar `docs/olcum/ceviri-katmani-2026-10-0{1,2}-*`.
+
+### 9.7 Konuşma öğeleri (şikâyet / ödeme / iade + güvenli soru; tasarım seti 20 senaryo, görülmüş) — anlama katmanında Luna + cevap modelinde bulunan açık
+
+**Ölçer düzeltmesi önce (ölçer sadakati):** harness `reservation: null` veriyordu → istem "rezervasyon onaylanmamış: Wi-Fi şifresini ASLA paylaşma"
+derken bilgi tabanı şifreyle gidiyordu (üründe onaylanmamış konaklamada sır kalemi modele HİÇ gitmez — `kbForStayScope`). Kurala uyan Luna `medium`
+"güvenli kısmı cevaplamadı" sayıldı, kuralı çiğneyen 5.1 / Luna `none` geçti. Harness artık canlı hat ölçeriyle aynı onaylı aktif konaklamayı verir
+(`e644f27`); 10-02 öncesi öğe raporlarındaki "güvenli kısım" sayıları bu koşulla okunur (I-koşuları da korunuyor).
+
+**Anlama katmanı (cevap 5.1, onaylı konaklama):** 5.1 16/17 · **Luna `low` 16/17**; Luna vazgeçilen IBAN isteğini doğru tanıdı (5.1 tutmaya devam
+etti), "parti + Wi-Fi"de Wi-Fi'yi cevaplattı (5.1 hepsini tuttu). Kör set 10'dan bir örnek (k10-43, "manzara hayal kırıklığı + kahve filtresi nerede?"):
+5.1 filtre sorusunu 3 denemenin 2'sinde "arıza çözümü" etiketledi (tarif yok → tutuldu), Luna `low` 3/3 "kendi konusu" (doğru → cevaplanır).
+
+**Cevap modelinde açık (Sabah Kararları 53 — HAZIR DÜZELTME, itilmedi):** Luna `medium` bırakılan ödeme / görüşme isteğine taban istemin kalıbını
+yazıyor ("…platform üzerinden yürütülmesi gerekiyor; bu konu ev sahibinizin kararıdır", "Mesajınız kaydedildi; ev sahibiniz görebilir") → çıktı vetosu
+cevabın tamamını tutuyor, güvenli kısım misafire gitmiyor. "Güvenli kısım cevaplandı" / 17:
+
+| | düzeltmesiz | yalnız sistem önceliği | iki katman (öncelik + çıktı alanı) |
+|---|---|---|---|
+| 5.1 | 17 | 17 | **17** |
+| Luna `medium` | 7 · 9 | 15 · 16 | **17 · 17** |
+| Luna `low` | 12 · 6 | 17 | **17** |
+| Luna `none` | 16 · 17 | 16 | — |
+
+Sızıntı (ödeme yöntemi / "kaydedildi") ve acilde otomatik cevap HER yapılandırmada 0. Düzeltme yalnız öğe kipinde ve bırakılan istek varken sistem
+istemine girer; yoksa istem bayt bayt aynı. Kullanıcı istemi bloğuna eklenen öncelik cümlesi TEK BAŞINA etkisizdi (7/17) — kalıp sistem isteminde
+olduğu için kural da orada olmalı.
+
+**Aynı ölçümde çıkan dedektör açığı (DÜZELTİLDİ, RC68):** "ev sahibinizin kararıdır" dedektörü Almanca "liegt im Ermessen Ihres Gastgebers"
+ve İngilizce "a decision for your host" biçimlerini tanımıyordu (canlıda açık kural; 5.1'in de en sık Almanca biçimi). 5.052 kayıtlı model
+cevabında yeni tutuş 46 (hepsi gerçek ev sahibi kararı cümlesi), düşen 0; 7 dilde 16 biçim + 11 aşırı-uygulama ikizi.
+
+### 9.8 Yeniden sıralayıcıda Luna (gerçek boyut: soru başına 60 kalem; aynı anlama katmanı)
+
+| | iki soru: cevap blokta | tek soru TR | tek soru diğer diller | p50 / p95 | 2,5 sn tavanı aşımı |
+|---|---|---|---|---|---|
+| 5.1 (canlı) | 110/120 | 215/221 | 217/221 | 0,86 / 1,27 sn | 3 |
+| **Luna `none`** | 107/120 | 214/221 | 217/221 | 0,94 / 1,35 sn | **0** |
+| Luna `low` | 104/120 | 212/221 | 217/221 | 1,13 / **3,18** sn | **66** |
+| soru başına pencere + Luna `none` | 107/120 | 213/221 | 216/221 | 1,01 / 1,43 sn | 1 |
+
+Luna `low` tavanı aşıyor (aşınca bugünkü sıra kullanılır) — elendi. Luna `none` 5.1'den iki sorulu mesajda 3/120, Türkçe tek soruda 1/221 geride
+(09-27 ölçümüyle aynı yön: 108 ↔ 111, 430 ↔ 432); tavanı hiç aşmadı, ~8–12× ucuz. Fark küçük ama tutarlı → **öneri: sıralayıcı 5.1'de kalsın**
+(`KB_RERANK_MODEL=gpt-5.1`); Luna `none` maliyet tercihinizse kabul edilebilir bir alternatif (kayıp: iki sorulu her ~40 mesajda bir cevabın blokta
+eksik kalması — cevap modeli o soruyu cevaplamaz / devreder, uydurmaz). Rapor `docs/olcum/rag-lab-2026-10-02-luna-siralayici.md` (commit `112e514`).
