@@ -2208,13 +2208,32 @@ const OVERSTAY_REFUSAL_PHRASES = [
 const RULE_VIOLATION_PHRASES = [
   "evcil hayvan", "köpeğ", "kopeg", "köpek getir", "kopek getir", "kedimi getir", "köpeğimi", "kopegimi",
   "my dog", "my cat", "bring a dog", "bring my dog", "bring our dog", "bring a pet", "pet friendly",
-  "parti", "party", "etkinlik düzenle", "kutlama yap", "eğlence düzenle", "house party", "have a party",
+  // (Türkçe "parti" ALT DİZE DEĞİL — ↓TR_PARTY_RE, 10-02 kurucu onayı, Sabah Kararları 49 sınıfı: alt dize İspanyolca / Fransızca "partir"
+  // ("¿A partir de qué hora…?", "Nous devons partir à 10h"), "compartido", "partie" ve İngilizce "particular" içinde kural ihlali
+  // üretiyordu. İngilizce "party" alt dizesi "partying"i de tutar; çoğul "parties" ayrıca yazılır.)
+  "party", "parties", "etkinlik düzenle", "kutlama yap", "eğlence düzenle", "house party", "have a party",
   "fazladan kişi", "fazladan kisi", "ekstra kişi", "ekstra kisi", "fazladan misafir", "ekstra misafir",
   "kaç kişi kalabilir", "kac kisi kalabilir", "kişi daha gel", "kisi daha gel", "kişi geleceğiz", "kisi gelecegiz",
   "kişi geliyoruz", "kisi geliyoruz", "arkadaşlarım da kal", "arkadaslarim da kal", "arkadaşım da kal",
   "extra guest", "more guests", "additional guest", "how many people can stay", "friends stay over", "friends staying over",
   "içeride sigara", "iceride sigara", "sigara içebilir", "smoke inside", "smoking inside",
 ];
+
+/**
+ * Türkçe "parti" — YALNIZ tam sözcük + ad çekimleri (10-02, kurucu onayı; Sabah Kararları 49 sınıfı): "parti", "partiye", "partide",
+ * "partiden", "partiyi", "partiyle", "partisi(ne/ni/nde)", "partiler(e/i/de/den)", "partimiz(e/i)", "partiniz(e/i)". Önünde / ardında harf ya da
+ * rakam varsa eşleşmez → İspanyolca / Fransızca "partir", "compartido", "partie", İngilizce "particular" kural ihlali sayılmaz. Bilinen sınır
+ * (anlam, Sabah Kararları 51): Fransızca "il est parti" (gitti) tam sözcüktür, tutulur. Her aday biçimde sınanır (`includesAnyFold` ile aynı).
+ * Sabit sözcükle başlar, iç içe niceleyici yok (doğrusal).
+ */
+const TR_PARTY_RE =
+  /(?<![\p{L}\p{N}])parti(?:y[ei]|yle|de|den|si(?:n[ei]|nde)?|ler(?:[ei]|de|den)?|miz[ei]?|niz[ei]?)?(?![\p{L}\p{N}])/u;
+function hasTurkishPartyWord(message: string): boolean {
+  for (const { std, tr, ascii } of foldedCandidatesOf(message)) {
+    if (TR_PARTY_RE.test(std) || TR_PARTY_RE.test(tr) || TR_PARTY_RE.test(ascii)) return true;
+  }
+  return false;
+}
 
 // DISCRIMINATION — a demand to EXCLUDE/prefer people by nationality / ethnicity /
 // religion (e.g. a specific cleaner). Anchored to EXCLUSION phrasing so a guest
@@ -2555,7 +2574,7 @@ const RISK_NETS: ReadonlyArray<readonly [label: string, hit: (message: string) =
   // discrimination/rule_violation first, the co-occurring case escalates.
   ["discrimination", (m) => includesAnyFold(m, DISCRIMINATION_PHRASES)],
   // Squatting/tahliye-reddi = ev sahibi + hukuk kararı → rule_violation (host-only).
-  ["rule_violation", (m) => includesAnyFold(m, OVERSTAY_REFUSAL_PHRASES) || includesAnyFold(m, RULE_VIOLATION_PHRASES)],
+  ["rule_violation", (m) => includesAnyFold(m, OVERSTAY_REFUSAL_PHRASES) || includesAnyFold(m, RULE_VIOLATION_PHRASES) || hasTurkishPartyWord(m)],
   ["human_request", (m) => matchesIntentKeywords(m, "human_request")],
   ["complaint", (m) => classifyFallback(m).isComplaint],
 ];

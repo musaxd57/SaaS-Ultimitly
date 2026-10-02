@@ -44,6 +44,8 @@ const ADVERSARIAL: [string, string][] = [
   ["yangın söndürücü tekrarı", "yangın söndürücü ".repeat(235)],
   ["no emergency tekrarı", "no emergency ".repeat(307)],
   ["değil + uzun boşluk + mi", "acil değil" + " ".repeat(3990) + "mi"],
+  // 10-02: Türkçe "parti" tam sözcük kalıbı (kural ihlali ağı) — tekrar eden aday ve sözcük içi eşleşme doğrusal.
+  ["partir / partiye tekrarı", "partir partiye ".repeat(270)],
 ];
 
 describe("sınıflandırıcı — düşmanca girdide sınırlı süre", () => {

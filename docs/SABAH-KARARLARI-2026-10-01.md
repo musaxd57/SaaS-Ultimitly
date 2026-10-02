@@ -762,6 +762,11 @@
 - **f) Seyrek (bilgi):** "Im Flur brennt das Licht nicht" (Almancada ışık "yanar"), "Was ist die Notfallnummer?", "What's the emergency number, just in
   case?", "Can we use the fire pit?", "Akşam Duman konserine gideceğiz" (grup adı), "Komşunun sigara dumanı balkona geliyor" (şikâyet), "Das Wasser
   läuft nicht ab" (tıkanıklık), "a fuego lento" (yemek), "chispas de chocolate", "Мы затопили камин" (şömineyi yaktık), "Дымоход чистый?" (baca).
+- **g) Kural ihlali ağı (10-02, kör set 10 ajanının bulgusu, kodda ölçüldü):** Türkçe "parti" alt dizesi İspanyolca / Fransızca "partir" ("¿A partir
+  de qué hora…?", "Nous devons partir"), "compartido", "partie", İngilizce "particular" / "partial" içinde kural ihlali üretiyordu → 49 sınıfı
+  olarak DÜZELTİLDİ (Türkçe ad çekimleri + İngilizce party / parties kural sözcüğü kalır). KALAN anlam belirsizliği: Fransızca "Mon mari est
+  parti" (gitti) ve İngilizce "Our party of four arrives at 3pm" (dört kişilik grubumuz) bugün de kural ihlali (ev sahibine tutulur). Öneri:
+  "party of + sayı / in our party" ve Fransızca "est / sont parti(e)(s)" kalıpları nötr; "Can we have a party?" kural sözcüğü kalır.
 - **Müşteriye etkisi:** bugün bu mesajlar cevapsız kalır ve ev sahibi yanlış acil e-posta alır (alarmın değeri düşer). Onaylanırsa model + bütün
   kapılar normal çalışır; mesajda olay sözcüğü varsa (yangın, duman var, yaralandı…) acil kalır.
 - **Beklerken yapılmayan:** hiçbiri değiştirilmedi. Onayınızla her biri için iki yönlü batarya + misafir külliyatında yanlış / kaçan ölçümü + mutasyon.

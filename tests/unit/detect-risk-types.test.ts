@@ -106,7 +106,58 @@ describe("BUGÜNKÜ DAVRANIŞ — konu sözcüğü geçiyor ama misafir o şeyi 
     });
   }
 
-  it('"partial refund" → iade + (alt dize "parti") rule_violation', () => {
-    expect(detectRiskTypes("Can I get a partial refund?")).toEqual(["money_refund", "rule_violation"]);
+  it('"partial refund" → YALNIZ iade (10-02: Türkçe "parti" artık tam sözcük — alt dize "partial"ı tutmuyor)', () => {
+    expect(detectRiskTypes("Can I get a partial refund?")).toEqual(["money_refund"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Türkçe "parti" TAM SÖZCÜK (10-02, kurucu onayı — Sabah Kararları 49 sınıfı; kör set 10 ajanının bulgusu, kodda ölçüldü): alt dize
+// İspanyolca / Fransızca "partir", "compartido", "partie" ve İngilizce "particular" içinde kural ihlali üretiyordu — en sık İspanyolca giriş
+// sorusu ("¿A partir de qué hora…?") otomatik cevap alamıyor, öğe kipinde ev sahibine tutuluyordu. İKİ YÖNLÜ: Türkçe ad çekimleri ve
+// İngilizce party / parties / partying kural sözcüğü KALIR. Anlam belirsizliği ("il est parti" = gitti, "party of four" = grup) bu turda
+// değişmedi (yukarıdaki karakterizasyon; Sabah Kararları 51).
+// ---------------------------------------------------------------------------
+describe('Türkçe "parti" — tam sözcük + ad çekimleri (sözcük içi çakışma kural ihlali değil)', () => {
+  it.each([
+    "¿A partir de qué hora podemos entrar al apartamento?",
+    "¿El baño es compartido?",
+    "Nous devons partir à 10h, où laisser les clés ?",
+    "L'enregistrement est possible à partir de quelle heure ?",
+    "Une partie du groupe arrive plus tard.",
+    "Is there a particular time we should leave the keys?",
+    "Can I get a partial refund?",
+  ])("kural ihlali DEĞİL: %s", (m) => {
+    expect(detectRiskTypes(m)).not.toContain("rule_violation");
+  });
+
+  it.each([
+    "Bu akşam parti yapacağız.",
+    "Partiye 10 kişi gelecek, sorun olur mu?",
+    "Dairede doğum günü partisi yapabilir miyiz?",
+    "Partide müzik açabilir miyiz?",
+    "Partiden sonra temizlik yaparız.",
+    "Partiyi bahçede mi yapalım?",
+    "Arkadaşlarla küçük bir partiyle kutlamak istiyoruz.",
+    "Partisine 20 kişi çağırdık.",
+    "Partisini evde yapacak.",
+    "Partisinde DJ olacak.",
+    "Partiler serbest mi?",
+    "Partilere izin var mı?",
+    "Partileri evde yapabiliyor muyuz?",
+    "Partilerde ses sınırı var mı?",
+    "Partilerden sonra temizlik ücreti var mı?",
+    "Partimize komşular da gelecek.",
+    "Partimizi balkonda yapacağız.",
+    "Partimize izin verir misiniz?",
+    "Partiniz için müzik serbest mi?",
+    "Partinizi evde yapabilirsiniz değil mi?",
+    "Partinize kimler gelecek?",
+    "PARTİ yapacağız bu akşam!",
+    "Can we have a party on Saturday?",
+    "Are parties allowed in the apartment?",
+    "We'll be partying a bit tonight.",
+  ])("kural sözcüğü KALIR: %s", (m) => {
+    expect(detectRiskTypes(m)).toContain("rule_violation");
   });
 });
