@@ -148,6 +148,17 @@ describe("istem — misafirin dili kodla tespit edilip açıkça söylenir", () 
     expect(prompt("Merhaba, wifi şifresi nedir acaba?")).not.toContain("Türkçe KOPYALAMA");
   });
 
+  it("🚨 ÖZEL AD (Sabah Kararları 47): Türkçe olmayan misafirde bilgi tabanındaki özel adlar çevrilmez / başka alfabeye aktarılmaz", () => {
+    // Luna ölçümü: "TAMAMINI bu dilde yaz" kuralıyla mekân adını çeviriyor ("Lavanta Eczanesi" → "pharmacie Lavande") ya da harf
+    // çevirisi yapıyordu ("Kefal" → «Кефал»); misafir tabelada / haritada adı bulamaz.
+    const rule = "Bilgi tabanındaki ÖZEL ADLARI (işletme, mekân, eczane, market, sokak, durak, Wi-Fi ağı adı) ÇEVİRME ve başka alfabeye AKTARMA";
+    expect(prompt("Где можно купить свежую рыбу рядом с квартирой?")).toContain(rule);
+    expect(prompt(EN_GUEST)).toContain(rule);
+    // Türkçe misafirde (çeviri yok) ve belirsiz mesajda kural yok.
+    expect(prompt("Merhaba, wifi şifresi nedir acaba?")).not.toContain(rule);
+    expect(prompt("ok 👍")).not.toContain(rule);
+  });
+
   it("belirsiz mesajda talimat YOK (eski kural: belirsizse İngilizce)", () => {
     expect(prompt("ok 👍")).not.toContain("MİSAFİRİN DİLİ");
     expect(prompt("ok 👍")).not.toContain("reply dili:");

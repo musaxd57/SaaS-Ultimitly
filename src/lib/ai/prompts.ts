@@ -1616,7 +1616,11 @@ Zaman bağlamı: ${timelineLine(timeline, {
         // Ölçüldü (09-25): 5.1 Almanca cevabın sonuna istemdeki Türkçe devir kalıbını AYNEN yapıştırdı.
         guestLanguage === "tr"
           ? ""
-          : ` Bu istemdeki Türkçe kalıp cümleleri (ör. "Mesajınız kaydedildi; ev sahibiniz görebilir.") bu dile ÇEVİREREK yaz, Türkçe KOPYALAMA.`
+          : ` Bu istemdeki Türkçe kalıp cümleleri (ör. "Mesajınız kaydedildi; ev sahibiniz görebilir.") bu dile ÇEVİREREK yaz, Türkçe KOPYALAMA.` +
+            // ÖZEL AD (Sabah Kararları 47 — ONAY BEKLİYOR; Luna ölçümü 10-01 / 10-02): "TAMAMINI bu dilde yaz" kuralı Luna'ya mekân / eczane
+            // adını çevirtiyor ("Lavanta Eczanesi" → "pharmacie Lavande") ya da başka alfabeye aktarıyordu ("Kefal" → «Кефал», "Dalga" →
+            // "دالغا"); misafir tabelada / haritada adı bulamaz. 5.1 aynı setlerde aynen yazdı.
+            ` Bilgi tabanındaki ÖZEL ADLARI (işletme, mekân, eczane, market, sokak, durak, Wi-Fi ağı adı) ÇEVİRME ve başka alfabeye AKTARMA — yazıldığı gibi bırak; istersen ardından parantez içinde bu dilde kısa açıklama ekle.`
       } detectedLanguage alanı da "${guestLanguage}" olmalı.`
     : "";
   // Aynı dil GÖREV satırında bir kez daha (model en son okuduğunu daha iyi uygular; istemin geri kalanı Türkçe).
