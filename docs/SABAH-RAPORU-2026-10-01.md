@@ -3,6 +3,25 @@
 > Kararlar ayrı belgede: `docs/SABAH-KARARLARI-2026-10-01.md`. Bu rapor: doğrulanan K düzeltmeleri, kurucu talimatlarının
 > uygulaması, Luna ölçümleri, maliyet, kapı / CI, canlıya geçiş için kalan adımlar ve eklenecek / değişecek ortam değişkenleri.
 
+## 0c. 10-02 GECE — Host Karar Motoru ("karar bekliyor" kartı + Onayla / Reddet) KODDA, İTİLMEDİ
+
+- **Durum:** yerel dalda kayıtlı, anahtar `HOST_DECISIONS_ENABLED` VARSAYILAN KAPALI. **Migration 59 (yeni tablo `DecisionRequest`) içerdiği için
+  İTİLMEDİ** — kural: taze `pg_dump` + sizin açık "push et" onayınız. Ayrıntı: `docs/TASARIM-2026-10-02-host-karar-motoru.md`; onay maddeleri Sabah
+  Kararları 62.
+- **Ne yapar:** "Saat 13:00'te giriş yapabilir miyiz?" tutulunca konuşmanın EN ÜSTÜNDE "13:00 erken giriş — Karar bekliyor" kartı (misafirin talebinden
+  alıntı, bakmanız gerekenler, tüm kontrol listesi: temizlik işareti, önceki misafirin çıkışı / onaylı geç çıkışı, sonraki misafirin erken giriş
+  kararı, çakışma); gelen kutusunda "Karar bekliyor" rozeti, panoda satır; size TEK "Karar bekliyor" e-postası ("Misafir cevabınızı bekliyor"
+  e-postasının yerine). Onayla / Reddet: metni kod kurar (misafirin dilinde, günü adlandırır, ücret yalnız kayıtlı kuraldan), siz görürsünüz,
+  saati (24 saatlik liste) / dili / ücreti / metni değiştirebilirsiniz. Gönderimden hemen önce yeniden doğrulama: çift tık, misafir yeniden yazdı,
+  rezervasyon iptal, gün geçti, kontrol listesi siz baktıktan sonra değişti. Belirsiz gönderimde kör tekrar yok.
+- **İki UX turu (masaüstü 1440 + telefon 390, ekran görüntüleriyle):** 1. tur: telefonda başlık sıkışıp düğmeler rozetin üstüne biniyordu · saat
+  kutusu "01:00 PM" gösteriyordu · kart misafirin ne istediğini göstermiyordu · aynı talep "Açık işler"de ikinci kez duruyordu → düzeltildi.
+  2. tur: "13:00 (istenen)" masaüstünde kesiliyordu · komşu misafir satırı listenin sonuna düşüyordu · sağ kutu onaylı geç çıkışı göstermiyordu
+  (kartla çelişki) → düzeltildi. Gönderme hatası ve "Gerek kalmadı" tarayıcıda tıklanarak denendi.
+- **Kanıt:** 6 test dosyası (54 test) + mekanik pinler yeşil; mutasyon 32 hedefin 32'si testlerce yakalandı (biri test güçlendirilerek); üç inceleme
+  ajanı (güvenlik · eşzamanlılık · 7 dilli metin + arayüz) — bulgular §0c sonunda / Sabah Kararları 62.
+- **Anahtar kapalıyken:** kart yok, sorgu yok, e-postalar bugünkü gibi (testli).
+
 ## 0b. 10-02 AKŞAM — Railway kapandı · 53 + 47 itildi (RC72) · 24 EK + 56 + 55 / 51 (RC73)
 
 - **Railway:** abonelik bitti (kurucu, 10-02 akşam) → canlı YOK. Dal push'u yalnız CI'dan geçer; Railway geri açılınca dalın son yeşil commit'i gider.
