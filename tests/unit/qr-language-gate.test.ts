@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => ({ notified: true, throttled: false, configured: true })) }));
 vi.mock("@/lib/alert-state", () => ({ alertOnTransition: vi.fn(async () => "alerted"), clearAlertState: vi.fn(async () => {}) }));
@@ -120,5 +120,17 @@ describe("QR dil kapısı — sıra: güvenlik gerekçesi dil gerekçesini gölg
     expect(evaluateEscalation({ ...passing, reply: TR_REPLY, confidence: 0.5 }, "Where are the towels please?", null, [], {}).reason).toBe(
       "low_confidence",
     );
+  });
+});
+
+describe("QR dil kapısı — bilgi bandında da (QR_INFORMATIONAL_BAND_ENABLED açıkken)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("düşük-orta güvende yanlış dildeki cevap bant çıkışında da tutulur; doğru dilde bant gerekçesiyle gider", () => {
+    vi.stubEnv("QR_INFORMATIONAL_BAND_ENABLED", "1");
+    const band = { ...passing, confidence: 0.6, usedSources: [] as string[] };
+    expect(evaluateEscalation({ ...band, reply: TR_REPLY }, "Where can I find the iron please?", null, [], {})).toEqual(HELD);
+    expect(
+      evaluateEscalation({ ...band, reply: "The iron is in the hallway cupboard." }, "Where can I find the iron please?", null, [], {}),
+    ).toEqual({ escalate: false, reason: "informational_low_confidence" });
   });
 });
