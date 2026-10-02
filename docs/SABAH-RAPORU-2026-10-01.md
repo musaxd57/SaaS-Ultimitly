@@ -605,6 +605,29 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 
 ## 7. Eklenecek / değiştirilecek ortam değişkenleri (Railway → Variables)
 
+### 7.0 GÜNCEL (10-02 sabah, Luna katman çalışmasından sonra) — bunu uygulayın; aşağıdaki eski tablo tarihçedir
+
+Bugün canlıda (CLAUDE.md "Canlı durum"): `AI_SEMANTIC_MODEL=gpt-5.1`, `OPENAI_TRANSLATE_MODEL=gpt-5.1` + beş bayrak. Öncelik kodda: katman değişkeni →
+`AI_SEMANTIC_*` → `OPENAI_MODEL`. Katman değişkenleri kullanıldığı için `AI_SEMANTIC_MODEL=gpt-5.1` YERİNDE KALIR (sıralayıcı onu kullanır).
+
+| Değişken | Değer | Ne zaman | Neden |
+|---|---|---|---|
+| `AI_UNDERSTANDING_MODEL` | `gpt-6-luna` | RC68 canlıda (CI yeşil) | anlama katmanı Luna (kör kabulde 5.1'den geri değil) |
+| `AI_UNDERSTANDING_REASONING_EFFORT` | `low` | aynı | `medium` daha iyi değil; `none` öğe bölmede zayıf |
+| `AI_STAY_GUARD_MODEL` | `gpt-6-luna` | aynı | bekçi Luna (kaçan izin 0/0) |
+| `AI_STAY_GUARD_REASONING_EFFORT` | `low` | aynı | — |
+| `OPENAI_TRANSLATE_MODEL` | `gpt-6-luna` (şu an `gpt-5.1`) | hemen | anlam kaybı 0 |
+| `OPENAI_TRANSLATE_REASONING_EFFORT` | `medium` | hemen | belirteç korumada 5.1'e eşit |
+| `OPENAI_STYLE_MODEL` | `gpt-6-luna` | hemen | 10-01 ölçümü |
+| `OPENAI_STYLE_REASONING_EFFORT` | `none` | hemen | — |
+| `AI_SEMANTIC_MODEL` | `gpt-5.1` (DEĞİŞTİRMEYİN) | — | sıralayıcı 5.1'de kalır |
+| `OPENAI_MODEL` | `gpt-5.1` → `gpt-6-luna` | YALNIZ Sabah Kararları 53 + 47 onaylanıp canlıya çıkınca (ve kör set 11 yeşilse) | düzeltmesiz Luna öğe kipinde güvenli kısmı tutuyor, özel adları çeviriyor |
+| `OPENAI_REASONING_EFFORT` | `medium` | `OPENAI_MODEL` ile birlikte | set 9 + set 10 |
+
+Geri alma: katman değişkenlerini silin (bugünkü 5.1 davranışı birebir döner); `OPENAI_TRANSLATE_MODEL=gpt-5.1`.
+
+### 7.1 Önceki öneri (10-01 / 10-02 gece — tarihçe)
+
 Öncelik sırası kodda: katman değişkeni → `AI_SEMANTIC_*` → `OPENAI_MODEL`. Bugün `AI_SEMANTIC_*`, `OPENAI_TRANSLATE_MODEL`,
 `OPENAI_STYLE_MODEL` BOŞ → `OPENAI_MODEL` tek başına değişirse beş katman birden Luna'ya geçer. Bu yüzden ÖNCE sabitleme:
 
