@@ -866,4 +866,7 @@
   olsa da kart açık kalır. "Bebek yatağı var mı, ücreti ne?" (yalnız bilgi) bugünkü gibi cevaplanır, kart açılmaz.
 - **Müşteriye etkisi:** misafir bilgiyi hemen alır, ev sahibi işi kaçırmaz. Yatağın gerçekten getirilmesi yine ev sahibine bağlı.
 - **Beklerken yapılmayan:** yeni alan / görev türü / bildirim KURULMADI (sormadan sistem kurulmaz). Luna'nın bu satırdaki "ev sahibinin kararı"
-  cevabını düzeltmek için istem değiştirilmedi.
+  cevabını düzeltmek için istem değiştirilmedi. **Tekrar ölçümü (rapor §9.10):** Luna `medium` bu anlatımda ücreti 5 koşunun 3'ünde ev sahibine
+  bıraktı (tutuldu + ev sahibine e-posta; sızıntı değil), 8 farklı "hizmet iste + ücret sor" mesajında 16/16 doğru söyledi; `low` / `none` / 5.1
+  hepsinde doğru. İsteğe bağlı ek (AYRI onay, misafire gideni değiştirir): ücret kuralına "hizmetin hazırlanması ev sahibine bağlı olsa da bilgi
+  tabanındaki ücreti ve koşulunu yaz; hazırlandığını söyleme" cümlesi — yalnız yeni kör setle ölçülerek.
