@@ -38,6 +38,7 @@ describe("24 EK — bilgi tabanında yazılı otopark tahsisi takvim iddiası DE
     ["Binanın arkasındaki açık otoparkı ücretsiz olarak kullanabilirsiniz; 2 numaralı yer sizin dairenize ayrılmış durumda.", KB_TR],
     ["Binanın arkasındaki ücretsiz açık otoparkta dairenize ayrılmış 2 numaralı yere park edebilirsiniz.", KB_TR],
     ["Merhaba, 2 numaralı park yeri dairenize ayrılmış durumda.", KB_TR],
+    ["Dairenize 2 numaralı yer ayrılmış.", KB_TR],
     ["Binanın kapalı otoparkında dairenize ayrılmış B2-17 numaralı yer var.", KB_B2],
     ["Binanın kapalı otoparkı -2. kattadır ve dairenize ayrılmış yer vardır; B2-17 numaralı yeri kullanabilirsiniz.", KB_B2],
     ["Dairenize ayrılmış park yeri, bodrum kattaki kapalı otoparkta B17 numaralı alandır.", KB_ONE],
@@ -55,6 +56,7 @@ describe("24 EK — bilgi tabanında yazılı otopark tahsisi takvim iddiası DE
     "Arabanızı binanın arkasındaki otoparka bırakabilirsiniz; 2 numaralı yer dairenize ayrılmış durumda.",
     "Binanın kapalı otoparkında dairenize ayrılmış B2-17 numaralı yer var.",
     "Parking place 2 is reserved for your apartment.",
+    "Dairenize 2 numaralı yer ayrılmış.",
     "Парковочное место номер 2 забронировано для вашей квартиры.",
     "Un coche puede quedarse en vuestra plaza del garaje.",
     "الشقة لها موقف محجوز رقم 2 في المرآب.",
@@ -91,10 +93,13 @@ describe("24 EK — bilgi tabanında yazılı otopark tahsisi takvim iddiası DE
     expect(claims(reply, kb)).toBe(true);
   });
 
-  it("Almanca otopark tahsisi bugün de iddia sayılmıyor (istisna gerekmez)", () => {
-    expect(claims("Der Stellplatz Nr. 2 ist für Ihre Wohnung reserviert.")).toBe(false);
-    expect(claims("Der Stellplatz Nr. 2 ist für Ihre Wohnung reserviert.", KB_TR)).toBe(false);
-  });
+  it.each(["Der Stellplatz Nr. 2 ist für Ihre Wohnung reserviert.", "La plaza 2 está reservada para su apartamento."])(
+    "Almanca / İspanyolca 'reserviert / está reservada' otopark cümlesi bugün de iddia sayılmıyor (istisna gerekmez): %j",
+    (reply) => {
+      expect(claims(reply)).toBe(false);
+      expect(claims(reply, KB_TR)).toBe(false);
+    },
+  );
 
   it("kelime ağı BÜYÜMEDİ: 'Otoparkta bugün boş yer var' bugün de iddia sayılmıyor (istisna yeni tutuş üretmez)", () => {
     expect(claims("Otoparkta bugün boş yer var.", KB_TR)).toBe(false);

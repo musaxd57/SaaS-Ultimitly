@@ -894,9 +894,7 @@ const PARKING_ASSIGNMENT_SPANS = new RegExp(
     // ayıklanacak bir şey yok (ölçüldü 10-02; kalıp ölü kod olurdu).
     // FR: "la place (de parking) n° 2 est réservée"
     `${NL}(?:place|emplacement)(?:\\s+de\\s+(?:parking|stationnement|garage))?(?:\\s+(?:n[°o]\\.?|num(?:é|e)ro)\\s*\\S{1,8})?(?:\\s+\\S+){0,3}?\\s+(?:est|sont)\\s+(?:r(?:é|e)serv(?:é|e)e?s?|attribu(?:é|e)e?s?)${NR}`,
-    // ES: "está reservada la plaza" / "la plaza 2 está reservada"
-    `${NL}(?:est(?:á|a)n?|queda)\\s+(?:reservad[oa]s?|asignad[oa]s?)\\s+(?:(?:la|una|vuestra|su|tu)\\s+)?plaza${NR}`,
-    `${NL}plaza(?:\\s+de\\s+(?:aparcamiento|garaje|parking))?(?:\\s+(?:n[°o]\\.?|n(?:ú|u)mero)\\s*\\S{1,8})?(?:\\s+\\S+){0,3}?\\s+(?:est(?:á|a)|queda)\\s+(?:reservad[oa]|asignad[oa])${NR}`,
+    // ES "la plaza 2 está reservada" yok: bugün de iddia SAYILMIYOR (ölçüldü 10-02); ES izin biçimi `VEHICLE_SPOT_GRANT`ta.
     // RU: "(парковочное) место номер 2 забронировано"
     `${NL}(?:парковочн${LB}\\s+)?мест${LB}(?:\\s+(?:№|номер)\\s*\\S{1,8})?(?:\\s+\\S+){0,2}?\\s+(?:закреплен${LB}|забронирован${LB}|зарезервирован${LB}|выделен${LB})`,
     // AR: "موقف (رقم 2) محجوز / مخصص"
