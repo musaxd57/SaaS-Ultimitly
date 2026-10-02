@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { replyCallParams } from "@/lib/ai";
-import { isReasoningModel } from "@/lib/ai/model-family";
+import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
 import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import { embeddingModel } from "@/lib/ai/embeddings/model";
 import { createHash } from "node:crypto";
@@ -37,9 +37,12 @@ export interface EvalRuntime {
     understanding?: LayerRuntime;
     guard?: LayerRuntime;
     rerank?: LayerRuntime;
-    /** Çeviri (`OPENAI_TRANSLATE_MODEL`) ve üslup özeti (`OPENAI_STYLE_MODEL`) — boşsa cevap modeline düşer. */
-    translate?: { model: string };
-    style?: { model: string };
+    /**
+     * Çeviri (`OPENAI_TRANSLATE_MODEL`) ve üslup özeti (`OPENAI_STYLE_MODEL`) — boşsa cevap modeline düşer. `reasoning` = GÖNDERİLEN
+     * çaba (`OPENAI_TRANSLATE_REASONING_EFFORT` / `OPENAI_STYLE_REASONING_EFFORT`, ürünün kuralıyla); 10-02 öncesi yan dosyada YOK.
+     */
+    translate?: { model: string; reasoning?: string };
+    style?: { model: string; reasoning?: string };
     /** Anlamsal getirme (gömme). */
     embedding: { model: string };
   };
@@ -95,6 +98,11 @@ export function reasoningLabel(model: string, effort: string | null | undefined)
   return effort ?? "gönderilmez (model varsayılanı)";
 }
 
+/** Çeviri / üslup katmanı: model + GÖNDERİLEN çaba (ürünün `layerReasoningEffort` + `isReasoningModel` kuralı). */
+function auxLayer(model: string, rawEffort: string | undefined): { model: string; reasoning: string } {
+  return { model, reasoning: reasoningLabel(model, layerReasoningEffort(rawEffort)) };
+}
+
 function gitCommit(): string | null {
   try {
     return execFileSync("git", ["-c", `safe.directory=${process.cwd()}`, "rev-parse", "--short", "HEAD"], {
@@ -139,8 +147,10 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
       understanding: layer("understanding"),
       guard: layer("guard"),
       rerank: layer("rerank"),
-      translate: { model: process.env.OPENAI_TRANSLATE_MODEL?.trim() || reply.model },
-      style: { model: process.env.OPENAI_STYLE_MODEL?.trim() || reply.model },
+      // Çeviri / üslup: ürün çabayı yalnız reasoning modelinde ve yalnız kapalı kümeden gönderir (`translate.ts`, `index.ts`
+      // `isReasoningModel(model) && layerReasoningEffort(...)`) — etiket AYNI iki fonksiyondan (10-02: tablo hep "—" yazıyordu).
+      translate: auxLayer(process.env.OPENAI_TRANSLATE_MODEL?.trim() || reply.model, process.env.OPENAI_TRANSLATE_REASONING_EFFORT),
+      style: auxLayer(process.env.OPENAI_STYLE_MODEL?.trim() || reply.model, process.env.OPENAI_STYLE_REASONING_EFFORT),
       embedding: { model: embeddingModel() },
     },
     flags: Object.fromEntries(PIPELINE_FLAGS.map((f) => [f, process.env[f]?.trim() || "(boş)"])),
@@ -189,8 +199,8 @@ export function evalRuntimeMarkdown(rt: EvalRuntime): string {
           `| Yeniden sıralayıcı | \`${rt.layers.rerank.model}\` | ${rt.layers.rerank.reasoning} |`,
         ]
       : [`| Anlama katmanı + bekçi + yeniden sıralayıcı | \`${rt.layers.semantic.model}\` | ${rt.layers.semantic.reasoning} |`]),
-    ...(rt.layers.translate ? [`| Çeviri | \`${rt.layers.translate.model}\` | — |`] : []),
-    ...(rt.layers.style ? [`| Üslup özeti | \`${rt.layers.style.model}\` | — |`] : []),
+    ...(rt.layers.translate ? [`| Çeviri | \`${rt.layers.translate.model}\` | ${rt.layers.translate.reasoning ?? "—"} |`] : []),
+    ...(rt.layers.style ? [`| Üslup özeti | \`${rt.layers.style.model}\` | ${rt.layers.style.reasoning ?? "—"} |`] : []),
     `| Gömme (anlamsal getirme) | \`${rt.layers.embedding.model}\` | — |`,
     "",
     `Bayraklar: ${flags}`,

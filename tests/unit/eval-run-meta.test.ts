@@ -80,6 +80,30 @@ describe("evalRuntime — katman bazında model + gönderilen düşünme çabas�
     expect(evalRuntime().layers.reply).toEqual({ model: "gpt-5.1", reasoning: "gönderilmez (model varsayılanı)" });
   });
 
+  it("çeviri + üslup: GÖNDERİLEN çaba ürünün kuralıyla (10-02: kimlik tablosu her zaman '—' yazıyordu, Luna medium / none görünmüyordu)", () => {
+    lunaEnv();
+    vi.stubEnv("OPENAI_TRANSLATE_MODEL", "gpt-6-luna");
+    vi.stubEnv("OPENAI_TRANSLATE_REASONING_EFFORT", "medium");
+    vi.stubEnv("OPENAI_STYLE_MODEL", "gpt-6-luna");
+    vi.stubEnv("OPENAI_STYLE_REASONING_EFFORT", "none");
+    let rt = evalRuntime();
+    expect(rt.layers.translate).toEqual({ model: "gpt-6-luna", reasoning: "medium" });
+    expect(rt.layers.style).toEqual({ model: "gpt-6-luna", reasoning: "none" });
+    const md = evalRuntimeMarkdown(rt);
+    expect(md).toContain("| Çeviri | `gpt-6-luna` | medium |");
+    expect(md).toContain("| Üslup özeti | `gpt-6-luna` | none |");
+    // Ayarsız / tanınmayan çaba gönderilmez; klasik modele hiç gitmez (ürün: `isReasoningModel && layerReasoningEffort`).
+    vi.stubEnv("OPENAI_TRANSLATE_REASONING_EFFORT", "turbo");
+    vi.stubEnv("OPENAI_STYLE_MODEL", "gpt-4.1");
+    vi.stubEnv("OPENAI_STYLE_REASONING_EFFORT", "high");
+    rt = evalRuntime();
+    expect(rt.layers.translate).toEqual({ model: "gpt-6-luna", reasoning: "gönderilmez (model varsayılanı)" });
+    expect(rt.layers.style).toEqual({ model: "gpt-4.1", reasoning: "yok (klasik model)" });
+    // Eski yan dosyada alan yoksa tablo yine kurulur ("—", uydurma yok).
+    const old: EvalRuntime = { ...rt, layers: { ...rt.layers, translate: { model: "gpt-5.1" }, style: { model: "gpt-5.1" } } };
+    expect(evalRuntimeMarkdown(old)).toContain("| Çeviri | `gpt-5.1` | — |");
+  });
+
   it("OPENAI_MODEL boşsa kod içi varsayılan (canlı model ailesi) yazılır, boş dize değil", () => {
     vi.stubEnv("OPENAI_MODEL", "");
     vi.stubEnv("OPENAI_REASONING_EFFORT", "");
