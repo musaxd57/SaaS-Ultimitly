@@ -116,6 +116,11 @@
   169 — Luna'nın ölçülen tek tutarlı gerilemesi olgu kesinliği (özel ad çevirisi için madde 47). Karar sizin: (a) Luna'ya geç, olgu kesinliğini
   47 + gözlemle izle; (b) cevap modeli 5.1'de kalsın, yalnız üslup Luna'ya geçsin (risk ≈ 0, tasarruf küçük); (c) kör set 8 sonucunu bekle
   (§3.13, son kodla koşuluyor).
+- **EK 2 (10-02 gece, set 8 + düşünme kıyası — rapor §3.13 / §3.14):** set 8'de Luna `none` başka dairenin kapı kodunu gönderdi (3 koşunun 3'ü;
+  madde 48) ve özel adları çevirdi (0/3). Aynı hatalar düşünme `low` ile gidiyor: set 7 + 8'in tamamında Luna `low` gitmemesi gerekirken giden
+  0 + 1 (5.1: 0 + 3), sır 0, doğru olgu 22/23 + 24/27 (5.1: 19/23 + 24/27), maliyet `none` ile aynı (~5.1'in %40'ı), p95 ~8,9 sn (5.1 ile aynı).
+  Özel ad `low`da 1/3 (5.1 2/3; `medium` kısa teşhiste 3/3). **Güncel öneri: cevap modeli Luna `none` DEĞİL, Luna `low`** — kör set 9 (son
+  kod, üç yapılandırma: `low` / `medium` / 5.1) sonucuna bağlı (§3.15).
 
 ## 7. Ücret kuralı (kurucu ifadesi) — anahtar `AI_KB_FEE_RULE_ENABLED`
 - **Durum:** İstem metni kurucunun ifadesiyle güncellendi ("Onaylı bilgi tabanındaki sabit hizmet ücretini, koşullarıyla birlikte
