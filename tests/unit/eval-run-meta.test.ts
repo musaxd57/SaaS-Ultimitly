@@ -7,6 +7,7 @@ import {
   evalRuntime,
   evalRuntimeMarkdown,
   PIPELINE_FLAGS,
+  REPLY_VARIANT_INPUT,
   reasoningLabel,
   storedRunRuntime,
   understandingModeLabel,
@@ -158,6 +159,33 @@ describe("evalRuntime — katman bazında model + gönderilen düşünme çabas�
     const rt = evalRuntime();
     expect(rt.prompts?.understandingMode).toBe("items+rules+cfu");
     expect(rt.prompts?.understanding).toBe(sha12(understandingSystemPromptFor({ items: true, rules: true, complaintFollowup: true })));
+  });
+
+  it("🚨 cevap isteminin ÇAĞRI BAŞINA katmanları da kimlikte (10-02: aday kod 53 + 47 ile bugünkü kod aynı cevap kimliğini yazıyordu)", async () => {
+    for (const f of PIPELINE_FLAGS) vi.stubEnv(f, "");
+    const { replyRequestIdentity } = await import("@/lib/ai");
+    const rt = evalRuntime();
+    // Sabit örnek (yabancı dilde misafir + bırakılan öğe): SİSTEM + KULLANICI istemi birlikte — dil satırı ve öğe bloğu kullanıcı isteminde.
+    const id = replyRequestIdentity(REPLY_VARIANT_INPUT);
+    expect(rt.prompts?.replyVariant).toBe(sha12(`${id.system}\n${id.user}`));
+    expect(rt.prompts?.replyVariant).not.toBe(rt.prompts?.reply);
+    expect(id.user).toContain("MİSAFİRİN DİLİ"); // örnek gerçekten yabancı dil satırını tetikler
+    // Saatten BAĞIMSIZ (sabit an): kullanıcı istemi "Bugün" satırı taşır, kimlik günden güne oynamamalı.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-05T03:00:00Z"));
+      const a = evalRuntime().prompts?.replyVariant;
+      vi.setSystemTime(new Date("2026-11-20T21:00:00Z"));
+      expect(evalRuntime().prompts?.replyVariant).toBe(a);
+    } finally {
+      vi.useRealTimers();
+    }
+    const md = evalRuntimeMarkdown(rt);
+    expect(md).toContain(`cevap \`${rt.prompts?.reply}\` (öğe + yabancı dil örneği \`${rt.prompts?.replyVariant}\`)`);
+    // Eski yan dosya (alan yok): tablo yine kurulur, uydurma kimlik yazılmaz.
+    const old = { ...rt, prompts: { reply: "aaaaaaaaaaaa", understanding: "bbbbbbbbbbbb" } };
+    expect(evalRuntimeMarkdown(old)).toContain("cevap `aaaaaaaaaaaa` · anlama");
+    expect(evalRuntimeMarkdown(old)).not.toContain("öğe + yabancı dil");
   });
 
   it("understandingModeLabel: ölçerlerin 'anlama kipi' söz dizimi; hiçbiri yoksa 'temel'", () => {

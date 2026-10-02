@@ -9,6 +9,7 @@ import { understandingSystemPromptFor } from "@/lib/ai/semantic/understand";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
+import type { SuggestReplyInput } from "@/lib/ai/types";
 
 // ---------------------------------------------------------------------------
 // KOŞU KİMLİĞİ — katman bazında model + düşünme ayarı (Aşama 1, kurucu 09-30: "gerçek değerlendirmelerde model ve reasoning
@@ -52,7 +53,7 @@ export interface EvalRuntime {
    * İstem kimliği (10-01, kurucu: "her raporda istem kimliği"): modele giden sistem istemlerinin SHA-256 ilk 12 hanesi.
    * `understandingMode`: anlama isteminin hangi kiple kurulduğu (`understandingModeLabel`) — kimlik bu kipin istemidir.
    */
-  prompts?: { reply: string; understanding: string; understandingMode?: string };
+  prompts?: { reply: string; replyVariant?: string; understanding: string; understandingMode?: string };
 }
 
 /**
@@ -65,6 +66,23 @@ export interface UnderstandingMode {
   rules?: boolean;
   complaintFollowup?: boolean;
 }
+
+/**
+ * Cevap isteminin ÇAĞRI BAŞINA katmanları (yabancı dil satırı, konuşma öğeleri bloğu ve öğe kipinin sistem katmanları) için SABİT
+ * örnek — 10-02: aday kod (Sabah Kararları 53 + 47) ile bugünkü kodun cevap kimliği aynı görünüyordu, çünkü o katmanlar temel istemde
+ * yok. Kimlik SİSTEM + KULLANICI istemidir; sabit an (`now`) sayesinde günden güne oynamaz. Metin sentetik (PII yok).
+ */
+export const REPLY_VARIANT_INPUT: SuggestReplyInput = {
+  guestMessage: "Hello! Could you send me your IBAN for the payment? And what is the Wi-Fi password, please?",
+  property: { name: "-", checkInTime: "15:00", checkOutTime: "11:00" },
+  reservation: null,
+  knowledgeBase: [],
+  history: [],
+  tone: "warm",
+  language: "tr",
+  now: new Date(Date.UTC(2026, 8, 30, 9)),
+  conversationItems: { answerable: [{ ref: "r1", kind: "wifi", hint: "wifi" }], held: [{ kind: "payment_invoice" }] },
+};
 
 /** Kip etiketi — ölçerlerin "anlama kipi" satırıyla aynı söz dizimi (`items+rules+cfu`; hiçbiri yoksa `temel`). */
 export function understandingModeLabel(m: UnderstandingMode): string {
@@ -139,6 +157,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
     ? { items: given.items === true, rules: given.rules === true, complaintFollowup: given.complaintFollowup === true }
     : { items: conversationItemsEnabled(), rules: houseRulesShadowEnabled(), complaintFollowup: complaintFollowupRuleEnabled() };
   const understandingSystem = understandingSystemPromptFor(mode);
+  const variant = replyRequestIdentity(REPLY_VARIANT_INPUT);
   return {
     commit: gitCommit(),
     layers: {
@@ -154,7 +173,12 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
       embedding: { model: embeddingModel() },
     },
     flags: Object.fromEntries(PIPELINE_FLAGS.map((f) => [f, process.env[f]?.trim() || "(boş)"])),
-    prompts: { reply: sha12(replySystem), understanding: sha12(understandingSystem), understandingMode: understandingModeLabel(mode) },
+    prompts: {
+      reply: sha12(replySystem),
+      replyVariant: sha12(`${variant.system}\n${variant.user}`),
+      understanding: sha12(understandingSystem),
+      understandingMode: understandingModeLabel(mode),
+    },
   };
 }
 
@@ -207,7 +231,9 @@ export function evalRuntimeMarkdown(rt: EvalRuntime): string {
     ...(rt.prompts
       ? [
           "",
-          `İstem kimliği (SHA-256 ilk 12): cevap \`${rt.prompts.reply}\` · anlama \`${rt.prompts.understanding}\`` +
+          `İstem kimliği (SHA-256 ilk 12): cevap \`${rt.prompts.reply}\`` +
+            (rt.prompts.replyVariant ? ` (öğe + yabancı dil örneği \`${rt.prompts.replyVariant}\`)` : "") +
+            ` · anlama \`${rt.prompts.understanding}\`` +
             (rt.prompts.understandingMode ? ` (kip: ${rt.prompts.understandingMode})` : ""),
         ]
       : []),
