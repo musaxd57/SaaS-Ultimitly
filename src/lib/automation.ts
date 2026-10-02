@@ -7,7 +7,7 @@ import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
-import { hasSafetyReassurance, hazardDecisionFor, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
+import { contextLabels, hasSafetyReassurance, hazardDecisionFor, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import {
   evaluateAvailability,
   kbFactsOf,
@@ -214,11 +214,13 @@ export interface AutoReplyGateContext {
    */
   kbFacts?: readonly string[] | null;
   /**
-   * 51 (kurucu onayı 10-02 akşam, `ai/hazard-evidence.ts` `hazardDecisionFor`): kelime ağının YALNIZ fiziksel tehlike sözcüğünden gelen
-   * "acil" etiketi bağlamla KALDIRILDI (düzey olası / anılış + anlama katmanı "acil değil"; olasıda katman koşmuş olmalı). Açık tehlikede
-   * asla true olmaz. Kapı o etiketi saymaz (aynı mesajdaki başka etiket aynen sayılır); cevap kaynaksız güvence verirse TUTAR.
+   * 51 (kurucu onayı 10-02 akşam, `ai/hazard-evidence.ts` `hazardDecisionFor`): kelime ağının "acil" etiketi bağlamla KALDIRILDI (anılan
+   * fiziksel tehlike ya da anlama katmanı "acil değil" dedi — fiziksel tehlike / bağlamı belirsiz kalıp; açık tehlikede asla true olmaz).
+   * Kapı o etiketi saymaz (aynı mesajdaki başka etiket aynen sayılır); cevap kaynaksız güvence verirse TUTAR.
    */
   hazardCleared?: boolean;
+  /** Kalkan etiket OLASI fiziksel tehlikedendi: acil değil ama ŞİKÂYET olarak sayılır (`contextLabels`) — ev sahibinin işi kalır. */
+  hazardClearedAsIssue?: boolean;
   /** Anlama katmanının en ağır risk niyeti (`semantic/intent-risk.ts`); verilmezse sinyal yok. */
   understandingRisk?: IntentRiskKind | null;
   /**
@@ -254,11 +256,19 @@ export interface AutoReplyGateVerdict {
 }
 
 /**
- * Kelime ağının öncelik sırasındaki İLK risk etiketi; 51 bağlam kararıyla (`hazardCleared`) fiziksel tehlike etiketi atlanır ve aynı
- * mesajın SONRAKİ etiketi döner (şikâyet / kural ihlali aynen sayılır). Bağlam kararı yoksa `detectRiskType` ile birebir.
+ * Kelime ağının öncelik sırasındaki İLK risk etiketi; 51 bağlam kararıyla (`hazardCleared`) acil etiketi `contextLabels` kuralıyla düşer
+ * (olası tehlikede yerine şikâyet) ve aynı mesajın SONRAKİ etiketi döner. Bağlam kararı yoksa `detectRiskType` ile birebir.
  */
-export function lexicalRiskTypeOf(text: string, hazardCleared: boolean): string | null {
-  return hazardCleared ? (detectRiskTypes(text).find((l) => l !== "safety_emergency") ?? null) : detectRiskType(text);
+export function lexicalRiskTypeOf(
+  text: string,
+  hazard: Pick<AutoReplyGateContext, "hazardCleared" | "hazardClearedAsIssue"> | null | undefined,
+): string | null {
+  return hazard?.hazardCleared ? (contextLabels(detectRiskTypes(text), hazardDecisionOf(hazard))[0] ?? null) : detectRiskType(text);
+}
+
+/** Kapı bağlamındaki bağlam kararı, `contextLabels`ın beklediği biçimde. */
+function hazardDecisionOf(hazard: Pick<AutoReplyGateContext, "hazardCleared" | "hazardClearedAsIssue"> | null | undefined) {
+  return { lexicalCleared: hazard?.hazardCleared === true, clearedAsIssue: hazard?.hazardClearedAsIssue === true };
 }
 
 /** Kapı kararı + ilk düşen kontrol (`null` = gönderilebilir). Ayrıntılar aşağıdaki yorumlarda. */
@@ -341,7 +351,7 @@ export function autoReplyGateVerdict(
   // Öğe kipi: bu taramanın sinyalleri öğelere atfedildi (akış hassas öğeyi tutar). Tur düzeyi kalanlar (enjeksiyon, acil)
   // cevapsız mesajların HEPSİNDE aynen tutar — akış acil turu zaten öğe kipine sokmaz, bu savunma derinliğidir.
   if (items) {
-    const turnLabels = surfaces.flatMap((t) => detectRiskTypes(t)).filter((l) => !(context?.hazardCleared && l === "safety_emergency"));
+    const turnLabels = surfaces.flatMap((t) => contextLabels(detectRiskTypes(t), hazardDecisionOf(context)));
     if (turnLabels.includes("prompt_injection")) return hold("lexical_injection");
     if (labelsHoldWholeTurn(turnLabels)) return hold("lexical_risk");
   }
@@ -361,7 +371,7 @@ export function autoReplyGateVerdict(
   if (
     !items &&
     surfaces.some((t) => {
-      const d = lexicalRiskTypeOf(t, context?.hazardCleared === true);
+      const d = lexicalRiskTypeOf(t, context);
       return d === "safety_emergency" || d === "rule_violation" || d === "discrimination";
     })
   ) {
@@ -436,7 +446,7 @@ export function autoReplyGateVerdict(
   //   · deterministik human_request + model BAŞKA bir şey der    → insana bırakılır
   // (İkisi de `holding-ack.test.ts`'te ayrı ayrı pinli.)
   const isHandoffAck = result.intent === "human_request" && result.riskType === "human_request";
-  const deterministicRisk = lexicalRiskTypeOf(guestMessage, context?.hazardCleared === true);
+  const deterministicRisk = lexicalRiskTypeOf(guestMessage, context);
   // Öğe kipi: son mesajın etiketi de öğelere atfedildi (tur düzeyi kalanlar ↑tarandı).
   const deterministicBlocks =
     !items &&
@@ -2020,11 +2030,13 @@ export async function applyChannelAutoReply(
     .map((m) => m.id);
   // 51 (kurucu onayı 10-02 akşam): fiziksel tehlike alarmı bağlamla kalktı mı — cevapsız mesajların tamamı + anlama katmanının hükmü.
   // Öğe planı ve kapı AYNI hükmü kullanır (öğe kipinde kelime ağının acil etiketi turu acil yola çevirmesin, kapı da kaldırsın).
-  const hazardClearedFor = (u: MessageUnderstanding | null | undefined) =>
-    hazardDecisionFor(
+  const hazardContextFor = (u: MessageUnderstanding | null | undefined) => {
+    const d = hazardDecisionFor(
       { texts: unansweredGuestTexts, understandingRan: u != null, understandingEmergency: understandingRiskOf(u) === "emergency" },
       isSafetyEmergencyText,
-    ).lexicalCleared;
+    );
+    return { hazardCleared: d.lexicalCleared, hazardClearedAsIssue: d.clearedAsIssue };
+  };
   if (itemsFlag && !options.dryRun) {
     try {
       const understoodForItems = await kbSel.understanding;
@@ -2034,7 +2046,7 @@ export async function applyChannelAutoReply(
         history: turnHistory,
         guestMessage: last.body,
         understanding: understoodForItems,
-        hazardCleared: hazardClearedFor(understoodForItems),
+        ...hazardContextFor(understoodForItems),
         // Kapının tarayacağı cevapsız misafir mesajları (son giden mesajdan sonrakiler, kronolojik) — öğeler TAM bu kümeyi
         // kapsamalı.
         expectedMessageIds: itemsTurnMessageIds,
@@ -2169,7 +2181,7 @@ export async function applyChannelAutoReply(
     // Modelin gördüğü bilgi tabanı: yalnız yazılı sabit otopark yeri tahsisi takvim iddiası sayılmasın diye (24 EK).
     kbFacts: kbFactsOf(kbForModel),
     // 51: fiziksel tehlike alarmı bağlamla kalktı mı (cevapsız mesajların tamamı; olası / anılış + anlama katmanı "acil değil").
-    hazardCleared: hazardClearedFor(understood),
+    ...hazardContextFor(understood),
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.
     ...(itemsPlan ? { items: itemsPlan.gateItems } : {}),
   };
@@ -2563,7 +2575,7 @@ export async function applyChannelAutoReply(
         conversation.id,
         result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
         result.riskLevel,
-        result.riskType ?? lexicalRiskTypeOf(last.body, gateContext.hazardCleared === true),
+        result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
       );
       await recordRiskEvent({
         organizationId: conversation.property.organizationId,
@@ -2573,7 +2585,7 @@ export async function applyChannelAutoReply(
         triggerId: last.id,
         finalDecision: "human_review",
         riskLevel: result.riskLevel,
-        riskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext.hazardCleared === true),
+        riskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
         // Turun HİÇBİR güvenli isteği yoktu → kendi kodu; güvenli istek varken tutuş bugünkü gerekçesiyle (ayrıntı kanıtta `g`).
         reason: itemsPlan.allHeld ? "items_held" : heldReasonOf(gateFailure, handoffHeld),
         confidence: result.confidence,
@@ -2591,7 +2603,7 @@ export async function applyChannelAutoReply(
         reservationGivenName: conversation.reservation?.guestGivenName,
         gateDecision: "human_review",
         gateRiskLevel: result.riskLevel,
-        gateRiskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext.hazardCleared === true),
+        gateRiskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
       });
       return {
         sent: false,
@@ -2638,7 +2650,7 @@ export async function applyChannelAutoReply(
     const modelSensitive = modelFlagged || nluSensitive;
     // Rozet: acil durum her etiketten ağırdır (devir cevabının `human_request` etiketi acil durumu gizlemesin — P3-1).
     const escalationRiskType =
-      nluRiskType === "safety_emergency" ? nluRiskType : (result.riskType ?? lexicalRiskTypeOf(last.body, gateContext.hazardCleared === true) ?? nluRiskType);
+      nluRiskType === "safety_emergency" ? nluRiskType : (result.riskType ?? lexicalRiskTypeOf(last.body, gateContext) ?? nluRiskType);
     if (!options.dryRun && modelSensitive) {
       try {
         const claimed = await prisma.conversation.updateMany({
@@ -2802,7 +2814,7 @@ export async function applyChannelAutoReply(
         reservationGivenName: conversation.reservation?.guestGivenName,
         gateDecision: "human_review",
         gateRiskLevel: result.riskLevel,
-        gateRiskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext.hazardCleared === true),
+        gateRiskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
       });
       return { sent: false, skippedReason: "escalated_to_human", ...meta };
     }
@@ -2811,7 +2823,7 @@ export async function applyChannelAutoReply(
         conversation.id,
         result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
         result.riskLevel,
-        result.riskType ?? lexicalRiskTypeOf(last.body, gateContext.hazardCleared === true),
+        result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
       );
       await recordRiskEvent({
         organizationId: conversation.property.organizationId,
@@ -2821,7 +2833,7 @@ export async function applyChannelAutoReply(
         triggerId: last.id,
         finalDecision: "human_review",
         riskLevel: result.riskLevel,
-        riskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext.hazardCleared === true),
+        riskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
         // Müsaitlik vetosu kapattıysa GEREKÇE ONUN KODU (kapıyla AYNI yüklem, AYNI girdi) — raporda
         // "düşük güven" kovasına karışmasın. Konuşmanın `skippedReason`u BİLEREK aynı kalır: o kod on
         // yerde işleniyor (damgalama, senkron koruması, raporlar); yeni kod o zinciri riske atardı.
@@ -2845,7 +2857,7 @@ export async function applyChannelAutoReply(
         reservationGivenName: conversation.reservation?.guestGivenName,
         gateDecision: "human_review",
         gateRiskLevel: result.riskLevel,
-        gateRiskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext.hazardCleared === true),
+        gateRiskType: result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
       });
       // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): cevap konuyu ev sahibine bırakıyordu ("mesajınız kaydedildi; ev
       // sahibiniz görebilir") ve tutuldu → misafire hiçbir şey gitmedi; ev sahibine mesaj başına BİR "Misafir cevabınızı

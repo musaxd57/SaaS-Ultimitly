@@ -4,6 +4,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { emailService } from "@/lib/email";
 import { complaintEscalationEmail } from "@/lib/email-templates";
 import { detectRiskTypes } from "@/lib/ai/fallback";
+import { contextLabels } from "@/lib/ai/hazard-evidence";
 import type { MessageUnderstanding, UnderstandingHistoryEntry } from "@/lib/ai/semantic/understanding-schema";
 import { buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemsGateInput } from "./core";
 import { extractTurnItems, type ItemsDegradedReason } from "./extract";
@@ -88,13 +89,20 @@ export async function planItemsTurn(
      * düzeyi + anlama katmanı "acil değil"). O etiket öğe kurmaz ve turu acil yola çevirmez — kapı da aynı hükmü kullanır.
      */
     hazardCleared?: boolean;
+    /** Kalkan etiket olası fiziksel tehlikedendi → acil öğe yerine şikâyet öğesi (`contextLabels`). */
+    hazardClearedAsIssue?: boolean;
   },
 ): Promise<ItemsTurn> {
   const extracted = extractTurnItems({
     history: input.history,
     guestMessage: input.guestMessage,
     understanding: input.understanding,
-    ...(input.hazardCleared ? { labelsOf: (body: string) => detectRiskTypes(body).filter((l) => l !== "safety_emergency") } : {}),
+    ...(input.hazardCleared
+      ? {
+          labelsOf: (body: string) =>
+            contextLabels(detectRiskTypes(body), { lexicalCleared: true, clearedAsIssue: input.hazardClearedAsIssue === true }),
+        }
+      : {}),
   });
   if (extracted.mode === "degraded") return { mode: "off", reason: extracted.reason };
   const turnMessageIds = extracted.messages.map((m) => m.messageId);

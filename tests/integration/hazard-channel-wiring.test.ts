@@ -118,20 +118,21 @@ describe("kanal oto-yanıtı — bağlamla tehlike (51)", () => {
     expect(await prisma.conversation.findUniqueOrThrow({ where: { id } })).toMatchObject({ lastRiskType: "safety_emergency" });
   });
 
-  it("OLASI tehlike + anlama katmanı 'acil değil' → alarm bağlamla kalkar, cevap gider", async () => {
+  it("OLASI tehlike + anlama katmanı 'acil değil' → acil rozeti kalkar ama şikâyet akışı (gönderilmez, rozet şikâyet)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("appliance_help"));
     mockSuggest.mockResolvedValue(BASE);
     const id = await seed(KETTLE);
     await applyChannelAutoReply(id);
-    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.conversation.findUniqueOrThrow({ where: { id } })).toMatchObject({ lastRiskType: "complaint" });
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    expect(ev.riskType).toBe("complaint");
   });
 
   it("🚨 alarm kalksa da KAYNAKSIZ güvence gitmez (hazard_reassurance); rozet acil durum DEĞİL", async () => {
-    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
-    vi.stubGlobal("fetch", understandingFetch("appliance_help"));
-    mockSuggest.mockResolvedValue({ ...BASE, reply: "Bu tamamen normaldir, endişelenmeyin." });
-    const id = await seed(KETTLE);
+    mockSuggest.mockResolvedValue({ ...BASE, reply: "Bina tamamen güvenlidir, endişelenmeyin; çıkış merdiveni koridorun sonunda." });
+    const id = await seed("Yangın çıkarsa hangi kapıdan çıkmalıyız?");
     await applyChannelAutoReply(id);
     expect(mockSend).not.toHaveBeenCalled();
     expect(await gateDetail(id)).toBe("hazard_reassurance");

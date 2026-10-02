@@ -676,11 +676,73 @@ export interface HazardDecision {
   /** Fiziksel tehlike için ACİL mi (güvenlik satırı + alarm)? */
   emergency: boolean;
   /**
-   * Kelime ağının fiziksel tehlike sözcüğünden gelen "acil" etiketi bu turda bağlamla KALDIRILDI mı? Yalnız: düzey olası / anılış,
-   * etiket YALNIZ fiziksel tehlike sözcüğünden (sağlık / güvenlik / kilitli kalma gibi başka acil sınıfı yok) ve model "acil değil" dedi
-   * (olası düzeyde model KOŞMUŞ olmalı — koşmadıysa güvenli taraf).
+   * Kelime ağının "acil" etiketi bu turda bağlamla KALDIRILDI mı? Yalnız: fiziksel düzey açık DEĞİL; etiket yalnız fiziksel tehlike
+   * sözcüklerinden ve / veya bağlamı belirsiz kalıplardan (`AMBIGUOUS_EMERGENCY`) geliyor (maskelenince mesajda acil kalmıyor); ve: anılan
+   * fiziksel tehlike (olumsuz / geçmiş / varsayım) ya da anlama modeli koştu ve "acil değil" dedi (koşmadıysa güvenli taraf: etiket kalır).
    */
   lexicalCleared: boolean;
+  /**
+   * Kalkan etiket OLASI fiziksel tehlikeden mi geldi? O zaman acil değil ama ev sahibinin işi: etiket ŞİKÂYET olarak kalır (kurucu: "Komşunun
+   * sigara dumanı geliyor → genellikle şikâyet akışı"; kettle dumanı, tavandan akan su). Anılan tehlike / belirsiz kalıp → etiket tamamen kalkar.
+   */
+  clearedAsIssue: boolean;
+}
+
+/**
+ * Kelime ağı etiketlerinin bağlam kararından geçmiş hâli (TEK kural — kanal kapısı, QR kapısı, öğe planı, rozet ve karar kaydı aynı sırayı
+ * kullanır): etiket kalkmadıysa aynen; kalktıysa acil etiketi düşer, olası tehlikede yerine (yoksa) şikâyet gelir.
+ */
+export function contextLabels(labels: readonly string[], decision: { lexicalCleared?: boolean; clearedAsIssue?: boolean } | null | undefined): string[] {
+  if (!decision?.lexicalCleared || !labels.includes("safety_emergency")) return [...labels];
+  if (!decision.clearedAsIssue) return labels.filter((l) => l !== "safety_emergency");
+  return labels.includes("complaint")
+    ? labels.filter((l) => l !== "safety_emergency")
+    : labels.map((l) => (l === "safety_emergency" ? "complaint" : l));
+}
+
+/**
+ * 51 a–f — acil sözcük ağının ANLAMI BAĞLAMA BAĞLI kalıpları (kurucu: "51'e de bağlam ilkesini uygula"). Bu kalıplardan gelen "acil" etiketini
+ * ANLAMA MODELİ kaldırabilir (koştu ve "acil değil" dedi); model koşmadıysa / düştüyse etiket kalır (güvenli taraf). Aynı mesajda başka acil
+ * sözcüğü varsa maskeden sonra da kalır → kaldırılmaz ("Помогите, пожалуйста! Мама упала…", "Emergency! What's the number?").
+ *  a) övgü "-(y)A bayılmak" (sevmek): yönelme ekli ad + 1. şahıs ("Daireye bayıldık", "Manzaraya bayıldım"); öteki şahıslarda yalnız bilinen
+ *     yer / şey adıyla ("Çocuklar havuza bayıldı"). "Annem bayıldı", "Hepimiz bayıldık, başımız dönüyor" AÇIK kalır.
+ *  b) "düştü" öznesi bağlantı / fiyat / ölçü ("İnternet düştü", "Fiyatlar düştü mü?", "Suyun basıncı düştü"); "Annem düştü" açık kalır.
+ *  d) Rusça nezaket "Помогите, пожалуйста, …" (tek başına "Помогите!" açık kalır).
+ *  e) ağa / uygulamaya giriş yapamama ("No puedo entrar a la red wifi", "Не могу войти в сеть Wi-Fi", "لا أستطيع الدخول إلى شبكة الواي فاي").
+ *  f) acil numara / varsayım / aile acil durumu ("What's the emergency number, just in case?", "Acil bir durumda hangi numarayı…",
+ *     "cancel due to a family emergency").
+ * Kural ihlali ağının "party / parti" belirsizliği (51 g) bu modülün konusu DEĞİL: karar ev kuralı sinyalini (bugün gölgede) ister — ayrı onay.
+ */
+const TR_PRAISE_NOUNS =
+  "(?:daire|ev|evin|oda|manzara|havuz|teras|balkon|plaj|deniz|kahvalti|konum|mahalle|bahce|mutfak|dekor|dekorasyon|jakuzi|sauna|sehir|mekan|tasarim|banyo|salon|yatak|esya|ortam|atmosfer)";
+const AMBIGUOUS_EMERGENCY = rxg([
+  `${NL}(?:\\p{L}{1,20}y[ae]|${TR_PRAISE_NOUNS}\\p{L}{0,6}[ae])\\s+(?:cok\\s+|resmen\\s+|adeta\\s+|gercekten\\s+)?bayil(?:dik|dim|iyoruz|iyorum)${NR}`,
+  `${NL}${TR_PRAISE_NOUNS}\\p{L}{0,6}[ae]\\s+(?:cok\\s+|resmen\\s+|adeta\\s+|gercekten\\s+)?bayil(?:di|diniz|dilar|iyor|iyorlar|iyorsunuz|acak|acaksiniz)${NR}`,
+  `${NL}(?:internet\\p{L}*|wi-?fi\\p{L}*|net${NR}|baglanti\\p{L}*|sinyal\\p{L}*|fiyat\\p{L}*|basinc\\p{L}*|sicaklik\\p{L}*|sarj\\p{L}*|hiz\\p{L}*|kalite\\p{L}*)\\s+(?:\\p{L}+\\s+)?dustu\\p{L}{0,6}${NR}`,
+  `${NL}no\\s+(?:puedo|podemos)\\s+(?:entrar|acceder|conectar(?:me|nos)?)\\s+(?:a|al|en)\\s+(?:la\\s+|el\\s+|mi\\s+)?(?:red|wifi|wi-fi|internet|aplicaci[oó]n|app|cuenta)${NR}`,
+  `(?:لا\\s+(?:أستطيع|نستطيع|يمكنني|يمكننا)\\s+(?:الدخول|الاتصال)\\s+(?:إلى|ب)\\s*(?:شبكة|الشبكة|الواي\\s*فاي|الإنترنت|التطبيق|الحساب))`,
+  `${NL}(?:emergency\\s+(?:number|phone|contact)s?|notfall\\p{L}*nummer\\p{L}*|notrufnummer\\p{L}*|num[eé]ro\\s+d'urgence|n[uú]mero\\s+de\\s+emergencia|acil\\s+(?:durum\\s+)?numara\\p{L}*)${NR}`,
+  `(?:رقم\\s+(?:ال)?طوارئ)`,
+  `${NL}(?:in\\s+case\\s+of\\s+(?:an\\s+)?emergenc\\p{L}*|just\\s+in\\s+case|im\\s+notfall|en\\s+cas\\s+d'urgence|en\\s+caso\\s+de\\s+emergencia|acil\\s+bir\\s+durumda|acil\\s+durumlarda)${NR}`,
+  `(?:في\\s+حالة\\s+(?:ال)?طوارئ)`,
+  `${NL}(?:family\\s+emergenc\\p{L}*|aile(?:vi|mde|mizde)?\\s+(?:bir\\s+)?acil\\s+durum\\p{L}*|famili[äa]re[nrs]?\\s+notfall\\p{L}*|urgence\\s+familiale|emergencia\\s+familiar)${NR}`,
+]);
+/**
+ * Rusça kalıplar AYRI ve yalnız mesajda olay sözcüğü YOKKEN maskelenir: Rusça acil sözcük ağı sağlık olaylarında zayıf ("Мама упала, идёт кровь"
+ * tek başına acil sayılmıyor — Sabah Kararları 51 EK) → "Помогите, пожалуйста! Мама упала…" mesajında tek tetik "помогите" olabilir.
+ */
+const AMBIGUOUS_EMERGENCY_RU = rxg([
+  `${NL}помогите,?\\s+пожалуйста${NR}`,
+  `${NL}не\\s+(?:могу|можем)\\s+(?:войти|зайти|подключиться)\\s+(?:в|к)\\s+(?:сеть|wi-?fi|вай-?фай|интернет|приложени\\p{L}*|аккаунт)`,
+  `${NL}(?:номер\\s+(?:экстренн\\p{L}*|скорой)(?:\\s+\\p{L}+)?)`,
+  `${NL}(?:в\\s+экстренном\\s+случае)`,
+]);
+const RU_INCIDENT =
+  /(?:упал|кров|травм|скор(?:ую|ая|ой)|сознани|не\s+дыш|сломал|перелом|бол[ьи]|приступ|ранен|порез|поранил|ож[её]г|обж[её]г|задыха|судорог|инсульт|инфаркт|аллерги|отравл|пожар|дым|газ|затоп|ударил|умира|плохо|врач|больниц|полици|украл|напал|угрож)/iu;
+
+export function maskAmbiguousEmergency(folded: string): string {
+  const out = folded.replace(AMBIGUOUS_EMERGENCY, " ");
+  return RU_INCIDENT.test(out) ? out : out.replace(AMBIGUOUS_EMERGENCY_RU, " ");
 }
 
 export function hazardDecisionFor(
@@ -699,20 +761,26 @@ export function hazardDecisionFor(
     (level === "possible" && (!input.understandingRan || input.understandingEmergency)) ||
     (level === "mentioned" && input.understandingRan && input.understandingEmergency);
   const lexicalAny = input.texts.some((t) => lexicalEmergencyOf(t));
-  const physicalOnly = input.texts.every((t) => !lexicalEmergencyOf(t) || lexicalEmergencyOf(maskHazardMentions(t)) === false);
+  // Fiziksel tehlike sözcükleri ve bağlamı belirsiz kalıplar maskelenince mesajda acil kalmıyorsa etiket BAĞLAMA bağlıdır (kaldırılabilir).
+  const maskedPhysical = input.texts.map((t) => maskHazardMentions(t));
+  const clearable = input.texts.every((t, i) => !lexicalEmergencyOf(t) || !lexicalEmergencyOf(maskAmbiguousEmergency(maskedPhysical[i])));
+  const ambiguousInvolved = input.texts.some((t, i) => lexicalEmergencyOf(t) && lexicalEmergencyOf(maskedPhysical[i]));
+  const modelSaysNo = input.understandingRan && !input.understandingEmergency;
   const lexicalCleared =
     lexicalAny &&
-    physicalOnly &&
+    clearable &&
     !emergency &&
-    (level === "mentioned" || (level === "possible" && input.understandingRan));
-  return { evidence, emergency, lexicalCleared };
+    // Belirsiz kalıp (övgü, bağlantı düştü, nezaket, acil numara…) ve anılışsız / olası fiziksel düzey: kararı MODEL verir; anılan (olumsuz /
+    // geçmiş / varsayım) fiziksel tehlike model koşmadan da kalkar.
+    (ambiguousInvolved ? modelSaysNo : level === "mentioned" || ((level === "possible" || level === "none") && modelSaysNo));
+  return { evidence, emergency, lexicalCleared, clearedAsIssue: lexicalCleared && level === "possible" };
 }
 
 /** Fiziksel tehlike anılışlarını nötr işaretle değiştirir — kalan metinde BAŞKA bir acil sınıfı var mı diye bakmak için. */
 const HAZARD_WORDS_FOR_MASK = rxg([
   `${NL}(?:yangin${LB}|alev${LB}|ates${LB}|tutus${LB}|duman${LB}|yanik${LB}|yaniyor|yandi|gaz${LB}|dogalgaz${LB}|su\\s+bas${LB}|sel${NR}|kivilcim${LB}|elektrik\\s+carp${LB}|carpildi${LB})`,
   `${NL}(?:fire${LB}|flames?|burn${LB}|smok${LB}|gas${LB}|flood${LB}|leak${LB}|spark${LB}|shock${LB}|electrocut${LB})`,
-  `${NL}(?:feuer${LB}|brand${LB}|brennt|flammen|rauch${LB}|gas${LB}|uberflut${LB}|überflut${LB}|funken|stromschlag)`,
+  `${NL}(?:feuer${LB}|brand${LB}|brennt|flammen|rauch${LB}|gas${LB}|uberflut${LB}|überflut${LB}|funken|stromschlag|wasser${LB})`,
   `${NL}(?:feu${LB}|incendie${LB}|flammes?|brûle|brule|fumée${LB}|fumee${LB}|gaz|inond${LB}|étincelle${LB})`,
   `${NL}(?:fuego${LB}|incendio${LB}|llamas|quema${LB}|humo${LB}|gas${NR}|inund${LB}|chispa${LB})`,
   `${NL}(?:пожар${LB}|огон${LB}|огн${LB}|гор${LB}|пламя|дым${LB}|газ${LB}|затоп${LB}|искр${LB}|ток${LB})`,

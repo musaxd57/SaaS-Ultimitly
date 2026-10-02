@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   SAFETY_LINES,
+  contextLabels,
   hasSafetyReassurance,
   hazardDecisionFor,
   hazardEvidenceOf,
@@ -347,6 +348,64 @@ describe("51: acil KARARI (bağlam ilkesi)", () => {
     );
     expect(d.evidence.level).toBe("clear");
     expect(d.emergency).toBe(true);
+  });
+
+  it("olası tehlikede kalkan etiket ŞİKÂYET olarak kalır (kurucu: komşunun sigara dumanı → şikâyet akışı); anılışta tamamen kalkar", () => {
+    expect(decide("Komşunun sigara dumanı geliyor.", true, false)).toMatchObject({ lexicalCleared: true, clearedAsIssue: true });
+    expect(decide("Yangın çıkarsa ne yapmalıyız?", true, false)).toMatchObject({ lexicalCleared: true, clearedAsIssue: false });
+    expect(decide("Prizden duman çıkıyor, yanık kokuyor!", true, false)).toMatchObject({ lexicalCleared: false, clearedAsIssue: false });
+  });
+
+  it("contextLabels: kalkmadıysa aynen; olası tehlikede acil → şikâyet (şikâyet zaten varsa tekrar edilmez); anılışta acil düşer", () => {
+    const issue = { lexicalCleared: true, clearedAsIssue: true };
+    const drop = { lexicalCleared: true, clearedAsIssue: false };
+    expect(contextLabels(["safety_emergency", "money_refund"], null)).toEqual(["safety_emergency", "money_refund"]);
+    expect(contextLabels(["safety_emergency", "money_refund"], { lexicalCleared: false, clearedAsIssue: false })).toEqual([
+      "safety_emergency",
+      "money_refund",
+    ]);
+    expect(contextLabels(["safety_emergency", "money_refund"], issue)).toEqual(["complaint", "money_refund"]);
+    expect(contextLabels(["safety_emergency", "complaint"], issue)).toEqual(["complaint"]);
+    expect(contextLabels(["safety_emergency", "money_refund"], drop)).toEqual(["money_refund"]);
+    expect(contextLabels(["rule_violation"], drop)).toEqual(["rule_violation"]);
+  });
+
+  it("51 a–f: bağlamı belirsiz kalıpta kararı MODEL verir (koşmadıysa etiket kalır); açık olay aynı mesajda varsa kalkmaz", () => {
+    const cleared = (m: string, ran: boolean, em = false) => decide(m, ran, em).lexicalCleared;
+    for (const m of [
+      "Daireye bayıldık, her şey için teşekkürler!",
+      "Manzaraya bayıldım",
+      "Çocuklar havuza bayıldı!",
+      "İnternet düştü, modemi yeniden başlatayım mı?",
+      "Fiyatlar düştü mü?",
+      "Suyun basıncı düştü",
+      "Помогите, пожалуйста, как подключиться к Wi-Fi?",
+      "No puedo entrar a la red wifi",
+      "Не могу войти в сеть Wi-Fi",
+      "لا أستطيع الدخول إلى شبكة الواي فاي",
+      "Was ist die Notfallnummer?",
+      "What's the emergency number here, just in case?",
+      "Acil bir durumda hangi numarayı aramamız gerekiyor? Bilelim diye soruyorum.",
+      "Hi, I need to cancel my booking due to a family emergency. How do I get a refund?",
+      "Im Flur brennt das Licht nicht",
+    ]) {
+      expect(cleared(m, true), m).toBe(true);
+      expect(cleared(m, false), `${m} (model koşmadı)`).toBe(false);
+      expect(cleared(m, true, true), `${m} (model acil dedi)`).toBe(false);
+    }
+    for (const m of [
+      "Annem bayıldı!",
+      "Hepimiz bayıldık, başımız dönüyor",
+      "Derya bayıldı!",
+      "Annem merdivenden düştü",
+      "Merdivenden düştüm",
+      "Помогите!",
+      "Помогите, пожалуйста! Мама упала, идёт кровь",
+      "Emergency! What's the emergency number?",
+      "Daireye bayıldık ama babam düştü ve kanıyor",
+    ]) {
+      expect(cleared(m, true), m).toBe(false);
+    }
   });
 
   it("maske yalnız fiziksel tehlike sözcüklerini siler", () => {

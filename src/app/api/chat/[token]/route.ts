@@ -854,6 +854,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     guestLanguageHint: understood?.language ?? result.detectedLanguage ?? null,
     // 51: kelime ağının fiziksel tehlike etiketi bağlamla kalktı mı (olası / anılış + model "acil değil").
     hazardCleared: hazardDecision.lexicalCleared,
+    hazardClearedAsIssue: hazardDecision.clearedAsIssue,
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);

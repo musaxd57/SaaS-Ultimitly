@@ -150,14 +150,16 @@ describe("QR rotası — bağlamla tehlike (55 + 51)", () => {
     expect((await lastEvent()).reason).toBe("keyword_risk_type");
   });
 
-  it("OLASI tehlike + anlama katmanı 'acil değil' → kelime ağının acil etiketi kalkar, cevap gider", async () => {
+  it("OLASI tehlike + anlama katmanı 'acil değil' → acil DEĞİL (112 satırı yok) ama şikâyet akışı: ev sahibinde, misafire metin yok", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("appliance_help"));
     mockSuggest.mockResolvedValue({ ...DRAFT, reply: "Çaydanlığı ocaktan alıp soğumasını bekleyin." });
     const { token } = await seed();
     const out = await ask(token, KETTLE);
-    expect(out.escalated).toBe(false);
-    expect(out.reply).toBe("Çaydanlığı ocaktan alıp soğumasını bekleyin.");
+    expect(out.escalated).toBe(true);
+    expect(out.reply ?? null).toBeNull();
+    const ev = await lastEvent();
+    expect(ev.reason).toBe("keyword_risk_type");
   });
 
   it("🚨 OLASI tehlike + anlama katmanı 'acil' → devir + güvenlik satırı", async () => {
@@ -171,11 +173,9 @@ describe("QR rotası — bağlamla tehlike (55 + 51)", () => {
   });
 
   it("🚨 alarm bağlamla kalktıysa KAYNAKSIZ güvence ('normaldir, endişelenmeyin') gitmez → hazard_reassurance, misafire metin yok", async () => {
-    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
-    vi.stubGlobal("fetch", understandingFetch("appliance_help"));
-    mockSuggest.mockResolvedValue({ ...DRAFT, reply: "Bu tamamen normaldir, endişelenmeyin." });
+    mockSuggest.mockResolvedValue({ ...DRAFT, reply: "Bina tamamen güvenlidir, endişelenmeyin; çıkış merdiveni koridorun sonunda." });
     const { token } = await seed();
-    const out = await ask(token, KETTLE);
+    const out = await ask(token, FIRE_IF);
     expect(out.escalated).toBe(true);
     expect(out.reply ?? null).toBeNull();
     expect((await lastEvent()).reason).toBe("hazard_reassurance");

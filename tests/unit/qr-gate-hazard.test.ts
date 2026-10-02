@@ -29,6 +29,12 @@ describe("QR kapısı — bağlamla kalkan tehlike etiketi", () => {
   it("alarm bağlamla kalktıysa etiket sayılmaz → cevap gider", () => {
     expect(evaluateEscalation(ok, KETTLE, null, [], { hazardCleared: true })).toEqual({ escalate: false, reason: null });
   });
+  it("olası tehlikede kalkan etiket ŞİKÂYET olarak sayılır → yine devir (acil değil, ev sahibinin işi)", () => {
+    expect(evaluateEscalation(ok, KETTLE, null, [], { hazardCleared: true, hazardClearedAsIssue: true })).toEqual({
+      escalate: true,
+      reason: "keyword_risk_type",
+    });
+  });
   it("aynı mesajdaki BAŞKA yüksek riskli etiket (platform dışı ödeme) alarm kalksa da sayılır", () => {
     const v = evaluateEscalation(ok, "Mutfakta biraz duman var. IBAN'ınızı atar mısınız, parayı doğrudan göndereyim?", null, [], {
       hazardCleared: true,

@@ -14,7 +14,7 @@ import type {
   UnderstandingStaySignal,
 } from "@/lib/ai/semantic/stay-change";
 import { classifyFallback, detectPromptInjection, detectRiskType, detectRiskTypes } from "@/lib/ai/fallback";
-import { hasSafetyReassurance, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
+import { contextLabels, hasSafetyReassurance, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import {
   confidentLanguage,
   guestTurnLanguage,
@@ -242,6 +242,8 @@ export function evaluateEscalation(
      * (`hazardDecisionFor().lexicalCleared` — olası / anılış düzeyi + model "acil değil"). Açık tehlikede asla true olmaz.
      */
     hazardCleared?: boolean;
+    /** Kalkan etiket olası fiziksel tehlikedendi → acil değil ama şikâyet olarak sayılır (`contextLabels`). */
+    hazardClearedAsIssue?: boolean;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
@@ -294,7 +296,9 @@ export function evaluateEscalation(
   // zaten Seviye-2'dir. `human_request` için muafiyet YOK — kapıda gerçek
   // zamanlı devredilecek insan yok (↑:142-143'teki gerekçe aynen geçerli).
   // 51: bağlamla kaldırılan fiziksel tehlike etiketi bu kontrolde sayılmaz; aynı mesajdaki başka etiket (öncelik sırasıyla) aynen sayılır.
-  const dr = stayCtx?.hazardCleared ? (detectRiskTypes(message).find((l) => l !== "safety_emergency") ?? null) : detectRiskType(message);
+  const dr = stayCtx?.hazardCleared
+    ? (contextLabels(detectRiskTypes(message), { lexicalCleared: true, clearedAsIssue: stayCtx.hazardClearedAsIssue === true })[0] ?? null)
+    : detectRiskType(message);
   if (dr && HIGH_STAKES_RISK_TYPES.has(dr)) return yes("keyword_risk_type");
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return yes("model_risk_level");
   // ── "BİLGİM YOK" MİSAFİRE GİTMEZ (kurucu kuralı, 09-11) ───────────────────

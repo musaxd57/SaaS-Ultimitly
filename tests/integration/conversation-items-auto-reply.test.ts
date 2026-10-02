@@ -904,16 +904,27 @@ describe("51 — öğe kipinde bağlamla kalkan tehlike alarmı", () => {
   beforeEachTurn();
   const KETTLE = "Çaydanlıktan duman çıkıyor, normal mi?";
 
-  it("olası tehlike + anlama katmanı 'cihaz' (acil değil) → acil öğe YOK, cevap gider", async () => {
+  it("olası tehlike + anlama katmanı 'cihaz' (acil değil) → acil öğe YOK; şikâyet öğesi ev sahibinde (tek e-posta), turun tamamı acil yola dönmez", async () => {
     const { conversationId } = await seed(KETTLE);
     understands(understood([{ intent: "appliance_help", message: 1 }]));
     mockSuggest.mockResolvedValueOnce(
       verdict({ intent: "appliance_help", reply: "Çaydanlığı ocaktan alıp soğumasını bekleyin.", answeredRequests: { ok: true, refs: ["R1"] } }),
     );
     const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    const sens = (await itemsOf(conversationId)).map((i) => i.sensitivity);
+    expect(sens).not.toContain("emergency");
+    expect(sens).toContain("sensitive");
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("anılan tehlike ('Yangın çıkarsa…') + güvenli soru: acil / şikâyet öğesi yok, cevap gider", async () => {
+    const { conversationId } = await seed("Yangın çıkarsa hangi kapıdan çıkmalıyız? Bir de Wi-Fi şifresi neydi?");
+    understands(understood([{ intent: "wifi", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(wifiAnswer());
+    const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(true);
-    expect((await itemsOf(conversationId)).map((i) => i.sensitivity)).not.toContain("emergency");
-    expect(mockMail).not.toHaveBeenCalled();
+    expect((await itemsOf(conversationId)).map((i) => i.sensitivity)).toEqual(["none"]);
   });
 
   it("🚨 KONTROL: açık tehlike ('Prizden duman çıkıyor, yanık kokuyor!') anlama katmanı 'cihaz' dese de acil yol — gönderilmez", async () => {
