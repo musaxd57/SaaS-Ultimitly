@@ -169,7 +169,9 @@ describe("evalRuntime — katman bazında model + gönderilen düşünme çabas�
     const id = replyRequestIdentity(REPLY_VARIANT_INPUT);
     expect(rt.prompts?.replyVariant).toBe(sha12(`${id.system}\n${id.user}`));
     expect(rt.prompts?.replyVariant).not.toBe(rt.prompts?.reply);
-    expect(id.user).toContain("MİSAFİRİN DİLİ"); // örnek gerçekten yabancı dil satırını tetikler
+    // Örnek gerçekten iki katmanı da tetikler: Türkçe OLMAYAN misafirin dil satırı + konuşma öğeleri bloğu (bırakılan öğe dahil).
+    expect(id.user).toContain("ÇEVİREREK yaz");
+    expect(id.user).toContain("r1 · Wi-Fi");
     // Saatten BAĞIMSIZ (sabit an): kullanıcı istemi "Bugün" satırı taşır, kimlik günden güne oynamamalı.
     vi.useFakeTimers();
     try {
