@@ -829,3 +829,30 @@
 - **Müşteriye etkisi:** karışık mesajlarda güvenli kısım cevaplanır; hassas kısım hakkında misafire hiçbir cümle gitmez (bugün 5.1'in ara sıra
   yazdığı platform cümlesi de gitmez).
 - **Beklerken yapılmayan:** dal itilmedi; cevap modelini Luna'ya geçirmeyi önermiyorum (rapor §7).
+
+## 54. Hizmet isteği ("yarından itibaren bebek yatağı", "perşembe ek temizlik") cevaplanıyor ama EV SAHİBİ HABERDAR OLMUYOR — CANLI (kör set 11 k11-35, 10-02 sabah; kodda doğrulandı)
+- **Durum:** Misafir (Fransızca): "Yarından itibaren bebeğimiz için portatif yatak verebilir misiniz? Ücreti ne kadar?" Bilgi tabanı: "İsteğe bağlı
+  olarak portatif bebek yatağı ve mama sandalyesi sağlıyoruz; ikisi birlikte konaklama başına 250 TL'dir. Bir gün önceden yazmanız yeterlidir."
+  - *Bugün (5.1, canlı):* "Bebeğiniz için portatif yatak sağlayabiliriz. Bebek yatağı ve mama sandalyesi birlikte konaklama boyunca 250 TL." →
+    GİDER, konuşma "Cevaplandı", ev sahibine e-posta YOK, görev YOK. Görev yalnız acil / arıza / biten malzeme / şikâyette açılıyor
+    (`tasks/detect.ts`); konuşma öğesi (`amenities`) cevaplanınca "answered" olur, "Açık işler"de görünmez. Anlama katmanı "bilgi sorusu"
+    ("bebek yatağı var mı?") ile "bir şey getirin / ayarlayın" isteğini ayırmıyor. Misafir yatağın yarın hazır olacağını sanıyor; ev sahibi
+    istekten habersiz.
+  - *Luna `medium` (aday):* "Portatif yatağın uygunluğu ve ücreti ev sahibinizin kararıdır." → ev sahibi kararı vetosu tutuyor (cümle zaten
+    yanlış: ücret bilgi tabanında sabit), misafire hiçbir şey gitmiyor, ev sahibine "cevap bekliyor" e-postası gidiyor (ölçüm §9.10).
+  - İkisi de sizin "cevap vermek talebi çözmek değil" dediğiniz durum: biri talebi kapatıp ev sahibini habersiz bırakıyor, öbürü misafiri
+    bilgisiz bırakıyor.
+- **Sektördeki yaygın yaklaşım:** misafirin hizmet isteği ev sahibi panelinde bir görev / talep kalemi olur; otomatik cevap bilgiyi verir,
+  "ayarlandı" demez.
+- **Öneri:** (1) misafire bilgi tabanının olgusu gider — "Portatif bebek yatağı ve mama sandalyesi sağlıyoruz; ikisi birlikte konaklama başına
+  250 TL. Bir gün önceden yazmanız yeterli." — "hazırladık / ayarladık" iddiası YOK (makbuz yok; çıktı vetosu zaten tutar); (2) aynı turda
+  ev sahibine TEK "Hizmet isteği: bebek yatağı — yarından itibaren" kalemi açılır (öğe "answered" değil açık kalır; mesaj başına tek, yeniden
+  senkronda çoğalmaz; e-posta isteyip istemediğiniz ayrıca); (3) ev sahibi tamamlayınca kapanır. "Bir şey getirin / ayarlayın" ayrımını
+  anlama katmanı yapar (bekleyen anlama v2 önerisindeki `act` alanı, `docs/MESAJ-ANLAMA-CEKIRDEGI-2026-09-25.md` §4) — sözcük listesi
+  kurulmaz. Erken giriş / konaklama değişikliği bugünkü gibi ayrı kalır (madde 1, Host Karar Motoru); bu, aynı "talebi çözmek" akışının
+  hizmet istekleri için ilk dilimi olur.
+- **Örnek — sonra:** misafire yukarıdaki iki cümle gider; Görevler'de "Hizmet isteği · Bebek yatağı · yarın" kartı açılır; konuşma "Cevaplandı"
+  olsa da kart açık kalır. "Bebek yatağı var mı, ücreti ne?" (yalnız bilgi) bugünkü gibi cevaplanır, kart açılmaz.
+- **Müşteriye etkisi:** misafir bilgiyi hemen alır, ev sahibi işi kaçırmaz. Yatağın gerçekten getirilmesi yine ev sahibine bağlı.
+- **Beklerken yapılmayan:** yeni alan / görev türü / bildirim KURULMADI (sormadan sistem kurulmaz). Luna'nın bu satırdaki "ev sahibinin kararı"
+  cevabını düzeltmek için istem değiştirilmedi.
