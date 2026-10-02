@@ -58,6 +58,19 @@ describe("blok", () => {
     expect(withFlag).not.toContain("ÖNCEKİ MESAJLARDAN");
   });
 
+  it("🚨 ÖNCELİK (10-02): bırakılan istek varken blok taban istemin para / devir kalıplarının ÖNÜNDE olduğunu söyler; yokken blok eski biçim", () => {
+    // Luna ölçümü: düşünme çabası arttıkça model taban istemin "para konuları her zaman 'bu konu ev sahibinizin kararıdır'" kuralını
+    // bu bloğun "bırakılana DEĞİNME" kuralına tercih ediyordu → cevabın tamamı tutuluyor, güvenli kısım misafire gitmiyordu.
+    const withHeld = buildItemsPromptBlock(ITEMS).replace(/\s+/g, " ");
+    expect(withHeld).toContain("Bu kurallar sistem istemindeki para / ödeme / iade / devir kalıplarının");
+    expect(withHeld).toContain("bırakılan bir konu hakkında tek cümle bile yazma");
+    const earlierOnly = buildItemsPromptBlock({ answerable: ITEMS.answerable, held: [{ kind: "payment_invoice", earlier: true }] });
+    expect(earlierOnly.replace(/\s+/g, " ")).toContain("Bu kurallar sistem istemindeki para / ödeme / iade / devir kalıplarının");
+    const noHeld = buildItemsPromptBlock({ answerable: ITEMS.answerable, held: [] });
+    expect(noHeld).not.toContain("Bu kurallar sistem istemindeki");
+    expect(noHeld.endsWith('hiçbirini cevaplamadıysan [].')).toBe(true);
+  });
+
   it("her türün Türkçe adı var (tek kaynak)", () => {
     for (const k of ITEM_KINDS) expect([k, typeof ITEM_KIND_LABELS_TR[k]]).toEqual([k, "string"]);
   });
