@@ -595,7 +595,7 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 | `OPENAI_STYLE_MODEL` | `gpt-6-luna` | Luna kararıyla (kör kabul yeşil) | üslup özeti Luna (rehbere tesis bilgisi sızmadı) |
 | `OPENAI_STYLE_REASONING_EFFORT` | `none` | Luna kararıyla (kör kabul yeşil) | üslupta düşünme kapalı |
 | `OPENAI_MODEL` | `gpt-6-luna` | Luna kararıyla (kör kabul yeşil) | cevap modeli Luna |
-| `OPENAI_REASONING_EFFORT` | **`low`** (10-02 gece düzeltildi; ilk öneri `none` idi) | Luna kararıyla | `none` başka dairenin kodunu gönderdi (set 8, 3/3); `low` reddetti; kör set 9'da `low` 5.1 ile eşit, p95 9,2 sn. `medium` biraz daha kesin ama p95 13,8 sn |
+| `OPENAI_REASONING_EFFORT` | **`medium`** (10-02 sabah, kurucu tercihi — veriyle uyumlu; gece önerisi `low` idi, ilk öneri `none`) | Luna kararıyla | `none` başka dairenin kodunu gönderdi (set 8, 3/3); kör set 9'da `medium` gitmemesi gerekirken giden 0/23 (`low` 1/23, 5.1 2/23), olgu 21/26 (`low` / 5.1 20/26), maliyet `low` ile aynı; bedeli p95 13,8 sn (`low` 9,2). Zaman aşımı 60 sn → risk yok |
 | `AI_HOST_DECISION_HOLD_ENABLED` | `1` | ŞİMDİ yazılabilir (5.1 ile ölçüldü; kararınız) | "ev sahibinizin kararıdır" misafire gitmez, tek e-posta. Madde 13 kodlanana kadar çok sorulu mesajda güvenli soru da bekler |
 | `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` | `1` | ŞİMDİ yazılabilir (RC53 canlı, CI #1277; kör kabul §3.6) | anlam ilişkisi (17) + tehlikesiz arıza tarifi (18 "a"); şikâyet + bağımsız soru 6/6, bağlı 0/4, tehlikeli 0/5 |
 | `AI_KB_FEE_RULE_ENABLED` | `1` | ŞİMDİ yazılabilir (iki modelde ölçüldü) | KB'deki sabit hizmet ücreti koşuluyla söylenir; konaklama fiyatı / indirim / iade / tazminat üretilmez |
@@ -656,3 +656,33 @@ ilk yapılması gereken operatör adımı **44a** (herkese açık repodaki bucke
   tespitini (tutuşları) değiştirir → batarya + ölçüm ister.
 - Kesişen mesaj (A08-4): yapay zekâ cevabından ÖNCE yazılmış ama SONRA içe alınmış misafir mesajı — simülasyon bulgusu, gerçek kodla
   doğrulanmadı (sağlayıcı zaman damgası davranışına bağlı).
+
+
+## 9. 10-02 sabah (kurucu geri döndü: "Luna medium daha iyi duruyor", "canlıda bulunan hatayı düzelt", ".md kısalt", "5.1 kullanılan işlerde Luna'yı dene, kodları ona göre geliştir, sakın geçmesi için şeyler yapma; kredi sınırı yok")
+
+### 9.1 Cevap modeli: Luna `medium`
+Kurucunun gözlemi doğru: kör set 9'da `medium` gitmemesi gerekirken giden 0/23 (`low` 1, 5.1 2), doğru olgu 21/26 (20 / 20), özel ad hatası 3
+(4 / 4), maliyet `low` ile aynı ($0,22); bedeli hız (p50 8,4 / p95 13,8 sn; `low` 6,9 / 9,2) ve 1 dil uyumsuzluğu (kapı tuttu, misafire gitmedi).
+Farklar tek senaryoluk (kesin üstünlük değil) ama yön `medium` lehine ve maliyeti yok → öneri `OPENAI_REASONING_EFFORT=medium` (§7).
+
+### 9.2 Canlıdaki yanlış acil — onaylandı, AYNI SINIF düzeltildi (RC67)
+Sabah Kararları 49 EK: Almanca rauch / feuer, "humor / humour", "blessed", "smokers / smoke-free", "get in touch", "gas station", "flooded with
+light", Fransızca feu d'artifice / feu rouge-vert / pas le feu, İspanyolca fuegos artificiales, Rusça "хранение", Arapça "المصابيح", "her yeri süper",
+"priz yanında". Kırmızı-önce 36 test; acil / sınıflandırıcıyla ilgili 39 dosya yeşil (1.797 test); mutasyon 56/56; misafir külliyatı (1.306 mesaj)
+canlıdan fark yalnız 4 "brauchen / rauchen" (doğru). Anlam gerektirenler → Sabah Kararları 51.
+
+### 9.3 CLAUDE.md sadeleştirme 3
+Tam metin `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` (birebir); 220.982 → 208.134 bayt. "Durum" ≈23 KB → ≈6,5 KB: güncel
+durum + aynen kalan iki paragraf (K1–K18, Host Copilot) + tek listede bekleyen onaylar; yalnız Durum'da yazılı kurallar (konuşma öğeleri, ev
+kuralları, canlı bayraklar tablosu) ilgili bölümlere taşındı; dört kopya birleşti; üç eskimiş ifade düzeldi.
+
+### 9.4 Luna'nın 5.1 kullanan katmanlarda denenmesi (sürüyor)
+- **Ne öğrendik (eski kayıtlardan, ücretsiz):** Luna `low`'un konaklama eval'inde "tehlikeli kaçak" sayılan geliştirme satırlarının ikisi ve
+  izin kaçırmalarının ikisi mülkün kendi giriş saatiyle (15:00) çelişen ETİKETLERDEN çıktı ("ilanda 16:00 yazıyor, 15:00'te gelebilir miyiz?");
+  kurucu 10-02: "15:00'te gelmek erken giriş sayılmıyor, Luna doğru yapmış". Asıl açık soru görülmüş holdout'taki izin kaçırmaları (Luna `low` 11,
+  5.1 5) — o metinler açılmadı (yasak); yeni geliştirme seti ve kör kabul seti yazdırıldı.
+- **Plan:** (1) geliştirme seti `evals/stay-change-dev2.json` (okunur) — 5.1 / Luna none / low / medium; (2) Luna hatalarının sınıfına göre
+  YALNIZ genellenebilir düzeltme (ör. "model saati çıkarır, kıyas kodda" ilkesini taslağın verdiği saate de uygulamak); (3) kör kabul
+  `evals/stay-change-acc10.json` + uçtan uca `evals/luna-acceptance-10.json` (bütün katmanlar Luna ↔ bugünkü öneri); (4) sıralayıcı RAG ölçeğinde
+  (`live` ↔ `live+rrm:gpt-6-luna+rre:none`, ayrıca soru başına kip); (5) çeviri: önceki 76 satırda kod / şifre / bağlantı / tutar kaybı 0, iki
+  satırda saat Fransız yazımıyla ("21h00") — anlam kaybı yok.
