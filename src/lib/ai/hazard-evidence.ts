@@ -421,11 +421,16 @@ function clausesOf(folded: string): Clause[] {
   return out;
 }
 
+/** Cümlecik başına değerlendirilen anılış tavanı: tekrar eden sözcük dizisi ("duman duman duman…") doğrusal ve sınırlı iş kalsın. */
+const MENTION_CAP = 32;
+
 function mentionsIn(clause: string): { kind: HazardKind; index: number; length: number }[] {
   const out: { kind: HazardKind; index: number; length: number }[] = [];
   const light = LIGHT_CONTEXT.test(clause);
   for (const kind of KINDS) {
+    let seen = 0;
     for (const m of clause.matchAll(MENTION[kind])) {
+      if (++seen > MENTION_CAP) break;
       // Işık bağlamındaki "yanma" fiili tehlike anılışı değildir.
       if (kind === "fire" && light && BURN_VERB.test(m[0])) continue;
       // Gösterge simgesi olarak alev ("boiler display shows a flame") yangın anılışı değildir.
@@ -476,7 +481,16 @@ function capQuestion(clear: Set<HazardKind>, kinds: Set<HazardKind>, question: b
  * `next`: hemen ardındaki KISA cümlecik (≤5 sözcük, canlı) — "Bu ne duman böyle, her yer doldu!", "…alevler yükseliyor, halıya sıçradı!"
  * gibi yoğunluk / yayılma / erime bildirimi ayrı cümleciğe düşer.
  */
-function clauseLevel(clause: Clause, message: string, next: string | null): { level: HazardLevel; kinds: HazardKind[] } {
+/** Mesaj düzeyi sinyaller — canlı cümleciklerde BİR KEZ hesaplanır (cümlecik başına tüm mesajı taramak karesel işti). */
+interface MessageSignals {
+  breath: boolean;
+  burningSmell: boolean;
+  waterReachesElectric: boolean;
+  electricAnomaly: boolean;
+  benignSmokeSource: boolean;
+}
+
+function clauseLevel(clause: Clause, signals: MessageSignals, next: string | null): { level: HazardLevel; kinds: HazardKind[] } {
   const text = clause.text;
   const withNext = next ? `${text} ${next}` : text;
   const mentions = mentionsIn(text);
@@ -506,7 +520,7 @@ function clauseLevel(clause: Clause, message: string, next: string | null): { le
   const kinds = new Set(reported.map((m) => m.kind));
   const clear = new Set<HazardKind>();
   const intense = INTENSITY.test(withNext);
-  const escalating = intense || MELT.test(withNext) || BREATH.test(message) || SPREAD.test(withNext);
+  const escalating = intense || MELT.test(withNext) || signals.breath || SPREAD.test(withNext);
   if (kinds.has("fire") && (STRONG_FIRE.test(text) || (DESCRIPTIVE_FIRE.test(text) && (!CONTROLLED_FIRE.test(text) || escalating)))) {
     clear.add("fire");
   }
@@ -514,7 +528,7 @@ function clauseLevel(clause: Clause, message: string, next: string | null): { le
   if (kinds.has("electric") && (CLEAR_ELECTRIC.test(text) || ELECTRIC_OBJ.test(text))) clear.add("electric");
   if (
     kinds.has("water") &&
-    (CLEAR_WATER_ELECTRIC.test(text) || ELECTRIC_OBJ.test(text) || waterReachesElectric(message) || ELECTRIC_ANOMALY.test(message))
+    (CLEAR_WATER_ELECTRIC.test(text) || ELECTRIC_OBJ.test(text) || signals.waterReachesElectric || signals.electricAnomaly)
   ) {
     clear.add("water");
   }
@@ -523,20 +537,20 @@ function clauseLevel(clause: Clause, message: string, next: string | null): { le
     (ELECTRIC_OBJ.test(text) ||
       SMOKE_APPLIANCE.test(text) ||
       MELT.test(withNext) ||
-      BREATH.test(message) ||
-      BURNING_SMELL.test(message) ||
+      signals.breath ||
+      signals.burningSmell ||
       // Kaynağı BİLİNEN zararsız duman (sigara, mangal…) yoğun da olsa şikâyettir — kaynak mesajın herhangi bir canlı cümleciğinde.
-      (intense && !BENIGN_SMOKE_SOURCE.test(message)))
+      (intense && !signals.benignSmokeSource))
   ) {
     clear.add("smoke");
   }
-  if ((kinds.has("smoke") || kinds.has("gas")) && BREATH.test(message)) clear.add(kinds.has("gas") ? "gas" : "smoke");
+  if ((kinds.has("smoke") || kinds.has("gas")) && signals.breath) clear.add(kinds.has("gas") ? "gas" : "smoke");
   return capQuestion(clear, kinds, clause.question);
 }
 
-/** Canlı cümleciklerden birinde su ELEKTRİK nesnesine temas ediyor mu ("…avizenin içine damlıyor")? `message` = canlı cümlecikler, " . " ile. */
-function waterReachesElectric(message: string): boolean {
-  return message.split(" . ").some((c) => ELECTRIC_OBJ.test(c) && WATER_CONTACT.test(c));
+/** Canlı cümleciklerden birinde su ELEKTRİK nesnesine temas ediyor mu ("…avizenin içine damlıyor")? */
+function waterReachesElectric(liveClauses: readonly string[]): boolean {
+  return liveClauses.some((c) => ELECTRIC_OBJ.test(c) && WATER_CONTACT.test(c));
 }
 
 /**
@@ -553,10 +567,15 @@ export function hazardEvidenceOf(message: string | null | undefined): HazardEvid
   if (BARE_ALARM.test(folded.replace(/[\s!¡.]+/gu, " ").trim()) && /[!¡]/u.test(folded)) return { level: "clear", kinds: ["fire"] };
   // Mesaj düzeyi sinyaller (yanık kokusu, nefes, suyun elektriğe teması) yalnız olumsuzlanmamış / geçmiş olmayan cümleciklerden sayılır.
   const clauses = clausesOf(folded);
-  const live = clauses
-    .map((c) => c.text)
-    .filter((c) => !pastOrHypothetical(c) && !negatedSignal(c))
-    .join(" . ");
+  const liveClauses = clauses.map((c) => c.text).filter((c) => !pastOrHypothetical(c) && !negatedSignal(c));
+  const live = liveClauses.join(" . ");
+  const signals: MessageSignals = {
+    breath: BREATH.test(live),
+    burningSmell: BURNING_SMELL.test(live),
+    waterReachesElectric: waterReachesElectric(liveClauses),
+    electricAnomaly: ELECTRIC_ANOMALY.test(live),
+    benignSmokeSource: BENIGN_SMOKE_SOURCE.test(live),
+  };
   let best: HazardEvidence = { level: "none", kinds: [] };
   const kinds = new Set<HazardKind>();
   for (let i = 0; i < clauses.length; i++) {
@@ -564,7 +583,7 @@ export function hazardEvidenceOf(message: string | null | undefined): HazardEvid
     const following = clauses[i + 1]?.text ?? null;
     const next =
       following && following.split(/\s+/).length <= 5 && !pastOrHypothetical(following) && !negatedSignal(following) ? following : null;
-    const r = clauseLevel(clause, live, next);
+    const r = clauseLevel(clause, signals, next);
     if (RANK[r.level] > RANK[best.level]) {
       best = { level: r.level, kinds: [] };
       kinds.clear();

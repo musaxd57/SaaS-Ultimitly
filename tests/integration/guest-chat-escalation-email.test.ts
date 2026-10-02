@@ -435,6 +435,39 @@ describe("POST /api/chat/[token] — escalation wires the e-mail", () => {
     }
   });
 
+  it("🚨 ROUTE (51): bağlamla KALKAN tehlike etiketi kritik uyarı değildir — devir uyarısı bekleme süresine takılır", async () => {
+    const { orgId, token } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const verdict = {
+          language: "tr",
+          requests: [{ intent: "appliance_help", query_tr: "çaydanlık duman", query_original: "çaydanlık duman" }],
+          stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        };
+        return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(verdict) } }] }), { status: 200 });
+      }),
+    );
+    __resetUnderstandingCache();
+    try {
+      const first = await call(token, "İade istiyorum, berbat!"); // şikâyet → e-posta 1 (bekleme süresi başlar)
+      const cookie = deviceCookie(first);
+      expect(mockSendReporting).toHaveBeenCalledTimes(1);
+      // Olası tehlike, anlama katmanı "acil değil" → alarm kalkar; cevap kaynaksız güvence verdiği için devredilir (hazard_reassurance).
+      mockSuggest.mockResolvedValue(aiResult({ reply: "Bu tamamen normaldir, endişelenmeyin." }));
+      const res = await call(token, "Çaydanlıktan duman çıkıyor, normal mi?", cookie);
+      expect((await res.json()).escalated).toBe(true);
+      // Kritik DEĞİL → bekleme süresi içinde ikinci e-posta yok (eskiden kelime ağının acil etiketi bekleme süresini aşıyordu).
+      expect(mockSendReporting).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("ROUTE: two DISTINCT safety messages back-to-back → two e-mails (1 dk arayla senaryosu)", async () => {
     const { orgId, token } = await fixture();
     await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });

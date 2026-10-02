@@ -99,6 +99,11 @@ describe("olumsuzlama · geçmiş · varsayım · alıntı · çelişen belirtil
     expect(level("It's not just smoke, there are flames!")).toBe("clear");
   });
 
+  it("'yalnız X değil' / 'not just X' olumsuzlama değil (X'e ek olarak)", () => {
+    expect(level("Not just smoke in the kitchen, it's thick and black!")).toBe("clear");
+    expect(level("Sadece duman değil, her yer duman doldu!")).toBe("clear");
+  });
+
   it("tek 'ne' olumsuzlama değil ('Bu ne duman böyle!'); 'emin değilim' tehlikeyi olumsuzlamaz", () => {
     expect(level("Bu ne duman böyle, her yer doldu!")).toBe("clear");
     expect(level("Gaz mı kokuyor emin değilim.")).toBe("clear");
@@ -137,6 +142,10 @@ describe("ekipman / yer / ürün / argo / sigara izni — yalnız anılış", ()
     ["¿Me llamas mañana?", "none"],
   ])("%j → %s", (m, want) => {
     expect(level(m)).toBe(want);
+  });
+
+  it("bileşik ekipman adı (Rauchmelder) çalmıyorsa yalnız anılış", () => {
+    expect(level("Wir haben einen Rauchmelder im Flur.")).toBe("mentioned");
   });
 
   it("çalan alarm ekipman anılışını olasıya çevirir (pil mi, gerçek mi — model karar verir)", () => {
@@ -189,6 +198,9 @@ describe("soru cümlesi açık tehlike bildirimi değildir (gaz hariç)", () => 
     ["Is something on fire? I hear alarms.", "possible"],
   ])("%j → %s", (m, want) => {
     expect(level(m)).toBe(want);
+  });
+  it("Türkçe soru eki soru işareti olmadan da soru: 'Yangın var mı bilmiyorum…' olası", () => {
+    expect(level("Yangın var mı bilmiyorum siren sesleri geliyor")).toBe("possible");
   });
   it("gaz kokusu sorusu da bildirimdir → açık", () => {
     expect(level("Gaz kokusu normal mi?")).toBe("clear");
@@ -354,6 +366,9 @@ describe("uzun girdide süre", () => {
     ["smoke fire gas flood ", 500],
     ["şömine alevler halıya ", 400],
     ["\"yangın\" ", 900],
+    // Çok cümlecik: mesaj düzeyi sinyaller BİR KEZ hesaplanır (cümlecik başına tüm mesajı taramak karesel işti — 176 ms → 13 ms).
+    ["duman, ", 1_200],
+    ["su bastı. ", 900],
   ])("%j × %i → < 1,5 sn", (unit, n) => {
     const text = (unit as string).repeat(n as number).slice(0, 9_000);
     const t0 = performance.now();
