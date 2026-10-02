@@ -712,6 +712,22 @@
 - **Müşteriye etkisi:** Almanca konuşan misafirlerin sıradan istekleri cevapsız / "Sorunlu" kalmaz; ev sahibine yanlış acil e-posta gitmez.
   Gerçek duman bildirimi acil kalır.
 - **Beklerken yapılmayan:** düzeltme canlıya çıkmadı.
+- **49 EK — ONAYLANDI 10-02 sabah** (kurucu: "canlıda bulunan hatayı düzelt işte güzelce en mantıklı yararlı şekilde"). "En mantıklı şekilde" =
+  yalnız bu sözcüğü değil, AYNI SINIFI (acil sözcüğünün başka bir sözcüğün İÇİNDE ya da sabit bir öbeğin parçası olarak eşleşmesi) birlikte
+  düzelttim; hepsi canlı kodda ölçüldü, hepsi bugün acil sayılıyordu:
+  - Almanca "rauch" (brauchen / Verbrauch / Gebrauch / Strauch / Nichtraucher) · "feuer" (Feuerwerk / Feuerzeug / Lagerfeuer / Feuerlöscher —
+    söndürücü sorusu TR / EN ile parite, K6) · İspanyolca "humo" → İngilizce / Fransızca / İspanyolca "humor / humour" övgüsü · Fransızca
+    "blessé" → İngilizce "We felt so blessed" övgüsü · İngilizce "smoke" → "We are smokers", "smoked salmon", "smoke-free" · "can't get in" →
+    "I can't get in touch with the host" · "gas" → "Where is the nearest gas station?" (police station ile aynı sınıf) · "flooded" → "flooded with
+    natural light" (QR'da misafire "112'yi arayın" satırı gidiyordu) · Fransızca "le feu" → "feu d'artifice", "feu rouge / vert" ("donner le feu
+    vert" = onay vermek), "il n'y a pas le feu" (acelesi yok) · İspanyolca "fuegos artificiales" · Rusça "ранен" (yaralı) → "хранение" (bagaj
+    SAKLAMA), "сохранен" (kaydedildi) · Arapça "مصاب" (yaralı) → "المصابيح" (lambalar) · Türkçe "her yeri su" → ASCII katlamada "her yeri süper
+    temizdi" övgüsü · "priz yanı / kablo yanı" → "priz yanında / yanına" (yan = taraf).
+  - **Gerçek acil AYNEN kalır** (her düzeltmenin ikizi testte): "Feuer!", "Feuerwehr", "Hay humo", "Mon fils est blessé", "There is smoke…",
+    "I'm locked out and can't get in", "We smell gas next to the gas station", "The kitchen is flooded with water", "Les feux d'artifice ont mis le
+    feu au balcon", "Мой друг ранен", "صديقي مصاب", "Her yeri su bastı", "Priz yanıyor", "Kablo yanmış".
+  - Kanıt: kırmızı-önce (yeni testler eski kodda düşüyor), iki yönlü batarya, 50.000 karakter süre pinleri, mutasyon. Anlam kararı gerektirenler
+    (övgüde "bayıldık", "İnternet düştü", sigara SORUSU, Rusça "Помогите, пожалуйста", Wi-Fi'ye "giriş yapamıyorum") DOKUNULMADI → madde 51.
 
 ## 50. Kör set 9 ajanının öteki üç bulgusu (bilgi; kodda kısmen doğrulandı)
 - **a) Enjeksiyon kelime ağı yalnız İngilizce / Türkçe "önceki talimatları yok say" biçimlerini tanıyor;** FR / DE / ES / RU / AR biçimleri modele
@@ -721,3 +737,31 @@
   tutulur (ilişki kipi, canlıda kapalı; temkinli yön).
 - **c) "ısınmıyor" sıcak su kavramına iniyor:** "ütü ısınmıyor" tehlike sınıfı sayılır, ütü tarifi otomatik sunulmaz (ilişki kipi; temkinli yön).
 - **Beklerken yapılmayan:** üçü de değişmedi (a tutuşları artırır, b / c gevşetme — ölçüm ister).
+
+## 51. Acil sözcük ağının ANLAM gerektiren yanlış acilleri (10-02 sabah, canlı kodda ölçüldü — DÜZELTİLMEDİ, kararınız)
+- **Durum:** 49'un düzeltmesinden SONRA hâlâ acil sayılan sıradan mesajlar. Hepsi bugün `safety_emergency` → konuşma Sorunlu, yapay zekâ
+  durur, ev sahibine acil e-posta, misafire cevap yok. Bunlar sözcük çakışması değil: aynı sözcük gerçek acilde de geçiyor; ayırmak için
+  ANLAM kuralı gerekiyor, o yüzden size soruyorum.
+- **a) Türkçe övgü "bayıl-" (en sık olanı):** "Daireye bayıldık, her şey için teşekkürler!", "Manzaraya bayıldım", "Çocuklar havuza bayıldı!" — üçü
+  de ACİL. "Bayılmak" hem "bilincini kaybetmek" hem "çok sevmek"; ayıran şey -(y)A ekli nesne ("daireye bayıldık"). Ama sözcük sonu kuralı
+  güvenli DEĞİL: "Anne bayıldı", "Baba bayıldı", "Fatma bayıldı", "Huriye bayıldı" (ad / akrabalık sözcüğü de -a / -e / -ye ile bitiyor) GERÇEK
+  bayılma. Seçenekler: (1) bugünkü gibi kalsın; (2) yalnız -(y)A ekli nesne DAR bir yer / şey sözlüğündeyse (daire, ev, manzara, havuz, konum,
+  kahvaltı, oda, teras, plaj…) nötrlensin; (3) anlama katmanının hükmüne bırakılsın (birleşim değişmezine aykırı — önermiyorum).
+  **Önerim (2).** Örnek: "Daireye bayıldık" → *bugün* ACİL · *sonra* teşekkür (kapanışa sessizlik kuralı); "Annem bayıldı" → ACİL (değişmez).
+- **b) "düştü" öznesi cihaz / hizmet / fiyat:** "İnternet düştü, modemi yeniden başlatayım mı?", "Fiyatlar düştü mü?", "Suyun basıncı düştü" — ACİL.
+  Öneri: öznesi DAR listeden (internet, Wi-Fi, bağlantı, sinyal, fiyat, basınç, sıcaklık, şarj, ses) olan "düştü" nötr; "Annem düştü", "Merdivenden
+  düştüm" acil kalır.
+- **c) Sigara SORUSU:** "Can we smoke on the balcony?" (EN), "هل الدخان مسموح في الشرفة؟" (AR; "duhan" = sigara) — ACİL. Türkçede "Balkonda sigara
+  içebilir miyiz?" acil DEĞİL, ev kuralı (sahibine kalır). Öneri: "can / may (I / we) smoke", "allowed to smoke", "smoking allowed" ve Arapça
+  "الدخان مسموح" → acil değil, ev kuralı sınıfı (Türkçe ile parite). "There is smoke" acil kalır.
+- **d) Rusça nezaket kalıbı:** "Помогите, пожалуйста, как подключиться к Wi-Fi?" ("Yardım eder misiniz, Wi-Fi'ye nasıl bağlanırım?") — ACİL. Rusça
+  misafirin pek çok sıradan sorusu böyle başlar. Öneri: "помогите" + "пожалуйста" ve mesajda olay sözcüğü yoksa acil değil; tek başına
+  "Помогите!" acil kalır.
+- **e) Oturum açamama:** "No puedo entrar a la red wifi", "Не могу войти в сеть Wi-Fi", "لا أستطيع الدخول إلى شبكة الواي فاي" — "kilitli kaldım" sayılıyor.
+  Öneri: ardından Wi-Fi / ağ / uygulama / hesap gelen biçim nötr.
+- **f) Seyrek (bilgi):** "Im Flur brennt das Licht nicht" (Almancada ışık "yanar"), "Was ist die Notfallnummer?", "What's the emergency number, just in
+  case?", "Can we use the fire pit?", "Akşam Duman konserine gideceğiz" (grup adı), "Komşunun sigara dumanı balkona geliyor" (şikâyet), "Das Wasser
+  läuft nicht ab" (tıkanıklık), "a fuego lento" (yemek), "chispas de chocolate", "Мы затопили камин" (şömineyi yaktık), "Дымоход чистый?" (baca).
+- **Müşteriye etkisi:** bugün bu mesajlar cevapsız kalır ve ev sahibi yanlış acil e-posta alır (alarmın değeri düşer). Onaylanırsa model + bütün
+  kapılar normal çalışır; mesajda olay sözcüğü varsa (yangın, duman var, yaralandı…) acil kalır.
+- **Beklerken yapılmayan:** hiçbiri değiştirilmedi. Onayınızla her biri için iki yönlü batarya + misafir külliyatında yanlış / kaçan ölçümü + mutasyon.

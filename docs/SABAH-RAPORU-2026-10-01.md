@@ -11,6 +11,15 @@
   3'ünde gönderdi, `low` reddetti (§3.13–§3.14). Üslup Luna `none`; anlama / bekçi / sıralayıcı / çeviri 5.1'e sabit. Değişkenler §7.
 - **Canlıda bulunan hata (onayınızı bekliyor):** Almanca "brauche / brauchen" acil sayılıyor ("rauch" alt dize) — Sabah Kararları 49; hazır
   düzeltme yerel dal `prep/de-rauch-tam-sozcuk`, İTİLMEDİ.
+  **10-02 sabah: ONAYLANDI ve aynı sınıfla birlikte düzeltildi** (RC67): Almanca rauch / feuer, "humor / humour", "blessed", "smokers /
+  smoke-free", "get in touch", "gas station", "flooded with light", Fransızca "feu d'artifice / feu rouge / pas le feu", İspanyolca "fuegos
+  artificiales", Rusça "хранение" (bagaj saklama), Arapça "المصابيح" (lambalar), "her yeri süper", "priz yanında" — hepsi artık acil değil;
+  gerçek acil aynen (eski kodun kaçırdığı "Priz yandı", "Kablo yanmış" da artık acil). Kırmızı-önce 36, mutasyon 56/56, külliyat 1.306
+  mesajda canlıdan fark yalnız 4 "brauchen / rauchen" (doğru). Anlam gerektirenler ("Daireye bayıldık", "İnternet düştü", sigara sorusu,
+  Rusça "Помогите, пожалуйста", Wi-Fi'ye giriş) → Sabah Kararları 51 (kararınız).
+- **10-02 sabah — cevap modeli:** kurucu "Luna medium daha iyi duruyor" → veriyle uyumlu (set 9: gitmemesi gerekirken giden 0/23 ↔ `low` 1/23,
+  olgu 21/26 ↔ 20/26, maliyet aynı; bedeli p95 13,8 ↔ 9,2 sn). Öneri `OPENAI_REASONING_EFFORT=medium` (§7). 5.1 kullanan dört katmanda Luna
+  çalışması başladı (kurucu: "kodları ona göre geliştir, sakın geçmesi için şeyler yapma; kredi sınırı yok").
 - **Modelden bağımsız açıklar (üç modelde de):** bilgi tabanı içi çelişki (22), özel adların çevrilmesi (47), kısıtlı sır kalemi (48), iade + ücret
   liste kipinde (46). Kod düzeltmesi yapılanlar: iade turunda ücret cümlesi (`items_fix_money`, ilişki kipi).
 - **Kapı / CI:** son yayın RC65 (`ca94555`, tam kapılar yeşil, **CI #1284 YEŞİL**; son KOD değişikliği RC64) — §5. **Maliyet:** gece ≈ $23,0 (kesin $14,66) — $25 tavanının altında; ücretli ölçüm durdu.
@@ -542,7 +551,9 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 | RC63 (`a2ea6da` = RC62 + k7-22 kapı düzeltmesi `items_fix_money` + kör set 7 + nihai doğrulama raporları + Sabah Kararları 46 / 47) | test 749 dosya / 12.178 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka vitest koşmadan); mutasyon 16/16 | 00:55Z itildi (`b2b386a..a2ea6da`, hızlı ileri), **CI #1282 YEŞİL** (01:15Z) → Railway açıksa canlı. Düzeltme yalnız ilişki kipinde (anahtar canlıda KAPALI) → canlı davranış değişmedi |
 | RC64 (`6817885` = RC63 + k8-37 inceltmesi `0f1d728` + kör set 8 + düşünme kıyası raporları + Sabah Kararları 48 / 22 EK / 6 EK 2) | test 749 dosya / 12.181 test yeşil · typecheck · lint · build · audit yeşil; mutasyon 8/8 | 02:04Z itildi (`a2ea6da..6817885`, hızlı ileri), **CI #1283 YEŞİL** (02:24Z) → Railway açıksa canlı. Değişiklik yalnız ilişki kipinde (canlıda KAPALI) |
 | RC65 (`ca94555` = RC64 + kör set 9 + üç yapılandırmanın raporları + §0 GÜNCEL ÖZET + Sabah Kararları 49 / 50 + 6 EK 3; YALNIZ belge / ölçüm, kod değişikliği YOK) | test 749 dosya / 12.181 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka vitest koşmadan) | 02:51Z itildi (`6817885..ca94555`, hızlı ileri), **CI #1284 YEŞİL** (03:11Z) → Railway açıksa canlı. Canlı davranış değişmedi |
-| `prep/de-rauch-tam-sozcuk` (`5bdbc7d`, Almanca "brauchen" yanlış acil — Sabah Kararları 49) | ilgili 34 test dosyası yeşil; mutasyon 6/6 | **İTİLMEDİ — kurucu onayı bekliyor** (müşteriye giden davranışı değiştirir) |
+| `prep/de-rauch-tam-sozcuk` (`5bdbc7d`, Almanca "brauchen" yanlış acil — Sabah Kararları 49) | ilgili 34 test dosyası yeşil; mutasyon 6/6 | **İTİLMEDİ — kurucu onayı bekliyor** (müşteriye giden davranışı değiştirir). 10-02: onaylandı → RC67'ye katıldı |
+| RC66 (`6de846e` = RC65 + arşiv önerisi eki + RC65 §5 satırı; yalnız belge) | test 746 dosya yeşil, **3 entegrasyon testi 5 sn zaman aşımı** (outbox, QR bağlamı, oto-yanıt açlığı — kod RC65 ile birebir, RC65'te yeşil; kapı koşarken makinede ajanlar + deneme betikleri çalışıyordu) · typecheck · lint yeşil | **İTİLMEDİ** — kırmızı koşuyla itme yok; belgeler RC67'ye katıldı |
+| RC67 (RC66 + kurucu onaylı acil ağı düzeltmesi 49 + Sabah Kararları 49 EK / 51 + CLAUDE.md sadeleştirme 3 + konaklama ölçeri ek set desteği) | (koşuluyor) | — |
 
 
 ## 6. Canlıya geçiş için kalan adımlar (sıra önerisi — her adım ayrı onayınızla)

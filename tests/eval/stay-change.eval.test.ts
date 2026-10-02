@@ -61,6 +61,11 @@ interface RepItem {
   label: string;
   checkIn: string;
   checkOut: string;
+  /**
+   * Bu taslağın cevapladığı misafir mesajı (10-02 setleri `dev2` / `acc10`): bekçi canlıdaki gibi gerçek isteği görür. Yoksa
+   * eski sabit cümle ("Could you help me with my stay?") — eski setin ölçümü birebir.
+   */
+  guest?: string;
 }
 
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
@@ -70,7 +75,16 @@ const SEALED = process.env.EVAL_SEALED_FINAL === "1";
 const SEALED_FILE = path.resolve(__dirname, "../../evals/sealed/stay-change-final.json");
 // Mühür kısmi (anahtarsız / yalnız yedek) koşuyla YAKILMAZ: içerik ancak tam final koşusunda okunur.
 if (SEALED && !enabled) throw new Error("EVAL_SEALED_FINAL=1 yalnız gerçek model koşusunda (RUN_REAL_EVAL=1 + anahtar).");
-const DATASET = SEALED ? SEALED_FILE : path.resolve(__dirname, "../../evals/stay-change.json");
+// Ek SET (10-02, Luna katman çalışması): `EVAL_STAY_SET=evals/stay-change-dev2.json` (geliştirme — okunur) ya da
+// `evals/stay-change-acc10.json` (kör kabul — koşudan önce OKUNMAZ). Bölümler dosyanın kendi `split` değerlerinden; mühürlü
+// koşuda kullanılamaz (mühürlü set yalnız kendi dosyasından).
+const EXTRA_SET = process.env.EVAL_STAY_SET?.trim() ?? "";
+if (EXTRA_SET && SEALED) throw new Error("EVAL_STAY_SET mühürlü final koşusunda kullanılamaz.");
+const DATASET = SEALED
+  ? SEALED_FILE
+  : EXTRA_SET
+    ? path.resolve(__dirname, "../..", EXTRA_SET)
+    : path.resolve(__dirname, "../../evals/stay-change.json");
 const SEALS_FILE = path.resolve(__dirname, "../../evals/sealed/SEALS.json");
 const datasetBytes = readFileSync(DATASET);
 type SealEntry = { sha256?: string; state?: string; location?: string };
@@ -107,7 +121,13 @@ function loadRealSet(file: string): { requests: ReqItem[]; strata?: Record<strin
 }
 const real = REAL_SET ? loadRealSet(REAL_SET) : null;
 const data = real ? { ...base, requests: [...base.requests, ...real.requests] } : base;
-const SPLITS = SEALED ? (real ? ["final", "real"] : ["final"]) : ["dev", "holdout"];
+const SPLITS = SEALED
+  ? real
+    ? ["final", "real"]
+    : ["final"]
+  : EXTRA_SET
+    ? [...new Set([...base.requests, ...base.replies].map((r) => r.split))]
+    : ["dev", "holdout"];
 const LIMIT = Number(process.env.EVAL_STAY_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_STAY_LIMIT)) : Infinity;
 // Anlama katmanının KİPİ canlıyla aynı ölçülsün (09-26): öğe kipi (`AI_CONVERSATION_ITEMS_ENABLED`) ve ev kuralı gölge kipi
 // (`AI_HOUSE_RULES_SHADOW`) istemi ve şemayı değiştirir → açmadan önce bu eval o kipte koşulur. Varsayılan temel kip (eski).
@@ -272,7 +292,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
 
       await pool(reps, async (r) => {
         const stayTimes = { checkIn: r.checkIn, checkOut: r.checkOut };
-        const g = await runStayChangeGuard({ guestMessages: ["Could you help me with my stay?"], reply: r.text, stayTimes });
+        const g = await runStayChangeGuard({ guestMessages: [r.guest?.trim() || "Could you help me with my stay?"], reply: r.text, stayTimes });
         if (g?.status !== "ok") {
           failures++;
           return;
@@ -331,7 +351,12 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     const modelTag =
       uModel === gModel && uEffort === gEffort ? withEffort(uModel, uEffort) : `u-${withEffort(uModel, uEffort)}_g-${withEffort(gModel, gEffort)}`;
     const modeSuffix = NLU_MODE_TAG === "temel" ? "" : `-${NLU_MODE_TAG.replaceAll("+", "-")}`;
-    const name = SEALED ? `stay-change-FINAL-eval-${stamp}.md` : `stay-change-eval-${stamp}-${modelTag}${modeSuffix}.md`;
+    // Ek set (10-02) aynı gün eski setin raporunu EZMESİN: ad setin dosya adını taşır, ölçüm etiketi isteğe bağlı (`EVAL_STAY_TAG`).
+    const setSuffix = EXTRA_SET ? `-${path.basename(EXTRA_SET, ".json")}` : "";
+    const runTag = process.env.EVAL_STAY_TAG?.trim().replace(/[^a-z0-9.-]+/gi, "_") ?? "";
+    const name = SEALED
+      ? `stay-change-FINAL-eval-${stamp}.md`
+      : `stay-change-eval-${stamp}-${modelTag}${modeSuffix}${setSuffix}${runTag ? `-${runTag}` : ""}.md`;
     const status = !modelBodyCompleted
       ? "GEÇERSİZ — koşu TAMAMLANMADI (zaman aşımı / hata); tablolar yarım"
       : failures > 0
@@ -346,7 +371,9 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
       "",
       SEALED
         ? "🚨 MÜHÜRLÜ FİNAL KOŞUSU: genelleme ölçüsü bu raporun TAMAMIdır. Koşu bitti → set YANDI (`evals/sealed/SEALS.json` durumu `burned`; sonraki karar için yeni kör set)."
-        : "Bu rapordaki `dev` ve `holdout` bölümleri GÖRÜLDÜ (dev: düzeltmelerde; holdout: 09-24 denetimlerinde ölçüldü) — gelişme göstergesidir, son açma kararı yalnız mühürlü final setiyle (`docs/EVAL-MUHURLU-FINAL.md`).",
+        : EXTRA_SET
+          ? `Set: \`${EXTRA_SET}\` (bölümler: ${SPLITS.join(", ")}) — \`dev2\` geliştirme setidir (okundu); \`acc10\` kör kabul setidir (koşudan önce okunmadı; bu koşuyla GÖRÜLDÜ sayılır). Cevap satırlarında bekçi taslağın kendi misafir mesajını görür (\`guest\` alanı).`
+          : "Bu rapordaki `dev` ve `holdout` bölümleri GÖRÜLDÜ (dev: düzeltmelerde; holdout: 09-24 denetimlerinde ölçüldü) — gelişme göstergesidir, son açma kararı yalnız mühürlü final setiyle (`docs/EVAL-MUHURLU-FINAL.md`).",
       ...(real
         ? [
             "",
