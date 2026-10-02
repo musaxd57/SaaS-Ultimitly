@@ -13,7 +13,7 @@
   düzeltme yerel dal `prep/de-rauch-tam-sozcuk`, İTİLMEDİ.
 - **Modelden bağımsız açıklar (üç modelde de):** bilgi tabanı içi çelişki (22), özel adların çevrilmesi (47), kısıtlı sır kalemi (48), iade + ücret
   liste kipinde (46). Kod düzeltmesi yapılanlar: iade turunda ücret cümlesi (`items_fix_money`, ilişki kipi).
-- **Kapı / CI:** son yayın RC65 (§5). **Maliyet:** gece ≈ $23,0 (kesin $14,66) — $25 tavanının altında; ücretli ölçüm durdu.
+- **Kapı / CI:** son yayın RC65 (`ca94555`, tam kapılar yeşil, **CI #1284 YEŞİL**; son KOD değişikliği RC64) — §5. **Maliyet:** gece ≈ $23,0 (kesin $14,66) — $25 tavanının altında; ücretli ölçüm durdu.
 - **"Yalnız modeli değiştirmek kaldı" DEĞİL:** sabitleme değişkenleri + bayrak kararları + 47 / 48 / 49 gerekir (§6).
 
 ## 1. Codex K bulguları — güncel kodda yeniden doğrulama ve düzeltme
@@ -541,6 +541,7 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 | RC62 (`b2b386a` = RC59 + RC60 + RC61 + bağlanamayan ödeme alarmı, plan değişikliği izi, uyarı adresi kuşağı, 2FA sıfırlama kaydı zorunlu, tarif tanıyıcı gerileme düzeltmesi, "çözüm öneremiyorum" yedi dilde; 23 commit) | test 748 dosya / 12.141 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka vitest koşmadan); mutasyon 95 (90 öldü, 4 pin eklendi, 1 eşdeğer silindi) + 24 (21 öldü, 2 pin, 1 gerekçeli eşdeğer) + 2/2 | 23:34Z itildi (`46b1d95..b2b386a`, hızlı ileri), **CI #1281 YEŞİL** (23:54Z; verify · build · migration-chain · security-audit · e2e) → Railway açıksa canlı. Migration YOK. Bayrak arkasında OLMAYAN (canlıda geçerli) değişiklikler: "bilgim yok" çözüm sınıfı ve bırakılan cihaz kapısının yerel cihaz sözcükleri / adsız anışı (ikisi de yalnız TUTAR), üslup profilinde erişim bilgisi anan satırın düşmesi, görev ağı tam sözcük, erken giriş yeniden değerlendirme koruması, alarmlar (bağlanamayan ödeme, takvim, depo, e-posta kuyruğu), 2FA sıfırlama ve plan değişikliği kayıtları. Bayrak arkasında kalanlar: ilişki kipi tarif tanıyıcısı (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED`), uyarı adresi kuşağı (`ALERT_EMAIL_VERIFY_ENABLED`) |
 | RC63 (`a2ea6da` = RC62 + k7-22 kapı düzeltmesi `items_fix_money` + kör set 7 + nihai doğrulama raporları + Sabah Kararları 46 / 47) | test 749 dosya / 12.178 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka vitest koşmadan); mutasyon 16/16 | 00:55Z itildi (`b2b386a..a2ea6da`, hızlı ileri), **CI #1282 YEŞİL** (01:15Z) → Railway açıksa canlı. Düzeltme yalnız ilişki kipinde (anahtar canlıda KAPALI) → canlı davranış değişmedi |
 | RC64 (`6817885` = RC63 + k8-37 inceltmesi `0f1d728` + kör set 8 + düşünme kıyası raporları + Sabah Kararları 48 / 22 EK / 6 EK 2) | test 749 dosya / 12.181 test yeşil · typecheck · lint · build · audit yeşil; mutasyon 8/8 | 02:04Z itildi (`a2ea6da..6817885`, hızlı ileri), **CI #1283 YEŞİL** (02:24Z) → Railway açıksa canlı. Değişiklik yalnız ilişki kipinde (canlıda KAPALI) |
+| RC65 (`ca94555` = RC64 + kör set 9 + üç yapılandırmanın raporları + §0 GÜNCEL ÖZET + Sabah Kararları 49 / 50 + 6 EK 3; YALNIZ belge / ölçüm, kod değişikliği YOK) | test 749 dosya / 12.181 test yeşil (9 dosya atlandı) · typecheck · lint · build · audit yeşil (başka vitest koşmadan) | 02:51Z itildi (`6817885..ca94555`, hızlı ileri), **CI #1284 YEŞİL** (03:11Z) → Railway açıksa canlı. Canlı davranış değişmedi |
 | `prep/de-rauch-tam-sozcuk` (`5bdbc7d`, Almanca "brauchen" yanlış acil — Sabah Kararları 49) | ilgili 34 test dosyası yeşil; mutasyon 6/6 | **İTİLMEDİ — kurucu onayı bekliyor** (müşteriye giden davranışı değiştirir) |
 
 
@@ -549,6 +550,8 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
 1. **RC51'i yayınla** (yedi dilli "bilgim yok" kuralı + ölçer düzeltmeleri + belgeler; kapılar + CI). Railway kapalıysa açılışta yayınlanır.
    **YAPILDI:** RC51 CI #1275; sonra RC53 / RC57 / RC58 / RC59 / RC62 de itildi (§5). Dalın son kodu RC62 (`b2b386a`) — Railway açıksa
    CI yeşil olunca canlıya çıkar; kapalıysa açılışta en son yeşil sürüm yayınlanır.
+   **10-02 GÜNCELLEME:** ardından RC63 / RC64 (ilişki kipi kapı düzeltmeleri) ve RC65 (yalnız belge / ölçüm) de itildi, CI #1282 / #1283 /
+   #1284 YEŞİL. Dalın son KOD değişikliği RC64 (`6817885`); RC65 ve sonrası yalnız belge.
 2. **Sabah kararları** — özellikle 13 (çok sorulu mesajda konaklama isteği), 17 (şikâyet + bağımsız soru: anlam ilişkisi; 3 ve 15'in
    yerini alır), 18 (arıza tarifi: yalnız onaylı tarif kadar, tehlike sınıfında otomatik değil; 14'ün yerini alır), 2 (politika metni).
    Anlama / istem değişikliği küçük ücretli ölçüm ister (~$1–2).
