@@ -284,9 +284,49 @@ describe("dar liste — her kalıp kendi örneğiyle pinli (mutasyon 10-01: örn
     expect(defersDecisionToHost(r)).toBe(true);
   });
 
+  // 10-02 (kör set 11 — 5.1'in Almanca cevabı GİTTİ: "dazu kann Ihre Gastgeberin am besten eine Entscheidung treffen"): DİŞİL ev sahibi
+  // (Gastgeberin / hôtesse / anfitriona) ve dişil belirleyiciler (Ihre / die / Ihrer / der / de la); "Entscheidung treffen" deyimi; FR gelecek
+  // zaman ve ES özne-önce sıra.
+  it.each([
+    "Dazu kann Ihre Gastgeberin am besten eine Entscheidung treffen.",
+    "Die Entscheidung trifft Ihre Gastgeberin.",
+    "Ihre Gastgeberin trifft die Entscheidung.",
+    "Ihre Gastgeberin entscheidet über einen späteren Check-out.",
+    "Das muss Ihre Gastgeberin bestätigen.",
+    "Das liegt im Ermessen Ihrer Gastgeberin.",
+    "Das liegt bei Ihrer Gastgeberin.",
+    "Das ist die Entscheidung der Gastgeberin.",
+    "Cela relève de votre hôtesse.",
+    "Votre hôtesse décide pour l'arrivée anticipée.",
+    "Votre hôte confirmera l'heure de départ.",
+    "Es decisión de la anfitriona.",
+    "Lo decide su anfitriona.",
+    "Su anfitrión decidirá si es posible.",
+    // her kalıbın dişil biçimi kendi örneğiyle (mutasyon: örneksiz parça ölü kod sayılır)
+    "Das ist Sache Ihrer Gastgeberin.",
+    "Das obliegt Ihrer Gastgeberin.",
+    "C'est la décision de votre hôtesse.",
+    "Cela revient à votre hôtesse.",
+    "C'est à la discrétion de votre hôtesse.",
+    "À confirmer par votre hôtesse.",
+    "C'est à votre hôtesse de décider.",
+    "Depende de la anfitriona.",
+    "Queda a criterio de la anfitriona.",
+    "Está en manos de la anfitriona.",
+    "La anfitriona decidirá.",
+  ])("ev sahibi kararı (dişil / deyim): %s", (r) => {
+    expect(defersDecisionToHost(r)).toBe(true);
+  });
+
   it.each([
     // takdir / iş başkasının ya da misafirin
     "Bitte parken Sie nach eigenem Ermessen.",
+    "Ihre Gastgeberin trifft Sie am Eingang.",
+    "Die Gastgeberin hat die Wohnung letztes Jahr renoviert.",
+    "Eine Entscheidung treffen Sie bitte bis morgen.",
+    "L'hôtesse de l'air vous indiquera la sortie.",
+    "Votre hôtesse vous attend à l'entrée.",
+    "La anfitriona vive en el segundo piso.",
     "Das ist Sache der Reinigungsfirma.",
     "The decision for your dates is yours.",
     "The key rests with the concierge.",
