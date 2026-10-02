@@ -604,6 +604,14 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığ�
    başka dairenin kapı kodunu 3/3 gönderdi, `low` reddetti; kör set 9'da `low` 5.1 ile eşit, §3.15); üslup `OPENAI_STYLE_MODEL=gpt-6-luna` +
    `OPENAI_STYLE_REASONING_EFFORT=none`. Geri alma: `OPENAI_MODEL=gpt-5.1`, `OPENAI_REASONING_EFFORT` sil. Geçişten önce: madde 47 (özel ad)
    ve 48 (kısıtlı sır kalemi) kararları önerilir — ikisi de bugün 5.1'de de açık.
+8. **10-02 SABAH GÜNCELLEMESİ (Luna katman çalışmasından sonra — bu sıra geçerli):**
+   a. Katman değişkenleri (§7.0): anlama + bekçi Luna `low`, çeviri Luna `medium`, üslup Luna `none` — sıralayıcı 5.1'de (`AI_SEMANTIC_MODEL`
+      DEĞİŞMEZ). Bunlar cevap modelinden bağımsız; RC68 canlıda.
+   b. Sabah Kararları 53 (öğe kipi) + 47 (özel ad) onayı → hazır aday dal `prep/luna-aday-2` (= RC69 + 53 + 47; kapılardan geçirilip RC olur).
+      İkisi bugünkü 5.1 için de gerekli (kör set 11 k11-04, özel ad 6/8).
+   c. Son kodla kör set 12 (§9.11): aday + Luna `medium`, aday + Luna `low`, aday + 5.1, RC69 + 5.1. Kırmızıysa geçiş YOK.
+   d. Ancak sonra `OPENAI_MODEL=gpt-6-luna` + `OPENAI_REASONING_EFFORT=<set 12'nin seçtiği>`. Geri alma: `OPENAI_MODEL=gpt-5.1`.
+   e. Ayrı ve modelden bağımsız: Sabah Kararları 54 (hizmet isteği ev sahibine ulaşmıyor) ve 1 (karar bekliyor kartı).
 
 ## 7. Eklenecek / değiştirilecek ortam değişkenleri (Railway → Variables)
 
