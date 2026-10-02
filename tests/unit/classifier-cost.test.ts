@@ -65,6 +65,16 @@ const LONG_PATH: [string, string][] = [
   ["aday çoğaltan önek + acil değil + lamba tekrarı", "\u00e9 \u043e a.b.c.d x'y acil değil " + "lamba ".repeat(8_300)],
   ["polis merkezi tekrarı", "polis merkezi ".repeat(3_570)],
   ["acil + uzun boşluk + değil", "acil" + " ".repeat(50_000) + "değil"],
+  // 10-02 sözcük içi / öbek çakışması düzeltmesi: yeni öbek nötrlemeleri + ASCII dışı kalıplar uzun boşluk / tekrarda doğrusal.
+  ["can't + uzun boşluk + get in touch", "can't" + " ".repeat(50_000) + "get in touch"],
+  ["feux d + uzun boşluk + artifice", "le feux d" + " ".repeat(50_000) + "artifice"],
+  ["n + uzun boşluk + y a pas le feu", "il n" + " ".repeat(50_000) + "y a pas le feu"],
+  ["smoke + uzun boşluk + free", "smoke" + " ".repeat(50_000) + "free"],
+  ["flooded with + uzun boşluk + light", "flooded with" + " ".repeat(50_000) + "light"],
+  ["her yeri + uzun boşluk + su", "her yeri" + " ".repeat(50_000) + "su"],
+  ["хранение tekrarı", "хранение ".repeat(5_500)],
+  ["المصابيح tekrarı", "المصابيح ".repeat(5_500)],
+  ["gas station tekrarı", "gas station ".repeat(4_200)],
 ];
 describe("uzun mesaj yolu — acil ağı + fiziksel acil 50.000 karakterde sınırlı süre (K6)", () => {
   it.each(LONG_PATH)("%s → 1.000 ms altında", (_ad, girdi) => {

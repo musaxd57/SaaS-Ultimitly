@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { classifyFallback, detectRiskType, detectRiskTypes } from "@/lib/ai/fallback";
+import { isPhysicalEmergency } from "@/lib/guest-chat";
 
 // ---------------------------------------------------------------------------
 // KISA ACİL SÖZCÜKLERİ TAM SÖZCÜK (kurucu onayı 09-26, #51). Alt dize eşleşmesi canlıda yanlış acil üretiyordu: Almanca
@@ -276,4 +277,160 @@ describe("kurucu kararı K6 (09-30) — acil ağı bağlamla: yer / eşya sorusu
       expect(detectRiskType(m)).toBe("safety_emergency");
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// ALMANCA "rauch" (duman) TAM SÖZCÜK — kör set 9 ajanının bulgusu (10-02 gece), kurucu onayı 10-02 sabah (Sabah Kararları 49). Alt dize
+// eşleşmesi Almancanın en sık fiillerinden "brauchen"i (ihtiyaç) yakalıyordu: "Ich brauche ein Handtuch" → acil (konuşma Sorunlu, yapay
+// zekâ durur, ev sahibine acil e-posta). Misafir külliyatında (821) "rauch" geçen 3 mesajın 3'ü yanlış acildi. Gerçek duman bildirimi
+// ("Es riecht nach Rauch", "Es raucht aus der Steckdose", "Rauchgeruch", "Rauchmelder") acil kalır.
+// ---------------------------------------------------------------------------
+describe("Almanca 'rauch' — tam sözcük (kurucu onayı 10-02)", () => {
+  it.each([
+    "Ich brauche ein Handtuch.",
+    "Wir brauchen einen Parkplatz für morgen.",
+    "Guten Abend! Brauchen wir unten an der Haustür einen Code?",
+    "Wie kommen wir auf die Dachterrasse? Braucht man dafür einen Code?",
+    "Ist die Wohnung für Nichtraucher?",
+    "Wie hoch ist der Verbrauch der Klimaanlage?",
+    "Ich bin Raucher, darf ich auf dem Balkon rauchen?",
+    "Haben Sie gebrauchte Handtücher abgeholt?",
+  ])("acil DEĞİL: %s", (m) => {
+    expect(detectRiskTypes(m)).not.toContain("safety_emergency");
+  });
+
+  it.each([
+    "Es riecht nach Rauch in der Küche!",
+    "Überall ist Rauch!",
+    "Es raucht aus der Steckdose.",
+    "Starker Rauchgeruch im Flur.",
+    "Der Rauchmelder piept die ganze Zeit.",
+    "Im Schlafzimmer ist eine Rauchentwicklung.",
+    "RAUCHHH in der Wohnung!!",
+    "Eine dicke Rauchwolke kommt aus dem Fenster.",
+    "Der Geruch des Rauches ist im ganzen Haus.",
+  ])("acil KALIR: %s", (m) => {
+    expect(detectRiskTypes(m)).toContain("safety_emergency");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AYNI SINIF, 10-02 sabah (kurucu: "canlıda bulunan hatayı düzelt işte güzelce en mantıklı yararlı şekilde"). Acil sözcüğü başka bir
+// sözcüğün İÇİNDE ya da sabit bir öbeğin parçası olarak eşleşiyordu — sonuç: konuşma Sorunlu, yapay zekâ durur, ev sahibine acil
+// e-posta; QR'da misafire "Tehlike varsa hemen 112'yi arayın." satırı. Ölçüldü (canlı kod): aşağıdaki "acil DEĞİL" cümlelerinin HEPSİ
+// acil sayılıyordu. İKİ YÖNLÜ: her düzeltmenin gerçek acil ikizi aynı blokta ve acil KALIR.
+// Anlam kararı gerektiren aşırı eşleşmeler ("Can we smoke on the balcony?", "İnternet düştü", "Daireye bayıldık", "Помогите,
+// пожалуйста") BU TURDA DEĞİŞMEDİ — Sabah Kararları 51.
+// ---------------------------------------------------------------------------
+describe("sözcük içi / öbek çakışmaları — tam sözcük ve öbek nötrlemesi (kurucu onayı 10-02)", () => {
+  it.each([
+    // DE "feuer" sözcük içinde
+    "Wo kann man heute Abend das Feuerwerk sehen?",
+    "Haben Sie ein Feuerzeug für den Grill?",
+    "Dürfen wir am Strand ein Lagerfeuer machen?",
+    "Wo ist der Feuerlöscher? Nur zur Info.",
+    // ES "humo" → EN / FR / ES övgü
+    "Thanks for your sense of humour, see you soon!",
+    "Love the humor in your house guide :)",
+    "Merci pour votre humour, à bientôt !",
+    "¡Gracias por el buen humor, nos encantó!",
+    // FR "blessé" → EN övgü
+    "We felt so blessed to stay at your beautiful apartment, thank you!",
+    // EN "smoke" sözcük içinde + "smoke-free" öbeği
+    "We are smokers, is there a balcony?",
+    "Where can we buy smoked salmon nearby?",
+    "Is the apartment smoke-free?",
+    "Is it a smoke free apartment?",
+    // EN "can't get in" → "get in touch" (ulaşamıyorum)
+    "I can't get in touch with the cleaner, can you help?",
+    "We cant get in touch with the host by phone.",
+    "I can’t get in touch with anyone at the reception.",
+    "I cannot get in touch with the host.",
+    // olay bağlamı kalıbıyla aynı biçimler: öbek nötrlenmezse ikinci nötrleme (benzin istasyonu) bu cümlede GERİ ALINIRDI
+    "Where is the gas station? I cannot get in touch with the host.",
+    "Where is the gas station? I can't get in touch with the host.",
+    // EN yer adı (police station ile aynı sınıf, K6)
+    "Where is the nearest gas station?",
+    "Are there gas stations on the way to the airport?",
+    // EN "flooded with light" (ışık dolu)
+    "The apartment is flooded with natural light, love it!",
+    "The living room is flooded with sunlight in the morning.",
+    "Our room was flooded with daylight.",
+    "The terrace is flooded with sunshine all afternoon.",
+    // FR / ES havai fişek, trafik ışığı, "acelesi yok"
+    "Où peut-on voir le feu d'artifice ce soir ?",
+    "On peut voir le feu d’artifice depuis le balcon ?",
+    "Le feux d'artifice commence à quelle heure ?",
+    "Après le feu rouge, on tourne à gauche ?",
+    "Vous nous donnez le feu vert pour arriver à 14h ?",
+    "Il n'y a pas le feu, répondez quand vous pouvez.",
+    "¿Dónde podemos ver los fuegos artificiales?",
+    // RU "ранен" sözcük içinde (bagaj saklama, kaydedildi)
+    "Можно ли оставить багаж на хранение после выезда?",
+    "Мой номер телефона сохранен у вас?",
+    // AR "مصاب" → "المصابيح" (lambalar)
+    "المصابيح في غرفة النوم لا تعمل",
+    "أين المصابيح الاحتياطية؟",
+    // TR ASCII / sözcük sınırı çakışmaları
+    "Evin her yeri süper temizdi, teşekkürler.",
+    "Kumanda priz yanında mı duruyor?",
+    "Şarj aletini priz yanına bıraktım.",
+    "Modem kablo yanındaki rafta mı?",
+  ])("acil DEĞİL: %s", (m) => {
+    expect(detectRiskTypes(m)).not.toContain("safety_emergency");
+  });
+
+  it.each([
+    "Es gibt ein Feuer in der Küche!",
+    "Feuer! Bitte helfen Sie!",
+    "Die Feuerwehr ist schon unterwegs!",
+    "Der Feueralarm geht ständig los.",
+    "Der Feuermelder piept die ganze Zeit.",
+    "Wegen des Feuers ist die Küche voller Ruß.",
+    "Hay humo en la cocina.",
+    "Sale mucho humo del horno.",
+    "Hay humos raros en el baño.",
+    "Hay una humareda en el pasillo.",
+    "Mon fils est blessé.",
+    "Ma femme est blessée.",
+    "Deux personnes blessées dans l'escalier.",
+    "Deux hommes blessés dans l'escalier.",
+    "There is smoke coming from the oven!",
+    "Smoke everywhere!",
+    "The oven smokes a lot.",
+    "The smoke alarm is beeping.",
+    "Is the apartment smoke-free? There is smoke in the hallway.",
+    "I'm locked out and can't get in.",
+    "I can't get in, the door code doesn't work.",
+    "We smell gas next to the gas station.",
+    "The kitchen is flooded with water!",
+    "Les feux d'artifice ont mis le feu au balcon !",
+    "Il y a le feu dans l'appartement !",
+    "Мой друг ранен, нужна помощь.",
+    "Она ранена.",
+    "У него ранение на ноге.",
+    "صديقي مصاب ويحتاج إلى مساعدة",
+    "صديقتي مصابة بجروح",
+    "هناك مصابين في الشقة",
+    "Her yeri su bastı!",
+    "Banyoda her yeri su oldu.",
+    "Mutfakta her yeri suyla doldu.",
+    "Odanın her yeri suya battı.",
+    "Mutfağın her yeri sularla dolu.",
+    "Priz yanıyor!",
+    "Priz yandı, koku var.",
+    "Priz yanmış.",
+    "Priz yanık görünüyor.",
+    "Kablo yanıyor!",
+    "Kablo yandı.",
+    "Kablo yanmış.",
+    "Kablo yanık görünüyor.",
+  ])("acil KALIR: %s", (m) => {
+    expect(detectRiskTypes(m)).toContain("safety_emergency");
+  });
+
+  it("QR: ışık dolu daire övgüsü misafire 112 satırı ÜRETMEZ; gerçek su baskını üretir", () => {
+    expect(isPhysicalEmergency("The apartment is flooded with natural light, love it!")).toBe(false);
+    expect(isPhysicalEmergency("The kitchen is flooded!")).toBe(true);
+  });
 });

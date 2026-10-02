@@ -2050,7 +2050,9 @@ const SAFETY_CRITICAL_WORDS = [
   // "Kazağımı unuttum" / "polisiye" / "It wouldn't hurt to ask" acil değildi.)
   "yangın", "yangin", "duman", "yaraland", "düştü", "dustu", "ambulans",
   "kilitli kaldı", "kilitli kaldi", "içeri giremiyor", "iceri giremiyor",
-  "smoke", "gas leak", "carbon monoxide", "injured", "bleeding",
+  // (Çıplak "smoke" artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK, 10-02 kurucu onayı: alt dize "smokers" / "smoker" /
+  // "smoked salmon" / "smokehouse" içinde acil üretiyordu.)
+  "gas leak", "carbon monoxide", "injured", "bleeding",
   "ambulance", "police", "emergency", "locked out", "can't get in", "cant get in",
   // YANGIN İFADELERİ (kurucu kararı 09-30): "Ocak alev aldı", "Mutfakta ateş çıktı", "Perde tutuştu" yakalanmıyordu. Çıplak
   // "ateş" BİLEREK YOK — "Çocuğun ateşi var" (yüksek ateş) yangın değildir, sağlık konusu ayrı ele alınır; çıplak "alev" de YOK
@@ -2060,13 +2062,17 @@ const SAFETY_CRITICAL_WORDS = [
   // e.g. "I smell gas" only matched "gas leak"). Bare "gas", a sparking outlet, a
   // burning smell, flooding. Over-matching is the safe side (never a wrong send).
   // (Çıplak "gas" / "fire" / "acil" artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK.)
+  // (Almanca "rauch" da artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK; alt dize "brauchen" / "Nichtraucher" / "Verbrauch" tutuyordu.)
   "smell of gas", "smells like gas", "sparks", "sparking", "burning smell",
   "smells burning", "flooding", "water pouring", "pouring through", "electric shock", "monoxide",
   // TR electrical-fire / carbon-monoxide vocab (EN "sparks/monoxide" was covered,
   // the TR equivalents were not). Over-matching is the safe side — it only ever
   // withholds a holding-ack and forces the silent-escalate path.
   "elektrik kaçağı", "elektrik kacagi", "elektrik kaçag", "kaçak yapıyor", "kacak yapiyor",
-  "kıvılcım", "kivilcim", "priz yanı", "priz kıvılcım", "kablo yanı", "kablo tütüyor",
+  // "priz yanı" / "kablo yanı" alt dizesi "priz YANINDA / yanına" (yan = taraf) içinde acil üretiyordu ("Kumanda priz yanında mı?",
+  // 10-02 kurucu onayı) → yanma bildiren biçimler açıkça: yanıyor / yandı / yanm(ış/aya) / yanık.
+  "kıvılcım", "kivilcim", "priz yanıyor", "priz yandı", "priz yanm", "priz yanık", "priz kıvılcım",
+  "kablo yanıyor", "kablo yandı", "kablo yanm", "kablo yanık", "kablo tütüyor",
   "elektrik çarp", "elektrik carp", "karbonmonoksit", "karbon monoksit", "yanık koku", "yanik koku",
   // ⚠️ ÇOK DİLLİ ACİL — DE/FR/ES/RU/AR (saldırgan denetimi, 08-01).
   // `KEYWORDS.complaint` beş dili taşıyordu ama BU liste yalnız TR+EN'di; asimetri
@@ -2077,7 +2083,9 @@ const SAFETY_CRITICAL_WORDS = [
   // (Almanca "gaz kokusu" KAZA ESERİ kapsanıyordu: "gas" ASCII altdizisi.)
   // Bu sınıfta kapının İKİNCİ savunması yoktu, yalnız model kalıyordu.
   // Saf ekleme = kısıtlayıcı; aşırı-eşleşme zaten belgeli güvenli taraf.
-  "brennt", "es brennt", "feuer", "rauch", "notfall", "krankenwagen", "bewusstlos",
+  // (Almanca "feuer" artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK + acil bileşikleri, 10-02 kurucu onayı: alt dize "Feuerwerk"
+  // (havai fişek), "Feuerzeug" (çakmak), "Lagerfeuer" (kamp ateşi) içinde acil üretiyordu.)
+  "brennt", "es brennt", "notfall", "krankenwagen", "bewusstlos",
   "ausgesperrt", "verletzt", "blutet",
   // Almanca GAZ bileşikleri: çıplak "gas" TAM SÖZCÜK olunca ("Gastgeber" düzeltmesi, 09-26) bitişik yazılan bileşikler
   // açıkça listelenir — "Es riecht nach Gas" tam sözcükten, "Gasgeruch/Gasleck/Gasaustritt" buradan.
@@ -2087,12 +2095,16 @@ const SAFETY_CRITICAL_WORDS = [
   // ("doğal gaz kokusu" iki sözcük: tam sözcük "gaz" zaten tutar.)
   "doğalgaz koku", "doğalgaz kaçağ", "doğalgaz kaçak", "doğalgaz sızıntı",
   "tüpgaz koku", "tüpgaz kaçağ", "tüpgaz kaçak",
+  // (10-02 kurucu onayı — sözcük İÇİ çakışmalar tam sözcüğe / kalıba taşındı: Fransızca "blessé" ↓SAFETY_CRITICAL_WHOLE_WORDS'te
+  // (alt dize İngilizce "blessed" övgüsünü tutuyordu); İspanyolca "humo" ↓SAFETY_CRITICAL_WHOLE_WORDS'te (alt dize "humor /
+  // humour" övgüsünü tutuyordu); Rusça "ранен" ve Arapça "مصاب" ↓SAFETY_CRITICAL_PATTERNS'te (alt dize "хранение" = bagaj
+  // saklama, "сохранен" = kaydedildi ve "المصابيح" = lambalar içinde acil üretiyordu).)
   "incendie", "le feu", "fumée", "fumee", "urgence", "ambulance", "évanoui", "evanoui",
-  "blessé", "blesse", "saigne", "enfermés dehors", "enfermes dehors",
-  "fuego", "incendio", "humo", "emergencia", "ambulancia", "desmayó", "desmayo",
+  "saigne", "enfermés dehors", "enfermes dehors",
+  "fuego", "incendio", "humareda", "emergencia", "ambulancia", "desmayó", "desmayo",
   "herido", "sangra", "socorro",
-  "пожар", "дым", "скорая", "без сознания", "ранен", "кровь идет", "помогите",
-  "حريق", "دخان", "إسعاف", "النجدة", "مصاب", "فاقد الوعي",
+  "пожар", "дым", "скорая", "без сознания", "кровь идет", "помогите",
+  "حريق", "دخان", "إسعاف", "النجدة", "فاقد الوعي",
   // TR tıbbi acil — "acil" tek başına vardı ama somut belirtiler yoktu.
   "bayıldı", "bayildi", "nefes alamıyor", "nefes alamiyor", "kalp krizi",
   "kan kaybediyor", "kanaması var", "kanamasi var", "havale geçiriyor",
@@ -2128,7 +2140,9 @@ const SAFETY_CRITICAL_WORDS = [
   // e-postası alır ve alarm değerini yitirir.
 
   // SU BASKINI / SU HASARI
-  "su bastı", "su basti", "su basıyor", "su basiyor", "her yeri su", "tavandan su",
+  // ("her yeri su" ↓SAFETY_CRITICAL_PATTERNS'te — "su" TAM SÖZCÜK, 10-02 kurucu onayı: ASCII katlamada "her yeri SÜPER temizdi"
+  // övgüsünü tutuyordu.)
+  "su bastı", "su basti", "su basıyor", "su basiyor", "tavandan su",
   "tavandan akıyor", "tavandan akiyor", "sular altında", "sular altinda", "su taştı", "su tasti",
   "flooded", "water everywhere", "ceiling leaking", "burst pipe",
   "überflutet", "uberflutet", "überschwemmt", "uberschwemmt", "wasserschaden", "wasser läuft", "wasser lauft",
@@ -2239,6 +2253,41 @@ export const SAFETY_CRITICAL_WHOLE_WORDS: readonly string[] = [
   "kazalar", "kazam", "kazamiz",
   "polis", "polise", "polisi", "polisin", "polisle", "polisler", "polisleri", "polislere", "polisten", "poliste",
   "hurt", "hurts", "hurting", "flames",
+  // ALMANCA "rauch" (duman) — TAM SÖZCÜK + duman bildiren biçimler (kör set 9 ajanının bulgusu, 10-02 gece; kurucu onayı 10-02 sabah —
+  // Sabah Kararları 49). Alt dize Almancanın en sık fiillerinden "brauchen"i ("Ich brauche ein Handtuch"), "Nichtraucher" /
+  // "Raucher" / "rauchen" (sigara sorusu) ve "Verbrauch"ı acil sayıyordu. Duman bildirimi acil kalır: "Rauch", "es raucht",
+  // "Rauchgeruch", "Rauchentwicklung", "Rauchwolke", "Rauchmelder" (İngilizce "smoke detector" ile parite).
+  "rauch", "rauches", "raucht", "rauchgeruch", "rauchentwicklung", "rauchwolke", "rauchwolken", "rauchmelder",
+  // AYNI SINIF, 10-02 sabah (kurucu: "canlıda bulunan hatayı düzelt … en mantıklı yararlı şekilde") — alt dize başka bir sözcüğün
+  // İÇİNDE eşleşiyordu; gerçek bildirim biçimleri tam sözcükle tutar (her harf uzatılabilir: "blesse" "blessée"yi de kapsar):
+  //   · Almanca "feuer": "Feuerwerk" (havai fişek), "Feuerzeug" (çakmak), "Lagerfeuer" (kamp ateşi), "Feuerlöscher" (söndürücü — TR /
+  //     EN söndürücü sorusuyla parite, K6) acil DEĞİL; "Feuer", "Feuerwehr", "Feueralarm", "Feuermelder" acil.
+  //   · İspanyolca "humo" (duman): "humor / humour" (İngilizce / Fransızca / İspanyolca övgü) acil DEĞİL; "Hay humo", "humos" acil.
+  //   · Fransızca "blessé" (yaralı): İngilizce "We felt so blessed" acil DEĞİL; "blessé(e)(s)" acil ("blesses" uzatmayla "blessées"i
+  //     de kapsar).
+  //   · İngilizce "smoke": "We are smokers", "smoked salmon", "smokehouse" acil DEĞİL; "smoke" / "smokes" acil. ("Can we smoke on the
+  //     balcony?" sigara SORUSU hâlâ acil — anlam kararı, Sabah Kararları 51.)
+  "feuer", "feuers", "feuerwehr", "feueralarm", "feuermelder",
+  "humo", "humos",
+  "blesse", "blesses",
+  "smoke", "smokes",
+];
+
+/**
+ * ASCII DIŞI / ÇOK SÖZCÜKLÜ KALIPLAR (10-02 sabah, kurucu onayı — yukarıdaki tam sözcük düzeltmesiyle aynı sınıf): tam sözcük listesi
+ * ASCII'dir; Kiril / Arap yazısındaki ve sınır isteyen çok sözcüklü kalıplar burada. Her katlama biçiminde sınanır (alt dize listesiyle
+ * aynı). Her kalıp sabit harfle başlar, iç içe niceleyici yok (doğrusal).
+ *   · Rusça "ранен" (yaralı) YALNIZ sözcük başında: "хранение" (bagaj SAKLAMA), "сохранен" (kaydedildi) acil DEĞİL; "ранен",
+ *     "ранена", "ранение" acil.
+ *   · Arapça "مصاب" (yaralı) ardında "يح" yoksa: "المصابيح" (lambalar) acil DEĞİL; "مصاب", "مصابة", "مصابين" acil. (Arapçada ön ekler
+ *     sözcüğe bitişir — "والمصاب" — sözcük başı sınırı KULLANILMAZ.)
+ *   · Türkçe "her yeri su" YALNIZ "su" tam sözcükken (ya da suya / suyla / sular…): ASCII katlamada "her yeri SÜPER temizdi" övgüsü
+ *     acil sayılıyordu; "Her yeri su bastı", "her yeri suyla doldu" acil.
+ */
+const SAFETY_CRITICAL_PATTERNS: readonly RegExp[] = [
+  /(?<![\p{L}\p{N}])ранен/u,
+  /مصاب(?!يح)/u,
+  /her\s+yeri\s+su(?:ya|yla|lar\p{L}{0,8})?(?![\p{L}\p{N}])/u,
 ];
 
 // Liste YALNIZ ASCII küçük harf (a–z) olabilir: tam sözcük eşleşmesi ASCII katlamaya dayanır (ASCII katlama, standart ve
@@ -2282,6 +2331,30 @@ const SAFETY_PLACE_PATTERNS: readonly RegExp[] = [
   /police\s+(?:stations?|precincts?|offices?|departments?|headquarters)(?![\p{L}\p{N}])/gu,
   /yang[iı]n\s+(?:s[oö]nd[uü]r|t[uü]p|battan[iı]ye)\p{L}{0,10}/gu,
   /fire\s*(?:-\s*)?(?:extinguishers?|blankets?)(?![\p{L}\p{N}])/gu,
+  // "Where is the nearest gas station?" (benzin istasyonu) bir yer sorusu — "police station" ile aynı sınıf (10-02 kurucu onayı).
+  /gas\s+stations?(?![\p{L}\p{N}])/gu,
+];
+/**
+ * SÖZCÜK ÖBEĞİ / DEYİM ACİL DEĞİLDİR (10-02 sabah, kurucu: "canlıda bulunan hatayı düzelt … en mantıklı yararlı şekilde"): acil sözcüğü
+ * sabit bir öbeğin parçası, öbeğin anlamı tehlike bildirmiyor. Yalnız bu öbekler nötrlenir — yanlarındaki gerçek acil sözcük tutar,
+ * mesajda olay işareti varsa hiçbiri nötrlenmez (↓`hasIncidentContext`).
+ *   · "I can't get in touch with the host" (ulaşamıyorum) — "can't get in" kilitli kalma değil.
+ *   · "Is the apartment smoke-free?" (sigarasız) — duman değil.
+ *   · "The apartment is flooded with natural light" (ışık dolu) — su baskını değil; QR'da misafire "112'yi arayın" satırı gidiyordu.
+ *   · Fransızca "le feu d'artifice" (havai fişek), "le feu rouge / vert" (trafik ışığı; "donner le feu vert" = onay vermek), "il n'y a
+ *     pas le feu" (acelesi yok) · İspanyolca "fuegos artificiales" (havai fişek) — yangın değil.
+ * Kalıplar sabit sözcükle başlar; bitişik iki boşluk niceleyicisi arasında isteğe bağlı ayraç YOK (doğrusal).
+ */
+const LEXICAL_NON_EMERGENCY_PATTERNS: readonly RegExp[] = [
+  // "can't / can’t / can t / cant / cannot" — olay bağlamı kalıbıyla (↓INCIDENT_CONTEXT_RE) aynı biçimler.
+  /(?:can['’ ]?t|cannot)\s+get\s+in\s+touch/gu,
+  /smoke\s*(?:-\s*)?free(?![\p{L}\p{N}])/gu,
+  /flooded\s+with\s+(?:natural\s+)?(?:light|sunlight|daylight|sunshine)(?![\p{L}\p{N}])/gu,
+  // "le feu d'artifice" + sık yazım hatası "le feux d'artifice"; kesme işareti aday biçimde boşluğa iner.
+  /feux?\s+d(?:['’]\s*|\s+)artifice(?![\p{L}\p{N}])/gu,
+  /feu\s+(?:rouge|vert)(?![\p{L}\p{N}])/gu,
+  /n(?:['’]\s*|\s+)y\s+a\s+pas\s+le\s+feu(?![\p{L}\p{N}])/gu,
+  /fuegos\s+artificiales(?![\p{L}\p{N}])/gu,
 ];
 /**
  * "ACİL DEĞİL" (kurucu kararı K6): misafir acil olmadığını SÖYLÜYORSA "acil / emergency" sözcüğü sayılmaz ("Acil değil ama havlu
@@ -2295,7 +2368,13 @@ const NOT_URGENT_PATTERNS: readonly RegExp[] = [
 ];
 const HURT_NEGATION_RE =
   /(?:(?:does|did|would|will|can|could|should)(?:n['’ ]?t|\s+not)|won['’ ]?t|never|not)\s+(?:really\s+)?hurts?(?![\p{L}\p{N}])/gu;
-const NON_EMERGENCY_PATTERNS: readonly RegExp[] = [...EXIT_PHRASE_PATTERNS, HURT_NEGATION_RE, ...SAFETY_PLACE_PATTERNS, ...NOT_URGENT_PATTERNS];
+const NON_EMERGENCY_PATTERNS: readonly RegExp[] = [
+  ...EXIT_PHRASE_PATTERNS,
+  HURT_NEGATION_RE,
+  ...SAFETY_PLACE_PATTERNS,
+  ...NOT_URGENT_PATTERNS,
+  ...LEXICAL_NON_EMERGENCY_PATTERNS,
+];
 /**
  * Her kalıbın eşleşmesinde MUTLAKA geçen alt dizeler (biri yoksa kalıp o metinde hiç koşmaz — uzun mesajda her karakterde geriye
  * bakış denemesin; sonuç birebir aynı). Katlama biçimleri "i" / "ı" ikisini de taşıyabildiği için iki yazım da listede.
@@ -2309,9 +2388,17 @@ const NON_EMERGENCY_NEEDLES: ReadonlyMap<RegExp, readonly string[]> = new Map<Re
   [SAFETY_PLACE_PATTERNS[1], ["police"]],
   [SAFETY_PLACE_PATTERNS[2], ["yangin", "yangın"]],
   [SAFETY_PLACE_PATTERNS[3], ["fire"]],
+  [SAFETY_PLACE_PATTERNS[4], ["gas"]],
   [NOT_URGENT_PATTERNS[0], ["acil", "acıl"]],
   [NOT_URGENT_PATTERNS[1], ["acil", "acıl"]],
   [NOT_URGENT_PATTERNS[2], ["emergency"]],
+  [LEXICAL_NON_EMERGENCY_PATTERNS[0], ["touch"]],
+  [LEXICAL_NON_EMERGENCY_PATTERNS[1], ["free"]],
+  [LEXICAL_NON_EMERGENCY_PATTERNS[2], ["flooded"]],
+  [LEXICAL_NON_EMERGENCY_PATTERNS[3], ["artifice"]],
+  [LEXICAL_NON_EMERGENCY_PATTERNS[4], ["feu"]],
+  [LEXICAL_NON_EMERGENCY_PATTERNS[5], ["pas le feu"]],
+  [LEXICAL_NON_EMERGENCY_PATTERNS[6], ["artificiales"]],
 ]);
 if (NON_EMERGENCY_PATTERNS.some((re) => !NON_EMERGENCY_NEEDLES.has(re))) {
   throw new Error("NON_EMERGENCY_NEEDLES: her nötrleme kalıbının gerekli alt dizesi yazılmalı");
@@ -2438,6 +2525,7 @@ export function isSafetyEmergencyText(message: string): boolean {
       if (std.includes(SAFETY_CRITICAL_WORDS[k]) || tr.includes(SAFETY_CRITICAL_WORDS[k]) || ascii.includes(asciiWords[k])) return true;
     }
     if (SAFETY_WHOLE_WORD_RE.test(ascii)) return true;
+    if (SAFETY_CRITICAL_PATTERNS.some((re) => re.test(std) || re.test(tr) || re.test(ascii))) return true;
   }
   return false;
 }
