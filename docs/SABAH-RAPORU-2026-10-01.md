@@ -677,6 +677,20 @@ Tam metin `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` (b
 durum + aynen kalan iki paragraf (K1–K18, Host Copilot) + tek listede bekleyen onaylar; yalnız Durum'da yazılı kurallar (konuşma öğeleri, ev
 kuralları, canlı bayraklar tablosu) ilgili bölümlere taşındı; dört kopya birleşti; üç eskimiş ifade düzeldi.
 
+### 9.4 Luna'nın 5.1 kullanan katmanlarda denenmesi (sürüyor)
+- **Ne öğrendik (eski kayıtlardan, ücretsiz):** Luna `low`'un konaklama eval'inde "tehlikeli kaçak" sayılan geliştirme satırlarının ikisi ve
+  izin kaçırmalarının ikisi mülkün kendi giriş saatiyle (15:00) çelişen ETİKETLERDEN çıktı ("ilanda 16:00 yazıyor, 15:00'te gelebilir miyiz?");
+  kurucu 10-02: "15:00'te gelmek erken giriş sayılmıyor, Luna doğru yapmış". Asıl açık soru görülmüş holdout'taki izin kaçırmaları (Luna `low` 11,
+  5.1 5) — o metinler açılmadı (yasak); yeni geliştirme seti ve kör kabul seti yazdırıldı.
+- **Plan:** (1) geliştirme seti `evals/stay-change-dev2.json` (okunur) — 5.1 / Luna none / low / medium; (2) Luna hatalarının sınıfına göre
+  YALNIZ genellenebilir düzeltme (ör. "model saati çıkarır, kıyas kodda" ilkesini taslağın verdiği saate de uygulamak); (3) kör kabul
+  `evals/stay-change-acc10.json` + uçtan uca `evals/luna-acceptance-10.json` (bütün katmanlar Luna ↔ bugünkü öneri); (4) sıralayıcı RAG ölçeğinde
+  (`live` ↔ `live+rrm:gpt-6-luna+rre:none`, ayrıca soru başına kip); (5) çeviri: önceki 76 satırda kod / şifre / bağlantı / tutar kaybı 0, iki
+  satırda saat Fransız yazımıyla ("21h00") — anlam kaybı yok; (6) konuşma öğeleri (şikâyet bölme / ilişki): anlama katmanı Luna `low` iken
+  ayrıca ölçülür (10-01 Luna koşusunda anlama 5.1'deydi).
+- **Hız sınırı (ölçüm başında, 10-02 06:55Z, OpenAI yanıt başlıkları):** Luna 5.000 istek / 4.000.000 token, 5.1 5.000 istek / 2.000.000 token
+  dakikada; ölçümler kullanırken kalan %99 → canlı trafik etkilenmez (09-27'deki 200k sınırı artık geçerli değil).
+
 ### 9.5 Anlama + bekçi katmanında Luna — SONUÇ (konaklama ölçeri; anlama kipi canlıyla aynı: öğeler + kurallar + şikâyet takibi)
 
 Koşu kimliği: eski istem `112e514` (= canlı RC67b kodu + setler), yeni istem `42b0398` (+ iki istem düzeltmesi, ↓). Anlama + bekçi aynı modelde;
@@ -717,14 +731,3 @@ Gereksiz incelemelerin 16 / 18'inde İKİ model de doğru şekilde "istek yok" d
 **SONUÇ:** anlama + bekçi için **Luna `low` + yeni istem**, kör kabulde 5.1'den geri değil (iki tehlikeli ölçüde 0 / 0, gereksiz inceleme 18 ↔ 19)
 ve bugünkü canlıdan iyi (1 kaçak → 0). Değişken: `AI_SEMANTIC_MODEL=gpt-6-luna` + `AI_SEMANTIC_REASONING_EFFORT=low` (sıralayıcı ↓ ayrı).
 Maliyet: Luna bu iki katmanda 5.1'in ~1/8'i.
-
-### 9.4 Luna'nın 5.1 kullanan katmanlarda denenmesi (sürüyor)
-- **Ne öğrendik (eski kayıtlardan, ücretsiz):** Luna `low`'un konaklama eval'inde "tehlikeli kaçak" sayılan geliştirme satırlarının ikisi ve
-  izin kaçırmalarının ikisi mülkün kendi giriş saatiyle (15:00) çelişen ETİKETLERDEN çıktı ("ilanda 16:00 yazıyor, 15:00'te gelebilir miyiz?");
-  kurucu 10-02: "15:00'te gelmek erken giriş sayılmıyor, Luna doğru yapmış". Asıl açık soru görülmüş holdout'taki izin kaçırmaları (Luna `low` 11,
-  5.1 5) — o metinler açılmadı (yasak); yeni geliştirme seti ve kör kabul seti yazdırıldı.
-- **Plan:** (1) geliştirme seti `evals/stay-change-dev2.json` (okunur) — 5.1 / Luna none / low / medium; (2) Luna hatalarının sınıfına göre
-  YALNIZ genellenebilir düzeltme (ör. "model saati çıkarır, kıyas kodda" ilkesini taslağın verdiği saate de uygulamak); (3) kör kabul
-  `evals/stay-change-acc10.json` + uçtan uca `evals/luna-acceptance-10.json` (bütün katmanlar Luna ↔ bugünkü öneri); (4) sıralayıcı RAG ölçeğinde
-  (`live` ↔ `live+rrm:gpt-6-luna+rre:none`, ayrıca soru başına kip); (5) çeviri: önceki 76 satırda kod / şifre / bağlantı / tutar kaybı 0, iki
-  satırda saat Fransız yazımıyla ("21h00") — anlam kaybı yok.
