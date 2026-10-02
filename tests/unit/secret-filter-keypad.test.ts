@@ -65,6 +65,12 @@ describe("tuş paneli / sözcük sırası — yeni yakalanan sır biçimleri", (
     "Enter the building from Mimoza Sokak; the lift is on the left.",
     "Tuşlu telefon salonda; resepsiyon dahili 101.",
     "Havalimanı transferi 4 kişiye kadar 1500 TL'dir.",
+    // Telefonun SON öbeği tuş paneli adının önünde (mutasyon K8: son öbek koruması olmadan bu kalem düşüyordu).
+    "Teknik servis: 0212 555 4433 (keypad arızaları için).",
+    // Posta kodu + bina adı (mutasyon K10: "postal" dışlaması olmadan kapı adı "immeuble / edificio / المبنى" bunu kod sanıyordu).
+    "Le code postal de l'immeuble est 75011.",
+    "Código postal del edificio: 08001.",
+    "الرمز البريدي للمبنى: 11564",
   ])("%j → kalem KALIR", (icerik) => {
     expect(dropped(icerik)).toBe(false);
   });
