@@ -444,6 +444,10 @@ Bu dosyaya token/anahtar/parola yazma.
   `stay-change-backstop-floor.test.ts`) · cevap modelinin şema beyanı (`stayChangeAsked`+`replyStance`; iddia duruşu
   varsayılan ZORLANIR) · bağımsız bekçi (`semantic/guard.ts`, `AI_STAY_GUARD_ENABLED`) · anlama katmanı
   (`semantic/understand.ts`, `AI_UNDERSTANDING_ENABLED`). Model saati ÇIKARIR, kıyas KODDA (`slotTimesShifted`).
+  10-02 (Luna katman çalışması, geliştirme seti dev2): misafirin SÖYLEDİĞİ giriş / çıkış saati — istese de duyursa da, standart
+  sansa da ("ilanda 15:00 yazıyor, 15:00'te geleceğiz") — iki katmanda çıkarılır; standart saat YALNIZ mülkün kendi saati (`stayTimes`,
+  mülk başına); çıkıştan sonra dairede bagaj bırakmak konaklama değişikliğidir (iki istem cümlesi, yalnız sıkılaştırır; 5.1'in kaçırdığı
+  "Just a heads up, we'll be there at 3pm" / giriş 16:00 kör sette yakalandı — `docs/SABAH-RAPORU-2026-10-01.md` §9.5).
   🚨 **BELİRSİZLİK GÜVENLİ DEĞİLDİR (kurucu değişmezi 09-24):** HASSAS İSTEK + bekçi YOK (bayrak kapalı = düşmüş =
   aynı) ya da beyan YOK/tanınmıyor → otomatik gönderim YOK, devirde de. 🚨 **BİRLEŞİM DEĞİŞMEZİ (09-24 üçüncü tur):**
   hassas istek = kelime ağı ∨ beyan (`asked`/ret) ∨ cevap modelinin niyet etiketi ∨ anlama katmanı ∨ bekçi; HİÇBİR
@@ -1289,6 +1293,10 @@ sınıfında, çıkarım backfill'i BİLEREK yok.
   artificiales) + "gas station" (K6 yer sınıfı). Yeni acil sözcüğü ALT DİZE eklenmeden önce yedi dilin sık sözcükleriyle çakışma
   taranır. Anlam gerektirenler ("bayıldık" övgüsü, "İnternet düştü", sigara SORUSU, "Помогите, пожалуйста", Wi-Fi'ye "giriş")
   kurucu kararı (Sabah Kararları 51).
+- **Kural konusu ağında Türkçe "parti" TAM SÖZCÜK (10-02, aynı sınıf):** `TR_PARTY_RE` (ad çekimleri: -ye/-yi/-yle/-de/-den/-si(n…)/-ler…/
+  -miz/-niz; yalnız ASCII katlamada — "Partıye" noktasız yazım dahil); "partir / compartido / partie / particular / partial / repartí"
+  kural sözcüğü DEĞİL (İspanyolca giriş sorusu "¿A partir de qué hora…?" otomatik cevap alamıyordu); İngilizce party / parties / partying
+  listede kalır. Anlam belirsizliği ("il est parti" = gitti, "party of four" = grup) kurucu kararı (Sabah Kararları 51 g).
 - Olumsuz fiil kalıpları ÇAPALI (tesis adı + fiil; gövde "-yo" ile: gelmiyor/gelmiyo). Çıplak `gelmiyor · gitti ·
   kesildi · su yok · arıza · yanmıyor · bozuldu · blackout · no heat · elektrik yok · cereyan yok · ısınmıyor ·
   elektrik kesintisi · power cut` listeye GİRMEZ (tuzaklar pinli). "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ wifi.
@@ -1686,7 +1694,7 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-02 (güncel):** canlı kod RC65 (`ca94555`, CI #1284 yeşil; son KOD değişikliği RC64). Railway AKTİF (kurucu canlıya bayrak ekledi;
+**10-02 (güncel):** canlı kod RC67b (`b984470`, CI #1285 yeşil; yanlış acil düzeltmesi ↑Şikâyet sınıflandırıcı). Railway AKTİF (kurucu canlıya bayrak ekledi;
 ↑Canlı durum). Cevap modeli önerisi (kör set 9, son kod): `OPENAI_MODEL=gpt-6-luna` + `OPENAI_REASONING_EFFORT=medium` (kurucu tercihi,
 veriyle uyumlu: set 9'da gitmemesi gerekirken giden 0/23, doğru olgu 21/26, maliyet `low` ile aynı; bedeli p95 13,8 sn) + üslup Luna
 `none`; anlama / bekçi / sıralayıcı / çeviri bugün 5.1'e sabit. Kurucu 10-02 sabah: "5.1 yerine Luna 6 kullandırmaya çalış, kodları ona
