@@ -897,3 +897,31 @@ describe("K10 — öğe kipinde devir cümlesi", () => {
     expect(mockMail).not.toHaveBeenCalled();
   });
 });
+
+// 51 (kurucu onayı 10-02 akşam): öğe kipinde de bağlam ilkesi — kelime ağının fiziksel tehlike etiketi bağlamla kalktıysa ACİL öğe
+// kurulmaz ve tur acil yola dönmez (kapı da aynı hükmü kullanır); açık tehlikede alarm kalkmaz.
+describe("51 — öğe kipinde bağlamla kalkan tehlike alarmı", () => {
+  beforeEachTurn();
+  const KETTLE = "Çaydanlıktan duman çıkıyor, normal mi?";
+
+  it("olası tehlike + anlama katmanı 'cihaz' (acil değil) → acil öğe YOK, cevap gider", async () => {
+    const { conversationId } = await seed(KETTLE);
+    understands(understood([{ intent: "appliance_help", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "appliance_help", reply: "Çaydanlığı ocaktan alıp soğumasını bekleyin.", answeredRequests: { ok: true, refs: ["R1"] } }),
+    );
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect((await itemsOf(conversationId)).map((i) => i.sensitivity)).not.toContain("emergency");
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
+  it("🚨 KONTROL: açık tehlike ('Prizden duman çıkıyor, yanık kokuyor!') anlama katmanı 'cihaz' dese de acil yol — gönderilmez", async () => {
+    const { conversationId } = await seed("Prizden duman çıkıyor, yanık kokuyor!");
+    understands(understood([{ intent: "appliance_help", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "appliance_help", reply: "Prizi kullanmayın.", answeredRequests: { ok: true, refs: ["R1"] } }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect((await itemsOf(conversationId)).map((i) => i.sensitivity)).toContain("emergency");
+  });
+});

@@ -115,6 +115,14 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       ITEMS_FIX,
       "items_fix_money",
     ],
+    [
+      // 51 (kurucu onayı 10-02 akşam): bağlamla kaldırılan tehlike alarmında "normaldir / güvenlidir" güvencesi bilgi tabanı dayanağı ister.
+      "bağlamla kalkan tehlike alarmında kaynaksız güvence",
+      { ...ok, reply: "Bu buhar normaldir, endişelenmeyin." },
+      "Çaydanlıktan duman çıkıyor, normal mi?",
+      { hazardCleared: true, kbFacts: [] },
+      "hazard_reassurance",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {
@@ -124,6 +132,13 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       expect(autoReplyGateFailure(result, msg, ctx)).toBe("blocked");
     });
   }
+
+  it("İKİZ: güvence bilgi tabanında yazılıysa (aynı konu) tutulmaz; alarm kalkmadıysa kelime ağı kapatır", () => {
+    const reply = { ...ok, reply: "Bu buhar normaldir, endişelenmeyin." };
+    const msg = "Çaydanlıktan duman çıkıyor, normal mi?";
+    expect(autoReplyGateVerdict(reply, msg, { hazardCleared: true, kbFacts: ["Çaydanlık kaynarken ağzından buhar çıkması normaldir."] })).toBeNull();
+    expect(autoReplyGateVerdict(reply, msg, { kbFacts: [] })).toEqual({ reason: "blocked", detail: "lexical_risk" });
+  });
 
   it("ayrıntı kümesi kapının kontrollerini birebir kapsar (her kod bir vakada üretildi)", () => {
     expect(new Set(cases.map((c) => c[4]))).toEqual(new Set(GATE_BLOCK_DETAILS));

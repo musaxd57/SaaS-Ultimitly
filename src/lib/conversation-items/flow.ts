@@ -83,9 +83,19 @@ export async function planItemsTurn(
      * sunulur (`relation.kbRecipeTopics`, karar 23 kör doğrulaması). Verilmezse hiçbir arıza çözümü sunulmaz.
      */
     knowledgeBase?: readonly { title: string; content: string }[];
+    /**
+     * 51 (kurucu onayı 10-02 akşam, `ai/hazard-evidence.ts`): kelime ağının fiziksel tehlike etiketi bağlamla KALDIRILDI (olası / anılış
+     * düzeyi + anlama katmanı "acil değil"). O etiket öğe kurmaz ve turu acil yola çevirmez — kapı da aynı hükmü kullanır.
+     */
+    hazardCleared?: boolean;
   },
 ): Promise<ItemsTurn> {
-  const extracted = extractTurnItems({ history: input.history, guestMessage: input.guestMessage, understanding: input.understanding });
+  const extracted = extractTurnItems({
+    history: input.history,
+    guestMessage: input.guestMessage,
+    understanding: input.understanding,
+    ...(input.hazardCleared ? { labelsOf: (body: string) => detectRiskTypes(body).filter((l) => l !== "safety_emergency") } : {}),
+  });
   if (extracted.mode === "degraded") return { mode: "off", reason: extracted.reason };
   const turnMessageIds = extracted.messages.map((m) => m.messageId);
   if (

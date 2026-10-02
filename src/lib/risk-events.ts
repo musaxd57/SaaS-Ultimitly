@@ -68,6 +68,9 @@ const REASONS = new Set([
   "kb_time_conflict",
   // Cevap misafirin dilinde değil (09-25, `ai/language-signal.ts`; kanal kapısı + 10-02'den beri QR — Sabah Kararları 56).
   "reply_language_mismatch",
+  // Fiziksel tehlike (Sabah Kararları 51 + 55, `ai/hazard-evidence.ts`): QR'da AÇIK tehlike modeli beklemeden devredildi
+  // (`physical_hazard`); bağlamla kaldırılan alarmda cevap kaynaksız güvence verdi, gitmedi (`hazard_reassurance`; kanal + QR).
+  "physical_hazard", "hazard_reassurance",
   // Kapanış mesajı → cevap gerekmedi (09-25, `ai/closing-turn.ts`): sözcük yolu / iki modelin uyuştuğu anlam yolu.
   "closing_ack", "closing_ack_semantic",
   // Eylem beyanı (MÇ §4, `ai/action-claims.ts`; bayrak kapalıyken yazılmaz): cevap makbuzsuz bir eylem iddia etti /

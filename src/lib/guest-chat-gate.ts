@@ -13,7 +13,8 @@ import type {
   StayTimes,
   UnderstandingStaySignal,
 } from "@/lib/ai/semantic/stay-change";
-import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
+import { classifyFallback, detectPromptInjection, detectRiskType, detectRiskTypes } from "@/lib/ai/fallback";
+import { hasSafetyReassurance, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import {
   confidentLanguage,
   guestTurnLanguage,
@@ -139,6 +140,10 @@ export const ESCALATION_REASONS = [
   "action_claim_undeclared",
   // Misafirin dilinde değil (Sabah Kararları 56, kurucu onayı 10-02 akşam) — kanal kapısıyla AYNI yüklem (`language-signal.ts`).
   "reply_language_mismatch",
+  // Fiziksel tehlike (Sabah Kararları 51 + 55, kurucu onayı 10-02 akşam; `hazard-evidence.ts`): AÇIK tehlike modeli beklemeden devir +
+  // güvenlik satırı; bağlamla kaldırılan alarmda kaynaksız güvence ("normaldir, güvenlidir") gitmez.
+  "physical_hazard",
+  "hazard_reassurance",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -232,6 +237,11 @@ export function evaluateEscalation(
      * değilken ve mesaj en az iki sözcükken dil kapısına girdi olur (56: "Y a-t-il un fer à repasser ?" kodca belirsiz).
      */
     guestLanguageHint?: string | null;
+    /**
+     * 51 (kurucu onayı 10-02 akşam): kelime ağının fiziksel tehlike sözcüğünden gelen "acil" etiketi bağlamla KALDIRILDI
+     * (`hazardDecisionFor().lexicalCleared` — olası / anılış düzeyi + model "acil değil"). Açık tehlikede asla true olmaz.
+     */
+    hazardCleared?: boolean;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
@@ -283,7 +293,8 @@ export function evaluateEscalation(
   // (yalnız DAHA ÇOK devir) ve ürünün 3-seviye modeliyle uyumlu: şikâyet
   // zaten Seviye-2'dir. `human_request` için muafiyet YOK — kapıda gerçek
   // zamanlı devredilecek insan yok (↑:142-143'teki gerekçe aynen geçerli).
-  const dr = detectRiskType(message);
+  // 51: bağlamla kaldırılan fiziksel tehlike etiketi bu kontrolde sayılmaz; aynı mesajdaki başka etiket (öncelik sırasıyla) aynen sayılır.
+  const dr = stayCtx?.hazardCleared ? (detectRiskTypes(message).find((l) => l !== "safety_emergency") ?? null) : detectRiskType(message);
   if (dr && HIGH_STAKES_RISK_TYPES.has(dr)) return yes("keyword_risk_type");
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return yes("model_risk_level");
   // ── "BİLGİM YOK" MİSAFİRE GİTMEZ (kurucu kuralı, 09-11) ───────────────────
@@ -312,6 +323,10 @@ export function evaluateEscalation(
   // ── EYLEM BEYANI (MÇ §4) — kanal kapısıyla AYNI yüklem ve AYNI yer (çıktı vetosunun ardında). Makbuz yok → devir. ──
   const claim = actionClaimHold(result.claimedActions);
   if (claim !== null) return yes(claim);
+  // ── 51: ALARM BAĞLAMLA KALKTIYSA KAYNAKSIZ GÜVENCE GİTMEZ (kurucu: "'normaldir, güvenlidir' diye kaynaksız güvence verilmesin") ──
+  if (stayCtx?.hazardCleared && hasSafetyReassurance(result.reply) && !kbSupportsReassurance(stayCtx.kbFacts)) {
+    return yes("hazard_reassurance");
+  }
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24) ────────────────────────────────
   // Kanal kapısıyla AYNI yüklem. QR'da cevaplanan tek mesaj GÜNCEL mesajdır (eşzamanlı sohbet;
   // önceki turlar zaten cevaplandı). Devir muafiyeti burada GEREKMEZ: `human_request` yukarıda

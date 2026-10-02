@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
-import { detectRiskType } from "@/lib/ai/fallback";
+import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
+import { hazardDecisionFor, hazardEvidenceOf, safetyLineFor } from "@/lib/ai/hazard-evidence";
+import { confidentLanguage } from "@/lib/ai/language-signal";
 import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
@@ -13,8 +15,6 @@ import {
   acquireGuestChatThreadLock,
   ensureGuestChatConversation,
   styleProfileForPrompt,
-  escalationReply,
-  isPhysicalEmergency,
   buildGuestChatContextWindow,
   GUEST_CHAT_MESSAGE_WINDOW,
   type GuestChatContext,
@@ -631,14 +631,48 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // ölçütü kullanmak İKİ kusur üretiyordu — öz-zarar mesajına "acil servisleri
   // arayın" göndermek (ürünün kendi istem kuralına aykırı) ve "İnternet düştü"
   // gibi cümlelerde acil talimatı basmak. Metin DAR yükleme bağlanır.
-  const physicalEmergency = isPhysicalEmergency(message);
+  // 🚨 55 + 51 (kurucu onayı 10-02 akşam, `ai/hazard-evidence.ts`): güvenlik satırı artık BAĞLAMLA seçilir (eski `isPhysicalEmergency`
+  // yalnız TR/EN sözcük kalıbıydı; "yangın yok" da satır alıyordu, Almanca / Fransızca yangın hiç almıyordu). Satır misafirin dilinde
+  // (kodun kesin tespiti; yoksa modelin bildirdiği dil; yoksa Türkçe). Model çağrısı OLMAYAN dallarda (tavan / bütçe) OLASI tehlike de
+  // satır alır — değerlendirecek model yok, güvenli taraf; yalnız ANILAN tehlike (olumsuz / geçmiş / varsayım) almaz.
+  const hazard = hazardEvidenceOf(message);
+  const lineLanguage = confidentLanguage(message);
+  const noModelSafetyLine = hazard.level === "clear" || hazard.level === "possible" ? safetyLineFor(lineLanguage) : null;
+  // AÇIK tehlike: modeli BEKLEMEDEN güvenlik satırı + devir (kurucu: "Gerçek tehlikede model yanıtını beklemeden koddan güvenlik satırı
+  // gösterilsin"). Ücretli çağrı yapılmaz, AI kotası tüketilmez; ev sahibine kritik uyarı (bekleme süresini aşar).
+  if (hazard.level === "clear") {
+    const reply = safetyLineFor(lineLanguage);
+    const fast = await record(reply, true);
+    if (fast.handedOff) return finalize({ handoff: true });
+    await recordRiskEvent({
+      organizationId: ctx.property.organizationId,
+      propertyId: ctx.property.id,
+      conversationId: fast.conversationId,
+      surface: "guest_chat",
+      triggerId: fast.inboundMessageId,
+      finalDecision: "human_review",
+      riskLevel: "high",
+      riskType: "safety_emergency",
+      reason: "physical_hazard",
+      confidence: null,
+    });
+    await sendQrEscalationAlertBounded({
+      organizationId: ctx.property.organizationId,
+      propertyName: ctx.property.name,
+      reservationId: res.id,
+      eventId: qrEscalationEventId(fast.inboundMessageId, message, true),
+      reason: "ai_escalated",
+      critical: true,
+    });
+    return finalize({ escalated: true, reply });
+  }
 
   const dailyAiCap =
     (await limitsForOrg(ctx.property.organizationId).catch(() => null))?.qrQuestionsPerPropertyPerDay ??
     DAILY_AI_CAP_FALLBACK;
 
   if (usage.count > dailyAiCap) {
-    const reply = escalationReply({ critical: physicalEmergency });
+    const reply = noModelSafetyLine;
     const { inboundMessageId, handedOff } = await record(reply, true);
     // A host reply raced in → the human owns the thread; the canned line was
     // vetoed under the lock and only the guest's message was stored.
@@ -682,7 +716,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // güvenlik lehine seçildi; cron için tersi doğrudur.
   const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId);
   if (!budget.ok) {
-    const escalationText = escalationReply({ critical: physicalEmergency });
+    const escalationText = noModelSafetyLine;
     const { inboundMessageId, handedOff } = await record(escalationText, true);
     if (handedOff) return finalize({ handoff: true });
     await sendQrEscalationAlertBounded({
@@ -802,6 +836,12 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // ya da tek engeli müsaitlik onayı eksikliği olan taslak için okur (iki bağımsız modelin ertelemesi o tutuşu
   // ancak böyle kaldırabilir — kanal kapısıyla parite) ve kapı onun hükmüyle yeniden değerlendirilir.
   const understood = await kbSel.understanding;
+  // 51: bağlam kararı — olası / anılan fiziksel tehlikede kararı anlama katmanı verir; açık tehlike ↑ zaten devredildi. Katman
+  // koşmadıysa (kapalı / düştü) olası tehlike güvenli tarafta kalır, anılan tehlike acile ÇEVRİLMEZ.
+  const hazardDecision = hazardDecisionFor(
+    { texts: [message], understandingRan: understood != null, understandingEmergency: understandingRiskOf(understood) === "emergency" },
+    isSafetyEmergencyText,
+  );
   let stayCtx: Parameters<typeof evaluateEscalation>[4] = {
     stayTimes: { checkIn: ctx.property.checkInTime, checkOut: ctx.property.checkOutTime },
     understanding: understood?.stay ?? null,
@@ -812,6 +852,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     kbFacts: kbFactsOf(kbSel.items),
     // 56: kodun dil tespiti emin değilken (kısa / karışık soru) misafirin dili için MODEL görüşü — önce bağımsız anlama katmanı.
     guestLanguageHint: understood?.language ?? result.detectedLanguage ?? null,
+    // 51: kelime ağının fiziksel tehlike etiketi bağlamla kalktı mı (olası / anılış + model "acil değil").
+    hazardCleared: hazardDecision.lexicalCleared,
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
@@ -916,8 +958,12 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // answer (handedOff below). The guest's message is still recorded for the host.
   // 🚨 ACİL ≠ SIRADAN İSTEK (kurucu, 09-11). `criticalEvent` yukarıda (alarm
   // dedupe'ı için) ZATEN hesaplandı — yeni dedektör, yeni çağrı, yeni maliyet yok.
+  // Devirde misafire YALNIZ fiziksel tehlike güvenlik satırı gider (K10); karar bağlamla (`hazardDecision.emergency`), dil kodun tespiti →
+  // modelin bildirdiği dil → Türkçe.
   const reply = escalate
-    ? escalationReply({ critical: physicalEmergency })
+    ? hazardDecision.emergency
+      ? safetyLineFor(lineLanguage ?? understood?.language ?? result.detectedLanguage ?? null)
+      : null
     : result.reply;
   const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
   if (handedOff) return finalize({ handoff: true });
@@ -941,8 +987,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   });
   if (escalate) {
     // Alarm önceliği: kelime ağının acil durumu YA DA anlama katmanının acil niyeti (kelime ağının kaçırdığı dolaylı
-    // dil — inceleme 09-24, P2-11) bekleme süresini aşar. Misafire giden metin DAR yüklemde kalır (↑ physicalEmergency).
-    const alertCritical = criticalEvent || understandingRiskOf(understood) === "emergency";
+    // dil — inceleme 09-24, P2-11) bekleme süresini aşar. Misafire giden metin bağlam kararında kalır (↑ hazardDecision).
+    // 51: bağlamla kalkan fiziksel tehlike etiketi (olası / anılış + model "acil değil") kritik uyarı değildir.
+    const alertCritical = (criticalEvent && !hazardDecision.lexicalCleared) || understandingRiskOf(understood) === "emergency";
     await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,

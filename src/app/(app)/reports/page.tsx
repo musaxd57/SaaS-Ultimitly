@@ -82,6 +82,9 @@ export default async function ReportsPage() {
     "kb_time_conflict",
     // Cevap misafirin dilinde değildi (09-25 kanal, 10-02 QR) — kendi satırı: "düşük güven" kovasına karışmasın.
     "reply_language_mismatch",
+    // Fiziksel tehlike (10-02, Sabah Kararları 51 + 55): açık tehlikede güvenlik satırı + devir; bağlamla kalkan alarmda kaynaksız güvence.
+    "physical_hazard",
+    "hazard_reassurance",
     // Cevap yapılmamış bir işten söz etti / beyan eksikti (MÇ §4; yalnız eylem beyanı açıkken yazılır) — kendi satırı.
     "action_claim",
     "action_claim_undeclared",

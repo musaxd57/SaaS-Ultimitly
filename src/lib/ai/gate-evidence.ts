@@ -37,6 +37,9 @@ export const GATE_BLOCK_DETAILS = [
   "items_fix_hazard", // cevaplanan arıza çözümü tehlike sınıfına değiyor (elektrik / gaz / sıcak su cihazı / yangın)
   "items_fix_money", // arıza çözümü diye cevaplanan istekte tutar / muafiyet (kör set 7 k7-22: iade turunda "otopark günlük 200 TL")
   "items_held_touched", // cevap ev sahibine bırakılan arızanın cihazına değiniyor (uydurma adım / "talimatım yok" — kör set 5)
+  // 51 (kurucu onayı 10-02 akşam, `ai/hazard-evidence.ts`): fiziksel tehlike alarmı bağlamla kalktı ama cevap kaynaksız güvence verdi
+  // ("normaldir, güvenlidir") — bilgi tabanında dayanağı yoksa gitmez.
+  "hazard_reassurance",
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 
