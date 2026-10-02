@@ -32,8 +32,9 @@
 11. **(10-02 gece, son durum) 49 → 6 EK 3 → 48 → 47 → 46 → 22 EK** — canlıda Almanca "brauche / brauchen" acil sayılıyor (49, hazır düzeltme
    itilmedi, onayınızı bekliyor); kör set 9'a göre cevap modeli önerisi Luna `low` (6 EK 3); başka dairenin / personelin kodu (48); özel adlar
    (47, üç modelde de); iade + ücret liste kipinde (46); bilgi tabanı içi çelişki (22 EK, üç modelde de). 50 yalnız bilgi.
-12. **(10-02 sabah, Luna katman çalışması) 51 → 52** — anlam gerektiren yanlış aciller ve parti / grup belirsizliği (51 a–g); başkası adına sorulan
-   girişte kapı kodları (52, 5.1 ve Luna — canlıda da var).
+12. **(10-02 sabah, Luna katman çalışması) 53 → 52 → 51** — öğe kipinde bırakılan isteğe değinen cevap güvenli kısmı da tutuyor (53, hazır
+   düzeltme, cevap modelini Luna'ya geçirmeden önce gerekli); başkası adına sorulan girişte kapı kodları (52, 5.1 ve Luna — canlıda da var); anlam
+   gerektiren yanlış aciller ve parti / grup belirsizliği (51 a–g).
 
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
@@ -790,3 +791,37 @@
 - **Öneri:** A; iki yönlü ölçümle (kendi girişini soran misafir kodu ALMAYA devam etmeli — giriş tarifinde kod kuralının amacı bu).
 - **Müşteriye etkisi:** Giriş kodları yalnız rezervasyon sahibine, kendi rezervasyonu yoluyla gider; kendi girişini soran misafir etkilenmez.
 - **Beklerken yapılmayan:** istem değişmedi (misafire giden davranış — kararınız).
+
+## 53. Konuşma öğeleri kipinde (CANLI) cevap modeli bırakılan isteğe değinince güvenli kısım da gitmiyor — HAZIR DÜZELTME, onayınızı bekliyor (10-02 sabah)
+- **Durum:** Öğe kipinde (canlıda açık) misafir aynı mesajda hassas bir şey (IBAN, iade, ev sahibiyle görüşme) ve güvenli bir şey (Wi-Fi,
+  havlu, çıkış saati) sorunca kod hassas kısmı ev sahibine bırakır, modelden YALNIZ güvenli kısmı cevaplamasını ister. Ama taban sistem istemi
+  ödeme için "Tek güvenli cevap kalıbı: 'Ödeme ve rezervasyon işlemlerinin platform üzerinden yürütülmesi gerekiyor; bu konu ev sahibinizin
+  kararıdır.'", ev sahibiyle görüşme için "'Tabii. Mesajınız kaydedildi; ev sahibiniz görebilir.' de" öğretiyor. Luna (`medium`) bu kalıbı
+  bırakılan isteğe yazıyor → çıktı vetosu (ev sahibi kararı / devir cümlesi) cevabın TAMAMINI tutuyor → Wi-Fi cevabı da misafire gitmiyor.
+  Ayrıca öğe kipinde zorunlu `answeredRequests` alanı yalnız kullanıcı isteminde anılıyor; Luna `medium` ara sıra atlıyor → temiz cevap da
+  tutuluyor. 5.1 bugün çoğunlukla uyuyor (ama ara sıra "Ödemelerle ilgili tüm işlemleriniz için Airbnb üzerinden devam edebilirsiniz" gibi
+  bırakılan konuya değiniyor).
+- **Ölçüm (tasarım seti, 20 senaryo, onaylı aktif konaklama; "güvenli kısım cevaplandı" / 17, sızıntı hepsinde 0):**
+
+  | | düzeltmesiz | yalnız sistem istemi önceliği | iki katman (öncelik + çıktı alanı) |
+  |---|---|---|---|
+  | 5.1 | 17 | 17 | **17** |
+  | Luna `medium` | 7 · 9 (iki koşu) | 15 · 16 | **17 · 17** |
+  | Luna `low` | 12 · 6 | 17 | **17** |
+  | Luna `none` | 16 · 17 | 16 | — |
+
+- **Hazır düzeltme (dal `prep/items-block-precedence`, İTİLMEDİ):** (1) yalnız bu turda bırakılan istek varken sistem isteminin KURAL ÖNCELİĞİ
+  listesine tek paragraf: "EV SAHİBİNE BIRAKILAN istekler için bu istemdeki devir / ödeme / ev sahibi kararı / konaklama ertelemesi kalıplarını
+  YAZMA — onlara hiç değinme; Kural-4'ün ve niyet listesinin cevap kalıplarının ÖNÜNDEDİR"; (2) yalnız öğe kipinde çıktı formatına
+  `answeredRequests` alanı. Öğe kipi değilken sistem istemi bayt bayt aynı (pinli); yedi katmanın 128 birleşiminde kayıp çapa yok.
+- **Örnek — misafir: "Can you send me your IBAN? And what's the wifi password?"**
+  - *Bugün (Luna `medium`):* "Payments and reservation transactions must be handled through the platform; this is the host's decision. The Wi-Fi
+    password is Lale2025." → ev sahibi kararı cümlesi tutulur → misafire HİÇBİR ŞEY gitmez; IBAN da Wi-Fi de ev sahibinde.
+  - *Düzeltmeyle:* "Hello Alex, The Wi-Fi password is Lale2025." gider; IBAN isteği sessizce ev sahibinde (öğe açık, tek e-posta) — 09-26
+    tasarımınızın tarif ettiği davranış.
+  - *5.1 için fark:* bugün ara sıra eklediği "Ödemelerle ilgili tüm işlemleriniz için Airbnb üzerinden devam edebilirsiniz" cümlesi de yazılmaz.
+- **Öneri:** onaylayın → RC'ye girer (kapılar + CI). Cevap modelini Luna'ya geçirmeden ÖNCE gerekli: düzeltmesiz Luna `medium` karışık
+  mesajlarda güvenli cevabı 17'de 7–9 gönderiyor (5.1: 17).
+- **Müşteriye etkisi:** karışık mesajlarda güvenli kısım cevaplanır; hassas kısım hakkında misafire hiçbir cümle gitmez (bugün 5.1'in ara sıra
+  yazdığı platform cümlesi de gitmez).
+- **Beklerken yapılmayan:** dal itilmedi; cevap modelini Luna'ya geçirmeyi önermiyorum (rapor §7).
