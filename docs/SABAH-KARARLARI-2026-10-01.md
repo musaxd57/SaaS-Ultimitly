@@ -26,6 +26,9 @@
    için 403 doğrulaması (44a, operatör adımı, hemen), paylaşılan Paddle müşterisinde portal (41b), Gmail varyantlarıyla e-posta bombası (42b),
    bağlanamayan ödeme / iade (41a, 41d), 2FA sıfırlamada amaç + sahibe e-posta (43a); RC60 regresyon koşusunun gösterdiği arıza etiketi
    değişkenliği madde 27'ye eklendi. 42–45'in kalanı P3.
+10. **(10-02 gece, nihai Luna doğrulaması) 6 EK → 46 → 47** — son kodla kör set 7: adayın tek iade sızıntısı modelden bağımsız bir kapı açığıydı
+   (ilişki kipinde kapatıldı; canlı liste kipindeki karşılığı 46), ölçülen tek tutarlı Luna gerilemesi olgu kesinliği (6 EK: set 2–7'de gerçek
+   yanlış olgu 3 / 180 ↔ 1 / 169; özel ad çevirisi 47). Kör set 8 son kodla koşuluyor (rapor §3.13).
 
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
@@ -107,6 +110,12 @@
 - **Müşteriye etkisi:** Kabul ölçümünde cevap kalitesi aynı; "ev sahibinizin kararıdır" ertelemeleri (bayrakla) gitmez; maliyet ~⅓.
 - **Beklerken yapılmayan:** canlı model / bayrak değişikliği. "Yalnız modeli değiştirmek kaldı" DEĞİL — sabitleme değişkenleri + bayrak
   kararları + 13–15 gerekir.
+- **EK (10-02 gece, nihai doğrulama — rapor §3.12):** son kod (RC62) + aday yapılandırma kör set 7'de (48 senaryo) 1 iade sızıntısı (k7-22 —
+  modelden bağımsız kapı açığı, ilişki kipinde kapatıldı `17779cb`; liste kipi için madde 46) ve 1 yanlış olgu (k7-25: "en yakın market"
+  yanlış) gönderdi; 5.1 0 / 0 ama 4 satırı gereksiz tuttu. Set 2–7 toplamında elle incelenen GERÇEK yanlış olgu: Luna 3 / 180 gönderim, 5.1 1 /
+  169 — Luna'nın ölçülen tek tutarlı gerilemesi olgu kesinliği (özel ad çevirisi için madde 47). Karar sizin: (a) Luna'ya geç, olgu kesinliğini
+  47 + gözlemle izle; (b) cevap modeli 5.1'de kalsın, yalnız üslup Luna'ya geçsin (risk ≈ 0, tasarruf küçük); (c) kör set 8 sonucunu bekle
+  (§3.13, son kodla koşuluyor).
 
 ## 7. Ücret kuralı (kurucu ifadesi) — anahtar `AI_KB_FEE_RULE_ENABLED`
 - **Durum:** İstem metni kurucunun ifadesiyle güncellendi ("Onaylı bilgi tabanındaki sabit hizmet ücretini, koşullarıyla birlikte
@@ -619,3 +628,32 @@
 - **e) A01-5:** `GET /api/auth/logout` başka siteden tetiklenebilir (zararsız çıkış; bilinen açık tasarım kararı).
 - **f) A01-6 (olası):** köken sunucusu doğrudan erişilebilirse IP başlığı taklit edilebilir. Öneri: canlıda `/admin` teşhis kartından seçilen
   sıçramayı doğrulayın; köken doğrudan açıksa güvenilir vekil IP listesi.
+
+## 46. İade / ücret itirazı yapılan mesajda aynı ücretin "bilgisi" misafire gidebiliyor — CANLI liste kipinde (kör set 7 k7-22, 10-02 gece)
+- **Durum:** Misafir (Rusça): "İlanda otopark ücrete dahil yazıyordu, resepsiyonda ayrıca ücret aldılar, paramızı geri verin." Anlama katmanı
+  iade öğesini (hassas, tutulur) ve "otopark ücreti dahil mi" bilgi isteğini çıkarıyor. **Canlı liste kipinde** otopark "şikâyetten bağımsız tür"
+  (`COMPLAINT_INDEPENDENT_KINDS`) → bilgi isteği cevaplanabilir sayılır; cevap "Otopark ayrıca ücretli: günlük 200 TL" ise GİDER (iade talebine
+  cevap gibi okunur, ev sahibinin kararını önceden verir). Bu gece 5.1'in aynı taslağı yalnız "mesajınız kaydedildi" cümlesi yüzünden (K10
+  vetosu) tutuldu — rastlantı. **İlişki kipinde** (`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=1`) bu açık kapalı: iade talebinin konusu (otopark) soruyla
+  ortak → bağlı → tutulur; bu gece eklenen iki kemer de (`17779cb`: ücret sorusu arıza çözümü sayılmaz; çözüm cevabında tutar → tut) o kipte.
+- **Örnek — önce / sonra (iade talebi + aynı konunun ücret bilgisi):**
+  - *Bugün (canlı, liste kipi):* "Otopark ayrıca ücretli: günlük 200 TL." misafire GİDEBİLİR (modelin cümle seçimine bağlı); iade öğesi ev
+    sahibinde açık, tek e-posta.
+  - *Öneri A — ilişki kipini aç (madde 8 / §7):* hiçbir şey gitmez; iade + soru ev sahibinde, tek e-posta; cevap taslağı hazır durur.
+  - *Öneri B — liste kipinde dar kural (anahtar açılmayacaksa):* bu turda iade / iptal talebi TUTULUYORSA cevapta tutar / "ücretsiz" geçerse cevap
+    gitmez. Bedeli: "İptal etmek istiyorum; havalimanı transferi ne kadar?" gibi gerçekten bağımsız ücret sorusu da ev sahibine düşer.
+- **Öneri:** A (onaylı ilişki kipi zaten bu durumu kapsıyor; ek kural gerekmez). A gecikecekse B.
+- **Müşteriye etkisi:** İade / ücret itirazında misafire otomatik para cümlesi gitmez; ev sahibi tek bildirimle karar verir.
+- **Beklerken yapılmayan:** canlı liste kipine yeni kural (B) eklenmedi — müşteriye giden davranışı değiştirir.
+
+## 47. Bilgi tabanındaki ÖZEL ADLAR yabancı dilde çevrilmesin mi? (kör set 4 k4-34 — Luna; 10-02 gece toplu inceleme)
+- **Durum:** Bilgi tabanı: "Lavanta Eczanesi, Liman Caddesi, 200 m." Fransız misafire Luna: "la pharmacie Lavande se trouve à 200 mètres, sur
+  l'avenue Liman / du Port" — eczanenin adı ÇEVRİLDİ ("Lavande"), sokak adı bir koşuda çevrildi ("avenue du Port"). Misafir tabelada / haritada
+  "Lavande" arar, bulamaz. İstemde özel adlar için bir kural YOK (5.1 bu sette çevirmedi; kural modele bırakılmış).
+- **Örnek — önce / sonra:**
+  - *Bugün:* "la pharmacie Lavande, avenue du Port"
+  - *Öneri sonrası:* "la pharmacie Lavanta (Lavanta Eczanesi), Liman Caddesi" — ad yazıldığı gibi; isterse açıklama parantezde.
+- **Öneri:** cevap istemine tek cümle: "Bilgi tabanındaki özel adları (işletme, eczane, sokak, durak, ağ adı) ÇEVİRMEDEN, yazıldığı gibi kullan."
+  İstem değişikliği → küçük ücretli kıyas (yalnız yabancı dil + özel ad satırları, ≈ $0,3) + golden set.
+- **Müşteriye etkisi:** Yabancı misafir tabelada / haritada aradığı adı birebir bulur.
+- **Beklerken yapılmayan:** istem değişmedi.

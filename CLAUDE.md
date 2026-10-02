@@ -1197,7 +1197,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   koşulu 3. şahıs "-mazsa" + kapalı küme "sıkışırsa / takılırsa / kesilirse / bozulursa / arızalanırsa"; liste ayracı OLMAYAN çok kavramlı
   başlık ("Otopark kapısı kumandası çalışmazsa") TEK cihaz → başlığın cihazları; SSS satırında tarif cümlesi cihazı aynı SATIRIN önceki
   cümlesinden alır — o cümle SORU (?) / arıza anışıysa ya da aynı cihazı anıyorsa (yalnız iki nokta başlık DEĞİL: "Ağ adı: …"). Tarif
-  tanıyıcıyı değiştiren tur eval bilgi tabanlarının TÜM kalemlerinde (568) canlıyla farkı yeniden üretir.
+  tanıyıcıyı değiştiren tur eval bilgi tabanlarının TÜM kalemlerinde (568) canlıyla farkı yeniden üretir. 🚨 10-02 gece (kör set 7 k7-22 —
+  iade turunda "otopark ücrete dahil mi" isteği "çözüm" sayıldı, "otopark günlük 200 TL" GİTTİ): ücret / fiyat / ödeme soran istek arıza çözümü
+  SAYILMAZ (`moneyRequest`: Türkçe anlama sorgusunda para sözcüğü — "para" yalnız çekimleriyle, "öde-" yalnız ödeme biçimleriyle, "iade" BİLEREK
+  yok — ya da özgün sorguda tutar / muafiyet); çözüm diye cevaplanan istekte tutar / muafiyet → `items_fix_money` (geçmiş koşuların 132 gerçek
+  tarif cevabında 0). Canlı liste kipindeki karşılığı kurucu kararı (Sabah Kararları 46).
 - 🚨 **BEKLEYEN RİSK ÖĞE BAZINDA (kurucu 09-26):** eski cevapsız risk yeni mesajla KAYBOLMAZ ama TÜM konuşmayı BLOKE
   ETMEZ. "Bekleyen herhangi bir yüksek riskli etiket → cevabın tamamı tutulur" KONUŞMA DÜZEYİ kapısı REDDEDİLDİ (`6c0e6b4`
   gönderilmedi, yedek dal `backup/pending-highstakes-conversation-gate-2026-09-26`) — geri getirme. Kanalda istek düzeyi

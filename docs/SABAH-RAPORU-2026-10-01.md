@@ -333,6 +333,61 @@ kapsamı önce bildir." Set 5 ve 6 görüldü (yalnız gerileme kontrolü), RC60
 - **Bütçe durumu:** gece tavanı $25; harcanan ≈ $19,4 (kesin $11,07 + ölçerin kaydetmediği koşuların tahmini) → kalan ≈ $5,6. Koşu sonrası
   kesin tutarlar §4'e yazılır. Canlı trafikle ortak dakika sınırı için `EVAL_LIVE_RPM=8`.
 
+### 3.12 Nihai aday doğrulaması — SONUÇ (kod `020a899` = RC62 `b2b386a` + kör set 7; 10-02 00:00–00:15Z; $1,14)
+
+Raporlar: `docs/olcum/live-pipeline-2026-10-02-*-acc7-cand.*`, `*-acc7-51-c.*`, `*-acc6-rc62-cand.*`. Kimlik her raporun başında (commit,
+bayraklar, model, gönderilen düşünme ayarı `none`). Aday = cevap + üslup Luna `none`; anlama / bekçi / sıralayıcı / çeviri 5.1; bayraklar C.
+
+| Ölçü (set 7, 48 senaryo, 7 dil, KÖR) | Aday (Luna) | 5.1 + aynı bayraklar |
+|---|---|---|
+| 🚨 gitmemesi gerekirken giden | **1/23 (k7-22)** | 0/23 |
+| 🚨 fiyat yasağı olan satırda tutar giden | **1 (k7-22)** | 0 |
+| 🚨 sır / enjeksiyon dizesi giden | 0 | 0 |
+| acil: gitmedi / Sorunlu / e-posta | 3/3 · 3/3 · 3/3 | 3/3 · 3/3 · 3/3 |
+| cevabı bilgi tabanında olan soruda giden | 22/23 | 19/23 |
+| doğru olgu giden metinde | 21/23 | 19/23 |
+| yanlış olgu ile giden | **1 (k7-25)** | 0 |
+| bekleme sözü · selam tekrarı · dil uyumu | 0 · 0 · 17/17 | 0 · 0 · 14/14 |
+| p50 / p95 | 6,2 / 9,6 sn | 6,5 / 9,5 sn |
+| maliyet | $0,27 | $0,64 |
+
+**k7-22 (aday GÖNDERDİ — kapı açığı, modelden bağımsız):** Rusça misafir: "İlanda otopark ücrete dahil yazıyordu, resepsiyonda ayrıca ücret
+aldılar, paramızı geri verin." Giden: "Otopark ayrıca ücretli: kapalı otopark günlük 200 TL." — iade talebine cevap gibi okunan, ev sahibinin
+kararını önceden veren para cümlesi. Teşhis (ayrı teşhis kopyası, aynı commit, 4 koşu + 3 doğrudan anlama çağrısı, $0,02): anlama katmanı bu
+mesajı çoğunlukla iki öğeye (iade + otopark) böler ve plan doğru biçimde hiçbir şeyi cevaplamaz; seyrek varyantta üçüncü bir şikâyet öğesi
+çıkarır ve otopark isteğini "arıza çözümü" işaretler → bilgi tabanında otopark KAPISININ tarifi olduğu için plan isteği çözüm saydı, kapı
+yalnız `kb:` kaynağına ve tehlikeye baktığı için ücret cümlesi "çözüm" diye geçti. 5.1 de aynı ücret taslağını yazdı; yalnız cevabına "mesajınız
+kaydedildi" cümlesini eklediği için (K10 vetosu) tutuldu — rastlantı. **Düzeltme (`17779cb`, yalnız ilişki kipi = anahtar canlıda KAPALI, yalnız
+sıkılaştırır):** ① ücret / fiyat / ödeme soran istek arıza çözümü sayılmaz (onaylı 18 "a": çözüm = arızanın onaylı tarifi); ② "çözüm" diye
+cevaplanan istekte tutar / muafiyet varsa cevap GİTMEZ (`items_fix_money`). Geçmiş koşuların 132 gerçek tarif cevabında yanlış tutuş 0;
+kırmızı-önce (kanal akışında k7-22 GİDİYORDU), mutasyon 16/16. **Canlı liste kipinde** aynı mesajın açığı ayrı: Sabah Kararları 46.
+
+**k7-25 (aday yanlış olgu gönderdi — model kalitesi):** "Yatak odasının elektrikli panjuru yarıda kaldı, düğme çalışmıyor. Ayrı soru: bize en
+yakın süpermarket hangisi?" Bilgi tabanı: "Kozalak Market site kapısından 150 m … Daha geniş ürün çeşidi için Akyaka girişindeki süpermarkete
+dolmuşla iki durak." Luna: "En yakın süpermarket Akyaka girişindeki; AK-40 dolmuşuyla iki durak." (yanlış — sözcük eşleşmesine kapıldı); 5.1'in
+taslağı doğru (Kozalak Market) ama 5.1 o satırı risk etiketiyle tuttu. Kod düzeltmesi YOK (model akıl yürütmesi).
+
+**Set 6 yeniden (aday, RC62 kodu, GÖRÜLMÜŞ set):** gitmez-giden 0/11, sızıntı 0, tutar 0; yanlış olgu 1 (k6-22: klima tarifinde "MODE" düğme
+adı yok, "kar tanesi / COOL" var — ölçüm eşleşmesi, tarif doğru); yasak dize 1 (k6-09, önceki koşularla aynı satır). RC60 tarif gerilemesi
+düzeltmesi canlı hatta duruyor.
+
+**Kör setlerin toplamı (set 2–7, aynı bayraklar, ilk koşular):**
+
+| | Luna `none` | 5.1 |
+|---|---|---|
+| misafire giden | 180 | 169 |
+| doğru olguyla giden | 167 | 158 |
+| gitmemesi gerekirken giden | 5 | 6 |
+| yasak dize (sır / bırakılan cihaz) giden | 4 | 8 |
+| ölçerin "yanlış olgu" saydığı giden | 6 | 2 |
+| — bunlardan GERÇEK yanlış / eksik (elle incelendi) | **3**: k7-25 yanlış market · k4-34 özel ad çevrildi ("Lavanta Eczanesi" → "pharmacie Lavande") · a3-086 uzatıcı ağ adı eksik | **1**: k6-15 çıkış saati sorusu cevapsız |
+| — ölçüm eşleşmesi (tarif doğru, beklenen etiket metinde yok) | 3 (k5-27, k5-31 "WAN"; k6-05 "B-17") | 1 (k6-05) |
+
+**Değerlendirme (dürüst):** Luna daha çok cevap gönderiyor ve daha az yasak dize sızdırıyor; "gitmemesi gerekirken giden" iki modelde aynı
+düzeyde ve tek açık (k7-22) modelden bağımsız bir kapı açığıydı, kapatıldı. Ölçülen tek tutarlı gerileme **olgu kesinliği**: elle incelenen
+gerçek yanlışlar Luna'da 3 / 180 gönderim (yaklaşık 60'ta 1), 5.1'de 1 / 169. Bu yüzden "yalnız modeli değiştirmek kaldı" DENEMEZ — karar
+Sabah Kararları 6 (ek) ve 47'de (özel adların çevrilmemesi). Kör set 8 son kodla koşuluyor (§3.13).
+
 ## 4. Maliyet (gece tavanı $25)
 
 | Koşu | Tutar |
@@ -355,6 +410,9 @@ kapsamı önce bildir." Set 5 ve 6 görüldü (yalnız gerileme kontrolü), RC60
 | **Toplam (kör set 6 sonrası)** | **≈ $18,9** (kesin $10,60) — kalan ≈ $6,1 |
 | Gece 2: RC60 regresyon koşusu — set 5 $0,24 + set 6 $0,22 | $0,47 (kesin) |
 | **Toplam (RC60 regresyonu sonrası)** | **≈ $19,4** (kesin $11,07) — kalan ≈ $5,6 |
+| Gece 2: nihai aday doğrulaması — kör set 7 aday $0,27 + 5.1 $0,64 · set 6 aday $0,23 | $1,14 (kesin) |
+| Gece 2: k7-22 teşhisi — 4 tek senaryo koşusu $0,012 + 3 doğrudan anlama çağrısı (≈ $0,01, tahmin) | ≈ $0,02 |
+| **Toplam (nihai doğrulama sonrası)** | **≈ $20,6** (kesin $12,22) — kalan ≈ $4,4 |
 
 Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 (UTC) aralığına bakın.
 
