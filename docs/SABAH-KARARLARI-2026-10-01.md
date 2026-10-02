@@ -38,6 +38,9 @@
 13. **(10-02 sabah, kör set 11 + 12) 6 EK 4 → 54 → 53 EK → 47 EK** — Luna son kodla kör set 12'de 5.1'den geri değil (öneri `low`, 6 EK 4); 54'te hizmet isteği ("yarından itibaren bebek yatağı") cevaplanıyor ama ev sahibine haber gitmiyor;
    5.1 "hazırlayabilirim" diye söz veriyor (54, canlıda, modelden bağımsız); set 11'de bugünkü 5.1 bırakılan ödeme konusuna değinip gönderdi ve
    özel adı harf çevirisiyle yazdı → 53 ve 47 bugünkü 5.1 için de gerekli (EK'ler).
+14. **(10-02 sabah, QR) 55** — QR misafir sohbetinde yabancı dilde (DE/FR/ES/RU/AR, İngilizce "smoke") fiziksel acil bildiren misafir
+   HİÇBİR metin görmüyor, QR e-postası da kapalıysa ev sahibi yalnız panelden öğreniyor (canlı, modelden bağımsız). QR yüzeyi Luna ile ilk kez
+   ölçülüyor (rapor §9.12): `OPENAI_MODEL` QR'ın da cevap modeli.
 
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
@@ -885,3 +888,31 @@
   bıraktı (tutuldu + ev sahibine e-posta; sızıntı değil), 8 farklı "hizmet iste + ücret sor" mesajında 16/16 doğru söyledi; `low` / `none` / 5.1
   hepsinde doğru. İsteğe bağlı ek (AYRI onay, misafire gideni değiştirir): ücret kuralına "hizmetin hazırlanması ev sahibine bağlı olsa da bilgi
   tabanındaki ücreti ve koşulunu yaz; hazırlandığını söyleme" cümlesi — yalnız yeni kör setle ölçülerek.
+
+## 55. QR misafir sohbetinde fiziksel acil — "112'yi arayın" satırı yalnız Türkçe / İngilizce kalıplarda; DİĞER 5 DİLDE misafir HİÇBİR şey görmüyor (10-02 sabah, QR ölçeri yazılırken bulundu; kodda doğrulandı — modelden bağımsız, CANLI)
+- **Durum (yoklama — ürünün kendi yüklemleri, model yok):** QR'da devirde misafire metin gitmez (K10); tek istisna fiziksel acildeki güvenlik
+  satırı "Tehlike varsa hemen 112'yi arayın." Bu satırı seçen yüklem (`isPhysicalEmergency`, `lib/guest-chat.ts`) yalnız Türkçe ve birkaç
+  İngilizce kalıbı tanıyor:
+  - "Mutfakta yangın çıktı!", "Banyodan duman geliyor!", "There is a fire in the kitchen!", "I smell gas!" → satır görünür ✔
+  - "There's smoke coming from the bedroom!" → **hiçbir şey** (İngilizce "smoke" kalıpta yok)
+  - "Es brennt in der Küche!", "Es riecht nach Gas in der Wohnung!", "Das Bad ist überflutet, überall Wasser!", "Il y a le feu dans la
+    cuisine !", "Ça sent le gaz dans l'appartement !", "Il y a de la fumée dans la chambre !", "¡Hay fuego en la cocina!", "¡Huele a gas en el
+    apartamento!", "¡Se inundó el baño!", "Пожар на кухне!", "Пахнет газом в квартире!", "Затопило ванную!", "يوجد حريق في المطبخ!", "هناك
+    رائحة غاز في الشقة!" → **15/15 hiçbir şey**.
+  Acil ağı (yedi dil) hepsini doğru tanıyor → konuşma devrediliyor, panelde "acil" önceliği alıyor; misafire dönen metin YOK. Ek: QR devir
+  e-postası ortam değişkeniyle kapalı (`QR_ESCALATION_EMAIL_ENABLED`, varsayılan kapalı; canlıda tanımlı olduğuna dair bilgi yok) → öyleyse ev
+  sahibine e-posta da gitmiyor, yalnız panel. Açık Luna'dan bağımsız; 5.1'de birebir aynı.
+- **Sektördeki yaygın yaklaşım:** can güvenliği bildiriminde misafire kendi dilinde kısa, sabit bir acil yönergesi gösterilir; ev sahibine
+  anında bildirim gider.
+- **Öneri:** (a) güvenlik satırını tetikleyen yüklemi acil ağının yedi dilli FİZİKSEL alt kümesine genişletmek (yangın / duman / gaz / su
+  baskını / elektrik çarpması; sağlık ve öz-zarar bugünkü gibi dışarıda; K6 bağlam kuralı — "Yangın söndürücü nerede?" — aynen); (b) satırı
+  misafirin diline çevirmek (kodun kesin dil tespiti, emin değilse Türkçe; 7 sabit cümle: "If there is danger, call 112 immediately." · "Bei
+  Gefahr rufen Sie sofort die 112 an." · "En cas de danger, appelez immédiatement le 112." · "Si hay peligro, llame de inmediato al 112." ·
+  "При опасности немедленно звоните 112." · "إذا كان هناك خطر، اتصل فوراً بالرقم 112."); (c) QR acil devrinde ev sahibine e-posta:
+  `QR_ESCALATION_EMAIL_ENABLED=1` (e-posta misafir metni taşımaz; yalnız sebep + panel bağlantısı).
+- **Örnek — sonra:** "Es brennt in der Küche!" → misafir "Bei Gefahr rufen Sie sofort die 112 an." görür; (c) açıksa ev sahibine acil e-postası
+  gider. "Yangın söndürücü nerede?" bugünkü gibi bilgi sorusu kalır (satır çıkmaz).
+- **Müşteriye etkisi:** yabancı misafir tehlike anında sessizlik yerine acil yönergesi alır. Risk: kalıp fazla geniş olursa gereksiz "112"
+  satırı — kalıplar dar tutulur, iki yönlü batarya + yanlış alarm taraması (yedi dilin sık sözcükleri, Sabah Kararları 49 yöntemi) ister.
+- **Beklerken yapılmayan:** yüklem, satır metni ve e-posta anahtarı DEĞİŞTİRİLMEDİ (misafire giden metni değiştirir). QR ölçeri bu satırı
+  ayrıca ölçüyor (`safetyLine`, rapor §9.12).
