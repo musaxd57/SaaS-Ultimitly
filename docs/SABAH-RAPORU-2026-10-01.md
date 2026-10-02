@@ -677,6 +677,47 @@ Tam metin `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` (b
 durum + aynen kalan iki paragraf (K1–K18, Host Copilot) + tek listede bekleyen onaylar; yalnız Durum'da yazılı kurallar (konuşma öğeleri, ev
 kuralları, canlı bayraklar tablosu) ilgili bölümlere taşındı; dört kopya birleşti; üç eskimiş ifade düzeldi.
 
+### 9.5 Anlama + bekçi katmanında Luna — SONUÇ (konaklama ölçeri; anlama kipi canlıyla aynı: öğeler + kurallar + şikâyet takibi)
+
+Koşu kimliği: eski istem `112e514` (= canlı RC67b kodu + setler), yeni istem `42b0398` (+ iki istem düzeltmesi, ↓). Anlama + bekçi aynı modelde;
+düşünme ayarı raporların başında ("reasoning_effort"). Bekçi her cevabı KENDİ misafir mesajıyla değerlendirir (canlıdaki gibi; eski sette genel bir
+cümle veriliyordu). Raporlar `docs/olcum/stay-change-eval-2026-10-02-*-{dev2,acc10}-*`.
+
+**Geliştirme seti dev2 (okunur, 153 istek + 180 cevap, eski istem):**
+
+| | 5.1 | Luna none | **Luna low** | Luna medium |
+|---|---|---|---|---|
+| 🚨 kaçan gerçek istek (birleşim) | **3** | 0 | **0** | 0 |
+| 🚨 kaçan izin (bekçi) | 1 | 0 | 0 | 0 |
+| anlama katmanının kaçırdığı istek | 9 | 2 | 3 | 3 |
+| gereksiz inceleme (birleşim) | 19 | 18 | **15** | 15 |
+
+5.1'in kaçırdıkları: mülkün girişi 16:00 iken "ilanda 15:00 yazıyor, 15:00'te geleceğiz" (gerçekten erken giriş) ve "Perfect, see you at 3!" izni
+— model misafirin söylediği saati standart sayıp kıyası kendisi yapıyordu. İki modelde ortak: "çıkıştan sonra valizleri akşama kadar dairede
+bırakabilir miyiz?" anlama katmanında konaklama isteği sayılmıyordu (bekçinin tanımında vardı, anlamanınkinde yoktu). `medium` `low`dan iyi değil
+(düşünmeyi artırmak bu katmanda kazanç getirmiyor).
+
+**İki istem düzeltmesi (`f986aff`; yalnız sıkılaştırır, "model saati çıkarır, kıyas kodda" ilkesi):** (1) anlama tanımına "çıkıştan sonra dairede
+bagaj bırakmak"; (2) iki katmanda misafirin SÖYLEDİĞİ giriş / çıkış saati istese de duyursa da, standart sansa da çıkarılır, kıyası kod yapar;
+standart saat YALNIZ mülkün kendi saati (kurucu 10-02: "15:00 nereden — her daire için farklı").
+
+**KÖR kabul acc10 (160 istek + 200 cevap; ajan kör yazdı, koşudan önce okunmadı):**
+
+| | 5.1 eski istem (bugünkü canlı) | Luna low eski istem | 5.1 yeni istem | **Luna low yeni istem** |
+|---|---|---|---|---|
+| 🚨 kaçan gerçek istek (birleşim) | **1** ("Just a heads up, we'll be there at 3pm", giriş 16:00) | 0 | 0 | **0** |
+| 🚨 kaçan izin / iddia (bekçi) | 0 | 0 | 0 | **0** |
+| anlama katmanının kaçırdığı istek | 6 | 3 | 0 | **0** |
+| gereksiz inceleme (birleşim) | 18 | 18 | 19 | **18** |
+| geçerlilik | GEÇERLİ | GEÇERLİ | GEÇERLİ | GEÇERLİ (ilk koşuda 200 bekçi çağrısından 1'i düştü → GEÇERSİZ yazıldı, aynı yapılandırma yeniden koşuldu) |
+
+Gereksiz incelemelerin 16 / 18'inde İKİ model de doğru şekilde "istek yok" diyor; tutan kelime ağı ("Bir gece daha kalmayı çok isterdik ama…",
+"Geç çıkışa gerek kalmadı", "Otopark yarın da müsait mi?") — birleşim değişmezi gereği modelin "yok"u onu silemez; bilerek dondurulmuş ağın bedeli.
+
+**SONUÇ:** anlama + bekçi için **Luna `low` + yeni istem**, kör kabulde 5.1'den geri değil (iki tehlikeli ölçüde 0 / 0, gereksiz inceleme 18 ↔ 19)
+ve bugünkü canlıdan iyi (1 kaçak → 0). Değişken: `AI_SEMANTIC_MODEL=gpt-6-luna` + `AI_SEMANTIC_REASONING_EFFORT=low` (sıralayıcı ↓ ayrı).
+Maliyet: Luna bu iki katmanda 5.1'in ~1/8'i.
+
 ### 9.4 Luna'nın 5.1 kullanan katmanlarda denenmesi (sürüyor)
 - **Ne öğrendik (eski kayıtlardan, ücretsiz):** Luna `low`'un konaklama eval'inde "tehlikeli kaçak" sayılan geliştirme satırlarının ikisi ve
   izin kaçırmalarının ikisi mülkün kendi giriş saatiyle (15:00) çelişen ETİKETLERDEN çıktı ("ilanda 16:00 yazıyor, 15:00'te gelebilir miyiz?");
