@@ -127,6 +127,9 @@ describe('Türkçe "parti" — tam sözcük + ad çekimleri (sözcük içi çak�
     "Une partie du groupe arrive plus tard.",
     "Is there a particular time we should leave the keys?",
     "Can I get a partial refund?",
+    // sözcük SONU "parti" (sol sınır): İspanyolca "repartí" (dağıttım), Fransızca "réparti" (bölünmüş)
+    "Ya repartí las llaves a todos.",
+    "Le groupe est réparti dans les deux chambres.",
   ])("kural ihlali DEĞİL: %s", (m) => {
     expect(detectRiskTypes(m)).not.toContain("rule_violation");
   });
