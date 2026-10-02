@@ -1031,3 +1031,21 @@
 - **Soru:** bu "olası tehlike, acil değil" mesajları için ev sahibine her zaman e-posta gitsin mi (bugün öğe kipinde gidiyor)? Önerim: öğe kipi canlıda
   açık olduğu için ek iş gerekmez; tur kipine düşen (emin olunmayan) turda da e-posta istenirse ayrı küçük değişiklik.
 
+
+## 61. "Nasılsın" — kurucu tarifi KODDA, anahtar `AI_COURTESY_RULE_ENABLED` VARSAYILAN KAPALI (10-02 akşam; açmak sizin kararınız)
+- **Kök neden (ölçüldü, istemde):** Bölüm 11 kuralı "misafir soru sormadıysa / yalnız teşekkür-onay-kapanış yazdıysa → güven 0,4'ün altı" hâl hatırı
+  kapanışla aynı kefeye koyuyordu. Ayarlar testinizde "nasılsınız" → güven %30 → ev sahibine düştü; "nasılsın" → %90 → gitti (aynı anlam, iki farklı
+  sonuç). Ayrıca ÖRNEK 24 modele "Merhaba, iyiyiz, teşekkür ederiz" diye DUYGU BEYANI öğretiyordu.
+- **Yapılan (anahtar açıkken; kapalıyken istem bayt bayt aynı, pinli):** hâl hatır o kuralın DIŞINDA ("misafir bir soru sordu"); sizin beş kalıbınız:
+  ilk temasta yalnız selam → "Teşekkür ederim. Siz nasılsınız?" · hâl hatır + soru → kısa nezaket + cevap, karşı soru yok · cevapsız mesajdan sonra
+  yeniden yoklama → "Buradayım." + cevapsız soruyu ele al · "Nasılsın dedim, cevap vermiyorsun" → "Haklısınız, sorunuza karşılık vermedim. Teşekkür
+  ederim; siz nasılsınız?" · hâl hatır şikâyetin girişiyse → asıl konu (şikâyet akışı) · tekrar eden hâl hatırda aynı cümle yok, daha kısa karşılık.
+  Üç sınır: duygu / yaşantı UYDURMA yok ("iyiyim" yok), karşı soru yalnız gerçek amaçla, tekrarı fark et ama TEŞHİS KOYMA. ÖRNEK 24 "iyiyiz"siz.
+  "Güveni yüksek yaz" talimatı YOK ("confidence'ı yapay olarak ne yükselt ne düşür"); "nasılsın" geçen mesaj hiçbir kapıdan MUAF DEĞİL.
+- **Örnek (beklenen, ölçülmedi):** "Merhaba, nasılsınız?" → *bugün* güven ~%30, ev sahibine taslak · *açınca* "Merhaba Ada, teşekkür ederim. Siz
+  nasılsınız?" otomatik gider (kapı temizse). "Nasılsın? Geç çıkış yapabilir miyiz?" → *iki durumda da* geç çıkış hassas istek kuralına girer
+  (otomatik izin yok); açınca cevap selamı kısa tutar, karşı soru eklemez.
+- **Öneri:** önce küçük ücretli kıyas (12 senaryo × Luna `low` + 5.1, anahtar açık / kapalı ≈ 0,40 $; konuşma geçmişli yeniden yoklama dahil), sonra
+  açmak. Ölçmeden açmak isterseniz risk düşük: değişen yalnız sohbet mesajlarının güveni ve üslubu; güvenlik kapıları aynı.
+- **Müşteriye etkisi:** hâl hatır soran misafir cevapsız kalmaz, cevap insan gibi ama duygu uydurmadan; ev sahibine gereksiz taslak düşmez.
+- **Beklerken yapılmayan:** ücretli ölçüm koşulmadı (onay yok); anahtar kapalı.

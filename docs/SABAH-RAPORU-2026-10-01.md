@@ -12,7 +12,11 @@
 - **RC73 = 24 EK + 56 + 55 / 51** (kurucu onayları 10-02 akşam; ayrıntı Sabah Kararları 24 EK 2 · 51 · 55 · 56; yeni sorular 58–60 + 51 EK):
   otopark tahsisi yazılıysa müsaitlik iddiası değil · QR dil kapısı (model ipucu, karışık dil serbest) · tehlike kararı bağlamla (açık → koddan
   güvenlik satırı misafirin dilinde, model beklenmez; olası → model, "acil değil"se şikâyet akışı; anılış → alarm yok; "bayıldık / internet düştü
-  / помогите, пожалуйста / acil numara" → model; kaynaksız "normaldir" güvencesi gitmez).
+  / помогите, пожалуйста / acil numara" → model; kaynaksız "normaldir" güvencesi gitmez) + **"nasılsın" katmanı** (kurucu tarifi; anahtar
+  `AI_COURTESY_RULE_ENABLED` KAPALI — Sabah Kararları 61; kök neden: istemin "soru yoksa güven 0,4 altı" kuralı "nasılsınız"ı kapanış sayıyordu).
+  Mutasyon 112'de 101 öldü; yaşayan 11: 6'sına pin (otopark tahsisi iki önizleme rotasında, İspanyolca nefes, anılış tavanı sayacı, yükseltme
+  rozeti), 4'ü ÖLÜ KOD çıktı ve silindi (Arapça / Rusça "acil numara" kalıpları — sözcük ağı o sözcükleri zaten acil saymıyor, pinli), 2'si gerekçeli
+  eşdeğer (demo bilgi tabanında otopark tahsisi yok; " yer " yer tutucusunun yakaladığı kuyruğu aksansız biçim zaten yakalıyor). Hedefli ikinci tur 13/14.
 - **Yerel `.env.local` model / çaba (sizin yazdığınız + önerim):**
 
 | Değişken | Değer | Not |
@@ -25,6 +29,7 @@
 | `OPENAI_TRANSLATE_MODEL` / `OPENAI_TRANSLATE_REASONING_EFFORT` | `gpt-6-luna` / `medium` | çeviri |
 | `OPENAI_STYLE_MODEL` / `OPENAI_STYLE_REASONING_EFFORT` | `gpt-6-luna` / `none` | üslup özeti (`medium` ölçülmedi; `none` önerilir) |
 | `QR_ESCALATION_EMAIL_ENABLED` | `1` | 55 (c): QR devrinde ev sahibine e-posta (misafir metni taşımaz) |
+| `AI_COURTESY_RULE_ENABLED` | `1` (denemek için) | "nasılsın" katmanı (Sabah Kararları 61; ölçülmedi — önce küçük kıyas önerilir) |
 
 ## 0a. 10-02 SABAH — LUNA KATMAN ÇALIŞMASININ SONUCU (kurucu: "5.1 yerine Luna 6 kullandır, kodları ona göre geliştir, sakın geçmesi için şeyler yapma")
 
@@ -609,7 +614,7 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 ve 10-02 00:00�
 | RC70 (`bbbf24b` = RC69 + kör set 12 + ölçer kimliğinde cevap isteminin ikinci kimliği + belgeler; ürün kodu RC69 ile aynı) | test 749 dosya / 12.391 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; ölçer kimliği mutasyonu 5/5 | İTİLDİ 10:24Z → **CI #1288 YEŞİL** (10:44Z) |
 | RC71 (`b7fd6ed` = RC70 + QR canlı hat ölçeri + QR geliştirme / kör setleri + **sır süzgeci: tuş paneli / sözcük sırası / kod sözcüğünün dilleri** + **rol değişimi enjeksiyonu** + belgeler; Sabah Kararları 57) | test 752 dosya / 12.478 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; mutasyon sır süzgeci 11/11 · enjeksiyon 12/12 | İTİLDİ 11:28Z → **CI #1289 YEŞİL** (11:49Z) → canlı: QR'da (ve rezervasyonsuz misafirde) tuş paneli yazımlı kapı kodu kalemi modele gitmez; geçmiş turdaki rol değişimi talimatı konuşmayı tutar |
 | RC72 (`d905c41` = RC71 + **53** öğe kipinde bırakılan isteğe öncelik katmanı + `answeredRequests` çıktı alanı + **47** özel adlar çevrilmez; kurucu onayı 10-02 akşam) | test 753 dosya / 12.483 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil (ilk koşu, kapı sırasında ağır deneme betiği yüzünden 4 zaman aşımı → yeniden, temiz) | İTİLDİ 19:59Z → **CI #1290 YEŞİL** (20:18Z). Railway kapalı → canlıya çıkmadı (geri açılınca gider) |
-| RC73 (RC72 + 24 EK + 56 + 55 / 51) | — | kapı + mutasyon sürüyor (bu satır itilince güncellenir) |
+| RC73 (RC72 + **24 EK** + **56** + **55 / 51** + "nasılsın" katmanı (anahtar kapalı) + mutasyon pinleri; kurucu onayları 10-02 akşam) | mutasyon 101/112 → yaşayan 11 kapandı (6 pin, 4 ölü kalıp silindi, 2 gerekçeli eşdeğer), hedefli tur 13/14 · tam kapılar: bu satır itilince güncellenir | Railway kapalı → canlıya çıkmaz |
 | Hazır, İTİLMEDİ (onay bekliyor): `prep/items-block-precedence` (53), `prep/ozel-ad-cevirme` (47), `prep/baskasi-adina-kod` (52); aday dal `prep/luna-aday-2` (RC69 + 53 + 47) | ilgili istem testleri yeşil (aday 17 dosya / 439 test; 52 dalı 5 dosya / 214 test) | **kör set 11 + son kodla kör set 12 YEŞİL** (§9.10, §9.11); onayınızla RC olarak tam kapılardan geçer |
 
 

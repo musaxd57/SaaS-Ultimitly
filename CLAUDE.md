@@ -339,7 +339,10 @@ Bu dosyaya token/anahtar/parola yazma.
   kodu → şikâyet takibi (10-01), taban istemin üstüne çapalı; yeni varyant YENİ KATMAN olarak eklenir (birleşimlerde kayıp çapa yok +
   kapalıyken bayt bayt pinli). Ücret kuralı katmanı (`AI_KB_FEE_RULE_ENABLED`, KAPALI) 10-01'den beri KURUCU İFADESİDİR: "Onaylı bilgi
   tabanındaki sabit hizmet ücretini, koşullarıyla birlikte söyle. Konaklama fiyatı, indirim, iade veya tazminat konusunda fiyat üretme ya
-  da onay verme." — açıkken "ASLA yazma" yasağının YERİNE geçer (talimat ile istenen davranış çelişmesin).
+  da onay verme." — açıkken "ASLA yazma" yasağının YERİNE geçer (talimat ile istenen davranış çelişmesin). Hâl hatır katmanı
+  (`AI_COURTESY_RULE_ENABLED`, KAPALI, 10-02 kurucu tarifi, Sabah Kararları 61): "nasılsın" güven 0,4 kuralının DIŞINDA (o kural "nasılsınız"ı
+  kapanış sayıp ev sahibine düşürüyordu); duygu uydurma yok, amaçsız karşı soru yok, tekrarı fark et ama teşhis koyma; güveni YÜKSELTME
+  talimatı yok, kapı muafiyeti yok. Önceki katmanın değiştirdiği çapaya bağlı katman çapasını birleşime göre seçer (işlev; ÖRNEK 24 kod selamında).
 - 🚨 **UZUN MİSAFİR MESAJI (K10-t, kurucu kararı 09-28, tek kaynak `ai/message-length.ts`):** cevapsız misafir mesajlarından biri
   8.000 KOD NOKTASINI aşarsa yapay zekâ cevap üretmez — kontrol model / kalıp işlemlerinden ÖNCE; metin kırpılıp modele VERİLMEZ;
   mesaj tam saklı; oto-yanıt `message_too_long` damgası; gelen kutusunda kayıttan bağımsız TÜRETİLEN "elle yanıtla" uyarısı (e-posta
@@ -1740,9 +1743,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 **10-02 AKŞAM (güncel):** Railway aboneliği BİTTİ → canlı YOK (↑Çalışma biçimi). Kurucu onayları (10-02 akşam): **53 + 47** → RC72 (`d905c41`,
 CI #1290 YEŞİL 20:18Z); **24 EK** (yazılı otopark tahsisi müsaitlik iddiası değil), **56** (QR dil kapısı + model ipucu), **55 + 51** (bağlam ilkesi:
-açık tehlikede koddan satır, olası tehlikede model, anılışta alarm yok, belirsiz kalıplarda model, kaynaksız güvence yok) → RC73 (kapı + mutasyon
-sürüyor). Sırada (kurucu sırası): "nasılsın" davranışı (kurucu tarifi; selam-yalnız mesajın ev sahibine düşme kök nedeni) → Host Karar Motoru
-paneli ("karar bekliyor" kartı + Onayla / Reddet; Faz 0 belgesi; iki inceleme turu). Yeni sorular: Sabah Kararları 58–60 + 51 EK (Rusça sağlık
+açık tehlikede koddan satır, olası tehlikede model, anılışta alarm yok, belirsiz kalıplarda model, kaynaksız güvence yok) + "nasılsın" katmanı
+(anahtar KAPALI, Sabah Kararları 61) → RC73 (mutasyon 101/112 → yaşayan 11'in 6'sına pin, 4 ölü kalıp silindi — Arapça / Rusça "acil numara",
+sözcük ağı o sözcükleri acil saymıyor —, 2 gerekçeli eşdeğer; hedefli tur 13/14). Sırada (kurucu sırası): Host Karar Motoru paneli ("karar
+bekliyor" kartı + Onayla / Reddet; Faz 0 belgesi; iki inceleme turu). Yeni sorular: Sabah Kararları 58–60 + 51 EK (Rusça sağlık
 acil sözcükleri). Yerel model / çaba değişkenleri: rapor §0b.
 **10-02 (sabah):** canlı kod RC70 (`bbbf24b`, CI #1288 yeşil 10:44Z; RC69 dişil ev sahibi kararı + İspanyolca dipnot dahil). RC71 kapıda: QR'da
 kapı kodu sızıntısı (sır süzgeci tuş paneli / sözcük sırası / kod sözcüğünün dilleri — bugünkü 5.1 kör QR setinde kodu iki kez yazdı) + geçmiş
