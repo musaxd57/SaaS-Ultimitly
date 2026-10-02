@@ -528,9 +528,10 @@ function clausesOf(form: string): string[] {
   return form.split(/(?:(?<!\d)\.(?!\d)|[!?;\n…؟]|。)+/u).map((c) => c.trim()).filter(Boolean);
 }
 
-function anyClauseMatches(text: string, patterns: readonly RegExp[]): boolean {
+function anyClauseMatches(text: string, patterns: readonly RegExp[], transform?: (clause: string) => string): boolean {
   for (const form of restrictiveMatchForms(text)) {
-    for (const clause of clausesOf(form)) {
+    for (const raw of clausesOf(form)) {
+      const clause = transform ? transform(raw) : raw;
       for (const re of patterns) if (re.test(clause)) return true;
     }
   }
@@ -665,6 +666,12 @@ export interface AvailabilityPolicyOptions {
    * tarama yine yakalar; istek varsa erteleme şartı AYNEN geçerlidir.
    */
   hostOfferText?: string | null;
+  /**
+   * Modele giden bilgi tabanı kalemlerinin metni (`kbFactsOf`). YALNIZ bilgi tabanında yazılı sabit otopark yeri tahsisini
+   * ("2 numaralı yer dairenize ayrılmış") takvim iddiası saymamak için okunur (24 EK, ↓`withoutGroundedParkingAssignment`);
+   * verilmezse davranış birebir eski.
+   */
+  kbFacts?: readonly string[] | null;
   /**
    * DOĞRULANMIŞ ERKEN GİRİŞ ONAYI (09-24, `lib/early-checkin`): koddan, doğrulanmış olgulardan kurulan onay metni.
    * YALNIZ cevap bu metne BİREBİR eşitse ve tüm katmanlarda istenen TEK tür erken girişse muaftır — başka her metin
@@ -832,10 +839,124 @@ function withoutStandardCheckoutUntil(text: string, stayTimes: StayTimes | null 
     .join("");
 }
 
+// ─── 24 EK: BİLGİ TABANINDA YAZILI SABİT OTOPARK YERİ (kurucu onayı 10-02 akşam) ───────────────────────────────────────
+//
+// "2 numaralı yer dairenize ayrılmış" KONAKLAMA müsaitliği iddiası değildir, bilgi tabanının sabit olgusudur. Takvim kalıbı
+// ("yer … ayrılmış", "Wohnung ist der Stellplatz … reserviert", "место номер 2 забронировано", "الشقة … موقف محجوز") ve İspanyolca
+// izin kalıbı ("un coche puede quedarse en vuestra plaza") bunu konaklama iddiası sayıp tutuyordu; QR'da misafir otopark sorusuna
+// HİÇ cevap alamıyordu (Sabah Kararları 24 EK 2). Kurucu: "KB'de doğrulanmış sabit park yeri tahsisini güncel müsaitlik iddiasından
+// ayırmak mantıklı; '2 numaralı yer dairenize ayrılmış' ile 'bugün boş yer var' aynı şey değil."
+//  · YALNIZ bitişik tahsis yapısı silinir; aynı cümlecikteki başka iddia kalan metinde YİNE aranır (üçüncü taraf dışlamasıyla aynı
+//    yöntem). Yapının yerine özne ("yer") kalır: "… dairenize ayrılmış ve şu an boş" kalan metinde de iddiadır.
+//  · BİLGİ TABANINA BAĞLI: modele giden bilgi tabanında bir otopark sözcüğünün YAKININDA tahsis sözcüğü geçmeli; cevaptaki yer
+//    numarası ("2", "B2-17") o pencerede de geçmeli. Bilgi tabanı verilmeyen çağıran ya da dayanaksız tahsis → bugünkü davranış.
+//  · Araç öznesi + "puede quedarse en la plaza" yalnız cümlecikte RAKAM yokken ("hasta las 14:00" bir uzatma olabilir).
+//  · Kelime ağı BÜYÜMEZ: yeni hiçbir cümle tutulmaz; yalnız bu dar yapı artık tutulmaz.
+
+/** Bilgi tabanı tarafı (katlanmış biçim): otopark sözcüğü. */
+const KB_PARKING_NOUN = new RegExp(
+  [
+    `${NL}(?:otopark${L}|park\\s+(?:yer|alan)${L}|garaj${L})`,
+    `${NL}(?:parking|car\\s*park|garage|carport)s?${NR}`,
+    `${NL}(?:stellpl(?:a|ä)tz${L}|parkpl(?:a|ä)tz${L}|tiefgarage${L}|garagenpl(?:a|ä)tz${L})`,
+    `${NL}(?:stationnement|place\\s+de\\s+(?:parking|stationnement))${NR}`,
+    `${NL}(?:aparcamiento|estacionamiento|garaje|plaza\\s+de\\s+(?:aparcamiento|garaje|parking))s?${NR}`,
+    `${NL}(?:парков${LB}|машиномест${LB}|гараж${LB})`,
+    `(?:موقف|مواقف|مرآب|جراج|كراج)`,
+  ].join("|"),
+  "iu",
+);
+/** Bilgi tabanı tarafı: AÇIK tahsis sözcüğü ("özel / private / own" gibi genel sıfatlar BİLEREK yok). */
+const KB_ASSIGNMENT = new RegExp(
+  [
+    `${NL}(?:ayrilmis${L}|ayrildi${L}|ayrilmaktadir|tahsis${L}|rezerve${L}|(?:dairenize|daireye|size|evinize)\\s+ait${NR})`,
+    `${NL}(?:reserved|assigned|allocated|designated|dedicated)${NR}`,
+    `${NL}(?:reserviert${L}|zugewiesen${L})`,
+    `${NL}(?:r(?:é|e)serv(?:é|e)e?s?|attribu(?:é|e)e?s?)${NR}`,
+    `${NL}(?:reservad[oa]s?|asignad[oa]s?)${NR}`,
+    `${NL}(?:закреплен${LB}|выделен${LB}|зарезервирован${LB}|забронирован${LB})`,
+    `(?:مخصص|محجوز)`,
+  ].join("|"),
+  "giu",
+);
+/** Cevap tarafı: sabit yer tahsisini anlatan BİTİŞİK yapı (katlanmış biçim; ayraçlar sınırlı — karesel iş yok). */
+const PARKING_ASSIGNMENT_SPANS = new RegExp(
+  [
+    // TR: "[2 numaralı] (otopark/park) yer(i) dairenize ayrılmış"
+    `${NL}(?:\\S{1,8}\\s+numarali\\s+)?(?:(?:otopark|park)\\s+)?yer${LB}\\s+(?:(?:sizin\\s+)?(?:dairenize|daireye|evinize|size|sizlere|konaklamaniza)|sizin\\s+icin)\\s+(?:ozel\\s+(?:olarak\\s+)?)?(?:ayrilmis${LB}|ayrildi${LB}|ayrilmaktadir|tahsis\\s+edil${LB}|tahsisli${LB}|rezerve\\s+edil${LB})`,
+    // TR: "dairenize ayrılmış [bir / B2-17 numaralı] (otopark) yer"
+    `${NL}(?:(?:sizin\\s+)?(?:dairenize|daireye|evinize|size|sizlere)|sizin\\s+icin)\\s+(?:ozel\\s+(?:olarak\\s+)?)?(?:ayrilmis|tahsis\\s+edilmis|tahsisli|rezerve\\s+edilmis)\\s+(?:(?:bir|\\S{1,8}\\s+numarali)\\s+)?(?:(?:otopark|park)\\s+)?yer${LB}`,
+    // TR: "dairenize 2 numaralı yer ayrılmış"
+    `${NL}(?:dairenize|daireye|evinize|size|sizlere)\\s+(?:\\S{1,8}\\s+numarali\\s+)?(?:(?:otopark|park)\\s+)?yer${LB}\\s+(?:ayrilmis${LB}|ayrildi${LB}|tahsis\\s+edil${LB}|rezerve\\s+edil${LB})`,
+    // EN: "(parking) place 2 is reserved for your apartment"
+    `${NL}(?:parking\\s+)?(?:place|spot|space|bay)\\s+(?:(?:no\\.?|number|#)\\s*)?(?:\\S{1,8}\\s+)?(?:is|has\\s+been)\\s+(?:reserved|assigned|allocated|designated)\\s+(?:for|to)\\s+(?:you|your\\s+(?:apartment|flat|unit|stay|booking|property|home))${NR}`,
+    // DE yok: Almanca otopark tahsisi cümleleri ("Der Stellplatz Nr. 2 ist für Ihre Wohnung reserviert") bugün de iddia SAYILMIYOR —
+    // ayıklanacak bir şey yok (ölçüldü 10-02; kalıp ölü kod olurdu).
+    // FR: "la place (de parking) n° 2 est réservée"
+    `${NL}(?:place|emplacement)(?:\\s+de\\s+(?:parking|stationnement|garage))?(?:\\s+(?:n[°o]\\.?|num(?:é|e)ro)\\s*\\S{1,8})?(?:\\s+\\S+){0,3}?\\s+(?:est|sont)\\s+(?:r(?:é|e)serv(?:é|e)e?s?|attribu(?:é|e)e?s?)${NR}`,
+    // ES: "está reservada la plaza" / "la plaza 2 está reservada"
+    `${NL}(?:est(?:á|a)n?|queda)\\s+(?:reservad[oa]s?|asignad[oa]s?)\\s+(?:(?:la|una|vuestra|su|tu)\\s+)?plaza${NR}`,
+    `${NL}plaza(?:\\s+de\\s+(?:aparcamiento|garaje|parking))?(?:\\s+(?:n[°o]\\.?|n(?:ú|u)mero)\\s*\\S{1,8})?(?:\\s+\\S+){0,3}?\\s+(?:est(?:á|a)|queda)\\s+(?:reservad[oa]|asignad[oa])${NR}`,
+    // RU: "(парковочное) место номер 2 забронировано"
+    `${NL}(?:парковочн${LB}\\s+)?мест${LB}(?:\\s+(?:№|номер)\\s*\\S{1,8})?(?:\\s+\\S+){0,2}?\\s+(?:закреплен${LB}|забронирован${LB}|зарезервирован${LB}|выделен${LB})`,
+    // AR: "موقف (رقم 2) محجوز / مخصص"
+    `${NL}(?:ال)?(?:موقف|مكان\\s+(?:ال)?(?:سيارة|ركن))\\S{0,6}(?:\\s+\\S+){0,3}?\\s+(?:محجوز|مخصص)\\S{0,6}`,
+  ].join("|"),
+  "giu",
+);
+/** İspanyolca izin kalıbının ("puede quedarse") araç öznesiyle sabit yere bağlı biçimi. */
+const VEHICLE_SPOT_GRANT = new RegExp(
+  `${NL}(?:coche|auto|carro|veh(?:í|i)culo|moto)s?(?:\\s+\\S+){0,2}?\\s+(?:puede|pueden|podr(?:á|a)n?)\\s+(?:quedarse|aparcar|estacionar${LB})\\s+en\\s+(?:vuestra|su|tu|la|una)\\s+plaza${NR}`,
+  "giu",
+);
+const SPOT_ID = /[\p{L}\p{N}]*\p{N}[\p{L}\p{N}-]*/gu;
+const PARKING_WINDOW = 120;
+const PARKING_WINDOW_CAP = 50;
+
+/** Bilgi tabanı kalemlerinin metni (başlık + içerik) — `kbFacts` girdisinin TEK kurucusu (kapı + karar kaydı aynı girdi). */
+export function kbFactsOf(
+  items: readonly { title?: string | null; content?: string | null }[] | null | undefined,
+): string[] {
+  return (items ?? []).map((i) => `${i.title ?? ""}\n${i.content ?? ""}`).filter((t) => t.trim() !== "");
+}
+
+/** Bilgi tabanında otopark sözcüğünün yakınındaki AÇIK tahsis pencereleri (katlanmış). Boş = dayanak yok. */
+function parkingAssignmentWindows(kbFacts: readonly string[] | null | undefined): string[] {
+  const out: string[] = [];
+  for (const raw of kbFacts ?? []) {
+    if (typeof raw !== "string" || raw === "") continue;
+    const fact = permissiveForm(raw.slice(0, 24_000));
+    for (const m of fact.matchAll(KB_ASSIGNMENT)) {
+      const at = m.index ?? 0;
+      const w = fact.slice(Math.max(0, at - PARKING_WINDOW), at + m[0].length + PARKING_WINDOW);
+      if (KB_PARKING_NOUN.test(w)) out.push(w);
+      if (out.length >= PARKING_WINDOW_CAP) return out;
+    }
+  }
+  return out;
+}
+
+/** Yapıdaki her yer numarası bilgi tabanının bir tahsis penceresinde de geçiyor mu (numarasız yapı: pencere var mı)? */
+function spanGrounded(span: string, windows: readonly string[]): boolean {
+  const ids = span.match(SPOT_ID) ?? [];
+  return ids.every((id) => {
+    // Numara yalnız harf / rakam / tire taşır (`SPOT_ID`); "u" bayrağında tire kaçışlanmaz (geçersiz kaçış hatası).
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu");
+    return windows.some((w) => re.test(w));
+  });
+}
+
+function withoutGroundedParkingAssignment(clause: string, windows: readonly string[]): string {
+  const out = clause.replace(PARKING_ASSIGNMENT_SPANS, (span) => (spanGrounded(span, windows) ? " yer " : span));
+  return /\p{N}/u.test(out) ? out : out.replace(VEHICLE_SPOT_GRANT, (span) => (spanGrounded(span, windows) ? " " : span));
+}
+
 /** Deterministik iddia: takvim kalıpları METNİN KENDİSİNDE, izin kalıpları standart çıkış bilgisi ayıklanmış metinde. */
-function lexicalClaim(text: string, stayTimes: StayTimes | null | undefined): boolean {
-  if (anyClauseMatches(text, CALENDAR_CLAIMS)) return true;
-  return anyClauseMatches(withoutStandardCheckoutUntil(text, stayTimes), GRANT_CLAIMS);
+function lexicalClaim(text: string, stayTimes: StayTimes | null | undefined, kbFacts?: readonly string[] | null): boolean {
+  const windows = parkingAssignmentWindows(kbFacts);
+  const strip = windows.length > 0 ? (clause: string) => withoutGroundedParkingAssignment(clause, windows) : undefined;
+  if (anyClauseMatches(text, CALENDAR_CLAIMS, strip)) return true;
+  return anyClauseMatches(withoutStandardCheckoutUntil(text, stayTimes), GRANT_CLAIMS, strip);
 }
 
 /** Kanıt için PII'siz sinyal özeti (kapalı küme kodlar; metin taşımaz). */
@@ -946,7 +1067,7 @@ export function evaluateAvailability(
   // ilk geçiş teklif metnini iddia sayarsa bekçi hiç çağrılmaz (iddia tutuşu bekçiyi tetiklemez).
   // STANDART ÇIKIŞ SAATİ bilgisi izin DEĞİLDİR — ↑`withoutStandardCheckoutUntil`.
   const offerExempt = guard !== null ? deferred : trustedDefers && lexDeferral;
-  const lexClaim = lexicalClaim(offerExempt ? withoutOffer : reply, opts.stayTimes);
+  const lexClaim = lexicalClaim(offerExempt ? withoutOffer : reply, opts.stayTimes, opts.kbFacts);
   // PARA (dilim 8): host'un geç çıkış teklifi YALNIZ geç çıkış isteğinde kendi konusudur — o zaman teklif metni aynen
   // aktarımda muaf, tutarları ise çeviride / kısmi aktarımda da İZİNLİ (aynı tutar + aynı birim). Başka bir isteğe
   // (erken giriş, ek gece) geç çıkış fiyatını aktarmak para ifadesidir (inceleme 09-24: "ek gece için geç çıkış ücreti").

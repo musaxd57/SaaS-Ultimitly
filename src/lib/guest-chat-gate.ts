@@ -152,6 +152,7 @@ export function qrAvailabilityPolicy(
     stayGuard?: StayGuardOutcome;
     understanding?: UnderstandingStaySignal | null;
     understandingFailed?: boolean;
+    kbFacts?: readonly string[] | null;
   },
 ): AvailabilityPolicyOptions {
   return {
@@ -163,6 +164,8 @@ export function qrAvailabilityPolicy(
     understanding: stayCtx?.understanding ?? null,
     understandingFailed: stayCtx?.understandingFailed === true,
     stayTimes: stayCtx?.stayTimes ?? null,
+    // Modelin gördüğü bilgi tabanı (24 EK): yazılı sabit otopark yeri tahsisi takvim iddiası sayılmaz — kanal kapısıyla parite.
+    kbFacts: stayCtx?.kbFacts ?? null,
   };
 }
 
@@ -213,6 +216,8 @@ export function evaluateEscalation(
     understandingFailed?: boolean;
     /** Anlama katmanının en ağır risk niyeti; verilmezse sinyal yok. */
     understandingRisk?: IntentRiskKind | null;
+    /** Modelin gördüğü bilgi tabanı (`kbFactsOf`) — yalnız 24 EK otopark tahsisi istisnası için. */
+    kbFacts?: readonly string[] | null;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });

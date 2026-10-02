@@ -9,6 +9,7 @@ import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import {
   evaluateAvailability,
+  kbFactsOf,
   stayEvidenceOf,
   stayInfoOnly,
   stayRequestKinds,
@@ -206,6 +207,11 @@ export interface AutoReplyGateContext {
   understandingFailed?: boolean;
   /** Ev sahibinin tanımlı teklif metni (istemin gösterdiği SANİTİZE biçim) — iddia taramasından muaf. */
   hostOfferText?: string | null;
+  /**
+   * Modele giden bilgi tabanı kalemlerinin metni (`kbFactsOf`) — YALNIZ bilgi tabanında yazılı sabit otopark yeri tahsisinin
+   * takvim iddiası sayılmaması için (24 EK, `availability-claims.ts`). Verilmezse karar birebir eski.
+   */
+  kbFacts?: readonly string[] | null;
   /** Anlama katmanının en ağır risk niyeti (`semantic/intent-risk.ts`); verilmezse sinyal yok. */
   understandingRisk?: IntentRiskKind | null;
   /**
@@ -688,6 +694,7 @@ export function availabilityPolicyFor(
     understandingFailed: context?.understandingFailed === true,
     stayTimes: context?.stayTimes ?? null,
     hostOfferText: context?.hostOfferText ?? null,
+    kbFacts: context?.kbFacts ?? null,
     verifiedGrant: context?.verifiedGrant ?? null,
   };
 }
@@ -2131,6 +2138,8 @@ export async function applyChannelAutoReply(
     understandingRisk: understandingRiskOf(understood),
     // İstemin gösterdiği AYNI sanitize teklif metni: host'un kendi sözü iddia sayılmaz.
     hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
+    // Modelin gördüğü bilgi tabanı: yalnız yazılı sabit otopark yeri tahsisi takvim iddiası sayılmasın diye (24 EK).
+    kbFacts: kbFactsOf(kbForModel),
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.
     ...(itemsPlan ? { items: itemsPlan.gateItems } : {}),
   };

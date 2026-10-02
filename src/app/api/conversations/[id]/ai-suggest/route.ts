@@ -20,7 +20,7 @@ import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget"
 import { loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { historyAuthorOf, isAnsweringOutbound } from "@/lib/message-author";
-import { vetoAvailability } from "@/lib/ai/availability-claims";
+import { kbFactsOf, vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
 import { runEarlyCheckinWorkflow } from "@/lib/early-checkin/workflow";
 
@@ -223,6 +223,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     understanding: understood?.stay ?? null,
     understandingFailed: (await kbSel.understandingStatus) === "failed",
     hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
+    // Modelin gördüğü bilgi tabanı (24 EK): yazılı sabit otopark yeri tahsisi takvim iddiası sayılmaz — kapıyla parite.
+    kbFacts: kbFactsOf(kbSel.items),
   });
   const availabilityCheck = vetoAvailability(result.reply, guestTexts, policy);
 

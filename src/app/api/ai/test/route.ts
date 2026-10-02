@@ -13,6 +13,7 @@ import {
   hostOfferForGate,
   type CourtesyKind,
 } from "@/lib/automation";
+import { kbFactsOf } from "@/lib/ai/availability-claims";
 import { badRequest, jsonOk, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
@@ -217,6 +218,8 @@ export const POST = withManage(async (session, req) => {
     // Anlama katmanının risk niyeti — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
     understandingRisk: understandingRiskOf(understood),
     hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
+    // Modelin gördüğü bilgi tabanı (24 EK) — gerçek kapıyla PARİTE.
+    kbFacts: kbFactsOf(kbSel.items),
   };
   const wouldAutoSend = passesAutoReplySafetyGate(gateInput, message, gateCtx);
   // Kapanışa sessizlik — anlam yolu (kurucu kuralı 09-25): gerçek kanalla AYNI yüklem. Önizleme de "bu mesaja cevap

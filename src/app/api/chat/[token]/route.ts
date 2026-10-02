@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { detectRiskType } from "@/lib/ai/fallback";
 import { evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
-import { evaluateAvailability, stayEvidenceOf } from "@/lib/ai/availability-claims";
+import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
 import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
@@ -808,6 +808,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     understandingFailed: (await kbSel.understandingStatus) === "failed",
     // Anlama katmanının risk niyeti (acil/şikâyet/iptal-iade/insan) — kanal kapısıyla parite; katman koştuysa karar verir.
     understandingRisk: understandingRiskOf(understood),
+    // Modelin gördüğü bilgi tabanı (24 EK): yazılı sabit otopark yeri tahsisi takvim iddiası sayılmaz — kanalla parite.
+    kbFacts: kbFactsOf(kbSel.items),
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);

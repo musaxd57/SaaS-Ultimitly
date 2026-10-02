@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
+import { kbFactsOf } from "@/lib/ai/availability-claims";
 import { badRequest, jsonOk, notFound, serverError, tooManyRequests, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { DEMO_HOURLY_LIMIT } from "@/lib/constants";
@@ -153,7 +154,8 @@ export async function POST(req: NextRequest) {
         claimedActions: result.claimedActions ?? null,
       },
       message,
-      { stayTimes: { checkIn: DEMO_PROPERTY.checkInTime, checkOut: DEMO_PROPERTY.checkOutTime } },
+      // Bilgi tabanı (24 EK, yazılı sabit otopark yeri tahsisi) — gerçek kapıyla PARİTE.
+      { stayTimes: { checkIn: DEMO_PROPERTY.checkInTime, checkOut: DEMO_PROPERTY.checkOutTime }, kbFacts: kbFactsOf(DEMO_KB) },
     );
 
     // ⚠️ YALNIZ ARAYÜZÜN ÇİZDİĞİ ALANLAR DÖNER. `intent`, `detectedLanguage` ve
