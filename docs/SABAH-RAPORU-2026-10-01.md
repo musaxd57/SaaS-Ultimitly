@@ -3,6 +3,19 @@
 > Kararlar ayrı belgede: `docs/SABAH-KARARLARI-2026-10-01.md`. Bu rapor: doğrulanan K düzeltmeleri, kurucu talimatlarının
 > uygulaması, Luna ölçümleri, maliyet, kapı / CI, canlıya geçiş için kalan adımlar ve eklenecek / değişecek ortam değişkenleri.
 
+## 0. GÜNCEL ÖZET (10-02 gece, son durum — ayrıntılar aşağıda, hiçbir bölüm silinmedi)
+
+- **Codex K bulguları:** altısı da güncel kodda doğrulandı ve düzeltildi (§1), canlıda.
+- **Luna kararı (önerim):** cevap modeli **Luna `low`** — `none` DEĞİL. Kanıt: kör set 9 (son kod) Luna `low` olgu 20/26 = 5.1 20/26,
+  gitmemesi gerekirken giden 1 ↔ 2, sır 0 ↔ 0, maliyet ~%40, p95 9,2 ↔ 7,4 sn (§3.15); set 8'de Luna `none` başka dairenin kapı kodunu 3 koşunun
+  3'ünde gönderdi, `low` reddetti (§3.13–§3.14). Üslup Luna `none`; anlama / bekçi / sıralayıcı / çeviri 5.1'e sabit. Değişkenler §7.
+- **Canlıda bulunan hata (onayınızı bekliyor):** Almanca "brauche / brauchen" acil sayılıyor ("rauch" alt dize) — Sabah Kararları 49; hazır
+  düzeltme yerel dal `prep/de-rauch-tam-sozcuk`, İTİLMEDİ.
+- **Modelden bağımsız açıklar (üç modelde de):** bilgi tabanı içi çelişki (22), özel adların çevrilmesi (47), kısıtlı sır kalemi (48), iade + ücret
+  liste kipinde (46). Kod düzeltmesi yapılanlar: iade turunda ücret cümlesi (`items_fix_money`, ilişki kipi).
+- **Kapı / CI:** son yayın RC65 (§5). **Maliyet:** gece ≈ $23,0 (kesin $14,66) — $25 tavanının altında; ücretli ölçüm durdu.
+- **"Yalnız modeli değiştirmek kaldı" DEĞİL:** sabitleme değişkenleri + bayrak kararları + 47 / 48 / 49 gerekir (§6).
+
 ## 1. Codex K bulguları — güncel kodda yeniden doğrulama ve düzeltme
 
 Hepsi güncel kodda (RC48 + 09-30 düzeltmeleri) yeniden üretildi; altısı da doğru çıktı, itiraz edilen yok. Her düzeltme ayrı commit,
@@ -53,8 +66,8 @@ düşünme belirteci).
 
 | Katman | Ölçüm | Sonuç | Öneri |
 |---|---|---|---|
-| Cevap modeli | canlı hat 84 senaryo (R0–R6) + kör kabul 88 | Luna `none` olguda 5.1'e eşit, sızıntı 0, ~3× ucuz (tüm hat) | **Luna `none`** |
-| Düşünme ayarı | R4 low · R5 medium · R6 high | hata düzeltmiyor; daha çok tutuyor, gecikme p95 7,8 → 9,8 / 14,5 / 18,5 sn; high'da 3× "cevapladığı isteği beyan etmeme" | **`none`** |
+| Cevap modeli | canlı hat 84 senaryo (R0–R6) + kör kabul 88 | Luna `none` olguda 5.1'e eşit, sızıntı 0, ~3× ucuz (tüm hat) | **Luna `none`** → **10-02 GÜNCELLEME: Luna `low`** (§3.13–§3.15: `none` set 8'de başka dairenin kodunu gönderdi; `low` kör set 9'da 5.1 ile eşit) |
+| Düşünme ayarı | R4 low · R5 medium · R6 high | hata düzeltmiyor; daha çok tutuyor, gecikme p95 7,8 → 9,8 / 14,5 / 18,5 sn; high'da 3× "cevapladığı isteği beyan etmeme" | **`none`** → **10-02 GÜNCELLEME: `low`** (o gecenin hata sınıfı için doğruydu; 10-02 gecesi `low` sır sızıntısını ve "en yakın" hatasını düzeltti, p95 ~9 sn; §3.14) |
 | Anlama katmanı | konaklama eval 599 istek · konuşma öğeleri 20 | Luna 3 gerçek konaklama isteğini kaçırdı (5.1: 0; birleşim yakaladı); öğe bölmede farkı küçük | **5.1'de kalsın** |
 | Konaklama bekçisi | konaklama eval 747 cevap | izin cevabını kaçırma Luna 9 ↔ 5.1 5 (Türkçe 32/36 ↔ 36/36); erteleme tanıma belirgin zayıf | **5.1'de kalsın** |
 | Yeniden sıralayıcı | 09-27 ölçümü (Luna 108 ↔ 5.1 111/120 iki soru) + R3 | yeni kanıt yok; kararınız "5.1'de kalalım" | **5.1'de kalsın** |
