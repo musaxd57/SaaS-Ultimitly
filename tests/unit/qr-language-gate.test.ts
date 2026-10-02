@@ -99,6 +99,12 @@ describe("QR dil kapısı — karışık dil (cevabın dili mesajda iz taşıyor
   it("'Can we park? Danke!' → Almanca cevap da gider", () => {
     expect(qr("Can we park? Danke!", "Ja, hinter dem Gebäude gibt es kostenlose Parkplätze.")).toEqual(PASS);
   });
+  it("karma yazı + model ipucu: mesajda Kiril / Arap izi varsa o dildeki cevap da meşru", () => {
+    expect(qr("Hi, where can we park the car? Спасибо", "Парковка находится за зданием, она бесплатная.", "en")).toEqual(PASS);
+    expect(qr("Hi, where can we park the car? شكرا جزيلا", "موقف السيارات خلف المبنى وهو مجاني.", "en")).toEqual(PASS);
+    // İKİZ: izi olmayan dil (Almanca) aynı mesajda yine tutulur.
+    expect(qr("Hi, where can we park the car? Спасибо", "Der Parkplatz ist hinter dem Gebäude.", "en")).toEqual(HELD);
+  });
   it("İKİZ: iz taşımayan dil yine tutulur — 'Merhaba, otopark var mı?' + İngilizce cevap", () => {
     expect(qr("Merhaba, otopark var mı?", "Hello, there is free parking behind the building.")).toEqual(HELD);
   });

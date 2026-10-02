@@ -136,6 +136,9 @@ describe("kanal oto-yanıtı — bağlamla tehlike (51)", () => {
     expect(mockSend).not.toHaveBeenCalled();
     expect(await gateDetail(id)).toBe("hazard_reassurance");
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id } })).lastRiskType).not.toBe("safety_emergency");
+    // Karar kaydının risk etiketi de bağlam kararını izler (kalkan acil etiketi kayda "acil durum" diye yazılmaz).
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    expect(ev.riskType).not.toBe("safety_emergency");
   });
 
   it("🚨 AÇIK tehlike: anlama katmanı 'acil değil' dese de alarm KALKMAZ", async () => {
