@@ -225,7 +225,9 @@ function replySystemPrompt(input: SuggestReplyInput): string {
     stayDeferralPlain: stayDeferralPlainEnabled(),
     accessCodeComplete: accessCodeCompleteEnabled(),
     complaintFollowup: complaintFollowupRuleEnabled(),
-    // Öğe bloğu bırakılan istek listeliyorsa (bu turun ya da önceki turun) sistem istemi de o istekler için kalıp öğretmesin.
+    // Öğe kipi: çıktı formatı `answeredRequests` alanını da gösterir; bırakılan istek varsa (bu turun ya da önceki turun) sistem
+    // istemi o istekler için kalıp öğretmez.
+    itemsMode: input.conversationItems !== undefined,
     itemsHeld: (input.conversationItems?.held.length ?? 0) > 0,
   });
 }

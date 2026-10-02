@@ -9,7 +9,7 @@ vi.mock("@/lib/report-error", async (orig) => ({
   ...(await orig<typeof import("@/lib/report-error")>()),
   reportError: vi.fn(async () => ({ notified: false, throttled: false, configured: false })),
 }));
-import { REPLY_SYSTEM_PROMPT, ITEMS_HELD_REPLACEMENTS, replySystemPromptFor } from "@/lib/ai/prompts";
+import { REPLY_SYSTEM_PROMPT, ITEMS_HELD_REPLACEMENTS, ITEMS_MODE_REPLACEMENTS, replySystemPromptFor } from "@/lib/ai/prompts";
 import { replyRequestIdentity } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
@@ -34,12 +34,22 @@ const RULE = "KONUŞMA ÖĞELERİ: kullanıcı isteminde EV SAHİBİNE BIRAKILAN
 afterEach(() => vi.unstubAllEnvs());
 
 describe("bırakılan istek önceliği — sistem istemi katmanı", () => {
-  it("öğe yok / bırakılan yok → sistem istemi BAYT BAYT taban (anahtarlar kapalı)", () => {
+  it("öğe kipi DEĞİLSE sistem istemi BAYT BAYT taban (anahtarlar kapalı); öğe kipinde bırakılan yoksa YALNIZ çıktı alanı eklenir", () => {
     for (const k of LAYER_FLAGS) vi.stubEnv(k, "");
     expect(replyRequestIdentity(base).system).toBe(REPLY_SYSTEM_PROMPT);
-    const noHeld = { ...base, conversationItems: { answerable: [{ ref: "R1", kind: "wifi" as const, hint: "wifi" }], held: [] } };
-    expect(replyRequestIdentity(noHeld).system).toBe(REPLY_SYSTEM_PROMPT);
     expect(REPLY_SYSTEM_PROMPT).not.toContain(RULE);
+    expect(REPLY_SYSTEM_PROMPT).not.toContain('"answeredRequests"');
+    const noHeld = { ...base, conversationItems: { answerable: [{ ref: "R1", kind: "wifi" as const, hint: "wifi" }], held: [] } };
+    const sys = replyRequestIdentity(noHeld).system;
+    expect(sys).toBe(replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, itemsMode: true }));
+    expect(sys).not.toContain(RULE);
+    // Fark YALNIZ formatın son alanı: "replyStance" satırına virgül + `answeredRequests` satırı.
+    const anchor = ITEMS_MODE_REPLACEMENTS[0][0];
+    const at = REPLY_SYSTEM_PROMPT.indexOf(anchor);
+    expect(at).toBeGreaterThan(0);
+    expect(sys.slice(0, at)).toBe(REPLY_SYSTEM_PROMPT.slice(0, at));
+    expect(sys.endsWith(REPLY_SYSTEM_PROMPT.slice(at + anchor.length))).toBe(true);
+    expect(sys).toContain('  "answeredRequests": [');
   });
 
   it("🚨 bu turda (ya da önceki turda) bırakılan istek varken kural KURAL ÖNCELİĞİ listesinin ardına girer; fark yalnız orada", () => {
@@ -47,18 +57,19 @@ describe("bırakılan istek önceliği — sistem istemi katmanı", () => {
     for (const held of [[{ kind: "payment_invoice" as const }], [{ kind: "human_request" as const, earlier: true }]]) {
       const withHeld = { ...base, conversationItems: { answerable: [{ ref: "R1", kind: "wifi" as const, hint: "wifi" }], held } };
       const sys = replyRequestIdentity(withHeld).system;
-      expect(sys).toBe(replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, itemsHeld: true }));
+      expect(sys).toBe(replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, itemsMode: true, itemsHeld: true }));
       expect(sys).toContain(RULE);
+      // Önceliğin çapası KURAL ÖNCELİĞİ listesinin son satırı: ondan önceki her şey taban istemle aynı.
       const anchor = ITEMS_HELD_REPLACEMENTS[0][0];
       const at = REPLY_SYSTEM_PROMPT.indexOf(anchor) + anchor.length;
       expect(at).toBeGreaterThan(anchor.length);
       expect(sys.slice(0, at)).toBe(REPLY_SYSTEM_PROMPT.slice(0, at));
-      expect(sys.endsWith(REPLY_SYSTEM_PROMPT.slice(at))).toBe(true);
+      expect(sys).toContain('  "answeredRequests": [');
     }
   });
 
   it("kural taban istemin öğrettiği üç kalıbı adıyla anar ve Kural-4'ün önünde olduğunu söyler", () => {
-    const sys = replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, itemsHeld: true }).replace(/\s+/g, " ");
+    const sys = replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, itemsMode: true, itemsHeld: true }).replace(/\s+/g, " ");
     for (const s of ["bu konu ev sahibinizin kararıdır", "Ödeme ve rezervasyon işlemlerinin platform üzerinden yürütülmesi gerekiyor", "Mesajınız kaydedildi; ev sahibiniz görebilir", "Kural-4'ün ve niyet listesinin cevap kalıplarının ÖNÜNDEDİR"]) {
       expect(sys).toContain(s);
     }

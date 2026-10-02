@@ -1301,6 +1301,18 @@ export const COMPLAINT_FOLLOWUP_REPLACEMENTS: readonly Replacement[] = [
 // ev sahibiniz görebilir."). Düşünme çabası artan model (Luna medium) sistem istemindeki kalıbı seçiyordu: bırakılan isteğe o kalıpla
 // değinen cevap tamamen tutuluyor, güvenli kısım misafire gitmiyordu. Katman YALNIZ bu turda bırakılan istek varken uygulanır (çağıran
 // karar verir); tek çapa KURAL ÖNCELİĞİ listesinin son satırı — öteki katmanların çapalarına değmez.
+// ── ÖĞE KİPİ ÇIKTI ALANI (konuşma öğeleri, 10-02 Luna ölçümü; ONAY BEKLİYOR) ───────────────────────────────────────────────────
+// `answeredRequests` beyanı ZORUNLU (eksik → kapı tutar), ama alan yalnız kullanıcı isteminin öğe bloğunda anılıyordu; sistem
+// isteminin ÇIKTI FORMATI ve örnekleri onu içermiyordu. Biçimi örnekten kopyalayan model (Luna medium) alanı ara sıra atlıyor, güvenli
+// cevap `items_undeclared` ile tutuluyordu. Katman YALNIZ öğe kipinde (çağıran karar verir); tek çapa formatın son alanı.
+export const ITEMS_MODE_REPLACEMENTS: readonly Replacement[] = [
+  [
+    '  "replyStance": "<none|defers|grants|states_calendar|refuses>"\n}',
+    '  "replyStance": "<none|defers|grants|states_calendar|refuses>",\n' +
+      '  "answeredRequests": ["<KONUŞMA ÖĞELERİ bloğundaki cevapladığın isteklerin kimlikleri, ör. R1; hiçbirini cevaplamadıysan boş dizi>"]\n}',
+  ],
+];
+
 export const ITEMS_HELD_REPLACEMENTS: readonly Replacement[] = [
   [
     "  6) TON + üslup (Bölüm 10 / 10.5)\n",
@@ -1324,6 +1336,8 @@ export interface ReplyPromptFlags {
   stayDeferralPlain: boolean;
   accessCodeComplete?: boolean;
   complaintFollowup?: boolean;
+  /** Bu çağrı öğe kipinde (kullanıcı isteminde KONUŞMA ÖĞELERİ bloğu var) — anahtar değil, çağrı başına (`ai/index.ts`). */
+  itemsMode?: boolean;
   /** Bu turda EV SAHİBİNE BIRAKILAN istek var (konuşma öğeleri) — anahtar değil, çağrı başına (`ai/index.ts`). */
   itemsHeld?: boolean;
 }
@@ -1333,6 +1347,7 @@ const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, readonly Replac
   ["stayDeferralPlain", STAY_DEFERRAL_PLAIN_REPLACEMENTS],
   ["accessCodeComplete", ACCESS_CODE_COMPLETE_REPLACEMENTS],
   ["complaintFollowup", COMPLAINT_FOLLOWUP_REPLACEMENTS],
+  ["itemsMode", ITEMS_MODE_REPLACEMENTS],
   ["itemsHeld", ITEMS_HELD_REPLACEMENTS],
 ];
 const derivedPromptCache = new Map<string, { text: string; missing: string[] }>();

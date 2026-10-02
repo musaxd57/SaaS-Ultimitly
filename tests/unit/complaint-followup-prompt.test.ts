@@ -89,9 +89,9 @@ describe("şikâyet takibi — cevap istemi katmanı", () => {
     expect(sys.endsWith(REPLY_SYSTEM_PROMPT.slice(at))).toBe(true);
   });
 
-  it("tüm katman birleşimlerinde kayıp çapa YOK (64 birleşim — bırakılan istek önceliği 10-02)", () => {
+  it("tüm katman birleşimlerinde kayıp çapa YOK (128 birleşim — öğe kipi alanı + bırakılan istek önceliği 10-02)", () => {
     const missing = REPLY_SYSTEM_PROMPT_DERIVATION_MISSING();
-    expect(Object.keys(missing)).toHaveLength(64);
+    expect(Object.keys(missing)).toHaveLength(128);
     for (const [name, m] of Object.entries(missing)) expect(m, name).toEqual([]);
   });
 });
