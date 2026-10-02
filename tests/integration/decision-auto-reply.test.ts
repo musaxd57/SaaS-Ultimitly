@@ -194,6 +194,16 @@ describe("oto-yanıt → karar kartı (Host Karar Motoru)", () => {
     expect(subjects()).toEqual([expect.stringMatching(/^Karar bekliyor: Erken giriş — saat belirtilmedi/)]);
   });
 
+  it("misafirin yazdığı saat standardın YANLIŞ tarafındaysa (erken girişte 16:00 > 15:00 — uçuş saati) kart saati BOŞ: ev sahibi seçer", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    mockSuggest.mockResolvedValue(BASE);
+    const s = await seed("Erken giriş mümkün mü? Uçağımız 16:00'da iniyor.");
+    await applyChannelAutoReply(s.conversationId);
+    const row = await prisma.decisionRequest.findFirstOrThrow({ where: { conversationId: s.conversationId } });
+    expect(row.kind).toBe("early_checkin");
+    expect(row.requestedTime).toBeNull();
+  });
+
   it("konaklama isteği OLMAYAN mesaj kart açmaz (Wi-Fi sorusu)", async () => {
     vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
     mockSuggest.mockResolvedValue({ ...BASE, intent: "wifi", reply: "Ağ adı Lale.", stayChange: { asked: "none" as const, stance: "none" as const } });

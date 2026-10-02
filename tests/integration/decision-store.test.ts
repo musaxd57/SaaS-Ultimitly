@@ -102,6 +102,10 @@ describe("karar kaydı", () => {
     expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: old.id } })).status).toBe("superseded");
     expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe("pending");
     expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: late.id } })).status).toBe("pending");
+    // ESKİ mesaj yeniden işlenirse (ör. senkron tekrarı) YENİ kart geri kapanmaz — yalnız kendinden eski kartlar.
+    await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }] });
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe("pending");
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: old.id } })).status).toBe("superseded");
   });
 
   it("🚨 'ev sahibi yazdı' türetmesi: talepten sonraki ELLE cevap kartı 'yanıtladınız' yapar; BAŞKA bir kartın karar mesajı yapmaz; otomatik mesaj yapmaz", async () => {

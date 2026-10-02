@@ -56,6 +56,7 @@ vi.mock("@/lib/early-checkin/reply", async (orig) => {
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
 import { applyChannelAutoReply } from "@/lib/automation";
+import { emailService } from "@/lib/email";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
 import {
@@ -624,6 +625,20 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     const note = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: t.prepTaskId } });
     // Ücret TUTARI nota girmez (görev geçmişini temizlik de görür).
     expect(note.note).toBe("Erken giriş 13:00 otomatik onaylandı.");
+  });
+
+  it("🚨 Host Karar Motoru açıkken doğrulanmış OTOMATİK onay: 'karar bekliyor' kartı / e-postası YOK; kart 'otomatik onaylandı' (onaylı saat yapısal)", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    const rows = await prisma.decisionRequest.findMany({ where: { conversationId: id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: "early_checkin", status: "resolved_by_policy", decidedTime: "13:00" });
+    const subjects = vi.mocked(emailService.sendReporting).mock.calls.map((c) => String(c[1]));
+    expect(subjects.filter((x) => x.startsWith("Karar bekliyor"))).toEqual([]);
   });
 
   it("🚨 karar kaydı dayanakları: hangi devir (rezervasyon), hangi 'hazır' kaydı + anı, hangi kural sürümü, kaç model okudu", async () => {

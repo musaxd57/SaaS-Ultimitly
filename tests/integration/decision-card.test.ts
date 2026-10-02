@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
-import { listConversationDecisions } from "@/lib/decisions/store";
+import { listConversationDecisions, openDecisionCounts } from "@/lib/decisions/store";
 import {
   buildDecisionCards,
   decisionLinkedItemIds,
@@ -285,6 +285,10 @@ describe("öğelerle birlikte yaşam — aynı talep iki kez sayılmaz, karar me
   it("açık karta bağlı öğe: rozet ve pano onu İKİNCİ kez saymaz; sayfa kartında gizlenir; öteki öğe (iade) kalır", async () => {
     vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
     const { w, earlyItem, refundItem } = await turn();
+    // Gelen kutusu: karar özeti, bağlı öğeyi sayımdan düşmek için verir.
+    const summary = await openDecisionCounts(prisma, { organizationId: w.org.id, conversationIds: [w.curConv.id], timeZone: TZ, now: new Date() });
+    expect(summary.itemIds).toEqual([earlyItem.id]);
+    expect(summary.counts.get(w.curConv.id)).toBe(1);
     expect((await openItemCounts(prisma, { organizationId: w.org.id, conversationIds: [w.curConv.id] })).get(w.curConv.id)).toBe(2);
     expect(
       (await openItemCounts(prisma, { organizationId: w.org.id, conversationIds: [w.curConv.id], excludeItemIds: [earlyItem.id] })).get(w.curConv.id),
