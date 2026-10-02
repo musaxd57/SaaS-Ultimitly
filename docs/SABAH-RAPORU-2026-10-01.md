@@ -3,6 +3,25 @@
 > Kararlar ayrı belgede: `docs/SABAH-KARARLARI-2026-10-01.md`. Bu rapor: doğrulanan K düzeltmeleri, kurucu talimatlarının
 > uygulaması, Luna ölçümleri, maliyet, kapı / CI, canlıya geçiş için kalan adımlar ve eklenecek / değişecek ortam değişkenleri.
 
+## 0a. 10-02 SABAH — LUNA KATMAN ÇALIŞMASININ SONUCU (kurucu: "5.1 yerine Luna 6 kullandır, kodları ona göre geliştir, sakın geçmesi için şeyler yapma")
+
+| Katman | Öneri | Kanıt (§9) | Ne zaman |
+|---|---|---|---|
+| Anlama + konaklama bekçisi | **Luna `low`** | kör kabul acc10: kaçan istek 0, kaçan izin 0, anlama hatası 0 (5.1 eski istem: 1 tehlikeli kaçak); öğe bölmede 5.1'den iyi (vazgeçme, "kendi konusu") | RC68 canlıya çıkınca |
+| Çeviri | **Luna `medium`** | 76 satır: kod / şifre / bağlantı / tutar kaybı 0; tek fark Fransız saat yazımı (5.1'de de) | hemen |
+| Üslup özeti | Luna `none` (10-01) | rehbere tesis bilgisi sızmadı | hemen |
+| Yeniden sıralayıcı | **5.1'de kalsın** | Luna `none` iki sorulu mesajda 3/120, Türkçe tek soruda 1/221 geride (09-27 ile aynı yön); `low` 2,5 sn tavanını 66 kez aştı | — |
+| Cevap modeli | Luna `medium` — **ama ÖNCE Sabah Kararları 53 + 47** | kör set 10: sızıntı 0, olgu 21/25 ↔ 20/25; AMA öğe kipinde karışık mesajda güvenli kısım 17'de 7–9 (5.1: 17) → hazır düzeltmeyle 17/17; özel adları Kiril / Arap harfine çeviriyor (47) | 53 + 47 onay → RC → yeni kör set 11 |
+
+**Bulunan ve düzeltilen canlı hatalar (RC68):** (1) "ev sahibinizin kararıdır" dedektörü Almanca "liegt im Ermessen Ihres Gastgebers" ve "a decision for
+your host" gibi biçimleri tanımıyordu — canlıda açık kuralınız Almanca misafirde delikti (5.052 kayıtlı cevapta 46 yeni tutuş, hepsi gerçek, düşen 0);
+(2) kural ihlali ağında Türkçe "parti" alt dizesi İspanyolca "a partir de" / Fransızca "partir" sorularını tutuyordu; (3) anlama + bekçi istemleri:
+misafirin söylediği saat de çıkarılır, standart saat yalnız mülkün kendi saati (5.1'in kaçırdığı "we'll be there at 3pm" / giriş 16:00 artık yakalanıyor).
+
+**Onayınızı bekleyen (misafire giden cevabı değiştirir):** 53 (öğe kipi — hazır, ölçüldü), 47 (özel adlar — hazır), 52 (başkası adına giriş kodu —
+öneri), 51 (anlam gerektiren yanlış aciller). **Uyarı:** `OPENAI_MODEL`'i Luna'ya şimdiden geçirdiyseniz, öğe kipinde karışık mesajlar (ödeme / iade /
+ev sahibi + güvenli soru) şu an TAMAMEN ev sahibine düşüyor (sızıntı değil, ama güvenli soru da cevapsız) — 53 canlıya çıkana kadar 5.1'de kalması önerilir.
+
 ## 0. GÜNCEL ÖZET (10-02 gece, son durum — ayrıntılar aşağıda, hiçbir bölüm silinmedi)
 
 - **Codex K bulguları:** altısı da güncel kodda doğrulandı ve düzeltildi (§1), canlıda.
