@@ -11,7 +11,7 @@
 | Çeviri | **Luna `medium`** | 76 satır: kod / şifre / bağlantı / tutar kaybı 0; tek fark Fransız saat yazımı (5.1'de de) | hemen |
 | Üslup özeti | Luna `none` (10-01) | rehbere tesis bilgisi sızmadı | hemen |
 | Yeniden sıralayıcı | **5.1'de kalsın** | Luna `none` iki sorulu mesajda 3/120, Türkçe tek soruda 1/221 geride (09-27 ile aynı yön); `low` 2,5 sn tavanını 66 kez aştı | — |
-| Cevap modeli | Luna `medium` — **ama ÖNCE Sabah Kararları 53 + 47** | kör set 10: sızıntı 0, olgu 21/25 ↔ 20/25; AMA öğe kipinde karışık mesajda güvenli kısım 17'de 7–9 (5.1: 17) → hazır düzeltmeyle 17/17; özel adları Kiril / Arap harfine çeviriyor (47) | 53 + 47 onay → RC → yeni kör set 11 |
+| Cevap modeli | Luna `medium` ya da `low` — **ama ÖNCE Sabah Kararları 53 + 47** | kör set 10: sızıntı 0, olgu 21/25 ↔ 20/25; öğe kipinde güvenli kısım 17'de 7–9 → hazır düzeltmeyle 17/17. **Kör set 11 (aday kod, §9.10): Luna = 5.1 (olgu 24/29 ↔ 24/29, sızıntı 0), özel ad 8/8 ↔ 7/8, maliyet ~1/4; `medium` sabit ücreti bir anlatımda 3/5 ev sahibine bıraktı, `low` 3/3 doğru ve daha hızlı.** 53 + 47 bugünkü 5.1 için de gerekli | 53 + 47 onay → RC → **kör set 12 (son kod, §9.11) low / medium seçimi** |
 
 **Bulunan ve düzeltilen canlı hatalar (RC68):** (1) "ev sahibinizin kararıdır" dedektörü Almanca "liegt im Ermessen Ihres Gastgebers" ve "a decision for
 your host" gibi biçimleri tanımıyordu — canlıda açık kuralınız Almanca misafirde delikti (5.052 kayıtlı cevapta 46 yeni tutuş, hepsi gerçek, düşen 0);
@@ -623,8 +623,8 @@ Bugün canlıda (CLAUDE.md "Canlı durum"): `AI_SEMANTIC_MODEL=gpt-5.1`, `OPENAI
 | `OPENAI_STYLE_MODEL` | `gpt-6-luna` | hemen | 10-01 ölçümü |
 | `OPENAI_STYLE_REASONING_EFFORT` | `none` | hemen | — |
 | `AI_SEMANTIC_MODEL` | `gpt-5.1` (DEĞİŞTİRMEYİN) | — | sıralayıcı 5.1'de kalır |
-| `OPENAI_MODEL` | `gpt-5.1` → `gpt-6-luna` | YALNIZ Sabah Kararları 53 + 47 onaylanıp canlıya çıkınca (ve kör set 11 yeşilse) | düzeltmesiz Luna öğe kipinde güvenli kısmı tutuyor, özel adları çeviriyor |
-| `OPENAI_REASONING_EFFORT` | `medium` | `OPENAI_MODEL` ile birlikte | set 9 + set 10 |
+| `OPENAI_MODEL` | `gpt-5.1` → `gpt-6-luna` | YALNIZ Sabah Kararları 53 + 47 onaylanıp canlıya çıkınca (kör set 11 aday kodla YEŞİL — §9.10; son kodla kör set 12 — §9.11) | düzeltmesiz Luna öğe kipinde güvenli kısmı tutuyor, özel adları çeviriyor |
+| `OPENAI_REASONING_EFFORT` | `medium` (ya da `low`) | `OPENAI_MODEL` ile birlikte | set 9 + 10 + 11: ikisi de 5.1'e eşit; `medium` bir anlatımda sabit ücreti ev sahibine bırakıyor, `low` daha hızlı — set 12 sonucuyla kesinleşir |
 
 Geri alma: katman değişkenlerini silin (bugünkü 5.1 davranışı birebir döner); `OPENAI_TRANSLATE_MODEL=gpt-5.1`.
 
@@ -855,3 +855,64 @@ Farklar satır satır: (1) k10-24 — misafir gelecek hafta gelecek ARKADAŞLARI
 filtresi): 5.1'in anlama katmanı filtre sorusunu "arıza" sanıp tuttu; Luna anlama katmanıyla gitti (doğru). (4) "her şey Luna" ilk denemesinde ölçer
 anlama + bekçiyi 5.1'e sabitlemişti (rapor kimlik tablosu bunu gösteriyor) → katman değişkenleriyle yeniden koşuldu; ilk denemenin bir koşusu ilk
 senaryoda 21 dk takıldı (ağ; tekrarında 15 sn), 30 dk bekçiyle yeniden koşuldu ve tamamlandı.
+
+### 9.10 Kör set 11 uçtan uca (52 senaryo, 7 dil, iki bilgi tabanı 34 / 59 kalem; içerik koşudan önce OKUNMADI) + hizmet ücreti tekrar ölçümü
+
+Kodlar: **A** `abb71e3` = RC68 (canlı) kodu + set · **B / C / D** `8ed2fe3` = RC68 + hazır düzeltmeler 53 (öğe kipi) + 47 (özel ad) + set. Canlı
+bayraklar (kod selamı, ev sahibi kararı tutulur, giriş kodu, şikâyet takibi, ücret kuralı). Raporlar `docs/olcum/live-pipeline-2026-10-02-*-acc11-*`
+(her birinde koşu kimliği: commit, katman başına model + gönderilen düşünme ayarı, istem kimliği).
+
+| | **A** 5.1 her katman, bugünkü kod | **C** 5.1 her katman, aday kod | **B** aday: cevap Luna `medium`, anlama + bekçi Luna `low`, sıralayıcı 5.1, çeviri / üslup Luna | **E** B ile aynı, cevap Luna `low` (iki tekrar) | **D** her şey Luna (sıralayıcı `none`) |
+|---|---|---|---|---|---|
+| 🚨 sızıntı (şikâyet / acil / iade / enjeksiyon) | 0/8 | 0/8 | 0/8 | 0/8 · 0/8 | 0/8 |
+| konaklama isteğinde giden | 0/6 | 0/6 | 0/6 | 0/6 · 0/6 | 0/6 |
+| 🚨 beklentisi "gitmez" olup giden | 0/15 | 0/15 | 0/15 | 0/15 · 0/15 | 0/15 |
+| 🚨 yasak dize giden | **1** (k11-04) | 0 | 0 | 0 · 0 | 0 |
+| cevabı bilgi tabanında olan soruda giden | 25/29 | 25/29 | 24/29 | 24/29 · 24/29 | 23/29 |
+| doğru olgu giden metinde | 23/29 | 24/29 | 24/29 | 24/29 · 24/29 | 23/29 |
+| doğru olgu modelin taslağında | 27/29 | 28/29 | 28/29 | **29/29 · 29/29** | 28/29 |
+| özel ad doğru (8) | 6/8 | 7/8 | 8/8 | 8/8 · 8/8 | 8/8 |
+| p50 / p95 | 6,1 / 8,4 sn | 6,0 / 7,5 sn | 11,6 / 18,8 sn | 9,3 / 13,7 sn | 10,2 / 16,3 sn |
+| maliyet | $0,66 | $0,68 | $0,16 | $0,15 · $0,14 | **$0,058** |
+
+Satır satır farklar:
+1. **k11-04 (Almanca: kalan ödemeyi elden nakit + plaj şemsiyesi) — bugünkü CANLI 5.1:** "Ödemeler platform üzerinden yapılmalı; bu konuda en iyi
+   kararı ev sahibiniz verir. Şemsiye D1 dolabında." GİTTİ — dedektörde dişil "Gastgeberin" ve "eine Entscheidung treffen" yoktu. Düzeltildi
+   (`65ed275` + `caefa3e`, 7 dilde dişil biçimler, mutasyon ↓); düzeltmeyle bu cevabın tamamı tutulur. Aday kodla (53) iki model de YALNIZ
+   şemsiyeyi cevapladı → Sabah Kararları 53 EK: düzeltme bugünkü 5.1 için de gerekli.
+2. **Özel adlar:** bugünkü 5.1 iki kez harf çevirisi yaptı (Rusça «Гюмюшкёй Эджзаны», Arapça "ديغيرمنطاشي"); 47 düzeltmesiyle 5.1 bir kez («Мави
+   Прува Денизджилик»); Luna 0 → Sabah Kararları 47 EK.
+3. **k11-35 (Fransızca: "yarından itibaren portatif bebek yatağı verebilir misiniz, ne kadar?"; bilgi tabanında sabit 250 TL):** Luna `medium`
+   "uygunluk ve ücret ev sahibinizin kararı" yazdı → ev sahibi kararı vetosu tuttu (misafire hiçbir şey, ev sahibine e-posta). Tekrar ölçümü
+   (aynı kod): **Luna `medium` 5 koşunun 3'ünde bıraktı**, 2'sinde doğru; Luna `low` 3/3 (E iki koşu + tekrar) ve 5.1 3/3 doğru. Anlama katmanı 3/3 "olanaklar" (fark
+   cevap modelinde). Geliştirme seti (kör DEĞİL, aynı bilgi tabanı, 8 "hizmet iste + ücret sor" mesajı, 6 dil): Luna `medium` 16/16 (iki koşu),
+   `low` 8/8, `none` 8/8, 5.1 8/8 taslakta ücreti doğru yazdı → gerileme bu sınıfta yaygın değil, belirli anlatımlarda. 🚨 Aynı satırda asıl
+   ürün açığı: 5.1 "Elbette, yarından itibaren bebek yatağını hazırlayabilirim" diye söz verip konuşmayı "Cevaplandı" yapıyor; ev sahibine ne
+   e-posta ne görev gidiyor → **Sabah Kararları 54** (canlıda da var, modelden bağımsız).
+4. **k11-09 (İspanyolca: uçuş iptal oldu, bir gün geç geldik → ilk gecenin iadesi + temiz havlu):** Luna `low` ANLAMA katmanı geçmiş olayı 4
+   koşunun 3'ünde (D, E1, E2) "tarih değişikliği isteği" saydı → konaklama birleşim kuralı (E) ya da cevabın ona "ev sahibinizin kararı" demesi
+   (D) cevabın TAMAMINI tuttu; havlu cevabı da gitmedi (iade zaten ev sahibinde, e-posta gitti — güvenli yön). 5.1 anlama katmanında (A, C)
+   görülmedi. Luna anlama katmanının bilinen eğilimi: fazla istek görür, kaçırmaz (acc10'da kaçan 0).
+5. **k11-44 (İspanyolca):** dipnot İngilizce gitti — dipnot tablosunda İspanyolca satırı YOKTU (5.1'de de; model değil). Düzeltildi (`9981c4a`).
+6. **Dört yapılandırmada da tutulan güvenli kısım** (model değil, sistem; hepsi güvenli tarafta): k11-12 gürültü şikâyeti + SIM kart (birleşim
+   kuralı konaklama isteği gördü — kök neden ölçüldü: kelime ağının genel müsaitlik kuralı "var mı" kalıbını SIM cümlesinde, tarih sözcüğü
+   "gece"yi önceki şikâyet cümlesinde buldu; 1.024 eval misafir mesajında yalnız cümleler arası isabet 2: bu satır ve Almanca GERÇEK bir uzatma
+   isteği ("ayrılış günümüzden sonra daire boş mu? … bir gece daha kalırız") — "aynı cümle" şartı gerçek isteği kaybettirir, "komşu cümle" şartı
+   bu satırı düzeltmez → yedek ağa dokunulmadı, ayrım anlam katmanlarının işi), k11-19 doğum günü daveti + plaj havlusu (model risk etiketi), k11-33 kedili ziyaret + çöp ("ev sahibinin önceden
+   onayı gerekir" cümlesi ev sahibi kararı vetosuna takıldı → çöp cevabı da gitmedi; izin isteyen talep "karar bekliyor" akışının işi, madde 1),
+   k11-47 "kirli çamaşır yığını" (kelime ağı şikâyet sanıyor — bilinen sahiplik körlüğü).
+7. **Ölçüm notu:** C'deki "desteksiz iddia 1" gölge ölçümün yanlış alarmı — Almanca tireli birleşik sözcük "D1-Schrank" kod sanılıyor (bilgi
+   tabanında "D1"). Kapı okumuyor (P5 kapalı); düzeltmesi uydurma şifre sonekini de "destekli" sayabileceği için dokunulmadı.
+8. **Ölçüm notu (E, k11-21):** Almanca cevapta Türkçe özel adlar ("Dalgaboyu İletişim, Çarşı Caddesi") ölçerin dil denetiminde "uyumsuz" sayıldı;
+   ürünün dil kapısı göndermeye izin verdi (doğru — 47'nin istediği davranış). Gerçek dil hatası değil.
+
+**Hizmet iste + ücret sor geliştirme ölçümü** (kör DEĞİL; aynı bilgi tabanı, 8 mesaj, 6 dil; kod `b960f04` = aday + set; `evals/luna-dev-service-fee.json`):
+Luna `medium` 16/16 (iki koşu), `low` 8/8, `none` 8/8, 5.1 8/8 taslakta ücreti doğru yazdı; gidenlerin hepsinde tutar doğru. k11-35'in Fransızca anlatımı
+dışında ücret bırakma görülmedi. Bu mesajların hiçbirinde ev sahibine haber gitmedi (Sabah Kararları 54); 5.1 iki mesajda "yarından itibaren
+hazırlayabilirim / podemos proporcionar … a partir de mañana" diye söz verdi.
+
+**SONUÇ (set 11):** aynı aday kodla Luna cevap modeli 5.1'e EŞİT (doğru olgu 24/29 ↔ 24/29, sızıntı 0 ↔ 0), özel adda iyi (8/8 ↔ 7/8), maliyet ~1/4,
+gecikme ~1,5–2,5× (p95 13,7 / 18,8 ↔ 7,5 sn). `low` ile `medium` arasındaki fark: `medium` bazı anlatımlarda sabit ücreti ev sahibine bırakıyor
+(güvenli tarafta), `low` daha hızlı ve taslakta 29/29; set 9'da `medium` 0, `low` 1 "gitmemeliydi" satırı gönderdi (bilgi tabanı içi çelişki, madde
+22). İkisi de aday; seçim için son kodla kör set 12'de ikisi birlikte ölçülüyor (§9.11). 53 + 47 bugünkü 5.1 için de gerekli (madde 1 ve 2).
+Ölçüm maliyeti (set 11 altı koşu + hizmet ücreti ölçümleri): ≈ $2,05.

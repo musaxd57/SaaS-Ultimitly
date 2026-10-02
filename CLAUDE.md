@@ -1707,14 +1707,17 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-02 (güncel):** canlı kod RC67b (`b984470`, CI #1285 yeşil); RC68 kapıda (parti tam sözcük + anlama / bekçi istemi + ev sahibi kararı
-dedektörü 7 dil boşlukları). Railway AKTİF (↑Canlı durum). **Luna katman sonucu (kurucu: "5.1 yerine Luna, kodları ona göre geliştir, sakın geçmesi
+**10-02 (güncel):** canlı kod RC68 (`7a77f0f`, CI #1286 yeşil: parti tam sözcük + anlama / bekçi istemi + ev sahibi kararı dedektörü 7 dil
+boşlukları); RC69 kapıda (dişil ev sahibi kararı biçimleri — kör set 11'de bugünkü 5.1 GÖNDERDİ — + İspanyolca dipnot + ölçer kimliğinde çeviri /
+üslup çabası). Railway AKTİF (↑Canlı durum). **Kör set 11 (§9.10):** aday kodla Luna cevap modeli 5.1'e eşit (olgu 24/29, sızıntı 0), özel adda iyi;
+`medium` bir anlatımda sabit ücreti ev sahibine bırakıyor (3/5), `low` daha hızlı; 53 + 47 bugünkü 5.1 için de gerekli; yeni 54 (hizmet isteği
+cevaplanıyor, ev sahibine haber gitmiyor — canlıda). Son kodla kör set 12 (aday dal `prep/luna-aday-2` = RC69 + 53 + 47). **Luna katman sonucu (kurucu: "5.1 yerine Luna, kodları ona göre geliştir, sakın geçmesi
 için şeyler yapma"; rapor §0a, §7.0, §9.4–9.9):** anlama + bekçi Luna `low` (kör acc10: kaçan istek / izin 0, 5.1'den iyi), çeviri Luna `medium`, üslup
 Luna `none`, sıralayıcı 5.1'de kalır (Luna `none` iki sorulu mesajda 3/120 geride, `low` 2,5 sn tavanını aşıyor). Cevap modeli Luna `medium` YALNIZ
 Sabah Kararları 53 (öğe kipinde bırakılan isteğe değinen cevap güvenli kısmı da tutuyor — hazır dal `prep/items-block-precedence`, Luna 7/17 → 17/17)
 + 47 (özel ad çevirisi / harf çevirisi — hazır dal `prep/ozel-ad-cevirme`) onaylanıp kör set 11'de doğrulanınca; aday dal `prep/luna-aday`. 52 (başkası
 adına giriş kodu, 5.1'de de) hazır dal `prep/baskasi-adina-kod`. OpenAI hız sınırı 10-02: Luna 4M / 5.1 2M token/dk (ölçüm kullanırken %99 boş).
-Ücretli ölçüm kuralları ↑Eval "ÜCRETLİ ÖLÇÜM". Rapor / kararlar: `docs/SABAH-RAPORU-2026-10-01.md` (§0a özet) · `docs/SABAH-KARARLARI-2026-10-01.md` (1–53).
+Ücretli ölçüm kuralları ↑Eval "ÜCRETLİ ÖLÇÜM". Rapor / kararlar: `docs/SABAH-RAPORU-2026-10-01.md` (§0a özet) · `docs/SABAH-KARARLARI-2026-10-01.md` (1–54).
 
 **09-30 akşam — KURUCU KARARLARI K1–K18 (sonuç tablosu `docs/INCELEME-2026-09-30-codex-ve-ajanlar.md` sonu):** K1 (CSV negatif tutar
 satır hatası) · K2 (fotoğraf = görev erişimi) · K3 (olumsuzlanan KB saati okunmaz, düzeltme okunur) · K4 (başka aboneliğin olayı planı
