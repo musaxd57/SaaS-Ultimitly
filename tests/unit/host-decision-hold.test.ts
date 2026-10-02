@@ -226,6 +226,10 @@ describe("maliyet — her cevaba uygulanan yüklem karesel iş yapmaz", () => {
       "ev" + " ".repeat(50000) + "sahibi",
       "решение ".repeat(6000),
       "ihr gastgeber ".repeat(4000),
+      "im ermessen des ".repeat(3500),
+      "a decision for ".repeat(3500),
+      "ev sahibinize kalmis ".repeat(2500),
+      "зависит от ".repeat(5000),
     ];
     for (const v of inputs) {
       const t0 = performance.now();
@@ -255,6 +259,47 @@ describe("dar liste — her kalıp kendi örneğiyle pinli (mutasyon 10-01: örn
     "Решает ваш хозяин.",
   ])("ev sahibi kararı: %s", (r) => {
     expect(defersDecisionToHost(r)).toBe(true);
+  });
+
+  // 10-02 (Luna öğe kipi ölçümünde misafire GİTTİ; 5.052 kayıtlı model cevabında 46 yeni tutuş, hepsi gerçek ev sahibi kararı cümlesi,
+  // düşen 0): aynı anlamın öteki biçimleri — en sık olanı Almanca "liegt im Ermessen Ihres Gastgebers".
+  it.each([
+    "An extra night would be a decision for your host.",
+    "The final decision rests with your host.",
+    "Ein früherer Check-in um 12:00 Uhr liegt im Ermessen Ihres Gastgebers.",
+    "Das liegt nach Ermessen des Gastgebers.",
+    "Die Parkgebühr ist Sache Ihres Gastgebers.",
+    "Das obliegt Ihrem Gastgeber.",
+    "Cela relève de votre hôte.",
+    "C'est à votre hôte de décider.",
+    "El reembolso depende de tu anfitrión.",
+    "Queda a criterio del anfitrión.",
+    "Está en manos de su anfitrión.",
+    "Продление зависит от вашего хозяина.",
+    "هذا حسب تقدير المضيف.",
+    "الأمر متروك للمضيف.",
+    "Bu ev sahibinize kalmış.",
+    "Geç çıkış ev sahibinizin inisiyatifindedir.",
+  ])("ev sahibi kararı (10-02 biçimleri): %s", (r) => {
+    expect(defersDecisionToHost(r)).toBe(true);
+  });
+
+  it.each([
+    // takdir / iş başkasının ya da misafirin
+    "Bitte parken Sie nach eigenem Ermessen.",
+    "Das ist Sache der Reinigungsfirma.",
+    "The decision for your dates is yours.",
+    "The key rests with the concierge.",
+    "Cela relève de la mairie.",
+    "Queda a criterio del huésped.",
+    "Depende de la disponibilidad.",
+    "Это зависит от погоды.",
+    "حسب تقدير الضيف",
+    // "kalmış" nesne: ev sahibine kalan eşya / iş
+    "Ev sahibinize kalmış bir paket yok.",
+    "Ev sahibine kalmış olan anahtarı kutuya bıraktık.",
+  ])("ev sahibi kararı DEĞİL: %s", (r) => {
+    expect(defersDecisionToHost(r)).toBe(false);
   });
 
   it("hassas istek YOKSA (beyan 'defers' + bekçi 'erteliyor' olsa da) tutuş işareti konmaz — gönderilen cevap için e-posta gitmesin", () => {

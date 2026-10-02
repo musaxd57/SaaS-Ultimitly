@@ -463,6 +463,9 @@ const HOST_DECISION = rx([
   `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:karar(?!iniz)${L}|takdir${L}|degerlendirmesin${L})`,
   `${NL}karar(?:i)?\\s+ev\\s+sahib${L}`,
   `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,3}\\s+(?:onay|teyi[td])(?:ina|ine|i|ı)?\\s+(?:bagli${L}|tabi${L}|gerek${L})`,
+  // 10-02: "ev sahibinize kalmış" (= ev sahibinin kararı) ve "ev sahibinizin inisiyatifinde"; "kalmış bir eşya" (nesne) DEĞİL.
+  `${NL}ev\\s+sahib${L}\\s+kalmis(?:tir)?${NR}(?!\\s+(?:bir|olan)${NR})`,
+  `${NL}ev\\s+sahib${L}(?:\\s+${T}){0,2}\\s+inisiyatif${L}`,
   // EN
   `${NL}(?:host|owner|property\\s+manager)(?:'s|’s)?\\s+(?:call|decision|discretion)${NR}`,
   `${NL}(?:up\\s+to|at\\s+the\\s+discretion\\s+of|decided\\s+by)\\s+(?:your|the)\\s+host${NR}`,
@@ -473,6 +476,9 @@ const HOST_DECISION = rx([
   `${NL}(?:to\\s+be|must\\s+be|needs?\\s+to\\s+be|has\\s+to\\s+be|would\\s+need\\s+to\\s+be)\\s+(?:confirmed|approved)\\s+by\\s+(?:your|the)\\s+host${NR}`,
   `${NL}(?:subject\\s+to|depends\\s+on|depending\\s+on|dependent\\s+on|pending)\\s+(?:your\\s+|the\\s+)?host${NR}`,
   `${NL}(?:host|owner)\\s+(?:will\\s+need\\s+to|needs\\s+to|has\\s+to|must|would\\s+need\\s+to|will\\s+have\\s+to)\\s+(?:confirm|approve|decide)${NR}`,
+  // 10-02 (Luna öğe kipi ölçümünde GİTTİ: "this is a decision for your host"): aynı anlamın öteki kalıp biçimleri.
+  `${NL}(?:a|the)\\s+decision\\s+for\\s+(?:your|the)\\s+host${NR}`,
+  `${NL}(?:rests|lies|remains)\\s+with\\s+(?:your|the)\\s+host${NR}`,
   // DE / FR / ES / RU / AR
   `${NL}entscheidung\\s+(?:des|ihres|deines|vom)\\s+(?:gastgeber|vermieter)${L}`,
   `${NL}(?:liegt|obliegt)\\s+(?:beim|bei\\s+ihrem|bei\\s+deinem)\\s+(?:gastgeber|vermieter)${L}`,
@@ -480,20 +486,31 @@ const HOST_DECISION = rx([
   `${NL}(?:entscheidet|best(?:ä|a)tigt)\\s+(?:ihr|der|dein|euer)\\s+(?:gastgeber|vermieter)${L}`,
   `${NL}(?:muss|wird|m(?:ü|u)sste|kann|soll)\\s+(?:ihr|der|dein|euer)\\s+(?:gastgeber|vermieter)${L}\\s+(?:best(?:ä|a)tigen|entscheiden)${NR}`,
   `${NL}(?:ihr|der|dein|euer)\\s+(?:gastgeber|vermieter)${L}\\s+(?:entscheidet|best(?:ä|a)tigt)${NR}`,
+  // 10-02 (Luna öğe kipi ölçümünde GİTTİ: "dies liegt im Ermessen Ihres Gastgebers"): takdir / iş bölümü biçimleri.
+  `${NL}(?:im|nach)\\s+(?:dem\\s+)?ermessen\\s+(?:des|ihres|deines|eures)\\s+(?:gastgeber|vermieter)${L}`,
+  `${NL}(?:sache|aufgabe)\\s+(?:des|ihres|deines|eures)\\s+(?:gastgeber|vermieter)${L}`,
+  `${NL}obliegt\\s+(?:ihrem|deinem|eurem|dem)\\s+(?:gastgeber|vermieter)${L}`,
   `${NL}d(?:é|e)cision\\s+de\\s+(?:l['’]h(?:ô|o)te|votre\\s+h(?:ô|o)te)`,
   `${NL}(?:revient|appartient)\\s+(?:à|a)\\s+(?:l['’]h(?:ô|o)te|votre\\s+h(?:ô|o)te)`,
   `${NL}(?:votre|l['’])\\s*h(?:ô|o)te\\s+(?:qui\\s+)?d(?:é|e)cide`,
   `${NL}(?:à|a)\\s+la\\s+discr(?:é|e)tion\\s+de\\s+(?:votre|l['’])\\s*h(?:ô|o)te`,
   `${NL}(?:à|a)\\s+confirmer\\s+par\\s+(?:votre|l['’])\\s*h(?:ô|o)te`,
+  `${NL}rel(?:è|e)ve\\s+de\\s+(?:votre|l['’])\\s*h(?:ô|o)te`,
+  `${NL}(?:votre|l['’])\\s*h(?:ô|o)te\\s+de\\s+(?:d(?:é|e)cider|confirmer|valider)${NR}`,
   `${NL}decisi(?:ó|o)n\\s+(?:del|de\\s+su)\\s+anfitri(?:ó|o)n${NR}`,
   `${NL}(?:la\\s+|lo\\s+)?(?:confirma|decide|confirmar(?:á|a))\\s+su\\s+anfitri(?:ó|o)n${NR}`,
-  `${NL}depende\\s+del\\s+anfitri(?:ó|o)n${NR}`,
+  `${NL}depende\\s+(?:del|de\\s+su|de\\s+tu)\\s+anfitri(?:ó|o)n${NR}`,
+  `${NL}a\\s+(?:criterio|discreci(?:ó|o)n)\\s+(?:del|de\\s+su|de\\s+tu)\\s+anfitri(?:ó|o)n${NR}`,
+  `${NL}en\\s+manos\\s+(?:del|de\\s+su|de\\s+tu)\\s+anfitri(?:ó|o)n${NR}`,
   `решени${LB}\\s+(?:хозя|владель|арендодател)`,
   `на\\s+усмотрени${LB}\\s+(?:хозя|владель|арендодател)`,
   `(?:хозя|владел|арендодател)${LB}\\s+(?:долж${LB}\\s+)?(?:подтверд|реш)`,
   `(?:решает|решит|подтвердит|подтверждает)\\s+(?:ваш\\s+)?(?:хозя|владел|арендодател)`,
   `решени${LB}\\s+принима${LB}\\s+(?:ваш${LB}\\s+)?(?:хозя|владел|арендодател)`,
   `(?:قرار\\s+المضيف|القرار\\s+(?:لل|ل)مضيف|يعود\\s+(?:لقرار|إلى)\\s+المضيف|(?:موافقة|تأكيد)\\s+المضيف)`,
+  // 10-02: takdir ("تقدير المضيف" = ev sahibinin takdiri) ve "ev sahibine bırakılmış" (متروك للمضيف).
+  `(?:تقدير\\s+المضيف|متروك\\s+(?:لل|ل)مضيف)`,
+  `зависит\\s+от\\s+(?:ваш${LB}\\s+)?(?:хозя|владел|арендодател)`,
 ]);
 
 // ─── çekirdek ────────────────────────────────────────────────────────────────
