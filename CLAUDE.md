@@ -1544,7 +1544,12 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   değişmedi; koşul cümlesi "müsaitliğe bağlıdır" tek başına DEĞİL) çıktı vetosunda `handoff_notice` (K10 yolu: mesaj başına tek e-posta);
   hassas konaklama isteğinde iki modelin doğruladığı erteleme de gitmez (`deferralHeld`, gerekçe `availability_unconfirmed`); koddan
   kurulan doğrulanmış erken giriş ONAYI muaf; politika metni ("kararı ev sahibiniz verir") açıkken tutulur — yeniden yazımı sabah kararı.
-  "Karar bekliyor" kartı + Onayla / Reddet = Host Karar Motoru (Faz 0 onayı bekliyor).
+  "Karar bekliyor" kartı + Onayla / Reddet = Host Karar Motoru (Faz 0 onayı bekliyor). 🚨 10-02 (canlıda açık; Luna öğe ölçümünde GİTTİ):
+  liste aynı anlamın öteki biçimlerini de tutar — Almanca "liegt im Ermessen Ihres Gastgebers" (5.1'in de en sık Almanca biçimi) / "Sache
+  Ihres Gastgebers" / "obliegt Ihrem Gastgeber", "a decision for your host" / "rests with your host", "relève de votre hôte", "depende de tu
+  anfitrión" / "a criterio del anfitrión" / "en manos de", "зависит от хозяина", "تقدير المضيف" / "متروك للمضيف", "ev sahibinize kalmış" /
+  "inisiyatifinde"; 5.052 kayıtlı model cevabında yeni tutuş 46 (hepsi gerçek), düşen 0. Yeni biçim eklerken aynı külliyat taraması
+  (`reply-corpus`: ölçüm raporlarındaki bütün model cevapları) + "kendi takdiriniz / başkasının işi" ikizleri koşulur.
 - **Çıktı vetosu** (`output-veto.ts`, iki kapıda): `placeholder_in_reply` + ETKEN `unverified_commitment`; edilgen
   dallar ölçümde kalır; `human_request` muaf. 09-25 genişletildi + iki incelemeyle düzeltildi: kıvrık kesme işareti düz
   olana çevrilir; haber verdim/aradım/onayladım/güncelledim/iletiyorum · booked/notified/let the host know/I'm forwarding/
