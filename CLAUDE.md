@@ -611,7 +611,11 @@ Bu dosyaya token/anahtar/parola yazma.
   varken doğrulanır (09-30, inceleme b4: kanal / gelen kutusu güncel misafir mesajını da geçmişe koyar — "dolu" koşulu hiç yanlış
   olmuyordu). Profil isteme girmeden talimat / sahte etiket satırlarından süzülür (`styleProfileForPrompt`: KB talimat süzgeci +
   enjeksiyon ağı; üslup satırları kalır). 10-01 gece (A07): profilde ERİŞİM BİLGİSİ anan satır (şifre / Wi-Fi / ağ adı / kod / tuş takımı /
-  anahtar kasası, yedi dil) değer görünmese de düşer ("Wi-Fi: LaleEv / denizkenari" sır süzgecinden geçiyordu). 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
+  anahtar kasası, yedi dil) değer görünmese de düşer ("Wi-Fi: LaleEv / denizkenari" sır süzgecinden geçiyordu). 🚨 10-02 (QR kör set 1 — canlıda 5.1
+  QR'da bina kapısının tuş kodunu yazdı, kalem `general`: "tuş paneline 6142 yazıp…"): tuş paneli / interkom / keypad / digicode / Tastenfeld /
+  teclado adı + değer İKİ SIRADA, "tuşla-" fiili, giriş fiili + değer ("Punch in 4590"), kod sözcüğü (code / código / код / رمز / kod) + KAPI
+  adı + değer (posta kodu hariç); rakam yuvası `KEY_DIGITS` telefonun ilk VE son öbeğini dışlar. 1.252 eval kaleminde yeni eleme yalnız sızıntı
+  kalemi; `panel` tek başına / `clavier` BİLEREK yok ("Güneş paneli 2019"). 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).
 - **Yer tutucu:** `packKnowledgeBase` bloğa giren `[…]/<…>/___` (içinde harf) için KODDAN "DOLDURULMAMIŞ YER TUTUCU"
   notu yazar (başlık taraması GERİ ALINDI — etiketleri yer tutucu sanıyordu). İkame tek kaynak `kb-placeholders.ts`
@@ -1507,7 +1511,10 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   kurulur (büyük harfe duyarlı `<<[A-Z_]{2,}>>` ikizi her "<<bonjour>>"u tutuyordu). 10-01 gece (A07): ChatML (`<|im_start|>`),
   `<system>` / `</assistant>`, `[INST]`, satır başı `### SYSTEM`, `"role": "system"`, çıktı alanı yönlendirme ("riskLevel: none",
   "confidence: 0.99"), EKLİ Türkçe yetki etiketi ("[Ev sahibinin cevabı]:", "[Operatifimiz]:") ve Türkçe rol değişimi enjeksiyondur (misafir
-  külliyatı 821 mesajda 0 yeni yanlış tutuş; İngilizce "[Host]:" / "[asistanım]:" pinli serbest). Bilgi tabanı ayraç etkisizleştirmesi SABİT
+  külliyatı 821 mesajda 0 yeni yanlış tutuş; İngilizce "[Host]:" / "[asistanım]:" pinli serbest). 10-02 (QR kör set 1, geçmiş turda kaçtı):
+  rol değişimi / kalıcı davranış talimatı — "kendini … olarak kabul et / say" (TEKİL emir; "tanıttı / gördü" anlatım değil), "her / sonraki
+  cevabının sonuna … ekle", "consider yourself the …" (deyim "consider yourself lucky" değil), "append … to every reply", beş dilde "bundan
+  sonra sen …sin" (2. tekil); misafir külliyatı 3.388 mesajda yanlış alarm 0. Bilgi tabanı ayraç etkisizleştirmesi SABİT
   NOKTAYA kadar (≤4 geçiş, sonra açılı parantez silinir) — "<<<«KB_END»>>>" tek geçişte GERÇEK ayraç üretiyordu.
 - **Acil ≠ sıradan istek:** `escalationReply({critical})` yalnız güvenlik satırı (K10), tetikleyici DAR `isPhysicalEmergency`
   (yangın/duman/gaz/su baskını/elektrik çarpması; öz-zarar ifadesi YOK) — `safety_emergency` kümesi misafire giden metin için fazla geniş.
@@ -1691,7 +1698,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   düşünme low / medium / high hatayı düzeltmiyor (daha çok tutuş, p95 9,8 / 14,5 / 18,5 sn, high'da beyan kaybı) → `none`. Katman kararı
   (öneri): anlama + bekçi + sıralayıcı + çeviri 5.1'de (Luna bekçisi Türkçe izin cevabını kaçırdı 32/36 ↔ 36/36; çeviri belirteç kaybı),
   üslup özeti Luna. Set 2 de tanı için okundu → GÖRÜLDÜ. Canlı hat ölçeri `tests/eval/live-pipeline.eval.test.ts`
-  (`vitest.eval-live.config.ts`, AYRI veritabanı — 5433 değil).
+  (`vitest.eval-live.config.ts`, AYRI veritabanı — 5433 değil). QR misafir sohbeti ölçeri `tests/eval/qr-live-pipeline.eval.test.ts` (10-02; ürünün QR POST
+  rotası olduğu gibi, `EVAL_QR_LIVE=1`; `OPENAI_MODEL` QR'ın da cevap modeli — model değişimi QR'da da ölçülür; kör set `qr-live-acc1` GÖRÜLDÜ).
 - **Model sağlayıcısı kalıcı arızası** (429+`insufficient_quota`, 401/403, 404/`model_not_found`) geçiş tabanlı
   alarma gider (`ai/provider-health.ts`); düz 429/5xx/ağ hatası eski yolda. Misafir her durumda fallback alır.
 - **Müsaitlik host metni** "müsait/kiralanabilir/kalabilirsiniz" DEMEZ; en güçlü ifade "bağlı takvimlerinizde
@@ -1707,21 +1715,19 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-02 (güncel):** canlı kod RC69 (`888f643`, CI #1287 yeşil 09:59Z: dişil ev sahibi kararı biçimleri — kör set 11'de bugünkü 5.1 GÖNDERDİ — + İspanyolca dipnot
-+ ölçer kimliğinde çeviri / üslup çabası); RC68 (`7a77f0f`, CI #1286 yeşil: parti tam sözcük + anlama / bekçi istemi + ev sahibi kararı dedektörü 7 dil
-boşlukları). Railway AKTİF (↑Canlı durum). **Luna katman sonucu (kurucu: "5.1 yerine Luna, kodları ona göre geliştir, sakın geçmesi için şeyler
-yapma"; rapor §0a, §7.0, §9.4–9.11):** anlama + bekçi Luna `low` (kör acc10: kaçan istek / izin 0, 5.1'den iyi), çeviri Luna `medium`, üslup Luna
-`none`, sıralayıcı 5.1'de kalır (Luna `none` iki sorulu mesajda 3/120 geride, `low` 2,5 sn tavanını aşıyor). **Cevap modeli:** kör set 11 (aday kod)
-Luna = 5.1 (olgu 24/29, sızıntı 0); **kör set 12 (SON KOD = RC69 + 53 + 47, aday dal `prep/luna-aday-2`): Luna `low` = `medium` olgu 25/27 ↔ aynı
-kodla 5.1 24/27 ↔ bugünkü kodla 5.1 21/27, sızıntı / yasak dize 0**; `medium` bir anlatımda sabit ücreti ev sahibine bırakıyor (set 11, 3/5), `low`
-daha hızlı (p95 12,3 ↔ 19,9 sn) → öneri `OPENAI_MODEL=gpt-6-luna` + `OPENAI_REASONING_EFFORT=low` (Sabah Kararları 6 EK 4) YALNIZ 53 (öğe kipinde
-bırakılan isteğe değinen cevap güvenli kısmı da tutuyor — hazır dal `prep/items-block-precedence`, Luna 7/17 → 17/17) + 47 (özel ad çevirisi / harf
-çevirisi — hazır dal `prep/ozel-ad-cevirme`) onaylanıp RC olarak canlıya çıktıktan SONRA; 53 + 47 bugünkü 5.1 için de gerekli (set 12'de bugünkü
-5.1 uydurma eşya yeri gönderdi, iki ücretin koşulunu atladı). 52 (başkası adına giriş kodu, 5.1'de de) hazır dal `prep/baskasi-adina-kod`; 54 (hizmet
-isteği cevaplanıyor, ev sahibine haber gitmiyor — canlıda, modelden bağımsız). Ölçer kimliği cevap isteminin çağrı başına katmanları için İKİNCİ
-kimlik yazar (`REPLY_VARIANT_INPUT`: yabancı dil + bırakılan öğe sabit örneği — aday kod ile bugünkü kod artık ayrı görünür). OpenAI hız sınırı 10-02:
-Luna 4M / 5.1 2M token/dk (ölçüm kullanırken %99 boş). Ücretli ölçüm kuralları ↑Eval "ÜCRETLİ ÖLÇÜM". Rapor / kararlar:
-`docs/SABAH-RAPORU-2026-10-01.md` (§0a özet) · `docs/SABAH-KARARLARI-2026-10-01.md` (1–54).
+**10-02 (güncel):** canlı kod RC70 (`bbbf24b`, CI #1288 yeşil 10:44Z; RC69 dişil ev sahibi kararı + İspanyolca dipnot dahil). RC71 kapıda: QR'da
+kapı kodu sızıntısı (sır süzgeci tuş paneli / sözcük sırası / kod sözcüğünün dilleri — bugünkü 5.1 kör QR setinde kodu iki kez yazdı) + geçmiş
+turdaki rol değişimi enjeksiyonu (Sabah Kararları 57, onaylı kurallar) + QR ölçeri ve kör QR seti. Railway AKTİF (↑Canlı durum). **Luna katman
+sonucu (kurucu: "5.1 yerine Luna, kodları ona göre geliştir, sakın geçmesi için şeyler yapma"; rapor §0a, §7.0, §9.4–9.12):** anlama + bekçi Luna
+`low`, çeviri Luna `medium`, üslup Luna `none`, sıralayıcı 5.1'de kalır (Luna `none` iki sorulu mesajda 3/120 geride; Luna yapılandırmasında kalan
+maliyetin %71'i bu 5.1 sıralayıcısı). **Cevap modeli:** kör set 11 (aday) Luna = 5.1; kör set 12 (SON KOD = RC69 + 53 + 47, aday dal
+`prep/luna-aday-2`) Luna `low` = `medium` olgu 25/27 ↔ aynı kodla 5.1 24/27 ↔ bugünkü 5.1 21/27, sızıntı 0; **QR (ilk ölçüm, kör 64 senaryo):**
+kapı kodu Luna 0 ↔ 5.1 2 (süzgeç açığı), olgu `medium` 26/26 · `low` 24/26 · 5.1 24–25/26, dil uyumu tam (bugünkü 5.1 QR'da Fransız misafire
+Türkçe yazdı — 56); bedeli QR'da hız (p50 Luna 7,5–8,3 sn ↔ 5.1 5,0 sn). Öneri `OPENAI_MODEL=gpt-6-luna` + `low` (ya da `medium`; Sabah
+Kararları 6 EK 4–5) YALNIZ 53 + 47 onaylanıp RC olarak canlıya çıktıktan ve RC71 canlıdayken. 52 (başkası adına giriş kodu) hazır dal
+`prep/baskasi-adina-kod`; 54 (hizmet isteği ev sahibine ulaşmıyor), 55 (QR'da 112 satırı yalnız TR/EN kalıplarda; Türkçe "duman çıkıyor" da
+yok) ve 56 (QR dil kapısı) modelden bağımsız, sizin kararınız. OpenAI hız sınırı 10-02: Luna 4M / 5.1 2M token/dk. Ücretli ölçüm kuralları ↑Eval
+"ÜCRETLİ ÖLÇÜM". Rapor / kararlar: `docs/SABAH-RAPORU-2026-10-01.md` (§0a özet) · `docs/SABAH-KARARLARI-2026-10-01.md` (1–57).
 
 **09-30 akşam — KURUCU KARARLARI K1–K18 (sonuç tablosu `docs/INCELEME-2026-09-30-codex-ve-ajanlar.md` sonu):** K1 (CSV negatif tutar
 satır hatası) · K2 (fotoğraf = görev erişimi) · K3 (olumsuzlanan KB saati okunmaz, düzeltme okunur) · K4 (başka aboneliğin olayı planı
