@@ -172,6 +172,7 @@ model Organization {
   signals               Signal[]
   propertyMemories      PropertyMemory[]
   conversationItems     ConversationItem[]
+  decisionRequests      DecisionRequest[]
   properties            Property[]
   automationRules       AutomationRule[]
   auditLogs             AuditLog[]
@@ -617,6 +618,7 @@ model Conversation {
   messages    Message[]
   signals     Signal[]
   items       ConversationItem[]
+  decisions   DecisionRequest[]
 
   // THREAD IDENTITY (migration 45). One provider thread = at most one row.
   //
@@ -1309,6 +1311,40 @@ model ConversationItem {
   resolvedAt          DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, messageId, kind])
+  @@index([organizationId, status])
+  @@index([conversationId, status])
+}
+
+// HOST KARAR MOTORU (Faz 1, migration 59; tasarım `docs/TASARIM-2026-10-02-host-karar-motoru.md`). Misafirin ev sahibi KARARI
+// gerektiren konaklama isteği (erken giriş / geç çıkış / uzatma / tarih değişikliği): "karar bekliyor" kartı, tek bildirim, ev
+// sahibi onaylayınca ya da reddedince sonuçlanır. Metin TAŞIMAZ (misafir metni / adı yok): kimlik + kapalı küme kodlar + saat / gün.
+// Kimlik (konuşma, mesaj, tür) — konuşma öğesiyle aynı tekillik; öğe bağlantısı düz kimlik (FK yok, öğe silinmez).
+// "Ev sahibi yazdı" / "gün geçti" / "rezervasyon iptal" SAKLANMAZ, okumada türetilir (`decisions/core.ts`).
+model DecisionRequest {
+  id              String    @id @default(cuid())
+  organizationId  String
+  conversationId  String
+  messageId       String // isteği taşıyan misafir mesajı (düz kimlik — ConversationItem emsali)
+  itemId          String? // aynı isteğin konuşma öğesi (varsa; düz kimlik)
+  reservationId   String? // opak (FK yok)
+  kind            String // kapalı küme: early_checkin | late_checkout | extend_stay | date_change
+  requestedTime   String? // "HH:MM" — model okumalarının anlaştığı ya da misafirin yazdığı TEK açık saat; yoksa null
+  dayKey          String? // hedef takvim günü (YYYY-MM-DD, mülk dilimi): erken giriş = varış, geç çıkış / uzatma = çıkış
+  lang            String // misafirin dili (karar metninin dili; kapalı küme, tanınmayan → en)
+  status          String    @default("pending") // pending | sending | approved | declined | send_unverified | superseded | dismissed | resolved_by_policy
+  version         Int       @default(0) // CAS: her durum geçişi artırır (çift tıklama / eşzamanlı karar)
+  decidedTime     String? // onaylanan saat ("HH:MM"; retde null)
+  decidedById     String? // kararı veren kullanıcı (opak; kullanıcı silinse de kayıt kalır)
+  decidedAt       DateTime?
+  resultMessageId String? // misafire giden karar mesajı
+  notifiedAt      DateTime? // "Karar bekliyor" e-postası (atomik claim; gönderilemezse geri alınır)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

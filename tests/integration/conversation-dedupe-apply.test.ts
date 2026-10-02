@@ -267,6 +267,7 @@ describe("apply — referans envanteri", () => {
   it("Conversation'a referans veren TÜM modeller biliniyor", () => {
     expect(inventoryConversationReferences()).toEqual([
       "ConversationItem", // 09-26 (migration 56): FK Cascade — repoint listesinde (silinirse açık istek kaybolurdu)
+      "DecisionRequest", // 10-02 (migration 59): FK Cascade — repoint listesinde (silinirse "karar bekliyor" kartı kaybolurdu)
       "Message",
       "MessageOutbox",
       "RiskEvent",
@@ -413,6 +414,19 @@ describe("apply — başarı yolu", () => {
       },
     });
 
+    // Karar kartı (10-02, migration 59): FK Cascade — repoint edilmezse ev sahibinin "karar bekliyor" kartı kaybedenle birlikte
+    // SİLİNİR. Keeper'a taşınması pinlenir.
+    await prisma.decisionRequest.create({
+      data: {
+        organizationId: org.organizationId,
+        conversationId: b.id,
+        messageId: "apply-test-msg",
+        kind: "early_checkin",
+        requestedTime: "13:00",
+        lang: "tr",
+      },
+    });
+
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
     const out = await applyConversationDedupe(prisma, {
       ...GATE,
@@ -423,8 +437,16 @@ describe("apply — başarı yolu", () => {
       },
     });
 
-    expect(out.refsRepointed).toEqual({ messageOutbox: 1, riskEvent: 1, shadowVerdict: 1, signal: 1, conversationItem: 1 });
+    expect(out.refsRepointed).toEqual({
+      messageOutbox: 1,
+      riskEvent: 1,
+      shadowVerdict: 1,
+      signal: 1,
+      conversationItem: 1,
+      decisionRequest: 1,
+    });
     expect(await prisma.conversationItem.count({ where: { conversationId: a.id, status: "pending_host" } })).toBe(1);
+    expect(await prisma.decisionRequest.count({ where: { conversationId: a.id, status: "pending" } })).toBe(1);
     expect(await prisma.messageOutbox.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.riskEvent.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.shadowVerdict.count({ where: { conversationId: a.id } })).toBe(1);

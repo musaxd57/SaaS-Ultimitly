@@ -42,6 +42,9 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "property.nightly_rate_cleared": "Gecelik fiyat aralığı kaldırıldı",
   "property.early_checkin_rule_set": "Erken giriş kuralı kaydedildi",
   "property.early_checkin_rule_cleared": "Erken giriş kuralı kaldırıldı",
+  "decision.approved": "Karar kartı: misafirin talebi onaylandı",
+  "decision.declined": "Karar kartı: misafirin talebi reddedildi",
+  "decision.dismissed": "Karar kartı kapatıldı",
 };
 
 /** Turkish label for an audit action; falls back to the raw action if unknown. */

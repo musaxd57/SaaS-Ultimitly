@@ -127,6 +127,11 @@ import {
   type ItemsGateInput,
 } from "@/lib/conversation-items/core";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+import { hostDecisionsEnabled } from "@/lib/decisions/flag";
+import { openDecisionsForTurn } from "@/lib/decisions/turn";
+import { notifyTurnDecisions } from "@/lib/decisions/notify";
+import { resolveDecisionByPolicy, type PersistedDecision } from "@/lib/decisions/store";
+import { decisionLang } from "@/lib/decisions/core";
 import { relationGateHold, touchesHeldDevice } from "@/lib/conversation-items/relation";
 import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import {
@@ -2348,6 +2353,41 @@ export async function applyChannelAutoReply(
     [last.body, ...pendingGuestMessages],
     availabilityPolicyFor(result, gateContext),
   );
+  // ── HOST KARAR MOTORU (Faz 1, `HOST_DECISIONS_ENABLED`; kurucu 10-02: "cevap vermek talebi çözmek değil") ──────────────
+  // Ev sahibinin KARARINI gerektiren konaklama isteği (kapının birleşim kuralıyla aynı sinyal) "karar bekliyor" kartı açar —
+  // gönderim / tutuş dallarından ÖNCE, tek yerde. Doğrulanmış otomatik onay ya da politika metni seçildiyse erken giriş kartı
+  // açılmaz (onay gidince "otomatik onaylandı" kaydı ↓). Bayrak kapalıyken sorgu yok, davranış birebir eski; arıza akışı durdurmaz.
+  const turnDecisions: PersistedDecision[] =
+    hostDecisionsEnabled() && !options.dryRun
+      ? await openDecisionsForTurn(prisma, {
+          organizationId: conversation.property.organizationId,
+          conversationId: conversation.id,
+          reservation: conversation.reservation
+            ? {
+                id: conversation.reservation.id,
+                arrivalDate: conversation.reservation.arrivalDate,
+                departureDate: conversation.reservation.departureDate,
+              }
+            : null,
+          timeZone: orgTimezone(org.timezone),
+          guestTexts: [last.body, ...pendingGuestMessages],
+          policy: availabilityPolicyFor(result, gateContext),
+          items: itemsPlan ? itemsPlan.turnItems.map((i) => ({ id: i.id, kind: i.kind, messageId: i.messageId })) : [],
+          lastMessageId: last.id,
+          language: guestLanguage ?? result.detectedLanguage,
+          skipKinds: earlyCheckinSent || earlyCheckinPolicySent ? ["early_checkin"] : [],
+          now: new Date(),
+        })
+      : [];
+  // "Karar bekliyor" bildirimi (mesaj başına TEK: "Misafir cevabınızı bekliyor" e-postasının YERİNE; hassas öğe acil e-postası
+  // gittiyse hiçbiri) — bildirim noktaları bugünkülerle aynı.
+  const notifyDecisions = () =>
+    notifyTurnDecisions({
+      organizationId: conversation.property.organizationId,
+      conversation,
+      property: conversation.property,
+      decisions: turnDecisions,
+    });
 
   // §C (09-12) — SAYAÇLARI İSTEMİN GERÇEĞİNE ÇEK.
   //
@@ -2540,15 +2580,19 @@ export async function applyChannelAutoReply(
           now: heldAt,
         });
         // K10: cevap konuyu ev sahibine bırakıyordu ve tutuldu → misafire hiçbir şey gitmedi. Bu turun mesajları için hassas öğe
-        // e-postası zaten gittiyse (ya da daha önce gittiyse) ikinci e-posta YOK — mesaj başına tek bildirim.
-        if (handoffHeld && notice.held.length === 0) {
-          await notifyHostReplyWaiting({
-            organizationId: conversation.property.organizationId,
-            conversation,
-            property: conversation.property,
-            messageId: last.id,
-            messageBody: last.body,
-          });
+        // e-postası zaten gittiyse (ya da daha önce gittiyse) ikinci e-posta YOK — mesaj başına tek bildirim. Karar kartı açıldıysa
+        // genel bildirim yerine "Karar bekliyor" gider (aynı talep satırı — ikisi birden asla).
+        if (notice.held.length === 0) {
+          if (turnDecisions.length > 0) await notifyDecisions();
+          else if (handoffHeld) {
+            await notifyHostReplyWaiting({
+              organizationId: conversation.property.organizationId,
+              conversation,
+              property: conversation.property,
+              messageId: last.id,
+              messageBody: last.body,
+            });
+          }
         }
       } catch (err) {
         void reportError(`conversation-items hold org=${conversation.property.organizationId}`, err);
@@ -2861,8 +2905,10 @@ export async function applyChannelAutoReply(
       });
       // K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): cevap konuyu ev sahibine bırakıyordu ("mesajınız kaydedildi; ev
       // sahibiniz görebilir") ve tutuldu → misafire hiçbir şey gitmedi; ev sahibine mesaj başına BİR "Misafir cevabınızı
-      // bekliyor" e-postası. Yükseltme dalı (↑) kendi e-postasını atar ve buraya gelmez.
-      if (handoffHeld) {
+      // bekliyor" e-postası. Yükseltme dalı (↑) kendi e-postasını atar ve buraya gelmez. Karar kartı açıldıysa yerine "Karar
+      // bekliyor" (aynı talep satırı — ikisi birden asla).
+      if (turnDecisions.length > 0) await notifyDecisions();
+      else if (handoffHeld) {
         await notifyHostReplyWaiting({
           organizationId: conversation.property.organizationId,
           conversation,
@@ -2977,6 +3023,7 @@ export async function applyChannelAutoReply(
         lastMessageId: last.id,
       });
     }
+    if (turnDecisions.length > 0) await notifyDecisions();
 
     // Decision metadata only — NOT status/lastMessageAt (#6: the worker sets "answered"
     // + the delivery time on confirmed send). lastRiskLevel/Type describe the GUEST
@@ -3189,6 +3236,9 @@ export async function applyChannelAutoReply(
       lastMessageId: last.id,
     });
   }
+  // Karar kartı açık kaldıysa (cevap isteği kapsamadı / erteledi) ev sahibine TEK "Karar bekliyor" (hassas öğe e-postası bu
+  // mesaj için gittiyse hiçbiri).
+  if (turnDecisions.length > 0) await notifyDecisions();
 
   // Guest asked to speak to a human: we just sent the holding reply, now pause the
   // AI on this thread so the host can take over without the bot chiming in again.
@@ -3231,7 +3281,25 @@ export async function applyChannelAutoReply(
     gateRiskLevel: result.riskLevel,
     gateRiskType: result.riskType,
   });
-  if (earlyCheckinSent && earlyCheckinRun) await noteEarlyCheckinApproval(conversation.reservation?.id ?? null, earlyCheckinRun);
+  if (earlyCheckinSent && earlyCheckinRun) {
+    await noteEarlyCheckinApproval(conversation.reservation?.id ?? null, earlyCheckinRun);
+    // Host Karar Motoru: doğrulanmış otomatik onay GİTTİ → kart "otomatik onaylandı" (aynı türden bekleyen eski kart kapanır).
+    if (hostDecisionsEnabled() && earlyCheckinRun.decision.approvedTime) {
+      const item = itemsPlan?.turnItems.filter((i) => i.kind === "early_checkin").at(-1) ?? null;
+      await resolveDecisionByPolicy(prisma, {
+        organizationId: conversation.property.organizationId,
+        conversationId: conversation.id,
+        reservationId: conversation.reservation?.id ?? null,
+        lang: decisionLang(guestLanguage ?? result.detectedLanguage),
+        kind: "early_checkin",
+        messageId: item?.messageId ?? last.id,
+        itemId: item?.id ?? null,
+        dayKey: earlyCheckinRun.facts.reservation?.arrivalKey ?? null,
+        decidedTime: earlyCheckinRun.decision.approvedTime,
+        now: new Date(),
+      }).catch((err) => void reportError(`host-decisions policy org=${conversation.property.organizationId}`, err));
+    }
+  }
   return { sent: true, draft, ...meta };
 }
 

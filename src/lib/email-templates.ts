@@ -313,6 +313,37 @@ export function hostReplyWaitingEmail(
 }
 
 // ---------------------------------------------------------------------------
+// Template: KARAR BEKLİYOR (Host Karar Motoru, Faz 1 — kurucu 10-02: "Host'a bir bildirim gider; tekrar tekrar gönderilmez").
+// Mesaj başına TEK bildirim: aynı mesaj için "Misafir cevabınızı bekliyor" e-postasının YERİNE gider (ikisi birden asla). Misafir
+// metni taşımaz (talep başlığı yeter: "13:00 erken giriş"); bağlantı `appBaseUrl()`den — istek Host'undan asla.
+// ---------------------------------------------------------------------------
+export function decisionPendingEmail(input: {
+  title: string;
+  dayLabel: string | null;
+  guestIdentifier: string;
+  propertyName: string;
+  orgName: string;
+  panelUrl: string;
+}): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#b45309;font-size:22px;font-weight:700;">
+      Karar bekliyor: ${esc(input.title)}
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;">
+      <strong>${esc(input.guestIdentifier)}</strong> (${esc(input.propertyName)}) sizin kararınızı gerektiren bir talepte bulundu${
+        input.dayLabel ? ` — <strong>${esc(input.dayLabel)}</strong>` : ""
+      }. Misafire henüz bir cevap gönderilmedi.
+    </p>
+    <p style="margin:0 0 24px;color:#334155;font-size:14px;">
+      Konuşmada kontrol listesini görüp tek tıkla onaylayabilir ya da reddedebilirsiniz; misafire gidecek mesajı göndermeden önce görürsünüz.
+    </p>
+    ${ctaButton(input.panelUrl, "Karar ver")}
+    <p style="color:#94a3b8;font-size:12px;">${esc(input.orgName)} · Bu talep için başka bir bildirim gönderilmez.</p>
+  `;
+  return wrapEmail(body);
+}
+
+// ---------------------------------------------------------------------------
 // Template 3: Reservation Created
 // ---------------------------------------------------------------------------
 export interface ReservationEmailData {

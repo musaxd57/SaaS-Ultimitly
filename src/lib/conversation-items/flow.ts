@@ -223,7 +223,8 @@ export interface HeldItemsNotice {
  * `SystemLock` adı; `create` yarışını tek kazanan — `host-reply-waiting.ts` ile aynı ilke) alan çağrı atar. Talep e-posta gidemezse
  * geri verilir; süresi dolan talep fırsatçı süpürülür (oto-yanıt bu kadar eski mesajı modellemez).
  */
-const HELD_MAIL_PREFIX = "held-items-mail:";
+/** Hassas öğe e-postasının mesaj başına talep öneki ("Karar bekliyor" e-postası bu talep varsa gitmez — mesaj başına tek bildirim). */
+export const HELD_MAIL_PREFIX = "held-items-mail:";
 const HELD_MAIL_TTL_MS = 45 * 24 * 60 * 60 * 1000;
 async function claimMessageMail(db: Db, messageId: string, now: Date): Promise<"claimed" | "taken" | "unavailable"> {
   try {

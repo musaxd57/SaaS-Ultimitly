@@ -63,6 +63,30 @@ export function markOfTask(t: TaskWithUpdates, departingReservationId: string): 
   };
 }
 
+/**
+ * Rezervasyon başına ev sahibinin ONAYLADIĞI geç çıkış saati (Host Karar Motoru kaydı; onaylandı / otomatik onaylandı / gönderimi
+ * doğrulanamadı — ulaşmış olabilir, temkin). Org kapsamlı; boş girdide sorgu yok.
+ */
+async function approvedLateCheckouts(organizationId: string, reservationIds: readonly string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (reservationIds.length === 0) return out;
+  const rows = await prisma.decisionRequest.findMany({
+    where: {
+      organizationId,
+      reservationId: { in: [...reservationIds] },
+      kind: "late_checkout",
+      status: { in: ["approved", "resolved_by_policy", "send_unverified"] },
+      decidedTime: { not: null },
+    },
+    select: { reservationId: true, decidedTime: true },
+  });
+  for (const r of rows) {
+    if (!r.reservationId || !r.decidedTime) continue;
+    out.set(r.reservationId, laterTime(out.get(r.reservationId) ?? null, r.decidedTime) ?? r.decidedTime);
+  }
+  return out;
+}
+
 /** Yükleyici çıktısı. `referenceId` / `readyMark` karar kaydı içindir (hangi devir, hangi "hazır" kaydı). */
 export interface LoadedEarlyCheckin {
   facts: EarlyCheckinFacts;
@@ -131,8 +155,11 @@ export async function loadEarlyCheckinFacts(args: {
   const malformed = keyed.filter((x) => x.a >= x.d && (x.a === arrivalKey || x.d === arrivalKey));
   // Aynı gün iki ayrılan = biri ötekiyle çakışmış (çift rezervasyon) → çakışma sayılır.
   facts.otherOverlaps = occupying.length + Math.max(0, sameDay.length - 1) + malformed.length;
+  // Ev sahibinin ONAYLADIĞI geç çıkış (Host Karar Motoru kartı / otomatik onay) önceki misafirin çıkışını GEÇ'e çeker — yalnız
+  // sıkılaştırır (en geç saat alınır): 13:00'e kadar kalabileceği söylenen misafir dairedeyken 12:00 erken giriş onaylanmasın.
+  const approvedLate = await approvedLateCheckouts(args.organizationId, sameDay.map((x) => x.r.id));
   const previous = sameDay
-    .map((x) => ({ ...x, checkout: laterTime(x.r.guestCheckoutTime, property.checkOutTime) }))
+    .map((x) => ({ ...x, checkout: laterTime(laterTime(x.r.guestCheckoutTime, property.checkOutTime), approvedLate.get(x.r.id) ?? null) }))
     .sort((p, q) => (hhmmToMinutes(q.checkout) ?? 0) - (hhmmToMinutes(p.checkout) ?? 0))[0];
   if (previous) {
     facts.previousSameDay = { checkoutTime: previous.checkout };
@@ -151,9 +178,13 @@ export async function loadEarlyCheckinFacts(args: {
           orderBy: { departureDate: "desc" },
           select: { id: true, departureDate: true, guestCheckoutTime: true },
         });
-        return last
-          ? { id: last.id, dayKey: calendarDateOf(last.departureDate, tz).key, checkout: laterTime(last.guestCheckoutTime, property.checkOutTime) }
-          : null;
+        if (!last) return null;
+        const late = (await approvedLateCheckouts(args.organizationId, [last.id])).get(last.id) ?? null;
+        return {
+          id: last.id,
+          dayKey: calendarDateOf(last.departureDate, tz).key,
+          checkout: laterTime(laterTime(last.guestCheckoutTime, property.checkOutTime), late),
+        };
       })();
   if (reference) {
     // BU DEVRİN temizliği = çıkış GÜNÜNE bağlı temizlik görevleri (önceki rezervasyona bağlı ya da bağsız). Konaklama

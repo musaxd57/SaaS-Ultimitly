@@ -21,9 +21,12 @@ import { reportError } from "@/lib/report-error";
 //   • Asla fırlatmaz: oto-yanıt geçişini düşüremez.
 // ---------------------------------------------------------------------------
 
-const PREFIX = "reply-waiting-mail:";
+/** Mesaj başına talep adı öneki — "Karar bekliyor" e-postası (Host Karar Motoru) AYNI talebi kullanır: aynı mesaja ikisi birden gitmez. */
+export const REPLY_WAITING_MAIL_PREFIX = "reply-waiting-mail:";
+const PREFIX = REPLY_WAITING_MAIL_PREFIX;
 /** Talep satırının ömrü: mesaj başına tekillik bu süre boyunca korunur; sonra süpürülür (oto-yanıt bu kadar eski mesajı modellemez). */
-const CLAIM_TTL_MS = 45 * 24 * 60 * 60 * 1000;
+export const REPLY_WAITING_CLAIM_TTL_MS = 45 * 24 * 60 * 60 * 1000;
+const CLAIM_TTL_MS = REPLY_WAITING_CLAIM_TTL_MS;
 
 export type HostReplyWaitingOutcome = "mailed" | "deduped" | "no_recipient" | "failed" | "unavailable";
 
