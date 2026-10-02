@@ -3,6 +3,29 @@
 > Kararlar ayrı belgede: `docs/SABAH-KARARLARI-2026-10-01.md`. Bu rapor: doğrulanan K düzeltmeleri, kurucu talimatlarının
 > uygulaması, Luna ölçümleri, maliyet, kapı / CI, canlıya geçiş için kalan adımlar ve eklenecek / değişecek ortam değişkenleri.
 
+## 0b. 10-02 AKŞAM — Railway kapandı · 53 + 47 itildi (RC72) · 24 EK + 56 + 55 / 51 (RC73)
+
+- **Railway:** abonelik bitti (kurucu, 10-02 akşam) → canlı YOK. Dal push'u yalnız CI'dan geçer; Railway geri açılınca dalın son yeşil commit'i gider.
+  Yerel geliştirme: `.env.local` (kurulum betiğinin ürettiği yerel sırlar; prod `ENCRYPTION_KEY` bilerek yok), yerel PG 5434, giriş `demo@guestops.ai`.
+  Yerel uygulama hiçbir kanala mesaj göndermez (Hospitable bağlantısı / kanal kimliği yok; QR yalnız yerel tarayıcıda).
+- **RC72 (`d905c41`) = 53 + 47** (kurucu: "53 ve 47 okey") → CI #1290 YEŞİL (20:18Z).
+- **RC73 = 24 EK + 56 + 55 / 51** (kurucu onayları 10-02 akşam; ayrıntı Sabah Kararları 24 EK 2 · 51 · 55 · 56; yeni sorular 58–60 + 51 EK):
+  otopark tahsisi yazılıysa müsaitlik iddiası değil · QR dil kapısı (model ipucu, karışık dil serbest) · tehlike kararı bağlamla (açık → koddan
+  güvenlik satırı misafirin dilinde, model beklenmez; olası → model, "acil değil"se şikâyet akışı; anılış → alarm yok; "bayıldık / internet düştü
+  / помогите, пожалуйста / acil numara" → model; kaynaksız "normaldir" güvencesi gitmez).
+- **Yerel `.env.local` model / çaba (sizin yazdığınız + önerim):**
+
+| Değişken | Değer | Not |
+|---|---|---|
+| `OPENAI_MODEL` | `gpt-6-luna` | cevap modeli (kanal + QR) |
+| `OPENAI_REASONING_EFFORT` | `medium` (sizin seçiminiz) ya da `low` | kör set 12'de ikisi eşit (olgu 25/27); `low` daha hızlı (p95 12,3 ↔ 19,9 sn) |
+| `AI_UNDERSTANDING_MODEL` / `AI_UNDERSTANDING_REASONING_EFFORT` | `gpt-6-luna` / `low` | anlama katmanı |
+| `AI_STAY_GUARD_MODEL` / `AI_STAY_GUARD_REASONING_EFFORT` | `gpt-6-luna` / `low` | konaklama bekçisi |
+| `AI_SEMANTIC_MODEL` | `gpt-5.1` (DEĞİŞTİRMEYİN) | yeniden sıralayıcı bundan okur (Luna iki sorulu mesajda geride) |
+| `OPENAI_TRANSLATE_MODEL` / `OPENAI_TRANSLATE_REASONING_EFFORT` | `gpt-6-luna` / `medium` | çeviri |
+| `OPENAI_STYLE_MODEL` / `OPENAI_STYLE_REASONING_EFFORT` | `gpt-6-luna` / `none` | üslup özeti (`medium` ölçülmedi; `none` önerilir) |
+| `QR_ESCALATION_EMAIL_ENABLED` | `1` | 55 (c): QR devrinde ev sahibine e-posta (misafir metni taşımaz) |
+
 ## 0a. 10-02 SABAH — LUNA KATMAN ÇALIŞMASININ SONUCU (kurucu: "5.1 yerine Luna 6 kullandır, kodları ona göre geliştir, sakın geçmesi için şeyler yapma")
 
 | Katman | Öneri | Kanıt (§9) | Ne zaman |
@@ -584,7 +607,9 @@ Kesin tutar için OpenAI kullanım panosunda 10-01 02:00–08:30 ve 10-02 00:00�
 | RC68 (`7a77f0f` = RC67b + parti tam sözcük + anlama / bekçi istem düzeltmesi + "ev sahibinizin kararıdır" dedektörü 7 dil boşlukları + öğe ölçeri sadakati + raporlar) | test 749 dosya / 12.355 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; dedektör mutasyonu 16/16 | İTİLDİ 08:14Z → **CI #1286 YEŞİL** (08:35Z) → Railway açıksa canlı: parti tam sözcük + anlama / bekçi istem düzeltmesi + dedektör boşlukları CANLIDA |
 | RC69 (`888f643` = RC68 + dişil ev sahibi kararı biçimleri ("Ihre Gastgeberin entscheidet", "Darüber entscheidet die Vermieterin") + İspanyolca otomatik yanıt dipnotu + ölçer kimliğinde çeviri / üslup çabası + kör set 11 + hizmet ücreti ölçümü + Sabah Kararları 54) | test 749 dosya / 12.390 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; mutasyon dişil biçimler 27 (21 öldü; 1 eksik pin eklendi, 5 ölü `(?:sse)?` silindi → yeniden 4/4) · dipnot 4/4 · ölçer kimliği 7/7 | İTİLDİ 09:39Z → **CI #1287 YEŞİL** (09:59Z) → Railway açıksa canlı: Almanca dişil "ev sahibinizin kararı" cümlesi artık tutuluyor (kör set 11'de bugünkü 5.1 GÖNDERMİŞTİ) + İspanyolca misafire İspanyolca dipnot |
 | RC70 (`bbbf24b` = RC69 + kör set 12 + ölçer kimliğinde cevap isteminin ikinci kimliği + belgeler; ürün kodu RC69 ile aynı) | test 749 dosya / 12.391 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; ölçer kimliği mutasyonu 5/5 | İTİLDİ 10:24Z → **CI #1288 YEŞİL** (10:44Z) |
-| RC71 (`b7fd6ed` = RC70 + QR canlı hat ölçeri + QR geliştirme / kör setleri + **sır süzgeci: tuş paneli / sözcük sırası / kod sözcüğünün dilleri** + **rol değişimi enjeksiyonu** + belgeler; Sabah Kararları 57) | test 752 dosya / 12.478 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; mutasyon sır süzgeci 11/11 · enjeksiyon 12/12 | İTİLDİ 11:28Z → CI #1289 (bekleniyor) → yeşilse canlı: QR'da (ve rezervasyonsuz misafirde) tuş paneli yazımlı kapı kodu kalemi modele gitmez; geçmiş turdaki rol değişimi talimatı konuşmayı tutar |
+| RC71 (`b7fd6ed` = RC70 + QR canlı hat ölçeri + QR geliştirme / kör setleri + **sır süzgeci: tuş paneli / sözcük sırası / kod sözcüğünün dilleri** + **rol değişimi enjeksiyonu** + belgeler; Sabah Kararları 57) | test 752 dosya / 12.478 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil; mutasyon sır süzgeci 11/11 · enjeksiyon 12/12 | İTİLDİ 11:28Z → **CI #1289 YEŞİL** (11:49Z) → canlı: QR'da (ve rezervasyonsuz misafirde) tuş paneli yazımlı kapı kodu kalemi modele gitmez; geçmiş turdaki rol değişimi talimatı konuşmayı tutar |
+| RC72 (`d905c41` = RC71 + **53** öğe kipinde bırakılan isteğe öncelik katmanı + `answeredRequests` çıktı alanı + **47** özel adlar çevrilmez; kurucu onayı 10-02 akşam) | test 753 dosya / 12.483 test yeşil (9 atlandı) · typecheck · lint · build · audit yeşil (ilk koşu, kapı sırasında ağır deneme betiği yüzünden 4 zaman aşımı → yeniden, temiz) | İTİLDİ 19:59Z → **CI #1290 YEŞİL** (20:18Z). Railway kapalı → canlıya çıkmadı (geri açılınca gider) |
+| RC73 (RC72 + 24 EK + 56 + 55 / 51) | — | kapı + mutasyon sürüyor (bu satır itilince güncellenir) |
 | Hazır, İTİLMEDİ (onay bekliyor): `prep/items-block-precedence` (53), `prep/ozel-ad-cevirme` (47), `prep/baskasi-adina-kod` (52); aday dal `prep/luna-aday-2` (RC69 + 53 + 47) | ilgili istem testleri yeşil (aday 17 dosya / 439 test; 52 dalı 5 dosya / 214 test) | **kör set 11 + son kodla kör set 12 YEŞİL** (§9.10, §9.11); onayınızla RC olarak tam kapılardan geçer |
 
 

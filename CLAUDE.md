@@ -374,7 +374,8 @@ Bu dosyaya token/anahtar/parola yazma.
   mesajda konuşmanın tamamı, biri kilit altında) — hüküm tarayıcıyla birebir, rastgele dizilerle pinli; devir satırı YOKSA veritabanı
   taraması konuşma boyunda kalır (tam sınır kısmi dizin = migration, sabah belgesi K10-n). Mesaj penceresi `GUEST_CHAT_MESSAGE_WINDOW` 200 + tam sıra (cursor REDDEDİLDİ); istemcide
   görünürlük kapısı, terminal durumda `clearInterval`, 3 ardışık hatada uyarı. 🚨 Devirde misafire METİN YOK (K10, 09-30:
-  `escalationReply()` null; yalnız `isPhysicalEmergency`de `QR_SAFETY_LINE` "Tehlike varsa hemen 112'yi arayın."); devir yapışkan değil.
+  `escalationReply()` null; yalnız fiziksel tehlikede güvenlik satırı — 10-02 akşamdan beri ↓"Acil ≠ sıradan istek" bağlam kuralıyla, misafirin
+  dilinde); devir yapışkan değil.
   "Misafirin gördüğü ekran" önizlemesi (K14, `guest-chats/[id]/misafir-ekrani`): balonlar misafir ekranının AYNI bileşeninden
   (`GuestChatThread`), pencere GET ile aynı; misafir uçları çağrılmaz — gönderim / cihaz bağlama / okundu değişikliği YOK, sayfa hiçbir
   satır yazmaz (pinli).
@@ -456,7 +457,10 @@ Bu dosyaya token/anahtar/parola yazma.
   kendi bayrağı). Bedeli bilinçli: konu etiketi `early_checkin` olan bilgi sorusu da taslağa düşer ("yanlış otomatik
   izin çok kötü, gereksiz inceleme kabul edilebilir") — oranı eval'ın BİRLEŞİM tablosu + canlı `sc` ölçer. Tanınmayan duruş her zaman iddia. Kelime ağı yalnız ENGELLER:
   sessizliği de erteleme cümlesi de izin DEĞİL (erteleme = YALNIZ güvenilir `defers` beyanı + koşmuş bekçi). Hassas
-  istek yoksa (bilgi sorusu) bekçisiz de gider — her arızada her mesaj durmaz. Yedek (şablon) cevapta "duruş
+  istek yoksa (bilgi sorusu) bekçisiz de gider — her arızada her mesaj durmaz. 🚨 24 EK (kurucu onayı 10-02 akşam): bilgi tabanında YAZILI sabit
+  otopark yeri tahsisi ("2 numaralı yer dairenize ayrılmış") takvim iddiası DEĞİL — yalnız modele giden bilgi tabanında AYNI yer numarasıyla
+  otopark tahsisi varken, yalnız bitişik yapı silinir ve kalan metin yine aranır (`kbFactsOf` → `kbFacts`; kanal + QR + AI öner + Ayarlar testi +
+  demo aynı girdi); kelime ağı büyümez. Yedek (şablon) cevapta "duruş
   bilinmiyor" kuralı yok. "kaydedildi" tek başına ve "ev sahibi onaylar" (kestirim) erteleme DEĞİL; erteleme
   dedektörü TEK biçim. Host'un teklif metni iddia taramasından yalnız erteleyen cevapta muaf (bekçi koştuysa
   onun hükmüyle; koşmadıysa beyan+cümle yalnız muafiyete yeter, izne değil — bekçi çağrılabilsin diye). 🚨 Standart çıkış bilgisi
@@ -675,7 +679,10 @@ Bu dosyaya token/anahtar/parola yazma.
   kayması onayı Türkçe kurdurmaz) ve host notu AYNEN eklenir (Türkçe not İngilizce onayı tutmasın); İspanyolca misafire
   onay İngilizce gider (desteklenmeyen onay dili yedeği). Dipnot ve bekletme mesajı da dilini aynı kuraldan alır (önizleme
   paritesi); dipnot tablosu (`automatedReplyNote`) yedi dilin HEPSİNİ taşır (10-02: İspanyolca yoktu → İngilizce gidiyordu, 5.1'de de). Devir cevabı muaf DEĞİL (yanlış dilde devir → tutulur, insan
-  talebinde yükseltme yolu koşar). QR kapısında BİLİNÇLİ YOK (devir metni + arayüz yalnız Türkçe; pinli). Bilinen sınır:
+  talebinde yükseltme yolu koşar). QR kapısında da VAR (10-02 akşam, Sabah Kararları 56; K10'dan beri devirde metin yok → eski "devir metni
+  Türkçe" gerekçesi düştü): kapının SONUNDA aynı yüklem; kodun dil tespiti emin değilse ve mesaj ≥2 sözcükse modelin bildirdiği dil (önce anlama
+  katmanı) yedek girdi ("Y a-t-il un fer à repasser ?" kodca belirsiz); cevabın emin dili mesajda iz taşıyorsa (`languageEvidence`: Latin puanı
+  > 0, Kiril / Arap ≥3 harf) karışık dil meşru. Kanalda bu yedek YOK (Sabah Kararları 58). Bilinen sınır:
   kısa mesaj/cevapta ("Towels?", "Havlular dolapta.") hüküm çoğu zaman yok → kontrol yok; konuşma geçmişine dönüş YOK.
   Ölçüm: TR dışı dil uyumu 52/59 → 59/59 (Luna 58/59), sızıntı 0, olgu 55/55, gecikme aynı. Dil listesine sözcük
   eklerken diller arası çakışma + veri pini + desteklenmeyen dil bataryası koşulur.
@@ -1414,7 +1421,10 @@ mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
 ## 🚨 ÇALIŞMA BİÇİMİ (09-19 → 09-24 güncel): RAILWAY AYIN 1'İNE KADAR AKTİF, GELİŞTİRME LOCAL'DE
-🚨 **10-02: Railway HÂLÂ AKTİF** (kurucu canlıya bayrak ekledi) → dal push'u = CI yeşilse CANLI deploy.
+🚨 **10-02 AKŞAM: Railway aboneliği BİTTİ** (kurucu) → CANLI YOK; dal push'u yalnız CI'dan geçer, deploy olmaz (geri açılınca dalın son yeşil
+commit'i gider — migration'lı RC'lerden önce taze yedek kuralı aynen). Kurucu yerelde çalışıyor (`.env.local`, yerel PG 5434); prod `ENCRYPTION_KEY`
+yerelde YOK (doğru). Son itilen RC72 (`d905c41`, CI #1290 yeşil).
+🚨 **10-02 sabah: Railway HÂLÂ AKTİF** (kurucu canlıya bayrak ekledi) → dal push'u = CI yeşilse CANLI deploy. (Akşam bitti ↑.)
 🚨 **09-24 kurucu: "Railway ayın 1'ine kadar aktif"** → dal push'u = CI yeşilse CANLI deploy (tarihli "duraklatıldı,
 canlıya bir şey gitmedi" varsayımı YANLIŞTI). Aşağıdaki 09-19 duraklatma notu ayın 1'inden sonrası için geçerlidir.
 Kurucu Railway **ücretli planından çıktı** (servis SİLİNMEDİ, proje bitmeye yakın geri açılacak).
@@ -1518,6 +1528,19 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   NOKTAYA kadar (≤4 geçiş, sonra açılı parantez silinir) — "<<<«KB_END»>>>" tek geçişte GERÇEK ayraç üretiyordu.
 - **Acil ≠ sıradan istek:** `escalationReply({critical})` yalnız güvenlik satırı (K10), tetikleyici DAR `isPhysicalEmergency`
   (yangın/duman/gaz/su baskını/elektrik çarpması; öz-zarar ifadesi YOK) — `safety_emergency` kümesi misafire giden metin için fazla geniş.
+  🚨 **10-02 akşam (kurucu kararı, Sabah Kararları 51 + 55) — BAĞLAM İLKESİ, tek kaynak `ai/hazard-evidence.ts`:** fiziksel tehlike kanıtı
+  `clear · possible · mentioned · none` (LLM'siz, yedi dil, cümlecik düzeyi; alıntı / ürün adı / K6 önce nötr; soru cümlesi gaz dışında en
+  fazla olası; istenen ateş — şömine, mum — betimlemesi olası, tutuşma / yayılma açık; ışık / gösterge bağlamında "brennt / горит / alev" yangın
+  değil; sigara İZNİ / alışkanlığı anılış; bilinen zararsız duman kaynağında yoğunluk tek başına açık yapmaz, nefes alamama yapar; su yalnız
+  elektriğe ulaşınca ya da elektrik arızası belirtisiyle açık). QR: AÇIK tehlikede model ÇAĞRILMAZ → güvenlik satırı misafirin dilinde
+  (`SAFETY_LINES`, yedi dil; kodun kesin dili → modelin dili → Türkçe), karar kaydı `physical_hazard`, kritik uyarı; modelsiz dallarda olası
+  da satır alır. Karar (`hazardDecisionFor`): açık → acil, model geçersiz kılamaz · olası → anlama modeli (koşmadıysa acil; "acil değil"se acil
+  kalkar ama ŞİKÂYET olarak kalır — `clearedAsIssue`) · anılış → kalkar · bağlamı belirsiz kalıplar (`AMBIGUOUS_EMERGENCY`: "-(y)A bayıldık",
+  "İnternet / fiyat düştü", "Помогите, пожалуйста" yalnız olay sözcüğü yokken, ağa giriş yapamama, acil numara / "just in case" / aile acil
+  durumu) → kararı model verir; maskeden sonra mesajda başka acil sözcüğü kalırsa ASLA kalkmaz. Etiket dönüşümü TEK kural `contextLabels`
+  (kanal kapısı, QR kapısı, öğe planı, rozet, karar kaydı). Alarm kalktıysa "normaldir / güvenlidir / endişelenmeyin" bilgi tabanında aynı
+  konuda dayanağı yoksa GİTMEZ (`hazard_reassurance`). Mesaj düzeyi sinyaller BİR KEZ hesaplanır (karesel iş yok; süre pinli). "Party / parti"
+  belirsizliği (51 g) bu kuralda YOK (ev kuralı sinyali gölgede — ayrı onay).
 - **"Sorunlu" AI'yı KALICI durdurur** (misafirin yeni mesajı açmaz; host elle durum değiştirir/yazar). `Conversation.
   priority` tamamen görsel. **"Beklemede" kaldırıldı** (belgelenmemiş AI kilidiydi; aday sorgusunda `waiting` var).
 - **Misafir QR'ı kapalı/bozuksa** markalı `GuestNotice` (tek metin beş koşul, dış bağlantı yok, 200).
@@ -1715,7 +1738,13 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-02 (güncel):** canlı kod RC70 (`bbbf24b`, CI #1288 yeşil 10:44Z; RC69 dişil ev sahibi kararı + İspanyolca dipnot dahil). RC71 kapıda: QR'da
+**10-02 AKŞAM (güncel):** Railway aboneliği BİTTİ → canlı YOK (↑Çalışma biçimi). Kurucu onayları (10-02 akşam): **53 + 47** → RC72 (`d905c41`,
+CI #1290 YEŞİL 20:18Z); **24 EK** (yazılı otopark tahsisi müsaitlik iddiası değil), **56** (QR dil kapısı + model ipucu), **55 + 51** (bağlam ilkesi:
+açık tehlikede koddan satır, olası tehlikede model, anılışta alarm yok, belirsiz kalıplarda model, kaynaksız güvence yok) → RC73 (kapı + mutasyon
+sürüyor). Sırada (kurucu sırası): "nasılsın" davranışı (kurucu tarifi; selam-yalnız mesajın ev sahibine düşme kök nedeni) → Host Karar Motoru
+paneli ("karar bekliyor" kartı + Onayla / Reddet; Faz 0 belgesi; iki inceleme turu). Yeni sorular: Sabah Kararları 58–60 + 51 EK (Rusça sağlık
+acil sözcükleri). Yerel model / çaba değişkenleri: rapor §0b.
+**10-02 (sabah):** canlı kod RC70 (`bbbf24b`, CI #1288 yeşil 10:44Z; RC69 dişil ev sahibi kararı + İspanyolca dipnot dahil). RC71 kapıda: QR'da
 kapı kodu sızıntısı (sır süzgeci tuş paneli / sözcük sırası / kod sözcüğünün dilleri — bugünkü 5.1 kör QR setinde kodu iki kez yazdı) + geçmiş
 turdaki rol değişimi enjeksiyonu (Sabah Kararları 57, onaylı kurallar) + QR ölçeri ve kör QR seti. Railway AKTİF (↑Canlı durum). **Luna katman
 sonucu (kurucu: "5.1 yerine Luna, kodları ona göre geliştir, sakın geçmesi için şeyler yapma"; rapor §0a, §7.0, §9.4–9.12):** anlama + bekçi Luna
@@ -1727,7 +1756,7 @@ Türkçe yazdı — 56); bedeli QR'da hız (p50 Luna 7,5–8,3 sn ↔ 5.1 5,0 sn
 Kararları 6 EK 4–5) YALNIZ 53 + 47 onaylanıp RC olarak canlıya çıktıktan ve RC71 canlıdayken. 52 (başkası adına giriş kodu) hazır dal
 `prep/baskasi-adina-kod`; 54 (hizmet isteği ev sahibine ulaşmıyor), 55 (QR'da 112 satırı yalnız TR/EN kalıplarda; Türkçe "duman çıkıyor" da
 yok) ve 56 (QR dil kapısı) modelden bağımsız, sizin kararınız. OpenAI hız sınırı 10-02: Luna 4M / 5.1 2M token/dk. Ücretli ölçüm kuralları ↑Eval
-"ÜCRETLİ ÖLÇÜM". Rapor / kararlar: `docs/SABAH-RAPORU-2026-10-01.md` (§0a özet) · `docs/SABAH-KARARLARI-2026-10-01.md` (1–57).
+"ÜCRETLİ ÖLÇÜM". Rapor / kararlar: `docs/SABAH-RAPORU-2026-10-01.md` (§0a özet) · `docs/SABAH-KARARLARI-2026-10-01.md` (1–60).
 
 **09-30 akşam — KURUCU KARARLARI K1–K18 (sonuç tablosu `docs/INCELEME-2026-09-30-codex-ve-ajanlar.md` sonu):** K1 (CSV negatif tutar
 satır hatası) · K2 (fotoğraf = görev erişimi) · K3 (olumsuzlanan KB saati okunmaz, düzeltme okunur) · K4 (başka aboneliğin olayı planı

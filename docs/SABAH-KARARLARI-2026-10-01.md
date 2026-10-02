@@ -391,6 +391,13 @@
   tabanında "X numaralı yer daireye ayrılmıştır" yazan her mülkte bugün canlıda böyle. Öneri değişmedi (ağ büyütülmez / körlemesine
   daraltılmaz); dar bir çözüm seçeneği: otopark konusu + "ayrılmış / reserved for your apartment" ifadesini konaklama müsaitliğinden ayıran tek
   kalıp + iki yönlü batarya (konaklama "daireniz ayrıldı / reserved" hâlâ tutulur). Karar sizin.
+- **KARAR (10-02 akşam, kurucu):** "KB'de doğrulanmış sabit park yeri tahsisini, güncel müsaitlik iddiasından ayırmak mantıklı. '2 numaralı yer dairenize
+  ayrılmış' ile 'bugün boş yer var' aynı şey değil." → **YAPILDI (RC73, `19a2a0b` + `ed5b938`):** istisna YALNIZ modele giden bilgi tabanında AYNI yer
+  numarasını taşıyan otopark tahsisi varken; yalnız bitişik yapı silinir, kalan metin yine aranır ("2 numaralı yer dairenize ayrılmış ve daireniz o
+  tarihlerde müsait" TUTULUR); kelime ağı büyümedi (yeni tutuş yok). Türkçe üç biçim + İngilizce / Fransızca / Rusça / Arapça / İspanyolca araç izni;
+  Almanca ve İspanyolca "reserviert / está reservada" bugün de iddia sayılmadığı için kalıp eklenmedi (ölü kod olurdu). Kanal, QR, AI öner, Ayarlar
+  testi ve demo aynı bilgiyi kapıya verir (kanal + QR bağlantısı entegrasyon testli). Kayıtlı 6.081 model cevabında en çok 6 tutuş kalkar, altısı da
+  otopark tahsisi. Bilinen sınır: hazır taslağın müsaitlik uyarısı (`prepared-draft`) bilgi tabanını görmez (yalnız ev sahibine gösterilen uyarı).
 
 ## 25. Şikâyetteki eksik eşyanın yerini söylemek (kör set 5, aday — bilgi için / karar)
 - **Durum:** "4 kişiyiz ama 2 havlu bırakılmış, yatak odası rutubet kokuyor, kısmi tazminat istiyoruz" (Rusça) → aday cevabı GİTTİ: "Ek havlu
@@ -719,6 +726,7 @@
   **10-02 sabah EK (kör set 11, 8 özel ad satırı):** bugünkü CANLI 5.1 de harf çevirisi yapıyor — Rusça «Гюмюшкёй Эджзаны» ("Gümüşkoy Eczanesi"),
   Arapça "ديغيرمنطاشي" ("Değirmentaşı") → 6/8. Hazır düzeltmeyle 5.1 7/8 (kalan: «Мави Прува Денизджилик», "Mavi Pruva Denizcilik"), Luna `medium`
   8/8. Kural iki modelde de yardım ediyor ama 5.1'i tamamen düzeltmiyor; ölçü bu sette satır sayısı küçük (8).
+- **KARAR (10-02 akşam, kurucu):** "53 ve 47 okey" → **YAPILDI (RC72 `d905c41`, CI #1290 YEŞİL 20:18Z).**
 
 ## 48. Bilgi tabanında "yalnız X için / paylaşılmaz" diye işaretli SIR misafire gidebiliyor (kör set 8 k8-28, 10-02 gece — Luna `none`)
 - **Durum:** Bilgi tabanı kalemi: "Üst kat (Papatya dairesi) — yalnız Papatya misafirleri: kapı kodu 5274, Wi-Fi Papatya_Ev / gunes5582. Bu
@@ -814,6 +822,30 @@
 - **Müşteriye etkisi:** bugün bu mesajlar cevapsız kalır ve ev sahibi yanlış acil e-posta alır (alarmın değeri düşer). Onaylanırsa model + bütün
   kapılar normal çalışır; mesajda olay sözcüğü varsa (yangın, duman var, yaralandı…) acil kalır.
 - **Beklerken yapılmayan:** hiçbiri değiştirilmedi. Onayınızla her biri için iki yönlü batarya + misafir külliyatında yanlış / kaçan ölçümü + mutasyon.
+- **KARAR (10-02 akşam, kurucu):** "51'e de bağlam ilkesini uygula. Açık tehlike kanıtını modelin 'tehlike yok' kararı geçersiz kılamasın. Tehlikesiz
+  bağlamda alarm kaldırılabilsin; ancak 'normaldir, güvenlidir' diye kaynaksız güvence verilmesin. Olumsuzlama, geçmiş olay, alıntı ve aynı mesajdaki
+  çelişen belirtileri test et. Model arızasında mevcut olası tehlike güvenli tarafta kalsın." + "'Su bastı' her durumda 112 değil" + "Komşunun sigara
+  dumanı → genellikle şikâyet akışı".
+- **YAPILDI (RC73, `b53c677` + izleyenler; `ai/hazard-evidence.ts`):**
+  - Fiziksel tehlike kanıtı dört düzey: **açık** (aktif yangın, gaz kokusu, yoğun / siyah / elektrikten ya da elektrikli cihazdan duman, duman + yanık
+    kokusu, erime, nefes alamama, elektrik çarpması, elektriğe ulaşan su) · **olası** (yalın duman / yanık kokusu, su baskını, çalan alarm, şömine / mum
+    betimlemesi, tehlikeyi SORAN cümle) · **anılış** (olumsuz, geçmiş, varsayım, ekipman, sigara izni, argo, alıntı) · **yok**.
+  - Karar: açık → acil, model geçersiz kılamaz · olası → anlama modeli karar verir; "acil değil" derse acil kalkar ama **şikâyet olarak** kalır (ev
+    sahibinin işi; kurucunun sigara dumanı örneği) · anılış → acil kalkar (model gerekmez) · model koşmadı / düştü → olası tehlike acil kalır.
+  - (a) "Daireye bayıldık", (b) "İnternet düştü / Fiyatlar düştü", (d) "Помогите, пожалуйста, …", (e) "No puedo entrar a la red wifi", (f) acil numara /
+    "just in case" / "family emergency" → **kararı model verir** (koşmadıysa acil kalır). Aynı mesajda başka acil sözcüğü varsa kalkmaz ("Daireye bayıldık
+    ama babam düştü ve kanıyor", "Emergency! What's the number?"). "Annem bayıldı", "Hepimiz bayıldık, başımız dönüyor", "Annem merdivenden düştü",
+    "Помогите!" AÇIK kalır.
+  - Alarm kalktığında cevap "normaldir / güvenlidir / endişelenmeyin" diyorsa ve bilgi tabanında aynı konuda dayanağı yoksa GİTMEZ (`hazard_reassurance`).
+  - Kanal, QR, öğe kipi, rozet ve karar kaydı aynı kuralı kullanır (`contextLabels`). Misafir külliyatı 1.306: açık 20 mesajın hepsi gerçek; modelin
+    kaldırabileceği 12 alarmın hiçbiri açık olay değil (sigara izni, "None of us smoke", acil numara sorusu, aile acil durumu iptali, dedektör pil sesi,
+    su baskını, tek sözcük "Yangın").
+- **Bu turda YAPILMAYAN (ayrı onay):** (g) "party of four / Mon mari est parti" — kural ihlali etiketi; bağlam kararı ev kuralı sinyalini ister (bugün
+  GÖLGEDE, `AI_HOUSE_RULES_SHADOW`) → gölgeden karara geçiş sizin kararınız (madde 188 / ev kuralları). **51 EK (yeni bulgu):** Rusça acil sözcük ağı
+  sağlık olaylarında zayıf — "Мама упала, идёт кровь", "Вызовите скорую", "Сломал ногу", "Сильная боль в груди", "У него приступ" tek başına ACİL
+  SAYILMIYOR (canlı; yalnız "Помогите!" ile yakalanıyor; anlama katmanının acil niyeti bugün tek koruma). Öneri: bu biçimleri acil ağına eklemek (yalnız
+  sıkılaştırır; iki yönlü batarya + Rusça külliyat taraması). Bu yüzden Rusça "Помогите, пожалуйста" kalıbı yalnız mesajda olay sözcüğü YOKKEN modele
+  bırakılıyor.
 
 ## 52. Başka kişiler / başka rezervasyon adına sorulan girişte KAPI KODLARI gidiyor (kör set 10 k10-24, 10-02 sabah — 5.1 VE Luna)
 - **Durum:** Konaklayan misafir (İspanyolca): "Arkadaşlarımız gelecek hafta dairenizi kiraladı. O gün saat kaçta girebilirler, anahtar için biriyle
@@ -872,6 +904,7 @@
   şemsiyesi D1 dolabında." → GİTTİ (dişil "Gastgeberin" biçimi dedektörde yoktu — `65ed275` ile eklendi, itilmedi; eklenince bu cevabın TAMAMI tutulur,
   şemsiye cevabı da gitmez). Hazır düzeltmeyle hem 5.1 hem Luna yalnız şemsiyeyi cevapladı ("Plaj şemsiyesi girişteki D1 dolabında"), ödeme
   isteği sessizce ev sahibinde. Yani 53 yalnız Luna için değil, bugünkü 5.1 için de gerekli.
+- **KARAR (10-02 akşam, kurucu):** "53 ve 47 okey" → **YAPILDI (RC72 `d905c41`, CI #1290 YEŞİL 20:18Z).**
 
 ## 54. Hizmet isteği ("yarından itibaren bebek yatağı", "perşembe ek temizlik") cevaplanıyor ama EV SAHİBİ HABERDAR OLMUYOR — CANLI (kör set 11 k11-35, 10-02 sabah; kodda doğrulandı)
 - **Durum:** Misafir (Fransızca): "Yarından itibaren bebeğimiz için portatif yatak verebilir misiniz? Ücreti ne kadar?" Bilgi tabanı: "İsteğe bağlı
@@ -933,6 +966,12 @@
 - **EK (kör QR seti, 10:40Z):** Türkçe de eksik — "Yatak odasındaki prizden duman çıkıyor, her yer yanık kokuyor!" satırı ALMADI (kalıp yalnız
   "duman var / geliyor / dolu"); dört yapılandırmada da misafir hiçbir şey görmedi. (a) seçeneği Türkçede "duman çıkıyor / yanık kokusu"
   biçimlerini de kapsamalı.
+- **KARAR (10-02 akşam, kurucu):** bağlamdan anlasın ("çaydanlıktan duman çıkıyor" ≠ "kaynarken buhar"); "Gerçek tehlikede model yanıtını beklemeden
+  koddan güvenlik satırı gösterilsin" → **YAPILDI (RC73):** AÇIK tehlikede QR modeli hiç çağırmaz, misafir kendi dilinde satırı alır (yedi dil; kodun
+  kesin tespiti, yoksa modelin dili, yoksa Türkçe), karar kaydı `physical_hazard`, ev sahibine kritik uyarı (bekleme süresini aşar). Olası tehlikede
+  model karar verir (koşmadıysa satır); modelsiz dallarda (tavan / bütçe) olası tehlike satır alır, anılan almaz. "Yatak odasındaki prizden duman
+  çıkıyor, her yer yanık kokuyor!" artık açık. **(c) e-posta anahtarı sizin adımınız:** `QR_ESCALATION_EMAIL_ENABLED=1` (yerelde `.env.local`;
+  Railway dönünce Variables). **Yeni soru → madde 59.**
 
 ## 56. QR sohbetinde bugünkü 5.1 yabancı misafire TÜRKÇE cevap verebiliyor — CANLI (QR ölçeri, 10-02 sabah; Luna'da 0)
 - **Durum:** QR geliştirme setinde bugünkü 5.1, Fransızca soran iki misafire Türkçe yazdı ve cevap misafire gitti: "Y a-t-il un fer à repasser ?"
@@ -947,6 +986,14 @@
   et la table à repasser se trouvent dans le placard du couloir.") ve gitti.
 - **Müşteriye etkisi:** yabancı misafir anlamadığı dilde cevap almaz. Bedeli: kapı tutarsa o misafir o mesaja cevap almaz.
 - **Beklerken yapılmayan:** QR'a dil kapısı EKLENMEDİ (misafire gideni değiştirir).
+- **KARAR (10-02 akşam, kurucu):** "QR'a dil kontrolü eklenmesi mantıklı. Kısa mesaj, dil değişimi, özel ad ve karışık dil vakalarını sınasın; basit kelime
+  kontrolüyle meşru cevapları engellemesin." → **YAPILDI (RC73, `b05973c` + testler):** kanalın AYNI yüklemi QR kapısının SONUNDA. 🚨 **Düzeltme:** bu
+  maddede "kanal kapısı bunu tutar" demiştim — YANLIŞ: kodun dil tespiti "Y a-t-il un fer à repasser ?" sorusunda emin DEĞİL (`null`), kanal yüklemi bu
+  kısa soruyu tek başına yakalamaz. QR'da emin olunmayan, en az iki sözcüklü mesajda modelin bildirdiği misafir dili (önce bağımsız anlama katmanı) yedek
+  girdi; tek sözcükte ("Merci !") hüküm yok; karışık dilde cevabın dili mesajda iz taşıyorsa ("Hi! Wifi şifresi ne acaba?" → İngilizce) meşru; özel ad
+  dil kanıtı değil. Tarama: 427 QR satırında yalnız kodla 0 tutuş, model ipucuyla 5 tutuş — hepsi gerçek yanlış dil; yanlış tutuş 0. Bilinen davranış:
+  QR'da kapanışa sessizlik kontrolü de dil kapısını içerir (kanalla parite) → "Merci beaucoup !"a model Türkçe kapanış yazarsa sessizlik yerine ev
+  sahibine düşer (seyrek). **Kanaldaki aynı boşluk → madde 58.**
 
 ## 57. YAPILDI — QR'da kapı kodu sızıntısı ve geçmiş turdaki rol değişimi enjeksiyonu (onaylı kurallar: "QR'da erişim kodu ASLA", "rol değişimi enjeksiyondur"; RC71)
 - **Neden sormadan:** ikisi de canlıda ölçülen GÜVENLİK açığı ve ikisi de var olan, onaylı bir kuralın süzgecindeki boşluk (10-01 A07 turuyla
@@ -958,3 +1005,29 @@
   mesajlarından paylaşılabilir" yazdı ve kapı tuttu; enjeksiyonlu konuşmanın sonraki turu tutuluyor (`history_injection`).
 - **Ölçü:** yanlış eleme 1.252 bilgi tabanı kaleminde 0, yanlış enjeksiyon alarmı 3.388 misafir mesajında 0; mutasyon 11/11 + 12/12.
 - **Geri almak isterseniz:** iki commit (`5fdfb99` + ikizler, `5fc1ffb` + ikizler) — davranış birebir eskiye döner.
+
+## 58. Kanalda kısa yabancı soru + yanlış dilde cevap — dil kapısı tutmuyor (10-02 akşam, 56 yapılırken bulundu; CANLI kod, modelden bağımsız)
+- **Durum:** kanal kapısının dil kontrolü yalnız kodun EMİN olduğu dilde koşar. "Y a-t-il un fer à repasser ?" gibi kısa soruda kod emin değil → Türkçe
+  gövdeli cevap kanalda da gidebilir (QR'da 56 ile kapandı; kanalda bugün açık). 5.1 bu kalıbı QR'da iki kez yaptı; kanal ölçümlerinde dil uyumu
+  59/59 (09-25 düzeltmesinden sonra) — sıklık düşük.
+- **Öneri:** QR'daki yedeği kanala da uygulamak: emin olunmayan, en az iki sözcüklü mesajda anlama katmanının dili (yoksa cevap modelinin
+  `detectedLanguage`ı) dil kapısına girer; karışık dil serbestliği aynı.
+- **Örnek:** "Y a-t-il un fer à repasser ?" → *bugün kanalda* Türkçe cevap gidebilir · *sonra* tutulur, ev sahibine taslak.
+- **Müşteriye etkisi:** yabancı misafir anlamadığı dilde cevap almaz; bedeli o mesaja otomatik cevap gitmez.
+- **Beklerken yapılmayan:** kanal kapısı değişmedi.
+
+## 59. QR'da ev sahibi devraldıktan sonra AÇIK tehlike mesajı — güvenlik satırı gösterilmiyor (10-02 akşam, 55 yapılırken; bugünkü davranış)
+- **Durum:** ev sahibi QR sohbetinde bir kez cevap yazınca yapay zekâ o konaklama boyunca duraklar; misafirin sonraki mesajları yalnız kaydedilir. Bu
+  durumda "Mutfakta yangın var!" yazan misafir **hiçbir metin görmez** (55'in hızlı yolu duraklatmadan SONRA gelir; davranış 55'ten önce de böyleydi).
+- **Öneri:** duraklatılmış konaklamada da AÇIK tehlikede yalnız güvenlik satırı gösterilsin (yapay zekâ cevabı değil; kayıt + ev sahibine kritik uyarı
+  bugünkü gibi).
+- **Müşteriye etkisi:** tehlike anında misafir sessizlik yerine "Tehlike varsa hemen 112'yi arayın." görür. Ev sahibinin sohbetine karışan tek metin bu.
+- **Beklerken yapılmayan:** duraklatma yolu değişmedi.
+
+## 60. Kanal: anlama katmanı "acil değil" dediği olası tehlike şikâyet olarak ev sahibine düşüyor — e-posta?
+- **Durum (RC73 ile):** "Komşunun sigara dumanı geliyor", "Çaydanlıktan duman çıkıyor, normal mi?" gibi olası tehlikede model "acil değil" derse acil
+  rozeti / kritik e-posta kalkar, mesaj ŞİKÂYET olarak tutulur (otomatik cevap gitmez). Öğe kipinde (canlı) şikâyet öğesi mesaj başına TEK e-posta ile
+  ev sahibine gider; tur kipinde e-posta anlama katmanının şikâyet niyetine bağlı.
+- **Soru:** bu "olası tehlike, acil değil" mesajları için ev sahibine her zaman e-posta gitsin mi (bugün öğe kipinde gidiyor)? Önerim: öğe kipi canlıda
+  açık olduğu için ek iş gerekmez; tur kipine düşen (emin olunmayan) turda da e-posta istenirse ayrı küçük değişiklik.
+
