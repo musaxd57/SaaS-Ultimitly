@@ -677,7 +677,10 @@
 - **Öneri:** cevap istemine tek cümle: "Bilgi tabanındaki özel adları (işletme, eczane, sokak, durak, ağ adı) ÇEVİRMEDEN, yazıldığı gibi kullan."
   İstem değişikliği → küçük ücretli kıyas (yalnız yabancı dil + özel ad satırları, ≈ $0,3) + golden set.
 - **Müşteriye etkisi:** Yabancı misafir tabelada / haritada aradığı adı birebir bulur.
-- **Beklerken yapılmayan:** istem değişmedi.
+- **Beklerken yapılmayan:** istem değişmedi. **10-02 EK:** öneri hazır — dal `prep/ozel-ad-cevirme` (İTİLMEDİ): Türkçe olmayan misafirin dil
+  satırına "Bilgi tabanındaki ÖZEL ADLARI (işletme, mekân, eczane, market, sokak, durak, Wi-Fi ağı adı) ÇEVİRME ve başka alfabeye AKTARMA — yazıldığı
+  gibi bırak; istersen ardından parantez içinde bu dilde kısa açıklama ekle." Kör set 10'da Luna'nın tek gerilemesi buydu: Rusça «Кефал» ("Kefal"),
+  Arapça "دالغا" ("Dalga") — harf çevirisi de çeviriyle aynı sorun (misafir tabelayı bulamaz).
 
 ## 48. Bilgi tabanında "yalnız X için / paylaşılmaz" diye işaretli SIR misafire gidebiliyor (kör set 8 k8-28, 10-02 gece — Luna `none`)
 - **Durum:** Bilgi tabanı kalemi: "Üst kat (Papatya dairesi) — yalnız Papatya misafirleri: kapı kodu 5274, Wi-Fi Papatya_Ev / gunes5582. Bu
@@ -790,7 +793,8 @@
   - *Öneri B (kod, sonra):* anlama katmanına "başkası / başka rezervasyon adına" işareti + kod içeren cevabı tutan kapı (yeni alan → ölçüm).
 - **Öneri:** A; iki yönlü ölçümle (kendi girişini soran misafir kodu ALMAYA devam etmeli — giriş tarifinde kod kuralının amacı bu).
 - **Müşteriye etkisi:** Giriş kodları yalnız rezervasyon sahibine, kendi rezervasyonu yoluyla gider; kendi girişini soran misafir etkilenmez.
-- **Beklerken yapılmayan:** istem değişmedi (misafire giden davranış — kararınız).
+- **Beklerken yapılmayan:** istem değişmedi (misafire giden davranış — kararınız). Öneri A hazır: dal `prep/baskasi-adina-kod` (İTİLMEDİ;
+  giriş tarifinde kod katmanına tek cümle, anahtar kapalıyken istem bayt bayt aynı).
 
 ## 53. Konuşma öğeleri kipinde (CANLI) cevap modeli bırakılan isteğe değinince güvenli kısım da gitmiyor — HAZIR DÜZELTME, onayınızı bekliyor (10-02 sabah)
 - **Durum:** Öğe kipinde (canlıda açık) misafir aynı mesajda hassas bir şey (IBAN, iade, ev sahibiyle görüşme) ve güvenli bir şey (Wi-Fi,
