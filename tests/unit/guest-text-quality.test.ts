@@ -376,7 +376,7 @@ describe("otomatik gönderilen misafir metinleri", () => {
       /فريقنا فورًا/,
       /команда сразу поправит/i,
     ];
-    for (const lang of ["tr", "en", "de", "fr", "ar", "ru", "zz"]) {
+    for (const lang of ["tr", "en", "de", "fr", "es", "ar", "ru", "zz"]) {
       const note = automatedReplyNote(lang, true);
       expect(note, `dil: ${lang}`).toBeTruthy();
       for (const re of broken) expect(note!, `dil: ${lang}`).not.toMatch(re);
@@ -385,6 +385,13 @@ describe("otomatik gönderilen misafir metinleri", () => {
     // Bu olmadan pin, dipnotu komple silen bir değişikliği de yeşil geçerdi.
     expect(automatedReplyNote("tr", true)).toMatch(/otomatik/i);
     expect(automatedReplyNote("en", true)).toMatch(/automated/i);
+    // 10-02 (kör set 11 / set 10): desteklenen yedi dilin HER BİRİ kendi dilinde — İspanyolca tablo satırı yoktu, İspanyolca misafire
+    // İngilizce dipnot gidiyordu (5.1'de de). Desteklenmeyen dil İngilizceye düşer.
+    expect(automatedReplyNote("es", true)).toBe("(Esta respuesta fue preparada por un asistente automático.)");
+    expect(automatedReplyNote("es-ES", true)).toBe(automatedReplyNote("es", true));
+    const seven = ["tr", "en", "de", "fr", "es", "ar", "ru"].map((l) => automatedReplyNote(l, true));
+    expect(new Set(seven).size).toBe(7);
+    expect(automatedReplyNote("zz", true)).toBe(automatedReplyNote("en", true));
     // Ve kapatma anahtarları hâlâ çalışıyor.
     expect(automatedReplyNote("tr", false)).toBeNull();
   });
@@ -496,7 +503,7 @@ describe("misafire giden metinde ünlem yok", () => {
 
   it("oto-yanıt dipnotu altı dilde de ünlemsiz", async () => {
     const { automatedReplyNote } = await import("@/lib/automation");
-    for (const lang of ["tr", "en", "de", "fr", "ar", "ru", "zz"]) {
+    for (const lang of ["tr", "en", "de", "fr", "es", "ar", "ru", "zz"]) {
       expect(automatedReplyNote(lang, true)!, `dil ${lang}`).not.toMatch(/!/);
     }
   });

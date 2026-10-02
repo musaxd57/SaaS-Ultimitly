@@ -995,6 +995,9 @@ export function automatedReplyNote(lang: string | undefined, orgEnabled: boolean
     en: "(This reply was prepared by an automated assistant.)",
     de: "(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
     fr: "(Cette réponse a été préparée par un assistant automatique.)",
+    // 10-02 (kör set 10 / 11): İspanyolca satır yoktu → İspanyolca misafire İngilizce dipnot gidiyordu (5.1'de de; model değil,
+    // tablo eksiği). Misafirin dilinde cevap kuralının yedi dili burada da tam.
+    es: "(Esta respuesta fue preparada por un asistente automático.)",
     ar: "(تم إعداد هذا الرد بواسطة مساعد آلي.)",
     ru: "(Этот ответ подготовлен автоматическим ассистентом.)",
   };
