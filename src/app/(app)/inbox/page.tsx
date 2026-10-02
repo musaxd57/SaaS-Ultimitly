@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MessageSquare, Plus, AlertTriangle, Search, X } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { canManage } from "@/lib/api";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -25,6 +26,8 @@ import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { CLOSING_HANDLED_LABEL, isClosingHandled, notClosingHandledWhere } from "@/lib/conversation-attention";
 import { openItemCounts } from "@/lib/conversation-items/store";
 import { openItemsBadge } from "@/lib/conversation-items/view";
+import { hostDecisionsEnabled } from "@/lib/decisions/flag";
+import { openDecisionCounts } from "@/lib/decisions/store";
 
 export const dynamic = "force-dynamic";
 
@@ -87,16 +90,31 @@ export default async function InboxPage({
   const automationLocked = !(await premiumAllowed(session.organizationId));
   const demo = isDemoOrg(session.organizationId);
 
-  // Konuşma öğeleri (09-26): ev sahibinde AÇIK iş sayısı (yalnız bu sayfanın konuşmaları; "ev sahibi yazdı" düşülür).
-  // Güvenli kısmı cevaplanmış konuşma "Cevaplandı" görünse de açık iş rozetiyle öne çıkar. Okuma hatası listeyi düşürmez.
-  const openItems = await openItemCounts(prisma, {
-    organizationId: session.organizationId,
-    conversationIds: conversations.map((c) => c.id),
-  }).catch(() => new Map<string, number>());
 
   // "x gün önce" etiketi 30 günü aşınca mutlak güne düşer — o gün host'un
   // takvim günü olmalı, sunucunun UTC'si değil.
   const TZ = orgTimezone(org?.timezone);
+
+  // Host Karar Motoru (bayraklı): karar bekleyen konaklama isteği olan konuşmalar "Karar bekliyor" rozetiyle öne çıkar.
+  // Yalnız sahip / yönetici (kartı yalnız onlar görür ve karar verebilir).
+  const decisionSummary = hostDecisionsEnabled() && canManage(session)
+    ? await openDecisionCounts(prisma, {
+        organizationId: session.organizationId,
+        conversationIds: conversations.map((c) => c.id),
+        timeZone: TZ,
+        now: new Date(),
+      }).catch(() => ({ counts: new Map<string, number>(), itemIds: [] as string[] }))
+    : { counts: new Map<string, number>(), itemIds: [] as string[] };
+  const openDecisions = decisionSummary.counts;
+
+  // Konuşma öğeleri (09-26): ev sahibinde AÇIK iş sayısı (yalnız bu sayfanın konuşmaları; "ev sahibi yazdı" düşülür).
+  // Güvenli kısmı cevaplanmış konuşma "Cevaplandı" görünse de açık iş rozetiyle öne çıkar. Okuma hatası listeyi düşürmez.
+  // Açık bir karar kartına bağlı öğe sayılmaz: aynı talep "Karar bekliyor" rozetinde (iki rozet aynı işi iki kez saymasın).
+  const openItems = await openItemCounts(prisma, {
+    organizationId: session.organizationId,
+    conversationIds: conversations.map((c) => c.id),
+    excludeItemIds: decisionSummary.itemIds,
+  }).catch(() => new Map<string, number>());
 
   // ── m48: "Açık sorunlar — triyaj" (yalnız Sorunlu sekmesinde) ─────────────
   // 🚨 MODEL ÇAĞRISI YOK: escalation ANINDA yazılmış analiz okunuyor.
@@ -398,8 +416,11 @@ export default async function InboxPage({
             // konuşma ("cevap gerekmedi") dikkat istemez: vurgusuz, kendi etiketiyle.
             const handled = isClosingHandled(c) && (c.status === "new" || c.status === "waiting");
             const openBadge = openItemsBadge(openItems.get(c.id) ?? 0);
+            const decisionCount = openDecisions.get(c.id) ?? 0;
             const unread =
-              openBadge !== null || (!handled && (c.status === "new" || c.status === "waiting" || c.status === "problem"));
+              openBadge !== null ||
+              decisionCount > 0 ||
+              (!handled && (c.status === "new" || c.status === "waiting" || c.status === "problem"));
             return (
             <Link
               key={c.id}
@@ -440,6 +461,7 @@ export default async function InboxPage({
                 <Badge tone={handled ? "muted" : CONVERSATION_STATUS.tone(c.status)}>
                   {handled ? CLOSING_HANDLED_LABEL : CONVERSATION_STATUS.label(c.status)}
                 </Badge>
+                {decisionCount > 0 ? <Badge tone="warning">{decisionCount > 1 ? `${decisionCount} karar bekliyor` : "Karar bekliyor"}</Badge> : null}
                 {openBadge ? <Badge tone="warning">{openBadge}</Badge> : null}
                 <span className="text-[11px] text-muted-foreground">{fromNow(c.lastMessageAt, TZ)}</span>
               </div>

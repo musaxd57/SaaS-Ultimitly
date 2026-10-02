@@ -9,6 +9,10 @@ import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conversation-items/store";
 import type { ItemKind } from "@/lib/conversation-items/core";
 import { notAutomationMessageWhere } from "@/lib/message-author";
+import { orgTimezone } from "@/lib/timezone";
+import { hostDecisionsEnabled } from "@/lib/decisions/flag";
+import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
+import { decisionTitle } from "@/lib/decisions/core";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ, migration İSTEMEZ.
@@ -31,6 +35,9 @@ import { notAutomationMessageWhere } from "@/lib/message-author";
 //  · held_request         — (09-26, konuşma öğeleri) misafirin ev sahibine BIRAKILAN hassas isteği (IBAN, şikâyet, iade,
 //                           ev sahibiyle görüşme…): güvenli kısmı cevaplanmış konuşma "Cevaplandı" görünür; iş burada
 //                           görünür kalır. Konuşma başına TEK satır; aynı konuşmanın "cevapsız" satırının yerini alır.
+//  · decision_pending     — (10-02, Host Karar Motoru, `HOST_DECISIONS_ENABLED`) ev sahibinin KARARINI bekleyen konaklama isteği
+//                           ("13:00 erken giriş"). Kurucu: "panelde 'karar bekliyor' açık kalır". Karar başına satır; aynı
+//                           konuşmanın "cevapsız" satırının yerini alır.
 //  · calendar_conflict    — (09-24, müsaitlik motoru) önümüzdeki 60 gecede AYNI geceyi
 //                           işgal eden iki rezervasyon. Hiçbir yazma yolu bunu engellemiyor,
 //                           takvim sayfası gece başına mülk saydığı için GÖRÜNMÜYORDU.
@@ -57,6 +64,7 @@ export const ATTENTION_KINDS = [
   "recurring_issue",
   "calendar_conflict",
   "held_request",
+  "decision_pending",
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -140,6 +148,8 @@ export interface AttentionItem {
   /** Yalnız `held_request`: bırakılan isteklerin türleri (en eskiden yeniye, tekil) ve toplam sayısı. */
   requestKinds?: ItemKind[];
   requestCount?: number;
+  /** Yalnız `decision_pending`: kart başlığı ("13:00 erken giriş"; misafir metni değil). */
+  decisionTitle?: string;
 }
 
 export interface FindAttentionOptions {
@@ -183,6 +193,18 @@ export async function findAttentionItems(
   const windowStart = new Date(now.getTime() - ATTENTION_WINDOW_DAYS * 24 * HOUR);
   const recurringSince = new Date(now.getTime() - RECURRING_FRESH_DAYS * 24 * HOUR);
 
+  // Karar kartları yalnız bayrak açıkken (kapalıyken sorgu yok). Org dilimi: "gün geçti" türetmesi için. Öğe özetinden ÖNCE
+  // okunur: açık karta bağlı öğe "bırakılan istek" satırında İKİNCİ kez sayılmaz (aynı talep, karar satırı daha özgül).
+  const decisionTz = hostDecisionsEnabled()
+    ? orgTimezone((await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone)
+    : null;
+  const decisions = decisionTz
+    ? await openDecisionsForOrg(prisma, { organizationId, timeZone: decisionTz, now }).catch((err): DecisionView[] => {
+        void alertOnTransition("attention:decision-pending", "attention decision_pending", err).catch(() => {});
+        return [];
+      })
+    : [];
+  const decisionItemIds = decisions.map((d) => d.itemId).filter((v): v is string => v !== null);
   const [brokenFeeds, conversations, patterns, conflicts, held] = await Promise.all([
     prisma.calendarSource.findMany({
       where: { propertyId: { in: propertyIds }, lastStatus: "error" },
@@ -240,12 +262,17 @@ export async function findAttentionItems(
       return [];
     }),
     // Konuşma öğeleri: bu bacağın arızası öteki satırları düşürmez (geçiş tabanlı alarm).
-    heldRequestsByConversation(prisma, { organizationId, propertyIds, since: windowStart }).catch((err): HeldRequestSummary[] => {
-      void alertOnTransition("attention:held-request", "attention held_request", err).catch(() => {});
-      return [];
-    }),
+    heldRequestsByConversation(prisma, { organizationId, propertyIds, since: windowStart, excludeItemIds: decisionItemIds }).catch(
+      (err): HeldRequestSummary[] => {
+        void alertOnTransition("attention:held-request", "attention held_request", err).catch(() => {});
+        return [];
+      },
+    ),
   ]);
-  const heldConversationIds = new Set(held.map((h) => h.conversationId));
+  const inScope = new Set(propertyIds);
+  const openDecisions = decisions.filter((d) => inScope.has(d.propertyId));
+  // Ev sahibine bırakılmış istek / karar bekleyen kart satırı bu konuşmayı zaten gösteriyor (daha özgül; çift satır olmasın).
+  const heldConversationIds = new Set([...held.map((h) => h.conversationId), ...openDecisions.map((d) => d.conversationId)]);
 
   const items: AttentionItem[] = [];
 
@@ -310,6 +337,21 @@ export async function findAttentionItems(
       occurredAt: last.createdAt,
       href: conversationHref(convo.id, convo.channel),
       hoursWaiting,
+    });
+  }
+
+  for (const d of openDecisions) {
+    items.push({
+      kind: "decision_pending",
+      // ÇIKARIM: isteğin türü anlama katmanı + kelime ağıyla tespit edildi (saat modelin okuması) → "doğrulayın".
+      certainty: "inferred",
+      propertyId: d.propertyId,
+      propertyName: nameById.get(d.propertyId) ?? "",
+      // Kararı bekleyen misafir: bırakılan istekten ÖNCE, acilden SONRA.
+      severity: 92,
+      occurredAt: d.messageAt,
+      href: conversationHref(d.conversationId, d.channel),
+      decisionTitle: decisionTitle(d.kind, d.requestedTime),
     });
   }
 

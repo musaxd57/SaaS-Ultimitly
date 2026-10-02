@@ -21,6 +21,7 @@ import {
   type ItemStatus,
 } from "./core";
 import type { TurnWithdrawal } from "./extract";
+import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 
 // ---------------------------------------------------------------------------
 // KONUŞMA ÖĞELERİ — KALICI KAYIT (09-26; migration 56). Karar kuralları `core.ts`te (saf); burası yalnız yazar/okur.
@@ -276,6 +277,20 @@ const HOST_OUTBOUND_WHERE: Prisma.MessageWhereInput = {
   ],
 };
 
+/**
+ * Host Karar Motoru kartıyla giden mesajlar (bayrak açıkken). Karar mesajı YALNIZ kendi talebini yanıtlar (bağlı öğe "Tamamlandı"
+ * yapılır); aynı turun öteki öğelerini "ev sahibi yazdı" ile kapatmaz — iade isteği, erken giriş onaylandı diye kaybolmasın.
+ * Bayrak kapalıyken sorgu YOK (davranış birebir eski).
+ */
+async function decisionResultMessageIds(db: Db, organizationId: string, conversationIds: readonly string[]): Promise<string[]> {
+  if (!hostDecisionsEnabled() || conversationIds.length === 0) return [];
+  const rows = await db.decisionRequest.findMany({
+    where: { organizationId, conversationId: { in: [...conversationIds] }, resultMessageId: { not: null } },
+    select: { resultMessageId: true },
+  });
+  return rows.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
+}
+
 export type ItemView = PersistedItem & {
   effective: EffectiveItemStatus;
   /** Öğenin mesajının yazıldığı an (mesaj bulunamazsa öğenin kendi zamanı). */
@@ -293,9 +308,15 @@ export async function listConversationItems(db: Db, input: { organizationId: str
   });
   if (rows.length === 0) return [];
   const items = rows.map(toPersisted);
+  const decisionMessages = await decisionResultMessageIds(db, input.organizationId, [input.conversationId]);
   const [lastHost, messages] = await Promise.all([
     db.message.findFirst({
-      where: { conversationId: input.conversationId, conversation: { property: { organizationId: input.organizationId } }, ...HOST_OUTBOUND_WHERE },
+      where: {
+        conversationId: input.conversationId,
+        conversation: { property: { organizationId: input.organizationId } },
+        ...HOST_OUTBOUND_WHERE,
+        ...(decisionMessages.length > 0 ? { id: { notIn: decisionMessages } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       select: { createdAt: true, direction: true, senderName: true, authorType: true, systemEventType: true },
     }),
@@ -321,10 +342,16 @@ type OpenRow = { conversationId: string; messageId: string; status: string; crea
 async function stillOpenForHost<R extends OpenRow>(db: Db, organizationId: string, rows: readonly R[]): Promise<(R & { messageAt: Date })[]> {
   if (rows.length === 0) return [];
   const convIds = [...new Set(rows.map((r) => r.conversationId))];
+  const decisionMessages = await decisionResultMessageIds(db, organizationId, convIds);
   const [hosts, messages] = await Promise.all([
     db.message.groupBy({
       by: ["conversationId"],
-      where: { conversationId: { in: convIds }, conversation: { property: { organizationId } }, ...HOST_OUTBOUND_WHERE },
+      where: {
+        conversationId: { in: convIds },
+        conversation: { property: { organizationId } },
+        ...HOST_OUTBOUND_WHERE,
+        ...(decisionMessages.length > 0 ? { id: { notIn: decisionMessages } } : {}),
+      },
       _max: { createdAt: true },
     }),
     db.message.findMany({
@@ -345,11 +372,24 @@ async function stillOpenForHost<R extends OpenRow>(db: Db, organizationId: strin
 }
 
 /** Konuşma başına ev sahibinde AÇIK öğe sayısı (liste rozeti; "ev sahibi yazdı" düşülür). */
-export async function openItemCounts(db: Db, input: { organizationId: string; conversationIds: readonly string[] }): Promise<Map<string, number>> {
+export async function openItemCounts(
+  db: Db,
+  input: {
+    organizationId: string;
+    conversationIds: readonly string[];
+    /** Sayılmayacak öğeler (açık bir karar kartına bağlı — aynı talep "karar bekliyor" rozetinde zaten var). */
+    excludeItemIds?: readonly string[];
+  },
+): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   if (input.conversationIds.length === 0) return out;
   const rows = await db.conversationItem.findMany({
-    where: { organizationId: input.organizationId, conversationId: { in: [...input.conversationIds] }, status: { in: OPEN_STATUSES } },
+    where: {
+      organizationId: input.organizationId,
+      conversationId: { in: [...input.conversationIds] },
+      status: { in: OPEN_STATUSES },
+      ...(input.excludeItemIds && input.excludeItemIds.length > 0 ? { id: { notIn: [...input.excludeItemIds] } } : {}),
+    },
     select: { conversationId: true, messageId: true, status: true, createdAt: true },
   });
   for (const r of await stillOpenForHost(db, input.organizationId, rows)) {
@@ -376,7 +416,14 @@ export interface HeldRequestSummary {
  */
 export async function heldRequestsByConversation(
   db: Db,
-  input: { organizationId: string; propertyIds: readonly string[]; since: Date; cap?: number },
+  input: {
+    organizationId: string;
+    propertyIds: readonly string[];
+    since: Date;
+    cap?: number;
+    /** Sayılmayacak öğeler (açık bir karar kartına bağlı — pano o talebi "karar bekliyor" satırıyla gösterir). */
+    excludeItemIds?: readonly string[];
+  },
 ): Promise<HeldRequestSummary[]> {
   if (input.propertyIds.length === 0) return [];
   const rows = await db.conversationItem.findMany({
@@ -386,6 +433,7 @@ export async function heldRequestsByConversation(
       sensitivity: { in: ["sensitive", "emergency"] },
       createdAt: { gte: input.since },
       conversation: { propertyId: { in: [...input.propertyIds] } },
+      ...(input.excludeItemIds && input.excludeItemIds.length > 0 ? { id: { notIn: [...input.excludeItemIds] } } : {}),
     },
     orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }, { id: "asc" }],
     take: input.cap ?? 500,

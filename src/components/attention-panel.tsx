@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarRange, CalendarX2, Clock, Hand, LogOut, Repeat } from "lucide-react";
+import { AlertTriangle, CalendarRange, CalendarX2, Clock, Hand, Hourglass, LogOut, Repeat } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
@@ -28,6 +28,7 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   recurring_issue: Repeat,
   calendar_conflict: CalendarRange,
   held_request: Hand,
+  decision_pending: Hourglass,
 };
 
 /** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
@@ -61,6 +62,8 @@ function headline(item: AttentionItem): string {
       const first = item.requestKinds?.[0];
       return `Size bırakılan istek: ${first ? itemKindLabel(first) : "misafir isteği"}`;
     }
+    case "decision_pending":
+      return `Karar bekliyor: ${item.decisionTitle ?? "konaklama isteği"}`;
   }
 }
 
@@ -83,6 +86,8 @@ function detail(item: AttentionItem): string {
       const more = (item.requestCount ?? 1) > 1 ? ` · ${(item.requestCount ?? 1) - 1} istek daha` : "";
       return `${item.propertyName}${more} · misafire yanıt verin`;
     }
+    case "decision_pending":
+      return `${item.propertyName} · onaylayın ya da reddedin`;
   }
 }
 

@@ -46,7 +46,16 @@ const READINESS_TEXT: Record<string, string> = {
   no_time: "Temizlik bitti olarak görünüyor ama ne zaman bittiği kayıtlı değil.",
 };
 
-export function earlyCheckinPanelLines(d: EarlyCheckinPanelData): PanelLine[] {
+/**
+ * Satırların kime gösterildiği. `suggest` (varsayılan): "AI öner" paneli — otomatik onay yolunu anlatır. `decision`: Host Karar
+ * Motoru kartı — ev sahibi ELLE karar verir: yalnız otomatik gönderime ait satırlar (kural kapalı, otomatik gönderilemiyor) düşer;
+ * varış bugün değilken hazırlık satırları BİLGİDİR (temizlik o gün yapılır — karar vermeyi engellemez; "görev yok" uyarı kalır).
+ */
+export type PanelAudience = "suggest" | "decision";
+
+export function earlyCheckinPanelLines(d: EarlyCheckinPanelData, audience: PanelAudience = "suggest"): PanelLine[] {
+  const decision = audience === "decision";
+  const ahead = decision && !d.facts.arrivalToday;
   const f = new Set(d.failed);
   const lines: PanelLine[] = [];
   if (f.has("time_conflict")) {
@@ -59,7 +68,9 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData): PanelLine[] {
   lines.push(
     d.facts.arrivalToday
       ? { ok: true, text: "Misafirin varışı bugün." }
-      : { ok: false, text: "Varış bugün değil; hazırlık o gün kontrol edilebilir." },
+      : ahead
+        ? { ok: true, info: true, text: "Varış bugün değil; temizlik durumu varış günü netleşir." }
+        : { ok: false, text: "Varış bugün değil; hazırlık o gün kontrol edilebilir." },
   );
   // Kanıtlı erken hazırlık YALNIZ aynı gün devirde anlatılır; devir yoksa dün gecenin durumu satırda kalmalı (inceleme:
   // "çıkış doğrulandı" yeşil satırı dün gece doğrulanamadı nedenini gizliyordu).
@@ -99,8 +110,11 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData): PanelLine[] {
   // Temizlik sürüyorsa (görev açık → neden her zaman "open") temizlikçinin başladığı söylenir.
   else if (d.facts.readiness === "not_ready" && d.facts.cleaningStarted) {
     lines.push({ ok: false, text: 'Temizlikçi temizliğe başladı; henüz "Daire hazır" demedi.' });
-  } else if (d.facts.readiness === "not_ready") lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? "open"] ?? READINESS_TEXT.open });
-  else lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? ""] ?? "Bu devir için temizlik görevi bulunamadı." });
+  } else if (d.facts.readiness === "not_ready") {
+    // Karar kartında varıştan önceki günlerde açık temizlik görevi beklenen durumdur (bilgi); varış günü uyarıdır.
+    const text = READINESS_TEXT[d.facts.readinessNote ?? "open"] ?? READINESS_TEXT.open;
+    lines.push(ahead ? { ok: true, info: true, text } : { ok: false, text });
+  } else lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? ""] ?? "Bu devir için temizlik görevi bulunamadı." });
   if (f.has("open_issue")) lines.push({ ok: false, text: "Bu devirde açık bir sorun ya da bakım görevi var; kapanmadan \"daire hazır\" denemez." });
   if (f.has("arrival_passed")) lines.push({ ok: false, text: "Misafirin varış günü geçmiş." });
   if (f.has("time_passed")) lines.push({ ok: false, text: "İstenen saat geçti; misafire uygun saati siz yazın." });
@@ -110,12 +124,12 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData): PanelLine[] {
   if (f.has("day_unverified")) lines.push({ ok: false, text: "Mesajda başka bir güne işaret var (ör. \"yarın\"); günü kontrol edin." });
   if (f.has("not_fully_read")) lines.push({ ok: false, text: "Cevapsız mesajlar çok uzun ya da çok fazla; hepsini okuyup siz karar verin." });
   if (f.has("time_mismatch_text")) lines.push({ ok: false, text: "Mesajdaki saat(ler) istenen saatle birebir eşleşmiyor; saati kontrol edin." });
-  if (f.has("queued_delivery")) lines.push({ ok: false, text: "Bu onay şu an otomatik gönderilemiyor; hazır cevabı siz gönderin." });
+  if (f.has("queued_delivery") && !decision) lines.push({ ok: false, text: "Bu onay şu an otomatik gönderilemiyor; hazır cevabı siz gönderin." });
   if (f.has("clock_unknown")) lines.push({ ok: false, text: "Şu anki saat okunamadı; istenen saatin geçip geçmediğini kontrol edin." });
   if (f.has("open_maintenance")) lines.push({ ok: false, text: "Mülkte açık bir bakım görevi var; göndermeden önce kontrol edin." });
   if (f.has("cleaning_note")) lines.push({ ok: false, text: "Temizlikçi bugün bir not bıraktı; göndermeden önce okuyun." });
   if (d.fee) lines.push({ ok: true, text: `Erken giriş ücreti: ${formatEarlyCheckinFee({ amount: d.fee.amount, currency: d.fee.currency as EarlyCheckinCurrency }, "tr")}` });
-  if (d.mode === "off" || f.has("rule_off")) lines.push({ ok: false, text: "Erken giriş kuralı kapalı; mülk sayfasından açabilirsiniz." });
+  if ((d.mode === "off" || f.has("rule_off")) && !decision) lines.push({ ok: false, text: "Erken giriş kuralı kapalı; mülk sayfasından açabilirsiniz." });
   // Bekleyen istek: yalnız otomatik kurallı mülkte, varış günü ve devrin temizlik görevi VARKEN temizlik işaretiyle
   // yeniden kontrol edilir (`recheck.ts`). Görev yoksa söz verilmez ("görev bulunamadı" satırı zaten söyler).
   if (d.status === "pending" && d.facts.arrivalToday && d.mode === "auto" && d.facts.readiness === "not_ready") {

@@ -31,6 +31,19 @@ import { hostOfferForGate } from "@/lib/automation";
 import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
 import { aiSuggestExceedsLength, MESSAGE_TOO_LONG_REASON } from "@/lib/ai/message-length";
 import { HANDOFF_NOTICE_REASON } from "@/lib/ai/output-veto";
+import { hostDecisionsEnabled } from "@/lib/decisions/flag";
+import { listConversationDecisions } from "@/lib/decisions/store";
+import {
+  buildDecisionCards,
+  decisionLinkedItemIds,
+  neighborDecidedTimes,
+  resolvedDecisionRows,
+  visibleDecisions,
+} from "@/lib/decisions/card";
+import { isImpersonating } from "@/lib/auth/impersonation";
+import { isOpenDecision } from "@/lib/decisions/core";
+import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
+import { DecisionPanel } from "@/components/inbox/decision-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -158,8 +171,51 @@ export default async function ConversationPage({
     conversation.skippedReason === "low_confidence_or_risky" && heldEvent?.reason === HANDOFF_NOTICE_REASON
       ? HANDOFF_NOTICE_REASON
       : conversation.skippedReason;
+
+  // HOST KARAR MOTORU (Faz 1, `HOST_DECISIONS_ENABLED`): ev sahibinin kararını bekleyen konaklama istekleri sayfanın EN ÜSTÜNDE
+  // (telefonda da ilk görünen). Yalnız sahip / yönetici (kart misafir mesajının türevi — personel görmez). Okuma hatası sayfayı düşürmez.
+  const decisionViews =
+    hostDecisionsEnabled() && canManage(session)
+      ? await listConversationDecisions(prisma, {
+          organizationId: session.organizationId,
+          conversationId: conversation.id,
+          timeZone: TZ,
+          now: new Date(),
+        }).catch(() => [])
+      : [];
+  const shownDecisions = visibleDecisions(decisionViews);
+  const earlyRule = shownDecisions.some((v) => v.kind === "early_checkin")
+    ? await loadEarlyCheckinRule(session.organizationId, conversation.propertyId).catch(() => null)
+    : null;
+  const decisionCards =
+    shownDecisions.length > 0
+      ? await buildDecisionCards(shownDecisions, {
+          organizationId: session.organizationId,
+          property: {
+            id: conversation.propertyId,
+            checkInTime: conversation.property.checkInTime,
+            checkOutTime: conversation.property.checkOutTime,
+          },
+          reservationId: conversation.reservation?.id ?? null,
+          stay: conversation.reservation
+            ? { arrivalDate: conversation.reservation.arrivalDate, departureDate: conversation.reservation.departureDate }
+            : null,
+          messages: conversation.messages,
+          timeZone: TZ,
+          now: new Date(),
+          adjacency,
+          stayEdgeLines: stayEdges?.lines ?? [],
+          earlyRule: earlyRule ? { fee: earlyRule.fee, note: earlyRule.note, ...(earlyRule.noteRejected ? { noteRejected: true as const } : {}) } : null,
+        }).catch(() => [])
+      : [];
+  const resolvedRows = resolvedDecisionRows(decisionViews, TZ);
+  // Kartı / sonuç satırı olan talebin konuşma öğesi "Açık işler"de ikinci kez görünmez.
+  const decisionItems = decisionLinkedItemIds(decisionViews);
+  // Son misafir mesajının tutuşu bir karar kartıyla anlatılıyorsa "AI emin olamadı / misafir cevabınızı bekliyor" bandı tekrar olur.
+  const decisionCoversHold = shownDecisions.some((v) => isOpenDecision(v.effective) && v.messageId === lastInboundId);
   // Açıklar üstte, sonra en yeni. Kart dar bir rayda: en fazla 20 satır.
   const itemRows: ConversationItemRow[] = [...itemViews]
+    .filter((v) => !decisionItems.has(v.id))
     .sort(
       (a, b) =>
         Number(isOpenForHost(b.effective)) - Number(isOpenForHost(a.effective)) || b.messageAt.getTime() - a.messageAt.getTime(),
@@ -191,6 +247,19 @@ export default async function ConversationPage({
   // (istemle AYNI karar — ekran ile model aynı olguyu görür).
   const turnoverIn = !stayIsOver && adjacency?.previousSameDay === true;
   const turnoverOut = !stayIsOver && adjacency?.nextSameDay === true;
+  // Host Karar Motoru (bayraklı): komşu misafirin ONAYLANMIŞ geç çıkışı / erken girişi devir kutusuna yansır — karar kartıyla
+  // çelişmesin ("önceki misafir 11:00" yazarken kartta "geç çıkışı 12:00 onaylandı"). Okuma hatası standart saati gösterir.
+  const neighborTimes =
+    hostDecisionsEnabled() && conversation.reservation && (turnoverIn || turnoverOut)
+      ? await neighborDecidedTimes({
+          organizationId: session.organizationId,
+          propertyId: conversation.propertyId,
+          reservationId: conversation.reservation.id,
+          stay: { arrivalDate: conversation.reservation.arrivalDate, departureDate: conversation.reservation.departureDate },
+          timeZone: TZ,
+          now: new Date(),
+        }).catch(() => ({ previousLateCheckout: null, nextEarlyCheckin: null }))
+      : { previousLateCheckout: null, nextEarlyCheckin: null };
 
   // K10-t: cevapsız misafir mesajlarından biri ya da "AI öner"in cevaplayacağı son gelen mesaj 8.000 karakteri aşıyor mu (oto-yanıt
   // kaydından bağımsız; "AI öner" rotasıyla AYNI kural).
@@ -306,6 +375,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
         </p>
       ) : tooLongForAi ? null : conversation.skippedReason &&
       conversation.status !== "answered" &&
+      !(decisionCoversHold && (skipNoteReason === "low_confidence_or_risky" || skipNoteReason === HANDOFF_NOTICE_REASON)) &&
       (conversation.skippedReason !== CLOSING_HANDLED_REASON || isClosingHandled(conversation)) ? (
         <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           🤖 {SKIP_REASON_LABELS[skipNoteReason ?? conversation.skippedReason] ?? "Otomatik yanıt beklemede"}
@@ -335,6 +405,13 @@ const SKIP_REASON_LABELS: Record<string, string> = {
           ARTAN alanın tamamını alır. Eskiden yükseklik `calc(100vh/0.95-11rem)`
           sabitiydi ve bandları saymıyordu → ölçüldü: tek bandda `<main>` 46 px,
           iki bandda 109 px taşıyordu. */}
+      <DecisionPanel
+        conversationId={conversation.id}
+        decisions={decisionCards}
+        resolved={resolvedRows}
+        readOnly={isImpersonating(session)}
+      />
+
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 lg:min-h-0">
           <ConversationThread
@@ -424,9 +501,14 @@ const SKIP_REASON_LABELS: Record<string, string> = {
                     <div className="mt-2 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground">
                       <ArrowLeftRight className="mt-0.5 size-3.5 shrink-0" />
                       <span>
+                        {/* Saate ek yazılmaz ("11:00'te" yanlıştı: "on bir'de"); onaylanmış komşu saati varsa o yazılır. */}
                         {turnoverIn
-                          ? `Giriş günü aynı günde önceki misafir saat ${conversation.property.checkOutTime}'te çıkıyor — devir günü.`
-                          : `Çıkış günü aynı günde yeni misafir saat ${conversation.property.checkInTime}'te giriyor — devir günü.`}
+                          ? neighborTimes.previousLateCheckout
+                            ? `Giriş günü aynı günde önceki misafir çıkıyor (geç çıkışı onaylandı: ${neighborTimes.previousLateCheckout}) — devir günü.`
+                            : `Giriş günü aynı günde önceki misafir çıkıyor (çıkış saati ${conversation.property.checkOutTime}) — devir günü.`
+                          : neighborTimes.nextEarlyCheckin
+                            ? `Çıkış günü aynı günde yeni misafir giriyor (erken girişi onaylandı: ${neighborTimes.nextEarlyCheckin}) — devir günü.`
+                            : `Çıkış günü aynı günde yeni misafir giriyor (giriş saati ${conversation.property.checkInTime}) — devir günü.`}
                       </span>
                     </div>
                   ) : null}
