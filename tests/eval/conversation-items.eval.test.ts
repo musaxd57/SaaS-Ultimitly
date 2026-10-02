@@ -47,6 +47,9 @@ const LIMIT = Number(process.env.EVAL_ITEMS_LIMIT) > 0 ? Math.trunc(Number(proce
 // (canlının kipi; bugünkü kolun maliyetini harcamadan kural kipinin öğe güvenliğine etkisini ölçmek için).
 const RULES = process.env.EVAL_UNDERSTANDING_RULES === "1";
 const ARMS: readonly ("today" | "items")[] = process.env.EVAL_ITEMS_ARMS === "items" ? ["items"] : ["today", "items"];
+// Rapor adı etiketi (10-02, katman bazında Luna kıyası): aynı cevap modeliyle koşan iki yapılandırma (ör. anlama 5.1 ↔ Luna)
+// "-2" sonekine kalmasın. Yalnız ad; kimlik raporun koşu kimliği tablosundadır.
+const TAG = (process.env.EVAL_ITEMS_TAG ?? "").trim().replace(/[^a-z0-9.-]+/gi, "_");
 const GUEST = "Alex";
 const TZ = "Europe/Istanbul";
 
@@ -325,7 +328,7 @@ function writeReport(data: Dataset, rows: Row[], commit: string): string {
   ];
   const dir = path.resolve(__dirname, "../../docs/olcum");
   mkdirSync(dir, { recursive: true });
-  const stem = `konusma-ogeleri-eval-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${RULES ? "-kural" : ""}${ARMS.length === 1 ? "-oge-kolu" : ""}`;
+  const stem = `konusma-ogeleri-eval-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${RULES ? "-kural" : ""}${ARMS.length === 1 ? "-oge-kolu" : ""}${TAG ? `-${TAG}` : ""}`;
   // Aynı gün ikinci koşu önceki raporun (belki commit edilmiş) üzerine YAZMAZ.
   let file = path.join(dir, `${stem}.md`);
   for (let n = 2; existsSync(file); n++) file = path.join(dir, `${stem}-${n}.md`);
