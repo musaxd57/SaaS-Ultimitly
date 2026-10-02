@@ -305,6 +305,8 @@ describe("dar liste — her kalıp kendi örneğiyle pinli (mutasyon 10-01: örn
     // her kalıbın dişil biçimi kendi örneğiyle (mutasyon: örneksiz parça ölü kod sayılır)
     "Das ist Sache Ihrer Gastgeberin.",
     "Das obliegt Ihrer Gastgeberin.",
+    "Das entscheidet Ihre Gastgeberin.",
+    "Darüber entscheidet die Vermieterin.",
     "C'est la décision de votre hôtesse.",
     "Cela revient à votre hôtesse.",
     "C'est à la discrétion de votre hôtesse.",

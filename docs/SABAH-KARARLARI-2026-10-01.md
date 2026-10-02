@@ -35,6 +35,9 @@
 12. **(10-02 sabah, Luna katman çalışması) 53 → 52 → 51** — öğe kipinde bırakılan isteğe değinen cevap güvenli kısmı da tutuyor (53, hazır
    düzeltme, cevap modelini Luna'ya geçirmeden önce gerekli); başkası adına sorulan girişte kapı kodları (52, 5.1 ve Luna — canlıda da var); anlam
    gerektiren yanlış aciller ve parti / grup belirsizliği (51 a–g).
+13. **(10-02 sabah, kör set 11) 54 → 53 EK → 47 EK** — hizmet isteği ("yarından itibaren bebek yatağı") cevaplanıyor ama ev sahibine haber gitmiyor;
+   5.1 "hazırlayabilirim" diye söz veriyor (54, canlıda, modelden bağımsız); set 11'de bugünkü 5.1 bırakılan ödeme konusuna değinip gönderdi ve
+   özel adı harf çevirisiyle yazdı → 53 ve 47 bugünkü 5.1 için de gerekli (EK'ler).
 
 ## 1. "Karar bekliyor" kartı — erken giriş / geç çıkış için onay / ret düğmesi
 - **Durum:** Kurucunun istediği akışın üç parçası kodda, anahtar arkasında (`AI_HOST_DECISION_HOLD_ENABLED`, varsayılan KAPALI):
