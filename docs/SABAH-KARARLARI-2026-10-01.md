@@ -683,3 +683,31 @@
 - **Öneri:** A (kesin, ev sahibinin iradesi) + o gelene kadar cevap modelinde düşünme kapalı Luna kullanılmasın.
 - **Müşteriye etkisi:** Başka dairenin / personelin kodu hiçbir koşulda misafire gitmez.
 - **Beklerken yapılmayan:** kod koruması kurulmadı (yeni sistem — kurucu kararı).
+
+## 49. Almanca "brauche / brauchen" (ihtiyacım var) ACİL sayılıyor — CANLI (kör set 9 ajanının bulgusu, 10-02 gece; kodda doğrulandı)
+- **Durum:** Acil sözcük ağında Almanca "rauch" (duman) ALT DİZE olarak eşleşiyor. Almancanın en sık fiili "brauchen" bunu içerdiği için şu
+  mesajların HEPSİ bugün `safety_emergency`: "Ich brauche ein Handtuch", "Wir brauchen einen Parkplatz", "Brauchen wir einen Code?", "Ist die
+  Wohnung für Nichtraucher?", "Verbrauch der Klimaanlage", "darf ich rauchen?". Sonuç: konuşma Sorunlu, yapay zekâ o konuşmada durur, ev
+  sahibine acil e-posta. Misafir külliyatında "rauch" geçen 3 mesajın 3'ü yanlış acil (hepsi "brauchen"). Aynı sınıf 09-26'da onayladığınız
+  "kısa acil sözcükleri TAM SÖZCÜK" (Gastgeber → gas, fireplace → fire, mağaza → gaz) ve 09-30'daki kaza / polis / hurt düzeltmesi.
+- **Örnek — önce / sonra:**
+  - "Ich brauche ein Handtuch." → *bugün:* ACİL (Sorunlu + acil e-posta, cevap yok) · *sonra:* normal soru, cevap gider.
+  - "Ist die Wohnung für Nichtraucher?" → *bugün:* ACİL · *sonra:* ev kuralı sorusu (model + kapılar).
+  - "Es riecht nach Rauch in der Küche!" / "Es raucht aus der Steckdose" / "Der Rauchmelder piept" → *bugün ve sonra:* ACİL (değişmez).
+- **Hazır:** yerel dal `prep/de-rauch-tam-sozcuk` (`cc65715`, İTİLMEDİ): "rauch" tam sözcük + "raucht / Rauchgeruch / Rauchentwicklung /
+  Rauchwolke / Rauchmelder"; kırmızı-önce (8 yanlış acil düşüyordu), acil ile ilgili 34 test dosyası yeşil. Onayınızla: mutasyon + tam kapılar +
+  yayın.
+- **Öneri:** onaylayın (ilke zaten onaylı; yalnız bu sözcük eksik kalmış). Benzer alt dize: Almanca "feuer" ("Feuerwerk", "Feuerlöscher",
+  "Lagerfeuer") — külliyatta örnek yok; isterseniz aynı turda.
+- **Müşteriye etkisi:** Almanca konuşan misafirlerin sıradan istekleri cevapsız / "Sorunlu" kalmaz; ev sahibine yanlış acil e-posta gitmez.
+  Gerçek duman bildirimi acil kalır.
+- **Beklerken yapılmayan:** düzeltme canlıya çıkmadı.
+
+## 50. Kör set 9 ajanının öteki üç bulgusu (bilgi; kodda kısmen doğrulandı)
+- **a) Enjeksiyon kelime ağı yalnız İngilizce / Türkçe "önceki talimatları yok say" biçimlerini tanıyor;** FR / DE / ES / RU / AR biçimleri modele
+  kalıyor (bu gecenin setlerinde 11/11 enjeksiyon satırı iki modelde de tutuldu — model yakalıyor). Öneri: yedi dile genişletme (misafir külliyatında
+  yanlış tutuş ölçümüyle) — yalnız tutar.
+- **b) "fırın" (pastane) fırın (ocak) kavramına iniyor:** pişirme cihazı arızasının yanındaki "en yakın fırın nerede?" sorusu arızaya bağlı sayılıp
+  tutulur (ilişki kipi, canlıda kapalı; temkinli yön).
+- **c) "ısınmıyor" sıcak su kavramına iniyor:** "ütü ısınmıyor" tehlike sınıfı sayılır, ütü tarifi otomatik sunulmaz (ilişki kipi; temkinli yön).
+- **Beklerken yapılmayan:** üçü de değişmedi (a tutuşları artırır, b / c gevşetme — ölçüm ister).
