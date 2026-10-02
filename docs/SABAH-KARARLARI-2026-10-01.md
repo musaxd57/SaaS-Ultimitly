@@ -35,7 +35,7 @@
 12. **(10-02 sabah, Luna katman çalışması) 53 → 52 → 51** — öğe kipinde bırakılan isteğe değinen cevap güvenli kısmı da tutuyor (53, hazır
    düzeltme, cevap modelini Luna'ya geçirmeden önce gerekli); başkası adına sorulan girişte kapı kodları (52, 5.1 ve Luna — canlıda da var); anlam
    gerektiren yanlış aciller ve parti / grup belirsizliği (51 a–g).
-13. **(10-02 sabah, kör set 11) 54 → 53 EK → 47 EK** — hizmet isteği ("yarından itibaren bebek yatağı") cevaplanıyor ama ev sahibine haber gitmiyor;
+13. **(10-02 sabah, kör set 11 + 12) 6 EK 4 → 54 → 53 EK → 47 EK** — Luna son kodla kör set 12'de 5.1'den geri değil (öneri `low`, 6 EK 4); 54'te hizmet isteği ("yarından itibaren bebek yatağı") cevaplanıyor ama ev sahibine haber gitmiyor;
    5.1 "hazırlayabilirim" diye söz veriyor (54, canlıda, modelden bağımsız); set 11'de bugünkü 5.1 bırakılan ödeme konusuna değinip gönderdi ve
    özel adı harf çevirisiyle yazdı → 53 ve 47 bugünkü 5.1 için de gerekli (EK'ler).
 
@@ -135,6 +135,17 @@
   sn. Özel ad hatası üç modelde de var (Luna `low` 4, 5.1 4, `medium` 3) → 47 bütün modellerin işi. **Önerim: cevap modeli Luna `low` + üslup
   Luna `none`; anlama / bekçi / sıralayıcı / çeviri 5.1'e sabit** (değişkenler rapor §7). Geçişten önce 47 + 48 kararları; 22 (bilgi tabanı içi
   çelişki) modelden bağımsız açık. "Yalnız modeli değiştirmek kaldı" DEĞİL: sabitleme değişkenleri + bayrak kararları + 47 / 48 gerekir.
+- **EK 4 (10-02 sabah, katman çalışması + KÖR SET 11 ve 12 — son kod, rapor §9.4–§9.11; bu EK önceki önerilerin YERİNE geçer):**
+  - *Katmanlar (5.1 kullanan her yer denendi):* anlama + bekçi Luna `low` (kör acc10: kaçan istek / izin 0, 5.1 eski istemiyle 1 tehlikeli kaçak),
+    çeviri Luna `medium` (anlam / belirteç kaybı 0), üslup Luna `none`, sıralayıcı **5.1'de kalır** (Luna iki sorulu mesajda geride, `low` 2,5 sn
+    tavanını aşıyor). Değişkenler rapor §7.0. RC68'den beri canlı koda uygun.
+  - *Cevap modeli — kör set 12 (son kod = RC69 + 53 + 47):* Luna `low` ve `medium` olgu 25/27, aynı kodla 5.1 24/27, bugünkü kodla 5.1 21/27;
+    sızıntı / yasak dize her yapılandırmada 0; `low` p95 12,3 sn, `medium` 19,9 sn, 5.1 8,5 sn; maliyet ~%80 düşük. Bugünkü 5.1 bu sette bir
+    misafire UYDURMA eşya yeri yazdı (battaniye, k12-33) ve iki hizmet ücretinin koşulunu atladı; Luna ücretleri koşuluyla verdi.
+  - *`low` mı `medium` mı:* iki kör sette birebir eşit olgu (49/56); `medium` bir anlatımda sabit ücreti ev sahibine bırakıyor (set 11, 3/5), `low`
+    daha hızlı. **Önerim: `OPENAI_MODEL=gpt-6-luna` + `OPENAI_REASONING_EFFORT=low`** (sizin önceki tercihiniz `medium` de güvenli).
+  - *Ön koşul:* 53 + 47 onayı (hazır aday dal `prep/luna-aday-2`; ikisi bugünkü 5.1 için de gerekli). Kanıt bununla tamam; "yalnız modeli değiştirmek
+    kaldı" ancak 53 + 47 RC olarak canlıya çıktıktan SONRA doğru olur. Modelden bağımsız açıklar: 54, 1, 22.
 
 ## 7. Ücret kuralı (kurucu ifadesi) — anahtar `AI_KB_FEE_RULE_ENABLED`
 - **Durum:** İstem metni kurucunun ifadesiyle güncellendi ("Onaylı bilgi tabanındaki sabit hizmet ücretini, koşullarıyla birlikte
