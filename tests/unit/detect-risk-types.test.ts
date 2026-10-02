@@ -157,6 +157,7 @@ describe('Türkçe "parti" — tam sözcük + ad çekimleri (sözcük içi çak�
     "Partinizi evde yapabilirsiniz değil mi?",
     "Partinize kimler gelecek?",
     "PARTİ yapacağız bu akşam!",
+    "Partıye 10 kişi gelecek.", // noktasız ı yazım hatası — yalnız ASCII katlama yakalar
     "Can we have a party on Saturday?",
     "Are parties allowed in the apartment?",
     "We'll be partying a bit tonight.",
