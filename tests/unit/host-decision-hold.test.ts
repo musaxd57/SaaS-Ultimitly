@@ -310,6 +310,7 @@ describe("dar liste — her kalıp kendi örneğiyle pinli (mutasyon 10-01: örn
     "C'est à la discrétion de votre hôtesse.",
     "À confirmer par votre hôtesse.",
     "C'est à votre hôtesse de décider.",
+    "Votre hôtesse confirmera l'heure d'arrivée.",
     "Depende de la anfitriona.",
     "Queda a criterio de la anfitriona.",
     "Está en manos de la anfitriona.",
