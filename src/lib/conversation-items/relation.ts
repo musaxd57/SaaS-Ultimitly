@@ -995,16 +995,42 @@ export function relationGateHold(
   reply: { text: string; answeredRefs: readonly string[]; usedSources: readonly string[] | undefined },
 ): RelationHoldDetail | null {
   let fixAnswered = false;
+  let otherAnswered = false;
+  const fixTopics = new Set<string>();
   for (const r of gate.requests) {
     const d = requestDependency(r, gate.anchors);
     if (d === "dependent") return "items_complaint_dependent";
-    if (d === "fix" && reply.answeredRefs.includes(r.ref)) fixAnswered = true;
+    if (!reply.answeredRefs.includes(r.ref)) continue;
+    if (d === "fix") {
+      fixAnswered = true;
+      for (const t of r.topics) fixTopics.add(t);
+    } else otherAnswered = true;
   }
   if (!fixAnswered) return null;
   if (!(reply.usedSources ?? []).some((s) => s.startsWith("kb:"))) return "items_fix_unverified";
   if (fixHazard(reply.text)) return "items_fix_hazard";
   // Çözüm diye cevaplanan istekte tutar / muafiyet → GİTMEZ: tarif para söylemez (geçmiş koşuların 132 gerçek tarif cevabında 0). İstek
   // kemerinin (`money`) yedeği — anlama katmanı para sorusunu para sözcüğü olmadan yazsa da (kör set 7 k7-22).
-  if (hasMoneyStatement(reply.text)) return "items_fix_money";
+  if (fixAnswerCarriesMoney(reply.text, fixTopics, otherAnswered)) return "items_fix_money";
   return null;
+}
+
+/**
+ * Çözüm cevabında para var mı. Cevap YALNIZ çözüm(ler)i kapsıyorsa bütün metin; yanında bağımsız bir istek de cevaplandıysa yalnız çözümün
+ * KONUSUNU anan cümleler — bağımsız sorunun ücret bilgisi ("otopark yeriniz L4, ücretsiz") çözüm cevabı değildir (kör set 8 k8-37: fırın
+ * tarifi + otopark yeri, iki modelde de "ücretsiz" yüzünden tutuluyordu). Konusu olmayan cümle ("Günlük 200 TL'dir.") bir önceki cümlenin
+ * konusunu alır ("Otopark ayrıca ücretli. Günlük 200 TL."). Cümle sınırı nokta / ünlem / soru / satır.
+ */
+function fixAnswerCarriesMoney(text: string, fixTopics: ReadonlySet<string>, otherAnswered: boolean): boolean {
+  if (!hasMoneyStatement(text)) return false;
+  if (!otherAnswered) return true;
+  let carried: string[] = [];
+  for (const sentence of text.split(/(?<!\d)[.!?]+(?!\d)|\n+/u)) {
+    if (sentence.trim() === "") continue;
+    const own = topicsOf(sentence);
+    const topics = own.length > 0 ? own : carried;
+    carried = topics;
+    if (hasMoneyStatement(sentence) && topics.some((t) => fixTopics.has(t))) return true;
+  }
+  return false;
 }

@@ -158,6 +158,41 @@ describe("kapı — çözüm cevabında tutar (ikinci kemer)", () => {
       relationGateHold({ requests: [fixReq], anchors }, { text: "Parking is free of charge for you.", answeredRefs: ["R1"], usedSources: ["kb:parking"] }),
     ).toBe("items_fix_money");
   });
+  it("🚨 kör set 8 k8-37: çözüm + BAĞIMSIZ soru birlikte cevaplandı, para yalnız bağımsız sorunun cümlesinde ('ücretsiz') → GEÇER", () => {
+    // İki model de bu doğru cevabı veriyordu; ilk sürüm bütün metinde para aradığı için "es gratuita" yüzünden tutuyordu.
+    const stoveFix = { ref: "R1", kind: "appliance_help" as const, relation: "fix_request" as const, topics: ["stove"], generic: false, hazard: false, recipe: true };
+    const parkingQ = { ref: "R2", kind: "parking" as const, relation: "own_topic" as const, topics: ["parking"], generic: false, hazard: false };
+    const stoveComplaint: AnchorFacts[] = [{ kind: "complaint_issue", topics: ["stove"], hazard: false }];
+    const text =
+      "Hola Alex, si la hora parpadea en la pantalla, pulse CLOCK, ajuste la hora con los botones + y – y vuelva a pulsar CLOCK. " +
+      "Después, gire el selector de programa al modo que desee. Su plaza de aparcamiento es la L4, en el aparcamiento al aire libre de " +
+      "la calle trasera del edificio; es gratuita.";
+    expect(
+      relationGateHold({ requests: [stoveFix, parkingQ], anchors: stoveComplaint }, { text, answeredRefs: ["R1", "R2"], usedSources: ["kb:faq", "kb:parking"] }),
+    ).toBeNull();
+    // Türkçe ikiz: çözüm cümlesi (fırın) parasız, para bağımsız sorunun cümlesinde.
+    const tr = "Fırının saatini CLOCK tuşuyla ayarlayın. Otopark yeriniz L4, ücretsiz.";
+    expect(
+      relationGateHold({ requests: [stoveFix, parkingQ], anchors: stoveComplaint }, { text: tr, answeredRefs: ["R1", "R2"], usedSources: ["kb:faq", "kb:parking"] }),
+    ).toBeNull();
+  });
+  it("yalnız çözüm cevaplandıysa para, çözümün konusunu anmasa da tutulur (bütün metin)", () => {
+    const text = "Kumandanın 2. tuşuna 3 saniye basılı tutun. Ek hizmet ücreti 50 TL.";
+    expect(relationGateHold({ requests: [fixReq], anchors }, { text, answeredRefs: ["R1"], usedSources: ["kb:parking"] })).toBe("items_fix_money");
+  });
+  it("🚨 çözüm + bağımsız soru cevaplandı ama para ÇÖZÜMÜN konusunda (aynı cümle / konusuz devam cümlesi) → items_fix_money", () => {
+    const wifiQ = { ref: "R2", kind: "wifi" as const, relation: "own_topic" as const, topics: ["wifi"], generic: false, hazard: false };
+    for (const text of [
+      "Otopark ayrıca ücretli; günlük 200 TL. Wi-Fi ağı Lale-5G.",
+      "Otopark ayrıca ücretlidir. Günlük 200 TL'dir. Wi-Fi ağı Lale-5G.",
+      "Wi-Fi ağı Lale-5G. Otopark ayrıca ücretlidir, günlük 200 TL.",
+    ]) {
+      expect(
+        relationGateHold({ requests: [fixReq, wifiQ], anchors }, { text, answeredRefs: ["R1", "R2"], usedSources: ["kb:parking", "kb:wifi"] }),
+        text,
+      ).toBe("items_fix_money");
+    }
+  });
   it("KONTROL: tutarsız gerçek tarif geçer; çözüm cevaplanmadıysa (R1 beyan edilmedi) kemer koşmaz", () => {
     const recipe = "Kapı açılmazsa kumandanın 2. tuşuna 3 saniye basılı tutun.";
     expect(relationGateHold({ requests: [fixReq], anchors }, { text: recipe, answeredRefs: ["R1"], usedSources: ["kb:parking"] })).toBeNull();
