@@ -80,11 +80,8 @@ if (SEALED && !enabled) throw new Error("EVAL_SEALED_FINAL=1 yalnız gerçek mod
 // koşuda kullanılamaz (mühürlü set yalnız kendi dosyasından).
 const EXTRA_SET = process.env.EVAL_STAY_SET?.trim() ?? "";
 if (EXTRA_SET && SEALED) throw new Error("EVAL_STAY_SET mühürlü final koşusunda kullanılamaz.");
-const DATASET = SEALED
-  ? SEALED_FILE
-  : EXTRA_SET
-    ? path.resolve(__dirname, "../..", EXTRA_SET)
-    : path.resolve(__dirname, "../../evals/stay-change.json");
+const OPEN_DATASET = EXTRA_SET ? path.resolve(__dirname, "../..", EXTRA_SET) : path.resolve(__dirname, "../../evals/stay-change.json");
+const DATASET = SEALED ? SEALED_FILE : OPEN_DATASET;
 const SEALS_FILE = path.resolve(__dirname, "../../evals/sealed/SEALS.json");
 const datasetBytes = readFileSync(DATASET);
 type SealEntry = { sha256?: string; state?: string; location?: string };
