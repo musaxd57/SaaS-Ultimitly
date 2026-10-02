@@ -2223,14 +2223,15 @@ const RULE_VIOLATION_PHRASES = [
  * Türkçe "parti" — YALNIZ tam sözcük + ad çekimleri (10-02, kurucu onayı; Sabah Kararları 49 sınıfı): "parti", "partiye", "partide",
  * "partiden", "partiyi", "partiyle", "partisi(ne/ni/nde)", "partiler(e/i/de/den)", "partimiz(e/i)", "partiniz(e/i)". Önünde / ardında harf ya da
  * rakam varsa eşleşmez → İspanyolca / Fransızca "partir", "compartido", "partie", İngilizce "particular" kural ihlali sayılmaz. Bilinen sınır
- * (anlam, Sabah Kararları 51): Fransızca "il est parti" (gitti) tam sözcüktür, tutulur. Her aday biçimde sınanır (`includesAnyFold` ile aynı).
- * Sabit sözcükle başlar, iç içe niceleyici yok (doğrusal).
+ * (anlam, Sabah Kararları 51): Fransızca "il est parti" (gitti) tam sözcüktür, tutulur. Her aday biçimin ASCII katlamasında sınanır — kalıp
+ * yalnız ASCII harf taşır, ASCII katlama standart ve Türkçe katlamanın bu sözcüklerdeki eşleşmelerinin üst kümesidir (acil ağının tam
+ * sözcük kalıbıyla aynı; üç katlamada ayrı sınama mutasyonla ölü kod çıktı). Sabit sözcükle başlar, iç içe niceleyici yok (doğrusal).
  */
 const TR_PARTY_RE =
   /(?<![\p{L}\p{N}])parti(?:y[ei]|yle|de|den|si(?:n[ei]|nde)?|ler(?:[ei]|de|den)?|miz[ei]?|niz[ei]?)?(?![\p{L}\p{N}])/u;
 function hasTurkishPartyWord(message: string): boolean {
-  for (const { std, tr, ascii } of foldedCandidatesOf(message)) {
-    if (TR_PARTY_RE.test(std) || TR_PARTY_RE.test(tr) || TR_PARTY_RE.test(ascii)) return true;
+  for (const { ascii } of foldedCandidatesOf(message)) {
+    if (TR_PARTY_RE.test(ascii)) return true;
   }
   return false;
 }
