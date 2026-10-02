@@ -96,3 +96,15 @@ bölümünün siren işaretli başlığı.
 ## Karar
 
 Sabah kararları listesinde madde olarak: onaylanırsa taşıma tek commit + yukarıdaki kontroller; onaylanmazsa belge öneri olarak kalır.
+
+## EK (10-02 gece — Luna çalışması TAMAMLANDI; öneri son hâle getirildi, yine HİÇBİR metin taşınmadı)
+
+- **Boyutlar bugün:** CLAUDE.md 220.982 bayt (öneri yazılırken 203.411 — gece 2'nin "Durum" paragrafları ve yeni kalıcı kurallar eklendi);
+  `docs/SABAH-RAPORU-2026-10-01.md` ≈70k, `docs/SABAH-KARARLARI-2026-10-01.md` ≈79k.
+- **CLAUDE.md "Durum":** "10-01 GECE 2" ve "10-01 GECE" paragrafları da A grubuna eklenir (tur anlatısı); her biri tek satırlık işaretçiyle
+  arşive. Kalıcı kural cümleleri (ör. `items_fix_money`, "bilgim yok" çözüm sınıfı, uyarı adresi kuşağı) olduğu yerde KALIR.
+- **Sabah raporu:** kurucu Luna kararını verince §1–§3.14 (ölçüm ayrıntısı, R0–R6, kör set 2–8 tabloları) `docs/history/SABAH-RAPORU-2026-10-01-
+  olcumler.md`'ye AYNEN; raporda §0 özet + §3.15 (son kör kabul) + §4 maliyet + §5 kapı / CI + §6 / §7 kalır.
+- **Sabah kararları:** "KARAR: …" satırıyla kapanan maddeler `docs/history/SABAH-KARARLARI-2026-10-01-kapananlar.md`'ye AYNEN; açık maddeler ve
+  öncelik listesi kalır (numaralar DEĞİŞMEZ — bağlantılar kopmasın).
+- **Dokunulmayacaklar (F) aynen:** güvenlik kuralları, kurucu kararları, bekleyen onaylar (özellikle 6, 22, 46–50) taşınmaz.

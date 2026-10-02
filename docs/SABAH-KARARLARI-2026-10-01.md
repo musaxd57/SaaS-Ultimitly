@@ -154,6 +154,8 @@
 - **Öneri:** Onaylarsanız tek commit'te taşıma + önce / sonra sayım kontrolü (siren, "ONAY BEKLEYEN", bayrak adları düşmemeli).
 - **Müşteriye etkisi:** Yok (yalnız belge).
 - **Beklerken yapılmayan:** taşıma.
+- **EK (10-02 gece):** Luna çalışması tamamlandı; öneri son hâline getirildi (`docs/ARSIV-ONERISI-2026-10-01.md` "EK" bölümü: CLAUDE.md artık
+  ≈221k; sabah raporu ve kararlar belgesi için karar sonrası taşıma planı). Yine hiçbir metin taşınmadı.
 
 ## 12. Railway — "ayın 1'ine kadar aktif" (09-24 notu) — bugün 10-01
 - **Durum:** Kurucu (10-01 sabah): "Railway daha kapanmadı ama birkaç saate kapanacak." RC50 (K7 migration 58 dahil) 05:15'te
