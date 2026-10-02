@@ -1295,6 +1295,24 @@ export const COMPLAINT_FOLLOWUP_REPLACEMENTS: readonly Replacement[] = [
   ],
 ];
 
+// ── BIRAKILAN İSTEK ÖNCELİĞİ (konuşma öğeleri, 10-02 Luna ölçümü; ONAY BEKLİYOR) ─────────────────────────────────────────────
+// Kullanıcı isteminin öğe bloğu "bırakılana DEĞİNME" der, ama taban istem para / ödeme / ev sahibiyle görüşme için TEK cevap kalıbı
+// öğretir ("Ödeme ve rezervasyon işlemlerinin platform üzerinden…; bu konu ev sahibinizin kararıdır", "Tabii. Mesajınız kaydedildi;
+// ev sahibiniz görebilir."). Düşünme çabası artan model (Luna medium) sistem istemindeki kalıbı seçiyordu: bırakılan isteğe o kalıpla
+// değinen cevap tamamen tutuluyor, güvenli kısım misafire gitmiyordu. Katman YALNIZ bu turda bırakılan istek varken uygulanır (çağıran
+// karar verir); tek çapa KURAL ÖNCELİĞİ listesinin son satırı — öteki katmanların çapalarına değmez.
+export const ITEMS_HELD_REPLACEMENTS: readonly Replacement[] = [
+  [
+    "  6) TON + üslup (Bölüm 10 / 10.5)\n",
+    "  6) TON + üslup (Bölüm 10 / 10.5)\n" +
+      "  KONUŞMA ÖĞELERİ: kullanıcı isteminde EV SAHİBİNE BIRAKILAN istekler listelenmişse, bu istemdeki devir / ödeme / ev sahibi\n" +
+      '  kararı / konaklama ertelemesi kalıplarını ("bu konu ev sahibinizin kararıdır", "Ödeme ve rezervasyon işlemlerinin platform\n' +
+      '  üzerinden yürütülmesi gerekiyor", "Mesajınız kaydedildi; ev sahibiniz görebilir") o istekler için YAZMA — onlara hiç değinme;\n' +
+      "  reply yalnız CEVAPLANACAK istekleri içerir. Bu, Kural-4'ün ve niyet listesinin cevap kalıplarının ÖNÜNDEDİR (bırakılan isteği\n" +
+      "  ev sahibi kendisi cevaplar).\n",
+  ],
+];
+
 /**
  * Sistem istemi KATMANLARI — taban istemin üstüne SABİT SIRAYLA uygulanır (kod selamı → ücret kuralı → bildirimsiz erteleme → giriş
  * kodu). Sıra, önceki sabitlerle (`REPLY_SYSTEM_PROMPT_CODE_GREETING`, `…_KB_FEE_RULE`, `…_CODE_GREETING_KB_FEE_RULE`) aynıdır; çapalar
@@ -1306,6 +1324,8 @@ export interface ReplyPromptFlags {
   stayDeferralPlain: boolean;
   accessCodeComplete?: boolean;
   complaintFollowup?: boolean;
+  /** Bu turda EV SAHİBİNE BIRAKILAN istek var (konuşma öğeleri) — anahtar değil, çağrı başına (`ai/index.ts`). */
+  itemsHeld?: boolean;
 }
 const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, readonly Replacement[]])[] = [
   ["codeGreeting", SYSTEM_CODE_GREETING_REPLACEMENTS],
@@ -1313,6 +1333,7 @@ const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, readonly Replac
   ["stayDeferralPlain", STAY_DEFERRAL_PLAIN_REPLACEMENTS],
   ["accessCodeComplete", ACCESS_CODE_COMPLETE_REPLACEMENTS],
   ["complaintFollowup", COMPLAINT_FOLLOWUP_REPLACEMENTS],
+  ["itemsHeld", ITEMS_HELD_REPLACEMENTS],
 ];
 const derivedPromptCache = new Map<string, { text: string; missing: string[] }>();
 

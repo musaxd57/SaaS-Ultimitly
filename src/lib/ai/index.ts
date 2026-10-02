@@ -218,13 +218,15 @@ export function replyCallParams(): { model: string; effort: string | null } {
  * Cevap modelinin SİSTEM istemi — anahtarlar TEK YERDE (`code-greeting.ts`, `kb-fee-rule.ts`, `stay-deferral-plain.ts`,
  * `access-code-complete.ts`), kurulum `replySystemPromptFor`da; hepsi kapalıyken taban istem bayt bayt aynı.
  */
-function replySystemPrompt(): string {
+function replySystemPrompt(input: SuggestReplyInput): string {
   return replySystemPromptFor({
     codeGreeting: codeGreetingEnabled(),
     kbFeeRule: kbFeeRuleEnabled(),
     stayDeferralPlain: stayDeferralPlainEnabled(),
     accessCodeComplete: accessCodeCompleteEnabled(),
     complaintFollowup: complaintFollowupRuleEnabled(),
+    // Öğe bloğu bırakılan istek listeliyorsa (bu turun ya da önceki turun) sistem istemi de o istekler için kalıp öğretmesin.
+    itemsHeld: (input.conversationItems?.held.length ?? 0) > 0,
   });
 }
 
@@ -255,7 +257,7 @@ function replyPromptFor(input: SuggestReplyInput, declareActions: boolean): Retu
  * `replyCallParams`; ikisi ayrışamaz.
  */
 export function replyRequestIdentity(input: SuggestReplyInput): { model: string; effort: string | null; system: string; user: string } {
-  return { ...replyCallParams(), system: replySystemPrompt(), user: replyPromptFor(input, actionClaimsEnabled()).text };
+  return { ...replyCallParams(), system: replySystemPrompt(input), user: replyPromptFor(input, actionClaimsEnabled()).text };
 }
 
 /** Normalize a model-returned language value to a short code (2–3 letters), else
@@ -455,7 +457,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
   const declareActions = actionClaimsEnabled();
   // §C: istem TEK KEZ kurulur; metin modele, muhasebe karar kaydına gider.
   const prompt = replyPromptFor(input, declareActions);
-  const call = await callOpenAI(replySystemPrompt(), prompt.text);
+  const call = await callOpenAI(replySystemPrompt(input), prompt.text);
   const raw = call?.content ?? null;
   const llmUsage = call?.usage;
   if (raw) {
