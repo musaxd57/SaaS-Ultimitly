@@ -157,6 +157,8 @@ function relationPlan<T extends PlanItem>(
       topics,
       generic: f?.generic ?? false,
       hazard: f?.hazard ?? false,
+      // Kör set 7 k7-22 (10-02): ücret / fiyat / ödeme sorusu arıza çözümü olarak sunulmaz.
+      money: f?.money === true,
       // Karar 23 kör doğrulaması (10-01 öğlen): bilgi tabanında bu isteğin konusunda tarif kalemi var mı — kapı aynı olguyu okur.
       // İsteğin HER cihaz konusu tarifli olmalı (15 ajan A06: "klima ve TV çalışmıyor" isteğinde yalnız klima tarifi varken TV'ye de
       // çözüm sunuluyordu); cihaz konusu yoksa tarif yok.

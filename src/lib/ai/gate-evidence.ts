@@ -35,6 +35,7 @@ export const GATE_BLOCK_DETAILS = [
   // Arıza çözümü (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a"; `conversation-items/relation.ts`):
   "items_fix_unverified", // cevaplanan arıza çözümü bilgi tabanına dayanmıyor (`kb:` kaynağı yok)
   "items_fix_hazard", // cevaplanan arıza çözümü tehlike sınıfına değiyor (elektrik / gaz / sıcak su cihazı / yangın)
+  "items_fix_money", // arıza çözümü diye cevaplanan istekte tutar / muafiyet (kör set 7 k7-22: iade turunda "otopark günlük 200 TL")
   "items_held_touched", // cevap ev sahibine bırakılan arızanın cihazına değiniyor (uydurma adım / "talimatım yok" — kör set 5)
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];

@@ -18,7 +18,7 @@ import {
   type UnderstandingHistoryEntry,
 } from "@/lib/ai/semantic/understanding-schema";
 import { buildItemsForMessage, type BuiltItem, type ItemKind } from "./core";
-import { fixHazard, isGenericFollowup, requestTopics, stricterRelation, type ItemRelationFacts } from "./relation";
+import { fixHazard, isGenericFollowup, moneyRequest, requestTopics, stricterRelation, type ItemRelationFacts } from "./relation";
 
 export const ITEMS_DEGRADED_REASONS = [
   "understanding_unavailable",
@@ -89,6 +89,7 @@ export function extractTurnItems(input: {
           topics: requestTopics(r.queryTr, r.queryOriginal, r.intent),
           generic: isGenericFollowup(r.queryTr, r.queryOriginal),
           hazard: bodyHazard || fixHazard(r.queryTr) || fixHazard(r.queryOriginal),
+          money: moneyRequest(r.queryTr, r.queryOriginal),
         };
         relations[r.intent] = prev
           ? {
@@ -96,6 +97,7 @@ export function extractTurnItems(input: {
               topics: [...new Set([...prev.topics, ...facts.topics])].sort(),
               generic: prev.generic && facts.generic,
               hazard: prev.hazard || facts.hazard,
+              money: prev.money === true || facts.money === true,
             }
           : facts;
       }

@@ -108,6 +108,13 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       ITEMS_FIX,
       "items_fix_hazard",
     ],
+    [
+      "öğe kipi: arıza çözümü diye cevaplanan istekte tutar (kör set 7 k7-22)",
+      { ...declared, usedSources: ["kb:wifi"], reply: "The faster Wi-Fi package costs 150 TL per day." },
+      WIFI_Q,
+      ITEMS_FIX,
+      "items_fix_money",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {

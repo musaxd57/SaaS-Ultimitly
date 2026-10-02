@@ -233,6 +233,61 @@ describe("ilişki kipi — kanal akışı (kurucu kararı 10-01 sabah)", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 kör set 7 k7-22: şikâyet + iade + 'otopark ücrete dahil mi' (model: arıza çözümü) → ücret cümlesi GİTMEZ, tek e-posta", async () => {
+    // Aday bu cümleyi GÖNDERDİ ("Otopark ayrıca ücretli: günlük 200 TL") — iade talebine cevap gibi okunan para cümlesi. Ücret sorusu arıza
+    // çözümü değildir (kurucu 18 "a": çözüm = cihaz / tesis arızasının onaylı tarifi).
+    const msg =
+      "Здравствуйте. В объявлении было написано, что парковка входит в стоимость, а на ресепшене с нас взяли отдельную плату. " +
+      "Пожалуйста, верните нам эти деньги.";
+    const KB_PARKING_FEE = { category: "parking", title: "Otopark ücreti", content: "Kapalı otoparkı kullanmak isterseniz günlük 200 TL ayrıca ücretlendirilir." };
+    const fee = verdict({
+      intent: "parking",
+      reply: "Парковка оплачивается отдельно: крытая парковка стоит 200 TL в день.",
+      usedSources: ["kb:parking"],
+      answeredRequests: { ok: true, refs: ["R1"] },
+    });
+
+    // (1) İstek kemeri: para soran istek çözüm sayılmaz → tur tamamen tutulur, cevap modeline öğe bloğu verilmez.
+    const id = await seed(msg, [KB_PARKING_RECIPE, KB_PARKING_FEE]);
+    understands(
+      understood([
+        { intent: "complaint_issue", relation: "own_topic", q: "ilanda otopark dahil denmişti ama ayrıca ücret alındı" },
+        { intent: "cancellation_refund", relation: "own_topic", q: "otopark ücreti iade talebi" },
+        { intent: "parking", relation: "fix_request", q: "otopark ücreti dahil mi" },
+      ]),
+    );
+    mockSuggest.mockResolvedValue(fee);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSuggest.mock.calls[0][0]).not.toHaveProperty("conversationItems");
+    expect(await itemsOf(id)).toEqual([
+      ["complaint_issue", "pending_host"],
+      ["cancellation_refund", "pending_host"],
+      ["parking", "open"],
+    ]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+
+    // (2) Cevap kemeri: anlama katmanı isteği para sözcüğü olmadan yazsa da çözüm diye cevaplanan istekte tutar varsa GİTMEZ.
+    await resetDb();
+    mockSend.mockClear();
+    mockMail.mockClear();
+    mockSuggest.mockClear();
+    const id2 = await seed(msg, [KB_PARKING_RECIPE, KB_PARKING_FEE]);
+    understands(
+      understood([
+        { intent: "complaint_issue", relation: "own_topic", q: "otopark sorunu" },
+        { intent: "parking", relation: "fix_request", q: "otopark durumu" },
+      ]),
+    );
+    mockSuggest.mockResolvedValue(fee);
+    expect((await applyChannelAutoReply(id2)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSuggest.mock.calls[0][0].conversationItems?.answerable).toEqual([
+      expect.objectContaining({ ref: "R1", kind: "parking", fix: true }),
+    ]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
   it("🚨 'Sıcak su yok, kombiyi nasıl resetleriz?' → tehlike sınıfı: hiçbir şey gitmez, tek e-posta, tarif ev sahibinin HAZIR TASLAĞINDA", async () => {
     const id = await seed("Sıcak su yok, kombiyi nasıl resetleriz?");
     understands(

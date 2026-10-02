@@ -18,6 +18,7 @@
 import { expandQuery } from "@/lib/ai/retrieval/lexicon";
 import { matchForeignConcepts } from "@/lib/ai/retrieval/lexicon-foreign";
 import { contentStems, phraseUnits, tokenize } from "@/lib/ai/retrieval/text";
+import { hasMoneyStatement } from "@/lib/ai/stay-money";
 import type { ItemKind } from "./core";
 import type { ItemRelation } from "./relation-kinds";
 
@@ -883,6 +884,26 @@ export interface ItemRelationFacts {
   topics: string[];
   generic: boolean;
   hazard: boolean;
+  /** İsteğin sorgusu ücret / fiyat / ödeme soruyor (`moneyRequest`); yoksa (eski olgu) para isteği sayılmaz — cevap kemeri yine koşar. */
+  money?: boolean;
+}
+
+/**
+ * PARA SORUSU (kör set 7 k7-22, 10-02 gece): anlama katmanının TÜRKÇE sorgusunda ücret / fiyat / ödeme / fatura / depozito / indirim /
+ * tazminat sözcüğü ya da özgün dildeki sorguda tutar / muafiyet (`hasMoneyStatement`: "200 TL", "free of charge"). Katlanmış biçim, tam
+ * sözcük + sınırlı ek; "para" yalnız çekimleriyle ("parazit / paravan / paragraf" değil), "öde-" yalnız ödeme biçimleriyle ("ödev / ödünç"
+ * değil). İade (`iade`) BİLEREK yok: "anahtarı iade" para değildir (iade talebi zaten kendi türü — `cancellation_refund`).
+ */
+const MONEY_REQUEST_TR = new RegExp(
+  `${L}(?:ucret\\p{L}{0,12}|fiyat\\p{L}{0,12}|odeme\\p{L}{0,8}|oden(?:ir|di|mis|ecek|meli|medi|me)\\p{L}{0,6}|` +
+    `odey\\p{L}{0,8}|oded\\p{L}{0,6}|fatura\\p{L}{0,8}|maliyet\\p{L}{0,8}|bedel\\p{L}{0,8}|depozito\\p{L}{0,8}|kap[ao]r[ao]\\p{L}{0,6}|` +
+    `indirim\\p{L}{0,8}|tazminat\\p{L}{0,8}|para(?:si|yi|ya|nin|da|dan|mi|miz\\p{L}{0,4}|niz\\p{L}{0,4}|li|siz|lar\\p{L}{0,4}|yla)?)${R}`,
+  "u",
+);
+
+/** İstek ücret / fiyat / ödeme soruyor mu (Türkçe anlama sorgusu + özgün dildeki tutar / muafiyet). Saf. */
+export function moneyRequest(queryTr: string, queryOriginal: string): boolean {
+  return MONEY_REQUEST_TR.test(fold(queryTr ?? "")) || MONEY_REQUEST_TR.test(fold(queryOriginal ?? "")) || hasMoneyStatement(queryOriginal ?? "");
 }
 
 /** Cevaplanabilir aday isteğin ilişki olguları (kod kurar; metin TAŞIMAZ — yalnız kapalı küme kodlar). */
@@ -896,6 +917,8 @@ export interface RequestFacts {
   generic: boolean;
   /** Sorgusu tehlike sınıfına değiyor (`fixHazard`). */
   hazard: boolean;
+  /** Sorgusu ücret / fiyat / ödeme soruyor (`moneyRequest`) — para sorusu arıza çözümü olarak sunulmaz. */
+  money?: boolean;
   /**
    * İsteme giren bilgi tabanında bu isteğin konusunda bir TARİF kalemi var mı (`kbRecipeTopics`). Arıza çözümü yalnız `true` iken
    * cevaplanabilir; eksik = bilinmiyor = tarif yok (TUT). Plan her istek için yazar; kapı aynı olguyla aynı kararı verir.
@@ -934,6 +957,9 @@ export function requestDependency(req: RequestFacts, anchors: readonly AnchorFac
   }
   if (req.relation === "fix_request") {
     if (!complaint || !FIX_KINDS.has(req.kind) || req.hazard || anchors.some((a) => a.hazard)) return "dependent";
+    // Ücret / fiyat / ödeme sorusu arıza çözümü DEĞİLDİR (kurucu 18 "a": çözüm = arızanın onaylı tarifi). Kör set 7 k7-22: "otopark ücrete
+    // dahil mi" isteği çözüm sayıldı, iade talebinin yanında misafire "otopark ayrıca günlük 200 TL" gitti.
+    if (req.money === true) return "dependent";
     // Kurucunun 18. maddesi ("bilgi tabanında O ARIZANIN tarifi varsa"): tarif yoksa istek şikâyetle birlikte ev sahibinde kalır
     // (karar 23 kör doğrulaması — tarifsiz arızada boş cevap / "bilgide yok" / uydurma adım).
     if (req.recipe !== true) return "dependent";
@@ -957,7 +983,7 @@ export interface ItemsRelationGate {
   anchors: readonly AnchorFacts[];
 }
 
-export type RelationHoldDetail = "items_complaint_dependent" | "items_fix_unverified" | "items_fix_hazard";
+export type RelationHoldDetail = "items_complaint_dependent" | "items_fix_unverified" | "items_fix_hazard" | "items_fix_money";
 export type HeldTouchDetail = "items_held_touched";
 
 /**
@@ -977,5 +1003,8 @@ export function relationGateHold(
   if (!fixAnswered) return null;
   if (!(reply.usedSources ?? []).some((s) => s.startsWith("kb:"))) return "items_fix_unverified";
   if (fixHazard(reply.text)) return "items_fix_hazard";
+  // Çözüm diye cevaplanan istekte tutar / muafiyet → GİTMEZ: tarif para söylemez (geçmiş koşuların 132 gerçek tarif cevabında 0). İstek
+  // kemerinin (`money`) yedeği — anlama katmanı para sorusunu para sözcüğü olmadan yazsa da (kör set 7 k7-22).
+  if (hasMoneyStatement(reply.text)) return "items_fix_money";
   return null;
 }
