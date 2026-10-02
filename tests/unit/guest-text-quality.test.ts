@@ -373,6 +373,7 @@ describe("otomatik gönderilen misafir metinleri", () => {
       /our team will fix it/i,
       /hilft unser Team sofort/i,
       /notre équipe corrige/i,
+      /nuestro equipo (?:lo|la) corregir/i,
       /فريقنا فورًا/,
       /команда сразу поправит/i,
     ];
