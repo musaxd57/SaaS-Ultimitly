@@ -201,23 +201,10 @@ function atSentenceStart(text: string, index: number): boolean {
 }
 
 /**
- * Metnin dili — YALNIZ EMİNKEN; aksi `null`. Kısa/ belirsiz / karma metin ("ok", "👍", "Thanks!") `null` döner.
+ * Latin yazılı dillerin sözcük / harf kanıtı (`confidentLanguage` ve `languageEvidence` TEK puanlaması; davranış 09-25'ten beri aynı).
+ * `foreign` = desteklenmeyen dillerin kanıtı.
  */
-export function confidentLanguage(text: string | null | undefined): ConfidentLanguage | null {
-  if (!text) return null;
-  const clean = strip(text);
-  const letters = clean.match(/\p{L}/gu) ?? [];
-  if (letters.length < 3) return null;
-  const cyr = (clean.match(/\p{Script=Cyrillic}/gu) ?? []).length;
-  const arab = (clean.match(/\p{Script=Arabic}/gu) ?? []).length;
-  if (cyr >= 3 && cyr / letters.length > 0.5) {
-    const bulgarian = (clean.toLowerCase().match(/\p{L}+/gu) ?? []).some((w) => BULGARIAN_WORDS.has(w));
-    return CYRILLIC_NON_RUSSIAN.test(clean) || bulgarian ? null : "ru";
-  }
-  if (arab >= 3 && arab / letters.length > 0.5) return PERSO_ARABIC.test(clean) ? null : "ar";
-  // Karma yazı (Kiril/Arap + Latin, ör. Rusça cümle + Türkçe adres): Latin sözcüklerle hüküm VERİLMEZ.
-  if (cyr + arab >= 3 && (cyr + arab) / letters.length >= 0.2) return null;
-
+function latinScores(clean: string): { score: Record<LatinLanguage, number>; foreign: number } {
   const score: Record<LatinLanguage, number> = { tr: 0, en: 0, de: 0, fr: 0, es: 0 };
   let foreign = 0;
   for (const match of clean.matchAll(/\p{L}+(?:['’]\p{L}+)*/gu)) {
@@ -248,6 +235,28 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
     }
   }
   if (SPANISH_MARKS.test(clean)) score.es += 1;
+  return { score, foreign };
+}
+
+/**
+ * Metnin dili — YALNIZ EMİNKEN; aksi `null`. Kısa/ belirsiz / karma metin ("ok", "👍", "Thanks!") `null` döner.
+ */
+export function confidentLanguage(text: string | null | undefined): ConfidentLanguage | null {
+  if (!text) return null;
+  const clean = strip(text);
+  const letters = clean.match(/\p{L}/gu) ?? [];
+  if (letters.length < 3) return null;
+  const cyr = (clean.match(/\p{Script=Cyrillic}/gu) ?? []).length;
+  const arab = (clean.match(/\p{Script=Arabic}/gu) ?? []).length;
+  if (cyr >= 3 && cyr / letters.length > 0.5) {
+    const bulgarian = (clean.toLowerCase().match(/\p{L}+/gu) ?? []).some((w) => BULGARIAN_WORDS.has(w));
+    return CYRILLIC_NON_RUSSIAN.test(clean) || bulgarian ? null : "ru";
+  }
+  if (arab >= 3 && arab / letters.length > 0.5) return PERSO_ARABIC.test(clean) ? null : "ar";
+  // Karma yazı (Kiril/Arap + Latin, ör. Rusça cümle + Türkçe adres): Latin sözcüklerle hüküm VERİLMEZ.
+  if (cyr + arab >= 3 && (cyr + arab) / letters.length >= 0.2) return null;
+
+  const { score, foreign } = latinScores(clean);
   const ranked = LATIN.map((l) => [l, score[l]] as const).sort((a, b) => b[1] - a[1]);
   const [best, second] = ranked;
   if (best[1] < 2) return null;
@@ -255,6 +264,22 @@ export function confidentLanguage(text: string | null | undefined): ConfidentLan
   // Desteklenmeyen bir dilin kanıtı da ikinci aday gibi sayılır (İtalyanca "il" Fransızca listesinde, vb.).
   if (foreign > 0 && best[1] < 2 * foreign) return null;
   return best[0];
+}
+
+/**
+ * Metinde İZİ olan desteklenen diller (emin olmasa da): Latin dillerde sözcük / harf kanıtı > 0, Kiril / Arap yazısında ≥ 3 harf.
+ * Yalnız GEVŞETİR — QR dil kapısı (Sabah Kararları 56, kurucu: "karışık dil vakalarını sınasın; meşru cevapları engellemesin"):
+ * "Hi! Wifi şifresi ne acaba?" İngilizce izi taşır → İngilizce cevap meşrudur, tutulmaz.
+ */
+export function languageEvidence(text: string | null | undefined): Set<ConfidentLanguage> {
+  const out = new Set<ConfidentLanguage>();
+  if (!text) return out;
+  const clean = strip(text);
+  if ((clean.match(/\p{Script=Cyrillic}/gu) ?? []).length >= 3) out.add("ru");
+  if ((clean.match(/\p{Script=Arabic}/gu) ?? []).length >= 3) out.add("ar");
+  const { score } = latinScores(clean);
+  for (const lang of LATIN) if (score[lang] > 0) out.add(lang);
+  return out;
 }
 
 /**

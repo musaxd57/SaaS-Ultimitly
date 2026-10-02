@@ -14,6 +14,13 @@ import type {
   UnderstandingStaySignal,
 } from "@/lib/ai/semantic/stay-change";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
+import {
+  confidentLanguage,
+  guestTurnLanguage,
+  languageEvidence,
+  replyLanguageMismatch,
+  type ConfidentLanguage,
+} from "@/lib/ai/language-signal";
 import { HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
@@ -130,6 +137,8 @@ export const ESCALATION_REASONS = [
   // Eylem beyanı (MÇ §4, bayrak kapalıyken yazılmaz) — `action-claims.ts` `ACTION_CLAIM_REASONS` ile BİREBİR.
   "action_claim",
   "action_claim_undeclared",
+  // Misafirin dilinde değil (Sabah Kararları 56, kurucu onayı 10-02 akşam) — kanal kapısıyla AYNI yüklem (`language-signal.ts`).
+  "reply_language_mismatch",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -218,6 +227,11 @@ export function evaluateEscalation(
     understandingRisk?: IntentRiskKind | null;
     /** Modelin gördüğü bilgi tabanı (`kbFactsOf`) — yalnız 24 EK otopark tahsisi istisnası için. */
     kbFacts?: readonly string[] | null;
+    /**
+     * Modelin bildirdiği misafir dili (anlama katmanı, yoksa cevap modelinin `detectedLanguage`ı). YALNIZ kodun dil tespiti emin
+     * değilken ve mesaj en az iki sözcükken dil kapısına girdi olur (56: "Y a-t-il un fer à repasser ?" kodca belirsiz).
+     */
+    guestLanguageHint?: string | null;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
@@ -340,11 +354,35 @@ export function evaluateEscalation(
       return yes("unsourced_claim");
     }
     if (intentRisk) return yes(intentRisk);
+    if (qrLanguageMismatch(message, result.reply, stayCtx?.guestLanguageHint)) return yes("reply_language_mismatch");
     return { escalate: false, reason: "informational_low_confidence" };
   }
   // Sonlu olmayan güven (NaN / Infinity / eksik) "yüksek güven" değildir — kanal kapısının `confidence_invalid` paritesi (F01; 10-01, 15 ajan
   // A05: QR'da `NaN < 0.75` yanlış olduğu için kapı GEÇİYORDU). Yapay zekâ katmanı bugün güveni sonlu sayıya zorluyor; kapı ona güvenmez.
   if (!Number.isFinite(result.confidence) || result.confidence < 0.75) return yes("low_confidence");
   if (intentRisk) return yes(intentRisk);
+  if (qrLanguageMismatch(message, result.reply, stayCtx?.guestLanguageHint)) return yes("reply_language_mismatch");
   return { escalate: false, reason: null };
+}
+
+/**
+ * MİSAFİRİN DİLİNDE DEĞİL (Sabah Kararları 56, kurucu onayı 10-02 akşam: "QR'a dil kontrolü eklenmesi mantıklı. Kısa mesaj, dil
+ * değişimi, özel ad ve karışık dil vakalarını sınasın; basit kelime kontrolüyle meşru cevapları engellemesin."). Kanal kapısının
+ * AYNI yüklemi (`replyLanguageMismatch`): yalnız misafirin mesajı VE cevabın tamamı ya da bir cümlesi EMİNCE farklı dildeyse tutar;
+ * belirsizlik (kısa mesaj, karışık yazı, desteklenmeyen dil, özel ad) engel değildir. QR'da cevaplanan tek mesaj GÜNCEL mesajdır
+ * (eşzamanlı sohbet). EN SONDA: kalite gerekçesi hiçbir güvenlik gerekçesini gölgelemez. Önceki gerekçe ("devir metni + arayüz yalnız
+ * Türkçe") K10 ile düştü: devirde misafire metin gitmiyor; yanlış dildeki cevap da gitmez, ev sahibi panelde görür.
+ */
+const QR_HINT_LANGUAGES: ReadonlySet<string> = new Set<ConfidentLanguage>(["tr", "en", "de", "fr", "es", "ru", "ar"]);
+
+function qrLanguageMismatch(message: string, reply: string | null | undefined, hint?: string | null): boolean {
+  // Kodun kesin tespiti önce; emin değilse (kısa / karışık soru) MODELİN bildirdiği dil — yalnız en az iki sözcükte ("Merci !", "Wifi?"
+  // gibi tek sözcükte hüküm verilmez: kısa mesaj kuralı).
+  const words = (message.match(/\p{L}+/gu) ?? []).length;
+  const hinted = hint && QR_HINT_LANGUAGES.has(hint) ? (hint as ConfidentLanguage) : null;
+  const guest = guestTurnLanguage(message, []) ?? (words >= 2 ? hinted : null);
+  if (!replyLanguageMismatch(guest, reply)) return false;
+  // KARIŞIK DİL: cevabın (emin) dili misafirin mesajında da iz taşıyorsa ("Hi! Wifi şifresi ne acaba?" → İngilizce cevap) meşrudur.
+  const replyLang = confidentLanguage(reply);
+  return !(replyLang !== null && languageEvidence(message).has(replyLang));
 }

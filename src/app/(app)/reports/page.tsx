@@ -80,7 +80,7 @@ export default async function ReportsPage() {
     "understanding_risk",
     // Mülk ayarı ↔ bilgi tabanı giriş/çıkış saati çelişkisi (P4-b kodda, 09-25) — kendi satırı: çözümü host'un veri düzeltmesi.
     "kb_time_conflict",
-    // Cevap misafirin dilinde değildi (09-25, yalnız kanal) — kendi satırı: "düşük güven" kovasına karışmasın.
+    // Cevap misafirin dilinde değildi (09-25 kanal, 10-02 QR) — kendi satırı: "düşük güven" kovasına karışmasın.
     "reply_language_mismatch",
     // Cevap yapılmamış bir işten söz etti / beyan eksikti (MÇ §4; yalnız eylem beyanı açıkken yazılır) — kendi satırı.
     "action_claim",

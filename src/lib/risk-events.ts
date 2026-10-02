@@ -66,7 +66,7 @@ const REASONS = new Set([
   "early_checkin_policy",
   // Saat kaynağı çelişkisi (P4-b kodda, 09-25): mülk ayarı ↔ bilgi tabanı giriş/çıkış saati çelişkili alana değen cevap.
   "kb_time_conflict",
-  // Cevap misafirin dilinde değil (09-25, `ai/language-signal.ts`; yalnız kanal kapısı — QR'da bilinçli yok).
+  // Cevap misafirin dilinde değil (09-25, `ai/language-signal.ts`; kanal kapısı + 10-02'den beri QR — Sabah Kararları 56).
   "reply_language_mismatch",
   // Kapanış mesajı → cevap gerekmedi (09-25, `ai/closing-turn.ts`): sözcük yolu / iki modelin uyuştuğu anlam yolu.
   "closing_ack", "closing_ack_semantic",

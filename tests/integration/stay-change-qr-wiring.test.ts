@@ -283,14 +283,15 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: verdict(true) }));
     mockSuggest.mockResolvedValue(reply);
     const { token } = await seed();
-    const out = await ask(token, "Can we stay one more night?");
+    // Misafir ve cevap AYNI dilde (56, 10-02: QR dil kapısı İngilizce misafire Almanca cevabı tutar — bu testin konusu değil).
+    const out = await ask(token, "Können wir noch eine Nacht bleiben?");
     expect(out.escalated).toBe(false);
     expect(out.reply).toBe(reply.reply);
 
     await resetDb();
     vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: verdict(false) }));
     const { token: t2 } = await seed();
-    const held = await ask(t2, "Can we stay one more night?");
+    const held = await ask(t2, "Können wir noch eine Nacht bleiben?");
     expect(held.escalated).toBe(true);
     expect((await lastEvent()).ev.reason).toBe("availability_unconfirmed");
   });

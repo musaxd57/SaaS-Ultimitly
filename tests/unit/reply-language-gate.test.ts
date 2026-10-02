@@ -112,13 +112,14 @@ describe("kanal kapısı — yanlış dilde cevap otomatik gitmez", () => {
   });
 });
 
-describe("QR kapısı — dil kontrolü BİLİNÇLİ YOK (bilinen sınır, pinli)", () => {
-  // QR'da tutulan cevabın yerine misafire Türkçe devir metni gider ve arayüz yalnız Türkçe (`escalationReply`,
-  // `guest-chat.tsx`): Türkçe devir metni, Türkçe ama bilgili bir cevaptan misafir için daha az yararlı. Koruma istem
-  // talimatıdır; QR çok dilli olunca kapı eklenir.
-  it("İngilizce misafire Türkçe QR cevabı dil yüzünden devredilmez", () => {
-    const verdict = evaluateEscalation({ ...passing, reply: TR_REPLY }, EN_GUEST);
-    expect(verdict.escalate).toBe(false);
+describe("QR kapısı — dil kontrolü (Sabah Kararları 56, kurucu onayı 10-02 akşam; kanalla AYNI yüklem)", () => {
+  // Eskiden BİLİNÇLİ yoktu: tutulan cevabın yerine Türkçe devir metni gidiyordu. K10'dan (09-30) beri devirde misafire metin gitmiyor;
+  // QR ölçerinde bugünkü 5.1 Fransız misafire Türkçe yazdı ve cevap GİTTİ. Ayrıntılı vaka bataryası `qr-language-gate.test.ts`.
+  it("🚨 İngilizce misafire Türkçe QR cevabı → devir (reply_language_mismatch)", () => {
+    expect(evaluateEscalation({ ...passing, reply: TR_REPLY }, EN_GUEST)).toEqual({ escalate: true, reason: "reply_language_mismatch" });
+  });
+  it("KONTROL: misafirin dilindeki aynı cevap QR'da gider", () => {
+    expect(evaluateEscalation(passing, EN_GUEST)).toEqual({ escalate: false, reason: null });
   });
 });
 

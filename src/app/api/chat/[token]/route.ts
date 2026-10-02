@@ -810,6 +810,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     understandingRisk: understandingRiskOf(understood),
     // Modelin gördüğü bilgi tabanı (24 EK): yazılı sabit otopark yeri tahsisi takvim iddiası sayılmaz — kanalla parite.
     kbFacts: kbFactsOf(kbSel.items),
+    // 56: kodun dil tespiti emin değilken (kısa / karışık soru) misafirin dili için MODEL görüşü — önce bağımsız anlama katmanı.
+    guestLanguageHint: understood?.language ?? result.detectedLanguage ?? null,
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
