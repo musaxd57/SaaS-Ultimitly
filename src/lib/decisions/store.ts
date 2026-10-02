@@ -4,6 +4,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES, historyAuthorOf } from "@/lib/message-author";
 import { todayKey } from "@/modules/availability/core";
 import {
+  DECISION_SENDING_STALE_MS,
   effectiveDecisionStatus,
   isDecisionKind,
   isDecisionStatus,
@@ -24,7 +25,9 @@ import {
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-const OPEN_STORED: DecisionStatus[] = ["pending", "send_unverified"];
+// Açık iş olabilecek SAKLI durumlar (görünen durum ayrıca türetilir): bekleyen, gönderimi doğrulanamayan ve yarıda kalmış olabilecek
+// gönderim (`sending`; taze ise açık sayılmaz — `effectiveDecisionStatus`).
+const OPEN_STORED: DecisionStatus[] = ["pending", "send_unverified", "sending"];
 
 export interface DecisionToOpen {
   kind: DecisionKind;
@@ -51,6 +54,7 @@ export interface PersistedDecision {
   resultMessageId: string | null;
   notifiedAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 type Row = Prisma.DecisionRequestGetPayload<object>;
@@ -74,6 +78,7 @@ function toPersisted(r: Row): PersistedDecision | null {
     resultMessageId: r.resultMessageId,
     notifiedAt: r.notifiedAt,
     createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
   };
 }
 
@@ -317,6 +322,7 @@ async function withEffective(
           reservationCancelled: cancelled.get(r.conversationId) === true,
           dayKey: r.dayKey,
           todayKey: today,
+          sendingStale: r.status === "sending" && ctx.now.getTime() - r.updatedAt.getTime() > DECISION_SENDING_STALE_MS,
         }),
       },
     ];

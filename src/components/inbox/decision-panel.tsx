@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ChevronDown, ChevronUp, Circle, Clock, History, Loader2, MessageSquareWarning, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -109,6 +109,10 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
   const [busy, setBusy] = useState(false);
   const [confirmDismiss, setConfirmDismiss] = useState(false);
   const [notice, setNotice] = useState<{ tone: "warn" | "error"; text: string; seen?: string } | null>(null);
+  // Kartın sürümü: sunucu kesin bir gönderim hatasından sonra kartı YENİ sürümle yeniden açar ve sürümü yanıtta döner — yeniden
+  // deneme onu kullanır (yoksa her yeniden deneme önce "kart değişti" ile düşerdi). Sayfa yenilenince sunucudaki sürüm esas.
+  const [version, setVersion] = useState(d.version);
+  useEffect(() => setVersion(d.version), [d.version]);
 
   const timeOptions = useMemo(() => decisionTimeOptions(d.kind, d.standardTime, [d.requestedTime, time]), [d.kind, d.standardTime, d.requestedTime, time]);
 
@@ -168,9 +172,10 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
       const res = await fetch(`/api/conversations/${conversationId}/decisions/${d.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ version: d.version, ...payload }),
+        body: JSON.stringify({ version, ...payload }),
       });
-      const json = (await res.json().catch(() => ({}))) as { code?: string; error?: string; latestMessageId?: string };
+      const json = (await res.json().catch(() => ({}))) as { code?: string; error?: string; latestMessageId?: string; version?: number };
+      if (typeof json.version === "number") setVersion(json.version);
       if (res.ok) return { ok: true as const };
       return { ok: false as const, status: res.status, code: json.code, error: json.error, latestMessageId: json.latestMessageId };
     } catch {

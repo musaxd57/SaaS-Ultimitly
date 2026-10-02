@@ -76,6 +76,16 @@ describe("görünen durum — saklanmaz, türetilir", () => {
       expect(effectiveDecisionStatus(s, { ...base, hostRepliedAfter: true, reservationCancelled: true })).toBe(s);
     }
   });
+  it("gönderim sürüyor ('sending'): taze iken açık iş değil; yarıda kaldıysa 'gönderim doğrulanamadı' (açık iş)", () => {
+    const base = { hostRepliedAfter: true, reservationCancelled: true, dayKey: "2026-01-01", todayKey: "2026-12-31" };
+    expect(effectiveDecisionStatus("sending", base)).toBe("sending");
+    expect(effectiveDecisionStatus("sending", { ...base, sendingStale: true })).toBe("send_unverified");
+    expect(isOpenDecision(effectiveDecisionStatus("sending", base))).toBe(false);
+    expect(isOpenDecision(effectiveDecisionStatus("sending", { ...base, sendingStale: true }))).toBe(true);
+    // Bayrak yalnız 'sending'i etkiler.
+    expect(effectiveDecisionStatus("approved", { ...base, sendingStale: true })).toBe("approved");
+  });
+
   it("ev sahibinin işi: yalnız karar bekleyen ve gönderimi doğrulanamayan", () => {
     expect(isOpenDecision("pending")).toBe(true);
     expect(isOpenDecision("send_unverified")).toBe(true);

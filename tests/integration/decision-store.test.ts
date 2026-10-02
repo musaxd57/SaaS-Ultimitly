@@ -152,6 +152,29 @@ describe("karar kaydı", () => {
     expect((await openDecisionCounts(prisma, { organizationId: w.org.id, conversationIds: [w.conversation.id], timeZone: TZ, now: new Date() })).counts.size).toBe(0);
   });
 
+  it("🚨 gönderim yarıda kaldı: 'sending' 5 dk'dan eskiyse 'gönderim doğrulanamadı' (rozet + panoda açık iş); taze 'sending' açık iş değil", async () => {
+    const w = await world();
+    const m = await w.msg("Erken giriş?", 30);
+    const [d] = await openTurnDecisions(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservationId: w.reservation.id,
+      lang: "tr",
+      now: new Date(),
+      decisions: [{ kind: "early_checkin", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }],
+    });
+    await prisma.decisionRequest.update({ where: { id: d.id }, data: { status: "sending", version: 1 } });
+    const counts = () => openDecisionCounts(prisma, { organizationId: w.org.id, conversationIds: [w.conversation.id], timeZone: TZ, now: new Date() });
+    expect((await counts()).counts.size).toBe(0);
+    let views = await listConversationDecisions(prisma, { organizationId: w.org.id, conversationId: w.conversation.id, timeZone: TZ, now: new Date() });
+    expect(views[0].effective).toBe("sending");
+    await prisma.$executeRaw`UPDATE "DecisionRequest" SET "updatedAt" = now() - interval '6 minutes' WHERE id = ${d.id}`;
+    expect((await counts()).counts.get(w.conversation.id)).toBe(1);
+    views = await listConversationDecisions(prisma, { organizationId: w.org.id, conversationId: w.conversation.id, timeZone: TZ, now: new Date() });
+    expect(views[0].effective).toBe("send_unverified");
+    expect((await openDecisionsForOrg(prisma, { organizationId: w.org.id, timeZone: TZ, now: new Date() })).map((v) => v.id)).toEqual([d.id]);
+  });
+
   it("başka kiracının konuşmasına kart AÇILMAZ (kimlik çakışsa da)", async () => {
     const w = await world();
     const m = await w.msg("Erken giriş?", 30);

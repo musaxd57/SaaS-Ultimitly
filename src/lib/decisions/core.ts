@@ -113,14 +113,30 @@ export function decisionDayKey(
  */
 export function effectiveDecisionStatus(
   status: DecisionStatus,
-  ctx: { hostRepliedAfter: boolean; reservationCancelled: boolean; dayKey: string | null; todayKey: string },
+  ctx: {
+    hostRepliedAfter: boolean;
+    reservationCancelled: boolean;
+    dayKey: string | null;
+    todayKey: string;
+    /** Kart `sending`te `DECISION_SENDING_STALE_MS`den uzun kaldı (gönderim sırasında süreç düştü). */
+    sendingStale?: boolean;
+  },
 ): EffectiveDecisionStatus {
+  // Gönderim yarıda kaldı: mesaj gitmiş OLABİLİR — kart "gönderim doğrulanamadı" görünür (ev sahibi kanaldan bakıp kapatır;
+  // kör tekrar yok). Taze `sending` (gönderim sürüyor) açık iş değildir.
+  if (status === "sending") return ctx.sendingStale ? "send_unverified" : "sending";
   if (status !== "pending") return status;
   if (ctx.reservationCancelled) return "cancelled";
   if (ctx.dayKey !== null && ctx.dayKey < ctx.todayKey) return "expired";
   if (ctx.hostRepliedAfter) return "host_replied";
   return "pending";
 }
+
+/**
+ * `sending` bu süreden uzunsa gönderim yarıda kalmıştır (ev sahibi gönderim çekirdeğinin talep süresi 120 sn; kanal çağrısı
+ * dahil hiçbir gönderim bu kadar sürmez).
+ */
+export const DECISION_SENDING_STALE_MS = 5 * 60_000;
 
 /** Ev sahibinin işi mi: karar bekleyen ya da gönderimi doğrulanamayan kart. */
 export function isOpenDecision(status: EffectiveDecisionStatus): boolean {

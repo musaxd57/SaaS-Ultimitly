@@ -268,16 +268,32 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     const d = await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } });
     expect(d.status).toBe("pending");
     expect(d.decidedTime).toBeNull();
+    // Yanıt yeni sürümü taşır (istemci yeniden denemede onu gönderir — yoksa her yeniden deneme önce "kart değişti" alırdı).
+    expect((await res.json()).version).toBe(d.version);
     // Yeni sürümle yeniden denenebilir.
     expect((await post(s, { action: "approve", version: d.version, time: "13:00", body: APPROVE_TR })).status).toBe(200);
   });
 
-  it("kanal bağlı değil → 502, kart yeniden açılır", async () => {
+  it("🚨 gönderim sırasında süreç düştü (kart 'sending'te kaldı): taze iken KAPATILAMAZ / onaylanamaz; 5 dk sonra 'doğrulanamadı' sayılır ve kapatılabilir", async () => {
+    const s = await seed();
+    await prisma.decisionRequest.update({ where: { id: s.decisionId }, data: { status: "sending", version: 1 } });
+    expect((await post(s, { action: "dismiss", version: 1 })).status).toBe(409);
+    expect((await post(s, { action: "approve", version: 1, time: "13:00", body: APPROVE_TR })).status).toBe(409);
+    // Süre doldu → kapatılabilir (misafire yine bir şey gitmez).
+    await prisma.$executeRaw`UPDATE "DecisionRequest" SET "updatedAt" = now() - interval '6 minutes' WHERE id = ${s.decisionId}`;
+    expect((await post(s, { action: "dismiss", version: 1 })).status).toBe(200);
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("dismissed");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("kanal bağlı değil → 502, kart yeniden açılır (yeni sürüm yanıtta)", async () => {
     const s = await seed();
     mockToken.mockResolvedValueOnce(null as never);
     const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
     expect(res.status).toBe(502);
-    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
+    const d = await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } });
+    expect(d.status).toBe("pending");
+    expect((await res.json()).version).toBe(d.version);
     expect(mockSend).not.toHaveBeenCalled();
   });
 

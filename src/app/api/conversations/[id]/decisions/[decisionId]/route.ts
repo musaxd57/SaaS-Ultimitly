@@ -11,7 +11,7 @@ import { providerErrorMessageFromText } from "@/lib/provider-errors";
 import { sendHostMessage } from "@/lib/host-send";
 import { applyItemEvent } from "@/lib/conversation-items/store";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
-import { TEXT_DECISION_KINDS, isDecisionKind, parseHostTime } from "@/lib/decisions/core";
+import { DECISION_SENDING_STALE_MS, TEXT_DECISION_KINDS, isDecisionKind, parseHostTime } from "@/lib/decisions/core";
 
 // ---------------------------------------------------------------------------
 // HOST KARAR MOTORU — KARAR (Faz 1, kurucu 10-02 akşam). Ev sahibi kartta Onayla / Reddet / Kapat der. Onay ve ret misafire
@@ -72,14 +72,18 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
       metadata: { decisionId: decision.id, kind: decision.kind, ...extra, ...auditImpersonation(session) },
     });
 
-  // ── KAPAT: "gerek kalmadı / kendim hallettim" (karar bekleyen ya da gönderimi doğrulanamayan kart) ──
+  // ── KAPAT: "gerek kalmadı / kendim hallettim" (karar bekleyen, gönderimi doğrulanamayan ya da gönderimi yarıda kalmış kart) ──
   if (input.action === "dismiss") {
     const res = await prisma.decisionRequest.updateMany({
       where: {
         id: decision.id,
         organizationId: session.organizationId,
-        status: { in: ["pending", "send_unverified"] },
         version: input.version,
+        OR: [
+          { status: { in: ["pending", "send_unverified"] } },
+          // Gönderim sırasında süreç düştü: kart "doğrulanamadı" görünür; taze gönderim (sürüyor) KAPATILAMAZ.
+          { status: "sending", updatedAt: { lt: new Date(now.getTime() - DECISION_SENDING_STALE_MS) } },
+        ],
       },
       data: { status: "dismissed", decidedById: session.userId, decidedAt: now, version: { increment: 1 } },
     });
@@ -185,23 +189,28 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
     return jsonOk({ status: approve ? "approved" : "declined", resultMessageId, queued: sent.status === "queued" });
   }
 
-  // Kesin olumsuz sonuçlar: hiçbir şey gitmedi → kart yeniden açılır (ev sahibi düzeltip tekrar dener).
-  await reopen();
+  // Kesin olumsuz sonuçlar: hiçbir şey gitmedi → kart yeniden açılır (ev sahibi düzeltip tekrar dener). Yeni sürüm yanıtta döner:
+  // istemci bir sonraki denemede onu gönderir (yoksa her yeniden deneme önce "kart değişti" ile düşerdi).
+  const reopened = await reopen();
+  const version = reopened.count === 1 ? lockedVersion + 1 : undefined;
   switch (sent.status) {
     case "not_connected":
       return NextResponse.json(
-        { error: "Kanal hesabınız bağlı değil — mesaj gönderilemiyor. Ayarlar'dan bağlantınızı kurun." },
+        { error: "Kanal hesabınız bağlı değil — mesaj gönderilemiyor. Ayarlar'dan bağlantınızı kurun.", version },
         { status: 502 },
       );
     case "duplicate":
-      return conflict("duplicate", "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor.");
+      return conflict("duplicate", "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor.", { version });
     case "idempotency_conflict":
       return conflict("stale", "Bu kart az önce değişti. Sayfayı yenileyip tekrar bakın.");
     case "claim_unavailable":
-      return NextResponse.json({ error: "Şu anda gönderilemedi — lütfen birazdan tekrar deneyin." }, { status: 503 });
+      return NextResponse.json({ error: "Şu anda gönderilemedi — lütfen birazdan tekrar deneyin.", version }, { status: 503 });
     case "failed_definitive":
       return NextResponse.json(
-        { error: providerErrorMessageFromText(sent.error, "Mesaj gönderilemedi. Lütfen kısa bir süre sonra tekrar deneyin.") },
+        {
+          error: providerErrorMessageFromText(sent.error, "Mesaj gönderilemedi. Lütfen kısa bir süre sonra tekrar deneyin."),
+          version,
+        },
         { status: 502 },
       );
   }
