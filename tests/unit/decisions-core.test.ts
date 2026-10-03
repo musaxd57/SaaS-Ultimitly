@@ -10,6 +10,7 @@ import {
   effectiveDecisionStatus,
   formatDecisionDay,
   isOpenDecision,
+  liveDecisionDayKey,
   parseHostTime,
   requestedTimeOf,
   timeOnRightSide,
@@ -61,6 +62,18 @@ describe("hedef gün", () => {
   });
 });
 
+describe("canlı hedef gün — rezervasyon değişirse kart da", () => {
+  const res = { id: "r1", arrivalKey: "2026-10-20", departureKey: "2026-10-22" };
+  it("kartın rezervasyonu (ya da rezervasyonsuz kart) → rezervasyonun BUGÜNKÜ günü; başka rezervasyon → kayıtlı gün; rezervasyon yok → kayıtlı gün", () => {
+    expect(liveDecisionDayKey({ kind: "early_checkin", dayKey: "2026-10-14", reservationId: "r1" }, res)).toBe("2026-10-20");
+    expect(liveDecisionDayKey({ kind: "late_checkout", dayKey: "2026-10-16", reservationId: "r1" }, res)).toBe("2026-10-22");
+    expect(liveDecisionDayKey({ kind: "extend_stay", dayKey: null, reservationId: null }, res)).toBe("2026-10-22");
+    expect(liveDecisionDayKey({ kind: "date_change", dayKey: null, reservationId: "r1" }, res)).toBeNull();
+    expect(liveDecisionDayKey({ kind: "early_checkin", dayKey: "2026-10-14", reservationId: "r9" }, res)).toBe("2026-10-14");
+    expect(liveDecisionDayKey({ kind: "early_checkin", dayKey: "2026-10-14", reservationId: "r1" }, null)).toBe("2026-10-14");
+  });
+});
+
 describe("görünen durum — saklanmaz, türetilir", () => {
   const base = { hostRepliedAfter: false, reservationCancelled: false, dayKey: "2026-10-14", todayKey: "2026-10-14" };
   it("bekleyen kart: iptal > gün geçti > ev sahibi yazdı > bekliyor", () => {
@@ -76,14 +89,26 @@ describe("görünen durum — saklanmaz, türetilir", () => {
       expect(effectiveDecisionStatus(s, { ...base, hostRepliedAfter: true, reservationCancelled: true })).toBe(s);
     }
   });
-  it("gönderim sürüyor ('sending'): taze iken açık iş değil; yarıda kaldıysa 'gönderim doğrulanamadı' (açık iş)", () => {
-    const base = { hostRepliedAfter: true, reservationCancelled: true, dayKey: "2026-01-01", todayKey: "2026-12-31" };
-    expect(effectiveDecisionStatus("sending", base)).toBe("sending");
+  it("gönderim sürüyor ('sending'): taze iken açık iş değil (iptal / gün geçti olsa da); yarıda kaldıysa 'gönderim doğrulanamadı' (açık iş)", () => {
+    const busy = { hostRepliedAfter: true, reservationCancelled: true, dayKey: "2026-01-01", todayKey: "2026-12-31" };
+    expect(effectiveDecisionStatus("sending", busy)).toBe("sending");
+    expect(isOpenDecision(effectiveDecisionStatus("sending", busy))).toBe(false);
     expect(effectiveDecisionStatus("sending", { ...base, sendingStale: true })).toBe("send_unverified");
-    expect(isOpenDecision(effectiveDecisionStatus("sending", base))).toBe(false);
     expect(isOpenDecision(effectiveDecisionStatus("sending", { ...base, sendingStale: true }))).toBe(true);
+    // Ev sahibi sonradan yazdı diye yarıda kalan gönderim "yanıtladınız" olmaz (mesaj ulaşmış olabilir — kontrol işi).
+    expect(effectiveDecisionStatus("sending", { ...base, sendingStale: true, hostRepliedAfter: true })).toBe("send_unverified");
     // Bayrak yalnız 'sending'i etkiler.
     expect(effectiveDecisionStatus("approved", { ...base, sendingStale: true })).toBe("approved");
+  });
+
+  it("🚨 gönderimi doğrulanamayan kart: rezervasyon iptal → 'iptal', gün geçti → 'süresi geçti' (açık iş değil); ev sahibi yazdı → yine doğrulanamadı", () => {
+    expect(effectiveDecisionStatus("send_unverified", base)).toBe("send_unverified");
+    expect(effectiveDecisionStatus("send_unverified", { ...base, reservationCancelled: true })).toBe("cancelled");
+    expect(effectiveDecisionStatus("send_unverified", { ...base, todayKey: "2026-10-15" })).toBe("expired");
+    expect(effectiveDecisionStatus("send_unverified", { ...base, hostRepliedAfter: true })).toBe("send_unverified");
+    expect(effectiveDecisionStatus("sending", { ...base, sendingStale: true, todayKey: "2026-10-15" })).toBe("expired");
+    expect(effectiveDecisionStatus("sending", { ...base, sendingStale: true, reservationCancelled: true })).toBe("cancelled");
+    expect(isOpenDecision(effectiveDecisionStatus("send_unverified", { ...base, todayKey: "2026-10-15" }))).toBe(false);
   });
 
   it("ev sahibinin işi: yalnız karar bekleyen ve gönderimi doğrulanamayan", () => {

@@ -45,8 +45,11 @@ const QUOTE_MAX = 220;
 const ACTIVE_STAY_STATUSES = ["confirmed", "completed"];
 const NEIGHBOR_WIDEN_MS = 36 * 3_600_000;
 
-/** Komşu kararın "verildi" sayıldığı durumlar (gönderimi doğrulanamayan da: misafire ulaşmış olabilir — temkin). */
-const DECIDED: ReadonlySet<string> = new Set(["approved", "resolved_by_policy", "send_unverified"]);
+/**
+ * Komşu kararın "verildi" sayıldığı durumlar (gönderimi doğrulanamayan ve SÜREN gönderim de: misafire ulaşmış / ulaşıyor olabilir —
+ * temkin). Saat yalnız onayda yazılır (ret saat taşımaz) → ret hiçbir zaman "onaylandı" satırı üretmez.
+ */
+const DECIDED: ReadonlySet<string> = new Set(["approved", "resolved_by_policy", "send_unverified", "sending"]);
 
 /** Panelde tek satırlık kayıt olarak gösterilen sonuçlanmış kararlar (en yeni önce, tavan). */
 const RESOLVED_SHOWN: ReadonlySet<string> = new Set(["approved", "declined", "resolved_by_policy", "dismissed"]);
@@ -141,10 +144,13 @@ export function decisionFactsHash(
   return createHash("sha256").update(payload).digest("hex").slice(0, 24);
 }
 
-/** Kartta görünen kartlar: karar bekleyen, gönderimi doğrulanamayan ve "yanıtladınız" (sönük; eylemler açık). */
+/**
+ * Kartta görünen kartlar: karar bekleyen, gönderimi doğrulanamayan, "yanıtladınız" (sönük; eylemler açık) ve gönderimi SÜREN kart
+ * (eylemsiz — sayfa gönderim sırasında yenilenirse kart kaybolup "bitti" sanılmasın).
+ */
 export function visibleDecisions(views: readonly DecisionView[]): DecisionView[] {
   return views
-    .filter((v) => isOpenDecision(v.effective) || v.effective === "host_replied")
+    .filter((v) => isOpenDecision(v.effective) || v.effective === "host_replied" || v.effective === "sending")
     .sort((a, b) => Number(isOpenDecision(b.effective)) - Number(isOpenDecision(a.effective)) || b.messageAt.getTime() - a.messageAt.getTime());
 }
 
@@ -396,6 +402,7 @@ export async function buildDecisionCards(views: readonly DecisionView[], ctx: De
       statusLabel: DECISION_STATUS_LABELS_TR[v.effective],
       open: isOpenDecision(v.effective),
       unverified: v.effective === "send_unverified",
+      sending: v.effective === "sending",
       version: v.version,
       requestedTime: v.requestedTime,
       dayKey: v.dayKey,

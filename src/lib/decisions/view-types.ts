@@ -13,7 +13,7 @@ export interface DecisionLine {
 export interface DecisionCardData {
   id: string;
   kind: DecisionKind;
-  /** "13:00 erken giriş" / "Geç çıkış — saat belirtilmedi". */
+  /** "13:00 erken giriş" / "Geç çıkış (saat belli değil)". */
   title: string;
   /** Görünen durum etiketi ("Karar bekliyor", "Yanıtladınız", "Gönderim doğrulanamadı"). */
   statusLabel: string;
@@ -21,6 +21,8 @@ export interface DecisionCardData {
   open: boolean;
   /** Gönderimi doğrulanamadı: mesaj ulaşmış olabilir — yalnız "kontrol ettim" kapatması. */
   unverified: boolean;
+  /** Karar mesajı şu an gönderiliyor (başka sekme / cihaz) — eylem yok, kart birazdan sonuçlanır. */
+  sending: boolean;
   version: number;
   requestedTime: string | null;
   dayKey: string | null;
@@ -48,7 +50,7 @@ export interface ResolvedDecisionRow {
   id: string;
   /** "13:00 erken giriş". */
   title: string;
-  /** "Onaylandı · 14:00" / "Reddedildi" / "Kapatıldı". */
+  /** "14:00 olarak onaylandı" / "Reddedildi" / "Kapatıldı". */
   outcome: string;
   tone: "success" | "muted";
   /** Kararın verildiği an (ev sahibinin saatinde). */

@@ -261,7 +261,7 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">{[d.dayLabel, `istendi: ${d.askedAt}`].filter(Boolean).join(" · ")}</p>
         </div>
-        {readOnly ? null : (
+        {readOnly || d.sending ? null : (
           <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
             {d.unverified ? (
               <Button size="sm" variant="outline" onClick={dismiss} disabled={busy}>
@@ -309,7 +309,9 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
       ) : null}
 
       <div className="mt-2 space-y-1">
-        {d.unverified ? (
+        {d.sending ? (
+          <p className="text-xs text-muted-foreground">Karar mesajı gönderiliyor; kart birazdan sonuçlanır.</p>
+        ) : d.unverified ? (
           <p className="text-xs text-destructive">
             Karar mesajının gönderimi doğrulanamadı — misafire ulaşmış olabilir. Konuşmayı kanal üzerinden kontrol edin.
           </p>

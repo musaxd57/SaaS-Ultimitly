@@ -179,6 +179,161 @@ describe("karar kaydı", () => {
     expect((await openDecisionsForOrg(prisma, { organizationId: w.org.id, timeZone: TZ, now: new Date() })).map((v) => v.id)).toEqual([d.id]);
   });
 
+  it("🚨 CANLI gün: misafir rezervasyonu değiştirdiyse kartın günü rezervasyonun BUGÜNKÜ tarihinden (eski gün metne girmez, süre eski günden dolmaz)", async () => {
+    const w = await world();
+    const m = await w.msg("13:00'te girebilir miyiz?", 30);
+    // Kart DÜNÜN günüyle kaydedilmiş (ör. rezervasyon o zaman dündü); rezervasyon şimdi YARIN.
+    const yesterdayKey = utcDay(-1).toISOString().slice(0, 10);
+    const [d] = await openTurnDecisions(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservationId: w.reservation.id,
+      lang: "tr",
+      now: new Date(),
+      decisions: [{ kind: "early_checkin", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: yesterdayKey }],
+    });
+    const list = () => listConversationDecisions(prisma, { organizationId: w.org.id, conversationId: w.conversation.id, timeZone: TZ, now: new Date() });
+    let [v] = await list();
+    expect(v.id).toBe(d.id);
+    expect(v.dayKey).toBe(w.arrivalKey);
+    expect(v.effective).toBe("pending");
+    // Rezervasyon 3 gün ileri kaydı → kartın günü de.
+    const moved = utcDay(4);
+    await prisma.reservation.update({ where: { id: w.reservation.id }, data: { arrivalDate: moved, departureDate: new Date(moved.getTime() + 2 * DAY) } });
+    [v] = await list();
+    expect(v.dayKey).toBe(moved.toISOString().slice(0, 10));
+    // Geç çıkış kartının günü çıkış günü; tarih değişikliği kartının günü yok.
+    const [late, change] = await openTurnDecisions(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservationId: w.reservation.id,
+      lang: "tr",
+      now: new Date(),
+      decisions: [
+        { kind: "late_checkout", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: null },
+        { kind: "date_change", messageId: m.id, itemId: null, requestedTime: null, dayKey: null },
+      ],
+    });
+    const views = await list();
+    expect(views.find((x) => x.id === late.id)?.dayKey).toBe(new Date(moved.getTime() + 2 * DAY).toISOString().slice(0, 10));
+    expect(views.find((x) => x.id === change.id)?.dayKey).toBeNull();
+    // Konuşma BAŞKA bir rezervasyona bağlandıysa kartın kayıtlı günü esas (talep o konaklama içindi).
+    const other = await prisma.reservation.create({
+      data: { propertyId: w.property.id, guestName: "Ada", arrivalDate: utcDay(20), departureDate: utcDay(22), status: "confirmed", channel: "airbnb" },
+    });
+    await prisma.conversation.update({ where: { id: w.conversation.id }, data: { reservationId: other.id } });
+    [v] = (await list()).filter((x) => x.id === d.id);
+    expect(v.dayKey).toBe(yesterdayKey);
+    expect(v.effective).toBe("expired");
+  });
+
+  it("🚨 gönderimi doğrulanamayan kart: günü geçince ya da rezervasyon iptal edilince açık iş SAYILMAZ (rozet / pano kalıcı kirlenmez)", async () => {
+    const w = await world();
+    const m = await w.msg("Erken giriş?", 30);
+    const [d] = await openTurnDecisions(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservationId: w.reservation.id,
+      lang: "tr",
+      now: new Date(),
+      decisions: [{ kind: "early_checkin", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }],
+    });
+    await prisma.decisionRequest.update({ where: { id: d.id }, data: { status: "send_unverified", decidedTime: "13:00" } });
+    const counts = (now: Date) => openDecisionCounts(prisma, { organizationId: w.org.id, conversationIds: [w.conversation.id], timeZone: TZ, now });
+    expect((await counts(new Date())).counts.get(w.conversation.id)).toBe(1);
+    expect((await counts(new Date(Date.now() + 5 * DAY))).counts.size).toBe(0);
+    const [late] = await listConversationDecisions(prisma, { organizationId: w.org.id, conversationId: w.conversation.id, timeZone: TZ, now: new Date(Date.now() + 5 * DAY) });
+    expect(late.effective).toBe("expired");
+    // Yarıda kalmış gönderim (eski "sending") da aynı kural.
+    await prisma.decisionRequest.update({ where: { id: d.id }, data: { status: "sending" } });
+    await prisma.$executeRaw`UPDATE "DecisionRequest" SET "updatedAt" = now() - interval '6 minutes' WHERE id = ${d.id}`;
+    expect((await counts(new Date())).counts.get(w.conversation.id)).toBe(1);
+    await prisma.reservation.update({ where: { id: w.reservation.id }, data: { status: "cancelled" } });
+    expect((await counts(new Date())).counts.size).toBe(0);
+    const [v] = await listConversationDecisions(prisma, { organizationId: w.org.id, conversationId: w.conversation.id, timeZone: TZ, now: new Date() });
+    expect(v.effective).toBe("cancelled");
+  });
+
+  it("🚨 'ev sahibi yazdı' türetmesi TAVANSIZ: başka konuşmalardaki yüzlerce ev sahibi mesajı bir kartın cevabını gizlemez", async () => {
+    const w = await world();
+    const m = await w.msg("Erken giriş?", 60);
+    const base = { organizationId: w.org.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    const [d] = await openTurnDecisions(prisma, {
+      ...base,
+      conversationId: w.conversation.id,
+      decisions: [{ kind: "early_checkin", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }],
+    });
+    // Ev sahibi BU konuşmada cevap yazdı (40 dk önce).
+    await w.msg("Bakıyorum, size yazacağım.", 40, "outbound", "host");
+    // Başka bir konuşmada daha YENİ 520 ev sahibi mesajı + o konuşmanın da bekleyen kartı.
+    const busy = await prisma.conversation.create({
+      data: { propertyId: w.property.id, reservationId: w.reservation.id, guestIdentifier: "Ada", channel: "airbnb", externalReservationId: "r-busy" },
+    });
+    const bm = await prisma.message.create({
+      data: { conversationId: busy.id, direction: "inbound", senderName: "Ada", body: "Erken giriş?", createdAt: new Date(Date.now() - 50 * 60_000) },
+    });
+    await openTurnDecisions(prisma, {
+      ...base,
+      conversationId: busy.id,
+      decisions: [{ kind: "early_checkin", messageId: bm.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }],
+    });
+    await prisma.message.createMany({
+      data: Array.from({ length: 520 }, (_, i) => ({
+        conversationId: busy.id,
+        direction: "outbound",
+        senderName: "Ev Sahibi",
+        authorType: "host",
+        body: `not ${i}`,
+        createdAt: new Date(Date.now() - (30 - i / 100) * 60_000),
+      })),
+    });
+    const counts = await openDecisionCounts(prisma, { organizationId: w.org.id, conversationIds: [w.conversation.id, busy.id], timeZone: TZ, now: new Date() });
+    expect(counts.counts.get(w.conversation.id)).toBeUndefined();
+    expect(counts.counts.get(busy.id)).toBeUndefined();
+    const forOrg = await openDecisionsForOrg(prisma, { organizationId: w.org.id, timeZone: TZ, now: new Date() });
+    expect(forOrg.map((v) => v.id)).not.toContain(d.id);
+  });
+
+  it("🚨 pano en YENİ kartları okur: günü geçmiş 60 eski kart yeni talebi tavanın dışına itmez", async () => {
+    const w = await world();
+    const past = await prisma.reservation.create({
+      data: { propertyId: w.property.id, guestName: "Eski", arrivalDate: utcDay(-10), departureDate: utcDay(-8), status: "confirmed", channel: "airbnb" },
+    });
+    const oldConv = await prisma.conversation.create({
+      data: { propertyId: w.property.id, reservationId: past.id, guestIdentifier: "Eski", channel: "airbnb", externalReservationId: "r-old" },
+    });
+    const oldMsgs = await Promise.all(
+      Array.from({ length: 60 }, (_, i) =>
+        prisma.message.create({
+          data: { conversationId: oldConv.id, direction: "inbound", senderName: "Eski", body: `Erken giriş ${i}?`, createdAt: new Date(Date.now() - (12 * DAY - i * 60_000)) },
+        }),
+      ),
+    );
+    await prisma.decisionRequest.createMany({
+      data: oldMsgs.map((m, i) => ({
+        organizationId: w.org.id,
+        conversationId: oldConv.id,
+        messageId: m.id,
+        reservationId: past.id,
+        kind: "early_checkin",
+        lang: "tr",
+        dayKey: utcDay(-10).toISOString().slice(0, 10),
+        createdAt: new Date(Date.now() - (12 * DAY - i * 60_000)),
+      })),
+    });
+    const m = await w.msg("13:00'te girebilir miyiz?", 5);
+    const [fresh] = await openTurnDecisions(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservationId: w.reservation.id,
+      lang: "tr",
+      now: new Date(),
+      decisions: [{ kind: "early_checkin", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }],
+    });
+    const forOrg = await openDecisionsForOrg(prisma, { organizationId: w.org.id, timeZone: TZ, now: new Date(), limit: 50 });
+    expect(forOrg.map((v) => v.id)).toEqual([fresh.id]);
+  });
+
   it("başka kiracının konuşmasına kart AÇILMAZ (kimlik çakışsa da)", async () => {
     const w = await world();
     const m = await w.msg("Erken giriş?", 30);
@@ -273,6 +428,9 @@ describe("karar kaydı", () => {
         decidedAt: new Date(),
       },
     });
+    expect((await load())?.facts.previousSameDay?.checkoutTime).toBe("13:00");
+    // Onay gönderilirken de (kilit onay saatini yazar) — temkin: misafire ulaşıyor olabilir.
+    await prisma.decisionRequest.updateMany({ data: { status: "sending" } });
     expect((await load())?.facts.previousSameDay?.checkoutTime).toBe("13:00");
     // Başka kiracının kaydı sayılmaz; reddedilen / bekleyen geç çıkış sayılmaz.
     await prisma.decisionRequest.updateMany({ data: { status: "declined" } });

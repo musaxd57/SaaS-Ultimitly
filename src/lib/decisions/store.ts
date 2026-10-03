@@ -1,14 +1,15 @@
 import "server-only";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES, historyAuthorOf } from "@/lib/message-author";
-import { todayKey } from "@/modules/availability/core";
+import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES } from "@/lib/message-author";
+import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import {
   DECISION_SENDING_STALE_MS,
   effectiveDecisionStatus,
   isDecisionKind,
   isDecisionStatus,
   isOpenDecision,
+  liveDecisionDayKey,
   type DecisionKind,
   type DecisionStatus,
   type EffectiveDecisionStatus,
@@ -257,7 +258,9 @@ export type DecisionView = PersistedDecision & {
 
 /**
  * Kartların görünen durumu: talepten SONRA (karar kartıyla gitmeyen) ev sahibi mesajı var mı, rezervasyon iptal mi, hedef gün
- * geçti mi. Kart başına mesaj zamanı tek toplu sorguyla; kiracı kapsamı konuşmanın mülkünden.
+ * geçti mi. Hedef gün CANLI (rezervasyonun bugünkü tarihlerinden — `liveDecisionDayKey`); görünümün `dayKey`i budur. Kart başına
+ * mesaj zamanı ve konuşma başına son ev sahibi mesajı tek toplu sorguyla (öğelerin `stillOpenForHost`iyle AYNI koşul; tavan yok —
+ * çok konuşmalı gelen kutusunda kesilen liste bir cevabı gizleyemez); kiracı kapsamı konuşmanın mülkünden.
  */
 async function withEffective(
   db: Db,
@@ -274,7 +277,12 @@ async function withEffective(
     }),
     db.conversation.findMany({
       where: { id: { in: conversationIds }, property: { organizationId } },
-      select: { id: true, propertyId: true, channel: true, reservation: { select: { status: true } } },
+      select: {
+        id: true,
+        propertyId: true,
+        channel: true,
+        reservation: { select: { id: true, status: true, arrivalDate: true, departureDate: true } },
+      },
     }),
     db.decisionRequest.findMany({
       where: { organizationId, conversationId: { in: conversationIds }, resultMessageId: { not: null } },
@@ -282,45 +290,51 @@ async function withEffective(
     }),
   ]);
   const messageAt = new Map(messages.map((m) => [m.id, m.createdAt]));
-  const cancelled = new Map(conversations.map((c) => [c.id, /cancel/i.test(c.reservation?.status ?? "")]));
   const convById = new Map(conversations.map((c) => [c.id, c]));
-  const decisionMessages = new Set(resultIds.map((r) => r.resultMessageId).filter((v): v is string => v !== null));
-  const pendingConvs = [...new Set(rows.filter((r) => r.status === "pending").map((r) => r.conversationId))];
-  const earliest = rows.reduce((min, r) => {
-    const at = messageAt.get(r.messageId) ?? r.createdAt;
-    return at < min ? at : min;
-  }, new Date(8.64e15));
-  const hostMessages =
+  const decisionMessages = resultIds.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
+  const pendingConvs = [...new Set(rows.filter((r) => r.status === "pending").map((r) => r.conversationId))].filter((id) => convById.has(id));
+  const hosts =
     pendingConvs.length > 0
-      ? await db.message.findMany({
-          where: { conversationId: { in: pendingConvs }, createdAt: { gt: earliest }, ...HOST_OUTBOUND_WHERE },
-          select: { id: true, conversationId: true, createdAt: true, direction: true, senderName: true, authorType: true, systemEventType: true },
-          orderBy: { createdAt: "desc" },
-          take: 500,
+      ? await db.message.groupBy({
+          by: ["conversationId"],
+          where: {
+            conversationId: { in: pendingConvs },
+            conversation: { property: { organizationId } },
+            ...HOST_OUTBOUND_WHERE,
+            ...(decisionMessages.length > 0 ? { id: { notIn: decisionMessages } } : {}),
+          },
+          _max: { createdAt: true },
         })
       : [];
-  const lastHostAt = new Map<string, Date>();
-  for (const m of hostMessages) {
-    if (decisionMessages.has(m.id) || historyAuthorOf(m) !== "host") continue;
-    const prev = lastHostAt.get(m.conversationId);
-    if (!prev || m.createdAt > prev) lastHostAt.set(m.conversationId, m.createdAt);
-  }
+  const lastHostAt = new Map(hosts.map((h) => [h.conversationId, h._max.createdAt]));
   const today = todayKey(ctx.now, ctx.timeZone);
   return rows.flatMap((r) => {
     const conv = convById.get(r.conversationId);
     if (!conv) return [];
     const at = messageAt.get(r.messageId) ?? r.createdAt;
-    const host = lastHostAt.get(r.conversationId);
+    const host = lastHostAt.get(r.conversationId) ?? null;
+    const res = conv.reservation;
+    const dayKey = liveDecisionDayKey(
+      r,
+      res
+        ? {
+            id: res.id,
+            arrivalKey: calendarDateOf(res.arrivalDate, ctx.timeZone).key,
+            departureKey: calendarDateOf(res.departureDate, ctx.timeZone).key,
+          }
+        : null,
+    );
     return [
       {
         ...r,
+        dayKey,
         messageAt: at,
         propertyId: conv.propertyId,
         channel: conv.channel,
         effective: effectiveDecisionStatus(r.status, {
-          hostRepliedAfter: host !== undefined && host > at,
-          reservationCancelled: cancelled.get(r.conversationId) === true,
-          dayKey: r.dayKey,
+          hostRepliedAfter: host !== null && host > at,
+          reservationCancelled: /cancel/i.test(res?.status ?? ""),
+          dayKey,
           todayKey: today,
           sendingStale: r.status === "sending" && ctx.now.getTime() - r.updatedAt.getTime() > DECISION_SENDING_STALE_MS,
         }),
@@ -380,7 +394,8 @@ export async function decisionsForReservations(
       organizationId: input.organizationId,
       reservationId: { in: [...input.reservationIds] },
       kind: { in: [...input.kinds] },
-      status: { in: ["pending", "send_unverified", "approved", "resolved_by_policy"] },
+      // `sending` da: gönderim sürerken komşu kartta "onaylandı" saati görünsün (kilit onay saatini yazar; ret saat taşımaz).
+      status: { in: ["pending", "sending", "send_unverified", "approved", "resolved_by_policy"] },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 20,
@@ -389,15 +404,18 @@ export async function decisionsForReservations(
   return withEffective(db, input.organizationId, persisted, input);
 }
 
-/** "Dikkat Gerektirenler" için: org'daki AÇIK kartlar (en eski önce, tavanlı). */
+/**
+ * "Dikkat Gerektirenler" için: org'daki AÇIK kartlar. EN YENİ önce okunur (tavan 200): günü geçmiş / yanıtlanmış eski kartlar
+ * saklı durumda "pending" kalır ve süzgeç onları okumadan eleyemez — en eski önce okuyan tavan yeni talepleri dışarıda bırakırdı.
+ */
 export async function openDecisionsForOrg(
   db: Db,
   input: { organizationId: string; timeZone: string; now: Date; limit?: number },
 ): Promise<DecisionView[]> {
   const rows = await db.decisionRequest.findMany({
     where: { organizationId: input.organizationId, status: { in: OPEN_STORED } },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: Math.min(Math.max(input.limit ?? 50, 1), 200),
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: Math.min(Math.max(input.limit ?? 200, 1), 500),
   });
   const persisted = rows.map(toPersisted).filter((r): r is PersistedDecision => r !== null);
   return (await withEffective(db, input.organizationId, persisted, input)).filter((v) => isOpenDecision(v.effective));

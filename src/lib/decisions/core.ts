@@ -108,8 +108,22 @@ export function decisionDayKey(
 }
 
 /**
- * Görünen durum. Yalnız AÇIK (pending) kart türetilir: ev sahibi talepten SONRA yazdıysa "yanıtladınız" (kurucu kararı 09-26
- * öğelerdeki gibi — tıklama gerekmez), rezervasyon iptalse "iptal", hedef gün geçtiyse "süresi geçti". Sonuçlanmış kart aynen.
+ * Kartın CANLI hedef günü: konuşmanın rezervasyonu kartın rezervasyonuysa (ya da kart rezervasyonsuz açıldıysa) gün o
+ * rezervasyonun BUGÜNKÜ tarihlerinden — misafir rezervasyonu değiştirdiyse karar metni ESKİ günü adlandırmasın, süre eski günden
+ * dolmasın. Başka bir rezervasyona bağlanmış konuşmada kartın kayıtlı günü esas (talep o konaklama içindi).
+ */
+export function liveDecisionDayKey(
+  d: { kind: DecisionKind; dayKey: string | null; reservationId: string | null },
+  reservation: { id: string; arrivalKey: string; departureKey: string } | null,
+): string | null {
+  if (!reservation || (d.reservationId !== null && d.reservationId !== reservation.id)) return d.dayKey;
+  return decisionDayKey(d.kind, reservation);
+}
+
+/**
+ * Görünen durum. AÇIK kart türetilir: rezervasyon iptalse "iptal", hedef gün geçtiyse "süresi geçti" (karar bekleyen VE gönderimi
+ * doğrulanamayan kart — artık yapılacak iş yok); karar bekleyen kartta ev sahibi talepten SONRA yazdıysa "yanıtladınız" (kurucu
+ * kararı 09-26 öğelerdeki gibi — tıklama gerekmez). Sonuçlanmış kart aynen.
  */
 export function effectiveDecisionStatus(
   status: DecisionStatus,
@@ -122,12 +136,14 @@ export function effectiveDecisionStatus(
     sendingStale?: boolean;
   },
 ): EffectiveDecisionStatus {
-  // Gönderim yarıda kaldı: mesaj gitmiş OLABİLİR — kart "gönderim doğrulanamadı" görünür (ev sahibi kanaldan bakıp kapatır;
-  // kör tekrar yok). Taze `sending` (gönderim sürüyor) açık iş değildir.
-  if (status === "sending") return ctx.sendingStale ? "send_unverified" : "sending";
-  if (status !== "pending") return status;
+  // Taze `sending` (gönderim sürüyor) açık iş değildir. Gönderim yarıda kaldıysa mesaj gitmiş OLABİLİR — kart "gönderim
+  // doğrulanamadı" görünür (ev sahibi kanaldan bakıp kapatır; kör tekrar yok).
+  if (status === "sending" && !ctx.sendingStale) return "sending";
+  const unverified = status === "send_unverified" || status === "sending";
+  if (status !== "pending" && !unverified) return status;
   if (ctx.reservationCancelled) return "cancelled";
   if (ctx.dayKey !== null && ctx.dayKey < ctx.todayKey) return "expired";
+  if (unverified) return "send_unverified";
   if (ctx.hostRepliedAfter) return "host_replied";
   return "pending";
 }

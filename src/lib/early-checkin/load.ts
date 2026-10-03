@@ -65,7 +65,8 @@ export function markOfTask(t: TaskWithUpdates, departingReservationId: string): 
 
 /**
  * Rezervasyon başına ev sahibinin ONAYLADIĞI geç çıkış saati (Host Karar Motoru kaydı; onaylandı / otomatik onaylandı / gönderimi
- * doğrulanamadı — ulaşmış olabilir, temkin). Org kapsamlı; boş girdide sorgu yok.
+ * doğrulanamadı ya da sürüyor — ulaşmış olabilir, temkin; kilit yalnız ONAYIN saatini yazar, ret saat taşımaz). Org kapsamlı; boş
+ * girdide sorgu yok.
  */
 async function approvedLateCheckouts(organizationId: string, reservationIds: readonly string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
@@ -75,7 +76,7 @@ async function approvedLateCheckouts(organizationId: string, reservationIds: rea
       organizationId,
       reservationId: { in: [...reservationIds] },
       kind: "late_checkout",
-      status: { in: ["approved", "resolved_by_policy", "send_unverified"] },
+      status: { in: ["approved", "resolved_by_policy", "send_unverified", "sending"] },
       decidedTime: { not: null },
     },
     select: { reservationId: true, decidedTime: true },
