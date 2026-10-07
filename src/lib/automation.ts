@@ -130,7 +130,13 @@ import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionsForTurn } from "@/lib/decisions/turn";
 import { notifyTurnDecisions } from "@/lib/decisions/notify";
-import { resolveDecisionByPolicy, type PersistedDecision } from "@/lib/decisions/store";
+import {
+  claimTurnDecisionForPolicy,
+  findTurnDecision,
+  releasePolicyClaim,
+  resolveDecisionByPolicy,
+  type PersistedDecision,
+} from "@/lib/decisions/store";
 import { decisionLang } from "@/lib/decisions/core";
 import { relationGateHold, touchesHeldDevice } from "@/lib/conversation-items/relation";
 import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
@@ -2149,6 +2155,12 @@ export async function applyChannelAutoReply(
     .filter((m) => m.direction === "inbound" && m.id !== last.id)
     .map((m) => m.body);
 
+  // Host Karar Motoru: bu turun cevapsız misafir mesajları (son mesaj dahil) — aynı talebin kartı yeniden kullanılır, bildirim kilidi
+  // ve hassas e-posta kontrolü bu kümeye bakar.
+  const decisionTurnMessageIds = [
+    ...new Set([...messages.slice(lastOutboundIdx + 1).filter((m) => m.direction === "inbound").map((m) => m.id), last.id]),
+  ];
+
   // Misafirin dili — kapının dil kuralıyla AYNI girdiler (son mesaj, değilse cevapsız mesajların tamamı). Koddan kurulan
   // metinlerin (erken giriş onayı / politika) dili bundan seçilir.
   const guestLanguage = guestTurnLanguage(last.body, pendingGuestMessages);
@@ -2287,7 +2299,20 @@ export async function applyChannelAutoReply(
       // muaf olduğundan modelin dil kayması ("tr") yanlış dilde onay GÖNDERMESİN (09-25).
       detectedLanguage: guestLanguage ?? result.detectedLanguage,
     });
-    if (earlyCheckinRun?.decision.autoSend && earlyCheckinRun.draft) {
+    // Host Karar Motoru: bu talebin kartında ev sahibi karar verdiyse / veriyorsa (gönderiliyor, onaylandı, reddedildi, doğrulanamadı,
+    // kapatıldı) otomatik onay GİTMEZ — temizlik bitince yeniden değerlendirilen istek ev sahibinin reddini "onaylandı" ile ezmesin.
+    const hostOwnsEarlyCard =
+      hostDecisionsEnabled() && earlyCheckinRun?.decision.autoSend
+        ? await findTurnDecision(prisma, {
+            organizationId: conversation.property.organizationId,
+            conversationId: conversation.id,
+            kind: "early_checkin",
+            messageIds: decisionTurnMessageIds,
+          })
+            .then((c) => c !== null && c.status !== "pending")
+            .catch(() => true)
+        : false;
+    if (earlyCheckinRun?.decision.autoSend && earlyCheckinRun.draft && !hostOwnsEarlyCard) {
       const verified = verifiedEarlyCheckinResult(result, earlyCheckinRun.draft);
       const verifiedContext: AutoReplyGateContext = { ...gateContext, verifiedGrant: { text: earlyCheckinRun.draft } };
       const verifiedFailure = autoReplyGateFailure(verified, last.body, verifiedContext);
@@ -2374,6 +2399,7 @@ export async function applyChannelAutoReply(
           policy: availabilityPolicyFor(result, gateContext),
           items: itemsPlan ? itemsPlan.turnItems.map((i) => ({ id: i.id, kind: i.kind, messageId: i.messageId })) : [],
           lastMessageId: last.id,
+          turnMessageIds: decisionTurnMessageIds,
           language: guestLanguage ?? result.detectedLanguage,
           skipKinds: earlyCheckinSent || earlyCheckinPolicySent ? ["early_checkin"] : [],
           now: new Date(),
@@ -2387,7 +2413,12 @@ export async function applyChannelAutoReply(
       conversation,
       property: conversation.property,
       decisions: turnDecisions,
+      messageIds: decisionTurnMessageIds,
+      lockMessageId: last.id,
     });
+  // Bu turda ev sahibinin kararını BEKLEYEN kart var mı (kapatılmış / sonuçlanmış kart yeniden kullanıldıysa "Misafir cevabınızı
+  // bekliyor" bildirimi yine gidebilir).
+  const turnCardsOpen = turnDecisions.some((d) => d.status === "pending");
 
   // §C (09-12) — SAYAÇLARI İSTEMİN GERÇEĞİNE ÇEK.
   //
@@ -2582,9 +2613,11 @@ export async function applyChannelAutoReply(
         // K10: cevap konuyu ev sahibine bırakıyordu ve tutuldu → misafire hiçbir şey gitmedi. Bu turun mesajları için hassas öğe
         // e-postası zaten gittiyse (ya da daha önce gittiyse) ikinci e-posta YOK — mesaj başına tek bildirim. Karar kartı açıldıysa
         // genel bildirim yerine "Karar bekliyor" gider (aynı talep satırı — ikisi birden asla).
-        if (notice.held.length === 0) {
-          if (turnDecisions.length > 0) await notifyDecisions();
-          else if (handoffHeld) {
+        // Kart bildirimi HER ZAMAN çağrılır: kartlar damgalanır (sonraki tur aynı talep için e-posta atmasın); e-posta yalnız bu turun
+        // mesajlarına hassas öğe e-postası gitmediyse gider (`notifyTurnDecisions` kendisi bakar).
+        if (turnDecisions.length > 0) await notifyDecisions();
+        if (notice.held.length === 0 && !turnCardsOpen) {
+          if (handoffHeld) {
             await notifyHostReplyWaiting({
               organizationId: conversation.property.organizationId,
               conversation,
@@ -2908,7 +2941,7 @@ export async function applyChannelAutoReply(
       // bekliyor" e-postası. Yükseltme dalı (↑) kendi e-postasını atar ve buraya gelmez. Karar kartı açıldıysa yerine "Karar
       // bekliyor" (aynı talep satırı — ikisi birden asla).
       if (turnDecisions.length > 0) await notifyDecisions();
-      else if (handoffHeld) {
+      if (!turnCardsOpen && handoffHeld) {
         await notifyHostReplyWaiting({
           organizationId: conversation.property.organizationId,
           conversation,
@@ -3105,6 +3138,28 @@ export async function applyChannelAutoReply(
     return { sent: false, skippedReason: "already_claimed", draft, ...meta };
   }
 
+  // Host Karar Motoru: doğrulanmış otomatik erken giriş onayı göndermeden HEMEN önce bu turun kartı sahiplenilir (ev sahibi o arada
+  // kartta karar vermeye başladıysa otomatik onay GİTMEZ — misafir çelişen iki mesaj almasın; konuşma talebi bırakılır, sonraki geçiş
+  // ev sahibinin kartını görüp otomatik onaya hiç girmez).
+  let policyClaim: { id: string; version: number } | null = null;
+  if (earlyCheckinSent && hostDecisionsEnabled() && earlyCheckinRun?.decision.approvedTime) {
+    const claimed = await claimTurnDecisionForPolicy(prisma, {
+      organizationId: conversation.property.organizationId,
+      conversationId: conversation.id,
+      kind: "early_checkin",
+      messageIds: decisionTurnMessageIds,
+      decidedTime: earlyCheckinRun.decision.approvedTime,
+      now: new Date(),
+    }).catch((): { ok: boolean; claimed: null } => ({ ok: false, claimed: null }));
+    if (!claimed.ok) {
+      await prisma.conversation
+        .updateMany({ where: { id: conversation.id, status: "answered" }, data: { status: "new" } })
+        .catch((err) => void reportError("auto-reply-claim-release", err));
+      return { sent: false, skippedReason: "host_deciding", draft, ...meta };
+    }
+    policyClaim = claimed.claimed;
+  }
+
   const delivery = await sendOnChannel(
     {
       channel: conversation.channel,
@@ -3115,6 +3170,15 @@ export async function applyChannelAutoReply(
     token,
   );
   if (!delivery.ok) {
+    // Otomatik onayın sahiplendiği kart: kesin hatada yeniden "karar bekliyor", belirsizde "gönderim doğrulanamadı".
+    if (policyClaim) {
+      await releasePolicyClaim(prisma, {
+        organizationId: conversation.property.organizationId,
+        id: policyClaim.id,
+        version: policyClaim.version,
+        outcome: isDefinitiveSendFailure(delivery.error) ? "reopen" : "unverified",
+      }).catch((err) => void reportError(`host-decisions policy-release org=${conversation.property.organizationId}`, err));
+    }
     // DEFINITIVE failure (HTTP 4xx≠408) → nothing delivered → release the claim
     // (status→new) so a later cycle re-models and retries. AMBIGUOUS (timeout/5xx/
     // network) → the reply MAY have reached the guest → KEEP the claim (leave status

@@ -109,6 +109,19 @@ export async function openTurnDecisions(
     let row = await db.decisionRequest.findUnique({ where });
     if (row && row.organizationId !== input.organizationId) continue;
     if (!row) {
+      // Misafir aynı talebi değiştirdi (13:00 → 12:00): yerine geçilen BEKLEYEN kart bildirildiyse yeni kart da bildirilmiş sayılır
+      // — kurucu: "host'a bir bildirim gider; tekrar tekrar gönderilmez" (kart panelde güncellenir).
+      const prior = await db.decisionRequest.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          conversationId: input.conversationId,
+          kind: d.kind,
+          status: "pending",
+          notifiedAt: { not: null },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { notifiedAt: true },
+      });
       try {
         row = await db.decisionRequest.create({
           data: {
@@ -121,6 +134,7 @@ export async function openTurnDecisions(
             requestedTime: d.requestedTime,
             dayKey: d.dayKey,
             lang: input.lang,
+            notifiedAt: prior?.notifiedAt ?? null,
           },
         });
       } catch (err) {
@@ -218,6 +232,64 @@ export async function resolveDecisionByPolicy(
       NOT: { messageId: input.messageId },
     },
     data: { status: "superseded", version: { increment: 1 } },
+  });
+}
+
+/**
+ * Bu turun mesajlarına bağlı, AYNI türden en yeni kart (yerine geçilmiş kartlar hariç) — misafir aynı talebe "?" / "teşekkürler"
+ * eklediğinde yeni kart açılmasın; doğrulanmış otomatik onay ev sahibinin elindeki kartı ezmesin.
+ */
+export async function findTurnDecision(
+  db: Db,
+  input: { organizationId: string; conversationId: string; kind: DecisionKind; messageIds: readonly string[] },
+): Promise<PersistedDecision | null> {
+  if (input.messageIds.length === 0) return null;
+  const row = await db.decisionRequest.findFirst({
+    where: {
+      organizationId: input.organizationId,
+      conversationId: input.conversationId,
+      kind: input.kind,
+      messageId: { in: [...input.messageIds] },
+      status: { not: "superseded" },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
+  return row ? toPersisted(row) : null;
+}
+
+/**
+ * Doğrulanmış OTOMATİK erken giriş onayı göndermeden HEMEN önce bu turun kartını sahiplenir (CAS: bekleyen → "otomatik onaylandı").
+ * Ev sahibi kartta karar verdiyse / veriyorsa (gönderiliyor, onaylandı, reddedildi, doğrulanamadı, kapatıldı) ya da yarış
+ * kaybedildiyse `ok: false` → otomatik onay GİTMEZ (misafir çelişen iki mesaj almasın). Kart yoksa `ok: true` + `claimed: null`.
+ */
+export async function claimTurnDecisionForPolicy(
+  db: Db,
+  input: { organizationId: string; conversationId: string; kind: DecisionKind; messageIds: readonly string[]; decidedTime: string; now: Date },
+): Promise<{ ok: boolean; claimed: { id: string; version: number } | null }> {
+  const card = await findTurnDecision(db, input);
+  if (!card) return { ok: true, claimed: null };
+  if (card.status !== "pending") return { ok: false, claimed: null };
+  const res = await db.decisionRequest.updateMany({
+    where: { id: card.id, organizationId: input.organizationId, status: "pending", version: card.version },
+    data: { status: "resolved_by_policy", decidedTime: input.decidedTime, decidedAt: input.now, version: { increment: 1 } },
+  });
+  return res.count === 1 ? { ok: true, claimed: { id: card.id, version: card.version + 1 } } : { ok: false, claimed: null };
+}
+
+/**
+ * Otomatik onay gönderilemedi: KESİN hata (hiçbir şey gitmedi) → kart yeniden "karar bekliyor"; BELİRSİZ (ulaşmış olabilir) →
+ * "gönderim doğrulanamadı" (ev sahibi kanaldan bakar; kör tekrar yok). Yalnız bu talebin sürümü duruyorsa.
+ */
+export async function releasePolicyClaim(
+  db: Db,
+  input: { organizationId: string; id: string; version: number; outcome: "reopen" | "unverified" },
+): Promise<void> {
+  await db.decisionRequest.updateMany({
+    where: { id: input.id, organizationId: input.organizationId, status: "resolved_by_policy", version: input.version },
+    data:
+      input.outcome === "reopen"
+        ? { status: "pending", decidedTime: null, decidedAt: null, version: { increment: 1 } }
+        : { status: "send_unverified", version: { increment: 1 } },
   });
 }
 

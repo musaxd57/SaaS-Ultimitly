@@ -139,6 +139,73 @@ describe("oto-yanıt → karar kartı (Host Karar Motoru)", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 misafir aynı talebe yeni mesaj ekledi ('?') → YENİ kart açılmaz, ikinci e-posta yok; saati DEĞİŞTİRDİ (12:00) → yeni kart eskisinin yerine geçer, e-posta YİNE yok", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    mockSuggest.mockResolvedValue(BASE);
+    const s = await seed("Yarın saat 13:00'te giriş yapabilir miyiz?");
+    await applyChannelAutoReply(s.conversationId);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    const first = await prisma.decisionRequest.findFirstOrThrow({ where: { conversationId: s.conversationId } });
+    await prisma.message.create({ data: { conversationId: s.conversationId, direction: "inbound", senderName: "Ada", body: "?" } });
+    await prisma.conversation.update({ where: { id: s.conversationId }, data: { status: "new" } });
+    await applyChannelAutoReply(s.conversationId);
+    let rows = await prisma.decisionRequest.findMany({ where: { conversationId: s.conversationId } });
+    expect(rows.map((r) => r.id)).toEqual([first.id]);
+    expect(rows[0].status).toBe("pending");
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    // Saat değişti: yeni kart (12:00), eskisi "yeni istekle değişti"; ev sahibine yeniden e-posta GİTMEZ (kart panelde güncellendi).
+    await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "Ada", body: "Pardon, 12:00 olur mu?", createdAt: new Date(Date.now() + 1000) },
+    });
+    await prisma.conversation.update({ where: { id: s.conversationId }, data: { status: "new" } });
+    await applyChannelAutoReply(s.conversationId);
+    rows = await prisma.decisionRequest.findMany({ where: { conversationId: s.conversationId }, orderBy: { createdAt: "asc" } });
+    expect(rows.map((r) => [r.status, r.requestedTime])).toEqual([
+      ["superseded", "13:00"],
+      ["pending", "12:00"],
+    ]);
+    expect(rows[1].notifiedAt).not.toBeNull();
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 ev sahibi kartı kapattıysa (gerek kalmadı) misafir yeniden yazınca kart açılmaz; tutulan devirde 'Misafir cevabınızı bekliyor' YİNE gider (kapalı kart bildirimi yutmaz)", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    const handoff = { ...BASE, reply: "Standart giriş saatimiz 15:00. Mesajınız kaydedildi; ev sahibiniz görebilir." };
+    mockSuggest.mockResolvedValue(handoff);
+    const s = await seed("Yarın saat 13:00'te giriş yapabilir miyiz?");
+    await applyChannelAutoReply(s.conversationId);
+    expect(subjects()).toEqual([expect.stringMatching(/^Karar bekliyor/)]);
+    await prisma.decisionRequest.updateMany({ where: { conversationId: s.conversationId }, data: { status: "dismissed" } });
+    await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "Ada", body: "Bir haber var mı?", createdAt: new Date(Date.now() + 1000) },
+    });
+    await prisma.conversation.update({ where: { id: s.conversationId }, data: { status: "new" } });
+    await applyChannelAutoReply(s.conversationId);
+    expect(await prisma.decisionRequest.count({ where: { conversationId: s.conversationId } })).toBe(1);
+    expect(subjects()).toEqual([expect.stringMatching(/^Karar bekliyor/), expect.stringMatching(/^Misafir cevabınızı bekliyor/)]);
+  });
+
+  it("günü GEÇMİŞ talep için kart açılmaz (açılır açılmaz 'süresi geçti' olurdu)", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    mockSuggest.mockResolvedValue(BASE);
+    const s = await seed("Saat 13:00'te giriş yapabilir miyiz?");
+    const past = utcDay(-2);
+    await prisma.reservation.updateMany({ data: { arrivalDate: past, departureDate: new Date(past.getTime() + 5 * DAY) } });
+    await applyChannelAutoReply(s.conversationId);
+    expect(await prisma.decisionRequest.count()).toBe(0);
+    expect(subjects().filter((x) => x.startsWith("Karar bekliyor"))).toEqual([]);
+  });
+
+  it("deterministik saat yedeği karşı yuvayı anan mesajda saat YAZMAZ: 'erken girip çıkışı 14:00'te yapabilir miyiz' saati erken giriş kartına yazılmaz", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    mockSuggest.mockResolvedValue({ ...BASE, stayChange: { asked: "early_checkin" as const, stance: "none" as const } });
+    const s = await seed("Erken giriş yapıp çıkışı da 14:00'te yapabilir miyiz?");
+    await applyChannelAutoReply(s.conversationId);
+    const rows = await prisma.decisionRequest.findMany({ where: { conversationId: s.conversationId } });
+    const early = rows.find((r) => r.kind === "early_checkin");
+    expect(early?.requestedTime ?? null).toBeNull();
+  });
+
   it("KONTROL — bayrak KAPALI: kart yok, e-posta bugünkü gibi (bu tutuşta yok)", async () => {
     mockSuggest.mockResolvedValue(BASE);
     const s = await seed("Yarın saat 13:00'te giriş yapabilir miyiz?");

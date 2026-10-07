@@ -13,9 +13,10 @@ import { claimDecisionNotification, releaseDecisionNotification, type PersistedD
 
 // ---------------------------------------------------------------------------
 // "KARAR BEKLİYOR" E-POSTASI (Host Karar Motoru, Faz 1 — kurucu: "Host'a bir bildirim gider; tekrar tekrar gönderilmez").
-//  · MESAJ BAŞINA TEK BİLDİRİM: "Misafir cevabınızı bekliyor" (K10) e-postasıyla AYNI talep satırı (`reply-waiting-mail:<mesaj>`)
-//    — ikisi aynı mesaja birden gitmez; hassas öğe ACİL e-postası (`held-items-mail:<mesaj>`) o mesaj için gittiyse bu e-posta
-//    gitmez (acil e-posta zaten konuşmaya götürür; kart orada). Kart başına da tek damga (`notifiedAt`, atomik).
+//  · MESAJ BAŞINA TEK BİLDİRİM: "Misafir cevabınızı bekliyor" (K10) e-postasıyla AYNI talep satırı (`reply-waiting-mail:<turun son
+//    mesajı>` — K10 da turun son mesajını kilitler) — ikisi aynı tura birden gitmez; hassas öğe ACİL e-postası (`held-items-mail:<mesaj>`)
+//    bu turun HERHANGİ bir mesajı için gittiyse bu e-posta gitmez (acil e-posta zaten konuşmaya götürür; kart orada) ama kartlar YİNE
+//    damgalanır (sonraki tur aynı talep için e-posta atmasın). Kart başına da tek damga (`notifiedAt`, atomik).
 //  · Gidemezse iki talep de geri verilir (aynı mesaj yeniden değerlendirilirse yeniden denenir) + tek alarm.
 //  · Alıcı acil e-postayla AYNI kural: org'un uyarı adresi, yoksa SAHİBİN e-postası — personel ya da operatör ASLA.
 //  · Misafir metni taşımaz; bağlantı `appBaseUrl()`den. Asla fırlatmaz.
@@ -28,14 +29,17 @@ export async function notifyTurnDecisions(input: {
   conversation: { id: string; guestIdentifier: string };
   property: { name: string };
   decisions: readonly PersistedDecision[];
+  /** Bu turun cevapsız misafir mesajları (hassas öğe e-postası bunlardan biri için gittiyse e-posta yok). */
+  messageIds: readonly string[];
+  /** Turun son misafir mesajı — K10 "Misafir cevabınızı bekliyor" e-postasıyla AYNI kilit. */
+  lockMessageId: string;
   now?: Date;
 }): Promise<DecisionNoticeOutcome> {
   const now = input.now ?? new Date();
   const pending = input.decisions.filter((d) => d.status === "pending" && d.notifiedAt === null);
   if (pending.length === 0) return "none";
-  // Bir turun kartları aynı mesajdadır (öğe yoksa son mesaj); farklı mesajlara düştüyse en yeni kartın mesajı esas.
-  const messageId = pending[pending.length - 1].messageId;
-  const lockName = `${REPLY_WAITING_MAIL_PREFIX}${messageId}`;
+  const lockName = `${REPLY_WAITING_MAIL_PREFIX}${input.lockMessageId}`;
+  const turnMessages = [...new Set([...input.messageIds, input.lockMessageId, ...pending.map((d) => d.messageId)])];
   let locked = false;
   const claimed: PersistedDecision[] = [];
   try {
@@ -54,8 +58,11 @@ export async function notifyTurnDecisions(input: {
       if (await claimDecisionNotification(prisma, { organizationId: input.organizationId, id: d.id, now })) claimed.push(d);
     }
     if (claimed.length === 0) return "deduped";
-    // Hassas öğe acil e-postası bu mesaj için gittiyse ikinci e-posta YOK (damgalar kalır — kart panelde).
-    const heldMail = await prisma.systemLock.findUnique({ where: { name: `${HELD_MAIL_PREFIX}${messageId}` }, select: { name: true } });
+    // Hassas öğe acil e-postası bu turun bir mesajı için gittiyse ikinci e-posta YOK (damgalar kalır — kart panelde).
+    const heldMail = await prisma.systemLock.findFirst({
+      where: { name: { in: turnMessages.map((id) => `${HELD_MAIL_PREFIX}${id}`) } },
+      select: { name: true },
+    });
     if (heldMail) return "deduped";
     await prisma.systemLock
       .deleteMany({ where: { name: { startsWith: REPLY_WAITING_MAIL_PREFIX }, lockedUntil: { lt: now } } })

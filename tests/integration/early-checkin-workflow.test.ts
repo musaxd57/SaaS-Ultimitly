@@ -657,6 +657,65 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect(decisionMails()).toEqual([]);
   });
 
+  it("🚨 Host Karar Motoru: ev sahibi kartta karar VERDİYSE (reddetti / kapattı / gönderiyor) doğrulanmış otomatik onay GİTMEZ — misafir çelişen iki mesaj almaz", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    for (const hostStatus of ["declined", "dismissed", "sending", "send_unverified"]) {
+      await resetDb();
+      vi.clearAllMocks();
+      __resetUnderstandingCache();
+      mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
+      mockSuggest.mockResolvedValue(MODEL);
+      const t = await turnover({ cleaned: CLEANED_AT });
+      await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+      vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+      const id = await conversationFor(t);
+      const msg = await prisma.message.findFirstOrThrow({ where: { conversationId: id, direction: "inbound" } });
+      await prisma.decisionRequest.create({
+        data: {
+          organizationId: t.orgId,
+          conversationId: id,
+          messageId: msg.id,
+          reservationId: t.own.id,
+          kind: "early_checkin",
+          requestedTime: "13:00",
+          lang: "en",
+          status: hostStatus,
+        },
+      });
+      expect((await applyChannelAutoReply(id)).sent, hostStatus).toBe(false);
+      expect(mockSend, hostStatus).not.toHaveBeenCalled();
+      expect((await prisma.decisionRequest.findFirstOrThrow({ where: { conversationId: id } })).status, hostStatus).toBe(hostStatus);
+    }
+  });
+
+  it("🚨 Host Karar Motoru: kart BEKLİYORSA otomatik onay göndermeden önce kartı sahiplenir ('otomatik onaylandı'); kesin gönderim hatasında kart yeniden 'karar bekliyor'", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t);
+    const msg = await prisma.message.findFirstOrThrow({ where: { conversationId: id, direction: "inbound" } });
+    const card = await prisma.decisionRequest.create({
+      data: { organizationId: t.orgId, conversationId: id, messageId: msg.id, reservationId: t.own.id, kind: "early_checkin", requestedTime: "13:00", lang: "en" },
+    });
+    let during: string | null = null;
+    mockSend.mockImplementationOnce(async () => {
+      during = (await prisma.decisionRequest.findUniqueOrThrow({ where: { id: card.id } })).status;
+      return { ok: false, error: "Hospitable HTTP 400 (bad_request)" } as never;
+    });
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(during).toBe("resolved_by_policy");
+    expect(await prisma.decisionRequest.findUniqueOrThrow({ where: { id: card.id } })).toMatchObject({ status: "pending", decidedTime: null });
+    // Başarılı gönderimde kart "otomatik onaylandı" kalır (aynı kart — ikinci kart yok).
+    __resetUnderstandingCache();
+    await prisma.conversation.update({ where: { id }, data: { status: "new", autoReplyHoldUntil: null, skippedReason: null } });
+    mockSend.mockResolvedValue({ ok: true, externalId: "ext-2" } as never);
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    const rows = await prisma.decisionRequest.findMany({ where: { conversationId: id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: card.id, status: "resolved_by_policy", decidedTime: "13:00" });
+  });
+
   it("🚨 karar kaydı dayanakları: hangi devir (rezervasyon), hangi 'hazır' kaydı + anı, hangi kural sürümü, kaç model okudu", async () => {
     const t = await turnover({ cleaned: CLEANED_AT });
     await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
