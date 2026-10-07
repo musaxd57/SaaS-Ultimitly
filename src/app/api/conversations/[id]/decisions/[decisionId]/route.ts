@@ -6,12 +6,20 @@ import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { auditActor, auditImpersonation, writeAudit } from "@/lib/audit";
 import { orgTimezone } from "@/lib/timezone";
-import { todayKey } from "@/modules/availability/core";
+import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { providerErrorMessageFromText } from "@/lib/provider-errors";
 import { sendHostMessage } from "@/lib/host-send";
 import { applyItemEvent } from "@/lib/conversation-items/store";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
-import { DECISION_SENDING_STALE_MS, TEXT_DECISION_KINDS, isDecisionKind, parseHostTime } from "@/lib/decisions/core";
+import { reportError } from "@/lib/report-error";
+import {
+  DECISION_SENDING_STALE_MS,
+  TEXT_DECISION_KINDS,
+  isDecisionKind,
+  liveDecisionDayKey,
+  parseHostTime,
+  timeOnRightSide,
+} from "@/lib/decisions/core";
 import { listConversationDecisions } from "@/lib/decisions/store";
 import { buildDecisionCards, decisionCardContextFor } from "@/lib/decisions/card";
 
@@ -24,8 +32,11 @@ import { buildDecisionCards, decisionCardContextFor } from "@/lib/decisions/card
 //  3. rezervasyon iptal / hedef gün geçti → durur (kart kendiliğinden kapanır);
 //  4. kontrol listesi ev sahibi baktıktan sonra değiştiyse (`factsHash`: temizlik bitti, komşu misafire karar verildi, saat
 //     geçti…) karar ESKİ bilgiyle gitmez → 409 `facts_changed`, kart tazelenir (Faz 0 §4 adım 3).
-// Gönderim belirsizse kart "gönderim doğrulanamadı" kalır (mesaj ulaşmış OLABİLİR — kör tekrar yok); kesin hatada kart yeniden
-// açılır. Yalnız sahip / yönetici; bürünmede yazma yok (`withManage` boğazı). Denetim kaydı metin / tutar taşımaz.
+// Gönderim belirsizse (zaman aşımı, aynı metin az önce gitti / gidiyor, gönderim sırasında hata) kart "gönderim doğrulanamadı"
+// kalır (mesaj ulaşmış OLABİLİR — kör tekrar yok); YALNIZ hiçbir şeyin gitmediği KESİN hatada (kanal bağlı değil, kalkan okunamadı,
+// kanal kesin reddetti) kart yeniden açılır. Kilit onayın saatini ve karar vereni HEMEN yazar (gönderim sürerken komşu kart /
+// erken giriş kontrolü onu görür). Yalnız sahip / yönetici; bürünmede yazma yok (`withManage` boğazı). Denetim kaydı metin / tutar
+// taşımaz.
 // ---------------------------------------------------------------------------
 
 const bodySchema = z.object({
@@ -36,7 +47,13 @@ const bodySchema = z.object({
   seenMessageId: z.string().max(64).optional(),
   /** Ev sahibinin gördüğü kartın olgu parmak izi (`decisionFactsHash`). */
   factsHash: z.string().max(64).optional(),
+  /** Ev sahibi hazır metni değiştirdi mi (değiştirdiyse mesaj onun yazdığıdır — "yapay zekâ destekli" sayılmaz). */
+  edited: z.boolean().optional(),
 });
+
+const STALE_TEXT = "Bu kart az önce değişti; güncel hâli gösteriliyor.";
+const UNVERIFIED_TEXT =
+  "Gönderim doğrulanamadı — mesaj misafire ulaşmış olabilir. Konuşmayı kanaldan kontrol edin; ulaşmadıysa misafire buradan yazın.";
 
 function conflict(code: string, error: string, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ code, error, ...extra }, { status: 409 });
@@ -94,7 +111,7 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
       },
       data: { status: "dismissed", decidedById: session.userId, decidedAt: now, version: { increment: 1 } },
     });
-    if (res.count !== 1) return conflict("stale", "Bu kart az önce değişti. Sayfayı yenileyip tekrar bakın.");
+    if (res.count !== 1) return conflict("stale", STALE_TEXT);
     if (decision.itemId) {
       await applyItemEvent(prisma, { organizationId: session.organizationId, ids: [decision.itemId], event: "host_done", now });
     }
@@ -104,32 +121,52 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
 
   // ── ONAYLA / REDDET ──
   if (decision.status !== "pending" || decision.version !== input.version) {
-    return conflict("stale", "Bu kart az önce değişti. Sayfayı yenileyip tekrar bakın.");
+    return conflict("stale", STALE_TEXT);
   }
   const body = input.body?.trim() ?? "";
   if (!body) return badRequest({ body: "Misafire gidecek mesaj boş olamaz." });
   const approve = input.action === "approve";
   const time = approve ? parseHostTime(input.time) : null;
-  if (approve && TEXT_DECISION_KINDS.has(decision.kind) && !time) return badRequest({ time: "Geçerli bir saat seçin (SS:DD)." });
+  if (approve && TEXT_DECISION_KINDS.has(decision.kind) && !time) return badRequest({ time: "Geçerli bir saat seçin." });
+  // Standardın yanlış tarafındaki onay ("16:00 erken giriş" — standart 15:00) misafiri yanıltır; arayüz göndermez, uç da kabul etmez.
+  const standard = decision.kind === "early_checkin" ? conversation.property.checkInTime : conversation.property.checkOutTime;
+  if (approve && time && timeOnRightSide(decision.kind, time, standard) === false) {
+    return badRequest({
+      time:
+        decision.kind === "early_checkin"
+          ? `Bu saat standart giriş saatinizden (${standard}) erken değil.`
+          : `Bu saat standart çıkış saatinizden (${standard}) geç değil.`,
+    });
+  }
 
   // Yeniden doğrulama — göndermeden HEMEN önce.
   if (/cancel/i.test(conversation.reservation?.status ?? "")) {
     return conflict("reservation_cancelled", "Rezervasyon iptal edilmiş; misafire karar mesajı gönderilmedi.");
   }
   const tz = orgTimezone(conversation.property.organization.timezone);
-  if (decision.dayKey && decision.dayKey < todayKey(now, tz)) {
+  // Gün CANLI (rezervasyon değiştiyse kartın kayıtlı günü değil, bugünkü tarihi — sayfadaki kartla aynı kural).
+  const res = conversation.reservation;
+  const dayKey = liveDecisionDayKey(
+    { kind: decision.kind, dayKey: decision.dayKey, reservationId: decision.reservationId },
+    res
+      ? { id: res.id, arrivalKey: calendarDateOf(res.arrivalDate, tz).key, departureKey: calendarDateOf(res.departureDate, tz).key }
+      : null,
+  );
+  if (dayKey && dayKey < todayKey(now, tz)) {
     return conflict("expired", "Talep edilen gün geçti; misafire karar mesajı gönderilmedi.");
   }
   const requestMessage = await prisma.message.findFirst({
     where: { id: decision.messageId, conversationId: id },
     select: { createdAt: true },
   });
+  // Talebin mesajı bulunamazsa (birleştirmede ayıklanmış kopya) çapa kartın açıldığı an — kontrol atlanmaz.
+  const anchor = requestMessage?.createdAt ?? decision.createdAt;
   const latestGuest = await prisma.message.findFirst({
-    where: { conversationId: id, direction: "inbound", ...(requestMessage ? { createdAt: { gt: requestMessage.createdAt } } : {}) },
+    where: { conversationId: id, direction: "inbound", createdAt: { gt: anchor } },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: { id: true },
   });
-  if (requestMessage && latestGuest && latestGuest.id !== input.seenMessageId) {
+  if (latestGuest && latestGuest.id !== input.seenMessageId) {
     return conflict("guest_wrote_again", "Misafir bu talepten sonra yeniden yazdı. Mesajı okuyun, sonra tekrar gönderin.", {
       latestMessageId: latestGuest.id,
     });
@@ -152,18 +189,33 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
     }
   }
 
-  // Kilit (CAS): yalnız bu sürümdeki BEKLEYEN kart gönderime geçer.
+  // Kilit (CAS): yalnız bu sürümdeki BEKLEYEN kart gönderime geçer. Onayın saati ve karar veren HEMEN yazılır (gönderim sürerken
+  // komşu konaklamanın kartı / erken giriş kontrolü onu görür — ret saat taşımaz; kesin hatada geri alınır).
   const lock = await prisma.decisionRequest.updateMany({
     where: { id: decision.id, organizationId: session.organizationId, status: "pending", version: input.version },
-    data: { status: "sending", version: { increment: 1 } },
+    data: { status: "sending", decidedTime: time, decidedById: session.userId, decidedAt: now, version: { increment: 1 } },
   });
-  if (lock.count !== 1) return conflict("stale", "Bu kart az önce değişti. Sayfayı yenileyip tekrar bakın.");
+  if (lock.count !== 1) return conflict("stale", STALE_TEXT);
   const lockedVersion = input.version + 1;
   const reopen = () =>
     prisma.decisionRequest.updateMany({
       where: { id: decision.id, organizationId: session.organizationId, status: "sending", version: lockedVersion },
-      data: { status: "pending", version: { increment: 1 } },
+      data: { status: "pending", decidedTime: null, decidedById: null, decidedAt: null, version: { increment: 1 } },
     });
+  const settle = (status: "approved" | "declined" | "send_unverified", resultMessageId: string | null) =>
+    prisma.decisionRequest.updateMany({
+      where: { id: decision.id, organizationId: session.organizationId, status: "sending", version: lockedVersion },
+      data: { status, resultMessageId, version: { increment: 1 } },
+    });
+  // Mesaj misafire ulaşmış OLABİLİR: kart "gönderim doğrulanamadı" (kör tekrar yok — ev sahibi kanaldan bakar).
+  const unverified = async (why: string) => {
+    const fin = await settle("send_unverified", null).catch(() => ({ count: 0 }));
+    if (decision.itemId) {
+      await applyItemEvent(prisma, { organizationId: session.organizationId, ids: [decision.itemId], event: "host_done", now }).catch(() => {});
+    }
+    await audit(approve ? "decision.approved" : "decision.declined", { delivery: "unverified", why, ...(fin.count === 1 ? {} : { finalize: "lost" }) });
+    return NextResponse.json({ code: "send_unverified", error: UNVERIFIED_TEXT }, { status: 502 });
+  };
 
   let sent: Awaited<ReturnType<typeof sendHostMessage>>;
   try {
@@ -173,43 +225,33 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
       body,
       claimBody: body,
       senderName: session.name,
-      // K6 (Faz 0 önerisi): karar ev sahibinin, metni kod kurdu → "ev sahibi yazdı + yapay zekâ destekli".
-      aiAssisted: true,
+      // K6 (Faz 0 önerisi): karar ev sahibinin, metni kod kurdu → "ev sahibi yazdı + yapay zekâ destekli". Ev sahibi metni
+      // değiştirdiyse mesaj onun yazdığıdır.
+      aiAssisted: input.edited !== true,
       idempotencyKey: `decision:${decision.id}:v${lockedVersion}`,
       strictIdempotency: true,
     });
   } catch (err) {
-    await reopen().catch(() => {});
-    throw err;
+    // Gönderim sırasında hata: teslim olmuş ama kaydedilememiş olabilir (kanal kabul etti, veritabanı yazamadı) → yeniden açmak
+    // ikinci bir mesaja yol açardı.
+    void reportError(`host-decisions send org=${session.organizationId}`, err);
+    return unverified("error");
   }
 
-  if (sent.status === "sent" || sent.status === "queued" || sent.status === "failed_ambiguous") {
-    const delivered = sent.status !== "failed_ambiguous";
-    const resultMessageId = sent.status === "failed_ambiguous" ? null : (sent.message?.id ?? null);
-    await prisma.decisionRequest.updateMany({
-      where: { id: decision.id, organizationId: session.organizationId, status: "sending", version: lockedVersion },
-      data: {
-        status: delivered ? (approve ? "approved" : "declined") : "send_unverified",
-        decidedTime: time,
-        decidedById: session.userId,
-        decidedAt: now,
-        resultMessageId,
-        version: { increment: 1 },
-      },
-    });
+  if (sent.status === "failed_ambiguous") return unverified("ambiguous");
+  // Aynı metin az önce gitti / hâlâ gidiyor (başka yoldan): misafir onu görmüş olabilir.
+  if (sent.status === "duplicate") return unverified("duplicate");
+  // Bu kilidin kimliğiyle kuyrukta başka bir içerik var: o gönderim sürüyor olabilir.
+  if (sent.status === "idempotency_conflict") return unverified("idempotency_conflict");
+
+  if (sent.status === "sent" || sent.status === "queued") {
+    const resultMessageId = sent.message?.id ?? null;
+    const fin = await settle(approve ? "approved" : "declined", resultMessageId);
     if (decision.itemId) {
       await applyItemEvent(prisma, { organizationId: session.organizationId, ids: [decision.itemId], event: "host_done", now });
     }
-    await audit(approve ? "decision.approved" : "decision.declined", delivered ? {} : { delivery: "unverified" });
-    if (!delivered) {
-      return NextResponse.json(
-        {
-          code: "send_unverified",
-          error: "Gönderim doğrulanamadı — mesaj ulaşmış olabilir. Tekrar göndermeden önce konuşmayı kontrol edin.",
-        },
-        { status: 502 },
-      );
-    }
+    // Mesaj gitti; kart o arada başka bir yoldan değiştiyse (yarıda kalan gönderim sayılıp kapatıldı) sonuç yine "gitti"dir.
+    await audit(approve ? "decision.approved" : "decision.declined", fin.count === 1 ? {} : { finalize: "lost" });
     return jsonOk({ status: approve ? "approved" : "declined", resultMessageId, queued: sent.status === "queued" });
   }
 
@@ -223,10 +265,6 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
         { error: "Kanal hesabınız bağlı değil — mesaj gönderilemiyor. Ayarlar'dan bağlantınızı kurun.", version },
         { status: 502 },
       );
-    case "duplicate":
-      return conflict("duplicate", "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor.", { version });
-    case "idempotency_conflict":
-      return conflict("stale", "Bu kart az önce değişti. Sayfayı yenileyip tekrar bakın.");
     case "claim_unavailable":
       return NextResponse.json({ error: "Şu anda gönderilemedi — lütfen birazdan tekrar deneyin.", version }, { status: 503 });
     case "failed_definitive":

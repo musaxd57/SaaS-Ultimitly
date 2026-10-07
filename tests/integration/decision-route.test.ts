@@ -30,6 +30,7 @@ import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { POST } from "@/app/api/conversations/[id]/decisions/[decisionId]/route";
 import { listConversationDecisions } from "@/lib/decisions/store";
 import { buildDecisionCards, decisionCardContextFor } from "@/lib/decisions/card";
+import { claimOutboundSend } from "@/lib/outbound-claim";
 
 const mockSend = vi.mocked(sendOnChannel);
 const mockToken = vi.mocked(getOrgHospitableToken);
@@ -384,6 +385,93 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     expect((await post(s, { action: "dismiss", version: 0 })).status).toBe(403);
     expect(mockSend).not.toHaveBeenCalled();
     expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
+  });
+
+  it("🚨 gönderim sırasında HATA (kanal kabul etti, kayıt düştü olabilir) → kart yeniden AÇILMAZ, 'gönderim doğrulanamadı' (502); ikinci gönderim yok", async () => {
+    const s = await seed();
+    mockSend.mockRejectedValueOnce(new Error("db write failed after delivery"));
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
+    expect(res.status).toBe(502);
+    expect((await res.json()).code).toBe("send_unverified");
+    const d = await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } });
+    expect(d).toMatchObject({ status: "send_unverified", decidedTime: "13:00", decidedById: s.ownerId });
+    expect((await post(s, { action: "approve", version: d.version, time: "13:00", body: APPROVE_TR })).status).toBe(409);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await prisma.auditLog.count({ where: { organizationId: s.orgId, action: "decision.approved" } })).toBe(1);
+  });
+
+  it("🚨 aynı metin az önce başka yoldan gitti / gidiyor (duplicate) → kart 'gönderim doğrulanamadı' (yeniden açılıp 2 dk sonra ikinci kez gitmez)", async () => {
+    const s = await seed();
+    expect(await claimOutboundSend(s.conversationId, APPROVE_TR)).toBe("claimed");
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
+    expect(res.status).toBe(502);
+    expect((await res.json()).code).toBe("send_unverified");
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("send_unverified");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 kilit onayın saatini ve karar vereni gönderimden ÖNCE yazar (komşu kart / erken giriş kontrolü gönderim sürerken görür); ret saat yazmaz", async () => {
+    const s = await seed();
+    let during: { status: string; decidedTime: string | null; decidedById: string | null } | null = null;
+    mockSend.mockImplementationOnce(async () => {
+      during = await prisma.decisionRequest.findUniqueOrThrow({
+        where: { id: s.decisionId },
+        select: { status: true, decidedTime: true, decidedById: true },
+      });
+      return { ok: true, providerMessageId: "prov-9" } as never;
+    });
+    expect((await post(s, { action: "approve", version: 0, time: "14:00", body: APPROVE_TR })).status).toBe(200);
+    expect(during).toEqual({ status: "sending", decidedTime: "14:00", decidedById: s.ownerId });
+    const s2 = await seed();
+    mockSend.mockImplementationOnce(async () => {
+      during = await prisma.decisionRequest.findUniqueOrThrow({
+        where: { id: s2.decisionId },
+        select: { status: true, decidedTime: true, decidedById: true },
+      });
+      return { ok: true, providerMessageId: "prov-10" } as never;
+    });
+    expect((await post(s2, { action: "decline", version: 0, body: "Maalesef mümkün değil." })).status).toBe(200);
+    expect(during).toMatchObject({ status: "sending", decidedTime: null });
+  });
+
+  it("🚨 standardın YANLIŞ tarafındaki onay saati 400 (erken giriş 15:00 ve sonrası) — misafire '16:00 erken giriş onaylandı' gitmez", async () => {
+    const s = await seed();
+    for (const time of ["15:00", "16:00"]) {
+      const res = await post(s, { action: "approve", version: 0, time, body: APPROVE_TR });
+      expect(res.status, time).toBe(400);
+    }
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await post(s, { action: "approve", version: 0, time: "14:45", body: APPROVE_TR })).status).toBe(200);
+  });
+
+  it("ev sahibi hazır metni DEĞİŞTİRDİYSE mesaj onun yazdığıdır (yapay zekâ destekli sayılmaz)", async () => {
+    const s = await seed();
+    expect((await post(s, { action: "approve", version: 0, time: "13:00", body: "13:00 olur, bekliyoruz!", edited: true })).status).toBe(200);
+    expect((await prisma.message.findFirstOrThrow({ where: { conversationId: s.conversationId, direction: "outbound" } })).aiAssisted).toBe(false);
+  });
+
+  it("🚨 talebin mesajı bulunamasa da (birleştirmede ayıklandı) kart açıldıktan sonra misafir yazdıysa önce okutulur", async () => {
+    const s = await seed();
+    await prisma.message.delete({ where: { id: s.messageId } });
+    const later = await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "Ada", body: "Vazgeçtik, normal saatte geliriz." },
+    });
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "guest_wrote_again", latestMessageId: later.id });
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 CANLI gün: rezervasyon geçmişe kaydıysa kayıtlı gün gelecekte olsa da 409 expired; tersi (kayıtlı gün geçmiş, rezervasyon ileri) gider", async () => {
+    const s = await seed();
+    const past = utcDay(-3);
+    await prisma.reservation.update({ where: { id: s.reservationId }, data: { arrivalDate: past, departureDate: new Date(past.getTime() + DAY) } });
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("expired");
+    const s2 = await seed();
+    await prisma.decisionRequest.update({ where: { id: s2.decisionId }, data: { dayKey: keyOf(utcDay(-5)) } });
+    expect((await post(s2, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR })).status).toBe(200);
   });
 
   it("başka konuşmanın kart kimliğiyle (aynı org) istek 404", async () => {
