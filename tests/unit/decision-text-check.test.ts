@@ -26,7 +26,7 @@ describe("karar mesajı denetimi — onaylı şablonlar her zaman geçer", () =>
   for (const lang of DECISION_LANGS) {
     for (const kind of kinds) {
       for (const resolution of resolutions) {
-        for (const fee of [null, { amount: 500, currency: "TRY" }, { amount: 25.5, currency: "EUR" }]) {
+        for (const fee of [null, { amount: 500, currency: "TRY" }, { amount: 25.5, currency: "EUR" }, { amount: 25, currency: "USD" }, { amount: 20, currency: "GBP" }]) {
           it(`${lang} · ${kind} · ${resolution} · ücret ${fee ? fee.amount : "yok"}`, () => {
             const facts = f({
               kind,
@@ -119,5 +119,17 @@ describe("karar mesajı denetimi — iç kontrol listesi metne kopyalanmaz (öl�
   it("aynı bilgiyi kendi cümlesiyle söyleyen metin geçer", () => {
     const text = "Maalesef 14 Ekim'de erken giriş mümkün değil: önceki misafirimiz 11:00'de çıkıyor ve temizlik sürüyor olacak; giriş 15:00'te.";
     expect(checkDecisionText(text, f({ resolution: "decline" })).problems).toEqual([]);
+  });
+});
+
+describe("para sözlüğü — Intl'in ön ekli dolar / sterlin yazımı (ölçüm 10-07: onaylı USD şablonu denetimden düşüyordu)", () => {
+  it.each([
+    ["The early check-in fee is US$25.", 25, "USD"],
+    ["La tarifa por entrada anticipada es de 15 US$.", 15, "USD"],
+    ["رسوم تسجيل الدخول المبكر ‏25 UK£.", 25, "GBP"],
+    ["The fee is UK£20.", 20, "GBP"],
+  ])("%s", async (text, amount, currency) => {
+    const { moneyAmountsOf } = await import("@/lib/ai/stay-money");
+    expect(moneyAmountsOf(text)).toEqual([{ amount, currency }]);
   });
 });

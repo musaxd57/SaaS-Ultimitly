@@ -6,10 +6,13 @@
 // Kalıplar katlanmış (küçük harf, Türkçe harfler ASCII) metin içindir. Saf; bağımlılık yok.
 // ---------------------------------------------------------------------------
 
-/** Tutardan SONRA gelen para birimi (kod, sembol, ad): "500 tl", "30 euros", "40 $". */
-export const CURRENCY_AFTER = "(?:tl|try|₺|lira|eur|euros?|avro|€|\\$|usd|dolar|dollars?|£|gbp|sterlin|pounds?)";
-/** Tutardan ÖNCE gelen para birimi: "₺500", "€30", "eur 30". */
-export const CURRENCY_BEFORE = "(?:₺|\\$|€|£|tl|eur|usd|try)";
+/**
+ * Tutardan SONRA gelen para birimi (kod, sembol, ad): "500 tl", "30 euros", "40 $". Ön ekli sembol ("25 US$", "25 UK£") Intl'in
+ * es / ar biçimidir — karar mesajı şablonu bunu üretir (10-07 ölçümü: tanınmayınca onaylı USD şablonu denetimden düşüyordu).
+ */
+export const CURRENCY_AFTER = "(?:tl|try|₺|lira|eur|euros?|avro|€|us\\$|\\$|usd|dolar|dollars?|uk£|£|gbp|sterlin|pounds?)";
+/** Tutardan ÖNCE gelen para birimi: "₺500", "€30", "eur 30", "US$25" (Intl en-GB), "UK£20". */
+export const CURRENCY_BEFORE = "(?:₺|us\\$|\\$|€|uk£|£|tl|eur|usd|try)";
 /** Tutar: binlik ayraçlı ("1.500", "1,250.00") ya da düz ("30", "29,90"). */
 // Binlik öbek sayısı SINIRLI (`{1,5}` = 999 katrilyona kadar): sınırsız `+` her öbek başından yeniden denenip öbek dizisinde karesel
 // geri izliyordu ("111,111,…" 20.000 karakterde 1,8 sn — iddia ölçümü misafir mesajını da tarar; 10-01, 15 ajan incelemesi A14).
@@ -27,8 +30,8 @@ export function parseAmount(raw: string): number {
 export function currencyCode(c: string): string {
   if (/^(tl|try|₺|lira)/.test(c)) return "TRY";
   if (/^(eur|euro|avro|€)/.test(c)) return "EUR";
-  if (/^(\$|usd|dolar|dollar)/.test(c)) return "USD";
-  if (/^(£|gbp|sterlin|pound)/.test(c)) return "GBP";
+  if (/^(\$|us\$|usd|dolar|dollar)/.test(c)) return "USD";
+  if (/^(£|uk£|gbp|sterlin|pound)/.test(c)) return "GBP";
   return "X";
 }
 
