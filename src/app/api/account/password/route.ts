@@ -215,8 +215,10 @@ export async function POST(req: NextRequest) {
           },
         });
         if (consumed.count === 0) {
-          const now = await tx.user.findUnique({ where: { id: session.userId }, select: { sessionEpoch: true } });
-          return now && now.sessionEpoch !== session.sessionEpoch ? ("revoked" as const) : null;
+          // Kod tüketildi / değişti (çift tıklamanın kaybedeni, araya giren sıfırlama da kodu siler) → 400 "kod kullanıldı" (eski
+          // sözleşme). Kod HÂLÂ aynıyken yalnız sürüm değiştiyse oturum iptal edilmiştir → 401.
+          const now = await tx.user.findUnique({ where: { id: session.userId }, select: { sessionEpoch: true, pwChangeCodeHash: true } });
+          return now && now.pwChangeCodeHash === codeHash && now.sessionEpoch !== session.sessionEpoch ? ("revoked" as const) : null;
         }
         // 🚨 BEKLEYEN SIFIRLAMA BAĞLANTILARI DA ÖLÜR (Codex 09-30, A3): sıfırlama yolu diğer canlı sıfırlamaları kapatıyordu,
         // bu yol kapatmıyordu → şifre değiştirildikten sonra eski bir sıfırlama e-postası (ya da onu ele geçiren) şifreyi

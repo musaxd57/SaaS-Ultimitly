@@ -129,12 +129,13 @@ describe("U43 — parola değiştirme, araya giren sıfırlamayı EZMEZ", () => 
     return m[1];
   }
 
-  it("🚨 kod doğrulandı → GERÇEK sıfırlama tamamlandı → bayat istek devam: 401, parola sıfırlamanınki, çerez yok", async () => {
+  it("🚨 kod doğrulandı → GERÇEK sıfırlama tamamlandı → bayat istek devam: reddedilir, parola sıfırlamanınki, çerez yok", async () => {
     const s = await seed();
     const code = await codeRequested();
     afterVerify = () => realReset(s.userId, s.orgId);
     const res = await passwordPOST(req("/api/account/password", { action: "confirm", code, newPassword: "saldirgan-sifre-1" }));
-    expect(res.status).toBe(401); // ⬅️ ARIZADA 200 + parola saldırganınki
+    // Sıfırlama bekleyen kodu da sildi → "kod kullanıldı" (400; çift tıklamanın kaybedeniyle aynı sözleşme).
+    expect(res.status).toBe(400); // ⬅️ ARIZADA 200 + parola saldırganınki
     expect(await passwordIs(s.userId, RESET_PW)).toBe(true);
     expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
   });

@@ -206,6 +206,8 @@ describe("POST /api/account/password (e-mail code flow)", () => {
       data: { twoFactorEnabledAt: twoFaAt, sessionEpoch: 6 },
     });
     const before = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    // Oturum, veritabanındaki sürümle imzalı (gerçek `requireSession` başka sürümü reddeder; U43'ten beri yazma koşulu da o).
+    session = { ...session, sessionEpoch: before.sessionEpoch };
     const twoFaEpoch = twoFaAt.getTime();
     const cookie = await signTrustedDeviceToken(before.id, twoFaEpoch, before.sessionEpoch);
     // KONTROL: değişiklikten ÖNCE çerez GEÇERLİ — bu olmadan "her zaman reddet"
