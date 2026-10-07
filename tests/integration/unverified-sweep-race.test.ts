@@ -25,6 +25,17 @@ async function seedAbandoned() {
   return { orgId: org.id, userId: user.id };
 }
 
+/** Süpürgenin silmeden önceki abonelik okumasının İÇİNDE bir kez koşan araya-girme kancası. Casus dosya düzeyinde, geri alınmaz
+ * (Prisma temsilcisinde `restoreAllMocks` temsilciyi bozuyor); kanca yokken gerçek çağrıya geçer. */
+let interleave: (() => Promise<void>) | null = null;
+const realFindUnique = prisma.subscription.findUnique.bind(prisma.subscription);
+vi.spyOn(prisma.subscription, "findUnique").mockImplementation((async (args: Parameters<typeof realFindUnique>[0]) => {
+  const hook = interleave;
+  interleave = null;
+  if (hook) await hook();
+  return realFindUnique(args);
+}) as never);
+
 describe("U44 — süpürge ↔ araya giren doğrulama", () => {
   beforeEach(async () => {
     await resetDb();
@@ -33,17 +44,13 @@ describe("U44 — süpürge ↔ araya giren doğrulama", () => {
     vi.stubEnv("UNVERIFIED_SWEEP_DRY_RUN", "");
   });
   afterEach(() => {
-    vi.restoreAllMocks();
+    interleave = null;
     vi.unstubAllEnvs();
   });
 
   it("🚨 aday seçildi → sahibi e-postasını DOĞRULADI → silme işlemi hesabı SİLMEZ (state_changed)", async () => {
     const s = await seedAbandoned();
-    const real = prisma.subscription.findUnique.bind(prisma.subscription);
-    vi.spyOn(prisma.subscription, "findUnique").mockImplementationOnce((async (args: Parameters<typeof real>[0]) => {
-      await prisma.user.update({ where: { id: s.userId }, data: { emailVerifiedAt: new Date() } });
-      return real(args);
-    }) as never);
+    interleave = async () => void (await prisma.user.update({ where: { id: s.userId }, data: { emailVerifiedAt: new Date() } }));
     const res = await sweepUnverifiedRegistrations(NOW);
     expect(await prisma.organization.count({ where: { id: s.orgId } })).toBe(1); // ⬅️ ARIZADA silinmişti
     expect(res.deleted).toBe(0);
@@ -52,11 +59,7 @@ describe("U44 — süpürge ↔ araya giren doğrulama", () => {
 
   it("🚨 aday seçildi → sahibi parolasını SIFIRLADI (sürüm arttı) → hesap SİLİNMEZ", async () => {
     const s = await seedAbandoned();
-    const real = prisma.subscription.findUnique.bind(prisma.subscription);
-    vi.spyOn(prisma.subscription, "findUnique").mockImplementationOnce((async (args: Parameters<typeof real>[0]) => {
-      await prisma.user.update({ where: { id: s.userId }, data: { sessionEpoch: { increment: 1 } } });
-      return real(args);
-    }) as never);
+    interleave = async () => void (await prisma.user.update({ where: { id: s.userId }, data: { sessionEpoch: { increment: 1 } } }));
     const res = await sweepUnverifiedRegistrations(NOW);
     expect(await prisma.organization.count({ where: { id: s.orgId } })).toBe(1);
     expect(res.skippedReasons.state_changed).toBe(1);

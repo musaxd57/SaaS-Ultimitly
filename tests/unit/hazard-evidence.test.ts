@@ -436,9 +436,12 @@ describe("51: acil KARARI (bağlam ilkesi)", () => {
 // SÜRE (ReDoS kuralı): kalıplar sınırlı ayraçlı; 8.000 karakterlik kötü niyetli girdide doğrusal kalır.
 describe("uzun girdide süre", () => {
   it("tekrar eden sözcük dizisinde cümlecik başına en çok 32 anılış değerlendirilir (tavansız iş karesel: 8.000 karakterde 145 ms ↔ 6 ms)", () => {
+    // U3 (10-07): aynı bağlam penceresindeki anılış bir kez değerlendirilir → tekrar eden dizide iş tavanın da altında kalır.
     const before = __hazardMentionEvalCount();
     hazardEvidenceOf("duman ".repeat(1_000));
-    expect(__hazardMentionEvalCount() - before).toBe(32);
+    const evals = __hazardMentionEvalCount() - before;
+    expect(evals).toBeGreaterThan(0);
+    expect(evals).toBeLessThanOrEqual(32);
   });
 
   it.each([
@@ -476,8 +479,10 @@ describe("U3 — aktif tehlike zararsız metinle bastırılamaz", () => {
     expect(hazardEvidenceOf(`${"yangın yok ".repeat(40)}mutfakta yangın çıktı alevler yükseliyor`).level).toBe("clear");
   });
   it("benzersiz anılış tavanı aşılırsa en az OLASI (asla anılış)", () => {
-    const unique = Array.from({ length: 40 }, (_, i) => `no fire in room ${"x".repeat(i + 1)}`).join(" ");
-    expect(["possible", "clear"]).toContain(hazardEvidenceOf(unique).level);
+    const unique = Array.from({ length: 40 }, (_, i) => `no fire in room ${i}`).join(" ");
+    expect(hazardEvidenceOf(unique).level).toBe("possible");
+    // KONTROL: 32'nin altında benzersiz ve hepsi olumsuz → anılış (tavan aşılmadıkça davranış aynı)
+    expect(hazardEvidenceOf(Array.from({ length: 20 }, (_, i) => `no fire in room ${i}`).join(" ")).level).toBe("mentioned");
   });
   it.each([
     ["The stove caught fire!", "clear"],

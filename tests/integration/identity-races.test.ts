@@ -188,6 +188,37 @@ describe("U40 — 2FA açma / kapatma, araya giren sıfırlamadan sonra oturum V
     expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
   });
 
+  async function seedEnabled() {
+    const s = await seed();
+    await prisma.user.update({
+      where: { id: s.userId },
+      data: { twoFactorSecret: encryptSecret(SECRET), twoFactorEnabledAt: new Date(Date.now() - 86_400_000), twoFactorLastStep: null },
+    });
+    return s;
+  }
+
+  it("🚨 KAPATMA: oturum sıfırlamadan önce denetlendi → bayat istek 2FA'yı KAPATAMAZ", async () => {
+    const s = await seedEnabled();
+    await realReset(s.userId, s.orgId);
+    const res = await twoFactorPOST(req("/api/account/2fa", { action: "disable", code: totp(SECRET), password: PW }));
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: s.userId } })).twoFactorEnabledAt).not.toBeNull();
+  });
+
+  it("🚨 KURTARMA KODU: oturum sıfırlamadan önce denetlendi → bayat istek kod ÜRETEMEZ", async () => {
+    const s = await seedEnabled();
+    await realReset(s.userId, s.orgId);
+    const res = await twoFactorPOST(req("/api/account/2fa", { action: "recovery_codes", code: totp(SECRET) }));
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(await prisma.twoFactorRecoveryCode.count({ where: { userId: s.userId } })).toBe(0);
+  });
+
+  it("KONTROL: kapatma ve kurtarma kodu taze oturumla çalışır", async () => {
+    const s = await seedEnabled();
+    expect((await twoFactorPOST(req("/api/account/2fa", { action: "recovery_codes", code: totp(SECRET) }))).status).toBe(200);
+    expect(await prisma.twoFactorRecoveryCode.count({ where: { userId: s.userId } })).toBeGreaterThan(0);
+  });
+
   it("KONTROL: araya bir şey girmezse 2FA açılır ve bu cihaz yeni sürümle imzalanır", async () => {
     const s = await seed({ pendingTwoFactor: true });
     const res = await twoFactorPOST(req("/api/account/2fa", { action: "enable", code: totp(SECRET) }));
