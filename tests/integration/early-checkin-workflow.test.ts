@@ -684,6 +684,8 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
       });
       expect((await applyChannelAutoReply(id)).sent, hostStatus).toBe(false);
       expect(mockSend, hostStatus).not.toHaveBeenCalled();
+      // Otomatik onaya hiç girilmez: tur bugünkü gibi ev sahibine kalır ve karar kaydı yazılır (gönderim anındaki ikinci emniyete düşmez).
+      expect(await prisma.riskEvent.count({ where: { conversationId: id, surface: "auto_reply", finalDecision: "human_review" } }), hostStatus).toBe(1);
       expect((await prisma.decisionRequest.findFirstOrThrow({ where: { conversationId: id } })).status, hostStatus).toBe(hostStatus);
     }
   });
@@ -714,6 +716,21 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     const rows = await prisma.decisionRequest.findMany({ where: { conversationId: id } });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ id: card.id, status: "resolved_by_policy", decidedTime: "13:00" });
+  });
+
+  it("🚨 Host Karar Motoru: otomatik onayın gönderimi BELİRSİZ kaldıysa (zaman aşımı) sahiplenilen kart 'gönderim doğrulanamadı' (kör tekrar yok)", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t);
+    const msg = await prisma.message.findFirstOrThrow({ where: { conversationId: id, direction: "inbound" } });
+    const card = await prisma.decisionRequest.create({
+      data: { organizationId: t.orgId, conversationId: id, messageId: msg.id, reservationId: t.own.id, kind: "early_checkin", requestedTime: "13:00", lang: "en" },
+    });
+    mockSend.mockResolvedValueOnce({ ok: false, error: "The operation timed out" } as never);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(await prisma.decisionRequest.findUniqueOrThrow({ where: { id: card.id } })).toMatchObject({ status: "send_unverified", decidedTime: "13:00" });
   });
 
   it("🚨 karar kaydı dayanakları: hangi devir (rezervasyon), hangi 'hazır' kaydı + anı, hangi kural sürümü, kaç model okudu", async () => {

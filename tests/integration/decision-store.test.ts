@@ -8,6 +8,9 @@ import {
   resolveDecisionByPolicy,
   claimDecisionNotification,
   releaseDecisionNotification,
+  claimTurnDecisionForPolicy,
+  releasePolicyClaim,
+  decisionsForReservations,
 } from "@/lib/decisions/store";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
 
@@ -332,6 +335,74 @@ describe("karar kaydı", () => {
     });
     const forOrg = await openDecisionsForOrg(prisma, { organizationId: w.org.id, timeZone: TZ, now: new Date(), limit: 50 });
     expect(forOrg.map((v) => v.id)).toEqual([fresh.id]);
+  });
+
+  it("🚨 otomatik onay talebi: BEKLEYEN kart sahiplenilir; ev sahibinin işlediği kart (gönderiliyor / reddedildi / kapatıldı / doğrulanamadı) sahiplenilemez; geri alma kesin hatada 'bekliyor', belirsizde 'doğrulanamadı'", async () => {
+    const w = await world();
+    const m = await w.msg("13:00?", 30);
+    const [d] = await openTurnDecisions(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservationId: w.reservation.id,
+      lang: "tr",
+      now: new Date(),
+      decisions: [{ kind: "early_checkin", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }],
+    });
+    const claim = () =>
+      claimTurnDecisionForPolicy(prisma, {
+        organizationId: w.org.id,
+        conversationId: w.conversation.id,
+        kind: "early_checkin",
+        messageIds: [m.id],
+        decidedTime: "13:00",
+        now: new Date(),
+      });
+    for (const status of ["sending", "declined", "dismissed", "send_unverified", "approved"]) {
+      await prisma.decisionRequest.update({ where: { id: d.id }, data: { status } });
+      expect(await claim(), status).toEqual({ ok: false, claimed: null });
+    }
+    await prisma.decisionRequest.update({ where: { id: d.id }, data: { status: "pending" } });
+    const ok = await claim();
+    expect(ok.ok).toBe(true);
+    expect(await prisma.decisionRequest.findUniqueOrThrow({ where: { id: d.id } })).toMatchObject({ status: "resolved_by_policy", decidedTime: "13:00" });
+    await releasePolicyClaim(prisma, { organizationId: w.org.id, id: d.id, version: ok.claimed!.version, outcome: "reopen" });
+    expect(await prisma.decisionRequest.findUniqueOrThrow({ where: { id: d.id } })).toMatchObject({ status: "pending", decidedTime: null });
+    const again = await claim();
+    await releasePolicyClaim(prisma, { organizationId: w.org.id, id: d.id, version: again.claimed!.version, outcome: "unverified" });
+    expect(await prisma.decisionRequest.findUniqueOrThrow({ where: { id: d.id } })).toMatchObject({ status: "send_unverified", decidedTime: "13:00" });
+    // Kart yoksa engel değil (otomatik onay kartı sonra kendisi yazar).
+    expect(
+      await claimTurnDecisionForPolicy(prisma, {
+        organizationId: w.org.id,
+        conversationId: w.conversation.id,
+        kind: "early_checkin",
+        messageIds: ["yok"],
+        decidedTime: "13:00",
+        now: new Date(),
+      }),
+    ).toEqual({ ok: true, claimed: null });
+  });
+
+  it("komşu konaklamanın kararı GÖNDERİLİRKEN de görünür (kilit onayın saatini yazar)", async () => {
+    const w = await world();
+    const m = await w.msg("Geç çıkış 13:00?", 30);
+    const [d] = await openTurnDecisions(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservationId: w.reservation.id,
+      lang: "tr",
+      now: new Date(),
+      decisions: [{ kind: "late_checkout", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: null }],
+    });
+    await prisma.decisionRequest.update({ where: { id: d.id }, data: { status: "sending", decidedTime: "13:00" } });
+    const views = await decisionsForReservations(prisma, {
+      organizationId: w.org.id,
+      reservationIds: [w.reservation.id],
+      kinds: ["late_checkout"],
+      timeZone: TZ,
+      now: new Date(),
+    });
+    expect(views.map((v) => [v.effective, v.decidedTime])).toEqual([["sending", "13:00"]]);
   });
 
   it("başka kiracının konuşmasına kart AÇILMAZ (kimlik çakışsa da)", async () => {
