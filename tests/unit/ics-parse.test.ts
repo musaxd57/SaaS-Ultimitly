@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseIcs } from "@/lib/import/ics";
+import { parseIcs, parseIcsDetailed } from "@/lib/import/ics";
 
 // parseIcsDate builds `new Date(y, m-1, d)`, which ROLLS OVER an impossible
 // calendar date (Feb 31 → Mar 3) into a VALID Date rather than NaN — so the
@@ -33,5 +33,48 @@ describe("parseIcs — invalid date-only rollover", () => {
     expect(d.getFullYear()).toBe(2026);
     expect(d.getMonth()).toBe(1); // February (0-indexed)
     expect(d.getDate()).toBe(15);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U33 (Codex 10-07, 15c8663): ISO yedek yolu TZID'yi yok sayıyordu. `TZID=Europe/Istanbul:2026-08-05T23:00:00` temel biçimle
+// (`20260805T230000`) AYNI ANI vermeli (20:00Z); eskiden `new Date()` sunucu saatinde okuyup 23:00Z yapıyordu — İstanbul'da gün
+// kayıyordu. Kontrol: tarih-yalnız ISO ve Z / ofset taşıyan ISO değişmez.
+// ---------------------------------------------------------------------------
+function tzEvent(uid: string, start: string, end: string, tzid?: string): string {
+  const p = tzid ? `;TZID=${tzid}` : "";
+  return ["BEGIN:VEVENT", `UID:${uid}`, `DTSTART${p}:${start}`, `DTEND${p}:${end}`, "SUMMARY:Guest", "END:VEVENT"].join("\n");
+}
+const firstArrival = (text: string) => parseIcs(ics(text))[0]?.arrivalDate?.toISOString();
+
+describe("U33 — ofsetsiz ISO saat TZID'li temel biçimle aynı okunur", () => {
+  it("🚨 TZID=Europe/Istanbul:2026-08-05T23:00:00 → 2026-08-05T20:00:00Z (temel biçimle birebir)", () => {
+    const iso = firstArrival(tzEvent("u33a", "2026-08-05T23:00:00", "2026-08-08T11:00:00", "Europe/Istanbul"));
+    const basic = firstArrival(tzEvent("u33b", "20260805T230000", "20260808T110000", "Europe/Istanbul"));
+    expect(iso).toBe("2026-08-05T20:00:00.000Z"); // ⬅️ ARIZADA 2026-08-05T23:00:00.000Z (TZID yok sayıldı)
+    expect(iso).toBe(basic);
+  });
+
+  it("saniyesiz ve küçük 't' biçimi de aynı kuraldan geçer", () => {
+    expect(firstArrival(tzEvent("u33c", "2026-08-05T23:00", "2026-08-08T11:00", "Europe/Istanbul"))).toBe("2026-08-05T20:00:00.000Z");
+    expect(firstArrival(tzEvent("u33d", "2026-08-05t23:00:00", "2026-08-08t11:00:00", "Europe/Istanbul"))).toBe("2026-08-05T20:00:00.000Z");
+  });
+
+  it("TZID'siz (floating) ofsetsiz ISO saat temel biçim gibi öğlen çapasına iner — sunucu dilimine bağlı değil", () => {
+    const iso = firstArrival(tzEvent("u33e", "2026-08-05T23:00:00", "2026-08-08T11:00:00"));
+    expect(iso).toBe(firstArrival(tzEvent("u33f", "20260805T230000", "20260808T110000")));
+    expect(iso).toBe("2026-08-05T12:00:00.000Z");
+  });
+
+  it("takvimde olmayan ISO saat okunmaz (temel biçimle aynı)", () => {
+    const r = parseIcsDetailed(ics(tzEvent("u33g", "2026-08-05T25:00:00", "2026-08-08T11:00:00", "Europe/Istanbul")));
+    expect(r.events).toHaveLength(0);
+    expect(r.incomplete).toContain("unreadable_event");
+  });
+
+  it("KONTROL: tarih-yalnız ISO ve Z / ofsetli ISO değişmez", () => {
+    expect(firstArrival(tzEvent("u33h", "2026-08-05T23:00:00Z", "2026-08-08T11:00:00Z", "Europe/Istanbul"))).toBe("2026-08-05T23:00:00.000Z");
+    expect(firstArrival(tzEvent("u33i", "2026-08-05T23:00:00+03:00", "2026-08-08T11:00:00+03:00"))).toBe("2026-08-05T20:00:00.000Z");
+    expect(firstArrival(tzEvent("u33j", "2026-08-05", "2026-08-08"))).toBe("2026-08-05T00:00:00.000Z");
   });
 });

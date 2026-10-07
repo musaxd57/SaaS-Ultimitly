@@ -93,8 +93,10 @@ function findCol(headers: string[], aliases: string[]): number {
 // ---------------------------------------------------------------------------
 function makeDate(y: number, m: number, d: number): Date | null {
   if (m < 1 || m > 12 || d < 1 || d > 31) return null;
-  const dt = new Date(y, m - 1, d, 12, 0, 0);
-  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null; // rolled over ⇒ invalid
+  // U32 (Codex 10-07): YALNIZ-TARİH değeri UTC öğlen çapası (`ics.ts` ve `calendarDateOf` sözleşmesi). Eskiden SUNUCUNUN yerel saati
+  // kullanılıyordu: sunucu UTC dışında koşsaydı aynı "10.07.2026" 9 ya da 11 Temmuz okunabilirdi. Bugünkü UTC sunucuda çıktı birebir.
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null; // rolled over ⇒ invalid
   return dt;
 }
 
@@ -157,6 +159,15 @@ function fileDayOrder(rows: readonly string[][], dateCols: readonly number[]): D
 function parseAmount(raw: string): number | undefined {
   const cleaned = raw.replace(/[^\d.,]/g, "");
   if (!cleaned) return undefined;
+  // U31 (Codex 10-07): rakamların ARASINDA yalnız rakam / ayraç / boşluk / kesme (binlik "1'500") olabilir. Eskiden her şey silinip
+  // kalan rakamlar birleştiriliyordu: "100+50" → 10050, "1e3" → 13, "12abc34" → 1234 (yanlış tutar sessizce kaydediliyordu). Çevreleyen
+  // para birimi metni ("USD 100", "100 ₺", "(100)") serbest. Geçersizse NaN → rota satırı açık hatayla reddeder.
+  const t = raw.trim();
+  const firstDigit = t.search(/\d/);
+  if (firstDigit === -1) return undefined;
+  let lastDigit = t.length - 1;
+  while (lastDigit >= 0 && !(t[lastDigit] >= "0" && t[lastDigit] <= "9")) lastDigit--;
+  if (/[^\d.,\s'\u00A0\u202F]/u.test(t.slice(firstDigit, lastDigit + 1))) return Number.NaN;
   const sign = amountSign(raw);
   const lastSep = Math.max(cleaned.lastIndexOf("."), cleaned.lastIndexOf(","));
   if (lastSep === -1) {
@@ -174,7 +185,11 @@ function parseAmount(raw: string): number | undefined {
   return Number.isNaN(n) ? undefined : sign * n;
 }
 
-const MINUS_SIGNS = /[-\u2212\u2013]/; // ASCII eksi, matematik eksisi (U+2212), en tire (U+2013)
+/**
+ * Eksi işaretleri: bütün tire sınıfı `\p{Pd}` (ASCII, en / em tire, figür tiresi, küçük ve TAM GENİŞLİK eksi "－") + matematik eksisi
+ * (U+2212). U30 (Codex 10-07): "－100" / "‒100" pozitif okunuyordu.
+ */
+const MINUS_SIGNS = /[\p{Pd}\u2212]/u;
 
 /**
  * Tutarın İŞARETİ (K1, kurucu kararı 09-30): eskiden rakam dışı her şey silindiği için "-100" / "(100)" sessizce +100
@@ -189,7 +204,9 @@ function amountSign(raw: string): 1 | -1 {
   let last = t.length - 1;
   while (last >= 0 && !(t[last] >= "0" && t[last] <= "9")) last--;
   if (MINUS_SIGNS.test(t.slice(0, first)) || MINUS_SIGNS.test(t.slice(last + 1))) return -1;
-  return t.startsWith("(") && t.endsWith(")") ? -1 : 1;
+  // Muhasebe parantezi para birimi metniyle de gelir: "(100)", "USD (100.00)", "₺(1.500,50)", "(USD 100)" — açılış ilk rakamdan ÖNCE,
+  // kapanış son rakamdan SONRA (U30, Codex 10-07; eskiden yalnız hücrenin tamamı parantezliyse).
+  return t.slice(0, first).includes("(") && t.slice(last + 1).includes(")") ? -1 : 1;
 }
 
 /**
@@ -343,7 +360,8 @@ export function parseCsv(text: string): CsvReservation[] {
       guestName,
       arrivalDate,
       departureDate,
-      ...(totalAmount !== undefined && !isNaN(totalAmount) ? { totalAmount } : {}),
+      // NaN (okunamayan tutar, U31) da taşınır: rota satırı açık hatayla reddeder — tutarsız sessiz aktarım yok.
+      ...(totalAmount !== undefined ? { totalAmount } : {}),
       ...(currency ? { currency } : {}),
       ...(channel ? { channel } : {}),
       ...(sourceReference ? { sourceReference } : {}),

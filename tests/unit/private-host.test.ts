@@ -4,7 +4,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 const { lookupMock } = vi.hoisted(() => ({ lookupMock: vi.fn() }));
 vi.mock("node:dns/promises", () => ({ lookup: lookupMock }));
 
-import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
+import { isPrivateAddress, isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
 
 describe("isPrivateHost (SSRF guard)", () => {
   it("blocks loopback / link-local / private / metadata / non-public hosts", () => {
@@ -111,5 +111,18 @@ describe("IPv6 multicast (ff00::/8)", () => {
     for (const a of ["2606:4700:4700::1111", "2001:4860:4860::8888", "fe00::1"]) {
       expect(isPrivateHost(a), a).toBe(false);
     }
+  });
+});
+
+// U35 (Codex 10-07): IPv6 önek kuralları yalnız IPv6 LİTERALİNE — fc/fd/fe8 ile başlayan alan adları DNS'e gitmeden reddedilmez.
+describe("U35 — alan adı ≠ IPv6 literal", () => {
+  it.each(["fcbayern.example", "fd-calendar.example", "fe8-feed.example", "feeds.example.com", "fed.example", "ffaa.example"])(
+    "%s özel SAYILMAZ (çözüldüğü adres ayrıca denetlenir)",
+    (host) => {
+      expect(isPrivateAddress(host)).toBe(false);
+    },
+  );
+  it.each(["[fd12::1]", "fd12::1", "[fe80::1]", "fc00::1", "::1", "::", "ff02::1", "fec0::1"])("KONTROL: %s hâlâ özel", (host) => {
+    expect(isPrivateAddress(host)).toBe(true);
   });
 });

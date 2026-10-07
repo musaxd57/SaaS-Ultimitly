@@ -39,19 +39,34 @@ function escapeIcsText(value: string): string {
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
 }
 
-/** Fold long lines to 75 octets as RFC 5545 recommends. */
+/**
+ * Fold long lines to 75 OCTETS as RFC 5545 requires (continuation lines: a leading space + up to 74 octets). U36 (Codex 10-07):
+ * the old code counted UTF-16 code units — an emoji at the boundary was split into lone surrogates (re-read as "��") and a 70-character
+ * Chinese line was 209 bytes. Now it walks code POINTS and counts their UTF-8 bytes; a code point is never split. ASCII output is
+ * byte-identical to before.
+ */
 function foldLine(line: string): string {
-  if (line.length <= 75) return line;
+  const utf8 = (cp: string) => {
+    const c = cp.codePointAt(0) ?? 0;
+    return c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+  };
   const chunks: string[] = [];
-  let rest = line;
-  chunks.push(rest.slice(0, 75));
-  rest = rest.slice(75);
-  while (rest.length > 0) {
-    // Continuation lines are prefixed with a single space.
-    chunks.push(" " + rest.slice(0, 74));
-    rest = rest.slice(74);
+  let cur = "";
+  let bytes = 0;
+  let limit = 75;
+  for (const cp of line) {
+    const n = utf8(cp);
+    if (bytes + n > limit) {
+      chunks.push(cur);
+      cur = "";
+      bytes = 0;
+      limit = 74; // continuation line: 1 octet goes to the leading space
+    }
+    cur += cp;
+    bytes += n;
   }
-  return chunks.join("\r\n");
+  chunks.push(cur);
+  return chunks.map((c, i) => (i === 0 ? c : ` ${c}`)).join("\r\n");
 }
 
 /** Format a Date as a UTC datetime stamp: YYYYMMDDTHHmmssZ. */

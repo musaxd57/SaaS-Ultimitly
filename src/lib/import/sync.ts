@@ -160,6 +160,12 @@ async function alarmOnErrorTransition(
   await reportError(`ical-sync: feed failed (${sourceId})`, new Error(code));
 }
 
+/** Gövde gerçek bir iCalendar çerçevesiyle mi başlıyor (U37): ilk boş olmayan satır `BEGIN:VCALENDAR`. */
+export function isIcalendarFrame(text: string): boolean {
+  const first = text.replace(/^\uFEFF/, "").split(/\r\n|\n|\r/, 64).map((l) => l.trim()).find((l) => l !== "");
+  return /^BEGIN:VCALENDAR$/i.test(first ?? "");
+}
+
 export async function syncCalendarSource(sourceId: string): Promise<SyncResult> {
   const result: SyncResult = { imported: 0, updated: 0, skipped: 0, errors: [] };
 
@@ -265,7 +271,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // Ayrım GÜVENLİ: RFC 5545 `BEGIN:VCALENDAR`ı ZORUNLU kılar, yani GERÇEKTEN boş
   // ama geçerli bir takvim de bu satırı taşır → "boş feed" ile "feed değil"
   // birbirine karışmaz (mass-cancel dersinin korunması bu ayrıma bağlı).
-  if (!/BEGIN:VCALENDAR/i.test(text)) {
+  // U37 (Codex 10-07): "metnin bir yerinde BEGIN:VCALENDAR geçiyor" YETMEZ — `{"error":…,"expected":"BEGIN:VCALENDAR"}` gibi bir JSON / HTML
+  // hata gövdesi sıfır etkinlikle "ok" yazılıyor, kaynak taze görünüyor ve müsaitlik motoru o kaynakla "boş" diyebiliyordu. Gerçek
+  // takvim çerçevesi şart: ilk boş olmayan satır TAM `BEGIN:VCALENDAR` (BOM / boş satırlar serbest). `END:VCALENDAR` ŞART DEĞİL: yarım
+  // inmiş gerçek dosya F16 kuralıyla "kısmi" okunur (okunanlar yazılır, eksik olan hakkında hüküm verilmez).
+  if (!isIcalendarFrame(text)) {
     const msg =
       "Bağlantı takvim (.ics) dosyası döndürmedi — adres bir giriş/hata sayfasına gidiyor olabilir.";
     result.errors.push(msg);

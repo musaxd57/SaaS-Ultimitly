@@ -93,6 +93,13 @@ function parseIcsDate(value: string, tzid?: string | null): Date | null {
   // 2 Mart'a kayar). 🚨 Serbest `new Date()` ayrıştırması KALKTI (10-01, 15 ajan incelemesi A09): "2026" / "2027" bir yıllık, "1" / "12"
   // 2001 yılı, "October 10 2026 23:30" sunucu diliminde okunuyordu — bozuk besleme sessizce uydurma konaklama yazıyordu. Biçim dışı
   // değer okunamayan etkinliktir (`unreadable_event`, F16: eksik okuma hüküm vermez).
+  // U33 (Codex 10-07): OFSETSİZ ISO saat ("2026-08-05T23:00:00") temel biçimle AYNI kuraldan geçer — TZID varsa o dilimde, yoksa
+  // öğlen çapası. Eskiden `new Date()` sunucunun yerel saatinde okuyup TZID'yi yok sayıyordu (İstanbul 23:00 → ertesi gün).
+  const localIso = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?$/i.exec(clean);
+  if (localIso) {
+    const [, y, mo, d, h, mi, sec] = localIso;
+    return parseIcsDate(`${y}${mo}${d}T${h}${mi}${sec ?? "00"}`, tzid);
+  }
   const iso = /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)?$/i.exec(clean);
   if (!iso || !isCalendarWallClock(Number(iso[1]), Number(iso[2]), Number(iso[3]), 0, 0, 0)) return null;
   const fallback = new Date(clean);

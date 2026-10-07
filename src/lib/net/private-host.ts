@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 
 /**
  * Decode an IPv4-mapped/compatible IPv6 literal to its dotted IPv4 string, in
@@ -48,10 +49,11 @@ export function isPrivateAddress(address: string): boolean {
   // IPv6 loopback / unspecified / link-local (fe80::/10 — fe80..febf, NOT just
   // fe80:) / site-local (fec0::/10, deprecated but still routable) / unique-local
   // (fc00::/7 = fc/fd). The first hextet spans 0xfe80..0xfeff → "fe8".."fef".
-  if (
-    h === "::1" || h === "::" ||
-    /^fe[89abcdef]/.test(h) || h.startsWith("fc") || h.startsWith("fd")
-  ) {
+  // U35 (Codex 10-07): önek kuralları YALNIZ gerçek IPv6 literaline uygulanır — "fcbayern.example", "fd-calendar.example",
+  // "feeds.example.com" gibi ALAN ADLARI DNS'e gitmeden "özel" sayılıp reddediliyordu. Alan adının çözüldüğü adres yine bu
+  // fonksiyondan geçer (pinlenmiş DNS denetimi), yani özel bir IPv6'ya çözülen alan adı yine engellenir.
+  const v6 = isIP(h) === 6;
+  if (v6 && (h === "::1" || h === "::" || /^fe[89abcdef]/.test(h) || h.startsWith("fc") || h.startsWith("fd"))) {
     return true;
   }
   // 🚨 IPv6 MULTICAST (ff00::/8) — ÖLÇÜLMÜŞ BOŞLUK (P1 #8, 08-09 (2)).
@@ -59,7 +61,7 @@ export function isPrivateAddress(address: string): boolean {
   // `ff02::1` (tüm-düğümler), `ff02::2` (tüm-yönlendiriciler) ve `ff05::/16`
   // site-yerel grupları bir ağ keşif/amplifikasyon yüzeyi. Bir takvim
   // beslemesi hiçbir zaman meşru olarak bir multicast adresinde yaşamaz.
-  if (/^ff[0-9a-f]{2}(:|$)/.test(h)) return true;
+  if (v6 && /^ff[0-9a-f]{2}(:|$)/.test(h)) return true;
   // NAT64 (64:ff9b::/96) embeds an IPv4 in the low 32 bits — on a DNS64/NAT64
   // network "64:ff9b::a9fe:a9fe" reaches 169.254.169.254 (cloud metadata). Treat
   // the whole prefix as private (we never legitimately fetch a feed through it).

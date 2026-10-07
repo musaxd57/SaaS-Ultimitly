@@ -318,6 +318,12 @@ export const POST = withManage(async (session, req) => {
       skip("invalid_amount", `${rowLabel}: Tutar negatif olamaz`);
       continue;
     }
+    // U31 (Codex 10-07): okunamayan ("100+50", "1e3") ya da elle girişin üst sınırını aşan tutar sessizce başka bir tutara çevrilmez /
+    // kırpılmaz — satır açık hatayla reddedilir (elle yol 100 milyonu zaten reddediyor).
+    if (row.totalAmount !== undefined && (Number.isNaN(row.totalAmount) || row.totalAmount > 100_000_000)) {
+      skip("invalid_amount", `${rowLabel}: Tutar okunamadı`);
+      continue;
+    }
 
     // Ucuz ÖN kapı — yalnız bir OPTİMİZASYON (yazma yetkisi DEĞİL). Yetkili
     // kontrol aşağıda, kilidin İÇİNDE taze okunan guard'la yapılır.

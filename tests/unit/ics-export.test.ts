@@ -62,3 +62,30 @@ describe("generateCalendarToken", () => {
     expect(a).not.toBe(b);
   });
 });
+
+// U36 (Codex 10-07): satır katlama UTF-8 OKTET sayar ve kod noktasını bölmez (eskiden UTF-16 birimi sayıyordu: sınırdaki emoji
+// yalnız vekil çiftine bölünüp "��" oluyordu, 70 Çince karakter 209 bayttı). ASCII çıktı birebir aynı.
+describe("U36 — ICS satır katlama UTF-8 güvenli", () => {
+  const unfold = (ics: string) => ics.replace(/\r\n /g, "");
+  const ev = (summary: string): IcsEvent[] => [
+    { uid: "u1@x", summary, start: new Date("2026-07-01T12:00:00Z"), end: new Date("2026-07-02T12:00:00Z"), allDay: true },
+  ];
+  it.each([
+    ["emoji sınırda", `${"A".repeat(66)}🏖️ Tatil ${"🙂".repeat(20)}`],
+    ["Çince", "预订".repeat(35)],
+    ["Türkçe", "Rezervasyon — Şükrü Çağlayan, İğdır'dan gelen misafir; ğüşıöç ĞÜŞİÖÇ ".repeat(3)],
+  ])("%s: her satır ≤75 bayt, açılınca metin birebir", (_n, summary) => {
+    const ics = buildIcsCalendar("Lale", ev(summary));
+    for (const line of ics.split("\r\n")) expect(Buffer.byteLength(line, "utf8")).toBeLessThanOrEqual(75);
+    // Hiçbir satır yalnız vekil (yarım emoji) taşımaz: UTF-8'e kodlayıp geri okumak satırı değiştirmez.
+    for (const line of ics.split("\r\n")) expect(Buffer.from(line, "utf8").toString("utf8")).toBe(line);
+    const folded = unfold(ics);
+    expect(folded).toContain(`SUMMARY:${summary.replace(/,/g, "\\,").replace(/;/g, "\\;")}`);
+  });
+  it("KONTROL: ASCII satır 75 / 74 karakterde katlanır (eski davranışla aynı)", () => {
+    const ics = buildIcsCalendar("Lale", ev("x".repeat(200)));
+    const lines = ics.split("\r\n").filter((l) => l.startsWith("SUMMARY:") || l.startsWith(" x"));
+    expect(lines[0].length).toBe(75);
+    expect(lines[1].length).toBe(75); // " " + 74
+  });
+});
