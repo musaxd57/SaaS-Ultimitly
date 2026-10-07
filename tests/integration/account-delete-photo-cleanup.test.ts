@@ -25,7 +25,7 @@ describe("deleteAccountData — photo cleanup failure visibility", () => {
   it("erasure still succeeds on an FS failure, but the failure is REPORTED (not swallowed)", async () => {
     const org = await prisma.organization.create({ data: { name: "Silinecek Org" } });
 
-    await expect(deleteAccountData(org.id)).resolves.toBeUndefined();
+    await expect(deleteAccountData(org.id)).resolves.toEqual({ deleted: true }); // U41 (10-07): sonuç artık açık (ön koşul tutmazsa { deleted: false })
 
     // The DB erasure completed…
     expect(await prisma.organization.findUnique({ where: { id: org.id } })).toBeNull();
@@ -42,7 +42,7 @@ describe("deleteAccountData — photo cleanup failure visibility", () => {
     await prisma.chatUsage.create({ data: { propertyId: property.id, day: "2026-07-16", count: 3 } });
     expect(await prisma.chatUsage.count({ where: { propertyId: property.id } })).toBe(1);
 
-    await expect(deleteAccountData(org.id)).resolves.toBeUndefined();
+    await expect(deleteAccountData(org.id)).resolves.toEqual({ deleted: true }); // U41 (10-07): sonuç artık açık (ön koşul tutmazsa { deleted: false })
 
     // Org gitti VE FK'sız ChatUsage de aynı tx içinde temizlendi (tx atomik).
     expect(await prisma.organization.findUnique({ where: { id: org.id } })).toBeNull();
