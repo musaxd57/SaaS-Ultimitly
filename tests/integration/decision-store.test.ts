@@ -13,6 +13,7 @@ import {
   decisionsForReservations,
 } from "@/lib/decisions/store";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
+import { openDecisionsForTurn } from "@/lib/decisions/turn";
 
 // ---------------------------------------------------------------------------
 // HOST KARAR MOTORU — KALICI KAYIT (migration 59). Kimlik tekilliği, yeni istek eskisini kapatır, "ev sahibi yazdı" türetmesi
@@ -381,6 +382,57 @@ describe("karar kaydı", () => {
         now: new Date(),
       }),
     ).toEqual({ ok: true, claimed: null });
+  });
+
+  it("yerine geçilmiş (superseded) kart turun kartı sayılmaz: otomatik onay onu 'ev sahibinin kartı' diye engellemez", async () => {
+    const w = await world();
+    const m = await w.msg("13:00?", 30);
+    const [d] = await openTurnDecisions(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservationId: w.reservation.id,
+      lang: "tr",
+      now: new Date(),
+      decisions: [{ kind: "early_checkin", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }],
+    });
+    await prisma.decisionRequest.update({ where: { id: d.id }, data: { status: "superseded" } });
+    expect(
+      await claimTurnDecisionForPolicy(prisma, {
+        organizationId: w.org.id,
+        conversationId: w.conversation.id,
+        kind: "early_checkin",
+        messageIds: [m.id],
+        decidedTime: "13:00",
+        now: new Date(),
+      }),
+    ).toEqual({ ok: true, claimed: null });
+  });
+
+  it("deterministik saat yedeği turda İKİ saatli tür varken yazılmaz ('erken gelip daha uzun kalabilir miyiz? 11:30' — saat hangisinin?)", async () => {
+    const w = await world();
+    const m = await w.msg("Erken gelip daha uzun kalabilir miyiz? Saat 11:30 gibi.", 5);
+    const out = await openDecisionsForTurn(prisma, {
+      organizationId: w.org.id,
+      conversationId: w.conversation.id,
+      reservation: { id: w.reservation.id, arrivalDate: w.reservation.arrivalDate, departureDate: w.reservation.departureDate },
+      timeZone: TZ,
+      guestTexts: [m.body],
+      policy: {
+        declared: { asked: "early_checkin", stance: "none" },
+        replyIntent: "late_checkout",
+        stayTimes: { checkIn: "15:00", checkOut: "11:00" },
+      },
+      items: [],
+      lastMessageId: m.id,
+      turnMessageIds: [m.id],
+      language: "tr",
+      now: new Date(),
+    });
+    const timed = out.filter((d) => d.kind === "early_checkin" || d.kind === "late_checkout");
+    expect(timed.map((d) => [d.kind, d.requestedTime]).sort()).toEqual([
+      ["early_checkin", null],
+      ["late_checkout", null],
+    ]);
   });
 
   it("komşu konaklamanın kararı GÖNDERİLİRKEN de görünür (kilit onayın saatini yazar)", async () => {
