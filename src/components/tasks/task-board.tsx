@@ -148,16 +148,26 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
   // Allowed for staff too — they do the cleaning and tick items off.
   async function toggleChecklistItem(id: string, items: { label: string; done: boolean }[], index: number) {
     if (busyId === id) return;
-    const next = items.map((it, i) => (i === index ? { ...it, done: !it.done } : it));
+    const item = items[index];
+    if (!item) return;
     setBusyId(id);
     try {
+      // U26: yalnız BU madde (sıra + gördüğümüz etiket + yeni işaret) gider — bayat listenin diğer işaretleri yazılmaz; liste bu
+      // arada değiştiyse sunucu 409 der, sayfa yenilenir.
       const res = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checklist: next }),
+        body: JSON.stringify({ checklistToggle: { index, label: item.label, done: !item.done } }),
       });
       if (!res.ok) {
-        toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Güncellenemedi. Sayfayı yenileyip tekrar deneyin.");
+        toast.error(
+          res.status === 403
+            ? "Bu işlem için yetkiniz yok."
+            : res.status === 409
+              ? "Görev listesi bu arada değişti. Sayfa yenilendi, tekrar deneyin."
+              : "Güncellenemedi. Sayfayı yenileyip tekrar deneyin.",
+        );
+        if (res.status === 409) startTransition(() => router.refresh());
         return;
       }
       startTransition(() => router.refresh());

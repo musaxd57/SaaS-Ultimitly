@@ -1107,11 +1107,22 @@ async function healDeliveryEffects(now: Date): Promise<void> {
     if (rows.length === 0) break;
     cursor = rows[rows.length - 1].id;
 
-    // Conversation başına bu sayfadaki EN GEÇ teslim anı.
+    // Conversation başına bu sayfadaki EN GEÇ cevap çapası. 🚨 Y3 (Codex 10-07): çapa normal yolla (`markConversationDelivered`)
+    // AYNI — cevabın kendi Message'ının `createdAt`'i; `messageId` yoksa (ya da mesaj yoksa) `sentAt`. Eskiden onarıcı `sentAt`'e
+    // çapalıydı: cevap yazıldıktan SONRA ama gönderimden ÖNCE gelen misafir mesajını normal yol haklı olarak açık bırakıyor,
+    // onarıcı AYNI turda "answered" yapıp yeni soruyu gizliyordu.
+    const replyMessageIds = [...new Set(rows.map((r) => r.messageId).filter((m): m is string => !!m))];
+    const replyCreatedAt = new Map(
+      replyMessageIds.length
+        ? (
+            await prisma.message.findMany({ where: { id: { in: replyMessageIds } }, select: { id: true, createdAt: true } })
+          ).map((m) => [m.id, m.createdAt] as const)
+        : [],
+    );
     const latestByConv = new Map<string, Date>();
     for (const r of rows) {
       const cid = r.conversationId as string;
-      const t = r.sentAt ?? now;
+      const t = (r.messageId ? replyCreatedAt.get(r.messageId) : undefined) ?? r.sentAt ?? now;
       const prev = latestByConv.get(cid);
       if (!prev || t > prev) latestByConv.set(cid, t);
     }
@@ -1122,7 +1133,7 @@ async function healDeliveryEffects(now: Date): Promise<void> {
       })
     ).map((c) => c.id);
     for (const cid of needIds) {
-      const deliveredAt = latestByConv.get(cid) as Date;
+      const deliveredAt = latestByConv.get(cid) as Date; // cevap çapası (yukarıda)
       // (Codex r2 #1) Teslimden SONRA yeni bir INBOUND geldiyse thread HAKLI
       // olarak new/waiting'tedir — answered'a EZMEK cevaplanmamış misafir
       // mesajını gizlerdi. Guard tek UPDATE statement'ında (ilişki filtresi):

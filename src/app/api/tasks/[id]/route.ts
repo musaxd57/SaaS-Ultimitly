@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { taskUpdateSchema, zodFieldErrors } from "@/lib/validators";
+import { NextResponse } from "next/server";
 import { badRequest, jsonOk, notFound, canManage, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
@@ -22,6 +23,30 @@ function parseChecklist(json: string | null): { label: string; done: boolean }[]
   } catch {
     return [];
   }
+}
+
+class ChecklistConflict extends Error {}
+const CHECKLIST_CONFLICT_TEXT = "Görev listesi bu arada değişti. Sayfayı yenileyip tekrar deneyin.";
+
+/**
+ * Kilitli satırın listesine göre yazılacak liste. Tek madde: sıra + beklenen etiket tutmazsa çatışma, yalnız o maddenin işareti
+ * değişir. Yönetici dizisi: olduğu gibi (açık yeniden yazma). Personel dizisi: uzunluk ve etiketler kayıtlıyla aynı olmalı (bayat
+ * listenin işareti başka maddeye düşmesin), yalnız işaretler alınır.
+ */
+function nextChecklist(
+  stored: { label: string; done: boolean }[],
+  d: { checklist?: { label: string; done: boolean }[]; checklistToggle?: { index: number; label: string; done: boolean } },
+  manager: boolean,
+): string {
+  if (d.checklistToggle) {
+    const t = d.checklistToggle;
+    if (stored[t.index]?.label !== t.label) throw new ChecklistConflict();
+    return JSON.stringify(stored.map((item, i) => (i === t.index ? { label: item.label, done: t.done } : item)));
+  }
+  const list = d.checklist ?? [];
+  if (manager) return JSON.stringify(list);
+  if (list.length !== stored.length || list.some((item, i) => item.label !== stored[i].label)) throw new ChecklistConflict();
+  return JSON.stringify(stored.map((item, i) => ({ label: item.label, done: Boolean(list[i]?.done) })));
 }
 
 // PATCH stays withAuth (session-only): staff MAY progress a task (status/note/
@@ -69,19 +94,16 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
 
   // Checklist: a manager may rewrite it freely; STAFF may only flip the `done`
   // flag on the EXISTING items — never rename, add or remove a checklist item.
-  // Rebuild from the stored labels + the incoming done flags (by index).
-  let checklistWrite: string | undefined;
-  if (d.checklist !== undefined) {
-    if (canManage(session)) {
-      checklistWrite = JSON.stringify(d.checklist);
-    } else {
-      const stored = parseChecklist(existing.checklistJson);
-      if (d.checklist.length !== stored.length) {
-        return forbidden("Personel görev maddelerini değiştiremez, yalnızca işaretleyebilir.");
-      }
-      checklistWrite = JSON.stringify(
-        stored.map((item, i) => ({ label: item.label, done: Boolean(d.checklist?.[i]?.done) })),
-      );
+  // 🚨 U26 (Codex 10-07): karar KİLİTLİ satırın listesine göre (işlem içinde, ↓) — eskiden işlem DIŞINDA okunan liste ve
+  // istemcinin bayat dizisi yazılıyordu: iki kişi aynı anda iki maddeyi işaretleyince biri kayboluyor, liste arada değiştiyse
+  // personelin işareti SIRAYLA başka maddeye düşüyordu. Pano artık tek madde gönderir (`checklistToggle`).
+  if (d.checklist !== undefined && d.checklistToggle !== undefined) {
+    return badRequest({ checklist: "Tek seferde ya liste ya tek madde gönderin." });
+  }
+  if (d.checklist !== undefined && !canManage(session)) {
+    const stored = parseChecklist(existing.checklistJson);
+    if (d.checklist.length !== stored.length) {
+      return forbidden("Personel görev maddelerini değiştiremez, yalnızca işaretleyebilir.");
     }
   }
 
@@ -105,41 +127,54 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // yönetici görevi BAŞKASINA atadıysa eski personelin "bitti"si / notu yeni atananın görevine yazılıyordu. Personelin
   // yazması artık "görev hâlâ bana atalı" koşuluyla (koşullu yazma, satır kilidi); tutmazsa hiçbir şey yazılmaz.
   const staffScoped = !canManage(session);
-  const task = await prisma.$transaction(async (tx) => {
-    if (staffScoped) {
-      const own = await tx.task.updateMany({ where: { id, assignedToId: session.userId }, data: { updatedAt: new Date() } });
-      if (own.count === 0) return null;
-    }
-    const updated = await tx.task.update({
-      where: { id },
-      data: {
-        ...(d.status !== undefined ? { status: d.status } : {}),
-        ...(d.assignedToId !== undefined ? { assignedToId: d.assignedToId || null } : {}),
-        ...(d.title !== undefined ? { title: d.title } : {}),
-        ...(d.description !== undefined ? { description: d.description } : {}),
-        ...(d.priority !== undefined ? { priority: d.priority } : {}),
-        ...(d.dueAt !== undefined ? { dueAt: d.dueAt } : {}),
-        // Checklist tick-off (staff: done-only, rebuilt above; manager: free).
-        ...(checklistWrite !== undefined ? { checklistJson: checklistWrite } : {}),
-      },
-      include: {
-        property: { select: { name: true, address: true, city: true } },
-      },
-    });
-    // Record an activity update when status / note / photo changes.
-    if (d.status !== undefined || d.note || d.photoUrl) {
-      await tx.taskUpdate.create({
+  let task;
+  try {
+    task = await prisma.$transaction(async (tx) => {
+      if (staffScoped) {
+        const own = await tx.task.updateMany({ where: { id, assignedToId: session.userId }, data: { updatedAt: new Date() } });
+        if (own.count === 0) return null;
+      }
+      let checklistWrite: string | undefined;
+      if (d.checklist !== undefined || d.checklistToggle !== undefined) {
+        const [locked] = await tx.$queryRaw<{ checklistJson: string | null }[]>`
+          SELECT "checklistJson" FROM "Task" WHERE "id" = ${id} FOR UPDATE`;
+        const stored = parseChecklist(locked?.checklistJson ?? null);
+        checklistWrite = nextChecklist(stored, d, !staffScoped);
+      }
+      const updated = await tx.task.update({
+        where: { id },
         data: {
-          taskId: id,
-          userId: session.userId,
-          status: d.status ?? null,
-          note: d.note ?? null,
-          photoUrl: d.photoUrl ?? null,
+          ...(d.status !== undefined ? { status: d.status } : {}),
+          ...(d.assignedToId !== undefined ? { assignedToId: d.assignedToId || null } : {}),
+          ...(d.title !== undefined ? { title: d.title } : {}),
+          ...(d.description !== undefined ? { description: d.description } : {}),
+          ...(d.priority !== undefined ? { priority: d.priority } : {}),
+          ...(d.dueAt !== undefined ? { dueAt: d.dueAt } : {}),
+          // Checklist tick-off (staff: done-only, rebuilt above; manager: free).
+          ...(checklistWrite !== undefined ? { checklistJson: checklistWrite } : {}),
+        },
+        include: {
+          property: { select: { name: true, address: true, city: true } },
         },
       });
-    }
-    return updated;
-  });
+      // Record an activity update when status / note / photo changes.
+      if (d.status !== undefined || d.note || d.photoUrl) {
+        await tx.taskUpdate.create({
+          data: {
+            taskId: id,
+            userId: session.userId,
+            status: d.status ?? null,
+            note: d.note ?? null,
+            photoUrl: d.photoUrl ?? null,
+          },
+        });
+      }
+      return updated;
+    });
+  } catch (err) {
+    if (err instanceof ChecklistConflict) return NextResponse.json({ error: CHECKLIST_CONFLICT_TEXT, code: "checklist_changed" }, { status: 409 });
+    throw err;
+  }
   if (!task) return forbidden("Bu görev size atanmamış.");
 
   // Send email to the newly assigned user. Personele giden e-posta misafir adını / mesajını taşımaz (temizlikçi

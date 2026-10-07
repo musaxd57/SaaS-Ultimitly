@@ -559,4 +559,60 @@ describe("karar kaydı", () => {
     await prisma.decisionRequest.updateMany({ data: { status: "declined" } });
     expect((await load())?.facts.previousSameDay?.checkoutTime).toBe("11:00");
   });
+  // -------------------------------------------------------------------------
+  // Y4 (Codex 10-07, 15c8663): "eski kart" = kaynak MESAJIN sırası, kartın açılış anı DEĞİL.
+  // -------------------------------------------------------------------------
+  it("🚨 Y4 yavaş tur: yeni talebin kartı ÖNCE açıldı, eski talebin kartı SONRA → yeni kart beklemede kalır, eski kart kapanır", async () => {
+    const w = await world();
+    const m1 = await w.msg("13:00'te girebilir miyiz?", 60);
+    const m2 = await w.msg("Pardon, 12:00 olur mu?", 30);
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    const [fresh] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m2.id, itemId: null, requestedTime: "12:00", dayKey: w.arrivalKey }] });
+    const [stale] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }] });
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe("pending"); // ⬅️ ARIZADA "superseded"
+    expect(stale.status).toBe("superseded");
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: stale.id } })).status).toBe("superseded");
+  });
+
+  it("🚨 Y4 eşit milisaniye: iki kart aynı anda açılsa da yalnız yeni MESAJIN kartı beklemede kalır", async () => {
+    const w = await world();
+    const m1 = await w.msg("13:00?", 60);
+    const m2 = await w.msg("12:00?", 30);
+    const at = new Date();
+    const mk = (messageId: string, t: string) =>
+      prisma.decisionRequest.create({
+        data: { organizationId: w.org.id, conversationId: w.conversation.id, messageId, kind: "early_checkin", requestedTime: t, lang: "tr", createdAt: at },
+      });
+    const newer = await mk(m2.id, "12:00");
+    await mk(m1.id, "13:00");
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    // Eski mesaj yeniden işlendi (aynı kart döner) → yeni kartı KAPATMAZ, kendisi kapanır.
+    await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }] });
+    const rows = await prisma.decisionRequest.findMany();
+    expect(rows.find((r) => r.id === newer.id)?.status).toBe("pending");
+    expect(rows.find((r) => r.messageId === m1.id)?.status).toBe("superseded");
+  });
+
+  it("🚨 Y4 otomatik onay ESKİ mesaja: sonradan gelen başka saatli talebin kartı beklemede kalır (sırasız kapanmaz)", async () => {
+    const w = await world();
+    const m1 = await w.msg("13:00 olur mu?", 60);
+    const m2 = await w.msg("Aslında 12:00 olabilir mi?", 30);
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    const [later] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m2.id, itemId: null, requestedTime: "12:00", dayKey: w.arrivalKey }] });
+    await resolveDecisionByPolicy(prisma, { ...base, kind: "early_checkin", messageId: m1.id, itemId: null, dayKey: w.arrivalKey, decidedTime: "13:00" });
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: later.id } })).status).toBe("pending"); // ⬅️ ARIZADA "superseded"
+    expect((await prisma.decisionRequest.findFirstOrThrow({ where: { messageId: m1.id } })).status).toBe("resolved_by_policy");
+  });
+
+  it("KONTROL (Y4): sonuçlanmış eski kart, yeni talep açılınca dokunulmaz; yeni kart beklemede", async () => {
+    const w = await world();
+    const m1 = await w.msg("13:00?", 60);
+    const m2 = await w.msg("12:00?", 30);
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    const [old] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }] });
+    await prisma.decisionRequest.update({ where: { id: old.id }, data: { status: "declined" } });
+    const [fresh] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m2.id, itemId: null, requestedTime: "12:00", dayKey: w.arrivalKey }] });
+    expect(fresh.status).toBe("pending");
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: old.id } })).status).toBe("declined");
+  });
 });

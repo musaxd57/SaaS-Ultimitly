@@ -155,18 +155,10 @@ export async function openTurnDecisions(
       if (res.count === 1) row = await db.decisionRequest.findUnique({ where });
     }
     if (!row) continue;
-    // Aynı türden daha eski BEKLEYEN kart (başka mesaj) → yerini yeni istek aldı.
-    await db.decisionRequest.updateMany({
-      where: {
-        organizationId: input.organizationId,
-        conversationId: input.conversationId,
-        kind: d.kind,
-        status: "pending",
-        id: { not: row.id },
-        createdAt: { lte: row.createdAt },
-      },
-      data: { status: "superseded", version: { increment: 1 } },
-    });
+    // Aynı türden daha ESKİ talebin BEKLEYEN kartı → yerini yeni istek aldı. 🚨 Y4 (Codex 10-07): "eski" = kaynak MESAJIN sırası
+    // `(createdAt, id)`, kartın açılış anı DEĞİL — yavaş bir tur eski talebin kartını yeni kartın ARDINDAN açıp yeni kartı kapatıyordu
+    // (eşit milisaniyede de iki kart birbirini kapatabiliyordu). Bu kartın talebinden YENİ bir talep zaten varsa bu kart bekletilmez.
+    row = await supersedeByMessageOrder(db, { organizationId: input.organizationId, conversationId: input.conversationId, row });
     const p = toPersisted(row);
     if (p) out.push(p);
   }
@@ -223,7 +215,9 @@ export async function resolveDecisionByPolicy(
       data: { status: "resolved_by_policy", decidedTime: input.decidedTime, decidedAt: input.now, version: { increment: 1 } },
     });
   }
-  await db.decisionRequest.updateMany({
+  // 🚨 Y4 (Codex 10-07): yalnız talebi BU mesajdan kesin daha ESKİ olan bekleyen kartlar kapanır — otomatik onaydan SONRA gelen
+  // başka saatli talep (13:00 onaylandı, ardından 12:00 istendi) ev sahibinin kararını beklemeye devam eder.
+  const others = await db.decisionRequest.findMany({
     where: {
       organizationId: input.organizationId,
       conversationId: input.conversationId,
@@ -231,8 +225,68 @@ export async function resolveDecisionByPolicy(
       status: "pending",
       NOT: { messageId: input.messageId },
     },
+    select: { id: true, messageId: true, createdAt: true, version: true },
+  });
+  if (others.length === 0) return;
+  const order = await messageOrder(db, input.conversationId, [input.messageId, ...others.map((o) => o.messageId)]);
+  const pivot = order.get(input.messageId) ?? null;
+  for (const o of others) {
+    if (!isOlder(order.get(o.messageId) ?? null, pivot, o, { createdAt: new Date(input.now.getTime() + 1), id: "" })) continue;
+    await db.decisionRequest.updateMany({
+      where: { id: o.id, organizationId: input.organizationId, status: "pending", version: o.version },
+      data: { status: "superseded", version: { increment: 1 } },
+    });
+  }
+}
+
+type Ordinal = { createdAt: Date; id: string };
+
+/** Kaynak mesajların `(createdAt, id)` sırası (yalnız bu konuşmanın mesajları). Bulunamayan mesaj haritada yoktur. */
+async function messageOrder(db: Db, conversationId: string, ids: readonly string[]): Promise<Map<string, Ordinal>> {
+  const rows = await db.message.findMany({
+    where: { conversationId, id: { in: [...new Set(ids)] } },
+    select: { id: true, createdAt: true },
+  });
+  return new Map(rows.map((m) => [m.id, { createdAt: m.createdAt, id: m.id }]));
+}
+
+/**
+ * `a` kesin `b`den ESKİ mi — kaynak mesaj sırasıyla; iki mesajdan biri bulunamazsa kartların kendi `(createdAt, id)` sırası (eski kural).
+ */
+function isOlder(a: Ordinal | null, b: Ordinal | null, cardA: Ordinal, cardB: Ordinal): boolean {
+  const [x, y] = a && b ? [a, b] : [cardA, cardB];
+  const dt = x.createdAt.getTime() - y.createdAt.getTime();
+  return dt < 0 || (dt === 0 && x.id < y.id);
+}
+
+/**
+ * Aynı konuşmada AYNI türden kartlar arasında yalnız EN YENİ talebin kartı beklemede kalır: bu karttan eski bekleyen kartlar
+ * "yerine geçildi" olur; bu kartın talebinden yeni bir kart varsa (hangi durumda olursa olsun) bu kart bekletilmez. Her yazma
+ * durum + sürüm CAS'ı. Dönüş: bu kartın güncel satırı.
+ */
+async function supersedeByMessageOrder(db: Db, input: { organizationId: string; conversationId: string; row: Row }): Promise<Row> {
+  const { row } = input;
+  const others = await db.decisionRequest.findMany({
+    where: { organizationId: input.organizationId, conversationId: input.conversationId, kind: row.kind, id: { not: row.id } },
+    select: { id: true, messageId: true, createdAt: true, status: true, version: true },
+  });
+  if (others.length === 0) return row;
+  const order = await messageOrder(db, input.conversationId, [row.messageId, ...others.map((o) => o.messageId)]);
+  const mine = order.get(row.messageId) ?? null;
+  const newerExists = others.some((o) => isOlder(mine, order.get(o.messageId) ?? null, row, o));
+  for (const o of others) {
+    if (o.status !== "pending" || !isOlder(order.get(o.messageId) ?? null, mine, o, row)) continue;
+    await db.decisionRequest.updateMany({
+      where: { id: o.id, organizationId: input.organizationId, status: "pending", version: o.version },
+      data: { status: "superseded", version: { increment: 1 } },
+    });
+  }
+  if (!newerExists || row.status !== "pending") return row;
+  const res = await db.decisionRequest.updateMany({
+    where: { id: row.id, organizationId: input.organizationId, status: "pending", version: row.version },
     data: { status: "superseded", version: { increment: 1 } },
   });
+  return res.count === 1 ? ((await db.decisionRequest.findUnique({ where: { id: row.id } })) ?? row) : row;
 }
 
 /**

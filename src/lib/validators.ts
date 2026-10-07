@@ -235,6 +235,11 @@ export const taskUpdateSchema = z.object({
     .array(z.object({ label: z.string().max(300), done: z.boolean() }))
     .max(60)
     .optional(),
+  // U26 (Codex 10-07): TEK madde işaretleme — panonun gönderdiği biçim. Sıra + beklenen etiket: kilitli satırdaki madde o değilse
+  // (liste bu arada değişti) 409; diğer maddelerin işaretleri hiç yazılmaz (eşzamanlı başka işaret kaybolmaz).
+  checklistToggle: z
+    .object({ index: z.number().int().min(0).max(59), label: z.string().max(300), done: z.boolean() })
+    .optional(),
 });
 
 // --- Knowledge Base ---------------------------------------------------------

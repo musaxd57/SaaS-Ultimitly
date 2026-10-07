@@ -106,7 +106,26 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
 
   it("lets staff TICK an existing checklist item (done only), keeping the labels", async () => {
     staffSession();
-    // Staff sends done flags; even if labels differ, the STORED labels are kept.
+    // Staff sends done flags for the SAME list; the STORED labels are written.
+    const res = await PATCH(
+      patchReq({
+        checklist: [
+          { label: "Çarşaf takımı × 2", done: true },
+          { label: "Banyo havlusu × 4", done: false },
+        ],
+      }),
+      ctx(),
+    );
+    expect(res.status).toBe(200);
+    const t = await prisma.task.findUnique({ where: { id: taskId }, select: { checklistJson: true } });
+    expect(JSON.parse(t!.checklistJson!)).toEqual([
+      { label: "Çarşaf takımı × 2", done: true }, // label preserved, done applied
+      { label: "Banyo havlusu × 4", done: false },
+    ]);
+  });
+
+  it("U26: staff can never RENAME an item — a list whose labels differ from the stored one is a stale form (409, nothing written)", async () => {
+    staffSession();
     const res = await PATCH(
       patchReq({
         checklist: [
@@ -116,10 +135,10 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
       }),
       ctx(),
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(409);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { checklistJson: true } });
     expect(JSON.parse(t!.checklistJson!)).toEqual([
-      { label: "Çarşaf takımı × 2", done: true }, // label preserved, done applied
+      { label: "Çarşaf takımı × 2", done: false },
       { label: "Banyo havlusu × 4", done: false },
     ]);
   });
