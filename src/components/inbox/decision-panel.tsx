@@ -30,6 +30,9 @@ import type { DecisionCardData, DecisionLine, ResolvedDecisionRow } from "@/lib/
 //  · Ev sahibinin GÖRDÜĞÜ değerler düzenleyici açılınca sabitlenir (son misafir mesajı + kontrol listesinin izi); sayfa arka planda
 //    yenilenip yeni bir mesaj / değişen kontrol listesi gelirse gönderim "Okudum" denmeden yapılamaz — görmediği bilgiyle karar gitmez.
 //  · Destek görünümünde (bürünme) yalnız okunur — düğme yok.
+//  · Yapay zekâ metni (`aiText`, anahtar `HOST_DECISION_AI_TEXT_ENABLED`; Sabah Kararları 62 h): düzenleyici açılınca onaylı şablon HEMEN
+//    görünür, taslak arka planda istenir (`…/draft`); gelince ev sahibi metne dokunmadıysa şablonun yerine geçer. Saat / dil / ücret /
+//    not değişince yeniden istenir. Gönderimde sunucu metni karar kaydıyla kıyaslar; uyuşmazsa uyarı + "Yine de gönder".
 // ---------------------------------------------------------------------------
 
 export type { DecisionCardData, DecisionLine, ResolvedDecisionRow } from "@/lib/decisions/view-types";
@@ -42,18 +45,20 @@ export function DecisionPanel({
   decisions,
   resolved = [],
   readOnly = false,
+  aiText = false,
 }: {
   conversationId: string;
   decisions: DecisionCardData[];
   resolved?: ResolvedDecisionRow[];
   readOnly?: boolean;
+  aiText?: boolean;
 }) {
   if (decisions.length === 0 && resolved.length === 0) return null;
   return (
     <section aria-label="Konaklama talepleri" className="space-y-2" data-testid="decision-panel">
       <h2 className="sr-only">Konaklama talepleri</h2>
       {decisions.map((d) => (
-        <DecisionCard key={d.id} conversationId={conversationId} d={d} readOnly={readOnly} />
+        <DecisionCard key={d.id} conversationId={conversationId} d={d} readOnly={readOnly} aiText={aiText} />
       ))}
       {resolved.length > 0 ? <ResolvedList rows={resolved} /> : null}
     </section>
@@ -110,7 +115,7 @@ export function bodyMentionsTime(body: string, hhmm: string): boolean {
   return variants.some((v) => new RegExp(`(^|[^\\d])${v.replace(".", "\\.")}(?!\\d)`).test(body));
 }
 
-function DecisionCard({ conversationId, d, readOnly }: { conversationId: string; d: DecisionCardData; readOnly: boolean }) {
+function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId: string; d: DecisionCardData; readOnly: boolean; aiText: boolean }) {
   const router = useRouter();
   const ids = useId();
   const editorId = `${ids}-editor`;
@@ -128,7 +133,12 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
   const [confirmDismiss, setConfirmDismiss] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [seen, setSeen] = useState<Seen | null>(null);
-  const [notice, setNotice] = useState<{ tone: "warn" | "error"; text: string; latestMessageId?: string } | null>(null);
+  const [notice, setNotice] = useState<{ tone: "warn" | "error"; text: string; latestMessageId?: string; problems?: string[] } | null>(null);
+  // Yapay zekâ taslağı: hangi seçimler için (anahtar) istendi, geldi mi. Gelen metin yalnız AYNI seçimler hâlâ geçerliyse ve ev sahibi
+  // metne dokunmadıysa yazılır (eski yanıt yeni seçimi ezmesin).
+  const [aiDraft, setAiDraft] = useState<{ key: string; text: string; source: "ai" | "template" } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const aiRequest = useRef(0);
   // Kartın sürümü: sunucu kesin bir gönderim hatasından sonra kartı YENİ sürümle yeniden açar ve sürümü yanıtta döner — yeniden
   // deneme onu kullanır (yoksa her yeniden deneme önce "kart değişti" ile düşerdi). Sayfa yenilenince sunucudaki sürüm esas.
   const [version, setVersion] = useState(d.version);
@@ -150,6 +160,42 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
         }) ?? "")
       : "";
 
+  const draftKey = (action: DecisionResolution, t: string, l: DecisionLang, fee: boolean, note: boolean) =>
+    JSON.stringify([action, action === "approve" ? parseHostTime(t) : null, l, fee, note, d.factsHash]);
+  /** Ev sahibinin gördüğü hazır metin: bu seçimler için gelmiş yapay zekâ taslağı, yoksa onaylı şablon. */
+  const preparedFor = (action: DecisionResolution, t: string, l: DecisionLang, fee: boolean, note: boolean) =>
+    aiDraft && aiDraft.key === draftKey(action, t, l, fee, note) && aiDraft.text ? aiDraft.text : draftFor(action, t, l, fee, note);
+
+  async function requestAiDraft(action: DecisionResolution, t: string, l: DecisionLang, fee: boolean, note: boolean) {
+    if (!aiText || !textCapable) return;
+    const parsed = parseHostTime(t);
+    if (action === "approve" && !parsed) return;
+    const key = draftKey(action, t, l, fee, note);
+    const ticket = ++aiRequest.current;
+    setAiLoading(true);
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/decisions/${d.id}/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, lang: l, includeFee: fee, includeNote: note, ...(parsed ? { time: parsed } : {}) }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { text?: string | null; source?: string };
+      if (ticket !== aiRequest.current || !res.ok || typeof json.text !== "string" || !json.text.trim()) return;
+      const text = json.text;
+      setAiDraft({ key, text, source: json.source === "ai" ? "ai" : "template" });
+      // Ev sahibi o arada yazmaya başladıysa metni EZME (seçimi "Hazır metne dön" ile alabilir).
+      setBody((prev) => (editedRef.current ? prev : text));
+    } catch {
+      // Taslak alınamadı: şablon ekranda kalır.
+    } finally {
+      if (ticket === aiRequest.current) setAiLoading(false);
+    }
+  }
+  const editedRef = useRef(false);
+  useEffect(() => {
+    editedRef.current = edited;
+  }, [edited]);
+
   const open = (action: DecisionResolution) => {
     setMode({ action });
     setConfirmDismiss(false);
@@ -157,7 +203,8 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
     setNotice(null);
     setEdited(false);
     setSeen({ later: d.laterGuestMessageId, hash: d.factsHash });
-    setBody(draftFor(action, time, lang, includeFee, includeNote));
+    setBody(preparedFor(action, time, lang, includeFee, includeNote));
+    void requestAiDraft(action, time, lang, includeFee, includeNote);
   };
 
   // Düzenleyici açılınca odak ilk alana (klavye / ekran okuyucu kullanıcısı kartın altına inmek zorunda kalmasın).
@@ -175,19 +222,31 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
   // Saat / dil / ücret / not değişince metin yeniden kurulur — ev sahibi metni elle düzenlediyse EZİLMEZ ("Hazır metne dön" çıkar).
   const changeTime = (t: string) => {
     setTime(t);
-    if (mode && !edited) setBody(draftFor(mode.action, t, lang, includeFee, includeNote));
+    if (mode && !edited) {
+      setBody(preparedFor(mode.action, t, lang, includeFee, includeNote));
+      void requestAiDraft(mode.action, t, lang, includeFee, includeNote);
+    }
   };
   const changeLang = (l: DecisionLang) => {
     setLang(l);
-    if (mode && !edited) setBody(draftFor(mode.action, time, l, includeFee, includeNote));
+    if (mode && !edited) {
+      setBody(preparedFor(mode.action, time, l, includeFee, includeNote));
+      void requestAiDraft(mode.action, time, l, includeFee, includeNote);
+    }
   };
   const changeFee = (on: boolean) => {
     setIncludeFee(on);
-    if (mode && !edited) setBody(draftFor(mode.action, time, lang, on, includeNote));
+    if (mode && !edited) {
+      setBody(preparedFor(mode.action, time, lang, on, includeNote));
+      void requestAiDraft(mode.action, time, lang, on, includeNote);
+    }
   };
   const changeNote = (on: boolean) => {
     setIncludeNote(on);
-    if (mode && !edited) setBody(draftFor(mode.action, time, lang, includeFee, on));
+    if (mode && !edited) {
+      setBody(preparedFor(mode.action, time, lang, includeFee, on));
+      void requestAiDraft(mode.action, time, lang, includeFee, on);
+    }
   };
 
   const parsedTime = parseHostTime(time);
@@ -206,7 +265,10 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
     setSeen({ later: notice?.latestMessageId ?? d.laterGuestMessageId, hash: d.factsHash });
     if (factsDrift) setShowAll(true);
     setNotice(null);
-    if (mode && !edited) setBody(draftFor(mode.action, time, lang, includeFee, includeNote));
+    if (mode && !edited) {
+      setBody(draftFor(mode.action, time, lang, includeFee, includeNote));
+      void requestAiDraft(mode.action, time, lang, includeFee, includeNote);
+    }
   };
 
   const statusIcon = d.unverified ? (
@@ -233,10 +295,18 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
         latestMessageId?: string;
         version?: number;
         queued?: boolean;
+        problems?: string[];
       };
       if (typeof json.version === "number") setVersion(json.version);
       if (res.ok) return { ok: true as const, queued: json.queued === true };
-      return { ok: false as const, status: res.status, code: json.code, error: json.error, latestMessageId: json.latestMessageId };
+      return {
+        ok: false as const,
+        status: res.status,
+        code: json.code,
+        error: json.error,
+        latestMessageId: json.latestMessageId,
+        problems: Array.isArray(json.problems) ? json.problems.filter((p): p is string => typeof p === "string") : undefined,
+      };
     } catch {
       return { ok: false as const, status: 0, error: "Bağlantı hatası. Lütfen tekrar deneyin." };
     } finally {
@@ -244,12 +314,16 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
     }
   }
 
-  async function send() {
+  async function send(force = false) {
     if (!mode || !seen) return;
     const r = await post({
       action: mode.action,
       body,
       edited,
+      lang,
+      includeFee,
+      includeNote,
+      ...(force ? { force: true } : {}),
       factsHash: seen.hash,
       ...(approving && parsedTime ? { time: parsedTime } : {}),
       ...(seen.later ? { seenMessageId: seen.later } : {}),
@@ -259,6 +333,11 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
       setMode(null);
       setSeen(null);
       router.refresh();
+      return;
+    }
+    if (r.code === "text_mismatch") {
+      // Metin karar kaydıyla uyuşmuyor (saat / gün / ücret…): ev sahibi düzeltir ya da bilerek "Yine de gönder" der.
+      setNotice({ tone: "warn", text: r.error ?? "Mesaj karar kaydınızla uyuşmuyor.", problems: r.problems ?? [] });
       return;
     }
     if (r.code === "guest_wrote_again") {
@@ -516,7 +595,7 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
                       variant="outline"
                       onClick={() => {
                         if (!mode) return;
-                        setBody(draftFor(mode.action, time, lang, includeFee, includeNote));
+                        setBody(preparedFor(mode.action, time, lang, includeFee, includeNote));
                         setEdited(false);
                         setConfirmReset(false);
                       }}
@@ -540,12 +619,22 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
               onChange={(e) => {
                 setBody(e.target.value);
                 setEdited(true);
+                if (notice?.problems) setNotice(null);
               }}
               rows={3}
               maxLength={10000}
               placeholder={noDraft ? "Mesajı siz yazın." : undefined}
             />
           </div>
+          {aiText && textCapable && mode && !edited ? (
+            <p className="text-xs text-muted-foreground" data-testid="decision-ai-caption">
+              {aiLoading
+                ? "Yapay zekâ mesajı yazıyor…"
+                : aiDraft?.source === "ai" && aiDraft.key === draftKey(mode.action, time, lang, includeFee, includeNote)
+                  ? "Mesajı yapay zekâ yazdı; saat, gün ve ücret karar kaydıyla kontrol edildi. Göndermeden önce okuyun."
+                  : null}
+            </p>
+          ) : null}
           {noDraft ? (
             <p className="text-xs text-muted-foreground">
               {needsTime ? "Saati seçtiğinizde metin hazırlanır." : "Bu talep için hazır metin kurulamadı (konaklama günü bilinmiyor); mesajı siz yazın."}
@@ -590,6 +679,20 @@ function DecisionCard({ conversationId, d, readOnly }: { conversationId: string;
               role="alert"
             >
               {notice.text}
+              {notice.problems && notice.problems.length > 0 ? (
+                <>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                    {notice.problems.map((p) => (
+                      <li key={p}>{p}</li>
+                    ))}
+                  </ul>
+                  <div className="mt-2">
+                    <Button size="sm" variant="outline" onClick={() => send(true)} disabled={busy || !body.trim()}>
+                      Yine de gönder
+                    </Button>
+                  </div>
+                </>
+              ) : null}
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2">

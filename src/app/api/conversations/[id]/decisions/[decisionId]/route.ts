@@ -13,6 +13,7 @@ import { applyItemEvent } from "@/lib/conversation-items/store";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { reportError } from "@/lib/report-error";
 import {
+  DECISION_LANGS,
   DECISION_SENDING_STALE_MS,
   TEXT_DECISION_KINDS,
   isDecisionKind,
@@ -22,6 +23,8 @@ import {
 } from "@/lib/decisions/core";
 import { listConversationDecisions } from "@/lib/decisions/store";
 import { buildDecisionCards, decisionCardContextFor } from "@/lib/decisions/card";
+import { decisionAiTextEnabled } from "@/lib/decisions/ai-text";
+import { checkDecisionText, decisionTextProblemsTr } from "@/lib/decisions/text-check";
 
 // ---------------------------------------------------------------------------
 // HOST KARAR MOTORU — KARAR (Faz 1, kurucu 10-02 akşam). Ev sahibi kartta Onayla / Reddet / Kapat der. Onay ve ret misafire
@@ -49,6 +52,12 @@ const bodySchema = z.object({
   factsHash: z.string().max(64).optional(),
   /** Ev sahibi hazır metni değiştirdi mi (değiştirdiyse mesaj onun yazdığıdır — "yapay zekâ destekli" sayılmaz). */
   edited: z.boolean().optional(),
+  /** Ev sahibi metin denetiminin uyarısını gördü ve "Yine de gönder" dedi (Sabah Kararları 62 h, kurucu seçimi). */
+  force: z.boolean().optional(),
+  /** Panelde seçilen mesaj dili ve ücret / not seçimi — YALNIZ metin denetiminin dayanağı (gönderilen metin `body`). */
+  lang: z.enum(DECISION_LANGS).optional(),
+  includeFee: z.boolean().optional(),
+  includeNote: z.boolean().optional(),
 });
 
 const STALE_TEXT = "Bu kart az önce değişti; güncel hâli gösteriliyor.";
@@ -173,7 +182,9 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
   }
 
   // Olgular değişti mi: kart, sayfayla AYNI kurucudan yeniden kurulur (mesajlar iz dışı). İz yoksa (eski istemci) kontrol atlanır.
-  if (input.factsHash) {
+  // Aynı kart metin denetiminin de dayanağıdır (yapay zekâ metni anahtarı açıkken).
+  const textCheckOn = decisionAiTextEnabled() && TEXT_DECISION_KINDS.has(decision.kind);
+  if (input.factsHash || textCheckOn) {
     const views = await listConversationDecisions(prisma, { organizationId: session.organizationId, conversationId: id, timeZone: tz, now });
     const view = views.find((v) => v.id === decision.id);
     const ctx = await decisionCardContextFor({
@@ -184,8 +195,30 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
       needsEarlyRule: decision.kind === "early_checkin",
     });
     const [fresh] = view ? await buildDecisionCards([view], ctx) : [];
-    if (!fresh || fresh.factsHash !== input.factsHash) {
+    if (input.factsHash && (!fresh || fresh.factsHash !== input.factsHash)) {
       return conflict("facts_changed", "Bu talebin kontrol listesi siz baktıktan sonra değişti. Güncel hâline bakıp tekrar karar verin.");
+    }
+    // KOD DENETİMİ (Sabah Kararları 62 h): saat / gün / ücret karar kaydıyla eşleşmeli — ev sahibinin düzenlediği metin dahil.
+    // Uyuşmazsa gitmez, sade uyarı döner; ev sahibi "Yine de gönder" derse (`force`) gider ve denetim kaydına işlenir.
+    if (textCheckOn && fresh && input.force !== true) {
+      const facts = {
+        kind: decision.kind,
+        resolution: approve ? ("approve" as const) : ("decline" as const),
+        lang: input.lang ?? fresh.lang,
+        dayKey,
+        time,
+        requestedTime: fresh.requestedTime,
+        standardTime: fresh.standardTime,
+        fee: input.includeFee === false ? null : fresh.fee,
+        note: input.includeNote === false ? null : fresh.note,
+        checklist: fresh.lines.map((l) => l.text),
+      };
+      const check = checkDecisionText(body, facts);
+      if (!check.ok) {
+        return conflict("text_mismatch", "Mesaj karar kaydınızla uyuşmuyor. Düzeltin ya da yine de gönderin.", {
+          problems: decisionTextProblemsTr(check, facts),
+        });
+      }
     }
   }
 
@@ -251,7 +284,10 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
       await applyItemEvent(prisma, { organizationId: session.organizationId, ids: [decision.itemId], event: "host_done", now });
     }
     // Mesaj gitti; kart o arada başka bir yoldan değiştiyse (yarıda kalan gönderim sayılıp kapatıldı) sonuç yine "gitti"dir.
-    await audit(approve ? "decision.approved" : "decision.declined", fin.count === 1 ? {} : { finalize: "lost" });
+    await audit(approve ? "decision.approved" : "decision.declined", {
+      ...(fin.count === 1 ? {} : { finalize: "lost" }),
+      ...(textCheckOn && input.force === true ? { textCheck: "overridden" } : {}),
+    });
     return jsonOk({ status: approve ? "approved" : "declined", resultMessageId, queued: sent.status === "queued" });
   }
 

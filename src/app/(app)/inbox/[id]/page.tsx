@@ -32,6 +32,7 @@ import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
 import { aiSuggestExceedsLength, MESSAGE_TOO_LONG_REASON } from "@/lib/ai/message-length";
 import { HANDOFF_NOTICE_REASON } from "@/lib/ai/output-veto";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
+import { decisionAiTextEnabled } from "@/lib/decisions/ai-text";
 import { listConversationDecisions } from "@/lib/decisions/store";
 import {
   buildDecisionCards,
@@ -401,6 +402,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
         decisions={decisionCards}
         resolved={resolvedRows}
         readOnly={isImpersonating(session)}
+        aiText={decisionAiTextEnabled()}
       />
 
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_20rem]">

@@ -489,3 +489,61 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// Sabah Kararları 62 h (kurucu 10-07): yapay zekâ metni anahtarı açıkken gönderimden hemen önce KOD denetimi — saat / gün / ücret karar
+// kaydıyla eşleşmezse gitmez, sade uyarı döner; ev sahibi "Yine de gönder" derse (`force`) gider ve denetim kaydına işlenir.
+describe("POST …/decisions/[decisionId] — karar mesajı kod denetimi", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    vi.stubEnv("HOST_DECISION_AI_TEXT_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true, providerMessageId: "prov-1" } as never);
+    mockToken.mockResolvedValue("tok");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  const WRONG = "Erken giriş talebiniz onaylandı: yarın saat 12:30 itibarıyla giriş yapabilirsiniz.";
+
+  it("seçilen saatle uyuşmayan metin → 409 + sade uyarı; hiçbir şey gönderilmez, kart bekliyor", async () => {
+    const s = await seed();
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: WRONG, edited: true });
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.code).toBe("text_mismatch");
+    expect(json.problems).toContain("Mesajda 12:30 yazıyor; seçtiğiniz saat 13:00.");
+    expect(json.problems).toContain("Mesajda seçtiğiniz saat yazmıyor.");
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
+  });
+
+  it("\"Yine de gönder\" (force) → gider; denetim kaydı uyarının geçildiğini taşır", async () => {
+    const s = await seed();
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: WRONG, edited: true, force: true });
+    expect(res.status).toBe(200);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: s.orgId, action: "decision.approved" } });
+    expect(JSON.parse(audit.metadataJson ?? "{}")).toMatchObject({ textCheck: "overridden" });
+  });
+
+  it("karar kaydıyla uyuşan metin denetimden geçer", async () => {
+    const s = await seed();
+    expect((await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR })).status).toBe(200);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("ret metninde kararı ev sahibine bırakan cümle → 409", async () => {
+    const s = await seed();
+    const res = await post(s, { action: "decline", version: 0, body: "Erken giriş ev sahibinizin kararına bağlıdır." });
+    expect(res.status).toBe(409);
+    expect((await res.json()).problems).toContain("Mesaj kararı hâlâ ev sahibine bırakıyor; kararınızı açıkça yazın.");
+  });
+
+  it("anahtar KAPALI → bugünkü davranış: denetim yok, metin gider", async () => {
+    vi.stubEnv("HOST_DECISION_AI_TEXT_ENABLED", "");
+    const s = await seed();
+    expect((await post(s, { action: "approve", version: 0, time: "13:00", body: WRONG })).status).toBe(200);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+});
