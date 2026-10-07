@@ -109,11 +109,15 @@ export async function exitImpersonation(): Promise<boolean> {
     where: { id: current.actorUserId },
     select: { id: true, organizationId: true, role: true, email: true, name: true, sessionEpoch: true },
   });
-  if (!actor) {
-    // Fail-safe: the operator's own user record is gone, so we can't restore
-    // their session — but we must NOT leave them trapped inside the customer org
-    // (still seeing that customer's guest PII). Clear the session so they drop to
-    // the login screen and can sign back in as themselves.
+  // 🚨 U13 (Codex 10-07): operatörün oturum sürümü çerezdeki DENETLENMİŞ değerle eşleşmeli. `requireSession` sürümü isteğin başında
+  // denetler; arada operatörün parolası değişir / sıfırlanırsa (sürüm artar) eski kod sürümü YENİDEN okuyup onunla imzalıyordu → iptal
+  // edilmiş operatör oturumu tam yetkili çerezle canlanıyordu (uç hız sınırsız: çalınmış bürünme çereziyle tekrar tekrar denenebilir).
+  // Sürüm yoksa (giriş her zaman yazar; damgasız eski çerez zaten dolmuş sayılır) ya da uyuşmazsa çıkış YOK — giriş ekranına.
+  const verifiedEpoch = current.actorSessionEpoch;
+  if (!actor || typeof verifiedEpoch !== "number" || actor.sessionEpoch !== verifiedEpoch) {
+    // Fail-safe: the operator's own user record is gone (or their session was revoked meanwhile), so we can't restore
+    // their session — but we must NOT leave them trapped inside the customer org (still seeing that customer's guest PII).
+    // Clear the session so they drop to the login screen and can sign back in as themselves.
     await clearSessionCookie();
     return false;
   }
@@ -129,7 +133,8 @@ export async function exitImpersonation(): Promise<boolean> {
     role: actor.role as UserRole,
     email: actor.email,
     name: actor.name,
-    sessionEpoch: actor.sessionEpoch,
+    // Denetlenen sürümle imzalanır (DB'den yeniden okunanla değil): bu satırdan SONRA işleyen bir iptal yeni çerezi de geçersiz kılar.
+    sessionEpoch: verifiedEpoch,
     // ⚠️ Girişteki gibi burada da TAŞINIR: müşteri org'undan çıkan operatör
     // kendi panelinde yetkisiz kalmamalı. `enterOrganization` ile simetrik.
     mfa: current.mfa,

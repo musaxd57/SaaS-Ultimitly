@@ -66,6 +66,7 @@ describe("exitImpersonation fail-safe", () => {
       sessionEpoch: 0,
       actorUserId: operator.id,
       actorEmail: "op@x.com",
+      actorSessionEpoch: 0,
     };
 
     const result = await exitImpersonation();
@@ -89,6 +90,63 @@ describe("exitImpersonation fail-safe", () => {
 // mevcut 24 testin HİÇBİRİ kırmızıya dönmedi — yani sessiz bir ürün arızasıydı.
 // Yükseltme DEĞİL aktarım: iddia zaten o oturumda vardı.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// U13 (Codex 10-07): bürünmeden çıkış, ARADA iptal edilmiş operatör oturumunu canlandırmaz. Operatörün oturum sürümü çerezdeki
+// denetlenmiş değerle eşleşmezse (parola değişti / sıfırlandı) çıkış yok, çerez temizlenir; yeni çerez DENETLENEN sürümle imzalanır.
+// ---------------------------------------------------------------------------
+describe("U13 — çıkış iptal edilmiş operatör oturumunu canlandırmaz", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    currentSession = null;
+  });
+
+  async function seed(opEpoch: number) {
+    const opOrg = await prisma.organization.create({ data: { name: "Op Org" } });
+    const op = await prisma.user.create({
+      data: { organizationId: opOrg.id, name: "Op", email: "op@lixusai.com", passwordHash: "x", role: "owner", sessionEpoch: opEpoch },
+    });
+    const custOrg = await prisma.organization.create({ data: { name: "Cust Org" } });
+    return { op, custOrg };
+  }
+  const session = (opId: string, custOrgId: string, actorSessionEpoch?: number): SessionPayload => ({
+    userId: "cust",
+    organizationId: custOrgId,
+    role: "owner",
+    email: "c@x.com",
+    name: "C",
+    sessionEpoch: 0,
+    actorUserId: opId,
+    actorEmail: "op@lixusai.com",
+    ...(actorSessionEpoch === undefined ? {} : { actorSessionEpoch }),
+    mfa: true,
+  });
+
+  it("operatörün sürümü çerezdekinden İLERİDE (arada parola sıfırlandı) → çıkış yok, çerez temizlenir", async () => {
+    const { op, custOrg } = await seed(1);
+    currentSession = session(op.id, custOrg.id, 0);
+    expect(await exitImpersonation()).toBe(false);
+    expect(mockSet).not.toHaveBeenCalled();
+    expect(mockClear).toHaveBeenCalledTimes(1);
+  });
+
+  it("çerezde operatör sürümü yok → çıkış yok (fail-closed)", async () => {
+    const { op, custOrg } = await seed(0);
+    currentSession = session(op.id, custOrg.id);
+    expect(await exitImpersonation()).toBe(false);
+    expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  it("normal çıkış: yeni çerez DENETLENEN sürümle imzalanır", async () => {
+    const { op, custOrg } = await seed(3);
+    currentSession = session(op.id, custOrg.id, 3);
+    expect(await exitImpersonation()).toBe(true);
+    expect(mockSet).toHaveBeenCalledTimes(1);
+    expect(mockSet.mock.calls[0][0]).toMatchObject({ userId: op.id, sessionEpoch: 3 });
+    expect(mockClear).not.toHaveBeenCalled();
+  });
+});
+
 describe("mfa iddiası impersonation geçişlerinde taşınır", () => {
   beforeEach(async () => {
     await resetDb();
