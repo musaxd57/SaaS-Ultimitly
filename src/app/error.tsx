@@ -33,7 +33,6 @@ export default function Error({
         <h1 className="text-xl font-semibold">Bir şeyler ters gitti</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
           Beklenmedik bir hata oluştu. Tekrar deneyebilir ya da ana sayfaya dönebilirsiniz.
-          Sorun sürerse ekibimize bildirin.
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">

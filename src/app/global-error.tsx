@@ -49,8 +49,7 @@ export default function GlobalError({
             Bir şeyler ters gitti
           </h1>
           <p style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.6, color: "#475569" }}>
-            Uygulama beklenmedik bir hatayla karşılaştı. Sayfayı yenilemeyi deneyin; sorun sürerse
-            bize bildirin.
+            Uygulama beklenmedik bir hatayla karşılaştı. Sayfayı yenilemeyi deneyin.
           </p>
           {error?.digest ? (
             <p style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "#64748b" }}>

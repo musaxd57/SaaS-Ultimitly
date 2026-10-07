@@ -67,6 +67,24 @@ describe("(app)/error.tsx — panel içi hata ekranı", () => {
   });
 });
 
+describe("hata ekranları — 'bize bildirin' yönlendirmesi YOK (kurucu kararı 10-07)", () => {
+  beforeEach(cleanup);
+
+  // Kurucu: hata ekranı müşteriyi ekibe bildirim yapmaya yönlendirmez; hata zaten sunucu tarafında kaydediliyor.
+  const NOTIFY_US = /bildir|ekibimiz|contact (us|support)/i;
+
+  it.each([
+    ["kök error.tsx", "@/app/error"],
+    ["(app)/error.tsx", "@/app/(app)/error"],
+    ["global-error.tsx", "@/app/global-error"],
+  ])("%s ekibe bildirmeyi istemez", async (_name, mod) => {
+    const { default: Screen } = await import(/* @vite-ignore */ mod);
+    render(<Screen error={Object.assign(new Error("boom"), { digest: "n1" })} reset={() => {}} />);
+    expect(document.body.textContent).toContain("Tekrar dene");
+    expect(document.body.textContent).not.toMatch(NOTIFY_US);
+  });
+});
+
 describe("global-error.tsx — kök layout hatası", () => {
   beforeEach(cleanup);
 
