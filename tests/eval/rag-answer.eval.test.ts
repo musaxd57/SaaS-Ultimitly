@@ -15,7 +15,7 @@ import { replyCacheKey } from "./rag-lab/cache-keys";
 import { runPipeline, type LabQuery } from "./rag-lab/core";
 import { describeConfig, parseConfig } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
-import { answerAnchorHits, foreignNumbers, numericAnchors } from "./rag-lab/answer-metrics";
+import { answerAnchorHits, answerAnchorHitsStrict, foreignNumbers, numericAnchors } from "./rag-lab/answer-metrics";
 import { caseVerdict } from "./rag-lab/answer-acceptance";
 import { writeSidecar } from "./sidecar";
 
@@ -88,6 +88,8 @@ interface AnswerRow {
   /** Cevap düzeyi: sayı taşıyan cevap sayısı / yanıtta sayısı geçen cevap sayısı. */
   anchoredAnswers?: number;
   anchorHits?: number;
+  /** U20: KATI cevap düzeyi — kendi sayılarının HEPSİ (aralıkta iki uç), olumsuzlanmamış cümlede (ayrı sütun; kapı değil). */
+  anchorHitsStrict?: number;
   missing: boolean;
   unsupported: number;
   handoff: boolean;
@@ -213,8 +215,11 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
       "cevap kaçırıldı = cevap blokta VARKEN verilmedi (başarı değil, kırmızı değil; kurucu 09-27) · getirme kaçırdı = cevap bloğa girmedi",
       "(dürüst devir o durumda doğru davranış).",
       "",
-      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | cevap düzeyi | bilgim-yok | devir | desteksiz iddia | yabancı sayı | KIRMIZI aday | cevap kaçırıldı | getirme kaçırdı |",
-      "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+      "katı cevap düzeyi (U20, 10-07; ayrı sütun, KAPI DEĞİL) = cevabın kendi sayılarının HEPSİ (aralıkta iki uç) yanıtta ve olumsuzlanmamış",
+      "cümlede — gevşek ölçü \"Havuz 09:00–11:00\" / \"09:00'da açık değil\" yanıtını da isabet sayıyordu; 10-07 öncesi raporlarda bu sütun yok.",
+      "",
+      "| yapılandırma | grup | n | blokta | sayılı | sayı cevapta | cevap düzeyi | katı cevap düzeyi | bilgim-yok | devir | desteksiz iddia | yabancı sayı | KIRMIZI aday | cevap kaçırıldı | getirme kaçırdı |",
+      "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ];
     for (const cfg of CONFIGS) {
       for (const g of GROUPS) {
@@ -222,8 +227,9 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
         if (rs.length === 0) continue;
         const anchored = rs.filter((r) => r.anchored);
         const perAnswer = `${rs.reduce((n, r) => n + (r.anchorHits ?? 0), 0)}/${rs.reduce((n, r) => n + (r.anchoredAnswers ?? 0), 0)}`;
+        const perAnswerStrict = `${rs.reduce((n, r) => n + (r.anchorHitsStrict ?? 0), 0)}/${rs.reduce((n, r) => n + (r.anchoredAnswers ?? 0), 0)}`;
         lines.push(
-          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${perAnswer} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} (${rs.filter((r) => (r.unsupportedCached ?? r.unsupported) > 0).length}) | ${rs.filter((r) => r.foreign).length} | ${rs.filter((r) => r.red).length} | ${rs.filter((r) => r.missed === "answer").length} | ${rs.filter((r) => r.missed === "retrieval").length} |`,
+          `| ${cfg.name} | ${g} | ${rs.length} | ${g === "neg" ? "—" : rs.filter((r) => r.inBlock).length} | ${anchored.length} | ${anchored.filter((r) => r.anchorHit).length} | ${perAnswer} | ${perAnswerStrict} | ${rs.filter((r) => r.missing).length} | ${rs.filter((r) => r.handoff).length} | ${rs.filter((r) => r.unsupported > 0).length} (${rs.filter((r) => (r.unsupportedCached ?? r.unsupported) > 0).length}) | ${rs.filter((r) => r.foreign).length} | ${rs.filter((r) => r.red).length} | ${rs.filter((r) => r.missed === "answer").length} | ${rs.filter((r) => r.missed === "retrieval").length} |`,
         );
       }
     }
@@ -301,6 +307,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
             }
             // Cevap BAŞINA (Codex 09-27): iki sorulu mesajda yalnız bir sorunun sayısını söyleyen yanıt başarı değildir.
             const hits = answerAnchorHits(out.reply, q.answers);
+            const strict = answerAnchorHitsStrict(out.reply, q.answers);
             const allowedTexts = [PROPERTY.checkInTime, PROPERTY.checkOutTime, q.text, ...(q.history ?? []).map((h) => h.body)];
             const inBlock = q.answers.length > 0 && q.answers.every((a) => a.needles.some((n) => run.text.includes(n)));
             // İddia denetimi BUGÜNKÜ kodla, modelin gördüğü AYNI bağlamla (istem kurucusu ağa çıkmaz): önbellekteki `u` ücretli çağrı
@@ -349,6 +356,7 @@ describe.skipIf(!enabled)("RAG CEVAP DÜZEYİ (gerçek cevap modeli)", () => {
               anchorHit: hits.all,
               anchoredAnswers: hits.anchored,
               anchorHits: hits.hit,
+              anchorHitsStrict: strict.hit,
               missing: admitsMissingKnowledge(out.reply),
               unsupported,
               unsupportedCached: out.u,

@@ -61,6 +61,38 @@ export function answerAnchorHits(reply: string, answers: readonly { needles: rea
 }
 
 /**
+ * U20 (Codex 10-07) — KATI isabet, AYRI sütun (gevşek ölçü `answerAnchorHits` gelişim çizgisi için AYNEN kalır; bu bir KAPI DEĞİL):
+ * gevşek ölçü cevabın HERHANGİ bir sayısını yetiyor sayıyordu → doğru cevap "Havuz 09:00–20:00" iken "Havuz 09:00–11:00" ya da
+ * "Havuz 09:00'da açık değil" tam isabetti. Katı: cevabın KENDİ sayılarının HEPSİ (aralıkta iki uç) yanıtta ve her biri olumsuzlanmamış
+ * bir cümlede. Olumsuzluk yedi dilde kaba bir sözcük listesi (ölçücü kuralı, ürün kodu değil; Türkçe "ne" / "no" (numara)
+ * çakıştığı için yok).
+ */
+const NEGATION = /(?:^|[^\p{L}])(?:değil|yok|olmaz|not|never|isn't|aren't|doesn't|don't|won't|can't|kein\p{L}*|nicht|pas|jamais|nunca|jamás|не|нет|ليس|لا)(?=[^\p{L}]|$)/iu;
+
+function sentencesOf(text: string): string[] {
+  return text.split(/(?<=[.!?…])\s+|\n+/u).filter((s) => s.trim() !== "");
+}
+
+/** Bütün çapalar yanıtta ve her çapanın geçtiği cümlelerden en az biri olumsuzluk taşımıyor. */
+export function replyHasAllAnchorsAffirmed(reply: string, anchors: readonly string[]): boolean {
+  if (anchors.length === 0) return false;
+  const sentences = sentencesOf(reply);
+  return anchors.every((a) => sentences.some((s) => replyHasAnchor(s, [a]) && !NEGATION.test(s)));
+}
+
+export function answerAnchorHitsStrict(reply: string, answers: readonly { needles: readonly string[] }[]): { anchored: number; hit: number } {
+  let anchored = 0;
+  let hit = 0;
+  for (const a of answers) {
+    const own = numericAnchors(a.needles[0] ?? "");
+    if (own.length === 0) continue;
+    anchored += 1;
+    if (replyHasAllAnchorsAffirmed(reply, own)) hit += 1;
+  }
+  return { anchored, hit };
+}
+
+/**
  * YABANCI SAYI (#189 geniş blok riski: "uzun blokta cevap modeli yanlış olguya sapar mı"): cevabın söylediği ama DAYANAĞI
  * BİLİNEN kaynaklarda (cevap cümleleri · mülk alanları · misafirin kendi yazdığı) OLMAYAN sayısal çapalar. Yanıtsız soruda
  * bilgi bloğundaki BAŞKA bir kalemin sayısını söylemek iddia denetiminde "dayanaklı" görünür (sayı bağlamda var) — bu ölçü onu

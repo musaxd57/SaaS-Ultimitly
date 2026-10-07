@@ -49,8 +49,20 @@ export function languageMatches(lang: string, reply: string): boolean {
   return trWords < 2 && share(/[ğĞşŞıİ]/gu) < 0.02 && share(/\p{Script=Latin}/gu) > 0.8;
 }
 
+/**
+ * Beklenen olguların HEPSİ cevapta mı. U20 (Codex 10-07): olgu rakamla başlıyor / bitiyorsa o uçta RAKAM SINIRI aranır — düz alt dize
+ * `factsHit(["11"], "Daire 110")`ı doğru sayıyordu. Harf içeren olgu (ör. "Wi-Fi") eskisi gibi alt dize.
+ */
 export function factsHit(facts: string[] | undefined, reply: string): boolean | null {
   if (!facts || facts.length === 0) return null;
   const r = reply.toLocaleLowerCase("tr");
-  return facts.every((f) => r.includes(f.toLocaleLowerCase("tr")));
+  return facts.every((f) => {
+    const needle = f.toLocaleLowerCase("tr");
+    for (let i = r.indexOf(needle); i !== -1; i = r.indexOf(needle, i + 1)) {
+      const before = /\d/.test(needle[0] ?? "") && /\d/.test(r[i - 1] ?? "");
+      const after = /\d/.test(needle[needle.length - 1] ?? "") && /\d/.test(r[i + needle.length] ?? "");
+      if (!before && !after) return true;
+    }
+    return false;
+  });
 }
