@@ -67,7 +67,8 @@ describe("U26 — kontrol listesi işaretleri kaybolmaz", () => {
   });
 
   it("🚨 GERÇEK EŞZAMANLILIK: 12 madde aynı anda ayrı isteklerle işaretlenir → 12'si de işaretli", async () => {
-    asStaff();
+    // Yönetici yolu: personelin "görev hâlâ bana atalı" yazması satırı zaten kilitler; yöneticide okumayı sıralayan YALNIZ kilitli okuma.
+    asOwner();
     const res = await Promise.all(ITEMS.map((label, index) => PATCH(req({ checklistToggle: { index, label, done: true } }), ctx())));
     expect(res.map((r) => r.status)).toEqual(ITEMS.map(() => 200));
     expect((await stored()).every((x) => x.done)).toBe(true); // ⬅️ kilitsiz okumada bazı işaretler kaybolur
