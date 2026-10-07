@@ -16,7 +16,7 @@ import { prisma } from "@/lib/db";
 import { notClosingHandledWhere } from "@/lib/conversation-attention";
 // ⚠️ `buildDailySummary` ARTIK KULLANILMIYOR (kart kaldırıldı) ama SİLİNMEDİ:
 // `/api/reports/daily` onu kullanıyor ve test-pinli bir JSON sözleşmesi.
-import { getOpsStats } from "@/lib/reports";
+import { dedupeBookings, getOpsStats } from "@/lib/reports";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
@@ -88,18 +88,8 @@ export default async function DashboardPage() {
       orderBy: { dueAt: "asc" },
     }),
   ]);
-  // Collapse duplicate Hospitable rows (same sourceReference) but keep each
-  // manual/iCal booking (null sourceReference) — mirrors getOpsStats so the
-  // cards and the lists agree and never undercount.
-  const dedupeBookings = <T extends { sourceReference: string | null }>(rows: T[]): T[] => {
-    const seen = new Set<string>();
-    return rows.filter((r) => {
-      if (r.sourceReference == null) return true;
-      if (seen.has(r.sourceReference)) return false;
-      seen.add(r.sourceReference);
-      return true;
-    });
-  };
+  // Collapse duplicate rows of the SAME booking (`bookingDedupeKey`) but keep each manual/iCal booking (null sourceReference) —
+  // mirrors getOpsStats so the cards and the lists agree and never undercount.
   const arrivals = dedupeBookings(arrivalsRaw);
   const departures = dedupeBookings(departuresRaw);
 

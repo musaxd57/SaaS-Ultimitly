@@ -107,3 +107,26 @@ describe("kanal eşlemesi — Hospitable first_name → guestGivenName", () => {
     expect((await row(propertyId)).guestGivenName).toBe("A".repeat(100));
   });
 });
+
+describe("Y6 (Codex 10-07) — ters / sıfır süreli tarih yazılmaz", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("🚨 çıkış girişten önce → satır YAZILMAZ (eskiden ters konaklama yazılıyordu)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const id = await upsert(propertyId, { ...reservation({ full_name: "Ayşe Yılmaz" }), arrival_date: "2026-07-23", departure_date: "2026-07-20" });
+    expect(id).toBeNull();
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(0);
+  });
+
+  it("🚨 var olan kaydı ters tarihli güncelleme EZMEZ; imkânsız gün (30 Şubat) da", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    expect(await upsert(propertyId, reservation({ full_name: "Ayşe Yılmaz" }))).not.toBeNull();
+    expect(await upsert(propertyId, { ...reservation({ full_name: "Ayşe Yılmaz" }), departure_date: "2026-07-20" })).toBeNull();
+    expect(await upsert(propertyId, { ...reservation({ full_name: "Ayşe Yılmaz" }), arrival_date: "2026-02-30" })).toBeNull();
+    const r = await prisma.reservation.findFirstOrThrow({ where: { propertyId, sourceReference: EXT } });
+    expect(r.arrivalDate.toISOString().slice(0, 10)).toBe("2026-07-20");
+    expect(r.departureDate.toISOString().slice(0, 10)).toBe("2026-07-23");
+  });
+});

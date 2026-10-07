@@ -8,6 +8,7 @@ import { orgTimezone, zonedDayRange, zonedDateStart, addZonedDays } from "@/lib/
 import { reservationDayRangeWhere, taskDueDayRangeWhere, todayRange } from "@/lib/day-where";
 import { addNights, calendarDateOf, todayKey } from "@/modules/availability/core";
 import { isAutomationMessage } from "@/lib/message-author";
+import { reservationMessagingCapable } from "@/lib/channels/capability";
 
 // Reporting day/occupancy math is anchored to the HOST'S calendar day
 // (org.timezone, default Europe/Istanbul) — Railway runs UTC and arrivalDates
@@ -63,6 +64,38 @@ export interface OpsStats {
 
 const propertyScope = (orgId: string) => ({ property: { organizationId: orgId } });
 
+/** Tekilleştirme için gereken alanlar (rapor + pano satırları aynı seçimi yapar). */
+export const BOOKING_KEY_SELECT = { propertyId: true, sourceReference: true, calendarSourceId: true, channel: true } as const;
+
+/**
+ * Aynı rezervasyonun tekrar eden satırlarını birleştiren anahtar; `null` = satır tek başına sayılır. 🚨 Y8 (Codex 10-07): eskiden org
+ * çapında yalnız `sourceReference` — farklı dairelerin aynı referanslı ELLE / DOSYA rezervasyonları ("R1") tek sayılıyor, ikinci
+ * dairenin geliri rapordan düşüyordu (şema aynı dairede tekrarı zaten engeller: `@@unique([propertyId, sourceReference])`). Yalnız
+ * SAĞLAYICI rezervasyonu (kimliği sağlayıcıda tekil; `reservationMessagingCapable`) daireler arası birleşir — eski "aynı rezervasyon
+ * iki kez geldi" koruması korunur; diğerleri daire içinde.
+ */
+export function bookingDedupeKey(r: {
+  propertyId: string;
+  sourceReference: string | null;
+  calendarSourceId: string | null;
+  channel: string;
+}): string | null {
+  if (r.sourceReference == null) return null;
+  return reservationMessagingCapable(r) ? `provider:${r.sourceReference}` : `${r.propertyId}|${r.sourceReference}`;
+}
+
+/** Tekrar eden satırları ilk görülen kalacak şekilde ayıklar (sıra korunur). */
+export function dedupeBookings<T extends Parameters<typeof bookingDedupeKey>[0]>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    const key = bookingDedupeKey(r);
+    if (key === null) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function getOpsStats(orgId: string): Promise<OpsStats> {
   const now = new Date();
   // Bucket "today" by the host's local calendar day (org timezone), not the
@@ -96,7 +129,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
         AND: [reservationDayRangeWhere("arrivalDate", today, tz)],
       },
       // `propertyId` — aynı gün devir hesabı için. Ek sorgu değil, bir kolon.
-      select: { sourceReference: true, id: true, propertyId: true },
+      select: { ...BOOKING_KEY_SELECT, id: true },
     }),
     prisma.reservation.findMany({
       where: {
@@ -105,7 +138,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
         AND: [reservationDayRangeWhere("departureDate", today, tz)],
       },
       // `propertyId` — aynı gün devir hesabı için (giriş kümesiyle kesişim).
-      select: { sourceReference: true, id: true, propertyId: true },
+      select: { ...BOOKING_KEY_SELECT, id: true },
     }),
     prisma.conversation.count({
       // "Cevap gerekmedi" (kapanışa bilerek sessiz kalındı) bekleyen konuşma sayılmaz.
@@ -170,22 +203,9 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
   const occupancyRate =
     totalProperties > 0 ? Math.min(100, Math.round((occupiedToday / totalProperties) * 100)) : 0;
 
-  // Count distinct bookings: collapse duplicate rows that share a sourceReference
-  // (the same Hospitable booking can appear twice), but count each manual/iCal
-  // booking (null sourceReference) individually — Prisma `distinct` over a
-  // nullable column wrongly merges ALL nulls into one (undercount).
-  const countDistinctBookings = (rows: { sourceReference: string | null }[]): number => {
-    const seen = new Set<string>();
-    let n = 0;
-    for (const r of rows) {
-      if (r.sourceReference == null) n++;
-      else if (!seen.has(r.sourceReference)) {
-        seen.add(r.sourceReference);
-        n++;
-      }
-    }
-    return n;
-  };
+  // Count distinct bookings: collapse duplicate rows of the SAME booking (`bookingDedupeKey`), but count each manual/iCal booking
+  // with a null sourceReference individually — Prisma `distinct` over a nullable column wrongly merges ALL nulls into one.
+  const countDistinctBookings = (rows: Parameters<typeof dedupeBookings>[0]): number => dedupeBookings(rows).length;
 
   return {
     arrivalsToday: countDistinctBookings(arrivalRows),
@@ -222,18 +242,22 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
   const [locYear, locMonth] = dayKeyTz(now, tz).split("-").map(Number);
   const monthStart = zonedDateStart(locYear, locMonth, 1, tz);
   const monthEnd = zonedDateStart(locYear, locMonth + 1, 1, tz);
+  const monthFirstKey = `${locYear}-${String(locMonth).padStart(2, "0")}-01`;
+  const monthLastKey = addNights(new Date(Date.UTC(locYear, locMonth, 1)).toISOString().slice(0, 10), -1);
 
   const [reservations, completedTasks, totalTasks, messagesCount] = await Promise.all([
     prisma.reservation.findMany({
       // Exclude cancelled/pending stays so the monthly count and revenue match
       // every other surface (dashboard, occupancy, calendar) — a cancellation
       // must not inflate the reported reservations or income.
+      // 🚨 Y7 (Codex 10-07): ay üyeliği TEK TARİH KURALIYLA (`calendarDateOf` sorgu ikizi) — yalnız-tarih değeri (00:00Z / 12:00Z)
+      // UTC tarihidir; ham yerel ay penceresi New York'ta ayın 1'indeki girişi düşürüp sonraki ayın 1'ini alıyordu.
       where: {
         ...propertyScope(orgId),
         status: { in: ["confirmed", "completed"] },
-        arrivalDate: { gte: monthStart, lt: monthEnd },
+        AND: [reservationDayRangeWhere("arrivalDate", { from: monthFirstKey, to: monthLastKey }, tz)],
       },
-      select: { totalAmount: true, totalAmountDec: true, currency: true, sourceReference: true },
+      select: { totalAmount: true, totalAmountDec: true, currency: true, ...BOOKING_KEY_SELECT },
     }),
     prisma.task.count({
       where: { ...propertyScope(orgId), status: "done", updatedAt: { gte: monthStart, lt: monthEnd } },
@@ -249,17 +273,9 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
     }),
   ]);
 
-  // Collapse duplicate Hospitable rows that share a sourceReference (one booking
-  // can appear twice), but count each manual/iCal booking (null sourceReference)
-  // individually — mirrors getOpsStats so neither the count nor the revenue
-  // double-counts a single booking.
-  const seenRefs = new Set<string>();
-  const distinctReservations = reservations.filter((r) => {
-    if (r.sourceReference == null) return true;
-    if (seenRefs.has(r.sourceReference)) return false;
-    seenRefs.add(r.sourceReference);
-    return true;
-  });
+  // Collapse duplicate rows of the SAME booking (`bookingDedupeKey`), but count each manual/iCal booking (null sourceReference)
+  // individually — mirrors getOpsStats so neither the count nor the revenue double-counts a single booking.
+  const distinctReservations = dedupeBookings(reservations);
 
   // Sum in Prisma.Decimal (Codex #26): the old `number` accumulation rebuilt
   // floating-point error row by row (0.1 + 0.2 → 0.30000000000000004 in the

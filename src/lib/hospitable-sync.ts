@@ -141,7 +141,7 @@ export async function syncHospitable(
   let firstLinkError: unknown = null;
   let reservationUpsertFailures = 0;
   let firstReservationError: unknown = null;
-  /** Yalnız ETİKET taşır ("no_dates"/"no_property"/"upsert_threw") — sağlayıcı
+  /** Yalnız ETİKET taşır ("no_dates"/"inverted_dates"/"no_property"/"upsert_threw") — sağlayıcı
    *  payload'ı ya da misafir verisi ASLA (KVKK). */
   let firstUnwritableReason: string | null = null;
   let fetchFailures = 0;
@@ -321,10 +321,11 @@ export async function syncHospitable(
           // satırı yok. Sessiz kalmasın — kardeş sayaçların emsali.
           result.reservationsUnwritable++;
           if (firstUnwritableReason === null) {
-            firstUnwritableReason =
-              reservation.arrivalDate && reservation.departureDate
-                ? "no_property"
-                : "no_dates";
+            firstUnwritableReason = !(reservation.arrivalDate && reservation.departureDate)
+              ? "no_dates"
+              : reservation.departureDate.getTime() <= reservation.arrivalDate.getTime()
+                ? "inverted_dates"
+                : "no_property";
           }
         }
         if (localReservationId) {

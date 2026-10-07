@@ -162,9 +162,19 @@ export function canonicalStr(value: unknown): string | null {
   return v.length ? v : null;
 }
 
+/**
+ * Sağlayıcı tarihi. 🚨 Y6 (Codex 10-07): yalnız ISO 8601 biçimi ("2026-10-10", "2026-10-10T15:00:00Z", "…+03:00") ve TAKVİMDE OLAN
+ * gün — eskiden çıplak `new Date()` "2026-02-30"u 2 Mart'a, "1"i 2001'e çeviriyordu (uydurma konaklama). Biçimin geri kalanı (saat,
+ * kesir, dilim) eskisi gibi `Date`e bırakılır: canlı sağlayıcının gönderdiği geçerli biçimler değişmez.
+ */
 export function canonicalDate(value: unknown): Date | null {
   const s = canonicalStr(value);
   if (!s) return null;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const head = /^(\d{4})-(\d{2})-(\d{2})(?=$|[Tt ])/.exec(s);
+  if (!head) return null;
+  const [y, m, d] = [Number(head[1]), Number(head[2]), Number(head[3])];
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  if (m < 1 || m > 12 || probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) return null;
+  const at = new Date(s);
+  return Number.isNaN(at.getTime()) ? null : at;
 }

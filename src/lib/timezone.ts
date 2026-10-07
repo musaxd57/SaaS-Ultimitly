@@ -52,15 +52,21 @@ export function orgTimezone(tz: string | null | undefined): string {
 /** Calendar date (YYYY-MM-DD) of `d` as seen in the given IANA timezone. */
 export function dateKeyInTimeZone(d: Date, tz: string): string {
   try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(d);
+    return dateKeyFormatter(tz).format(d);
   } catch {
     return d.toISOString().slice(0, 10);
   }
+}
+
+// Biçimlendirici dilim başına BİR kez kurulur (gün yürüyüşleri / gün başı hesabı sıcak yolda; dilim sayısı sınırlı — IANA ~600).
+const DATE_KEY_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+function dateKeyFormatter(tz: string): Intl.DateTimeFormat {
+  let f = DATE_KEY_FORMATTERS.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+    if (DATE_KEY_FORMATTERS.size < 1000) DATE_KEY_FORMATTERS.set(tz, f);
+  }
+  return f;
 }
 
 /** How far ahead (ms) the IANA `tz` is from UTC at the given instant. */
@@ -157,11 +163,36 @@ export function zonedDateStart(y: number, m: number, d: number, tz: string): Dat
   // UTC-okunuşunda ölçüyordu; DST geçişi o iki an arasına düşerse 1 saat şaşar.
   // Bir tahmin + bir arıtma her gerçek IANA kuralında (geçişleri gece 01:00+
   // olan Avrupa/TR/ABD dahil) doğru sonucu verir. Geçişi tam GECEYARISINA denk
-  // gelen egzotik dilimlerde (yerel 00:00 hiç yoksa) sonuç komşu saate düşebilir
-  // — deterministik ve sınırlıdır; hedef pazarların hiçbirinde görülmez.
+  // gelen dilimlerde (yerel 00:00 hiç yoksa ya da iki kez varsa) sonuç komşu
+  // saate düşüyordu — aşağıda günün gerçek ilk anına düzeltilir (U34).
   let t = wallMidnightUtc - tzOffsetMs(tz, new Date(wallMidnightUtc));
   t = wallMidnightUtc - tzOffsetMs(tz, new Date(t));
+  // 🚨 U34 (Codex 10-07): sonuç günün GERÇEK ilk anı olmalı (bellekteki takvim kuralı `dateKeyInTimeZone` ile aynı gün):
+  //   · yerel 00:00'ın HİÇ olmadığı günlerde (yaz saati geceyarısında başlar: Azor, Havana, Santiago…) sabit nokta ÖNCEKİ günün
+  //     23:00'üne düşüyordu → gün aralığı sorgusu (`day-where.ts`) o günü bir saat erken açıyordu → ileri;
+  //   · yerel 00:00'ın İKİ kez yaşandığı günlerde (01:00 → 00:00 geri alma: Amman, Gaza…) İKİNCİ geceyarısı seçiliyordu → geri.
+  const key = new Date(wallMidnightUtc).toISOString().slice(0, 10);
+  if (dateKeyInTimeZone(new Date(t), tz) !== key) t = firstInstantOfDay(t, key, tz) ?? t;
+  else if (dateKeyInTimeZone(new Date(t - 1), tz) === key) t = firstInstantOfDay(t - SIX_HOURS_MS, key, tz) ?? t;
   return new Date(t);
+}
+
+const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * `from`dan sonraki, yerel günü `key` olan İLK an (yaz saati geçişi en çok birkaç saat kaydırır → 6 saatlik pencerede ikili arama).
+ * Pencerenin başı hedef günden önce, sonu hedef günde değilse (beklenmeyen kural) `null` — çağıran eski sonucu tutar, tahmin yok.
+ */
+function firstInstantOfDay(from: number, key: string, tz: string): number | null {
+  let lo = from;
+  let hi = from + SIX_HOURS_MS;
+  if (dateKeyInTimeZone(new Date(lo), tz) >= key || dateKeyInTimeZone(new Date(hi), tz) < key) return null; // beklenmeyen kural
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (dateKeyInTimeZone(new Date(mid), tz) < key) lo = mid;
+    else hi = mid;
+  }
+  return hi;
 }
 
 /** Gün içi dakika (0–1439) — verilen IANA diliminde duvar saati. Biçimlendirme başarısızsa `null` (tahmin yok). */

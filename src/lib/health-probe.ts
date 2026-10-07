@@ -45,3 +45,17 @@ export function writeProbeCache(snapshot: ProbeSnapshot): void {
 export function clearProbeCache(): void {
   probeCache = null;
 }
+
+// Y9 (Codex 10-07): SÜREN YOKLAMA PAYLAŞILIR — önbellek boşken aynı anda gelen istekler (sel, ya da önbellek bitiminde yığılma)
+// her biri ayrı 2 sorgu atıyordu. Önbellek penceresi başına TEK yoklama: süren varsa ona katılınır. Sonuç (arıza dahil) yalnız
+// o yoklamayı bekleyenlerle paylaşılır, SAKLANMAZ — arıza önbelleğe girmez kuralı aynen.
+let inflight: Promise<unknown> | null = null;
+
+export function sharedProbe<T>(run: () => Promise<T>): Promise<T> {
+  if (inflight) return inflight as Promise<T>;
+  const p = run().finally(() => {
+    if (inflight === p) inflight = null;
+  });
+  inflight = p;
+  return p;
+}

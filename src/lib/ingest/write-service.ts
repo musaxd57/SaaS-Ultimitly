@@ -82,6 +82,9 @@ export async function upsertCanonicalReservation(
 ): Promise<string | null> {
   const srcRef = r.externalId;
   if (!r.arrivalDate || !r.departureDate) return null;
+  // 🚨 Y6 (Codex 10-07): çıkış girişten sonra olmalı (iCal ayrıştırıcısıyla aynı kural) — ters / sıfır süreli tarih uydurma
+  // konaklamadır; satır YAZILMAZ, var olan kayıt korunur (sayaç `reservationsUnwritable`).
+  if (r.departureDate.getTime() <= r.arrivalDate.getTime()) return null;
 
   // FK safety: only write if the property genuinely exists.
   const propertyExists = await db.property.findUnique({ where: { id: propertyId }, select: { id: true } });
