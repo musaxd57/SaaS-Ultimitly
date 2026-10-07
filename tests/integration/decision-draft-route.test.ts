@@ -17,6 +17,7 @@ vi.mock("@/lib/api", async (orig) => {
 
 import { POST } from "@/app/api/conversations/[id]/decisions/[decisionId]/draft/route";
 import { decisionMessageText, formatDecisionDay } from "@/lib/decisions/core";
+import { saveEarlyCheckinRule } from "@/lib/early-checkin/rules";
 
 const DAY = 86_400_000;
 const arrival = (() => {
@@ -44,7 +45,7 @@ async function seed(kind = "early_checkin", role: "owner" | "staff" = "owner") {
     data: { organizationId: org.id, conversationId: conversation.id, messageId: message.id, reservationId: reservation.id, kind, requestedTime: "13:00", dayKey, lang: "en" },
   });
   session = { userId: user.id, organizationId: org.id, role, email: user.email, name: "Ev Sahibi", sessionEpoch: 0 };
-  return { conversationId: conversation.id, decisionId: decision.id };
+  return { conversationId: conversation.id, decisionId: decision.id, orgId: org.id, propertyId: property.id };
 }
 
 function post(s: { conversationId: string; decisionId: string }, body: Record<string, unknown>) {
@@ -103,6 +104,16 @@ describe("POST …/decisions/[decisionId]/draft", () => {
     expect(json.text).toBe(
       decisionMessageText({ kind: "early_checkin", resolution: "approve", lang: "de", dayKey, time: "13:00", standardTime: "15:00" }),
     );
+  });
+
+  it("kayıtlı ücret: varsayılan mesaja girer, 'Ücreti mesaja ekle' kapalıyken girmez", async () => {
+    const s = await seed();
+    await saveEarlyCheckinRule(s.orgId, s.propertyId, { mode: "draft", earliest: "12:00", fee: { amount: 30, currency: "EUR" }, note: null });
+    const base = { kind: "early_checkin" as const, resolution: "approve" as const, lang: "en" as const, dayKey, time: "13:00", standardTime: "15:00" };
+    const withFee = await (await post(s, { action: "approve", time: "13:00" })).json();
+    expect(withFee.text).toBe(decisionMessageText({ ...base, fee: { amount: 30, currency: "EUR" } }));
+    const noFee = await (await post(s, { action: "approve", time: "13:00", includeFee: false })).json();
+    expect(noFee.text).toBe(decisionMessageText(base));
   });
 
   it("onayda saat yoksa 400", async () => {

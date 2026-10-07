@@ -140,3 +140,22 @@ describe("para sözlüğü — Intl'in ön ekli dolar / sterlin yazımı (ölç�
     expect(moneyAmountsOf(text)).toEqual([{ amount, currency }]);
   });
 });
+
+describe("karar mesajı denetimi — mutasyon pinleri (10-07)", () => {
+  it("iç satırın SAATSİZ gövdesi de kopya sayılır (satırın tamamı geçmese de)", () => {
+    const text = "Maalesef 14 Ekim'de erken giriş mümkün değil; önceki misafirin beklenen çıkışı saat 11'de, giriş 15:00'te.";
+    expect(checkDecisionText(text, f({ resolution: "decline" })).problems).toContain("internal_copy");
+  });
+  it("ev sahibinin Türkçe notu İngilizce mesajda dil uyuşmazlığı sayılmaz", async () => {
+    const { confidentLanguage } = await import("@/lib/ai/language-signal");
+    const note = "Lütfen girişte kimliğinizi hazır bulundurun ve çıkışta anahtarı kutuya geri bırakın, teşekkür ederiz.";
+    expect(confidentLanguage(note)).toBe("tr");
+    const facts = f({ lang: "en", note });
+    expect(checkDecisionText(decisionMessageText(facts), facts).problems).toEqual([]);
+  });
+  it("ev sahibinin notundaki fiyat ifadesi denetime takılmaz", () => {
+    const note = "Uzun konaklamalarda %10 indirim uygulanır.";
+    const facts = f({ fee: { amount: 500, currency: "TRY" }, note });
+    expect(checkDecisionText(decisionMessageText(facts), facts).problems).toEqual([]);
+  });
+});
