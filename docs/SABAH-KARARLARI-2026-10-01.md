@@ -1121,3 +1121,23 @@
     5. Ölçüm: geliştirme seti ~40 senaryo (7 dil × onay / ret × gerekçe çeşitleri, farklı saatle onay, ücretli onay) 5.1 ve Luna `low` ile, sonra
        kör kabul seti ~30. **Tahmini maliyet ~1–2 $ (tavan 5 $).** İş ~1 gün (kod + testler + mutasyon).
     **Beklerken yapılmayan:** kod yazılmadı, ücretli ölçüm koşulmadı.
+  - **h) 10-07 KURUCU: "evet; alt soru = uyarı + 'Yine de gönder'" → KODDA (anahtar `HOST_DECISION_AI_TEXT_ENABLED` VARSAYILAN KAPALI):**
+    `decisions/ai-text.ts` (yazıcı — cevap modeli `OPENAI_MODEL`; misafirin metni yazıcıya GİTMEZ) + `decisions/text-check.ts` (KOD denetimi:
+    saat / gün / ücret / söz-devir / "ev sahibinin kararı" / "bilgim yok" / dil / iç kontrol listesi satırı kopyası) + bağımsız bekçi YÖN denetimi
+    (onay izin verir, ret reddeder, fiyat yalnız kayıtlı ücret; bekçi düşerse taslak KULLANILMAZ) → geçmezse onaylı 7 dil şablonu. Uç
+    `…/decisions/[id]/draft` (hiçbir şey yazmaz / göndermez; ücretli plan + günlük AI bütçesi yoksa şablon). Gönderim ucu aynı KOD denetimini
+    ev sahibinin düzenlediği metne de uygular: uyuşmazsa 409 + sade uyarı listesi, panelde "Yine de gönder" (`force`, denetim kaydına
+    `textCheck: overridden`). Panel: şablon hemen, taslak gelince yerine geçer; ev sahibi yazmaya başladıysa EZMEZ.
+    **Ölçüm (`tests/eval/decision-text.eval.test.ts`, bekçi 5.1; raporlar `docs/olcum/karar-mesaji-2026-10-07-*`):** geliştirme seti 40
+    (`evals/decision-text-dev.json`, GÖRÜLDÜ) + kör kabul seti 30 (`evals/decision-text-acc1.json`, istemi / kodu görmeyen ajan yazdı; sonuçları
+    okundu → artık GÖRÜLDÜ). Kör sette son kodla 5.1: yapay zekâ metni 30/30, bağımsız yeniden denetim 30/30, onay saati 15/15, gün 30/30, dil
+    30/30, iç bilgi sızıntısı 0, gerekçesiz retlerde uydurulan gerekçe 0/5, beklenen gerekçe 9/10 (sezgisel), p50 2,2 sn. Luna `low` (önceki
+    kod): aynı güvenlik ölçüleri temiz, gerekçe daha seyrek (7/10 — metinler daha kısa). Ölçümle bulunan ve DÜZELTİLEN üç hata: 5.1 İngilizce
+    mesajın sonuna Türkçe iç satırı kopyaladı (`internal_copy` kuralı) · başka misafirin saatini / onayını anlattı (yazıcı istemi) · ortak para
+    sözlüğü "US$25" / "25 US$" / "UK£" yazımını tutar saymıyordu → onaylı USD şablonu bile denetimden düşüyordu (sözlük düzeltildi; misafire
+    giden cevapların para kapısı da artık bu yazımı görür — yalnız sıkılaştırır). Toplam ölçüm maliyeti ≈ 0,52 $.
+    Örnek (kör set, 5.1): ret "Ein früher Check-in am 7. Dezember um 10:00 ist leider nicht möglich, da die Wohnung nach dem Auszug des vorherigen
+    Gastes noch gereinigt wird. Sie können am 7. Dezember ab 14:00 einchecken." · onay "Your early check-in is approved: you can check in on
+    9 November from 13:00. The early check-in fee is US$25."
+    **Bilinen sınır:** ev sahibinin TÜRKÇE notu misafirin dilinde mesajın sonuna olduğu gibi eklenir (bugünkü şablonla aynı; 62 f ile birlikte
+    gözden geçirme önerisi). **Açmak sizin kararınız:** `HOST_DECISION_AI_TEXT_ENABLED=1` (ön koşul `HOST_DECISIONS_ENABLED=1` + `AI_STAY_GUARD_ENABLED=1`).
