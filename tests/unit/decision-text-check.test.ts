@@ -101,6 +101,13 @@ describe("karar mesajı denetimi — karar kaydıyla uyuşmayan metin tutulur", 
   it("misafirin dilinden başka dil", () => {
     expect(checkDecisionText("Unfortunately early check-in at 13:00 is not possible on 14 October.", f({ resolution: "decline" })).problems).toContain("language");
   });
+  it("\"bilgim yok\" itirafı", () => {
+    expect(checkDecisionText("Maalesef 14 Ekim'de erken giriş mümkün değil; temizlik saati hakkında bilgim yok. Giriş 15:00.", f({ resolution: "decline" })).problems).toContain("absence");
+  });
+  it("aşırı uzun metin", () => {
+    const long = `Maalesef 14 Ekim'de erken giriş mümkün değil; giriş 15:00. ${"Anlayışınız için teşekkür ederiz. ".repeat(40)}`;
+    expect(checkDecisionText(long, f({ resolution: "decline" })).problems).toContain("too_long");
+  });
   it("boş", () => {
     expect(checkDecisionText("  ", base).problems).toEqual(["empty"]);
   });

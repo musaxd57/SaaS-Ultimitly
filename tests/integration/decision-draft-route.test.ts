@@ -97,6 +97,14 @@ describe("POST …/decisions/[decisionId]/draft", () => {
     expect(json.text).toContain("15:00");
   });
 
+  it("panelde seçilen dil ve ücret / not seçimi taslağa yansır", async () => {
+    const s = await seed();
+    const json = await (await post(s, { action: "approve", time: "13:00", lang: "de", includeFee: false, includeNote: false })).json();
+    expect(json.text).toBe(
+      decisionMessageText({ kind: "early_checkin", resolution: "approve", lang: "de", dayKey, time: "13:00", standardTime: "15:00" }),
+    );
+  });
+
   it("onayda saat yoksa 400", async () => {
     const s = await seed();
     expect((await post(s, { action: "approve" })).status).toBe(400);
