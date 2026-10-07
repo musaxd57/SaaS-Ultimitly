@@ -98,3 +98,41 @@ describe("Node sürümü — Dockerfile ↔ CI ↔ engines paritesi", () => {
     expect(Number(process.versions.node.split(".")[0])).toBe(docker);
   });
 });
+
+// ---------------------------------------------------------------------------
+// U25 (Codex 10-07): `engines` alt sınırı kilitli bağımlılıkların istediği 22.x tabanının ALTINDA olamaz. Eskiden `>=22.0.0` idi;
+// jsdom / eslint-visitor-keys `^22.13.0` istiyor → 22.0–22.12'de `npm ci` uyarıyor, testler kurulumda kırılabiliyordu. Taban kilit
+// dosyasından HESAPLANIR (elle liste yok): bağımlılık güncellemesi tabanı yükseltirse bu test `engines`i de yükseltmeyi zorlar.
+// ---------------------------------------------------------------------------
+type Triple = [number, number, number];
+const cmp = (a: Triple, b: Triple) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+/** Kilitteki her paketin `engines.node` aralığından major'ımız için istenen en düşük sürüm; en yükseği. */
+function lockFloorFor(major: number): { floor: Triple; from: string } {
+  const lock = JSON.parse(read("package-lock.json")) as { packages: Record<string, { engines?: { node?: string } | string[] }> };
+  let floor: Triple = [major, 0, 0];
+  let from = "(yok)";
+  for (const [name, pkg] of Object.entries(lock.packages)) {
+    if (name === "" || !pkg.engines || Array.isArray(pkg.engines) || !pkg.engines.node) continue;
+    for (const clause of pkg.engines.node.split("||")) {
+      const m = new RegExp(`(?:\\^|>=|~)\\s*${major}\\.(\\d+)(?:\\.(\\d+))?`).exec(clause);
+      if (!m) continue;
+      const t: Triple = [major, Number(m[1]), Number(m[2] ?? 0)];
+      if (cmp(t, floor) > 0) [floor, from] = [t, `${name} (${pkg.engines.node})`];
+    }
+  }
+  return { floor, from };
+}
+
+describe("U25 — engines alt sınırı bağımlılıkların tabanından düşük değil", () => {
+  it("package.json `engines.node` alt sınırı ≥ kilitteki en yüksek 22.x tabanı", () => {
+    const engines = JSON.parse(read("package.json")).engines.node as string;
+    const m = />=\s*(\d+)\.(\d+)\.(\d+)/.exec(engines);
+    expect(m, `engines.node alt sınırı okunamadı: ${engines}`).not.toBeNull();
+    const declared: Triple = [Number(m![1]), Number(m![2]), Number(m![3])];
+    const { floor, from } = lockFloorFor(declared[0]);
+    expect(cmp(floor, [declared[0], 1, 0]) > 0, "anti-vakum: kilitte 22.x tabanı isteyen paket bulunmalı").toBe(true);
+    expect(cmp(declared, floor) >= 0, `engines ${engines} < ${floor.join(".")} (${from})`).toBe(true); // ⬅️ ESKİDE 22.0.0 < 22.13.0
+  });
+});
+
