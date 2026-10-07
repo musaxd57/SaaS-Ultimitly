@@ -604,6 +604,19 @@ describe("karar kaydı", () => {
     expect((await prisma.decisionRequest.findFirstOrThrow({ where: { messageId: m1.id } })).status).toBe("resolved_by_policy");
   });
 
+  it("🚨 Y4 iki talep AYNI milisaniyede yazıldı: sıra mesaj kimliğiyle kesinleşir, yalnız sonrakinin kartı bekler", async () => {
+    const w = await world();
+    const at = new Date(Date.now() - 30 * 60_000);
+    const m1 = await prisma.message.create({ data: { conversationId: w.conversation.id, direction: "inbound", senderName: "Ada", body: "13:00?", createdAt: at } });
+    const m2 = await prisma.message.create({ data: { conversationId: w.conversation.id, direction: "inbound", senderName: "Ada", body: "12:00?", createdAt: at } });
+    const [first, second] = m1.id < m2.id ? [m1, m2] : [m2, m1];
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    const [later] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: second.id, itemId: null, requestedTime: "12:00", dayKey: w.arrivalKey }] });
+    const [earlier] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: first.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }] });
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: later.id } })).status).toBe("pending");
+    expect(earlier.status).toBe("superseded");
+  });
+
   it("KONTROL (Y4): sonuçlanmış eski kart, yeni talep açılınca dokunulmaz; yeni kart beklemede", async () => {
     const w = await world();
     const m1 = await w.msg("13:00?", 60);
