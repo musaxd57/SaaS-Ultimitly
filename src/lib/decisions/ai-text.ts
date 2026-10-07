@@ -61,6 +61,7 @@ export const DECISION_WRITER_SYSTEM_PROMPT = [
   "You write a short message from a short-term rental host to their guest. The host has ALREADY DECIDED on the guest's early check-in or late check-out request; the message tells the guest that decision.",
   "Rules:",
   "- Write in the language named in the input. 1 to 3 sentences, warm and natural, in the host's voice. No greeting line, no sign-off, no emojis.",
+  "- Address the guest formally (siz, Sie, vous, usted, Вы, حضرتكم-level politeness). No well-wishes or filler ('enjoy your stay', 'I hope this helps', 'keyifli bir konaklama'), no feelings.",
   "- State the decision clearly and first. An approval says the guest can check in / check out at the decided time on the given day. A decline says it is not possible and gives the standard time.",
   "- Use ONLY the facts in the input. Keep every time, date and amount exactly as given (same digits). Do not add any other number, date, time, price, discount or condition.",
   "- For a decline you may give ONE short reason, but only if the host's checklist states it and it concerns the guest's timing: cleaning still in progress / not finished, the previous guest checks out at a given time, a new guest arrives the same day. If no such reason is stated, give no reason. Never invent one.",
