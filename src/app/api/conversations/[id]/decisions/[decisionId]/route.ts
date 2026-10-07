@@ -225,9 +225,9 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
       body,
       claimBody: body,
       senderName: session.name,
-      // K6 (Faz 0 önerisi): karar ev sahibinin, metni kod kurdu → "ev sahibi yazdı + yapay zekâ destekli". Ev sahibi metni
-      // değiştirdiyse mesaj onun yazdığıdır.
-      aiAssisted: input.edited !== true,
+      // Kurucu kararı 10-07 (Sabah Kararları 62 / 6): karar mesajı raporda YALNIZ "ev sahibi yazdı" — varsayılanda "yapay zekâ
+      // destekli" etiketi YOK. (Ayarlardan açılan etiket — 62 / 7 — yalnız düzenlenmemiş metne yazılır: `edited` bunun için gelir.)
+      aiAssisted: false,
       idempotencyKey: `decision:${decision.id}:v${lockedVersion}`,
       strictIdempotency: true,
     });

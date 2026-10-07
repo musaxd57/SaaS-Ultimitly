@@ -1049,6 +1049,23 @@
   açmak. Ölçmeden açmak isterseniz risk düşük: değişen yalnız sohbet mesajlarının güveni ve üslubu; güvenlik kapıları aynı.
 - **Müşteriye etkisi:** hâl hatır soran misafir cevapsız kalmaz, cevap insan gibi ama duygu uydurmadan; ev sahibine gereksiz taslak düşmez.
 - **Beklerken yapılmayan:** ücretli ölçüm koşulmadı (onay yok); anahtar kapalı.
+- **10-07 ÖLÇÜLDÜ (kurucu "kredi var, testlerin varsa çalıştır"):** canlı hat ölçeri (ürünün kanal akışı olduğu gibi, gerçek kapılar), set
+  `evals/courtesy.json` (12 senaryo, geliştirme seti — kör DEĞİL: ilk selam TR/EN/DE/RU, hâl hatır + soru, yeniden yoklama, "cevap vermiyorsun",
+  tekrar eden hâl hatır, şikâyet girişi, hâl hatır + geç çıkış, kapanış kontrolü), commit `1af1756`, CANLI bayraklarla (ev sahibi kararı tutulur,
+  kod selamı, ücret kuralı, şikâyet takibi, giriş kodu açık; anlam katmanları 5.1). Raporlar `docs/olcum/live-pipeline-2026-10-07-*courtesy-live*`.
+  Toplam maliyet iki tur ≈ **0,78 $** (ilk tur canlı bayraklar eksik koşuldu — geçersiz sayılmadı ama karar ikinci tura dayanır).
+
+  | kol | giden | gidenlerde uydurma duygu | beklentiye aykırı |
+  |---|---|---|---|
+  | 5.1, anahtar kapalı (bugün) | 3/12 | 1 | 5 (hâl hatır ev sahibine düşüyor) |
+  | 5.1, anahtar açık | 8/12 | 1–2 (DE "bei mir ist alles in Ordnung", RU "всё хорошо") | 0 |
+  | Luna `low`, kapalı | 8/12 | 2 ("İyiyiz", "I'm doing well") | 1 |
+  | **Luna `low`, açık** | **9/12** | **0** | **0** |
+
+  Örnek (Luna açık): "Merhaba, nasılsınız?" → "Merhaba Alex, Teşekkür ederim, buradayım. Siz nasılsınız?" (gitti) · "Nasılsın dedim, cevap
+  vermiyorsun" → "Teşekkür ederim, buradayım. Siz nasılsınız?" · hâl hatır + geç çıkış ve hâl hatır + şikâyet iki modelde de TUTULDU; kapanış sessiz.
+  **Öneri:** `AI_COURTESY_RULE_ENABLED=1` — Luna'ya geçişle birlikte temiz; 5.1'de kalınırsa da bugünden iyi (5 yerine 0 gereksiz devir) ama nadir
+  "alles in Ordnung / всё хорошо" kalır. Açmak sizin kararınız (yalnız ortam değişkeni, kod değişikliği yok).
 
 ## 62. Host Karar Motoru ("karar bekliyor" kartı + Onayla / Reddet) — KODDA ve İTİLDİ (10-03, migration 59), anahtar `HOST_DECISIONS_ENABLED` VARSAYILAN KAPALI
 - **Sizin tarifiniz:** "Saat 13:00'te giriş yapabilir miyiz?" → panelde "13:00 erken giriş — karar bekliyor" açık kalır, size TEK bildirim gider,
@@ -1076,3 +1093,31 @@
 - **Müşteriye etkisi (anahtar açılınca):** hassas konaklama isteği "baştan savma" cevapla kapanmaz; size tek bildirim gider; misafire giden karar
   metni sizin onayınızla ve seçtiğiniz saatle gider; ev sahibi karar verdiyse otomatik onay onu ezmez.
 - **Beklerken yapılmayan:** anahtar kapalı; ücretli ölçüm yok; QR misafir sohbeti ve uzatma / tarih değişikliği metni kapsam dışı (belge §8).
+- **KURUCU KARARLARI 10-07:**
+  - **b) ✅ ONAYLANDI:** 7 dil metni (TR, EN, DE, FR, ES, RU, AR) bu hâliyle; hiçbir dil dışarıda kalmaz. Metinler SİLİNMEZ — yapay zekâ metni
+    gelince yedek ve doğrulama zemini olarak kalır.
+  - **d) DEĞİŞTİ → UYGULANDI (10-07):** karar mesajı raporda HER ZAMAN yalnız "ev sahibi yazdı"; varsayılanda "yapay zekâ destekli" etiketi YOK
+    (`decisions/[decisionId]/route.ts` `aiAssisted: false`, kırmızı-önce test). İsteyen ev sahibi Ayarlardan "AI destekli" etiketini açabilir; açıkken
+    etiket YALNIZ düzenlenmemiş yapay zekâ metnine yazılır → işletme ayarı = yeni sütun (migration) — **onay bekliyor (62 g)**.
+  - **YENİ — karar mesajını YAPAY ZEKÂ yazar** (gerekçeli, doğal, duruma göre; örnek ton "Maalesef o saate kadar temizlik yapılıyor olacak"; sert
+    şablon / "direkt şöyle yaz" kalıbı yok). KOD doğrular: saat, gün, ücret karar kaydıyla eşleşmezse mesaj gitmez; ev sahibi görür ve düzenler.
+    Orta büyüklükte iş + ücretli ölçüm → **önce plan ve tahmini maliyet kurucuya (62 h)**.
+  - **g) (SORU) Ayarlardaki "AI destekli" etiketi = yeni sütun (migration 60).** `Organization.decisionAiLabel Boolean @default(false)` — dolu
+    tabloya varsayılanlı sütun, güvenli; Railway kapalı olduğu için canlıya yeniden açılışta (önce taze `pg_dump`) gider. Açıkken etiket YALNIZ
+    düzenlenmemiş yapay zekâ metnine (`edited !== true`). **Öneri:** onay — ama yapay zekâ metni (h) gelmeden etiketin anlamı yok, h ile birlikte
+    yapalım. **Beklerken yapılmayan:** migration yazılmadı.
+  - **h) (SORU) Yapay zekâ karar mesajı — PLAN + MALİYET:**
+    1. Ev sahibi Onayla / Reddet'i açınca yapay zekâ taslak yazar (istek başına 1 çağrı; misafirin dili; 1–3 cümle, selamsız). Gerekçe YALNIZ kartın
+       doğrulanmış olgularından (temizlik durumu / bitişi, önceki misafirin çıkışı, sonraki misafirin girişi, kayıtlı ücret ve not) — model olgu
+       uydurmaz; gerekçe yoksa gerekçesiz ama doğal yazar. Örnek ret: "Maalesef 14 Ekim'de saat 13:00'te temizlik henüz sürüyor olacak; daireniz
+       15:00'te hazır olacak." Örnek onay: "Güzel haber: 14 Ekim'de saat 13:00'te giriş yapabilirsiniz; erken giriş ücreti ₺500."
+    2. KOD doğrular: metindeki her saat = karar saati / standart saat / gerekçe olgusunun saati; gün = karar günü; tutar yalnız kayıtlı ücret; başka
+       sayı yok; çıktı vetosu (söz, devir, "ev sahibinin kararı", "bilgim yok") + dil kapısı. Geçmezse onaylı 7 dil şablonu gelir (yedek) ve kartta
+       "standart metin gösteriliyor" notu.
+    3. Gönderim ucunda AYNI saat / gün / ücret kontrolü (ev sahibinin düzenlediği metin dahil): uyuşmazsa gitmez, sade uyarı ("Mesajdaki saat
+       14:00, seçtiğiniz saat 13:00"). **Alt soru:** ev sahibinin kendi düzenlemesinde de engellensin mi (kararınızın harfiyen okuması — öneri: evet),
+       yoksa uyarı + "yine de gönder"?
+    4. Anahtar `HOST_DECISION_AI_TEXT_ENABLED` varsayılan KAPALI; kapalıyken bugünkü şablon.
+    5. Ölçüm: geliştirme seti ~40 senaryo (7 dil × onay / ret × gerekçe çeşitleri, farklı saatle onay, ücretli onay) 5.1 ve Luna `low` ile, sonra
+       kör kabul seti ~30. **Tahmini maliyet ~1–2 $ (tavan 5 $).** İş ~1 gün (kod + testler + mutasyon).
+    **Beklerken yapılmayan:** kod yazılmadı, ücretli ölçüm koşulmadı.

@@ -32,7 +32,7 @@
 4. **Panel:** gelen kutusunda "Karar bekliyor" rozeti, panoda (Dikkat Gerektirenler) "Karar bekliyor: 13:00 erken giriş" satırı,
    konuşma sayfasının EN ÜSTÜNDE kart.
 5. **Karar:** ev sahibi Onayla / Reddet (metni kod kurar, ev sahibi görür ve düzenleyebilir) ya da "Gerek kalmadı". Gönderimden
-   hemen önce yeniden doğrulama (§4). Onay sonrası misafire giden mesaj "ev sahibi yazdı + `aiAssisted`" (K6).
+   hemen önce yeniden doğrulama (§4). Onay sonrası misafire giden mesaj "ev sahibi yazdı + `aiAssisted`" (K6). **10-07 kurucu kararı (Sabah Kararları 62 / 6) bunu DEĞİŞTİRDİ:** karar mesajı raporda yalnız "ev sahibi yazdı"; `aiAssisted` varsayılanda YOK (Ayarlardan açılan etiket 62 / 7, yalnız düzenlenmemiş metne).
 
 Anahtar kapalıyken: kart yok, sorgu yok, e-postalar bugünkü gibi (parite testli).
 
@@ -159,7 +159,7 @@ alıntı, sonuç satırları, öğelerle birlikte yaşam, pano tekilliği).
 - Gün CANLI (`liveDecisionDayKey`): rezervasyon değişirse kart, süre kontrolü ve metin rezervasyonun bugünkü gününü kullanır.
 - Talebin mesajı bulunamazsa "misafir yeniden yazdı" kontrolü atlanmıyor (çapa kartın açıldığı an).
 - Standardın yanlış tarafındaki onay saati sunucuda 400 (arayüz de göndermez). Ev sahibi metni değiştirdiyse mesaj "yapay zekâ destekli"
-  sayılmaz.
+  sayılmaz. (10-07: varsayılanda hiçbir karar mesajı "yapay zekâ destekli" sayılmaz — 62 / 6.)
 
 **Depo / türetme:** ev sahibi cevabı öğelerle aynı tavansız sorguyla (500 satır tavanı başka konuşmaların mesajlarıyla bir cevabı
 gizleyebiliyordu) · gönderimi doğrulanamayan / yarıda kalan kart iptal ve gün geçince açık iş sayılmaz · pano en yeni kartları okur ·

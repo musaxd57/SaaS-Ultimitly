@@ -171,7 +171,8 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     expect(d).toMatchObject({ status: "approved", decidedTime: "13:00", decidedById: s.ownerId, version: 2 });
     const out = await prisma.message.findFirstOrThrow({ where: { conversationId: s.conversationId, direction: "outbound" } });
     expect(d.resultMessageId).toBe(out.id);
-    expect(out).toMatchObject({ authorType: "host", aiAssisted: true, body: APPROVE_TR, externalId: "prov-1" });
+    // Kurucu kararı 10-07 (Sabah Kararları 62 / 6): karar mesajı raporda YALNIZ "ev sahibi yazdı" — varsayılanda "yapay zekâ destekli" YOK.
+    expect(out).toMatchObject({ authorType: "host", aiAssisted: false, body: APPROVE_TR, externalId: "prov-1" });
     expect((await prisma.conversationItem.findUniqueOrThrow({ where: { id: s.itemId } })).status).toBe("done");
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: s.orgId, action: "decision.approved" } });
     expect(audit.actorUserId).toBe(s.ownerId);
