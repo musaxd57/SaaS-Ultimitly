@@ -1,4 +1,5 @@
 import { describe, it, expect, afterAll } from "vitest";
+import { uniqueReportName } from "./sidecar";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { summarizeHostStyle } from "@/lib/ai";
@@ -99,7 +100,7 @@ describe.skipIf(!enabled)(`ÜSLUP ÖZETİ — ${MODEL}`, () => {
     ];
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    const name = `uslup-katmani-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${TAG ? `-${TAG}` : ""}.md`;
+    const name = uniqueReportName(dir, `uslup-katmani-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${TAG ? `-${TAG}` : ""}.md`);
     writeFileSync(path.join(dir, name), `${lines.join("\n")}\n`);
     console.log(`rapor yazıldı: docs/olcum/${name}`);
   });

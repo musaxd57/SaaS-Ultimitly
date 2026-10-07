@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { describe, it } from "vitest";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
+import { ragSetCountProblem } from "./eval-args";
 
 // ---------------------------------------------------------------------------
 // RAG ÖLÇEK SETİ ÜRETİCİSİ (#189, 09-26) — gerçekçi, AYRI olgulu 300 kalemlik bilgi tabanı + misafir soruları.
@@ -247,11 +248,21 @@ describe.skipIf(!enabled)("RAG ölçek seti üretimi (ücretli, bir kez)", () =>
     ];
     for (const [file, split, property, seed] of sets) {
       const target = path.join(OUT, file);
-      if (existsSync(target)) continue; // bir kez üretilir; yeniden üretmek için dosyayı silin
+      // U19 (Codex 10-07): var olan dosya da SAYIYLA denetlenir (içerik okunmaz / yazdırılmaz) — eskiden yetersiz bir önceki üretim
+      // "dosya var" diye sessizce kabul ediliyordu.
+      if (existsSync(target)) {
+        const problem = ragSetCountProblem(JSON.parse(readFileSync(target, "utf8")));
+        if (problem) throw new Error(`[rag-gen] ${file} geçersiz (${problem}) — dosyayı silip yeniden üretin`);
+        continue; // bir kez üretilir; yeniden üretmek için dosyayı silin
+      }
       const set = await generateSet(split, property, seed);
-      writeFileSync(target, `${JSON.stringify(set, null, 1)}\n`);
+      // Doğrulama YAZMADAN önce; yazma geçici dosyaya, sonra yeniden adlandırma (yarım dosya kalmaz).
+      const problem = ragSetCountProblem(set);
+      if (problem) throw new Error(`[rag-gen] ${file} üretimi yetersiz (${problem}) — dosya YAZILMADI`);
+      const tmp = `${target}.tmp`;
+      writeFileSync(tmp, `${JSON.stringify(set, null, 1)}\n`);
+      renameSync(tmp, target);
       console.log(`[rag-gen] ${file}: items=${set.items.length} facts=${set.facts.length}`);
-      expect(set.items.length).toBeGreaterThan(250);
     }
   }, 60 * 60_000);
 });

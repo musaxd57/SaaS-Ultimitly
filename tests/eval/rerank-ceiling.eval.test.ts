@@ -1,4 +1,5 @@
 import { describe, it, expect, afterAll } from "vitest";
+import { uniqueReportName } from "./sidecar";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
@@ -110,7 +111,7 @@ describe.skipIf(!enabled)("#186 tavan teşhisi — kaçan cevap aday listesinde 
     lines.push("", "Not: çok sorulu satırda \"kaçan\" = iki cevaptan en az biri blokta değil; her kaçan cevap KENDİ altın kalemiyle ölçülür.");
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, `rerank-tavan-${stamp}.md`), lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()), "utf8");
+    writeFileSync(path.join(dir, uniqueReportName(dir, `rerank-tavan-${stamp}.md`)), lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()), "utf8");
   });
 
   it("E4 kümesinde lex ve sem@0.3 için kaçanların aday listesindeki yeri", async () => {

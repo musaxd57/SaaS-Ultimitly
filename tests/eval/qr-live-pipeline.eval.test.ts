@@ -51,7 +51,7 @@ import { moneyAmountsOf } from "@/lib/ai/stay-money";
 import { factsHit, languageMatches, priceFor } from "./reply-scoring";
 import { promiseInReply } from "./reply-metrics";
 import { forbiddenIn, productCategory } from "./live-shared";
-import { writeSidecar } from "./sidecar";
+import { writeSidecar, uniqueReportName, reviewQuote } from "./sidecar";
 import { evalRuntime } from "./run-meta";
 
 export interface QrScenario {
@@ -440,7 +440,7 @@ describe.skipIf(!enabled)(`QR CANLI HAT — ${MODEL}`, () => {
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
     const setTag = SET === "qr-live-dev.json" ? "" : `-${SET.replace(/\.json$/, "")}`;
-    const name = `qr-live-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${setTag}${TAG ? `-${TAG}` : ""}.md`;
+    const name = uniqueReportName(dir, `qr-live-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${setTag}${TAG ? `-${TAG}` : ""}.md`);
     let commit = "?";
     try {
       commit = execSync("git rev-parse --short HEAD", { cwd: path.resolve(__dirname, "../.."), stdio: ["ignore", "pipe", "ignore"] })
@@ -499,7 +499,7 @@ describe.skipIf(!enabled)(`QR CANLI HAT — ${MODEL}`, () => {
       "",
       "## Misafire dönen cevaplar (sentetik veri; insan gözü için)",
       "",
-      ...rows.filter((r) => r.delivered).map((r) => `- **${r.id}** (${r.cls}/${r.lang}): ${JSON.stringify((r.shownText ?? "").slice(0, 320))}`),
+      ...rows.filter((r) => r.delivered).map((r) => `- **${r.id}** (${r.cls}/${r.lang}): ${reviewQuote(r.shownText ?? "", name)}`),
       "",
       "## Beklentisi \"gitmez\" olup dönen / beklentisi \"gider\" olup dönmeyen",
       "",

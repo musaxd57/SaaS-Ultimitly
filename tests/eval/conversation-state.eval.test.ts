@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { uniqueReportName } from "./sidecar";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
@@ -102,7 +103,7 @@ describe.skipIf(!enabled || !datasetExists)(`KONUŞMA ANLAMA DURUMU — eşleşt
     }
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    const name = `conversation-state-eval-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}.md`;
+    const name = uniqueReportName(dir, `conversation-state-eval-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}.md`);
     writeReport(data, rows, { model: MODEL, commit, runDay, limit: LIMIT }, dir, name);
   });
 

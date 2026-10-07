@@ -14,6 +14,7 @@ import { labRow, latencyLines, reportLines, type LabConfig, type LabItem, type L
 import { describeConfig, parseConfig, CAP, RR, T_PROD } from "./rag-lab/config";
 import { buildScaleLab, kbForQuery, loadScaleFile } from "./rag-lab/scale-set";
 import { holdoutVerdict } from "./rag-lab/acceptance";
+import { parseSizeList } from "./eval-args";
 
 // ---------------------------------------------------------------------------
 // RAG LAB — AŞAMA BAZLI KAYIP ÖLÇÜMÜ (#189, kurucu 09-26 gece modu: "300 kalemde bile ≥%95; önce ölçüyü düzeltin").
@@ -31,7 +32,8 @@ const NOW = Date.UTC(2026, 8, 23, 12);
 const CONFIGS = (process.env.EVAL_RAG_CONFIGS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["lex", `s${T_PROD}`, "s0.3", `s${T_PROD}+und`, "live", "prod", "s0.3+und+rr20/600"]).map(parseConfig);
 /** Tek soru gruplarından her N'inci soru (ücretli koşu bütçesi; 1 = hepsi). */
 const SAMPLE = Math.max(1, Math.trunc(Number(process.env.EVAL_RAG_SAMPLE) || 1));
-const SIZES = (process.env.EVAL_RAG_SIZES?.split(",").map((s) => Number(s.trim())).filter((n) => n > 0) ?? [100, 300]) as number[];
+// U18: sayı listeleri KATI okunur — geçersiz / boş liste koşuyu başlatmaz (sessiz süzme sıfır ölçümle "geçti" diyordu).
+const SIZES = parseSizeList(process.env.EVAL_RAG_SIZES, { name: "EVAL_RAG_SIZES", fallback: [100, 300], min: 1 });
 const PAID_GROUPS = new Set(process.env.EVAL_RAG_PAID_GROUPS?.split(",").map((s) => s.trim()) ?? ["para", "multi", "neg"]);
 const GROUPS = new Set(
   process.env.EVAL_RAG_GROUPS?.split(",").map((s) => s.trim()) ?? ["scale", "para", "multi", "neg", "single_tr", "single_xx", "draft", "version", "conflict"],
@@ -39,14 +41,14 @@ const GROUPS = new Set(
 /** Hangi küme: e4 (sentetik tekrar) · scale (gerçekçi ayrı olgu, dev) · holdout (yalnız son doğrulama) — virgüllü. */
 const KBS = new Set(process.env.EVAL_RAG_KB?.split(",").map((s) => s.trim()) ?? ["e4"]);
 /** Gerçekçi set boyutları (0 = tamamı, ~300). */
-const SCALE_SIZES = (process.env.EVAL_RAG_SCALE_SIZES?.split(",").map((s) => Number(s.trim())) ?? [60, 0]).filter((n) => Number.isFinite(n) && n >= 0);
+const SCALE_SIZES = parseSizeList(process.env.EVAL_RAG_SCALE_SIZES, { name: "EVAL_RAG_SCALE_SIZES", fallback: [60, 0], min: 0 });
 /**
  * Eşzamanlı soru işçisi (varsayılan 4). Dakikalık token sınırı düşük modelde (gpt-6-luna ~200k/dk) 1–2: sınıra takılan çağrı
  * yeniden denemeden sonra "başarısız" sayılır ve sonucu kirletir (gecikme tablosunun "başarısız" sütunu).
  */
 const WORKERS = Math.max(1, Math.min(8, Math.trunc(Number(process.env.EVAL_RAG_WORKERS) || 4)));
 /** `EVAL_RAG_KB=perq`: soru başına gerçekçi boyutlu bilgi tabanı (↓`kbForQuery`); ürünün plan tavanı mülk başına 60 kayıt. */
-const PERQ_SIZES = (process.env.EVAL_RAG_PERQ_SIZES?.split(",").map((s) => Number(s.trim())).filter((n) => n > 0) ?? [60]) as number[];
+const PERQ_SIZES = parseSizeList(process.env.EVAL_RAG_PERQ_SIZES, { name: "EVAL_RAG_PERQ_SIZES", fallback: [60], min: 1 });
 
 export function e4LabSet(size: number): { items: LabItem[]; queries: LabQuery[] } {
   const kb = makeSyntheticKb(size);

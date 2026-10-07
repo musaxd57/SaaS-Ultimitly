@@ -1,4 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
+import { parseSizeList } from "./eval-args";
+import { uniqueReportName } from "./sidecar";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
@@ -36,10 +38,8 @@ const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.sta
 const NOW = Date.UTC(2026, 8, 23, 12);
 const T = 0.3;
 const LIMIT = Number(process.env.EVAL_RERANK_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_RERANK_LIMIT)) : null;
-const SIZES = (process.env.EVAL_RERANK_SIZES?.trim() || "300")
-  .split(",")
-  .map((s) => Number(s.trim()))
-  .filter((n) => n === 100 || n === 300 || n === 30);
+// U18: bilinmeyen / boş boyut koşuyu DÜŞÜRÜR (eskiden sessizce süzülüp sıfır çağrıyla yeşil geçiyordu).
+const SIZES = parseSizeList(process.env.EVAL_RERANK_SIZES, { name: "EVAL_RERANK_SIZES", fallback: [300], allowed: [30, 100, 300] });
 const MODEL = process.env.EVAL_RERANK_MODEL?.trim() || semanticModel();
 const SCALE_SAMPLE = 30;
 const CONCURRENCY = 4;
@@ -97,7 +97,8 @@ describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçü
     }
     const calls = rows.filter((r) => r.status !== "skipped");
     const failed = calls.filter((r) => r.status === "failed").length;
-    const valid = calls.length === 0 || failed / calls.length <= 0.05;
+    // U18: SIFIR çağrılı koşu ölçüm değildir → GEÇERSİZ (eskiden `calls.length === 0` GEÇERLİ sayılıyordu).
+    const valid = calls.length > 0 && failed / calls.length <= 0.05;
     const tokens = rows.reduce((n, r) => n + r.estTokens, 0);
     const lines = [
       `# #186 OpenAI yeniden sıralayıcı — ölçüm (${stamp})`,
@@ -122,7 +123,7 @@ describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçü
     lines.push("", "Ölçü: cevap cümlesi istem bloğunda (çok sorulu mesajda İKİ cevap da). Kayıp = yeniden sıralama sonrası düşen.");
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, `rerank-olcum-${stamp}${LIMIT ? "-deneme" : ""}.md`), lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()), "utf8");
+    writeFileSync(path.join(dir, uniqueReportName(dir, `rerank-olcum-${stamp}${LIMIT ? "-deneme" : ""}.md`)), lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()), "utf8");
   });
 
   it("embedding + yeniden sıralama vs yalnız embedding", async () => {
@@ -179,6 +180,8 @@ describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçü
       });
       rows.push(...got);
     }
-    expect(rows.length).toBe(perSize.reduce((n, s) => n + s.queries.length, 0));
+    const expected = perSize.reduce((n, s) => n + s.queries.length, 0);
+    expect(expected, "ölçülecek soru yok — koşu GEÇERSİZ").toBeGreaterThan(0);
+    expect(rows.length).toBe(expected);
   }, 1_200_000);
 });

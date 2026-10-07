@@ -7,7 +7,7 @@ import type { SuggestReplyInput } from "@/lib/ai/types";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { autoReplyGateFailure } from "@/lib/automation";
 import { actionClaimsEnabled } from "@/lib/ai/action-claims";
-import { writeSidecar } from "./sidecar";
+import { writeSidecar, uniqueReportName } from "./sidecar";
 import { storedRunRuntime, type EvalRuntime } from "./run-meta";
 import { GREETING, promiseInReply } from "./reply-metrics";
 import { PRICES, MUST_HOLD, languageMatches, factsHit } from "./reply-scoring";
@@ -391,7 +391,7 @@ describe.skipIf(!enabled)(`CEVAP MODELİ KIYASI — ${MODEL}`, () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
-    const name = `model-reply-compare-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${TAG ? `-${TAG}` : ""}.md`;
+    const name = uniqueReportName(dir, `model-reply-compare-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${TAG ? `-${TAG}` : ""}.md`);
     let commit = "?";
     try {
       commit = execSync("git rev-parse --short HEAD", { cwd: path.resolve(__dirname, "../..") }).toString().trim();

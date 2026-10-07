@@ -9,7 +9,7 @@ import { timesIn } from "@/lib/ai/retrieval/time-fields";
 import { confidentLanguage } from "@/lib/ai/language-signal";
 import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 import { priceFor } from "./reply-scoring";
-import { writeSidecar } from "./sidecar";
+import { writeSidecar, uniqueReportName } from "./sidecar";
 
 // ---------------------------------------------------------------------------
 // KARAR MESAJI — YAPAY ZEKÂ YAZAR, KOD + BEKÇİ DOĞRULAR (Sabah Kararları 62 h, kurucu 10-07). Ürünün `draftDecisionMessage`
@@ -176,7 +176,7 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
     ];
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    const name = `karar-mesaji-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}-${SET.replace(/\.json$/, "")}${TAG ? `-${TAG}` : ""}.md`;
+    const name = uniqueReportName(dir, `karar-mesaji-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}-${SET.replace(/\.json$/, "")}${TAG ? `-${TAG}` : ""}.md`);
     writeFileSync(path.join(dir, name), `${lines.join("\n")}\n`);
     console.log(`[eval] REPORT=${path.join(dir, name)}`);
     writeSidecar(dir, name, { suite: "decision-text", version: 1, meta: { model: MODEL, set: SET, promptId, status, usd: usd() }, rows, runtime });

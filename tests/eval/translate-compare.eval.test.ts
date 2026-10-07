@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { uniqueReportName } from "./sidecar";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { translate, __resetTranslateCache } from "@/lib/ai/translate";
@@ -87,7 +88,7 @@ describe.skipIf(!enabled)(`ÇEVİRİ KATMANI — ${MODEL}`, () => {
     ];
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    const name = `ceviri-katmani-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${TAG ? `-${TAG}` : ""}.md`;
+    const name = uniqueReportName(dir, `ceviri-katmani-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${TAG ? `-${TAG}` : ""}.md`);
     writeFileSync(path.join(dir, name), `${lines.join("\n")}\n`);
     console.log(`rapor yazıldı: docs/olcum/${name}`);
   });

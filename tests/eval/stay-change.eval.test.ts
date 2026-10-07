@@ -14,7 +14,7 @@ import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config
 import { understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { slotTimesShifted, type StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
-import { writeSidecar } from "./sidecar";
+import { writeSidecar, uniqueReportName } from "./sidecar";
 import { evalRuntime } from "./run-meta";
 import { summarizeUnion, unionMetricsLines, type UnionRow } from "./stay-metrics";
 
@@ -353,7 +353,7 @@ describe("konaklama değişikliği anlam katmanı — eval", () => {
     const runTag = process.env.EVAL_STAY_TAG?.trim().replace(/[^a-z0-9.-]+/gi, "_") ?? "";
     const name = SEALED
       ? `stay-change-FINAL-eval-${stamp}.md`
-      : `stay-change-eval-${stamp}-${modelTag}${modeSuffix}${setSuffix}${runTag ? `-${runTag}` : ""}.md`;
+      : uniqueReportName(dir, `stay-change-eval-${stamp}-${modelTag}${modeSuffix}${setSuffix}${runTag ? `-${runTag}` : ""}.md`);
     const status = !modelBodyCompleted
       ? "GEÇERSİZ — koşu TAMAMLANMADI (zaman aşımı / hata); tablolar yarım"
       : failures > 0

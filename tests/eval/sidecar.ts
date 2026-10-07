@@ -55,3 +55,29 @@ export function writeSidecar(dir: string, reportFileName: string, payload: Sidec
   console.log(`${DATA_MARKER}${jsonPath}`);
   return jsonPath;
 }
+
+/**
+ * U16 (Codex 10-07): aynı gün / aynı model ikinci koşu öncekinin raporunu ve ÜCRETLİ ham yan dosyasını EZMEZ. Ad (`….md`) ya da yan
+ * dosyası (`….json`) zaten varsa `-2`, `-3` … eklenir (`conversation-items` emsali). Yalnız TAZE koşu adları için; yeniden puanlama
+ * aynı koşunun raporunu bilerek yeniden yazar.
+ */
+export function uniqueReportName(dir: string, name: string): string {
+  const stem = name.replace(/\.md$/u, "");
+  const taken = (n: string) => existsSync(path.join(dir, n)) || existsSync(path.join(dir, n.replace(/\.md$/u, ".json")));
+  let candidate = `${stem}.md`;
+  for (let n = 2; taken(candidate); n++) candidate = `${stem}-${n}.md`;
+  return candidate;
+}
+
+/** İnsan inceleme bölümünde cevabın en çok bu kadarı satır içinde gösterilir (cevap tavanı `REPLY_CHAR_CAP` ile aynı). */
+export const REVIEW_QUOTE_MAX = 4000;
+
+/**
+ * U22 (Codex 10-07): misafire giden cevap raporda SESSİZCE kesilmez (eskiden 320 karakter, işaretsiz — sonda gelen tehlikeli ifade
+ * görünmüyordu). Tavana kadar TAMAMI; üstünde açık kesilme işareti + tam metnin yan dosyası.
+ */
+export function reviewQuote(text: string, reportFileName: string): string {
+  if (text.length <= REVIEW_QUOTE_MAX) return JSON.stringify(text);
+  const side = reportFileName.replace(/\.md$/u, ".json");
+  return `${JSON.stringify(text.slice(0, REVIEW_QUOTE_MAX))} [+${text.length - REVIEW_QUOTE_MAX} karakter kesildi — tam metin: ${side}]`;
+}

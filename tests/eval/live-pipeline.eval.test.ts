@@ -55,7 +55,7 @@ import { detectAvailabilityClaim } from "@/lib/ai/availability-claims";
 import { greetingLine } from "@/lib/ai/code-greeting";
 import { GREETING, promiseInReply } from "./reply-metrics";
 import { moneyAmountsOf } from "@/lib/ai/stay-money";
-import { writeSidecar } from "./sidecar";
+import { writeSidecar, uniqueReportName, reviewQuote } from "./sidecar";
 import { evalRuntime } from "./run-meta";
 import { forbiddenIn, productCategory } from "./live-shared";
 
@@ -531,7 +531,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
     const setTag = SET === "model-reply-compare.json" ? "" : `-${SET.replace(/\.json$/, "")}`;
-    const name = `live-pipeline-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${setTag}${TAG ? `-${TAG}` : ""}.md`;
+    const name = uniqueReportName(dir, `live-pipeline-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${setTag}${TAG ? `-${TAG}` : ""}.md`);
     let commit = "?";
     try {
       commit = execSync("git rev-parse --short HEAD", { cwd: path.resolve(__dirname, "../.."), stdio: ["ignore", "pipe", "ignore"] })
@@ -613,7 +613,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         : []),
       "## Misafire giden cevaplar (sentetik veri; insan gözü için)",
       "",
-      ...rows.filter((r) => r.sent).map((r) => `- **${r.id}** (${r.cls}/${r.lang}): ${JSON.stringify((r.sentText ?? "").slice(0, 320))}`),
+      ...rows.filter((r) => r.sent).map((r) => `- **${r.id}** (${r.cls}/${r.lang}): ${reviewQuote(r.sentText ?? "", name)}`),
       "",
       "## Düşen satırlar",
       "",
