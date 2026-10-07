@@ -160,6 +160,13 @@ describe("kart verisi — komşu konaklamanın kararı (aynı gün devir)", () =
       ok: false,
       text: "İstenen çıkış (14:00), aynı gün gelen misafire onaylanan erken girişten (13:00) sonra.",
     });
+    // Aynı saat: "sonra" değil, çakışma.
+    await prisma.decisionRequest.update({ where: { id: nextDecision.id }, data: { decidedTime: "14:00" } });
+    cards = await buildDecisionCards(views, w.ctx(w.curConv.id));
+    expect(cards.find((c) => c.kind === "late_checkout")!.lines).toContainEqual({
+      ok: false,
+      text: "İstenen çıkış (14:00), aynı gün gelen misafire onaylanan erken girişle (14:00) çakışıyor.",
+    });
   });
 
   it("önceki misafirin geç çıkış talebi BEKLİYORSA erken giriş kartı ikisini birlikte değerlendirmeyi söyler", async () => {
@@ -235,7 +242,7 @@ describe("kart verisi — komşu konaklamanın kararı (aynı gün devir)", () =
     await w.decision(w.curConv.id, w.cur.id, m.id, "early_checkin");
     const views = await listConversationDecisions(prisma, { organizationId: w.org.id, conversationId: w.curConv.id, timeZone: TZ, now: new Date() });
     const rows = resolvedDecisionRows(views, TZ);
-    expect(rows.map((r) => r.outcome)).toEqual(["Kapatıldı", "Otomatik onaylandı · 13:00", "Reddedildi"]);
+    expect(rows.map((r) => r.outcome)).toEqual(["Kapatıldı", "13:00 olarak otomatik onaylandı", "Reddedildi"]);
     expect(rows.map((r) => r.tone)).toEqual(["muted", "success", "muted"]);
   });
 });

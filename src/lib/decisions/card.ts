@@ -13,6 +13,7 @@ import { formatDateTime } from "@/lib/utils";
 import type { DecisionCardData, DecisionLine, ResolvedDecisionRow } from "./view-types";
 import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
 import {
+  DECISION_DAY_SUFFIX_TR,
   DECISION_STATUS_LABELS_TR,
   decisionLang,
   decisionTitle,
@@ -31,12 +32,6 @@ import { decisionsForReservations, type DecisionView } from "./store";
 // birbirinden habersiz onaylanmasın.
 // ---------------------------------------------------------------------------
 
-const DAY_SUFFIX: Readonly<Record<DecisionKind, string>> = {
-  early_checkin: "varış günü",
-  late_checkout: "çıkış günü",
-  extend_stay: "çıkış günü",
-  date_change: "",
-};
 
 /** Kartın misafir alıntısı: tek satır, en fazla bu kadar kod noktası. */
 const QUOTE_MAX = 220;
@@ -167,7 +162,8 @@ export function resolvedDecisionRows(views: readonly DecisionView[], timeZone: s
       return {
         id: v.id,
         title: decisionTitle(v.kind, v.requestedTime),
-        outcome: approvedLike && t ? `${label} · ${t}` : label,
+        // "14:00 olarak onaylandı" — istenen saatten farklı saatle onay da kayıttan okunur.
+        outcome: approvedLike && t ? `${t} olarak ${label.toLocaleLowerCase("tr-TR")}` : label,
         tone: approvedLike ? "success" : "muted",
         at: formatDateTime(v.decidedAt ?? v.createdAt, timeZone),
       };
@@ -303,9 +299,11 @@ function nextGuestLines(n: Neighbors, requestedTime: string | null): DecisionLin
     lines.push({
       ok: false,
       text:
-        req && req >= s.decided
-          ? `İstenen çıkış (${req}), aynı gün gelen misafire onaylanan erken girişten (${s.decided}) sonra.`
-          : `Aynı gün gelen misafire ${s.decided} erken giriş onaylandı — çıkış ve temizlik bu saatten önce bitmeli.`,
+        req && req === s.decided
+          ? `İstenen çıkış (${req}), aynı gün gelen misafire onaylanan erken girişle (${s.decided}) çakışıyor.`
+          : req && req > s.decided
+            ? `İstenen çıkış (${req}), aynı gün gelen misafire onaylanan erken girişten (${s.decided}) sonra.`
+            : `Aynı gün gelen misafire ${s.decided} erken giriş onaylandı — çıkış ve temizlik bu saatten önce bitmeli.`,
     });
   }
   if (s.pending) {
@@ -391,7 +389,7 @@ export async function buildDecisionCards(views: readonly DecisionView[], ctx: De
           : [];
     const later = [...ctx.messages].reverse().find((m) => m.direction === "inbound" && m.createdAt > v.messageAt) ?? null;
     const request = ctx.messages.find((m) => m.id === v.messageId) ?? null;
-    const suffix = DAY_SUFFIX[v.kind];
+    const suffix = DECISION_DAY_SUFFIX_TR[v.kind];
     const standardTime = v.kind === "early_checkin" ? ctx.property.checkInTime : ctx.property.checkOutTime;
     const fee = v.kind === "early_checkin" ? (ctx.earlyRule?.fee ?? null) : null;
     const note = v.kind === "early_checkin" && !ctx.earlyRule?.noteRejected ? (ctx.earlyRule?.note ?? null) : null;

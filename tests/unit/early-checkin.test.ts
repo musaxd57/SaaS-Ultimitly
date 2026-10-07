@@ -535,6 +535,34 @@ describe("kanıt + host notu + panel", () => {
   });
 });
 
+describe("karar kartı görünümü (Host Karar Motoru) — aynı olgular, ev sahibinin kararına göre yazılır", () => {
+  const facts: EarlyCheckinPanelData["facts"] = {
+    arrivalToday: false,
+    requestedTime: "12:00",
+    previousCheckout: null,
+    readiness: "not_ready",
+    otherOverlaps: 0,
+    previousNightVerifiedVacant: true,
+  };
+  const text = (failed: string[], over: Partial<EarlyCheckinPanelData["facts"]> = {}, audience: "suggest" | "decision" = "decision") =>
+    earlyCheckinPanelLines({ status: "needs_host", mode: "auto", fee: null, failed, facts: { ...facts, ...over } }, audience).map((l) => l.text);
+  it("varıştan günler önce 'dün gece' değil 'varıştan önceki gece' (öneri paneli aynen)", () => {
+    expect(text([])).toContain("Varıştan önceki gece daire boş.");
+    expect(text([], { previousNightVerifiedVacant: false })).toContain("Varıştan önceki gecenin boş olduğu doğrulanamadı; kanal takviminden kontrol edin.");
+    expect(text([], {}, "suggest")).toContain("Dün gece daire boştu.");
+  });
+  it("önceki misafir istenen saatte hâlâ dairede olabilir: karar kartında 'onay verilmez' (otomatik onay dili) yazılmaz", () => {
+    expect(text(["previous_still_in"], { previousCheckout: "13:00" })).toContain(
+      "Önceki misafirin beklenen çıkışı: 13:00 — istenen saatte daire henüz boşalmamış olabilir.",
+    );
+    expect(text(["previous_still_in"], { previousCheckout: "13:00" }, "suggest")[2]).toMatch(/onay verilmez/);
+  });
+  it("açık sorun ve çok konulu mesaj karar diliyle", () => {
+    expect(text(["open_issue"])).toContain("Bu devirde açık bir sorun ya da bakım görevi var; onaylamadan önce kontrol edin.");
+    expect(text(["multi_intent"])).toContain("Mesajda başka bir istek ya da soru da var; karar mesajı yalnız erken girişi yanıtlar.");
+  });
+});
+
 describe("ücret girişi (form) — Türkçe yazım", () => {
   it("binlik nokta, ondalık virgül; belirsiz / bozuk yazım 'invalid' (sessizce düşmez); boş = ücret yok", () => {
     expect(parseFeeInput("1.500")).toBe(1500);

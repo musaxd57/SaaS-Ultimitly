@@ -84,7 +84,9 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData, audience: Panel
     lines.push({
       ok: !f.has("previous_still_in") && !f.has("previous_checkout_unknown"),
       text: f.has("previous_still_in")
-        ? `Önceki misafirin beklenen çıkışı: ${d.facts.previousCheckout} — istenen saatten sonra; temizlik bitmeden onay verilmez.`
+        ? decision
+          ? `Önceki misafirin beklenen çıkışı: ${d.facts.previousCheckout} — istenen saatte daire henüz boşalmamış olabilir.`
+          : `Önceki misafirin beklenen çıkışı: ${d.facts.previousCheckout} — istenen saatten sonra; temizlik bitmeden onay verilmez.`
         : `Önceki misafirin beklenen çıkışı: ${d.facts.previousCheckout}`,
     });
     if (d.facts.previousDeclaredCheckout) {
@@ -96,9 +98,15 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData, audience: Panel
     }
   } else {
     lines.push(
+      // Karar kartı varıştan günler önce de açılır: "dün gece" değil, varıştan önceki gece.
       d.facts.previousNightVerifiedVacant
-        ? { ok: true, text: "Dün gece daire boştu." }
-        : { ok: false, text: "Dün gecenin boş olduğu doğrulanamadı; kanal takviminden kontrol edin." },
+        ? { ok: true, text: decision ? "Varıştan önceki gece daire boş." : "Dün gece daire boştu." }
+        : {
+            ok: false,
+            text: decision
+              ? "Varıştan önceki gecenin boş olduğu doğrulanamadı; kanal takviminden kontrol edin."
+              : "Dün gecenin boş olduğu doğrulanamadı; kanal takviminden kontrol edin.",
+          },
     );
   }
   lines.push(
@@ -115,12 +123,26 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData, audience: Panel
     const text = READINESS_TEXT[d.facts.readinessNote ?? "open"] ?? READINESS_TEXT.open;
     lines.push(ahead ? { ok: true, info: true, text } : { ok: false, text });
   } else lines.push({ ok: false, text: READINESS_TEXT[d.facts.readinessNote ?? ""] ?? "Bu devir için temizlik görevi bulunamadı." });
-  if (f.has("open_issue")) lines.push({ ok: false, text: "Bu devirde açık bir sorun ya da bakım görevi var; kapanmadan \"daire hazır\" denemez." });
+  if (f.has("open_issue")) {
+    lines.push({
+      ok: false,
+      text: decision
+        ? "Bu devirde açık bir sorun ya da bakım görevi var; onaylamadan önce kontrol edin."
+        : "Bu devirde açık bir sorun ya da bakım görevi var; kapanmadan \"daire hazır\" denemez.",
+    });
+  }
   if (f.has("arrival_passed")) lines.push({ ok: false, text: "Misafirin varış günü geçmiş." });
   if (f.has("time_passed")) lines.push({ ok: false, text: "İstenen saat geçti; misafire uygun saati siz yazın." });
   if (f.has("before_window")) lines.push({ ok: false, text: "İstenen saat, otomatik onay için belirlediğiniz en erken saatten önce; karar sizin." });
   if (f.has("luggage")) lines.push({ ok: false, text: "Misafir bavul bırakmayı ya da almayı soruyor; erken giriş onayı bunu yanıtlamaz." });
-  if (f.has("multi_intent")) lines.push({ ok: false, text: "Mesajda başka bir istek ya da soru da var; hazır cevap yalnız erken girişi yanıtlar." });
+  if (f.has("multi_intent")) {
+    lines.push({
+      ok: false,
+      text: decision
+        ? "Mesajda başka bir istek ya da soru da var; karar mesajı yalnız erken girişi yanıtlar."
+        : "Mesajda başka bir istek ya da soru da var; hazır cevap yalnız erken girişi yanıtlar.",
+    });
+  }
   if (f.has("day_unverified")) lines.push({ ok: false, text: "Mesajda başka bir güne işaret var (ör. \"yarın\"); günü kontrol edin." });
   if (f.has("not_fully_read")) lines.push({ ok: false, text: "Cevapsız mesajlar çok uzun ya da çok fazla; hepsini okuyup siz karar verin." });
   if (f.has("time_mismatch_text")) lines.push({ ok: false, text: "Mesajdaki saat(ler) istenen saatle birebir eşleşmiyor; saati kontrol edin." });

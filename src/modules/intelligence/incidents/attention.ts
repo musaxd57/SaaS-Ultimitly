@@ -150,6 +150,8 @@ export interface AttentionItem {
   requestCount?: number;
   /** Yalnız `decision_pending`: kart başlığı ("13:00 erken giriş"; misafir metni değil). */
   decisionTitle?: string;
+  /** Yalnız `decision_pending`: karar mesajının gönderimi doğrulanamadı (karar verildi; ulaşıp ulaşmadığı kontrol edilmeli). */
+  decisionUnverified?: boolean;
 }
 
 export interface FindAttentionOptions {
@@ -352,6 +354,7 @@ export async function findAttentionItems(
       occurredAt: d.messageAt,
       href: conversationHref(d.conversationId, d.channel),
       decisionTitle: decisionTitle(d.kind, d.requestedTime),
+      ...(d.effective === "send_unverified" ? { decisionUnverified: true } : {}),
     });
   }
 

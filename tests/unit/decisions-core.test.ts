@@ -139,10 +139,10 @@ describe("ev sahibinin saat girdisi", () => {
 });
 
 describe("kart başlığı (ev sahibi görünümü)", () => {
-  it("'13:00 erken giriş'; saat yoksa 'saat belirtilmedi'; uzatmada saat yok", () => {
+  it("'13:00 erken giriş'; saat yoksa '(saat belli değil)'; uzatmada saat yok", () => {
     expect(decisionTitle("early_checkin", "13:00")).toBe("13:00 erken giriş");
-    expect(decisionTitle("late_checkout", null)).toBe("Geç çıkış — saat belirtilmedi");
-    expect(decisionTitle("extend_stay", null)).toBe("Konaklamayı uzatma");
+    expect(decisionTitle("late_checkout", null)).toBe("Geç çıkış (saat belli değil)");
+    expect(decisionTitle("extend_stay", null)).toBe("Konaklama uzatma");
   });
 });
 
@@ -155,12 +155,27 @@ describe("misafire giden karar metni — KODDA, misafirin dilinde, günü adland
       "Erken giriş talebiniz onaylandı: 14 Ekim günü saat 13:00 itibarıyla giriş yapabilirsiniz.",
     );
     expect(decisionMessageText({ ...early, resolution: "decline", lang: "tr" })).toBe(
-      "Maalesef 14 Ekim günü erken giriş mümkün olmayacak; giriş saatimiz 15:00.",
+      "Maalesef 14 Ekim günü erken giriş mümkün olmayacak; giriş saati 15:00.",
     );
     expect(decisionMessageText({ ...late, resolution: "approve", lang: "tr" })).toBe("Geç çıkış talebiniz onaylandı: 16 Ekim günü çıkış saatiniz 13:00.");
     expect(decisionMessageText({ ...late, resolution: "decline", lang: "tr" })).toBe(
-      "Maalesef 16 Ekim günü geç çıkış mümkün olmayacak; çıkış saatimiz 11:00.",
+      "Maalesef 16 Ekim günü geç çıkış mümkün olmayacak; çıkış saati 11:00.",
     );
+    // "Biz" varsayılmaz (ev sahibi bir kişi de şirket de olabilir).
+    for (const kind of [early, late]) {
+      for (const resolution of ["approve", "decline"] as const) {
+        expect(decisionMessageText({ ...kind, resolution, lang: "tr" })).not.toMatch(/imiz\b|ımız\b/);
+      }
+    }
+  });
+
+  it("Fransızca: iki nokta / noktalı virgülden önce bölünmez boşluk; ayın biri '1er'", () => {
+    const fr = decisionMessageText({ ...early, dayKey: "2026-10-01", resolution: "decline", lang: "fr" }) ?? "";
+    expect(fr).toContain("1er octobre");
+    expect(fr).toContain("\u00a0;");
+    expect(fr).not.toMatch(/ ;/);
+    expect(decisionMessageText({ ...late, resolution: "approve", lang: "fr" })).toContain("confirmé\u00a0:");
+    expect(formatDecisionDay("2026-10-11", "fr")).toBe("11 octobre");
   });
 
   it("ücret YALNIZ erken giriş onayında ve kayıtlı kuraldan; not sona olduğu gibi; retde ücret / not yok", () => {

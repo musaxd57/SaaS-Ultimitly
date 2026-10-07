@@ -103,9 +103,10 @@ export default async function InboxPage({
         conversationIds: conversations.map((c) => c.id),
         timeZone: TZ,
         now: new Date(),
-      }).catch(() => ({ counts: new Map<string, number>(), itemIds: [] as string[] }))
-    : { counts: new Map<string, number>(), itemIds: [] as string[] };
+      }).catch(() => ({ counts: new Map<string, number>(), unverified: new Map<string, number>(), itemIds: [] as string[] }))
+    : { counts: new Map<string, number>(), unverified: new Map<string, number>(), itemIds: [] as string[] };
   const openDecisions = decisionSummary.counts;
+  const unverifiedDecisions = decisionSummary.unverified;
 
   // Konuşma öğeleri (09-26): ev sahibinde AÇIK iş sayısı (yalnız bu sayfanın konuşmaları; "ev sahibi yazdı" düşülür).
   // Güvenli kısmı cevaplanmış konuşma "Cevaplandı" görünse de açık iş rozetiyle öne çıkar. Okuma hatası listeyi düşürmez.
@@ -461,7 +462,14 @@ export default async function InboxPage({
                 <Badge tone={handled ? "muted" : CONVERSATION_STATUS.tone(c.status)}>
                   {handled ? CLOSING_HANDLED_LABEL : CONVERSATION_STATUS.label(c.status)}
                 </Badge>
-                {decisionCount > 0 ? <Badge tone="warning">{decisionCount > 1 ? `${decisionCount} karar bekliyor` : "Karar bekliyor"}</Badge> : null}
+                {decisionCount - (unverifiedDecisions.get(c.id) ?? 0) > 0 ? (
+                  <Badge tone="warning">
+                    {decisionCount - (unverifiedDecisions.get(c.id) ?? 0) > 1
+                      ? `${decisionCount - (unverifiedDecisions.get(c.id) ?? 0)} karar bekliyor`
+                      : "Karar bekliyor"}
+                  </Badge>
+                ) : null}
+                {(unverifiedDecisions.get(c.id) ?? 0) > 0 ? <Badge tone="destructive">Gönderim doğrulanamadı</Badge> : null}
                 {openBadge ? <Badge tone="warning">{openBadge}</Badge> : null}
                 <span className="text-[11px] text-muted-foreground">{fromNow(c.lastMessageAt, TZ)}</span>
               </div>

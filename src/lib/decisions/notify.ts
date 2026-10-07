@@ -8,7 +8,7 @@ import { appBaseUrl } from "@/lib/auth/email-verify";
 import { reportError } from "@/lib/report-error";
 import { REPLY_WAITING_CLAIM_TTL_MS, REPLY_WAITING_MAIL_PREFIX } from "@/lib/host-reply-waiting";
 import { HELD_MAIL_PREFIX } from "@/lib/conversation-items/flow";
-import { DECISION_KIND_LABELS_TR, decisionTitle, formatDecisionDay } from "./core";
+import { DECISION_DAY_SUFFIX_TR, TEXT_DECISION_KINDS, decisionTitle, formatDecisionDay } from "./core";
 import { claimDecisionNotification, releaseDecisionNotification, type PersistedDecision } from "./store";
 
 // ---------------------------------------------------------------------------
@@ -78,7 +78,12 @@ export async function notifyTurnDecisions(input: {
     const first = claimed[0];
     const html = decisionPendingEmail({
       title: titles.join(" · "),
-      dayLabel: claimed.length === 1 && first.dayKey ? `${formatDecisionDay(first.dayKey, "tr")} (${DECISION_KIND_LABELS_TR[first.kind].toLocaleLowerCase("tr-TR")})` : null,
+      dayLabel:
+        claimed.length === 1 && first.dayKey
+          ? `${formatDecisionDay(first.dayKey, "tr")}${DECISION_DAY_SUFFIX_TR[first.kind] ? ` (${DECISION_DAY_SUFFIX_TR[first.kind]})` : ""}`
+          : null,
+      // Onay / ret metnini kod kurabiliyorsa "onaylayın ya da reddedin"; uzatma / tarih değişikliği kanalda değişiklik ister.
+      action: claimed.every((d) => TEXT_DECISION_KINDS.has(d.kind)) ? "decide" : "change",
       guestIdentifier: input.conversation.guestIdentifier,
       propertyName: input.property.name,
       orgName: org?.name ?? "Lixus AI",

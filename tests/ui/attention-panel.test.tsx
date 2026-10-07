@@ -31,6 +31,28 @@ describe("AttentionPanel", () => {
     expect(container.innerHTML).toBe("");
   });
 
+  it("karar kartı satırı: bekleyen karar 'onaylayın ya da reddedin'; gönderimi doğrulanamayan karar 'kanaldan kontrol edin'", () => {
+    const items: AttentionItem[] = [
+      { ...base, kind: "decision_pending", certainty: "inferred", severity: 92, href: "/inbox/c1", decisionTitle: "13:00 erken giriş" },
+      {
+        ...base,
+        propertyId: "p2",
+        propertyName: "Lale",
+        kind: "decision_pending",
+        certainty: "inferred",
+        severity: 92,
+        href: "/inbox/c2",
+        decisionTitle: "14:00 geç çıkış",
+        decisionUnverified: true,
+      },
+    ];
+    render(<AttentionPanel items={items} />);
+    expect(screen.getByText("Karar bekliyor: 13:00 erken giriş")).toBeTruthy();
+    expect(screen.getByText(/Deniz Apart · onaylayın ya da reddedin/)).toBeTruthy();
+    expect(screen.getByText("Gönderim doğrulanamadı: 14:00 geç çıkış")).toBeTruthy();
+    expect(screen.getByText(/Lale · konuşmayı kanaldan kontrol edin/)).toBeTruthy();
+  });
+
   it("bozuk besleme satırı host'a NE ANLAMA GELDİĞİNİ söyler", () => {
     const items: AttentionItem[] = [
       { ...base, kind: "feed_broken", certainty: "observed", severity: 100, href: "/properties/p1", sourceLabel: "Airbnb" },

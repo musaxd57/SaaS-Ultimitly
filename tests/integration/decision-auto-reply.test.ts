@@ -258,7 +258,7 @@ describe("oto-yanıt → karar kartı (Host Karar Motoru)", () => {
     await applyChannelAutoReply(s.conversationId);
     const row = await prisma.decisionRequest.findFirstOrThrow({ where: { conversationId: s.conversationId } });
     expect(row.requestedTime).toBeNull();
-    expect(subjects()).toEqual([expect.stringMatching(/^Karar bekliyor: Erken giriş — saat belirtilmedi/)]);
+    expect(subjects()).toEqual([expect.stringMatching(/^Karar bekliyor: Erken giriş \(saat belli değil\)/)]);
   });
 
   it("misafirin yazdığı saat standardın YANLIŞ tarafındaysa (erken girişte 16:00 > 15:00 — uçuş saati) kart saati BOŞ: ev sahibi seçer", async () => {

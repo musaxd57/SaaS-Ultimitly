@@ -324,21 +324,27 @@ export function decisionPendingEmail(input: {
   propertyName: string;
   orgName: string;
   panelUrl: string;
+  /** "decide": onay / ret kartta (erken giriş, geç çıkış); "change": kanalda rezervasyon değişikliği (uzatma, tarih). */
+  action?: "decide" | "change";
 }): string {
   const body = `
     <h2 style="margin:0 0 8px;color:#b45309;font-size:22px;font-weight:700;">
       Karar bekliyor: ${esc(input.title)}
     </h2>
     <p style="margin:0 0 16px;color:#64748b;font-size:15px;">
-      <strong>${esc(input.guestIdentifier)}</strong> (${esc(input.propertyName)}) sizin kararınızı gerektiren bir talepte bulundu${
-        input.dayLabel ? ` — <strong>${esc(input.dayLabel)}</strong>` : ""
+      <strong>${esc(input.propertyName)}</strong> — ${esc(input.guestIdentifier)} sizin kararınızı gerektiren bir talepte bulundu${
+        input.dayLabel ? ` (<strong>${esc(input.dayLabel)}</strong>)` : ""
       }. Bu talebe henüz cevap verilmedi.
     </p>
     <p style="margin:0 0 24px;color:#334155;font-size:14px;">
-      Konuşmada kontrol listesini görüp tek tıkla onaylayabilir ya da reddedebilirsiniz; misafire gidecek mesajı göndermeden önce görürsünüz.
+      ${
+        input.action === "change"
+          ? "Bu talep kanalda rezervasyon değişikliği gerektirir: konuşmadan misafire yanıtınızı yazın, değişikliği kanaldan yapın."
+          : "Konuşmada kontrol listesini (temizlik, önceki ve sonraki misafir) görüp onaylayabilir ya da reddedebilirsiniz; misafire gidecek mesajı göndermeden önce görür ve düzenleyebilirsiniz."
+      }
     </p>
-    ${ctaButton(input.panelUrl, "Karar ver")}
-    <p style="color:#94a3b8;font-size:12px;">${esc(input.orgName)} · Bu talep için başka bir bildirim gönderilmez.</p>
+    ${ctaButton(input.panelUrl, "Konuşmayı açın")}
+    <p style="color:#94a3b8;font-size:12px;">${esc(input.orgName)} · Bu talep için size yeniden e-posta gönderilmez; kart konuşma sayfasında açık kalır.</p>
   `;
   return wrapEmail(body);
 }

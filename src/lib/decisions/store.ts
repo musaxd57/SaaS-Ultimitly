@@ -436,10 +436,11 @@ export async function listConversationDecisions(
 export async function openDecisionCounts(
   db: Db,
   input: { organizationId: string; conversationIds: readonly string[]; timeZone: string; now: Date },
-): Promise<{ counts: Map<string, number>; itemIds: string[] }> {
+): Promise<{ counts: Map<string, number>; unverified: Map<string, number>; itemIds: string[] }> {
   const counts = new Map<string, number>();
+  const unverified = new Map<string, number>();
   const itemIds: string[] = [];
-  if (input.conversationIds.length === 0) return { counts, itemIds };
+  if (input.conversationIds.length === 0) return { counts, unverified, itemIds };
   const rows = await db.decisionRequest.findMany({
     where: { organizationId: input.organizationId, conversationId: { in: [...input.conversationIds] }, status: { in: OPEN_STORED } },
   });
@@ -447,9 +448,10 @@ export async function openDecisionCounts(
   for (const v of await withEffective(db, input.organizationId, persisted, input)) {
     if (!isOpenDecision(v.effective)) continue;
     counts.set(v.conversationId, (counts.get(v.conversationId) ?? 0) + 1);
+    if (v.effective === "send_unverified") unverified.set(v.conversationId, (unverified.get(v.conversationId) ?? 0) + 1);
     if (v.itemId) itemIds.push(v.itemId);
   }
-  return { counts, itemIds };
+  return { counts, unverified, itemIds };
 }
 
 /**

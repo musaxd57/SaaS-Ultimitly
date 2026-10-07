@@ -180,7 +180,8 @@ export function timeOnRightSide(kind: DecisionKind, time: string | null, standar
 // ── METİNLER — misafirin dilinde, KODDA (model yazmaz) ─────────────────────────────────────────────────────────────────
 // Yedi dil (dil kapısının kesin tanıdığı diller); tanınmayan → İngilizce. Selamsız (konuşmanın ortasında). Günü ADLANDIRIR
 // (başka gün / konaklama sanılmasın). Cinsiyet ve "ben/biz" varsaymaz (edilgen onay: ev sahibi bir kişi de şirket de olabilir).
-// Türkçe saate ek yazılmaz ("13:00'te / 12:00'de" ünlü uyumu saate göre değişir — panel kuralı, inceleme 09-24).
+// Türkçe saate ek yazılmaz ("13:00'te / 12:00'de" ünlü uyumu saate göre değişir — panel kuralı, inceleme 09-24). "Giriş saatimiz"
+// değil "giriş saati" (biz / ben varsayılmaz). Fransızcada iki nokta / noktalı virgülden önce bölünmez boşluk; ayın biri "1er".
 
 export const DECISION_LANGS = ["tr", "en", "de", "fr", "es", "ru", "ar"] as const;
 export type DecisionLang = (typeof DECISION_LANGS)[number];
@@ -214,8 +215,12 @@ export const DECISION_LANG_LABELS_TR: Readonly<Record<DecisionLang, string>> = {
 /** Takvim günü ("2026-10-14") → misafirin dilinde gün + ay ("14 Ekim"); rakamlar Latin, gün hiçbir dilimde kaymaz. */
 export function formatDecisionDay(dayKey: string, lang: DecisionLang): string {
   const [y, m, d] = dayKey.split("-").map(Number);
-  return new Intl.DateTimeFormat(LOCALE[lang], { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+  const text = new Intl.DateTimeFormat(LOCALE[lang], { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+  return lang === "fr" && d === 1 ? text.replace(/^1(?=\s)/, "1er") : text;
 }
+
+/** Fransızca noktalama: iki nokta / noktalı virgülden önce bölünmez boşluk. */
+const FR_SPACE = "\u00a0";
 
 /** Ev sahibinin kayıtlı ücreti: tam sayıysa kuruşsuz, değilse iki hane; para birimi ev sahibinin seçtiği. */
 export function formatDecisionFee(fee: { amount: number; currency: string }, lang: DecisionLang): string {
@@ -234,39 +239,39 @@ const EARLY_APPROVE: Record<DecisionLang, Builder> = {
   tr: (d, t) => `Erken giriş talebiniz onaylandı: ${d} günü saat ${t} itibarıyla giriş yapabilirsiniz.`,
   en: (d, t) => `Your early check-in is approved — you can check in on ${d} from ${t}.`,
   de: (d, t) => `Ihr früher Check-in ist bestätigt – Sie können am ${d} ab ${t} Uhr einchecken.`,
-  fr: (d, t) => `Votre arrivée anticipée est confirmée : vous pouvez arriver le ${d} à partir de ${t}.`,
+  fr: (d, t) => `Votre arrivée anticipée est confirmée${FR_SPACE}: vous pouvez arriver le ${d} à partir de ${t}.`,
   es: (d, t) => `Su entrada anticipada está confirmada: el ${d} puede entrar a partir de las ${t}.`,
   ru: (d, t) => `Ранний заезд подтверждён: ${d} вы можете заселиться с ${t}.`,
   ar: (d, t) => `تمت الموافقة على تسجيل الدخول المبكر: يمكنكم تسجيل الدخول يوم ${d} ابتداءً من الساعة ${t}.`,
 };
 
 const EARLY_DECLINE: Record<DecisionLang, Builder> = {
-  tr: (d, t) => `Maalesef ${d} günü erken giriş mümkün olmayacak; giriş saatimiz ${t}.`,
-  en: (d, t) => `Unfortunately an early check-in won't be possible on ${d}; check-in is from ${t}.`,
-  de: (d, t) => `Leider ist ein früher Check-in am ${d} nicht möglich; der Check-in ist ab ${t} Uhr.`,
-  fr: (d, t) => `Malheureusement, une arrivée anticipée ne sera pas possible le ${d} ; l'arrivée se fait à partir de ${t}.`,
-  es: (d, t) => `Lamentablemente, el ${d} no será posible una entrada anticipada; la entrada es a partir de las ${t}.`,
-  ru: (d, t) => `К сожалению, ранний заезд ${d} невозможен; заезд с ${t}.`,
+  tr: (d, t) => `Maalesef ${d} günü erken giriş mümkün olmayacak; giriş saati ${t}.`,
+  en: (d, t) => `Unfortunately, early check-in won't be possible on ${d}; check-in is from ${t}.`,
+  de: (d, t) => `Leider ist ein früher Check-in am ${d} nicht möglich; der Check-in ist ab ${t} Uhr möglich.`,
+  fr: (d, t) => `Malheureusement, une arrivée anticipée ne sera pas possible le ${d}${FR_SPACE}; l'arrivée se fait à partir de ${t}.`,
+  es: (d, t) => `Lamentablemente, el ${d} no será posible la entrada anticipada; la entrada es a partir de las ${t}.`,
+  ru: (d, t) => `К сожалению, ранний заезд ${d} невозможен; заезд — с ${t}.`,
   ar: (d, t) => `للأسف لن يكون تسجيل الدخول المبكر ممكنًا يوم ${d}؛ يبدأ تسجيل الدخول من الساعة ${t}.`,
 };
 
 const LATE_APPROVE: Record<DecisionLang, Builder> = {
   tr: (d, t) => `Geç çıkış talebiniz onaylandı: ${d} günü çıkış saatiniz ${t}.`,
-  en: (d, t) => `Your late check-out is approved — your check-out time on ${d} is ${t}.`,
-  de: (d, t) => `Ihr später Check-out ist bestätigt – am ${d} ist Ihr Check-out um ${t} Uhr.`,
-  fr: (d, t) => `Votre départ tardif est confirmé : le ${d}, votre départ est à ${t}.`,
+  en: (d, t) => `Your late check-out is approved — you can check out by ${t} on ${d}.`,
+  de: (d, t) => `Ihr später Check-out ist bestätigt – Sie können am ${d} bis ${t} Uhr auschecken.`,
+  fr: (d, t) => `Votre départ tardif est confirmé${FR_SPACE}: vous pouvez libérer le logement jusqu'à ${t} le ${d}.`,
   es: (d, t) => `Su salida tardía está confirmada: el ${d} puede dejar el alojamiento hasta las ${t}.`,
-  ru: (d, t) => `Поздний выезд подтверждён: ${d} время выезда — ${t}.`,
+  ru: (d, t) => `Поздний выезд подтверждён: ${d} вы можете выехать до ${t}.`,
   ar: (d, t) => `تمت الموافقة على تسجيل الخروج المتأخر: موعد خروجكم يوم ${d} هو الساعة ${t}.`,
 };
 
 const LATE_DECLINE: Record<DecisionLang, Builder> = {
-  tr: (d, t) => `Maalesef ${d} günü geç çıkış mümkün olmayacak; çıkış saatimiz ${t}.`,
-  en: (d, t) => `Unfortunately a late check-out won't be possible on ${d}; check-out is at ${t}.`,
-  de: (d, t) => `Leider ist ein später Check-out am ${d} nicht möglich; der Check-out ist um ${t} Uhr.`,
-  fr: (d, t) => `Malheureusement, un départ tardif ne sera pas possible le ${d} ; le départ est à ${t}.`,
-  es: (d, t) => `Lamentablemente, el ${d} no será posible una salida tardía; la salida es a las ${t}.`,
-  ru: (d, t) => `К сожалению, поздний выезд ${d} невозможен; выезд в ${t}.`,
+  tr: (d, t) => `Maalesef ${d} günü geç çıkış mümkün olmayacak; çıkış saati ${t}.`,
+  en: (d, t) => `Unfortunately, late check-out won't be possible on ${d}; check-out is by ${t}.`,
+  de: (d, t) => `Leider ist ein später Check-out am ${d} nicht möglich; der Check-out ist bis ${t} Uhr.`,
+  fr: (d, t) => `Malheureusement, un départ tardif ne sera pas possible le ${d}${FR_SPACE}; le départ se fait au plus tard à ${t}.`,
+  es: (d, t) => `Lamentablemente, el ${d} no será posible la salida tardía; la salida es hasta las ${t}.`,
+  ru: (d, t) => `К сожалению, поздний выезд ${d} невозможен; выезд — до ${t}.`,
   ar: (d, t) => `للأسف لن يكون تسجيل الخروج المتأخر ممكنًا يوم ${d}؛ موعد تسجيل الخروج هو الساعة ${t}.`,
 };
 
@@ -345,8 +350,16 @@ export function decisionTimeOptions(kind: DecisionKind, standard: string | null,
 export const DECISION_KIND_LABELS_TR: Readonly<Record<DecisionKind, string>> = {
   early_checkin: "Erken giriş",
   late_checkout: "Geç çıkış",
-  extend_stay: "Konaklamayı uzatma",
+  extend_stay: "Konaklama uzatma",
   date_change: "Tarih değişikliği",
+};
+
+/** Kart / e-posta gün etiketinin eki: "14 Ekim (varış günü)". */
+export const DECISION_DAY_SUFFIX_TR: Readonly<Record<DecisionKind, string>> = {
+  early_checkin: "varış günü",
+  late_checkout: "çıkış günü",
+  extend_stay: "çıkış günü",
+  date_change: "",
 };
 
 export const DECISION_STATUS_LABELS_TR: Readonly<Record<EffectiveDecisionStatus, string>> = {
@@ -363,10 +376,10 @@ export const DECISION_STATUS_LABELS_TR: Readonly<Record<EffectiveDecisionStatus,
   cancelled: "Rezervasyon iptal",
 };
 
-/** Kart başlığı: "13:00 erken giriş — karar bekliyor" (saat bilinmiyorsa "Erken giriş — saat belirtilmedi"). */
+/** Kart başlığı: "13:00 erken giriş" (saat bilinmiyorsa "Erken giriş (saat belli değil)"; durum ayrı rozet). */
 export function decisionTitle(kind: DecisionKind, requestedTime: string | null): string {
   const label = DECISION_KIND_LABELS_TR[kind];
   const t = normalizeHhmm(requestedTime);
   if (t) return `${t} ${label.toLocaleLowerCase("tr-TR")}`;
-  return TEXT_DECISION_KINDS.has(kind) ? `${label} — saat belirtilmedi` : label;
+  return TEXT_DECISION_KINDS.has(kind) ? `${label} (saat belli değil)` : label;
 }

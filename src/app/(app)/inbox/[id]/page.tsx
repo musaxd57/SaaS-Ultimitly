@@ -495,11 +495,11 @@ const SKIP_REASON_LABELS: Record<string, string> = {
                         {/* Saate ek yazılmaz ("11:00'te" yanlıştı: "on bir'de"); onaylanmış komşu saati varsa o yazılır. */}
                         {turnoverIn
                           ? neighborTimes.previousLateCheckout
-                            ? `Giriş günü aynı günde önceki misafir çıkıyor (geç çıkışı onaylandı: ${neighborTimes.previousLateCheckout}) — devir günü.`
-                            : `Giriş günü aynı günde önceki misafir çıkıyor (çıkış saati ${conversation.property.checkOutTime}) — devir günü.`
+                            ? `Devir günü: giriş günü önceki misafir çıkıyor (onaylı geç çıkış: ${neighborTimes.previousLateCheckout}).`
+                            : `Devir günü: giriş günü önceki misafir çıkıyor (standart çıkış ${conversation.property.checkOutTime}).`
                           : neighborTimes.nextEarlyCheckin
-                            ? `Çıkış günü aynı günde yeni misafir giriyor (erken girişi onaylandı: ${neighborTimes.nextEarlyCheckin}) — devir günü.`
-                            : `Çıkış günü aynı günde yeni misafir giriyor (giriş saati ${conversation.property.checkInTime}) — devir günü.`}
+                            ? `Devir günü: çıkış günü yeni misafir giriyor (onaylı erken giriş: ${neighborTimes.nextEarlyCheckin}).`
+                            : `Devir günü: çıkış günü yeni misafir giriyor (standart giriş ${conversation.property.checkInTime}).`}
                       </span>
                     </div>
                   ) : null}

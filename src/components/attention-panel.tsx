@@ -63,7 +63,9 @@ function headline(item: AttentionItem): string {
       return `Size bırakılan istek: ${first ? itemKindLabel(first) : "misafir isteği"}`;
     }
     case "decision_pending":
-      return `Karar bekliyor: ${item.decisionTitle ?? "konaklama isteği"}`;
+      return item.decisionUnverified
+        ? `Gönderim doğrulanamadı: ${item.decisionTitle ?? "konaklama isteği"}`
+        : `Karar bekliyor: ${item.decisionTitle ?? "konaklama isteği"}`;
   }
 }
 
@@ -87,7 +89,9 @@ function detail(item: AttentionItem): string {
       return `${item.propertyName}${more} · misafire yanıt verin`;
     }
     case "decision_pending":
-      return `${item.propertyName} · onaylayın ya da reddedin`;
+      return item.decisionUnverified
+        ? `${item.propertyName} · konuşmayı kanaldan kontrol edin`
+        : `${item.propertyName} · onaylayın ya da reddedin`;
   }
 }
 
