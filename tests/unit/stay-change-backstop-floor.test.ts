@@ -39,10 +39,12 @@ describe("deterministik yedek — ölçülmüş taban (dev bölümü)", () => {
     expect(rep.length).toBe(326);
   });
 
-  it("istek: isabet ≥ 77/125, yanlış alarm ≤ 10/143", () => {
+  // U24 (10-07): d-q017 ("Giriş 16:00 yazıyor, 15:00'te girebilir miyiz?", mülk 15:00) 10-02 kuralıyla `none` → 125/143 → 124/144.
+  // Kelime ağı o satırı zaten tanımıyordu: isabet sayısı (77) ve yanlış alarm (8) değişmedi.
+  it("istek: isabet ≥ 77/124, yanlış alarm ≤ 10/144", () => {
     const pos = req.filter((r) => r.kind !== "none");
     const neg = req.filter((r) => r.kind === "none");
-    expect(pos.length).toBe(125);
+    expect(pos.length).toBe(124);
     expect(count(pos, (r) => detectAvailabilityRequest(r.text) !== null)).toBeGreaterThanOrEqual(77);
     expect(count(neg, (r) => detectAvailabilityRequest(r.text) !== null)).toBeLessThanOrEqual(10);
   });

@@ -161,9 +161,10 @@
    "split": "dev",
    "text": "Giriş 16:00 yazıyor, 15:00'te girebilir miyiz?",
    "lang": "tr",
-   "kind": "early",
+   "kind": "none",
    "checkIn": "15:00",
-   "checkOut": "11:00"
+   "checkOut": "11:00",
+   "relabel": "2026-10-07 (U24): early → none. 10-02 kuralı: standart saat YALNIZ mülkün kendi saati (15:00); misafirin andığı ilan saati erken giriş yapmaz (dev2 e-q049 ile aynı durum). Bu tarihten önceki raporlarda early sayıldı."
   },
   {
    "id": "d-q018",
