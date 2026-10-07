@@ -199,8 +199,11 @@ export async function POST(req: NextRequest) {
       // bu cihazın çerezi, düşmesi gereken o ikinci geçersiz kılmadan sağ çıkardı. Satır kilidi
       // işlem sonuna kadar tutulduğu için içerideki okuma TAM bu değişikliğin epoch'unu verir.
       const newEpoch = await prisma.$transaction(async (tx) => {
+        // 🚨 U43 (Codex 10-07): oturum sürümü de koşulda — istek isteğin BAŞINDA denetlenen sürümle başladı; arada parola sıfırlandıysa
+        // (sürüm arttı) bu bayat istek parolayı YENİDEN değiştiremez ve iptal edilmiş cihaza yeni oturum veremez. Eşzamanlı sıfırlama satır
+        // kilidini tutar; READ COMMITTED altında PostgreSQL koşulu onun commit'inden SONRA yeniden değerlendirir → 0 satır.
         const consumed = await tx.user.updateMany({
-          where: { id: session.userId, pwChangeCodeHash: codeHash },
+          where: { id: session.userId, pwChangeCodeHash: codeHash, sessionEpoch: session.sessionEpoch },
           data: {
             passwordHash,
             pwChangeCodeHash: null,
@@ -211,7 +214,10 @@ export async function POST(req: NextRequest) {
             sessionEpoch: { increment: 1 },
           },
         });
-        if (consumed.count === 0) return null;
+        if (consumed.count === 0) {
+          const now = await tx.user.findUnique({ where: { id: session.userId }, select: { sessionEpoch: true } });
+          return now && now.sessionEpoch !== session.sessionEpoch ? ("revoked" as const) : null;
+        }
         // 🚨 BEKLEYEN SIFIRLAMA BAĞLANTILARI DA ÖLÜR (Codex 09-30, A3): sıfırlama yolu diğer canlı sıfırlamaları kapatıyordu,
         // bu yol kapatmıyordu → şifre değiştirildikten sonra eski bir sıfırlama e-postası (ya da onu ele geçiren) şifreyi
         // yeniden değiştirebiliyordu. Aynı işlemde: şifre değişti ⇔ bekleyen hiçbir sıfırlama yolu kalmadı.
@@ -222,6 +228,7 @@ export async function POST(req: NextRequest) {
         const row = await tx.user.findUniqueOrThrow({ where: { id: session.userId }, select: { sessionEpoch: true } });
         return row.sessionEpoch;
       });
+      if (newEpoch === "revoked") return unauthorized(); // oturum arada geçersiz kılındı — yeniden giriş
       if (newEpoch === null) {
         return badRequest({ code: "Kod az önce kullanıldı. Yeni bir kod isteyin." });
       }

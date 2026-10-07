@@ -70,17 +70,31 @@ export async function POST(req: NextRequest) {
     //     geri alınamaz bir silme yapılmaz.
     const blocked = await hasBillableSubscription(session.organizationId);
     if (blocked) {
-      return NextResponse.json(
-        {
-          error:
-            "Aktif bir ödeme aboneliğiniz görünüyor. Hesabı silmek aboneliği DURDURMAZ — " +
-            "önce Faturalandırma → “Aboneliği yönet” bölümünden iptal edin, sonra tekrar deneyin.",
-        },
-        { status: 409 },
-      );
+      return NextResponse.json({ error: BILLABLE_BLOCK_TEXT }, { status: 409 });
     }
 
-    await deleteAccountData(session.organizationId);
+    // 🚨 U41 + U42 (Codex 10-07): parola ve abonelik denetimi işlem DIŞINDA yapıldı; arada parola sıfırlanabilir (oturum sürümü artar)
+    // ya da ödeme olayı aktif abonelik yazabilir. Silme işleminin İLK adımı (org satırı kilitliyken) ikisini yeniden doğrular; tutmuyorsa
+    // HİÇBİR şey silinmez.
+    const epoch = session.sessionEpoch;
+    const outcome = await deleteAccountData(session.organizationId, {
+      precondition: async (tx) => {
+        const owner = await tx.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "User"
+          WHERE "id" = ${session.userId} AND "organizationId" = ${session.organizationId}
+            AND "role" = 'owner' AND "sessionEpoch" = ${epoch}
+          FOR UPDATE`;
+        if (owner.length === 0) return "session_revoked";
+        if (await hasBillableSubscription(session.organizationId, tx)) return "billable_subscription";
+        return null;
+      },
+    });
+    if (!outcome.deleted) {
+      if (outcome.reason === "billable_subscription") {
+        return NextResponse.json({ error: BILLABLE_BLOCK_TEXT }, { status: 409 });
+      }
+      return unauthorized();
+    }
     await clearSessionCookie(); // the account is gone — drop the session too
     return jsonOk({ ok: true });
   } catch (err) {
@@ -100,13 +114,17 @@ export async function POST(req: NextRequest) {
  * "bilmiyorum" sayar ve ENGELLER — geri alınamaz bir silmede doğru yön budur.
  * ⚠️ Okuma hatasında da ENGELLER (fail-closed).
  */
-async function hasBillableSubscription(organizationId: string): Promise<boolean> {
+const BILLABLE_BLOCK_TEXT =
+  "Aktif bir ödeme aboneliğiniz görünüyor. Hesabı silmek aboneliği DURDURMAZ — " +
+  "önce Faturalandırma → “Aboneliği yönet” bölümünden iptal edin, sonra tekrar deneyin.";
+
+async function hasBillableSubscription(organizationId: string, db: Pick<typeof prisma, "subscription"> = prisma): Promise<boolean> {
   /** Tahsilat üretebilen sağlayıcılar (iç kayıtlar hariç). */
   const BILLING_PROVIDERS = ["paddle", "iyzico", "paytr"];
   /** KESİN bitmiş: bu durumlarda sağlayıcı bir daha çekim yapmaz. */
   const DEFINITELY_ENDED = new Set(["canceled", "cancelled", "expired"]);
   try {
-    const subs = await prisma.subscription.findMany({
+    const subs = await db.subscription.findMany({
       where: { organizationId, provider: { in: BILLING_PROVIDERS } },
       select: { status: true, cancelAtPeriodEnd: true },
     });

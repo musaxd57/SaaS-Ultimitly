@@ -927,6 +927,23 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     return;
   }
 
+  // 🚨 Y1 (Codex 10-07): GÖVDE TALEP ALTINDA YENİDEN OKUNUR. Talep partideki satırların gövdesini belleğe alıyor; parti sıralı
+  // gönderilirken (≤20 POST) bir misafirin silme işlemi talep edilmiş satırının gövdesini `[ANON]` yapar ama İPTAL ETMEZ (yalnız
+  // talepsiz satırları iptal eder) → bellekteki eski özel metin gidiyordu. Gönderilen metin artık POST'tan hemen önce, bu talebin
+  // hâlâ bize ait olduğu doğrulanarak okunan gövdedir; silinmişse satır iptal edilir. Kalan pencere yalnız bu okumayla POST arası
+  // (milisaniye) — `erasure.ts`te belgeli "gönderim sürerken silindi" istisnası.
+  const live = await prisma.messageOutbox.findFirst({
+    where: { id: row.id, claimedBy: token, status: "sending" },
+    select: { body: true },
+  });
+  if (!live) return; // talep kaybedildi (süresi doldu / başka işçi aldı): bu işçi hiçbir şey göndermez
+  if (live.body === ANON_BODY) {
+    await cancelRow(row, token, "erased");
+    acc.canceled++;
+    return;
+  }
+  row = { ...row, body: live.body };
+
   // K7 (09-30): yaşam döngüsü satırının GÖNDERİM İZİ — POST'tan ÖNCE (`automated-sends.ts`), sonuçla kapanır: senkron aynı
   // mesajı geri getirince "ev sahibi yazdı" değil "otomatik mesaj" olur. Yalnız teslim olmuş olabilecekler eşleşmeye açık.
   const traceId = await traceOutboxLifecycleSend(row, now);

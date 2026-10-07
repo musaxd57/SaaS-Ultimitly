@@ -755,7 +755,17 @@ async function redactPaddleWebhooksForOrg(
  * Full account erasure for one organization. Irreversible. The caller MUST have
  * already authorized this (owner re-authenticated). Returns silently on success.
  */
-export async function deleteAccountData(organizationId: string): Promise<void> {
+/**
+ * İşlemin İLK adımı olarak koşan ön koşul (U41 / U42 / U44, Codex 10-07): çağıranın işlem DIŞINDA yaptığı denetimler (parola,
+ * oturum sürümü, abonelik, süpürge aday koşulları) silme anında hâlâ geçerli mi. `null` = devam; dize = gerekçe, HİÇBİR şey
+ * silinmez. Org satırı ön koşuldan önce `FOR UPDATE` kilitlenir (eşzamanlı yazanlar sıralanır).
+ */
+export type AccountDeletionPrecondition = (tx: Prisma.TransactionClient) => Promise<string | null>;
+
+export async function deleteAccountData(
+  organizationId: string,
+  opts: { precondition?: AccountDeletionPrecondition } = {},
+): Promise<{ deleted: true } | { deleted: false; reason: string }> {
   // KVKK erasure: WebhookEvent has no org FK (won't cascade) and its Paddle
   // payload carries customer email/name/address. The financial skeleton stays,
   // the PII goes — and this now happens INSIDE the same transaction as the org
@@ -790,7 +800,12 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
   // (no FK, wouldn't cascade) + storage deletion intents are written in the SAME
   // transaction (Codex P3): if the org-delete rolls back, the usage counters must
   // NOT already be gone (an account that lives on with wiped counters). Atomic.
-  await prisma.$transaction(async (tx) => {
+  const refused = await prisma.$transaction(async (tx) => {
+    if (opts.precondition) {
+      await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${organizationId} FOR UPDATE`;
+      const reason = await opts.precondition(tx);
+      if (reason) return reason;
+    }
     // ⚠️ WEBHOOK REDAKSİYONU ARTIK BU TX'İN İÇİNDE (Codex denetimi, 08-01 — madde 3).
     //
     // DAVRANIŞ DEĞİŞİMİ, bilinçli: eskiden TX'ten ÖNCE koşuyordu ve gerekçesi
@@ -811,6 +826,7 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
     }
     await tx.organization.delete({ where: { id: organizationId } });
     if (storageKeys.length > 0) await enqueueStorageDeletions(tx, organizationId, storageKeys);
+    return null;
   },
   // 🚨 AÇIK SÜRE SINIRI ŞART (bağımsız denetim, 08-01 — bu turda AÇTIĞIM risk).
   // Redaksiyonu bu TX'e almak, işi Prisma'nın VARSAYILAN 5 saniyelik interactive-
@@ -822,6 +838,7 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
   // redaksiyon" hâli, "hesap HİÇ silinemiyor" hâline dönüşürdü.
   // Değerler kardeş KVKK yollarıyla birebir (`erasure.ts`, `hospitable-sync.ts`).
   { timeout: 180_000, maxWait: 15_000 });
+  if (refused) return { deleted: false, reason: refused };
 
   // KVKK: task photos live on local disk (public/uploads/{orgSlug}), NOT in the DB,
   // so the cascade above leaves them. Physically remove the org's upload folder.
@@ -842,4 +859,5 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
     const { reportError } = await import("@/lib/report-error");
     await reportError(`account-delete photo cleanup (org ${organizationId})`, err).catch(() => {});
   }
+  return { deleted: true };
 }

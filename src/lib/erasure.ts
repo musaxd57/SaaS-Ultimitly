@@ -553,10 +553,11 @@ async function maskReservationRows(
   // MessageOutbox rows carry the exact SEND text (PII) even after the Message is
   // masked (Codex P1). Redact the body of every outbox row linked to this erased
   // data; a not-yet-delivered, UNCLAIMED row is also canceled so the worker never
-  // delivers the sentinel. (A claimed in-flight row — durable-outbox + erasure
-  // both ON and a send to THIS guest mid-POST — has its body redacted but is left
-  // for the worker to finish: documented, vanishingly narrow, and the sentinel is
-  // non-PII.) org-scoped WHERE so a null reservationId link can't reach another tenant.
+  // delivers the sentinel. A CLAIMED row keeps its status here: the worker re-reads the
+  // body under its claim right before the POST and cancels it when it finds the sentinel
+  // (Y1, 10-07 — it used to send the stale private text it had loaded with the batch).
+  // Only a row already mid-POST can still go out: documented, milliseconds wide.
+  // org-scoped WHERE so a null reservationId link can't reach another tenant.
   //
   // ⚠️ KAPSAM `ERASABLE_STATUSES` (denetim, 08-01). Eskiden yalnız
   // pending+ambiguous iptal ediliyordu; `blocked` satırı ise abonelik yenilenince

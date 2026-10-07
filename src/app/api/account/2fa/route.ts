@@ -211,7 +211,9 @@ export async function POST(req: NextRequest) {
       // AÇMA: kapatma/kurtarma kodu üretimi kullanıcının diğer cihazlarını düşürmez.
       const newEpoch = await prisma.$transaction(async (tx) => {
         const r = await tx.user.updateMany({
-          where: { id: session.userId, twoFactorEnabledAt: null, twoFactorSecret: armedSecret },
+          // U40 (Codex 10-07): başlangıçta denetlenen oturum sürümü de koşulda — arada parola sıfırlandıysa bayat istek 2FA'yı
+          // açamaz ve iptal edilmiş cihaza yeni oturum veremez.
+          where: { id: session.userId, twoFactorEnabledAt: null, twoFactorSecret: armedSecret, sessionEpoch: session.sessionEpoch },
           // Record the step so the enabling code can't be replayed at login.
           data: { twoFactorEnabledAt: new Date(), twoFactorLastStep: step, sessionEpoch: { increment: 1 } },
         });
@@ -320,6 +322,7 @@ export async function POST(req: NextRequest) {
             id: session.userId,
             twoFactorSecret: user?.twoFactorSecret ?? null,
             twoFactorEnabledAt: user?.twoFactorEnabledAt ?? null,
+            sessionEpoch: session.sessionEpoch, // U40 kardeşi: arada iptal edilen oturum 2FA'yı KAPATAMAZ
           },
           data: { twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null },
         });
@@ -386,6 +389,7 @@ export async function POST(req: NextRequest) {
       const codes = await regenerateRecoveryCodesIfUnchanged(session.userId, {
         twoFactorSecret: user.twoFactorSecret,
         twoFactorEnabledAt: user.twoFactorEnabledAt,
+        sessionEpoch: session.sessionEpoch,
       });
       if (!codes) {
         return badRequest({ _: "Güvenlik ayarınız az önce değişti. Sayfayı yenileyip yeniden deneyin." });

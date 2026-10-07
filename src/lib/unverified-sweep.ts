@@ -279,7 +279,47 @@ export async function sweepUnverifiedRegistrations(
     }
 
     try {
-      await deleteAccountData(orgId);
+      // 🚨 U44 (Codex 10-07): yukarıdaki denetimler işlem DIŞINDA ve partide uzun sürer; aday seçildikten sonra sahibi e-postasını
+      // doğrulamış, parolasını sıfırlamış, 2FA kurmuş ya da veri / ödeme oluşmuş olabilir. Silme işleminin İLK adımı (org satırı
+      // kilitliyken) aday koşullarını YENİDEN uygular; değiştiyse hiçbir şey silinmez (`state_changed`).
+      const outcome = await deleteAccountData(orgId, {
+        precondition: async (tx) => {
+          const owner = await tx.$queryRaw<{ id: string }[]>`
+            SELECT "id" FROM "User"
+            WHERE "organizationId" = ${orgId} AND "role" = 'owner' AND "emailVerifiedAt" IS NULL
+              AND "twoFactorEnabledAt" IS NULL AND "sessionEpoch" = 0
+              AND "createdAt" >= ${EMAIL_VERIFY_REQUIRED_FROM} AND "createdAt" < ${cutoff}
+              AND ("emailVerifyExpiresAt" IS NULL OR "emailVerifyExpiresAt" < ${now})
+            FOR UPDATE`;
+          if (owner.length !== 1) return "state_changed";
+          const [users, audits, properties, sub] = await Promise.all([
+            tx.user.count({ where: { organizationId: orgId } }),
+            tx.auditLog.count({ where: { organizationId: orgId } }),
+            tx.property.count({ where: { organizationId: orgId } }),
+            tx.subscription.findUnique({
+              where: { organizationId: orgId },
+              select: { status: true, provider: true, providerRef: true, customerId: true, currentPeriodEnd: true, pastDueSince: true },
+            }),
+          ]);
+          if (users !== 1 || audits > 0 || properties > 0) return "state_changed";
+          if (
+            sub &&
+            (BILLING_PROVIDERS.includes(sub.provider) ||
+              sub.providerRef !== null ||
+              sub.customerId !== null ||
+              sub.currentPeriodEnd !== null ||
+              sub.pastDueSince !== null ||
+              sub.status !== "trialing")
+          ) {
+            return "state_changed";
+          }
+          return null;
+        },
+      });
+      if (!outcome.deleted) {
+        skip("state_changed");
+        continue;
+      }
       result.deleted += 1;
     } catch {
       // Tek bir org'un silinememesi tüm süpürgeyi düşürmez; sayaç raporlanır.

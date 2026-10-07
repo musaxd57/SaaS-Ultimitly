@@ -147,6 +147,18 @@ function conversationIdsConflict(a: StayIdentity, b: StayIdentity): boolean {
   );
 }
 
+const CONVERSATION_SELECT = {
+  id: true,
+  propertyId: true,
+  guestIdentifier: true,
+  lastMessageAt: true,
+  // Identity: only EQUAL identifiers license a delete (see sameStay).
+  reservationId: true,
+  externalReservationId: true,
+  externalConversationId: true,
+  messages: { select: { body: true, externalId: true, direction: true, createdAt: true } },
+} as const;
+
 export async function cleanupDuplicateConversations(
   organizationId: string,
 ): Promise<DuplicateCleanupResult> {
@@ -157,17 +169,7 @@ export async function cleanupDuplicateConversations(
       property: { organizationId },
       externalReservationId: { not: null },
     },
-    select: {
-      id: true,
-      propertyId: true,
-      guestIdentifier: true,
-      lastMessageAt: true,
-      // Identity: only EQUAL identifiers license a delete (see sameStay).
-      reservationId: true,
-      externalReservationId: true,
-      externalConversationId: true,
-      messages: { select: { body: true, externalId: true, direction: true, createdAt: true } },
-    },
+    select: CONVERSATION_SELECT,
   });
 
   // Group by property + guest.
@@ -201,11 +203,23 @@ export async function cleanupDuplicateConversations(
         result.needsReview++; // identity unproven / two possible provider threads
         continue;
       }
-      await prisma.$transaction([
-        prisma.message.deleteMany({ where: { conversationId: dup.id } }),
-        prisma.conversation.delete({ where: { id: dup.id } }),
-      ]);
-      result.removed++;
+      // 🚨 Y2 (Codex 10-07): yukarıdaki karar İŞLEM DIŞI bir anlık görüntüye dayanır; okuma ile silme arasında senkron çift konuşmaya
+      // YENİ bir misafir mesajı yazarsa eski kod onu da siliyordu (konuşma silme Cascade'i dahil) ve `needsReview: 0` diyordu. Şimdi:
+      // iki konuşma satırı `FOR UPDATE` ile kilitlenir (mesaj eklemenin yabancı anahtar denetimi `FOR KEY SHARE` alır → eşzamanlı ekleme
+      // bekler ya da önce işlenir), mesajlar İŞLEMİN İÇİNDE yeniden okunur ve aynı üç koşul yeniden sınanır; tutmuyorsa incelemeye kalır.
+      const outcome = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Conversation" WHERE "id" IN (${keeper.id}, ${dup.id}) ORDER BY "id" FOR UPDATE`;
+        const fresh = await tx.conversation.findMany({ where: { id: { in: [keeper.id, dup.id] } }, select: CONVERSATION_SELECT });
+        const k = fresh.find((c) => c.id === keeper.id);
+        const d = fresh.find((c) => c.id === dup.id);
+        if (!k || !d) return "gone" as const;
+        if (!coveredByKeeper(k.messages, d.messages) || !sameStay(k, d) || conversationIdsConflict(k, d)) return "review" as const;
+        await tx.message.deleteMany({ where: { conversationId: d.id } });
+        await tx.conversation.delete({ where: { id: d.id } });
+        return "removed" as const;
+      });
+      if (outcome === "removed") result.removed++;
+      else if (outcome === "review") result.needsReview++;
     }
   }
 

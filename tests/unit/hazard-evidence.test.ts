@@ -461,3 +461,45 @@ describe("uzun girdide süre", () => {
     expect(performance.now() - t0).toBeLessThan(1_500);
   });
 });
+
+// ---------------------------------------------------------------------------
+// U3 (Codex 10-07, 15c8663): tarama tavanı "tehlike yok" kanıtı DEĞİLDİR · olumsuzlama bağlacı aşmaz · ekipman bir yangın fiilinin
+// ÖZNESİYKEN istisna değildir. Her vaka zararsız ikiziyle (kontrol) birlikte; açık eval setlerindeki 3.067 misafir metninde seviye
+// değişimi 0 (`docs/INCELEME-2026-10-07-codex-u16-u44.md`).
+// ---------------------------------------------------------------------------
+describe("U3 — aktif tehlike zararsız metinle bastırılamaz", () => {
+  const FIRE = "the kitchen is on fire and flames are spreading";
+  it.each([31, 32, 200])("%i kez 'no fire' + gerçek yangın → açık", (n) => {
+    expect(hazardEvidenceOf(`${"no fire ".repeat(n)}${FIRE}`).level).toBe("clear");
+  });
+  it("Türkçe: 40 kez 'yangın yok' + gerçek yangın → açık", () => {
+    expect(hazardEvidenceOf(`${"yangın yok ".repeat(40)}mutfakta yangın çıktı alevler yükseliyor`).level).toBe("clear");
+  });
+  it("benzersiz anılış tavanı aşılırsa en az OLASI (asla anılış)", () => {
+    const unique = Array.from({ length: 40 }, (_, i) => `no fire in room ${"x".repeat(i + 1)}`).join(" ");
+    expect(["possible", "clear"]).toContain(hazardEvidenceOf(unique).level);
+  });
+  it.each([
+    ["The stove caught fire!", "clear"],
+    ["Mutfaktaki ocak alev aldı!", "clear"],
+    ["The curtains caught fire!", "clear"],
+  ])("ekipman bir yangın fiilinin öznesi: %s → %s", (text, level) => {
+    expect(hazardEvidenceOf(text).level).toBe(level);
+  });
+  it.each([
+    "We have no power and smoke is coming out of the socket",
+    "There is no water and fire in the kitchen",
+  ])("olumsuzlama bağlacı aşmaz: %s → açık", (text) => {
+    expect(hazardEvidenceOf(text).level).toBe("clear");
+  });
+  it.each([
+    ["Where is the fire extinguisher?", "none"],
+    ["The gas stove is not working", "none"],
+    ["Yangın tüpü nerede?", "none"],
+    ["no fire", "mentioned"],
+    ["There is no smoke and no fire, all good", "mentioned"],
+    ["Can we use the fireplace?", "none"],
+  ])("KONTROL (değişmez): %s → %s", (text, level) => {
+    expect(hazardEvidenceOf(text).level).toBe(level);
+  });
+});

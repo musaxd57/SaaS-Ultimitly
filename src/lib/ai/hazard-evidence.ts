@@ -259,21 +259,27 @@ const EQUIPMENT = rx([
   `(?:كاشف|إنذار|طفاية|مخرج|فاتورة|موقد)`,
 ]);
 /** Olumsuzlama — tehlike adının ÖNÜNDE (≤30 karakter). Türkçe "ne … ne …" ayrıca (`neitherNor`); tek "ne" ("Bu ne duman!") olumsuz değil. */
+/**
+ * U3 (Codex 10-07): olumsuzlama penceresi BAĞLACI AŞMAZ — "we have no power and smoke is coming out of the socket", "there is no water
+ * and fire in the kitchen", "duman var ama yangın yok" ayrı önermelerdir; bir yarının olumsuzu ötekinin tehlikesini silmez. Metin
+ * katlanmıştır (ASCII Türkçe). Türkçe "o" ve İspanyolca "o" BİLEREK yok (Türkçede zamir).
+ */
+const NEG_CONJ = "(?:and|or|but|ve|veya|ama|fakat|ancak|und|oder|aber|et|ou|mais|y|pero|и|или|но|а|و)";
 const NEG_BEFORE = rx([
   `${NL}hic(?:bir)?\\s+$`,
-  `${NL}(?:no|not|without|never|isn'?t|aren'?t|wasn'?t|there(?:'s|\\s+is|\\s+was)\\s+no|nor)\\s+(?:\\S+\\s+){0,2}$`,
-  `${NL}(?:kein${LB}|nicht|ohne|weder)\\s+(?:\\S+\\s+){0,2}$`,
-  `${NL}(?:pas\\s+de|pas\\s+d'|aucun${LB}|sans|ni)\\s+(?:\\S+\\s+){0,2}$`,
-  `${NL}(?:no\\s+hay|sin|ningún|ningun${LB}|ni|no\\s+(?:huele|sale|hay|se\\s+ve))\\s+(?:\\S+\\s+){0,2}$`,
-  `${NL}(?:нет|не|без|ни)\\s+(?:\\S+\\s+){0,2}$`,
-  `(?:لا\\s+يوجد|ليس\\s+هناك|لا|بدون|ولا)\\s+(?:\\S+\\s+){0,2}$`,
+  `${NL}(?:no|not|without|never|isn'?t|aren'?t|wasn'?t|there(?:'s|\\s+is|\\s+was)\\s+no|nor)\\s+(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}$`,
+  `${NL}(?:kein${LB}|nicht|ohne|weder)\\s+(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}$`,
+  `${NL}(?:pas\\s+de|pas\\s+d'|aucun${LB}|sans|ni)\\s+(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}$`,
+  `${NL}(?:no\\s+hay|sin|ningún|ningun${LB}|ni|no\\s+(?:huele|sale|hay|se\\s+ve))\\s+(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}$`,
+  `${NL}(?:нет|не|без|ни)\\s+(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}$`,
+  `(?:لا\\s+يوجد|ليس\\s+هناك|لا|بدون|ولا)\\s+(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}$`,
 ]);
 /** Olumsuzlama — tehlike adının ARDINDA (≤30 karakter). */
 const NEG_AFTER = rx([
-  `^\\s*(?:\\S+\\s+){0,3}?(?:yok${LB}|degil${LB}|olmadi${LB}|cikmiyor|cikmadi|gelmiyor|gelmedi|kokmuyor|kokmadi|yanmiyor|yanmadi|basmadi|basmiyor|carpmadi|gormedik|duymadik)${NR}`,
-  `^\\s*(?:\\S+\\s+){0,2}?(?:nicht|keine?n?)${NR}`,
-  `^\\s*(?:\\S+\\s+){0,2}?pas${NR}`,
-  `^\\s*(?:\\S+\\s+){0,2}?(?:нет|не\\s+было)${NR}`,
+  `^\\s*(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,3}?(?:yok${LB}|degil${LB}|olmadi${LB}|cikmiyor|cikmadi|gelmiyor|gelmedi|kokmuyor|kokmadi|yanmiyor|yanmadi|basmadi|basmiyor|carpmadi|gormedik|duymadik)${NR}`,
+  `^\\s*(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}?(?:nicht|keine?n?)${NR}`,
+  `^\\s*(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}?pas${NR}`,
+  `^\\s*(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}?(?:нет|не\\s+было)${NR}`,
 ]);
 /** Belirsizlik ("emin değilim", "not sure") tehlikeyi olumsuzlamaz. */
 const UNSURE_AFTER = rx([`^\\s*(?:\\S+\\s+){0,2}?(?:emin|kesin)\\s+degil${LB}`]);
@@ -429,13 +435,29 @@ export function __hazardMentionEvalCount(): number {
   return mentionEvals;
 }
 
-function mentionsIn(clause: string): { kind: HazardKind; index: number; length: number }[] {
+/**
+ * 🚨 U3 (Codex 10-07): tavan "tehlike YOK" kanıtı DEĞİLDİR. Eskiden ilk 32 anılıştan sonrası sessizce atılıyordu → 32 kez "no fire"
+ * ardından gelen GERÇEK yangın görünmüyordu. Şimdi: aynı bağlam penceresindeki (±32 karakter) anılış bir kez değerlendirilir (tekrar
+ * eden dizi doğrusal ve sınırlı kalır — penceresi aynı olanın olumsuzlama / ekipman hükmü de aynıdır); BENZERSİZ anılış sayısı tavanı
+ * aşarsa o tür `overflow` olur ve cümlecik en az OLASI sayılır (karar modele kalır; asla "anılış"a inmez).
+ */
+const MENTION_WINDOW = 32;
+function mentionsIn(clause: string): { mentions: { kind: HazardKind; index: number; length: number }[]; overflow: HazardKind[] } {
   const out: { kind: HazardKind; index: number; length: number }[] = [];
+  const overflow: HazardKind[] = [];
   const light = LIGHT_CONTEXT.test(clause);
   for (const kind of KINDS) {
     let seen = 0;
+    const windows = new Set<string>();
     for (const m of clause.matchAll(MENTION[kind])) {
-      if (++seen > MENTION_CAP) break;
+      const at = m.index ?? 0;
+      const key = clause.slice(Math.max(0, at - MENTION_WINDOW), at + m[0].length + MENTION_WINDOW);
+      if (windows.has(key)) continue;
+      windows.add(key);
+      if (++seen > MENTION_CAP) {
+        overflow.push(kind);
+        break;
+      }
       mentionEvals++;
       // Işık bağlamındaki "yanma" fiili tehlike anılışı değildir.
       if (kind === "fire" && light && BURN_VERB.test(m[0])) continue;
@@ -444,7 +466,7 @@ function mentionsIn(clause: string): { kind: HazardKind; index: number; length: 
       out.push({ kind, index: m.index ?? 0, length: m[0].length });
     }
   }
-  return out;
+  return { mentions: out, overflow };
 }
 
 /** Anılış olumsuzlanmış mı (önünde ≤30, ardında ≤30 karakter; "yalnız X değil" olumsuzlama değil)? */
@@ -460,14 +482,22 @@ function neitherNor(clause: string): boolean {
   return (clause.match(/(?<![\p{L}\p{N}])ne(?=\s)/gu) ?? []).length >= 2;
 }
 
-/** Anılış bir ekipman / yer adının parçası mı (±2 sözcük)? */
+/**
+ * Anılış bir ekipman / yer adının parçası mı (±2 sözcük)? 🚨 U3 (Codex 10-07): YALNIZ isim biçimindeki anılış ("fire alarm", "yangın
+ * tüpü", "smoke detector") ekipman olabilir. Tehlike bir OLAY fiiliyle anılıyorsa ("the stove caught fire", "mutfaktaki ocak alev aldı",
+ * "Herd brennt", "плита горит") ekipman onun ÖZNESİDİR — bileşik değil, gerçek yangın; eskiden ±3 sözcük penceresi bunu anılışa indiriyordu.
+ */
 const EQUIPMENT_IN_WORD = /(?:melder|l[oö]scher|detector|dedektor)/iu;
+const HAZARD_EVENT_VERB =
+  /(?:alev\s+al|alevlen|alev\s+(?:var|cikiyor|yukseliyor)|ates\s+(?:al|cik)|tutus|yaniyor|yanmaya|on\s+fire|caught\s+fire|brennt|f[aä]ngt\s+feuer|br[uû]le|quema|arde|горит|загорел|يحترق|اشتعل)/iu;
 function equipmentMention(clause: string, at: number, len: number): boolean {
-  if (EQUIPMENT_IN_WORD.test(clause.slice(at, at + len))) return true;
+  const mention = clause.slice(at, at + len);
+  if (HAZARD_EVENT_VERB.test(mention)) return false;
+  if (EQUIPMENT_IN_WORD.test(mention)) return true;
   const before = clause.slice(Math.max(0, at - 28), at);
   const after = clause.slice(at + len, at + len + 28);
-  const near = `${before.split(/\s+/).slice(-3).join(" ")} ${clause.slice(at, at + len)} ${after.split(/\s+/).slice(0, 3).join(" ")}`;
-  return EQUIPMENT.test(near.replace(clause.slice(at, at + len), " "));
+  const near = `${before.split(/\s+/).slice(-3).join(" ")} ${mention} ${after.split(/\s+/).slice(0, 3).join(" ")}`;
+  return EQUIPMENT.test(near.replace(mention, " "));
 }
 
 /** Cümlecik geçmiş / varsayım mı (nezaket ve süren-olay kalıpları önce nötrlenir)? */
@@ -497,9 +527,22 @@ interface MessageSignals {
 }
 
 function clauseLevel(clause: Clause, signals: MessageSignals, next: string | null): { level: HazardLevel; kinds: HazardKind[] } {
+  const scan = mentionsIn(clause.text);
+  const mentions = scan.mentions;
+  const result = clauseVerdict(clause, signals, next, mentions);
+  // Taranamayan anılış varken cümlecik "yok / anılış"a İNEMEZ (U3): en az olası, karar modele.
+  if (scan.overflow.length > 0 && RANK[result.level] < RANK.possible) return { level: "possible", kinds: [...new Set(scan.overflow)] };
+  return result;
+}
+
+function clauseVerdict(
+  clause: Clause,
+  signals: MessageSignals,
+  next: string | null,
+  mentions: { kind: HazardKind; index: number; length: number }[],
+): { level: HazardLevel; kinds: HazardKind[] } {
   const text = clause.text;
   const withNext = next ? `${text} ${next}` : text;
-  const mentions = mentionsIn(text);
   if (mentions.length === 0) {
     if (pastOrHypothetical(text)) return { level: "none", kinds: [] };
     // Tehlike adı yok ama elektriğe ulaşan su yapısı ("su prizlere ulaştı") tek başına açık tehlikedir.

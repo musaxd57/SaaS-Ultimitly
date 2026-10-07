@@ -72,12 +72,18 @@ export async function regenerateRecoveryCodes(userId: string): Promise<string[]>
  */
 export async function regenerateRecoveryCodesIfUnchanged(
   userId: string,
-  guard: { twoFactorSecret: string | null; twoFactorEnabledAt: Date | null },
+  guard: { twoFactorSecret: string | null; twoFactorEnabledAt: Date | null; sessionEpoch?: number },
 ): Promise<string[] | null> {
   const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
   return prisma.$transaction(async (tx) => {
     const still = await tx.user.updateMany({
-      where: { id: userId, twoFactorSecret: guard.twoFactorSecret, twoFactorEnabledAt: guard.twoFactorEnabledAt },
+      // U40 kardeşi (Codex 10-07): verilmişse başlangıçta denetlenen oturum sürümü de koşulda (arada iptal edilen oturum kod üretemez).
+      where: {
+        id: userId,
+        twoFactorSecret: guard.twoFactorSecret,
+        twoFactorEnabledAt: guard.twoFactorEnabledAt,
+        ...(guard.sessionEpoch === undefined ? {} : { sessionEpoch: guard.sessionEpoch }),
+      },
       data: { twoFactorSecret: guard.twoFactorSecret },
     });
     if (still.count === 0) return null;

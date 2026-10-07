@@ -260,6 +260,11 @@ export async function consumeChallengeAndResetPassword(args: {
         // öldürmüyor, çünkü doğrulama rotası oturumu TAZE epoch'la basıyor.
         emailVerifyTokenHash: null,
         emailVerifyExpiresAt: null,
+        // U43 (Codex 10-07): bekleyen PAROLA DEĞİŞTİRME kodu da ölür — sıfırlama bittiğinde eski oturumun başlattığı değişim
+        // hiçbir yoldan tamamlanamaz (değişimin son yazması ayrıca oturum sürümünü de koşul olarak taşır).
+        pwChangeCodeHash: null,
+        pwChangeCodeExpiresAt: null,
+        pwChangeCodeAttempts: 0,
       },
     });
     return updated.sessionEpoch;
