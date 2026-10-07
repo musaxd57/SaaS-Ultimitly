@@ -185,3 +185,8 @@ olabilir" · e-posta (mülk önce, gün etiketi, türe göre paragraf, "Konuşma
 check-in…", "you can check out by 13:00 on…" · DE "bis 13:00 Uhr auschecken" · FR bölünmez boşluk + "1er" + "libérer le logement jusqu'à" ·
 ES "la entrada / hasta las" · RU "выезд — до". Arapça terim ve para birimi biçimi canlı erken giriş metniyle ortak → değiştirilmedi
 (Sabah Kararları 62 f).
+
+**Kanıt (10-07):** mutasyon 35 mutant → 32 öldü; yaşayan 3'ün 2'sine pin (yerine geçilmiş kart turun kartı sayılmaz; iki saatli turda
+deterministik saat yazılmaz) → öldü; 1'i gerekçeli EŞDEĞER (otomatik onay talebindeki erken çıkış — CAS aynı korumayı veriyor). Son ekran turu
+(masaüstü 1440 + telefon 390): kart, onay düzenleyicisi, "misafir yeniden yazdı → Okudum", kanal bağlı değil hatası, ret, kapatma onayı,
+doğrulanamayan kart, gelen kutusu rozetleri; telefonda yatay kaydırma yok (390/390).

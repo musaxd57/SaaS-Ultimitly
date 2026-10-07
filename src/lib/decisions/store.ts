@@ -268,6 +268,8 @@ export async function claimTurnDecisionForPolicy(
 ): Promise<{ ok: boolean; claimed: { id: string; version: number } | null }> {
   const card = await findTurnDecision(db, input);
   if (!card) return { ok: true, claimed: null };
+  // Erken çıkış yalnız gereksiz yazmayı önler: asıl koruma aşağıdaki CAS'ın `status: "pending"` koşulu (mutasyon turunda bu satırı
+  // gevşeten mutant bu yüzden EŞDEĞER — davranış aynı).
   if (card.status !== "pending") return { ok: false, claimed: null };
   const res = await db.decisionRequest.updateMany({
     where: { id: card.id, organizationId: input.organizationId, status: "pending", version: card.version },
