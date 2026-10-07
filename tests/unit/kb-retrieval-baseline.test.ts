@@ -23,6 +23,16 @@ interface Row {
 const rows: Row[] = buildScenarios().map((s) => ({ s, legacy: runLegacy(s), hybrid: runHybrid(s) }));
 const byId = Object.fromEntries(rows.map((r) => [r.s.id, r])) as Record<string, Row>;
 
+describe("U21 (Codex 10-07) — rapor metni ölçümle çelişmez", () => {
+  it("🚨 malicious_source notu ÖLÇÜLEN sızıntıyı söyler (eskiden sabit 'hibritte gitmez' — test ikisinde de gittiğini doğruluyordu)", () => {
+    const note = maliciousSourceNote(rows);
+    const r = rows.find((x) => x.s.id === "malicious_source")!;
+    expect(note).toContain(`hibritte ${r.hybrid.leaked ? "modele GİDER" : "modele gitmez"}`);
+    expect(note).toContain(`legacy'de kötü niyetli kalem ${r.legacy.leaked ? "modele GİDER" : "modele gitmez"}`);
+    expect(report()).toContain(note);
+  });
+});
+
 describe("retrieval baseline — legacy vs hibrit", () => {
   it("senaryo seti Codex sınıflarını kapsıyor", () => {
     const classes = rows.map((r) => r.s.class);
@@ -117,13 +127,23 @@ function report(): string {
   lines.push("");
   lines.push("## Notlar");
   for (const r of rows) if (r.s.note) lines.push(`- **${r.s.id}:** ${r.s.note}`);
-  lines.push("- **malicious_source:** legacy'de kötü niyetli kalem modele GİDER (sızıntı ölçümü ✅ legacy / ❌ hibrit); bu bir maruziyet farkıdır, politika değil.");
+  // U21 (Codex 10-07): bu satır sabit metindi ("legacy'de gider, hibritte gitmez") ve testin kendi ölçümüyle çelişiyordu (küçük KB'de
+  // ikisinde de gider). Artık ölçülen değerden yazılır.
+  lines.push(maliciousSourceNote(rows));
   lines.push("");
   lines.push("## Okuma kılavuzu");
   lines.push("- İsabet '—' = senaryonun ilgili cümlesi yok (geri çekilme sınıfı); orada beklenen, hibrit bloğun legacy ile AYNI olmasıdır.");
   lines.push("- Karakter farkı, istem maliyetinin vekilidir (token sayısı ölçülmedi; tahmin YAZILMADI).");
   lines.push("- Gürültü = blokta yer alan ilgisiz kalem başlığı sayısı.");
   return lines.join("\n");
+}
+
+/** Rapor notu ÖLÇÜLEN sızıntıdan (U21): iki yolda da / yalnız birinde / hiçbirinde. */
+function maliciousSourceNote(rs: readonly { s: { id: string }; legacy: { leaked?: boolean }; hybrid: { leaked?: boolean } }[]): string {
+  const r = rs.find((x) => x.s.id === "malicious_source");
+  if (!r) return "- **malicious_source:** senaryo koşmadı.";
+  const where = (b: boolean | undefined) => (b ? "modele GİDER" : "modele gitmez");
+  return `- **malicious_source:** legacy'de kötü niyetli kalem ${where(r.legacy.leaked)}, hibritte ${where(r.hybrid.leaked)} (bu ölçümde). Retrieval politika DEĞİLDİR; asıl koruma sır elemesi + talimat-ele-geçirme süzgeci.`;
 }
 
 afterAll(() => {

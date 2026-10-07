@@ -15,9 +15,8 @@ import { makeSyntheticKb, updatedItem, type SynQuestion, type SyntheticKb } from
 // Codex şartları:
 //  · küçük-KB passthrough'u değil, seçim yapan yolu ölç; legacy (en yeni 30 + 24k)
 //    ile aynı soruları koş;
-//  · (dilim 3) CANLI AKIŞI ölç: hibritte `kb-fetch` en yeni 200 kalemi okur —
-//    300'lük testte seçiciye 336 kalemin tamamını vermek canlıyı ölçmezdi →
-//    "CANLI" yapılandırması tavanı uygular (`KB_RETRIEVAL_FETCH_CAP`);
+//  · (dilim 3) CANLI AKIŞI ölç: hibritte `kb-fetch` en yeni `KB_RETRIEVAL_FETCH_CAP` kalemi okur (09-26'dan beri 400; önce
+//    200) → "CANLI" yapılandırması tavanı uygular;
 //  · (dilim 3) "istemde doğru kaynak" kalem KİMLİĞİ ile değil, CEVAP İÇİN GEREKLİ
 //    METİN (`needles`) ile ölçülür — kimlik blokta olup cümle olmayabilir;
 //  · (dilim 3) n-gram kaynağı yazım hatası / ek varyasyonu / İngilizce sorularda
@@ -30,6 +29,20 @@ import { makeSyntheticKb, updatedItem, type SynQuestion, type SyntheticKb } from
 // ---------------------------------------------------------------------------
 
 const SIZES = [30, 100, 300] as const;
+
+/** CANLI satırının okuma notu — ölçülen havuz ve GERÇEK tavandan (U21: sabit "200" metni tavanla çelişiyordu). */
+function liveCapLines(rs: readonly { n: number; items: number }[], cap: number = KB_RETRIEVAL_FETCH_CAP): string[] {
+  const biggest = [...rs].sort((a, b) => b.n - a.n)[0];
+  if (!biggest) return [];
+  const over = biggest.items > cap;
+  return [
+    over
+      ? `- **CANLI satırı gerçek akıştır:** ${biggest.n} konu kalemi (${biggest.items} kalem) canlı okuma tavanının (${cap}) ÜSTÜNDEDİR; tavan dışındaki kalemin cevabı bloğa GİREMEZ ve bu kayıp burada görünür.`
+      : `- **CANLI satırı gerçek akıştır:** ${biggest.n} konu kalemi (${biggest.items} kalem) canlı okuma tavanının (${cap}) ALTINDADIR; havuz tavansız havuzla aynıdır (bu ölçekte tavan kaybı yok).`,
+    `  Ürün plan tavanı mülk başına 60 aktif kalemdir; canlıda hiçbir mülk okuma tavanına çarpmaz — ölçüm canlı yolu ölçer, idealize etmez.`,
+  ];
+}
+
 
 interface Config {
   name: string;
@@ -45,7 +58,7 @@ const CONFIGS: readonly Config[] = [
   { name: "hibrit n-gram AÇIK (her sorguda)", sources: { ngram: true } },
   { name: "hibrit RRF (bm25+ngram)", sources: { ngram: true, fusion: "rrf" } },
   { name: "hibrit VARSAYILAN (n-gram auto=TR, CombSUM)", sources: {} },
-  { name: "hibrit CANLI (varsayılan + kb-fetch tavanı 200)", sources: {}, liveCap: true },
+  { name: `hibrit CANLI (varsayılan + kb-fetch tavanı ${KB_RETRIEVAL_FETCH_CAP})`, sources: {}, liveCap: true },
 ];
 
 interface KindStat {
@@ -203,6 +216,15 @@ const results: SizeResult[] = SIZES.map((n) => {
 const cfg = (n: number, name: string) => results.find((r) => r.n === n)!.configs.find((c) => c.name.startsWith(name))!;
 const kindRate = (c: ConfigResult, kind: string) => (c.perKind[kind] ? c.perKind[kind].inPrompt / c.perKind[kind].n : 0);
 const kindNoise = (c: ConfigResult, kind: string) => (c.perKind[kind] ? c.perKind[kind].noise / c.perKind[kind].n : 0);
+
+describe("U21 (Codex 10-07) — CANLI okuma notu gerçek tavandan", () => {
+  it("🚨 336 kalem 400'lük tavanın ALTINDA (eski metin '200, üstündedir' diyordu); tavan küçükse ÜSTÜNDE", () => {
+    expect(liveCapLines([{ n: 300, items: 336 }], 400)[0]).toContain("ALTINDADIR");
+    expect(liveCapLines([{ n: 300, items: 336 }], 200)[0]).toContain("ÜSTÜNDEDİR");
+    expect(liveCapLines([{ n: 300, items: 336 }])[0]).toContain(`(${KB_RETRIEVAL_FETCH_CAP})`);
+    expect(CONFIGS.find((c) => c.liveCap)?.name).toContain(String(KB_RETRIEVAL_FETCH_CAP));
+  });
+});
 
 describe("ölçek harness'ı — 30/100/300 kalem, gerçek retrieval yolu", () => {
   it("küçük-KB passthrough DEĞİL: her boyutta seçim yapılıyor (geri çekilme azınlıkta)", () => {
@@ -403,8 +425,8 @@ function report(): string {
   L.push("> `updatedAt` 400 güne tohumlu yayılır. Model YOK: 'cevabın kaynakla desteklenmesi' burada ÖLÇÜLMEZ (gerçek eval: eşleştirilmiş harness).");
   L.push("> hit@k = doğru kalem kimliği seçim sıralamasının ilk k'sında; **inPrompt(metin) = CEVAP İÇİN GEREKLİ CÜMLE istem bloğunda** (asıl ölçü);");
   L.push("> inPrompt(kimlik) = doğru kalem kimliği blokta (eski ölçü, kıyas için); noise = seçilen ilgisiz kalem; chars = blok karakteri (maliyet vekili);");
-  L.push("> ms = seçici süresi (soğuk: indeks kurulumu dahil; ılık: önbellek). **CANLI** = `kb-fetch` okuma tavanı (en yeni 200) uygulanmış hibrit.");
-  L.push("> Üretici: `tests/unit/kb-retrieval-scale.test.ts`. ANLAMSAL (embedding) kaynak ÜRETİMDE YOK — burada hiçbir satır anlamsal retrieval ölçmez.");
+  L.push(`> ms = seçici süresi (soğuk: indeks kurulumu dahil; ılık: önbellek). **CANLI** = \`kb-fetch\` okuma tavanı (en yeni ${KB_RETRIEVAL_FETCH_CAP}) uygulanmış hibrit.`);
+  L.push("> Üretici: `tests/unit/kb-retrieval-scale.test.ts`. Bu ölçüm ANLAMSAL (embedding) kaynağı KULLANMAZ (yalnız sözcüksel); canlıda anlamsal kaynak `KB_SEMANTIC_RETRIEVAL` anahtarına bağlıdır.");
   L.push("");
   for (const r of results) {
     L.push(`## n=${r.n} konu kalemi (toplam ${r.items} kalem, ${r.questions} soru)`);
@@ -436,11 +458,11 @@ function report(): string {
   }
   L.push("## Okuma kılavuzu");
   L.push("- Legacy sıralama soruya bakmaz; hit@k anlamsızdır ('—'). inPrompt = en yeni 30 kalem + 24k bütçe içinde doğru kaynak var mı.");
-  L.push("- **CANLI satırı gerçek akıştır:** 300 konu kalemi (336 kalem) canlı tavanın (200) üstündedir; tavan dışındaki kalemin cevabı bloğa GİREMEZ ve bu kayıp burada dürüstçe görünür.");
-  L.push("  300 kalem ürün plan tavanının (60/mülk) çok üstündedir; canlıda hiçbir mülk tavana çarpmaz — ama ölçüm canlı yolu ölçer, idealize etmez.");
+  // U21 (Codex 10-07): bu iki satır sabit "200" diyordu (tavan 09-26'da 400 oldu; 336 kalem artık tavanın ALTINDA) → hesaplanır.
+  L.push(...liveCapLines(results));
   L.push("- n-gram kaynağı ANLAMSAL DEĞİLDİR (karakter 3-gram yazım benzerliği). Ayrı ölçüm (09-10): yazım hatasında katkı yok (OSA fuzzy zaten var); ek varyasyonunda 09-09'daki gürültü düşüşü");
   L.push("  kök sökücü kaçağının telafisiydi, kök düzelince auto ≈ kapalı (isabet eşit; gürültü eşit ya da az); İngilizce sorguda AÇIK olmak Türkçe metne düşen gramlarla bloğu büyütür →");
-  L.push("  varsayılan **auto** (yalnız Türkçe algılanan sorguda) KORUNDU, ölçülen katkı ≈0 — 'kapalı'ya çekme kararı kurucunun. Gömme tabanlı kaynak: sözleşme hazır, ücretli servis onayı bekler; ÜRETİMDE YOK.");
+  L.push("  varsayılan **auto** (yalnız Türkçe algılanan sorguda) KORUNDU, ölçülen katkı ≈0 — 'kapalı'ya çekme kararı kurucunun. Gömme tabanlı kaynak bu harness'ta ölçülmez (E4 / rag-lab).");
   return L.join("\n");
 }
 
