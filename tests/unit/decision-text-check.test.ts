@@ -105,3 +105,19 @@ describe("karar mesajı denetimi — karar kaydıyla uyuşmayan metin tutulur", 
     expect(checkDecisionText("  ", base).problems).toEqual(["empty"]);
   });
 });
+
+describe("karar mesajı denetimi — iç kontrol listesi metne kopyalanmaz (ölçüm 10-07, 5.1 d-12)", () => {
+  it("İngilizce mesajın sonuna Türkçe iç satır eklenmiş → tutulur", () => {
+    const facts = f({ resolution: "decline", lang: "en", requestedTime: "11:00" });
+    const text = "Early check-in at 11:00 on 14 October is not possible; your check-in time will be from 15:00. Çıkış temizliği henüz bitmedi.";
+    expect(checkDecisionText(text, facts).problems).toContain("internal_copy");
+  });
+  it("saatli satırın gövdesi ('Önceki misafirin beklenen çıkışı') → tutulur", () => {
+    const text = "Maalesef 14 Ekim'de erken giriş mümkün değil; önceki misafirin beklenen çıkışı 11:00, giriş 15:00'te.";
+    expect(checkDecisionText(text, f({ resolution: "decline" })).problems).toContain("internal_copy");
+  });
+  it("aynı bilgiyi kendi cümlesiyle söyleyen metin geçer", () => {
+    const text = "Maalesef 14 Ekim'de erken giriş mümkün değil: önceki misafirimiz 11:00'de çıkıyor ve temizlik sürüyor olacak; giriş 15:00'te.";
+    expect(checkDecisionText(text, f({ resolution: "decline" })).problems).toEqual([]);
+  });
+});

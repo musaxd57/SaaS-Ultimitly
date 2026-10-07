@@ -67,7 +67,9 @@ export type DecisionTextProblem =
   /** "Bilgim yok" itirafı. */
   | "absence"
   /** Misafirin dilinden başka dilde cümle. */
-  | "language";
+  | "language"
+  /** Kartın İÇ kontrol listesinden bir satır metne aynen kopyalanmış (ölçüldü 10-07: 5.1 İngilizce mesaja Türkçe satırı ekledi). */
+  | "internal_copy";
 
 export interface DecisionTextCheck {
   ok: boolean;
@@ -100,6 +102,20 @@ function factTexts(f: DecisionTextFacts): string[] {
   const template = decisionMessageText({ ...f, time: f.time });
   if (template) out.push(template);
   return out;
+}
+
+const squash = (t: string) => t.toLocaleLowerCase("tr").replace(/[\s.,;:!?()"'’—–-]+/g, " ").trim();
+
+/** Kontrol listesinin bir satırı (ya da satırın saatsiz gövdesi, ≥ 16 karakter) metinde aynen geçiyor mu. */
+export function copiesChecklistLine(text: string, checklist: readonly string[]): boolean {
+  const t = ` ${squash(text)} `;
+  return checklist.some((line) => {
+    const whole = squash(line);
+    if (whole.length >= 16 && t.includes(` ${whole} `)) return true;
+    // Saat / sayı öncesi gövde ("önceki misafirin beklenen çıkışı" — "… 11:00") da iç ifadedir.
+    const head = squash(line.split(/[:(\d]/)[0] ?? "");
+    return head.length >= 16 && t.includes(` ${head}`);
+  });
 }
 
 function stripNote(text: string, note: string | null): string {
@@ -138,6 +154,7 @@ export function checkDecisionText(text: string | null | undefined, f: DecisionTe
   if (defersDecisionToHost(body)) problems.push("defers");
   if (admitsMissingKnowledge(body)) problems.push("absence");
   if (replyLanguageMismatch(f.lang, stripNote(body, f.note))) problems.push("language");
+  if (copiesChecklistLine(stripNote(body, f.note), f.checklist)) problems.push("internal_copy");
 
   return { ok: problems.length === 0, problems, unknownTimes };
 }
@@ -154,6 +171,7 @@ const PROBLEM_TR: Record<DecisionTextProblem, string> = {
   defers: "Mesaj kararı hâlâ ev sahibine bırakıyor; kararınızı açıkça yazın.",
   absence: "Mesajda \"bilgim yok\" gibi bir ifade var.",
   language: "Mesajın bir kısmı misafirin dilinde değil.",
+  internal_copy: "Mesajda kontrol listenizden bir satır aynen geçiyor; misafire kendi cümlenizle yazın.",
 };
 
 /** Ev sahibine gösterilen sade uyarı satırları (teknik açıklama yok). */
