@@ -49,7 +49,9 @@ export function GuestChatReply({
         setError(data?.error ?? "Gönderilemedi. Lütfen tekrar deneyin.");
         return;
       }
-      setText("");
+      // Y10 (Codex 10-07): kutu gönderim sürerken yazılabilir; yalnız GÖNDERİLEN metin hâlâ oradaysa temizlenir — o arada yazılan
+      // yeni taslak silinmez.
+      setText((cur) => (cur.trim() === body ? "" : cur));
       router.refresh();
     } catch {
       // Ağ hatası BELİRSİZ teslimattır (↑aynı gerekçe, 08-06): istek sunucuya

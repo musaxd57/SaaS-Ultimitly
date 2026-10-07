@@ -277,7 +277,9 @@ export function ConversationThread({
       });
       if (res.ok) {
         requestIdRef.current = null;
-        setComposer("");
+        // Y10 (Codex 10-07): yalnız GÖNDERİLEN metin hâlâ yazma alanındaysa temizlenir — gönderim sürerken yazılan yeni taslak
+        // ve "Onayla ve gönder" ile öneri giderken alanda ayrıca duran taslak silinmez.
+        setComposer((cur) => (cur.trim() === body.trim() ? "" : cur));
         setSuggestion(null);
         // Durable Outbox (flag ON): a 202 means QUEUED, not yet delivered — say so
         // honestly instead of implying the message already reached the guest.

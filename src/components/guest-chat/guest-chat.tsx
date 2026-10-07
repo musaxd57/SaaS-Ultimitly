@@ -64,6 +64,9 @@ export function GuestChat({ token }: { token: string }) {
     const seq = ++loadSeq.current;
     try {
       const res = await fetch(`/api/chat/${token}`, { method: "GET" });
+      // U28 (Codex 10-07): SIRA DENETİMİ HER DALDAN ÖNCE. Eskiden yalnız başarı yolundaydı: daha yeni bir isteğin 200/açık cevabından
+      // SONRA gelen eski bir 404/410 sohbeti kapatıp sorgulamayı kalıcı durduruyordu; eski hatalar da sayaca yazılıyordu.
+      if (seq !== loadSeq.current) return;
       // 🚨 KALICI ARIZA GEÇİCİ HATA GİBİ GÖRÜNÜYORDU (inceleme, 09-11). Host QR'ı
       // panelden kapatırsa GET 404 döner; `if (!res.ok) return;` bunu SESSİZCE
       // yutuyordu → eski sohbet ve yazma kutusu ekranda kalıyor, her gönderim
@@ -113,6 +116,7 @@ export function GuestChat({ token }: { token: string }) {
       setClosed(false);
       if (Array.isArray(data.messages)) setMessages(data.messages);
     } catch {
+      if (seq !== loadSeq.current) return; // U28: daha yeni bir istek var — eski isteğin ağ hatası sayılmaz
       failuresRef.current += 1;
       if (failuresRef.current >= STALL_AFTER_FAILURES) setStalled(true);
       /* transient — the next poll retries */
@@ -165,7 +169,9 @@ export function GuestChat({ token }: { token: string }) {
     // guest isn't left with a "sent"-looking message sitting next to an error.
     const rollback = () => {
       setMessages((m) => m.filter((x) => x.id !== tmpId));
-      setInput(text);
+      // U27 (Codex 10-07): yazma alanı gönderim sürerken açık; misafir o arada YENİ bir mesaj yazdıysa onu ezme — yalnız alan boşsa
+      // gönderilemeyen metin geri gelir.
+      setInput((cur) => (cur.trim() ? cur : text));
     };
     // Same text (a retry after a failure) reuses the id; new/edited text mints
     // a fresh one — a deliberate identical follow-up gets a new id too, because
