@@ -1049,3 +1049,30 @@
   açmak. Ölçmeden açmak isterseniz risk düşük: değişen yalnız sohbet mesajlarının güveni ve üslubu; güvenlik kapıları aynı.
 - **Müşteriye etkisi:** hâl hatır soran misafir cevapsız kalmaz, cevap insan gibi ama duygu uydurmadan; ev sahibine gereksiz taslak düşmez.
 - **Beklerken yapılmayan:** ücretli ölçüm koşulmadı (onay yok); anahtar kapalı.
+
+## 62. Host Karar Motoru ("karar bekliyor" kartı + Onayla / Reddet) — KODDA ve İTİLDİ (10-03, migration 59), anahtar `HOST_DECISIONS_ENABLED` VARSAYILAN KAPALI
+- **Sizin tarifiniz:** "Saat 13:00'te giriş yapabilir miyiz?" → panelde "13:00 erken giriş — karar bekliyor" açık kalır, size TEK bildirim gider,
+  onaylayınca / reddedince talep sonuçlanır; baştan savma cevap gitmez, gerekirse hiçbir şey yazılmaz; temizlik işareti, önceki / sonraki
+  misafirin saatleri dikkate alınır.
+- **Yapılan (ayrıntı `docs/TASARIM-2026-10-02-host-karar-motoru.md`):** kart konuşmanın en üstünde (talepten alıntı, "bakmanız gerekenler", tüm
+  kontrol listesi, önceki / sonraki misafirin geç çıkış / erken giriş kararları, önceki kararlar); Onayla / Reddet düzenleyicisi (24 saatlik saat,
+  mesaj dili, ücret / not kutuları, düzenleme); gelen kutusu rozeti; pano satırı; tek e-posta ("Misafir cevabınızı bekliyor" yerine); gönderimden hemen
+  önce yeniden doğrulama (çift tık, misafir yeniden yazdı, iptal, gün geçti, kontrol listesi değişti); belirsiz gönderimde kör tekrar yok. İki UX turu +
+  üç inceleme ajanı (bulgular düzeltildi, belge §10) + mutasyon. Anahtar kapalıyken her şey bugünkü gibi (testli).
+- **Onayınızı bekleyenler:**
+  - **a) ✅ Migration 59 itildi** ("pushu yaptır"). Kalan: Railway'i açmadan ÖNCE taze `pg_dump` (yeni tablo; dolu tabloya dokunmaz).
+  - **b) Misafire giden karar metinleri (7 dil, KOD kurar, ev sahibi göndermeden önce görür ve düzenleyebilir).** TR:
+    onay "Erken giriş talebiniz onaylandı: 14 Ekim günü saat 13:00 itibarıyla giriş yapabilirsiniz. Erken giriş ücreti ₺500." ·
+    ret "Maalesef 14 Ekim günü erken giriş mümkün olmayacak; giriş saati 15:00." · geç çıkış onay "Geç çıkış talebiniz onaylandı: 14 Ekim günü
+    çıkış saatiniz 13:00." · ret "Maalesef 14 Ekim günü geç çıkış mümkün olmayacak; çıkış saati 11:00." EN: "Your early check-in is approved — you can
+    check in on 14 October from 13:00." / "Unfortunately, early check-in won't be possible on 14 October; check-in is from 15:00." / "Your late check-out
+    is approved — you can check out by 13:00 on 16 October." (diğer diller belge §10 + `decisions/core.ts`). Öneri: bu hâliyle onay.
+  - **c) Farklı saatle onay** (misafir 13:00 istedi, siz 14:00 seçtiniz): bugün metin "talebiniz onaylandı: … 14:00 itibarıyla" der. Seçenek A
+    (bugünkü, öneri): saat açıkça yazıldığı için yanlış anlaşılmaz. Seçenek B: "13:00 mümkün değil; 14:00'te giriş yapabilirsiniz" (karşı teklif dili).
+  - **d) Karar mesajı raporda:** hazır metin değiştirilmeden gittiyse "ev sahibi yazdı + yapay zekâ destekli", siz değiştirdiyseniz yalnız "ev
+    sahibi yazdı" (Faz 0 K6'nın inceltmesi; müşteriye giden metni etkilemez).
+  - **e) Yapay zekâ isteminin devir satırı** onaylı komşu saatini henüz bilmiyor (istem misafire gideni etkiler; ayrı ücretli kıyas ister).
+  - **f) Arapça terim ve para birimi biçimi** canlı erken giriş onay metniyle ortak; değiştirmedim (iki metin ayrışmasın — birlikte gözden geçirme önerisi).
+- **Müşteriye etkisi (anahtar açılınca):** hassas konaklama isteği "baştan savma" cevapla kapanmaz; size tek bildirim gider; misafire giden karar
+  metni sizin onayınızla ve seçtiğiniz saatle gider; ev sahibi karar verdiyse otomatik onay onu ezmez.
+- **Beklerken yapılmayan:** anahtar kapalı; ücretli ölçüm yok; QR misafir sohbeti ve uzatma / tarih değişikliği metni kapsam dışı (belge §8).

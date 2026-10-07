@@ -142,6 +142,46 @@ alıntı, sonuç satırları, öğelerle birlikte yaşam, pano tekilliği).
 
 ## 9. Açma sırası
 
-1. Kurucu: migration 59 + metinler onayı → taze `pg_dump` → push (anahtar KAPALI kalır).
-2. Kurucu org'da `HOST_DECISIONS_ENABLED=1`; ilk kararlar ve ilk "Karar bekliyor" e-postaları birlikte (K5).
+1. ✅ Migration 59 itildi (10-03, kurucu: "pushu yaptır"; CI #1292 yeşil). Railway kapalı → tablo canlıya Railway açılınca gelir:
+   açmadan ÖNCE taze `pg_dump` (yeni tablo, dolu tabloya dokunmaz). Anahtar KAPALI kalır.
+2. Misafir metinleri onayı (Sabah Kararları 62 b) → kurucu org'da `HOST_DECISIONS_ENABLED=1`; ilk kararlar ve ilk "Karar bekliyor"
+   e-postaları birlikte (K5).
 3. Küçük pilot, sonra genel.
+
+## 10. Üç inceleme ajanının bulguları ve düzeltmeleri (10-03 → 10-07; hepsi kırmızı-önce, eski kodda kırmızı doğrulandı)
+
+**Eşzamanlılık / gönderim (rota):**
+- Gönderim sırasında hata (kanal kabul etti, kayıt düştü olabilir), "aynı metin az önce gitti" (`duplicate`) ve kuyruk kimliği çatışması
+  kartı yeniden AÇMIYOR → "gönderim doğrulanamadı" (eskiden yeniden açılıyordu: 2 dk sonra ikinci mesaj gidebilirdi). Yalnız hiçbir
+  şeyin gitmediği kesin hata (bağlı değil, kalkan okunamadı, kanal kesin reddetti) kartı yeniden açar ve saati geri alır.
+- Kilit (`pending → sending`) onayın saatini ve karar vereni HEMEN yazar: gönderim sürerken komşu konaklamanın kartı ve erken giriş
+  kontrolü onaylı geç çıkışı görür (ret saat taşımaz).
+- Gün CANLI (`liveDecisionDayKey`): rezervasyon değişirse kart, süre kontrolü ve metin rezervasyonun bugünkü gününü kullanır.
+- Talebin mesajı bulunamazsa "misafir yeniden yazdı" kontrolü atlanmıyor (çapa kartın açıldığı an).
+- Standardın yanlış tarafındaki onay saati sunucuda 400 (arayüz de göndermez). Ev sahibi metni değiştirdiyse mesaj "yapay zekâ destekli"
+  sayılmaz.
+
+**Depo / türetme:** ev sahibi cevabı öğelerle aynı tavansız sorguyla (500 satır tavanı başka konuşmaların mesajlarıyla bir cevabı
+gizleyebiliyordu) · gönderimi doğrulanamayan / yarıda kalan kart iptal ve gün geçince açık iş sayılmaz · pano en yeni kartları okur ·
+gönderimi süren onay komşu kartta sayılır ve gönderilirken kart eylemsiz görünür (kaybolmaz).
+
+**Tur / bildirim / otomatik onay:**
+- Misafir aynı talebe yeni mesaj eklerse ("?") yeni kart açılmaz (eskiden yeni kart + İKİNCİ e-posta); saat değişirse (13:00 → 12:00)
+  yeni kart eskisinin yerine geçer ve bildirim damgasını devralır (tekrar e-posta yok). Günü geçmiş talep için kart açılmaz.
+- Deterministik saat yedeği yalnız tek saatli tür, hiç model okuması yok ve mesaj karşı yuvayı anmıyorken; saati son mesaj yazdıysa o.
+- Bildirim kilidi turun son mesajı (K10 ile aynı); hassas öğe e-postası turun herhangi bir mesajına gittiyse e-posta yok ama kartlar
+  damgalanır. Kapatılmış / sonuçlanmış kart "Misafir cevabınızı bekliyor" bildirimini yutmaz.
+- 🚨 Doğrulanmış OTOMATİK erken giriş onayı ev sahibinin kararını ezmez: kartta karar verildiyse / veriliyorsa (reddedildi, kapatıldı,
+  gönderiliyor, doğrulanamadı) otomatik onay gitmez; bekleyen kart göndermeden önce sahiplenilir (kesin hatada geri, belirsizde
+  doğrulanamadı). Örnek: ev sahibi 13:00'ü reddetti → temizlik bitince yeniden değerlendirme "onaylandı" göndermez.
+
+**Panel / metin:** düzenleyici açılınca son misafir mesajı + kontrol listesi izi sabitlenir; sayfa arka planda değişirse "Okudum"
+denmeden gönderilmez · düzenlenmiş metinde seçilen saat yoksa uyarı · "Hazır metne dön" onaylı · not kutusu ("çevrilmez") · geç çıkış ücret
+ipucu · "Kartı kapat / Evet, kapat" · erişilebilirlik (odak, `aria-controls`, ekran okuyucu ön ekleri) · başlık "(saat belli değil)" ·
+"14:00 olarak onaylandı" · aynı saat "çakışıyor" · karar görünümünde "Varıştan önceki gece" ve "istenen saatte daire henüz boşalmamış
+olabilir" · e-posta (mülk önce, gün etiketi, türe göre paragraf, "Konuşmayı açın") · pano ve gelen kutusunda "Gönderim doğrulanamadı".
+
+**Misafir metinleri (anahtar kapalı; Sabah Kararları 62 b):** "giriş saatimiz" → "giriş saati" (biz varsayılmaz) · EN "Unfortunately, early
+check-in…", "you can check out by 13:00 on…" · DE "bis 13:00 Uhr auschecken" · FR bölünmez boşluk + "1er" + "libérer le logement jusqu'à" ·
+ES "la entrada / hasta las" · RU "выезд — до". Arapça terim ve para birimi biçimi canlı erken giriş metniyle ortak → değiştirilmedi
+(Sabah Kararları 62 f).

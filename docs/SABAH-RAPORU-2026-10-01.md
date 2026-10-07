@@ -3,11 +3,13 @@
 > Kararlar ayrı belgede: `docs/SABAH-KARARLARI-2026-10-01.md`. Bu rapor: doğrulanan K düzeltmeleri, kurucu talimatlarının
 > uygulaması, Luna ölçümleri, maliyet, kapı / CI, canlıya geçiş için kalan adımlar ve eklenecek / değişecek ortam değişkenleri.
 
-## 0c. 10-02 GECE — Host Karar Motoru ("karar bekliyor" kartı + Onayla / Reddet) KODDA, İTİLMEDİ
+## 0c. 10-02 GECE → 10-07 — Host Karar Motoru ("karar bekliyor" kartı + Onayla / Reddet) İTİLDİ, anahtar KAPALI
 
-- **Durum:** yerel dalda kayıtlı, anahtar `HOST_DECISIONS_ENABLED` VARSAYILAN KAPALI. **Migration 59 (yeni tablo `DecisionRequest`) içerdiği için
-  İTİLMEDİ** — kural: taze `pg_dump` + sizin açık "push et" onayınız. Ayrıntı: `docs/TASARIM-2026-10-02-host-karar-motoru.md`; onay maddeleri Sabah
-  Kararları 62.
+- **Durum:** itildi (10-03, sizin "pushu yaptır"ınızla; migration 59 = yeni tablo `DecisionRequest`). Railway kapalı → tablo canlıya Railway
+  açılınca gelir; açmadan önce taze `pg_dump`. Anahtar `HOST_DECISIONS_ENABLED` VARSAYILAN KAPALI. 10-03 → 10-07: üç inceleme ajanının bulguları
+  düzeltildi (tasarım belgesi §10: belirsiz gönderim kartı yeniden açmaz, aynı talebe ikinci kart / e-posta yok, otomatik onay ev sahibinin
+  reddini ezmez, panelde görülen değerler sabit, metinler). Ayrıntı: `docs/TASARIM-2026-10-02-host-karar-motoru.md`; onay maddeleri Sabah
+  Kararları 62. ⚠️ Konteyner bir kez sıfırlandı ve itilmemiş iki commit kayboldu; yeniden yazıldı, testleri yeniden kırmızı-önce doğrulandı.
 - **Ne yapar:** "Saat 13:00'te giriş yapabilir miyiz?" tutulunca konuşmanın EN ÜSTÜNDE "13:00 erken giriş — Karar bekliyor" kartı (misafirin talebinden
   alıntı, bakmanız gerekenler, tüm kontrol listesi: temizlik işareti, önceki misafirin çıkışı / onaylı geç çıkışı, sonraki misafirin erken giriş
   kararı, çakışma); gelen kutusunda "Karar bekliyor" rozeti, panoda satır; size TEK "Karar bekliyor" e-postası ("Misafir cevabınızı bekliyor"
