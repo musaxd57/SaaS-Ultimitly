@@ -1141,3 +1141,65 @@
     9 November from 13:00. The early check-in fee is US$25."
     **Bilinen sınır:** ev sahibinin TÜRKÇE notu misafirin dilinde mesajın sonuna olduğu gibi eklenir (bugünkü şablonla aynı; 62 f ile birlikte
     gözden geçirme önerisi). **Açmak sizin kararınız:** `HOST_DECISION_AI_TEXT_ENABLED=1` (ön koşul `HOST_DECISIONS_ENABLED=1` + `AI_STAY_GUARD_ENABLED=1`).
+
+## 63. (SORU) Otopark tahsisi muafiyeti (24 EK) DARALSIN mı — Codex U17 (10-07 gece; HAZIR YAMA, ana dala UYGULANMADI)
+Bugün 24 EK muafiyeti bilgi tabanında otopark sözcüğünün ±120 karakterinde "ayrılmış / tahsis / reserved…" sözcüğü gördüğünde cevaptaki
+"2 numaralı yer dairenize ayrılmış" cümlesini takvim iddiası saymıyor — olumsuzluk / kime ait / koşul denetimi YOK. Ölçüldü (kelime ağı):
+- Bilgi tabanı "2 numaralı yer size ayrılmış **değildir**" → cevap "…2 numaralı yer dairenize ayrılmış durumda." → bugün **GİDER**, sonra **TASLAK**.
+- "2 numaralı yer **komşu daireye** ayrılmıştır" → bugün GİDER, sonra TASLAK.
+- "2 numaralı yer **4 numaralı daireye** ayrılmıştır" → bugün GİDER, sonra TASLAK.
+- "**5** numaralı yer dairenize ayrılmıştır, 2 numaralı yer komşunundur" → cevap "2 numaralı yer dairenize…" → bugün GİDER, sonra TASLAK.
+- "2 numaralı yer **talep üzerine** dairenize tahsis **edilebilir**" / "space 2 **can be** reserved … **on request**" → bugün GİDER, sonra TASLAK.
+- KONTROL: "Binanın arkasındaki açık otopark ücretsizdir; 2 numaralı yer dairenize ayrılmıştır." → bugün de sonra da GİDER.
+Kural: tahsisin geçtiği CÜMLECİK misafire (2. şahıs: dairenize / size / your / Ihre / votre / vuestra / ваш / لك) ait, olumsuzluk / kip /
+başka yararlanan (komşu, başka daire, ev sahibi) YOK ve cevaptaki numara AYNI cümlecikte. Bedeli: bilgi tabanı "2 numaralı park yeri"ni
+virgülle iki cümleciğe bölerse ("Otopark: 2 numaralı yer, dairenize ayrılmıştır") cevap taslağa düşer (güvenli yön).
+**Öneri:** onay. Uygulama: `git apply docs/hazir-yamalar/2026-10-07-U17-otopark-tahsisi.patch` (+ tam kapılar).
+
+## 64. (SORU) Görev tekilleştirme konusu cihaz adı olsun mu — Codex Y5 (HAZIR YAMA)
+Bugün otomatik bakım görevinin tekilleştirme anahtarı mesajdaki İLK arıza sözcüğü. Aynı gün aynı daire:
+- "Klima bozuk" + "Musluk bozuk" → bugün **TEK görev** ("Bakım: bozuk"), sonra **İKİ görev** ("Bakım: klima", "Bakım: musluk").
+- "The TV is not working" + "The fridge is not working" → bugün tek, sonra iki ("Bakım: tv", "Bakım: fridge").
+- Acil: "Gaz kokusu var" + "Mutfakta yangın var" → bugün tek "acil güvenlik" görevi, sonra iki (gaz / yangın).
+- KONTROL: "Klima bozuk" + "Klima hâlâ bozuk, bakar mısınız?" → bugün de sonra da TEK görev.
+- Cihaz adı bulunamazsa ("Bir şey bozuk"): anahtar KAYNAK MESAJ — aynı gün iki ayrı belirsiz mesaj iki görev açar (bugün tek). Bedeli bu.
+Personel görünümü başlığı da cihaz adını taşır ("Bakım: klima"; bugün "Bakım: bozuk").
+**Öneri:** onay. `git apply docs/hazir-yamalar/2026-10-07-Y5-gorev-tekillestirme.patch`.
+
+## 65. (SORU) Paddle faturasında bozuk / eksik tutar — Codex U39 (HAZIR YAMA, para akışı)
+Bugün `parseInt`: "100abc" → 100, "1e3" → 1, "-500" → -500, tutar yok → 0 ile "ödenmiş" fatura yazılıyor ve AYNI işlemin sonraki DOĞRU olayı
+var olan fatura yüzünden hiç işlenmiyor. Sonra: tutar yalnız tam rakam dizisi (≤15 hane); değilse fatura YAZILMAZ + operatör alarmı (para birimi
+eksikliğiyle aynı kural) → sonraki doğru olay faturayı yazar. Gerçek sıfır ("0") geçerli fatura. Müşteriye görünen değişiklik yok (fatura
+listesi yalnız dışa aktarımda). **Öneri:** onay. `git apply docs/hazir-yamalar/2026-10-07-U39-paddle-tutar.patch`.
+
+## 66. (SORU) Ödeme olayı ↔ hesap silme yarışı, ödeme tarafı — Codex U42 (HAZIR YAMA)
+Silme tarafı YAPILDI (tur 2: silme işleminde faturalı abonelik yeniden denetlenir → 409). Ödeme tarafı: webhook kuruluşu denetledikten sonra
+hesap silinirse var olan abonelik satırının güncellemesi 0 satır dönüyor ve olay "bayat" sayılıp **alarmsız** düşüyor (ödeme alınmış olabilir).
+Sonra: yazma kuruluş satırına paylaşımlı kilitle tek işlemde — ya yazma önce biter ve silme faturalı aboneliği görüp 409 der, ya silme önce
+biter ve operatöre "bağlanamayan ödeme" alarmı gider. Gerçekten bayat olay (daha taze olay yazılmış) yine alarmsız düşer.
+**Öneri:** onay. `git apply docs/hazir-yamalar/2026-10-07-U42-odeme-tarafi.patch`.
+
+## 67. (SORU) F06 değişikliği: doğrulanamayan oturumda sayfa açılsın mı — Codex U29 (HAZIR YAMA)
+Bugün (F06, "normal müşteri oturumu fail-open"): sayfa yolunda kullanıcı satırı okunamazsa rol bellekte "personel"e indirilip sayfa AÇILIR;
+gelen kutusu rol denetlemeden okuduğu için iptal edilmiş (sürümü artmış) bir oturum kısmi veritabanı arızasında misafir konuşmalarını
+salt-okuma görebilir. Sonra: sayfa "Bir şey ters gitti — tekrar deneyin" ekranı gösterir; çıkış YOK (çerez aynen), veritabanı dönünce aynı
+oturumla sayfa açılır. Veritabanı tamamen düştüyse sayfanın kendi sorguları zaten düşer; fark yalnız KISMİ arızada. Bürünme oturumu da hata
+ekranına düşer (bugün çıkışa yönleniyor). **Öneri:** onay (doğrulanamayan oturuma veri göstermemek). `git apply docs/hazir-yamalar/2026-10-07-U29-f06-dogrulanamayan-oturum.patch`.
+
+## 68. (SORU) Cevap düzeyi vaka kabulü KATI isabete bağlansın mı — Codex U20 (ölçer; müşteri gönderimi DEĞİŞMEZ)
+YAPILDI: RAG cevap ölçerine AYRI "katı cevap düzeyi" sütunu (cevabın kendi sayılarının HEPSİ — aralıkta iki uç — olumsuzlanmamış cümlede) ve
+olgu ölçüsüne rakam sınırı ("11" artık "Daire 110"da bulunmuyor). Gevşek sütun gelişim çizgisi için AYNEN. Örnek: doğru cevap "Havuz 09:00–20:00"
+iken yanıt "Havuz 09:00–11:00" → gevşek: isabet, katı: DEĞİL; "Havuz 09:00'da açık değil" → gevşek isabet, katı değil.
+**Soru:** vaka kabulü (`answer-acceptance.ts`, kurucu kararı 09-27) bugün GEVŞEK ölçüye bakıyor: "yarım aralık / yanlış uç" cevap kırmızı
+sayılmıyor. Katıya bağlanırsa bu vakalar "cevap kaçırıldı" ya da (yabancı sayı varsa) kırmızı aday olur — %95 kapısı geri GELMEZ, yalnız vaka
+hükmü sıkılaşır. **Öneri:** evet, bir sonraki kabul koşusundan itibaren (eski raporlar eski ölçüyle okunur).
+
+### 10-07 gece — bilgi (karar gerekmiyor, YAPILDI)
+- **Y8 rapor tekilleştirmesi:** farklı dairelerin aynı referanslı ELLE / DOSYA rezervasyonları artık ayrı sayılır (aylık rapor geliri ve
+  bugünkü giriş / çıkış sayıları); aynı SAĞLAYICI rezervasyonu iki dairede görünürse eskisi gibi tek sayılır. Önce: "R1" referanslı iki daire →
+  1 rezervasyon, gelir 100; sonra 2 rezervasyon, gelir 200.
+- **Y7 aylık rapor:** New York gibi UTC− dilimde ayın 1'indeki giriş artık o ayda (önce önceki aya düşüyordu); İstanbul'da sonuç aynı.
+- **U26 görev kontrol listesi:** pano tek maddeyi gönderir; liste bu arada değiştiyse personel "Görev listesi bu arada değişti. Sayfa
+  yenilendi, tekrar deneyin." görür (eskiden işaret yanlış maddeye düşebiliyordu).
+- **Y6 sağlayıcı tarihi:** imkânsız gün ("2026-02-30") ya da çıkışı girişten önce olan rezervasyon YAZILMAZ (senkron özetinde "yazılamayan" sayılır,
+  `inverted_dates` etiketi); var olan kayıt korunur.

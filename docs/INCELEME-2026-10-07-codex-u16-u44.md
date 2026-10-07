@@ -6,51 +6,53 @@
 > kapsamlar için kurucunun onayını al."
 > Doğrulama: güncel ağaçta (HEAD `7869db9`) kod okuma + saf modüllerde `tsx` ile yeniden üretim (veritabanı / ağ yok). Düzeltmeler ayrı
 > commit'lerde, kırmızı-önce + mutasyon. Bu belge her tur güncellenir.
+> **10-07 gece durumu:** tur 2 + 3 + 4 kodda; onay gerektiren beş değişiklik HAZIR YAMA olarak `docs/hazir-yamalar/` (ana dala
+> UYGULANMADI; `git apply` ile uygulanır) + `docs/SABAH-KARARLARI-2026-10-01.md` 63–68.
 
 ## Durum tablosu
 
 | # | Konu | Doğrulama | Düzeltme | Not |
 |---|---|---|---|---|
-| U13 | Bürünmeden çıkış iptal edilmiş operatör oturumunu canlandırır | DOĞRULANDI (P1: uç hız sınırsız, tekrar denenebilir) | — | tur 2 |
-| U43 | Parola değiştirme, araya giren sıfırlamayı ezer | DOĞRULANDI (P2–P3: saldırgan zaten aynı zararı verebilir) | — | tur 2 |
-| U40 | 2FA açma, araya giren sıfırlamadan sonra oturum verir | DOĞRULANDI (dar pencere, P2) | — | tur 2 |
-| U41 | Hesap silme, araya giren sıfırlamadan sonra sürer | DOĞRULANDI (P2–P3) | — | tur 2 |
-| U44 | Doğrulanmamış hesap süpürgesi az önce etkinleşen hesabı siler | DOĞRULANDI (bayrak kapalı) | — | tur 2 |
-| U42 | Hesap silme ↔ ödeme olayı yarışı (iki yön) | DOĞRULANDI | — | tur 2 |
-| U29 | Veritabanı arızasında gelen kutusu rol kapısız okur | KISMEN (bugün rol değiştiren yol yok; F06 ödünleşimi) | — | Sabah Kararları (F06 kuralını değiştirir) |
-| U3 | Tehlike okuyucu: 32 tekrar tavanı · ekipman istisnası · "and" ötesi olumsuzluk | DOĞRULANDI (bildirilenden geniş) | — | kurucu önceliği; tur 2 |
-| U17 | Otopark tahsisi muafiyeti olumsuz / komşu / koşullu KB'yi olumlu sayar | DOĞRULANDI (5 yanlış geçiş) | — | 24 EK'i daraltır → hazır dal + Sabah Kararları |
-| Y5 | Görev tekilleştirme cihaz değil "bozuk" sözcüğüyle | DOĞRULANDI (gaz + yangın aynı gün de tek görev) | — | görev üretimi → hazır dal + Sabah Kararları |
-| U26 | Kontrol listesi bayat formu | KISMEN (bildirilen senaryo 403; başka üç kayıp yolu var) | — | tur 3 |
-| U39 | Paddle bozuk tutar faturası | DOĞRULANDI | — | para akışı → hazır dal + Sabah Kararları |
-| U30 | CSV negatif tutar biçimleri pozitife döner | DOĞRULANDI | — | K1'in uygulanması; tur 3 |
-| U31 | CSV geçersiz tutar başka tutara çevrilir / tavana kırpılır | DOĞRULANDI | — | tur 3 |
-| U32 | CSV tarihi sunucu saat dilimine bağlı | DOĞRULANDI (bugün sunucu UTC → gizli) | — | tur 3 |
-| U33 | ICS ISO biçimi TZID'yi yok sayar | DOĞRULANDI | — | tur 3 |
-| U36/Y11 | ICS dışa aktarım satır katlama UTF-16 / bayt | DOĞRULANDI | — | tur 3 |
-| U37 | Takvim olmayan gövde "boş takvim" sayılır | DOĞRULANDI | — | tur 3 |
-| U35 | fc…/fd…/fe8… alan adları özel IPv6 sanılır | DOĞRULANDI | — | tur 3 |
-| U38 | Takvim kaynağı tavanı paralel eklemede aşılır | DOĞRULANDI | — | tur 3 |
-| U34 | Gece yarısı yaz saati geçişi (Azor / Havana / Santiago) | DOĞRULANDI (belgeli sınır) | — | tur 3 |
-| Y6 | Sağlayıcı girişinde imkânsız / ters tarih | DOĞRULANDI | — | tur 3 |
-| Y7 | Aylık rapor yalnız-tarih değerine ham pencere | DOĞRULANDI | — | tur 3 |
-| Y8 | Rapor / pano tekilleştirmesi farklı mülkleri birleştirir | DOĞRULANDI | — | tur 3 |
-| Y9 | Sağlık ucu süren yoklamayı paylaşmaz | KISMEN (gerçek, etkisi düşük) | — | tur 3 |
-| Y1 | Silinen misafirin özel metni yine gönderilir (kalıcı kuyruk) | DOĞRULANDI | — | bayrak kapalı (`DURABLE_OUTBOX_ENABLED`); tur 2 |
-| Y2 | Tekrar konuşma temizliği yeni gelen özgün mesajı siler | DOĞRULANDI | — | CANLI yol (elle temizlik düğmesi); tur 2 |
-| Y3 | Onarım yolu yeni soruyu "yanıtlandı" yapar | DOĞRULANDI (bildirilenden geniş) | — | bayrak kapalı; tur 3 |
-| Y4 | Eski karar kartı yeni talebi kapatır | KISMEN (iki parça gerçek, (a) daha geniş) | — | bayrak kapalı (`HOST_DECISIONS_ENABLED`); tur 3 |
-| U27/U28 | QR: hata yeni taslağı siler · eski 404 açık sohbeti kapatır | DOĞRULANDI | — | CANLI (misafir ekranı); tur 3 |
-| Y10 | Cevap kutusu gönderim sonrası yeni taslağı siler | DOĞRULANDI + kardeş bileşen | — | CANLI (ev sahibi ekranı); tur 3 |
-| U16 | Konuşma durumu raporu aynı gün ezer | DOĞRULANDI | — | ölçer; tur 4 |
-| U18 | Yeniden sıralama eval'i boş boyut listesiyle yeşil | DOĞRULANDI | — | ölçer; tur 4 |
-| U19 | Veri üretici doğrulamadan önce yazar | DOĞRULANDI | — | ölçer; tur 4 |
-| U20 | Cevap ölçeri yanlış alan / olumsuz / yarım aralığı doğru sayar | DOĞRULANDI | — | ölçer (gönderim kapısı DEĞİL); tur 4 |
-| U21 | Ölçek / taban raporu metni ayarla çelişir (200 ↔ 400) | DOĞRULANDI | — | ölçer; tur 4 |
-| U22 | Canlı hat raporu cevabı 320 karakterde keser | DOĞRULANDI | — | ölçer; tur 4 |
-| U23 | QR sır ölçümü yalnız senaryonun kendi listesine bakar | DOĞRULANDI | — | ölçer; tur 4 |
-| U24 | "15:00" için iki açık sette zıt etiket | DOĞRULANDI (dev satırları) | — | d-q017 eski kurala göre etiketli; tur 4 |
-| U25 | `engines` Node 22.0'a izin verir, araçlar ≥22.13 ister | DOĞRULANDI | — | tur 4 |
+| U13 | Bürünmeden çıkış iptal edilmiş operatör oturumunu canlandırır | DOĞRULANDI (P1: uç hız sınırsız, tekrar denenebilir) | YAPILDI — `exitImpersonation` doğrulanmış sürümle imzalar; arada iptalde çıkış (`exit-impersonation.test.ts`) | tur 2 |
+| U43 | Parola değiştirme, araya giren sıfırlamayı ezer | DOĞRULANDI (P2–P3: saldırgan zaten aynı zararı verebilir) | YAPILDI — yazma koşulunda oturum sürümü; sıfırlama bekleyen kodu siler; çift tıklamanın kaybedeni yine 400 (`identity-races.test.ts`) | tur 2 |
+| U40 | 2FA açma, araya giren sıfırlamadan sonra oturum verir | DOĞRULANDI (dar pencere, P2) | YAPILDI — 2FA aç / kapat / kurtarma kodu sürüm koşullu (`identity-races.test.ts`) | tur 2 |
+| U41 | Hesap silme, araya giren sıfırlamadan sonra sürer | DOĞRULANDI (P2–P3) | YAPILDI — silme işleminde sahip satırı FOR UPDATE + sürüm ön koşulu (`identity-races.test.ts`) | tur 2 |
+| U44 | Doğrulanmamış hesap süpürgesi az önce etkinleşen hesabı siler | DOĞRULANDI (bayrak kapalı) | YAPILDI — süpürge işlem içinde aday koşullarını yeniden denetler (`unverified-sweep-race.test.ts`) | tur 2 |
+| U42 | Hesap silme ↔ ödeme olayı yarışı (iki yön) | DOĞRULANDI | silme tarafı YAPILDI (org FOR UPDATE + faturalı abonelik işlem içinde, 409); ödeme tarafı HAZIR YAMA (Sabah 66) | tur 2 |
+| U29 | Veritabanı arızasında gelen kutusu rol kapısız okur | KISMEN (bugün rol değiştiren yol yok; F06 ödünleşimi) | HAZIR YAMA (Sabah 67) — doğrulanamayan oturum sayfa açmaz | Sabah Kararları (F06 kuralını değiştirir) |
+| U3 | Tehlike okuyucu: 32 tekrar tavanı · ekipman istisnası · "and" ötesi olumsuzluk | DOĞRULANDI (bildirilenden geniş) | YAPILDI — tavan seviyeyi düşürmez, bağlaç olumsuzluğu keser, ekipman yalnız ad niteleyince (`hazard-evidence.test.ts`) | kurucu önceliği; tur 2 |
+| U17 | Otopark tahsisi muafiyeti olumsuz / komşu / koşullu KB'yi olumlu sayar | DOĞRULANDI (5 yanlış geçiş) | HAZIR YAMA (Sabah 63) | 24 EK'i daraltır → hazır dal + Sabah Kararları |
+| Y5 | Görev tekilleştirme cihaz değil "bozuk" sözcüğüyle | DOĞRULANDI (gaz + yangın aynı gün de tek görev) | HAZIR YAMA (Sabah 64) | görev üretimi → hazır dal + Sabah Kararları |
+| U26 | Kontrol listesi bayat formu | KISMEN (bildirilen senaryo 403; başka üç kayıp yolu var) | YAPILDI — tek madde (sıra + etiket) kilitli satıra; bayat liste 409; pano tek madde gönderir (`tasks-checklist-race.test.ts`) | tur 3 |
+| U39 | Paddle bozuk tutar faturası | DOĞRULANDI | HAZIR YAMA (Sabah 65) | para akışı → hazır dal + Sabah Kararları |
+| U30 | CSV negatif tutar biçimleri pozitife döner | DOĞRULANDI | YAPILDI — `\p{Pd}` + U+2212 eksi; parantez rakamların dışında (`csv-negative-amount.test.ts`) | K1'in uygulanması; tur 3 |
+| U31 | CSV geçersiz tutar başka tutara çevrilir / tavana kırpılır | DOĞRULANDI | YAPILDI — rakamlar arası yalnız ayraç; bozuk / 100M üstü satır hatası | tur 3 |
+| U32 | CSV tarihi sunucu saat dilimine bağlı | DOĞRULANDI (bugün sunucu UTC → gizli) | YAPILDI — `Date.UTC` + UTC alıcılar (TZ'li testle) | tur 3 |
+| U33 | ICS ISO biçimi TZID'yi yok sayar | DOĞRULANDI | YAPILDI — ofsetsiz ISO saat temel biçimin TZID dalından (`ics-parse.test.ts`) | tur 3 |
+| U36/Y11 | ICS dışa aktarım satır katlama UTF-16 / bayt | DOĞRULANDI | YAPILDI — kod noktası başına UTF-8 bayt (`ics-export.test.ts`) | tur 3 |
+| U37 | Takvim olmayan gövde "boş takvim" sayılır | DOĞRULANDI | YAPILDI — ilk anlamlı satır `BEGIN:VCALENDAR` (`ical-frame.test.ts`) | tur 3 |
+| U35 | fc…/fd…/fe8… alan adları özel IPv6 sanılır | DOĞRULANDI | YAPILDI — IPv6 önekleri yalnız `isIP === 6` (`private-host.test.ts`) | tur 3 |
+| U38 | Takvim kaynağı tavanı paralel eklemede aşılır | DOĞRULANDI | YAPILDI — sayım + ekleme tek işlemde, mülk FOR UPDATE (`calendar-source-cap-race.test.ts`) | tur 3 |
+| U34 | Gece yarısı yaz saati geçişi (Azor / Havana / Santiago) | DOĞRULANDI (belgeli sınır) | YAPILDI — gün başı günün GERÇEK ilk anı (418 dilim × 2020–2030: 0 uyuşmazlık; `timezone-dst-midnight` + `day-where-dst-midnight`) | tur 3 |
+| Y6 | Sağlayıcı girişinde imkânsız / ters tarih | DOĞRULANDI | YAPILDI — katı ISO + takvim; çıkış ≤ giriş yazılmaz (`canonical-date.test.ts`) | tur 3 |
+| Y7 | Aylık rapor yalnız-tarih değerine ham pencere | DOĞRULANDI | YAPILDI — `reservationDayRangeWhere` (`reports-month-dedupe.test.ts`) | tur 3 |
+| Y8 | Rapor / pano tekilleştirmesi farklı mülkleri birleştirir | DOĞRULANDI | YAPILDI — yalnız sağlayıcı rezervasyonu daireler arası birleşir (`reports-month-dedupe.test.ts`) | tur 3 |
+| Y9 | Sağlık ucu süren yoklamayı paylaşmaz | KISMEN (gerçek, etkisi düşük) | YAPILDI — süren yoklama paylaşılır (`health-probe-shared.test.ts`) | tur 3 |
+| Y1 | Silinen misafirin özel metni yine gönderilir (kalıcı kuyruk) | DOĞRULANDI | YAPILDI — gönderimden hemen önce talepli satır yeniden okunur; `[erased]` → iptal (`outbox-erasure-claimed.test.ts`) | bayrak kapalı (`DURABLE_OUTBOX_ENABLED`); tur 2 |
+| Y2 | Tekrar konuşma temizliği yeni gelen özgün mesajı siler | DOĞRULANDI | YAPILDI — tekrar başına işlem, iki satır FOR UPDATE, yeniden denetim (`conversations-cleanup-race.test.ts`) | CANLI yol (elle temizlik düğmesi); tur 2 |
+| Y3 | Onarım yolu yeni soruyu "yanıtlandı" yapar | DOĞRULANDI (bildirilenden geniş) | YAPILDI — onarıcı cevabın mesajına çapalı (`outbox-healer-anchor.test.ts`) | bayrak kapalı; tur 3 |
+| Y4 | Eski karar kartı yeni talebi kapatır | KISMEN (iki parça gerçek, (a) daha geniş) | YAPILDI — kaynak mesaj sırası `(createdAt, id)` (`decision-store.test.ts`) | bayrak kapalı (`HOST_DECISIONS_ENABLED`); tur 3 |
+| U27/U28 | QR: hata yeni taslağı siler · eski 404 açık sohbeti kapatır | DOĞRULANDI | YAPILDI — yeni taslak korunur; sıra denetimi her dalda (`draft-preservation.test.tsx`) | CANLI (misafir ekranı); tur 3 |
+| Y10 | Cevap kutusu gönderim sonrası yeni taslağı siler | DOĞRULANDI + kardeş bileşen | YAPILDI — yalnız gönderilen metin hâlâ alandaysa temizlenir (`draft-preservation.test.tsx`) | CANLI (ev sahibi ekranı); tur 3 |
+| U16 | Konuşma durumu raporu aynı gün ezer | DOĞRULANDI | YAPILDI — `uniqueReportName` (`eval-report-naming.test.ts`) | ölçer; tur 4 |
+| U18 | Yeniden sıralama eval'i boş boyut listesiyle yeşil | DOĞRULANDI | YAPILDI — `parseSizeList`; sıfır çağrılı rapor GEÇERSİZ (`eval-args.test.ts`) | ölçer; tur 4 |
+| U19 | Veri üretici doğrulamadan önce yazar | DOĞRULANDI | YAPILDI — yazmadan önce sayı denetimi, geçici dosya + yeniden adlandırma (`eval-args.test.ts`) | ölçer; tur 4 |
+| U20 | Cevap ölçeri yanlış alan / olumsuz / yarım aralığı doğru sayar | DOĞRULANDI | YAPILDI — katı sütun (ayrı, kapı değil) + `factsHit` rakam sınırı; vaka kabulüne bağlamak Sabah 68 | ölçer (gönderim kapısı DEĞİL); tur 4 |
+| U21 | Ölçek / taban raporu metni ayarla çelişir (200 ↔ 400) | DOĞRULANDI | YAPILDI — metin sabitlerden / ölçümden (`kb-retrieval-scale` / `-baseline`) | ölçer; tur 4 |
+| U22 | Canlı hat raporu cevabı 320 karakterde keser | DOĞRULANDI | YAPILDI — `reviewQuote` (`eval-report-naming.test.ts`) | ölçer; tur 4 |
+| U23 | QR sır ölçümü yalnız senaryonun kendi listesine bakar | DOĞRULANDI | YAPILDI — setin bütün bilinen sırları her cevapta (`eval-known-secrets.test.ts`) | ölçer; tur 4 |
+| U24 | "15:00" için iki açık sette zıt etiket | DOĞRULANDI (dev satırları) | YAPILDI — d-q017 `none` + `relabel` notu (`stay-change-label-consistency.test.ts`) | d-q017 eski kurala göre etiketli; tur 4 |
+| U25 | `engines` Node 22.0'a izin verir, araçlar ≥22.13 ister | DOĞRULANDI | YAPILDI — `>=22.13.0 <23`, taban kilitten hesaplanıp pinli (`node-version-parity.test.ts`) | tur 4 |
 
 ## Ayrıntı — ölçüm araçları (U16–U25)
 
