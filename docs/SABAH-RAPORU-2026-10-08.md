@@ -7,8 +7,7 @@
 ## 0. Kısaca
 
 - **İtildi:** `claude/great-edison-3zqpZ` (tur 2 + 3 + 4 + belgeler; son commit bu raporun kendisi). Tam kapılar (tsc · lint · 13.220 test · build ·
-  zafiyet kapısı) YEŞİL. CI: son yeşil koşu #1308; bu turun push'ları ardışık olduğu için ara koşular iptal edildi (eşzamanlılık), son
-  push'un koşusu sonucu §2'de.
+  zafiyet kapısı) YEŞİL. **CI #1314 (`e351053`, bu turun bütün kodu) YEŞİL.**
 - **Railway kapalı** → canlıya bir şey gitmedi; geri açılınca dalın son yeşil commit'i gider (migration YOK bu turda).
 - **Next.js 15.5.24 → 15.5.27:** gece yayımlanan iki danışma (GHSA-4jqv-mc3x-m676, GHSA-mcj8-r9mp-w47p — SSG/ISR önbellek zehirlenmesi)
   zafiyet kapısını kırmızıya çevirdi; aynı küçük sürüm içinde yama, yalnız `next` + `@next/*`.
@@ -60,8 +59,8 @@
   kullandığını pinleyen test yoktu; birim testi yalnız saf fonksiyonu sınıyordu) → `calendar-sync.test.ts`e JSON / HTML gövde vakası → 44/44.
 - Hazır yamalar: testleri yamalı kodda YEŞİL, eski kodda KIRMIZI (U17 7 · Y5 10 birim + 1 veritabanı · U39 6 veritabanı · U42 1 veritabanı ·
   U29 5 birim); beşi güncel ana dala tek tek ve BİRLİKTE temiz uygulanıyor (`git apply --check`). Yamalar ana dala UYGULANMADI.
-- CI: #1308 (`5439a23`) yeşil; `87ba35d`'nin koşusu sonraki push'la iptal edildi; son push'un koşusu bu rapor itildikten sonra izleniyor
-  (sonuç döngünün son mesajında).
+- CI: **#1314 (`e351053`) YEŞİL** — tur 2 + 3 + 4 + U37 bağlantı testi + Next.js 15.5.27; ara koşular (#1310, #1312) ardışık push'larla
+  iptal edildi (eşzamanlılık kuralı). Bu satırı ekleyen belge commit'inin koşusu ayrıca izlendi.
 - Bu turda tam kapının yakaladığı ve düzeltilen: çift tıklamanın kaybedeni 401 alıyordu (400'e döndü), iki eski test `deleteAccountData`ın
   dönüşünü `undefined` bekliyordu, gece yayımlanan Next.js danışmaları.
 
