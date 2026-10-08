@@ -399,6 +399,23 @@ END:VCALENDAR`;
       expect((reportErrorMock.mock.calls[0][1] as Error).message).toBe("feed_not_icalendar");
     });
 
+    it.each([
+      ["JSON hata gövdesi", '{"error":"token expired","expected":"BEGIN:VCALENDAR"}'],
+      ["HTML içinde alıntı", "<!doctype html><html><body><pre>BEGIN:VCALENDAR</pre> Please sign in</body></html>"],
+    ])("🚨 U37 (Codex 10-07): %s içinde 'BEGIN:VCALENDAR' geçse de takvim DEĞİL → 'error' (boş takvim sayılmaz)", async (_n, body) => {
+      // Eskiden gövdenin HERHANGİ bir yerinde BEGIN:VCALENDAR yetiyordu: sıfır etkinlik "ok" yazılıyor, kaynak taze görünüyor ve
+      // müsaitlik motoru o kaynakla "boş" diyebiliyordu. Senkron `isIcalendarFrame`i KULLANMAK zorunda (bağlantı pini).
+      const { propertyId } = await makeOrgWithProperty();
+      const source = await prisma.calendarSource.create({
+        data: { propertyId, label: "Diğer", url: "https://example.com/err.ics", lastStatus: "ok" },
+      });
+      mockFetch(body);
+      await syncCalendarSource(source.id);
+      const updated = await prisma.calendarSource.findUnique({ where: { id: source.id } });
+      expect(updated?.lastStatus).toBe("error"); // ⬅️ ESKİDE "ok"
+      expect((reportErrorMock.mock.calls[0][1] as Error).message).toBe("feed_not_icalendar");
+    });
+
     it("KONTROL: GERÇEKTEN BOŞ ama GEÇERLİ takvim hâlâ 'ok' — 'boş' ile 'feed değil' karışmaz", async () => {
       // Bu ayrım load-bearing: mass-cancel dersi boş feed'in normal sayılmasına
       // bağlı. RFC 5545 BEGIN:VCALENDAR'ı zorunlu kıldığı için ayrım güvenli.
