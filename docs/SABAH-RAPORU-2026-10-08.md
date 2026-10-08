@@ -6,12 +6,13 @@
 
 ## 0. Kısaca
 
-- **İtildi:** `claude/great-edison-3zqpZ` → `87ba35d` (29 commit, tur 2 + 3 + 4 + belgeler). Tam kapılar (tsc · lint · 13.220 test · build ·
-  zafiyet kapısı) YEŞİL. CI: (#1309 sürüyor — rapor güncellenecek).
+- **İtildi:** `claude/great-edison-3zqpZ` (tur 2 + 3 + 4 + belgeler; son commit bu raporun kendisi). Tam kapılar (tsc · lint · 13.220 test · build ·
+  zafiyet kapısı) YEŞİL. CI: son yeşil koşu #1308; bu turun push'ları ardışık olduğu için ara koşular iptal edildi (eşzamanlılık), son
+  push'un koşusu sonucu §2'de.
 - **Railway kapalı** → canlıya bir şey gitmedi; geri açılınca dalın son yeşil commit'i gider (migration YOK bu turda).
 - **Next.js 15.5.24 → 15.5.27:** gece yayımlanan iki danışma (GHSA-4jqv-mc3x-m676, GHSA-mcj8-r9mp-w47p — SSG/ISR önbellek zehirlenmesi)
   zafiyet kapısını kırmızıya çevirdi; aynı küçük sürüm içinde yama, yalnız `next` + `@next/*`.
-- **Mutasyon:** (sürüyor — rapor güncellenecek).
+- **Mutasyon:** tur 2 19/19 · tur 3 + 4 44/44 (ilk koşuda yaşayan U37 için senkron bağlantı testi eklendi, sonra öldü).
 - **Kararınızı bekleyen:** Sabah Kararları 63 (otopark tahsisi), 64 (görev tekilleştirme), 65 (Paddle tutarı), 66 (ödeme ↔ silme yarışı, ödeme
   tarafı), 67 (F06: doğrulanamayan oturumda sayfa), 68 (vaka kabulü katı ölçü). Hazır yamalar `docs/hazir-yamalar/*.patch` —
   `git apply <dosya>` + tam kapılar.
@@ -55,9 +56,12 @@
 ## 2. Doğrulama (5. tur)
 - Tam kapılar `87ba35d`: tsc · lint · 794 dosya / 13.220 test · build · zafiyet kapısı → ALL_GREEN.
 - Tur 2 mutasyon: 19/19 öldürüldü (yaşayan U42 için ayrı test eklendi, sonra öldü).
-- Tur 3 + 4 mutasyon: (sürüyor — rapor güncellenecek).
-- Hazır yamaların testleri eski kodda kırmızı, yamalı kodda yeşil: (veritabanı testleri mutasyondan sonra — rapor güncellenecek).
-- CI: (#1309 sürüyor — rapor güncellenecek).
+- Tur 3 + 4 mutasyon (`scripts/mutation-run.mjs`, commit'in ayrık worktree'si, M0 yeşil): 43/44 → yaşayan U37 (senkronun `isIcalendarFrame`i
+  kullandığını pinleyen test yoktu; birim testi yalnız saf fonksiyonu sınıyordu) → `calendar-sync.test.ts`e JSON / HTML gövde vakası → 44/44.
+- Hazır yamalar: testleri yamalı kodda YEŞİL, eski kodda KIRMIZI (U17 7 · Y5 10 birim + 1 veritabanı · U39 6 veritabanı · U42 1 veritabanı ·
+  U29 5 birim); beşi güncel ana dala tek tek ve BİRLİKTE temiz uygulanıyor (`git apply --check`). Yamalar ana dala UYGULANMADI.
+- CI: #1308 (`5439a23`) yeşil; `87ba35d`'nin koşusu sonraki push'la iptal edildi; son push'un koşusu bu rapor itildikten sonra izleniyor
+  (sonuç döngünün son mesajında).
 - Bu turda tam kapının yakaladığı ve düzeltilen: çift tıklamanın kaybedeni 401 alıyordu (400'e döndü), iki eski test `deleteAccountData`ın
   dönüşünü `undefined` bekliyordu, gece yayımlanan Next.js danışmaları.
 
