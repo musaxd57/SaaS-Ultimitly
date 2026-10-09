@@ -48,11 +48,11 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 | Gereksinim | Durum |
 |---|---|
 | Ortak bağlam kurucu | 🟡 `selectHistoryForPrompt` ortak; QR bilinçli farklı (her mesaj anında cevaplanır, birikme yok); **>25 bekleyen mesaj kaydırma testi ✅ 10-09** (`pending-window-displacement`, mutasyon iki yönlü); tanı çıktısı = üretim izi (migration 60) |
-| `conversationState` | 🟡 `phase`, `hasPriorDeliveredReply`, `deliveredReplyCount`, `lastInteractionAt` yok; bayrak kapalı |
+| `conversationState` | 🟡 **sözleşme ✅ 10-09** (`ai/conversation-phase.ts` + `operator-replies.ts` `loadConversationPhase`): phase first_contact / ongoing / closing, hasPriorDeliveredReply, isFirstOperatorReply, deliveredReplyCount, unansweredGuestMessageCount, lastInteractionAt — konuşmanın TAMAMINDAN; misafire ULAŞMAMIŞ (iptal / başarısız / engellenmiş) giden mesaj selam sayımına girmez (`review` belirsiz → sayılır); otomatik şablon mesajı pencereyi sıfırlamaz; kapanış `closableAfter` ister. Kırmızı-önce + mutasyon + Haiku turu. **İsteme bağlanmadı** (kör eval + kurucu) |
 | Eylem makbuzu | 🟡 beyan + kapı var (bayrak kapalı); makbuz üreten yürütücü yok |
 | Araç çağrısı / `verifiedToolResults` | 🟡 sözleşme + müsaitlik aracı ✅ 10-09; modele araç olarak verilmesi kurucu onayı |
 | Tarih çözümü üst verisi | ✅ 10-09 `ai/date-resolution.ts` (TR+EN; dayanak / güven / varsayım; 4 Haiku turu, 116 test, mutasyon 27/27); bağlanmadı |
-| Zaman bağlamı (geçen süre, oturum arası, yeni gün) | 🟡 gün etiketi var, aralık / oturum yok |
+| Zaman bağlamı (geçen süre, oturum arası, yeni gün) | 🟡 gün etiketi var; **nesnel aralık ✅ 10-09** (`interactionGap`: geçen dakika + org diliminde takvim günü farkı); "yeni oturum" eşiği ürün kararı → kurucuya |
 | Kurucu AI Kalite Konsolu | 🟡 KOD HAZIR (yama `docs/hazir-yamalar/2026-10-09-migration-60-…patch`; salt-okuma + etiket, 2FA'lı operatör, her görüntüleme kayıtlı) → push onayı |
 | Üretim izi (model, istem sürümü, gecikme, token, maliyet) | 🟡 KOD HAZIR (aynı yama; `AI_GENERATION_TRACE_ENABLED` kapalı; KVKK paritesi + okuyucu pini; maliyet sütunu boş — fiyat tablosu ayrı karar) → push onayı |
 | 8 başlangıç senaryosu | ✅ set `evals/founder-initial-8.json` + seçici; ücretli taban koşusu onay |
