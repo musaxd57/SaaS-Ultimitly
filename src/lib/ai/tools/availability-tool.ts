@@ -13,13 +13,17 @@ import type { VerifiedToolResult } from "./contract";
 // Eşleme (motorun kendi kararından; ikinci bir müsaitlik mantığı YOK):
 //   · aralık geçersiz                                   → invalid_request (+ motorun nedeni)
 //   · mülk bu kiracıda yok                              → not_found (asla "müsait" değil)
-//   · verdict available|unavailable + certainty verified → ok
+//   · verdict available + certainty verified (motor: her kaynak taze) → ok
+//   · verdict unavailable + verified → ok YALNIZ ev sahibinin kendi girişi bir geceyi kapatıyorsa ya da bütün kaynaklar tazeyse;
+//     aksi hâlde stale (`claim_from_stale_source`, inceleme 10-09 P1)
 //   · bir gece bayat / hiç okunmamış / tazeliği kayıtsız kaynağa dayanıyor → stale
 //   · diğer her şey (bilinmeyen gece, kanıtsız işgal, hata, kısmi okuma) → uncertain
 // Değer PII taşımaz: karar, kesinlik, aralık, gece sayıları, çakışma sayısı, bilinmeme nedenleri.
 // ---------------------------------------------------------------------------
 
 export const AVAILABILITY_TOOL = "availability.check" as const;
+/** Araç SÖZLEŞMESİNİN sürümü (durum eşlemesi değişince artar); motorun kendi sürümü değerde `engineVersion`. */
+export const AVAILABILITY_TOOL_VERSION = 2 as const;
 
 export interface AvailabilityToolValue {
   verdict: AvailabilityAnswer["verdict"];
@@ -50,7 +54,7 @@ export function availabilityToolResult(
 ): VerifiedToolResult<AvailabilityToolValue> {
   const base = {
     tool: AVAILABILITY_TOOL,
-    toolVersion: AVAILABILITY_ENGINE_VERSION,
+    toolVersion: AVAILABILITY_TOOL_VERSION,
     asOf: now.toISOString(),
     scope: { organizationId, propertyId },
   };
@@ -78,8 +82,18 @@ export function availabilityToolResult(
     conflictCount: a.conflicts.length,
     engineVersion: a.engineVersion,
   };
-  if (a.certainty === "verified" && a.verdict !== "unknown") {
+  // 🚨 "Dolu" kesinliği (inceleme 10-09, P1): motor bir besleme satırını kaynağın SON başarılı okumasında görüldüyse "taze"
+  // sayıyor ama o okumanın ne kadar eski olduğuna bakmıyor — 10 saat önce görülen ve sonra iptal edilmiş bir konaklama kesin
+  // "dolu" çıkıyordu. Araç kuralı: ev sahibinin KENDİ girişi bir geceyi kapatıyorsa kesin; değilse bütün kaynaklar taze olmalı.
+  // ("boş" kararı motorda zaten her kaynağın taze olmasını ister.)
+  const hostBlocked = a.nights.some((n) => (n.state === "booked" || n.state === "held") && n.claims.some((c) => c.basis === "host_asserted"));
+  const allSourcesFresh = a.sources.every((src) => src.state === "fresh");
+  const definite = a.certainty === "verified" && a.verdict !== "unknown" && (a.verdict === "available" || hostBlocked || allSourcesFresh);
+  if (definite) {
     return { ...base, status: "ok", value, reasons: a.conflicts.length > 0 ? ["conflict_present"] : [] };
+  }
+  if (a.verdict === "unavailable" && a.certainty === "verified") {
+    return { ...base, status: "stale", value, reasons: ["claim_from_stale_source"] };
   }
   const stale = unknownReasons.some((x) => STALE_REASONS.has(x));
   const reasons = unknownReasons.length > 0 ? unknownReasons : ["unconfirmed_claims"];

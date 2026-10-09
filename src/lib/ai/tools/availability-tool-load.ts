@@ -1,8 +1,8 @@
 import "server-only";
 
 import { loadAvailabilityInputs } from "@/modules/availability/load";
-import { AVAILABILITY_ENGINE_VERSION, parseNightKey } from "@/modules/availability/core";
-import { AVAILABILITY_TOOL, availabilityToolResult, type AvailabilityToolValue } from "./availability-tool";
+import { parseNightKey } from "@/modules/availability/core";
+import { AVAILABILITY_TOOL, AVAILABILITY_TOOL_VERSION, availabilityToolResult, type AvailabilityToolValue } from "./availability-tool";
 import type { VerifiedToolResult } from "./contract";
 
 // ---------------------------------------------------------------------------
@@ -17,7 +17,7 @@ export async function runAvailabilityTool(
 ): Promise<VerifiedToolResult<AvailabilityToolValue>> {
   const errorResult = (reason: string): VerifiedToolResult<AvailabilityToolValue> => ({
     tool: AVAILABILITY_TOOL,
-    toolVersion: AVAILABILITY_ENGINE_VERSION,
+    toolVersion: AVAILABILITY_TOOL_VERSION,
     status: "error",
     asOf: now.toISOString(),
     scope: { organizationId, propertyId: request.propertyId },
@@ -29,6 +29,8 @@ export async function runAvailabilityTool(
   if (!from || !to) {
     return { ...errorResult("bad_date"), status: "invalid_request" };
   }
+  // Ucuz aralık kontrolü veritabanından ÖNCE (inceleme 10-09 P3); ayrıntılı doğrulama motorda (geçmiş / ufuk / gece tavanı).
+  if (from >= to) return { ...errorResult("from_not_before_to"), status: "invalid_request" };
   try {
     const loaded = await loadAvailabilityInputs(organizationId, { propertyIds: [request.propertyId], range: { from, to }, now });
     if (!loaded) return availabilityToolResult(organizationId, request.propertyId, { kind: "property_not_found" }, request, now);

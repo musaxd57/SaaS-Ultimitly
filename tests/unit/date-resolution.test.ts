@@ -147,3 +147,98 @@ describe("süre — misafir metni (karesel iş yok)", () => {
     expect(DATE_RESOLUTION_MAX_CHARS).toBeLessThanOrEqual(8_000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// İnceleme 10-09 (Haiku, 15 bulgu) — kabul edilenlerin kırmızı-önce vakaları.
+// ---------------------------------------------------------------------------
+describe("inceleme 10-09 — aralıklar iki ucu da korur (#6)", () => {
+  it.each([
+    ["15-17 Ekim arası müsait mi?", ["2026-10-15", "2026-10-17"]],
+    ["15th-17th October", ["2026-10-15", "2026-10-17"]],
+    ["October 15th-17th", ["2026-10-15", "2026-10-17"]],
+    ["14 ve 16 Ekim", ["2026-10-14", "2026-10-16"]],
+  ])("%s → %j", (text, dates) => {
+    expect(r(text)).toMatchObject({ status: "resolved", dates });
+  });
+  it("ayın 3'ünden 5'ine kadar → iki gün de (aysız → belirsiz)", () => {
+    const x = r("ayın 3'ünden 5'ine kadar");
+    expect(x.status).toBe("ambiguous");
+    expect(x.alternatives).toEqual(expect.arrayContaining(["2026-11-03", "2026-11-05"]));
+  });
+});
+
+describe("inceleme 10-09 — 'gelecek hafta' kalıpları belirsiz (#7)", () => {
+  it.each(["gelecek hafta cuma", "önümüzdeki hafta cuma", "next week friday", "bir sonraki cuma"])("%s", (text) => {
+    expect(r(text)).toMatchObject({ status: "ambiguous", dates: [] });
+  });
+  it("KONTROL: 'önümüzdeki cuma' en yakın cuma (bugün Cuma → bugün)", () => {
+    expect(r("önümüzdeki cuma").dates).toEqual(["2026-10-09"]);
+  });
+});
+
+describe("inceleme 10-09 — hafta günü açık tarihle çelişirse belirsiz (#8)", () => {
+  it("15 Ekim 2026 Perşembe; '15 Ekim Cuma' → belirsiz", () => {
+    expect(r("15 Ekim Cuma")).toMatchObject({ status: "ambiguous", reasons: expect.arrayContaining(["weekday_mismatch"]) });
+  });
+  it("KONTROL: tutarlı '16 Ekim Cuma' → tek gün", () => {
+    expect(r("16 Ekim Cuma")).toMatchObject({ status: "resolved", dates: ["2026-10-16"] });
+  });
+});
+
+describe("inceleme 10-09 — yanlış pozitifler (#9, #10)", () => {
+  it.each([
+    "saat 10.12'de geleceğiz",
+    "saat 9.10 gibi",
+    "1.10 TL fark var",
+    "10/10 hizmet",
+    "cuma namazı için cami var mı?",
+    "Salı pazarı nerede kuruluyor?",
+    "Is it on the 1st floor?",
+    "girişte otopark var mı?",
+    "Can we pay on arrival?",
+  ])("%s → tarih yok", (text) => {
+    expect(r(text).status).toBe("none");
+  });
+});
+
+describe("inceleme 10-09 — eksik kalıplar (#11, #12)", () => {
+  it("15'inde gelebilir miyiz → aysız gün, belirsiz", () => {
+    expect(r("15'inde gelebilir miyiz")).toMatchObject({ status: "ambiguous", reasons: ["day_without_month"] });
+  });
+  it("Ekim'in 15'i → 15 Ekim", () => {
+    expect(r("Ekim'in 15'i")).toMatchObject({ status: "resolved", dates: ["2026-10-15"] });
+  });
+  it.each(["bu hafta sonu", "this weekend", "hafta sonu müsait mi"])("%s → Cumartesi + Pazar", (text) => {
+    expect(r(text)).toMatchObject({ status: "resolved", dates: ["2026-10-10", "2026-10-11"] });
+  });
+  it("next weekend → belirsiz", () => {
+    expect(r("next weekend").status).toBe("ambiguous");
+  });
+  it("virgülden sonra boşluksuz yıl: Oct 14,2027", () => {
+    expect(r("Oct 14,2027")).toMatchObject({ dates: ["2027-10-14"], confidence: "high", assumed: [] });
+  });
+});
+
+describe("inceleme 10-09 — geçmiş, öncelik, konuşma ayı (#13, #14, #15)", () => {
+  it("geçmiş tam tarih çözülür ama past_date gerekçesi taşır", () => {
+    expect(r("14.10.2025")).toMatchObject({ status: "resolved", dates: ["2025-10-14"], reasons: ["past_date"] });
+  });
+  it("🚨 göreli ile açık tarih farklıysa belirsiz: 'yarın, 15 Ekim'", () => {
+    expect(r("yarın, 15 Ekim")).toMatchObject({ status: "ambiguous", reasons: expect.arrayContaining(["conflicting_dates"]) });
+  });
+  it("KONTROL: tutarlıysa tek gün: 'yarın, 10 Ekim'", () => {
+    expect(r("yarın, 10 Ekim")).toMatchObject({ status: "resolved", dates: ["2026-10-10"] });
+  });
+  it("konuşma ayı = en SON anılan (sıra), en büyük değil", () => {
+    expect(r("ayın 3'ü", { conversationDates: ["2026-12-01", "2026-11-05"] }).dates).toEqual(["2026-11-03"]);
+  });
+  it("konuşma ayı geçmişte kalıyorsa past_date", () => {
+    expect(r("ayın 3'ü", { conversationDates: ["2026-02-20"] }).reasons).toContain("past_date");
+  });
+  it("29 Şubat → bir sonraki artık yıl", () => {
+    expect(r("29 Şubat").dates).toEqual(["2028-02-29"]);
+  });
+  it("tavan GERÇEKTEN uygulanır: 4.000 karakterden sonraki tarih okunmaz", () => {
+    expect(r(`${"a ".repeat(2_100)} 15 Ekim`).status).toBe("none");
+  });
+});

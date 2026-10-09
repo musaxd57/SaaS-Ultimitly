@@ -33,7 +33,15 @@ export interface VerifiedToolResult<T> {
   reasons: readonly string[];
 }
 
-/** Bu sonuç misafire KESİN bilgi olarak söylenebilir mi? Tek kural: yalnız `ok`. */
-export function mayStateAsFact(r: Pick<VerifiedToolResult<unknown>, "status" | "value">): boolean {
-  return r.status === "ok" && r.value !== null;
+/**
+ * Bu sonuç misafire KESİN bilgi olarak söylenebilir mi? Kural: yalnız `ok` (+ değer var). Beklenen kapsam verilirse sonuç
+ * O kiracı ve O mülk için üretilmiş olmalı (inceleme 10-09: B mülkünün sonucu A mülkü hakkındaki cevaba dayanak olamaz).
+ */
+export function mayStateAsFact(
+  r: Pick<VerifiedToolResult<unknown>, "status" | "value"> & Partial<Pick<VerifiedToolResult<unknown>, "scope">>,
+  expected?: { organizationId: string; propertyId: string | null },
+): boolean {
+  if (r.status !== "ok" || r.value === null) return false;
+  if (expected && (r.scope?.organizationId !== expected.organizationId || r.scope?.propertyId !== expected.propertyId)) return false;
+  return true;
 }

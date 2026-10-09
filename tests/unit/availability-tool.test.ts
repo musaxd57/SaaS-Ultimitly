@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { availabilityToolResult, AVAILABILITY_TOOL } from "@/lib/ai/tools/availability-tool";
+import { availabilityToolResult, AVAILABILITY_TOOL, AVAILABILITY_TOOL_VERSION } from "@/lib/ai/tools/availability-tool";
 import { mayStateAsFact, TOOL_STATUSES } from "@/lib/ai/tools/contract";
 import type { AvailabilityInput, CoverageSource, ReservationSnapshot } from "@/modules/availability/core";
 
@@ -102,6 +102,64 @@ describe("müsaitlik aracı — durum eşlemesi", () => {
       ["blockedNights", "certainty", "conflictCount", "engineVersion", "freeNights", "from", "nights", "to", "unknownNights", "verdict"].sort(),
     );
     expect(JSON.stringify(r)).not.toContain("res-1");
+  });
+});
+
+describe("inceleme 10-09 (Haiku) — ek vakalar", () => {
+  const feedStay = (from: string, to: string): ReservationSnapshot => ({
+    ...hostStay(from, to),
+    origin: "calendar_feed",
+    calendarSourceId: "src-1",
+    feedLastSeenAt: new Date(NOW.getTime() - 10 * H),
+  });
+
+  it("🚨 P1: BAYAT kaynağın son okumasında görülen rezervasyon kesin 'dolu' DEĞİL → stale", () => {
+    const stale = feed({ lastSuccessAt: new Date(NOW.getTime() - 10 * H) });
+    const x = run(input({ sources: [stale], reservations: [feedStay("2026-10-19", "2026-10-23")] }));
+    expect(x.value?.verdict).toBe("unavailable");
+    expect(x.status).toBe("stale");
+    expect(mayStateAsFact(x)).toBe(false);
+  });
+
+  it("KONTROL: kaynak bayat olsa da ev sahibinin KENDİ girişi kesin 'dolu'dur → ok", () => {
+    const stale = feed({ lastSuccessAt: new Date(NOW.getTime() - 10 * H) });
+    expect(run(input({ sources: [stale], reservations: [hostStay("2026-10-19", "2026-10-23")] })).status).toBe("ok");
+  });
+
+  it("KONTROL: taze kaynağın son okumasında görülen rezervasyon → ok / unavailable", () => {
+    const fresh = feed({ lastSuccessAt: new Date(NOW.getTime() - H) });
+    const stay = { ...feedStay("2026-10-19", "2026-10-23"), feedLastSeenAt: new Date(NOW.getTime() - H) };
+    expect(run(input({ sources: [fresh], reservations: [stay] }))).toMatchObject({ status: "ok", value: { verdict: "unavailable" } });
+  });
+
+  it("çakışma varsa gerekçede conflict_present", () => {
+    const a = hostStay("2026-10-19", "2026-10-23");
+    const b = { ...hostStay("2026-10-20", "2026-10-21"), id: "res-2" };
+    expect(run(input({ reservations: [a, b] })).reasons).toContain("conflict_present");
+  });
+
+  it("sürüm = araç SÖZLEŞMESİNİN sürümü (motor sürümü değerde ayrıca)", () => {
+    const x = run(input());
+    expect(x.toolVersion).toBe(AVAILABILITY_TOOL_VERSION);
+    expect(x.value?.engineVersion).toBe(1);
+  });
+
+  it.each([
+    ["geçmiş aralık", "2026-10-01", "2026-10-03", "starts_in_past"],
+    ["62 geceden uzun", "2026-10-20", "2026-12-31", "too_many_nights"],
+    ["ufuk ötesi", "2027-11-01", "2027-11-03", "beyond_horizon"],
+  ])("%s → invalid_request (%s)", (_n, from, to, reason) => {
+    expect(run(input({ loadedRange: { from: "2026-01-01", to: "2028-01-01" } }), from, to)).toMatchObject({
+      status: "invalid_request",
+      reasons: [reason],
+    });
+  });
+
+  it("🚨 kesin bilgi BAŞKA mülk için söylenemez (beklenen kapsam verilirse karşılaştırılır)", () => {
+    const x = run(input());
+    expect(mayStateAsFact(x, { organizationId: "org-A", propertyId: "p1" })).toBe(true);
+    expect(mayStateAsFact(x, { organizationId: "org-A", propertyId: "p2" })).toBe(false);
+    expect(mayStateAsFact(x, { organizationId: "org-B", propertyId: "p1" })).toBe(false);
   });
 });
 
