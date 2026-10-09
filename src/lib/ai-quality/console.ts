@@ -16,27 +16,9 @@ import { prisma } from "@/lib/db";
 //   · Kiracı süzgeci HER sorguda `organizationId` (istekten gelen id ile iz satırının org'u birlikte eşleşmeli).
 // ---------------------------------------------------------------------------
 
-export const AI_QUALITY_PURPOSES = {
-  quality_review: "Kalite incelemesi",
-  incident_review: "Olay incelemesi",
-  complaint_review: "Şikâyet incelemesi",
-} as const;
-export type AiQualityPurpose = keyof typeof AI_QUALITY_PURPOSES;
+import { AI_QUALITY_PURPOSES, AI_REVIEW_LABELS, type AiQualityPurpose, type AiReviewLabelCode } from "./codes";
 
-export const AI_REVIEW_LABELS = [
-  "correct",
-  "hallucinated_fact",
-  "missed_context",
-  "repeated_greeting",
-  "wrong_tone",
-  "temporal_error",
-  "stale_knowledge",
-  "retrieval_failure",
-  "tool_should_have_been_used",
-  "unsafe_auto_send",
-  "escalation_failure",
-] as const;
-export type AiReviewLabelCode = (typeof AI_REVIEW_LABELS)[number];
+export { AI_QUALITY_PURPOSES, AI_REVIEW_LABELS, type AiQualityPurpose, type AiReviewLabelCode };
 
 const DECISIONS = new Set(["auto_sent", "human_review", "no_reply"]);
 const TICKET_RE = /^[A-Za-z0-9#_-]{1,40}$/;
