@@ -18,6 +18,7 @@ import type { StayChangeKind } from "@/lib/ai/semantic/stay-change";
 import { addNights, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { writeSidecar } from "./sidecar";
 import type { EvalRuntime } from "./run-meta";
+import { conversationPhaseFacts, deriveConversationPhase, type ConversationPhaseFacts } from "@/lib/ai/conversation-phase";
 import { GREETING, isGenericClarification, promiseInReply, questionSentences } from "./reply-metrics";
 
 // ---------------------------------------------------------------------------
@@ -237,6 +238,24 @@ export function decisionsOf(s: CusScenario, thread: readonly ThreadMessage[]): S
 }
 
 /** Selam kuralı (`PRIOR_OPERATOR_REPLY_WHERE`): giden + sistem olayı değil + gövdesi boş değil. */
+/**
+ * Yetkili konuşma durumu olguları (talimat 09-07 §6) — ürünün SAF türeticisinden (`deriveConversationPhase` + `conversationPhaseFacts`),
+ * yükleyicinin veritabanında yaptığı sayımın senaryo karşılığı: teslim edilen cevap = sistem olayı / gövdesiz olmayan giden mesaj; kapanış
+ * ön şartı `closableAfter`; son cevap anı = son giden mesajın zamanı.
+ */
+export function phaseFactsOf(thread: readonly ThreadMessage[], times: readonly Date[], now: Date): ConversationPhaseFacts {
+  const delivered = thread.map((m, i) => ({ m, i })).filter(({ m }) => m.direction === "outbound" && !m.systemEventType && m.body !== "");
+  const lastReply = delivered.length > 0 ? times[delivered[delivered.length - 1].i] : null;
+  const state = deriveConversationPhase({
+    deliveredReplyCount: delivered.length,
+    unansweredGuestTexts: unansweredOf(thread),
+    closable: closableAfter(thread as readonly ClosingThreadMessage[]),
+    lastInteractionAt: times[times.length - 1] ?? null,
+    lastReplyAt: lastReply,
+  });
+  return conversationPhaseFacts(state, now, CUS_TZ);
+}
+
 export function isFirstOperatorReply(thread: readonly ThreadMessage[]): boolean {
   return !thread.some((m) => m.direction === "outbound" && !m.systemEventType && m.body !== "");
 }
@@ -364,15 +383,19 @@ export async function runScenario(data: CusDataset, s: CusScenario, arm: Arm, ru
     // Açık kol = yükleyicinin döndürdüğü özet; kapalı kolda yükleyici hiç koşmaz (alan yok → istem bayt bayt eskisi).
     const records =
       arm === "on"
-        ? buildConversationState({
-            messages: thread,
-            decisions: decisionsOf(s, thread),
-            lifecycle: {
-              welcomeSentAt: lc.has("welcome") ? now : null,
-              checkinSentAt: lc.has("checkin") ? now : null,
-              checkoutSentAt: lc.has("checkout") ? now : null,
-            },
-          })
+        ? {
+            ...buildConversationState({
+              messages: thread,
+              decisions: decisionsOf(s, thread),
+              lifecycle: {
+                welcomeSentAt: lc.has("welcome") ? now : null,
+                checkinSentAt: lc.has("checkin") ? now : null,
+                checkoutSentAt: lc.has("checkout") ? now : null,
+              },
+            }),
+            // Yükleyici konuşma kimliğiyle çağrıldığında eklenen YETKİLİ durum (aşama, teslim edilen cevap, son cevaptan geçen süre).
+            phase: phaseFactsOf(thread, times, now),
+          }
         : undefined;
     const input: SuggestReplyInput = {
       guestMessage: s.message,

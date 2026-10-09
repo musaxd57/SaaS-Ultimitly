@@ -19,6 +19,7 @@ import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
+import { orgTimezone } from "@/lib/timezone";
 import { historyAuthorOf, isAnsweringOutbound } from "@/lib/message-author";
 import { kbFactsOf, vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
@@ -138,6 +139,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     organizationId: session.organizationId,
     messages: conversation.messages,
     reservationId: conversation.reservation?.id ?? null,
+    conversationId: conversation.id,
+    timeZone: orgTimezone(org?.timezone),
   });
 
   const result = await suggestReply({

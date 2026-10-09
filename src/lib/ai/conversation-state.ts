@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { resolveMessageAuthor } from "@/lib/message-author";
+import type { ConversationPhaseFacts } from "./conversation-phase";
 
 export const STATE_TOPICS = [
   "early_checkin",
@@ -83,6 +84,11 @@ export interface ConversationStateSummary {
   /** Açık konular (en yeni en sonda, en fazla `MAX_STATE_ITEMS`). */
   items: { topic: StateTopic; status: StateItemStatus }[];
   lifecycleSent: LifecycleKind[];
+  /**
+   * YETKİLİ konuşma durumu (talimat 09-07 §6; konuşmanın TAMAMINDAN, `operator-replies.ts` `loadConversationPhase`) + zaman bağlamı.
+   * Yükleyici konuşma kimliğini aldıysa dolar; yoksa alan yok → satır yazılmaz.
+   */
+  phase?: ConversationPhaseFacts;
 }
 
 /** Karar kaydı taranan son misafir mesajı sayısı ve bloğa giren en fazla konu. */
@@ -282,6 +288,9 @@ export function conversationStateBlock(s: ConversationStateSummary | null | unde
     "KONUŞMA KAYITLARI (kodda, kalıcı kayıtlardan kuruldu):",
     `- Bu sohbette misafire giden mesaj: ${s.outbound} (ev sahibinin kendisinin yazdığı: ${s.hostOutbound}). Son giden mesajdan sonra misafirin yazdığı mesaj: ${s.unansweredGuest}.`,
   ];
+  if (s.phase && s.phase.phase !== "first_contact") {
+    lines.push(`- ${phaseLineTr(s.phase)}`);
+  }
   if (s.lifecycleSent.length > 0) {
     lines.push(`- Otomatik gönderilmiş bilgilendirme: ${s.lifecycleSent.map((k) => LIFECYCLE_TR[k]).join(", ")}.`);
   }
@@ -293,6 +302,31 @@ export function conversationStateBlock(s: ConversationStateSummary | null | unde
     );
   }
   return `\n\n${lines.join("\n")}`;
+}
+
+const PHASE_TR: Readonly<Record<"ongoing" | "closing", string>> = {
+  ongoing: "devam ediyor",
+  closing: "kapanışta (misafir son cevaptan sonra yalnız teşekkür / onay yazdı)",
+};
+
+/** Süre (yalnız olgu; eşik ve davranış istemin genel kurallarında). */
+function durationTr(minutes: number): string {
+  if (minutes < 60) return `${minutes} dakika`;
+  if (minutes < 48 * 60) return `${Math.floor(minutes / 60)} saat`;
+  return `${Math.floor(minutes / (24 * 60))} gün`;
+}
+
+/** "Konuşma aşaması: devam ediyor · misafire teslim edilmiş cevap: 3 · son cevaptan bu yana 2 gün (yeni oturum)." */
+export function phaseLineTr(f: ConversationPhaseFacts): string {
+  const parts = [
+    `Konuşma aşaması (konuşmanın tamamından): ${f.phase === "first_contact" ? "ilk temas" : PHASE_TR[f.phase]}`,
+    `misafire teslim edilmiş cevap: ${f.deliveredReplyCount}`,
+  ];
+  if (f.sinceLastReply) {
+    const g = f.sinceLastReply;
+    parts.push(`son cevaptan bu yana ${durationTr(g.elapsedMinutes)}${g.newSession ? " (yeni oturum — uzun sessizlik)" : ""}`);
+  }
+  return `${parts.join(" · ")}.`;
 }
 
 /** Tam "1" açar (diğer anlam katmanı bayraklarıyla aynı kural). */

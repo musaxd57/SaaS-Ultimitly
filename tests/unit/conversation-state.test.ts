@@ -307,3 +307,32 @@ describe("bayrak", () => {
     expect(conversationStateEnabled()).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// YETKİLİ KONUŞMA DURUMU satırı (talimat 09-07 §6; kurucu 10-09: önce kör eval). Yalnız yükleyici konuşma kimliği aldıysa dolar.
+// ---------------------------------------------------------------------------
+import { phaseLineTr } from "@/lib/ai/conversation-state";
+
+describe("konuşma aşaması satırı", () => {
+  const base = { outbound: 2, hostOutbound: 0, unansweredGuest: 1, items: [], lifecycleSent: [] as never[] };
+
+  it("devam + teslim edilen cevap + son cevaptan geçen süre + yeni oturum", () => {
+    const line = phaseLineTr({ phase: "ongoing", deliveredReplyCount: 3, sinceLastReply: { elapsedMinutes: 2 * 24 * 60 + 5, calendarDaysApart: 2, newSession: true } });
+    expect(line).toBe("Konuşma aşaması (konuşmanın tamamından): devam ediyor · misafire teslim edilmiş cevap: 3 · son cevaptan bu yana 2 gün (yeni oturum — uzun sessizlik).");
+  });
+
+  it("süre biçimi: dakika / saat / gün; yeni oturum yoksa ek yok", () => {
+    expect(phaseLineTr({ phase: "ongoing", deliveredReplyCount: 1, sinceLastReply: { elapsedMinutes: 25, calendarDaysApart: 0, newSession: false } })).toContain("son cevaptan bu yana 25 dakika.");
+    expect(phaseLineTr({ phase: "closing", deliveredReplyCount: 1, sinceLastReply: { elapsedMinutes: 7 * 60, calendarDaysApart: 0, newSession: true } })).toContain("kapanışta");
+    expect(phaseLineTr({ phase: "ongoing", deliveredReplyCount: 1, sinceLastReply: null })).not.toContain("son cevaptan");
+  });
+
+  it("blokta yalnız aşama verildiyse ve ilk temas DEĞİLSE görünür; verilmediyse blok bayt bayt eskisi", () => {
+    const without = conversationStateBlock(base);
+    const withPhase = conversationStateBlock({ ...base, phase: { phase: "ongoing", deliveredReplyCount: 2, sinceLastReply: null } });
+    expect(without).not.toContain("Konuşma aşaması");
+    expect(withPhase).toContain("Konuşma aşaması (konuşmanın tamamından): devam ediyor");
+    expect(withPhase.replace(/\n- Konuşma aşaması[^\n]*/, "")).toBe(without);
+    expect(conversationStateBlock({ ...base, phase: { phase: "first_contact", deliveredReplyCount: 0, sinceLastReply: null } })).toBe(without);
+  });
+});

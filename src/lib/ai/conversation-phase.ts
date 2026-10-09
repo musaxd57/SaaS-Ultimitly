@@ -29,6 +29,8 @@ export interface ConversationPhaseState {
   /** Tavan aşıldı: sayı alt sınırdır. */
   unansweredCapped: boolean;
   lastInteractionAt: Date | null;
+  /** Son KONUŞMA cevabının anı (otomatik şablon mesajı hariç); yoksa null. Zaman bağlamı bundan ölçülür. */
+  lastReplyAt: Date | null;
 }
 
 export function deriveConversationPhase(input: {
@@ -39,6 +41,7 @@ export function deriveConversationPhase(input: {
    *  teklif değil. Yükleyici hesaplar. */
   closable: boolean;
   lastInteractionAt: Date | null;
+  lastReplyAt?: Date | null;
 }): ConversationPhaseState {
   const delivered = Number.isInteger(input.deliveredReplyCount) && input.deliveredReplyCount > 0 ? input.deliveredReplyCount : 0;
   const capped = input.unansweredGuestTexts.length > PHASE_UNANSWERED_SCAN;
@@ -57,7 +60,20 @@ export function deriveConversationPhase(input: {
     unansweredGuestMessageCount: texts.length,
     unansweredCapped: capped,
     lastInteractionAt: input.lastInteractionAt,
+    lastReplyAt: input.lastReplyAt ?? null,
   };
+}
+
+/** İstem bloğu için olgular (konuşma kayıtları bloğu, bayrak `AI_CONVERSATION_STATE_ENABLED`). Saf. */
+export interface ConversationPhaseFacts {
+  phase: ConversationPhase;
+  deliveredReplyCount: number;
+  /** Son konuşma cevabından bu yana (yoksa null). */
+  sinceLastReply: InteractionGap | null;
+}
+
+export function conversationPhaseFacts(s: ConversationPhaseState, now: Date, timeZone: string): ConversationPhaseFacts {
+  return { phase: s.phase, deliveredReplyCount: s.deliveredReplyCount, sinceLastReply: interactionGap(s.lastReplyAt, now, timeZone) };
 }
 
 /**

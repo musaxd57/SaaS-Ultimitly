@@ -47,6 +47,7 @@ import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { loadConversationStateForConversation } from "@/lib/ai/conversation-state-loader";
+import { orgTimezone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -758,6 +759,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     conversationId: priorConversationId,
     reservationId: res.id,
     pendingGuestMessage: true, // bu mesaj cevabıyla birlikte kaydedilir (↓recordGuestChatExchange)
+    timeZone: orgTimezone(org?.timezone),
   });
 
   // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — `ctx.knowledgeBase` zaten mülk +

@@ -8,6 +8,8 @@ import {
   type ConversationStateSummary,
   type StateMessage,
 } from "./conversation-state";
+import { conversationPhaseFacts } from "./conversation-phase";
+import { loadConversationPhase } from "@/lib/operator-replies";
 
 // ---------------------------------------------------------------------------
 // Konuşma Anlama Durumu v1 dilim B — yükleyici. Bayrak kapalıyken HİÇ sorgu atmaz (istem bayt bayt aynı).
@@ -28,6 +30,10 @@ export async function loadConversationState(input: {
   messages: readonly StateMessage[];
   /** Otomatik bilgilendirme damgaları bu rezervasyondan okunur (yoksa yaşam döngüsü satırı yazılmaz). */
   reservationId?: string | null;
+  /** Verilirse YETKİLİ konuşma durumu (aşama, teslim edilen cevap, son cevaptan geçen süre) konuşmanın TAMAMINDAN eklenir. */
+  conversationId?: string;
+  timeZone?: string;
+  now?: Date;
 }): Promise<ConversationStateSummary | undefined> {
   if (!conversationStateEnabled()) return undefined;
   try {
@@ -49,7 +55,12 @@ export async function loadConversationState(input: {
           })
         : null,
     ]);
-    return buildConversationState({ messages: input.messages, decisions, lifecycle });
+    const summary = buildConversationState({ messages: input.messages, decisions, lifecycle });
+    if (input.conversationId && input.timeZone) {
+      const phase = await loadConversationPhase(input.conversationId);
+      if (phase) summary.phase = conversationPhaseFacts(phase, input.now ?? new Date(), input.timeZone);
+    }
+    return summary;
   } catch {
     return undefined;
   }
@@ -67,6 +78,7 @@ export async function loadConversationStateForConversation(input: {
    * kutusunda mesaj zaten kayıtlıdır → "son giden mesajdan sonraki misafir mesajı" üç yüzeyde aynı anlamı taşır.
    */
   pendingGuestMessage?: boolean;
+  timeZone?: string;
 }): Promise<ConversationStateSummary | undefined> {
   if (!conversationStateEnabled()) return undefined;
   try {
@@ -84,6 +96,8 @@ export async function loadConversationStateForConversation(input: {
       organizationId: input.organizationId,
       messages,
       reservationId: input.reservationId,
+      conversationId: input.conversationId,
+      timeZone: input.timeZone,
     });
   } catch {
     return undefined;

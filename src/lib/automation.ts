@@ -2040,6 +2040,8 @@ export async function applyChannelAutoReply(
     organizationId: conversation.property.organizationId,
     messages,
     reservationId: conversation.reservation?.id ?? null,
+    conversationId: conversation.id,
+    timeZone: orgTimezone(org.timezone),
   });
 
   // ── KONUŞMA ÖĞELERİ (09-26, kurucu kararları; `docs/TASARIM-2026-09-26-konusma-ogeleri.md`) ─────────────────────

@@ -93,6 +93,7 @@ export async function loadConversationPhase(conversationId: string): Promise<Con
       unansweredGuestTexts: unanswered.map((m) => m.body),
       closable,
       lastInteractionAt: lastInteraction?.createdAt ?? null,
+      lastReplyAt: lastConversationalReply?.createdAt ?? null,
     });
   } catch {
     return null;

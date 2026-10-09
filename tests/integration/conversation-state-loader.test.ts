@@ -145,3 +145,42 @@ describe("loadConversationState — bayrak açık", () => {
     expect(foreign).toEqual({ outbound: 0, hostOutbound: 0, unansweredGuest: 0, items: [], lifecycleSent: [] });
   });
 });
+
+describe("loadConversationState — YETKİLİ konuşma durumu (konuşma kimliği verilince)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("aşama + teslim edilen cevap + son cevaptan geçen süre (konuşmanın TAMAMINDAN, pencereden değil)", async () => {
+    const s = await seedOrg("A");
+    const a = await addMessage(s.conversationId, "inbound", "Merhaba", 1);
+    const b = await addMessage(s.conversationId, "outbound", "Hoş geldiniz.", 2, { senderName: "Ev sahibi", authorType: "host" });
+    const c = await addMessage(s.conversationId, "inbound", "Wi-Fi şifresi?", 3);
+    const now = new Date(Date.UTC(2026, 5, 12, 8, 0, 2)); // son cevaptan tam 2 gün sonra
+    const summary = await loadConversationState({
+      organizationId: s.orgId,
+      messages: [c], // pencere YALNIZ son mesaj — aşama yine "devam" (ilk selam pencerenin dışında)
+      reservationId: s.reservationId,
+      conversationId: s.conversationId,
+      timeZone: "Europe/Istanbul",
+      now,
+    });
+    expect(summary?.phase).toEqual({
+      phase: "ongoing",
+      deliveredReplyCount: 1,
+      sinceLastReply: { elapsedMinutes: 2 * 24 * 60, calendarDaysApart: 2, newSession: true },
+    });
+    void a;
+    void b;
+  });
+
+  it("KONTROL: konuşma kimliği verilmezse aşama alanı YOK (bugünkü özet)", async () => {
+    const s = await seedOrg("A");
+    const c = await addMessage(s.conversationId, "inbound", "Wi-Fi şifresi?", 3);
+    const summary = await loadConversationState({ organizationId: s.orgId, messages: [c], reservationId: s.reservationId });
+    expect(summary).toBeDefined();
+    expect(summary?.phase).toBeUndefined();
+  });
+});
