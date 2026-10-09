@@ -1724,12 +1724,13 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
   // geçmiş ayrışıyordu. Kapsam da dardı: yalnız `canceled`, `failed`/`blocked`/
   // `review` DEĞİL.
   // -------------------------------------------------------------------------
-  it("misafir SONRA yazsa bile teslim edilmemiş taslak model geçmişine girmez", async () => {
+  // `review` (belirsiz) da bağlamdan çıkar: ulaştığı KESİN olmayan cevap modele "verilmiş" sunulmaz (selam sayımı ise onu sayar).
+  it.each(["failed", "canceled", "blocked", "review"])("misafir SONRA yazsa bile teslim edilmemiş (%s) taslak model geçmişine girmez", async (status) => {
     const { conversationId } = await seed();
     await applyChannelAutoReply(conversationId);
-    // Taslak kalıcı olarak başarısız oldu (misafire ULAŞMADI).
+    // Taslak misafire ULAŞMADI (ya da ulaştığı belirsiz).
     const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
-    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "failed" } });
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status } });
 
     // Misafir taslaktan SONRA yeniden yazdı → filtrenin eski tetikleyicisi atlanırdı.
     await prisma.message.create({

@@ -103,6 +103,14 @@ describe("loadConversationPhase", () => {
     expect((await loadConversationPhase(id))?.phase).toBe("ongoing");
   });
 
+  it("🚨 misafir yazmadan giden ev sahibi mesajı (proaktif) cevap DEĞİL: ardından 'Teşekkürler' kapanış değil", async () => {
+    const id = await conversationWith([
+      { dir: "outbound", body: "Yarın girişiniz var, bekliyoruz." },
+      { dir: "inbound", body: "Teşekkürler" },
+    ]);
+    expect(await loadConversationPhase(id)).toMatchObject({ phase: "ongoing", deliveredReplyCount: 1 });
+  });
+
   it("aynı zaman damgasında cevaptan SONRA yazılan misafir mesajı kaybolmaz (eşitlik id ile)", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const same = new Date(Date.now() - 60_000);
