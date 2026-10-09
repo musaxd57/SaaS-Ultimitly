@@ -61,21 +61,27 @@ export function deriveConversationPhase(input: {
 }
 
 /**
- * ZAMAN BAĞLAMI (talimat 09-07 §4 "geçen süre, oturum arası, yeni gün") — yalnız NESNEL değerler: son etkileşimden bu yana geçen dakika
- * ve org saat diliminde takvim günü farkı (0 = aynı gün). "Yeni oturum" eşiği bir ürün kararıdır → burada YOK. Geçersiz / yok → null;
- * saat kayması (son etkileşim gelecekte) → 0.
+ * ZAMAN BAĞLAMI (talimat 09-07 §4 "geçen süre, oturum arası, yeni gün"): son etkileşimden bu yana geçen dakika, org saat diliminde
+ * takvim günü farkı (0 = aynı gün) ve YENİ OTURUM (kurucu kararı 10-09: "6 saat sessizlik" — `NEW_SESSION_GAP_MINUTES`). Geçersiz / yok →
+ * null; saat kayması (son etkileşim gelecekte) → 0.
  */
+export const NEW_SESSION_GAP_MINUTES = 6 * 60;
+
 export interface InteractionGap {
   elapsedMinutes: number;
   calendarDaysApart: number;
+  /** En az `NEW_SESSION_GAP_MINUTES` sessizlik (takvim günü değişimi tek başına yeni oturum DEĞİL — kurucu seçimi). */
+  newSession: boolean;
 }
 
 export function interactionGap(lastInteractionAt: Date | null, now: Date, timeZone: string): InteractionGap | null {
   if (!lastInteractionAt || Number.isNaN(lastInteractionAt.getTime()) || Number.isNaN(now.getTime())) return null;
   const ms = now.getTime() - lastInteractionAt.getTime();
-  if (ms <= 0) return { elapsedMinutes: 0, calendarDaysApart: 0 };
+  if (ms <= 0) return { elapsedMinutes: 0, calendarDaysApart: 0, newSession: false };
+  const elapsedMinutes = Math.floor(ms / 60_000);
   return {
-    elapsedMinutes: Math.floor(ms / 60_000),
+    elapsedMinutes,
+    newSession: elapsedMinutes >= NEW_SESSION_GAP_MINUTES,
     calendarDaysApart: Math.max(0, nightsBetween(todayKey(lastInteractionAt, timeZone), todayKey(now, timeZone))),
   };
 }

@@ -52,7 +52,7 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 | Eylem makbuzu | 🟡 beyan + kapı var (bayrak kapalı); makbuz üreten yürütücü yok |
 | Araç çağrısı / `verifiedToolResults` | 🟡 sözleşme + müsaitlik aracı ✅ 10-09; modele araç olarak verilmesi kurucu onayı |
 | Tarih çözümü üst verisi | ✅ 10-09 `ai/date-resolution.ts` (TR+EN; dayanak / güven / varsayım; 4 Haiku turu, 116 test, mutasyon 27/27); bağlanmadı |
-| Zaman bağlamı (geçen süre, oturum arası, yeni gün) | 🟡 gün etiketi var; **nesnel aralık ✅ 10-09** (`interactionGap`: geçen dakika + org diliminde takvim günü farkı); "yeni oturum" eşiği ürün kararı → kurucuya |
+| Zaman bağlamı (geçen süre, oturum arası, yeni gün) | 🟡 gün etiketi var; **aralık ✅ 10-09** (`interactionGap`: geçen dakika + org diliminde takvim günü farkı + yeni oturum = 6 saat sessizlik, kurucu kararı); isteme bağlanmadı |
 | Kurucu AI Kalite Konsolu | 🟡 KOD HAZIR (yama `docs/hazir-yamalar/2026-10-09-migration-60-…patch`; salt-okuma + etiket, 2FA'lı operatör, her görüntüleme kayıtlı) → push onayı |
 | Üretim izi (model, istem sürümü, gecikme, token, maliyet) | 🟡 KOD HAZIR (aynı yama; `AI_GENERATION_TRACE_ENABLED` kapalı; KVKK paritesi + okuyucu pini; maliyet sütunu boş — fiyat tablosu ayrı karar) → push onayı |
 | 8 başlangıç senaryosu | ✅ set `evals/founder-initial-8.json` + seçici; ücretli taban koşusu onay |
@@ -80,6 +80,12 @@ Her orta / büyük değişiklik Haiku incelemesinden geçti (5 tur; bulguların 
 (3) 8 senaryo koşuldu: Luna `low` (cevap + anlama) ve 5.1 ikisi de sızıntı 0 / yanlış susturma 0; belirsiz müsaitlikte yalnız Luna (durum
 açık) tek hedefli soru sordu (`docs/olcum/founder-initial-8-eval-2026-10-09-*`). Kurucu: "anlama katmanını Luna'ya geçir" → env:
 `AI_UNDERSTANDING_MODEL=gpt-6-luna` + `AI_UNDERSTANDING_REASONING_EFFORT=low` (sıralayıcı `AI_SEMANTIC_MODEL=gpt-5.1`'de kalır).
+
+**Kurucu kararları (10-09 gece):** (a) konuşma durumu → isteme bağlamadan ÖNCE ücretli kör eval koşulur, önce/sonra örnekleri kurucuya ·
+(b) yeni oturum eşiği = **6 saat sessizlik** (`NEW_SESSION_GAP_MINUTES`; takvim günü değişimi tek başına yeni oturum değil) · (c) kalite
+konsolu kaydı = **kapalı küme amaç + IP yok** (talimattaki "yazılı amaç + IP" yerine; 09-30 / 08-01 kuralları — migration 60 sapma 1–2
+ONAYLI) · (d) QR'de doğrulanmış müsaitlik: kurucu "açalım ama bayrak olsun, bayrağı unutturma; QR'de vermek mantıklı mı konuşalım" →
+analiz kurucuya sunuldu, karar bekliyor.
 
 **Önceki liste (karar sonrası durum):**
 1. Migration paketi 60 → ✅ KOD HAZIR (10-09 gece): yama `docs/hazir-yamalar/2026-10-09-migration-60-kanal-metaverisi-ai-izi-kalite-konsolu.patch`
