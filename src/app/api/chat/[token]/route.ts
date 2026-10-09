@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
-import { evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
+import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
 import { hazardDecisionFor, hazardEvidenceOf, safetyLineFor } from "@/lib/ai/hazard-evidence";
 import { confidentLanguage } from "@/lib/ai/language-signal";
@@ -48,6 +48,10 @@ import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { loadConversationStateForConversation } from "@/lib/ai/conversation-state-loader";
 import { orgTimezone } from "@/lib/timezone";
+import { verifiedQrEnabled } from "@/lib/ai/verified-qr";
+import { reportError } from "@/lib/report-error";
+import { loadQrVerifiedStay } from "@/lib/ai/verified-qr-load";
+import { codeBuiltResult } from "@/lib/ai/code-built-result";
 
 export const dynamic = "force-dynamic";
 
@@ -875,6 +879,50 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
     }
   }
+  // ── DOĞRULANMIŞ MÜSAİTLİK / UZATMA → KOD METNİ (QR; anahtar `AI_VERIFIED_QR_ENABLED`, VARSAYILAN KAPALI → hiç sorgu yok) ─────────────
+  // Kanal akışıyla aynı: misafire giden metin MODELİN DEĞİL, koddan kurulan tek cümle; QR kapısı bu metinle BAŞTAN koşar (muafiyet yalnız
+  // birebir metne + anlama katmanı + bekçi; acil / injection / dil / güven aynen). Tek cevapsız mesaj, modelin niyeti riskli değil.
+  // Bekçi bu turda koşmadıysa kod metniyle koşturulur; hüküm yalnız metin seçilirse bağlama yazılır.
+  let finalResult = result;
+  if (verifiedQrEnabled() && qrUnanswered.length === 1 && !ESCALATE_INTENTS.has(result.intent)) {
+    const code = await loadQrVerifiedStay({
+      organizationId: ctx.property.organizationId,
+      propertyId: ctx.property.id,
+      timeZone: orgTimezone(org?.timezone),
+      message,
+      language: lineLanguage,
+      reservation: { arrivalDate: res.arrivalDate, departureDate: res.departureDate, channel: res.channel ?? null, status: res.status },
+      understood: understood ?? null,
+    }).catch((err) => {
+      void reportError(`qr-verified-stay org=${ctx.property.organizationId}`, err);
+      return null;
+    });
+    if (code) {
+      const codeResult = codeBuiltResult(result, code.text, code.kind === "extension" ? "extend_stay" : "availability");
+      const guard =
+        stayCtx?.stayGuard ??
+        (stayGuardEnabled()
+          ? await runStayChangeGuard({
+              guestMessages: [message],
+              reply: code.text,
+              stayTimes: stayCtx?.stayTimes,
+              names: [res.guestName, res.guestGivenName],
+              history,
+            })
+          : undefined);
+      const codeCtx = {
+        ...stayCtx,
+        stayGuard: guard,
+        ...(code.kind === "extension" ? { verifiedExtension: { text: code.text } } : { verifiedAvailability: { text: code.text } }),
+      };
+      const codeVerdict = evaluateEscalation({ ...codeResult, usedSources: [] }, message, res.guestName, history, codeCtx);
+      if (!codeVerdict.escalate) {
+        finalResult = codeResult;
+        stayCtx = codeCtx;
+        verdict = codeVerdict;
+      }
+    }
+  }
   const escalate = verdict.escalate;
 
   // Karar kaydının temellendirme alanları — iki kayıt (kapanış / cevap-devir) AYNI nesneyi yazar.
@@ -968,7 +1016,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     ? hazardDecision.emergency
       ? safetyLineFor(lineLanguage ?? understood?.language ?? result.detectedLanguage ?? null)
       : null
-    : result.reply;
+    : finalResult.reply;
   const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
   if (handedOff) return finalize({ handoff: true });
   // İZLENEBİLİRLİK (kurucu AI kalite turu, 09-08): KARARIN GEREKÇESİ kaydedilir —

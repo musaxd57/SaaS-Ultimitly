@@ -400,3 +400,10 @@
 - 🚨 Köprüden (Hospitable) gelen sonraki rezervasyonun bloğu tazelik kaydı olmadığı için KESİN dolu sayılmaz → ev sahibine (pinli). Aynı sebeple
   köprüye bağlı mülkte "boş" da kesinleşmeyebilir; bağlantı sağlığının motora bağlanması (migration 60 C) ayrı kurucu onayı.
 - QR yolu bağlanmadı (kurucu: "bayrak olsun, QR'de mantıklı mı konuşalım" → sıradaki dilim).
+
+## QR'de doğrulanmış müsaitlik / uzatma (kurucu yokken karar #3, 10-09 gece; anahtar `AI_VERIFIED_QR_ENABLED`, tam "1", VARSAYILAN KAPALI)
+- Kanal anahtarlarından AYRI. QR'yi dairede kalan misafir kullanır → müsaitlik yalnız konaklamaya DEĞMEYEN aralıkta (`rangeTouchesStay`:
+  çıkış gecesinden başlayan / giriş gününde biten / örtüşen = konaklama değişikliği → ev sahibi); uzatma kanaldaki kurallarla aynı (Airbnb,
+  onaylı, misafirin kendi isteği). Metin `loadQrVerifiedStay`te kurulur; QR kapısı (`evaluateEscalation`) metinle BAŞTAN koşar: muafiyet
+  yalnız birebir metne + anlama katmanı + bekçi (bekçi koşmadıysa kod metniyle koşturulur; hüküm yalnız metin seçilirse bağlama yazılır);
+  acil / injection / dil / güven / modelin riskli niyeti aynen. Tek cevapsız mesaj şart.

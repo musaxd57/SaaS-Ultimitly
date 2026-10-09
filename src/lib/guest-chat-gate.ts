@@ -47,7 +47,7 @@ import { HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
 
 // Intents that must never be answered autonomously to a guest — money,
 // cancellation, complaint, or an explicit ask for a human.
-const ESCALATE_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
+export const ESCALATE_INTENTS: ReadonlySet<string> = new Set(["complaint", "refund", "early_departure", "human_request"]);
 
 /**
  * Risksiz bir bilgi sorusunda modelin cevabının gönderilebileceği EN DÜŞÜK güven.
