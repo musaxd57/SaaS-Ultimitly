@@ -58,6 +58,9 @@ describe("interactionGap — zaman bağlamı (nesnel)", () => {
     expect(interactionGap(new Date("2026-10-08T20:00:00Z"), new Date("2026-10-08T21:30:00Z"), TZ)?.calendarDaysApart).toBe(1);
     expect(interactionGap(new Date("2026-10-08T20:00:00Z"), new Date("2026-10-08T21:30:00Z"), "UTC")?.calendarDaysApart).toBe(0);
   });
+  it("dakika AŞAĞI yuvarlanır (90 sn → 1 dk; geçmeyen dakika sayılmaz)", () => {
+    expect(interactionGap(new Date("2026-10-09T06:00:00Z"), new Date("2026-10-09T06:01:50Z"), TZ)?.elapsedMinutes).toBe(1);
+  });
   it("yok / geçersiz → null; gelecekteki an → 0", () => {
     expect(interactionGap(null, at, TZ)).toBeNull();
     expect(interactionGap(new Date("x"), at, TZ)).toBeNull();
