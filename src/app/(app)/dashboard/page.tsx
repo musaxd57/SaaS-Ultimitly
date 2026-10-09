@@ -18,6 +18,7 @@ import { notClosingHandledWhere } from "@/lib/conversation-attention";
 // `/api/reports/daily` onu kullanıyor ve test-pinli bir JSON sözleşmesi.
 import { dedupeBookings, getOpsStats } from "@/lib/reports";
 import { hasMessagingConnection } from "@/lib/channels";
+import { reservationsConnectedStepDone } from "@/lib/onboarding-steps";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import { AttentionPanel } from "@/components/attention-panel";
@@ -95,8 +96,9 @@ export default async function DashboardPage() {
 
   // "Başlarken" onboarding: compute setup progress. The card only renders until
   // every step is done, then disappears for established accounts.
-  const [channelConnected, conversationCount, kbCount, premiumOk, attention] = await Promise.all([
+  const [channelConnected, calendarSourceCount, conversationCount, kbCount, premiumOk, attention] = await Promise.all([
     hasMessagingConnection(orgId),
+    prisma.calendarSource.count({ where: { property: { organizationId: orgId } } }),
     prisma.conversation.count({ where: scope }),
     prisma.knowledgeBaseItem.count({ where: { isActive: true, ...scope } }),
     premiumAllowed(orgId),
@@ -106,19 +108,20 @@ export default async function DashboardPage() {
   ]);
   const onboardingSteps: OnboardingStep[] = [
     {
-      done: channelConnected,
-      title: "Airbnb / Booking bağlantınızı kurun",
+      // Kanal bağlantısı YA DA takvim (iCal) bağlantısı (kurucu kararı 10-09, `lib/onboarding-steps.ts`).
+      done: reservationsConnectedStepDone({ channelConnected, calendarSourceCount }),
+      title: "Rezervasyonlarınızı bağlayın",
       // Açıklama başlığı TEKRARLAMAZ. Altı adımın beşi yeni bilgi veriyordu,
       // bu biri "bağlantınızı kurun"u iki kez söylüyordu: ilk açılışta en çok
       // okunan yüzeyde ölü metin, mobilde de üç satır boşa yer.
-      desc: "Bağlandıktan sonra rezervasyonlarınız ve misafir mesajlarınız buraya otomatik akar.",
-      href: "/settings#hospitable",
-      cta: "Bağlantıyı kur",
+      desc: "Airbnb / Booking hesabınızı bağlayın ya da ilanınızın takvim bağlantısını ekleyin; rezervasyonlarınız kendiliğinden gelir.",
+      href: "/properties",
+      cta: "Bağla",
     },
     {
       done: stats.totalProperties > 0,
       title: "Daireleriniz hazır olsun",
-      desc: "Bağlantı kurulunca daireleriniz otomatik gelir; birkaç dakika sürebilir.",
+      desc: "Hesap bağlantısıyla daireleriniz otomatik gelir; takvim bağlantısı için daireyi önce elle ekleyin.",
       href: "/properties",
       cta: "Daireleri gör",
     },

@@ -13,7 +13,8 @@ const read = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel)
 const GATES: Array<[string, RegExp, string]> = [
   ["src/app/(app)/layout.tsx", /isDemoOrg\(session\.organizationId\)\s*\?\s*\(\s*<DemoBanner \/>/, "örnek hesap bandı"],
   ["src/app/(app)/dashboard/page.tsx", /isDemoOrg\(orgId\) \? null : <OnboardingGuide/, "kurulum rehberi gizli"],
-  ["src/app/(app)/inbox/page.tsx", /\{demo \? null : <HospitableSyncButton \/>\}/, "'Mesajları çek' gizli"],
+  // Bağlantısız hesapta da gizli (YOL-PLANI-DURUM kapı 2): basınca yalnız "bağlı değil" diyen ölü düğmeydi.
+  ["src/app/(app)/inbox/page.tsx", /\{demo \|\| !channelConnected \? null : <HospitableSyncButton \/>\}/, "'Mesajları çek' gizli (demo + bağlantısız)"],
   ["src/app/(app)/inbox/page.tsx", /\{demo \? null : <AutoReplyTestButton/, "oto-yanıt önizlemesi gizli"],
   ["src/app/(app)/reports/page.tsx", /!channelConnected && !isDemoOrg\(organizationId\)/, "rapor bağlantı ipucu gizli"],
   ["src/app/(app)/properties/page.tsx", /\.\.\.\(demo \? \[\] : \[\{ label: "Kanal bağlantısı/, "hazırlık listesinde kanal adımı yok"],

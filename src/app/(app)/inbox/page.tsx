@@ -244,8 +244,9 @@ export default async function InboxPage({
       <PageHeader title="Mesajlar" description="Tüm misafir konuşmalarını tek kutudan yönetin.">
         {/* Demo (inceleme) hesabında kanal bağlantısı YOK: "Mesajları çek" her basışta "bağlı değil"
             der, önizleme de yalnız kanal konuşmalarını seçtiği için her zaman boş döner (ve günlük
-            AI hakkı yakar). İkisi de orada yalnız kırık bir düğme olurdu. */}
-        {demo ? null : <HospitableSyncButton />}
+            AI hakkı yakar). İkisi de orada yalnız kırık bir düğme olurdu. Mesajlaşma bağlantısı olmayan hesapta da
+            "Mesajları çek" gizli (10-09, Hospitable'sız kullanım): çekilecek kanal yok; bağlantı Ayarlar'dan kurulur. */}
+        {demo || !channelConnected ? null : <HospitableSyncButton />}
         {demo ? null : <AutoReplyTestButton locked={automationLocked} />}
         <AutoReplyToggle
           field="autoReplyHospitable"
