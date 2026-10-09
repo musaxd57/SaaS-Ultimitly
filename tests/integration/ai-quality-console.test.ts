@@ -172,9 +172,11 @@ describe("kalite konsolu — görüntüleme (operatör)", () => {
   it("🚨 sayfa imleci başka kiracının iz kimliği olsa da süzgeç aşılmaz", async () => {
     const a = await seedOrg("Alfa");
     const b = await seedOrg("Beta");
+    // Başka kiracının imleci DAHA ESKİ olsun: imleç süzgeçsiz okunsaydı Alfa'nın satırı "imleçten yeni" diye düşerdi.
+    await prisma.aiGeneration.update({ where: { id: b.generationId }, data: { createdAt: new Date(Date.now() - 86_400_000) } });
     const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review", before: b.generationId }));
     const body = await res.json();
-    expect(body.generations.every((g: { draftText: string }) => g.draftText.startsWith("Alfa:"))).toBe(true);
+    expect(body.generations.map((g: { id: string }) => g.id)).toEqual([a.generationId]);
   });
 });
 
