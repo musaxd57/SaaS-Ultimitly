@@ -16,6 +16,7 @@ registerMessagingAccess(hospitableMessagingAccess); // V0.8 — kimlik bilgisi +
 
 export {
   resolveOrgChannelCredential,
+  activeMessagingConnectionId,
   handleOutboundCredentialRejected,
   hasMessagingConnection,
   registerMessagingAccess,

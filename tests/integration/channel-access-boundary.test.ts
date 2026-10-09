@@ -38,6 +38,7 @@ function fakeAccess(token: string | null) {
     credentialFor: vi.fn(async () => token),
     onCredentialRejected: vi.fn(async () => "noop" as const),
     isConnected: vi.fn(async () => token !== null),
+    activeConnectionId: vi.fn(async () => null),
   } satisfies MessagingAccess<"hospitable">;
 }
 

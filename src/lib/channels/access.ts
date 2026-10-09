@@ -35,6 +35,8 @@ export interface MessagingAccess<P extends OutboundProvider = OutboundProvider> 
   onCredentialRejected(organizationId: string, status: 401 | 403, rejectedToken: string): Promise<CredentialRejectionOutcome>;
   /** Panel için: bağlantı kurulu mu (SAKLI veriden; sağlayıcının sağlıklı çalıştığı anlamına GELMEZ). */
   isConnected(organizationId: string): Promise<boolean>;
+  /** Org'un bu sağlayıcıdaki AKTİF bağlantı satırının kimliği (provenance damgası); yoksa null. */
+  activeConnectionId(organizationId: string): Promise<string | null>;
 }
 
 const registered = new Map<OutboundProvider, MessagingAccess>();
@@ -65,10 +67,18 @@ function soleMessagingAccess(): MessagingAccess | null {
 /**
  * Org'un giden-mesaj kimlik bilgisi (sağlayıcısıyla birlikte); bağlı değilse null. Sağlayıcıya çağrı yalnız çözücünün
  * kendi kuralıyla (Hospitable: süresi dolmuş OAuth belirtecinin yenilenmesi) yapılır.
+ *
+ * `forProvider` (hedefin sağlayıcısı biliniyorsa VERİLİR — gönderim kuyruğu satırın rotasından): tek kayıtlı sağlayıcı
+ * hedefin sağlayıcısı DEĞİLSE null (inceleme 10-09: bir sağlayıcının belirteci başka sağlayıcının hedefine gitmesin; bugün
+ * tip birliği bunu engelliyor, bu koşul ikinci sağlayıcı girdiğinde sessiz kalmasın).
  */
-export async function resolveOrgChannelCredential(organizationId: string): Promise<OutboundCredential | null> {
+export async function resolveOrgChannelCredential(
+  organizationId: string,
+  forProvider?: OutboundProvider,
+): Promise<OutboundCredential | null> {
   const access = soleMessagingAccess();
   if (!access) return null;
+  if (forProvider !== undefined && access.provider !== forProvider) return null;
   const token = await access.credentialFor(organizationId);
   return token ? { provider: access.provider, token } : null;
 }
@@ -82,6 +92,13 @@ export async function handleOutboundCredentialRejected(
   const access = accessFor(rejected.provider);
   if (!access || !rejected.token) return "noop";
   return access.onCredentialRejected(organizationId, status, rejected.token);
+}
+
+/** Org'un mesajlaşma bağlantısının AKTİF satır kimliği (gönderim niyetinin provenance damgası); yoksa null. */
+export async function activeMessagingConnectionId(organizationId: string): Promise<string | null> {
+  const access = soleMessagingAccess();
+  if (!access) return null;
+  return access.activeConnectionId(organizationId);
 }
 
 /** Panel: org'un mesajlaşma bağlantısı kurulu mu (saklı veriden). */

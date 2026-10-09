@@ -30,6 +30,8 @@ import {
   timesOf,
   unansweredOf,
   writeReport,
+  cusDatasetName,
+  CUS_DEFAULT_DATASET,
   type Arm,
   type CusDataset,
   type CusRow,
@@ -49,7 +51,8 @@ import {
 // Maliyet: senaryo başına iki kol × (cevap modeli + anlama katmanı) — kurucu onayıyla koşulur.
 // ---------------------------------------------------------------------------
 
-const DATASET = path.resolve(__dirname, "../../evals/conversation-state.json");
+const DATASET_NAME = cusDatasetName(process.env.EVAL_CUS_DATASET);
+const DATASET = path.resolve(__dirname, "../../evals", DATASET_NAME);
 const datasetExists = existsSync(DATASET);
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
@@ -103,7 +106,9 @@ describe.skipIf(!enabled || !datasetExists)(`KONUŞMA ANLAMA DURUMU — eşleşt
     }
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    const name = uniqueReportName(dir, `conversation-state-eval-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}.md`);
+    // Varsayılan set eski adla; başka bir set (ör. kurucu 8'i) kendi adıyla — iki setin raporu birbirine karışmaz.
+    const prefix = DATASET_NAME === CUS_DEFAULT_DATASET ? "conversation-state" : DATASET_NAME.replace(/\.json$/, "");
+    const name = uniqueReportName(dir, `${prefix}-eval-${new Date().toISOString().slice(0, 10)}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}.md`);
     writeReport(data, rows, { model: MODEL, commit, runDay, limit: LIMIT }, dir, name);
   });
 

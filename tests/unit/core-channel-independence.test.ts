@@ -126,20 +126,41 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     const ALLOWED: Record<string, string> = {
       "src/lib/channels/index.ts": "adaptör / çözücü kaydı (Channel Layer giriş noktası)",
       "src/components/settings/hospitable-connect-card.tsx": "sağlayıcının kendi bağlantı kartı (yalnız tip)",
-      "src/app/(app)/settings/page.tsx": "bağlantı kartını besleyen ayarlar sayfası (OAuth yapılandırması + ayrıntılı durum)",
+      "src/app/(app)/settings/page.tsx":
+        "köprünün KENDİ bağlantı kartı (sağlayıcıya özgü arayüz: etiket, iptal nedeni, env fallback durumu, OAuth yapılandırması) — çekirdek mantık değil; sınırın bilinçli istisnası",
       "src/lib/scheduled-sync.ts": "köprünün yoklayıcısını çağıran zamanlayıcı — V0 kalanı: yoklayıcı kaydı (YOL-PLANI-DURUM §2d)",
     };
-    const isProviderOwned = (rel: string) =>
-      /^src\/lib\/hospitable(-[a-z-]+)?\.ts$/.test(rel) ||
-      /^src\/lib\/channels\/hospitable-[a-z-]+\.ts$/.test(rel) ||
-      rel.startsWith("src/app/api/hospitable/");
-    const PROVIDER_IMPORT =
-      /(?:from\s+|import\s*\(\s*)["'](?:@\/lib\/hospitable(?:-[a-z-]+)?|@\/lib\/channels\/hospitable-[a-z-]+|(?:\.\.?\/)+(?:channels\/)?hospitable(?:-[a-z-]+)?)["']/;
+    // Sağlayıcı modülleri DOSYA olarak tanımlanır; her import yolu ÇÖZÜLÜR (`@/` takma adı, göreli yol, uzantı,
+    // `index`) — inceleme 10-09: düzenli ifade `import "x"` (yan etki), `require("x")`, `../../lib/hospitable` ve rakamlı
+    // ad (`hospitable-v2`) yazımlarını kaçırıyordu. Airbnb Direct adaptörü de sağlayıcı modülüdür.
+    const isProviderModule = (rel: string) =>
+      /^src\/lib\/hospitable(-[a-z0-9-]+)?\.tsx?$/.test(rel) ||
+      /^src\/lib\/channels\/hospitable-[a-z0-9-]+\.tsx?$/.test(rel) ||
+      rel.startsWith("src/lib/channels/airbnb-direct/");
+    const isProviderOwned = (rel: string) => isProviderModule(rel) || rel.startsWith("src/app/api/hospitable/");
+    const allFiles = walk(path.join(ROOT, "src")).map((abs) => path.relative(ROOT, abs));
+    const providerModules = new Set(allFiles.filter(isProviderModule));
+    const fileSet = new Set(allFiles);
+    const resolveSpec = (fromRel: string, spec: string): string | null => {
+      let base: string;
+      if (spec.startsWith("@/")) base = path.join("src", spec.slice(2));
+      else if (spec.startsWith(".")) base = path.join(path.dirname(fromRel), spec);
+      else return null; // paket
+      base = base.split(path.sep).join("/");
+      for (const cand of [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`]) if (fileSet.has(cand)) return cand;
+      return null;
+    };
+    const specsOf = (src: string): string[] =>
+      [...src.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)["']([^"'\n]+)["']/g)].map((m) => m[1]);
+    // Çıkarıcının kendisi: bütün yazımları görür (anti-vakum).
+    expect(specsOf('import "@/lib/a"; const b = require("../b"); import t from \'./c\'; export { d } from "@/d"; await import("@/e");')).toEqual(
+      ["@/lib/a", "../b", "./c", "@/d", "@/e"],
+    );
     const importers: string[] = [];
     const offenders: string[] = [];
-    for (const abs of walk(path.join(ROOT, "src"))) {
-      const rel = path.relative(ROOT, abs);
-      if (!PROVIDER_IMPORT.test(code(read(rel)))) continue;
+    for (const rel of allFiles) {
+      const hits = specsOf(code(read(rel))).map((sp) => resolveSpec(rel, sp)).filter((r): r is string => r !== null && providerModules.has(r));
+      if (hits.length === 0) continue;
       importers.push(rel);
       if (!isProviderOwned(rel) && !(rel in ALLOWED)) offenders.push(rel);
     }
@@ -147,6 +168,7 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     // Anti-vakum: tarayıcı bilinen köprü importlarını GERÇEKTEN görüyor ve izin listesi ölü satır taşımıyor.
     expect(importers).toContain("src/lib/channels/hospitable-access.ts");
     expect(importers).toContain("src/lib/channels/hospitable-outbound.ts");
+    expect(resolveSpec("src/lib/x/y.ts", "../../lib/hospitable")).toBe("src/lib/hospitable.ts");
     for (const rel of Object.keys(ALLOWED)) expect(importers, `ölü izin satırı: ${rel}`).toContain(rel);
   });
 

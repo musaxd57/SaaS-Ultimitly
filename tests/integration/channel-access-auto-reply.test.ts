@@ -27,7 +27,7 @@ vi.mock("@/lib/messaging", async (orig) => {
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
 import { __setMessagingAccessForTest, type MessagingAccess } from "@/lib/channels";
-import { runDueChannelAutoReplies } from "@/lib/automation";
+import { runDueChannelAutoReplies, sendDueWelcomes, sendDueCheckins, sendDueCheckouts } from "@/lib/automation";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
@@ -38,6 +38,7 @@ function fakeAccess(token: string | null) {
     credentialFor: vi.fn(async () => token),
     onCredentialRejected: vi.fn(async () => "noop" as const),
     isConnected: vi.fn(async () => token !== null),
+    activeConnectionId: vi.fn(async () => null),
   } satisfies MessagingAccess<"hospitable">;
 }
 
@@ -116,5 +117,31 @@ describe("oto-yanıt bağlantı kapısı × kanal erişimi", () => {
     expect(access.credentialFor).toHaveBeenCalledWith(orgId);
     expect(mockSuggest).toHaveBeenCalledTimes(1);
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).skippedReason).not.toBe("not_connected");
+  });
+});
+
+describe("yaşam döngüsü mesajları (karşılama / giriş / çıkış) bağlantı kapısı × kanal erişimi (inceleme 10-09 6c)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    mockSend.mockClear();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    __setMessagingAccessForTest("hospitable", null);
+  });
+
+  it.each([
+    ["karşılama", "autoWelcome", (orgId: string) => sendDueWelcomes(orgId)],
+    ["giriş bilgisi", "autoCheckin", (orgId: string) => sendDueCheckins(orgId)],
+    ["çıkış", "autoCheckout", (orgId: string) => sendDueCheckouts(orgId)],
+  ] as const)("🚨 %s: erişim 'bağlı değil' → çözücü sorulur, hiçbir gönderim yok", async (_name, field, run) => {
+    const org = await prisma.organization.create({ data: { name: "Org", [field]: true, [`${field}EnabledAt`]: new Date(Date.now() - 86_400_000) } });
+    const access = fakeAccess(null);
+    __setMessagingAccessForTest("hospitable", access);
+    const r = await run(org.id);
+    expect(access.credentialFor).toHaveBeenCalledWith(org.id);
+    expect(r).toMatchObject({ sent: 0 });
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });

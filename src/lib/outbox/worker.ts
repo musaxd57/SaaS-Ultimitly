@@ -7,7 +7,13 @@ import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { errorWithContext, reportError } from "@/lib/report-error";
-import { dispatchOutbound, handleOutboundCredentialRejected, resolveOrgChannelCredential, resolveOutboundRoute } from "@/lib/channels";
+import {
+  dispatchOutbound,
+  handleOutboundCredentialRejected,
+  resolveOrgChannelCredential,
+  resolveOutboundRoute,
+  type OutboundProvider,
+} from "@/lib/channels";
 import { ANON_BODY } from "@/lib/data-retention";
 import {
   attemptsExhausted,
@@ -100,8 +106,11 @@ export interface DrainDeps {
   send?: OutboxSendFn;
   /** Best-effort reconcile of an ambiguous row against provider history. */
   reconcile?: OutboxReconcileFn;
-  /** Resolve an org's channel credential token. Default = the Channel Layer (`resolveOrgChannelCredential`, V0.8). */
-  tokenFor?: (organizationId: string) => Promise<string | undefined>;
+  /**
+   * Resolve an org's channel credential token for the row's provider. Default = the Channel Layer
+   * (`resolveOrgChannelCredential(orgId, provider)`, V0.8): a credential of ANOTHER provider is never returned.
+   */
+  tokenFor?: (organizationId: string, provider?: OutboundProvider) => Promise<string | undefined>;
 }
 
 export interface DrainResult {
@@ -849,7 +858,8 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     }
   }
 
-  const providerToken = await deps.tokenFor(row.organizationId);
+  const rowRoute = resolveOutboundRoute(row);
+  const providerToken = await deps.tokenFor(row.organizationId, rowRoute.kind === "external" ? rowRoute.destination.provider : undefined);
 
   // TENANT ISOLATION (Codex): a row whose org has NO usable token — i.e. the org
   // DISCONNECTED after enqueue — must NEVER reach the provider. Without this guard
@@ -1273,7 +1283,9 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
     now,
     send: deps.send ?? defaultSend,
     reconcile: deps.reconcile ?? defaultReconcile,
-    tokenFor: deps.tokenFor ?? ((orgId: string) => resolveOrgChannelCredential(orgId).then((c) => c?.token ?? undefined)),
+    tokenFor:
+      deps.tokenFor ??
+      ((orgId: string, provider?: OutboundProvider) => resolveOrgChannelCredential(orgId, provider).then((c) => c?.token ?? undefined)),
   };
   const acc: DrainResult = { claimed: 0, sent: 0, failed: 0, ambiguous: 0, reconciled: 0, review: 0, retried: 0, canceled: 0, rateLimited: 0, blocked: 0 };
   const token = randomUUID();

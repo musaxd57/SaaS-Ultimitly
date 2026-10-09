@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getConnectionInfo, getOrgHospitableToken, handleProviderAuthFailure } from "@/lib/hospitable-credentials";
+import { getActiveConnection } from "./connections";
 import type { MessagingAccess } from "./access";
 
 // ---------------------------------------------------------------------------
@@ -17,4 +18,5 @@ export const hospitableMessagingAccess: MessagingAccess<"hospitable"> = {
   onCredentialRejected: (organizationId, status, rejectedToken) =>
     handleProviderAuthFailure(organizationId, status, rejectedToken),
   isConnected: async (organizationId) => (await getConnectionInfo(organizationId)).connected,
+  activeConnectionId: async (organizationId) => (await getActiveConnection(organizationId, "hospitable"))?.id ?? null,
 };

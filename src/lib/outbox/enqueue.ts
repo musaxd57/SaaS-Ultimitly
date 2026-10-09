@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { getActiveConnection } from "@/lib/channels/connections";
+import { activeMessagingConnectionId } from "@/lib/channels";
 
 // ---------------------------------------------------------------------------
 // Durable Outbox — atomic enqueue (#8).
@@ -94,7 +94,7 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
   // V0.3: stamp the org's ACTIVE connection (provenance — which credential this
   // send was queued under). Null when the org is not connected; delivery still
   // resolves the credential at send time (a disconnected org parks the row).
-  const connectionId = (await getActiveConnection(args.organizationId, "hospitable"))?.id ?? null;
+  const connectionId = await activeMessagingConnectionId(args.organizationId);
   try {
     const result = await prisma.$transaction(async (tx) => {
       const message = await tx.message.create({
@@ -183,7 +183,7 @@ export interface EnqueueProactiveResult {
  * makes a scheduler replay or a process restart a clean dedupe-hit rather than a second message.
  */
 export async function enqueueProactive(args: EnqueueProactiveArgs): Promise<EnqueueProactiveResult> {
-  const connectionId = (await getActiveConnection(args.organizationId, "hospitable"))?.id ?? null; // V0.3 provenance
+  const connectionId = await activeMessagingConnectionId(args.organizationId); // V0.3 provenance (V0.8: kanal katmanından)
   try {
     const outbox = await prisma.messageOutbox.create({
       data: {

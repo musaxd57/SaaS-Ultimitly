@@ -135,6 +135,19 @@ export interface CusDataset {
 
 /** Senaryoların saat dilimi — sabit ofset (+03:00, 2016'dan beri yaz saati yok; pinli). */
 export const CUS_TZ = "Europe/Istanbul";
+
+/**
+ * Hangi veri seti koşulacak (`EVAL_CUS_DATASET`, varsayılan `conversation-state.json`). YALNIZ `evals/` altındaki DÜZ dosya adı
+ * (dizin / göreli yol yok) ve mühürlü / özel / holdout setler ASLA (yasak dosyalar; ad içinde geçse de reddedilir).
+ * Kurucu talimatı 09-07'nin 8 başlangıç senaryosu: `founder-initial-8.json`.
+ */
+export const CUS_DEFAULT_DATASET = "conversation-state.json";
+export function cusDatasetName(raw: string | undefined): string {
+  const name = raw?.trim() || CUS_DEFAULT_DATASET;
+  if (!/^[a-z0-9][a-z0-9-]*\.json$/.test(name)) throw new Error(`EVAL_CUS_DATASET yalnız evals/ altındaki düz bir .json adı olabilir: "${name}"`);
+  if (/sealed|private|holdout/.test(name)) throw new Error(`yasak veri seti: "${name}"`);
+  return name;
+}
 const TZ_OFFSET = "+03:00";
 export const DEFAULT_LOCAL_TIME = "14:00";
 export const GUEST_NAME = "Alex Doe";
