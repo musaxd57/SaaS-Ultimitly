@@ -41,20 +41,37 @@ export async function recordChannelListings(
         })
       ).map((p) => p.id),
     );
+    const current = new Map(
+      (
+        await prisma.channelListing.findMany({
+          where: { connectionId, externalId: { in: pairs.map((p) => p.externalId) } },
+          select: { externalId: true, propertyId: true },
+        })
+      ).map((l) => [l.externalId, l.propertyId]),
+    );
     for (const p of pairs) {
       if (!owned.has(p.propertyId) || !p.externalId) continue;
-      await prisma.channelListing.upsert({
-        where: { connectionId_externalId: { connectionId, externalId: p.externalId } },
-        create: { organizationId, connectionId, externalId: p.externalId, propertyId: p.propertyId },
-        update: { propertyId: p.propertyId },
-      });
+      if (current.get(p.externalId) === p.propertyId) continue; // değişmeyen eşleme yeniden yazılmaz
+      // Bir ilanın arızası kalanları atlatmaz (çift yazım en iyi çaba; senkronun asıl yazımı `Property.hospitableId`).
+      try {
+        await prisma.channelListing.upsert({
+          where: { connectionId_externalId: { connectionId, externalId: p.externalId } },
+          create: { organizationId, connectionId, externalId: p.externalId, propertyId: p.propertyId },
+          update: { propertyId: p.propertyId },
+        });
+      } catch (err) {
+        void reportError(`channel-listing-write org=${organizationId}`, err);
+      }
     }
   } catch (err) {
     void reportError(`channel-listing-write org=${organizationId}`, err);
   }
 }
 
-/** C. Okuma geçişinin sonucu. Başarı yalnız `lastReadOkAt`; hata zaman + kapalı küme tür. Bağlantı yoksa yazılmaz. */
+/**
+ * C. Okuma geçişinin sonucu. Başarı yalnız `lastReadOkAt`; hata zaman + kapalı küme tür. Bağlantı yoksa yazılmaz. Başarı hata alanlarını
+ * SİLMEZ (geçmiş kalır) — okuyucu iki zamanı karşılaştırır (`lastReadOkAt > lastReadErrorAt` = son geçiş iyi).
+ */
 export async function recordConnectionRead(
   organizationId: string,
   connectionId: string | null,

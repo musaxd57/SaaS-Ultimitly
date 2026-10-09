@@ -103,6 +103,8 @@ export async function upsertCanonicalReservation(
   const guestExternalId = r.guest.externalId;
   const currency = r.currency ?? "EUR";
 
+  // Ham platform adı (migration 60 B): anahtar açıkken ve sağlayıcı verdiyse; yalnız gösterim / teşhis (olay değildir).
+  const sourcePlatform = channelMetadataWriteEnabled() ? (r.sourcePlatform ?? null) : null;
   const existing = await db.reservation.findFirst({
     where: { propertyId, sourceReference: srcRef },
     select: {
@@ -120,11 +122,10 @@ export async function upsertCanonicalReservation(
       totalAmount: true,
       currency: true,
       connectionId: true,
-      sourcePlatform: true,
+      // Anahtar kapalıyken yeni kolon OKUNMAZ (sorgu bugünküyle aynı).
+      sourcePlatform: sourcePlatform !== null,
     },
   });
-  // Ham platform adı (migration 60 B): anahtar açıkken ve sağlayıcı verdiyse; yalnız gösterim / teşhis (olay değildir).
-  const sourcePlatform = channelMetadataWriteEnabled() ? (r.sourcePlatform ?? null) : null;
 
   if (existing) {
     // KVKK resurrection guard: once the retention sweep has anonymized this row

@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
   if (!org) return badRequest({ orgId: "İşletme bulunamadı." });
 
   const page = await listAiGenerations(orgId, { decision, before });
+  if (page.invalidCursor) return badRequest({ before: "Sayfa imleci bu işletmede yok; listeyi baştan yükleyin." });
 
   // ZORUNLU kayıt VERİ DÖNMEDEN ÖNCE: yazılamazsa (veritabanı arızası) hiçbir iz gösterilmez.
   try {

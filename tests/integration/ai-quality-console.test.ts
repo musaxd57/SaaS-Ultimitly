@@ -169,14 +169,30 @@ describe("kalite konsolu — görüntüleme (operatör)", () => {
     expect(log.metadataJson).not.toContain("Ayşe");
   });
 
-  it("🚨 sayfa imleci başka kiracının iz kimliği olsa da süzgeç aşılmaz", async () => {
+  it("🚨 sayfa imleci başka kiracının iz kimliği → 400; veri yok, görüntüleme kaydı yok", async () => {
     const a = await seedOrg("Alfa");
     const b = await seedOrg("Beta");
-    // Başka kiracının imleci DAHA ESKİ olsun: imleç süzgeçsiz okunsaydı Alfa'nın satırı "imleçten yeni" diye düşerdi.
-    await prisma.aiGeneration.update({ where: { id: b.generationId }, data: { createdAt: new Date(Date.now() - 86_400_000) } });
     const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review", before: b.generationId }));
-    const body = await res.json();
-    expect(body.generations.map((g: { id: string }) => g.id)).toEqual([a.generationId]);
+    expect(res.status).toBe(400);
+    expect(await res.text()).not.toContain("Beta:");
+    expect(await prisma.auditLog.count({ where: { action: "ai_quality.view" } })).toBe(0);
+  });
+
+  it("KONTROL: geçerli imleç sonraki (daha eski) sayfayı verir, tekrar yok", async () => {
+    const a = await seedOrg("Alfa");
+    const older = await prisma.aiGeneration.create({
+      data: {
+        organizationId: a.orgId,
+        conversationId: a.conversationId,
+        surface: "channel_auto",
+        model: "m",
+        promptVersion: "p",
+        decision: "human_review",
+        createdAt: new Date(Date.now() - 86_400_000),
+      },
+    });
+    const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review", before: a.generationId }));
+    expect((await res.json()).generations.map((g: { id: string }) => g.id)).toEqual([older.id]);
   });
 });
 
@@ -209,6 +225,10 @@ describe("kalite konsolu — etiket (tek yazma)", () => {
     expect(res.status).toBe(404);
     expect(await prisma.aiReviewLabel.count()).toBe(0);
     expect(await prisma.auditLog.count({ where: { action: "ai_quality.label" } })).toBe(0);
+    // Deneme kayda girer (istenen org'a, kapalı küme gerekçe).
+    const denied = await prisma.auditLog.findFirstOrThrow({ where: { action: "ai_quality.denied" } });
+    expect(denied.organizationId).toBe(a.orgId);
+    expect(JSON.parse(denied.metadataJson!)).toEqual({ reason: "generation_not_in_org", op: "label" });
   });
 
   it.each([

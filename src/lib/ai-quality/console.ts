@@ -82,6 +82,8 @@ export async function listAiGenerations(orgId: string, opts: { decision: string 
   const cursorRow = opts.before
     ? await prisma.aiGeneration.findFirst({ where: { id: opts.before, organizationId: orgId }, select: { createdAt: true, id: true } })
     : null;
+  // İmleç bu org'da yoksa (silinmiş ya da başka kiracının) sessizce ilk sayfaya DÜŞÜLMEZ — liste tekrarlanır / karışırdı.
+  if (opts.before && !cursorRow) return { invalidCursor: true as const, rows: [], nextBefore: null };
   const rows = await prisma.aiGeneration.findMany({
     where: {
       organizationId: orgId,
@@ -112,7 +114,7 @@ export async function listAiGenerations(orgId: string, opts: { decision: string 
       labels: { select: { id: true, label: true, note: true, createdAt: true }, orderBy: { createdAt: "asc" } },
     },
   });
-  return { rows, nextBefore: rows.length === AI_QUALITY_PAGE_SIZE ? rows[rows.length - 1].id : null };
+  return { invalidCursor: false as const, rows, nextBefore: rows.length === AI_QUALITY_PAGE_SIZE ? rows[rows.length - 1].id : null };
 }
 
 /**

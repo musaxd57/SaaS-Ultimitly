@@ -47,7 +47,11 @@ export async function POST(req: NextRequest) {
       });
       return row;
     });
-    if (!created) return notFound("İz bulunamadı.");
+    if (!created) {
+      // İz bu org'un değil / yok: deneme kayda girer (istenen org'a; org yoksa kayıt düşer, yanıt aynı).
+      await recordAiQualityDenied({ ...session, organizationId: orgId }, "generation_not_in_org", "label");
+      return notFound("İz bulunamadı.");
+    }
     return NextResponse.json({ label: created }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     void reportError("admin.ai-quality-label", err);

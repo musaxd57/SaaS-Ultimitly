@@ -57,6 +57,11 @@ export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<Generation[] | null>(null);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
+  // İşletme / amaç / süzgeç değişince eski liste ve imleci düşür (başka org'un satırları karışmasın).
+  const resetList = () => {
+    setRows(null);
+    setNextBefore(null);
+  };
 
   async function load(before: string | null) {
     if (!purpose) {
@@ -97,7 +102,10 @@ export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
       </p>
       <div className="flex flex-wrap items-end gap-2">
         <Field label="İşletme" htmlFor="aq-org" className="min-w-[200px]">
-          <select id="aq-org" value={orgId} onChange={(e) => setOrgId(e.target.value)} className={selectClass}>
+          <select id="aq-org" value={orgId} onChange={(e) => {
+              setOrgId(e.target.value);
+              resetList();
+            }} className={selectClass}>
             {orgs.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.name}
@@ -106,7 +114,10 @@ export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
           </select>
         </Field>
         <Field label="Amaç" htmlFor="aq-purpose" className="min-w-[180px]">
-          <select id="aq-purpose" value={purpose} onChange={(e) => setPurpose(e.target.value as AiQualityPurpose | "")} className={selectClass}>
+          <select id="aq-purpose" value={purpose} onChange={(e) => {
+              setPurpose(e.target.value as AiQualityPurpose | "");
+              resetList();
+            }} className={selectClass}>
             <option value="">Seçin…</option>
             {(Object.keys(AI_QUALITY_PURPOSES) as AiQualityPurpose[]).map((p) => (
               <option key={p} value={p}>
@@ -119,7 +130,10 @@ export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
           <input id="aq-ticket" value={ticket} onChange={(e) => setTicket(e.target.value)} className={selectClass} maxLength={40} />
         </Field>
         <Field label="Karar" htmlFor="aq-decision" className="min-w-[170px]">
-          <select id="aq-decision" value={decision} onChange={(e) => setDecision(e.target.value)} className={selectClass}>
+          <select id="aq-decision" value={decision} onChange={(e) => {
+              setDecision(e.target.value);
+              resetList();
+            }} className={selectClass}>
             <option value="">Hepsi</option>
             {Object.entries(DECISION_NAMES).map(([k, v]) => (
               <option key={k} value={k}>

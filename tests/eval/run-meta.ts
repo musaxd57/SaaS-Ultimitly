@@ -109,6 +109,9 @@ export const PIPELINE_FLAGS = [
   "AI_HOST_DECISION_HOLD_ENABLED",
   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
   "AI_COURTESY_RULE_ENABLED",
+  // Doğrulanmış müsaitlik misafire giden metni değiştirir; üretim izi ölçümü değiştirmez ama koşu kimliğinde görünür (tek kural: her AI_* bayrağı).
+  "AI_VERIFIED_AVAILABILITY_ENABLED",
+  "AI_GENERATION_TRACE_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

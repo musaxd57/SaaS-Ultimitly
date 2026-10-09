@@ -5,11 +5,12 @@ import type { SessionPayload } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
 // Kalite konsolu — reddedilen denemenin kaydı (iki rota ortak). Yetki kararı ROTADA kalır (yapısal pin: her admin rotası
-// `if (!isSuperAdmin(session)) return unauthorized()` satırını taşır); burası yalnız reddi oturumun KENDİ org'una yazar
-// (gerekçe kapalı küme kod; IP / e-posta yok — kayıt o org'un KVKK ihracına girer). Oturumsuz istek kaydedilmez (kimse yok).
+// `if (!isSuperAdmin(session)) return unauthorized()` satırını taşır); burası yalnız reddi kaydeder — yetkisiz oturumda oturumun KENDİ
+// org'una, operatörün başka kiracıya ait iz denemesinde istenen org'a (gerekçe kapalı küme kod; IP / e-posta yok — kayıt o org'un KVKK
+// ihracına girer). Oturumsuz istek kaydedilmez (kimse yok).
 // ---------------------------------------------------------------------------
 
-export type AiQualityDenyReason = "not_operator" | "impersonating" | "cross_site";
+export type AiQualityDenyReason = "not_operator" | "impersonating" | "cross_site" | "generation_not_in_org";
 
 /** Uç kayıt yazar (görüntüleme / etiket): SameSite=Lax çerez üst düzey yönlendirmeyle taşınır → yalnız aynı site ya da elle girilen adres. */
 export function aiQualityCrossSite(fetchSite: string | null): boolean {

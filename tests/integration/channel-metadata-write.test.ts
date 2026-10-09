@@ -65,9 +65,11 @@ describe("kanal metaverisi — senkron üzerinden", () => {
     const conn = await prisma.channelConnection.findUniqueOrThrow({ where: { id: connectionId } });
     expect(conn.lastReadOkAt).not.toBeNull();
     expect(conn.lastReadErrorAt).toBeNull();
-    // İkinci geçiş idempotent: tek ilan satırı.
+    // İkinci geçiş idempotent: tek ilan satırı, değişmeyen eşleme yeniden YAZILMAZ.
+    const first = await prisma.channelListing.findFirstOrThrow();
     await syncHospitable(orgId);
     expect(await prisma.channelListing.count()).toBe(1);
+    expect((await prisma.channelListing.findFirstOrThrow()).updatedAt).toEqual(first.updatedAt);
   });
 
   it("🚨 KAPALI (varsayılan): ilan satırı, platform, sağlık YAZILMAZ — bugünkü davranış", async () => {
