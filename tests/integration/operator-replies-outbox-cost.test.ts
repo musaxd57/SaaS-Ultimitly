@@ -15,7 +15,7 @@ describe("selam sayımı — kuyruk kapalıyken kuyruk tablosu okunmaz", () => {
     await resetDb();
     const { propertyId } = await makeOrgWithProperty();
     const c = await prisma.conversation.create({ data: { propertyId, channel: "airbnb", guestIdentifier: "M", lastMessageAt: new Date() } });
-    const spy = vi.spyOn(prisma.messageOutbox, "findMany");
+    const spy = vi.spyOn(prisma.messageOutbox, "findMany").mockResolvedValue([] as never);
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "");
     await countPriorOperatorReplies(c.id);
     await loadConversationPhase(c.id);
