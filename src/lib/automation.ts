@@ -2419,9 +2419,9 @@ export async function applyChannelAutoReply(
   // doluysa "Maalesef … gecesi daire müsait değil." (söz / fiyat / izin yok). Müsaitlik akışıyla AYNI şartlar: anlama katmanı mesajdaki
   // BÜTÜN istekleri uzatma (ya da selam) görmeli ve konaklama türünü açıkça "extend" demeli, tek soru, dil TR / EN, modelin etiketi
   // riskli değil; kapı bu metinle BAŞTAN koşar (acil / şikâyet / injection / güven aynen).
+  // Konaklama türünün "extend" olmasını kapı muafiyeti zorlar (bütün katmanların türü yalnız uzatma — mutasyon E7 eşdeğer); burada istek listesi.
   const understoodOnlyExtend =
     !!understood &&
-    understood.stay.kind === "extend" &&
     understood.requests.length > 0 &&
     understood.requests.some((q) => q.intent === "extend_stay") &&
     understood.requests.every((q) => q.intent === "extend_stay" || q.intent === "greeting_thanks");

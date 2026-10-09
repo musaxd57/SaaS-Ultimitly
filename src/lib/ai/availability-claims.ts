@@ -1112,7 +1112,8 @@ export function evaluateAvailability(
   // KOŞTU ve türü açıkça "extend" gördü + bekçi düşmedi → muaf. Erken giriş / geç çıkış / tarih değişikliği / tanınmayan tür karışırsa muaf DEĞİL.
   if (opts.verifiedExtension && reply === opts.verifiedExtension.text) {
     const pure = kinds.size > 0 && [...kinds].every((k) => k === "extend");
-    const understandingRan = u === "req" && opts.understanding?.kind === "extend";
+    // Anlama katmanı KOŞTU ve istek gördü; türünün "extend" olması `pure`dan çıkar (başka tür / türsüz istek kümeye girer — mutasyon E6 eşdeğer).
+    const understandingRan = u === "req";
     if (pure && understandingRan && g !== "failed") return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}x` } };
   }
 

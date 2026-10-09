@@ -32,7 +32,9 @@ export async function loadVerifiedExtension(input: {
   if (!kinds.has("extend") || [...kinds].some((k) => k !== "extend" && k !== "availability")) return null;
   const now = input.now ?? new Date();
   const departure = calendarDateOf(r.departureDate, input.timeZone).key;
-  if (nightsBetween(todayKey(now, input.timeZone), departure) < 0) return null; // konaklama bitti
+  // Konaklama bitti → sorgu yok. Motor geçmişte başlayan aralığı zaten `starts_in_past` ile reddeder (mutasyon E2 EŞDEĞER: sonuç aynı,
+  // bu satır yalnız gereksiz takvim sorgusunu keser).
+  if (nightsBetween(todayKey(now, input.timeZone), departure) < 0) return null;
   const dateCtx: DateResolutionContext = {
     now,
     timeZone: input.timeZone,

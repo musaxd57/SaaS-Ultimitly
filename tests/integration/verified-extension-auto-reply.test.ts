@@ -24,6 +24,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
 import { applyChannelAutoReply } from "@/lib/automation";
+import { loadVerifiedExtension } from "@/lib/ai/verified-extension-load";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { todayKey, addNights } from "@/modules/availability/core";
 
@@ -180,6 +181,22 @@ describe("doğrulanmış uzatma otomatik cevabı — koddan kurulan metin", () =
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  it("🚨 KISMEN dolu uzatma (2 geceden 1'i dolu) → gitmez (hangi gecenin dolu olduğu ev sahibinde)", async () => {
+    const { conversationId } = await seed({ message: "Merhaba, iki gece daha kalabilir miyiz?" });
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    await prisma.reservation.create({
+      data: {
+        propertyId: conv.propertyId,
+        guestName: "Sonraki Misafir",
+        arrivalDate: new Date(`${addNights(DEP, 1)}T00:00:00Z`),
+        departureDate: new Date(`${addNights(DEP, 3)}T00:00:00Z`),
+        channel: "manual",
+        status: "confirmed",
+      },
+    });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
   it("iki gece daha → aralık metni", async () => {
     const { conversationId } = await seed({ message: "Merhaba, iki gece daha kalabilir miyiz?" });
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
@@ -251,5 +268,43 @@ describe("doğrulanmış uzatma otomatik cevabı — koddan kurulan metin", () =
     expectCodeSent(
       `The apartment is available on the night of ${en(DEP)}. To extend your stay, you can send a reservation change request in the Airbnb app; Airbnb will show the new total.`,
     );
+  });
+});
+
+describe("loadVerifiedExtension — ön eleme (yükleyici doğrudan)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("AI_VERIFIED_EXTENSION_ENABLED", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function input(guestTexts: string[]) {
+    const { conversationId } = await seed({ message: guestTexts[guestTexts.length - 1] });
+    const c = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, include: { property: true, reservation: true } });
+    return {
+      organizationId: c.property.organizationId,
+      propertyId: c.propertyId,
+      timeZone: TZ,
+      guestTexts,
+      lastGuestText: guestTexts[guestTexts.length - 1],
+      reservation: {
+        arrivalDate: c.reservation!.arrivalDate,
+        departureDate: c.reservation!.departureDate,
+        channel: c.reservation!.channel,
+        status: c.reservation!.status,
+      },
+    };
+  }
+
+  it("KONTROL: yalnız uzatma → araç sonucu döner", async () => {
+    const r = await loadVerifiedExtension(await input(["Bir gece daha kalabilir miyiz?"]));
+    expect(r?.va.query).toEqual({ from: DEP, to: addNights(DEP, 1) });
+  });
+
+  it("🚨 cevapsız mesajlardan birinde geç çıkış / erken giriş / tarih değişikliği varsa → null (araç hiç koşmaz)", async () => {
+    for (const other of ["Olmazsa geç çıkış alabilir miyiz?", "Tarihlerimizi değiştirebilir miyiz?"]) {
+      expect(await loadVerifiedExtension(await input([other, "Bir gece daha kalabilir miyiz?"]))).toBeNull();
+      await resetDb();
+    }
   });
 });
