@@ -1532,7 +1532,9 @@ model ChannelListing {
 model AiGeneration {
   id                     String   @id @default(cuid())
   organizationId         String
-  conversationId         String?
+  /// ZORUNLU (Haiku incelemesi 10-09): saklama süpürgesi + misafir silmesi metni konuşmadan bulur; konuşmasız satırın metni hiçbir
+  /// süpürgeye düşmezdi. Bütün yüzeyler (kanal, QR, karar kartı) bir Conversation'a bağlıdır.
+  conversationId         String
   propertyId             String?
   reservationId          String?
   triggerMessageId       String?
@@ -1561,7 +1563,7 @@ model AiGeneration {
   createdAt              DateTime @default(now())
 
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  conversation Conversation?   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   labels       AiReviewLabel[]
 
   @@index([organizationId, createdAt])

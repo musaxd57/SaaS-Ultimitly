@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { subMonths } from "date-fns";
 import { prisma, resetDb } from "../helpers/db";
-import { anonymizeOldGuestData } from "@/lib/data-retention";
+import { anonymizeOldGuestData, ANON_BODY, ANON_ID, ANON_NAME } from "@/lib/data-retention";
 import { eraseReservationData } from "@/lib/erasure";
 import { buildOrganizationDataExport } from "@/lib/data-export";
 
@@ -18,35 +18,59 @@ const DRAFT = "Merhaba Ayşe Yılmaz, kapı kodunuz 4711.";
 const SENT = "Merhaba Ayşe Yılmaz, kapı kodunuz 4711. İyi konaklamalar.";
 const NOTE = "Misafir 'Ayşe Yılmaz, 0555 111 22 33' yazmış; cevap doğru.";
 
-async function seedConversation(opts: { reservation: boolean; monthsAgo: number }) {
-  const org = await prisma.organization.create({ data: { name: "Org" } });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire 1" } });
+interface SeedOpts {
+  reservation: boolean;
+  monthsAgo: number;
+  /** Aynı org'a ikinci konaklama (kardeş kontrolü). */
+  orgId?: string;
+  propertyId?: string;
+  /** Konaklama ZATEN süpürülmüş (ad / gövde sentinel) — yalnız iz metni kaldı. */
+  alreadySwept?: boolean;
+  /** İz ve mesaj yaşı (ay); verilmezse şimdi. */
+  genMonthsAgo?: number;
+  msgMonthsAgo?: number;
+}
+
+async function seedConversation(opts: SeedOpts) {
+  const orgId = opts.orgId ?? (await prisma.organization.create({ data: { name: "Org" } })).id;
+  const propertyId = opts.propertyId ?? (await prisma.property.create({ data: { organizationId: orgId, name: "Daire 1" } })).id;
+  const name = opts.alreadySwept ? ANON_NAME : "Ayşe Yılmaz";
   const reservation = opts.reservation
     ? await prisma.reservation.create({
         data: {
-          propertyId: property.id,
-          guestName: "Ayşe Yılmaz",
+          propertyId,
+          guestName: name,
           arrivalDate: subMonths(new Date(), opts.monthsAgo + 1),
           departureDate: subMonths(new Date(), opts.monthsAgo),
           status: "completed",
         },
       })
     : null;
+  const at = (m: number | undefined) => (m === undefined ? new Date() : subMonths(new Date(), m));
   const conv = await prisma.conversation.create({
     data: {
-      propertyId: property.id,
+      propertyId,
       reservationId: reservation?.id ?? null,
       channel: "airbnb",
-      guestIdentifier: "Ayşe Yılmaz",
+      guestIdentifier: opts.alreadySwept ? ANON_ID : "Ayşe Yılmaz",
       lastMessageAt: subMonths(new Date(), opts.monthsAgo),
-      messages: { create: [{ direction: "inbound", senderName: "Ayşe Yılmaz", body: "Kapı kodu?" }] },
+      messages: {
+        create: [
+          {
+            direction: "inbound",
+            senderName: opts.alreadySwept ? ANON_ID : "Ayşe Yılmaz",
+            body: opts.alreadySwept ? ANON_BODY : "Kapı kodu?",
+            createdAt: at(opts.msgMonthsAgo),
+          },
+        ],
+      },
     },
   });
   const gen = await prisma.aiGeneration.create({
     data: {
-      organizationId: org.id,
+      organizationId: orgId,
       conversationId: conv.id,
-      propertyId: property.id,
+      propertyId,
       reservationId: reservation?.id ?? null,
       surface: "channel_auto",
       model: "test-model",
@@ -55,10 +79,11 @@ async function seedConversation(opts: { reservation: boolean; monthsAgo: number 
       draftText: DRAFT,
       sentText: SENT,
       promptTokens: 120,
+      createdAt: at(opts.genMonthsAgo),
       labels: { create: [{ label: "correct", note: NOTE }] },
     },
   });
-  return { orgId: org.id, reservationId: reservation?.id ?? null, generationId: gen.id };
+  return { orgId, propertyId, reservationId: reservation?.id ?? null, generationId: gen.id };
 }
 
 async function traceOf(generationId: string) {
@@ -120,25 +145,77 @@ describe("AiGeneration izi — açık misafir silmesi", () => {
   });
 });
 
-describe("AiGeneration izi — KVKK dışa aktarımı", () => {
+describe("AiGeneration izi — süpürge, yaş çapası AÇIK (RETENTION_MESSAGE_AGE_ANCHOR=1)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    vi.stubEnv("RETENTION_MESSAGE_AGE_ANCHOR", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([true, false])(
+    "🚨 SEÇİM BACAĞI: zaten süpürülmüş konaklamada kalan eski iz metni yeniden seçilip silinir (rezervasyonlu=%s)",
+    async (reservation) => {
+      const { generationId } = await seedConversation({ reservation, monthsAgo: 30, alreadySwept: true, genMonthsAgo: 26, msgMonthsAgo: 30 });
+      await anonymizeOldGuestData();
+      const t = await traceOf(generationId);
+      expect({ draftText: t.draftText, sentText: t.sentText, note: t.note }).toEqual({ draftText: null, sentText: null, note: null });
+      // Sonlanma: ikinci geçiş aynı satırı yeniden seçmez.
+      expect((await anonymizeOldGuestData()).anonymized).toBe(0);
+    },
+  );
+
+  it.each([true, false])(
+    "KONTROL (Message paritesi): eski konaklamaya BUGÜN verilmiş cevabın izi korunur, eski iz silinir (rezervasyonlu=%s)",
+    async (reservation) => {
+      const old = await seedConversation({ reservation, monthsAgo: 30, genMonthsAgo: 30, msgMonthsAgo: 30 });
+      const fresh = await prisma.aiGeneration.create({
+        data: {
+          organizationId: old.orgId,
+          conversationId: (await prisma.aiGeneration.findUniqueOrThrow({ where: { id: old.generationId } })).conversationId,
+          surface: "channel_auto",
+          model: "test-model",
+          promptVersion: "p1",
+          decision: "auto_sent",
+          draftText: DRAFT,
+          sentText: SENT,
+          labels: { create: [{ label: "correct", note: NOTE }] },
+        },
+      });
+      expect((await anonymizeOldGuestData()).anonymized).toBe(1);
+      expect(await traceOf(old.generationId)).toMatchObject({ draftText: null, sentText: null, note: null });
+      expect(await traceOf(fresh.id)).toMatchObject({ draftText: DRAFT, sentText: SENT, note: NOTE });
+    },
+  );
+});
+
+describe("AiGeneration izi — açık silme, AYNI org kardeş konaklama", () => {
   beforeEach(async () => {
     await resetDb();
   });
 
-  it("org dışa aktarımı izi metniyle taşır; kurucu etiket notu DIŞARIDA; başka org'un izi yok", async () => {
+  it("KONTROL: aynı org'un başka konaklamasının izi dokunulmaz", async () => {
     const a = await seedConversation({ reservation: true, monthsAgo: 1 });
-    await seedConversation({ reservation: true, monthsAgo: 1 });
-    const out = await buildOrganizationDataExport(a.orgId);
-    expect(out!.aiGenerations.map((g) => g.id)).toEqual([a.generationId]);
-    expect(out!.aiGenerations[0]).toMatchObject({ decision: "auto_sent", draftText: DRAFT, sentText: SENT });
-    expect(JSON.stringify(out)).not.toContain(NOTE);
+    const b = await seedConversation({ reservation: true, monthsAgo: 1, orgId: a.orgId, propertyId: a.propertyId });
+    await eraseReservationData(a.orgId, a.reservationId!);
+    expect(await traceOf(a.generationId)).toMatchObject({ draftText: null, sentText: null, note: null });
+    expect(await traceOf(b.generationId)).toMatchObject({ draftText: DRAFT, sentText: SENT, note: NOTE });
+  });
+});
+
+describe("AiGeneration izi — dışa aktarıma BAĞLI DEĞİL (eğitim yasağı, tasarım §D)", () => {
+  beforeEach(async () => {
+    await resetDb();
   });
 
-  it("silmeden sonra dışa aktarım metni artık göstermez", async () => {
+  it("org dışa aktarımı iz metnini ve kurucu notunu taşımaz", async () => {
     const a = await seedConversation({ reservation: true, monthsAgo: 1 });
-    await eraseReservationData(a.orgId, a.reservationId!);
     const out = await buildOrganizationDataExport(a.orgId);
-    expect(out!.aiGenerations[0]).toMatchObject({ draftText: null, sentText: null });
-    expect(JSON.stringify(out)).not.toContain("4711");
+    expect(out).not.toBeNull();
+    const json = JSON.stringify(out);
+    expect(json).not.toContain(DRAFT);
+    expect(json).not.toContain(SENT);
+    expect(json).not.toContain(NOTE);
+    expect(json).not.toContain(a.generationId);
   });
 });

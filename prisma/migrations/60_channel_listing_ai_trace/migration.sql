@@ -32,7 +32,7 @@ CREATE TABLE "ChannelListing" (
 CREATE TABLE "AiGeneration" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
-    "conversationId" TEXT,
+    "conversationId" TEXT NOT NULL,
     "propertyId" TEXT,
     "reservationId" TEXT,
     "triggerMessageId" TEXT,

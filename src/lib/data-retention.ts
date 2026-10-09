@@ -104,6 +104,19 @@ export function messageAgeAnchorEnabled(): boolean {
 }
 
 /**
+ * Yapay zekâ üretim izi (migration 60) — `Message` gövdesiyle AYNI yaş kuralı: bayrak AÇIKKEN yalnız cutoff'tan eski iz (bugün yazılmış
+ * bir taslak, eski bir konaklamaya bugün gelen mesaja verilmiş cevaptır; mesajın kendisi gibi korunur). Bayrak kapalıyken eski
+ * davranış: seçilen konuşmanın bütün izi.
+ */
+function aiTraceAge(cutoff: Date): { createdAt?: { lt: Date } } {
+  return messageAgeAnchorEnabled() ? { createdAt: { lt: cutoff } } : {};
+}
+/** Hâlâ metin taşıyan iz (seçim bacağı = temizlik koşulu: süpürge ikisini de null'lar → sonlanır). */
+function aiTraceTextLeft(cutoff: Date) {
+  return { ...aiTraceAge(cutoff), OR: [{ draftText: { not: null } }, { sentText: { not: null } }] };
+}
+
+/**
  * Anonymize guest personal data for stays that ended before the retention window.
  * No-op unless DATA_RETENTION_MONTHS is a positive number. Returns how many
  * reservations were scrubbed (0 when disabled or nothing is due).
@@ -172,6 +185,8 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
                   some: { OR: [{ aiActionSuggestion: { not: null } }, { aiMissingInfoJson: { not: null } }] },
                 },
               },
+              // Yapay zekâ üretim izi (migration 60): süpürge eski izin metnini null'lar → sonlanır. Yaş sınırı Message ile AYNI.
+              { conversations: { some: { aiGenerations: { some: aiTraceTextLeft(cutoff) } } } },
               // Görev açıklaması misafirin HAM metni (şikayet / akıllı görev) —
               // aşağıda ANON_BODY yapılır → sonlanır. NULL hariç (Prisma `not`
               // NULL'u dışlar; açıkça yazıldı ki niyet okunabilsin).
@@ -388,12 +403,12 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       ...(convIds.length
         ? [
             prisma.aiGeneration.updateMany({
-              where: { conversationId: { in: convIds }, OR: [{ draftText: { not: null } }, { sentText: { not: null } }] },
+              where: { conversationId: { in: convIds }, ...aiTraceTextLeft(cutoff) },
               data: { draftText: null, sentText: null },
             }),
-            // Kurucu etiket notu misafir metnini alıntılayabilir → aynı süpürgede silinir.
+            // Kurucu etiket notu misafir metnini alıntılayabilir → aynı süpürgede, izle AYNI yaş kuralıyla silinir.
             prisma.aiReviewLabel.updateMany({
-              where: { generation: { conversationId: { in: convIds } }, note: { not: null } },
+              where: { generation: { conversationId: { in: convIds }, ...aiTraceAge(cutoff) }, note: { not: null } },
               data: { note: null },
             }),
           ]
@@ -451,7 +466,11 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
         // seçilir; aşağıdaki TX ikisini null yapar → sonlanır. Bayrak kapalıyken
         // davranış birebir eski.
         ...(messageAgeAnchorEnabled()
-          ? [{ aiActionSuggestion: { not: null } }, { aiMissingInfoJson: { not: null } }]
+          ? [
+              { aiActionSuggestion: { not: null } },
+              { aiMissingInfoJson: { not: null } },
+              { aiGenerations: { some: aiTraceTextLeft(cutoff) } },
+            ]
           : []),
       ],
     },
@@ -583,11 +602,11 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       }),
       // Üretim izi (migration 60) — öksüz dalda da (kardeş dalla BİREBİR; parite kuralı).
       prisma.aiGeneration.updateMany({
-        where: { conversationId: { in: orphanIds }, OR: [{ draftText: { not: null } }, { sentText: { not: null } }] },
+        where: { conversationId: { in: orphanIds }, ...aiTraceTextLeft(cutoff) },
         data: { draftText: null, sentText: null },
       }),
       prisma.aiReviewLabel.updateMany({
-        where: { generation: { conversationId: { in: orphanIds } }, note: { not: null } },
+        where: { generation: { conversationId: { in: orphanIds }, ...aiTraceAge(cutoff) }, note: { not: null } },
         data: { note: null },
       }),
       ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
