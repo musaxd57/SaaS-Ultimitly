@@ -53,8 +53,8 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 | Araç çağrısı / `verifiedToolResults` | 🟡 sözleşme + müsaitlik aracı ✅ 10-09; modele araç olarak verilmesi kurucu onayı |
 | Tarih çözümü üst verisi | ✅ 10-09 `ai/date-resolution.ts` (TR+EN; dayanak / güven / varsayım; 4 Haiku turu, 116 test, mutasyon 27/27); bağlanmadı |
 | Zaman bağlamı (geçen süre, oturum arası, yeni gün) | 🟡 gün etiketi var, aralık / oturum yok |
-| Kurucu AI Kalite Konsolu | ❌ tasarım ✅ (`TASARIM-2026-10-09-migration-paketi-60.md` §D–E) → onay |
-| Üretim izi (model, istem sürümü, gecikme, token, maliyet) | ❌ tasarım ✅ (migration 60 §D) → onay |
+| Kurucu AI Kalite Konsolu | 🟡 KOD HAZIR (yama `docs/hazir-yamalar/2026-10-09-migration-60-…patch`; salt-okuma + etiket, 2FA'lı operatör, her görüntüleme kayıtlı) → push onayı |
+| Üretim izi (model, istem sürümü, gecikme, token, maliyet) | 🟡 KOD HAZIR (aynı yama; `AI_GENERATION_TRACE_ENABLED` kapalı; KVKK paritesi + okuyucu pini; maliyet sütunu boş — fiyat tablosu ayrı karar) → push onayı |
 | 8 başlangıç senaryosu | ✅ set `evals/founder-initial-8.json` + seçici; ücretli taban koşusu onay |
 | Açık taahhüt hafızası | ❌ |
 
@@ -82,7 +82,10 @@ açık) tek hedefli soru sordu (`docs/olcum/founder-initial-8-eval-2026-10-09-*`
 `AI_UNDERSTANDING_MODEL=gpt-6-luna` + `AI_UNDERSTANDING_REASONING_EFFORT=low` (sıralayıcı `AI_SEMANTIC_MODEL=gpt-5.1`'de kalır).
 
 **Önceki liste (karar sonrası durum):**
-1. Migration paketi 60 → hazırlanıyor (ayrı yerel dal; push onayla).
+1. Migration paketi 60 → ✅ KOD HAZIR (10-09 gece): yama `docs/hazir-yamalar/2026-10-09-migration-60-kanal-metaverisi-ai-izi-kalite-konsolu.patch`
+   (ana dala `git apply` ile temiz uygulanır; `prisma/migrations/` dışında → açılışta UYGULANMAZ). Yama üstünde tam suit 13.526 yeşil + build;
+   mutasyonlar 9+11+13+10/… hepsi öldü; üç Haiku turu. Uygulama durumu + 6 bilinçli sapma: yamanın içindeki tasarım belgesi "Uygulama durumu".
+   Push = taze `pg_dump` + kurucu "push et".
 2. ✅ Doğrulanmış müsaitlik (kanal; QR sonraki dilim).
 3. ✅ `founder-initial-8` taban koşusu.
 4. `conversationState` `phase` / `lastInteractionAt` alanlarının isteme girmesi (kör eval ister).
