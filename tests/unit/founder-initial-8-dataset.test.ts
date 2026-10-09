@@ -20,6 +20,14 @@ const byNo = (n: number) => {
 };
 
 describe("founder-initial-8 veri seti", () => {
+  it("eval aracının biçim kuralları (conversation-state.eval.test.ts ile aynı): çözülebilir → 'none'; belirsiz → 'one'; takip sınıfı → geçmişte karar kaydı", () => {
+    for (const s of data.scenarios) {
+      if (s.class === "resolvable") expect(s.expect.clarify, s.id).toBe("none");
+      if (s.class === "ambiguous") expect(s.expect.clarify, s.id).toBe("one");
+      if (s.class === "pending_followup") expect((s.history ?? []).some((m) => "decision" in m), s.id).toBe(true);
+    }
+  });
+
   it("tam 8 senaryo, benzersiz kimlik, geçerli sınıf / dil", () => {
     expect(data.scenarios).toHaveLength(8);
     expect(new Set(data.scenarios.map((s) => s.id)).size).toBe(8);

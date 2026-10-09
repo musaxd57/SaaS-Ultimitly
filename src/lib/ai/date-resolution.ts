@@ -86,6 +86,8 @@ const RANGE_SEP = "(?: ?[-–] ?| (?:ile|ve|ila|to|and) )";
 const RE_ISO = /\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/g;
 const RE_NUMERIC = /\b(\d{1,2})([./])(\d{1,2})(?:\2(20\d{2}|\d{2}))?\b/g;
 const RE_RANGE_DAY_MONTH = new RegExp(`\\b(\\d{1,2})${ORD}${SUFFIX}${RANGE_SEP}(\\d{1,2})${ORD}${SUFFIX} (?:of )?(${MONTH_ALT})\\b${YEAR_TAIL}`, "g");
+/** Virgüllü gün listesi + ay: "14, 15 ve 16 Ekim" (her gün; liste en çok 7 öğe). */
+const RE_LIST_DAY_MONTH = new RegExp(`\\b(\\d{1,2}(?:, ?\\d{1,2}){1,6})(?:,? (?:ve|and|ile) (\\d{1,2}))? (?:of )?(${MONTH_ALT})\\b`, "g");
 const RE_RANGE_MONTH_DAY = new RegExp(`\\b(${MONTH_ALT})\\.? (\\d{1,2})${ORD}${RANGE_SEP}(\\d{1,2})${ORD}\\b(?:(?:, ?| )(20\\d{2}))?`, "g");
 const RE_DAY_MONTH = new RegExp(`\\b(\\d{1,2})${ORD}${SUFFIX} (?:of )?(${MONTH_ALT})\\b${YEAR_TAIL}`, "g");
 const RE_MONTH_DAY = new RegExp(`\\b(${MONTH_ALT})\\.? (\\d{1,2})${ORD}\\b(?:(?:, ?| )(20\\d{2}))?`, "g");
@@ -225,6 +227,12 @@ export function resolveGuestDates(text: string | null | undefined, ctx: DateReso
     if (!free(m)) continue;
     const k = keyOf(Number(m[1]), Number(m[2]), Number(m[3]));
     push(m, k ? definite("explicit", k, "explicit_full", "high") : null);
+  }
+  for (const m of t.matchAll(RE_LIST_DAY_MONTH)) {
+    if (!free(m)) continue;
+    const days = [...m[1].split(",").map((x) => x.trim()), ...(m[2] ? [m[2]] : [])];
+    const ps = days.map((d) => dayMonthPiece(today, MONTHS[m[3]], Number(d), null));
+    if (ps.every((p) => p !== null)) push(m, ...ps);
   }
   for (const m of t.matchAll(RE_RANGE_DAY_MONTH)) {
     if (!free(m)) continue;

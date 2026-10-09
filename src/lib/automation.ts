@@ -164,6 +164,7 @@ import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE } fr
 import { resolveOrgChannelCredential } from "@/lib/channels";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
+import { loadVerifiedAvailability, type VerifiedAvailabilityContext } from "@/lib/ai/verified-availability-load";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { parseSupplyProfile, buildSupplyChecklist } from "@/lib/supply";
 import { emailService } from "@/lib/email";
@@ -239,6 +240,11 @@ export interface AutoReplyGateContext {
    * isteğinde müsaitlik kuralından muaf (`evaluateAvailability`). Diğer tüm kapı kontrolleri AYNEN koşar.
    */
   verifiedGrant?: { text: string } | null;
+  /**
+   * DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09, `ai/verified-availability-load.ts`; anahtar KAPALI → hep `null`): kodun müsaitlik
+   * aracının `ok` sonucu + kapsam + tarih bağlamı. Kapı YALNIZ saf müsaitlik sorusunda ve birebir uyumlu cevapta muaf tutar.
+   */
+  verifiedAvailability?: VerifiedAvailabilityContext | null;
   /**
    * YALNIZ TEŞHİS: çıktı vetosunu VE eylem beyanı kontrolünü atla (ikisi aynı sınıf: modelin metnindeki söz/iddia).
    * Gönderim kararında ASLA verilmez; tek kullanımı "bu taslağı YALNIZ bekleme sözü / eylem iddiası mı tuttu?" sorusu
@@ -736,6 +742,7 @@ export function availabilityPolicyFor(
     hostOfferText: context?.hostOfferText ?? null,
     kbFacts: context?.kbFacts ?? null,
     verifiedGrant: context?.verifiedGrant ?? null,
+    verifiedAvailability: context?.verifiedAvailability ?? null,
   };
 }
 
@@ -2072,6 +2079,24 @@ export async function applyChannelAutoReply(
   }
   const itemsPlan: ItemsTurnPlan | null = itemsTurn?.mode === "items" ? itemsTurn : null;
 
+  // DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09; anahtar KAPALI → sorgu yok, istem ve kapı birebir eski). Hata turu durdurmaz: sonuç
+  // yoksa model "takvim doğrulanmadı" kuralıyla yazar, kapı eskisi gibi tutar.
+  const verifiedAvailability = options.dryRun
+    ? null
+    : await loadVerifiedAvailability({
+        organizationId: conversation.property.organizationId,
+        propertyId: conversation.propertyId,
+        timeZone: orgTimezone(org.timezone),
+        guestTexts: unansweredGuestTexts,
+        lastGuestText: last.body,
+        reservation: conversation.reservation
+          ? { arrivalDate: conversation.reservation.arrivalDate, departureDate: conversation.reservation.departureDate }
+          : null,
+      }).catch((err) => {
+        void reportError(`verified-availability org=${conversation.property.organizationId}`, err);
+        return null;
+      });
+
   let result = await suggestReply({
     guestMessage: last.body,
     property: {
@@ -2137,6 +2162,7 @@ export async function applyChannelAutoReply(
     styleProfile: styleProfileForPrompt(org.aiStyleProfile),
     adjacency,
     lateCheckoutOfferText: org.lateCheckoutOfferText,
+    verifiedAvailability: verifiedAvailability?.va ?? null,
   });
 
   // Safety gate: only auto-send safe, confident replies (cross-checked against
@@ -2197,6 +2223,8 @@ export async function applyChannelAutoReply(
     hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
     // Modelin gördüğü bilgi tabanı: yalnız yazılı sabit otopark yeri tahsisi takvim iddiası sayılmasın diye (24 EK).
     kbFacts: kbFactsOf(kbForModel),
+    // Doğrulanmış müsaitlik (kurucu onayı 10-09; anahtar kapalıyken null): saf müsaitlik sorusunda birebir uyumlu cevap muaf.
+    verifiedAvailability,
     // 51: fiziksel tehlike alarmı bağlamla kalktı mı (cevapsız mesajların tamamı; olası / anılış + anlama katmanı "acil değil").
     ...hazardContextFor(understood),
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.

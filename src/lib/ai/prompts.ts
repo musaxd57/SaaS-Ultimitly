@@ -1,3 +1,4 @@
+import { verifiedAvailabilityPromptBlock } from "@/lib/ai/verified-availability";
 import "server-only";
 import type { ReplyTone } from "@/lib/constants";
 // Tavanlar YAPRAK modülde: tarayıcıya giden ekranlar bu dosyayı (75 KB sistem
@@ -1685,6 +1686,8 @@ Zaman bağlamı: ${timelineLine(timeline, {
   const itemsBlock = input.conversationItems ? buildItemsPromptBlock(input.conversationItems) : "";
 
   const adjacencyBlock = buildAdjacencyBlock(reservation, input.adjacency ?? null, property, timeline.timeZone);
+  // Doğrulanmış müsaitlik (kurucu onayı 10-09): yalnız `ok` araç sonucunda; yoksa boş dize → istem bayt bayt eski.
+  const verifiedAvailabilityBlock = verifiedAvailabilityPromptBlock(input.verifiedAvailability ?? null);
 
   // Host-configured late-checkout / stay-extension offer. Injected ONLY when the
   // host actually wrote one — empty keeps today's behavior (no price, defer to
@@ -1776,7 +1779,7 @@ REZERVASYON
 ════════════════════════════════════════════════════
 ${clockLine(timeline)} — göreli gün ifadelerini ("bugün", "yarın", "o gün") bu tarihlere göre çöz.
 ${res}${preBookingBlock}${activeStayBlock}
-${adjacencyBlock}
+${adjacencyBlock}${verifiedAvailabilityBlock}
 ${offerBlock}
 
 ════════════════════════════════════════════════════

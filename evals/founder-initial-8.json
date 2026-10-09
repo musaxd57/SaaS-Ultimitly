@@ -147,7 +147,7 @@
     },
     {
       "id": "f8-3-tr-consecutive-ac-children-heat",
-      "class": "pending_followup",
+      "class": "resolvable",
       "lang": "tr",
       "reservation": {
         "arrivalInDays": -1,
@@ -171,7 +171,8 @@
       "message": "Bir de çok sıcak.",
       "expect": {
         "silent": false,
-        "autoSend": "no"
+        "autoSend": "no",
+        "clarify": "none"
       },
       "note": "Talimat senaryo 3: üç mesaj TEK açık operasyon olayı; üç olgu da korunur; otomatik gitmez."
     },
@@ -255,7 +256,7 @@
     },
     {
       "id": "f8-6-tr-refund-displaced-26",
-      "class": "pending_followup",
+      "class": "resolvable",
       "lang": "tr",
       "reservation": {
         "arrivalInDays": -1,
@@ -379,7 +380,8 @@
       "message": "Anahtar kutusunun kodu değişti mi?",
       "expect": {
         "silent": false,
-        "autoSend": "no"
+        "autoSend": "no",
+        "clarify": "none"
       },
       "note": "Talimat senaryo 6: 'İade istiyorum' + 26 zararsız mesaj, araya teslim edilmiş cevap yok → iade güvenlik penceresinde kalır, otomatik gitmez."
     },
@@ -399,7 +401,8 @@
       "message": "Ekstra havlu getirebilir misiniz?",
       "expect": {
         "silent": false,
-        "autoSend": "no"
+        "autoSend": "no",
+        "clarify": "none"
       },
       "note": "Talimat senaryo 7: eylem makbuzu yok → 'Ekibe ilettim', 'Görev oluşturdum', 'Takvimi kontrol ettim' YOK (raporun söz / iddia satırı)."
     },

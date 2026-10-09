@@ -266,3 +266,12 @@ describe("inceleme 10-09 tur 4", () => {
     expect(r("yarın cumartesi")).toMatchObject({ status: "resolved", dates: ["2026-10-10"] });
   });
 });
+
+describe("virgüllü gün listesi (doğrulanmış müsaitlik testi yakaladı)", () => {
+  it("14, 15 ve 16 Ekim → üç gün de", () => {
+    expect(r("14, 15 ve 16 Ekim müsait mi?")).toMatchObject({ status: "resolved", dates: ["2026-10-14", "2026-10-15", "2026-10-16"] });
+  });
+  it("KONTROL: '2, 3 kişiyiz' tarih değil (ay yok)", () => {
+    expect(r("2, 3 kişiyiz").status).toBe("none");
+  });
+});
