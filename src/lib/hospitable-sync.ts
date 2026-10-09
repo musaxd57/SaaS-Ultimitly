@@ -5,7 +5,8 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { providerErrorStatus } from "@/lib/provider-errors";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getActiveConnection } from "@/lib/channels/connections";
-import { getIngestAdapter, type CanonicalMessage, type CanonicalReservation } from "@/lib/channels";
+import { recordChannelListings, recordConnectionRead } from "@/lib/channels/metadata";
+import { getIngestAdapter, IngestError, type CanonicalMessage, type CanonicalReservation, type IngestErrorKind } from "@/lib/channels";
 import {
   upsertCanonicalReservation,
   importCanonicalThread,
@@ -178,7 +179,14 @@ export async function syncHospitable(
   }
   const credential = { provider: "hospitable" as const, token };
   const ctx: IngestContext = { organizationId, provider: "hospitable", connectionId };
-  const hospitableProps = await adapter.listProperties(credential);
+  let hospitableProps: Awaited<ReturnType<typeof adapter.listProperties>>;
+  try {
+    hospitableProps = await adapter.listProperties(credential);
+  } catch (err) {
+    // Bağlantı sağlığı (migration 60 C; anahtar kapalıyken no-op): ilan listesi okunamadı → okuma hatası, tür kapalı kümeden.
+    await recordConnectionRead(organizationId, connectionId, { ok: false, kind: ingestErrorKindOf(err) });
+    throw err;
+  }
   // Live Hospitable listing ids this run — used so linkProperty never re-points a
   // property that still belongs to a different LIVE same-named listing.
   const liveIds = new Set<string>(
@@ -209,6 +217,13 @@ export async function syncHospitable(
       if (firstLinkError === null) firstLinkError = err;
     }
   }
+
+  // İlan eşlemesi çift yazımı (migration 60 A; anahtar kapalıyken no-op): `Property.hospitableId` ile BİRLİKTE, aynı eşlemeden.
+  await recordChannelListings(
+    organizationId,
+    connectionId,
+    [...propertyMap].map(([externalId, propertyId]) => ({ externalId, propertyId })),
+  );
 
   // 2. Per property, pull reservations and their message threads.
   // Bound the reservation query to a recent→future window. Without it, every
@@ -547,6 +562,13 @@ export async function syncHospitable(
     if (failed) await opsAlarm.fail(kind, context, err());
     else await opsAlarm.ok(kind);
   };
+  // Bağlantı sağlığı (migration 60 C): geçişin okumaları — yetki hatası ya da okunamayan ilan / thread varsa ilk hatanın türü, yoksa başarı.
+  const firstReadError = firstAuthError ?? firstFetchError;
+  await recordConnectionRead(
+    organizationId,
+    connectionId,
+    firstReadError === null ? { ok: true } : { ok: false, kind: ingestErrorKindOf(firstReadError) },
+  );
   // A revoked/expired token makes EVERY per-listing call 401/403 → reconnect gerekir.
   await aggregate("auth", `hospitable-auth org:${organizationId}`, firstAuthError !== null, () => firstAuthError);
   // Supply-derivation visibility + self-heal (Codex 07-24 #5). Before this, a
@@ -843,3 +865,15 @@ async function linkProperty(
 
 
 
+
+/** Okuma hatasının kapalı küme türü: adaptör `IngestError` taşıyorsa onun türü, değilse durum kodundan; bilinmiyorsa "unknown". */
+function ingestErrorKindOf(err: unknown): IngestErrorKind {
+  if (err instanceof IngestError) return err.kind;
+  const status = providerErrorStatus(err);
+  if (status === 401 || status === 403) return "auth_revoked";
+  if (status === 402) return "blocked";
+  if (status === 404) return "not_found";
+  if (status === 429) return "rate_limited";
+  if (status !== undefined && status >= 500) return "outage";
+  return "unknown";
+}

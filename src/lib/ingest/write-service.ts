@@ -11,6 +11,7 @@ import { AUTOMATION_AUTHOR } from "@/lib/message-author";
 import { claimAutomatedSend, planAutomatedMatches } from "@/lib/automated-sends";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
+import { channelMetadataWriteEnabled } from "@/lib/channels/metadata";
 import { recordIngestEvent as emit, INGEST_EVENT_SCHEMA_VERSION } from "./events";
 import type { IngestContext } from "./events";
 
@@ -119,8 +120,11 @@ export async function upsertCanonicalReservation(
       totalAmount: true,
       currency: true,
       connectionId: true,
+      sourcePlatform: true,
     },
   });
+  // Ham platform adı (migration 60 B): anahtar açıkken ve sağlayıcı verdiyse; yalnız gösterim / teşhis (olay değildir).
+  const sourcePlatform = channelMetadataWriteEnabled() ? (r.sourcePlatform ?? null) : null;
 
   if (existing) {
     // KVKK resurrection guard: once the retention sweep has anonymized this row
@@ -158,8 +162,13 @@ export async function upsertCanonicalReservation(
     }
     // Köken / hitap adı alanları OLAY DEĞİLDİR (bağlantı damgası gibi): yalnız onlar değişince `reservation.updated` üretilmez,
     // alan listesine de girmez (olay şeması aynı kalır).
+    if (sourcePlatform !== null && sourcePlatform !== existing.sourcePlatform) data.sourcePlatform = sourcePlatform;
     const isMetadataKey = (k: string) =>
-      k === "connectionId" || k === "connectionEvidence" || k === "guestGivenName" || k === "guestNameSource";
+      k === "connectionId" ||
+      k === "connectionEvidence" ||
+      k === "guestGivenName" ||
+      k === "guestNameSource" ||
+      k === "sourcePlatform";
     const contentChanged = Object.keys(data).some((k) => !isMetadataKey(k));
     if (Object.keys(data).length > 0) {
       await db.reservation.update({ where: { id: existing.id }, data });
@@ -203,6 +212,7 @@ export async function upsertCanonicalReservation(
         connectionId: ctx.connectionId ?? undefined,
         connectionEvidence: ctx.connectionId ? "ingest" : undefined,
         ingestedAt: new Date(),
+        sourcePlatform: sourcePlatform ?? undefined,
       },
       select: { id: true },
     });

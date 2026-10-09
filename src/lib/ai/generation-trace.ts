@@ -21,7 +21,7 @@ import type { LlmUsage } from "@/lib/ai/types";
 
 export const AI_GENERATION_TRACE_FLAG = "AI_GENERATION_TRACE_ENABLED";
 export function aiGenerationTraceEnabled(): boolean {
-  return process.env[AI_GENERATION_TRACE_FLAG] === "1";
+  return process.env.AI_GENERATION_TRACE_ENABLED === "1";
 }
 
 export const AI_GENERATION_SURFACES = ["channel_auto", "channel_suggest", "qr", "decision_text"] as const;
