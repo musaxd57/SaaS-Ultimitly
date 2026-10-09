@@ -159,6 +159,35 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     expect(code(read("src/lib/outbox/worker.ts"))).toMatch(/handleOutboundCredentialRejected\(/);
   });
 
+  it("🚨 V0.9 (değişmez 20): kanal / platform DİZESİNDEN yetenek çıkarımı YALNIZ Channel Layer'da (`channels/capability.ts`)", () => {
+    // Yasak (channels/ dışında): kanal ya da platform değerini bir OTA / sağlayıcı etiketiyle KARŞILAŞTIRMAK
+    // (`channel === "airbnb"`, `"booking" !== r.platform`) ve kanal alanına SABİT liste süzgeci yazmak
+    // (`channel: { notIn: [...] }` / `{ in: [...] }`). "Bu rezervasyona mesaj gidebilir mi" sorusunun tek cevabı
+    // `PROVIDER_MESSAGEABLE_RESERVATION_WHERE` / `reservationMessagingCapable`; Airbnb Direct girince etiket değil bağlantı
+    // yeteneği karar verir. İZİNLİ (yetenek değil): QR iç konuşması `channel: "chat"` (yüzey ayrımı, sağlayıcı değil) ve
+    // dosya / elle giriş sahipliği `ics` / `manual` (değişmez 6: sahiplik işaretçisi).
+    const LABELS = "airbnb|booking|vrbo|expedia|direct|whatsapp|email";
+    const CMP = new RegExp(
+      `\\b\\w*(?:channel|platform)\\w*\\s*(?:===|!==|==|!=)\\s*["'](?:${LABELS})["']|["'](?:${LABELS})["']\\s*(?:===|!==|==|!=)\\s*[\\w.?]*(?:channel|platform)\\b`,
+      "i",
+    );
+    const LIST_FILTER = /\bchannel\s*:\s*\{\s*(?:notIn|in)\s*:\s*\[/;
+    const offenders: string[] = [];
+    for (const abs of walk(path.join(ROOT, "src"))) {
+      const rel = path.relative(ROOT, abs);
+      if (rel.startsWith("src/lib/channels/")) continue;
+      const c = code(read(rel));
+      if (CMP.test(c) || LIST_FILTER.test(c)) offenders.push(rel);
+    }
+    expect(offenders.sort()).toEqual([]);
+    // Anti-vakum: aynı kalıplar tek kaynağı ve köprünün etiket eşlemesini GERÇEKTEN yakalıyor.
+    expect(LIST_FILTER.test(code(read("src/lib/channels/capability.ts")))).toBe(true);
+    expect(CMP.test('if (r.platform === "airbnb") send();')).toBe(true);
+    expect(CMP.test('if ("booking" !== conv.channel) return;')).toBe(true);
+    expect(CMP.test('if (issue.validation === "email") return;')).toBe(false); // kanal değil
+    expect(CMP.test('if (c.channel === "chat") return;')).toBe(false); // QR yüzeyi izinli
+  });
+
   it("KONTROL: adaptör gerçekten istemciyi çağırıyor (pin kendini boşa düşürmesin)", () => {
     const c = code(read(ADAPTER));
     expect(c).toMatch(/from\s+["']@\/lib\/hospitable["']/);
