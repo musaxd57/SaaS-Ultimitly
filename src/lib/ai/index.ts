@@ -221,6 +221,17 @@ export function replyCallParams(): { model: string; effort: string | null } {
  * `access-code-complete.ts`), kurulum `replySystemPromptFor`da; hepsi kapalıyken taban istem bayt bayt aynı.
  */
 function replySystemPrompt(input: SuggestReplyInput): string {
+  // Öğe kipi: çıktı formatı `answeredRequests` alanını da gösterir; bırakılan istek varsa (bu turun ya da önceki turun) sistem
+  // istemi o istekler için kalıp öğretmez. Sistem istemi girdiye YALNIZ bu iki bitle bağlıdır (sürüm kimliği bunun üstüne kurulu).
+  return replySystemPromptForItems(replyPromptItemsOf(input.conversationItems));
+}
+
+/** Çağrının öğe kipi bitleri — istem ve sürüm kimliği AYNI fonksiyondan. */
+export function replyPromptItemsOf(items: SuggestReplyInput["conversationItems"]): { mode: boolean; held: boolean } {
+  return { mode: items !== undefined, held: (items?.held.length ?? 0) > 0 };
+}
+
+function replySystemPromptForItems(items: { mode: boolean; held: boolean }): string {
   return replySystemPromptFor({
     codeGreeting: codeGreetingEnabled(),
     kbFeeRule: kbFeeRuleEnabled(),
@@ -228,10 +239,8 @@ function replySystemPrompt(input: SuggestReplyInput): string {
     accessCodeComplete: accessCodeCompleteEnabled(),
     complaintFollowup: complaintFollowupRuleEnabled(),
     courtesy: courtesyRuleEnabled(),
-    // Öğe kipi: çıktı formatı `answeredRequests` alanını da gösterir; bırakılan istek varsa (bu turun ya da önceki turun) sistem
-    // istemi o istekler için kalıp öğretmez.
-    itemsMode: input.conversationItems !== undefined,
-    itemsHeld: (input.conversationItems?.held.length ?? 0) > 0,
+    itemsMode: items.mode,
+    itemsHeld: items.held,
   });
 }
 
@@ -265,24 +274,13 @@ export function replyRequestIdentity(input: SuggestReplyInput): { model: string;
   return { ...replyCallParams(), system: replySystemPrompt(input), user: replyPromptFor(input, actionClaimsEnabled()).text };
 }
 
-/** İstem sürümünün kurulduğu SABİT girdi (misafir / mülk verisi yok) — anahtarlar istemi değiştirince kimlik de değişir. */
-const PROMPT_VERSION_INPUT: SuggestReplyInput = {
-  guestMessage: "-",
-  property: { name: "-", checkInTime: "15:00", checkOutTime: "11:00" },
-  reservation: null,
-  knowledgeBase: [],
-  history: [],
-  tone: "warm",
-  language: "tr",
-};
-
 /**
- * Cevap isteminin SÜRÜM KİMLİĞİ: sabit girdiyle kurulan sistem isteminin SHA-256 ilk 12'si. TEK KAYNAK — ölçüm raporu
- * (`tests/eval/run-meta.ts` `prompts.reply`) ve üretim izi (`AiGeneration.promptVersion`) aynı fonksiyonu okur; böylece izdeki
- * bir cevap hangi ölçüm koşusunun istemiyle üretildiği bilinerek karşılaştırılır.
+ * Cevap isteminin SÜRÜM KİMLİĞİ: sistem isteminin SHA-256 ilk 12'si. Sistem istemi girdiye yalnız anahtarlar + öğe kipi bitleriyle
+ * bağlıdır (misafir / mülk verisi taşımaz), yani kimlik çağrının GERÇEK sistem istemidir. TEK KAYNAK — ölçüm raporu
+ * (`tests/eval/run-meta.ts` `prompts.reply`, öğe kipi dışı) ve üretim izi (`AiGeneration.promptVersion`, çağrının bitleriyle).
  */
-export function replyPromptVersion(): string {
-  return createHash("sha256").update(replySystemPrompt(PROMPT_VERSION_INPUT)).digest("hex").slice(0, 12);
+export function replyPromptVersion(items: { mode: boolean; held: boolean } = { mode: false, held: false }): string {
+  return createHash("sha256").update(replySystemPromptForItems(items)).digest("hex").slice(0, 12);
 }
 
 /** Normalize a model-returned language value to a short code (2–3 letters), else

@@ -111,9 +111,15 @@ export function messageAgeAnchorEnabled(): boolean {
 function aiTraceAge(cutoff: Date): { createdAt?: { lt: Date } } {
   return messageAgeAnchorEnabled() ? { createdAt: { lt: cutoff } } : {};
 }
-/** Hâlâ metin taşıyan iz (seçim bacağı = temizlik koşulu: süpürge ikisini de null'lar → sonlanır). */
+/**
+ * Hâlâ metin taşıyan iz — taslak, gönderilen ya da kurucu etiket NOTU (Haiku 10-09: metni süpürüldükten SONRA eklenen notlu etiket
+ * hiçbir bacağa düşmüyordu). Seçim bacağı = temizlik koşulu: süpürge üçünü de null'lar → sonlanır.
+ */
 function aiTraceTextLeft(cutoff: Date) {
-  return { ...aiTraceAge(cutoff), OR: [{ draftText: { not: null } }, { sentText: { not: null } }] };
+  return {
+    ...aiTraceAge(cutoff),
+    OR: [{ draftText: { not: null } }, { sentText: { not: null } }, { labels: { some: { note: { not: null } } } }],
+  };
 }
 
 /**
@@ -403,7 +409,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       ...(convIds.length
         ? [
             prisma.aiGeneration.updateMany({
-              where: { conversationId: { in: convIds }, ...aiTraceTextLeft(cutoff) },
+              where: { conversationId: { in: convIds }, ...aiTraceAge(cutoff), OR: [{ draftText: { not: null } }, { sentText: { not: null } }] },
               data: { draftText: null, sentText: null },
             }),
             // Kurucu etiket notu misafir metnini alıntılayabilir → aynı süpürgede, izle AYNI yaş kuralıyla silinir.
@@ -602,7 +608,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       }),
       // Üretim izi (migration 60) — öksüz dalda da (kardeş dalla BİREBİR; parite kuralı).
       prisma.aiGeneration.updateMany({
-        where: { conversationId: { in: orphanIds }, ...aiTraceTextLeft(cutoff) },
+        where: { conversationId: { in: orphanIds }, ...aiTraceAge(cutoff), OR: [{ draftText: { not: null } }, { sentText: { not: null } }] },
         data: { draftText: null, sentText: null },
       }),
       prisma.aiReviewLabel.updateMany({

@@ -11,9 +11,10 @@ import path from "node:path";
 
 const ROOT = path.resolve(__dirname, "../..");
 
-/** Yazıcı · saklama süpürgesi · misafir silmesi · konuşma birleştirme (iz taşınır). Konsol rotaları eklenince BURAYA yazılır. */
+/** Kurucu kalite konsolu (salt-okuma + etiket) · yazıcı · saklama süpürgesi · misafir silmesi · konuşma birleştirme (iz taşınır). */
 const ALLOWED = [
   "scripts/apply-conversation-dedupe.ts",
+  "src/lib/ai-quality/console.ts",
   "src/lib/ai/generation-trace.ts",
   "src/lib/data-retention.ts",
   "src/lib/erasure.ts",

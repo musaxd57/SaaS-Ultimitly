@@ -13,6 +13,7 @@ vi.mock("@/lib/ai", () => ({
   summarizeHostStyle: vi.fn(),
   replyCallParams: vi.fn(() => ({ model: "configured-model", effort: null })),
   replyPromptVersion: vi.fn(() => "promptv12abc"),
+  replyPromptItemsOf: (items: { held: readonly unknown[] } | undefined) => ({ mode: items !== undefined, held: (items?.held.length ?? 0) > 0 }),
 }));
 vi.mock("@/lib/messaging", async (orig) => ({
   ...(await orig<typeof import("@/lib/messaging")>()),

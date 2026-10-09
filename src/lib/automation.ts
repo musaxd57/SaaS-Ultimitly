@@ -55,7 +55,7 @@ import { calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/mod
 // Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
 export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { recordRiskEvent, type RiskEventInput } from "@/lib/risk-events";
+import { ESCALATION_REASON_CODES, recordRiskEvent, type RiskEventInput } from "@/lib/risk-events";
 import {
   HIGH_STAKES_RISK_TYPE_LIST,
   NEVER_AUTO_REPLY_INTENT_LIST,
@@ -75,7 +75,7 @@ import {
 import { recordAutomatedSend, settleAutomatedSend, type AutomatedSendKind } from "@/lib/automated-sends";
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
-import { classifyMessage, replyCallParams, replyPromptVersion, suggestReply, summarizeHostStyle } from "@/lib/ai";
+import { classifyMessage, replyCallParams, replyPromptItemsOf, replyPromptVersion, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { aiGenerationTraceEnabled, recordAiGeneration } from "@/lib/ai/generation-trace";
 import { isCurrentStyleProfile, markStyleProfile } from "@/lib/ai/style-profile";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
@@ -2099,6 +2099,8 @@ export async function applyChannelAutoReply(
         return null;
       });
 
+  // Öğe kipi bloğu: istem ve üretim izinin istem sürümü AYNI değerden (`replyPromptItemsOf`).
+  const replyItems = itemsPlan && !itemsPlan.allHeld ? itemsPlan.replyItems : undefined;
   const replyStartedAt = Date.now();
   let result = await suggestReply({
     guestMessage: last.body,
@@ -2125,7 +2127,7 @@ export async function applyChannelAutoReply(
     timeZone: org.timezone,
     // Öğe bloğu yalnız cevaplanabilir istek varken: hepsi tutulduysa cevap ev sahibinde kalır (model bugünkü istemle koşar —
     // üçüncü risk dedektörü olarak; metni gönderilmez).
-    ...(itemsPlan && !itemsPlan.allHeld ? { conversationItems: itemsPlan.replyItems } : {}),
+    ...(replyItems ? { conversationItems: replyItems } : {}),
     knowledgeBase: kbForModel,
     knowledgeBaseSelection: kbSel.selection,
     knowledgeBaseNotes: kbSel.notes,
@@ -2167,6 +2169,9 @@ export async function applyChannelAutoReply(
     lateCheckoutOfferText: org.lateCheckoutOfferText,
   });
   const replyLatencyMs = Date.now() - replyStartedAt;
+  // Modelin ÖZGÜN taslağı — `result` aşağıda kod metniyle (doğrulanmış erken giriş / müsaitlik) değişebilir; iz ikisini ayrı tutar
+  // (taslak = model, gönderilen = misafire giden).
+  const modelDraft = result.reply;
 
   // Safety gate: only auto-send safe, confident replies (cross-checked against
   // the guest's own words, so a mislabelled complaint/refund never slips through).
@@ -2549,13 +2554,14 @@ export async function applyChannelAutoReply(
         triggerMessageId: last.id,
         surface: "channel_auto",
         model: replyCallParams().model,
-        promptVersion: replyPromptVersion(),
+        promptVersion: replyPromptVersion(replyPromptItemsOf(replyItems)),
         decision: ev.finalDecision,
-        gateReason: ev.reason ?? null,
+        // RiskEvent ile AYNI kıskaç (tanınmayan gerekçe iki kayıtta da null).
+        gateReason: ev.reason && ESCALATION_REASON_CODES.has(ev.reason) ? ev.reason : null,
         kbEvidenceJson: groundingAudited.kbEvidenceJson,
         latencyMs: replyLatencyMs,
         llm: result.llmUsage ?? null,
-        draftText: result.reply,
+        draftText: modelDraft,
         sentText,
       });
     } catch (err) {

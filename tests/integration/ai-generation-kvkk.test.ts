@@ -166,6 +166,17 @@ describe("AiGeneration izi — süpürge, yaş çapası AÇIK (RETENTION_MESSAGE
   );
 
   it.each([true, false])(
+    "🚨 SEÇİM BACAĞI: metni zaten süpürülmüş ize SONRADAN eklenen notlu etiket de seçilip silinir (rezervasyonlu=%s)",
+    async (reservation) => {
+      const { generationId } = await seedConversation({ reservation, monthsAgo: 30, alreadySwept: true, genMonthsAgo: 26, msgMonthsAgo: 30 });
+      await prisma.aiGeneration.update({ where: { id: generationId }, data: { draftText: null, sentText: null } });
+      await anonymizeOldGuestData();
+      expect((await traceOf(generationId)).note).toBeNull();
+      expect((await anonymizeOldGuestData()).anonymized).toBe(0);
+    },
+  );
+
+  it.each([true, false])(
     "KONTROL (Message paritesi): eski konaklamaya BUGÜN verilmiş cevabın izi korunur, eski iz silinir (rezervasyonlu=%s)",
     async (reservation) => {
       const old = await seedConversation({ reservation, monthsAgo: 30, genMonthsAgo: 30, msgMonthsAgo: 30 });
