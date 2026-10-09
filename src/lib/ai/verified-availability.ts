@@ -22,7 +22,7 @@ import type { AvailabilityToolValue } from "@/lib/ai/tools/availability-tool";
 
 export const VERIFIED_AVAILABILITY_FLAG = "AI_VERIFIED_AVAILABILITY_ENABLED";
 export function verifiedAvailabilityEnabled(): boolean {
-  return process.env[VERIFIED_AVAILABILITY_FLAG] === "1";
+  return process.env.AI_VERIFIED_AVAILABILITY_ENABLED === "1";
 }
 
 /** Araç sonucu bundan eskiyse kod metni kurulmaz (takvim bu arada değişmiş olabilir). */
