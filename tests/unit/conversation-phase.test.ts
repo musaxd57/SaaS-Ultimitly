@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveConversationPhase, PHASE_UNANSWERED_SCAN } from "@/lib/ai/conversation-phase";
+import { deriveConversationPhase, interactionGap, PHASE_UNANSWERED_SCAN } from "@/lib/ai/conversation-phase";
 
 // Talimat 09-07 §6 — yetkili konuşma durumu (saf türetim). Girdi konuşmanın TAMAMINDAN gelir (yükleyici entegrasyonda sınanır).
 const at = new Date("2026-10-09T10:00:00Z");
@@ -42,5 +42,25 @@ describe("deriveConversationPhase", () => {
   it("bozuk sayı (negatif / kesirli) 0 sayılır", () => {
     expect(deriveConversationPhase({ deliveredReplyCount: -3, unansweredGuestTexts: [], lastInteractionAt: null }).phase).toBe("first_contact");
     expect(deriveConversationPhase({ deliveredReplyCount: 1.5, unansweredGuestTexts: [], lastInteractionAt: null }).deliveredReplyCount).toBe(0);
+  });
+});
+
+describe("interactionGap — zaman bağlamı (nesnel)", () => {
+  const TZ = "Europe/Istanbul";
+  it("aynı gün / gece yarısını geçen kısa aralık / günler", () => {
+    // 23:50 → 00:10 İstanbul: 20 dk ama YENİ takvim günü.
+    expect(interactionGap(new Date("2026-10-08T20:50:00Z"), new Date("2026-10-08T21:10:00Z"), TZ)).toEqual({ elapsedMinutes: 20, calendarDaysApart: 1 });
+    expect(interactionGap(new Date("2026-10-09T06:00:00Z"), new Date("2026-10-09T09:30:00Z"), TZ)).toEqual({ elapsedMinutes: 210, calendarDaysApart: 0 });
+    expect(interactionGap(new Date("2026-10-01T09:00:00Z"), new Date("2026-10-09T09:00:00Z"), TZ)).toEqual({ elapsedMinutes: 11_520, calendarDaysApart: 8 });
+  });
+  it("🚨 saat dilimi günü belirler (UTC değil)", () => {
+    // 21:30Z = İstanbul 00:30 (ertesi gün); UTC'de aynı gün olurdu.
+    expect(interactionGap(new Date("2026-10-08T20:00:00Z"), new Date("2026-10-08T21:30:00Z"), TZ)?.calendarDaysApart).toBe(1);
+    expect(interactionGap(new Date("2026-10-08T20:00:00Z"), new Date("2026-10-08T21:30:00Z"), "UTC")?.calendarDaysApart).toBe(0);
+  });
+  it("yok / geçersiz → null; gelecekteki an → 0", () => {
+    expect(interactionGap(null, at, TZ)).toBeNull();
+    expect(interactionGap(new Date("x"), at, TZ)).toBeNull();
+    expect(interactionGap(new Date(at.getTime() + 60_000), at, TZ)).toEqual({ elapsedMinutes: 0, calendarDaysApart: 0 });
   });
 });

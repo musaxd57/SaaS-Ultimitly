@@ -1,3 +1,4 @@
+import { nightsBetween, todayKey } from "@/modules/availability/core";
 import { lexicalClosingOnly } from "./closing-turn";
 
 // ---------------------------------------------------------------------------
@@ -49,5 +50,25 @@ export function deriveConversationPhase(input: {
     unansweredGuestMessageCount: texts.length,
     unansweredCapped: capped,
     lastInteractionAt: input.lastInteractionAt,
+  };
+}
+
+/**
+ * ZAMAN BAĞLAMI (talimat 09-07 §4 "geçen süre, oturum arası, yeni gün") — yalnız NESNEL değerler: son etkileşimden bu yana geçen dakika
+ * ve org saat diliminde takvim günü farkı (0 = aynı gün). "Yeni oturum" eşiği bir ürün kararıdır → burada YOK. Geçersiz / yok → null;
+ * saat kayması (son etkileşim gelecekte) → 0.
+ */
+export interface InteractionGap {
+  elapsedMinutes: number;
+  calendarDaysApart: number;
+}
+
+export function interactionGap(lastInteractionAt: Date | null, now: Date, timeZone: string): InteractionGap | null {
+  if (!lastInteractionAt || Number.isNaN(lastInteractionAt.getTime()) || Number.isNaN(now.getTime())) return null;
+  const ms = now.getTime() - lastInteractionAt.getTime();
+  if (ms <= 0) return { elapsedMinutes: 0, calendarDaysApart: 0 };
+  return {
+    elapsedMinutes: Math.floor(ms / 60_000),
+    calendarDaysApart: Math.max(0, nightsBetween(todayKey(lastInteractionAt, timeZone), todayKey(now, timeZone))),
   };
 }
