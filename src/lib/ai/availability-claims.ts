@@ -68,8 +68,6 @@
 import { foldTurkishAscii, restrictiveMatchForms } from "@/lib/ai/fallback";
 import { hostDecisionHoldEnabled } from "@/lib/ai/host-decision-hold";
 import { hasUnallowedMoney, moneyAmountsOf } from "@/lib/ai/stay-money";
-import { replyMatchesVerifiedAvailability, type VerifiedAvailability } from "@/lib/ai/verified-availability";
-import type { DateResolutionContext } from "@/lib/ai/date-resolution";
 import { sameMoney, type MoneyAmount } from "@/lib/ai/money-lexicon";
 import {
   declaredClaim,
@@ -681,16 +679,11 @@ export interface AvailabilityPolicyOptions {
    */
   verifiedGrant?: { text: string } | null;
   /**
-   * DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09, `ai/verified-availability.ts`; anahtar `AI_VERIFIED_AVAILABILITY_ENABLED`): koddan
-   * çalışan müsaitlik aracının `ok` sonucu. YALNIZ bütün katmanların gördüğü istek TEK tür "availability" ise, model beyanı
-   * "availability / states_calendar" ise, bekçi (koştuysa) izin görmüyorsa, para yoksa ve cevap sonuçla BİREBİR uyumluysa
-   * (`replyMatchesVerifiedAvailability`) `availability_claim` kalkar. Başka her durumda kurallar AYNEN.
+   * DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09, `ai/verified-availability.ts`): KODDAN kurulan müsaitlik cümlesi. YALNIZ cevap bu
+   * metne BİREBİR eşitse, bütün katmanların gördüğü istek TEK tür "availability" ise, anlama katmanı KOŞTUYSA (kapalı / düşmüş
+   * değil) ve bekçi düşmediyse muaftır. Model metni hiçbir zaman bu yoldan geçemez.
    */
-  verifiedAvailability?: {
-    va: VerifiedAvailability;
-    scope: { organizationId: string; propertyId: string };
-    dateCtx: DateResolutionContext;
-  } | null;
+  verifiedAvailability?: { text: string } | null;
 }
 
 /** Konaklama değişikliği TÜRLERİ — birleşim: hangi katman hangi türü gördü ("yalnız erken giriş mi?" sorusu için). */
@@ -1101,15 +1094,11 @@ export function evaluateAvailability(
     if (kinds.size === 1 && kinds.has("early_checkin")) return { reason: null, enforceReason: null, signals };
   }
 
-  // DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09): saf müsaitlik sorusu + kodun takvim sonucu + birebir uyumlu cevap → muaf.
-  if (opts.verifiedAvailability) {
-    const v = opts.verifiedAvailability;
+  // DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09): koddan kurulan metin (birebir) + saf müsaitlik sorusu + anlama katmanı koştu → muaf.
+  if (opts.verifiedAvailability && reply === opts.verifiedAvailability.text) {
     const pure = kinds.size > 0 && [...kinds].every((k) => k === "availability");
-    const declaredCalendar = declared !== null && declared.asked === "availability" && declared.stance === "states_calendar";
-    const guardGrants = guard !== null && (guard.replyGrantsChange || guard.replyPriceTerms || guard.replyAmounts.length > 0);
-    if (pure && declaredCalendar && !guardGrants && !lexMoney && replyMatchesVerifiedAvailability(reply, v.va, v.scope, v.dateCtx)) {
-      return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}v` } };
-    }
+    const understandingRan = u === "req" || u === "none";
+    if (pure && understandingRan && g !== "failed") return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}v` } };
   }
 
   const guardRequest =

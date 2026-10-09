@@ -133,11 +133,6 @@ export interface SuggestReplyInput {
    */
   lateCheckoutOfferText?: string | null;
   /**
-   * DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09, `ai/verified-availability.ts`; anahtar `AI_VERIFIED_AVAILABILITY_ENABLED`): kodun
-   * müsaitlik aracının `ok` sonucu. Verilirse istem YALNIZ o aralık için sonucu söylemesine izin verir; yoksa istem bayt bayt eski.
-   */
-  verifiedAvailability?: import("./verified-availability").VerifiedAvailability | null;
-  /**
    * PUBLIC anonymous surface (QR concierge) where the caller has ALREADY
    * verified an active stay but deliberately passes no reservation PII.
    * Suppresses the "prospective guest / complete your booking" framing while

@@ -2,8 +2,8 @@
 // DOĞRULANMIŞ MÜSAİTLİK OTOMATİK CEVABI (kurucu onayı 10-09: "doğrulanınca otomatik gitsin") — uçtan uca, gerçek PostgreSQL.
 //
 // Zincir: misafir mesajı → kelime ağı "saf müsaitlik" → tarih çözücü → müsaitlik aracı (gerçek takvim kaynağı + rezervasyonlar)
-// → istem (`verifiedAvailability`) → kapı muafiyeti (`availability-claims.ts`). Model ve gönderim katmanı sahte.
-// Her "gitmez" iddiasının AYNI tohumla "gider" kontrolü var.
+// → KODDAN kurulan tek cümle → kapı (birebir metin muafiyeti; acil / şikâyet / injection / güven AYNEN). Cevap modeli MOCK (taslağı
+// misafire GİTMEZ), anlama katmanı sahte fetch, gönderim katmanı sahte. Her "gitmez" iddiasının aynı tohumla "gider" kontrolü var.
 // ---------------------------------------------------------------------------
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
@@ -15,10 +15,15 @@ vi.mock("@/lib/messaging", async (orig) => ({
 }));
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn().mockResolvedValue("test-token") }));
 vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn(), sendReporting: vi.fn(async () => ({ ok: true })) } }));
+vi.mock("@/lib/report-error", async (orig) => {
+  const actual = await orig<typeof import("@/lib/report-error")>();
+  return { ...actual, reportError: vi.fn().mockResolvedValue(undefined) };
+});
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
 import { applyChannelAutoReply } from "@/lib/automation";
+import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { todayKey, addNights } from "@/modules/availability/core";
 
 const mockSuggest = vi.mocked(suggestReply);
@@ -27,15 +32,19 @@ const TZ = "Europe/Istanbul";
 const TR_MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
 // Gerçek saate göre 20 ve 22 gün sonrası (Türkçe ay adıyla; tarih çözücü yılı en yakın gelecek olarak tamamlar).
-const D1 = addNights(todayKey(new Date(), TZ), 20);
+const TODAY = todayKey(new Date(), TZ);
+const D1 = addNights(TODAY, 20);
 const D2 = addNights(D1, 2);
-const human = (k: string) => `${Number(k.slice(8, 10))} ${TR_MONTHS[Number(k.slice(5, 7)) - 1]}`;
+const human = (k: string) => `${Number(k.slice(8, 10))} ${TR_MONTHS[Number(k.slice(5, 7)) - 1]}${k.slice(0, 4) === TODAY.slice(0, 4) ? "" : ` ${k.slice(0, 4)}`}`;
 const ASK = `Merhaba, ${human(D1)} ile ${human(D2)} arası daire müsait mi?`;
+const CODE_AVAILABLE = `${human(D1)} giriş, ${human(D2)} çıkış için daire müsait.`;
+const CODE_UNAVAILABLE = `Maalesef ${human(D1)} giriş, ${human(D2)} çıkış için daire müsait değil.`;
+const MODEL_DRAFT = "Tarihleri ev sahibimize iletiyorum, size dönüş yapacağız.";
 
-const verdict = (reply: string) => ({
+const verdict = {
   intent: "general",
   confidence: 0.95,
-  reply,
+  reply: MODEL_DRAFT,
   risk: null,
   priority: "standard" as const,
   source: "openai" as const,
@@ -47,14 +56,27 @@ const verdict = (reply: string) => ({
   missingInfo: [] as string[],
   statedCheckoutTime: null,
   stayChange: { asked: "availability", stance: "states_calendar" },
-});
+};
 
-async function seed(opts: { message?: string; feedAgeHours?: number; booked?: boolean } = {}) {
+function understandingFetch(kind: "availability" | "extend") {
+  return vi.fn(async (_url: string, init?: RequestInit) => {
+    const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
+    if (name !== "guest_message_understanding") throw new Error(`beklenmeyen şema: ${name}`);
+    const v = {
+      language: "tr",
+      requests: [{ intent: kind === "extend" ? "extend_stay" : "availability", query_tr: "müsaitlik", query_original: "müsait" }],
+      stay_change: { requested: true, kind, checkin_time: null, checkout_time: null },
+    };
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
+  });
+}
+
+async function seed(opts: { message?: string; feedAgeHours?: number; booked?: "full" | "partial" } = {}) {
   const org = await prisma.organization.create({
     data: { name: "Müsaitlik Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: TZ },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Deniz Daire" } });
-  const source = await prisma.calendarSource.create({
+  await prisma.calendarSource.create({
     data: {
       propertyId: property.id,
       label: "Airbnb",
@@ -69,7 +91,7 @@ async function seed(opts: { message?: string; feedAgeHours?: number; booked?: bo
         propertyId: property.id,
         guestName: "Başka Misafir",
         arrivalDate: new Date(`${D1}T00:00:00Z`),
-        departureDate: new Date(`${D2}T00:00:00Z`),
+        departureDate: new Date(`${opts.booked === "full" ? D2 : addNights(D1, 1)}T00:00:00Z`),
         channel: "manual",
         status: "confirmed",
       },
@@ -86,73 +108,81 @@ async function seed(opts: { message?: string; feedAgeHours?: number; booked?: bo
       messages: { create: { direction: "inbound", senderName: "Aday Misafir", body: opts.message ?? ASK } },
     },
   });
-  void source;
-  return { orgId: org.id, propertyId: property.id, conversationId: conversation.id };
+  return { conversationId: conversation.id };
 }
 
-describe("doğrulanmış müsaitlik otomatik cevabı", () => {
+// Gönderilen gövde: kod metni + (org ayarı açıkken) otomatik yanıt açıklama notu — modelin taslağı ASLA.
+const sentBody = () => (mockSend.mock.calls[0]?.[1] as string | undefined) ?? null;
+const expectCodeSent = (code: string) => {
+  const body = sentBody() ?? "";
+  expect(body.split("\n")[0]).toBe(code);
+  expect(body).not.toContain(MODEL_DRAFT);
+};
+
+describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
+    __resetUnderstandingCache();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_VERIFIED_AVAILABILITY_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch("availability"));
     mockSend.mockResolvedValue({ ok: true } as never);
+    mockSuggest.mockResolvedValue(verdict as never);
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
 
-  it("🚨 taze takvim + boş geceler + uyumlu cevap → GİDER; model doğrulanmış sonucu istemde aldı", async () => {
-    const { conversationId, propertyId } = await seed();
-    mockSuggest.mockResolvedValue(verdict(`${human(D1)} – ${human(D2)} tarihleri için daire müsait.`) as never);
+  it("🚨 taze takvim + boş geceler → KOD METNİ gider (modelin taslağı değil)", async () => {
+    const { conversationId } = await seed();
     const r = await applyChannelAutoReply(conversationId);
-    expect(mockSuggest.mock.calls[0][0]).toMatchObject({
-      verifiedAvailability: { query: { from: D1, to: D2 }, result: { status: "ok", scope: { propertyId }, value: { verdict: "available" } } },
-    });
     expect(r.sent).toBe(true);
-    expect(mockSend).toHaveBeenCalledTimes(1);
+    expectCodeSent(CODE_AVAILABLE);
   });
 
-  it("KONTROL: anahtar KAPALI → aynı cevap TUTULUR (bugünkü davranış), model sonuç almaz", async () => {
+  it("KONTROL: anahtar KAPALI → hiçbir şey gitmez (bugünkü davranış)", async () => {
     vi.stubEnv("AI_VERIFIED_AVAILABILITY_ENABLED", "");
     const { conversationId } = await seed();
-    mockSuggest.mockResolvedValue(verdict(`${human(D1)} – ${human(D2)} tarihleri için daire müsait.`) as never);
     const r = await applyChannelAutoReply(conversationId);
-    expect(mockSuggest.mock.calls[0][0]).not.toHaveProperty("verifiedAvailability.query");
     expect(r.sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("dolu aralık + 'dolu' cevabı → GİDER", async () => {
-    const { conversationId } = await seed({ booked: true });
-    mockSuggest.mockResolvedValue(verdict("Maalesef bu tarihlerde daire dolu.") as never);
+  it("bütün geceler dolu → 'müsait değil' kod metni gider", async () => {
+    const { conversationId } = await seed({ booked: "full" });
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expectCodeSent(CODE_UNAVAILABLE);
   });
 
-  it("🚨 araçla ÇELİŞEN yön (dolu aralığa 'müsait') → TUTULUR", async () => {
-    const { conversationId } = await seed({ booked: true });
-    mockSuggest.mockResolvedValue(verdict(`${human(D1)} – ${human(D2)} tarihleri için daire müsait.`) as never);
-    const r = await applyChannelAutoReply(conversationId);
-    expect(r.sent).toBe(false);
-    expect(mockSend).not.toHaveBeenCalled();
+  it("🚨 KISMEN dolu aralık → gitmez (hangi gecenin dolu olduğu ev sahibinde)", async () => {
+    const { conversationId } = await seed({ booked: "partial" });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
   });
 
-  it("🚨 bayat takvim (10 saat) → araç sonucu yok, cevap TUTULUR", async () => {
+  it("🚨 bayat takvim (10 saat) → gitmez", async () => {
     const { conversationId } = await seed({ feedAgeHours: 10 });
-    mockSuggest.mockResolvedValue(verdict(`${human(D1)} – ${human(D2)} tarihleri için daire müsait.`) as never);
-    const r = await applyChannelAutoReply(conversationId);
-    expect(mockSuggest.mock.calls[0][0]).not.toHaveProperty("verifiedAvailability.query");
-    expect(r.sent).toBe(false);
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
   });
 
-  it("🚨 uzatma isteği (ev sahibinin kararı) → doğrulanmış yola GİRMEZ, TUTULUR", async () => {
-    const { conversationId } = await seed({ message: `${human(D1)} ile ${human(D2)} arası bir gece daha kalabilir miyiz?` });
-    mockSuggest.mockResolvedValue(verdict(`${human(D1)} – ${human(D2)} tarihleri için daire müsait.`) as never);
-    const r = await applyChannelAutoReply(conversationId);
-    expect(r.sent).toBe(false);
-  });
-
-  it("🚨 cevap yer ayırdığını söylerse TUTULUR", async () => {
+  it("🚨 anlama katmanı uzatma görüyorsa → gitmez (ev sahibinin kararı)", async () => {
+    vi.stubGlobal("fetch", understandingFetch("extend"));
     const { conversationId } = await seed();
-    mockSuggest.mockResolvedValue(verdict(`${human(D1)} – ${human(D2)} müsait, sizin için ayırdım.`) as never);
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("🚨 anlama katmanı KAPALI → gitmez (çok dilli uzatma isteği kelime ağından kaçabilir)", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "");
+    const { conversationId } = await seed();
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("🚨 mesajda iki soru varsa → gitmez (ikinci soru yanıtsız kalmasın)", async () => {
+    const { conversationId } = await seed({ message: `${ASK} Otopark var mı?` });
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
   });
 });

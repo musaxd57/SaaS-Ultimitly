@@ -164,7 +164,8 @@ import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE } fr
 import { resolveOrgChannelCredential } from "@/lib/channels";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
-import { loadVerifiedAvailability, type VerifiedAvailabilityContext } from "@/lib/ai/verified-availability-load";
+import { loadVerifiedAvailability } from "@/lib/ai/verified-availability-load";
+import { verifiedAvailabilityLang, verifiedAvailabilityText, verifiedAvailabilityUsable } from "@/lib/ai/verified-availability";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { parseSupplyProfile, buildSupplyChecklist } from "@/lib/supply";
 import { emailService } from "@/lib/email";
@@ -241,10 +242,10 @@ export interface AutoReplyGateContext {
    */
   verifiedGrant?: { text: string } | null;
   /**
-   * DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09, `ai/verified-availability-load.ts`; anahtar KAPALI → hep `null`): kodun müsaitlik
-   * aracının `ok` sonucu + kapsam + tarih bağlamı. Kapı YALNIZ saf müsaitlik sorusunda ve birebir uyumlu cevapta muaf tutar.
+   * DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09, `ai/verified-availability.ts`): koddan kurulan müsaitlik cümlesi. Kapı YALNIZ bu
+   * metne birebir eşit cevabı, saf müsaitlik sorusunda ve anlama katmanı koştuysa muaf tutar.
    */
-  verifiedAvailability?: VerifiedAvailabilityContext | null;
+  verifiedAvailability?: { text: string } | null;
   /**
    * YALNIZ TEŞHİS: çıktı vetosunu VE eylem beyanı kontrolünü atla (ikisi aynı sınıf: modelin metnindeki söz/iddia).
    * Gönderim kararında ASLA verilmez; tek kullanımı "bu taslağı YALNIZ bekleme sözü / eylem iddiası mı tuttu?" sorusu
@@ -2081,7 +2082,7 @@ export async function applyChannelAutoReply(
 
   // DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09; anahtar KAPALI → sorgu yok, istem ve kapı birebir eski). Hata turu durdurmaz: sonuç
   // yoksa model "takvim doğrulanmadı" kuralıyla yazar, kapı eskisi gibi tutar.
-  const verifiedAvailability = options.dryRun
+  const verifiedAvailabilityRun = options.dryRun
     ? null
     : await loadVerifiedAvailability({
         organizationId: conversation.property.organizationId,
@@ -2162,7 +2163,6 @@ export async function applyChannelAutoReply(
     styleProfile: styleProfileForPrompt(org.aiStyleProfile),
     adjacency,
     lateCheckoutOfferText: org.lateCheckoutOfferText,
-    verifiedAvailability: verifiedAvailability?.va ?? null,
   });
 
   // Safety gate: only auto-send safe, confident replies (cross-checked against
@@ -2223,8 +2223,6 @@ export async function applyChannelAutoReply(
     hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
     // Modelin gördüğü bilgi tabanı: yalnız yazılı sabit otopark yeri tahsisi takvim iddiası sayılmasın diye (24 EK).
     kbFacts: kbFactsOf(kbForModel),
-    // Doğrulanmış müsaitlik (kurucu onayı 10-09; anahtar kapalıyken null): saf müsaitlik sorusunda birebir uyumlu cevap muaf.
-    verifiedAvailability,
     // 51: fiziksel tehlike alarmı bağlamla kalktı mı (cevapsız mesajların tamamı; olası / anılış + anlama katmanı "acil değil").
     ...hazardContextFor(understood),
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.
@@ -2353,6 +2351,29 @@ export async function applyChannelAutoReply(
       } else if (verifiedFailure === "kb_time_conflict") {
         // Onay gidebilirdi, yalnız saat çelişkisi tuttu: karar kaydı bunu söylesin (host saati eşitleyince onay gider).
         gateFailure = verifiedFailure;
+      }
+    }
+  }
+  // ── DOĞRULANMIŞ MÜSAİTLİK → KOD METNİ (kurucu onayı 10-09; anahtar KAPALI → `verifiedAvailabilityRun` hep null) ─────────────
+  // Saf müsaitlik sorusu + takvim taze ve kesin → misafire KODDAN kurulan tek cümle gider (modelin taslağı değil; Haiku güvenlik
+  // incelemesi 10-09: model metnini ayrıştırıp doğrulamak olumsuzlar / izin cümleleri / aralık dışı tarihlerle delinebiliyordu).
+  // Yalnız TEK cevapsız mesajda ve en çok bir soru işaretinde (başka soruyu yanıtsız bırakmasın); TR / EN dışı dilde ev sahibine kalır.
+  // Kapı bu metinle BAŞTAN koşar: birebir metin muafiyeti yalnız müsaitlik kontrolünedir, acil / şikâyet / injection / güven aynen.
+  if (!earlyCheckinSent && verifiedAvailabilityRun) {
+    const lang = verifiedAvailabilityLang(guestLanguage ?? result.detectedLanguage);
+    const singleQuestion = pendingGuestMessages.length === 0 && (last.body.match(/\?/g)?.length ?? 0) <= 1 && last.body.length <= 300;
+    const now = new Date();
+    if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedAvailabilityRun.va, verifiedAvailabilityRun.scope, now)) {
+      const text = verifiedAvailabilityText(verifiedAvailabilityRun.va, lang, todayKey(now, orgTimezone(org.timezone)));
+      if (text) {
+        const vaResult = { ...verifiedEarlyCheckinResult(result, text), intent: "availability" };
+        const vaContext: AutoReplyGateContext = { ...gateContext, verifiedAvailability: { text } };
+        if (autoReplyGateFailure(vaResult, last.body, vaContext) === null) {
+          result = vaResult;
+          gateContext.verifiedAvailability = vaContext.verifiedAvailability;
+          gateFailure = null;
+          gatePassed = true;
+        }
       }
     }
   }
