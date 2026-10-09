@@ -21,8 +21,8 @@ Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.
 
 | # | Madde (değişmez) | Durum | Kanıt | Migration? |
 |---|---|---|---|---|
-| a | Çekirdek kimlik bilgisini kendisi çözüyor (değişmez 1, 4/9, 20) | ❌ | `automation.ts:164` (5 çağrı), `host-send.ts:7`, `outbox/worker.ts:10`, `reservations-cleanup.ts:5`, 6 panel sayfası `getConnectionInfo` | Hayır |
-| b | Mimari pin: çekirdekte sağlayıcı importu (20) | 🟡 yalnız `messaging`, `worker` (gönderim istemcisi) ve `modules/intelligence` taranıyor | `tests/unit/core-channel-independence.test.ts` | Hayır |
+| a | Çekirdek kimlik bilgisini kendisi çözüyor (değişmez 1, 4/9, 20) | ✅ **V0.8** (`channels/access.ts`) — eskiden: | `automation.ts:164` (5 çağrı), `host-send.ts:7`, `outbox/worker.ts:10`, `reservations-cleanup.ts:5`, 6 panel sayfası `getConnectionInfo` | Hayır |
+| b | Mimari pin: çekirdekte sağlayıcı importu (20) | ✅ **V0.8**: bütün `src/` taranır, gerekçeli izin listesi (kalan: `scheduled-sync` yoklayıcı kaydı) | `tests/unit/core-channel-independence.test.ts` | Hayır |
 | c | Mimari pin: kanal dizesinden yetenek çıkarımı (20) | ❌ pin yok | `channels/capability.ts:35,46` tek kaynak ama pinsiz | Hayır |
 | d | Org kolonlarını okuyan son yerler (V0.7 contract ön koşulu) | 🟡 | `hospitable-token-diagnostics-core.ts:146-169`, `channels/connections.ts:218-241`, `scheduled-sync.ts:371,382`, `unverified-sweep.ts:169-216`, `demo-tenant/apply-core.ts:72-79`, `admin/page.tsx:35,151` | Kod hayır; DROP evet (operatör planı) |
 | e | Webhook girişi aynı yazma servisine (7) | ❌ rota yok | `api/webhooks/` yalnız `paddle` | Belki |
@@ -60,7 +60,7 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 
 ## 5. Çalışma sırası (bu turdan itibaren)
 
-1. **V0.8** — §2a + §2b: kimlik bilgisi ve bağlantı durumu kanal katmanına; çekirdek sağlayıcı modülü import etmez (pin bütün `src/`). Migration yok, davranış birebir.
+1. ✅ **V0.8** (10-09, `6a654f0`) — §2a + §2b: kimlik bilgisi ve bağlantı durumu kanal katmanına; çekirdek sağlayıcı modülü import etmez (pin bütün `src/`). Migration yok, davranış birebir.
 2. §2c pin · §2d kolon okuyucuları satır-tek-kaynağa (kod kısmı).
 3. Kapı 2 eksikleri: başlangıç rehberinde takvim (iCal) adımı, bağlantısız hesapta ölü düğme, yanıltıcı metinler (talimatın açık şartı; misafire giden mesaja dokunmaz).
 4. §2e–h: migration / yeni giriş gerektirenler → tasarım + kurucu onayı.

@@ -786,3 +786,22 @@ beslemesi) KISMEN doğrulandı; TAMAMI bitmeden "canlı ürün akışı çalış
   `docs/TESHIS-2026-09-08-ical-iptal-atlandi.md` (en olası: Raw bağlantı revizyon SHA'sına sabit → besleme iptalsiz
   sürümü veriyor → `unchanged`). Kaynak silinmedi; URL yolu ayrıca doğrulanmalı.
 
+
+## 15. V0.8 — KİMLİK BİLGİSİ + BAĞLANTI DURUMU KANAL KATMANINDA (2026-10-09, migration YOK)
+
+- **Ölçülen açık:** çekirdek (otomasyon 5 çağrı, ev sahibi gönderimi, gönderim kuyruğu, hayalet rezervasyon temizliği) ve 5 panel
+  sayfası sağlayıcının kimlik modülünü DOĞRUDAN çağırıyordu; pin yalnız `messaging` / `worker` istemci importunu ve intelligence'ı tarıyordu.
+- **Yapılan:** `src/lib/channels/access.ts` (`MessagingAccess` kayıt defteri: `resolveOrgChannelCredential` ·
+  `handleOutboundCredentialRejected` · `hasMessagingConnection`), `channels/hospitable-access.ts` (aynı üç fonksiyona aynı
+  argümanlar — davranış birebir). Worker'ın 401/403 hükmü SATIRIN rotasının sağlayıcısına gider. Temizlik kimliği ve sağlayıcıyı
+  çözülen kimlikten alır (`"hospitable"` literal'i kalktı). **İkinci sağlayıcı kapısı:** iki sağlayıcı kayıtlıyken org düzeyindeki
+  soru kapalı başarısız (yanlış sağlayıcının kimlik bilgisi taşınmaz) — Airbnb Direct girince seçim hedefin sağlayıcısından yapılır.
+- **Pin:** `core-channel-independence.test.ts` — sağlayıcı modülü (`@/lib/hospitable*`, `@/lib/channels/hospitable-*`, göreli ve
+  dinamik import dahil) `src/` altında yalnız sağlayıcının kendi dosyalarından + gerekçeli izin listesinden (kanal giriş noktası,
+  bağlantı kartı, ayarlar sayfası, `scheduled-sync` yoklayıcısı) import edilir; ölü izin satırı ve boş tarama kırmızı.
+- **Kanıt:** red-first (sınır var, çağıranlar eski: 5 test kırmızı, iddialar davranışsal) · `tests/unit/channel-access.test.ts` (8) ·
+  `tests/integration/channel-access-boundary.test.ts` (6, worker + elle yanıt rotası, gerçek PG, kimlik modülü MOCK'SUZ) ·
+  `tests/integration/channel-access-auto-reply.test.ts` (2) · mutasyon 9/9 (yalnız davranış testleriyle de 9/9) · tsc · lint ·
+  tam suit 13.237 yeşil + 1 yapısal pin değişken adı (güncellendi) · build · zafiyet kapısı.
+- **Kalan (§2 YOL-PLANI-DURUM):** kanal dizesinden yetenek pini · org kolonu okuyucuları · webhook girişi · bağlantı sağlığı ·
+  ham platform · kapsamlı dış kimlik.

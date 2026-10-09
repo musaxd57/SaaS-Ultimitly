@@ -8,7 +8,7 @@
 > `docs/history/CLAUDE-2026-09-23-sadelestirme-2-oncesi-tam-metin.md`. Aşağıdaki maddeler oradan
 > damıtılmış KURALLARDIR; bir kuralı değiştirmeden önce arşivdeki gerekçesini oku.
 
-**V0 kalanları:** kolon contract'ı okuyucuları (backfill · token teşhisi · connect rotası · credentials kolon
+**V0 kalanları** (madde madde: `docs/YOL-PLANI-DURUM-2026-10-09.md` §2; V0.8 ✅ kimlik bilgisi + bağlantı durumu kanal katmanında, `channels/access.ts`): kolon contract'ı okuyucuları (backfill · token teşhisi · connect rotası · credentials kolon
 dalı) · webhook girişi (write service hazır) · bağlantı sağlığı sinyali · `toChannel` ham platform ·
 `Property.hospitableId` global unique (kapsamlı kimlik) · `api/hospitable/diagnostics`.
 `CHANNEL_CONNECTION_READ` DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ (prod'da DB token'lı org yok,
