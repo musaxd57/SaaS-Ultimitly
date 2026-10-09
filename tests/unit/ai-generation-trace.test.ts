@@ -1,10 +1,11 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db", () => ({ prisma: {} }));
+const create = vi.fn(async () => ({}));
+vi.mock("@/lib/db", () => ({ prisma: { aiGeneration: { create: (...a: unknown[]) => create(...(a as [])) } } }));
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn() }));
 
-import { aiGenerationRow, aiGenerationTraceEnabled, AI_GENERATION_TEXT_CAP, type AiGenerationInput } from "@/lib/ai/generation-trace";
+import { aiGenerationRow, aiGenerationTraceEnabled, recordAiGeneration, AI_GENERATION_TEXT_CAP, type AiGenerationInput } from "@/lib/ai/generation-trace";
 
 // ---------------------------------------------------------------------------
 // Üretim izi satır kurucusu (saf). Kapalı kümeler, sayaç sözleşmesi, metin kuralları; DB yok.
@@ -82,5 +83,27 @@ describe("anahtar", () => {
     expect(aiGenerationTraceEnabled()).toBe(false);
     vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
     expect(aiGenerationTraceEnabled()).toBe(true);
+  });
+});
+
+describe("recordAiGeneration — yazıcının KENDİ anahtar kontrolü (gelecek çağıranlar için güvence)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    create.mockClear();
+  });
+  it("🚨 anahtar kapalı → DB'ye dokunmaz (çağıran kontrolü unutsa da)", async () => {
+    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "");
+    await recordAiGeneration(base());
+    expect(create).not.toHaveBeenCalled();
+  });
+  it("KONTROL: anahtar açık → tek satır yazar", async () => {
+    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
+    await recordAiGeneration(base());
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+  it("🚨 DB arızası fırlatmaz", async () => {
+    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
+    create.mockRejectedValueOnce(new Error("db down"));
+    await expect(recordAiGeneration(base())).resolves.toBeUndefined();
   });
 });
