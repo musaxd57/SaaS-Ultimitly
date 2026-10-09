@@ -23,8 +23,8 @@ Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.
 |---|---|---|---|---|
 | a | Çekirdek kimlik bilgisini kendisi çözüyor (değişmez 1, 4/9, 20) | ✅ **V0.8** (`channels/access.ts`) — eskiden: | `automation.ts:164` (5 çağrı), `host-send.ts:7`, `outbox/worker.ts:10`, `reservations-cleanup.ts:5`, 6 panel sayfası `getConnectionInfo` | Hayır |
 | b | Mimari pin: çekirdekte sağlayıcı importu (20) | ✅ **V0.8**: bütün `src/` taranır, gerekçeli izin listesi (kalan: `scheduled-sync` yoklayıcı kaydı) | `tests/unit/core-channel-independence.test.ts` | Hayır |
-| c | Mimari pin: kanal dizesinden yetenek çıkarımı (20) | ❌ pin yok | `channels/capability.ts:35,46` tek kaynak ama pinsiz | Hayır |
-| d | Org kolonlarını okuyan son yerler (V0.7 contract ön koşulu) | 🟡 | `hospitable-token-diagnostics-core.ts:146-169`, `channels/connections.ts:218-241`, `scheduled-sync.ts:371,382`, `unverified-sweep.ts:169-216`, `demo-tenant/apply-core.ts:72-79`, `admin/page.tsx:35,151` | Kod hayır; DROP evet (operatör planı) |
+| c | Mimari pin: kanal dizesinden yetenek çıkarımı (20) | ✅ **V0.9** pin (mutasyon 2/2); çekirdekte ihlal yoktu | `channels/capability.ts:35,46` tek kaynak ama pinsiz | Hayır |
+| d | Org kolonlarını okuyan son yerler (V0.7 contract ön koşulu) | ⏸ BEKLİYOR: operatör planı Aşama 1–3 (canlıda bağlantı satırına geçiş + okuma anahtarı ≥2 hafta) önce gelir; Railway kapalı. Şimdi satır-tek-kaynağa almak satırı olmayan org'u kırar | `hospitable-token-diagnostics-core.ts:146-169`, `channels/connections.ts:218-241`, `scheduled-sync.ts:371,382`, `unverified-sweep.ts:169-216`, `demo-tenant/apply-core.ts:72-79`, `admin/page.tsx:35,151` | Kod hayır; DROP evet (operatör planı) |
 | e | Webhook girişi aynı yazma servisine (7) | ❌ rota yok | `api/webhooks/` yalnız `paddle` | Belki |
 | f | Bağlantı sağlığı sinyali (sağlayıcıdan bağımsız) (9) | 🟡 yalnız saklı durum | `hospitable-connect-card.tsx:120-126` | Belki |
 | g | Ham platform korunmuyor (`toChannel`) (2) | ❌ | `channels/hospitable-ingest.ts:43-50,106` | Evet |
@@ -35,7 +35,7 @@ Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.
 | Kapı | Durum |
 |---|---|
 | 1 Channel independence + boş Airbnb Direct sözleşmesi | 🟡 sözleşme ✅; §2 kalanları |
-| 2 Hospitable'sız Lixus | 🟡 daire / iCal / takvim / görev / dikkat paneli / senkron ÇALIŞIYOR. Eksik: başlangıç rehberinde iCal adımı yok, rehber tamamlanamaz (`dashboard/page.tsx:107-167`); bağlantısız hesapta "mesajları çek" düğmesi ölü (`inbox/page.tsx:248`); "bağlantı kurulunca daireleriniz otomatik gelir" metinleri (`dashboard:121`, `properties:76-79`); yapay zekâ günlük özeti 08-08'de bilerek kaldırıldı (`dashboard:211-228`) — talimatla çelişiyor, **kurucu kararı** |
+| 2 Hospitable'sız Lixus | ✅ 10-09 (kurucu kararı): rehberin ilk adımı "Rezervasyonlarınızı bağlayın" kanal YA DA takvim bağlantısıyla tamamlanır; bağlantısız hesapta "Mesajları çek" gizli. Yapay zekâ günlük özeti: **ŞİMDİLİK YOK** (kurucu 10-09; V8 Ask Lixus ile tasarlanır). Eski bulgu: başlangıç rehberinde iCal adımı yok, rehber tamamlanamaz (`dashboard/page.tsx:107-167`); bağlantısız hesapta "mesajları çek" düğmesi ölü (`inbox/page.tsx:248`); "bağlantı kurulunca daireleriniz otomatik gelir" metinleri (`dashboard:121`, `properties:76-79`); yapay zekâ günlük özeti 08-08'de bilerek kaldırıldı (`dashboard:211-228`) — talimatla çelişiyor, **kurucu kararı** |
 | 3 Güvenlik katmanı | 🟡 MFA, RBAC, denetim kaydı, şifreli sırlar, webhook imzası (Paddle), idempotency, hız sınırı, silme / dışa aktarma, yedek provası var; çeyreklik zafiyet taraması süreci ve güvenlik dosyası yazılmadı |
 | 4 Demo hesabı | 🟡 üretici kodda (`docs/DEMO-HESABI.md`), canlıya koşulmadı (Railway kapalı) |
 | 5 Gerçek kullanım kanıtı | ⛔ kurucu org Hospitable aboneliği 402, Railway kapalı |
@@ -61,8 +61,8 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 ## 5. Çalışma sırası (bu turdan itibaren)
 
 1. ✅ **V0.8** (10-09, `6a654f0`) — §2a + §2b: kimlik bilgisi ve bağlantı durumu kanal katmanına; çekirdek sağlayıcı modülü import etmez (pin bütün `src/`). Migration yok, davranış birebir.
-2. §2c pin · §2d kolon okuyucuları satır-tek-kaynağa (kod kısmı).
-3. Kapı 2 eksikleri: başlangıç rehberinde takvim (iCal) adımı, bağlantısız hesapta ölü düğme, yanıltıcı metinler (talimatın açık şartı; misafire giden mesaja dokunmaz).
+2. ✅ §2c pin (V0.9). ⏸ §2d operatör planına bağlı (↑).
+3. ✅ Kapı 2 eksikleri (10-09): başlangıç rehberinde takvim (iCal) adımı, bağlantısız hesapta ölü düğme, yanıltıcı metinler (talimatın açık şartı; misafire giden mesaja dokunmaz).
 4. §2e–h: migration / yeni giriş gerektirenler → tasarım + kurucu onayı.
 5. ④ Availability Engine → yapay zekâya araç sonucu olarak bağlanması (sözleşme + kırmızı-önce).
 6. Sonra V2 sonraki dilimleri ve §4.
