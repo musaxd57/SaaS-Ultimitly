@@ -2359,8 +2359,16 @@ export async function applyChannelAutoReply(
   // incelemesi 10-09: model metnini ayrıştırıp doğrulamak olumsuzlar / izin cümleleri / aralık dışı tarihlerle delinebiliyordu).
   // Yalnız TEK cevapsız mesajda ve en çok bir soru işaretinde (başka soruyu yanıtsız bırakmasın); TR / EN dışı dilde ev sahibine kalır.
   // Kapı bu metinle BAŞTAN koşar: birebir metin muafiyeti yalnız müsaitlik kontrolünedir, acil / şikâyet / injection / güven aynen.
-  if (!earlyCheckinSent && verifiedAvailabilityRun) {
-    const lang = verifiedAvailabilityLang(guestLanguage ?? result.detectedLanguage);
+  // Haiku tur 2: anlama katmanı mesajdaki BÜTÜN istekleri müsaitlik (ya da selam) görmeli — "15 Ekim müsait mi, wifi şifresi nedir"
+  // ikinci soruyu sessizce düşürmesin; dil KODLA belirlenmeli (modelin dil tahminine düşülmez); modelin kendi niyet etiketi riskli
+  // değilse (şikâyet / iade … etiketi kod metniyle ezilmesin).
+  const understoodOnlyAvailability =
+    !!understood &&
+    understood.requests.length > 0 &&
+    understood.requests.some((q) => q.intent === "availability") &&
+    understood.requests.every((q) => q.intent === "availability" || q.intent === "greeting_thanks");
+  if (!earlyCheckinSent && verifiedAvailabilityRun && understoodOnlyAvailability && !NEVER_AUTO_REPLY_INTENTS.has(result.intent)) {
+    const lang = verifiedAvailabilityLang(guestLanguage);
     const singleQuestion = pendingGuestMessages.length === 0 && (last.body.match(/\?/g)?.length ?? 0) <= 1 && last.body.length <= 300;
     const now = new Date();
     if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedAvailabilityRun.va, verifiedAvailabilityRun.scope, now)) {

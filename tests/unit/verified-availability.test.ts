@@ -49,7 +49,7 @@ function va(verdict: "available" | "unavailable", over: Partial<VerifiedAvailabi
 
 describe("availabilityQueryOf — misafirin sorduğu aralık", () => {
   it.each([
-    ["14-16 Ekim müsait mi?", { from: "2026-10-14", to: "2026-10-16" }],
+    ["14-16 Ekim müsait mi?", { from: "2026-10-14", to: "2026-10-16", explicitRange: true }],
     ["15 Ekim gecesi boş mu?", { from: "2026-10-15", to: "2026-10-16" }],
     ["Is Oct 20 available?", { from: "2026-10-20", to: "2026-10-21" }],
   ])("%s → %j", (text, q) => {
@@ -95,6 +95,11 @@ describe("verifiedAvailabilityText — koddan kurulan tek cümle", () => {
     expect(verifiedAvailabilityText(va("available"), "tr", "2026-10-09")).toBe("14 Ekim giriş, 16 Ekim çıkış için daire müsait.");
     expect(verifiedAvailabilityText(va("unavailable"), "tr", "2026-10-09")).toBe("Maalesef 14 Ekim giriş, 16 Ekim çıkış için daire müsait değil.");
     expect(verifiedAvailabilityText(va("available", {}, "2026-10-15", "2026-10-16"), "tr", "2026-10-09")).toBe("15 Ekim gecesi için daire müsait.");
+  });
+  it("iki tarihle sorulan TEK gece de giriş / çıkış diye açık yazılır (yorum görünsün)", () => {
+    const x = va("available", {}, "2026-10-15", "2026-10-16");
+    x.query.explicitRange = true;
+    expect(verifiedAvailabilityText(x, "tr", "2026-10-09")).toBe("15 Ekim giriş, 16 Ekim çıkış için daire müsait.");
   });
   it("EN", () => {
     expect(verifiedAvailabilityText(va("available"), "en", "2026-10-09")).toBe(

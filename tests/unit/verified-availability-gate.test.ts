@@ -47,6 +47,11 @@ describe("kapı muafiyeti — yalnız birebir kod metni", () => {
     expect(evaluateAvailability(CODE, [ASK], opts({ understanding: null, understandingFailed: true })).reason).not.toBeNull();
   });
 
+  it("🚨 anlama katmanı KOŞTU ama konaklama türü görmedi (havuz / otopark sorusu) → muaf DEĞİL", () => {
+    const none = { requested: false, kind: "none", checkinTime: null, checkoutTime: null } as never;
+    expect(evaluateAvailability(CODE, ["Havuz 15 Ekim'de boş mu?"], opts({ understanding: none })).reason).not.toBeNull();
+  });
+
   it("🚨 anlama katmanı başka tür (uzatma) görüyorsa muaf DEĞİL", () => {
     const extend = { requested: true, kind: "extend", checkinTime: null, checkoutTime: null } as never;
     expect(evaluateAvailability(CODE, [ASK], opts({ understanding: extend })).reason).not.toBeNull();

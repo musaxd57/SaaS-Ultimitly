@@ -1097,7 +1097,9 @@ export function evaluateAvailability(
   // DOĞRULANMIŞ MÜSAİTLİK (kurucu onayı 10-09): koddan kurulan metin (birebir) + saf müsaitlik sorusu + anlama katmanı koştu → muaf.
   if (opts.verifiedAvailability && reply === opts.verifiedAvailability.text) {
     const pure = kinds.size > 0 && [...kinds].every((k) => k === "availability");
-    const understandingRan = u === "req" || u === "none";
+    // Anlama katmanı KOŞMUŞ ve konaklama türünü AÇIKÇA "availability" görmüş olmalı (Haiku tur 2: "Havuz 15 Ekim'de boş mu?"
+    // kelime ağında müsaitlik sayılıyordu; katman "none" derken muafiyet daire cevabını gönderebiliyordu).
+    const understandingRan = u === "req" && opts.understanding?.kind === "availability";
     if (pure && understandingRan && g !== "failed") return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}v` } };
   }
 

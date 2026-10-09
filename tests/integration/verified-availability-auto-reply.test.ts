@@ -58,14 +58,14 @@ const verdict = {
   stayChange: { asked: "availability", stance: "states_calendar" },
 };
 
-function understandingFetch(kind: "availability" | "extend") {
+function understandingFetch(kind: "availability" | "extend" | "none", intents: string[] = [kind === "extend" ? "extend_stay" : "availability"], language = "tr") {
   return vi.fn(async (_url: string, init?: RequestInit) => {
     const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
     if (name !== "guest_message_understanding") throw new Error(`beklenmeyen şema: ${name}`);
     const v = {
-      language: "tr",
-      requests: [{ intent: kind === "extend" ? "extend_stay" : "availability", query_tr: "müsaitlik", query_original: "müsait" }],
-      stay_change: { requested: true, kind, checkin_time: null, checkout_time: null },
+      language,
+      requests: intents.map((intent) => ({ intent, query_tr: "soru", query_original: "soru" })),
+      stay_change: { requested: kind !== "none", kind, checkin_time: null, checkout_time: null },
     };
     return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
   });
@@ -184,5 +184,33 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
   it("🚨 mesajda iki soru varsa → gitmez (ikinci soru yanıtsız kalmasın)", async () => {
     const { conversationId } = await seed({ message: `${ASK} Otopark var mı?` });
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("🚨 YANLIŞ KONU: kelime ağı müsaitlik sayar ama anlama katmanı otopark sorusu görür → gitmez", async () => {
+    vi.stubGlobal("fetch", understandingFetch("none", ["parking"]));
+    const { conversationId } = await seed({ message: `Otopark ${human(D1)} ile ${human(D2)} arası müsait mi?` });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("🚨 İKİNCİ SORU (soru işaretsiz): anlama katmanı müsaitlik + wifi görür → gitmez", async () => {
+    vi.stubGlobal("fetch", understandingFetch("availability", ["availability", "wifi"]));
+    const { conversationId } = await seed({ message: `${human(D1)} ile ${human(D2)} arası müsait mi, wifi şifresi nedir` });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("🚨 modelin niyet etiketi riskli (şikâyet) → kod metni kullanılmaz", async () => {
+    mockSuggest.mockResolvedValue({ ...verdict, intent: "complaint" } as never);
+    const { conversationId } = await seed();
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("İngilizce misafir → İngilizce kod metni", async () => {
+    vi.stubGlobal("fetch", understandingFetch("availability", ["availability"], "en"));
+    mockSuggest.mockResolvedValue({ ...verdict, detectedLanguage: "en" } as never);
+    const EN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const en = (k: string) => `${Number(k.slice(8, 10))} ${EN_MONTHS[Number(k.slice(5, 7)) - 1]}${k.slice(0, 4) === TODAY.slice(0, 4) ? "" : ` ${k.slice(0, 4)}`}`;
+    const { conversationId } = await seed({ message: `Hello, is the apartment available from ${en(D1)} to ${en(D2)}?` });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expectCodeSent(`The apartment is available for check-in on ${en(D1)} and check-out on ${en(D2)}.`);
   });
 });

@@ -32,6 +32,8 @@ export interface AvailabilityQuery {
   from: NightKey;
   /** Yarı açık: çıkış günü (son gece = to − 1). */
   to: NightKey;
+  /** Misafir İKİ tarih yazdı (giriş + çıkış): tek gece olsa da metin giriş / çıkış diye açık yazar (yorum görünsün). */
+  explicitRange?: boolean;
 }
 
 export interface VerifiedAvailability {
@@ -47,7 +49,7 @@ export function availabilityQueryOf(text: string | null | undefined, ctx: DateRe
   const r = resolveGuestDates(text, ctx);
   if (r.status !== "resolved" || r.reasons.includes("past_date")) return null;
   if (r.dates.length === 1) return { from: r.dates[0], to: addNights(r.dates[0], 1) };
-  if (r.dates.length === 2 && r.dates[0] < r.dates[1]) return { from: r.dates[0], to: r.dates[1] };
+  if (r.dates.length === 2 && r.dates[0] < r.dates[1]) return { from: r.dates[0], to: r.dates[1], explicitRange: true };
   return null;
 }
 
@@ -88,7 +90,8 @@ export function verifiedAvailabilityText(va: VerifiedAvailability, lang: Verifie
   const v = va.result.value;
   if (!v || (v.verdict !== "available" && v.verdict !== "unavailable")) return null;
   const year = today.slice(0, 4);
-  const single = v.nights === 1;
+  // Tek gece ama misafir iki tarih yazdıysa ("15-16 Ekim") yorum açık yazılır: giriş 15, çıkış 16 (Haiku tur 2, E).
+  const single = v.nights === 1 && va.query.explicitRange !== true;
   if (lang === "tr") {
     const span = single
       ? `${dayLabel(va.query.from, TR_MONTHS, year)} gecesi için`
