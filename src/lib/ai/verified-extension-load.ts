@@ -24,8 +24,10 @@ export async function loadVerifiedExtension(input: {
   lastGuestText: string;
   reservation: { arrivalDate: Date; departureDate: Date; channel: string | null; status: string | null } | null;
   now?: Date;
+  /** Anahtarı çağıran belirler (QR kendi anahtarıyla — `AI_VERIFIED_QR_ENABLED`); verilmezse kanal anahtarı. */
+  enabled?: boolean;
 }): Promise<VerifiedAvailabilityContext | null> {
-  if (!verifiedExtensionEnabled()) return null;
+  if (!(input.enabled ?? verifiedExtensionEnabled())) return null;
   const r = input.reservation;
   // Metin "Airbnb uygulamasından değişiklik talebi" der → yalnız Airbnb rezervasyonu; doğrudan / diğer kanal ev sahibine.
   // Yalnız ONAYLI konaklama (Haiku 10-09: rezervasyon talebi "pending", erken çıkışla "completed" da geçiyordu).

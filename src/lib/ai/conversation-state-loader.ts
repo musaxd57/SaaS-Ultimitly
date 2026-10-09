@@ -33,7 +33,10 @@ export async function loadConversationState(input: {
   /** Verilirse YETKİLİ konuşma durumu (aşama, teslim edilen cevap, son cevaptan geçen süre) konuşmanın TAMAMINDAN eklenir. */
   conversationId?: string;
   timeZone?: string;
+  /** Zaman bağlamının "şimdi"si: cevaplanan misafir mesajının anı (yeniden işlenen turda işleme anı aralığı şişirmesin — Haiku 10-09). */
   now?: Date;
+  /** Henüz kaydedilmemiş, şu an cevaplanan misafir mesajı (QR). */
+  pendingGuestText?: string | null;
 }): Promise<ConversationStateSummary | undefined> {
   if (!conversationStateEnabled()) return undefined;
   try {
@@ -57,7 +60,7 @@ export async function loadConversationState(input: {
     ]);
     const summary = buildConversationState({ messages: input.messages, decisions, lifecycle });
     if (input.conversationId && input.timeZone) {
-      const phase = await loadConversationPhase(input.conversationId);
+      const phase = await loadConversationPhase(input.conversationId, input.pendingGuestText);
       if (phase) summary.phase = conversationPhaseFacts(phase, input.now ?? new Date(), input.timeZone);
     }
     return summary;
@@ -78,6 +81,8 @@ export async function loadConversationStateForConversation(input: {
    * kutusunda mesaj zaten kayıtlıdır → "son giden mesajdan sonraki misafir mesajı" üç yüzeyde aynı anlamı taşır.
    */
   pendingGuestMessage?: boolean;
+  /** Bekleyen mesajın METNİ (aşama / kapanış hükmüne katılır). */
+  pendingGuestText?: string | null;
   timeZone?: string;
 }): Promise<ConversationStateSummary | undefined> {
   if (!conversationStateEnabled()) return undefined;
@@ -98,6 +103,7 @@ export async function loadConversationStateForConversation(input: {
       reservationId: input.reservationId,
       conversationId: input.conversationId,
       timeZone: input.timeZone,
+      pendingGuestText: input.pendingGuestMessage ? input.pendingGuestText : null,
     });
   } catch {
     return undefined;

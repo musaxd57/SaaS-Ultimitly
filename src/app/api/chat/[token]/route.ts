@@ -759,6 +759,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     conversationId: priorConversationId,
     reservationId: res.id,
     pendingGuestMessage: true, // bu mesaj cevabıyla birlikte kaydedilir (↓recordGuestChatExchange)
+    pendingGuestText: message,
     timeZone: orgTimezone(org?.timezone),
   });
 

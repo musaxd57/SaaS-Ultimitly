@@ -184,3 +184,37 @@ describe("loadConversationState — YETKİLİ konuşma durumu (konuşma kimliği
     expect(summary?.phase).toBeUndefined();
   });
 });
+
+describe("loadConversationStateForConversation — QR: henüz kaydedilmemiş mesaj aşamaya katılır (Haiku 10-09)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("🚨 cevap → kaydedilmiş 'Teşekkürler' → BEKLEYEN 'Otoparkınız var mı?' → 'kapanışta' DEĞİL", async () => {
+    const s = await seedOrg("A");
+    await addMessage(s.conversationId, "inbound", "Kapı kodu?", 1);
+    await addMessage(s.conversationId, "outbound", "Kapı kodu kartta yazıyor.", 2, { senderName: "Ev sahibi", authorType: "host" });
+    await addMessage(s.conversationId, "inbound", "Teşekkürler", 3);
+    const pending = await loadConversationStateForConversation({
+      organizationId: s.orgId,
+      conversationId: s.conversationId,
+      reservationId: s.reservationId,
+      pendingGuestMessage: true,
+      pendingGuestText: "Otoparkınız var mı?",
+      timeZone: "Europe/Istanbul",
+    });
+    expect(pending?.phase?.phase).toBe("ongoing");
+    // KONTROL: bekleyen mesaj da teşekkürse kapanış.
+    const closing = await loadConversationStateForConversation({
+      organizationId: s.orgId,
+      conversationId: s.conversationId,
+      reservationId: s.reservationId,
+      pendingGuestMessage: true,
+      pendingGuestText: "Çok teşekkürler",
+      timeZone: "Europe/Istanbul",
+    });
+    expect(closing?.phase?.phase).toBe("closing");
+  });
+});

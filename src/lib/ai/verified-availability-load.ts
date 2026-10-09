@@ -28,8 +28,10 @@ export async function loadVerifiedAvailability(input: {
   lastGuestText: string;
   reservation: { arrivalDate: Date; departureDate: Date } | null;
   now?: Date;
+  /** Anahtarı çağıran belirler (QR kendi anahtarıyla — `AI_VERIFIED_QR_ENABLED`); verilmezse kanal anahtarı. */
+  enabled?: boolean;
 }): Promise<VerifiedAvailabilityContext | null> {
-  if (!verifiedAvailabilityEnabled()) return null;
+  if (!(input.enabled ?? verifiedAvailabilityEnabled())) return null;
   const kinds = new Set(input.guestTexts.flatMap((t) => detectAvailabilityRequestKinds(t)));
   if (kinds.size !== 1 || !kinds.has("availability")) return null;
   const now = input.now ?? new Date();

@@ -316,12 +316,12 @@ function durationTr(minutes: number): string {
   return `${Math.floor(minutes / (24 * 60))} gün`;
 }
 
-/** "Konuşma aşaması: devam ediyor · misafire teslim edilmiş cevap: 3 · son cevaptan bu yana 2 gün (yeni oturum)." */
+/**
+ * "Konuşma aşaması (konuşmanın tamamından): devam ediyor · son cevaptan bu yana 2 gün (yeni oturum — uzun sessizlik)." Teslim edilen cevap
+ * SAYISI yazılmaz (Haiku 10-09: selam kuralı otomatik karşılamayı sayar, bloğun "giden mesaj" satırı saymaz → aynı blokta iki çelişen sayı).
+ */
 export function phaseLineTr(f: ConversationPhaseFacts): string {
-  const parts = [
-    `Konuşma aşaması (konuşmanın tamamından): ${f.phase === "first_contact" ? "ilk temas" : PHASE_TR[f.phase]}`,
-    `misafire teslim edilmiş cevap: ${f.deliveredReplyCount}`,
-  ];
+  const parts = [`Konuşma aşaması (konuşmanın tamamından): ${f.phase === "first_contact" ? "ilk temas" : PHASE_TR[f.phase]}`];
   if (f.sinceLastReply) {
     const g = f.sinceLastReply;
     parts.push(`son cevaptan bu yana ${durationTr(g.elapsedMinutes)}${g.newSession ? " (yeni oturum — uzun sessizlik)" : ""}`);

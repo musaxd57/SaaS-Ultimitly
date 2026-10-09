@@ -318,7 +318,8 @@ describe("konuşma aşaması satırı", () => {
 
   it("devam + teslim edilen cevap + son cevaptan geçen süre + yeni oturum", () => {
     const line = phaseLineTr({ phase: "ongoing", deliveredReplyCount: 3, sinceLastReply: { elapsedMinutes: 2 * 24 * 60 + 5, calendarDaysApart: 2, newSession: true } });
-    expect(line).toBe("Konuşma aşaması (konuşmanın tamamından): devam ediyor · misafire teslim edilmiş cevap: 3 · son cevaptan bu yana 2 gün (yeni oturum — uzun sessizlik).");
+    expect(line).toBe("Konuşma aşaması (konuşmanın tamamından): devam ediyor · son cevaptan bu yana 2 gün (yeni oturum — uzun sessizlik).");
+    expect(line).not.toContain("3"); // teslim edilen cevap SAYISI yazılmaz (bloğun "giden mesaj" sayısıyla çelişmesin)
   });
 
   it("süre biçimi: dakika / saat / gün; yeni oturum yoksa ek yok", () => {

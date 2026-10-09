@@ -167,6 +167,9 @@ export function qrAvailabilityPolicy(
     understanding?: UnderstandingStaySignal | null;
     understandingFailed?: boolean;
     kbFacts?: readonly string[] | null;
+    /** Doğrulanmış müsaitlik / uzatma KOD metni (QR anahtarı `AI_VERIFIED_QR_ENABLED`); muafiyet şartları `availability-claims.ts`. */
+    verifiedAvailability?: { text: string } | null;
+    verifiedExtension?: { text: string } | null;
   },
 ): AvailabilityPolicyOptions {
   return {
@@ -180,6 +183,8 @@ export function qrAvailabilityPolicy(
     stayTimes: stayCtx?.stayTimes ?? null,
     // Modelin gördüğü bilgi tabanı (24 EK): yazılı sabit otopark yeri tahsisi takvim iddiası sayılmaz — kanal kapısıyla parite.
     kbFacts: stayCtx?.kbFacts ?? null,
+    verifiedAvailability: stayCtx?.verifiedAvailability ?? null,
+    verifiedExtension: stayCtx?.verifiedExtension ?? null,
   };
 }
 
@@ -244,6 +249,9 @@ export function evaluateEscalation(
     hazardCleared?: boolean;
     /** Kalkan etiket olası fiziksel tehlikedendi → acil değil ama şikâyet olarak sayılır (`contextLabels`). */
     hazardClearedAsIssue?: boolean;
+    /** Doğrulanmış müsaitlik / uzatma KOD metni (QR anahtarı `AI_VERIFIED_QR_ENABLED`); yalnız birebir metne ve bütün şartlarla muaf. */
+    verifiedAvailability?: { text: string } | null;
+    verifiedExtension?: { text: string } | null;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });

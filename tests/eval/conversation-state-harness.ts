@@ -237,17 +237,18 @@ export function decisionsOf(s: CusScenario, thread: readonly ThreadMessage[]): S
   return out;
 }
 
-/** Selam kuralı (`PRIOR_OPERATOR_REPLY_WHERE`): giden + sistem olayı değil + gövdesi boş değil. */
 /**
  * Yetkili konuşma durumu olguları (talimat 09-07 §6) — ürünün SAF türeticisinden (`deriveConversationPhase` + `conversationPhaseFacts`),
  * yükleyicinin veritabanında yaptığı sayımın senaryo karşılığı: teslim edilen cevap = sistem olayı / gövdesiz olmayan giden mesaj; kapanış
  * ön şartı `closableAfter`; son cevap anı = son giden mesajın zamanı.
  */
-export function phaseFactsOf(thread: readonly ThreadMessage[], times: readonly Date[], now: Date): ConversationPhaseFacts {
+export function phaseFactsOf(thread: readonly ThreadMessage[], times: readonly Date[], now: Date, lifecycleSent = 0): ConversationPhaseFacts {
   const delivered = thread.map((m, i) => ({ m, i })).filter(({ m }) => m.direction === "outbound" && !m.systemEventType && m.body !== "");
   const lastReply = delivered.length > 0 ? times[delivered[delivered.length - 1].i] : null;
   const state = deriveConversationPhase({
-    deliveredReplyCount: delivered.length,
+    // Üründe otomatik bilgilendirme (karşılama / giriş / çıkış) bir Message satırıdır ve selam sayımına girer; ölçerde damga → aynı sayı
+    // (Haiku 10-09: yalnız karşılama gitmiş sohbet üründe "devam", ölçerde "ilk temas" çıkıyordu). Son cevap anına girmez (cevap değil).
+    deliveredReplyCount: delivered.length + lifecycleSent,
     unansweredGuestTexts: unansweredOf(thread),
     closable: closableAfter(thread as readonly ClosingThreadMessage[]),
     lastInteractionAt: times[times.length - 1] ?? null,
@@ -256,6 +257,7 @@ export function phaseFactsOf(thread: readonly ThreadMessage[], times: readonly D
   return conversationPhaseFacts(state, now, CUS_TZ);
 }
 
+/** Selam kuralı (`PRIOR_OPERATOR_REPLY_WHERE`): giden + sistem olayı değil + gövdesi boş değil. */
 export function isFirstOperatorReply(thread: readonly ThreadMessage[]): boolean {
   return !thread.some((m) => m.direction === "outbound" && !m.systemEventType && m.body !== "");
 }
@@ -394,7 +396,7 @@ export async function runScenario(data: CusDataset, s: CusScenario, arm: Arm, ru
               },
             }),
             // Yükleyici konuşma kimliğiyle çağrıldığında eklenen YETKİLİ durum (aşama, teslim edilen cevap, son cevaptan geçen süre).
-            phase: phaseFactsOf(thread, times, now),
+            phase: phaseFactsOf(thread, times, now, lc.size),
           }
         : undefined;
     const input: SuggestReplyInput = {

@@ -51,7 +51,11 @@ function before(row: { createdAt: Date; id: string }) {
  * Sınırlı / indeksli sorgular; cevapsız misafir mesajı en çok `PHASE_UNANSWERED_SCAN` + 1 okunur. Asla fırlatmaz → null.
  * Henüz isteme BAĞLANMADI (talimat: doğrulanmadan etkinleştirilmez; bağlama = kör eval + kurucu onayı).
  */
-export async function loadConversationPhase(conversationId: string): Promise<ConversationPhaseState | null> {
+export async function loadConversationPhase(
+  conversationId: string,
+  /** Henüz kaydedilmemiş, şu an cevaplanan misafir mesajı (QR: mesaj cevabıyla birlikte yazılır) — cevapsızlara ve kapanış hükmüne katılır. */
+  pendingGuestText?: string | null,
+): Promise<ConversationPhaseState | null> {
   try {
     const excluded = await undeliveredOutboundIds(conversationId);
     const delivered = deliveredReplyWhere(conversationId, excluded);
@@ -81,16 +85,19 @@ export async function loadConversationPhase(conversationId: string): Promise<Con
         : null,
     ]);
     // Kapanış ön şartı (`closing-turn.ts` ile AYNI yüklem): misafir yazdı → cevap → cevapsızlar.
+    // Henüz kaydedilmemiş mesaj (QR) sona eklenir (Haiku 10-09: yoksa "Otoparkınız var mı?" bekleyen bir teşekkürün ardından "kapanışta"
+    // görünüyordu — QR kapanış kapısı ise mesajı zaten sayıyor).
+    const unansweredTexts = [...unanswered.map((m) => m.body), ...(pendingGuestText ? [pendingGuestText] : [])];
     const closable = lastConversationalReply
       ? closableAfter([
           ...(guestBeforeReply ? [{ direction: "inbound", senderName: "", body: "-" }] : []),
           lastConversationalReply,
-          ...unanswered.map((m) => ({ direction: "inbound", senderName: "", body: m.body })),
+          ...unansweredTexts.map((body) => ({ direction: "inbound", senderName: "", body })),
         ])
       : false;
     return deriveConversationPhase({
       deliveredReplyCount,
-      unansweredGuestTexts: unanswered.map((m) => m.body),
+      unansweredGuestTexts: unansweredTexts,
       closable,
       lastInteractionAt: lastInteraction?.createdAt ?? null,
       lastReplyAt: lastConversationalReply?.createdAt ?? null,

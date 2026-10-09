@@ -718,6 +718,8 @@ export interface GuestChatContext {
     arrivalDate: Date;
     departureDate: Date;
     status: string;
+    /** Kanal etiketi — YALNIZ doğrulanmış uzatmanın Channel Layer kararına girdi (`guestChangeRequestPath`); yanıta konmaz. */
+    channel?: string | null;
   } | null;
   /** Active KB items with secret-bearing categories removed. */
   /**
@@ -1172,6 +1174,7 @@ export async function resolveGuestChat(
       arrivalDate: true,
       departureDate: true,
       status: true,
+      channel: true,
       chatPinHash: true,
       sourceReference: true,
     },
@@ -1247,6 +1250,7 @@ export async function resolveGuestChat(
         arrivalDate: activeRow.arrivalDate,
         departureDate: activeRow.departureDate,
         status: activeRow.status,
+        channel: activeRow.channel ?? null,
       }
     : null;
 

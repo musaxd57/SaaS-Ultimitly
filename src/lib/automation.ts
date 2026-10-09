@@ -167,6 +167,7 @@ import { getAdjacency } from "@/lib/turnover";
 import { loadVerifiedAvailability } from "@/lib/ai/verified-availability-load";
 import { verifiedAvailabilityLang, verifiedAvailabilityText, verifiedAvailabilityUsable } from "@/lib/ai/verified-availability";
 import { verifiedExtensionText } from "@/lib/ai/verified-extension";
+import { codeBuiltResult } from "@/lib/ai/code-built-result";
 import { loadVerifiedExtension } from "@/lib/ai/verified-extension-load";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { parseSupplyProfile, buildSupplyChecklist } from "@/lib/supply";
@@ -2042,6 +2043,8 @@ export async function applyChannelAutoReply(
     reservationId: conversation.reservation?.id ?? null,
     conversationId: conversation.id,
     timeZone: orgTimezone(org.timezone),
+    // Zaman bağlamı cevaplanan misafir mesajının anından (yeniden işlenen tur aralığı şişirmesin — Haiku 10-09).
+    now: last.createdAt,
   });
 
   // ── KONUŞMA ÖĞELERİ (09-26, kurucu kararları; `docs/TASARIM-2026-09-26-konusma-ogeleri.md`) ─────────────────────
@@ -3669,18 +3672,8 @@ async function settleSentTurnItems(input: {
 export function verifiedEarlyCheckinResult<
   T extends { reply: string; intent: string; usedSources: string[]; claimedActions?: ClaimedActionsDeclaration },
 >(result: T, text: string): T {
-  // Kaynak sayımı modelin ATILAN taslağına aitti: koddan kurulan metin için ölçülmedi (NULL, 0 değil — A2 sözleşmesi).
-  return {
-    ...result,
-    reply: text,
-    intent: "early_checkin",
-    usedSources: [],
-    claimAudit: undefined,
-    sourceAudit: undefined,
-    // Eylem beyanı da atılan taslağındı: koddan kurulan, doğrulanmış metin makbuzsuz eylem iddia etmez (MÇ §4 — `[]`).
-    // Beyan istenmediyse (bayrak kapalı) alan eklenmez: kapı ve kanıt bugünküyle birebir.
-    ...(result.claimedActions !== undefined ? { claimedActions: { status: "declared" as const, actions: [] } } : {}),
-  };
+  // Tek kural `ai/code-built-result.ts` (QR da kullanır): kaynak sayımı / iddia desteği / eylem beyanı atılan taslağındı.
+  return codeBuiltResult(result, text, "early_checkin");
 }
 
 /** Otomatik onaydan sonra host'un iş listesine not (en iyi çaba; ücret tutarı YOK — görevi temizlik de görür). */
