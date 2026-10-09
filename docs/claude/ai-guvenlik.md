@@ -362,3 +362,17 @@
   eklerken diller arası çakışma + veri pini + desteklenmeyen dil bataryası koşulur.
 - Üslup: duygu beyanı/temenni/çelişki/dolgu-soru yasak; "siz"; ben-dili. Injection kara listesi yapısal olarak
   yetersiz; asıl koruma sır elemesi + source==openai (yapısal sınıflandırıcı ayrı tur).
+
+## 🚨 DOĞRULANMIŞ MÜSAİTLİK OTOMATİK CEVABI (kurucu onayı 10-09: "doğrulanınca otomatik gitsin"; anahtar `AI_VERIFIED_AVAILABILITY_ENABLED`, tam "1", VARSAYILAN KAPALI)
+- Misafire giden metin MODELİN DEĞİL, KODDAN kurulan tek cümledir (`ai/verified-availability.ts`): "14 Ekim giriş, 16 Ekim çıkış için daire
+  müsait." / "Maalesef … müsait değil." (TR / EN; başka dil → ev sahibi). İlk sürüm model metnini ayrıştırıyordu; Haiku güvenlik incelemesi beş
+  P1 açık buldu (olumsuz yön, izin cümlesi, tarihsiz / aralık dışı iddia, çıkış gecesi, İngilizce eylem sözü) → model metni yolu KALDIRILDI.
+- Şartların HEPSİ: kelime ağı tek tür "availability" · son mesajdan tek aralık (tarih çözücü `resolved`, 1–2 gün, geçmiş değil) · müsaitlik
+  aracı `ok` + kapsam + birebir aralık + en çok 2 dk · "müsait" = bütün geceler boş, "müsait değil" = bütün geceler dolu (kısmen dolu → ev
+  sahibi) · anlama katmanı KOŞTU, konaklama türü "availability" ve mesajdaki BÜTÜN istekler müsaitlik / selam · misafirin dili KODLA belirli
+  (`guestTurnLanguage`; modelin tahminine düşülmez) · modelin niyet etiketi `NEVER_AUTO_REPLY_INTENTS` dışında · tek cevapsız mesaj, en çok bir
+  soru işareti, ≤300 karakter · bekçi düşmemiş. Kapı muafiyeti YALNIZ bu metne BİREBİR eşit cevaba (`availability-claims.ts`, kanıtta `lx`
+  içinde `v`); acil / şikâyet / injection / çıktı vetosu / güven AYNEN koşar.
+- Bilinen sınır: kalıcı kuyruk (`DURABLE_OUTBOX_ENABLED`, kapalı) yolunda gönderim anında yaş yeniden denetlenmez. QR yolu bağlanmadı.
+- Kanıt: birim 43 · entegrasyon 13 (gerçek PG: gider / anahtar kapalı / dolu / kısmen dolu / bayat / uzatma / anlama kapalı / iki soru / yanlış
+  konu / ikinci soru / riskli niyet / İngilizce / dili belirsiz) · mutasyon 21/21 (iki Haiku turu).

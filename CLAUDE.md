@@ -153,6 +153,7 @@ Bu dosyaya token/anahtar/parola yazma.
 - Görünmez karakter = `\p{Default_Ignorable_Code_Point}` + `\p{Cf}` + U+2800
 - QR bağlamı:
 - QR misafir rotası:
+- 🚨 DOĞRULANMIŞ MÜSAİTLİK (10-09, anahtar KAPALI; `ai/verified-availability.ts`): yalnız KOD metni + bütün şartlar — tam metin `docs/claude/ai-guvenlik.md` sonu.
 - 🚨 "BİLGİM YOK" MİSAFİRE ASLA GİTMEZ (kurucu kuralı 09-11, `ai/absence.ts`):
 - Çıktı vetosu / makbuzsuz iddia:
 - Konuşma kuralları:

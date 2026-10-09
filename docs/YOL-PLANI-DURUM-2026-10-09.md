@@ -75,10 +75,16 @@ Kurucu kararı bekleyen: yapay zekâ günlük özeti (08-08 kaldırma kararı �
 sözleşmesi + müsaitlik aracı · tarih çözümü · kaydırma testi · kurucu 8 senaryo seti · Airbnb dosyası taslağı · migration 60 tasarımı.
 Her orta / büyük değişiklik Haiku incelemesinden geçti (5 tur; bulguların çoğu kabul, gerekçeli retler commit mesajlarında).
 
-**Kurucu kararı bekleyen (talimatın kalanı bunlara bağlı):**
-1. Migration paketi 60 (A–E) + §D-1 (iz metni saklansın mı) — `docs/TASARIM-2026-10-09-migration-paketi-60.md`.
-2. Müsaitlik aracı + tarih çözümünün yapay zekâ cevabına bağlanması (misafire giden cevabı değiştirir; önce / sonra örnekli öneri).
-3. `founder-initial-8` ücretli taban koşusu (cevap modeli + anlama katmanı, 8 senaryo × 2 kol).
+**Kurucu kararları (10-09 akşam):** (1) migration 60 TAMAMI hazırlanacak, iz metni mesajlarla aynı saklamayla (push = taze yedek + onay) ·
+(2) müsaitlik "doğrulanınca otomatik gitsin" → ✅ UYGULANDI (anahtar kapalı; kod metni, iki Haiku turu — `docs/claude/ai-guvenlik.md` sonu) ·
+(3) 8 senaryo koşuldu: Luna `low` (cevap + anlama) ve 5.1 ikisi de sızıntı 0 / yanlış susturma 0; belirsiz müsaitlikte yalnız Luna (durum
+açık) tek hedefli soru sordu (`docs/olcum/founder-initial-8-eval-2026-10-09-*`). Kurucu: "anlama katmanını Luna'ya geçir" → env:
+`AI_UNDERSTANDING_MODEL=gpt-6-luna` + `AI_UNDERSTANDING_REASONING_EFFORT=low` (sıralayıcı `AI_SEMANTIC_MODEL=gpt-5.1`'de kalır).
+
+**Önceki liste (karar sonrası durum):**
+1. Migration paketi 60 → hazırlanıyor (ayrı yerel dal; push onayla).
+2. ✅ Doğrulanmış müsaitlik (kanal; QR sonraki dilim).
+3. ✅ `founder-initial-8` taban koşusu.
 4. `conversationState` `phase` / `lastInteractionAt` alanlarının isteme girmesi (kör eval ister).
 5. Haftalık zafiyet taraması için varsayılan dalın (`main`) güncel tutulması.
 6. Müsaitlik motorunda `claimBasis` kaynak tazeliğine bakmıyor → panel çakışma önemi bayat kaynakta da "kesin 97"; araç katmanı düzeltildi,
