@@ -58,8 +58,11 @@ describe("açık tarih", () => {
     expect(x.alternatives).toEqual(["2027-03-04", "2027-04-03"]);
   });
 
-  it("noktalı TR biçimi gün önce: 14.10 → 14 Ekim", () => {
-    expect(r("14.10'da çıkış").dates).toEqual(["2026-10-14"]);
+  it("🚨 noktalı YILSIZ biçim saat de olabilir (14.10 = 14:10) → BELİRSİZ, seçenek 14 Ekim (inceleme 10-09 tur 4)", () => {
+    expect(r("14.10'da çıkış")).toMatchObject({ status: "ambiguous", alternatives: ["2026-10-14"], reasons: ["dotted_time_or_date"] });
+  });
+  it("KONTROL: yıllı noktalı biçim kesin (14.10.2026)", () => {
+    expect(r("14.10.2026'da çıkış")).toMatchObject({ status: "resolved", dates: ["2026-10-14"] });
   });
 
   it("31 Şubat yok → tarih değil", () => {
@@ -240,5 +243,26 @@ describe("inceleme 10-09 — geçmiş, öncelik, konuşma ayı (#13, #14, #15)",
   });
   it("tavan GERÇEKTEN uygulanır: 4.000 karakterden sonraki tarih okunmaz", () => {
     expect(r(`${"a ".repeat(2_100)} 15 Ekim`).status).toBe("none");
+  });
+});
+
+describe("inceleme 10-09 tur 4", () => {
+  it("🚨 '9.10'da gelirim' kesin tarih DEĞİL", () => {
+    expect(r("9.10'da gelirim").status).not.toBe("resolved");
+  });
+  it.each(["1.10 indirim var mı", "2.50 fark", "10.12 ücret"])("%s → para bağlamı, tarih yok", (text) => {
+    expect(r(text).status).toBe("none");
+  });
+  it.each(["the 2nd car", "the 3rd key", "the 1st parking spot"])("%s → tarih yok", (text) => {
+    expect(r(text).status).toBe("none");
+  });
+  it("🚨 'yarın cuma' (yarın Cumartesi) → belirsiz", () => {
+    expect(r("yarın cuma")).toMatchObject({ status: "ambiguous", reasons: expect.arrayContaining(["weekday_mismatch"]) });
+  });
+  it("🚨 'cuma yarın' de belirsiz (sözcük sırası çelişkiyi gizlemez)", () => {
+    expect(r("cuma yarın")).toMatchObject({ status: "ambiguous", reasons: expect.arrayContaining(["weekday_mismatch"]) });
+  });
+  it("KONTROL: tutarlı 'yarın cumartesi' → tek gün", () => {
+    expect(r("yarın cumartesi")).toMatchObject({ status: "resolved", dates: ["2026-10-10"] });
   });
 });

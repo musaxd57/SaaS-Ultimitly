@@ -34,14 +34,14 @@ export interface VerifiedToolResult<T> {
 }
 
 /**
- * Bu sonuç misafire KESİN bilgi olarak söylenebilir mi? Kural: yalnız `ok` (+ değer var). Beklenen kapsam verilirse sonuç
- * O kiracı ve O mülk için üretilmiş olmalı (inceleme 10-09: B mülkünün sonucu A mülkü hakkındaki cevaba dayanak olamaz).
+ * Bu sonuç misafire KESİN bilgi olarak söylenebilir mi? Kural: yalnız `ok` (+ değer var) VE sonuç ZORUNLU beklenen kapsam
+ * (kiracı + mülk) için üretilmiş olmalı (tur 4: isteğe bağlı kapsam kapsamsız çağrıya izin veriyordu) (inceleme 10-09: B mülkünün sonucu A mülkü hakkındaki cevaba dayanak olamaz).
  */
 export function mayStateAsFact(
   r: Pick<VerifiedToolResult<unknown>, "status" | "value"> & Partial<Pick<VerifiedToolResult<unknown>, "scope">>,
-  expected?: { organizationId: string; propertyId: string | null },
+  expected: { organizationId: string; propertyId: string | null },
 ): boolean {
   if (r.status !== "ok" || r.value === null) return false;
-  if (expected && (r.scope?.organizationId !== expected.organizationId || r.scope?.propertyId !== expected.propertyId)) return false;
+  if (r.scope?.organizationId !== expected.organizationId || r.scope?.propertyId !== expected.propertyId) return false;
   return true;
 }

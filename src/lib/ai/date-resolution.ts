@@ -92,9 +92,9 @@ const RE_MONTH_DAY = new RegExp(`\\b(${MONTH_ALT})\\.? (\\d{1,2})${ORD}\\b(?:(?:
 const RE_MONTH_GEN_DAY = new RegExp(`\\b(${MONTH_ALT})['’]?n?[iu]n (\\d{1,2})\\b`, "g");
 const RE_DAY_ONLY_TR = new RegExp(`\\bayin (\\d{1,2})${SUFFIX}(?:( ?[-–] ?| (?:ile|ve|ila) | )(\\d{1,2})(['’][a-z]{1,6})?)?`, "g");
 const RE_DAY_ORDINAL_TR = /\b(\d{1,2})['’](?:n?[iu]nde|s[iu]nde)\b/g;
-const RE_DAY_ONLY_EN = /\bthe (\d{1,2})(?:st|nd|rd|th)\b(?: (?:and|or|to|-) (?:the )?(\d{1,2})(?:st|nd|rd|th)?)?( [a-z]+)?/g;
+const RE_DAY_ONLY_EN = /\bthe (\d{1,2})(?:st|nd|rd|th)\b(?: (?:and|or|to|-) (?:the )?(\d{1,2})(?:st|nd|rd|th)?)?/g;
 /** "the 1st floor": sıra sayısından sonra gelen bu sözcükler tarihi değil BAŞKA bir şeyi sayar. */
-const EN_ORDINAL_NOUNS = new Set(["floor", "time", "person", "people", "guest", "guests", "night", "nights", "room", "bedroom", "stop", "exit", "door", "day", "week", "one", "place", "row", "level", "building", "entrance"]);
+const EN_ORDINAL_NOUNS = new Set(["floor", "time", "person", "people", "guest", "guests", "night", "nights", "room", "bedroom", "stop", "exit", "door", "day", "week", "one", "place", "row", "level", "building", "entrance", "car", "cars", "key", "keys", "parking", "spot", "bag", "bags", "bed", "beds", "bathroom", "flat", "apartment", "unit", "option", "photo", "house"]);
 const RE_RELATIVE: readonly [RegExp, number][] = [
   [/\b(?:obur gun|yarindan sonra|day after tomorrow)\b/g, 2],
   [/\b(?:yarin|tomorrow)\b/g, 1],
@@ -102,17 +102,19 @@ const RE_RELATIVE: readonly [RegExp, number][] = [
 ];
 const RE_WEEKEND = /\b(?:(bu|this|gelecek|haftaya|onumuzdeki|next) )?(hafta sonu|weekend)\b/g;
 const RE_WEEKDAY = new RegExp(
-  `\\b(?:(bu|this|gelecek|haftaya|onumuzdeki|next|bir sonraki)(?: (hafta(?:nin)?|week(?:'s)?))? )?(${WEEKDAY_ALT})\\b( gunu)?( [a-z]+)?`,
+  `\\b(?:(bu|this|gelecek|haftaya|onumuzdeki|next|bir sonraki)(?: (hafta(?:nin)?|week(?:'s)?))? )?(${WEEKDAY_ALT})\\b( gunu)?`,
   "g",
 );
-/** Hafta günü adından sonra gelince gün DEĞİL: "cuma namazı", "salı pazarı". */
-const WEEKDAY_NOT_A_DAY_NEXT = /^ (?:namaz[a-z]*|pazar[a-z]*)$/;
+/** Hafta günü adından sonra gelince gün DEĞİL: "cuma namazı", "salı pazarı". Sonraki sözcük EŞLEŞMEYE KATILMAZ (tur 4: "cuma yarın"
+ *  "yarın"ı yutup göreli günle çakışmayı gizliyordu) — eşleşmenin ardındaki metne bakılır. */
+const WEEKDAY_NOT_A_DAY_NEXT = /^ (?:namaz|pazar)/;
+const NEXT_WORD = /^ ([a-z]+)/;
 const NEXT_WEEK_PREFIXES = new Set(["gelecek", "haftaya", "next", "bir sonraki"]);
 const RE_RES_ARRIVAL = /\b(?:giris gunu|varis gunu|check-?in day|arrival day)\b/g;
 const RE_RES_DEPARTURE = /\b(?:cikis gunu|check-?out day|departure day)\b/g;
 /** Yılsız sayısal biçimin önünde / ardında bunlar varsa saat, para ya da puandır. */
 const NUMERIC_TIME_BEFORE = /saat ?$/;
-const NUMERIC_NOT_DATE_AFTER = /^ ?(?:tl|lira|try|eur|euro|usd|dolar|puan|hizmet|[$€])/;
+const NUMERIC_NOT_DATE_AFTER = /^ ?(?:tl|lira|try|eur|euro|usd|dolar|puan|hizmet|indirim|fark|ucret|fiyat|kdv|[$€])/;
 
 type PieceKind = "explicit" | "relative" | "weekday" | "weekend" | "reservation" | "day_only";
 
@@ -260,6 +262,12 @@ export function resolveGuestDates(text: string | null | undefined, ctx: DateReso
       if (NUMERIC_TIME_BEFORE.test(t.slice(Math.max(0, i - 6), i)) || NUMERIC_NOT_DATE_AFTER.test(t.slice(i + m[0].length, i + m[0].length + 8))) continue;
     }
     const dayFirst = dayMonthPiece(today, b, a, year);
+    // 🚨 Noktalı YILSIZ biçim saat de olabilir ("9.10'da gelirim", "14.10'da" = 14:10; inceleme 10-09 tur 4): tarih SEÇENEĞİ, karar değil.
+    if (year === null && m[2] === "." && dayFirst) {
+      take(m);
+      pieces.push({ kind: "explicit", dates: [], alternatives: dayFirst.dates, basis: "explicit_day_month", confidence: "low", assumed: ["year"], reasons: ["dotted_time_or_date"], ambiguous: true });
+      continue;
+    }
     const monthFirst = m[2] === "/" && a !== b && a <= 12 && b <= 12 ? dayMonthPiece(today, a, b, year) : null;
     if (dayFirst && monthFirst) {
       take(m);
@@ -287,7 +295,8 @@ export function resolveGuestDates(text: string | null | undefined, ctx: DateReso
   }
   for (const m of t.matchAll(RE_DAY_ONLY_EN)) {
     if (!free(m)) continue;
-    if (m[3] && EN_ORDINAL_NOUNS.has(m[3].trim())) continue; // "the 1st floor"
+    const nextWord = NEXT_WORD.exec(t.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 16))?.[1];
+    if (nextWord && EN_ORDINAL_NOUNS.has(nextWord)) continue; // "the 1st floor"
     push(m, ...[m[1], m[2]].filter(Boolean).map((d) => dayOnlyPiece(today, Number(d), convMonth)));
   }
   for (const [re, offset] of RE_RELATIVE) {
@@ -309,7 +318,7 @@ export function resolveGuestDates(text: string | null | undefined, ctx: DateReso
     const prefix = m[1] ?? null;
     const weekWord = m[2] ?? null;
     const name = m[3];
-    if (m[5] && WEEKDAY_NOT_A_DAY_NEXT.test(m[5])) continue; // "cuma namazı", "salı pazarı"
+    if (WEEKDAY_NOT_A_DAY_NEXT.test(t.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 10))) continue; // "cuma namazı", "salı pazarı"
     // "pazar" aynı zamanda "çarşı / pazar yeri": yalnız önek ya da "günü" ile gün sayılır.
     if (name === "pazar" && !prefix && !m[4]) continue;
     const dow = WEEKDAYS[name];
@@ -336,18 +345,20 @@ export function resolveGuestDates(text: string | null | undefined, ctx: DateReso
     }
   }
 
-  // ── Tutarlılık (inceleme 10-09 #8, #14): açık tarihle çelişen hafta günü / göreli gün BELİRSİZDİR; tutarlıysa tekrarı düşer.
+  // ── Tutarlılık (inceleme 10-09 #8, #14, tur 4): açık tarihle çelişen göreli gün; açık tarih YA DA göreli günle çelişen hafta günü
+  // BELİRSİZDİR ("15 Ekim Cuma", "yarın, 15 Ekim", "yarın cuma"); tutarlıysa tekrarı düşer.
   const explicitDates = new Set(pieces.filter((p) => (p.kind === "explicit" || p.kind === "day_only") && !p.ambiguous).flatMap((p) => p.dates));
   if (explicitDates.size > 0) {
-    const consistentDow = (dow: number) => [...explicitDates].some((k) => dowOf(k) === dow);
     pieces = pieces.flatMap((p): Piece[] => {
-      if (p.kind === "weekday" && !p.ambiguous && p.dow !== undefined) {
-        return consistentDow(p.dow) ? [] : [{ ...p, dates: [], ambiguous: true, confidence: "low", reasons: ["weekday_mismatch"] }];
-      }
-      if (p.kind === "relative") {
-        return explicitDates.has(p.dates[0]) ? [] : [{ ...p, alternatives: p.dates, dates: [], ambiguous: true, confidence: "low", reasons: ["conflicting_dates"] }];
-      }
-      return [p];
+      if (p.kind !== "relative") return [p];
+      return explicitDates.has(p.dates[0]) ? [] : [{ ...p, alternatives: p.dates, dates: [], ambiguous: true, confidence: "low", reasons: ["conflicting_dates"] }];
+    });
+  }
+  const anchors = new Set([...explicitDates, ...pieces.filter((p) => p.kind === "relative" && !p.ambiguous).flatMap((p) => p.dates)]);
+  if (anchors.size > 0) {
+    pieces = pieces.flatMap((p): Piece[] => {
+      if (p.kind !== "weekday" || p.ambiguous || p.dow === undefined) return [p];
+      return [...anchors].some((k) => dowOf(k) === p.dow) ? [] : [{ ...p, dates: [], ambiguous: true, confidence: "low", reasons: ["weekday_mismatch"] }];
     });
   }
 

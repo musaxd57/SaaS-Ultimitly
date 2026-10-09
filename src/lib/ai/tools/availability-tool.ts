@@ -90,7 +90,16 @@ export function availabilityToolResult(
   const allSourcesFresh = a.sources.every((src) => src.state === "fresh");
   const definite = a.certainty === "verified" && a.verdict !== "unknown" && (a.verdict === "available" || hostBlocked || allSourcesFresh);
   if (definite) {
-    return { ...base, status: "ok", value, reasons: a.conflicts.length > 0 ? ["conflict_present"] : [] };
+    const reasons = a.conflicts.length > 0 ? ["conflict_present"] : [];
+    // Karar ev sahibinin girişiyle kesin ama bir kaynak bayat (tur 4): besleme kaynaklı geceler DOĞRULANMAMIŞTIR — sayıları kesin
+    // "dolu" gösterilmez, "bilinmiyor"a geçer (karar yine kesin: en az bir gece ev sahibinin kendi girişiyle kapalı).
+    if (a.verdict === "unavailable" && !allSourcesFresh) {
+      const hostNights = a.nights.filter((n) => (n.state === "booked" || n.state === "held") && n.claims.some((c) => c.basis === "host_asserted")).length;
+      value.unknownNights += value.blockedNights - hostNights;
+      value.blockedNights = hostNights;
+      reasons.push("night_counts_partially_unverified");
+    }
+    return { ...base, status: "ok", value, reasons };
   }
   if (a.verdict === "unavailable" && a.certainty === "verified") {
     return { ...base, status: "stale", value, reasons: ["claim_from_stale_source"] };

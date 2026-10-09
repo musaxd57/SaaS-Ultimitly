@@ -47,7 +47,7 @@ describe("müsaitlik aracı — durum eşlemesi", () => {
     const r = run(input());
     expect(r).toMatchObject({ tool: AVAILABILITY_TOOL, status: "ok", scope: { organizationId: "org-A", propertyId: "p1" } });
     expect(r.value).toMatchObject({ verdict: "available", certainty: "verified", nights: 2, freeNights: 2, blockedNights: 0 });
-    expect(mayStateAsFact(r)).toBe(true);
+    expect(mayStateAsFact(r, r.scope)).toBe(true);
   });
 
   it("host'un kendi girişi geceyi kapatıyor → ok / unavailable", () => {
@@ -60,7 +60,7 @@ describe("müsaitlik aracı — durum eşlemesi", () => {
     const r = run(input({ sources: [feed({ lastSuccessAt: new Date(NOW.getTime() - 10 * H) })] }));
     expect(r.status).toBe("stale");
     expect(r.reasons).toContain("source_stale");
-    expect(mayStateAsFact(r)).toBe(false);
+    expect(mayStateAsFact(r, r.scope)).toBe(false);
   });
 
   it("🚨 hiç kaynak yok → uncertain (kayıt yokluğu boşluk kanıtı değildir)", () => {
@@ -68,7 +68,7 @@ describe("müsaitlik aracı — durum eşlemesi", () => {
     expect(r.status).toBe("uncertain");
     expect(r.reasons).toContain("no_coverage_sources");
     expect(r.value?.verdict).toBe("unknown");
-    expect(mayStateAsFact(r)).toBe(false);
+    expect(mayStateAsFact(r, r.scope)).toBe(false);
   });
 
   it("🚨 kaynak hatası → uncertain", () => {
@@ -82,7 +82,7 @@ describe("müsaitlik aracı — durum eşlemesi", () => {
     const r = run(input({ reservations: [ghost] }));
     expect(r.value).toMatchObject({ verdict: "unavailable", certainty: "unverified" });
     expect(r.status).toBe("uncertain");
-    expect(mayStateAsFact(r)).toBe(false);
+    expect(mayStateAsFact(r, r.scope)).toBe(false);
   });
 
   it("geçersiz aralık → invalid_request, değer yok", () => {
@@ -93,7 +93,7 @@ describe("müsaitlik aracı — durum eşlemesi", () => {
   it("🚨 mülk bu kiracıda yok → not_found, değer yok (asla 'müsait' değil)", () => {
     const r = availabilityToolResult("org-B", "p1", { kind: "property_not_found" }, { from: "2026-10-20", to: "2026-10-22" }, NOW);
     expect(r).toMatchObject({ status: "not_found", value: null, scope: { organizationId: "org-B", propertyId: "p1" } });
-    expect(mayStateAsFact(r)).toBe(false);
+    expect(mayStateAsFact(r, r.scope)).toBe(false);
   });
 
   it("değer PII / iç kimlik taşımaz (kapalı alan kümesi)", () => {
@@ -118,7 +118,7 @@ describe("inceleme 10-09 (Haiku) — ek vakalar", () => {
     const x = run(input({ sources: [stale], reservations: [feedStay("2026-10-19", "2026-10-23")] }));
     expect(x.value?.verdict).toBe("unavailable");
     expect(x.status).toBe("stale");
-    expect(mayStateAsFact(x)).toBe(false);
+    expect(mayStateAsFact(x, x.scope)).toBe(false);
   });
 
   it("KONTROL: kaynak bayat olsa da ev sahibinin KENDİ girişi kesin 'dolu'dur → ok", () => {
@@ -130,6 +130,16 @@ describe("inceleme 10-09 (Haiku) — ek vakalar", () => {
     const fresh = feed({ lastSuccessAt: new Date(NOW.getTime() - H) });
     const stay = { ...feedStay("2026-10-19", "2026-10-23"), feedLastSeenAt: new Date(NOW.getTime() - H) };
     expect(run(input({ sources: [fresh], reservations: [stay] }))).toMatchObject({ status: "ok", value: { verdict: "unavailable" } });
+  });
+
+  it("🚨 ev sahibi gecesi + BAYAT besleme gecesi: karar kesin 'dolu' ama besleme geceleri doğrulanmamış sayılır (tur 4)", () => {
+    const stale = feed({ lastSuccessAt: new Date(NOW.getTime() - 10 * H) });
+    const hostNight = hostStay("2026-10-19", "2026-10-20");
+    const feedNights = { ...feedStay("2026-10-20", "2026-10-22"), id: "res-2" };
+    const x = availabilityToolResult("org-A", "p1", { kind: "loaded", input: input({ sources: [stale], reservations: [hostNight, feedNights] }) }, { from: "2026-10-19", to: "2026-10-22" }, NOW);
+    expect(x.status).toBe("ok");
+    expect(x.value).toMatchObject({ verdict: "unavailable", blockedNights: 1, unknownNights: 2 });
+    expect(x.reasons).toContain("night_counts_partially_unverified");
   });
 
   it("çakışma varsa gerekçede conflict_present", () => {
@@ -165,9 +175,9 @@ describe("inceleme 10-09 (Haiku) — ek vakalar", () => {
 
 describe("mayStateAsFact — tek kural: yalnız ok", () => {
   it.each(TOOL_STATUSES)("%s", (status) => {
-    expect(mayStateAsFact({ status, value: {} })).toBe(status === "ok");
+    expect(mayStateAsFact({ status, value: {}, scope: { organizationId: "o", propertyId: "p" } }, { organizationId: "o", propertyId: "p" })).toBe(status === "ok");
   });
   it("ok ama değer yok → söylenemez", () => {
-    expect(mayStateAsFact({ status: "ok", value: null })).toBe(false);
+    expect(mayStateAsFact({ status: "ok", value: null, scope: { organizationId: "o", propertyId: "p" } }, { organizationId: "o", propertyId: "p" })).toBe(false);
   });
 });
