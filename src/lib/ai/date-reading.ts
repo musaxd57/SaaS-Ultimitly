@@ -62,9 +62,15 @@ function days(keys: readonly NightKey[]): string {
   return keys.map(formatDayTr).join(" · ");
 }
 
-/** Tek mesajın olgu cümlesi; tarih yoksa null. */
+/**
+ * Tek mesajın olgu cümlesi; tarih yoksa null. Belirsizliğin TEK nedeni gece yarısından sonra yazılmış "yarın" ise satır YAZILMAZ
+ * (ölçüm 10-10, `docs/olcum/LUNA-GECIS-2026-10-10.md`): "belirsiz" etiketi, rezervasyonun zaten netleştirdiği durumlarda da (giriş /
+ * çıkış bugün) modele gereksiz soru sordurdu; o durumu istemin "yazıldığı an" ipucu ve model rezervasyonla çözer. Doğrulanmış
+ * müsaitlik / uzatma AYNI belirsizlikte sorgu yapmaz (orada temkin doğru — `date-resolution.ts`).
+ */
 function factOf(r: DateResolution): string | null {
   if (r.status === "none") return null;
+  if (r.status === "ambiguous" && r.dates.length === 0 && r.reasons.every((c) => c === "after_midnight_relative")) return null;
   const notes = r.reasons.map((c) => REASON_TR[c]).filter((x): x is string => typeof x === "string");
   const assumed = r.assumed.includes("year") ? ["yıl varsayıldı"] : [];
   const tail = [...assumed, ...notes];

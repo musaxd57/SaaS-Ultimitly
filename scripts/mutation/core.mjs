@@ -59,19 +59,48 @@ export function applyMutant(src, oldText, newText) {
  */
 const VITEST_INVOCATION = /(?:^|[\s(/;&|])vitest(?:\.mjs)?(?=[\s)'"]|$)/;
 
+/**
+ * DEĞERLENDİRME (eval) koşuları PG 5433'e DOKUNMAZ (`vitest.eval.config.ts`: globalSetup yok — CLAUDE.md "tam suit ile paralel
+ * koşabilir") → mutasyonla da paralel koşabilir (10-10: saatler süren model ölçümleri her mutasyon koşusunu bekletiyordu). Ana süreç
+ * başlığı `node (vitest…)` yapılandırmayı GÖSTERMEZ → süreç ağacında EN YAKIN vitest ÇAĞRISINA bakılır (`ps -eo pid,ppid,args`); yalnız
+ * o çağrı eval yapılandırmasını taşıyorsa sayılmaz. Ebeveyn bilgisi yoksa (eski biçim) ya da ata zinciri kopuksa (yetim ana süreç —
+ * bitince yeni koşunun PG'sini kapatan tür) başlık satırı SAYILIR (temkinli). İki komutu birlikte taşıyan kabuk kendi satırında eval
+ * sayılsa bile veritabanlı çocuğu kendi en yakın çağrısıyla yakalanır.
+ */
+const EVAL_CONFIG = /\bvitest\.eval\.config\.[cm]?[jt]s\b/;
+const TITLE_ONLY = /^node \(vitest[^)]*\)$/;
+
 export function concurrentVitest(psOutput, selfPids = []) {
   const skip = new Set(selfPids.map(String));
-  return String(psOutput)
+  const lines = String(psOutput)
     .split("\n")
     .map((l) => l.trim())
-    .filter(Boolean)
-    .filter((l) => {
-      const m = /^(\d+)\s+(.*)$/.exec(l);
-      if (!m || skip.has(m[1])) return false;
-      const args = m[2];
-      if (/\bmutation-run\.mjs\b/.test(args) || /^(?:grep|ps)\b/.test(args)) return false;
-      return VITEST_INVOCATION.test(args);
-    });
+    .filter(Boolean);
+  const withPpid = /\bPPID\b/.test(lines[0] ?? "");
+  const rows = [];
+  for (const l of lines) {
+    const m = withPpid ? /^(\d+)\s+(\d+)\s+(.*)$/.exec(l) : /^(\d+)\s+(.*)$/.exec(l);
+    if (m) rows.push(withPpid ? { pid: m[1], ppid: m[2], args: m[3] } : { pid: m[1], ppid: null, args: m[2] });
+  }
+  const byPid = new Map(rows.map((r) => [r.pid, r]));
+  /** Satırın kendisi ya da en yakın atası olan vitest ÇAĞRISI (başlık satırı değil); bulunamazsa null. */
+  const invocationOf = (r) => {
+    let cur = r;
+    for (let depth = 0; cur && depth < 32; depth++) {
+      if (!TITLE_ONLY.test(cur.args) && VITEST_INVOCATION.test(cur.args)) return cur.args;
+      cur = cur.ppid !== null ? byPid.get(cur.ppid) : undefined;
+    }
+    return null;
+  };
+  return rows
+    .filter((r) => {
+      if (skip.has(r.pid)) return false;
+      if (/\bmutation-run\.mjs\b/.test(r.args) || /^(?:grep|ps)\b/.test(r.args)) return false;
+      if (!VITEST_INVOCATION.test(r.args)) return false;
+      const invocation = invocationOf(r);
+      return !(invocation !== null && EVAL_CONFIG.test(invocation));
+    })
+    .map((r) => `${r.pid} ${r.args}`);
 }
 
 /**

@@ -25,11 +25,28 @@ describe("tarih okuması — satırlar", () => {
     ]);
   });
 
-  it("🚨 gece yarısından sonra yazılan 'yarın' → belirsiz, iki seçenek + sabit gerekçe", () => {
-    const [line] = dateReadingLines({ messages: [{ text: "Yarın erken girebilir miyiz?", at: AFTER_MIDNIGHT }], now: NOW, timeZone: TZ });
-    expect(line).toBe(
-      '- Misafir mesajı (yazıldığı an: bugün 00:40): belirsiz — olası günler: 10.10.2026 Cumartesi · 11.10.2026 Pazar (gece yarısından sonra yazılmış "yarın" — bir önceki günü de kastedebilir).',
+  it("🚨 belirsizliğin TEK nedeni gece yarısı 'yarın'ı ise satır YAZILMAZ (ölçüm 10-10: rezervasyonun netleştirdiği durumda gereksiz soru)", () => {
+    expect(dateReadingLines({ messages: [{ text: "Yarın erken girebilir miyiz?", at: AFTER_MIDNIGHT }], now: NOW, timeZone: TZ })).toEqual([]);
+  });
+
+  it("gece yarısı 'yarın'ı başka bir belirsizlikle / açık tarihle birlikteyse satır yazılır (sabit gerekçesiyle)", () => {
+    const [conflict] = dateReadingLines({ messages: [{ text: "Yarın, 15 Ekim'de erken girebilir miyiz?", at: AFTER_MIDNIGHT }], now: NOW, timeZone: TZ });
+    expect(conflict).toBe(
+      '- Misafir mesajı (yazıldığı an: bugün 00:40): kesin: 15.10.2026 Perşembe; belirsiz — olası günler: 10.10.2026 Cumartesi · 11.10.2026 Pazar (yıl varsayıldı; gece yarısından sonra yazılmış "yarın" — bir önceki günü de kastedebilir; yazılan günler birbiriyle çelişiyor).',
     );
+  });
+
+  it("gece yarısı 'yarın'ı + çelişen hafta günü (tarih yok) ya da kesin bir rezervasyon günüyle birlikte → satır yazılır", () => {
+    const [weekday] = dateReadingLines({ messages: [{ text: "Yarın cuma erken girebilir miyiz?", at: AFTER_MIDNIGHT }], now: NOW, timeZone: TZ });
+    expect(weekday).toContain("belirsiz — olası günler: 10.10.2026 Cumartesi · 11.10.2026 Pazar");
+    expect(weekday).toContain("hafta günü tarihle uyuşmuyor");
+    const [withArrival] = dateReadingLines({
+      messages: [{ text: "Giriş günü yarın mı?", at: AFTER_MIDNIGHT }],
+      now: NOW,
+      timeZone: TZ,
+      reservation: { arrival: "2026-10-10", departure: "2026-10-13" },
+    });
+    expect(withArrival).toContain("kesin: 10.10.2026 Cumartesi; belirsiz — olası günler:");
   });
 
   it("aysız gün → belirsiz; önceki misafir mesajındaki açık tarih AY bilgisini verir", () => {
@@ -134,6 +151,16 @@ describe("tarih okuması — cevap istemi", () => {
     expect(user.match(/- Misafir mesajı/g)).toHaveLength(2);
     expect(user).toContain("(yazıldığı an: dün 22:10): 10.10.2026 Cumartesi.");
     expect(user).toContain("(yazıldığı an: bugün 09:00): 11.10.2026 Pazar.");
+  });
+
+  it("rezervasyon günleri okunur ('giriş günü'); İPTAL edilmiş rezervasyonun günleri verilmez", () => {
+    vi.stubEnv("AI_DATE_RESOLUTION_ENABLED", "1");
+    const reservation = { guestName: "Misafir", status: "confirmed", arrivalDate: new Date("2026-10-14T00:00:00Z"), departureDate: new Date("2026-10-17T00:00:00Z") };
+    const ask = "Giriş günü erken gelebilir miyiz?";
+    const confirmed = userOf(input({ guestMessage: ask, history: [], guestMessageAt: NOW, reservation }));
+    expect(confirmed).toContain("(yazıldığı an: bugün 09:00): 14.10.2026 Çarşamba.");
+    const cancelled = userOf(input({ guestMessage: ask, history: [], guestMessageAt: NOW, reservation: { ...reservation, status: "cancelled" } }));
+    expect(cancelled).toContain("belirsiz (rezervasyon günü bilinmiyor)");
   });
 
   it("anahtar yalnız '1' ile açılır", () => {

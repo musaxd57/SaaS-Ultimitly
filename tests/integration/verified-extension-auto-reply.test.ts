@@ -97,7 +97,15 @@ function understandingFetch(kind: "extend" | "availability" | "early_checkin" | 
 }
 
 async function seed(
-  opts: { message?: string; feedAgeHours?: number; nextGuest?: "manual" | "airbnb"; channel?: string; departure?: string; status?: string } = {},
+  opts: {
+    message?: string;
+    feedAgeHours?: number;
+    nextGuest?: "manual" | "airbnb";
+    channel?: string;
+    departure?: string;
+    status?: string;
+    writtenAt?: Date;
+  } = {},
 ) {
   const org = await prisma.organization.create({
     data: { name: "Uzatma Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: TZ },
@@ -145,7 +153,15 @@ async function seed(
       status: "new",
       externalReservationId: "res-ext-1",
       lastMessageAt: new Date(),
-      messages: { create: { direction: "inbound", senderName: "Ayşe Yılmaz", authorType: "guest", body: opts.message ?? ASK } },
+      messages: {
+        create: {
+          direction: "inbound",
+          senderName: "Ayşe Yılmaz",
+          authorType: "guest",
+          body: opts.message ?? ASK,
+          ...(opts.writtenAt ? { createdAt: opts.writtenAt } : {}),
+        },
+      },
     },
   });
   return { conversationId: conversation.id };
@@ -184,6 +200,13 @@ describe("doğrulanmış uzatma otomatik cevabı — koddan kurulan metin", () =
     const r = await applyChannelAutoReply(conversationId);
     expect(r.sent).toBe(true);
     expectCodeSent(CODE_AVAILABLE);
+  });
+
+  it("🚨 'yarın' mesajın YAZILDIĞI güne göre (10-10, F14): çıkışı bugün olan misafirin dün 22:00'de yazdığı 'Yarın bir gece daha' → bu gece", async () => {
+    const writtenAt = new Date(`${addNights(TODAY, -1)}T22:00:00+03:00`); // dün 22:00 İstanbul
+    const { conversationId } = await seed({ departure: TODAY, message: "Yarın bir gece daha kalabilir miyiz?", writtenAt });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expectCodeSent(`${human(TODAY)} gecesi daire müsait. ${TAIL}`);
   });
 
   it("KONTROL: anahtar KAPALI → hiçbir şey gitmez (bugünkü davranış: uzatma ev sahibine)", async () => {

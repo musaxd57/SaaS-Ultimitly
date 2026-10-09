@@ -69,6 +69,46 @@ describe("eşzamanlı vitest (PG 5433 paylaşılıyor)", () => {
     expect(concurrentVitest(run, []).map((l) => l.split(" ")[0])).toEqual(["601", "602", "603", "604"]);
   });
 
+  // 10-10: eval koşuları PG 5433'e dokunmaz → sayılmaz; ana sürecin başlığı yapılandırmayı göstermediği için en yakın ÇAĞRIYA bakılır.
+  const TREE = [
+    "    PID    PPID COMMAND",
+    "     10       1 /bin/bash -c source snap.sh && eval 'npx vitest run --config vitest.eval.config.ts tests/eval/a.eval.test.ts > a.log' < /dev/null",
+    "     11      10 timeout 5400 npx vitest run --config vitest.eval.config.ts tests/eval/a.eval.test.ts",
+    "     12      11 npm exec vitest run --config vitest.eval.config.ts tests/eval/a.eval.test.ts",
+    "     13      12 sh -c vitest run --config vitest.eval.config.ts tests/eval/a.eval.test.ts",
+    "     14      13 node (vitest)",
+    "     15      14 node (vitest 1)",
+  ];
+  const DB_TREE = [
+    "     20       1 /bin/bash -c source snap.sh && eval 'timeout 3000 npx vitest run > full.log' < /dev/null",
+    "     21      20 timeout 3000 npx vitest run",
+    "     22      21 npm exec vitest run",
+    "     23      22 sh -c vitest run",
+    "     24      23 node (vitest)",
+    "     25      24 node (vitest 2)",
+  ];
+
+  it("🚨 eval yapılandırmasıyla başlamış bütün ağaç SAYILMAZ (ana süreç başlığı dahil); veritabanlı ağaç sayılır", () => {
+    expect(concurrentVitest(TREE.join("\n"), [])).toEqual([]);
+    expect(concurrentVitest([...TREE, ...DB_TREE].join("\n"), []).map((l) => l.split(" ")[0])).toEqual(["20", "21", "22", "23", "24", "25"]);
+  });
+
+  it("🚨 iki komutu birlikte taşıyan kabuk: kabuk satırı eval sayılsa da veritabanlı çocukları YAKALANIR", () => {
+    const mixed = [
+      "    PID    PPID COMMAND",
+      "     30       1 /bin/bash -c eval 'timeout 3000 npx vitest run; npx vitest run --config vitest.eval.config.ts tests/eval/a.eval.test.ts'",
+      "     31      30 timeout 3000 npx vitest run",
+      "     32      31 node (vitest)",
+    ].join("\n");
+    expect(concurrentVitest(mixed, []).map((l) => l.split(" ")[0])).toEqual(["31", "32"]);
+  });
+
+  it("🚨 yetim ana süreç (atası yok) ve ebeveyn sütunu olmayan eski biçim TEMKİNLE sayılır", () => {
+    const orphan = ["    PID    PPID COMMAND", "     40       1 node (vitest)", "      1       0 /sbin/init"].join("\n");
+    expect(concurrentVitest(orphan, [])).toEqual(["40 node (vitest)"]);
+    expect(concurrentVitest("  PID ARGS\n  41 node (vitest)", [])).toEqual(["41 node (vitest)"]);
+  });
+
   it("🚨 yalnız ADI geçen kabuk vitest DEĞİLDİR (09-24: yapılandırma dosyasını arayan bir grep iki koşuyu durdurdu)", () => {
     const mention = [
       "  PID ARGS",

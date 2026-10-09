@@ -41,7 +41,8 @@ const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
 /** Kendimiz dışında çalışan vitest süreçleri (varsa yazdırılır). */
 function concurrentOthers() {
-  const ps = spawnSync("ps", ["-eo", "pid,args"], { encoding: "utf8" }).stdout ?? "";
+  // Ebeveyn sütunu: eval yapılandırmasıyla başlamış (veritabanı kullanmayan) koşular süreç ağacından ayırt edilir (`concurrentVitest`).
+  const ps = spawnSync("ps", ["-eo", "pid,ppid,args"], { encoding: "utf8" }).stdout ?? "";
   const others = concurrentVitest(ps, [process.pid, process.ppid]);
   if (others.length > 0) console.error(`BAŞKA BİR vitest ÇALIŞIYOR (PG 5433 paylaşılıyor) — koşu durdu:\n${others.join("\n")}`);
   return others;
