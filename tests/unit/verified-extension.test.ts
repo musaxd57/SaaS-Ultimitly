@@ -185,6 +185,11 @@ describe("isOwnExtensionRequest — misafirin KENDİ uzatma isteği şekli", () 
     "Can my friend stay one more night?",
     "We can't stay one more night",
     "Is another night possible?",
+    // İstek kalıbına UYAN ama erken / üçüncü kişi taşıyan (mutasyon F2 / F3: kalıba uymayan örnekler bu kontrolleri sınamıyordu):
+    "Bir gün erken gelip bir gece daha kalabilir miyiz?",
+    "Can we stay one more night earlier?",
+    "Arkadaşım için bir gece daha kalabilir miyiz?",
+    "Could we stay one more night for my friend?",
   ])("✗ %s", (t) => {
     expect(isOwnExtensionRequest(t)).toBe(false);
   });
