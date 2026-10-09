@@ -40,7 +40,7 @@ export function deriveConversationPhase(input: {
   const capped = input.unansweredGuestTexts.length > PHASE_UNANSWERED_SCAN;
   const texts = input.unansweredGuestTexts.slice(0, PHASE_UNANSWERED_SCAN);
   const phase: ConversationPhase =
-    delivered === 0 ? "first_contact" : !capped && texts.length > 0 && lexicalClosingOnly(texts) ? "closing" : "ongoing";
+    delivered === 0 ? "first_contact" : !capped && lexicalClosingOnly(texts) ? "closing" : "ongoing"; // boş liste kapanış değil (yüklem en az bir mesaj ister)
   return {
     phase,
     hasPriorDeliveredReply: delivered > 0,
