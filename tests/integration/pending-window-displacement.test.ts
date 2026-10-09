@@ -37,12 +37,14 @@ const mockSend = vi.mocked(sendOnChannel);
 const DAY = 86_400_000;
 
 const REFUND = "İade istiyorum, ödediğim parayı geri istiyorum.";
-const HARMLESS = (i: number) => `Bir sorum daha var (${i}): otopark var mı?`;
+const HARMLESS = (i: number) => (i % 2 === 0 ? "Wifi şifresi nedir?" : "Wifi şifresini tekrar yazar mısınız?");
 
 const benignVerdict = {
-  intent: "parking",
+  intent: "wifi",
   confidence: 0.95,
-  reply: "Otopark bilgisi için ev sahibimiz size dönüş yapacak.",
+  // Bilinen GİDEN cevap (cancelled-stay-auto-send KONTROL vakası): söz / erteleme cümlesi taşımaz — kontrolün geçmesi
+  // ölçülen tek değişkenin iade mesajı olduğunu garanti eder.
+  reply: "Wifi şifresi giriş kapısının yanındaki kartta yazıyor.",
   risk: null,
   priority: "standard" as const,
   source: "openai" as const,
