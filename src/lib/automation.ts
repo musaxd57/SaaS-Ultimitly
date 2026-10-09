@@ -75,7 +75,8 @@ import {
 import { recordAutomatedSend, settleAutomatedSend, type AutomatedSendKind } from "@/lib/automated-sends";
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
-import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
+import { classifyMessage, replyCallParams, replyPromptVersion, suggestReply, summarizeHostStyle } from "@/lib/ai";
+import { aiGenerationTraceEnabled, recordAiGeneration } from "@/lib/ai/generation-trace";
 import { isCurrentStyleProfile, markStyleProfile } from "@/lib/ai/style-profile";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
@@ -2098,6 +2099,7 @@ export async function applyChannelAutoReply(
         return null;
       });
 
+  const replyStartedAt = Date.now();
   let result = await suggestReply({
     guestMessage: last.body,
     property: {
@@ -2164,6 +2166,7 @@ export async function applyChannelAutoReply(
     adjacency,
     lateCheckoutOfferText: org.lateCheckoutOfferText,
   });
+  const replyLatencyMs = Date.now() - replyStartedAt;
 
   // Safety gate: only auto-send safe, confident replies (cross-checked against
   // the guest's own words, so a mislabelled complaint/refund never slips through).
@@ -2529,6 +2532,37 @@ export async function applyChannelAutoReply(
     }),
   };
 
+  // ── YAPAY ZEKÂ ÜRETİM İZİ (migration 60; `AI_GENERATION_TRACE_ENABLED` VARSAYILAN KAPALI) ─────────────────────────────────
+  // Kararın TEK kayıt noktası: RiskEvent'i yazar, ardından AYNI karar + gerekçe + kanıtla iz satırını (kurucu kalite konsolu).
+  // İz müşteriye giden hiçbir şeyi değiştirmez ve asla fırlatmaz. Model hiç çağrılmadıysa (yedek cevap) iz YOK — üretim yok.
+  // `result` çağrı ANINDA okunur (doğrulanmış erken giriş / müsaitlik kod metni sonucu değiştirmiş olabilir).
+  const recordDecision = async (ev: RiskEventInput, sentText: string | null = null): Promise<void> => {
+    await recordRiskEvent(ev);
+    if (options.dryRun || !aiGenerationTraceEnabled() || (result.source !== "openai" && !result.llmUsage)) return;
+    // Bağımsız güvence: girdinin KURULUMU da (istem sürümü, model adı) karar yolunu asla kırmaz.
+    try {
+      await recordAiGeneration({
+        organizationId: ev.organizationId,
+        propertyId: conversation.propertyId,
+        reservationId: conversation.reservationId ?? null,
+        conversationId: conversation.id,
+        triggerMessageId: last.id,
+        surface: "channel_auto",
+        model: replyCallParams().model,
+        promptVersion: replyPromptVersion(),
+        decision: ev.finalDecision,
+        gateReason: ev.reason ?? null,
+        kbEvidenceJson: groundingAudited.kbEvidenceJson,
+        latencyMs: replyLatencyMs,
+        llm: result.llmUsage ?? null,
+        draftText: result.reply,
+        sentText,
+      });
+    } catch (err) {
+      void reportError(`ai-generation-trace org=${ev.organizationId}`, err);
+    }
+  };
+
   // If the guest stated their own departure time, record it on the reservation
   // so the dashboard can show it (falling back to the property default). Guarded
   // and best-effort — never blocks the reply. Skipped on dryRun so a PREVIEW
@@ -2711,7 +2745,7 @@ export async function applyChannelAutoReply(
         result.riskLevel,
         result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
       );
-      await recordRiskEvent({
+      await recordDecision({
         organizationId: conversation.property.organizationId,
         propertyId: conversation.propertyId,
         conversationId: conversation.id,
@@ -2920,7 +2954,7 @@ export async function applyChannelAutoReply(
           err,
         );
       }
-      await recordRiskEvent({
+      await recordDecision({
         organizationId: conversation.property.organizationId,
         propertyId: conversation.propertyId,
         conversationId: conversation.id,
@@ -2959,7 +2993,7 @@ export async function applyChannelAutoReply(
         result.riskLevel,
         result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
       );
-      await recordRiskEvent({
+      await recordDecision({
         organizationId: conversation.property.organizationId,
         propertyId: conversation.propertyId,
         conversationId: conversation.id,
@@ -3138,23 +3172,26 @@ export async function applyChannelAutoReply(
     // yani satır içi yolun semantiğiyle BİREBİR: "önce mesaj gider, SONRA AI susar".
     // Teslimat başarısızsa hold hiç kurulmaz — bilinçli: misafir devir mesajını
     // almadıysa AI'yı susturmak yanlış olur.
-    await recordRiskEvent({
-      organizationId: conversation.property.organizationId,
-      propertyId: conversation.propertyId,
-      conversationId: conversation.id,
-      surface: "auto_reply",
-      triggerId: last.id,
-      finalDecision: "auto_sent",
-      riskLevel: result.riskLevel,
-      riskType: result.riskType,
-      // Kuyruklu teslimde doğrulanmış erken giriş onayı OTOMATİK gitmez (`queued_delivery`): burada yalnız kapıyı
-      // geçen model cevabı kuyruğa girer.
-      reason: earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
-      confidence: result.confidence,
-      ...groundingAudited,
-      srcDeclared: result.sourceAudit?.declared ?? null,
-      srcVerified: result.sourceAudit?.verified ?? null,
-    });
+    await recordDecision(
+      {
+        organizationId: conversation.property.organizationId,
+        propertyId: conversation.propertyId,
+        conversationId: conversation.id,
+        surface: "auto_reply",
+        triggerId: last.id,
+        finalDecision: "auto_sent",
+        riskLevel: result.riskLevel,
+        riskType: result.riskType,
+        // Kuyruklu teslimde doğrulanmış erken giriş onayı OTOMATİK gitmez (`queued_delivery`): burada yalnız kapıyı
+        // geçen model cevabı kuyruğa girer.
+        reason: earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
+        confidence: result.confidence,
+        ...groundingAudited,
+        srcDeclared: result.sourceAudit?.declared ?? null,
+        srcVerified: result.sourceAudit?.verified ?? null,
+      },
+      outboundBody,
+    );
     void recordShadowVerdict({
       organizationId: conversation.property.organizationId,
       conversationId: conversation.id,
@@ -3375,21 +3412,24 @@ export async function applyChannelAutoReply(
       .catch(() => {});
   }
 
-  await recordRiskEvent({
-    organizationId: conversation.property.organizationId,
-    propertyId: conversation.propertyId,
-    conversationId: conversation.id,
-    surface: "auto_reply",
-    triggerId: last.id,
-    finalDecision: "auto_sent",
-    riskLevel: result.riskLevel,
-    riskType: result.riskType,
-    reason: earlyCheckinSent ? "early_checkin_verified" : earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
-    confidence: result.confidence,
-    ...groundingAudited,
-    srcDeclared: result.sourceAudit?.declared ?? null,
-    srcVerified: result.sourceAudit?.verified ?? null,
-  });
+  await recordDecision(
+    {
+      organizationId: conversation.property.organizationId,
+      propertyId: conversation.propertyId,
+      conversationId: conversation.id,
+      surface: "auto_reply",
+      triggerId: last.id,
+      finalDecision: "auto_sent",
+      riskLevel: result.riskLevel,
+      riskType: result.riskType,
+      reason: earlyCheckinSent ? "early_checkin_verified" : earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
+      confidence: result.confidence,
+      ...groundingAudited,
+      srcDeclared: result.sourceAudit?.declared ?? null,
+      srcVerified: result.sourceAudit?.verified ?? null,
+    },
+    outboundBody,
+  );
   void recordShadowVerdict({
     organizationId: conversation.property.organizationId,
     conversationId: conversation.id,

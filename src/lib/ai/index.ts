@@ -1,5 +1,6 @@
 import { defuseBlockDelimiters } from "./retrieval/kb-line";
 import "server-only";
+import { createHash } from "node:crypto";
 import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { kbFeeRuleEnabled } from "./kb-fee-rule";
@@ -262,6 +263,26 @@ function replyPromptFor(input: SuggestReplyInput, declareActions: boolean): Retu
  */
 export function replyRequestIdentity(input: SuggestReplyInput): { model: string; effort: string | null; system: string; user: string } {
   return { ...replyCallParams(), system: replySystemPrompt(input), user: replyPromptFor(input, actionClaimsEnabled()).text };
+}
+
+/** İstem sürümünün kurulduğu SABİT girdi (misafir / mülk verisi yok) — anahtarlar istemi değiştirince kimlik de değişir. */
+const PROMPT_VERSION_INPUT: SuggestReplyInput = {
+  guestMessage: "-",
+  property: { name: "-", checkInTime: "15:00", checkOutTime: "11:00" },
+  reservation: null,
+  knowledgeBase: [],
+  history: [],
+  tone: "warm",
+  language: "tr",
+};
+
+/**
+ * Cevap isteminin SÜRÜM KİMLİĞİ: sabit girdiyle kurulan sistem isteminin SHA-256 ilk 12'si. TEK KAYNAK — ölçüm raporu
+ * (`tests/eval/run-meta.ts` `prompts.reply`) ve üretim izi (`AiGeneration.promptVersion`) aynı fonksiyonu okur; böylece izdeki
+ * bir cevap hangi ölçüm koşusunun istemiyle üretildiği bilinerek karşılaştırılır.
+ */
+export function replyPromptVersion(): string {
+  return createHash("sha256").update(replySystemPrompt(PROMPT_VERSION_INPUT)).digest("hex").slice(0, 12);
 }
 
 /** Normalize a model-returned language value to a short code (2–3 letters), else

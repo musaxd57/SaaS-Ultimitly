@@ -337,3 +337,17 @@ describe("bağlantı pinleri (kaynak taraması, tek yönlü — davranış ↑yu
     expect(missing).toEqual([]);
   });
 });
+
+describe("istem sürümü TEK KAYNAK (üretim izi ↔ ölçüm raporu, migration 60)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("rapordaki cevap istemi kimliği = replyPromptVersion(); istemi değiştiren anahtar kimliği değiştirir", async () => {
+    const { replyPromptVersion } = await import("@/lib/ai");
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "");
+    const off = replyPromptVersion();
+    expect(off).toMatch(/^[0-9a-f]{12}$/);
+    expect(evalRuntime().prompts.reply).toBe(off);
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    expect(replyPromptVersion()).not.toBe(off);
+    expect(evalRuntime().prompts.reply).toBe(replyPromptVersion());
+  });
+});

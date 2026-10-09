@@ -4,7 +4,7 @@ import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
 import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import { embeddingModel } from "@/lib/ai/embeddings/model";
 import { createHash } from "node:crypto";
-import { replyRequestIdentity } from "@/lib/ai";
+import { replyPromptVersion, replyRequestIdentity } from "@/lib/ai";
 import { understandingSystemPromptFor } from "@/lib/ai/semantic/understand";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
@@ -142,15 +142,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
     return { model: m, reasoning: reasoningLabel(m, semanticReasoningEffort(l)) };
   };
   const sha12 = (t: string) => createHash("sha256").update(t).digest("hex").slice(0, 12);
-  const replySystem = replyRequestIdentity({
-    guestMessage: "-",
-    property: { name: "-", checkInTime: "15:00", checkOutTime: "11:00" },
-    reservation: null,
-    knowledgeBase: [],
-    history: [],
-    tone: "warm",
-    language: "tr",
-  }).system;
+
   // Anlama kipi (10-01 bulgusu): konaklama eval'i kipi KENDİ ortam değişkeniyle verir, kimlik ürün bayraklarından hesaplanınca
   // raporlar gerçekte koşan öğe + kural + şikâyet takibi istemi yerine yalnız şikâyet takibi isteminin kimliğini yazdı.
   const given = opts.understanding;
@@ -175,7 +167,8 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
     },
     flags: Object.fromEntries(PIPELINE_FLAGS.map((f) => [f, process.env[f]?.trim() || "(boş)"])),
     prompts: {
-      reply: sha12(replySystem),
+      // Üretim izi (`AiGeneration.promptVersion`) ile AYNI fonksiyon (tek kaynak, migration 60).
+      reply: replyPromptVersion(),
       replyVariant: sha12(`${variant.system}\n${variant.user}`),
       understanding: sha12(understandingSystem),
       understandingMode: understandingModeLabel(mode),
