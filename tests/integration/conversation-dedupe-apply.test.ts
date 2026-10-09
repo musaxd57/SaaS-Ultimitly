@@ -266,6 +266,7 @@ describe("apply — kapılar (varsayılan KAPALI)", () => {
 describe("apply — referans envanteri", () => {
   it("Conversation'a referans veren TÜM modeller biliniyor", () => {
     expect(inventoryConversationReferences()).toEqual([
+      "AiGeneration", // 10-09 (migration 60): FK Cascade — repoint listesinde (silinirse kalite konsolunun izi kaybolurdu)
       "ConversationItem", // 09-26 (migration 56): FK Cascade — repoint listesinde (silinirse açık istek kaybolurdu)
       "DecisionRequest", // 10-02 (migration 59): FK Cascade — repoint listesinde (silinirse "karar bekliyor" kartı kaybolurdu)
       "Message",
@@ -427,6 +428,18 @@ describe("apply — başarı yolu", () => {
       },
     });
 
+    // Yapay zekâ üretim izi (10-09, migration 60): FK Cascade — repoint edilmezse kalite konsolunun izi kaybedenle SİLİNİR.
+    await prisma.aiGeneration.create({
+      data: {
+        organizationId: org.organizationId,
+        conversationId: b.id,
+        surface: "channel_auto",
+        model: "gpt-5.1",
+        promptVersion: "test",
+        decision: "human_review",
+      },
+    });
+
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
     const out = await applyConversationDedupe(prisma, {
       ...GATE,
@@ -444,7 +457,9 @@ describe("apply — başarı yolu", () => {
       signal: 1,
       conversationItem: 1,
       decisionRequest: 1,
+      aiGeneration: 1,
     });
+    expect(await prisma.aiGeneration.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.conversationItem.count({ where: { conversationId: a.id, status: "pending_host" } })).toBe(1);
     expect(await prisma.decisionRequest.count({ where: { conversationId: a.id, status: "pending" } })).toBe(1);
     expect(await prisma.messageOutbox.count({ where: { conversationId: a.id } })).toBe(1);

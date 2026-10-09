@@ -71,7 +71,7 @@ function maskFeedUrls<
 }
 
 export async function buildOrganizationDataExport(organizationId: string) {
-  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery, hostEnteredFacts] = await Promise.all([
+  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery, hostEnteredFacts, aiGenerations] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
@@ -271,6 +271,17 @@ export async function buildOrganizationDataExport(organizationId: string) {
       select: { propertyId: true, category: true, title: true, body: true, observedAt: true, expiresAt: true, status: true },
       orderBy: { observedAt: "asc" },
     }),
+    // Yapay zekâ üretim izi (migration 60): her taslak / gönderim kararı, metniyle (saklama süpürgesi ve misafir silmesi metni
+    // null'lar — dışa aktarım bugün tutulanı gösterir). Kurucu kalite etiketleri (AiReviewLabel) operatörün iç kalite verisidir,
+    // org'un işletme verisi değildir → bilinçli DIŞARIDA (karar listesinde).
+    prisma.aiGeneration.findMany({
+      where: { organizationId },
+      select: {
+        id: true, conversationId: true, propertyId: true, reservationId: true, surface: true, model: true, promptVersion: true,
+        decision: true, gateReason: true, draftText: true, sentText: true, createdAt: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
   if (!org) return null;
   return {
@@ -281,5 +292,6 @@ export async function buildOrganizationDataExport(organizationId: string) {
     riskEvents,
     messageDelivery,
     hostEnteredFacts,
+    aiGenerations,
   };
 }

@@ -384,6 +384,20 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
         },
         data: { body: ANON_BODY },
       }),
+      // 🚨 YAPAY ZEKÂ ÜRETİM İZİ (migration 60, kurucu §D-1 10-09): taslak / gönderilen METİN `Message` ile AYNI süpürgede maskelenir.
+      ...(convIds.length
+        ? [
+            prisma.aiGeneration.updateMany({
+              where: { conversationId: { in: convIds }, OR: [{ draftText: { not: null } }, { sentText: { not: null } }] },
+              data: { draftText: null, sentText: null },
+            }),
+            // Kurucu etiket notu misafir metnini alıntılayabilir → aynı süpürgede silinir.
+            prisma.aiReviewLabel.updateMany({
+              where: { generation: { conversationId: { in: convIds } }, note: { not: null } },
+              data: { note: null },
+            }),
+          ]
+        : []),
       prisma.reservation.updateMany({
         where: { id: { in: resIds } },
         data: {
@@ -566,6 +580,15 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       prisma.messageOutbox.updateMany({
         where: { conversationId: { in: orphanIds }, body: { not: ANON_BODY } },
         data: { body: ANON_BODY },
+      }),
+      // Üretim izi (migration 60) — öksüz dalda da (kardeş dalla BİREBİR; parite kuralı).
+      prisma.aiGeneration.updateMany({
+        where: { conversationId: { in: orphanIds }, OR: [{ draftText: { not: null } }, { sentText: { not: null } }] },
+        data: { draftText: null, sentText: null },
+      }),
+      prisma.aiReviewLabel.updateMany({
+        where: { generation: { conversationId: { in: orphanIds } }, note: { not: null } },
+        data: { note: null },
       }),
       ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
       ...taskRedactions.map((t) =>
