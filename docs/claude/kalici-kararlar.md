@@ -407,6 +407,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   olsa boş kanıtı değil, F16); kanıt yoksa "bilinmiyor".
   Çakışma OLGUDUR — hiçbir kod çakışan satırı iptal/birleştirmez. Müsaitlik isteme/AI'ya bağlanırken yalnız
   `verified` sonuç otomatik cevaba dayanak olabilir (ayrı dilim, ayrı onay).
+  İddia dayanağı (motor 2, 10-09 kurucu yokken karar #9): besleme satırı "taze" yalnız kaynağın son başarılı okumasında
+  görüldüyse VE o okuma tazelik sınırı (6 sa) içindeyse; bayat kaynağın satırı kanıtsızdır (panel çakışması 70 / çıkarım).
 - **Demo hesabı** (`lib/demo-tenant/`): her kimlik `lxdemo-`; her silme `DEMO_ORG_ID` ile kapsanır (mekanik
   pin); reddetme = SIFIR yazma; sahte bağlantı/rezervasyon kodu/misafir iletişimi/sır YOK; şikâyet asla `new`
   doğmaz. Canlı koşu = kurucu onayı + taze `pg_dump`. Korumalar betik ÇALIŞTIRILARAK değil saf karar

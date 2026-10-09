@@ -18,10 +18,10 @@ import {
   RERANK_SYSTEM_PROMPT,
   type RerankCandidate,
 } from "@/lib/ai/semantic/rerank";
-import { semanticModel } from "@/lib/ai/semantic/config";
+import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
 import { e4Queries, semanticBySubquery, type E4Query } from "./e4-shared";
-import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
+import { evalRuntime, evalRuntimeMarkdown, reasoningLabel } from "./run-meta";
 
 // ---------------------------------------------------------------------------
 // #186 OPENAI YENİDEN SIRALAYICI — GERÇEK ÖLÇÜM (ücretli; kurucu kararı 09-26 "Önce ücretli ölçüm, sonra siz", < 1 $).
@@ -40,7 +40,10 @@ const T = 0.3;
 const LIMIT = Number(process.env.EVAL_RERANK_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_RERANK_LIMIT)) : null;
 // U18: bilinmeyen / boş boyut koşuyu DÜŞÜRÜR (eskiden sessizce süzülüp sıfır çağrıyla yeşil geçiyordu).
 const SIZES = parseSizeList(process.env.EVAL_RERANK_SIZES, { name: "EVAL_RERANK_SIZES", fallback: [300], allowed: [30, 100, 300] });
-const MODEL = process.env.EVAL_RERANK_MODEL?.trim() || semanticModel();
+// Ürünün KATMAN çözücüsüyle (10-09: ölçer `semanticModel()` okuyordu — `KB_RERANK_MODEL` ayarlıyken rapor ortak ayarın modelini
+// ölçüp ürünün koşmadığı yapılandırmayı yazabilirdi). Düşünme çabası ürünle aynı kaynaktan (`llmRerank` → katman ayarı).
+const MODEL = process.env.EVAL_RERANK_MODEL?.trim() || semanticModel("rerank");
+const EFFORT = reasoningLabel(MODEL, semanticReasoningEffort("rerank"));
 const SCALE_SAMPLE = 30;
 const CONCURRENCY = 4;
 
@@ -103,7 +106,7 @@ describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçü
     const lines = [
       `# #186 OpenAI yeniden sıralayıcı — ölçüm (${stamp})`,
       "",
-      `Durum: **${valid ? "GEÇERLİ" : "GEÇERSİZ"}**${LIMIT ? ` · DENEME (boyut başına ilk ${LIMIT} soru)` : ""} · yeniden sıralama modeli \`${MODEL}\` · gömme \`${embeddingModel()}\` · commit \`${commit}\``,
+      `Durum: **${valid ? "GEÇERLİ" : "GEÇERSİZ"}**${LIMIT ? ` · DENEME (boyut başına ilk ${LIMIT} soru)` : ""} · yeniden sıralama modeli \`${MODEL}\` (düşünme: ${EFFORT}) · gömme \`${embeddingModel()}\` · commit \`${commit}\``,
       `Aday: ilk ${RERANK_MAX_CANDIDATES} (alt sorgular arası sırayla) · eşik ${T} · veri SENTETİK (E4 kümesi). Çağrı ${calls.length}, düşen ${failed}.`,
       `Tahmini girdi token (karakter/4): ${tokens.toLocaleString("tr-TR")} · gecikme p50 ${quantile(calls.map((r) => r.ms), 0.5)} ms · p95 ${quantile(calls.map((r) => r.ms), 0.95)} ms.`,
       "",

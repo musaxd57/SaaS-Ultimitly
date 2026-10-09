@@ -96,6 +96,6 @@ analiz kurucuya sunuldu, karar bekliyor.
 3. ✅ `founder-initial-8` taban koşusu.
 4. `conversationState` `phase` / `lastInteractionAt` alanlarının isteme girmesi (kör eval ister).
 5. Haftalık zafiyet taraması için varsayılan dalın (`main`) güncel tutulması.
-6. Müsaitlik motorunda `claimBasis` kaynak tazeliğine bakmıyor → panel çakışma önemi bayat kaynakta da "kesin 97"; araç katmanı düzeltildi,
-   motorun kendisi (panel davranışı) ayrı karar.
+6. ✅ (10-09 gece, kurucu yokken karar #9) Müsaitlik motorunda `claimBasis` kaynak tazeliğine bakmıyordu → panel çakışma önemi bayat
+   kaynakta da "kesin 97". Motor 2: son okuması 6 saatten eski kaynağın satırı "taze iddia" değil (panel 70 / çıkarım); araç sözleşmesi 3.
 7. V2 sonraki dilimleri / V3 eylemler / V5 hazırlık puanı: yeni ürün yüzeyleri — kapsam ve örnekle sorulacak.

@@ -29,11 +29,13 @@
 
 | Yazıcı | YZ metni kullanıldı | Bağımsız yeniden denetim | Onayda karar saati | Dil | İç bilgi sızıntısı | Gerekçeli ret: beklenen gerekçe | Gerekçesiz ret: uydurma | p50 / p95 | Maliyet |
 |---|---|---|---|---|---|---|---|---|---|
+| 5.1 | 30/30 | 30/30 | 15/15 | 30/30 | 0/30 | **9/10** | 0/5 | 3,3 / 4,5 sn | $0.0452 |
 | Luna `low` | 30/30 | 30/30 | 15/15 | 28/28 | 0/30 | 5/10 | 0/5 | 3,4 / 5,4 sn | $0.0058 |
 | Luna `medium` | 30/30 | 30/30 | 15/15 | 28/28 | 0/30 | 4/10 | 0/5 | 3,5 / 5,1 sn | $0.0066 |
 | Luna `high` | 30/30 | 30/30 | 15/15 | 28/28 | 0/30 | **7/10** | 0/5 | 3,8 / 5,1 sn | $0.0072 |
 
-Okuma: güvenlik ölçüleri üç seviyede de tam; `high` ret gerekçesini daha sık anıyor (sezgisel ölçü), gecikme / maliyet farkı küçük. Karar metni
+Okuma: güvenlik ölçüleri hepsinde tam; ret gerekçesini en sık 5.1 anıyor (9/10), Luna'da `high` (7/10) — sezgisel ölçü, metinler raporda.
+Maliyet karar başına ~0,15 ¢ (5.1) ↔ ~0,02 ¢ (Luna); ihmal edilebilir. Karar metni
 yazıcısı bugün cevap modelinin ayarını paylaşıyor (`decisions/ai-text.ts` → `replyCallParams`) → karar #8: ayrı katman değişkeni.
 
 Geliştirme seti (`decision-text-dev`, 40 satır; aynı bekçi) — yazıcı başına:
@@ -71,7 +73,7 @@ eşit doğrulukta ve daha hızlı; belirsiz mesajda hedefli soru dalga 1'de `low
 | `OPENAI_MODEL` / `OPENAI_REASONING_EFFORT` | `gpt-6-luna` / `low` |
 | `AI_UNDERSTANDING_MODEL` / `AI_UNDERSTANDING_REASONING_EFFORT` | `gpt-6-luna` / `low` |
 | `AI_STAY_GUARD_MODEL` / `AI_STAY_GUARD_REASONING_EFFORT` | `gpt-6-luna` / `low` (dalga 2: `medium` / `high` zaman aşımı) |
-| `AI_DECISION_TEXT_MODEL` / `…_REASONING_EFFORT` (yeni, karar #8) | `gpt-5.1` / boş (dalga 2: gerekçe anmada en iyi; kör setle doğrulanıyor) |
+| `AI_DECISION_TEXT_MODEL` / `…_REASONING_EFFORT` (yeni, karar #8) | `gpt-5.1` / boş (dalga 2: gerekçe anmada iki sette de en iyi — kör 9/10, geliştirme 10/14) |
 | `OPENAI_TRANSLATE_MODEL` / `…_REASONING_EFFORT` | `gpt-6-luna` / `medium` (10-02 ölçümü) |
 | `OPENAI_STYLE_MODEL` / `…_REASONING_EFFORT` | `gpt-6-luna` / `none` (10-01 ölçümü) |
 | `AI_SEMANTIC_MODEL` (yeniden sıralayıcı) | dalga 2 / 3'e göre (önceki ölçüm: 5.1'de kalsın) |
