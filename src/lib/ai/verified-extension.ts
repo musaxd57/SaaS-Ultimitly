@@ -31,13 +31,11 @@ const NUM = (m: string): number | null => {
 
 // Doğrusal kalıplar (sınırlı alternasyon, iç içe niceleyici yok); sözcük sınırı harf / rakam ile (Türkçe harfler `\b`'yi bozar).
 const L = "(?<![\\p{L}\\d])";
-// Sayı sözcüğünden önce tire de sınırdır DEĞİL: "twenty-one" / "yirmi-bir" 1 okunmasın (Haiku 10-09 ikinci tur, P1).
-const LN = "(?<![\\p{L}\\d-])";
 const R = "(?![\\p{L}\\d])";
-const TR_COUNT = new RegExp(`${LN}(bir|iki|üç|dört|beş|altı|yedi|\\d{1,2})\\s+(?:gece|gün)\\s+(?:daha|fazla)${R}`, "gu");
-const EN_COUNT = new RegExp(`${LN}(one|two|three|four|five|six|seven|an?|\\d{1,2})\\s+(?:more|extra|additional)\\s+(?:nights?|days?)${R}`, "gu");
+const TR_COUNT = new RegExp(`${L}(bir|iki|üç|dört|beş|altı|yedi|\\d{1,2})\\s+(?:gece|gün)\\s+(?:daha|fazla)${R}`, "gu");
+const EN_COUNT = new RegExp(`${L}(one|two|three|four|five|six|seven|an?|\\d{1,2})\\s+(?:more|extra|additional)\\s+(?:nights?|days?)${R}`, "gu");
 const EN_ANOTHER = new RegExp(`${L}another\\s+(?:night|day)${R}`, "gu");
-// "on bir gece daha" (11) / "twenty one more nights": sayı öncesi onluk sözcüğü → tutarsız (Haiku 10-09: 11 gece 1 gece okunuyordu).
+// "on bir gece daha" (11) / "twenty one" / "twenty-one" (tireli de — Haiku ikinci tur): sayı öncesi onluk sözcüğü → tutarsız.
 const TENS = new RegExp(`${L}(?:on|yirmi|otuz|kırk|elli|altmış|yetmiş|seksen|doksan|yüz|ten|twenty|thirty|forty|fifty|hundred)(?:\\s+|\\s*-\\s*)(?:bir|iki|üç|dört|beş|altı|yedi|one|two|three|four|five|six|seven)${R}`, "u"); // `.test` → durumsuz (g bayrağı YOK)
 
 // İstek ŞEKLİ (Haiku 10-09, P1/P2): metin yalnız misafirin KENDİ kalma / uzatma isteğinde kurulur.
