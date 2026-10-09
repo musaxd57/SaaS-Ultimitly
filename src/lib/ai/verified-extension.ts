@@ -31,12 +31,14 @@ const NUM = (m: string): number | null => {
 
 // Doğrusal kalıplar (sınırlı alternasyon, iç içe niceleyici yok); sözcük sınırı harf / rakam ile (Türkçe harfler `\b`'yi bozar).
 const L = "(?<![\\p{L}\\d])";
+// Sayı sözcüğünden önce tire de sınırdır DEĞİL: "twenty-one" / "yirmi-bir" 1 okunmasın (Haiku 10-09 ikinci tur, P1).
+const LN = "(?<![\\p{L}\\d-])";
 const R = "(?![\\p{L}\\d])";
-const TR_COUNT = new RegExp(`${L}(bir|iki|üç|dört|beş|altı|yedi|\\d{1,2})\\s+(?:gece|gün)\\s+(?:daha|fazla)${R}`, "gu");
-const EN_COUNT = new RegExp(`${L}(one|two|three|four|five|six|seven|an?|\\d{1,2})\\s+(?:more|extra|additional)\\s+(?:nights?|days?)${R}`, "gu");
+const TR_COUNT = new RegExp(`${LN}(bir|iki|üç|dört|beş|altı|yedi|\\d{1,2})\\s+(?:gece|gün)\\s+(?:daha|fazla)${R}`, "gu");
+const EN_COUNT = new RegExp(`${LN}(one|two|three|four|five|six|seven|an?|\\d{1,2})\\s+(?:more|extra|additional)\\s+(?:nights?|days?)${R}`, "gu");
 const EN_ANOTHER = new RegExp(`${L}another\\s+(?:night|day)${R}`, "gu");
 // "on bir gece daha" (11) / "twenty one more nights": sayı öncesi onluk sözcüğü → tutarsız (Haiku 10-09: 11 gece 1 gece okunuyordu).
-const TENS = new RegExp(`${L}(?:on|yirmi|otuz|kırk|elli|altmış|yetmiş|seksen|doksan|yüz|ten|twenty|thirty|forty|fifty|hundred)\\s+(?:bir|iki|üç|dört|beş|altı|yedi|one|two|three|four|five|six|seven)${R}`, "u"); // `.test` → durumsuz (g bayrağı YOK)
+const TENS = new RegExp(`${L}(?:on|yirmi|otuz|kırk|elli|altmış|yetmiş|seksen|doksan|yüz|ten|twenty|thirty|forty|fifty|hundred)(?:\\s+|\\s*-\\s*)(?:bir|iki|üç|dört|beş|altı|yedi|one|two|three|four|five|six|seven)${R}`, "u"); // `.test` → durumsuz (g bayrağı YOK)
 
 // İstek ŞEKLİ (Haiku 10-09, P1/P2): metin yalnız misafirin KENDİ kalma / uzatma isteğinde kurulur.
 //  · birinci şahıs istek kalıbı ŞART ("kalabilir miyiz", "kalsak", "uzatmak istiyorum", "can we stay", "we'd like to extend");
@@ -52,7 +54,17 @@ const EN_ASK = new RegExp(
 );
 const EARLIER = new RegExp(`${L}(?:önce|erken|earlier|early|before|sooner)${R}`, "u");
 const THIRD_PARTY = new RegExp(
-  `${L}(?:arkadaş\\p{L}{0,8}|annem|babam|kardeş\\p{L}{0,6}|eşim|kızım|oğlum|ailem|misafir\\p{L}{0,6}|friends?|parents?|mother|father|sister|brother|they|he|she|someone|somebody)${R}`,
+  `${L}(?:arkadaş\\p{L}{0,8}|annem|babam|kardeş\\p{L}{0,6}|eşim|kızım|oğlum|ailem|misafir\\p{L}{0,6}|friends?|parents?|mother|father|sister|brother|wife|husband|partner|karım|kocam|they|he|she|someone|somebody)${R}`,
+  "u",
+);
+// Desteklenmeyen süre ("bir hafta daha", "sekiz gece", "a week") → aralık KURULMAZ (Haiku 10-09 ikinci tur: tarih yolu 1 gece sanıyordu).
+const OTHER_DURATION = new RegExp(
+  `${L}(?:hafta\\p{L}{0,6}|ay(?:lık)?|sekiz|dokuz|weeks?|fortnight|months?|eight|nine|ten)${R}`,
+  "u",
+);
+// Alıntı / geçmiş anlatım / kararsızlık / başka yer: misafirin ŞİMDİKİ kendi isteği değil (Haiku 10-09 ikinci tur).
+const NOT_A_LIVE_ASK = new RegExp(
+  `${L}(?:diye|sormuştum|sormuştuk|kalmasak|kalmasam|asked|said|told|another\\s+(?:property|apartment|place|flat|house|hotel|listing)|başka\\s+(?:daire|ev|yer|otel|mülk)\\p{L}{0,4})${R}`,
   "u",
 );
 const NEGATION = new RegExp(`${L}(?:değil\\p{L}{0,6}|hayır|istemiyoruz|istemiyorum|not|no|don't|don’t|won't|won’t|cannot|can't|can’t)${R}`, "u");
@@ -64,7 +76,7 @@ export function isOwnExtensionRequest(text: string | null | undefined): boolean 
   const tr = text.toLocaleLowerCase("tr");
   const en = text.toLowerCase();
   if (!TR_ASK.test(tr) && !EN_ASK.test(en)) return false;
-  return ![tr, en].some((t) => EARLIER.test(t) || THIRD_PARTY.test(t) || NEGATION.test(t));
+  return ![tr, en].some((t) => EARLIER.test(t) || THIRD_PARTY.test(t) || NEGATION.test(t) || NOT_A_LIVE_ASK.test(t));
 }
 
 /**
@@ -106,6 +118,7 @@ export function extensionQueryOf(text: string | null | undefined, ctx: DateResol
   if (!departure || !isOwnExtensionRequest(text)) return null;
   const count = extensionNightsRequested(text);
   if (count === "conflict") return null;
+  if (OTHER_DURATION.test((text ?? "").toLocaleLowerCase("tr")) || OTHER_DURATION.test((text ?? "").toLowerCase())) return null;
   const r = resolveGuestDates(text, ctx);
   if (r.status === "ambiguous" || r.reasons.includes("past_date")) return null;
   let fromDates: AvailabilityQuery | null = null;

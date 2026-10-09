@@ -2384,9 +2384,12 @@ export async function applyChannelAutoReply(
   }
   // Doğrulanmış müsaitlik / uzatma muafiyeti bağımsız bekçinin hükmünü ister (Haiku 10-09). Bekçi bu turda koşmadıysa (taslak başka bir
   // vetoya takıldı) KOD METNİYLE koşturulur; anahtar kapalıysa koşmaz → muafiyet yok (temkinli).
-  const ensureStayGuardFor = async (text: string): Promise<void> => {
-    if (gateContext.stayGuard || !stayGuardEnabled()) return;
-    const g = await runStayChangeGuard({
+  // Hüküm YEREL döner; çağıran onu yalnız kod metni GERÇEKTEN seçilirse bağlama yazar (Haiku 10-09 ikinci tur: başarısız dalda kalan
+  // kod-metni hükmü sonraki kararları — kapanış, kapı kanıtı — modelin taslağına uyguluyordu).
+  const stayGuardFor = async (text: string): Promise<StayGuardOutcome | undefined> => {
+    if (gateContext.stayGuard) return gateContext.stayGuard;
+    if (!stayGuardEnabled()) return undefined;
+    return runStayChangeGuard({
       guestMessages: [...pendingGuestMessages, last.body],
       reply: text,
       stayTimes: gateContext.stayTimes,
@@ -2396,7 +2399,6 @@ export async function applyChannelAutoReply(
         .slice(0, lastOutboundIdx + 1)
         .map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
     });
-    if (g) gateContext.stayGuard = g;
   };
   // ── DOĞRULANMIŞ MÜSAİTLİK → KOD METNİ (kurucu onayı 10-09; anahtar KAPALI → `verifiedAvailabilityRun` hep null) ─────────────
   // Saf müsaitlik sorusu + takvim taze ve kesin → misafire KODDAN kurulan tek cümle gider (modelin taslağı değil; Haiku güvenlik
@@ -2417,13 +2419,13 @@ export async function applyChannelAutoReply(
     const now = new Date();
     if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedAvailabilityRun.va, verifiedAvailabilityRun.scope, now)) {
       const text = verifiedAvailabilityText(verifiedAvailabilityRun.va, lang, todayKey(now, orgTimezone(org.timezone)));
-      if (text) await ensureStayGuardFor(text);
       if (text) {
         const vaResult = { ...verifiedEarlyCheckinResult(result, text), intent: "availability" };
-        const vaContext: AutoReplyGateContext = { ...gateContext, verifiedAvailability: { text } };
+        const vaContext: AutoReplyGateContext = { ...gateContext, verifiedAvailability: { text }, stayGuard: await stayGuardFor(text) };
         if (autoReplyGateFailure(vaResult, last.body, vaContext) === null) {
           result = vaResult;
           gateContext.verifiedAvailability = vaContext.verifiedAvailability;
+          gateContext.stayGuard = vaContext.stayGuard;
           gateFailure = null;
           gatePassed = true;
         }
@@ -2454,13 +2456,13 @@ export async function applyChannelAutoReply(
     const now = new Date();
     if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedExtensionRun.va, verifiedExtensionRun.scope, now)) {
       const text = verifiedExtensionText(verifiedExtensionRun.va, lang, todayKey(now, orgTimezone(org.timezone)));
-      if (text) await ensureStayGuardFor(text);
       if (text) {
         const exResult = { ...verifiedEarlyCheckinResult(result, text), intent: "extend_stay" };
-        const exContext: AutoReplyGateContext = { ...gateContext, verifiedExtension: { text } };
+        const exContext: AutoReplyGateContext = { ...gateContext, verifiedExtension: { text }, stayGuard: await stayGuardFor(text) };
         if (autoReplyGateFailure(exResult, last.body, exContext) === null) {
           result = exResult;
           gateContext.verifiedExtension = exContext.verifiedExtension;
+          gateContext.stayGuard = exContext.stayGuard;
           gateFailure = null;
           gatePassed = true;
         }

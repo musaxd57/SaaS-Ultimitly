@@ -32,9 +32,11 @@ describe("extensionNightsRequested", () => {
   ])("%s → %s", (text, n) => {
     expect(extensionNightsRequested(text)).toBe(n);
   });
-  it("🚨 'on bir gece daha' (11) → conflict (1 gece okunmaz)", () => {
+  it("🚨 'on bir gece daha' (11) → conflict (1 gece okunmaz); tireli yazım da (Haiku ikinci tur)", () => {
     expect(extensionNightsRequested("On bir gece daha kalabilir miyiz?")).toBe("conflict");
     expect(extensionNightsRequested("Could we stay twenty one more nights?")).toBe("conflict");
+    expect(extensionNightsRequested("Can we stay twenty-one more nights?")).toBe("conflict");
+    expect(extensionNightsRequested("yirmi-bir gece daha kalabilir miyiz")).toBe("conflict");
   });
   it("ifade yok → null", () => {
     expect(extensionNightsRequested("Wi-Fi şifresi nedir?")).toBeNull();
@@ -81,6 +83,9 @@ describe("extensionQueryOf — uzatma aralığı [çıkış, çıkış + N)", ()
     "Bir gece daha uzattık, teşekkürler.", // bildirim, istek değil
     "On bir gece daha kalabilir miyiz?", // 11 gece
     "Can we come one more night earlier?", // erken geliş (EN)
+    "Can we stay twenty-one more nights?", // tireli 21 (Haiku ikinci tur)
+    "16 Ekim'den itibaren bir hafta daha kalabilir miyiz?", // desteklenmeyen süre + çıkış tarihi → 1 gece sanılıyordu
+    "Can we stay a week more from 16 October?", // aynı (EN)
   ])("🚨 %s → null (ev sahibine)", (text) => {
     expect(extensionQueryOf(text, ctx)).toBeNull();
   });
@@ -190,6 +195,11 @@ describe("isOwnExtensionRequest — misafirin KENDİ uzatma isteği şekli", () 
     "Can we stay one more night earlier?",
     "Arkadaşım için bir gece daha kalabilir miyiz?",
     "Could we stay one more night for my friend?",
+    // Haiku ikinci tur: alıntı / geçmiş anlatım / kararsızlık / başka mülk / eş
+    "Bir gece daha kalabilir miyiz diye sormuştum",
+    "Bir gece daha kalsak mı kalmasak mı bilemedik",
+    "We would like to stay one more night at another property",
+    "Can we stay one more night? asked my wife",
   ])("✗ %s", (t) => {
     expect(isOwnExtensionRequest(t)).toBe(false);
   });
