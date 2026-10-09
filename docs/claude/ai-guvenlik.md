@@ -373,6 +373,9 @@
   (`guestTurnLanguage`; modelin tahminine düşülmez) · modelin niyet etiketi `NEVER_AUTO_REPLY_INTENTS` dışında · tek cevapsız mesaj, en çok bir
   soru işareti, ≤300 karakter · bekçi düşmemiş. Kapı muafiyeti YALNIZ bu metne BİREBİR eşit cevaba (`availability-claims.ts`, kanıtta `lx`
   içinde `v`); acil / şikâyet / injection / çıktı vetosu / güven AYNEN koşar.
+- 🚨 (10-09 gece, Haiku uzatma incelemesi) Bağımsız BEKÇİ koşmuş ve "belirli tarihler boş mu" sorusu görmüş olmalı (`guest_requests_change`
+  + tür `availability`); bekçi o turda koşmadıysa kod metniyle koşturulur, `AI_STAY_GUARD_ENABLED` kapalıysa muafiyet YOK. Önceden bekçi
+  koşmadığında sinyal "off" idi ve muafiyet tek modele + kelime ağına kalıyordu.
 - Bilinen sınır: kalıcı kuyruk (`DURABLE_OUTBOX_ENABLED`, kapalı) yolunda gönderim anında yaş yeniden denetlenmez. QR yolu bağlanmadı.
 - Kanıt: birim 43 · entegrasyon 13 (gerçek PG: gider / anahtar kapalı / dolu / kısmen dolu / bayat / uzatma / anlama kapalı / iki soru / yanlış
   konu / ikinci soru / riskli niyet / İngilizce / dili belirsiz) · mutasyon 21/21 (iki Haiku turu).
@@ -390,6 +393,10 @@
   ev sahibi (`extensionQueryOf`) · araç `ok` + birebir aralık + en çok 2 dk + tamamı boş ya da tamamı dolu · anlama katmanı KOŞTU, konaklama
   türü "extend", BÜTÜN istekler uzatma / selam · dil kodla TR / EN · tek soru · niyet etiketi riskli değil · bekçi düşmemiş. Kapı muafiyeti YALNIZ
   birebir metne (`availability-claims.ts`, kanıtta `x`).
+- 🚨 Haiku güvenlik incelemesi (10-09 gece) sonrası ek şartlar: misafirin KENDİ istek şekli (`isOwnExtensionRequest`: birinci şahıs kalma /
+  uzatma kalıbı; "önce / erken", üçüncü kişi, olumsuzluk, bildirim → ev sahibi — "Bir gece daha önce gelebilir miyiz?" uzatma sanılıyordu) ·
+  yalnız ONAYLI rezervasyon · iki tarihli biçim ev sahibine · "on bir gece" tutarsız · bağımsız BEKÇİ koşmuş ve uzatma İSTEĞİ görmüş
+  (koşmadıysa kod metniyle koşturulur; kapalıysa muafiyet yok) · kod metni gittiyse uzatma karar kartı açılmaz.
 - 🚨 Köprüden (Hospitable) gelen sonraki rezervasyonun bloğu tazelik kaydı olmadığı için KESİN dolu sayılmaz → ev sahibine (pinli). Aynı sebeple
   köprüye bağlı mülkte "boş" da kesinleşmeyebilir; bağlantı sağlığının motora bağlanması (migration 60 C) ayrı kurucu onayı.
 - QR yolu bağlanmadı (kurucu: "bayrak olsun, QR'de mantıklı mı konuşalım" → sıradaki dilim).
