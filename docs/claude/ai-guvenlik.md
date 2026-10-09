@@ -376,3 +376,20 @@
 - Bilinen sınır: kalıcı kuyruk (`DURABLE_OUTBOX_ENABLED`, kapalı) yolunda gönderim anında yaş yeniden denetlenmez. QR yolu bağlanmadı.
 - Kanıt: birim 43 · entegrasyon 13 (gerçek PG: gider / anahtar kapalı / dolu / kısmen dolu / bayat / uzatma / anlama kapalı / iki soru / yanlış
   konu / ikinci soru / riskli niyet / İngilizce / dili belirsiz) · mutasyon 21/21 (iki Haiku turu).
+
+## 🚨 DOĞRULANMIŞ UZATMA OTOMATİK CEVABI (kurucu kararı 10-09: "Müsait + talep yolu"; anahtar `AI_VERIFIED_EXTENSION_ENABLED`, tam "1", VARSAYILAN KAPALI)
+- Kurucu (10-09): "AI takvime bakıp uzatma sağlayabilir ama teklif gönderme şu an olmasın; boşsa 'evet' diyebilir" → netleştirme sorusunda seçilen
+  metin (koddan, tek tip): boş → "16 Ekim gecesi daire müsait. Konaklamanızı uzatmak için Airbnb uygulamasından rezervasyon değişikliği talebi
+  gönderebilirsiniz; yeni tutarı Airbnb gösterir." · dolu → "Maalesef 16 Ekim gecesi daire müsait değil." (çok gece: "16 Ekim – 18 Ekim arası 2
+  gece …"; TR / EN). Söz / fiyat / izin YOK: Airbnb'de uzatma misafirin değişiklik talebi + ev sahibinin kabulüyle olur, tutarı Airbnb gösterir.
+- Ev sahibi kaynaklı TEKLİF bugün yok: Hospitable açık API'sinde değişiklik / özel teklif ucu bulunamadı; Airbnb iş ortağı API'si özel teklif /
+  ön onayı yalnız REZERVASYON ÖNCESİ soruda verir, mevcut rezervasyon değişikliği Airbnb'de yapılır (araştırma 10-09). Airbnb Direct onayından
+  sonra "rezervasyon öncesi müsaitlik sorusu → fiyatı ev sahibine sor → teklif" akışı ayrı tasarım (kurucu: "varsa ekleyelim").
+- Şartların HEPSİ: rezervasyon AIRBNB, iptal değil, konaklama bitmemiş · kelime ağı uzatma görür, başka tür (erken giriş / geç çıkış / tarih
+  değişikliği) yok · aralık [çıkış günü, +N) — "N gece daha" (1–7) ya da çıkış gününden başlayan tarih; çıkışa değmeyen / belirsiz / tutarsız →
+  ev sahibi (`extensionQueryOf`) · araç `ok` + birebir aralık + en çok 2 dk + tamamı boş ya da tamamı dolu · anlama katmanı KOŞTU, konaklama
+  türü "extend", BÜTÜN istekler uzatma / selam · dil kodla TR / EN · tek soru · niyet etiketi riskli değil · bekçi düşmemiş. Kapı muafiyeti YALNIZ
+  birebir metne (`availability-claims.ts`, kanıtta `x`).
+- 🚨 Köprüden (Hospitable) gelen sonraki rezervasyonun bloğu tazelik kaydı olmadığı için KESİN dolu sayılmaz → ev sahibine (pinli). Aynı sebeple
+  köprüye bağlı mülkte "boş" da kesinleşmeyebilir; bağlantı sağlığının motora bağlanması (migration 60 C) ayrı kurucu onayı.
+- QR yolu bağlanmadı (kurucu: "bayrak olsun, QR'de mantıklı mı konuşalım" → sıradaki dilim).

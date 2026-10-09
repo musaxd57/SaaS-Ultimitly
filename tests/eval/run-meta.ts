@@ -111,6 +111,7 @@ export const PIPELINE_FLAGS = [
   "AI_COURTESY_RULE_ENABLED",
   // Doğrulanmış müsaitlik misafire giden metni değiştirir (tek kural: her AI_* bayrağı koşu kimliğinde).
   "AI_VERIFIED_AVAILABILITY_ENABLED",
+  "AI_VERIFIED_EXTENSION_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

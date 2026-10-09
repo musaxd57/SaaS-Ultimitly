@@ -61,3 +61,57 @@ describe("kapı muafiyeti — yalnız birebir kod metni", () => {
     expect(evaluateAvailability(CODE, [ASK], opts({ guard: { status: "failed" } as never })).reason).not.toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Doğrulanmış UZATMA muafiyeti (kurucu kararı 10-09 "Müsait + talep yolu") — yalnız birebir kod metni, yalnız saf uzatma.
+// ---------------------------------------------------------------------------
+const EXT_ASK = "Merhaba, bir gece daha kalabilir miyiz?";
+const EXT_CODE =
+  "16 Ekim gecesi daire müsait. Konaklamanızı uzatmak için Airbnb uygulamasından rezervasyon değişikliği talebi gönderebilirsiniz; yeni tutarı Airbnb gösterir.";
+const extUnderstanding = { requested: true, kind: "extend", checkinTime: null, checkoutTime: null } as never;
+const extOpts = (over: Partial<AvailabilityPolicyOptions> = {}): AvailabilityPolicyOptions => ({
+  declared: { asked: "extend", stance: "states_calendar" },
+  replyIntent: "extend_stay",
+  understanding: extUnderstanding,
+  verifiedExtension: { text: EXT_CODE },
+  ...over,
+});
+
+describe("kapı muafiyeti — doğrulanmış uzatma", () => {
+  it("KONTROL: kod metni + saf uzatma + anlama katmanı 'extend' → muaf (kanıtta 'x')", () => {
+    const e = evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts());
+    expect(e.reason).toBeNull();
+    expect(e.signals.lx).toContain("x");
+  });
+
+  it("KONTROL: muafiyet yoksa aynı metin tutulur", () => {
+    expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ verifiedExtension: null })).reason).not.toBeNull();
+  });
+
+  it.each([
+    ["izin cümlesi", "Evet, bir gece daha kalabilirsiniz."],
+    ["model metni + kod metni", `${EXT_CODE} Size özel indirim de yaparız.`],
+  ])("🚨 model metni (%s) muaf DEĞİL", (_n, reply) => {
+    expect(evaluateAvailability(reply, [EXT_ASK], extOpts()).reason).not.toBeNull();
+  });
+
+  it("🚨 anlama katmanı 'availability' görüyorsa uzatma muafiyeti YOK (tür birebir)", () => {
+    const av = { requested: true, kind: "availability", checkinTime: null, checkoutTime: null } as never;
+    expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ understanding: av })).reason).not.toBeNull();
+  });
+
+  it("🚨 aynı turda geç çıkış da istendiyse muaf DEĞİL", () => {
+    expect(evaluateAvailability(EXT_CODE, [EXT_ASK, "Olmazsa geç çıkış alabilir miyiz?"], extOpts()).reason).not.toBeNull();
+  });
+
+  it("🚨 anlama katmanı kapalı / bekçi düştü → muaf DEĞİL", () => {
+    expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ understanding: null })).reason).not.toBeNull();
+    expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ guard: { status: "failed" } as never })).reason).not.toBeNull();
+  });
+
+  it("🚨 müsaitlik muafiyeti uzatma metnini KAPSAMAZ (yanlış bağlam)", () => {
+    expect(
+      evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ verifiedExtension: null, verifiedAvailability: { text: EXT_CODE } })).reason,
+    ).not.toBeNull();
+  });
+});

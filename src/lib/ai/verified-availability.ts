@@ -71,6 +71,11 @@ export function verifiedAvailabilityUsable(va: VerifiedAvailability, scope: { or
 const TR_MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 const EN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+/** Gün etiketi (TR / EN, yıl yalnız bu yıl değilse) — doğrulanmış uzatma metni de aynı biçimi kullanır. */
+export function verifiedDayLabel(k: NightKey, lang: VerifiedAvailabilityLang, today: NightKey): string {
+  return dayLabel(k, lang === "tr" ? TR_MONTHS : EN_MONTHS, today.slice(0, 4));
+}
+
 function dayLabel(k: NightKey, months: readonly string[], thisYear: string): string {
   const y = k.slice(0, 4);
   return `${Number(k.slice(8, 10))} ${months[Number(k.slice(5, 7)) - 1]}${y === thisYear ? "" : ` ${y}`}`;

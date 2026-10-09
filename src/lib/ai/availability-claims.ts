@@ -684,6 +684,11 @@ export interface AvailabilityPolicyOptions {
    * değil) ve bekçi düşmediyse muaftır. Model metni hiçbir zaman bu yoldan geçemez.
    */
   verifiedAvailability?: { text: string } | null;
+  /**
+   * DOĞRULANMIŞ UZATMA (kurucu kararı 10-09 "Müsait + talep yolu", `ai/verified-extension.ts`): koddan kurulan uzatma cümlesi. Kapı YALNIZ
+   * bu metne birebir eşit cevabı, saf uzatma isteğinde ve anlama katmanı uzatmayı açıkça gördüyse muaf tutar.
+   */
+  verifiedExtension?: { text: string } | null;
 }
 
 /** Konaklama değişikliği TÜRLERİ — birleşim: hangi katman hangi türü gördü ("yalnız erken giriş mi?" sorusu için). */
@@ -1101,6 +1106,14 @@ export function evaluateAvailability(
     // kelime ağında müsaitlik sayılıyordu; katman "none" derken muafiyet daire cevabını gönderebiliyordu).
     const understandingRan = u === "req" && opts.understanding?.kind === "availability";
     if (pure && understandingRan && g !== "failed") return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}v` } };
+  }
+
+  // DOĞRULANMIŞ UZATMA (kurucu kararı 10-09): koddan kurulan metin (birebir) + bütün katmanların gördüğü tür YALNIZ uzatma + anlama katmanı
+  // KOŞTU ve türü açıkça "extend" gördü + bekçi düşmedi → muaf. Erken giriş / geç çıkış / tarih değişikliği / tanınmayan tür karışırsa muaf DEĞİL.
+  if (opts.verifiedExtension && reply === opts.verifiedExtension.text) {
+    const pure = kinds.size > 0 && [...kinds].every((k) => k === "extend");
+    const understandingRan = u === "req" && opts.understanding?.kind === "extend";
+    if (pure && understandingRan && g !== "failed") return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}x` } };
   }
 
   const guardRequest =

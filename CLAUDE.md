@@ -153,7 +153,7 @@ Bu dosyaya token/anahtar/parola yazma.
 - Görünmez karakter = `\p{Default_Ignorable_Code_Point}` + `\p{Cf}` + U+2800
 - QR bağlamı:
 - QR misafir rotası:
-- 🚨 DOĞRULANMIŞ MÜSAİTLİK (10-09, anahtar KAPALI; `ai/verified-availability.ts`): yalnız KOD metni + bütün şartlar — tam metin `docs/claude/ai-guvenlik.md` sonu.
+- 🚨 DOĞRULANMIŞ MÜSAİTLİK + UZATMA (10-09, anahtarlar KAPALI; `ai/verified-availability.ts`, `ai/verified-extension.ts`): yalnız KOD metni + bütün şartlar — tam metin `docs/claude/ai-guvenlik.md` sonu.
 - 🚨 "BİLGİM YOK" MİSAFİRE ASLA GİTMEZ (kurucu kuralı 09-11, `ai/absence.ts`):
 - Çıktı vetosu / makbuzsuz iddia:
 - Konuşma kuralları:
@@ -190,7 +190,7 @@ Bu dosyaya token/anahtar/parola yazma.
 | Hospitable OAuth canlı; kurucu org aboneliği 402 (veri donmuş, bug değil) | `TRUST_CF_HEADER` EKLEME |
 | `TRUSTED_PROXY_HOPS=2` · `SENTRY_DSN` + `ERROR_ALERT_EMAIL` · `EMAIL_OUTBOX_ENABLED=1` · `CALENDAR_URL_CONTRACT_ENABLED=1` (prod'da düz feed URL kalmadı) · `STORAGE_ENABLED=1` (Tigris `lixus-uploads`, virtual-hosted) | kanıtlı canlı |
 | `PASSWORD_RESET_CHALLENGE_ENABLED` | artık okunmuyor (Faz 3), silinmesi davranışı değiştirmez |
-| BİLİNÇLİ KAPALI | `DURABLE_OUTBOX_ENABLED` · `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` · `UNVERIFIED_SWEEP_*` · `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi: `docs/RETENTION-MESSAGE-AGE-ANCHOR-ONAY-PAKETI.md`) · `GUEST_ERASURE_ENABLED` (avukat imzası) · `QR_PIN_ENABLED` · `APP_TRUST_BROWSER_TIMEZONE` |
+| BİLİNÇLİ KAPALI | 🔔 **açılmayı bekleyen yapay zekâ anahtarları (kurucu 10-09: "bayrağı unutturma")**: `AI_VERIFIED_AVAILABILITY_ENABLED` (doğrulanmış müsaitlik, kanal) · `AI_VERIFIED_EXTENSION_ENABLED` (doğrulanmış uzatma, kanal; Airbnb rezervasyonu) — açma = kurucu + ilk denemeler birlikte · `DURABLE_OUTBOX_ENABLED` · `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` · `UNVERIFIED_SWEEP_*` · `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi: `docs/RETENTION-MESSAGE-AGE-ANCHOR-ONAY-PAKETI.md`) · `GUEST_ERASURE_ENABLED` (avukat imzası) · `QR_PIN_ENABLED` · `APP_TRUST_BROWSER_TIMEZONE` |
 
 ## Fiyat (kullanıcı onaylı, FLAT)
 Başlangıç ₺449 (1-2 daire) · Pro ₺899 (3-7) · İşletme ₺1.699 (8-25; `propertyLimit=25`, "25+ → bize ulaşın").

@@ -166,6 +166,8 @@ import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WH
 import { getAdjacency } from "@/lib/turnover";
 import { loadVerifiedAvailability } from "@/lib/ai/verified-availability-load";
 import { verifiedAvailabilityLang, verifiedAvailabilityText, verifiedAvailabilityUsable } from "@/lib/ai/verified-availability";
+import { verifiedExtensionText } from "@/lib/ai/verified-extension";
+import { loadVerifiedExtension } from "@/lib/ai/verified-extension-load";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { parseSupplyProfile, buildSupplyChecklist } from "@/lib/supply";
 import { emailService } from "@/lib/email";
@@ -246,6 +248,8 @@ export interface AutoReplyGateContext {
    * metne birebir eşit cevabı, saf müsaitlik sorusunda ve anlama katmanı koştuysa muaf tutar.
    */
   verifiedAvailability?: { text: string } | null;
+  /** DOĞRULANMIŞ UZATMA (kurucu kararı 10-09, `ai/verified-extension.ts`): koddan kurulan uzatma cümlesi; muafiyet şartları kapıda. */
+  verifiedExtension?: { text: string } | null;
   /**
    * YALNIZ TEŞHİS: çıktı vetosunu VE eylem beyanı kontrolünü atla (ikisi aynı sınıf: modelin metnindeki söz/iddia).
    * Gönderim kararında ASLA verilmez; tek kullanımı "bu taslağı YALNIZ bekleme sözü / eylem iddiası mı tuttu?" sorusu
@@ -744,6 +748,7 @@ export function availabilityPolicyFor(
     kbFacts: context?.kbFacts ?? null,
     verifiedGrant: context?.verifiedGrant ?? null,
     verifiedAvailability: context?.verifiedAvailability ?? null,
+    verifiedExtension: context?.verifiedExtension ?? null,
   };
 }
 
@@ -1604,6 +1609,7 @@ export async function applyChannelAutoReply(
       reservation: {
         select: {
           id: true,
+          channel: true,
           guestName: true,
           guestGivenName: true,
           arrivalDate: true,
@@ -2098,6 +2104,27 @@ export async function applyChannelAutoReply(
         void reportError(`verified-availability org=${conversation.property.organizationId}`, err);
         return null;
       });
+  // DOĞRULANMIŞ UZATMA (kurucu kararı 10-09 "Müsait + talep yolu"; anahtar KAPALI → sorgu yok). Hata turu durdurmaz.
+  const verifiedExtensionRun = options.dryRun
+    ? null
+    : await loadVerifiedExtension({
+        organizationId: conversation.property.organizationId,
+        propertyId: conversation.propertyId,
+        timeZone: orgTimezone(org.timezone),
+        guestTexts: unansweredGuestTexts,
+        lastGuestText: last.body,
+        reservation: conversation.reservation
+          ? {
+              arrivalDate: conversation.reservation.arrivalDate,
+              departureDate: conversation.reservation.departureDate,
+              channel: conversation.reservation.channel,
+              status: conversation.reservation.status,
+            }
+          : null,
+      }).catch((err) => {
+        void reportError(`verified-extension org=${conversation.property.organizationId}`, err);
+        return null;
+      });
 
   let result = await suggestReply({
     guestMessage: last.body,
@@ -2380,6 +2407,42 @@ export async function applyChannelAutoReply(
         if (autoReplyGateFailure(vaResult, last.body, vaContext) === null) {
           result = vaResult;
           gateContext.verifiedAvailability = vaContext.verifiedAvailability;
+          gateFailure = null;
+          gatePassed = true;
+        }
+      }
+    }
+  }
+  // ── DOĞRULANMIŞ UZATMA → KOD METNİ (kurucu kararı 10-09 "Müsait + talep yolu"; anahtar KAPALI → `verifiedExtensionRun` hep null) ─────
+  // Saf uzatma isteği ("Bir gece daha kalabilir miyiz?") + takvim taze ve kesin → KODDAN kurulan tek metin: boşsa "… gecesi daire müsait.
+  // Konaklamanızı uzatmak için Airbnb uygulamasından rezervasyon değişikliği talebi gönderebilirsiniz; yeni tutarı Airbnb gösterir.",
+  // doluysa "Maalesef … gecesi daire müsait değil." (söz / fiyat / izin yok). Müsaitlik akışıyla AYNI şartlar: anlama katmanı mesajdaki
+  // BÜTÜN istekleri uzatma (ya da selam) görmeli ve konaklama türünü açıkça "extend" demeli, tek soru, dil TR / EN, modelin etiketi
+  // riskli değil; kapı bu metinle BAŞTAN koşar (acil / şikâyet / injection / güven aynen).
+  const understoodOnlyExtend =
+    !!understood &&
+    understood.stay.kind === "extend" &&
+    understood.requests.length > 0 &&
+    understood.requests.some((q) => q.intent === "extend_stay") &&
+    understood.requests.every((q) => q.intent === "extend_stay" || q.intent === "greeting_thanks");
+  if (
+    !earlyCheckinSent &&
+    !gateContext.verifiedAvailability &&
+    verifiedExtensionRun &&
+    understoodOnlyExtend &&
+    !NEVER_AUTO_REPLY_INTENTS.has(result.intent)
+  ) {
+    const lang = verifiedAvailabilityLang(guestLanguage);
+    const singleQuestion = pendingGuestMessages.length === 0 && (last.body.match(/\?/g)?.length ?? 0) <= 1 && last.body.length <= 300;
+    const now = new Date();
+    if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedExtensionRun.va, verifiedExtensionRun.scope, now)) {
+      const text = verifiedExtensionText(verifiedExtensionRun.va, lang, todayKey(now, orgTimezone(org.timezone)));
+      if (text) {
+        const exResult = { ...verifiedEarlyCheckinResult(result, text), intent: "extend_stay" };
+        const exContext: AutoReplyGateContext = { ...gateContext, verifiedExtension: { text } };
+        if (autoReplyGateFailure(exResult, last.body, exContext) === null) {
+          result = exResult;
+          gateContext.verifiedExtension = exContext.verifiedExtension;
           gateFailure = null;
           gatePassed = true;
         }
