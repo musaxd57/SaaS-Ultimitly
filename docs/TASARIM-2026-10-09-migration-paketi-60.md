@@ -2,6 +2,7 @@
 
 > **DURUM: ÖNERİ. Şemaya / `prisma/migrations/`e HİÇBİR şey eklenmedi.** Kural (CLAUDE.md): migration içeren push = taze `pg_dump`
 > + kurucunun AÇIK onayı. Railway kapalı; dal açılınca son yeşil commit canlıya gider ve 59 (karar motoru) da henüz canlıda değil.
+> İnceleme 10-09 (Haiku): adsız indeks, eksik `sourcePlatform` SQL'i, iz metninin silme paritesi, okuma geçişinde geri düşüş düzeltildi.
 > Kaynak: kurucu talimatı 09-07 (değişmez 2 / 3 / 9 / 14, "Founder AI Quality Console", "Generation trace") ve
 > `docs/YOL-PLANI-DURUM-2026-10-09.md` §2f–h + §4. Hepsi talimatta "Airbnb Direct pilotundan önce" ya da "gelecek gereksinim".
 
@@ -29,18 +30,28 @@ CREATE TABLE "ChannelListing" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL
 );
-CREATE UNIQUE INDEX ON "ChannelListing" ("connectionId", "externalId");
-CREATE INDEX ON "ChannelListing" ("propertyId");
+CREATE UNIQUE INDEX "ChannelListing_connectionId_externalId_key" ON "ChannelListing" ("connectionId", "externalId");
+CREATE INDEX "ChannelListing_propertyId_idx" ON "ChannelListing" ("propertyId");
 ```
 
+- `connectionId ON DELETE CASCADE` bilinçli: bağlantı satırı kod içinde SİLİNMEZ (kopma / iptal belirteci boşaltır, satır kalır —
+  `channels/connections.ts`); tek silme yolu org silmesi, orada org zinciri zaten her şeyi götürür. `RESTRICT` org silmesini
+  kilitleyebilirdi (inceleme 10-09 #24 — reddedildi, gerekçe bu).
+
 - **Geçiş (expand → dual-write → okuma anahtarı → contract):** köprü senkronu ilanı eşlerken `Property.hospitableId` ile BİRLİKTE
-  satır yazar (yalnız AKTİF bağlantı satırı varken — bugün canlıda yok, kurucu org env fallback'te). Okumalar anahtar arkasında
-  (`CHANNEL_LISTING_READ`, varsayılan kapalı) satıra geçer. `hospitableId` DROP'u V0.7 kolon contract'ı ile aynı operatör planında.
+  satır yazar (yalnız AKTİF bağlantı satırı varken — bugün canlıda yok: `ChannelConnection` 09-07 prod sayımında boştu,
+  `docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md` §0; kurucu org env fallback'te). Okumalar anahtar arkasında (`CHANNEL_LISTING_READ`,
+  varsayılan kapalı) satıra geçer; 🚨 satırı olmayan mülkte okuma `Property.hospitableId`e DÜŞER (inceleme 10-09 #21 — yoksa tek canlı
+  kiracı geçişte hiçbir ilan görmezdi). `hospitableId` DROP'u V0.7 kolon contract'ı ile aynı operatör planında.
 - Backfill idempotent: aktif bağlantısı olan org'larda `hospitableId` dolu her mülk için satır (çıkarım yok — bağlantı satırı yoksa
   yazılmaz).
 - Kiracı: `organizationId` + bağlantının org'u aynı olmalı (yazma servisinde kontrol + kiracılar arası davranışsal test).
 
 ## B. `Reservation.sourcePlatform`
+
+```sql
+ALTER TABLE "Reservation" ADD COLUMN "sourcePlatform" TEXT;
+```
 
 - Sağlayıcının ham platform dizesi (bugün `toChannel` "airbnb/booking/vrbo/direct/other"a indirip hamı atıyor). Yalnız ingest yazar,
   yalnız GÖSTERİM / teşhis okur — yetenek ASLA bundan çıkarılmaz (V0.9 pini kapsar). Nullable; eski satırlar NULL (= gözlenmedi).
@@ -81,9 +92,13 @@ CREATE TABLE "AiGeneration" (
   "contextDiagnosticsJson" TEXT,      -- dahil mesaj kimlikleri, atlanan sayısı, bekleyen sayısı (PII yok)
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX ON "AiGeneration" ("organizationId", "createdAt");
-CREATE INDEX ON "AiGeneration" ("conversationId");
+CREATE INDEX "AiGeneration_organizationId_createdAt_idx" ON "AiGeneration" ("organizationId", "createdAt");
+CREATE INDEX "AiGeneration_conversationId_idx" ON "AiGeneration" ("conversationId");
 ```
+
+- 🚨 Metin saklanırsa (§D-1 a) `conversationId` OPAK KALAMAZ (inceleme 10-09 #20): konuşma silinince (ev sahibi silmesi, tekrar
+  konuşma temizliği) iz metni geride kalırdı. → `conversationId` FK `ON DELETE CASCADE`; saklama süpürgesi ve misafir silmesi
+  `draftText` / `sentText`i `Message` ile AYNI işlemde maskeler; `scrub-scope-parity` pinine eklenir. Metin saklanmazsa (b) opak kalır.
 
 - **§D-1 (kurucu kararı):** taslak / gönderilen METİN saklansın mı? (a) Evet — konsol tam izi gösterir; metin `Message` ile AYNI
   saklama süpürgesinden geçer (24 ay, misafir silmede maskelenir — scrub-scope pinine eklenir). (b) Hayır — yalnız özet (SHA-256) +
@@ -105,17 +120,20 @@ CREATE TABLE "AiReviewLabel" (
   "note" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX ON "AiReviewLabel" ("generationId");
+CREATE INDEX "AiReviewLabel_generationId_idx" ON "AiReviewLabel" ("generationId");
 ```
 
 - Konsol: yalnız izin listesi + 2FA'lı süper-admin; yalnız GET + etiket yazma ucu; her görüntüleme ve reddedilen deneme `AuditLog`a
-  (amaç metni zorunlu, IP / oturum) — yeni denetim tablosu gerekmez. Talimatın test listesi aynen uygulanır (sıradan admin erişemez,
+  (amaç metni zorunlu, IP / oturum `AuditLog.metadataJson` içinde — tablo yalnız bu JSON sütununu taşır) — yeni denetim tablosu
+  gerekmez. Talimatın test listesi aynen uygulanır (sıradan admin erişemez,
   sorgu / gövde kimliğiyle kiracı süzgeci aşılamaz, etiket müşteri verisini değiştiremez, gönderim / durum değiştiren hiçbir uca
   ulaşılamaz).
 
 ## Uygulama sırası (onaydan sonra)
 
-1. Tek migration `60_channel_listing_ai_trace` (A–E), taze PG'de 00→60 zinciri + sıfır drift, kanarya / scrub-scope pinleri.
+1. Tek migration `60_channel_listing_ai_trace` (A–E), ADLI indeksler (Prisma `_key` / `_idx` adlarıyla; adsız indeks drift üretir —
+   inceleme 10-09 #19), taze PG'de 00→60 zinciri + sıfır drift, kanarya / scrub-scope pinleri. Dosya `prisma migrate diff` ile üretilir;
+   bu belgedeki SQL taslaktır.
 2. Yazıcılar anahtarların arkasında (hepsi varsayılan KAPALI): ilan dual-write · platform · sağlık · üretim izi.
 3. Konsol (salt-okuma) + etiket ucu + talimatın test listesi.
 4. Push öncesi: taze `pg_dump` (`ops-backup-prod.ps1`) + `pg_restore -l` + SHA → kurucunun "push et" onayı → CI.
