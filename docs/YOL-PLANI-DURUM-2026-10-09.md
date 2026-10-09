@@ -11,7 +11,7 @@
 | ① | Codex denetimi kritik bulguları | ✅ (`docs/audit-2026-09-05/DURUM.md`) |
 | ② | Test sözleşmesi | ✅ `docs/TEST-EVIDENCE-CONTRACT.md` |
 | ③ | V0 Channel Independence | 🟡 V0.1–V0.7 kod ✅ — **kalanlar §2** |
-| ④ | Deterministik Availability Engine | 🟡 çekirdek + panel + konuşma sayfası ✅; **yapay zekâya bağlanmadı** (araç sonucu sözleşmesi yok) |
+| ④ | Deterministik Availability Engine | 🟡 çekirdek + panel + konuşma sayfası ✅; **araç sonucu sözleşmesi ✅ 10-09** (`ai/tools/`, bayat / belirsiz kesin olamaz, kapsam zorunlu); isteme bağlama **kurucu onayı** |
 | ⑤ | Geniş otonom AI | ⛔ ④ ve korumalar doğrulanmadan yok |
 
 Ürün fazları: V1 ✅ canlı · V2 🟡 ("Dikkat Gerektirenler" + çakışmada para aralığı) · V3–V8 başlamadı.
@@ -39,7 +39,7 @@ Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.
 | 3 Güvenlik katmanı | 🟡 MFA, RBAC, denetim kaydı, şifreli sırlar, webhook imzası (Paddle), idempotency, hız sınırı, silme / dışa aktarma, yedek provası var; çeyreklik zafiyet taraması süreci ve güvenlik dosyası yazılmadı |
 | 4 Demo hesabı | 🟡 üretici kodda (`docs/DEMO-HESABI.md`), canlıya koşulmadı (Railway kapalı) |
 | 5 Gerçek kullanım kanıtı | ⛔ kurucu org Hospitable aboneliği 402, Railway kapalı |
-| 6 Entegrasyon dosyası | ❌ yazılmadı |
+| 6 Entegrasyon dosyası | 🟡 taslak ✅ `docs/AIRBNB-INTEGRATION-DOSSIER.md` (Haiku olgu denetimi uygulandı); [TBD]: kullanım rakamları, demo kimlik bilgisi |
 
 Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar) Hospitable'ı zorunlu gibi anlatıyor → avukat paketi; Claude değiştirmez.
 
@@ -47,15 +47,15 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 
 | Gereksinim | Durum |
 |---|---|
-| Ortak bağlam kurucu | 🟡 `selectHistoryForPrompt` (`prompts.ts:1068`) ortak; QR kendi penceresi (`guest-chat.ts:791`); tanı çıktısı yok; >25 bekleyen mesaj testi yok |
+| Ortak bağlam kurucu | 🟡 `selectHistoryForPrompt` ortak; QR bilinçli farklı (her mesaj anında cevaplanır, birikme yok); **>25 bekleyen mesaj kaydırma testi ✅ 10-09** (`pending-window-displacement`, mutasyon iki yönlü); tanı çıktısı = üretim izi (migration 60) |
 | `conversationState` | 🟡 `phase`, `hasPriorDeliveredReply`, `deliveredReplyCount`, `lastInteractionAt` yok; bayrak kapalı |
 | Eylem makbuzu | 🟡 beyan + kapı var (bayrak kapalı); makbuz üreten yürütücü yok |
-| Araç çağrısı / `verifiedToolResults` | ❌ |
-| Tarih çözümü üst verisi | ❌ |
+| Araç çağrısı / `verifiedToolResults` | 🟡 sözleşme + müsaitlik aracı ✅ 10-09; modele araç olarak verilmesi kurucu onayı |
+| Tarih çözümü üst verisi | ✅ 10-09 `ai/date-resolution.ts` (TR+EN; dayanak / güven / varsayım; 4 Haiku turu, 116 test, mutasyon 27/27); bağlanmadı |
 | Zaman bağlamı (geçen süre, oturum arası, yeni gün) | 🟡 gün etiketi var, aralık / oturum yok |
-| Kurucu AI Kalite Konsolu | ❌ (yalnız `admin/quality-audit` POST) |
-| Üretim izi (model, istem sürümü, gecikme, token, maliyet) | ❌ |
-| 8 başlangıç senaryosu | 🟡 parça parça; birebir set yok |
+| Kurucu AI Kalite Konsolu | ❌ tasarım ✅ (`TASARIM-2026-10-09-migration-paketi-60.md` §D–E) → onay |
+| Üretim izi (model, istem sürümü, gecikme, token, maliyet) | ❌ tasarım ✅ (migration 60 §D) → onay |
+| 8 başlangıç senaryosu | ✅ set `evals/founder-initial-8.json` + seçici; ücretli taban koşusu onay |
 | Açık taahhüt hafızası | ❌ |
 
 ## 5. Çalışma sırası (bu turdan itibaren)
@@ -68,3 +68,19 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 6. Sonra V2 sonraki dilimleri ve §4.
 
 Kurucu kararı bekleyen: yapay zekâ günlük özeti (08-08 kaldırma kararı ↔ talimat kapı 2).
+
+## 6. 10-09 akşam — yapılanlar ve kurucu kararı bekleyenler
+
+**Yapıldı (itildi, CI yeşil):** V0.8 kanal erişim katmanı · V0.9 kanal dizesi pini · kapı 2 (rehber + ölü düğme) · araç sonucu
+sözleşmesi + müsaitlik aracı · tarih çözümü · kaydırma testi · kurucu 8 senaryo seti · Airbnb dosyası taslağı · migration 60 tasarımı.
+Her orta / büyük değişiklik Haiku incelemesinden geçti (5 tur; bulguların çoğu kabul, gerekçeli retler commit mesajlarında).
+
+**Kurucu kararı bekleyen (talimatın kalanı bunlara bağlı):**
+1. Migration paketi 60 (A–E) + §D-1 (iz metni saklansın mı) — `docs/TASARIM-2026-10-09-migration-paketi-60.md`.
+2. Müsaitlik aracı + tarih çözümünün yapay zekâ cevabına bağlanması (misafire giden cevabı değiştirir; önce / sonra örnekli öneri).
+3. `founder-initial-8` ücretli taban koşusu (cevap modeli + anlama katmanı, 8 senaryo × 2 kol).
+4. `conversationState` `phase` / `lastInteractionAt` alanlarının isteme girmesi (kör eval ister).
+5. Haftalık zafiyet taraması için varsayılan dalın (`main`) güncel tutulması.
+6. Müsaitlik motorunda `claimBasis` kaynak tazeliğine bakmıyor → panel çakışma önemi bayat kaynakta da "kesin 97"; araç katmanı düzeltildi,
+   motorun kendisi (panel davranışı) ayrı karar.
+7. V2 sonraki dilimleri / V3 eylemler / V5 hazırlık puanı: yeni ürün yüzeyleri — kapsam ve örnekle sorulacak.
