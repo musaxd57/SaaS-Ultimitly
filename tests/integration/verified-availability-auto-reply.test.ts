@@ -213,4 +213,14 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
     expectCodeSent(`The apartment is available for check-in on ${en(D1)} and check-out on ${en(D2)}.`);
   });
+
+  it("🚨 misafirin dili KODLA belirlenemiyor ('29-31 Ekim boş mu?') → modelin dil tahminine düşülmez, gitmez", async () => {
+    // Aynı ay içinde iki gün (kısa, dili belirsiz yazım).
+    let a = addNights(TODAY, 20);
+    if (a.slice(5, 7) !== addNights(a, 2).slice(5, 7)) a = addNights(a, 3);
+    const b = addNights(a, 2);
+    const month = TR_MONTHS[Number(a.slice(5, 7)) - 1];
+    const { conversationId } = await seed({ message: `${Number(a.slice(8, 10))}-${Number(b.slice(8, 10))} ${month} boş mu?` });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
 });
