@@ -116,6 +116,8 @@ export const PIPELINE_FLAGS = [
   "AI_VERIFIED_AVAILABILITY_ENABLED",
   "AI_VERIFIED_EXTENSION_ENABLED",
   "AI_VERIFIED_QR_ENABLED",
+  // Tarih okuması cevap istemini değiştirir (10-10, karar #10).
+  "AI_DATE_RESOLUTION_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

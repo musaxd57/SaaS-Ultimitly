@@ -89,7 +89,7 @@ function understandingFetch(kind: "availability" | "extend" | "none", intents: s
   });
 }
 
-async function seed(opts: { message?: string; feedAgeHours?: number; booked?: "full" | "partial" } = {}) {
+async function seed(opts: { message?: string; feedAgeHours?: number; booked?: "full" | "partial"; writtenAt?: Date } = {}) {
   const org = await prisma.organization.create({
     data: { name: "Müsaitlik Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: TZ },
   });
@@ -123,7 +123,9 @@ async function seed(opts: { message?: string; feedAgeHours?: number; booked?: "f
       status: "new",
       externalReservationId: "inq-avail-1",
       lastMessageAt: new Date(),
-      messages: { create: { direction: "inbound", senderName: "Aday Misafir", body: opts.message ?? ASK } },
+      messages: {
+        create: { direction: "inbound", senderName: "Aday Misafir", body: opts.message ?? ASK, ...(opts.writtenAt ? { createdAt: opts.writtenAt } : {}) },
+      },
     },
   });
   return { conversationId: conversation.id };
@@ -163,6 +165,13 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
     const r = await applyChannelAutoReply(conversationId);
     expect(r.sent).toBe(true);
     expectCodeSent(CODE_AVAILABLE);
+  });
+
+  it("🚨 'yarın' mesajın YAZILDIĞI güne göre (10-10, F14): dün 22:00'de yazılan 'Yarın daire müsait mi?' bugünün gecesini sorar", async () => {
+    const writtenAt = new Date(`${addNights(TODAY, -1)}T22:00:00+03:00`); // dün 22:00 İstanbul
+    const { conversationId } = await seed({ message: "Yarın daire müsait mi?", writtenAt });
+    await applyChannelAutoReply(conversationId);
+    expectCodeSent(`${human(TODAY)} gecesi için daire müsait.`);
   });
 
   it("KONTROL: anahtar KAPALI → hiçbir şey gitmez (bugünkü davranış)", async () => {

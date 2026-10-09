@@ -24,6 +24,11 @@ export async function loadVerifiedExtension(input: {
   lastGuestText: string;
   reservation: { arrivalDate: Date; departureDate: Date; channel: string | null; status: string | null } | null;
   now?: Date;
+  /**
+   * Son misafir mesajının YAZILDIĞI an (10-10): göreli günler ("yarın") ona göre çözülür — 23:59'da yazılıp 00:01'de işlenen "yarın
+   * boş mu?" bir gün kaymasın (F14 sınıfı). Takvim sorgusunun tazeliği yine `now`dır. Verilmezse `now` (QR anında cevaplanır).
+   */
+  writtenAt?: Date;
   /** Anahtarı çağıran belirler (QR kendi anahtarıyla — `AI_VERIFIED_QR_ENABLED`); verilmezse kanal anahtarı. */
   enabled?: boolean;
 }): Promise<VerifiedAvailabilityContext | null> {
@@ -40,7 +45,7 @@ export async function loadVerifiedExtension(input: {
   // bu satır yalnız gereksiz takvim sorgusunu keser).
   if (nightsBetween(todayKey(now, input.timeZone), departure) < 0) return null;
   const dateCtx: DateResolutionContext = {
-    now,
+    now: input.writtenAt ?? now,
     timeZone: input.timeZone,
     reservation: { arrival: calendarDateOf(r.arrivalDate, input.timeZone).key, departure },
   };

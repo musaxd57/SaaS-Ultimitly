@@ -407,3 +407,14 @@
   onaylı, misafirin kendi isteği). Metin `loadQrVerifiedStay`te kurulur; QR kapısı (`evaluateEscalation`) metinle BAŞTAN koşar: muafiyet
   yalnız birebir metne + anlama katmanı + bekçi (bekçi koşmadıysa kod metniyle koşturulur; hüküm yalnız metin seçilirse bağlama yazılır);
   acil / injection / dil / güven / modelin riskli niyeti aynen. Tek cevapsız mesaj şart.
+
+## TARİH OKUMASI (kurucu yokken karar #10, 10-10; anahtar `AI_DATE_RESOLUTION_ENABLED`, tam "1", VARSAYILAN KAPALI)
+- Cevap isteminde "TARİH OKUMASI" bloğu (`ai/date-reading.ts`, tek kurucu `buildReplyPrompt` → kanal, gelen kutusu, Ayarlar, QR): cevapsız
+  misafir mesajlarındaki tarihler `resolveGuestDates` ile, HER MESAJ KENDİ YAZILDIĞI ANA GÖRE (F14: akşam yazılıp sabah okunan "yarın"
+  bugündür); önceki misafir mesajlarındaki açık tarihler yalnız ay bilgisi verir. Satır = gün adları + kesin / belirsiz + sabit Türkçe
+  gerekçe; davranış talimatı YOK (karar #1 ilkesi), misafirin metni GİRMEZ, en çok 5 satır. Anahtar kapalıyken istem bayt bayt aynı.
+- Gece yarısından sonra (yerel 00:00–04:59) yazılan "yarın / öbür gün / tomorrow" BELİRSİZDİR (`after_midnight_relative`; bir önceki
+  gün de seçenek, açık tarih söylüyorsa o kazanır) — eşik anlama katmanının 05:00 ipucuyla aynı. Doğrulanmış müsaitlik / uzatma da aynı
+  modülü kullanır → orada belirsiz = sorgu yok = ev sahibine (yalnız temkinli yön).
+- Doğrulanmış müsaitlik / uzatma göreli günü son misafir mesajının YAZILDIĞI ana göre çözer (`writtenAt`); takvim sorgusunun tazeliği
+  işleme anıdır. QR anında cevaplandığı için işleme anı kullanılır.

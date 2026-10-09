@@ -1,5 +1,6 @@
 import { addNights, nightsBetween, todayKey, type NightKey } from "@/modules/availability/core";
 import { foldTurkishAscii } from "@/lib/ai/fallback";
+import { minutesOfDayInTimeZone } from "@/lib/timezone";
 
 // ---------------------------------------------------------------------------
 // PRAGMATİK TARİH ÇÖZÜMÜ (kurucu talimatı 09-07, "PRAGMATIC DATE RESOLUTION") — SAF, deterministik, DB / ağ / saat yok.
@@ -22,6 +23,9 @@ import { foldTurkishAscii } from "@/lib/ai/fallback";
 //   · rezervasyon: giriş günü / çıkış günü · check-in day / check-out day ("girişte" / "on arrival" YER ya da ZAMAN değil → yok)
 // Tutarlılık (inceleme 10-09): açık tarihle çelişen hafta günü ("15 Ekim Cuma", 15 Ekim Perşembe) ve açık tarihle farklı göreli
 // gün ("yarın, 15 Ekim") BELİRSİZ; tutarlıysa tek gün kalır. Geçmiş gün çözülür ama `past_date` gerekçesi taşır.
+// Gece yarısından sonra (yazıldığı an 00:00–04:59, org dilimi; 10-10): "yarın / öbür gün / tomorrow" henüz uyumamış birinin
+// dilinde çoğu zaman bir gün ÖNCESİNİ kasteder → iki yorum da seçenek, BELİRSİZ (`after_midnight_relative`); açık tarih ikisinden
+// birini söylüyorsa açık tarih kazanır. Eşik anlama katmanının ve konuşma geçmişi notunun 05:00 sınırıyla aynı.
 // Yanlış pozitif kısıtları: "saat 10.12", "1.10 TL", "10/10 hizmet", "cuma namazı", "Salı pazarı", "the 1st floor" tarih DEĞİL.
 // "/" ile yazılmış iki sayı (ikisi de ≤ 12, farklı) gün/ay sırası belirsizdir (3/4 = 3 Nisan mı 4 Mart mı) → BELİRSİZ.
 //
@@ -61,6 +65,8 @@ export interface DateResolution {
 
 /** Misafir metninin işlenen en fazla uzunluğu (tarih ifadesi mesajın başındadır; tavan karesel girdiyi de keser). */
 export const DATE_RESOLUTION_MAX_CHARS = 4_000;
+/** Bu saatten (yerel dakika) önce yazılmış "yarın" belirsizdir — 05:00 (anlama katmanının gece yarısı ipucuyla aynı sınır). */
+export const AFTER_MIDNIGHT_UNTIL_MINUTES = 5 * 60;
 /** Yıl varsayımı bundan uzağa düşerse güven düşük (misafir geçmiş bir günü anıyor olabilir). */
 const FAR_ASSUMPTION_NIGHTS = 300;
 
@@ -307,9 +313,24 @@ export function resolveGuestDates(text: string | null | undefined, ctx: DateReso
     if (nextWord && EN_ORDINAL_NOUNS.has(nextWord)) continue; // "the 1st floor"
     push(m, ...[m[1], m[2]].filter(Boolean).map((d) => dayOnlyPiece(today, Number(d), convMonth)));
   }
+  const minutes = minutesOfDayInTimeZone(ctx.timeZone, ctx.now);
+  const afterMidnight = minutes !== null && minutes < AFTER_MIDNIGHT_UNTIL_MINUTES;
   for (const [re, offset] of RE_RELATIVE) {
     for (const m of t.matchAll(re)) {
-      if (free(m)) push(m, definite("relative", addNights(today, offset), "relative", "high"));
+      if (!free(m)) continue;
+      if (afterMidnight && offset > 0) {
+        take(m);
+        pieces.push({
+          kind: "relative",
+          dates: [],
+          alternatives: [addNights(today, offset - 1), addNights(today, offset)],
+          basis: "relative",
+          confidence: "low",
+          assumed: [],
+          reasons: ["after_midnight_relative"],
+          ambiguous: true,
+        });
+      } else push(m, definite("relative", addNights(today, offset), "relative", "high"));
     }
   }
   for (const m of t.matchAll(RE_WEEKEND)) {
@@ -359,10 +380,27 @@ export function resolveGuestDates(text: string | null | undefined, ctx: DateReso
   if (explicitDates.size > 0) {
     pieces = pieces.flatMap((p): Piece[] => {
       if (p.kind !== "relative") return [p];
+      // Gece yarısı belirsizliği: açık tarih seçeneklerden birini söylüyorsa onu seçer (göreli parça düşer); söylemiyorsa ikisi de çelişir.
+      if (p.ambiguous) return p.alternatives.some((k) => explicitDates.has(k)) ? [] : [{ ...p, reasons: [...p.reasons, "conflicting_dates"] }];
       return explicitDates.has(p.dates[0]) ? [] : [{ ...p, alternatives: p.dates, dates: [], ambiguous: true, confidence: "low", reasons: ["conflicting_dates"] }];
     });
   }
-  const anchors = new Set([...explicitDates, ...pieces.filter((p) => p.kind === "relative" && !p.ambiguous).flatMap((p) => p.dates)]);
+  // Gece yarısı belirsizliği + hafta günü (Haiku 10-10): hafta günü seçeneklerden TEK birine uyuyorsa göreli gün o güne çözülür
+  // ("yarın cumartesi"); hiçbirine uymuyorsa hafta günü çelişkidir (aşağıda, seçenekler de çapadır).
+  const weekdayDows = new Set(pieces.filter((p) => p.kind === "weekday" && !p.ambiguous && p.dow !== undefined).map((p) => p.dow));
+  if (weekdayDows.size > 0) {
+    pieces = pieces.map((p): Piece => {
+      if (!(p.kind === "relative" && p.ambiguous && p.reasons.includes("after_midnight_relative"))) return p;
+      const hit = p.alternatives.filter((k) => weekdayDows.has(dowOf(k)));
+      return hit.length === 1 ? definite("relative", hit[0], "relative", "medium") : p;
+    });
+  }
+  const lateAlternatives = pieces.filter((p) => p.kind === "relative" && p.ambiguous && p.reasons.includes("after_midnight_relative")).flatMap((p) => p.alternatives);
+  const anchors = new Set([
+    ...explicitDates,
+    ...pieces.filter((p) => p.kind === "relative" && !p.ambiguous).flatMap((p) => p.dates),
+    ...lateAlternatives,
+  ]);
   if (anchors.size > 0) {
     pieces = pieces.flatMap((p): Piece[] => {
       if (p.kind !== "weekday" || p.ambiguous || p.dow === undefined) return [p];

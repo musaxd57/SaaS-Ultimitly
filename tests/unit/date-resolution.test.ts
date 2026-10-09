@@ -275,3 +275,58 @@ describe("virgüllü gün listesi (doğrulanmış müsaitlik testi yakaladı)", 
     expect(r("2, 3 kişiyiz").status).toBe("none");
   });
 });
+
+// Gece yarısından sonra yazılan "yarın" (10-10, karar #10): henüz uyumamış birinin "yarın"ı çoğu zaman bir önceki günü kasteder; iki
+// yorum da seçenek, BELİRSİZ. Eşik 05:00 (anlama katmanının gece yarısı ipucu ve konuşma geçmişi notuyla aynı). "Bugün" etkilenmez.
+describe("gece yarısından sonra yazılan göreli gün", () => {
+  const at = (hhmmIstanbul: string) => new Date(`2026-10-10T${hhmmIstanbul}:00+03:00`); // 10 Ekim Cumartesi, İstanbul saati
+  const g = (text: string, when: Date, extra: Partial<Parameters<typeof resolveGuestDates>[1]> = {}) =>
+    resolveGuestDates(text, { now: when, timeZone: TZ, ...extra });
+
+  it.each([
+    ["yarın", "00:40"],
+    ["Tomorrow", "02:15"],
+    ["yarın sabah", "04:59"],
+  ])("🚨 '%s' %s'te → belirsiz: bugün (10 Ekim) ya da 11 Ekim", (text, hhmm) => {
+    const x = g(text, at(hhmm));
+    expect(x).toMatchObject({ status: "ambiguous", dates: [], alternatives: ["2026-10-10", "2026-10-11"], confidence: "low" });
+    expect(x.reasons).toContain("after_midnight_relative");
+  });
+
+  it("KONTROL: 05:00 ve sonrası 'yarın' kesin (11 Ekim); 'bugün' gece yarısından sonra da bugündür", () => {
+    expect(g("yarın", at("05:00"))).toMatchObject({ status: "resolved", dates: ["2026-10-11"] });
+    expect(g("bugün", at("00:40"))).toMatchObject({ status: "resolved", dates: ["2026-10-10"] });
+  });
+
+  it("'öbür gün' gece yarısından sonra → 11 ya da 12 Ekim", () => {
+    expect(g("öbür gün", at("01:00"))).toMatchObject({ status: "ambiguous", alternatives: ["2026-10-11", "2026-10-12"] });
+  });
+
+  it("🚨 açık tarih seçeneklerden birini söylüyorsa açık tarih kazanır; söylemiyorsa çelişki (belirsiz)", () => {
+    expect(g("yarın, 10 Ekim", at("00:40"))).toMatchObject({ status: "resolved", dates: ["2026-10-10"] });
+    expect(g("yarın, 11 Ekim", at("00:40"))).toMatchObject({ status: "resolved", dates: ["2026-10-11"] });
+    const x = g("yarın, 15 Ekim", at("00:40"));
+    expect(x.status).toBe("ambiguous");
+    expect(x.dates).toEqual(["2026-10-15"]);
+    expect(x.reasons).toEqual(expect.arrayContaining(["after_midnight_relative", "conflicting_dates"]));
+  });
+
+  it("🚨 hafta günü seçeneklerden TEK birine uyuyorsa çözülür; hiçbirine uymuyorsa çelişki (Haiku 10-10)", () => {
+    // Cumartesi 00:30: "yarın cumartesi" → 10 Ekim (henüz uyumamış misafirin yarını); "yarın pazar günü" → 11 Ekim.
+    expect(g("yarın cumartesi", at("00:30"))).toMatchObject({ status: "resolved", dates: ["2026-10-10"] });
+    expect(g("yarın pazar günü", at("00:30"))).toMatchObject({ status: "resolved", dates: ["2026-10-11"] });
+    const x = g("yarın cuma", at("00:30"));
+    expect(x.status).toBe("ambiguous");
+    expect(x.dates).toEqual([]);
+    expect(x.reasons).toEqual(expect.arrayContaining(["after_midnight_relative", "weekday_mismatch"]));
+  });
+
+  it("eşik ORG diliminin saatidir (New York 01:00 → belirsiz; aynı an İstanbul 08:00 → kesin)", () => {
+    const when = new Date("2026-10-10T05:00:00Z"); // New York 01:00, İstanbul 08:00
+    expect(resolveGuestDates("tomorrow", { now: when, timeZone: "America/New_York" })).toMatchObject({
+      status: "ambiguous",
+      alternatives: ["2026-10-10", "2026-10-11"],
+    });
+    expect(resolveGuestDates("tomorrow", { now: when, timeZone: TZ })).toMatchObject({ status: "resolved", dates: ["2026-10-11"] });
+  });
+});

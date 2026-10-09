@@ -2102,6 +2102,7 @@ export async function applyChannelAutoReply(
         timeZone: orgTimezone(org.timezone),
         guestTexts: unansweredGuestTexts,
         lastGuestText: last.body,
+        writtenAt: last.createdAt,
         reservation: conversation.reservation
           ? { arrivalDate: conversation.reservation.arrivalDate, departureDate: conversation.reservation.departureDate }
           : null,
@@ -2118,6 +2119,7 @@ export async function applyChannelAutoReply(
         timeZone: orgTimezone(org.timezone),
         guestTexts: unansweredGuestTexts,
         lastGuestText: last.body,
+        writtenAt: last.createdAt,
         reservation: conversation.reservation
           ? {
               arrivalDate: conversation.reservation.arrivalDate,
