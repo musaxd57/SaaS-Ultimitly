@@ -1,6 +1,7 @@
 import "server-only";
 
 import { calendarDateOf, nightsBetween, todayKey } from "@/modules/availability/core";
+import { guestChangeRequestPath } from "@/lib/channels/capability";
 import { detectAvailabilityRequestKinds } from "@/lib/ai/availability-claims";
 import { runAvailabilityTool } from "@/lib/ai/tools/availability-tool-load";
 import { extensionQueryOf, verifiedExtensionEnabled } from "@/lib/ai/verified-extension";
@@ -28,7 +29,7 @@ export async function loadVerifiedExtension(input: {
   const r = input.reservation;
   // Metin "Airbnb uygulamasından değişiklik talebi" der → yalnız Airbnb rezervasyonu; doğrudan / diğer kanal ev sahibine.
   // Yalnız ONAYLI konaklama (Haiku 10-09: rezervasyon talebi "pending", erken çıkışla "completed" da geçiyordu).
-  if (!r || r.channel !== "airbnb" || r.status !== "confirmed") return null;
+  if (!r || guestChangeRequestPath(r) !== "airbnb_app" || r.status !== "confirmed") return null;
   const kinds = new Set(input.guestTexts.flatMap((t) => detectAvailabilityRequestKinds(t)));
   if (!kinds.has("extend") || [...kinds].some((k) => k !== "extend" && k !== "availability")) return null;
   const now = input.now ?? new Date();

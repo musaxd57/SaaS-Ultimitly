@@ -56,3 +56,14 @@ export const PROVIDER_THREAD_CONVERSATION_WHERE = {
   externalReservationId: { not: null },
   NOT: { externalReservationId: { startsWith: INTERNAL_THREAD_PREFIX } },
 } satisfies Prisma.ConversationWhereInput;
+
+/**
+ * MİSAFİRİN KENDİSİ REZERVASYON DEĞİŞİKLİĞİ TALEBİ GÖNDEREBİLİR Mİ ve NEREDEN (doğrulanmış uzatma metni — kurucu kararı 10-09).
+ * Bugün yalnız Airbnb rezervasyonunda misafir uygulamadan değişiklik talebi gönderir ve yeni tutarı platform gösterir (araştırma
+ * 10-09). Başka kanal / doğrudan / elle kayıt → null (uzatma ev sahibine kalır). Kanal etiketinden çıkarım YALNIZ burada (değişmez #20);
+ * Airbnb Direct girince bağlantı yeteneğine taşınır.
+ */
+export type GuestChangeRequestPath = "airbnb_app";
+export function guestChangeRequestPath(r: { channel: string | null }): GuestChangeRequestPath | null {
+  return r.channel === "airbnb" ? "airbnb_app" : null;
+}

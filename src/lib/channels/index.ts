@@ -47,6 +47,8 @@ export {
   PROVIDER_THREAD_CONVERSATION_WHERE,
   reservationMessagingCapable,
   isInternalThread,
+  guestChangeRequestPath,
+  type GuestChangeRequestPath,
 } from "./capability";
 export {
   registerIngestAdapter,
