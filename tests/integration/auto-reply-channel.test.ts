@@ -2322,7 +2322,7 @@ describe("applyChannelAutoReply — selam tekrarı (kodda)", () => {
   });
 
   // Talimat 09-07 §5: kuyrukta iptal / başarısız / engellenmiş / incelemede kalmış giden mesaj misafire ULAŞMADI → cevap sayılmaz.
-  it.each(["canceled", "failed", "blocked", "review"])(
+  it.each(["canceled", "failed", "blocked"])(
     "🚨 kuyrukta %s kalmış (misafire ulaşmamış) giden mesaj cevap SAYILMAZ → hâlâ ilk cevap",
     async (status) => {
       vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
@@ -2338,6 +2338,20 @@ describe("applyChannelAutoReply — selam tekrarı (kodda)", () => {
       expect(firstOperatorReply()).toBe(true);
     },
   );
+
+  it("🚨 kuyrukta 'review' (gönderim BELİRSİZ — misafire ulaşmış olabilir) giden mesaj cevap SAYILIR → ikinci selam yok", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    const { conversationId } = await seed();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, include: { property: true } });
+    const m = await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "GuestOps AI", authorType: "ai", body: "Merhaba! Wi-Fi kartta.", createdAt: new Date(Date.now() - 120_000) },
+    });
+    await prisma.messageOutbox.create({
+      data: { organizationId: conv.property.organizationId, conversationId, messageId: m.id, channel: "airbnb", body: m.body, idempotencyKey: "k-review", status: "review" },
+    });
+    await applyChannelAutoReply(conversationId);
+    expect(firstOperatorReply()).toBe(false);
+  });
 
   it("KONTROL: kuyrukta TESLİM EDİLMİŞ (sent) giden mesaj cevap sayılır", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");

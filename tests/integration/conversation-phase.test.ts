@@ -69,6 +69,50 @@ describe("loadConversationPhase", () => {
     expect(s?.lastInteractionAt).toBeInstanceOf(Date);
   });
 
+  it("🚨 otomatik şablon mesajı (K7) cevapsız penceresini SIFIRLAMAZ ve kapanış saymaz: acil → giriş otomasyonu → 'Tamam teşekkürler'", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const t = Date.now() - 10 * 60_000;
+    const c = await prisma.conversation.create({
+      data: {
+        propertyId,
+        channel: "airbnb",
+        guestIdentifier: "M",
+        lastMessageAt: new Date(),
+        messages: {
+          create: [
+            { direction: "inbound", senderName: "M", authorType: "guest", body: "Merhaba", createdAt: new Date(t) },
+            { direction: "outbound", senderName: "Ev sahibi", authorType: "host", body: "Hoş geldiniz.", createdAt: new Date(t + 60_000) },
+            { direction: "inbound", senderName: "M", authorType: "guest", body: "Su taşıyor, acil!", createdAt: new Date(t + 120_000) },
+            { direction: "outbound", senderName: "Lixus", authorType: "automation", body: "Giriş bilgileriniz: …", createdAt: new Date(t + 180_000) },
+            { direction: "inbound", senderName: "M", authorType: "guest", body: "Tamam teşekkürler", createdAt: new Date(t + 240_000) },
+          ],
+        },
+      },
+    });
+    const s = await loadConversationPhase(c.id);
+    expect(s).toMatchObject({ phase: "ongoing", deliveredReplyCount: 2, unansweredGuestMessageCount: 2 });
+  });
+
+  it("🚨 yapay zekânın son cevabı TEKLİF ise 'Olur, teşekkürler' kapanış DEĞİL", async () => {
+    const id = await conversationWith([
+      { dir: "inbound", body: "Yol nasıl?" },
+      { dir: "outbound", body: "Yol tarifini de gönderebilirim, ister misiniz?" },
+      { dir: "inbound", body: "Olur, teşekkürler" },
+    ]);
+    await prisma.message.updateMany({ where: { conversationId: id, direction: "outbound" }, data: { authorType: "ai", senderName: "GuestOps AI" } });
+    expect((await loadConversationPhase(id))?.phase).toBe("ongoing");
+  });
+
+  it("aynı zaman damgasında cevaptan SONRA yazılan misafir mesajı kaybolmaz (eşitlik id ile)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const same = new Date(Date.now() - 60_000);
+    const c = await prisma.conversation.create({ data: { propertyId, channel: "airbnb", guestIdentifier: "M", lastMessageAt: new Date() } });
+    await prisma.message.create({ data: { conversationId: c.id, direction: "inbound", senderName: "M", authorType: "guest", body: "Wi-Fi?", createdAt: new Date(same.getTime() - 60_000) } });
+    await prisma.message.create({ data: { conversationId: c.id, direction: "outbound", senderName: "H", authorType: "host", body: "Kartta.", createdAt: same } });
+    await prisma.message.create({ data: { conversationId: c.id, direction: "inbound", senderName: "M", authorType: "guest", body: "Ya otopark?", createdAt: same } });
+    expect(await loadConversationPhase(c.id)).toMatchObject({ phase: "ongoing", unansweredGuestMessageCount: 1 });
+  });
+
   it("🚨 kuyrukta misafire ulaşmamış giden mesaj (kuyruk açık) cevap sayılmaz", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     const id = await conversationWith([

@@ -7,7 +7,7 @@ const at = new Date("2026-10-09T10:00:00Z");
 describe("deriveConversationPhase", () => {
   it("teslim edilmiş cevap yok → first_contact (misafir ne yazmış olursa olsun)", () => {
     for (const texts of [[], ["Merhaba"], ["Teşekkürler"]]) {
-      expect(deriveConversationPhase({ deliveredReplyCount: 0, unansweredGuestTexts: texts, lastInteractionAt: at })).toMatchObject({
+      expect(deriveConversationPhase({ deliveredReplyCount: 0, unansweredGuestTexts: texts, closable: true, lastInteractionAt: at })).toMatchObject({
         phase: "first_contact",
         hasPriorDeliveredReply: false,
         isFirstOperatorReply: true,
@@ -17,7 +17,7 @@ describe("deriveConversationPhase", () => {
   });
 
   it("cevaptan sonra yalnız teşekkür / onay → closing", () => {
-    expect(deriveConversationPhase({ deliveredReplyCount: 2, unansweredGuestTexts: ["Teşekkürler", "👍"], lastInteractionAt: at })).toMatchObject({
+    expect(deriveConversationPhase({ deliveredReplyCount: 2, unansweredGuestTexts: ["Teşekkürler", "👍"], closable: true, lastInteractionAt: at })).toMatchObject({
       phase: "closing",
       hasPriorDeliveredReply: true,
       isFirstOperatorReply: false,
@@ -30,18 +30,22 @@ describe("deriveConversationPhase", () => {
     [["Anladım teşekkürler ama 12'de gelebilir miyiz?"]],
     [[]],
   ])("🚨 soru / istek varsa ya da cevapsız mesaj yoksa closing DEĞİL → ongoing (%j)", (texts) => {
-    expect(deriveConversationPhase({ deliveredReplyCount: 1, unansweredGuestTexts: texts, lastInteractionAt: at }).phase).toBe("ongoing");
+    expect(deriveConversationPhase({ deliveredReplyCount: 1, unansweredGuestTexts: texts, closable: true, lastInteractionAt: at }).phase).toBe("ongoing");
+  });
+
+  it("🚨 kapanışa uygun nokta değilse (son cevap soru / teklif, ya da yalnız otomatik mesaj vardı) teşekkür kapanış DEĞİL", () => {
+    expect(deriveConversationPhase({ deliveredReplyCount: 1, unansweredGuestTexts: ["Teşekkürler"], closable: false, lastInteractionAt: at }).phase).toBe("ongoing");
   });
 
   it("🚨 cevapsız mesaj tavanı aşıldı → kapanış hükmü VERİLMEZ (ongoing), sayı alt sınır olarak işaretli", () => {
     const texts = Array.from({ length: PHASE_UNANSWERED_SCAN + 1 }, () => "Teşekkürler");
-    const s = deriveConversationPhase({ deliveredReplyCount: 1, unansweredGuestTexts: texts, lastInteractionAt: at });
+    const s = deriveConversationPhase({ deliveredReplyCount: 1, unansweredGuestTexts: texts, closable: true, lastInteractionAt: at });
     expect(s).toMatchObject({ phase: "ongoing", unansweredCapped: true, unansweredGuestMessageCount: PHASE_UNANSWERED_SCAN });
   });
 
   it("bozuk sayı (negatif / kesirli) 0 sayılır", () => {
-    expect(deriveConversationPhase({ deliveredReplyCount: -3, unansweredGuestTexts: [], lastInteractionAt: null }).phase).toBe("first_contact");
-    expect(deriveConversationPhase({ deliveredReplyCount: 1.5, unansweredGuestTexts: [], lastInteractionAt: null }).deliveredReplyCount).toBe(0);
+    expect(deriveConversationPhase({ deliveredReplyCount: -3, unansweredGuestTexts: [], closable: true, lastInteractionAt: null }).phase).toBe("first_contact");
+    expect(deriveConversationPhase({ deliveredReplyCount: 1.5, unansweredGuestTexts: [], closable: true, lastInteractionAt: null }).deliveredReplyCount).toBe(0);
   });
 });
 

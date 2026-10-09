@@ -160,7 +160,7 @@ import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
-import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, UNDELIVERED_TERMINAL_STATUSES } from "@/lib/outbox/state";
+import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, NOT_DELIVERED_STATUSES } from "@/lib/outbox/state";
 import { resolveOrgChannelCredential } from "@/lib/channels";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
@@ -1701,8 +1701,9 @@ export async function applyChannelAutoReply(
     const undelivered = await prisma.messageOutbox.findMany({
       where: {
         conversationId: conversation.id,
-        // Terminal + teslim EDİLMEMİŞ durumlar (uçuştakiler bilinçli hariç) — tek kaynak `outbox/state.ts`.
-        status: { in: [...UNDELIVERED_TERMINAL_STATUSES] },
+        // Terminal + teslim EDİLMEMİŞ durumlar (uçuştakiler bilinçli hariç). Bağlam için `review` (belirsiz) de dışarıda: modele
+        // ulaştığı KESİN olmayan bir cevabı "verilmiş" sunmamak (selam sayımı ise onu sayar — `operator-replies.ts`).
+        status: { in: [...NOT_DELIVERED_STATUSES, "review"] },
       },
       select: { messageId: true },
     });

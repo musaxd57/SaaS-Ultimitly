@@ -50,11 +50,11 @@ export const CLAIMABLE_STATUSES: readonly OutboxStatus[] = ["pending", "ambiguou
 export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "review", "canceled", "blocked"];
 
 /**
- * Terminal ve misafire ULAŞMAMIŞ durumlar (uçuştakiler — pending / sending / ambiguous / reconciling — bilinçli HARİÇ: büyük olasılıkla
- * gidecekler). Tek kaynak: oto-yanıt bağlamı bu satırların mesajını geçmişten çıkarır, "daha önce cevap verdin" sayımı onları saymaz
- * (talimat 09-07 §5: başarısız / iptal edilmiş giden mesaj ve gönderilmemiş taslak bağlama girmez).
+ * Terminal ve misafire KESİNLİKLE ULAŞMAMIŞ durumlar: iptal (POST hiç yapılmadı) · başarısız (kesin ret) · engellendi (abonelik). Talimat
+ * 09-07 §5: bunlar cevap / bağlam sayılmaz. `review` BURADA DEĞİL (Haiku 10-09): belirsiz gönderim misafire ULAŞMIŞ olabilir — "daha
+ * önce cevap verdin" sayımından düşürmek ikinci selam üretirdi. Uçuştakiler (pending / sending / ambiguous / reconciling) de hariç.
  */
-export const UNDELIVERED_TERMINAL_STATUSES: readonly OutboxStatus[] = ["canceled", "failed", "blocked", "review"];
+export const NOT_DELIVERED_STATUSES: readonly OutboxStatus[] = ["canceled", "failed", "blocked"];
 
 /**
  * Statuses a KVKK scrub (explicit erasure OR the time-based sweep) must CANCEL,

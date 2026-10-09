@@ -5,8 +5,8 @@ import { lexicalClosingOnly } from "./closing-turn";
 // YETKİLİ KONUŞMA DURUMU (kurucu talimatı 09-07 "BOUNDED CONVERSATION CONTEXT" §6) — SAF. Girdi kalıcı kayıtlardan, konuşmanın
 // TAMAMINDAN hesaplanır (`operator-replies.ts` `loadConversationPhase`); son mesaj penceresinden ÇIKARILMAZ.
 //
-//   phase: first_contact (misafire hiç teslim edilmiş cevap yok) · closing (teslim edilmiş cevaptan sonra misafirin yazdıklarının
-//          HEPSİ yalnız teşekkür / onay — kapanış sessizliğinin SÖZCÜK yüklemi, `closing-turn.ts`) · ongoing (diğer her şey).
+//   phase: first_contact (misafire hiç teslim edilmiş cevap yok) · closing (kapanışa uygun nokta [`closableAfter`] VE son konuşma
+//          cevabından sonra misafirin yazdıklarının HEPSİ yalnız teşekkür / onay — kapanış sessizliğinin SÖZCÜK yüklemi) · ongoing.
 //   hasPriorDeliveredReply / isFirstOperatorReply / deliveredReplyCount / unansweredGuestMessageCount / lastInteractionAt.
 //
 // Kapanış hükmü YALNIZ sözcük yüklemiyle ve bütün cevapsız mesajlar okunabildiyse verilir (tavan aşıldıysa ongoing): bu alan bir
@@ -24,7 +24,7 @@ export interface ConversationPhaseState {
   hasPriorDeliveredReply: boolean;
   isFirstOperatorReply: boolean;
   deliveredReplyCount: number;
-  /** Son teslim edilmiş cevaptan sonraki misafir mesajı sayısı (tavan `PHASE_UNANSWERED_SCAN`; üstü "+1" ile işaretli). */
+  /** Son KONUŞMA cevabından (otomatik şablon mesajı hariç) sonraki misafir mesajı sayısı (tavan `PHASE_UNANSWERED_SCAN`). */
   unansweredGuestMessageCount: number;
   /** Tavan aşıldı: sayı alt sınırdır. */
   unansweredCapped: boolean;
@@ -33,15 +33,22 @@ export interface ConversationPhaseState {
 
 export function deriveConversationPhase(input: {
   deliveredReplyCount: number;
-  /** Son teslim edilmiş cevaptan sonraki misafir mesajları (kronolojik; en çok `PHASE_UNANSWERED_SCAN` + 1). */
+  /** Son KONUŞMA cevabından sonraki misafir mesajları (kronolojik; en çok `PHASE_UNANSWERED_SCAN` + 1). */
   unansweredGuestTexts: readonly string[];
+  /** Kapanış ön şartı (`closing-turn.ts` `closableAfter`): misafir yazdıktan sonra bir cevap var VE yapay zekânın son cevabı soru /
+   *  teklif değil. Yükleyici hesaplar. */
+  closable: boolean;
   lastInteractionAt: Date | null;
 }): ConversationPhaseState {
   const delivered = Number.isInteger(input.deliveredReplyCount) && input.deliveredReplyCount > 0 ? input.deliveredReplyCount : 0;
   const capped = input.unansweredGuestTexts.length > PHASE_UNANSWERED_SCAN;
   const texts = input.unansweredGuestTexts.slice(0, PHASE_UNANSWERED_SCAN);
   const phase: ConversationPhase =
-    delivered === 0 ? "first_contact" : !capped && lexicalClosingOnly(texts) ? "closing" : "ongoing"; // boş liste kapanış değil (yüklem en az bir mesaj ister)
+    delivered === 0
+      ? "first_contact"
+      : input.closable && !capped && lexicalClosingOnly(texts) // boş liste kapanış değil (yüklem en az bir mesaj ister)
+        ? "closing"
+        : "ongoing";
   return {
     phase,
     hasPriorDeliveredReply: delivered > 0,
