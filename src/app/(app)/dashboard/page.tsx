@@ -17,7 +17,7 @@ import { notClosingHandledWhere } from "@/lib/conversation-attention";
 // ⚠️ `buildDailySummary` ARTIK KULLANILMIYOR (kart kaldırıldı) ama SİLİNMEDİ:
 // `/api/reports/daily` onu kullanıyor ve test-pinli bir JSON sözleşmesi.
 import { dedupeBookings, getOpsStats } from "@/lib/reports";
-import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { hasMessagingConnection } from "@/lib/channels";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import { AttentionPanel } from "@/components/attention-panel";
@@ -95,8 +95,8 @@ export default async function DashboardPage() {
 
   // "Başlarken" onboarding: compute setup progress. The card only renders until
   // every step is done, then disappears for established accounts.
-  const [connection, conversationCount, kbCount, premiumOk, attention] = await Promise.all([
-    getConnectionInfo(orgId),
+  const [channelConnected, conversationCount, kbCount, premiumOk, attention] = await Promise.all([
+    hasMessagingConnection(orgId),
     prisma.conversation.count({ where: scope }),
     prisma.knowledgeBaseItem.count({ where: { isActive: true, ...scope } }),
     premiumAllowed(orgId),
@@ -106,7 +106,7 @@ export default async function DashboardPage() {
   ]);
   const onboardingSteps: OnboardingStep[] = [
     {
-      done: connection.connected,
+      done: channelConnected,
       title: "Airbnb / Booking bağlantınızı kurun",
       // Açıklama başlığı TEKRARLAMAZ. Altı adımın beşi yeni bilgi veriyordu,
       // bu biri "bağlantınızı kurun"u iki kez söylüyordu: ilk açılışta en çok
@@ -383,9 +383,9 @@ export default async function DashboardPage() {
             {conversations.length === 0 ? (
               <EmptyState
                 icon={CheckCircle2}
-                title={connection.connected ? "Bekleyen mesaj yok" : "Henüz mesaj yok"}
+                title={channelConnected ? "Bekleyen mesaj yok" : "Henüz mesaj yok"}
                 description={
-                  connection.connected
+                  channelConnected
                     ? "Tüm konuşmalar güncel."
                     : "Airbnb / Booking bağlantısını kurunca misafir mesajları burada görünür."
                 }

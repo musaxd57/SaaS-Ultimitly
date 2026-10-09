@@ -23,6 +23,7 @@ Hedef: Hospitable geçici köprü, uzun vadede bağımsız AI-native PMS (V0 bel
 
 ## 🧭 Yol planı (kurucu talimatı 2026-09-07 — özet; tam metin `docs/KURUCU-TALIMATI-…md`)
 > 📄 **Tam metin (bağlayıcı): `docs/claude/yol-plani.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
+> 📋 **Madde madde durum + çalışma sırası (10-09): `docs/YOL-PLANI-DURUM-2026-10-09.md`** (kurucu: "sıralama nasılsa öyle ilerle").
 **FINAL PRODUCT CONSTRAINT:** Lixus başka PMS'lerin üzerinde AI wrapper DEĞİL; Airbnb Direct + Booking.com
 **10 mimari ilke:** çekirdek Hospitable semantiği istemez · sağlayıcı değişince çekirdek yeniden yazılmaz ·
 **20 teknik değişmez (test-pinli olacak):** (1) çekirdek/intelligence hiçbir sağlayıcı modülünü import

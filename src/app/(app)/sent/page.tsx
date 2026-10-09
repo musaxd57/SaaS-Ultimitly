@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { Pager } from "@/components/pager";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
-import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { hasMessagingConnection } from "@/lib/channels";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import { fillGuestPlaceholders, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { fromNow, truncate, cn } from "@/lib/utils";
@@ -172,7 +172,7 @@ export default async function SentPage({
     welcomeCount,
     checkinCount,
     checkoutCount,
-    connection,
+    channelConnected,
   ] = await Promise.all([
     wants("reply")
       ? prisma.message.findMany({
@@ -222,7 +222,7 @@ export default async function SentPage({
     prisma.reservation.count({ where: lifecycleWhere("welcome") }),
     prisma.reservation.count({ where: lifecycleWhere("checkin") }),
     prisma.reservation.count({ where: lifecycleWhere("checkout") }),
-    getConnectionInfo(orgId),
+    hasMessagingConnection(orgId),
   ]);
 
   const totals: Record<SentKind, number> = {
@@ -383,7 +383,7 @@ export default async function SentPage({
           icon={Send}
           title="Henüz otomatik mesaj gönderilmedi"
           description={
-            connection.connected
+            channelConnected
               ? "Oto-yanıt veya otomatik karşılama açıldığında, gönderilen her mesaj burada listelenir."
               : "Airbnb / Booking bağlantısını kurup oto-yanıt veya otomatik karşılamayı açtığınızda, gönderilen her mesaj burada listelenir."
           }

@@ -17,7 +17,7 @@ import {
   getOccupancyByProperty,
   TOP_TOPICS_WINDOW_DAYS,
 } from "@/lib/reports";
-import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { hasMessagingConnection } from "@/lib/channels";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,12 +133,12 @@ export default async function ReportsPage() {
     take: 5,
   });
 
-  const [ai, topics, score, occupancy, connection] = await Promise.all([
+  const [ai, topics, score, occupancy, channelConnected] = await Promise.all([
     getAiOpsReport(organizationId),
     getTopTopics(organizationId, 6),
     getHostPerformanceScore(organizationId),
     getOccupancyByProperty(organizationId),
-    getConnectionInfo(organizationId),
+    hasMessagingConnection(organizationId),
   ]);
 
   const maxTopic = Math.max(1, ...topics.map((t) => t.count));
@@ -167,7 +167,7 @@ export default async function ReportsPage() {
         description="AI performansı, şikayet yoğunluğu ve operasyon metrikleri. Her kart kendi dönemini belirtir (AI etkinliği son 30 gün, doluluk bu ay)."
       />
 
-      {!connection.connected && !isDemoOrg(organizationId) ? (
+      {!channelConnected && !isDemoOrg(organizationId) ? (
         <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           Airbnb / Booking bağlantısı kurulunca bu raporlar misafir mesajları ve rezervasyonlarla
           otomatik dolar.

@@ -7,9 +7,21 @@ import { registerOutboundAdapter } from "./outbound";
 import { hospitableOutboundAdapter } from "./hospitable-outbound";
 import { registerIngestAdapter } from "./ingest";
 import { hospitableIngestAdapter } from "./hospitable-ingest";
+import { registerMessagingAccess } from "./access";
+import { hospitableMessagingAccess } from "./hospitable-access";
 
 registerOutboundAdapter(hospitableOutboundAdapter);
 registerIngestAdapter(hospitableIngestAdapter); // V0.6 — okuma yönü de aynı kayıt defterinden
+registerMessagingAccess(hospitableMessagingAccess); // V0.8 — kimlik bilgisi + bağlantı durumu da sınırda
+
+export {
+  resolveOrgChannelCredential,
+  handleOutboundCredentialRejected,
+  hasMessagingConnection,
+  registerMessagingAccess,
+  __setMessagingAccessForTest,
+} from "./access";
+export type { MessagingAccess, CredentialRejectionOutcome } from "./access";
 
 export {
   INTERNAL_THREAD_PREFIX,

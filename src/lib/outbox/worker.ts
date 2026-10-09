@@ -7,8 +7,7 @@ import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { errorWithContext, reportError } from "@/lib/report-error";
-import { getOrgHospitableToken, handleProviderAuthFailure } from "@/lib/hospitable-credentials";
-import { dispatchOutbound, resolveOutboundRoute } from "@/lib/channels";
+import { dispatchOutbound, handleOutboundCredentialRejected, resolveOrgChannelCredential, resolveOutboundRoute } from "@/lib/channels";
 import { ANON_BODY } from "@/lib/data-retention";
 import {
   attemptsExhausted,
@@ -101,7 +100,7 @@ export interface DrainDeps {
   send?: OutboxSendFn;
   /** Best-effort reconcile of an ambiguous row against provider history. */
   reconcile?: OutboxReconcileFn;
-  /** Resolve an org's Hospitable token. Default = getOrgHospitableToken. */
+  /** Resolve an org's channel credential token. Default = the Channel Layer (`resolveOrgChannelCredential`, V0.8). */
   tokenFor?: (organizationId: string) => Promise<string | undefined>;
 }
 
@@ -993,7 +992,11 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       claimExpiresAt: null,
     });
     try {
-      await handleProviderAuthFailure(row.organizationId, httpStatus, providerToken);
+      // V0.8: the rejected credential goes back to ITS provider's lifecycle owner (the row's own route decides which).
+      const route = resolveOutboundRoute(row);
+      if (route.kind === "external") {
+        await handleOutboundCredentialRejected(row.organizationId, httpStatus, { provider: route.destination.provider, token: providerToken });
+      }
     } catch (err) {
       // The row is already parked safely; the lifecycle decision failing must be visible,
       // not fatal to the batch.
@@ -1270,7 +1273,7 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
     now,
     send: deps.send ?? defaultSend,
     reconcile: deps.reconcile ?? defaultReconcile,
-    tokenFor: deps.tokenFor ?? ((orgId: string) => getOrgHospitableToken(orgId).then((t) => t ?? undefined)),
+    tokenFor: deps.tokenFor ?? ((orgId: string) => resolveOrgChannelCredential(orgId).then((c) => c?.token ?? undefined)),
   };
   const acc: DrainResult = { claimed: 0, sent: 0, failed: 0, ambiguous: 0, reconciled: 0, review: 0, retried: 0, canceled: 0, rateLimited: 0, blocked: 0 };
   const token = randomUUID();

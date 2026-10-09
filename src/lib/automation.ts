@@ -161,7 +161,7 @@ import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE } from "@/lib/outbox/state";
-import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { resolveOrgChannelCredential } from "@/lib/channels";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
@@ -900,7 +900,7 @@ async function maybeSendClosingCourtesy(opts: {
   const lastOutbound = [...opts.messages].reverse().find((m) => isAnsweringOutbound(m));
   if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) return false;
   if (!(await premiumAllowed(opts.organizationId))) return false;
-  const token = await getOrgHospitableToken(opts.organizationId);
+  const token = (await resolveOrgChannelCredential(opts.organizationId))?.token ?? null;
   if (!token) return false;
 
   const lang = closingCourtesyLanguage(opts.lastInbound.body, opts.org.language);
@@ -1855,7 +1855,7 @@ export async function applyChannelAutoReply(
   // dryRun (önizleme/test kartı) HARİÇ: orada gönderim yok, amaç taslağı görmek.
   let hospitableToken: string | null = null;
   if (!options.dryRun) {
-    hospitableToken = await getOrgHospitableToken(conversation.property.organizationId);
+    hospitableToken = (await resolveOrgChannelCredential(conversation.property.organizationId))?.token ?? null;
     if (!hospitableToken) {
       // SEBEP GÖRÜNÜR OLMALI: bağlantı kopukken hiçbir mesaj yanıtlanmıyor ve
       // eskiden hiçbir konuşmada sebep yazmıyordu. Bağlantı kartı da "Bağlı"
@@ -4197,7 +4197,7 @@ export async function sendDueWelcomes(
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
   // Multi-tenant: deliver via THIS org's own Hospitable token (skip if unconnected).
-  const token = await getOrgHospitableToken(organizationId);
+  const token = (await resolveOrgChannelCredential(organizationId))?.token ?? null;
   if (!token) return { sent: 0, considered: 0 };
 
   // The welcome is a "thanks for booking" greeting (no codes/Wi-Fi), so it goes
@@ -4399,7 +4399,7 @@ export async function sendDueCheckins(
   if (!org || !org.autoCheckin) return { sent: 0, considered: 0 };
 
   // Multi-tenant: deliver via THIS org's own Hospitable token (skip if unconnected).
-  const token = await getOrgHospitableToken(organizationId);
+  const token = (await resolveOrgChannelCredential(organizationId))?.token ?? null;
   if (!token) return { sent: 0, considered: 0 };
 
   // Land the access details close to the stay: CHECKIN_LEAD_DAYS before arrival.
@@ -4713,7 +4713,7 @@ export async function sendDueCheckouts(
   if (!org || !org.autoCheckout) return { sent: 0, considered: 0 };
 
   // Multi-tenant: deliver via THIS org's own Hospitable token (skip if unconnected).
-  const token = await getOrgHospitableToken(organizationId);
+  const token = (await resolveOrgChannelCredential(organizationId))?.token ?? null;
   if (!token) return { sent: 0, considered: 0 };
 
   const now = new Date();

@@ -4,7 +4,7 @@ import type { Message } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
-import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { resolveOrgChannelCredential } from "@/lib/channels";
 import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
@@ -59,7 +59,7 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
   // or WhatsApp). Use this org's own Hospitable token (multi-tenant). Internal QR-concierge threads have no external channel,
   // so they don't need (and must not require) a Hospitable connection — the reply is just recorded.
   const isInternal = conversation.externalReservationId?.startsWith("qr-chat:") ?? false;
-  const token = await getOrgHospitableToken(input.organizationId);
+  const token = (await resolveOrgChannelCredential(input.organizationId))?.token ?? null;
   if (!isInternal && conversation.externalReservationId && !token) return { status: "not_connected" };
 
   // ── Durable Outbox (flag ON): record the Message + its send INTENT atomically and let the worker deliver it, instead of the

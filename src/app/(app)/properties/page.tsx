@@ -7,7 +7,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
-import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { hasMessagingConnection } from "@/lib/channels";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function PropertiesPage() {
   const session = await requireAuth();
   const demo = isDemoOrg(session.organizationId);
   const canManage = session.role === "owner" || session.role === "manager";
-  const [properties, connection] = await Promise.all([
+  const [properties, channelConnected] = await Promise.all([
     prisma.property.findMany({
       where: { organizationId: session.organizationId },
       orderBy: { createdAt: "desc" },
@@ -31,7 +31,7 @@ export default async function PropertiesPage() {
         calendarSources: { select: { lastStatus: true, lastSyncedAt: true } },
       },
     }),
-    getConnectionInfo(session.organizationId),
+    hasMessagingConnection(session.organizationId),
   ]);
 
   // Booking-readiness: the handful of things that make the AI genuinely useful
@@ -74,7 +74,7 @@ export default async function PropertiesPage() {
           icon={Building2}
           title="Henüz mülk eklenmemiş"
           description={
-            connection.connected
+            channelConnected
               ? "Airbnb / Booking bağlı — daireleriniz ilk eşitlemede otomatik eklenir. Dilerseniz elle de ekleyebilirsiniz."
               : "Airbnb / Booking bağlantısını kurunca daireleriniz otomatik eklenir. Dilerseniz şimdi elle de ekleyebilirsiniz."
           }

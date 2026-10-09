@@ -18,7 +18,7 @@ import { AutoReplyTestButton } from "@/components/inbox/auto-reply-test-button";
 import { HospitableSyncButton } from "@/components/inbox/hospitable-sync-button";
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { CONVERSATION_STATUS } from "@/lib/constants";
-import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { hasMessagingConnection } from "@/lib/channels";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fromNow, truncate, cn } from "@/lib/utils";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
@@ -60,7 +60,7 @@ export default async function InboxPage({
     ...(query ? { guestIdentifier: { contains: query, mode: "insensitive" as const } } : {}),
   };
 
-  const [total, conversations, org, connection] = await Promise.all([
+  const [total, conversations, org, channelConnected] = await Promise.all([
     prisma.conversation.count({ where }),
     prisma.conversation.findMany({
       where,
@@ -82,7 +82,7 @@ export default async function InboxPage({
         timezone: true,
       },
     }),
-    getConnectionInfo(session.organizationId),
+    hasMessagingConnection(session.organizationId),
   ]);
 
   // Free/expired tier: automation is suppressed server-side — render the
@@ -396,9 +396,9 @@ export default async function InboxPage({
         ) : (
           <EmptyState
             icon={MessageSquare}
-            title={connection.connected ? "Konuşma yok" : "Henüz misafir mesajı yok"}
+            title={channelConnected ? "Konuşma yok" : "Henüz misafir mesajı yok"}
             description={
-              connection.connected
+              channelConnected
                 ? "Misafir mesajları geldikçe burada listelenir. Dilerseniz elle de konuşma başlatabilirsiniz."
                 : "Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar. Dilerseniz şimdi elle konuşma başlatabilirsiniz."
             }

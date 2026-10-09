@@ -3,6 +3,9 @@
 > CLAUDE.md'den 2026-10-08'de AYNEN taşındı (kurucu: ".md'ye yığma, gerekli yerlere taşı, gerekli şeyleri silme").
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
+> 📋 **Madde madde güncel durum (kodda ölçüldü): `docs/YOL-PLANI-DURUM-2026-10-09.md`** — kurucu 10-09: "o mesajda sıralama nasılsa
+> öyle ilerle, yaptıklarını tekrar yapma". Sıra: V0 kalanları (V0.8…) → kapı 2 eksikleri → Availability Engine'in AI'ya bağlanması → V2.
+
 ## 🧭 Yol planı (kurucu talimatı 2026-09-07 — özet; tam metin `docs/KURUCU-TALIMATI-…md`)
 **FINAL PRODUCT CONSTRAINT:** Lixus başka PMS'lerin üzerinde AI wrapper DEĞİL; Airbnb Direct + Booking.com
 Direct + Vrbo Direct bağlantılı bağımsız **AI-native PMS / Short-Term Rental Operating System**. Hospitable

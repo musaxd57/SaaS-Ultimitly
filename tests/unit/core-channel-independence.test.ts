@@ -118,6 +118,47 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     expect(c).not.toMatch(/from\s+["']@\/lib\/hospitable/);
   });
 
+  it("🚨 V0.8: sağlayıcı modülleri src/ altında YALNIZ entegrasyon sınırından import edilir (değişmez 1 / 4 / 9 / 20)", () => {
+    // Sağlayıcı modülü = `@/lib/hospitable`, `@/lib/hospitable-*`, `@/lib/channels/hospitable-*` (göreli yazımlar dahil,
+    // dinamik `import()` dahil). Çekirdek, panel sayfaları ve otomasyon kimlik bilgisini / bağlantı durumunu
+    // `@/lib/channels` sınırından alır (`resolveOrgChannelCredential` · `handleOutboundCredentialRejected` ·
+    // `hasMessagingConnection`). İzin listesi GEREKÇELİDİR; yeni satır eklemek bilinçli bir mimari karardır.
+    const ALLOWED: Record<string, string> = {
+      "src/lib/channels/index.ts": "adaptör / çözücü kaydı (Channel Layer giriş noktası)",
+      "src/components/settings/hospitable-connect-card.tsx": "sağlayıcının kendi bağlantı kartı (yalnız tip)",
+      "src/app/(app)/settings/page.tsx": "bağlantı kartını besleyen ayarlar sayfası (OAuth yapılandırması + ayrıntılı durum)",
+      "src/lib/scheduled-sync.ts": "köprünün yoklayıcısını çağıran zamanlayıcı — V0 kalanı: yoklayıcı kaydı (YOL-PLANI-DURUM §2d)",
+    };
+    const isProviderOwned = (rel: string) =>
+      /^src\/lib\/hospitable(-[a-z-]+)?\.ts$/.test(rel) ||
+      /^src\/lib\/channels\/hospitable-[a-z-]+\.ts$/.test(rel) ||
+      rel.startsWith("src/app/api/hospitable/");
+    const PROVIDER_IMPORT =
+      /(?:from\s+|import\s*\(\s*)["'](?:@\/lib\/hospitable(?:-[a-z-]+)?|@\/lib\/channels\/hospitable-[a-z-]+|(?:\.\.?\/)+(?:channels\/)?hospitable(?:-[a-z-]+)?)["']/;
+    const importers: string[] = [];
+    const offenders: string[] = [];
+    for (const abs of walk(path.join(ROOT, "src"))) {
+      const rel = path.relative(ROOT, abs);
+      if (!PROVIDER_IMPORT.test(code(read(rel)))) continue;
+      importers.push(rel);
+      if (!isProviderOwned(rel) && !(rel in ALLOWED)) offenders.push(rel);
+    }
+    expect(offenders.sort()).toEqual([]);
+    // Anti-vakum: tarayıcı bilinen köprü importlarını GERÇEKTEN görüyor ve izin listesi ölü satır taşımıyor.
+    expect(importers).toContain("src/lib/channels/hospitable-access.ts");
+    expect(importers).toContain("src/lib/channels/hospitable-outbound.ts");
+    for (const rel of Object.keys(ALLOWED)) expect(importers, `ölü izin satırı: ${rel}`).toContain(rel);
+  });
+
+  it("🚨 V0.8: kimlik bilgisini kullanan çekirdek yollar sınırdan alır (bağlantı davranışsal kardeşi: channel-access.test.ts)", () => {
+    for (const rel of ["src/lib/automation.ts", "src/lib/host-send.ts", "src/lib/outbox/worker.ts", "src/lib/reservations-cleanup.ts"]) {
+      const c = code(read(rel));
+      expect(c, rel).toMatch(/resolveOrgChannelCredential\(/);
+      expect(c, rel).not.toMatch(/getOrgHospitableToken|handleProviderAuthFailure/);
+    }
+    expect(code(read("src/lib/outbox/worker.ts"))).toMatch(/handleOutboundCredentialRejected\(/);
+  });
+
   it("KONTROL: adaptör gerçekten istemciyi çağırıyor (pin kendini boşa düşürmesin)", () => {
     const c = code(read(ADAPTER));
     expect(c).toMatch(/from\s+["']@\/lib\/hospitable["']/);

@@ -1,8 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
-import { getIngestAdapter } from "@/lib/channels";
-import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { getIngestAdapter, resolveOrgChannelCredential } from "@/lib/channels";
 
 // ---------------------------------------------------------------------------
 // Ghost-reservation cleanup
@@ -58,8 +57,8 @@ export async function cleanupStaleReservations(
 
   // Multi-tenant: verify against THIS org's own Hospitable account. No
   // connection → nothing to verify against, so prune nothing (stay safe).
-  const token = await getOrgHospitableToken(organizationId);
-  if (!token) return result;
+  const credential = await resolveOrgChannelCredential(organizationId);
+  if (!credential?.token) return result;
 
   // Mirror the sync's reservation window exactly so "would Hospitable have
   // returned it?" lines up with what the sync imports.
@@ -77,7 +76,7 @@ export async function cleanupStaleReservations(
     if (!p.hospitableId) continue;
 
     // V0.6: sağlayıcı okuması ingest adaptöründen (canonical); adaptör yoksa doğrulanamaz → atla.
-    const adapter = getIngestAdapter("hospitable");
+    const adapter = getIngestAdapter(credential.provider);
     if (!adapter) {
       result.skippedProperties++;
       continue;
@@ -85,7 +84,7 @@ export async function cleanupStaleReservations(
     let current;
     try {
       current = await adapter.listReservations(
-        { provider: "hospitable", token },
+        credential,
         { propertyExternalId: p.hospitableId, startDate, endDate },
       );
     } catch {
