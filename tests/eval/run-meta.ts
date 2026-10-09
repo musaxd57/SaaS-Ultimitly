@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { replyCallParams } from "@/lib/ai";
+import { decisionWriterCallParams } from "@/lib/decisions/ai-text";
 import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
 import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import { embeddingModel } from "@/lib/ai/embeddings/model";
@@ -44,6 +45,8 @@ export interface EvalRuntime {
      */
     translate?: { model: string; reasoning?: string };
     style?: { model: string; reasoning?: string };
+    /** Ev sahibi karar metni yazıcısı (`AI_DECISION_TEXT_MODEL` → cevap modeli); 10-09 öncesi yan dosyada YOK. */
+    decision?: LayerRuntime;
     /** Anlamsal getirme (gömme). */
     embedding: { model: string };
   };
@@ -140,6 +143,7 @@ function gitCommit(): string | null {
 export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): EvalRuntime {
   // Cevap katmanı ÜRÜNÜN çağrı parametrelerinden (`replyCallParams` — `callOpenAI` ile aynı fonksiyon): ölçer ayrı kural uyduramaz.
   const reply = replyCallParams();
+  const decision = decisionWriterCallParams();
   const semantic = semanticModel();
   const layer = (l: "understanding" | "guard" | "rerank"): LayerRuntime => {
     const m = semanticModel(l);
@@ -175,6 +179,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
       // `isReasoningModel(model) && layerReasoningEffort(...)`) — etiket AYNI iki fonksiyondan (10-02: tablo hep "—" yazıyordu).
       translate: auxLayer(process.env.OPENAI_TRANSLATE_MODEL?.trim() || reply.model, process.env.OPENAI_TRANSLATE_REASONING_EFFORT),
       style: auxLayer(process.env.OPENAI_STYLE_MODEL?.trim() || reply.model, process.env.OPENAI_STYLE_REASONING_EFFORT),
+      decision: { model: decision.model, reasoning: reasoningLabel(decision.model, decision.effort) },
       embedding: { model: embeddingModel() },
     },
     flags: Object.fromEntries(PIPELINE_FLAGS.map((f) => [f, process.env[f]?.trim() || "(boş)"])),
@@ -230,6 +235,7 @@ export function evalRuntimeMarkdown(rt: EvalRuntime): string {
       : [`| Anlama katmanı + bekçi + yeniden sıralayıcı | \`${rt.layers.semantic.model}\` | ${rt.layers.semantic.reasoning} |`]),
     ...(rt.layers.translate ? [`| Çeviri | \`${rt.layers.translate.model}\` | ${rt.layers.translate.reasoning ?? "—"} |`] : []),
     ...(rt.layers.style ? [`| Üslup özeti | \`${rt.layers.style.model}\` | ${rt.layers.style.reasoning ?? "—"} |`] : []),
+    ...(rt.layers.decision ? [`| Karar metni yazıcısı | \`${rt.layers.decision.model}\` | ${rt.layers.decision.reasoning} |`] : []),
     `| Gömme (anlamsal getirme) | \`${rt.layers.embedding.model}\` | — |`,
     "",
     `Bayraklar: ${flags}`,

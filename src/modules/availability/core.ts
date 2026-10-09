@@ -35,7 +35,8 @@ import { dateKeyInTimeZone } from "@/lib/timezone";
 // çakışma olarak raporlanır.
 // ---------------------------------------------------------------------------
 
-export const AVAILABILITY_ENGINE_VERSION = 1 as const;
+/** 2 (10-09): bayat kaynağın son okumasında görülen besleme satırı artık "taze" iddia değil (`claimBasis`). */
+export const AVAILABILITY_ENGINE_VERSION = 2 as const;
 
 /** Doğrulanmış "YYYY-MM-DD" (mülk takvim günü). */
 export type NightKey = string;
@@ -290,12 +291,20 @@ const UNKNOWN_FOR_STATE: Record<Exclude<SourceState, "fresh">, UnknownReason> = 
   unrecorded: "source_freshness_unrecorded",
 };
 
-function claimBasis(r: ReservationSnapshot, sourcesById: Map<string, CoverageSource>, policy: AvailabilityPolicy): ClaimBasis {
+function claimBasis(r: ReservationSnapshot, sourcesById: Map<string, CoverageSource>, policy: AvailabilityPolicy, now: Date): ClaimBasis {
   if (r.origin === "host_entered") return "host_asserted";
   if (r.origin === "calendar_feed" && r.calendarSourceId) {
     const src = sourcesById.get(r.calendarSourceId);
-    // Satır, kaynağın SON başarılı koşusunda görüldü mü (koşu başı ≤ görülme ≤ koşu sonu).
-    if (src?.lastSuccessAt && r.feedLastSeenAt && r.feedLastSeenAt.getTime() >= src.lastSuccessAt.getTime() - policy.feedRunToleranceMs) {
+    // Satır, kaynağın SON başarılı koşusunda görüldü mü (koşu başı ≤ görülme ≤ koşu sonu) VE o koşu hâlâ taze mi (`sourceState`ın
+    // "stale" sınırı; 10-09 kurucu yokken karar #9): haftalar önce okunmuş kaynağın son okumasında görülen satır — o arada iptal
+    // edilmiş olabilir — taze iddia DEĞİLDİR (çakışma paneli böyle bir çakışmayı "kesin", önem 97 gösteriyordu; yapay zekâ aracı
+    // ayrıca bütün kaynakların tazeliğine bakar).
+    if (
+      src?.lastSuccessAt &&
+      r.feedLastSeenAt &&
+      r.feedLastSeenAt.getTime() >= src.lastSuccessAt.getTime() - policy.feedRunToleranceMs &&
+      now.getTime() - src.lastSuccessAt.getTime() <= policy.sourceFreshMs
+    ) {
       return "fresh";
     }
   }
@@ -365,7 +374,7 @@ export function describeNights(
       for (let k = dep; k < arr; k = addNights(k, 1)) anomalousNights.add(k);
       continue;
     }
-    spans.push({ r: res, arr, dep, cls, basis: claimBasis(res, sourcesById, policy) });
+    spans.push({ r: res, arr, dep, cls, basis: claimBasis(res, sourcesById, policy, input.now) });
   }
 
   const nights: NightEvidence[] = [];

@@ -9,6 +9,7 @@ import {
   type VerifiedAvailability,
 } from "@/lib/ai/verified-availability";
 import { AVAILABILITY_TOOL, AVAILABILITY_TOOL_VERSION } from "@/lib/ai/tools/availability-tool";
+import { AVAILABILITY_ENGINE_VERSION } from "@/modules/availability/core";
 
 // ---------------------------------------------------------------------------
 // Doğrulanmış müsaitlik (kurucu onayı 10-09) — saf parçalar. Misafire giden metin KODDAN kurulur (Haiku güvenlik incelemesi 10-09:
@@ -39,7 +40,7 @@ function va(verdict: "available" | "unavailable", over: Partial<VerifiedAvailabi
         blockedNights: verdict === "available" ? 0 : nights,
         unknownNights: 0,
         conflictCount: 0,
-        engineVersion: 1,
+        engineVersion: AVAILABILITY_ENGINE_VERSION,
         ...over,
       },
       reasons: [],

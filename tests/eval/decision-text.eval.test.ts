@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { DECISION_WRITER_SYSTEM_PROMPT, draftDecisionMessage, type DecisionDraftResult } from "@/lib/decisions/ai-text";
+import { DECISION_WRITER_SYSTEM_PROMPT, decisionWriterCallParams, draftDecisionMessage, type DecisionDraftResult } from "@/lib/decisions/ai-text";
 import { checkDecisionText, type DecisionTextFacts } from "@/lib/decisions/text-check";
 import { formatDecisionDay, type DecisionKind, type DecisionLang, type DecisionResolution } from "@/lib/decisions/core";
 import { timesIn } from "@/lib/ai/retrieval/time-fields";
@@ -13,7 +13,7 @@ import { writeSidecar, uniqueReportName } from "./sidecar";
 
 // ---------------------------------------------------------------------------
 // KARAR MESAJI — YAPAY ZEKÂ YAZAR, KOD + BEKÇİ DOĞRULAR (Sabah Kararları 62 h, kurucu 10-07). Ürünün `draftDecisionMessage`
-// fonksiyonu OLDUĞU GİBİ koşar (yazıcı = cevap modeli `OPENAI_MODEL` / `OPENAI_REASONING_EFFORT`; bekçi = `AI_STAY_GUARD_MODEL` →
+// fonksiyonu OLDUĞU GİBİ koşar (yazıcı = `AI_DECISION_TEXT_MODEL` / `…_REASONING_EFFORT` → cevap modeli; bekçi = `AI_STAY_GUARD_MODEL` →
 // `AI_SEMANTIC_MODEL` → `OPENAI_MODEL`). Ölçüler deterministik: yapay zekâ metni mi geldi (yoksa neden şablon), metin karar kaydıyla
 // uyuşuyor mu (bağımsız yeniden denetim), gün adlandırılmış mı, iç bilgi sızdı mı, beklenen gerekçe anıldı mı (sezgisel — metinler
 // raporda tam, insan okur). LLM puanlayıcı YOK. Set `EVAL_DECISION_SET` (geliştirme `decision-text-dev.json`, kör kabul
@@ -40,7 +40,8 @@ const SET = (process.env.EVAL_DECISION_SET?.trim() || "decision-text-dev.json").
 const data = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals", SET), "utf8")) as { scenarios: Scenario[] };
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
-const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.1";
+// Rapor adı ve başlığı yazıcının GERÇEK modeli (ürünün çözücüsü; 10-09: katman değişkeni gelince `OPENAI_MODEL` yanlış olurdu).
+const MODEL = decisionWriterCallParams().model;
 const TAG = (process.env.EVAL_DECISION_TAG ?? "").trim().replace(/[^a-z0-9.-]+/gi, "_");
 const RPM = Number(process.env.EVAL_DECISION_RPM) > 0 ? Number(process.env.EVAL_DECISION_RPM) : 20;
 const LIMIT = Number(process.env.EVAL_DECISION_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_DECISION_LIMIT)) : Infinity;

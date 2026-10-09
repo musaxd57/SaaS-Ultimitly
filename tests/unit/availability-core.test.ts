@@ -5,6 +5,7 @@ import {
   addNights,
   calendarDateOf,
   checkAvailability,
+  DEFAULT_AVAILABILITY_POLICY,
   describeNights,
   nightsBetween,
   parseNightKey,
@@ -306,6 +307,25 @@ describe("karar ve kesinlik", () => {
     // Bir ÖNCEKİ koşuda (kadans 15 dk) görülüp son koşuda görülmeyen satır taze DEĞİL.
     const previousRun = { ...seen, feedLastSeenAt: new Date("2026-10-01T08:14:00Z") };
     expect(nightsOf(input({ reservations: [previousRun] }), "2026-10-03", "2026-10-04").nights[0].claims[0].basis).toBe("unconfirmed");
+  });
+
+  it("🚨 son okumada görülse de o okuma BAYATSA iddia 'fresh' DEĞİL (10-09 karar #9): dolu ama kanıtsız, çakışma 'hepsi kanıtsız'", () => {
+    // Kaynak 10 saat önce başarılı okundu (tazelik sınırı 6 sa); satır o okumada görüldü. Arada iptal edilmiş olabilir.
+    const ran = new Date(NOW.getTime() - 10 * 3600_000);
+    const src = { ...FRESH_FEED, lastSuccessAt: ran };
+    const seen = (id: string) =>
+      res({ id, arrival: noon("2026-10-03"), departure: noon("2026-10-05"), origin: "calendar_feed", calendarSourceId: "src1", feedLastSeenAt: new Date(ran.getTime() - 400) });
+    const i = input({ sources: [src], reservations: [seen("a"), seen("b")] });
+    const r = nightsOf(i, "2026-10-03", "2026-10-04");
+    expect(r.nights[0].claims.map((c) => c.basis)).toEqual(["unconfirmed", "unconfirmed"]);
+    expect(r.conflicts[0].facts.allUnconfirmed).toBe(true);
+    expect(checkAvailability(i, { from: "2026-10-03", to: "2026-10-05" })).toMatchObject({ ok: true, value: { verdict: "unavailable", certainty: "unverified" } });
+    // Sınır `sourceState` ile aynı: tam tazelik süresi kadar önce okunan kaynak hâlâ taze.
+    const edge = new Date(NOW.getTime() - DEFAULT_AVAILABILITY_POLICY.sourceFreshMs);
+    const atEdge = input({ sources: [{ ...FRESH_FEED, lastSuccessAt: edge }], reservations: [{ ...seen("c"), feedLastSeenAt: edge }] });
+    expect(nightsOf(atEdge, "2026-10-03", "2026-10-04").nights[0].claims[0].basis).toBe("fresh");
+    const pastEdge = input({ sources: [{ ...FRESH_FEED, lastSuccessAt: new Date(edge.getTime() - 1) }], reservations: [{ ...seen("d"), feedLastSeenAt: edge }] });
+    expect(nightsOf(pastEdge, "2026-10-03", "2026-10-04").nights[0].claims[0].basis).toBe("unconfirmed");
   });
 
   it.each([

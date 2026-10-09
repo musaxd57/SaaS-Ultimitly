@@ -5,6 +5,7 @@ import { semanticApiKey, semanticTimeoutMs } from "@/lib/ai/semantic/config";
 import { runStayChangeGuard } from "@/lib/ai/semantic/guard";
 import type { StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
 import { replyCallParams } from "@/lib/ai";
+import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
 import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
 import { decisionMessageText, formatDecisionDay, formatDecisionFee, type DecisionLang } from "./core";
 import { checkDecisionText, type DecisionTextFacts, type DecisionTextProblem } from "./text-check";
@@ -24,6 +25,18 @@ import { checkDecisionText, type DecisionTextFacts, type DecisionTextProblem } f
 
 export function decisionAiTextEnabled(): boolean {
   return process.env.HOST_DECISION_AI_TEXT_ENABLED === "1";
+}
+
+/**
+ * Yazıcının modeli + GÖNDERİLEN düşünme çabası (katman ayarı, 10-09 kurucu yokken karar #8): `AI_DECISION_TEXT_MODEL` /
+ * `AI_DECISION_TEXT_REASONING_EFFORT`; boşken cevap modelinin ayarı (`replyCallParams`) BİREBİR. Çaba katman değişkeninden, yoksa
+ * cevap modelinin çabasından; kapalı küme (tanınmayan = gönderilmez), yalnız reasoning modelinde gönderilir. Ölçerin koşu kimliği
+ * (`tests/eval/run-meta.ts`) de bunu okur.
+ */
+export function decisionWriterCallParams(): { model: string; effort: string | null } {
+  const model = process.env.AI_DECISION_TEXT_MODEL?.trim() || replyCallParams().model;
+  const effort = layerReasoningEffort(process.env.AI_DECISION_TEXT_REASONING_EFFORT?.trim() || process.env.OPENAI_REASONING_EFFORT);
+  return { model, effort: effort && isReasoningModel(model) ? effort : null };
 }
 
 export type DecisionDraftFallback =
@@ -130,7 +143,7 @@ export async function draftDecisionMessage(input: DecisionDraftInput): Promise<D
     if (!decisionMessageText(input)) return template(input, "no_template");
     const apiKey = semanticApiKey();
     if (!apiKey) return template(input, "no_key");
-    const { model, effort } = replyCallParams();
+    const { model, effort } = decisionWriterCallParams();
     const res = await callStructuredJson({
       apiKey,
       model,

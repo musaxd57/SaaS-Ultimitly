@@ -16,6 +16,8 @@ import type { VerifiedToolResult } from "./contract";
 //   · verdict available + certainty verified (motor: her kaynak taze) → ok
 //   · verdict unavailable + verified → ok YALNIZ ev sahibinin kendi girişi bir geceyi kapatıyorsa ya da bütün kaynaklar tazeyse;
 //     aksi hâlde stale (`claim_from_stale_source`, inceleme 10-09 P1)
+//   · verdict unavailable + unverified + en az bir kaynak ZAMANLA bayat → stale (`claim_from_stale_source`; sürüm 3: motor 2 bayat
+//     kaynağın son okumasındaki satırı artık kanıtsız sayar — sonuç eskisi gibi "bayat" kalır)
 //   · bir gece bayat / hiç okunmamış / tazeliği kayıtsız kaynağa dayanıyor → stale
 //   · diğer her şey (bilinmeyen gece, kanıtsız işgal, hata, kısmi okuma) → uncertain
 // Değer PII taşımaz: karar, kesinlik, aralık, gece sayıları, çakışma sayısı, bilinmeme nedenleri.
@@ -23,7 +25,7 @@ import type { VerifiedToolResult } from "./contract";
 
 export const AVAILABILITY_TOOL = "availability.check" as const;
 /** Araç SÖZLEŞMESİNİN sürümü (durum eşlemesi değişince artar); motorun kendi sürümü değerde `engineVersion`. */
-export const AVAILABILITY_TOOL_VERSION = 2 as const;
+export const AVAILABILITY_TOOL_VERSION = 3 as const;
 
 export interface AvailabilityToolValue {
   verdict: AvailabilityAnswer["verdict"];
@@ -82,9 +84,10 @@ export function availabilityToolResult(
     conflictCount: a.conflicts.length,
     engineVersion: a.engineVersion,
   };
-  // 🚨 "Dolu" kesinliği (inceleme 10-09, P1): motor bir besleme satırını kaynağın SON başarılı okumasında görüldüyse "taze"
-  // sayıyor ama o okumanın ne kadar eski olduğuna bakmıyor — 10 saat önce görülen ve sonra iptal edilmiş bir konaklama kesin
-  // "dolu" çıkıyordu. Araç kuralı: ev sahibinin KENDİ girişi bir geceyi kapatıyorsa kesin; değilse bütün kaynaklar taze olmalı.
+  // 🚨 "Dolu" kesinliği (inceleme 10-09, P1): motor 1 bir besleme satırını kaynağın SON başarılı okumasında görüldüyse "taze"
+  // sayıyordu ama o okumanın ne kadar eski olduğuna bakmıyordu — 10 saat önce görülen ve sonra iptal edilmiş bir konaklama kesin
+  // "dolu" çıkıyordu (motor 2 bakar; bu kural savunma katmanı olarak kalır). Araç kuralı: ev sahibinin KENDİ girişi bir geceyi
+  // kapatıyorsa kesin; değilse bütün kaynaklar taze olmalı.
   // ("boş" kararı motorda zaten her kaynağın taze olmasını ister.)
   const hostBlocked = a.nights.some((n) => (n.state === "booked" || n.state === "held") && n.claims.some((c) => c.basis === "host_asserted"));
   const allSourcesFresh = a.sources.every((src) => src.state === "fresh");
@@ -101,7 +104,10 @@ export function availabilityToolResult(
     }
     return { ...base, status: "ok", value, reasons };
   }
-  if (a.verdict === "unavailable" && a.certainty === "verified") {
+  // Dolu görünüyor ama kesin değil: (a) kanıtlı iddia var, ev sahibi gecesi yok ve bir kaynak taze değil; ya da (b) iddia kanıtsız ve
+  // en az bir kaynak ZAMANLA bayatlamış (motor 2 bayat kaynağın son okumasındaki satırı kanıtsız sayar) → "bayat". Yalnız hata / kısmi
+  // okuma / kanıtsız kanal satırı → aşağıda "belirsiz" (başlıktaki eşleme; Haiku incelemesi 10-09).
+  if (a.verdict === "unavailable" && (a.certainty === "verified" || a.sources.some((src) => src.state === "stale"))) {
     return { ...base, status: "stale", value, reasons: ["claim_from_stale_source"] };
   }
   const stale = unknownReasons.some((x) => STALE_REASONS.has(x));

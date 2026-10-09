@@ -105,6 +105,25 @@ describe("evalRuntime — katman bazında model + gönderilen düşünme çabas�
     expect(evalRuntimeMarkdown(old)).toContain("| Çeviri | `gpt-5.1` | — |");
   });
 
+  it("karar metni yazıcısı: katman ayarı (10-09) — boşken cevap modelinin satırı birebir; ayarlıysa kendi modeli + çabası", () => {
+    lunaEnv();
+    vi.stubEnv("AI_DECISION_TEXT_MODEL", "");
+    vi.stubEnv("AI_DECISION_TEXT_REASONING_EFFORT", "");
+    let rt = evalRuntime();
+    expect(rt.layers.decision).toEqual(rt.layers.reply);
+    vi.stubEnv("OPENAI_MODEL", "gpt-4.1");
+    vi.stubEnv("AI_DECISION_TEXT_MODEL", "gpt-6-luna");
+    vi.stubEnv("AI_DECISION_TEXT_REASONING_EFFORT", "high");
+    rt = evalRuntime();
+    expect(rt.layers.reply).toEqual({ model: "gpt-4.1", reasoning: "yok (klasik model)" });
+    expect(rt.layers.decision).toEqual({ model: "gpt-6-luna", reasoning: "high" });
+    expect(evalRuntimeMarkdown(rt)).toContain("| Karar metni yazıcısı | `gpt-6-luna` | high |");
+    // 10-09 öncesi yan dosyada alan yok → satır uydurulmaz.
+    const older = { ...rt.layers };
+    delete older.decision;
+    expect(evalRuntimeMarkdown({ ...rt, layers: older })).not.toContain("Karar metni yazıcısı");
+  });
+
   it("OPENAI_MODEL boşsa kod içi varsayılan (canlı model ailesi) yazılır, boş dize değil", () => {
     vi.stubEnv("OPENAI_MODEL", "");
     vi.stubEnv("OPENAI_REASONING_EFFORT", "");

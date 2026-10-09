@@ -8,6 +8,7 @@ import {
   MAX_EXTENSION_NIGHTS,
 } from "@/lib/ai/verified-extension";
 import { AVAILABILITY_TOOL, AVAILABILITY_TOOL_VERSION } from "@/lib/ai/tools/availability-tool";
+import { AVAILABILITY_ENGINE_VERSION } from "@/modules/availability/core";
 import type { VerifiedAvailability } from "@/lib/ai/verified-availability";
 
 // ---------------------------------------------------------------------------
@@ -117,7 +118,7 @@ function va(verdict: "available" | "unavailable", from = "2026-10-16", to = "202
         blockedNights: verdict === "available" ? 0 : nights,
         unknownNights: 0,
         conflictCount: 0,
-        engineVersion: 1,
+        engineVersion: AVAILABILITY_ENGINE_VERSION,
       },
       reasons: [],
     },

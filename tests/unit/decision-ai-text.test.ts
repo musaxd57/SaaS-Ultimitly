@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   buildDecisionWriterInput,
+  decisionWriterCallParams,
   draftDecisionMessage,
   guardAgreesWithDecision,
   type DecisionDraftInput,
 } from "@/lib/decisions/ai-text";
 import { decisionMessageText } from "@/lib/decisions/core";
 import type { StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
+import { replyCallParams } from "@/lib/ai";
 
 // Sabah Kararları 62 h (kurucu 10-07): karar mesajını yapay zekâ yazar (doğal, gerekçeli), KOD doğrular, bağımsız bekçi YÖNÜ
 // doğrular (onay izin verir, ret reddeder). Herhangi biri geçmezse onaylı şablon gelir. Misafirin metni yazıcıya GİTMEZ.
@@ -167,5 +169,57 @@ describe("bekçi hükmü ↔ karar yönü", () => {
     ["ücretli onay + başka para birimi", v({ replyGrantsChange: true, replyAmounts: [{ amount: 500, currency: "EUR" }] }), paid, false],
   ])("%s", (_n, verdictValue, facts, expected) => {
     expect(guardAgreesWithDecision(verdictValue, facts)).toBe(expected);
+  });
+});
+
+// Katman ayarı (10-09, kurucu yokken karar #8): kör kabul setinde karar metni için en iyi düşünme seviyesi cevap modelininkiyle aynı
+// çıkmadı → yazıcı kendi değişkeniyle ayrı ayarlanabilir; boşken bugünkü davranış (cevap modelinin ayarı) BİREBİR.
+describe("karar metni yazıcısı — model / düşünme çabası (AI_DECISION_TEXT_*)", () => {
+  const LAYER_ENVS = ["AI_DECISION_TEXT_MODEL", "AI_DECISION_TEXT_REASONING_EFFORT", "OPENAI_REASONING_EFFORT", "AI_SEMANTIC_MODEL", "AI_STAY_GUARD_MODEL", "AI_SEMANTIC_REASONING_EFFORT", "AI_STAY_GUARD_REASONING_EFFORT"];
+  beforeEach(() => {
+    for (const k of LAYER_ENVS) delete process.env[k];
+  });
+
+  async function bodies() {
+    const { fetchImpl, calls } = fakeOpenAI("Maalesef 14 Ekim'de erken giriş mümkün değil; giriş 15:00'te.", verdict());
+    expect(await draftDecisionMessage({ ...input(), fetchImpl })).toMatchObject({ source: "ai" });
+    const of = (k: "writer" | "guard") => calls.find((c) => c.kind === k)!.body as unknown as { model: string; reasoning_effort?: string };
+    return { writer: of("writer"), guard: of("guard") };
+  }
+
+  it("🚨 katman değişkenleri boşken cevap modelinin ayarı birebir (model + çaba)", async () => {
+    process.env.OPENAI_MODEL = "gpt-6-luna";
+    process.env.OPENAI_REASONING_EFFORT = "low";
+    expect(decisionWriterCallParams()).toEqual(replyCallParams());
+    const { writer } = await bodies();
+    expect(writer.model).toBe("gpt-6-luna");
+    expect(writer.reasoning_effort).toBe("low");
+    // Klasik model (gpt-4.x) çaba almaz — cevap modelinin kuralı (`isReasoningModel`) aynen.
+    process.env.OPENAI_MODEL = "gpt-4.1";
+    expect(decisionWriterCallParams()).toEqual({ model: "gpt-4.1", effort: null });
+    expect(decisionWriterCallParams()).toEqual(replyCallParams());
+  });
+
+  it("katman değişkeni YALNIZ yazıcıyı değiştirir — bekçi ve cevap modeli aynı kalır", async () => {
+    process.env.OPENAI_MODEL = "gpt-5.1";
+    process.env.AI_DECISION_TEXT_MODEL = "gpt-6-luna";
+    process.env.AI_DECISION_TEXT_REASONING_EFFORT = "high";
+    const { writer, guard } = await bodies();
+    expect(writer.model).toBe("gpt-6-luna");
+    expect(writer.reasoning_effort).toBe("high");
+    expect(guard.model).toBe("gpt-5.1");
+    expect(guard.reasoning_effort).toBeUndefined();
+    expect(replyCallParams()).toEqual({ model: "gpt-5.1", effort: null });
+  });
+
+  it("çaba: katmanınki yoksa cevap modelininki; tanınmayan değer gönderilmez; klasik modele hiç gönderilmez", () => {
+    process.env.AI_DECISION_TEXT_MODEL = " gpt-6-luna ";
+    process.env.OPENAI_REASONING_EFFORT = "medium";
+    expect(decisionWriterCallParams()).toEqual({ model: "gpt-6-luna", effort: "medium" });
+    process.env.AI_DECISION_TEXT_REASONING_EFFORT = "hgih";
+    expect(decisionWriterCallParams()).toEqual({ model: "gpt-6-luna", effort: null });
+    process.env.AI_DECISION_TEXT_REASONING_EFFORT = "high";
+    process.env.AI_DECISION_TEXT_MODEL = "gpt-4.1";
+    expect(decisionWriterCallParams()).toEqual({ model: "gpt-4.1", effort: null });
   });
 });

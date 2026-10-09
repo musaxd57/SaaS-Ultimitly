@@ -117,6 +117,9 @@ describe("inceleme 10-09 (Haiku) — ek vakalar", () => {
     const stale = feed({ lastSuccessAt: new Date(NOW.getTime() - 10 * H) });
     const x = run(input({ sources: [stale], reservations: [feedStay("2026-10-19", "2026-10-23")] }));
     expect(x.value?.verdict).toBe("unavailable");
+    // Motor 2: bayat kaynağın satırı artık kanıtsız; araç sonucu yine "bayat" (gerekçesiyle).
+    expect(x.value?.certainty).toBe("unverified");
+    expect(x.reasons).toEqual(["claim_from_stale_source"]);
     expect(x.status).toBe("stale");
     expect(mayStateAsFact(x, x.scope)).toBe(false);
   });
@@ -142,6 +145,22 @@ describe("inceleme 10-09 (Haiku) — ek vakalar", () => {
     expect(x.reasons).toContain("night_counts_partially_unverified");
   });
 
+  it("araç 3 (Haiku 10-09): kanıtlı iddia (taze kaynak A) + başka kaynak HATALI → kesin değil, bayat (eski dal)", () => {
+    const fresh = feed({ id: "src-1", lastSuccessAt: new Date(NOW.getTime() - H) });
+    const broken = feed({ id: "src-2", lastStatus: "error", lastSuccessAt: null });
+    const stay = { ...feedStay("2026-10-19", "2026-10-23"), feedLastSeenAt: new Date(NOW.getTime() - H) };
+    const x = run(input({ sources: [fresh, broken], reservations: [stay] }));
+    expect(x.value).toMatchObject({ verdict: "unavailable", certainty: "verified" });
+    expect(x).toMatchObject({ status: "stale", reasons: ["claim_from_stale_source"] });
+  });
+
+  it("araç 3 (Haiku 10-09): kanıtsız iddia + yalnız HATALI kaynak → belirsiz (bayat DEĞİL; başlıktaki eşleme)", () => {
+    const broken = feed({ lastStatus: "error", lastSuccessAt: null });
+    const x = run(input({ sources: [broken], reservations: [feedStay("2026-10-19", "2026-10-23")] }));
+    expect(x.value).toMatchObject({ verdict: "unavailable", certainty: "unverified" });
+    expect(x).toMatchObject({ status: "uncertain", reasons: ["unconfirmed_claims"] });
+  });
+
   it("çakışma varsa gerekçede conflict_present", () => {
     const a = hostStay("2026-10-19", "2026-10-23");
     const b = { ...hostStay("2026-10-20", "2026-10-21"), id: "res-2" };
@@ -151,7 +170,7 @@ describe("inceleme 10-09 (Haiku) — ek vakalar", () => {
   it("sürüm = araç SÖZLEŞMESİNİN sürümü (motor sürümü değerde ayrıca)", () => {
     const x = run(input());
     expect(x.toolVersion).toBe(AVAILABILITY_TOOL_VERSION);
-    expect(x.value?.engineVersion).toBe(1);
+    expect(x.value?.engineVersion).toBe(2);
   });
 
   it.each([

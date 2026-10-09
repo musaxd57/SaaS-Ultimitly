@@ -206,6 +206,27 @@ describe("panel — çakışan rezervasyon satırı", () => {
     expect(item).toMatchObject({ kind: "calendar_conflict", certainty: "inferred", severity: 70 });
   });
 
+  it("🚨 iki besleme satırı BAYAT kaynağın son okumasında görüldü → ÇIKARIM (70); aynı satırlar taze okumada → KESİN (97) (10-09 karar #9)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const ran = new Date(NOW.getTime() - 10 * 3600_000); // tazelik sınırı 6 sa
+    const src = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://x.example/s.ics", lastStatus: "ok", lastSyncedAt: ran },
+    });
+    for (const [a, d] of [["2026-10-03", "2026-10-07"], ["2026-10-05", "2026-10-09"]]) {
+      await reservation(propertyId, { arrival: noon(a), departure: noon(d), channel: "ics", calendarSourceId: src.id });
+    }
+    // Senkron görülme anını koşunun BAŞINDA yazar (son başarıdan az önce).
+    await prisma.reservation.updateMany({ where: { calendarSourceId: src.id }, data: { feedLastSeenAt: new Date(ran.getTime() - 400) } });
+    const [stale] = await findAttentionItems(orgId, { now: NOW });
+    expect(stale).toMatchObject({ kind: "calendar_conflict", certainty: "inferred", severity: 70 });
+
+    const fresh = new Date(NOW.getTime() - 3600_000);
+    await prisma.calendarSource.update({ where: { id: src.id }, data: { lastSyncedAt: fresh } });
+    await prisma.reservation.updateMany({ where: { calendarSourceId: src.id }, data: { feedLastSeenAt: new Date(fresh.getTime() - 400) } });
+    const [observed] = await findAttentionItems(orgId, { now: NOW });
+    expect(observed).toMatchObject({ kind: "calendar_conflict", certainty: "observed", severity: 97 });
+  });
+
   it("onay bekleyen talep dolu gecelerle çakışırsa 'talep' olarak söylenir, kesin çift rezervasyon DEĞİL", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await reservation(propertyId, { arrival: midnight("2026-10-03"), departure: midnight("2026-10-07"), channel: "manual" });
