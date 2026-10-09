@@ -1105,7 +1105,10 @@ export function evaluateAvailability(
     // Anlama katmanı KOŞMUŞ ve konaklama türünü AÇIKÇA "availability" görmüş olmalı (Haiku tur 2: "Havuz 15 Ekim'de boş mu?"
     // kelime ağında müsaitlik sayılıyordu; katman "none" derken muafiyet daire cevabını gönderebiliyordu).
     const understandingRan = u === "req" && opts.understanding?.kind === "availability";
-    if (pure && understandingRan && g !== "failed") return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}v` } };
+    // 🚨 Bağımsız bekçi KOŞMUŞ ve "belirli tarihler boş mu" sorusu görmüş olmalı (Haiku 10-09, uzatma incelemesi: bekçi koşmadıysa `g` "off"
+    // idi ve muafiyet tek modele + kelime ağına kalıyordu — aynı açık burada da vardı).
+    const guardAgrees = opts.guard?.status === "ok" && opts.guard.verdict.kind === "availability" && opts.guard.verdict.guestRequestsChange;
+    if (pure && understandingRan && guardAgrees) return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}v` } };
   }
 
   // DOĞRULANMIŞ UZATMA (kurucu kararı 10-09): koddan kurulan metin (birebir) + bütün katmanların gördüğü tür YALNIZ uzatma + anlama katmanı
@@ -1114,7 +1117,10 @@ export function evaluateAvailability(
     const pure = kinds.size > 0 && [...kinds].every((k) => k === "extend");
     // Anlama katmanı KOŞTU ve istek gördü; türünün "extend" olması `pure`dan çıkar (başka tür / türsüz istek kümeye girer — mutasyon E6 eşdeğer).
     const understandingRan = u === "req";
-    if (pure && understandingRan && g !== "failed") return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}x` } };
+    // 🚨 Bağımsız bekçi KOŞMUŞ olmalı ve uzatma İSTEĞİ görmeli (Haiku 10-09, P1: bekçi koşmadıysa `g` "off" idi ve muafiyet tek modele
+    // + kelime ağına kalıyordu). Bekçi kapalı / düşmüş / başka tür → muaf DEĞİL.
+    const guardAgrees = opts.guard?.status === "ok" && opts.guard.verdict.kind === "extend" && opts.guard.verdict.guestRequestsChange;
+    if (pure && understandingRan && guardAgrees) return { reason: null, enforceReason: null, signals: { ...signals, lx: `${signals.lx === "-" ? "" : signals.lx}x` } };
   }
 
   const guardRequest =

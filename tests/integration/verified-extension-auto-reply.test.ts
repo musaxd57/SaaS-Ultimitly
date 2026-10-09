@@ -61,9 +61,31 @@ const verdict = {
   stayChange: { asked: "extend", stance: "defers" },
 };
 
+type GuardMode = { kind: string; requests: boolean } | "invalid";
+let guardMode: GuardMode = { kind: "extend", requests: true };
+
 function understandingFetch(kind: "extend" | "availability" | "early_checkin" | "none", intents: string[] = ["extend_stay"], language = "tr") {
   return vi.fn(async (_url: string, init?: RequestInit) => {
     const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
+    if (name === "stay_change_guard") {
+      // Bağımsız bekçi (Haiku 10-09: muafiyet bekçinin uzatma İSTEĞİ hükmünü ister).
+      const content =
+        guardMode === "invalid"
+          ? "{bozuk"
+          : JSON.stringify({
+              guest_requests_change: guardMode.requests,
+              kind: guardMode.kind,
+              requested_checkin_time: null,
+              requested_checkout_time: null,
+              reply_states_calendar: true,
+              reply_grants_change: false,
+              reply_defers_to_host: false,
+              reply_refuses: false,
+              reply_price_terms: false,
+              reply_amounts: [],
+            });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200 });
+    }
     if (name !== "guest_message_understanding") throw new Error(`beklenmeyen şema: ${name}`);
     const v = {
       language,
@@ -75,7 +97,7 @@ function understandingFetch(kind: "extend" | "availability" | "early_checkin" | 
 }
 
 async function seed(
-  opts: { message?: string; feedAgeHours?: number; nextGuest?: "manual" | "airbnb"; channel?: string; departure?: string } = {},
+  opts: { message?: string; feedAgeHours?: number; nextGuest?: "manual" | "airbnb"; channel?: string; departure?: string; status?: string } = {},
 ) {
   const org = await prisma.organization.create({
     data: { name: "Uzatma Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: TZ },
@@ -98,7 +120,7 @@ async function seed(
       arrivalDate: new Date(`${ARR}T00:00:00Z`),
       departureDate: new Date(`${dep}T00:00:00Z`),
       channel: opts.channel ?? "airbnb",
-      status: "confirmed",
+      status: opts.status ?? "confirmed",
       sourceReference: "res-ext-1",
     },
   });
@@ -146,6 +168,8 @@ describe("doğrulanmış uzatma otomatik cevabı — koddan kurulan metin", () =
     vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_VERIFIED_EXTENSION_ENABLED", "1");
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    guardMode = { kind: "extend", requests: true };
     vi.stubGlobal("fetch", understandingFetch("extend"));
     mockSend.mockResolvedValue({ ok: true } as never);
     mockSuggest.mockResolvedValue(verdict as never);
@@ -201,6 +225,36 @@ describe("doğrulanmış uzatma otomatik cevabı — koddan kurulan metin", () =
     const { conversationId } = await seed({ message: "Merhaba, iki gece daha kalabilir miyiz?" });
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
     expectCodeSent(`${human(DEP)} – ${human(addNights(DEP, 2))} arası 2 gece daire müsait. ${TAIL}`);
+  });
+
+  it("🚨 BEKÇİ kapalı → gitmez (muafiyet bağımsız bekçinin hükmünü ister)", async () => {
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "");
+    const { conversationId } = await seed();
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("🚨 bekçi erken giriş görür / istek görmez / düşer → gitmez", async () => {
+    for (const mode of [{ kind: "early_checkin", requests: true }, { kind: "extend", requests: false }, "invalid"] as GuardMode[]) {
+      guardMode = mode;
+      const { conversationId } = await seed();
+      expect((await applyChannelAutoReply(conversationId)).sent, JSON.stringify(mode)).toBe(false);
+      await resetDb();
+    }
+  });
+
+  it("🚨 rezervasyon ONAYLI değil (talep aşamasında / tamamlanmış) → gitmez", async () => {
+    for (const status of ["pending", "completed"]) {
+      const { conversationId } = await seed({ status });
+      expect((await applyChannelAutoReply(conversationId)).sent, status).toBe(false);
+      await resetDb();
+    }
+  });
+
+  it("karar motoru açıkken kod metni gittiyse uzatma kartı AÇILMAZ (misafir değişikliği Airbnb'den ister)", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    const { conversationId } = await seed();
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect(await prisma.decisionRequest.count({ where: { conversationId, kind: "extend_stay" } })).toBe(0);
   });
 
   it("🚨 bayat takvim (10 saat) → gitmez", async () => {

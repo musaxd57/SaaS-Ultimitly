@@ -2382,6 +2382,22 @@ export async function applyChannelAutoReply(
       }
     }
   }
+  // Doğrulanmış müsaitlik / uzatma muafiyeti bağımsız bekçinin hükmünü ister (Haiku 10-09). Bekçi bu turda koşmadıysa (taslak başka bir
+  // vetoya takıldı) KOD METNİYLE koşturulur; anahtar kapalıysa koşmaz → muafiyet yok (temkinli).
+  const ensureStayGuardFor = async (text: string): Promise<void> => {
+    if (gateContext.stayGuard || !stayGuardEnabled()) return;
+    const g = await runStayChangeGuard({
+      guestMessages: [...pendingGuestMessages, last.body],
+      reply: text,
+      stayTimes: gateContext.stayTimes,
+      names: [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName],
+      hostOffer: gateContext.hostOfferText,
+      history: messages
+        .slice(0, lastOutboundIdx + 1)
+        .map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
+    });
+    if (g) gateContext.stayGuard = g;
+  };
   // ── DOĞRULANMIŞ MÜSAİTLİK → KOD METNİ (kurucu onayı 10-09; anahtar KAPALI → `verifiedAvailabilityRun` hep null) ─────────────
   // Saf müsaitlik sorusu + takvim taze ve kesin → misafire KODDAN kurulan tek cümle gider (modelin taslağı değil; Haiku güvenlik
   // incelemesi 10-09: model metnini ayrıştırıp doğrulamak olumsuzlar / izin cümleleri / aralık dışı tarihlerle delinebiliyordu).
@@ -2401,6 +2417,7 @@ export async function applyChannelAutoReply(
     const now = new Date();
     if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedAvailabilityRun.va, verifiedAvailabilityRun.scope, now)) {
       const text = verifiedAvailabilityText(verifiedAvailabilityRun.va, lang, todayKey(now, orgTimezone(org.timezone)));
+      if (text) await ensureStayGuardFor(text);
       if (text) {
         const vaResult = { ...verifiedEarlyCheckinResult(result, text), intent: "availability" };
         const vaContext: AutoReplyGateContext = { ...gateContext, verifiedAvailability: { text } };
@@ -2437,6 +2454,7 @@ export async function applyChannelAutoReply(
     const now = new Date();
     if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedExtensionRun.va, verifiedExtensionRun.scope, now)) {
       const text = verifiedExtensionText(verifiedExtensionRun.va, lang, todayKey(now, orgTimezone(org.timezone)));
+      if (text) await ensureStayGuardFor(text);
       if (text) {
         const exResult = { ...verifiedEarlyCheckinResult(result, text), intent: "extend_stay" };
         const exContext: AutoReplyGateContext = { ...gateContext, verifiedExtension: { text } };
@@ -2522,7 +2540,11 @@ export async function applyChannelAutoReply(
           lastMessageId: last.id,
           turnMessageIds: decisionTurnMessageIds,
           language: guestLanguage ?? result.detectedLanguage,
-          skipKinds: earlyCheckinSent || earlyCheckinPolicySent ? ["early_checkin"] : [],
+          // Kod metniyle cevaplanan tür için kart açılmaz (doğrulanmış uzatma: misafir değişikliği Airbnb'den ister — Haiku 10-09, P3).
+          skipKinds: [
+            ...(earlyCheckinSent || earlyCheckinPolicySent ? (["early_checkin"] as const) : []),
+            ...(gateContext.verifiedExtension && result.reply === gateContext.verifiedExtension.text ? (["extend_stay"] as const) : []),
+          ],
           now: new Date(),
         })
       : [];

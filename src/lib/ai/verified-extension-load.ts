@@ -27,7 +27,8 @@ export async function loadVerifiedExtension(input: {
   if (!verifiedExtensionEnabled()) return null;
   const r = input.reservation;
   // Metin "Airbnb uygulamasından değişiklik talebi" der → yalnız Airbnb rezervasyonu; doğrudan / diğer kanal ev sahibine.
-  if (!r || r.channel !== "airbnb" || r.status === "cancelled") return null;
+  // Yalnız ONAYLI konaklama (Haiku 10-09: rezervasyon talebi "pending", erken çıkışla "completed" da geçiyordu).
+  if (!r || r.channel !== "airbnb" || r.status !== "confirmed") return null;
   const kinds = new Set(input.guestTexts.flatMap((t) => detectAvailabilityRequestKinds(t)));
   if (!kinds.has("extend") || [...kinds].some((k) => k !== "extend" && k !== "availability")) return null;
   const now = input.now ?? new Date();

@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import {
+  isOwnExtensionRequest,
   extensionNightsRequested,
   extensionQueryOf,
   verifiedExtensionEnabled,
@@ -31,6 +32,10 @@ describe("extensionNightsRequested", () => {
   ])("%s → %s", (text, n) => {
     expect(extensionNightsRequested(text)).toBe(n);
   });
+  it("🚨 'on bir gece daha' (11) → conflict (1 gece okunmaz)", () => {
+    expect(extensionNightsRequested("On bir gece daha kalabilir miyiz?")).toBe("conflict");
+    expect(extensionNightsRequested("Could we stay twenty one more nights?")).toBe("conflict");
+  });
   it("ifade yok → null", () => {
     expect(extensionNightsRequested("Wi-Fi şifresi nedir?")).toBeNull();
     expect(extensionNightsRequested("")).toBeNull();
@@ -57,7 +62,6 @@ describe("extensionQueryOf — uzatma aralığı [çıkış, çıkış + N)", ()
     ["Bir gece daha kalabilir miyiz?", { from: "2026-10-16", to: "2026-10-17" }],
     ["İki gece daha kalabilir miyiz?", { from: "2026-10-16", to: "2026-10-18" }],
     ["16 Ekim gecesi de kalabilir miyiz?", { from: "2026-10-16", to: "2026-10-17" }],
-    ["16-18 Ekim arası da kalabilir miyiz?", { from: "2026-10-16", to: "2026-10-18" }],
     ["16 Ekim'de bir gece daha kalabilir miyiz?", { from: "2026-10-16", to: "2026-10-17" }],
   ])("%s → %j", (text, q) => {
     expect(extensionQueryOf(text, ctx)).toEqual(q);
@@ -67,7 +71,16 @@ describe("extensionQueryOf — uzatma aralığı [çıkış, çıkış + N)", ()
     "20 Ekim'de bir gece daha kalabilir miyiz?", // çıkışa değmiyor
     "16-18 Ekim ama bir gece daha", // tutarsız (2 gece ↔ 1 gece)
     "Biraz daha kalabilir miyiz?", // sayı yok
-    "14.10 bir gece daha", // belirsiz tarih biçimi
+    "14.10 bir gece daha kalabilir miyiz?", // belirsiz tarih biçimi
+    "16-18 Ekim arası da kalabilir miyiz?", // iki tarih: aralık mı liste mi belirsiz (Haiku 10-09)
+    "16 ve 17 Ekim gecelerinde kalabilir miyiz?", // gece listesi tek gece okunuyordu (Haiku 10-09)
+    "Bir gece daha önce gelebilir miyiz?", // erken geliş
+    "Bir gün daha erken çıkabilir miyiz?", // erken çıkış
+    "Arkadaşım bir gece daha kalabilir mi?", // üçüncü kişi
+    "Bir gece daha kalmayacağız.", // olumsuz bildirim
+    "Bir gece daha uzattık, teşekkürler.", // bildirim, istek değil
+    "On bir gece daha kalabilir miyiz?", // 11 gece
+    "Can we come one more night earlier?", // erken geliş (EN)
   ])("🚨 %s → null (ev sahibine)", (text) => {
     expect(extensionQueryOf(text, ctx)).toBeNull();
   });
@@ -148,5 +161,40 @@ describe("anahtar", () => {
     expect(verifiedExtensionEnabled()).toBe(false);
     vi.stubEnv("AI_VERIFIED_EXTENSION_ENABLED", "1");
     expect(verifiedExtensionEnabled()).toBe(true);
+  });
+});
+
+describe("isOwnExtensionRequest — misafirin KENDİ uzatma isteği şekli", () => {
+  it.each([
+    "Bir gece daha kalabilir miyiz?",
+    "1 gece daha kalsak olur mu",
+    "İki gece daha uzatmak istiyoruz",
+    "Can we stay one more night?",
+    "We'd like to extend by two more nights",
+    "Could I stay another night?",
+  ])("✓ %s", (t) => {
+    expect(isOwnExtensionRequest(t)).toBe(true);
+  });
+  it.each([
+    "Bir gece daha önce gelebilir miyiz?",
+    "Arkadaşım bir gece daha kalabilir mi?",
+    "Annem bir gece daha kalabilir mi, biz çıkıyoruz",
+    "Bir gece daha kalabilir miyiz, mümkün değilse sorun değil",
+    "Bir gece daha uzattık, teşekkürler",
+    "Bir gece fazla ücret ne kadar?",
+    "Can my friend stay one more night?",
+    "We can't stay one more night",
+    "Is another night possible?",
+  ])("✗ %s", (t) => {
+    expect(isOwnExtensionRequest(t)).toBe(false);
+  });
+  it("durumsuz: aynı girdi art arda aynı sonucu verir (g bayrağı yok)", () => {
+    for (let i = 0; i < 3; i++) expect(extensionNightsRequested("On bir gece daha")).toBe("conflict");
+  });
+  it("uzun girdide doğrusal", () => {
+    const t0 = Date.now();
+    isOwnExtensionRequest(`${"kal ".repeat(10_000)}${" ".repeat(50_000)}miyiz`);
+    isOwnExtensionRequest("arkadaş".repeat(5_000));
+    expect(Date.now() - t0).toBeLessThan(500);
   });
 });

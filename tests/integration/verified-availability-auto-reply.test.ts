@@ -58,9 +58,27 @@ const verdict = {
   stayChange: { asked: "availability", stance: "states_calendar" },
 };
 
+let guardKind = "availability";
+
 function understandingFetch(kind: "availability" | "extend" | "none", intents: string[] = [kind === "extend" ? "extend_stay" : "availability"], language = "tr") {
   return vi.fn(async (_url: string, init?: RequestInit) => {
     const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
+    if (name === "stay_change_guard") {
+      // Bağımsız bekçi (Haiku 10-09): "belirli tarihler boş mu" → istek + tür availability (testin kendi `guardKind`ı ile).
+      const content = JSON.stringify({
+        guest_requests_change: guardKind !== "none",
+        kind: guardKind,
+        requested_checkin_time: null,
+        requested_checkout_time: null,
+        reply_states_calendar: true,
+        reply_grants_change: false,
+        reply_defers_to_host: false,
+        reply_refuses: false,
+        reply_price_terms: false,
+        reply_amounts: [],
+      });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200 });
+    }
     if (name !== "guest_message_understanding") throw new Error(`beklenmeyen şema: ${name}`);
     const v = {
       language,
@@ -129,6 +147,8 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
     vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_VERIFIED_AVAILABILITY_ENABLED", "1");
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    guardKind = "availability";
     vi.stubGlobal("fetch", understandingFetch("availability"));
     mockSend.mockResolvedValue({ ok: true } as never);
     mockSuggest.mockResolvedValue(verdict as never);
@@ -162,6 +182,17 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
   it("🚨 KISMEN dolu aralık → gitmez (hangi gecenin dolu olduğu ev sahibinde)", async () => {
     const { conversationId } = await seed({ booked: "partial" });
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("🚨 BEKÇİ kapalı ya da tarih sorusu görmüyor → gitmez (Haiku 10-09)", async () => {
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "");
+    const a = await seed();
+    expect((await applyChannelAutoReply(a.conversationId)).sent).toBe(false);
+    await resetDb();
+    vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
+    guardKind = "none";
+    const b = await seed();
+    expect((await applyChannelAutoReply(b.conversationId)).sent).toBe(false);
   });
 
   it("🚨 bayat takvim (10 saat) → gitmez", async () => {

@@ -35,6 +35,37 @@ const R = "(?![\\p{L}\\d])";
 const TR_COUNT = new RegExp(`${L}(bir|iki|üç|dört|beş|altı|yedi|\\d{1,2})\\s+(?:gece|gün)\\s+(?:daha|fazla)${R}`, "gu");
 const EN_COUNT = new RegExp(`${L}(one|two|three|four|five|six|seven|an?|\\d{1,2})\\s+(?:more|extra|additional)\\s+(?:nights?|days?)${R}`, "gu");
 const EN_ANOTHER = new RegExp(`${L}another\\s+(?:night|day)${R}`, "gu");
+// "on bir gece daha" (11) / "twenty one more nights": sayı öncesi onluk sözcüğü → tutarsız (Haiku 10-09: 11 gece 1 gece okunuyordu).
+const TENS = new RegExp(`${L}(?:on|yirmi|otuz|kırk|elli|altmış|yetmiş|seksen|doksan|yüz|ten|twenty|thirty|forty|fifty|hundred)\\s+(?:bir|iki|üç|dört|beş|altı|yedi|one|two|three|four|five|six|seven)${R}`, "u"); // `.test` → durumsuz (g bayrağı YOK)
+
+// İstek ŞEKLİ (Haiku 10-09, P1/P2): metin yalnız misafirin KENDİ kalma / uzatma isteğinde kurulur.
+//  · birinci şahıs istek kalıbı ŞART ("kalabilir miyiz", "kalsak", "uzatmak istiyorum", "can we stay", "we'd like to extend");
+//  · erken / önce ("Bir gece daha ÖNCE gelebilir miyiz?" = erken geliş), üçüncü kişi ("Arkadaşım bir gece daha kalabilir mi?"),
+//    olumsuzluk ("mümkün değilse", "not") geçerse → ev sahibine. Bildirim ("bir gece daha uzattık") kalıba uymaz → ev sahibine.
+const TR_ASK = new RegExp(
+  `${L}(?:(?:kalabilir|uzatabilir)\\s+mi(?:yiz|yim)|kalsak|kalsam|uzatsak|uzatsam|(?:kalmak|uzatmak)\\s+ist(?:iyoruz|iyorum|eriz|erim|erdik|erdim))${R}`,
+  "u",
+);
+const EN_ASK = new RegExp(
+  `${L}(?:(?:can|could|may)\\s+(?:we|i)\\s+(?:stay|extend)|(?:we|i)(?:'d|’d|\\s+would)\\s+like\\s+to\\s+(?:stay|extend)|(?:we|i)\\s+(?:want|wish)\\s+to\\s+(?:stay|extend))${R}`,
+  "u",
+);
+const EARLIER = new RegExp(`${L}(?:önce|erken|earlier|early|before|sooner)${R}`, "u");
+const THIRD_PARTY = new RegExp(
+  `${L}(?:arkadaş\\p{L}{0,8}|annem|babam|kardeş\\p{L}{0,6}|eşim|kızım|oğlum|ailem|misafir\\p{L}{0,6}|friends?|parents?|mother|father|sister|brother|they|he|she|someone|somebody)${R}`,
+  "u",
+);
+const NEGATION = new RegExp(`${L}(?:değil\\p{L}{0,6}|hayır|istemiyoruz|istemiyorum|not|no|don't|don’t|won't|won’t|cannot|can't|can’t)${R}`, "u");
+
+/** Misafirin KENDİ uzatma isteği şeklinde mi (birinci şahıs istek kalıbı var; erken / üçüncü kişi / olumsuzluk yok). */
+export function isOwnExtensionRequest(text: string | null | undefined): boolean {
+  if (typeof text !== "string" || text.length === 0) return false;
+  // Türkçe küçük harf "I"yı "ı" yapar → İngilizce kalıplar yerel ayarsız küçük harfte okunur.
+  const tr = text.toLocaleLowerCase("tr");
+  const en = text.toLowerCase();
+  if (!TR_ASK.test(tr) && !EN_ASK.test(en)) return false;
+  return ![tr, en].some((t) => EARLIER.test(t) || THIRD_PARTY.test(t) || NEGATION.test(t));
+}
 
 /**
  * Metindeki "N gece daha" ifadeleri. Hiç yoksa null; birbirini tutmayan iki sayı ya da aralık dışı sayı → "conflict" (tahmin yok).
@@ -42,15 +73,20 @@ const EN_ANOTHER = new RegExp(`${L}another\\s+(?:night|day)${R}`, "gu");
 export function extensionNightsRequested(text: string | null | undefined): number | null | "conflict" {
   if (typeof text !== "string" || text.length === 0) return null;
   const t = text.toLocaleLowerCase("tr");
+  const en = text.toLowerCase(); // İngilizce: yerel ayarsız (Türkçe küçük harf "I"yı "ı" yapar)
+  if (TENS.test(t) || TENS.test(en)) return "conflict";
   const found = new Set<number>();
-  for (const re of [TR_COUNT, EN_COUNT]) {
-    for (const m of t.matchAll(re)) {
+  for (const [re, s] of [
+    [TR_COUNT, t],
+    [EN_COUNT, en],
+  ] as const) {
+    for (const m of s.matchAll(re)) {
       const n = NUM(m[1]);
       if (n === null) return "conflict";
       found.add(n);
     }
   }
-  if ([...t.matchAll(EN_ANOTHER)].length > 0) found.add(1);
+  if ([...en.matchAll(EN_ANOTHER)].length > 0) found.add(1);
   if (found.size === 0) return null;
   if (found.size > 1) return "conflict";
   const n = [...found][0];
@@ -58,16 +94,16 @@ export function extensionNightsRequested(text: string | null | undefined): numbe
 }
 
 /**
- * Uzatma aralığı [çıkış günü, çıkış + N). Rezervasyon (çıkış günü) ŞART. Kabul edilen biçimler:
+ * Uzatma aralığı [çıkış günü, çıkış + N). Rezervasyon (çıkış günü) ve misafirin KENDİ istek şekli (`isOwnExtensionRequest`) ŞART. Kabul:
  *  · yalnız "N gece daha" → N gece;
  *  · yalnız çıkış günü ("16 Ekim gecesi de kalabilir miyiz") → 1 gece;
- *  · çıkış günü + sonraki gün ("16–18 Ekim") → o aralık;
  *  · ikisi birlikte yalnız TUTARLIYSA.
- * Çıkış gününe değmeyen tarih ("18 Ekim'e kadar" — çıkış mı, gece mi belirsiz), belirsiz / geçmiş tarih, tutarsız sayı → null.
+ * İKİ tarih ("16–18 Ekim" aralık mı, "16 ve 17 Ekim" gece listesi mi — Haiku 10-09: liste tek gece okunuyordu), çıkış gününe değmeyen tarih
+ * ("18 Ekim'e kadar" — çıkış mı, gece mi belirsiz), belirsiz / geçmiş tarih, tutarsız sayı → null (ev sahibine).
  */
 export function extensionQueryOf(text: string | null | undefined, ctx: DateResolutionContext): AvailabilityQuery | null {
   const departure = ctx.reservation?.departure;
-  if (!departure) return null;
+  if (!departure || !isOwnExtensionRequest(text)) return null;
   const count = extensionNightsRequested(text);
   if (count === "conflict") return null;
   const r = resolveGuestDates(text, ctx);
@@ -75,8 +111,7 @@ export function extensionQueryOf(text: string | null | undefined, ctx: DateResol
   let fromDates: AvailabilityQuery | null = null;
   if (r.status === "resolved") {
     if (r.dates.length === 1 && r.dates[0] === departure) fromDates = { from: departure, to: addNights(departure, 1) };
-    else if (r.dates.length === 2 && r.dates[0] === departure && r.dates[1] > departure) fromDates = { from: departure, to: r.dates[1] };
-    else return null; // çıkış gününe değmeyen / çok tarihli → belirsiz
+    else return null; // çıkış gününe değmeyen / iki ya da daha çok tarih → belirsiz
   }
   const fromCount = count !== null ? { from: departure, to: addNights(departure, count) } : null;
   if (fromDates && fromCount && fromDates.to !== fromCount.to) return null;

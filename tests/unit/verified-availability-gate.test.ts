@@ -9,10 +9,28 @@ import { evaluateAvailability, type AvailabilityPolicyOptions } from "@/lib/ai/a
 const ASK = "Merhaba, 14 Ekim ile 16 Ekim arası müsait mi?";
 const CODE = "14 Ekim giriş, 16 Ekim çıkış için daire müsait.";
 const understanding = { requested: true, kind: "availability", checkinTime: null, checkoutTime: null } as never;
+const guardVerdict = (kind: string, requests = true) =>
+  ({
+    status: "ok",
+    verdict: {
+      guestRequestsChange: requests,
+      kind,
+      requestedCheckinTime: null,
+      requestedCheckoutTime: null,
+      replyStatesCalendar: true,
+      replyGrantsChange: false,
+      replyDefersToHost: false,
+      replyRefuses: false,
+      replyAmounts: [],
+      replyPriceTerms: false,
+    },
+  }) as never;
+
 const opts = (over: Partial<AvailabilityPolicyOptions> = {}): AvailabilityPolicyOptions => ({
   declared: { asked: "availability", stance: "states_calendar" },
   replyIntent: "availability",
   understanding,
+  guard: guardVerdict("availability"),
   verifiedAvailability: { text: CODE },
   ...over,
 });
@@ -60,6 +78,12 @@ describe("kapı muafiyeti — yalnız birebir kod metni", () => {
   it("🚨 bekçi düştüyse muaf DEĞİL", () => {
     expect(evaluateAvailability(CODE, [ASK], opts({ guard: { status: "failed" } as never })).reason).not.toBeNull();
   });
+
+  it("🚨 bekçi KOŞMADI / tarih sorusu görmedi / başka tür → muaf DEĞİL (Haiku 10-09)", () => {
+    expect(evaluateAvailability(CODE, [ASK], opts({ guard: undefined })).reason).not.toBeNull();
+    expect(evaluateAvailability(CODE, [ASK], opts({ guard: guardVerdict("availability", false) })).reason).not.toBeNull();
+    expect(evaluateAvailability(CODE, [ASK], opts({ guard: guardVerdict("extend") })).reason).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -73,6 +97,7 @@ const extOpts = (over: Partial<AvailabilityPolicyOptions> = {}): AvailabilityPol
   declared: { asked: "extend", stance: "states_calendar" },
   replyIntent: "extend_stay",
   understanding: extUnderstanding,
+  guard: guardVerdict("extend"),
   verifiedExtension: { text: EXT_CODE },
   ...over,
 });
@@ -107,6 +132,12 @@ describe("kapı muafiyeti — doğrulanmış uzatma", () => {
   it("🚨 anlama katmanı kapalı / bekçi düştü → muaf DEĞİL", () => {
     expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ understanding: null })).reason).not.toBeNull();
     expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ guard: { status: "failed" } as never })).reason).not.toBeNull();
+  });
+
+  it("🚨 bekçi KOŞMADI (Haiku 10-09: 'off' muafiyeti açıyordu) / istek görmedi / başka tür → muaf DEĞİL", () => {
+    expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ guard: undefined })).reason).not.toBeNull();
+    expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ guard: guardVerdict("extend", false) })).reason).not.toBeNull();
+    expect(evaluateAvailability(EXT_CODE, [EXT_ASK], extOpts({ guard: guardVerdict("early_checkin") })).reason).not.toBeNull();
   });
 
   it("🚨 müsaitlik muafiyeti uzatma metnini KAPSAMAZ (yanlış bağlam)", () => {
