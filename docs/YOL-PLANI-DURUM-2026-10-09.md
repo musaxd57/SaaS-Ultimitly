@@ -11,7 +11,7 @@
 | ① | Codex denetimi kritik bulguları | ✅ (`docs/audit-2026-09-05/DURUM.md`) |
 | ② | Test sözleşmesi | ✅ `docs/TEST-EVIDENCE-CONTRACT.md` |
 | ③ | V0 Channel Independence | 🟡 V0.1–V0.7 kod ✅ — **kalanlar §2** |
-| ④ | Deterministik Availability Engine | 🟡 çekirdek + panel + konuşma sayfası ✅; **araç sonucu sözleşmesi ✅ 10-09** (`ai/tools/`, bayat / belirsiz kesin olamaz, kapsam zorunlu); isteme bağlama **kurucu onayı** |
+| ④ | Deterministik Availability Engine | 🟡 çekirdek + panel + konuşma sayfası ✅; **araç sonucu sözleşmesi ✅ 10-09** (`ai/tools/`, bayat / belirsiz kesin olamaz, kapsam zorunlu); isteme bağlama: kurucu onayıyla (10-09) **doğrulanmış müsaitlik / uzatma KOD METNİ ✅** (kanal + QR; anahtarlar KAPALI — açma = kurucu + ilk denemeler); karışık mesajda (müsaitlik + başka soru) bugün ev sahibine kalır |
 | ⑤ | Geniş otonom AI | ⛔ ④ ve korumalar doğrulanmadan yok |
 
 Ürün fazları: V1 ✅ canlı · V2 🟡 ("Dikkat Gerektirenler" + çakışmada para aralığı) · V3–V8 başlamadı.
@@ -56,7 +56,7 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 | Kurucu AI Kalite Konsolu | 🟡 KOD HAZIR (yama `docs/hazir-yamalar/2026-10-09-migration-60-…patch`; salt-okuma + etiket, 2FA'lı operatör, her görüntüleme kayıtlı) → push onayı |
 | Üretim izi (model, istem sürümü, gecikme, token, maliyet) | 🟡 KOD HAZIR (aynı yama; `AI_GENERATION_TRACE_ENABLED` kapalı; KVKK paritesi + okuyucu pini; maliyet sütunu boş — fiyat tablosu ayrı karar) → push onayı |
 | 8 başlangıç senaryosu | ✅ set `evals/founder-initial-8.json` + seçici; ücretli taban koşusu onay |
-| Açık taahhüt hafızası | ❌ |
+| Açık taahhüt hafızası | ⏸ öneri yazıldı, kurucu kararı (`docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md`; A / B / C — migration ister) |
 
 ## 5. Çalışma sırası (bu turdan itibaren)
 

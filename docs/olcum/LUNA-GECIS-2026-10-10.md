@@ -66,7 +66,51 @@ Okuma: tehlikeli kaçak her yapılandırmada 0 (kelime ağı ∨ bekçi ∨ anla
 inceleme payını kelime ağı belirliyor (model seviyesinden bağımsız). → Bekçi ve anlama için **Luna `low`** önerisi değişmedi (`none` da
 eşit doğrulukta ve daha hızlı; belirsiz mesajda hedefli soru dalga 1'de `low`da daha iyiydi).
 
+## Dalga 3 — cevap modeli, 135 senaryo (`model-reply-compare`), ürün anahtarları KAPALI (taban istem), commit `46639ca`
+
+| Cevap modeli | Sızıntı | Otomatik (cevabı KB'de) | Doğru olgu | Doğru olgu + otomatik | Uydurma | Bekleme sözü | Dil TR / TR dışı | Çok turlu otomatik | p50 / p95 | 1.000 mesaj (liste fiyatı) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 5.1 | 0/52 | 51/55 | 53/55 | 49/55 | 0/82 | 0 | 76/76 · 59/59 | 9/14 | 1,9 / 3,2 sn | ≈ $5,34 |
+| Luna `none` | 0/52 | 52/55 | **55/55** | **52/55** | 0/82 | 0 | 74/76 · 59/59 | 10/14 | 2,1 / 3,2 sn | ≈ $0,52 |
+| Luna `low` | 0/52 | 50/55 | 48/55 | 45/55 | 0/82 | 0 | 75/76 · 59/59 | 10/14 | 3,8 / 6,5 sn | ≈ $0,58 |
+| Luna `medium` | 0/52 | 53/55 | 46/55 | 44/55 | 0/82 | 0 | 75/76 · 59/59 | 10/14 | 4,3 / 9,7 sn | ≈ $0,67 |
+
+Okuma:
+- **Düşünme arttıkça Luna bilgi tabanındaki ÜCRETİ söylemekten kaçınıyor:** `low` / `medium` ara temizlik (400 TL) ve otopark (150 TL)
+  sorularında "ücret ev sahibinizin kararı" yazdı (5 satır, DE / ES / TR); `none` ve 5.1 doğru tutarı yazdı. Bu tam olarak canlıda AÇIK
+  olan iki anahtarın sınıfı (`AI_KB_FEE_RULE_ENABLED` — bilgi tabanındaki sabit ücret söylenir; `AI_HOST_DECISION_HOLD_ENABLED` — "ev sahibinin
+  kararı" misafire gitmez). Bu dalga anahtarlar KAPALIYKEN koştu → canlıyı temsil etmiyor; **dalga 4 aynı seti canlı anahtarlarla koşuyor.**
+- Dil kaçırmaları ölçer kenar durumu: emoji-only mesaja İngilizce "Thank you." (istem kuralı: belirsizse İngilizce) ve kısa Türkçe acil
+  cümlesinin dil işaretleyicide tanınmaması — üç seviyede de aynı.
+- Maliyet: ölçerin liste fiyatı tablosuna göre Luna ≈ 10 kat ucuz (tablo değerleri `tests/eval/reply-scoring.ts priceFor`).
+
+## Dalga 3 — yeniden sıralayıcı (`rerank-llm`, 300 kalem, sentetik E4), commit `c6996fb`
+
+| Sıralayıcı | Para grubu (82) | Çok sorulu (39) | Ölçek (30) | Kayıp | p50 / p95 |
+|---|---|---|---|---|---|
+| 5.1 | 50% → 74% (+20) | 31% → 72% (+16) | 100% | 0 | 0,9 / 1,7 sn |
+| Luna `none` | 50% → 72% (+18) | 31% → 79% (+19) | 100% | 0 | 1,3 / 1,9 sn |
+| Luna `low` | 50% → 73% (+19) | 31% → 79% (+19) | 100% | 0 | 2,6 / 4,3 sn |
+
+Okuma: üçü kalite olarak eşdeğer (fark 1–3 soru, kayıp yok); `low` gecikmesi iki katı. Luna'ya geçilecekse **`none`** yeterli.
+
+## Tarih okuması (karar #10) — Luna `low`, konuşma durumu seti (46 × 2) + kurucu 8, anahtarlar dalga 1 ile aynı
+
+| Ölçü (kapalı kol / açık kol) | Dalga 1 (tarih okuması YOK) | Tarih okuması, koşu 1 | Tarih okuması, koşu 2 |
+|---|---|---|---|
+| Sızıntı / yanlış susturma / misafire söz / genel netleştirme / selam tekrarı | 0 | 0 | 0 |
+| Çözülebilir mesajda gereksiz soru | 0/30 · 1/30 | 2/30 · 2/30 | 2/30 · 2/30 |
+| Belirsiz mesajda tek hedefli soru | 1/6 · 2/6 | 1/6 · 1/6 | 1/6 · 1/6 |
+| Kurucu 8: belirsiz müsaitlikte ("ayın 3'ü ile 4'ü") hedefli soru | 1/1 · 0/1 | 1/1 · 1/1 | — |
+
+Okuma: iki gereksiz soru iki koşuda da AYNI iki senaryoda (gece yarısından sonra yazılmış "yarın", giriş / çıkış bugün → rezervasyon zaten
+netleştiriyor). Düzeltme `ef6de0e`: belirsizliğin TEK nedeni gece yarısı "yarın"ıysa satır yazılmaz (doğrulanmış akışlarda temkin kalır).
+Aysız tarih belirsizliğinde blok yardımcı oldu. Anahtar KAPALI kalır; düzeltmeli ölçüm dalga 4'te (canlı anahtarlar, tarih açık / kapalı).
+
 ## Öneri (kurucu yokken karar #7 — env değeri; kod varsayılanı `DEFAULT_OPENAI_MODEL` değişmedi)
+
+> ⏳ Cevap modelinin düşünme seviyesi (`low` mı `none` mı) dalga 4'e (canlı anahtarlarla) göre kesinleşecek: dalga 3'te `low` / `medium`
+> ücret sorularında geri kaldı, `none` en iyisiydi — ama o dalga canlıda açık olan ücret / "ev sahibinin kararı" anahtarları KAPALIYKEN koştu.
 
 | Değişken | Değer |
 |---|---|
@@ -76,4 +120,4 @@ eşit doğrulukta ve daha hızlı; belirsiz mesajda hedefli soru dalga 1'de `low
 | `AI_DECISION_TEXT_MODEL` / `…_REASONING_EFFORT` (yeni, karar #8) | `gpt-5.1` / boş (dalga 2: gerekçe anmada iki sette de en iyi — kör 9/10, geliştirme 10/14) |
 | `OPENAI_TRANSLATE_MODEL` / `…_REASONING_EFFORT` | `gpt-6-luna` / `medium` (10-02 ölçümü) |
 | `OPENAI_STYLE_MODEL` / `…_REASONING_EFFORT` | `gpt-6-luna` / `none` (10-01 ölçümü) |
-| `AI_SEMANTIC_MODEL` (yeniden sıralayıcı) | dalga 2 / 3'e göre (önceki ölçüm: 5.1'de kalsın) |
+| `KB_RERANK_MODEL` / `KB_RERANK_REASONING_EFFORT` (yeniden sıralayıcı) | `gpt-6-luna` / `none` (dalga 3: kalite 5.1 ile eşdeğer, +0,4 sn) — ya da 5.1'de kalsın (en hızlı) |
