@@ -926,18 +926,20 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const escalate = verdict.escalate;
 
   // Karar kaydının temellendirme alanları — iki kayıt (kapanış / cevap-devir) AYNI nesneyi yazar.
+  // Kanıt GÖNDERİLEN sonucu betimler (doğrulanmış kod metni seçildiyse onu — Haiku 10-09: kayıt atılan taslağı anlatıyordu); risk niyeti
+  // modelin etiketidir (kod metni niyeti ezmez).
   const auditFields = async () => ({
     // A2 — TEMELLENDİRME: gerekçe tek başına "neden dayanamadı"yı söylemiyor.
     // Kodun bildiği (kaç kalem gitti, kaçı onay bekliyor, kaçı tavandan düştü,
     // hangi bilgi sürümü) ile modelin BEYANI yan yana yazılır; ikisi ayrı
     // olmadan "bilgi yok" ile "bilgi vardı, kullanılmadı" ayrılamaz.
     // §C: pack karakter bütçesinin kestiği kalemler de sayılır. `kbDroppedTotal`
-    // istem-ÖNCESİ sayıdır; `result.kbOmittedInPrompt` istemin TOPLAMIDIR
+    // istem-ÖNCESİ sayıdır; `finalResult.kbOmittedInPrompt` istemin TOPLAMIDIR
     // (ön düşüşler DÂHİL) → EKLENMEZ, DEĞİŞTİRİLİR (çift sayım olurdu).
     // Model çağrılmadıysa alan `undefined` gelir ve sayaçlara DOKUNULMAZ (A2).
     ...applyPromptKbAudit(
       { kbRetrieved: kbSel.items.length, kbDropped: kbDroppedTotal },
-      result.kbOmittedInPrompt,
+      finalResult.kbOmittedInPrompt,
       kbSel.items.length,
     ),
     kbPendingApproval: ctx.knowledgeBasePendingApproval,
@@ -948,17 +950,17 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Hibritte parça indeksi + retrieval özeti (PII'siz) de kanıta girer.
     kbEvidenceJson: buildKbEvidence({
       retrieved: kbSel.items,
-      usedLabels: result.usedSources ?? [],
+      usedLabels: finalResult.usedSources ?? [],
       // Anlama katmanı paralel koştuysa özeti burada eklenir (kapı onu zaten bekledi).
       retrieval: await kbSel.evidenceAfterUnderstanding(),
       // GÖLGE ölçüm (karar DEĞİL): modelin taslağındaki somut iddiaların desteği + token kullanımı.
       // Misafir devir metnini alsa bile bu, MODELİN taslağını betimler.
-      claims: result.claimAudit,
-      llm: result.llmUsage,
+      claims: finalResult.claimAudit,
+      llm: finalResult.llmUsage,
       hijackScreened: ctx.knowledgeBaseHijackScreened,
       // Konaklama değişikliği politikası: kapıyla AYNI girdi (`qrAvailabilityPolicy`) — uygulanan
       // karar + katman sinyalleri; kapalı-küme kodlar (`ev` = `v`, gölge kip yok).
-      stay: stayEvidenceOf(evaluateAvailability(result.reply, [message], qrAvailabilityPolicy(result, stayCtx))),
+      stay: stayEvidenceOf(evaluateAvailability(finalResult.reply, [message], qrAvailabilityPolicy(finalResult, stayCtx))),
       // Risk niyeti: kapıyla AYNI girdi; yalnız anlama katmanı gerçekten koştuysa yazılır.
       intentRisk: understood
         ? intentRiskEvidenceOf(evaluateIntentRisk(stayCtx?.understandingRisk, { modelIntent: result.intent }))
@@ -966,8 +968,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       // Ev kuralı GÖLGE ölçümü (#188 dilim 3): kanal oto-yanıtıyla AYNI giriş; karar DEĞİL, bayrak kapalıyken sorgu yok.
       houseRules: await houseRulesShadowFor({ organizationId: ctx.property.organizationId, propertyId: ctx.property.id, understood }),
     }),
-    srcDeclared: result.sourceAudit?.declared ?? null,
-    srcVerified: result.sourceAudit?.verified ?? null,
+    srcDeclared: finalResult.sourceAudit?.declared ?? null,
+    srcVerified: finalResult.sourceAudit?.verified ?? null,
   });
 
   // ── KAPANIŞA SESSİZLİK — ANLAM YOLU (kurucu kuralı 09-25, `ai/closing-turn.ts`; kanal kapısıyla AYNI yüklem) ──────
@@ -984,7 +986,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     escalate &&
     (qrUnanswered.length === 1 || lexicalClosingOnly(qrUnanswered.slice(0, -1))) &&
     !evaluateEscalation({ ...gateResult, confidence: 1 }, message, res.guestName, history, stayCtx).escalate &&
-    semanticClosingOnly({ unanswered: [message], hasPriorReply: qrClosable, understood, reply: result })
+    semanticClosingOnly({ unanswered: [message], hasPriorReply: qrClosable, understood, reply: finalResult })
   ) {
     const closingRecord = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
     await recordRiskEvent({

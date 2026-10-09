@@ -141,6 +141,11 @@ describe("QR — doğrulanmış müsaitlik / uzatma kod metni", () => {
     const s = await seed();
     expect((await ask(s.token, "Merhaba, bir gece daha kalabilir miyiz?")).status).toBe(200);
     expect(await lastBotReply(s.propertyId)).toBe(EXT_CODE);
+    // Karar kaydı GÖNDERİLEN metni betimler (Haiku 10-09: atılan taslağın "availability_unconfirmed" vetosunu yazıyordu, gönderim
+    // "auto_sent" iken) — gönderilen kod metni için konaklama vetosu kaydı YOK.
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { surface: "guest_chat" } });
+    expect(ev.finalDecision).toBe("auto_sent");
+    expect(JSON.parse(String(ev.kbEvidenceJson)).sc?.v ?? null).toBeNull();
   });
 
   it("KONTROL: QR anahtarı KAPALI → kod metni gitmez (kanal anahtarları açık olsa da)", async () => {

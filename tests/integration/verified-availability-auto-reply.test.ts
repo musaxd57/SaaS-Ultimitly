@@ -246,9 +246,11 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
   });
 
   it("🚨 misafirin dili KODLA belirlenemiyor ('29-31 Ekim boş mu?') → modelin dil tahminine düşülmez, gitmez", async () => {
-    // Aynı ay içinde iki gün (kısa, dili belirsiz yazım).
+    // Aynı ay içinde iki gün (kısa, dili belirsiz yazım). 🚨 ZAMAN BOMBASI düzeltildi (10-10): ay adı Türkçeye özgü harf taşımamalı
+    // (Kasım / Aralık / Eylül / Ağustos / Şubat / Mayıs "ı ş ğ ü" ile dili KESİN Türkçe yapar → vaka sınanmaz); uygun ilk ay seçilir.
+    const PLAIN = new Set([1, 3, 4, 6, 7, 10]); // Ocak · Mart · Nisan · Haziran · Temmuz · Ekim
     let a = addNights(TODAY, 20);
-    if (a.slice(5, 7) !== addNights(a, 2).slice(5, 7)) a = addNights(a, 3);
+    while (!PLAIN.has(Number(a.slice(5, 7))) || a.slice(5, 7) !== addNights(a, 2).slice(5, 7)) a = addNights(a, 1);
     const b = addNights(a, 2);
     const month = TR_MONTHS[Number(a.slice(5, 7)) - 1];
     const { conversationId } = await seed({ message: `${Number(a.slice(8, 10))}-${Number(b.slice(8, 10))} ${month} boş mu?` });

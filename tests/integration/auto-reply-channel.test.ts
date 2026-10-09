@@ -2431,6 +2431,8 @@ describe("applyChannelAutoReply — konuşma kayıtları (CUS v1 dilim B)", () =
       unansweredGuest: 2,
       items: [{ topic: "complaint", status: "pending_host" }],
       lifecycleSent: [],
+      // Yetkili konuşma durumu (talimat 09-07 §6) yükleyiciye konuşma kimliğiyle girer: misafire hiç cevap gitmedi → ilk temas.
+      phase: { phase: "first_contact", deliveredReplyCount: 0, sinceLastReply: null },
     });
   });
 
