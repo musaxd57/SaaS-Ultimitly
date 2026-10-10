@@ -530,7 +530,9 @@ describe("registration → verification → login", () => {
     const u = await prisma.user.findUnique({ where: { email: "race@x.com" } });
     expect(u?.emailVerifiedAt).not.toBeNull();
     expect(u?.emailVerifyTokenHash).toBeNull();
-  });
+    // Süre: sekiz eşzamanlı istek parola doğrulaması (bcrypt) ister ve bcrypt eşzamanlılık kapısında SIRAYA girer — tek başına ~4 sn,
+    // varsayılan 5 sn sınırına sınırdaydı; tam paketin yükü altında 10-10'da bir kez aşıldı (davranış değil, süre). Sonuç iddiaları aynı.
+  }, 20_000);
 
   it("HOST-INJECTION: a forged Host on register does NOT poison the emailed verify link", async () => {
     await register(
