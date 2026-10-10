@@ -4,6 +4,18 @@
 > sorman gerekirken kendi önerin gibi yaptın yaz bana." Her satır: **normalde sorulacak soru · verdiğim karar · gerekçe · geri alma**.
 > Canlı yok (Railway kapalı); yeni davranışlar KAPALI anahtar arkasında. Müşteriye giden metni değiştiren her şey anahtar açılmadan etkisiz.
 
+## Döndüğünüzde bakılacaklar (kısa)
+
+1. **Luna geçişi (env, sizin işiniz):** cevap + anlama + bekçi `gpt-6-luna` / `low`, yeniden sıralayıcı Luna `none`, karar metni yazıcısı
+   5.1, çeviri Luna `medium`, üslup Luna `none` — 4 dalga, canlı anahtarlarla doğrulandı (`docs/olcum/LUNA-GECIS-2026-10-10.md` sonu).
+2. **Açılmayı bekleyen anahtarlar** (hepsi kapalı, açmak = siz + ilk denemeler): doğrulanmış müsaitlik / uzatma (kanal + QR), tarih okuması,
+   konuşma durumu satırı. Ölçümler raporlarda; önerdiğim sıra: tarih okuması + konuşma durumu (güvenlik ölçüleri 0, gereksiz soru 0) →
+   doğrulanmış müsaitlik → uzatma → QR.
+3. **Migration 60** (kanal üst verisi + yapay zekâ izi + kalite konsolu): kod hazır yama; itmek = taze `pg_dump` + "push et".
+4. **Açık taahhüt hafızası:** A / B / C seçimi (`docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md`).
+5. **Cevap inceleme sayfası** yeni ölçümlerle güncellendi (6.127 çift); yorumlarınız artık her güncellemede korunur.
+6. Bilgi için: bayat takvim kaynağında çakışma artık "kesin" değil (#9), plan sınırı yarışı düzeltildi (#12).
+
 | # | Normalde sorardım | Kararım | Gerekçe | Geri alma |
 |---|---|---|---|---|
 | 1 | Konuşma durumu satırının metni ("Konuşma aşaması … · teslim edilmiş cevap: N · son cevaptan bu yana X (yeni oturum)") | Yalnız OLGU yazılır, davranış talimatı yok (selam / kısa selam kuralı eklenmedi) | Kod selamı canlıda açık (`AI_CODE_GREETING_ENABLED`) — modele "yeni oturumda selam ver" demek kodun selam kuralıyla çakışırdı; önce kör eval etkisini ölçer | `AI_CONVERSATION_STATE_ENABLED` kapalı kalır |
