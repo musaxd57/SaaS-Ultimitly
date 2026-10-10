@@ -5,7 +5,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { providerErrorStatus } from "@/lib/provider-errors";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getActiveConnection } from "@/lib/channels/connections";
-import { recordChannelListings, recordConnectionRead } from "@/lib/channels/metadata";
+import { propertyForChannelListing, recordChannelListings, recordConnectionRead } from "@/lib/channels/metadata";
 import { getIngestAdapter, IngestError, type CanonicalMessage, type CanonicalReservation, type IngestErrorKind } from "@/lib/channels";
 import {
   upsertCanonicalReservation,
@@ -196,7 +196,7 @@ export async function syncHospitable(
   for (const hp of hospitableProps) {
     if (!hp.externalId) continue;
     try {
-      const ourId = await linkProperty(organizationId, { id: hp.externalId, name: hp.name }, liveIds, limitState);
+      const ourId = await linkProperty(organizationId, connectionId, { id: hp.externalId, name: hp.name }, liveIds, limitState);
       if (!ourId) {
         result.propertiesCapped++;
         continue;
@@ -759,10 +759,15 @@ async function fenceUnlinkedTerminalStay(
  */
 async function linkProperty(
   organizationId: string,
+  connectionId: string | null,
   hp: { id: string; name: string | null },
   liveIds: Set<string>,
   limitState: PropertyLimitState,
 ): Promise<string | null> {
+  // V0 okuma geçişi (`CHANNEL_LISTING_READ`, VARSAYILAN KAPALI): bağlantı kapsamlı ilan satırı varsa O mülk; yoksa bugünkü yol.
+  const viaListing = await propertyForChannelListing(organizationId, connectionId, hp.id);
+  if (viaListing) return viaListing;
+
   const linked = await prisma.property.findFirst({
     where: { organizationId, hospitableId: hp.id },
     select: { id: true },

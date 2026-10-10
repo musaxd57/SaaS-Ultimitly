@@ -120,6 +120,61 @@ describe("kanal metaverisi — senkron üzerinden", () => {
   });
 });
 
+describe("ilan OKUMA geçişi (CHANNEL_LISTING_READ, varsayılan kapalı)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    mockReservations.mockResolvedValue([RES("Airbnb Official")] as never);
+    mockMessages.mockResolvedValue([]);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /** Senkronun bugünkü yolu "Test Property"yi ADIYLA benimserdi; ilan satırı BAŞKA mülkü gösteriyor. */
+  async function seedWithListing() {
+    const s = await seed();
+    const other = await prisma.property.create({ data: { organizationId: s.orgId, name: "Başka Daire" } });
+    await prisma.channelListing.create({
+      data: { organizationId: s.orgId, connectionId: s.connectionId, externalId: "hosp-prop-1", propertyId: other.id },
+    });
+    return { ...s, otherId: other.id };
+  }
+
+  it("🚨 KAPALI (varsayılan): ilan satırı OKUNMAZ — bugünkü yol (ad ile benimseme, `hospitableId`)", async () => {
+    const { orgId, propertyId, otherId } = await seedWithListing();
+    await syncHospitable(orgId);
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId).toBe(propertyId);
+    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).hospitableId).toBe("hosp-prop-1");
+    expect(await prisma.reservation.count({ where: { propertyId: otherId } })).toBe(0);
+  });
+
+  it("🚨 AÇIK: bağlantı + ilan kimliği → satırdaki mülk (ad eşleşmesine ve eski kolona bakılmaz)", async () => {
+    vi.stubEnv("CHANNEL_LISTING_READ", "1");
+    const { orgId, propertyId, otherId } = await seedWithListing();
+    await syncHospitable(orgId);
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId).toBe(otherId);
+    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).hospitableId).toBeNull();
+  });
+
+  it("AÇIK ama satır YOK → bugünkü yola DÜŞER (geçişte ilan kaybolmaz)", async () => {
+    vi.stubEnv("CHANNEL_LISTING_READ", "1");
+    const { orgId, propertyId } = await seed();
+    await syncHospitable(orgId);
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId).toBe(propertyId);
+  });
+
+  it("🚨 AÇIK: başka org'un mülkünü gösteren (bozuk) satır YOK SAYILIR → bugünkü yol; başka org'a hiçbir şey yazılmaz", async () => {
+    vi.stubEnv("CHANNEL_LISTING_READ", "1");
+    const s = await seed();
+    const foreign = await makeOrgWithProperty();
+    await prisma.channelListing.create({
+      data: { organizationId: s.orgId, connectionId: s.connectionId, externalId: "hosp-prop-1", propertyId: foreign.propertyId },
+    });
+    await syncHospitable(s.orgId);
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId).toBe(s.propertyId);
+    expect(await prisma.reservation.count({ where: { propertyId: foreign.propertyId } })).toBe(0);
+  });
+});
+
 describe("kanal metaverisi — kiracı denetimi (doğrudan)", () => {
   beforeEach(async () => {
     await resetDb();

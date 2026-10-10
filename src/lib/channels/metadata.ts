@@ -12,13 +12,45 @@ import type { IngestErrorKind } from "./ingest";
 //   B. `Reservation.sourcePlatform`: sağlayıcının ham platform adı (gösterim / teşhis; yetenek ASLA buradan çıkarılmaz — V0.9 pini).
 //   C. `ChannelConnection.lastReadOkAt / lastReadErrorAt / lastReadErrorKind`: her okuma geçişinin sonucu.
 //
-// Sözleşme: anahtar `CHANNEL_METADATA_WRITE` (tam "1"; VARSAYILAN KAPALI). YALNIZ YAZAR — bugün hiçbir okuyucu yok (okuma geçişi ayrı
-// anahtar + ayrı onay; müsaitlik motorunun sağlık kaydını kullanması davranış değişikliğidir). Senkronu ASLA bozmaz: her arıza
+// Sözleşme: anahtar `CHANNEL_METADATA_WRITE` (tam "1"; VARSAYILAN KAPALI). Yazıcılar burada; tek OKUYUCU ilan eşlemesi (A) — ayrı anahtar
+// `CHANNEL_LISTING_READ` arkasında, VARSAYILAN KAPALI (açmak ayrı onay; müsaitlik motorunun sağlık kaydını kullanması da ayrı davranış değişikliği). Senkronu ASLA bozmaz: her arıza
 // `reportError` + yut. Kiracı: bağlantı satırı ve mülk aynı org'a ait olmalı (yazmadan önce denetlenir).
 // ---------------------------------------------------------------------------
 
 export function channelMetadataWriteEnabled(): boolean {
   return process.env.CHANNEL_METADATA_WRITE === "1";
+}
+
+/**
+ * OKUMA GEÇİŞİ (değişmez 3; migration 60 tasarımı §A "expand → dual-write → okuma anahtarı → contract"): anahtar `CHANNEL_LISTING_READ`
+ * (tam "1"; VARSAYILAN KAPALI). AÇMAK = kurucu onayı + çift yazımın canlıda yeterince koşmuş olması (operatör planı). Kapalıyken hiçbir sorgu
+ * yapılmaz — bugünkü davranış (`Property.hospitableId`).
+ */
+export function channelListingReadEnabled(): boolean {
+  return process.env.CHANNEL_LISTING_READ === "1";
+}
+
+/**
+ * (bağlantı, ilan kimliği) → BU org'un mülkü, ilan satırından. Satır yoksa / anahtar kapalıysa / bağlantı yoksa null → çağıran bugünkü
+ * yola (`Property.hospitableId`) DÜŞER (tasarım: satırı olmayan mülkte okuma eski kolona düşer, yoksa geçişte ilan görünmezdi). Kiracı:
+ * satırın org'u VE mülkün org'u çağıranın org'u olmalı (bozuk / başka org'a işaret eden satır yok sayılır). Asla fırlatmaz.
+ */
+export async function propertyForChannelListing(
+  organizationId: string,
+  connectionId: string | null,
+  externalId: string,
+): Promise<string | null> {
+  if (!channelListingReadEnabled() || !connectionId || !externalId) return null;
+  try {
+    const row = await prisma.channelListing.findFirst({
+      where: { connectionId, externalId, organizationId, property: { organizationId } },
+      select: { propertyId: true },
+    });
+    return row?.propertyId ?? null;
+  } catch (err) {
+    void reportError(`channel-listing-read org=${organizationId}`, err);
+    return null;
+  }
 }
 
 /**

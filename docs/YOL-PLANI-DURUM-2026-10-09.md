@@ -27,8 +27,8 @@ Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.
 | d | Org kolonlarını okuyan son yerler (V0.7 contract ön koşulu) | ⏸ BEKLİYOR: operatör planı Aşama 1–3 (canlıda bağlantı satırına geçiş + okuma anahtarı ≥2 hafta) önce gelir; Railway kapalı. Şimdi satır-tek-kaynağa almak satırı olmayan org'u kırar | `hospitable-token-diagnostics-core.ts:146-169`, `channels/connections.ts:218-241`, `scheduled-sync.ts:371,382`, `unverified-sweep.ts:169-216`, `demo-tenant/apply-core.ts:72-79`, `admin/page.tsx:35,151` | Kod hayır; DROP evet (operatör planı) |
 | e | Webhook girişi aynı yazma servisine (7) | ⏸ BİLİNÇLİ: köprüye webhook yazılmaz (`channels/manifests.ts:79`); Airbnb Direct'te `planned`. Sandbox / resmî doküman olmadan rota = kullanılmayan arayüz (talimat yasaklar, değişmez 18) | `api/webhooks/` yalnız `paddle` | Belki |
 | f | Bağlantı sağlığı sinyali (sağlayıcıdan bağımsız) (9) | 🟡 yalnız saklı durum | `hospitable-connect-card.tsx:120-126` | Belki |
-| g | Ham platform korunmuyor (`toChannel`) (2) | ❌ | `channels/hospitable-ingest.ts:43-50,106` | Evet |
-| h | `Property.hospitableId` global unique (3) | ❌ | `prisma/schema.prisma:346` | Evet |
+| g | Ham platform korunmuyor (`toChannel`) (2) | 🟡 migration 60 İTİLDİ (10-10): `Reservation.sourcePlatform` + yazıcı (`sourcePlatformOf`, `CHANNEL_METADATA_WRITE` arkasında, KAPALI) | `channels/hospitable-ingest.ts:126`, `channels/ingest.ts:190` | — |
+| h | `Property.hospitableId` global unique (3) | 🟡 migration 60 İTİLDİ (10-10): bağlantı kapsamlı `ChannelListing` + çift yazım (`CHANNEL_METADATA_WRITE`, KAPALI); OKUMA geçişi KODDA (10-10, `CHANNEL_LISTING_READ` KAPALI — satır yoksa `hospitableId`e düşer; açmak = kurucu onayı + çift yazım canlıda koşmuş olmalı); `hospitableId` tekilliği geçiş boyunca durur (DROP = operatör planı) | `channels/metadata.ts`, `prisma/schema.prisma:1522` | DROP evet |
 
 ## 2b. 20 teknik değişmez — pin eşlemesi (10-10, Haiku taraması + kodda doğrulandı)
 
@@ -63,8 +63,8 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 | Araç çağrısı / `verifiedToolResults` | 🟡 sözleşme + müsaitlik aracı ✅ 10-09; modele araç olarak verilmesi kurucu onayı |
 | Tarih çözümü üst verisi | ✅ 10-09 `ai/date-resolution.ts` (TR+EN; dayanak / güven / varsayım; 4 Haiku turu, 116 test, mutasyon 27/27); **istemde "tarih okuması" ✅ 10-10** (`ai/date-reading.ts`, anahtar `AI_DATE_RESOLUTION_ENABLED` kapalı; her mesaj kendi yazıldığı ana göre; gece yarısı "yarın"ı belirsiz; karar #10) |
 | Zaman bağlamı (geçen süre, oturum arası, yeni gün) | 🟡 gün etiketi var; **aralık ✅ 10-09** (`interactionGap`: geçen dakika + org diliminde takvim günü farkı + yeni oturum = 6 saat sessizlik, kurucu kararı); isteme bağlanmadı |
-| Kurucu AI Kalite Konsolu | 🟡 KOD HAZIR (yama `docs/hazir-yamalar/2026-10-09-migration-60-…patch`; salt-okuma + etiket, 2FA'lı operatör, her görüntüleme kayıtlı) → push onayı |
-| Üretim izi (model, istem sürümü, gecikme, token, maliyet) | 🟡 KOD HAZIR (aynı yama; `AI_GENERATION_TRACE_ENABLED` kapalı; KVKK paritesi + okuyucu pini; maliyet sütunu boş — fiyat tablosu ayrı karar) → push onayı |
+| Kurucu AI Kalite Konsolu | ✅ migration 60 ile İTİLDİ (10-10; salt-okuma + etiket, 2FA'lı operatör, her görüntüleme kayıtlı) — Railway açılınca canlı |
+| Üretim izi (model, istem sürümü, gecikme, token, maliyet) | 🟡 migration 60 ile İTİLDİ (10-10); `AI_GENERATION_TRACE_ENABLED` KAPALI; KVKK paritesi + okuyucu pini; maliyet sütunu boş — fiyat tablosu ayrı karar |
 | 8 başlangıç senaryosu | ✅ set `evals/founder-initial-8.json` + seçici; ücretli taban koşusu onay |
 | Açık taahhüt hafızası | ✅ ilk dilim (kurucu kararı A, 10-10; migration 62): ev sahibinin işaretlediği söz + bağlı görev + Dikkat Gerektirenler satırı (`docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md` §Uygulama). Yapay zekâ cevabına girdi: AYRI karar (müşteriye giden metin) |
 
