@@ -20,6 +20,7 @@ import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
+import { TRIAL_END_REASON_IDENTITY_REUSED, TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
 import {
   SettingsSections,
   type SettingsViewGroup,
@@ -148,6 +149,11 @@ export default async function SettingsPage({
     managedSub?.status !== "canceled";
   // "Ödemeniz işleniyor" (kurucu onayı 10-10): az önce tamamlanan ödemenin aboneliği henüz yazılmadıysa plan kartları kilitli.
   // Yalnız ödeme kartı çizilirken (Paddle hazır) okunur; okuma hatası sayfayı düşürmez (kilitsiz sayılır — sunucu kapısı ödeme rotasında).
+  // Deneme kimliği (kurucu onayı 10-10): deneme aynı ilan / takvim başka hesapta görüldüğü için bittiyse kartta sade not.
+  const trialEndReason = paddleReady
+    ? ((await prisma.subscription.findUnique({ where: { organizationId: session.organizationId }, select: { trialEndReason: true } }).catch(() => null))
+        ?.trialEndReason ?? null)
+    : null;
   const checkoutPendingNow =
     paddleReady && !canManagePaddleSub && (await checkoutPendingActive(session.organizationId).catch(() => false));
 
@@ -458,6 +464,7 @@ export default async function SettingsPage({
               locale={appLocale()}
               currency={appBillingCurrency()}
               checkoutPending={checkoutPendingNow}
+              trialNotice={trialEndReason === TRIAL_END_REASON_IDENTITY_REUSED ? TRIAL_IDENTITY_REUSED_MESSAGE : null}
               annualAvailable={defaultPlans().every((p) => (paddleAnnualPriceByCode[p.code] ?? "") !== "")}
               plans={defaultPlans().map((p) => ({
                 code: p.code,

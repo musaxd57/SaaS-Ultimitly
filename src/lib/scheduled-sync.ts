@@ -32,6 +32,7 @@ import {
   refreshStyleProfile,
 } from "@/lib/automation";
 import { purgeAutomatedSends } from "@/lib/automated-sends";
+import { backfillTrialIdentitiesOnce, sweepTrialIdentities } from "@/lib/billing/trial-identity";
 
 // ---------------------------------------------------------------------------
 // The one scheduled pass: pull new Hospitable messages for every organization,
@@ -864,6 +865,12 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await hourly("automated-send-purge", "scheduled-sync automated-send-purge", () => purgeAutomatedSends(prisma));
         // Alarm durum satırlarının kendisi: 30 gündür dokunulmamış (sahibi silinmiş org vb.).
         await hourly("alert-state-sweep", "scheduled-sync alert-state-sweep", () => sweepStaleAlertStates());
+        // Deneme kimliği (kurucu onayı 10-10): sahibi silinmiş + 24 ayı geçmiş izler silinir; anahtar açıldığında BİR KEZ geri doldurma
+        // (mevcut hesapların ilan + takvim kimlikleri yalnız kaydedilir, kimsenin denemesi bitmez).
+        await hourly("trial-identity", "scheduled-sync trial-identity", async () => {
+          await sweepTrialIdentities();
+          await backfillTrialIdentitiesOnce();
+        });
       }
       return totals;
     } finally {

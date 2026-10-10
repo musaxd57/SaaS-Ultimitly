@@ -109,6 +109,7 @@ export function PaddlePlans({
   locale,
   currency,
   checkoutPending = false,
+  trialNotice = null,
 }: {
   clientToken: string;
   environment: "sandbox" | "production";
@@ -142,6 +143,8 @@ export function PaddlePlans({
   /** "Ödemeniz işleniyor" kilidi sunucuda geçerli mi (kurucu onayı 10-10, `lib/billing/checkout-pending.ts`): az önce tamamlanan ödemenin
    *  aboneliği henüz yazılmadı → yeni ödeme ekranı açılmaz. */
   checkoutPending?: boolean;
+  /** Deneme erken bittiyse sunucunun hazırladığı sade not (kurucu onayı 10-10, deneme kimliği). */
+  trialNotice?: string | null;
 }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -644,6 +647,7 @@ export function PaddlePlans({
         })}
       </div>
 
+      {trialNotice && !manageable ? <p className="text-xs text-foreground">{trialNotice}</p> : null}
       {processing && !manageable ? <p className="text-xs text-muted-foreground">{CHECKOUT_PENDING_MESSAGE}</p> : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       <p className="text-[11px] text-muted-foreground">

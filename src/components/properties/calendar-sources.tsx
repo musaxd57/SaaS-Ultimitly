@@ -78,6 +78,9 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
         body: JSON.stringify({ label: effectiveLabel, url: url.trim() }),
       });
       if (res.ok) {
+        // Deneme kimliği (kurucu onayı 10-10): takvim eklendi ama aynı takvim başka hesapta görüldüğü için deneme bitti → sade not.
+        const body = (await res.json().catch(() => null)) as { trialNotice?: unknown } | null;
+        if (typeof body?.trialNotice === "string") toast(body.trialNotice);
         setPreset(null);
         setLabel("");
         setUrl("");

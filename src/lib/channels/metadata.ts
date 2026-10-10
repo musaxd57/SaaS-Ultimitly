@@ -1,3 +1,4 @@
+import { listingIdentityKey, recordTrialIdentities, type TrialIdentityKey } from "@/lib/billing/trial-identity";
 import "server-only";
 
 import { prisma } from "@/lib/db";
@@ -31,7 +32,7 @@ export async function recordChannelListings(
 ): Promise<void> {
   if (!channelMetadataWriteEnabled() || !connectionId || pairs.length === 0) return;
   try {
-    const conn = await prisma.channelConnection.findFirst({ where: { id: connectionId, organizationId }, select: { id: true } });
+    const conn = await prisma.channelConnection.findFirst({ where: { id: connectionId, organizationId }, select: { id: true, provider: true } });
     if (!conn) return;
     const owned = new Set(
       (
@@ -49,6 +50,7 @@ export async function recordChannelListings(
         })
       ).map((l) => [l.externalId, l.propertyId]),
     );
+    const newIdentities: (TrialIdentityKey | null)[] = [];
     for (const p of pairs) {
       if (!owned.has(p.propertyId) || !p.externalId) continue;
       if (current.get(p.externalId) === p.propertyId) continue; // değişmeyen eşleme yeniden yazılmaz
@@ -59,10 +61,13 @@ export async function recordChannelListings(
           create: { organizationId, connectionId, externalId: p.externalId, propertyId: p.propertyId },
           update: { propertyId: p.propertyId },
         });
+        newIdentities.push(listingIdentityKey(conn.provider, p.externalId));
       } catch (err) {
         void reportError(`channel-listing-write org=${organizationId}`, err);
       }
     }
+    // Deneme kimliği (kurucu onayı 10-10; anahtar KAPALIYKEN yazmaz): ilan daha önce başka hesapta görüldüyse bu hesabın denemesi biter.
+    if (newIdentities.length > 0) await recordTrialIdentities(organizationId, newIdentities);
   } catch (err) {
     void reportError(`channel-listing-write org=${organizationId}`, err);
   }

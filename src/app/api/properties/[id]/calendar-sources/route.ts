@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { icalIdentityKey, recordTrialIdentities, TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
 import { isPrivateHost } from "@/lib/net/private-host";
 import {
   CALENDAR_URL_SENTINEL,
@@ -86,5 +87,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       url: "Bu daire için en fazla 10 takvim bağlantısı ekleyebilirsiniz. Kullanmadığınız bağlantıları silin.",
     });
   }
-  return jsonOk(source, 201);
+  // Deneme kimliği (kurucu onayı 10-10; anahtar KAPALIYKEN hiçbir şey yazılmaz): bu takvim daha önce başka bir hesapta görüldüyse deneme
+  // biter. Takvim YİNE eklenir (akış bozulmaz); ekranda sade not.
+  const identity = await recordTrialIdentities(session.organizationId, [icalIdentityKey(url)]);
+  return jsonOk(identity.trialEnded ? { ...source, trialNotice: TRIAL_IDENTITY_REUSED_MESSAGE } : source, 201);
 });

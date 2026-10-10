@@ -1,3 +1,4 @@
+import { markTrialIdentitiesOrphaned } from "@/lib/billing/trial-identity";
 import { ANON_ID, ANON_NAME } from "@/lib/anon-sentinels";
 import { subMonths, startOfDay } from "date-fns";
 import { Prisma } from "@prisma/client";
@@ -869,6 +870,8 @@ export async function deleteAccountData(
     // ⚠️ SIRA ÖNEMLİ: `Subscription`/`Invoice` satırlarını OKUR ve onlar org ile
     // birlikte cascade siliniyor → org silinmeden ÖNCE çağrılmalı.
     await redactPaddleWebhooksForOrg(tx, organizationId);
+    // Deneme kimliği izi (kurucu 10-10: "hesap silindikten sonra 24 ay"): iz KALIR (FK boşa çekilir); 24 ay silinme anından sayılır.
+    await markTrialIdentitiesOrphaned(tx, organizationId);
     if (propIds.length > 0) {
       await tx.chatUsage.deleteMany({ where: { propertyId: { in: propIds } } });
     }

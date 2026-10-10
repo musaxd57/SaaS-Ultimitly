@@ -158,10 +158,14 @@ model Organization {
   // Null/empty = not tracked → plan shows gross (today's behavior). Org-level: a
   // host buys supplies centrally, so stock is a single pool, not per-apartment.
   supplyStockJson            String?
+  // Deneme kimliği istisnası (migration 61, kurucu onayı 10-10): operatör "denemeyi geri ver" dediğinde true — aynı ilan / iCal başka
+  // hesapta görülse de bu kuruluşun denemesi bitirilmez (meşru durum: ilan yeni sahibe geçti vb.).
+  trialIdentityExempt        Boolean   @default(false)
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
   users                 User[]
+  trialIdentities       TrialIdentity[]
   riskEvents            RiskEvent[]
   shadowVerdicts        ShadowVerdict[]
   erasureTombstones     ErasureTombstone[]
@@ -929,6 +933,8 @@ model Subscription {
   provider          String    @default("iyzico") // iyzico | paytr | paddle | trial | manual
   providerRef       String? // provider's subscription reference
   trialEndsAt       DateTime? // reverse-trial: when the free 14-day Pro trial ends
+  // Deneme erken bittiyse sebebi (migration 61; kapalı küme): "identity_reused" = aynı ilan / iCal daha önce başka bir hesapta kullanıldı.
+  trialEndReason    String?
   trialEndingSentAt DateTime? // "denemen bitiyor" reminder email sent at (idempotency)
   trialEndedSentAt  DateTime? // "deneme bitti" email sent at (idempotency)
   currentPeriodEnd  DateTime?
@@ -1585,4 +1591,24 @@ model AiReviewLabel {
   generation AiGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
 
   @@index([generationId])
+}
+
+// ---------------------------------------------------------------------------
+// DENEME KİMLİĞİ İZİ (migration 61, kurucu onayı 10-10; `lib/billing/trial-identity.ts`). Aynı ilan / takvimle ikinci ücretsiz denemeyi
+// önlemek için işletmeyi dışarıdan tanımlayan kimliğin GERİ DÖNDÜRÜLEMEZ özeti (HMAC; ad / e-posta / URL YOK). SAĞLAYICIDAN BAĞIMSIZ (kurucu:
+// "Hospitable üzerine kurmuş gibi yapma"): ilan = kanal adı + ilan numarası; iCal'den çıkarılan Airbnb ilan numarası; diğer iCal adresleri
+// normalize edilmiş biçimiyle. Hesap silinince iz KALIR (`firstOrganizationId` boşa çekilir) — yoksa hesabı silip yeniden deneme alınırdı;
+// son görülmeden 24 ay sonra süpürülür (kurucu: "24 ay"). Yazıcı `TRIAL_IDENTITY_ENABLED` arkasında KAPALI.
+// ---------------------------------------------------------------------------
+model TrialIdentity {
+  id                  String        @id @default(cuid())
+  keyHash             String        @unique
+  keyType             String // listing | ical_listing | ical_url
+  firstOrganizationId String?
+  firstSeenAt         DateTime      @default(now())
+  lastSeenAt          DateTime      @default(now())
+  firstOrganization   Organization? @relation(fields: [firstOrganizationId], references: [id], onDelete: SetNull)
+
+  @@index([firstOrganizationId])
+  @@index([lastSeenAt])
 }

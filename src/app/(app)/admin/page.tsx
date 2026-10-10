@@ -1,3 +1,4 @@
+import { TrialExemptButton } from "@/components/admin/trial-exempt-button";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
@@ -35,7 +36,7 @@ export default async function AdminPage() {
         hospitableTokenEnc: true,
         // V0.7: bağlantı durumu satırdan (revoked/disconnected görünür); kolon backfill öncesi fallback.
         channelConnections: { where: { provider: "hospitable" }, select: { status: true, revokedReason: true }, take: 1 },
-        subscription: { select: { status: true, planCode: true, provider: true, trialEndsAt: true } },
+        subscription: { select: { status: true, planCode: true, provider: true, trialEndsAt: true, trialEndReason: true } },
         _count: { select: { properties: true, users: true } },
       },
     }),
@@ -233,9 +234,22 @@ export default async function AdminPage() {
                       <td className="px-4 py-3">
                         {(() => {
                           const b = billing(org);
+                          // Deneme kimliği (kurucu onayı 10-10): deneme aynı ilan / takvim başka hesapta görüldüğü için bittiyse rozet +
+                          // "denemeyi geri ver" (meşru durum için istisna).
+                          const identityReused = org.subscription?.trialEndReason === "identity_reused";
                           return (
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass[b.tone]}`}>
-                              {b.label}
+                            <span className="inline-flex flex-wrap items-center gap-1">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass[b.tone]}`}>
+                                {b.label}
+                              </span>
+                              {identityReused ? (
+                                <>
+                                  <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                                    Deneme: ilan daha önce kullanıldı
+                                  </span>
+                                  <TrialExemptButton organizationId={org.id} />
+                                </>
+                              ) : null}
                             </span>
                           );
                         })()}
