@@ -96,6 +96,10 @@ için alarm + "ödemeniz işleniyor" kilidi yapılsın mı?
     takvim sonra düzelse de). Geri doldurma yalnız açılıştan önceki ilan eşlemelerini ve U37 düzeltmesinden (10-08) sonra güvenilir okunmuş
     takvimleri kaydeder; işletme başına hata yalıtımı. Kayıt arızasında takvimin "sayıldı" işareti geri alınır, sonraki okuma yeniden dener.
     Eşzamanlı okumalar tek sayılır. Airbnb / VRBO alan adı KAPALI uzantı listesi (`airbnb.io` kimlik değil).
+  - **Haiku üçüncü inceleme:** geri doldurma TAM değilse (bir işletme kaydedilemediyse) işaret yazılmaz, sonraki geçiş yeniden dener ve o
+    arada HİÇBİR kimlik yazılmaz (yeni hesap eski hesabın ilanının kalıcı "ilk sahibi" olamaz). Özet anahtarının parmak izi saklanır
+    (`trial-identity-key-fp`, silinmez); uyuşmazlıkta kayıt durur + alarm (bilinçli anahtar değişiminde operatör `TrialIdentity` tablosunu ve
+    bu satırı birlikte temizler). Anahtar kapalıyken açılış anı + geri doldurma işareti silinir → yeniden açılış = yeni açılış.
   - Operatör istisnası bürünmedeyken YASAK (K8); rozet yalnız hâlâ denemedeki hesapta.
   - **Bilinen kaçış (tasarım tercihi):** Airbnb takvimini başka bir takvim servisinden (ör. Google Takvim) yeniden yayınlayan hesap kimliksiz
     kalır — tanınmayan takvimi kimlik saymamak yanlış cezadan daha güvenli.
@@ -103,5 +107,9 @@ için alarm + "ödemeniz işleniyor" kilidi yapılsın mı?
     rezervasyon kanalı ilan numarasını vermesi gerekir (canlı API'de doğrulanmadı). **Açmadan önce canlı doğrula:** Airbnb'ye yanlış jetonla
     istek geçerli takvim DÖNDÜRMEMELİ (döndürürse "kapma" yolu açık kalır; çare operatör istisnası).
   - Testler 34 + 1 arıza dosyası + zamanlanmış geçiş pini (gerçek PostgreSQL).
-- ⏳ Risk puanı + operatör listesi + yüksek puanda kartla doğrulama — sıradaki dilim (kartla doğrulama Paddle tarafı tasarım ister).
+- ✅ Risk puanı + operatör listesi (kurucu 10-10: "geçici e-posta + doğrulanmamış e-posta", "önce yalnız liste"): operatör sayfasında
+  "Riskli denemeler" — ilan daha önce kullanıldı 60 · geçici e-posta 30 · 24 saattir doğrulanmamış e-posta 10 (2026-06-15 öncesi hesap
+  hariç; ondan doğrulama istenmedi). Yalnız süren ya da son 30 günde biten denemeler. Müşteriye hiçbir şey gösterilmez, otomatik işlem yok,
+  yeni veri saklanmaz. `lib/billing/trial-risk.ts` (saf) + davranışsal test + "yalnız operatör sayfası import eder" pini.
+- ⏳ Yüksek puanda kartla doğrulama — kurucu "önce yalnız liste" dedi; Paddle "kartlı deneme" fiyatı ayrı tasarım + ilk denemeler birlikte.
 
