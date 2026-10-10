@@ -386,6 +386,18 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect((await prisma.trialIdentity.findFirstOrThrow()).firstOrganizationId).toBe(a.orgId);
   });
 
+  it("🚨 KONTROL: anahtar ÖNCESİ eklenmiş ama hiç okunamamış takvim (sahte jeton) geri doldurmada da kimlik sayılmaz — başkasının ilanını önceden kapamaz", async () => {
+    await flagNeverOn();
+    const attacker = await trialOrg("X");
+    const fake = await addIcal(attacker, AIRBNB("sahte"), "<html>Giriş yapın</html>");
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    expect(await backfillTrialIdentitiesOnce()).toBe("done");
+    expect(await prisma.trialIdentity.count()).toBe(0);
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: fake.id } })).trialIdentityCheckedAt).toBeNull();
+    const owner = await trialOrg("O");
+    expect((await addIcal(owner, AIRBNB("gercek"))).trialNotice).toBeUndefined();
+  });
+
   it("KONTROL: düzeltmeden (U37, 10-08) önceki 'başarılı' okuma güvenilmez — geri doldurma o takvimi kaydetmez", async () => {
     await flagNeverOn();
     const a = await trialOrg("A");

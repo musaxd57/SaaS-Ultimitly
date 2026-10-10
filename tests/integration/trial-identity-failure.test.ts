@@ -20,7 +20,12 @@ import { __resetRateLimit } from "@/lib/rate-limit";
 import { POST as addSource } from "@/app/api/properties/[id]/calendar-sources/route";
 import { POST as syncSource } from "@/app/api/calendar-sources/[id]/sync/route";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
-import { TRIAL_IDENTITY_REUSED_MESSAGE, backfillTrialIdentitiesOnce } from "@/lib/billing/trial-identity";
+import {
+  TRIAL_IDENTITY_BACKFILL_MARKER,
+  TRIAL_IDENTITY_ENABLED_AT_MARKER,
+  TRIAL_IDENTITY_REUSED_MESSAGE,
+  backfillTrialIdentitiesOnce,
+} from "@/lib/billing/trial-identity";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 
 const AIRBNB = (token: string) => `https://www.airbnb.com.tr/calendar/ical/123456789.ics?s=${token}`;
@@ -88,5 +93,27 @@ describe("deneme kimliği — kayıt arızası", () => {
     expect(second.trialNotice).toBe(TRIAL_IDENTITY_REUSED_MESSAGE);
     expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id } })).trialIdentityCheckedAt).not.toBeNull();
     expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: b.orgId } })).trialEndReason).toBe("identity_reused");
+  });
+
+  it("🚨 geri doldurmada bir işletmenin kaydı hata verirse o işletmenin takvimi 'sayıldı' İŞARETLENMEZ (ilk gerçek okumasında muaf kaydolur); diğerleri kaydedilir", async () => {
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    await prisma.systemLock.deleteMany({ where: { name: { in: [TRIAL_IDENTITY_BACKFILL_MARKER, TRIAL_IDENTITY_ENABLED_AT_MARKER] } } });
+    const a = await trialOrg("A");
+    const aId = await add(a, AIRBNB("1"));
+    await sync(a.orgId, aId);
+    const b = await trialOrg("B");
+    const bId = await add(b, "https://www.airbnb.com/calendar/ical/555.ics?s=z");
+    await sync(b.orgId, bId);
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+
+    const original = prisma.trialIdentity.createMany.bind(prisma.trialIdentity);
+    let calls = 0;
+    vi.spyOn(prisma.trialIdentity, "createMany").mockImplementation(((args: Parameters<typeof original>[0]) =>
+      calls++ === 0 ? Promise.reject(new Error("db down")) : original(args)) as unknown as typeof prisma.trialIdentity.createMany);
+
+    expect(await backfillTrialIdentitiesOnce()).toBe("done");
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: aId } })).trialIdentityCheckedAt).toBeNull(); // A (ilk, arızalı)
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: bId } })).trialIdentityCheckedAt).not.toBeNull(); // B kaydedildi
+    expect(await prisma.trialIdentity.count()).toBe(1);
   });
 });
