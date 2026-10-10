@@ -1,4 +1,6 @@
 import { TrialExemptButton } from "@/components/admin/trial-exempt-button";
+import { TRIAL_RISK_LABELS, trialRisk } from "@/lib/billing/trial-risk";
+import { TRIAL_END_REASON_IDENTITY_REUSED } from "@/lib/billing/trial-identity";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
@@ -126,7 +128,7 @@ export default async function AdminPage() {
   //    kalkıyorsa politika kararı zamanı gelmiş demektir.
   const ownerEmails = await prisma.user.findMany({
     where: { role: "owner" },
-    select: { email: true, organizationId: true },
+    select: { email: true, organizationId: true, emailVerifiedAt: true, createdAt: true },
     take: 5000, // kanarya; tam envanter değil
   });
   const mailboxGroups = new Map<string, Set<string>>();
@@ -137,6 +139,24 @@ export default async function AdminPage() {
     mailboxGroups.set(box, set);
   }
   const sharedMailboxes = [...mailboxGroups.values()].filter((s) => s.size > 1);
+
+  // 3) Deneme risk puanı (kurucu onayı 10-10: geçici e-posta + doğrulanmamış e-posta + ilan kuralı; "önce yalnız liste"). YALNIZ bu
+  //    listede görünür — müşteriye hiçbir şey gösterilmez, hiçbir hesap otomatik etkilenmez, yeni veri saklanmaz.
+  const ownersByOrg = new Map<string, typeof ownerEmails>();
+  for (const u of ownerEmails) ownersByOrg.set(u.organizationId, [...(ownersByOrg.get(u.organizationId) ?? []), u]);
+  const riskNow = new Date();
+  const riskyTrials = orgs
+    .filter((o) => o.subscription?.provider === "trial" && !isDemoOrg(o.id))
+    .map((o) => ({
+      org: o,
+      risk: trialRisk({
+        owners: ownersByOrg.get(o.id) ?? [],
+        identityReused: o.subscription?.trialEndReason === TRIAL_END_REASON_IDENTITY_REUSED,
+        now: riskNow,
+      }),
+    }))
+    .filter((r) => r.risk.score > 0)
+    .sort((a, b) => b.risk.score - a.risk.score);
   const sharedMailboxOrgs = sharedMailboxes.reduce((n, s) => n + s.size, 0);
 
   // Primary org (allowed to use the shared env token) = PRIMARY_ORG_ID, or the
@@ -193,6 +213,43 @@ export default async function AdminPage() {
         title="Operatör Paneli"
         description="Tüm müşteri hesaplarını buradan yönet. Bir hesaba girip onun gelen kutusunu/ayarlarını çalıştırabilir, sonra kendi hesabına dönebilirsin."
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Riskli denemeler ({riskyTrials.length})</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Yalnız size görünür; müşteriye hiçbir şey gösterilmez ve hiçbir hesap otomatik etkilenmez. Puan sıralama içindir.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {riskyTrials.length === 0 ? (
+            <p className="px-4 pb-4 text-sm text-muted-foreground">Riskli deneme yok.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-max text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                    <th className="px-4 py-2 font-medium">İşletme</th>
+                    <th className="px-4 py-2 font-medium">Puan</th>
+                    <th className="px-4 py-2 font-medium">Sebep</th>
+                    <th className="px-4 py-2 font-medium">Eklendi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {riskyTrials.map(({ org, risk }) => (
+                    <tr key={org.id} className="border-b last:border-0">
+                      <td className="px-4 py-3 font-medium">{org.name}</td>
+                      <td className="px-4 py-3 tabular-nums">{risk.score}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{risk.reasons.map((r) => TRIAL_RISK_LABELS[r]).join(" · ")}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{dateFmt.format(org.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

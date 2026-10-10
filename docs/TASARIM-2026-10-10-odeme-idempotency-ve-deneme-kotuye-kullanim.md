@@ -91,11 +91,17 @@ için alarm + "ödemeniz işleniyor" kilidi yapılsın mı?
   - 🚨 **Takvim kimliği EKLEMEDE değil, GERÇEK OKUMADA sayılır** (kaynak başına bir kez, `CalendarSource.trialIdentityCheckedAt`): Airbnb
     ilan numarası herkese açıktır; eklemede sayılsaydı biri sahte jetonlu adresle başkasının ilanını önceden "kapar", gerçek sahibin denemesi
     biterdi. Sunucu geçerli takvim döndürdüyse hesap jetonun sahibidir. Not elle senkronda gösterilir; ayarlar → faturalandırmada da görünür.
-  - Anahtar açıldıktan sonraki İLK kayıt geri doldurmayı önce koşar (saatlik işi beklemez); anahtar öncesi iki hesapta zaten bulunan takvim
-    ne geri doldurmada ne sonraki okumalarda cezalandırılır. Operatör istisnası bürünmedeyken YASAK (K8); rozet yalnız hâlâ denemedeki hesapta.
+  - 🚨 **Anahtar öncesi var olan hiçbir şey cezalandırılmaz** (Haiku ikinci inceleme): anahtarın ilk açıldığı an bir kez yazılır (her
+    zamanlanmış geçişte kontrol, ≤2 dk); o andan ÖNCE eklenmiş takvim okunduğunda yalnız kayda geçer (açılış anında hata durumundaki eski
+    takvim sonra düzelse de). Geri doldurma yalnız açılıştan önceki ilan eşlemelerini ve U37 düzeltmesinden (10-08) sonra güvenilir okunmuş
+    takvimleri kaydeder; işletme başına hata yalıtımı. Kayıt arızasında takvimin "sayıldı" işareti geri alınır, sonraki okuma yeniden dener.
+    Eşzamanlı okumalar tek sayılır. Airbnb / VRBO alan adı KAPALI uzantı listesi (`airbnb.io` kimlik değil).
+  - Operatör istisnası bürünmedeyken YASAK (K8); rozet yalnız hâlâ denemedeki hesapta.
+  - **Bilinen kaçış (tasarım tercihi):** Airbnb takvimini başka bir takvim servisinden (ör. Google Takvim) yeniden yayınlayan hesap kimliksiz
+    kalır — tanınmayan takvimi kimlik saymamak yanlış cezadan daha güvenli.
   - **Bilinen sınır:** yalnız Hospitable köprüsüyle (iCal'siz) bağlanan hesap bugün kapsam dışı — doğrudan kanal bağlantısı ya da köprünün
     rezervasyon kanalı ilan numarasını vermesi gerekir (canlı API'de doğrulanmadı). **Açmadan önce canlı doğrula:** Airbnb'ye yanlış jetonla
     istek geçerli takvim DÖNDÜRMEMELİ (döndürürse "kapma" yolu açık kalır; çare operatör istisnası).
-  - Testler 22/22 (gerçek PostgreSQL).
+  - Testler 34 + 1 arıza dosyası + zamanlanmış geçiş pini (gerçek PostgreSQL).
 - ⏳ Risk puanı + operatör listesi + yüksek puanda kartla doğrulama — sıradaki dilim (kartla doğrulama Paddle tarafı tasarım ister).
 
