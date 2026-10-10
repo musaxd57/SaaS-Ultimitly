@@ -290,6 +290,9 @@ const KEYPAD_NOUNS =
 /** 4–8 haneli değer; telefonun ilk öbeği (ardında rakam öbeği) ve SON öbeği (önünde rakam + ayraç) dışarıda. */
 const KEY_DIGITS = "(?<!\\d)(?<!\\d[\\s\\-.])\\d{4,8}(?!\\d)(?![\\s\\-.]\\d)";
 
+/** "kapı / kapıyı / kapının" + "aç-" fiili ("açma", "açılış", "açmak") + en çok iki sözcük (sınırlı — doğrusal). ASCII katlamada "ac". */
+const DOOR_OPEN = "kap[ıi][a-zçğıöşü]{0,6}\\s+a[çc][a-zçğıöşü]{0,10}(?:\\s+[a-zçğıöşü]{1,12}){0,2}?";
+
 const SECRET_PATTERNS: RegExp[] = [
   // door / keybox / entry / lock + code word (TR suffixes ok), e.g. "kapı kodu",
   // "anahtar kutusu kodu", "keybox code", "giriş şifresi", "door/lock code".
@@ -372,6 +375,13 @@ const SECRET_PATTERNS: RegExp[] = [
     `(?:(?<![a-z])code|c[oó]digo|код|رمز|كود|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
     "i",
   ),
+  // 🚨 10-10 (Haiku QR güvenlik taraması F1): KAPI + AÇ- fiili + değer — kod sözcüğü olmadan ve bitişik değil: "Kapı açma: 4590",
+  // "Kapı açılış 4590", "Girişteki kapı açma tuşu için 4590" yukarıdakilerin hepsinden kaçıyordu. "Serbest metin" izni VERİLMEZ (bitişik
+  // kalıbın ölçülmüş dersi: adres / telefon / yıl eleniyordu) — yalnız "kapı + aç-" ve ardından en çok İKİ sözcük; değer ya iki nokta /
+  // "için" ardında (A) ya da CÜMLEYİ BİTİREN / giriş fiiliyle biten çıplak değer (B). Para birimi / yıl / saat elenmez ("Kapı açma
+  // ücreti: 1500 TL", "Kapıyı açarken 2024 model kilide", "Kapı açma saatleri 08:00") — `secret-filter-door-open.test.ts` iki yönde.
+  new RegExp(`${DOOR_OPEN}\\s*(?::|\\s+i[çc]in)\\s*${KEY_DIGITS}(?!\\s*(?:tl\\b|try\\b|₺|eur\\b|€|usd\\b|\\$|lira))`, "i"),
+  new RegExp(`${DOOR_OPEN}\\s+${KEY_DIGITS}(?=\\s*(?:[.,;!)\\n#*]|$)|\\s*['’]?[a-zçğıöşü]{0,4}\\s+(?:gir|yaz|tu[şs]la|bas))`, "i"),
 ];
 
 /**
