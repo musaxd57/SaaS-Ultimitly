@@ -64,11 +64,30 @@ const VITEST_INVOCATION = /(?:^|[\s(/;&|])vitest(?:\.mjs)?(?=[\s)'"]|$)/;
  * koşabilir") → mutasyonla da paralel koşabilir (10-10: saatler süren model ölçümleri her mutasyon koşusunu bekletiyordu). Ana süreç
  * başlığı `node (vitest…)` yapılandırmayı GÖSTERMEZ → süreç ağacında EN YAKIN vitest ÇAĞRISINA bakılır (`ps -eo pid,ppid,args`); yalnız
  * o çağrı eval yapılandırmasını taşıyorsa sayılmaz. Ebeveyn bilgisi yoksa (eski biçim) ya da ata zinciri kopuksa (yetim ana süreç —
- * bitince yeni koşunun PG'sini kapatan tür) başlık satırı SAYILIR (temkinli). İki komutu birlikte taşıyan kabuk kendi satırında eval
- * sayılsa bile veritabanlı çocuğu kendi en yakın çağrısıyla yakalanır.
+ * bitince yeni koşunun PG'sini kapatan tür) başlık satırı SAYILIR (temkinli).
+ * Satır KOMUTLARA bölünür (`;` `&` `|` satır sonu) ve her vitest çağrısının KENDİ `--config` / `-c` değeri okunur (Haiku 10-10): satır
+ * yalnız BÜTÜN çağrıları eval yapılandırmasıyla ise eval sayılır — aynı kabukta eval komutunun yanında doğrudan ikiliyle başlatılmış
+ * veritabanlı bir koşu (`./node_modules/.bin/vitest run …`) ya da sonradan eklenmiş ikinci `--config` satırı eval YAPMAZ. `ps` çıktısı
+ * okunamazsa (başlık yok) eşzamanlılık doğrulanamaz → temkinle "var" sayılır.
  */
 const EVAL_CONFIG = /\bvitest\.eval\.config\.[cm]?[jt]s\b/;
 const TITLE_ONLY = /^node \(vitest[^)]*\)$/;
+const CONFIG_FLAG = /(?:--config(?:=|\s+)|(?:^|\s)-c\s+)(\S+)/g;
+
+/** Satırdaki vitest çağrılarının hepsi eval yapılandırmasıyla mı? Çağrı yoksa null. */
+function evalOnlyInvocation(args) {
+  const calls = String(args)
+    .split(/[;&|\n]/)
+    .filter((seg) => VITEST_INVOCATION.test(seg));
+  if (calls.length === 0) return null;
+  return calls.every((seg) => {
+    // Bayraklar yalnız `vitest` sözcüğünden SONRA okunur: `sh -c vitest run …` / `bash -c …`teki `-c` kabuğun bayrağıdır.
+    const at = VITEST_INVOCATION.exec(seg);
+    const tail = at ? seg.slice(at.index + at[0].length) : "";
+    const configs = [...tail.matchAll(CONFIG_FLAG)].map((m) => m[1].replace(/^['"]|['"]$/g, ""));
+    return configs.length > 0 && configs.every((c) => EVAL_CONFIG.test(c));
+  });
+}
 
 export function concurrentVitest(psOutput, selfPids = []) {
   const skip = new Set(selfPids.map(String));
@@ -76,6 +95,7 @@ export function concurrentVitest(psOutput, selfPids = []) {
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
+  if (!/\bPID\b/.test(lines[0] ?? "")) return ["? ps çıktısı okunamadı — eşzamanlılık doğrulanamadı (temkinle durduruldu)"];
   const withPpid = /\bPPID\b/.test(lines[0] ?? "");
   const rows = [];
   for (const l of lines) {
@@ -83,11 +103,14 @@ export function concurrentVitest(psOutput, selfPids = []) {
     if (m) rows.push(withPpid ? { pid: m[1], ppid: m[2], args: m[3] } : { pid: m[1], ppid: null, args: m[2] });
   }
   const byPid = new Map(rows.map((r) => [r.pid, r]));
-  /** Satırın kendisi ya da en yakın atası olan vitest ÇAĞRISI (başlık satırı değil); bulunamazsa null. */
-  const invocationOf = (r) => {
+  /** Satırın kendisi ya da en yakın atası olan vitest ÇAĞRISI (başlık satırı değil) yalnız eval mi; çağrı bulunamazsa null. */
+  const evalOnlyOf = (r) => {
     let cur = r;
     for (let depth = 0; cur && depth < 32; depth++) {
-      if (!TITLE_ONLY.test(cur.args) && VITEST_INVOCATION.test(cur.args)) return cur.args;
+      if (!TITLE_ONLY.test(cur.args)) {
+        const verdict = evalOnlyInvocation(cur.args);
+        if (verdict !== null) return verdict;
+      }
       cur = cur.ppid !== null ? byPid.get(cur.ppid) : undefined;
     }
     return null;
@@ -97,8 +120,7 @@ export function concurrentVitest(psOutput, selfPids = []) {
       if (skip.has(r.pid)) return false;
       if (/\bmutation-run\.mjs\b/.test(r.args) || /^(?:grep|ps)\b/.test(r.args)) return false;
       if (!VITEST_INVOCATION.test(r.args)) return false;
-      const invocation = invocationOf(r);
-      return !(invocation !== null && EVAL_CONFIG.test(invocation));
+      return evalOnlyOf(r) !== true;
     })
     .map((r) => `${r.pid} ${r.args}`);
 }

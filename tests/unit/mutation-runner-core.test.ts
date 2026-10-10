@@ -93,20 +93,44 @@ describe("eşzamanlı vitest (PG 5433 paylaşılıyor)", () => {
     expect(concurrentVitest([...TREE, ...DB_TREE].join("\n"), []).map((l) => l.split(" ")[0])).toEqual(["20", "21", "22", "23", "24", "25"]);
   });
 
-  it("🚨 iki komutu birlikte taşıyan kabuk: kabuk satırı eval sayılsa da veritabanlı çocukları YAKALANIR", () => {
+  it("🚨 iki komutu birlikte taşıyan kabuk (biri veritabanlı) SAYILIR; veritabanlı çocukları da yakalanır", () => {
     const mixed = [
       "    PID    PPID COMMAND",
       "     30       1 /bin/bash -c eval 'timeout 3000 npx vitest run; npx vitest run --config vitest.eval.config.ts tests/eval/a.eval.test.ts'",
       "     31      30 timeout 3000 npx vitest run",
       "     32      31 node (vitest)",
     ].join("\n");
-    expect(concurrentVitest(mixed, []).map((l) => l.split(" ")[0])).toEqual(["31", "32"]);
+    expect(concurrentVitest(mixed, []).map((l) => l.split(" ")[0])).toEqual(["30", "31", "32"]);
   });
 
   it("🚨 yetim ana süreç (atası yok) ve ebeveyn sütunu olmayan eski biçim TEMKİNLE sayılır", () => {
     const orphan = ["    PID    PPID COMMAND", "     40       1 node (vitest)", "      1       0 /sbin/init"].join("\n");
     expect(concurrentVitest(orphan, [])).toEqual(["40 node (vitest)"]);
     expect(concurrentVitest("  PID ARGS\n  41 node (vitest)", [])).toEqual(["41 node (vitest)"]);
+  });
+
+  it("🚨 Haiku 10-10: aynı kabukta eval komutunun YANINDA doğrudan ikiliyle başlatılmış veritabanlı koşu eval SAYILMAZ", () => {
+    const shell = [
+      "    PID    PPID COMMAND",
+      "     50       1 /bin/bash -c npx vitest run --config vitest.eval.config.ts tests/eval/a.eval.test.ts & ./node_modules/.bin/vitest run tests/integration/x.test.ts & wait",
+      "     51      50 node (vitest)",
+    ].join("\n");
+    expect(concurrentVitest(shell, []).map((l) => l.split(" ")[0])).toEqual(["50", "51"]);
+  });
+
+  it("çağrının KENDİ yapılandırması okunur: '--config=' ve '-c' biçimleri eval; ikinci (eval olmayan) '--config' eval DEĞİL", () => {
+    const tree = (cmd: string) => ["    PID    PPID COMMAND", `     60       1 sh -c ${cmd}`, "     61      60 node (vitest)"].join("\n");
+    expect(concurrentVitest(tree("vitest run --config=vitest.eval.config.ts tests/eval/a.eval.test.ts"), [])).toEqual([]);
+    expect(concurrentVitest(tree("vitest run -c vitest.eval.config.ts tests/eval/a.eval.test.ts"), [])).toEqual([]);
+    expect(concurrentVitest(tree("vitest run --config vitest.eval.config.ts --config vitest.config.ts"), []).map((l) => l.split(" ")[0])).toEqual([
+      "60",
+      "61",
+    ]);
+  });
+
+  it("🚨 ps çıktısı okunamazsa (başlık yok / boş) eşzamanlılık doğrulanamaz → temkinle VAR sayılır", () => {
+    expect(concurrentVitest("", [])).toHaveLength(1);
+    expect(concurrentVitest("ps: command not found", [])).toHaveLength(1);
   });
 
   it("🚨 yalnız ADI geçen kabuk vitest DEĞİLDİR (09-24: yapılandırma dosyasını arayan bir grep iki koşuyu durdurdu)", () => {

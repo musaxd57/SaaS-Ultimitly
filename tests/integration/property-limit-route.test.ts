@@ -109,6 +109,39 @@ describe("POST /api/properties — plan limit gate", () => {
     expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(2);
   });
 
+  it("🚨 10-10 (tam koşuda ölçülen yarış): eşzamanlı eklemenin commit'i GECİKSE de sınır aşılmaz — istek sıraya girer", async () => {
+    // Eski uzlaştırma oluşturduktan sonra `createdAt` sırasına bakıyordu: diğer isteğin satırı henüz commit edilmemişse
+    // görünmüyor, iki istek de kendini sınır içinde sanıyordu (4 eşzamanlı istekte 2 oluşturma). Bu test o sıralamayı ZORLAR:
+    // başka bir işlem daire ekler (yalnız ekleme — eski koddaki eşzamanlı istek gibi kilit almaz) ve commit'i bekletir; o sırada
+    // gelen istek beklemeli (yeni kodun kuruluş kilidi eklemenin yabancı anahtar kilidiyle çakışır), sonra 403 almalı.
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "free", status: "active", provider: "paddle" },
+    });
+    await seedProperties(orgId, 1); // free cap is 2 → one slot left
+    process.env.BILLING_ENFORCED = "true";
+
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let markLocked!: () => void;
+    const lockTaken = new Promise<void>((r) => (markLocked = r));
+    const holder = prisma.$transaction(
+      async (tx) => {
+        await tx.property.create({ data: { organizationId: orgId, name: "Paralel ekleme" } });
+        markLocked();
+        await held;
+      },
+      { timeout: 20_000 },
+    );
+    await lockTaken;
+    const pending = POST(createReq("Sonraki"), noCtx);
+    await new Promise((r) => setTimeout(r, 300)); // istek kilitte beklesin (eski kod beklemeden oluşturuyordu)
+    release();
+    await holder;
+    const res = await pending;
+    expect(res.status).toBe(403);
+    expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(2);
+  });
+
   it("ENFORCED: an expired-trial org is blocked with a subscription message", async () => {
     await prisma.subscription.create({
       data: {

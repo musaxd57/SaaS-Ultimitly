@@ -137,7 +137,7 @@ describe("ev kuralları — anlama katmanı konu + tutum eval'i", () => {
         `# Ev kuralları — anlama katmanı konu + tutum eval'i (${date})`,
         "",
         `Durum: **${status}** · commit \`${commit}\` · veri sürümü ${data.version} · ${cases.length} satır`,
-        `Model: \`${semanticModel()}\` · reasoning_effort: ${semanticReasoningEffort() ?? "model varsayılanı"} · anlama kipi: öğe + kural (canlının kipi)`,
+        `Model: \`${semanticModel("understanding")}\` · reasoning_effort: ${semanticReasoningEffort("understanding") ?? "model varsayılanı"} · anlama kipi: öğe + kural (canlının kipi)`,
         "",
         "`dev` bölümü kural istemi ekini yazan geliştiricinin yazdığı settir (GÖRÜLDÜ, iyimser). Karara bağlama onayı YALNIZ kör",
         "yazılmış `holdout` bölümüyle. Sınıflar etiket ile modelin çıktısının AYNI karar tablosundan geçmesiyle bulunur",
@@ -160,14 +160,16 @@ describe("ev kuralları — anlama katmanı konu + tutum eval'i", () => {
 
       const dir = path.resolve(__dirname, "../../docs/olcum");
       mkdirSync(dir, { recursive: true });
-      const stem = `ev-kurallari-eval-${date}-${semanticModel().replace(/[^a-z0-9.-]+/gi, "_")}`;
+      // Rapor adı / başlığı / yan dosya ANLAMA KATMANININ çözücüsüyle (10-10: katmansız `semanticModel()` okunuyordu —
+      // `AI_UNDERSTANDING_MODEL` / `…_REASONING_EFFORT` ayarlıyken başlık ortak ayarı yazıyordu; ölçümün kendisi doğruydu).
+      const stem = `ev-kurallari-eval-${date}-${semanticModel("understanding").replace(/[^a-z0-9.-]+/gi, "_")}`;
       let name = `${stem}.md`;
       for (let n = 2; existsSync(path.join(dir, name)); n++) name = `${stem}-${n}.md`;
       writeFileSync(path.join(dir, name), lines.join("\n"));
       writeSidecar(dir, name, {
         suite: "house-rules",
         version: data.version,
-        meta: { status, failures, commit, model: semanticModel(), mode: "items+rules" },
+        meta: { status, failures, commit, model: semanticModel("understanding"), mode: "items+rules" },
         rows,
       });
       expect(failures).toBeLessThanOrEqual(Math.floor(cases.length * 0.05));

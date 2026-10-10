@@ -66,7 +66,7 @@ describe.skipIf(!enabled)("kural kipi — niyet etiketi kıyası (gerçek model)
     const lines = [
       `# Kural kipi — niyet etiketi kıyası (${new Date().toISOString().slice(0, 10)})`,
       "",
-      `Model \`${semanticModel()}\` · mesaj ${rows.length} · düşen ${failed} · niyet kümesi değişen ${changed.length} · "other" artan ${toOther.length}`,
+      `Model \`${semanticModel("understanding")}\` · mesaj ${rows.length} · düşen ${failed} · niyet kümesi değişen ${changed.length} · "other" artan ${toOther.length}`,
       "",
       "| kimlik | öğe kipi | öğe + kural kipi |",
       "|---|---|---|",
