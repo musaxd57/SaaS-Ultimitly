@@ -396,6 +396,27 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect((await prisma.trialIdentity.findFirstOrThrow()).firstOrganizationId).toBe(a.orgId);
   });
 
+  it("🚨 SINIR: açılış anıyla AYNI milisaniyede eklenmiş takvim de muaf (okunduğunda kimseyi cezalandırmaz)", async () => {
+    await flagNeverOn();
+    const a = await trialOrg("A");
+    await addIcal(a, AIRBNB("1"));
+    const b = await trialOrg("B");
+    asOwner(b.orgId);
+    const added = await addSource(
+      new NextRequest(`http://localhost/api/properties/${b.propertyId}/calendar-sources`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label: "Airbnb", url: AIRBNB("2") }),
+      }),
+      { params: Promise.resolve({ id: b.propertyId }) },
+    );
+    const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: ((await added.json()) as { id: string }).id } });
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    expect(await backfillTrialIdentitiesOnce(src.createdAt)).toBe("done"); // açılış anı = B takviminin eklenme anı
+    expect((await recordVerifiedCalendarIdentity(src, b.orgId, AIRBNB("2"))).trialEnded).toBe(false);
+    expect((await sub(b.orgId)).trialEndReason).toBeNull();
+  });
+
   it("🚨 geri doldurma yalnız açılış anından ÖNCEKİ ilan eşlemesini alır: açılıştan sonra bağlanan ilan (hesap daha eski olsa da) 'ilk' sayılmaz", async () => {
     vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
     await flagNeverOn();
