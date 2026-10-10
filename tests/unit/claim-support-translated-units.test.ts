@@ -166,6 +166,7 @@ describe("🚨 merdiven basamağı = steps / stairs (10-10, cevap ölçüsü yan
     expect(u("Toplam 54 basamak var.", c)).toBe(1);
     expect(u("The flat is 52 metres from the lift.", c)).toBe(1);
     expect(u("There are 52 steps.", ctx("Bina 52 metre yüksekliğindedir."))).toBe(1);
+    expect(u("There are 52 stairs.", ctx("Bina 52 metre yüksekliğindedir."))).toBe(1);
     expect(u("There are 52 steps.", ctx("Binada 52 kişilik toplantı salonu var."))).toBe(1);
   });
 });
