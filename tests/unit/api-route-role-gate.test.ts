@@ -106,6 +106,7 @@ const STAFF_REACHABLE: Record<string, { reason: string; scope: RegExp }> = {
 /** 2. YALNIZ SAHİP. `withOwner` ya da (başka bir kapı önce koşmak zorundaysa) satır içi sahip kontrolü. */
 const OWNER_ONLY: Record<string, string> = {
   "billing/consent POST": "ödeme onayı (hukuki kayıt)",
+  "billing/checkout-pending POST": "\"ödemeniz işleniyor\" kilidi (ödeme ekranı yalnız sahibe açılır)",
   "billing/plan-change POST": "plan değişikliği (para)",
   "billing/plan-preview POST": "plan değişikliği ön hesabı (tek kullanımlık fiyat belirteci üretir)",
   "billing/portal POST": "ödeme portalı oturumu",

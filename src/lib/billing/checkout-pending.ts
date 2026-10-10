@@ -21,15 +21,17 @@ export async function checkoutPendingActive(organizationId: string, now: Date = 
   return row !== null && row.lockedUntil > now;
 }
 
-/** Kilidi yaz / tazele (aynı işletmede ikinci tamamlanma süreyi uzatır). */
+/**
+ * Kilidi yaz. AYNI onay kaydı kilidi bir daha UZATAMAZ (Haiku incelemesi: tekrar çağrı her seferinde +10 dk yazıyordu); yeni bir onay
+ * (yeni ödeme ekranı) yazabilir — ama kilit geçerliyken yeni onay kaydı zaten verilmez (`api/billing/consent`).
+ */
 export async function markCheckoutPending(organizationId: string, consentId: string, now: Date = new Date()): Promise<void> {
   const name = checkoutPendingLockName(organizationId);
   const lockedUntil = new Date(now.getTime() + CHECKOUT_PENDING_MS);
-  await prisma.systemLock.upsert({
-    where: { name },
-    create: { name, lockedUntil, holder: consentId },
-    update: { lockedUntil, holder: consentId },
-  });
+  const created = await prisma.systemLock.createMany({ data: [{ name, lockedUntil, holder: consentId }], skipDuplicates: true });
+  if (created.count === 1) return;
+  // ⚠️ Prisma'nın `not` filtresi NULL'u DIŞLAR (SQL `<>`) → NULL ayrıca yazılır.
+  await prisma.systemLock.updateMany({ where: { name, OR: [{ holder: null }, { holder: { not: consentId } }] }, data: { lockedUntil, holder: consentId } });
 }
 
 /** Abonelik aktif yazıldı → kilit kalkar. Hata webhook'u düşürmez (kilit zaten süreyle düşer). */

@@ -198,16 +198,12 @@ async function applySubscriptionEvent(
   if (existing?.providerRef && providerRef && existing.providerRef !== providerRef && status !== "active") return;
   // 🚨 İKİNCİ AKTİF ABONELİK (kurucu onayı 10-10): kayıtlı abonelik İPTAL EDİLMEMİŞKEN farklı bir abonelik aktifleşiyor (ör. webhook gelmeden
   // ikinci ödeme ekranında ikinci ödeme). Yeni abonelik yine yerine geçer (K4 — müşteri davranışı DEĞİŞMEZ) ama eskisi Paddle'da
-  // faturalanmaya devam edebilir → operatöre YENİ abonelik başına bir kez alarm (geçiş tabanlı; olay tekrarları yeniden uyarmaz).
-  if (existing?.providerRef && providerRef && existing.providerRef !== providerRef && status === "active" && existing.status !== "canceled") {
-    await alertOnTransition(
-      `paddle-webhook:second-subscription:${organizationId}:${providerRef}`,
-      "paddle-webhook-second-subscription",
-      new Error(
-        `İşletme ${organizationId}: kayıtlı abonelik ${existing.providerRef} (durum ${existing.status}) iptal edilmeden yeni abonelik ${providerRef} aktifleşti — iki abonelik birden faturalanıyor olabilir; Paddle panelinden eskisini kontrol edin`,
-      ),
-    );
-  }
+  // faturalanmaya devam edebilir → operatöre YENİ abonelik başına bir kez alarm (geçiş tabanlı). Alarm YALNIZ yazım uygulandıktan SONRA
+  // (`settlePending`): sıra korumasıyla düşen gecikmiş eski olay ("eski abonelik aktif") yanlış alarm üretmesin (Haiku incelemesi).
+  const replacesLiveSubscription =
+    existing?.providerRef && providerRef && existing.providerRef !== providerRef && status === "active" && existing.status !== "canceled"
+      ? { from: existing.providerRef, fromStatus: existing.status }
+      : null;
 
   // First subscription item's price → plan code (env-mapped).
   let planCode: string | null = null;
@@ -291,6 +287,15 @@ async function applySubscriptionEvent(
   const settlePending = async () => {
     // "Ödemeniz işleniyor" kilidi (kurucu onayı 10-10): abonelik AKTİF olarak yazıldı → yeni ödeme ekranı kilidi kalkar.
     if (status === "active") await clearCheckoutPending(organizationId);
+    if (replacesLiveSubscription) {
+      await alertOnTransition(
+        `paddle-webhook:second-subscription:${organizationId}:${providerRef}`,
+        "paddle-webhook-second-subscription",
+        new Error(
+          `İşletme ${organizationId}: kayıtlı abonelik ${replacesLiveSubscription.from} (durum ${replacesLiveSubscription.fromStatus}) iptal edilmeden yeni abonelik ${providerRef} aktifleşti — iki abonelik birden faturalanıyor olabilir; Paddle panelinden eskisini kontrol edin`,
+        ),
+      );
+    }
     // STRICT match only: the event must carry the pending TARGET price. A lock
     // without a matching event (incl. any legacy null-holder row) expires via
     // its 15-min TTL instead of being cleared by an unrelated event.
@@ -609,6 +614,11 @@ export async function POST(req: NextRequest) {
         await applySubscriptionEvent(data, occurredAt);
       } else if (eventType === "transaction.completed" || eventType === "transaction.paid") {
         await applyTransactionEvent(data, occurredAt);
+      } else if (eventType === "transaction.payment_failed") {
+        // "Ödemeniz işleniyor" kilidi (kurucu sorusu 10-10: "ödeme alınamazsa 10 dk yeniden ödeyemiyor mu?"): ödeme başarısız → kilit ANINDA
+        // kalkar, müşteri hemen yeniden dener. Yalnız kilit kaldırır, başka hiçbir şey yazmaz. (Paddle bildirim ayarında bu olay türü açık olmalı.)
+        const failedOrg = await resolveOrgId(data, null, occurredAt);
+        if (failedOrg) await clearCheckoutPending(failedOrg);
       }
       if (providerEventId) {
         await prisma.webhookEvent.update({

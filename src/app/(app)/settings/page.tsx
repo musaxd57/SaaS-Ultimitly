@@ -147,7 +147,9 @@ export default async function SettingsPage({
     Boolean(managedSub?.providerRef) &&
     managedSub?.status !== "canceled";
   // "Ödemeniz işleniyor" (kurucu onayı 10-10): az önce tamamlanan ödemenin aboneliği henüz yazılmadıysa plan kartları kilitli.
-  const checkoutPendingNow = !canManagePaddleSub && (await checkoutPendingActive(session.organizationId));
+  // Yalnız ödeme kartı çizilirken (Paddle hazır) okunur; okuma hatası sayfayı düşürmez (kilitsiz sayılır — sunucu kapısı ödeme rotasında).
+  const checkoutPendingNow =
+    paddleReady && !canManagePaddleSub && (await checkoutPendingActive(session.organizationId).catch(() => false));
 
   // ── İşletme Ayarları › Yapay Zekâ — voice + how the AI answers ───────────────
   const aiView = (

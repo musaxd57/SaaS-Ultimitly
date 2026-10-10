@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
-import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
+import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
 import { formatMinor } from "@/lib/utils";
 import {
   BillingPeriodToggle,
@@ -184,6 +184,8 @@ export function PaddlePlans({
               // then refresh so the new plan shows.
               if (ev?.name === "checkout.completed") {
                 setProcessing(true);
+                // Sunucu kilidiyle aynı süre: webhook hiç gelmezse kart bu sayfada da kendiliğinden açılır (Haiku incelemesi).
+                setTimeout(() => setProcessing(false), CHECKOUT_PENDING_MS);
                 const consentId = lastConsentRef.current;
                 if (consentId) {
                   void fetch("/api/billing/checkout-pending", {
