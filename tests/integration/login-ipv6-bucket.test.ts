@@ -30,6 +30,10 @@ function loginFrom(ip: string, i: number) {
   });
 }
 
+// Her istek bcrypt karşılaştırması koşar (bilinmeyen e-postada da sabit süreli sahte karşılaştırma) → 11 sıralı istek ~4,5–5 sn;
+// varsayılan 5 sn zaman sınırı yük altında taşıyordu (10-10 tam koşu, paralel ölçümle) — davranış değil süre sınırı.
+const SLOW_LOGIN_TIMEOUT_MS = 20_000;
+
 describe("giriş IP kovası — IPv6 /64", () => {
   beforeEach(async () => {
     await resetDb();
@@ -44,11 +48,11 @@ describe("giriş IP kovası — IPv6 /64", () => {
     }
     expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true);
     expect(statuses[10]).toBe(429);
-  });
+  }, SLOW_LOGIN_TIMEOUT_MS);
 
   it("KONTROL: farklı /64'ten gelen istek o kovadan ETKİLENMEZ", async () => {
     for (let i = 1; i <= 10; i++) await POST(loginFrom(`2001:db8:abcd:1234::${i.toString(16)}`, i));
     const other = await POST(loginFrom("2001:db8:abcd:9999::1", 99));
     expect(other.status).toBe(401);
-  });
+  }, SLOW_LOGIN_TIMEOUT_MS);
 });
