@@ -548,7 +548,8 @@ function extract(text: string, raw: string): Claim[] {
     (m) => clockTime(+m[1], 0, m[2] ? (m[2] === "du matin" ? "am" : "pm") : null, m[0]),
   );
 
-  take(/\b(\d{1,2})(?:\.|st|nd|rd|th)\s?(?:kat|floor)/g, (m) => ({ cls: "floor", keys: [`n${+m[1]}`], tkeys: [`floor|${+m[1]}`], raw: m[0] }));
+  // Eksi işaretli kat ("-1. kat" = bodrum) sıra sayısı "1. kat" DEĞİLDİR (10-10, cevap ölçüsü yanlış alarmı) → çıplak sayı olarak okunur.
+  take(/(?<!-)\b(\d{1,2})(?:\.|st|nd|rd|th)\s?(?:kat|floor)/g, (m) => ({ cls: "floor", keys: [`n${+m[1]}`], tkeys: [`floor|${+m[1]}`], raw: m[0] }));
 
   // Gizli-benzeri anahtar sözcükten sonraki kod (belirteçte rakam ya da tırnak şart).
   const KW =
@@ -574,7 +575,9 @@ function extract(text: string, raw: string): Claim[] {
   // Birimli miktarlar (+ "10-15 dakika" aralığı).
   for (const fam of UNIT_FAMILIES) {
     const alts = [...fam.long.map((u) => `${u.replace(/ /g, "\\s")}[a-z']*`), ...fam.short.map((u) => `${u}(?:'[a-z]+)?(?![a-z])`)];
-    const re = new RegExp(`\\b(${NUM})(?: ?(?:-|ile|to|or|veya) ?(${NUM}))?(?:'[a-z]{1,4})?[\\s-]?(?<unit>${alts.join("|")})`, "g");
+    // Sayı ile birim arasında YALNIZ üleştirme eki ("2'şer gece", "15'er dakika"); hâl eki birimi koparır (10-10: "Lale Evleri 4'e gece
+    // dönüş" 4 GECE okunuyordu — cevap ölçüsü yanlış alarmı).
+    const re = new RegExp(`\\b(${NUM})(?: ?(?:-|ile|to|or|veya) ?(${NUM}))?(?:'s?[ae]r)?[\\s-]?(?<unit>${alts.join("|")})`, "g");
     take(re, (m) => {
       // Birim = eşleşen birim sözcüğü, kesme işaretinden ÖNCESİ (P5 09-27): eskiden eşleşmenin SON harfleri alınıyordu → "4 km’lik"
       // 4 METRE ("lik"), "100 Mbps’e" / "180°C’ye" genel sayım, cevaptaki "10 minutes’" birimsiz okunuyordu (yanlış alarm + kaçan uydurma).

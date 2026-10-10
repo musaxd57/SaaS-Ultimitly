@@ -170,3 +170,26 @@ describe("🚨 merdiven basamağı = steps / stairs (10-10, cevap ölçüsü yan
     expect(u("There are 52 steps.", ctx("Binada 52 kişilik toplantı salonu var."))).toBe(1);
   });
 });
+
+describe("🚨 hâl eki birimi koparır · eksi işaretli kat sıra sayısı değildir (10-10, cevap ölçüsü yanlış alarmları)", () => {
+  // multi_33: kalem (EN) "walk back … to Lale Evleri 4 at night" · cevap "Lale Evleri 4’e gece dönüş" → "4 gece" okunuyordu.
+  // d_building_4: kalem "-1 kattaki koridorda" · cevap "-1. kattaki koridorda" → "1. kat" okunuyordu.
+  it("aynı olgu desteklenir", () => {
+    expect(u("Lale Evleri 4’e gece dönüş için aydınlatmalı Çınar Caddesi öneriliyor.", ctx("If you walk back to Lale Evleri 4 at night, use the main lit road, Çınar Caddesi."))).toBe(0);
+    expect(u("Daireye 4’te gece girişi yapılabilir.", ctx("Daire 4 için gece girişi mümkündür."))).toBe(0);
+    expect(u("Depo, -1. kattaki koridorda soldan üçüncü kapı.", ctx("Depo odası, -1 kattaki koridorda soldan üçüncü kapıdır."))).toBe(0);
+    // Üleştirme eki birimi KORUR.
+    expect(u("Her oda için 2’şer gece.", ctx("Her oda için 2 gece."))).toBe(0);
+    expect(u("Her biri 15’er dakika sürer.", ctx("Her seans 15 dakika sürer."))).toBe(0);
+  });
+
+  it("🚨 KONTROL — farklı değer / gerçek süre / gerçek kat GEÇMEZ", () => {
+    expect(u("En az 4 gece kalmanız gerekiyor.", ctx("Minimum konaklama 3 gecedir."))).toBe(1);
+    expect(u("Her oda için 2’şer gece.", ctx("Her oda için 3 gece."))).toBe(1);
+    expect(u("Her biri 15’er dakika sürer.", ctx("Her seans 15 saat sürer."))).toBe(1);
+    expect(u("Her oda için 2’şer gece.", ctx("Her oda için 2 saat."))).toBe(1);
+    expect(u("Depo, -1. kattaki koridorda.", ctx("Depo odası, -2 kattaki koridorda."))).toBe(1);
+    expect(u("Daire 1. katta.", ctx("Daire 2. katta."))).toBe(1);
+    expect(u("Daire 1. katta.", ctx("Daire 1 numaralı kapıda, 3. katta."))).toBe(1);
+  });
+});
