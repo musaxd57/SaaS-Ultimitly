@@ -559,3 +559,63 @@ describe("cleanupDuplicateConversations — mesaj kimliği (Codex 09-30 A1)", ()
     expect(await prisma.message.count()).toBe(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// DEĞİŞMEZ 10 — "otomatik kanallar arası birleştirme yok" (10-10 gece; Haiku birleştirme denetimi + kodla doğrulama). QR sohbet ipliği
+// (`channel: "chat"`) konaklamaya `reservationId` ile bağlıdır; kanal ipliği (Airbnb) de aynı `reservationId`yi taşır. Kopya grubu yalnız
+// "mülk + misafir adı" ile kuruluyor ve `sameStay` aynı `reservationId`yi yeterli sayıyordu → iki FARKLI kanalın ipliği "kopya" sayıldı:
+// biri boşsa SİLİNİP bağlı kayıtları öbürüne taşınıyordu; ikisinde de mesaj varsa her böyle konaklama sahte "inceleme gerekiyor" sayıyordu.
+// Kopya = AYNI kanal + aynı konaklama.
+// ---------------------------------------------------------------------------
+describe("cleanupDuplicateConversations — kanallar arası birleştirme yok (değişmez 10)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  async function stay(propertyId: string) {
+    return prisma.reservation.create({
+      data: { propertyId, guestName: "Ayşe Yılmaz", arrivalDate: new Date("2026-05-02"), departureDate: new Date("2026-05-06"), status: "completed" },
+      select: { id: true },
+    });
+  }
+
+  it("🚨 aynı konaklamanın BOŞ QR ipliği Airbnb ipliğine birleştirilmez (silinmez, sayılmaz)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const r = await stay(propertyId);
+    const airbnb = await makeConv(propertyId, { guest: "Ayşe Yılmaz", ext: "H-1", bodies: ["Merhaba", "Wifi?"], reservationId: r.id, messageIds: ["m1", "m2"] });
+    const qr = await makeConv(propertyId, { guest: "Ayşe Yılmaz", ext: `qr:${propertyId}:${r.id}`, bodies: [], channel: "chat", reservationId: r.id });
+
+    expect(await cleanupDuplicateConversations(orgId)).toEqual({ removed: 0, groups: 0, needsReview: 0 });
+    expect(await prisma.conversation.count({ where: { id: { in: [airbnb.id, qr.id] } } })).toBe(2);
+  });
+
+  it("🚨 aynı konaklamanın BOŞ Airbnb ipliği dolu QR ipliğine birleştirilmez", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const r = await stay(propertyId);
+    const airbnb = await makeConv(propertyId, { guest: "Ayşe Yılmaz", ext: "H-1", bodies: [], reservationId: r.id });
+    await makeConv(propertyId, { guest: "Ayşe Yılmaz", ext: `qr:${propertyId}:${r.id}`, bodies: ["Havlu var mı?"], channel: "chat", reservationId: r.id });
+
+    expect(await cleanupDuplicateConversations(orgId)).toEqual({ removed: 0, groups: 0, needsReview: 0 });
+    expect(await prisma.conversation.count({ where: { id: airbnb.id } })).toBe(1);
+  });
+
+  it("iki kanalda da mesaj olan konaklama sahte 'inceleme gerekiyor' saymaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const r = await stay(propertyId);
+    await makeConv(propertyId, { guest: "Ayşe Yılmaz", ext: "H-1", bodies: ["Merhaba"], reservationId: r.id, messageIds: ["m1"] });
+    await makeConv(propertyId, { guest: "Ayşe Yılmaz", ext: `qr:${propertyId}:${r.id}`, bodies: ["Havlu var mı?"], channel: "chat", reservationId: r.id });
+
+    expect(await cleanupDuplicateConversations(orgId)).toEqual({ removed: 0, groups: 0, needsReview: 0 });
+  });
+
+  it("KONTROL: AYNI kanalın gerçek kopyası (aynı konaklama, boş) yine silinir", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const r = await stay(propertyId);
+    const keeper = await makeConv(propertyId, { guest: "Ayşe Yılmaz", ext: "H-1", bodies: ["Merhaba"], reservationId: r.id, messageIds: ["m1"] });
+    const dup = await makeConv(propertyId, { guest: "Ayşe Yılmaz", ext: "H-1", bodies: [], reservationId: r.id });
+
+    expect(await cleanupDuplicateConversations(orgId)).toEqual({ removed: 1, groups: 1, needsReview: 0 });
+    expect(await prisma.conversation.count({ where: { id: dup.id } })).toBe(0);
+    expect(await prisma.conversation.count({ where: { id: keeper.id } })).toBe(1);
+  });
+});

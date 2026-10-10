@@ -151,6 +151,7 @@ function conversationIdsConflict(a: StayIdentity, b: StayIdentity): boolean {
 const CONVERSATION_SELECT = {
   id: true,
   propertyId: true,
+  channel: true,
   guestIdentifier: true,
   lastMessageAt: true,
   // Identity: only EQUAL identifiers license a delete (see sameStay).
@@ -203,10 +204,13 @@ export async function cleanupDuplicateConversations(
     select: CONVERSATION_SELECT,
   });
 
-  // Group by property + guest.
+  // Group by property + CHANNEL + guest. 🚨 Kanal grup anahtarında (değişmez 10 — otomatik kanallar arası birleştirme YOK, 10-10 gece):
+  // QR sohbet ipliği (`channel: "chat"`) de konaklamanın `reservationId`sini taşır, yani kanalsız grupta Airbnb ipliğiyle "aynı konaklama"
+  // sayılıyordu — biri boşsa silinip bağlı kayıtları öbürüne taşınıyor, ikisi doluysa her böyle konaklama sahte "inceleme" sayıyordu.
+  // Kopya tanımı: AYNI kanal + aynı konaklama (bağlantı yeniden kurulunca aynı kanalın ikinci ipliği).
   const groups = new Map<string, typeof conversations>();
   for (const c of conversations) {
-    const key = `${c.propertyId}::${normGuest(c.guestIdentifier)}`;
+    const key = `${c.propertyId}::${c.channel}::${normGuest(c.guestIdentifier)}`;
     const arr = groups.get(key);
     if (arr) arr.push(c);
     else groups.set(key, [c]);
