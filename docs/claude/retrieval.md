@@ -130,6 +130,13 @@
   sonuç BİREBİR; sorgu METNİ kanıta girmez (`q` deterministik; `uq/uf/un/unMs/ui` yalnız sayı/kapalı küme).
   Retrieval sorgulara ihtiyaç duymuyorsa (küçük KB/legacy) katman BEKLENMEZ, cevapla paralel koşar, kapıdan önce
   `await kbSel.understanding`; kanıt `evidenceAfterUnderstanding()`.
+- **İngilizce köprü sorgusu** (10-10, anahtar `AI_UNDERSTANDING_EN_QUERY_ENABLED` KAPALI, kurucu yokken karar #13; ölçüm
+  `docs/olcum/RAG-AYRISTIRMA-2026-10-10.md`): Türkçe soru → İngilizce yazılmış kalem yönü %79'du (diğer yönler %98–100). Açıkken her istek
+  `query_en` taşır, `understandingQueries`te ÜÇÜNCÜ geçiş (Türkçe → özgün → İngilizce; tavan 6 onların yerini almaz; İngilizce misafirde
+  tekrar etmez). Kapalıyken şema / istem / önbellek anahtarı / sorgu listesi bayt bayt eski (pinli). Bilinen sınır: 4–5 sorulu Türkçe
+  mesajda köprü ilk 1–2 isteğe yetişir. 🚨 Lab (`rag-lab`, `rag-answer`) anlama kipi 10-10'dan beri ÜRETİMİN bayraklarından
+  (`labUnderstandingMode`); canlıyı ölçmek için koşuya canlı bayraklar verilir (`AI_CONVERSATION_ITEMS_ENABLED`, `AI_HOUSE_RULES_SHADOW`,
+  `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED`) — eskiden sabit "öğe + kural" koşup kimliğe bayraklardan başka kip yazıyordu.
 - **Önbellek anahtarı küme parmak izi** (id+updatedAt+içerik özeti), `max(updatedAt)` DEĞİL. Kanıt
   `kbEvidenceJson.retrieved[].c` + `.retrieval {q, fb, sel, cand, ms, srcs, sup, conf, fus}` — PII yok, misafire dönmez.
 - **Retrieval politika DEĞİLDİR** (kötü niyetli kalem sözcüksel eşleşince gider; eleme ayrı onay). Güvenlik
