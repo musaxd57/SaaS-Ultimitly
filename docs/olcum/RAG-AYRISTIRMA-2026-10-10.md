@@ -104,3 +104,13 @@ Kırmızı adayların tek tek incelemesi (kaynak metinle):
 
 Sonuç: köprü getirmede tutarlı kazanç (üç grupta 40/40), cevapta +2; gerçek hata sayısı iki kolda 0 ↔ 1 ve o hata getirmeden bağımsız.
 Öneri değişmedi (anahtarı aç; kurucu + ilk denemeler). İki ölçer yanlış alarmı ayrıca düzeltilecek.
+
+## 7. Ölçer düzeltmeleri ve Haiku incelemesi (kodda doğrulandı)
+
+`claim-support` (cevap ölçüsünün "kanıtsız iddia" denetimi; müşteri cevabında GÖLGE, karar metni denetiminde uyarı) üç yanlış alarmı
+giderildi: "52 iç merdiven basamağı" = "52 steps / stairs" · hâl eki birimi koparır ("Lale Evleri 4'e gece" 4 GECE değil; yalnız
+üleştirme eki "2'şer gece" birim bağlar) · sözcük önünde olmayan eksi bodrumdur ("-1. kat" 1. kat değil). Haiku incelemesi iki gerileme
+buldu ve ikisi de düzeltildi: "6 basamaklı şifre" (kodun hane sayısı) adım okunuyordu · eksi kat kalıbı "3-4. kat" / "B-3. kat"
+aralığındaki ikinci kat iddiasını siliyordu. Reddedilen öneri: "3'e gece" bir süre değildir, onu desteksiz saydıran pin yanlış anlamı
+sabitlerdi. Bilinen sınır (eski): cevap "-1. kat" ↔ kaynak "1. kat" işaret farkı yakalanmaz. Her gevşemenin farklı değer / farklı birim
+kontrolü pinli; yeni yollara 50.000 karakterlik süre pinleri; mutasyon 7/7 · 4/4 · 3/3.
