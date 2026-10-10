@@ -47,13 +47,38 @@ var (`query_tr`), ama Türkçe misafir → İngilizce yazılmış kalem köprüs
 
 ## 3. Öneri değişikliği (Luna geçişi, `LUNA-GECIS-2026-10-10.md` tablosu güncellendi)
 
-- **`KB_RERANK_MODEL` → `gpt-5.1`** (önceki öneri Luna `none` idi): üretimdeki 2,5 sn tavanında Luna çağrılarının ~%10'u düşüyor.
-- Anlama katmanı: §5 köprü ölçümüne göre (aşağıda).
+- **`KB_RERANK_MODEL` boş (5.1)** — önceki öneri Luna `none` idi: üretimdeki 2,5 sn tavanında Luna çağrılarının ~%10'u düşüyor.
+- **`AI_UNDERSTANDING_MODEL` boş (canlıdaki `AI_SEMANTIC_MODEL=gpt-5.1`)** — önceki öneri Luna `low` idi: getirmede tekrar eden 4–5 / 120
+  kayıp; öğe / konaklama / anlama doğruluğunda (dalga 1–3) 5.1 ile eşit; 5.1 daha hızlı (anlama getirmeyi bekletir).
+- Cevap modeli (Luna `low`), bekçi, çeviri, üslup, karar metni önerileri DEĞİŞMEDİ.
 
-## 4. Cevap düzeyi kırmızı adayı
+## 4. Cevap düzeyi kırmızı adayı `d_accessibility_5_f0_q1` (kanıtsız iddia, dört yapılandırmada) — ÖLÇER YANLIŞ ALARMI
 
-(doldurulacak — `d_accessibility_5_f0_q1`, kanıtsız iddia, dört yapılandırmada tekrar)
+Misafir (İngilizce): "if the lift fails, how many steps to the apartment?" · bilgi kalemi (Türkçe): "Asansör arızalı olduğunda … toplam
+**52 iç merdiven basamağı** çıkmak gerekir. Katlar arasındaki sahanlıklar geniştir ve korkuluklar sağlamdır." · cevap: "… requires climbing
+**52 steps**. The landings between floors are spacious, and the handrails are sturdy." — cevap BİREBİR doğru. İddia ölçeri (`claim-support`)
+İngilizce "steps"i yürüme adımı (mesafe) okuyor, Türkçe "basamak"ı hiç birim saymıyor ve araya "iç merdiven" girince sayıyı birimsiz
+bırakıyor → "kanıtsız". Düzeltme: "(iç / dış) (merdiven) basamak" ve İngilizce "stairs" adım / basamak sayısı; farklı sayı ve farklı birim
+yine desteksiz (pinli). `claim-support` müşteri cevabında GÖLGE ölçümdür (P5 kapalı); karar metni denetiminde yalnız yanlış uyarıyı azaltır.
 
-## 5. İngilizce köprü sorgusu (anahtar `AI_UNDERSTANDING_EN_QUERY_ENABLED`, KAPALI)
+## 5. İngilizce köprü sorgusu (anahtar `AI_UNDERSTANDING_EN_QUERY_ENABLED`, KAPALI — kurucu yokken karar #13)
 
-(ölçüm sürüyor)
+Açıkken anlama katmanı her istek için ek bir İngilizce arama sorgusu (`query_en`) yazar; getirmeye Türkçe ve özgün dil sorgularından SONRA
+girer (tavanı 6, onların yerini almaz; İngilizce misafirde tekrar etmez). Kapalıyken şema / istem / önbellek anahtarı / sorgu listesi bayt
+bayt eskisi. Ölçüm (perq dev; tek soru grupları her 4'üncü soru; gruplar `multi,neg,single_tr,single_xx`):
+
+| Anlama | Köprü | Çok sorulu (120) | Tek soru TR (111) | Tek soru yabancı dil (111) | Türkçe → İngilizce kalem (çok + tek) | Negatif: ort. parça |
+|---|---|---|---|---|---|---|
+| 5.1 | kapalı | 110 | 110 | 107 | 33/41 | 10,7 |
+| 5.1 | **açık** | **115** | **111** | **108** | **39/41** | 10,9 |
+| Luna `low` | kapalı | 105 | 107 | 108 | 30/41 | 10,9 |
+| Luna `low` | **açık** | **112** | **110** | **110** | **39/41** | 10,9 |
+
+- Soru bazında: 5.1'de 9 iyileşme / 2 kötüleşme, Luna'da 15 / 3. Kötüleşenlerin hepsi bütçe yarışı (ek aday başka parçayı yeniden
+  sıralama sonrası bütçeden itiyor), hiçbiri "cevap bulunamadı" değil.
+- Maliyet: gömmeye giden metin +%30 (sorgu başına bir kısa metin), yeniden sıralayıcı isteği +%5 karakter, anlama çıktısı istek başına
+  3–8 sözcük. Sızıntı 0.
+- Bilinen sınırlar (Haiku incelemesi, kodda doğrulandı): 4–5 sorulu Türkçe mesajda köprü yalnız ilk 1–2 isteğe yetişir (tavan; köprü
+  bilerek en sonda) · tekilleştirme `toLocaleLowerCase("tr")` "INTERNET" / "internet"i ayırır (eski satır, canlı yol — dokunulmadı).
+- **Öneri:** anahtarı aç (`AI_UNDERSTANDING_EN_QUERY_ENABLED=1`) — açma kurucu + ilk denemeler birlikte (getirme müşteriye giden cevabı
+  etkiler). Kabul seti (holdout) koşulmadı.

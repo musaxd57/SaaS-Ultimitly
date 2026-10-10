@@ -161,9 +161,13 @@ kural kararı koda bağlanmadan önce bu satır istem / ölçüm işine girdi ol
 | Değişken | Değer |
 |---|---|
 | `OPENAI_MODEL` / `OPENAI_REASONING_EFFORT` | `gpt-6-luna` / `low` |
-| `AI_UNDERSTANDING_MODEL` / `AI_UNDERSTANDING_REASONING_EFFORT` | `gpt-6-luna` / `low` |
+| `AI_UNDERSTANDING_MODEL` / `AI_UNDERSTANDING_REASONING_EFFORT` | ~~`gpt-6-luna` / `low`~~ → **boş bırakın (canlıdaki `AI_SEMANTIC_MODEL=gpt-5.1`)** — dalga 5 (getirme düzeyi, `RAG-AYRISTIRMA-2026-10-10.md`): Luna anlama çok sorulu mesajda 4–5 / 120 kaçırıyor (iki koşuda tekrar), öğe / konaklama / anlama doğruluğunda 5.1 ile eşit, 5.1 daha hızlı |
 | `AI_STAY_GUARD_MODEL` / `AI_STAY_GUARD_REASONING_EFFORT` | `gpt-6-luna` / `low` (dalga 2: `medium` / `high` zaman aşımı) |
 | `AI_DECISION_TEXT_MODEL` / `…_REASONING_EFFORT` (yeni, karar #8) | `gpt-5.1` / boş (dalga 2: gerekçe anmada iki sette de en iyi — kör 9/10, geliştirme 10/14) |
 | `OPENAI_TRANSLATE_MODEL` / `…_REASONING_EFFORT` | `gpt-6-luna` / `medium` (10-02 ölçümü) |
 | `OPENAI_STYLE_MODEL` / `…_REASONING_EFFORT` | `gpt-6-luna` / `none` (10-01 ölçümü) |
-| `KB_RERANK_MODEL` / `KB_RERANK_REASONING_EFFORT` (yeniden sıralayıcı) | `gpt-6-luna` / `none` (dalga 3: kalite 5.1 ile eşdeğer, +0,4 sn) — ya da 5.1'de kalsın (en hızlı) |
+| `KB_RERANK_MODEL` / `KB_RERANK_REASONING_EFFORT` (yeniden sıralayıcı) | ~~`gpt-6-luna` / `none`~~ → **boş bırakın (5.1)** — dalga 5: dalga 3'ün "kalite eşdeğer" ölçümü tavansızdı; üretimin 2,5 sn sıcak yol tavanında Luna çağrılarının ~%10'u düşüyor (sıra sıralayıcısız kalıyor), çok sorulu 110 → 106 / 120 |
+
+**Dalga 5 (10-10, getirme düzeyi — `RAG-AYRISTIRMA-2026-10-10.md`):** iki satır yukarıda düzeltildi. Ayrıca modelden bağımsız bir açık
+bulundu ve kapalı anahtar arkasında giderildi: Türkçe soru → İngilizce yazılmış bilgi kalemi (anahtar `AI_UNDERSTANDING_EN_QUERY_ENABLED`;
+5.1 anlamayla çok sorulu 110 → 115 / 120, tek soru TR 110 → 111, yabancı dil 107 → 108).

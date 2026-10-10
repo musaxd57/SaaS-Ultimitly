@@ -6,8 +6,9 @@
 
 ## Döndüğünüzde bakılacaklar (kısa)
 
-1. **Luna geçişi (env, sizin işiniz):** cevap + anlama + bekçi `gpt-6-luna` / `low`, yeniden sıralayıcı Luna `none`, karar metni yazıcısı
-   5.1, çeviri Luna `medium`, üslup Luna `none` — 4 dalga, canlı anahtarlarla doğrulandı (`docs/olcum/LUNA-GECIS-2026-10-10.md` sonu).
+1. **Luna geçişi (env, sizin işiniz):** cevap + bekçi `gpt-6-luna` / `low`, karar metni yazıcısı 5.1, çeviri Luna `medium`, üslup Luna
+   `none`; **anlama katmanı ve yeniden sıralayıcı 5.1'de kalsın** (10-10 dalga 5 düzeltmesi: Luna sıralayıcı 2,5 sn tavanında ~%10 düşüyor,
+   Luna anlama getirmede 4–5 / 120 kaçırıyor — `docs/olcum/RAG-AYRISTIRMA-2026-10-10.md`). Tablo: `docs/olcum/LUNA-GECIS-2026-10-10.md` sonu.
 2. **Açılmayı bekleyen anahtarlar** (hepsi kapalı, açmak = siz + ilk denemeler): doğrulanmış müsaitlik / uzatma (kanal + QR), tarih okuması,
    konuşma durumu satırı. Ölçümler raporlarda; önerdiğim sıra: tarih okuması + konuşma durumu (güvenlik ölçüleri 0, gereksiz soru 0) →
    doğrulanmış müsaitlik → uzatma → QR.
@@ -15,6 +16,7 @@
 4. **Açık taahhüt hafızası:** A / B / C seçimi (`docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md`).
 5. **Cevap inceleme sayfası** yeni ölçümlerle güncellendi (6.127 çift); yorumlarınız artık her güncellemede korunur.
 6. Bilgi için: bayat takvim kaynağında çakışma artık "kesin" değil (#9), plan sınırı yarışı düzeltildi (#12).
+7. **İngilizce köprü sorgusu** (#13, anahtar kapalı): Türkçe soru İngilizce yazılmış bilgi kalemini %79 → %95 buluyor; açmayı öneriyorum.
 
 | # | Normalde sorardım | Kararım | Gerekçe | Geri alma |
 |---|---|---|---|---|
@@ -30,3 +32,5 @@
 | 10 | Tarih çözümünü (`ai/date-resolution.ts`, hazırdı ama bağlı değildi) cevap istemine bağlamak; gece yarısından sonra yazılan "yarın" | (a) Anahtar `AI_DATE_RESOLUTION_ENABLED` (KAPALI) arkasında istemde "TARİH OKUMASI" bloğu: cevapsız misafir mesajlarının tarihleri KODLA, her mesaj kendi yazıldığı ana göre; yalnız olgu (gün adları, kesin / belirsiz, sabit gerekçe), davranış talimatı yok, misafirin metni girmez. (b) 00:00–04:59 arasında yazılan "yarın / öbür gün" BELİRSİZ (bir önceki gün de seçenek; açık tarih söylüyorsa o kazanır). (c) Doğrulanmış müsaitlik / uzatma göreli günü mesajın YAZILDIĞI ana göre çözer (eskiden işleme anı: 23:59'da yazılıp 00:01'de işlenen "yarın boş mu?" bir gün kayardı — anahtarlar kapalı olduğu için bugün etkisiz) | Talimatın "date resolution metadata" maddesi; (b) ve (c) doğrulanmış akışları yalnız DAHA TEMKİNLİ yapar (belirsiz → ev sahibine); (a) kör eval'le ölçülür, anahtar ancak ölçümle açılır | (a) anahtar kapalı kalır; (b)/(c) tek satırlık geri alma |
 | 11 | Açık taahhüt hafızası (talimat "Benim ek önerilerim" + V2 "GUEST COMMITMENT" kartı) kodlansın mı | KODLAMADIM: yeni tablo (migration) ister, talimat "yalnız gerekçelendiğinde" ve "gelecek AI özelliklerini topluca uygulama" diyor. Seçenekli öneri yazdım: `docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md` (önerim A: söz ev sahibinin açık işaretinden + görev bağlantısı, metin yorumu yok) | Misafire söz verilen metni yorumlamak ürün kararı; yanlış "söz" alarmı güveni bozar | — |
 | 12 | Tam test koşusunda kırmızı çıkan plan sınırı yarışı (4 eşzamanlı daire eklemede 2'si geçti; `BILLING_ENFORCED` canlıda açık) — düzeltilsin mi | DÜZELTTİM (hata düzeltmesi, ürün davranışı değişmedi): sayım + oluşturma tek işlemde, kuruluş satırı kilidi altında (takvim kaynağı kotasının kalıbı); belirlenimci test eski kodda kırmızı; mutasyon 7/7 | Kurucunun onayladığı plan sınırları zaten bu davranışı istiyor; eski "oluştur, sonra fazlaysa sil" yaması yük altında delikti | `58f4163`'ü geri al |
+| 13 | Getirme ölçümünde bulunan açık: Türkçe soru → İngilizce yazılmış bilgi kalemi (cevap %79 blokta, diğer yönler %98–100). Anlama katmanına İngilizce arama sorgusu eklensin mi | EKLEDİM, anahtar `AI_UNDERSTANDING_EN_QUERY_ENABLED` KAPALI arkasında: her istek `query_en` taşır, getirmeye Türkçe + özgün dil sorgularından SONRA girer. Ölçüm (geliştirme seti): 5.1 anlamayla çok sorulu 110 → 115 / 120, Türkçe → İngilizce kalem 33/41 → 39/41; Luna ile 105 → 112. Kötüleşen soru 2 (bütçe yarışı), negatif grupta gürültü artmadı. Açmayı öneriyorum (kurucu + ilk denemeler) | Getirme müşteriye giden cevabı etkiler, o yüzden anahtar kapalı; kapalıyken istem / şema / önbellek / sorgu listesi bayt bayt eski (pinli, mutasyon 13/13) | anahtar kapalı kalır |
+| 14 | Luna önerisinde anlama katmanı ve yeniden sıralayıcı | Öneriyi DEĞİŞTİRDİM: ikisi de 5.1'de kalsın (env boş). Sıralayıcı: dalga 3 ölçümü tavansızdı, üretimin 2,5 sn tavanında Luna çağrılarının ~%10'u düşüyor. Anlama: getirmede iki koşuda tekrar eden 4–5 / 120 kayıp, diğer ölçülerde eşit | Ölçümle kesinleşti (`docs/olcum/RAG-AYRISTIRMA-2026-10-10.md`); tavanı Luna için yükseltmek misafirin bekleme süresini uzatır — onu önermiyorum | env değeri |
