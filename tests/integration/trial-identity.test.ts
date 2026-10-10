@@ -322,6 +322,18 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect((await sub(b.orgId)).trialEndReason).toBeNull();
   });
 
+  it("🚨 anahtar açıldıktan sonraki İLK olay doğrudan kanal ilanıysa da geri doldurma ÖNCE koşar: eski hesabın (iCal) ilanını bağlayan yeni hesabın denemesi biter", async () => {
+    vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    const a = await trialOrg("A");
+    await addIcal(a, AIRBNB("1"));
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    const b = await trialOrg("B");
+    await link(b, "airbnb_direct", "123456789");
+    expect((await sub(b.orgId)).trialEndReason).toBe("identity_reused");
+    expect((await sub(a.orgId)).trialEndReason).toBeNull();
+  });
+
   it("🚨 KONTROL: köprü sağlayıcısının (Hospitable) mülk kimliği iz ÜRETMEZ — iki hesap aynı Hospitable mülk kimliğini bağlasa da deneme sürer", async () => {
     vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
     const a = await trialOrg("A");
