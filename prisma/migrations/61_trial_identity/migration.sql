@@ -1,4 +1,7 @@
 -- AlterTable
+ALTER TABLE "CalendarSource" ADD COLUMN     "trialIdentityCheckedAt" TIMESTAMP(3);
+
+-- AlterTable
 ALTER TABLE "Organization" ADD COLUMN     "trialIdentityExempt" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable

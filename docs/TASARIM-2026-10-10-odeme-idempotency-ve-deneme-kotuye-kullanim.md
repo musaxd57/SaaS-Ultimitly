@@ -82,6 +82,20 @@ için alarm + "ödemeniz işleniyor" kilidi yapılsın mı?
 
 - ✅ Ödeme: ikinci aktif abonelik alarmı + "Ödemeniz işleniyor" kilidi + ödeme başarısız olayı kilidi kaldırır (itildi, CI yeşil).
 - ✅ Deneme işletme kimliği (migration 61, `TRIAL_IDENTITY_ENABLED` KAPALI): kurucu kararları "24 ay (silinme anından)" + "deneme biter + operatör
-  istisnası"; kimlik sağlayıcıdan bağımsız (ilan / iCal), HMAC özeti; testler 16/16, mutasyon 15/15.
+  istisnası"; HMAC özeti. Haiku incelemesi + kendi testimizle düzeltildi (aynı gün, itilmeden önce):
+  - **Kimlik = rezervasyon kanalının GERÇEK ilan numarası / takvim jetonu.** Airbnb iCal `/calendar/ical/<ilan no>` ile doğrudan Airbnb
+    bağlantısının ilan numarası AYNI kimliktir (`airbnb:<no>`); Booking yalnız `t` jetonu (ek sorgu parametresi kimliği değiştirmez), VRBO
+    jetonu. **Köprü sağlayıcısının (Hospitable) kendi mülk kimliği kimlik DEĞİLDİR** (kurucu kuralı: köprü kalkınca izler kopardı).
+  - **Tanınmayan takvim kimlik sayılmaz** (herkese açık ortak takvim — resmî tatiller vb. — iki ev sahibinde ortak olabilir). Alan adı sıkı:
+    `airbnb.com.evil.example` Airbnb sayılmaz (kendi testimiz yakaladı).
+  - 🚨 **Takvim kimliği EKLEMEDE değil, GERÇEK OKUMADA sayılır** (kaynak başına bir kez, `CalendarSource.trialIdentityCheckedAt`): Airbnb
+    ilan numarası herkese açıktır; eklemede sayılsaydı biri sahte jetonlu adresle başkasının ilanını önceden "kapar", gerçek sahibin denemesi
+    biterdi. Sunucu geçerli takvim döndürdüyse hesap jetonun sahibidir. Not elle senkronda gösterilir; ayarlar → faturalandırmada da görünür.
+  - Anahtar açıldıktan sonraki İLK kayıt geri doldurmayı önce koşar (saatlik işi beklemez); anahtar öncesi iki hesapta zaten bulunan takvim
+    ne geri doldurmada ne sonraki okumalarda cezalandırılır. Operatör istisnası bürünmedeyken YASAK (K8); rozet yalnız hâlâ denemedeki hesapta.
+  - **Bilinen sınır:** yalnız Hospitable köprüsüyle (iCal'siz) bağlanan hesap bugün kapsam dışı — doğrudan kanal bağlantısı ya da köprünün
+    rezervasyon kanalı ilan numarasını vermesi gerekir (canlı API'de doğrulanmadı). **Açmadan önce canlı doğrula:** Airbnb'ye yanlış jetonla
+    istek geçerli takvim DÖNDÜRMEMELİ (döndürürse "kapma" yolu açık kalır; çare operatör istisnası).
+  - Testler 22/22 (gerçek PostgreSQL).
 - ⏳ Risk puanı + operatör listesi + yüksek puanda kartla doğrulama — sıradaki dilim (kartla doğrulama Paddle tarafı tasarım ister).
 

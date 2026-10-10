@@ -236,7 +236,9 @@ export default async function AdminPage() {
                           const b = billing(org);
                           // Deneme kimliği (kurucu onayı 10-10): deneme aynı ilan / takvim başka hesapta görüldüğü için bittiyse rozet +
                           // "denemeyi geri ver" (meşru durum için istisna).
-                          const identityReused = org.subscription?.trialEndReason === "identity_reused";
+                          // Yalnız HÂLÂ denemedeki hesapta (ödemeye geçmiş hesapta rozet kalmasın — Haiku incelemesi).
+                          const identityReused =
+                            org.subscription?.trialEndReason === "identity_reused" && org.subscription?.provider === "trial";
                           return (
                             <span className="inline-flex flex-wrap items-center gap-1">
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass[b.tone]}`}>

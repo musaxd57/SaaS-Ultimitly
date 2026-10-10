@@ -8,6 +8,7 @@ import { getCalendarSourceUrl } from "@/lib/calendar-source-url";
 import { icsIncompleteCause, parseIcsDetailed, type IcsIncompleteReason } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
+import { recordVerifiedCalendarIdentity } from "@/lib/billing/trial-identity";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
@@ -19,6 +20,8 @@ export interface SyncResult {
   updated: number;
   skipped: number;
   errors: string[];
+  /** Deneme kimliği (migration 61): bu okumada takvim başka hesapta görülmüş çıktı ve deneme bitti. Yalnız tek kaynak senkronunda dolar. */
+  trialEnded?: boolean;
 }
 
 const FEED_MAX_BYTES = 10 * 1024 * 1024;
@@ -286,6 +289,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     });
     return result;
   }
+
+  // Deneme kimliği (kurucu onayı 10-10; anahtar KAPALIYKEN hiçbir şey yazmaz, asla fırlatmaz): sunucu GERÇEK bir takvim döndürdü = bu hesap
+  // takvimin jetonuna sahip. Kimlik burada, kaynak başına bir kez sayılır (eklemede değil — bkz. `recordVerifiedCalendarIdentity`).
+  if ((await recordVerifiedCalendarIdentity(source.id, source.property.organizationId, feedUrl)).trialEnded) result.trialEnded = true;
 
   // 🚨 F16 (09-26): okuma EKSİKSE (tavan, tekrarlayan etkinlik, okunamayan kayıt, yarım dosya…) okunan
   // satırlar yine yazılır (gerçek olgular) ve açık STATUS:CANCELLED yine işlenir (belirli bir UID'nin

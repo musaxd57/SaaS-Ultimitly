@@ -78,9 +78,6 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
         body: JSON.stringify({ label: effectiveLabel, url: url.trim() }),
       });
       if (res.ok) {
-        // Deneme kimliği (kurucu onayı 10-10): takvim eklendi ama aynı takvim başka hesapta görüldüğü için deneme bitti → sade not.
-        const body = (await res.json().catch(() => null)) as { trialNotice?: unknown } | null;
-        if (typeof body?.trialNotice === "string") toast(body.trialNotice);
         setPreset(null);
         setLabel("");
         setUrl("");
@@ -101,6 +98,8 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
     try {
       const res = await fetch(`/api/calendar-sources/${id}/sync`, { method: "POST" });
       const data = await res.json().catch(() => null);
+      // Deneme kimliği (kurucu onayı 10-10): takvim okundu ama aynı takvim başka hesapta görüldüğü için deneme bitti → sade not.
+      if (res.ok && typeof data?.trialNotice === "string") toast(data.trialNotice);
       if (!res.ok) {
         toast.error("Takvim güncellenemedi.");
       } else if (

@@ -410,6 +410,9 @@ model CalendarSource {
   // time (wrong key becomes a diagnosable error, not silent garbage).
   urlEnc             String?
   urlKeyFp           String?
+  // Deneme kimliği (migration 61): bu takvim GERÇEKTEN okunduğunda (sunucu geçerli takvim döndürdü) kimliği bir kez sayıldı. Eklemede
+  // değil okumada sayılır — herkese açık ilan numarasıyla sahte jetonlu adres eklemek başkasının ilanını "kapamaz".
+  trialIdentityCheckedAt DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -1603,7 +1606,7 @@ model AiReviewLabel {
 model TrialIdentity {
   id                  String        @id @default(cuid())
   keyHash             String        @unique
-  keyType             String // listing | ical_listing | ical_url
+  keyType             String // ota_listing | ota_calendar
   firstOrganizationId String?
   firstSeenAt         DateTime      @default(now())
   lastSeenAt          DateTime      @default(now())

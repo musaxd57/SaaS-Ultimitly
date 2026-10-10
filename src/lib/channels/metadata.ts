@@ -1,4 +1,4 @@
-import { listingIdentityKey, recordTrialIdentities, type TrialIdentityKey } from "@/lib/billing/trial-identity";
+import { channelListingIdentityKey, recordTrialIdentities, type TrialIdentityKey } from "@/lib/billing/trial-identity";
 import "server-only";
 
 import { prisma } from "@/lib/db";
@@ -61,7 +61,8 @@ export async function recordChannelListings(
           create: { organizationId, connectionId, externalId: p.externalId, propertyId: p.propertyId },
           update: { propertyId: p.propertyId },
         });
-        newIdentities.push(listingIdentityKey(conn.provider, p.externalId));
+        // Yalnız İLK eşleme kimlik sayılır (aynı ilanın mülkler arası yeniden eşlenmesi yeni bir kullanım değildir).
+        if (!current.has(p.externalId)) newIdentities.push(channelListingIdentityKey(conn.provider, p.externalId));
       } catch (err) {
         void reportError(`channel-listing-write org=${organizationId}`, err);
       }
