@@ -82,3 +82,25 @@ bayt eskisi. Ölçüm (perq dev; tek soru grupları her 4'üncü soru; gruplar `
   bilerek en sonda) · tekilleştirme `toLocaleLowerCase("tr")` "INTERNET" / "internet"i ayırır (eski satır, canlı yol — dokunulmadı).
 - **Öneri:** anahtarı aç (`AI_UNDERSTANDING_EN_QUERY_ENABLED=1`) — açma kurucu + ilk denemeler birlikte (getirme müşteriye giden cevabı
   etkiler). Kabul seti (holdout) koşulmadı.
+
+## 6. Cevap düzeyi doğrulama — önerilen son yapılandırma (`rag-answer-2026-10-10-5` / `-6`)
+
+Cevap Luna `low` · anlama 5.1 · yeniden sıralayıcı 5.1 · canlı anahtarların tamamı (öğe, kural gölgesi, şikâyet takibi, ücret kuralı, kodla selam,
+ev sahibi kararı, erişim kodu) · perq dev, grup başına 40 soru.
+
+| Köprü | Blokta: tek TR · tek yabancı · çok sorulu | Cevap düzeyi (sayılı cevap): tek TR · tek yabancı · çok sorulu | Bilgim-yok | Kırmızı aday |
+|---|---|---|---|---|
+| kapalı | 39 · 39 · 38 / 40 | 10/13 · 11/13 · 21/25 | 3 | 1 |
+| **açık** | **40 · 40 · 40 / 40** | 10/13 · **12/13** · **22/25** | 4 | 3 |
+
+Kırmızı adayların tek tek incelemesi (kaynak metinle):
+- kapalı · `d_building_4` — cevap doğru ("-1. kattaki … 3F Depo"); ölçer "-1." sıra sayısını "1. kat" okuyor → **ölçer yanlış alarmı**.
+- açık · `multi_33` — cevap doğru (İngilizce kalemin çevirisi); ölçer "Lale Evleri 4'e gece dönüş"ü "4 gece" süresi okuyor → **ölçer yanlış alarmı**.
+- açık · `d_restaurants_6` (başka olgu) — evdeki internet hızını ek bilgi olarak vermiş; doğru ve soruyla ilgili → sorun değil.
+- açık · `d_restaurants_0` — **GERÇEK HATA (cevap modeli):** kalem "hafta sonu 10.00'dan önce gitmezseniz sıra bekleyebiliyorsunuz";
+  cevap "Hafta sonu 10.00'dan önce sıra bekleyebiliyorsunuz; kalabalıksız bir saat aralığına dair kesin bilgi yok" — olumsuz koşulu ters
+  okumuş, istenen cevabı ("10'dan önce gidin") vermemiş. Bilgi blokta → getirme değil; aynı soru önceki iki koşuda kırmızı değildi (modelin
+  koşudan koşuya oynaması). Köprüye bağlanamaz (n = 1); "olumsuz koşul" cümleleri cevap istemi / ölçüm işine girdi.
+
+Sonuç: köprü getirmede tutarlı kazanç (üç grupta 40/40), cevapta +2; gerçek hata sayısı iki kolda 0 ↔ 1 ve o hata getirmeden bağımsız.
+Öneri değişmedi (anahtarı aç; kurucu + ilk denemeler). İki ölçer yanlış alarmı ayrıca düzeltilecek.
