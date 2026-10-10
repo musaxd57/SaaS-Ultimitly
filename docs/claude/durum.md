@@ -8,7 +8,14 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-08 gece (güncel):** Codex `15c8663` bulguları (U16–U44 + yeni 1–11) döngüde dört turda işlendi ve İTİLDİ (`87ba35d`; takip tablosu
+**10-10 gece (güncel, kurucu: "gece modu — soru sorma, Haiku'yu bol kullan"):** Haiku inceleme / tarama turları kodla doğrulanıp işlendi, hepsi
+kırmızı-önce + mutasyon + tam kapı ile İTİLDİ (CI yeşil): QR sır süzgecinde "kapı + aç-" biçimi + üç eski tuş paneli kalıbında KARESEL geri izleme
+(23.800 boşlukta 2,8 sn → 11 ms; dil eşitliği 2,9 milyon dizede doğrulandı) · operatör uçlarına operatör kimliğine bağlı hız sınırı (2FA sıfırlama,
+kalite denetimi, dışa aktarma, bürünme) · misafir sözü KVKK (silme / saklama / dışa aktarma) · değişmez 16 (kimlik parçalı her API rotası bir
+kiracılar arası davranışsal teste eşli, mekanik pin) · değişmez 10 (konuşma kopya temizliği QR ipliğini Airbnb ipliğine birleştiriyordu → kopya =
+aynı kanal). Kurucu kararı bekleyenler: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` 15–29 (Mülk Hafızası çelişki tanımı, uygulamada sağlayıcı adı,
+görev atama e-postası tavanı, önizleme kotası …). Railway hâlâ kapalı.
+**10-08 gece:** Codex `15c8663` bulguları (U16–U44 + yeni 1–11) döngüde dört turda işlendi ve İTİLDİ (`87ba35d`; takip tablosu
 `docs/INCELEME-2026-10-07-codex-u16-u44.md`, her bulguda regresyon testi, yarışlar gerçek PostgreSQL'de). Kimlik yarışları (U13/U40/U41/U43/U44),
 silinen metnin gönderimi (Y1), özgün mesaj kaybı (Y2), tehlike okuyucu (U3), takvim / CSV / ICS / gün başı / rapor / sağlık düzeltmeleri, ölçer
 düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen beş değişiklik HAZIR YAMA (`docs/hazir-yamalar/`, ana dala UYGULANMADI)
