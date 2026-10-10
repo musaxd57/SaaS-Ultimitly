@@ -552,7 +552,8 @@ function extract(text: string, raw: string): Claim[] {
   // EKSİ İŞARETLİ KAT (10-10, kurucu: "-1. kat ile 1. kat aynı değil"): bodrum katı KENDİ işaretli iddiasıdır — "-1. kat" ↔ "-1 kattaki"
   // desteklenir, "-1. kat" ↔ "1. kat" (iki yönde) DESTEKLENMEZ. Yalnız sözcük önünde OLMAYAN eksi ve eksiden sonra hemen rakam: aralık
   // ("3-4. kat", "B-3. kat") ve ayraç ("3 kat - 2 oda") eksi kat değildir. Sonek serbest ("kattaki", "katında"); "-1st floor", "floor -1".
-  take(/(?<!\w)[-\u2212](\d{1,2})(?:\.|st|nd|rd|th)?\s?(?:kat[a-z]*|floors?)\b|\b(?:kat|floor)\s[-\u2212](\d{1,2})\b/g, (m) => {
+  // Unicode eksi / tireler `foldForClaims`ta "-" olur.
+  take(/(?<!\w)-(\d{1,2})(?:\.|st|nd|rd|th)?\s?(?:kat[a-z]*|floors?)\b|\b(?:kat|floor)\s-(\d{1,2})\b/g, (m) => {
     const n = +(m[1] ?? m[2]);
     return { cls: "floor", keys: [`n${n}`], tkeys: [`floor|-${n}`], raw: m[0] };
   });
