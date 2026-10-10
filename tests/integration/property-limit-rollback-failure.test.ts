@@ -7,6 +7,9 @@ import type { SessionPayload } from "@/lib/auth";
 // a failed rollback left the org OVER its plan limit while the user was told a
 // definitive 403 "limit reached". A failed rollback must surface as a 500 and
 // be reported, never swallowed.
+// 10-10: the delete-based reconciliation is GONE (count + create now run in ONE transaction under the Organization row
+// lock — the old shape overshot under load). The invariant stays: a failure inside the transaction surfaces as a 500 and
+// is reported, and the half-done insert is ROLLED BACK (no overflow row, no lying 403).
 //
 // ISOLATED FILE on purpose: vi.spyOn on Prisma's proxy-backed model delegates
 // does not restore reliably (known poisoning issue) — nothing else runs here.
@@ -58,15 +61,19 @@ describe("property-limit reconciliation rollback failure", () => {
     expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(1);
   });
 
-  it("failed rollback delete → 500 + reported, NOT a lying 403", async () => {
-    await prisma.property.create({ data: { organizationId: orgId, name: "Mevcut" } });
-    vi.spyOn(prisma.property, "delete").mockRejectedValue(new Error("conn reset"));
+  it("failure INSIDE the transaction (after the insert) → 500 + reported, and the insert is ROLLED BACK", async () => {
+    // The insert runs, then the transaction fails (connection reset at commit time): nothing may persist.
+    const real = prisma.$transaction.bind(prisma) as (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
+    vi.spyOn(prisma, "$transaction").mockImplementation(((fn: (tx: unknown) => Promise<unknown>) =>
+      real(async (tx) => {
+        await fn(tx);
+        throw new Error("conn reset");
+      })) as never);
 
-    const res = await POST(req("Taşan"), noCtx);
+    const res = await POST(req("Yeni"), noCtx);
 
-    expect(res.status).toBe(500); // old code: definitive 403 while the row silently remained
+    expect(res.status).toBe(500); // never a definitive 201 / 403 the server cannot stand behind
     expect(vi.mocked(reportError)).toHaveBeenCalled();
-    // The inconsistent row really is still there — which is exactly why a 403 would lie.
-    expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(2);
+    expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(0);
   });
 });
