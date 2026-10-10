@@ -315,7 +315,8 @@ const UNIT_FAMILIES: { cls: ClaimClass; long: string[]; short: string[] }[] = [
   {
     cls: "distance",
     // Merdiven basamağı (10-10): "52 iç merdiven basamağı" = "52 steps / stairs" — sayı ile birim arasına yalnız adet / iç / dış / merdiven girebilir.
-    long: ["kilometre", "kilometers?", "metrelik", "metre", "meters?", "metres?", "miles?", "adim", "steps", "stairs?", "(?:adet )?(?:(?:ic|dis) )?(?:merdiven )?basama"],
+    // "basamaklı" birim DEĞİL ("6 basamaklı şifre" = kodun hane sayısı; Haiku incelemesi) → çıplak sayı.
+    long: ["kilometre", "kilometers?", "metrelik", "metre", "meters?", "metres?", "miles?", "adim", "steps", "stairs?", "(?:adet )?(?:(?:ic|dis) )?(?:merdiven )?basama(?!kl)"],
     short: ["km", "m", "mi"],
   },
   {
@@ -549,7 +550,8 @@ function extract(text: string, raw: string): Claim[] {
   );
 
   // Eksi işaretli kat ("-1. kat" = bodrum) sıra sayısı "1. kat" DEĞİLDİR (10-10, cevap ölçüsü yanlış alarmı) → çıplak sayı olarak okunur.
-  take(/(?<!-)\b(\d{1,2})(?:\.|st|nd|rd|th)\s?(?:kat|floor)/g, (m) => ({ cls: "floor", keys: [`n${+m[1]}`], tkeys: [`floor|${+m[1]}`], raw: m[0] }));
+  // Yalnız sözcük önünde OLMAYAN eksi: aralık ("3-4. kat", "B-3. kat") ikinci kat iddiasını korur (Haiku incelemesi).
+  take(/(?<!(?<!\w)-)\b(\d{1,2})(?:\.|st|nd|rd|th)\s?(?:kat|floor)/g, (m) => ({ cls: "floor", keys: [`n${+m[1]}`], tkeys: [`floor|${+m[1]}`], raw: m[0] }));
 
   // Gizli-benzeri anahtar sözcükten sonraki kod (belirteçte rakam ya da tırnak şart).
   const KW =

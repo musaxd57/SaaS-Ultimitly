@@ -20,6 +20,11 @@ describe("iddia ölçümü — düşmanca misafir metninde sınırlı süre", ()
     ["rakamsız tireli dizi", "a-".repeat(25000)],
     ["anahtar sözcük + uzun boşluk", "\u015fifre" + " ".repeat(50000) + ","],
     ["sonda tek rakamlı tireli dizi", "a-".repeat(25000) + "1"],
+    // 10-10 (Haiku incelemesi): merdiven basamağı / üleştirme eki / eksi işaretli kat yolları.
+    ["rakam-tire dizisi + kat", "1-".repeat(25000) + "kat"],
+    ["tekrarlanan 'adet' öneki", "1 " + "adet ".repeat(10000) + "basamak"],
+    ["tekrarlanan üleştirme eki", "1'er".repeat(12500)],
+    ["tekrarlanan 'iç merdiven'", "52 " + "iç merdiven ".repeat(4000) + "basamağı"],
   ])("%s (50.000 karakter) → 150 ms altında", (_ad, guest) => {
     auditClaimsSafe("Kapı kodu 1234.", { facts: [], operator: [], guest: ["a"] }); // ısınma
     expect(ms(() => auditClaimsSafe("Kapı kodu 1234, saat 15:00, 100 TL.", { facts: [], operator: [], guest: [guest] }))).toBeLessThan(150);

@@ -193,3 +193,18 @@ describe("🚨 hâl eki birimi koparır · eksi işaretli kat sıra sayısı de�
     expect(u("Daire 1. katta.", ctx("Daire 1 numaralı kapıda, 3. katta."))).toBe(1);
   });
 });
+
+describe("🚨 Haiku incelemesi (10-10): 'basamaklı' hane sayısıdır · kat ARALIĞI korunur", () => {
+  it("'6 basamaklı şifre' adım / basamak SAYILMAZ (kapı kodunun hane sayısı) — eski davranış: değerle eşleşir", () => {
+    expect(u("Kapı şifresi 6 basamaklı.", ctx("Kapı şifresi 6 haneli bir koddur."))).toBe(0);
+    expect(auditClaims("Kapı şifresi 6 basamaklı.", ctx("Kapı şifresi 6 haneli bir koddur.")).uc).not.toContain("distance");
+    expect(u("Kapı şifresi 8 basamaklı.", ctx("Kapı şifresi 6 haneli bir koddur."))).toBe(1);
+  });
+
+  it("kat aralığında ikinci kat iddiası KORUNUR ('3-4. katlarda', 'B-3. kat'); yalnız sözcük önünde olmayan eksi bodrumdur", () => {
+    expect(u("Daireler 3-4. katlarda.", ctx("Daireler 3. katta."))).toBe(1);
+    expect(u("Daireler 3-4. katlarda.", ctx("Daireler 3. ve 4. katlarda."))).toBe(0);
+    expect(u("Daire B-3. katta.", ctx("Daire B blok 2. katta."))).toBe(1);
+    expect(u("Daire B-3. katta.", ctx("Daire B blok 3. katta."))).toBe(0);
+  });
+});
