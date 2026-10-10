@@ -805,6 +805,11 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await opsAlarm.fail("email-outbox", "scheduled-sync email-outbox", err);
       }
 
+      // Deneme kimliği (kurucu onayı 10-10): anahtar açıldığında açılış ANI ve BİR KEZ geri doldurma — HER geçişte (saatlik değil: açılış
+      // anından önce eklenen takvim muaf sayılır, gecikme o pencereyi bir saate kadar açardı). İşaret varken tek indeksli okuma; anahtar
+      // kapalıyken sorgusuz no-op; asla fırlatmaz.
+      await backfillTrialIdentitiesOnce();
+
       // KVKK retention sweep — anonymize guest PII for long-past stays. No-op
       // unless DATA_RETENTION_MONTHS is set; runs at most once per deep window so
       // it never burdens the frequent narrow passes. Best-effort, never aborts.
@@ -865,12 +870,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await hourly("automated-send-purge", "scheduled-sync automated-send-purge", () => purgeAutomatedSends(prisma));
         // Alarm durum satırlarının kendisi: 30 gündür dokunulmamış (sahibi silinmiş org vb.).
         await hourly("alert-state-sweep", "scheduled-sync alert-state-sweep", () => sweepStaleAlertStates());
-        // Deneme kimliği (kurucu onayı 10-10): sahibi silinmiş + 24 ayı geçmiş izler silinir; anahtar açıldığında BİR KEZ geri doldurma
-        // (mevcut hesapların ilan + takvim kimlikleri yalnız kaydedilir, kimsenin denemesi bitmez).
-        await hourly("trial-identity", "scheduled-sync trial-identity", async () => {
-          await sweepTrialIdentities();
-          await backfillTrialIdentitiesOnce();
-        });
+        // Deneme kimliği (kurucu onayı 10-10): sahibi silinmiş + 24 ayı geçmiş izler silinir (geri doldurma ↑ her geçişte).
+        await hourly("trial-identity", "scheduled-sync trial-identity", () => sweepTrialIdentities());
       }
       return totals;
     } finally {

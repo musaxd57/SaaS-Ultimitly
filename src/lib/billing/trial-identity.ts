@@ -66,6 +66,19 @@ export function channelListingIdentityKey(provider: string, externalId: string):
   return platform ? otaListingKey(platform, externalId) : null;
 }
 
+/** Rezervasyon kanalının bilinen alan adı uzantıları (kapalı küme; eksik uzantı yalnız kuralı devre dışı bırakır). */
+const AIRBNB_SUFFIXES = new Set([
+  "com", "com.tr", "co.uk", "de", "fr", "es", "it", "nl", "ie", "ch", "at", "be", "pt", "gr", "pl", "se", "dk", "no", "fi", "cz", "hu",
+  "ru", "ca", "com.au", "co.nz", "jp", "co.kr", "com.br", "mx", "com.mx", "com.ar", "cl", "co.in", "com.sg", "com.hk", "ae", "co.za",
+]);
+const VRBO_SUFFIXES = new Set(["com", "co.uk", "de", "fr", "es", "it", "nl", "pt", "ca", "com.au", "com.br", "com.mx"]);
+
+/** `host` = isteğe bağlı `www.` / dil alt alanı + `<marka>.<listedeki uzantı>`. */
+function otaHostMatches(host: string, brand: string, suffixes: ReadonlySet<string>): boolean {
+  const m = /^(?:(?:www|[a-z]{2})\.)?([a-z]+)\.([a-z.]+)$/.exec(host);
+  return Boolean(m && m[1] === brand && suffixes.has(m[2]));
+}
+
 /**
  * iCal adresinden kimlik — YALNIZ tanınan rezervasyon kanalının takvimi (Haiku incelemesi: herkese açık ortak takvim — resmî tatiller vb. —
  * iki ev sahibinde ortak olabilir, kimlik SAYILMAZ):
@@ -84,8 +97,9 @@ export function icalIdentityKey(rawUrl: string): TrialIdentityKey | null {
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   const host = u.hostname.toLowerCase();
   const path = u.pathname.replace(/\/+$/, "");
-  // Alan adı SIKI (kendi testimiz: `airbnb.com.evil.example` Airbnb sayılmamalı): isteğe bağlı tek alt alan + airbnb + ülke uzantısı.
-  if (/^(?:[a-z]{2,3}\.)?airbnb\.(?:com|[a-z]{2})(?:\.[a-z]{2})?$/.test(host)) {
+  // Alan adı SIKI + KAPALI uzantı listesi (kendi testimiz `airbnb.com.evil.example`, Haiku `airbnb.io`): listede olmayan uzantı → kimlik
+  // yok (kural işlemez; meşru müşteri hiçbir zaman yanlış yere düşmez).
+  if (otaHostMatches(host, "airbnb", AIRBNB_SUFFIXES)) {
     const m = /\/calendar\/ical\/(\d{1,20})(?:\.ics)?$/i.exec(path);
     return m ? otaListingKey("airbnb", m[1]) : null;
   }
@@ -93,7 +107,7 @@ export function icalIdentityKey(rawUrl: string): TrialIdentityKey | null {
     const t = u.searchParams.get("t")?.trim();
     return t && /^[A-Za-z0-9_-]{8,128}$/.test(t) ? { type: "ota_calendar", value: `booking:${t}` } : null;
   }
-  if (/^(?:[a-z0-9-]+\.)*(?:vrbo|homeaway)\.(?:com|[a-z]{2})(?:\.[a-z]{2})?$/.test(host)) {
+  if (otaHostMatches(host, "vrbo", VRBO_SUFFIXES) || otaHostMatches(host, "homeaway", VRBO_SUFFIXES)) {
     const m = /\/icalendar\/([A-Za-z0-9]{8,128})\.ics$/i.exec(path);
     return m ? { type: "ota_calendar", value: `vrbo:${m[1]}` } : null;
   }
@@ -128,8 +142,8 @@ export async function recordTrialIdentities(
   organizationId: string,
   keys: readonly (TrialIdentityKey | null)[],
   opts: { enforce?: boolean; now?: Date } = {},
-): Promise<{ reused: boolean; trialEnded: boolean }> {
-  if (!trialIdentityEnabled()) return { reused: false, trialEnded: false };
+): Promise<{ reused: boolean; trialEnded: boolean; ok: boolean }> {
+  if (!trialIdentityEnabled()) return { reused: false, trialEnded: false, ok: true };
   const now = opts.now ?? new Date();
   // Anahtar açıldıktan sonraki İLK kayıt: önce mevcut hesapların geri doldurması (Haiku incelemesi — yoksa saatlik iş koşana kadar yeni
   // hesap "ilk" sayılırdı). Geri doldurmanın kendi çağrıları `enforce: false` taşır → özyineleme yok.
@@ -149,23 +163,36 @@ export async function recordTrialIdentities(
       // Aynı hesap kendi kimliğini yeniden bağlıyor → kullanım değil. Başka hesap (ya da SİLİNMİŞ hesap: null) → yeniden kullanım.
       if (existing.firstOrganizationId !== organizationId) reused = true;
     }
-    if (!reused || opts.enforce === false) return { reused, trialEnded: false };
-    return { reused, trialEnded: await endTrialForReusedIdentity(organizationId, now) };
+    if (!reused || opts.enforce === false) return { reused, trialEnded: false, ok: true };
+    return { reused, trialEnded: await endTrialForReusedIdentity(organizationId, now), ok: true };
   } catch (err) {
+    // `ok: false` → çağıran yeniden denenebilir kalır (takvim kaynağının "sayıldı" işareti geri alınır; Haiku: sessiz kayıp).
     void reportError(`trial-identity org=${organizationId}`, err);
-    return { reused, trialEnded: false };
+    return { reused, trialEnded: false, ok: false };
   }
+}
+
+/** Anahtarın İLK açıldığı an (SystemLock satırı; `lockedUntil` bu ANI taşır, hiç güncellenmez — ilk gözlem kazanır). */
+export const TRIAL_IDENTITY_ENABLED_AT_MARKER = "trial-identity-enabled-at";
+
+/** Açılış anını oku; yoksa `now` ile yaz (yarışsız: çakışmada sessiz ekleme, sonra okunan değer herkes için aynı). */
+async function trialIdentityEnabledAt(now: Date): Promise<Date> {
+  await prisma.systemLock.createMany({ data: [{ name: TRIAL_IDENTITY_ENABLED_AT_MARKER, lockedUntil: now }], skipDuplicates: true });
+  const row = await prisma.systemLock.findUnique({ where: { name: TRIAL_IDENTITY_ENABLED_AT_MARKER }, select: { lockedUntil: true } });
+  return row?.lockedUntil ?? now;
 }
 
 /**
  * 🚨 TAKVİM KİMLİĞİ YALNIZ GERÇEK OKUMADA SAYILIR (kendi incelememiz 10-10): Airbnb ilan numarası herkese açıktır; kimlik eklemede sayılsaydı
  * biri sahte jetonlu bir adresle başkasının ilanını önceden "kapar", gerçek sahip kaydolunca denemesi biterdi. Senkron, sunucu GEÇERLİ bir
  * takvim döndürdüğünde (doğru jeton = takvimin sahibi) bunu çağırır. Kaynak başına BİR KEZ (`trialIdentityCheckedAt` koşullu yazımı —
- * yarışsız): sonraki senkronlar tekrar saymaz, anahtar açılmadan önce iki hesapta zaten bulunan takvim her senkronda cezalandırılmaz.
+ * yarışsız; kayıt başarısız olursa işaret GERİ ALINIR, sonraki senkron yeniden dener).
+ * 🚨 ANAHTARDAN ÖNCE EKLENMİŞ TAKVİM MUAFTIR (Haiku incelemesi): yalnız kayda geçer, kimsenin denemesini bitirmez — anahtar açıldığı an
+ * hata durumunda olup sonra düzelen eski takvim de dahil. Ceza yalnız anahtar açıldıktan SONRA eklenen takvimin okunmasında.
  * Asla fırlatmaz.
  */
 export async function recordVerifiedCalendarIdentity(
-  sourceId: string,
+  source: { id: string; createdAt: Date },
   organizationId: string,
   feedUrl: string,
   now: Date = new Date(),
@@ -175,15 +202,20 @@ export async function recordVerifiedCalendarIdentity(
   const key = icalIdentityKey(feedUrl);
   if (!key) return none;
   try {
-    // Önce geri doldurma: anahtar açılmadan önce okunmuş takvimler (bu kaynak dahil) kayda geçer, işaretlenir → bu kaynak eskiyse aşağıdaki
-    // koşullu yazım boşa düşer (ceza yok); yeniyse ilk kez sayılır.
+    const enabledAt = await trialIdentityEnabledAt(now);
+    // Önce geri doldurma: anahtar öncesi kimlikler (en eski hesap ilk) kayda geçer.
     await backfillTrialIdentitiesOnce(now);
     const claimed = await prisma.calendarSource.updateMany({
-      where: { id: sourceId, trialIdentityCheckedAt: null },
+      where: { id: source.id, trialIdentityCheckedAt: null },
       data: { trialIdentityCheckedAt: now },
     });
     if (claimed.count === 0) return none;
-    return await recordTrialIdentities(organizationId, [key], { now });
+    const res = await recordTrialIdentities(organizationId, [key], { now, enforce: source.createdAt >= enabledAt });
+    if (!res.ok) {
+      await prisma.calendarSource.updateMany({ where: { id: source.id, trialIdentityCheckedAt: now }, data: { trialIdentityCheckedAt: null } });
+      return none;
+    }
+    return { reused: res.reused, trialEnded: res.trialEnded };
   } catch (err) {
     void reportError(`trial-identity calendar org=${organizationId}`, err);
     return none;
@@ -228,44 +260,72 @@ export async function markTrialIdentitiesOrphaned(
 /** Geri doldurma işareti (SystemLock adı): tamamlanınca yazılır, bir daha koşmaz. */
 export const TRIAL_IDENTITY_BACKFILL_MARKER = "trial-identity-backfill-v1";
 
+/** U37 düzeltmesinden (10-08) önceki okuma "ok"u güvenilmez (HTML hata gövdesi "ok" yazılabiliyordu) → geri doldurma onları saymaz. */
+const TRUSTED_READ_SINCE = new Date("2026-10-08T00:00:00Z");
+
 /**
- * İLK AÇILIŞ GERİ DOLDURMASI: anahtar açıldığında mevcut kuruluşların ilan + takvim kimliklerini BİR KEZ kaydeder — yoksa anahtar açılmadan
- * önce bağlanmış bir ilanla yeni hesap açan kişi "ilk" sayılırdı. En eski kuruluş önce (ilk görülen hak sahibi odur). YALNIZ KAYDEDER:
- * kimsenin denemesi bitirilmez (`enforce: false`). Takvim adresi okunamayan satır atlanır. Asla fırlatmaz.
+ * İLK AÇILIŞ GERİ DOLDURMASI: anahtar açıldığında, açılıştan ÖNCE var olan ilan eşlemelerini ve GÜVENİLİR okunmuş takvimleri BİR KEZ kaydeder
+ * — yoksa anahtar öncesi bağlanmış bir ilanla yeni hesap açan kişi "ilk" sayılırdı. En eski kuruluş önce (ilk görülen hak sahibi odur).
+ * YALNIZ KAYDEDER (`enforce: false`). İşletme başına hata yalıtımı (biri bozuksa diğerleri yine kaydedilir; sayı operatöre bildirilir);
+ * takvim yalnız kaydı BAŞARILI olunca "sayıldı" işaretlenir. Asla fırlatmaz.
  */
 export async function backfillTrialIdentitiesOnce(now: Date = new Date()): Promise<"off" | "skipped" | "done"> {
   if (!trialIdentityEnabled()) return "off";
   try {
     if (await prisma.systemLock.findUnique({ where: { name: TRIAL_IDENTITY_BACKFILL_MARKER }, select: { name: true } })) return "skipped";
+    const enabledAt = await trialIdentityEnabledAt(now);
     const { getCalendarSourceUrl } = await import("@/lib/calendar-source-url-core");
     const orgs = await prisma.organization.findMany({ orderBy: { createdAt: "asc" }, select: { id: true } });
     let unreadable = 0;
+    let failedOrgs = 0;
     for (const org of orgs) {
-      const listings = await prisma.channelListing.findMany({
-        where: { organizationId: org.id },
-        select: { externalId: true, connection: { select: { provider: true } } },
-      });
-      // Yalnız en az bir kez BAŞARIYLA okunmuş takvim (bkz. `recordVerifiedCalendarIdentity`); hiç okunmamış kaynak ilk gerçek okumasında sayılır.
-      const sources = await prisma.calendarSource.findMany({
-        where: { property: { organizationId: org.id }, trialIdentityCheckedAt: null, lastStatus: { in: ["ok", "partial"] } },
-        select: { url: true, urlEnc: true, urlKeyFp: true, id: true },
-      });
-      const keys: (TrialIdentityKey | null)[] = listings.map((l) => channelListingIdentityKey(l.connection.provider, l.externalId));
-      const checked: string[] = [];
-      for (const s of sources) {
-        const resolved = getCalendarSourceUrl(s, org.id);
-        if (resolved.ok) {
-          keys.push(icalIdentityKey(resolved.url));
-          checked.push(s.id);
-        } else unreadable += 1;
-      }
-      if (keys.length > 0) await recordTrialIdentities(org.id, keys, { enforce: false, now });
-      if (checked.length > 0) {
-        await prisma.calendarSource.updateMany({ where: { id: { in: checked }, trialIdentityCheckedAt: null }, data: { trialIdentityCheckedAt: now } });
+      try {
+        const listings = await prisma.channelListing.findMany({
+          where: { organizationId: org.id, createdAt: { lt: enabledAt } },
+          select: { externalId: true, connection: { select: { provider: true } } },
+        });
+        // Yalnız GÜVENİLİR okunmuş takvim (bkz. `recordVerifiedCalendarIdentity`); okunmamış eski kaynak ilk gerçek okumasında muaf kaydolur.
+        const sources = await prisma.calendarSource.findMany({
+          where: {
+            property: { organizationId: org.id },
+            createdAt: { lt: enabledAt },
+            trialIdentityCheckedAt: null,
+            lastStatus: { in: ["ok", "partial"] },
+            lastSyncedAt: { gte: TRUSTED_READ_SINCE },
+          },
+          select: { url: true, urlEnc: true, urlKeyFp: true, id: true },
+        });
+        const keys: (TrialIdentityKey | null)[] = listings.map((l) => channelListingIdentityKey(l.connection.provider, l.externalId));
+        const checked: string[] = [];
+        for (const src of sources) {
+          const resolved = getCalendarSourceUrl(src, org.id);
+          if (resolved.ok) {
+            keys.push(icalIdentityKey(resolved.url));
+            checked.push(src.id);
+          } else unreadable += 1;
+        }
+        if (keys.length === 0) continue;
+        const res = await recordTrialIdentities(org.id, keys, { enforce: false, now });
+        if (!res.ok) {
+          failedOrgs += 1;
+          continue;
+        }
+        if (checked.length > 0) {
+          await prisma.calendarSource.updateMany({ where: { id: { in: checked }, trialIdentityCheckedAt: null }, data: { trialIdentityCheckedAt: now } });
+        }
+      } catch (err) {
+        failedOrgs += 1;
+        void reportError(`trial-identity backfill org=${org.id}`, err);
       }
     }
-    // Takvim adresi okunamayan kaynak sessizce kaybolmasın (Haiku incelemesi): işaret yine yazılır ama operatör haberdar olur.
-    if (unreadable > 0) void reportError("trial-identity backfill", new Error(`${unreadable} takvim kaynağının adresi okunamadı — kimliği kaydedilmedi`));
+    // Sessiz kayıp yok (Haiku incelemesi): işaret yine yazılır (bozuk bir işletme her çağrıda bütün taramayı yeniden koşturmasın) ama
+    // operatör haberdar olur. Kaydedilemeyen eski takvim ilk gerçek okumasında muaf kaydolur.
+    if (unreadable > 0 || failedOrgs > 0) {
+      void reportError(
+        "trial-identity backfill",
+        new Error(`${failedOrgs} işletme kaydedilemedi, ${unreadable} takvim adresi okunamadı`),
+      );
+    }
     await prisma.systemLock.createMany({ data: [{ name: TRIAL_IDENTITY_BACKFILL_MARKER, lockedUntil: new Date("9999-12-31T00:00:00Z") }], skipDuplicates: true });
     return "done";
   } catch (err) {

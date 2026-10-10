@@ -292,7 +292,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
 
   // Deneme kimliği (kurucu onayı 10-10; anahtar KAPALIYKEN hiçbir şey yazmaz, asla fırlatmaz): sunucu GERÇEK bir takvim döndürdü = bu hesap
   // takvimin jetonuna sahip. Kimlik burada, kaynak başına bir kez sayılır (eklemede değil — bkz. `recordVerifiedCalendarIdentity`).
-  if ((await recordVerifiedCalendarIdentity(source.id, source.property.organizationId, feedUrl)).trialEnded) result.trialEnded = true;
+  if ((await recordVerifiedCalendarIdentity(source, source.property.organizationId, feedUrl)).trialEnded) result.trialEnded = true;
 
   // 🚨 F16 (09-26): okuma EKSİKSE (tavan, tekrarlayan etkinlik, okunamayan kayıt, yarım dosya…) okunan
   // satırlar yine yazılır (gerçek olgular) ve açık STATUS:CANCELLED yine işlenir (belirli bir UID'nin

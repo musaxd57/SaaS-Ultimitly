@@ -25,6 +25,7 @@ import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { POST as exemptPost } from "@/app/api/admin/trial-identity-exempt/route";
 import {
   TRIAL_IDENTITY_BACKFILL_MARKER,
+  TRIAL_IDENTITY_ENABLED_AT_MARKER,
   TRIAL_IDENTITY_REUSED_MESSAGE,
   backfillTrialIdentitiesOnce,
   hashTrialIdentity,
@@ -32,6 +33,7 @@ import {
   icalIdentityKey,
   otaListingKey,
   recordTrialIdentities,
+  recordVerifiedCalendarIdentity,
   sweepTrialIdentities,
 } from "@/lib/billing/trial-identity";
 import { recordChannelListings } from "@/lib/channels/metadata";
@@ -82,6 +84,11 @@ async function syncIcal(orgId: string, id: string, feed: string = VALID_ICS) {
   return (await res.json()) as { trialNotice?: string; errors: string[] };
 }
 const sub = (orgId: string) => prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+/** Anahtar HİÇ açılmamış duruma dön (açılış anı + geri doldurma işaretleri silinir). */
+async function flagNeverOn() {
+  vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+  await prisma.systemLock.deleteMany({ where: { name: { in: [TRIAL_IDENTITY_BACKFILL_MARKER, TRIAL_IDENTITY_ENABLED_AT_MARKER] } } });
+}
 
 describe("kimlik anahtarları (saf)", () => {
   it("Airbnb takvimi ilan numarasıyla tanınır — jeton / alan adı uzantısı / www / .ics / sondaki eğik çizgi / baştaki sıfır değişse de AYNI kimlik", () => {
@@ -90,6 +97,8 @@ describe("kimlik anahtarları (saf)", () => {
     expect(icalIdentityKey("https://airbnb.com/calendar/ical/123456789.ics?s=bbb")).toEqual(a);
     expect(icalIdentityKey("https://www.airbnb.de/calendar/ical/123456789.ics")).toEqual(a);
     expect(icalIdentityKey("https://www.airbnb.com/calendar/ical/0123456789/")).toEqual(a);
+    expect(icalIdentityKey("https://www.airbnb.co.uk/calendar/ical/123456789.ics?s=1")).toEqual(a);
+    expect(icalIdentityKey("https://tr.airbnb.com/calendar/ical/123456789.ics?s=1")).toEqual(a);
     expect(icalIdentityKey("https://www.airbnb.com/calendar/ical/123456780.ics")).not.toEqual(a);
     expect(icalIdentityKey("https://www.airbnb.com/rooms/123456789")).toBeNull();
   });
@@ -101,12 +110,17 @@ describe("kimlik anahtarları (saf)", () => {
     expect(icalIdentityKey("https://admin.booking.com/hotel/hoteladmin/ical.html?t=zzz99999-XY")).not.toEqual(b);
     expect(icalIdentityKey("https://admin.booking.com/hotel/hoteladmin/ical.html")).toBeNull();
     expect(icalIdentityKey("http://www.vrbo.com/icalendar/0a1b2c3d4e5f6789.ics")).toEqual({ type: "ota_calendar", value: "vrbo:0a1b2c3d4e5f6789" });
+    expect(icalIdentityKey("https://www.homeaway.co.uk/icalendar/0a1b2c3d4e5f6789.ics")).toEqual({ type: "ota_calendar", value: "vrbo:0a1b2c3d4e5f6789" });
   });
 
   it("🚨 tanınmayan takvim KİMLİK DEĞİLDİR (herkese açık ortak takvim iki ev sahibinde ortak olabilir); geçersiz → null", () => {
     expect(icalIdentityKey("https://calendar.google.com/calendar/ical/tr.turkish%23holiday%40group.v.calendar.google.com/public/basic.ics")).toBeNull();
     expect(icalIdentityKey("https://example.com/calendar/ical/123456789.ics")).toBeNull();
     expect(icalIdentityKey("https://airbnb.com.evil.example/calendar/ical/123456789.ics")).toBeNull();
+    // Kapalı uzantı listesi (Haiku): bilinmeyen iki harfli uzantı / alt alan zinciri kimlik değildir.
+    expect(icalIdentityKey("https://airbnb.io/calendar/ical/123456789.ics")).toBeNull();
+    expect(icalIdentityKey("https://evil.www.airbnb.com/calendar/ical/123456789.ics")).toBeNull();
+    expect(icalIdentityKey("https://vrbo.io/icalendar/0a1b2c3d4e5f6789.ics")).toBeNull();
     expect(icalIdentityKey("ftp://airbnb.com/calendar/ical/1.ics")).toBeNull();
     expect(icalIdentityKey("bozuk")).toBeNull();
   });
@@ -135,17 +149,20 @@ describe("kural (gerçek PostgreSQL)", () => {
     __resetRateLimit();
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
     vi.stubEnv("PRIMARY_ORG_ID", "");
+    // Anahtar çoktan açık + zamanlanmış geçiş koşmuş (açılış anı + geri doldurma işareti). Açıp kapatan testler `flagNeverOn` ile sıfırlar.
+    await backfillTrialIdentitiesOnce();
   });
   afterEach(() => vi.unstubAllEnvs());
 
   it("KONTROL: anahtar KAPALIYKEN hiçbir iz yazılmaz, deneme bitmez (bugünkü davranış)", async () => {
-    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    await flagNeverOn();
     const a = await trialOrg("A");
     const b = await trialOrg("B");
     await addIcal(a, AIRBNB("1"));
     expect((await addIcal(b, AIRBNB("2"))).trialNotice).toBeUndefined();
     expect(await prisma.trialIdentity.count()).toBe(0);
     expect(await prisma.calendarSource.count({ where: { trialIdentityCheckedAt: { not: null } } })).toBe(0);
+    expect(await prisma.systemLock.count({ where: { name: TRIAL_IDENTITY_ENABLED_AT_MARKER } })).toBe(0);
     expect((await sub(b.orgId)).trialEndReason).toBeNull();
   });
 
@@ -206,6 +223,9 @@ describe("kural (gerçek PostgreSQL)", () => {
     vi.stubEnv("PRIMARY_ORG_ID", founder.orgId);
     await addIcal(founder, AIRBNB("4"));
     expect((await sub(founder.orgId)).trialEndReason).toBeNull();
+    // Pozitif kontrol (Haiku: tespit bozuk olsa da yukarısı geçerdi): aynı ilanı bağlayan sıradan deneme hesabının denemesi biter.
+    const plain = await trialOrg("N");
+    expect((await addIcal(plain, AIRBNB("5"))).trialNotice).toBe(TRIAL_IDENTITY_REUSED_MESSAGE);
   });
 
   it("🚨 hesabı SİLİP yeniden açma: iz kalır (sahibi boşa çekilir, 24 ay silinme anından sayılır) → yeni hesabın denemesi biter", async () => {
@@ -237,7 +257,7 @@ describe("kural (gerçek PostgreSQL)", () => {
   });
 
   it("🚨 ilk açılış geri doldurması: mevcut hesapların kimlikleri YALNIZ kaydedilir (kimsenin denemesi bitmez), en eski hesap 'ilk'; bir kez koşar", async () => {
-    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    await flagNeverOn();
     const a = await trialOrg("A");
     await addIcal(a, AIRBNB("1"));
     const b = await trialOrg("B");
@@ -255,20 +275,37 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect((await sub(c.orgId)).trialEndReason).toBe("identity_reused");
   });
 
-  it("🚨 anahtar açıldıktan sonraki İLK kayıt geri doldurmayı ÖNCE koşar (saatlik işi beklemez): eski hesabın ilanını yeni hesap bağlarsa deneme biter", async () => {
-    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+  it("🚨 KONTROL: anahtar açıldığı an HATA durumundaki eski takvim sonra düzelip okunursa da ceza yok (anahtar öncesi eklenen takvim muaf); sonradan gelen yeni hesap cezalanır", async () => {
+    await flagNeverOn();
+    const a = await trialOrg("A");
+    await addIcal(a, AIRBNB("1"));
+    const b = await trialOrg("B");
+    const broken = await addIcal(b, AIRBNB("2"), "<html>zaman aşımı</html>");
+    expect(broken.errors.length).toBeGreaterThan(0);
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    expect(await backfillTrialIdentitiesOnce()).toBe("done"); // zamanlanmış geçiş: açılış anı + A kaydedilir, B (hata) atlanır
+    expect((await syncIcal(b.orgId, broken.id)).trialNotice).toBeUndefined();
+    expect((await sub(b.orgId)).trialEndReason).toBeNull();
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: broken.id } })).trialIdentityCheckedAt).not.toBeNull();
+    const c = await trialOrg("C");
+    expect((await addIcal(c, AIRBNB("3"))).trialNotice).toBe(TRIAL_IDENTITY_REUSED_MESSAGE);
+  });
+
+  it("🚨 anahtar açıldıktan sonra eklenen takvim, zamanlanmış geçiş henüz koşmadan okunsa da geri doldurma ÖNCE koşar: eski hesabın ilanını bağlayan yeni hesap cezalanır", async () => {
+    await flagNeverOn();
     const a = await trialOrg("A");
     await addIcal(a, AIRBNB("1"));
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    // Açılış anı gözlendi (ör. başka bir org'un senkronu) ama geri doldurma işareti yok — geri doldurmayı kayıt yolu tetikler.
+    await prisma.systemLock.create({ data: { name: TRIAL_IDENTITY_ENABLED_AT_MARKER, lockedUntil: new Date() } });
     const b = await trialOrg("B");
     expect((await addIcal(b, AIRBNB("2"))).trialNotice).toBe(TRIAL_IDENTITY_REUSED_MESSAGE);
-    expect((await sub(b.orgId)).trialEndReason).toBe("identity_reused");
     expect((await sub(a.orgId)).trialEndReason).toBeNull();
     expect(await prisma.systemLock.count({ where: { name: TRIAL_IDENTITY_BACKFILL_MARKER } })).toBe(1);
   });
 
-  it("🚨 KONTROL: anahtar açıldıktan sonraki İLK olay, iki hesapta zaten bulunan ESKİ takvimin yeniden okunmasıysa da ceza yok (geri doldurma kaynağı sayımdan ÖNCE işaretler)", async () => {
-    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+  it("🚨 KONTROL: anahtar açıldıktan sonraki İLK olay, iki hesapta zaten bulunan ESKİ takvimin yeniden okunmasıysa da ceza yok; en eski hesap 'ilk' kalır", async () => {
+    await flagNeverOn();
     const a = await trialOrg("A");
     await addIcal(a, AIRBNB("1"));
     const b = await trialOrg("B");
@@ -280,13 +317,15 @@ describe("kural (gerçek PostgreSQL)", () => {
   });
 
   it("KONTROL: anahtar açılmadan ÖNCE iki hesapta zaten bulunan ilan cezalandırılmaz (geri doldurma yalnız kaydeder); ilgisiz takvim eklemek denemeyi bitirmez", async () => {
-    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    await flagNeverOn();
     const a = await trialOrg("A");
     await addIcal(a, AIRBNB("1"));
     const b = await trialOrg("B");
     const old = await addIcal(b, AIRBNB("2"));
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
-    await addIcal(b, "https://www.airbnb.com/calendar/ical/555.ics?s=z");
+    await backfillTrialIdentitiesOnce(); // zamanlanmış geçiş
+    const fresh = await addIcal(b, "https://www.airbnb.com/calendar/ical/555.ics?s=z");
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: fresh.id } })).trialIdentityCheckedAt).not.toBeNull();
     // Zaten bulunan (anahtar öncesi okunmuş) takvimin sonraki okuması da cezalandırmaz.
     expect((await syncIcal(b.orgId, old.id)).trialNotice).toBeUndefined();
     expect((await sub(b.orgId)).trialEndReason).toBeNull();
@@ -309,7 +348,7 @@ describe("kural (gerçek PostgreSQL)", () => {
 
   it("KONTROL: anahtar öncesi iki hesapta bulunan ilanın aynı hesapta BAŞKA daireye yeniden eşlenmesi yeni kullanım sayılmaz", async () => {
     vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
-    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    await flagNeverOn();
     const a = await trialOrg("A");
     await link(a, "airbnb_direct", "123456789");
     const b = await trialOrg("B");
@@ -324,7 +363,7 @@ describe("kural (gerçek PostgreSQL)", () => {
 
   it("🚨 anahtar açıldıktan sonraki İLK olay doğrudan kanal ilanıysa da geri doldurma ÖNCE koşar: eski hesabın (iCal) ilanını bağlayan yeni hesabın denemesi biter", async () => {
     vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
-    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    await flagNeverOn();
     const a = await trialOrg("A");
     await addIcal(a, AIRBNB("1"));
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
@@ -332,6 +371,49 @@ describe("kural (gerçek PostgreSQL)", () => {
     await link(b, "airbnb_direct", "123456789");
     expect((await sub(b.orgId)).trialEndReason).toBe("identity_reused");
     expect((await sub(a.orgId)).trialEndReason).toBeNull();
+  });
+
+  it("🚨 geri doldurma yalnız açılış anından ÖNCEKİ ilan eşlemesini alır: açılıştan sonra bağlanan ilan (hesap daha eski olsa da) 'ilk' sayılmaz", async () => {
+    vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
+    await flagNeverOn();
+    const older = await trialOrg("Eski"); // daha ESKİ hesap — geri doldurmada önce işlenir
+    const a = await trialOrg("A");
+    await link(a, "airbnb_direct", "123456789"); // anahtar öncesi
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    await prisma.systemLock.create({ data: { name: TRIAL_IDENTITY_ENABLED_AT_MARKER, lockedUntil: new Date() } }); // açılış gözlendi, geri doldurma koşmadı
+    await link(older, "airbnb_direct", "123456789"); // anahtar sonrası
+    expect((await sub(older.orgId)).trialEndReason).toBe("identity_reused");
+    expect((await prisma.trialIdentity.findFirstOrThrow()).firstOrganizationId).toBe(a.orgId);
+  });
+
+  it("KONTROL: düzeltmeden (U37, 10-08) önceki 'başarılı' okuma güvenilmez — geri doldurma o takvimi kaydetmez", async () => {
+    await flagNeverOn();
+    const a = await trialOrg("A");
+    const old = await addIcal(a, AIRBNB("1"));
+    await prisma.calendarSource.update({ where: { id: old.id }, data: { lastSyncedAt: new Date("2026-10-01T00:00:00Z") } });
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    expect(await backfillTrialIdentitiesOnce()).toBe("done");
+    expect(await prisma.trialIdentity.count()).toBe(0);
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: old.id } })).trialIdentityCheckedAt).toBeNull();
+  });
+
+  it("🚨 aynı kaynağın EŞZAMANLI iki okuması kimliği bir kez sayar: tek not, tek denetim kaydı", async () => {
+    const a = await trialOrg("A");
+    await addIcal(a, AIRBNB("1"));
+    const b = await trialOrg("B");
+    asOwner(b.orgId);
+    const added = await addSource(
+      new NextRequest(`http://localhost/api/properties/${b.propertyId}/calendar-sources`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label: "Airbnb", url: AIRBNB("2") }),
+      }),
+      { params: Promise.resolve({ id: b.propertyId }) },
+    );
+    const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: ((await added.json()) as { id: string }).id } });
+    const results = await Promise.all([1, 2, 3].map(() => recordVerifiedCalendarIdentity(src, b.orgId, AIRBNB("2"))));
+    expect(results.filter((r) => r.trialEnded)).toHaveLength(1);
+    expect(await prisma.auditLog.count({ where: { organizationId: b.orgId, action: "trial.ended_identity_reused" } })).toBe(1);
   });
 
   it("🚨 KONTROL: köprü sağlayıcısının (Hospitable) mülk kimliği iz ÜRETMEZ — iki hesap aynı Hospitable mülk kimliğini bağlasa da deneme sürer", async () => {
@@ -349,7 +431,7 @@ describe("kural (gerçek PostgreSQL)", () => {
     const b = await trialOrg("B");
     const key = otaListingKey("airbnb", "1");
     await recordTrialIdentities(a.orgId, [key]);
-    expect(await recordTrialIdentities(b.orgId, [key], { enforce: false })).toEqual({ reused: true, trialEnded: false });
+    expect(await recordTrialIdentities(b.orgId, [key], { enforce: false })).toEqual({ reused: true, trialEnded: false, ok: true });
     expect((await sub(b.orgId)).trialEndReason).toBeNull();
   });
 });
@@ -360,6 +442,7 @@ describe("operatör: denemeyi geri ver", () => {
     __resetRateLimit();
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
     vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR_EMAIL);
+    await backfillTrialIdentitiesOnce();
   });
   afterEach(() => vi.unstubAllEnvs());
 

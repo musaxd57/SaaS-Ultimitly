@@ -148,6 +148,20 @@ describe("runScheduledSync — iCal (Kanal Takvimleri) bacağı", () => {
     expect(row.lastStatus).toBe("ok");
   });
 
+  // Deneme kimliği (kurucu onayı 10-10): anahtar açıkken HER geçiş açılış anını yazar ve geri doldurmayı bir kez koşar (saatlik değil —
+  // açılış anından önce eklenen takvim muaf sayılır, gecikme o pencereyi açardı). Kapalıyken hiçbir şey yazılmaz.
+  it("deneme kimliği: anahtar açıkken geçiş açılış anını + geri doldurma işaretini yazar; kapalıyken yazmaz", async () => {
+    await runScheduledSync();
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "trial-identity-" } } })).toBe(0);
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    await runScheduledSync();
+    expect(
+      (await prisma.systemLock.findMany({ where: { name: { startsWith: "trial-identity-" } }, select: { name: true } }))
+        .map((r) => r.name)
+        .sort(),
+    ).toEqual(["trial-identity-backfill-v1", "trial-identity-enabled-at"]);
+  });
+
   // ───────────────────────────────────────────────────────────────────────────
   // 2) KADANS. İki yön birden: taze kaynak ÇEKİLMEZ, bayat kaynak ÇEKİLİR.
   //    MUTASYON (koşulsuz yap → kırmızı): vade filtresindeki OR'u kaldırıp her
