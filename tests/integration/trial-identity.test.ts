@@ -295,6 +295,21 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect((await sub(b.orgId)).trialEndReason).toBe("identity_reused");
   });
 
+  it("KONTROL: anahtar öncesi iki hesapta bulunan ilanın aynı hesapta BAŞKA daireye yeniden eşlenmesi yeni kullanım sayılmaz", async () => {
+    vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    const a = await trialOrg("A");
+    await link(a, "airbnb_direct", "123456789");
+    const b = await trialOrg("B");
+    const conn = await prisma.channelConnection.create({ data: { organizationId: b.orgId, provider: "airbnb_direct", status: "active" } });
+    await recordChannelListings(b.orgId, conn.id, [{ externalId: "123456789", propertyId: b.propertyId }]);
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    const other = await prisma.property.create({ data: { organizationId: b.orgId, name: "B ikinci daire" } });
+    await recordChannelListings(b.orgId, conn.id, [{ externalId: "123456789", propertyId: other.id }]);
+    expect((await prisma.channelListing.findFirstOrThrow({ where: { connectionId: conn.id } })).propertyId).toBe(other.id);
+    expect((await sub(b.orgId)).trialEndReason).toBeNull();
+  });
+
   it("🚨 KONTROL: köprü sağlayıcısının (Hospitable) mülk kimliği iz ÜRETMEZ — iki hesap aynı Hospitable mülk kimliğini bağlasa da deneme sürer", async () => {
     vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
     const a = await trialOrg("A");
