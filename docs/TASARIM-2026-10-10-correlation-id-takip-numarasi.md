@@ -71,3 +71,27 @@ bul" içindir (etkiye dokunmaz, yalnız iz bırakır). İkisi birlikte kullanıl
 3. Migration (CheckoutConsent'e tek kolon + isteğe bağlı webhook olayına kolon) kabul mü? (Migration içeren push = taze yedek + onay.)
 4. Log deposu: Railway logları yeterli mi, yoksa numarayla aranabilir kalıcı bir log tablosu / harici servis mi? (Maliyet + KVKK saklama
    süresi kararı.)
+
+## 5. KURUCU KARARI (10-10) + seçilen log deposu
+
+1. **Kapsam:** önerildiği gibi — önce ödeme zinciri + hata bildirimi, sonra genel (bütün API + arka plan işleri).
+2. **Hata ekranı:** takip numarası gösterilir; metin (sade): **"Bir sorun oluştu. Destek ekibimize bu takip numarasıyla yazarak destek
+   alabilirsiniz: 7f3a91b2"** (kısa biçim ekranda, tamamı "kopyala" ile panoya).
+3. **Migration:** onaylandı (push öncesi taze yedek kuralı aynen).
+4. **Log deposu:** kurucu kalıcı logu tercih etti ("sürekli Railway'e bakmaktan iyi; sen de görebilirsin"), seçim bana bırakıldı + 🚨
+   **"güvenlik olarak çok gelişmiş olmalıyız, unutma."** → **SEÇİM: KALICI, YALNIZ-EKLE (append-only) OLAY GÜNLÜĞÜ TABLOSU** (Railway logları
+   kaybolur / aranması zor; harici log servisi yeni bir veri işleyen = KVKK + maliyet).
+
+**Güvenlik tasarımı (zorunlu, test-pinli olacak):**
+- **Ne yazılır:** her istek DEĞİL — yalnız anlamlı olaylar (ödeme zinciri adımları, hatalar, alarmlar, webhook sonuçları). Olay adı ve kaynak
+  KAPALI KÜME (serbest metin yok). Ek alanlar yalnız izinli anahtar listesinden (sayı / kimlik / kapalı küme). **Misafir mesajı, ad, telefon,
+  e-posta, parola, jeton, kart verisi ASLA** — tek yazıcı `logEvent()` yapısal redaksiyondan (`lib/redact.ts`) geçirir; uzunluk tavanı.
+- **Kim okur:** yalnız operatör (süper-admin allowlist + 2FA `mfa === true`, `isSuperAdmin` tek boğaz noktası); işletme kullanıcıları göremez.
+  Her görüntüleme / arama denetim kaydına (`AuditLog`) yazılır; arama hız sınırlı. Bürünme (impersonation) modunda okunamaz.
+- **Bütünlük:** uygulama yalnız EKLER; güncelleme yok; silme yalnız saklama süpürgesi ve hesap silmesi.
+- **Saklama (KVKK):** süre sınırlı (öneri 90 gün; ödeme / fatura olayları muhasebe gereği ayrı karar) → otomatik süpürge; hesap silinince o
+  işletmenin satırları silinir; dışa aktarımda (KVKK export) yer alır mı → avukat paketiyle karar.
+- **Kiracı izolasyonu:** satır `organizationId` taşır (nullable — sistem olayları); operatör ekranı işletme süzgeçli; API kapsam pini.
+- **Hacim / kötüye kullanım:** satır başı boyut tavanı + işletme başına dakikalık yazma tavanı (log seli tabloyu şişirmesin).
+- **Claude'un görmesi:** bu bulut ortamı canlı veritabanına BAĞLANMAZ (bağlanmamalı). Operatör ekranında numarayla arama + "JSON olarak
+  indir"; kurucu gerektiğinde dosyayı paylaşır. Doğrudan erişim istenirse ayrı karar (salt-okuma, IP kısıtlı, süreli).
