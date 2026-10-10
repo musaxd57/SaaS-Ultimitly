@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
+import { clearCheckoutPending } from "@/lib/billing/checkout-pending";
 import {
   getPaddleWebhookSecret,
   verifyPaddleSignature,
@@ -184,7 +185,7 @@ async function applySubscriptionEvent(
   // near-simultaneous past_due events (minutes vs a 14-day grace: immaterial).
   const existing = await prisma.subscription.findUnique({
     where: { organizationId },
-    select: { lastEventAt: true, pastDueSince: true, providerRef: true },
+    select: { lastEventAt: true, pastDueSince: true, providerRef: true, status: true },
   });
 
   const providerRef = str(data.id);
@@ -195,6 +196,18 @@ async function applySubscriptionEvent(
   // güncellemesi) yalnız kaydedilir: iki ödeme akışı açılıp olaylar ters sırada gelince ESKİ aboneliğin iptali, taze onay
   // kaydıyla kuruluşa bağlanıp yeni AKTİF aboneliği "iptal edildi" yazıyordu (Codex 3-7). Kayıtlı kimlik yoksa (ilk bağ) eski yol.
   if (existing?.providerRef && providerRef && existing.providerRef !== providerRef && status !== "active") return;
+  // 🚨 İKİNCİ AKTİF ABONELİK (kurucu onayı 10-10): kayıtlı abonelik İPTAL EDİLMEMİŞKEN farklı bir abonelik aktifleşiyor (ör. webhook gelmeden
+  // ikinci ödeme ekranında ikinci ödeme). Yeni abonelik yine yerine geçer (K4 — müşteri davranışı DEĞİŞMEZ) ama eskisi Paddle'da
+  // faturalanmaya devam edebilir → operatöre YENİ abonelik başına bir kez alarm (geçiş tabanlı; olay tekrarları yeniden uyarmaz).
+  if (existing?.providerRef && providerRef && existing.providerRef !== providerRef && status === "active" && existing.status !== "canceled") {
+    await alertOnTransition(
+      `paddle-webhook:second-subscription:${organizationId}:${providerRef}`,
+      "paddle-webhook-second-subscription",
+      new Error(
+        `İşletme ${organizationId}: kayıtlı abonelik ${existing.providerRef} (durum ${existing.status}) iptal edilmeden yeni abonelik ${providerRef} aktifleşti — iki abonelik birden faturalanıyor olabilir; Paddle panelinden eskisini kontrol edin`,
+      ),
+    );
+  }
 
   // First subscription item's price → plan code (env-mapped).
   let planCode: string | null = null;
@@ -276,6 +289,8 @@ async function applySubscriptionEvent(
   // an unrelated subscription event must not clear someone else's guard.
   const eventPriceId = eventPriceIdFromData(data);
   const settlePending = async () => {
+    // "Ödemeniz işleniyor" kilidi (kurucu onayı 10-10): abonelik AKTİF olarak yazıldı → yeni ödeme ekranı kilidi kalkar.
+    if (status === "active") await clearCheckoutPending(organizationId);
     // STRICT match only: the event must carry the pending TARGET price. A lock
     // without a matching event (incl. any legacy null-holder row) expires via
     // its 15-min TTL instead of being cleared by an unrelated event.

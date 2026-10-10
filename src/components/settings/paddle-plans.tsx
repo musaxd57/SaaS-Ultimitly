@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 import { formatMinor } from "@/lib/utils";
 import {
   BillingPeriodToggle,
@@ -107,6 +108,7 @@ export function PaddlePlans({
   plans,
   locale,
   currency,
+  checkoutPending = false,
 }: {
   clientToken: string;
   environment: "sandbox" | "production";
@@ -137,6 +139,9 @@ export function PaddlePlans({
    *  for the preview fallback, where no Paddle response is available to state it.
    *  When Paddle DOES answer, its own currency wins — see recurringTotal. */
   currency: string;
+  /** "Ödemeniz işleniyor" kilidi sunucuda geçerli mi (kurucu onayı 10-10, `lib/billing/checkout-pending.ts`): az önce tamamlanan ödemenin
+   *  aboneliği henüz yazılmadı → yeni ödeme ekranı açılmaz. */
+  checkoutPending?: boolean;
 }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -160,6 +165,10 @@ export function PaddlePlans({
   // In-flight guard: while the consent record is being written (and checkout
   // opened) the plan buttons are disabled, so a double-click can't fire twice.
   const [busy, setBusy] = useState(false);
+  // "Ödemeniz işleniyor" (kurucu onayı 10-10): ödeme ekranı başarıyla kapanınca ya da sunucu kilidi geçerliyken yeni ödeme ekranı açılmaz.
+  const [processing, setProcessing] = useState(checkoutPending);
+  // Son açılan ödeme ekranının onay kaydı — tamamlanma sinyali sunucuya bununla gider (kilit yalnız kendi işletmesinin yeni onayıyla yazılır).
+  const lastConsentRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,7 +182,19 @@ export function PaddlePlans({
             eventCallback: (ev) => {
               // The server webhook records the subscription; give it a moment,
               // then refresh so the new plan shows.
-              if (ev?.name === "checkout.completed") setTimeout(() => router.refresh(), 4000);
+              if (ev?.name === "checkout.completed") {
+                setProcessing(true);
+                const consentId = lastConsentRef.current;
+                if (consentId) {
+                  void fetch("/api/billing/checkout-pending", {
+                    method: "POST",
+                    keepalive: true,
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ consentId }),
+                  }).catch(() => {});
+                }
+                setTimeout(() => router.refresh(), 4000);
+              }
             },
           });
           setReady(true);
@@ -197,6 +218,10 @@ export function PaddlePlans({
   const openCheckout = useCallback(
     async (planCode: string, priceId: string) => {
       if (!window.Paddle || !priceId || busy) return;
+      if (processing) {
+        setError(CHECKOUT_PENDING_MESSAGE);
+        return;
+      }
       // Defense-in-depth: even if the button somehow fires, never open a paid
       // checkout without the pre-contract acceptance.
       if (!accepted) {
@@ -243,6 +268,7 @@ export function PaddlePlans({
           );
           return;
         }
+        lastConsentRef.current = consentId;
         window.Paddle.Checkout.open({
           items: [{ priceId, quantity: 1 }],
           customer: { email },
@@ -265,7 +291,7 @@ export function PaddlePlans({
         setBusy(false);
       }
     },
-    [email, organizationId, accepted, busy],
+    [email, organizationId, accepted, busy, processing],
   );
 
   // Open Paddle's hosted customer portal (change plan / cancel / update card).
@@ -598,7 +624,7 @@ export function PaddlePlans({
               ) : (
                 <button
                   type="button"
-                  disabled={!ready || !activePriceId || !accepted || busy || manageable}
+                  disabled={!ready || !activePriceId || !accepted || busy || manageable || processing}
                   onClick={() => openCheckout(p.code, activePriceId)}
                   className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
@@ -616,6 +642,7 @@ export function PaddlePlans({
         })}
       </div>
 
+      {processing && !manageable ? <p className="text-xs text-muted-foreground">{CHECKOUT_PENDING_MESSAGE}</p> : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       <p className="text-[11px] text-muted-foreground">
         Ödeme, satıcı olarak Paddle (Merchant of Record) üzerinden güvenli şekilde alınır; fatura ve
