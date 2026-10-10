@@ -20,6 +20,7 @@ import {
   type IngestCredential,
   type IngestErrorKind,
   type ReservationWindow,
+  sourcePlatformOf,
 } from "./ingest";
 
 // ---------------------------------------------------------------------------
@@ -122,6 +123,7 @@ export function normalizeReservation(r: HospitableReservation): CanonicalReserva
     conversationLanguage: canonicalStr(r.conversation_language),
     lastMessageAt: canonicalDate(r.last_message_at),
     terminal: status === "cancelled" || status === "completed",
+    sourcePlatform: sourcePlatformOf(r.platform),
   };
 }
 

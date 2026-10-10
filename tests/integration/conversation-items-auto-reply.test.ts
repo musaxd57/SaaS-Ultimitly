@@ -18,6 +18,10 @@ vi.mock("@/lib/ai", () => ({
   suggestReply: vi.fn(),
   classifyMessage: vi.fn(),
   summarizeHostStyle: vi.fn(),
+  // Üretim izi (migration 60): istem sürümü çağrının öğe kipi bitleriyle — bitler gerçek kuralla, sürüm bitlerden okunur.
+  replyCallParams: vi.fn(() => ({ model: "m", effort: null })),
+  replyPromptItemsOf: (items: { held: readonly unknown[] } | undefined) => ({ mode: items !== undefined, held: (items?.held.length ?? 0) > 0 }),
+  replyPromptVersion: vi.fn((b: { mode: boolean; held: boolean }) => `v-${b.mode ? 1 : 0}${b.held ? 1 : 0}`),
 }));
 vi.mock("@/lib/hospitable-credentials", () => ({
   getOrgHospitableToken: vi.fn(async () => "tok"),
@@ -260,6 +264,21 @@ describe("aynı mesajda IBAN + Wi-Fi", () => {
     expect(await reasons(conversationId)).toEqual(["auto_reply:auto_sent:gate_passed"]);
     const messages = await prisma.message.findMany({ where: { conversationId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
     expect(await hasOpenHostWork(orgId, messages)).toBe(true);
+  });
+
+  it("üretim izi (anahtar açık): istem sürümü ÖĞE KİPİ + bırakılan istek bitleriyle; taslak modelin cevabı", async () => {
+    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
+    const { conversationId } = await seed(BOTH);
+    understands(
+      understood([
+        { intent: "payment_invoice", message: 1 },
+        { intent: "wifi", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    const [g] = await prisma.aiGeneration.findMany({ where: { conversationId } });
+    expect(g).toMatchObject({ promptVersion: "v-11", decision: "auto_sent", draftText: wifiAnswer().reply });
   });
 
   it("🚨 cevapta ödeme yöntemi geçerse cevap GİTMEZ; Wi-Fi ev sahibinde açık kalır (cevaplandı YAZILMAZ)", async () => {

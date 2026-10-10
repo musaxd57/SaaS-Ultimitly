@@ -53,6 +53,8 @@ const NOT_ORG_SCOPED: Record<string, string> = {
   "admin/leads/[id]/route.ts": "global: Lead org'a bağlı değil; superadmin kapılı",
   // ↓ HEPSİ `organizationId` DİZGİSİNİ TAŞIR AMA OTURUMDAN KAPSAMLI DEĞİLDİR (↓REQUEST_DERIVED_ORG_ID).
   "admin/export/route.ts": "operatör: org id `?orgId=` ile İSTEKTEN gelir; tek yetki isSuperAdmin",
+  "admin/ai-quality/route.ts": "operatör: kalite konsolu, org id `?orgId=` ile İSTEKTEN gelir; tek yetki isSuperAdmin (salt-okuma, kayıtlı)",
+  "admin/ai-quality/labels/route.ts": "operatör: kalite etiketi, org id GÖVDEDEN gelir; iz satırı o org'a ait olmalı; tek yetki isSuperAdmin",
   "admin/impersonate/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
   "admin/quality-audit/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
   "alert-email/verify/route.ts":
@@ -80,6 +82,8 @@ const NOT_ORG_SCOPED: Record<string, string> = {
  * `tests/integration/admin-superadmin-gate.test.ts`.
  */
 const REQUEST_DERIVED_ORG_ID = new Set([
+  "admin/ai-quality/labels/route.ts",
+  "admin/ai-quality/route.ts",
   "admin/export/route.ts",
   "admin/impersonate/route.ts",
   "admin/quality-audit/route.ts",

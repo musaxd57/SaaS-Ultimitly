@@ -72,6 +72,11 @@ export interface CanonicalReservation {
   lastMessageAt: Date | null;
   /** "Bu konaklama bir daha yaşanmayacak" (iptal/reddedildi/bitti) — çit ve oto-yanıt kapısı. */
   terminal: boolean;
+  /**
+   * Sağlayıcının HAM platform adı (migration 60 B; `sourcePlatformOf` ile dar alfabeye indirilmiş). Yalnız gösterim / teşhis —
+   * yetenek ASLA buradan çıkarılmaz (değişmez #20). Yoksa null.
+   */
+  sourcePlatform?: string | null;
 }
 
 export interface CanonicalMessage {
@@ -177,4 +182,13 @@ export function canonicalDate(value: unknown): Date | null {
   if (m < 1 || m > 12 || probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) return null;
   const at = new Date(s);
   return Number.isNaN(at.getTime()) ? null : at;
+}
+
+const SOURCE_PLATFORM_RE = /^[a-z0-9][a-z0-9._-]{0,39}$/;
+
+/** Ham platform dizesi → saklanabilir etiket (küçük harf, dar alfabe, ≤ 40). Uymayan → null (uydurma yok). Saf. */
+export function sourcePlatformOf(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim().toLowerCase().replace(/\s+/g, "_");
+  return SOURCE_PLATFORM_RE.test(v) ? v : null;
 }

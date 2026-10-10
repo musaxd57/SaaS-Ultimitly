@@ -8,7 +8,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
 
-vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn(), summarizeHostStyle: vi.fn() }));
+vi.mock("@/lib/ai", () => ({
+  suggestReply: vi.fn(),
+  classifyMessage: vi.fn(),
+  summarizeHostStyle: vi.fn(),
+  replyCallParams: vi.fn(() => ({ model: "m", effort: null })),
+  replyPromptItemsOf: () => ({ mode: false, held: false }),
+  replyPromptVersion: vi.fn(() => "v"),
+}));
 vi.mock("@/lib/messaging", async (orig) => ({
   ...(await orig<typeof import("@/lib/messaging")>()),
   sendOnChannel: vi.fn(),
@@ -172,6 +179,16 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
     const { conversationId } = await seed({ message: "Yarın daire müsait mi?", writtenAt });
     await applyChannelAutoReply(conversationId);
     expectCodeSent(`${human(TODAY)} gecesi için daire müsait.`);
+  });
+
+  it("üretim izi: taslak = MODELİN özgün cevabı, gönderilen = kod metni (iki ayrı alan)", async () => {
+    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
+    const { conversationId } = await seed();
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    const [g] = await prisma.aiGeneration.findMany({ where: { conversationId } });
+    expect(g.draftText).toBe(MODEL_DRAFT);
+    expect(g.sentText).toBe(sentBody());
+    expect(g.sentText?.split("\n")[0]).toBe(CODE_AVAILABLE);
   });
 
   it("KONTROL: anahtar KAPALI → hiçbir şey gitmez (bugünkü davranış)", async () => {

@@ -1,5 +1,6 @@
 import { defuseBlockDelimiters } from "./retrieval/kb-line";
 import "server-only";
+import { createHash } from "node:crypto";
 import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { kbFeeRuleEnabled } from "./kb-fee-rule";
@@ -220,6 +221,17 @@ export function replyCallParams(): { model: string; effort: string | null } {
  * `access-code-complete.ts`), kurulum `replySystemPromptFor`da; hepsi kapalıyken taban istem bayt bayt aynı.
  */
 function replySystemPrompt(input: SuggestReplyInput): string {
+  // Öğe kipi: çıktı formatı `answeredRequests` alanını da gösterir; bırakılan istek varsa (bu turun ya da önceki turun) sistem
+  // istemi o istekler için kalıp öğretmez. Sistem istemi girdiye YALNIZ bu iki bitle bağlıdır (sürüm kimliği bunun üstüne kurulu).
+  return replySystemPromptForItems(replyPromptItemsOf(input.conversationItems));
+}
+
+/** Çağrının öğe kipi bitleri — istem ve sürüm kimliği AYNI fonksiyondan. */
+export function replyPromptItemsOf(items: SuggestReplyInput["conversationItems"]): { mode: boolean; held: boolean } {
+  return { mode: items !== undefined, held: (items?.held.length ?? 0) > 0 };
+}
+
+function replySystemPromptForItems(items: { mode: boolean; held: boolean }): string {
   return replySystemPromptFor({
     codeGreeting: codeGreetingEnabled(),
     kbFeeRule: kbFeeRuleEnabled(),
@@ -227,10 +239,8 @@ function replySystemPrompt(input: SuggestReplyInput): string {
     accessCodeComplete: accessCodeCompleteEnabled(),
     complaintFollowup: complaintFollowupRuleEnabled(),
     courtesy: courtesyRuleEnabled(),
-    // Öğe kipi: çıktı formatı `answeredRequests` alanını da gösterir; bırakılan istek varsa (bu turun ya da önceki turun) sistem
-    // istemi o istekler için kalıp öğretmez.
-    itemsMode: input.conversationItems !== undefined,
-    itemsHeld: (input.conversationItems?.held.length ?? 0) > 0,
+    itemsMode: items.mode,
+    itemsHeld: items.held,
   });
 }
 
@@ -262,6 +272,15 @@ function replyPromptFor(input: SuggestReplyInput, declareActions: boolean): Retu
  */
 export function replyRequestIdentity(input: SuggestReplyInput): { model: string; effort: string | null; system: string; user: string } {
   return { ...replyCallParams(), system: replySystemPrompt(input), user: replyPromptFor(input, actionClaimsEnabled()).text };
+}
+
+/**
+ * Cevap isteminin SÜRÜM KİMLİĞİ: sistem isteminin SHA-256 ilk 12'si. Sistem istemi girdiye yalnız anahtarlar + öğe kipi bitleriyle
+ * bağlıdır (misafir / mülk verisi taşımaz), yani kimlik çağrının GERÇEK sistem istemidir. TEK KAYNAK — ölçüm raporu
+ * (`tests/eval/run-meta.ts` `prompts.reply`, öğe kipi dışı) ve üretim izi (`AiGeneration.promptVersion`, çağrının bitleriyle).
+ */
+export function replyPromptVersion(items: { mode: boolean; held: boolean } = { mode: false, held: false }): string {
+  return createHash("sha256").update(replySystemPromptForItems(items)).digest("hex").slice(0, 12);
 }
 
 /** Normalize a model-returned language value to a short code (2–3 letters), else

@@ -168,6 +168,8 @@ model Organization {
   messageOutbox         MessageOutbox[]
   automatedMessageSends AutomatedMessageSend[]
   channelConnections    ChannelConnection[]
+  channelListings       ChannelListing[]
+  aiGenerations         AiGeneration[]
   ingestEvents          IngestEvent[]
   signals               Signal[]
   propertyMemories      PropertyMemory[]
@@ -357,6 +359,7 @@ model Property {
   calendarSources  CalendarSource[]
   signals          Signal[]
   memories         PropertyMemory[]
+  channelListings  ChannelListing[]
 
   @@index([organizationId])
   // Public QR concierge chat resolves a property by its secret chatToken on every
@@ -502,6 +505,9 @@ model Reservation {
   connectionId               String?
   connectionEvidence         String?
   ingestedAt                 DateTime?
+  // Migration 60 (kurucu onayı 10-09; değişmez 2): sağlayıcının HAM platform dizesi (ör. Hospitable `platform`). Yalnız ingest yazar,
+  // yalnız GÖSTERİM / teşhis okur — yetenek ASLA bundan çıkarılmaz (V0.9 pini). NULL = gözlenmedi (eski satır / elle / iCal).
+  sourcePlatform             String?
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
@@ -613,12 +619,14 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  property    Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  reservation Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
-  messages    Message[]
-  signals     Signal[]
-  items       ConversationItem[]
-  decisions   DecisionRequest[]
+  property      Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation   Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  messages      Message[]
+  signals       Signal[]
+  items         ConversationItem[]
+  decisions     DecisionRequest[]
+  // Migration 60: yapay zekâ üretim izi metin taşır (kurucu §D-1) → konuşma silinince iz de gider (silme paritesi).
+  aiGenerations AiGeneration[]
 
   // THREAD IDENTITY (migration 45). One provider thread = at most one row.
   //
@@ -1194,24 +1202,30 @@ model AutomatedMessageSend {
 //     connectionId belongs to another org is canceled by the worker, never sent.
 // ---------------------------------------------------------------------------
 model ChannelConnection {
-  id              String    @id @default(cuid())
-  organizationId  String
-  provider        String // closed set in code (channels/outbound.ts OutboundProvider): "hospitable"
-  status          String    @default("active") // active | disconnected | revoked (closed set, app-enforced)
-  label           String? // human label for the connected account (e.g. "8 mülk")
-  accessTokenEnc  String? // encrypted access token / PAT (null when not active)
-  refreshTokenEnc String? // encrypted OAuth refresh token (null for PAT)
-  tokenExpiresAt  DateTime? // OAuth access-token expiry; null = does not expire (PAT)
-  generation      Int       @default(1) // bumps on every credential write — refresh CAS anchor
-  connectedAt     DateTime?
-  disconnectedAt  DateTime?
-  revokedAt       DateTime?
-  revokedReason   String? // closed: refresh_invalid_grant | send_401 | send_403
-  lastRefreshAt   DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  organizationId    String
+  provider          String // closed set in code (channels/outbound.ts OutboundProvider): "hospitable"
+  status            String    @default("active") // active | disconnected | revoked (closed set, app-enforced)
+  label             String? // human label for the connected account (e.g. "8 mülk")
+  accessTokenEnc    String? // encrypted access token / PAT (null when not active)
+  refreshTokenEnc   String? // encrypted OAuth refresh token (null for PAT)
+  tokenExpiresAt    DateTime? // OAuth access-token expiry; null = does not expire (PAT)
+  generation        Int       @default(1) // bumps on every credential write — refresh CAS anchor
+  connectedAt       DateTime?
+  disconnectedAt    DateTime?
+  revokedAt         DateTime?
+  revokedReason     String? // closed: refresh_invalid_grant | send_401 | send_403
+  lastRefreshAt     DateTime?
+  // Migration 60 (değişmez 9): sağlayıcıdan bağımsız bağlantı SAĞLIĞI — son başarılı / başarısız okuma ve kapalı küme hata türü
+  // (`IngestErrorKind`). Panel "iyi / sorunlu / okunamıyor" türetir; NULL = gözlenmedi.
+  lastReadOkAt      DateTime?
+  lastReadErrorAt   DateTime?
+  lastReadErrorKind String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  listings     ChannelListing[]
 
   // One connection per provider per org (V0.3). A multi-account-per-provider model would
   // change this key on a POPULATED table — a decision for a later migration, not a default.
@@ -1484,4 +1498,91 @@ model EmailOutbox {
 
   @@unique([userId, kind, version])
   @@index([status, nextAttemptAt])
+}
+
+// ---------------------------------------------------------------------------
+// MIGRATION 60 (kurucu onayı 10-09: "tamamını hazırla"; tasarım `docs/TASARIM-2026-10-09-migration-paketi-60.md`).
+// ---------------------------------------------------------------------------
+
+/// Bağlantı KAPSAMLI ilan kimliği (değişmez 3): dış kimlik global / mülk-içi eşsiz sayılmaz; eşsizlik (bağlantı, dış kimlik).
+/// `Property.hospitableId` (global unique) geçiş boyunca DURUR; okumalar `CHANNEL_LISTING_READ` arkasında, satırı olmayan mülkte
+/// `hospitableId`e düşer. `connectionId` CASCADE bilinçli: bağlantı satırı kod içinde silinmez (kopma / iptal belirteci boşaltır),
+/// tek silme yolu org silmesi; `RESTRICT` org silmesini kilitleyebilirdi.
+model ChannelListing {
+  id             String   @id @default(cuid())
+  organizationId String
+  connectionId   String
+  externalId     String
+  propertyId     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connection   ChannelConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  property     Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalId])
+  @@index([propertyId])
+  @@index([organizationId])
+}
+
+/// Yapay zekâ ÜRETİM İZİ (talimat 09-07 "Generation trace" + Kurucu AI Kalite Konsolu). Kurucu §D-1: taslak ve gönderilen METİN
+/// saklanır → `Message` ile AYNI saklama süpürgesi (24 ay) ve misafir silmesinde maskelenir; konuşma silinince CASCADE. Eğitim /
+/// ince ayar yoluna BAĞLANMAZ (mekanik pin). `propertyId` / `reservationId` / `triggerMessageId` opak (RiskEvent emsali).
+model AiGeneration {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  /// ZORUNLU (Haiku incelemesi 10-09): saklama süpürgesi + misafir silmesi metni konuşmadan bulur; konuşmasız satırın metni hiçbir
+  /// süpürgeye düşmezdi. Bütün yüzeyler (kanal, QR, karar kartı) bir Conversation'a bağlıdır.
+  conversationId         String
+  propertyId             String?
+  reservationId          String?
+  triggerMessageId       String?
+  /// kapalı küme: channel_auto · channel_suggest · qr · decision_text
+  surface                String
+  model                  String
+  promptVersion          String
+  retrievalVersion       String?
+  toolContractVersion    Int?
+  /// kimlik + sürüm (RiskEvent.kbEvidenceJson biçimi), içerik YOK
+  kbEvidenceJson         String?
+  /// VerifiedToolResult[] (PII'siz)
+  toolResultsJson        String?
+  /// auto_sent · human_review · no_reply
+  decision               String
+  gateReason             String?
+  latencyMs              Int?
+  promptTokens           Int?
+  completionTokens       Int?
+  reasoningTokens        Int?
+  costMicroUsd           Int?
+  draftText              String?
+  sentText               String?
+  /// dahil mesaj kimlikleri, atlanan / bekleyen sayısı (PII yok)
+  contextDiagnosticsJson String?
+  createdAt              DateTime @default(now())
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  labels       AiReviewLabel[]
+
+  @@index([organizationId, createdAt])
+  @@index([conversationId])
+}
+
+/// Kurucu kalite konsolu ETİKETİ — operasyon verisinden AYRI; müşteriye görünen hiçbir şeyi değiştirmez.
+model AiReviewLabel {
+  id             String   @id @default(cuid())
+  generationId   String
+  /// süper-admin (opak)
+  reviewerUserId String?
+  /// kapalı küme: correct · hallucinated_fact · missed_context · repeated_greeting · wrong_tone · temporal_error · stale_knowledge ·
+  /// retrieval_failure · tool_should_have_been_used · unsafe_auto_send · escalation_failure
+  label          String
+  note           String?
+  createdAt      DateTime @default(now())
+
+  generation AiGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([generationId])
 }
