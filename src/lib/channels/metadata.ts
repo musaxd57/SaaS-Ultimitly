@@ -34,19 +34,34 @@ export function channelListingReadEnabled(): boolean {
  * (bağlantı, ilan kimliği) → BU org'un mülkü, ilan satırından. Satır yoksa / anahtar kapalıysa / bağlantı yoksa null → çağıran bugünkü
  * yola (`Property.hospitableId`) DÜŞER (tasarım: satırı olmayan mülkte okuma eski kolona düşer, yoksa geçişte ilan görünmezdi). Kiracı:
  * satırın org'u VE mülkün org'u çağıranın org'u olmalı (bozuk / başka org'a işaret eden satır yok sayılır). Asla fırlatmaz.
+ *
+ * 🚨 GEÇİŞ BOYUNCA PARİTE ŞARTI (Haiku incelemesi 10-10): satır yalnız mülkün eski kolonu BOŞSA ya da AYNI ilanı gösteriyorsa kabul
+ * edilir. Kolon BAŞKA bir ilanı gösteriyorsa (ilan kimliği kaybolup aynı adla yenisi geldi, sonra eskisi geri döndü) bayat satır bugünkü
+ * yolun "canlı başka ilana bağlı mülkü asla ele geçirme" korumasını atlatır ve iki canlı ilanın rezervasyonları TEK mülkte toplanırdı →
+ * satır yok sayılır, bugünkü yol karar verir (çift yazım satırı düzeltir) ve uyuşmazlık bildirilir (geçişin "çift yazım tutarlı mı"
+ * gözlemi). Kolon DROP edildiğinde (contract) bu şart kalkar. Yazma anahtarı kapalıyken satırlar donar → okuma da yapılmaz.
  */
 export async function propertyForChannelListing(
   organizationId: string,
   connectionId: string | null,
   externalId: string,
 ): Promise<string | null> {
-  if (!channelListingReadEnabled() || !connectionId || !externalId) return null;
+  if (!channelListingReadEnabled() || !channelMetadataWriteEnabled() || !connectionId || !externalId) return null;
   try {
     const row = await prisma.channelListing.findFirst({
       where: { connectionId, externalId, organizationId, property: { organizationId } },
-      select: { propertyId: true },
+      select: { propertyId: true, property: { select: { hospitableId: true } } },
     });
-    return row?.propertyId ?? null;
+    if (!row) return null;
+    const column = row.property.hospitableId;
+    if (column !== null && column !== externalId) {
+      void reportError(
+        `channel-listing-parity org=${organizationId}`,
+        new Error("İlan satırı ile mülkün eski kolonu farklı ilanı gösteriyor — satır yok sayıldı, bugünkü yol karar verdi."),
+      );
+      return null;
+    }
+    return row.propertyId;
   } catch (err) {
     void reportError(`channel-listing-read org=${organizationId}`, err);
     return null;

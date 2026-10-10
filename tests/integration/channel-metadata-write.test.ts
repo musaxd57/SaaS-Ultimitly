@@ -3,7 +3,8 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // KANAL METAVERİSİ YAZICILARI (migration 60 A–C) — gerçek senkron motoru, gerçek PostgreSQL; yalnız sağlayıcı istemcisi sahte.
-// Anahtar `CHANNEL_METADATA_WRITE` kapalıyken HİÇBİR satır / kolon yazılmaz (bugünkü davranış); açıkken yalnız YAZAR, okuyan yok.
+// Anahtar `CHANNEL_METADATA_WRITE` kapalıyken HİÇBİR satır / kolon yazılmaz (bugünkü davranış); açıkken yazar. Tek okuyucu ilan eşlemesi:
+// ayrı anahtar `CHANNEL_LISTING_READ` (varsayılan kapalı; geçiş boyunca eski kolonla parite şartı).
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/hospitable", async (orig) => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { HospitableError, listProperties, listReservations, listMessages } from "@/lib/hospitable";
+import { reportError } from "@/lib/report-error";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { recordChannelListings, recordConnectionRead } from "@/lib/channels/metadata";
 import { sourcePlatformOf } from "@/lib/channels/ingest";
@@ -126,10 +128,11 @@ describe("ilan OKUMA geçişi (CHANNEL_LISTING_READ, varsayılan kapalı)", () =
     vi.clearAllMocks();
     mockReservations.mockResolvedValue([RES("Airbnb Official")] as never);
     mockMessages.mockResolvedValue([]);
+    vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  /** Senkronun bugünkü yolu "Test Property"yi ADIYLA benimserdi; ilan satırı BAŞKA mülkü gösteriyor. */
+  /** Senkronun bugünkü yolu "Test Property"yi ADIYLA benimserdi; ilan satırı BAŞKA mülkü gösteriyor (o mülkün eski kolonu boş). */
   async function seedWithListing() {
     const s = await seed();
     const other = await prisma.property.create({ data: { organizationId: s.orgId, name: "Başka Daire" } });
@@ -138,28 +141,59 @@ describe("ilan OKUMA geçişi (CHANNEL_LISTING_READ, varsayılan kapalı)", () =
     });
     return { ...s, otherId: other.id };
   }
+  const reservationProperty = async () => (await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId;
 
   it("🚨 KAPALI (varsayılan): ilan satırı OKUNMAZ — bugünkü yol (ad ile benimseme, `hospitableId`)", async () => {
     const { orgId, propertyId, otherId } = await seedWithListing();
     await syncHospitable(orgId);
-    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId).toBe(propertyId);
+    expect(await reservationProperty()).toBe(propertyId);
     expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).hospitableId).toBe("hosp-prop-1");
     expect(await prisma.reservation.count({ where: { propertyId: otherId } })).toBe(0);
   });
 
-  it("🚨 AÇIK: bağlantı + ilan kimliği → satırdaki mülk (ad eşleşmesine ve eski kolona bakılmaz)", async () => {
+  it("🚨 AÇIK: bağlantı + ilan kimliği → satırdaki mülk (eski kolonu boş — parite tutuyor); ad eşleşmesine bakılmaz", async () => {
     vi.stubEnv("CHANNEL_LISTING_READ", "1");
     const { orgId, propertyId, otherId } = await seedWithListing();
     await syncHospitable(orgId);
-    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId).toBe(otherId);
+    expect(await reservationProperty()).toBe(otherId);
     expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).hospitableId).toBeNull();
+    expect(vi.mocked(reportError).mock.calls.some(([ctx]) => String(ctx).startsWith("channel-listing-parity"))).toBe(false);
+  });
+
+  it("KONTROL: okuma açık ama YAZMA kapalı → donmuş satır okunmaz, bugünkü yol", async () => {
+    vi.stubEnv("CHANNEL_LISTING_READ", "1");
+    const { orgId, propertyId } = await seedWithListing();
+    vi.stubEnv("CHANNEL_METADATA_WRITE", "");
+    await syncHospitable(orgId);
+    expect(await reservationProperty()).toBe(propertyId);
+  });
+
+  it("🚨 PARİTE: bayat satır (mülkün eski kolonu BAŞKA canlı ilanı gösteriyor) YOK SAYILIR — iki canlı ilan tek mülkte toplanmaz; uyuşmazlık bildirilir, çift yazım satırı düzeltir", async () => {
+    vi.stubEnv("CHANNEL_LISTING_READ", "1");
+    const { orgId, propertyId, connectionId } = await seed();
+    mockReservations.mockResolvedValue([]);
+    // Önce ilan 2 bu mülke bağlandı (kolon = hosp-prop-2); ilan 1'in eski satırı hâlâ aynı mülkü gösteriyor.
+    await prisma.property.update({ where: { id: propertyId }, data: { hospitableId: "hosp-prop-2" } });
+    await prisma.channelListing.create({ data: { organizationId: orgId, connectionId, externalId: "hosp-prop-1", propertyId } });
+    mockProperties.mockResolvedValue([
+      { id: "hosp-prop-1", name: "Test Property" },
+      { id: "hosp-prop-2", name: "Test Property" },
+    ]);
+    await syncHospitable(orgId);
+    const rows = await prisma.channelListing.findMany({ orderBy: { externalId: "asc" }, select: { externalId: true, propertyId: true } });
+    expect(rows.find((r) => r.externalId === "hosp-prop-2")?.propertyId).toBe(propertyId);
+    const p1 = rows.find((r) => r.externalId === "hosp-prop-1")?.propertyId;
+    expect(p1).toBeTruthy();
+    expect(p1).not.toBe(propertyId); // ilan 1 KENDİ mülkünü aldı
+    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).hospitableId).toBe("hosp-prop-2");
+    expect(vi.mocked(reportError).mock.calls.some(([ctx]) => String(ctx) === `channel-listing-parity org=${orgId}`)).toBe(true);
   });
 
   it("AÇIK ama satır YOK → bugünkü yola DÜŞER (geçişte ilan kaybolmaz)", async () => {
     vi.stubEnv("CHANNEL_LISTING_READ", "1");
     const { orgId, propertyId } = await seed();
     await syncHospitable(orgId);
-    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId).toBe(propertyId);
+    expect(await reservationProperty()).toBe(propertyId);
   });
 
   it("🚨 AÇIK: başka org'un mülkünü gösteren (bozuk) satır YOK SAYILIR → bugünkü yol; başka org'a hiçbir şey yazılmaz", async () => {
@@ -170,8 +204,20 @@ describe("ilan OKUMA geçişi (CHANNEL_LISTING_READ, varsayılan kapalı)", () =
       data: { organizationId: s.orgId, connectionId: s.connectionId, externalId: "hosp-prop-1", propertyId: foreign.propertyId },
     });
     await syncHospitable(s.orgId);
-    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).propertyId).toBe(s.propertyId);
+    expect(await reservationProperty()).toBe(s.propertyId);
     expect(await prisma.reservation.count({ where: { propertyId: foreign.propertyId } })).toBe(0);
+  });
+
+  it("🚨 AÇIK: satırın KENDİ org'u başkaysa (bağlantı ve mülk bizim olsa da) satır YOK SAYILIR", async () => {
+    vi.stubEnv("CHANNEL_LISTING_READ", "1");
+    const s = await seed();
+    const own = await prisma.property.create({ data: { organizationId: s.orgId, name: "Başka Daire" } });
+    const foreign = await makeOrgWithProperty();
+    await prisma.channelListing.create({
+      data: { organizationId: foreign.orgId, connectionId: s.connectionId, externalId: "hosp-prop-1", propertyId: own.id },
+    });
+    await syncHospitable(s.orgId);
+    expect(await reservationProperty()).toBe(s.propertyId);
   });
 });
 
