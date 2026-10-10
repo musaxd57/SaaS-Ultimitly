@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isDisposableEmail, trialRisk, UNVERIFIED_GRACE_MS } from "@/lib/billing/trial-risk";
+import { isDisposableEmail, riskyTrials, RISK_LIST_RECENT_MS, trialRisk, UNVERIFIED_GRACE_MS } from "@/lib/billing/trial-risk";
 
 // ---------------------------------------------------------------------------
 // DENEME RİSK PUANI (kurucu onayı 10-10: geçici e-posta + doğrulanmamış e-posta; yalnız operatör listesi, otomatik işlem yok).
@@ -52,5 +52,46 @@ describe("risk puanı", () => {
   it("sahiplerden biri yeter; her sebep BİR kez sayılır", () => {
     const owners = [owner("a@gmail.com", true, 1), owner("b@yopmail.com", false, 2 * UNVERIFIED_GRACE_MS), owner("c@yopmail.com", false, 2 * UNVERIFIED_GRACE_MS)];
     expect(trialRisk({ owners, identityReused: false, now: NOW })).toEqual({ score: 40, reasons: ["disposable_email", "email_unverified"] });
+  });
+
+  it("🚨 KONTROL: doğrulama zorunluluğundan (2026-06-15) ÖNCE açılmış doğrulanmamış hesap sinyal DEĞİL (ondan doğrulama hiç istenmedi)", () => {
+    const legacy = { email: "a@gmail.com", emailVerifiedAt: null, createdAt: new Date("2026-06-01T00:00:00Z") };
+    expect(trialRisk({ owners: [legacy], identityReused: false, now: NOW }).score).toBe(0);
+  });
+});
+
+describe("operatör listesi (riskyTrials)", () => {
+  const sub = (provider: string, endsInMs: number | null, reason: string | null = null) => ({
+    provider,
+    trialEndsAt: endsInMs === null ? null : new Date(NOW.getTime() + endsInMs),
+    trialEndReason: reason,
+  });
+  const org = (id: string, ageMs: number, subscription: ReturnType<typeof sub> | null) => ({ id, createdAt: new Date(NOW.getTime() - ageMs), subscription });
+  const risky = [owner("x@mailinator.com", true, 1)];
+
+  it("yalnız deneme hesapları; süren ya da son 30 günde biten; puanı 0 olan yok; puana göre azalan, eşitlikte en yeni önce", () => {
+    const orgs = [
+      org("paid", 1, sub("paddle", 5 * 86_400_000)), // ödeme yapan — listede yok
+      org("old-expired", 1, sub("trial", -(RISK_LIST_RECENT_MS + 1))), // 30 günden önce bitmiş — yok
+      org("clean", 1, sub("trial", 86_400_000)), // puan 0 — yok
+      org("reused", 3, sub("trial", 0, "identity_reused")), // 60 + 30
+      org("temp-old", 5, sub("trial", 86_400_000)), // 30
+      org("temp-new", 2, sub("trial", -RISK_LIST_RECENT_MS)), // 30 (sınırda — listede), daha yeni
+      org("nosub", 1, null),
+    ];
+    const owners = new Map([
+      ["paid", risky],
+      ["old-expired", risky],
+      ["clean", [owner("a@gmail.com", true, 1)]],
+      ["reused", risky],
+      ["temp-old", risky],
+      ["temp-new", risky],
+      ["nosub", risky],
+    ]);
+    expect(riskyTrials(orgs, owners, NOW).map((r) => [r.org.id, r.risk.score])).toEqual([
+      ["reused", 90],
+      ["temp-new", 30],
+      ["temp-old", 30],
+    ]);
   });
 });

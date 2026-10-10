@@ -150,16 +150,17 @@ describe("runScheduledSync — iCal (Kanal Takvimleri) bacağı", () => {
 
   // Deneme kimliği (kurucu onayı 10-10): anahtar açıkken HER geçiş açılış anını yazar ve geri doldurmayı bir kez koşar (saatlik değil —
   // açılış anından önce eklenen takvim muaf sayılır, gecikme o pencereyi açardı). Kapalıyken hiçbir şey yazılmaz.
-  it("deneme kimliği: anahtar açıkken geçiş açılış anını + geri doldurma işaretini yazar; kapalıyken yazmaz", async () => {
+  it("deneme kimliği: anahtar açıkken geçiş açılış anını + geri doldurma işaretini (+ anahtar parmak izi) yazar; kapalıyken yazmaz, kapanınca sıfırlar", async () => {
+    const names = async () =>
+      (await prisma.systemLock.findMany({ where: { name: { startsWith: "trial-identity-" } }, select: { name: true } })).map((r) => r.name).sort();
     await runScheduledSync();
-    expect(await prisma.systemLock.count({ where: { name: { startsWith: "trial-identity-" } } })).toBe(0);
+    expect(await names()).toEqual([]);
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
     await runScheduledSync();
-    expect(
-      (await prisma.systemLock.findMany({ where: { name: { startsWith: "trial-identity-" } }, select: { name: true } }))
-        .map((r) => r.name)
-        .sort(),
-    ).toEqual(["trial-identity-backfill-v1", "trial-identity-enabled-at"]);
+    expect(await names()).toEqual(["trial-identity-backfill-v1", "trial-identity-enabled-at", "trial-identity-key-fp"]);
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    await runScheduledSync();
+    expect(await names()).toEqual(["trial-identity-key-fp"]);
   });
 
   // ───────────────────────────────────────────────────────────────────────────

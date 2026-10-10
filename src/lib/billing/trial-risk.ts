@@ -5,6 +5,8 @@
 // Saf modül (DB yok) — operatör sayfası girdiyi verir.
 // ---------------------------------------------------------------------------
 
+import { needsEmailVerification } from "@/lib/auth/email-verify";
+
 export type TrialRiskReason = "identity_reused" | "disposable_email" | "email_unverified";
 
 export interface TrialRisk {
@@ -21,7 +23,10 @@ export const TRIAL_RISK_LABELS: Record<TrialRiskReason, string> = {
 
 const WEIGHTS: Record<TrialRiskReason, number> = { identity_reused: 60, disposable_email: 30, email_unverified: 10 };
 
-/** Doğrulanmamış e-posta bu süreden sonra sinyal sayılır (kayıttan hemen sonra herkes doğrulanmamıştır). */
+/**
+ * Doğrulanmamış e-posta bu süreden sonra sinyal sayılır (kayıttan hemen sonra herkes doğrulanmamıştır). Doğrulama zorunluluğundan
+ * (`EMAIL_VERIFY_REQUIRED_FROM`) ÖNCE açılmış hesaptan doğrulama hiç istenmedi → sinyal değil (Haiku: yanlış pozitif).
+ */
 export const UNVERIFIED_GRACE_MS = 24 * 60 * 60_000;
 
 /**
@@ -60,8 +65,37 @@ export function trialRisk(input: {
   const reasons: TrialRiskReason[] = [];
   if (input.identityReused) reasons.push("identity_reused");
   if (input.owners.some((o) => isDisposableEmail(o.email))) reasons.push("disposable_email");
-  if (input.owners.some((o) => o.emailVerifiedAt === null && input.now.getTime() - o.createdAt.getTime() >= UNVERIFIED_GRACE_MS)) {
+  if (input.owners.some((o) => needsEmailVerification(o) && input.now.getTime() - o.createdAt.getTime() >= UNVERIFIED_GRACE_MS)) {
     reasons.push("email_unverified");
   }
   return { score: reasons.reduce((n, r) => n + WEIGHTS[r], 0), reasons };
+}
+
+/** Liste yalnız SÜREN ya da bu süre içinde BİTMİŞ denemeleri gösterir (yıllar önce bitmiş ücretsiz hesap gürültüsü yok). */
+export const RISK_LIST_RECENT_MS = 30 * 24 * 60 * 60_000;
+
+/**
+ * Operatör listesi: deneme hesapları (sağlayıcı "trial") içinden, denemesi sürüyor ya da son 30 günde bitmiş, puanı > 0 olanlar; puana göre
+ * azalan, eşitlikte en yeni hesap önce. Demo hesabını çağıran ayıklar.
+ */
+export function riskyTrials<
+  T extends { id: string; createdAt: Date; subscription: { provider: string; trialEndsAt: Date | null; trialEndReason: string | null } | null },
+>(
+  orgs: readonly T[],
+  ownersByOrg: ReadonlyMap<string, readonly { email: string; emailVerifiedAt: Date | null; createdAt: Date }[]>,
+  now: Date,
+): { org: T; risk: TrialRisk }[] {
+  return orgs
+    .filter((o) => o.subscription?.provider === "trial")
+    .filter((o) => !o.subscription?.trialEndsAt || o.subscription.trialEndsAt.getTime() >= now.getTime() - RISK_LIST_RECENT_MS)
+    .map((org) => ({
+      org,
+      risk: trialRisk({
+        owners: ownersByOrg.get(org.id) ?? [],
+        identityReused: org.subscription?.trialEndReason === "identity_reused",
+        now,
+      }),
+    }))
+    .filter((r) => r.risk.score > 0)
+    .sort((a, b) => b.risk.score - a.risk.score || b.org.createdAt.getTime() - a.org.createdAt.getTime());
 }

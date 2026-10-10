@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, scryptSync } from "crypto";
+import { createHash, createHmac, scryptSync } from "crypto";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
 import { reportError } from "@/lib/report-error";
@@ -134,20 +134,35 @@ export function __resetTrialIdentityKey(): void {
   derivedKey = null;
 }
 
+/** Özet anahtarının PARMAK İZİ (anahtarın kendisi değil, geri döndürülemez). */
+function identityKeyFingerprint(): string {
+  return `fp:${createHash("sha256").update(identityKey()).digest("hex").slice(0, 16)}`;
+}
+
+type RecordResult = { reused: boolean; trialEnded: boolean; ok: boolean };
+
 /**
- * Kimlikleri kaydet ve başka hesapta görülmüş olanı bildir. `enforce: false` (ilk açılış geri doldurması) yalnız kaydeder — kimsenin
- * denemesini bitirmez. Dönen değer: yeniden kullanım görüldü mü ve deneme bitirildi mi. Asla fırlatmaz.
+ * Kimlikleri kaydet ve başka hesapta görülmüş olanı bildir. `enforce: false` yalnız kaydeder — kimsenin denemesini bitirmez. Önce HAZIRLIK
+ * (`readyForRecording`): anahtar parmak izi uyumu + geri doldurmanın TAM olması; hazır değilse hiçbir şey yazılmaz (`ok: false`). Asla fırlatmaz.
  */
 export async function recordTrialIdentities(
   organizationId: string,
   keys: readonly (TrialIdentityKey | null)[],
   opts: { enforce?: boolean; now?: Date } = {},
-): Promise<{ reused: boolean; trialEnded: boolean; ok: boolean }> {
+): Promise<RecordResult> {
   if (!trialIdentityEnabled()) return { reused: false, trialEnded: false, ok: true };
   const now = opts.now ?? new Date();
-  // Anahtar açıldıktan sonraki İLK kayıt: önce mevcut hesapların geri doldurması (Haiku incelemesi — yoksa saatlik iş koşana kadar yeni
-  // hesap "ilk" sayılırdı). Geri doldurmanın kendi çağrıları `enforce: false` taşır → özyineleme yok.
-  if (opts.enforce !== false) await backfillTrialIdentitiesOnce(now);
+  if (!(await readyForRecording(now))) return { reused: false, trialEnded: false, ok: false };
+  return recordKeys(organizationId, keys, { enforce: opts.enforce !== false, now });
+}
+
+/** Asıl kayıt (hazırlık YAPILMIŞ varsayılır — geri doldurma ve hazırlık sonrası çağıranlar). */
+async function recordKeys(
+  organizationId: string,
+  keys: readonly (TrialIdentityKey | null)[],
+  opts: { enforce: boolean; now: Date },
+): Promise<RecordResult> {
+  const { now } = opts;
   let reused = false;
   try {
     for (const key of keys) {
@@ -163,7 +178,7 @@ export async function recordTrialIdentities(
       // Aynı hesap kendi kimliğini yeniden bağlıyor → kullanım değil. Başka hesap (ya da SİLİNMİŞ hesap: null) → yeniden kullanım.
       if (existing.firstOrganizationId !== organizationId) reused = true;
     }
-    if (!reused || opts.enforce === false) return { reused, trialEnded: false, ok: true };
+    if (!reused || !opts.enforce) return { reused, trialEnded: false, ok: true };
     return { reused, trialEnded: await endTrialForReusedIdentity(organizationId, now), ok: true };
   } catch (err) {
     // `ok: false` → çağıran yeniden denenebilir kalır (takvim kaynağının "sayıldı" işareti geri alınır; Haiku: sessiz kayıp).
@@ -172,14 +187,53 @@ export async function recordTrialIdentities(
   }
 }
 
-/** Anahtarın İLK açıldığı an (SystemLock satırı; `lockedUntil` bu ANI taşır, hiç güncellenmez — ilk gözlem kazanır). */
+/**
+ * Anahtarın SON açıldığı an (SystemLock satırı; `lockedUntil` bu ANI taşır, açıkken hiç güncellenmez — ilk gözlem kazanır). Anahtar
+ * kapalıyken zamanlanmış geçiş bu satırı ve geri doldurma işaretini SİLER (Haiku: kapalıyken eklenen ilan kaybolmasın) → yeniden açılış
+ * yeni açılış anı + yeni geri doldurma demektir; o ana kadarki her şey muaf kaydolur.
+ */
 export const TRIAL_IDENTITY_ENABLED_AT_MARKER = "trial-identity-enabled-at";
 
-/** Açılış anını oku; yoksa `now` ile yaz (yarışsız: çakışmada sessiz ekleme, sonra okunan değer herkes için aynı). */
-async function trialIdentityEnabledAt(now: Date): Promise<Date> {
-  await prisma.systemLock.createMany({ data: [{ name: TRIAL_IDENTITY_ENABLED_AT_MARKER, lockedUntil: now }], skipDuplicates: true });
-  const row = await prisma.systemLock.findUnique({ where: { name: TRIAL_IDENTITY_ENABLED_AT_MARKER }, select: { lockedUntil: true } });
-  return row?.lockedUntil ?? now;
+/**
+ * Özet anahtarının parmak izi (SystemLock `holder`; hiç SİLİNMEZ). Anahtar değişirse (ENCRYPTION_KEY rotasyonu yasak ama AUTH_SECRET'e düşme
+ * gibi) eski izler sessizce eşleşmez olurdu → uyuşmazlıkta kayıt DURUR ve alarm verilir (Haiku incelemesi). Bilinçli anahtar değişiminde
+ * operatör `TrialIdentity` tablosunu ve bu satırı birlikte temizler.
+ */
+export const TRIAL_IDENTITY_KEY_FP_MARKER = "trial-identity-key-fp";
+
+/** Açılış anı (yoksa `now` ile yazılır; yarışsız) — parmak izi uyuşmazsa null. */
+async function enabledAtIfKeyMatches(now: Date): Promise<Date | null> {
+  const fp = identityKeyFingerprint();
+  await prisma.systemLock.createMany({
+    data: [
+      { name: TRIAL_IDENTITY_KEY_FP_MARKER, lockedUntil: new Date("9999-12-31T00:00:00Z"), holder: fp },
+      { name: TRIAL_IDENTITY_ENABLED_AT_MARKER, lockedUntil: now },
+    ],
+    skipDuplicates: true,
+  });
+  const rows = await prisma.systemLock.findMany({
+    where: { name: { in: [TRIAL_IDENTITY_KEY_FP_MARKER, TRIAL_IDENTITY_ENABLED_AT_MARKER] } },
+    select: { name: true, lockedUntil: true, holder: true },
+  });
+  const fpRow = rows.find((r) => r.name === TRIAL_IDENTITY_KEY_FP_MARKER);
+  const atRow = rows.find((r) => r.name === TRIAL_IDENTITY_ENABLED_AT_MARKER);
+  if (!fpRow || !atRow) return null;
+  if (fpRow.holder !== fp) {
+    void reportError("trial-identity key-mismatch", new Error("Deneme kimliği özet anahtarı değişmiş — kayıt durduruldu (eski izler eşleşmez)."));
+    return null;
+  }
+  return atRow.lockedUntil;
+}
+
+/**
+ * KAYIT HAZIRLIĞI: anahtar parmak izi uyumlu VE geri doldurma TAM (Haiku: kısmi geri doldurmada yeni hesap eski hesabın ilanının kalıcı
+ * "ilk sahibi" olurdu). Hazırsa açılış anı döner; değilse null — çağıran hiçbir kimlik yazmaz (takvim sonraki okumada yeniden dener).
+ */
+async function readyForRecording(now: Date): Promise<{ enabledAt: Date } | null> {
+  const enabledAt = await enabledAtIfKeyMatches(now);
+  if (!enabledAt) return null;
+  const backfill = await backfillTrialIdentitiesOnce(now);
+  return backfill === "done" || backfill === "skipped" ? { enabledAt } : null;
 }
 
 /**
@@ -202,22 +256,23 @@ export async function recordVerifiedCalendarIdentity(
   const key = icalIdentityKey(feedUrl);
   if (!key) return none;
   try {
-    const enabledAt = await trialIdentityEnabledAt(now);
-    // Önce geri doldurma: anahtar öncesi kimlikler (en eski hesap ilk) kayda geçer.
-    await backfillTrialIdentitiesOnce(now);
+    // Hazırlık: anahtar parmak izi + TAM geri doldurma (anahtar öncesi kimlikler, en eski hesap ilk). Hazır değilse işaret ALINMAZ.
+    const ready = await readyForRecording(now);
+    if (!ready) return none;
     const claimed = await prisma.calendarSource.updateMany({
       where: { id: source.id, trialIdentityCheckedAt: null },
       data: { trialIdentityCheckedAt: now },
     });
     if (claimed.count === 0) return none;
-    const res = await recordTrialIdentities(organizationId, [key], { now, enforce: source.createdAt >= enabledAt });
+    const res = await recordKeys(organizationId, [key], { now, enforce: source.createdAt >= ready.enabledAt });
     if (!res.ok) {
       await prisma.calendarSource.updateMany({ where: { id: source.id, trialIdentityCheckedAt: now }, data: { trialIdentityCheckedAt: null } });
       return none;
     }
     return { reused: res.reused, trialEnded: res.trialEnded };
   } catch (err) {
-    void reportError(`trial-identity calendar org=${organizationId}`, err);
+    // İşaret geri alınamadıysa kaynak bir daha sayılmaz — kaynak kimliğiyle bildirilir (Haiku: operatöre görünür olsun).
+    void reportError(`trial-identity calendar org=${organizationId} source=${source.id}`, err);
     return none;
   }
 }
@@ -257,7 +312,7 @@ export async function markTrialIdentitiesOrphaned(
   await tx.trialIdentity.updateMany({ where: { firstOrganizationId: organizationId }, data: { lastSeenAt: now } });
 }
 
-/** Geri doldurma işareti (SystemLock adı): tamamlanınca yazılır, bir daha koşmaz. */
+/** Geri doldurma işareti (SystemLock adı): YALNIZ TAM tamamlanınca yazılır, bir daha koşmaz (anahtar kapanınca silinir). */
 export const TRIAL_IDENTITY_BACKFILL_MARKER = "trial-identity-backfill-v1";
 
 /** U37 düzeltmesinden (10-08) önceki okuma "ok"u güvenilmez (HTML hata gövdesi "ok" yazılabiliyordu) → geri doldurma onları saymaz. */
@@ -269,11 +324,18 @@ const TRUSTED_READ_SINCE = new Date("2026-10-08T00:00:00Z");
  * YALNIZ KAYDEDER (`enforce: false`). İşletme başına hata yalıtımı (biri bozuksa diğerleri yine kaydedilir; sayı operatöre bildirilir);
  * takvim yalnız kaydı BAŞARILI olunca "sayıldı" işaretlenir. Asla fırlatmaz.
  */
-export async function backfillTrialIdentitiesOnce(now: Date = new Date()): Promise<"off" | "skipped" | "done"> {
-  if (!trialIdentityEnabled()) return "off";
+export async function backfillTrialIdentitiesOnce(now: Date = new Date()): Promise<"off" | "skipped" | "done" | "incomplete"> {
+  if (!trialIdentityEnabled()) {
+    // Kapalıyken açılış anı + geri doldurma işareti sıfırlanır (yeniden açılış = yeni açılış). Parmak izi satırı KALIR. İz satırlarına dokunulmaz.
+    await prisma.systemLock
+      .deleteMany({ where: { name: { in: [TRIAL_IDENTITY_ENABLED_AT_MARKER, TRIAL_IDENTITY_BACKFILL_MARKER] } } })
+      .catch(() => {});
+    return "off";
+  }
   try {
     if (await prisma.systemLock.findUnique({ where: { name: TRIAL_IDENTITY_BACKFILL_MARKER }, select: { name: true } })) return "skipped";
-    const enabledAt = await trialIdentityEnabledAt(now);
+    const enabledAt = await enabledAtIfKeyMatches(now);
+    if (!enabledAt) return "incomplete";
     const { getCalendarSourceUrl } = await import("@/lib/calendar-source-url-core");
     const orgs = await prisma.organization.findMany({ orderBy: { createdAt: "asc" }, select: { id: true } });
     let unreadable = 0;
@@ -305,7 +367,7 @@ export async function backfillTrialIdentitiesOnce(now: Date = new Date()): Promi
           } else unreadable += 1;
         }
         if (keys.length === 0) continue;
-        const res = await recordTrialIdentities(org.id, keys, { enforce: false, now });
+        const res = await recordKeys(org.id, keys, { enforce: false, now });
         if (!res.ok) {
           failedOrgs += 1;
           continue;
@@ -318,18 +380,17 @@ export async function backfillTrialIdentitiesOnce(now: Date = new Date()): Promi
         void reportError(`trial-identity backfill org=${org.id}`, err);
       }
     }
-    // Sessiz kayıp yok (Haiku incelemesi): işaret yine yazılır (bozuk bir işletme her çağrıda bütün taramayı yeniden koşturmasın) ama
-    // operatör haberdar olur. Kaydedilemeyen eski takvim ilk gerçek okumasında muaf kaydolur.
-    if (unreadable > 0 || failedOrgs > 0) {
-      void reportError(
-        "trial-identity backfill",
-        new Error(`${failedOrgs} işletme kaydedilemedi, ${unreadable} takvim adresi okunamadı`),
-      );
+    if (unreadable > 0) void reportError("trial-identity backfill", new Error(`${unreadable} takvim adresi okunamadı — kimliği kaydedilmedi`));
+    // 🚨 KISMİ GERİ DOLDURMA TAMAMLANMIŞ SAYILMAZ (Haiku üçüncü inceleme): işaret yazılmaz, sonraki geçiş yeniden dener (kayıt tekrarı
+    // zararsız); bu arada hiçbir kimlik yazılmaz (`readyForRecording`). Alarm bağlam başına kısılır.
+    if (failedOrgs > 0) {
+      void reportError("trial-identity backfill", new Error(`${failedOrgs} işletme kaydedilemedi — geri doldurma tamamlanmadı`));
+      return "incomplete";
     }
     await prisma.systemLock.createMany({ data: [{ name: TRIAL_IDENTITY_BACKFILL_MARKER, lockedUntil: new Date("9999-12-31T00:00:00Z") }], skipDuplicates: true });
     return "done";
   } catch (err) {
     void reportError("trial-identity backfill", err);
-    return "skipped";
+    return "incomplete";
   }
 }

@@ -4,8 +4,9 @@ import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
 // DENEME RİSK PUANI yalnız OPERATÖR listesindedir (kurucu onayı 10-10: "önce yalnız liste"). Yapısal pin (sunucu bileşeni DB'li render
-// ister): (1) sayfa puanı sahiplerin e-posta + doğrulama + kayıt anıyla VE ilan kuralının sonucuyla hesaplar ("yüklem var, argüman yok"
-// dersi); (2) risk modülü operatör sayfası dışında HİÇBİR yerden import edilmez — müşteri yüzeyine / otomatik işleme sızamaz.
+// ister; liste mantığı `riskyTrials` saf fonksiyonunda davranışsal sınanır — tests/unit/trial-risk.test.ts): (1) sayfa sahipleri yalnız deneme
+// hesapları için tavansız sorgular ve listeyi riskyTrials'e verir ("yüklem var, argüman yok" dersi); (2) risk modülü operatör sayfası
+// dışında HİÇBİR yerden import edilmez — müşteri yüzeyine / otomatik işleme sızamaz.
 // ---------------------------------------------------------------------------
 
 const ROOT = process.cwd();
@@ -22,13 +23,15 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 describe("deneme risk puanı — yalnız operatör listesi", () => {
-  it("sayfa sahiplerin doğrulama + kayıt anını sorgular ve puana ilan kuralını da verir", () => {
+  it("sayfa sahipleri YALNIZ deneme hesapları için TAVANSIZ sorgular (doğrulama + kayıt anıyla) ve listeyi riskyTrials'e verir", () => {
     const src = read(ADMIN);
-    expect(src).toMatch(/select: \{ email: true, organizationId: true, emailVerifiedAt: true, createdAt: true \}/);
-    expect(src).toMatch(/owners: ownersByOrg\.get\(o\.id\) \?\? \[\]/);
-    expect(src).toMatch(/identityReused: o\.subscription\?\.trialEndReason === TRIAL_END_REASON_IDENTITY_REUSED/);
-    expect(src).toMatch(/o\.subscription\?\.provider === "trial" && !isDemoOrg\(o\.id\)/);
+    const query = /const trialOwners = await prisma\.user\.findMany\(\{\s*where: \{ role: "owner", organizationId: \{ in: trialOrgIds \} \},\s*select: \{ email: true, organizationId: true, emailVerifiedAt: true, createdAt: true \},\s*\}\);/;
+    expect(src).toMatch(query);
+    expect(src).toMatch(/const trialOrgIds = orgs\.filter\(\(o\) => o\.subscription\?\.provider === "trial" && !isDemoOrg\(o\.id\)\)/);
+    expect(src).toMatch(/riskyTrials\(\s*orgs\.filter\(\(o\) => !isDemoOrg\(o\.id\)\),\s*ownersByOrg,/);
     expect(src).toMatch(/TRIAL_RISK_LABELS\[r\]/);
+    // Sayfanın org sorgusu puanın okuduğu abonelik alanlarını taşır.
+    expect(src).toMatch(/subscription: \{ select: \{ status: true, planCode: true, provider: true, trialEndsAt: true, trialEndReason: true \} \}/);
   });
 
   it("🚨 risk modülünü operatör sayfası dışında hiçbir kaynak import etmez (anti-vakum: tarama gerçekten dosya bulur)", () => {

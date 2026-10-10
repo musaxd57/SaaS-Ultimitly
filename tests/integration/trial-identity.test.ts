@@ -26,6 +26,7 @@ import { POST as exemptPost } from "@/app/api/admin/trial-identity-exempt/route"
 import {
   TRIAL_IDENTITY_BACKFILL_MARKER,
   TRIAL_IDENTITY_ENABLED_AT_MARKER,
+  TRIAL_IDENTITY_KEY_FP_MARKER,
   TRIAL_IDENTITY_REUSED_MESSAGE,
   backfillTrialIdentitiesOnce,
   hashTrialIdentity,
@@ -407,6 +408,36 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect(await backfillTrialIdentitiesOnce()).toBe("done");
     expect(await prisma.trialIdentity.count()).toBe(0);
     expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: old.id } })).trialIdentityCheckedAt).toBeNull();
+  });
+
+  it("🚨 özet anahtarı değişmişse (parmak izi uyuşmaz) kayıt DURUR: iz yazılmaz, takvim 'sayıldı' işaretlenmez, deneme bitmez", async () => {
+    const a = await trialOrg("A");
+    await addIcal(a, AIRBNB("1"));
+    expect(await prisma.trialIdentity.count()).toBe(1);
+    await prisma.systemLock.update({ where: { name: TRIAL_IDENTITY_KEY_FP_MARKER }, data: { holder: "fp:baska-anahtar" } });
+    const b = await trialOrg("B");
+    const synced = await addIcal(b, AIRBNB("2"));
+    expect(synced.trialNotice).toBeUndefined();
+    expect(await prisma.trialIdentity.count()).toBe(1);
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: synced.id } })).trialIdentityCheckedAt).toBeNull();
+    expect((await sub(b.orgId)).trialEndReason).toBeNull();
+  });
+
+  it("🚨 anahtar KAPANINCA zamanlanmış geçiş açılış anı + geri doldurma işaretini siler (parmak izi kalır): kapalıyken bağlanan ilan yeniden açılışta kayda geçer", async () => {
+    vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    expect(await backfillTrialIdentitiesOnce()).toBe("off");
+    expect((await prisma.systemLock.findMany({ where: { name: { startsWith: "trial-identity-" } }, select: { name: true } })).map((r) => r.name)).toEqual([
+      TRIAL_IDENTITY_KEY_FP_MARKER,
+    ]);
+    const a = await trialOrg("A");
+    await link(a, "airbnb_direct", "123456789"); // anahtar kapalıyken
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    expect(await backfillTrialIdentitiesOnce()).toBe("done"); // yeniden açılış: yeni açılış anı + geri doldurma
+    const b = await trialOrg("B");
+    await link(b, "airbnb_direct", "123456789");
+    expect((await sub(b.orgId)).trialEndReason).toBe("identity_reused");
+    expect((await sub(a.orgId)).trialEndReason).toBeNull();
   });
 
   it("🚨 aynı kaynağın EŞZAMANLI iki okuması kimliği bir kez sayar: tek not, tek denetim kaydı", async () => {

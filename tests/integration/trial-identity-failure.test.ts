@@ -95,7 +95,7 @@ describe("deneme kimliği — kayıt arızası", () => {
     expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: b.orgId } })).trialEndReason).toBe("identity_reused");
   });
 
-  it("🚨 geri doldurmada bir işletmenin kaydı hata verirse o işletmenin takvimi 'sayıldı' İŞARETLENMEZ (ilk gerçek okumasında muaf kaydolur); diğerleri kaydedilir", async () => {
+  it("🚨 geri doldurmada bir işletmenin kaydı hata verirse geri doldurma TAMAMLANMAZ (işaret yok, o takvim 'sayıldı' işaretlenmez); diğerleri kaydedilir", async () => {
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
     await prisma.systemLock.deleteMany({ where: { name: { in: [TRIAL_IDENTITY_BACKFILL_MARKER, TRIAL_IDENTITY_ENABLED_AT_MARKER] } } });
     const a = await trialOrg("A");
@@ -111,9 +111,39 @@ describe("deneme kimliği — kayıt arızası", () => {
     vi.spyOn(prisma.trialIdentity, "createMany").mockImplementation(((args: Parameters<typeof original>[0]) =>
       calls++ === 0 ? Promise.reject(new Error("db down")) : original(args)) as unknown as typeof prisma.trialIdentity.createMany);
 
-    expect(await backfillTrialIdentitiesOnce()).toBe("done");
+    expect(await backfillTrialIdentitiesOnce()).toBe("incomplete");
+    expect(await prisma.systemLock.count({ where: { name: TRIAL_IDENTITY_BACKFILL_MARKER } })).toBe(0);
     expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: aId } })).trialIdentityCheckedAt).toBeNull(); // A (ilk, arızalı)
     expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: bId } })).trialIdentityCheckedAt).not.toBeNull(); // B kaydedildi
     expect(await prisma.trialIdentity.count()).toBe(1);
+    // Sonraki geçiş yeniden dener ve tamamlar.
+    expect(await backfillTrialIdentitiesOnce()).toBe("done");
+    expect(await prisma.trialIdentity.count()).toBe(2);
+  });
+
+  it("🚨 geri doldurma EKSİKKEN yeni hesap eski hesabın ilanının 'ilk sahibi' olamaz: hiçbir kimlik yazılmaz; tamamlanınca yeni hesap cezalanır (Haiku üçüncü inceleme)", async () => {
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    await prisma.systemLock.deleteMany({ where: { name: { in: [TRIAL_IDENTITY_BACKFILL_MARKER, TRIAL_IDENTITY_ENABLED_AT_MARKER] } } });
+    const a = await trialOrg("A");
+    await sync(a.orgId, await add(a, AIRBNB("1")));
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+
+    const original = prisma.trialIdentity.createMany.bind(prisma.trialIdentity);
+    let failA = true;
+    vi.spyOn(prisma.trialIdentity, "createMany").mockImplementation(((args: Parameters<typeof original>[0]) => {
+      const rows = (args as { data: { firstOrganizationId?: string | null }[] }).data;
+      return failA && rows.some((r) => r.firstOrganizationId === a.orgId) ? Promise.reject(new Error("db down")) : original(args);
+    }) as unknown as typeof prisma.trialIdentity.createMany);
+
+    expect(await backfillTrialIdentitiesOnce()).toBe("incomplete");
+    const c = await trialOrg("C");
+    const cId = await add(c, AIRBNB("2"));
+    expect((await sync(c.orgId, cId)).trialNotice).toBeUndefined();
+    expect(await prisma.trialIdentity.count()).toBe(0); // C ilk sahip OLMADI
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: cId } })).trialIdentityCheckedAt).toBeNull();
+
+    failA = false; // arıza geçti
+    expect((await sync(c.orgId, cId)).trialNotice).toBe(TRIAL_IDENTITY_REUSED_MESSAGE);
+    expect((await prisma.trialIdentity.findFirstOrThrow()).firstOrganizationId).toBe(a.orgId);
   });
 });
