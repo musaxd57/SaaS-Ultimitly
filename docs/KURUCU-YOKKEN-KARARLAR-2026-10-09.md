@@ -47,3 +47,19 @@
 | Ödeme boşlukları | Operatör alarmı + "Ödemeniz işleniyor" kilidi |
 | Deneme kötüye kullanımı | İşletme kimliği (Hospitable'a DEĞİL, sağlayıcıdan bağımsız kanal bağlantısı / ilan / iCal) + risk puanı + operatör listesi + yüksek puanda kartla doğrulama |
 | Uygulama sırası | Şimdi başla |
+
+## Gece modu (10-10, kurucu: "soru sorma, Haiku'yu bol kullan, kapıları beklerken paralel iş") — karar bekleyenler
+
+Kurucu sabah bakar; hiçbiri müşteriye giden metni / politikayı değiştirecek şekilde UYGULANMADI.
+
+| # | Konu | Ne buldum / ne yaptım | Önerim | Karar |
+|---|---|---|---|---|
+| 15 | QR: konaklama başına mesaj tavanı (Haiku QR taraması F2) | Bugün yalnız IP başına 20/dk; cihazı bağlayan kişi farklı IP'lerden sınırsız mesaj YAZDIRABİLİR (her mesaj veritabanına satır; kota dolunca da "teşekkürler" / kota cevabı yazılıyor). | Konaklama başına saatlik tavan (ör. 40) + aşımda yazmadan kısa cevap + ev sahibine tek kayıt. Örnek: 41. mesaj → "Şu anda yanıt veremiyoruz, ev sahibiniz bilgilendirildi." (metin sizin onayınızla). | — |
+| 16 | QR PIN kapalıyken ilk taranan cihaz konaklamayı kilitler (F3) | Eski misafir / temizlikçi QR fotoğrafıyla check-in saatinden sonra açarsa gerçek misafir "başka cihazda açık" görür. `QR_PIN_ENABLED` bilinçli kapalı (CLAUDE.md). | PIN'i açmak (ilk denemeler birlikte) ya da kapalıyken "başka cihazda açık" durumunda ev sahibine bildirim. | — |
+| 17 | QR kritik (acil) e-postası tekrar seli (F4; `QR_ESCALATION_EMAIL_ENABLED` açıksa) | Tekrar bastırma yalnız SON olayı hatırlıyor; "yangın / acil 2 / acil 3" dizisi her seferinde e-posta. | Konaklama başına saatlik kritik e-posta tavanı (ör. 3) + son N olayı hatırlama. | — |
+| 18 | QR: model çıktısında sır vetosu (F7) | Bilgi tabanı taranıyor ama ÇIKTI taranmıyor; ev sahibinin QR'a elle yazdığı kod geçmişten modele gidebilir. | Gönderilmeden önce çıktıda aynı tarama; eşleşirse devir. Müşteriye giden cevabı etkiler → önce/sonra örnekli onay. | — |
+| 19 | QR yapay zekâ kotası işletme geneli (F8) | Bir dairenin QR'ını ele geçiren, aynı işletmenin ÖTEKİ dairelerinin QR kotasını tüketebilir. | Daire başına alt kota. | — |
+| 20 | QR sır süzgeci: "Kapı açma: 4590" biçimi (F1) | Kaçıyordu (kod sözcüğü yok, bitişik değil). DAR bir kalıp hazırladım ("kapı + aç- fiili + değer"; yıl / fiyat / saat / adres ikizleri korunuyor, süre pinli). Bu, mevcut değişmezin ("QR'da kapı kodu hiçbir biçimde yok") açığını kapatan güvenlik düzeltmesi — misafire giden metni yazmaz, yalnız o kalemi QR bağlamından düşürür. | Uyguluyorum (sır süzgeci kuralı: altın set iki yönlü + süre pini); gerçek misafir külliyatında "sıfır yeni yanlış tutuş" ölçümü canlı veriyle sizin onayınızla yapılabilir. | — |
+| 21 | Load balancer / yatay ölçek | Ayrı LB yok, bugün gerekmiyor; 2 kopya ön koşulları yazıldı (`docs/TASARIM-2026-10-10-load-balancer-yatay-olcek.md`). | Goal sonrası. | — |
+
+Not: QR adresini (token) yenileme (F11) — "chatToken rotasyonu YOK (bilinçli)" kalıcı kararı var; tekrar önermiyorum. F5 (PIN kaba kuvvet) PIN açılınca önemli — 16 ile birlikte.
