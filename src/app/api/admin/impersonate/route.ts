@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
   // Operatör kimliğine bağlı tavan (10-10 gece, Haiku operatör incelemesi): her başarılı çağrı müşteri hesabına giren bir oturum
-  // üretir; ele geçirilmiş bir operatör oturumu döngüyle bütün işletmeleri dolaşamasın. Meşru destek kullanımında ulaşılmaz.
+  // üretir. Sınır otomatik döngüyü / toplu taramayı yavaşlatır; az sayıda işletmeyi gezmeyi DURDURMAZ (bugün ~9 işletme < 30) — asıl
+  // tespit her girişin denetim kaydı (`enterOrganization`). Başarısız denemeler de sayılır; meşru destek kullanımında ulaşılmaz.
   const limited = await rateLimit(`admin-impersonate:${session.actorUserId ?? session.userId}`, 30, 60 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 

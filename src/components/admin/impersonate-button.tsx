@@ -31,7 +31,9 @@ export function ImpersonateButton({ organizationId, orgName }: { organizationId:
         router.refresh();
       } else {
         setBusy(false);
-        toast.error("Hesaba girilemedi.");
+        // Hız sınırı (operatör kimliğine bağlı, 30/saat): sunucunun "çok fazla istek" metni — operatör neden giremediğini bilsin.
+        const tooMany = res.status === 429 ? ((await res.json().catch(() => null)) as { error?: unknown } | null)?.error : null;
+        toast.error(typeof tooMany === "string" && tooMany ? tooMany : "Hesaba girilemedi.");
       }
     } catch {
       setBusy(false);
