@@ -260,5 +260,7 @@ describe("🚨 eksi kat okuyucusu başka iddiayı YUTMAZ, kat olmayan sözcüğ�
     expect(u("Depo -1 katında.", ctx("Depo 1. katta."))).toBe(1);
     expect(u("Asansörle -1 kata inin.", ctx("Depo -1. katta."))).toBe(0);
     expect(u("Asansörle -1 kata inin.", ctx("Depo 1. katta."))).toBe(1);
+    expect(u("The storage room is on level -1.", ctx("Depo 1. katta."))).toBe(1);
+    expect(u("The storage room is on level -1.", ctx("Depo -1. katta."))).toBe(0);
   });
 });
