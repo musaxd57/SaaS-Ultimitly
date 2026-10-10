@@ -42,7 +42,9 @@ describe("rakam yoğun girdi — DOĞRUSAL (karesel değil)", () => {
     return t.sort((a, b) => a - b)[1];
   };
   it.each([
-    ["tekrarlanan üleştirme eki", (n: number) => "1'er".repeat(n)],
+    // Sayılar arasında boşluk ŞART: "1'er1'er…" dizisinde rakamın önünde sözcük sınırı olmadığı için yalnız ilk sayı denenir ve karesel
+    // bir kalıp bile doğrusal görünür (mutasyonla ölçüldü 10-10).
+    ["tekrarlanan üleştirme eki", (n: number) => "1'er ".repeat(n)],
     ["tekrarlanan eksi kat", (n: number) => "-1 kat ".repeat(n)],
   ])("%s: 4 kat uzun girdi 8 kattan az sürer", (_ad, make) => {
     median3(make(500)); // ısınma
