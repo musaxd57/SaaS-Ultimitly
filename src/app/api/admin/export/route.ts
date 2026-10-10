@@ -30,9 +30,6 @@ export async function GET(req: NextRequest) {
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
   if (isImpersonating(session)) return forbidden("Dışa aktarma operatörün kendi hesabından yapılır — önce destek görünümünden çıkın.");
-  // Operatör kimliğine bağlı tavan (Haiku operatör denetimi 10-10): her çağrı bir işletmenin TAM dökümü + zorunlu kayıt.
-  const limited = await rateLimit(`admin-export:${session.actorUserId ?? session.userId}`, 20, 60 * 60_000);
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
   // 10-01 (15 ajan incelemesi A02-F5): uç GET ve durum değiştirir (zorunlu kayıt + tam döküm); oturum çerezi SameSite=Lax olduğu için
   // başka bir sitenin üst düzey yönlendirmesi çerezi taşırdı → sahte amaçlı "yasal talep" kaydı + operatörün indirme klasörüne döküm.
   // Tarayıcının kendi bildirdiği kaynak yalnız aynı site (panel formu) ya da elle girilen adres ("none") olabilir; başlık hiç yoksa
@@ -41,6 +38,10 @@ export async function GET(req: NextRequest) {
   if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
     return forbidden("Dışa aktarma yalnız operatör panelinden başlatılır.");
   }
+  // Operatör kimliğine bağlı tavan (Haiku operatör denetimi 10-10): her BAŞARILI çağrı bir işletmenin TAM dökümü + zorunlu kayıt.
+  // Site-dışı kontrolünden SONRA (10-10 gece, Haiku incelemesi): başka sitenin yönlendirmeleri operatörün kovasını tüketemesin.
+  const limited = await rateLimit(`admin-export:${session.actorUserId ?? session.userId}`, 20, 60 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const parsed = parseOperatorExportRequest(new URL(req.url).searchParams);
   if (!parsed.ok) return badRequest(parsed.errors);

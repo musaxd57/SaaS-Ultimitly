@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
 import { isSuperAdmin, enterOrganization } from "@/lib/admin";
+import { rateLimit } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Operator panel: "enter" (impersonate) a customer organization. SUPER-ADMIN
@@ -13,6 +14,10 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
+  // Operatör kimliğine bağlı tavan (10-10 gece, Haiku operatör incelemesi): her başarılı çağrı müşteri hesabına giren bir oturum
+  // üretir; ele geçirilmiş bir operatör oturumu döngüyle bütün işletmeleri dolaşamasın. Meşru destek kullanımında ulaşılmaz.
+  const limited = await rateLimit(`admin-impersonate:${session.actorUserId ?? session.userId}`, 30, 60 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
     const data = await readJsonCappedOrNull(req);

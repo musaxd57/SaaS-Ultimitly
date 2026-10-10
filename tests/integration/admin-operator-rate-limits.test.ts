@@ -20,6 +20,7 @@ import { __resetRateLimit } from "@/lib/rate-limit";
 import { POST as reset2fa } from "@/app/api/admin/reset-2fa/route";
 import { POST as qualityAudit } from "@/app/api/admin/quality-audit/route";
 import { GET as exportGet } from "@/app/api/admin/export/route";
+import { POST as impersonate } from "@/app/api/admin/impersonate/route";
 
 const OPERATOR = "operator@lixusai.com";
 const json = (url: string, body: unknown) =>
@@ -61,9 +62,27 @@ describe("operatör uçlarında hız sınırı", () => {
     expect((await get()).status).toBe(429);
   });
 
+  it("🚨 dışa aktarma: başka sitenin yönlendirmesi (403) operatörün kovasını TÜKETMEZ (Haiku incelemesi — kontrol sınırdan önce)", async () => {
+    await operator();
+    const crossSite = () => exportGet(new NextRequest("http://localhost/api/admin/export", { headers: { "sec-fetch-site": "cross-site" } }));
+    for (let i = 0; i < 25; i++) expect((await crossSite()).status).toBe(403);
+    expect(await prisma.rateLimitCounter.count()).toBe(0);
+    const own = await exportGet(new NextRequest("http://localhost/api/admin/export", { headers: { "sec-fetch-site": "same-origin" } }));
+    expect(own.status).toBe(400); // eksik parametre — sınır değil
+  });
+
+  it("🚨 bürünme (destek görünümüne giriş): saatte 30 deneme; 31.si 429 (işletme yokken de sayılır)", async () => {
+    await operator();
+    for (let i = 0; i < 30; i++) {
+      expect((await impersonate(json("http://localhost/api/admin/impersonate", { organizationId: `yok-${i}` }))).status).toBe(400);
+    }
+    expect((await impersonate(json("http://localhost/api/admin/impersonate", { organizationId: "yok" }))).status).toBe(429);
+  });
+
   it("KONTROL: operatör olmayan oturum hız sınırına girmeden 401 alır (kova tüketilmez)", async () => {
     session = { userId: "u", organizationId: "o", role: "owner", email: "musteri@x.com", name: "M", sessionEpoch: 0, mfa: true };
     for (let i = 0; i < 12; i++) expect((await reset2fa(json("http://localhost/api/admin/reset-2fa", { email: "a@x.com" }))).status).toBe(401);
+    for (let i = 0; i < 32; i++) expect((await impersonate(json("http://localhost/api/admin/impersonate", { organizationId: "o" }))).status).toBe(401);
     expect(await prisma.rateLimitCounter.count()).toBe(0);
   });
 });
