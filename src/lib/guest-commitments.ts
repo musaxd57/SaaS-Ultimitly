@@ -110,11 +110,13 @@ export async function syncCommitmentsForTaskDueAt(tx: Tx, scope: { organizationI
 }
 
 /**
- * SAKLAMA (KVKK, Haiku denetimi B3 10-10): son anı saklama sınırından (`DATA_RETENTION_MONTHS`) eski sözler silinir — durumdan bağımsız
- * (iki yıllık "açık" söz anlamsızdır). Konuşma öğeleriyle aynı saatlik iş (`scheduled-sync` item-retention).
+ * SAKLAMA (KVKK, Haiku denetimi B3 10-10): son anı YA DA oluşturulma anı saklama sınırından (`DATA_RETENTION_MONTHS`) eski sözler silinir
+ * — durumdan bağımsız (iki yıllık "açık" söz anlamsızdır). Oluşturulma anı da sayılır (10-10 gece, Haiku incelemesi): görev tarihi ileri
+ * taşınınca söz de taşınır (`syncCommitmentsForTaskDueAt`) ve yalnız son ana bakan kural kaydı saklama süresinin ötesinde tutardı.
+ * Kendi saatlik işi (`scheduled-sync` commitment-retention) — konuşma öğesi süpürgesinin arızası bunu durdurmaz.
  */
 export async function purgeExpiredGuestCommitments(cutoff: Date): Promise<{ deleted: number }> {
-  const r = await prisma.guestCommitment.deleteMany({ where: { dueAt: { lt: cutoff } } });
+  const r = await prisma.guestCommitment.deleteMany({ where: { OR: [{ dueAt: { lt: cutoff } }, { createdAt: { lt: cutoff } }] } });
   return { deleted: r.count };
 }
 

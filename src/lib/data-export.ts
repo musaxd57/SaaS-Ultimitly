@@ -71,7 +71,7 @@ function maskFeedUrls<
 }
 
 export async function buildOrganizationDataExport(organizationId: string) {
-  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery, hostEnteredFacts] = await Promise.all([
+  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery, hostEnteredFacts, guestCommitments] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
@@ -271,6 +271,13 @@ export async function buildOrganizationDataExport(organizationId: string) {
       select: { propertyId: true, category: true, title: true, body: true, observedAt: true, expiresAt: true, status: true },
       orderBy: { observedAt: "asc" },
     }),
+    // Ev sahibinin misafire verilen söz olarak İŞARETLEDİĞİ kayıtlar (migration 62) — aynı kural: host verisi, taşınabilir. Metin taşımaz
+    // (tür + son an + durum + konuşma / görev kimliği); konuşmanın kendisi `organization.properties…conversations` altında.
+    prisma.guestCommitment.findMany({
+      where: { organizationId },
+      select: { id: true, conversationId: true, taskId: true, kind: true, dueAt: true, status: true, closedAt: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
   if (!org) return null;
   return {
@@ -281,5 +288,6 @@ export async function buildOrganizationDataExport(organizationId: string) {
     riskEvents,
     messageDelivery,
     hostEnteredFacts,
+    guestCommitments,
   };
 }

@@ -3,6 +3,7 @@ import { subMonths } from "date-fns";
 import { prisma, resetDb } from "../helpers/db";
 import { eraseReservationData } from "@/lib/erasure";
 import { purgeExpiredGuestCommitments } from "@/lib/guest-commitments";
+import { buildOrganizationDataExport } from "@/lib/data-export";
 
 // ---------------------------------------------------------------------------
 // MİSAFİR SÖZÜ — KVKK (Haiku denetimi B3, 10-10). Söz metin taşımaz ama konaklamaya bağlı davranış kaydıdır: misafir silmesinde o
@@ -50,5 +51,28 @@ describe("misafir sözü — KVKK", () => {
     expect(await purgeExpiredGuestCommitments(cutoff)).toEqual({ deleted: 2 });
     expect(await prisma.guestCommitment.findMany({ select: { id: true } })).toEqual([{ id: fresh.commitmentId }]);
     expect(await prisma.guestCommitment.count({ where: { id: openOld.id } })).toBe(0);
+  });
+
+  it("🚨 saklama: oluşturulma anı sınırdan eski söz, son anı (görev tarihiyle) İLERİ taşınmış olsa da silinir (Haiku incelemesi)", async () => {
+    const moved = await stayWithCommitment();
+    const fresh = await stayWithCommitment(moved.orgId);
+    // Görev tarihi ileri taşınınca söz de taşınır (`syncCommitmentsForTaskDueAt`); kayıt yine iki buçuk yıl önce oluşturuldu.
+    await prisma.guestCommitment.update({
+      where: { id: moved.commitmentId },
+      data: { createdAt: subMonths(new Date(), 30), dueAt: new Date(Date.now() + 365 * 86_400_000) },
+    });
+    expect(await purgeExpiredGuestCommitments(subMonths(new Date(), 24))).toEqual({ deleted: 1 });
+    expect(await prisma.guestCommitment.findMany({ select: { id: true } })).toEqual([{ id: fresh.commitmentId }]);
+  });
+
+  it("🚨 dışa aktarma: ev sahibinin işaretlediği sözler dökümde (metin yok — tür, son an, durum, kimlikler); başka işletmeninki yok", async () => {
+    const a = await stayWithCommitment();
+    await stayWithCommitment(); // başka işletme
+    const exported = await buildOrganizationDataExport(a.orgId);
+    expect(exported?.guestCommitments).toHaveLength(1);
+    expect(Object.keys(exported!.guestCommitments[0]).sort()).toEqual(
+      ["closedAt", "conversationId", "createdAt", "dueAt", "id", "kind", "status", "taskId"].sort(),
+    );
+    expect(exported!.guestCommitments[0]).toMatchObject({ id: a.commitmentId, kind: "towels", status: "open", taskId: a.taskId });
   });
 });

@@ -834,11 +834,12 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // Konuşma öğeleri (09-26): misafir mesajından türer → aynı saklama süresi (değişmez 14). Satırda PII yok.
         await hourly("item-retention", "scheduled-sync item retention", async () => {
           const cutoff = retentionCutoff();
-          if (cutoff) {
-            await purgeExpiredConversationItems(prisma, cutoff);
-            // Misafire verilen sözler (migration 62): aynı saklama sınırı.
-            await purgeExpiredGuestCommitments(cutoff);
-          }
+          if (cutoff) await purgeExpiredConversationItems(prisma, cutoff);
+        });
+        // Misafire verilen sözler (migration 62): aynı saklama sınırı, AYRI iş — öğe süpürgesinin arızası bunu durdurmaz (Haiku incelemesi).
+        await hourly("commitment-retention", "scheduled-sync commitment retention", async () => {
+          const cutoff = retentionCutoff();
+          if (cutoff) await purgeExpiredGuestCommitments(cutoff);
         });
         // Marketing-lead retention. No-op unless LEAD_RETENTION_MONTHS is set.
         await hourly("lead-purge", "scheduled-sync lead-purge", () => purgeOldLeads());
