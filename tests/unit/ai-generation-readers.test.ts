@@ -11,11 +11,16 @@ import path from "node:path";
 
 const ROOT = path.resolve(__dirname, "../..");
 
-/** Kurucu kalite konsolu (salt-okuma + etiket) · yazıcı · saklama süpürgesi · misafir silmesi · konuşma birleştirme (iz taşınır). */
+/**
+ * Kurucu kalite konsolu (salt-okuma + etiket) · yazıcı · saklama süpürgesi · misafir silmesi · konuşma birleştirme (iz taşınır) ·
+ * paneldeki tekrarlanan konuşma temizliği (10-10: kaybeden silinmeden önce iz kazanana TAŞINIR — yalnız `conversationId` güncellenir,
+ * içerik okunmaz / dışa verilmez; toplu birleştirme betiğiyle aynı gerekçe).
+ */
 const ALLOWED = [
   "scripts/apply-conversation-dedupe.ts",
   "src/lib/ai-quality/console.ts",
   "src/lib/ai/generation-trace.ts",
+  "src/lib/conversations-cleanup.ts",
   "src/lib/data-retention.ts",
   "src/lib/erasure.ts",
 ].sort();
