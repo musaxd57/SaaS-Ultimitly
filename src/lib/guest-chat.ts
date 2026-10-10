@@ -290,8 +290,10 @@ const KEYPAD_NOUNS =
 /** 4–8 haneli değer; telefonun ilk öbeği (ardında rakam öbeği) ve SON öbeği (önünde rakam + ayraç) dışarıda. */
 const KEY_DIGITS = "(?<!\\d)(?<!\\d[\\s\\-.])\\d{4,8}(?!\\d)(?![\\s\\-.]\\d)";
 
-/** "kapı / kapıyı / kapının" + "aç-" fiili ("açma", "açılış", "açmak") + en çok iki sözcük (sınırlı — doğrusal). ASCII katlamada "ac". */
-const DOOR_OPEN = "kap[ıi][a-zçğıöşü]{0,6}\\s+a[çc][a-zçğıöşü]{0,10}(?:\\s+[a-zçğıöşü]{1,12}){0,2}?";
+/** "kapı / giriş" (+ ek) + "aç-" fiili ("açma", "açılış", "açmak") + en çok iki sözcük (sınırlı — doğrusal). ASCII katlamada "ac". */
+const DOOR_OPEN = "(?:kap[ıi]|giri[şs])[a-zçğıöşü]{0,6}\\s+a[çc][a-zçğıöşü]{0,10}(?:\\s+[a-zçğıöşü]{1,12}){0,2}?";
+/** Değerden sonra fiyat / yıl / ondalık geliyorsa sır DEĞİL ("1500 euro", "1500,00 TL", "2024 yılında", "2024 model"). */
+const NOT_PRICE_OR_YEAR = "(?!\\s*(?:tl\\b|try\\b|₺|euro?\\b|€|usd\\b|\\$|dolar|dollar|lira|y[ıi]l|year|model)|[.,]\\d)";
 
 const SECRET_PATTERNS: RegExp[] = [
   // door / keybox / entry / lock + code word (TR suffixes ok), e.g. "kapı kodu",
@@ -364,9 +366,11 @@ const SECRET_PATTERNS: RegExp[] = [
   // (`wifi` / `checkin`) bunları kurtarmıyordu: kalem `general` idi.
   new RegExp(`(?:${KEYPAD_NOUNS})[^\\d\\n.]{0,20}?${KEY_DIGITS}`, "i"),
   new RegExp(`${KEY_DIGITS}[^\\d\\n.]{0,20}?(?:${KEYPAD_NOUNS})`, "i"),
-  new RegExp(`${KEY_DIGITS}(?:\\s*[#*])?\\s*(?:['’][a-zçğıöşü]{0,4})?\\s*tu[şs]la`, "i"),
-  new RegExp(`tu[şs]la[a-zçğıöşü]{0,8}\\s*[:=]?\\s*${KEY_DIGITS}`, "i"),
-  new RegExp(`panel[a-zçğıöşü]{0,6}\\s+${KEY_DIGITS}(?:\\s*[#*])?\\s*(?:['’][a-zçğıöşü]{0,4})?\\s+(?:yaz|gir|tu[şs]la|bas)`, "i"),
+  // Boşluklar isteğe bağlı grupların İÇİNDE (`(?:\s*X)?(?:\s*Y)?\s*Z`): eski `(?:\s*X)?\s*(?:Y)?\s*Z` yazımında bitişik boşluk
+  // niceleyicileri "1234 + uzun boşluk" girdisinde karesel geri izliyordu (10-10 gece ölçüm: 23.800 boşlukta 2,5 sn). Dil AYNI.
+  new RegExp(`${KEY_DIGITS}(?:\\s*[#*])?(?:\\s*['’][a-zçğıöşü]{0,4})?\\s*tu[şs]la`, "i"),
+  new RegExp(`tu[şs]la[a-zçğıöşü]{0,8}\\s*(?:[:=]\\s*)?${KEY_DIGITS}`, "i"),
+  new RegExp(`panel[a-zçğıöşü]{0,6}\\s+${KEY_DIGITS}(?:\\s*[#*])?(?:\\s*['’][a-zçğıöşü]{0,4})?\\s+(?:yaz|gir|tu[şs]la|bas)`, "i"),
   new RegExp(
     `(?:(?<![a-z])enter|punch\\s+in|key\\s+in|type\\s+in|tap\\s+in|eingeben|tippen\\s+sie|composez|tapez|teclee|tecleen|marque|introduzca|введите|наберите|أدخل|اكتب)[^\\d\\n.]{0,12}${KEY_DIGITS}`,
     "i",
@@ -380,8 +384,13 @@ const SECRET_PATTERNS: RegExp[] = [
   // kalıbın ölçülmüş dersi: adres / telefon / yıl eleniyordu) — yalnız "kapı + aç-" ve ardından en çok İKİ sözcük; değer ya iki nokta /
   // "için" ardında (A) ya da CÜMLEYİ BİTİREN / giriş fiiliyle biten çıplak değer (B). Para birimi / yıl / saat elenmez ("Kapı açma
   // ücreti: 1500 TL", "Kapıyı açarken 2024 model kilide", "Kapı açma saatleri 08:00") — `secret-filter-door-open.test.ts` iki yönde.
-  new RegExp(`${DOOR_OPEN}\\s*(?::|\\s+i[çc]in)\\s*${KEY_DIGITS}(?!\\s*(?:tl\\b|try\\b|₺|eur\\b|€|usd\\b|\\$|lira))`, "i"),
-  new RegExp(`${DOOR_OPEN}\\s+${KEY_DIGITS}(?=\\s*(?:[.,;!)\\n#*]|$)|\\s*['’]?[a-zçğıöşü]{0,4}\\s+(?:gir|yaz|tu[şs]la|bas))`, "i"),
+  // 🚨 10-10 gece (Haiku incelemesi): ayraç `(?:\s*AYRAÇ|\s+için)` ve ileriye bakış `(?:\s*'ek|\s+sözcük)?\s+fiil` biçiminde — eski
+  // yazımdaki bitişik iki boşluk niceleyicisi (`\s*(?::|\s+için)`, `\s*'?…{0,4}\s+`) boşluk dizisinde KARESEL geri izliyordu (23.000
+  // boşlukta kalıp başına ~1 sn; `secret-filter-door-open.test.ts` süre pini). Ayraç tire / uzun tire / parantezi de kabul eder; "giriş"
+  // adı ve İngilizce "door opens / unlocks with" eklendi; fiyat / yıl / ondalık ardılı sır sayılmaz (`NOT_PRICE_OR_YEAR`).
+  new RegExp(`${DOOR_OPEN}(?:\\s*[:\\-–—(]|\\s+i[çc]in)\\s*${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`, "i"),
+  new RegExp(`${DOOR_OPEN}\\s+${KEY_DIGITS}(?=\\s*(?:[.,;!)\\n#*]|$)|(?:\\s*['’][a-zçğıöşü]{0,4}|\\s+[a-zçğıöşü]{1,4})?\\s+(?:gir|yaz|tu[şs]la|bas))`, "i"),
+  new RegExp(`(?:door|gate|entrance)[a-z]{0,2}\\s+(?:opens?|unlocks?)\\s+(?:with|using|by\\s+entering)\\s+${KEY_DIGITS}`, "i"),
 ];
 
 /**
