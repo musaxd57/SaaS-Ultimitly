@@ -168,12 +168,19 @@ describe("hesap silme — ödeme aboneliği kapısı (fail-closed)", () => {
     }
 
     const offenders: string[] = [];
+    const writers: string[] = [];
     for (const file of await walk("src")) {
       const src = await fs.readFile(file, "utf8");
-      if (!/subscription\.create\(/.test(src)) continue;
+      // `upsert` / `createMany` de abonelik satırı OLUŞTURUR (10-10 gece, Haiku ayıklaması: yalnız `create(` aranıyordu).
+      if (!/subscription\.(?:create|upsert|createMany)\(/.test(src)) continue;
+      writers.push(file);
       if (!/provider:/.test(src) && !/newTrialSubscriptionData/.test(src)) offenders.push(file);
     }
     expect(offenders).toEqual([]);
+    // ANTİ-VAKUM (popülasyon güvencesi): tarama bilinen yazıcıları gerçekten buluyor — yazım biçimi değişip liste boşalırsa
+    // "ihlal yok" sessizce geçmez.
+    expect(writers.length, writers.join(", ")).toBeGreaterThanOrEqual(3);
+    expect(writers).toContain("src/app/api/auth/register/route.ts");
 
     // Ve yardımcının KENDİSİ provider'ı belirliyor (zincirin diğer ucu).
     const helper = await fs.readFile("src/lib/billing/subscription.ts", "utf8");
