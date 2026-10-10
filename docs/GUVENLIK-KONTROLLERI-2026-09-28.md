@@ -83,6 +83,7 @@
 ## 9. Açık kalanlar (dürüst liste)
 
 - Bağımsız sızma testi, SOC 2 / ISO 27001 hazırlığı YOK; haftalık otomatik zafiyet denetimi zamanlayıcısı canlı değil (runbook hazır).
+  Yazılı süreçler (üç ayda bir tarama, olay müdahalesi + KVKK ihlal bildirimi, erişim gözden geçirme) TASLAK: `docs/GUVENLIK-SURECLERI-2026-10-10.md`.
 - `security@lixusai.com` posta kutusu açılmalı (güvenlik açığı bildirim sayfası ona yönlendiriyor).
 - CSP'nin script-src kısmı zorlanmıyor (ölçüm → nonce → zorlama sırası belgeli).
 - Kurucu kararı bekleyenler: `docs/SABAH-KARARLARI-2026-09-28.md` K8 (bürünmüşken ödeme / iz / süre), K10 a–u (takvim beslemesi penceresi, Dependabot hedef dalı, giriş kapasitesi, QR PIN, CSRF ek katmanı, oturum ömrü / PKCE, repo görünürlüğü, bürünme izi, şifre sıfırlama günlük tavanı, iletişim formu e-posta tavanı, Paddle webhook ön kısıtı, QR acil e-postası bekleme süresi, sayfa düzeyinde rol kapısı, QR devir dizini, misafir adının ev sahibi bilgisine girmesi — karakter süzgeci harf sınıfını kapatamaz, önizlemenin bütçe çarpanı, deneme süresi istismarı, oturumlu kullanıcının tetiklediği bildirim e-postası tavanı, misafirden türeyen metnin istemdeki etiketi, kanal mesajı uzunluk tavanı, kiracının tetiklediği kaynak kullanımı).

@@ -116,7 +116,10 @@ sequenceDiagram
 - **Supply chain:** dependency advisory gate on pushes to the deploy branch and on pull requests (zero un-triaged advisories,
   expiring triage entries, fail-closed). A scheduled scan is not yet running (see §11).
 - **Backup / recovery:** a production dump was restored in a drill (exit 0, 0.7 s) with row counts identical to the dump manifest
-  (recorded 2026-09-19 in the project's operations log).
+  (2026-09-19, `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`). That drill had no encrypted calendar rows, so it does not
+  prove decryption of encrypted fields; the earlier 2026-07-30 drill restored and decrypted all 8 encrypted calendar URLs. Written
+  procedures (quarterly vulnerability scan, incident response incl. KVKK breach notification, access review) are drafted in
+  `docs/GUVENLIK-SURECLERI-2026-10-10.md` (pending founder / legal approval).
 - **Testing discipline:** internal evidence contract — red-first tests and two-way mutation for behaviour changes
   (`docs/TEST-EVIDENCE-CONTRACT.md`); CI enforces type check, lint, the full test suite, build, e2e, migration chain and the
   advisory gate, not the mutation evidence itself.
