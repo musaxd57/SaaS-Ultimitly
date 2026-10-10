@@ -67,3 +67,13 @@ puana göre kademeli davranır (izin ver / ek doğrulama iste / insana göster).
 **Kurucuya sorular:** (a) İşletme kimliği kuralı (1) uygulansın mı? (b) Risk puanında posta kutusu eşleşmesi sinyal olarak kullanılabilir mi
 (önceki ret engel içindi)? (c) Eşik üstü davranış: kısa deneme mi, kartla doğrulama mı, yalnız operatör listesi mi? (d) Ödeme boşlukları 1–2
 için alarm + "ödemeniz işleniyor" kilidi yapılsın mı?
+
+## 4. KURUCU KARARI (10-10, döndüğünde)
+
+- **Ödeme:** operatör alarmı + "Ödemeniz işleniyor" kilidi — YAPILACAK (ilk denemeler kurucuyla).
+- **Deneme:** işletme kimliği kuralı + risk puanı + operatör listesi + yüksek puanda kartla doğrulama — YAPILACAK. Kısa deneme (3 gün) seçilmedi.
+- 🚨 **Kurucu düzeltmesi: "İlerde Hospitable gidecek, Hospitable üzerine kurmuş gibi yapma."** İşletme kimliği Hospitable HESABINA bağlanmaz;
+  sağlayıcıdan bağımsız: kanal bağlantısının hesap kimliği (`ChannelConnection`; Airbnb Direct / Booking / bugünkü köprü), ilan kimliği
+  (migration 60 `ChannelListing`), iCal takvim adresi. (Kendi kuralımız zaten buydu — "Hospitable'a özgü özellik yapılmaz" — önerirken çiğnedim.)
+- **Sıra:** şimdi başla — önce ödeme alarmı + kilit, sonra migration 60 uygulanır (ilan kimliği ona dayanır; Railway açılmadan önce taze yedek),
+  sonra deneme işletme kimliği, sonra risk puanı + kartla doğrulama.

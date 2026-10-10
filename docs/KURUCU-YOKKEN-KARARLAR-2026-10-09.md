@@ -34,3 +34,16 @@
 | 12 | Tam test koşusunda kırmızı çıkan plan sınırı yarışı (4 eşzamanlı daire eklemede 2'si geçti; `BILLING_ENFORCED` canlıda açık) — düzeltilsin mi | DÜZELTTİM (hata düzeltmesi, ürün davranışı değişmedi): sayım + oluşturma tek işlemde, kuruluş satırı kilidi altında (takvim kaynağı kotasının kalıbı); belirlenimci test eski kodda kırmızı; mutasyon 7/7 | Kurucunun onayladığı plan sınırları zaten bu davranışı istiyor; eski "oluştur, sonra fazlaysa sil" yaması yük altında delikti | `58f4163`'ü geri al |
 | 13 | Getirme ölçümünde bulunan açık: Türkçe soru → İngilizce yazılmış bilgi kalemi (cevap %79 blokta, diğer yönler %98–100). Anlama katmanına İngilizce arama sorgusu eklensin mi | EKLEDİM, anahtar `AI_UNDERSTANDING_EN_QUERY_ENABLED` KAPALI arkasında: her istek `query_en` taşır, getirmeye Türkçe + özgün dil sorgularından SONRA girer. Ölçüm (geliştirme seti): 5.1 anlamayla çok sorulu 110 → 115 / 120, Türkçe → İngilizce kalem 33/41 → 39/41; Luna ile 105 → 112. Kötüleşen soru 2 (bütçe yarışı), negatif grupta gürültü artmadı. Açmayı öneriyorum (kurucu + ilk denemeler) | Getirme müşteriye giden cevabı etkiler, o yüzden anahtar kapalı; kapalıyken istem / şema / önbellek / sorgu listesi bayt bayt eski (pinli, mutasyon 13/13) | anahtar kapalı kalır |
 | 14 | Luna önerisinde anlama katmanı ve yeniden sıralayıcı | Öneriyi DEĞİŞTİRDİM: ikisi de 5.1'de kalsın (env boş). Sıralayıcı: dalga 3 ölçümü tavansızdı, üretimin 2,5 sn tavanında Luna çağrılarının ~%10'u düşüyor. Anlama: getirmede iki koşuda tekrar eden 4–5 / 120 kayıp, diğer ölçülerde eşit | Ölçümle kesinleşti (`docs/olcum/RAG-AYRISTIRMA-2026-10-10.md`); tavanı Luna için yükseltmek misafirin bekleme süresini uzatır — onu önermiyorum | env değeri |
+
+## Kurucu döndü (10-10) — cevaplar
+
+| Konu | Kurucu kararı |
+|---|---|
+| Luna geçişi | ÖNERİLEN yapılandırma: cevap + bekçi Luna `low`; anlama, sıralayıcı, karar metni 5.1 (env boş); çeviri Luna `medium`; üslup Luna `none` — Railway açılınca env |
+| İngilizce köprü (#13) | AÇILACAK, ilk denemelerle |
+| Anahtar açma sırası | Kademeli: 1) Luna + köprü 2) tarih okuması + konuşma durumu 3) doğrulanmış müsaitlik 4) uzatma 5) QR karşılıkları |
+| Açık taahhüt hafızası (#11) | **A** — söz yalnız ev sahibinin açık işaretinden + görev bağlantısı (migration 61) |
+| Migration 60 | ŞİMDİ uygula + push; Railway açılmadan önce taze `pg_dump` |
+| Ödeme boşlukları | Operatör alarmı + "Ödemeniz işleniyor" kilidi |
+| Deneme kötüye kullanımı | İşletme kimliği (Hospitable'a DEĞİL, sağlayıcıdan bağımsız kanal bağlantısı / ilan / iCal) + risk puanı + operatör listesi + yüksek puanda kartla doğrulama |
+| Uygulama sırası | Şimdi başla |
