@@ -77,3 +77,11 @@ için alarm + "ödemeniz işleniyor" kilidi yapılsın mı?
   (migration 60 `ChannelListing`), iCal takvim adresi. (Kendi kuralımız zaten buydu — "Hospitable'a özgü özellik yapılmaz" — önerirken çiğnedim.)
 - **Sıra:** şimdi başla — önce ödeme alarmı + kilit, sonra migration 60 uygulanır (ilan kimliği ona dayanır; Railway açılmadan önce taze yedek),
   sonra deneme işletme kimliği, sonra risk puanı + kartla doğrulama.
+
+## 5. UYGULAMA DURUMU (10-10)
+
+- ✅ Ödeme: ikinci aktif abonelik alarmı + "Ödemeniz işleniyor" kilidi + ödeme başarısız olayı kilidi kaldırır (itildi, CI yeşil).
+- ✅ Deneme işletme kimliği (migration 61, `TRIAL_IDENTITY_ENABLED` KAPALI): kurucu kararları "24 ay (silinme anından)" + "deneme biter + operatör
+  istisnası"; kimlik sağlayıcıdan bağımsız (ilan / iCal), HMAC özeti; testler 16/16, mutasyon 15/15.
+- ⏳ Risk puanı + operatör listesi + yüksek puanda kartla doğrulama — sıradaki dilim (kartla doğrulama Paddle tarafı tasarım ister).
+

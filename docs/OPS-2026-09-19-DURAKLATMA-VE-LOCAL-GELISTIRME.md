@@ -182,6 +182,9 @@ küme başlatılır.
    `AI_GENERATION_TRACE_ENABLED`).
 0b. **Paddle bildirim ayarı:** Paddle panelinde webhook bildirim olaylarına `transaction.payment_failed` eklenmeli ("Ödemeniz işleniyor"
    kilidi ödeme başarısız olunca anında kalksın — kurucu sorusu 10-10). Eklenmezse kilit en geç 10 dakikada kendiliğinden düşer.
+0b2. **Migration 61 (deneme kimliği, 10-10):** aynı taze yedek kuralı (60 ile birlikte deploy olur; yalnız ekler). `TRIAL_IDENTITY_ENABLED` KAPALI
+   kalır — açmadan ÖNCE aydınlatma metnine "deneme kötüye kullanımını önleme" amacı eklenmeli (avukat paketi); ilan numaralarının da izlenmesi
+   için `CHANNEL_METADATA_WRITE=1` gerekir (yalnız iCal kimliği için gerekmez). İlk açılışta mevcut hesaplar bir kez yalnız kaydedilir.
 0c. **Yapay zekâ anahtarları KADEMELİ** (kurucu 10-10): 1) Luna env (`docs/olcum/LUNA-GECIS-2026-10-10.md` tablosu) + `AI_UNDERSTANDING_EN_QUERY_ENABLED=1`
    2) `AI_DATE_RESOLUTION_ENABLED` + `AI_CONVERSATION_STATE_ENABLED` 3) `AI_VERIFIED_AVAILABILITY_ENABLED` 4) `AI_VERIFIED_EXTENSION_ENABLED`
    5) `AI_VERIFIED_QR_ENABLED` — her biri kurucuyla ilk denemeler.
