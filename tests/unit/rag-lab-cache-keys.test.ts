@@ -172,6 +172,11 @@ describe("yeniden sıralama / anlama anahtarı — GÖNDERİLEN çaba", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "rag-keys-"));
     tmpDirs.push(dir);
     const { core, cache } = await offlineLab(dir);
+    // 10-10: lab kipi ürün bayraklarından — eski koşuların kipi (öğe + kural) bu bayraklarla eski anahtarı üretir.
+    vi.stubEnv("OPENAI_API_KEY", "sk-unit-test-key-xxxxxxxxxxxxxxxx");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "1");
+    vi.stubEnv("AI_HOUSE_RULES_SHADOW", "1");
     const q = { id: "q", group: "single_tr", cls: "tr", lang: "tr", text: "Otopark var mı?", answers: [] };
     const key = understandCacheKey({ version: core.UND_PROMPT_VERSION, model: "gpt-5.1", text: q.text, history: undefined, mode: core.UNDERSTANDING_MODE });
     const f = path.join(dir, "llm", "understand", `${cache.digest(key)}.json`);

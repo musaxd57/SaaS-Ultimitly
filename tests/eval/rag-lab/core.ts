@@ -38,12 +38,16 @@ import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeout
 import {
   understandGuestMessages,
   understandingEnglishQueryEnabled,
+  understandingSystemPromptFor,
   UNDERSTANDING_ENGLISH_QUERY_ADDENDUM,
   UNDERSTANDING_ITEMS_PROMPT_ADDENDUM,
   UNDERSTANDING_RULES_PROMPT_ADDENDUM,
   UNDERSTANDING_SYSTEM_PROMPT,
 } from "@/lib/ai/semantic/understand";
 import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
+import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
+import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { normalizeForRetrieval } from "@/lib/ai/retrieval/text";
 import { embeddingModel } from "@/lib/ai/embeddings/provider";
 import { digest, dotF32, embedCachedWith, llmCached, llmCachedTimed } from "./cache";
@@ -230,17 +234,51 @@ export function labHistory(q: LabQuery, prodHistory: boolean): { direction: "inb
   return q.history ? [...q.history, cur] : undefined;
 }
 
-// ─── anlama katmanı (disk önbellekli; canlının kipi: öğe + kural) ─────────────
+// ─── anlama katmanı (disk önbellekli; kip ÜRETİMİN karar noktasıyla aynı bayraklardan — `kb-retrieve.ts`) ─────────────
+/** 10-10'a kadar her lab koşusunun SABİT kipi (öğe + kural) — yalnız önbellek anahtarı uyumu için tutulur. */
 export const UNDERSTANDING_MODE = { items: true, rules: true } as const;
 export const UND_PROMPT_VERSION = digest([UNDERSTANDING_SYSTEM_PROMPT, UNDERSTANDING_ITEMS_PROMPT_ADDENDUM, UNDERSTANDING_RULES_PROMPT_ADDENDUM]);
 
+export interface LabUnderstandingMode {
+  items: boolean;
+  rules: boolean;
+  complaintFollowup: boolean;
+  english: boolean;
+}
+
+/**
+ * Anlama kipi ÜRETİMİN karar noktasıyla (`kb-retrieve.ts`) AYNI dört bayraktan (10-10, Haiku incelemesi): eskiden sabit "öğe + kural"dı —
+ * canlıdaki şikâyet takibi istemi ölçülmüyordu ve rapor kimliği (`evalRuntime`, bayraklardan) koşulan kipten farklı yazılıyordu.
+ * Canlıyı ölçmek için koşuya canlının bayrakları verilir (`AI_CONVERSATION_ITEMS_ENABLED`, `AI_HOUSE_RULES_SHADOW`,
+ * `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED`, `AI_UNDERSTANDING_EN_QUERY_ENABLED`).
+ */
+export function labUnderstandingMode(): LabUnderstandingMode {
+  return {
+    items: conversationItemsEnabled(),
+    rules: houseRulesShadowEnabled(),
+    complaintFollowup: complaintFollowupRuleEnabled(),
+    english: understandingEnglishQueryEnabled(),
+  };
+}
+
+/**
+ * Önbellek anahtarının istem sürümü + kip parçası: 10-10 öncesi koşuların kipi (öğe + kural, ± İngilizce köprü) ESKİ anahtarla okunur
+ * (önbellek geçerli kalır); başka her kip istemin KENDİSİNİN özetiyle (farklı istem eski girdiyi okumaz).
+ */
+export function labUnderstandingKeyParts(m: LabUnderstandingMode): { version: string; mode: Record<string, boolean> } {
+  if (m.items && m.rules && !m.complaintFollowup) {
+    return m.english
+      ? { version: digest([UND_PROMPT_VERSION, UNDERSTANDING_ENGLISH_QUERY_ADDENDUM]), mode: { ...UNDERSTANDING_MODE, english: true } }
+      : { version: UND_PROMPT_VERSION, mode: { ...UNDERSTANDING_MODE } };
+  }
+  return { version: digest(understandingSystemPromptFor(m)), mode: { ...m } };
+}
+
 export async function labUnderstand(q: LabQuery, history = labHistory(q, false)): Promise<MessageUnderstanding | null> {
-  // İngilizce köprü (10-10, karar #13): üretimin karar noktası (`kb-retrieve.ts`) gibi ürün bayrağından. Kapalıyken anahtar ve çağrı
-  // bayt bayt eskisi (önbellek geçerli kalır); açıkken ek istemin özeti anahtara girer.
-  const english = understandingEnglishQueryEnabled();
-  const mode = english ? { ...UNDERSTANDING_MODE, english: true } : UNDERSTANDING_MODE;
+  const m = labUnderstandingMode();
+  const { version, mode } = labUnderstandingKeyParts(m);
   const key = understandCacheKey({
-    version: english ? digest([UND_PROMPT_VERSION, UNDERSTANDING_ENGLISH_QUERY_ADDENDUM]) : UND_PROMPT_VERSION,
+    version,
     model: semanticModel("understanding"),
     text: q.text,
     history,
@@ -248,7 +286,7 @@ export async function labUnderstand(q: LabQuery, history = labHistory(q, false))
     effort: semanticReasoningEffort("understanding"),
   });
   return llmCached<MessageUnderstanding>("understand", key, async () => {
-    const o = await understandGuestMessages({ guestMessage: q.text, history, ...mode });
+    const o = await understandGuestMessages({ guestMessage: q.text, history, ...m });
     return o.status === "ok" ? o.value : null;
   });
 }
