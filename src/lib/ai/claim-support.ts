@@ -550,13 +550,20 @@ function extract(text: string, raw: string): Claim[] {
   );
 
   // EKSİ İŞARETLİ KAT (10-10, kurucu: "-1. kat ile 1. kat aynı değil"): bodrum katı KENDİ işaretli iddiasıdır — "-1. kat" ↔ "-1 kattaki"
-  // desteklenir, "-1. kat" ↔ "1. kat" (iki yönde) DESTEKLENMEZ. Yalnız sözcük önünde OLMAYAN eksi ve eksiden sonra hemen rakam: aralık
-  // ("3-4. kat", "B-3. kat") ve ayraç ("3 kat - 2 oda") eksi kat değildir. Sonek serbest ("kattaki", "katında"); "-1st floor", "floor -1".
+  // desteklenir, "-1. kat" ↔ "1. kat" (iki yönde) DESTEKLENMEZ. İki biçim:
+  //  · önek: "-1. kat", "-1 kattaki / katında / kata", "-1st floor". Eksiden önce sözcük / nokta / "rakam + boşluk" YOK (aralık: "3-4. kat",
+  //    "B-3. kat", "1.-3. kat", "10 -15 kat") ve eksiden hemen sonra rakam ("3 kat - 2 oda" ayraçtır). Kat sözcüğü yalnız kat ve hâl
+  //    ekleri — "katlı", "katılımcı", "katkı" DEĞİL (Haiku incelemesi).
+  //  · sonek: "kat -1", "Kat: -1", "floor -1", "level -1" — kat sözcüğünün önünde sayı YOKSA ("3 kat -2 oda" / "1. kat -2 oda"da "kat"
+  //    önceki sayının birimidir; yutulsaydı o iddia kaybolurdu — Haiku incelemesi).
   // Unicode eksi / tireler `foldForClaims`ta "-" olur.
-  take(/(?<!\w)-(\d{1,2})(?:\.|st|nd|rd|th)?\s?(?:kat[a-z]*|floors?)\b|\b(?:kat|floor)\s-(\d{1,2})\b/g, (m) => {
-    const n = +(m[1] ?? m[2]);
-    return { cls: "floor", keys: [`n${n}`], tkeys: [`floor|-${n}`], raw: m[0] };
-  });
+  take(
+    /(?<![\w.]|\d\s)-(\d{1,2})(?:\.|st|nd|rd|th)?\s?(?:kat(?:t[ae][a-z]*|in[a-z]*|[ai](?![a-z]))?(?![a-z])|floors?\b)|(?<!\d\.?\s?)\b(?:kat|floor|level):?\s-(\d{1,2})\b/g,
+    (m) => {
+      const n = +(m[1] ?? m[2]);
+      return { cls: "floor", keys: [`n${n}`], tkeys: [`floor|-${n}`], raw: m[0] };
+    },
+  );
   take(/\b(\d{1,2})(?:\.|st|nd|rd|th)\s?(?:kat|floor)/g, (m) => ({ cls: "floor", keys: [`n${+m[1]}`], tkeys: [`floor|${+m[1]}`], raw: m[0] }));
 
   // Gizli-benzeri anahtar sözcükten sonraki kod (belirteçte rakam ya da tırnak şart).

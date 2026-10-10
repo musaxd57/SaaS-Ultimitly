@@ -233,3 +233,32 @@ describe("🚨 eksi işaretli kat AYRI kattır (10-10, kurucu: \"-1. kat ile 1. 
     expect(u("Bina 3 kat - 2 oda.", ctx("Bina 3 kat, 2 oda."))).toBe(0);
   });
 });
+
+describe("🚨 eksi kat okuyucusu başka iddiayı YUTMAZ, kat olmayan sözcüğü kat saymaz (Haiku incelemesi 10-10, kodda doğrulandı)", () => {
+  it("'kat' ile başlayan başka sözcük ('katlı', 'katılımcı', 'katkı') eksi kat DEĞİLDİR", () => {
+    expect(u("Bina -3 katlı.", ctx("Bina 3 katlı."))).toBe(0);
+    expect(u("Etkinlik -2 katılımcı ile yapılır.", ctx("Etkinlik 2 katılımcı ile yapılır."))).toBe(0);
+  });
+
+  it("aralık ('1.-3. kat', '10 -15 kat') eksi kat DEĞİLDİR", () => {
+    expect(u("1.-3. kat arası ortak alan.", ctx("1. kat ve 3. kat ortak alandır."))).toBe(0);
+    expect(u("Bloklar 10 -15 kat arasında.", ctx("Bloklar 10 ile 15 kat arasında."))).toBe(0);
+  });
+
+  it("🚨 'kat -N' okuyucusu önceki 'N kat' / 'N. kat' iddiasını YUTMAZ (uydurma gizlenmez)", () => {
+    // Bağlamda "kat -2" de var: yutma olsaydı cevabın tek kat iddiası "-2" olur ve DESTEKLİ görünürdü.
+    expect(auditClaims("Bina 3 kat -2 oda.", ctx("Bina 2 kat, 3 oda. Otopark kat -2'de.")).uc).toContain("floor");
+    expect(auditClaims("Daire 1. kat -2 oda.", ctx("Daire 2. katta, 1 oda. Otopark kat -2'de.")).uc).toContain("floor");
+  });
+
+  it("'Kat: -1' ve 'kat -1' biçimi eksi kattır", () => {
+    expect(u("Depo -1. katta.", ctx("Depo — Kat: -1."))).toBe(0);
+    expect(u("Depo bodrum kat -1'de.", ctx("Depo 1. katta."))).toBe(1);
+    expect(u("Depo bodrum kat -1'de.", ctx("Depo -1. katta."))).toBe(0);
+    // Hâl ekleri: "katında", "kata", "katı".
+    expect(u("Depo -1 katında.", ctx("Depo -1. katta."))).toBe(0);
+    expect(u("Depo -1 katında.", ctx("Depo 1. katta."))).toBe(1);
+    expect(u("Asansörle -1 kata inin.", ctx("Depo -1. katta."))).toBe(0);
+    expect(u("Asansörle -1 kata inin.", ctx("Depo 1. katta."))).toBe(1);
+  });
+});
