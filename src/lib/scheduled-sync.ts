@@ -13,6 +13,7 @@ import { anonymizeOldGuestData, purgeOldLeads, retentionCutoff } from "@/lib/dat
 import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
 import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
 import { purgeExpiredConversationItems } from "@/lib/conversation-items/store";
+import { purgeExpiredGuestCommitments } from "@/lib/guest-commitments";
 import { sweepUnverifiedRegistrations } from "@/lib/unverified-sweep";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
 import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challenge";
@@ -833,7 +834,11 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // Konuşma öğeleri (09-26): misafir mesajından türer → aynı saklama süresi (değişmez 14). Satırda PII yok.
         await hourly("item-retention", "scheduled-sync item retention", async () => {
           const cutoff = retentionCutoff();
-          if (cutoff) await purgeExpiredConversationItems(prisma, cutoff);
+          if (cutoff) {
+            await purgeExpiredConversationItems(prisma, cutoff);
+            // Misafire verilen sözler (migration 62): aynı saklama sınırı.
+            await purgeExpiredGuestCommitments(cutoff);
+          }
         });
         // Marketing-lead retention. No-op unless LEAD_RETENTION_MONTHS is set.
         await hourly("lead-purge", "scheduled-sync lead-purge", () => purgeOldLeads());

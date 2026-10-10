@@ -593,6 +593,9 @@ async function maskReservationRows(
       where: { generation: { organizationId, conversationId: { in: convIds } }, note: { not: null } },
       data: { note: null },
     });
+    // Misafire verilen sözler (migration 62): metin taşımaz ama konaklamaya bağlı davranış kaydıdır → misafir silmesinde silinir (veri
+    // en aza indirme; Haiku KVKK denetimi B3, 10-10). Bağlı görev (başlığı yalnız tür: "Misafire söz: …") ev sahibinin işi olarak kalır.
+    await db.guestCommitment.deleteMany({ where: { organizationId, conversationId: { in: convIds } } });
   }
 }
 

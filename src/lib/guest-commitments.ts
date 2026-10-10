@@ -109,6 +109,15 @@ export async function syncCommitmentsForTaskDueAt(tx: Tx, scope: { organizationI
   await tx.guestCommitment.updateMany({ where: { ...scope, status: "open" }, data: { dueAt } });
 }
 
+/**
+ * SAKLAMA (KVKK, Haiku denetimi B3 10-10): son anı saklama sınırından (`DATA_RETENTION_MONTHS`) eski sözler silinir — durumdan bağımsız
+ * (iki yıllık "açık" söz anlamsızdır). Konuşma öğeleriyle aynı saatlik iş (`scheduled-sync` item-retention).
+ */
+export async function purgeExpiredGuestCommitments(cutoff: Date): Promise<{ deleted: number }> {
+  const r = await prisma.guestCommitment.deleteMany({ where: { dueAt: { lt: cutoff } } });
+  return { deleted: r.count };
+}
+
 /** Görev silinmeden ÖNCE (aynı işlemde): bağlı açık söz iptal olur (görevsiz açık söz "kimsenin işi değil" olarak kalmasın). */
 export async function cancelCommitmentsForDeletedTask(tx: Tx, scope: { organizationId: string; taskId: string }, now: Date): Promise<void> {
   await tx.guestCommitment.updateMany({ where: { ...scope, status: "open" }, data: { status: "cancelled", closedAt: now } });

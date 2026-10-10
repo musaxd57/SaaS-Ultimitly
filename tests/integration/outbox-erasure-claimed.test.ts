@@ -65,21 +65,32 @@ describe("Y1 — talep edilmiş satırın gövdesi POST'tan önce yeniden okunur
     vi.clearAllMocks();
   });
 
-  it("🚨 A gönderilirken B silinir → B'nin özel metni GİTMEZ, satır `erased` ile iptal", async () => {
+  it("🚨 ilk satır gönderilirken ÖTEKİ misafir silinir → silinenin özel metni GİTMEZ, satırı `erased` ile iptal", async () => {
+    // SIRADAN BAĞIMSIZ (10-10): talep `UPDATE … RETURNING` ile yapılıyor ve PostgreSQL dönen satırların sırasını alt sorgudaki
+    // ORDER BY'a göre GARANTİ ETMEZ — farklı konuşmaların satırları herhangi bir sırayla işlenebilir (konuşma İÇİ sıra ayrıca korunur).
+    // Eski test "A önce gider" varsayıyordu ve ~%30 aralıklı kırmızıydı (10 koşuda 3); güvenlik özelliği aynı: ilk POST sürerken silinen
+    // misafirin talep edilmiş satırı POST'tan önce yeniden okunur ve gitmez.
     const s = await seed();
     const sent: string[] = [];
+    let erasedRow: string | null = null;
     const send = vi.fn<OutboxSendFn>(async (row) => {
       sent.push(row.body);
-      if (row.id === s.rowA) await eraseReservationData(s.orgId, s.b.reservationId);
+      if (erasedRow === null) {
+        const other = row.id === s.rowA ? { reservationId: s.b.reservationId, rowId: s.rowB } : { reservationId: s.a.reservationId, rowId: s.rowA };
+        erasedRow = other.rowId;
+        await eraseReservationData(s.orgId, other.reservationId);
+      }
       return { ok: true, providerMessageId: `PROV-${row.id}` };
     });
     await drainOutboxOnce({ send, tokenFor: async () => "tok" });
 
-    expect(sent).toEqual(["Ayşe Hanım, kapı kodunuz 4821"]); // ⬅️ ARIZADA: "Bora Bey, kapı kodunuz 7730" de gidiyordu
-    const b = await prisma.messageOutbox.findUniqueOrThrow({ where: { id: s.rowB } });
-    expect(b.status).toBe("canceled");
-    expect(b.lastErrorCode).toBe("erased");
-    expect(b.body).not.toContain("Bora");
+    expect(sent).toHaveLength(1); // ⬅️ ARIZADA: silinen misafirin metni de gidiyordu
+    expect(erasedRow).not.toBeNull();
+    const erased = await prisma.messageOutbox.findUniqueOrThrow({ where: { id: erasedRow! } });
+    expect(erased.status).toBe("canceled");
+    expect(erased.lastErrorCode).toBe("erased");
+    expect(erased.body).not.toMatch(/Ayşe|Bora|kapı kodunuz/);
+    expect(sent[0]).not.toBe(erased.body);
   });
 
   it("KONTROL: silme yoksa iki satır da kendi metniyle gider", async () => {
