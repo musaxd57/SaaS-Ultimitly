@@ -18,6 +18,8 @@ import { IcalPrivacyForm } from "@/components/settings/ical-privacy-form";
 import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
+import { ChannelHealthLines, type ChannelHealthRow } from "@/components/settings/channel-health-line";
+import { connectionHealth, connectionHealthText } from "@/lib/channels/health";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
 import { TRIAL_END_REASON_IDENTITY_REUSED, TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
@@ -53,6 +55,19 @@ export default async function SettingsPage({
   const isOwner = session.role === "owner";
   const canManageChannel = isOwner || isOperator;
   const hospitableInfo = canManageChannel ? await getConnectionInfo(session.organizationId) : null;
+  // Kanal bağlantısı sağlığı (V0 §2f; sağlayıcıdan bağımsız, bağlantı satırının okuma kaydından). Ölçüm yoksa satır çizilmez.
+  const healthNow = new Date();
+  const channelHealthRows: ChannelHealthRow[] = (
+    await prisma.channelConnection.findMany({
+      where: { organizationId: session.organizationId, status: "active" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, lastReadOkAt: true, lastReadErrorAt: true, lastReadErrorKind: true },
+    })
+  ).flatMap((c) => {
+    const h = connectionHealth(c, healthNow);
+    const text = connectionHealthText(h);
+    return text ? [{ id: c.id, text, warn: h.state === "error" || h.state === "stale" }] : [];
+  });
   const me = await prisma.user.findUnique({
     where: { id: session.userId },
     select: { twoFactorEnabledAt: true },
@@ -344,6 +359,7 @@ export default async function SettingsPage({
             oauthEnabled={isHospitableOAuthConfigured()}
             oauthResult={hospitableResult}
           />
+          <ChannelHealthLines rows={channelHealthRows} />
         </CardContent>
       </Card>
     ) : (
@@ -365,6 +381,7 @@ export default async function SettingsPage({
               olarak buraya akmaya başlar.
             </p>
           )}
+          <ChannelHealthLines rows={channelHealthRows} />
         </CardContent>
       </Card>
     );

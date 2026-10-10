@@ -76,6 +76,19 @@ describe("AttentionPanel", () => {
     expect(screen.getByText(/Lale · yarın 09:00 · ilgili görev tamamlanmadı · 2 sa 14 dk kaldı/)).toBeTruthy();
   });
 
+  it("kanal bağlantısı satırı: hata türünü sade söyler, 'Tüm daireler' der, sağlayıcı ADI geçmez; bayat okuma gecikme uyarısı", () => {
+    const items: AttentionItem[] = [
+      { ...base, propertyId: "", propertyName: "", kind: "connection_unhealthy", certainty: "observed", severity: 98, href: "/settings?tab=baglantilar", connectionErrorKind: "auth_revoked", minutesSinceOk: 10 },
+      { ...base, propertyId: "", propertyName: "", kind: "connection_unhealthy", certainty: "observed", severity: 98, href: "/settings?tab=baglantilar", minutesSinceOk: 150 },
+    ];
+    const { container } = render(<AttentionPanel items={items} />);
+    expect(screen.getByText("Kanal bağlantısı okunamıyor")).toBeTruthy();
+    expect(screen.getByText(/Tüm daireler · bağlantı yetkisi düştü — yeniden bağlanın · son başarılı senkron 10 dk önce/)).toBeTruthy();
+    expect(screen.getByText("Kanal senkronu gecikiyor")).toBeTruthy();
+    expect(screen.getByText(/Tüm daireler · son başarılı senkron 2 sa önce · yeni mesajlar gecikebilir/)).toBeTruthy();
+    expect(container.textContent ?? "").not.toMatch(/hospitable/i);
+  });
+
   it("bozuk besleme satırı host'a NE ANLAMA GELDİĞİNİ söyler", () => {
     const items: AttentionItem[] = [
       { ...base, kind: "feed_broken", certainty: "observed", severity: 100, href: "/properties/p1", sourceLabel: "Airbnb" },

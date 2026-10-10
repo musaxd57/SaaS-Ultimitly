@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarRange, CalendarX2, Clock, Hand, HandHeart, Hourglass, LogOut, Repeat } from "lucide-react";
+import { AlertTriangle, CalendarRange, CalendarX2, Clock, Hand, HandHeart, Hourglass, LogOut, Repeat, Unplug } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
@@ -7,6 +7,7 @@ import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incide
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
 import { itemKindLabel } from "@/lib/conversation-items/view";
 import { COMMITMENT_KIND_LABELS, commitmentDurationLabel } from "@/lib/guest-commitments-core";
+import { CONNECTION_ERROR_TEXT, agoLabel } from "@/lib/channels/health";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "Dikkat Gerektirenler" kartı.
@@ -31,6 +32,7 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   held_request: Hand,
   decision_pending: Hourglass,
   commitment_due: HandHeart,
+  connection_unhealthy: Unplug,
 };
 
 /** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
@@ -72,6 +74,8 @@ function headline(item: AttentionItem): string {
       const what = item.commitmentKind ? COMMITMENT_KIND_LABELS[item.commitmentKind] : "misafir isteği";
       return (item.minutesLeft ?? 0) < 0 ? `Misafire verilen söz gecikti: ${what}` : `Misafire söz verildi: ${what}`;
     }
+    case "connection_unhealthy":
+      return item.connectionErrorKind ? "Kanal bağlantısı okunamıyor" : "Kanal senkronu gecikiyor";
   }
 }
 
@@ -102,6 +106,12 @@ function detail(item: AttentionItem): string {
       const left = item.minutesLeft ?? 0;
       const when = left < 0 ? `${commitmentDurationLabel(left)} gecikti` : `${commitmentDurationLabel(left)} kaldı`;
       return `${item.propertyName} · ${item.commitmentTime ?? ""} · ilgili görev tamamlanmadı · ${when}`;
+    }
+    case "connection_unhealthy": {
+      const last = item.minutesSinceOk !== undefined ? `son başarılı senkron ${agoLabel(item.minutesSinceOk)}` : "henüz başarılı senkron yok";
+      return item.connectionErrorKind
+        ? `Tüm daireler · ${CONNECTION_ERROR_TEXT[item.connectionErrorKind]} · ${last}`
+        : `Tüm daireler · ${last} · yeni mesajlar gecikebilir`;
     }
   }
 }

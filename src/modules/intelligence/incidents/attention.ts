@@ -14,6 +14,8 @@ import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
 import { decisionTitle } from "@/lib/decisions/core";
 import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-core";
+import { connectionHealth, connectionNeedsAttention } from "@/lib/channels/health";
+import type { IngestErrorKind } from "@/lib/channels/ingest";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ (okuduğu tablolar başka dilimlerin migration'larıyla geldi).
@@ -67,6 +69,7 @@ export const ATTENTION_KINDS = [
   "held_request",
   "decision_pending",
   "commitment_due",
+  "connection_unhealthy",
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -169,6 +172,10 @@ export interface AttentionItem {
   minutesLeft?: number;
   /** Yalnız `commitment_due`: son an, işletmenin saatiyle ("18:00" ya da "yarın 10:00"). */
   commitmentTime?: string;
+  /** Yalnız `connection_unhealthy` (işletme düzeyi satır, mülksüz): son hatalı okumanın türü (bayat okumada yok). */
+  connectionErrorKind?: IngestErrorKind;
+  /** Yalnız `connection_unhealthy`: son başarılı okumadan bu yana dakika (hiç yoksa yok). */
+  minutesSinceOk?: number;
 }
 
 export interface FindAttentionOptions {
@@ -314,6 +321,40 @@ export async function findAttentionItems(
   const heldConversationIds = new Set([...held.map((h) => h.conversationId), ...openDecisions.map((d) => d.conversationId)]);
 
   const items: AttentionItem[] = [];
+
+  // KANAL BAĞLANTISI SAĞLIĞI (V0 §2f; sağlayıcıdan bağımsız — bağlantı satırının okuma kaydı). İşletme düzeyi satır: mülke daraltılmış
+  // çağrıda gösterilmez. Ölçüm yoksa (yazıcı anahtarı kapalı) satır yok. Kalıcı hata hemen; geçici hata / bayat okuma yalnız bayatsa.
+  if (!options.propertyId) {
+    const connections = await prisma.channelConnection
+      .findMany({
+        // Sağlayıcının REDDETTİĞİ bağlantı (`revoked`) da: mesaj akışı durmuştur, ev sahibinin yeniden bağlanması gerekir.
+        where: { organizationId, status: { in: ["active", "revoked"] } },
+        orderBy: { createdAt: "asc" },
+        select: { status: true, lastReadOkAt: true, lastReadErrorAt: true, lastReadErrorKind: true, updatedAt: true },
+      })
+      .catch((err) => {
+        void alertOnTransition("attention:connection-health", "attention connection_unhealthy", err).catch(() => {});
+        return [];
+      });
+    for (const c of connections) {
+      const measured = connectionHealth(c, now);
+      const h = c.status === "revoked" ? { ...measured, state: "error" as const, errorKind: "auth_revoked" as const } : measured;
+      if (!connectionNeedsAttention(h)) continue;
+      items.push({
+        kind: "connection_unhealthy",
+        // GÖZLEM: okuma sonucu bizim kaydımız.
+        certainty: "observed",
+        propertyId: "",
+        propertyName: "",
+        // Bütün dairelerin mesaj akışı: bozuk takvim beslemesinin hemen altı.
+        severity: 98,
+        occurredAt: c.lastReadErrorAt ?? c.lastReadOkAt ?? c.updatedAt,
+        href: "/settings?tab=baglantilar",
+        ...(h.state === "error" && h.errorKind ? { connectionErrorKind: h.errorKind } : {}),
+        ...(h.minutesSinceOk !== null ? { minutesSinceOk: h.minutesSinceOk } : {}),
+      });
+    }
+  }
 
   for (const feed of brokenFeeds) {
     items.push({
