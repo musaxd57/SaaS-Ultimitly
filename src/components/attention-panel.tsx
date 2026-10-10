@@ -7,7 +7,7 @@ import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incide
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
 import { itemKindLabel } from "@/lib/conversation-items/view";
 import { COMMITMENT_KIND_LABELS, commitmentDurationLabel } from "@/lib/guest-commitments-core";
-import { CONNECTION_ERROR_TEXT, agoLabel } from "@/lib/channels/health";
+import { CONNECTION_ERROR_TEXT, CONNECTION_ERROR_TEXT_VIEWER, agoLabel } from "@/lib/channels/health";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "Dikkat Gerektirenler" kartı.
@@ -79,7 +79,7 @@ function headline(item: AttentionItem): string {
   }
 }
 
-function detail(item: AttentionItem): string {
+function detail(item: AttentionItem, canManageChannel: boolean): string {
   switch (item.kind) {
     case "feed_broken":
       // Ne olduğunu DEĞİL, host için ne anlama geldiğini söyler.
@@ -108,10 +108,12 @@ function detail(item: AttentionItem): string {
       return `${item.propertyName} · ${item.commitmentTime ?? ""} · ilgili görev tamamlanmadı · ${when}`;
     }
     case "connection_unhealthy": {
-      const last = item.minutesSinceOk !== undefined ? `son başarılı senkron ${agoLabel(item.minutesSinceOk)}` : "henüz başarılı senkron yok";
-      return item.connectionErrorKind
-        ? `Tüm daireler · ${CONNECTION_ERROR_TEXT[item.connectionErrorKind]} · ${last}`
-        : `Tüm daireler · ${last} · yeni mesajlar gecikebilir`;
+      const last =
+        item.minutesSinceOk !== undefined ? `kanaldan son başarılı okuma ${agoLabel(item.minutesSinceOk)}` : "henüz başarılı okuma yok";
+      if (!item.connectionErrorKind) return `Tüm daireler · ${last} · yeni mesajlar gecikebilir`;
+      // Bağlantıyı yalnız sahip / operatör onarır; ötekine "yeniden bağlanın" değil nötr çağrı.
+      const what = canManageChannel ? CONNECTION_ERROR_TEXT[item.connectionErrorKind] : CONNECTION_ERROR_TEXT_VIEWER;
+      return `Tüm daireler · ${what} · ${last}`;
     }
   }
 }
@@ -139,7 +141,14 @@ export function moneyLine(m: MoneyImpact | undefined): { text: string; hint?: st
   return null;
 }
 
-export function AttentionPanel({ items }: { items: AttentionItem[] }) {
+export function AttentionPanel({
+  items,
+  canManageChannel = false,
+}: {
+  items: AttentionItem[];
+  /** Kanal bağlantısını onarabilir mi (sahip / operatör) — değilse bağlantı satırı nötr çağrı yapar. */
+  canManageChannel?: boolean;
+}) {
   // 🚨 Sessiz gün = hiç render yok.
   if (items.length === 0) return null;
 
@@ -165,7 +174,7 @@ export function AttentionPanel({ items }: { items: AttentionItem[] }) {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{headline(item)}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {detail(item)}
+                  {detail(item, canManageChannel)}
                   {item.certainty === "inferred" ? (
                     // Kesin tespit DEĞİL — host'un doğrulaması gerekiyor. Çakışmada sebep sınıflandırma
                     // değil, kayıtlardan birinin güncel olduğunun kanıtlanamaması.

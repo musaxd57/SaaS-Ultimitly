@@ -114,6 +114,22 @@ describe("kanal metaverisi — senkron üzerinden", () => {
     expect(conn.lastReadOkAt).toBeNull();
   });
 
+  it("🚨 tek ilanın hatası (sağlayıcıda silinmiş ilan → 404) bağlantıyı 'hatalı' YAPMAZ: öteki ilan okunduysa başarı yazılır", async () => {
+    const { orgId, connectionId } = await seed();
+    mockProperties.mockResolvedValue([
+      { id: "hosp-prop-1", name: "Test Property" },
+      { id: "hosp-prop-gone", name: "Silinmiş İlan" },
+    ]);
+    mockReservations.mockImplementation((async (opts?: { propertyIds?: string[] }) => {
+      if (opts?.propertyIds?.includes("hosp-prop-gone")) throw new HospitableError("not found", 404);
+      return [RES("Airbnb Official")];
+    }) as never);
+    await syncHospitable(orgId);
+    const conn = await prisma.channelConnection.findUniqueOrThrow({ where: { id: connectionId } });
+    expect(conn.lastReadOkAt).not.toBeNull();
+    expect(conn.lastReadErrorAt).toBeNull();
+  });
+
   it("bağlantı satırı yoksa (env fallback) hiçbir metaveri yazılmaz — çıkarım yok", async () => {
     const { orgId } = await makeOrgWithProperty();
     mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);

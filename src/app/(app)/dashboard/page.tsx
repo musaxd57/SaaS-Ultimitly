@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
 import { notClosingHandledWhere } from "@/lib/conversation-attention";
 // ⚠️ `buildDailySummary` ARTIK KULLANILMIYOR (kart kaldırıldı) ama SİLİNMEDİ:
@@ -209,7 +210,7 @@ export default async function DashboardPage() {
           kutucukların GÖSTEREMEDİĞİ durumları söyler ve SAKİN GÜNDE HİÇ BASMAZ
           (`items.length === 0` → `null`). Önbellek tablosu İSTEMEDİ: hepsi
           mevcut kolonlardan hesaplanıyor, migration yok, hiçbir şey yazılmıyor. */}
-      <AttentionPanel items={attention} />
+      <AttentionPanel items={attention} canManageChannel={session.role === "owner" || isSuperAdmin(session)} />
 
       {/* 🚨 "AI GÜNLÜK ÖZET" KARTI KALDIRILDI (kullanıcı kararı 08-08) — GERİ EKLEME.
           İKİ ayrı kusuru vardı ve ikisi de ölçüldü:

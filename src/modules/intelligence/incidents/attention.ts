@@ -15,6 +15,7 @@ import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
 import { decisionTitle } from "@/lib/decisions/core";
 import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-core";
 import { connectionHealth, connectionNeedsAttention } from "@/lib/channels/health";
+import { isFounderOrg } from "@/lib/billing/subscription";
 import type { IngestErrorKind } from "@/lib/channels/ingest";
 
 // ---------------------------------------------------------------------------
@@ -330,7 +331,7 @@ export async function findAttentionItems(
         // Sağlayıcının REDDETTİĞİ bağlantı (`revoked`) da: mesaj akışı durmuştur, ev sahibinin yeniden bağlanması gerekir.
         where: { organizationId, status: { in: ["active", "revoked"] } },
         orderBy: { createdAt: "asc" },
-        select: { status: true, lastReadOkAt: true, lastReadErrorAt: true, lastReadErrorKind: true, updatedAt: true },
+        select: { status: true, lastReadOkAt: true, lastReadErrorAt: true, lastReadErrorKind: true, createdAt: true, updatedAt: true },
       })
       .catch((err) => {
         void alertOnTransition("attention:connection-health", "attention connection_unhealthy", err).catch(() => {});
@@ -338,7 +339,12 @@ export async function findAttentionItems(
       });
     for (const c of connections) {
       const measured = connectionHealth(c, now);
-      const h = c.status === "revoked" ? { ...measured, state: "error" as const, errorKind: "auth_revoked" as const } : measured;
+      // Reddedilmiş bağlantı = yetki düştü. İSTİSNA kurucu hesabı: kendi bağlantısı reddedilse de sistemin ortak bağlantısıyla senkron
+      // sürebilir (bu yolun okumaları bağlantı satırına yazılmaz) → sahte kalıcı "yetki düştü" satırı olmasın (Haiku incelemesi).
+      const h =
+        c.status === "revoked" && !isFounderOrg(organizationId)
+          ? { ...measured, state: "error" as const, errorKind: "auth_revoked" as const }
+          : measured;
       if (!connectionNeedsAttention(h)) continue;
       items.push({
         kind: "connection_unhealthy",

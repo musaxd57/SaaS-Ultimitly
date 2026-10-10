@@ -18,6 +18,8 @@ export interface ConnectionHealth {
   minutesSinceOk: number | null;
   /** Son hatalı okumanın türü (yalnız `error`). */
   errorKind: IngestErrorKind | null;
+  /** Bağlantının yaşı (dakika; satırın oluşturulma anından — hiç başarılı okuması olmayan bağlantıda bayatlık tabanı). */
+  ageMinutes: number | null;
 }
 
 /** Hata türünün ev sahibine anlatımı (ne oldu + ne yapmalı; sade). */
@@ -40,27 +42,31 @@ const TRANSIENT: ReadonlySet<IngestErrorKind> = new Set(["rate_limited", "outage
  * başarı ise yaşına göre `ok` / `stale`; hiç ölçüm yoksa `unknown`.
  */
 export function connectionHealth(
-  row: { lastReadOkAt: Date | null; lastReadErrorAt: Date | null; lastReadErrorKind: string | null },
+  row: { lastReadOkAt: Date | null; lastReadErrorAt: Date | null; lastReadErrorKind: string | null; createdAt?: Date | null },
   now: Date,
 ): ConnectionHealth {
-  const minutesSinceOk = row.lastReadOkAt ? Math.max(0, Math.floor((now.getTime() - row.lastReadOkAt.getTime()) / 60_000)) : null;
+  const minutesSince = (d: Date) => Math.max(0, Math.floor((now.getTime() - d.getTime()) / 60_000));
+  const minutesSinceOk = row.lastReadOkAt ? minutesSince(row.lastReadOkAt) : null;
+  const ageMinutes = row.createdAt ? minutesSince(row.createdAt) : null;
   const errorIsLatest = row.lastReadErrorAt !== null && (row.lastReadOkAt === null || row.lastReadErrorAt > row.lastReadOkAt);
   if (errorIsLatest) {
     const kind = (row.lastReadErrorKind ?? "unknown") as IngestErrorKind;
-    return { state: "error", minutesSinceOk, errorKind: kind in CONNECTION_ERROR_TEXT ? kind : "unknown" };
+    return { state: "error", minutesSinceOk, errorKind: kind in CONNECTION_ERROR_TEXT ? kind : "unknown", ageMinutes };
   }
-  if (minutesSinceOk === null) return { state: "unknown", minutesSinceOk: null, errorKind: null };
-  return { state: minutesSinceOk > CONNECTION_STALE_MINUTES ? "stale" : "ok", minutesSinceOk, errorKind: null };
+  if (minutesSinceOk === null) return { state: "unknown", minutesSinceOk: null, errorKind: null, ageMinutes };
+  return { state: minutesSinceOk > CONNECTION_STALE_MINUTES ? "stale" : "ok", minutesSinceOk, errorKind: null, ageMinutes };
 }
 
 /**
  * Dikkat Gerektirenler'e girmeli mi: kalıcı hata hemen; geçici hata ya da hiç hata olmadan bayat okuma yalnız son başarılı okuma
- * BAYATSA (geçici hıçkırık satır açmasın).
+ * BAYATSA (geçici hıçkırık satır açmasın). Hiç başarılı okuması olmayan bağlantıda taban bağlantının yaşıdır (yeni bağlantının ilk
+ * geçişindeki geçici hata satır açmaz — Haiku incelemesi).
  */
 export function connectionNeedsAttention(h: ConnectionHealth): boolean {
   if (h.state === "error") {
     if (h.errorKind && !TRANSIENT.has(h.errorKind)) return true;
-    return h.minutesSinceOk === null || h.minutesSinceOk > CONNECTION_STALE_MINUTES;
+    const since = h.minutesSinceOk ?? h.ageMinutes;
+    return since !== null && since > CONNECTION_STALE_MINUTES;
   }
   return h.state === "stale";
 }
@@ -74,13 +80,20 @@ export function agoLabel(minutes: number): string {
   return `${Math.floor(hours / 24)} gün önce`;
 }
 
-/** Ayarlar satırı metni (yalnız ölçüm varsa; `unknown` → null, hiçbir şey çizilmez). */
-export function connectionHealthText(h: ConnectionHealth): string | null {
+/** Bağlantıyı onaramayan kullanıcıya (yönetici olmayan) hata için nötr çağrı — "yeniden bağlanın" demez (Haiku incelemesi). */
+export const CONNECTION_ERROR_TEXT_VIEWER = "kanal bağlantısında sorun var — işletme sahibinize bildirin";
+
+/**
+ * Ayarlar satırı metni (yalnız ölçüm varsa; `unknown` → null, hiçbir şey çizilmez). Ölçtüğümüz şey KANALDAN OKUMA — senkronun bütünü
+ * değil (ilan yazımı vb. ayrı alarmda); metin bunu iddia etmez. `canFix` false → hata için nötr çağrı.
+ */
+export function connectionHealthText(h: ConnectionHealth, opts: { canFix?: boolean } = {}): string | null {
   if (h.state === "unknown") return null;
   if (h.state === "error") {
-    const last = h.minutesSinceOk !== null ? ` · son başarılı senkron ${agoLabel(h.minutesSinceOk)}` : "";
-    return `Son senkron başarısız: ${CONNECTION_ERROR_TEXT[h.errorKind ?? "unknown"]}${last}`;
+    const last = h.minutesSinceOk !== null ? ` · kanaldan son başarılı okuma ${agoLabel(h.minutesSinceOk)}` : "";
+    const what = opts.canFix === false ? CONNECTION_ERROR_TEXT_VIEWER : CONNECTION_ERROR_TEXT[h.errorKind ?? "unknown"];
+    return `Kanaldan okuma başarısız: ${what}${last}`;
   }
   const when = agoLabel(h.minutesSinceOk ?? 0);
-  return h.state === "stale" ? `Son başarılı senkron ${when} — yeni mesajlar gecikebilir` : `Son başarılı senkron ${when}`;
+  return h.state === "stale" ? `Kanaldan son başarılı okuma ${when} — yeni mesajlar gecikebilir` : `Kanaldan son başarılı okuma ${when}`;
 }

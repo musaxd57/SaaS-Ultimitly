@@ -268,10 +268,13 @@ export async function syncHospitable(
     }
   };
 
+  // Bağlantı sağlığı için: rezervasyonları okunabilen ilan sayısı (tek ilanın hatası bağlantıyı "hatalı" yapmasın — ↓).
+  let listingReadsOk = 0;
   for (const [hospitableId, propertyId] of propertyMap) {
     let reservations: CanonicalReservation[];
     try {
       reservations = await adapter.listReservations(credential, { propertyExternalId: hospitableId, startDate, endDate });
+      listingReadsOk++;
     } catch (err) {
       noteHospitableError(`reservations failed for ${hospitableId}`, err);
       continue;
@@ -562,8 +565,10 @@ export async function syncHospitable(
     if (failed) await opsAlarm.fail(kind, context, err());
     else await opsAlarm.ok(kind);
   };
-  // Bağlantı sağlığı (migration 60 C): geçişin okumaları — yetki hatası ya da okunamayan ilan / thread varsa ilk hatanın türü, yoksa başarı.
-  const firstReadError = firstAuthError ?? firstFetchError;
+  // Bağlantı sağlığı (migration 60 C) BAĞLANTI DÜZEYİNDE ölçülür (Haiku incelemesi 10-10): yetki hatası (belirteç düzeyinde kanıt) ya da
+  // HİÇBİR ilanın okunamaması → hata; tek ilanın 404 / geçici hatası bağlantıyı "hatalı" yapmaz (sağlayıcıda silinmiş tek ilan kalıcı
+  // "kanalda kayıt bulunamadı" satırı açıyordu) — o hatalar ilan bazında operatör alarmına gider (↓ `opsAlarm`).
+  const firstReadError = firstAuthError ?? (propertyMap.size > 0 && listingReadsOk === 0 ? firstFetchError : null);
   await recordConnectionRead(
     organizationId,
     connectionId,

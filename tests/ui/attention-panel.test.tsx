@@ -81,12 +81,17 @@ describe("AttentionPanel", () => {
       { ...base, propertyId: "", propertyName: "", kind: "connection_unhealthy", certainty: "observed", severity: 98, href: "/settings?tab=baglantilar", connectionErrorKind: "auth_revoked", minutesSinceOk: 10 },
       { ...base, propertyId: "", propertyName: "", kind: "connection_unhealthy", certainty: "observed", severity: 98, href: "/settings?tab=baglantilar", minutesSinceOk: 150 },
     ];
-    const { container } = render(<AttentionPanel items={items} />);
+    const { container } = render(<AttentionPanel items={items} canManageChannel />);
     expect(screen.getByText("Kanal bağlantısı okunamıyor")).toBeTruthy();
-    expect(screen.getByText(/Tüm daireler · bağlantı yetkisi düştü — yeniden bağlanın · son başarılı senkron 10 dk önce/)).toBeTruthy();
+    expect(screen.getByText(/Tüm daireler · bağlantı yetkisi düştü — yeniden bağlanın · kanaldan son başarılı okuma 10 dk önce/)).toBeTruthy();
     expect(screen.getByText("Kanal senkronu gecikiyor")).toBeTruthy();
-    expect(screen.getByText(/Tüm daireler · son başarılı senkron 2 sa önce · yeni mesajlar gecikebilir/)).toBeTruthy();
+    expect(screen.getByText(/Tüm daireler · kanaldan son başarılı okuma 2 sa önce · yeni mesajlar gecikebilir/)).toBeTruthy();
     expect(container.textContent ?? "").not.toMatch(/hospitable/i);
+    cleanup();
+    // Bağlantıyı onaramayan kullanıcı (yönetici) "yeniden bağlanın" görmez.
+    const viewer = render(<AttentionPanel items={items.slice(0, 1)} />);
+    expect(viewer.container.textContent ?? "").toMatch(/işletme sahibinize bildirin/);
+    expect(viewer.container.textContent ?? "").not.toMatch(/yeniden bağlanın/);
   });
 
   it("bozuk besleme satırı host'a NE ANLAMA GELDİĞİNİ söyler", () => {

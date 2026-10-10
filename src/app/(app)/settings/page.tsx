@@ -61,11 +61,12 @@ export default async function SettingsPage({
     await prisma.channelConnection.findMany({
       where: { organizationId: session.organizationId, status: "active" },
       orderBy: { createdAt: "asc" },
-      select: { id: true, lastReadOkAt: true, lastReadErrorAt: true, lastReadErrorKind: true },
+      select: { id: true, lastReadOkAt: true, lastReadErrorAt: true, lastReadErrorKind: true, createdAt: true },
     })
   ).flatMap((c) => {
     const h = connectionHealth(c, healthNow);
-    const text = connectionHealthText(h);
+    // Bağlantıyı yalnız sahip / operatör onarır; ötekine "yeniden bağlanın" değil nötr çağrı.
+    const text = connectionHealthText(h, { canFix: canManageChannel });
     return text ? [{ id: c.id, text, warn: h.state === "error" || h.state === "stale" }] : [];
   });
   const me = await prisma.user.findUnique({

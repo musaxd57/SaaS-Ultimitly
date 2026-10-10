@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 
@@ -19,7 +19,11 @@ const rows = async (orgId: string, propertyId?: string) =>
   (await findAttentionItems(orgId, { now: NOW, ...(propertyId ? { propertyId } : {}) })).filter((i) => i.kind === "connection_unhealthy");
 
 describe("Dikkat Gerektirenler — kanal bağlantısı sağlığı", () => {
-  beforeEach(resetDb);
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("PRIMARY_ORG_ID", "");
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("KONTROL: ölçüm yok / taze başarılı okuma / taze okumadan sonra geçici kesinti → satır YOK", async () => {
     expect(await rows((await orgWithConnection({})).orgId)).toEqual([]);
@@ -51,6 +55,12 @@ describe("Dikkat Gerektirenler — kanal bağlantısı sağlığı", () => {
   it("🚨 sağlayıcının REDDETTİĞİ bağlantı (okuma kaydı olmasa da) → 'yetki düştü' satırı", async () => {
     const [r] = await rows((await orgWithConnection({}, "revoked")).orgId);
     expect(r).toMatchObject({ kind: "connection_unhealthy", connectionErrorKind: "auth_revoked" });
+  });
+
+  it("KONTROL: kurucu hesabında reddedilmiş bağlantı satır AÇMAZ (ortak bağlantıyla senkron sürebilir; okumaları bu satıra yazılmaz)", async () => {
+    const { orgId } = await orgWithConnection({}, "revoked");
+    vi.stubEnv("PRIMARY_ORG_ID", orgId);
+    expect(await rows(orgId)).toEqual([]);
   });
 
   it("KONTROL: mülke daraltılmış çağrıda ve pasif (kesilmiş) bağlantıda satır YOK", async () => {
