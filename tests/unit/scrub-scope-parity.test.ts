@@ -25,7 +25,17 @@ const ROOT = path.resolve(__dirname, "../..");
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
 
 /** Misafir verisi taşıyan modeller — süpürgelerin dokunduğu kümenin tamamı. */
-const GUEST_MODELS = ["Message", "Conversation", "Reservation", "Task", "TaskUpdate", "MessageOutbox"] as const;
+const GUEST_MODELS = [
+  "Message",
+  "Conversation",
+  "Reservation",
+  "Task",
+  "TaskUpdate",
+  "MessageOutbox",
+  // migration 60 (10-09): yapay zekâ üretim izi taslak / gönderilen metni + kurucu etiket notu taşır.
+  "AiGeneration",
+  "AiReviewLabel",
+] as const;
 type GuestModel = (typeof GUEST_MODELS)[number];
 
 /** schema.prisma'dan model → kolon adları (skaler; ilişki ve id hariç). */
@@ -123,6 +133,10 @@ describe("KVKK süpürgeleri — süre-bazlı ↔ açık-silme paritesi", () => 
         // (`aiConfidence` sayı · `aiTriageSource` kapalı-set etiket ·
         // `aiTriagedAt` damga · `aiTriageTriggerMessageId` opak id) BİLİNÇLİ
         // olarak kapsam DIŞI — `Message.aiSourcesJson` emsali.
+        // migration 60 (kurucu §D-1 10-09, "mesajlarla aynı saklama"): iz METNİ ve kurucu etiket NOTU (misafir metnini alıntılayabilir).
+        "AiGeneration.draftText",
+        "AiGeneration.sentText",
+        "AiReviewLabel.note",
         "Conversation.aiActionSuggestion",
         "Conversation.aiMissingInfoJson",
         "Conversation.guestIdentifier",
@@ -193,12 +207,20 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //     iki süpürge de null yapar (↑parite listesi) ve giden gövdelerden ayıklar.
       //   · Reservation.guestNameSource (String?, migration 57) → KAPSAM DIŞI: kapalı küme köken etiketi
       //     (channel · calendar · file · host · placeholder); kimseyi tanımlamaz, anonim satırda da doğrudur.
+      //   · Reservation.sourcePlatform (String?, migration 60) → KAPSAM DIŞI: kapalı küme OTA etiketi (airbnb · booking · …);
+      //     kimseyi tanımlamaz.
+      //   · AiGeneration (migration 60) → yalnız draftText / sentText KAPSAM İÇİ (↑liste). Diğerleri opak kimlik, kapalı küme
+      //     etiket, sayaç / damga, PII'siz kanıt JSON'u (kimlik + sürüm; araç sonucu PII taşımaz) — kapsam DIŞI. Satır konuşma
+      //     silinince cascade ile gider.
+      //   · AiReviewLabel (migration 60) → yalnız note KAPSAM İÇİ (serbest metin; kurucu misafir cümlesini alıntılayabilir).
       Message: 17,
       Conversation: 26,
-      Reservation: 37,
+      Reservation: 38,
       Task: 15,
       TaskUpdate: 6,
       MessageOutbox: 23,
+      AiGeneration: 23,
+      AiReviewLabel: 5,
     };
     expect(
       COLS[model]?.size,

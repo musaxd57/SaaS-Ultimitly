@@ -19,6 +19,7 @@ import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
+import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
 import {
   SettingsSections,
   type SettingsViewGroup,
@@ -145,6 +146,10 @@ export default async function SettingsPage({
     managedSub?.provider === "paddle" &&
     Boolean(managedSub?.providerRef) &&
     managedSub?.status !== "canceled";
+  // "Ödemeniz işleniyor" (kurucu onayı 10-10): az önce tamamlanan ödemenin aboneliği henüz yazılmadıysa plan kartları kilitli.
+  // Yalnız ödeme kartı çizilirken (Paddle hazır) okunur; okuma hatası sayfayı düşürmez (kilitsiz sayılır — sunucu kapısı ödeme rotasında).
+  const checkoutPendingNow =
+    paddleReady && !canManagePaddleSub && (await checkoutPendingActive(session.organizationId).catch(() => false));
 
   // ── İşletme Ayarları › Yapay Zekâ — voice + how the AI answers ───────────────
   const aiView = (
@@ -452,6 +457,7 @@ export default async function SettingsPage({
               planChangeEnabled={canManagePaddleSub && planChangeEnabled()}
               locale={appLocale()}
               currency={appBillingCurrency()}
+              checkoutPending={checkoutPendingNow}
               annualAvailable={defaultPlans().every((p) => (paddleAnnualPriceByCode[p.code] ?? "") !== "")}
               plans={defaultPlans().map((p) => ({
                 code: p.code,

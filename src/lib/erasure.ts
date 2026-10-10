@@ -583,6 +583,17 @@ async function maskReservationRows(
     where: { ...outboxLink, body: { not: ANON_BODY } },
     data: { body: ANON_BODY },
   });
+  // 🚨 Yapay zekâ üretim izi (migration 60, kurucu §D-1 10-09): taslak / gönderilen metin misafir silmesinde de silinir (org kapsamlı).
+  if (convIds.length) {
+    await db.aiGeneration.updateMany({
+      where: { organizationId, conversationId: { in: convIds } },
+      data: { draftText: null, sentText: null },
+    });
+    await db.aiReviewLabel.updateMany({
+      where: { generation: { organizationId, conversationId: { in: convIds } }, note: { not: null } },
+      data: { note: null },
+    });
+  }
 }
 
 /**

@@ -356,3 +356,30 @@ describe("bağlantı pinleri (kaynak taraması, tek yönlü — davranış ↑yu
     expect(missing).toEqual([]);
   });
 });
+
+describe("istem sürümü TEK KAYNAK (üretim izi ↔ ölçüm raporu, migration 60)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("rapordaki cevap istemi kimliği = replyPromptVersion(); istemi değiştiren anahtar kimliği değiştirir", async () => {
+    const { replyPromptVersion } = await import("@/lib/ai");
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "");
+    const off = replyPromptVersion();
+    expect(off).toMatch(/^[0-9a-f]{12}$/);
+    expect(evalRuntime().prompts?.reply).toBe(off);
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    expect(replyPromptVersion()).not.toBe(off);
+    expect(evalRuntime().prompts?.reply).toBe(replyPromptVersion());
+  });
+
+  it("öğe kipi bitleri: kimlik çağrının GERÇEK sistem istemidir (öğe bloğu + bırakılan istek)", async () => {
+    const { replyPromptVersion, replyRequestIdentity, replyPromptItemsOf } = await import("@/lib/ai");
+    const conversationItems = { answerable: [{ ref: "R1", kind: "wifi" as const, hint: "wifi" }], held: [{ kind: "payment_invoice" as const }] };
+    const input = { ...REPLY_VARIANT_INPUT, conversationItems };
+    expect(replyPromptVersion(replyPromptItemsOf(conversationItems))).toBe(sha12(replyRequestIdentity(input).system));
+    const { conversationItems: _drop, ...noItems } = REPLY_VARIANT_INPUT;
+    expect(replyPromptVersion(replyPromptItemsOf(undefined))).toBe(sha12(replyRequestIdentity(noItems).system));
+    // Bırakılan istek yoksa ayrı bit.
+    const answerOnly = { answerable: conversationItems.answerable, held: [] };
+    expect(replyPromptVersion(replyPromptItemsOf(answerOnly))).toBe(sha12(replyRequestIdentity({ ...noItems, conversationItems: answerOnly }).system));
+    expect(new Set([replyPromptVersion(), replyPromptVersion({ mode: true, held: false }), replyPromptVersion({ mode: true, held: true })]).size).toBe(3);
+  });
+});

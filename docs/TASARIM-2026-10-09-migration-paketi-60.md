@@ -1,6 +1,8 @@
 # Migration paketi 60 — tasarım ve onay önerisi (2026-10-09)
 
-> **DURUM: ÖNERİ. Şemaya / `prisma/migrations/`e HİÇBİR şey eklenmedi.** Kural (CLAUDE.md): migration içeren push = taze `pg_dump`
+> **DURUM (10-09 akşam): kurucu "tamamını hazırla" dedi → kod YEREL dalda hazır (`wip/migration-60`), PUSH EDİLMEDİ.** Ayrıntı ↓"Uygulama
+> durumu". Aşağıdaki ilk metin önerinin aynen kaydıdır.
+> ~~DURUM: ÖNERİ. Şemaya / `prisma/migrations/`e HİÇBİR şey eklenmedi.~~ Kural (CLAUDE.md): migration içeren push = taze `pg_dump`
 > + kurucunun AÇIK onayı. Railway kapalı; dal açılınca son yeşil commit canlıya gider ve 59 (karar motoru) da henüz canlıda değil.
 > İnceleme 10-09 (Haiku): adsız indeks, eksik `sourcePlatform` SQL'i, iz metninin silme paritesi, okuma geçişinde geri düşüş düzeltildi.
 > Kaynak: kurucu talimatı 09-07 (değişmez 2 / 3 / 9 / 14, "Founder AI Quality Console", "Generation trace") ve
@@ -143,3 +145,35 @@ CREATE INDEX "AiReviewLabel_generationId_idx" ON "AiReviewLabel" ("generationId"
 1. Paketin tamamı (A–E) onaylı mı, yoksa önce yalnız A–C (Airbnb öncesi kimlik / kaynak / sağlık) mı?
 2. §D-1: taslak ve gönderilen metin izde saklansın mı (önerim: evet, `Message` ile aynı saklama süpürgesi)?
 3. Kalite konsolu bugün mü, yoksa Railway geri açılınca mı (canlı veri olmadan konsol boş görünür)?
+
+## Uygulama durumu (10-09 akşam — dal `wip/migration-60`, PUSH EDİLMEDİ)
+
+Kurucu kararları (10-09): paketin tamamı · §D-1 (a) metin saklanır, mesajlarla aynı saklama · konsol hazırlanır. Her parça kırmızı-önce
++ mutasyon (ayrık worktree) + gerçek PostgreSQL entegrasyon testi ile; üç Haiku inceleme turu (bulgular kodla doğrulandı, bir kısmı
+gerekçeyle reddedildi).
+
+| Parça | Kod | Anahtar (hepsi VARSAYILAN KAPALI) | Test |
+|---|---|---|---|
+| Migration `60_channel_listing_ai_trace` | taze PG'de 00→60 zinciri, sıfır drift | — | kanarya + scrub-scope pinleri |
+| D iz yazıcı | `ai/generation-trace.ts`; kanal oto-yanıtının 5 karar noktası `recordDecision` (RiskEvent + AYNI karar/gerekçe/kanıt) | `AI_GENERATION_TRACE_ENABLED` | birim + uçtan uca (11/11 mutant) |
+| D KVKK | saklama iki dal + yaş çapası bacakları + misafir silmesi + konuşma birleştirme; etiket notu da | (anahtardan bağımsız: eski izler hep temizlenir) | 13 entegrasyon (9/9 mutant) |
+| E konsol | `GET /api/admin/ai-quality` · `POST …/labels` · `/admin/ai-quality` sayfası | (yazım anahtarı açılınca dolar) | 20 entegrasyon (13/13 mutant) |
+| A–C kanal metaverisi | `channels/metadata.ts`; senkron ilan eşlemesi + ham platform + okuma sağlığı | `CHANNEL_METADATA_WRITE` | 17 entegrasyon |
+
+**Tasarımdan bilinçli sapmalar (kurucu onayına):**
+1. **Konsol amacı KAPALI KÜME** (kalite / olay / şikâyet incelemesi + isteğe bağlı talep no), talimattaki "yazılı amaç" serbest metin
+   DEĞİL — 09-30 operatör dışa aktarım kararının emsali: kayıt müşterinin KVKK ihracına girer, serbest metin kişisel veri taşıyabilir.
+2. **Kayda operatörün IP'si / oturum kimliği YAZILMAZ** (bu belgenin §E'si "IP / oturum metadataJson içinde" diyordu): 08-01 denetim
+   kuralı — `AuditLog.metadataJson` müşterinin ihracına girer, operatörün kişisel verisi üçüncü kişi verisidir. Kimlik opak `actorUserId`.
+3. **`AiGeneration.conversationId` ZORUNLU** (tasarımda boş olabilirdi; Haiku: konuşmasız iz metni hiçbir süpürgeye düşmezdi). Bütün
+   yüzeyler (kanal, QR, karar kartı) bir konuşmaya bağlı.
+4. **İz org dışa aktarımına GİRMEZ** (eğitim / dışa aktarma yasağı; okuyan modül listesi kapalı, pinli). Not: misafir mesajları ihraçta
+   var; izin ihraca girmesi istenirse bu ayrı karar.
+5. **Kanal metaverisinin üç yazıcısı TEK anahtarda** (`CHANNEL_METADATA_WRITE`): aynı "expand → dual-write" aşaması, hepsi yalnız yazar.
+6. **`lock_timeout` eklenmedi** (Haiku önerisi): 59 migration'da emsal yok; zaman aşımı Prisma'da "başarısız migration" kaydı bırakır
+   ve açılışı elle kurtarma ister — kısa bir bekleme bundan iyidir; Railway açılışında trafik yok.
+
+**Kalan (bu paketin dışında, ayrı onay):** okuma geçişleri (`CHANNEL_LISTING_READ` vb.) · müsaitlik motorunun sağlık kaydını kullanması
+(davranış değişikliği) · QR / öneri / karar metni yüzeylerinin izi · konsolda istatistik görünümü.
+
+**Push öncesi (kural):** taze `pg_dump` (`ops-backup-prod.ps1`) + `pg_restore -l` + SHA → kurucunun "push et" onayı → CI.

@@ -106,6 +106,7 @@ const STAFF_REACHABLE: Record<string, { reason: string; scope: RegExp }> = {
 /** 2. YALNIZ SAHİP. `withOwner` ya da (başka bir kapı önce koşmak zorundaysa) satır içi sahip kontrolü. */
 const OWNER_ONLY: Record<string, string> = {
   "billing/consent POST": "ödeme onayı (hukuki kayıt)",
+  "billing/checkout-pending POST": "\"ödemeniz işleniyor\" kilidi (ödeme ekranı yalnız sahibe açılır)",
   "billing/plan-change POST": "plan değişikliği (para)",
   "billing/plan-preview POST": "plan değişikliği ön hesabı (tek kullanımlık fiyat belirteci üretir)",
   "billing/portal POST": "ödeme portalı oturumu",
@@ -135,6 +136,8 @@ const SELF_GATED: Record<string, { gate: RegExp[] | null; reason: string; where?
   "account/delete POST": { gate: [SESSION, /if \(session\.actorUserId\)/], reason: "sahip + impersonation'da yasak" },
   "account/password POST": { gate: [SESSION, /if \(session\.actorUserId\)/], reason: "kendi şifresi; impersonation'da yasak" },
   "account/forgot-password POST": { gate: null, reason: "kimliksiz: sıfırlama isteği (hız sınırı + genel yanıt)" },
+  "admin/ai-quality GET": { gate: [SESSION, SUPERADMIN], reason: "operatör (kalite konsolu, salt-okuma)" },
+  "admin/ai-quality/labels POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (kalite etiketi)" },
   "admin/customers POST": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
   "admin/exit POST": { gate: [/exitImpersonation\(\)/], reason: "yalnız impersonation'dan ÇIKAR (yetki düşürür)" },
   "admin/export GET": { gate: [SESSION, SUPERADMIN], reason: "operatör" },

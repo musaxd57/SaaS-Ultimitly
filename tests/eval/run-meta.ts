@@ -5,7 +5,7 @@ import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
 import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import { embeddingModel } from "@/lib/ai/embeddings/model";
 import { createHash } from "node:crypto";
-import { replyRequestIdentity } from "@/lib/ai";
+import { replyPromptVersion, replyRequestIdentity } from "@/lib/ai";
 import { understandingEnglishQueryEnabled, understandingSystemPromptFor } from "@/lib/ai/semantic/understand";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
@@ -117,8 +117,9 @@ export const PIPELINE_FLAGS = [
   "AI_HOST_DECISION_HOLD_ENABLED",
   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
   "AI_COURTESY_RULE_ENABLED",
-  // Doğrulanmış müsaitlik misafire giden metni değiştirir (tek kural: her AI_* bayrağı koşu kimliğinde).
+  // Doğrulanmış müsaitlik misafire giden metni değiştirir; üretim izi ölçümü değiştirmez ama koşu kimliğinde görünür (tek kural: her AI_* bayrağı).
   "AI_VERIFIED_AVAILABILITY_ENABLED",
+  "AI_GENERATION_TRACE_ENABLED",
   "AI_VERIFIED_EXTENSION_ENABLED",
   "AI_VERIFIED_QR_ENABLED",
   // Tarih okuması cevap istemini değiştirir (10-10, karar #10).
@@ -159,15 +160,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
     return { model: m, reasoning: reasoningLabel(m, semanticReasoningEffort(l)) };
   };
   const sha12 = (t: string) => createHash("sha256").update(t).digest("hex").slice(0, 12);
-  const replySystem = replyRequestIdentity({
-    guestMessage: "-",
-    property: { name: "-", checkInTime: "15:00", checkOutTime: "11:00" },
-    reservation: null,
-    knowledgeBase: [],
-    history: [],
-    tone: "warm",
-    language: "tr",
-  }).system;
+
   // Anlama kipi (10-01 bulgusu): konaklama eval'i kipi KENDİ ortam değişkeniyle verir, kimlik ürün bayraklarından hesaplanınca
   // raporlar gerçekte koşan öğe + kural + şikâyet takibi istemi yerine yalnız şikâyet takibi isteminin kimliğini yazdı.
   const given = opts.understanding;
@@ -204,7 +197,8 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
     },
     flags: Object.fromEntries(PIPELINE_FLAGS.map((f) => [f, process.env[f]?.trim() || "(boş)"])),
     prompts: {
-      reply: sha12(replySystem),
+      // Üretim izi (`AiGeneration.promptVersion`) ile AYNI fonksiyon (tek kaynak, migration 60).
+      reply: replyPromptVersion(),
       replyVariant: sha12(`${variant.system}\n${variant.user}`),
       understanding: sha12(understandingSystem),
       understandingMode: understandingModeLabel(mode),

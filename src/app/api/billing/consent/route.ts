@@ -6,6 +6,8 @@ import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { paddlePriceToPlanCode, paddlePriceCatalogConfigured } from "@/lib/payments/paddle";
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
+import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
+import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 
 // Server-side record of the Ön Bilgilendirme + Mesafeli Satış acceptance at
 // CHECKOUT — the evidence counterpart to the client checkbox in paddle-plans.tsx.
@@ -73,6 +75,12 @@ export const POST = withOwner(async (session, req) => {
     return badRequest({
       _: "Bu işletmenin zaten aktif bir aboneliği var. Plan değiştirmek için Faturalandırma bölümünü kullanın.",
     });
+  }
+
+  // "Ödemeniz işleniyor" (kurucu onayı 10-10): az önce tamamlanan ödemenin webhook'u henüz gelmediyse ikinci ödeme ekranı açılmaz —
+  // yukarıdaki canlı abonelik kontrolü yalnız webhook'un yazdığı satırı görür (ikinci sekmede ikinci abonelik penceresi).
+  if (await checkoutPendingActive(session.organizationId)) {
+    return badRequest({ _: CHECKOUT_PENDING_MESSAGE });
   }
 
   const row = await prisma.checkoutConsent.create({

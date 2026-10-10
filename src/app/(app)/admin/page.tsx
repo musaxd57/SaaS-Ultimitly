@@ -379,6 +379,19 @@ export default async function AdminPage() {
 
       <Card className="max-w-2xl">
         <CardHeader>
+          <CardTitle className="text-base">Yapay Zekâ Kalite Konsolu</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Cevap kararlarının izi (taslak, giden metin, kapı kararı) ve kurucu etiketleri — salt-okuma, her görüntüleme kayıtlı.{" "}
+          <a href="/admin/ai-quality" className="font-medium text-primary underline-offset-4 hover:underline">
+            Konsolu aç
+          </a>
+          {" "}(iz yazımı <code className="font-mono text-xs">AI_GENERATION_TRACE_ENABLED=1</code> ile açılır).
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
           <CardTitle className="text-base">AI Kalite Denetçisi (Claude — gölge)</CardTitle>
         </CardHeader>
         <CardContent>
