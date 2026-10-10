@@ -112,5 +112,6 @@ giderildi: "52 iç merdiven basamağı" = "52 steps / stairs" · hâl eki birimi
 üleştirme eki "2'şer gece" birim bağlar) · sözcük önünde olmayan eksi bodrumdur ("-1. kat" 1. kat değil). Haiku incelemesi iki gerileme
 buldu ve ikisi de düzeltildi: "6 basamaklı şifre" (kodun hane sayısı) adım okunuyordu · eksi kat kalıbı "3-4. kat" / "B-3. kat"
 aralığındaki ikinci kat iddiasını siliyordu. Reddedilen öneri: "3'e gece" bir süre değildir, onu desteksiz saydıran pin yanlış anlamı
-sabitlerdi. Bilinen sınır (eski): cevap "-1. kat" ↔ kaynak "1. kat" işaret farkı yakalanmaz. Her gevşemenin farklı değer / farklı birim
+sabitlerdi. **Kurucu düzeltmesi (10-10: "-1. kat ile 1. kat aynı değil"):** eksi işaretli kat artık kendi işaretli iddiası (`kat -1`) —
+"-1. kat" ↔ "1. kat" iki yönde desteksiz, "-1. kat" ↔ "-1 kattaki" / "-1st floor" / "floor -1" destekli; aralık ve ayraç etkilenmez (mutasyon 6/6). Her gevşemenin farklı değer / farklı birim
 kontrolü pinli; yeni yollara 50.000 karakterlik süre pinleri; mutasyon 7/7 · 4/4 · 3/3.
