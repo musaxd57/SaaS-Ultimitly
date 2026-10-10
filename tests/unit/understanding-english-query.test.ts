@@ -90,6 +90,7 @@ describe("çözücü", () => {
     const u = parseUnderstanding(raw, { english: true });
     expect(u?.requests.map((r) => r.queryEn)).toEqual(["tap water filter jug", "leave fans running when out", undefined]);
     expect(u?.requests).toHaveLength(3);
+    expect(Object.keys(u?.requests[2] ?? {})).not.toContain("queryEn");
   });
 
   it("🚨 kapalıyken model alanı gönderse de OKUNMAZ (çıktı bayt bayt eski)", () => {
