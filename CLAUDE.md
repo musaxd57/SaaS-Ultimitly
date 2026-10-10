@@ -224,7 +224,7 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
   verilir; bulgular kodla doğrulanır; kodu Claude yazar. Yasak dosyalar (sealed / private / holdout) ajana da AÇILMAZ.
 - **Kurucu cevap incelemesi (10-08):** ölçüm yan dosyalarından (`docs/olcum/*.json`) çıkan misafir mesajı → yapay zekâ cevabı çiftleri
   `scripts/review/build-review-set.py` ile toplanır, sayfa https://claude.ai/artifact/DFkiB4FkXrNagEtHnGTXXN (veri `review-set.json`,
-  yorumlar sayfanın veritabanında `reviews/<çift kimliği>`: verdict good/fix/bad · better · note). Kurucu yorumları `ArtifactData list
+  yorumlar sayfanın veritabanında `reviews/m<mesaj özeti>` — soru başına kararlı kimlik, eski `q…` / çift kimlikli kayıtlar da okunur: verdict good/fix/bad · better · note). Kurucu yorumları `ArtifactData list
   reviews` ile okunur; "daha iyi cevap" önerileri istem / eval işine girdi olur (karar değil — uygulamadan önce kurucuya sorulur). Yeni ölçüm
   sonrası set yeniden üretilip aynı adrese yayımlanır.
 - **`docs/TEST-EVIDENCE-CONTRACT.md` bağlayıcı**: K2 için kırmızı-önce · kaldırma mutasyonu · aşırı-uygulama

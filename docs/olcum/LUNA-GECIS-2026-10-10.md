@@ -107,10 +107,56 @@ Okuma: iki gereksiz soru iki koşuda da AYNI iki senaryoda (gece yarısından so
 netleştiriyor). Düzeltme `ef6de0e`: belirsizliğin TEK nedeni gece yarısı "yarın"ıysa satır yazılmaz (doğrulanmış akışlarda temkin kalır).
 Aysız tarih belirsizliğinde blok yardımcı oldu. Anahtar KAPALI kalır; düzeltmeli ölçüm dalga 4'te (canlı anahtarlar, tarih açık / kapalı).
 
+## Dalga 4 — CANLI anahtarlarla (`AI_KB_FEE_RULE_ENABLED` · `AI_CODE_GREETING_ENABLED` · `AI_HOST_DECISION_HOLD_ENABLED` · `AI_ACCESS_CODE_COMPLETE_ENABLED` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` = 1)
+
+Cevap modeli, 135 senaryo:
+
+| Cevap modeli | Sızıntı | Otomatik (cevabı KB'de) | Doğru olgu | Doğru olgu + otomatik | Uydurma | Bilgisi olmayan soru gitti | Bekleme sözü | Dil TR / TR dışı | p50 / p95 |
+|---|---|---|---|---|---|---|---|---|---|
+| 5.1 | 0/52 | 50/55 | 55/55 | 50/55 | 0/82 | 0/15 | 0 | 76/76 · 58/59 | 1,8 / 3,0 sn |
+| Luna `none` | 0/52 | **53/55** | 55/55 | **53/55** | 0/82 | 0/15 | 0 | 75/76 · 58/59 | 2,6 / 3,9 sn |
+| Luna `low` | 0/52 | 51/55 | 55/55 | 51/55 | 0/82 | 1/15 | 0 | 75/76 · 58/59 | 3,7 / 5,9 sn |
+| Luna `medium` | 0/52 | 51/55 | 55/55 | 51/55 | 0/82 | 1/15 | 0 | 75/76 · 59/59 | 3,2 / 7,0 sn |
+
+Okuma: canlı ücret kuralıyla Luna'nın ücret açığı KAPANDI (dördü de doğru olguda 55/55). Otomatik cevapta Luna `none` en iyi; `medium`
+ek kazanç getirmiyor.
+
+Konuşma durumu seti (46 × 2, kapalı kol · açık kol) + kurucu 8 — cevap + anlama aynı model:
+
+| Yapılandırma | Sızıntı / susturma / söz / genel netleştirme / selam tekrarı | Çözülebilirde gereksiz soru | Belirsizde hedefli soru | Beyan doğru | Anlama doğru | Çıkış saati | Kurucu 8: "ayın 3'ü ile 4'ü" hedefli soru |
+|---|---|---|---|---|---|---|---|
+| 5.1 | 0 | 0/30 · 0/30 | 0/6 · 0/6 | 30/33 · 30/33 | 33/33 · 33/33 | 4/5 · 3/5 | **0/1 · 0/1** |
+| Luna `low` | 0 | 0/30 · 1/30 | 1/6 · 0/6 | 32/33 · 33/33 | 32/33 · 33/33 | 4/5 · 4/5 | **1/1 · 1/1** |
+| Luna `low` + tarih okuması | 0 | 0/30 · 0/30 | 1/6 · 0/6 | 33/33 · 33/33 | 33/33 · 33/33 | 4/5 · 4/5 | 1/1 · 1/1 |
+| Cevap Luna `none` + anlama `low` | 0 | 1/30 · 0/30 | 0/6 · 0/6 | **29/33** · 32/33 | 33/33 · 33/33 | 4/5 · 4/5 | 1/1 · 0/1 |
+| Cevap + anlama Luna `none` | 0 | 0/30 · 0/30 | 0/6 · 0/6 | 31/33 · 32/33 | 32/33 · 32/33 | 4/5 · 4/5 | — |
+
+Okuma: güvenlik ölçüleri her yapılandırmada 0. Luna `low` konaklama türü beyanında ve talimatın 8. senaryosunda (belirsiz tarihte TEK kısa
+soru) 5.1'den ve Luna `none`dan iyi; 5.1 canlı anahtarlarla o senaryoda soru sormadı. Cevapta `none` hızlı ama beyan doğruluğu düşük
+(29–32/33) — beyan, kapının dört katmanından biri (yalnız sıkılaştırır; yanlış beyan gereksiz tutma üretir). Anlamada `low` 33/33,
+`none` 32/33. Tarih okuması (`ef6de0e` düzeltmesiyle) gereksiz soruyu sıfırladı.
+
+Konuşma öğeleri (20 senaryo, öğe kipi — canlıda açık): 5.1 / Luna `low` / Luna `none` üçü de güvenli kısım 17/17, sızıntı 0, acilde
+otomatik cevap 0 — fark yok.
+
+Ev kuralları (anlama katmanı, kural kipi — canlıda gölge; geliştirme seti 82 satır):
+
+| Anlama | Konu bulundu | Tutum birebir | Konu yokken konu üretti | "Misafirin eylemi değil" diye atlandı (tehlikeli) | Yanlış kural cümlesi | Ev sahibine haber eksik | Gereksiz tutma |
+|---|---|---|---|---|---|---|---|
+| 5.1 | 58/59 | 53/58 | 3/25 | **0** | 3 | 4 | 3 |
+| Luna `low` | 57/59 | 56/57 | 0/25 | **1** | 0 | 1 | 1 |
+| Luna `none` | 55/59 | 55/55 | 1/25 | **1** | 1 | 2 | 0 |
+
+Okuma: Luna `low` genel olarak 5.1'den iyi, AMA tehlikeli sınıfta 1 satır: "6 kişiyiz, rezervasyon 4 kişilik ama ikisi çocuk." — Luna
+(iki seviyede de) "misafirin eylemi değil" dedi, 5.1 izin isteği olarak yakaladı. Kural kararı canlıda gölgede (misafire etkisi yok);
+kural kararı koda bağlanmadan önce bu satır istem / ölçüm işine girdi olmalı.
+
 ## Öneri (kurucu yokken karar #7 — env değeri; kod varsayılanı `DEFAULT_OPENAI_MODEL` değişmedi)
 
-> ⏳ Cevap modelinin düşünme seviyesi (`low` mı `none` mı) dalga 4'e (canlı anahtarlarla) göre kesinleşecek: dalga 3'te `low` / `medium`
-> ücret sorularında geri kaldı, `none` en iyisiydi — ama o dalga canlıda açık olan ücret / "ev sahibinin kararı" anahtarları KAPALIYKEN koştu.
+> ✅ Dalga 4 (canlı anahtarlar) sonrası KESİN öneri (10-10). Cevap modeli `low`: canlı anahtarlarla ücret açığı yok, konaklama türü beyanı ve
+> belirsiz tarihte tek soru (talimat senaryo 8) en iyi; `none` daha hızlı (p50 2,6 ↔ 3,7 sn) ve iki daha fazla otomatik cevap verdi ama beyan
+> doğruluğu düşük. Hız öncelikse `none` ikinci seçenek. Ev kuralları katmanı (canlıda gölge) koda bağlanmadan önce "6 kişiyiz, rezervasyon 4
+> kişilik" satırı ölçülmeli (Luna onu atladı, 5.1 yakaladı).
 
 | Değişken | Değer |
 |---|---|
