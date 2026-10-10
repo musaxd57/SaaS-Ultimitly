@@ -163,3 +163,10 @@ SELLER etiketi · yıllık peşinde cayma · alt-işleyen listesi (Akash çıkar
 Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused` grace · reconcile'da yerel plan · bekleyen
 mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`) · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
+
+**🔔 Kurucu 10-10 — SONRADAN BAKILACAK (unutma):** ödeme idempotency'si İYİ (webhook olay kimliği eşsiz, fatura işlem başına tek, plan
+değişikliği tek kullanımlık jeton) — üç küçük boşluk: ikinci aktif abonelik sessizce ilkinin yerine geçer (alarm yok) · webhook gelmeden çift
+ödeme ekranı penceresi · eşzamanlı teslim testleri eksik. Deneme kötüye kullanımı: deneme başına IP engeli YOK (yalnız kayıt hız limiti),
+yeni e-postayla yeni 14 gün alınabiliyor; öneri: işletme kimliği (aynı Hospitable hesabı / ilan / iCal → ikinci deneme yok) + kayıt anında
+risk puanı (engel değil, kademeli), cihaz parmak izi şimdilik YOK (KVKK). Ayrıntı + örnekler + kurucuya dört soru:
+`docs/TASARIM-2026-10-10-odeme-idempotency-ve-deneme-kotuye-kullanim.md`. Kod yazılmadı (ödeme / kimlik akışı = kurucu onayı + ilk denemeler).
