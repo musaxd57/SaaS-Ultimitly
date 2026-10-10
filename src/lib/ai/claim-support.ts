@@ -251,7 +251,7 @@ function typedQuantity(cls: ClaimClass, unit: string, v: number): string {
   if (cls === "distance") {
     if (/^(km|kilomet)/.test(u)) return `distance|m${r(v * 1000)}`;
     if (/^(mi|mile)/.test(u)) return `distance|m${r(v * 1609)}`;
-    if (/^(adim|step)/.test(u)) return `distance|step${v}`;
+    if (/^(adim|step|stair)|basama/.test(u)) return `distance|step${v}`;
     return `distance|m${r(v)}`;
   }
   if (cls === "duration") {
@@ -312,7 +312,12 @@ function clockTime(h: number, mi: number, part: "am" | "pm" | "night" | null, ra
 
 /** Birim aileleri: `long` ek alabilir; `short` ardından harf gelmemeli (kesme + ek serbest). */
 const UNIT_FAMILIES: { cls: ClaimClass; long: string[]; short: string[] }[] = [
-  { cls: "distance", long: ["kilometre", "kilometers?", "metrelik", "metre", "meters?", "metres?", "miles?", "adim", "steps"], short: ["km", "m", "mi"] },
+  {
+    cls: "distance",
+    // Merdiven basamağı (10-10): "52 iç merdiven basamağı" = "52 steps / stairs" — sayı ile birim arasına yalnız adet / iç / dış / merdiven girebilir.
+    long: ["kilometre", "kilometers?", "metrelik", "metre", "meters?", "metres?", "miles?", "adim", "steps", "stairs?", "(?:adet )?(?:(?:ic|dis) )?(?:merdiven )?basama"],
+    short: ["km", "m", "mi"],
+  },
   {
     cls: "duration",
     long: ["dakika", "minutes?", "saniye", "seconds?", "saatlik", "hours?", "gunluk", GUN, "days?", "gecelik", GECE, `nights?${NOT_NIGHT_COMPOUND_EN}`, "hafta", "weeks?"],

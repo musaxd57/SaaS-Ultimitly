@@ -145,3 +145,27 @@ describe("🚨 genel sayma sözcüğü (adet / tane / pieces) diller arası", ()
     expect(u("Odalar için 3 tane vantilatör var.", c)).toBe(1);
   });
 });
+
+describe("🚨 merdiven basamağı = steps / stairs (10-10, cevap ölçüsü yanlış alarmı: d_accessibility_5)", () => {
+  // Kaynak (geliştirme seti, sentetik): "… toplam 52 iç merdiven basamağı çıkmak gerekir." Cevap: "… requires climbing 52 steps."
+  // Ölçer İngilizce "steps"i adım (mesafe) okuyordu, Türkçe "basamak"ı hiç birim saymıyordu → doğru cevap "kanıtsız iddia".
+  const c = ctx("Asansör arızalı olduğunda üçüncü kata ulaşmak için toplam 52 iç merdiven basamağı çıkmak gerekir.");
+
+  it("aynı sayı: '52 steps' / '52 stairs' / '52 (merdiven) basamak' — İngilizce ve Türkçe biçimler desteklenir", () => {
+    expect(u("If the lift is out of service, reaching the third floor requires climbing 52 steps.", c)).toBe(0);
+    expect(u("There are 52 stairs to the flat.", c)).toBe(0);
+    expect(u("Toplam 52 basamak var.", c)).toBe(0);
+    expect(u("Toplam 52 merdiven basamağı var.", c)).toBe(0);
+    expect(u("Sokaktan girişe 6 basamak var.", ctx("Sokak seviyesinden girişe 6 adet dış merdiven basamağı çıkmanız gerekiyor."))).toBe(0);
+    expect(u("There are 54 steps.", ctx("Merdivenler toplam 54 basamaktır."))).toBe(0);
+  });
+
+  it("🚨 KONTROL — farklı değer / farklı birim GEÇMEZ", () => {
+    expect(u("It requires climbing 54 steps.", c)).toBe(1);
+    expect(u("There are 25 stairs to the flat.", c)).toBe(1);
+    expect(u("Toplam 54 basamak var.", c)).toBe(1);
+    expect(u("The flat is 52 metres from the lift.", c)).toBe(1);
+    expect(u("There are 52 steps.", ctx("Bina 52 metre yüksekliğindedir."))).toBe(1);
+    expect(u("There are 52 steps.", ctx("Binada 52 kişilik toplantı salonu var."))).toBe(1);
+  });
+});
