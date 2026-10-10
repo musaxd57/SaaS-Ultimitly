@@ -170,3 +170,10 @@ değişikliği tek kullanımlık jeton) — üç küçük boşluk: ikinci aktif 
 yeni e-postayla yeni 14 gün alınabiliyor; öneri: işletme kimliği (aynı Hospitable hesabı / ilan / iCal → ikinci deneme yok) + kayıt anında
 risk puanı (engel değil, kademeli), cihaz parmak izi şimdilik YOK (KVKK). Ayrıntı + örnekler + kurucuya dört soru:
 `docs/TASARIM-2026-10-10-odeme-idempotency-ve-deneme-kotuye-kullanim.md`. Kod yazılmadı (ödeme / kimlik akışı = kurucu onayı + ilk denemeler).
+
+**🔔 GOAL BİTTİKTEN SONRA (kurucu 10-10, 8 ekran görüntüsü):** Correlation ID / takip numarası — her işleme rastgele kimlik, zincir boyunca
+(ödeme onayı → Paddle `customData` → webhook → abonelik / fatura / alarm) aynı numara, hata bildirimlerinde ve (onayla) kullanıcının hata
+ekranında; destek ekranında numarayla arama. Bugün: genel takip numarası YOK; QR `requestId` ve kuyruk `idempotencyKey` İDEMPOTENCY
+anahtarıdır, takip değil; ödemede `consentId` fiilen zincir kimliği ama loglarda / hata yanıtında yok. Adım adım plan + kurucuya dört soru:
+`docs/TASARIM-2026-10-10-correlation-id-takip-numarasi.md`.
+
