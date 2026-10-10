@@ -26,7 +26,7 @@ import {
   sendQrEscalationAlertBounded,
   qrEscalationEventId,
 } from "@/lib/guest-chat-alerts";
-import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
+import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType, noStore } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { SUPPORT_VIEW_GUEST_CHAT_MESSAGE, isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
 import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
@@ -324,7 +324,16 @@ async function handlePinUnlock(
 // so the host's replies (written from the panel) show up when the guest reopens
 // the chat or keeps it open. Scoped to the CURRENT stay's thread only (a past
 // guest can't read it — the chat is closed after checkout), so no PII leak.
-export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+/** Misafir mesajından silinen denetim karakterleri (U+0000–U+001F ve U+007F; sekme, satır sonu, satır başı HARİÇ). */
+const GUEST_CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+
+// Misafir sohbeti yanıtları (geçmiş dahil) hiçbir ara katmanda / tarayıcı önbelleğinde tutulmaz — ortak bir cihazda sonraki kullanıcı
+// görmesin (Haiku QR güvenlik taraması 10-10). Bütün dallar (hata dahil) sarmalayıcıdan geçer.
+export async function GET(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+  return noStore(await handleGuestChatGet(req, ctx));
+}
+
+async function handleGuestChatGet(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
   const limited = await rateLimit(`guestchat-get:${rateLimitClientKey(req)}`, 60, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
@@ -412,9 +421,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 // eklemek KVKK açısından ikinci bir PII kopyası üretirdi.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
   try {
-    return await handleGuestChatPost(req, ctx);
+    return noStore(await handleGuestChatPost(req, ctx));
   } catch (err) {
-    return serverError("Şu anda yanıt veremiyoruz — lütfen birazdan tekrar deneyin.", err);
+    return noStore(serverError("Şu anda yanıt veremiyoruz — lütfen birazdan tekrar deneyin.", err));
   }
 }
 
@@ -438,7 +447,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
   const body = bodyResult.ok ? bodyResult.data : null;
   const pinInput = typeof body?.pin === "string" ? body.pin : null;
-  const message = typeof body?.message === "string" ? body.message.trim() : "";
+  // Denetim karakterleri (NUL vb.; sekme / satır sonu HARİÇ) sessizce silinir — PostgreSQL metin alanı NUL yazamaz, eskiden 500 + hata
+  // raporu üretiyordu (Haiku QR taraması 10-10; sağlayıcı dizesindeki NUL kuralıyla aynı). Misafire giden hiçbir metin değişmez.
+  const message = typeof body?.message === "string" ? body.message.replace(GUEST_CONTROL_CHARS, "").trim() : "";
   // Client-generated idempotency id (Codex 07-24 #2, composer parity): one id per
   // COMPOSED guest message, reused across connection-loss retries of that same
   // message. Optional — an old open tab without it keeps today's behaviour.

@@ -145,6 +145,8 @@ describe("bindOrCheckStay (per-stay device binding)", () => {
 
     // Device A re-opens WITH the cookie → sees the thread.
     const mine = await getReq(token, cookie);
+    // Geçmiş taşıyan yanıt önbelleklenmez (ortak cihazda sonraki kullanıcı görmesin — Haiku QR taraması 10-10).
+    expect(mine.headers.get("cache-control")).toBe("no-store");
     const mineJson = await mine.json();
     expect(mineJson.open).toBe(true);
     expect(mineJson.boundElsewhere).toBeFalsy();

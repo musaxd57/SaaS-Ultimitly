@@ -108,6 +108,23 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect((await call(token, "x".repeat(2001))).status).toBe(400);
   });
 
+  it("🚨 yanıtlar ÖNBELLEKLENMEZ (Cache-Control: no-store) — başarı, doğrulama hatası ve 404 dahil", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    expect((await call(token, "Çöp ne zaman toplanıyor?")).headers.get("cache-control")).toBe("no-store");
+    expect((await call(token, "")).headers.get("cache-control")).toBe("no-store");
+    expect((await call(generateChatToken(), "merhaba")).headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("🚨 denetim karakteri (NUL vb.) içeren mesaj 500 vermez: karakter sessizce silinir, satır sonu korunur", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const res = await call(token, "Çöp\u0000 ne zaman\u0007\ntoplanıyor?");
+    expect(res.status).toBe(200);
+    const msg = await prisma.message.findFirstOrThrow({ where: { direction: "inbound" } });
+    expect(msg.body).toBe("Çöp ne zaman\ntoplanıyor?");
+  });
+
   it("records a confident answer (question + AI reply) as a non-urgent 'chat' thread", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
