@@ -267,6 +267,18 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect(await prisma.systemLock.count({ where: { name: TRIAL_IDENTITY_BACKFILL_MARKER } })).toBe(1);
   });
 
+  it("🚨 KONTROL: anahtar açıldıktan sonraki İLK olay, iki hesapta zaten bulunan ESKİ takvimin yeniden okunmasıysa da ceza yok (geri doldurma kaynağı sayımdan ÖNCE işaretler)", async () => {
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
+    const a = await trialOrg("A");
+    await addIcal(a, AIRBNB("1"));
+    const b = await trialOrg("B");
+    const old = await addIcal(b, AIRBNB("2"));
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    expect((await syncIcal(b.orgId, old.id)).trialNotice).toBeUndefined();
+    expect((await sub(b.orgId)).trialEndReason).toBeNull();
+    expect((await prisma.trialIdentity.findFirstOrThrow()).firstOrganizationId).toBe(a.orgId);
+  });
+
   it("KONTROL: anahtar açılmadan ÖNCE iki hesapta zaten bulunan ilan cezalandırılmaz (geri doldurma yalnız kaydeder); ilgisiz takvim eklemek denemeyi bitirmez", async () => {
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
     const a = await trialOrg("A");
