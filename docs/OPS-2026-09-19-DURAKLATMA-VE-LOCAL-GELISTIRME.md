@@ -186,6 +186,9 @@ küme başlatılır.
    kalır — açmadan ÖNCE aydınlatma metnine "deneme kötüye kullanımını önleme" amacı eklenmeli (avukat paketi); ilan numaralarının da izlenmesi
    için `CHANNEL_METADATA_WRITE=1` gerekir (yalnız iCal kimliği için gerekmez). İlk açılışta mevcut hesaplar bir kez yalnız kaydedilir.
    Açmadan önce bir kez canlı dene: Airbnb takvim adresine YANLIŞ jetonla istek geçerli takvim döndürmemeli (ayrıntı: tasarım belgesi §5).
+0b3. **Migration 62 (misafir sözü, 10-10):** aynı taze yedek kuralı (60 + 61 ile birlikte deploy olur; yalnız yeni tablo ekler). Anahtarı
+   yok — deploy edilince gelen kutusunda "Misafire verilen sözler" kartı ve Dikkat Gerektirenler satırı görünür (yalnız yönetici; misafire
+   hiçbir şey gitmez).
 0c. **Yapay zekâ anahtarları KADEMELİ** (kurucu 10-10): 1) Luna env (`docs/olcum/LUNA-GECIS-2026-10-10.md` tablosu) + `AI_UNDERSTANDING_EN_QUERY_ENABLED=1`
    2) `AI_DATE_RESOLUTION_ENABLED` + `AI_CONVERSATION_STATE_ENABLED` 3) `AI_VERIFIED_AVAILABILITY_ENABLED` 4) `AI_VERIFIED_EXTENSION_ENABLED`
    5) `AI_VERIFIED_QR_ENABLED` — her biri kurucuyla ilk denemeler.

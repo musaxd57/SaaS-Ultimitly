@@ -66,7 +66,7 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 | Kurucu AI Kalite Konsolu | 🟡 KOD HAZIR (yama `docs/hazir-yamalar/2026-10-09-migration-60-…patch`; salt-okuma + etiket, 2FA'lı operatör, her görüntüleme kayıtlı) → push onayı |
 | Üretim izi (model, istem sürümü, gecikme, token, maliyet) | 🟡 KOD HAZIR (aynı yama; `AI_GENERATION_TRACE_ENABLED` kapalı; KVKK paritesi + okuyucu pini; maliyet sütunu boş — fiyat tablosu ayrı karar) → push onayı |
 | 8 başlangıç senaryosu | ✅ set `evals/founder-initial-8.json` + seçici; ücretli taban koşusu onay |
-| Açık taahhüt hafızası | ⏸ öneri yazıldı, kurucu kararı (`docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md`; A / B / C — migration ister) |
+| Açık taahhüt hafızası | ✅ ilk dilim (kurucu kararı A, 10-10; migration 62): ev sahibinin işaretlediği söz + bağlı görev + Dikkat Gerektirenler satırı (`docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md` §Uygulama). Yapay zekâ cevabına girdi: AYRI karar (müşteriye giden metin) |
 
 ## 5. Çalışma sırası (bu turdan itibaren)
 

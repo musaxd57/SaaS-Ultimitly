@@ -1,4 +1,4 @@
-# Açık taahhüt hafızası — öneri (kurucu kararı bekliyor; KOD YOK)
+# Açık taahhüt hafızası — kurucu kararı A (10-10), ilk dilim UYGULANDI
 
 > Kurucu talimatı 09-07: "Açık konu/taahhüt hafızası: 'Havlular 18:00'de gelecek' bilgisi son 25 mesajdan düşse de unutulmasın;
 > tamamlanınca da kapanabilsin." Aynı talimat §7: "yalnız gerekçelendiğinde … çözülmemiş taahhütler … canlı müsaitlik / fiyat / ödeme /
@@ -40,3 +40,20 @@ taşıyor; gerçek bir "unutulan söz" vakası ölçülünce başlanır.
 **Önerim:** A — söz, yapay zekânın yorumuna değil ev sahibinin açık işaretine dayanır (yanlış "söz verildi" alarmı olmaz; ürünün "riskli
 şey insanda kalır" ilkesiyle aynı). İlk dilim migration'sız yapılamaz; migration 60 itildikten sonra ayrı paket (61) olarak hazırlarım.
 Karar: A / B / C?
+
+## Uygulama (10-10, kurucu kararı A)
+
+- **Kayıt:** `GuestCommitment` (migration 62, yalnız yeni tablo): kuruluş, konuşma, bağlı görev, tür (kapalı küme: havlu / çarşaf · eksik eşya ·
+  temizlik · arıza / bakım), son an, durum (açık / tamamlandı / iptal). METİN YOK. Konuşmayla birlikte silinir; konuşma birleştirmede (toplu
+  betik VE paneldeki "tekrarlanan konuşmaları temizle") kazanana taşınır.
+- **İşaretleme:** gelen kutusu → "Misafire verilen sözler" kartı (yalnız yönetici; bürünmede salt-okunur): tür + bugün / yarın + saat
+  (işletmenin saat diliminde; geçmiş saat reddedilir). Söz + görev TEK işlemde (görev türü söze göre, kökeni `manual` — rezervasyon iptalinde
+  otomatik silinmez). Misafire hiçbir şey gönderilmez.
+- **Kapanış:** görev tamamlanınca söz kapanır (personel bitirse de), geri açılınca açılır (iptal edilmiş söz açılmaz), görev silinince söz iptal
+  olur, görevin saati değişince açık söz yeni saati izler — hepsi görev güncelleme / silme işleminin İÇİNDE (aynı kilit sırası). Ev sahibi sözü
+  karttan iptal edebilir (görev silinmez).
+- **Dikkat Gerektirenler:** son anına 24 saatten az kalmış ya da en çok 48 saat önce geçmiş açık söz: "Misafire söz verildi: Havlu / çarşaf ·
+  18:00 · ilgili görev tamamlanmadı · 2 sa 14 dk kaldı" / geciken "… gecikti" (önem: geciken 96, 2 saatten az kalan 89, uzaktaki 60; en fazla
+  3 satır; dünden eskisi tarihle).
+- **Yapılmadı (AYRI karar):** sözün yapay zekâ cevabına girdi olması ("Açık söz: havlu, 18:00'e kadar (ev sahibi verdi)") — müşteriye giden metni
+  etkiler; önce/sonra örnekleriyle kurucuya sorulacak. Karar kartı onayından otomatik söz (erken giriş 13:00) — ikinci dilim.
