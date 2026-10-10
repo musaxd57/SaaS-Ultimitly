@@ -93,6 +93,23 @@ describe("Y1 — talep edilmiş satırın gövdesi POST'tan önce yeniden okunur
     expect(sent[0]).not.toBe(erased.body);
   });
 
+  it("🚨 gönderilen metin POST ANINDAKİ gövdedir: talepten sonra gövde [ANON] dışında bir değere dönerse (ör. ad redaksiyonu) bellekteki eski metin GİTMEZ", async () => {
+    const s = await seed();
+    const sent: string[] = [];
+    let rewritten: string | null = null;
+    const send = vi.fn<OutboxSendFn>(async (row) => {
+      sent.push(row.body);
+      if (rewritten === null) {
+        rewritten = row.id === s.rowA ? s.rowB : s.rowA;
+        await prisma.messageOutbox.update({ where: { id: rewritten }, data: { body: "[Misafir] için güncellenmiş metin" } });
+      }
+      return { ok: true, providerMessageId: `PROV-${row.id}` };
+    });
+    await drainOutboxOnce({ send, tokenFor: async () => "tok" });
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toBe("[Misafir] için güncellenmiş metin");
+  });
+
   it("KONTROL: silme yoksa iki satır da kendi metniyle gider", async () => {
     const s = await seed();
     const sent: string[] = [];
