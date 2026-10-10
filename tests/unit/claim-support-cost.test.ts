@@ -23,7 +23,6 @@ describe("iddia ölçümü — düşmanca misafir metninde sınırlı süre", ()
     // 10-10 (Haiku incelemesi): merdiven basamağı / üleştirme eki / eksi işaretli kat yolları.
     ["rakam-tire dizisi + kat", "1-".repeat(25000) + "kat"],
     ["tekrarlanan 'adet' öneki", "1 " + "adet ".repeat(10000) + "basamak"],
-    ["tekrarlanan üleştirme eki", "1'er".repeat(12500)],
     ["tekrarlanan 'iç merdiven'", "52 " + "iç merdiven ".repeat(4000) + "basamağı"],
     // 10-10 (kurucu: "-1. kat ile 1. kat aynı değil"): eksi kat okuyucusu.
     ["eksi kat + uzun sonek", "-1 kat" + "t".repeat(50000)],
@@ -31,6 +30,25 @@ describe("iddia ölçümü — düşmanca misafir metninde sınırlı süre", ()
   ])("%s (50.000 karakter) → 150 ms altında", (_ad, guest) => {
     auditClaimsSafe("Kapı kodu 1234.", { facts: [], operator: [], guest: ["a"] }); // ısınma
     expect(ms(() => auditClaimsSafe("Kapı kodu 1234, saat 15:00, 100 TL.", { facts: [], operator: [], guest: [guest] }))).toBeLessThan(150);
+  });
+});
+
+describe("rakam yoğun girdi — DOĞRUSAL (karesel değil)", () => {
+  // 10-10: "1'er" tekrarı (her 4 karakterde bir sayı) her sayıda birim ailelerini dener → sabit maliyet yüksek ama DOĞRUSAL (ölçüldü: 12.500 →
+  // 50.000 → 100.000 karakter ≈ 65 → 110 → 360 ms, değişiklik öncesi kodda da aynı). Mutlak 150 ms sınırı tam test yükünde sahte kırmızı
+  // verdi; karesel patlamayı yakalayan ölçüt ORANDIR (aynı yük altında iki ölçüm): 4 kat uzun girdi doğrusal ≈4×, karesel ≈16× sürer.
+  const median3 = (guest: string) => {
+    const t = [0, 1, 2].map(() => ms(() => auditClaimsSafe("Kapı kodu 1234, saat 15:00, 100 TL.", { facts: [], operator: [], guest: [guest] })));
+    return t.sort((a, b) => a - b)[1];
+  };
+  it.each([
+    ["tekrarlanan üleştirme eki", (n: number) => "1'er".repeat(n)],
+    ["tekrarlanan eksi kat", (n: number) => "-1 kat ".repeat(n)],
+  ])("%s: 4 kat uzun girdi 8 kattan az sürer", (_ad, make) => {
+    median3(make(500)); // ısınma
+    const small = median3(make(2500));
+    const big = median3(make(10000));
+    expect(big).toBeLessThan(small * 8 + 20);
   });
 });
 
