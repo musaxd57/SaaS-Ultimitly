@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { isSuperAdmin } from "@/lib/admin";
 import { writeAuditInTx } from "@/lib/audit";
 import { normalizeEmail } from "@/lib/email-identity";
@@ -43,6 +44,10 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
+  // Operatör kimliğine bağlı tavan (Haiku operatör denetimi 10-10): ele geçirilmiş bir operatör oturumu döngüyle bütün hesapların
+  // 2FA'sını sıfırlayamasın. Meşru kullanımda (destek talebi) bu sayıya ulaşılmaz.
+  const limited = await rateLimit(`admin-reset-2fa:${session.actorUserId ?? session.userId}`, 10, 60 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
     const data = await readJsonCappedOrNull(req);

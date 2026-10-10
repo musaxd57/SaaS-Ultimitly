@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { requireSession, unauthorized, badRequest, forbidden } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, forbidden, tooManyRequests } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { isSuperAdmin } from "@/lib/admin";
 import { auditActor, writeAuditInTx } from "@/lib/audit";
 import { isImpersonating } from "@/lib/auth/impersonation";
@@ -29,6 +30,9 @@ export async function GET(req: NextRequest) {
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
   if (isImpersonating(session)) return forbidden("Dışa aktarma operatörün kendi hesabından yapılır — önce destek görünümünden çıkın.");
+  // Operatör kimliğine bağlı tavan (Haiku operatör denetimi 10-10): her çağrı bir işletmenin TAM dökümü + zorunlu kayıt.
+  const limited = await rateLimit(`admin-export:${session.actorUserId ?? session.userId}`, 20, 60 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
   // 10-01 (15 ajan incelemesi A02-F5): uç GET ve durum değiştirir (zorunlu kayıt + tam döküm); oturum çerezi SameSite=Lax olduğu için
   // başka bir sitenin üst düzey yönlendirmesi çerezi taşırdı → sahte amaçlı "yasal talep" kaydı + operatörün indirme klasörüne döküm.
   // Tarayıcının kendi bildirdiği kaynak yalnız aynı site (panel formu) ya da elle girilen adres ("none") olabilir; başlık hiç yoksa

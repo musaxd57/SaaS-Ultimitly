@@ -8,7 +8,9 @@ import {
   serverError,
   parseJsonBody,
   payloadTooLarge,
+  tooManyRequests,
 } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { isSuperAdmin } from "@/lib/admin";
 import { writeAudit } from "@/lib/audit";
 import { QualityAuditError, qualityAuditConfigured, runQualityAudit } from "@/lib/quality-audit";
@@ -24,6 +26,10 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
+  // Operatör kimliğine bağlı tavan (Haiku operatör denetimi 10-10): her çağrı ücretli bir model denetimi — ele geçirilmiş oturum döngüyle
+  // bütçeyi tüketemesin.
+  const limited = await rateLimit(`admin-quality-audit:${session.actorUserId ?? session.userId}`, 20, 60 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
     if (!qualityAuditConfigured()) {
