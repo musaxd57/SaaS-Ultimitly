@@ -175,6 +175,16 @@ küme başlatılır.
 
 ## 7. Geri açarken (proje bitmeye yakın)
 
+0. 🚨 **(10-10 eklendi) AÇMADAN ÖNCE TAZE YEDEK — dalda MIGRATION 60 var** (kanal üst verisi + ilan tablosu + yapay zekâ izi + kalite konsolu;
+   kurucu onayı 10-10: "şimdi uygula + push, açılışta önce yedek"). Railway açılınca dalın son yeşil commit'i deploy olur ve boot
+   `migrate deploy` 60'ı uygular. Önce §1 + §2 (yedek al + DOĞRULA), yedek `_prisma_migrations` son satırının 59 olduğunu göstermeli.
+   Migration 60 yalnız EKLER (yeni tablolar + nullable kolonlar); yazıcıları anahtar arkasında KAPALI (`CHANNEL_METADATA_WRITE`,
+   `AI_GENERATION_TRACE_ENABLED`).
+0b. **Paddle bildirim ayarı:** Paddle panelinde webhook bildirim olaylarına `transaction.payment_failed` eklenmeli ("Ödemeniz işleniyor"
+   kilidi ödeme başarısız olunca anında kalksın — kurucu sorusu 10-10). Eklenmezse kilit en geç 10 dakikada kendiliğinden düşer.
+0c. **Yapay zekâ anahtarları KADEMELİ** (kurucu 10-10): 1) Luna env (`docs/olcum/LUNA-GECIS-2026-10-10.md` tablosu) + `AI_UNDERSTANDING_EN_QUERY_ENABLED=1`
+   2) `AI_DATE_RESOLUTION_ENABLED` + `AI_CONVERSATION_STATE_ENABLED` 3) `AI_VERIFIED_AVAILABILITY_ENABLED` 4) `AI_VERIFIED_EXTENSION_ENABLED`
+   5) `AI_VERIFIED_QR_ENABLED` — her biri kurucuyla ilk denemeler.
 1. Railway'de planı geri al, servisi başlat.
 2. Boot `prisma migrate deploy` uygular — **elle SQL çalıştırma**.
 3. `/api/health?strict=1` yeşil mi?
