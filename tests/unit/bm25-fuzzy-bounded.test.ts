@@ -94,7 +94,10 @@ describe("Bm25Index.fuzzy — sınırlı hesap + önbellek, seçim eski algoritm
     expect(first).toBe("otopark");
   });
 
-  it("731 bilinmeyen kök × ~1.400 sözlük kökü → 300 ms altında (eski 2,4 sn)", () => {
+  // 10-10: sınır 300 → 900 ms. Bu donanımda yük yokken ölçülen maliyet 255–307 ms (tam test yükünde ~400) — 300 ms sınırı tam kenarda
+  // kaldı ve kod değişmeden kırmızı verdi. Pinin amacı eski SINIRSIZ algoritmaya (2,4 sn) dönüşü yakalamak: 900 ms onu hâlâ ~2,7 kat payla
+  // ayırır.
+  it("731 bilinmeyen kök × ~1.400 sözlük kökü → 900 ms altında (eski 2,4 sn)", () => {
     const r = rng(42);
     // Gerçek bir mülk bilgi tabanı boyutu: ~1.400 farklı kök, 60 kalem.
     const pool = Array.from({ length: 1_400 }, () => word(r, "abcdefghijklmnoprstuvyz", 5, 10));
@@ -114,6 +117,6 @@ describe("Bm25Index.fuzzy — sınırlı hesap + önbellek, seçim eski algoritm
     idx.scores(new Map([["isinma", 1]]));
     const t0 = performance.now();
     idx.scores(query);
-    expect(performance.now() - t0).toBeLessThan(300);
+    expect(performance.now() - t0).toBeLessThan(900);
   });
 });
