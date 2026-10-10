@@ -30,6 +30,16 @@ Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.
 | g | Ham platform korunmuyor (`toChannel`) (2) | ❌ | `channels/hospitable-ingest.ts:43-50,106` | Evet |
 | h | `Property.hospitableId` global unique (3) | ❌ | `prisma/schema.prisma:346` | Evet |
 
+## 2b. 20 teknik değişmez — pin eşlemesi (10-10, Haiku taraması + kodda doğrulandı)
+
+| Durum | Değişmezler |
+|---|---|
+| ✅ güçlü pin | 1 (`core-channel-independence`), 5 + 18 (`channel-manifest`, `airbnb-direct-adapter`), 7 (`ingest-write-service` + tek yazıcı pini), 8 (`outbound-dispatch-guards`, `outbox`, `outbound-classification-parity`), 15 (`money-impact`, `attention-money`), 17 (iki uyum kiti + kit dışı yaşam döngüsü testleri) |
+| ✅ 10-10 büyüyemez liste | **3** (dış kimlik bağlantı kapsamsız eşsiz değil — 4 bilinen ihlal + 1 kapsam dışı gerekçeli) · **20** (çekirdekte `hospitable*` şema alanı — 7 gerekçeli dosya; kanal dizesi yasağı V0.9) — `channel-invariants-ratchet.test.ts`, mutasyon 3/3 |
+| 🟡 kısmi | 2 (bağlantı + ilk alınma pinli; tazelik yok), 4 (ayrı ilan pinli), 6 (motor tarafı), 9 (bağlantı yaşam döngüsü; sağlık alanı migration 60), 10 (dolaylı), 13 (kanıt / observedAt pinli), 14 (veri politikası alanı), 16 (statik kapsam taraması + 8 davranışsal tutamaç) |
+| — özellik yok | 11 (Issue), 12 (Review) |
+| ⏸ süreç | 19 (rollout sırası — kod değil, kurucu / operatör süreci) |
+
 ## 3. Airbnb başvurusu öncesi 6 kapı
 
 | Kapı | Durum |
