@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarRange, CalendarX2, Clock, Hand, Hourglass, LogOut, Repeat } from "lucide-react";
+import { AlertTriangle, CalendarRange, CalendarX2, Clock, Hand, HandHeart, Hourglass, LogOut, Repeat } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
 import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incidents/attention";
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
 import { itemKindLabel } from "@/lib/conversation-items/view";
+import { COMMITMENT_KIND_LABELS, commitmentDurationLabel } from "@/lib/guest-commitments-core";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "Dikkat Gerektirenler" kartı.
@@ -29,6 +30,7 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   calendar_conflict: CalendarRange,
   held_request: Hand,
   decision_pending: Hourglass,
+  commitment_due: HandHeart,
 };
 
 /** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
@@ -66,6 +68,10 @@ function headline(item: AttentionItem): string {
       return item.decisionUnverified
         ? `Gönderim doğrulanamadı: ${item.decisionTitle ?? "konaklama isteği"}`
         : `Karar bekliyor: ${item.decisionTitle ?? "konaklama isteği"}`;
+    case "commitment_due": {
+      const what = item.commitmentKind ? COMMITMENT_KIND_LABELS[item.commitmentKind] : "misafir isteği";
+      return (item.minutesLeft ?? 0) < 0 ? `Misafire verilen söz gecikti: ${what}` : `Misafire söz verildi: ${what}`;
+    }
   }
 }
 
@@ -92,6 +98,11 @@ function detail(item: AttentionItem): string {
       return item.decisionUnverified
         ? `${item.propertyName} · konuşmayı kanaldan kontrol edin`
         : `${item.propertyName} · onaylayın ya da reddedin`;
+    case "commitment_due": {
+      const left = item.minutesLeft ?? 0;
+      const when = left < 0 ? `${commitmentDurationLabel(left)} gecikti` : `${commitmentDurationLabel(left)} kaldı`;
+      return `${item.propertyName} · ${item.commitmentTime ?? ""} · ilgili görev tamamlanmadı · ${when}`;
+    }
   }
 }
 

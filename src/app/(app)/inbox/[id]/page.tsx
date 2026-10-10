@@ -45,6 +45,8 @@ import {
 import { isImpersonating } from "@/lib/auth/impersonation";
 import { isOpenDecision } from "@/lib/decisions/core";
 import { DecisionPanel } from "@/components/inbox/decision-panel";
+import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
+import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-core";
 
 export const dynamic = "force-dynamic";
 
@@ -224,6 +226,26 @@ export default async function ConversationPage({
   const outboxByMessage = new Map(
     outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
   );
+
+  // Misafire verilen AÇIK sözler (açık taahhüt hafızası A, kurucu kararı 10-10; migration 62) — yalnız yönetici görür / işaretler.
+  const commitmentNow = new Date();
+  const commitmentRows: CommitmentRow[] = canManage(session)
+    ? (
+        await prisma.guestCommitment.findMany({
+          where: { conversationId: conversation.id, organizationId: session.organizationId, status: "open" },
+          orderBy: [{ dueAt: "asc" }, { id: "asc" }],
+          take: 20,
+          select: { id: true, kind: true, dueAt: true },
+        })
+      )
+        .filter((c): c is typeof c & { kind: CommitmentKind } => isCommitmentKind(c.kind))
+        .map((c) => ({
+          id: c.id,
+          kind: c.kind,
+          dueLabel: formatDateTime(c.dueAt, TZ),
+          minutesLeft: Math.floor((c.dueAt.getTime() - commitmentNow.getTime()) / 60_000),
+        }))
+    : [];
 
   // Turnover day = the adjacent booking's checkout/checkin falls on the SAME
   // calendar day (property timezone) as this stay's arrival/departure — decided
@@ -443,6 +465,9 @@ const SKIP_REASON_LABELS: Record<string, string> = {
             ikisi de artık `lg:h-full` (grid satırının kendisi ölçüyü verir). */}
         <div className="min-w-0 space-y-4 lg:h-full lg:min-h-[26rem] lg:overflow-y-auto lg:pr-1">
           <ConversationItemsCard conversationId={conversation.id} items={itemRows} canManage={canManage(session)} />
+          {canManage(session) ? (
+            <CommitmentsCard conversationId={conversation.id} commitments={commitmentRows} readOnly={isImpersonating(session)} />
+          ) : null}
           {/* 🚨 "Mülk" KARTI KALDIRILDI (kurucu 09-11): adres çoğu hostta boş
               olduğu için kart pratikte TEK BİR SATIR gösteriyordu — giriş/çıkış
               saati. O satır artık konuşma kartının başlık satırında; adres,

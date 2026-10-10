@@ -83,6 +83,7 @@ export interface ApplyOutcome {
     conversationItem: number;
     decisionRequest: number;
     aiGeneration: number;
+    guestCommitment: number;
   };
   conversationsBefore: number;
   conversationsAfter: number;
@@ -116,7 +117,9 @@ const HANDLED_REFERENCES = {
    */
   // `AiGeneration` (10-09, migration 60): FK Cascade — kaybeden silinince o konuşmanın yapay zekâ üretim izi (kurucu kalite konsolu)
   // SESSİZCE silinirdi; silmeden ÖNCE keeper'a taşınır.
-  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal", "ConversationItem", "DecisionRequest", "AiGeneration"],
+  // `GuestCommitment` (10-10, migration 62): FK Cascade — kaybeden silinince misafire verilmiş AÇIK söz (ev sahibinin işareti) SESSİZCE
+  // silinirdi; silmeden ÖNCE keeper'a taşınır.
+  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal", "ConversationItem", "DecisionRequest", "AiGeneration", "GuestCommitment"],
 } as const;
 
 export function inventoryConversationReferences(): string[] {
@@ -289,7 +292,7 @@ export async function applyConversationDedupe(
           messagesDropped: 0,
           messagesMovedUnique: 0,
           messagesMovedNull: 0,
-          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0 },
+          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0 },
           conversationsBefore,
           conversationsAfter: conversationsBefore,
           messagesBefore,
@@ -326,7 +329,7 @@ export async function applyConversationDedupe(
       let dropped = 0;
       let movedUnique = 0;
       let movedNull = 0;
-      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0 };
+      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0 };
 
       for (const key of keys) {
         // ── 0) DETERMİNİSTİK FOR UPDATE — id ASC sırayla, TEK TEK ─────────────
@@ -476,6 +479,13 @@ export async function applyConversationDedupe(
             data: { conversationId: plan.keeper.id },
           })
         ).count;
+        // Misafire verilen sözler (cascade FK, migration 62): aynı gerekçe — silmeden ÖNCE keeper'a.
+        refs.guestCommitment += (
+          await tx.guestCommitment.updateMany({
+            where: { conversationId: { in: loserIds } },
+            data: { conversationId: plan.keeper.id },
+          })
+        ).count;
         const stray = await tx.message.count({ where: { conversationId: { in: loserIds } } });
         if (stray !== 0) throw new Error("kaybedende mesaj kaldı — rollback");
 
@@ -554,6 +564,7 @@ export function formatApplyOutcome(o: ApplyOutcome): string[] {
   L.push(pad("Repoint ConversationItem", o.refsRepointed.conversationItem));
   L.push(pad("Repoint DecisionRequest", o.refsRepointed.decisionRequest));
   L.push(pad("Repoint AiGeneration", o.refsRepointed.aiGeneration));
+  L.push(pad("Repoint GuestCommitment", o.refsRepointed.guestCommitment));
   L.push("");
   L.push(pad("Conversation", `${o.conversationsBefore} → ${o.conversationsAfter}`));
   L.push(pad("Message", `${o.messagesBefore} → ${o.messagesAfter}`));

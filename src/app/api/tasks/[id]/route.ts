@@ -9,6 +9,7 @@ import { taskAssignedEmail } from "@/lib/email-templates";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
+import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -134,6 +135,12 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
         const own = await tx.task.updateMany({ where: { id, assignedToId: session.userId }, data: { updatedAt: new Date() } });
         if (own.count === 0) return null;
       }
+      // Misafir sözü (migration 62): durum değişiyorsa ÖNCEKİ durum satır kilidiyle okunur — söz aynı işlemde kapanır / yeniden açılır.
+      let prevStatus: string | null = null;
+      if (d.status !== undefined) {
+        const [row] = await tx.$queryRaw<{ status: string }[]>`SELECT "status" FROM "Task" WHERE "id" = ${id} FOR UPDATE`;
+        prevStatus = row?.status ?? null;
+      }
       let checklistWrite: string | undefined;
       if (d.checklist !== undefined || d.checklistToggle !== undefined) {
         const [locked] = await tx.$queryRaw<{ checklistJson: string | null }[]>`
@@ -157,6 +164,9 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           property: { select: { name: true, address: true, city: true } },
         },
       });
+      if (d.status !== undefined && prevStatus !== null) {
+        await syncCommitmentsForTaskStatus(tx, id, prevStatus, d.status, new Date());
+      }
       // Record an activity update when status / note / photo changes.
       if (d.status !== undefined || d.note || d.photoUrl) {
         await tx.taskUpdate.create({
@@ -223,6 +233,9 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     select: { photoUrl: true },
   });
   const result = await prisma.$transaction(async (tx) => {
+    // Misafir sözü (migration 62): görev silinmeden ÖNCE bağlı açık söz iptal olur (yalnız bu org'un görevi — koşul aşağıdaki silmeyle aynı).
+    const owned = await tx.task.findFirst({ where: { id, property: { organizationId: session.organizationId } }, select: { id: true } });
+    if (owned) await cancelCommitmentsForDeletedTask(tx, id, new Date());
     const del = await tx.task.deleteMany({
       where: { id, property: { organizationId: session.organizationId } },
     });

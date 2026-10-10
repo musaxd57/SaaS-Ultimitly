@@ -269,6 +269,7 @@ describe("apply — referans envanteri", () => {
       "AiGeneration", // 10-09 (migration 60): FK Cascade — repoint listesinde (silinirse kalite konsolunun izi kaybolurdu)
       "ConversationItem", // 09-26 (migration 56): FK Cascade — repoint listesinde (silinirse açık istek kaybolurdu)
       "DecisionRequest", // 10-02 (migration 59): FK Cascade — repoint listesinde (silinirse "karar bekliyor" kartı kaybolurdu)
+      "GuestCommitment", // 10-10 (migration 62): FK Cascade — repoint listesinde (silinirse misafire verilmiş açık söz kaybolurdu)
       "Message",
       "MessageOutbox",
       "RiskEvent",
@@ -440,6 +441,11 @@ describe("apply — başarı yolu", () => {
       },
     });
 
+    // Misafire verilen söz (10-10, migration 62): FK Cascade — repoint edilmezse ev sahibinin açık sözü kaybedenle SİLİNİR.
+    await prisma.guestCommitment.create({
+      data: { organizationId: org.organizationId, conversationId: b.id, kind: "towels", dueAt: new Date("2026-08-01T15:00:00Z") },
+    });
+
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
     const out = await applyConversationDedupe(prisma, {
       ...GATE,
@@ -458,8 +464,10 @@ describe("apply — başarı yolu", () => {
       conversationItem: 1,
       decisionRequest: 1,
       aiGeneration: 1,
+      guestCommitment: 1,
     });
     expect(await prisma.aiGeneration.count({ where: { conversationId: a.id } })).toBe(1);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: a.id, status: "open" } })).toBe(1);
     expect(await prisma.conversationItem.count({ where: { conversationId: a.id, status: "pending_host" } })).toBe(1);
     expect(await prisma.decisionRequest.count({ where: { conversationId: a.id, status: "pending" } })).toBe(1);
     expect(await prisma.messageOutbox.count({ where: { conversationId: a.id } })).toBe(1);

@@ -59,9 +59,9 @@ describe("Dikkat Gerektirenler — konuşma bağlantısı kanala göre", () => {
     const helper = /function conversationHref/.test(s);
     expect(helper, "ortak yardımcı yok — iki dal ayrışabilir").toBe(true);
     const uses = s.match(/href:\s*conversationHref\(/g) ?? [];
-    // Konuşmaya giden DÖRT madde: çıkışı yaklaşan cevapsız · cevapsız · ev sahibine bırakılan istek (09-26, konuşma öğeleri) ·
-    // karar bekleyen konaklama isteği (10-02, Host Karar Motoru).
-    expect(uses.length, "her konuşma maddesi yardımcıyı kullanmalı").toBe(4);
+    // Konuşmaya giden BEŞ madde: çıkışı yaklaşan cevapsız · cevapsız · ev sahibine bırakılan istek (09-26, konuşma öğeleri) ·
+    // karar bekleyen konaklama isteği (10-02, Host Karar Motoru) · misafire verilen söz (10-10, açık taahhüt hafızası A).
+    expect(uses.length, "her konuşma maddesi yardımcıyı kullanmalı").toBe(5);
   });
 
   it("anti-vakum: QR konuşmalarının kanalı GERÇEKTEN 'chat'", () => {

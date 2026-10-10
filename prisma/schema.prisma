@@ -179,6 +179,7 @@ model Organization {
   propertyMemories      PropertyMemory[]
   conversationItems     ConversationItem[]
   decisionRequests      DecisionRequest[]
+  guestCommitments      GuestCommitment[]
   properties            Property[]
   automationRules       AutomationRule[]
   auditLogs             AuditLog[]
@@ -634,6 +635,8 @@ model Conversation {
   decisions     DecisionRequest[]
   // Migration 60: yapay zekâ üretim izi metin taşır (kurucu §D-1) → konuşma silinince iz de gider (silme paritesi).
   aiGenerations AiGeneration[]
+  // Migration 62: misafire verilen sözler (metin YOK) — konuşmayla birlikte gider.
+  commitments   GuestCommitment[]
 
   // THREAD IDENTITY (migration 45). One provider thread = at most one row.
   //
@@ -742,6 +745,8 @@ model Task {
   reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   assignedTo  User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   updates     TaskUpdate[]
+  // Migration 62: bu görevin kapattığı misafir sözü (görev `done` → söz kapanır).
+  commitments GuestCommitment[]
 
   @@index([propertyId])
   @@index([status])
@@ -1614,4 +1619,30 @@ model TrialIdentity {
 
   @@index([firstOrganizationId])
   @@index([lastSeenAt])
+}
+
+// AÇIK TAAHHÜT HAFIZASI A (kurucu kararı 10-10; migration 62). Misafire VERİLEN SÖZ ("havlular 18:00'e kadar") YALNIZ ev sahibinin AÇIK
+// işaretinden doğar — yapay zekâ / metin yorumu YOK (yanlış "söz verildi" alarmı olmaz). METİN SAKLANMAZ: tür kapalı küme + son an.
+// Söz bir göreve bağlanır; görev `done` olunca söz kapanır (görev geri açılırsa söz de açılır), görev silinirse söz iptal olur. Süresi
+// yaklaşan / geçen açık söz "Dikkat Gerektirenler"de görünür. Konuşmayla birlikte silinir; konuşma birleştirmede kazanana taşınır.
+model GuestCommitment {
+  id             String    @id @default(cuid())
+  organizationId String
+  conversationId String
+  taskId         String?
+  kind           String // towels | supplies | cleaning | maintenance (lib/guest-commitments.ts kapalı küme)
+  dueAt          DateTime
+  status         String    @default("open") // open | done | cancelled
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  task         Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  // Dikkat Gerektirenler: org'un açık sözleri, son ana göre.
+  @@index([organizationId, status, dueAt])
+  @@index([conversationId])
+  @@index([taskId])
 }

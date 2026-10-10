@@ -9,10 +9,11 @@ import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conversation-items/store";
 import type { ItemKind } from "@/lib/conversation-items/core";
 import { notAutomationMessageWhere } from "@/lib/message-author";
-import { orgTimezone } from "@/lib/timezone";
+import { dateKeyInTimeZone, orgTimezone } from "@/lib/timezone";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
 import { decisionTitle } from "@/lib/decisions/core";
+import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-core";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ, migration İSTEMEZ.
@@ -65,6 +66,7 @@ export const ATTENTION_KINDS = [
   "calendar_conflict",
   "held_request",
   "decision_pending",
+  "commitment_due",
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -84,6 +86,11 @@ export const RECURRING_FRESH_DAYS = 30;
  * dikkati" değildir — hiç unutmayan bir liste duvar kâğıdına döner.
  */
 export const ATTENTION_WINDOW_DAYS = 30;
+/** Misafire verilen söz bu kadar saat kala listeye girer (geçmiş olan her zaman). */
+export const COMMITMENT_HORIZON_HOURS = 24;
+/** Bu kadar saatten az kalmış söz "yaklaşıyor" sayılır (daha üstte). */
+export const COMMITMENT_SOON_HOURS = 2;
+
 /** Liste tavanı: dikkat çekmek için kısa kalmak zorunda. */
 export const ATTENTION_MAX_ITEMS = 8;
 /** Tek sorguda incelenecek en fazla konuşma (sınırsız tarama yok). */
@@ -152,6 +159,12 @@ export interface AttentionItem {
   decisionTitle?: string;
   /** Yalnız `decision_pending`: karar mesajının gönderimi doğrulanamadı (karar verildi; ulaşıp ulaşmadığı kontrol edilmeli). */
   decisionUnverified?: boolean;
+  /** Yalnız `commitment_due`: söz türü (kapalı küme; METİN değil). */
+  commitmentKind?: CommitmentKind;
+  /** Yalnız `commitment_due`: son ana kalan dakika (eksi = gecikti). */
+  minutesLeft?: number;
+  /** Yalnız `commitment_due`: son an, işletmenin saatiyle ("18:00" ya da "yarın 10:00"). */
+  commitmentTime?: string;
 }
 
 export interface FindAttentionOptions {
@@ -207,7 +220,7 @@ export async function findAttentionItems(
       })
     : [];
   const decisionItemIds = decisions.map((d) => d.itemId).filter((v): v is string => v !== null);
-  const [brokenFeeds, conversations, patterns, conflicts, held] = await Promise.all([
+  const [brokenFeeds, conversations, patterns, conflicts, commitments, held] = await Promise.all([
     prisma.calendarSource.findMany({
       where: { propertyId: { in: propertyIds }, lastStatus: "error" },
       // 🚨 `url` ve `urlEnc` BİLEREK SEÇİLMİYOR: besleme adresi sorgu dizesinde
@@ -263,6 +276,23 @@ export async function findAttentionItems(
       void alertOnTransition("attention:calendar-conflict", "attention calendar_conflict", err).catch(() => {});
       return [];
     }),
+    // Misafire verilen açık sözler (migration 62): son anı yaklaşan ya da geçen. Arıza öteki satırları düşürmez (geçiş tabanlı alarm).
+    prisma.guestCommitment
+      .findMany({
+        where: {
+          organizationId,
+          status: "open",
+          dueAt: { lte: new Date(now.getTime() + COMMITMENT_HORIZON_HOURS * HOUR) },
+          conversation: { propertyId: { in: propertyIds } },
+        },
+        orderBy: [{ dueAt: "asc" }, { id: "asc" }],
+        take: ATTENTION_MAX_ITEMS * 4,
+        select: { kind: true, dueAt: true, conversationId: true, conversation: { select: { propertyId: true, channel: true } } },
+      })
+      .catch((err) => {
+        void alertOnTransition("attention:commitment-due", "attention commitment_due", err).catch(() => {});
+        return [];
+      }),
     // Konuşma öğeleri: bu bacağın arızası öteki satırları düşürmez (geçiş tabanlı alarm).
     heldRequestsByConversation(prisma, { organizationId, propertyIds, since: windowStart, excludeItemIds: decisionItemIds }).catch(
       (err): HeldRequestSummary[] => {
@@ -356,6 +386,34 @@ export async function findAttentionItems(
       decisionTitle: decisionTitle(d.kind, d.requestedTime),
       ...(d.effective === "send_unverified" ? { decisionUnverified: true } : {}),
     });
+  }
+
+  // Söz satırları: saat işletmenin diliminde gösterilir (yalnız söz varsa okunur — sakin günde ek sorgu yok).
+  if (commitments.length > 0) {
+    const tz = orgTimezone(
+      decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone,
+    );
+    const todayKey = dateKeyInTimeZone(now, tz);
+    for (const c of commitments) {
+      if (!isCommitmentKind(c.kind)) continue;
+      const minutesLeft = Math.floor((c.dueAt.getTime() - now.getTime()) / 60_000);
+      const clock = c.dueAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz });
+      const dayKey = dateKeyInTimeZone(c.dueAt, tz);
+      items.push({
+        kind: "commitment_due",
+        // GÖZLEM: söz ev sahibinin AÇIK işaretinden doğdu (yorum yok).
+        certainty: "observed",
+        propertyId: c.conversation.propertyId,
+        propertyName: nameById.get(c.conversation.propertyId) ?? "",
+        // Geciken söz: misafir bekliyor (çakışmanın hemen altı); yaklaşan söz bırakılan istekten önce; uzaktaki altta.
+        severity: minutesLeft < 0 ? 96 : minutesLeft <= COMMITMENT_SOON_HOURS * 60 ? 89 : 60,
+        occurredAt: c.dueAt,
+        href: conversationHref(c.conversationId, c.conversation.channel),
+        commitmentKind: c.kind,
+        minutesLeft,
+        commitmentTime: dayKey === todayKey ? clock : `${dayKey > todayKey ? "yarın" : "dün"} ${clock}`,
+      });
+    }
   }
 
   for (const h of held) {

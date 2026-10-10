@@ -1,0 +1,48 @@
+import { prisma } from "@/lib/db";
+import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+import { withManage } from "@/lib/route-guard";
+import { rateLimit } from "@/lib/rate-limit";
+import { orgTimezone } from "@/lib/timezone";
+import { commitmentDueAt, createGuestCommitment, isCommitmentKind } from "@/lib/guest-commitments";
+
+// ---------------------------------------------------------------------------
+// Misafire SÖZ işaretle (açık taahhüt hafızası A, kurucu kararı 10-10; migration 62). Ev sahibi gelen kutusunda "Misafire söz ver"
+// kartından tür + bugün / yarın + saat seçer → söz + bağlı görev TEK işlemde. Metin YOK; misafire hiçbir şey GÖNDERİLMEZ.
+// Yalnız yönetici (sahip / müdür) — personel söz vermez.
+// ---------------------------------------------------------------------------
+
+/** Geçmiş saate söz verilmez (biraz pay: formu dolduran dakikalar). */
+const PAST_TOLERANCE_MS = 5 * 60_000;
+
+export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
+  const { id } = await params;
+  const limited = await rateLimit(`commitment:${session.organizationId}`, 60, 60 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  const conversation = await prisma.conversation.findFirst({
+    where: { id, property: { organizationId: session.organizationId } },
+    select: { id: true, propertyId: true, reservationId: true, property: { select: { organization: { select: { timezone: true } } } } },
+  });
+  if (!conversation) return notFound();
+
+  const body = (await readJsonCappedOrNull(req)) as { kind?: unknown; day?: unknown; time?: unknown } | null;
+  if (!isCommitmentKind(body?.kind)) return badRequest({ kind: "Söz türünü seçin." });
+  const day = body?.day === "tomorrow" ? "tomorrow" : body?.day === "today" ? "today" : null;
+  if (!day) return badRequest({ day: "Günü seçin." });
+  const time = typeof body?.time === "string" ? body.time : "";
+  const now = new Date();
+  const dueAt = commitmentDueAt({ day, time }, orgTimezone(conversation.property.organization.timezone), now);
+  if (!dueAt) return badRequest({ time: "Saati seçin." });
+  if (dueAt.getTime() < now.getTime() - PAST_TOLERANCE_MS) return badRequest({ time: "Geçmiş bir saat seçilemez." });
+
+  const created = await createGuestCommitment({
+    organizationId: session.organizationId,
+    conversationId: conversation.id,
+    propertyId: conversation.propertyId,
+    reservationId: conversation.reservationId,
+    kind: body.kind,
+    dueAt,
+    actorUserId: session.actorUserId ?? session.userId,
+  });
+  return jsonOk({ id: created.id, taskId: created.taskId, dueAt: dueAt.toISOString() }, 201);
+});
