@@ -9,14 +9,14 @@ import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conversation-items/store";
 import type { ItemKind } from "@/lib/conversation-items/core";
 import { notAutomationMessageWhere } from "@/lib/message-author";
-import { dateKeyInTimeZone, orgTimezone } from "@/lib/timezone";
+import { addZonedDays, dateKeyInTimeZone, orgTimezone } from "@/lib/timezone";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
 import { decisionTitle } from "@/lib/decisions/core";
 import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-core";
 
 // ---------------------------------------------------------------------------
-// V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ, migration İSTEMEZ.
+// V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ (okuduğu tablolar başka dilimlerin migration'larıyla geldi).
 //
 // NEREDEN GELDİ: panelin kendi kodundaki not (dashboard/page.tsx, "AI günlük
 // özet" kartı kaldırılırken): gerçek bir özet "kutucukların GÖSTEREMEDİĞİ
@@ -90,6 +90,10 @@ export const ATTENTION_WINDOW_DAYS = 30;
 export const COMMITMENT_HORIZON_HOURS = 24;
 /** Bu kadar saatten az kalmış söz "yaklaşıyor" sayılır (daha üstte). */
 export const COMMITMENT_SOON_HOURS = 2;
+/** Bundan eski gecikmiş söz listeye girmez (unutulmuş söz kartı süresiz doldurmasın — Haiku incelemesi; söz konuşma kartında kalır). */
+export const COMMITMENT_STALE_HOURS = 48;
+/** En fazla bu kadar söz satırı (öteki dikkat satırlarını dışarı itmesin). */
+export const COMMITMENT_MAX_ROWS = 3;
 
 /** Liste tavanı: dikkat çekmek için kısa kalmak zorunda. */
 export const ATTENTION_MAX_ITEMS = 8;
@@ -282,11 +286,14 @@ export async function findAttentionItems(
         where: {
           organizationId,
           status: "open",
-          dueAt: { lte: new Date(now.getTime() + COMMITMENT_HORIZON_HOURS * HOUR) },
+          dueAt: {
+            gte: new Date(now.getTime() - COMMITMENT_STALE_HOURS * HOUR),
+            lte: new Date(now.getTime() + COMMITMENT_HORIZON_HOURS * HOUR),
+          },
           conversation: { propertyId: { in: propertyIds } },
         },
         orderBy: [{ dueAt: "asc" }, { id: "asc" }],
-        take: ATTENTION_MAX_ITEMS * 4,
+        take: COMMITMENT_MAX_ROWS,
         select: { kind: true, dueAt: true, conversationId: true, conversation: { select: { propertyId: true, channel: true } } },
       })
       .catch((err) => {
@@ -394,11 +401,22 @@ export async function findAttentionItems(
       decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone,
     );
     const todayKey = dateKeyInTimeZone(now, tz);
+    const tomorrowKey = dateKeyInTimeZone(addZonedDays(now, 1, tz), tz);
+    const yesterdayKey = dateKeyInTimeZone(addZonedDays(now, -1, tz), tz);
     for (const c of commitments) {
       if (!isCommitmentKind(c.kind)) continue;
       const minutesLeft = Math.floor((c.dueAt.getTime() - now.getTime()) / 60_000);
       const clock = c.dueAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz });
       const dayKey = dateKeyInTimeZone(c.dueAt, tz);
+      // Bugün → yalnız saat; dün / yarın → sözcük; daha eskisi → tarih (her geçmiş gün "dün" değildir — Haiku incelemesi).
+      const dayWord =
+        dayKey === todayKey
+          ? ""
+          : dayKey === tomorrowKey
+            ? "yarın "
+            : dayKey === yesterdayKey
+              ? "dün "
+              : `${c.dueAt.toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: tz })} `;
       items.push({
         kind: "commitment_due",
         // GÖZLEM: söz ev sahibinin AÇIK işaretinden doğdu (yorum yok).
@@ -411,7 +429,7 @@ export async function findAttentionItems(
         href: conversationHref(c.conversationId, c.conversation.channel),
         commitmentKind: c.kind,
         minutesLeft,
-        commitmentTime: dayKey === todayKey ? clock : `${dayKey > todayKey ? "yarın" : "dün"} ${clock}`,
+        commitmentTime: `${dayWord}${clock}`,
       });
     }
   }

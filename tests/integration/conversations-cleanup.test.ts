@@ -6,7 +6,8 @@ import {
   dropConversationIdentityUnique,
   restoreConversationIdentityUnique,
 } from "../helpers/db";
-import { cleanupDuplicateConversations } from "@/lib/conversations-cleanup";
+import { CLEANUP_REPOINTED_MODELS, cleanupDuplicateConversations } from "@/lib/conversations-cleanup";
+import { inventoryConversationReferences } from "../../scripts/apply-conversation-dedupe";
 
 // MIGRATION 45 ESCAPE HATCH. This file's whole purpose is to seed the duplicate
 // rows that `@@unique([propertyId, externalReservationId])` forbids, so the
@@ -329,6 +330,26 @@ describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR"
     const res = await cleanupDuplicateConversations(orgId);
     expect(res.removed).toBe(1);
     expect(await prisma.conversation.count({ where: { id: stale.id } })).toBe(0);
+  });
+
+  it("🚨 silinen kopyaya bağlı açık istek / karar kartı / misafir sözü kazanana TAŞINIR (eskiden konuşmayla sessizce siliniyordu)", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const stale = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba"], messageIds: ["m-1"] });
+    const keeper = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba", "Anahtar?"], messageIds: ["m-1", "m-2"] });
+    await prisma.conversationItem.create({
+      data: { organizationId: orgId, conversationId: stale.id, messageId: "msg-x", kind: "payment_invoice", sensitivity: "sensitive", riskType: "platform_policy", sources: "lexical", status: "pending_host" },
+    });
+    await prisma.decisionRequest.create({ data: { organizationId: orgId, conversationId: stale.id, messageId: "msg-x", kind: "early_checkin", requestedTime: "13:00", lang: "tr" } });
+    await prisma.guestCommitment.create({ data: { organizationId: orgId, conversationId: stale.id, kind: "towels", dueAt: new Date(Date.now() + 3_600_000) } });
+
+    expect((await cleanupDuplicateConversations(orgId)).removed).toBe(1);
+    expect(await prisma.conversationItem.count({ where: { conversationId: keeper.id, status: "pending_host" } })).toBe(1);
+    expect(await prisma.decisionRequest.count({ where: { conversationId: keeper.id } })).toBe(1);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: keeper.id, status: "open" } })).toBe(1);
+  });
+
+  it("🚨 taşınan model listesi şemadaki konuşma referans envanteriyle BİREBİR aynı (mesajlar hariç — onlar kapsanmış kopya, silinir)", () => {
+    expect([...CLEANUP_REPOINTED_MODELS].sort()).toEqual(inventoryConversationReferences().filter((m) => m !== "Message"));
   });
 
   it("KİMLİK EKSİKSE (aynı ext, ama conversation id'leri çelişiyor) → needsReview", async () => {

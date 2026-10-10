@@ -82,24 +82,54 @@ describe("söz işaretleme (gerçek PostgreSQL)", () => {
     expect(await prisma.message.count()).toBe(0);
   });
 
-  it("KONTROL: geçersiz tür / gün / saat ve geçmiş saat 400; başka işletmenin konuşması 404; hiçbir şey yazılmaz", async () => {
+  it("KONTROL: geçersiz tür / gün / saat ve geçmiş saat 400 (saat SABİT — gece yarısı atlanmaz); başka işletmenin konuşması 404; hiçbir şey yazılmaz", async () => {
     const s = await setup();
     expect((await create(s.conversationId, { kind: "wine", day: "today", time: "18:00" })).status).toBe(400);
     expect((await create(s.conversationId, { kind: "towels", day: "someday", time: "18:00" })).status).toBe(400);
     expect((await create(s.conversationId, { kind: "towels", day: "today", time: "25:00" })).status).toBe(400);
-    const past = new Date(Date.now() - 2 * 3_600_000).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" });
-    const pastDay = new Date(Date.now() - 2 * 3_600_000).toLocaleDateString("en-CA", { timeZone: "Europe/Istanbul" });
-    const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Istanbul" });
-    if (pastDay === todayKey) {
-      const r = await create(s.conversationId, { kind: "towels", day: "today", time: past });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T12:00:00Z")); // İstanbul 15:00
+    try {
+      const r = await create(s.conversationId, { kind: "towels", day: "today", time: "13:00" });
       expect(r.status).toBe(400);
       expect(((await r.json()) as { fields: Record<string, string> }).fields.time).toBe("Geçmiş bir saat seçilemez.");
+      expect((await create(s.conversationId, { kind: "towels", day: "today", time: "14:57" })).status).toBe(201); // 5 dk pay içinde
+    } finally {
+      vi.useRealTimers();
     }
-    const other = await setup();
-    session = { ...session!, organizationId: s.orgId }; // A'nın oturumu, B'nin konuşması
+    await prisma.guestCommitment.deleteMany();
+    await prisma.task.deleteMany();
+    const ownerA = session!;
+    const other = await setup(); // B'nin konuşması
+    session = ownerA; // A'nın KENDİ oturumu
     expect((await create(other.conversationId, { kind: "towels", day: "tomorrow", time: "18:00" })).status).toBe(404);
     expect(await prisma.guestCommitment.count()).toBe(0);
     expect(await prisma.task.count()).toBe(0);
+  });
+
+  it("🚨 görevi bitiren PERSONEL de sözü kapatır (görev kendisine atalı)", async () => {
+    const s = await setup();
+    const a = (await (await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "18:00" })).json()) as { id: string; taskId: string };
+    const staff = await prisma.user.create({ data: { organizationId: s.orgId, name: "Temizlikçi", email: `st-${s.orgId}@x.com`, passwordHash: "x", role: "staff" } });
+    await prisma.task.update({ where: { id: a.taskId }, data: { assignedToId: staff.id } });
+    session = { userId: staff.id, organizationId: s.orgId, role: "staff", email: staff.email, name: staff.name, sessionEpoch: 0 };
+    expect((await setTask(a.taskId, "done")).status).toBe(200);
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: a.id } })).status).toBe("done");
+  });
+
+  it("🚨 görevin saati değişince AÇIK söz yeni saati izler; kapanmış söz değişmez", async () => {
+    const s = await setup();
+    const a = (await (await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "18:00" })).json()) as { id: string; taskId: string };
+    const later = new Date(Date.now() + 3 * 86_400_000);
+    const res = await taskPatch(json(`http://localhost/api/tasks/${a.taskId}`, "PATCH", { dueAt: later.toISOString() }), {
+      params: Promise.resolve({ id: a.taskId }),
+    });
+    expect(res.status).toBe(200);
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: a.id } })).dueAt.toISOString()).toBe(later.toISOString());
+    await setTask(a.taskId, "done");
+    const evenLater = new Date(Date.now() + 5 * 86_400_000);
+    await taskPatch(json(`http://localhost/api/tasks/${a.taskId}`, "PATCH", { dueAt: evenLater.toISOString() }), { params: Promise.resolve({ id: a.taskId }) });
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: a.id } })).dueAt.toISOString()).toBe(later.toISOString());
   });
 
   it("🚨 personel söz veremez (403, yalnız yönetici)", async () => {
@@ -185,6 +215,17 @@ describe("Dikkat Gerektirenler — söz satırı", () => {
       [60, 1080, "yarın 09:00"],
     ]);
     expect(rows[0]).toMatchObject({ certainty: "observed", commitmentKind: "towels", href: `/inbox/${s.conversationId}` });
+  });
+
+  it("🚨 eski gecikmiş söz tarihle gösterilir (her geçmiş gün 'dün' değil); 48 saatten eskisi listeye girmez; en fazla 3 söz satırı", async () => {
+    const s = await setup();
+    await commitment(s, new Date("2026-10-08T09:00:00Z")); // 51 sa önce — pencere dışı
+    await commitment(s, new Date("2026-10-08T13:00:00Z")); // 47 sa önce → "8 Eki 16:00"
+    await commitment(s, new Date("2026-10-09T07:00:00Z")); // dün 10:00
+    await commitment(s, new Date("2026-10-10T11:00:00Z")); // bugün 14:00
+    await commitment(s, new Date("2026-10-10T13:00:00Z")); // 4. satır — tavan dışı
+    const rows = (await findAttentionItems(s.orgId, { now })).filter((i) => i.kind === "commitment_due");
+    expect(rows.map((r) => r.commitmentTime)).toEqual(["8 Eki 16:00", "dün 10:00", "14:00"]);
   });
 
   it("KONTROL: kapanmış / iptal söz ve 24 saatten uzak söz satır üretmez (sakin gün boş kalır)", async () => {

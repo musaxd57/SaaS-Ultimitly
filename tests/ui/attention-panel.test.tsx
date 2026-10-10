@@ -53,6 +53,29 @@ describe("AttentionPanel", () => {
     expect(screen.getByText(/Lale · konuşmayı kanaldan kontrol edin/)).toBeTruthy();
   });
 
+  it("misafire verilen söz satırı: yaklaşan söz 'söz verildi … kaldı', geciken söz 'gecikti'; tür etiketi ve işletme saati", () => {
+    const items: AttentionItem[] = [
+      { ...base, kind: "commitment_due", certainty: "observed", severity: 96, href: "/inbox/c1", commitmentKind: "towels", minutesLeft: -30, commitmentTime: "14:30" },
+      {
+        ...base,
+        propertyId: "p2",
+        propertyName: "Lale",
+        kind: "commitment_due",
+        certainty: "observed",
+        severity: 89,
+        href: "/inbox/c2",
+        commitmentKind: "cleaning",
+        minutesLeft: 134,
+        commitmentTime: "yarın 09:00",
+      },
+    ];
+    render(<AttentionPanel items={items} />);
+    expect(screen.getByText("Misafire verilen söz gecikti: Havlu / çarşaf")).toBeTruthy();
+    expect(screen.getByText(/Deniz Apart · 14:30 · ilgili görev tamamlanmadı · 30 dk gecikti/)).toBeTruthy();
+    expect(screen.getByText("Misafire söz verildi: Temizlik")).toBeTruthy();
+    expect(screen.getByText(/Lale · yarın 09:00 · ilgili görev tamamlanmadı · 2 sa 14 dk kaldı/)).toBeTruthy();
+  });
+
   it("bozuk besleme satırı host'a NE ANLAMA GELDİĞİNİ söyler", () => {
     const items: AttentionItem[] = [
       { ...base, kind: "feed_broken", certainty: "observed", severity: 100, href: "/properties/p1", sourceLabel: "Airbnb" },

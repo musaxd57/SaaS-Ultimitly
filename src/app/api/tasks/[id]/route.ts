@@ -9,7 +9,7 @@ import { taskAssignedEmail } from "@/lib/email-templates";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
-import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
+import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -164,9 +164,11 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           property: { select: { name: true, address: true, city: true } },
         },
       });
+      const commitmentScope = { organizationId: session.organizationId, taskId: id };
       if (d.status !== undefined && prevStatus !== null) {
-        await syncCommitmentsForTaskStatus(tx, id, prevStatus, d.status, new Date());
+        await syncCommitmentsForTaskStatus(tx, commitmentScope, prevStatus, d.status, new Date());
       }
+      if (d.dueAt instanceof Date) await syncCommitmentsForTaskDueAt(tx, commitmentScope, d.dueAt);
       // Record an activity update when status / note / photo changes.
       if (d.status !== undefined || d.note || d.photoUrl) {
         await tx.taskUpdate.create({
@@ -233,9 +235,12 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     select: { photoUrl: true },
   });
   const result = await prisma.$transaction(async (tx) => {
-    // Misafir sözü (migration 62): görev silinmeden ÖNCE bağlı açık söz iptal olur (yalnız bu org'un görevi — koşul aşağıdaki silmeyle aynı).
-    const owned = await tx.task.findFirst({ where: { id, property: { organizationId: session.organizationId } }, select: { id: true } });
-    if (owned) await cancelCommitmentsForDeletedTask(tx, id, new Date());
+    // Misafir sözü (migration 62): görev silinmeden ÖNCE bağlı açık söz iptal olur. Görev satırı ÖNCE kilitlenir — durum güncellemesiyle
+    // AYNI kilit sırası (görev → söz); ters sıra eşzamanlı güncelleme + silmede kilitlenme üretebilirdi (Haiku incelemesi).
+    const owned = await tx.$queryRaw<{ id: string }[]>`
+      SELECT t."id" FROM "Task" t JOIN "Property" p ON p."id" = t."propertyId"
+      WHERE t."id" = ${id} AND p."organizationId" = ${session.organizationId} FOR UPDATE OF t`;
+    if (owned.length > 0) await cancelCommitmentsForDeletedTask(tx, { organizationId: session.organizationId, taskId: id }, new Date());
     const del = await tx.task.deleteMany({
       where: { id, property: { organizationId: session.organizationId } },
     });

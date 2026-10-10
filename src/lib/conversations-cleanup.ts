@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -159,6 +160,36 @@ const CONVERSATION_SELECT = {
   messages: { select: { body: true, externalId: true, direction: true, createdAt: true } },
 } as const;
 
+/**
+ * Konuşmaya bağlı kayıtları kaybedenden kazanana TAŞI (silmeden ÖNCE, aynı işlemde). Toplu birleştirme betiğiyle
+ * (`scripts/apply-conversation-dedupe.ts`) AYNI kural — panel yolu eskiden yalnız mesajları siliyordu ve konuşma silmenin
+ * Cascade'i ev sahibinde bekleyen açık isteği, karar kartını, misafire verilmiş sözü ve yapay zekâ izini SESSİZCE götürüyordu
+ * (Haiku incelemesi 10-10). Liste, şemadan türetilen envanterle pinli (`conversations-cleanup.test.ts`): yeni bir konuşma
+ * referansı eklenip buraya yazılmazsa test kırmızı.
+ */
+export const CLEANUP_REPOINTED_MODELS = [
+  "AiGeneration",
+  "ConversationItem",
+  "DecisionRequest",
+  "GuestCommitment",
+  "MessageOutbox",
+  "RiskEvent",
+  "ShadowVerdict",
+  "Signal",
+] as const;
+
+async function repointConversationChildren(tx: Prisma.TransactionClient, fromId: string, toId: string): Promise<void> {
+  const move = { where: { conversationId: fromId }, data: { conversationId: toId } };
+  await tx.aiGeneration.updateMany(move);
+  await tx.conversationItem.updateMany(move);
+  await tx.decisionRequest.updateMany(move);
+  await tx.guestCommitment.updateMany(move);
+  await tx.messageOutbox.updateMany(move);
+  await tx.riskEvent.updateMany(move);
+  await tx.shadowVerdict.updateMany(move);
+  await tx.signal.updateMany(move);
+}
+
 export async function cleanupDuplicateConversations(
   organizationId: string,
 ): Promise<DuplicateCleanupResult> {
@@ -214,6 +245,7 @@ export async function cleanupDuplicateConversations(
         const d = fresh.find((c) => c.id === dup.id);
         if (!k || !d) return "gone" as const;
         if (!coveredByKeeper(k.messages, d.messages) || !sameStay(k, d) || conversationIdsConflict(k, d)) return "review" as const;
+        await repointConversationChildren(tx, d.id, k.id);
         await tx.message.deleteMany({ where: { conversationId: d.id } });
         await tx.conversation.delete({ where: { id: d.id } });
         return "removed" as const;

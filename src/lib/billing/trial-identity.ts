@@ -264,7 +264,8 @@ export async function recordVerifiedCalendarIdentity(
       data: { trialIdentityCheckedAt: now },
     });
     if (claimed.count === 0) return none;
-    const res = await recordKeys(organizationId, [key], { now, enforce: source.createdAt >= ready.enabledAt });
+    // Açılış anıyla aynı milisaniyede eklenen takvim muaf sayılır (geri doldurmayla aynı sınır, güvenli yön).
+    const res = await recordKeys(organizationId, [key], { now, enforce: source.createdAt > ready.enabledAt });
     if (!res.ok) {
       await prisma.calendarSource.updateMany({ where: { id: source.id, trialIdentityCheckedAt: now }, data: { trialIdentityCheckedAt: null } });
       return none;
@@ -343,14 +344,16 @@ export async function backfillTrialIdentitiesOnce(now: Date = new Date()): Promi
     for (const org of orgs) {
       try {
         const listings = await prisma.channelListing.findMany({
-          where: { organizationId: org.id, createdAt: { lt: enabledAt } },
+          // `lte`: açılış anıyla AYNI milisaniyede oluşan kayıt "anahtar öncesi" sayılır (güvenli yön; CI 10-10: katı `lt` ile aynı
+          // milisaniyedeki eşleme ne önce ne sonra sayılıp kayda HİÇ geçmiyordu).
+          where: { organizationId: org.id, createdAt: { lte: enabledAt } },
           select: { externalId: true, connection: { select: { provider: true } } },
         });
         // Yalnız GÜVENİLİR okunmuş takvim (bkz. `recordVerifiedCalendarIdentity`); okunmamış eski kaynak ilk gerçek okumasında muaf kaydolur.
         const sources = await prisma.calendarSource.findMany({
           where: {
             property: { organizationId: org.id },
-            createdAt: { lt: enabledAt },
+            createdAt: { lte: enabledAt },
             trialIdentityCheckedAt: null,
             lastStatus: { in: ["ok", "partial"] },
             lastSyncedAt: { gte: TRUSTED_READ_SINCE },

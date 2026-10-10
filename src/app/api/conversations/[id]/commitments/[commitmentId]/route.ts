@@ -23,6 +23,7 @@ export const PATCH = withManage<{ id: string; commitmentId: string }>(async (ses
       organizationId: session.organizationId,
       actorUserId: session.actorUserId ?? session.userId,
       action: "commitment.cancelled",
+      metadata: { commitmentId },
     });
     return true;
   });

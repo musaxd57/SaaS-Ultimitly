@@ -85,6 +85,16 @@ async function syncIcal(orgId: string, id: string, feed: string = VALID_ICS) {
   return (await res.json()) as { trialNotice?: string; errors: string[] };
 }
 const sub = (orgId: string) => prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+/**
+ * Saat bir sonraki milisaniyeye geçene kadar bekle: açılış anını elle yazan testlerde "anahtar SONRASI" kaydın açılış anıyla aynı
+ * milisaniyeye düşmemesi için (aynı milisaniye bilerek "öncesi" sayılır — güvenli yön).
+ */
+function nextMs(): void {
+  const t = Date.now();
+  while (Date.now() <= t) {
+    /* bekle */
+  }
+}
 /** Anahtar HİÇ açılmamış duruma dön (açılış anı + geri doldurma işaretleri silinir). */
 async function flagNeverOn() {
   vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
@@ -299,6 +309,7 @@ describe("kural (gerçek PostgreSQL)", () => {
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
     // Açılış anı gözlendi (ör. başka bir org'un senkronu) ama geri doldurma işareti yok — geri doldurmayı kayıt yolu tetikler.
     await prisma.systemLock.create({ data: { name: TRIAL_IDENTITY_ENABLED_AT_MARKER, lockedUntil: new Date() } });
+    nextMs();
     const b = await trialOrg("B");
     expect((await addIcal(b, AIRBNB("2"))).trialNotice).toBe(TRIAL_IDENTITY_REUSED_MESSAGE);
     expect((await sub(a.orgId)).trialEndReason).toBeNull();
@@ -374,6 +385,17 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect((await sub(a.orgId)).trialEndReason).toBeNull();
   });
 
+  it("🚨 SINIR (CI 10-10): açılış anıyla AYNI milisaniyede bağlanmış ilan 'anahtar öncesi' sayılır ve kayda geçer (katı karşılaştırmada hiç geçmiyordu)", async () => {
+    vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
+    await flagNeverOn();
+    const a = await trialOrg("A");
+    await link(a, "airbnb_direct", "123456789");
+    const listing = await prisma.channelListing.findFirstOrThrow({ where: { organizationId: a.orgId } });
+    vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
+    expect(await backfillTrialIdentitiesOnce(listing.createdAt)).toBe("done"); // açılış anı = ilanın oluşturulma anı (aynı milisaniye)
+    expect((await prisma.trialIdentity.findFirstOrThrow()).firstOrganizationId).toBe(a.orgId);
+  });
+
   it("🚨 geri doldurma yalnız açılış anından ÖNCEKİ ilan eşlemesini alır: açılıştan sonra bağlanan ilan (hesap daha eski olsa da) 'ilk' sayılmaz", async () => {
     vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
     await flagNeverOn();
@@ -382,6 +404,7 @@ describe("kural (gerçek PostgreSQL)", () => {
     await link(a, "airbnb_direct", "123456789"); // anahtar öncesi
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "1");
     await prisma.systemLock.create({ data: { name: TRIAL_IDENTITY_ENABLED_AT_MARKER, lockedUntil: new Date() } }); // açılış gözlendi, geri doldurma koşmadı
+    nextMs();
     await link(older, "airbnb_direct", "123456789"); // anahtar sonrası
     expect((await sub(older.orgId)).trialEndReason).toBe("identity_reused");
     expect((await prisma.trialIdentity.findFirstOrThrow()).firstOrganizationId).toBe(a.orgId);

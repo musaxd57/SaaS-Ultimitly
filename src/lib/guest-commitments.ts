@@ -75,7 +75,7 @@ export async function createGuestCommitment(input: {
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       action: "commitment.created",
-      metadata: { kind: input.kind },
+      metadata: { commitmentId: commitment.id, taskId: task.id, kind: input.kind },
     });
     return { id: commitment.id, taskId: task.id };
   });
@@ -85,15 +85,31 @@ export async function createGuestCommitment(input: {
  * Görevin durumu değişti (görev güncelleme işleminin İÇİNDE çağrılır — aynı işlem): `done`a geçti → bağlı açık sözler kapanır;
  * `done`dan çıktı → bu görevin kapattığı sözler yeniden açılır (iptal edilmiş söz açılmaz).
  */
-export async function syncCommitmentsForTaskStatus(tx: Tx, taskId: string, from: string, to: string, now: Date): Promise<void> {
+export async function syncCommitmentsForTaskStatus(
+  tx: Tx,
+  scope: { organizationId: string; taskId: string },
+  from: string,
+  to: string,
+  now: Date,
+): Promise<void> {
+  const { organizationId, taskId } = scope;
   if (from !== "done" && to === "done") {
-    await tx.guestCommitment.updateMany({ where: { taskId, status: "open" }, data: { status: "done", closedAt: now } });
+    await tx.guestCommitment.updateMany({ where: { organizationId, taskId, status: "open" }, data: { status: "done", closedAt: now } });
   } else if (from === "done" && to !== "done") {
-    await tx.guestCommitment.updateMany({ where: { taskId, status: "done" }, data: { status: "open", closedAt: null } });
+    await tx.guestCommitment.updateMany({ where: { organizationId, taskId, status: "done" }, data: { status: "open", closedAt: null } });
   }
 }
 
+/**
+ * Görevin son tarihi değişti (aynı işlemde): bağlı AÇIK söz yeni saati izler (Haiku: görev saati değişince söz eski saatte kalıyor,
+ * Dikkat satırı yanlış gecikme gösteriyordu). Durum gibi saatin de tek kaynağı görevdir — ev sahibi işi yeniden planladıysa sözü de
+ * yeniden planlamıştır. Görev saati kaldırılırsa (boş) söz saati korunur.
+ */
+export async function syncCommitmentsForTaskDueAt(tx: Tx, scope: { organizationId: string; taskId: string }, dueAt: Date): Promise<void> {
+  await tx.guestCommitment.updateMany({ where: { ...scope, status: "open" }, data: { dueAt } });
+}
+
 /** Görev silinmeden ÖNCE (aynı işlemde): bağlı açık söz iptal olur (görevsiz açık söz "kimsenin işi değil" olarak kalmasın). */
-export async function cancelCommitmentsForDeletedTask(tx: Tx, taskId: string, now: Date): Promise<void> {
-  await tx.guestCommitment.updateMany({ where: { taskId, status: "open" }, data: { status: "cancelled", closedAt: now } });
+export async function cancelCommitmentsForDeletedTask(tx: Tx, scope: { organizationId: string; taskId: string }, now: Date): Promise<void> {
+  await tx.guestCommitment.updateMany({ where: { ...scope, status: "open" }, data: { status: "cancelled", closedAt: now } });
 }
