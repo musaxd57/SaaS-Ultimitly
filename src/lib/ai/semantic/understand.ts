@@ -41,6 +41,14 @@ export function understandingEnabled(): boolean {
   return process.env.AI_UNDERSTANDING_ENABLED === "1" && Boolean(semanticApiKey());
 }
 
+/**
+ * İngilizce köprü sorgusu (10-10, kurucu yokken karar #13; VARSAYILAN KAPALI): her istek ek bir İngilizce arama sorgusu taşır. Yalnız tam
+ * "1" açar (STRICT_ONE_FLAGS). Karar noktası `kb-retrieve.ts`; kapalıyken şema, istem, önbellek anahtarı ve sorgu listesi bayt bayt eski.
+ */
+export function understandingEnglishQueryEnabled(): boolean {
+  return process.env.AI_UNDERSTANDING_EN_QUERY_ENABLED === "1";
+}
+
 export const UNDERSTANDING_SYSTEM_PROMPT = [
   "You are the language-understanding step of a short-term-rental guest messaging assistant. You do NOT answer the guest.",
   "Read the guest's UNANSWERED message(s) in the context of the recent conversation and return ONLY the JSON schema.",
@@ -109,14 +117,26 @@ export const UNDERSTANDING_RELATION_ADDENDUM = [
   'Examples: "Gürültü yüzünden uyuyamadık, yine olursa ne yapacağız?" -> [complaint_issue own_topic]. "Gürültüden uyuyamadık. Bu arada Wi-Fi ağı hangisi?" -> [complaint_issue own_topic, wifi own_topic]. "Klima çalışmıyor; çöp konteyneri nerede?" -> [complaint_issue own_topic, trash own_topic]. "İnternet iki saattir yok, modemi nasıl resetleriz?" -> [complaint_issue own_topic, wifi fix_request]. "Otopark kapısı açılmıyor, nasıl çıkacağız?" -> [complaint_issue own_topic, parking fix_request]. "The internet stopped working an hour ago." -> [complaint_issue own_topic, wifi fix_request]. "Daire çok kirli." -> [complaint_issue own_topic]. "İade istiyorum, şimdi ne olacak?" -> [cancellation_refund own_topic].',
 ].join("\n");
 
+/**
+ * İNGİLİZCE KÖPRÜ eki (yalnız `english: true` çağrısında sistem istemine EN SONA eklenir — kapalıyken istem bayt bayt eski). Bilgi
+ * tabanının bir kısmı İngilizce yazılmış olabilir; Türkçe soru ile İngilizce kalem arasındaki köprü (ölçüm: o yönde cevap %79 blokta).
+ */
+export const UNDERSTANDING_ENGLISH_QUERY_ADDENDUM = [
+  "",
+  "ENGLISH SEARCH QUERY (additional field for every request):",
+  "- query_en: the same standalone search query in ENGLISH (3-8 keywords), so that knowledge-base entries written in English are found too (identical to query_original when the guest writes English). Never include names, phone numbers, codes, prices or dates.",
+  'Example: "Musluk suyunu süzmek için kap nerede?" -> query_tr "musluk suyu süzme sürahi filtre", query_original "musluk suyu süzme sürahi filtre", query_en "tap water filter jug".',
+].join("\n");
+
 /** Anlama katmanının sistem istemi — kiplere göre TEK kurucu (çağrı ve ölçer istem kimliği aynı fonksiyondan). */
-export function understandingSystemPromptFor(opts: { items?: boolean; rules?: boolean; complaintFollowup?: boolean }): string {
+export function understandingSystemPromptFor(opts: { items?: boolean; rules?: boolean; complaintFollowup?: boolean; english?: boolean }): string {
   const relation = opts.items === true && opts.complaintFollowup === true;
   return [
     UNDERSTANDING_SYSTEM_PROMPT,
     ...(opts.items ? [UNDERSTANDING_ITEMS_PROMPT_ADDENDUM] : []),
     ...(opts.rules ? [UNDERSTANDING_RULES_PROMPT_ADDENDUM] : []),
     ...(relation ? [UNDERSTANDING_RELATION_ADDENDUM] : opts.complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
+    ...(opts.english ? [UNDERSTANDING_ENGLISH_QUERY_ADDENDUM] : []),
   ].join("\n");
 }
 
@@ -162,6 +182,11 @@ export interface UnderstandingInput {
    * istek sayılmaz. Verilmezse istem ve önbellek anahtarı bayt bayt eskisi.
    */
   complaintFollowup?: boolean;
+  /**
+   * İngilizce köprü sorgusu (`AI_UNDERSTANDING_EN_QUERY_ENABLED`; karar noktası `kb-retrieve.ts`): her istek `query_en` taşır. Verilmezse
+   * şema, istem ve önbellek anahtarı bayt bayt eskisi.
+   */
+  english?: boolean;
   fetchImpl?: typeof fetch;
 }
 
@@ -245,9 +270,10 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const items = input.items === true;
     const rules = input.rules === true;
     const complaintFollowup = input.complaintFollowup === true;
+    const english = input.english === true;
     // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
-    // Şikâyet takibi eki de ayrı girdi (farklı istem); kapalıyken anahtar değişmez.
-    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}`;
+    // Şikâyet takibi eki ve İngilizce köprü de ayrı girdi (farklı istem / şema); kapalıyken anahtar değişmez.
+    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}`;
     const key = mode ? cacheKey(`${model}${mode}`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -258,9 +284,9 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: understandingSystemPromptFor({ items, rules, complaintFollowup }),
+      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english }),
       user,
-      schema: understandingSchemaFor({ items, rules, followup: complaintFollowup }),
+      schema: understandingSchemaFor({ items, rules, followup: complaintFollowup, english }),
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 600,
       maxCompletionTokens: 4_000,
@@ -268,7 +294,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed", ms: Date.now() - started };
-    const value = parseUnderstanding(res.data, items || rules ? { items, rules, followup: complaintFollowup } : undefined);
+    const value = parseUnderstanding(res.data, items || rules || english ? { items, rules, followup: complaintFollowup, english } : undefined);
     if (!value) return { status: "failed", ms: Date.now() - started };
     // Süresi dolmuş girdi de olabilir: önce SİL, sonra ekle — `set` var olan anahtarı eski sırasında
     // bırakır ve taze girdi ilk çıkarılan olurdu (inceleme 09-24).

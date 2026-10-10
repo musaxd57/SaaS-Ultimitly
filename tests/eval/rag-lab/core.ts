@@ -37,6 +37,8 @@ import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "@/lib/ai/semantic/config";
 import {
   understandGuestMessages,
+  understandingEnglishQueryEnabled,
+  UNDERSTANDING_ENGLISH_QUERY_ADDENDUM,
   UNDERSTANDING_ITEMS_PROMPT_ADDENDUM,
   UNDERSTANDING_RULES_PROMPT_ADDENDUM,
   UNDERSTANDING_SYSTEM_PROMPT,
@@ -233,9 +235,20 @@ export const UNDERSTANDING_MODE = { items: true, rules: true } as const;
 export const UND_PROMPT_VERSION = digest([UNDERSTANDING_SYSTEM_PROMPT, UNDERSTANDING_ITEMS_PROMPT_ADDENDUM, UNDERSTANDING_RULES_PROMPT_ADDENDUM]);
 
 export async function labUnderstand(q: LabQuery, history = labHistory(q, false)): Promise<MessageUnderstanding | null> {
-  const key = understandCacheKey({ version: UND_PROMPT_VERSION, model: semanticModel("understanding"), text: q.text, history, mode: UNDERSTANDING_MODE, effort: semanticReasoningEffort("understanding") });
+  // İngilizce köprü (10-10, karar #13): üretimin karar noktası (`kb-retrieve.ts`) gibi ürün bayrağından. Kapalıyken anahtar ve çağrı
+  // bayt bayt eskisi (önbellek geçerli kalır); açıkken ek istemin özeti anahtara girer.
+  const english = understandingEnglishQueryEnabled();
+  const mode = english ? { ...UNDERSTANDING_MODE, english: true } : UNDERSTANDING_MODE;
+  const key = understandCacheKey({
+    version: english ? digest([UND_PROMPT_VERSION, UNDERSTANDING_ENGLISH_QUERY_ADDENDUM]) : UND_PROMPT_VERSION,
+    model: semanticModel("understanding"),
+    text: q.text,
+    history,
+    mode,
+    effort: semanticReasoningEffort("understanding"),
+  });
   return llmCached<MessageUnderstanding>("understand", key, async () => {
-    const o = await understandGuestMessages({ guestMessage: q.text, history, ...UNDERSTANDING_MODE });
+    const o = await understandGuestMessages({ guestMessage: q.text, history, ...mode });
     return o.status === "ok" ? o.value : null;
   });
 }
@@ -685,7 +698,11 @@ export function understandingQueryRequests(u: MessageUnderstanding | null | unde
   const out: [string, number][] = [];
   const seen = new Set<string>();
   const requests = u.requests.map((r, i) => ({ r, i })).filter(({ r }) => r.intent !== "greeting_thanks");
-  for (const textOf of [(r: (typeof u.requests)[number]) => r.queryTr, (r: (typeof u.requests)[number]) => r.queryOriginal]) {
+  for (const textOf of [
+    (r: (typeof u.requests)[number]) => r.queryTr,
+    (r: (typeof u.requests)[number]) => r.queryOriginal,
+    (r: (typeof u.requests)[number]) => r.queryEn ?? "",
+  ]) {
     for (const { r, i } of requests) {
       const text = textOf(r);
       if (!text) continue;

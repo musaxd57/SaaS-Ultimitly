@@ -6,7 +6,7 @@ import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config
 import { embeddingModel } from "@/lib/ai/embeddings/model";
 import { createHash } from "node:crypto";
 import { replyRequestIdentity } from "@/lib/ai";
-import { understandingSystemPromptFor } from "@/lib/ai/semantic/understand";
+import { understandingEnglishQueryEnabled, understandingSystemPromptFor } from "@/lib/ai/semantic/understand";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
@@ -68,6 +68,7 @@ export interface UnderstandingMode {
   items?: boolean;
   rules?: boolean;
   complaintFollowup?: boolean;
+  english?: boolean;
 }
 
 /**
@@ -87,9 +88,13 @@ export const REPLY_VARIANT_INPUT: SuggestReplyInput = {
   conversationItems: { answerable: [{ ref: "r1", kind: "wifi", hint: "wifi" }], held: [{ kind: "payment_invoice" }] },
 };
 
-/** Kip etiketi — ölçerlerin "anlama kipi" satırıyla aynı söz dizimi (`items+rules+cfu`; hiçbiri yoksa `temel`). */
+/** Kip etiketi — ölçerlerin "anlama kipi" satırıyla aynı söz dizimi (`items+rules+cfu+en`; hiçbiri yoksa `temel`). */
 export function understandingModeLabel(m: UnderstandingMode): string {
-  return [m.items === true ? "items" : "", m.rules === true ? "rules" : "", m.complaintFollowup === true ? "cfu" : ""].filter(Boolean).join("+") || "temel";
+  return (
+    [m.items === true ? "items" : "", m.rules === true ? "rules" : "", m.complaintFollowup === true ? "cfu" : "", m.english === true ? "en" : ""]
+      .filter(Boolean)
+      .join("+") || "temel"
+  );
 }
 
 /** Hattı değiştiren bayraklar (yalnız okunur; değer yorumu ürünün işi). */
@@ -118,6 +123,8 @@ export const PIPELINE_FLAGS = [
   "AI_VERIFIED_QR_ENABLED",
   // Tarih okuması cevap istemini değiştirir (10-10, karar #10).
   "AI_DATE_RESOLUTION_ENABLED",
+  // İngilizce köprü sorgusu anlama istemini ve getirmeyi değiştirir (10-10, karar #13).
+  "AI_UNDERSTANDING_EN_QUERY_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */
@@ -164,9 +171,20 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
   // Anlama kipi (10-01 bulgusu): konaklama eval'i kipi KENDİ ortam değişkeniyle verir, kimlik ürün bayraklarından hesaplanınca
   // raporlar gerçekte koşan öğe + kural + şikâyet takibi istemi yerine yalnız şikâyet takibi isteminin kimliğini yazdı.
   const given = opts.understanding;
+  // Kipi kendisi veren ölçer anlama katmanını da kendisi çağırır (ürün bayrağı oraya ulaşmaz) → yalnız verdiği kip sayılır.
   const mode: UnderstandingMode = given
-    ? { items: given.items === true, rules: given.rules === true, complaintFollowup: given.complaintFollowup === true }
-    : { items: conversationItemsEnabled(), rules: houseRulesShadowEnabled(), complaintFollowup: complaintFollowupRuleEnabled() };
+    ? {
+        items: given.items === true,
+        rules: given.rules === true,
+        complaintFollowup: given.complaintFollowup === true,
+        english: given.english === true,
+      }
+    : {
+        items: conversationItemsEnabled(),
+        rules: houseRulesShadowEnabled(),
+        complaintFollowup: complaintFollowupRuleEnabled(),
+        english: understandingEnglishQueryEnabled(),
+      };
   const understandingSystem = understandingSystemPromptFor(mode);
   const variant = replyRequestIdentity(REPLY_VARIANT_INPUT);
   return {

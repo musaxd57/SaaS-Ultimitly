@@ -196,17 +196,29 @@ const RULE_FIELDS = {
 const RELATION_FIELD = { relation: { type: "string", enum: [...ITEM_RELATIONS] } } as const;
 
 /**
- * Kipe göre şema: öğe kipi (`items`), kural kipi (`rules`) ve ilişki kipi (`followup`, yalnız öğe kipiyle) birlikte açılabilir. Ek alan
- * yokken var olan NESNE döner.
+ * İNGİLİZCE KÖPRÜ SORGUSU (10-10, `AI_UNDERSTANDING_EN_QUERY_ENABLED`; karar noktası `kb-retrieve.ts`): her istek İngilizce bir arama
+ * sorgusu da taşır — İngilizce yazılmış bilgi kalemine Türkçe (ya da başka dilde) soru gelince köprü (ölçüm: o yönde cevap %79, diğer
+ * yönler %98–100). Kapalıyken şema bayt bayt eskisi (pinli).
  */
-export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean; followup?: boolean } = {}) {
+const ENGLISH_FIELD = { query_en: { type: "string" } } as const;
+
+/**
+ * Kipe göre şema: öğe kipi (`items`), kural kipi (`rules`), ilişki kipi (`followup`, yalnız öğe kipiyle) ve İngilizce köprü (`english`)
+ * birlikte açılabilir. Ek alan yokken var olan NESNE döner.
+ */
+export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean; followup?: boolean; english?: boolean } = {}) {
   const base = opts.items ? UNDERSTANDING_JSON_SCHEMA_ITEMS : UNDERSTANDING_JSON_SCHEMA;
   const relation = opts.items === true && opts.followup === true;
-  if (!opts.rules && !relation) return base;
+  const english = opts.english === true;
+  if (!opts.rules && !relation && !english) return base;
   const item = base.schema.properties.requests.items;
-  const extraRequired = [...(opts.rules ? ["rule_topic", "rule_stance"] : []), ...(relation ? ["relation"] : [])];
+  const extraRequired = [
+    ...(opts.rules ? ["rule_topic", "rule_stance"] : []),
+    ...(relation ? ["relation"] : []),
+    ...(english ? ["query_en"] : []),
+  ];
   return {
-    name: `${base.name}${opts.rules ? "_rules" : ""}${relation ? "_rel" : ""}`,
+    name: `${base.name}${opts.rules ? "_rules" : ""}${relation ? "_rel" : ""}${english ? "_en" : ""}`,
     strict: true as const,
     schema: {
       ...base.schema,
@@ -217,7 +229,12 @@ export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean;
           items: {
             ...item,
             required: [...item.required, ...extraRequired],
-            properties: { ...item.properties, ...(opts.rules ? RULE_FIELDS : {}), ...(relation ? RELATION_FIELD : {}) },
+            properties: {
+              ...item.properties,
+              ...(opts.rules ? RULE_FIELDS : {}),
+              ...(relation ? RELATION_FIELD : {}),
+              ...(english ? ENGLISH_FIELD : {}),
+            },
           },
         },
       },
@@ -235,6 +252,8 @@ export interface UnderstoodRequest {
   intent: UnderstandingIntent;
   queryTr: string;
   queryOriginal: string;
+  /** Yalnız İngilizce köprü kipinde: aynı sorgunun İngilizcesi (boşsa YOK — istek yine tutulur). */
+  queryEn?: string;
   /** Yalnız öğe kipinde: isteğin geldiği cevapsız mesajın numarası (1'den); geçersizse YOK (= eşlenemedi). */
   message?: number;
   /** Yalnız kural kipinde: ev kuralı konusu + misafirin tutumu; konu yoksa / tanınmıyorsa YOK. */
@@ -271,7 +290,7 @@ function cleanQuery(v: unknown): string | null {
  */
 export function parseUnderstanding(
   raw: unknown,
-  opts?: { items?: boolean; rules?: boolean; followup?: boolean },
+  opts?: { items?: boolean; rules?: boolean; followup?: boolean; english?: boolean },
 ): MessageUnderstanding | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
@@ -281,6 +300,7 @@ export function parseUnderstanding(
   const items = opts?.items === true;
   const rules = opts?.rules === true;
   const relation = items && opts?.followup === true;
+  const english = opts?.english === true;
   const requests: UnderstoodRequest[] = [];
   for (const it of r.requests.slice(0, MAX_UNDERSTOOD_REQUESTS)) {
     if (!it || typeof it !== "object") continue;
@@ -301,6 +321,11 @@ export function parseUnderstanding(
     }
     // İlişki kipi: tanınmayan / eksik işaret "unclear" — istek DÜŞMEZ, yanındaki soruyu cevaplanabilir de saymaz (güvenli yön).
     if (relation) request.relation = member(ITEM_RELATIONS, x.relation) ? x.relation : "unclear";
+    // İngilizce köprü kipi: yalnız kip açıkken okunur (kapalıyken model alanı gönderse de çıktı bayt bayt eski); boş değer alan YOK.
+    if (english) {
+      const queryEn = cleanQuery(x.query_en);
+      if (queryEn) request.queryEn = queryEn;
+    }
     requests.push(request);
   }
   const out: MessageUnderstanding = {
@@ -325,7 +350,7 @@ export function parseUnderstanding(
 
 /**
  * Retrieval'a eklenecek sorgular: tekilleştirilmiş; ÖNCE her isteğin Türkçe sorgusu (bilgi tabanının dili),
- * SONRA özgün dildeki sorgular. Selamlama / teşekkür kalemleri ARAMA SORGUSU DEĞİLDİR (inceleme 09-24:
+ * SONRA özgün dildeki sorgular, EN SON İngilizce köprüler (yalnız köprü kipinde). Selamlama / teşekkür kalemleri ARAMA SORGUSU DEĞİLDİR (inceleme 09-24:
  * "teşekkürler" sorgusu seçimi bozuyordu).
  * 🚨 SIRA (ikinci inceleme 09-24): eskiden [TR, özgün] ÇİFTLERİ tavana (6) kadar diziliyordu → Türkçe olmayan
  * misafirin 4. ve 5. sorusu HİÇ sorgu almıyordu; round-robin payını da özgün dil tekrarları yiyordu. Türkçe
@@ -342,6 +367,9 @@ export function understandingQueries(
   const passes: [(r: UnderstoodRequest) => string, boolean][] = [
     [(r) => r.queryTr, true],
     [(r) => r.queryOriginal, u.language === "tr"],
+    // İngilizce köprü (yalnız kip açıkken dolu) EN SONDA: tavan Türkçe ve özgün dil sorgularının yerini almaz; İngilizce misafirde
+    // özgün sorguyla aynıysa tekrar etmez.
+    [(r) => r.queryEn ?? "", false],
   ];
   for (const [textOf, turkish] of passes) {
     for (const [request, r] of requests.entries()) {

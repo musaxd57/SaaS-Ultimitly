@@ -12,7 +12,12 @@ import { kbRetrievalMode, rerankRetrievalInfo, wideBudgetInfo } from "@/lib/ai/r
 import { KB_RETRIEVAL_WIDE_CHAR_BUDGET, KB_RETRIEVAL_WIDE_MAX_CHUNKS } from "@/lib/ai/limits";
 import { prepareSemanticScores } from "@/lib/ai/embeddings/semantic-retrieval";
 import { prepareRerankScores, type RerankOutcome } from "@/lib/ai/semantic/rerank";
-import { understandGuestMessages, understandingEnabled, type UnderstandingOutcome } from "@/lib/ai/semantic/understand";
+import {
+  understandGuestMessages,
+  understandingEnabled,
+  understandingEnglishQueryEnabled,
+  type UnderstandingOutcome,
+} from "@/lib/ai/semantic/understand";
 import { understandingQueries, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import type { StayTimes } from "@/lib/ai/semantic/stay-change";
 import { conversationStateEnabled } from "@/lib/ai/conversation-state";
@@ -150,6 +155,8 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
     ...(houseRulesShadowEnabled() ? { rules: true } : {}),
     // Şikâyet takibi kuralı (kurucu kararı 10-01) — aynı karar noktası; kapalıyken alan hiç gitmez.
     ...(complaintFollowupRuleEnabled() ? { complaintFollowup: true } : {}),
+    // İngilizce köprü sorgusu (10-10, karar #13) — aynı karar noktası; kapalıyken alan hiç gitmez.
+    ...(understandingEnglishQueryEnabled() ? { english: true } : {}),
   });
   const queriesNeeded =
     understandingEnabled() &&
