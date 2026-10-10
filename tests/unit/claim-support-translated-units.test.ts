@@ -208,3 +208,28 @@ describe("🚨 Haiku incelemesi (10-10): 'basamaklı' hane sayısıdır · kat A
     expect(u("Daire B-3. katta.", ctx("Daire B blok 3. katta."))).toBe(0);
   });
 });
+
+describe("🚨 eksi işaretli kat AYRI kattır (10-10, kurucu: \"-1. kat ile 1. kat aynı değil\")", () => {
+  it("🚨 -1. kat ↔ 1. kat iki yönde de DESTEKLENMEZ (Türkçe, İngilizce, Unicode eksi)", () => {
+    expect(u("Daire -1. katta.", ctx("Daire 1. katta."))).toBe(1);
+    expect(u("Daire 1. katta.", ctx("Daire -1. katta."))).toBe(1);
+    expect(u("Depo -1. kattaki koridorda.", ctx("Depo 1. kattaki koridorda."))).toBe(1);
+    expect(u("The storage room is on the 1st floor.", ctx("Depo -1 kattadır."))).toBe(1);
+    expect(u("The storage room is on floor -1.", ctx("Depo 1. kattadır."))).toBe(1);
+    expect(u("Daire −1. katta.", ctx("Daire 1. katta."))).toBe(1);
+  });
+
+  it("aynı eksi kat her yazımda desteklenir; farklı eksi kat desteklenmez", () => {
+    expect(u("Depo -1. kattaki koridorda.", ctx("Depo odası -1 kattaki koridorda."))).toBe(0);
+    expect(u("The storage room is on the -1st floor.", ctx("Depo -1 kattadır."))).toBe(0);
+    expect(u("The storage room is on floor -1.", ctx("Depo -1. katta."))).toBe(0);
+    expect(u("Daire −1. katta.", ctx("Daire -1 katta."))).toBe(0);
+    expect(u("Depo -1. katta.", ctx("Depo -2 katta."))).toBe(1);
+  });
+
+  it("aralık ve ayraç eksi kat DEĞİLDİR", () => {
+    expect(u("Daireler 3-4. katlarda.", ctx("Daireler 3. ve 4. katlarda."))).toBe(0);
+    expect(u("Daire B-3. katta.", ctx("Daire B blok 3. katta."))).toBe(0);
+    expect(u("Bina 3 kat - 2 oda.", ctx("Bina 3 kat, 2 oda."))).toBe(0);
+  });
+});
