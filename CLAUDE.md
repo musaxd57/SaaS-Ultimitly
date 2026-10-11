@@ -227,6 +227,11 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
   yorumlar sayfanın veritabanında `reviews/m<mesaj özeti>` — soru başına kararlı kimlik, eski `q…` / çift kimlikli kayıtlar da okunur: verdict good/fix/bad · better · note). Kurucu yorumları `ArtifactData list
   reviews` ile okunur; "daha iyi cevap" önerileri istem / eval işine girdi olur (karar değil — uygulamadan önce kurucuya sorulur). Yeni ölçüm
   sonrası set yeniden üretilip aynı adrese yayımlanır.
+- 🚨 **ÖLÇÜMDE HATA → NEDEN ANALİZİ (kurucu 10-11: "hata olunca hemen nedenini gör, önerdiğin döngü gibi olsun"):** `tests/eval/failure-analysis.ts`
+  — ① modelin açıklaması (İPUCU, sonradan gerekçe) ② karşı deneme (ifade çıkar, aynı katman yeniden; KANIT, modelin iddiası da sınanır)
+  ③ düzeltme katmanı önerisi (test beklentisi · bilgi · istem · kod kuralı · model sınırı; seçen insan, misafire gideni değiştiren düzeltme
+  kurucuya sorulur) ④ doğrulama (aynı vakalar + kör set). Ölçer hata verince kendiliğinden koşar (`<koşu>-neden.md`); katman başına
+  bağdaştırıcı (anlama: `failure-analysis-understanding.ts`) — yeni ölçere de bağlanır. Ücretli koşu yine kurucu onayıyla.
 - **`docs/TEST-EVIDENCE-CONTRACT.md` bağlayıcı**: K2 için kırmızı-önce · kaldırma mutasyonu · aşırı-uygulama
   kontrolü · integration · tam kapılar; rapor KOD/CI/DEPLOY/PROD ayrı; "test gerekmiyor" gerekçeli.
 - **Codex protokolü:** doğruysa uygula, daha iyisini biliyorsan gerekçeyle reddet; son karar karşılıklı.
