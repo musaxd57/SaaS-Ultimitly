@@ -81,3 +81,8 @@ Not: QR adresini (token) yenileme (F11) — "chatToken rotasyonu YOK (bilinçli)
   Tasarım: `docs/TASARIM-2026-10-11-v2-yetim-bosluk.md`.
 - **28 / 29a / 20:** yukarıdaki satırlarda.
 - Kurucu: "gece modundasın, soru sorma; sabah ben 'sor' diyene kadar" → yeni sorular bu listeye yazılır.
+- **Haiku incelemesi (10-11 gece), kararınıza:** (a) görev atama tavanı görev başına — yönetici görevi KENDİNE atadığında kendine giden e-posta
+  da kovadan sayılıyor ve aynı saat içinde dördüncü FARKLI kişiye atama e-posta göndermiyor. Önerim: kendine atamada e-posta (ve sayaç) atlansın.
+  E-posta akışı olduğu için uygulamadım. (b) Bağlantı kartındaki "(Hospitable üzerinden) kurun" ve plan uyarısı bağlanma adımı sayıldı, KALDI.
+  (c) Adı gelmeyen ilanın varsayılan adı ("Hospitable mülkü") DEĞİŞTİRİLMEDİ: yeniden bağlanırken aynı adlı öksüz daireyi geri sahiplenme
+  eşleşmesi bu adı kullanıyor; değişirse eski satır sahiplenilmez, kopya daire oluşabilir. Hospitable'da adsız ilan pratikte yok.
