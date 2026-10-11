@@ -3,16 +3,16 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 vi.mock("server-only", () => ({}));
 import {
-  complaintTopics,
   detectContradictions,
+  infoWrongReports,
   ITEM_TOPIC_TO_KB,
   CONTRADICTION_MIN_GUESTS,
-  messageIsAbout,
+  statesInfoWrong,
 } from "@/modules/intelligence/memory/contradictions";
 
 // ---------------------------------------------------------------------------
-// DEĞİŞMEZ 13 / karar 26 (kurucu 10-11) — olası çelişki uyarısının SAF kararı. (1) bilgi tabanı ↔ şikâyet: son 30 günde ≥3 AYRI misafir
-// aynı konuda sorun bildirdi; (2) bilgi tabanı ↔ bilgi tabanı / mülk ayarı (saat). "Bilerek böyle" işareti, kalem sonradan değişmediyse
+// DEĞİŞMEZ 13 / karar 26 (kurucu 10-11) — olası çelişki uyarısının SAF kararı. (1) bilgi tabanı ↔ misafir: son 30 günde ≥3 AYRI misafir
+// o BİLGİNİN yanlış / olmadığını söyledi (arıza şikâyeti sayılmaz — kurucu 10-11 düzeltmesi); (2) bilgi tabanı ↔ bilgi tabanı / mülk ayarı (saat). "Bilerek böyle" işareti, kalem sonradan değişmediyse
 // uyarıyı kaldırır.
 // ---------------------------------------------------------------------------
 
@@ -27,59 +27,132 @@ const fact = (id: string, category: string, over: Partial<{ observedAt: Date; hu
   humanOverrideAt: over.humanOverrideAt ?? null,
 });
 
-describe("complaintTopics — aynı misafir mesajında şikâyet + konu", () => {
-  it("yalnız AYNI mesajda şikâyet + eşlenen konu sayılır", () => {
-    expect(complaintTopics([item("c1", "m1", "complaint_issue"), item("c1", "m1", "wifi")])).toEqual([
-      { conversationId: "c1", kbCategory: "wifi", at: day(1) },
-    ]);
-    expect(complaintTopics([item("c1", "m1", "wifi")])).toEqual([]); // soru, şikâyet değil
-    expect(complaintTopics([item("c1", "m1", "complaint_issue")])).toEqual([]); // konusuz şikâyet
-    expect(complaintTopics([item("c1", "m1", "complaint_issue"), item("c1", "m2", "wifi")])).toEqual([]); // farklı mesajlar
-    expect(complaintTopics([item("c1", "m1", "complaint_issue"), item("c1", "m1", "amenities")])).toEqual([]); // belirsiz konu eşlenmez
-  });
-  it("eşleme yalnız açık konular; bilinmeyen anlama niyeti yok", () => {
-    expect(ITEM_TOPIC_TO_KB).toMatchObject({ wifi: "wifi", parking: "parking", cleaning_linen: "cleaning", access_keys: "checkin" });
-    expect(Object.keys(ITEM_TOPIC_TO_KB)).not.toContain("amenities");
+describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / olmadığını mı söylüyor (kurucu 10-11 düzeltmesi)", () => {
+  it.each([
+    // ARIZA / kesinti / yavaşlık: bilgi yanlış DEĞİL (kurucu: "Wi-Fi'nin çalışmamasının sebebi şifre veya yanlış ağ olması değil").
+    ["Wi-Fi çalışmıyor.", "wifi", false],
+    ["İnternet iki saattir yok", "wifi", false],
+    ["Wi-Fi yok", "wifi", false],
+    ["Wi-Fi çok yavaş", "wifi", false],
+    ["The wifi keeps dropping", "wifi", false],
+    ["Wi-Fi şifresi doğru ama bağlanmıyor", "wifi", false],
+    ["Wi-Fi şifresi doğru ama internet çalışmıyor", "wifi", false],
+    ["Şifreyi girdim ama çalışmıyor", "wifi", false],
+    // Bilgi yanlış: şifre kabul edilmiyor / değişmiş · ağ adı yanlış · öyle bir ağ yok.
+    ["Wi-Fi şifresi yanlış", "wifi", true],
+    ["Wi-Fi şifresi yanlıştı, ev sahibinden aldık", "wifi", true],
+    ["Verdiğiniz şifre kabul etmiyor", "wifi", true],
+    ["Wifi şifresi çalışmıyor", "wifi", true],
+    ["Wi-Fi'ye bağlanamıyoruz, şifre olmuyor", "wifi", true],
+    ["Wi-Fi şifresi değişmiş galiba", "wifi", true],
+    ["Yanlış şifre vermişsiniz", "wifi", true],
+    ["Şifre yanlış yazılmış", "wifi", true],
+    ["The wifi password is wrong", "wifi", true],
+    ["The password doesn't work", "wifi", true],
+    ["Wrong password in the guide", "wifi", true],
+    ["LaleNet diye bir ağ yok", "wifi", true],
+    ["LaleNet diye bir ağ görünmüyor", "wifi", true],
+    ["Ağ adı yanlış yazılmış", "wifi", true],
+    ["There is no network called LaleNet", "wifi", true],
+    // Misafirin kendi hatası · soru · koşul · olumsuzlama · başka konu sözcüğü → sayılmaz.
+    ["I typed the wrong password, sorry", "wifi", false],
+    ["Şifreyi yanlış yazmışım", "wifi", false],
+    ["Yanlış şifre girmişim", "wifi", false],
+    ["Şifre yanlış mı?", "wifi", false],
+    ["Şifre yanlış mı", "wifi", false],
+    ["Şifre yanlış değil, modem kapalı", "wifi", false],
+    ["Şifreyi girdim ama kabul etmiyor", "wifi", false],
+    ["Şifre yanlışsa haber veririm", "wifi", false],
+    ["Ağır bagaj yok", "wifi", false],
+    ["Kapı şifresi yanlış", "wifi", false],
+    ["Wi-Fi kodu yanlış", "wifi", true],
+    ["Wi-Fi şifresi ne?", "wifi", false],
+    // Kapı kodu.
+    ["Kapı kodu çalışmıyor", "checkin", true],
+    ["Verdiğiniz kod yanlış", "checkin", true],
+    ["Wrong door code", "checkin", true],
+    ["The code doesn't work", "checkin", true],
+    ["Kilit çalışmıyor", "checkin", false],
+    ["Kodu yanlış girdik", "checkin", false],
+    ["Wi-Fi şifresi yanlış", "checkin", false],
+    ["Wi-Fi kodu yanlış", "checkin", false],
+    ["Kapı şifresi yanlış", "checkin", true],
+    // Otopark: "yok" sayılır; "dolu" / "otoparkta yer yok" anlık durumdur.
+    ["Otopark yok", "parking", true],
+    ["Otopark yoktu, sokağa park ettik", "parking", true],
+    ["Otoparkı bulamadık", "parking", true],
+    ["There is no parking", "parking", true],
+    ["We couldn't find the parking", "parking", true],
+    ["Otopark dolu", "parking", false],
+    ["Otoparkta yer yok", "parking", false],
+    ["Otopark konusunda sorun yok", "parking", false],
+    ["Otopark yok değil", "parking", false],
+    ["No free parking nearby", "parking", false],
+    ["Otopark yok? Bilgi verir misiniz.", "parking", false],
+    ["Otopark girişinin yanındaki eski binanın arkasında market yok", "parking", false],
+    // Havlu / çarşaf: "yok / eksik" sayılır; kirli / temiz / ekstra istek sayılmaz.
+    ["Havlu yok", "cleaning", true],
+    ["Havlular eksikti", "cleaning", true],
+    ["There were no towels", "cleaning", true],
+    ["No towels in the bathroom", "cleaning", true],
+    ["Havlu kirli", "cleaning", false],
+    ["Temiz havlu yok", "cleaning", false],
+    ["Fazladan havlu yok", "cleaning", false],
+    ["Ekstra havlu yok mu?", "cleaning", false],
+    ["Havlu yok mu", "cleaning", false],
+    ["No clean towels", "cleaning", false],
+    // Çöp / adres.
+    ["Çöp konteyneri yok", "trash", true],
+    ["We couldn't find the bins", "trash", true],
+    ["Çöp konteyneri dolu", "trash", false],
+    ["Adres yanlış", "location", true],
+    ["Konum yanlış gösteriyor", "location", true],
+    ["Wrong address on the listing", "location", true],
+    ["Adresi bulamadık", "location", false],
+    ["Konum çalışmıyor", "location", false],
+    // Boş / tanımsız kategori.
+    ["", "wifi", false],
+    ["Wi-Fi şifresi yanlış", "rules", false],
+    ["Wi-Fi şifresi yanlış", "checkout", false],
+  ])("%s · %s → %s", (body, cat, expected) => expect(statesInfoWrong(body as string, cat as string)).toBe(expected));
+
+  it("8.000 karakteri aşan metin okunmaz; uzun tek sözcük / boşluk / tekrarlanan özne doğrusal (karesel iş yok)", () => {
+    expect(statesInfoWrong(`Wi-Fi şifresi yanlış. ${"a".repeat(8_000)}`, "wifi")).toBe(false);
+    expect(statesInfoWrong(`Wi-Fi şifresi yanlış. ${"a ".repeat(3_000)}`, "wifi")).toBe(true);
+    for (const s of ["a".repeat(7_999), " ".repeat(7_999), "sifre ".repeat(1_300), "otopark ".repeat(990), "no ".repeat(2_600), "yanlis ".repeat(1_100)]) {
+      const t = performance.now();
+      for (const c of Object.values(ITEM_TOPIC_TO_KB)) statesInfoWrong(s, c);
+      expect(performance.now() - t).toBeLessThan(1_000);
+    }
   });
 });
 
-describe("messageIsAbout — mesajın somut konularının TAMAMI bu kategoriye ait mi (Haiku 4. tur)", () => {
-  it.each([
-    ["Wi-Fi çalışmıyor.", "wifi", true],
-    ["İnternet iki saattir yok", "wifi", true],
-    ["The wifi keeps dropping", "wifi", true],
-    ["Otopark dolu, park edemedik", "parking", true],
-    ["Oda çok kirliydi, havlu da yok", "cleaning", true],
-    ["Kapı kodu çalışmıyor", "checkin", true],
-    ["Wi-Fi çalışmıyor, ne yapalım?", "wifi", true],
-    // Konu yalnız SORU bölümünde: şikâyet konusu değil.
-    ["Wi-Fi şifresi ne?", "wifi", false],
-    ["İnternet var mı?", "wifi", false],
-    // Karışık: başka somut konu da var → belirsiz → hayır.
-    ["Gürültüden uyuyamadık. Bu arada Wi-Fi ağı hangisi?", "wifi", false],
-    ["Oda kirli, Wi-Fi şifresi ne?", "wifi", false],
-    ["Oda kirli, Wi-Fi şifresi ne?", "cleaning", false],
-    // Başka somut konu + konunun SORU OLMAYAN bölümü: yine belirsiz → hayır (mutasyon D1: "tamamı" kuralı tek başına).
-    ["Gürültüden uyuyamadık, Wi-Fi şifresini de aldık.", "wifi", false],
-    // Konusu okunamayan / boş / eşlemesi olmayan kategori → hayır.
-    ["", "wifi", false],
-    ["Çok kötü bir deneyimdi.", "wifi", false],
-    ["Wi-Fi çalışmıyor.", "rules", false],
-  ])("%s · %s → %s", (body, cat, expected) => expect(messageIsAbout(body as string, cat as string)).toBe(expected));
-
-  it("8.000 karakteri aşan metin okunmaz (pahalı sözlük taraması yok — mutasyon D6)", () => {
-    expect(messageIsAbout(`Wi-Fi çalışmıyor. ${"a".repeat(8_000)}`, "wifi")).toBe(false);
-    expect(messageIsAbout(`Wi-Fi çalışmıyor. ${"a ".repeat(3_000)}`, "wifi")).toBe(true);
-  });
-
-  it("complaintTopics metin verilince yalnız konusu doğrulanan mesajı sayar; metni olmayan mesaj sayılmaz", () => {
-    const items = [item("c1", "m1", "complaint_issue"), item("c1", "m1", "wifi"), item("c2", "m2", "complaint_issue"), item("c2", "m2", "wifi")];
+describe("infoWrongReports — konu öğesi + metin bilginin yanlış olduğunu söylüyor", () => {
+  it("konu öğesi + 'bilgi yanlış' metni sayılır; arıza metni, eşlenmeyen konu, metni olmayan mesaj sayılmaz; mesaj başına bir kez", () => {
+    const items = [
+      item("c1", "m1", "wifi"),
+      item("c1", "m1", "complaint_issue"),
+      item("c1", "m1", "wifi"), // aynı mesajda ikinci öğe → bir kez
+      item("c2", "m2", "wifi"),
+      item("c3", "m3", "amenities"),
+      item("c4", "m4", "wifi"),
+    ];
     const bodies = new Map([
-      ["m1", "Wi-Fi çalışmıyor."],
-      ["m2", "Gürültüden uyuyamadık. Wi-Fi ağı hangisi?"],
+      ["m1", "Wi-Fi şifresi yanlış."],
+      ["m2", "Wi-Fi çalışmıyor."],
+      ["m3", "Wi-Fi şifresi yanlış."],
     ]);
-    expect(complaintTopics(items, bodies).map((t) => t.conversationId)).toEqual(["c1"]);
-    expect(complaintTopics(items, new Map())).toEqual([]);
+    expect(infoWrongReports(items, bodies)).toEqual([{ conversationId: "c1", kbCategory: "wifi", at: day(1) }]);
+  });
+  it("eşleme yalnız 'bilgi yanlış' cümlesi tanımlı konular; saat konuları (2) saat denetiminde", () => {
+    expect(ITEM_TOPIC_TO_KB).toEqual({
+      wifi: "wifi",
+      parking: "parking",
+      cleaning_linen: "cleaning",
+      trash: "trash",
+      access_keys: "checkin",
+      directions_transport: "location",
+    });
   });
 });
 
@@ -87,11 +160,11 @@ describe("detectContradictions", () => {
   const topics = (n: number, category = "wifi", at = day(2)) =>
     Array.from({ length: n }, (_, i) => ({ conversationId: `c${i}`, kbCategory: category, at }));
 
-  it(`🚨 bilgi tabanında kalem + ${CONTRADICTION_MIN_GUESTS} ayrı misafir aynı konuda sorun → uyarı (metin misafir sözü taşımaz)`, () => {
+  it(`🚨 bilgi tabanında kalem + ${CONTRADICTION_MIN_GUESTS} ayrı misafir "bu bilgi yanlış" dedi → uyarı (metin misafir sözü taşımaz)`, () => {
     const w = detectContradictions({ facts: [fact("f1", "wifi")], topics: topics(3), timeRows: [], now: NOW });
     expect(w).toHaveLength(1);
     expect(w[0]).toMatchObject({ kind: "kb_vs_complaints", memoryIds: ["f1"] });
-    expect(w[0].text).toBe('Bilgi tabanında "Wi-Fi" bilgisi var, ama son 30 günde 3 misafir bu konuda sorun bildirdi. Bilgi güncel mi?');
+    expect(w[0].text).toBe('Son 30 günde 3 misafir bilgi tabanındaki "Wi-Fi" bilgisinin yanlış olduğunu bildirdi. Kontrol edin.');
   });
 
   it("KONTROL: 2 misafir · aynı konuşmadan 3 mesaj · 30 günden eski · bilgi tabanında o konu yok → uyarı YOK", () => {

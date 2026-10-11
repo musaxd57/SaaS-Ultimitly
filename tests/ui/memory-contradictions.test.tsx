@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }
 import { MemoryContradictions } from "@/components/properties/memory-contradictions";
 
 const ITEMS = [
-  { memoryIds: ["m1", "m2"], text: 'Bilgi tabanında "Wi-Fi" bilgisi var, ama son 30 günde 3 misafir bu konuda sorun bildirdi. Bilgi güncel mi?' },
+  { memoryIds: ["m1", "m2"], text: 'Son 30 günde 3 misafir bilgi tabanındaki "Wi-Fi" bilgisinin yanlış olduğunu bildirdi. Kontrol edin.' },
   { memoryIds: ["m9"], text: "Giriş saati: mülk ayarı 15:00, bilgi tabanı 14:00." },
 ];
 

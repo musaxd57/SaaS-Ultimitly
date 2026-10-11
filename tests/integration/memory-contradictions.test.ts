@@ -72,27 +72,27 @@ async function guestMessage(orgId: string, propertyId: string, body: string, kin
   }
 }
 
-async function seed(complaints = 3, body = "Wi-Fi çalışmıyor, iki saattir internet yok.") {
+async function seed(complaints = 3, body = "Verdiğiniz Wi-Fi şifresi yanlış, kabul etmiyor.") {
   const { orgId, propertyId } = await makeOrgWithProperty();
   const kb = await prisma.knowledgeBaseItem.create({
     data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre kartta.", isActive: true, source: "host", reviewState: "approved" },
   });
   await bootstrapMemoryFromKnowledgeBase(orgId, propertyId);
-  for (let i = 0; i < complaints; i++) await guestMessage(orgId, propertyId, body, ["complaint_issue", "wifi"], i + 1);
+  for (let i = 0; i < complaints; i++) await guestMessage(orgId, propertyId, body, ["wifi"], i + 1);
   return { orgId, propertyId, kb };
 }
 
-describe("olası çelişki — bilgi tabanı ↔ şikâyet", () => {
+describe("olası çelişki — bilgi tabanı ↔ misafirin 'bu bilgi yanlış' beyanı", () => {
   beforeEach(async () => {
     await resetDb();
   });
 
-  it("🚨 3 misafir Wi-Fi'dan şikâyet + bilgi tabanında Wi-Fi kalemi → uyarı; 'Bilerek böyle' → kalkar; kalem değişince → geri gelir", async () => {
+  it("🚨 3 misafir 'Wi-Fi şifresi yanlış' + bilgi tabanında Wi-Fi kalemi → uyarı; 'Bilerek böyle' → kalkar; kalem değişince → geri gelir", async () => {
     const s = await seed(3);
     const w = await getMemoryContradictions(s.orgId, s.propertyId);
     expect(w).toHaveLength(1);
     expect(w[0].kind).toBe("kb_vs_complaints");
-    expect(w[0].text).toContain("3 misafir");
+    expect(w[0].text).toBe('Son 30 günde 3 misafir bilgi tabanındaki "Wi-Fi" bilgisinin yanlış olduğunu bildirdi. Kontrol edin.');
 
     await asUser(s.orgId);
     const res = await ack(s.propertyId, w[0].memoryIds);
@@ -109,8 +109,18 @@ describe("olası çelişki — bilgi tabanı ↔ şikâyet", () => {
     expect(await getMemoryContradictions(s.orgId, s.propertyId)).toHaveLength(1);
   });
 
-  it("🚨 KARIŞIK mesaj (başka konuda şikâyet + Wi-Fi sorusu) Wi-Fi şikâyeti SAYILMAZ (Haiku 4. tur)", async () => {
-    const s = await seed(3, "Gürültüden hiç uyuyamadık. Bu arada Wi-Fi ağı hangisi?");
+  it("🚨 ARIZA şikâyeti ('Wi-Fi çalışmıyor', şikâyet öğesiyle bile) bilgi çelişkisi SAYILMAZ (kurucu 10-11 düzeltmesi)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre kartta.", isActive: true, source: "host", reviewState: "approved" },
+    });
+    await bootstrapMemoryFromKnowledgeBase(orgId, propertyId);
+    for (let i = 0; i < 4; i++) await guestMessage(orgId, propertyId, "Wi-Fi çalışmıyor, iki saattir internet yok.", ["complaint_issue", "wifi"], i + 1);
+    expect(await getMemoryContradictions(orgId, propertyId)).toEqual([]);
+  });
+
+  it("🚨 KARIŞIK mesaj (başka konuda şikâyet + Wi-Fi sorusu) SAYILMAZ (Haiku 4. tur)", async () => {
+    const s = await seed(3, "Gürültüden hiç uyuyamadık. Bu arada Wi-Fi şifresi ne?");
     expect(await getMemoryContradictions(s.orgId, s.propertyId)).toEqual([]);
   });
 
@@ -187,7 +197,7 @@ describe("POST /api/properties/[id]/memory-acknowledge — kiracı + rol (deği�
       data: { propertyId: b.id, category: "wifi", title: "Wi-Fi", content: "Ağ B.", isActive: true, source: "host", reviewState: "approved" },
     });
     await bootstrapMemoryFromKnowledgeBase(a.orgId, b.id);
-    for (let i = 0; i < 3; i++) await guestMessage(a.orgId, b.id, "Wi-Fi çalışmıyor.", ["complaint_issue", "wifi"], i + 1);
+    for (let i = 0; i < 3; i++) await guestMessage(a.orgId, b.id, "Wi-Fi şifresi yanlış.", ["wifi"], i + 1);
     expect(await getMemoryContradictions(a.orgId, a.propertyId)).toEqual([]); // B'nin şikâyetleri A'ya yazılmaz
     const bWarn = await getMemoryContradictions(a.orgId, b.id);
     expect(bWarn).toHaveLength(1);
