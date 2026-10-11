@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
 // B1 (kurucu 10-11, "ev sahibi döngüsü"): gelen kutusundaki "Eksik bilgi"den gelen ön doldurma formda — mülk / kategori / başlık dolu,
@@ -52,6 +52,17 @@ describe("KbManager — ön dolu form", () => {
     rerender(<KbManager properties={PROPS} items={[]} prefill={{ ...prefill }} />);
     expect(document.activeElement).toBe(title);
     expect(title.value).toBe("Kahvaltı yerleri");
+  });
+
+  it("kayıt başarılı olunca açıklama kalkar (form sonraki kalem için boşalır)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ id: "kb1" }) })));
+    render(<KbManager properties={PROPS} items={[]} prefill={{ propertyId: "p2", category: "local_tips", title: "Kahvaltı" }} />);
+    fireEvent.change(document.getElementById("kb-content")!, { target: { value: "Köşedeki fırın, 3 dk." } });
+    await act(async () => {
+      fireEvent.submit(document.getElementById("kb-content")!.closest("form")!);
+    });
+    expect(screen.queryByText(/Misafirin sorduğu ama bilgi tabanında olmayan konu/)).toBeNull();
+    expect((document.getElementById("kb-title") as HTMLInputElement).value).toBe("");
   });
 
   it("KONTROL: ön doldurma yoksa ilk mülk + Genel, açıklama yok, odak içerikte değil", () => {
