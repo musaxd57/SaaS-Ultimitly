@@ -104,6 +104,8 @@ describe("judge / suggestLayer", () => {
     expect(v.partial).toEqual(["x"]);
     expect(judge({ correct: 1, runs: 1, planned: 2 }, [], []).kind).toBe("flaky");
     expect(judge({ correct: 0, runs: 1, planned: 3 }, [], []).kind).toBe("context");
+    // 3 tekrarın 2'si başarısız, 1 doğru: "çoğunluk doğru" DEĞİL (mutasyon F2).
+    expect(judge({ correct: 1, runs: 1, planned: 3 }, [], []).kind).toBe("context");
     expect(fixedAll(1, 1, 2)).toBe(false);
     expect(fixedAll(2, 2, 2)).toBe(true);
   });
@@ -188,7 +190,11 @@ describe("analyzeFailure — uçtan uca (sahte koşturucu)", () => {
     );
     expect(r.explanation).toBeNull();
     expect(r.baseline.runs).toBe(1);
+    expect(r.baseline.planned).toBe(2);
     expect(r.baseline.outputs).toContain("(çağrı başarısız)");
+    // Her adayda bir çağrı başarısız → hiçbiri "bütün tekrarlarda düzeldi" sayılamaz (mutasyon F10: payda düşerse 1/1 tetikleyici olurdu).
+    expect(r.ablations.every((a) => a.planned === 2 && a.runs === 1)).toBe(true);
+    expect(r.triggers).toEqual([]);
   });
 
   it("rapor: kanıt, katman, modelin iddiasının sınanması ve doğrulama adımı yazılır", async () => {
