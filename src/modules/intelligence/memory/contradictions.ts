@@ -234,14 +234,15 @@ export function detectContradictions(input: {
     if (facts.length === 0 || acknowledged(facts)) continue;
     out.push({
       kind: "kb_vs_complaints",
-      memoryIds: facts.map((f) => f.id),
+      // Kimlik sırası sabit (Haiku 10-11: veritabanı sırası sayfa açılışları arasında değişebilir).
+      memoryIds: facts.map((f) => f.id).sort(),
       text: `Son ${CONTRADICTION_WINDOW_DAYS} günde ${guests.size} misafir bilgi tabanındaki "${KB_CATEGORY.label(category)}" bilgisinin yanlış olduğunu bildirdi. Kontrol edin.`,
     });
   }
   for (const row of input.timeRows) {
     const facts = input.facts.filter((f) => row.itemIds.includes(f.kbItemId));
     if (facts.length === 0 || acknowledged(facts, row.againstPropertyUpdatedAt ?? null)) continue;
-    out.push({ kind: "kb_vs_kb", memoryIds: facts.map((f) => f.id), text: row.text });
+    out.push({ kind: "kb_vs_kb", memoryIds: facts.map((f) => f.id).sort(), text: row.text });
   }
   return out;
 }
@@ -254,7 +255,6 @@ export async function getMemoryContradictions(organizationId: string, propertyId
     prisma.propertyMemory.findMany({
       where: { organizationId, propertyId, status: "active", kind: "fact", source: "kb_item" },
       select: { id: true, category: true, sourceRef: true, observedAt: true, humanOverrideAt: true },
-      orderBy: { id: "asc" },
     }),
     prisma.conversationItem.findMany({
       where: {

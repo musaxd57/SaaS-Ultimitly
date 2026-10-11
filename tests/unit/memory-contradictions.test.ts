@@ -40,6 +40,7 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Şifreyi girdim ama çalışmıyor", "wifi", false],
     // Bilgi yanlış: şifre kabul edilmiyor / değişmiş · ağ adı yanlış · öyle bir ağ yok.
     ["Wi-Fi şifresi yanlış", "wifi", true],
+    ["Wi-Fi şifresi\tyanlış", "wifi", true],
     ["Wi-Fi şifresi yanlıştı, ev sahibinden aldık", "wifi", true],
     ["Verdiğiniz şifre kabul etmiyor", "wifi", true],
     ["Wifi şifresi çalışmıyor", "wifi", true],
@@ -139,12 +140,14 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Havlu kirli", "cleaning", false],
     ["Temiz havlu yok", "cleaning", false],
     ["Fazladan havlu yok", "cleaning", false],
+    ["Temiz    havlu yok", "cleaning", false],
     ["Ekstra havlu yok mu?", "cleaning", false],
     ["Havlu yok mu", "cleaning", false],
     ["No clean towels", "cleaning", false],
     // Çöp / adres.
     ["Çöp konteyneri yok", "trash", true],
     ["We couldn't find the bins", "trash", false],
+    ["Bins we can't find anywhere", "trash", false],
     ["There are no bins", "trash", true],
     ["Çöp konteyneri dolu olduğu için yer yok", "trash", false],
     ["Çöp konteyneri dolu", "trash", false],
@@ -237,12 +240,16 @@ describe("detectContradictions", () => {
     expect(detectContradictions({ facts: [acked], topics: topics(3), timeRows: [], now: NOW })).toEqual([]);
     const changed = fact("f1", "wifi", { observedAt: day(0.5), humanOverrideAt: day(1) });
     expect(detectContradictions({ facts: [changed], topics: topics(3), timeRows: [], now: NOW })).toHaveLength(1);
-    // Aynı konuda iki kalem: biri işaretsizse uyarı kalır.
-    expect(detectContradictions({ facts: [acked, fact("f2", "wifi")], topics: topics(3), timeRows: [], now: NOW })[0].memoryIds).toEqual(["f1", "f2"]);
+    // Aynı konuda iki kalem: biri işaretsizse uyarı kalır; kimlik sırası girdiden bağımsız (sıralı).
+    expect(detectContradictions({ facts: [fact("f2", "wifi"), acked], topics: topics(3), timeRows: [], now: NOW })[0].memoryIds).toEqual(["f1", "f2"]);
   });
 
   it("bilgi tabanı ↔ bilgi tabanı / mülk ayarı (saat): ilgili hafıza kalemleriyle; işaretlenince kalkar; kalemi olmayan satır yok", () => {
     const row = { text: "Giriş saati: mülk ayarı 15:00, bilgi tabanı 14:00.", itemIds: ["kb-f9"] };
+    const two = { text: "Giriş saati: iki kalem uyuşmuyor.", itemIds: ["kb-f9", "kb-f3"] };
+    expect(
+      detectContradictions({ facts: [fact("f9", "checkin"), fact("f3", "checkin")], topics: [], timeRows: [two], now: NOW })[0].memoryIds,
+    ).toEqual(["f3", "f9"]);
     expect(detectContradictions({ facts: [fact("f9", "checkin")], topics: [], timeRows: [row], now: NOW })).toEqual([
       { kind: "kb_vs_kb", memoryIds: ["f9"], text: row.text },
     ]);
