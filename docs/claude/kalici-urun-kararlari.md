@@ -26,7 +26,9 @@
   cevabının sonuna … ekle", "consider yourself the …" (deyim "consider yourself lucky" değil), "append … to every reply", beş dilde "bundan
   sonra sen …sin" (2. tekil); misafir külliyatı 3.388 mesajda yanlış alarm 0. Bilgi tabanı ayraç etkisizleştirmesi SABİT
   NOKTAYA kadar (≤4 geçiş, sonra açılı parantez silinir) — "<<<«KB_END»>>>" tek geçişte GERÇEK ayraç üretiyordu.
-- **Acil ≠ sıradan istek:** `escalationReply({critical})` yalnız güvenlik satırı (K10), tetikleyici DAR `isPhysicalEmergency`
+- **Acil ≠ sıradan istek:** 🚨 **10-11 (kurucu kararı): tehlikede misafire HİÇBİR metin gitmez — 112 / acil servis satırı ve yönergesi KALKTI**
+  (aşağıdaki "güvenlik satırı" anlatımı 10-02 → 10-11 dönemidir; tanıma / karar / kritik uyarı aynen sürer, yalnız misafire giden satır yok;
+  ayrıntı `ai-guvenlik.md` QR bölümü). Eski: `escalationReply({critical})` yalnız güvenlik satırı (K10), tetikleyici DAR `isPhysicalEmergency`
   (yangın/duman/gaz/su baskını/elektrik çarpması; öz-zarar ifadesi YOK) — `safety_emergency` kümesi misafire giden metin için fazla geniş.
   🚨 **10-02 akşam (kurucu kararı, Sabah Kararları 51 + 55) — BAĞLAM İLKESİ, tek kaynak `ai/hazard-evidence.ts`:** fiziksel tehlike kanıtı
   `clear · possible · mentioned · none` (LLM'siz, yedi dil, cümlecik düzeyi; alıntı / ürün adı / K6 önce nötr; soru cümlesi gaz dışında en

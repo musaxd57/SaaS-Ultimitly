@@ -26,7 +26,7 @@ import type { SuggestReplyInput } from "@/lib/ai/types";
 
 // ---------------------------------------------------------------------------
 // ŞİKÂYET TAKİBİ KURALI (kök neden, kurucu kararı 10-01; anahtar `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` VARSAYILAN KAPALI): cevap istemi
-// şikâyet edene kural hatırlatmaz, 112'yi yalnız gerçek can güvenliğinde önerir; anlama katmanı şikâyete bağlı yardım sorusunu ayrı
+// şikâyet edene kural hatırlatmaz, misafire 112 arama yönergesi hiç yazmaz (kurucu 10-11); anlama katmanı şikâyete bağlı yardım sorusunu ayrı
 // istek saymaz. Kapalıyken iki istem bayt bayt aynı.
 // ---------------------------------------------------------------------------
 
@@ -81,7 +81,7 @@ describe("şikâyet takibi — cevap istemi katmanı", () => {
     const sys = replyRequestIdentity(input).system;
     expect(sys).toBe(replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, complaintFollowup: true }));
     expect(sys).toContain(RULE);
-    expect(sys).toContain("Gürültü, arıza, temizlik, konfor şikâyetinde 112 / polis / acil servis ÖNERME.");
+    expect(sys).toContain("Misafire 112 / polis / acil servis ARAMA yönergesi YAZMA (kurucu kararı 10-11)");
     const anchor = "  - Empati/özür EN FAZLA BİR cümle; hemen çözüme geç.\n";
     const at = REPLY_SYSTEM_PROMPT.indexOf(anchor) + anchor.length;
     expect(at).toBeGreaterThan(anchor.length);

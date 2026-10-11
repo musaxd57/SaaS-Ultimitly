@@ -60,6 +60,13 @@ function ask(token: string, message: string, cookie?: string) {
     params: Promise.resolve({ token }),
   } as never);
 }
+function askWithId(token: string, message: string, requestId: string, cookie?: string) {
+  const headers: Record<string, string> = { "content-type": "application/json", "x-forwarded-for": `10.1.0.${++ipSeq % 250}` };
+  if (cookie) headers.cookie = cookie;
+  return POST(new Request(`http://localhost/api/chat/${token}`, { method: "POST", headers, body: JSON.stringify({ message, requestId }) }) as never, {
+    params: Promise.resolve({ token }),
+  } as never);
+}
 const deviceCookie = (res: Response) => res.headers.get("set-cookie")?.split(";")[0];
 const setStayCounter = (reservationId: string, count: number) =>
   prisma.rateLimitCounter.create({ data: { key: `guestchat-stay:${reservationId}`, count, resetAt: new Date(Date.now() + 3_600_000) } });
@@ -119,6 +126,28 @@ describe("15 — konaklama başına saatte 40 mesaj", () => {
     expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(1);
   });
 
+  it("🚨 yanıtı kaybolan mesajın TEKRAR denemesi tavandan sayılmaz (istek kimliği sahiplenmesinden SONRA sayılır — Haiku 10-11)", async () => {
+    const { token, reservationId } = await seed();
+    await setStayCounter(reservationId, 39);
+    mockSuggest.mockResolvedValue(reply("Çöp salı günü alınır."));
+    const fortieth = await askWithId(token, "Çöp ne zaman?", "req-40-aaaaaaaa");
+    expect(fortieth.status).toBe(200);
+    const cookie = deviceCookie(fortieth);
+    const retry = await askWithId(token, "Çöp ne zaman?", "req-40-aaaaaaaa", cookie);
+    expect(retry.status).toBe(200);
+    expect(((await retry.json()) as { deduped?: boolean }).deduped).toBe(true);
+    expect((await askWithId(token, "Havlu?", "req-41-bbbbbbbb", cookie)).status).toBe(429);
+  });
+
+  it("tavandaki mesajın sahiplenmesi BIRAKILIR: aynı istek kimliğiyle yeniden deneme 'işlendi' sanılmaz", async () => {
+    const { token, reservationId } = await seed();
+    await setStayCounter(reservationId, 40);
+    const capped = await askWithId(token, "Merhaba", "req-cap-cccccccc");
+    expect(capped.status).toBe(429);
+    expect((await askWithId(token, "Merhaba", "req-cap-cccccccc", deviceCookie(capped))).status).toBe(429); // "deduped" DEĞİL
+    expect(await prisma.message.count()).toBe(0);
+  });
+
   it("tavan KONAKLAMA başına: başka konaklamanın sayacı bu konaklamayı durdurmaz", async () => {
     const { token } = await seed();
     await setStayCounter("baska-konaklama", 999);
@@ -141,6 +170,19 @@ describe("17 — acil e-postası konaklama başına saatte en çok 3", () => {
     const row = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
     expect(row.qrEscalationEmailMessageId).not.toBe("crit:d");
     expect(row.qrEscalationEmailAt).toBeNull();
+  });
+
+  it("🚨 GİTMEYEN e-posta tavandan hak yemez (sağlayıcı hatası): 3 başarısız + 1 başarılı acil → dördüncüsü GİDER", async () => {
+    vi.stubEnv("QR_ESCALATION_EMAIL_ENABLED", "1");
+    const { orgId, reservationId } = await seed();
+    vi.mocked(emailService.sendReporting)
+      .mockResolvedValueOnce({ ok: false, error: "x" } as never)
+      .mockResolvedValueOnce({ ok: false, error: "x" } as never)
+      .mockResolvedValueOnce({ ok: false, error: "x" } as never);
+    const base = { organizationId: orgId, propertyName: "Lale", reservationId, reason: "ai_escalated" as const, critical: true };
+    const out = [];
+    for (const id of ["crit:a", "crit:b", "crit:c", "crit:d"]) out.push(await maybeSendQrEscalationEmail({ ...base, eventId: id }));
+    expect(out.map((o) => o.sent)).toEqual([false, false, false, true]);
   });
 
   it("KONTROL: tavan konaklama başına — başka konaklamanın acil e-postası gider", async () => {
@@ -218,6 +260,44 @@ describe("18 — cevapta kapı kodu: bir kez yeniden yaz, sonra devir", () => {
     expect(JSON.stringify(body)).not.toContain("4590");
     expect(mockSuggest).toHaveBeenCalledTimes(1);
     expect(await prisma.riskEvent.count({ where: { reason: "door_code_in_reply" } })).toBe(1);
+  });
+
+  it("🚨 GEÇMİŞTEKİ kapı kodu modele GİTMEZ (kurucu kararı 10-11): yapay zekânın önceki cevabındaki değer '(kod gizlendi)' olur", async () => {
+    const { token, propertyId, reservationId } = await seed();
+    mockSuggest.mockResolvedValue(reply("Çöp salı günü alınır."));
+    const first = await ask(token, "Merhaba");
+    const cookie = deviceCookie(first);
+    const convo = await prisma.conversation.findFirstOrThrow({ where: { propertyId, externalReservationId: { contains: reservationId } } });
+    await prisma.message.create({
+      data: { conversationId: convo.id, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: "Kapı kodunuz 4590, Wi-Fi şifresi gunes1907.", createdAt: new Date() },
+    });
+    mockSuggest.mockClear();
+    await ask(token, "Çöp ne zaman?", cookie);
+    const history = (mockSuggest.mock.calls[0][0] as { history: { body: string }[] }).history.map((h) => h.body).join("\n");
+    expect(history).not.toContain("4590");
+    expect(history).toContain("(kod gizlendi)");
+    expect(history).toContain("gunes1907"); // Wi-Fi gizlenmez
+  });
+
+  it("🚨 '112'yi arayın' yazan taslak bir kez yeniden yazdırılır; temizse gider (kurucu kararı 10-11)", async () => {
+    const { token } = await seed();
+    mockSuggest.mockResolvedValueOnce(reply("Gürültü için üzgünüz; gerekirse polisi arayabilirsiniz.")).mockResolvedValueOnce(reply("Gürültü için üzgünüz."));
+    const res = await ask(token, "Üst kat çok gürültülü");
+    const body = JSON.stringify(await res.json());
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    const notes = (mockSuggest.mock.calls[1][0] as { knowledgeBaseNotes?: string[] }).knowledgeBaseNotes ?? [];
+    expect(notes.some((n) => /112/.test(n) && /ASLA/.test(n))).toBe(true);
+    expect(body).not.toMatch(/polisi arayabilirsiniz/);
+  });
+
+  it("🚨 iki taslak da acil arama yönergeli → misafire gitmez, devir (emergency_directive)", async () => {
+    const { token } = await seed();
+    mockSuggest.mockResolvedValue(reply("Çöp salı günü alınır; acil bir durumda 112'yi arayın."));
+    const res = await ask(token, "Çöp ne zaman alınıyor?");
+    const body = (await res.json()) as { escalated?: boolean };
+    expect(body.escalated).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("112");
+    expect(await prisma.riskEvent.count({ where: { reason: "emergency_directive" } })).toBe(1);
   });
 
   it("KONTROL: Wi-Fi şifresi içeren cevap yeniden YAZDIRILMAZ (Wi-Fi verilir — kurucu kararı 10-11)", async () => {

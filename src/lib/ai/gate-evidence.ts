@@ -23,7 +23,7 @@ export const GATE_BLOCK_DETAILS = [
   "model_risk_label", // modelin yüksek riskli etiketi
   "model_risk_level", // modelin risk düzeyi orta/yüksek
   "reply_absence", // cevap "bilgim yok" itirafı
-  "reply_output_veto", // cevapta yer tutucu / makbuzsuz eylem iddiası
+  "reply_output_veto", // cevapta yer tutucu / makbuzsuz eylem iddiası / acil arama yönergesi (kurucu 10-11)
   "confidence_invalid",
   "low_confidence",
   // Konuşma öğeleri kipi (09-26): cevap yalnız beyan ettiği güvenli istekleri kapsar.

@@ -7,7 +7,7 @@ import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
-import { contextLabels, hasSafetyReassurance, hazardDecisionFor, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
+import { contextLabels, hasEmergencyCallDirective, hasSafetyReassurance, hazardDecisionFor, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import {
   evaluateAvailability,
   kbFactsOf,
@@ -529,6 +529,11 @@ export function autoReplyGateVerdict(
   // tutuşta ev sahibine "Misafir cevabınızı bekliyor" e-postası gider (`notifyHostReplyWaiting`). Bekletme mesajı (tier-2) aynı
   // gerekçeyle emekliye ayrıldı. Eski muafiyet tartışması: git log.
   if (!context?.skipOutputVetoForDiagnosis && vetoOutgoingReply(result.reply) !== null) {
+    return hold("reply_output_veto");
+  }
+  // Acil arama yönergesi ("112'yi / acil servisi arayın") misafire GİTMEZ (kurucu kararı 10-11, "hiçbir şekilde") — çıktı vetosu
+  // kovasında tutulur (taslak ev sahibinde kalır).
+  if (!context?.skipOutputVetoForDiagnosis && hasEmergencyCallDirective(result.reply)) {
     return hold("reply_output_veto");
   }
   // ── 51: ALARM BAĞLAMLA KALKTIYSA KAYNAKSIZ GÜVENCE GİTMEZ (kurucu: "'normaldir, güvenlidir' diye kaynaksız güvence verilmesin") ──
@@ -1520,10 +1525,10 @@ export interface ChannelAutoReplyOptions {
   /** Skip the org on/off toggle check (used by the preview). */
   ignoreToggle?: boolean;
   /**
-   * Önizleme kotası (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): `dryRun` iken de günlük AI bütçesinden konuşma başına bir
-   * birim düşülür — model çağrısının hemen önünde, ucuz deterministik atlamalardan SONRA (cevaplanmayacak konuşma birim yakmaz).
-   * Bütçe doluysa model çağrılmaz, `daily_budget` döner. Etkileşimli yüzey olduğu için "önce tüket" (suistimal kapısı; cron'daki
-   * "önce bak, sonra tüket" burada kullanılmaz — `daily-budget.ts` `peekDailyAiBudget` gerekçesi).
+   * Önizleme kotası (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): `dryRun` iken de günlük AI bütçesi işler — canlı oto-yanıtla
+   * AYNI sayım: model çağrısının hemen önünde BAKILIR (doluysa model çağrılmaz, `daily_budget`), model GERÇEKTEN cevap verdiyse (ya da
+   * token faturalandıysa) bir birim DÜŞÜLÜR. Sağlayıcı çökükken fallback'e düşen önizleme birim yakmaz (Haiku incelemesi 10-11: "önce
+   * tüket" ile 08-01 olayı geri gelirdi — önizleme düğmesi bütçeyi bitirip gerçek misafir cevaplarını o gün durdururdu).
    */
   previewBudget?: boolean;
 }
@@ -1902,9 +1907,8 @@ export async function applyChannelAutoReply(
     // TAMAMINDAN sonra. Maliyet burada başlıyor; daha erken tüketmek cevaplanmayacak
     // thread'ler için kota yakardı.
     //
-    // dryRun HARİÇ: gönderim yok. Önizleme kotası aşağıdaki `previewBudget` dalında
-    // AYNI noktada, konuşma başına düşülür (kurucu kararı 10-11); dryRun'da aşağıdaki
-    // "model cevap verdiyse tüket" adımı koşmaz → çifte sayım yok.
+    // dryRun HARİÇ: gönderim yok. Önizleme kotası aşağıdaki `previewBudget` dalında AYNI
+    // noktada bakılır ve ↓"model cevap verdiyse tüket" adımında düşülür (kurucu kararı 10-11).
     //
     // Tavana çarpınca konuşma "new" kalır ve `autoReplyAttemptedAt` DAMGALANMAZ
     // → pencere dönünce normal şekilde yanıtlanır. Kayıp değil, gecikme; ve
@@ -1922,8 +1926,8 @@ export async function applyChannelAutoReply(
       return { sent: false, skippedReason: "daily_budget", ...meta };
     }
   } else if (options.previewBudget) {
-    // Önizleme: konuşma başına bir birim, model çağrısından ÖNCE (↑`previewBudget`). Kayıt yazılmaz (dryRun).
-    const budget = await consumeDailyAiBudget(conversation.property.organizationId);
+    // Önizleme: model çağrısından ÖNCE yalnız bakılır (↑`previewBudget`); tüketim ↓ model cevap verince. Kayıt yazılmaz (dryRun).
+    const budget = await peekDailyAiBudget(conversation.property.organizationId);
     if (!budget.ok) return { sent: false, skippedReason: "daily_budget", ...meta };
   }
 
@@ -2724,7 +2728,7 @@ export async function applyChannelAutoReply(
   // çıktı kullanılamadıysa (çıktı tavanı / bozuk JSON — `llmUsage` dolu) token
   // FATURALANDI: o da sayılır (gece maliyet denetimi 09-28; eskiden sayılmıyor ve
   // konuşma 2 dakikada bir yeniden modelleniyordu).
-  if (!options.dryRun && (result.source === "openai" || result.llmUsage)) {
+  if ((!options.dryRun || options.previewBudget) && (result.source === "openai" || result.llmUsage)) {
     await consumeDailyAiBudget(conversation.property.organizationId).catch(() => {});
   }
   const modelBilled = result.source !== "openai" && Boolean(result.llmUsage);
@@ -5491,8 +5495,9 @@ export async function previewCheckouts(
  * can test quality at any time. Returns one outcome per previewed conversation.
  *
  * KOTA (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): eskiden önizleme başına TEK birim düşülüyor, istek başına 12'ye kadar
- * model çağrısı yapılıyordu. Artık modele giden HER konuşma bir birim (`previewBudget`); bütçe biterse önizleme ORADA DURUR —
- * kalan konuşmalar için model çağrılmaz, `budgetExhausted` ile ekrana "günlük sınır doldu" yazılır.
+ * model çağrısı yapılıyordu. Artık modelin cevap yazdığı HER konuşma bir AI işlemi (canlı oto-yanıtla aynı sayım: anlama / sıralayıcı
+ * alt çağrıları ayrıca sayılmaz); bütçe dolunca önizleme ORADA DURUR — kalan konuşmalar için model çağrılmaz, `budgetExhausted` ile
+ * ekrana "günlük sınır doldu" yazılır.
  */
 export async function previewChannelAutoReplies(
   organizationId: string,
@@ -5518,7 +5523,7 @@ export async function previewChannelAutoReplies(
   const outcomes: ChannelAutoReplyOutcome[] = [];
   for (const c of candidates) {
     const outcome = await applyChannelAutoReply(c.id, { dryRun: true, ignoreSchedule: true, ignoreToggle: true, previewBudget: true });
-    // Bütçe bitti: bu konuşma ÖNİZLENMEDİ (listeye "size bırakılır" diye girmez) ve sonrakiler için model çağrılmaz.
+    // Bütçe doldu: bu konuşma ÖNİZLENMEDİ (listeye "size bırakılır" diye girmez) ve sonrakiler için model çağrılmaz.
     if (outcome.skippedReason === "daily_budget") return { outcomes, budgetExhausted: true };
     outcomes.push(outcome);
   }

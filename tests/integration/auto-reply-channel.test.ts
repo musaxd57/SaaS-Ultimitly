@@ -1865,6 +1865,15 @@ describe("previewChannelAutoReplies", () => {
     }
   });
 
+  it("🚨 sağlayıcı çökükken (fallback, token faturalanmadı) önizleme birim YAKMAZ — canlı oto-yanıtla aynı sayım (Haiku 10-11)", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, source: "fallback" as never, llmUsage: undefined });
+    const { orgId, conversationId } = await seed({ autoReplyHospitable: false });
+    await twoMoreAwaiting(conversationId);
+    await previewChannelAutoReplies(orgId);
+    expect(mockSuggest).toHaveBeenCalledTimes(3);
+    expect(await dailyCounter(orgId)).toBe(0);
+  });
+
   it("KONTROL: modele gitmeyen konuşma (son mesaj zaten cevap — ucuz atlama) birim YAKMAZ", async () => {
     const { orgId } = await seed({ autoReplyHospitable: false, lastDirection: "outbound" });
     const { outcomes } = await previewChannelAutoReplies(orgId);

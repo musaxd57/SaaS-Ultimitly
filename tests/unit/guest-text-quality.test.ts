@@ -162,9 +162,10 @@ describe("few-shot example replies obey the rules they are meant to teach", () =
     for (const reply of replies) {
       expect(reply).not.toMatch(/pencereleri aç|havalandır|vanayı kapat|elektriği kes|gazı kapat/i);
     }
-    // The safe direction is kept: the emergency example still points the guest
-    // at real emergency services instead of inventing steps.
-    expect(REPLY_SYSTEM_PROMPT).toMatch(/yerel acil servisleri ara/i);
+    // Kurucu kararı 10-11 ("112'yi arayın yazmasın, yönlendirme olmayacak hiçbir şekilde"): örnekler misafiri acil servise de
+    // YÖNLENDİRMEZ — asıl yönlendirme ev sahibine actionSuggestion'da.
+    for (const reply of replies) expect(reply).not.toMatch(/acil servis\S* ara|112'yi ara|polisi ara|call (?:112|the police|emergency)/i);
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/ACİL NUMARA \/ ARAMA YÖNERGESİ YOK/);
   });
 
   it("no example uses corporate register for the escalation target (single-host product)", () => {
@@ -668,7 +669,7 @@ describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", 
     // döndürür (Message olarak YAZILMAZ) ve istemci POST'un `reply` alanını OKUMAZ (GET otoriter).
     // Yani düzeltilen şey CANLI bir kusur değil, sözleşmeyi delen LATENT bir iddiadır.
     // 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir metni artık HİÇ yok — ev sahibi devraldığında yanıt yalnız
-    // `handoff: true` taşır, devirde misafire metin gitmez; tek sabit metin gerçek acildeki güvenlik yönergesi.
+    // `handoff: true` taşır, devirde misafire metin gitmez; gerçek acildeki güvenlik yönergesi de 10-11'de kalktı (kurucu kararı).
     const qrSource = readFileSync(join(process.cwd(), "src/app/api/chat/[token]/route.ts"), "utf8");
     expect(qrSource).not.toMatch(/const HANDOFF_REPLY\s*=/);
     expect(qrSource).not.toMatch(/kaydedildi; bu sohbeti/);

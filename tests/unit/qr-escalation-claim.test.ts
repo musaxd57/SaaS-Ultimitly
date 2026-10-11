@@ -61,10 +61,8 @@ describe("QR devir metni — acil durumda güvenlik yönergesi eklenir", () => {
     enabled.value = false;
   });
 
-  it("🚨 K10 critical: YALNIZ güvenlik yönergesi gider (kurucunun onayladığı cümle), devir / kayıt bildirimi YOK", () => {
-    const critical = escalationReply({ critical: true });
-    expect(critical).toBe("Tehlike varsa hemen 112'yi arayın.");
-    expect(critical).not.toMatch(/kaydedildi|görüntüleyebilir|görebilir|ev sahibi/i);
+  it("🚨 kurucu kararı 10-11: acil devirde de misafire HİÇBİR metin gitmez (112 / acil servis yönergesi kalktı)", () => {
+    expect(escalationReply({ critical: true })).toBeNull();
   });
 
   it("🚨 acil metin de AYNI sözleşmeye tabi: makbuzsuz iddia yok, ünlem yok, kurumsal dil yok", () => {

@@ -4,7 +4,7 @@ import { suggestReply } from "@/lib/ai";
 import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
-import { hazardDecisionFor, hazardEvidenceOf, safetyLineFor } from "@/lib/ai/hazard-evidence";
+import { hasEmergencyCallDirective, hazardDecisionFor, hazardEvidenceOf } from "@/lib/ai/hazard-evidence";
 import { confidentLanguage } from "@/lib/ai/language-signal";
 import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
@@ -18,6 +18,7 @@ import {
   buildGuestChatContextWindow,
   GUEST_CHAT_MESSAGE_WINDOW,
   qrReplyHasDoorCode,
+  redactDoorCodes,
   type GuestChatContext,
   type GuestChatDb,
 } from "@/lib/guest-chat";
@@ -81,6 +82,9 @@ const MAX_MESSAGE = 2000;
 const STAY_MESSAGES_PER_HOUR = 40;
 
 /** Çıktıda kapı kodu görülen ilk taslaktan sonra modele giden SABİT not (kod yazılı, misafir metni / değer taşımaz). */
+/** Çıktıda acil arama yönergesi görülen ilk taslaktan sonra modele giden SABİT not (kurucu kararı 10-11). */
+const QR_EMERGENCY_DIRECTIVE_RETRY_NOTE =
+  "Önceki taslağın misafiri 112'yi / polisi / ambulansı / acil servisi aramaya yönlendiriyordu. Bu kanalda böyle bir yönerge ASLA yazılmaz. Yönerge cümlesi kurmadan yeniden cevap ver.";
 const QR_DOOR_CODE_RETRY_NOTE =
   "Önceki taslağın bir kapı / bina / anahtar kutusu / tuş paneli kodu içeriyordu. Bu QR kanalında böyle bir kod ASLA yazılmaz (geçmiş mesajlarda görünse bile). Kodu yazmadan yeniden cevap ver; misafir kodu ev sahibinin doğrudan mesaj kanalından alır.";
 const STAY_MESSAGE_CAP_TEXT = "Şu anda çok fazla mesaj aldık. Ev sahibiniz bilgilendirildi; kısa süre sonra tekrar yazabilirsiniz.";
@@ -97,10 +101,10 @@ const DAILY_AI_CAP_FALLBACK = 200;
 // so this reply is a courtesy field, not what renders.
 // ⚠️ "işletme ekibine … ekip" KURUMSAL DİLDİ (denetim 08-08). Ürünü kullanan tek
 // bir EV SAHİBİDİR (prompts.ts KURAL-4 aynı gerekçeyle "yöneticimiz/operatörümüz"ü
-// yasaklıyor) ve 20 satır aşağıdaki kardeş metin `escalationReply()` zaten
+// yasaklıyor) ve o tarihteki kardeş devir metni (kaldırılan `escalationReply()`) zaten
 // "ev sahibiniz" diyor — yani misafir, aynı sohbette iki farklı muhatap adı
 // duyuyordu. Söz içeriği DEĞİŞMEDİ: mesaj kaydedildi, host sohbet ekranından görür.
-// 🚨 YALNIZ GARANTİ EDİLEN SÖYLENİR (inceleme 09-10) — `escalationReply()` ile AYNI sözleşme.
+// 🚨 YALNIZ GARANTİ EDİLEN SÖYLENİR (inceleme 09-10) — devir metinleriyle AYNI sözleşme.
 // Eski metin: "Mesajınız ev sahibinize İLETİLDİ; sohbet ekranından size DÖNECEK." İki iddia da
 // doğrulanamıyordu: (a) "iletildi" — mesaj KAYDEDİLİR, host'a e-posta bayrağa/dedupe'a/cooldown'a
 // bağlıdır ve bu metin e-postadan ÖNCE yazılır; (b) "size dönecek" — host adına verilmiş bir SÖZ,
@@ -111,12 +115,8 @@ const DAILY_AI_CAP_FALLBACK = 200;
 // düzeltilen şey CANLI kusur değil, sözleşmeyi delen LATENT iddiadır (test-pinli).
 // K10 (kurucu kararı 09-30): devir metni misafire GİTMEZ — ev sahibi devraldığında yanıt yalnız `handoff: true` taşır (metin yok).
 
-// ESKALASYON CEVABI — gövde `src/lib/guest-chat.ts` `escalationReply()`.
-// Söz gerçeğe uygun olmak zorunda (denetim 08-01 + Codex 09-08): metin YALNIZ
-// garanti edileni söyler (mesaj kaydedildi, ev sahibi sohbet ekranından görür);
-// gerçekleşmesi garanti olmayan e-posta aktarımı ("ilettim") iddia EDİLMEZ.
-// Route dosyasından yardımcı export edilemez (Next.js "not a valid Route export
-// field") — bu yüzden kütüphanede durur ve testler oradan okur.
+// ESKALASYON CEVABI: devirde misafire HİÇBİR metin gitmez (K10 09-30 + kurucu kararı 10-11 — fiziksel acildeki 112 satırı da
+// kalktı). Ev sahibi QR sohbetleri panelinde "Ev sahibine iletildi" işaretini ve uyarıyı görür.
 
 const notFound = () => new Response("Not found", { status: 404 });
 
@@ -528,40 +528,6 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     return out;
   };
 
-  // ── KONAKLAMA BAŞINA SAATTE 40 MESAJ (↑`STAY_MESSAGES_PER_HOUR`) ── bağlı cihazdan gelen HER mesaj sayılır (devir / kapanış dahil:
-  // tavanın amacı sınırsız kayıt + çağrıyı kesmek). İstek kimliği sahiplenmesinden ÖNCE: tavandaki mesaj hiçbir iz bırakmaz, misafirin
-  // sonraki denemesi normal işlenir. 429 + metin: istemci gönderilmemiş balonu geri alır, yazılan metni geri koyar ve metni gösterir.
-  const stayLimit = await rateLimit(`guestchat-stay:${res.id}`, STAY_MESSAGES_PER_HOUR, 60 * 60_000);
-  if (!stayLimit.ok) {
-    // Ev sahibine saatte TEK kayıt (aynı pencerede ikinci aşım hiçbir şey yazmaz).
-    const firstOverflow = await rateLimit(`guestchat-stay-capnote:${res.id}`, 1, 60 * 60_000);
-    if (firstOverflow.ok) {
-      const capEventId = `stay-cap:${res.id}:${Math.floor(Date.now() / 3_600_000)}`;
-      const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
-      await prisma.conversation.update({ where: { id: conversationId }, data: { priority: "urgent" } });
-      await recordRiskEvent({
-        organizationId: ctx.property.organizationId,
-        propertyId: ctx.property.id,
-        conversationId,
-        surface: "guest_chat",
-        triggerId: capEventId,
-        finalDecision: "human_review",
-        reason: "stay_message_cap",
-      });
-      await sendQrEscalationAlertBounded({
-        organizationId: ctx.property.organizationId,
-        propertyName: ctx.property.name,
-        reservationId: res.id,
-        eventId: capEventId,
-        reason: "stay_message_cap",
-        critical: false,
-      });
-    }
-    const capped = tooManyRequests(stayLimit.retryAfter, STAY_MESSAGE_CAP_TEXT);
-    // Cihaz bu istekte bağlandıysa çerez YİNE kurulur (yoksa misafir bir sonraki mesajda "başka cihazda" görürdü).
-    if (binding.status === "bound") setStayCookie(capped, cookieName, binding.secret, res.departureDate);
-    return capped;
-  }
 
   // ── Idempotency claim (Codex 07-24 #2 + r2, claim-then-process): if the
   // server recorded the exchange but the RESPONSE was lost, the client restores
@@ -598,6 +564,48 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       );
     }
   }
+  // ── KONAKLAMA BAŞINA SAATTE 40 MESAJ (↑`STAY_MESSAGES_PER_HOUR`) ── bağlı cihazdan gelen her YENİ mesaj sayılır (devir / kapanış dahil:
+  // tavanın amacı sınırsız kayıt + çağrıyı kesmek). İstek kimliği sahiplenmesinden SONRA (Haiku incelemesi 10-11): yanıtı kaybolmuş bir
+  // mesajın tekrar denemesi yukarıda "duplicate" döner, sayılmaz. Tavanda sahiplenme BIRAKILIR (mesaj hiç işlenmedi; misafirin sonraki
+  // denemesi normal işlenir). 429 + metin: istemci gönderilmemiş balonu geri alır, yazılan metni geri koyar ve metni gösterir.
+  const stayLimit = await rateLimit(`guestchat-stay:${res.id}`, STAY_MESSAGES_PER_HOUR, 60 * 60_000);
+  if (!stayLimit.ok) {
+    if (claimScopeId) await releaseKeyedOutboundSend(claimScopeId);
+    // Ev sahibine saatte TEK kayıt (aynı pencerede ikinci aşım hiçbir şey yazmaz). Kayıt yazılamazsa misafirin cevabı yine döner;
+    // hata raporlanır (genel 500 yerine onaylı metin).
+    try {
+      const firstOverflow = await rateLimit(`guestchat-stay-capnote:${res.id}`, 1, 60 * 60_000);
+      if (firstOverflow.ok) {
+        const capEventId = `stay-cap:${res.id}:${Math.floor(Date.now() / 3_600_000)}`;
+        const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
+        await prisma.conversation.update({ where: { id: conversationId }, data: { priority: "urgent" } });
+        await recordRiskEvent({
+          organizationId: ctx.property.organizationId,
+          propertyId: ctx.property.id,
+          conversationId,
+          surface: "guest_chat",
+          triggerId: capEventId,
+          finalDecision: "human_review",
+          reason: "stay_message_cap",
+        });
+        await sendQrEscalationAlertBounded({
+          organizationId: ctx.property.organizationId,
+          propertyName: ctx.property.name,
+          reservationId: res.id,
+          eventId: capEventId,
+          reason: "stay_message_cap",
+          critical: false,
+        });
+      }
+    } catch (err) {
+      void reportError(`qr-stay-cap-notice org=${ctx.property.organizationId}`, err);
+    }
+    const capped = tooManyRequests(stayLimit.retryAfter, STAY_MESSAGE_CAP_TEXT);
+    // Cihaz bu istekte bağlandıysa çerez YİNE kurulur (yoksa misafir bir sonraki mesajda "başka cihazda" görürdü).
+    if (binding.status === "bound") setStayCookie(capped, cookieName, binding.secret, res.departureDate);
+    return capped;
+  }
+
   // Everything below funnels its persistence through record(): on a failure
   // BEFORE anything was recorded the claim is released (catch at the bottom),
   // so a claim never guards zero work — the guest's retry is processed, not
@@ -694,17 +702,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // ölçütü kullanmak İKİ kusur üretiyordu — öz-zarar mesajına "acil servisleri
   // arayın" göndermek (ürünün kendi istem kuralına aykırı) ve "İnternet düştü"
   // gibi cümlelerde acil talimatı basmak. Metin DAR yükleme bağlanır.
-  // 🚨 55 + 51 (kurucu onayı 10-02 akşam, `ai/hazard-evidence.ts`): güvenlik satırı artık BAĞLAMLA seçilir (eski `isPhysicalEmergency`
-  // yalnız TR/EN sözcük kalıbıydı; "yangın yok" da satır alıyordu, Almanca / Fransızca yangın hiç almıyordu). Satır misafirin dilinde
-  // (kodun kesin tespiti; yoksa modelin bildirdiği dil; yoksa Türkçe). Model çağrısı OLMAYAN dallarda (tavan / bütçe) OLASI tehlike de
-  // satır alır — değerlendirecek model yok, güvenli taraf; yalnız ANILAN tehlike (olumsuz / geçmiş / varsayım) almaz.
+  // 🚨 TEHLİKEDE MİSAFİRE HİÇBİR ŞEY GİTMEZ (kurucu kararı 10-11: "112'yi arayın yazmasın … yönlendirme olmayacak hiçbir şekilde").
+  // 55 + 51'in (10-02) koddan giden "Tehlike varsa hemen 112'yi arayın." satırı KALKTI: tehlike bağlamla tanınır (`ai/hazard-evidence.ts`),
+  // misafirin mesajı kaydedilir, ev sahibine ACİL uyarı gider, misafire cevap gitmez (devir cümlesi yasağıyla — K10 — aynı).
   const hazard = hazardEvidenceOf(message);
   const lineLanguage = confidentLanguage(message);
-  const noModelSafetyLine = hazard.level === "clear" || hazard.level === "possible" ? safetyLineFor(lineLanguage) : null;
-  // AÇIK tehlike: modeli BEKLEMEDEN güvenlik satırı + devir (kurucu: "Gerçek tehlikede model yanıtını beklemeden koddan güvenlik satırı
-  // gösterilsin"). Ücretli çağrı yapılmaz, AI kotası tüketilmez; ev sahibine kritik uyarı (bekleme süresini aşar).
+  // AÇIK tehlike: modeli BEKLEMEDEN devir. Ücretli çağrı yapılmaz, AI kotası tüketilmez; ev sahibine kritik uyarı (bekleme süresini aşar).
   if (hazard.level === "clear") {
-    const reply = safetyLineFor(lineLanguage);
+    const reply = null;
     const fast = await record(reply, true);
     if (fast.handedOff) return finalize({ handoff: true });
     await recordRiskEvent({
@@ -735,7 +740,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     DAILY_AI_CAP_FALLBACK;
 
   if (usage.count > dailyAiCap) {
-    const reply = noModelSafetyLine;
+    const reply = null;
     const { inboundMessageId, handedOff } = await record(reply, true);
     // A host reply raced in → the human owns the thread; the canned line was
     // vetoed under the lock and only the guest's message was stored.
@@ -779,7 +784,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // güvenlik lehine seçildi; cron için tersi doğrudur.
   const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
   if (!budget.ok) {
-    const escalationText = noModelSafetyLine;
+    const escalationText = null;
     const { inboundMessageId, handedOff } = await record(escalationText, true);
     if (handedOff) return finalize({ handoff: true });
     await sendQrEscalationAlertBounded({
@@ -813,7 +818,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Sohbet bu turda yazılmadan önce okunur → misafirin ŞU ANKİ mesajı geçmişte
   // TEKRARLANMAZ (yapısal garanti, ayrıca test-pinli).
   const priorConversationId = await ensureGuestChatConversation(ctx.property.id, res);
-  const { history, openTopics, hasPriorOperatorReply } = await buildGuestChatContextWindow(priorConversationId);
+  const contextWindow = await buildGuestChatContextWindow(priorConversationId);
+  const { openTopics, hasPriorOperatorReply } = contextWindow;
+  // GEÇMİŞTEKİ KAPI KODU MODELE GİTMEZ (kurucu kararı 10-11): ev sahibinin / yapay zekânın yazdığı satırlarda kapı / kutu / giriş kodunun
+  // DEĞERİ "(kod gizlendi)" olur — model görmediği kodu yazamaz. Kapı, injection taraması ve model AYNI diziyi görür (↓tek `history`).
+  const history = contextWindow.history.map((h) => (h.direction === "outbound" ? { ...h, body: redactDoorCodes(h.body) } : h));
   // Konuşma Anlama Durumu v1 dilim B (bayraklı; kapalıyken sorgu yok). Metin/PII taşımaz: yalnız sayılar ve kapalı-küme
   // konu/durum kodları — anonim yüzeye güvenli.
   const conversationRecords = await loadConversationStateForConversation({
@@ -892,15 +901,24 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // dönsün … sonra tekrar response üretilse olmaz mı, ev sahibine devir çok olmasın"). Bilgi tabanı kapı kodu taşımaz ama ev sahibinin
   // QR'a elle yazdığı kod GEÇMİŞTEN modele ulaşabilir. Kodlu taslak hiçbir yere yazılmaz; model kuralı not olarak alıp bir kez daha
   // yazar (gerçek ikinci çağrı → QR kotasından bir birim daha). İkinci taslak da kod taşıyorsa ya da kota yoksa cevap gitmez, devir.
+  // Aynı yol ACİL ARAMA YÖNERGESİ için de (kurucu kararı 10-11: "112'yi arayın yazmasın"): yönergeli taslak bir kez yeniden yazdırılır;
+  // ikincisi de yönergeliyse kapı (`emergency_directive`) devreder.
   const modelKbTexts = kbSel.items.map((i) => `${i.title}\n${i.content}`);
+  const firstDoorCode = Boolean(result.reply) && qrReplyHasDoorCode(result.reply, modelKbTexts);
+  const firstDirective = hasEmergencyCallDirective(result.reply);
   let doorCodeHeld = false;
-  if (result.reply && qrReplyHasDoorCode(result.reply, modelKbTexts)) {
+  if (firstDoorCode || firstDirective) {
     const retryBudget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
     if (retryBudget.ok) {
-      result = await suggestReply({ ...replyInput, knowledgeBaseNotes: [...(kbSel.notes ?? []), QR_DOOR_CODE_RETRY_NOTE] });
+      const notes = [
+        ...(kbSel.notes ?? []),
+        ...(firstDoorCode ? [QR_DOOR_CODE_RETRY_NOTE] : []),
+        ...(firstDirective ? [QR_EMERGENCY_DIRECTIVE_RETRY_NOTE] : []),
+      ];
+      result = await suggestReply({ ...replyInput, knowledgeBaseNotes: notes });
       doorCodeHeld = Boolean(result.reply) && qrReplyHasDoorCode(result.reply, modelKbTexts);
     } else {
-      doorCodeHeld = true;
+      doorCodeHeld = firstDoorCode; // yönerge kotasız da gitmez: kapı `emergency_directive` ile devreder
     }
   }
 
@@ -1089,13 +1107,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // answer (handedOff below). The guest's message is still recorded for the host.
   // 🚨 ACİL ≠ SIRADAN İSTEK (kurucu, 09-11). `criticalEvent` yukarıda (alarm
   // dedupe'ı için) ZATEN hesaplandı — yeni dedektör, yeni çağrı, yeni maliyet yok.
-  // Devirde misafire YALNIZ fiziksel tehlike güvenlik satırı gider (K10); karar bağlamla (`hazardDecision.emergency`), dil kodun tespiti →
-  // modelin bildirdiği dil → Türkçe.
-  const reply = escalate
-    ? hazardDecision.emergency
-      ? safetyLineFor(lineLanguage ?? understood?.language ?? result.detectedLanguage ?? null)
-      : null
-    : finalResult.reply;
+  // Devirde misafire HİÇBİR ŞEY gitmez (K10 + kurucu kararı 10-11: tehlikede de 112 / acil servis satırı YOK); ev sahibi uyarılır.
+  const reply = escalate ? null : finalResult.reply;
   const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
   if (handedOff) return finalize({ handoff: true });
   // İZLENEBİLİRLİK (kurucu AI kalite turu, 09-08): KARARIN GEREKÇESİ kaydedilir —

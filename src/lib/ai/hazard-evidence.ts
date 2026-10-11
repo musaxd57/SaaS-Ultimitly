@@ -651,22 +651,9 @@ function negatedSignal(clause: string): boolean {
   return false;
 }
 
-// ─── 55: güvenlik satırı misafirin dilinde (kurucu onayı 10-02 akşam; satırlar Sabah Kararları 55 önerisindeki metinler) ───────
-export const SAFETY_LINES = {
-  tr: "Tehlike varsa hemen 112'yi arayın.",
-  en: "If there is danger, call 112 immediately.",
-  de: "Bei Gefahr rufen Sie sofort die 112 an.",
-  fr: "En cas de danger, appelez immédiatement le 112.",
-  es: "Si hay peligro, llame de inmediato al 112.",
-  ru: "При опасности немедленно звоните 112.",
-  ar: "إذا كان هناك خطر، اتصل فوراً بالرقم 112.",
-} as const;
-export type SafetyLineLanguage = keyof typeof SAFETY_LINES;
-
-/** Satırın dili: kodun kesin tespiti, yoksa modelin bildirdiği dil (desteklenen yedi dilden), yoksa Türkçe. */
-export function safetyLineFor(language: string | null | undefined): string {
-  return language && Object.hasOwn(SAFETY_LINES, language) ? SAFETY_LINES[language as SafetyLineLanguage] : SAFETY_LINES.tr;
-}
+// ─── 55 (10-02) GERİ ALINDI — kurucu kararı 10-11: "112'yi arayın yazmasın, yönlendirme olmayacak hiçbir şekilde". Misafirin dilindeki
+// güvenlik satırları (SAFETY_LINES / safetyLineFor) kaldırıldı; tehlike yalnız bağlamla TANINIR (devir + ev sahibine acil uyarı), misafire
+// koddan hiçbir yönerge gitmez. ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 // ─── 51: bağlamla kaldırılan alarmda KAYNAKSIZ güvence verilmez ("normaldir, güvenlidir") ────────────────────────────────
 const REASSURANCE = rx([
@@ -683,6 +670,24 @@ const REASSURANCE = rx([
 export function hasSafetyReassurance(reply: string | null | undefined): boolean {
   if (typeof reply !== "string" || reply.trim() === "") return false;
   return REASSURANCE.test(foldTurkishAscii(reply.replace(/\s+/g, " ")));
+}
+
+// ─── ACİL ARAMA YÖNERGESİ (kurucu kararı 10-11: "112'yi arayın yazmasın … hiçbir şekilde") ─────────────────────────────────────────
+// Misafire giden cevapta "112'yi / polisi / ambulansı / acil servisi arayın" yönergesi. Yalnız numara ("Ambulans: 112") yönerge DEĞİL
+// (kurucu: "sorulursa numarasını verebilir"); "ev sahibinizi arayın" acil servis değil. Numara ya da acil servis adı ile arama fiili
+// aynı cümlede (≤40 karakter, her iki sıra). Pencereler sınırlı → doğrusal.
+const EMERGENCY_NUMBER = `${NL}(?:112|155|156|110|177|911|999|117|118|119|190)${NR}`;
+const EMERGENCY_SERVICE = `${NL}(?:acil\\s+servis${LB}|acil\\s+yardim${LB}|ambulans${LB}|polis${LB}|itfaiye${LB}|jandarma${LB}|emergency(?:\\s+services?)?|ambulance|police|fire\\s+(?:department|brigade|service)|notruf${LB}|polizei|feuerwehr|rettungsdienst|pompiers|urgences|samu|emergencias|policia|bomberos|скор\\p{L}{0,8}|полици\\p{L}{0,8}|пожарн\\p{L}{0,8}|экстренн\\p{L}{0,8}|الإسعاف|الشرطة|الطوارئ)`;
+const CALL_VERB = `${NL}(?:aray${LB}|araman${LB}|ulas(?:in|iniz|abilir${LB})|basvur${LB}|call|dial|contact|ring|rufen|anrufen|wahlen|appelez|appeler|composez|llam\\p{L}{0,4}|marque|звон\\p{L}{0,6}|позвон\\p{L}{0,6}|اتصل\\p{L}{0,4})${NR}`;
+const EMERGENCY_DIRECTIVE = rx([
+  `(?:${EMERGENCY_NUMBER}|${EMERGENCY_SERVICE})[^.!?\\n]{0,40}?${CALL_VERB}`,
+  `${CALL_VERB}[^.!?\\n]{0,40}?(?:${EMERGENCY_NUMBER}|${EMERGENCY_SERVICE})`,
+]);
+
+/** Cevap misafiri acil numarayı / acil servisi ARAMAYA yönlendiriyor mu (katlanmış biçimde)? */
+export function hasEmergencyCallDirective(reply: string | null | undefined): boolean {
+  if (typeof reply !== "string" || reply.trim() === "") return false;
+  return EMERGENCY_DIRECTIVE.test(foldTurkishAscii(reply.replace(/\s+/g, " ")));
 }
 
 /**

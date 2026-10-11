@@ -192,9 +192,11 @@ describe("günlük org AI bütçesi", () => {
     // konuşma başına `previewBudget` ile tüketir; rota yalnız BAKAR. Muafiyet bu bağlantı kaynakta gerçekten varken geçerlidir.
     const automationSrc = readFileSync(`${root}/lib/automation.ts`, "utf8");
     const previewBody = automationSrc.slice(automationSrc.indexOf("export async function previewChannelAutoReplies"));
+    // Önizleme canlı oto-yanıtla AYNI sayımı kullanır: model çağrısından önce bakılır, model cevap verince düşülür.
     const perCallInside =
       /previewBudget: true/.test(previewBody.slice(0, previewBody.indexOf("\n}\n"))) &&
-      /else if \(options\.previewBudget\) \{[\s\S]{0,300}?consumeDailyAiBudget\(/.test(automationSrc);
+      /else if \(options\.previewBudget\) \{[\s\S]{0,300}?peekDailyAiBudget\(/.test(automationSrc) &&
+      /\(!options\.dryRun \|\| options\.previewBudget\) && \(result\.source === "openai" \|\| result\.llmUsage\)\) \{\s*await consumeDailyAiBudget\(/.test(automationSrc);
     expect(perCallInside, "önizleme konuşma başına bütçe bağlantısı kayboldu").toBe(true);
     const missing = spenderRoutes
       .map((f) => f.slice(apiRoot.length + 1))

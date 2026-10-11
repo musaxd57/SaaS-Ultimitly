@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { qrReplyHasDoorCode, withoutQrSecretKbItems } from "@/lib/guest-chat";
+import { qrReplyHasDoorCode, redactDoorCodes, REDACTED_DOOR_CODE, withoutQrSecretKbItems } from "@/lib/guest-chat";
 import { qrPropertyCeiling } from "@/lib/ai/daily-budget";
 
 // ---------------------------------------------------------------------------
@@ -44,9 +44,28 @@ describe("qrReplyHasDoorCode — sızıntı OLMAYANLAR (cevap gitmeli, devir ço
   ];
   for (const reply of clean) it(`KONTROL: ${JSON.stringify(reply)}`, () => expect(qrReplyHasDoorCode(reply, [])).toBe(false));
 
-  it("bilgi tabanında modele VERİLMİŞ sayı sızıntı sayılmaz (kapı süzgecinden geçmiş metin); verilmemiş kod yine yakalanır", () => {
+  it("bilgi tabanında modele VERİLMİŞ sayı BAĞLAMSIZ kalıpta sızıntı sayılmaz; verilmemiş kod yine yakalanır", () => {
     expect(qrReplyHasDoorCode("Daire kodu 4590 olan kat 3'tedir.", ["Daire 4590, 3. kat."])).toBe(false);
     expect(qrReplyHasDoorCode("Kapı kodunuz 4590.", ["Daire 7, 3. kat."])).toBe(true);
+  });
+
+  it("🚨 KAPI BAĞLAMLI kalıpta bilgi tabanı muafiyeti YOK (kapı kodu Wi-Fi şifresiyle aynı rakamlar olabilir — Haiku 10-11)", () => {
+    expect(qrReplyHasDoorCode("Kapı kodunuz 4590.", ["Daire 4590, 3. kat."])).toBe(true);
+    expect(qrReplyHasDoorCode("Girişteki tuş paneline 4590 yazın.", ["Ağ LaleNet, şifre 4590"])).toBe(true);
+  });
+
+  it("🚨 Wi-Fi'ye bağlanmayan 'şifre + hane' sızıntıdır; Wi-Fi cümlesindeki değil", () => {
+    expect(qrReplyHasDoorCode("Bina şifresi 4590.", [])).toBe(true);
+    expect(qrReplyHasDoorCode("Çöp odasının şifresi: 7788", [])).toBe(true);
+    expect(qrReplyHasDoorCode("Wi-Fi şifresi 45901234.", [])).toBe(false);
+    expect(qrReplyHasDoorCode("Ağ adı LaleNet, şifre 45901234.", [])).toBe(false);
+  });
+
+  it("🚨 ayraçlı yazım ('4 5 9 0') da yakalanır; yıl eki / fiyat yanlış tutuş üretmez (devir çok olmasın)", () => {
+    expect(qrReplyHasDoorCode("Kapı kodu 4 5 9 0.", [])).toBe(true);
+    expect(qrReplyHasDoorCode("Kapı kodu 4-5-9-0.", [])).toBe(true);
+    expect(qrReplyHasDoorCode("Giriş kapısı 2019'da yenilendi.", [])).toBe(false);
+    expect(qrReplyHasDoorCode("Kapı 1500 TL.", [])).toBe(false);
   });
 
   it("🚨 süre pini: 50.000 karakterlik kötü niyetli dizi doğrusal kalır (24k üstü fail-closed)", () => {
@@ -83,6 +102,25 @@ describe("withoutQrSecretKbItems — Wi-Fi kalemi girer, kapı izi girmez", () =
     }
   });
 
+  it("🚨 Wi-Fi kalemindeki HER şifre değeri bir Wi-Fi adına bağlı olmalı (aynı cümle, önceki değerden sonra) — Haiku 10-11", () => {
+    for (const content of [
+      "Wi-Fi: LaleNet, şifre gunes1907. Bina şifresi: 4590",
+      "Wi-Fi: gunes1907. Çöp odası şifresi 4590",
+      "Wi-Fi: LaleNet, şifre gunes1907, depo şifresi 4590",
+      "Wi-Fi şifresi gunes1907. Şifre: 4590",
+    ]) {
+      expect(withoutQrSecretKbItems([kb("wifi", content)]), content).toEqual([]);
+    }
+    for (const content of [
+      "Ağ adı: LaleNet\nŞifre: gunes1907",
+      "Wi-Fi şifresi: gunes1907 (şifre büyük-küçük harfe duyarlıdır)",
+      "Wi-Fi 1: LaleNet şifre gunes1907. Wi-Fi 2: LaleNet5G şifre deniz2024",
+      "Network: LaleHome / password: sunny2024",
+    ]) {
+      expect(withoutQrSecretKbItems([kb("wifi", content)]), content).toHaveLength(1);
+    }
+  });
+
   it("KONTROL: `wifi` DIŞINDAKİ kategoride Wi-Fi şifresi bugünkü gibi düşer (kategori olmadan kapı kodundan güvenle ayrılamaz)", () => {
     expect(withoutQrSecretKbItems([kb("general", "Wi-Fi şifresi: gunes1907"), kb("faq", "Çöp salı günü.")]).map((i) => i.category)).toEqual(["faq"]);
   });
@@ -98,5 +136,16 @@ describe("qrPropertyCeiling — daire alt kotası (kurucu kararı 10-11)", () =>
     expect(qrPropertyCeiling(10, 5)).toBe(4);
     expect(qrPropertyCeiling(1, 50)).toBe(1);
     expect(qrPropertyCeiling(45, 0)).toBe(45);
+  });
+});
+
+describe("redactDoorCodes — geçmişte kapı kodu modele gitmez (kurucu kararı 10-11)", () => {
+  it("🚨 kapı kodunun DEĞERİ gizlenir, mesajın geri kalanı (Wi-Fi dahil) aynı kalır", () => {
+    expect(redactDoorCodes("Kapı kodunuz 4590, Wi-Fi şifresi gunes1907.")).toBe(`Kapı kodunuz ${REDACTED_DOOR_CODE}, Wi-Fi şifresi gunes1907.`);
+    expect(redactDoorCodes("Tuş paneline 6142 yazıp girin.")).toBe(`Tuş paneline ${REDACTED_DOOR_CODE} yazıp girin.`);
+    expect(redactDoorCodes("Kapı kodu 4 5 9 0")).toBe(`Kapı kodu ${REDACTED_DOOR_CODE}`);
+  });
+  it("KONTROL: kod taşımayan metin değişmez", () => {
+    for (const t of ["Giriş saati 15:00.", "Kapıcı 0532 111 2233.", "Wi-Fi şifresi 12345678.", ""]) expect(redactDoorCodes(t)).toBe(t);
   });
 });

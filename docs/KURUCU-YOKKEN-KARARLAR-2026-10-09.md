@@ -108,3 +108,26 @@ Not: QR adresini (token) yenileme (F11) — "chatToken rotasyonu YOK (bilinçli)
 
 Not: QR canlı ölçüm geliştirme setindeki `qd-wifi-tr` beklentisi yeni kurala çevrildi (Wi-Fi şifresi verilmeli, kapı kodu verilmemeli). Kör kabul seti
 (`qr-live-acc1`) AÇILMADI — yeni kurala göre güncellenmesi sizin / ölçüm turunun işi.
+
+### Haiku incelemesi (10-11 sabah, 12 bulgu) ve kurucunun ek kararları
+
+| Bulgu | Hüküm | Uygulama |
+|---|---|---|
+| 1 (P1) Wi-Fi kaleminde "Bina / çöp odası şifresi 4590" geçiyordu | DOĞRU | Wi-Fi kalemindeki her şifre değeri aynı cümlede bir Wi-Fi adına bağlı olmalı (`wifiSecretsAttributed`); iz listesine bina / apartman / site / otopark / garaj / çöp odası / depo / asansör eklendi. |
+| 2 (P1) Önizleme sağlayıcı çökükken de birim yakıyordu (08-01 olayının dönüşü) | DOĞRU | Önizleme canlı oto-yanıtla AYNI sayım: önce bakılır, model gerçekten cevap verince düşülür. |
+| 3 / 11 Cevap taraması: geniş muafiyet, "4 5 9 0", yıl / fiyat yanlış tutuşu | DOĞRU (kısmen) | Kapı bağlamlı kalıplarda bilgi tabanı muafiyeti yok; ayraçlı rakam yakalanır; "2019'da" / "1500 TL" tetiklemez. "dört beş dokuz sıfır" ve "4590 3 numaralı kapı" biçimleri bilinen sınır (geçmiş artık gizlendiği için kaynağı kapandı). |
+| 4 Geçmişteki ev sahibi kodu modele gidiyordu | Kurucuya soruldu → "Evet, gizle" | Ev sahibi / yapay zekâ satırlarında kapı kodu değeri "(kod gizlendi)"; misafirin gördüğü geçmiş değişmez. |
+| 5 Acil e-posta sayacı başarısız gönderimde yanıyordu | DOĞRU | Yalnız GİDEN e-posta sayılır. Tavanda operatöre hata bildirimi eklenmedi (tavan bilinçli karar). |
+| 6 41. mesaj acilse | Kurucuya soruldu → kurucu 112 satırının kendisini kaldırdı | Tehlikede misafire hiçbir şey gitmez (aşağıda). Tavan istisnası gerekmedi: tavandaki misafir zaten metin görüyor, ev sahibi uyarılıyor. |
+| 7 Tavan tekrar denemeleri sayıyordu | DOĞRU | Tavan istek kimliği sahiplenmesinden SONRA; tavanda sahiplenme bırakılır. |
+| 8 Tavan bildirimi hata verirse genel 500 | DOĞRU | Bildirim yazımı try/catch; misafir onaylı metni yine alır, hata raporlanır. |
+| 9 "Her model çağrısı bir birim" yorumu yanlıştı | DOĞRU (yorum) | Sayım canlıyla aynı: modelin cevap yazdığı her konuşma bir AI işlemi; yorumlar düzeltildi. |
+| 10 KVKK dışa aktarma değişikliği "onaysız" | YANLIŞ | Kurucunun açık cevabı: "dışa aktarmaya gerek yok". |
+| 12 Küçükler | Kısmen | Eski yorumlar (kb-warm, kb-from-templates) düzeltildi; birim test veritabanına gitmiyor. Sahiplenme bırakmanın 5 dk saati silmesi ve alt kotanın reddedilen denemeyi sayması bilinçli bırakıldı (etkisiz). |
+
+**Kurucu (10-11):** "112'yi arayın yazmasın … yönlendirme olmayacak hiçbir şekilde; sadece sorulursa numarasını verebilir" → tehlikede misafire
+**hiçbir şey** gitmez (kurucu seçti), ev sahibine acil uyarı; istemdeki gaz örneği ve şikâyet katmanı satırı yönergesiz; modelin kendiliğinden
+yazdığı "112'yi / polisi / acil servisi arayın" QR'da bir kez yeniden yazdırılır, yine varsa devir (`emergency_directive`), kanalda çıktı vetosu.
+**Açık (öneri bekliyor):** "ambulans / polis numarası ne?" sorusunda resmî numaraların koddan beslenmesi + bağlam (hastaya numara ver, ev sahibini
+şikâyete gidiyorsa bırak) ve Luna 6.0'ın bu ayrımı ölçümü; bilgi tabanında olmayan yer önerisi (rakipler ne yapıyor). Öneri belgesi hazırlanıyor.
+

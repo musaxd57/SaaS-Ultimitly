@@ -446,7 +446,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   verilse tutar (`items_complaint_dependent`); cevaplanabilir istek yoksa cevap gitmez (`items_nothing_answered`, ikinci kemer).
   "Gürültüden uyuyamadık, yine olursa ne yapacağız?" → hiçbir şey gitmez; "… Wi-Fi ağı hangisi?" → yalnız Wi-Fi. Önceki turun şikâyeti
   bağlamaz (K8). Kök neden istem katmanları `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` KAPALI (anlama: şikâyete bağlı yardım sorusu ayrı
-  istek değil; cevap: şikâyetçiye kural hatırlatma yok, 112 yalnız gerçek can güvenliği). 🚨 10-01 sabah (kurucu kararı, Sabah Kararları
+  istek değil; cevap: şikâyetçiye kural hatırlatma yok; 112 / acil servis arama yönergesi 10-11'den beri HİÇ — kurucu kararı). 🚨 10-01 sabah (kurucu kararı, Sabah Kararları
   17 + 18 "a"; `conversation-items/relation.ts`): öğe kipi + bu anahtar BİRLİKTE açıkken liste karar VERMEZ — önce anlam ilişkisi: anlama
   katmanı istek başına `relation` (own_topic / fix_request / follow_up / unclear; eksik = unclear = TUT), bağlayıcı talepler şikâyet + iade /
   iptal + ev sahibi talebi; kod koruması yalnız sıkılaştırır ("kendi konusu" denen istek talebin konu kavramını paylaşıyorsa / konusuzsa /

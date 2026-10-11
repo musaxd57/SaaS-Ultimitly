@@ -322,7 +322,7 @@ const PASSWORD_LABEL = /(şifre|sifre|parola|password|passcode|passwort|kennwort
 const WIFI_CONVERSATIONAL =
   /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w{0,24}[^.\n]{0,40}(["'«][^"'»\n]{2,64}["'»]|[A-Za-z0-9!@#._-]{0,64}\d[A-Za-z0-9!@#._-]{3,64})/i;
 // door / keybox / entry / lock + code word (TR suffixes ok) — ↓SECRET_PATTERNS'in ilk kalıbı (gerekçesi orada); çıktı taraması değer
-// şartlı biçimini kurar (`DOOR_CODE_IN_REPLY`).
+// şartlı biçimini kurar (`DOOR_CONTEXT_IN_REPLY`).
 const DOOR_CODE_WORD =
 /(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|door|lock|entry|gate)\w{0,24}[\s:]{0,3}\w{0,6}[\s:]{0,3}(?<![a-z0-9])(kod|şifre|sifre|parola|code|pin|kombinasyon|combination|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)/i;
 const NON_DOOR_PATTERNS: ReadonlySet<RegExp> = new Set([CODE_WORD_VALUE, WIFI_PASSWORD_WORD, PASSWORD_LABEL, WIFI_CONVERSATIONAL]);
@@ -445,19 +445,47 @@ const DOOR_SECRET_PATTERNS: readonly RegExp[] = SECRET_PATTERNS.filter((re) => !
 
 /**
  * QR Wi-Fi istisnasında (↑dosya başı) `wifi` kalemini DÜŞÜREN kapı / kilit / giriş izi — DEĞER aranmaz, sözcük yeter (ASCII katlanmış
- * metinde, sözcük başında): Wi-Fi kalemi kapıyı, kutuyu, kilidi, paneli, kodu ya da PIN'i hiç anmamalı. Fazla eleme GÜVENLİ yöndür
- * (o daire QR'da Wi-Fi veremez, misafir ev sahibine yönlendirilir); kapı kodu sızması yön değildir. "Wi-Fi kodu" / "internet kodu"
- * kapı izi SAYILMAZ (Türkçede Wi-Fi şifresinin gündelik adı).
+ * metinde, sözcük başında): Wi-Fi kalemi kapıyı, kutuyu, kilidi, paneli, binayı / otoparkı, PIN'i hiç anmamalı. Fazla eleme GÜVENLİ
+ * yöndür (o daire QR'da Wi-Fi veremez, misafir ev sahibine yönlendirilir); kapı kodu sızması yön değildir. Liste tek başına yetmez
+ * (her kilitli yerin adı yazılamaz) → ↓`wifiSecretsAttributed` her şifre / kod DEĞERİNİ bir Wi-Fi adına bağlar (Haiku incelemesi 10-11:
+ * "Wi-Fi: …, şifre gunes1907. Bina şifresi: 4590" kalemi geçiyordu).
  */
 const QR_WIFI_ITEM_DOOR_TRACE =
-  /(?<![a-z0-9])(?:kapi|anahtar|kilit|kasa(?!ba)|kutu|key\s*(?:box|safe|pad)|lock|door|gate|entrance|panel|tus|interkom|intercom|domofon|digicode|alarm|pin(?![a-z])|(?<!(?:wi-?fi|wifi|wlan|internet|kablosuz)\s{0,2})(?:kod|code|passcode))/;
+  /(?<![a-z0-9])(?:kapi|anahtar|kilit|kasa(?!ba)|kutu|key\s*(?:box|safe|pad)|lock|door|gate|entrance|panel|tus|interkom|intercom|domofon|digicode|alarm|bina|apartman|site|otopark|garaj|garage|parking|cop\s+oda|depo|asansor|lobby|building|storage|pin(?![a-z]))/;
 
-/** `wifi` kategorisindeki kalem QR bağlamına girebilir mi: kapı kalıbı YOK ve kapı / kilit izi YOK (↑). Sınırı aşan metin girmez. */
+/** Şifre / kod sözcüğü + DEĞER (ASCII katlanmış): iki nokta ardında ≥3 karakter ya da rakam taşıyan sözcük. */
+const SECRET_WORD_WITH_VALUE =
+  /(?<![a-z0-9])(?:sifre|parola|password|passcode|passwort|kennwort|kod|code|key)[a-z]{0,8}(?:\s*[:=]\s*\S{3,}|\s+\S*\d\S*)/g;
+/** Wi-Fi adı (ASCII katlanmış): "Wi-Fi", "internet", "ağ adı", "network", "modem"… */
+const WIFI_NOUN = /(?<![a-z0-9])(?:wi-?fi|wlan|internet|kablosuz|ssid|network|modem|router|ag(?:\s+adi|\s+ismi|imiz|in|a)?(?![a-z]))/;
+/** Cümle sınırı: ardında boşluk / satır sonu gelen nokta, ünlem, soru işareti, noktalı virgül ("Lale.Home" sınır DEĞİL). */
+const SENTENCE_BREAK = /[.!?;](?=\s|$)/g;
+
+/**
+ * Her şifre / kod DEĞERİ bir Wi-Fi adına bağlı mı: değerden geriye, AYNI cümlede ve bir önceki değerden SONRA bir Wi-Fi adı geçmeli.
+ * "Ağ adı: LaleNet\nŞifre: gunes1907" ✓ · "Wi-Fi şifresi gunes1907. Bina şifresi 4590" ✗ (ikinci değerin cümlesinde Wi-Fi yok) ·
+ * "Wi-Fi: LaleNet, şifre gunes1907, çöp odası şifresi 4590" ✗ (ikinci değer ile bir öncekinin arasında Wi-Fi adı yok). Doğrusal.
+ */
+function wifiSecretsAttributed(folded: string): boolean {
+  const breaks = [...folded.matchAll(SENTENCE_BREAK)].map((m) => m.index + 1);
+  let b = 0;
+  let lastBreak = 0;
+  let prevEnd = 0;
+  for (const m of folded.matchAll(SECRET_WORD_WITH_VALUE)) {
+    while (b < breaks.length && breaks[b] <= m.index) lastBreak = breaks[b++];
+    if (!WIFI_NOUN.test(folded.slice(Math.max(prevEnd, lastBreak), m.index))) return false;
+    prevEnd = m.index + m[0].length;
+  }
+  return true;
+}
+
+/** `wifi` kategorisindeki kalem QR bağlamına girebilir mi: kapı kalıbı YOK, kapı / kilit izi YOK, her şifre değeri Wi-Fi'ye bağlı. */
 function qrWifiItemAllowed(text: string): boolean {
   if (text.length > SECRET_SCAN_MAX_CHARS) return false;
   const variants = [text, foldTurkishLower(text), foldTurkishAscii(text)];
   if (DOOR_SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return false;
-  return !QR_WIFI_ITEM_DOOR_TRACE.test(foldTurkishAscii(text));
+  const ascii = foldTurkishAscii(text);
+  return !QR_WIFI_ITEM_DOOR_TRACE.test(ascii) && wifiSecretsAttributed(ascii);
 }
 
 /**
@@ -472,38 +500,80 @@ export function withoutQrSecretKbItems<T extends { category: string; title: stri
   });
 }
 
+/** Değerden sonra yıl eki ("2019'da", "2019'dan") gelirse sır DEĞİL. */
+const NOT_YEAR_SUFFIX = "(?!\\s*['’]\\s*[dt][ae]n?(?![a-zçğıöşü]))";
+
 /**
  * ÇIKTI TARAMASI (kurucu kararı 10-11, karar listesi 18): QR cevabı misafire gitmeden KAPI / KUTU / GİRİŞ koduna karşı taranır —
- * bilgi tabanı süzülse de ev sahibinin QR'a elle yazdığı bir kod GEÇMİŞTEN modele ulaşabilir. Yalnız DEĞER taşıyan biçimler
- * (4–8 hane; telefon / fiyat / yıl hariç); "kapı kodunuz Airbnb mesajında" gibi değersiz anış cevabı DURDURMAZ. Wi-Fi şifresi bu
- * taramada yoktur (verilir). Bilgi tabanından modele VERİLEN metinde zaten geçen sayı (Wi-Fi şifresindeki rakamlar, adres, saat)
- * sızıntı sayılmaz: o metin kapı süzgecinden geçmiştir.
+ * bilgi tabanı süzülse de ev sahibinin QR'a elle yazdığı bir kod GEÇMİŞTEN modele ulaşabilir (geçmiş ayrıca ↓`redactDoorCodes` ile
+ * gizlenir). Yalnız DEĞER taşıyan biçimler (4–8 hane; telefon / fiyat / yıl hariç); "kapı kodunuz Airbnb mesajında" gibi değersiz anış
+ * cevabı DURDURMAZ. Wi-Fi şifresi bu taramada yoktur (verilir). İki sınıf:
+ *  · KAPI BAĞLAMLI kalıplar (kapı / kutu / tuş paneli / "kapı aç-" + değer): değer bilgi tabanında geçse de SIZINTIDIR (kapı kodu Wi-Fi
+ *    şifresiyle aynı rakamlar olabilir — Haiku incelemesi 10-11).
+ *  · BAĞLAMSIZ kalıplar ("kodunuz 4590", "PIN: 4590", Wi-Fi'ye bağlanmayan "şifre 4590"): modele VERİLEN bilgi tabanı metninde zaten
+ *    geçen sayı sızıntı sayılmaz (o metin kapı süzgecinden geçmiştir).
  */
-const DOOR_CODE_IN_REPLY: readonly RegExp[] = [
-  new RegExp(`${DOOR_CODE_WORD.source}[^\\d\\n.]{0,20}?${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`, "i"),
+const DOOR_CONTEXT_IN_REPLY: readonly RegExp[] = [
+  new RegExp(`${DOOR_CODE_WORD.source}[^\\d\\n.]{0,20}?${KEY_DIGITS}`, "i"),
   ...DOOR_SECRET_PATTERNS.filter((re) => re !== DOOR_CODE_WORD),
-  // Kapı adı OLMADAN "kodunuz 4590" / "your code is 4590" / "PIN: 4590" — posta / QR / alan / indirim / Wi-Fi kodu hariç.
-  new RegExp(
-    `(?<![a-zçğıöşü0-9])(?<!(?:posta|postal|zip|qr|alan|area|indirim|promosyon|promo|discount|kupon|coupon|wi-?fi|wlan|internet|kablosuz)\\s{0,3})(?:kod[a-zçğıöşü]{0,8}|code|c[oó]digo|codice|pin|passcode|код)(?![a-zçğıöşü])[^\\d\\n.]{0,12}?(?<![a-zçğıöşü])${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`,
-    "i",
-  ),
-];
+].map((re) => new RegExp(`(?:${re.source})${NOT_PRICE_OR_YEAR}${NOT_YEAR_SUFFIX}`, "i"));
+const GENERIC_CODE_IN_REPLY = new RegExp(
+  `(?<![a-zçğıöşü0-9])(?<!(?:posta|postal|zip|qr|alan|area|indirim|promosyon|promo|discount|kupon|coupon|wi-?fi|wlan|internet|kablosuz)\\s{0,3})(?:kod[a-zçğıöşü]{0,8}|code|c[oó]digo|codice|pin|passcode|код)(?![a-zçğıöşü])[^\\d\\n.]{0,12}?(?<![a-zçğıöşü])${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${NOT_YEAR_SUFFIX}`,
+  "i",
+);
+/** Wi-Fi'ye bağlanmayan "şifre / parola / password + 4–8 hane" (ASCII katlanmış metinde; bağ ↑`WIFI_NOUN`, aynı cümle). */
+const PASSWORD_DIGITS = new RegExp(`(?<![a-z0-9])(?:sifre|parola|password|passcode)[a-z]{0,8}[^\\d\\n.]{0,12}?${KEY_DIGITS}`, "g");
+
+/** "4 5 9 0" / "4-5-9-0" → "4590" (tek hanelerin ayraçla yazımı; saat / tarih / telefon öbekleri çok hanelidir, dokunulmaz). */
+const spacedDigits = (s: string) => s.replace(/(?<!\d)\d(?:[ -]\d){3,7}(?!\d)/g, (m) => m.replace(/\D/g, ""));
+
+/** Cevaptaki kapı kodu DEĞERLERİ (kapı bağlamlı: hepsi; bağlamsız: bilgi tabanında geçmeyenler). Boş dizi = sızıntı yok. */
+function doorCodeValues(text: string, allowedTexts: readonly string[]): string[] {
+  const allowed = new Set(allowedTexts.flatMap((t) => t.match(/\d{4,8}/g) ?? []));
+  const ascii = foldTurkishAscii(text);
+  const variants = [text, foldTurkishLower(text), ascii, spacedDigits(ascii)];
+  const out = new Set<string>();
+  const collect = (re: RegExp, keep: (d: string) => boolean) => {
+    const global = new RegExp(re.source, `${re.flags.replace("g", "")}g`);
+    for (const v of variants) for (const m of v.matchAll(global)) for (const d of m[0].match(/\d{4,8}/g) ?? []) if (keep(d)) out.add(d);
+  };
+  for (const re of DOOR_CONTEXT_IN_REPLY) collect(re, () => true);
+  collect(GENERIC_CODE_IN_REPLY, (d) => !allowed.has(d));
+  for (const v of [ascii, spacedDigits(ascii)]) {
+    const breaks = [...v.matchAll(SENTENCE_BREAK)].map((m) => m.index + 1);
+    let b = 0;
+    let lastBreak = 0;
+    for (const m of v.matchAll(PASSWORD_DIGITS)) {
+      while (b < breaks.length && breaks[b] <= m.index) lastBreak = breaks[b++];
+      if (WIFI_NOUN.test(v.slice(lastBreak, m.index))) continue;
+      for (const d of m[0].match(/\d{4,8}/g) ?? []) if (!allowed.has(d)) out.add(d);
+    }
+  }
+  return [...out];
+}
 
 export function qrReplyHasDoorCode(reply: string, allowedTexts: readonly string[]): boolean {
   if (!reply) return false;
   if (reply.length > SECRET_SCAN_MAX_CHARS) return true; // doğrulanamayan → kod say (QR cevabı 2.000 karakterle sınırlı)
-  const allowed = new Set(allowedTexts.flatMap((t) => t.match(/\d{4,8}/g) ?? []));
-  const variants = [reply, foldTurkishLower(reply), foldTurkishAscii(reply)];
-  for (const re of DOOR_CODE_IN_REPLY) {
-    const global = new RegExp(re.source, `${re.flags.replace("g", "")}g`);
-    for (const v of variants) {
-      for (const m of v.matchAll(global)) {
-        const digits = m[0].match(/\d{4,8}/g) ?? [];
-        if (digits.some((d) => !allowed.has(d))) return true;
-      }
-    }
+  return doorCodeValues(reply, allowedTexts).length > 0;
+}
+
+/** Geçmişte gizlenen kodun yerine modele giden ifade (değer taşımaz). */
+export const REDACTED_DOOR_CODE = "(kod gizlendi)";
+
+/**
+ * GEÇMİŞTEKİ KAPI KODU MODELE GİTMEZ (kurucu kararı 10-11: "geçmişte kodu gizle"). Ev sahibinin / yapay zekânın QR sohbetine yazdığı
+ * kapı / kutu / giriş kodunun DEĞERİ (↑`doorCodeValues`, bilgi tabanı muafiyeti yok) "(kod gizlendi)" olur; mesajın geri kalanı aynı.
+ * Misafirin gördüğü geçmiş DEĞİŞMEZ — yalnız modele giden kopya. Ayraçlı yazım ("4 5 9 0") da gizlenir.
+ */
+export function redactDoorCodes(text: string): string {
+  if (!text || text.length > SECRET_SCAN_MAX_CHARS) return text;
+  let out = text;
+  for (const value of doorCodeValues(text, [])) {
+    const spaced = value.split("").join("[ -]?");
+    out = out.replace(new RegExp(`(?<!\\d)${spaced}(?!\\d)`, "g"), REDACTED_DOOR_CODE);
   }
-  return false;
+  return out;
 }
 
 function looksLikeSecret(text: string): boolean {
@@ -1188,16 +1258,12 @@ export function isPhysicalEmergency(message: string): boolean {
   return PHYSICAL_EMERGENCY_PATTERNS.some((re) => re.test(folded) || re.test(ascii));
 }
 
-/**
- * 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir durumunda misafire "Mesajınız kaydedildi; ev sahibiniz …" GİTMEZ —
- * yalnız misafirin mesajı kaydedilir, ev sahibi QR sohbetleri panelinde görür (e-posta `QR_ESCALATION_EMAIL_ENABLED` ile). Tek
- * istisna GERÇEK fiziksel acil (`isPhysicalEmergency`: yangın, duman, gaz, su baskını, elektrik çarpması): yalnız güvenlik
- * yönergesi gider — kurucunun onayladığı cümle, başka hiçbir şey (kayıt / görünürlük bildirimi yok).
- */
-export const QR_SAFETY_LINE = "Tehlike varsa hemen 112'yi arayın.";
-
-export function escalationReply(opts?: { critical?: boolean }): string | null {
-  return opts?.critical ? QR_SAFETY_LINE : null;
+// 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir durumunda misafire "Mesajınız kaydedildi; ev sahibiniz …" GİTMEZ — yalnız
+// misafirin mesajı kaydedilir, ev sahibi QR sohbetleri panelinde görür. Fiziksel acildeki "Tehlike varsa hemen 112'yi arayın." istisnası
+// da KALKTI (kurucu kararı 10-11: "112 arayın yazmasın, yönlendirme olmayacak hiçbir şekilde") → devirde misafire HİÇBİR şey gitmez.
+// Tek kaynak korunur (testler ve çağıranlar "devir metni" sözleşmesini buradan okur): her durumda `null`.
+export function escalationReply(_opts?: { critical?: boolean }): string | null {
+  return null;
 }
 
 export async function resolveGuestChat(

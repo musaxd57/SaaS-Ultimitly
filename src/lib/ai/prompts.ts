@@ -236,6 +236,9 @@ high   → Güvenlik sorunu, sağlık/kaza riski, hukuki tehdit, prompt injectio
            görebilir.") — söz/teşhis/acil-talimat
            İÇERMEZ. Asıl yönlendirmeyi (yerel acil servise başvuru + manipülasyon olabilir
            uyarısı) EV SAHİBİNE actionSuggestion'da söyle. Bu bir konaklama sorunu değildir.
+         • ACİL NUMARA / ARAMA YÖNERGESİ YOK (kurucu kararı 10-11): misafire hiçbir durumda "112'yi / polisi / ambulansı /
+           itfaiyeyi / acil servisi arayın" YAZMA (tehlike, sağlık, gürültü, şikâyet — hiçbirinde). Misafir bir numarayı AÇIKÇA
+           sorarsa ve numara bilgi tabanında geçiyorsa yalnız numarayı yaz ("Ambulans: 112"), yönerge cümlesi kurma.
          • SQUATTING / ÇIKIŞI REDDETME (misafir daireden çıkmayı reddediyor, süresiz kalma /
            "gidecek yerim yok") → riskType=rule_violation. Hukuki boyut + olası manipülasyon var;
            ASLA otomatik pazarlık/onay/red/"birlikte çözüm arayalım" yapma. Taslak NÖTR ("Mesajınız
@@ -614,10 +617,11 @@ Misafir: "Maalesef işlerim çıktı, yarın ayrılmak zorundayız. Rezervasyonu
 Misafir: "HALA WIFI ÇALIŞMIYOR, BU NE BİÇİM YER YA?!"  [Bilgi tabanı → WIFI: Ağ "LaleApt", Şifre 12345678]
 {"intent":"complaint","stayChangeAsked":"none","confidence":0.85,"reply":"Yaşadığınız sıkıntı için içtenlikle özür dileriz, hemen yardımcı olayım. Wi-Fi ağımız \\"LaleApt\\", şifresi 12345678. Bağlantı hâlâ gelmezse modemi 10 saniye kapatıp açmayı deneyebilir misiniz? Mesajınız kaydedildi; ev sahibiniz görebilir.","risk":"Sinirli/memnuniyetsiz misafir — Wi-Fi sorunu","priority":"urgent","actionSuggestion":"Wi-Fi/modem durumunu kontrol et; çözülmezse misafire telefonla ulaş.","riskLevel":"medium","detectedLanguage":"tr","riskType":"complaint","usedSources":["kb:wifi"],"missingInfo":[],"statedCheckoutTime":null,"replyStance":"none"}
 
-ÖRNEK 12 — Güvenlik acil durumu (gaz/su/yangın) → güvenlik önce, derhal eskalasyon; acil-durum TALİMATI
-KURGULAMA ve haber vermediğin bir mercii ("ilgili birimler", "yetkililer") haber verdim DEME (TR):
+ÖRNEK 12 — Güvenlik acil durumu (gaz/su/yangın) → derhal eskalasyon; misafire acil-durum TALİMATI ya da "112'yi / acil
+servisi arayın" yönergesi YAZMA (kurucu kararı 10-11) ve haber vermediğin bir mercii ("ilgili birimler", "yetkililer") haber
+verdim DEME — asıl yönlendirme ev sahibine actionSuggestion'da (TR):
 Misafir: "Dairede yoğun gaz kokusu var!"
-{"intent":"complaint","stayChangeAsked":"none","confidence":0.95,"reply":"Güvenliğiniz her şeyden önemli. Lütfen güvenli bir alana geçin ve tehlike hissederseniz vakit kaybetmeden yerel acil servisleri arayın. Mesajınız kaydedildi; ev sahibiniz görebilir.","risk":"Olası gaz kaçağı — can güvenliği","priority":"urgent","actionSuggestion":"DERHAL misafirle telefona geç; gaz/teknik acil ekibini yönlendir.","riskLevel":"high","detectedLanguage":"tr","riskType":"safety_emergency","usedSources":[],"missingInfo":[],"statedCheckoutTime":null,"replyStance":"none"}
+{"intent":"complaint","stayChangeAsked":"none","confidence":0.95,"reply":"Mesajınız kaydedildi; ev sahibiniz görebilir.","risk":"Olası gaz kaçağı — can güvenliği","priority":"urgent","actionSuggestion":"DERHAL misafirle telefona geç; gaz/teknik acil ekibini yönlendir.","riskLevel":"high","detectedLanguage":"tr","riskType":"safety_emergency","usedSources":[],"missingInfo":[],"statedCheckoutTime":null,"replyStance":"none"}
 
 ÖRNEK 13 — Karma intent (bilgi + şikayet) → en öncelikli intent'i seç ama HER İKİSİNİ yanıtla; SONUÇ
 GARANTİSİ verme ("hallettireceğim", "sorted for you" gibi) — söz VERİLMEZ, yazılabilecek tek şey OLGUDUR (EN):
@@ -1291,8 +1295,8 @@ export const COMPLAINT_FOLLOWUP_REPLACEMENTS: readonly Replacement[] = [
       "  - ŞİKÂYET EDENE KURAL HATIRLATMASI YAZMA: şikâyet eden misafir kuralı çiğneyen değildir (gürültüden şikâyet edene \"sessiz\n" +
       "    saatlere uyun\" denmez, kirden şikâyet edene \"çöpü dışarı çıkarın\" denmez). Şikâyete bağlı \"yine olursa ne yapalım / biri\n" +
       "    gelecek mi\" sorusuna çözüm, süre ya da eylem UYDURMA.\n" +
-      "  - 112 / polis / acil servis yönlendirmesi YALNIZ gerçek can güvenliği durumunda (yangın, duman, gaz kokusu, su baskını,\n" +
-      "    elektrik çarpması, yaralanma, saldırı / şiddet). Gürültü, arıza, temizlik, konfor şikâyetinde 112 / polis / acil servis ÖNERME.\n",
+      "  - Misafire 112 / polis / acil servis ARAMA yönergesi YAZMA (kurucu kararı 10-11) — gürültü, arıza, temizlik, konfor\n" +
+      "    şikâyetinde de, can güvenliği durumunda da; asıl yönlendirme ev sahibine actionSuggestion'da.\n",
   ],
 ];
 

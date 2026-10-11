@@ -21,7 +21,6 @@ vi.mock("@/lib/ai", () => ({ suggestReply: (...a: unknown[]) => mockSuggest(...a
 import { NextRequest } from "next/server";
 import { POST as CHAT } from "@/app/api/chat/[token]/route";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
-import { SAFETY_LINES } from "@/lib/ai/hazard-evidence";
 
 const DAY = 86_400_000;
 
@@ -121,32 +120,32 @@ describe("QR rotası — bağlamla tehlike (55 + 51)", () => {
     await prisma.$disconnect();
   });
 
-  it("🚨 AÇIK tehlike (Fransızca): model ÇAĞRILMAZ, misafir kendi dilinde güvenlik satırını alır, karar kaydı physical_hazard", async () => {
+  it("🚨 AÇIK tehlike (Fransızca): model ÇAĞRILMAZ, misafire HİÇBİR metin gitmez (kurucu 10-11), devir; karar kaydı physical_hazard", async () => {
     const { token } = await seed();
     const out = await ask(token, "Il y a le feu dans la cuisine !");
     expect(mockSuggest).not.toHaveBeenCalled();
     expect(out.escalated).toBe(true);
-    expect(out.reply).toBe(SAFETY_LINES.fr);
+    expect(out.reply ?? null).toBeNull(); // kurucu kararı 10-11: 112 satırı YOK
     const ev = await lastEvent();
     expect(ev.reason).toBe("physical_hazard");
     expect(ev.riskType).toBe("safety_emergency");
     expect(ev.finalDecision).toBe("human_review");
   });
 
-  it("🚨 AÇIK tehlike (Türkçe, dil kodca belirsiz): Türkçe satır; ücretli çağrı yok", async () => {
+  it("🚨 AÇIK tehlike (Türkçe): misafire metin yok, devir; ücretli çağrı yok", async () => {
     const { token } = await seed();
     const out = await ask(token, "Mutfakta gaz kokusu var!");
     expect(mockSuggest).not.toHaveBeenCalled();
     expect(out.escalated).toBe(true);
-    expect(out.reply).toBe(SAFETY_LINES.tr);
+    expect(out.reply ?? null).toBeNull(); // kurucu kararı 10-11: 112 satırı YOK
   });
 
-  it("OLASI tehlike + anlama katmanı KAPALI (değerlendirecek model yok) → güvenli taraf: devir + güvenlik satırı", async () => {
+  it("OLASI tehlike + anlama katmanı KAPALI (değerlendirecek model yok) → güvenli taraf: devir, misafire metin yok", async () => {
     mockSuggest.mockResolvedValue({ ...DRAFT, reply: "Çaydanlığı ocaktan alıp soğumasını bekleyin." });
     const { token } = await seed();
     const out = await ask(token, KETTLE);
     expect(out.escalated).toBe(true);
-    expect(out.reply).toBe(SAFETY_LINES.tr);
+    expect(out.reply ?? null).toBeNull(); // kurucu kararı 10-11: 112 satırı YOK
     expect((await lastEvent()).reason).toBe("keyword_risk_type");
   });
 
@@ -162,14 +161,14 @@ describe("QR rotası — bağlamla tehlike (55 + 51)", () => {
     expect(ev.reason).toBe("keyword_risk_type");
   });
 
-  it("🚨 OLASI tehlike + anlama katmanı 'acil' → devir + güvenlik satırı", async () => {
+  it("🚨 OLASI tehlike + anlama katmanı 'acil' → devir, misafire metin yok", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("emergency"));
     mockSuggest.mockResolvedValue({ ...DRAFT, reply: "Çaydanlığı ocaktan alıp soğumasını bekleyin." });
     const { token } = await seed();
     const out = await ask(token, KETTLE);
     expect(out.escalated).toBe(true);
-    expect(out.reply).toBe(SAFETY_LINES.tr);
+    expect(out.reply ?? null).toBeNull(); // kurucu kararı 10-11: 112 satırı YOK
   });
 
   it("🚨 alarm bağlamla kalktıysa KAYNAKSIZ güvence ('normaldir, endişelenmeyin') gitmez → hazard_reassurance, misafire metin yok", async () => {
@@ -190,7 +189,7 @@ describe("QR rotası — bağlamla tehlike (55 + 51)", () => {
     expect((await lastEvent()).reason).toBe("gate_passed");
   });
 
-  it("model çağrısı OLMAYAN dal (org bütçesi dolu): olası tehlike satır alır, anılan tehlike almaz", async () => {
+  it("model çağrısı OLMAYAN dal (org bütçesi dolu): olası da anılan tehlike de devir — misafire metin yok", async () => {
     vi.stubEnv("AI_DAILY_CALL_CAP", "1");
     mockSuggest.mockResolvedValue({ ...DRAFT, reply: "Çöp kutusu girişin solunda." });
     const { token } = await seed();
@@ -198,7 +197,7 @@ describe("QR rotası — bağlamla tehlike (55 + 51)", () => {
     const cookie = cookieOf(first);
     const possible = await ask(token, KETTLE, cookie);
     expect(possible.escalated).toBe(true);
-    expect(possible.reply).toBe(SAFETY_LINES.tr);
+    expect(possible.reply ?? null).toBeNull(); // kurucu kararı 10-11: 112 satırı YOK
     const mentioned = await ask(token, FIRE_IF, cookie);
     expect(mentioned.escalated).toBe(true);
     expect(mentioned.reply ?? null).toBeNull();

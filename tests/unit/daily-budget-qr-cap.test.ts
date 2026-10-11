@@ -7,6 +7,8 @@ vi.mock("@/lib/rate-limit", () => ({ rateLimit: (...a: unknown[]) => rateLimit(.
 vi.mock("@/lib/billing/plan-limits", () => ({
   limitsForOrg: async () => ({ aiCallsPerDay: 150 }),
 }));
+// Daire alt kotası (10-11) daire sayısını okur — birim test veritabanına gitmesin: tek daire → alt kota yok, iki kova davranışı aynı.
+vi.mock("@/lib/db", () => ({ prisma: { property: { count: async () => 1 } } }));
 
 import { consumeDailyAiBudgetForQr, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 

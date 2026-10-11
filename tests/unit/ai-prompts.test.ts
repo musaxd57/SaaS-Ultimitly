@@ -99,6 +99,9 @@ describe("REPLY_SYSTEM_PROMPT", () => {
     expect(REPLY_SYSTEM_PROMPT).toContain("KURAL ÖNCELİĞİ");
     expect(REPLY_SYSTEM_PROMPT).toContain("ÖRNEK 11"); // rude/angry guest
     expect(REPLY_SYSTEM_PROMPT).toContain("ÖRNEK 12"); // safety emergency → high risk
+    // Kurucu kararı 10-11: misafire hiçbir durumda "112'yi / acil servisi arayın" yönergesi yazılmaz — örnek de öğretmez.
+    expect(REPLY_SYSTEM_PROMPT).toContain("ACİL NUMARA / ARAMA YÖNERGESİ YOK (kurucu kararı 10-11)");
+    expect(REPLY_SYSTEM_PROMPT).not.toMatch(/"reply":"[^"]*acil servisleri arayın/);
     expect(REPLY_SYSTEM_PROMPT).toContain("ÖRNEK 14"); // post-stay returning guest
   });
 

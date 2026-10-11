@@ -14,7 +14,7 @@ import type {
   UnderstandingStaySignal,
 } from "@/lib/ai/semantic/stay-change";
 import { classifyFallback, detectPromptInjection, detectRiskType, detectRiskTypes } from "@/lib/ai/fallback";
-import { contextLabels, hasSafetyReassurance, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
+import { contextLabels, hasEmergencyCallDirective, hasSafetyReassurance, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import {
   confidentLanguage,
   guestTurnLanguage,
@@ -147,6 +147,8 @@ export const ESCALATION_REASONS = [
   // Çıktıda kapı kodu (kurucu kararı 10-11): bir kez yeniden yazdırıldı, ikinci taslak da kapı / kutu kodu taşıdı → cevap gitmedi.
   // Kapının kendisi bu dalı döndürmez; rota `qrReplyHasDoorCode` ile koyar (`chat/[token]/route.ts`).
   "door_code_in_reply",
+  // Cevap misafiri acil numarayı / acil servisi aramaya yönlendirdi (kurucu kararı 10-11) → gitmez; QR'da önce bir kez yeniden yazdırılır.
+  "emergency_directive",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -342,6 +344,8 @@ export function evaluateEscalation(
   if (stayCtx?.hazardCleared && hasSafetyReassurance(result.reply) && !kbSupportsReassurance(stayCtx.kbFacts)) {
     return yes("hazard_reassurance");
   }
+  // ── ACİL ARAMA YÖNERGESİ MİSAFİRE GİTMEZ (kurucu kararı 10-11: "112'yi arayın yazmasın … hiçbir şekilde") ──
+  if (hasEmergencyCallDirective(result.reply)) return yes("emergency_directive");
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24) ────────────────────────────────
   // Kanal kapısıyla AYNI yüklem. QR'da cevaplanan tek mesaj GÜNCEL mesajdır (eşzamanlı sohbet;
   // önceki turlar zaten cevaplandı). Devir muafiyeti burada GEREKMEZ: `human_request` yukarıda

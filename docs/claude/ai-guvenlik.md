@@ -48,8 +48,10 @@
   mesajda konuşmanın tamamı, biri kilit altında) — hüküm tarayıcıyla birebir, rastgele dizilerle pinli; devir satırı YOKSA veritabanı
   taraması konuşma boyunda kalır (tam sınır kısmi dizin = migration, sabah belgesi K10-n). Mesaj penceresi `GUEST_CHAT_MESSAGE_WINDOW` 200 + tam sıra (cursor REDDEDİLDİ); istemcide
   görünürlük kapısı, terminal durumda `clearInterval`, 3 ardışık hatada uyarı. 🚨 Devirde misafire METİN YOK (K10, 09-30:
-  `escalationReply()` null; yalnız fiziksel tehlikede güvenlik satırı — 10-02 akşamdan beri ↓"Acil ≠ sıradan istek" bağlam kuralıyla, misafirin
-  dilinde); devir yapışkan değil.
+  `escalationReply()` null; 10-02'den 10-11'e fiziksel tehlikede güvenlik satırı gidiyordu — 🚨 **KALKTI, kurucu kararı 10-11: "112'yi arayın
+  yazmasın, yönlendirme olmayacak hiçbir şekilde"** → tehlikede de misafire HİÇBİR metin gitmez, ev sahibine acil uyarı; model taslağındaki
+  acil arama yönergesi (`hasEmergencyCallDirective`, `ai/hazard-evidence.ts`) QR'da bir kez yeniden yazdırılır, yine varsa devir
+  (`emergency_directive`); kanalda çıktı vetosu. Yalnız numara ("Ambulans: 112") yönerge değildir; numara sorusu tasarımı kurucuda); devir yapışkan değil.
   "Misafirin gördüğü ekran" önizlemesi (K14, `guest-chats/[id]/misafir-ekrani`): balonlar misafir ekranının AYNI bileşeninden
   (`GuestChatThread`), pencere GET ile aynı; misafir uçları çağrılmaz — gönderim / cihaz bağlama / okundu değişikliği YOK, sayfa hiçbir
   satır yazmaz (pinli).

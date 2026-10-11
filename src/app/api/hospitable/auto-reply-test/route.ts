@@ -30,8 +30,9 @@ export const POST = withManage(async (session) => {
   // GERÇEK model çağrısı yapıyor ve eskiden sayaca hiç dokunmuyordu (dakikada 6 × 12 = 72 çağrı, Başlangıç tavanı günde 150).
   //
   // 🚨 KONUŞMA BAŞINA (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): 07-31 düzeltmesi önizleme başına TEK birim düşüyordu →
-  // Başlangıç planında günde teorik 150 × 12 = 1.800 çağrı. Artık her model çağrısı bir birim, `previewChannelAutoReplies` içinde
-  // (`previewBudget`); bütçe biterse (baştan dolu olsa da) önizleme orada durur ve ekran "günlük sınır doldu" der.
+  // Başlangıç planında günde teorik 150 × 12 = 1.800 çağrı. Artık modelin cevap yazdığı her konuşma bir AI işlemi (canlı oto-yanıtla
+  // aynı sayım), `previewChannelAutoReplies` içinde (`previewBudget`); bütçe dolunca (baştan dolu olsa da) önizleme orada durur ve
+  // ekran "günlük sınır doldu" der.
   try {
     const { outcomes, budgetExhausted } = await previewChannelAutoReplies(session.organizationId);
     const previews = outcomes.map((o) => ({

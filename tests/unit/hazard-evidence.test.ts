@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
+import * as hazardModule from "@/lib/ai/hazard-evidence";
 import {
-  SAFETY_LINES,
   __hazardMentionEvalCount,
   contextLabels,
   hasSafetyReassurance,
   hazardDecisionFor,
   hazardEvidenceOf,
+  hasEmergencyCallDirective,
   kbSupportsReassurance,
   maskHazardMentions,
-  safetyLineFor,
 } from "@/lib/ai/hazard-evidence";
 import { isSafetyEmergencyText } from "@/lib/ai/fallback";
 
@@ -267,25 +267,35 @@ describe("yedi dil", () => {
   });
 });
 
-describe("55: güvenlik satırı misafirin dilinde", () => {
-  it("yedi dil + desteklenmeyen / boş → Türkçe", () => {
-    expect(safetyLineFor("tr")).toBe("Tehlike varsa hemen 112'yi arayın.");
-    expect(safetyLineFor("en")).toBe("If there is danger, call 112 immediately.");
-    expect(safetyLineFor("de")).toBe(SAFETY_LINES.de);
-    expect(safetyLineFor("fr")).toBe(SAFETY_LINES.fr);
-    expect(safetyLineFor("es")).toBe(SAFETY_LINES.es);
-    expect(safetyLineFor("ru")).toBe(SAFETY_LINES.ru);
-    expect(safetyLineFor("ar")).toBe(SAFETY_LINES.ar);
-    expect(safetyLineFor("it")).toBe(SAFETY_LINES.tr);
-    expect(safetyLineFor(null)).toBe(SAFETY_LINES.tr);
-    expect(safetyLineFor("__proto__")).toBe(SAFETY_LINES.tr);
+describe("55 geri alındı (kurucu kararı 10-11): misafire koddan acil yönergesi YOK", () => {
+  it("modül misafire gidecek bir güvenlik / '112'yi arayın' satırı dışa vermez", () => {
+    // Dışa verilen veri (işlev olmayan her şey: metin sabitleri, tablolar) "112" taşımaz.
+    const data = Object.values(hazardModule as Record<string, unknown>).filter((v) => typeof v !== "function");
+    expect(JSON.stringify(data)).not.toMatch(/112/);
+    expect(Object.keys(hazardModule)).not.toContain("safetyLineFor");
+    expect(Object.keys(hazardModule)).not.toContain("SAFETY_LINES");
   });
-  it("her satır yalnız güvenlik yönergesidir: 112 geçer, söz / devir cümlesi yok", () => {
-    for (const line of Object.values(SAFETY_LINES)) {
-      expect(line).toContain("112");
-      expect(line.length).toBeLessThan(60);
-    }
-  });
+});
+
+describe("acil arama yönergesi (kurucu kararı 10-11: '112'yi arayın yazmasın')", () => {
+  it.each([
+    "Tehlike varsa hemen 112'yi arayın.",
+    "Lütfen vakit kaybetmeden acil servisi arayın.",
+    "Polisi arayabilirsiniz.",
+    "Please call 112 immediately.",
+    "Call the police right away.",
+    "Rufen Sie sofort die Polizei.",
+    "Appelez le 112.",
+    "Llame a emergencias.",
+  ])("🚨 yönerge: %s", (t) => expect(hasEmergencyCallDirective(t)).toBe(true));
+  it.each([
+    "Ambulans: 112",
+    "Türkiye'de acil numara 112'dir.",
+    "Ev sahibinizi arayabilirsiniz.",
+    "Polis karakolu 200 m ileride.",
+    "Check-in 15:00.",
+    "",
+  ])("KONTROL değil: %s", (t) => expect(hasEmergencyCallDirective(t)).toBe(false));
 });
 
 describe("51: kaynaksız güvence", () => {

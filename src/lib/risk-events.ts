@@ -83,6 +83,8 @@ const REASONS = new Set([
   "stay_message_cap",
   // QR cevabında kapı / kutu kodu: bir kez yeniden yazdırıldı, yine kodlu → gitmedi, devir (kurucu kararı 10-11; gate ile BİREBİR).
   "door_code_in_reply",
+  // Cevap misafiri acil numarayı / acil servisi aramaya yönlendirdi (kurucu kararı 10-11) → gitmedi (QR kapısı ile BİREBİR).
+  "emergency_directive",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

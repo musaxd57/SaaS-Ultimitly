@@ -38,10 +38,10 @@ export const TEMPLATE_SUGGESTION_MAX_CHARS = 2_000;
  *    ⚠️ Giriş TALİMATI (kapı kodu, kat, asansör) gerçek bilgidir; onu almak için
  *    saat cümlesini ayıklayan ayrı bir tur gerekir — bu dilimde YOK.
  *  · 🚨 `welcome` — SIR KAPISINI ZAYIFLATIR (inceleme ajanı, 09-11). Karşılama
- *    metni rutin olarak kapı kodu/Wi-Fi taşır; aynı metin `wifi`/`checkin`
- *    kategorisindeyken QR'da İKİ bacaktan (kategori listesi `QR_SECRET_CATEGORIES`
- *    + içerik sezgiseli `withoutSecretKbItems`) elenir, `welcome` kategorisinde
- *    YALNIZ içerik sezgiselinden. Sezgisel bilinçli olarak DAR (4–8 hane bitişik
+ *    metni rutin olarak kapı kodu/Wi-Fi taşır; aynı metin `checkin` kategorisindeyken
+ *    QR'da İKİ bacaktan (kategori listesi `QR_SECRET_CATEGORIES` + içerik sezgiseli)
+ *    elenir (`wifi` kategorisi 10-11'den beri kalem bazında süzülür —
+ *    `withoutQrSecretKbItems`), `welcome` kategorisinde YALNIZ içerik sezgiselinden. Sezgisel bilinçli olarak DAR (4–8 hane bitişik
  *    kalıp); harfle yazılmış bir kod kategori bacağının duracağı yerde geçer.
  *    Kategori seçimini bir ÖNERİ mekanizmasının yapması bu farkı görünmez kılar.
  *  · 🚨 `general` — ölçüldü: gerçek içerik NEZAKET İSKELESİ ("Mesajınızı aldım,
