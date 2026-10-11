@@ -59,11 +59,18 @@ describe("messageIsAbout — mesajın somut konularının TAMAMI bu kategoriye a
     ["Gürültüden uyuyamadık. Bu arada Wi-Fi ağı hangisi?", "wifi", false],
     ["Oda kirli, Wi-Fi şifresi ne?", "wifi", false],
     ["Oda kirli, Wi-Fi şifresi ne?", "cleaning", false],
+    // Başka somut konu + konunun SORU OLMAYAN bölümü: yine belirsiz → hayır (mutasyon D1: "tamamı" kuralı tek başına).
+    ["Gürültüden uyuyamadık, Wi-Fi şifresini de aldık.", "wifi", false],
     // Konusu okunamayan / boş / eşlemesi olmayan kategori → hayır.
     ["", "wifi", false],
     ["Çok kötü bir deneyimdi.", "wifi", false],
     ["Wi-Fi çalışmıyor.", "rules", false],
   ])("%s · %s → %s", (body, cat, expected) => expect(messageIsAbout(body as string, cat as string)).toBe(expected));
+
+  it("8.000 karakteri aşan metin okunmaz (pahalı sözlük taraması yok — mutasyon D6)", () => {
+    expect(messageIsAbout(`Wi-Fi çalışmıyor. ${"a".repeat(8_000)}`, "wifi")).toBe(false);
+    expect(messageIsAbout(`Wi-Fi çalışmıyor. ${"a ".repeat(3_000)}`, "wifi")).toBe(true);
+  });
 
   it("complaintTopics metin verilince yalnız konusu doğrulanan mesajı sayar; metni olmayan mesaj sayılmaz", () => {
     const items = [item("c1", "m1", "complaint_issue"), item("c1", "m1", "wifi"), item("c2", "m2", "complaint_issue"), item("c2", "m2", "wifi")];
