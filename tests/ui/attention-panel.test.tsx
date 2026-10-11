@@ -221,12 +221,12 @@ describe("AttentionPanel", () => {
       { ...base, propertyId: "p2", kind: "booking_gap", certainty: "inferred", severity: 25, href: "/calendar?property=p2&month=2026-11", nights: { from: "2026-11-03", to: "2026-11-04" }, gapCount: 1 },
     ];
     render(<AttentionPanel items={items} />);
-    expect(screen.getByText("İki rezervasyon arasında 2 boş gece")).toBeTruthy();
-    expect(screen.getByText(/Deniz Apart · 15 Eki – 16 Eki geceleri · 1 boşluk daha · kısa konaklamaya açmayı düşünün/)).toBeTruthy();
-    const money = screen.getByText(/Olası gelir:/);
+    expect(screen.getByText("İki konaklama arasında 2 gece boş görünüyor")).toBeTruthy();
+    expect(screen.getByText(/Deniz Apart · 15 Eki – 16 Eki geceleri · 1 boşluk daha · kısa konaklamaya açmak isteyebilirsiniz/)).toBeTruthy();
+    const money = screen.getByText(/Satılırsa olası gelir:/);
     expect(money.textContent).toMatch(/8\.000.*11\.000.*\(tahmini\)/);
     expect(money.getAttribute("title")).toMatch(/Satılacağı garanti değil/);
-    expect(screen.getByText("İki rezervasyon arasında 1 boş gece")).toBeTruthy();
+    expect(screen.getByText("İki konaklama arasında 1 gece boş görünüyor")).toBeTruthy();
     expect(screen.getByText(/kayıtlardan biri güncel olmayabilir, doğrulayın/)).toBeTruthy();
     // Çakışma satırının "Risk altındaki tutar" sözü boşlukta KULLANILMAZ (fırsat, risk değil).
     expect(screen.queryByText(/Risk altındaki tutar/)).toBeNull();

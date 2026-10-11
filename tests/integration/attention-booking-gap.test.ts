@@ -11,7 +11,7 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
 
-import { findAttentionItems, GAP_SEVERITY_LATER, GAP_SEVERITY_SOON } from "@/modules/intelligence/incidents/attention";
+import { findAttentionItems, GAP_SEVERITY_LATER, GAP_SEVERITY_SOON, GAP_UNCONFIRMED_PENALTY } from "@/modules/intelligence/incidents/attention";
 import { setNightlyRate } from "@/modules/intelligence/money/rates";
 
 const NOW = new Date("2026-10-01T09:00:00Z"); // İstanbul 12:00
@@ -71,7 +71,7 @@ describe("Dikkat Gerektirenler — yetim boşluk satırı", () => {
     await stay(propertyId, "2026-10-07", "2026-10-10");
     const gaps = (await findAttentionItems(orgId, { now: NOW })).filter((i) => i.kind === "booking_gap");
     expect(gaps).toHaveLength(1);
-    expect(gaps[0]).toMatchObject({ certainty: "inferred", nights: { from: "2026-10-06", to: "2026-10-07" } });
+    expect(gaps[0]).toMatchObject({ certainty: "inferred", nights: { from: "2026-10-06", to: "2026-10-07" }, severity: GAP_SEVERITY_SOON - GAP_UNCONFIRMED_PENALTY });
   });
 
   it("mülk başına TEK satır: en yakın boşluk + toplam sayı; uzak boşluk düşük önem; aralık yoksa tutar 'bilinmiyor'", async () => {

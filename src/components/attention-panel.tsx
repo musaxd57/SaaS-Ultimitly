@@ -87,7 +87,7 @@ function headline(item: AttentionItem): string {
     case "connection_unhealthy":
       return item.connectionErrorKind ? "Kanal bağlantısı okunamıyor" : "Kanal senkronu gecikiyor";
     case "booking_gap":
-      return `İki rezervasyon arasında ${item.nights ? nightCount(item.nights.from, item.nights.to) : 1} boş gece`;
+      return `İki konaklama arasında ${item.nights ? nightCount(item.nights.from, item.nights.to) : 1} gece boş görünüyor`;
   }
 }
 
@@ -130,7 +130,7 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
     case "booking_gap": {
       const range = item.nights ? nightsLabel(item.nights.from, item.nights.to) : "";
       const more = (item.gapCount ?? 1) > 1 ? ` · ${(item.gapCount ?? 1) - 1} boşluk daha` : "";
-      return `${item.propertyName} · ${range}${more} · kısa konaklamaya açmayı düşünün`;
+      return `${item.propertyName} · ${range}${more} · kısa konaklamaya açmak isteyebilirsiniz`;
     }
   }
 }
@@ -147,7 +147,7 @@ export function moneyLine(m: MoneyImpact | undefined): { text: string; hint?: st
   if (!m) return null;
   if (m.kind === "estimate" && m.assumptions.includes("opportunity_not_guaranteed")) {
     return {
-      text: `Olası gelir: ${money(m.low, m.currency)} – ${money(m.high, m.currency)} (tahmini)`,
+      text: `Satılırsa olası gelir: ${money(m.low, m.currency)} – ${money(m.high, m.currency)} (tahmini)`,
       hint: "Boş gece sayısı × gecelik fiyat aralığınız. Satılacağı garanti değil; minimum konaklama kuralınız ve son dakika talebi bilinmiyor.",
     };
   }

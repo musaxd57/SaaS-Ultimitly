@@ -42,16 +42,40 @@ export async function findUpcomingConflicts(
   organizationId: string,
   opts: { propertyIds?: readonly string[]; now: Date },
 ): Promise<UpcomingConflict[]> {
+  return (await scanUpcoming(organizationId, opts, { gaps: false })).conflicts;
+}
+
+/**
+ * Çakışmalar + yetim boşluklar TEK yüklemeden (V2 boşluk satırı anahtarı açıkken pano iki ayrı yükleme yapmasın — Haiku incelemesi).
+ */
+export async function findUpcomingConflictsAndGaps(
+  organizationId: string,
+  opts: { propertyIds?: readonly string[]; now: Date },
+): Promise<{ conflicts: UpcomingConflict[]; gaps: UpcomingGap[] }> {
+  return scanUpcoming(organizationId, opts, { gaps: true });
+}
+
+async function scanUpcoming(
+  organizationId: string,
+  opts: { propertyIds?: readonly string[]; now: Date },
+  want: { gaps: boolean },
+): Promise<{ conflicts: UpcomingConflict[]; gaps: UpcomingGap[] }> {
   const loaded = await loadAvailabilityInputs(organizationId, {
     propertyIds: opts.propertyIds,
     range: { nightsFromToday: CONFLICT_HORIZON_NIGHTS },
     now: opts.now,
   });
-  if (!loaded) return [];
+  if (!loaded) return { conflicts: [], gaps: [] };
   const out: UpcomingConflict[] = [];
+  const gaps: UpcomingGap[] = [];
   for (const input of loaded.inputs.values()) {
     const report = describeNights(input, loaded.range);
     if (!report.ok) continue;
+    if (want.gaps) {
+      for (const g of findOrphanGaps(report.value.nights, { fromNight: todayKey(opts.now, input.timeZone) })) {
+        gaps.push({ propertyId: input.propertyId, ...g });
+      }
+    }
     const stayNights = new Map<string, number>();
     for (const r of input.reservations) {
       const n = nightsBetween(calendarDateOf(r.arrival, input.timeZone).key, calendarDateOf(r.departure, input.timeZone).key);
@@ -72,9 +96,13 @@ export async function findUpcomingConflicts(
       });
     }
   }
-  return out;
+  return { conflicts: out, gaps };
 }
 
+/**
+ * Yaklaşan YETİM BOŞLUK (V2 boşluk satırı; anahtar `ATTENTION_GAP_ENABLED`, kapalı). Saf dedektör `gaps.ts`. Aralık bu geceden
+ * başlar; ilk gecenin komşusu (dün) görülmediği için BU GECEKİ boşluk sayılmaz (son dakika — bilinçli).
+ */
 export interface UpcomingGap {
   propertyId: string;
   /** Yarı açık [from, to), mülk takvim günleri. */
@@ -82,30 +110,4 @@ export interface UpcomingGap {
   to: NightKey;
   nights: number;
   confirmed: boolean;
-}
-
-/**
- * Yaklaşan YETİM BOŞLUKLAR (V2 boşluk satırı; anahtar `ATTENTION_GAP_ENABLED`, kapalı). Saf dedektör `gaps.ts`; burada yalnız
- * yükleme. Bu geceden itibaren (mülkün saat dilimiyle) `CONFLICT_HORIZON_NIGHTS` gece; aralığın ilk gecesinin komşusu (dün)
- * görülmediği için BU GECEKİ boşluk sayılmaz (son dakika — bilinçli). Hiçbir satır değiştirilmez.
- */
-export async function findUpcomingGaps(
-  organizationId: string,
-  opts: { propertyIds?: readonly string[]; now: Date },
-): Promise<UpcomingGap[]> {
-  const loaded = await loadAvailabilityInputs(organizationId, {
-    propertyIds: opts.propertyIds,
-    range: { nightsFromToday: CONFLICT_HORIZON_NIGHTS },
-    now: opts.now,
-  });
-  if (!loaded) return [];
-  const out: UpcomingGap[] = [];
-  for (const input of loaded.inputs.values()) {
-    const report = describeNights(input, loaded.range);
-    if (!report.ok) continue;
-    for (const g of findOrphanGaps(report.value.nights, { fromNight: todayKey(opts.now, input.timeZone) })) {
-      out.push({ propertyId: input.propertyId, ...g });
-    }
-  }
-  return out;
 }

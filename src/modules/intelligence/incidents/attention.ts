@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isClosingHandled } from "@/lib/conversation-attention";
 import { alertOnTransition } from "@/lib/alert-state";
-import { findUpcomingConflicts, findUpcomingGaps, type UpcomingConflict, type UpcomingGap } from "@/modules/availability/conflicts";
+import { findUpcomingConflicts, findUpcomingConflictsAndGaps, type UpcomingConflict, type UpcomingGap } from "@/modules/availability/conflicts";
 import { estimateConflictImpact, estimateGapOpportunity, type MoneyImpact, type NightlyRateRange } from "@/modules/intelligence/money/impact";
 import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conversation-items/store";
@@ -115,6 +115,8 @@ export const GAP_SEVERITY_SOON = 35;
 export const GAP_SEVERITY_LATER = 25;
 /** Bu kadar gün içinde başlayan boşluk "yakın" sayılır. */
 export const GAP_SOON_DAYS = 7;
+/** Komşularından biri kanıtsız boşluğun önem düşüşü. */
+export const GAP_UNCONFIRMED_PENALTY = 5;
 /** Tek sorguda incelenecek en fazla konuşma (sınırsız tarama yok). */
 export const CONVERSATION_CANDIDATE_CAP = 200;
 
@@ -248,7 +250,7 @@ export async function findAttentionItems(
       })
     : [];
   const decisionItemIds = decisions.map((d) => d.itemId).filter((v): v is string => v !== null);
-  const [brokenFeeds, conversations, patterns, conflicts, commitments, held, gaps] = await Promise.all([
+  const [brokenFeeds, conversations, patterns, calendarScan, commitments, held] = await Promise.all([
     prisma.calendarSource.findMany({
       where: { propertyId: { in: propertyIds }, lastStatus: "error" },
       // 🚨 `url` ve `urlEnc` BİLEREK SEÇİLMİYOR: besleme adresi sorgu dizesinde
@@ -300,9 +302,13 @@ export async function findAttentionItems(
     }),
     // Motorun kendi arızası öteki satırları düşürmez: bu bacak başarısızsa yalnız o yok. Arıza
     // SESSİZ de kalmaz: geçiş tabanlı alarm (aynı sınıf sürerken günde en fazla bir e-posta).
-    findUpcomingConflicts(organizationId, { propertyIds, now }).catch((err): UpcomingConflict[] => {
+    // Yetim boşluklar (V2 boşluk satırı) yalnız anahtar açıkken ve AYNI yüklemeden (çift sorgu yok); kapalıyken bugünkü yol birebir.
+    (attentionGapEnabled()
+      ? findUpcomingConflictsAndGaps(organizationId, { propertyIds, now })
+      : findUpcomingConflicts(organizationId, { propertyIds, now }).then((conflicts) => ({ conflicts, gaps: [] as UpcomingGap[] }))
+    ).catch((err): { conflicts: UpcomingConflict[]; gaps: UpcomingGap[] } => {
       void alertOnTransition("attention:calendar-conflict", "attention calendar_conflict", err).catch(() => {});
-      return [];
+      return { conflicts: [], gaps: [] };
     }),
     // Misafire verilen açık sözler (migration 62): son anı yaklaşan ya da geçen. Arıza öteki satırları düşürmez (geçiş tabanlı alarm).
     prisma.guestCommitment
@@ -331,14 +337,8 @@ export async function findAttentionItems(
         return [];
       },
     ),
-    // Yetim boşluklar (V2 boşluk satırı) — anahtar KAPALIYKEN sorgu YOK. Arıza öteki satırları düşürmez (geçiş tabanlı alarm).
-    attentionGapEnabled()
-      ? findUpcomingGaps(organizationId, { propertyIds, now }).catch((err): UpcomingGap[] => {
-          void alertOnTransition("attention:booking-gap", "attention booking_gap", err).catch(() => {});
-          return [];
-        })
-      : Promise.resolve([] as UpcomingGap[]),
   ]);
+  const { conflicts, gaps } = calendarScan;
   const inScope = new Set(propertyIds);
   const openDecisions = decisions.filter((d) => inScope.has(d.propertyId));
   // Ev sahibine bırakılmış istek / karar bekleyen kart satırı bu konuşmayı zaten gösteriyor (daha özgül; çift satır olmasın).
@@ -627,7 +627,8 @@ export async function findAttentionItems(
       certainty: g.confirmed ? "observed" : "inferred",
       propertyId: g.propertyId,
       propertyName: nameById.get(g.propertyId) ?? "",
-      severity: g.from < soonLimit ? GAP_SEVERITY_SOON : GAP_SEVERITY_LATER,
+      // Kanıtsız komşulu boşluk bir basamak aşağıda (hayalet satır olabilir — çakışmada da önem kanıta göre).
+      severity: (g.from < soonLimit ? GAP_SEVERITY_SOON : GAP_SEVERITY_LATER) - (g.confirmed ? 0 : GAP_UNCONFIRMED_PENALTY),
       occurredAt: new Date(Date.UTC(y, m - 1, d)),
       href: `/calendar?property=${encodeURIComponent(g.propertyId)}&month=${g.from.slice(0, 7)}`,
       nights: { from: g.from, to: g.to },
