@@ -17,9 +17,9 @@ import { setNightlyRate } from "@/modules/intelligence/money/rates";
 const NOW = new Date("2026-10-01T09:00:00Z"); // İstanbul 12:00
 const midnight = (d: string) => new Date(`${d}T00:00:00.000Z`);
 
-async function stay(propertyId: string, arrival: string, departure: string, status = "confirmed") {
+async function stay(propertyId: string, arrival: string, departure: string, status = "confirmed", channel = "manual") {
   return prisma.reservation.create({
-    data: { propertyId, guestName: "Misafir", arrivalDate: midnight(arrival), departureDate: midnight(departure), status, channel: "manual" },
+    data: { propertyId, guestName: "Misafir", arrivalDate: midnight(arrival), departureDate: midnight(departure), status, channel },
   });
 }
 /** Taze takvim bağlantısı: "boş" hükmü için kapsama şart. */
@@ -62,6 +62,16 @@ describe("Dikkat Gerektirenler — yetim boşluk satırı", () => {
       money: { kind: "estimate", low: 4000, high: 5200, currency: "TRY", confidence: "low" },
     });
     expect(gaps[0].href).toBe(`/calendar?property=${encodeURIComponent(propertyId)}&month=2026-10`);
+  });
+
+  it("🚨 komşu konaklamalardan biri kanıtsız (bağlantısız kanal satırı — hayalet olabilir) → satır ÇIKARIM ('doğrulayın')", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await freshFeed(propertyId);
+    await stay(propertyId, "2026-10-03", "2026-10-06", "confirmed", "airbnb"); // kaynak / bağlantı yok → kanıtsız iddia
+    await stay(propertyId, "2026-10-07", "2026-10-10");
+    const gaps = (await findAttentionItems(orgId, { now: NOW })).filter((i) => i.kind === "booking_gap");
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]).toMatchObject({ certainty: "inferred", nights: { from: "2026-10-06", to: "2026-10-07" } });
   });
 
   it("mülk başına TEK satır: en yakın boşluk + toplam sayı; uzak boşluk düşük önem; aralık yoksa tutar 'bilinmiyor'", async () => {
