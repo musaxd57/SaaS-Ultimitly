@@ -4,7 +4,7 @@ import { paymentRequired, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { rateLimit } from "@/lib/rate-limit";
-import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
+import { peekDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { previewChannelAutoReplies } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
@@ -26,24 +26,18 @@ export const POST = withManage(async (session) => {
   const limited = await rateLimit(`preview-autoreply:${session.userId}`, 6, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  // ⚠️ GÜNLÜK KOTA BU ROTADA DA GEÇERLİ (denetim, 07-31 — GERÇEK BİR AÇIKTI).
+  // ⚠️ GÜNLÜK KOTA BU ROTADA DA GEÇERLİ (denetim, 07-31 — GERÇEK BİR AÇIKTI): `previewChannelAutoReplies` istek başına 12'ye kadar
+  // GERÇEK model çağrısı yapıyor ve eskiden sayaca hiç dokunmuyordu (dakikada 6 × 12 = 72 çağrı, Başlangıç tavanı günde 150).
   //
-  // `applyChannelAutoReply` kotayı `dryRun` dışında tutuyor ve gerekçesi
-  // "önizleme kendi rotasında zaten sayılıyor" idi. Bu `/api/ai/test` için
-  // doğruydu, BU rota için değildi: `previewChannelAutoReplies` istek başına
-  // 12'ye kadar GERÇEK model çağrısı yapıyor ve sayaca hiç dokunmuyordu.
-  // Dakikada 6 istek × 12 = 72 çağrı/dakika, ~103.000/gün — Başlangıç planının
-  // tavanı 150. Yani kotanın var oluş sebebi (tek hesabın bütçeyi yakması) tam
-  // olarak bu düğmede açıktı. `ignoreToggle`+`ignoreSchedule` yüzünden org
-  // anahtarı kapalıyken ve saat penceresi dışında bile çalışıyordu.
-  //
-  // Önizleme başına TEK birim tüketiliyor (fan-out sayısı kadar değil): amaç
-  // meşru kullanıcıyı iki denemede kilitlemek değil, sınırsız döngüyü kesmek.
-  const budget = await consumeDailyAiBudget(session.organizationId);
+  // 🚨 KONUŞMA BAŞINA (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): 07-31 düzeltmesi önizleme başına TEK birim düşüyordu →
+  // Başlangıç planında günde teorik 150 × 12 = 1.800 çağrı. Artık her model çağrısı bir birim, `previewChannelAutoReplies` içinde
+  // (`previewBudget`); bütçe biterse önizleme orada durur ve ekran "günlük sınır doldu" der. Burada yalnız BAKILIR: bütçe zaten
+  // doluysa hiçbir konuşma yüklenmeden reddedilir.
+  const budget = await peekDailyAiBudget(session.organizationId);
   if (!budget.ok) return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
 
   try {
-    const outcomes = await previewChannelAutoReplies(session.organizationId);
+    const { outcomes, budgetExhausted } = await previewChannelAutoReplies(session.organizationId);
     const previews = outcomes.map((o) => ({
       guestIdentifier: o.guestIdentifier ?? "Misafir",
       propertyName: o.propertyName ?? "",
@@ -53,7 +47,11 @@ export const POST = withManage(async (session) => {
       confidence: o.draft?.confidence ?? null,
       reason: o.draft ? null : o.skippedReason ?? null,
     }));
-    return NextResponse.json({ ok: true, previews });
+    // Bütçe önizleme sırasında bitti: kalan konuşmalar önizlenmedi — ekranda sade not (dolan tavan + ne zaman açılacağı).
+    const limitNote = budgetExhausted
+      ? `${dailyBudgetMessage(await peekDailyAiBudget(session.organizationId))} Kalan konuşmalar önizlenmedi.`
+      : null;
+    return NextResponse.json({ ok: true, previews, limitNote });
   } catch (err) {
     const message = providerErrorMessage(err, "Önizleme oluşturulamadı. Lütfen kısa bir süre sonra tekrar deneyin.");
     return NextResponse.json({ ok: false, error: message });

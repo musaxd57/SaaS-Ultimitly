@@ -1519,6 +1519,13 @@ export interface ChannelAutoReplyOptions {
   ignoreSchedule?: boolean;
   /** Skip the org on/off toggle check (used by the preview). */
   ignoreToggle?: boolean;
+  /**
+   * Önizleme kotası (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): `dryRun` iken de günlük AI bütçesinden konuşma başına bir
+   * birim düşülür — model çağrısının hemen önünde, ucuz deterministik atlamalardan SONRA (cevaplanmayacak konuşma birim yakmaz).
+   * Bütçe doluysa model çağrılmaz, `daily_budget` döner. Etkileşimli yüzey olduğu için "önce tüket" (suistimal kapısı; cron'daki
+   * "önce bak, sonra tüket" burada kullanılmaz — `daily-budget.ts` `peekDailyAiBudget` gerekçesi).
+   */
+  previewBudget?: boolean;
 }
 
 export interface ChannelAutoReplyOutcome {
@@ -1895,8 +1902,9 @@ export async function applyChannelAutoReply(
     // TAMAMINDAN sonra. Maliyet burada başlıyor; daha erken tüketmek cevaplanmayacak
     // thread'ler için kota yakardı.
     //
-    // dryRun HARİÇ: önizleme/test kartı kendi rotasında zaten kotadan düşüyor,
-    // burada ikinci kez saymak müşteriyi çifte cezalandırırdı.
+    // dryRun HARİÇ: gönderim yok. Önizleme kotası aşağıdaki `previewBudget` dalında
+    // AYNI noktada, konuşma başına düşülür (kurucu kararı 10-11); dryRun'da aşağıdaki
+    // "model cevap verdiyse tüket" adımı koşmaz → çifte sayım yok.
     //
     // Tavana çarpınca konuşma "new" kalır ve `autoReplyAttemptedAt` DAMGALANMAZ
     // → pencere dönünce normal şekilde yanıtlanır. Kayıp değil, gecikme; ve
@@ -1913,6 +1921,10 @@ export async function applyChannelAutoReply(
       await persistRiskVisibility(conversation.id, "daily_budget");
       return { sent: false, skippedReason: "daily_budget", ...meta };
     }
+  } else if (options.previewBudget) {
+    // Önizleme: konuşma başına bir birim, model çağrısından ÖNCE (↑`previewBudget`). Kayıt yazılmaz (dryRun).
+    const budget = await consumeDailyAiBudget(conversation.property.organizationId);
+    if (!budget.ok) return { sent: false, skippedReason: "daily_budget", ...meta };
   }
 
   // Tek yol `ai/kb-fetch.ts`: tavan + "kaç tanesi düştü" oradan gelir. Burası
@@ -5476,12 +5488,16 @@ export async function previewCheckouts(
 /**
  * Preview what the channel auto-reply WOULD send right now — without sending
  * anything. Ignores the on/off toggle and the active-hours window so the user
- * can test quality at any time. Returns one outcome per candidate conversation.
+ * can test quality at any time. Returns one outcome per previewed conversation.
+ *
+ * KOTA (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): eskiden önizleme başına TEK birim düşülüyor, istek başına 12'ye kadar
+ * model çağrısı yapılıyordu. Artık modele giden HER konuşma bir birim (`previewBudget`); bütçe biterse önizleme ORADA DURUR —
+ * kalan konuşmalar için model çağrılmaz, `budgetExhausted` ile ekrana "günlük sınır doldu" yazılır.
  */
 export async function previewChannelAutoReplies(
   organizationId: string,
   limit = 12,
-): Promise<ChannelAutoReplyOutcome[]> {
+): Promise<{ outcomes: ChannelAutoReplyOutcome[]; budgetExhausted: boolean }> {
   const candidates = await prisma.conversation.findMany({
     where: {
       property: { organizationId },
@@ -5501,9 +5517,10 @@ export async function previewChannelAutoReplies(
 
   const outcomes: ChannelAutoReplyOutcome[] = [];
   for (const c of candidates) {
-    outcomes.push(
-      await applyChannelAutoReply(c.id, { dryRun: true, ignoreSchedule: true, ignoreToggle: true }),
-    );
+    const outcome = await applyChannelAutoReply(c.id, { dryRun: true, ignoreSchedule: true, ignoreToggle: true, previewBudget: true });
+    // Bütçe bitti: bu konuşma ÖNİZLENMEDİ (listeye "size bırakılır" diye girmez) ve sonrakiler için model çağrılmaz.
+    if (outcome.skippedReason === "daily_budget") return { outcomes, budgetExhausted: true };
+    outcomes.push(outcome);
   }
-  return outcomes;
+  return { outcomes, budgetExhausted: false };
 }

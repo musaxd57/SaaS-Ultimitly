@@ -1813,11 +1813,64 @@ describe("previewChannelAutoReplies", () => {
 
   it("returns drafts for awaiting conversations without sending (even when toggle off)", async () => {
     const { orgId } = await seed({ autoReplyHospitable: false });
-    const previews = await previewChannelAutoReplies(orgId);
+    const { outcomes: previews, budgetExhausted } = await previewChannelAutoReplies(orgId);
 
     expect(previews).toHaveLength(1);
+    expect(budgetExhausted).toBe(false);
     expect(previews[0].draft?.reply).toBe(SAFE_REPLY.reply);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  /** Aynı mülke cevap bekleyen iki konuşma daha (toplam 3). */
+  async function twoMoreAwaiting(conversationId: string) {
+    const { propertyId } = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, select: { propertyId: true } });
+    for (const g of ["Bora", "Cem"]) {
+      await prisma.conversation.create({
+        data: {
+          propertyId,
+          channel: "airbnb",
+          guestIdentifier: g,
+          status: "new",
+          externalReservationId: `res-${g}`,
+          messages: { create: [{ direction: "inbound", senderName: g, body: "Is there parking?", createdAt: new Date(Date.now() - 30_000) }] },
+        },
+      });
+    }
+  }
+  const dailyCounter = async (orgId: string) =>
+    (await prisma.rateLimitCounter.findUnique({ where: { key: `ai-daily:${orgId}` }, select: { count: true } }))?.count ?? 0;
+
+  it("🚨 kota KONUŞMA BAŞINA (kurucu kararı 10-11, 'gerçek çağrı kadar'): 3 konuşma → 3 model çağrısı → sayaç 3 (çifte sayım yok)", async () => {
+    const { orgId, conversationId } = await seed({ autoReplyHospitable: false });
+    await twoMoreAwaiting(conversationId);
+    const { outcomes, budgetExhausted } = await previewChannelAutoReplies(orgId);
+    expect(outcomes).toHaveLength(3);
+    expect(budgetExhausted).toBe(false);
+    expect(mockSuggest).toHaveBeenCalledTimes(3);
+    expect(await dailyCounter(orgId)).toBe(3);
+  });
+
+  it("🚨 bütçe önizleme SIRASINDA biterse orada DURUR: kalan konuşma için model çağrılmaz, listeye girmez, budgetExhausted", async () => {
+    vi.stubEnv("AI_DAILY_CALL_CAP", "2");
+    try {
+      const { orgId, conversationId } = await seed({ autoReplyHospitable: false });
+      await twoMoreAwaiting(conversationId);
+      const { outcomes, budgetExhausted } = await previewChannelAutoReplies(orgId);
+      expect(mockSuggest).toHaveBeenCalledTimes(2);
+      expect(outcomes).toHaveLength(2);
+      expect(outcomes.every((o) => o.skippedReason !== "daily_budget")).toBe(true);
+      expect(budgetExhausted).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("KONTROL: modele gitmeyen konuşma (son mesaj zaten cevap — ucuz atlama) birim YAKMAZ", async () => {
+    const { orgId } = await seed({ autoReplyHospitable: false, lastDirection: "outbound" });
+    const { outcomes } = await previewChannelAutoReplies(orgId);
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(outcomes.every((o) => !o.draft)).toBe(true);
+    expect(await dailyCounter(orgId)).toBe(0);
   });
 });
 

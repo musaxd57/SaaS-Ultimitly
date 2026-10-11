@@ -188,9 +188,18 @@ describe("günlük org AI bütçesi", () => {
     //                   kotası uygulanamaz); kendi IP + günlük tavanları var.
     //  · chat/[token] → QR concierge, kendi DAİRE BAŞINA günlük tavanı var.
     const exempt = new Set(["demo/ai/route.ts", "chat/[token]/route.ts"]);
+    // Bütçe ÇAĞRI BAŞINA yardımcının İÇİNDE düşülen rota (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): oto-yanıt önizlemesi
+    // konuşma başına `previewBudget` ile tüketir; rota yalnız BAKAR. Muafiyet bu bağlantı kaynakta gerçekten varken geçerlidir.
+    const automationSrc = readFileSync(`${root}/lib/automation.ts`, "utf8");
+    const previewBody = automationSrc.slice(automationSrc.indexOf("export async function previewChannelAutoReplies"));
+    const perCallInside =
+      /previewBudget: true/.test(previewBody.slice(0, previewBody.indexOf("\n}\n"))) &&
+      /else if \(options\.previewBudget\) \{[\s\S]{0,300}?consumeDailyAiBudget\(/.test(automationSrc);
+    expect(perCallInside, "önizleme konuşma başına bütçe bağlantısı kayboldu").toBe(true);
     const missing = spenderRoutes
       .map((f) => f.slice(apiRoot.length + 1))
       .filter((rel) => !exempt.has(rel))
+      .filter((rel) => !(rel === "hospitable/auto-reply-test/route.ts" && perCallInside))
       // ÇAĞRIYI ara, import satırını DEĞİL: çağrıyı silip import'u bırakan bir
       // mutasyon ilk sürümden geçmişti (mutasyonla ölçüldü).
       .filter((rel) => !/consumeDailyAiBudget\s*\(/.test(readFileSync(`${apiRoot}/${rel}`, "utf8")));

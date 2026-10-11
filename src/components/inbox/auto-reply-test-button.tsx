@@ -24,6 +24,8 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
   const [open, setOpen] = useState(false);
   const [previews, setPreviews] = useState<Preview[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Günlük AI sınırı önizleme sırasında doldu (kurucu kararı 10-11: konuşma başına kota) → kalanlar önizlenmedi.
+  const [limitNote, setLimitNote] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -83,11 +85,13 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
   async function runTest() {
     setBusy(true);
     setError(null);
+    setLimitNote(null);
     try {
       const res = await fetch("/api/hospitable/auto-reply-test", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
         setPreviews(data.previews as Preview[]);
+        setLimitNote(typeof data.limitNote === "string" ? data.limitNote : null);
         setOpen(true);
       } else {
         setError(data.error ?? "Önizleme başarısız oldu.");
@@ -173,9 +177,14 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
               aria-label="Önizleme listesi"
               className="max-h-[60vh] space-y-4 overflow-y-auto px-5 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
+              {limitNote && !error ? (
+                <p role="status" className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50/60 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  {limitNote}
+                </p>
+              ) : null}
               {error ? (
                 <p className="text-sm text-destructive">{error}</p>
-              ) : previews && previews.length === 0 ? (
+              ) : previews && previews.length === 0 && !limitNote ? (
                 <p className="text-sm text-muted-foreground">
                   Cevap bekleyen (misafirin son yazdığı) konuşma yok. Önce &quot;Mesajları çek&quot;e basın.
                 </p>

@@ -300,7 +300,7 @@ describe("kanal oto-yanıtı — kapanışa sessizlik", () => {
     const { orgId, conversationId } = await seedChannel([...PRIOR, { direction: "inbound", body: "Teşekkürler!" }]);
     await runDueChannelAutoReplies(orgId);
     expect(isClosingHandled(await conversationOf(conversationId))).toBe(true);
-    expect(await previewChannelAutoReplies(orgId)).toEqual([]);
+    expect((await previewChannelAutoReplies(orgId)).outcomes).toEqual([]);
     // Misafir yeniden yazınca önizlemeye geri gelir.
     const later = new Date(Date.now() + 1_000);
     await prisma.message.create({
@@ -308,7 +308,7 @@ describe("kanal oto-yanıtı — kapanışa sessizlik", () => {
     });
     await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: later } });
     mockSuggest.mockResolvedValue({ ...CLOSING_DRAFT, intent: "wifi", confidence: 0.9, reply: "Wifi şifresi kılavuzda." });
-    expect(await previewChannelAutoReplies(orgId)).toHaveLength(1);
+    expect((await previewChannelAutoReplies(orgId)).outcomes).toHaveLength(1);
   });
 
   it("KONTROL: 'Anladım teşekkürler ama 12'de gelebilir miyiz?' kapanış DEĞİL — modele gider", async () => {

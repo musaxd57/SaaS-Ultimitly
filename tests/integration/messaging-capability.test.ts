@@ -141,7 +141,7 @@ describe("V0.5 messaging capability — davranışsal", () => {
     await mk(`qr-chat:${propertyId}:r1`, "chat");
     await mk("6f1c-hosp-uuid", "airbnb");
 
-    const preview = await previewChannelAutoReplies(orgId);
+    const { outcomes: preview } = await previewChannelAutoReplies(orgId);
     const ids = preview.map((p) => (p as { externalReservationId?: string | null; guest?: string }).externalReservationId ?? "?");
     expect(preview.length).toBe(1);
     expect(JSON.stringify(preview)).not.toContain("qr-chat:");
