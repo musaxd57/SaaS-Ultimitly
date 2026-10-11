@@ -75,7 +75,9 @@ export default async function PropertyDetailPage({
   // ("AI bozulsa PMS çalışır"): kart "okunamadı" der, hiçbir başka bölüm etkilenmez.
   const memory = await getPropertyMemory(session.organizationId, property.id, 8).catch(() => null);
   // Değişmez 13 (kurucu 10-11): olası çelişki uyarıları — yalnız yönetici; okunamazsa uyarı yok (sayfanın geri kalanı etkilenmez).
-  const contradictions = canManage ? await getMemoryContradictions(session.organizationId, property.id).catch(() => []) : [];
+  // Destek görünümünde (bürünme, salt-okunur — K8) gösterilmez: "Bilerek böyle" yazması reddedilir (Haiku 4. tur).
+  const contradictions =
+    canManage && !isImpersonating(session) ? await getMemoryContradictions(session.organizationId, property.id).catch(() => []) : [];
   // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
   const nightlyRate = canManage ? await getNightlyRate(session.organizationId, property.id).catch(() => null) : null;
   const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null;

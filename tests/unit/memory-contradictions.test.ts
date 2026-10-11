@@ -2,7 +2,13 @@ import { describe, it, expect, vi } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 vi.mock("server-only", () => ({}));
-import { complaintTopics, detectContradictions, ITEM_TOPIC_TO_KB, CONTRADICTION_MIN_GUESTS } from "@/modules/intelligence/memory/contradictions";
+import {
+  complaintTopics,
+  detectContradictions,
+  ITEM_TOPIC_TO_KB,
+  CONTRADICTION_MIN_GUESTS,
+  messageIsAbout,
+} from "@/modules/intelligence/memory/contradictions";
 
 // ---------------------------------------------------------------------------
 // DEĞİŞMEZ 13 / karar 26 (kurucu 10-11) — olası çelişki uyarısının SAF kararı. (1) bilgi tabanı ↔ şikâyet: son 30 günde ≥3 AYRI misafir
@@ -34,6 +40,39 @@ describe("complaintTopics — aynı misafir mesajında şikâyet + konu", () => 
   it("eşleme yalnız açık konular; bilinmeyen anlama niyeti yok", () => {
     expect(ITEM_TOPIC_TO_KB).toMatchObject({ wifi: "wifi", parking: "parking", cleaning_linen: "cleaning", access_keys: "checkin" });
     expect(Object.keys(ITEM_TOPIC_TO_KB)).not.toContain("amenities");
+  });
+});
+
+describe("messageIsAbout — mesajın somut konularının TAMAMI bu kategoriye ait mi (Haiku 4. tur)", () => {
+  it.each([
+    ["Wi-Fi çalışmıyor.", "wifi", true],
+    ["İnternet iki saattir yok", "wifi", true],
+    ["The wifi keeps dropping", "wifi", true],
+    ["Otopark dolu, park edemedik", "parking", true],
+    ["Oda çok kirliydi, havlu da yok", "cleaning", true],
+    ["Kapı kodu çalışmıyor", "checkin", true],
+    ["Wi-Fi çalışmıyor, ne yapalım?", "wifi", true],
+    // Konu yalnız SORU bölümünde: şikâyet konusu değil.
+    ["Wi-Fi şifresi ne?", "wifi", false],
+    ["İnternet var mı?", "wifi", false],
+    // Karışık: başka somut konu da var → belirsiz → hayır.
+    ["Gürültüden uyuyamadık. Bu arada Wi-Fi ağı hangisi?", "wifi", false],
+    ["Oda kirli, Wi-Fi şifresi ne?", "wifi", false],
+    ["Oda kirli, Wi-Fi şifresi ne?", "cleaning", false],
+    // Konusu okunamayan / boş / eşlemesi olmayan kategori → hayır.
+    ["", "wifi", false],
+    ["Çok kötü bir deneyimdi.", "wifi", false],
+    ["Wi-Fi çalışmıyor.", "rules", false],
+  ])("%s · %s → %s", (body, cat, expected) => expect(messageIsAbout(body as string, cat as string)).toBe(expected));
+
+  it("complaintTopics metin verilince yalnız konusu doğrulanan mesajı sayar; metni olmayan mesaj sayılmaz", () => {
+    const items = [item("c1", "m1", "complaint_issue"), item("c1", "m1", "wifi"), item("c2", "m2", "complaint_issue"), item("c2", "m2", "wifi")];
+    const bodies = new Map([
+      ["m1", "Wi-Fi çalışmıyor."],
+      ["m2", "Gürültüden uyuyamadık. Wi-Fi ağı hangisi?"],
+    ]);
+    expect(complaintTopics(items, bodies).map((t) => t.conversationId)).toEqual(["c1"]);
+    expect(complaintTopics(items, new Map())).toEqual([]);
   });
 });
 
@@ -74,6 +113,14 @@ describe("detectContradictions", () => {
       detectContradictions({ facts: [fact("f9", "checkin", { humanOverrideAt: day(1) })], topics: [], timeRows: [row], now: NOW }),
     ).toEqual([]);
     expect(detectContradictions({ facts: [], topics: [], timeRows: [row], now: NOW })).toEqual([]);
+  });
+
+  it("🚨 mülk ayarı ↔ bilgi tabanı satırı: işaret, mülk ayarı SONRADAN değiştiyse geçersiz (Haiku 4. tur)", () => {
+    const acked = fact("f9", "checkin", { humanOverrideAt: day(2) });
+    const row = (updated: Date | null) => ({ text: "Giriş saati çelişkisi", itemIds: ["kb-f9"], againstPropertyUpdatedAt: updated });
+    expect(detectContradictions({ facts: [acked], topics: [], timeRows: [row(day(3))], now: NOW })).toEqual([]);
+    expect(detectContradictions({ facts: [acked], topics: [], timeRows: [row(day(1))], now: NOW })).toHaveLength(1);
+    expect(detectContradictions({ facts: [acked], topics: [], timeRows: [row(null)], now: NOW })).toEqual([]);
   });
 
   it("gelecek tarihli öğe sayılmaz (saat kayması)", () => {

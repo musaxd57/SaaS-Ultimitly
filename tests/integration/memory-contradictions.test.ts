@@ -14,8 +14,31 @@ vi.mock("@/lib/api", async (orig) => {
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
 
+vi.mock("@/lib/auth", async (orig) => ({ ...(await orig<typeof import("@/lib/auth")>()), requireAuth: vi.fn() }));
+vi.mock("next/headers", () => ({
+  headers: async () => new Map([["host", "localhost:3000"]]),
+  cookies: async () => ({ get: () => undefined }),
+}));
+
+import React from "react";
+import { requireAuth } from "@/lib/auth";
 import { getMemoryContradictions, bootstrapMemoryFromKnowledgeBase } from "@/modules/intelligence";
 import { POST } from "@/app/api/properties/[id]/memory-acknowledge/route";
+import PropertyDetailPage from "@/app/(app)/properties/[id]/page";
+import { MemoryContradictions } from "@/components/properties/memory-contradictions";
+
+function findEl(node: unknown, match: (el: React.ReactElement) => boolean): React.ReactElement | null {
+  if (node == null || typeof node === "boolean") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findEl(n, match);
+      if (f) return f;
+    }
+    return null;
+  }
+  if (React.isValidElement(node)) return match(node) ? node : findEl((node.props as { children?: unknown }).children, match);
+  return null;
+}
 
 const ack = (propertyId: string, memoryIds: unknown) =>
   POST(
@@ -35,21 +58,27 @@ const asUser = async (orgId: string, role = "owner") => {
   session = { userId: u.id, organizationId: orgId, role, email: u.email, name: "Sahip", sessionEpoch: 0 } as SessionPayload;
 };
 
-async function seed(complaints = 3) {
+/** Misafir mesajı + aynı mesajın konuşma öğeleri (anlama katmanının yazdığı gibi). */
+async function guestMessage(orgId: string, propertyId: string, body: string, kinds: readonly string[], hoursAgo = 1) {
+  const convo = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Misafir", channel: "airbnb" } });
+  const at = new Date(Date.now() - hoursAgo * 3_600_000);
+  const msg = await prisma.message.create({
+    data: { conversationId: convo.id, direction: "inbound", senderName: "Misafir", authorType: "guest", body, createdAt: at },
+  });
+  for (const kind of kinds) {
+    await prisma.conversationItem.create({
+      data: { organizationId: orgId, conversationId: convo.id, messageId: msg.id, kind, sources: "understanding", createdAt: at },
+    });
+  }
+}
+
+async function seed(complaints = 3, body = "Wi-Fi çalışmıyor, iki saattir internet yok.") {
   const { orgId, propertyId } = await makeOrgWithProperty();
   const kb = await prisma.knowledgeBaseItem.create({
     data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre kartta.", isActive: true, source: "host", reviewState: "approved" },
   });
   await bootstrapMemoryFromKnowledgeBase(orgId, propertyId);
-  for (let i = 0; i < complaints; i++) {
-    const convo = await prisma.conversation.create({ data: { propertyId, guestIdentifier: `Misafir ${i}`, channel: "airbnb" } });
-    const at = new Date(Date.now() - (i + 1) * 3_600_000);
-    for (const kind of ["complaint_issue", "wifi"]) {
-      await prisma.conversationItem.create({
-        data: { organizationId: orgId, conversationId: convo.id, messageId: `m-${convo.id}`, kind, sources: "understanding", createdAt: at },
-      });
-    }
-  }
+  for (let i = 0; i < complaints; i++) await guestMessage(orgId, propertyId, body, ["complaint_issue", "wifi"], i + 1);
   return { orgId, propertyId, kb };
 }
 
@@ -80,19 +109,48 @@ describe("olası çelişki — bilgi tabanı ↔ şikâyet", () => {
     expect(await getMemoryContradictions(s.orgId, s.propertyId)).toHaveLength(1);
   });
 
+  it("🚨 KARIŞIK mesaj (başka konuda şikâyet + Wi-Fi sorusu) Wi-Fi şikâyeti SAYILMAZ (Haiku 4. tur)", async () => {
+    const s = await seed(3, "Gürültüden hiç uyuyamadık. Bu arada Wi-Fi ağı hangisi?");
+    expect(await getMemoryContradictions(s.orgId, s.propertyId)).toEqual([]);
+  });
+
   it("KONTROL: 2 misafir → uyarı yok", async () => {
     const s = await seed(2);
     expect(await getMemoryContradictions(s.orgId, s.propertyId)).toEqual([]);
   });
 
-  it("bilgi tabanı ↔ mülk ayarı saat çelişkisi → uyarı (bilgi tabanı sayfasıyla aynı metin)", async () => {
+  it("bilgi tabanı ↔ mülk ayarı saat çelişkisi → uyarı; 'bilerek' → kalkar; mülk ayarı SONRADAN değişince → geri gelir (Haiku 4. tur)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty({ checkInTime: "15:00" });
     await prisma.knowledgeBaseItem.create({
       data: { propertyId, category: "checkin", title: "Giriş", content: "Giriş saati 14:00'tür.", isActive: true, source: "host", reviewState: "approved" },
     });
     await bootstrapMemoryFromKnowledgeBase(orgId, propertyId);
     const w = await getMemoryContradictions(orgId, propertyId);
-    expect(w.some((x) => x.kind === "kb_vs_kb")).toBe(true);
+    const row = w.find((x) => x.kind === "kb_vs_kb");
+    expect(row).toBeDefined();
+    await asUser(orgId);
+    expect((await ack(propertyId, row!.memoryIds)).status).toBe(200);
+    expect((await getMemoryContradictions(orgId, propertyId)).some((x) => x.kind === "kb_vs_kb")).toBe(false);
+    await new Promise((r) => setTimeout(r, 5));
+    await prisma.property.update({ where: { id: propertyId }, data: { checkInTime: "16:00" } });
+    expect((await getMemoryContradictions(orgId, propertyId)).some((x) => x.kind === "kb_vs_kb")).toBe(true);
+  });
+});
+
+describe("mülk sayfası — destek görünümü (K8, Haiku 4. tur)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("🚨 sahibi uyarıyı görür; destek görünümünde (bürünme) uyarı ve 'Bilerek böyle' YOK", async () => {
+    const s = await seed(3);
+    const base = { userId: "u", organizationId: s.orgId, role: "owner", email: "o@x.com" };
+    const render = async () =>
+      findEl(await PropertyDetailPage({ params: Promise.resolve({ id: s.propertyId }), searchParams: Promise.resolve({}) }), (el) => el.type === MemoryContradictions);
+    vi.mocked(requireAuth).mockResolvedValue(base as never);
+    expect(((await render())!.props as { items: unknown[] }).items).toHaveLength(1);
+    vi.mocked(requireAuth).mockResolvedValue({ ...base, actorUserId: "operator-1" } as never);
+    expect(((await render())!.props as { items: unknown[] }).items).toEqual([]);
   });
 });
 
@@ -129,12 +187,7 @@ describe("POST /api/properties/[id]/memory-acknowledge — kiracı + rol (deği�
       data: { propertyId: b.id, category: "wifi", title: "Wi-Fi", content: "Ağ B.", isActive: true, source: "host", reviewState: "approved" },
     });
     await bootstrapMemoryFromKnowledgeBase(a.orgId, b.id);
-    for (let i = 0; i < 3; i++) {
-      const convo = await prisma.conversation.create({ data: { propertyId: b.id, guestIdentifier: `B ${i}`, channel: "airbnb" } });
-      for (const kind of ["complaint_issue", "wifi"]) {
-        await prisma.conversationItem.create({ data: { organizationId: a.orgId, conversationId: convo.id, messageId: `mb-${convo.id}`, kind, sources: "understanding" } });
-      }
-    }
+    for (let i = 0; i < 3; i++) await guestMessage(a.orgId, b.id, "Wi-Fi çalışmıyor.", ["complaint_issue", "wifi"], i + 1);
     expect(await getMemoryContradictions(a.orgId, a.propertyId)).toEqual([]); // B'nin şikâyetleri A'ya yazılmaz
     const bWarn = await getMemoryContradictions(a.orgId, b.id);
     expect(bWarn).toHaveLength(1);
