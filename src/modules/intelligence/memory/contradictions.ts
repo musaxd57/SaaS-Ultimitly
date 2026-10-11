@@ -69,34 +69,40 @@ const GAP = `(?:${SEP}(?:${FILLER})${E}){0,6}${SEP}`;
 /** Misafirin KENDİ hatası (birinci kişi: "yazmışım / girmiştim / seçtim"); "yanlış yazılmış / vermişsiniz" ev sahibinin hatasıdır, sayılır. */
 const SELF = "(?:yaz|gir|tusla|kullan|sec)(?:d[iu]m|d[iu]k|mis(?:im|iz|tim|tik)|iyor(?:um|uz)|d[iu]g[iu]m(?:[iu]z)?\\p{L}{0,3})";
 /** Fiilden / sıfat öbeğinden sonra: soru eki ("yok mu"), olumsuzlama ("yanlış değil"), olasılık / koşul ("olabilir", "olursa"), kendi hatası. */
-const NOT_AFTER = `m[iu]\\p{L}{0,4}${E}|degil|olabilir|olursa|cikarsa|ise${E}|\\p{L}{1,12} olabilir|${SELF}${E}`;
-const TAIL = `${E}(?! (?:${NOT_AFTER}))`;
+const NOT_AFTER = `m[iu]\\p{L}{0,4}${E}|degil|olabilir|olursa|cikarsa|ise${E}|\\p{L}{1,12} olabilir|(?:ben |biz )?${SELF}${E}`;
+/** Ayraç (virgül dahil) ardından da okunur — Haiku 10-11 3. tur: "Şifre yanlış, olabilir" virgül yüzünden sayılıyordu. */
+const tailWith = (extra = "") => `${E}(?!${SEP}(?:${NOT_AFTER}${extra ? `|(?:${extra})${E}` : ""}))`;
+const TAIL = tailWith();
 /** İngilizce kendi hatası fiilden ÖNCE gelir ("I typed the password wrong"); sınırlı geriye bakış. */
 const SELF_EN_BEFORE =
   "(?<!(?:typed|typing|type|entered|entering|enter|put|putting|used|using|use|tried|trying|try|mistyped|input|chose|picked|selected)[\\p{L}' -]{1,30})";
 const WIFI_WORD = "(?:wifi|wi-?fi|wi fi|internet|modem|wlan)(?:'?\\p{L}{0,4})?";
 /** Türkçe kendi hatası özneden ÖNCE ("girdiğim şifre", "girdiğim Wi-Fi şifresi"; birinci kişi — "girdiğiniz" ev sahibininkidir). */
 const SELF_TR_BEFORE = `(?<!(?:girdigi|yazdigi|tusladigi|sectigi|kullandigi)m\\p{L}{0,3} (?:${WIFI_WORD} |kapi\\p{L}{0,4} )?)`;
-/** Anlık durum: "şu an otopark yok", "No parking right now" bilgi çelişkisi değildir. */
+/**
+ * Anlık durum: "şu an otopark yok", "Otopark yok şu an", "No parking right now" bilgi çelişkisi değildir (yalnız VARLIK kategorilerinde —
+ * "şu an şifre yanlış" yine bilgi yanlışıdır). Önde zarf ile özne arasına en çok iki dolgu / gün parçası sözcüğü girebilir (Haiku 3. tur:
+ * serbest 20 karakterlik pencere "Bugün ev sahibi bize yanlış şifre verdi"yi düşürüyordu).
+ */
 const NOW_WORDS = "su an|su anda|suan|simdi|simdilik|bugun|bu aksam|bu gece|henuz|currently|right now|today|tonight|at the moment|for now";
-const NOT_NOW_BEFORE = `(?<!${W}(?:${NOW_WORDS})[\\p{L}' ]{0,20} )`;
+const NOT_NOW_BEFORE = `(?<!${W}(?:${NOW_WORDS})(?:${SEP}(?:${FILLER}|sabah|aksam|ogle|oglen|gece|morning|evening|afternoon|night)){0,2}${SEP})`;
 /**
  * Özne + dolgu + fiil. `selfEn`: İngilizce kendi hatası geriye bakışı (yalnız "wrong" ailesinde anlamlı). `enterGap`: misafirin şifreyi
  * GİRDİĞİNİ söyleyip reddedildiğini anlattığı yol ("Şifreyi girdim ama kabul etmiyor") — yalnız açık ret fiillerinde kullanılır.
  */
 const ENTER_FILLER = "girdim|girdik|denedim|denedik|yazdim|yazdik|tusladim|tusladik|ama|fakat|ancak|entered|tried|typed|but|and";
-const fwd = (subject: string, verb: string, opts: { selfEn?: boolean; enterGap?: boolean; before?: string } = {}) =>
+const fwd = (subject: string, verb: string, opts: { selfEn?: boolean; enterGap?: boolean; now?: boolean } = {}) =>
   new RegExp(
-    `${opts.before ?? ""}${SELF_TR_BEFORE}${W}(?:${subject})${E}${opts.enterGap ? `(?:${SEP}(?:${FILLER}|${ENTER_FILLER})${E}){0,6}${SEP}` : GAP}${opts.selfEn ? SELF_EN_BEFORE : ""}(?:${verb})${TAIL}`,
+    `${opts.now ? NOT_NOW_BEFORE : ""}${SELF_TR_BEFORE}${W}(?:${subject})${E}${opts.enterGap ? `(?:${SEP}(?:${FILLER}|${ENTER_FILLER})${E}){0,6}${SEP}` : GAP}${opts.selfEn ? SELF_EN_BEFORE : ""}(?:${verb})${opts.now ? tailWith(NOW_WORDS) : TAIL}`,
     "u",
   );
 /**
  * Sıfat / "there is no" + özne (bitişik; araya yalnız tanımlık ve izinli ön ek). Kendi hatası ("typed in the wrong password", "yanlış şifre
  * girmişim", "the wrong password I typed"), olumsuzlama / olasılık ("yanlış şifre değil / olabilir") ve `notAfter` (anlık durum) hariç.
  */
-const rev = (adj: string, subject: string, notAfter = "") =>
+const rev = (adj: string, subject: string, notAfter = "", now = false) =>
   new RegExp(
-    `(?<!(?:typed|typing|type|entered|entering|enter|put|putting|used|using|use|tried|trying|try|chose|picked|selected)(?: in)?(?: the| a| an)? )${NOT_NOW_BEFORE}${W}(?:${adj}) (?:the |a |an |any |bir )?(?:${subject})${E}(?! (?:${NOT_AFTER}|(?:i|we) (?:typed|entered|used|put|tried|chose|picked)${E}${notAfter ? `|(?:${notAfter})${E}` : ""}))`,
+    `(?<!(?:typed|typing|type|entered|entering|enter|put|putting|used|using|use|tried|trying|try|chose|picked|selected)[\\p{L}' -]{0,30} )${now ? NOT_NOW_BEFORE : ""}${W}(?:${adj}) (?:the |a |an |any |bir )?(?:${subject})${E}(?!${SEP}(?:${NOT_AFTER}|(?:i|we) (?:typed|entered|used|put|tried|chose|picked)${E}${notAfter ? `|(?:${notAfter})${E}` : ""}))`,
     "u",
   );
 
@@ -131,7 +137,8 @@ const INFO_WRONG: Readonly<Record<string, readonly RegExp[]>> = {
     fwd(PASSWORD, NOT_WORK),
     fwd(PASSWORD, REJECTED, { enterGap: true }),
     rev("yanlis|hatali|gecersiz|wrong|incorrect|invalid", `(?:${WIFI_WORD} )?(?:${PASSWORD_CORE})`),
-    // Ağ adı YANLIŞ sayılır; "Wi-Fi adı görünmüyor" modem kapalı da olabilir → yalnız adıyla "X diye bir ağ yok" sayılır.
+    // Ağ adı YANLIŞ sayılır; "Wi-Fi adı görünmüyor" modem kapalı da olabilir → yalnız VERİLEN ada atıfla sayılır: "X diye bir ağ yok /
+    // görünmüyor", "böyle bir ağ yok", "no such network" ("böyle / such" verilen adı gösterir — Haiku 3. tur itirazı reddedildi).
     fwd(NETWORK_NAME, `${WRONG_TR}|${WRONG_EN}`, { selfEn: true }),
     fwd("ag(?:i|iniz)?", `${WRONG_TR}|${WRONG_EN}`, { selfEn: true }),
     new RegExp(`${W}(?:diye|adli|adinda|isimli|isminde|boyle|bu isimde|bu adda) bir ag(?:i)?${E}${GAP}(?:${MISSING_TR}|gorunmuyo(?:r)?|gorunmedi|cikmiyo(?:r)?|cikmadi)${TAIL}`, "u"),
@@ -147,15 +154,15 @@ const INFO_WRONG: Readonly<Record<string, readonly RegExp[]>> = {
     rev("yanlis|hatali|gecersiz|wrong|incorrect|invalid", `(?:(?:${DOOR_PLACE}|door|front door|gate|building) )?(?:${DOOR_CORE})`),
   ],
   // "Otopark dolu" / "otoparkta yer yok" / "No parking spaces left" anlık durumdur, sayılmaz.
-  parking: [fwd(PARKING, `${MISSING_TR}|${MISSING_EN}`, { before: NOT_NOW_BEFORE }), rev(NO_EN, PARKING, FULL_NOW)],
+  parking: [fwd(PARKING, `${MISSING_TR}|${MISSING_EN}`, { now: true }), rev(NO_EN, PARKING, FULL_NOW, true)],
   // "Ekstra / fazla / temiz havlu yok" bilgi çelişkisi değildir (önünde niteleyici varsa sayılmaz).
   cleaning: [
     fwd(`(?<!(?:fazla|fazladan|ekstra|extra|yedek|more|additional|yeterli|enough|temiz|clean|baska|yeni|new|spare|fresh) )(?:${LINEN})`, `${MISSING_TR}|${MISSING_EN}`, {
-      before: NOT_NOW_BEFORE,
+      now: true,
     }),
-    rev(NO_EN, LINEN, `problems?|issues?|${NOW_WORDS}`),
+    rev(NO_EN, LINEN, `problems?|issues?|${NOW_WORDS}`, true),
   ],
-  trash: [fwd(BINS, `${MISSING_TR}|${MISSING_EN}`, { before: NOT_NOW_BEFORE }), rev(NO_EN, BINS, FULL_NOW)],
+  trash: [fwd(BINS, `${MISSING_TR}|${MISSING_EN}`, { now: true }), rev(NO_EN, BINS, FULL_NOW, true)],
   // Adres / konum YANLIŞ ("konum çalışmıyor" ve telefonun konumu sayılmaz).
   location: [fwd(PLACE, `${WRONG_TR}|${WRONG_EN}|tutmuyo(?:r)?|tutmadi`, { selfEn: true }), rev("yanlis|hatali|wrong|incorrect", PLACE)],
 };
@@ -177,6 +184,8 @@ const foldTr = (t: string) =>
 const SPECULATION =
   /^\s*(?:could|can|is|are|was|were|does|do|did|should|might|may|would|will|has|have)(?![\p{L}\p{N}'])|(?<![\p{L}\p{N}])(?:acaba|belki|maybe|perhaps|possibly|(?:could|might|may) be)(?![\p{L}\p{N}])/u;
 
+const HEDGE_TAIL = /^\s*(?:olabilir|olur|olamaz|degil|dogru|oyle|m[iu](?![\p{L}\p{N}])|is it|isn'?t it|right|really|could|maybe|belki|acaba)/u;
+
 /** Okunan en uzun metin (daha uzun mesajın başı okunur; kalıplar doğrusal; sayfa açılışında en çok 2.000 öğe × bu kadar). */
 export const INFO_WRONG_MAX_CHARS = 2_000;
 
@@ -188,9 +197,11 @@ export function statesInfoWrong(body: string, kbCategory: string): boolean {
   return clauses.some((clause) => {
     let c = clause;
     // Soru işaretli cümlede son virgül bölümü sorudur, öncesi bildirim olabilir ("Şifre yanlış, kontrol eder misiniz?"); virgül yoksa tamamı soru.
-    if (/\?\s*$/.test(c)) {
+    if (/\?[!.…\s]*$/.test(c)) {
       const cut = c.lastIndexOf(",");
       if (cut < 0) return false;
+      // Son bölüm onay / olasılık sorusuysa ("…, değil mi?", "…, olabilir mi?", "…, right?") cümlenin tamamı sorudur.
+      if (HEDGE_TAIL.test(c.slice(cut + 1))) return false;
       c = c.slice(0, cut);
     }
     return !SPECULATION.test(c) && rules.some((re) => re.test(c));
