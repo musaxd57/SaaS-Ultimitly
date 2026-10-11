@@ -32,12 +32,9 @@ const ALLOWED_WITHOUT_CHECK: Record<string, string> = {
   "demo/ai POST": "halka açık demo",
   "leads POST": "halka açık iletişim formu",
   "webhooks/paddle POST": "ödeme sağlayıcısı (imza)",
-  "admin/customers POST": "operatör paneli (süper-admin kendi yetkisiyle)",
   "admin/exit POST": "bürünmeden çıkış",
-  "admin/impersonate POST": "bürünmeye giriş / müşteri değiştirme",
-  "admin/leads/[id] PATCH": "operatör paneli",
-  "admin/quality-audit POST": "operatör paneli",
-  "admin/reset-2fa POST": "operatör paneli",
+  // Operatör paneli yazmaları (müşteri açma, bürünme değiştirme, lead, kalite denetimi, 2FA sıfırlama, deneme istisnası) artık
+  // KENDİ kontrolünü taşır — destek görünümünde kapalı, önce çıkış (kurucu kararı 10-11). Listeden bu yüzden çıktılar.
 };
 
 type Handler = { key: string; wrapped: boolean; body: string };

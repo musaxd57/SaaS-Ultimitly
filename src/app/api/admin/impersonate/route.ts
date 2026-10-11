@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull, tooManyRequests, forbidden } from "@/lib/api";
 import { isSuperAdmin, enterOrganization } from "@/lib/admin";
+import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 import { rateLimit } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
+  // Destek görünümünde operatör yazması YOK — önce çıkış (kurucu kararı 10-11; `OPERATOR_SUPPORT_VIEW_MESSAGE`).
+  if (isImpersonating(session)) return forbidden(OPERATOR_SUPPORT_VIEW_MESSAGE);
   // Operatör kimliğine bağlı tavan (10-10 gece, Haiku operatör incelemesi): her başarılı çağrı müşteri hesabına giren bir oturum
   // üretir. Sınır otomatik döngüyü / toplu taramayı yavaşlatır; az sayıda işletmeyi gezmeyi DURDURMAZ (bugün ~9 işletme < 30) — asıl
   // tespit her girişin denetim kaydı (`enterOrganization`). Başarısız denemeler de sayılır; meşru destek kullanımında ulaşılmaz.

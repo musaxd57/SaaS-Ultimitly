@@ -1,8 +1,9 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, notFound, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, notFound, jsonOk, serverError, readJsonCappedOrNull, forbidden } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
+import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 
 // ---------------------------------------------------------------------------
 // Operator panel: mini sales pipeline on landing-page leads. SUPER-ADMIN ONLY
@@ -26,6 +27,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
+  // Destek görünümünde operatör yazması YOK — önce çıkış (kurucu kararı 10-11; `OPERATOR_SUPPORT_VIEW_MESSAGE`).
+  if (isImpersonating(session)) return forbidden(OPERATOR_SUPPORT_VIEW_MESSAGE);
 
   try {
     const { id } = await ctx.params;

@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull, impersonationReadOnly } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull, forbidden } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
+import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAuditInTx } from "@/lib/audit";
 import { trialEndDate } from "@/lib/billing/subscription";
@@ -18,9 +19,8 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
-  // K8: bürünme salt-okunurdur — operatör bu işlemi müşteri hesabına bürünmüşken YAPAMAZ (Haiku incelemesi).
-  const readOnly = impersonationReadOnly(session, "POST");
-  if (readOnly) return readOnly;
+  // Destek görünümünde operatör yazması YOK — önce çıkış (K8 + kurucu kararı 10-11; `OPERATOR_SUPPORT_VIEW_MESSAGE`).
+  if (isImpersonating(session)) return forbidden(OPERATOR_SUPPORT_VIEW_MESSAGE);
 
   const limited = await rateLimit(`admin-trial-exempt:${session.actorUserId ?? session.userId}`, 30, 60 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);

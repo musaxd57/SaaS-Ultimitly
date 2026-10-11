@@ -11,6 +11,10 @@
 /** Bürünmenin en uzun süresi. */
 export const IMPERSONATION_MAX_MS = 2 * 60 * 60 * 1000;
 
+/** Operatör paneli YAZMALARI (2FA sıfırlama, müşteri açma, lead güncelleme, kalite denetimi, bürünme değiştirme, deneme istisnası)
+ *  destek görünümünde kapalı — önce çıkış (kurucu kararı 10-11, karar listesi 22; dışa aktarma ve kalite konsolu zaten böyleydi). */
+export const OPERATOR_SUPPORT_VIEW_MESSAGE = "Bu işlem operatörün kendi hesabından yapılır — önce destek görünümünden çıkın.";
+
 /** Bürünmüşken yazma denendiğinde dönen sade ileti. */
 export const IMPERSONATION_READ_ONLY_MESSAGE =
   "Destek görünümü salt okunur — müşteri hesabında değişiklik yapılamaz.";

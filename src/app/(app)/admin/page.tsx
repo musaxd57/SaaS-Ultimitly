@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin";
+import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 import { clientIp, parseForwardedFor, pickClientHop, trustedProxyHops } from "@/lib/rate-limit";
 import { canonicalMailbox } from "@/lib/email-identity";
 import { auditActionLabel } from "@/lib/audit";
@@ -26,6 +27,18 @@ export default async function AdminPage() {
   const session = await requireAuth();
   // SUPER-ADMIN ONLY. Anyone else is sent back to their dashboard.
   if (!isSuperAdmin(session)) redirect("/dashboard");
+  // Destek görünümünde operatör paneli AÇILMAZ — önce çıkış (kurucu kararı 10-11): paneldeki her yazma (2FA sıfırlama, müşteri açma,
+  // lead, kalite denetimi, deneme istisnası, başka hesaba geçiş) sunucuda da reddedilir; formları gösterip 403 almak yerine yol söylenir.
+  if (isImpersonating(session)) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Operatör Paneli" />
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">{OPERATOR_SUPPORT_VIEW_MESSAGE}</CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const [orgs, leads, auditLogs, shadowRows] = await Promise.all([
     prisma.organization.findMany({
