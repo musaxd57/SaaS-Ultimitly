@@ -59,6 +59,8 @@ describe("qrReplyHasDoorCode — sızıntı OLMAYANLAR (cevap gitmeli, devir ço
     expect(qrReplyHasDoorCode("Çöp odasının şifresi: 7788", [])).toBe(true);
     expect(qrReplyHasDoorCode("Wi-Fi şifresi 45901234.", [])).toBe(false);
     expect(qrReplyHasDoorCode("Ağ adı LaleNet, şifre 45901234.", [])).toBe(false);
+    // Wi-Fi adı önceki cümlede: bağ cümle sınırını GEÇMEZ.
+    expect(qrReplyHasDoorCode("Wi-Fi ağı LaleNet. Kiler şifresi 4590.", [])).toBe(true);
   });
 
   it("🚨 ayraçlı yazım ('4 5 9 0') da yakalanır; yıl eki / fiyat yanlış tutuş üretmez (devir çok olmasın)", () => {
@@ -109,6 +111,7 @@ describe("withoutQrSecretKbItems — Wi-Fi kalemi girer, kapı izi girmez", () =
       "Wi-Fi: LaleNet, şifre gunes1907, depo şifresi 4590",
       "Wi-Fi şifresi gunes1907. Şifre: 4590",
       "Wi-Fi şifresi gunes1907. Otopark şifresi kirmizi gelincik", // değer iki noktasız + rakamsız → iz listesi (otopark) yakalar
+      "Wi-Fi ağı: LaleNet. Kiler şifresi 4590", // Wi-Fi adı ÖNCEKİ cümlede kaldı; "kiler" iz listesinde yok → yalnız cümle sınırı yakalar
     ]) {
       expect(withoutQrSecretKbItems([kb("wifi", content)]), content).toEqual([]);
     }
