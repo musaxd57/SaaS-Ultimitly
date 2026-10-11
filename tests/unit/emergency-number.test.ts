@@ -40,6 +40,11 @@ describe("askedEmergencyServices — hangi servisin numarası soruluyor", () => 
     ["How do I call the police?", ["police"]],
     ["Who do we call for an ambulance?", ["ambulance"]],
     ["Ambulans numarası 112 mi?", ["ambulance"]],
+    // Kör set 2 (10-11): "acil hattı hangisi?" ve yalnız servis adından oluşan soru.
+    ["Sokakta kavga var. Acil hattı hangisi?", ["general"]],
+    ["Ambulans?", ["ambulance"]],
+    ["Polis numarası?", ["police"]],
+    ["  Itfaiye ?? ", ["fire"]],
     // Haiku 2. tur: acil kısa numarayla süren teyit sorusu, cümle sonundaki "contact", "who can / how do you".
     ["Polis numara 155 mi?", ["police"]],
     ["Acil numara 112 değil mi?", ["general"]],
@@ -56,6 +61,18 @@ describe("askedEmergencyServices — hangi servisin numarası soruluyor", () => 
     // KONTROL: acil bağlam yoksa numara sorusu değil (temizlikçinin / ev sahibinin numarası olabilir).
     expect(askedEmergencyServices("Babam nefes alamıyor, hangi numarayı arayayım?")).toEqual([]);
     expect(askedEmergencyServices("Temizlikçinin hangi numarasını arayayım?", { emergencyContext: false })).toEqual([]);
+    // Kör set 2 (10-11): "who do I call", "kimi / nereyi arayalım", "112 mi 155 mi?" — yine yalnız acil bağlamda.
+    expect(askedEmergencyServices("Her lips are swelling. Who do I call right now?", { emergencyContext: true })).toEqual(["general"]);
+    expect(askedEmergencyServices("Gaz kokusu var, 112 mi 155 mi?", { emergencyContext: true })).toEqual(["general"]);
+    expect(askedEmergencyServices("Biri bayıldı, kimi arayalım?", { emergencyContext: true })).toEqual(["general"]);
+    expect(askedEmergencyServices("Gaz kokusu var, 112 mi 155 mi?")).toEqual([]);
+    expect(askedEmergencyServices("Who do I call about the broken dishwasher?", { emergencyContext: false })).toEqual([]);
+    expect(askedEmergencyServices("Daire 112 mi 115 mi, karıştırdım?", { emergencyContext: false })).toEqual([]);
+    // Haiku 3. tur: acil bağlamda bile BAŞKA hedefin numarası / daire numarası genel acil numarası değildir.
+    expect(askedEmergencyServices("Üst kattaki komşu bayıldı, hangi numaralı dairede kaldığını bilmiyoruz.", { emergencyContext: true })).toEqual([]);
+    expect(askedEmergencyServices("Taksi için hangi numarayı arayalım, hastaneye gideceğiz.", { emergencyContext: true })).toEqual([]);
+    expect(askedEmergencyServices("Doktor arkadaşımın hangi numarasını arayayım?", { emergencyContext: true })).toEqual([]);
+    expect(askedEmergencyServices("Which number do I call for a taxi to the hospital?", { emergencyContext: true })).toEqual([]);
     // Servis adı geçiyorsa belirli servis kalır.
     expect(askedEmergencyServices("Ambulans için hangi numarayı arayayım?", { emergencyContext: true })).toEqual(["ambulance"]);
   });
@@ -75,6 +92,9 @@ describe("askedEmergencyServices — hangi servisin numarası soruluyor", () => 
     "Telefonum çalındı, polise gideceğiz.",
     "My phone was stolen, we are going to the police.",
     "Polis 5 numaralı dairede bağırıyor.",
+    "Ambulans geldi mi?",
+    "Polis karakolu hangisi?",
+    "Ambulans çok gürültülüydü?",
     "The police came to apartment number 5.",
   ])(
     "KONTROL — numara sorusu değil: %s",
@@ -131,6 +151,7 @@ describe("hostDisputeSignal — ev sahibi / anlaşmazlık sözcüğü (kod baca�
     "Hasar bedeline itiraz ediyoruz, polis numarası?",
     "Teminat bedelini iade etmediler. Polis numarası?",
     "We dispute the damage charge, what is the police number?",
+    "Teminat bedelimi kesmek istiyorlar, polis numarası?",
   ])("🚨 %s", (t) => expect(hostDisputeSignal(t)).toBe(true));
   it.each([
     "Annem fenalaştı, ambulans numarası kaçtı?",
@@ -142,6 +163,8 @@ describe("hostDisputeSignal — ev sahibi / anlaşmazlık sözcüğü (kod baca�
     "Biri beni tehdit ediyor, polis numarası?",
     "Someone is threatening us outside, police number?",
     "Hostelde kalan arkadaşım bayıldı, ambulans numarası?",
+    // Haiku 3. tur: sigorta anlamında "teminat" anlaşmazlık değildir.
+    "Trafik kazası oldu, yaralı var; ambulans numarası ne? Sigorta teminatı ne kadar?",
   ])(
     "KONTROL: %s",
     (t) => expect(hostDisputeSignal(t)).toBe(false),

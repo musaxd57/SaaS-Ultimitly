@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   ablationCandidates,
   analyzeFailure,
+  expectationDoubt,
   failureAnalysisMarkdown,
   fixedAll,
   fixedBy,
@@ -33,6 +34,9 @@ describe("splitClauses / removePhrase", () => {
     expect(splitClauses(H1)).toEqual(["Ev sahibi depozitomu vermiyor", "polisi arayacağım", "Numara ne"]);
     expect(splitClauses("Tek parça")).toEqual(["Tek parça"]);
     expect(splitClauses("…!!  ")).toEqual([]);
+    // Haiku 3. tur: sayı / sıra noktası bölmez.
+    expect(splitClauses("Babam 2.kattan düştü, ambulans numarası ne?")).toEqual(["Babam 2.kattan düştü", "ambulans numarası ne"]);
+    expect(splitClauses("Saat 10.30'da geldik. Polis?")).toEqual(["Saat 10.30'da geldik", "Polis"]);
   });
   it("ifade çıkarılınca noktalama toparlanır; bulunamazsa / geriye bir şey kalmazsa null", () => {
     expect(removePhrase(H1, "polisi arayacağım")).toBe("Ev sahibi depozitomu vermiyor. Numara ne?");
@@ -41,6 +45,12 @@ describe("splitClauses / removePhrase", () => {
     expect(removePhrase(H1, "POLİSİ ARAYACAĞIM")).toBe("Ev sahibi depozitomu vermiyor. Numara ne?");
     expect(removePhrase(H1, "jandarma")).toBeNull();
     expect(removePhrase("Numara ne?", "Numara ne")).toBeNull();
+  });
+  it("🚨 BÜTÜN geçişler ve yalnız sözcük sınırında çıkar (Haiku 3. tur)", () => {
+    expect(removePhrase("Ev sahibi kapıyı açmıyor, ev sahibi telefonu da açmıyor.", "ev sahibi")).toBe("kapıyı açmıyor, telefonu da açmıyor.");
+    // Sözcük içi eşleşme çıkarılmaz ("polis" ≠ "polisiye").
+    expect(removePhrase("Polisiye dizi izledik.", "polis")).toBeNull();
+    expect(removePhrase("Polisi arayacağım.", "polis")).toBeNull();
   });
 });
 
@@ -86,6 +96,17 @@ describe("judge / suggestLayer", () => {
     expect(v.triggers).toEqual([]);
     expect(v.partial).toEqual(["a"]);
   });
+  it("🚨 payda PLANLANAN tekrar: başarısız çağrı 1/1'i 'bütün tekrarlar' yapmaz; özgün mesajda tek doğru çoğunluk sayılmaz (Haiku 3. tur)", () => {
+    const one = { kind: "clause" as const, phrase: "x", text: "", correct: 1, runs: 1, planned: 2, outputs: [] };
+    const v = judge({ correct: 0, runs: 2, planned: 2 }, [one], []);
+    expect(v.kind).toBe("context");
+    expect(v.triggers).toEqual([]);
+    expect(v.partial).toEqual(["x"]);
+    expect(judge({ correct: 1, runs: 1, planned: 2 }, [], []).kind).toBe("flaky");
+    expect(judge({ correct: 0, runs: 1, planned: 3 }, [], []).kind).toBe("context");
+    expect(fixedAll(1, 1, 2)).toBe(false);
+    expect(fixedAll(2, 2, 2)).toBe(true);
+  });
   it("bağlam: hiçbir tek ifade düzeltmiyor; koşulamadı: çağrı yok", () => {
     expect(judge({ correct: 0, runs: 2 }, [abl("a", 0), abl("b", 0)], []).kind).toBe("context");
     expect(judge({ correct: 0, runs: 0 }, [], []).kind).toBe("unrunnable");
@@ -96,20 +117,24 @@ describe("judge / suggestLayer", () => {
     expect(fixedAll(1, 2)).toBe(false);
     expect(fixedAll(0, 0)).toBe(false);
   });
-  it("🚨 kanıt önce: kararsız vakada modelin 'bilgi eksik / kural yok' beyanı model sınırını ezmez (ilk koşuda 'bilgi tabanı' önerilmişti)", () => {
-    expect(suggestLayer("flaky", exp({ infoMissing: true, ruleCoverage: "unclear" }))).toBe("model_limit");
-    expect(suggestLayer("flaky", exp({ expectationAgrees: false }))).toBe("test_expectation");
-  });
-  it("düzeltme katmanı sırası: test beklentisi → (kararsız) → bilgi → istem → kod kuralı → model sınırı", () => {
-    expect(suggestLayer("trigger", exp({ expectationAgrees: false, infoMissing: true, ruleCoverage: "not_covered" }))).toBe("test_expectation");
-    expect(suggestLayer("trigger", exp({ infoMissing: true, ruleCoverage: "not_covered" }))).toBe("knowledge");
-    expect(suggestLayer("trigger", exp({ ruleCoverage: "unclear" }))).toBe("prompt");
-    expect(suggestLayer("trigger", exp())).toBe("code_rule");
-    expect(suggestLayer("context", exp())).toBe("model_limit");
-    expect(suggestLayer("flaky", exp())).toBe("model_limit");
+  it("🚨 KANIT ÖNCE: modelin beyanı katmanı ezmez (Haiku 3. tur) — kararsız → model sınırı; tetikleyici → kod kuralı / istem", () => {
+    expect(suggestLayer("flaky", exp({ infoMissing: true, ruleCoverage: "unclear", expectationAgrees: false }))).toBe("model_limit");
+    expect(suggestLayer("trigger", exp({ expectationAgrees: false }))).toBe("code_rule");
+    expect(suggestLayer("trigger", exp({ infoMissing: true }))).toBe("code_rule");
+    expect(suggestLayer("trigger", exp({ ruleCoverage: "not_covered" }))).toBe("prompt");
     expect(suggestLayer("trigger", null)).toBe("code_rule");
+  });
+  it("bağlam (tek ifade suçlanamaz): bilgi eksik → bilgi tabanı; kural yok → istem; kural var → model sınırı", () => {
+    expect(suggestLayer("context", exp({ infoMissing: true }))).toBe("knowledge");
+    expect(suggestLayer("context", exp({ ruleCoverage: "unclear" }))).toBe("prompt");
+    expect(suggestLayer("context", exp())).toBe("model_limit");
     expect(suggestLayer("context", null)).toBe("unknown");
     expect(suggestLayer("unrunnable", exp())).toBe("unknown");
+  });
+  it("'beklentiye katılmıyorum' AYRI uyarı (katmanı değiştirmez); açıklama yoksa uyarı yok", () => {
+    expect(expectationDoubt(exp({ expectationAgrees: false }))).toBe(true);
+    expect(expectationDoubt(exp())).toBe(false);
+    expect(expectationDoubt(null)).toBe(false);
   });
 });
 
@@ -175,6 +200,9 @@ describe("analyzeFailure — uçtan uca (sahte koşturucu)", () => {
     expect(md).toContain("TETİKLEYİCİ İFADE");
     expect(md).toContain('"polisi arayacağım" → DOĞRULANDI');
     expect(md).toContain("Önerilen düzeltme katmanı: KOD KURALI");
+    expect(md).not.toContain("KATILMIYOR — senaryonun");
+    const doubt = failureAnalysisMarkdown("B", "K", [{ ...r, explanation: exp({ expectationAgrees: false }) }]);
+    expect(doubt).toContain("⚠️ Model test beklentisine KATILMIYOR");
     expect(md).toContain("## Doğrulama (4. adım)");
     expect(md).toContain("Kör set");
   });

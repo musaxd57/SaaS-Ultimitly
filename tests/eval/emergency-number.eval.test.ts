@@ -6,6 +6,7 @@ import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 import { analyzeEmergencyFailures, decisionOf, explainFailuresEnabled } from "./emergency-number-causes";
 import { emergencyNumberReply } from "@/lib/ai/emergency-number";
+import { productUnderstandingMode } from "./failure-analysis-understanding";
 
 // ---------------------------------------------------------------------------
 // ACİL NUMARA SORUSU — ANLAMA KATMANI BAĞLAMI AYIRT EDİYOR MU? (kurucu 10-11: "önce ölçüm sonra kod; Luna 6.0'a yaptıralım").
@@ -71,7 +72,8 @@ describe.skipIf(!enabled)("acil numara sorusu — anlama katmanı bağlam ayrım
         while (i < jobs.length) {
           const { s, r } = jobs[i++];
           __resetUnderstandingCache();
-          const o = await understandGuestMessages({ guestMessage: s.text, items: true });
+          // Ürünle AYNI kip (Haiku 3. tur: yalnız items geçiliyordu; koşu kimliği "temel" yazıyordu).
+          const o = await understandGuestMessages({ guestMessage: s.text, ...productUnderstandingMode() });
           const value = o.status === "ok" ? o.value : null;
           const risk = understandingRiskOf(value);
           const decision = o.status !== "ok" ? "fail" : risk && HOLD_KINDS.has(risk) ? "hold" : "give";

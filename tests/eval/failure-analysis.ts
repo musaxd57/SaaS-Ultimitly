@@ -6,10 +6,10 @@
 //  2. Karşı deneme (KANIT): mesajdan cümleler / modelin andığı ifadeler TEK TEK çıkarılır, aynı katman aynı ayarla yeniden koşar. Hangi
 //     ifade çıkınca hata BÜTÜN tekrarlarda düzeliyorsa TETİKLEYİCİ odur; yalnız bir kısmında düzeliyorsa KISMİ ETKİ (ilk koşuda yarı eşik
 //     1/2'yi de tetikleyici sayıyordu — gevşekti). Modelin iddiası da böyle sınanır (doğrulandı / kısmen / doğrulanmadı).
-//  3. Hata türü → düzeltme katmanı (kurucu: "önerdiğin döngü gibi olsun"): kanıt (kararsız · tetikleyici ifade · bağlam) + modelin
-//     iki beyanı (talimatlarda bu durumu kapsayan kural var mıydı · test beklentisine katılıyor mu · bilgi eksik miydi) birleşir:
-//     test beklentisi → bilgi tabanı → istem → kod kuralı → model sınırı (`suggestLayer`). Bu bir ÖNERİDİR; katmanı insan seçer,
-//     misafire giden metni değiştiren her düzeltme kurucuya önce / sonra örneğiyle sorulur.
+//  3. Hata türü → düzeltme katmanı (kurucu: "önerdiğin döngü gibi olsun"), KANIT ÖNCE: kararsız → model sınırı; tetikleyici ifade →
+//     kod kuralı (talimat bu durumu kapsıyorsa) ya da istem (kapsamıyorsa); bağlam → bilgi tabanı (bilgi eksikse) / istem / model sınırı.
+//     Modelin "test beklentisine katılmıyorum" beyanı katmanı EZMEZ, rapora ayrı uyarıdır (`expectationDoubt`). Bu bir ÖNERİDİR; katmanı
+//     insan seçer, misafire giden metni değiştiren her düzeltme kurucuya önce / sonra örneğiyle sorulur.
 //  4. Doğrulama: düzeltmeden sonra AYNI vakalar yeniden ölçülür + kör set (görülmemiş sorular) — ezber olmasın. Rapor bu adımları yazar.
 // Bu dosya SAF (model / ağ / DB yok) — model çağrıları bağdaştırıcıdan gelir (`failure-analysis-understanding.ts`).
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ export interface ModelExplanation {
   infoMissing: boolean;
 }
 
-export type FixLayer = "test_expectation" | "knowledge" | "prompt" | "code_rule" | "model_limit" | "unknown";
+export type FixLayer = "knowledge" | "prompt" | "code_rule" | "model_limit" | "unknown";
 
 export interface FailureCase<O> {
   id: string;
@@ -48,7 +48,10 @@ export interface AblationCandidate {
 
 export interface AblationResult extends AblationCandidate {
   correct: number;
+  /** Başarılı çağrı sayısı. */
   runs: number;
+  /** Planlanan tekrar sayısı — payda BUDUR (Haiku 3. tur: başarısız çağrı paydadan düşünce 1/1 "bütün tekrarlar" sayılıyordu). */
+  planned?: number;
   outputs: string[];
 }
 
@@ -60,7 +63,7 @@ export interface FailureAnalysis {
   expected: string;
   observed: string;
   explanation: ModelExplanation | null;
-  baseline: { correct: number; runs: number; outputs: string[] };
+  baseline: { correct: number; runs: number; planned?: number; outputs: string[] };
   ablations: AblationResult[];
   triggers: string[];
   /** Tekrarların bir kısmında (tamamında değil) düzelten ifadeler. */
@@ -85,7 +88,8 @@ export interface FailureAnalysisOptions<O> {
   maxAblations?: number;
 }
 
-const CLAUSE_BREAK = /[.!?;。！？\n]+|,\s+|،\s*/u;
+/** Nokta / ünlem / soru / noktalı virgül YALNIZ ardından boşluk ya da metin sonu gelirse böler ("2.kattan", "10.30" bölünmez — Haiku 3. tur). */
+const CLAUSE_BREAK = /[.!?;。！？]+(?=\s|$)|\n+|,\s+|،\s*/u;
 
 /** Mesajı cümle / yan cümle parçalarına böler (nokta, ünlem, soru, noktalı virgül, satır, virgül+boşluk). Deterministik. */
 export function splitClauses(text: string): string[] {
@@ -105,14 +109,34 @@ const collapse = (s: string) =>
     .replace(/\s{2,}/g, " ")
     .trim();
 
-/** İfadeyi metinden bir kez çıkarır (büyük / küçük harf duyarsız); bulunamazsa null. */
+const WORDCH = /[\p{L}\p{N}]/u;
+/**
+ * İfadenin BÜTÜN geçişlerini sözcük sınırında çıkarır (büyük / küçük harf duyarsız; Haiku 3. tur: yalnız ilk geçiş siliniyordu, ikinci
+ * "ev sahibi" kalınca iddia haksız yere "doğrulanmadı" çıkıyordu; sınırsız arama sözcük içinden de siliyordu). Bulunamazsa null.
+ */
 export function removePhrase(text: string, phrase: string): string | null {
   const p = phrase.trim();
   if (!p) return null;
-  const at = text.toLocaleLowerCase("tr").indexOf(p.toLocaleLowerCase("tr"));
-  if (at < 0) return null;
-  const out = collapse(text.slice(0, at) + " " + text.slice(at + p.length));
-  return /[\p{L}\p{N}]/u.test(out) ? out : null;
+  const lt = text.toLocaleLowerCase("tr");
+  const lp = p.toLocaleLowerCase("tr");
+  if (lt.length !== text.length) return null; // küçültme uzunluğu değiştiren harf: güvenli tarafta sınanamaz
+  const spans: [number, number][] = [];
+  for (let at = lt.indexOf(lp); at >= 0; at = lt.indexOf(lp, at + lp.length)) {
+    const before = at > 0 ? text[at - 1] : "";
+    const after = text[at + lp.length] ?? "";
+    const okBefore = !WORDCH.test(lp[0]) || !WORDCH.test(before);
+    const okAfter = !WORDCH.test(lp[lp.length - 1]) || !WORDCH.test(after);
+    if (okBefore && okAfter) spans.push([at, at + lp.length]);
+  }
+  if (spans.length === 0) return null;
+  let out = "";
+  let from = 0;
+  for (const [a, b] of spans) {
+    out += `${text.slice(from, a)} `;
+    from = b;
+  }
+  out = collapse(out + text.slice(from));
+  return WORDCH.test(out) ? out : null;
 }
 
 /**
@@ -138,8 +162,8 @@ export function ablationCandidates(text: string, claimed: readonly string[] = []
 
 /** Tekrarların en az yarısında doğru (özgün mesajın kararsızlığı için). */
 export const fixedBy = (correct: number, runs: number) => runs > 0 && correct * 2 >= runs;
-/** BÜTÜN tekrarlarda doğru → tetikleyici kanıtı. */
-export const fixedAll = (correct: number, runs: number) => runs > 0 && correct === runs;
+/** BÜTÜN planlanan tekrarlarda doğru → tetikleyici kanıtı (başarısız çağrı "doğru" sayılmaz, paydadan da düşmez). */
+export const fixedAll = (correct: number, runs: number, planned: number = runs) => runs > 0 && runs === planned && correct === planned;
 
 export interface ClaimCheck {
   phrase: string;
@@ -149,20 +173,21 @@ export interface ClaimCheck {
 
 /** Hüküm: kararsız / tetikleyici / bağlam / koşulamadı + modelin iddialarının sınanması. */
 export function judge(
-  baseline: { correct: number; runs: number },
+  baseline: { correct: number; runs: number; planned?: number },
   ablations: readonly AblationResult[],
   claimed: readonly string[],
 ): { kind: FailureKind; triggers: string[]; partial: string[]; claimChecks: ClaimCheck[] } {
   const claimChecks: ClaimCheck[] = claimed.map((phrase) => {
     const a = ablations.find((x) => x.kind === "claimed" && x.phrase.toLocaleLowerCase("tr") === phrase.trim().toLocaleLowerCase("tr"));
     if (!a || a.runs === 0) return { phrase, result: null };
-    return { phrase, result: fixedAll(a.correct, a.runs) ? "confirmed" : a.correct > 0 ? "partial" : "not" };
+    return { phrase, result: fixedAll(a.correct, a.runs, a.planned ?? a.runs) ? "confirmed" : a.correct > 0 ? "partial" : "not" };
   });
   if (baseline.runs === 0) return { kind: "unrunnable", triggers: [], partial: [], claimChecks };
-  if (fixedBy(baseline.correct, baseline.runs)) return { kind: "flaky", triggers: [], partial: [], claimChecks };
+  // Kararsızlık da PLANLANAN tekrara göre: 2 tekrarın biri başarısızsa tek doğru "çoğunluk" değildir.
+  if (fixedBy(baseline.correct, baseline.planned ?? baseline.runs)) return { kind: "flaky", triggers: [], partial: [], claimChecks };
   const ran = ablations.filter((a) => a.runs > 0);
-  const triggers = [...new Set(ran.filter((a) => fixedAll(a.correct, a.runs)).map((a) => a.phrase))];
-  const partial = [...new Set(ran.filter((a) => a.correct > 0 && !fixedAll(a.correct, a.runs)).map((a) => a.phrase))];
+  const triggers = [...new Set(ran.filter((a) => fixedAll(a.correct, a.runs, a.planned ?? a.runs)).map((a) => a.phrase))];
+  const partial = [...new Set(ran.filter((a) => a.correct > 0 && !fixedAll(a.correct, a.runs, a.planned ?? a.runs)).map((a) => a.phrase))];
   return { kind: triggers.length > 0 ? "trigger" : "context", triggers, partial, claimChecks };
 }
 
@@ -173,14 +198,18 @@ export function judge(
  * istem; kapsıyor ama belirli bir ifade kararı bozuyorsa kod kuralı (ya da o ifadeye dair açık istem kuralı); kalan → model sınırı.
  */
 export function suggestLayer(kind: FailureKind, explanation: ModelExplanation | null): FixLayer {
+  // KANIT ÖNCE (Haiku 3. tur): katmanı kanıt belirler; modelin beyanı yalnız kanıtın bıraktığı boşlukta okunur. "Beklentiye katılmıyorum"
+  // beyanı katmanı EZMEZ — rapora ayrı uyarı olarak yazılır (`expectationDoubt`).
   if (kind === "unrunnable") return "unknown";
-  if (explanation && !explanation.expectationAgrees) return "test_expectation";
   if (kind === "flaky") return "model_limit";
-  if (explanation?.infoMissing) return "knowledge";
-  if (explanation && explanation.ruleCoverage !== "covered") return "prompt";
-  if (kind === "trigger") return "code_rule";
-  return explanation ? "model_limit" : "unknown";
+  if (kind === "trigger") return explanation && explanation.ruleCoverage !== "covered" ? "prompt" : "code_rule";
+  if (!explanation) return "unknown";
+  if (explanation.infoMissing) return "knowledge";
+  return explanation.ruleCoverage !== "covered" ? "prompt" : "model_limit";
 }
+
+/** Model test beklentisine katılmıyor → beklenti gözden geçirilsin (katmanı değiştirmez, rapora uyarı). */
+export const expectationDoubt = (explanation: ModelExplanation | null) => explanation !== null && explanation.expectationAgrees === false;
 
 async function repeat<O>(text: string, opts: FailureAnalysisOptions<O>, reps: number) {
   let correct = 0;
@@ -196,7 +225,7 @@ async function repeat<O>(text: string, opts: FailureAnalysisOptions<O>, reps: nu
     if (opts.isCorrect(o)) correct++;
     outputs.push(opts.show(o));
   }
-  return { correct, runs, outputs };
+  return { correct, runs, planned: reps, outputs };
 }
 
 /** Bir hatalı vakanın neden analizi (çağrı sayısı = açıklama + reps × (1 + aday)). */
@@ -236,7 +265,6 @@ export async function analyzeFailure<O>(c: FailureCase<O>, opts: FailureAnalysis
 }
 
 const LAYER_TEXT: Record<FixLayer, string> = {
-  test_expectation: "TEST BEKLENTİSİ — model beklenene katılmıyor; önce senaryonun beklentisini gözden geçir (yanlış olan test olabilir)",
   knowledge: "BİLGİ TABANI / BAĞLAM — doğru cevap için gereken bilgi eksik",
   prompt: "İSTEM — talimatlar bu durumu kapsamıyor ya da belirsiz; açık bir kural / örnek eklenmeli",
   code_rule: "KOD KURALI — kural var ama belirli bir ifade kararı bozuyor; deterministik yakalama (ya da o ifadeye dair açık istem kuralı)",
@@ -269,6 +297,9 @@ export function failureAnalysisMarkdown(title: string, header: string, results: 
     lines.push(`- **Kanıt: ${KIND_TEXT[r.kind]}**${r.triggers.length ? `: ${r.triggers.map((t) => `"${t}"`).join(", ")}` : ""}`);
     if (r.partial.length) lines.push(`- Kısmi etki (tekrarların bir kısmında düzeldi): ${r.partial.map((t) => `"${t}"`).join(", ")}`);
     lines.push(`- **Önerilen düzeltme katmanı: ${LAYER_TEXT[r.layer]}**`);
+    if (expectationDoubt(r.explanation)) {
+      lines.push("- ⚠️ Model test beklentisine KATILMIYOR — senaryonun beklentisini gözden geçir (yanlış olan test olabilir; kanıt değil, uyarı)");
+    }
     if (r.explanation) {
       lines.push(
         `- Modelin açıklaması: ${r.explanation.why}`,

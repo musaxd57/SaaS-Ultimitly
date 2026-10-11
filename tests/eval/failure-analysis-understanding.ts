@@ -9,6 +9,25 @@ import {
 import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import type { FailureCase, ModelExplanation } from "./failure-analysis";
+import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
+import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
+import { understandingEnglishQueryEnabled } from "@/lib/ai/semantic/understand";
+
+/**
+ * ÜRÜNLE AYNI anlama kipi (`kb-retrieve.ts`: aynı bayrak fonksiyonları, aynı alanlar). Haiku 3. tur (10-11): ölçer ve neden analizi yalnız
+ * `items: true` geçiyordu, canlı ise öğe + ev kuralı + şikâyet takibi kipinde — ölçülen istem canlıdakiyle aynı değildi. Koşu, canlının
+ * bayraklarıyla (AI_CONVERSATION_ITEMS_ENABLED / AI_HOUSE_RULES_SHADOW / AI_COMPLAINT_FOLLOWUP_RULE_ENABLED) yapılır; koşu kimliği aynı
+ * fonksiyonlardan kipi yazar.
+ */
+export function productUnderstandingMode(): { items?: true; rules?: true; complaintFollowup?: true; english?: true } {
+  return {
+    ...(conversationItemsEnabled() ? { items: true as const } : {}),
+    ...(houseRulesShadowEnabled() ? { rules: true as const } : {}),
+    ...(complaintFollowupRuleEnabled() ? { complaintFollowup: true as const } : {}),
+    ...(understandingEnglishQueryEnabled() ? { english: true as const } : {}),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // NEDEN ANALİZİ — ANLAMA KATMANI BAĞDAŞTIRICISI (`failure-analysis.ts` döngüsü). Yeniden koşturma = ürünün AYNI anlama çağrısı (önbellek
@@ -24,7 +43,7 @@ import type { FailureCase, ModelExplanation } from "./failure-analysis";
 export async function rerunUnderstanding(text: string): Promise<string[] | null> {
   if (!understandingEnabled()) throw new Error("Anlama katmanı kapalı (AI_UNDERSTANDING_ENABLED) — neden analizi koşulamaz.");
   __resetUnderstandingCache();
-  const o = await understandGuestMessages({ guestMessage: text, items: true });
+  const o = await understandGuestMessages({ guestMessage: text, ...productUnderstandingMode() });
   return o.status === "ok" ? o.value.requests.map((q) => q.intent).sort() : null;
 }
 
@@ -59,7 +78,7 @@ export function understandingExplainer(expectedText: (c: FailureCase<string[]>) 
       "talimatlarda bu durumu açıkça kapsayan bir kural var mıydı, testin beklentisine katılıyor musun, doğru etiket için eksik bir bilgi var mıydı.",
       "",
       "--- ANLAMA GİRDİSİ ---",
-      buildUnderstandingUserContent({ guestMessage: c.text, items: true }),
+      buildUnderstandingUserContent({ guestMessage: c.text, ...productUnderstandingMode() }),
       "--- VERDİĞİN ETİKETLER ---",
       JSON.stringify(c.observed),
       "--- TESTİN BEKLENTİSİ ---",
@@ -68,7 +87,7 @@ export function understandingExplainer(expectedText: (c: FailureCase<string[]>) 
     const res = await callStructuredJson({
       apiKey: semanticApiKey() ?? process.env.OPENAI_API_KEY ?? "",
       model: semanticModel("understanding"),
-      system: understandingSystemPromptFor({ items: true, threat: understandingThreatRuleEnabled() }),
+      system: understandingSystemPromptFor({ ...productUnderstandingMode(), threat: understandingThreatRuleEnabled() }),
       user,
       schema: SCHEMA,
       timeoutMs: 120_000,
@@ -83,7 +102,8 @@ export function understandingExplainer(expectedText: (c: FailureCase<string[]>) 
       why: String(d.why ?? ""),
       wouldNow: String(d.wouldNow ?? ""),
       ruleCoverage: d.ruleCoverage === "covered" || d.ruleCoverage === "not_covered" ? d.ruleCoverage : "unclear",
-      expectationAgrees: d.expectationAgrees === true,
+      // Eksik / bozuk alan "katılmıyor" SAYILMAZ (Haiku 3. tur: kanıtsız "beklenti yanlış" uyarısı üretiyordu).
+      expectationAgrees: d.expectationAgrees !== false,
       infoMissing: d.infoMissing === true,
     };
   };

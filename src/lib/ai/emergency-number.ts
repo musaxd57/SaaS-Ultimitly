@@ -56,7 +56,7 @@ const SERVICE_WORDS: readonly [EmergencyService, string][] = [
  */
 const NOT_LOCAL_NUMBER = "(?!\\s*(?!(?:1\\d\\d|911|999)(?!\\d))\\d)";
 const NUMBER_CUE =
-  `numara${NOT_LOCAL_NUMBER}(?!li\\b)\\p{L}{0,8}|telefon(?!um)\\p{L}{0,8}|kac(?=\\s*(?:[?.!,]|$))|nasil\\s+(?:ara|cagir|ulas)\\p{L}{0,8}|number${NOT_LOCAL_NUMBER}|(?<!my\\s)(?<!our\\s)phone|dial|contact(?:\\s+(?:number|details|info))?(?=\\s*(?:[?.!,]|please|$))|how\\s+(?:(?:do|can|should)\\s+(?:i|we|you)\\s+|to\\s+)(?:call|reach|contact)|who\\s+(?:do|should|can)\\s+(?:i|we)\\s+call|nummer${NOT_LOCAL_NUMBER}|numero${NOT_LOCAL_NUMBER}|номер${NOT_LOCAL_NUMBER}\\p{L}{0,3}|телефон\\p{L}{0,3}|رقم|هاتف`;
+  `numara${NOT_LOCAL_NUMBER}(?!li\\b)\\p{L}{0,8}|telefon(?!um)\\p{L}{0,8}|kac(?=\\s*(?:[?.!,]|$))|nasil\\s+(?:ara|cagir|ulas)\\p{L}{0,8}|hatt?i?\\s+(?:hangisi|ne|nedir)(?![\\p{L}])|number${NOT_LOCAL_NUMBER}|(?<!my\\s)(?<!our\\s)phone|dial|contact(?:\\s+(?:number|details|info))?(?=\\s*(?:[?.!,]|please|$))|how\\s+(?:(?:do|can|should)\\s+(?:i|we|you)\\s+|to\\s+)(?:call|reach|contact)|who\\s+(?:do|should|can)\\s+(?:i|we)\\s+call|nummer${NOT_LOCAL_NUMBER}|numero${NOT_LOCAL_NUMBER}|номер${NOT_LOCAL_NUMBER}\\p{L}{0,3}|телефон\\p{L}{0,3}|رقم|هاتف`;
 const SERVICE_RE = SERVICE_WORDS.map(([s, w]) => [s, new RegExp(`${L}(?:${w})`, "iu")] as const);
 /** Servis adı ile numara sorusu aynı yakınlıkta (≤ 60 karakter, iki sıra; bir cümle sınırını geçebilir: "Polise haber vereceğiz. Numarası?"). */
 const ASK_RE = new RegExp(
@@ -67,10 +67,26 @@ const ASK_RE = new RegExp(
 /**
  * Servis adı GEÇMEYEN "hangi numarayı arayayım / which number" sorusu (kör set a1 / a4, 10-11: "Babam nefes alamıyor … hangi numarayı
  * arayayım?"). Yalnız ACİL bağlamda (anlama katmanı "acil" dedi ya da açık tehlike) genel acil numarası sayılır — "Temizlikçinin hangi
- * numarasını arayayım?" acil bağlam olmadığı için numara sorusu DEĞİLDİR.
+ * numarasını arayayım?" acil bağlam olmadığı için numara sorusu DEĞİLDİR. Kör set 2 (10-11): "Who do I call right now?", "kimi /
+ * nereyi arayalım?", "112 mi 155 mi?" (acil kısa numarası + soru eki) da aynı sınıf.
  */
 const GENERIC_ASK_RE = new RegExp(
-  `${L}(?:hangi\\s+(?:numara|telefon)\\p{L}{0,8}|which\\s+number|what\\s+number|welche\\s+nummer|quel\\s+numero|que\\s+numero|какой\\s+номер|какой\\s+телефон|اي\\s+رقم)`,
+  `${L}(?:hangi\\s+(?:numara|telefon)(?!li\\b)\\p{L}{0,8}|which\\s+number|what\\s+number|welche\\s+nummer|quel\\s+numero|que\\s+numero|какой\\s+номер|какой\\s+телефон|اي\\s+رقم|who\\s+(?:do|should|can)\\s+(?:i|we)\\s+call|(?:kimi|nereyi)\\s+ara\\p{L}{0,8}|(?:1\\d\\d|911|999)\\s+m[iu](?![\\p{L}])|is\\s+it\\s+(?:1\\d\\d|911|999)(?!\\d))`,
+  "iu",
+);
+/**
+ * Servis adı geçmeyen soru BAŞKA bir hedefin numarasını soruyorsa acil numarası verilmez (Haiku 3. tur, 10-11): "Taksi için hangi
+ * numarayı arayalım, hastaneye gideceğiz", "Doktor arkadaşımın hangi numarasını…", "Hangi numaralı dairede…" (daire numarası).
+ * "arkadaş / friend" bilinçli YOK: "Arkadaşım bayıldı, hangi numarayı arayayım?" hastanın kendisidir.
+ */
+const OTHER_TARGET_RE = new RegExp(
+  `${L}(?:taksi\\p{L}{0,6}|taxi|uber|doktor\\p{L}{0,8}|doctor|eczane\\p{L}{0,6}|pharmacy|restoran\\p{L}{0,6}|restaurant|temizlik\\p{L}{0,8}|cleaner|kurye\\p{L}{0,6}|courier|resepsiyon\\p{L}{0,6}|reception|otel\\p{L}{0,6}|hotel)`,
+  "iu",
+);
+
+/** Yalnız servis adından oluşan soru ("Ambulans?", "Polis numarası?") — kör set 2 b9. */
+const BARE_SERVICE_RE = new RegExp(
+  `^(?:${SERVICE_WORDS.map(([, w]) => w).join("|")})(?:\\s+(?:numara\\p{L}{0,6}|number|no))?\\s*\\?+$`,
   "iu",
 );
 
@@ -78,8 +94,8 @@ const GENERIC_ASK_RE = new RegExp(
 export function askedEmergencyServices(text: string, opts: { emergencyContext?: boolean } = {}): EmergencyService[] {
   if (typeof text !== "string" || !text.trim() || text.length > 2_000) return [];
   const f = fold(text);
-  if (!ASK_RE.test(f) && !/notrufnummer|emergency\s*number/i.test(f)) {
-    return opts.emergencyContext === true && GENERIC_ASK_RE.test(f) ? ["general"] : [];
+  if (!ASK_RE.test(f) && !/notrufnummer|emergency\s*number/i.test(f) && !BARE_SERVICE_RE.test(f.trim())) {
+    return opts.emergencyContext === true && GENERIC_ASK_RE.test(f) && !OTHER_TARGET_RE.test(f) ? ["general"] : [];
   }
   const out = SERVICE_RE.filter(([, re]) => re.test(f)).map(([s]) => s);
   // Belirli bir servis sorulduysa genel "acil" sözcüğü ayrıca satır üretmez ("ambulans numarası, acil!" → yalnız ambulans).
@@ -89,14 +105,14 @@ export function askedEmergencyServices(text: string, opts: { emergencyContext?: 
 
 /**
  * Ev sahibi / anlaşmazlık sözcüğü (kod bacağı): ev sahibi (bitişik yazım dahil), mal sahibi, kiraya veren, yönetici, depozito, iade,
- * "geri ödemezseniz", şikâyet, dolandırılma, hakaret, iptal, itiraz (depozito eş anlamlıları: güvence parası / bedeli, kapora, teminat —
- * kör set a10, 10-11) — yedi dil. Fazla eşleşme bilinçli: bedeli numaranın gitmemesidir (bugünkü
+ * "geri ödemezseniz", şikâyet, dolandırılma, hakaret, iptal, itiraz (depozito eş anlamlıları: güvence parası / bedeli, kapora, teminat
+ * bedeli / parası — kör set a10, 10-11; çıplak "teminat" sigorta anlamında meşru acili durduruyordu, Haiku 3. tur) — yedi dil. Fazla eşleşme bilinçli: bedeli numaranın gitmemesidir (bugünkü
  * davranış, ev sahibi uyarılır). Haiku 2. tur (10-11): platform adı (Airbnb / Booking) ve çıplak "tehdit" ÇIKARILDI — "Booking'den
  * geldik, annem fenalaştı" ya da "Biri beni tehdit ediyor" ev sahibiyle anlaşmazlık değildir (kurucu: yalnız ev sahibinin KENDİSİ
  * tehditse size kalsın; o durumda "ev sahibi / mal sahibi / landlady" zaten eşleşir). "hostel / hostes" ev sahibi değildir.
  */
 const HOST_DISPUTE = new RegExp(
-  `${L}(?:ev\\s*sahib\\p{L}*|mal\\s+sahib\\p{L}*|kiraya\\s+veren\\p{L}*|yonetici\\p{L}*|host(?!el|es)\\p{L}*|owner|landlord|landlady|manager|vermieter\\p{L}*|gastgeber\\p{L}*|proprietaire|hote|anfitrion|dueno|propietari\\p{L}*|хозя\\p{L}*|владел\\p{L}*|المالك|صاحب|depozit\\p{L}*|deposit|kaution|guvence\\s+(?:para|bedel)\\p{L}*|kapora\\p{L}*|teminat\\p{L}*|itiraz\\p{L}*|dispute\\p{L}*|chargeback|caution|iade\\p{L}*|refund\\p{L}*|erstatt\\p{L}*|rembours\\p{L}*|reembols\\p{L}*|возврат\\p{L}*|залог\\p{L}*|استرداد|sikayet\\p{L}*|complain\\p{L}*|beschwer\\p{L}*|plainte|queja|жалоб\\p{L}*|شكو\\p{L}*|dolandir\\p{L}*|scam\\p{L}*|fraud\\p{L}*|betrug|betrog\\p{L}*|arnaque|estafa\\p{L}*|мошен\\p{L}*|احتيال|hakaret\\p{L}*|insult\\p{L}*|beleidig\\p{L}*|geri\\s+(?:ode|ver)\\p{L}*|money\\s+back|iptal\\p{L}*|cancel\\p{L}*|storn\\p{L}*|annul\\p{L}*|отмен\\p{L}*|الغاء)`,
+  `${L}(?:ev\\s*sahib\\p{L}*|mal\\s+sahib\\p{L}*|kiraya\\s+veren\\p{L}*|yonetici\\p{L}*|host(?!el|es)\\p{L}*|owner|landlord|landlady|manager|vermieter\\p{L}*|gastgeber\\p{L}*|proprietaire|hote|anfitrion|dueno|propietari\\p{L}*|хозя\\p{L}*|владел\\p{L}*|المالك|صاحب|depozit\\p{L}*|deposit|kaution|guvence\\s+(?:para|bedel)\\p{L}*|kapora\\p{L}*|teminat\\s+(?:bedel|para|ucret)\\p{L}*|itiraz\\p{L}*|dispute\\p{L}*|chargeback|caution|iade\\p{L}*|refund\\p{L}*|erstatt\\p{L}*|rembours\\p{L}*|reembols\\p{L}*|возврат\\p{L}*|залог\\p{L}*|استرداد|sikayet\\p{L}*|complain\\p{L}*|beschwer\\p{L}*|plainte|queja|жалоб\\p{L}*|شكو\\p{L}*|dolandir\\p{L}*|scam\\p{L}*|fraud\\p{L}*|betrug|betrog\\p{L}*|arnaque|estafa\\p{L}*|мошен\\p{L}*|احتيال|hakaret\\p{L}*|insult\\p{L}*|beleidig\\p{L}*|geri\\s+(?:ode|ver)\\p{L}*|money\\s+back|iptal\\p{L}*|cancel\\p{L}*|storn\\p{L}*|annul\\p{L}*|отмен\\p{L}*|الغاء)`,
   "iu",
 );
 export function hostDisputeSignal(text: string): boolean {

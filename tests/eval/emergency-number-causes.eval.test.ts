@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { analyzeEmergencyFailures, type MeasuredRow } from "./emergency-number-causes";
 
@@ -25,7 +25,8 @@ describe.skipIf(!enabled)("acil numara — son koşunun hata nedenleri (gerçek 
     const latest = readdirSync(dir)
       // Kör set koşuları (`-acc<N>`) neden analizine GİRMEZ: analiz misafir metnini rapora yazar, set kör olmaktan çıkardı.
       .filter((f) => /^acil-numara-.*\.json$/.test(f) && !/-(aciklama|neden)\.json$/.test(f) && !/-acc\d+/.test(f))
-      .sort()
+      // En YENİ koşu dosya zamanına göre (Haiku 3. tur: ada göre sıralama "-thr-" koşusunu hep sona koyuyordu).
+      .sort((a, b) => statSync(path.join(dir, a)).mtimeMs - statSync(path.join(dir, b)).mtimeMs)
       .pop();
     expect(latest).toBeDefined();
     const run = JSON.parse(readFileSync(path.join(dir, latest!), "utf8")) as { rows: MeasuredRow[] };
