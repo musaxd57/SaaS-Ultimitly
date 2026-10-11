@@ -307,18 +307,30 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // 🚨 DEĞİŞMEZ 6 — DOĞRUDAN KANAL SAHİPLİĞİ (`channels/ical-authority.ts`; kurucu 10-11: yalnız doğrudan kanal, Hospitable köprüsü hariç).
   // Aynı kanalın etkin doğrudan bağlantısı bu mülkü kapsıyorsa bu takvim YEDEK: çekildi ve sağlığı yazılır, ama hiçbir satır oluşturulmaz /
   // güncellenmez / iptal edilmez ve kaybolma uzlaştırması koşmaz (eski satırlar silinmez). Doğrudan bağlantı yokken (bugün) her zaman yetkili.
+  // Yedek kaynak `lastStatus: "standby"` yazar (Haiku 10-11): "ok" yazsaydı müsaitlik motoru onu TAZE ve BOŞ bir tanık sayar, doğrudan kanal
+  // gecikince dolu geceyi "müsait" gösterebilirdi; tanınmayan durum yükleyicide "kaydedilmemiş" → sonuç "bilinmiyor" (`availability/load.ts`).
+  // Sorgu hatası → bu koşuda YAZMA YOK (güvenli taraf: doğrudan veriyi ezme ihtimali yerine bir koşu gecikme), hata görünür.
   const icalChannel = icalChannelOfUrl(feedUrl);
-  if (
-    icalChannel !== null &&
-    icalWriteAuthority(icalChannel, await directChannelsForProperty(source.property.organizationId, source.propertyId)) === "standby"
-  ) {
-    result.standby = true;
-    result.skipped = rows.length;
-    await prisma.calendarSource.update({
-      where: { id: sourceId },
-      data: { lastSyncedAt: new Date(), lastStatus: parsed.incomplete.length ? "partial" : "ok", lastResult: standbySummary(icalChannel) },
-    });
-    return result;
+  if (icalChannel !== null) {
+    let authority: "active" | "standby";
+    try {
+      authority = icalWriteAuthority(icalChannel, await directChannelsForProperty(source.property.organizationId, source.propertyId));
+    } catch (err) {
+      const msg = "Takvim şu an işlenemedi — kısa süre sonra yeniden denenecek.";
+      result.errors.push(msg);
+      await reportError(`ical-sync: direct-authority read failed (${sourceId})`, err instanceof Error ? err : new Error(String(err)));
+      await prisma.calendarSource.update({ where: { id: sourceId }, data: { lastSyncedAt: new Date(), lastStatus: "error", lastResult: msg } });
+      return result;
+    }
+    if (authority === "standby") {
+      result.standby = true;
+      result.skipped = rows.length;
+      await prisma.calendarSource.update({
+        where: { id: sourceId },
+        data: { lastSyncedAt: new Date(), lastStatus: "standby", lastResult: standbySummary(icalChannel) },
+      });
+      return result;
+    }
   }
 
   // V1 ürün akışı: iCal bir Lixus-native giriştir → her GERÇEK yazma (create/update/cancel)

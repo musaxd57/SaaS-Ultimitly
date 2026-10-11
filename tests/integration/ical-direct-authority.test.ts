@@ -11,6 +11,7 @@ vi.mock("@/lib/net/private-host", () => ({ isPrivateHost: () => false, resolvesT
 
 import { syncCalendarSource } from "@/lib/import/sync";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
+import { loadAvailabilityInputs } from "@/modules/availability/load";
 
 const ics = (uid: string, from = "20270110", to = "20270114") =>
   `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:${uid}\nDTSTART;VALUE=DATE:${from}\nDTEND;VALUE=DATE:${to}\nSUMMARY:Misafir\nEND:VEVENT\nEND:VCALENDAR`;
@@ -57,9 +58,14 @@ describe("değişmez 6 — doğrudan kanal varken aynı kanalın iCal'i yedek", 
     expect(r.imported).toBe(0);
     expect(await icalRows(s.airbnbIcal.id)).toBe(0);
     const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: s.airbnbIcal.id } });
-    expect(src.lastStatus).toBe("ok");
+    expect(src.lastStatus).toBe("standby");
     expect(src.lastResult).toContain("Yedek takvim");
     expect(src.lastSyncedAt).not.toBeNull();
+    // 🚨 Haiku 10-11: yedek takvim müsaitlik motorunda TAZE tanık DEĞİL (yoksa doğrudan kanal gecikince dolu gece "müsait" görünürdü).
+    const loaded = await loadAvailabilityInputs(s.orgId, { propertyIds: [s.propertyId], range: { nightsFromToday: 7 }, now: new Date() });
+    const witness = loaded!.inputs.get(s.propertyId)!.sources.find((x) => x.id === s.airbnbIcal.id)!;
+    expect(witness.lastStatus).toBeNull();
+    expect(witness.lastSuccessAt).toBeNull();
 
     vi.mocked(fetchFeedText).mockResolvedValue(ics("b-1@booking.com", "20270201", "20270205"));
     const rb = await syncCalendarSource(s.bookingIcal.id);

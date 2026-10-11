@@ -192,6 +192,9 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
                 <p className="mt-1 flex items-center gap-1 text-xs">
                   {s.lastStatus === "error" ? (
                     <AlertCircle aria-label="Son okuma başarısız" className="size-3 text-destructive" />
+                  ) : s.lastStatus === "standby" ? (
+                    // Değişmez 6: aynı kanalın doğrudan bağlantısı yetkili — bu takvim yedek, rezervasyon yazmaz.
+                    <CheckCircle2 aria-label="Yedek takvim" className="size-3 text-muted-foreground" />
                   ) : s.lastStatus === "partial" ? (
                     // Kısmi okuma (F16): okunanlar alındı ama takvimin tamamı değil — yeşil "tamam" DEĞİL.
                     <AlertCircle aria-label="Takvimin bir kısmı okunamadı" className="size-3 text-amber-600 dark:text-amber-400" />

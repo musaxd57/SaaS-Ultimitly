@@ -21,22 +21,31 @@ export const DIRECT_CONNECTION_CHANNEL: Readonly<Record<string, OtaChannel>> = O
   vrbo_direct: "vrbo",
 });
 
-/** Alan adı (son ekleri) → kanal. Airbnb ülke alan adları: airbnb.com, airbnb.com.tr, airbnb.co.uk, airbnb.de … */
-const HOST_RULES: readonly [RegExp, OtaChannel][] = [
-  [/(?:^|\.)airbnb\.(?:[a-z]{2,3}|com?\.[a-z]{2})$/, "airbnb"],
-  [/(?:^|\.)booking\.com$/, "booking"],
-  [/(?:^|\.)(?:vrbo\.com|homeaway\.com)$/, "vrbo"],
+/**
+ * Airbnb'nin KENDİ ülke alan adları (kesin liste — Haiku 10-11: "airbnb.<herhangi 2-3 harf>" taklit `airbnb.xyz`yi de susturuyordu) +
+ * iCal dışa aktarma yolu `/calendar/ical`. Listede olmayan alan adı tanınmaz → yetkili kalır (yanlış yönde hata = bugünkü davranış).
+ */
+const AIRBNB_SUFFIXES = [
+  "com", "com.tr", "co.uk", "de", "fr", "es", "it", "nl", "ie", "pt", "gr", "at", "ch", "be", "dk", "se", "no", "fi", "pl", "cz",
+  "hu", "ru", "ca", "com.au", "co.nz", "com.br", "mx", "com.mx", "com.ar", "cl", "co", "jp", "co.kr", "co.in", "com.sg", "com.hk",
 ];
+const AIRBNB_HOST = new RegExp(`(?:^|\\.)airbnb\\.(?:${AIRBNB_SUFFIXES.map((s) => s.replace(/\./g, "\\.")).join("|")})$`);
+const BOOKING_HOST = /(?:^|\.)booking\.com$/;
+/** Vrbo ailesi (Expedia): vrbo, homeaway, abritel, fewo-direkt. */
+const VRBO_HOST = /(?:^|\.)(?:vrbo\.com|homeaway\.(?:com|co\.uk|de|fr|es|it|nl|com\.au)|abritel\.fr|fewo-direkt\.de)$/;
 
-/** Besleme adresinin kanalı — yalnız alan adından, kesin; tanınmazsa `null` (yetkili kalır). */
+/** Besleme adresinin kanalı — yalnız alan adından (Airbnb'de iCal yolu da), kesin; tanınmazsa `null` (yetkili kalır). */
 export function icalChannelOfUrl(url: string): OtaChannel | null {
-  let host: string;
+  let parsed: URL;
   try {
-    host = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
+    parsed = new URL(url);
   } catch {
     return null;
   }
-  for (const [re, channel] of HOST_RULES) if (re.test(host)) return channel;
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  if (AIRBNB_HOST.test(host)) return /^\/calendar\/ical\//i.test(parsed.pathname) ? "airbnb" : null;
+  if (BOOKING_HOST.test(host)) return "booking";
+  if (VRBO_HOST.test(host)) return "vrbo";
   return null;
 }
 
