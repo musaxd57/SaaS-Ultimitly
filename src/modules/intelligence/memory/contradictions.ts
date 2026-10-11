@@ -79,7 +79,7 @@ const WIFI_WORD = "(?:wifi|wi-?fi|wi fi|internet|modem|wlan)(?:'?\\p{L}{0,4})?";
 const SELF_TR_BEFORE = `(?<!(?:girdigi|yazdigi|tusladigi|sectigi|kullandigi)m\\p{L}{0,3} (?:${WIFI_WORD} |kapi\\p{L}{0,4} )?)`;
 /** Anlık durum: "şu an otopark yok", "No parking right now" bilgi çelişkisi değildir. */
 const NOW_WORDS = "su an|su anda|suan|simdi|simdilik|bugun|bu aksam|bu gece|henuz|currently|right now|today|tonight|at the moment|for now";
-const NOT_NOW_BEFORE = `(?<!(?:${NOW_WORDS}) )`;
+const NOT_NOW_BEFORE = `(?<!${W}(?:${NOW_WORDS})[\\p{L}' ]{0,20} )`;
 /**
  * Özne + dolgu + fiil. `selfEn`: İngilizce kendi hatası geriye bakışı (yalnız "wrong" ailesinde anlamlı). `enterGap`: misafirin şifreyi
  * GİRDİĞİNİ söyleyip reddedildiğini anlattığı yol ("Şifreyi girdim ama kabul etmiyor") — yalnız açık ret fiillerinde kullanılır.
