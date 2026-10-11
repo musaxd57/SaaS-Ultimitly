@@ -66,3 +66,23 @@ dakika yürüme mesafesinde." · yoksa → misafire bir şey gitmez, ev sahibi g
 1. Acil numara: Öneri A'yı (yalnız 112, kod metni, şikâyet bağlamında bırak) uygulayalım mı? Önce Luna / 5.1 ölçümü (ücretli) yapalım mı?
 2. Yer önerisi: B1 (ev sahibi döngüsü + bir kerelik yakındaki yerler önerisi) mi, B2 (model genel bilgisi) mi? B1 için harita servisi
    seçimi ve maliyeti ayrı karar.
+
+## 6. B1 uygulama tasarımı (kurucu B1'i seçti, 10-11) — onay için
+
+**Bugün kodda (ölçüldü):** model ev sahibinin TÜM mesajlarını taramaz; yalnız AYNI sohbetteki önceki cevapları kullanır (KURAL-1 kaynak 3).
+Geçmiş ev sahibi cevaplarından bilgi tabanı önerisi (Bacak B) 09-11'den beri kapalı. Gelen kutusundaki taslakta "Eksik bilgi: …" satırı var,
+ama oradan bilgi tabanına giden bir yol yok. Bilgi tabanında "Yerel Tavsiye" (`local_tips`) kategorisi zaten var.
+
+**Önerilen üç parça (misafire giden metne dokunmaz):**
+1. **Gelen kutusu:** taslakta "Eksik bilgi" satırı çıktığında yanında **"Bilgi tabanına ekle"** düğmesi → bilgi tabanı formu açılır; mülk,
+   kategori (yer sorusuysa "Yerel Tavsiye") ve başlık ("Yakındaki restoranlar") önceden dolu. Ev sahibi yazıp kaydeder; sonraki misafir cevabı alır.
+2. **Mülk sayfası:** mülkte hiç "Yerel Tavsiye" kalemi yoksa ve son 30 günde misafirler yer sordaysa küçük bir hatırlatma: "Son 30 günde
+   4 misafir çevre önerisi sordu — 'Yerel Tavsiye' ekleyin." (sayı anlama katmanının `local_recommendations` etiketinden; metin taşımaz).
+3. **(Ayrı karar) Yakındaki yerler önerisi:** mülk adresinden bir kerelik liste (restoran, market, eczane) → ev sahibi işaretler, bilgi
+   tabanına eklenir. Harita servisi gerekir: Google Places (ücretli, kalite yüksek) ya da OpenStreetMap (ücretsiz, Türkiye'de veri eksik
+   olabilir) — fiyatlar bu turda doğrulanmadı.
+
+Örnek: Misafir "Yakında kahvaltı yeri var mı?" → bilgi tabanında yok → misafire bir şey gitmez (bugünkü gibi) → gelen kutusunda taslak
+"Eksik bilgi: yakındaki kahvaltı yerleri" + **[Bilgi tabanına ekle]** → ev sahibi "Lale Kahvaltı Evi, 3 dk yürüme" yazar → sonraki misafir
+"Lale Kahvaltı Evi 3 dakika yürüme mesafesinde." cevabını alır.
+

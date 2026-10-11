@@ -146,3 +146,12 @@ yazdığı "112'yi / polisi / acil servisi arayın" QR'da bir kez yeniden yazdı
 | 9 "Wi-Fi: LaleNet, çamaşır odası kodu: 4590" geçiyordu | DOĞRU | Etiket kuralıyla düşer (pinli). |
 | 10 Eski "güvenlik satırı" yorumları | DOĞRU | Kod, test ve bağlayıcı belgelerde güncellendi. |
 
+### Kurucu (10-11 öğleden sonra) — bekleyen kararların cevapları
+
+| Konu | Kurucu | Durum |
+|---|---|---|
+| Acil numara sorusu | "Önce ölçüm sonra kod; Luna 6.0'a yaptıralım (5.1 pahalı); model olarak da Luna'yı tercih edelim, iyiyse" | Ölçüm seti `evals/emergency-number.json` (33 senaryo) + `tests/eval/emergency-number.eval.test.ts`; Luna 6.0 `low`, 2 tekrar. Sonuç ve kod önerisi ayrıca sorulacak. |
+| Yer önerisi (bilgi tabanında yok) | B1 — ev sahibi döngüsü. Kurucu notu: "model ilk başta hostun bütün mesajlarını tarıyor, cevabı yüksek ihtimalle bulur" | ⚠️ Düzeltme (kodda ölçüldü): model ev sahibinin TÜM mesajlarını taramıyor — yalnız AYNI sohbetteki önceki cevaplar (istem KURAL-1 kaynak 3). Geçmiş ev sahibi cevaplarından bilgi tabanı önerisi (Bacak B) 09-11 kurucu kararıyla KAPALI (`KB_HISTORY_SUGGESTIONS_ENABLED`). Bugün gelen kutusundaki taslakta "Eksik bilgi: …" satırı var ama "bilgi tabanına ekle" yolu yok. B1 tasarımı + örnek ekran getirilecek (harita servisi ayrı karar). |
+| Operatör "beni hatırla" (karar 23) | "Böyle kalsın" | Değişiklik yok. |
+| QR ilk cihaz kilidi (karar 16) | "QR PIN'i kapatmam ki, bayrakla ilgili dimi" | Evet: `QR_PIN_ENABLED` ortam bayrağı (canlıda bugün KAPALI). Açmak = Railway açılınca env "1" + ilk denemeler birlikte; açıkken konaklamayı yalnız PIN'i bilen cihaz bağlar, kilit sorunu kalmaz. Kod değişikliği gerekmiyor. |
+
