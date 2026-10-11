@@ -179,3 +179,7 @@ yazdığı "112'yi / polisi / acil servisi arayın" QR'da bir kez yeniden yazdı
 | Değişmez 13 / karar 26 (Mülk Hafızası çelişkisi) | "1 ile 2 beraber; bilgi tabanı ve şikâyet çelişiyorsa uyarı gibi göster; bilerek olduğu işaretlenirse sorun yok" | İki tür birlikte: (1) bilgi tabanı ↔ misafir şikâyetleri, (2) bilgi tabanı ↔ bilgi tabanı (ör. iki farklı giriş saati). Yalnız ev sahibine uyarı; "bilerek böyle" işaretlenirse uyarı kalkar. Yapay zekâya GİTMEZ. |
 | Geniş otonom AI (yürütme sırası ⑤) | "Başta öner + tek tıkla onay (geçici, yaptıklarını görmek için); beğenirsek hemen düşük riskte otomatik; ama önce öteki işler — not al" | 🔔 NOT: ilk dilim = yapay zekâ görev ÖNERİR, kod yetki + "aynı görev açık mı" + sonuç makbuzu denetler, ev sahibi tek tıkla açar (bayraklı). Beğenilirse düşük riskli görevlerde (temizlik / malzeme) otomatik + bildirim. Sıra: değişmez 6 + 13 bittikten sonra. |
 
+**Uygulama (10-11 gece):** değişmez 6 ✅ (yalnız doğrudan kanal; Haiku: yedek takvim müsaitlikte tanık değil, kesin alan adı listesi, sorgu
+hatasında yazma yok) · değişmez 13 ✅ (Haiku: karışık mesaj sayılmaz, konu yalnız soruda geçiyorsa sayılmaz, mülk ayarı değişince işaret düşer,
+destek görünümünde uyarı yok). Otonom AI notu: değişmez 6 + 13'ten sonra, kurucunun "beğenirsek" onayıyla.
+

@@ -15,8 +15,9 @@ dalı) · webhook girişi (write service hazır) · bağlantı sağlığı sinya
 kurucu org env fallback'te); `hospitable*` kolon DROP'u okuma anahtarı ≥2 hafta canlıdan SONRA
 (`docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`). Prod'daki 17.436 mesaj / 1.538 rezervasyon `legacy` provenance
 sınıfında, çıkarım backfill'i BİLEREK yok.
-**GEREKSİNİM (uygulanmadı):** doğrudan kanal + iCal aynı mülkte; aynı kanalın iCal'i pasif/yedek, diğerleri
-çalışır, iCal doğrudan veriyi ezmez (`docs/GEREKSINIM-dogrudan-kanal-ve-ical-birlikte-yasama.md`).
+**GEREKSİNİM (✅ 10-11 kod, yalnız DOĞRUDAN kanal — kurucu: Hospitable köprüsü hariç):** doğrudan kanal + iCal aynı mülkte; aynı
+kanalın iCal'i yedek (`channels/ical-authority.ts`, `lastStatus: standby`, müsaitlikte tanık değil), diğerleri çalışır, iCal doğrudan
+veriyi ezmez (`docs/GEREKSINIM-dogrudan-kanal-ve-ical-birlikte-yasama.md`). Geçiş adımı açıkları `docs/YOL-PLANI-DURUM-2026-10-09.md` §2b.
 **AÇIK QR kalitesi:** boş KB'de devir emergent (eşik = güvenlik kapısı, GOLDEN SET ister); hakaret/kışkırtma
 `general` kalıyor (`docs/ACIK-2026-09-08-qr-cevap-kalitesi.md`).
 
