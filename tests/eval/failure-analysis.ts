@@ -4,8 +4,8 @@
 //  1. Modelin açıklaması (İPUCU): model kendi çıktısını açıklar, onu etkileyen ifadeleri söyler. Sonradan kurulan bir gerekçedir — iç
 //     nedenin kanıtı DEĞİLDİR (acil numara ölçümünde görüldü: "şikâyet etiketi vermeliydim" dedi, aynı soruda bir tekrarda yine vermedi).
 //  2. Karşı deneme (KANIT): mesajdan cümleler / modelin andığı ifadeler TEK TEK çıkarılır, aynı katman aynı ayarla yeniden koşar. Hangi
-//     ifade çıkınca hata düzeliyorsa (tekrarların en az yarısında) TETİKLEYİCİ odur; modelin iddiası da böyle sınanır (doğrulandı /
-//     doğrulanmadı).
+//     ifade çıkınca hata BÜTÜN tekrarlarda düzeliyorsa TETİKLEYİCİ odur; yalnız bir kısmında düzeliyorsa KISMİ ETKİ (ilk koşuda yarı eşik
+//     1/2'yi de tetikleyici sayıyordu — gevşekti). Modelin iddiası da böyle sınanır (doğrulandı / kısmen / doğrulanmadı).
 //  3. Hata türü → düzeltme katmanı (kurucu: "önerdiğin döngü gibi olsun"): kanıt (kararsız · tetikleyici ifade · bağlam) + modelin
 //     iki beyanı (talimatlarda bu durumu kapsayan kural var mıydı · test beklentisine katılıyor mu · bilgi eksik miydi) birleşir:
 //     test beklentisi → bilgi tabanı → istem → kod kuralı → model sınırı (`suggestLayer`). Bu bir ÖNERİDİR; katmanı insan seçer,
@@ -63,7 +63,9 @@ export interface FailureAnalysis {
   baseline: { correct: number; runs: number; outputs: string[] };
   ablations: AblationResult[];
   triggers: string[];
-  claimChecks: { phrase: string; confirmed: boolean | null }[];
+  /** Tekrarların bir kısmında (tamamında değil) düzelten ifadeler. */
+  partial: string[];
+  claimChecks: ClaimCheck[];
   kind: FailureKind;
   layer: FixLayer;
   calls: number;
@@ -134,33 +136,46 @@ export function ablationCandidates(text: string, claimed: readonly string[] = []
   return out.slice(0, max);
 }
 
-/** Tekrarların en az yarısında doğru → "düzeldi". */
+/** Tekrarların en az yarısında doğru (özgün mesajın kararsızlığı için). */
 export const fixedBy = (correct: number, runs: number) => runs > 0 && correct * 2 >= runs;
+/** BÜTÜN tekrarlarda doğru → tetikleyici kanıtı. */
+export const fixedAll = (correct: number, runs: number) => runs > 0 && correct === runs;
+
+export interface ClaimCheck {
+  phrase: string;
+  /** confirmed = bütün tekrarlarda düzeldi · partial = bir kısmında · not = hiç · null = sınanamadı. */
+  result: "confirmed" | "partial" | "not" | null;
+}
 
 /** Hüküm: kararsız / tetikleyici / bağlam / koşulamadı + modelin iddialarının sınanması. */
 export function judge(
   baseline: { correct: number; runs: number },
   ablations: readonly AblationResult[],
   claimed: readonly string[],
-): { kind: FailureKind; triggers: string[]; claimChecks: { phrase: string; confirmed: boolean | null }[] } {
-  const claimChecks = claimed.map((phrase) => {
+): { kind: FailureKind; triggers: string[]; partial: string[]; claimChecks: ClaimCheck[] } {
+  const claimChecks: ClaimCheck[] = claimed.map((phrase) => {
     const a = ablations.find((x) => x.kind === "claimed" && x.phrase.toLocaleLowerCase("tr") === phrase.trim().toLocaleLowerCase("tr"));
-    return { phrase, confirmed: a && a.runs > 0 ? fixedBy(a.correct, a.runs) : null };
+    if (!a || a.runs === 0) return { phrase, result: null };
+    return { phrase, result: fixedAll(a.correct, a.runs) ? "confirmed" : a.correct > 0 ? "partial" : "not" };
   });
-  if (baseline.runs === 0) return { kind: "unrunnable", triggers: [], claimChecks };
-  if (fixedBy(baseline.correct, baseline.runs)) return { kind: "flaky", triggers: [], claimChecks };
-  const triggers = [...new Set(ablations.filter((a) => a.runs > 0 && fixedBy(a.correct, a.runs)).map((a) => a.phrase))];
-  return { kind: triggers.length > 0 ? "trigger" : "context", triggers, claimChecks };
+  if (baseline.runs === 0) return { kind: "unrunnable", triggers: [], partial: [], claimChecks };
+  if (fixedBy(baseline.correct, baseline.runs)) return { kind: "flaky", triggers: [], partial: [], claimChecks };
+  const ran = ablations.filter((a) => a.runs > 0);
+  const triggers = [...new Set(ran.filter((a) => fixedAll(a.correct, a.runs)).map((a) => a.phrase))];
+  const partial = [...new Set(ran.filter((a) => a.correct > 0 && !fixedAll(a.correct, a.runs)).map((a) => a.phrase))];
+  return { kind: triggers.length > 0 ? "trigger" : "context", triggers, partial, claimChecks };
 }
 
 /**
- * 3. adım — düzeltme katmanı ÖNERİSİ (sıra önemli): test beklentisi şüpheliyse önce o; bilgi eksikse bilgi tabanı; talimat bu durumu
- * kapsamıyor / belirsizse istem; kapsıyor ama belirli bir ifade kararı bozuyorsa kod kuralı (deterministik yakalama) ya da o ifadeye dair
- * açık istem kuralı; kapsıyor + kararsız / bağlam → model sınırı (çoğunluk oyu, çaba, model). Açıklama yoksa yalnız kanıta bakılır.
+ * 3. adım — düzeltme katmanı ÖNERİSİ, KANIT ÖNCE (sıra önemli): model test beklentisine katılmıyorsa önce o gözden geçirilir; özgün mesaj
+ * yeniden koşunca çoğunlukla doğruysa (kararsız) model sınırı — modelin "bilgi eksikti / kural yoktu" beyanı kanıtı ezmez (ilk koşuda
+ * kararsız bir vakaya modelin beyanıyla "bilgi tabanı" önerilmişti); sonra bilgi eksikse bilgi tabanı; talimat kapsamıyor / belirsizse
+ * istem; kapsıyor ama belirli bir ifade kararı bozuyorsa kod kuralı (ya da o ifadeye dair açık istem kuralı); kalan → model sınırı.
  */
 export function suggestLayer(kind: FailureKind, explanation: ModelExplanation | null): FixLayer {
   if (kind === "unrunnable") return "unknown";
   if (explanation && !explanation.expectationAgrees) return "test_expectation";
+  if (kind === "flaky") return "model_limit";
   if (explanation?.infoMissing) return "knowledge";
   if (explanation && explanation.ruleCoverage !== "covered") return "prompt";
   if (kind === "trigger") return "code_rule";
@@ -213,6 +228,7 @@ export async function analyzeFailure<O>(c: FailureCase<O>, opts: FailureAnalysis
     baseline,
     ablations,
     triggers: verdict.triggers,
+    partial: verdict.partial,
     claimChecks: verdict.claimChecks,
     kind: verdict.kind,
     calls,
@@ -229,9 +245,9 @@ const LAYER_TEXT: Record<FixLayer, string> = {
 };
 
 const KIND_TEXT: Record<FailureKind, string> = {
-  flaky: "KARARSIZ — özgün mesaj yeniden koşunca çoğunlukla doğru; hata tekrar farkı (tek bir ifade suçlanamaz)",
-  trigger: "TETİKLEYİCİ İFADE — aşağıdaki ifade çıkınca hata düzeliyor",
-  context: "BAĞLAM — hiçbir tek ifade çıkınca düzelmiyor (mesajın bütünü ya da modelin sınırı)",
+  flaky: "KARARSIZ — özgün mesaj yeniden koşunca çoğunlukla doğru; hata tekrar farkı (ifade çıkarma burada kanıt değildir)",
+  trigger: "TETİKLEYİCİ İFADE — aşağıdaki ifade çıkınca hata BÜTÜN tekrarlarda düzeliyor",
+  context: "BAĞLAM — hiçbir tek ifade çıkınca bütün tekrarlarda düzelmiyor (mesajın bütünü ya da modelin sınırı)",
   unrunnable: "KOŞULAMADI — yeniden çağrılar başarısız",
 };
 
@@ -244,13 +260,14 @@ export function failureAnalysisMarkdown(title: string, header: string, results: 
     header,
     "",
     `Vaka: ${results.length} · toplam model çağrısı: ${totalCalls}. Modelin açıklaması İPUCUDUR (sonradan kurulan gerekçe); karşı deneme KANITTIR`,
-    `(ifade çıkarılıp aynı katman yeniden koşuldu; tekrarların en az yarısında düzelen ifade tetikleyicidir).`,
+    `(ifade çıkarılıp aynı katman yeniden koşuldu; BÜTÜN tekrarlarda düzelten ifade tetikleyicidir, bir kısmında düzelten kısmi etkidir).`,
     "",
   ];
   for (const r of results) {
     lines.push(`## ${r.id}`, "", `- Mesaj: "${r.text}"`, `- Beklenen: ${r.expected} · Gözlenen: ${r.observed}`);
     lines.push(`- Özgün mesaj yeniden: ${r.baseline.correct}/${r.baseline.runs} doğru (${r.baseline.outputs.join(" | ") || "—"})`);
     lines.push(`- **Kanıt: ${KIND_TEXT[r.kind]}**${r.triggers.length ? `: ${r.triggers.map((t) => `"${t}"`).join(", ")}` : ""}`);
+    if (r.partial.length) lines.push(`- Kısmi etki (tekrarların bir kısmında düzeldi): ${r.partial.map((t) => `"${t}"`).join(", ")}`);
     lines.push(`- **Önerilen düzeltme katmanı: ${LAYER_TEXT[r.layer]}**`);
     if (r.explanation) {
       lines.push(
@@ -263,7 +280,7 @@ export function failureAnalysisMarkdown(title: string, header: string, results: 
     if (r.claimChecks.length) {
       lines.push(
         `- Modelin iddiası karşı denemede: ${r.claimChecks
-          .map((c) => `"${c.phrase}" → ${c.confirmed === null ? "sınanamadı" : c.confirmed ? "DOĞRULANDI" : "doğrulanmadı"}`)
+          .map((c) => `"${c.phrase}" → ${c.result === null ? "sınanamadı" : c.result === "confirmed" ? "DOĞRULANDI" : c.result === "partial" ? "kısmen" : "doğrulanmadı"}`)
           .join(" · ")}`,
       );
     }

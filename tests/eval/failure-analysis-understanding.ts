@@ -1,4 +1,10 @@
-import { buildUnderstandingUserContent, understandGuestMessages, understandingSystemPromptFor, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
+import {
+  buildUnderstandingUserContent,
+  understandGuestMessages,
+  understandingEnabled,
+  understandingSystemPromptFor,
+  __resetUnderstandingCache,
+} from "@/lib/ai/semantic/understand";
 import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
 import type { FailureCase, ModelExplanation } from "./failure-analysis";
@@ -10,8 +16,12 @@ import type { FailureCase, ModelExplanation } from "./failure-analysis";
 // Ücretli: yalnız ölçüm koşusunda (RUN_REAL_EVAL=1) çağrılır.
 // ---------------------------------------------------------------------------
 
-/** Anlama katmanını aynı ayarla yeniden koştur → niyet listesi (sıralı) ya da null. */
+/**
+ * Anlama katmanını aynı ayarla yeniden koştur → niyet listesi (sıralı) ya da null. 🚨 Katman KAPALIYSA fırlatır: ilk denemede bayrak
+ * kapalıydı, katman model çağırmadan "kapalı" döndü ve araç bunu "0/0 başarısız" diye yeşil yazdı (kendini kandıran ölçer, 10-11).
+ */
 export async function rerunUnderstanding(text: string): Promise<string[] | null> {
+  if (!understandingEnabled()) throw new Error("Anlama katmanı kapalı (AI_UNDERSTANDING_ENABLED) — neden analizi koşulamaz.");
   __resetUnderstandingCache();
   const o = await understandGuestMessages({ guestMessage: text, items: true });
   return o.status === "ok" ? o.value.requests.map((q) => q.intent).sort() : null;

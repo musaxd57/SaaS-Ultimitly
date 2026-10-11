@@ -13,7 +13,8 @@ import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 // ---------------------------------------------------------------------------
 
 export const HOLD_KINDS = new Set(["complaint_issue", "cancellation_refund", "human_request"]);
-const decisionOf = (intents: readonly string[]) => (intents.some((i) => HOLD_KINDS.has(i)) ? "hold" : "give");
+/** ÜRÜNÜN kuralı (`ai/emergency-number.ts`): niyetlerden HERHANGİ biri şikâyet / iade / insan talebi → hold (yalnız en öncelikli değil). */
+export const decisionOf = (intents: readonly string[]) => (intents.some((i) => HOLD_KINDS.has(i)) ? "hold" : "give");
 
 export interface MeasuredRow {
   id: string;
@@ -33,7 +34,9 @@ export async function analyzeEmergencyFailures(
   outDir: string,
 ): Promise<FailureAnalysis[]> {
   const max = Math.max(0, Math.min(20, Number(process.env.EVAL_EXPLAIN_MAX_CASES ?? "5") || 5));
-  const wrong = rows.filter((r) => r.expect !== "either" && r.decision !== "fail" && r.decision !== r.expect);
+  // Hata ürünün kuralıyla yeniden hesaplanır (saklı `decision` eski "en öncelikli niyet" kuralıyla yazılmış olabilir — ilk denemede
+  // doğru ayrılan h2 / h3 / h5 bu yüzden listeye girmişti).
+  const wrong = rows.filter((r) => r.expect !== "either" && r.decision !== "fail" && decisionOf(r.intents) !== r.expect);
   const firstPerId = [...new Map(wrong.map((r) => [r.id, r])).values()].slice(0, max);
   const explain = understandingExplainer((c) =>
     c.expected === "hold"

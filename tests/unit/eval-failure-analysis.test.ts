@@ -3,6 +3,7 @@ import {
   ablationCandidates,
   analyzeFailure,
   failureAnalysisMarkdown,
+  fixedAll,
   fixedBy,
   judge,
   removePhrase,
@@ -63,14 +64,27 @@ describe("judge / suggestLayer", () => {
   it("kararsız: özgün mesaj yeniden koşunca çoğunlukla doğru", () => {
     expect(judge({ correct: 1, runs: 2 }, [abl("x", 2)], []).kind).toBe("flaky");
   });
-  it("tetikleyici: çıkarılınca düzelen ifade; modelin iddiası sınanır", () => {
-    const v = judge({ correct: 0, runs: 2 }, [abl("polisi arayacağım", 2, "claimed"), abl("Numara ne", 0)], ["polisi arayacağım", "Numara ne"]);
+  it("tetikleyici: çıkarılınca BÜTÜN tekrarlarda düzelen ifade; yarısında düzelen KISMİ etki; modelin iddiası sınanır", () => {
+    const v = judge(
+      { correct: 0, runs: 2 },
+      [abl("polisi arayacağım", 2, "claimed"), abl("Kapı kodu", 1, "claimed"), abl("Numara ne", 0)],
+      ["polisi arayacağım", "Kapı kodu", "Numara ne", "yok"],
+    );
     expect(v.kind).toBe("trigger");
     expect(v.triggers).toEqual(["polisi arayacağım"]);
+    expect(v.partial).toEqual(["Kapı kodu"]);
     expect(v.claimChecks).toEqual([
-      { phrase: "polisi arayacağım", confirmed: true },
-      { phrase: "Numara ne", confirmed: null },
+      { phrase: "polisi arayacağım", result: "confirmed" },
+      { phrase: "Kapı kodu", result: "partial" },
+      { phrase: "Numara ne", result: null },
+      { phrase: "yok", result: null },
     ]);
+  });
+  it("🚨 yalnız kısmi etki varsa tetikleyici YOK → bağlam (ilk koşuda 1/2 tetikleyici sayılıyordu)", () => {
+    const v = judge({ correct: 0, runs: 2 }, [abl("a", 1), abl("b", 0)], []);
+    expect(v.kind).toBe("context");
+    expect(v.triggers).toEqual([]);
+    expect(v.partial).toEqual(["a"]);
   });
   it("bağlam: hiçbir tek ifade düzeltmiyor; koşulamadı: çağrı yok", () => {
     expect(judge({ correct: 0, runs: 2 }, [abl("a", 0), abl("b", 0)], []).kind).toBe("context");
@@ -78,8 +92,15 @@ describe("judge / suggestLayer", () => {
     expect(fixedBy(1, 2)).toBe(true);
     expect(fixedBy(0, 2)).toBe(false);
     expect(fixedBy(0, 0)).toBe(false);
+    expect(fixedAll(2, 2)).toBe(true);
+    expect(fixedAll(1, 2)).toBe(false);
+    expect(fixedAll(0, 0)).toBe(false);
   });
-  it("düzeltme katmanı sırası: test beklentisi → bilgi → istem → kod kuralı → model sınırı", () => {
+  it("🚨 kanıt önce: kararsız vakada modelin 'bilgi eksik / kural yok' beyanı model sınırını ezmez (ilk koşuda 'bilgi tabanı' önerilmişti)", () => {
+    expect(suggestLayer("flaky", exp({ infoMissing: true, ruleCoverage: "unclear" }))).toBe("model_limit");
+    expect(suggestLayer("flaky", exp({ expectationAgrees: false }))).toBe("test_expectation");
+  });
+  it("düzeltme katmanı sırası: test beklentisi → (kararsız) → bilgi → istem → kod kuralı → model sınırı", () => {
     expect(suggestLayer("trigger", exp({ expectationAgrees: false, infoMissing: true, ruleCoverage: "not_covered" }))).toBe("test_expectation");
     expect(suggestLayer("trigger", exp({ infoMissing: true, ruleCoverage: "not_covered" }))).toBe("knowledge");
     expect(suggestLayer("trigger", exp({ ruleCoverage: "unclear" }))).toBe("prompt");
@@ -116,9 +137,10 @@ describe("analyzeFailure — uçtan uca (sahte koşturucu)", () => {
     expect(r.kind).toBe("trigger");
     expect(r.triggers).toEqual(["polisi arayacağım"]);
     expect(r.claimChecks).toEqual([
-      { phrase: "polisi arayacağım", confirmed: true },
-      { phrase: "Numara ne?", confirmed: false },
+      { phrase: "polisi arayacağım", result: "confirmed" },
+      { phrase: "Numara ne?", result: "not" },
     ]);
+    expect(r.partial).toEqual([]);
     expect(r.layer).toBe("prompt");
     // açıklama 1 + 2 × (özgün 1 + aday 3: iki iddia + bir kalan parça)
     expect(r.ablations.map((a) => a.phrase)).toEqual(["polisi arayacağım", "Numara ne?", "Ev sahibi depozitomu vermiyor"]);

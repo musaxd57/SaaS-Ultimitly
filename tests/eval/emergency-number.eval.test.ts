@@ -4,7 +4,7 @@ import path from "node:path";
 import { understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
-import { analyzeEmergencyFailures, explainFailuresEnabled } from "./emergency-number-causes";
+import { analyzeEmergencyFailures, decisionOf, explainFailuresEnabled } from "./emergency-number-causes";
 
 // ---------------------------------------------------------------------------
 // ACİL NUMARA SORUSU — ANLAMA KATMANI BAĞLAMI AYIRT EDİYOR MU? (kurucu 10-11: "önce ölçüm sonra kod; Luna 6.0'a yaptıralım").
@@ -82,7 +82,8 @@ describe.skipIf(!enabled)("acil numara sorusu — anlama katmanı bağlam ayrım
       "",
       `| ölçü | değer |`,
       `|---|---|`,
-      `| doğru karar (give + hold, puanlanan) | ${correct}/${scored.length} |`,
+      `| doğru karar (give + hold, puanlanan; en öncelikli niyet kuralı) | ${correct}/${scored.length} |`,
+      `| doğru karar — ÜRÜNÜN kuralı (niyetlerden herhangi biri şikâyet / iade / insan talebi → hold) | ${scored.filter((r) => r.decision !== "fail" && decisionOf(r.intents) === r.expect).length}/${scored.length} |`,
       `| 🚨 bırakılması gerekirken numara verilecekti (hold → give) | ${wrongGive.length} |`,
       `| numara verilmesi gerekirken bırakılacaktı (give → hold) | ${wrongHold.length} |`,
       `| anlama çağrısı başarısız | ${failed} |`,
@@ -94,9 +95,10 @@ describe.skipIf(!enabled)("acil numara sorusu — anlama katmanı bağlam ayrım
     ].join("\n");
     writeFileSync(path.join(outDir, `${stem}.md`), `${md}\n`);
     // Hata çıktıysa NEDEN ANALİZİ hemen (kurucu 10-11): modelin açıklaması + karşı deneme + düzeltme katmanı → `${stem}-neden.md`.
-    if (explainFailuresEnabled() && (wrongGive.length > 0 || wrongHold.length > 0)) {
+    if (explainFailuresEnabled() && scored.some((r) => r.decision !== "fail" && decisionOf(r.intents) !== r.expect)) {
       const textOf = new Map(data.scenarios.map((s) => [s.id, s.text]));
-      await analyzeEmergencyFailures(rows, (id) => textOf.get(id), stem, outDir);
+      const causes = await analyzeEmergencyFailures(rows, (id) => textOf.get(id), stem, outDir);
+      expect(causes.filter((c) => c.kind === "unrunnable").map((c) => c.id)).toEqual([]);
     }
     expect(rows.length).toBe(jobs.length);
   }, 900_000);
