@@ -1,8 +1,8 @@
 # Açık işler — 2026-08-08 denetim turu
 
 > **10-10 gece durum taraması (Haiku ayıklaması + kodla örneklem doğrulaması):** KAPALI — 3, 4, 7b, 7d–7g, 9, 11, 16. KARAR BEKLİYOR — 5–6 (metrik
-> tanımı), 7c (oturum iptali, migration), 8 (yükseltmede onay kaydı), 10 (sıfırlama kovası), 14 (açık tema kontrastı — "beyazı bozma"). AÇIK — 1 (middleware
-> eşleyicisi noktalı yolları atlıyor; yetki kapısı → tam tur ister), 2 (iCal org sırası dönmüyor), 7 / 7h (sır dedektörü; yanlış pozitif ölçümü
+> tanımı), 7c (oturum iptali, migration), 8 (yükseltmede onay kaydı), 10 (sıfırlama kovası), 14 (açık tema kontrastı — "beyazı bozma"). 1 KAPALI (10-11 ölçüldü: middleware yetki kapısı değil, asıl kapı
+> `(app)/layout` `requireAuth`; davranışsal pin `app-layout-auth-gate.test.ts`). AÇIK — 2 (iCal org sırası dönmüyor), 7 / 7h (sır dedektörü; yanlış pozitif ölçümü
 > ister), 12–13, 15 (karışık P3).
 
 > Bu dosya **Codex'e verilmek üzere** yazıldı. Bu turda **uygulananlar** git log'da
