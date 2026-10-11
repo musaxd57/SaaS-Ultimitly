@@ -63,7 +63,9 @@
   anlama katmanı koşmadıysa (AÇIK tehlike dalı hariç); işletme saat dilimi Türkiye değilse. Numara sorusu ipucu dar: rakamla süren
   "numara 5" (daire; acil kısa numarayla süren "Polis numara 155 mi?" sorudur), "5 numaralı", cümle ortasındaki "kaç" ("Polis kaç
   dakikada gelir?"), "telefonum / my phone", cümle ortasındaki "call / contact" soru sayılmaz. Servis adı GEÇMEYEN "hangi numarayı arayayım / which number" sorusu YALNIZ acil bağlamda (anlama katmanı "acil" ya da açık
-  tehlike) genel numarayı alır ("Temizlikçinin hangi numarasını arayayım?" numara sorusu değildir). Ev sahibinin KENDİSİ tehditse
+  tehlike) genel numarayı alır ("Temizlikçinin hangi numarasını arayayım?" numara sorusu değildir; "who do I call", "kimi / nereyi arayalım",
+  "112 mi 155 mi?" aynı sınıf; başka hedef — taksi, doktor, eczane, temizlik… — ya da "hangi numaralı daire" genel numara ALMAZ). "Acil hattı
+  hangisi?" ve yalnız servis adından oluşan soru ("Ambulans?") numara sorusudur. Ev sahibinin KENDİSİ tehditse
   ("ev sahibi izinsiz girdi") → acil devir, misafire HİÇBİR mesaj (kurucu 10-11, rota testiyle pinli). Ölçüm: geliştirme seti 62/62,
   kör set acc1 ürün kararı 18/18 (3 senaryo hata analizi için açıldı, görülmemiş 15/15). Kanal yolu YOK (kurucu 10-11: "şimdilik yalnız QR").
   Anlama istemine ŞİKÂYET TEHDİDİ eki (`AI_UNDERSTANDING_THREAT_RULE_ENABLED`, KAPALI; `ai/semantic/understand.ts`): sorun anlatıp polise
