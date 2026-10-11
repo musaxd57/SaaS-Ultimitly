@@ -81,10 +81,10 @@ const MAX_MESSAGE = 2000;
 // iletildi" işareti + karar kaydı + açıksa uyarı e-postası).
 const STAY_MESSAGES_PER_HOUR = 40;
 
-/** Çıktıda kapı kodu görülen ilk taslaktan sonra modele giden SABİT not (kod yazılı, misafir metni / değer taşımaz). */
 /** Çıktıda acil arama yönergesi görülen ilk taslaktan sonra modele giden SABİT not (kurucu kararı 10-11). */
 const QR_EMERGENCY_DIRECTIVE_RETRY_NOTE =
   "Önceki taslağın misafiri 112'yi / polisi / ambulansı / acil servisi aramaya yönlendiriyordu. Bu kanalda böyle bir yönerge ASLA yazılmaz. Yönerge cümlesi kurmadan yeniden cevap ver.";
+/** Çıktıda kapı kodu görülen ilk taslaktan sonra modele giden SABİT not (kod yazılı, misafir metni / değer taşımaz). */
 const QR_DOOR_CODE_RETRY_NOTE =
   "Önceki taslağın bir kapı / bina / anahtar kutusu / tuş paneli kodu içeriyordu. Bu QR kanalında böyle bir kod ASLA yazılmaz (geçmiş mesajlarda görünse bile). Kodu yazmadan yeniden cevap ver; misafir kodu ev sahibinin doğrudan mesaj kanalından alır.";
 const STAY_MESSAGE_CAP_TEXT = "Şu anda çok fazla mesaj aldık. Ev sahibiniz bilgilendirildi; kısa süre sonra tekrar yazabilirsiniz.";

@@ -61,6 +61,10 @@ describe("qrReplyHasDoorCode — sızıntı OLMAYANLAR (cevap gitmeli, devir ço
     expect(qrReplyHasDoorCode("Ağ adı LaleNet, şifre 45901234.", [])).toBe(false);
     // Wi-Fi adı önceki cümlede: bağ cümle sınırını GEÇMEZ.
     expect(qrReplyHasDoorCode("Wi-Fi ağı LaleNet. Kiler şifresi 4590.", [])).toBe(true);
+    // 🚨 Haiku 10-11 #1: aynı cümlede Wi-Fi şifresinden SONRA gelen başka şifre — etiket "bina".
+    expect(qrReplyHasDoorCode("Wi-Fi şifresi 12345678, bina şifresi 4590", [])).toBe(true);
+    // Etiketsiz şifre Wi-Fi kartının devamıdır ("Wi-Fi adı: LaleNet. Şifre: 12345678").
+    expect(qrReplyHasDoorCode("Wi-Fi adı: LaleNet. Şifre: 12345678", [])).toBe(false);
   });
 
   it("🚨 ayraçlı yazım ('4 5 9 0') da yakalanır; yıl eki / fiyat yanlış tutuş üretmez (devir çok olmasın)", () => {
@@ -68,6 +72,12 @@ describe("qrReplyHasDoorCode — sızıntı OLMAYANLAR (cevap gitmeli, devir ço
     expect(qrReplyHasDoorCode("Kapı kodu 4-5-9-0.", [])).toBe(true);
     expect(qrReplyHasDoorCode("Giriş kapısı 2019'da yenilendi.", [])).toBe(false);
     expect(qrReplyHasDoorCode("Kapı 1500 TL.", [])).toBe(false);
+  });
+
+  it("değer ÖNCE yazılan kapı kodu yakalanır; rezervasyon / onay kodu kapı kodu değildir (Haiku 10-11 #7 / #8)", () => {
+    expect(qrReplyHasDoorCode("4590 kapı kodudur.", [])).toBe(true);
+    expect(qrReplyHasDoorCode("4590'ı kapı kodu olarak girin.", [])).toBe(true);
+    expect(qrReplyHasDoorCode("Rezervasyon kodu: 12345678", [])).toBe(false);
   });
 
   it("🚨 süre pini: 50.000 karakterlik kötü niyetli dizi doğrusal kalır (24k üstü fail-closed)", () => {
@@ -110,7 +120,9 @@ describe("withoutQrSecretKbItems — Wi-Fi kalemi girer, kapı izi girmez", () =
       "Wi-Fi: gunes1907. Çöp odası şifresi 4590",
       "Wi-Fi: LaleNet, şifre gunes1907, depo şifresi 4590",
       "Wi-Fi şifresi gunes1907. Şifre: 4590",
-      "Wi-Fi şifresi gunes1907. Otopark şifresi kirmizi gelincik", // değer iki noktasız + rakamsız → iz listesi (otopark) yakalar
+      "Wi-Fi şifresi gunes1907. Otopark şifresi kirmizi gelincik", // etiket "otopark" → Wi-Fi'ye bağlı değil
+      "Wi-Fi: LaleNet, çamaşır odası kodu: 4590", // etiket "çamaşır odası" (Haiku 10-11 #9)
+      "Wi-Fi şifresi 12345678, bina şifresi 4590", // aynı cümlede ikinci şifre — etiket "bina" (Haiku 10-11 #1)
       "Wi-Fi ağı: LaleNet. Kiler şifresi 4590", // Wi-Fi adı ÖNCEKİ cümlede kaldı; "kiler" iz listesinde yok → yalnız cümle sınırı yakalar
     ]) {
       expect(withoutQrSecretKbItems([kb("wifi", content)]), content).toEqual([]);
@@ -120,8 +132,24 @@ describe("withoutQrSecretKbItems — Wi-Fi kalemi girer, kapı izi girmez", () =
       "Wi-Fi şifresi: gunes1907 (şifre büyük-küçük harfe duyarlıdır)",
       "Wi-Fi 1: LaleNet şifre gunes1907. Wi-Fi 2: LaleNet5G şifre deniz2024",
       "Network: LaleHome / password: sunny2024",
+      // Haiku 10-11 #2 / #3: gerçek kartlar düşmemeli (cümle sınırı, yer adı, "ağ anahtarı").
+      "Wi-Fi adı: LaleNet. Şifre: gunes1907",
+      "Wi-Fi ağı LaleNet; şifre gunes1907",
+      "Wi-Fi adı LaleNet.\nŞifre: 12345678",
+      "Lale Sitesi Wi-Fi: LaleNet, şifre: gunes1907",
+      "Apartman Wi-Fi: LaleApt, şifre: deniz2024",
+      "Ağ anahtarı: 12345678 (ağ adı LaleNet)",
     ]) {
       expect(withoutQrSecretKbItems([kb("wifi", content)]), content).toHaveLength(1);
+    }
+  });
+
+  it("süre pini: Wi-Fi kalemi süzgeci 24k kötü niyetli girdide doğrusal (uzun boşluk / tekrarlı şifre sözcüğü)", () => {
+    for (const content of [`şifre${" ".repeat(23_000)}x`, "şifre: 1 ".repeat(2_800), `Wi-Fi ${"kod ".repeat(5_000)}`, `${",".repeat(23_000)}şifre 1`]) {
+      const t = performance.now();
+      withoutQrSecretKbItems([kb("wifi", content)]);
+      qrReplyHasDoorCode(content.slice(0, 23_000), []);
+      expect(performance.now() - t, content.slice(0, 12)).toBeLessThan(1500);
     }
   });
 
@@ -149,7 +177,14 @@ describe("redactDoorCodes — geçmişte kapı kodu modele gitmez (kurucu karar�
     expect(redactDoorCodes("Tuş paneline 6142 yazıp girin.")).toBe(`Tuş paneline ${REDACTED_DOOR_CODE} yazıp girin.`);
     expect(redactDoorCodes("Kapı kodu 4 5 9 0")).toBe(`Kapı kodu ${REDACTED_DOOR_CODE}`);
   });
-  it("KONTROL: kod taşımayan metin değişmez", () => {
-    for (const t of ["Giriş saati 15:00.", "Kapıcı 0532 111 2233.", "Wi-Fi şifresi 12345678.", ""]) expect(redactDoorCodes(t)).toBe(t);
+  it("KONTROL: kod taşımayan metin değişmez (Wi-Fi kartının etiketsiz şifresi dahil)", () => {
+    for (const t of ["Giriş saati 15:00.", "Kapıcı 0532 111 2233.", "Wi-Fi şifresi 12345678.", "Wi-Fi adı: LaleNet. Şifre: 12345678", ""]) {
+      expect(redactDoorCodes(t)).toBe(t);
+    }
+  });
+  it("🚨 Wi-Fi şifresiyle aynı cümledeki ikinci (kapı) şifresi gizlenir, Wi-Fi şifresi kalır; tarama sınırının üstü fail-closed", () => {
+    expect(redactDoorCodes("Wi-Fi şifresi 12345678, bina şifresi 4590")).toBe(`Wi-Fi şifresi 12345678, bina şifresi ${REDACTED_DOOR_CODE}`);
+    expect(redactDoorCodes("4590 kapı kodudur")).toBe(`${REDACTED_DOOR_CODE} kapı kodudur`);
+    expect(redactDoorCodes(`${"a ".repeat(13_000)}4590`)).toContain(REDACTED_DOOR_CODE);
   });
 });

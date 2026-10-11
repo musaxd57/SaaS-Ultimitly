@@ -3,8 +3,9 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // 55 + 51 — QR ROTASI BAĞLANTISI (kurucu onayı 10-02 akşam; gerçek rota, DB'li, cevap modeli MOCK, anlama katmanı sahte fetch).
-//  · AÇIK tehlike: model BEKLENMEDEN güvenlik satırı (misafirin dilinde), ücretli çağrı yok, karar kaydı `physical_hazard`.
-//  · OLASI tehlike: karar anlama katmanında; katman koşmadıysa güvenli taraf (satır), koştu ve "acil değil" dediyse alarm kalkar.
+//  · AÇIK tehlike: model BEKLENMEDEN devir, misafire metin YOK (10-11 kurucu kararı: 112 satırı kalktı), ücretli çağrı yok, karar kaydı
+//    `physical_hazard`.
+//  · OLASI tehlike: karar anlama katmanında; katman koşmadıysa güvenli taraf (devir), koştu ve "acil değil" dediyse alarm kalkar.
 //  · ANILAN tehlike ("yangın çıkarsa…"): kelime ağının acil etiketi bağlamla kalkar, misafir cevabını alır.
 //  · Alarm bağlamla kalktıysa "normaldir / endişelenmeyin" güvencesi bilgi tabanı dayanağı olmadan GİTMEZ (`hazard_reassurance`).
 //  · Model çağrısı OLMAYAN dallar (bütçe): olası tehlike satır alır, anılan tehlike almaz.

@@ -34,8 +34,8 @@
   `clear · possible · mentioned · none` (LLM'siz, yedi dil, cümlecik düzeyi; alıntı / ürün adı / K6 önce nötr; soru cümlesi gaz dışında en
   fazla olası; istenen ateş — şömine, mum — betimlemesi olası, tutuşma / yayılma açık; ışık / gösterge bağlamında "brennt / горит / alev" yangın
   değil; sigara İZNİ / alışkanlığı anılış; bilinen zararsız duman kaynağında yoğunluk tek başına açık yapmaz, nefes alamama yapar; su yalnız
-  elektriğe ulaşınca ya da elektrik arızası belirtisiyle açık). QR: AÇIK tehlikede model ÇAĞRILMAZ → güvenlik satırı misafirin dilinde
-  (`SAFETY_LINES`, yedi dil; kodun kesin dili → modelin dili → Türkçe), karar kaydı `physical_hazard`, kritik uyarı; modelsiz dallarda olası
+  elektriğe ulaşınca ya da elektrik arızası belirtisiyle açık). QR: AÇIK tehlikede model ÇAĞRILMAZ → [10-02 → 10-11: güvenlik satırı misafirin dilinde; 10-11'den beri satır YOK, misafire metin gitmez]
+  (eski `SAFETY_LINES` kaldırıldı), karar kaydı `physical_hazard`, kritik uyarı; modelsiz dallarda olası
   da satır alır. Karar (`hazardDecisionFor`): açık → acil, model geçersiz kılamaz · olası → anlama modeli (koşmadıysa acil; "acil değil"se acil
   kalkar ama ŞİKÂYET olarak kalır — `clearedAsIssue`) · anılış → kalkar · bağlamı belirsiz kalıplar (`AMBIGUOUS_EMERGENCY`: "-(y)A bayıldık",
   "İnternet / fiyat düştü", "Помогите, пожалуйста" yalnız olay sözcüğü yokken, ağa giriş yapamama, acil numara / "just in case" / aile acil

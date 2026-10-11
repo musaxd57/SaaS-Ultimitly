@@ -131,3 +131,18 @@ yazdığı "112'yi / polisi / acil servisi arayın" QR'da bir kez yeniden yazdı
 **Açık (öneri bekliyor):** "ambulans / polis numarası ne?" sorusunda resmî numaraların koddan beslenmesi + bağlam (hastaya numara ver, ev sahibini
 şikâyete gidiyorsa bırak) ve Luna 6.0'ın bu ayrımı ölçümü; bilgi tabanında olmayan yer önerisi (rakipler ne yapıyor). Öneri belgesi hazırlanıyor.
 
+### Haiku ikinci incelemesi (10-11, 10 bulgu)
+
+| Bulgu | Hüküm | Uygulama |
+|---|---|---|
+| 1 (P1) "Wi-Fi şifresi 12345678, bina şifresi 4590" — ikinci şifre aynı cümledeki Wi-Fi'ye yaslanıp geçiyordu | DOĞRU | **Etiket kuralı** (`secretLabels`): her şifre / kod sözcüğünün hemen önündeki etiket (en yakın virgül / nokta / satır sonu ya da önceki şifrenin değerinden sonrası) Wi-Fi adı taşımalı; etiket boşsa yalnız karttaki İLK şifre Wi-Fi sayılır. Kalem süzgeci, cevap taraması ve geçmiş gizleme aynı kuralı kullanır. |
+| 2 Cümle sınırı gerçek kartları düşürüyordu ("Wi-Fi adı: LaleNet. Şifre: gunes1907") | DOĞRU | Etiketsiz ilk şifre kartın devamı sayılır (pinli). |
+| 3 Yer adları ("Lale Sitesi Wi-Fi", "Apartman Wi-Fi") kartı düşürüyordu | DOĞRU | Yer adları iz listesinden çıkarıldı (onların şifresini etiket kuralı yakalar); "ağ / WPA / güvenlik anahtarı" iz sayılmaz. |
+| 4 112 yönergesi yanlış tutuşları ("acil durumda bizi arayın", "Daire 117'de") | DOĞRU | Yönerge = arama fiilinin NESNESİ acil servis / numara (Türkçede ≤2 sözcük önce, öteki dillerde ≤3 sözcük sonra); "bizi / us" nesnesi, daire / kat / dahili numarası hariç; tek başına "emergency" servis sayılmaz. |
+| 5 Kaçan yazımlar (çağırın, telefon edin, Вызовите, بالإسعاف, Wählen, policía) | DOĞRU | Fiil / servis listeleri genişledi; aksan ve hemze katlanır. 23 olumlu + 13 olumsuz örnek pinli. |
+| 6 Acil e-posta tavanı eşzamanlılıkta aşılabiliyordu | DOĞRU | Hak göndermeden ÖNCE atomik ayrılır, e-posta gitmezse geri verilir (eşzamanlı 6 acil → en çok 3 e-posta, pinli). |
+| 7 Gizleme değeri her yerde değiştiriyor ("Havlu ücreti 4590 TL") | Kısmen | Bilinçli bırakıldı: yalnız modele giden geçmiş kopyasında, güvenli yön. Rezervasyon / onay kodu artık kapı kodu sayılmaz. |
+| 8 "4590 kapı kodudur" kaçıyordu; 24k üstü gizleme açık kalıyordu | DOĞRU | Değer-önce kalıbı eklendi; sınır üstü fail-closed (her 4–8 hane gizlenir). "45 90" / "4.5.9.0" bilinen sınır. |
+| 9 "Wi-Fi: LaleNet, çamaşır odası kodu: 4590" geçiyordu | DOĞRU | Etiket kuralıyla düşer (pinli). |
+| 10 Eski "güvenlik satırı" yorumları | DOĞRU | Kod, test ve bağlayıcı belgelerde güncellendi. |
+

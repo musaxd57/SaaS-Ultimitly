@@ -185,6 +185,15 @@ describe("17 — acil e-postası konaklama başına saatte en çok 3", () => {
     expect(out.map((o) => o.sent)).toEqual([false, false, false, true]);
   });
 
+  it("🚨 EŞZAMANLI 6 farklı acil olay → yalnız 3 e-posta (hak ayırma atomik — Haiku 10-11 #6)", async () => {
+    vi.stubEnv("QR_ESCALATION_EMAIL_ENABLED", "1");
+    const { orgId, reservationId } = await seed();
+    const base = { organizationId: orgId, propertyName: "Lale", reservationId, reason: "ai_escalated" as const, critical: true };
+    const out = await Promise.all(["a", "b", "c", "d", "e", "f"].map((id) => maybeSendQrEscalationEmail({ ...base, eventId: `crit:${id}` })));
+    expect(vi.mocked(emailService.sendReporting).mock.calls.length).toBeLessThanOrEqual(3);
+    expect(out.filter((o) => o.sent).length).toBeLessThanOrEqual(3);
+  });
+
   it("KONTROL: tavan konaklama başına — başka konaklamanın acil e-postası gider", async () => {
     vi.stubEnv("QR_ESCALATION_EMAIL_ENABLED", "1");
     const { orgId, propertyId, reservationId } = await seed();

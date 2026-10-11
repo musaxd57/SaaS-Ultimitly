@@ -445,47 +445,62 @@ const DOOR_SECRET_PATTERNS: readonly RegExp[] = SECRET_PATTERNS.filter((re) => !
 
 /**
  * QR Wi-Fi istisnasında (↑dosya başı) `wifi` kalemini DÜŞÜREN kapı / kilit / giriş izi — DEĞER aranmaz, sözcük yeter (ASCII katlanmış
- * metinde, sözcük başında): Wi-Fi kalemi kapıyı, kutuyu, kilidi, paneli, binayı / otoparkı, PIN'i hiç anmamalı. Fazla eleme GÜVENLİ
- * yöndür (o daire QR'da Wi-Fi veremez, misafir ev sahibine yönlendirilir); kapı kodu sızması yön değildir. Liste tek başına yetmez
- * (her kilitli yerin adı yazılamaz) → ↓`wifiSecretsAttributed` her şifre / kod DEĞERİNİ bir Wi-Fi adına bağlar (Haiku incelemesi 10-11:
- * "Wi-Fi: …, şifre gunes1907. Bina şifresi: 4590" kalemi geçiyordu).
+ * metinde, sözcük başında): Wi-Fi kalemi kapıyı, kutuyu, kilidi, paneli, PIN'i hiç anmamalı. Fazla eleme GÜVENLİ yöndür (o daire QR'da
+ * Wi-Fi veremez, misafir ev sahibine yönlendirilir); kapı kodu sızması yön değildir. "Ağ / WPA / güvenlik anahtarı" Wi-Fi terimidir, iz
+ * DEĞİL. Yer adları (bina, otopark, site…) BİLEREK yok — "Lale Sitesi Wi-Fi", "Apartman Wi-Fi" kartlarını düşürüyordu (Haiku 10-11); onların
+ * şifresi ↓`secretLabels` ile yakalanır ("Bina şifresi 4590": etiket Wi-Fi değil).
  */
 const QR_WIFI_ITEM_DOOR_TRACE =
-  /(?<![a-z0-9])(?:kapi|anahtar|kilit|kasa(?!ba)|kutu|key\s*(?:box|safe|pad)|lock|door|gate|entrance|panel|tus|interkom|intercom|domofon|digicode|alarm|bina|apartman|site|otopark|garaj|garage|parking|cop\s+oda|depo|asansor|lobby|building|storage|pin(?![a-z]))/;
+  /(?<![a-z0-9])(?:kapi|(?<!(?:ag|wpa2?|guvenlik)\s)anahtar|kilit|kasa(?!ba)|kutu|key\s*(?:box|safe|pad)|lock|door|gate|entrance|panel|tus|interkom|intercom|domofon|digicode|alarm|pin(?![a-z]))/;
 
-/** Şifre / kod sözcüğü + DEĞER (ASCII katlanmış): iki nokta ardında ≥3 karakter ya da rakam taşıyan sözcük. */
-const SECRET_WORD_WITH_VALUE =
-  /(?<![a-z0-9])(?:sifre|parola|password|passcode|passwort|kennwort|kod|code|key)[a-z]{0,8}(?:\s*[:=]\s*\S{3,}|\s+\S*\d\S*)/g;
+/** Şifre / kod sözcüğü (ASCII katlanmış, sözcük başında) + varsa DEĞERİ (isteğe bağlı ":" / "=" ve ardındaki tek sözcük; satır sonunu
+ *  GEÇMEZ — başlık satırındaki "Wifi kodu" bir sonraki satırın Wi-Fi adını değer diye yutmasın). */
+const SECRET_WORD = /(?<![a-z0-9])(sifre|parola|password|passcode|passwort|kennwort|kod|code|key)[a-z]{0,8}(?![a-z])(?:[ \t]*(?:([:=])[ \t]*)?(\S+))?/g;
 /** Wi-Fi adı (ASCII katlanmış): "Wi-Fi", "internet", "ağ adı", "network", "modem"… */
 const WIFI_NOUN = /(?<![a-z0-9])(?:wi-?fi|wlan|internet|kablosuz|ssid|network|modem|router|ag(?:\s+adi|\s+ismi|imiz|in|a)?(?![a-z]))/;
-/** Cümle sınırı: ardında boşluk / satır sonu gelen nokta, ünlem, soru işareti, noktalı virgül ("Lale.Home" sınır DEĞİL). */
-const SENTENCE_BREAK = /[.!?;](?=\s|$)/g;
+/** ETİKET sınırı: ardında boşluk gelen nokta / ünlem / soru / noktalı virgül / virgül ya da satır sonu. İki nokta sınır DEĞİL
+ *  ("Network: LaleHome / password: …" tek etiket akışıdır); "Lale.Home" sınır değil. */
+const LABEL_BREAK = /[.!?;,](?=\s|$)|\n/g;
 
 /**
- * Her şifre / kod DEĞERİ bir Wi-Fi adına bağlı mı: değerden geriye, AYNI cümlede ve bir önceki değerden SONRA bir Wi-Fi adı geçmeli.
- * "Ağ adı: LaleNet\nŞifre: gunes1907" ✓ · "Wi-Fi şifresi gunes1907. Bina şifresi 4590" ✗ (ikinci değerin cümlesinde Wi-Fi yok) ·
- * "Wi-Fi: LaleNet, şifre gunes1907, çöp odası şifresi 4590" ✗ (ikinci değer ile bir öncekinin arasında Wi-Fi adı yok). Doğrusal.
+ * Her şifre / kod sözcüğünün ETİKETİ ve Wi-Fi'ye bağı (Haiku incelemeleri 10-11). Etiket = sözcükten geriye, en yakın etiket sınırına ya da
+ * bir önceki şifre sözcüğünün DEĞERİNİN sonuna kadar olan metin:
+ *  · etikette Wi-Fi adı → Wi-Fi şifresi ("Wi-Fi şifresi …", "Network: LaleHome / password: …");
+ *  · etiket BOŞ (sözcük cümleyi / satırı başlatıyor: "Wi-Fi adı: LaleNet. Şifre: gunes1907") → karttaki İLK şifre sözcüğüyse ve metinde
+ *    daha önce bir Wi-Fi adı geçtiyse Wi-Fi şifresi (kartın devamı); sonraki etiketsiz sözcük DEĞER taşıyorsa ("Wi-Fi şifresi gunes1907.
+ *    Şifre: 4590") bağımsız koddur, değersiz anışsa ("(şifre büyük-küçük harfe duyarlıdır)") yok sayılır;
+ *  · etikette başka sözcük ("Bina şifresi 4590", "…, çamaşır odası kodu: 4590", "Kiler şifresi") → Wi-Fi'ye BAĞLI DEĞİL.
+ * Doğrusal (sınırlar tek geçişte, sözcükler tek geçişte).
  */
-function wifiSecretsAttributed(folded: string): boolean {
-  const breaks = [...folded.matchAll(SENTENCE_BREAK)].map((m) => m.index + 1);
+function secretLabels(folded: string): { wifi: boolean; word: string; value: string }[] {
+  const breaks = [...folded.matchAll(LABEL_BREAK)].map((m) => m.index + m[0].length);
+  const firstWifi = folded.search(WIFI_NOUN);
+  const out: { wifi: boolean; word: string; value: string }[] = [];
   let b = 0;
   let lastBreak = 0;
   let prevEnd = 0;
-  for (const m of folded.matchAll(SECRET_WORD_WITH_VALUE)) {
+  for (const m of folded.matchAll(SECRET_WORD)) {
     while (b < breaks.length && breaks[b] <= m.index) lastBreak = breaks[b++];
-    if (!WIFI_NOUN.test(folded.slice(Math.max(prevEnd, lastBreak), m.index))) return false;
+    const label = folded.slice(Math.max(prevEnd, lastBreak), m.index);
+    const value = m[3] ?? "";
+    const unlabeled = label.replace(/[^a-z0-9]+/g, "") === "";
+    const valued = m[2] !== undefined || /\d/.test(value);
+    const wifi =
+      WIFI_NOUN.test(label) ||
+      (unlabeled && (out.length === 0 ? firstWifi >= 0 && firstWifi < m.index : !valued));
+    out.push({ wifi, word: m[1], value });
     prevEnd = m.index + m[0].length;
   }
-  return true;
+  return out;
 }
 
-/** `wifi` kategorisindeki kalem QR bağlamına girebilir mi: kapı kalıbı YOK, kapı / kilit izi YOK, her şifre değeri Wi-Fi'ye bağlı. */
+/** `wifi` kategorisindeki kalem QR bağlamına girebilir mi: kapı kalıbı YOK, kapı / kilit izi YOK, her şifre / kod sözcüğü Wi-Fi'ye bağlı. */
 function qrWifiItemAllowed(text: string): boolean {
   if (text.length > SECRET_SCAN_MAX_CHARS) return false;
   const variants = [text, foldTurkishLower(text), foldTurkishAscii(text)];
   if (DOOR_SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return false;
   const ascii = foldTurkishAscii(text);
-  return !QR_WIFI_ITEM_DOOR_TRACE.test(ascii) && wifiSecretsAttributed(ascii);
+  return !QR_WIFI_ITEM_DOOR_TRACE.test(ascii) && secretLabels(ascii).every((l) => l.wifi);
 }
 
 /**
@@ -515,14 +530,16 @@ const NOT_YEAR_SUFFIX = "(?!\\s*['’]\\s*[dt][ae]n?(?![a-zçğıöşü]))";
  */
 const DOOR_CONTEXT_IN_REPLY: readonly RegExp[] = [
   new RegExp(`${DOOR_CODE_WORD.source}[^\\d\\n.]{0,20}?${KEY_DIGITS}`, "i"),
+  // Değer ÖNCE, kapı + kod sözcüğü SONRA: "4590 kapı kodudur", "4590'ı kapı kodu olarak girin" (Haiku 10-11).
+  new RegExp(`${KEY_DIGITS}(?:['’][a-zçğıöşü]{0,4})?\\s+(?:kap[ıi]|giri[şs]|anahtar\\s*kutu|keybox|door|gate)[a-zçğıöşü]{0,8}\\s+(?:kod|şifre|sifre|code|pin)`, "i"),
   ...DOOR_SECRET_PATTERNS.filter((re) => re !== DOOR_CODE_WORD),
 ].map((re) => new RegExp(`(?:${re.source})${NOT_PRICE_OR_YEAR}${NOT_YEAR_SUFFIX}`, "i"));
 const GENERIC_CODE_IN_REPLY = new RegExp(
-  `(?<![a-zçğıöşü0-9])(?<!(?:posta|postal|zip|qr|alan|area|indirim|promosyon|promo|discount|kupon|coupon|wi-?fi|wlan|internet|kablosuz)\\s{0,3})(?:kod[a-zçğıöşü]{0,8}|code|c[oó]digo|codice|pin|passcode|код)(?![a-zçğıöşü])[^\\d\\n.]{0,12}?(?<![a-zçğıöşü])${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${NOT_YEAR_SUFFIX}`,
+  `(?<![a-zçğıöşü0-9])(?<!(?:posta|postal|zip|qr|alan|area|indirim|promosyon|promo|discount|kupon|coupon|rezervasyon|onay|booking|confirmation|reservation|wi-?fi|wlan|internet|kablosuz)\\s{0,3})(?:kod[a-zçğıöşü]{0,8}|code|c[oó]digo|codice|pin|passcode|код)(?![a-zçğıöşü])[^\\d\\n.]{0,12}?(?<![a-zçğıöşü])${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${NOT_YEAR_SUFFIX}`,
   "i",
 );
-/** Wi-Fi'ye bağlanmayan "şifre / parola / password + 4–8 hane" (ASCII katlanmış metinde; bağ ↑`WIFI_NOUN`, aynı cümle). */
-const PASSWORD_DIGITS = new RegExp(`(?<![a-z0-9])(?:sifre|parola|password|passcode)[a-z]{0,8}[^\\d\\n.]{0,12}?${KEY_DIGITS}`, "g");
+/** ↓Wi-Fi'ye bağlanmayan "şifre / parola / password" sözcüğünün değerindeki 4–8 hane (bağ ↑`secretLabels`). */
+const PASSWORD_WORDS = new Set(["sifre", "parola", "password", "passcode", "passwort", "kennwort"]);
 
 /** "4 5 9 0" / "4-5-9-0" → "4590" (tek hanelerin ayraçla yazımı; saat / tarih / telefon öbekleri çok hanelidir, dokunulmaz). */
 const spacedDigits = (s: string) => s.replace(/(?<!\d)\d(?:[ -]\d){3,7}(?!\d)/g, (m) => m.replace(/\D/g, ""));
@@ -540,13 +557,9 @@ function doorCodeValues(text: string, allowedTexts: readonly string[]): string[]
   for (const re of DOOR_CONTEXT_IN_REPLY) collect(re, () => true);
   collect(GENERIC_CODE_IN_REPLY, (d) => !allowed.has(d));
   for (const v of [ascii, spacedDigits(ascii)]) {
-    const breaks = [...v.matchAll(SENTENCE_BREAK)].map((m) => m.index + 1);
-    let b = 0;
-    let lastBreak = 0;
-    for (const m of v.matchAll(PASSWORD_DIGITS)) {
-      while (b < breaks.length && breaks[b] <= m.index) lastBreak = breaks[b++];
-      if (WIFI_NOUN.test(v.slice(lastBreak, m.index))) continue;
-      for (const d of m[0].match(/\d{4,8}/g) ?? []) if (!allowed.has(d)) out.add(d);
+    for (const l of secretLabels(v)) {
+      if (l.wifi || !PASSWORD_WORDS.has(l.word)) continue;
+      for (const d of l.value.match(/(?<!\d)\d{4,8}(?!\d)/g) ?? []) if (!allowed.has(d)) out.add(d);
     }
   }
   return [...out];
@@ -567,7 +580,9 @@ export const REDACTED_DOOR_CODE = "(kod gizlendi)";
  * Misafirin gördüğü geçmiş DEĞİŞMEZ — yalnız modele giden kopya. Ayraçlı yazım ("4 5 9 0") da gizlenir.
  */
 export function redactDoorCodes(text: string): string {
-  if (!text || text.length > SECRET_SCAN_MAX_CHARS) return text;
+  if (!text) return text;
+  // Tarama sınırının üstü (bugün hiçbir yazma yolu bu boyutta mesaj kabul etmez) → fail-closed: her 4–8 hane gizlenir.
+  if (text.length > SECRET_SCAN_MAX_CHARS) return text.replace(/(?<!\d)\d{4,8}(?!\d)/g, REDACTED_DOOR_CODE);
   let out = text;
   for (const value of doorCodeValues(text, [])) {
     const spaced = value.split("").join("[ -]?");

@@ -4,8 +4,8 @@ import { foldTurkishAscii, neutralizeNonEmergency } from "@/lib/ai/fallback";
 // FİZİKSEL TEHLİKE KANITI — bağlam ilkesi (kurucu kararı 10-02 akşam, Sabah Kararları 51 + 55). Saf, LLM'siz, deterministik.
 //
 // Kurucunun sınırları (aynen):
-//  · "Prizden duman çıkıyor, yanık kokuyor" → AÇIK tehlike; model yanlış yorumlasa da acil koruması KALKMAZ; güvenlik satırı modeli
-//    BEKLEMEDEN koddan gösterilir.
+//  · "Prizden duman çıkıyor, yanık kokuyor" → AÇIK tehlike; model yanlış yorumlasa da acil koruması KALKMAZ; devir modeli BEKLEMEDEN
+//    yapılır (10-02'deki koddan güvenlik satırı 10-11'de kurucu kararıyla KALKTI — misafire metin gitmez, ev sahibine acil uyarı).
 //  · "Çay kaynarken buhar çıkıyor" → otomatik yangın alarmı olmamalı.
 //  · "Çaydanlıktan siyah duman geliyor, sapı eriyor" → çaydanlık geçiyor diye normal SAYILMAZ (nesne adı istisna değildir).
 //  · "Komşunun sigara dumanı geliyor" → genellikle şikâyet; nefes alamama / yoğun, kaynağı bilinmeyen duman kararı değiştirir.
@@ -24,7 +24,7 @@ import { foldTurkishAscii, neutralizeNonEmergency } from "@/lib/ai/fallback";
 //  · `none`      — fiziksel tehlike sözcüğü yok (sağlık / güvenlik / kilitli kalma gibi öteki acil sınıfları BU modülün konusu değil).
 // Alıntı (çift tırnak / «») içindeki metin değerlendirilmez. Kalıplar sınırlı ayraçlı (karesel iş yok; süre pinli).
 //
-// Yanlış AÇIK hüküm pahalıdır (QR'da model hiç çağrılmaz, misafir yalnız güvenlik satırı alır, ev sahibine kritik e-posta gider) →
+// Yanlış AÇIK hüküm pahalıdır (QR'da model hiç çağrılmaz, misafire cevap gitmez, ev sahibine kritik e-posta gider) →
 // açık düzey yalnız tehlikeyi BİLDİREN cümlede: soru cümlesi (gaz dışında) ve istenen ateşin betimlenmesi en fazla `possible`.
 // ---------------------------------------------------------------------------
 
@@ -603,7 +603,7 @@ function waterReachesElectric(liveClauses: readonly string[]): boolean {
 }
 
 /**
- * Misafir mesajının fiziksel tehlike kanıtı. Tek kaynak: QR güvenlik satırı (55), acil alarmının bağlamla kaldırılması (51) ve
+ * Misafir mesajının fiziksel tehlike kanıtı. Tek kaynak: QR'da modelsiz devir (55; satır 10-11'de kalktı), acil alarmının bağlamla kaldırılması (51) ve
  * model arızasında güvenli taraf kuralı bu düzeyi okur.
  */
 export function hazardEvidenceOf(message: string | null | undefined): HazardEvidence {
@@ -674,20 +674,25 @@ export function hasSafetyReassurance(reply: string | null | undefined): boolean 
 
 // ─── ACİL ARAMA YÖNERGESİ (kurucu kararı 10-11: "112'yi arayın yazmasın … hiçbir şekilde") ─────────────────────────────────────────
 // Misafire giden cevapta "112'yi / polisi / ambulansı / acil servisi arayın" yönergesi. Yalnız numara ("Ambulans: 112") yönerge DEĞİL
-// (kurucu: "sorulursa numarasını verebilir"); "ev sahibinizi arayın" acil servis değil. Numara ya da acil servis adı ile arama fiili
-// aynı cümlede (≤40 karakter, her iki sıra). Pencereler sınırlı → doğrusal.
-const EMERGENCY_NUMBER = `${NL}(?:112|155|156|110|177|911|999|117|118|119|190)${NR}`;
-const EMERGENCY_SERVICE = `${NL}(?:acil\\s+servis${LB}|acil\\s+yardim${LB}|ambulans${LB}|polis${LB}|itfaiye${LB}|jandarma${LB}|emergency(?:\\s+services?)?|ambulance|police|fire\\s+(?:department|brigade|service)|notruf${LB}|polizei|feuerwehr|rettungsdienst|pompiers|urgences|samu|emergencias|policia|bomberos|скор\\p{L}{0,8}|полици\\p{L}{0,8}|пожарн\\p{L}{0,8}|экстренн\\p{L}{0,8}|الإسعاف|الشرطة|الطوارئ)`;
-const CALL_VERB = `${NL}(?:aray${LB}|araman${LB}|ulas(?:in|iniz|abilir${LB})|basvur${LB}|call|dial|contact|ring|rufen|anrufen|wahlen|appelez|appeler|composez|llam\\p{L}{0,4}|marque|звон\\p{L}{0,6}|позвон\\p{L}{0,6}|اتصل\\p{L}{0,4})${NR}`;
+// (kurucu: "sorulursa numarasını verebilir"); "ev sahibinizi / bizi arayın" acil servis değil. Yönerge = arama fiilinin NESNESİ acil
+// servis / numara: Türkçede nesne fiilden önce (en çok iki sözcük arayla: "112'yi hemen arayın"), öteki dillerde fiilden sonra (en çok üç
+// sözcük: "Rufen Sie sofort die Polizei"); arada "bizi / us / uns …" nesnesi varsa yönerge değil. Daire / kat / dahili numarası ("Daire
+// 117'de", "155 dahili") acil numara değil (Haiku incelemesi 10-11). Aksan / hemze katlanır (ä, í, إ). Pencereler sınırlı → doğrusal.
+const EMERGENCY_NUMBER = `${NL}(?<!(?:daire|kat|dahili|oda|no|apartment|room|flat|unit|suite|apt|numara|number)\\.?\\s{0,2})(?:112|155|156|110|177|911|999|117|118|119|190|101|102|103|997|091)${NR}(?!\\s*(?:numarali|nolu|no${NR}|dahili)|['’]?[dt][ae]n?${NR})`;
+const EMERGENCY_SERVICE = `${NL}(?:acil\\s+servis${LB}|acil\\s+yardim${LB}|ambulans${LB}|polis${LB}|itfaiye${LB}|jandarma${LB}|emergency\\s+(?:services?|number|line)|ambulance|police|fire\\s+(?:department|brigade|service)|notruf${LB}|notarzt${LB}|krankenwagen|rettungs(?:dienst|wagen)|polizei|feuerwehr|pompiers|urgences|samu|emergencias|policia|bomberos|ambulancia|скор\\p{L}{0,8}|полици\\p{L}{0,8}|пожарн\\p{L}{0,8}|экстренн\\p{L}{0,8}|(?:ب|و|ل)?(?:ال)?(?:اسعاف|شرط\\p{L}{0,2}|طوار\\p{L}{0,2}))`;
+const TR_CALL = `(?:ara(?:y|m)\\p{L}{0,12}|cagir\\p{L}{0,8}|cevir\\p{L}{0,8}|tusla\\p{L}{0,8}|ulas\\p{L}{0,10}|basvur\\p{L}{0,8}|telefon\\s+(?:ed|ac)\\p{L}{0,10}|haber\\s+ver\\p{L}{0,8})${NR}`;
+const OTHER_CALL = `${NL}(?:call|dial|phone|ring|contact\\p{L}{0,4}|rufen|anrufen|wahlen|appel\\p{L}{0,4}|compos\\p{L}{0,4}|llam\\p{L}{0,4}|marque|звон\\p{L}{0,6}|позвон\\p{L}{0,6}|вызов\\p{L}{0,6}|набер\\p{L}{0,6}|اتصل\\p{L}{0,4})${NR}`;
+const NOT_US = `(?!(?:bizi|beni|bize|bana|ev|sahib\\p{L}*|us|me|uns|mich|nous|moi|nos)${NR})`;
 const EMERGENCY_DIRECTIVE = rx([
-  `(?:${EMERGENCY_NUMBER}|${EMERGENCY_SERVICE})[^.!?\\n]{0,40}?${CALL_VERB}`,
-  `${CALL_VERB}[^.!?\\n]{0,40}?(?:${EMERGENCY_NUMBER}|${EMERGENCY_SERVICE})`,
+  `(?:${EMERGENCY_NUMBER}|${EMERGENCY_SERVICE})\\S{0,6}(?:\\s+${NOT_US}\\S{1,20}){0,2}\\s+${TR_CALL}`,
+  `${OTHER_CALL}(?:\\s+${NOT_US}\\S{1,20}){0,3}\\s+(?:${EMERGENCY_NUMBER}|${EMERGENCY_SERVICE})`,
 ]);
 
-/** Cevap misafiri acil numarayı / acil servisi ARAMAYA yönlendiriyor mu (katlanmış biçimde)? */
+/** Cevap misafiri acil numarayı / acil servisi ARAMAYA yönlendiriyor mu (Türkçe + aksan katlanmış biçimde)? */
 export function hasEmergencyCallDirective(reply: string | null | undefined): boolean {
   if (typeof reply !== "string" || reply.trim() === "") return false;
-  return EMERGENCY_DIRECTIVE.test(foldTurkishAscii(reply.replace(/\s+/g, " ")));
+  const folded = foldTurkishAscii(reply.replace(/\s+/g, " ")).normalize("NFD").replace(/\p{M}/gu, "");
+  return EMERGENCY_DIRECTIVE.test(folded);
 }
 
 /**

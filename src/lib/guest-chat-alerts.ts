@@ -55,12 +55,11 @@ export const QR_CRITICAL_EMAILS_PER_HOUR = 3;
 
 const criticalMailKey = (reservationId: string) => `qr-crit-mail:${reservationId}`;
 
-/** Bu saatte bu konaklama için GİDEN acil e-posta sayısı (sayaç penceresi dolduysa 0). Okuma hatasında 0: uyarı kapısı fail-open. */
-async function criticalMailsThisHour(reservationId: string): Promise<number> {
-  const row = await prisma.rateLimitCounter
-    .findUnique({ where: { key: criticalMailKey(reservationId) }, select: { count: true, resetAt: true } })
-    .catch(() => null);
-  return row && row.resetAt > new Date() ? row.count : 0;
+/** Ayrılan acil e-posta hakkını GERİ VER (e-posta gitmedi: alıcı yok / sağlayıcı hatası / beklenmeyen hata). En iyi çaba. */
+async function returnCriticalMailSlot(reservationId: string): Promise<void> {
+  await prisma.rateLimitCounter
+    .updateMany({ where: { key: criticalMailKey(reservationId), count: { gt: 0 } }, data: { count: { decrement: 1 } } })
+    .catch(() => {});
 }
 
 /** Max time the guest's HTTP response waits on the alert path. The send keeps
@@ -167,13 +166,19 @@ export async function maybeSendQrEscalationEmail(args: {
 
     // EVERYTHING after the claim is guarded: an unexpected exception must not
     // leave the claim consumed with no mail sent (Codex hardening item 3).
+    let slotHeld = false;
+    const giveBack = () => (slotHeld ? returnCriticalMailSlot(args.reservationId) : Promise.resolve());
     try {
-      // Kritik tavan (↑`QR_CRITICAL_EMAILS_PER_HOUR`): SAHİPLENMEDEN SONRA bakılır (aynı acil metnin tekrarı sahiplenmede elenir, hak
-      // yemez) ve yalnız GİDEN e-posta sayılır (↓ başarıdan sonra; Haiku incelemesi 10-11: sağlayıcı hatası / alıcı yokluğu hakkı
-      // yakıp gerçek bir dördüncü acili susturuyordu). Tavanda sahiplenme bırakılır — e-posta gitmedi, kayıt "gönderildi" demesin.
-      if (args.critical && (await criticalMailsThisHour(args.reservationId)) >= QR_CRITICAL_EMAILS_PER_HOUR) {
-        await releaseClaim();
-        return { sent: false, capped: true };
+      // Kritik tavan (↑`QR_CRITICAL_EMAILS_PER_HOUR`): SAHİPLENMEDEN SONRA hak AYRILIR (aynı acil metnin tekrarı sahiplenmede elenir,
+      // hak yemez). Ayırma atomik (eşzamanlı acil mesajlar tavanı aşamaz — Haiku incelemesi 10-11); e-posta GİTMEZSE hak geri verilir
+      // (sağlayıcı hatası / alıcı yokluğu gerçek bir dördüncü acili susturmasın). Tavanda sahiplenme bırakılır — kayıt "gönderildi" demesin.
+      if (args.critical) {
+        const slot = await rateLimit(criticalMailKey(args.reservationId), QR_CRITICAL_EMAILS_PER_HOUR, 60 * 60_000);
+        if (!slot.ok) {
+          await releaseClaim();
+          return { sent: false, capped: true };
+        }
+        slotHeld = true;
       }
       // Per-tenant recipient: org alertEmail → the org's oldest OWNER account.
       // Role-explicit (Codex item 2): "oldest user" could be a staff member.
@@ -193,6 +198,7 @@ export async function maybeSendQrEscalationEmail(args: {
       if (!to) {
         // No one to mail — release so a recipient configured later still gets
         // alerted about a NEW incident (not a stale suppressed claim).
+        await giveBack();
         await releaseClaim();
         return { sent: false };
       }
@@ -206,6 +212,7 @@ export async function maybeSendQrEscalationEmail(args: {
       if (!result.ok) {
         // VISIBLE failure + claim release so the next escalation retries
         // instead of silently losing the alert.
+        await giveBack();
         await releaseClaim();
         await reportError(
           `qr-escalation-email (org ${args.organizationId})`,
@@ -213,9 +220,9 @@ export async function maybeSendQrEscalationEmail(args: {
         ).catch(() => {});
         return { sent: false };
       }
-      if (args.critical) await rateLimit(criticalMailKey(args.reservationId), QR_CRITICAL_EMAILS_PER_HOUR, 60 * 60_000).catch(() => null);
       return { sent: true };
     } catch (err) {
+      await giveBack();
       await releaseClaim();
       throw err; // outer catch reports it
     }

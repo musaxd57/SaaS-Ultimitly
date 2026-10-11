@@ -140,8 +140,8 @@ export const ESCALATION_REASONS = [
   "action_claim_undeclared",
   // Misafirin dilinde değil (Sabah Kararları 56, kurucu onayı 10-02 akşam) — kanal kapısıyla AYNI yüklem (`language-signal.ts`).
   "reply_language_mismatch",
-  // Fiziksel tehlike (Sabah Kararları 51 + 55, kurucu onayı 10-02 akşam; `hazard-evidence.ts`): AÇIK tehlike modeli beklemeden devir +
-  // güvenlik satırı; bağlamla kaldırılan alarmda kaynaksız güvence ("normaldir, güvenlidir") gitmez.
+  // Fiziksel tehlike (Sabah Kararları 51 + 55, kurucu onayı 10-02 akşam; `hazard-evidence.ts`): AÇIK tehlike modeli beklemeden devir
+  // (misafire metin YOK — güvenlik satırı 10-11'de kurucu kararıyla kalktı); bağlamla kaldırılan alarmda kaynaksız güvence gitmez.
   "physical_hazard",
   "hazard_reassurance",
   // Çıktıda kapı kodu (kurucu kararı 10-11): bir kez yeniden yazdırıldı, ikinci taslak da kapı / kutu kodu taşıdı → cevap gitmedi.

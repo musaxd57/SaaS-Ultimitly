@@ -82,7 +82,7 @@ export default async function ReportsPage() {
     "kb_time_conflict",
     // Cevap misafirin dilinde değildi (09-25 kanal, 10-02 QR) — kendi satırı: "düşük güven" kovasına karışmasın.
     "reply_language_mismatch",
-    // Fiziksel tehlike (10-02, Sabah Kararları 51 + 55): açık tehlikede güvenlik satırı + devir; bağlamla kalkan alarmda kaynaksız güvence.
+    // Fiziksel tehlike (10-02, Sabah Kararları 51 + 55): açık tehlikede devir (misafire metin yok, 10-11); bağlamla kalkan alarmda kaynaksız güvence.
     "physical_hazard",
     "hazard_reassurance",
     // Cevap misafiri 112 / acil servisi aramaya yönlendirdi (kurucu kararı 10-11) — gitmedi, kendi satırı.

@@ -287,6 +287,23 @@ describe("acil arama yönergesi (kurucu kararı 10-11: '112'yi arayın yazmasın
     "Rufen Sie sofort die Polizei.",
     "Appelez le 112.",
     "Llame a emergencias.",
+    // Haiku 10-11 #5 (kaçanlar): Türkçe çağır / telefon et / çevir / aramalısınız, Rusça вызовите / наберите, Arapça بال ön eki,
+    // aksanlı yazımlar.
+    "Ambulansı çağırın.",
+    "112'ye telefon edin.",
+    "112'yi çevirin.",
+    "112'yi aramalısınız.",
+    "Polise haber verin.",
+    "Вызовите 112.",
+    "Вызовите полицию.",
+    "Позвоните в полицию.",
+    "Наберите 112.",
+    "اتصل بالإسعاف.",
+    "Contactez le 112.",
+    "Llame a la policía.",
+    "Wählen Sie die 112.",
+    "Rufen Sie den Notarzt.",
+    "Phone 911 right away.",
   ])("🚨 yönerge: %s", (t) => expect(hasEmergencyCallDirective(t)).toBe(true));
   it.each([
     "Ambulans: 112",
@@ -295,7 +312,23 @@ describe("acil arama yönergesi (kurucu kararı 10-11: '112'yi arayın yazmasın
     "Polis karakolu 200 m ileride.",
     "Check-in 15:00.",
     "",
+    // Haiku 10-11 #4 (yanlış tutuşlar): "bizi / us" nesnesi, daire / dahili numarası, yer tarifi.
+    "For any emergency, please call us at +90 532 000 0000.",
+    "Who should I contact in an emergency?",
+    "Daire 117'de kalıyorsunuz, sorun olursa bizi arayın.",
+    "Sorun olursa 155 dahili kapıcıyı arayın.",
+    "Ambulans durağının yanındaki binada, bizi arayın.",
+    "Polis merkezi yanındaki sokakta, bizi arayın.",
+    "Contact your host for anything.",
   ])("KONTROL değil: %s", (t) => expect(hasEmergencyCallDirective(t)).toBe(false));
+
+  it("süre pini: 50.000 karakterlik dizide doğrusal", () => {
+    for (const s of ["112 ".repeat(12_000), "polis ".repeat(8_000), `call ${"x ".repeat(24_000)}112`]) {
+      const t = performance.now();
+      hasEmergencyCallDirective(s);
+      expect(performance.now() - t).toBeLessThan(1500);
+    }
+  });
 });
 
 describe("51: kaynaksız güvence", () => {

@@ -56,7 +56,7 @@ describe("QR devir metni — gerçekleşmemiş aktarım iddia etmez", () => {
 // öğretiyor) — kapı `model_risk_type` ile devredince o metin ATILIYOR ve yerine
 // jenerik cümle konuyordu.
 // ---------------------------------------------------------------------------
-describe("QR devir metni — acil durumda güvenlik yönergesi eklenir", () => {
+describe("QR devir metni — acil durumda da misafire metin YOK (kurucu kararı 10-11)", () => {
   beforeEach(() => {
     enabled.value = false;
   });
