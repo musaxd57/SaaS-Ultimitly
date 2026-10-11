@@ -116,6 +116,21 @@ describe("değişmez 6 — doğrudan kanal varken aynı kanalın iCal'i yedek", 
     expect((await syncCalendarSource(s.airbnbIcal.id)).standby).toBeUndefined();
   });
 
+  it.each([
+    ["ilan satırı bu kiracıda, bağlantı YABANCI kiracıda (mutasyon A7)", "listing-own"],
+    ["bağlantı bu kiracıda, ilan satırı YABANCI kiracıda (mutasyon A6)", "conn-own"],
+  ])("🚨 tutarsız / yabancı satır yedeğe düşürmez — iki kiracı süzgeci ayrı ayrı: %s", async (_n, shape) => {
+    const s = await seed();
+    const { orgId: otherOrg } = await makeOrgWithProperty();
+    const connOrg = shape === "listing-own" ? otherOrg : s.orgId;
+    const listingOrg = shape === "listing-own" ? s.orgId : otherOrg;
+    const conn = await prisma.channelConnection.create({ data: { organizationId: connOrg, provider: "airbnb_direct", status: "active" } });
+    await prisma.channelListing.create({ data: { organizationId: listingOrg, connectionId: conn.id, externalId: "Y", propertyId: s.propertyId } });
+    vi.mocked(fetchFeedText).mockResolvedValue(ics("a-1@airbnb.com"));
+    expect((await syncCalendarSource(s.airbnbIcal.id)).standby).toBeUndefined();
+    expect(await icalRows(s.airbnbIcal.id)).toBe(1);
+  });
+
   it("tanınmayan adres (etiket 'Airbnb' olsa da) tahminle yedeğe düşmez", async () => {
     const s = await seed();
     await connect(s.orgId, s.propertyId, "airbnb_direct");
