@@ -39,6 +39,8 @@ import { houseRulesCardEnabled } from "@/lib/house-rules/flag";
 import { houseRuleFormValues, loadHouseRules } from "@/lib/house-rules/store";
 import { apartmentResolvable, usesApartmentToken } from "@/lib/kb-placeholders";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
+import { LOCAL_TIPS_DEMAND_CAP, LOCAL_TIPS_DEMAND_DAYS, localTipsDemand } from "@/lib/local-tips-demand";
+import { localTipsPrefillHref } from "@/lib/kb-prefill";
 import { stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import { understandingEnabled } from "@/lib/ai/semantic/understand";
 import { sentimentTone, signalCategoryLabel, signalKindLabel } from "@/modules/intelligence/labels";
@@ -80,6 +82,12 @@ export default async function PropertyDetailPage({
       ? houseRuleFormValues(await loadHouseRules(session.organizationId, property.id).catch(() => []))
       : null;
   const nightlyRateStale = nightlyRate ? Date.now() - nightlyRate.enteredAt.getTime() > RATE_STALE_DAYS * 86_400_000 : false;
+  // B1 (kurucu 10-11): mülkte "Yerel Tavsiye" kalemi yokken son 30 günde çevre önerisi soran misafir sayısı — yalnız yönetici.
+  // Okunamazsa hatırlatma çıkmaz (sayfanın geri kalanı etkilenmez).
+  const localTipsAsked =
+    canManage && !property.knowledgeBase.some((k) => k.category === "local_tips")
+      ? await localTipsDemand(session.organizationId, property.id).catch(() => 0)
+      : 0;
 
   // QR PIN feature (Faz 5) is master-gated by the env switch; the per-reservation
   // PIN control + strict-mode toggle only appear when it's on AND the host can manage.
@@ -399,6 +407,16 @@ export default async function PropertyDetailPage({
               </Link>
             </CardHeader>
             <CardContent className="space-y-2">
+              {localTipsAsked > 0 ? (
+                <p className="rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300" data-testid="local-tips-nudge">
+                  Son {LOCAL_TIPS_DEMAND_DAYS} günde {localTipsAsked >= LOCAL_TIPS_DEMAND_CAP ? `${LOCAL_TIPS_DEMAND_CAP}+` : localTipsAsked} misafir
+                  çevre önerisi sordu —{" "}
+                  <Link href={localTipsPrefillHref(property.id)} className="font-medium underline-offset-2 hover:underline">
+                    &apos;Yerel Tavsiye&apos; ekleyin
+                  </Link>
+                  .
+                </p>
+              ) : null}
               {property.knowledgeBase.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Henüz bilgi eklenmemiş.</p>
               ) : (

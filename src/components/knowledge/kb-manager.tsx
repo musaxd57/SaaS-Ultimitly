@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { FormError } from "@/components/form-error";
 import { confirmDialog } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
@@ -22,6 +22,7 @@ import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { kbPlaceholderTokens, unfilledTemplateTokens } from "@/lib/kb-placeholders";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import type { KbTimeConflictRow } from "@/lib/kb-time-conflicts";
+import type { KbPrefill } from "@/lib/kb-prefill";
 import Link from "next/link";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
@@ -107,6 +108,7 @@ export function KbManager({
   items,
   timeConflicts = {},
   hijackIds = [],
+  prefill = null,
 }: {
   properties: { id: string; name: string }[];
   items: KbItem[];
@@ -114,6 +116,8 @@ export function KbManager({
   timeConflicts?: Record<string, KbTimeConflictRow[]>;
   /** Yapay zekâya komut veren ifade taşıdığı için AI'ın KULLANMADIĞI kalemler (sunucuda hesaplanır). */
   hijackIds?: string[];
+  /** Gelen kutusundaki "Eksik bilgi"den ön doldurma (B1, sunucuda doğrulandı: yalnız kendi mülkü). */
+  prefill?: KbPrefill | null;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -132,14 +136,19 @@ export function KbManager({
       return next;
     });
   const [form, setForm] = useState({
-    propertyId: properties[0]?.id ?? "",
-    category: "general",
-    title: "",
+    propertyId: prefill?.propertyId ?? properties[0]?.id ?? "",
+    category: prefill?.category ?? "general",
+    title: prefill?.title ?? "",
     content: "",
     language: "tr",
   });
 
   const titleRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  // Ön dolu formda ev sahibinin yazacağı tek alan içeriktir — imleç oraya gider.
+  useEffect(() => {
+    if (prefill) contentRef.current?.focus();
+  }, [prefill]);
 
 
   const refresh = () => startTransition(() => router.refresh());
@@ -375,6 +384,11 @@ export function KbManager({
             {error ? (
               <FormError>{error}</FormError>
             ) : null}
+            {prefill ? (
+              <p role="status" className="rounded-md bg-accent/60 px-2.5 py-2 text-xs text-muted-foreground">
+                Misafirin sorduğu ama bilgi tabanında olmayan konu. Bilgiyi yazıp ekleyin; yapay zekâ sonraki misafire bununla cevap verir.
+              </p>
+            ) : null}
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Hazır şablonla başlayın (formu doldurur, siz düzenleyip eklersiniz):
@@ -436,7 +450,13 @@ export function KbManager({
               <Input ref={titleRef} id="kb-title" value={form.title} onChange={(e) => set("title", e.target.value)} required />
             </Field>
             <Field label="İçerik" htmlFor="kb-content">
-              <Textarea id="kb-content" value={form.content} onChange={(e) => set("content", e.target.value)} required />
+              <Textarea
+                id="kb-content"
+                ref={contentRef}
+                value={form.content}
+                onChange={(e) => set("content", e.target.value)}
+                required
+              />
               {form.content.includes("[") ? (
                 <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
                   Köşeli parantezli [alanları] kendi bilgilerinizle değiştirmeyi unutmayın.

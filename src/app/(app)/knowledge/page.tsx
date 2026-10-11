@@ -7,10 +7,15 @@ import { EmptyState } from "@/components/empty-state";
 import { KbManager, type KbItem } from "@/components/knowledge/kb-manager";
 import { aiReadableForConflicts, kbTimeConflicts, type KbTimeConflictRow } from "@/lib/kb-time-conflicts";
 import { detectKbInstructionHijack } from "@/lib/ai/fallback";
+import { parseKbPrefill } from "@/lib/kb-prefill";
 
 export const dynamic = "force-dynamic";
 
-export default async function KnowledgePage() {
+export default async function KnowledgePage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireManagerSession();
   const [properties, items] = await Promise.all([
     prisma.property.findMany({
@@ -46,6 +51,9 @@ export default async function KnowledgePage() {
   // Yapay zekâya komut veren ifade taşıyan kalemler: `kb-fetch` onları isteme HİÇ koymaz (her
   // boyutta); host bunu kalemin yanında görür — güvenlik süzgeci sessiz bilgi kaybına dönüşmesin.
   const hijackIds = items.filter((i) => detectKbInstructionHijack(`${i.title}\n${i.content}`)).map((i) => i.id);
+  // B1 (kurucu 10-11): gelen kutusundaki "Eksik bilgi" → form ön dolu (mülk / kategori / başlık). Yalnız oturumun kendi mülkü;
+  // ev sahibi içeriği yazıp kendisi kaydeder.
+  const prefill = parseKbPrefill(await searchParams, properties.map((p) => p.id));
 
   return (
     <>
@@ -70,6 +78,7 @@ export default async function KnowledgePage() {
           items={kbItems}
           timeConflicts={timeConflicts}
           hijackIds={hijackIds}
+          prefill={prefill}
         />
       )}
     </>

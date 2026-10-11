@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { FormError } from "@/components/form-error";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { kbPrefillHref } from "@/lib/kb-prefill";
 import {
   Sparkles,
   Send,
@@ -1015,6 +1017,20 @@ export function ConversationThread({
             {suggestion.missingInfo && suggestion.missingInfo.length > 0 ? (
               <p className="text-xs text-amber-700 dark:text-amber-300">
                 <span className="font-medium">Eksik bilgi:</span> {suggestion.missingInfo.join(" · ")}
+                {/* B1 (kurucu 10-11, "ev sahibi döngüsü"): bilgi tabanı formu mülk / kategori / başlık ön dolu açılır; ev sahibi
+                    içeriği yazıp kendisi kaydeder. Mülkü bilinen konuşmada. Öneri paneli zaten yalnız yöneticiye çizilir; bilgi tabanı
+                    sayfasının kendi yönetici kapısı da var (`requireManagerSession`). */}
+                {propertyId ? (
+                  <>
+                    {" "}
+                    <Link
+                      href={kbPrefillHref(propertyId, suggestion.missingInfo[0])}
+                      className="font-medium text-primary underline-offset-2 hover:underline"
+                    >
+                      Bilgi tabanına ekle
+                    </Link>
+                  </>
+                ) : null}
               </p>
             ) : null}
 
