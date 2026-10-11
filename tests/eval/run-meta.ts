@@ -6,7 +6,7 @@ import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config
 import { embeddingModel } from "@/lib/ai/embeddings/model";
 import { createHash } from "node:crypto";
 import { replyPromptVersion, replyRequestIdentity } from "@/lib/ai";
-import { understandingEnglishQueryEnabled, understandingSystemPromptFor } from "@/lib/ai/semantic/understand";
+import { understandingEnglishQueryEnabled, understandingSystemPromptFor, understandingThreatRuleEnabled } from "@/lib/ai/semantic/understand";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
@@ -69,6 +69,7 @@ export interface UnderstandingMode {
   rules?: boolean;
   complaintFollowup?: boolean;
   english?: boolean;
+  threat?: boolean;
 }
 
 /**
@@ -91,7 +92,13 @@ export const REPLY_VARIANT_INPUT: SuggestReplyInput = {
 /** Kip etiketi — ölçerlerin "anlama kipi" satırıyla aynı söz dizimi (`items+rules+cfu+en`; hiçbiri yoksa `temel`). */
 export function understandingModeLabel(m: UnderstandingMode): string {
   return (
-    [m.items === true ? "items" : "", m.rules === true ? "rules" : "", m.complaintFollowup === true ? "cfu" : "", m.english === true ? "en" : ""]
+    [
+      m.items === true ? "items" : "",
+      m.rules === true ? "rules" : "",
+      m.complaintFollowup === true ? "cfu" : "",
+      m.english === true ? "en" : "",
+      m.threat === true ? "thr" : "",
+    ]
       .filter(Boolean)
       .join("+") || "temel"
   );
@@ -128,6 +135,8 @@ export const PIPELINE_FLAGS = [
   "AI_UNDERSTANDING_EN_QUERY_ENABLED",
   // Acil numara sorusuna koddan yalnız numara (10-11, QR; misafire giden metni değiştirir).
   "AI_EMERGENCY_NUMBER_ENABLED",
+  // Anlama istemine şikâyet tehdidi kuralı (10-11; anlama istemini değiştirir).
+  "AI_UNDERSTANDING_THREAT_RULE_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */
@@ -173,12 +182,14 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
         rules: given.rules === true,
         complaintFollowup: given.complaintFollowup === true,
         english: given.english === true,
+        threat: given.threat === true,
       }
     : {
         items: conversationItemsEnabled(),
         rules: houseRulesShadowEnabled(),
         complaintFollowup: complaintFollowupRuleEnabled(),
         english: understandingEnglishQueryEnabled(),
+        threat: understandingThreatRuleEnabled(),
       };
   const understandingSystem = understandingSystemPromptFor(mode);
   const variant = replyRequestIdentity(REPLY_VARIANT_INPUT);

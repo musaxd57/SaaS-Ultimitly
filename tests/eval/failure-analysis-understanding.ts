@@ -3,6 +3,7 @@ import {
   understandGuestMessages,
   understandingEnabled,
   understandingSystemPromptFor,
+  understandingThreatRuleEnabled,
   __resetUnderstandingCache,
 } from "@/lib/ai/semantic/understand";
 import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
@@ -67,7 +68,7 @@ export function understandingExplainer(expectedText: (c: FailureCase<string[]>) 
     const res = await callStructuredJson({
       apiKey: semanticApiKey() ?? process.env.OPENAI_API_KEY ?? "",
       model: semanticModel("understanding"),
-      system: understandingSystemPromptFor({ items: true }),
+      system: understandingSystemPromptFor({ items: true, threat: understandingThreatRuleEnabled() }),
       user,
       schema: SCHEMA,
       timeoutMs: 120_000,

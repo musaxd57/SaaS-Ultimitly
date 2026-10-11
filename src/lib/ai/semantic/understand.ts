@@ -49,6 +49,11 @@ export function understandingEnglishQueryEnabled(): boolean {
   return process.env.AI_UNDERSTANDING_EN_QUERY_ENABLED === "1";
 }
 
+/** Şikâyet tehdidi kuralı (kurucu kararı 10-11, `UNDERSTANDING_THREAT_RULE_ADDENDUM`); VARSAYILAN KAPALI. */
+export function understandingThreatRuleEnabled(): boolean {
+  return process.env.AI_UNDERSTANDING_THREAT_RULE_ENABLED === "1";
+}
+
 export const UNDERSTANDING_SYSTEM_PROMPT = [
   "You are the language-understanding step of a short-term-rental guest messaging assistant. You do NOT answer the guest.",
   "Read the guest's UNANSWERED message(s) in the context of the recent conversation and return ONLY the JSON schema.",
@@ -128,8 +133,27 @@ export const UNDERSTANDING_ENGLISH_QUERY_ADDENDUM = [
   'Example: "Musluk suyunu süzmek için kap nerede?" -> query_tr "musluk suyu süzme sürahi filtre", query_original "musluk suyu süzme sürahi filtre", query_en "tap water filter jug".',
 ].join("\n");
 
+/**
+ * ŞİKÂYET TEHDİDİ eki (kurucu kararı 10-11, "bayrakla ekle + ölç"; anahtar `AI_UNDERSTANDING_THREAT_RULE_ENABLED`, VARSAYILAN KAPALI —
+ * kapalıyken istem ve önbellek anahtarı bayt bayt eski). Neden analizi (`docs/olcum/acil-numara-*-neden.md`): "Polisi arayacağız"
+ * ifadesi Luna'nın şikâyet etiketini düşürüyordu (ifade çıkınca 0/2 → 2/2); model talimatında bu durum için kural olmadığını söyledi.
+ * Ek YALNIZ şikâyet etiketini EKLETİR; "acil" etiketini kaldırmaz (ev sahibine acil uyarı aynen). Örnekler ölçüm setinden FARKLI (ezber
+ * olmasın).
+ */
+export const UNDERSTANDING_THREAT_RULE_ADDENDUM = [
+  "",
+  "THREATS TO CALL THE POLICE OR TO COMPLAIN: when the guest describes a problem with the stay, the apartment or the host AND says they will call or go to the police, report it or complain (or asks for a police / authority number for that purpose), the message IS a complaint: ALWAYS include a complaint_issue request (and cancellation_refund when money back is asked). This does not change whether emergency applies: keep emergency when you would add it anyway. A guest who only asks for an emergency number because of an illness, an injury, an accident or a crime by someone else is NOT complaining.",
+  'Examples: "Sıcak su iki gündür yok, düzelmezse polise gideceğim." -> requests include complaint_issue. "The heating is broken and nobody answers, I will report you to the police." -> requests include complaint_issue. "Babam düştü, ambulansı nasıl çağırırız?" -> [emergency] only.',
+].join("\n");
+
 /** Anlama katmanının sistem istemi — kiplere göre TEK kurucu (çağrı ve ölçer istem kimliği aynı fonksiyondan). */
-export function understandingSystemPromptFor(opts: { items?: boolean; rules?: boolean; complaintFollowup?: boolean; english?: boolean }): string {
+export function understandingSystemPromptFor(opts: {
+  items?: boolean;
+  rules?: boolean;
+  complaintFollowup?: boolean;
+  english?: boolean;
+  threat?: boolean;
+}): string {
   const relation = opts.items === true && opts.complaintFollowup === true;
   return [
     UNDERSTANDING_SYSTEM_PROMPT,
@@ -137,6 +161,7 @@ export function understandingSystemPromptFor(opts: { items?: boolean; rules?: bo
     ...(opts.rules ? [UNDERSTANDING_RULES_PROMPT_ADDENDUM] : []),
     ...(relation ? [UNDERSTANDING_RELATION_ADDENDUM] : opts.complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
     ...(opts.english ? [UNDERSTANDING_ENGLISH_QUERY_ADDENDUM] : []),
+    ...(opts.threat ? [UNDERSTANDING_THREAT_RULE_ADDENDUM] : []),
   ].join("\n");
 }
 
@@ -271,9 +296,11 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const rules = input.rules === true;
     const complaintFollowup = input.complaintFollowup === true;
     const english = input.english === true;
+    // Şikâyet tehdidi kuralı bütün çağıranlar için aynı karar (anahtar burada okunur); kapalıyken istem + anahtar bayt bayt eski.
+    const threat = understandingThreatRuleEnabled();
     // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
     // Şikâyet takibi eki ve İngilizce köprü de ayrı girdi (farklı istem / şema); kapalıyken anahtar değişmez.
-    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}`;
+    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}`;
     const key = mode ? cacheKey(`${model}${mode}`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -284,7 +311,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english }),
+      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat }),
       user,
       schema: understandingSchemaFor({ items, rules, followup: complaintFollowup, english }),
       timeoutMs: semanticTimeoutMs(model),
