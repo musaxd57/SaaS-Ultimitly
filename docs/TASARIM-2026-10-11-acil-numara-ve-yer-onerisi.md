@@ -86,3 +86,22 @@ ama oradan bilgi tabanına giden bir yol yok. Bilgi tabanında "Yerel Tavsiye" (
 "Eksik bilgi: yakındaki kahvaltı yerleri" + **[Bilgi tabanına ekle]** → ev sahibi "Lale Kahvaltı Evi, 3 dk yürüme" yazar → sonraki misafir
 "Lale Kahvaltı Evi 3 dakika yürüme mesafesinde." cevabını alır.
 
+## 7. Ölçüm sonucu — Luna 6.0 (10-11, kurucu onayıyla; 33 senaryo × 2 tekrar = 66 anlama çağrısı)
+
+Rapor: `docs/olcum/acil-numara-2026-10-11-gpt-6-luna-mv3u05l3.md` (+ `.json`). Set: `evals/emergency-number.json` (geliştirme seti — görüldü;
+açmadan önce kör setle doğrulanmalı).
+
+| Karar kuralı | Doğru | Bırakılmalıyken numara (🚨) | Numara verilmeliyken bırakma |
+|---|---|---|---|
+| Ölçüldüğü gibi: yalnız EN ÖNCELİKLİ niyet ("acil" şikâyeti gölgeliyor) | 43/62 | 19 | 0 |
+| Tüm niyetler: şikâyet / iade / insan talebi niyetinden BİRİ varsa bırak (aynı yanıtlar, ek çağrı yok) | 58/62 | 4 | 0 |
+| + koddan "ev sahibi / depozito / iade / iptal / şikâyet / dolandır / hakaret" sinyali (hesap, ölçülmedi) | ~60/62 | 2 ("Kapı kodu çalışmıyor, 2 saattir dışarıdayız, polisi arayacağız") | 0 |
+
+- Luna "polis / ambulans" geçen HER mesaja "acil" niyeti koyuyor; ev sahibi şikâyetini çoğu zaman AYRICA işaretliyor ama her zaman değil
+  (h1 "Ev sahibi depozitomu vermiyor", h12 "Ev sahibi iptal etti" bir tekrarda yalnız "acil").
+- Yardım / merak / güvenlik / hastalık sorularının HEPSİ doğru: 38/38 yanıtta numara verilecekti, hiçbiri gereksiz bırakılmadı.
+- Tekrarlar arası karar tutarlılığı 30/33.
+- Belirsiz iki senaryo ("Ev sahibi izinsiz içeri girdi, korkuyorum, polis numarası?"): Luna ikisinde de "acil" dedi → bugünkü kuralla
+  numara verilir; koddan "ev sahibi" sinyali eklenirse BIRAKILIR — ev sahibinin kendisi tehdit olduğunda numarayı ona bırakmak doğru mu?
+  Sizin kararınız.
+
