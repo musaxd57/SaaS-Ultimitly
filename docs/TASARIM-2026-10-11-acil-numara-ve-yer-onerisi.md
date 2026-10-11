@@ -120,3 +120,16 @@ açmadan önce kör setle doğrulanmalı).
 - B1: gelen kutusu "Bilgi tabanına ekle" + mülk sayfası hatırlatması uygulandı (`src/lib/kb-prefill.ts`, `src/lib/local-tips-demand.ts`).
   Adres yalnız mülk + kategori taşır; modelin "eksik bilgi" özeti (misafir adı içerebilir) sekmenin oturum belleğinde, 10 dakika, bir kez.
 
+## 9. Neden analizi → istem kuralı → kör doğrulama (10-11 akşam, kurucu onaylı ücretli koşular)
+
+| Koşu | Anlama kuralı | Ürün kararı (kod + anlama) | 🚨 anlaşmazlıkta numara |
+|---|---|---|---|
+| Geliştirme, istem kuralı kapalı (66 çağrı) | 58/62 | 62/62 (kod kuralları) | 0 |
+| Geliştirme, istem kuralı açık (66 çağrı) | 62/62 | — | 0 |
+| Kör acc1, kapalı (20) | 16/18 | 15/18 → yeni kod 18/18 | 1 → 0 |
+| Kör acc1, açık (20) | 18/18 | 16/18 → yeni kod 18/18 | 0 |
+
+- Neden analizi raporu `docs/olcum/acil-numara-2026-10-11-gpt-6-luna-mv3u05l3-neden.md` (31 çağrı).
+- İstem kuralı açıkken model anlaşmazlık mesajlarında "acil" etiketini düşürüyor (24/24) — önizlemedeki "acil kalkmaz" ile farklı; açık karar.
+- Kör setten açılan 3 senaryo (`seen`) artık görüldü; düzeltmenin kör doğrulaması kör set 2 (acc2) ile.
+

@@ -62,8 +62,13 @@
   dışında bir niyet verdiyse (şikâyet, iade, insan talebi ya da bir konaklama konusu — "Kapı kodu çalışmıyor, polisi arayacağız");
   anlama katmanı koşmadıysa (AÇIK tehlike dalı hariç); işletme saat dilimi Türkiye değilse. Numara sorusu ipucu dar: rakamla süren
   "numara 5" (daire; acil kısa numarayla süren "Polis numara 155 mi?" sorudur), "5 numaralı", cümle ortasındaki "kaç" ("Polis kaç
-  dakikada gelir?"), "telefonum / my phone", cümle ortasındaki "call / contact" soru sayılmaz. Ölçüm: Luna 6.0 niyetleriyle verilmesi gereken 38/38 verilir, bırakılması gereken 24/24 bırakılır (geliştirme seti;
-  modelin kendi açıklaması `docs/olcum/acil-numara-*-aciklama.md`). Kanal yolu YOK (kurucuya sorulacak: numara + devir anlamı).
+  dakikada gelir?"), "telefonum / my phone", cümle ortasındaki "call / contact" soru sayılmaz. Servis adı GEÇMEYEN "hangi numarayı arayayım / which number" sorusu YALNIZ acil bağlamda (anlama katmanı "acil" ya da açık
+  tehlike) genel numarayı alır ("Temizlikçinin hangi numarasını arayayım?" numara sorusu değildir). Ev sahibinin KENDİSİ tehditse
+  ("ev sahibi izinsiz girdi") → acil devir, misafire HİÇBİR mesaj (kurucu 10-11, rota testiyle pinli). Ölçüm: geliştirme seti 62/62,
+  kör set acc1 ürün kararı 18/18 (3 senaryo hata analizi için açıldı, görülmemiş 15/15). Kanal yolu YOK (kurucu 10-11: "şimdilik yalnız QR").
+  Anlama istemine ŞİKÂYET TEHDİDİ eki (`AI_UNDERSTANDING_THREAT_RULE_ENABLED`, KAPALI; `ai/semantic/understand.ts`): sorun anlatıp polise
+  gideceğini / şikâyet edeceğini söyleyen mesajda şikâyet etiketi de konur; açıkken model anlaşmazlıklarda "acil"i düşürür (ölçüldü,
+  açık karar), gerçek tehlikede tutar.
   "Misafirin gördüğü ekran" önizlemesi (K14, `guest-chats/[id]/misafir-ekrani`): balonlar misafir ekranının AYNI bileşeninden
   (`GuestChatThread`), pencere GET ile aynı; misafir uçları çağrılmaz — gönderim / cihaz bağlama / okundu değişikliği YOK, sayfa hiçbir
   satır yazmaz (pinli).

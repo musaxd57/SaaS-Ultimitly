@@ -169,6 +169,25 @@ describe("QR — acil numara sorusu", () => {
     expect((await lastEvent()).reason).not.toBe("emergency_number");
   });
 
+  it.each([
+    ["anlama: şikâyet + acil", ["complaint_issue", "emergency"]],
+    ["anlama: yalnız acil", ["emergency"]],
+  ])(
+    "🚨 ev sahibinin KENDİSİ tehdit (%s) → ACİL devir, misafire HİÇBİR mesaj (kurucu 10-11: 'bu acil olsun, bir şey gitmesin')",
+    async (_n, given) => {
+      intents = given as string[];
+      const s = await seed();
+      await ask(s.token, "Ev sahibi kapıyı izinsiz açıp içeri girdi, korkuyorum. Polis numarası ne?");
+      expect(await botReplies(s.propertyId)).toEqual([]);
+      const ev = await lastEvent();
+      expect(ev.reason).not.toBe("emergency_number");
+      expect(ev.finalDecision).toBe("human_review");
+      expect((await conversationOf(s.propertyId)).priority).toBe("urgent");
+      expect(alertBodies()).toHaveLength(1);
+      expect(alertBodies()[0]).not.toContain("numarayı gönderdi");
+    },
+  );
+
   it("🚨 anlama katmanı şikâyet dedi → numara GİTMEZ (ev sahibi sözcüğü olmasa da)", async () => {
     intents = ["complaint_issue", "emergency"];
     const s = await seed();
