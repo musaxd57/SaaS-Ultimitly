@@ -36,6 +36,13 @@ describe("mülk kartı — besleme sağlığı", () => {
     expect(s).toMatch(/done:\s*hasChannel\s*&&\s*broken\s*===\s*0/);
   });
 
+  it("🚨 'kanal bağlı mı' KANAL SINIRINDAN okunur (değişmez 1/20, 10-11): ilan bağı ya da takvim kaynağı; sayfa sağlayıcı alanı okumaz", () => {
+    const s = read(PAGE);
+    expect(s).toMatch(/hasChannel\s*=\s*channelLinked\.has\(p\.id\)\s*\|\|\s*p\._count\.calendarSources\s*>\s*0/);
+    expect(s).toMatch(/channelLinked\s*=\s*new Set\(\s*\(await listPropertyChannelLinks\(session\.organizationId,\s*properties\.map\(\(p\)\s*=>\s*p\.id\)\)\)/);
+    expect(s).not.toMatch(/hospitable[A-Z]\w*/);
+  });
+
   it("🚨 ÜÇÜNCÜ HÂL görünür: bozuk besleme 'hazır' DEMEZ", () => {
     const s = read(PAGE);
     expect(s).toContain("Takvim beslemesi hatalı");

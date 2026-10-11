@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { hasMessagingConnection } from "@/lib/channels";
+import { listPropertyChannelLinks } from "@/lib/channels/property-links";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,10 @@ export default async function PropertiesPage() {
     }),
     hasMessagingConnection(session.organizationId),
   ]);
+  // "Kanal bağlı mı" kanal sınırından (değişmez 1/20 — sayfa sağlayıcı alanını okumaz).
+  const channelLinked = new Set(
+    (await listPropertyChannelLinks(session.organizationId, properties.map((p) => p.id))).map((l) => l.propertyId),
+  );
 
   // Booking-readiness: the handful of things that make the AI genuinely useful
   // for an apartment. Pure derivation from data already on the card's query —
@@ -45,7 +50,7 @@ export default async function PropertiesPage() {
     // etmesi gereken tek durum budur ve rozet onu SAKLIYORDU.
     const broken = p.calendarSources.filter((c) => c.lastStatus === "error").length;
     const never = p.calendarSources.filter((c) => !c.lastSyncedAt && c.lastStatus !== "error").length;
-    const hasChannel = Boolean(p.hospitableId) || p._count.calendarSources > 0;
+    const hasChannel = channelLinked.has(p.id) || p._count.calendarSources > 0;
     const items: { label: string; done: boolean }[] = [
       { label: "Wi-Fi bilgisi", done: cats.has("wifi") },
       { label: "Giriş talimatı", done: cats.has("checkin") },

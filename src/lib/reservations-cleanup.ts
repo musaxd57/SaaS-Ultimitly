@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { getIngestAdapter, resolveOrgChannelCredential } from "@/lib/channels";
+import { listBridgeListingIds } from "@/lib/channels/property-links";
 
 // ---------------------------------------------------------------------------
 // Ghost-reservation cleanup
@@ -67,13 +68,10 @@ export async function cleanupStaleReservations(
   const windowStart = new Date(`${startDate}T00:00:00.000Z`);
   const windowEnd = new Date(`${endDate}T23:59:59.999Z`);
 
-  const properties = await prisma.property.findMany({
-    where: { organizationId, hospitableId: { not: null } },
-    select: { id: true, hospitableId: true },
-  });
+  // Köprü ilan kimlikleri kanal sınırından (değişmez 1/20 — çekirdek sağlayıcı alanını okumaz, adaptöre aynen geçirir).
+  const properties = await listBridgeListingIds(organizationId);
 
   for (const p of properties) {
-    if (!p.hospitableId) continue;
 
     // V0.6: sağlayıcı okuması ingest adaptöründen (canonical); adaptör yoksa doğrulanamaz → atla.
     const adapter = getIngestAdapter(credential.provider);
@@ -85,7 +83,7 @@ export async function cleanupStaleReservations(
     try {
       current = await adapter.listReservations(
         credential,
-        { propertyExternalId: p.hospitableId, startDate, endDate },
+        { propertyExternalId: p.externalId, startDate, endDate },
       );
     } catch {
       result.skippedProperties++; // couldn't verify → never prune
@@ -124,7 +122,7 @@ export async function cleanupStaleReservations(
     // bir kolon gerekir = MIGRATION → `docs/MIGRATION-BEKLEYEN-ISLER.md`.
     const locals = await prisma.reservation.findMany({
       where: {
-        propertyId: p.id,
+        propertyId: p.propertyId,
         sourceReference: { not: null },
         calendarSourceId: null,
         arrivalDate: { gte: windowStart, lte: windowEnd },
@@ -158,7 +156,7 @@ export async function cleanupStaleReservations(
       ? new Set(
           (
             await prisma.conversation.findMany({
-              where: { propertyId: p.id, externalReservationId: { in: staleRefs } },
+              where: { propertyId: p.propertyId, externalReservationId: { in: staleRefs } },
               select: { externalReservationId: true },
             })
           )

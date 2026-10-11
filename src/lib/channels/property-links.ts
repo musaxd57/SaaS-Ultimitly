@@ -29,3 +29,16 @@ export async function listPropertyChannelLinks(organizationId: string, propertyI
   });
   return rows.map((r) => ({ propertyId: r.id, id: `channel-link:${r.id}`, label: "Kanal bağlantısı", lastSuccessAt: null }));
 }
+
+/**
+ * Köprüye bağlı ilanların sağlayıcı kimlikleri — YALNIZ köprü adaptörüne geri verilmek için (silinmiş rezervasyon uzlaştırması,
+ * `reservations-cleanup.ts`). Çekirdek bu kimliği yorumlamaz, saklamaz; adaptör çağrısına aynen geçirir (değişmez 1/20 — alan okuması
+ * kanal sınırında kalır). Bağlantı kapsamlı ilan tablosu (`ChannelListing`, migration 60) okuma anahtarı açılınca buradan okunur.
+ */
+export async function listBridgeListingIds(organizationId: string): Promise<{ propertyId: string; externalId: string }[]> {
+  const rows = await prisma.property.findMany({
+    where: { organizationId, hospitableId: { not: null } },
+    select: { id: true, hospitableId: true },
+  });
+  return rows.flatMap((r) => (r.hospitableId ? [{ propertyId: r.id, externalId: r.hospitableId }] : []));
+}

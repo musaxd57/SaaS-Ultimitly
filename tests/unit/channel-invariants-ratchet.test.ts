@@ -93,8 +93,6 @@ const isProviderBoundary = (rel: string) => rel.startsWith("src/lib/channels/") 
 const KNOWN_CORE_READERS: Record<string, string> = {
   "src/app/api/hospitable/diagnostics/route.ts": "sağlayıcı adlı operatör teşhis rotası (V0.6 pininde de gerekçeli)",
   "src/app/(app)/admin/page.tsx": "operatör paneli bağlantı etiketi: bağlantı satırı yoksa org jeton kolonu (V0.7 çift kaynak)",
-  "src/app/(app)/properties/page.tsx": "mülk hazırlık rozetinde 'kanal bağlı mı' (hospitableId ya da takvim kaynağı; ilan tablosu migration 60)",
-  "src/lib/reservations-cleanup.ts": "köprüde silinmiş rezervasyonu bulmak için köprü mülk kimliğiyle adaptör okuması (ilan tablosu migration 60)",
   "src/lib/demo-tenant/apply-core.ts": "gerçek bağlantısı olan kuruluşa demo üreticisi DOKUNMAZ (jeton kolonu + bağlantı satırı kontrolü; güvenlik kemeri)",
   "src/lib/unverified-sweep.ts": "terk edilmiş hesap temizliği bağlanmış hesabı 'el değmiş' sayar (org kolonları + bağlantı satırı, V0.7 çift kaynak)",
   "src/lib/scheduled-sync.ts": "senkron edilecek kuruluş seçimi: jeton kolonu ya da aktif bağlantı satırı (V0.7 çift kaynak)",
