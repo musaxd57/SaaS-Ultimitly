@@ -86,3 +86,7 @@ Not: QR adresini (token) yenileme (F11) — "chatToken rotasyonu YOK (bilinçli)
   E-posta akışı olduğu için uygulamadım. (b) Bağlantı kartındaki "(Hospitable üzerinden) kurun" ve plan uyarısı bağlanma adımı sayıldı, KALDI.
   (c) Adı gelmeyen ilanın varsayılan adı ("Hospitable mülkü") DEĞİŞTİRİLMEDİ: yeniden bağlanırken aynı adlı öksüz daireyi geri sahiplenme
   eşleşmesi bu adı kullanıyor; değişirse eski satır sahiplenilmez, kopya daire oluşabilir. Hospitable'da adsız ilan pratikte yok.
+- **Dışa aktarma kapsamı (10-11 gece, değişmez 14 pini `data-export-coverage.test.ts`):** 43 modelin 20'si işletme dökümünde, kalanı gerekçeli
+  dışarıda (sır, geçici sayaç, iç kuyruk, türetilmiş kayıt). Kararınıza iki tane: **ev sahibinin ev / erken giriş kuralları** (`AutomationRule`) ve
+  **karar kartı kararları** (`DecisionRequest`) bugün dökümde yok. Önerim: "ev sahibinin kendi girdiği kayıt dışa aktarılır" kuralıyla eklensin
+  (misafire giden metni etkilemez; Ayarlar'daki dışa aktarma açıklaması da güncellenir — metin sizin onayınız).
