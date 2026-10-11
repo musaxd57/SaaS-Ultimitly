@@ -28,8 +28,9 @@ function withoutComments(src: string): string {
 describe("ev sahibi yüzeylerinde sağlayıcı adı yok", () => {
   it.each(SURFACES)("%s", (file) => {
     const src = withoutComments(readFileSync(file, "utf8"));
-    // Kod tanımlayıcıları (autoReplyHospitable, HospitableSyncButton, /api/hospitable/…) metin değildir → yalnız Türkçe metin bağlamı.
-    const hits = [...src.matchAll(/["'`>][^"'`<>\n]*\bHospitable\b[^"'`<>\n]*["'`<]/g)].map((m) => m[0]);
+    // TAM SÖZCÜK, büyük harf: kod tanımlayıcıları (autoReplyHospitable, HospitableSyncButton) ve yollar (/api/hospitable/…) eşleşmez;
+    // satır başındaki çok satırlı JSX metni DE yakalanır (Haiku incelemesi 10-11: eski kalıp yalnız tırnak / ">" sonrasını görüyordu).
+    const hits = src.split("\n").filter((l) => /(?<![A-Za-z0-9_])Hospitable(?![A-Za-z0-9_])/.test(l));
     expect(hits).toEqual([]);
   });
 
