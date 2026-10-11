@@ -399,6 +399,9 @@
   (koşmadıysa kod metniyle koşturulur; kapalıysa muafiyet yok) · kod metni gittiyse uzatma karar kartı açılmaz.
 - 🚨 Köprüden (Hospitable) gelen sonraki rezervasyonun bloğu tazelik kaydı olmadığı için KESİN dolu sayılmaz → ev sahibine (pinli). Aynı sebeple
   köprüye bağlı mülkte "boş" da kesinleşmeyebilir; bağlantı sağlığının motora bağlanması (migration 60 C) ayrı kurucu onayı.
+- 🚨 (10-11, V2 boşluk incelemesi) Bağlantı sağlığı motora BAĞLANIRSA dikkat: köprü yalnız `/reservations` çeker, ev sahibinin kanalda ELLE
+  KAPATTIĞI geceleri ÇEKMEZ → o geceler "boş" görünür (sahte müsaitlik + sahte boşluk). Bağlarken blok verisi çözülmeden köprüye bağlı mülkte "boş"
+  hükmü verilmez. Bugün güvenli: kanal bağlantısı kaynağının `lastSuccessAt` değeri hep null → motor "kayıtsız" sayar, geceler bilinmiyor.
 - QR yolu bağlanmadı (kurucu: "bayrak olsun, QR'de mantıklı mı konuşalım" → sıradaki dilim).
 
 ## QR'de doğrulanmış müsaitlik / uzatma (kurucu yokken karar #3, 10-09 gece; anahtar `AI_VERIFIED_QR_ENABLED`, tam "1", VARSAYILAN KAPALI)
