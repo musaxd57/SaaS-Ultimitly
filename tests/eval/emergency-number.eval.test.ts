@@ -12,7 +12,8 @@ import { analyzeEmergencyFailures, decisionOf, explainFailuresEnabled } from "./
 // 112'dir." der; anlama katmanı ev sahibini şikâyet / iade / insan talebi okursa cevap verilmez, ev sahibine kalır. Bu ölçüm yalnız
 // ayırt etmeyi sınar: kural = risk niyeti complaint_issue / cancellation_refund / human_request → hold, aksi → give.
 // İKİ KAPI: RUN_REAL_EVAL=1 + anahtar. Model `AI_UNDERSTANDING_MODEL` (koşuda gpt-6-luna). ~2 × N anlama çağrısı.
-// Veri: `evals/emergency-number.json` (geliştirme seti, görüldü). Rapora misafir metni GİRMEZ (yalnız kimlik + sınıf).
+// Veri: `evals/emergency-number.json` (geliştirme seti, görüldü) ya da `EVAL_EMERGENCY_SET=emergency-number-acc1` (KÖR kabul seti — Haiku
+// yazdı, Claude açmaz). Rapora misafir metni GİRMEZ (yalnız kimlik + sınıf); kör sette neden analizi KOŞMAZ (metni rapora taşırdı).
 // ---------------------------------------------------------------------------
 
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
@@ -41,7 +42,9 @@ describe.skipIf(!enabled)("acil numara sorusu — anlama katmanı bağlam ayrım
   });
 
   it("give / hold ayrımı", async () => {
-    const data = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/emergency-number.json"), "utf8")) as { scenarios: Scenario[] };
+    const setName = (process.env.EVAL_EMERGENCY_SET ?? "emergency-number").replace(/[^a-z0-9-]/gi, "");
+    const blind = /-acc\d+$/.test(setName);
+    const data = JSON.parse(readFileSync(path.resolve(__dirname, `../../evals/${setName}.json`), "utf8")) as { scenarios: Scenario[] };
     const jobs = data.scenarios.flatMap((s) => Array.from({ length: REPEATS }, (_, r) => ({ s, r })));
     const rows: { id: string; cls: string; expect: string; rep: number; status: string; risk: string | null; intents: string[]; decision: string }[] = [];
     let i = 0;
@@ -71,10 +74,10 @@ describe.skipIf(!enabled)("acil numara sorusu — anlama katmanı bağlam ayrım
     const meta = evalRuntime();
     const outDir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(outDir, { recursive: true });
-    const stem = `acil-numara-${new Date().toISOString().slice(0, 10)}-${process.env.AI_UNDERSTANDING_MODEL ?? "varsayilan"}-${Date.now().toString(36)}`;
+    const stem = `acil-numara-${new Date().toISOString().slice(0, 10)}-${process.env.AI_UNDERSTANDING_MODEL ?? "varsayilan"}${blind ? `-${setName.replace(/^emergency-number-/, "")}` : ""}${process.env.AI_UNDERSTANDING_THREAT_RULE_ENABLED === "1" ? "-thr" : ""}-${Date.now().toString(36)}`;
     writeFileSync(path.join(outDir, `${stem}.json`), JSON.stringify({ meta, repeats: REPEATS, rows }, null, 1));
     const md = [
-      `# Acil numara sorusu — anlama katmanı bağlam ayrımı`,
+      `# Acil numara sorusu — anlama katmanı bağlam ayrımı (${blind ? `KÖR set \`${setName}\`` : `geliştirme seti \`${setName}\``})`,
       "",
       evalRuntimeMarkdown(meta),
       "",
@@ -95,7 +98,7 @@ describe.skipIf(!enabled)("acil numara sorusu — anlama katmanı bağlam ayrım
     ].join("\n");
     writeFileSync(path.join(outDir, `${stem}.md`), `${md}\n`);
     // Hata çıktıysa NEDEN ANALİZİ hemen (kurucu 10-11): modelin açıklaması + karşı deneme + düzeltme katmanı → `${stem}-neden.md`.
-    if (explainFailuresEnabled() && scored.some((r) => r.decision !== "fail" && decisionOf(r.intents) !== r.expect)) {
+    if (!blind && explainFailuresEnabled() && scored.some((r) => r.decision !== "fail" && decisionOf(r.intents) !== r.expect)) {
       const textOf = new Map(data.scenarios.map((s) => [s.id, s.text]));
       const causes = await analyzeEmergencyFailures(rows, (id) => textOf.get(id), stem, outDir);
       expect(causes.filter((c) => c.kind === "unrunnable").map((c) => c.id)).toEqual([]);

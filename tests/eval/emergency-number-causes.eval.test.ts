@@ -23,7 +23,8 @@ describe.skipIf(!enabled)("acil numara — son koşunun hata nedenleri (gerçek 
   it("analiz", async () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
     const latest = readdirSync(dir)
-      .filter((f) => /^acil-numara-.*\.json$/.test(f) && !/-(aciklama|neden)\.json$/.test(f))
+      // Kör set koşuları (`-acc<N>`) neden analizine GİRMEZ: analiz misafir metnini rapora yazar, set kör olmaktan çıkardı.
+      .filter((f) => /^acil-numara-.*\.json$/.test(f) && !/-(aciklama|neden)\.json$/.test(f) && !/-acc\d+/.test(f))
       .sort()
       .pop();
     expect(latest).toBeDefined();
