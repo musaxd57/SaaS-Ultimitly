@@ -14,6 +14,7 @@ import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 import { recordIngestEvent, type IngestContext } from "@/lib/ingest/events";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
+import { directChannelsForProperty, icalChannelOfUrl, icalWriteAuthority, standbySummary } from "@/lib/channels/ical-authority";
 
 export interface SyncResult {
   imported: number;
@@ -22,6 +23,8 @@ export interface SyncResult {
   errors: string[];
   /** Deneme kimliği (migration 61): bu okumada takvim başka hesapta görülmüş çıktı ve deneme bitti. Yalnız tek kaynak senkronunda dolar. */
   trialEnded?: boolean;
+  /** Değişmez 6: aynı kanalın doğrudan bağlantısı yetkili — bu takvim YEDEK, hiçbir rezervasyon yazılmadı. */
+  standby?: boolean;
 }
 
 const FEED_MAX_BYTES = 10 * 1024 * 1024;
@@ -300,6 +303,24 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // saymaz, kaynak `partial` yazılır ve müsaitlik motoru bu kaynakla hiçbir geceye "boş" demez.
   const parsed = parseIcsDetailed(text);
   const rows = parsed.events;
+
+  // 🚨 DEĞİŞMEZ 6 — DOĞRUDAN KANAL SAHİPLİĞİ (`channels/ical-authority.ts`; kurucu 10-11: yalnız doğrudan kanal, Hospitable köprüsü hariç).
+  // Aynı kanalın etkin doğrudan bağlantısı bu mülkü kapsıyorsa bu takvim YEDEK: çekildi ve sağlığı yazılır, ama hiçbir satır oluşturulmaz /
+  // güncellenmez / iptal edilmez ve kaybolma uzlaştırması koşmaz (eski satırlar silinmez). Doğrudan bağlantı yokken (bugün) her zaman yetkili.
+  const icalChannel = icalChannelOfUrl(feedUrl);
+  if (
+    icalChannel !== null &&
+    icalWriteAuthority(icalChannel, await directChannelsForProperty(source.property.organizationId, source.propertyId)) === "standby"
+  ) {
+    result.standby = true;
+    result.skipped = rows.length;
+    await prisma.calendarSource.update({
+      where: { id: sourceId },
+      data: { lastSyncedAt: new Date(), lastStatus: parsed.incomplete.length ? "partial" : "ok", lastResult: standbySummary(icalChannel) },
+    });
+    return result;
+  }
+
   // V1 ürün akışı: iCal bir Lixus-native giriştir → her GERÇEK yazma (create/update/cancel)
   // satırla AYNI TX'te sağlayıcıdan bağımsız IngestEvent üretir (provider "ical", bağlantı yok).
   // Değişmeyen satır yazılmaz → event de üretilmez (yapay olay yok).
