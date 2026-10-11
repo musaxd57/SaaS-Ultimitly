@@ -7,6 +7,7 @@ import {
   infoWrongReports,
   ITEM_TOPIC_TO_KB,
   CONTRADICTION_MIN_GUESTS,
+  INFO_WRONG_MAX_CHARS,
   statesInfoWrong,
 } from "@/modules/intelligence/memory/contradictions";
 
@@ -62,7 +63,8 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Şifre yanlış mı?", "wifi", false],
     ["Şifre yanlış mı", "wifi", false],
     ["Şifre yanlış değil, modem kapalı", "wifi", false],
-    ["Şifreyi girdim ama kabul etmiyor", "wifi", false],
+    // Açık ret fiili: misafir şifreyi girdiğini ve kabul edilmediğini söylüyor → sayılır (Haiku 10-11 2. tur). "Çalışmıyor" ise belirsiz.
+    ["Şifreyi girdim ama kabul etmiyor", "wifi", true],
     ["Şifre yanlışsa haber veririm", "wifi", false],
     ["Ağır bagaj yok", "wifi", false],
     // Haiku 10-11 — kaçan yaygın ifadeler.
@@ -92,6 +94,30 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Wi-Fi şifresi bütün cihazlarda çalışmıyor", "wifi", false],
     ["Ağ yok", "wifi", false],
     ["Kapının şifresi yanlış", "wifi", false],
+    // Haiku 10-11 2. tur.
+    ["Yanlış şifre olabilir", "wifi", false],
+    ["Yanlış şifre değil", "wifi", false],
+    ["Şifre yanlış olursa", "wifi", false],
+    ["Maybe the password is wrong", "wifi", false],
+    ["The password could be wrong", "wifi", false],
+    ["Belki şifre yanlış", "wifi", false],
+    ["Girdiğim Wi-Fi şifresi yanlış", "wifi", false],
+    ["Şifreyi yanlış yazdığımı fark ettim", "wifi", false],
+    ["The wrong password I typed", "wifi", false],
+    ["Wi-Fi adı görünmüyor", "wifi", false],
+    // Çekinceli bildirim sayılır (misafir yaşadığını söylüyor); olasılık sayılmaz (yukarıda).
+    ["Şifre galiba yanlış", "wifi", true],
+    ["I think the wifi password is wrong", "wifi", true],
+    ["Wi-Fi şifresi, maalesef yanlış.", "wifi", true],
+    ["Yanlış Wi-Fi şifresi", "wifi", true],
+    ["Wrong wifi password", "wifi", true],
+    ["Wi-Fi şifresi yanlış, kontrol eder misiniz?", "wifi", true],
+    ["Can't use the wifi password, it is wrong", "wifi", true],
+    ["Wi-Fi şifresi bizde çalışmıyor", "wifi", true],
+    ["Şifre geçerli değil", "wifi", true],
+    ["Wi-Fi şifresi işe yaramadı", "wifi", true],
+    ["The Wi-Fi code is wrong", "wifi", true],
+    ["Girdiğiniz şifre yanlış", "wifi", true],
     ["Kapı şifresi yanlış", "wifi", false],
     ["Wi-Fi kodu yanlış", "wifi", true],
     ["Wi-Fi şifresi ne?", "wifi", false],
@@ -103,7 +129,13 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Kilit çalışmıyor", "checkin", false],
     ["Kodu yanlış girdik", "checkin", false],
     ["Kodlarınız çalışmıyor", "checkin", true],
-    ["Kapı kodu açılmıyor", "checkin", true],
+    // "Açılmıyor" kapının / kilidin arızası olabilir (Haiku 10-11 2. tur; kurucunun Wi-Fi örneğiyle aynı sınıf).
+    ["Kapı kodu açılmıyor", "checkin", false],
+    ["Kapı açılmıyor", "checkin", false],
+    ["Yanlış kapı kodu", "checkin", true],
+    ["Bina şifresi yanlış", "checkin", true],
+    ["Anahtar kutusu şifresi yanlış", "checkin", true],
+    ["Kapı kodu, maalesef çalışmıyor", "checkin", true],
     ["The door code keypad doesn't work", "checkin", false],
     ["Kapı kodu tuş takımı çalışmıyor", "checkin", false],
     ["Wi-Fi'nin kodu yanlış", "checkin", false],
@@ -128,6 +160,11 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Otopark dolu yer yok", "parking", false],
     ["Otopark yakınında market yok", "parking", false],
     ["There is no parking lot", "parking", true],
+    ["Şu an otopark yok", "parking", false],
+    ["Otopark şimdi yok", "parking", false],
+    ["No parking right now", "parking", false],
+    ["There's no parking problem", "parking", false],
+    ["Park yeri yok", "parking", false],
     ["Otopark yok? Bilgi verir misiniz.", "parking", false],
     ["Otopark girişinin yanındaki eski binanın arkasında market yok", "parking", false],
     // Havlu / çarşaf: "yok / eksik" sayılır; kirli / temiz / ekstra istek sayılmaz.
@@ -137,6 +174,10 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["No towels in the bathroom", "cleaning", true],
     ["Banyo havlusu yok", "cleaning", true],
     ["Havluları da yok", "cleaning", true],
+    ["There aren't any towels", "cleaning", true],
+    ["We don't have towels", "cleaning", true],
+    ["Havlu şimdi yok", "cleaning", false],
+    ["No towel problems", "cleaning", false],
     ["Havlu kirli", "cleaning", false],
     ["Temiz havlu yok", "cleaning", false],
     ["Fazladan havlu yok", "cleaning", false],
@@ -148,6 +189,8 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Çöp konteyneri yok", "trash", true],
     ["We couldn't find the bins", "trash", false],
     ["Bins we can't find anywhere", "trash", false],
+    ["Çöp bidonu yok", "trash", true],
+    ["Su bidonu yok", "trash", false],
     ["There are no bins", "trash", true],
     ["Çöp konteyneri dolu olduğu için yer yok", "trash", false],
     ["Çöp konteyneri dolu", "trash", false],
@@ -157,15 +200,18 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Adresi bulamadık", "location", false],
     ["Konum çalışmıyor", "location", false],
     ["Telefonumun konumu yanlış gösteriyor", "location", false],
+    ["Telefonumdaki konum yanlış gösteriyor", "location", false],
     // Boş / tanımsız kategori.
     ["", "wifi", false],
     ["Wi-Fi şifresi yanlış", "rules", false],
     ["Wi-Fi şifresi yanlış", "checkout", false],
   ])("%s · %s → %s", (body, cat, expected) => expect(statesInfoWrong(body as string, cat as string)).toBe(expected));
 
-  it("uzun mesajın ilk 8.000 karakteri okunur; uzun tek sözcük / boşluk dizisi / tekrarlanan özne doğrusal (karesel iş yok)", () => {
+  it(`uzun mesajın ilk ${INFO_WRONG_MAX_CHARS} karakteri okunur; uzun tek sözcük / boşluk dizisi / tekrarlanan özne doğrusal (karesel iş yok)`, () => {
+    expect(INFO_WRONG_MAX_CHARS).toBe(2_000);
     expect(statesInfoWrong(`Wi-Fi şifresi yanlış. ${"a".repeat(20_000)}`, "wifi")).toBe(true);
-    expect(statesInfoWrong(`${"a ".repeat(4_000)}Wi-Fi şifresi yanlış.`, "wifi")).toBe(false);
+    expect(statesInfoWrong(`${"a".repeat(INFO_WRONG_MAX_CHARS - 25)} Wi-Fi şifresi yanlış.`, "wifi")).toBe(true);
+    expect(statesInfoWrong(`${"a ".repeat(INFO_WRONG_MAX_CHARS / 2)}Wi-Fi şifresi yanlış.`, "wifi")).toBe(false);
     const runs = [
       "a".repeat(30_000),
       `a${" ".repeat(29_990)}b`,
