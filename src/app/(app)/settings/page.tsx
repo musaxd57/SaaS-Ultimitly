@@ -538,8 +538,8 @@ export default async function SettingsPage({
               (AI karar bilgileri dâhil), görevler ve görev güncellemeleri (fotoğraflar bağlantı
               olarak), takvim kaynakları, tedarik kayıtları, bilgi bankası, şablonlar, kullanıcı
               listesi, abonelik ve faturalar, denetim ve onay kayıtları — tek bir JSON dosyası
-              olarak indirebilirsiniz. Şifreler, 2FA anahtarları ve Hospitable bağlantı
-              token&apos;ları hiçbir zaman dâhil edilmez.
+              olarak indirebilirsiniz. Şifreler, 2FA anahtarları ve kanal bağlantı
+              anahtarları hiçbir zaman dâhil edilmez.
             </p>
             <a
               href="/api/account/export"

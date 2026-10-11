@@ -46,7 +46,7 @@ const STATUS_META: Record<OutboxStatus, { label: string; tone: BadgeTone; note?:
   blocked: {
     label: "Abonelik pasif",
     tone: "warning",
-    note: "Hospitable aboneliği pasif — bağlantı yeniden kurulunca otomatik olarak bir kez denenecek.",
+    note: "Kanal bağlantısının aboneliği pasif — bağlantı yeniden kurulunca otomatik olarak bir kez denenecek.",
   },
 };
 

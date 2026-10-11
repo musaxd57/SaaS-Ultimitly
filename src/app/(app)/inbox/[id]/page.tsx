@@ -358,7 +358,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   // Sistem yenilenmeyi İZLEMİYOR — sabit aralıklarla yeniden deniyor. Metin de
   // bunu söylemeli (denetim, 08-01).
   subscription_inactive:
-    "Hospitable aboneliğiniz pasif görünüyor — mesaj gönderilemiyor. Abonelik yenilendikten sonra en geç birkaç saat içinde yeniden denenir.",
+    "Kanal bağlantınızın aboneliği pasif görünüyor — mesaj gönderilemiyor. Abonelik yenilendikten sonra en geç birkaç saat içinde yeniden denenir.",
   rate_limited:
     "Kanal geçici olarak yoğun — bu konuşma kısa süre sonra otomatik olarak yeniden denenecek",
   // ⚠️ BELİRSİZ SONUÇ (denetim, 08-01 — üçüncü tur). Mesaj misafire ULAŞMIŞ

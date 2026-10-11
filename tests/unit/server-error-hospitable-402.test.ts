@@ -20,7 +20,7 @@ describe("serverError — Hospitable 402 is not paged", () => {
   it("a HospitableError(402) → controlled 409 with a clear message, NOT a 500, and NOT paged", async () => {
     const res = serverError(undefined, new HospitableError("Hospitable API hatası (HTTP 402): Subscription not active", 402));
     expect(res.status).toBe(409); // meaningful, not a bare 500
-    expect((await res.json()).error).toMatch(/Hospitable aboneliğiniz aktif değil/);
+    expect((await res.json()).error).toMatch(/Kanal bağlantınızın aboneliği aktif değil/);
     expect(mockReport).not.toHaveBeenCalled();
   });
 
@@ -41,7 +41,7 @@ describe("serverError — Hospitable 402 is not paged", () => {
   it("the SAME 402 wrapped by the ingest adapter (IngestError, kind blocked) → 409, NOT paged", async () => {
     const res = serverError(undefined, new IngestError("hospitable", "blocked", "hospitable ingest blocked (HTTP 402)", 402));
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/Hospitable aboneliğiniz aktif değil/);
+    expect((await res.json()).error).toMatch(/Kanal bağlantınızın aboneliği aktif değil/);
     expect(mockReport).not.toHaveBeenCalled();
   });
 

@@ -59,7 +59,7 @@ export function DeleteAccountCard() {
           <li>Tüm misafir konuşmaları ve mesajları, görevler</li>
           <li>Bilgi tabanı, şablonlar, takvim bağlantıları, otomasyon kuralları</li>
           <li>Kullanıcı hesapları (şifre, 2FA, onay kayıtları), denetim kayıtları</li>
-          <li>Abonelik kaydı ve fatura geçmişi, Hospitable bağlantı bilgileri</li>
+          <li>Abonelik kaydı ve fatura geçmişi, kanal bağlantı bilgileri</li>
         </ul>
         {/* "Tüm verileriniz silinir" vaadinin TEK istisnası fatura mevzuatının
             saklattığı kişisel-verisiz finansal özet — bunu söylememek üstteki

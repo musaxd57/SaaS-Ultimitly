@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       }
       const envToken = process.env.HOSPITABLE_API_TOKEN;
       if (!envToken) {
-        return NextResponse.json({ ok: false, error: "Ortamda Hospitable token yok." }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "Ortak kanal bağlantısı yapılandırılmamış." }, { status: 400 });
       }
       const info = await verifyToken(envToken);
       await setOrgHospitableToken(session.organizationId, envToken, `${info.properties} mülk`);

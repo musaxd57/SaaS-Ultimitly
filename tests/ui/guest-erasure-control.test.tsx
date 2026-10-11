@@ -32,7 +32,7 @@ describe("GuestErasureControl — legally-pinned copy", () => {
 
     expect(await screen.findByText(/kalıcı olarak silinir \(maskelenir/i)).toBeTruthy();
     expect(screen.getByText(/en geç 30 gün içinde sonuçlandırılır \(KVKK m\.13\)/i)).toBeTruthy();
-    expect(screen.getByText(/Airbnb\/Hospitable.*Lixus silemez/i)).toBeTruthy();
+    expect(screen.getByText(/Airbnb.*kanal bağlantı\s+sağlayıcınızdaki kopyayı Lixus silemez/i)).toBeTruthy(); // kurucu 10-11: sağlayıcı adı yok
     expect(screen.getByRole("button", { name: /Evet, kalıcı olarak sil/i })).toBeTruthy();
     // The legally-loaded word must not appear anywhere in the flow.
     expect(screen.queryByText(/anonimleştir/i)).toBeNull();

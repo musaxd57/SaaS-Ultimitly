@@ -95,8 +95,8 @@ export function GuestErasureControl({
             ev sahibi kayıtlarında yalnız ad redakte edilir).
           </p>
           <p className="text-muted-foreground">
-            Senkron bu veriyi bir daha İÇERİ ALMAZ (kalıcı koruma kaydı). Airbnb/Hospitable&apos;daki
-            kopyayı Lixus silemez — misafir kanala ayrıca başvurmalıdır. Talep, ulaştığı tarihten
+            Senkron bu veriyi bir daha İÇERİ ALMAZ (kalıcı koruma kaydı). Airbnb&apos;deki ve kanal bağlantı
+            sağlayıcınızdaki kopyayı Lixus silemez — misafir kanala ayrıca başvurmalıdır. Talep, ulaştığı tarihten
             itibaren en geç 30 gün içinde sonuçlandırılır (KVKK m.13).
           </p>
           <div className="flex gap-2">

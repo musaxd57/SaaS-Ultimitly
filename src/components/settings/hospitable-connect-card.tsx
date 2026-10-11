@@ -18,7 +18,7 @@ import type { HospitableConnectionInfo } from "@/lib/hospitable-credentials";
  */
 // Query-param result codes the OAuth callback route redirects back with.
 const OAUTH_RESULT_MESSAGES: Record<string, { ok: boolean; text: string }> = {
-  connected: { ok: true, text: "Hospitable ile bağlandı." },
+  connected: { ok: true, text: "Kanal hesabınız bağlandı." },
   forbidden: { ok: false, text: "Bu işlem için yetkiniz yok." },
   not_configured: { ok: false, text: "Tek tıkla bağlanma şu an kullanılamıyor — bağlantı anahtarıyla bağlanabilirsiniz." },
   denied: { ok: false, text: "Bağlantı izni verilmedi." },
@@ -28,7 +28,7 @@ const OAUTH_RESULT_MESSAGES: Record<string, { ok: boolean; text: string }> = {
     text: "Bağlantı başlatıldığı başka bir hesaba geçilmiş — güvenlik için kaydedilmedi. Doğru hesaptayken tekrar deneyin.",
   },
   invalid_token: { ok: false, text: "Alınan bağlantı anahtarı geçersiz, lütfen tekrar deneyin." },
-  exchange_failed: { ok: false, text: "Hospitable ile bağlantı kurulamadı, lütfen tekrar deneyin." },
+  exchange_failed: { ok: false, text: "Kanal bağlantısı kurulamadı, lütfen tekrar deneyin." },
 };
 
 export function HospitableConnectCard({
@@ -78,7 +78,7 @@ export function HospitableConnectCard({
 
   async function disconnect() {
     const ok = await confirmDialog({
-      title: "Hospitable bağlantısını kesmek istiyor musunuz?",
+      title: "Kanal bağlantısını kesmek istiyor musunuz?",
       body: "Misafir mesajlarını çekme ve gönderme durur. Mevcut verileriniz silinmez.",
       confirmLabel: "Bağlantıyı kes",
       destructive: true,
@@ -127,7 +127,7 @@ export function HospitableConnectCard({
             ? "Yetki yenilenemedi (oturum düşmüş olabilir)."
             : "Token artık geçerli değil (401/403)."}{" "}
           Aşağıdan yeniden bağlanın; bekleyen mesajlar yeniden bağlanınca gönderilir.
-          {info.envAvailable ? " Bu sırada sistemin ortak (env) bağlantısı kullanılıyor." : ""}
+          {info.envAvailable ? " Bu sırada sistemin ortak kanal bağlantısı kullanılıyor." : ""}
         </div>
       ) : info.connected ? (
         <div className="flex items-center gap-2 rounded-md border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-300">
@@ -135,10 +135,10 @@ export function HospitableConnectCard({
           <span>
             <strong>Bağlı.</strong>{" "}
             {info.ownToken
-              ? `Bu hesabın kendi Hospitable bağlantısı kullanılıyor${info.label ? ` (${info.label})` : ""}.`
+              ? `Bu hesabın kendi kanal bağlantısı kullanılıyor${info.label ? ` (${info.label})` : ""}.`
               : info.state === "disconnected"
-                ? "Kendi bağlantınız kesildi; sistemin ortak (env) Hospitable bağlantısı kullanılıyor."
-                : "Sistemin ortak (env) Hospitable bağlantısı kullanılıyor."}
+                ? "Kendi bağlantınız kesildi; sistemin ortak kanal bağlantısı kullanılıyor."
+                : "Sistemin ortak kanal bağlantısı kullanılıyor."}
           </span>
         </div>
       ) : info.state === "disconnected" ? (

@@ -24,7 +24,7 @@ const YASAK = /HTTP \d{3}|Subscription not active|\{|\}|env=|resource=/;
 
 describe("sağlayıcı hatası → müşteri metni", () => {
   it.each([
-    [402, /aboneliğiniz aktif değil/i],
+    [402, /aboneliği aktif değil/i],
     [401, /yeniden bağlayın/i],
     [403, /yeniden bağlayın/i],
     [404, /bulunamadı/i],
@@ -36,6 +36,14 @@ describe("sağlayıcı hatası → müşteri metni", () => {
     const m = providerErrorMessage(err, "yedek");
     expect(m).toMatch(beklenen);
     expect(m, "ham sağlayıcı ayrıntısı sızdı").not.toMatch(YASAK);
+  });
+
+  it("🚨 müşteri metni SAĞLAYICI ADI taşımaz (kurucu kararı 10-11: hata / durum metinleri sağlayıcıdan bağımsız; ad yalnız bağlantı adımlarında)", () => {
+    for (const status of [undefined, 401, 402, 403, 404, 429, 500, 503]) {
+      const m = providerErrorMessage(new HospitableError(`Hospitable API hatası (HTTP ${status ?? "-"})`, status), "yedek");
+      expect(m, String(status)).not.toMatch(/hospitable/i);
+      expect(m, String(status)).toMatch(/kanal/i);
+    }
   });
 
   it("statüsüz HospitableError (ağa çıkılamadı) → ulaşılamıyor metni", () => {
@@ -70,7 +78,7 @@ describe("sağlayıcı hatası → müşteri metni", () => {
 // ---------------------------------------------------------------------------
 describe("sarmaldan bağımsız: ingest adaptörünün IngestError'ı da AYNI metni alır", () => {
   it.each([
-    [402, "blocked", /aboneliğiniz aktif değil/i],
+    [402, "blocked", /aboneliği aktif değil/i],
     [401, "auth_revoked", /yeniden bağlayın/i],
     [403, "auth_revoked", /yeniden bağlayın/i],
     [404, "not_found", /bulunamadı/i],
@@ -148,7 +156,7 @@ describe("metin girdili çeviri (SendOutcome.error yolu)", () => {
   it("ham metinden durumu okur ve Türkçeleştirir", () => {
     const ham = 'Hospitable API hatası (HTTP 402): {"message":"Subscription not active"}';
     const m = providerErrorMessageFromText(ham, "yedek");
-    expect(m).toMatch(/aboneliğiniz aktif değil/i);
+    expect(m).toMatch(/aboneliği aktif değil/i);
     expect(m).not.toMatch(YASAK);
   });
 

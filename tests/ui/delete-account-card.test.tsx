@@ -14,7 +14,7 @@ describe("DeleteAccountCard — silinir/saklanır transparency (KVKK)", () => {
     // deleted list (matches the actual deleteAccountData cascade)
     expect(screen.getByText(/Kalıcı olarak silinir/i)).toBeTruthy();
     expect(screen.getByText(/misafir adı, telefon, e-posta/i)).toBeTruthy();
-    expect(screen.getByText(/Hospitable bağlantı/i)).toBeTruthy();
+    expect(screen.getByText(/kanal bağlantı bilgileri/i)).toBeTruthy(); // kurucu 10-11: sağlayıcı adı yok
     // retained-but-redacted (the surviving Paddle financial skeleton)
     // Kullanıcı kararı 07-30: başlıklı "Yasa gereği saklanır" bloğu tek satıra indi —
     // ama İSTİSNANIN SÖYLENMESİ dürüst-kopya kuralı gereği korunur ("tüm verileriniz

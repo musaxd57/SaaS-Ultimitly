@@ -25,7 +25,7 @@ import { IngestError, type IngestErrorKind } from "@/lib/channels/ingest";
 
 /** 402 cümlesi — `api.ts serverError`ın 409'u da BUNU kullanır (aynı durum, tek metin). */
 export const SUBSCRIPTION_INACTIVE_MESSAGE =
-  "Hospitable aboneliğiniz aktif değil. Kanal senkronizasyonu için aboneliğinizi yenileyin.";
+  "Kanal bağlantınızın aboneliği aktif değil. Senkronizasyon için bağlantı sağlayıcınızdaki planı kontrol edin.";
 
 /**
  * Ağa hiç çıkılmadı: kimlik bilgisi yok. `api/hospitable/sync` ön kontrolü AYNI sabiti kullanır.
@@ -33,7 +33,7 @@ export const SUBSCRIPTION_INACTIVE_MESSAGE =
  */
 export const NOT_CONNECTED_MESSAGE = "Kanal hesabınız bağlı değil. Ayarlar'dan bağlantınızı kurun.";
 
-const UNREACHABLE_MESSAGE = "Hospitable'a şu anda ulaşılamıyor. Lütfen kısa bir süre sonra tekrar deneyin.";
+const UNREACHABLE_MESSAGE = "Kanala şu anda ulaşılamıyor. Lütfen kısa bir süre sonra tekrar deneyin.";
 
 // ---------------------------------------------------------------------------
 // SARMALDAN BAĞIMSIZ OKUMA — TEK KAYNAK (09-23 olayı)
@@ -84,19 +84,19 @@ function byStatus(status: number | undefined, retryAfterSec?: number): string | 
   if (status === 402) return SUBSCRIPTION_INACTIVE_MESSAGE;
   if (status === 401 || status === 403) {
     return (
-      "Hospitable bağlantı yetkiniz geçersiz görünüyor. " +
+      "Kanal bağlantı yetkiniz geçersiz görünüyor. " +
       "Ayarlar bölümünden hesabınızı yeniden bağlayın."
     );
   }
   if (status === 404) {
-    return "İlgili kayıt Hospitable tarafında bulunamadı. Rezervasyon silinmiş veya arşivlenmiş olabilir.";
+    return "İlgili kayıt kanalda bulunamadı. Rezervasyon silinmiş veya arşivlenmiş olabilir.";
   }
   if (status === 429) {
     const ne = retryAfterSec && retryAfterSec > 0 ? `${Math.max(1, Math.ceil(retryAfterSec / 60))} dakika` : "birkaç dakika";
-    return `Hospitable istek sınırına ulaşıldı. Lütfen ${ne} sonra tekrar deneyin.`;
+    return `Kanal istek sınırına ulaşıldı. Lütfen ${ne} sonra tekrar deneyin.`;
   }
   if (status && status >= 500) {
-    return "Hospitable şu anda yanıt vermiyor. Lütfen kısa bir süre sonra tekrar deneyin.";
+    return "Kanal şu anda yanıt vermiyor. Lütfen kısa bir süre sonra tekrar deneyin.";
   }
   return null;
 }
