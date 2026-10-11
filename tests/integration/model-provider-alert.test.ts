@@ -196,6 +196,9 @@ describe("gömme kanalı kalıcı arızası — gerçek alert-state", () => {
   it("🚨 KALICI arıza sessiz modda da TEK alarm verir (sessizlik yalnız geçici arızalar içindir)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => QUOTA()));
     for (let i = 0; i < 5; i++) expect(await embedTexts([`q${i}`], { quiet: true })).toBeNull();
+    // Alarm `void` ile koşar: SABİT 100 ms CI'da yetmedi (10-11, CI koşusu 38112659252 — 0 çağrı) → koşul gerçekleşene kadar yokla, sonra
+    // ikinci bir alarm gelmediğini görmek için kısa bekle ("TEK alarm" iddiası).
+    await until(() => mockReport.mock.calls.length >= 1);
     await new Promise((r) => setTimeout(r, 100));
     expect(mockReport).toHaveBeenCalledTimes(1);
     expect(mockReport.mock.calls[0][0]).toBe("openai-embedding kalıcı arıza");
