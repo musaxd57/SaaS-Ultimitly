@@ -64,6 +64,33 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Şifreyi girdim ama kabul etmiyor", "wifi", false],
     ["Şifre yanlışsa haber veririm", "wifi", false],
     ["Ağır bagaj yok", "wifi", false],
+    // Haiku 10-11 — kaçan yaygın ifadeler.
+    ["Şifre doğru değil", "wifi", true],
+    ["Wi-Fi şifresi doğru değil", "wifi", true],
+    ["Wi-Fi şifreleri yanlış", "wifi", true],
+    ["The wifi passwords are wrong", "wifi", true],
+    ["Şifrenizi denedik olmadı", "wifi", true],
+    ["Şifre değiştirildi", "wifi", true],
+    ["Verdiğiniz şifre kabul etmez", "wifi", true],
+    ["Şifre olmuyo", "wifi", true],
+    ["There is no wifi called LaleNet", "wifi", true],
+    ["Wi-Fi ağı yanlış", "wifi", true],
+    ["Wi-Fi'nin kodu yanlış", "wifi", true],
+    ["The password you gave us still doesn't work", "wifi", true],
+    // Haiku 10-11 — yanlış uyarılar: kendi hatası · tahmin · araya başka şey giren cümle.
+    ["Sorry, I typed the password wrong", "wifi", false],
+    ["I was typing the wrong password", "wifi", false],
+    ["I typed in the wrong password", "wifi", false],
+    ["Şifreyi yanlış yazmıştım", "wifi", false],
+    ["Ağı yanlış seçmişim", "wifi", false],
+    ["Girdiğim şifre yanlış", "wifi", false],
+    ["Şifreyi yanlış yazmış olabilirim", "wifi", false],
+    ["Şifre yanlış olabilir mi", "wifi", false],
+    ["Acaba şifre yanlış", "wifi", false],
+    ["Could the wifi password be wrong", "wifi", false],
+    ["Wi-Fi şifresi bütün cihazlarda çalışmıyor", "wifi", false],
+    ["Ağ yok", "wifi", false],
+    ["Kapının şifresi yanlış", "wifi", false],
     ["Kapı şifresi yanlış", "wifi", false],
     ["Wi-Fi kodu yanlış", "wifi", true],
     ["Wi-Fi şifresi ne?", "wifi", false],
@@ -74,20 +101,32 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["The code doesn't work", "checkin", true],
     ["Kilit çalışmıyor", "checkin", false],
     ["Kodu yanlış girdik", "checkin", false],
+    ["Kodlarınız çalışmıyor", "checkin", true],
+    ["Kapı kodu açılmıyor", "checkin", true],
+    ["The door code keypad doesn't work", "checkin", false],
+    ["Kapı kodu tuş takımı çalışmıyor", "checkin", false],
+    ["Wi-Fi'nin kodu yanlış", "checkin", false],
+    ["Ağın kodu yanlış", "checkin", false],
     ["Wi-Fi şifresi yanlış", "checkin", false],
     ["Wi-Fi kodu yanlış", "checkin", false],
     ["Kapı şifresi yanlış", "checkin", true],
     // Otopark: "yok" sayılır; "dolu" / "otoparkta yer yok" anlık durumdur.
     ["Otopark yok", "parking", true],
     ["Otopark yoktu, sokağa park ettik", "parking", true],
-    ["Otoparkı bulamadık", "parking", true],
+    ["Otopark bulunmuyor", "parking", true],
+    // Bulamamak bilgi yanlış demek değil (misafir kaybolmuş olabilir — adresle aynı kural, Haiku 10-11).
+    ["Otoparkı bulamadık", "parking", false],
+    ["We couldn't find the parking", "parking", false],
     ["There is no parking", "parking", true],
-    ["We couldn't find the parking", "parking", true],
     ["Otopark dolu", "parking", false],
     ["Otoparkta yer yok", "parking", false],
     ["Otopark konusunda sorun yok", "parking", false],
     ["Otopark yok değil", "parking", false],
     ["No free parking nearby", "parking", false],
+    ["No parking spaces left", "parking", false],
+    ["Otopark dolu yer yok", "parking", false],
+    ["Otopark yakınında market yok", "parking", false],
+    ["There is no parking lot", "parking", true],
     ["Otopark yok? Bilgi verir misiniz.", "parking", false],
     ["Otopark girişinin yanındaki eski binanın arkasında market yok", "parking", false],
     // Havlu / çarşaf: "yok / eksik" sayılır; kirli / temiz / ekstra istek sayılmaz.
@@ -95,6 +134,8 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["Havlular eksikti", "cleaning", true],
     ["There were no towels", "cleaning", true],
     ["No towels in the bathroom", "cleaning", true],
+    ["Banyo havlusu yok", "cleaning", true],
+    ["Havluları da yok", "cleaning", true],
     ["Havlu kirli", "cleaning", false],
     ["Temiz havlu yok", "cleaning", false],
     ["Fazladan havlu yok", "cleaning", false],
@@ -103,23 +144,39 @@ describe("🚨 statesInfoWrong — misafir BİLGİNİN KENDİSİNİN yanlış / 
     ["No clean towels", "cleaning", false],
     // Çöp / adres.
     ["Çöp konteyneri yok", "trash", true],
-    ["We couldn't find the bins", "trash", true],
+    ["We couldn't find the bins", "trash", false],
+    ["There are no bins", "trash", true],
+    ["Çöp konteyneri dolu olduğu için yer yok", "trash", false],
     ["Çöp konteyneri dolu", "trash", false],
     ["Adres yanlış", "location", true],
     ["Konum yanlış gösteriyor", "location", true],
     ["Wrong address on the listing", "location", true],
     ["Adresi bulamadık", "location", false],
     ["Konum çalışmıyor", "location", false],
+    ["Telefonumun konumu yanlış gösteriyor", "location", false],
     // Boş / tanımsız kategori.
     ["", "wifi", false],
     ["Wi-Fi şifresi yanlış", "rules", false],
     ["Wi-Fi şifresi yanlış", "checkout", false],
   ])("%s · %s → %s", (body, cat, expected) => expect(statesInfoWrong(body as string, cat as string)).toBe(expected));
 
-  it("8.000 karakteri aşan metin okunmaz; uzun tek sözcük / boşluk / tekrarlanan özne doğrusal (karesel iş yok)", () => {
-    expect(statesInfoWrong(`Wi-Fi şifresi yanlış. ${"a".repeat(8_000)}`, "wifi")).toBe(false);
-    expect(statesInfoWrong(`Wi-Fi şifresi yanlış. ${"a ".repeat(3_000)}`, "wifi")).toBe(true);
-    for (const s of ["a".repeat(7_999), " ".repeat(7_999), "sifre ".repeat(1_300), "otopark ".repeat(990), "no ".repeat(2_600), "yanlis ".repeat(1_100)]) {
+  it("uzun mesajın ilk 8.000 karakteri okunur; uzun tek sözcük / boşluk dizisi / tekrarlanan özne doğrusal (karesel iş yok)", () => {
+    expect(statesInfoWrong(`Wi-Fi şifresi yanlış. ${"a".repeat(20_000)}`, "wifi")).toBe(true);
+    expect(statesInfoWrong(`${"a ".repeat(4_000)}Wi-Fi şifresi yanlış.`, "wifi")).toBe(false);
+    const runs = [
+      "a".repeat(30_000),
+      `a${" ".repeat(29_990)}b`,
+      `a${"\t \u00a0".repeat(9_000)}b`,
+      "sifre ".repeat(5_000),
+      "otopark ".repeat(4_000),
+      "no ".repeat(10_000),
+      "yanlis ".repeat(5_000),
+      "typed ".repeat(5_000) + "password wrong",
+      "kapi ".repeat(6_000) + "sifre yanlis",
+      "is ".repeat(10_000),
+      "password " + "is ".repeat(10_000) + "wrong",
+    ];
+    for (const s of runs) {
       const t = performance.now();
       for (const c of Object.values(ITEM_TOPIC_TO_KB)) statesInfoWrong(s, c);
       expect(performance.now() - t).toBeLessThan(1_000);

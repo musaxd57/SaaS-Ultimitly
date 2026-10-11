@@ -35,79 +35,120 @@ export const ITEM_TOPIC_TO_KB: Readonly<Record<string, string>> = Object.freeze(
 /**
  * 🚨 ÇELİŞKİ = misafir bilgi tabanındaki BİLGİNİN KENDİSİNİN yanlış ya da olmadığını söylüyor (kurucu 10-11: "Wi-Fi'nin çalışmamasının
  * sebebi şifre veya yanlış ağ olması değil"). İlk kural "Wi-Fi çalışmıyor" ARIZA şikâyetini de sayıyor ve ev sahibine "bilgi güncel mi?"
- * diyordu — yanlıştı. SAYILAN: şifre / kapı kodu kabul edilmiyor · "X diye bir ağ yok" / ağ adı yanlış · otopark / havlu / çöp konteyneri
- * yok · adres / konum yanlış. SAYILMAYAN: arıza / kesinti / yavaşlık ("Wi-Fi çalışmıyor", "internet yok", "Wi-Fi şifresi doğru ama
- * bağlanmıyor"), anlık durum ("otopark dolu", "otoparkta yer yok", "havlu kirli", "temiz havlu yok"), sorular ("şifre yanlış mı?"),
- * koşul ("yanlışsa"), misafirin kendi hatası ("şifreyi yanlış yazmışım", "I typed the wrong password"), olumsuzlama ("yanlış değil").
- * Yalnız Türkçe + İngilizce (öteki diller sayılmaz — temkinli: uyarı kaçabilir, yanlış uyarı üretmez). Metin Türkçe ASCII katlanır; kalıplar
- * cümle içinde, virgül / bağlaç / başka konu sözcüğü ("ama", "internet", "doğru") ARASINA girmeden, sınırlı mesafede (karesel iş yok).
+ * diyordu — yanlıştı. SAYILAN: şifre / kapı kodu yanlış, kabul edilmiyor, değişmiş · "X diye bir ağ yok" / ağ adı yanlış · otopark / havlu /
+ * çöp konteyneri yok · adres / konum yanlış. SAYILMAYAN: arıza / kesinti / yavaşlık ("Wi-Fi çalışmıyor", "internet yok", "kapı kodu tuş
+ * takımı çalışmıyor"), anlık durum ("otopark dolu", "No parking spaces left", "havlu kirli", "temiz havlu yok"), bulamamak ("otoparkı
+ * bulamadık" — misafir kaybolmuş olabilir), soru / tahmin ("şifre yanlış mı", "yanlış olabilir mi", "Could the password be wrong"), koşul
+ * ("yanlışsa"), olumsuzlama ("yanlış değil"), misafirin kendi hatası ("yanlış yazmıştım", "I typed the password wrong"), telefonun konumu.
+ * 🚨 Özne ile fiil arasına YALNIZ dolgu sözcükleri girebilir (`FILLER`: "verdiğiniz", "hâlâ", "is", "you gave"…, en çok 6): Haiku 10-11
+ * "Kapı kodu tuş takımı çalışmıyor", "Otopark yakınında market yok" gibi araya başka bir şey giren cümlelerin sayıldığını gösterdi.
+ * Yalnız Türkçe + İngilizce (öteki diller sayılmaz — temkinli: uyarı kaçabilir, yanlış uyarı üretmez). Metin Türkçe ASCII katlanır, yatay
+ * boşluk dizisi teke iner (geriye bakışlar sabit uzunlukta kalır — karesel iş yok).
  */
 const W = "(?<![\\p{L}\\p{N}])"; // sözcük başı
 const E = "(?![\\p{L}\\p{N}])"; // sözcük sonu
-/** Özne ile fiil arasına girerse fiili başka şeye bağlayan sözcükler (bağlaç, "sorun", "doğru", bağlantı / internet). */
-const BLOCK = `${W}(?:ama|fakat|ancak|lakin|ve|ile|but|and|however|though|yet|sorun|problem|sikinti|dogru|correct|right|internet|baglan|connect|sinyal|signal|wifi|wi[ -]?fi|wlan|modem)`;
-const GAP = `(?:(?!${BLOCK})[^.!?;,\\n]){0,24}?`;
-/** Misafirin KENDİ hatası (birinci kişi: "yazmışım / girdim / kullandık"); "yanlış yazılmış / vermişsiniz" ev sahibinin hatasıdır, sayılır. */
-const SELF = "(?:yaz|gir|tusla|kullan)(?:d[iu]m|d[iu]k|mis(?:im|iz))";
-/** Fiilden sonra: soru eki ("yok mu"), olumsuzlama ("yanlış değil"), kendi hatası ("yanlış yazmışım"). */
-const TAIL = `${E}(?!\\s+(?:m[iu]\\p{L}{0,4}${E}|degil|${SELF}${E}))`;
-const fwd = (subject: string, verb: string) => new RegExp(`${W}(?:${subject})${E}${GAP}${W}(?:${verb})${TAIL}`, "u");
-/** Sıfat / "there is no" + özne (bitişik; araya yalnız tanımlık). Kendi hatası ("wrong password girdim", "typed the wrong password") hariç. */
-const rev = (adj: string, subject: string) =>
+const FILLER = [
+  "de", "da", "hic", "hala", "bile", "maalesef", "malesef", "galiba", "sanirim", "herhalde", "gercekten", "tamamen", "kesinlikle", "yine",
+  "gene", "hep", "bu", "su", "o", "sizin", "bize", "bizim", "verdiginiz", "verilen", "gonderdiginiz", "gonderilen", "paylastiginiz",
+  "paylasilan", "yazdiginiz", "yazan", "yazili", "belirtilen", "listedeki", "ilandaki", "rehberdeki", "karttaki", "mesajdaki",
+  "mesajinizdaki", "uygulamadaki", "ilanda", "rehberde", "kartta", "mesajda", "denedik", "denedim", "denedigimiz", "aslinda", "resmen",
+  "zaten", "artik", "simdi", "suan", "kesin", "cidden",
+  "is", "was", "are", "were", "seems", "seem", "seemed", "still", "also", "just", "really", "you", "gave", "sent", "provided", "listed",
+  "given", "shared", "wrote", "in", "on", "the", "a", "an", "your", "our", "us", "me", "guide", "listing", "message", "card", "app", "book",
+  "manual", "instructions", "we", "i", "got", "that", "which", "from", "again", "definitely", "totally", "apparently", "actually", "simply",
+  "completely", "always", "has", "have", "had", "been", "be", "it", "its", "it's", "clearly", "unfortunately", "sadly", "they", "there",
+  "here", "for", "this", "said", "says",
+].join("|");
+const SEP = "[ :\"'“”–-]{1,3}";
+/** Özne ile fiil arası: ayraç + en çok 6 dolgu sözcüğü. */
+const GAP = `(?:${SEP}(?:${FILLER})${E}){0,6}${SEP}`;
+/** Misafirin KENDİ hatası (birinci kişi: "yazmışım / girmiştim / seçtim"); "yanlış yazılmış / vermişsiniz" ev sahibinin hatasıdır, sayılır. */
+const SELF = "(?:yaz|gir|tusla|kullan|sec)(?:d[iu]m|d[iu]k|mis(?:im|iz|tim|tik)|iyor(?:um|uz))";
+/** Fiilden sonra: soru eki ("yok mu"), olumsuzlama ("yanlış değil"), tahmin ("olabilir"), kendi hatası ("yanlış yazmışım"). */
+const TAIL = `${E}(?! (?:m[iu]\\p{L}{0,4}${E}|degil|olabilir|\\p{L}{1,12} olabilir|${SELF}${E}))`;
+/** İngilizce kendi hatası fiilden ÖNCE gelir ("I typed the password wrong"); sınırlı geriye bakış. */
+const SELF_EN_BEFORE =
+  "(?<!(?:typed|typing|type|entered|entering|enter|put|putting|used|using|use|tried|trying|try|mistyped|input|chose|picked|selected)[\\p{L}' -]{1,30})";
+/** Türkçe kendi hatası özneden ÖNCE ("girdiğim şifre yanlış"). */
+const SELF_TR_BEFORE = "(?<!(?:girdigi|yazdigi|tusladigi|sectigi|kullandigi)\\p{L}{0,3} )";
+const fwd = (subject: string, verb: string) =>
+  new RegExp(`${SELF_TR_BEFORE}${W}(?:${subject})${E}${GAP}${SELF_EN_BEFORE}(?:${verb})${TAIL}`, "u");
+/** Sıfat / "there is no" + özne (bitişik; araya yalnız tanımlık). Kendi hatası ("typed in the wrong password", "yanlış şifre girmişim") hariç. */
+const rev = (adj: string, subject: string, notAfter = "") =>
   new RegExp(
-    `(?<!(?:typed|entered|used|put|tried|input|enter|type|use)\\s+(?:the\\s+|a\\s+|an\\s+)?)${W}(?:${adj})\\s+(?:the\\s+|a\\s+|an\\s+|any\\s+|bir\\s+)?(?:${subject})${E}(?!\\s+${SELF}${E})`,
+    `(?<!(?:typed|typing|type|entered|entering|enter|put|putting|used|using|use|tried|trying|try|chose|picked|selected)(?: in)?(?: the| a| an)? )${W}(?:${adj}) (?:the |a |an |any |bir )?(?:${subject})${E}(?! ${SELF}${E}${notAfter ? `| (?:${notAfter})${E}` : ""})`,
     "u",
   );
 
-const WRONG_TR = "yanlis(?:ti|mis|tir)?|hatali(?:ydi|ymis|dir)?|gecersiz(?:di|mis|dir)?|degis(?:mis|tirilmis|ti|tirmissiniz)";
-const WRONG_EN = "wrong|incorrect|invalid|outdated|changed|not correct|not right|isn'?t correct|isn'?t right";
-const REJECTED = "kabul (?:etmiyor|etmedi|edilmiyor|edilmedi)|not accepted|isn'?t accepted|wasn'?t accepted|rejected|doesn'?t accept|didn'?t accept";
-const NOT_WORK = "calismiyor(?:du)?|calismadi|olmuyor(?:du)?|olmadi|tutmuyor|tutmadi|acmiyor|acmadi|doesn'?t work|does not work|didn'?t work|did not work|isn'?t working|not working";
-const MISSING_TR = "yok(?:tu|mus|tur)?|bulunmuyor(?:du)?|bulamad(?:ik|im)|bulunamad(?:i)|mevcut degil(?:di)?|eksik(?:ti)?|konulmamis|konmamis|verilmemis";
-const MISSING_EN = "missing|not there|wasn'?t there|weren'?t there|isn'?t there|aren'?t there|doesn'?t exist|does not exist|don'?t exist";
-const NO_EN = "there(?:'s| is| was| are| were) no|no|(?:can'?t|cannot|couldn'?t|could not) find";
+const WRONG_TR =
+  "yanlis(?:ti|mis|tir)?|hatali(?:ydi|ymis|dir)?|gecersiz(?:di|mis|dir)?|dogru degil(?:di|mis)?|degis(?:mis|ti|tirilmis|tirildi|tirmissiniz|tirdiniz|tirmis)";
+const WRONG_EN = "wrong|incorrect|invalid|outdated|changed|not correct|not right|isn'?t correct|isn'?t right|not valid";
+const REJECTED = "kabul (?:etmiyo(?:r(?:du)?)?|etmedi|etmez|edilmiyo(?:r)?|edilmedi)|not accepted|isn'?t accepted|wasn'?t accepted|rejected|doesn'?t accept|didn'?t accept";
+const NOT_WORK =
+  "calismiyo(?:r(?:du)?)?|calismadi|olmuyo(?:r(?:du)?)?|olmadi|tutmuyo(?:r)?|tutmadi|acmiyo(?:r)?|acmadi|acilmiyo(?:r)?|acilmadi|doesn'?t work|does not work|didn'?t work|did not work|isn'?t working|not working|won'?t work";
+const MISSING_TR = "yok(?:tu|mus|tur)?|bulunmuyo(?:r(?:du)?)?|mevcut degil(?:di)?|eksik(?:ti|tir)?|konulmamis|konmamis|verilmemis";
+const MISSING_EN = "missing|not there|wasn'?t there|weren'?t there|isn'?t there|aren'?t there|doesn'?t exist|does not exist|don'?t exist|didn'?t exist|not provided|wasn'?t provided|weren'?t provided";
+const NO_EN = "there(?:'s| is| was| are| were) no|no";
 
-const PASSWORD =
-  "(?<!(?:kapi|kilit|giris|bina|daire|kutu|kasa|door|lock|gate|box)\\s+)(?:sifre(?:si|niz|siniz|yi|sini)?|parola(?:si|yi|sini)?|password|(?:wifi|wi[ -]?fi|internet|modem)\\s+kodu)";
-const NETWORK_NAME = "(?:ag|wifi|wi[ -]?fi|network|wlan)\\s+(?:adi|ismi|name)|ssid";
-const DOOR_CODE = "(?<!(?:wifi|wi[ -]?fi|internet|ag|modem|wlan)\\s+)(?:kod(?:u|lar|lari|unuz)?|kapi sifresi|giris sifresi|code|pin|door code|lock code|access code)";
-const PARKING = "otopark(?:i|imiz|iniz)?|parking(?: lot| garage| space)?|car park|garage";
-const LINEN = "havlu(?:lar)?|nevresim(?:ler)?|carsaf(?:lar)?|towels?|sheets|bed linen|linens?";
-const BINS = "(?:cop )?konteyner(?:i|ler|leri)?|cop kutusu|cop kovasi|cop alani|trash (?:bin|can|area)s?|garbage (?:bin|can|area)s?|bins?|dumpster";
-const PLACE = "adres(?:iniz|i)?|konum(?:unuz|u)?|address|location|map pin";
+const WIFI_WORD = "(?:wifi|wi-?fi|wi fi|internet|modem|wlan)(?:'?\\p{L}{0,4})?";
+const PASSWORD = `(?<!(?:kapi|kilit|giris|bina|daire|kutu|kasa|door|lock|gate|box|keypad)\\p{L}{0,4}'? )(?:sifre(?!siz)\\p{L}{0,6}|parola\\p{L}{0,4}|passwords?|${WIFI_WORD} kod\\p{L}{0,4})`;
+const NETWORK_NAME = "(?:ag|wifi|wi-?fi|wi fi|network|wlan)(?:'?\\p{L}{0,4})? (?:adi|ismi|name)|ssid";
+const DOOR_CODE = `(?<!${WIFI_WORD} |ag\\p{L}{0,4} )(?:kod\\p{L}{0,7}|(?:kapi|giris)\\p{L}{0,4} sifre\\p{L}{0,4}|codes?|pin|(?:door|lock|access|keypad) codes?)`;
+const PARKING = "otopark(?:i|imiz|iniz)?|parking(?: lot| garage)?|car park|garage";
+const LINEN = "havlu(?:su|lar|lari|larimiz|lariniz)?|nevresim(?:i|ler|leri)?|carsaf(?:i|lar|lari)?|towels?|sheets?|bed ?linens?|linens?";
+const BINS = "(?:cop )?konteyner(?:i|ler|leri)?|cop kutusu|cop kovasi|cop alani|(?:trash|garbage) (?:bin|can|area)s?|bins?|dumpster";
+const PLACE = "(?<!(?:telefon|phone|gps|harita|map|my|benim|google)\\p{L}{0,4}'? )(?:adres(?:iniz|i)?|konum(?:unuz|u)?|address|location|map pin)";
+const FULL_NOW = "spaces?|spots?|left|available|nearby|free";
 
 const INFO_WRONG: Readonly<Record<string, readonly RegExp[]>> = {
-  // Şifre kabul edilmiyor · "X diye bir ağ yok" · ağ adı yanlış. Çıplak "Wi-Fi / internet çalışmıyor / yok" ARIZADIR, öznesi şifre / ağ adı değil.
+  // Şifre yanlış / kabul edilmiyor · ağ adı yanlış · "X diye bir ağ yok". Çıplak "Wi-Fi / internet çalışmıyor / yok" ARIZADIR, öznesi şifre /
+  // ağ adı değil; "ağ yok" da arızadır (yalnız "ağ yanlış" sayılır).
   wifi: [
     fwd(PASSWORD, `${WRONG_TR}|${WRONG_EN}|${REJECTED}|${NOT_WORK}`),
     rev("yanlis|hatali|gecersiz|wrong|incorrect|invalid", PASSWORD),
-    fwd(NETWORK_NAME, `${WRONG_TR}|${WRONG_EN}|${MISSING_TR}|gorunmuyor|cikmiyor`),
-    new RegExp(`${W}(?:diye|adli|adinda|isimli|isminde|boyle|bu isimde|bu adda)\\s+bir\\s+ag(?:i)?${E}${GAP}${W}(?:${MISSING_TR}|gorunmuyor|gorunmedi|cikmiyor|cikmadi)${TAIL}`, "u"),
-    new RegExp(`${W}(?:no such network|no network (?:called|named)|network (?:called|named)[^.!?;,\\n]{1,40}?(?:not showing|isn'?t showing|doesn'?t show|does not show|not visible|not there|isn'?t there|doesn'?t exist|does not exist|not found|can'?t be found))${E}`, "u"),
+    fwd(NETWORK_NAME, `${WRONG_TR}|${WRONG_EN}|${MISSING_TR}|gorunmuyo(?:r)?|cikmiyo(?:r)?`),
+    fwd("ag(?:i|iniz)?", `${WRONG_TR}|${WRONG_EN}`),
+    new RegExp(`${W}(?:diye|adli|adinda|isimli|isminde|boyle|bu isimde|bu adda) bir ag(?:i)?${E}${GAP}(?:${MISSING_TR}|gorunmuyo(?:r)?|gorunmedi|cikmiyo(?:r)?|cikmadi)${TAIL}`, "u"),
+    new RegExp(
+      `${W}(?:no such (?:network|wifi|wi-?fi)|no (?:network|wifi|wi-?fi) (?:called|named)|(?:network|wifi|wi-?fi) (?:called|named)[^.!?;,\\n]{1,40}?(?:not showing|isn'?t showing|doesn'?t show|does not show|not visible|not there|isn'?t there|doesn'?t exist|does not exist|not found|can'?t be found))${E}`,
+      "u",
+    ),
   ],
   checkin: [fwd(DOOR_CODE, `${WRONG_TR}|${WRONG_EN}|${REJECTED}|${NOT_WORK}`), rev("yanlis|hatali|gecersiz|wrong|incorrect|invalid", DOOR_CODE)],
-  // "Otopark dolu" / "otoparkta yer yok" anlık durumdur, sayılmaz (özne "otoparkta" değil "otopark").
-  parking: [fwd(PARKING, `${MISSING_TR}|${MISSING_EN}`), rev(NO_EN, PARKING)],
+  // "Otopark dolu" / "otoparkta yer yok" / "No parking spaces left" anlık durumdur, sayılmaz.
+  parking: [fwd(PARKING, `${MISSING_TR}|${MISSING_EN}`), rev(NO_EN, PARKING, FULL_NOW)],
   // "Ekstra / fazla / temiz havlu yok" bilgi çelişkisi değildir (önünde niteleyici varsa sayılmaz).
   cleaning: [
-    fwd(`(?<!(?:fazla|fazladan|ekstra|extra|yedek|more|additional|yeterli|enough|temiz|clean|baska|yeni|new|spare)\\s+)(?:${LINEN})`, `${MISSING_TR}|${MISSING_EN}`),
+    fwd(`(?<!(?:fazla|fazladan|ekstra|extra|yedek|more|additional|yeterli|enough|temiz|clean|baska|yeni|new|spare|fresh) )(?:${LINEN})`, `${MISSING_TR}|${MISSING_EN}`),
     rev(NO_EN, LINEN),
   ],
-  trash: [fwd(BINS, `${MISSING_TR}|${MISSING_EN}`), rev(NO_EN, BINS)],
-  // Adres / konum YANLIŞ (bulamamak misafirin kaybolması olabilir → sayılmaz; "konum çalışmıyor" telefonun GPS'i).
-  location: [fwd(PLACE, `${WRONG_TR}|${WRONG_EN}|tutmuyor|tutmadi`), rev("yanlis|hatali|wrong|incorrect", PLACE)],
+  trash: [fwd(BINS, `${MISSING_TR}|${MISSING_EN}`), rev(NO_EN, BINS, FULL_NOW)],
+  // Adres / konum YANLIŞ ("konum çalışmıyor" ve telefonun konumu sayılmaz).
+  location: [fwd(PLACE, `${WRONG_TR}|${WRONG_EN}|tutmuyo(?:r)?|tutmadi`), rev("yanlis|hatali|wrong|incorrect", PLACE)],
 };
 
 const TR_ASCII: Record<string, string> = { ı: "i", ş: "s", ğ: "g", ç: "c", ö: "o", ü: "u" };
 const foldTr = (t: string) =>
-  t.toLocaleLowerCase("tr").replace(/[ışğçöü]/g, (c) => TR_ASCII[c] ?? c).normalize("NFD").replace(/\p{M}/gu, "").replace(/[’‘ʼ`´]/g, "'");
+  t
+    .toLocaleLowerCase("tr")
+    .replace(/[ışğçöü]/g, (c) => TR_ASCII[c] ?? c)
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[’‘ʼ`´]/g, "'")
+    .replace(/[^\S\n]+/g, " ");
 
-/** Misafir bu mesajda bu kategorinin bilgisinin YANLIŞ / OLMADIĞINI söylüyor mu (soru cümleleri sayılmaz). */
+/** Soru / tahmin cümlesi: soru işaretiyle biter, İngilizce yardımcı fiille başlar ("Could the password be wrong"), ya da "acaba" içerir. */
+const QUESTION_CLAUSE = /\?\s*$|^\s*(?:could|can|is|are|was|were|does|do|did|should|might|may|would|will|has|have)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])acaba(?![\p{L}\p{N}])/u;
+
+/** Okunan en uzun metin (daha uzun mesajın başı okunur; kalıplar doğrusal). */
+export const INFO_WRONG_MAX_CHARS = 8_000;
+
+/** Misafir bu mesajda bu kategorinin bilgisinin YANLIŞ / OLMADIĞINI söylüyor mu (soru / tahmin cümleleri sayılmaz). */
 export function statesInfoWrong(body: string, kbCategory: string): boolean {
   const rules = INFO_WRONG[kbCategory];
-  if (!rules || typeof body !== "string" || !body.trim() || body.length > 8_000) return false;
-  const clauses = foldTr(body).match(/[^.!?;\n]+[.!?;\n]*/g) ?? [];
-  return clauses.some((c) => !/\?\s*$/.test(c) && rules.some((re) => re.test(c)));
+  if (!rules || typeof body !== "string" || !body.trim()) return false;
+  const clauses = foldTr(body.slice(0, INFO_WRONG_MAX_CHARS)).match(/[^.!?;\n]+[.!?;\n]*/g) ?? [];
+  return clauses.some((c) => !QUESTION_CLAUSE.test(c) && rules.some((re) => re.test(c)));
 }
 
 export interface ConversationItemLite {
@@ -213,6 +254,7 @@ export async function getMemoryContradictions(organizationId: string, propertyId
     prisma.propertyMemory.findMany({
       where: { organizationId, propertyId, status: "active", kind: "fact", source: "kb_item" },
       select: { id: true, category: true, sourceRef: true, observedAt: true, humanOverrideAt: true },
+      orderBy: { id: "asc" },
     }),
     prisma.conversationItem.findMany({
       where: {
@@ -237,15 +279,17 @@ export async function getMemoryContradictions(organizationId: string, propertyId
     itemIds: r.sides.map((s) => s.itemId),
     againstPropertyUpdatedAt: r.kind === "property" ? property.updatedAt : null,
   }));
-  // Karar METİNDE: yalnız konu öğesi olan mesajların metni okunur; kiracı + mülk kapsamlı.
-  const candidateMessageIds = [...new Set(items.map((i) => i.messageId))].slice(0, 500);
-  const messages = candidateMessageIds.length
-    ? await prisma.message.findMany({
-        where: { id: { in: candidateMessageIds }, conversation: { propertyId, property: { organizationId } } },
-        select: { id: true, body: true },
-      })
-    : [];
-  const bodies = new Map(messages.map((m) => [m.id, m.body ?? ""]));
+  // Karar METİNDE: konu öğesi olan BÜTÜN mesajların metni okunur (500'lük parçalar — Haiku 10-11: eski tavan fazlasını sessizce
+  // saymıyordu); kiracı + mülk kapsamlı.
+  const candidateMessageIds = [...new Set(items.map((i) => i.messageId))];
+  const bodies = new Map<string, string>();
+  for (let i = 0; i < candidateMessageIds.length; i += 500) {
+    const rows = await prisma.message.findMany({
+      where: { id: { in: candidateMessageIds.slice(i, i + 500) }, conversation: { propertyId, property: { organizationId } } },
+      select: { id: true, body: true },
+    });
+    for (const m of rows) bodies.set(m.id, m.body ?? "");
+  }
   return detectContradictions({
     facts: facts.map((f) => ({ id: f.id, category: f.category, kbItemId: f.sourceRef, observedAt: f.observedAt, humanOverrideAt: f.humanOverrideAt })),
     topics: infoWrongReports(items, bodies),
