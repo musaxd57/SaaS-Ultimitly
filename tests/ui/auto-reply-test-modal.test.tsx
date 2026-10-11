@@ -86,4 +86,15 @@ describe("AutoReplyTestButton — modal sözleşmesi", () => {
     expect(screen.getByText("Misafir-Soru")).toBeTruthy();
     vi.unstubAllGlobals();
   });
+  it("günlük sınır önizleme sırasında dolduysa (kurucu kararı 10-11) not GÖRÜNÜR; 'cevap bekleyen konuşma yok' yanlış metni çıkmaz", async () => {
+    const note = "Bugünkü AI kullanım sınırınıza ulaştınız (planınız: günde 150 AI işlemi). Yaklaşık 3 saat sonra yeniden kullanabilirsiniz. Kalan konuşmalar önizlenmedi.";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true, previews: [], limitNote: note }), { status: 200 })));
+    render(<AutoReplyTestButton />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Oto-yanıt testi/ }));
+    });
+    expect((await screen.findByRole("status")).textContent).toBe(note);
+    expect(screen.queryByText(/Cevap bekleyen/)).toBeNull();
+    vi.unstubAllGlobals();
+  });
 });

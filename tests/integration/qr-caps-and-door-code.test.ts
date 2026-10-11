@@ -93,9 +93,20 @@ describe("15 — konaklama başına saatte 40 mesaj", () => {
     expect(convo.priority).toBe("urgent");
     expect(await prisma.riskEvent.count({ where: { reason: "stay_message_cap" } })).toBe(1);
 
+    const markedAt = (await prisma.conversation.findUniqueOrThrow({ where: { id: convo.id } })).updatedAt;
     expect((await ask(token, "Havlu?", cookie)).status).toBe(429);
     expect(await prisma.riskEvent.count({ where: { reason: "stay_message_cap" } })).toBe(1);
     expect(await prisma.message.count()).toBe(before);
+    // Aynı saatteki ikinci aşım HİÇBİR şey yazmaz (konuşma satırına dokunulmaz).
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: convo.id } })).updatedAt).toEqual(markedAt);
+  });
+
+  it("cihaz bu istekte bağlandıysa tavan cevabı da çerezi kurar (sonraki mesaj 'başka cihazda' görmez)", async () => {
+    const { token, reservationId } = await seed();
+    await setStayCounter(reservationId, 40);
+    const capped = await ask(token, "Merhaba");
+    expect(capped.status).toBe(429);
+    expect(deviceCookie(capped)).toBeTruthy();
   });
 
   it("KONTROL: 40. mesaj (sayaç 39) normal işlenir — model çağrılır, mesaj kaydedilir", async () => {
@@ -195,6 +206,18 @@ describe("18 — cevapta kapı kodu: bir kez yeniden yaz, sonra devir", () => {
     expect(mockSuggest).toHaveBeenCalledTimes(2);
     expect(await prisma.riskEvent.count({ where: { reason: "door_code_in_reply" } })).toBe(1);
     expect((await prisma.message.findMany({ select: { body: true } })).map((m) => m.body).join("\n")).not.toContain("4590");
+  });
+
+  it("🚨 yeniden yazdırmaya kota yoksa kodlu taslak GİTMEZ, devir", async () => {
+    vi.stubEnv("AI_DAILY_CALL_CAP", "1"); // QR payı 1 → ilk çağrı geçer, yeniden yazdırma kotası yok
+    const { token } = await seed();
+    mockSuggest.mockResolvedValue(reply("Kapı kodunuz 4590."));
+    const res = await ask(token, "Kapı kodu neydi?");
+    const body = (await res.json()) as { escalated?: boolean };
+    expect(body.escalated).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("4590");
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
+    expect(await prisma.riskEvent.count({ where: { reason: "door_code_in_reply" } })).toBe(1);
   });
 
   it("KONTROL: Wi-Fi şifresi içeren cevap yeniden YAZDIRILMAZ (Wi-Fi verilir — kurucu kararı 10-11)", async () => {

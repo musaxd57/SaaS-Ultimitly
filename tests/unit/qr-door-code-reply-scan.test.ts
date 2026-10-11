@@ -77,6 +77,7 @@ describe("withoutQrSecretKbItems — Wi-Fi kalemi girer, kapı izi girmez", () =
       "Wi-Fi şifresi yildiz77; bina kodu 1234",
       "Network key sunny2024, the door lock is on the left",
       "Wi-Fi'ye giriş şifresi: gunes1907", // "giriş şifresi" kapı kalıbı — fazla eleme güvenli yön
+      "Wi-Fi: LaleNet / gunes1907. Giriş 4590.", // iz sözcüğü YOK, yalnız KAPI KALIBI yakalar (giriş + bitişik 4–8 hane)
     ]) {
       expect(withoutQrSecretKbItems([kb("wifi", content)]), content).toEqual([]);
     }
@@ -91,6 +92,7 @@ describe("qrPropertyCeiling — daire alt kotası (kurucu kararı 10-11)", () =>
   it("1–2 dairede sınır yok (pay zaten tamamı); 3+ dairede eşit payın iki katı, en az 1, en çok QR payı", () => {
     expect(qrPropertyCeiling(45, 1)).toBe(45);
     expect(qrPropertyCeiling(45, 2)).toBe(45);
+    expect(qrPropertyCeiling(45, 3)).toBe(30);
     expect(qrPropertyCeiling(150, 7)).toBe(43); // Pro örneği
     expect(qrPropertyCeiling(450, 25)).toBe(36); // İşletme örneği
     expect(qrPropertyCeiling(10, 5)).toBe(4);

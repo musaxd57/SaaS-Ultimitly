@@ -136,7 +136,10 @@ describe("rezervasyon öncesi KB sır kapısı", () => {
       { category: "general", title: "Çöp", content: "Çöp salı günü" },
     ];
     expect(withoutQrSecretKbItems(nonWifi)).toEqual(withoutSecretKbItems(nonWifi));
-    // Rezervasyon öncesi kanal konuşmasında Wi-Fi YİNE verilmez (istisna yalnız QR'ın bağlı cihazı içindir).
-    expect(kbForStayScope([{ category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre gunes1907" }], null)).toEqual([]);
+    // Rezervasyon öncesi kanal konuşmasında Wi-Fi YİNE verilmez (istisna yalnız QR'ın bağlı cihazı içindir). Kalem bilerek içerik
+    // taramasından GEÇER (rakamsız, iki noktasız, "Wi-Fi" sözcüğü yok) — yalnız KATEGORİ bacağı düşürür.
+    const wifi = { category: "wifi", title: "Ağ", content: "Ağ adı LaleNet, şifre denizkenari" };
+    expect(withoutSecretKbItems([wifi])).toHaveLength(1); // KONTROL: içerik bacağı tek başına düşürmüyor
+    expect(kbForStayScope([wifi], null)).toEqual([]);
   });
 });

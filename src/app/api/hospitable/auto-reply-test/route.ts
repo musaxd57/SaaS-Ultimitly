@@ -31,11 +31,7 @@ export const POST = withManage(async (session) => {
   //
   // 🚨 KONUŞMA BAŞINA (kurucu kararı 10-11, "gerçek çağrı kadar düşsün"): 07-31 düzeltmesi önizleme başına TEK birim düşüyordu →
   // Başlangıç planında günde teorik 150 × 12 = 1.800 çağrı. Artık her model çağrısı bir birim, `previewChannelAutoReplies` içinde
-  // (`previewBudget`); bütçe biterse önizleme orada durur ve ekran "günlük sınır doldu" der. Burada yalnız BAKILIR: bütçe zaten
-  // doluysa hiçbir konuşma yüklenmeden reddedilir.
-  const budget = await peekDailyAiBudget(session.organizationId);
-  if (!budget.ok) return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
-
+  // (`previewBudget`); bütçe biterse (baştan dolu olsa da) önizleme orada durur ve ekran "günlük sınır doldu" der.
   try {
     const { outcomes, budgetExhausted } = await previewChannelAutoReplies(session.organizationId);
     const previews = outcomes.map((o) => ({
