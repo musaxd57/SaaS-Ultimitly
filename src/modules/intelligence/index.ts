@@ -12,6 +12,8 @@ export { bootstrapMemoryFromKnowledgeBase } from "./memory/bootstrap";
 export type { BootstrapResult } from "./memory/bootstrap";
 export { refreshPatternMemory, PATTERN_MIN_SIGNALS, PATTERN_WINDOW_DAYS } from "./memory/patterns";
 export { getPropertyMemory } from "./memory/read";
+export { getMemoryContradictions, acknowledgeContradiction } from "./memory/contradictions";
+export type { ContradictionWarning } from "./memory/contradictions";
 export type { PropertyMemoryView } from "./memory/read";
 export { purgeExpiredSignals } from "./retention";
 export type { SignalDraft, SignalKind, SignalSource } from "./signals/derive";

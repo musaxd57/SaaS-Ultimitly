@@ -28,7 +28,8 @@ import { generateCalendarToken } from "@/lib/export/ics";
 import { getCalendarSourceUrl, maskFeedUrl } from "@/lib/calendar-source-url";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
-import { getPropertyMemory } from "@/modules/intelligence";
+import { getMemoryContradictions, getPropertyMemory } from "@/modules/intelligence";
+import { MemoryContradictions } from "@/components/properties/memory-contradictions";
 import { getNightlyRate } from "@/modules/intelligence/money/rates";
 import { RATE_STALE_DAYS } from "@/modules/intelligence/money/impact";
 import { NightlyRateForm } from "@/components/properties/nightly-rate-form";
@@ -73,6 +74,8 @@ export default async function PropertyDetailPage({
   // V1 MÜLK HAFIZASI — salt okuma, kiracı+mülk kapsamlı. Okunamazsa sayfa yine çalışır
   // ("AI bozulsa PMS çalışır"): kart "okunamadı" der, hiçbir başka bölüm etkilenmez.
   const memory = await getPropertyMemory(session.organizationId, property.id, 8).catch(() => null);
+  // Değişmez 13 (kurucu 10-11): olası çelişki uyarıları — yalnız yönetici; okunamazsa uyarı yok (sayfanın geri kalanı etkilenmez).
+  const contradictions = canManage ? await getMemoryContradictions(session.organizationId, property.id).catch(() => []) : [];
   // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
   const nightlyRate = canManage ? await getNightlyRate(session.organizationId, property.id).catch(() => null) : null;
   const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null;
@@ -445,6 +448,10 @@ export default async function PropertyDetailPage({
                     Bilgi Tabanı&apos;ndan {memory.facts.length} kalem hafızada
                     {memory.patterns.length > 0 ? ` · ${memory.patterns.length} tekrarlayan örüntü` : ""}.
                   </p>
+                  <MemoryContradictions
+                    propertyId={property.id}
+                    items={contradictions.map((c) => ({ memoryIds: c.memoryIds, text: c.text }))}
+                  />
                   {memory.patterns.length > 0 ? (
                     <div className="space-y-1">
                       {memory.patterns.map((p) => (

@@ -45,6 +45,7 @@ const COVERAGE: Record<string, Record<string, string>> = {
   },
   "properties/[id]/house-rules": { PUT: "tests/integration/house-rules.test.ts" },
   "properties/[id]/nightly-rate": { PUT: "tests/integration/attention-money.test.ts", DELETE: "tests/integration/attention-money.test.ts" },
+  "properties/[id]/memory-acknowledge": { POST: "tests/integration/memory-contradictions.test.ts" },
   "properties/[id]/reset-chat": { POST: "tests/integration/property-reset-chat-route.test.ts" },
   "properties/[id]/rotate-ical": { POST: "tests/integration/cross-tenant-handlers.test.ts" },
   "reservations/[id]": { PATCH: "tests/integration/cross-tenant-handlers.test.ts", DELETE: "tests/integration/cross-tenant-handlers.test.ts" },
