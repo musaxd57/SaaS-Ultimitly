@@ -14,7 +14,7 @@ import { prisma } from "@/lib/db";
 //
 // SAFE BY DESIGN — never loses a message:
 //   * Only Hospitable-sourced conversations (externalReservationId set).
-//   * Groups by (propertyId, guest name).
+//   * Groups by (propertyId, CHANNEL, guest name) — kanal 10-10 gece eklendi: kanallar arası birleştirme yok (değişmez 10).
 //   * In each group the conversation with the MOST messages is the "keeper".
 //   * A duplicate is deleted ONLY when EVERY one of its messages already exists
 //     in the keeper as the SAME message (provider id + direction + body, or —

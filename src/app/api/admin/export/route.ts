@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
   if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
     return forbidden("Dışa aktarma yalnız operatör panelinden başlatılır.");
   }
-  // Operatör kimliğine bağlı tavan (Haiku operatör denetimi 10-10): her BAŞARILI çağrı bir işletmenin TAM dökümü + zorunlu kayıt.
+  // Operatör kimliğine bağlı tavan (Haiku operatör denetimi 10-10): başarılı bir çağrı bir işletmenin TAM dökümü + zorunlu kayıt; sayaç
+  // parametre doğrulamasından ÖNCE her denemede artar (geçersiz istekler de sayılır).
   // Site-dışı kontrolünden SONRA (10-10 gece, Haiku incelemesi): başka sitenin yönlendirmeleri operatörün kovasını tüketemesin.
   const limited = await rateLimit(`admin-export:${session.actorUserId ?? session.userId}`, 20, 60 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
