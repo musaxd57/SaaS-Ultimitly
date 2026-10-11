@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CalendarX2 } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,7 +62,7 @@ export default async function CancellationsPage({
 }: {
   searchParams: Promise<{ propertyId?: string; period?: string; sayfa?: string }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const sp = await searchParams;
   // A repeated ?propertyId= arrives as string[] at runtime; take the first so a
   // bare array never reaches Prisma on this scalar field (would throw).

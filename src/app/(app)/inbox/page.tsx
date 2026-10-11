@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MessageSquare, Plus, AlertTriangle, Search, X } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { canManage } from "@/lib/api";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
@@ -40,7 +40,7 @@ export default async function InboxPage({
 }: {
   searchParams: Promise<{ status?: string; q?: string; sayfa?: string }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const sp = await searchParams;
   // Next 15 hands a repeated query param (?status=a&status=b) as string[] at
   // runtime despite the string typing — take the first so a bare array never

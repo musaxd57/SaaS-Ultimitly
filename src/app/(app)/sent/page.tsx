@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Send, ListOrdered } from "lucide-react";
 import type { Prisma } from "@prisma/client";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
@@ -96,7 +96,7 @@ export default async function SentPage({
 }: {
   searchParams: Promise<{ type?: string; sayfa?: string }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const orgId = session.organizationId;
   const { type, sayfa } = await searchParams;
 

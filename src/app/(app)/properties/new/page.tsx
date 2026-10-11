@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/link-button";
@@ -9,7 +9,7 @@ import { PropertyForm } from "@/components/properties/property-form";
 export const dynamic = "force-dynamic";
 
 export default async function NewPropertyPage() {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   // Staff can't create properties (API 403s); send them back instead of a dead form.
   if (session.role !== "owner" && session.role !== "manager") redirect("/properties");
   return (

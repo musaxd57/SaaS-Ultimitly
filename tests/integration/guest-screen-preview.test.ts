@@ -190,7 +190,8 @@ describe("K14 — misafirin gördüğü ekran (salt okunur önizleme)", () => {
   it("🚨 erişim: personel yönlendirilir, başka işletmenin konuşması 404", async () => {
     const { conversation } = await seed();
     mockAuth.mockResolvedValueOnce({ userId: "s1", organizationId: (await prisma.organization.findFirstOrThrow()).id, role: "staff", email: "s@x.com" } as never);
-    await expect(render(conversation.id)).rejects.toThrow("NEXT_REDIRECT:/dashboard");
+    // Sayfa katmanı yönetici kapısı (requireManagerSession, 10-11): personel middleware ile AYNI yere, /tasks'a yönlendirilir.
+    await expect(render(conversation.id)).rejects.toThrow("NEXT_REDIRECT:/tasks");
     const other = await prisma.organization.create({ data: { name: "Başka" } });
     mockAuth.mockResolvedValueOnce({ userId: "u2", organizationId: other.id, role: "owner", email: "b@x.com" } as never);
     await expect(render(conversation.id)).rejects.toThrow("NEXT_NOT_FOUND");

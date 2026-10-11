@@ -1,5 +1,5 @@
 import { ArrowLeft, Building2 } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function NewConversationPage() {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const [properties, reservations] = await Promise.all([
     prisma.property.findMany({
       where: { organizationId: session.organizationId },

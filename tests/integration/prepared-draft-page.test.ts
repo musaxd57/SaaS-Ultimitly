@@ -131,7 +131,8 @@ describe("konuşma sayfası — hazır taslak bağlantısı", () => {
   it("personel: taslak gösterilmez (cevap yetkisi yok)", async () => {
     const { orgId, conversationId } = await seed([{ direction: "inbound", body: "IBAN?", draft: DRAFT }]);
     mockAuth.mockResolvedValue(session(orgId, "staff"));
-    expect(initialDraftOf(await render(conversationId))).toBeNull();
+    // Personel konuşma sayfasını HİÇ çizemez (yönetici kapısı, 10-11) → taslak da yok; /tasks'a yönlendirilir.
+    await expect(render(conversationId)).rejects.toMatchObject({ digest: expect.stringContaining(";/tasks;") });
   });
 
   it("taslaktan sonra cevap gitti → bayat, gösterilmez", async () => {

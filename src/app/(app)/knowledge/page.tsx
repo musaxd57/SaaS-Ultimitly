@@ -1,5 +1,5 @@
 import { Building2 } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
@@ -11,7 +11,7 @@ import { detectKbInstructionHijack } from "@/lib/ai/fallback";
 export const dynamic = "force-dynamic";
 
 export default async function KnowledgePage() {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const [properties, items] = await Promise.all([
     prisma.property.findMany({
       where: { organizationId: session.organizationId },

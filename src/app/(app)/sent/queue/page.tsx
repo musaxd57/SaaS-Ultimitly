@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ListOrdered, ArrowLeft, ExternalLink } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
-import { canManage } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -72,8 +70,7 @@ export default async function OutboxQueuePage({
 }: {
   searchParams: Promise<{ status?: string; page?: string }>;
 }) {
-  const session = await requireAuth();
-  if (!canManage(session)) redirect("/tasks"); // staff: same boundary as the middleware
+  const session = await requireManagerSession(); // staff: same boundary as the middleware
 
   const sp = await searchParams;
   const activeStatus = sp.status && (OUTBOX_STATUSES as readonly string[]).includes(sp.status) ? sp.status : null;

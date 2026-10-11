@@ -7,7 +7,7 @@ import {
   Trophy,
   BedDouble,
 } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { riskTypeLabel } from "@/lib/ui-labels";
 import {
@@ -61,7 +61,7 @@ const INTENT_LABEL: Record<string, string> = {
 };
 
 export default async function ReportsPage() {
-  const { organizationId } = await requireAuth();
+  const { organizationId } = await requireManagerSession();
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   // Risk view reads the append-only RiskEvent HISTORY (Codex #32) — the old
   // Conversation snapshot kept only the LAST decision per thread, so earlier

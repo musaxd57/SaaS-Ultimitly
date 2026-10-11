@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft, Eye, User, UserRound } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -48,7 +48,7 @@ export default async function GuestChatDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ mesaj?: string }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   if (session.role !== "owner" && session.role !== "manager") redirect("/dashboard");
   const { id } = await params;
   const { mesaj } = await searchParams;

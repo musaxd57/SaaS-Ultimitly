@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +45,7 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ hospitable?: string; tab?: string }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const { hospitable: hospitableResult, tab: tabParam } = await searchParams;
   // The channel token belongs to THIS account. Its OWNER can connect it
   // themselves (self-service, with instructions), and the operator (super-admin,

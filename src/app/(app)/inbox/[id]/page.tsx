@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, BookOpen, ArrowLeftRight, CheckSquare } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { stayEndedBefore } from "@/modules/availability/core";
 import { canManage } from "@/lib/api";
@@ -57,7 +57,7 @@ export default async function ConversationPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ from?: string | string[] }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const { id } = await params;
   const sp = await searchParams;
 

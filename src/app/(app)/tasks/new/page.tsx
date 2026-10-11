@@ -1,7 +1,5 @@
 import { ArrowLeft, Building2 } from "lucide-react";
-import { redirect } from "next/navigation";
-import { requireAuth } from "@/lib/auth";
-import { canManage } from "@/lib/api";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,11 +10,10 @@ import { TaskForm } from "@/components/tasks/task-form";
 export const dynamic = "force-dynamic";
 
 export default async function NewTaskPage() {
-  const session = await requireAuth();
   // Manager-only surface: it server-renders EVERY property + user name for the
   // assign form. Task creation is manager-only at the API too; the middleware
   // also stops staff at exact-/tasks — this is the defense-in-depth page gate.
-  if (!canManage(session)) redirect("/tasks");
+  const session = await requireManagerSession();
   const [properties, members] = await Promise.all([
     prisma.property.findMany({
       where: { organizationId: session.organizationId },

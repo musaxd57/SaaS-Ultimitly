@@ -4,7 +4,7 @@ import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft, BookOpen, Brain, CalendarDays, CalendarSync, ArrowDownToLine, QrCode } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -52,7 +52,7 @@ export default async function PropertyDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ gecmis?: string | string[] }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   // Staff get a read-only view; only owner/manager see edit/delete/sync controls
   // (mirrors the API, which 403s these for staff).
   const canManage = session.role === "owner" || session.role === "manager";

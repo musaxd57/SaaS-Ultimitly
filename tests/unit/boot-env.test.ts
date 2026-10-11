@@ -468,6 +468,12 @@ describe("boot gate — Sentry adresi şifreli olmalı (eski denetim DEN#27, 10-
     expect(sentryWarnings("http://pubkey@o1.ingest.sentry.io/2")).toHaveLength(1);
   });
 
+  it("anahtarı ya da proje numarası eksik https adresi de UYARI (Haiku incelemesi 10-11)", () => {
+    expect(sentryWarnings("https://o1.ingest.sentry.io/2")).toHaveLength(1);
+    expect(sentryWarnings("https://pubkey@o1.ingest.sentry.io")).toHaveLength(1);
+    expect(sentryWarnings("https://")).toHaveLength(1);
+  });
+
   it("KONTROL: https adres ya da boş → uyarı yok; uyarı adresi (anahtarı) basmaz", () => {
     expect(sentryWarnings("https://pubkey@o1.ingest.sentry.io/2")).toEqual([]);
     expect(sentryWarnings("")).toEqual([]);

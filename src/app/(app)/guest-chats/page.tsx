@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle, QrCode, Building2, MessageSquare, UserRound } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -32,7 +32,7 @@ export default async function GuestChatsPage({
 }: {
   searchParams: Promise<{ sayfa?: string }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   if (session.role !== "owner" && session.role !== "manager") redirect("/dashboard");
   const { sayfa } = await searchParams;
   const page = clampPage(sayfa, MAX_LIST_PAGE);

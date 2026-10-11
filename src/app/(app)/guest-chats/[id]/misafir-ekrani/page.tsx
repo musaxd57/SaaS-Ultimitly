@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft, Eye } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { GUEST_CHAT_MESSAGE_WINDOW, resolveGuestChat } from "@/lib/guest-chat";
@@ -38,7 +38,7 @@ const STATE_LINE: Record<GuestScreenState, string> = {
  * Erişim konuşma sayfasıyla aynı: sahip / yönetici; başka işletmenin konuşması 404.
  */
 export default async function GuestScreenPreviewPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   if (session.role !== "owner" && session.role !== "manager") redirect("/dashboard");
   const { id } = await params;
 

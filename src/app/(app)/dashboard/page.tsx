@@ -11,7 +11,7 @@ import {
   ListChecks,
   Users,
 } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { isSuperAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
 import { notClosingHandledWhere } from "@/lib/conversation-attention";
@@ -38,7 +38,7 @@ import { isDemoOrg } from "@/lib/demo-tenant/constants";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const orgId = session.organizationId;
   const now = new Date();
   // "Today" is the host's local calendar day (org timezone), not the server's

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Building2, Plus, MapPin, Clock } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
@@ -13,7 +13,7 @@ import { isDemoOrg } from "@/lib/demo-tenant/constants";
 export const dynamic = "force-dynamic";
 
 export default async function PropertiesPage() {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const demo = isDemoOrg(session.organizationId);
   const canManage = session.role === "owner" || session.role === "manager";
   const [properties, channelConnected] = await Promise.all([

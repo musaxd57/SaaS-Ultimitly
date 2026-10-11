@@ -131,13 +131,20 @@ describe("properties/[id] — KVKK silme kartı görünürlüğü (server-side g
     expect(new Set(controls.map((c) => c.reservationId)).size).toBe(7);
   });
 
-  it.each(["manager", "staff"])("flag AÇIK + %s: kart YOK (owner-only yüzey)", async (role) => {
+  it("flag AÇIK + manager: kart YOK (owner-only yüzey)", async () => {
     vi.stubEnv("GUEST_ERASURE_ENABLED", "1");
     const { org, property } = await seedPropertyWithHistory();
-    mockAuth.mockResolvedValue(sessionFor(org.id, role));
+    mockAuth.mockResolvedValue(sessionFor(org.id, "manager"));
     const tree = await renderPage(property.id);
     expect(treeText(tree)).not.toContain("KVKK Silme");
     expect(erasureControls(tree)).toHaveLength(0);
+  });
+
+  it("flag AÇIK + staff: sayfa HİÇ çizilmez (yönetici kapısı 10-11) → kart da yok; /tasks'a yönlendirilir", async () => {
+    vi.stubEnv("GUEST_ERASURE_ENABLED", "1");
+    const { org, property } = await seedPropertyWithHistory();
+    mockAuth.mockResolvedValue(sessionFor(org.id, "staff"));
+    await expect(renderPage(property.id)).rejects.toMatchObject({ digest: expect.stringContaining(";/tasks;") });
   });
 });
 

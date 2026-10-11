@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CalendarDays, ChevronLeft, ChevronRight, LogIn, LogOut } from "lucide-react";
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf } from "@/modules/availability/core";
@@ -29,7 +29,7 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ month?: string; property?: string }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const orgId = session.organizationId;
   const params = await searchParams;
 

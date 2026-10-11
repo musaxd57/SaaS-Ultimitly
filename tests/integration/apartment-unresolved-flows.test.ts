@@ -123,6 +123,7 @@ describe("mülk sayfası — daire numarası uyarısı", () => {
     await resetDb();
     const c = await seed("Lale", "Daireniz {daire}.");
     mockAuth.mockResolvedValue(session(c.orgId, "staff"));
-    expect(treeText(await render(c.propertyId))).not.toContain("Daire numarası okunamadı");
+    // Personel sayfayı HİÇ çizemez (yönetici kapısı, 10-11) → uyarı da yok; /tasks'a yönlendirilir.
+    await expect(render(c.propertyId)).rejects.toMatchObject({ digest: expect.stringContaining(";/tasks;") });
   });
 });

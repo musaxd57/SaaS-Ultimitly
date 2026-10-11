@@ -1,4 +1,4 @@
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DEFAULT_TEMPLATES } from "@/lib/templates";
@@ -7,7 +7,7 @@ import { TemplateManager } from "@/components/templates/template-manager";
 export const dynamic = "force-dynamic";
 
 export default async function TemplatesPage() {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
 
   const [properties, customTemplates] = await Promise.all([
     prisma.property.findMany({

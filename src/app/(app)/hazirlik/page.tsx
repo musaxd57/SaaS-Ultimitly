@@ -1,4 +1,4 @@
-import { requireAuth } from "@/lib/auth";
+import { requireManagerSession } from "@/lib/auth/manager-page";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/link-button";
@@ -44,7 +44,7 @@ export default async function HazirlikPage({
 }: {
   searchParams: Promise<{ gun?: string }>;
 }) {
-  const session = await requireAuth();
+  const session = await requireManagerSession();
   const sp = await searchParams;
   const days = [1, 7, 14].includes(Number(sp.gun)) ? Number(sp.gun) : 7;
 

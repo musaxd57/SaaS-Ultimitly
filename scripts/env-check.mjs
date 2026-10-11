@@ -59,6 +59,9 @@ export function checkProductionEnv(env) {
   const sentryDsn = (env.SENTRY_DSN ?? "").trim();
   if (sentryDsn && !/^https:\/\//i.test(sentryDsn)) {
     warnings.push("SENTRY_DSN is not an https:// address — error events will NOT be sent. Use the https DSN from your Sentry project.");
+  } else if (sentryDsn && !isUsableSentryDsn(sentryDsn)) {
+    // Haiku incelemesi (10-11): anahtarı ya da proje numarası eksik https adresi de parseDsn'de duser — o da sessiz kalmasin.
+    warnings.push("SENTRY_DSN cannot be parsed (missing key or project id) — error events will NOT be sent. Copy the DSN from your Sentry project.");
   }
 
   const encKey = (env.ENCRYPTION_KEY ?? "").trim();
@@ -564,3 +567,13 @@ export const STRICT_ONE_FLAGS = Object.freeze([
 
 /** Bunlar okurken bosluklari kirpar (`?.trim() === "1"`): " 1" ACIK sayilir, uyari verilmez. */
 const TRIMMED_STRICT_FLAGS = new Set(["HOUSE_RULES_CARD_ENABLED"]);
+
+/** report-error-core parseDsn ile ayni kosul: https + kullanici (anahtar) + yolda proje numarasi. */
+function isUsableSentryDsn(dsn) {
+  try {
+    const u = new URL(dsn);
+    return u.protocol === "https:" && Boolean(u.username) && u.pathname.split("/").filter(Boolean).length > 0;
+  } catch {
+    return false;
+  }
+}
