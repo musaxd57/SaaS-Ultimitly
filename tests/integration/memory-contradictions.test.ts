@@ -122,6 +122,51 @@ describe("POST /api/properties/[id]/memory-acknowledge — kiracı + rol (deği�
     expect(await getMemoryContradictions(b.orgId, b.propertyId)).toHaveLength(1);
   });
 
+  it("🚨 AYNI kiracının BAŞKA mülkünün kalemi bu mülk üzerinden işaretlenmez; o mülkün şikâyetleri bu mülkte sayılmaz (mutasyon C8, C10)", async () => {
+    const a = await seed(0); // A: Wi-Fi kalemi var, şikâyet yok
+    const b = await prisma.property.create({ data: { organizationId: a.orgId, name: "Lale 7" } });
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId: b.id, category: "wifi", title: "Wi-Fi", content: "Ağ B.", isActive: true, source: "host", reviewState: "approved" },
+    });
+    await bootstrapMemoryFromKnowledgeBase(a.orgId, b.id);
+    for (let i = 0; i < 3; i++) {
+      const convo = await prisma.conversation.create({ data: { propertyId: b.id, guestIdentifier: `B ${i}`, channel: "airbnb" } });
+      for (const kind of ["complaint_issue", "wifi"]) {
+        await prisma.conversationItem.create({ data: { organizationId: a.orgId, conversationId: convo.id, messageId: `mb-${convo.id}`, kind, sources: "understanding" } });
+      }
+    }
+    expect(await getMemoryContradictions(a.orgId, a.propertyId)).toEqual([]); // B'nin şikâyetleri A'ya yazılmaz
+    const bWarn = await getMemoryContradictions(a.orgId, b.id);
+    expect(bWarn).toHaveLength(1);
+    await asUser(a.orgId);
+    const res = await ack(a.propertyId, bWarn[0].memoryIds);
+    expect(((await res.json()) as { count: number }).count).toBe(0);
+    expect(await getMemoryContradictions(a.orgId, b.id)).toHaveLength(1);
+  });
+
+  it("🚨 tutarsız satır: bu mülke yazılmış ama YABANCI kiracıya ait hafıza kalemi işaretlenmez (mutasyon C9)", async () => {
+    const a = await seed(3);
+    const { orgId: otherOrg } = await makeOrgWithProperty();
+    const stray = await prisma.propertyMemory.create({
+      data: {
+        organizationId: otherOrg,
+        propertyId: a.propertyId,
+        kind: "fact",
+        category: "wifi",
+        title: "x",
+        source: "kb_item",
+        sourceRef: "stray",
+        evidenceJson: "[]",
+        confidence: 0.5,
+        observedAt: new Date(Date.now() - 86_400_000),
+      },
+    });
+    await asUser(a.orgId);
+    const res = await ack(a.propertyId, [stray.id]);
+    expect(((await res.json()) as { count: number }).count).toBe(0);
+    expect((await prisma.propertyMemory.findUniqueOrThrow({ where: { id: stray.id } })).humanOverrideAt).toBeNull();
+  });
+
   it("personel → 403; boş / bozuk gövde → 400", async () => {
     const s = await seed(3);
     await asUser(s.orgId, "staff");
