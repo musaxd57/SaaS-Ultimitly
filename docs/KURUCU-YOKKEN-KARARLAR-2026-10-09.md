@@ -155,3 +155,12 @@ yazdığı "112'yi / polisi / acil servisi arayın" QR'da bir kez yeniden yazdı
 | Operatör "beni hatırla" (karar 23) | "Böyle kalsın" | Değişiklik yok. |
 | QR ilk cihaz kilidi (karar 16) | "QR PIN'i kapatmam ki, bayrakla ilgili dimi" | Evet: `QR_PIN_ENABLED` ortam bayrağı (canlıda bugün KAPALI). Açmak = Railway açılınca env "1" + ilk denemeler birlikte; açıkken konaklamayı yalnız PIN'i bilen cihaz bağlar, kilit sorunu kalmaz. Kod değişikliği gerekmiyor. |
 
+### Kurucu (10-11 akşam) — ölçümden sonra
+
+| Konu | Kurucu | Uygulama |
+|---|---|---|
+| Acil numara | "Acil numara 112 değil ki, her tür için ayrı; bayrak arkasında uygula; model nasıl hata yapıyor, neden, neyden etkilendi açıklasın" | `ai/emergency-number.ts` + QR rotası, anahtar `AI_EMERGENCY_NUMBER_ENABLED` KAPALI. Servis başına numara (ambulans 112 · polis 155 · jandarma 156 · itfaiye 110). Modelin açıklaması: `docs/olcum/acil-numara-2026-10-11-gpt-6-luna-mv3u05l3-aciklama.md` ("polisi arayacağım / numara ne?" ifadesi onu "acil"e çekmiş; tekrar bakınca şikâyet etiketini kendisi koyuyor — sonradan açıklama, iç nedenin kanıtı değil). Kural: anlama niyeti + koddan ev sahibi sözcüğü + konaklama konusu → ölçüm setinde 62/62 doğru karar. |
+| Ev sahibinin kendisi tehdit | "Size kalsın" | Numara verilmez, ev sahibine kalır (ev sahibi sözcüğü bacağı). |
+| Yer önerisi B1 | "İkisini de yap" | Gelen kutusunda "Eksik bilgi" → "Bilgi tabanına ekle" (form ön dolu, ev sahibi kaydeder) + mülk sayfasında "Son 30 günde N misafir çevre önerisi sordu — 'Yerel Tavsiye' ekleyin". Harita servisi önerisi (B3) ayrı karar. |
+| Haiku (iki tur) | — | 1. tur 6 bulgu (5'i doğru, 1'i temiz): bitişik "Evsahibi", "manager / landlady", "geri ödemezseniz" kaçıyordu; "numara 5'teki komşu", "Polis kaç dakikada gelir?", "call the police about the noise" numara sorusu sanılıyordu; ev sahibi e-postası "yanıtlamadı" diyordu; rapor satırı yoktu → hepsi düzeltildi + pinli. |
+

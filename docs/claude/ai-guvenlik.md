@@ -51,7 +51,19 @@
   `escalationReply()` null; 10-02'den 10-11'e fiziksel tehlikede güvenlik satırı gidiyordu — 🚨 **KALKTI, kurucu kararı 10-11: "112'yi arayın
   yazmasın, yönlendirme olmayacak hiçbir şekilde"** → tehlikede de misafire HİÇBİR metin gitmez, ev sahibine acil uyarı; model taslağındaki
   acil arama yönergesi (`hasEmergencyCallDirective`, `ai/hazard-evidence.ts`) QR'da bir kez yeniden yazdırılır, yine varsa devir
-  (`emergency_directive`); kanalda çıktı vetosu. Yalnız numara ("Ambulans: 112") yönerge değildir; numara sorusu tasarımı kurucuda); devir yapışkan değil.
+  (`emergency_directive`); kanalda çıktı vetosu. Yalnız numara ("Ambulans: 112") yönerge değildir); devir yapışkan değil.
+  🚨 **ACİL NUMARA SORUSU (kurucu kararları 10-11, `ai/emergency-number.ts`; anahtar `AI_EMERGENCY_NUMBER_ENABLED` VARSAYILAN KAPALI,
+  yalnız QR):** misafir numarayı AÇIKÇA sorarsa koddan YALNIZ sorulan servisin numarası gider, servis başına ayrı (ambulans 112, polis 155,
+  jandarma 156, itfaiye 110, genel 112; "Polis: 155"), misafirin dilinde etiket, yönerge cümlesi YOK (pinli). Modelin taslağı atılır, ev
+  sahibi HER ZAMAN uyarılır (e-postası "yalnız numarayı gönderdi" der; neden `emergency_number`). Numara VERİLMEZ (bugünkü devir): ev
+  sahibi / anlaşmazlık sözcüğü (bitişik "Evsahibi", mal sahibi, kiraya veren, yönetici, Airbnb / Booking, depozito, iade, "geri
+  ödemezseniz", şikâyet, dolandırılma, hakaret, tehdit, iptal — yedi dil; aynı turdaki önceki cevapsız misafir mesajlarında da aranır;
+  kurucu: "ev sahibinin kendisi tehditse size kalsın"); anlama katmanı numarayla birlikte acil / selam / diğer / yakın yer / ulaşım
+  dışında bir niyet verdiyse (şikâyet, iade, insan talebi ya da bir konaklama konusu — "Kapı kodu çalışmıyor, polisi arayacağız");
+  anlama katmanı koşmadıysa (AÇIK tehlike dalı hariç); işletme saat dilimi Türkiye değilse. Numara sorusu ipucu dar: rakamla süren
+  "numara 5" (daire), cümle ortasındaki "kaç" ("Polis kaç dakikada gelir?"), "telefonum / my phone", çıplak "call / contact" soru
+  sayılmaz. Ölçüm: Luna 6.0 niyetleriyle verilmesi gereken 38/38 verilir, bırakılması gereken 24/24 bırakılır (geliştirme seti;
+  modelin kendi açıklaması `docs/olcum/acil-numara-*-aciklama.md`). Kanal yolu YOK (kurucuya sorulacak: numara + devir anlamı).
   "Misafirin gördüğü ekran" önizlemesi (K14, `guest-chats/[id]/misafir-ekrani`): balonlar misafir ekranının AYNI bileşeninden
   (`GuestChatThread`), pencere GET ile aynı; misafir uçları çağrılmaz — gönderim / cihaz bağlama / okundu değişikliği YOK, sayfa hiçbir
   satır yazmaz (pinli).

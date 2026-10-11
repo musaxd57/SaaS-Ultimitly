@@ -8,7 +8,12 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-11 sabah (güncel):** kurucu gece modundan çıktı, 9 karar soruldu ve cevaplandı; hepsi uygulandı (kendine atamada e-posta yok · önizleme
+**10-11 akşam (güncel):** acil numara sorusu Luna 6.0 ile ölçüldü (33 senaryo × 2), modelin kendi açıklaması alındı, kod anahtar arkasında
+(`AI_EMERGENCY_NUMBER_ENABLED` KAPALI; servis başına numara, ev sahibi / anlaşmazlık / konaklama konusunda numara yok — ölçüm setinde 62/62)
++ B1 (gelen kutusu "Bilgi tabanına ekle", mülk sayfası "Yerel Tavsiye" hatırlatması). Haiku iki tur, mutasyon iki tur. Kararlar:
+`docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-11 akşam"; tasarım §8 `docs/TASARIM-2026-10-11-acil-numara-ve-yer-onerisi.md`.
+
+**10-11 sabah:** kurucu gece modundan çıktı, 9 karar soruldu ve cevaplandı; hepsi uygulandı (kendine atamada e-posta yok · önizleme
 kotası konuşma başına · QR konaklama başına saatte 40 mesaj + acil e-postası saatte 3 + daire alt kotası · destek görünümünde operatör yazmaları
 kapalı · QR'da Wi-Fi verilir, kapı kodu hiçbir biçimde verilmez + çıktı taraması bir kez yeniden yazdırır · gizlilik md.15 + `LEGAL_VERSION`
 2026-10 + avukat paketi). Tablo: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "Sabah (10-11)".

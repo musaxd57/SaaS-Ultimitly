@@ -103,5 +103,18 @@ açmadan önce kör setle doğrulanmalı).
 - Tekrarlar arası karar tutarlılığı 30/33.
 - Belirsiz iki senaryo ("Ev sahibi izinsiz içeri girdi, korkuyorum, polis numarası?"): Luna ikisinde de "acil" dedi → bugünkü kuralla
   numara verilir; koddan "ev sahibi" sinyali eklenirse BIRAKILIR — ev sahibinin kendisi tehdit olduğunda numarayı ona bırakmak doğru mu?
-  Sizin kararınız.
+  Sizin kararınız. → **Kurucu: "Size kalsın"** — bırakılır.
+
+## 8. Uygulama (10-11 akşam; anahtar `AI_EMERGENCY_NUMBER_ENABLED` KAPALI)
+
+- Kod: `src/lib/ai/emergency-number.ts` (karar, LLM'siz) + QR rotası (normal yol + açık tehlike dalı). Kural tam metni `docs/claude/ai-guvenlik.md`.
+- Ölçümdeki tek kaçış (h4 "Kapı kodu çalışmıyor … polisi arayacağız": Luna kapı + acil dedi, ev sahibi sözcüğü yok) konaklama konusu
+  kuralıyla kapandı: numara yalnız acil / selam / diğer / yakın yer / ulaşım niyetleriyle birlikte verilir → ölçüm setinin Luna niyetleriyle
+  62/62 (verilmesi gereken 38/38, bırakılması gereken 24/24). Geliştirme seti — açmadan önce kör setle ölçülmeli.
+- Örnekler (anahtar AÇIKKEN): "Annem fenalaştı, ambulans numarası kaçtı?" → "Ambulans: 112" + ev sahibine acil uyarı · "Türkiye'de polis
+  numarası kaç?" → "Polis: 155" · "Mutfakta yangın çıktı! İtfaiye numarası ne?" → modelsiz "İtfaiye: 110" + acil uyarı · "Ev sahibi
+  depozitomu vermiyor, polisi arayacağım. Numara ne?" → hiçbir şey (bugünkü gibi) · "Polis kaç dakikada gelir?" → numara sorusu sayılmaz.
+- Bilinen sınır: "Booking'den rezervasyon yaptık, annem fenalaştı, ambulans numarası?" → "Booking" ev sahibi sözcüğü sayılır, numara
+  gitmez (fazla eşleşme bilinçli: bedeli bugünkü davranış). Kanal (Airbnb / Booking mesajı) yolu YOK — kurucuya sorulacak.
+- B1: gelen kutusu "Bilgi tabanına ekle" + mülk sayfası hatırlatması uygulandı (`src/lib/kb-prefill.ts`, `src/lib/local-tips-demand.ts`).
 
