@@ -14,9 +14,9 @@ describe("sitemap", () => {
     expect(entries.some((e) => e.url.includes("/login"))).toBe(false);
 
     // Fixed constants, not request time: landing pinned to its last real
-    // content change; legal pages derive from LEGAL_VERSION ("2026-06").
+    // content change; legal pages derive from LEGAL_VERSION ("2026-10" — gizlilik md.15, 10-11).
     const legal = entries.find((e) => e.url.endsWith("/gizlilik"));
-    expect((legal?.lastModified as Date).getTime()).toBe(new Date("2026-06-01").getTime());
+    expect((legal?.lastModified as Date).getTime()).toBe(new Date("2026-10-01").getTime());
     for (const e of entries) {
       // A per-request timestamp would be within milliseconds of now.
       expect(Math.abs(Date.now() - (e.lastModified as Date).getTime())).toBeGreaterThan(60_000);

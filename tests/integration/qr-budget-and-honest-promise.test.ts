@@ -187,9 +187,8 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     const body = await res.json();
 
     expect(body.escalated).toBe(true);
-    // K10: acilde YALNIZ güvenlik yönergesi — "ilettim" / "kaydedildi" yok.
-    expect(body.reply).not.toMatch(/ilettim|kaydedildi/i);
-    expect(body.reply).toBe("Tehlike varsa hemen 112'yi arayın.");
+    // K10 + kurucu kararı 10-11: acilde de misafire HİÇBİR metin gitmez — "ilettim" / "kaydedildi" / "112'yi arayın" yok.
+    expect(body.reply ?? null).toBeNull();
   });
 
   // -------------------------------------------------------------------------
@@ -202,15 +201,16 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
   // ÜRETTİĞİNİ gösterir ama rotanın ona `critical` bayrağını GEÇTİĞİNİ
   // göstermez — o bağ koparsa birim testi yeşil kalır.
   // -------------------------------------------------------------------------
-  it("🚨 ACİL mesajda misafir GÜVENLİK YÖNERGESİ alır (rota criticalEvent'i geçiyor)", async () => {
+  it("🚨 ACİL mesajda misafire yönerge GİTMEZ, ama devir + karar kaydı acil (kurucu kararı 10-11: 112 satırı kalktı)", async () => {
     vi.stubEnv("AI_DAILY_CALL_CAP", "100");
     const { token } = await seed();
     const res = await ask(token, "Daireden gaz kokusu geliyor!");
     const body = await res.json();
 
     expect(body.escalated).toBe(true);
-    // K10 (09-30): yalnız kurucunun onayladığı güvenlik yönergesi — devir / kayıt bildirimi YOK.
-    expect(body.reply).toBe("Tehlike varsa hemen 112'yi arayın.");
+    expect(body.reply ?? null).toBeNull();
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { surface: "guest_chat" }, orderBy: { occurredAt: "desc" } });
+    expect(ev.riskType).toBe("safety_emergency");
   });
 
   it("🚨 TERS YÖN: acil OLMAYAN devirde güvenlik yönergesi GİTMEZ", async () => {

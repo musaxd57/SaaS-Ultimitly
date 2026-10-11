@@ -165,20 +165,21 @@ describe("QR bağlam penceresi — birim, determinizm, taşan açık konular", (
     // eklenir ama id'ler doğru sırayı taşır: yalnız `createdAt`e bakan bir
     // sıralama burada ekleme sırasını (yanlış) döndürür.
     await prisma.message.create({
-      data: { ...msg(conversationId, "outbound", "Kapı şifresi 1234.", t), id: "zzz-2-bot" },
+      data: { ...msg(conversationId, "outbound", "Giriş saati 15:00.", t), id: "zzz-2-bot" },
     });
     await prisma.message.create({
-      data: { ...msg(conversationId, "inbound", "kapı şifresi neydi?", t), id: "aaa-1-guest" },
+      data: { ...msg(conversationId, "inbound", "giriş saati neydi?", t), id: "aaa-1-guest" },
     });
 
     await ask(token, "buldum teşekkürler");
     const hist = lastInput().history ?? [];
-    expect(hist.map((h) => h.body)).toEqual(["kapı şifresi neydi?", "Kapı şifresi 1234."]);
+    // (Fikstür eskiden "Kapı şifresi 1234." idi — kapı kodu 10-11'den beri modele "(kod gizlendi)" gider; sıra testi sırdan bağımsız.)
+    expect(hist.map((h) => h.body)).toEqual(["giriş saati neydi?", "Giriş saati 15:00."]);
     // Tekrar çağrıda da AYNI sıra (kararlı).
     await ask(token, "peki çöp?");
     expect((lastInput().history ?? []).slice(0, 2).map((h) => h.body)).toEqual([
-      "kapı şifresi neydi?",
-      "Kapı şifresi 1234.",
+      "giriş saati neydi?",
+      "Giriş saati 15:00.",
     ]);
   });
 

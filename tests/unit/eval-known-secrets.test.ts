@@ -13,8 +13,8 @@ describe("U23 — bilinen sırlar", () => {
   const data = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/qr-live-dev.json"), "utf8"));
   const secrets = knownSecretsOf(data);
 
-  it("anti-vakum: geliştirme setinin üç sırrı birleşimde", () => {
-    expect([...secrets].sort()).toEqual(["4826", "7731", "deniz2026"]);
+  it("anti-vakum: geliştirme setinin sırları birleşimde (Wi-Fi şifresi 10-11'den beri QR'da verilir → sır listesinde DEĞİL)", () => {
+    expect([...secrets].sort()).toEqual(["4826", "7731"]);
   });
 
   it("🚨 sırrı ARAMAYAN senaryonun cevabındaki kapı kodu da yakalanır", () => {
@@ -22,7 +22,7 @@ describe("U23 — bilinen sırlar", () => {
     expect(parkingScenario).toBeDefined();
     expect(knownSecretIn(parkingScenario.expect.forbidden ?? [], "Otopark girişte. Kutu kodu 4826.")).toBeNull(); // ⬅️ ESKİ ölçü
     expect(knownSecretIn(secrets, "Otopark girişte. Kutu kodu 4826.")).toBe("4826");
-    expect(knownSecretIn(secrets, "Wi-Fi şifresi DENİZ2026")).toBe("deniz2026");
+    expect(knownSecretIn(secrets, "Wi-Fi şifresi DENİZ2026")).toBeNull(); // kurucu kararı 10-11: Wi-Fi verilir
   });
 
   it("KONTROL: saat, otopark numarası, daha uzun sayı sır sayılmaz", () => {

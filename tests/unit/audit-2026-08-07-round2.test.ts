@@ -54,8 +54,10 @@ describe("ReDoS — QR sır süzgeci sınırlı nicelik kullanır", () => {
   // yolu tek istekte 30 kaleme kadar okuyor → tek kiracı, TÜM replikayı
   // dondurabiliyordu (Node tek iş parçacıklı). Deneme hesabı yeterliydi.
   const src = readFileSync(join(process.cwd(), "src/lib/guest-chat.ts"), "utf8");
+  // 10-11: kapı adı gerektirmeyen dört kalıp + kapı kodu sözcüğü kalıbı adlı sabitlere taşındı (QR Wi-Fi istisnası) — tarama onların
+  // başından (`CODE_WORD_VALUE`) başlar; satır sonu "/i," (dizide) ya da "/i;" (sabit).
   const patterns = src.slice(
-    src.indexOf("const SECRET_PATTERNS"),
+    src.indexOf("const CODE_WORD_VALUE"),
     src.indexOf("function looksLikeSecret"),
   );
 
@@ -63,7 +65,7 @@ describe("ReDoS — QR sır süzgeci sınırlı nicelik kullanır", () => {
     // Yalnız GERÇEK regex satırlarına bak — yorumlar `*` içerebiliyor.
     const regexLines = patterns
       .split("\n")
-      .filter((l) => l.trimStart().startsWith("/") && l.trimEnd().endsWith("/i,"));
+      .filter((l) => l.trimStart().startsWith("/") && /\/i[,;]$/.test(l.trimEnd()));
     expect(regexLines.length).toBeGreaterThan(4); // külliyat gerçekten bulundu
     for (const line of regexLines) {
       expect(line, `sınırsız nicelik: ${line.trim()}`).not.toMatch(/\\w\*/);
