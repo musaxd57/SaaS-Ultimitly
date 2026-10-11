@@ -1,6 +1,7 @@
 import "server-only";
 
-import { calendarDateOf, describeNights, nightsBetween, type NightKey } from "./core";
+import { calendarDateOf, describeNights, nightsBetween, todayKey, type NightKey } from "./core";
+import { findOrphanGaps } from "./gaps";
 import { loadAvailabilityInputs } from "./load";
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,41 @@ export async function findUpcomingConflicts(
         overlapNights,
         longestStayNights: Math.max(overlapNights, ...c.reservationIds.map((id) => stayNights.get(id) ?? 0)),
       });
+    }
+  }
+  return out;
+}
+
+export interface UpcomingGap {
+  propertyId: string;
+  /** Yarı açık [from, to), mülk takvim günleri. */
+  from: NightKey;
+  to: NightKey;
+  nights: number;
+  confirmed: boolean;
+}
+
+/**
+ * Yaklaşan YETİM BOŞLUKLAR (V2 boşluk satırı; anahtar `ATTENTION_GAP_ENABLED`, kapalı). Saf dedektör `gaps.ts`; burada yalnız
+ * yükleme. Bu geceden itibaren (mülkün saat dilimiyle) `CONFLICT_HORIZON_NIGHTS` gece; aralığın ilk gecesinin komşusu (dün)
+ * görülmediği için BU GECEKİ boşluk sayılmaz (son dakika — bilinçli). Hiçbir satır değiştirilmez.
+ */
+export async function findUpcomingGaps(
+  organizationId: string,
+  opts: { propertyIds?: readonly string[]; now: Date },
+): Promise<UpcomingGap[]> {
+  const loaded = await loadAvailabilityInputs(organizationId, {
+    propertyIds: opts.propertyIds,
+    range: { nightsFromToday: CONFLICT_HORIZON_NIGHTS },
+    now: opts.now,
+  });
+  if (!loaded) return [];
+  const out: UpcomingGap[] = [];
+  for (const input of loaded.inputs.values()) {
+    const report = describeNights(input, loaded.range);
+    if (!report.ok) continue;
+    for (const g of findOrphanGaps(report.value.nights, { fromNight: todayKey(opts.now, input.timeZone) })) {
+      out.push({ propertyId: input.propertyId, ...g });
     }
   }
   return out;

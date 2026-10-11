@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarRange, CalendarX2, Clock, Hand, HandHeart, Hourglass, LogOut, Repeat, Unplug } from "lucide-react";
+import { AlertTriangle, CalendarPlus, CalendarRange, CalendarX2, Clock, Hand, HandHeart, Hourglass, LogOut, Repeat, Unplug } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
@@ -33,6 +33,7 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   decision_pending: Hourglass,
   commitment_due: HandHeart,
   connection_unhealthy: Unplug,
+  booking_gap: CalendarPlus,
 };
 
 /** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
@@ -46,6 +47,15 @@ function nightsLabel(from: string, to: string): string {
   const last = dayLabel(to, -1);
   const first = dayLabel(from);
   return first === last ? `${first} gecesi` : `${first} – ${last} geceleri`;
+}
+
+/** Yarı açık [from, to) aralığındaki gece sayısı (takvim günü anahtarları). */
+function nightCount(from: string, to: string): number {
+  const ms = (k: string) => {
+    const [y, m, d] = k.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.max(1, Math.round((ms(to) - ms(from)) / 86_400_000));
 }
 
 function headline(item: AttentionItem): string {
@@ -76,6 +86,8 @@ function headline(item: AttentionItem): string {
     }
     case "connection_unhealthy":
       return item.connectionErrorKind ? "Kanal bağlantısı okunamıyor" : "Kanal senkronu gecikiyor";
+    case "booking_gap":
+      return `İki rezervasyon arasında ${item.nights ? nightCount(item.nights.from, item.nights.to) : 1} boş gece`;
   }
 }
 
@@ -115,6 +127,11 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
       const what = canManageChannel ? CONNECTION_ERROR_TEXT[item.connectionErrorKind] : CONNECTION_ERROR_TEXT_VIEWER;
       return `Tüm daireler · ${what} · ${last}`;
     }
+    case "booking_gap": {
+      const range = item.nights ? nightsLabel(item.nights.from, item.nights.to) : "";
+      const more = (item.gapCount ?? 1) > 1 ? ` · ${(item.gapCount ?? 1) - 1} boşluk daha` : "";
+      return `${item.propertyName} · ${range}${more} · kısa konaklamaya açmayı düşünün`;
+    }
   }
 }
 
@@ -128,6 +145,12 @@ function money(amount: number, currency: string): string {
  */
 export function moneyLine(m: MoneyImpact | undefined): { text: string; hint?: string } | null {
   if (!m) return null;
+  if (m.kind === "estimate" && m.assumptions.includes("opportunity_not_guaranteed")) {
+    return {
+      text: `Olası gelir: ${money(m.low, m.currency)} – ${money(m.high, m.currency)} (tahmini)`,
+      hint: "Boş gece sayısı × gecelik fiyat aralığınız. Satılacağı garanti değil; minimum konaklama kuralınız ve son dakika talebi bilinmiyor.",
+    };
+  }
   if (m.kind === "estimate") {
     return {
       text: `Risk altındaki tutar: ${money(m.low, m.currency)} – ${money(m.high, m.currency)} (tahmini)`,
@@ -179,12 +202,14 @@ export function AttentionPanel({
                     // Kesin tespit DEĞİL — host'un doğrulaması gerekiyor. Çakışmada sebep sınıflandırma
                     // değil, kayıtlardan birinin güncel olduğunun kanıtlanamaması.
                     <span className="ml-1 text-amber-700 dark:text-amber-500">
-                      {item.kind === "calendar_conflict" ? "· kayıtlardan biri güncel olmayabilir, doğrulayın" : "· otomatik sınıflandırma, doğrulayın"}
+                      {item.kind === "calendar_conflict" || item.kind === "booking_gap"
+                        ? "· kayıtlardan biri güncel olmayabilir, doğrulayın"
+                        : "· otomatik sınıflandırma, doğrulayın"}
                     </span>
                   ) : null}
                 </p>
                 {(() => {
-                  const line = item.kind === "calendar_conflict" ? moneyLine(item.money) : null;
+                  const line = item.kind === "calendar_conflict" || item.kind === "booking_gap" ? moneyLine(item.money) : null;
                   return line ? (
                     <p className="truncate text-xs text-muted-foreground" title={line.hint}>
                       {line.text}

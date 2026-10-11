@@ -3,8 +3,8 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isClosingHandled } from "@/lib/conversation-attention";
 import { alertOnTransition } from "@/lib/alert-state";
-import { findUpcomingConflicts, type UpcomingConflict } from "@/modules/availability/conflicts";
-import { estimateConflictImpact, type MoneyImpact, type NightlyRateRange } from "@/modules/intelligence/money/impact";
+import { findUpcomingConflicts, findUpcomingGaps, type UpcomingConflict, type UpcomingGap } from "@/modules/availability/conflicts";
+import { estimateConflictImpact, estimateGapOpportunity, type MoneyImpact, type NightlyRateRange } from "@/modules/intelligence/money/impact";
 import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conversation-items/store";
 import type { ItemKind } from "@/lib/conversation-items/core";
@@ -71,6 +71,7 @@ export const ATTENTION_KINDS = [
   "decision_pending",
   "commitment_due",
   "connection_unhealthy",
+  "booking_gap",
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -101,6 +102,19 @@ export const COMMITMENT_MAX_ROWS = 3;
 
 /** Liste tavanı: dikkat çekmek için kısa kalmak zorunda. */
 export const ATTENTION_MAX_ITEMS = 8;
+
+/**
+ * V2 boşluk satırı anahtarı (kurucu talimatı 09-07 "REVENUE LEAK · 2-night gap" örneği). VARSAYILAN KAPALI: satır metni ve önemi
+ * kurucu onayı bekliyor (`docs/hazir-yamalar/` önerisi). Yalnız "1" açar (`STRICT_ONE_FLAGS`).
+ */
+export function attentionGapEnabled(): boolean {
+  return process.env.ATTENTION_GAP_ENABLED === "1";
+}
+/** Boşluk satırının önemi: fırsat, risk değil — risk satırlarının (çakışma, söz, cevapsız) ALTINDA; yakın boşluk öne. */
+export const GAP_SEVERITY_SOON = 35;
+export const GAP_SEVERITY_LATER = 25;
+/** Bu kadar gün içinde başlayan boşluk "yakın" sayılır. */
+export const GAP_SOON_DAYS = 7;
 /** Tek sorguda incelenecek en fazla konuşma (sınırsız tarama yok). */
 export const CONVERSATION_CANDIDATE_CAP = 200;
 
@@ -147,8 +161,10 @@ export interface AttentionItem {
   category?: string;
   /** Yalnız `recurring_issue`: örüntüyü besleyen sinyal sayısı. */
   evidenceCount?: number;
-  /** Yalnız `calendar_conflict`: çakışan geceler, yarı açık [from, to) mülk takvim günleri. */
+  /** `calendar_conflict`: çakışan geceler · `booking_gap`: boş geceler — yarı açık [from, to) mülk takvim günleri. */
   nights?: { from: string; to: string };
+  /** Yalnız `booking_gap`: bu mülkteki yetim boşluk sayısı (satır EN YAKININI gösterir). */
+  gapCount?: number;
   /** Yalnız `calendar_conflict`: iki satırın tarihleri birebir aynı — aynı konaklama olabilir. */
   possibleDuplicate?: boolean;
   /** Yalnız `calendar_conflict`: çakışmada onay bekleyen bir TALEP var (kesin çift rezervasyon değil). */
@@ -156,8 +172,8 @@ export interface AttentionItem {
   /** Yalnız `calendar_conflict`: bu mülkteki çakışma aralığı sayısı (satır EN ÖNEMLİSİNİ gösterir). */
   conflictCount?: number;
   /**
-   * Yalnız `calendar_conflict`: risk altındaki tutar (ARALIK, varsayım, güven) ya da neden bilinmediği.
-   * Sıralamaya GİRMEZ (önem kanıta göre kalır; paraya göre sıralama ayrı kurucu kararı).
+   * `calendar_conflict`: risk altındaki tutar · `booking_gap`: boşluğun OLASI geliri (fırsat, garanti değil) — ARALIK, varsayım,
+   * güven ya da neden bilinmediği. Sıralamaya GİRMEZ (önem kanıta göre kalır; paraya göre sıralama ayrı kurucu kararı).
    */
   money?: MoneyImpact;
   /** Yalnız `held_request`: bırakılan isteklerin türleri (en eskiden yeniye, tekil) ve toplam sayısı. */
@@ -232,7 +248,7 @@ export async function findAttentionItems(
       })
     : [];
   const decisionItemIds = decisions.map((d) => d.itemId).filter((v): v is string => v !== null);
-  const [brokenFeeds, conversations, patterns, conflicts, commitments, held] = await Promise.all([
+  const [brokenFeeds, conversations, patterns, conflicts, commitments, held, gaps] = await Promise.all([
     prisma.calendarSource.findMany({
       where: { propertyId: { in: propertyIds }, lastStatus: "error" },
       // 🚨 `url` ve `urlEnc` BİLEREK SEÇİLMİYOR: besleme adresi sorgu dizesinde
@@ -315,6 +331,13 @@ export async function findAttentionItems(
         return [];
       },
     ),
+    // Yetim boşluklar (V2 boşluk satırı) — anahtar KAPALIYKEN sorgu YOK. Arıza öteki satırları düşürmez (geçiş tabanlı alarm).
+    attentionGapEnabled()
+      ? findUpcomingGaps(organizationId, { propertyIds, now }).catch((err): UpcomingGap[] => {
+          void alertOnTransition("attention:booking-gap", "attention booking_gap", err).catch(() => {});
+          return [];
+        })
+      : Promise.resolve([] as UpcomingGap[]),
   ]);
   const inScope = new Set(propertyIds);
   const openDecisions = decisions.filter((d) => inScope.has(d.propertyId));
@@ -533,10 +556,21 @@ export async function findAttentionItems(
   }
   // Para etkisi için ev sahibinin aralıkları — YALNIZ çakışma varsa okunur (sakin günde ek sorgu yok). Okuma
   // arızası satırı düşürmez: tutar yalnız "bilinmiyor" olur; alarm geçiş tabanlı (kalıcı arızada günde bir).
+  // Yetim boşluk: mülk başına TEK satır — en yakın boşluk + toplam sayı (çakışmayla aynı ilke: kartı doldurmasın).
+  const nearestGapByProperty = new Map<string, { g: UpcomingGap; count: number }>();
+  for (const g of gaps) {
+    const cur = nearestGapByProperty.get(g.propertyId);
+    if (!cur) nearestGapByProperty.set(g.propertyId, { g, count: 1 });
+    else {
+      cur.count++;
+      if (g.from < cur.g.from) cur.g = g;
+    }
+  }
   let rates = new Map<string, NightlyRateRange>();
   let ratesFailed = false;
-  if (worstByProperty.size > 0) {
-    rates = await loadNightlyRates(organizationId, [...worstByProperty.keys()]).catch((err): Map<string, NightlyRateRange> => {
+  const rateIds = new Set([...worstByProperty.keys(), ...nearestGapByProperty.keys()]);
+  if (rateIds.size > 0) {
+    rates = await loadNightlyRates(organizationId, [...rateIds]).catch((err): Map<string, NightlyRateRange> => {
       ratesFailed = true;
       void alertOnTransition("attention:money-rates", "attention money rates", err).catch(() => {});
       return new Map();
@@ -574,6 +608,31 @@ export async function findAttentionItems(
               now,
             ),
           }),
+    });
+  }
+
+  // "Yakın" sınırı işletmenin takvim gününden (yalnız boşluk varsa okunur — sakin günde ek sorgu yok).
+  let soonLimit = "";
+  if (nearestGapByProperty.size > 0) {
+    const tz = orgTimezone(
+      decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone,
+    );
+    soonLimit = dateKeyInTimeZone(addZonedDays(now, GAP_SOON_DAYS, tz), tz);
+  }
+  for (const { g, count } of nearestGapByProperty.values()) {
+    const [y, m, d] = g.from.split("-").map(Number);
+    items.push({
+      kind: "booking_gap",
+      // Komşu iki konaklamanın hiçbiri taze kaynaktan / ev sahibi girişinden değilse biri hayalet olabilir → çıkarım.
+      certainty: g.confirmed ? "observed" : "inferred",
+      propertyId: g.propertyId,
+      propertyName: nameById.get(g.propertyId) ?? "",
+      severity: g.from < soonLimit ? GAP_SEVERITY_SOON : GAP_SEVERITY_LATER,
+      occurredAt: new Date(Date.UTC(y, m - 1, d)),
+      href: `/calendar?property=${encodeURIComponent(g.propertyId)}&month=${g.from.slice(0, 7)}`,
+      nights: { from: g.from, to: g.to },
+      gapCount: count,
+      ...(ratesFailed ? {} : { money: estimateGapOpportunity(g.nights, rates.get(g.propertyId), now) }),
     });
   }
 

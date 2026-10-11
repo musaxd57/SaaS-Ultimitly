@@ -197,4 +197,38 @@ describe("AttentionPanel", () => {
     const hrefs = Array.from(document.querySelectorAll("a")).map((a) => a.getAttribute("href"));
     expect(hrefs).toEqual(["/inbox/c1", "/properties/p1"]);
   });
+
+  it("yetim boşluk satırı (hazır yama): gece sayısı + geceler + öneri; olası gelir 'garanti değil' ipucuyla; kanıtsız komşu 'doğrulayın'", () => {
+    const items: AttentionItem[] = [
+      {
+        ...base,
+        kind: "booking_gap",
+        certainty: "observed",
+        severity: 35,
+        href: "/calendar?property=p1&month=2026-10",
+        nights: { from: "2026-10-15", to: "2026-10-17" },
+        gapCount: 2,
+        money: {
+          kind: "estimate",
+          low: 8000,
+          high: 11000,
+          currency: "TRY",
+          confidence: "low",
+          assumptions: ["opportunity_not_guaranteed", "host_typical_rate"],
+          evidence: { gapNights: 2, rateEnteredAt: "2026-09-01T00:00:00.000Z" },
+        },
+      },
+      { ...base, propertyId: "p2", kind: "booking_gap", certainty: "inferred", severity: 25, href: "/calendar?property=p2&month=2026-11", nights: { from: "2026-11-03", to: "2026-11-04" }, gapCount: 1 },
+    ];
+    render(<AttentionPanel items={items} />);
+    expect(screen.getByText("İki rezervasyon arasında 2 boş gece")).toBeTruthy();
+    expect(screen.getByText(/Deniz Apart · 15 Eki – 16 Eki geceleri · 1 boşluk daha · kısa konaklamaya açmayı düşünün/)).toBeTruthy();
+    const money = screen.getByText(/Olası gelir:/);
+    expect(money.textContent).toMatch(/8\.000.*11\.000.*\(tahmini\)/);
+    expect(money.getAttribute("title")).toMatch(/Satılacağı garanti değil/);
+    expect(screen.getByText("İki rezervasyon arasında 1 boş gece")).toBeTruthy();
+    expect(screen.getByText(/kayıtlardan biri güncel olmayabilir, doğrulayın/)).toBeTruthy();
+    // Çakışma satırının "Risk altındaki tutar" sözü boşlukta KULLANILMAZ (fırsat, risk değil).
+    expect(screen.queryByText(/Risk altındaki tutar/)).toBeNull();
+  });
 });
