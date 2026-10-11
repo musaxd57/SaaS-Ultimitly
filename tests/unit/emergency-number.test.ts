@@ -128,6 +128,7 @@ describe("hostDisputeSignal — ev sahibi / anlaşmazlık sözcüğü (kod baca�
     // Kör set a10 (10-11): depozito eş anlamlısı + itiraz.
     "Çıkışta güvence parasını kesmek istiyorlar, itiraz ediyoruz. Jandarma numarası?",
     "Kaporamı vermiyorlar, polis numarası ne?",
+    "Hasar bedeline itiraz ediyoruz, polis numarası?",
     "Teminat bedelini iade etmediler. Polis numarası?",
     "We dispute the damage charge, what is the police number?",
   ])("🚨 %s", (t) => expect(hostDisputeSignal(t)).toBe(true));
