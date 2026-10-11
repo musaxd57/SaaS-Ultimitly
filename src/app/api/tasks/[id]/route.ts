@@ -118,8 +118,9 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       select: { id: true, name: true, email: true, role: true },
     });
     if (!member) return badRequest({ assignedToId: "Geçersiz personel" });
-    // Only notify if the assignee actually changed.
-    if (d.assignedToId !== existing.assignedToId) {
+    // Only notify if the assignee actually changed. Kendine atama e-posta göndermez ve tavandan saymaz (kurucu kararı 10-11):
+    // atayan görevi zaten biliyor; kendi e-postası aynı saatte başka birine gidecek atama e-postasının hakkını yemesin.
+    if (d.assignedToId !== existing.assignedToId && member.id !== session.userId) {
       newAssignee = member;
     }
   }

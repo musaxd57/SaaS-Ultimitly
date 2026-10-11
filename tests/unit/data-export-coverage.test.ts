@@ -6,7 +6,8 @@ import { Prisma } from "@prisma/client";
 // DEĞİŞMEZ 14 / KVKK DIŞA AKTARMA KAPSAMI — büyüyemez sınıflandırma (10-11 gece). Şemadaki HER model ya işletme dökümünde
 // (`src/lib/data-export.ts`, iki dışa aktarma ucu aynı yapıyı kullanır) ya da gerekçesiyle BİLİNÇLİ DIŞARIDA. Yeni bir model
 // sınıflandırılmadan eklenemez (sessizce dökümün dışında kalan misafir / ev sahibi verisi olmasın). Davranış DEĞİŞMEZ — yalnız envanter.
-// "Karar bekliyor" satırları kurucu karar listesinde (dışa aktarmaya eklemek kapsam kararıdır).
+// "Karar bekliyor" satırları kurucu karar listesinde (dışa aktarmaya eklemek kapsam kararıdır). AutomationRule + DecisionRequest kurucu
+// kararıyla (10-11) dışarıda: "KVKK bu iki bilgiyle ne yapacak" — kişisel veri taşımıyor, misafir yazışması zaten dökümde.
 // ---------------------------------------------------------------------------
 
 /** Dökümde olan modeller → kaynakta onu taşıyan iğne (ilişki alanı ya da sorgu). */
@@ -33,7 +34,7 @@ const EXPORTED: Record<string, string> = {
   GuestCommitment: "prisma.guestCommitment.findMany",
 };
 
-/** Bilinçli dışarıda — gerekçe. "⚠️ KARAR" = kurucu karar listesinde (ev sahibinin girdiği kayıt kuralı uygulanabilir). */
+/** Bilinçli dışarıda — gerekçe. "⚠️ KARAR" = kurucu / avukat kararı bekliyor. */
 const EXCLUDED: Record<string, string> = {
   SystemLock: "Sistem kilidi / işaret satırı — işletme verisi değil",
   RateLimitCounter: "Geçici hız sınırı sayacı",
@@ -41,7 +42,7 @@ const EXCLUDED: Record<string, string> = {
   PasswordResetChallenge: "Güvenlik sırrı (hash) — sırlar dökümde YOK",
   TwoFactorRecoveryCode: "Güvenlik sırrı (hash) — sırlar dökümde YOK",
   ChatUsage: "QR kullanım sayacı — ölçüm, kişisel veri değil",
-  AutomationRule: "⚠️ KARAR: ev sahibinin girdiği kurallar (erken giriş, ev kuralları) — 'ev sahibi kaydı dışa aktarılır' kuralı uygulanabilir",
+  AutomationRule: "İşletme ayarı (erken giriş / ev kuralları) — kişisel veri değil; kurucu kararı 10-11: dışa aktarılmaz",
   Plan: "Ürün kataloğu (plan tanımları) — işletmeye ait değil",
   WebhookEvent: "Ödeme sağlayıcısı olay günlüğü (tekilleştirme) — iç işletim",
   ShadowVerdict: "Gölge model ölçümü — iç kalite kaydı",
@@ -50,7 +51,7 @@ const EXCLUDED: Record<string, string> = {
   IngestEvent: "İç olay günlüğü (türetilmiş, kaynak satırlar dökümde)",
   Signal: "Mesajdan türetilmiş gözlem — kaynağı (mesaj) dökümde",
   ConversationItem: "Mesajdan türetilmiş istek kalemi — kaynağı (mesaj) dökümde",
-  DecisionRequest: "⚠️ KARAR: ev sahibinin karar kartı kararları — 'ev sahibi kaydı dışa aktarılır' kuralı uygulanabilir",
+  DecisionRequest: "Misafir talebine bağlı ev sahibi kararı — misafirle yazışmanın kendisi (mesajlar) dökümde; kurucu kararı 10-11: dışa aktarılmaz",
   StorageDeletion: "Depo silme kuyruğu — iç işletim",
   ErasureTombstone: "Silme koruma kaydı (HMAC, kişisel veri yok) — iç işletim",
   EmailOutbox: "E-posta gönderim kuyruğu — iç işletim",
