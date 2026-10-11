@@ -54,6 +54,13 @@ export function checkProductionEnv(env) {
     warnings.push("AUTH_SECRET is shorter than 32 characters — prefer a longer random secret.");
   }
 
+  // SENTRY_DSN sifreli olmali (eski denetim DEN#27): http adresinde hata olaylari GONDERILMEZ (report-error-core parseDsn). Uyari,
+  // durdurmaz; adresin kendisi (anahtar tasir) basilmaz.
+  const sentryDsn = (env.SENTRY_DSN ?? "").trim();
+  if (sentryDsn && !/^https:\/\//i.test(sentryDsn)) {
+    warnings.push("SENTRY_DSN is not an https:// address — error events will NOT be sent. Use the https DSN from your Sentry project.");
+  }
+
   const encKey = (env.ENCRYPTION_KEY ?? "").trim();
   if (!encKey) {
     // REQUIRED in production, independent of AUTH_SECRET: crypto.ts falls back to

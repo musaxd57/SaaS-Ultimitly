@@ -452,3 +452,25 @@ describe("boot gate — sessiz yanlış yapılandırma", () => {
     }
   });
 });
+
+describe("boot gate — Sentry adresi şifreli olmalı (eski denetim DEN#27, 10-11 gece)", () => {
+  const BASE = {
+    NODE_ENV: "production",
+    AUTH_SECRET: REAL_AUTH,
+    ENCRYPTION_KEY: REAL_ENC,
+    RESEND_API_KEY: REAL_RESEND,
+    RESEND_FROM: "bildirim@example.com",
+    DATABASE_URL: "postgresql://user@db.example.com:5432/app",
+  };
+  const sentryWarnings = (dsn: string) => checkProductionEnv({ ...BASE, SENTRY_DSN: dsn }).warnings.filter((w) => /SENTRY_DSN/.test(w));
+
+  it("🚨 http:// adres → UYARI (hata olayları gönderilmez; açılışı durdurmaz)", () => {
+    expect(sentryWarnings("http://pubkey@o1.ingest.sentry.io/2")).toHaveLength(1);
+  });
+
+  it("KONTROL: https adres ya da boş → uyarı yok; uyarı adresi (anahtarı) basmaz", () => {
+    expect(sentryWarnings("https://pubkey@o1.ingest.sentry.io/2")).toEqual([]);
+    expect(sentryWarnings("")).toEqual([]);
+    expect(sentryWarnings("http://gizlianahtar@o1.ingest.sentry.io/2").join(" ")).not.toContain("gizlianahtar");
+  });
+});

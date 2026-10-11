@@ -132,6 +132,8 @@ type SentryDsn = { endpoint: string; publicKey: string };
 function parseDsn(dsn: string): SentryDsn | null {
   try {
     const u = new URL(dsn);
+    // Yalnız şifreli bağlantı (eski denetim DEN#27): redakte de olsa hata ayrıntısı düz metin gönderilmez; açılış doğrulaması uyarır.
+    if (u.protocol !== "https:") return null;
     const projectId = u.pathname.split("/").filter(Boolean).pop();
     if (!u.username || !projectId) return null;
     return {

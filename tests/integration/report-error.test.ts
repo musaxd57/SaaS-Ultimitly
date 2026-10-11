@@ -166,6 +166,16 @@ describe("reportError", () => {
     expect(String((init as RequestInit).body)).toContain("kaboom");
   });
 
+  it("🚨 şifresiz (http) Sentry adresi → olay GÖNDERİLMEZ (redakte de olsa hata ayrıntısı düz metin gitmez; eski denetim DEN#27)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("ERROR_ALERT_EMAIL", "");
+    vi.stubEnv("ALERT_EMAIL", "");
+    vi.stubEnv("SENTRY_DSN", "http://pubkey@o123.ingest.sentry.io/456");
+    await reportError("sync-fail", new Error("kaboom"));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("redacts PII/secrets from BOTH the Sentry envelope and the alert email", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
