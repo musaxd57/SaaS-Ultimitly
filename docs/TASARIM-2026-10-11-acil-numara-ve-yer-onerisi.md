@@ -114,7 +114,9 @@ açmadan önce kör setle doğrulanmalı).
 - Örnekler (anahtar AÇIKKEN): "Annem fenalaştı, ambulans numarası kaçtı?" → "Ambulans: 112" + ev sahibine acil uyarı · "Türkiye'de polis
   numarası kaç?" → "Polis: 155" · "Mutfakta yangın çıktı! İtfaiye numarası ne?" → modelsiz "İtfaiye: 110" + acil uyarı · "Ev sahibi
   depozitomu vermiyor, polisi arayacağım. Numara ne?" → hiçbir şey (bugünkü gibi) · "Polis kaç dakikada gelir?" → numara sorusu sayılmaz.
-- Bilinen sınır: "Booking'den rezervasyon yaptık, annem fenalaştı, ambulans numarası?" → "Booking" ev sahibi sözcüğü sayılır, numara
-  gitmez (fazla eşleşme bilinçli: bedeli bugünkü davranış). Kanal (Airbnb / Booking mesajı) yolu YOK — kurucuya sorulacak.
+- Bilinen sınır: "yönetici / manager" ev sahibi sözcüğü sayılır ("Bina yöneticisi bağırıyor, polis numarası?" → numara gitmez; fazla
+  eşleşme bilinçli, bedeli bugünkü davranış). Platform adı (Airbnb / Booking) ve yabancının tehdidi numarayı DURDURMAZ (Haiku 2. tur).
+  Kanal (Airbnb / Booking mesajı) yolu YOK — kurucuya sorulacak.
 - B1: gelen kutusu "Bilgi tabanına ekle" + mülk sayfası hatırlatması uygulandı (`src/lib/kb-prefill.ts`, `src/lib/local-tips-demand.ts`).
+  Adres yalnız mülk + kategori taşır; modelin "eksik bilgi" özeti (misafir adı içerebilir) sekmenin oturum belleğinde, 10 dakika, bir kez.
 

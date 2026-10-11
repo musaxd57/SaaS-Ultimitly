@@ -56,13 +56,13 @@
   yalnız QR):** misafir numarayı AÇIKÇA sorarsa koddan YALNIZ sorulan servisin numarası gider, servis başına ayrı (ambulans 112, polis 155,
   jandarma 156, itfaiye 110, genel 112; "Polis: 155"), misafirin dilinde etiket, yönerge cümlesi YOK (pinli). Modelin taslağı atılır, ev
   sahibi HER ZAMAN uyarılır (e-postası "yalnız numarayı gönderdi" der; neden `emergency_number`). Numara VERİLMEZ (bugünkü devir): ev
-  sahibi / anlaşmazlık sözcüğü (bitişik "Evsahibi", mal sahibi, kiraya veren, yönetici, Airbnb / Booking, depozito, iade, "geri
-  ödemezseniz", şikâyet, dolandırılma, hakaret, tehdit, iptal — yedi dil; aynı turdaki önceki cevapsız misafir mesajlarında da aranır;
-  kurucu: "ev sahibinin kendisi tehditse size kalsın"); anlama katmanı numarayla birlikte acil / selam / diğer / yakın yer / ulaşım
+  sahibi / anlaşmazlık sözcüğü (bitişik "Evsahibi", mal sahibi, kiraya veren, yönetici, host / landlady / manager, depozito, iade, "geri
+  ödemezseniz", şikâyet, dolandırılma, hakaret, iptal — yedi dil; aynı turdaki önceki cevapsız misafir mesajlarında da aranır; kurucu:
+  "ev sahibinin kendisi tehditse size kalsın" — platform adı (Airbnb / Booking), yabancının tehdidi, hostel ev sahibi sözcüğü DEĞİLDİR); anlama katmanı numarayla birlikte acil / selam / diğer / yakın yer / ulaşım
   dışında bir niyet verdiyse (şikâyet, iade, insan talebi ya da bir konaklama konusu — "Kapı kodu çalışmıyor, polisi arayacağız");
   anlama katmanı koşmadıysa (AÇIK tehlike dalı hariç); işletme saat dilimi Türkiye değilse. Numara sorusu ipucu dar: rakamla süren
-  "numara 5" (daire), cümle ortasındaki "kaç" ("Polis kaç dakikada gelir?"), "telefonum / my phone", çıplak "call / contact" soru
-  sayılmaz. Ölçüm: Luna 6.0 niyetleriyle verilmesi gereken 38/38 verilir, bırakılması gereken 24/24 bırakılır (geliştirme seti;
+  "numara 5" (daire; acil kısa numarayla süren "Polis numara 155 mi?" sorudur), "5 numaralı", cümle ortasındaki "kaç" ("Polis kaç
+  dakikada gelir?"), "telefonum / my phone", cümle ortasındaki "call / contact" soru sayılmaz. Ölçüm: Luna 6.0 niyetleriyle verilmesi gereken 38/38 verilir, bırakılması gereken 24/24 bırakılır (geliştirme seti;
   modelin kendi açıklaması `docs/olcum/acil-numara-*-aciklama.md`). Kanal yolu YOK (kurucuya sorulacak: numara + devir anlamı).
   "Misafirin gördüğü ekran" önizlemesi (K14, `guest-chats/[id]/misafir-ekrani`): balonlar misafir ekranının AYNI bileşeninden
   (`GuestChatThread`), pencere GET ile aynı; misafir uçları çağrılmaz — gönderim / cihaz bağlama / okundu değişikliği YOK, sayfa hiçbir
