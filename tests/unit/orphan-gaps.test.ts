@@ -8,11 +8,10 @@ import {
   type ReservationSnapshot,
 } from "@/modules/availability/core";
 import { findOrphanGaps, ORPHAN_GAP_MAX_NIGHTS } from "@/modules/availability/gaps";
-import { estimateGapOpportunity, type NightlyRateRange } from "@/modules/intelligence/money/impact";
 
 // ---------------------------------------------------------------------------
-// YETİM BOŞLUK (V2 boşluk satırı, hazır yama) — saf dedektör + olası gelir. Tahmin YOK: yalnız motorun gece durumları; bilinmeyen
-// gece iddiayı keser; onay bekleyen talep komşu sayılmaz; tutar aralık + "satılacağı garanti değil".
+// YETİM BOŞLUK (V2 boşluk satırı) — saf dedektör. Tahmin YOK: yalnız motorun gece durumları; bilinmeyen gece iddiayı keser; onay
+// bekleyen talep komşu sayılmaz. Tutar YOK (kurucu 10-11: gerçek fiyat Airbnb Direct takviminden gelince).
 // ---------------------------------------------------------------------------
 
 const TZ = "Europe/Istanbul";
@@ -104,26 +103,5 @@ describe("findOrphanGaps × motor (uçtan uca, saf)", () => {
   it("iptal edilmiş komşu konaklama boşluğu kapatmaz / açmaz (iptal satırı sayılmaz)", () => {
     const n = nights([res("2026-10-05", "2026-10-08"), res("2026-10-09", "2026-10-12", { status: "cancelled" })]);
     expect(findOrphanGaps(n, { fromNight: "2026-10-01" })).toEqual([]);
-  });
-});
-
-describe("estimateGapOpportunity — olası gelir (değişmez 15)", () => {
-  const RATE: NightlyRateRange = { low: 4000, high: 5200, currency: "TRY", enteredAt: new Date("2026-09-01T00:00:00Z") };
-  it("🚨 aralık = gece × alt / üst (dışa yuvarlama); güven HER ZAMAN düşük; 'satılacağı garanti değil' varsayımı", () => {
-    expect(estimateGapOpportunity(2, RATE, NOW)).toEqual({
-      kind: "estimate",
-      low: 8000,
-      high: 11000,
-      currency: "TRY",
-      confidence: "low",
-      assumptions: ["opportunity_not_guaranteed", "host_typical_rate"],
-      evidence: { gapNights: 2, rateEnteredAt: "2026-09-01T00:00:00.000Z" },
-    });
-  });
-
-  it("aralık yok / bayat / geçersiz → sayısız 'bilinmiyor'", () => {
-    expect(estimateGapOpportunity(1, null, NOW)).toEqual({ kind: "unknown", reason: "no_rate" });
-    expect(estimateGapOpportunity(1, { ...RATE, enteredAt: new Date("2026-01-01T00:00:00Z") }, NOW)).toEqual({ kind: "unknown", reason: "rate_stale" });
-    expect(estimateGapOpportunity(1, { ...RATE, low: 6000 }, NOW)).toEqual({ kind: "unknown", reason: "rate_invalid" });
   });
 });

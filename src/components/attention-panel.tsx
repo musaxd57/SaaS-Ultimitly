@@ -145,12 +145,6 @@ function money(amount: number, currency: string): string {
  */
 export function moneyLine(m: MoneyImpact | undefined): { text: string; hint?: string } | null {
   if (!m) return null;
-  if (m.kind === "estimate" && m.assumptions.includes("opportunity_not_guaranteed")) {
-    return {
-      text: `Satılırsa olası gelir: ${money(m.low, m.currency)} – ${money(m.high, m.currency)} (tahmini)`,
-      hint: "Boş gece sayısı × gecelik fiyat aralığınız. Satılacağı garanti değil; minimum konaklama kuralınız ve son dakika talebi bilinmiyor.",
-    };
-  }
   if (m.kind === "estimate") {
     return {
       text: `Risk altındaki tutar: ${money(m.low, m.currency)} – ${money(m.high, m.currency)} (tahmini)`,
@@ -209,7 +203,7 @@ export function AttentionPanel({
                   ) : null}
                 </p>
                 {(() => {
-                  const line = item.kind === "calendar_conflict" || item.kind === "booking_gap" ? moneyLine(item.money) : null;
+                  const line = item.kind === "calendar_conflict" ? moneyLine(item.money) : null;
                   return line ? (
                     <p className="truncate text-xs text-muted-foreground" title={line.hint}>
                       {line.text}

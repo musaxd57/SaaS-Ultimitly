@@ -39,9 +39,7 @@ export type MoneyAssumption =
   | "value_at_stake_not_loss"
   | "penalties_excluded"
   | "host_typical_rate"
-  | "whole_stay_upper_bound"
-  /** Yetim boşluk: tutar SATILIRSA elde edilecek gelir — satılacağı garanti değil (kayıp değil, fırsat). */
-  | "opportunity_not_guaranteed";
+  | "whole_stay_upper_bound";
 
 export type MoneyUnknownReason = "no_rate" | "rate_stale" | "rate_invalid" | "duplicate_likely";
 
@@ -54,8 +52,8 @@ export type MoneyImpact =
       /** Asla "high": girdi ev sahibinin tipik aralığıdır, rezervasyonun gerçek tutarı değil. */
       confidence: "low" | "medium";
       assumptions: MoneyAssumption[];
-      /** Kanıt: hesaba giren sayılar (PII yok). Çakışmada çakışan / en uzun konaklama; boşlukta boş gece sayısı. */
-      evidence: { overlapNights: number; stayNights: number; rateEnteredAt: string } | { gapNights: number; rateEnteredAt: string };
+      /** Kanıt: hesaba giren sayılar (PII yok). */
+      evidence: { overlapNights: number; stayNights: number; rateEnteredAt: string };
     }
   | { kind: "unknown"; reason: MoneyUnknownReason }
   | { kind: "not_applicable" };
@@ -131,32 +129,5 @@ export function estimateConflictImpact(
     confidence: input.heldRequest || input.allUnconfirmed ? "low" : "medium",
     assumptions,
     evidence: { overlapNights: overlap, stayNights: stay, rateEnteredAt: rate.enteredAt.toISOString() },
-  };
-}
-
-/** Satılabilir bir rate için ortak doğrulama (yok / geçersiz / bayat → "bilinmiyor"). */
-function usableRate(rate: NightlyRateRange | null | undefined, now: Date): { ok: true; rate: NightlyRateRange } | { ok: false; reason: MoneyUnknownReason } {
-  if (!rate) return { ok: false, reason: "no_rate" };
-  if (!isValidRate(rate)) return { ok: false, reason: "rate_invalid" };
-  if (now.getTime() - rate.enteredAt.getTime() > RATE_STALE_DAYS * DAY_MS) return { ok: false, reason: "rate_stale" };
-  return { ok: true, rate };
-}
-
-/**
- * Yetim boşluğun OLASI geliri (V2 boşluk satırı) — değişmez 15: aralık + varsayım + güven. Boş gece × aralığın altı / üstü;
- * güven HER ZAMAN "low" (satılacağı garanti değil, minimum konaklama kuralı / son dakika talebi bilinmiyor). Kayıp DEĞİL, fırsat.
- */
-export function estimateGapOpportunity(gapNights: number, rate: NightlyRateRange | null | undefined, now: Date): MoneyImpact {
-  const r = usableRate(rate, now);
-  if (!r.ok) return { kind: "unknown", reason: r.reason };
-  const n = Math.max(1, Math.floor(gapNights));
-  return {
-    kind: "estimate",
-    low: roundDown2(n * r.rate.low),
-    high: roundUp2(n * r.rate.high),
-    currency: r.rate.currency,
-    confidence: "low",
-    assumptions: ["opportunity_not_guaranteed", "host_typical_rate"],
-    evidence: { gapNights: n, rateEnteredAt: r.rate.enteredAt.toISOString() },
   };
 }

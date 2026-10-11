@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { isClosingHandled } from "@/lib/conversation-attention";
 import { alertOnTransition } from "@/lib/alert-state";
 import { findUpcomingConflicts, findUpcomingConflictsAndGaps, type UpcomingConflict, type UpcomingGap } from "@/modules/availability/conflicts";
-import { estimateConflictImpact, estimateGapOpportunity, type MoneyImpact, type NightlyRateRange } from "@/modules/intelligence/money/impact";
+import { estimateConflictImpact, type MoneyImpact, type NightlyRateRange } from "@/modules/intelligence/money/impact";
 import { loadNightlyRates } from "@/modules/intelligence/money/rates";
 import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conversation-items/store";
 import type { ItemKind } from "@/lib/conversation-items/core";
@@ -174,8 +174,9 @@ export interface AttentionItem {
   /** Yalnız `calendar_conflict`: bu mülkteki çakışma aralığı sayısı (satır EN ÖNEMLİSİNİ gösterir). */
   conflictCount?: number;
   /**
-   * `calendar_conflict`: risk altındaki tutar · `booking_gap`: boşluğun OLASI geliri (fırsat, garanti değil) — ARALIK, varsayım,
-   * güven ya da neden bilinmediği. Sıralamaya GİRMEZ (önem kanıta göre kalır; paraya göre sıralama ayrı kurucu kararı).
+   * Yalnız `calendar_conflict`: risk altındaki tutar (ARALIK, varsayım, güven) ya da neden bilinmediği.
+   * Sıralamaya GİRMEZ (önem kanıta göre kalır; paraya göre sıralama ayrı kurucu kararı). `booking_gap` tutar TAŞIMAZ (kurucu 10-11:
+   * gerçek gecelik fiyat Airbnb Direct takviminden gelince — uydurma / tahmini değer yok).
    */
   money?: MoneyImpact;
   /** Yalnız `held_request`: bırakılan isteklerin türleri (en eskiden yeniye, tekil) ve toplam sayısı. */
@@ -568,9 +569,8 @@ export async function findAttentionItems(
   }
   let rates = new Map<string, NightlyRateRange>();
   let ratesFailed = false;
-  const rateIds = new Set([...worstByProperty.keys(), ...nearestGapByProperty.keys()]);
-  if (rateIds.size > 0) {
-    rates = await loadNightlyRates(organizationId, [...rateIds]).catch((err): Map<string, NightlyRateRange> => {
+  if (worstByProperty.size > 0) {
+    rates = await loadNightlyRates(organizationId, [...worstByProperty.keys()]).catch((err): Map<string, NightlyRateRange> => {
       ratesFailed = true;
       void alertOnTransition("attention:money-rates", "attention money rates", err).catch(() => {});
       return new Map();
@@ -633,7 +633,7 @@ export async function findAttentionItems(
       href: `/calendar?property=${encodeURIComponent(g.propertyId)}&month=${g.from.slice(0, 7)}`,
       nights: { from: g.from, to: g.to },
       gapCount: count,
-      ...(ratesFailed ? {} : { money: estimateGapOpportunity(g.nights, rates.get(g.propertyId), now) }),
+      // Tutar YOK (kurucu 10-11: "Airbnb API alınca takvimden çekeriz" — ev sahibi aralığından tahmini değer gösterilmez).
     });
   }
 

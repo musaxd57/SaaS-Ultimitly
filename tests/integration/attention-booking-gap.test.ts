@@ -45,7 +45,7 @@ describe("Dikkat Gerektirenler — yetim boşluk satırı", () => {
     expect((await findAttentionItems(orgId, { now: NOW })).filter((i) => i.kind === "booking_gap")).toEqual([]);
   });
 
-  it("🚨 iki konaklama arası 1 gece + aralık → satır: geceler, olası gelir (güven düşük), yakın boşluk önemi", async () => {
+  it("🚨 iki konaklama arası 1 gece → satır: geceler, yakın boşluk önemi; ev sahibi aralığı OLSA BİLE tutar YOK (kurucu 10-11)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await freshFeed(propertyId);
     await stay(propertyId, "2026-10-03", "2026-10-06");
@@ -59,8 +59,8 @@ describe("Dikkat Gerektirenler — yetim boşluk satırı", () => {
       nights: { from: "2026-10-06", to: "2026-10-07" },
       gapCount: 1,
       severity: GAP_SEVERITY_SOON,
-      money: { kind: "estimate", low: 4000, high: 5200, currency: "TRY", confidence: "low" },
     });
+    expect(gaps[0].money).toBeUndefined();
     expect(gaps[0].href).toBe(`/calendar?property=${encodeURIComponent(propertyId)}&month=2026-10`);
   });
 
@@ -74,7 +74,7 @@ describe("Dikkat Gerektirenler — yetim boşluk satırı", () => {
     expect(gaps[0]).toMatchObject({ certainty: "inferred", nights: { from: "2026-10-06", to: "2026-10-07" }, severity: GAP_SEVERITY_SOON - GAP_UNCONFIRMED_PENALTY });
   });
 
-  it("mülk başına TEK satır: en yakın boşluk + toplam sayı; uzak boşluk düşük önem; aralık yoksa tutar 'bilinmiyor'", async () => {
+  it("mülk başına TEK satır: en yakın boşluk + toplam sayı; uzak boşluk düşük önem", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await freshFeed(propertyId);
     await stay(propertyId, "2026-10-12", "2026-10-15");
@@ -83,7 +83,6 @@ describe("Dikkat Gerektirenler — yetim boşluk satırı", () => {
     const gaps = (await findAttentionItems(orgId, { now: NOW })).filter((i) => i.kind === "booking_gap");
     expect(gaps).toHaveLength(1);
     expect(gaps[0]).toMatchObject({ nights: { from: "2026-10-15", to: "2026-10-17" }, gapCount: 2, severity: GAP_SEVERITY_LATER });
-    expect(gaps[0].money).toEqual({ kind: "unknown", reason: "no_rate" });
   });
 
   it("🚨 kapsama bayat ya da hiç yok → boşluk iddiası YOK; üç gece ve üstü boşluk yetim değil", async () => {
