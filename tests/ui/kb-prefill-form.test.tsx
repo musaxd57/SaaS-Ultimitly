@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
 // B1 (kurucu 10-11, "ev sahibi döngüsü"): gelen kutusundaki "Eksik bilgi"den gelen ön doldurma formda — mülk / kategori / başlık dolu,
@@ -34,6 +34,24 @@ describe("KbManager — ön dolu form", () => {
     expect(document.activeElement).toBe(content);
     expect(screen.getByText(/Misafirin sorduğu ama bilgi tabanında olmayan konu/)).toBeTruthy();
     expect(vi.mocked(fetch).mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(false);
+  });
+
+  it("başlık adreste yoksa gelen kutusunun bıraktığı oturum belleğinden gelir (bir kez)", () => {
+    window.sessionStorage.setItem("lixus.kbPrefillTitle", JSON.stringify({ propertyId: "p2", title: "Yakındaki kahvaltı yerleri", at: Date.now() }));
+    render(<KbManager properties={PROPS} items={[]} prefill={{ propertyId: "p2", category: "local_tips", title: "" }} />);
+    expect((document.getElementById("kb-title") as HTMLInputElement).value).toBe("Yakındaki kahvaltı yerleri");
+    expect(window.sessionStorage.getItem("lixus.kbPrefillTitle")).toBeNull();
+  });
+
+  it("🚨 sunucu yeniden çizince (yeni prefill nesnesi) odak başka kutudan içeriğe ZIPLAMAZ (Haiku 2. tur)", () => {
+    const prefill = { propertyId: "p2", category: "local_tips", title: "Kahvaltı" };
+    const { rerender } = render(<KbManager properties={PROPS} items={[]} prefill={prefill} />);
+    const title = document.getElementById("kb-title") as HTMLInputElement;
+    title.focus();
+    fireEvent.change(title, { target: { value: "Kahvaltı yerleri" } });
+    rerender(<KbManager properties={PROPS} items={[]} prefill={{ ...prefill }} />);
+    expect(document.activeElement).toBe(title);
+    expect(title.value).toBe("Kahvaltı yerleri");
   });
 
   it("KONTROL: ön doldurma yoksa ilk mülk + Genel, açıklama yok, odak içerikte değil", () => {

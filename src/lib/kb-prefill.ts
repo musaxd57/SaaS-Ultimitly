@@ -35,11 +35,41 @@ export function cleanPrefillTitle(raw: string): string {
     .trim();
 }
 
-/** Gelen kutusu → bilgi tabanı formu adresi. */
+/**
+ * Gelen kutusu → bilgi tabanı formu adresi: YALNIZ mülk + kategori. Modelin "eksik bilgi" özeti misafir adı ya da alıntısı taşıyabilir
+ * (Haiku 2. tur, 10-11) → adrese (tarayıcı geçmişi, sunucu kayıtları) GİRMEZ; başlık `rememberKbPrefillTitle` ile yalnız bu sekmenin
+ * oturum belleğinde taşınır ve form açılınca bir kez okunup silinir.
+ */
 export function kbPrefillHref(propertyId: string, missingInfo: string): string {
-  const title = cleanPrefillTitle(missingInfo);
-  const params = new URLSearchParams({ property: propertyId, category: kbCategoryForMissingInfo(title), title });
+  const params = new URLSearchParams({ property: propertyId, category: kbCategoryForMissingInfo(missingInfo) });
   return `/knowledge?${params.toString()}`;
+}
+
+const TITLE_KEY = "lixus.kbPrefillTitle";
+const TITLE_TTL_MS = 10 * 60_000;
+
+/** Bağlantıya tıklanınca: başlık bu sekmenin oturum belleğine (10 dk; okununca silinir). Depolama yoksa sessizce atlanır. */
+export function rememberKbPrefillTitle(propertyId: string, missingInfo: string, now: number = Date.now()): void {
+  try {
+    window.sessionStorage.setItem(TITLE_KEY, JSON.stringify({ propertyId, title: cleanPrefillTitle(missingInfo), at: now }));
+  } catch {
+    /* özel pencere / engelli depolama: form başlıksız açılır */
+  }
+}
+
+/** Form açılınca: aynı mülk için 10 dakika içinde bırakılmış başlık (bir kez; okunur okunmaz silinir). */
+export function takeKbPrefillTitle(propertyId: string, now: number = Date.now()): string {
+  try {
+    const raw = window.sessionStorage.getItem(TITLE_KEY);
+    window.sessionStorage.removeItem(TITLE_KEY);
+    if (!raw) return "";
+    const v = JSON.parse(raw) as { propertyId?: unknown; title?: unknown; at?: unknown };
+    if (v.propertyId !== propertyId || typeof v.title !== "string" || typeof v.at !== "number") return "";
+    if (now - v.at < 0 || now - v.at > TITLE_TTL_MS) return "";
+    return cleanPrefillTitle(v.title);
+  } catch {
+    return "";
+  }
 }
 
 /** Mülk sayfasındaki "Yerel Tavsiye ekleyin" hatırlatmasının adresi. */

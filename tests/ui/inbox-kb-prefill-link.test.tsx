@@ -48,12 +48,17 @@ describe("ConversationThread — 'Eksik bilgi' → 'Bilgi tabanına ekle'", () =
     vi.unstubAllGlobals();
   });
 
-  it("yer sorusu: bağlantı Yerel Tavsiye + başlık + mülk ön dolu forma gider", async () => {
+  it("yer sorusu: bağlantı mülk + Yerel Tavsiye ile forma gider; başlık adrese DEĞİL sekmenin oturum belleğine yazılır", async () => {
+    window.sessionStorage.clear();
     await suggest({}, ["Yakındaki kahvaltı yerleri"]);
     const link = screen.getByRole("link", { name: "Bilgi tabanına ekle" });
     const sp = new URLSearchParams(link.getAttribute("href")!.split("?")[1]);
     expect(link.getAttribute("href")!.startsWith("/knowledge?")).toBe(true);
-    expect(Object.fromEntries(sp)).toEqual({ property: "prop-1", category: "local_tips", title: "Yakındaki kahvaltı yerleri" });
+    expect(Object.fromEntries(sp)).toEqual({ property: "prop-1", category: "local_tips" });
+    link.addEventListener("click", (e) => e.preventDefault());
+    fireEvent.click(link);
+    const saved = JSON.parse(window.sessionStorage.getItem("lixus.kbPrefillTitle")!);
+    expect(saved).toMatchObject({ propertyId: "prop-1", title: "Yakındaki kahvaltı yerleri" });
   });
 
   it("KONTROL: personel (canReply yok) → öneri paneli hiç yok, bağlantı da yok", () => {

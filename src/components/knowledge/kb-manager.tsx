@@ -22,7 +22,7 @@ import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { kbPlaceholderTokens, unfilledTemplateTokens } from "@/lib/kb-placeholders";
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import type { KbTimeConflictRow } from "@/lib/kb-time-conflicts";
-import type { KbPrefill } from "@/lib/kb-prefill";
+import { takeKbPrefillTitle, type KbPrefill } from "@/lib/kb-prefill";
 import Link from "next/link";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
@@ -145,10 +145,19 @@ export function KbManager({
 
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
-  // Ön dolu formda ev sahibinin yazacağı tek alan içeriktir — imleç oraya gider.
+  // Ön doldurma YALNIZ ilk açılışta uygulanır (Haiku 2. tur: `prefill` her sunucu çiziminde yeni nesne — `router.refresh()` sonrası
+  // odak başka kutudan buraya zıplıyordu). Başlık adresten değil sekmenin oturum belleğinden gelir (gelen kutusu bırakır); imleç içerikte.
+  const initialPrefill = useRef(prefill);
+  const [prefillNotice, setPrefillNotice] = useState(prefill != null);
   useEffect(() => {
-    if (prefill) contentRef.current?.focus();
-  }, [prefill]);
+    const p = initialPrefill.current;
+    if (!p) return;
+    if (!p.title) {
+      const remembered = takeKbPrefillTitle(p.propertyId);
+      if (remembered) setForm((f) => (f.title ? f : { ...f, title: remembered }));
+    }
+    contentRef.current?.focus();
+  }, []);
 
 
   const refresh = () => startTransition(() => router.refresh());
@@ -178,6 +187,7 @@ export function KbManager({
         return;
       }
       setForm((f) => ({ ...f, title: "", content: "" }));
+      setPrefillNotice(false);
       refresh();
     } catch {
       setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
@@ -384,7 +394,7 @@ export function KbManager({
             {error ? (
               <FormError>{error}</FormError>
             ) : null}
-            {prefill ? (
+            {prefillNotice ? (
               <p role="status" className="rounded-md bg-accent/60 px-2.5 py-2 text-xs text-muted-foreground">
                 Misafirin sorduğu ama bilgi tabanında olmayan konu. Bilgiyi yazıp ekleyin; yapay zekâ sonraki misafire bununla cevap verir.
               </p>

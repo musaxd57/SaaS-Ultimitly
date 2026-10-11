@@ -5,7 +5,7 @@ import { FormError } from "@/components/form-error";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { kbPrefillHref } from "@/lib/kb-prefill";
+import { kbPrefillHref, rememberKbPrefillTitle } from "@/lib/kb-prefill";
 import {
   Sparkles,
   Send,
@@ -1025,6 +1025,7 @@ export function ConversationThread({
                     {" "}
                     <Link
                       href={kbPrefillHref(propertyId, suggestion.missingInfo[0])}
+                      onClick={() => rememberKbPrefillTitle(propertyId, suggestion.missingInfo?.[0] ?? "")}
                       className="font-medium text-primary underline-offset-2 hover:underline"
                     >
                       Bilgi tabanına ekle

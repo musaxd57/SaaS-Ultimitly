@@ -40,6 +40,13 @@ describe("askedEmergencyServices — hangi servisin numarası soruluyor", () => 
     ["How do I call the police?", ["police"]],
     ["Who do we call for an ambulance?", ["ambulance"]],
     ["Ambulans numarası 112 mi?", ["ambulance"]],
+    // Haiku 2. tur: acil kısa numarayla süren teyit sorusu, cümle sonundaki "contact", "who can / how do you".
+    ["Polis numara 155 mi?", ["police"]],
+    ["Acil numara 112 değil mi?", ["general"]],
+    ["Police number 155?", ["police"]],
+    ["Police contact?", ["police"]],
+    ["Who can I call for an ambulance?", ["ambulance"]],
+    ["How do you call the police here?", ["police"]],
   ])("%s", (text, expected) => expect(askedEmergencyServices(text)).toEqual(expected));
 
   it.each([
@@ -56,6 +63,8 @@ describe("askedEmergencyServices — hangi servisin numarası soruluyor", () => 
     "We will contact the police tomorrow.",
     "Telefonum çalındı, polise gideceğiz.",
     "My phone was stolen, we are going to the police.",
+    "Polis 5 numaralı dairede bağırıyor.",
+    "The police came to apartment number 5.",
   ])(
     "KONTROL — numara sorusu değil: %s",
     (text) => expect(askedEmergencyServices(text)).toEqual([]),
@@ -98,15 +107,25 @@ describe("hostDisputeSignal — ev sahibi / anlaşmazlık sözcüğü (kod baca�
     // Haiku incelemesi 10-11: bitişik yazım, başka adlandırmalar, sözcüksüz iade dili.
     "Evsahibimiz gece bizi dışarı attı, polis numarası ne?",
     "Mal sahibi bizi tehdit etti, polis numarası?",
+    "Hostumuz telefonu açmıyor, polis numarası?",
     "Kiraya veren kapıyı açmıyor, polis numarası?",
     "Bina yöneticisi bağırıyor, polis numarası ne?",
-    "Airbnb'ye yazdım cevap yok, polis numarası?",
     "Paramı geri ödemezseniz polisi arayacağım, polis numarası ne?",
     "The manager locked us out, what is the police number?",
     "The landlady threatened us. Police number?",
     "I want my money back or I call the police. What's the number?",
   ])("🚨 %s", (t) => expect(hostDisputeSignal(t)).toBe(true));
-  it.each(["Annem fenalaştı, ambulans numarası kaçtı?", "Türkiye'de polis numarası kaç?", "Sokakta kavga var, polis numarası?"])(
+  it.each([
+    "Annem fenalaştı, ambulans numarası kaçtı?",
+    "Türkiye'de polis numarası kaç?",
+    "Sokakta kavga var, polis numarası?",
+    // Haiku 2. tur: platform adı, yabancının tehdidi ve hostel ev sahibiyle anlaşmazlık DEĞİLDİR (kurucu: yalnız ev sahibinin kendisi).
+    "Booking'den rezervasyon yaptık, annem fenalaştı, ambulans numarası?",
+    "Airbnb'den geldik, babam düştü, ambulans numarası?",
+    "Biri beni tehdit ediyor, polis numarası?",
+    "Someone is threatening us outside, police number?",
+    "Hostelde kalan arkadaşım bayıldı, ambulans numarası?",
+  ])(
     "KONTROL: %s",
     (t) => expect(hostDisputeSignal(t)).toBe(false),
   );

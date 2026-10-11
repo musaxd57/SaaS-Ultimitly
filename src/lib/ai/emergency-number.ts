@@ -49,14 +49,15 @@ const SERVICE_WORDS: readonly [EmergencyService, string][] = [
 ];
 /**
  * "Numara / telefon" sorusu: numara, telefon, cümle sonundaki "kaç", nasıl arar / çağırır; number, phone, dial, "how do I call / contact";
- * Nummer; numero; номер; رقم. Haiku incelemesi (10-11) — numara sorusu OLMAYAN eşleşmeler elendi: rakamla süren "numara 5'teki komşu"
- * (daire numarası), "Polis kaç dakikada gelir?" (kaç cümle sonunda değil), "telefonum çalındı" / "my phone" (kendi telefonu), çıplak
- * "call / contact" ("We'll call the police about the noise").
+ * Nummer; numero; номер; رقم. Haiku incelemesi (10-11, iki tur) — numara sorusu OLMAYAN eşleşmeler elendi: rakamla süren "numara 5'teki
+ * komşu" (daire numarası; acil kısa numara — 1xx / 911 / 999 — ile süren "Polis numara 155 mi?" yine sorudur), "5 numaralı daire",
+ * "Polis kaç dakikada gelir?" (kaç cümle sonunda değil), "telefonum çalındı" / "my phone" (kendi telefonu), cümle ortasındaki "call /
+ * contact" ("We'll call the police about the noise"); cümle sonundaki "Police contact?" sorudur.
  */
+const NOT_LOCAL_NUMBER = "(?!\\s*(?!(?:1\\d\\d|911|999)(?!\\d))\\d)";
 const NUMBER_CUE =
-  "numara(?!\\s*\\d)\\p{L}{0,8}|telefon(?!um)\\p{L}{0,8}|kac(?=\\s*(?:[?.!,]|$))|nasil\\s+(?:ara|cagir|ulas)\\p{L}{0,8}|number(?!\\s*\\d)|(?<!my\\s)(?<!our\\s)phone|dial|how\\s+(?:(?:do|can|should)\\s+(?:i|we)\\s+|to\\s+)(?:call|reach|contact)|who\\s+(?:do|should)\\s+(?:i|we)\\s+call|nummer(?!\\s*\\d)|numero(?!\\s*\\d)|номер(?!\\s*\\d)\\p{L}{0,3}|телефон\\p{L}{0,3}|رقم|هاتف";
+  `numara${NOT_LOCAL_NUMBER}(?!li\\b)\\p{L}{0,8}|telefon(?!um)\\p{L}{0,8}|kac(?=\\s*(?:[?.!,]|$))|nasil\\s+(?:ara|cagir|ulas)\\p{L}{0,8}|number${NOT_LOCAL_NUMBER}|(?<!my\\s)(?<!our\\s)phone|dial|contact(?:\\s+(?:number|details|info))?(?=\\s*(?:[?.!,]|please|$))|how\\s+(?:(?:do|can|should)\\s+(?:i|we|you)\\s+|to\\s+)(?:call|reach|contact)|who\\s+(?:do|should|can)\\s+(?:i|we)\\s+call|nummer${NOT_LOCAL_NUMBER}|numero${NOT_LOCAL_NUMBER}|номер${NOT_LOCAL_NUMBER}\\p{L}{0,3}|телефон\\p{L}{0,3}|رقم|هاتف`;
 const SERVICE_RE = SERVICE_WORDS.map(([s, w]) => [s, new RegExp(`${L}(?:${w})`, "iu")] as const);
-const CUE_RE = new RegExp(`${L}(?:${NUMBER_CUE})`, "iu");
 /** Servis adı ile numara sorusu aynı yakınlıkta (≤ 60 karakter, iki sıra; bir cümle sınırını geçebilir: "Polise haber vereceğiz. Numarası?"). */
 const ASK_RE = new RegExp(
   `${L}(?:${SERVICE_WORDS.map(([, w]) => w).join("|")})[\\s\\S]{0,60}?${L}(?:${NUMBER_CUE})|${L}(?:${NUMBER_CUE})[\\s\\S]{0,60}?${L}(?:${SERVICE_WORDS.map(([, w]) => w).join("|")})`,
@@ -75,12 +76,14 @@ export function askedEmergencyServices(text: string): EmergencyService[] {
 }
 
 /**
- * Ev sahibi / anlaşmazlık sözcüğü (kod bacağı): ev sahibi (bitişik yazım dahil), mal sahibi, kiraya veren, yönetici, Airbnb / Booking,
- * depozito, iade, "geri ödemezseniz", şikâyet, dolandırılma, hakaret, tehdit, iptal — yedi dil. Fazla eşleşme bilinçli: bedeli numaranın
- * gitmemesidir (bugünkü davranış, ev sahibi uyarılır).
+ * Ev sahibi / anlaşmazlık sözcüğü (kod bacağı): ev sahibi (bitişik yazım dahil), mal sahibi, kiraya veren, yönetici, depozito, iade,
+ * "geri ödemezseniz", şikâyet, dolandırılma, hakaret, iptal — yedi dil. Fazla eşleşme bilinçli: bedeli numaranın gitmemesidir (bugünkü
+ * davranış, ev sahibi uyarılır). Haiku 2. tur (10-11): platform adı (Airbnb / Booking) ve çıplak "tehdit" ÇIKARILDI — "Booking'den
+ * geldik, annem fenalaştı" ya da "Biri beni tehdit ediyor" ev sahibiyle anlaşmazlık değildir (kurucu: yalnız ev sahibinin KENDİSİ
+ * tehditse size kalsın; o durumda "ev sahibi / mal sahibi / landlady" zaten eşleşir). "hostel / hostes" ev sahibi değildir.
  */
 const HOST_DISPUTE = new RegExp(
-  `${L}(?:ev\\s*sahib\\p{L}*|mal\\s+sahib\\p{L}*|kiraya\\s+veren\\p{L}*|yonetici\\p{L}*|airbnb|booking|host|owner|landlord|landlady|manager|vermieter\\p{L}*|gastgeber\\p{L}*|proprietaire|hote|anfitrion|dueno|propietari\\p{L}*|хозя\\p{L}*|владел\\p{L}*|المالك|صاحب|depozit\\p{L}*|deposit|kaution|caution|iade\\p{L}*|refund\\p{L}*|erstatt\\p{L}*|rembours\\p{L}*|reembols\\p{L}*|возврат\\p{L}*|залог\\p{L}*|استرداد|sikayet\\p{L}*|complain\\p{L}*|beschwer\\p{L}*|plainte|queja|жалоб\\p{L}*|شكو\\p{L}*|dolandir\\p{L}*|scam\\p{L}*|fraud\\p{L}*|betrug|betrog\\p{L}*|arnaque|estafa\\p{L}*|мошен\\p{L}*|احتيال|hakaret\\p{L}*|insult\\p{L}*|beleidig\\p{L}*|tehdit\\p{L}*|threat\\p{L}*|geri\\s+(?:ode|ver)\\p{L}*|money\\s+back|iptal\\p{L}*|cancel\\p{L}*|storn\\p{L}*|annul\\p{L}*|отмен\\p{L}*|الغاء)`,
+  `${L}(?:ev\\s*sahib\\p{L}*|mal\\s+sahib\\p{L}*|kiraya\\s+veren\\p{L}*|yonetici\\p{L}*|host(?!el|es)\\p{L}*|owner|landlord|landlady|manager|vermieter\\p{L}*|gastgeber\\p{L}*|proprietaire|hote|anfitrion|dueno|propietari\\p{L}*|хозя\\p{L}*|владел\\p{L}*|المالك|صاحب|depozit\\p{L}*|deposit|kaution|caution|iade\\p{L}*|refund\\p{L}*|erstatt\\p{L}*|rembours\\p{L}*|reembols\\p{L}*|возврат\\p{L}*|залог\\p{L}*|استرداد|sikayet\\p{L}*|complain\\p{L}*|beschwer\\p{L}*|plainte|queja|жалоб\\p{L}*|شكو\\p{L}*|dolandir\\p{L}*|scam\\p{L}*|fraud\\p{L}*|betrug|betrog\\p{L}*|arnaque|estafa\\p{L}*|мошен\\p{L}*|احتيال|hakaret\\p{L}*|insult\\p{L}*|beleidig\\p{L}*|geri\\s+(?:ode|ver)\\p{L}*|money\\s+back|iptal\\p{L}*|cancel\\p{L}*|storn\\p{L}*|annul\\p{L}*|отмен\\p{L}*|الغاء)`,
   "iu",
 );
 export function hostDisputeSignal(text: string): boolean {
