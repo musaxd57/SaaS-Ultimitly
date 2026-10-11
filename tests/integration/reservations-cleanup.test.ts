@@ -73,6 +73,20 @@ describe("cleanupStaleReservations", () => {
     expect(await prisma.reservation.findUnique({ where: { id: ghost.id } })).toBeNull();
   });
 
+  it("sağlayıcıya YALNIZ köprüye bağlı mülkün kendi ilan kimliği gider; bağsız mülk sorulmaz (değişmez 1/20 taşıması, 10-11)", async () => {
+    const { orgId, propertyId } = await makeOrgProp("hosp-77");
+    await prisma.property.create({ data: { organizationId: orgId, name: "Bağsız", hospitableId: null } });
+    await makeRes(propertyId, "res-1", new Date());
+    mockList.mockResolvedValue([{ id: "res-1" }]);
+
+    const out = await cleanupStaleReservations(orgId);
+
+    expect(out).toMatchObject({ checkedProperties: 1, removed: 0 });
+    expect(mockList).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockList.mock.calls[0])).toContain("hosp-77");
+    expect(JSON.stringify(mockList.mock.calls[0])).not.toContain(propertyId);
+  });
+
   it("never prunes when the fetch returns EMPTY (unverifiable)", async () => {
     const { orgId, propertyId } = await makeOrgProp("hosp-1");
     await makeRes(propertyId, "res-1", new Date());
