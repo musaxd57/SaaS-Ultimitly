@@ -5,6 +5,7 @@ import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
 import { hasEmergencyCallDirective, hazardDecisionFor, hazardEvidenceOf } from "@/lib/ai/hazard-evidence";
+import { emergencyNumberEnabled, emergencyNumberReply } from "@/lib/ai/emergency-number";
 import { confidentLanguage } from "@/lib/ai/language-signal";
 import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
@@ -709,7 +710,22 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const lineLanguage = confidentLanguage(message);
   // AÇIK tehlike: modeli BEKLEMEDEN devir. Ücretli çağrı yapılmaz, AI kotası tüketilmez; ev sahibine kritik uyarı (bekleme süresini aşar).
   if (hazard.level === "clear") {
-    const reply = null;
+    // Misafir numarayı AÇIKÇA sorduysa yalnız o servisin numarası gider (kurucu 10-11: "sorulursa numarasını verebilir"; anahtar
+    // `AI_EMERGENCY_NUMBER_ENABLED` KAPALI → bugünkü gibi hiçbir şey). Yönerge yok; ev sahibi sözcüğü varsa yine hiçbir şey.
+    const fastOrgTz = emergencyNumberEnabled()
+      ? orgTimezone((await prisma.organization.findUnique({ where: { id: ctx.property.organizationId }, select: { timezone: true } }))?.timezone)
+      : null;
+    const fastNumber = fastOrgTz
+      ? emergencyNumberReply({
+          message,
+          timeZone: fastOrgTz,
+          language: lineLanguage,
+          understandingIntents: null,
+          hazard: true,
+          earlierGuestTexts: qrUnanswered.slice(0, -1),
+        })
+      : null;
+    const reply = fastNumber?.text ?? null;
     const fast = await record(reply, true);
     if (fast.handedOff) return finalize({ handoff: true });
     await recordRiskEvent({
@@ -1108,8 +1124,21 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // 🚨 ACİL ≠ SIRADAN İSTEK (kurucu, 09-11). `criticalEvent` yukarıda (alarm
   // dedupe'ı için) ZATEN hesaplandı — yeni dedektör, yeni çağrı, yeni maliyet yok.
   // Devirde misafire HİÇBİR ŞEY gitmez (K10 + kurucu kararı 10-11: tehlikede de 112 / acil servis satırı YOK); ev sahibi uyarılır.
-  const reply = escalate ? null : finalResult.reply;
-  const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
+  // ── ACİL NUMARA SORUSU → KOD METNİ (kurucu kararları 10-11; anahtar `AI_EMERGENCY_NUMBER_ENABLED` KAPALI → hep null) ──────────────
+  // "Ambulans / polis numarası ne?" → yalnız sorulan servisin numarası ("Polis: 155"), yönerge yok. Ev sahibi / anlaşmazlık sözcüğü ya da
+  // anlama katmanının şikâyet / iade / insan talebi ya da bir konaklama konusu niyeti → numara verilmez (bugünkü devir). Modelin taslağı
+  // ATILIR (yalnız numara gider) ve ev sahibi HER ZAMAN uyarılır: misafirin acil numara sorması ev sahibinin bilmesi gereken bir olaydır,
+  // mesajdaki başka bir istek ("en yakın hastane nerede?") de ona kalır.
+  const emergencyNumber = emergencyNumberReply({
+    message,
+    timeZone: orgTimezone(org?.timezone),
+    language: lineLanguage ?? understood?.language ?? result.detectedLanguage ?? null,
+    understandingIntents: understood ? understood.requests.map((q) => q.intent) : null,
+    earlierGuestTexts: qrUnanswered.slice(0, -1),
+  });
+  const sendEscalate = emergencyNumber !== null || escalate;
+  const reply = emergencyNumber ? emergencyNumber.text : escalate ? null : finalResult.reply;
+  const { inboundMessageId, handedOff, conversationId } = await record(reply, sendEscalate);
   if (handedOff) return finalize({ handoff: true });
   // İZLENEBİLİRLİK (kurucu AI kalite turu, 09-08): KARARIN GEREKÇESİ kaydedilir —
   // devir DE, otomatik cevap DA. Kapalı küme; misafir metni ASLA girmez. Yan
@@ -1122,14 +1151,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     conversationId,
     surface: "guest_chat",
     triggerId: inboundMessageId,
-    finalDecision: escalate ? "human_review" : "auto_sent",
+    finalDecision: sendEscalate ? "human_review" : "auto_sent",
     riskLevel: result.riskLevel,
     riskType: result.riskType ?? null,
-    reason: verdict.reason ?? "gate_passed",
+    reason: emergencyNumber ? "emergency_number" : (verdict.reason ?? "gate_passed"),
     confidence: result.confidence,
     ...(await auditFields()),
   });
-  if (escalate) {
+  if (sendEscalate) {
     // Alarm önceliği: kelime ağının acil durumu YA DA anlama katmanının acil niyeti (kelime ağının kaçırdığı dolaylı
     // dil — inceleme 09-24, P2-11) bekleme süresini aşar. Misafire giden metin bağlam kararında kalır (↑ hazardDecision).
     // 51: bağlamla kalkan fiziksel tehlike etiketi (olası / anılış + model "acil değil") kritik uyarı değildir.
@@ -1143,7 +1172,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       critical: alertCritical,
     });
   }
-  return finalize({ escalated: escalate, reply });
+  return finalize({ escalated: sendEscalate, reply });
 
   } catch (err) {
     // Pre-record failure (model/DB error before anything persisted) → release so

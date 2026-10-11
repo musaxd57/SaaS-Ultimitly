@@ -85,6 +85,8 @@ const REASONS = new Set([
   "door_code_in_reply",
   // Cevap misafiri acil numarayı / acil servisi aramaya yönlendirdi (kurucu kararı 10-11) → gitmedi (QR kapısı ile BİREBİR).
   "emergency_directive",
+  // Acil numara sorusuna koddan yalnız numara gitti (kurucu kararları 10-11; anahtar `AI_EMERGENCY_NUMBER_ENABLED`).
+  "emergency_number",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.
