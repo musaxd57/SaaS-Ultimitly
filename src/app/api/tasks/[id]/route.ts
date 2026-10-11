@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { badRequest, jsonOk, notFound, canManage, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
+import { rateLimit } from "@/lib/rate-limit";
 import { reportError } from "@/lib/report-error";
 import { taskAssignedEmail } from "@/lib/email-templates";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
@@ -28,6 +29,8 @@ function parseChecklist(json: string | null): { label: string; done: boolean }[]
 
 class ChecklistConflict extends Error {}
 const CHECKLIST_CONFLICT_TEXT = "Görev listesi bu arada değişti. Sayfayı yenileyip tekrar deneyin.";
+/** Aynı görev için saatte en çok bu kadar atama e-postası (kurucu kararı 10-11; route.ts yalnız rota alanlarını dışa verir → export yok). */
+const TASK_ASSIGN_MAILS_PER_HOUR = 3;
 
 /**
  * Kilitli satırın listesine göre yazılacak liste. Tek madde: sıra + beklenen etiket tutmazsa çatışma, yalnız o maddenin işareti
@@ -191,7 +194,10 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
 
   // Send email to the newly assigned user. Personele giden e-posta misafir adını / mesajını taşımaz (temizlikçi
   // görünümü; e-posta onun kutusunda, saklama süremizin dışında kalır).
-  if (newAssignee) {
+  // TAVAN (kurucu kararı 10-11): aynı görev için saatte en çok 3 atama e-postası — döngüyle yeniden atama personelin kutusunu
+  // doldurmasın. Atama YİNE yapılır (yukarıda yazıldı); yalnız fazladan e-posta gitmez.
+  const mailAllowed = newAssignee ? (await rateLimit(`task-assign-mail:${task.id}`, TASK_ASSIGN_MAILS_PER_HOUR, 60 * 60_000)).ok : false;
+  if (newAssignee && mailAllowed) {
     const emailTask = newAssignee.role === "owner" || newAssignee.role === "manager" ? task : staffTaskProjection(task);
     const html = taskAssignedEmail(
       emailTask,
