@@ -34,12 +34,57 @@ describe("askedEmergencyServices — hangi servisin numarası soruluyor", () => 
     ["Wie lautet die Notrufnummer in der Türkei?", ["general"]],
     ["Какой номер скорой помощи? Ребёнку плохо.", ["ambulance"]],
     ["ما هو رقم الإسعاف؟ والدي مريض", ["ambulance"]],
+    // Belirli servis sorulduysa genel "acil" sözcüğü ayrı satır üretmez (mutasyon E14).
+    ["Acil! Ambulans numarası ne?", ["ambulance"]],
+    ["Ambulans kaç?", ["ambulance"]],
+    ["How do I call the police?", ["police"]],
+    ["Who do we call for an ambulance?", ["ambulance"]],
+    ["Ambulans numarası 112 mi?", ["ambulance"]],
   ])("%s", (text, expected) => expect(askedEmergencyServices(text)).toEqual(expected));
 
-  it.each(["Wi-Fi şifresi ne?", "Polis karakolu nerede?", "Ambulans geçti, çok gürültü vardı.", "Check-in kaçta?", ""])(
+  it.each([
+    "Wi-Fi şifresi ne?",
+    "Polis karakolu nerede?",
+    "Ambulans geçti, çok gürültü vardı.",
+    "Check-in kaçta?",
+    "",
+    // Haiku incelemesi 10-11: numara sorusu OLMAYAN eşleşmeler.
+    "Polis kaç dakikada gelir?",
+    "Acil servis kaç saate kadar açık?",
+    "Polis geldi, numara 5'teki komşu gürültü yapıyor.",
+    "I'm going to call the police about the neighbours' noise.",
+    "We will contact the police tomorrow.",
+    "Telefonum çalındı, polise gideceğiz.",
+    "My phone was stolen, we are going to the police.",
+  ])(
     "KONTROL — numara sorusu değil: %s",
     (text) => expect(askedEmergencyServices(text)).toEqual([]),
   );
+});
+
+describe("uzun metin — tavan + süre (misafir metni; karesel iş yok)", () => {
+  it("2.000 karakteri aşan mesaj numara sorusu sayılmaz (mutasyon E18) ve hızlı döner", () => {
+    expect(askedEmergencyServices(`${"a".repeat(1_990)} Ambulans numarası ne?`)).toEqual([]);
+    expect(askedEmergencyServices(`${"a ".repeat(980)}Ambulans numarası ne?`)).toEqual(["ambulance"]);
+  });
+  it.each([
+    ["boşluklu tekrar", "polis ".repeat(330)],
+    ["tek sözcük", "ambulans".repeat(240)],
+    ["ipucu tekrarı", "numara kaç ".repeat(180)],
+  ])("askedEmergencyServices %s < 200 ms", (_n, text) => {
+    const t = performance.now();
+    askedEmergencyServices(text);
+    expect(performance.now() - t).toBeLessThan(200);
+  });
+  it.each([
+    ["boşluk dizisi", "ev " + " ".repeat(50_000) + "x"],
+    ["tek sözcük", "evsahib".repeat(7_000)],
+    ["tekrarlanan kök", "iade ".repeat(10_000)],
+  ])("hostDisputeSignal %s (50.000 karakter) < 300 ms", (_n, text) => {
+    const t = performance.now();
+    hostDisputeSignal(text);
+    expect(performance.now() - t).toBeLessThan(300);
+  });
 });
 
 describe("hostDisputeSignal — ev sahibi / anlaşmazlık sözcüğü (kod bacağı)", () => {
@@ -50,6 +95,16 @@ describe("hostDisputeSignal — ev sahibi / anlaşmazlık sözcüğü (kod baca�
     "The host is not responding, give me the police number.",
     "Хозяин не возвращает залог. Какой номер полиции?",
     "Ev sahibi kapıyı izinsiz açıp içeri girdi, korkuyorum. Polis numarası ne?", // kurucu: ev sahibi tehditse size kalsın
+    // Haiku incelemesi 10-11: bitişik yazım, başka adlandırmalar, sözcüksüz iade dili.
+    "Evsahibimiz gece bizi dışarı attı, polis numarası ne?",
+    "Mal sahibi bizi tehdit etti, polis numarası?",
+    "Kiraya veren kapıyı açmıyor, polis numarası?",
+    "Bina yöneticisi bağırıyor, polis numarası ne?",
+    "Airbnb'ye yazdım cevap yok, polis numarası?",
+    "Paramı geri ödemezseniz polisi arayacağım, polis numarası ne?",
+    "The manager locked us out, what is the police number?",
+    "The landlady threatened us. Police number?",
+    "I want my money back or I call the police. What's the number?",
   ])("🚨 %s", (t) => expect(hostDisputeSignal(t)).toBe(true));
   it.each(["Annem fenalaştı, ambulans numarası kaçtı?", "Türkiye'de polis numarası kaç?", "Sokakta kavga var, polis numarası?"])(
     "KONTROL: %s",
@@ -94,6 +149,9 @@ describe("emergencyNumberReply — karar", () => {
   it("🚨 ev sahibinin kendisi tehdit → size kalır (kurucu kararı)", () => {
     expect(ask("Ev sahibi kapıyı izinsiz açıp içeri girdi, korkuyorum. Polis numarası ne?", ["emergency"])).toBeNull();
   });
+  it("🚨 açık tehlike dalında da bitişik 'Evsahibi' numarayı durdurur (Haiku 10-11)", () => {
+    expect(ask("Yangın çıktı! Evsahibimiz bizi dışarı attı, itfaiye numarası lazım!", null, { hazard: true })).toBeNull();
+  });
   it("🚨 numara sorusu bir konaklama konusuyla birlikte → ev sahibine kalır (ölçümdeki h4); yakın yer / ulaşım sorusuyla birlikte verilir", () => {
     expect(ask("Kapı kodu çalışmıyor, 2 saattir dışarıdayız. Polisi arayacağız, numara ne?", ["access_keys", "emergency"])).toBeNull();
     expect(ask("Klima bozuldu, itfaiye numarası ne?", ["appliance_help", "emergency"])).toBeNull();
@@ -101,6 +159,7 @@ describe("emergencyNumberReply — karar", () => {
       "Ambulans: 112",
     );
     expect(ask("Merhaba, acil bir durumda hangi numarayı arayabiliriz?", ["greeting_thanks", "emergency"])?.text).toBe("Acil çağrı: 112");
+    expect(ask("Ambulans numarası ne, hastaneye nasıl gideriz?", ["emergency", "directions_transport"])?.text).toBe("Ambulans: 112");
     expect(ask("Ambulans numarası ne?", ["other"])?.text).toBe("Ambulans: 112");
   });
   it("🚨 aynı turdaki önceki cevapsız misafir mesajında ev sahibi sözcüğü → numara verilmez", () => {

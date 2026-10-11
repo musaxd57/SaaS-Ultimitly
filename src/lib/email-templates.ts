@@ -534,11 +534,13 @@ export function trialEndedEmail(settingsUrl: string): string {
 // ---------------------------------------------------------------------------
 export function qrEscalationEmail(
   propertyName: string,
-  reason: "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr" | "stay_message_cap",
+  reason: "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr" | "stay_message_cap" | "emergency_number",
   panelUrl: string,
 ): string {
   const reasonText =
-    reason === "stay_message_cap"
+    reason === "emergency_number"
+      ? "Misafir bir acil servisin numarasını sordu; yapay zekâ yalnız o numarayı gönderdi. Mesajı panelde okuyun — durum acil olabilir."
+      : reason === "stay_message_cap"
       ? "Misafir son bir saatte çok fazla mesaj gönderdi. Fazla mesajlar kaydedilmedi ve yapay zekâ yanıtlamadı; sohbet bir saat içinde kendiliğinden normale döner."
       : reason === "daily_cap"
       ? "Günlük otomatik yanıt limiti dolduğu için mesaj yapay zekâ tarafından yanıtlanmadı ve size devredildi."

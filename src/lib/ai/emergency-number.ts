@@ -47,9 +47,14 @@ const SERVICE_WORDS: readonly [EmergencyService, string][] = [
   ["fire", "itfaiye\\p{L}{0,8}|fire\\s+(?:department|brigade|service)|pompiers|bomberos|feuerwehr|пожарн\\p{L}{0,8}|(?:ب|و|ل)?(?:ال)?اطفاء"],
   ["general", "acil(?![\\p{L}])|acil\\s+(?:durum\\p{L}{0,8}|cagri\\p{L}{0,4}|numara\\p{L}{0,6}|servis\\p{L}{0,4}|hat\\p{L}{0,4})|emergency|urgences|emergencias|notruf\\p{L}{0,8}|экстренн\\p{L}{0,8}|(?:ب|و|ل)?(?:ال)?طوار\\p{L}{0,2}"],
 ];
-/** "Numara / telefon" sorusu: numara, kaç, hangi numara, nasıl arar / çağırır; number, phone, call, dial; Nummer; номер; رقم. */
+/**
+ * "Numara / telefon" sorusu: numara, telefon, cümle sonundaki "kaç", nasıl arar / çağırır; number, phone, dial, "how do I call / contact";
+ * Nummer; numero; номер; رقم. Haiku incelemesi (10-11) — numara sorusu OLMAYAN eşleşmeler elendi: rakamla süren "numara 5'teki komşu"
+ * (daire numarası), "Polis kaç dakikada gelir?" (kaç cümle sonunda değil), "telefonum çalındı" / "my phone" (kendi telefonu), çıplak
+ * "call / contact" ("We'll call the police about the noise").
+ */
 const NUMBER_CUE =
-  "numara\\p{L}{0,8}|telefon\\p{L}{0,8}|kac(?![\\p{L}])|hangi\\s+numara\\p{L}{0,8}|nasil\\s+(?:ara|cagir|ulas)\\p{L}{0,8}|number|phone|call|dial|contact|nummer|numero|номер\\p{L}{0,3}|телефон\\p{L}{0,3}|رقم|هاتف";
+  "numara(?!\\s*\\d)\\p{L}{0,8}|telefon(?!um)\\p{L}{0,8}|kac(?=\\s*(?:[?.!,]|$))|nasil\\s+(?:ara|cagir|ulas)\\p{L}{0,8}|number(?!\\s*\\d)|(?<!my\\s)(?<!our\\s)phone|dial|how\\s+(?:(?:do|can|should)\\s+(?:i|we)\\s+|to\\s+)(?:call|reach|contact)|who\\s+(?:do|should)\\s+(?:i|we)\\s+call|nummer(?!\\s*\\d)|numero(?!\\s*\\d)|номер(?!\\s*\\d)\\p{L}{0,3}|телефон\\p{L}{0,3}|رقم|هاتف";
 const SERVICE_RE = SERVICE_WORDS.map(([s, w]) => [s, new RegExp(`${L}(?:${w})`, "iu")] as const);
 const CUE_RE = new RegExp(`${L}(?:${NUMBER_CUE})`, "iu");
 /** Servis adı ile numara sorusu aynı yakınlıkta (≤ 60 karakter, iki sıra; bir cümle sınırını geçebilir: "Polise haber vereceğiz. Numarası?"). */
@@ -69,9 +74,13 @@ export function askedEmergencyServices(text: string): EmergencyService[] {
   return specific.length > 0 ? specific : out;
 }
 
-/** Ev sahibi / anlaşmazlık sözcüğü (kod bacağı): ev sahibi, depozito, iade, şikâyet, dolandırılma, hakaret, iptal — yedi dil. */
+/**
+ * Ev sahibi / anlaşmazlık sözcüğü (kod bacağı): ev sahibi (bitişik yazım dahil), mal sahibi, kiraya veren, yönetici, Airbnb / Booking,
+ * depozito, iade, "geri ödemezseniz", şikâyet, dolandırılma, hakaret, tehdit, iptal — yedi dil. Fazla eşleşme bilinçli: bedeli numaranın
+ * gitmemesidir (bugünkü davranış, ev sahibi uyarılır).
+ */
 const HOST_DISPUTE = new RegExp(
-  `${L}(?:ev\\s+sahib\\p{L}*|host|owner|landlord|vermieter\\p{L}*|gastgeber\\p{L}*|proprietaire|hote|anfitrion|dueno|propietari\\p{L}*|хозя\\p{L}*|владел\\p{L}*|المالك|صاحب|depozit\\p{L}*|deposit|kaution|caution|iade\\p{L}*|refund\\p{L}*|erstatt\\p{L}*|rembours\\p{L}*|reembols\\p{L}*|возврат\\p{L}*|залог\\p{L}*|استرداد|sikayet\\p{L}*|complain\\p{L}*|beschwer\\p{L}*|plainte|queja|жалоб\\p{L}*|شكو\\p{L}*|dolandir\\p{L}*|scam\\p{L}*|fraud\\p{L}*|betrug|betrog\\p{L}*|arnaque|estafa\\p{L}*|мошен\\p{L}*|احتيال|hakaret\\p{L}*|insult\\p{L}*|beleidig\\p{L}*|iptal\\p{L}*|cancel\\p{L}*|storn\\p{L}*|annul\\p{L}*|отмен\\p{L}*|الغاء)`,
+  `${L}(?:ev\\s*sahib\\p{L}*|mal\\s+sahib\\p{L}*|kiraya\\s+veren\\p{L}*|yonetici\\p{L}*|airbnb|booking|host|owner|landlord|landlady|manager|vermieter\\p{L}*|gastgeber\\p{L}*|proprietaire|hote|anfitrion|dueno|propietari\\p{L}*|хозя\\p{L}*|владел\\p{L}*|المالك|صاحب|depozit\\p{L}*|deposit|kaution|caution|iade\\p{L}*|refund\\p{L}*|erstatt\\p{L}*|rembours\\p{L}*|reembols\\p{L}*|возврат\\p{L}*|залог\\p{L}*|استرداد|sikayet\\p{L}*|complain\\p{L}*|beschwer\\p{L}*|plainte|queja|жалоб\\p{L}*|شكو\\p{L}*|dolandir\\p{L}*|scam\\p{L}*|fraud\\p{L}*|betrug|betrog\\p{L}*|arnaque|estafa\\p{L}*|мошен\\p{L}*|احتيال|hakaret\\p{L}*|insult\\p{L}*|beleidig\\p{L}*|tehdit\\p{L}*|threat\\p{L}*|geri\\s+(?:ode|ver)\\p{L}*|money\\s+back|iptal\\p{L}*|cancel\\p{L}*|storn\\p{L}*|annul\\p{L}*|отмен\\p{L}*|الغاء)`,
   "iu",
 );
 export function hostDisputeSignal(text: string): boolean {

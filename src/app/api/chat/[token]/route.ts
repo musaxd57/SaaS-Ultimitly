@@ -745,7 +745,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       propertyName: ctx.property.name,
       reservationId: res.id,
       eventId: qrEscalationEventId(fast.inboundMessageId, message, true),
-      reason: "ai_escalated",
+      reason: fastNumber ? "emergency_number" : "ai_escalated",
       critical: true,
     });
     return finalize({ escalated: true, reply });
@@ -1168,7 +1168,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       propertyName: ctx.property.name,
       reservationId: res.id,
       eventId: qrEscalationEventId(inboundMessageId, message, alertCritical),
-      reason: "ai_escalated",
+      reason: emergencyNumber ? "emergency_number" : "ai_escalated",
       critical: alertCritical,
     });
   }

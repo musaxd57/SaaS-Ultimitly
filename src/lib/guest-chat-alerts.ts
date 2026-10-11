@@ -95,7 +95,9 @@ export function qrEscalationEventId(inboundMessageId: string, guestText: string,
 // büyük ihtimalle HÂLÂ DOLU — eski `daily_budget` metnini kullanmak host'a
 // yanlış beyan olurdu ("hakkınız doldu" derken dolmamış).
 // `stay_message_cap` (kurucu kararı 10-11): konaklamanın saatlik mesaj tavanı aşıldı — fazlası kaydedilmedi; saatte tek uyarı.
-export type QrEscalationReason = "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr" | "stay_message_cap";
+// `emergency_number` (kurucu kararları 10-11): misafir acil servis numarası sordu, yapay zekâ YALNIZ numarayı gönderdi — "yanıtlamadı"
+// demek yanlış beyan olurdu (Haiku 10-11).
+export type QrEscalationReason = "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr" | "stay_message_cap" | "emergency_number";
 
 export function qrEscalationEmailEnabled(): boolean {
   return process.env.QR_ESCALATION_EMAIL_ENABLED === "1";

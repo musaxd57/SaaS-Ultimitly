@@ -12,10 +12,15 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 const mockSuggest = vi.fn();
 vi.mock("@/lib/ai", () => ({ suggestReply: (...a: unknown[]) => mockSuggest(...a) }));
+vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn(), sendReporting: vi.fn(async () => ({ ok: true })) } }));
 
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/chat/[token]/route";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
+import { emailService } from "@/lib/email";
+
+/** Ev sahibine giden uyarı e-postalarının gövdeleri (QR_ESCALATION_EMAIL_ENABLED açık). */
+const alertBodies = () => vi.mocked(emailService.sendReporting).mock.calls.map((c) => String(c[2]));
 
 const MODEL_DRAFT = "Size yardımcı olmaya çalışıyorum.";
 let intents: string[] = ["emergency"];
@@ -62,6 +67,7 @@ function fakeFetch() {
 
 async function seed(opts: { timezone?: string } = {}) {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  await prisma.user.create({ data: { organizationId: orgId, name: "Sahip", email: "owner@x.com", passwordHash: "x", role: "owner" } });
   if (opts.timezone) await prisma.organization.update({ where: { id: orgId }, data: { timezone: opts.timezone } });
   const token = `qrtok_${Math.random().toString(36).slice(2)}${"x".repeat(12)}`;
   await prisma.property.update({ where: { id: propertyId }, data: { chatEnabled: true, chatToken: token } });
@@ -108,6 +114,7 @@ describe("QR — acil numara sorusu", () => {
     vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubEnv("AI_EMERGENCY_NUMBER_ENABLED", "1");
+    vi.stubEnv("QR_ESCALATION_EMAIL_ENABLED", "1");
     vi.stubGlobal("fetch", fakeFetch());
     mockSuggest.mockResolvedValue(model());
   });
@@ -125,6 +132,10 @@ describe("QR — acil numara sorusu", () => {
     expect(ev.reason).toBe("emergency_number");
     expect(ev.finalDecision).toBe("human_review");
     expect((await conversationOf(s.propertyId)).priority).toBe("urgent");
+    // Ev sahibinin e-postası numaranın GİTTİĞİNİ söyler — "yanıtlamadı" yanlış beyan olurdu (Haiku 10-11).
+    const [mail] = alertBodies();
+    expect(mail).toContain("yalnız o numarayı gönderdi");
+    expect(mail).not.toContain("yanıtlamadı");
   });
 
   it("KONTROL: anahtar KAPALI → aynı mesajda numara GİTMEZ (bugünkü davranış: misafire hiçbir şey, ev sahibine devir)", async () => {
@@ -133,6 +144,14 @@ describe("QR — acil numara sorusu", () => {
     await ask(s.token, "Annem fenalaştı, ambulans numarası kaçtı?");
     expect(await botReplies(s.propertyId)).toEqual([]);
     expect((await lastEvent()).reason).not.toBe("emergency_number");
+    expect(alertBodies().every((m) => !m.includes("numarayı gönderdi"))).toBe(true);
+  });
+
+  it("kısa İngilizce soru (metinden dil okunamıyor) → anlama katmanının dili: 'Police: 155' (mutasyon R9)", async () => {
+    understandingLanguage = "en";
+    const s = await seed();
+    await ask(s.token, "Police number?");
+    expect(await botReplies(s.propertyId)).toEqual(["Police: 155"]);
   });
 
   it("servis başına numara + misafirin dili: polis 155, İngilizce soruya İngilizce etiket", async () => {
@@ -198,6 +217,7 @@ describe("QR — acil numara sorusu", () => {
     expect(ev.reason).toBe("physical_hazard");
     expect(ev.finalDecision).toBe("human_review");
     expect((await conversationOf(s.propertyId)).priority).toBe("urgent");
+    expect(alertBodies()[0]).toContain("yalnız o numarayı gönderdi");
   });
 
   it("🚨 AÇIK tehlike + numara sorusu, aynı turda önceki mesajda ev sahibi şikâyeti → numara GİTMEZ", async () => {
@@ -223,6 +243,7 @@ describe("QR — acil numara sorusu", () => {
     const s = await seed();
     await ask(s.token, "Mutfakta yangın çıktı!");
     expect(await botReplies(s.propertyId)).toEqual([]);
+    expect(alertBodies()[0]).toContain("yanıtlamadı");
   });
 
   it("KONTROL: AÇIK tehlike + numara sorusu, anahtar KAPALI → misafire hiçbir şey", async () => {

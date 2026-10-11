@@ -87,6 +87,8 @@ export default async function ReportsPage() {
     "hazard_reassurance",
     // Cevap misafiri 112 / acil servisi aramaya yönlendirdi (kurucu kararı 10-11) — gitmedi, kendi satırı.
     "emergency_directive",
+    // Misafir acil servis numarası sordu; koddan yalnız numara gitti, ev sahibi uyarıldı (kurucu kararları 10-11; anahtar kapalı) — kendi satırı.
+    "emergency_number",
     // Cevap yapılmamış bir işten söz etti / beyan eksikti (MÇ §4; yalnız eylem beyanı açıkken yazılır) — kendi satırı.
     "action_claim",
     "action_claim_undeclared",
@@ -372,6 +374,12 @@ export default async function ReportsPage() {
                     <div className="flex items-center justify-between px-3 py-2">
                       <span>Misafir cevabınızı bekledi — size bırakıldı</span>
                       <Badge tone="muted">{heldCount("handoff_notice")}</Badge>
+                    </div>
+                  ) : null}
+                  {heldCount("emergency_number") > 0 ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span>Acil servis numarası soruldu — numara gönderildi, size bildirildi</span>
+                      <Badge tone="muted">{heldCount("emergency_number")}</Badge>
                     </div>
                   ) : null}
                   {heldCount("understanding_risk") + heldCount("items_held") > 0 ? (
