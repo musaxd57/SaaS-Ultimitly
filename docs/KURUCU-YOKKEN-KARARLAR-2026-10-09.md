@@ -183,3 +183,24 @@ yazdığı "112'yi / polisi / acil servisi arayın" QR'da bir kez yeniden yazdı
 hatasında yazma yok) · değişmez 13 ✅ (Haiku: karışık mesaj sayılmaz, konu yalnız soruda geçiyorsa sayılmaz, mülk ayarı değişince işaret düşer,
 destek görünümünde uyarı yok). Otonom AI notu: değişmez 6 + 13'ten sonra, kurucunun "beğenirsek" onayıyla.
 
+**Değişmez 13 düzeltmesi (kurucu 10-11 gece: "Wi-Fi'nin çalışmaması şifre veya yanlış ağ demek değil") — Haiku 3 tur, 79 iddia, hepsi kodda
+doğrulandı.** Kural artık `statesInfoWrong`: misafir bilginin KENDİSİNİN yanlış / olmadığını söylerse sayılır; özne ile fiil arasına yalnız
+dolgu sözcüğü girebilir. Yalnız ev sahibine uyarıdır, misafire giden metni DEĞİŞTİRMEZ. **Benim verdiğim yorum kararları (itiraz edebilirsiniz):**
+
+| Mesaj | Sayılır mı | Gerekçe |
+|---|---|---|
+| "Wi-Fi çalışmıyor", "internet yok", "Kapı kodu tuş takımı çalışmıyor" | ❌ | Arıza |
+| "Wi-Fi şifresi yanlış / kabul etmiyor / değişmiş", "Şifreyi girdim ama kabul etmiyor" | ✅ | Bilginin kendisi |
+| "Kapı kodu çalışmıyor" | ✅ | Kod hakkında iddia |
+| "Kapı kodu açılmıyor", "Wi-Fi adı görünmüyor" | ❌ | Kilit / modem arızası olabilir (Haiku ile birlikte) |
+| "LaleNet diye bir ağ yok", "Böyle bir ağ görünmüyor", "No such network" | ✅ | Verilen ada atıf (Haiku itirazı reddedildi) |
+| "Şifre galiba yanlış", "I think the password is wrong" | ✅ | Misafir yaşadığını söylüyor |
+| "Şifre yanlış olabilir (mi)", "Maybe / could be wrong", "Belki" | ❌ | Olasılık |
+| "Şifreyi yanlış yazmışım", "I typed the wrong password", "Girdiğim şifre yanlış" | ❌ | Misafirin kendi hatası |
+| "Otopark yok", "Havlu yok", "Çöp konteyneri yok", "Adres yanlış" | ✅ | Varlık / bilgi |
+| "Otopark dolu", "Şu an otopark yok", "Park yeri yok", "No parking spaces left" | ❌ | Anlık durum |
+| "Otoparkı / adresi bulamadık" | ❌ | Misafir kaybolmuş olabilir |
+| "Temiz / ekstra havlu yok", "Telefonumun konumu yanlış" | ❌ | Bilgi çelişkisi değil |
+
+Yalnız Türkçe + İngilizce. Mutasyon 23+4+25+2+11, hepsi öldü.
+
