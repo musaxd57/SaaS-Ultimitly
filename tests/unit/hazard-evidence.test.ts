@@ -320,6 +320,10 @@ describe("acil arama yönergesi (kurucu kararı 10-11: '112'yi arayın yazmasın
     "Ambulans durağının yanındaki binada, bizi arayın.",
     "Polis merkezi yanındaki sokakta, bizi arayın.",
     "Contact your host for anything.",
+    // Nesne "bizi / us" ise acil servis anılsa da yönerge değil; otel dahili numarası acil numara değil.
+    "Call us, not the police.",
+    "Polise değil, bizi arayın.",
+    "Resepsiyon için dahili 110'u arayın.",
   ])("KONTROL değil: %s", (t) => expect(hasEmergencyCallDirective(t)).toBe(false));
 
   it("süre pini: 50.000 karakterlik dizide doğrusal", () => {

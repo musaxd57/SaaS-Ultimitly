@@ -123,6 +123,7 @@ describe("withoutQrSecretKbItems — Wi-Fi kalemi girer, kapı izi girmez", () =
       "Wi-Fi şifresi gunes1907. Otopark şifresi kirmizi gelincik", // etiket "otopark" → Wi-Fi'ye bağlı değil
       "Wi-Fi: LaleNet, çamaşır odası kodu: 4590", // etiket "çamaşır odası" (Haiku 10-11 #9)
       "Wi-Fi şifresi 12345678, bina şifresi 4590", // aynı cümlede ikinci şifre — etiket "bina" (Haiku 10-11 #1)
+      "Wi-Fi şifresi 12345678 bina şifresi 4590", // virgülsüz: etiket bir önceki şifrenin DEĞERİNDEN sonra başlar
       "Wi-Fi ağı: LaleNet. Kiler şifresi 4590", // Wi-Fi adı ÖNCEKİ cümlede kaldı; "kiler" iz listesinde yok → yalnız cümle sınırı yakalar
     ]) {
       expect(withoutQrSecretKbItems([kb("wifi", content)]), content).toEqual([]);
@@ -151,6 +152,11 @@ describe("withoutQrSecretKbItems — Wi-Fi kalemi girer, kapı izi girmez", () =
       qrReplyHasDoorCode(content.slice(0, 23_000), []);
       expect(performance.now() - t, content.slice(0, 12)).toBeLessThan(1500);
     }
+  });
+
+  it("etiketsiz İLK şifre ancak ÖNCESİNDE bir Wi-Fi adı varsa Wi-Fi sayılır (başlık da metnin parçasıdır)", () => {
+    expect(withoutQrSecretKbItems([{ category: "wifi", title: "Bilgi", content: "Şifre: 4590. Wi-Fi ağı LaleNet." }])).toEqual([]);
+    expect(withoutQrSecretKbItems([{ category: "wifi", title: "Wi-Fi", content: "Şifre: gunes1907" }])).toHaveLength(1);
   });
 
   it("KONTROL: `wifi` DIŞINDAKİ kategoride Wi-Fi şifresi bugünkü gibi düşer (kategori olmadan kapı kodundan güvenle ayrılamaz)", () => {
