@@ -278,8 +278,14 @@
   regresyon testi yazılır (örnek 13d).
 - **KB sır kapısı** (10-01 gece, A07/A04: tuş takımı / anahtar kasası / kilit kutusu / "kombinasyon" + şifre sözcüğünün yedi dili; kod sözcüğü
   sözcük İÇİNDE sayılmaz — "kapının"daki "pin"; misafir külliyatında 0 yeni yanlış tutuş; QR belirteci biçimi sorgudan ÖNCE `[A-Za-z0-9_-]{16,200}`): konaklamaya göre kapsam TEK KURAL `kbForStayScope` (oto-yanıt + yönetici "AI öner", Codex 09-27: öneri rotası
-  hiç elemiyordu) · `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
-  `verifiedActiveStay`; stil profili 4 yüzeyde TEK girişten (`styleProfileForPrompt` = sürüm kuralı + sır süzgeci).
+  hiç elemiyordu) · `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `PREBOOKING_SECRET_CATEGORIES` (wifi + checkin) +
+  `verifiedActiveStay`; 🚨 **QR: "KAPI KODU YOK, Wi-Fi VERİLSİN" (kurucu kararı 10-11):** QR bağlamı `withoutQrSecretKbItems` — `checkin`
+  kategorisi SQL'de dışarıda (`QR_SECRET_CATEGORIES` = yalnız checkin), `wifi` kalemi yalnız KAPI kalıbı ve kapı / kutu / kilit / PIN / kod İZİ
+  (`QR_WIFI_ITEM_DOOR_TRACE`, değersiz anış yeter; "Wi-Fi kodu" iz değil) taşımıyorsa girer, öteki kategoriler bugünkü TAM taramadan geçer
+  (yanlış kategorideki Wi-Fi şifresi YİNE düşer). Gerekçe: yapay zekâya ulaşan her QR mesajı aktif konaklamaya BAĞLI cihazdan gelir.
+  Cevap gönderilmeden `qrReplyHasDoorCode` ile DEĞER taşıyan kapı kodu aranır (Wi-Fi / posta kodu / telefon / saat / fiyat / bilgi tabanında
+  verilen sayı hariç) → bir kez sabit notla yeniden yazdırılır, yine kodluysa devir (`door_code_in_reply`; kurucu: "devir çok olmasın").
+  Rezervasyon öncesi kanal konuşmasında Wi-Fi verilmez (değişmedi). stil profili 4 yüzeyde TEK girişten (`styleProfileForPrompt` = sürüm kuralı + sır süzgeci).
   🚨 **ÜSLUP PROFİLİ OLGU KAYNAĞI DEĞİLDİR (F13, 09-26, `ai/style-profile.ts`):** org genelindeki host cevaplarından
   damıtılır; eski özetleyicinin "sık sorulan sorular" bölümü A dairesinin otopark cevabını B'ye olgu diye taşıyordu. Özetleyiciye
   giden örneklerde her cevabın KENDİ konuşmasının misafir adı `[Misafir]` (#211, `redactNameFromBody`; yalnız soyad bilinen sınır). Özetleyici

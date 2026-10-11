@@ -119,7 +119,8 @@ export default async function GuestChatsPage({
                 Daireye astığınız bir QR&apos;ı okutan misafir; Wi-Fi, çevredeki yerler, ulaşım gibi
                 <strong> genel sorularını</strong> yapay zekâya sorar. AI bilgi tabanınızdan yanıtlar;
                 çözemediği bir konu olursa <strong>size iletir</strong> ve buradan siz yanıtlarsınız.
-                Güvenlik için kapı kodu/Wi-Fi şifresi QR&apos;da paylaşılmaz.
+                Güvenlik için kapı kodu QR&apos;da paylaşılmaz; Wi-Fi bilgisi yalnız konaklamaya bağlanmış cihazdaki
+                misafire verilir.
               </p>
             </div>
 

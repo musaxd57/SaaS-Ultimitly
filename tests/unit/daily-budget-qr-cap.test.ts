@@ -38,7 +38,7 @@ describe("§E — QR bütçe verdict'i DOLAN kovanın tavanını bildirir", () =
     rateLimit
       .mockResolvedValueOnce({ ok: true, retryAfter: 0 }) // ① QR payı geçti
       .mockResolvedValueOnce({ ok: false, retryAfter: 3600 }); // ② ortak tavan doldu
-    const v = await consumeDailyAiBudgetForQr(ORG);
+    const v = await consumeDailyAiBudgetForQr(ORG, "prop-1");
     expect(v.ok).toBe(false);
     expect(v.cap).toBe(150);
     // Metin artık gerçeği söylüyor.
@@ -47,7 +47,7 @@ describe("§E — QR bütçe verdict'i DOLAN kovanın tavanını bildirir", () =
 
   it("QR'ın KENDİ payı dolduğunda PAY bildirilir (davranış aynen korunur)", async () => {
     rateLimit.mockResolvedValueOnce({ ok: false, retryAfter: 60 });
-    const v = await consumeDailyAiBudgetForQr(ORG);
+    const v = await consumeDailyAiBudgetForQr(ORG, "prop-1");
     expect(v.ok).toBe(false);
     expect(v.cap).toBe(QR_SHARE);
     // 🚨 Erken dönüş: ortak sayaca DOKUNULMAZ (taşan QR inbox'ın hakkını yemez).
@@ -58,7 +58,7 @@ describe("§E — QR bütçe verdict'i DOLAN kovanın tavanını bildirir", () =
     rateLimit
       .mockResolvedValueOnce({ ok: true, retryAfter: 0 })
       .mockResolvedValueOnce({ ok: true, retryAfter: 0 });
-    const v = await consumeDailyAiBudgetForQr(ORG);
+    const v = await consumeDailyAiBudgetForQr(ORG, "prop-1");
     expect(v.ok).toBe(true);
     // Başarıda `cap` hiçbir mesaja girmiyor; yine de PAY bildirilir — QR'ın
     // kendi bütçesi odur ve "ne kadar hakkım kaldı" sorusunun doğru cevabı budur.
@@ -70,7 +70,7 @@ describe("§E — QR bütçe verdict'i DOLAN kovanın tavanını bildirir", () =
     rateLimit
       .mockResolvedValueOnce({ ok: true, retryAfter: 0 })
       .mockResolvedValueOnce({ ok: true, retryAfter: 0 });
-    await consumeDailyAiBudgetForQr(ORG);
+    await consumeDailyAiBudgetForQr(ORG, "prop-1");
     expect(rateLimit.mock.calls[0][0]).toBe(`ai-daily-qr:${ORG}`);
     expect(rateLimit.mock.calls[0][1]).toBe(QR_SHARE);
     expect(rateLimit.mock.calls[1][0]).toBe(`ai-daily:${ORG}`);

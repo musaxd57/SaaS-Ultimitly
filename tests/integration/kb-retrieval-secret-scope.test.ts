@@ -102,7 +102,8 @@ describe("QR yolu — hibrit AÇIK: sır kategorisi + içerik sezgiseli + onay k
     await prisma.$disconnect();
   });
 
-  it("wifi/checkin kategorisi, kod içeren faq kalemi ve taslak — modele GİTMEZ, kanıtta GÖRÜNMEZ; seçim yine yapılır", async () => {
+  // Wi-Fi kalemi kurucu kararıyla (10-11) QR'a girebilir — ama bu fikstür "kapı arkasındaki kart" diyor: kapı izi → yine GİRMEZ.
+  it("kapı izli wifi / checkin kategorisi, kod içeren faq kalemi ve taslak — modele GİTMEZ, kanıtta GÖRÜNMEZ; seçim yine yapılır", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const token = `qrtok_${Math.random().toString(36).slice(2)}${"x".repeat(12)}`;
     await prisma.property.update({ where: { id: propertyId }, data: { chatEnabled: true, chatToken: token } });

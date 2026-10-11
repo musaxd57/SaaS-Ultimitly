@@ -40,19 +40,19 @@ describe("QR rezerve payı — inbox'ın hakkı korunur", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("1) QR tavanı, org tavanının yüzdesi", async () => {
-    const v = await consumeDailyAiBudgetForQr(ORG);
+    const v = await consumeDailyAiBudgetForQr(ORG, "prop-1");
     expect(v.cap).toBe(3); // floor(10 * 30/100)
     expect(v.ok).toBe(true);
   });
 
   it("2) QR kendi payında DURUR", async () => {
-    for (let i = 0; i < 3; i++) expect((await consumeDailyAiBudgetForQr(ORG)).ok, `çağrı ${i + 1}`).toBe(true);
-    expect((await consumeDailyAiBudgetForQr(ORG)).ok).toBe(false); // 4. → pay bitti
+    for (let i = 0; i < 3; i++) expect((await consumeDailyAiBudgetForQr(ORG, "prop-1")).ok, `çağrı ${i + 1}`).toBe(true);
+    expect((await consumeDailyAiBudgetForQr(ORG, "prop-1")).ok).toBe(false); // 4. → pay bitti
   });
 
   it("3) 🚨 QR TAŞSA BİLE kimlik doğrulamalı yol ÇALIŞIR (asıl koruma)", async () => {
     // QR'ı payının ÇOK ötesine kadar hammer'la — gerçek saldırı böyle görünür.
-    for (let i = 0; i < 50; i++) await consumeDailyAiBudgetForQr(ORG);
+    for (let i = 0; i < 50; i++) await consumeDailyAiBudgetForQr(ORG, "prop-1");
 
     // Inbox oto-yanıtı / panel yolu HÂLÂ çalışmalı: QR'ın taşan trafiği
     // paylaşılan sayaca DOKUNMADI, yani org tavanının (10) en az 7'si duruyor.
@@ -63,7 +63,7 @@ describe("QR rezerve payı — inbox'ın hakkı korunur", () => {
 
   it("4) TOPLAM harcama org tavanını AŞMAZ (fatura korunur)", async () => {
     // QR payını (3) tüketsin…
-    for (let i = 0; i < 3; i++) await consumeDailyAiBudgetForQr(ORG);
+    for (let i = 0; i < 3; i++) await consumeDailyAiBudgetForQr(ORG, "prop-1");
     // …ardından kimlik doğrulamalı yol kalan 7'yi tüketsin.
     for (let i = 0; i < 7; i++) expect((await consumeDailyAiBudget(ORG)).ok).toBe(true);
     // 11. çağrı ortak tavana takılmalı — QR'ın 3'ü de o tavana sayıldı.

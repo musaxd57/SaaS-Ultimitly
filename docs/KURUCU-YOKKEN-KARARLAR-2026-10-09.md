@@ -90,3 +90,21 @@ Not: QR adresini (token) yenileme (F11) — "chatToken rotasyonu YOK (bilinçli)
   dışarıda (sır, geçici sayaç, iç kuyruk, türetilmiş kayıt). Kararınıza iki tane: **ev sahibinin ev / erken giriş kuralları** (`AutomationRule`) ve
   **karar kartı kararları** (`DecisionRequest`) bugün dökümde yok. Önerim: "ev sahibinin kendi girdiği kayıt dışa aktarılır" kuralıyla eklensin
   (misafire giden metni etkilemez; Ayarlar'daki dışa aktarma açıklaması da güncellenir — metin sizin onayınız).
+
+## Sabah (10-11) — kurucu cevapları ve uygulama
+
+| # | Konu | Kurucu kararı | Uygulama |
+|---|---|---|---|
+| Haiku (a) | Kendine görev atama | "Kendine e-posta gitmesin" | `api/tasks/[id]`: kendine atamada e-posta YOK ve görev başı saatte 3 kovasından SAYILMAZ (`task-assign-email-cap.test.ts`). |
+| Dışa aktarma | `AutomationRule` + `DecisionRequest` | "Dışa aktarmaya gerek yok" (kişisel veri değil; misafir yazışması zaten dökümde) | Gerekçeli DIŞARIDA (`data-export-coverage.test.ts`). |
+| 29b | Oto-yanıt önizleme kotası | "Gerçek çağrı kadar düşsün" (önizlemeyi ileride kaldırmayı düşünüyor) | Modele giden HER konuşma bir birim (`previewBudget`, model çağrısının hemen önünde); bütçe biterse önizleme DURUR, ekranda "günlük sınır doldu · kalan konuşmalar önizlenmedi". Rota yalnız bakar. |
+| 15 | QR konaklama başına mesaj tavanı | "Evet, saatte 40" + metin AYNEN | 41. mesaj: yapay zekâ çağrılmaz, mesaj kaydedilmez, misafir 429 ile "Şu anda çok fazla mesaj aldık. Ev sahibiniz bilgilendirildi; kısa süre sonra tekrar yazabilirsiniz." görür; ev sahibine saatte TEK kayıt: konuşma "Ev sahibine iletildi" işareti + karar kaydı (`stay_message_cap`) + açıksa uyarı e-postası. |
+| 17 | QR acil e-postası | "Konaklama başı saatte 3" | Sahiplenmeden SONRA sayılır (aynı acil metnin tekrarı hak yemez); tavanda sahiplenme bırakılır. Misafire giden cevap değişmez. |
+| 18 | QR çıktı taraması | "Taransın ama response geri dönsün … tekrar üretilsin, ev sahibine devir çok olmasın" | Cevapta DEĞER taşıyan kapı / kutu / giriş kodu → kodlu taslak hiçbir yere yazılmaz, model sabit kural notuyla BİR KEZ daha yazar (ikinci gerçek çağrı = QR kotasından bir birim); yine kodluysa devir (`door_code_in_reply`). Wi-Fi şifresi, posta kodu, telefon, saat, fiyat, değersiz anış ("kapı kodunuz Airbnb mesajında") ve bilgi tabanında zaten verilen sayı tetiklemez. |
+| 19 | QR daire alt kotası | "Evet, daire başı alt kota" | Her daire QR payının en çok "eşit payın İKİ katı" (1–2 dairede sınır yok). Pro 7 daire → 43/gün, İşletme 25 daire → 36/gün. Taşma işletmenin QR sayacına dokunmaz. |
+| 22 | Destek görünümünde operatör yazmaları | "Kapat, önce çıkış" | 2FA sıfırlama, müşteri açma, lead, kalite denetimi, başka hesaba geçiş, deneme istisnası: "Bu işlem operatörün kendi hesabından yapılır — önce destek görünümünden çıkın." `/admin` destek görünümünde yalnız bu notu gösterir. Resmî talepte dışa aktarma: önce çıkış, sonra operatör panelindeki "Dışa aktar" (bugünkü gibi). |
+| Wi-Fi | QR'da kod kuralı | "Kapı kodu yok, Wi-Fi verilsin" | `wifi` kategorisindeki, kapı / kutu / kilit / PIN / kod izi taşımayan kalem QR'a girer ("Wi-Fi kodu" kapı izi sayılmaz); `checkin` kategorisi ve öteki kategorilerdeki her sır kalıbı bugünkü gibi düşer. Rezervasyon öncesi kanal konuşmasında Wi-Fi YİNE verilmez. İstem kuralı: Wi-Fi yazılabilir, kapı / bina / tuş paneli kodu ASLA. |
+| Wi-Fi metinleri | Misafir notu + gizlilik | Not: "yalnız kapı kodunu ansın"; gizlilik: "Wi-Fi şifresi yer alır, cümleyi güncelle, paketi güncelle" (henüz onay alınmadı) | Misafir notu: "Otomatik asistan + ev sahibi. Kapı kodu gibi giriş bilgileri güvenlik için burada paylaşılmaz." Gizlilik md.15 güncellendi, `LEGAL_VERSION` 2026-10 / "Ekim 2026"; avukat paketi (HTML + PDF) QR bölümüne güncelleme notu. Ev sahibi ekranlarındaki iki açıklama da kurala uyduruldu. |
+
+Not: QR canlı ölçüm geliştirme setindeki `qd-wifi-tr` beklentisi yeni kurala çevrildi (Wi-Fi şifresi verilmeli, kapı kodu verilmemeli). Kör kabul seti
+(`qr-live-acc1`) AÇILMADI — yeni kurala göre güncellenmesi sizin / ölçüm turunun işi.

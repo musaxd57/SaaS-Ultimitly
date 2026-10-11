@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { kbForStayScope, kbForStayScopeRawAndFilled, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { kbForStayScope, kbForStayScopeRawAndFilled, withoutSecretKbItems, withoutQrSecretKbItems, PREBOOKING_SECRET_CATEGORIES } from "@/lib/guest-chat";
 import { fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
 
 // ---------------------------------------------------------------------------
@@ -122,13 +122,21 @@ describe("rezervasyon öncesi KB sır kapısı", () => {
 
     // Üretimdeki bileşim: önce kategori, sonra içerik.
     const gated = withoutSecretKbItems(
-      items.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)),
+      items.filter((i) => !(PREBOOKING_SECRET_CATEGORIES as readonly string[]).includes(i.category)),
     );
     expect(gated.map((i) => i.title)).toEqual(["Otopark"]);
   });
 
-  it("QR yolu AYNI yardımcıyı kullanır (tek kural, iki çağıran)", () => {
+  it("QR yolu kendi süzgecini kullanır (Wi-Fi istisnası, kurucu kararı 10-11) — `wifi` DIŞINDAKİ her kalem AYNI tam taramadan geçer", () => {
     const code = readFileSync("src/lib/guest-chat.ts", "utf8");
-    expect(code).toMatch(/const knowledgeBase = withoutSecretKbItems\(kbRaw\)/);
+    expect(code).toMatch(/const knowledgeBase = withoutQrSecretKbItems\(kbRaw\)/);
+    const nonWifi = [
+      { category: "faq", title: "Giriş", content: "Kapı kodu 7788" },
+      { category: "rules", title: "Wifi", content: "Wi-Fi şifresi: HUNTER2" },
+      { category: "general", title: "Çöp", content: "Çöp salı günü" },
+    ];
+    expect(withoutQrSecretKbItems(nonWifi)).toEqual(withoutSecretKbItems(nonWifi));
+    // Rezervasyon öncesi kanal konuşmasında Wi-Fi YİNE verilmez (istisna yalnız QR'ın bağlı cihazı içindir).
+    expect(kbForStayScope([{ category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre gunes1907" }], null)).toEqual([]);
   });
 });

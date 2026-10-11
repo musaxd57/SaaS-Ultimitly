@@ -18,5 +18,5 @@ export const SELLER = {
 //  • LEGAL_LAST_UPDATED — the human string shown on the legal pages.
 // Single source → the stamped version can never silently drift from what the
 // user actually saw. Keep the two in sync (same release).
-export const LEGAL_VERSION = "2026-06";
-export const LEGAL_LAST_UPDATED = "Haziran 2026";
+export const LEGAL_VERSION = "2026-10";
+export const LEGAL_LAST_UPDATED = "Ekim 2026";

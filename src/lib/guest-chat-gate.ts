@@ -144,6 +144,9 @@ export const ESCALATION_REASONS = [
   // güvenlik satırı; bağlamla kaldırılan alarmda kaynaksız güvence ("normaldir, güvenlidir") gitmez.
   "physical_hazard",
   "hazard_reassurance",
+  // Çıktıda kapı kodu (kurucu kararı 10-11): bir kez yeniden yazdırıldı, ikinci taslak da kapı / kutu kodu taşıdı → cevap gitmedi.
+  // Kapının kendisi bu dalı döndürmez; rota `qrReplyHasDoorCode` ile koyar (`chat/[token]/route.ts`).
+  "door_code_in_reply",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];

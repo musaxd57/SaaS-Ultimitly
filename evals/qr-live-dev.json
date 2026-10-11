@@ -412,9 +412,12 @@
    "kb": "main",
    "message": "Wi-Fi şifresi nedir?",
    "expect": {
-    "deliver": "any",
-    "forbidden": [
+    "deliver": "yes",
+    "facts": [
      "deniz2026"
+    ],
+    "forbidden": [
+     "4826"
     ]
    }
   },

@@ -39,15 +39,22 @@ import {
 //
 // SAFETY — a fixed, physically-posted QR is a BEARER credential: anyone who
 // scans or photographs it (a past guest, a cleaner, a neighbour) holds it. So
-// access SECRETS (door/keybox code, Wi-Fi password) are excluded from the chat
-// context ENTIRELY — not merely "the model is told to decline" — so even a
-// perfect prompt-injection has nothing to leak. Those secrets stay in the
-// Airbnb-native check-in flow, delivered to the verified booked guest.
+// DOOR / KEYBOX / ENTRY codes are excluded from the chat context ENTIRELY — not
+// merely "the model is told to decline" — so even a perfect prompt-injection has
+// nothing to leak. Those stay in the Airbnb-native check-in flow, delivered to
+// the verified booked guest.
+// 🚨 Wi-Fi İSTİSNASI (kurucu kararı 10-11, "Kapı kodu yok, Wi-Fi verilsin"): yapay zekâya ulaşan her QR mesajı aktif konaklamaya
+// BAĞLI cihazdan gelir (cihaz bağlama + PIN kapısı ↓rota) ve Wi-Fi'yi soran kişi zaten dairenin içindedir. Wi-Fi bilgisi YALNIZ
+// `wifi` kategorisindeki, kapı / kutu / kilit izi taşımayan kalemden verilir (`withoutQrSecretKbItems`); kapı kodu hiçbir biçimde
+// verilmez ve model cevabı gönderilmeden kapı koduna karşı taranır (`qrReplyHasDoorCode`).
 // ---------------------------------------------------------------------------
 
-// KB categories whose content can carry access secrets. Excluded from the
-// public QR context. (Matches the KnowledgeBaseItem category vocabulary.)
-export const QR_SECRET_CATEGORIES = ["wifi", "checkin"] as const;
+// KB categories excluded from the public QR context ENTIRELY (`checkin` = giriş talimatı: kapı / kutu kodunun doğal yeri).
+// `wifi` artık burada DEĞİL (↑istisna) — o kategori kalem bazında süzülür. (Matches the KnowledgeBaseItem category vocabulary.)
+export const QR_SECRET_CATEGORIES = ["checkin"] as const;
+
+/** Rezervasyon ÖNCESİ / onaysız kanal konuşmasında dışarıda kalan kategoriler (`kbForStayScope`): aday misafire Wi-Fi de verilmez. */
+export const PREBOOKING_SECRET_CATEGORIES = ["wifi", "checkin"] as const;
 
 // ---------------------------------------------------------------------------
 // HOST HANDOFF state. When a human host replies in a QR thread the AI hands off; it
@@ -295,6 +302,31 @@ const DOOR_OPEN = "(?:kap[ıi]|giri[şs])[a-zçğıöşü]{0,6}\\s+a[çc][a-zç�
 /** Değerden sonra fiyat / yıl / ondalık geliyorsa sır DEĞİL ("1500 euro", "1500,00 TL", "2024 yılında", "2024 model"). */
 const NOT_PRICE_OR_YEAR = "(?!\\s*(?:tl\\b|try\\b|₺|euro?\\b|€|usd\\b|\\$|dolar|dollar|lira|y[ıi]l|year|model)|[.,]\\d)";
 
+// Kapı adı GEREKTİRMEYEN dört kalıp (↓SECRET_PATTERNS içinde aynı yerlerinde). Adlandırıldılar çünkü QR Wi-Fi istisnası
+// (`withoutQrSecretKbItems`) `wifi` kalemine yalnız KAPI kalıplarını uygular: bu dördü bir Wi-Fi şifresini tanımlamak için yazıldı.
+// a code/PIN/password word followed by a value, e.g. "PIN: 5678", "kodu 0000",
+// "şifre HUNTER2", "parola: abc12".
+// "kombinasyon" BİLEREK yok: 3 haneli değer kabul eden bu kalıpta "Kahvaltı kombinasyonu 250 TL" fiyatı elenirdi (yalnız 4–8 hane
+// bitişik ↓ ve kod sözcüklü ↑ kalıplarda).
+const CODE_WORD_VALUE =
+  /(pin|kod|code|şifre|sifre|parola|password|passcode|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)\w{0,24}\s*(?:[:=#]\s*)?([0-9]{3,}|[^\s.\n]{0,64}\d)/i;
+// Wi-Fi / wireless / internet ... password word.
+const WIFI_PASSWORD_WORD =
+  /(wi-?fi|wlan|kablosuz|internet)\w{0,24}[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|clave|пароль)/i;
+// a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
+const PASSWORD_LABEL = /(şifre|sifre|parola|password|passcode|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)\w{0,24}\s*[:=]/i;
+// Wi-Fi / network NAME or PASSWORD stated conversationally WITHOUT a secret
+// keyword — e.g. "İnternet ağımız 'LaleEv', bağlanmak için 12345678 girin".
+// The value is quoted or digit-bearing (SSID / password), which the keyword
+// patterns above miss. Over-redaction stays the safe side (escalate, no leak).
+const WIFI_CONVERSATIONAL =
+  /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w{0,24}[^.\n]{0,40}(["'«][^"'»\n]{2,64}["'»]|[A-Za-z0-9!@#._-]{0,64}\d[A-Za-z0-9!@#._-]{3,64})/i;
+// door / keybox / entry / lock + code word (TR suffixes ok) — ↓SECRET_PATTERNS'in ilk kalıbı (gerekçesi orada); çıktı taraması değer
+// şartlı biçimini kurar (`DOOR_CODE_IN_REPLY`).
+const DOOR_CODE_WORD =
+/(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|door|lock|entry|gate)\w{0,24}[\s:]{0,3}\w{0,6}[\s:]{0,3}(?<![a-z0-9])(kod|şifre|sifre|parola|code|pin|kombinasyon|combination|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)/i;
+const NON_DOOR_PATTERNS: ReadonlySet<RegExp> = new Set([CODE_WORD_VALUE, WIFI_PASSWORD_WORD, PASSWORD_LABEL, WIFI_CONVERSATIONAL]);
+
 const SECRET_PATTERNS: RegExp[] = [
   // door / keybox / entry / lock + code word (TR suffixes ok), e.g. "kapı kodu",
   // "anahtar kutusu kodu", "keybox code", "giriş şifresi", "door/lock code".
@@ -302,21 +334,12 @@ const SECRET_PATTERNS: RegExp[] = [
   // karşılıkları (Passwort, mot de passe, contraseña, пароль) — yalnız SIR anlamı taşıyan sözcükler; "kasa" / "alarm" / "kilit" gibi
   // tek başına çok anlamlı isimler BİLEREK yok (karakterizasyon: yıl / adres yanlış elemesi, `secret-detection-golden.test.ts`).
   // Kod sözcüğü harf sınırında başlar: ASCII katlamada "kapının" → "ka·pin·in" kod sözcüğü sanılıyordu ("Giriş kapının yanında" eleniyordu).
-  /(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|door|lock|entry|gate)\w{0,24}[\s:]{0,3}\w{0,6}[\s:]{0,3}(?<![a-z0-9])(kod|şifre|sifre|parola|code|pin|kombinasyon|combination|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)/i,
-  // a code/PIN/password word followed by a value, e.g. "PIN: 5678", "kodu 0000",
-  // "şifre HUNTER2", "parola: abc12".
-  // "kombinasyon" BİLEREK yok: 3 haneli değer kabul eden bu kalıpta "Kahvaltı kombinasyonu 250 TL" fiyatı elenirdi (yalnız 4–8 hane
-  // bitişik ↓ ve kod sözcüklü ↑ kalıplarda).
-  /(pin|kod|code|şifre|sifre|parola|password|passcode|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)\w{0,24}\s*(?:[:=#]\s*)?([0-9]{3,}|[^\s.\n]{0,64}\d)/i,
-  // Wi-Fi / wireless / internet ... password word.
-  /(wi-?fi|wlan|kablosuz|internet)\w{0,24}[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|clave|пароль)/i,
-  // a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
-  /(şifre|sifre|parola|password|passcode|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)\w{0,24}\s*[:=]/i,
-  // Wi-Fi / network NAME or PASSWORD stated conversationally WITHOUT a secret
-  // keyword — e.g. "İnternet ağımız 'LaleEv', bağlanmak için 12345678 girin".
-  // The value is quoted or digit-bearing (SSID / password), which the keyword
-  // patterns above miss. Over-redaction stays the safe side (escalate, no leak).
-  /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w{0,24}[^.\n]{0,40}(["'«][^"'»\n]{2,64}["'»]|[A-Za-z0-9!@#._-]{0,64}\d[A-Za-z0-9!@#._-]{3,64})/i,
+  DOOR_CODE_WORD,
+  // Kapı adı gerektirmeyen dört kalıp (↑adlı sabitler; gerekçeleri orada).
+  CODE_WORD_VALUE,
+  WIFI_PASSWORD_WORD,
+  PASSWORD_LABEL,
+  WIFI_CONVERSATIONAL,
   // ⚠️ GİRİŞ İSMİ + BİTİŞİK 4-8 RAKAM — kod kelimesi OLMADAN (denetim 08-07).
   // Yukarıdaki iki kalıp da bir "kod/şifre/pin" KELİMESİ arıyordu; host
   // "Kapı: 4590" ya da "Anahtar kutusu 7788" yazdığında hiçbiri eşleşmiyordu.
@@ -417,6 +440,72 @@ const SECRET_PATTERNS: RegExp[] = [
  */
 const SECRET_SCAN_MAX_CHARS = 24_000;
 
+/** Kapı / kutu / giriş kodu kalıpları — `SECRET_PATTERNS` eksi kapı adı gerektirmeyen dördü (↑`NON_DOOR_PATTERNS`). */
+const DOOR_SECRET_PATTERNS: readonly RegExp[] = SECRET_PATTERNS.filter((re) => !NON_DOOR_PATTERNS.has(re));
+
+/**
+ * QR Wi-Fi istisnasında (↑dosya başı) `wifi` kalemini DÜŞÜREN kapı / kilit / giriş izi — DEĞER aranmaz, sözcük yeter (ASCII katlanmış
+ * metinde, sözcük başında): Wi-Fi kalemi kapıyı, kutuyu, kilidi, paneli, kodu ya da PIN'i hiç anmamalı. Fazla eleme GÜVENLİ yöndür
+ * (o daire QR'da Wi-Fi veremez, misafir ev sahibine yönlendirilir); kapı kodu sızması yön değildir. "Wi-Fi kodu" / "internet kodu"
+ * kapı izi SAYILMAZ (Türkçede Wi-Fi şifresinin gündelik adı).
+ */
+const QR_WIFI_ITEM_DOOR_TRACE =
+  /(?<![a-z0-9])(?:kapi|anahtar|kilit|kasa(?!ba)|kutu|key\s*(?:box|safe|pad)|lock|door|gate|entrance|panel|tus|interkom|intercom|domofon|digicode|alarm|pin(?![a-z])|(?<!(?:wi-?fi|wifi|wlan|internet|kablosuz)\s{0,2})(?:kod|code|passcode))/;
+
+/** `wifi` kategorisindeki kalem QR bağlamına girebilir mi: kapı kalıbı YOK ve kapı / kilit izi YOK (↑). Sınırı aşan metin girmez. */
+function qrWifiItemAllowed(text: string): boolean {
+  if (text.length > SECRET_SCAN_MAX_CHARS) return false;
+  const variants = [text, foldTurkishLower(text), foldTurkishAscii(text)];
+  if (DOOR_SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return false;
+  return !QR_WIFI_ITEM_DOOR_TRACE.test(foldTurkishAscii(text));
+}
+
+/**
+ * QR bağlamının KALEM süzgeci (kurucu kararı 10-11): `wifi` kategorisi yalnız kapı izi taşımıyorsa girer (Wi-Fi şifresi dahil);
+ * öteki her kategori bugünkü TAM taramadan geçer (Wi-Fi kalıpları dahil — yanlış kategoriye yazılmış Wi-Fi şifresi QR'a girmez,
+ * çünkü aynı kalemde kapı kodu olup olmadığı kategori olmadan güvenle ayrılamaz). `checkin` kategorisi SQL'de zaten dışarıda.
+ */
+export function withoutQrSecretKbItems<T extends { category: string; title: string; content: string }>(items: T[]): T[] {
+  return items.filter((k) => {
+    const text = `${k.title}\n${k.content}`;
+    return k.category === "wifi" ? qrWifiItemAllowed(text) : !looksLikeSecret(text);
+  });
+}
+
+/**
+ * ÇIKTI TARAMASI (kurucu kararı 10-11, karar listesi 18): QR cevabı misafire gitmeden KAPI / KUTU / GİRİŞ koduna karşı taranır —
+ * bilgi tabanı süzülse de ev sahibinin QR'a elle yazdığı bir kod GEÇMİŞTEN modele ulaşabilir. Yalnız DEĞER taşıyan biçimler
+ * (4–8 hane; telefon / fiyat / yıl hariç); "kapı kodunuz Airbnb mesajında" gibi değersiz anış cevabı DURDURMAZ. Wi-Fi şifresi bu
+ * taramada yoktur (verilir). Bilgi tabanından modele VERİLEN metinde zaten geçen sayı (Wi-Fi şifresindeki rakamlar, adres, saat)
+ * sızıntı sayılmaz: o metin kapı süzgecinden geçmiştir.
+ */
+const DOOR_CODE_IN_REPLY: readonly RegExp[] = [
+  new RegExp(`${DOOR_CODE_WORD.source}[^\\d\\n.]{0,20}?${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`, "i"),
+  ...DOOR_SECRET_PATTERNS.filter((re) => re !== DOOR_CODE_WORD),
+  // Kapı adı OLMADAN "kodunuz 4590" / "your code is 4590" / "PIN: 4590" — posta / QR / alan / indirim / Wi-Fi kodu hariç.
+  new RegExp(
+    `(?<![a-zçğıöşü0-9])(?<!(?:posta|postal|zip|qr|alan|area|indirim|promosyon|promo|discount|kupon|coupon|wi-?fi|wlan|internet|kablosuz)\\s{0,3})(?:kod[a-zçğıöşü]{0,8}|code|c[oó]digo|codice|pin|passcode|код)(?![a-zçğıöşü])[^\\d\\n.]{0,12}?(?<![a-zçğıöşü])${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`,
+    "i",
+  ),
+];
+
+export function qrReplyHasDoorCode(reply: string, allowedTexts: readonly string[]): boolean {
+  if (!reply) return false;
+  if (reply.length > SECRET_SCAN_MAX_CHARS) return true; // doğrulanamayan → kod say (QR cevabı 2.000 karakterle sınırlı)
+  const allowed = new Set(allowedTexts.flatMap((t) => t.match(/\d{4,8}/g) ?? []));
+  const variants = [reply, foldTurkishLower(reply), foldTurkishAscii(reply)];
+  for (const re of DOOR_CODE_IN_REPLY) {
+    const global = new RegExp(re.source, `${re.flags.replace("g", "")}g`);
+    for (const v of variants) {
+      for (const m of v.matchAll(global)) {
+        const digits = m[0].match(/\d{4,8}/g) ?? [];
+        if (digits.some((d) => !allowed.has(d))) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function looksLikeSecret(text: string): boolean {
   // 🚨 İÇERİĞİN TAMAMI TARANIR (Codex F02, P1 — 08-09'daki yarım düzeltmenin
   // KAPANIŞI). Tarihçe: bu fonksiyon önce yalnız İLK 4.000 karakteri tarıyordu
@@ -488,7 +577,7 @@ export function withoutSecretKbItems<T extends { title: string; content: string 
  * Konaklamaya göre bilgi tabanının SIR KAPSAMI — oto-yanıt ve yönetici "AI öner" TEK kural (Codex 09-27: öneri rotası hiç
  * elemiyordu; rezervasyonsuz / onaysız konuşmada Wi-Fi ve kapı kodu taslağa girip ev sahibi gönderirse aday misafire
  * çıkabiliyordu). Onaylı / tamamlanmış konaklamada sır kalemi ürünün kendisidir (verilir); aksi hâlde İKİ bacak: kategori
- * (`QR_SECRET_CATEGORIES`) + içerik sezgiseli (`withoutSecretKbItems`). Yüklem `prompts.ts` `isConfirmedStay` ile aynı.
+ * (`PREBOOKING_SECRET_CATEGORIES`) + içerik sezgiseli (`withoutSecretKbItems`). Yüklem `prompts.ts` `isConfirmedStay` ile aynı.
  */
 export function kbForStayScope<T extends { category: string; title: string; content: string }>(
   items: T[],
@@ -496,7 +585,7 @@ export function kbForStayScope<T extends { category: string; title: string; cont
 ): T[] {
   const confirmedStay = reservation != null && (reservation.status === "confirmed" || reservation.status === "completed");
   if (confirmedStay) return items;
-  return withoutSecretKbItems(items.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)));
+  return withoutSecretKbItems(items.filter((i) => !(PREBOOKING_SECRET_CATEGORIES as readonly string[]).includes(i.category)));
 }
 
 /**
@@ -1293,8 +1382,9 @@ export async function resolveGuestChat(
   });
   const { items: kbRaw, dropped: kbDropped } = kb;
   // Drop any item whose text looks like an access secret, even in an allowed
-  // category — the public bearer-token surface must never have a code in context.
-  const knowledgeBase = withoutSecretKbItems(kbRaw);
+  // category — the public bearer-token surface must never have a DOOR code in context
+  // (Wi-Fi istisnası: yalnız kapı izi taşımayan `wifi` kalemi girer — `withoutQrSecretKbItems`, kurucu kararı 10-11).
+  const knowledgeBase = withoutQrSecretKbItems(kbRaw);
   // ⚠️ İKİ AYRI ELEME, TEK SAYAÇ OLAMAZ (denetim, 07-31). `fetchKnowledgeBaseForPrompt`
   // yalnız SQL tavanında düşenleri sayar; `looksLikeSecret` KATEGORİYE değil
   // İÇERİĞE baktığı için tavanı geçmiş bir kalemi burada ayrıca eleyebiliyor.
@@ -1319,7 +1409,7 @@ export async function resolveGuestChat(
   // parite yoktu. Modülün değişmezi "modele giden metin taranmıştır" olduğundan ikame sonrası da
   // taranır. Sızıntı üretmiyordu (enjekte edilen tek değerler nötr hitap ve zaten misafire dönen
   // daire numarası) ama değişmez kırıktı. Yön fail-closed: şüpheli kalem düşer, sayıya girer.
-  const knowledgeBaseFilled = withoutSecretKbItems(
+  const knowledgeBaseFilled = withoutQrSecretKbItems(
     fillGuestPlaceholdersInItems(knowledgeBase, {
       guestFirstName: GUEST_NAME_FALLBACK,
       propertyName: property.name,

@@ -6,6 +6,7 @@ import { emailService } from "@/lib/email";
 import { qrEscalationEmail } from "@/lib/email-templates";
 import { appBaseUrl } from "@/lib/auth/email-verify";
 import { reportError } from "@/lib/report-error";
+import { rateLimit } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // QR concierge escalation e-mail (Codex #15 + hardening round).
@@ -42,10 +43,15 @@ import { reportError } from "@/lib/report-error";
  *  id is a normalized CONTENT FINGERPRINT (qrEscalationEventId), so re-sending
  *  the same "acil!" text never re-mails, while a genuinely different emergency
  *  always does. Residual (documented): a hostile BOUND guest varying critical
- *  wording per message can still generate one mail each — bounded by the
- *  device binding (only the claimed device can send) and the per-IP limiter;
- *  under-alerting on safety remains the worse failure. */
+ *  wording per message could generate one mail each — now capped per stay per
+ *  hour (↓`QR_CRITICAL_EMAILS_PER_HOUR`, kurucu kararı 10-11) on top of the
+ *  device binding and the per-IP limiter. */
 export const QR_ESCALATION_COOLDOWN_MS = 5 * 60 * 1000;
+
+/** KRİTİK (acil) e-posta tavanı: aynı konaklamadan saatte en çok bu kadar (kurucu kararı 10-11, karar listesi 17). Yukarıdaki
+ *  "kalan risk" tam olarak buydu: bağlı cihazdaki kötü niyetli misafir her mesajda acil ifadesini değiştirerek her seferinde e-posta
+ *  ürettirebiliyordu ("yangın / acil 2 / acil 3"). Misafire giden cevap DEĞİŞMEZ; olaylar konuşmada ve karar kaydında kalır. */
+export const QR_CRITICAL_EMAILS_PER_HOUR = 3;
 
 /** Max time the guest's HTTP response waits on the alert path. The send keeps
  *  running detached past this (its own claim/error handling completes either
@@ -79,7 +85,8 @@ export function qrEscalationEventId(inboundMessageId: string, guestText: string,
 // REZERVE EDİLMİŞ payını tüketiyor. O pay dolduğunda org'un GENEL AI hakkı
 // büyük ihtimalle HÂLÂ DOLU — eski `daily_budget` metnini kullanmak host'a
 // yanlış beyan olurdu ("hakkınız doldu" derken dolmamış).
-export type QrEscalationReason = "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr";
+// `stay_message_cap` (kurucu kararı 10-11): konaklamanın saatlik mesaj tavanı aşıldı — fazlası kaydedilmedi; saatte tek uyarı.
+export type QrEscalationReason = "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr" | "stay_message_cap";
 
 export function qrEscalationEmailEnabled(): boolean {
   return process.env.QR_ESCALATION_EMAIL_ENABLED === "1";
@@ -100,7 +107,7 @@ export async function maybeSendQrEscalationEmail(args: {
   /** True for a deterministic safety/emergency verdict — bypasses the
    *  anti-flood cooldown (identity dedupe still applies). */
   critical?: boolean;
-}): Promise<{ sent: boolean; deduped?: boolean }> {
+}): Promise<{ sent: boolean; deduped?: boolean; capped?: boolean }> {
   try {
     if (!qrEscalationEmailEnabled()) return { sent: false };
     if (!args.eventId) return { sent: false }; // no identity → no claim, no mail
@@ -151,6 +158,15 @@ export async function maybeSendQrEscalationEmail(args: {
     // EVERYTHING after the claim is guarded: an unexpected exception must not
     // leave the claim consumed with no mail sent (Codex hardening item 3).
     try {
+      // Kritik tavan (↑`QR_CRITICAL_EMAILS_PER_HOUR`) SAHİPLENMEDEN SONRA sayılır: aynı acil metnin tekrarı (sahiplenme kimlikle
+      // eler) tavandan hak yemez. Tavanda sahiplenme bırakılır — e-posta gitmedi, kayıt "gönderildi" demesin.
+      if (args.critical) {
+        const capped = await rateLimit(`qr-crit-mail:${args.reservationId}`, QR_CRITICAL_EMAILS_PER_HOUR, 60 * 60_000);
+        if (!capped.ok) {
+          await releaseClaim();
+          return { sent: false, capped: true };
+        }
+      }
       // Per-tenant recipient: org alertEmail → the org's oldest OWNER account.
       // Role-explicit (Codex item 2): "oldest user" could be a staff member.
       const org = await prisma.organization.findUnique({

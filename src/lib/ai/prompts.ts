@@ -1549,9 +1549,11 @@ Zaman bağlamı: ${timelineLine(timeline, {
 ⚠️ AKTİF KONAKLAMA DOĞRULANDI (anonim/herkese açık yüzey — kimlik ve rezervasyon detayı BİLEREK verilmedi):
   - Yazan kişi ŞU ANDA bu dairede konaklayan misafirdir. Potansiyel-misafir gibi KONUŞMA;
     "rezervasyonunuzu platformdan tamamlayın" tarzı davetler YAPMA.
-  - Yine de bu kanal herkese açıktır: kapı kodu, keybox/PIN, Wi-Fi şifresi, tam açık adres
-    gibi gizli bilgileri ASLA yazma (bilgi tabanında görünse bile) — bunlar için misafiri
-    ev sahibinin doğrudan mesaj kanalına yönlendir.
+  - Wi-Fi ağ adı ve şifresi bilgi tabanında varsa misafire yazabilirsin (misafir dairenin içinde,
+    cihazı bu konaklamaya bağlı).
+  - Yine de bu kanal herkese açık bir QR'dan açılır: kapı kodu, bina / tuş paneli kodu, keybox/PIN,
+    tam açık adres gibi gizli bilgileri ASLA yazma (bilgi tabanında ya da geçmiş mesajlarda görünse
+    bile) — bunlar için misafiri ev sahibinin doğrudan mesaj kanalına yönlendir.
   - Genel konaklama sorularını (çöp, otopark, kurallar, çevre, saatler) bilgi tabanından
     normal şekilde yanıtla.`
       : "";

@@ -162,10 +162,33 @@ export function dailyAiQrSharePercent(): number {
   return n >= 1 && n <= 100 ? n : QR_SHARE_DEFAULT * 100;
 }
 
-export async function consumeDailyAiBudgetForQr(organizationId: string): Promise<DailyBudgetVerdict> {
+/**
+ * DAİRE ALT KOTASI (kurucu kararı 10-11, karar listesi 19: "her daire QR kotasının en fazla eşit payı + biraz esneklik"). QR payı
+ * işletme genelidir: bir dairenin QR'ını kötüye kullanan, aynı işletmenin ÖTEKİ dairelerinin QR cevaplarını da durdurabiliyordu.
+ * Her daire QR payının en çok "eşit payın İKİ katını" kullanır (tek / iki daireli işletmede sınır yok — pay zaten tamamı).
+ * Örnek (bugünkü planlar, pay %30): Pro 500 → QR 150, 7 daire → daire başına 43; İşletme 1.500 → QR 450, 25 daire → 36.
+ * Bir konaklamanın tipik soru sayısı 5–15 (plan-limits.ts) → meşru misafir sınıra çarpmaz.
+ */
+const QR_PROPERTY_SHARE_SLACK = 2;
+
+export function qrPropertyCeiling(qrCeiling: number, propertyCount: number): number {
+  if (propertyCount <= 2) return qrCeiling;
+  return Math.min(qrCeiling, Math.max(1, Math.ceil((qrCeiling * QR_PROPERTY_SHARE_SLACK) / propertyCount)));
+}
+
+export async function consumeDailyAiBudgetForQr(organizationId: string, propertyId: string): Promise<DailyBudgetVerdict> {
   const override = dailyAiCallCapOverride();
   const cap = override ?? (await limitsForOrg(organizationId)).aiCallsPerDay;
   const qrCeiling = Math.max(1, Math.floor((cap * dailyAiQrSharePercent()) / 100));
+
+  // 0) Daire alt kotası (↑`qrPropertyCeiling`). Taşarsa İŞLETMENİN QR payına ve ortak sayaca DOKUNMADAN dön — aynı "kendi kovası
+  // önce" deseni (↓1): taşan daire trafiği öteki dairelerin hakkını yiyemez. Sayım okunamazsa KULLANIM kapısı fail-open (alt kota yok).
+  const propertyCount = await prisma.property.count({ where: { organizationId } }).catch(() => 1);
+  const propertyCeiling = qrPropertyCeiling(qrCeiling, propertyCount);
+  if (propertyCeiling < qrCeiling) {
+    const mine = await rateLimit(`ai-daily-qr-prop:${propertyId}`, propertyCeiling, DAY_MS);
+    if (!mine.ok) return { ok: false, retryAfter: mine.retryAfter, cap: propertyCeiling };
+  }
 
   // 1) QR'ın kendi payı. Taşarsa paylaşılan sayaca DOKUNMADAN dön.
   const own = await rateLimit(`ai-daily-qr:${organizationId}`, qrCeiling, DAY_MS);

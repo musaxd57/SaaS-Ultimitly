@@ -27,7 +27,8 @@ export const GUEST_CHAT_INTRO =
   "Merhaba! 👋 Konaklamanızla ilgili sorularınızı (çöp günü, cihazlar, kurallar, çevre önerileri…) buraya yazabilirsiniz.";
 /** Konaklama bitince misafirin gördüğü kapanış kartı. */
 export const GUEST_CHAT_CLOSED = "Konaklamanız sona erdiği için sohbet kapandı. İyi günler dileriz!";
-export const GUEST_CHAT_FOOTER = "Otomatik asistan + ev sahibi. Kapı kodu/Wi-Fi gibi bilgiler güvenlik için burada paylaşılmaz.";
+// Wi-Fi artık bağlı cihazdaki misafire verilebilir (kurucu kararı 10-11) → not yalnız kapı kodunu anar (kurucu onaylı metin).
+export const GUEST_CHAT_FOOTER = "Otomatik asistan + ev sahibi. Kapı kodu gibi giriş bilgileri güvenlik için burada paylaşılmaz.";
 
 /**
  * Mesaj balonları + devir ayraçları. Ayraçlar diziden türetilir: bir ev sahibi mesajı, önceki devir işareti "yeniden

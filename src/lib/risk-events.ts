@@ -79,6 +79,10 @@ const REASONS = new Set([
   // Konuşma öğeleri (09-26; yalnız `AI_CONVERSATION_ITEMS_ENABLED` açıkken yazılır): turun hassas istekleri sessizce ev
   // sahibinde tutuldu, misafire hiçbir şey gitmedi (kelime ağı uyarı geçişi + kanal cevabı).
   "items_held",
+  // QR konaklama başına saatlik mesaj tavanı aşıldı (kurucu kararı 10-11): fazlası kaydedilmedi, yapay zekâ çağrılmadı — saatte tek kayıt.
+  "stay_message_cap",
+  // QR cevabında kapı / kutu kodu: bir kez yeniden yazdırıldı, yine kodlu → gitmedi, devir (kurucu kararı 10-11; gate ile BİREBİR).
+  "door_code_in_reply",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

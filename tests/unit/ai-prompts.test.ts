@@ -243,6 +243,9 @@ describe("buildReplyUserPrompt", () => {
     expect(out).not.toContain("REZERVASYON ONAYLANMAMIŞ");
     // ...but the open-channel secret ban is stated explicitly.
     expect(out).toMatch(/kapı kodu.*ASLA yazma/s);
+    // Wi-Fi İSTİSNASI (kurucu kararı 10-11): Wi-Fi bilgi tabanında varsa yazılabilir; yasak listesinde Wi-Fi şifresi YOK.
+    expect(out).toMatch(/Wi-Fi ağ adı ve şifresi bilgi tabanında varsa misafire yazabilirsin/);
+    expect(out).not.toMatch(/Wi-Fi şifresi[^\n]*\n?[^\n]*ASLA yazma/);
     // And a confirmed inbox stay gets NEITHER block.
     const confirmed = buildReplyUserPrompt(input);
     expect(confirmed).not.toContain("AKTİF KONAKLAMA DOĞRULANDI");

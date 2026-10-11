@@ -17,6 +17,7 @@ import {
   styleProfileForPrompt,
   buildGuestChatContextWindow,
   GUEST_CHAT_MESSAGE_WINDOW,
+  qrReplyHasDoorCode,
   type GuestChatContext,
   type GuestChatDb,
 } from "@/lib/guest-chat";
@@ -72,6 +73,17 @@ export const dynamic = "force-dynamic";
 // ---------------------------------------------------------------------------
 
 const MAX_MESSAGE = 2000;
+
+// KONAKLAMA BAŞINA SAATLİK MESAJ TAVANI (kurucu kararı 10-11, karar listesi 15). IP kovası (dakikada 20) tek başına yetmiyordu: cihazı
+// bağlayan kişi farklı IP'lerden sınırsız mesaj yazdırabiliyordu (her mesaj bir kayıt + kota). Tavanın üstünde yapay zekâ çağrılmaz,
+// mesaj KAYDEDİLMEZ, misafir aşağıdaki metni görür (kurucu onaylı, AYNEN); ev sahibine saatte TEK kayıt düşer (konuşma "Ev sahibine
+// iletildi" işareti + karar kaydı + açıksa uyarı e-postası).
+const STAY_MESSAGES_PER_HOUR = 40;
+
+/** Çıktıda kapı kodu görülen ilk taslaktan sonra modele giden SABİT not (kod yazılı, misafir metni / değer taşımaz). */
+const QR_DOOR_CODE_RETRY_NOTE =
+  "Önceki taslağın bir kapı / bina / anahtar kutusu / tuş paneli kodu içeriyordu. Bu QR kanalında böyle bir kod ASLA yazılmaz (geçmiş mesajlarda görünse bile). Kodu yazmadan yeniden cevap ver; misafir kodu ev sahibinin doğrudan mesaj kanalından alır.";
+const STAY_MESSAGE_CAP_TEXT = "Şu anda çok fazla mesaj aldık. Ev sahibiniz bilgilendirildi; kısa süre sonra tekrar yazabilirsiniz.";
 
 // Max PAID AI calls per apartment per (UTC) day — a durable cost ceiling.
 // Tavan artık PLANA göre (billing/plan-limits.ts): Başlangıç 50 / Pro 100 /
@@ -516,6 +528,41 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     return out;
   };
 
+  // ── KONAKLAMA BAŞINA SAATTE 40 MESAJ (↑`STAY_MESSAGES_PER_HOUR`) ── bağlı cihazdan gelen HER mesaj sayılır (devir / kapanış dahil:
+  // tavanın amacı sınırsız kayıt + çağrıyı kesmek). İstek kimliği sahiplenmesinden ÖNCE: tavandaki mesaj hiçbir iz bırakmaz, misafirin
+  // sonraki denemesi normal işlenir. 429 + metin: istemci gönderilmemiş balonu geri alır, yazılan metni geri koyar ve metni gösterir.
+  const stayLimit = await rateLimit(`guestchat-stay:${res.id}`, STAY_MESSAGES_PER_HOUR, 60 * 60_000);
+  if (!stayLimit.ok) {
+    // Ev sahibine saatte TEK kayıt (aynı pencerede ikinci aşım hiçbir şey yazmaz).
+    const firstOverflow = await rateLimit(`guestchat-stay-capnote:${res.id}`, 1, 60 * 60_000);
+    if (firstOverflow.ok) {
+      const capEventId = `stay-cap:${res.id}:${Math.floor(Date.now() / 3_600_000)}`;
+      const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
+      await prisma.conversation.update({ where: { id: conversationId }, data: { priority: "urgent" } });
+      await recordRiskEvent({
+        organizationId: ctx.property.organizationId,
+        propertyId: ctx.property.id,
+        conversationId,
+        surface: "guest_chat",
+        triggerId: capEventId,
+        finalDecision: "human_review",
+        reason: "stay_message_cap",
+      });
+      await sendQrEscalationAlertBounded({
+        organizationId: ctx.property.organizationId,
+        propertyName: ctx.property.name,
+        reservationId: res.id,
+        eventId: capEventId,
+        reason: "stay_message_cap",
+        critical: false,
+      });
+    }
+    const capped = tooManyRequests(stayLimit.retryAfter, STAY_MESSAGE_CAP_TEXT);
+    // Cihaz bu istekte bağlandıysa çerez YİNE kurulur (yoksa misafir bir sonraki mesajda "başka cihazda" görürdü).
+    if (binding.status === "bound") setStayCookie(capped, cookieName, binding.secret, res.departureDate);
+    return capped;
+  }
+
   // ── Idempotency claim (Codex 07-24 #2 + r2, claim-then-process): if the
   // server recorded the exchange but the RESPONSE was lost, the client restores
   // the typed text and the guest re-sends — without this, the retry duplicated
@@ -730,7 +777,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // tam olarak suistimal edilecek penceredir. Bedeli yazılı: sağlayıcı düştüğünde
   // misafirin mesajı 2 birim yakar ve devir metnini alır. Bu takas QR için
   // güvenlik lehine seçildi; cron için tersi doğrudur.
-  const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId);
+  const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
   if (!budget.ok) {
     const escalationText = noModelSafetyLine;
     const { inboundMessageId, handedOff } = await record(escalationText, true);
@@ -795,7 +842,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   });
   const kbDroppedTotal = ctx.knowledgeBaseDropped + kbSel.droppedItems;
 
-  const result = await suggestReply({
+  const replyInput: Parameters<typeof suggestReply>[0] = {
     guestMessage: message,
     property: {
       name: ctx.property.name,
@@ -838,7 +885,24 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // "Bugün / yarın" org diliminde (`stay-timeline.ts`). Rezervasyon ayrıntısı QR'da BİLEREK yok; bugünün tarihi kişisel
     // veri değildir ("çöp bugün mü alınıyor?" gibi soruları çözer).
     timeZone: org?.timezone,
-  });
+  };
+  let result = await suggestReply(replyInput);
+
+  // ── ÇIKTIDA KAPI KODU → BİR KEZ YENİDEN YAZDIR, SONRA DEVİR (kurucu kararı 10-11, karar listesi 18: "taransın ama response geri
+  // dönsün … sonra tekrar response üretilse olmaz mı, ev sahibine devir çok olmasın"). Bilgi tabanı kapı kodu taşımaz ama ev sahibinin
+  // QR'a elle yazdığı kod GEÇMİŞTEN modele ulaşabilir. Kodlu taslak hiçbir yere yazılmaz; model kuralı not olarak alıp bir kez daha
+  // yazar (gerçek ikinci çağrı → QR kotasından bir birim daha). İkinci taslak da kod taşıyorsa ya da kota yoksa cevap gitmez, devir.
+  const modelKbTexts = kbSel.items.map((i) => `${i.title}\n${i.content}`);
+  let doorCodeHeld = false;
+  if (result.reply && qrReplyHasDoorCode(result.reply, modelKbTexts)) {
+    const retryBudget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
+    if (retryBudget.ok) {
+      result = await suggestReply({ ...replyInput, knowledgeBaseNotes: [...(kbSel.notes ?? []), QR_DOOR_CODE_RETRY_NOTE] });
+      doorCodeHeld = Boolean(result.reply) && qrReplyHasDoorCode(result.reply, modelKbTexts);
+    } else {
+      doorCodeHeld = true;
+    }
+  }
 
   // (The QR model call passes reservation:null — the name never reaches the model
   // today — so this is defense-in-depth: if the name is ever wired into the
@@ -934,6 +998,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       }
     }
   }
+  // Kapı kodu ikinci taslakta da kaldı (↑) → cevap gitmez. Doğrulanmış kod metni seçildiyse o metin modelin değildir, kod taşımaz.
+  if (doorCodeHeld && finalResult === result) verdict = { escalate: true, reason: "door_code_in_reply" };
   const escalate = verdict.escalate;
 
   // Karar kaydının temellendirme alanları — iki kayıt (kapanış / cevap-devir) AYNI nesneyi yazar.
