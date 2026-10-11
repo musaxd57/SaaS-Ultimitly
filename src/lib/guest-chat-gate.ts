@@ -348,7 +348,9 @@ export function evaluateEscalation(
   if (hasEmergencyCallDirective(result.reply)) return yes("emergency_directive");
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24) ────────────────────────────────
   // Kanal kapısıyla AYNI yüklem. QR'da cevaplanan tek mesaj GÜNCEL mesajdır (eşzamanlı sohbet;
-  // önceki turlar zaten cevaplandı). Devir muafiyeti burada GEREKMEZ: `human_request` yukarıda
+  // önceki turlar ya o anda cevaplandı ya da ev sahibine DEVREDİLDİ — devredilen tur yapay zekâ cevabı
+  // almaz, alarmı ve açık konu notu kendi yolundan taşınır; Haiku 10-11: eski yorum "zaten cevaplandı"
+  // diyordu, devredilen turda yanlıştı). Devir muafiyeti burada GEREKMEZ: `human_request` yukarıda
   // `escalate_intent` ile zaten devredildi.
   const availability = vetoAvailability(result.reply, [message], qrAvailabilityPolicy(result, stayCtx));
   if (availability !== null) return yes(availability);

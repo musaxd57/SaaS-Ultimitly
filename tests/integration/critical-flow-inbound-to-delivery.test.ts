@@ -8,9 +8,11 @@ import { FakeIngestProvider, canonicalMessage, canonicalReservation } from "../h
 // denetimi 10-11).
 //
 // Gerçek olan: sağlayıcı senkronu (`syncHospitable` → ingest yazma servisi → IngestEvent), model cevabı ayrıştırıcısı (`@/lib/ai`
-// MOCK'LANMAZ), güvenlik kapısı, kalıcı gönderim kuyruğu (`enqueueOutbound`), kuyruk işçisi (`drainOutboxOnce`), karar kaydı
-// (`RiskEvent`), PostgreSQL. Sahte olan YALNIZ dış sınırlar: sağlayıcı (fake ingest adaptörü + işçinin `send` fonksiyonu), OpenAI
-// HTTP'si (fetch), alarm e-postası.
+// MOCK'LANMAZ), güvenlik kapısı, kalıcı gönderim kuyruğu (`enqueueOutbound`), kuyruk işçisi (`drainOutboxOnce`, VARSAYILAN bağımlılıklar:
+// gerçek kimlik çözümü + `dispatchOutbound` + sağlayıcı istemcisi), karar kaydı (`RiskEvent`), PostgreSQL. Sahte olan YALNIZ dış sınırlar:
+// okuma tarafında fake ingest adaptörü; HTTP'de adrese göre yönlendirilen tek `fetch` (OpenAI → model cevabı, sağlayıcının mesaj ucu →
+// teslim kimliği, BİLİNMEYEN adres → test kırılır); alarm e-postası. Haiku 10-11: ilk sürüm işçinin `send` / `tokenFor`'unu taklit ediyor,
+// ikinci tur iddiasını teslimden SONRA kuruyordu (boş iddia) ve model çağrı sayısını sabitlemiyordu.
 //
 // İki yön birlikte: güvenli soru uçtan uca TESLİM EDİLİR; aynı zincirde iade talebi HİÇBİR ŞEY göndermez (kuyruk satırı yok, sağlayıcı
 // çağrılmaz, konuşma insana, ev sahibine e-posta). Biri tek başına yeşil kalamaz (boru hattı erken vetolanıp hiçbir şey iddia etmeden
@@ -26,7 +28,7 @@ import { __setIngestAdapterForTest } from "@/lib/channels/ingest";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { setOrgHospitableToken, resetPrimaryOrgCache } from "@/lib/hospitable-credentials";
 import { applyChannelAutoReply } from "@/lib/automation";
-import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { drainOutboxOnce } from "@/lib/outbox/worker";
 import { emailService } from "@/lib/email";
 
 const TOKEN = "tok-critical-flow";
@@ -34,14 +36,28 @@ const HP = "hp-critical-flow";
 const fake = new FakeIngestProvider();
 const mockEmail = vi.mocked(emailService.sendReporting);
 
-/** OpenAI HTTP'si: her çağrıya aynı yapılandırılmış cevap (ayrıştırıcı ve kapı GERÇEK). */
-function openAiReturns(content: Record<string, unknown>) {
-  const fetchSpy = vi.fn(
-    async () =>
-      new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(content) } }] }), { status: 200 }),
+/** Dış HTTP sınırı: OpenAI → verilen model cevabı; sağlayıcının mesaj ucu → teslim kimliği; başka her adres → hata (sessiz yeşil yok). */
+function httpBoundary(modelContent: Record<string, unknown>) {
+  const model: string[] = [];
+  const provider: { url: string; method: string; body: string }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.startsWith("https://api.openai.com/")) {
+        model.push(url);
+        return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(modelContent) } }] }), {
+          status: 200,
+        });
+      }
+      if (url.includes("/reservations/res-cf/messages") && init?.method === "POST") {
+        provider.push({ url, method: init.method, body: String(init.body ?? "") });
+        return new Response(JSON.stringify({ data: { id: "prov-cf-1" } }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`beklenmeyen dış çağrı: ${init?.method ?? "GET"} ${url}`);
+    }),
   );
-  vi.stubGlobal("fetch", fetchSpy);
-  return fetchSpy;
+  return { model, provider };
 }
 
 const SAFE = {
@@ -111,24 +127,31 @@ describe("🚨 kritik akış — inbound → yapay zekâ → kuyruk → teslim �
     resetPrimaryOrgCache();
   });
 
-  it("güvenli soru: kapı geçer → kuyruğa TEK satır → işçi sağlayıcıya TEK kez teslim eder → konuşma cevaplandı → karar kaydı auto_sent", async () => {
-    const fetchSpy = openAiReturns(SAFE);
+  it("güvenli soru: kapı geçer → kuyruğa TEK satır → işçi sağlayıcının mesaj ucuna TEK POST → konuşma cevaplandı → karar kaydı auto_sent", async () => {
+    const http = httpBoundary(SAFE);
     const { orgId, conversationId } = await ingestGuestMessage("Is there free parking at the building?");
 
     const decision = await applyChannelAutoReply(conversationId);
     expect(decision).toMatchObject({ sent: true, queued: true });
-    expect(fetchSpy).toHaveBeenCalled(); // model gerçekten çağrıldı (sahte HTTP), cevap gerçek ayrıştırıcıdan geçti
+    // Model gerçekten çağrıldı (bugün tek model çağrısı: anlama / bekçi / embedding kapalı), cevap gerçek ayrıştırıcıdan geçti.
+    expect(http.model).toHaveLength(1);
+    expect(http.provider).toHaveLength(0); // karar anında sağlayıcıya hiçbir şey gitmez
 
     const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
     expect(row).toMatchObject({ organizationId: orgId, status: "pending" });
     // Teslim edilene kadar konuşma "cevaplandı" sayılmaz.
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
 
-    const send: OutboxSendFn = vi.fn(async () => ({ ok: true as const, providerMessageId: "prov-cf-1" }));
-    await drainOutboxOnce({ send, tokenFor: async () => TOKEN });
-    expect(send).toHaveBeenCalledTimes(1);
-    const [sentRow] = vi.mocked(send).mock.calls[0];
-    expect(sentRow.id).toBe(row.id);
+    // Teslimden ÖNCE ikinci tur: bekleyen satır varken ikinci cevap kuyruğa girmez, model yeniden çağrılmaz.
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(1);
+    expect(http.model).toHaveLength(1);
+
+    // İşçi VARSAYILAN bağımlılıklarla: gerçek kimlik çözümü + gerçek gönderim katmanı → sağlayıcının mesaj ucu.
+    await drainOutboxOnce();
+    expect(http.provider).toHaveLength(1);
+    expect(http.provider[0].method).toBe("POST");
+    expect(JSON.parse(http.provider[0].body).body.startsWith(SAFE.reply)).toBe(true);
 
     const delivered = await prisma.message.findUniqueOrThrow({ where: { id: row.messageId! } });
     expect(delivered).toMatchObject({ direction: "outbound", authorType: "ai", senderName: "GuestOps AI", externalId: "prov-cf-1" });
@@ -143,24 +166,24 @@ describe("🚨 kritik akış — inbound → yapay zekâ → kuyruk → teslim �
     expect(JSON.stringify(ev)).not.toContain("parking at the building"); // karar kaydı misafir metni taşımaz
     expect(mockEmail).not.toHaveBeenCalled();
 
-    // İkinci tur: aynı mesaja ikinci cevap kuyruğa girmez, işçi yeniden göndermez.
+    // Teslimden sonra: yeni tur yok, işçi yeniden göndermez.
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
-    await drainOutboxOnce({ send, tokenFor: async () => TOKEN });
-    expect(send).toHaveBeenCalledTimes(1);
+    await drainOutboxOnce();
+    expect(http.provider).toHaveLength(1);
     expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(1);
   });
 
   it("KONTROL — iade talebi aynı zincirde: kuyruk satırı YOK, sağlayıcı çağrılmaz, giden mesaj yok, karar kaydı human_review (money_refund)", async () => {
-    openAiReturns(SAFE); // model "güvenli park sorusu" dese bile kod kapısı misafirin kendi sözüne bakar
+    const http = httpBoundary(SAFE); // model "güvenli park sorusu" dese bile kod kapısı misafirin kendi sözüne bakar
     const { orgId, conversationId } = await ingestGuestMessage("I want a refund, please give my money back.");
 
     const decision = await applyChannelAutoReply(conversationId);
     expect(decision).toMatchObject({ sent: false, skippedReason: "low_confidence_or_risky" });
+    expect(http.model).toHaveLength(1); // model çağrıldı ve "güvenli" dedi — tutan kod kapısı
 
     expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(0);
-    const send: OutboxSendFn = vi.fn(async () => ({ ok: true as const, providerMessageId: "never" }));
-    await drainOutboxOnce({ send, tokenFor: async () => TOKEN });
-    expect(send).not.toHaveBeenCalled();
+    await drainOutboxOnce();
+    expect(http.provider).toHaveLength(0);
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
 
     // Konuşmayı "sorunlu" yapan + ev sahibine e-posta atan ayrı alarm yoludur (`auto-reply-channel`, `alerts-*` testleri); bu zincirin

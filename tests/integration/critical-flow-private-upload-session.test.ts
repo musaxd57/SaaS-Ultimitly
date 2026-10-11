@@ -19,7 +19,14 @@ vi.mock("next/headers", async (orig) => ({
   cookies: async () => ({ get: (name: string) => (name === SESSION_COOKIE && cookieValue ? { name, value: cookieValue } : undefined) }),
 }));
 
+// İmza üreticisi GERÇEK, yalnız casus: "imza üretilmedi" iddiası başlık yokluğuyla değil çağrı sayısıyla ölçülür (Haiku 10-11).
+vi.mock("@/lib/storage/s3", async (orig) => {
+  const actual = await orig<typeof import("@/lib/storage/s3")>();
+  return { ...actual, presignGetUrl: vi.fn(actual.presignGetUrl) };
+});
+
 import { SESSION_COOKIE, signSession } from "@/lib/auth/session";
+import { presignGetUrl } from "@/lib/storage/s3";
 import type { SessionPayload } from "@/lib/auth";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { GET as serveGET } from "@/app/api/storage/photo/[...key]/route";
@@ -66,6 +73,7 @@ const get = (key: string) =>
 describe("🚨 kritik akış — özel yükleme: rota + gerçek oturum + DB", () => {
   beforeEach(async () => {
     await resetDb();
+    vi.mocked(presignGetUrl).mockClear();
     cookieValue = undefined;
     for (const [k, v] of Object.entries(STORAGE_ENV)) vi.stubEnv(k, v);
   });
@@ -102,8 +110,20 @@ describe("🚨 kritik akış — özel yükleme: rota + gerçek oturum + DB", ()
     const res = await get(victim.key);
     expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
+    expect(presignGetUrl).not.toHaveBeenCalled();
     // Kontrol: aynı oturum kendi anahtarını açabiliyor (red, oturumun bozukluğundan değil kiracı sınırından).
     expect((await get(attacker.key)).status).toBe(302);
+  });
+
+  it("🚨 kendi kiracısının ama HİÇBİR görev güncellemesinin göstermediği anahtar (silinmiş görev / eski anahtar) → 404, imza YOK (F11)", async () => {
+    const a = await tenantWithPhoto();
+    await loginAs(a.owner);
+    const orphan = `org/${a.orgId}/task/${a.taskId}/999-orphan.png`;
+    const res = await get(orphan);
+    expect(res.status).toBe(404);
+    expect(presignGetUrl).not.toHaveBeenCalled();
+    expect((await get(a.key)).status).toBe(302); // kontrol: bağlı anahtar aynı oturumla açılır
+    expect(presignGetUrl).toHaveBeenCalledTimes(1);
   });
 
   it("🚨 iptal edilmiş oturum (parola sıfırlama → sürüm arttı) aynı belirteçle → 401", async () => {
