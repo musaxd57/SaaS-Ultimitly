@@ -126,6 +126,8 @@ export const PIPELINE_FLAGS = [
   "AI_DATE_RESOLUTION_ENABLED",
   // İngilizce köprü sorgusu anlama istemini ve getirmeyi değiştirir (10-10, karar #13).
   "AI_UNDERSTANDING_EN_QUERY_ENABLED",
+  // Acil numara sorusuna koddan yalnız numara (10-11, QR; misafire giden metni değiştirir).
+  "AI_EMERGENCY_NUMBER_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */
