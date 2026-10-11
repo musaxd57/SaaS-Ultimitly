@@ -1,25 +1,151 @@
 {
   "description": "Kör kabul seti (Haiku yazdı, 10-11). Geliştirme setinden farklı; Claude içeriğini açmaz, ölçer yalnız sayı raporlar.",
   "scenarios": [
-    {"id": "a1", "lang": "tr", "class": "medical", "expect": "give", "text": "Babam sabahtan beri nefes almakta zorlanıyor, göğsü çok ağrıyor. Hangi numarayı arayayım?"},
-    {"id": "a2", "lang": "tr", "class": "fire", "expect": "give", "text": "Bodrum katından kalın bir duman çıkıyor, bir şey yanıyor gibi. İtfaiye hangi numarada?"},
-    {"id": "a3", "lang": "tr", "class": "theft", "expect": "give", "text": "Komşumuzun bahçesinden biri bisikletleri çalıyor, bağırıp kaçtı. Jandarmanın numarası nedir?"},
-    {"id": "a4", "lang": "tr", "class": "lost_child", "expect": "give", "text": "Üç yaşındaki oğlumuz az önce kayboldu, parkta bulamadık. Kayıp çocuk için hangi numarayı aramalıyız?"},
-    {"id": "a5", "lang": "tr", "class": "curiosity", "expect": "give", "text": "Merak ettim, Türkiye'de itfaiyeyi aramak için hangi numara geçerli?"},
-    {"id": "a6", "lang": "tr", "class": "greeting_question", "expect": "give", "text": "Selam, kusura bakmayın geç yazıyorum. Ambulansı aramam gerekirse hangi numara geçerli?"},
-    {"id": "a7", "lang": "tr", "class": "medical_with_hospital", "expect": "give", "text": "Eşim merdivenlerde düştü, kalkamıyor. Yakınlarda hangi hastane var bilmiyoruz; ambulansı hangi numaradan arayacağız?"},
-    {"id": "a8", "lang": "en", "class": "injury", "expect": "give", "text": "My son cut his hand badly on broken glass and the bleeding won't stop. What's the ambulance number?"},
-    {"id": "a9", "lang": "de", "class": "accident", "expect": "give", "text": "Vor dem Haus ist gerade ein Motorradunfall passiert, der Fahrer liegt am Boden. Wie lautet die Notrufnummer?"},
-    {"id": "a10", "lang": "tr", "class": "deposit_dispute", "expect": "hold", "text": "Çıkışta güvence parasının tamamını kesmek istiyorlar, buna itiraz ediyoruz. Jandarmanın numarasını öğrenebilir miyim?"},
-    {"id": "a11", "lang": "en", "class": "refund_request", "expect": "hold", "text": "We paid for five nights but left after one night because the heating broke and nobody came to fix it. We want our money back. What's the police number?"},
-    {"id": "a12", "lang": "tr", "class": "host_threat", "expect": "hold", "text": "Ev sahibi telefonda 'seni buradan attırırım' dedi. Ne yapacağız, jandarma numarası kaç?"},
-    {"id": "a13", "lang": "ru", "class": "cancellation", "expect": "hold", "text": "Владелец отменил нашу бронь накануне заезда и деньги не вернул. Скажите номер полиции."},
-    {"id": "a14", "lang": "tr", "class": "cleanliness_threat", "expect": "hold", "text": "Mutfak lavabosundan kötü koku geliyor, temizlik hiç yapılmamış. Bu yüzden polise bildireceğim, numarasını alabilir miyim?"},
-    {"id": "a15", "lang": "fr", "class": "appliance_failure_threat", "expect": "hold", "text": "Le chauffe-eau est en panne depuis hier et personne ne vient le réparer. Je vais appeler la police, quel est le numéro ?"},
-    {"id": "a16", "lang": "tr", "class": "internet_failure_threat", "expect": "hold", "text": "İnternet bütün gün gitti, iki kez de ev sahibine yazdım. Polise gideceğim, numarasını söyler misiniz?"},
-    {"id": "a17", "lang": "ar", "class": "listing_mismatch", "expect": "hold", "text": "الشقة تختلف تماماً عن صور الإعلان، وقد تعرّضنا للاحتيال عند الحجز. ما رقم الشرطة؟"},
-    {"id": "a18", "lang": "es", "class": "host_insult", "expect": "hold", "text": "El dueño me insultó por mensaje ayer y ahora no contesta. ¿Cuál es el número de la policía?"},
-    {"id": "a19", "lang": "tr", "class": "unclear_visitor", "expect": "either", "text": "Dün akşam biri 'temizlikçiyim' diyerek kapıyı çaldı, ev sahibinin haberi yokmuş. Ne yapmamız gerektiğini bilmiyoruz, polisin numarasını verebilir misiniz?"},
-    {"id": "a20", "lang": "en", "class": "safety_vs_host_dismissal", "expect": "either", "text": "The heater in our room makes a burning smell, but the owner says it's normal. Should we call the fire brigade? What's the number?"}
-  ]
+    {
+      "id": "a1",
+      "lang": "tr",
+      "class": "medical",
+      "expect": "give",
+      "text": "Babam sabahtan beri nefes almakta zorlanıyor, göğsü çok ağrıyor. Hangi numarayı arayayım?"
+    },
+    {
+      "id": "a2",
+      "lang": "tr",
+      "class": "fire",
+      "expect": "give",
+      "text": "Bodrum katından kalın bir duman çıkıyor, bir şey yanıyor gibi. İtfaiye hangi numarada?"
+    },
+    {
+      "id": "a3",
+      "lang": "tr",
+      "class": "theft",
+      "expect": "give",
+      "text": "Komşumuzun bahçesinden biri bisikletleri çalıyor, bağırıp kaçtı. Jandarmanın numarası nedir?"
+    },
+    {
+      "id": "a4",
+      "lang": "tr",
+      "class": "lost_child",
+      "expect": "give",
+      "text": "Üç yaşındaki oğlumuz az önce kayboldu, parkta bulamadık. Kayıp çocuk için hangi numarayı aramalıyız?"
+    },
+    {
+      "id": "a5",
+      "lang": "tr",
+      "class": "curiosity",
+      "expect": "give",
+      "text": "Merak ettim, Türkiye'de itfaiyeyi aramak için hangi numara geçerli?"
+    },
+    {
+      "id": "a6",
+      "lang": "tr",
+      "class": "greeting_question",
+      "expect": "give",
+      "text": "Selam, kusura bakmayın geç yazıyorum. Ambulansı aramam gerekirse hangi numara geçerli?"
+    },
+    {
+      "id": "a7",
+      "lang": "tr",
+      "class": "medical_with_hospital",
+      "expect": "give",
+      "text": "Eşim merdivenlerde düştü, kalkamıyor. Yakınlarda hangi hastane var bilmiyoruz; ambulansı hangi numaradan arayacağız?"
+    },
+    {
+      "id": "a8",
+      "lang": "en",
+      "class": "injury",
+      "expect": "give",
+      "text": "My son cut his hand badly on broken glass and the bleeding won't stop. What's the ambulance number?"
+    },
+    {
+      "id": "a9",
+      "lang": "de",
+      "class": "accident",
+      "expect": "give",
+      "text": "Vor dem Haus ist gerade ein Motorradunfall passiert, der Fahrer liegt am Boden. Wie lautet die Notrufnummer?"
+    },
+    {
+      "id": "a10",
+      "lang": "tr",
+      "class": "deposit_dispute",
+      "expect": "hold",
+      "text": "Çıkışta güvence parasının tamamını kesmek istiyorlar, buna itiraz ediyoruz. Jandarmanın numarasını öğrenebilir miyim?"
+    },
+    {
+      "id": "a11",
+      "lang": "en",
+      "class": "refund_request",
+      "expect": "hold",
+      "text": "We paid for five nights but left after one night because the heating broke and nobody came to fix it. We want our money back. What's the police number?"
+    },
+    {
+      "id": "a12",
+      "lang": "tr",
+      "class": "host_threat",
+      "expect": "hold",
+      "text": "Ev sahibi telefonda 'seni buradan attırırım' dedi. Ne yapacağız, jandarma numarası kaç?"
+    },
+    {
+      "id": "a13",
+      "lang": "ru",
+      "class": "cancellation",
+      "expect": "hold",
+      "text": "Владелец отменил нашу бронь накануне заезда и деньги не вернул. Скажите номер полиции."
+    },
+    {
+      "id": "a14",
+      "lang": "tr",
+      "class": "cleanliness_threat",
+      "expect": "hold",
+      "text": "Mutfak lavabosundan kötü koku geliyor, temizlik hiç yapılmamış. Bu yüzden polise bildireceğim, numarasını alabilir miyim?"
+    },
+    {
+      "id": "a15",
+      "lang": "fr",
+      "class": "appliance_failure_threat",
+      "expect": "hold",
+      "text": "Le chauffe-eau est en panne depuis hier et personne ne vient le réparer. Je vais appeler la police, quel est le numéro ?"
+    },
+    {
+      "id": "a16",
+      "lang": "tr",
+      "class": "internet_failure_threat",
+      "expect": "hold",
+      "text": "İnternet bütün gün gitti, iki kez de ev sahibine yazdım. Polise gideceğim, numarasını söyler misiniz?"
+    },
+    {
+      "id": "a17",
+      "lang": "ar",
+      "class": "listing_mismatch",
+      "expect": "hold",
+      "text": "الشقة تختلف تماماً عن صور الإعلان، وقد تعرّضنا للاحتيال عند الحجز. ما رقم الشرطة؟"
+    },
+    {
+      "id": "a18",
+      "lang": "es",
+      "class": "host_insult",
+      "expect": "hold",
+      "text": "El dueño me insultó por mensaje ayer y ahora no contesta. ¿Cuál es el número de la policía?"
+    },
+    {
+      "id": "a19",
+      "lang": "tr",
+      "class": "unclear_visitor",
+      "expect": "either",
+      "text": "Dün akşam biri 'temizlikçiyim' diyerek kapıyı çaldı, ev sahibinin haberi yokmuş. Ne yapmamız gerektiğini bilmiyoruz, polisin numarasını verebilir misiniz?"
+    },
+    {
+      "id": "a20",
+      "lang": "en",
+      "class": "safety_vs_host_dismissal",
+      "expect": "either",
+      "text": "The heater in our room makes a burning smell, but the owner says it's normal. Should we call the fire brigade? What's the number?"
+    }
+  ],
+  "seen": [
+    "a1",
+    "a4",
+    "a10"
+  ],
+  "seenNote": "10-11: kör koşudan sonra hata nedeni için Claude bu üç senaryoyu açtı (kod kuralı düzeltmesi). Bunlar artık GÖRÜLDÜ; kör skor yalnız kalan 17 senaryodan."
 }

@@ -49,6 +49,17 @@ describe("askedEmergencyServices — hangi servisin numarası soruluyor", () => 
     ["How do you call the police here?", ["police"]],
   ])("%s", (text, expected) => expect(askedEmergencyServices(text)).toEqual(expected));
 
+  it("servis adı geçmeyen 'hangi numara?' sorusu YALNIZ acil bağlamda genel numara (kör set a1 / a4)", () => {
+    expect(askedEmergencyServices("Babam nefes alamıyor, hangi numarayı arayayım?", { emergencyContext: true })).toEqual(["general"]);
+    expect(askedEmergencyServices("Kayıp çocuk için hangi numarayı aramalıyız?", { emergencyContext: true })).toEqual(["general"]);
+    expect(askedEmergencyServices("My friend collapsed, which number should I call?", { emergencyContext: true })).toEqual(["general"]);
+    // KONTROL: acil bağlam yoksa numara sorusu değil (temizlikçinin / ev sahibinin numarası olabilir).
+    expect(askedEmergencyServices("Babam nefes alamıyor, hangi numarayı arayayım?")).toEqual([]);
+    expect(askedEmergencyServices("Temizlikçinin hangi numarasını arayayım?", { emergencyContext: false })).toEqual([]);
+    // Servis adı geçiyorsa belirli servis kalır.
+    expect(askedEmergencyServices("Ambulans için hangi numarayı arayayım?", { emergencyContext: true })).toEqual(["ambulance"]);
+  });
+
   it.each([
     "Wi-Fi şifresi ne?",
     "Polis karakolu nerede?",
@@ -114,6 +125,11 @@ describe("hostDisputeSignal — ev sahibi / anlaşmazlık sözcüğü (kod baca�
     "The manager locked us out, what is the police number?",
     "The landlady threatened us. Police number?",
     "I want my money back or I call the police. What's the number?",
+    // Kör set a10 (10-11): depozito eş anlamlısı + itiraz.
+    "Çıkışta güvence parasını kesmek istiyorlar, itiraz ediyoruz. Jandarma numarası?",
+    "Kaporamı vermiyorlar, polis numarası ne?",
+    "Teminat bedelini iade etmediler. Polis numarası?",
+    "We dispute the damage charge, what is the police number?",
   ])("🚨 %s", (t) => expect(hostDisputeSignal(t)).toBe(true));
   it.each([
     "Annem fenalaştı, ambulans numarası kaçtı?",
@@ -185,6 +201,13 @@ describe("emergencyNumberReply — karar", () => {
     expect(ask("Polis numarası ne?", ["emergency"], { earlierGuestTexts: ["Ev sahibi depozitomu vermiyor."] })).toBeNull();
     expect(ask("Polis numarası ne?", ["emergency"], { earlierGuestTexts: ["Merhaba", "Arabamızın camı kırılmış."] })?.text).toBe("Polis: 155");
     expect(ask("Polis numarası ne?", null, { hazard: true, earlierGuestTexts: ["The host never answers."] })).toBeNull();
+  });
+  it("🚨 'hangi numara?' + anlama 'acil' → genel numara; anlama başka şey dedi → numara YOK (kör set a1 / a4)", () => {
+    expect(ask("Babam sabahtan beri nefes almakta zorlanıyor. Hangi numarayı arayayım?", ["emergency"])?.text).toBe("Acil çağrı: 112");
+    expect(ask("Hangi numarayı arayayım?", ["cleaning_linen"])).toBeNull();
+    expect(ask("Hangi numarayı arayayım?", ["other"])).toBeNull();
+    expect(ask("Yangın var! Hangi numarayı arayayım?", null, { hazard: true })?.text).toBe("Acil çağrı: 112");
+    expect(ask("Hangi numarayı arayayım?", null)).toBeNull();
   });
   it("anlama katmanı koşmadı → numara verilmez; AÇIK tehlike dalında sorulursa verilir", () => {
     expect(ask("Karşı binadan duman yükseliyor, itfaiyenin numarası kaç?", null)).toBeNull();

@@ -64,11 +64,23 @@ const ASK_RE = new RegExp(
   "iu",
 );
 
+/**
+ * Servis adı GEÇMEYEN "hangi numarayı arayayım / which number" sorusu (kör set a1 / a4, 10-11: "Babam nefes alamıyor … hangi numarayı
+ * arayayım?"). Yalnız ACİL bağlamda (anlama katmanı "acil" dedi ya da açık tehlike) genel acil numarası sayılır — "Temizlikçinin hangi
+ * numarasını arayayım?" acil bağlam olmadığı için numara sorusu DEĞİLDİR.
+ */
+const GENERIC_ASK_RE = new RegExp(
+  `${L}(?:hangi\\s+(?:numara|telefon)\\p{L}{0,8}|which\\s+number|what\\s+number|welche\\s+nummer|quel\\s+numero|que\\s+numero|какой\\s+номер|какой\\s+телефон|اي\\s+رقم)`,
+  "iu",
+);
+
 /** Misafir hangi servisin numarasını soruyor (yoksa boş). Birleşik sözcük ("Notrufnummer") tek başına yeter. */
-export function askedEmergencyServices(text: string): EmergencyService[] {
+export function askedEmergencyServices(text: string, opts: { emergencyContext?: boolean } = {}): EmergencyService[] {
   if (typeof text !== "string" || !text.trim() || text.length > 2_000) return [];
   const f = fold(text);
-  if (!ASK_RE.test(f) && !/notrufnummer|emergency\s*number/i.test(f)) return [];
+  if (!ASK_RE.test(f) && !/notrufnummer|emergency\s*number/i.test(f)) {
+    return opts.emergencyContext === true && GENERIC_ASK_RE.test(f) ? ["general"] : [];
+  }
   const out = SERVICE_RE.filter(([, re]) => re.test(f)).map(([s]) => s);
   // Belirli bir servis sorulduysa genel "acil" sözcüğü ayrıca satır üretmez ("ambulans numarası, acil!" → yalnız ambulans).
   const specific = out.filter((s) => s !== "general");
@@ -77,13 +89,14 @@ export function askedEmergencyServices(text: string): EmergencyService[] {
 
 /**
  * Ev sahibi / anlaşmazlık sözcüğü (kod bacağı): ev sahibi (bitişik yazım dahil), mal sahibi, kiraya veren, yönetici, depozito, iade,
- * "geri ödemezseniz", şikâyet, dolandırılma, hakaret, iptal — yedi dil. Fazla eşleşme bilinçli: bedeli numaranın gitmemesidir (bugünkü
+ * "geri ödemezseniz", şikâyet, dolandırılma, hakaret, iptal, itiraz (depozito eş anlamlıları: güvence parası / bedeli, kapora, teminat —
+ * kör set a10, 10-11) — yedi dil. Fazla eşleşme bilinçli: bedeli numaranın gitmemesidir (bugünkü
  * davranış, ev sahibi uyarılır). Haiku 2. tur (10-11): platform adı (Airbnb / Booking) ve çıplak "tehdit" ÇIKARILDI — "Booking'den
  * geldik, annem fenalaştı" ya da "Biri beni tehdit ediyor" ev sahibiyle anlaşmazlık değildir (kurucu: yalnız ev sahibinin KENDİSİ
  * tehditse size kalsın; o durumda "ev sahibi / mal sahibi / landlady" zaten eşleşir). "hostel / hostes" ev sahibi değildir.
  */
 const HOST_DISPUTE = new RegExp(
-  `${L}(?:ev\\s*sahib\\p{L}*|mal\\s+sahib\\p{L}*|kiraya\\s+veren\\p{L}*|yonetici\\p{L}*|host(?!el|es)\\p{L}*|owner|landlord|landlady|manager|vermieter\\p{L}*|gastgeber\\p{L}*|proprietaire|hote|anfitrion|dueno|propietari\\p{L}*|хозя\\p{L}*|владел\\p{L}*|المالك|صاحب|depozit\\p{L}*|deposit|kaution|caution|iade\\p{L}*|refund\\p{L}*|erstatt\\p{L}*|rembours\\p{L}*|reembols\\p{L}*|возврат\\p{L}*|залог\\p{L}*|استرداد|sikayet\\p{L}*|complain\\p{L}*|beschwer\\p{L}*|plainte|queja|жалоб\\p{L}*|شكو\\p{L}*|dolandir\\p{L}*|scam\\p{L}*|fraud\\p{L}*|betrug|betrog\\p{L}*|arnaque|estafa\\p{L}*|мошен\\p{L}*|احتيال|hakaret\\p{L}*|insult\\p{L}*|beleidig\\p{L}*|geri\\s+(?:ode|ver)\\p{L}*|money\\s+back|iptal\\p{L}*|cancel\\p{L}*|storn\\p{L}*|annul\\p{L}*|отмен\\p{L}*|الغاء)`,
+  `${L}(?:ev\\s*sahib\\p{L}*|mal\\s+sahib\\p{L}*|kiraya\\s+veren\\p{L}*|yonetici\\p{L}*|host(?!el|es)\\p{L}*|owner|landlord|landlady|manager|vermieter\\p{L}*|gastgeber\\p{L}*|proprietaire|hote|anfitrion|dueno|propietari\\p{L}*|хозя\\p{L}*|владел\\p{L}*|المالك|صاحب|depozit\\p{L}*|deposit|kaution|guvence\\s+(?:para|bedel)\\p{L}*|kapora\\p{L}*|teminat\\p{L}*|itiraz\\p{L}*|dispute\\p{L}*|chargeback|caution|iade\\p{L}*|refund\\p{L}*|erstatt\\p{L}*|rembours\\p{L}*|reembols\\p{L}*|возврат\\p{L}*|залог\\p{L}*|استرداد|sikayet\\p{L}*|complain\\p{L}*|beschwer\\p{L}*|plainte|queja|жалоб\\p{L}*|شكو\\p{L}*|dolandir\\p{L}*|scam\\p{L}*|fraud\\p{L}*|betrug|betrog\\p{L}*|arnaque|estafa\\p{L}*|мошен\\p{L}*|احتيال|hakaret\\p{L}*|insult\\p{L}*|beleidig\\p{L}*|geri\\s+(?:ode|ver)\\p{L}*|money\\s+back|iptal\\p{L}*|cancel\\p{L}*|storn\\p{L}*|annul\\p{L}*|отмен\\p{L}*|الغاء)`,
   "iu",
 );
 export function hostDisputeSignal(text: string): boolean {
@@ -134,7 +147,9 @@ export interface EmergencyNumberDecision {
 export function emergencyNumberReply(input: EmergencyNumberInput): EmergencyNumberDecision | null {
   if (!emergencyNumberEnabled()) return null;
   if (input.timeZone !== "Europe/Istanbul") return null;
-  const services = askedEmergencyServices(input.message);
+  // Acil bağlam: anlama katmanı "acil" dedi ya da AÇIK tehlike dalı — servis adı geçmeyen "hangi numara?" sorusu ancak o zaman sayılır.
+  const emergencyContext = input.hazard === true || (input.understandingIntents ?? []).includes("emergency");
+  const services = askedEmergencyServices(input.message, { emergencyContext });
   if (services.length === 0) return null;
   if (hostDisputeSignal(input.message) || (input.earlierGuestTexts ?? []).some(hostDisputeSignal)) return null;
   if (input.understandingIntents === null) {

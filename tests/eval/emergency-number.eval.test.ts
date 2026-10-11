@@ -50,7 +50,9 @@ describe.skipIf(!enabled)("acil numara sorusu — anlama katmanı bağlam ayrım
   it("give / hold ayrımı", async () => {
     const setName = (process.env.EVAL_EMERGENCY_SET ?? "emergency-number").replace(/[^a-z0-9-]/gi, "");
     const blind = /-acc\d+$/.test(setName);
-    const data = JSON.parse(readFileSync(path.resolve(__dirname, `../../evals/${setName}.json`), "utf8")) as { scenarios: Scenario[] };
+    const data = JSON.parse(readFileSync(path.resolve(__dirname, `../../evals/${setName}.json`), "utf8")) as { scenarios: Scenario[]; seen?: string[] };
+    // Kör setin hata analizi için açılmış senaryoları (`seen`) artık kör değildir — kör skor ayrıca yalnız görülmemişlerden.
+    const seen = new Set(data.seen ?? []);
     const jobs = data.scenarios.flatMap((s) => Array.from({ length: REPEATS }, (_, r) => ({ s, r })));
     const rows: {
       id: string;
@@ -114,6 +116,11 @@ describe.skipIf(!enabled)("acil numara sorusu — anlama katmanı bağlam ayrım
       `| **doğru karar — ÜRÜN (kod kuralları + anlama; \`emergencyNumberReply\`)** | **${scored.filter((r) => r.product === r.expect).length}/${scored.length}** |`,
       `| 🚨 ürün: bırakılması gerekirken numara verirdi | ${scored.filter((r) => r.expect === "hold" && r.product === "give").length} |`,
       `| ürün: numara verilmesi gerekirken bırakırdı | ${scored.filter((r) => r.expect === "give" && r.product === "hold").length} |`,
+      ...(seen.size > 0
+        ? [
+            `| **ürün — yalnız GÖRÜLMEMİŞ senaryolar (${seen.size} senaryo hata analizi için açıldı)** | **${scored.filter((r) => !seen.has(r.id) && r.product === r.expect).length}/${scored.filter((r) => !seen.has(r.id)).length}** |`,
+          ]
+        : []),
       `| 🚨 bırakılması gerekirken numara verilecekti (hold → give) | ${wrongGive.length} |`,
       `| numara verilmesi gerekirken bırakılacaktı (give → hold) | ${wrongHold.length} |`,
       `| anlama çağrısı başarısız | ${failed} |`,
