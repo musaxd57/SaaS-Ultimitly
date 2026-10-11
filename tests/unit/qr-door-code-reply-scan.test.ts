@@ -108,6 +108,7 @@ describe("withoutQrSecretKbItems — Wi-Fi kalemi girer, kapı izi girmez", () =
       "Wi-Fi: gunes1907. Çöp odası şifresi 4590",
       "Wi-Fi: LaleNet, şifre gunes1907, depo şifresi 4590",
       "Wi-Fi şifresi gunes1907. Şifre: 4590",
+      "Wi-Fi şifresi gunes1907. Otopark şifresi kirmizi gelincik", // değer iki noktasız + rakamsız → iz listesi (otopark) yakalar
     ]) {
       expect(withoutQrSecretKbItems([kb("wifi", content)]), content).toEqual([]);
     }
