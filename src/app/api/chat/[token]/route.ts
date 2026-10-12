@@ -964,6 +964,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   };
   const replyStartedAt = Date.now();
   let result = await suggestReply(replyInput);
+  // Üretim izi için: yeniden yazdırma yedeğe düşse de İLK çağrı modele gittiyse karar izlenir (Haiku 10-12).
+  const firstModelCalled = result.source === "openai" || Boolean(result.llmUsage);
 
   // ── ÇIKTIDA KAPI KODU → BİR KEZ YENİDEN YAZDIR, SONRA DEVİR (kurucu kararı 10-11, karar listesi 18: "taransın ama response geri
   // dönsün … sonra tekrar response üretilse olmaz mı, ev sahibine devir çok olmasın"). Bilgi tabanı kapı kodu taşımaz ama ev sahibinin
@@ -989,6 +991,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       doorCodeHeld = firstDoorCode; // yönerge kotasız da gitmez: kapı `emergency_directive` ile devreder
     }
   }
+  // İz gecikmesi = yalnız cevap modeli çağrıları (yeniden yazdırma dahil) — kanal iziyle aynı tanım; bekçi / kod metni sorgusu dışarıda.
+  const replyLatencyMs = Date.now() - replyStartedAt;
 
   // (The QR model call passes reservation:null — the name never reaches the model
   // today — so this is defense-in-depth: if the name is ever wired into the
@@ -1087,13 +1091,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Kapı kodu ikinci taslakta da kaldı (↑) → cevap gitmez. Doğrulanmış kod metni seçildiyse o metin modelin değildir, kod taşımaz.
   if (doorCodeHeld && finalResult === result) verdict = { escalate: true, reason: "door_code_in_reply" };
   const escalate = verdict.escalate;
-  const replyLatencyMs = Date.now() - replyStartedAt;
 
   // ÜRETİM İZİ (kurucu kararı 10-12 öğle, Ö5 "QR izini de yaz"; anahtar `AI_GENERATION_TRACE_ENABLED` KAPALI → yazım yok): kanal izinin
   // AYNISI — model çağrıldıysa her karar (gönderildi / devir / sessiz kapanış). Taslak = modelin SON taslağı; gönderilen = misafire giden
   // gövde (yalnız gönderimde). Kanıt karar kaydıyla AYNI nesneden. Bağlam tanısı QR penceresinin kendi kurucusundan. Asla fırlatmaz.
   // Kanal iziyle AYNI koşul: yedek (modelsiz) cevapta iz yok. Ev sahibi model çalışırken yazdıysa (`handedOff`) karar kaydı gibi iz de yok.
-  // Araç özeti (`toolResults`) QR'da YOK: `loadQrVerifiedStay` yalnız metin döndürür (kanal izinde var).
+  // Araç özeti (`toolResults`) QR'da YOK: `loadQrVerifiedStay` yalnız metin döndürür (kanal izinde var). Token kullanımı SON çağrınınki
+  // (kanalla aynı). Acil numara yolunda kod metni gider ama karar kaydı gibi iz de `human_review` + `emergency_number` der; gönderilen
+  // yalnız `auto_sent` kararında yazılır (yazıcı sözleşmesi) — gerekçe kodu ne gittiğini söyler.
   const traceQr = async (input: {
     decision: "auto_sent" | "human_review" | "no_reply";
     conversationId: string;
@@ -1102,7 +1107,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     kbEvidenceJson: string | null | undefined;
     sentText: string | null;
   }) => {
-    if (!aiGenerationTraceEnabled() || (result.source !== "openai" && !result.llmUsage)) return;
+    if (!aiGenerationTraceEnabled() || !(firstModelCalled || result.source === "openai" || result.llmUsage)) return;
     try {
       await recordAiGeneration({
         organizationId: ctx.property.organizationId,

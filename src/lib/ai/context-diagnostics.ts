@@ -13,13 +13,13 @@ export interface ContextDiagnostics {
   /** İsteme giren mesajların kimlikleri (kronolojik; kimlik biçimi dışındaki değer yazılmaz). */
   includedIds: string[];
   includedCount: number;
-  /** Konuşmada olup isteme GİRMEYEN mesaj sayısı (tavan / bütçe). */
+  /** Girdi dizisinde olup isteme GİRMEYEN mesaj sayısı (tavan / bütçe). Kanal: konuşmanın tamamı; QR: taranan son satırlar (`QR_TOPIC_SCAN_CAP`). */
   omittedCount: number;
   /** İsteme giren en eski mesajın zamanı (ISO) — yoksa null. */
   oldestIncludedAt: string | null;
   /** İsteme giren gövdelerin toplam karakteri. */
   totalChars: number;
-  /** Son operatif cevaptan SONRA gelen cevapsız misafir mesajı sayısı (güvenlik penceresi — konuşmanın TAMAMINDAN). */
+  /** Son operatif cevaptan SONRA gelen cevapsız misafir mesajı sayısı (güvenlik penceresi — girdi dizisinin tamamından; QR'da taranan satırlar). */
   pendingCount: number;
   /** Bunlardan isteme girenler (güvenlik penceresi tavana takıldıysa < pendingCount). */
   pendingIncludedCount: number;

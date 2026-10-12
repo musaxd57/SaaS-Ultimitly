@@ -225,6 +225,32 @@ describe("QR üretim izi — rota", () => {
     expect(await prisma.riskEvent.count({ where: { surface: "guest_chat" } })).toBe(1);
   });
 
+  it("🚨 yeniden yazdırma (acil arama yönergeli ilk taslak) YEDEĞE düşse de karar izlenir — ilk çağrı modele gitti (Haiku 10-12)", async () => {
+    const s = await seedQr();
+    mockSuggest
+      .mockResolvedValueOnce(draft({ reply: "Çöp salı günü alınır; acil bir durumda 112'yi arayın.", intent: "general" }) as never)
+      .mockResolvedValueOnce(draft({ source: "fallback", llmUsage: undefined, reply: "Çöp salı günü alınır.", intent: "general", confidence: 0.4 }) as never);
+    await ask(s.token, "Çöp ne zaman alınıyor?");
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    const [ev] = await prisma.riskEvent.findMany({ where: { surface: "guest_chat" } });
+    const gens = await prisma.aiGeneration.findMany();
+    expect(gens).toHaveLength(1);
+    expect(gens[0]).toMatchObject({ surface: "qr", decision: ev.finalDecision, gateReason: ev.reason, draftText: "Çöp salı günü alınır." });
+  });
+
+  it("ters yön: ilk taslak yedek (modelsiz) ama yönergeli → yeniden yazdırma modele gider → karar izlenir", async () => {
+    const s = await seedQr();
+    mockSuggest
+      .mockResolvedValueOnce(draft({ source: "fallback", llmUsage: undefined, reply: "Acil bir durumda 112'yi arayın.", intent: "general" }) as never)
+      .mockResolvedValueOnce(draft({ reply: "Çöp salı günü alınır.", intent: "general" }) as never);
+    await ask(s.token, "Çöp ne zaman alınıyor?");
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    const [ev] = await prisma.riskEvent.findMany({ where: { surface: "guest_chat" } });
+    const gens = await prisma.aiGeneration.findMany();
+    expect(gens).toHaveLength(1);
+    expect(gens[0]).toMatchObject({ decision: ev.finalDecision, gateReason: ev.reason, draftText: "Çöp salı günü alınır.", model: "served-model" });
+  });
+
   it("🚨 anahtar kapalı → iz yok, girdi hiç KURULMAZ; misafire giden cevap AYNI", async () => {
     vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "");
     const s = await seedQr();
