@@ -270,6 +270,31 @@ describe("runScheduledSync — iCal (Kanal Takvimleri) bacağı", () => {
   });
 
   // ───────────────────────────────────────────────────────────────────────────
+  // 5b) KİRACI BAŞINA BÜTÇE (`ICAL_ORG_BUDGET_MS`, ACIK-ISLER 08-08 §12, 10-12 gece): tek kiracının yavaş beslemeleri havuzu
+  //     yiyemez — kendi payı dolunca KENDİ kalanları ertelenir, diğer kiracının beslemesi yine çekilir. Eskiden pinsizdi.
+  //     MUTASYON: `deadline`taki `icalStartedAt + ICAL_ORG_BUDGET_MS` terimini sil → A'nın iki beslemesi de çekilir (kırmızı).
+  // ───────────────────────────────────────────────────────────────────────────
+  it("kiracı bütçesi: yavaş kiracının fazlası ertelenir, diğer kiracı yine senkronlanır", async () => {
+    vi.stubEnv("ICAL_ORG_BUDGET_MS", "40");
+    const a = await orgWithProperty("A");
+    const b = await orgWithProperty("B");
+    await addSource(a.propertyId, { url: "https://example.com/a1.ics" });
+    await addSource(a.propertyId, { url: "https://example.com/a2.ics" });
+    await addSource(b.propertyId, { url: "https://example.com/b1.ics" });
+    mockFeed.mockImplementation(async () => new Promise<string>((r) => setTimeout(() => r(TWO_STAYS), 70)));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const totals = await runScheduledSync();
+
+    expect(totals.icalSources).toBe(2);
+    expect(totals.icalDeferred).toBe(1);
+    // Ertelenen A'nın ikinci beslemesi; B'nin tek beslemesi çekildi (kiracı sırası ne olursa olsun).
+    expect(await prisma.calendarSource.count({ where: { propertyId: a.propertyId, lastSyncedAt: null } })).toBe(1);
+    expect(await prisma.calendarSource.count({ where: { propertyId: b.propertyId, lastSyncedAt: null } })).toBe(0);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
   // 6) 🚨 ZAMANLAMA, KAYBOLMA-UZLAŞTIRMASINI AÇMAZ.
   //    `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` DEFAULT KAPALI ve öyle KALMALI
   //    (geçmişte gerçek rezervasyonları toplu iptal etti). Zamanlı geçiş artık
