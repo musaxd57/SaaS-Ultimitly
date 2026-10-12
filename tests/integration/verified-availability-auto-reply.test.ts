@@ -189,6 +189,11 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
     expect(g.draftText).toBe(MODEL_DRAFT);
     expect(g.sentText).toBe(sentBody());
     expect(g.sentText?.split("\n")[0]).toBe(CODE_AVAILABLE);
+    // Doğrulanmış araç ÖZETİ izde (kurucu talimatı: "deterministic tool calls and their results") — değer ve kapsam YAZILMAZ.
+    const tools = JSON.parse(g.toolResultsJson!);
+    expect(tools).toEqual([expect.objectContaining({ tool: "availability.check", status: "ok" })]);
+    expect(Object.keys(tools[0]).sort()).toEqual(["asOf", "reasons", "status", "tool", "toolVersion"]);
+    expect(g.toolContractVersion).toBe(tools[0].toolVersion);
   });
 
   it("KONTROL: anahtar KAPALI → hiçbir şey gitmez (bugünkü davranış)", async () => {

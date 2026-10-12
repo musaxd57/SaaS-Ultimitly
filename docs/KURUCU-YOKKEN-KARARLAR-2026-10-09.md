@@ -253,3 +253,16 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
 | T1 saklama | "90 gün yeterli" | Olay günlüğü (ödeme olayları dahil) 90 gün; faturalar `Invoice`ta |
 | Hata metni kapsamı | "Yalnız ödeme ekranında" | Takip numaralı metin + "kopyala" yalnız `/api/billing/*` hatalarında; diğer panel hatalarında eski metin. Numara arka planda (günlük, Sentry, alarm e-postası, yanıt başlığı) her kimlikli istekte durur — ekranda görünmez |
 | 2. dilim | "Evet, yap" | Arka plan işleri (senkron, giden mesaj kuyruğu, otomatik cevap) kendi numarasıyla günlüğe yazar; müşteriye giden değişmez, migration yok |
+
+**Talimat kapsam denetimi 2 (10-12 öğle, Haiku) — kod yazıldı / karar bekleyen:**
+
+| # | Konu | Durum |
+|---|---|---|
+| Ö1 | Bağlam kurucu tanısı (talimat bağlam sözleşmesi madde 11) | ✅ yazıldı: `ai/context-diagnostics.ts` → üretim izi `contextDiagnosticsJson` (metin yok; anahtar `AI_GENERATION_TRACE_ENABLED` KAPALI) |
+| Ö2 | Üretim izinde doğrulanmış araç sonucu | ✅ yazıldı: yalnız özet (araç · sürüm · durum · gerekçe kodları · an); değer ve kapsam YAZILMAZ |
+| Ö3 | Kalite konsolu görüntüleme kaydında konuşma | ✅ yazıldı: görüntülenen konuşma kimlikleri (opak) |
+| Ö4 | İzde RAG alıntısı + güven puanı (talimat "retrieved RAG source identifiers and excerpts", "confidence") | ⏳ KARAR: bilgi tabanı metni sır taşıyabilir (kapı kodu, Wi-Fi şifresi). Önerim: alıntı = sır maskelenmiş ilk 200 karakter (kalite denetçisinin kullandığı maskeleyiciyle). Uygulayayım mı? |
+| Ö5 | QR / "AI cevap öner" / demo izleri | ⏳ KARAR (migration 60 tasarımında ayrı onaya bırakılmıştı): QR izini de yazalım mı? (misafir metni izde tutulur — kanal iziyle aynı KVKK kuralları) |
+| Ö6 | Her uyarıda para etkisi (talimat "Her uyarının bir Money Impact değeri olsun") | ⏳ KARAR: bugün yalnız takvim çakışmasında aralık; sizin 10-11 kararınızla yetim boşlukta tutar YOK. Önerim: diğer uyarılarda "para etkisi: bilinmiyor (sebep)" satırı — tutar uydurmaz |
+| Red | Query Router / Query Transformation | Talimatın kendi metni: "Gelecek AI geliştirmeleri: Bunları şimdi topluca uygulama … V0 sonrasında" — V0 d/e Railway'de bekliyor |
+| Red | QR bekleyen mesaj penceresi | QR her mesajı geldiği anda kapıdan geçirir; taşan şikâyet "açık konu" — test-pinli farklı politika (talimat bunu kabul eder) |

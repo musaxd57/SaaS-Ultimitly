@@ -45,7 +45,7 @@ import type {
 } from "@/lib/ai/semantic/stay-change";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
 import { guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
-import { loadConversationState } from "@/lib/ai/conversation-state-loader";
+import { conversationRecordsInPrompt, loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
@@ -168,6 +168,7 @@ import { getAdjacency } from "@/lib/turnover";
 import { loadVerifiedAvailability } from "@/lib/ai/verified-availability-load";
 import { verifiedAvailabilityLang, verifiedAvailabilityText, verifiedAvailabilityUsable } from "@/lib/ai/verified-availability";
 import { verifiedExtensionText } from "@/lib/ai/verified-extension";
+import { contextDiagnostics } from "@/lib/ai/context-diagnostics";
 import { codeBuiltResult } from "@/lib/ai/code-built-result";
 import { loadVerifiedExtension } from "@/lib/ai/verified-extension-load";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
@@ -2674,6 +2675,23 @@ export async function applyChannelAutoReply(
         llm: result.llmUsage ?? null,
         draftText: modelDraft,
         sentText,
+        // Bağlam kurucu tanısı: istem / kapı penceresiyle AYNI seçici, aynı girdi (kimlik + zaman taşıyan kopya üzerinde).
+        contextDiagnostics: (() => {
+          const forDiag = messages.map((m) => ({
+            id: m.id,
+            createdAt: m.createdAt,
+            direction: m.direction as "inbound" | "outbound",
+            body: m.body,
+            author: historyAuthorOf(m),
+          }));
+          // Eski hafıza = istemin "KONUŞMA KAYITLARI" bloğu (pencere dışı konu / sayaç) — istemle AYNI koşul (Haiku 10-12).
+          return contextDiagnostics(forDiag, selectHistoryForPrompt(forDiag), {
+            olderMemoryUsed: conversationRecordsInPrompt(conversationRecords),
+          });
+        })(),
+        toolResults: [verifiedAvailabilityRun?.va.result, verifiedExtensionRun?.va.result].filter(
+          (r): r is NonNullable<typeof r> => r !== undefined && r !== null,
+        ),
       });
     } catch (err) {
       void reportError(`ai-generation-trace org=${ev.organizationId}`, err);

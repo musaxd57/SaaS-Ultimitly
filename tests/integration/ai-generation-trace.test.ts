@@ -124,6 +124,25 @@ describe("üretim izi — kanal oto-yanıtı", () => {
     expect(ev.finalDecision).toBe("auto_sent");
     expect(g.triggerMessageId).toBe(ev.triggerId);
     expect(g.latencyMs).not.toBeNull();
+    // Bağlam kurucu tanısı (kurucu talimatı madde 11): isteme giren mesaj kimlikleri + sayılar; METİN YOK.
+    const diag = JSON.parse(g.contextDiagnosticsJson!);
+    const msgs = await prisma.message.findMany({ where: { conversationId: s.conversationId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+    expect(diag).toMatchObject({ v: 1, omittedCount: 0, pendingCount: 1, pendingIncludedCount: 1, olderMemoryUsed: false });
+    expect(diag.includedIds).toContain(ev.triggerId);
+    expect(diag.includedIds.every((id: string) => msgs.some((m) => m.id === id))).toBe(true);
+    expect(g.contextDiagnosticsJson).not.toContain(BENIGN.slice(0, 12));
+    expect(g.toolResultsJson).toBeNull(); // araç koşmadı
+  });
+
+  it("bağlam tanısı: 'eski hafıza' = istemin KONUŞMA KAYITLARI bloğu (konuşma kayıtları anahtarı açık + önceki giden mesaj)", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const s = await seed();
+    await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Hoş geldiniz!", createdAt: new Date(Date.now() - 3_600_000) },
+    });
+    expect((await applyChannelAutoReply(s.conversationId)).sent).toBe(true);
+    const [g] = await prisma.aiGeneration.findMany();
+    expect(JSON.parse(g.contextDiagnosticsJson!)).toMatchObject({ olderMemoryUsed: true });
   });
 
   it("tutulan cevap (iade): iz human_review, gönderilen metin YOK, taslak var; misafire bir şey gitmez", async () => {

@@ -164,7 +164,8 @@ describe("kalite konsolu — görüntüleme (operatör)", () => {
     const log = await prisma.auditLog.findFirstOrThrow({ where: { action: "ai_quality.view" } });
     expect(log.organizationId).toBe(a.orgId);
     expect(log.actorUserId).toBe(session!.userId);
-    expect(JSON.parse(log.metadataJson!)).toEqual({ purpose: "incident_review", ticket: "T-42", count: 1 });
+    const viewedConversation = await prisma.aiGeneration.findUniqueOrThrow({ where: { id: a.generationId }, select: { conversationId: true } });
+    expect(JSON.parse(log.metadataJson!)).toEqual({ purpose: "incident_review", ticket: "T-42", count: 1, conversationIds: [viewedConversation.conversationId] });
     expect(log.metadataJson).not.toContain(OPERATOR_EMAIL);
     expect(log.metadataJson).not.toContain("Ayşe");
   });

@@ -44,7 +44,15 @@ export async function GET(req: NextRequest) {
       organizationId: orgId,
       actorUserId: auditActor(session),
       action: "ai_quality.view",
-      metadata: { purpose, ...(ticket ? { ticket } : {}), count: page.rows.length, ...(decision ? { decision } : {}) },
+      // Görüntülenen KONUŞMALAR da kayıtlı (kurucu talimatı: "every conversation view … audited with … conversation") — yalnız opak
+      // kimlik (denetim kaydı müşterinin KVKK dökümüne girer; metin / ad YOK).
+      metadata: {
+        purpose,
+        ...(ticket ? { ticket } : {}),
+        count: page.rows.length,
+        ...(decision ? { decision } : {}),
+        conversationIds: [...new Set(page.rows.map((r) => r.conversationId))],
+      },
     });
   } catch (err) {
     void reportError("admin.ai-quality-audit", err);

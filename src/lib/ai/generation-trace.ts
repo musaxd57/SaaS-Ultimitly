@@ -3,6 +3,8 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import type { LlmUsage } from "@/lib/ai/types";
+import type { ContextDiagnostics } from "./context-diagnostics";
+import type { VerifiedToolResult } from "./tools/contract";
 
 // ---------------------------------------------------------------------------
 // YAPAY ZEKÂ ÜRETİM İZİ (migration 60, kurucu onayı 10-09 "tamamını hazırla"; tasarım `docs/TASARIM-2026-10-09-migration-paketi-60.md` §D).
@@ -51,6 +53,22 @@ export interface AiGenerationInput {
   llm?: LlmUsage | null;
   draftText?: string | null;
   sentText?: string | null;
+  /** Bağlam kurucu tanısı (kimlik / sayı / zaman — metin YOK; `ai/context-diagnostics.ts`). */
+  contextDiagnostics?: ContextDiagnostics | null;
+  /** Bu kararda koşan doğrulanmış araçların ÖZETİ (araç · sürüm · durum · gerekçe kodları · an; değer ve kapsam YAZILMAZ). */
+  toolResults?: ReadonlyArray<Pick<VerifiedToolResult<unknown>, "tool" | "toolVersion" | "status" | "reasons" | "asOf">> | null;
+}
+
+/** Araç gerekçe kodu biçimi (kapalı küme kodları: küçük harf + alt çizgi). */
+const REASON_CODE = /^[a-z][a-z0-9_]{0,47}$/;
+
+/** JSON alanı tavanı: aşan tanı / araç özeti YAZILMAZ (kırpılmış JSON yanıltır). */
+const TRACE_JSON_CAP = 8_000;
+
+function jsonOrNull(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = JSON.stringify(v);
+  return s.length <= TRACE_JSON_CAP ? s : null;
 }
 
 function intOrNull(v: number | null | undefined): number | null {
@@ -101,6 +119,22 @@ export function aiGenerationRow(input: AiGenerationInput) {
     draftText: textOrNull(input.draftText),
     // Gönderilen metin YALNIZ gönderim kararında anlamlıdır; tutulan / cevapsız kararda yazılmaz.
     sentText: input.decision === "auto_sent" ? textOrNull(input.sentText) : null,
+    contextDiagnosticsJson: jsonOrNull(input.contextDiagnostics ?? null),
+    // Araç özeti: yalnız kapalı alanlar (değer / kapsam asla — gün aralığı ve kiracı kimliği izde tekrarlanmasın).
+    toolResultsJson:
+      input.toolResults && input.toolResults.length > 0
+        ? jsonOrNull(
+            input.toolResults.map((r) => ({
+              tool: r.tool,
+              toolVersion: r.toolVersion,
+              status: r.status,
+              // Gerekçe "kapalı küme" sözleşmesi tipte değil burada ZORLANIR: kod biçimine uymayan değer izde yer almaz (Haiku 10-12).
+              reasons: r.reasons.filter((code) => REASON_CODE.test(code)),
+              asOf: r.asOf,
+            })),
+          )
+        : null,
+    toolContractVersion: input.toolResults && input.toolResults.length > 0 ? Math.max(...input.toolResults.map((r) => r.toolVersion)) : null,
   };
 }
 
