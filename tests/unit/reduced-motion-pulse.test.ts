@@ -15,15 +15,31 @@ function walk(dir: string): string[] {
   });
 }
 
+/** `animate-pulse` sınıfı (varyant önekleriyle: `md:`, `hover:`, `!`) — `motion-safe:` zinciri kaçışlıdır, sayılmaz (Haiku 10-12: eski
+ *  kalıp önekli yazımı görmüyordu). */
+function unguardedPulse(text: string): string[] {
+  return [...text.matchAll(/(?<![\w-])((?:[\w-]+:)*)!?animate-pulse(?![\w-])/g)]
+    .filter((m) => !m[1].split(":").includes("motion-safe"))
+    .map((m) => m[0]);
+}
+
 describe("hareket azaltma — kaçışsız Tailwind nabzı geri gelmez", () => {
   const files = walk("src").map((p) => ({ p, text: readFileSync(p, "utf8") }));
 
   it("🚨 hiçbir bileşen `animate-pulse` sınıfı kullanmıyor (iskelet = kaçışlı `lxs-pulse`)", () => {
     const users = files
       .filter(({ p }) => !p.endsWith("globals.css")) // açıklama yorumu sınıfı ANAR
-      .filter(({ text }) => /(^|[\s"'`])animate-pulse([\s"'`]|$)/m.test(text))
+      .filter(({ text }) => unguardedPulse(text).length > 0)
       .map(({ p }) => p);
     expect(users).toEqual([]);
+  });
+
+  it("tarayıcı önekli yazımı yakalar, `motion-safe:` kaçışını saymaz", () => {
+    expect(unguardedPulse('<div className="h-4 animate-pulse" />')).toEqual(["animate-pulse"]);
+    expect(unguardedPulse("cn('md:animate-pulse', x)")).toEqual(["md:animate-pulse"]);
+    expect(unguardedPulse('className="hover:!animate-pulse"')).toEqual(["hover:!animate-pulse"]);
+    expect(unguardedPulse('className="motion-safe:animate-pulse"')).toEqual([]);
+    expect(unguardedPulse('className="lxs-pulse animate-pulsex"')).toEqual([]);
   });
 
   it("anti-vakumluk: tarayıcı sınıfları gerçekten görüyor (`animate-spin` bulunur) ve kaçışlı nabız tanımlı", () => {

@@ -86,7 +86,10 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
     expect(partial[0]).toContain("STORAGE_ACCESS_KEY_ID, STORAGE_SECRET_ACCESS_KEY");
     expect(partial[0]).not.toContain("example-storage");
     // Tam ama geçersiz (http uç / büyük harfli kova).
-    expect(warn({ ...full, STORAGE_ENDPOINT: "http://example-storage.dev" })[0]).toMatch(/must be https/);
+    expect(warn({ ...full, STORAGE_ENDPOINT: "http://example-storage.dev" })[0]).toMatch(/must be a valid https/);
+    // Çalışma zamanıyla AYNI kural (URL ayrıştırma; Haiku 10-12): yer tutucu açılı parantez önekle geçiyor, çalışma zamanında düşüyordu.
+    expect(warn({ ...full, STORAGE_ENDPOINT: "https://<account>.r2.cloudflarestorage.com" })[0]).toMatch(/must be a valid https/);
+    expect(warn({ ...full, STORAGE_ENDPOINT: "https://example-storage.dev/" })).toEqual([]); // sondaki eğik çizgi çalışma zamanında da atılır
     expect(warn({ ...full, STORAGE_BUCKET: "Lixus_Uploads" })[0]).toMatch(/STORAGE_BUCKET is not usable/);
     // KONTROL: tam + geçerli (geri alınmış bayrak, silme kuyruğu çalışır) ve hiç yok → uyarı YOK; hata hiçbir durumda yok.
     expect(warn(full)).toEqual([]);

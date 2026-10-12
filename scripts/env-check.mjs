@@ -10,6 +10,20 @@
 export const DEV_PLACEHOLDER_SECRET = "dev-secret-change-me-please-32-bytes-min";
 
 /**
+ * Storage endpoint validity — the SAME rule the runtime applies (src/lib/storage/config.ts getStorageConfig: trailing slashes
+ * stripped, WHATWG URL parse, protocol https). A prefix regex disagreed with it (Haiku 10-12): "https://<account>.r2…" passed
+ * here but the runtime rejected it, so storage stayed silently unconfigured.
+ * @param {string} raw
+ */
+function storageEndpointUsable(raw) {
+  try {
+    return new URL(raw.trim().replace(/\/+$/, "")).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * @param {Record<string, string | undefined>} env
  * @returns {{ errors: string[], warnings: string[] }}
  */
@@ -192,8 +206,8 @@ export function checkProductionEnv(env) {
     const endpoint = (env.STORAGE_ENDPOINT ?? "").trim();
     if (!endpoint) {
       errors.push("STORAGE_ENDPOINT is missing — REQUIRED when STORAGE_ENABLED is on.");
-    } else if (!/^https:\/\//i.test(endpoint)) {
-      errors.push("STORAGE_ENDPOINT must be an https:// URL.");
+    } else if (!storageEndpointUsable(endpoint)) {
+      errors.push("STORAGE_ENDPOINT must be a valid https:// URL.");
     }
     // Bucket name is validated to the SAME rule the runtime applies
     // (src/lib/storage/config.ts). Without this the flag can be on while
@@ -241,13 +255,13 @@ export function checkProductionEnv(env) {
         `STORAGE_* is partly set while STORAGE_ENABLED is off (missing: ${missing.join(", ")}) — storage counts as NOT configured: stored photos cannot be shown and queued deletions wait. Complete the set or remove it.`,
       );
     } else if (present.length === storageKeys.length) {
-      const endpointOk = /^https:\/\//i.test((env.STORAGE_ENDPOINT ?? "").trim());
+      const endpointOk = storageEndpointUsable(env.STORAGE_ENDPOINT ?? "");
       const bucketOff = (env.STORAGE_BUCKET ?? "").trim();
       const pathStyleOff = ["1", "true"].includes((env.STORAGE_PATH_STYLE ?? "").trim().toLowerCase());
       const bucketOk = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucketOff) && (pathStyleOff || !bucketOff.includes("."));
       if (!endpointOk || !bucketOk) {
         warnings.push(
-          `STORAGE_* is set but invalid (${[!endpointOk && "STORAGE_ENDPOINT must be https://", !bucketOk && "STORAGE_BUCKET is not usable"].filter(Boolean).join("; ")}) while STORAGE_ENABLED is off — storage counts as NOT configured: stored photos cannot be shown and queued deletions wait.`,
+          `STORAGE_* is set but invalid (${[!endpointOk && "STORAGE_ENDPOINT must be a valid https:// URL", !bucketOk && "STORAGE_BUCKET is not usable"].filter(Boolean).join("; ")}) while STORAGE_ENABLED is off — storage counts as NOT configured: stored photos cannot be shown and queued deletions wait.`,
         );
       }
     }
