@@ -1,6 +1,12 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
 import { loadConversationState, loadConversationStateForConversation } from "@/lib/ai/conversation-state-loader";
+import { reportError } from "@/lib/report-error";
+
+vi.mock("@/lib/report-error", async (orig) => {
+  const actual = await orig<typeof import("@/lib/report-error")>();
+  return { ...actual, reportError: vi.fn(async () => undefined) };
+});
 
 // ---------------------------------------------------------------------------
 // Bayrak KAPALI (varsayılan): yükleyici HİÇ sorgu atmaz ve `undefined` döner → istem bayt bayt aynı (bugünkü davranış).
@@ -44,6 +50,8 @@ describe("loadConversationState — bayrak kapalı", () => {
     owner.mockResolvedValueOnce({ id: "c" } as never);
     await expect(loadConversationStateForConversation({ organizationId: "org", conversationId: "c" })).resolves.toBeUndefined();
     expect(owner).toHaveBeenCalledTimes(2);
+    // Sessiz değil: üç okuma hatasının üçü de raporlandı (yükleyici + QR yükleyicisinin iki dalı).
+    expect(vi.mocked(reportError).mock.calls.filter(([where]) => where === "conversation-state-load")).toHaveLength(3);
   });
 
   it("KONTROL: bayrak '1' iken aynı çağrı sorgu atar (spy gerçekten bağlı)", async () => {
