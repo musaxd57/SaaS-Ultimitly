@@ -646,10 +646,16 @@ function onlyThirdPartyAvailability(message: string): boolean {
 
 /** Saat okumasında cümlecik içi gün dilimi işaretleri (Türkçe ASCII katlanmış). "öğleden sonra" öğlen değildir. */
 const TOD_NIGHT = /(?<![\p{L}\p{N}])(?:gece|night|midnight|tonight)(?![\p{L}])/u;
-const TOD_EVENING = /(?<![\p{L}\p{N}])(?:aksam\p{L}{0,6}|ogleden\s+sonra|ikindi|evening|afternoon|p\.?\s?m\.?)(?![\p{L}])/u;
-const TOD_MORNING = /(?<![\p{L}\p{N}])(?:sabah\p{L}{0,6}|morning|a\.?\s?m\.?)(?![\p{L}])/u;
-const TOD_NOON = /(?<![\p{L}\p{N}])(?:ogle(?:n|yin)?|noon|midday)(?![\p{L}])/u;
+// am / pm YALNIZ rakama bitişik ya da tek boşlukla ("9am", "9 pm") — "I am" sabah işareti değildir (Haiku 10-12).
+const TOD_EVENING = /(?<![\p{L}\p{N}])(?:aksam\p{L}{0,6}|ogleden\s+sonra|ikindi|evening|afternoon)(?![\p{L}])|(?<=\d\s?)pm(?![\p{L}])/u;
+const TOD_MORNING = /(?<![\p{L}\p{N}])(?:sabah\p{L}{0,6}|morning)(?![\p{L}])|(?<=\d\s?)am(?![\p{L}])/u;
+// "öğle yemeği" öğlen saati değildir (Haiku 10-12): yalnız "öğlen / öğleyin / öğle saati / öğle vakti / noon / midday".
+const TOD_NOON = /(?<![\p{L}\p{N}])(?:oglen|ogleyin|ogle\s+(?:saati|vakti)|noon|midday)(?![\p{L}])/u;
 const RAW_CLAUSE_SPLIT = /(?:(?<!\d)\.(?!\d)|[!?;\n…؟]|。)+/u;
+/** Gün dilimi işaretinin kapsamı: cümlecik içinde virgül / bağlaçla ayrılan alt bölüm ("9'da bırakalım, akşam 6'da döneriz"). */
+const TOD_SCOPE_SPLIT = /,|(?<![\p{L}])(?:ve|ama|sonra|and|but|then)(?![\p{L}])/u;
+/** "3 p.m." / "9 a.m." noktaları cümle sonu sanılmasın (Haiku 10-12) — bölmeden önce "pm" / "am"e çevrilir. */
+const normalizeMeridiem = (t: string) => t.replace(/(\d\s?)([ap])\.\s?m\.?/giu, "$1$2m");
 
 /**
  * Bir cümleciğin AÇIK saatleri ("SS:DD"), aynı cümlecikteki gün dilimi işaretiyle süzülmüş: "akşam 9" → 21:00 (09:00 değil), "gece 1"
@@ -657,6 +663,10 @@ const RAW_CLAUSE_SPLIT = /(?:(?<!\d)\.(?!\d)|[!?;\n…؟]|。)+/u;
  * adayıyla döner (yalnız sıkılaştırır).
  */
 function clauseTimes(rawClause: string): string[] {
+  return rawClause.split(TOD_SCOPE_SPLIT).flatMap(scopeTimes);
+}
+
+function scopeTimes(rawClause: string): string[] {
   const folded = foldTurkishAscii(rawClause);
   const keep = TOD_NIGHT.test(folded)
     ? (m: number) => m >= 18 * 60 || m < 5 * 60
@@ -673,7 +683,7 @@ function clauseTimes(rawClause: string): string[] {
 
 /** Metnin cümleciklerinden herhangi birinde giriş saatinden ÖNCEKİ saat var mı (cümlecik bazında gün dilimiyle). */
 function anyClauseTimeBeforeCheckIn(text: string, stayTimes: StayTimes | null | undefined): boolean {
-  return text.split(RAW_CLAUSE_SPLIT).some((c) => clauseTimes(c).some((hhmm) => isEarlierThanCheckIn(hhmm, stayTimes) === true));
+  return normalizeMeridiem(text).split(RAW_CLAUSE_SPLIT).some((c) => clauseTimes(c).some((hhmm) => isEarlierThanCheckIn(hhmm, stayTimes) === true));
 }
 
 /**
@@ -684,7 +694,7 @@ function anyClauseTimeBeforeCheckIn(text: string, stayTimes: StayTimes | null | 
 export function luggageDropTimes(message: string | null | undefined): string[] {
   if (typeof message !== "string" || message.trim() === "") return [];
   if (!anyClauseMatches(message, [LUGGAGE_DROP_CLAUSE])) return [];
-  return message.split(RAW_CLAUSE_SPLIT).flatMap(clauseTimes);
+  return normalizeMeridiem(message).split(RAW_CLAUSE_SPLIT).flatMap(clauseTimes);
 }
 
 /** Bavul bırakma cümleciği + giriş saatinden ÖNCEKİ açık saat (mülk saati bilinmiyorsa `false` — sözcük bağlamı ayrıca aranır). */

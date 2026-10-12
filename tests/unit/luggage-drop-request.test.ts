@@ -58,6 +58,14 @@ describe("bavul bırakma isteği (misafir)", () => {
     ["Can we leave the trash bag out early tomorrow morning?", false],
     // Bilinçli: "çıkıyoruz" çıkış sayılmaz (geliş günü de olabilir — yanlış izin riski yerine ev sahibine düşer).
     ["Yarın sabah erken çıkıyoruz, bavullarımızı bırakabilir miyiz?", true],
+    // Haiku 10-12 2. tur: gün dilimi alt bölüm kapsamında · "I am" · "öğle yemeği" · "p.m." noktaları.
+    ["Bavulları 9'da bırakabilir miyiz, akşam 6'da döneriz", true],
+    ["I am arriving at 1pm, can we leave our bags?", true],
+    ["Can we leave our bags at 2 p.m.?", true],
+    ["Can we leave our bags at 3 p.m.?", false], // giriş saatine eşit — erken değil
+    ["Can we leave our bags at 9 a.m.?", true],
+    ["Can we leave our bags at 4 p.m.?", false],
+    ["Öğle yemeğinden sonra 16:00'da giriş yapacağız, bavulları bırakabilir miyiz?", false],
   ])("%s → erken giriş isteği: %s", (text, expected) => {
     expect(stayRequestKinds([text as string], { stayTimes: stay }).has("early_checkin")).toBe(expected);
   });
