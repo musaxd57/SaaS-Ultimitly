@@ -57,6 +57,19 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
     expect(errors).toHaveLength(0);
   });
 
+  it("RESEND_FROM yoksa ve OpenAI anahtarı yoksa UYARI (ACIK-ISLER 08-08 §13) — hata değil, açılış durmaz", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC };
+    const r = checkProductionEnv({ ...base, RESEND_API_KEY: REAL_RESEND });
+    expect(r.errors).toEqual([]);
+    expect(r.warnings.some((w) => w.startsWith("RESEND_FROM is not set"))).toBe(true);
+    expect(r.warnings.some((w) => w.startsWith("OPENAI_API_KEY is not set"))).toBe(true);
+    // KONTROL: ikisi de varsa uyarı yok; SMTP kullanan kurulum RESEND_FROM istemez.
+    const ok = checkProductionEnv({ ...base, RESEND_API_KEY: REAL_RESEND, RESEND_FROM: "Lixus <noreply@example.com>", OPENAI_API_KEY: "sk-test" });
+    expect(ok.warnings.filter((w) => /RESEND_FROM|OPENAI_API_KEY/.test(w))).toEqual([]);
+    const smtp = checkProductionEnv({ ...base, EMAIL_HOST: "smtp.example.com", EMAIL_USER: "u", EMAIL_PASS: "p", OPENAI_API_KEY: "sk-test" });
+    expect(smtp.warnings.filter((w) => w.startsWith("RESEND_FROM"))).toEqual([]);
+  });
+
   it("🚨 depolama bayrağı KAPALI ama STORAGE_* yarım / geçersiz → UYARI (DENETIM 08-09 #25); tam ve geçerli ya da hiç yoksa sessiz", () => {
     const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
     const full = {

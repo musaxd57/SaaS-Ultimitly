@@ -456,6 +456,7 @@ notu misafir adını süresiz tutuyor.
 
 ## 13. ⚙️ Boot/env (uygulanmadı)
 
+- ✅ **10-12 gece (uyarı):** `OPENAI_API_KEY` yoksa ve Resend kullanılırken `RESEND_FROM` yoksa açılışta UYARI (`env-check.mjs`, pin `boot-env.test.ts`); davranış aynı. Diğer satırlar açık.
 - `OPENAI_API_KEY` / `OPENAI_MODEL` boot kapısında YOK. (Bu turda **çalışma zamanı
   alarmı** eklendi — anahtar düşerse artık Sentry'ye rapor gidiyor — ama boot kapısı yok.)
 - `RESEND_FROM` yoksa `onboarding@resend.dev`'e düşüyor; sağlayıcı üçüncü taraflara 403

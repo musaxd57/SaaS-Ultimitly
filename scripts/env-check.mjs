@@ -277,6 +277,20 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // Two silent production degradations (ACIK-ISLER 08-08 par.13, 10-12 night) — WARNINGS, never errors (behavior unchanged):
+  //  · Resend without RESEND_FROM falls back to Resend's test sender (src/lib/email-core.ts), which delivers ONLY to the
+  //    Resend account owner → customer mail silently never arrives while boot says OK.
+  //  · No OPENAI_API_KEY → AI replies cannot be generated; auto-reply stops (runtime alarm "openai-key-missing" exists,
+  //    this surfaces it at boot too).
+  if (hasResend && !(env.RESEND_FROM ?? "").trim()) {
+    warnings.push(
+      "RESEND_FROM is not set — mail goes out from Resend's test sender (onboarding@resend.dev), which delivers only to the Resend account owner. Set RESEND_FROM to an address on your verified domain.",
+    );
+  }
+  if (!(env.OPENAI_API_KEY ?? "").trim()) {
+    warnings.push("OPENAI_API_KEY is not set — AI replies cannot be generated and auto-reply stops (runtime alarm: openai-key-missing).");
+  }
+
   // HTTPS-pin (P2, Codex). Any env-overridable EXTERNAL service URL that carries a
   // secret in transit — an API key / bearer token / OAuth client_secret — MUST be
   // https:// in production; an http override would send the credential in
