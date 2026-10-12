@@ -281,6 +281,7 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
 | # | Soru | Bugün | Önerim | Örnek |
 |---|---|---|---|---|
 | G1 | Anlama katmanının bağlamında otomatik şablon mesajı "Host:" diye yazılıyor (`ai/semantic/understand.ts`, eski durum; Haiku 10-12) | Model otomatik karşılama / çıkış mesajını ev sahibinin kendi sözü sanabilir | Cevap istemindeki gibi "[OTOMATİK MESAJ]" etiketi (K7 ile tutarlı) — modele giden metin değiştiği için ölçümle (kredi gelince) | "Hoş geldiniz! Giriş 15:00" → bugün `Host: Hoş geldiniz…`, önerim `Automated message: Hoş geldiniz…` |
+| G2 | Üretim imajı `scripts/` klasörünün TAMAMINI taşıyor (DENETIM 08-09 #28): 30 dosya, aralarında takvim adresi şifrelemesini geri alan `restore-calendar-url-plaintext.ts` | `.ts` betikleri imajda zaten koşamaz (`tsx` geliştirme bağımlılığı, `--omit=dev`); açılış yalnız `verify-env.mjs` + `env-check.mjs` kullanıyor | İmaja yalnız bu iki dosya kopyalansın (Dockerfile tek satır). Siz canlı kapta (Railway kabuğu) bir `.mjs` operatör betiği (ör. `preflight-conversation-dupes.mjs`) çalıştırıyorsanız o da listeye eklenir — bu yüzden soruyorum | Bugün: kapta `ls scripts` → 30 dosya. Sonra: 2 dosya; açılış aynı. Railway açılınca ilk dağıtımda birlikte kontrol |
 
 **10-12 gece — yapılanlar (soru gerektirmeyen; müşteriye giden mesaj DEĞİŞMEDİ; her biri Haiku sert incelemesi + mutasyon + tam kapı):**
 - Madde 10 kalan yüzeyler: AI cevap öner rotası ve QR konuşma kayıtları kanalla aynı sınırlı okuyucuya geçti (kâhin: sayfalı okuma = tam okuma).
