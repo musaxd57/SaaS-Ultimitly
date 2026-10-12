@@ -18,6 +18,7 @@ vi.mock("@/lib/api", async (orig) => {
 import { POST } from "@/app/api/ai-suggestions/route";
 import { getConversationSuggestions, getPropertyWifiSuggestions, suggestionDecisions } from "@/lib/ai-suggestions/load";
 import { promotionReadiness } from "@/lib/ai-suggestions/core";
+import { __aiSuggestionHooks } from "@/lib/ai-suggestions/act";
 
 const decide = (body: Record<string, unknown>) =>
   POST(new NextRequest("http://localhost/api/ai-suggestions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }), {
@@ -104,7 +105,7 @@ describe("A · görev önerisi", () => {
     expect(await getConversationSuggestions(orgId, again.conversationId)).toEqual([]);
   });
 
-  it("🚨 eşzamanlı iki onay → TEK görev, TEK karar kaydı (kilit)", async () => {
+  it("eşzamanlı iki görev onayı → TEK görev (görevde aynı konu denetimi de korur)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asUser(orgId);
     const { conversationId } = await conversationWith(orgId, propertyId, [{ direction: "inbound", authorType: "guest", body: "Musluk bozuk, su akıtıyor." }]);
@@ -112,6 +113,28 @@ describe("A · görev önerisi", () => {
     const statuses = (await Promise.all([decide({ key: s.key, decision: "approve" }), decide({ key: s.key, decision: "approve" })])).map((r) => r.status).sort();
     expect(statuses).toEqual([200, 409]);
     expect(await prisma.task.count()).toBe(1);
+  });
+
+  it("🚨 eşzamanlı iki SÖZ onayı → TEK söz, TEK karar kaydı (kilit): ilk karar denetimden sonra bekletilir, ikinci istek ARAYA GİREMEZ", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
+    await asUser(orgId);
+    const { conversationId } = await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Yarın teknisyen gelecek." }]);
+    const [s] = await getConversationSuggestions(orgId, conversationId);
+    expect(s?.kind).toBe("commitment");
+    let first = true;
+    __aiSuggestionHooks.afterDecisionCheck = async () => {
+      if (!first) return;
+      first = false;
+      await new Promise((r) => setTimeout(r, 400)); // kilit yoksa ikinci istek bu arada denetimi geçip ikinci sözü açardı
+    };
+    try {
+      const statuses = (await Promise.all([decide({ key: s.key, decision: "approve" }), decide({ key: s.key, decision: "approve" })])).map((r) => r.status).sort();
+      expect(statuses).toEqual([200, 409]);
+    } finally {
+      __aiSuggestionHooks.afterDecisionCheck = null;
+    }
+    expect(await prisma.guestCommitment.count({ where: { conversationId } })).toBe(1);
     expect(await prisma.auditLog.count({ where: { action: "ai_suggestion.approved" } })).toBe(1);
   });
 });

@@ -35,6 +35,9 @@ export interface DecisionEdits {
 
 const PAST_TOLERANCE_MS = 5 * 60_000;
 
+/** Yalnız test: karar denetiminden SONRA bekleme (eşzamanlı onayda kilidin ikinci isteği gerçekten beklettiğini kanıtlamak için). */
+export const __aiSuggestionHooks: { afterDecisionCheck: null | (() => Promise<void>) } = { afterDecisionCheck: null };
+
 async function rederive(organizationId: string, key: string, now: Date): Promise<{ view: SuggestionView; propertyId: string; conversationId?: string } | null> {
   const parsed = parseSuggestionKey(key);
   if (!parsed) return null;
@@ -97,6 +100,7 @@ export async function decideSuggestion(input: {
       select: { id: true },
     });
     if (already) return { status: "gone" } as const;
+    if (__aiSuggestionHooks.afterDecisionCheck) await __aiSuggestionHooks.afterDecisionCheck();
 
     const created: { taskId?: string; commitmentId?: string; kbItemId?: string } = {};
     if (input.decision === "approve") {
