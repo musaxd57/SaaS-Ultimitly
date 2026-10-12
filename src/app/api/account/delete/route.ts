@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     });
     const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : false;
     if (!ok) {
-      await noteReauthFailure(session.userId);
+      await noteReauthFailure(session, "account_delete");
       return badRequest({ password: "Şifre hatalı." });
     }
 

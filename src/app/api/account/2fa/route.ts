@@ -13,7 +13,7 @@ import {
   RECOVERY_CODE_COUNT,
 } from "@/lib/auth/recovery-codes";
 import { verifyPassword } from "@/lib/auth/password";
-import { reauthBlocked, noteReauthFailure, REAUTH_CAP_MESSAGE } from "@/lib/auth/reauth-guard";
+import { reauthBlocked, noteReauthFailure, REAUTH_CAP_MESSAGE, type ReauthOperation } from "@/lib/auth/reauth-guard";
 import { setSessionCookie, setKnownDeviceCookie } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { reportError } from "@/lib/report-error";
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       if (!day.ok) return tooManyRequests(day.retryAfter, REAUTH_CAP_MESSAGE);
     }
     /** Hatalı (ya da yeniden oynatılan) şifre/kod — günlük tavana sayılır. */
-    const noteFailure = () => noteReauthFailure(session.userId);
+    const noteFailure = () => noteReauthFailure(session, `2fa_${action}` as ReauthOperation);
 
     if (action === "setup") {
       // Guard: never let "setup" run on an already-active account. Setup writes

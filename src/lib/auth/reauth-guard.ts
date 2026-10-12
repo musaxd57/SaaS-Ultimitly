@@ -1,4 +1,5 @@
 import { rateLimit, rateLimitPeek } from "@/lib/rate-limit";
+import { auditActor, writeAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // OTURUM İÇİ YENİDEN KİMLİK DOĞRULAMA — GÜNLÜK ORTAK HATA TAVANI (09-23 saldırgan turu).
@@ -34,7 +35,24 @@ export function reauthBlocked(userId: string) {
   return rateLimitPeek(reauthKey(userId), REAUTH_DAILY_FAILURES);
 }
 
-/** Hatalı (ya da yeniden oynatılan) şifre/kod — günlük tavana sayılır. */
-export async function noteReauthFailure(userId: string): Promise<void> {
-  await rateLimit(reauthKey(userId), REAUTH_DAILY_FAILURES, DAY_MS);
+/** Yeniden doğrulama isteyen işlemler (kapalı küme — denetim kaydının `operation` alanı). */
+export type ReauthOperation = "2fa_setup" | "2fa_enable" | "2fa_disable" | "2fa_recovery_codes" | "account_delete";
+
+/**
+ * Hatalı (ya da yeniden oynatılan) şifre/kod — günlük tavana sayılır VE denetim kaydına yazılır (DENETIM 08-09 #8: başarılı 2FA /
+ * silme işlemleri kayıtlıydı, hatalı deneme yalnız sayaçtaydı → ele geçirilmiş oturumla yapılan tahmin denemeleri iz bırakmıyordu).
+ * Kayıt yalnız işlem adını taşır (şifre / kod / değer YOK); bürünmede gerçek aktör operatördür (`auditActor`). Kayıt yazımı asla
+ * işlemi durdurmaz (`writeAudit` fırlatmaz).
+ */
+export async function noteReauthFailure(
+  session: { userId: string; organizationId: string; actorUserId?: string | null },
+  operation: ReauthOperation,
+): Promise<void> {
+  await rateLimit(reauthKey(session.userId), REAUTH_DAILY_FAILURES, DAY_MS);
+  await writeAudit({
+    organizationId: session.organizationId,
+    actorUserId: auditActor(session),
+    action: "account.reauth_failed",
+    metadata: { operation },
+  });
 }
