@@ -10,8 +10,8 @@
 > akışı → sabah sorusu G5. §1 KAPALI doğrulandı (20 panel sayfası `requireManagerSession`; Haiku "yalnız middleware" dedi, YANLIŞ).
 > §2 KISMEN (org sırası döner; 12 dk bütçe dolunca `sendDueAlerts` o geçişte atlanır). §6 KISMEN (yapay zekâ kapanış nezaketi yanıt
 > sayılıyor). §8 KISMEN (yerel plan Paddle webhook'unu bekler). §11, §12 (dört madde), §14 hareket kısmı, §15 (iptaller dar `select`,
-> rezervasyon iç alanları, ölü `plan` dışa aktarımdan çıktı) bu tur işaretlendi. Açık kalan §15: gelen kutusu listesi tam mesaj
-> include, `leads` genel tavan (G3), `WebhookEvent` budama yok, `/api/calendar/sync` ölü kod, `error.tsx` → `reportError`.
+> rezervasyon iç alanları, ölü `plan` dışa aktarımdan çıktı, gelen kutusu listesi dar `select`) bu tur işaretlendi. Açık kalan §15:
+> `leads` genel tavan (G3), `WebhookEvent` budama yok, `/api/calendar/sync` ölü kod, `error.tsx` → `reportError`.
 
 > Bu dosya **Codex'e verilmek üzere** yazıldı. Bu turda **uygulananlar** git log'da
 > (`f0dd8f5`, `0e458e3`, `0a34a9c`, `3da085e`). Aşağıdakiler **bilerek açık bırakıldı**:
