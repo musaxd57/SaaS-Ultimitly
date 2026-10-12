@@ -415,6 +415,8 @@ koruması zayıflar. Bu bir **denge kararı**, kullanıcı onayı bekliyor.
 
 **Nerede:** `anonymizeOldGuestData`'nın **öksüz** dalı
 
+✅ **Önceden kapanmış, 10-12 gece doğrulandı:** öksüz dal da `TaskUpdate.note`u redakte eder (`data-retention.ts`, dal düzeyi pin `task-description-scrub.test.ts`).
+
 **Ne:** Öksüz dal `Task.title/description`i redakte ediyor ama `TaskUpdate.note`a
 dokunmuyor (rezervasyona bağlı dal dokunuyor). `scrub-scope-parity.test.ts` bunu
 göremez — o test (model, kolon) **kümelerini** karşılaştırıyor ve `TaskUpdate.note`
@@ -425,16 +427,20 @@ notu misafir adını süresiz tutuyor.
 
 ## 12. 🧪 Testlerin bilinen sınırları (vacuity)
 
+- ✅ **10-12 gece KAPANDI:** fonksiyon dışa açıldı, test gerçeği sınar (New York iki uç + Santiago + çakışma vakaları; mutasyon O1/O2).
 - `reports.ts countOccupiedDays` davranış testi gerçek fonksiyonu **değil bir kopyasını**
   koşuyor (fonksiyon `getMonthlyReport` içinde özel) → üretimi yalnız 3 kaynak taraması
   pinliyor. `endKey`'i çıkış gününü içerecek şekilde değiştiren mutasyon üçünü de geçer.
 - `cancelled-stay-auto-send.test.ts:287-301` yeni kapıya **ulaşmıyor** (`applyChannelAutoReply`
   daha önce dönüyor) → kapıyı komple silmek bu testi yeşil bırakır. Yük taşıyan pinler
   (iki `sendDueAlerts` vakası + pending/completed kontrolü) sağlam.
+- ✅ **10-12 gece KAPANDI (bütçe kısmı):** iki kiracılı test — yavaş kiracının fazlası ertelenir, diğer kiracı yine senkronlanır. DNS notu ayrı (açık).
 - `scheduled-ical-sync.test.ts` **`ICAL_ORG_BUDGET_MS`'i hiç sınamıyor** → "tek kiracı
   havuzu yiyemez" pinsiz. Ayrıca `resolvesToPrivate` mock'lanmadığı için her vakada
   GERÇEK DNS sorgusu yapıyor (fail-open, kırmızı vermez ama yavaşlatır).
+- ✅ **Önceden kapanmış, 10-12 gece doğrulandı:** kanarya kalıbı `Float/Decimal/Bytes/BigInt` ve liste tiplerini görüyor; kapsam dışı kolonlar gerekçeli.
 - `scrub-scope-parity.test.ts` kanaryası `Float/Decimal/String[]` kolonlarını görmüyor.
+- ✅ **Önceden kapanmış, 10-12 gece doğrulandı:** iki dosyada da çapa korumalı (`expect(at).toBeGreaterThan(-1)`).
 - `theme-scope.test.ts:189` ve `audit-2026-08-07-fixes.test.ts:272` çapa bulunamayınca
   sessizce **no-op**'a düşüyor.
 

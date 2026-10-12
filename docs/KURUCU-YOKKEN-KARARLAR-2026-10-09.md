@@ -281,3 +281,15 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
 | # | Soru | Bugün | Önerim | Örnek |
 |---|---|---|---|---|
 | G1 | Anlama katmanının bağlamında otomatik şablon mesajı "Host:" diye yazılıyor (`ai/semantic/understand.ts`, eski durum; Haiku 10-12) | Model otomatik karşılama / çıkış mesajını ev sahibinin kendi sözü sanabilir | Cevap istemindeki gibi "[OTOMATİK MESAJ]" etiketi (K7 ile tutarlı) — modele giden metin değiştiği için ölçümle (kredi gelince) | "Hoş geldiniz! Giriş 15:00" → bugün `Host: Hoş geldiniz…`, önerim `Automated message: Hoş geldiniz…` |
+
+**10-12 gece — yapılanlar (soru gerektirmeyen; müşteriye giden mesaj DEĞİŞMEDİ; her biri Haiku sert incelemesi + mutasyon + tam kapı):**
+- Madde 10 kalan yüzeyler: AI cevap öner rotası ve QR konuşma kayıtları kanalla aynı sınırlı okuyucuya geçti (kâhin: sayfalı okuma = tam okuma).
+  QR'da cevapsız uzun konuşma için okuma 2.000 satırda durur (kayıt bloğu yazılmaz, hata kaydı düşer); başka işletmenin konuşmasında aşama
+  bilgisi sızmaz (Haiku bulgusu; bugün çağıran kendi konuşmasını veriyor, gizli açık).
+- DENETIM 08-09: #8 hatalı yeniden doğrulama denetim kaydına yazılır (operatör panelinde "Hassas işlemde hatalı şifre veya kod") ·
+  #10 gelen kutusu sayfası dar `select` · #32 / #33 / #34 / #36 / #37 test bütünlüğü (çapa koruması, HS512 belirteç reddi, sır tarayıcısı
+  davranışsal süre pini — sınırsız nicelik mutantı 87–147 sn, sayfa metni yardımcısı bütün metin prop'larını toplar, Paddle imza
+  negatifleri) · #6 / #11 önceden kapanmış, doğrulandı ve işaretlendi.
+- ACIK-ISLER 08-08 §12: doluluk sayacının testi artık kopyayı değil gerçek fonksiyonu sınar; kiracı başına takvim bütçesi pinlendi;
+  §11 öksüz görev notu ve iki çapa maddesi önceden kapanmış, işaretlendi.
+- Depo PUBLIC → CI gerçek çalıştırıcılarla koşuyor (önceki kırmızının sebebi kotaydı).
