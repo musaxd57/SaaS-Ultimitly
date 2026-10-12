@@ -9,6 +9,7 @@ vi.mock("@/lib/email-core", () => ({ emailService: { sendReporting: vi.fn() } })
 
 import { emailService } from "@/lib/email-core";
 import { reportError, redactSensitive, __resetReportThrottle } from "@/lib/report-error";
+import { standaloneNumber } from "../helpers/standalone-number";
 
 const mockSend = vi.mocked(emailService.sendReporting);
 
@@ -193,7 +194,7 @@ describe("reportError", () => {
       expect(s).not.toContain("John Smith");
       expect(s).not.toContain("guest@x.com");
       expect(s).not.toContain("555 123");
-      expect(s).not.toContain("482913");
+      expect(s).not.toMatch(standaloneNumber("482913")); // gövde ms zaman damgası / olay kimliği taşır
       expect(s).not.toContain("sk-abc123def456ghi");
       expect(s).not.toContain("whsec_xyz");
       expect(s).not.toContain("s=zzz");

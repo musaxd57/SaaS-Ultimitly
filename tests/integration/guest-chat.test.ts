@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import { resolveGuestChat, generateChatToken, QR_SECRET_CATEGORIES, PREBOOKING_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { standaloneNumber } from "../helpers/standalone-number";
 
 async function enableChat(propertyId: string): Promise<string> {
   const token = generateChatToken();
@@ -27,11 +28,6 @@ async function activeStay(propertyId: string) {
 }
 
 
-/**
- * Sayı AYRI bir değer olarak geçiyor mu. Blob kalem KİMLİKLERİNİ (cuid) taşır; çıplak `toContain("4590")` rastgele bir kimliğin içine
- * düşüp kararsız olurdu (CI #1426'da aynı sınıf: kimlik "cmv5q6i42001…" "4200" içeriyordu). Kod içerikte boşluk / noktalama ile ayrık.
- */
-const standaloneNumber = (n: string) => new RegExp(`(?<![A-Za-z0-9])${n}(?![A-Za-z0-9])`);
 
 describe("resolveGuestChat (public QR concierge foundation)", () => {
   beforeEach(resetDb);

@@ -26,6 +26,7 @@ vi.mock("@/lib/ai", () => ({ suggestReply: (...a: unknown[]) => mockSuggest(...a
 
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/chat/[token]/route";
+import { standaloneNumber } from "../helpers/standalone-number";
 
 const DAY = 86_400_000;
 
@@ -151,7 +152,8 @@ describe("QR devir gerekçesi — RiskEvent izlenebilirliği", () => {
     await ask(token, "Benim adım Ada Lovelace, telefonum 0555 111 22 33.");
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { organizationId: orgId, surface: "guest_chat" } });
     const serialized = JSON.stringify(ev);
-    expect(serialized).not.toMatch(/Ada|Lovelace|0555/);
+    expect(serialized).not.toMatch(/Ada|Lovelace/);
+    expect(serialized).not.toMatch(standaloneNumber("0555")); // satır kimlik + zaman damgası taşır
   });
 
   it("kiracı kapsamı: kayıt mülkün org'una yazılır ve conversation/property bağlanır", async () => {

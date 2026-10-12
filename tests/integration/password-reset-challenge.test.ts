@@ -43,6 +43,7 @@ import { POST } from "@/app/api/account/forgot-password/route";
 import { drainEmailOutboxOnce } from "@/lib/email-outbox";
 import { reportError } from "@/lib/report-error";
 import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challenge";
+import { standaloneNumber } from "../helpers/standalone-number";
 
 const mockReport = vi.mocked(reportError);
 const EMAIL = "host@example.com";
@@ -299,7 +300,7 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
       ];
       for (const s of surfaces) {
         expect(s).not.toContain(c.token);
-        expect(s).not.toContain(c.code);
+        expect(s).not.toMatch(standaloneNumber(c.code)); // yüzeyler kimlik / zaman damgası taşır
         expect(s).not.toContain(row.tokenHash);
         expect(s).not.toContain(row.codeHash);
       }
@@ -330,7 +331,7 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
     const blocked = await prisma.auditLog.findMany({ where: { action: "account.password_reset_blocked" } });
     expect(blocked).toHaveLength(1);
     expect(String(blocked[0].metadataJson)).not.toContain(c.token);
-    expect(String(blocked[0].metadataJson)).not.toContain(c.code);
+    expect(String(blocked[0].metadataJson)).not.toMatch(standaloneNumber(c.code));
 
     // Sonraki denemeler ALARM TEKRARLAMAZ (challenge başına bir kez).
     mockReport.mockClear();
