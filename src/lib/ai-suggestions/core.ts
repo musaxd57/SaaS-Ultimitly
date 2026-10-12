@@ -125,7 +125,7 @@ function durationMinutes(text: string): number | null {
   const tr = DURATION_TR.exec(text);
   if (tr) {
     const n = WORD_NUMBER[tr[1]] ?? Number(tr[1].replace(",", "."));
-    const minutes = tr[2] === "saat" ? n * 60 : tr[1] === "yarim" ? 30 : n;
+    const minutes = tr[2] === "saat" ? n * 60 : n; // "yarım saat" = 0,5 × 60
     return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null;
   }
   const en = DURATION_EN.exec(text);

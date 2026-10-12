@@ -185,6 +185,8 @@ describe("B · Wi-Fi değeri — Haiku 10-12 2. tur", () => {
     ["Şifre: aşağıdaki.", "password"],
     ["Ağ adı: bilmiyorum", "network"],
     ["Network is Up", "network"],
+    ["Network is Down", "network"], // durum sözcüğü (büyük harfli ≥ 4 harf olsa da)
+    ["Wi-Fi şifresi: Sonbahar2024 Lale, misafir şifresi: Gst12345", "password"], // biri belirsiz → hangisi? değer yok
     ["Wi-Fi şifresi: Sonbahar2024 Lale", "password"], // boşluklu şifre olabilir → belirsiz, ilk sözcük alınmaz
   ] as const)("%s → %s değer DEĞİL", (text, field) => {
     expect(extractWifiValues(text)[field]).toBeNull();
