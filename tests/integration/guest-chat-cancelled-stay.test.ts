@@ -37,13 +37,13 @@ function call(token: string, message: string) {
   return POST(req as never, { params: Promise.resolve({ token }) });
 }
 
-async function fixture(status: "cancelled" | "confirmed", guestName = "İptalci Misafir") {
+async function fixture(status: "cancelled" | "confirmed" | "pending", guestName = "İptalci Misafir", arrivalInDays = -1) {
   const { orgId, propertyId } = await makeOrgWithProperty();
   await prisma.user.create({ data: { organizationId: orgId, name: "Sahip", email: `o-${orgId}@x.com`, passwordHash: "x", role: "owner" } });
   const token = generateChatToken();
   await prisma.property.update({ where: { id: propertyId }, data: { chatToken: token, chatEnabled: true } });
   const reservation = await prisma.reservation.create({
-    data: { propertyId, guestName, arrivalDate: daysFromNow(-1), departureDate: daysFromNow(2), status, channel: "airbnb" },
+    data: { propertyId, guestName, arrivalDate: daysFromNow(arrivalInDays), departureDate: daysFromNow(arrivalInDays + 3), status, channel: "airbnb" },
   });
   return { orgId, propertyId, token, reservationId: reservation.id };
 }
@@ -94,6 +94,34 @@ describe("🚨 iptal edilmiş konaklamada QR — yapay zekâ cevap vermez, kota 
     expect(mockSuggest).not.toHaveBeenCalled();
     expect(await qrMessages(f.propertyId)).toHaveLength(CANCELLED_STAY_MESSAGES_PER_HOUR);
     expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("e-posta 6 saatlik pencerede bir kez: 5 dakikalık bekleme geçse de aynı pencerede ikinci e-posta yok; yeni pencerede yeniden uyarır", async () => {
+    const f = await fixture("cancelled");
+    await call(f.token, "ilk");
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    // Kısa bekleme (5 dk) geçti, aynı 6 saatlik pencere → yine yok.
+    await prisma.reservation.update({ where: { id: f.reservationId }, data: { qrEscalationEmailAt: new Date(Date.now() - 10 * 60_000) } });
+    await call(f.token, "ikinci");
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    // Önceki pencerenin kaydı (başka olay kimliği) → yeni pencere → uyarır.
+    await prisma.reservation.update({
+      where: { id: f.reservationId },
+      data: { qrEscalationEmailAt: new Date(Date.now() - 10 * 60_000), qrEscalationEmailMessageId: "cancelled-stay:0" },
+    });
+    await call(f.token, "üçüncü");
+    expect(mockMail).toHaveBeenCalledTimes(2);
+  });
+
+  it("KONTROL: şu anı KAPSAMAYAN iptal kaydı (yarın başlayan) ve onaylanmamış talep (pending) → kayıt yok, uyarı yok", async () => {
+    const tomorrow = await fixture("cancelled", "Yarınki", 1);
+    expect((await (await call(tomorrow.token, "merhaba")).json()).closed).toBe(true);
+    expect(await qrMessages(tomorrow.propertyId)).toEqual([]);
+    const pending = await fixture("pending", "Talep");
+    expect((await (await call(pending.token, "merhaba")).json()).closed).toBe(true);
+    expect(await qrMessages(pending.propertyId)).toEqual([]);
+    expect(mockMail).not.toHaveBeenCalled();
+    expect(mockSuggest).not.toHaveBeenCalled();
   });
 
   it("KONTROL: onaylı (iptal edilmemiş) konaklama bugünkü gibi — model çağrılır; iptal uyarısı yok", async () => {
