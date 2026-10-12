@@ -141,9 +141,14 @@ const rx = (parts: readonly string[]) => parts.map((p) => new RegExp(p, "iu"));
  * Başı çapalı tek geçiş + sınırlı ek kuyrukları (karesel iş yok).
  */
 const LUGGAGE_WORD = `${NL}(?:bavul|valiz|canta|esya|bagaj|(?:luggage|baggage|suitcases?|bags?)${NR})`;
-const LUGGAGE_DROP_VERB = `${NL}(?:birak|koy(?:a|up|mak|sak|alim|abil)|emanet|(?:drop(?:ping|ped)?|leav(?:e|ing)|stor(?:e|ing)|keep(?:ing)?|put(?:ting)?)${NR})`;
+const LUGGAGE_DROP_VERB = `${NL}(?:birak|koy(?:a|up|mak|sak|alim|abil)|emanet|getir|depola|(?:drop(?:ping|ped)?|leav(?:e|ing)|stor(?:e|ing|age)|keep(?:ing)?|put(?:ting)?|bring(?:ing)?)${NR})`;
 const LUGGAGE_EARLY_CONTEXT = `${NL}(?:erken|sabah|(?:morning|early|earlier)${NR}|(?:giris|${CI})\\p{L}{0,8}${gap(1)}once|girmeden|before\\s+(?:the\\s+|our\\s+|we\\s+)?(?:${CI}|check\\s+in|arrival))`;
-const LUGGAGE_CHECKOUT_CONTEXT = `${NL}(?:cik(?:is|ista|isa|istan|madan|inca|tiktan|arken)|ayril|${CO}|check\\s+out|departure)`;
+/**
+ * Bu kuralın konusu OLMAYAN bağlam: çıkış tarafı ("çıkışta", "check-out" — geç çıkış ayrı karar) · kayıp eşya ("bıraktım, bulabilir
+ * miyiz", "lost", "forgot") · çöp poşeti ("trash bag"). ⚠️ "çıkıyoruz / leaving" BİLİNÇLİ YOK (Haiku 10-12 önerisi reddedildi): "bavulları
+ * bırakıp şehre çıkacağız" geliş günü de olabilir — dışlamak yanlış otomatik izin riski; fazladan ev sahibine düşmek güvenli taraf.
+ */
+const LUGGAGE_CHECKOUT_CONTEXT = `${NL}(?:cik(?:is|ista|isa|istan|madan|inca|tiktan|arken)|ayril|${CO}|check\\s+out|departure|kayip|kaybol|unuttu|bulabilir|bulamiyor|(?:lost|forgot|forgotten)${NR}|left\\s+behind|(?:trash|garbage|rubbish|bin)\\s+bags?${NR})`;
 const LUGGAGE_DROP_CLAUSE = new RegExp(
   `^(?![\\s\\S]*?${LUGGAGE_CHECKOUT_CONTEXT})(?=[\\s\\S]*?${LUGGAGE_WORD})(?=[\\s\\S]*?${LUGGAGE_DROP_VERB})`,
   "iu",
@@ -639,18 +644,47 @@ function onlyThirdPartyAvailability(message: string): boolean {
   return !anyClauseMatches(residual, REQUEST_PATTERNS.availability);
 }
 
+/** Saat okumasında cümlecik içi gün dilimi işaretleri (Türkçe ASCII katlanmış). "öğleden sonra" öğlen değildir. */
+const TOD_NIGHT = /(?<![\p{L}\p{N}])(?:gece|night|midnight|tonight)(?![\p{L}])/u;
+const TOD_EVENING = /(?<![\p{L}\p{N}])(?:aksam\p{L}{0,6}|ogleden\s+sonra|ikindi|evening|afternoon|p\.?\s?m\.?)(?![\p{L}])/u;
+const TOD_MORNING = /(?<![\p{L}\p{N}])(?:sabah\p{L}{0,6}|morning|a\.?\s?m\.?)(?![\p{L}])/u;
+const TOD_NOON = /(?<![\p{L}\p{N}])(?:ogle(?:n|yin)?|noon|midday)(?![\p{L}])/u;
+const RAW_CLAUSE_SPLIT = /(?:(?<!\d)\.(?!\d)|[!?;\n…؟]|。)+/u;
+
 /**
- * Misafir metninde (çıkış bağlamı olmadan) bavul bırakma cümleciği varsa metindeki AÇIK saatler ("SS:DD"); yoksa boş. Saatin
- * erken olup olmadığına çağıran mülkün giriş saatiyle karar verir (`stayRequestKinds`). Belirsiz saat ("9" → 09:00 / 21:00) her
- * adayıyla döner — biri giriş saatinden önceyse istek sayılır (yalnız sıkılaştırır).
+ * Bir cümleciğin AÇIK saatleri ("SS:DD"), aynı cümlecikteki gün dilimi işaretiyle süzülmüş: "akşam 9" → 21:00 (09:00 değil), "gece 1"
+ * → 01:00, "sabah 9" → 09:00, "öğlen" → 12:00 (Haiku 10-12: "akşam 9'da" giriş öncesi sayılıyordu). İşaret yoksa belirsiz saat her
+ * adayıyla döner (yalnız sıkılaştırır).
+ */
+function clauseTimes(rawClause: string): string[] {
+  const folded = foldTurkishAscii(rawClause);
+  const keep = TOD_NIGHT.test(folded)
+    ? (m: number) => m >= 18 * 60 || m < 5 * 60
+    : TOD_EVENING.test(folded)
+      ? (m: number) => m >= 12 * 60
+      : TOD_MORNING.test(folded)
+        ? (m: number) => m >= 5 * 60 && m < 12 * 60
+        : () => true;
+  const minutes = explicitTimeMentions(rawClause).flat().filter(keep);
+  if (TOD_NOON.test(folded)) minutes.push(12 * 60);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return minutes.map((m) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`);
+}
+
+/** Metnin cümleciklerinden herhangi birinde giriş saatinden ÖNCEKİ saat var mı (cümlecik bazında gün dilimiyle). */
+function anyClauseTimeBeforeCheckIn(text: string, stayTimes: StayTimes | null | undefined): boolean {
+  return text.split(RAW_CLAUSE_SPLIT).some((c) => clauseTimes(c).some((hhmm) => isEarlierThanCheckIn(hhmm, stayTimes) === true));
+}
+
+/**
+ * Misafir metninde (dışlanan bağlam olmadan) bavul bırakma cümleciği varsa metnin AÇIK saatleri ("SS:DD"; cümlecik bazında gün dilimiyle
+ * süzülmüş — `clauseTimes`); yoksa boş. Saat bavul cümleciğinin DIŞINDA da olabilir ("Bavulları bırakabilir miyiz? Saat 9'da geleceğiz")
+ * — yalnız sıkılaştırır. Erken olup olmadığına çağıran mülkün giriş saatiyle karar verir.
  */
 export function luggageDropTimes(message: string | null | undefined): string[] {
   if (typeof message !== "string" || message.trim() === "") return [];
   if (!anyClauseMatches(message, [LUGGAGE_DROP_CLAUSE])) return [];
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return explicitTimeMentions(message)
-    .flat()
-    .map((m) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`);
+  return message.split(RAW_CLAUSE_SPLIT).flatMap(clauseTimes);
 }
 
 /** Bavul bırakma cümleciği + giriş saatinden ÖNCEKİ açık saat (mülk saati bilinmiyorsa `false` — sözcük bağlamı ayrıca aranır). */
@@ -1031,10 +1065,23 @@ function lexicalClaim(text: string, stayTimes: StayTimes | null | undefined, kbF
 function luggageGrantBeforeCheckIn(text: string, stayTimes: StayTimes | null | undefined): boolean {
   if (anyClauseMatches(text, [LUGGAGE_EARLY_GRANT])) return true;
   if (!anyClauseMatches(text, [LUGGAGE_GRANT_CLAUSE])) return false;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return explicitTimeMentions(text)
-    .flat()
-    .some((m) => isEarlierThanCheckIn(`${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`, stayTimes) === true);
+  return anyClauseTimeBeforeCheckIn(text, stayTimes);
+}
+
+/**
+ * Misafir bavul bırakmayı SORDUYSA cevaptaki izin bavul sözcüğü geçmeden de izindir ("Elbette, 9'da bırakabilirsiniz" / "Sure, you can
+ * leave them at 10" — Haiku 10-12): izin fiili + erken bağlam ya da giriş saatinden önceki saat.
+ */
+const LUGGAGE_GRANT_VERB_ONLY = new RegExp(`^(?![\\s\\S]*?${LUGGAGE_CHECKOUT_CONTEXT})(?=[\\s\\S]*?${LUGGAGE_GRANT_VERB})`, "iu");
+const LUGGAGE_GRANT_VERB_EARLY = new RegExp(
+  `^(?![\\s\\S]*?${LUGGAGE_CHECKOUT_CONTEXT})(?=[\\s\\S]*?${LUGGAGE_GRANT_VERB})(?=[\\s\\S]*?${LUGGAGE_EARLY_CONTEXT})`,
+  "iu",
+);
+function luggageAnswerGrantsEarly(reply: string, guestTexts: readonly (string | null | undefined)[], stayTimes: StayTimes | null | undefined): boolean {
+  const asked = guestTexts.some((t) => typeof t === "string" && t.trim() !== "" && anyClauseMatches(t, [LUGGAGE_DROP_CLAUSE]));
+  if (!asked) return false;
+  if (anyClauseMatches(reply, [LUGGAGE_GRANT_VERB_EARLY])) return true;
+  return anyClauseMatches(reply, [LUGGAGE_GRANT_VERB_ONLY]) && anyClauseTimeBeforeCheckIn(reply, stayTimes);
 }
 
 /** Kanıt için PII'siz sinyal özeti (kapalı küme kodlar; metin taşımaz). */
@@ -1145,7 +1192,9 @@ export function evaluateAvailability(
   // ilk geçiş teklif metnini iddia sayarsa bekçi hiç çağrılmaz (iddia tutuşu bekçiyi tetiklemez).
   // STANDART ÇIKIŞ SAATİ bilgisi izin DEĞİLDİR — ↑`withoutStandardCheckoutUntil`.
   const offerExempt = guard !== null ? deferred : trustedDefers && lexDeferral;
-  const lexClaim = lexicalClaim(offerExempt ? withoutOffer : reply, opts.stayTimes, opts.kbFacts);
+  const lexClaim =
+    lexicalClaim(offerExempt ? withoutOffer : reply, opts.stayTimes, opts.kbFacts) ||
+    luggageAnswerGrantsEarly(offerExempt ? withoutOffer : reply, guestTexts, opts.stayTimes);
   // PARA (dilim 8): host'un geç çıkış teklifi YALNIZ geç çıkış isteğinde kendi konusudur — o zaman teklif metni aynen
   // aktarımda muaf, tutarları ise çeviride / kısmi aktarımda da İZİNLİ (aynı tutar + aynı birim). Başka bir isteğe
   // (erken giriş, ek gece) geç çıkış fiyatını aktarmak para ifadesidir (inceleme 09-24: "ek gece için geç çıkış ücreti").
