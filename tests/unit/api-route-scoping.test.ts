@@ -58,6 +58,9 @@ const NOT_ORG_SCOPED: Record<string, string> = {
   "admin/impersonate/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
   "admin/quality-audit/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
   "admin/trial-identity-exempt/route.ts": "operatör: deneme istisnası, org id GÖVDEDEN gelir; tek yetki isSuperAdmin (+2FA), bürünmede yasak, denetimli",
+  "admin/events/route.ts":
+    "global: takip numarasıyla TÜM işletmelerin olay günlüğünde arama (destek); tek yetki isSuperAdmin (+2FA), bürünmede yasak, site dışı " +
+    "istek reddi, saatte 60, zorunlu denetim kaydı (kayıttaki org = operatörün kendi oturumu)",
   "alert-email/verify/route.ts":
     "public: org id İMZALI belirteçten gelir (HMAC, alan ayrımlı, 24 saat; bayrak kapalı → 404); YALNIZ o org'un uyarı " +
     "adresini ve yalnız belirteçteki eski adres hâlâ kayıtlıysa (CAS) değiştirir",
@@ -89,6 +92,7 @@ const REQUEST_DERIVED_ORG_ID = new Set([
   "admin/impersonate/route.ts",
   "admin/quality-audit/route.ts",
   "admin/trial-identity-exempt/route.ts",
+  "admin/events/route.ts",
   "alert-email/verify/route.ts",
 ]);
 

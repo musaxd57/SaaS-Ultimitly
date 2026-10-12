@@ -140,6 +140,7 @@ const SELF_GATED: Record<string, { gate: RegExp[] | null; reason: string; where?
   "admin/ai-quality/labels POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (kalite etiketi)" },
   "admin/customers POST": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
   "admin/exit POST": { gate: [/exitImpersonation\(\)/], reason: "yalnız impersonation'dan ÇIKAR (yetki düşürür)" },
+  "admin/events GET": { gate: [SESSION, SUPERADMIN], reason: "operatör (takip numarasıyla olay araması; bürünmede yasak, kayıtlı)" },
   "admin/export GET": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
   "admin/impersonate POST": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
   "admin/leads/[id] PATCH": { gate: [SESSION, SUPERADMIN], reason: "operatör" },

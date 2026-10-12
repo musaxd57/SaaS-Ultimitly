@@ -5,6 +5,8 @@ import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLa
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
 import { clearCheckoutPending } from "@/lib/billing/checkout-pending";
+import { adoptCorrelation, currentCorrelation, newCorrelationId, runWithCorrelation } from "@/lib/correlation";
+import { logEvent } from "@/lib/event-log";
 import {
   getPaddleWebhookSecret,
   verifyPaddleSignature,
@@ -145,6 +147,11 @@ const PAYING_SUBSCRIPTION_STATUSES: ReadonlySet<string> = new Set(["active", "tr
 async function alertUnlinkedPayment(kind: "subscription" | "transaction", data: Record<string, unknown>, reason: string): Promise<void> {
   const id = str(data.id) ?? "unknown";
   const customer = str(data.customer_id);
+  await logEvent("billing.webhook.unlinked", {
+    eventType: kind,
+    reason: reason.includes("işletme") ? "org_missing" : "no_fresh_consent",
+    ...(kind === "subscription" ? { subscriptionRef: id } : { transactionRef: id }),
+  });
   await alertOnTransition(
     `paddle-webhook:unlinked:${id}`,
     "paddle-webhook-unlinked-payment",
@@ -285,6 +292,8 @@ async function applySubscriptionEvent(
   // an unrelated subscription event must not clear someone else's guard.
   const eventPriceId = eventPriceIdFromData(data);
   const settlePending = async () => {
+    // Olay günlüğü (takip numarası): abonelik satırı bu olayla GERÇEKTEN yazıldı (sıra koruması geçti).
+    await logEvent("billing.subscription.applied", { status, plan: planCode ?? undefined, subscriptionRef: providerRef ?? undefined }, { organizationId });
     // "Ödemeniz işleniyor" kilidi (kurucu onayı 10-10): abonelik AKTİF olarak yazıldı → yeni ödeme ekranı kilidi kalkar.
     if (status === "active") await clearCheckoutPending(organizationId);
     if (replacesLiveSubscription) {
@@ -471,6 +480,11 @@ async function applyTransactionEvent(
         paidAt: new Date(),
       },
     });
+    await logEvent(
+      "billing.invoice.recorded",
+      { transactionRef: providerRef, amountMinor: Number.isFinite(amountMinor) ? amountMinor : undefined, currency },
+      { organizationId },
+    );
   } catch (err) {
     // Concurrent delivery of the same transaction: the findFirst above is only a
     // fast-path — @@unique([provider, providerRef]) (D1) is the real arbiter. The
@@ -503,7 +517,30 @@ function looksLikePaddleDelivery(header: string | null): boolean {
   return /^\d{10,}$/.test(ts) && /^[0-9a-f]{64}$/i.test(h1);
 }
 
-export async function POST(req: NextRequest) {
+/**
+ * Onay kaydının zincirine katıl: `custom_data.consentId` (istemci verisi) YALNIZ satırı bulmak için; numara ve işletme satırdan okunur ve
+ * yalnız onay `resolveOrgId`deki tazelik kuralını geçiyorsa (eski onaya bağlanan yenileme olayı kendi numarasında kalır). Asla fırlatmaz.
+ */
+async function adoptConsentChain(data: Record<string, unknown> | undefined, occurredAt: Date | null): Promise<void> {
+  try {
+    const cd = data?.custom_data && typeof data.custom_data === "object" ? (data.custom_data as Record<string, unknown>) : null;
+    const consentId = cd && typeof cd.consentId === "string" && cd.consentId.length > 0 && cd.consentId.length <= 64 ? cd.consentId : null;
+    if (!consentId) return;
+    const row = await prisma.checkoutConsent.findUnique({
+      where: { id: consentId },
+      select: { correlationId: true, organizationId: true, createdAt: true },
+    });
+    if (!row?.correlationId || !consentAcceptable(row.createdAt, occurredAt, Date.now())) return;
+    adoptCorrelation(row.correlationId, row.organizationId);
+  } catch {
+    /* iz yalnız teşhis içindir; webhook'u bozmaz */
+  }
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
+  // TAKİP NUMARASI (kurucu kararı 10-10): her teslimat kendi numarasıyla koşar; taze bir onay kaydına bağlanan ilk ödeme olayı numarayı o
+  // kaydın SUNUCUDA yazılmış satırından alır (`adoptConsentChain`) → "onay → ödeme ekranı → Paddle → abonelik / fatura" tek numarayla aranır.
+  if (!currentCorrelation()) return runWithCorrelation({ id: newCorrelationId(), organizationId: null }, () => POST(req));
   const secret = getPaddleWebhookSecret();
   if (!secret) {
     // 🚨 SESSİZ OLMAMALI. 200 dönmek Paddle'a "teslim edildi" der ve olay BİR
@@ -586,6 +623,9 @@ export async function POST(req: NextRequest) {
   const occurredAtRaw = event?.occurred_at ? new Date(event.occurred_at) : null;
   const occurredAt = occurredAtRaw && !Number.isNaN(occurredAtRaw.getTime()) ? occurredAtRaw : null;
 
+  await adoptConsentChain(event?.data, occurredAt);
+  await logEvent("billing.webhook.received", { eventType: eventType ?? undefined, providerEventId: providerEventId ?? undefined });
+
   try {
     // Idempotency: only a SUCCESSFULLY processed event is a true duplicate. A row
     // still in "received"/"error" means a prior attempt threw before finishing
@@ -596,7 +636,10 @@ export async function POST(req: NextRequest) {
     // is safe. Upsert reuses the existing row instead of colliding on its id.
     if (providerEventId) {
       const existing = await prisma.webhookEvent.findUnique({ where: { providerEventId } });
-      if (existing?.status === "processed") return jsonOk({ ok: true, duplicate: true });
+      if (existing?.status === "processed") {
+        await logEvent("billing.webhook.duplicate", { providerEventId });
+        return jsonOk({ ok: true, duplicate: true });
+      }
       await prisma.webhookEvent.upsert({
         where: { providerEventId },
         create: { provider: "paddle", eventType, providerEventId, payloadJson: rawBody, status: "received" },
@@ -626,8 +669,10 @@ export async function POST(req: NextRequest) {
           data: { status: "processed", processedAt: new Date() },
         });
       }
+      await logEvent("billing.webhook.processed", { eventType });
     }
   } catch (err) {
+    await logEvent("billing.webhook.failed", { eventType: eventType ?? undefined });
     await reportError("paddle-webhook", err);
     if (providerEventId) {
       await prisma.webhookEvent

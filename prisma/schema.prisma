@@ -187,6 +187,7 @@ model Organization {
   subscription          Subscription?
   invoices              Invoice[]
   checkoutConsents      CheckoutConsent[]
+  operationalEvents     OperationalEvent[]
 }
 
 model User {
@@ -882,12 +883,36 @@ model CheckoutConsent {
   legalTextHash  String?
   ip             String? // server-derived (rightmost XFF), spoof-resistant
   userAgent      String? // request UA, length-capped
+  // Takip numarası (migration 63, kurucu kararı 10-10): onayı yazan isteğin numarası — ödeme webhook'u zinciri BURADAN sürdürür
+  // (Paddle'ın taşıdığı istemci verisinden değil). Eski satırlarda null.
+  correlationId  String?
   createdAt      DateTime @default(now()) // = checkoutLegalAcceptedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
+  @@index([correlationId])
+}
+
+// TAKİP NUMARASI OLAY GÜNLÜĞÜ (migration 63, kurucu kararı 10-10 §5 — "güvenlik olarak çok gelişmiş olmalıyız"). YALNIZ-EKLE: veritabanı
+// tetikleyicisi UPDATE'i reddeder; silme yalnız saklama süpürgesi (90 gün) ve işletme silinmesi (kademeli). TEK yazıcı `lib/event-log.ts`
+// `logEvent`: olay adı kapalı küme, veri yalnız izinli anahtar + kimlik / kod / sayı biçimi (serbest metin / kişisel veri sığmaz). Okuma
+// yalnız operatör (`api/admin/events`). İşletmesiz satır = sistem olayı.
+model OperationalEvent {
+  id             String   @id @default(cuid())
+  correlationId  String
+  organizationId String?
+  event          String
+  level          String
+  dataJson       String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([correlationId])
+  @@index([organizationId, createdAt])
+  @@index([createdAt])
 }
 
 model MessageTemplate {

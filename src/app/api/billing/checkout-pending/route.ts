@@ -3,6 +3,8 @@ import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } f
 import { withOwner } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { markCheckoutPending } from "@/lib/billing/checkout-pending";
+import { adoptCorrelation } from "@/lib/correlation";
+import { logEvent } from "@/lib/event-log";
 
 // ---------------------------------------------------------------------------
 // "ÖDEMENİZ İŞLENİYOR" KİLİDİNİ YAZ (kurucu onayı 10-10; `lib/billing/checkout-pending.ts`). Paddle ödeme ekranı `checkout.completed`
@@ -24,12 +26,15 @@ export const POST = withOwner(async (session, req) => {
 
   const consent = await prisma.checkoutConsent.findFirst({
     where: { id: consentId, organizationId: session.organizationId },
-    select: { createdAt: true },
+    select: { createdAt: true, correlationId: true },
   });
   if (!consent) return notFound();
+  // Ödeme zincirine katıl (numara KENDİ işletmesinin onay satırından — istemciden değil).
+  if (consent.correlationId) adoptCorrelation(consent.correlationId);
   const now = new Date();
   if (now.getTime() - consent.createdAt.getTime() > CONSENT_MAX_AGE_MS) return badRequest({ consentId: "Geçersiz istek." });
 
   await markCheckoutPending(session.organizationId, consentId, now);
+  await logEvent("billing.checkout.pending", { consentId });
   return jsonOk({ ok: true });
 });

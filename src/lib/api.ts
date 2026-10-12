@@ -6,6 +6,7 @@ import { reportError } from "@/lib/report-error";
 import { isSuperAdmin } from "@/lib/admin";
 import { isChannelSubscriptionInactive, SUBSCRIPTION_INACTIVE_MESSAGE } from "@/lib/provider-errors";
 import { PasswordHashBusyError } from "@/lib/auth/password";
+import { currentCorrelationId, shortCorrelationId } from "@/lib/correlation";
 
 export type { SessionPayload };
 
@@ -172,10 +173,9 @@ export function canManage(session: SessionPayload | null): boolean {
  * email via reportError — a plain `catch {}` here would make the failure totally
  * invisible (only `reportError`, NOT bare console.error, is captured).
  */
-export function serverError(
-  message = "Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.",
-  err?: unknown,
-) {
+const DEFAULT_SERVER_ERROR = "Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.";
+
+export function serverError(message = DEFAULT_SERVER_ERROR, err?: unknown) {
   if (err !== undefined) {
     // A Hospitable 402 "Subscription not active" is an EXPECTED external state —
     // the org's OWN Hospitable subscription lapsed, not a Lixus bug (the scheduled
@@ -199,6 +199,15 @@ export function serverError(
       return passwordHashBusy();
     }
     void reportError("api", err);
+  }
+  // TAKİP NUMARASI (kurucu kararı 10-10, metin AYNEN): kimlikli istekte (numara varsa) beklenmeyen hata ekranı numarayı gösterir; tam numara
+  // gövdede (`correlationId`, "kopyala"). Anonim / misafir rotalarında numara yok → eski metin (misafir Lixus desteğine yazmaz).
+  const correlationId = currentCorrelationId();
+  if (correlationId) {
+    const short = shortCorrelationId(correlationId);
+    const support = `Destek ekibimize bu takip numarasıyla yazarak destek alabilirsiniz: ${short}`;
+    const text = message === DEFAULT_SERVER_ERROR ? `Bir sorun oluştu. ${support}` : `${message} ${support}`;
+    return NextResponse.json({ error: text, correlationId }, { status: 500 });
   }
   return NextResponse.json({ error: message }, { status: 500 });
 }

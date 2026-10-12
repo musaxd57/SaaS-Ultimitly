@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { reportError } from "@/lib/report-error";
+import { logEvent } from "@/lib/event-log";
 import { appLocale } from "@/lib/app-config";
 
 // ---------------------------------------------------------------------------
@@ -229,6 +230,15 @@ export async function createPortalSession(subscriptionId: string): Promise<Porta
   }
 }
 
+/** Yanıt başlığı — günlük için; okunamazsa null (iz yazımı ödeme çağrısını ASLA bozmaz). */
+function headerOrNull(res: Response, name: string): string | null {
+  try {
+    return typeof res.headers?.get === "function" ? res.headers.get(name) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Low-level Paddle Billing API call (e.g. create a transaction for checkout).
  * Only usable when PADDLE_API_KEY is set; never invoked automatically. Throws if
@@ -250,9 +260,18 @@ export async function paddleRequest(
     signal: AbortSignal.timeout(15000),
   });
   const body = (await res.json().catch(() => null)) as
-    | { error?: { code?: string } }
+    | { error?: { code?: string }; meta?: { request_id?: string } }
     | null;
+  // Olay günlüğü (takip numarası): Paddle'ın kendi istek kimliği yanına yazılır — Paddle desteğiyle aynı işlem iki taraftan bulunur.
+  // Kimlik / tutar / müşteri verisi YOK: yalnız kaynak türü, yöntem, durum kodu, Paddle hata kodu.
+  const eventData = {
+    resource: path.replace(/^\//, "").split(/[/?]/)[0] || undefined,
+    method: init?.method ?? "GET",
+    httpStatus: res.status,
+    providerRequestId: body?.meta?.request_id ?? headerOrNull(res, "x-request-id") ?? undefined,
+  };
   if (!res.ok) {
+    await logEvent("billing.paddle.request_failed", { ...eventData, providerCode: body?.error?.code });
     // Surface the failure with the HTTP status + Paddle's error code + which env
     // we hit + the resource type — NO ids (the sub/customer id isn't logged). This
     // is how we tell "sandbox subscription queried on the production API" (404
@@ -261,6 +280,7 @@ export async function paddleRequest(
     const resource = path.replace(/^\//, "").split("/")[0] || "?";
     throw new Error(`Paddle HTTP ${res.status} (${code}) env=${cfg.environment} resource=${resource}`);
   }
+  await logEvent("billing.paddle.request", eventData);
   return body;
 }
 

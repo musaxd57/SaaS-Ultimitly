@@ -33,6 +33,7 @@ import {
   refreshStyleProfile,
 } from "@/lib/automation";
 import { purgeAutomatedSends } from "@/lib/automated-sends";
+import { pruneOperationalEvents } from "@/lib/event-log";
 import { backfillTrialIdentitiesOnce, sweepTrialIdentities } from "@/lib/billing/trial-identity";
 
 // ---------------------------------------------------------------------------
@@ -841,6 +842,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           const cutoff = retentionCutoff();
           if (cutoff) await purgeExpiredGuestCommitments(cutoff);
         });
+        // Takip numarası olay günlüğü (migration 63): 90 gün saklama (kurucu kararı 10-10 §5) — DATA_RETENTION_MONTHS'tan bağımsız, ayrı iş.
+        await hourly("event-log-retention", "scheduled-sync event-log retention", () => pruneOperationalEvents());
         // Marketing-lead retention. No-op unless LEAD_RETENTION_MONTHS is set.
         await hourly("lead-purge", "scheduled-sync lead-purge", () => purgeOldLeads());
         // Distributed rate-limit hygiene: drop counters whose window ended (keys

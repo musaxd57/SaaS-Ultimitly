@@ -8,6 +8,8 @@ import { paddlePriceToPlanCode, paddlePriceCatalogConfigured } from "@/lib/payme
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
 import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
+import { currentCorrelationId } from "@/lib/correlation";
+import { logEvent } from "@/lib/event-log";
 
 // Server-side record of the Ön Bilgilendirme + Mesafeli Satış acceptance at
 // CHECKOUT — the evidence counterpart to the client checkbox in paddle-plans.tsx.
@@ -99,9 +101,12 @@ export const POST = withOwner(async (session, req) => {
       // satırlar bilerek DÜZELTİLMEZ, delil kaydı sonradan yeniden yazılmaz).
       ip: clientIp(req),
       userAgent: req.headers.get("user-agent")?.slice(0, 512) ?? null, // capped free text
+      // Takip numarası (kurucu kararı 10-10): ödeme zinciri BU numarayla sürer (webhook satırdan okur).
+      correlationId: currentCorrelationId(),
     },
-    select: { id: true },
+    select: { id: true, planCode: true },
   });
+  await logEvent("billing.consent.created", { plan: row.planCode, consentId: row.id });
   // Return the row id as a server-trusted nonce: the client passes it in the Paddle
   // checkout's custom_data, and the webhook resolves the org FROM this row (whose
   // organizationId is session-derived) instead of trusting a client-sent org id.

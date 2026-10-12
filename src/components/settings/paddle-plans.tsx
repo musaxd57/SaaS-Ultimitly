@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
 import { formatMinor } from "@/lib/utils";
+import { TrackingNumberCopy } from "@/components/tracking-number-copy";
 import {
   BillingPeriodToggle,
   BillingPeriodAnnouncer,
@@ -149,6 +150,8 @@ export function PaddlePlans({
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Beklenmeyen sunucu hatasının tam takip numarası (kurucu kararı 10-10): metinde kısa numara, düğmede tamamı.
+  const [trackingId, setTrackingId] = useState<string | null>(null);
   // In-app plan change: the previewed change awaiting the user's confirmation.
   const [pending, setPending] = useState<{
     planCode: string;
@@ -234,6 +237,7 @@ export function PaddlePlans({
         return;
       }
       setError(null);
+      setTrackingId(null);
       setBusy(true);
       try {
         // FAIL-CLOSED: the consent record is the pre-payment legal evidence. If it
@@ -258,11 +262,13 @@ export function PaddlePlans({
             consentId?: string;
             error?: string;
             fields?: Record<string, string>;
+            correlationId?: string;
           };
           if (res.ok) {
             consentId = body.consentId;
           } else {
             serverReason = body.fields?._ ?? body.fields?.planCode ?? body.error;
+            setTrackingId(body.correlationId ?? null);
           }
         } catch {
           /* network error → consentId stays undefined */
@@ -306,12 +312,15 @@ export function PaddlePlans({
   const openPortal = useCallback(async () => {
     if (busy) return;
     setError(null);
+    setTrackingId(null);
     setBusy(true);
     try {
       const res = await fetch("/api/billing/portal", { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as { url?: string };
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string; correlationId?: string };
       if (!res.ok || !data.url) {
-        setError("Abonelik yönetim sayfası açılamadı. Lütfen tekrar deneyin.");
+        // Beklenmeyen hata (500) takip numaralı metni taşır; diğer durumlarda eski genel metin.
+        setError(data.correlationId && data.error ? data.error : "Abonelik yönetim sayfası açılamadı. Lütfen tekrar deneyin.");
+        setTrackingId(data.correlationId ?? null);
         return;
       }
       window.location.href = data.url;
@@ -327,6 +336,7 @@ export function PaddlePlans({
   const startChange = useCallback(async (planCode: string) => {
     if (changeBusy) return;
     setError(null);
+    setTrackingId(null);
     setChangeBusy(true);
     try {
       const res = await fetch("/api/billing/plan-preview", {
@@ -343,6 +353,7 @@ export function PaddlePlans({
         immediateTotal?: string | null;
         recurringTotal?: string | null;
         previewToken?: string;
+        correlationId?: string;
       };
       if (!res.ok || !data.mode || !data.previewToken) {
         // ⚠️ SEBEP `fields.error` ALTINDA. `badRequest({ error })` gövdeyi
@@ -355,6 +366,7 @@ export function PaddlePlans({
         setError(
           data.fields?.error ?? data.error ?? "Plan bilgisi alınamadı. Lütfen tekrar deneyin.",
         );
+        setTrackingId(data.correlationId ?? null);
         return;
       }
       setPending({
@@ -378,6 +390,7 @@ export function PaddlePlans({
   const confirmChange = useCallback(async () => {
     if (!pending || changeBusy) return;
     setError(null);
+    setTrackingId(null);
     setChangeBusy(true);
     try {
       const res = await fetch("/api/billing/plan-change", {
@@ -391,6 +404,7 @@ export function PaddlePlans({
         ok?: boolean;
         amountChanged?: boolean;
         pending?: boolean;
+        correlationId?: string;
       };
       if (data.pending) {
         // Ambiguous Paddle outcome (timeout/5xx): it may already be applied. We do NOT
@@ -405,6 +419,7 @@ export function PaddlePlans({
           (data.error ?? "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.") +
             (data.detail ? ` (${data.detail})` : ""),
         );
+        setTrackingId(data.correlationId ?? null);
         // 409 = this preview is spent (single-use) or its amount moved. The dialog's
         // token is dead → close it so the next click mints a FRESH preview + amount.
         if (res.status === 409) setPending(null);
@@ -650,6 +665,7 @@ export function PaddlePlans({
       {trialNotice && !manageable ? <p className="text-xs text-foreground">{trialNotice}</p> : null}
       {processing && !manageable ? <p className="text-xs text-muted-foreground">{CHECKOUT_PENDING_MESSAGE}</p> : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error && trackingId ? <TrackingNumberCopy id={trackingId} /> : null}
       <p className="text-[11px] text-muted-foreground">
         Ödeme, satıcı olarak Paddle (Merchant of Record) üzerinden güvenli şekilde alınır; fatura ve
         KDV Paddle tarafından yönetilir. İstediğiniz zaman iptal edebilirsiniz.

@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddCustomerForm } from "@/components/admin/add-customer-form";
 import { ImpersonateButton } from "@/components/admin/impersonate-button";
 import { Reset2faForm } from "@/components/admin/reset-2fa-form";
+import { EventSearch } from "@/components/admin/event-search";
 import { QualityAuditCard } from "@/components/admin/quality-audit-card";
 import { qualityAuditConfigured } from "@/lib/quality-audit";
 import { shadowAiEnabled, shadowModel } from "@/lib/shadow-ai";
@@ -577,6 +578,15 @@ export default async function AdminPage() {
               {legacyShadowCount > 0 ? "Aktif model için henüz gölge kaydı yok." : "Henüz gölge kaydı yok."}
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-3xl">
+        <CardHeader>
+          <CardTitle className="text-base">Takip Numarasıyla Olay Arama (yalnız operatör)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EventSearch />
         </CardContent>
       </Card>
 

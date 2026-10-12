@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import {
   requireSession,
   unauthorized,
@@ -46,13 +47,33 @@ export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
     // K8 (kurucu kararı 09-28): bürünmüşken (destek görünümü) müşteri hesabında yazma yok — TEK boğaz.
     const readOnly = impersonationReadOnly(session, req.method);
     if (readOnly) return readOnly;
-    try {
-      return await handler(session, req, ctx);
-    } catch (err) {
-      return serverError(undefined, err);
-    }
+    // TAKİP NUMARASI (kurucu kararı 10-10): her kimlikli istek kendi numarasıyla koşar — SUNUCUDA üretilir, istemcinin gönderdiği başlık
+    // KABUL EDİLMEZ (başkasının zincirine satır yazdırılamaz). Hata raporu / olay günlüğü / 500 yanıtı aynı numarayı taşır; yanıt başlığı
+    // `X-Correlation-ID`.
+    const correlationId = newCorrelationId();
+    return runWithCorrelation({ id: correlationId, organizationId: session.organizationId }, async () => {
+      let res: Response;
+      try {
+        res = await handler(session, req, ctx);
+      } catch (err) {
+        res = serverError(undefined, err);
+      }
+      return withCorrelationHeader(res, correlationId);
+    });
   };
 }
+
+/** Yanıta takip numarası başlığı (değişmez başlıklı yanıtta — ör. `Response.redirect` — sessizce atlanır). */
+function withCorrelationHeader(res: Response, id: string): Response {
+  try {
+    res.headers.set(CORRELATION_HEADER, id);
+  } catch {
+    /* değişmez başlık listesi */
+  }
+  return res;
+}
+
+export const CORRELATION_HEADER = "X-Correlation-ID";
 
 /** withAuth + the owner/manager gate (config & destructive actions). */
 export function withManage<P = Record<string, never>>(handler: AuthedHandler<P>) {

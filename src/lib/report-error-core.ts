@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { emailService } from "./email-core";
+import { currentCorrelationId } from "./correlation";
 import { prismaErrorSummary, redactSensitive } from "./redact";
 
 // Redaksiyon yaprak modüle taşındı (F10); eski import yolları için yeniden dışa verilir.
@@ -65,12 +66,16 @@ export async function reportError(context: string, err: unknown): Promise<Report
   const errName = err instanceof Error ? err.name : "Error";
   const errMessage = redactSensitive(prismaSummary ?? (err instanceof Error ? err.message : String(err)));
 
+  // Takip numarası (kurucu kararı 10-10): süren işlemin numarası — log satırı, Sentry etiketi ve alarm e-postası aynı numarayı taşır;
+  // operatör ekranı (`api/admin/events`) numarayla olay günlüğünü bulur. Numara kişisel veri değildir, yalnız iz.
+  const correlationId = currentCorrelationId();
+
   // Always log — structured and greppable (redacted: Railway logs are retained).
-  console.error(`[reportError] ${context} :: ${detail}`);
+  console.error(`[reportError] ${context}${correlationId ? ` [takip ${correlationId}]` : ""} :: ${detail}`);
 
   // Real error monitoring (optional): send to Sentry when SENTRY_DSN is set.
   // Fire-and-forget, dependency-free, never throws.
-  void captureToSentry(context, errName, errMessage, detail);
+  void captureToSentry(context, errName, errMessage, detail, correlationId);
 
   const to = process.env.ERROR_ALERT_EMAIL || process.env.ALERT_EMAIL;
   // ⚠️ `configured` HEM alıcıyı HEM sağlayıcıyı ister. Yalnız alıcıya bakmak
@@ -96,9 +101,9 @@ export async function reportError(context: string, err: unknown): Promise<Report
     const res = await emailService.sendReporting(
       to,
       `⚠️ Lixus AI sistem hatası — ${context}`,
-      `<p>Bir sistem hatası oluştu:</p><pre style="white-space:pre-wrap;font-size:13px">${escapeHtml(
-        detail,
-      ).slice(0, 4000)}</pre>`,
+      `<p>Bir sistem hatası oluştu:</p>${
+        correlationId ? `<p>Takip numarası: <code>${escapeHtml(correlationId)}</code> (operatör paneli → olay araması)</p>` : ""
+      }<pre style="white-space:pre-wrap;font-size:13px">${escapeHtml(detail).slice(0, 4000)}</pre>`,
     );
     // Gitmediyse damgayı SİLME, GERİYE ÇEK: bir sonraki hata ~1 dk sonra yeniden
     // dener ama SEL ÜRETMEZ.
@@ -166,6 +171,7 @@ export async function captureToSentry(
   errName: string,
   errMessage: string,
   detail: string,
+  correlationId: string | null = null,
 ): Promise<void> {
   const dsn = process.env.SENTRY_DSN?.trim();
   if (!dsn) return;
@@ -198,6 +204,8 @@ export async function captureToSentry(
         values: [{ type: errName, value: groupingValue(errMessage) }],
       },
       extra: { detail: detail.slice(0, 4000), message: errMessage.slice(0, 1000) },
+      // Takip numarası etiketi: Sentry'de numarayla arama (gruplamaya girmez — etiket, istisna değeri değil).
+      ...(correlationId ? { tags: { correlation_id: correlationId } } : {}),
     });
     await fetch(parsed.endpoint, {
       method: "POST",
