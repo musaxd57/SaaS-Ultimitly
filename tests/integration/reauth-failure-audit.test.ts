@@ -9,6 +9,8 @@ import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/auth/password";
 import type { SessionPayload } from "@/lib/auth";
+import { noteReauthFailure } from "@/lib/auth/reauth-guard";
+import { totp } from "@/lib/auth/totp";
 
 let session: SessionPayload;
 vi.mock("@/lib/api", async (orig) => {
@@ -65,12 +67,31 @@ describe("hatalı yeniden doğrulama → denetim kaydı", () => {
     expect(await prisma.organization.count({ where: { id: session.organizationId } })).toBe(1);
   });
 
-  it("bürünmede (destek görünümü) gerçek aktör operatördür", async () => {
+  it("bürünmede (destek görünümü) rota yeniden doğrulamaya HİÇ girmez → kayıt yok (K8 salt-okunur)", async () => {
+    // Haiku 10-12: eski hâli boş olabilecek bir dizi üzerinde döngüydü (bürünme daha önce 403) — hiçbir şey iddia etmiyordu.
     session = { ...session, actorUserId: "operator-1" } as SessionPayload;
-    await twoFactor(json("http://localhost/api/account/2fa", { action: "setup", password: "yanlis-parola-3" }));
+    const res = await twoFactor(json("http://localhost/api/account/2fa", { action: "setup", password: "yanlis-parola-3" }));
+    expect(res.status).toBe(403);
+    expect(await failedAudits()).toEqual([]);
+  });
+
+  it("kayıt yazıcısı bürünme oturumunda gerçek aktörü (operatör) yazar — yolu açılırsa iz doğru kişide", async () => {
+    await noteReauthFailure({ ...session, actorUserId: "operator-1" }, "account_delete");
+    const [a] = await failedAudits();
+    expect(a.actorUserId).toBe("operator-1");
+  });
+
+  it("🚨 2FA açarken yanlış kod → kayıt (`2fa_enable`); 2FA AÇILMAZ", async () => {
+    const setup = await twoFactor(json("http://localhost/api/account/2fa", { action: "setup", password: PASSWORD }));
+    const { secret } = (await setup.json()) as { secret: string };
+    // Penceredeki (±1 adım) geçerli kodların hiçbiri olmayan kod — tesadüfi isabet yok.
+    const valid = new Set([-30_000, 0, 30_000].map((d) => totp(secret, Date.now() + d)));
+    const wrong = ["000000", "111111", "222222", "333333"].find((c) => !valid.has(c))!;
+    const res = await twoFactor(json("http://localhost/api/account/2fa", { action: "enable", code: wrong }));
+    expect(res.status).toBe(400);
     const audits = await failedAudits();
-    // Bürünme salt-okunur (K8) ise rota daha önce reddedebilir — o durumda kayıt da yoktur; kayıt VARSA aktör operatördür.
-    for (const a of audits) expect(a.actorUserId).toBe("operator-1");
+    expect(audits.map((a) => JSON.parse(a.metadataJson!))).toEqual([{ operation: "2fa_enable" }]);
+    expect((await prisma.user.findUnique({ where: { id: session.userId } }))!.twoFactorEnabledAt).toBeNull();
   });
 
   it("KONTROL: doğru şifrede hatalı deneme kaydı YOK", async () => {

@@ -12,6 +12,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "auth.login_success": "Başarılı giriş",
   "auth.login_failed": "Başarısız giriş denemesi",
   "auth.2fa_failed": "Hatalı doğrulama kodu (2FA)",
+  "account.reauth_failed": "Hassas işlemde hatalı şifre veya kod",
   "account.password_change": "Şifre değiştirildi",
   "account.password_reset": "Şifre sıfırlandı",
   "account.2fa_enable": "İki adımlı doğrulama açıldı",
