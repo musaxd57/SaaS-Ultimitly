@@ -21,7 +21,9 @@ import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 //    even when combined with other data — is higher; aggregate rows remain).
 //
 //  * Ingress guards (hospitable-sync + iCal feed sync + MANUEL .ics/.csv
-//    yüklemesi) — the piece that makes the erasure DURABLE: erased data must
+//    yüklemesi + QR misafir sohbeti — dördüncü yazar `guest-chat.ts`
+//    `resolveGuestChat` kapısı, pin `guest-chat-erasure-gate.test.ts`;
+//    DENETIM 08-09 #22) — the piece that makes the erasure DURABLE: erased data must
 //    stay "tekrar kullanılamaz" (Regulation art. 8), so a re-import may never
 //    bring it back — even if the local rows are later deleted entirely and the
 //    ANON_NAME sentinel can no longer protect them. Matching is hash-only; with
