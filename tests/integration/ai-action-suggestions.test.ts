@@ -143,6 +143,15 @@ describe("A · görev önerisi", () => {
 });
 
 describe("C · söz kaydı önerisi", () => {
+  // SABİT SAAT (10-12 gece, ZAMAN BOMBASI — tam kapı İstanbul gece yarısından hemen sonra kırmızı): mesaj "5 dk önce" yazılıyor, "yarın"
+  // MESAJIN gününe göre çözülüp ŞİMDİYE göre gösteriliyor → gece yarısını geçen koşuda "yarın 12:00" doğru olarak "bugün 12:00" olur.
+  // Öğlen İstanbul (09:00Z); saat ilerlemeye devam eder (yalnız Date sahte, zamanlayıcılar gerçek).
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-10-12T09:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   it("ev sahibinin sözü → öneri; saat düzenlenerek onay → açık söz + görev, karar 'düzenlendi'", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asUser(orgId);
