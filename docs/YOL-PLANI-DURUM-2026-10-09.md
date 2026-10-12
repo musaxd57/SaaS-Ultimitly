@@ -12,7 +12,7 @@
 | ② | Test sözleşmesi | ✅ `docs/TEST-EVIDENCE-CONTRACT.md` |
 | ③ | V0 Channel Independence | 🟡 V0.1–V0.7 kod ✅ — **kalanlar §2** |
 | ④ | Deterministik Availability Engine | 🟡 çekirdek + panel + konuşma sayfası ✅; **araç sonucu sözleşmesi ✅ 10-09** (`ai/tools/`, bayat / belirsiz kesin olamaz, kapsam zorunlu); isteme bağlama: kurucu onayıyla (10-09) **doğrulanmış müsaitlik / uzatma KOD METNİ ✅** (kanal + QR; anahtarlar KAPALI — açma = kurucu + ilk denemeler); karışık mesajda (müsaitlik + başka soru) bugün ev sahibine kalır |
-| ⑤ | Geniş otonom AI | ⛔ ④ ve korumalar doğrulanmadan yok |
+| ⑤ | Geniş otonom AI | 🟡 **ilk dilim kodda (10-12, kurucu "A + B + C", anahtar `AI_ACTION_SUGGESTIONS_ENABLED` KAPALI)**: görev / Wi-Fi bilgi tabanı düzeltmesi / söz kaydı ÖNERİSİ, sahip + yönetici tek tıkla onaylar (`lib/ai-suggestions/`); misafire hiçbir şey gitmez, otomatik eylem YOK. Ölçüt (2 hafta, ≥ 10 karar, ≥ %90 düzenlemesiz onay) yalnız ölçülür — otomatiğe geçiş ayrı karar + anahtar. Geniş otonomi ⛔ (④ korumaları canlıda doğrulanmadan) |
 
 Ürün fazları: V1 ✅ canlı · V2 🟡 ("Dikkat Gerektirenler" + çakışmada para aralığı) · V3–V8 başlamadı.
 Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.

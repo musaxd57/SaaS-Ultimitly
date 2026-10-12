@@ -219,3 +219,11 @@ Yalnız Türkçe + İngilizce. Mutasyon 23+4+25+2+11, hepsi öldü.
 | S2 QR | "Modele rezervasyonun durumunu ver; iptal edilmişse AI yanıtlamasın ve hosta söylesin rezervasyon iptal edilmiş; gene de yazarsa kötü niyetli şekilde AI cevap vermesin, AI kullanım hakkından da yemesin, hosta bildirsin durumu" | İptal edilmiş rezervasyonda yapay zekâ çağrılmaz (kota düşmez), misafire cevap gitmez, ev sahibine "rezervasyon iptal edilmiş" bildirimi; tekrar yazışma da aynı yoldan (bildirim tekrarına tavan) |
 | ⑤ otonom AI | "A + B + C"; onay "sahip + yönetici, 2 hafta ≥ %90" | Görev / bilgi tabanı / söz önerisi, tek tıkla onay; ölçüt kaydı; otomatiğe geçiş ayrı anahtar |
 
+
+**Uygulama durumu (10-12 gece; her biri Haiku sert incelemesi + mutasyon + tam kapı):**
+
+| # | Ne yapıldı | Açmak için |
+|---|---|---|
+| S1 bavul | Kod kapısı: giriş saatinden önceki bavul bırakma isteği / izni erken giriş sayılır (TR + EN; çıkıştaki bavul, kayıp eşya, çöp poşeti hariç). İTİLDİ (`413e678` + pin `66d20c4`) | Anahtarsız (gönderim kapısı) |
+| S2 QR iptal | Aynı pencerede iptal edilmiş rezervasyon: yapay zekâ çağrılmaz (kota düşmez), misafir genel "kapalı" cevabını görür, mesaj panelde "Rezervasyon iptal edilmiş — yapay zekâ cevap vermiyor" notuyla kaydedilir; ev sahibine e-posta konaklama başına 6 saatte bir. İTİLDİ (`413e678`) | Panel kaydı anahtarsız. ⚠️ E-posta yalnız `QR_ESCALATION_EMAIL_ENABLED=1` iken gider (bugünkü QR acil e-postasıyla aynı anahtar) |
+| ⑤ öneriler | A görev (otomatik görev anahtarı KAPALI işletmede) · B Wi-Fi bilgi tabanı düzeltmesi (ev sahibinin misafire yazdığı yeni şifre / ağ adı; modem / kapı şifresi sayılmaz; kalem mesajdan sonra düzenlendiyse öneri yok) · C söz kaydı (ev sahibinin "yarın sabah teknisyen gelecek" sözü → açık söz + görev; saat düzenlenebilir). Sahip + yönetici tek tıkla onaylar / yok sayar; karar `AuditLog`ta (metin yok, migration yok); ölçüt 2 hafta ≥ 10 karar ≥ %90 düzenlemesiz onay — yalnız ÖLÇÜLÜR | `AI_ACTION_SUGGESTIONS_ENABLED=1` (yalnız "1"). Otomatiğe geçiş = ölçüt tuttuktan sonra ayrı karar |

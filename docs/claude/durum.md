@@ -8,7 +8,14 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-11 akşam (güncel):** acil numara sorusu Luna 6.0 ile ölçüldü (33 senaryo × 2), modelin kendi açıklaması alındı, kod anahtar arkasında
+**10-12 gece (güncel; kurucu "gece modu — soru sorma, V'leri bitir, sonra mantıklı işler"):** kurucunun 10-12 cevapları uygulandı — S1 bavul
+bırakma kod kapısında (giriş öncesi saat / "erken" bağlamında erken giriş isteği ve izni) · S2 QR'da iptal edilmiş rezervasyon (yapay zekâ çağrılmaz,
+kota düşmez, panel kaydı + 6 saatte bir e-posta `QR_ESCALATION_EMAIL_ENABLED` ile) · ⑤ ilk dilim öneriler (görev / Wi-Fi bilgi tabanı / söz, sahip +
+yönetici tek tık; `AI_ACTION_SUGGESTIONS_ENABLED` KAPALI; ölçüt yalnız ölçülür) · değişmez 13 düzeltmesi ("bilgi yanlış" beyanı) · kritik akış testleri
+(gelen → teslim, özel yükleme oturumu). Her biri Haiku sert inceleme (2–3 tur) + mutasyon + tam kapı. Tablo: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`
+"Uygulama durumu (10-12 gece)"; çizelge `docs/YOL-PLANI-DURUM-2026-10-09.md` ⑤. Railway hâlâ kapalı.
+
+**10-11 akşam:** acil numara sorusu Luna 6.0 ile ölçüldü (33 senaryo × 2), modelin kendi açıklaması alındı, kod anahtar arkasında
 (`AI_EMERGENCY_NUMBER_ENABLED` KAPALI; servis başına numara, ev sahibi / anlaşmazlık / konaklama konusunda numara yok — ölçüm setinde 62/62)
 + B1 (gelen kutusu "Bilgi tabanına ekle", mülk sayfası "Yerel Tavsiye" hatırlatması). Haiku iki tur, mutasyon iki tur. Kararlar:
 `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-11 akşam"; tasarım §8 `docs/TASARIM-2026-10-11-acil-numara-ve-yer-onerisi.md`.
