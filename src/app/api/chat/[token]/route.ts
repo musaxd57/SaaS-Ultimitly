@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { suggestReply } from "@/lib/ai";
+import { replyCallParams, replyPromptItemsOf, replyPromptVersion, suggestReply } from "@/lib/ai";
+import { aiGenerationTraceEnabled, recordAiGeneration } from "@/lib/ai/generation-trace";
+import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
 import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
@@ -960,6 +962,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // veri değildir ("çöp bugün mü alınıyor?" gibi soruları çözer).
     timeZone: org?.timezone,
   };
+  const replyStartedAt = Date.now();
   let result = await suggestReply(replyInput);
 
   // ── ÇIKTIDA KAPI KODU → BİR KEZ YENİDEN YAZDIR, SONRA DEVİR (kurucu kararı 10-11, karar listesi 18: "taransın ama response geri
@@ -1084,6 +1087,45 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Kapı kodu ikinci taslakta da kaldı (↑) → cevap gitmez. Doğrulanmış kod metni seçildiyse o metin modelin değildir, kod taşımaz.
   if (doorCodeHeld && finalResult === result) verdict = { escalate: true, reason: "door_code_in_reply" };
   const escalate = verdict.escalate;
+  const replyLatencyMs = Date.now() - replyStartedAt;
+
+  // ÜRETİM İZİ (kurucu kararı 10-12 öğle, Ö5 "QR izini de yaz"; anahtar `AI_GENERATION_TRACE_ENABLED` KAPALI → yazım yok): kanal izinin
+  // AYNISI — model çağrıldıysa her karar (gönderildi / devir / sessiz kapanış). Taslak = modelin SON taslağı; gönderilen = misafire giden
+  // gövde (yalnız gönderimde). Kanıt karar kaydıyla AYNI nesneden. Bağlam tanısı QR penceresinin kendi kurucusundan. Asla fırlatmaz.
+  // Kanal iziyle AYNI koşul: yedek (modelsiz) cevapta iz yok. Ev sahibi model çalışırken yazdıysa (`handedOff`) karar kaydı gibi iz de yok.
+  // Araç özeti (`toolResults`) QR'da YOK: `loadQrVerifiedStay` yalnız metin döndürür (kanal izinde var).
+  const traceQr = async (input: {
+    decision: "auto_sent" | "human_review" | "no_reply";
+    conversationId: string;
+    triggerMessageId: string;
+    gateReason: string | null;
+    kbEvidenceJson: string | null | undefined;
+    sentText: string | null;
+  }) => {
+    if (!aiGenerationTraceEnabled() || (result.source !== "openai" && !result.llmUsage)) return;
+    try {
+      await recordAiGeneration({
+        organizationId: ctx.property.organizationId,
+        propertyId: ctx.property.id,
+        reservationId: res.id,
+        conversationId: input.conversationId,
+        triggerMessageId: input.triggerMessageId,
+        surface: "qr",
+        model: replyCallParams().model,
+        promptVersion: replyPromptVersion(replyPromptItemsOf(replyInput.conversationItems)),
+        decision: input.decision,
+        gateReason: input.gateReason && ESCALATION_REASON_CODES.has(input.gateReason) ? input.gateReason : null,
+        kbEvidenceJson: input.kbEvidenceJson ?? null,
+        latencyMs: replyLatencyMs,
+        llm: result.llmUsage ?? null,
+        draftText: result.reply,
+        sentText: input.sentText,
+        contextDiagnostics: contextWindow.diagnostics ?? null,
+      });
+    } catch (err) {
+      void reportError(`ai-generation-trace org=${ctx.property.organizationId}`, err);
+    }
+  };
 
   // Karar kaydının temellendirme alanları — iki kayıt (kapanış / cevap-devir) AYNI nesneyi yazar.
   // Kanıt GÖNDERİLEN sonucu betimler (doğrulanmış kod metni seçildiyse onu — Haiku 10-09: kayıt atılan taslağı anlatıyordu); risk niyeti
@@ -1149,6 +1191,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     semanticClosingOnly({ unanswered: [message], hasPriorReply: qrClosable, understood, reply: finalResult })
   ) {
     const closingRecord = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
+    const closingAudit = await auditFields();
     await recordRiskEvent({
       organizationId: ctx.property.organizationId,
       propertyId: ctx.property.id,
@@ -1160,7 +1203,15 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       riskLevel: result.riskLevel,
       riskType: result.riskType ?? null,
       confidence: result.confidence,
-      ...(await auditFields()),
+      ...closingAudit,
+    });
+    await traceQr({
+      decision: "no_reply",
+      conversationId: closingRecord.conversationId,
+      triggerMessageId: closingRecord.inboundMessageId,
+      gateReason: "closing_ack_semantic",
+      kbEvidenceJson: closingAudit.kbEvidenceJson,
+      sentText: null,
     });
     return finalize({ noReply: true });
   }
@@ -1194,6 +1245,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // etkidir: `recordRiskEvent` ASLA fırlatmaz (kendi try/catch'i var), o yüzden
   // await edilmesi teslimi riske atmaz ve kaydı deterministik kılar (fire-and-forget
   // olsaydı yanıt döndükten sonra yazılır, kurucu konsolunda yarış görünürdü).
+  const finalAudit = await auditFields();
+  const finalReason = emergencyNumber ? "emergency_number" : (verdict.reason ?? "gate_passed");
   await recordRiskEvent({
     organizationId: ctx.property.organizationId,
     propertyId: ctx.property.id,
@@ -1203,9 +1256,17 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     finalDecision: sendEscalate ? "human_review" : "auto_sent",
     riskLevel: result.riskLevel,
     riskType: result.riskType ?? null,
-    reason: emergencyNumber ? "emergency_number" : (verdict.reason ?? "gate_passed"),
+    reason: finalReason,
     confidence: result.confidence,
-    ...(await auditFields()),
+    ...finalAudit,
+  });
+  await traceQr({
+    decision: sendEscalate ? "human_review" : "auto_sent",
+    conversationId,
+    triggerMessageId: inboundMessageId,
+    gateReason: finalReason,
+    kbEvidenceJson: finalAudit.kbEvidenceJson,
+    sentText: sendEscalate ? null : reply,
   });
   if (sendEscalate) {
     // Alarm önceliği: kelime ağının acil durumu YA DA anlama katmanının acil niyeti (kelime ağının kaçırdığı dolaylı

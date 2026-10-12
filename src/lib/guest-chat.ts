@@ -11,6 +11,7 @@ import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { styleProfileBody } from "@/lib/ai/style-profile";
+import { contextDiagnostics, type ContextDiagnostics } from "@/lib/ai/context-diagnostics";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, type GuestPlaceholderValues } from "@/lib/kb-placeholders";
 import {
   foldTurkishLower,
@@ -1037,6 +1038,12 @@ export interface GuestChatContextWindow {
    * Sistem olayı ve boş gövdeli satır CEVAP SAYILMAZ: misafir onları görmez.
    */
   hasPriorOperatorReply: boolean;
+  /**
+   * Bağlam kurucu tanısı (kurucu talimatı bağlam sözleşmesi madde 11; `ai/context-diagnostics.ts`) — taranan satırlar (en fazla
+   * `QR_TOPIC_SCAN_CAP`) üzerinden: dahil kimlikler, tarama içinde pencere dışı kalan, bekleyen; eski hafıza = pencere dışı açık konu notu.
+   * Metin YOK. Yalnız üretim izine yazılır.
+   */
+  diagnostics?: ContextDiagnostics;
 }
 
 /**
@@ -1099,7 +1106,7 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
     prisma.message.findMany({
       where: { conversationId, systemEventType: null, NOT: { body: "" } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { direction: true, body: true, createdAt: true, authorType: true, senderName: true },
+      select: { id: true, direction: true, body: true, createdAt: true, authorType: true, senderName: true },
       take: QR_TOPIC_SCAN_CAP,
     }),
     countPriorOperatorReplies(conversationId),
@@ -1178,7 +1185,16 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
       .filter((t) => t.index < firstWindowIndex && OPEN_TOPIC_INTENTS.has(t.intent))
       .map((t) => t.intent),
   );
-  return { history: window, openTopics: [...open].sort(), hasPriorOperatorReply: priorOperatorReplies > 0 };
+  // Tanı: taranan satırlar = "konuşma"; pencere = taramanın son `window.length` satırı (yukarıdaki döngüyle AYNI sınır).
+  const scanned = chronological.map((r) => ({
+    id: r.id,
+    createdAt: r.createdAt,
+    direction: r.direction === "inbound" ? ("inbound" as const) : ("outbound" as const),
+    body: r.body,
+    author: historyAuthorOf(r),
+  }));
+  const diagnostics = contextDiagnostics(scanned, scanned.slice(scanned.length - window.length), { olderMemoryUsed: open.size > 0 });
+  return { history: window, openTopics: [...open].sort(), hasPriorOperatorReply: priorOperatorReplies > 0, diagnostics };
 }
 
 /**
