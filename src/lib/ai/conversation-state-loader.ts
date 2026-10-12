@@ -14,6 +14,7 @@ import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES } from "@/lib/message-a
 import { conversationPhaseFacts } from "./conversation-phase";
 import { loadConversationPhase } from "@/lib/operator-replies";
 import { reportError } from "@/lib/report-error";
+import { extendThread, readThreadTail } from "@/lib/channel-thread-window";
 
 // ---------------------------------------------------------------------------
 // Konuşma Anlama Durumu v1 dilim B — yükleyici. Bayrak kapalıyken HİÇ sorgu atmaz (istem bayt bayt aynı).
@@ -152,8 +153,6 @@ export async function loadConversationState(input: {
   }
 }
 
-/** Mesajları yüklü olmayan yüzey (QR) için: konuşmanın SON penceresi, `(createdAt, id)` sırasıyla. */
-export const STATE_MESSAGE_WINDOW = 200;
 
 export async function loadConversationStateForConversation(input: {
   organizationId: string;
@@ -170,13 +169,24 @@ export async function loadConversationStateForConversation(input: {
 }): Promise<ConversationStateSummary | undefined> {
   if (!conversationStateEnabled()) return undefined;
   try {
-    const recent = await prisma.message.findMany({
-      where: { conversationId: input.conversationId, conversation: { property: { organizationId: input.organizationId } } },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: STATE_MESSAGE_WINDOW,
-      select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true },
+    // Kiracı kapsamı ÖNCE (başka işletmenin konuşması → boş kesit, bugünkü gibi boş özet). Sonra kanalla aynı sınırlı okuyucu:
+    // eskiden son 200 satır okunup toplamlar ("misafire giden mesaj", "son cevaptan sonra misafirin yazdığı") YALNIZ o pencereden
+    // sayılıyordu (Haiku 10-12) → kesit kayıtların kendi koşuluna kadar genişler, kesit öncesi cevaplar veritabanında sayılır.
+    const owned = await prisma.conversation.findFirst({
+      where: { id: input.conversationId, property: { organizationId: input.organizationId } },
+      select: { id: true },
     });
-    const messages: StateMessage[] = recent.reverse();
+    let thread = owned ? await readThreadTail(input.conversationId) : { rows: [], complete: true };
+    while (!thread.complete && !conversationStateWindowSufficient(thread.rows)) thread = await extendThread(input.conversationId, thread);
+    const messages: StateMessage[] = thread.rows.map((m) => ({
+      id: m.id,
+      direction: m.direction,
+      senderName: m.senderName,
+      authorType: m.authorType,
+      systemEventType: m.systemEventType,
+      body: m.body,
+    }));
+    const priorBefore = thread.complete ? undefined : { row: thread.rows[0], excludedIds: [] as string[] };
     if (input.pendingGuestMessage) {
       messages.push({ id: PENDING_GUEST_MESSAGE_ID, direction: "inbound", senderName: "", body: "" });
     }
@@ -187,6 +197,7 @@ export async function loadConversationStateForConversation(input: {
       conversationId: input.conversationId,
       timeZone: input.timeZone,
       pendingGuestText: input.pendingGuestMessage ? input.pendingGuestText : null,
+      ...(priorBefore ? { priorBefore } : {}),
     });
   } catch {
     return undefined;
