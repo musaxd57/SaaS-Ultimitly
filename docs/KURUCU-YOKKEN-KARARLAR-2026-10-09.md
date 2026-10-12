@@ -244,3 +244,12 @@ Kurucu metni AYNEN: "Bir sorun oluştu. Destek ekibimize bu takip numarasıyla y
 | T2 | Olay günlüğü KVKK dökümünde mi | Dışarıda (gerekçe: kişisel veri taşımıyor; avukat paketiyle karar) | Avukat paketine eklendi |
 
 Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı aynen (canlı yok, deploy olmuyor).
+
+**Kurucu cevapları (10-12 sabah):**
+
+| # | Kurucu | Uygulama |
+|---|---|---|
+| S3 boş kaydet | "Değişiklik yoksa yazma" | Bilgi tabanı kalemi içerik / başlık / kategori / aktiflik değişmeden kaydedilirse veritabanına yazılmaz (tarih ilerlemez; Wi-Fi önerisi kaybolmaz, yapay zekânın okuma sırası değişmez) |
+| T1 saklama | "90 gün yeterli" | Olay günlüğü (ödeme olayları dahil) 90 gün; faturalar `Invoice`ta |
+| Hata metni kapsamı | "Yalnız ödeme ekranında" | Takip numaralı metin + "kopyala" yalnız `/api/billing/*` hatalarında; diğer panel hatalarında eski metin. Numara arka planda (günlük, Sentry, alarm e-postası, yanıt başlığı) her kimlikli istekte durur — ekranda görünmez |
+| 2. dilim | "Evet, yap" | Arka plan işleri (senkron, giden mesaj kuyruğu, otomatik cevap) kendi numarasıyla günlüğe yazar; müşteriye giden değişmez, migration yok |
