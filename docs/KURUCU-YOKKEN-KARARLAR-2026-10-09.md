@@ -266,3 +266,12 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
 | Ö6 | Her uyarıda para etkisi (talimat "Her uyarının bir Money Impact değeri olsun") | ✅ KARAR (kurucu 10-12 öğle): **"Eklemeyin, böyle kalsın"** — para etkisi yalnız takvim çakışmasında (aralık); diğer uyarılara "bilinmiyor" satırı EKLENMEZ. Yeniden önerilmez. |
 | Red | Query Router / Query Transformation | Talimatın kendi metni: "Gelecek AI geliştirmeleri: Bunları şimdi topluca uygulama … V0 sonrasında" — V0 d/e Railway'de bekliyor |
 | Red | QR bekleyen mesaj penceresi | QR her mesajı geldiği anda kapıdan geçirir; taşan şikâyet "açık konu" — test-pinli farklı politika (talimat bunu kabul eder) |
+
+### 10-12 öğleden sonra — uygulananlar ve kurucuya bildirilenler
+
+| # | Konu | Durum |
+|---|---|---|
+| K7-b | Otomatik şablon mesajı kanal getirmesinde ve anlama katmanında "cevap" sayılıyordu (kapı saymıyordu) | ✅ DÜZELTİLDİ — kurucunun 09-30 K7 kararının eksik bağlantısı (yeni karar değil). Örnek: "Otopark var mı?" → otomatik giriş mesajı → "Wifi şifresi nedir?". **Önce:** model iki soruyu görüyor ama bilgi tabanında yalnız Wi-Fi aranıyor (otopark alt sorgusu 0), anlama katmanı otoparkı görmüyor. **Sonra:** iki soru için de arama + anlama. Gizli ikinci hata: şablonun kendi metni de alt sorguya giriyordu (yalnız misafir satırı alınır). Test: `automation-message-pending-wiring.test.ts`. İstemezseniz geri alınır (tek commit). |
+| OpenAI | Hesapta kredi BİTTİ (HTTP 429 `insufficient_quota`, "You have no credits remaining") | ⚠️ #26 RAG ölçümü ~800/929. satırda yedeğe düştü → koşu GEÇERSİZ (ölçer kendisi işaretledi), rapor depoya girmedi. Kredi yüklenince yeniden koşulur. Railway açılmadan ÖNCE kredi şart (otomatik cevap + anlama katmanı aynı anahtar). |
+| Madde 10 | Kanal oto-yanıtı konuşmanın tamamını okuyor | Envanter + plan: `docs/TASARIM-2026-10-12-madde-10-sinirli-okuma.md` (UYGULANMADI — sıcak yol, ayrı ölçülü tur). |
+| Açık soru | Döngü bekçisi "son giden"i yönle buluyor: nezaket cevabı → otomatik şablon → "teşekkürler" dizisinde nezaket yeniden gidebilir | Ölçülmedi, değiştirilmedi — misafire giden metin; karar sizin. |
