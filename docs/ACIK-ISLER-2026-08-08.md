@@ -5,6 +5,14 @@
 > `(app)/layout` `requireAuth`; davranışsal pin `app-layout-auth-gate.test.ts`). AÇIK — 2 (iCal org sırası dönmüyor), 7 / 7h (sır dedektörü; yanlış pozitif ölçümü
 > ister), 12–13, 15 (karışık P3).
 
+> **10-12 gece yeniden tarama (Haiku + kod doğrulaması; yukarıdaki satır SİLİNMEDİ, düzeltmesi burada):** §7f AÇIK — 2FA kapatma
+> `sessionEpoch` artırmıyor, açık oturum `mfa:true` taşımaya devam ediyor (`2fa/route.ts` disable, `admin-core.ts isSuperAdmin`); kimlik
+> akışı → sabah sorusu G5. §1 KAPALI doğrulandı (20 panel sayfası `requireManagerSession`; Haiku "yalnız middleware" dedi, YANLIŞ).
+> §2 KISMEN (org sırası döner; 12 dk bütçe dolunca `sendDueAlerts` o geçişte atlanır). §6 KISMEN (yapay zekâ kapanış nezaketi yanıt
+> sayılıyor). §8 KISMEN (yerel plan Paddle webhook'unu bekler). §11, §12 (dört madde), §14 hareket kısmı, §15 (iptaller dar `select`,
+> rezervasyon iç alanları, ölü `plan` dışa aktarımdan çıktı) bu tur işaretlendi. Açık kalan §15: gelen kutusu listesi tam mesaj
+> include, `leads` genel tavan (G3), `WebhookEvent` budama yok, `/api/calendar/sync` ölü kod, `error.tsx` → `reportError`.
+
 > Bu dosya **Codex'e verilmek üzere** yazıldı. Bu turda **uygulananlar** git log'da
 > (`f0dd8f5`, `0e458e3`, `0a34a9c`, `3da085e`). Aşağıdakiler **bilerek açık bırakıldı**:
 > hepsi kod-doğrulandı, hiçbiri "unutuldu" değil — ya kullanıcı kararı ister, ya ayrı

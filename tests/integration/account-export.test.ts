@@ -162,6 +162,8 @@ describe("GET /api/account/export — complete + secret-free", () => {
     expect(prop.conversations[0].lastRiskType).toBe("complaint");
     expect(prop.conversations[0].messages[0]).toMatchObject({ aiIntent: "wifi", externalId: "ext-9" });
     expect(data.billing.subscription).toMatchObject({ planCode: "pro", providerRef: "sub_123" });
+    // Ölü `Organization.plan` kolonu ("free") dışa aktarılmaz — gerçek plan yukarıda (ACIK-ISLER 08-08 §15).
+    expect(data.organization).not.toHaveProperty("plan");
     expect(data.billing.invoices[0]).toMatchObject({ amountMinor: 89900, status: "paid" });
     expect(data.auditLogs.some((a: { action: string }) => a.action === "data.export_self")).toBe(false); // written AFTER the read — next export shows it
     expect(data.checkoutConsents[0]).toMatchObject({ planCode: "pro", legalVersion: "2026-06", legalTextHash: "hash-abc" });

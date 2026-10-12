@@ -77,7 +77,8 @@ export async function buildOrganizationDataExport(organizationId: string) {
       select: {
         id: true,
         name: true,
-        plan: true,
+        // `plan` BİLEREK yok (ACIK-ISLER 08-08 §15, 10-12 gece): ölü kolon, ürün kodunda yazarı yok → her müşteriye "free" gidiyordu.
+        // Gerçek plan `billing.subscription.planCode`ta.
         timezone: true,
         language: true,
         alertEmail: true,
