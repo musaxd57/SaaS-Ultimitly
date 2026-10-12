@@ -7,6 +7,8 @@ import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { errorWithContext, reportError } from "@/lib/report-error";
+import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
+import { logEvent } from "@/lib/event-log";
 import {
   dispatchOutbound,
   handleOutboundCredentialRejected,
@@ -1310,20 +1312,27 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
   acc.claimed = rows.length;
 
   for (const row of rows) {
-    try {
-      await processOne(row, token, resolved, acc);
-    } catch (err) {
-      // Poison isolation: this row's claim will expire and be recovered later; the
-      // rest of the batch continues.
-      // Satır id'si CONTEXT'e değil MESAJA: `reportError` e-posta throttle'ını
-        // context string'iyle anahtarlıyor, yani her satır ayrı bir kova olur ve
-        // 10 dk'lık koruma kalkar — sistemik bir arızada tek drain 20 ayrı uyarı
-        // e-postası + 20 ayrı Sentry Issue üretir (drain 2 dakikada bir koşar).
-        await reportError(
-          "outbox-row",
-          errorWithContext(err, ` (row ${row.id})`),
-        );
-    }
+    // TAKİP NUMARASI (2. dilim, kurucu kararı 10-12 sabah): her satırın işlenmesi kendi numarasıyla ve satırın işletmesiyle; sonuç
+    // (gönderildi / başarısız / belirsiz…) olay günlüğüne satır kimliğiyle yazılır (metin / kişisel veri YOK).
+    await runWithCorrelation({ id: newCorrelationId(), organizationId: row.organizationId }, async () => {
+      const snapshot = { ...acc };
+      try {
+        await processOne(row, token, resolved, acc);
+      } catch (err) {
+        // Poison isolation: this row's claim will expire and be recovered later; the
+        // rest of the batch continues.
+        // Satır id'si CONTEXT'e değil MESAJA: `reportError` e-posta throttle'ını
+          // context string'iyle anahtarlıyor, yani her satır ayrı bir kova olur ve
+          // 10 dk'lık koruma kalkar — sistemik bir arızada tek drain 20 ayrı uyarı
+          // e-postası + 20 ayrı Sentry Issue üretir (drain 2 dakikada bir koşar).
+          await reportError(
+            "outbox-row",
+            errorWithContext(err, ` (row ${row.id})`),
+          );
+      }
+      const outcome = (Object.keys(acc) as (keyof DrainResult)[]).find((k) => k !== "claimed" && acc[k] > snapshot[k]) ?? "unchanged";
+      await logEvent("job.outbox.row", { status: outcome, outboxId: row.id });
+    });
   }
   // Heal missed delivery side-effects (idempotent; never blocks the drain result).
   try {

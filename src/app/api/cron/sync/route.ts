@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { runScheduledSync } from "@/lib/scheduled-sync";
+import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
+import { logEvent } from "@/lib/event-log";
 
 // ---------------------------------------------------------------------------
 // Scheduled sync + night auto-reply (the engine behind 24/7 operation).
@@ -34,8 +36,25 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
-  const totals = await runScheduledSync();
-  return NextResponse.json(totals);
+  // TAKİP NUMARASI (2. dilim, kurucu kararı 10-12 sabah): her geçiş kendi numarasıyla; geçiş başına TEK özet satırı (2 dakikada bir —
+  // işletme / kuyruk satırları kendi numaralarıyla ayrıca). Fırlatırsa "job.failed" + hata raporu aynı numarayla.
+  return runWithCorrelation({ id: newCorrelationId(), organizationId: null }, async () => {
+    const startedAt = Date.now();
+    try {
+      const totals = await runScheduledSync();
+      await logEvent("job.finished", {
+        job: "scheduled-sync",
+        status: totals.ok ? "ok" : (totals.error ?? "not_ok").slice(0, 64),
+        count: totals.messages,
+        replies: totals.autoReplies,
+        durationMs: Date.now() - startedAt,
+      });
+      return NextResponse.json(totals);
+    } catch (err) {
+      await logEvent("job.failed", { job: "scheduled-sync", durationMs: Date.now() - startedAt });
+      throw err;
+    }
+  });
 }
 
 export async function GET(req: NextRequest) {

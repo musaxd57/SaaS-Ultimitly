@@ -104,6 +104,7 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
     ["kodda TC kimlik numarası", { reason: "12345678901" }],
     ["abonelik alanında sub_ olmayan değer", { subscriptionRef: "Ayse-Yilmaz" }],
     ["olay kimliğinde rakam dizisi", { providerEventId: "evt_05551112233" }],
+    ["olay kimliğinde redaksiyonun yakalamadığı 7 haneli dizi", { providerEventId: "evt_1234567" }],
     ["yöntem alanında serbest metin", { method: "get all" }],
     ["para biriminde uzun kod", { currency: "TRYX" }],
     ["prototip anahtarı", { constructor: "x", __proto__: "y" }],

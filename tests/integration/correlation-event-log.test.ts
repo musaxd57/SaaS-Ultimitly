@@ -75,17 +75,24 @@ beforeAll(async () => {
     const sql = readFileSync(file, "utf8");
     const start = sql.indexOf(first);
     expect(start).toBeGreaterThanOrEqual(0);
-    return sql.slice(start).split(/;\s*\n(?=CREATE )/).map((st) => st.trim().replace(/;\s*$/, ""));
+    // Yorum satırları atılır (deyimler arasında açıklama olabilir), sonra bölünür.
+    return sql
+      .slice(start)
+      .replace(/^--.*$/gm, "")
+      .split(/;\s*\n(?=CREATE )/)
+      .map((st) => st.trim().replace(/;\s*$/, ""));
   };
   const statements = [
     ...statementsOf("prisma/migrations/63_operational_event/migration.sql", 'CREATE FUNCTION "operational_event_append_only"'),
     ...statementsOf("prisma/migrations/64_operational_event_delete_guard/migration.sql", 'CREATE FUNCTION "operational_event_delete_guard"'),
   ];
-  expect(statements.filter((st) => st.startsWith("CREATE TRIGGER"))).toHaveLength(2); // güncelleme + silme
+  expect(statements.filter((st) => st.startsWith("CREATE TRIGGER"))).toHaveLength(3); // güncelleme + silme + TRUNCATE
   await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS "OperationalEvent_append_only" ON "OperationalEvent"');
   await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS "OperationalEvent_delete_guard" ON "OperationalEvent"');
   await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "operational_event_append_only"()');
   await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "operational_event_delete_guard"()');
+  await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS "OperationalEvent_truncate_guard" ON "OperationalEvent"');
+  await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "operational_event_truncate_guard"()');
   for (const st of statements) await prisma.$executeRawUnsafe(st);
 });
 
@@ -255,7 +262,19 @@ describe("bütünlük — yalnız ekle, kademeli silme, tavan, saklama", () => {
     await logEvent("billing.consent.created", {}, { organizationId: o.orgId });
     await logEvent("error.reported", { context: "x" }, { organizationId: null });
     await expect(prisma.operationalEvent.deleteMany({})).rejects.toThrow(/deleted only by retention/);
+    await expect(prisma.$executeRawUnsafe('TRUNCATE "OperationalEvent"')).rejects.toThrow(/cannot be truncated/);
     expect(await prisma.operationalEvent.count()).toBe(2);
+  });
+
+  it("bellek tavanı: anahtar tablosu dolunca tavanlar SIFIRLANMAZ (dolu işletme dolu kalır), yeni anahtar reddedilir", async () => {
+    const a = await ownerOf("A");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (let i = 0; i < 125; i++) await logEvent("error.reported", { context: `c${i % 40}` }, { organizationId: a.orgId });
+    expect(await prisma.operationalEvent.count({ where: { organizationId: a.orgId } })).toBe(120);
+    // 5.000 farklı bağlam anahtarı (sistem) → tablo dolar; A'nın penceresi hâlâ geçerli → A yine 120'de kalır.
+    for (let i = 0; i < 5_000; i++) await logEvent("error.reported", { context: `k${i}` }, { organizationId: null }).catch(() => {});
+    await logEvent("error.reported", { context: "c1" }, { organizationId: a.orgId });
+    expect(await prisma.operationalEvent.count({ where: { organizationId: a.orgId } })).toBe(120);
   });
 
   it("işletme silinince satırları gider; işletmesiz (sistem) satır kalır", async () => {

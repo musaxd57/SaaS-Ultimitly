@@ -16,3 +16,14 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER "OperationalEvent_delete_guard" BEFORE DELETE ON "OperationalEvent"
   FOR EACH ROW EXECUTE FUNCTION "operational_event_delete_guard"();
+
+-- TRUNCATE satır tetikleyicisini atlar → ayrı deyim tetikleyicisiyle reddedilir (uygulamada TRUNCATE yolu yok; Haiku 2. tur). Bilinçli
+-- bakım gerekirse veritabanı sahibi tetikleyiciyi açıkça kapatır (iz bırakan, elle yapılan işlem).
+CREATE FUNCTION "operational_event_truncate_guard"() RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'OperationalEvent cannot be truncated';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "OperationalEvent_truncate_guard" BEFORE TRUNCATE ON "OperationalEvent"
+  FOR EACH STATEMENT EXECUTE FUNCTION "operational_event_truncate_guard"();

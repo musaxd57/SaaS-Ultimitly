@@ -31,6 +31,12 @@ export const OPERATIONAL_EVENTS = {
   "billing.invoice.recorded": "info",
   "billing.paddle.request": "info",
   "billing.paddle.request_failed": "warn",
+  // 2. dilim (kurucu 10-12 sabah): arka plan işleri. Gürültü sınırı: senkron geçiş başına tek "bitti"; işletme satırı yalnız iş yapıldıysa;
+  // giden kuyruk satır başına (yalnız kuyruk açıkken satır olur).
+  "job.finished": "info",
+  "job.failed": "error",
+  "job.org.processed": "info",
+  "job.outbox.row": "info",
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 
@@ -58,6 +64,10 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
   httpStatus: "number",
   amountMinor: "number",
   count: "number",
+  job: CODE,
+  durationMs: "number",
+  replies: "number",
+  outboxId: /^c[a-z0-9]{7,40}$/,
 };
 const LONG_DIGITS = /\d{7,}/;
 const MAX_DATA_CHARS = 2_000;
@@ -89,7 +99,14 @@ export function sanitizeEventData(data: Record<string, unknown> | undefined): Re
 // izini boğamaz (Haiku güvenlik incelemesi 10-12: anonim 500'ler sistem kovasını doldurunca "bağlanamayan ödeme" satırı iz bırakmadan
 // düşüyordu). Aynı bağlamdan gelen hata dakikada en fazla 5 satır (tablo şişmesin). Düşen satır sayılır ve dakikada bir konsola yazılır.
 const WINDOW_MS = 60_000;
-const CAPS = { orgBilling: 300, orgOther: 120, systemBilling: 1_200, systemOther: 120, errorPerContext: 5 } as const;
+// Sınıflar: ödeme · arka plan işi · diğer (hata) — biri ötekinin bütçesini tüketemez (Haiku güvenlik incelemesi 10-12, 2. tur: kuyruk
+// satırları hata bütçesini yiyebiliyordu).
+const CAPS = {
+  org: { billing: 300, job: 300, other: 120 },
+  system: { billing: 1_200, job: 300, other: 120 },
+  errorPerContext: 5,
+} as const;
+const MAX_WINDOWS = 5_000;
 const windows = new Map<string, { start: number; count: number }>();
 let dropped = 0;
 let droppedSince = 0;
@@ -97,7 +114,12 @@ let droppedSince = 0;
 function take(key: string, cap: number, now: number): boolean {
   const w = windows.get(key);
   if (!w || now - w.start >= WINDOW_MS) {
-    if (windows.size > 5_000) windows.clear(); // bellek tavanı
+    if (!w && windows.size >= MAX_WINDOWS) {
+      // Bellek tavanı: yalnız SÜRESİ DOLMUŞ pencereler atılır; tablo yine doluysa YENİ anahtar reddedilir. Tavanları sıfırlamak (eski
+      // `clear()`) bir seli kendi tavanını silmeye çeviriyordu (Haiku 2. tur).
+      for (const [k, v] of windows) if (now - v.start >= WINDOW_MS) windows.delete(k);
+      if (windows.size >= MAX_WINDOWS) return false;
+    }
     windows.set(key, { start: now, count: 1 });
     return true;
   }
@@ -107,12 +129,12 @@ function take(key: string, cap: number, now: number): boolean {
 }
 
 function underCap(event: OperationalEventName, organizationId: string | null, context: unknown, now: number): boolean {
-  const billing = event.startsWith("billing.");
+  const kind = event.startsWith("billing.") ? "billing" : event.startsWith("job.") ? "job" : "other";
   const owner = organizationId ?? "__system";
-  const cap = organizationId ? (billing ? CAPS.orgBilling : CAPS.orgOther) : billing ? CAPS.systemBilling : CAPS.systemOther;
+  const cap = (organizationId ? CAPS.org : CAPS.system)[kind];
   const ok =
     (event !== "error.reported" || take(`ctx:${owner}:${String(context)}`, CAPS.errorPerContext, now)) &&
-    take(`${owner}:${billing ? "billing" : "other"}`, cap, now);
+    take(`${owner}:${kind}`, cap, now);
   if (!ok) {
     dropped++;
     if (now - droppedSince >= WINDOW_MS) {
@@ -131,8 +153,8 @@ export function __resetEventLogLimits(): void {
   droppedSince = 0;
 }
 
-/** Günlük yazımı ödeme / istek yolunu bekletmez: veritabanı takılırsa en fazla bu kadar beklenir (yazım arka planda sürer). */
-const WRITE_TIMEOUT_MS = 1_500;
+/** Veritabanı takılırsa günlük yazımı işi (ödeme webhook'u dahil) en fazla bu kadar BEKLETİR; yazım arka planda sürer, düşerse loglanır. */
+const WRITE_TIMEOUT_MS = 500;
 
 /**
  * Olay yaz (asla fırlatmaz). Takip numarası: verilen > süren işlemin numarası > yeni numara. İşletme: verilen > süren işlemin işletmesi.
@@ -153,7 +175,8 @@ export async function logEvent(
     const clean = sanitizeEventData(data as Record<string, unknown> | undefined);
     const dataJson = clean ? JSON.stringify(clean).slice(0, MAX_DATA_CHARS) : null;
     const write = prisma.operationalEvent.create({ data: { correlationId, organizationId, event, level, dataJson } });
-    write.catch(() => {}); // zaman aşımından sonra düşen yazım işlenmemiş ret olmasın
+    // Zaman aşımından SONRA düşen yazım işlenmemiş ret olmasın ve SESSİZ kalmasın (gösterilen numaranın satırı olmayabilir).
+    write.catch((err) => console.warn(`[event-log] ${event} geç yazım düştü: ${formatErrorForLog(err, 200)}`));
     await Promise.race([write, new Promise<void>((resolve) => setTimeout(resolve, WRITE_TIMEOUT_MS).unref?.())]);
   } catch (err) {
     // Günlük yazılamadı (ör. işletme az önce silindi → yabancı anahtar). İsteği bozmaz; yalnız konsol (döngü olmasın diye reportError YOK).

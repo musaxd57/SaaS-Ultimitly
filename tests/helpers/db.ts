@@ -4,9 +4,12 @@ export { prisma };
 
 /** Wipe every table in FK-safe order. Call in beforeEach for test isolation. */
 export async function resetDb(): Promise<void> {
-  // migration 63: işletmesiz (sistem) satırlar kademeyle gitmez → açıkça temizlenir. TRUNCATE: tablonun silme koruma tetikleyicisi
-  // (yalnız saklama / işletme silinmesi) satır tetikleyicisidir, TRUNCATE'te çalışmaz — test temizliği engellenmez.
+  // migration 63/64: işletmesiz (sistem) satırlar kademeyle gitmez → açıkça temizlenir. Tablo yalnız-ekle (güncelleme / taze satır silme /
+  // TRUNCATE tetikleyicilerle reddedilir; test kümesinde tetikleyiciler yalnız kuran test dosyası koştuysa vardır) → temizlik sırasında
+  // kullanıcı tetikleyicileri kapatılıp açılır (test veritabanı sahibi; üretimde böyle bir yol yok).
+  await prisma.$executeRawUnsafe('ALTER TABLE "OperationalEvent" DISABLE TRIGGER USER');
   await prisma.$executeRawUnsafe('TRUNCATE "OperationalEvent"');
+  await prisma.$executeRawUnsafe('ALTER TABLE "OperationalEvent" ENABLE TRIGGER USER');
   await prisma.signal.deleteMany(); // V1 (FK → Property/Reservation/Conversation)
   await prisma.propertyMemory.deleteMany(); // V1
   await prisma.taskUpdate.deleteMany();

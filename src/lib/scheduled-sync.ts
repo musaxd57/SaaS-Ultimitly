@@ -33,7 +33,8 @@ import {
   refreshStyleProfile,
 } from "@/lib/automation";
 import { purgeAutomatedSends } from "@/lib/automated-sends";
-import { pruneOperationalEvents } from "@/lib/event-log";
+import { logEvent, pruneOperationalEvents } from "@/lib/event-log";
+import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { backfillTrialIdentitiesOnce, sweepTrialIdentities } from "@/lib/billing/trial-identity";
 
 // ---------------------------------------------------------------------------
@@ -496,219 +497,229 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           lockLost = true;
           break;
         }
-        const orgStartedAt = Date.now();
-        // Alarm durumu AŞAMA başınadır (senkron düzelirken otomasyon hâlâ düşüyor olabilir;
-        // tek anahtar olsaydı birinin başarısı ötekinin alarmını silerdi). E-posta konusu
-        // dört aşamada da AYNI kalır.
-        const orgKey = (stage: string) => `org:${org.id}:${stage}`;
-        // Bir org'un hatası diğerlerini durdurmaz. AYNI gövde dört try'da da
-        // kullanılıyor (senkron, uyarı, otomasyon, takvim), o yüzden tek yerde duruyor.
-        const handleOrgError = async (stage: string, err: unknown) => {
-          // A Hospitable 402 ("Subscription not active") means THIS org's Hospitable
-          // billing lapsed — an expected external state, not a Lixus bug — so log it
-          // but DON'T alert-email every cycle, which would flood the inbox until they renew.
-          // 🚨 09-23 OLAYI: bu kontrol `err instanceof HospitableError` idi. V0.6 okumayı
-          // ingest adaptörüne taşıdı ve adaptör hatayı `IngestError`a SARIYOR → dal
-          // 09-08'den beri ÖLÜYDÜ, kurucuya her geçişte "sistem hatası" e-postası gitti.
-          // Okuma artık sarmaldan bağımsız TEK yerden (`provider-errors`, sınıf pinli).
-          // Bilinen bir dış durumdur, alarm hâli DEĞİL → aşamanın alarm durumu da temizlenir
-          // (abonelik yenilendikten sonra gelen gerçek bir kesinti yeniden bildirilsin).
-          if (isChannelSubscriptionInactive(err)) {
-            console.warn(`[scheduled-sync] org ${org.id}: Hospitable subscription not active (skipped)`);
-            await opsAlarm.ok(orgKey(stage));
-          } else {
-            await opsAlarm.fail(orgKey(stage), `scheduled-sync org ${org.id}`, err);
-          }
-        };
+        // TAKİP NUMARASI (2. dilim, kurucu kararı 10-12 sabah): her işletmenin işlenmesi kendi numarasıyla — içindeki hata raporu /
+        // alarm / olay satırı işletmeye bağlı ve operatör ekranından aranabilir. İş yapıldıysa (mesaj / otomatik cevap) tek özet satırı.
+        const before = { messages: totals.messages, autoReplies: totals.autoReplies };
+        await runWithCorrelation({ id: newCorrelationId(), organizationId: org.id }, async () => {
+          const orgStartedAt = Date.now();
+          // Alarm durumu AŞAMA başınadır (senkron düzelirken otomasyon hâlâ düşüyor olabilir;
+          // tek anahtar olsaydı birinin başarısı ötekinin alarmını silerdi). E-posta konusu
+          // dört aşamada da AYNI kalır.
+          const orgKey = (stage: string) => `org:${org.id}:${stage}`;
+          // Bir org'un hatası diğerlerini durdurmaz. AYNI gövde dört try'da da
+          // kullanılıyor (senkron, uyarı, otomasyon, takvim), o yüzden tek yerde duruyor.
+          const handleOrgError = async (stage: string, err: unknown) => {
+            // A Hospitable 402 ("Subscription not active") means THIS org's Hospitable
+            // billing lapsed — an expected external state, not a Lixus bug — so log it
+            // but DON'T alert-email every cycle, which would flood the inbox until they renew.
+            // 🚨 09-23 OLAYI: bu kontrol `err instanceof HospitableError` idi. V0.6 okumayı
+            // ingest adaptörüne taşıdı ve adaptör hatayı `IngestError`a SARIYOR → dal
+            // 09-08'den beri ÖLÜYDÜ, kurucuya her geçişte "sistem hatası" e-postası gitti.
+            // Okuma artık sarmaldan bağımsız TEK yerden (`provider-errors`, sınıf pinli).
+            // Bilinen bir dış durumdur, alarm hâli DEĞİL → aşamanın alarm durumu da temizlenir
+            // (abonelik yenilendikten sonra gelen gerçek bir kesinti yeniden bildirilsin).
+            if (isChannelSubscriptionInactive(err)) {
+              console.warn(`[scheduled-sync] org ${org.id}: Hospitable subscription not active (skipped)`);
+              await opsAlarm.ok(orgKey(stage));
+            } else {
+              await opsAlarm.fail(orgKey(stage), `scheduled-sync org ${org.id}`, err);
+            }
+          };
 
-        let syncOk = false;
-        try {
-          const result = await syncHospitable(org.id, window);
-          // Sayaçlar İMPORT'un hemen ardında. Eskiden bütçe dalı bunları atlıyordu:
-          // satırlar DB'ye YAZILMIŞ ama koşu raporu 0 diyordu — kendi loglarımıza
-          // güvenilmez hâle geliyordu.
-          totals.conversations += result.conversations;
-          totals.messages += result.messages;
-
-          // A SUCCESSFUL sync PROVES this org's Hospitable subscription is active again (a 402
-          // "subscription not active" throws above — wrapped by the ingest adapter as an
-          // `IngestError` of kind `blocked` — skipping this line). So
-          // atomically requeue any outbox rows parked as `blocked` (subscription-not-active) →
-          // `pending`, to be retried exactly ONCE by the drain at the end of this run. Tenant-
-          // scoped + idempotent; a no-op when nothing is blocked. Best-effort — never aborts
-          // (kendi try'ı: hatası senkronu "başarısız" SAYDIRMAZ).
+          let syncOk = false;
           try {
-            await reactivateBlockedOutbox(org.id);
-            await opsAlarm.ok(orgKey("reactivate-blocked"));
-          } catch (err) {
-            await opsAlarm.fail(orgKey("reactivate-blocked"), `scheduled-sync reactivate-blocked ${org.id}`, err);
-          }
-          syncOk = true;
-          await opsAlarm.ok(orgKey("sync"));
-        } catch (err) {
-          await handleOrgError("sync", err);
-        }
+            const result = await syncHospitable(org.id, window);
+            // Sayaçlar İMPORT'un hemen ardında. Eskiden bütçe dalı bunları atlıyordu:
+            // satırlar DB'ye YAZILMIŞ ama koşu raporu 0 diyordu — kendi loglarımıza
+            // güvenilmez hâle geliyordu.
+            totals.conversations += result.conversations;
+            totals.messages += result.messages;
 
-        // ŞİKAYET UYARISI SÜRE BÜTÇESİNDEN MUAF (denetim düzeltmesi).
-        // Bu geçiş şikayeti "Sorunlu" işaretleyip host'a acil e-posta atan yol;
-        // ürünün "riskli mesaj insana gider" sözünün taşıyıcısı. Eskiden bütçe
-        // dalının ARKASINDA kalıyordu, yani senkronu sürekli 4 dakikayı aşan
-        // bir org'un şikayet uyarıları SÜRESİZ susabiliyordu (gecikme değil,
-        // sessiz kayıp).
-        //
-        // ⚠️ MUAFİYET SENKRONUN TRY'INDAN DA ÇIKARILDI (denetim, 08-01). Muafiyet
-        // BÜTÇEYE karşı sağlanmıştı ama İSTİSNAYA karşı sağlanmamıştı: çağrı
-        // `syncHospitable`'ın try'ı içinde ve ONDAN SONRA duruyordu, yani
-        // Hospitable fırlattığı anda (402 abonelik pasif — kurucu org'un BUGÜNKÜ hâli;
-        // ya da 401/403/5xx) `sendDueAlerts` o org için HİÇ koşmuyordu. Bu geçiş
-        // hiçbir Hospitable API'sine dokunmuyor (yalnız DB + e-posta), yani
-        // senkronun başarısına bağlı olmasının teknik bir gerekçesi yoktu.
-        // ⚠️ SIRA KORUNDU: uyarı geçişi otomasyondan ÖNCE koşar — şikayeti
-        // "Sorunlu" işaretlemesi oto-yanıtın ikinci savunmasıdır.
-        //
-        // ⚠️ MUAFİYETİN BEDELİ (ilk yorum bunu YANLIŞ anlatıyordu: "dış API
-        // yok" demiştim — e-posta sağlayıcısı da bir dış API'dir): bu geçiş 50
-        // adaya kadar SERİ `sendReporting` yapabilir, her biri 15 sn timeout'a
-        // kadar. Sağlayıcı asılı kalırsa tek org 12 dakika yer ve 15 dk'lık
-        // kilit TTL'i tehlikeye girer. Bu yüzden muafiyet SINIRSIZ değil:
-        // `sendDueAlerts` kendi wall-clock bütçesini taşır (↓ALERT_BUDGET_MS)
-        // ve dolduğunda kalanları bir sonraki geçişe bırakır.
-        try {
-          const alert = await sendDueAlerts(org.id);
-          totals.alerts += alert.alerted;
-          await opsAlarm.ok(orgKey("complaint-alerts"));
-        } catch (err) {
-          await handleOrgError("complaint-alerts", err);
-        }
-
-        // Bütçe kararı BİR KEZ (üslup yenilemesi ve otomasyon aynı kararı kullanır — yenilemenin model çağrısı
-        // otomasyonu bütçe dışına itemez; eski sıra "bütçe → üslup → otomasyon" idi).
-        const withinOrgBudget = Date.now() - orgStartedAt <= ORG_BUDGET_MS;
-
-        // Üslup profili (F13, 09-26): Hospitable'a DOKUNMAZ (yalnız DB + model) → senkronun başarısına BAĞLI DEĞİL
-        // (şikâyet uyarılarıyla aynı gerekçe). Eskiden `syncOk` bloğundaydı: senkronu düşen org'un (kurucu org — 402)
-        // eski, olgu taşıyabilen profili hiç yenilenmez, üslup rehberi kalıcı olarak kaybolurdu. Kendi try'ı: hatası
-        // otomasyonu durdurmaz (eskiden otomasyonun try'ındaydı). Kendini günde bire kısar.
-        if (withinOrgBudget) {
-          try {
-            await refreshStyleProfile(org.id);
-            await opsAlarm.ok(orgKey("style-profile"));
-          } catch (err) {
-            await handleOrgError("style-profile", err);
-          }
-        }
-
-        // Senkron patladıysa otomasyon koşmaz (eski davranış birebir): mesajlar
-        // içeri alınamamışken oto-yanıt/karşılama göndermenin anlamı yok.
-        // ⚠️ `continue` YERİNE İÇ BLOK (08-08): koşullar ve sıra BİREBİR aynı
-        // kaldı — tek sebep, aşağıdaki iCal bacağının bu iki erken çıkışın
-        // ARKASINDA kalmaması. `continue` bırakılsaydı Hospitable'ı 402 olan bir
-        // host (kurucu org'un BUGÜNKÜ hâli) takvim beslemelerini de HİÇ senkronlayamaz,
-        // yani düzeltmenin en çok ihtiyaç duyulan vakada etkisi olmazdı.
-        if (syncOk) {
-          if (!withinOrgBudget) {
-            // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
-            // gitti; GERİYE KALAN otomatik MİSAFİR mesajlarını sonraki tura bırak
-            // ki sıradakiler aç kalmasın. Sonraki geçiş 2 dakika sonra.
-            budgetSkipped += 1;
-          } else {
+            // A SUCCESSFUL sync PROVES this org's Hospitable subscription is active again (a 402
+            // "subscription not active" throws above — wrapped by the ingest adapter as an
+            // `IngestError` of kind `blocked` — skipping this line). So
+            // atomically requeue any outbox rows parked as `blocked` (subscription-not-active) →
+            // `pending`, to be retried exactly ONCE by the drain at the end of this run. Tenant-
+            // scoped + idempotent; a no-op when nothing is blocked. Best-effort — never aborts
+            // (kendi try'ı: hatası senkronu "başarısız" SAYDIRMAZ).
             try {
-              // Free/expired tier (billing enforced + subscription not active): keep
-              // syncing messages and host complaint-alerts, but SUPPRESS all
-              // automatic guest messaging — the paid feature. Dormant-safe: while
-              // BILLING_ENFORCED is off, premiumAllowed is always true.
-              const canAutomate = await premiumAllowed(org.id);
-              // Temizlik "bitti" işareti oturduysa, YALNIZ hazırlık yüzünden tutulmuş erken giriş isteklerini bir
-              // kez yeniden aday yap (`lib/early-checkin/recheck.ts`; karar vermez, göndermez — oto-yanıt geçişi
-              // tüm hattı baştan koşar). Kendi aşaması: düşerse oto-yanıtı BLOKLAMAZ.
-              if (canAutomate) {
-                try {
-                  await recheckEarlyCheckinsAfterCleaning(org.id, new Date());
-                  await opsAlarm.ok(orgKey("early-checkin-recheck"));
-                } catch (err) {
-                  await handleOrgError("early-checkin-recheck", err);
-                }
-              }
-              const auto = canAutomate ? await runDueChannelAutoReplies(org.id) : { sent: 0 };
-              const welcome = canAutomate ? await sendDueWelcomes(org.id) : { sent: 0 };
-              const checkin = canAutomate ? await sendDueCheckins(org.id) : { sent: 0 };
-              const checkout = canAutomate ? await sendDueCheckouts(org.id) : { sent: 0 };
-              totals.autoReplies += auto.sent;
-              totals.welcomes += welcome.sent;
-              totals.checkins += checkin.sent;
-              totals.checkouts += checkout.sent;
-              await opsAlarm.ok(orgKey("automation"));
+              await reactivateBlockedOutbox(org.id);
+              await opsAlarm.ok(orgKey("reactivate-blocked"));
             } catch (err) {
-              await handleOrgError("automation", err);
+              await opsAlarm.fail(orgKey("reactivate-blocked"), `scheduled-sync reactivate-blocked ${org.id}`, err);
+            }
+            syncOk = true;
+            await opsAlarm.ok(orgKey("sync"));
+          } catch (err) {
+            await handleOrgError("sync", err);
+          }
+
+          // ŞİKAYET UYARISI SÜRE BÜTÇESİNDEN MUAF (denetim düzeltmesi).
+          // Bu geçiş şikayeti "Sorunlu" işaretleyip host'a acil e-posta atan yol;
+          // ürünün "riskli mesaj insana gider" sözünün taşıyıcısı. Eskiden bütçe
+          // dalının ARKASINDA kalıyordu, yani senkronu sürekli 4 dakikayı aşan
+          // bir org'un şikayet uyarıları SÜRESİZ susabiliyordu (gecikme değil,
+          // sessiz kayıp).
+          //
+          // ⚠️ MUAFİYET SENKRONUN TRY'INDAN DA ÇIKARILDI (denetim, 08-01). Muafiyet
+          // BÜTÇEYE karşı sağlanmıştı ama İSTİSNAYA karşı sağlanmamıştı: çağrı
+          // `syncHospitable`'ın try'ı içinde ve ONDAN SONRA duruyordu, yani
+          // Hospitable fırlattığı anda (402 abonelik pasif — kurucu org'un BUGÜNKÜ hâli;
+          // ya da 401/403/5xx) `sendDueAlerts` o org için HİÇ koşmuyordu. Bu geçiş
+          // hiçbir Hospitable API'sine dokunmuyor (yalnız DB + e-posta), yani
+          // senkronun başarısına bağlı olmasının teknik bir gerekçesi yoktu.
+          // ⚠️ SIRA KORUNDU: uyarı geçişi otomasyondan ÖNCE koşar — şikayeti
+          // "Sorunlu" işaretlemesi oto-yanıtın ikinci savunmasıdır.
+          //
+          // ⚠️ MUAFİYETİN BEDELİ (ilk yorum bunu YANLIŞ anlatıyordu: "dış API
+          // yok" demiştim — e-posta sağlayıcısı da bir dış API'dir): bu geçiş 50
+          // adaya kadar SERİ `sendReporting` yapabilir, her biri 15 sn timeout'a
+          // kadar. Sağlayıcı asılı kalırsa tek org 12 dakika yer ve 15 dk'lık
+          // kilit TTL'i tehlikeye girer. Bu yüzden muafiyet SINIRSIZ değil:
+          // `sendDueAlerts` kendi wall-clock bütçesini taşır (↓ALERT_BUDGET_MS)
+          // ve dolduğunda kalanları bir sonraki geçişe bırakır.
+          try {
+            const alert = await sendDueAlerts(org.id);
+            totals.alerts += alert.alerted;
+            await opsAlarm.ok(orgKey("complaint-alerts"));
+          } catch (err) {
+            await handleOrgError("complaint-alerts", err);
+          }
+
+          // Bütçe kararı BİR KEZ (üslup yenilemesi ve otomasyon aynı kararı kullanır — yenilemenin model çağrısı
+          // otomasyonu bütçe dışına itemez; eski sıra "bütçe → üslup → otomasyon" idi).
+          const withinOrgBudget = Date.now() - orgStartedAt <= ORG_BUDGET_MS;
+
+          // Üslup profili (F13, 09-26): Hospitable'a DOKUNMAZ (yalnız DB + model) → senkronun başarısına BAĞLI DEĞİL
+          // (şikâyet uyarılarıyla aynı gerekçe). Eskiden `syncOk` bloğundaydı: senkronu düşen org'un (kurucu org — 402)
+          // eski, olgu taşıyabilen profili hiç yenilenmez, üslup rehberi kalıcı olarak kaybolurdu. Kendi try'ı: hatası
+          // otomasyonu durdurmaz (eskiden otomasyonun try'ındaydı). Kendini günde bire kısar.
+          if (withinOrgBudget) {
+            try {
+              await refreshStyleProfile(org.id);
+              await opsAlarm.ok(orgKey("style-profile"));
+            } catch (err) {
+              await handleOrgError("style-profile", err);
             }
           }
-        }
 
-        // ── iCal (Kanal Takvimleri) — 08-08'de eklendi ───────────────────────
-        // 🚨 KAPATILAN AÇIK: bu bacak YOKTU. `runScheduledSync` bu modülden
-        // hiçbir şey import etmiyordu; iCal'in TEK yolu kullanıcının "Senkronla"
-        // düğmesiydi. Host Airbnb bağlantısını ekliyor, bir kez tıklıyor ve
-        // besleme orada donuyordu (ertesi günkü rezervasyon panelde yok →
-        // temizlik görevi yok, doluluk yanlış, çifte rezervasyon riski).
-        //
-        // ⚠️ EN SONDA, BİLİNÇLİ. Aynı org içinde mesaj importunun, şikayet
-        // uyarısının ve oto-yanıtın ARKASINDA hiçbir feed beklemesi olmasın:
-        // asılı bir besleme bu org için HİÇBİR ŞEYİ geciktirmez, yalnız SIRADAKİ
-        // org'lara sarkabilir — ve tam olarak onun için bütçe var.
-        // ⚠️ `syncOk`'a BAĞLI DEĞİL (`sendDueAlerts` ile aynı gerekçe): iCal tek
-        // bir Hospitable API'sine dokunmuyor; Hospitable'ı 402/401 olan ya da
-        // Hospitable'ı HİÇ OLMAYAN bir host'un takvimleri senkronlanmaya devam
-        // etmeli. iCal-only kiracı zaten `syncHospitable`'dan token'sız erken
-        // döndüğü için syncOk=true olur; 402 olan kiracı için ise bu satır
-        // düzeltmenin TAMAMIDIR.
-        // ⚠️ PREMIUM KAPISI YOK — bilinçli: ücretsiz sürümde de veri senkronu
-        // (mesaj importu + uyarılar) sürüyor; kapatılan tek şey otomatik MİSAFİR
-        // mesajlaşmasıdır ve iCal importu o sınıfa girmez.
-        // ⚠️ `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` BURADAN AÇILMAZ: bu bacak
-        // yalnızca `syncCalendarSource`'u çağırır, o da bayrağı KENDİ okur
-        // (default KAPALI). Zamanlama uzlaştırmayı AÇMAZ.
-        if (icalLegEnabled && icalSpentMs < ICAL_PASS_BUDGET_MS) {
-          const icalStartedAt = Date.now();
-          try {
-            const ical = await syncDueCalendarSourcesForOrg(org.id, {
-              deadline: Math.min(
-                icalStartedAt + ICAL_ORG_BUDGET_MS,
-                icalStartedAt + (ICAL_PASS_BUDGET_MS - icalSpentMs),
-                passStartedAt + PASS_BUDGET_MS,
-              ),
-            });
-            icalSources += ical.synced;
-            icalImported += ical.imported;
-            icalUpdated += ical.updated;
-            icalFailed += ical.failed;
-            icalDeferred += ical.deferred;
-            await opsAlarm.ok(orgKey("ical"));
-          } catch (err) {
-            // `syncDueCalendarSourcesForOrg` sözleşme gereği fırlatmaz; yine de
-            // bir org'un takvimi diğerlerinin geçişini düşüremez.
-            await handleOrgError("ical", err);
+          // Senkron patladıysa otomasyon koşmaz (eski davranış birebir): mesajlar
+          // içeri alınamamışken oto-yanıt/karşılama göndermenin anlamı yok.
+          // ⚠️ `continue` YERİNE İÇ BLOK (08-08): koşullar ve sıra BİREBİR aynı
+          // kaldı — tek sebep, aşağıdaki iCal bacağının bu iki erken çıkışın
+          // ARKASINDA kalmaması. `continue` bırakılsaydı Hospitable'ı 402 olan bir
+          // host (kurucu org'un BUGÜNKÜ hâli) takvim beslemelerini de HİÇ senkronlayamaz,
+          // yani düzeltmenin en çok ihtiyaç duyulan vakada etkisi olmazdı.
+          if (syncOk) {
+            if (!withinOrgBudget) {
+              // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
+              // gitti; GERİYE KALAN otomatik MİSAFİR mesajlarını sonraki tura bırak
+              // ki sıradakiler aç kalmasın. Sonraki geçiş 2 dakika sonra.
+              budgetSkipped += 1;
+            } else {
+              try {
+                // Free/expired tier (billing enforced + subscription not active): keep
+                // syncing messages and host complaint-alerts, but SUPPRESS all
+                // automatic guest messaging — the paid feature. Dormant-safe: while
+                // BILLING_ENFORCED is off, premiumAllowed is always true.
+                const canAutomate = await premiumAllowed(org.id);
+                // Temizlik "bitti" işareti oturduysa, YALNIZ hazırlık yüzünden tutulmuş erken giriş isteklerini bir
+                // kez yeniden aday yap (`lib/early-checkin/recheck.ts`; karar vermez, göndermez — oto-yanıt geçişi
+                // tüm hattı baştan koşar). Kendi aşaması: düşerse oto-yanıtı BLOKLAMAZ.
+                if (canAutomate) {
+                  try {
+                    await recheckEarlyCheckinsAfterCleaning(org.id, new Date());
+                    await opsAlarm.ok(orgKey("early-checkin-recheck"));
+                  } catch (err) {
+                    await handleOrgError("early-checkin-recheck", err);
+                  }
+                }
+                const auto = canAutomate ? await runDueChannelAutoReplies(org.id) : { sent: 0 };
+                const welcome = canAutomate ? await sendDueWelcomes(org.id) : { sent: 0 };
+                const checkin = canAutomate ? await sendDueCheckins(org.id) : { sent: 0 };
+                const checkout = canAutomate ? await sendDueCheckouts(org.id) : { sent: 0 };
+                totals.autoReplies += auto.sent;
+                totals.welcomes += welcome.sent;
+                totals.checkins += checkin.sent;
+                totals.checkouts += checkout.sent;
+                await opsAlarm.ok(orgKey("automation"));
+              } catch (err) {
+                await handleOrgError("automation", err);
+              }
+            }
           }
-          icalSpentMs += Date.now() - icalStartedAt;
-        } else {
-          // Havuz bitti → bu org'un takvim bacağına bu geçişte HİÇ sıra gelmedi.
-          // ⚠️ BU SAYI BİR ÜST SINIRDIR, "kaç besleme kaldı" DEĞİL: havuz
-          // bittiğinde tek bir sorgu bile atmıyoruz (bütçenin amacı tam da bu),
-          // dolayısıyla bu org'un HİÇ beslemesi olmasa da sayılır. Kesin sayı
-          // istenirse org başına bir `count` gerekir — yani sistemin zaten
-          // bütçeyi aştığı anda N sorgu daha; bilinçli olarak YAPILMADI.
-          icalOrgsDeferred += 1;
-        }
 
-        // V1 INTELLIGENCE — KB hafızası + event tüketimi + örüntü; org'un TÜM giriş yollarından
-        // (Hospitable senkronu VE iCal bacağı) SONRA: bu geçişte yazılan besleme event'leri aynı
-        // geçişte tüketilir. AYRI ve KORUMALI: hatası raporlanır, PMS akışını (senkron/oto-yanıt/
-        // karşılama/takvim) asla bloklamaz. Hospitable'ı olmayan org da buraya gelir (busy = mülkü var).
-        try {
-          await runIntelligencePass(org.id);
-          await opsAlarm.ok(orgKey("intelligence"));
-        } catch (err) {
-          await opsAlarm.fail(orgKey("intelligence"), `intelligence-pass org:${org.id}`, err);
-        }
+          // ── iCal (Kanal Takvimleri) — 08-08'de eklendi ───────────────────────
+          // 🚨 KAPATILAN AÇIK: bu bacak YOKTU. `runScheduledSync` bu modülden
+          // hiçbir şey import etmiyordu; iCal'in TEK yolu kullanıcının "Senkronla"
+          // düğmesiydi. Host Airbnb bağlantısını ekliyor, bir kez tıklıyor ve
+          // besleme orada donuyordu (ertesi günkü rezervasyon panelde yok →
+          // temizlik görevi yok, doluluk yanlış, çifte rezervasyon riski).
+          //
+          // ⚠️ EN SONDA, BİLİNÇLİ. Aynı org içinde mesaj importunun, şikayet
+          // uyarısının ve oto-yanıtın ARKASINDA hiçbir feed beklemesi olmasın:
+          // asılı bir besleme bu org için HİÇBİR ŞEYİ geciktirmez, yalnız SIRADAKİ
+          // org'lara sarkabilir — ve tam olarak onun için bütçe var.
+          // ⚠️ `syncOk`'a BAĞLI DEĞİL (`sendDueAlerts` ile aynı gerekçe): iCal tek
+          // bir Hospitable API'sine dokunmuyor; Hospitable'ı 402/401 olan ya da
+          // Hospitable'ı HİÇ OLMAYAN bir host'un takvimleri senkronlanmaya devam
+          // etmeli. iCal-only kiracı zaten `syncHospitable`'dan token'sız erken
+          // döndüğü için syncOk=true olur; 402 olan kiracı için ise bu satır
+          // düzeltmenin TAMAMIDIR.
+          // ⚠️ PREMIUM KAPISI YOK — bilinçli: ücretsiz sürümde de veri senkronu
+          // (mesaj importu + uyarılar) sürüyor; kapatılan tek şey otomatik MİSAFİR
+          // mesajlaşmasıdır ve iCal importu o sınıfa girmez.
+          // ⚠️ `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` BURADAN AÇILMAZ: bu bacak
+          // yalnızca `syncCalendarSource`'u çağırır, o da bayrağı KENDİ okur
+          // (default KAPALI). Zamanlama uzlaştırmayı AÇMAZ.
+          if (icalLegEnabled && icalSpentMs < ICAL_PASS_BUDGET_MS) {
+            const icalStartedAt = Date.now();
+            try {
+              const ical = await syncDueCalendarSourcesForOrg(org.id, {
+                deadline: Math.min(
+                  icalStartedAt + ICAL_ORG_BUDGET_MS,
+                  icalStartedAt + (ICAL_PASS_BUDGET_MS - icalSpentMs),
+                  passStartedAt + PASS_BUDGET_MS,
+                ),
+              });
+              icalSources += ical.synced;
+              icalImported += ical.imported;
+              icalUpdated += ical.updated;
+              icalFailed += ical.failed;
+              icalDeferred += ical.deferred;
+              await opsAlarm.ok(orgKey("ical"));
+            } catch (err) {
+              // `syncDueCalendarSourcesForOrg` sözleşme gereği fırlatmaz; yine de
+              // bir org'un takvimi diğerlerinin geçişini düşüremez.
+              await handleOrgError("ical", err);
+            }
+            icalSpentMs += Date.now() - icalStartedAt;
+          } else {
+            // Havuz bitti → bu org'un takvim bacağına bu geçişte HİÇ sıra gelmedi.
+            // ⚠️ BU SAYI BİR ÜST SINIRDIR, "kaç besleme kaldı" DEĞİL: havuz
+            // bittiğinde tek bir sorgu bile atmıyoruz (bütçenin amacı tam da bu),
+            // dolayısıyla bu org'un HİÇ beslemesi olmasa da sayılır. Kesin sayı
+            // istenirse org başına bir `count` gerekir — yani sistemin zaten
+            // bütçeyi aştığı anda N sorgu daha; bilinçli olarak YAPILMADI.
+            icalOrgsDeferred += 1;
+          }
+
+          // V1 INTELLIGENCE — KB hafızası + event tüketimi + örüntü; org'un TÜM giriş yollarından
+          // (Hospitable senkronu VE iCal bacağı) SONRA: bu geçişte yazılan besleme event'leri aynı
+          // geçişte tüketilir. AYRI ve KORUMALI: hatası raporlanır, PMS akışını (senkron/oto-yanıt/
+          // karşılama/takvim) asla bloklamaz. Hospitable'ı olmayan org da buraya gelir (busy = mülkü var).
+          try {
+            await runIntelligencePass(org.id);
+            await opsAlarm.ok(orgKey("intelligence"));
+          } catch (err) {
+            await opsAlarm.fail(orgKey("intelligence"), `intelligence-pass org:${org.id}`, err);
+          }
+          const messages = totals.messages - before.messages;
+          const replies = totals.autoReplies - before.autoReplies;
+          if (messages > 0 || replies > 0) {
+            await logEvent("job.org.processed", { job: "org-sync", count: messages, replies, durationMs: Date.now() - orgStartedAt });
+          }
+        });
       }
       if (icalSources > 0 || icalDeferred > 0 || icalOrgsDeferred > 0) {
         const line =

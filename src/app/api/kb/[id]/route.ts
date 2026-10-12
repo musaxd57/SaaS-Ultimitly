@@ -77,6 +77,9 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const current: Record<string, unknown> = existing;
   const changed = Object.entries(d).some(([key, value]) => value !== undefined && current[key] !== value);
   if (!changed) {
+    // Yazım yok ama hafıza / vektör eşitlemesi yine koşar (idempotent; kaydet bunların kendini onarma yoluydu — Haiku 2. tur).
+    await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
+    warmPropertyKbVectorsBestEffort(existing.propertyId);
     const unchanged = await prisma.knowledgeBaseItem.findUnique({ where: { id } });
     return jsonOk(unchanged);
   }
