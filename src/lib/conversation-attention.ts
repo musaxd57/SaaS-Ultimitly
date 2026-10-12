@@ -84,7 +84,7 @@ function deferredToHost(kbEvidenceJson: string | null): boolean {
 const DECISION_RANK: Readonly<Record<string, number>> = { auto_sent: 3, human_review: 2, no_reply: 1 };
 
 /** Son ev sahibi mesajından sonra bakılan en fazla misafir mesajı (karar kaydı sorgusunun `in` listesi). */
-const OPEN_WORK_WINDOW = 200;
+export const OPEN_WORK_WINDOW = 200;
 
 /**
  * Son EV SAHİBİ mesajından sonra ev sahibine bırakılmış bir misafir mesajı var mı (kapanışta gizleme kapısı,

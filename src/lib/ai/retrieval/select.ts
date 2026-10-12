@@ -282,7 +282,7 @@ export const MAX_SUBQUERIES = 4;
 export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: "auto", fusion: "sum", foreign: true, semanticFusion: "rrf" };
 /** Sorgu bu kadar az içerik kökü taşıyorsa önceki misafir mesajları bağlam olarak eklenir. */
 const THIN_QUERY_STEMS = 2;
-const CARRY_HISTORY_MESSAGES = 2;
+export const CARRY_HISTORY_MESSAGES = 2;
 /** Sorguya katılan cevapsız önceki misafir mesajı tavanı (en yenisi önce). */
 export const PENDING_QUERY_MESSAGES = 3;
 /** Güncel mesaj + cevapsız mesajlardan gelen alt sorguların toplam tavanı. */

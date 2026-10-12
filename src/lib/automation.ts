@@ -45,7 +45,15 @@ import type {
 } from "@/lib/ai/semantic/stay-change";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
 import { guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
-import { conversationRecordsInPrompt, loadConversationState } from "@/lib/ai/conversation-state-loader";
+import { conversationRecordsInPrompt, conversationStateEnabled, loadConversationState } from "@/lib/ai/conversation-state-loader";
+import {
+  extendThread,
+  keysetAfter,
+  readThreadTail,
+  threadView,
+  threadWindowSufficient,
+  undeliveredShapedOutboundBefore,
+} from "@/lib/channel-thread-window";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
@@ -1633,9 +1641,7 @@ export async function applyChannelAutoReply(
           guestCheckoutTime: true,
         },
       },
-      // (createdAt, id): aynı milisaniyedeki iki mesajda "son mesaj" deterministik ve yeniden değerlendirme taramasıyla
-      // (`recheck.ts`, createdAt+id) AYNI — kilit başka mesaja bakmasın (inceleme 09-24).
-      messages: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      // Mesajlar burada OKUNMAZ (madde 10): erken çıkışlardan sonra sondan sayfa sayfa (`channel-thread-window.ts`).
     },
   });
 
@@ -1687,9 +1693,12 @@ export async function applyChannelAutoReply(
     }
   }
 
-  let messages = conversation.messages;
-  if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
-  let last = messages[messages.length - 1];
+  // MADDE 10 (kurucu talimatı bağlam sözleşmesi; kurucu kararı 10-12 "Şimdi yap"): konuşmanın TAMAMI okunmaz. İlk sayfa konuşmanın
+  // sonudur; aşağıdaki süzgeçlerden sonra kesit, her tüketiciye konuşmanın tamamıyla AYNI sonucu verecek kadar geriye genişletilir
+  // (`threadWindowSufficient`). Konuşma ilk sayfaya sığıyorsa dizi bugünküyle birebir aynıdır.
+  let thread = await readThreadTail(conversation.id);
+  if (thread.rows.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
+  const rawLast = thread.rows[thread.rows.length - 1];
   // A superseded AI draft (send-time veto → its outbox row is 'canceled') never reached the
   // guest, so it must NOT make the thread look answered. Such a draft is always an UNDELIVERED
   // outbound message (no externalId) — the only shape the tail can take here — so we only touch
@@ -1715,9 +1724,13 @@ export async function applyChannelAutoReply(
   // `conversationId` index'i YOK (index eklemek migration ister, bilinçli
   // yapılmadı) ve bayrak KAPALIYKEN tablo zaten boştur → üretim davranışı ve
   // maliyeti BİREBİR aynı kalır.
-  const tailLooksUndelivered = last.direction === "outbound" && !last.externalId;
+  const tailLooksUndelivered = rawLast.direction === "outbound" && !rawLast.externalId;
+  // Konuşma çapında: okunmamış eski kısımda da (kesitin dışında) aynı biçimli satır aranır — bugünkü tetikleyiciyle aynı.
   const anyUndeliveredOutbound =
-    durableOutboxEnabled() && messages.some((m) => m.direction === "outbound" && !m.externalId);
+    durableOutboxEnabled() &&
+    (thread.rows.some((m) => m.direction === "outbound" && !m.externalId) ||
+      (!thread.complete && (await undeliveredShapedOutboundBefore(conversation.id, thread.rows[0]))));
+  let undeliveredIds: ReadonlySet<string> = new Set<string>();
   if (tailLooksUndelivered || anyUndeliveredOutbound) {
     const undelivered = await prisma.messageOutbox.findMany({
       where: {
@@ -1728,25 +1741,28 @@ export async function applyChannelAutoReply(
       },
       select: { messageId: true },
     });
-    const undeliveredIds = new Set(undelivered.map((r) => r.messageId).filter(Boolean) as string[]);
-    if (undeliveredIds.size > 0) {
-      messages = messages.filter((m) => !undeliveredIds.has(m.id));
-      if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
-      last = messages[messages.length - 1];
-    }
+    undeliveredIds = new Set(undelivered.map((r) => r.messageId).filter(Boolean) as string[]);
   }
   // K7 (09-30): thread'in SONUNDAKİ otomatik şablon mesajları (karşılama / giriş / çıkış) bir cevap DEĞİLDİR ve cevaplanacak
   // misafir mesajından SONRA gittiler → değerlendirme son GERÇEK mesaja kadar (misafir sorusu otomatik mesajın arkasında
-  // kalıp "cevaplandı" sayılmasın). Aradaki otomatik mesajlar geçmişte kalır ("[OTOMATİK MESAJ]").
-  let realEnd = messages.length;
-  while (realEnd > 0 && isAutomationMessage(messages[realEnd - 1])) realEnd--;
-  if (realEnd < messages.length) {
-    messages = messages.slice(0, realEnd);
-    if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
-    last = messages[messages.length - 1];
+  // kalıp "cevaplandı" sayılmasın). Aradaki otomatik mesajlar geçmişte kalır ("[OTOMATİK MESAJ]"). Süzgeç + kesme `threadView`.
+  let messages = threadView(thread.rows, undeliveredIds);
+  // Kesit süzgeçten sonra boş kaldıysa konuşmanın daha eskisi okunur (bugün: tamamı süzülürdü).
+  while (messages.length === 0 && !thread.complete) {
+    thread = await extendThread(conversation.id, thread);
+    messages = threadView(thread.rows, undeliveredIds);
   }
+  if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
+  const last = messages[messages.length - 1];
   // Only answer when the guest spoke last (don't reply to ourselves).
   if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
+  // Kesit yetene kadar geriye (madde 10). Konuşma kayıtları / üretim izi anahtarı açıksa toplamlar (misafire giden cevap sayısı,
+  // atlanan satır) konuşmanın TAMAMINDAN sayılır → başa kadar okunur (iki anahtar da canlıda kapalı).
+  const needsWholeThread = conversationStateEnabled() || aiGenerationTraceEnabled();
+  while (!thread.complete && (needsWholeThread || !threadWindowSufficient(messages))) {
+    thread = await extendThread(conversation.id, thread);
+    messages = threadView(thread.rows, undeliveredIds);
+  }
 
   // 🚨 K10-t (kurucu kararı 09-28): cevapsız misafir mesajlarından biri 8.000 karakteri aşarsa yapay zekâ CEVAP ÜRETMEZ —
   // model / kalıp işlemlerinden (kapanış tespiti, sınıflandırıcı, anlama katmanı, kapı) ÖNCE. Metin kırpılıp modele
@@ -3356,8 +3372,15 @@ export async function applyChannelAutoReply(
   // gelen mesaj) bu cevap o mesajı görmeden üretildi — talep ALINMAZ. Geçici atlama (damgalanmaz): konuşma aday kalır, bir
   // sonraki geçiş TÜM mesajlarla yeniden modeller. Koşul talebin KENDİSİNDE (tek UPDATE, ilişki filtresi): kontrol ile talep
   // arasına mesaj giremez.
-  const seenInboundIds = conversation.messages.filter((m) => m.direction === "inbound").map((m) => m.id);
-  const unseenInbound = { direction: "inbound", id: { notIn: seenInboundIds } };
+  // Madde 10: kesit konuşmanın tamamı değilse "görülmemiş" yalnız kesitin başından SONRAKİ satırlarda aranır — model çalışırken
+  // yazılan mesaj (C2'nin amacı) her zaman oradadır. Kesitten eski bir satırın sonradan eşitlenmesi istemi / kapıyı etkilemez
+  // (kesit her tüketicinin baktığı en eski satırı kapsar), o yüzden talebi durdurmaz (belge: madde 10 tasarımı).
+  const seenInboundIds = thread.rows.filter((m) => m.direction === "inbound").map((m) => m.id);
+  const unseenInbound: Prisma.MessageWhereInput = {
+    direction: "inbound",
+    id: { notIn: seenInboundIds },
+    ...(thread.complete ? {} : keysetAfter(thread.rows[0])),
+  };
   const claim = await prisma.conversation.updateMany({
     where: { id: conversation.id, status: { in: ["new", "waiting"] }, messages: { none: unseenInbound } },
     data: { status: "answered" },

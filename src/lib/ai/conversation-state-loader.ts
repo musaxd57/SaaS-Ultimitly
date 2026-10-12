@@ -29,6 +29,9 @@ const PENDING_GUEST_MESSAGE_ID = "pending-guest-message";
  * İstem bu kayıtlardan "KONUŞMA KAYITLARI" bloğu kurdu mu (pencere dışı konu / sayaç = eski hafıza)? Üretim izi tanısı istemle AYNI
  * koşulu kullansın diye burada — `conversation-state` modülünü yalnız istem / tip / yükleyici / anlama girişi içe aktarır (izolasyon pini).
  */
+/** Kanal oto-yanıtının sınırlı okuması bu anahtar açıkken konuşmayı başa kadar okur (toplamlar konuşmanın tamamından — madde 10). */
+export { conversationStateEnabled };
+
 export function conversationRecordsInPrompt(records: Parameters<typeof conversationStateBlock>[0]): boolean {
   return conversationStateBlock(records) !== "";
 }

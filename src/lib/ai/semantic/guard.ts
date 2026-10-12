@@ -42,7 +42,7 @@ export function stayGuardEnabled(): boolean {
 }
 
 const MAX_GUEST_MESSAGES = 5;
-const MAX_CONTEXT_MESSAGES = 6;
+export const MAX_CONTEXT_MESSAGES = 6;
 const GUEST_MESSAGE_CAP = 1_200;
 /** Bekçinin gördüğü pencere (erken giriş akışı: pencereye sığmayan cevapsız mesaj varsa otomatik gönderim yok). */
 export const GUARD_WINDOW = { maxMessages: MAX_GUEST_MESSAGES, messageCap: GUEST_MESSAGE_CAP } as const;
