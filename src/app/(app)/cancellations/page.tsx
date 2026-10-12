@@ -88,7 +88,16 @@ export default async function CancellationsPage({
     prisma.reservation.count({ where }),
     prisma.reservation.findMany({
       where,
-      include: { property: { select: { id: true, name: true } } },
+      // Yalnız sayfanın kullandığı alanlar (ACIK-ISLER 08-08 §15): satırın tamamı misafir iletişim alanlarını ve QR iç durumunu da
+      // sunucu belleğine çekiyordu. Tür sistemi kullanılan alanı zorlar; bileşene geçen her şey burada adıyla seçilmiş olur.
+      select: {
+        id: true,
+        guestName: true,
+        arrivalDate: true,
+        departureDate: true,
+        channel: true,
+        property: { select: { id: true, name: true } },
+      },
       // TAM SIRA: aynı arrivalDate'i taşıyan iptaller sayfa sınırında kaymasın
       // (Gönderilenler ekranındaki aynı ders — tekrar/kayıp riski).
       orderBy: [{ arrivalDate: "desc" }, { id: "desc" }],
