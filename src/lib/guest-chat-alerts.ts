@@ -53,6 +53,11 @@ export const QR_ESCALATION_COOLDOWN_MS = 5 * 60 * 1000;
  *  ürettirebiliyordu ("yangın / acil 2 / acil 3"). Misafire giden cevap DEĞİŞMEZ; olaylar konuşmada ve karar kaydında kalır. */
 export const QR_CRITICAL_EMAILS_PER_HOUR = 3;
 
+/** İPTAL EDİLMİŞ konaklamada (kurucu 10-12) kaydedilen QR mesajı tavanı — saatte; kötü niyetli yazışma paneli dolduramasın. */
+export const CANCELLED_STAY_MESSAGES_PER_HOUR = 10;
+/** İptal edilmiş konaklama uyarısının en sık aralığı: aynı konaklamadan bu süre içinde ikinci e-posta yok (olay kimliği dilime bağlı). */
+export const CANCELLED_STAY_ALERT_WINDOW_MS = 6 * 60 * 60 * 1000;
+
 const criticalMailKey = (reservationId: string) => `qr-crit-mail:${reservationId}`;
 
 /** Ayrılan acil e-posta hakkını GERİ VER (e-posta gitmedi: alıcı yok / sağlayıcı hatası / beklenmeyen hata). En iyi çaba. */
@@ -97,7 +102,14 @@ export function qrEscalationEventId(inboundMessageId: string, guestText: string,
 // `stay_message_cap` (kurucu kararı 10-11): konaklamanın saatlik mesaj tavanı aşıldı — fazlası kaydedilmedi; saatte tek uyarı.
 // `emergency_number` (kurucu kararları 10-11): misafir acil servis numarası sordu, yapay zekâ YALNIZ numarayı gönderdi — "yanıtlamadı"
 // demek yanlış beyan olurdu (Haiku 10-11).
-export type QrEscalationReason = "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr" | "stay_message_cap" | "emergency_number";
+export type QrEscalationReason =
+  | "ai_escalated"
+  | "daily_cap"
+  | "daily_budget"
+  | "daily_budget_qr"
+  | "stay_message_cap"
+  | "emergency_number"
+  | "cancelled_stay";
 
 export function qrEscalationEmailEnabled(): boolean {
   return process.env.QR_ESCALATION_EMAIL_ENABLED === "1";

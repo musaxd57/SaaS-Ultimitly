@@ -26,6 +26,8 @@ import {
 import { guestChatDisplayRole } from "@/lib/message-author";
 import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import {
+  CANCELLED_STAY_ALERT_WINDOW_MS,
+  CANCELLED_STAY_MESSAGES_PER_HOUR,
   sendQrEscalationAlertBounded,
   qrEscalationEventId,
 } from "@/lib/guest-chat-alerts";
@@ -440,6 +442,32 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
   }
 }
 
+async function recordCancelledStayMessage(
+  ctx: GuestChatContext,
+  stay: NonNullable<GuestChatContext["cancelledStay"]>,
+  message: string,
+): Promise<void> {
+  try {
+    const cap = await rateLimit(`qr-cancelled-stay:${stay.id}`, CANCELLED_STAY_MESSAGES_PER_HOUR, 60 * 60_000);
+    if (!cap.ok) return;
+    const conversationId = await ensureGuestChatConversation(ctx.property.id, stay);
+    await prisma.$transaction(async (tx) => {
+      await acquireGuestChatThreadLock(tx, conversationId);
+      await recordGuestChatExchange(tx, conversationId, stay.guestName, message, null, true, ctx.property.organizationId);
+    });
+    await sendQrEscalationAlertBounded({
+      organizationId: ctx.property.organizationId,
+      propertyName: ctx.property.name,
+      reservationId: stay.id,
+      eventId: `cancelled-stay:${Math.floor(Date.now() / CANCELLED_STAY_ALERT_WINDOW_MS)}`,
+      reason: "cancelled_stay",
+    });
+  } catch (err) {
+    // Misafire giden cevap bu yola bağlı DEĞİL (her durumda "sohbet kapalı").
+    void reportError(`qr-cancelled-stay org=${ctx.property.organizationId}`, err);
+  }
+}
+
 async function handleGuestChatPost(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   // Global kill-switch read at request time (flip without a rebuild).
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
@@ -479,6 +507,12 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Chat is open only during an active stay (until checkOutTime on departure day).
   // Outside that → no AI, no escalation, just a polite "no active stay" reply.
   if (!ctx.open || !ctx.activeReservation) {
+    // İPTAL EDİLMİŞ konaklama şu anı kapsıyorsa (kurucu 10-12): model ÇAĞRILMAZ (kota düşmez), yazana aynı "sohbet kapalı" cevabı
+    // gider (iptal bilgisi verilmez), mesaj ev sahibi için panele kaydedilir ve ev sahibine "iptal edilmiş rezervasyonun dairesinden
+    // yazılıyor" uyarısı gider. Tekrar yazışma da aynı yoldan; e-posta en çok 6 saatte bir, kayıt saatte en çok N mesaj.
+    if (ctx.cancelledStay && message && message.length <= MAX_MESSAGE) {
+      await recordCancelledStayMessage(ctx, ctx.cancelledStay, message);
+    }
     return jsonOk({
       closed: true,
       reply:

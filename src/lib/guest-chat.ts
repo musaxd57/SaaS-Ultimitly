@@ -914,6 +914,12 @@ export interface GuestChatContext {
     /** Kanal etiketi — YALNIZ doğrulanmış uzatmanın Channel Layer kararına girdi (`guestChangeRequestPath`); yanıta konmaz. */
     channel?: string | null;
   } | null;
+  /**
+   * Sohbet KAPALIYKEN şu anı kapsayan İPTAL EDİLMİŞ konaklama (kurucu 10-12: "iptal edilmişse AI yanıtlamasın, hosta söylesin; gene de
+   * yazarsa AI cevap vermesin, kullanım hakkından yemesin, hosta bildirsin"). YALNIZ sunucu içi — hiçbir yanıta / sayfaya konmaz
+   * (misafire "iptal" bilgisi verilmez; QR'ı tarayan rezervasyon sahibi olmayabilir).
+   */
+  cancelledStay?: { id: string; guestName: string } | null;
   /** Active KB items with secret-bearing categories removed. */
   /**
    * İsteme giden kalemler. `id`/`updatedAt` YALNIZ yetkili iç denetim kanıtı
@@ -1446,7 +1452,31 @@ export async function resolveGuestChat(
   // Closed → return the property (so the page can show a branded "no active stay"
   // screen) but no reservation and an empty knowledge base (nothing to answer).
   if (!open) {
-    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, knowledgeBaseHijackScreened: 0, pinRequired: false };
+    // İptal edilmiş konaklama AYNI pencere kuralıyla (`isOpenNow`) ve AYNI silme kapısıyla aranır; onaylı bir konaklama varken
+    // (devir günü) aranmaz. Yalnız işaret döner — sohbet yine KAPALI, model çağrılmaz.
+    const cancelledRows = await prisma.reservation.findMany({
+      where: {
+        propertyId: property.id,
+        status: "cancelled",
+        arrivalDate: { lte: new Date(now.getTime() + 36 * 60 * 60 * 1000) },
+        departureDate: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { arrivalDate: "asc" },
+      select: { id: true, guestName: true, arrivalDate: true, departureDate: true, sourceReference: true },
+    });
+    const cancelledRow = cancelledRows.filter(notErased).find(isOpenNow) ?? null;
+    return {
+      property: propertyPublic,
+      open: false,
+      activeReservation: null,
+      cancelledStay: cancelledRow ? { id: cancelledRow.id, guestName: cancelledRow.guestName } : null,
+      knowledgeBase: [],
+      knowledgeBaseDropped: 0,
+      knowledgeBasePendingApproval: 0,
+      knowledgeBaseNewestUpdatedAt: null,
+      knowledgeBaseHijackScreened: 0,
+      pinRequired: false,
+    };
   }
   if (opts.knowledgeBase === false) {
     return { property: propertyPublic, open: true, activeReservation, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, knowledgeBaseHijackScreened: 0, pinRequired };
