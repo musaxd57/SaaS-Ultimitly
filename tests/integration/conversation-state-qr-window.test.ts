@@ -6,8 +6,14 @@
 // ---------------------------------------------------------------------------
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
-import { loadConversationState, loadConversationStateForConversation } from "@/lib/ai/conversation-state-loader";
+import { loadConversationState, loadConversationStateForConversation, QR_STATE_MAX_ROWS } from "@/lib/ai/conversation-state-loader";
 import { __setChannelThreadPageForTests } from "@/lib/channel-thread-window";
+
+const reported = vi.hoisted(() => [] as string[]);
+vi.mock("@/lib/report-error", async (orig) => {
+  const actual = await orig<typeof import("@/lib/report-error")>();
+  return { ...actual, reportError: vi.fn(async (where: string) => void reported.push(where)) };
+});
 
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -98,5 +104,63 @@ describe("QR konuşma kayıtları — sınırlı okuma = bütün satırlar", () 
     ).reverse();
     const old = await loadConversationState({ organizationId: orgId, messages: last200, conversationId });
     expect(old!.outbound).toBeLessThan(full!.outbound);
+  });
+
+  async function seedGuestOnly(n: number) {
+    await resetDb();
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "G", channel: "chat", status: "new" } });
+    const t0 = Date.now() - 5 * 86_400_000;
+    await prisma.message.createMany({
+      data: Array.from({ length: n }, (_, i) => ({
+        id: `g${String(i).padStart(5, "0")}`,
+        conversationId: c.id,
+        createdAt: new Date(t0 + i * 1_000),
+        direction: "inbound",
+        authorType: "guest",
+        senderName: "G",
+        body: `Mesaj ${i}`,
+      })),
+    });
+    return { orgId, conversationId: c.id };
+  }
+
+  it("🚨 hiç cevap olmayan çok uzun konuşma: okuma sınırda DURUR, blok yazılmaz, hata kaydı düşer (her turda bütün konuşma okunmaz)", async () => {
+    reported.length = 0;
+    const { orgId, conversationId } = await seedGuestOnly(QR_STATE_MAX_ROWS + 1);
+    const spy = vi.spyOn(prisma.message, "findMany");
+    expect(await loadConversationStateForConversation({ organizationId: orgId, conversationId })).toBeUndefined();
+    const read = (await Promise.all(spy.mock.results.map((r) => r.value as Promise<unknown[]>))).reduce((n, rows) => n + rows.length, 0);
+    spy.mockRestore();
+    expect(read).toBeLessThanOrEqual(QR_STATE_MAX_ROWS);
+    expect(reported).toContain("conversation-state-qr-window-cap");
+  });
+
+  it("KONTROL: sınırın altındaki cevapsız konuşma eksiksiz okunur ve blok kurulur (sayılar bütün satırlarla aynı)", async () => {
+    reported.length = 0;
+    const { orgId, conversationId } = await seedGuestOnly(QR_STATE_MAX_ROWS - 10);
+    const got = await loadConversationStateForConversation({ organizationId: orgId, conversationId });
+    expect(got).toEqual(await expected(orgId, conversationId));
+    expect(got!.unansweredGuest).toBe(QR_STATE_MAX_ROWS - 10);
+    expect(reported).not.toContain("conversation-state-qr-window-cap");
+  });
+
+  it("🚨 başka işletmenin konuşması: saat dilimi verilse de aşama / son cevap süresi SIZMAZ (boş özet)", async () => {
+    const { conversationId } = await seed(13, 90);
+    const other = await prisma.organization.create({ data: { name: "B" } });
+    const foreign = await loadConversationStateForConversation({
+      organizationId: other.id,
+      conversationId,
+      timeZone: "Europe/Istanbul",
+      reservationId: null,
+    });
+    expect(foreign).toEqual({ outbound: 0, hostOutbound: 0, unansweredGuest: 0, items: [], lifecycleSent: [] });
+    expect(foreign).not.toHaveProperty("phase");
+  });
+
+  it("KONTROL: kendi konuşmasında saat dilimiyle aşama EKLENİR (yukarıdaki yokluk vakumlu değil)", async () => {
+    const { orgId, conversationId } = await seed(13, 90);
+    const own = await loadConversationStateForConversation({ organizationId: orgId, conversationId, timeZone: "Europe/Istanbul" });
+    expect(own).toHaveProperty("phase");
   });
 });

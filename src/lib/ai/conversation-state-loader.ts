@@ -153,6 +153,12 @@ export async function loadConversationState(input: {
   }
 }
 
+/**
+ * QR kayıt okumasının üst sınırı (satır). Eskiden son 200 satır okunuyordu; artık kesit kayıtların koşuluna (son cevap + karar penceresi)
+ * kadar genişler — hiç cevap olmayan uzun bir konuşmada (yapay zekâ durdurulmuş, ev sahibi QR'da yazmıyor) bu her turda bütün konuşma
+ * demekti (Haiku 10-12). Sınırda koşul sağlanmadıysa blok YAZILMAZ (yanlış sayı yerine sayı yok) ve hata kaydı düşer.
+ */
+export const QR_STATE_MAX_ROWS = 2_000;
 
 export async function loadConversationStateForConversation(input: {
   organizationId: string;
@@ -176,8 +182,20 @@ export async function loadConversationStateForConversation(input: {
       where: { id: input.conversationId, property: { organizationId: input.organizationId } },
       select: { id: true },
     });
-    let thread = owned ? await readThreadTail(input.conversationId) : { rows: [], complete: true };
-    while (!thread.complete && !conversationStateWindowSufficient(thread.rows)) thread = await extendThread(input.conversationId, thread);
+    // Başka işletmenin konuşması: konuşma kimliği / saat dilimi / rezervasyon AKTARILMAZ — aşama okuyucusu (`loadConversationPhase`)
+    // kiracı süzgeci taşımıyor, yabancı konuşmanın aşaması ve son cevap süresi sızardı (Haiku 10-12; bugünkü çağıran kendi konuşmasını verir).
+    if (!owned) return await loadConversationState({ organizationId: input.organizationId, messages: [] });
+    let thread = await readThreadTail(input.conversationId);
+    while (!thread.complete && !conversationStateWindowSufficient(thread.rows)) {
+      if (thread.rows.length >= QR_STATE_MAX_ROWS) {
+        void reportError(
+          "conversation-state-qr-window-cap",
+          new Error(`conversationId=${input.conversationId} rows=${thread.rows.length}`),
+        );
+        return undefined;
+      }
+      thread = await extendThread(input.conversationId, thread);
+    }
     const messages: StateMessage[] = thread.rows.map((m) => ({
       id: m.id,
       direction: m.direction,
