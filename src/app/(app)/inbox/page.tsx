@@ -64,9 +64,18 @@ export default async function InboxPage({
     prisma.conversation.count({ where }),
     prisma.conversation.findMany({
       where,
-      include: {
+      // Yalnız listenin kullandığı alanlar (ACIK-ISLER 08-08 §15, 10-12 gece): son mesajın BÜTÜN satırı (yapay zekâ önerisi, iç alanlar)
+      // ve konuşmanın tamamı sunucu belleğine çekiliyordu; liste yalnız ön izleme gövdesini ve durum alanlarını çiziyor.
+      select: {
+        id: true,
+        guestIdentifier: true,
+        lastMessageAt: true,
+        priority: true,
+        status: true,
+        skippedReason: true,
+        autoReplyAttemptedAt: true,
         property: { select: { name: true } },
-        messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1 },
+        messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { body: true } },
       },
       // TAM SIRA: eşit lastMessageAt'te sayfa sınırı kaymasın (tekrar/kayıp).
       orderBy: [{ lastMessageAt: "desc" }, { id: "desc" }],

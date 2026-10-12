@@ -34,3 +34,17 @@ describe("iptaller sayfası — dar seçim (ACIK-ISLER 08-08 §15, 10-12 gece)",
     expect(q).not.toMatch(/guestPhone|guestEmail|chatPinHash/);
   });
 });
+
+describe("gelen kutusu listesi — dar seçim (ACIK-ISLER 08-08 §15, 10-12 gece)", () => {
+  const src = readFileSync("src/app/(app)/inbox/page.tsx", "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  it("konuşma `select` ile okunur; son mesajdan yalnız ön izleme gövdesi", () => {
+    const at = src.indexOf("prisma.conversation.findMany(");
+    const q = src.slice(at, src.indexOf("orderBy: [{ lastMessageAt", at));
+    expect(at, "sorgu bulunamadı — pin boşa düştü").toBeGreaterThan(0);
+    expect(q).toMatch(/select:\s*\{/);
+    expect(q).not.toMatch(/include:/);
+    expect(q).toMatch(/messages:\s*\{[^\n]*take:\s*1,\s*select:\s*\{\s*body:\s*true\s*\}\s*\}/);
+  });
+});
