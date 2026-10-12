@@ -8,6 +8,12 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
+**10-12 gece geç saat (güncel):** madde 10 son yüzeyleri (AI cevap öner + QR konuşma kayıtları sınırlı okuma; QR'da 2.000 satır sınırı,
+yabancı konuşmada aşama sızmaz) · DENETIM 08-09 #6/#8/#10/#11/#22/#24–27/#32–37 kapandı ya da doğrulandı, #15 kısmen · ACIK-ISLER 08-08
+§11–§15 kısmen (iptaller / gelen kutusu dar `select`, ölü `plan` dışa aktarımdan çıktı, açılış uyarıları RESEND_FROM / OPENAI / yarım
+STORAGE_*) · iki kararsız test (gece yarısı "yarın" zaman bombası; kimlik içinde "4200" — CI #1426 kırmızısı) · sabah soruları G1–G7
+(`docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`). Her iş Haiku sert inceleme + mutasyon + tam kapı. Depo PUBLIC, CI gerçek çalıştırıcıda.
+
 **10-12 gece (güncel; kurucu "gece modu — soru sorma, V'leri bitir, sonra mantıklı işler"):** kurucunun 10-12 cevapları uygulandı — S1 bavul
 bırakma kod kapısında (giriş öncesi saat / "erken" bağlamında erken giriş isteği ve izni) · S2 QR'da iptal edilmiş rezervasyon (yapay zekâ çağrılmaz,
 kota düşmez, panel kaydı + 6 saatte bir e-posta `QR_ESCALATION_EMAIL_ENABLED` ile) · ⑤ ilk dilim öneriler (görev / Wi-Fi bilgi tabanı / söz, sahip +
