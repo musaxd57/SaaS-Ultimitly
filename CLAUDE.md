@@ -93,9 +93,9 @@ Bu dosyaya token/anahtar/parola yazma.
   sıfır-drift doğrula. Migration içeren push = taze `pg_dump` + açık onay.
 - **Dolu tabloya `@unique` / required-no-default / drop EKLEME** (boot'ta patlar). Index + yeni tablo güvenli.
   Büyük tabloya index: `CONCURRENTLY` değerlendir; küçük tabloda düz index (INVALID index riski daha kötü).
-- **Repo görünürlüğü — 10-12 GÖZLEM: PRIVATE** (GitHub API `private: true`; 09-24'te kurucu PUBLIC yapmıştı, "Actions dakikası 2000'i
-  aştı"). 10-12 akşam kota bitti: CI işleri çalıştırıcısız 1–2 sn'de düşüyor, iş günlüğü 404, yeniden tetikleme 403 → çözüm kurucuda
-  (public'e dönmek ya da Billing'de harcama limiti). Önceki not: PUBLIC iken standart çalıştırıcılar ücretsiz. Private'a dönülürse
+- **Repo görünürlüğü — 10-12 gece: PUBLIC** (kurucu tekrar public yaptı; GitHub API `private: false` doğrulandı. 09-24'te de PUBLIC
+  yapılmıştı, "Actions dakikası 2000'i aştı"). 10-12 akşam private iken kota bitmişti: CI işleri çalıştırıcısız 1–2 sn'de düşüyor, iş
+  günlüğü 404, yeniden tetikleme 403 → çözüm kurucuda (public'e dönmek ya da Billing'de harcama limiti). Önceki not: PUBLIC iken standart çalıştırıcılar ücretsiz. Private'a dönülürse
   ayda 2000 dk (push başına ~14 dk); CI durursa sebep kota olabilir. Repoya sır/gerçek veri/işletme adı YAZILMAZ.
 - **Git:** commit author `user.email noreply@anthropic.com` / `user.name Claude`; yedek TAG değil BRANCH
   (`backup/stable-YYYY-MM-DD`); commit mesajında backtick yok → heredoc.
