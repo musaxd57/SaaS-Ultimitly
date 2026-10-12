@@ -1200,6 +1200,49 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     expect(mockSend).toHaveBeenCalledTimes(1); // still only the FIRST courtesy
   });
 
+  // Kurucu kararı 10-12 ("Sessiz kalsın") — ölçüldü: bugünkü kod ZATEN sessiz. Dış bekçi (`applyChannelAutoReply`) son gideni yönle
+  // bulur ve şablonu görür, ama nezaket gönderen fonksiyonun KENDİ bekçisi (K7, `isAnsweringOutbound`) şablonu atlayıp nezaketi bulur.
+  // Dış bekçi bilerek değiştirilmedi: hizalansaydı açık iş varken görünür kapanış (`closing_ack_open`) yerine gizleyen kapanışa
+  // kısa devre yapardı. Bu iki test kararı sabitler.
+  it("🚨 LOOP GUARD otomatik şablonu atlar (kurucu 10-12: 'Sessiz kalsın'): nezaket → otomatik çıkış mesajı → 'Teşekkürler' → İKİNCİ nezaket YOK", async () => {
+    const { conversationId } = await seedClosing();
+    await applyChannelAutoReply(conversationId); // ilk nezaket gider
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    await prisma.message.create({
+      data: {
+        conversationId, direction: "outbound", authorType: "automation", senderName: "Host",
+        body: "Çıkış saatiniz 11:00. İyi yolculuklar!", createdAt: new Date(Date.now() + 1_000),
+      },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Teşekkürler 🙏", createdAt: new Date(Date.now() + 2_000) },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { status: "new" } });
+    const out2 = await applyChannelAutoReply(conversationId);
+    expect(out2.sent).toBe(false);
+    expect(out2.skippedReason).toBe("closing_ack");
+    expect(mockSend).toHaveBeenCalledTimes(1); // yalnız İLK nezaket
+    expect(mockSuggest).not.toHaveBeenCalled(); // model de çağrılmaz — kapanış sessiz
+  });
+
+  it("KONTROL: araya EV SAHİBİ cevabı girerse sonraki teşekküre nezaket yine gider (bekçi yalnız kendi nezaketimize bakar)", async () => {
+    const { conversationId } = await seedClosing();
+    await applyChannelAutoReply(conversationId);
+    await prisma.message.create({
+      data: {
+        conversationId, direction: "outbound", authorType: "host", senderName: "Host",
+        body: "Anahtarı masaya bırakabilirsiniz.", createdAt: new Date(Date.now() + 1_000),
+      },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Teşekkürler 🙏", createdAt: new Date(Date.now() + 2_000) },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { status: "new" } });
+    const out2 = await applyChannelAutoReply(conversationId);
+    expect(out2.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
   it("pure-emoji closing ('👍') uses the ORG's language, not English", async () => {
     const { conversationId } = await seedClosing("👍"); // org language default "tr"
     await applyChannelAutoReply(conversationId);

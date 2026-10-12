@@ -42,6 +42,6 @@ kimlikleri · bekleyen misafir mesajları / karar turu / dil sinyali · istem pe
   (kapı saymıyordu). `tests/integration/automation-message-pending-wiring.test.ts`.
 - **Bilinçli, değişmedi:** enjeksiyon taraması yalnız istem penceresine bakar — modelin GÖRDÜĞÜ dizi ile kapının taradığı dizi aynı olmalı
   (09-12 kuralı); pencere dışı metin modele gitmez.
-- **Açık soru, değişmedi:** döngü bekçisi (~1833) "son giden"i yönle bulur (otomatik mesaj dahil). Nezaket cevabı → otomatik şablon →
-  "teşekkürler" dizisinde son giden şablondur, bekçi devreye girmez; nezaket kapanışı (ev sahibinin açtığı seçenek) yeniden gidebilir.
-  Kenar durum, ölçülmedi; misafire giden metni değiştirdiği için düzeltme kurucu kararı ister.
+- **Ölçüldü, değişmedi (kurucu 10-12 "Sessiz kalsın"):** döngü bekçisi (~1833) "son giden"i yönle bulur (otomatik mesaj dahil), ama
+  nezaketi gönderen `maybeSendClosingCourtesy`'nin kendi bekçisi (K7) şablonu atlar → nezaket → otomatik şablon → "teşekkürler" dizisinde
+  ikinci nezaket GİTMEZ (`closing_ack`). İlk taramadaki "yeniden gidebilir" tahmini yanlıştı; karar `auto-reply-channel.test.ts`'te pinli.
