@@ -75,8 +75,23 @@ export default async function ConversationPage({
   const conversation = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
     include: {
-      property: true,
-      reservation: true,
+      // Yalnız sayfanın kullandığı alanlar (DENETIM 08-09 #10 / ACIK-08 §15): `property: true` sunucuya `icalToken`, `chatToken` gibi
+      // erişim sırlarını, `reservation: true` misafir iletişim alanlarını da çekiyordu. İstemciye bugün de yalnız projeksiyon gidiyor;
+      // daraltma savunma derinliği — bir sonraki eklenen prop'un sırrı sızdırması yapısal olarak imkânsız (alan yoksa tür hatası).
+      property: { select: { name: true, checkInTime: true, checkOutTime: true, address: true, city: true } },
+      reservation: {
+        select: {
+          id: true,
+          guestName: true,
+          guestExternalId: true,
+          arrivalDate: true,
+          departureDate: true,
+          status: true,
+          currency: true,
+          totalAmount: true,
+          totalAmountDec: true,
+        },
+      },
       messages: { orderBy: { createdAt: "asc" } },
     },
   });
