@@ -48,9 +48,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     },
   });
   if (!conversation) return notFound();
-  // MADDE 10 (kurucu talimatı bağlam sözleşmesi; kanal oto-yanıtıyla aynı okuyucu `channel-thread-window.ts`): konuşmanın TAMAMI
-  // okunmaz — sondan sayfa sayfa, kesit her tüketiciye (istem / anlama / getirme / uzunluk kuralı / konuşma kayıtları) konuşmanın
-  // tamamıyla AYNI sonucu verecek kadar. Sıra `(createdAt, id)` (eşit damgada kesin; eskiden yalnız `createdAt`). Bu yüzeyde süzgeç
+  // MADDE 10 (kurucu talimatı bağlam sözleşmesi; kanal oto-yanıtıyla aynı okuyucu `channel-thread-window.ts`): sondan sayfa sayfa,
+  // kesit her tüketiciye (istem / anlama / getirme / uzunluk kuralı / konuşma kayıtları) konuşmanın tamamıyla AYNI sonucu verecek
+  // kadar. Hiç cevap yoksa konuşmanın tamamı okunur (güvenlik penceresi bütün cevapsız mesajları ister — doğru davranış). Kanalın
+  // kapanış / açık iş koşulları burada gereksiz ama zararsızdır (okumayı yalnız uzatır; Haiku 10-12). Sıra `(createdAt, id)` (eşit damgada kesin; eskiden yalnız `createdAt`). Bu yüzeyde süzgeç
   // yok (taslak ev sahibine gider; kanal yolundaki teslim edilmemiş taslak / sondaki otomatik mesaj süzgeci burada uygulanmıyordu).
   let thread = await readThreadTail(conversation.id);
   while (!thread.complete && !(threadWindowSufficient(thread.rows) && conversationStateWindowSufficient(thread.rows))) {
