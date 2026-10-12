@@ -228,6 +228,31 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // Flag OFF but STORAGE_* partly set or invalid (old audit DEN#25, 10-12 night). Reads (signed GET) and the deletion
+  // queue look at the credentials, NOT the flag (src/lib/storage/config.ts storageConfigured) — so a partial set
+  // silently counts as "not configured": stored photos cannot be shown and queued deletions wait forever with no
+  // alarm. Warning only (a dormant feature never blocks boot). Field NAMES only, never a value.
+  if (!storageOn) {
+    const storageKeys = ["STORAGE_ENDPOINT", "STORAGE_BUCKET", "STORAGE_ACCESS_KEY_ID", "STORAGE_SECRET_ACCESS_KEY"];
+    const present = storageKeys.filter((k) => (env[k] ?? "").trim());
+    if (present.length > 0 && present.length < storageKeys.length) {
+      const missing = storageKeys.filter((k) => !present.includes(k));
+      warnings.push(
+        `STORAGE_* is partly set while STORAGE_ENABLED is off (missing: ${missing.join(", ")}) — storage counts as NOT configured: stored photos cannot be shown and queued deletions wait. Complete the set or remove it.`,
+      );
+    } else if (present.length === storageKeys.length) {
+      const endpointOk = /^https:\/\//i.test((env.STORAGE_ENDPOINT ?? "").trim());
+      const bucketOff = (env.STORAGE_BUCKET ?? "").trim();
+      const pathStyleOff = ["1", "true"].includes((env.STORAGE_PATH_STYLE ?? "").trim().toLowerCase());
+      const bucketOk = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucketOff) && (pathStyleOff || !bucketOff.includes("."));
+      if (!endpointOk || !bucketOk) {
+        warnings.push(
+          `STORAGE_* is set but invalid (${[!endpointOk && "STORAGE_ENDPOINT must be https://", !bucketOk && "STORAGE_BUCKET is not usable"].filter(Boolean).join("; ")}) while STORAGE_ENABLED is off — storage counts as NOT configured: stored photos cannot be shown and queued deletions wait.`,
+        );
+      }
+    }
+  }
+
   // Transactional email provider. The app sends account-critical mail — email
   // verification, password-reset codes, operator alerts — so production MUST have a
   // working provider; without one those flows fail OPEN (silently "succeed" while no

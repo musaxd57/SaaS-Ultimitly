@@ -57,6 +57,30 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
     expect(errors).toHaveLength(0);
   });
 
+  it("🚨 depolama bayrağı KAPALI ama STORAGE_* yarım / geçersiz → UYARI (DENETIM 08-09 #25); tam ve geçerli ya da hiç yoksa sessiz", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    const full = {
+      STORAGE_ENDPOINT: "https://example-storage.dev",
+      STORAGE_BUCKET: "lixus-uploads",
+      STORAGE_ACCESS_KEY_ID: "AKIA-test",
+      STORAGE_SECRET_ACCESS_KEY: "secret-test-value",
+    };
+    const warn = (extra: Record<string, string>) =>
+      checkProductionEnv({ ...base, ...extra }).warnings.filter((w) => w.startsWith("STORAGE_*"));
+    // Yarım: eksik alanların ADI geçer, değer geçmez.
+    const partial = warn({ STORAGE_ENDPOINT: full.STORAGE_ENDPOINT, STORAGE_BUCKET: full.STORAGE_BUCKET });
+    expect(partial).toHaveLength(1);
+    expect(partial[0]).toContain("STORAGE_ACCESS_KEY_ID, STORAGE_SECRET_ACCESS_KEY");
+    expect(partial[0]).not.toContain("example-storage");
+    // Tam ama geçersiz (http uç / büyük harfli kova).
+    expect(warn({ ...full, STORAGE_ENDPOINT: "http://example-storage.dev" })[0]).toMatch(/must be https/);
+    expect(warn({ ...full, STORAGE_BUCKET: "Lixus_Uploads" })[0]).toMatch(/STORAGE_BUCKET is not usable/);
+    // KONTROL: tam + geçerli (geri alınmış bayrak, silme kuyruğu çalışır) ve hiç yok → uyarı YOK; hata hiçbir durumda yok.
+    expect(warn(full)).toEqual([]);
+    expect(warn({})).toEqual([]);
+    expect(checkProductionEnv({ ...base, STORAGE_ENDPOINT: "https://x.dev" }).errors).toEqual([]);
+  });
+
   it("email provider (fail-open fix): required in production; partial SMTP is an error", () => {
     const secrets = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC };
     // No provider at all → error.
