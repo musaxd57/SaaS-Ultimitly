@@ -179,7 +179,8 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     expect(payload).not.toContain(reservationId);
     expect(payload).not.toContain("res-1");
     expect(payload).not.toContain("thread closed"); // sağlayıcının ham metni
-    expect(payload).not.toContain("555"); // telefon
+    // Telefon AYRI sayı olarak geçmez (yük `org=<cuid>` taşır; çıplak "555" araması kimliğin içine düşüp kararsız olurdu — CI #1426 sınıfı).
+    expect(payload).not.toMatch(/(?<![A-Za-z0-9])555(?![A-Za-z0-9])/);
   });
 
   it("BAŞARILI gönderimde alarm YOK (regresyon pini)", async () => {

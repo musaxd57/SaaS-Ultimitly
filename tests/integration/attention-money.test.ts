@@ -119,7 +119,14 @@ describe("PUT/DELETE /api/properties/[id]/nightly-rate", () => {
     const rates = await loadNightlyRates(orgId, [propertyId]);
     expect(rates.get(propertyId)).toMatchObject({ low: 1800, high: 4200, currency: "TRY" });
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "property.nightly_rate_set" } });
-    expect(String(audit.metadataJson)).not.toMatch(/1800|4200/);
+    // Değer, kayıtta AYRI bir sayı olarak geçmez. Çıplak `/1800|4200/` KARARSIZDI (CI #1426, 10-12): rastgele mülk kimliği
+    // "cmv5q6i42001…" "4200" içeriyordu. Kimlik harf-rakam karışık → sözcük sınırı kimliğin içini eşleştirmez; değer anahtarı da yok.
+    const meta = JSON.parse(String(audit.metadataJson)) as Record<string, unknown>;
+    expect(Object.keys(meta)).not.toEqual(expect.arrayContaining(["low"]));
+    expect(Object.keys(meta)).not.toEqual(expect.arrayContaining(["high"]));
+    expect(String(audit.metadataJson)).not.toMatch(/(?<![A-Za-z0-9])(?:1800|4200)(?![A-Za-z0-9])/);
+    expect('{"propertyId":"cmv5q6i42001cmu5x74hvfjw7"}').not.toMatch(/(?<![A-Za-z0-9])(?:1800|4200)(?![A-Za-z0-9])/); // CI'daki kimlik
+    expect('{"low":1800}').toMatch(/(?<![A-Za-z0-9])(?:1800|4200)(?![A-Za-z0-9])/); // KONTROL: değer sızsa yakalanır
     const memory = await getPropertyMemory(orgId, propertyId);
     expect(memory.facts.some((f) => f.category === "pricing")).toBe(false);
     const exported = await buildOrganizationDataExport(orgId);
