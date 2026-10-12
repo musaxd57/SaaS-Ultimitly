@@ -471,6 +471,8 @@ olarak düzeltilmişti, açık hiç düzeltilmedi).
 **Neden kapatılmadı:** kullanıcının açık talimatı **"beyazı sakın bozma"**. Açık mod
 paletine dokunmak ayrı ve ONAYLI bir tur olmalı.
 
+✅ **10-12 gece (hareket kısmı):** `animate-pulse` artık hiçbir bileşende yok (iskeletler kaçışlı `lxs-pulse`); geri gelişi pinli (`reduced-motion-pulse.test.ts`). `animate-spin` (95) BİLİNÇLİ bırakıldı: yükleniyor göstergesi işlevsel (WCAG 2.3.3 "esas" istisnası). Kontrast kısmı AÇIK (açık mod paleti = ayrı onaylı tur).
+
 Ayrıca `animate-spin`/`animate-pulse` (70 + 6 kullanım) için `prefers-reduced-motion`
 kaçışı yok (elle yazılmış bloklar yalnız `lx*` sınıflarını kapsıyor).
 
