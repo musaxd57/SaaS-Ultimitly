@@ -110,7 +110,8 @@ describe("C · ev sahibinin sözü", () => {
 
 describe("B · Wi-Fi değeri", () => {
   it.each([
-    ["Yeni Wi-Fi şifresi: Lale2025!", "Lale2025!", null],
+    // Sonda "!" → şifrenin mi cümlenin mi parçası, belirsiz → değer yok (Haiku 10-12 4. tur; yanlış şifre yazmaktansa öneri kaçar).
+    ["Yeni Wi-Fi şifresi: Lale2025!", null, null],
     ["Şifre artık DenizKenari99 oldu.", "DenizKenari99", null],
     ["The wifi password is now Sunny#2025", "Sunny#2025", null],
     ["Ağ adı: LaleNet-5G, şifre: abc12345", "abc12345", "LaleNet-5G"],
@@ -137,7 +138,10 @@ describe("B · Wi-Fi değeri", () => {
   it("ağ adı: 'Wi-Fi adı yok' değer değil; biçimlendirme işaretleri atılır; kalemdeki değer sayısı (ana + misafir ağı = belirsiz)", () => {
     expect(extractWifiValues("Wi-Fi adı yok").network).toBeNull();
     expect(extractWifiValues("**Şifre:** abc12345").password).toBe("abc12345");
-    expect(wifiValueCount("Ana ağ şifresi: Abc12345 / Misafir şifresi: Gst98765", "password")).toBe(2);
+    // "/" sonrası belirsiz → ilk etiket değer vermez; kalemde hedef yine BELİRSİZ (iki etiket) → öneri yok.
+    expect(wifiValueCount("Ana ağ şifresi: Abc12345 / Misafir şifresi: Gst98765", "password")).toBe(1);
+    expect(wifiTargetAmbiguous("Ana ağ şifresi: Abc12345 / Misafir şifresi: Gst98765", "password")).toBe(true);
+    expect(wifiValueCount("Ana ağ şifresi: Abc12345\nMisafir şifresi: Gst98765", "password")).toBe(2);
     expect(wifiValueCount("Ağ LaleNet, şifre: eskiSifre1", "password")).toBe(1);
   });
 
@@ -187,6 +191,13 @@ describe("B · Wi-Fi değeri — Haiku 10-12 2. tur", () => {
     ["Network is Up", "network"],
     ["Network is Down", "network"], // durum sözcüğü (büyük harfli ≥ 4 harf olsa da)
     ["Wi-Fi şifresi: Sonbahar2024 Lale, misafir şifresi: Gst12345", "password"], // biri belirsiz → hangisi? değer yok
+    // Haiku 10-12 4. tur: aynı mesajda iki farklı değer / ok / eğik çizgi → hangisi yeni? belirsiz.
+    ["Eski şifre: lale1234, yeni şifre: lale5678", "password"],
+    ["Wi-Fi şifresi: lale1234 → lale5678", "password"],
+    ["Şifre: lale2024 / lale2025", "password"],
+    ["Ağ adı: Lale → LaleGuest", "network"],
+    ["Şifre: lale2024…", "password"],
+    ["Wi-Fi şifresi: Lale2024.Teşekkürler", "password"],
     ["Wi-Fi şifresi: Sonbahar2024 Lale", "password"], // boşluklu şifre olabilir → belirsiz, ilk sözcük alınmaz
   ] as const)("%s → %s değer DEĞİL", (text, field) => {
     expect(extractWifiValues(text)[field]).toBeNull();
@@ -199,6 +210,12 @@ describe("B · Wi-Fi değeri — Haiku 10-12 2. tur", () => {
     expect(extractWifiValues("Yeni şifre Abc12345, iyi tatiller").password).toBe("Abc12345");
     expect(extractWifiValues("Şifre: Abc12345 ağ adı: LaleNet").password).toBe("Abc12345");
     expect(extractWifiValues("Kapıdan girince Wi-Fi şifresi: Abc12345").password).toBe("Abc12345"); // "kapı" etiketten önce değil
+    // Parantez / köşeli / açılı ayraç ve emoji değere GİRMEZ (Haiku 10-12 4. tur).
+    expect(extractWifiValues("Şifre lale2024😊").password).toBe("lale2024");
+    expect(extractWifiValues("Wi-Fi şifresi (lale2024)").password).toBe("lale2024");
+    expect(extractWifiValues("Şifre: [lale2024]").password).toBe("lale2024");
+    expect(extractWifiValues("Şifre: <lale2024>").password).toBe("lale2024");
+    expect(extractWifiValues("Yeni şifre: Abc12345, eski şifre de Abc12345").password).toBe("Abc12345"); // aynı değer iki kez → tek değer
   });
 
   it("bilgi tabanında hedef belirsizse uygulanmaz: okunamayan etiket (boşluklu ağ adı / sözcük biçimli şifre) ya da eski değer metinde iki kez", () => {
@@ -218,6 +235,8 @@ describe("C · söz — Haiku 10-12 3. tur", () => {
     "Teknisyen cumaya gelecek.",
     "Teknisyen önümüzdeki hafta gelecek.",
     "Havalimanı servisi yarın gelecek.", // ulaşım, bakım değil
+    "Teknisyen 48 saat içinde gelecek.", // bugün / yarın modelinin dışında
+    "Teknisyen bugün ya da yarın gelecek.", // hangi gün? belirsiz
   ])("%s → öneri yok (tanınmayan gün / konu değil)", (text) => {
     expect(detectHostPromise(text)).toBeNull();
   });
@@ -242,6 +261,15 @@ describe("C · söz — Haiku 10-12 3. tur", () => {
     ["1,25 saat sonra temizlikçi gelecek.", 600, { day: "today", time: "11:15" }],
     ["Gece 11'de havlu getireceğim.", 600, { day: "today", time: "23:00" }],
     ["Gece 11:30'da havlu getireceğim.", 600, { day: "today", time: "23:30" }],
+    // Haiku 10-12 4. tur.
+    ["Teknisyen en geç 5'e kadar gelecek.", 600, { day: "today", time: "17:00" }],
+    ["Teknisyen gelecek, yarın sabah 10 gibi.", 600, { day: "tomorrow", time: "10:00" }],
+    ["Teknisyen geliyor, yarın 10'da.", 600, { day: "tomorrow", time: "10:00" }],
+    ["The technician will come tomorrow, around 9.", 600, { day: "tomorrow", time: "09:00" }],
+    ["Temizlikçi gelecek, havlular yarın.", 600, { day: "today", time: "12:00" }], // başka konulu parça katılmaz
+    ["Havlu getiririm.", 600, { day: "today", time: "12:00" }],
+    ["Technician will come tomorrow morning.", 600, { day: "tomorrow", time: "10:00" }],
+    ["Cleaners will come tomorrow at 9am.", 600, { day: "tomorrow", time: "09:00" }],
     ["Temizlikçi gelecek ve 3 saat kalacak.", 600, { day: "today", time: "12:00" }], // süre "içinde / sonra"sız → son an değil
     ["Teknik servis yarın gelecek.", 600, { day: "tomorrow", time: "12:00" }],
   ] as const)("%s @%i → %o", (text, now, due) => {
@@ -278,7 +306,7 @@ describe("anahtar ve ölçüt", () => {
 
 describe("süre (karesel iş yok)", () => {
   it("uzun tek sözcük / boşluk dizisi / tekrarlanan söz fiili ve şifre sözcüğü doğrusal", () => {
-    const runs = ["a".repeat(4_000), `a${" ".repeat(3_990)}b`, "getirecegim ".repeat(330), "sifre ".repeat(660), "password is ".repeat(330), "havlu gelecek ".repeat(280), `${",".repeat(3_970)}teknisyen gelecek`, `${"sabah, ".repeat(560)}teknisyen gelecek`, "1,".repeat(1_990)];
+    const runs = ["a".repeat(4_000), `a${" ".repeat(3_990)}b`, "getirecegim ".repeat(330), "sifre ".repeat(660), "password is ".repeat(330), "havlu gelecek ".repeat(280), `${",".repeat(3_970)}teknisyen gelecek`, `${"sabah, ".repeat(560)}teknisyen gelecek`, "1,".repeat(1_990), "*".repeat(3_999), `şifre${"*_~`".repeat(990)}`];
     for (const r of runs) {
       const t = performance.now();
       detectHostPromise(r);

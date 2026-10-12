@@ -47,9 +47,9 @@ export function parseSuggestionKey(key: unknown): { kind: SuggestionKind; source
 const NL = "(?<![\\p{L}\\p{N}])";
 const NR = "(?![\\p{L}\\p{N}])";
 const PROMISE_TR =
-  "(?:getir(?:ecegim|ecegiz|ecek|ecekler|ilecek|iririm|iririz|tecegim|tirecegim|eyim|iyorum|iyoruz)|gonder(?:ecegim|ecegiz|ecek|ilecek|irim|iriz|iyorum|iyoruz)|yolla(?:yacagim|yacagiz|yacak|rim)|birak(?:acagim|acagiz|acak)|yap(?:acagim|acagiz|acak|ilacak)|gel(?:ecek(?!\\s+(?:hafta|ay|yil|sefer|misafir|konuk|kisi|grup|rezervasyon|sezon))|ecekler|ecegim|ecegiz|iyor|iyorlar)|ugra(?:yacak|yacagim|yacagiz)|bak(?:acak|acagim|acagiz|acaklar)|ilgilen(?:ecegim|ecegiz|ecek)|halled(?:ecegim|ecegiz|ecek|ilecek)|hallederim|tamir\\s+(?:edilecek|edecek|edecegim|ettirecegim)|degistir(?:ecegim|ecegiz|ecek|ilecek)|temizle(?:necek|yecek|yecegim|yecegiz)|ayarla(?:yacagim|yacagiz|nacak|rim))";
+  "(?:getir(?:ecegim|ecegiz|ecek|ecekler|ilecek|irim|iriz|tecegim|tirecegim|eyim|iyorum|iyoruz)|gonder(?:ecegim|ecegiz|ecek|ilecek|irim|iriz|iyorum|iyoruz)|yolla(?:yacagim|yacagiz|yacak|rim)|birak(?:acagim|acagiz|acak)|yap(?:acagim|acagiz|acak|ilacak)|gel(?:ecek(?!\\s+(?:hafta|ay|yil|sefer|misafir|konuk|kisi|grup|rezervasyon|sezon))|ecekler|ecegim|ecegiz|iyor|iyorlar)|ugra(?:yacak|yacagim|yacagiz)|bak(?:acak|acagim|acagiz|acaklar)|ilgilen(?:ecegim|ecegiz|ecek)|halled(?:ecegim|ecegiz|ecek|ilecek)|hallederim|tamir\\s+(?:edilecek|edecek|edecegim|ettirecegim)|degistir(?:ecegim|ecegiz|ecek|ilecek)|temizle(?:necek|yecek|yecegim|yecegiz)|ayarla(?:yacagim|yacagiz|nacak|rim))";
 const PROMISE_EN =
-  "(?:i['’]?m\\s+sending|i\\s+am\\s+sending|i['’]?ll|i\\s+will|we['’]?ll|we\\s+will|(?:someone|somebody|the\\s+technician|a\\s+technician|the\\s+cleaner|our\\s+cleaner|housekeeping|maintenance|the\\s+plumber|an\\s+electrician|he|she|they)\\s+will|(?:is|are)\\s+(?:coming|on\\s+(?:the|his|her|their)\\s+way))";
+  "(?:i['’]?m\\s+sending|i\\s+am\\s+sending|i['’]?ll|i\\s+will|we['’]?ll|we\\s+will|(?:someone|somebody|(?:(?:the|a|an|our)\\s+)?(?:technician|cleaner|plumber|electrician|engineer|housekeeper)s?|housekeeping|maintenance|he|she|they)\\s+will|(?:is|are)\\s+(?:coming|on\\s+(?:the|his|her|their)\\s+way))";
 const PROMISE = new RegExp(`${NL}(?:${PROMISE_TR}|${PROMISE_EN})${NR}`, "u");
 /** Teklif / koşul söz değildir ("isterseniz getirebilirim", "if you need I'll bring"). */
 const CONDITIONAL = new RegExp(`${NL}(?:eger|isterseniz|istersen|gerekirse|ihtiyac\\p{L}{0,6}\\s+olursa|if|unless)${NR}`, "u");
@@ -77,11 +77,11 @@ const KIND_TOPICS: ReadonlyArray<readonly [CommitmentKind, RegExp]> = [
   [
     "maintenance",
     new RegExp(
-      `${NL}(?:teknisyen|tamir|usta|tesisatci|elektrikci|teknik\\s+servis|servis\\s+(?:elemani|ekibi|gorevlisi|teknisyeni)|ariza|bakim|klima|kombi|sofben|petek|bulasik\\s+makinesi|camasir\\s+makinesi|buzdolabi|(?:technician|repair|fix|plumber|electrician|maintenance|engineer|heater|boiler)${NR})`,
+      `${NL}(?:teknisyen|tamir|usta|tesisatci|elektrikci|teknik\\s+servis|servis\\s+(?:elemani|ekibi|gorevlisi|teknisyeni)|ariza|bakim|klima|kombi|sofben|petek|bulasik\\s+makinesi|camasir\\s+makinesi|buzdolabi|(?:technicians?|repair|fix|plumbers?|electricians?|maintenance|engineers?|heater|boiler)${NR})`,
       "u",
     ),
   ],
-  ["cleaning", new RegExp(`${NL}(?:temizlik|temizlikci|temizle|(?:cleaning|cleaner|housekeeping|clean)${NR})`, "u")],
+  ["cleaning", new RegExp(`${NL}(?:temizlik|temizlikci|temizle|(?:cleaning|cleaners?|housekeeping|clean)${NR})`, "u")],
   ["towels", new RegExp(`${NL}(?:havlu|carsaf|nevresim|yastik\\s+kilif|(?:towels?|sheets?|linens?|bedding)${NR})`, "u")],
   [
     "supplies",
@@ -119,6 +119,20 @@ const DURATION_TR =
 const DURATION_EN =
   /(?<![\p{L}\p{N}])(?:(?:in|within)\s+(\d{1,3}(?:\.\d{1,2})?|an?|one|two|half\s+an?)\s+(minutes?|mins?|hours?|hrs?)|(\d{1,3})\s+(minutes?|mins?|hours?|hrs?)\s+later)(?![\p{L}])/u;
 const SOON = /(?<![\p{L}\p{N}])(?:birazdan|hemen|az\s+sonra|shortly|right\s+away|soon|asap)(?![\p{L}])/u;
+/** "5'e kadar", "en geç 6'ya kadar" — saat okuyucusunun tanımadığı çıplak biçim (Haiku 10-12 4. tur). */
+const UNTIL_HOUR = /(?<![\p{L}\p{N}.:])([01]?\d|2[0-3])\s*'?\s*(?:e|a|ye|ya)\s+kadar(?![\p{L}])/u;
+
+/** Kapsamdaki açık saat adayları: saat okuyucusu + "N'e kadar". */
+function timeMentions(raw: string, folded: string): number[] {
+  const out = explicitTimeMentions(raw).flat();
+  const until = UNTIL_HOUR.exec(folded);
+  if (until) {
+    const h = Number(until[1]);
+    out.push(h * 60);
+    if (h > 0 && h < 12) out.push((h + 12) * 60);
+  }
+  return [...new Set(out)];
+}
 const WORD_NUMBER: Record<string, number> = { yarim: 0.5, bir: 1, iki: 2, uc: 3, a: 1, an: 1, one: 1, two: 2 };
 
 function durationMinutes(text: string): number | null {
@@ -191,7 +205,7 @@ function hasTimeInfo(folded: string, raw: string): boolean {
     DAY_UNKNOWN.test(folded) ||
     DAY_PARTS.some((d) => d.re.test(folded)) ||
     durationMinutes(folded) !== null ||
-    explicitTimeMentions(raw).length > 0
+    timeMentions(raw, folded).length > 0
   );
 }
 
@@ -226,13 +240,25 @@ export function detectHostPromise(text: string | null | undefined): HostPromise 
     });
     // En fazla 3 parça sola (her adım dilimi yeniden tarar — sınırsız genişleme virgül dizisinde karesel olurdu).
     while (from > 0 && at - from < 3 && !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw) && !PROMISE.test(segments[from - 1])) from--;
-    const scope = sliceOf(from, at);
+    // Sağdaki ZAMAN bilgisi taşıyan, söz fiili ve konu TAŞIMAYAN parçalar da sözün parçasıdır ("Teknisyen gelecek, yarın sabah 10 gibi";
+    // "The technician will come tomorrow, around 9") — en fazla 2; "havlular yarın" gibi başka konulu parça katılmaz (Haiku 10-12 4. tur).
+    let to = at;
+    while (to + 1 < segments.length && to - at < 2) {
+      const next = sliceOf(to + 1, to + 1);
+      if (PROMISE.test(next.folded) || topicIn(next.folded) !== undefined || !hasTimeInfo(next.folded, next.raw)) break;
+      to++;
+    }
+    const scope = sliceOf(from, to);
     // Tanınmayan gün (kapsamda) → öneri yok (bütün mesaj için: aynı mesajda başka söz de yanlış güne bağlanmasın).
     if (DAY_UNKNOWN.test(scope.folded)) return null;
-    const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) && !DAY_TODAY.test(scope.folded) ? "tomorrow" : "today";
+    // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
+    if (DAY_TOMORROW.test(scope.folded) && DAY_TODAY.test(scope.folded)) return null;
+    const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) ? "tomorrow" : "today";
     const part = DAY_PARTS.find((d) => d.re.test(scope.folded));
     const inMinutes = durationMinutes(scope.folded);
-    let timeCandidates = inMinutes === null ? [...new Set(explicitTimeMentions(scope.raw).flat())] : [];
+    // 24 saati aşan süre ("48 saat içinde") bugün / yarın modelinin dışında → öneri yok (Haiku 10-12 4. tur: saat kipinde yuvarlanıyordu).
+    if (inMinutes !== null && inMinutes > 24 * 60) return null;
+    let timeCandidates = inMinutes === null ? timeMentions(scope.raw, scope.folded) : [];
     timeCandidates = part ? fitToHalf(timeCandidates, part.half) : preferDaytime(timeCandidates);
     const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half } : null;
     return { kind, day, timeCandidates, inMinutes, cue };
@@ -288,7 +314,7 @@ const ENDS_LINE = /^["'”»]?[ \t]*(?:$|\n)/u;
  * da ağ adı olabilir: "Sonbahar2024 Lale", "Lale Ev") → değer yok (Haiku 10-12 3. tur: ilk sözcük yanlış yere yazılıyordu).
  */
 const AFTER_VALUE_OK = new RegExp(
-  `^["'”»]?[ \\t]*(?:$|\\n|[^\\p{L}\\p{N}\\s]|(?:ve|and|ile|a[ğg]|wi-?fi|kablosuz|network|ssid|[şs]ifre\\p{L}{0,4}|parola\\p{L}{0,3}|password|ol\\p{L}{0,8}|de[ğg]i[şs]\\p{L}{0,8}|[şs]eklinde|kullan\\p{L}{0,12}|iyi|is|was|now|for|have|enjoy|thanks|te[şs]ekk[üu]r\\p{L}{0,6})(?![\\p{L}\\p{N}]))`,
+  `^["'”»)\\]>}]?[ \\t]*(?:$|\\n|[.,;:!?)\\]]|\\p{Extended_Pictographic}|(?:ve|and|ile|a[ğg]|wi-?fi|kablosuz|network|ssid|[şs]ifre\\p{L}{0,4}|parola\\p{L}{0,3}|password|ol\\p{L}{0,8}|de[ğg]i[şs]\\p{L}{0,8}|[şs]eklinde|kullan\\p{L}{0,12}|iyi|is|was|now|for|have|enjoy|thanks|te[şs]ekk[üu]r\\p{L}{0,6})(?![\\p{L}\\p{N}]))`,
   "iu",
 );
 
@@ -297,12 +323,12 @@ const AFTER_VALUE_OK = new RegExp(
  * ÖZGÜN metinde koşar (büyük-küçük harf korunur); Türkçe harfler sınıfla kabul edilir (katlama YOK — konum kayması olmasın).
  */
 const PASSWORD_VALUE = new RegExp(
-  `${NL}(?:[şs]ifre(?:si|miz|niz|yi|yı)?|parola(?:s[ıi]|y[ıi])?|password)${NR}\\s*(?:(?:yeni|art[ıi]k|now|is|olarak|ise|changed\\s+to)\\s*){0,3}(?<sep>[:=\\-–])?[*_~\`]*\\s*["'“”«]?(?<v>[^\\s"'“”»,;]{8,63})`,
+  `${NL}(?:[şs]ifre(?:si|miz|niz|yi|yı)?|parola(?:s[ıi]|y[ıi])?|password)${NR}\\s*(?:(?:yeni|art[ıi]k|now|is|olarak|ise|changed\\s+to)\\s*){0,3}(?<sep>[:=\\-–])?[*_~\`]*\\s*["'“”«(\\[<{]?(?<v>[\\p{L}\\p{N}!#$%&*+@_.~^=?-]{8,63})`,
   "iu",
 );
 /** Ağ adı (SSID): "Ağ adı: X", "Wi-Fi adı X", "ağ adımız X", "misafir ağı adı X", "network name is X", "SSID: X". */
 const NETWORK_VALUE = new RegExp(
-  `${NL}(?:(?:a[ğg](?:[ıi]n|[ıi])?|wi-?fi|kablosuz\\s+a[ğg])\\s+(?:ad[ıi](?:m[ıi]z|n[ıi]z)?|ismi)|network(?:\\s+name)?|ssid)${NR}\\s*(?:(?:is|now|art[ıi]k)\\s*){0,2}(?<sep>[:=\\-–])?[*_~\`]*\\s*["'“”«]?(?<v>[^\\s"'“”»,;]{2,32})`,
+  `${NL}(?:(?:a[ğg](?:[ıi]n|[ıi])?|wi-?fi|kablosuz\\s+a[ğg])\\s+(?:ad[ıi](?:m[ıi]z|n[ıi]z)?|ismi)|network(?:\\s+name)?|ssid)${NR}\\s*(?:(?:is|now|art[ıi]k)\\s*){0,2}(?<sep>[:=\\-–])?[*_~\`]*\\s*["'“”«(\\[<{]?(?<v>[\\p{L}\\p{N}!#$%&*+@_.~^=?-]{2,32})`,
   "iu",
 );
 /**
@@ -321,7 +347,7 @@ function cleanValue(v: string | undefined): string | null {
 }
 
 /** Yatay boşluk dizisi teke iner (bitişik boşluk niceleyicileri uzun dizide karesel olmasın); değerler boşluk içermez. */
-const squash = (t: string) => t.replace(/[^\S\n]+/g, " ").replace(/[*_~`]+(?=\s*[:=])/g, "");
+const squash = (t: string) => t.replace(/[^\S\n]+/g, " ").replace(/(?<![*_~`])[*_~`]+(?=\s*[:=])/g, "");
 
 /**
  * Eşleşmeden değer: null = Wi-Fi etiketi DEĞİL (modem / kapı şifresi) ya da etiket sözcüğü düz cümlede ("Şifreyi değiştirdim", "şifre yanlış");
@@ -336,6 +362,8 @@ function valueOf(m: RegExpMatchArray, t: string, field: "password" | "network"):
   const sep = m.groups?.sep;
   const explicit = sep === ":" || sep === "=";
   const after = t.slice(start + m[0].length);
+  // Sonu "!" ya da cümleye bitişik ("Lale2024.Teşekkürler") → değerin nerede bittiği belirsiz (Haiku 10-12 4. tur).
+  if (/!$/.test(m.groups?.v ?? "") || /\.\p{Lu}\p{Ll}{2,}/u.test(v)) return "ambiguous";
   const shapeOk = field === "password" ? v.length >= 8 && looksLikePassword(v) : looksLikeNetwork(v);
   if (shapeOk) return AFTER_VALUE_OK.test(after) ? v : "ambiguous";
   if (!explicit) return null; // ayraçsız sözcük → düz cümle ("şifre değiştirilmedi")
@@ -365,7 +393,8 @@ export function extractWifiValues(text: string | null | undefined): { password: 
   if (typeof text !== "string" || text.length > 4_000) return { password: null, network: null };
   const one = (field: "password" | "network") => {
     const f = wifiField(text, field);
-    return f.labels >= 1 && f.values.length === f.labels ? f.values[0] : null;
+    // Tek değer ya da hepsi AYNI değer; iki farklı değer ("Eski şifre: X, yeni şifre: Y") → hangisi? belirsiz (Haiku 10-12 4. tur).
+    return f.labels >= 1 && f.values.length === f.labels && new Set(f.values).size === 1 ? f.values[0] : null;
   };
   return { password: one("password"), network: one("network") };
 }
