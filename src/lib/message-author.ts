@@ -102,7 +102,9 @@ export function resolveMessageAuthor(m: ClassifiableMessage): AuthorInfo {
 
 /**
  * Modele giden geçmiş satırının YAZARI (F14, 09-26): güvenilir yazar alanından (görünen ad DEĞİL). Sistem olayı geçmişe
- * yazar olarak girmez → undefined (satır yön etiketine düşer; pencereler sistem olayını zaten dışarıda bırakır).
+ * yazar olarak girmez → undefined (satır yön etiketine düşer). QR penceresi sistem olayını sorguda dışarıda bırakır; kanal ve gelen
+ * kutusu geçmişinde (nadir) sistem satırı yazarsız kalır ve `isAnsweringOutbound` için giden mesaj sayılır (Haiku 10-12: eski yorum
+ * "pencereler dışarıda bırakır" diyordu, yalnız QR için doğruydu).
  */
 export function historyAuthorOf(m: ClassifiableMessage): "guest" | "host" | "ai" | "automation" | undefined {
   const { authorType } = resolveMessageAuthor(m);
