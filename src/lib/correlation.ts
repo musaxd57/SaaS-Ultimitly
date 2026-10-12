@@ -45,6 +45,14 @@ export function shortCorrelationId(id: string): string {
   return id.slice(0, 8);
 }
 
+/**
+ * İşletmesiz (sistem) arka plan işini YENİ bir numarayla koşturur (zamanlanmış senkron geçişi, kuyruk boşaltımı). Çağıranın numarasını
+ * MİRAS ALMAZ.
+ */
+export function runAsNewSystemOperation<T>(fn: () => T): T {
+  return storage.run({ id: newCorrelationId(), organizationId: null, showToUser: false }, fn);
+}
+
 /** `fn`i verilen numarayla koşturur; içindeki her `await` zinciri numarayı görür, eşzamanlı istekler birbirininkini görmez. */
 export function runWithCorrelation<T>(ctx: CorrelationContext, fn: () => T): T {
   return storage.run({ id: ctx.id, organizationId: ctx.organizationId, showToUser: ctx.showToUser === true }, fn);

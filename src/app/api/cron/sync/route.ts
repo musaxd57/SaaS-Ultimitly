@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { runScheduledSync } from "@/lib/scheduled-sync";
-import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
+import { runAsNewSystemOperation } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
 
 // ---------------------------------------------------------------------------
@@ -38,11 +38,15 @@ async function handle(req: NextRequest) {
 
   // TAKİP NUMARASI (2. dilim, kurucu kararı 10-12 sabah): her geçiş kendi numarasıyla; geçiş başına TEK özet satırı (2 dakikada bir —
   // işletme / kuyruk satırları kendi numaralarıyla ayrıca). Fırlatırsa "job.failed" + hata raporu aynı numarayla.
-  return runWithCorrelation({ id: newCorrelationId(), organizationId: null }, async () => {
+  return runAsNewSystemOperation(async () => {
     const startedAt = Date.now();
     try {
       const totals = await runScheduledSync();
-      await logEvent("job.finished", {
+      // Hacim (Haiku incelemesi 10-12): yalnız İŞ yapılan ya da GERÇEK hatayla biten geçiş yazılır; boş tik ve zararsız erken çıkış
+      // ("zaten koşuyor" / "kilitli") yazılmaz — 2 dakikada bir boş satır 90 günde ~65 bin satır ederdi.
+      const benign = totals.error === "already_running" || totals.error === "locked";
+      const worked = totals.messages > 0 || totals.autoReplies > 0;
+      if ((totals.ok && worked) || (!totals.ok && !benign)) await logEvent("job.finished", {
         job: "scheduled-sync",
         status: totals.ok ? "ok" : (totals.error ?? "not_ok").slice(0, 64),
         count: totals.messages,

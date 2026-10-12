@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { encryptSecretBound, decryptSecretBound } from "@/lib/crypto";
 import { emailService } from "@/lib/email";
 import { errorWithContext, reportError } from "@/lib/report-error";
-import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
+import { runAsNewSystemOperation } from "@/lib/correlation";
 import { alertTracker } from "@/lib/alert-state";
 import { verifyUrl, verifyEmailHtml, appBaseUrl } from "@/lib/auth/email-verify";
 
@@ -191,7 +191,7 @@ export async function enqueueIdentityEmail(
 export function kickEmailOutboxDrain(drain: () => Promise<unknown> = drainEmailOutboxOnce): void {
   try {
     // Arka plan işi çağıranın takip numarasını / işletmesini MİRAS ALMAZ (kendi numarasıyla koşar — Haiku güvenlik incelemesi 10-12).
-    void runWithCorrelation({ id: newCorrelationId(), organizationId: null }, drain).catch((err) => {
+    void runAsNewSystemOperation(drain).catch((err) => {
       void reportError("email-outbox.kick", err instanceof Error ? err : new Error(String(err))).catch(
         () => {},
       );

@@ -53,7 +53,7 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("zamanlanmış senkron", () => {
-  it("🚨 geçiş kendi numarasıyla tek özet satırı; işletmenin hatası olay günlüğünde O işletmeye ve AYRI numaraya bağlı", async () => {
+  it("🚨 iş yapılmayan geçiş özet satırı YAZMAZ (hacim); işletmenin hatası olay günlüğünde O işletmeye ve geçişten AYRI numaraya bağlı", async () => {
     vi.stubEnv("CRON_SECRET", "cron-secret-for-tests");
     const org = await prisma.organization.create({ data: { name: "Org", hospitableTokenEnc: "enc" } });
     await prisma.property.create({ data: { organizationId: org.id, name: "Lale 7" } });
@@ -62,15 +62,13 @@ describe("zamanlanmış senkron", () => {
     const res = await cronGet(new NextRequest("http://localhost/api/cron/sync", { headers: { authorization: "Bearer cron-secret-for-tests" } }));
     expect(res.status).toBe(200);
 
-    const finished = await events({ event: "job.finished" });
-    expect(finished).toHaveLength(1);
-    expect(finished[0].organizationId).toBeNull();
-    expect(data(finished[0].dataJson)).toMatchObject({ job: "scheduled-sync", status: "ok" });
+    expect(await events({ event: "job.finished" })).toEqual([]); // mesaj / otomatik cevap yok → boş tik yazılmaz
 
     const orgErrors = await waitFor(() => events({ event: "error.reported", organizationId: org.id }), (r) => r.length > 0);
     expect(orgErrors.length).toBeGreaterThan(0);
-    // İşletme işlemesi geçişin numarasından AYRI bir numarada (operatör yalnız o işletmenin işlemesini görür).
-    expect(orgErrors.every((e) => e.correlationId !== finished[0].correlationId)).toBe(true);
+    // İşletme işlemesi kendi numarasında; geçişin (işletmesiz) numarasıyla yazılmış hiçbir işletme hatası yok.
+    const systemErrors = await events({ event: "error.reported", organizationId: null });
+    expect(orgErrors.every((e) => systemErrors.every((s) => s.correlationId !== e.correlationId))).toBe(true);
   });
 });
 
@@ -101,7 +99,7 @@ describe("giden mesaj kuyruğu", () => {
     const rows = await events({ event: "job.outbox.row" });
     expect(rows).toHaveLength(1);
     expect(rows[0].organizationId).toBe(orgId);
-    expect(data(rows[0].dataJson)).toEqual({ status: "sent", outboxId: a.outboxId });
+    expect(data(rows[0].dataJson)).toEqual({ status: "sent", errored: false, outboxId: a.outboxId });
     expect(rows[0].dataJson).not.toMatch(/gizli|Merhaba/);
     // İkinci satır AYRI numara.
     const b = await enq("k-b");

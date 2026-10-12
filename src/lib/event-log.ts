@@ -68,6 +68,7 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
   durationMs: "number",
   replies: "number",
   outboxId: /^c[a-z0-9]{7,40}$/,
+  errored: "boolean",
 };
 const LONG_DIGITS = /\d{7,}/;
 const MAX_DATA_CHARS = 2_000;

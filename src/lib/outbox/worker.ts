@@ -26,6 +26,7 @@ import {
   type SendResultKind,
   canTransition,
   isOutboxStatus,
+  isTerminal,
   SUPERSEDED_BY_NEWER_MESSAGE,
   triggerMessageIdOf,
 } from "./state";
@@ -1312,13 +1313,16 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
   acc.claimed = rows.length;
 
   for (const row of rows) {
-    // TAKİP NUMARASI (2. dilim, kurucu kararı 10-12 sabah): her satırın işlenmesi kendi numarasıyla ve satırın işletmesiyle; sonuç
-    // (gönderildi / başarısız / belirsiz…) olay günlüğüne satır kimliğiyle yazılır (metin / kişisel veri YOK).
+    // TAKİP NUMARASI (2. dilim, kurucu kararı 10-12 sabah): her satırın işlenmesi kendi numarasıyla ve satırın işletmesiyle. Olay günlüğüne
+    // yalnız KESİN sonuç (gönderildi / başarısız / incelemede / iptal / park) ya da hata, satırın veritabanındaki SON durumundan okunarak
+    // yazılır — sayaç farkı, gönderimden sonra fırlayan bir yan etkide "değişmedi" diyordu (Haiku incelemesi 10-12); yeniden denemeler yazılmaz
+    // (hacim). Metin / kişisel veri YOK.
     await runWithCorrelation({ id: newCorrelationId(), organizationId: row.organizationId }, async () => {
-      const snapshot = { ...acc };
+      let errored = false;
       try {
         await processOne(row, token, resolved, acc);
       } catch (err) {
+        errored = true;
         // Poison isolation: this row's claim will expire and be recovered later; the
         // rest of the batch continues.
         // Satır id'si CONTEXT'e değil MESAJA: `reportError` e-posta throttle'ını
@@ -1330,8 +1334,11 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
             errorWithContext(err, ` (row ${row.id})`),
           );
       }
-      const outcome = (Object.keys(acc) as (keyof DrainResult)[]).find((k) => k !== "claimed" && acc[k] > snapshot[k]) ?? "unchanged";
-      await logEvent("job.outbox.row", { status: outcome, outboxId: row.id });
+      const settled = await prisma.messageOutbox.findUnique({ where: { id: row.id }, select: { status: true } }).catch(() => null);
+      const status = settled?.status ?? "unknown";
+      if (errored || (isOutboxStatus(status) && isTerminal(status))) {
+        await logEvent("job.outbox.row", { status, errored, outboxId: row.id });
+      }
     });
   }
   // Heal missed delivery side-effects (idempotent; never blocks the drain result).
