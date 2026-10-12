@@ -55,8 +55,30 @@ export const QR_CRITICAL_EMAILS_PER_HOUR = 3;
 
 /** İPTAL EDİLMİŞ konaklamada (kurucu 10-12) kaydedilen QR mesajı tavanı — saatte; kötü niyetli yazışma paneli dolduramasın. */
 export const CANCELLED_STAY_MESSAGES_PER_HOUR = 10;
-/** İptal edilmiş konaklama uyarısının en sık aralığı: aynı konaklamadan bu süre içinde ikinci e-posta yok (olay kimliği dilime bağlı). */
+/** İptal edilmiş konaklama uyarısının en sık aralığı: aynı konaklamadan bu süre içinde ikinci e-posta yok (kayan pencere sayacı). */
 export const CANCELLED_STAY_ALERT_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/** Uyarı sayacı anahtarı (konaklama başına kayan 6 saat). */
+export const cancelledStayMailKey = (reservationId: string) => `qr-cancelled-mail:${reservationId}`;
+
+/** E-posta GİTMEDİYSE hakkı geri ver (sayaç azalt) — bir sonraki mesaj yeniden dener. En iyi çaba. */
+export async function returnCancelledStayMailSlot(reservationId: string): Promise<void> {
+  await prisma.rateLimitCounter
+    .updateMany({ where: { key: cancelledStayMailKey(reservationId), count: { gt: 0 } }, data: { count: { decrement: 1 } } })
+    .catch(() => {});
+}
+
+// ── YANITTAN SONRA YÜRÜTÜLEN İŞ (Haiku 10-12: iptal edilmiş konaklamanın kaydı yanıtı geciktirirse süre farkı "bu dairede iptal kaydı var"
+// bilgisini sızdırıyordu). Süreç kalıcı (Railway Node sunucusu) — iş yanıttan sonra tamamlanır; testler `__drainDetachedForTest` ile bekler.
+const detached = new Set<Promise<unknown>>();
+export function runDetached(work: Promise<unknown>): void {
+  const p = work.catch(() => {});
+  detached.add(p);
+  void p.finally(() => detached.delete(p));
+}
+export async function __drainDetachedForTest(): Promise<void> {
+  while (detached.size > 0) await Promise.allSettled([...detached]);
+}
 
 const criticalMailKey = (reservationId: string) => `qr-crit-mail:${reservationId}`;
 

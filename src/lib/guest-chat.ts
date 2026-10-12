@@ -1452,9 +1452,11 @@ export async function resolveGuestChat(
   // Closed → return the property (so the page can show a branded "no active stay"
   // screen) but no reservation and an empty knowledge base (nothing to answer).
   if (!open) {
-    // İptal edilmiş konaklama AYNI pencere kuralıyla (`isOpenNow`) ve AYNI silme kapısıyla aranır; onaylı bir konaklama varken
-    // (devir günü) aranmaz. Yalnız işaret döner — sohbet yine KAPALI, model çağrılmaz.
-    const cancelledRows = await prisma.reservation.findMany({
+    // İptal edilmiş konaklama AYNI pencere kuralıyla (`isOpenNow`) ve AYNI silme kapısıyla aranır. Pencerede onaylı / tamamlanmış BİR
+    // konaklama bile varsa (devir günü: iptal A çıkış sabahı + onaylı B öğleden sonra giriş) ARANMAZ — B'nin erken gelen misafiri A'nın
+    // iptal sohbetine düşmesin, ev sahibine yanlış "iptal" uyarısı gitmesin (Haiku 10-12). Yalnız işaret döner — sohbet yine KAPALI.
+    const confirmedNearby = candidates.filter(notErased).length > 0;
+    const cancelledRows = confirmedNearby ? [] : await prisma.reservation.findMany({
       where: {
         propertyId: property.id,
         status: "cancelled",

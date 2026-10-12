@@ -28,6 +28,10 @@ import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import {
   CANCELLED_STAY_ALERT_WINDOW_MS,
   CANCELLED_STAY_MESSAGES_PER_HOUR,
+  cancelledStayMailKey,
+  maybeSendQrEscalationEmail,
+  returnCancelledStayMailSlot,
+  runDetached,
   sendQrEscalationAlertBounded,
   qrEscalationEventId,
 } from "@/lib/guest-chat-alerts";
@@ -446,22 +450,32 @@ async function recordCancelledStayMessage(
   ctx: GuestChatContext,
   stay: NonNullable<GuestChatContext["cancelledStay"]>,
   message: string,
+  requestId: string | null,
 ): Promise<void> {
   try {
+    // Aynı istemci isteğinin yeniden denemesi (bağlantı kopması) ikinci kez kaydedilmez, tavandan hak yemez (Haiku 10-12).
+    if (requestId) {
+      const once = await rateLimit(`qr-cancelled-req:${stay.id}:${requestId}`, 1, 60 * 60_000);
+      if (!once.ok) return;
+    }
     const cap = await rateLimit(`qr-cancelled-stay:${stay.id}`, CANCELLED_STAY_MESSAGES_PER_HOUR, 60 * 60_000);
     if (!cap.ok) return;
     const conversationId = await ensureGuestChatConversation(ctx.property.id, stay);
-    await prisma.$transaction(async (tx) => {
+    const { inboundMessageId } = await prisma.$transaction(async (tx) => {
       await acquireGuestChatThreadLock(tx, conversationId);
-      await recordGuestChatExchange(tx, conversationId, stay.guestName, message, null, true, ctx.property.organizationId);
+      return recordGuestChatExchange(tx, conversationId, stay.guestName, message, null, true, ctx.property.organizationId);
     });
-    await sendQrEscalationAlertBounded({
+    // E-posta: konaklama başına KAYAN 6 saatte en çok bir (dilim sınırında iki e-posta olmasın — Haiku 10-12). Gitmezse hak geri.
+    const slot = await rateLimit(cancelledStayMailKey(stay.id), 1, CANCELLED_STAY_ALERT_WINDOW_MS);
+    if (!slot.ok) return;
+    const mail = await maybeSendQrEscalationEmail({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,
       reservationId: stay.id,
-      eventId: `cancelled-stay:${Math.floor(Date.now() / CANCELLED_STAY_ALERT_WINDOW_MS)}`,
+      eventId: `cancelled-stay:${inboundMessageId}`,
       reason: "cancelled_stay",
     });
+    if (!mail.sent) await returnCancelledStayMailSlot(stay.id);
   } catch (err) {
     // Misafire giden cevap bu yola bağlı DEĞİL (her durumda "sohbet kapalı").
     void reportError(`qr-cancelled-stay org=${ctx.property.organizationId}`, err);
@@ -511,7 +525,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // gider (iptal bilgisi verilmez), mesaj ev sahibi için panele kaydedilir ve ev sahibine "iptal edilmiş rezervasyonun dairesinden
     // yazılıyor" uyarısı gider. Tekrar yazışma da aynı yoldan; e-posta en çok 6 saatte bir, kayıt saatte en çok N mesaj.
     if (ctx.cancelledStay && message && message.length <= MAX_MESSAGE) {
-      await recordCancelledStayMessage(ctx, ctx.cancelledStay, message);
+      // Yanıt bu işi BEKLEMEZ (süre farkı iptal kaydını sızdırmasın); iş yanıttan sonra tamamlanır.
+      runDetached(recordCancelledStayMessage(ctx, ctx.cancelledStay, message, requestId));
     }
     return jsonOk({
       closed: true,

@@ -21,20 +21,23 @@ vi.mock("@/lib/report-error", async (orig) => ({
 import { suggestReply } from "@/lib/ai";
 import { emailService } from "@/lib/email";
 import { POST } from "@/app/api/chat/[token]/route";
-import { CANCELLED_STAY_MESSAGES_PER_HOUR } from "@/lib/guest-chat-alerts";
+import { CANCELLED_STAY_MESSAGES_PER_HOUR, __drainDetachedForTest, cancelledStayMailKey } from "@/lib/guest-chat-alerts";
 import { ANON_NAME } from "@/lib/anon-sentinels";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockMail = vi.mocked(emailService.sendReporting);
 const CLOSED = "Şu an bu daire için aktif bir konaklama görünmüyor; sohbet kapalı. Bir konaklamanız varsa lütfen giriş gününüzde tekrar deneyin.";
 
-function call(token: string, message: string) {
+/** İstek + yanıttan SONRA yürüyen kayıt işinin bitmesi (yanıt o işi beklemez — süre farkı sızmasın). */
+async function call(token: string, message: string, requestId?: string) {
   const req = new Request(`http://localhost/api/chat/${token}`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.77" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, ...(requestId ? { requestId } : {}) }),
   });
-  return POST(req as never, { params: Promise.resolve({ token }) });
+  const res = await POST(req as never, { params: Promise.resolve({ token }) });
+  await __drainDetachedForTest();
+  return res;
 }
 
 async function fixture(status: "cancelled" | "confirmed" | "pending", guestName = "İptalci Misafir", arrivalInDays = -1) {
@@ -104,11 +107,8 @@ describe("🚨 iptal edilmiş konaklamada QR — yapay zekâ cevap vermez, kota 
     await prisma.reservation.update({ where: { id: f.reservationId }, data: { qrEscalationEmailAt: new Date(Date.now() - 10 * 60_000) } });
     await call(f.token, "ikinci");
     expect(mockMail).toHaveBeenCalledTimes(1);
-    // Önceki pencerenin kaydı (başka olay kimliği) → yeni pencere → uyarır.
-    await prisma.reservation.update({
-      where: { id: f.reservationId },
-      data: { qrEscalationEmailAt: new Date(Date.now() - 10 * 60_000), qrEscalationEmailMessageId: "cancelled-stay:0" },
-    });
+    // Kayan 6 saat doldu (sayaç satırı süresi geçti) → yeniden uyarır.
+    await prisma.rateLimitCounter.deleteMany({ where: { key: cancelledStayMailKey(f.reservationId) } });
     await call(f.token, "üçüncü");
     expect(mockMail).toHaveBeenCalledTimes(2);
   });
@@ -122,6 +122,25 @@ describe("🚨 iptal edilmiş konaklamada QR — yapay zekâ cevap vermez, kota 
     expect(await qrMessages(pending.propertyId)).toEqual([]);
     expect(mockMail).not.toHaveBeenCalled();
     expect(mockSuggest).not.toHaveBeenCalled();
+  });
+
+  it("🚨 devir günü: iptal A çıkış sabahı + onaylı B öğleden sonra giriş (henüz açık değil) → B'nin erken mesajı A'nın iptal sohbetine DÜŞMEZ, uyarı yok", async () => {
+    const f = await fixture("cancelled", "İptal A", -2); // A: dün-önceki gün giriş, ileride çıkış — şu an pencerede
+    await prisma.reservation.create({
+      data: { propertyId: f.propertyId, guestName: "Onaylı B", arrivalDate: daysFromNow(1), departureDate: daysFromNow(4), status: "confirmed", channel: "airbnb" },
+    });
+    expect((await (await call(f.token, "Erken geldik, kapı kodu ne?")).json()).closed).toBe(true);
+    expect(await qrMessages(f.propertyId)).toEqual([]);
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
+  it("aynı istek kimliğiyle yeniden deneme (bağlantı koptu) ikinci kez KAYDEDİLMEZ", async () => {
+    const f = await fixture("cancelled");
+    await call(f.token, "merhaba", "req-cancel-0001");
+    await call(f.token, "merhaba", "req-cancel-0001");
+    expect(await qrMessages(f.propertyId)).toHaveLength(1);
+    await call(f.token, "ikinci mesaj", "req-cancel-0002");
+    expect(await qrMessages(f.propertyId)).toHaveLength(2);
   });
 
   it("KONTROL: onaylı (iptal edilmemiş) konaklama bugünkü gibi — model çağrılır; iptal uyarısı yok", async () => {
