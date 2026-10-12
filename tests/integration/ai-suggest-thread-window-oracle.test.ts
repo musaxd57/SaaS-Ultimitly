@@ -105,7 +105,11 @@ async function seed(rows: readonly Row[], now: number) {
   });
   await prisma.message.createMany({ data: rows.map((m) => ({ ...m, conversationId: "conv-ai" })) });
   session = { userId: "u-ai", organizationId: "org-ai", role: "owner", email: "h-ai@x.com", name: "h", sessionEpoch: 0 } as SessionPayload;
+  if (afterSeed.hook) await afterSeed.hook();
 }
+
+/** Tohumdan sonra, istekten önce ek satır (karar kayıtları) — yalnız hedefli senaryo kullanır. */
+const afterSeed: { hook: null | (() => Promise<void>) } = { hook: null };
 
 const MODEL_REPLY = {
   reply: "Wifi şifresi giriş kapısının yanındaki kartta yazıyor.", intent: "wifi", confidence: 0.95, riskLevel: "low",
@@ -201,6 +205,64 @@ describe("madde 10 kâhini — AI cevap öner: sayfalı okuma = tam okuma", () =
     const rows = genThread(seedN, now - 2 * DAY);
     const full = await run(rows, now, null);
     for (const page of PAGES) expect(await run(rows, now, page), `sayfa ${page}`).toEqual(full);
+  });
+});
+
+describe("madde 10 kâhini — AI cevap öner: kayıt koşulu okumayı bağlar (mutasyon N3, 10-12 gece)", () => {
+  // Kesit okuma koşulunu (ev sahibi cevabı + 2 misafir) KARŞILAR ama kayıt koşulunu (son 10 misafir mesajı) karşılamaz: uzun bir
+  // giden bloğundan önce misafir mesajları ve onlara ait karar kayıtları var. Kayıt koşulu döngüden düşerse karar kayıtları kesitin
+  // dışında kalır, istem değişir. Tohumlu kâhin bu biçimi üretmiyordu (N3 yaşadı).
+  beforeEach(() => vi.stubEnv("OPENAI_API_KEY", "test-key"));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  function shaped(t0: number): Row[] {
+    const rows: Row[] = [];
+    let t = t0;
+    const at = () => new Date((t += 60_000));
+    for (let i = 0; i < 14; i++) {
+      rows.push({ id: `g${String(i).padStart(2, "0")}`, direction: "inbound", body: `Soru ${i}: havlular nerede?`, authorType: "guest", senderName: "Ayşe", systemEventType: null, createdAt: at() });
+      rows.push({ id: `h${String(i).padStart(2, "0")}`, direction: "outbound", body: `Cevap ${i}.`, authorType: "ai", senderName: "GuestOps AI", systemEventType: null, createdAt: at() });
+    }
+    rows.push({ id: "k00", direction: "outbound", body: "Kontrol edip döneceğim.", authorType: "host", senderName: "Ev sahibi", systemEventType: null, createdAt: at() });
+    for (let i = 1; i <= 30; i++) {
+      rows.push({ id: `k${String(i).padStart(2, "0")}`, direction: "outbound", body: `Bilgi ${i}.`, authorType: "ai", senderName: "GuestOps AI", systemEventType: null, createdAt: at() });
+    }
+    rows.push({ id: "z00", direction: "inbound", body: "Wifi şifresi nedir?", authorType: "guest", senderName: "Ayşe", systemEventType: null, createdAt: at() });
+    return rows;
+  }
+
+
+  it("🚨 karar kayıtları olan eski misafir mesajları: her sayfa boyunda istem tam okumayla aynı", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const now = Date.now();
+    const rows = shaped(now - 2 * DAY);
+    const decide = async () => {
+      for (let i = 5; i < 14; i++) {
+        await prisma.riskEvent.create({
+          data: {
+            organizationId: "org-ai", propertyId: "prop-ai", conversationId: "conv-ai", surface: "auto_reply", triggerId: `g${String(i).padStart(2, "0")}`,
+            finalDecision: i % 2 ? "human_review" : "auto_sent", reason: "low_confidence_or_risky", riskType: "human_request",
+          },
+        });
+      }
+    };
+    afterSeed.hook = decide;
+    try {
+      const full = await run(rows, now, null);
+      expect(full.status).toBe(200);
+      // Anti-vakumluk: karar kayıtları isteme gerçekten giriyor (yoksa eşitlik boş geçerdi).
+      const withState = full.fetchBodies.join("\n");
+      afterSeed.hook = null;
+      const bare = await run(rows, now, null);
+      expect(bare.fetchBodies.join("\n")).not.toEqual(withState);
+      afterSeed.hook = decide;
+      for (const page of [1, 3, 7]) expect(await run(rows, now, page), `sayfa ${page}`).toEqual(full);
+    } finally {
+      afterSeed.hook = null;
+    }
   });
 });
 
