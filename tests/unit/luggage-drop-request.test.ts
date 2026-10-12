@@ -41,6 +41,9 @@ describe("bavul bırakma isteği (misafir)", () => {
     ["We will arrive at 9pm with our bags", false],
     ["Valiz için yer var mı?", false],
     ["Bavullarımızı nereye koyalım?", false],
+    // Çıkış bağlamı + saat / "sabah" aynı cümlecikte → geç çıkış tarafı, bu kural saymaz (mutasyon L5, L6).
+    ["Çıkışta bavullarımızı saat 12'ye kadar bırakabilir miyiz?", false],
+    ["Sabah çıkışta bavullarımızı nereye bırakalım?", false],
   ])("%s → erken giriş isteği: %s", (text, expected) => {
     expect(stayRequestKinds([text as string], { stayTimes: stay }).has("early_checkin")).toBe(expected);
   });
@@ -67,6 +70,13 @@ describe("bavul bırakma izni (cevap) — kod kapısı tutar", () => {
     ["Anahtarı masaya bırakabilirsiniz.", ["Anahtarı nereye bırakalım?"], false],
     ["Bavullarınızı 16:00'da bırakabilirsiniz.", ["Teşekkürler"], false],
     ["Wifi şifresi kartta yazıyor.", ["Wifi şifresi ne?"], false],
+    // Çıkış günü bavul izni (geç çıkış tarafı) bu kuralın konusu değil (mutasyon L7).
+    ["Çıkış günü sabah bavullarınızı resepsiyona bırakabilirsiniz.", ["Teşekkürler"], false],
+    // Cevapta erken bir saat geçmesi tek başına bavul izni değildir (mutasyon L11).
+    ["Temizlik 11:00'de biter, giriş 15:00'tedir.", ["Giriş saat kaçta?"], false],
+    // 🚨 Saatli istek + bavul sözcüğü GEÇMEYEN onay ("Tabii, sorun değil") → istek tek başına tutturur (mutasyon L3).
+    ["Tabii, sorun değil, sizi bekliyoruz.", ["Bavullarımızı 9'da bırakabilir miyiz?"], true],
+    ["Tabii, sorun değil, sizi bekliyoruz.", ["Bavullarımızı 16:00'da bırakabilir miyiz?"], false],
   ])("%s | %j → tutulur: %s", (reply, guest, expected) => {
     expect(vetoAvailability(reply as string, guest as string[], { stayTimes: stay, declared: noDecl }) !== null).toBe(expected);
   });
