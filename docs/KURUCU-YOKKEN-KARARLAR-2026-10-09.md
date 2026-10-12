@@ -211,3 +211,11 @@ Yalnız Türkçe + İngilizce. Mutasyon 23+4+25+2+11, hepsi öldü.
 | S1 | "Bavul bırakma" kod kapısında yok | Misafir: "Bavullarımızı 9'da bırakabilir miyiz?" (giriş 15:00). Kod kapısı ne isteği ne de "Elbette, 9'da bırakabilirsiniz" iznini tanıyor (12 kombinasyon ölçüldü, hepsi geçti). Bugün yakalayan yalnız model katmanları (bekçi talimatı bavul bırakmayı açıkça erken giriş sayıyor; canlıda açık) | Önce: model katmanı kaçırırsa "Elbette, bavullarınızı 9'da bırakabilirsiniz" gidebilir. Sonra: kod kapısı bavul / valiz / luggage / bags + bırak / drop / leave + giriş öncesi saat kalıbını erken giriş ister sayar → taslak ev sahibine ("Bavul bırakma isteği — onaylıyor musunuz?"). Yan etki: "Çıkışta bavulları nereye bırakalım?" gibi bilgi soruları da tutulabilir (kalıp yalnız giriş öncesi saat / "erken" / "before check-in" ile sınırlanır). Uygulayayım mı? |
 | S2 | QR'da devredilmiş tur | Misafir QR'da: "Paramı iade edin" → ev sahibine devredildi (yapay zekâ cevap yazmadı). Sonra: "Wi-Fi şifresi ne?" → yapay zekâ Wi-Fi cevabını verir (kurucu kararı, test pinli: "geçmiş şikâyet bağımsız soruyu engellemez"). Kanal yolu ise cevapsız iade varken HİÇBİR otomatik cevap vermez | Önerim: bugünkü gibi kalsın (iade ev sahibinde, Wi-Fi cevabı iadeyle ilgili söz vermiyor). Değiştirmek isterseniz: QR'da cevapsız devredilmiş PARA / iade turu varken yapay zekâ susar. Yalnız yanıltıcı kod yorumu düzeltildi |
 
+**Kurucu cevapları (10-12 gece):**
+
+| # | Kurucu | Uygulama |
+|---|---|---|
+| S1 bavul | "Ekle" | Kod kapısı bavul / valiz / luggage / bags bırakma isteğini ve iznini erken giriş sayar (yalnız giriş öncesi / "erken" bağlamında) |
+| S2 QR | "Modele rezervasyonun durumunu ver; iptal edilmişse AI yanıtlamasın ve hosta söylesin rezervasyon iptal edilmiş; gene de yazarsa kötü niyetli şekilde AI cevap vermesin, AI kullanım hakkından da yemesin, hosta bildirsin durumu" | İptal edilmiş rezervasyonda yapay zekâ çağrılmaz (kota düşmez), misafire cevap gitmez, ev sahibine "rezervasyon iptal edilmiş" bildirimi; tekrar yazışma da aynı yoldan (bildirim tekrarına tavan) |
+| ⑤ otonom AI | "A + B + C"; onay "sahip + yönetici, 2 hafta ≥ %90" | Görev / bilgi tabanı / söz önerisi, tek tıkla onay; ölçüt kaydı; otomatiğe geçiş ayrı anahtar |
+

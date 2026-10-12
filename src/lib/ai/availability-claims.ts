@@ -66,6 +66,7 @@
  * ------------------------------------------------------------------------- */
 
 import { foldTurkishAscii, restrictiveMatchForms } from "@/lib/ai/fallback";
+import { explicitTimeMentions } from "@/lib/early-checkin/text-checks";
 import { hostDecisionHoldEnabled } from "@/lib/ai/host-decision-hold";
 import { hasUnallowedMoney, moneyAmountsOf } from "@/lib/ai/stay-money";
 import { sameMoney, type MoneyAmount } from "@/lib/ai/money-lexicon";
@@ -73,6 +74,7 @@ import {
   declaredClaim,
   declaredRequest,
   hhmmToMinutes,
+  isEarlierThanCheckIn,
   normalizeHhmm,
   slotTimesShifted,
   stayReplyIntentOf,
@@ -129,6 +131,38 @@ const VE = `(?:${AP}\\s*|\\s+)ve`;
 /** "'s" = "is" kısaltması ("Nobody's checking in", "there's"). */
 const S_IS = `(?:${AP}\\s*|\\s+)s`;
 const rx = (parts: readonly string[]) => parts.map((p) => new RegExp(p, "iu"));
+
+/**
+ * BAVUL BIRAKMA (kurucu 10-12: "Ekle") — giriş saatinden ÖNCE bavul / valiz / çanta / eşya bırakmak takvime bağlı bir ERKEN
+ * erişim isteğidir (bekçi talimatı da öyle sayar; kod kapısı tanımıyordu — Haiku 10-11, 12 kombinasyon ölçüldü). Aynı cümlecikte
+ * üçü birlikte aranır: eşya sözcüğü + bırakma fiili + ERKEN bağlam ("erken", "sabah", "girişten önce", "before check-in"). Çıkış
+ * bağlamı ("çıkışta", "çıkmadan", "check-out") varsa geç çıkış tarafıdır — bu kalıp SAYMAZ (o taraf ayrı karar). Bağlam sözcüğü
+ * yoksa misafirin yazdığı saat okunur (`luggageDropTimes` → `stayRequestKinds`): giriş saatinden önceki saat → istek.
+ * Başı çapalı tek geçiş + sınırlı ek kuyrukları (karesel iş yok).
+ */
+const LUGGAGE_WORD = `${NL}(?:bavul|valiz|canta|esya|bagaj|(?:luggage|baggage|suitcases?|bags?)${NR})`;
+const LUGGAGE_DROP_VERB = `${NL}(?:birak|koy(?:a|up|mak|sak|alim|abil)|emanet|(?:drop(?:ping|ped)?|leav(?:e|ing)|stor(?:e|ing)|keep(?:ing)?|put(?:ting)?)${NR})`;
+const LUGGAGE_EARLY_CONTEXT = `${NL}(?:erken|sabah|(?:morning|early|earlier)${NR}|(?:giris|${CI})\\p{L}{0,8}${gap(1)}once|girmeden|before\\s+(?:the\\s+|our\\s+|we\\s+)?(?:${CI}|check\\s+in|arrival))`;
+const LUGGAGE_CHECKOUT_CONTEXT = `${NL}(?:cik(?:is|ista|isa|istan|madan|inca|tiktan|arken)|ayril|${CO}|check\\s+out|departure)`;
+const LUGGAGE_DROP_CLAUSE = new RegExp(
+  `^(?![\\s\\S]*?${LUGGAGE_CHECKOUT_CONTEXT})(?=[\\s\\S]*?${LUGGAGE_WORD})(?=[\\s\\S]*?${LUGGAGE_DROP_VERB})`,
+  "iu",
+);
+/** Cevaptaki bavul bırakma İZNİ ("bırakabilirsiniz", "you can drop / leave / store", "feel free to leave"). */
+const LUGGAGE_GRANT_VERB = `${NL}(?:(?:birak|koy)abilir(?:siniz|sin)|emanet\\s+edebilir(?:siniz|sin)|you\\s+(?:can|may|could)\\s+(?:also\\s+|certainly\\s+|definitely\\s+)?(?:drop|leave|store|keep)${NR}|(?:welcome|free)\\s+to\\s+(?:drop|leave|store|keep)${NR})`;
+/** Cevapta bavul bırakma izni (çıkış bağlamı yok) — erken bağlam sözcüğü İLE (`LUGGAGE_EARLY_GRANT`) ya da giriş saatinden önceki saatle. */
+const LUGGAGE_GRANT_CLAUSE = new RegExp(
+  `^(?![\\s\\S]*?${LUGGAGE_CHECKOUT_CONTEXT})(?=[\\s\\S]*?${LUGGAGE_WORD})(?=[\\s\\S]*?${LUGGAGE_GRANT_VERB})`,
+  "iu",
+);
+const LUGGAGE_EARLY_GRANT = new RegExp(
+  `^(?![\\s\\S]*?${LUGGAGE_CHECKOUT_CONTEXT})(?=[\\s\\S]*?${LUGGAGE_WORD})(?=[\\s\\S]*?${LUGGAGE_GRANT_VERB})(?=[\\s\\S]*?${LUGGAGE_EARLY_CONTEXT})`,
+  "iu",
+);
+const LUGGAGE_EARLY_REQUEST = new RegExp(
+  `^(?![\\s\\S]*?${LUGGAGE_CHECKOUT_CONTEXT})(?=[\\s\\S]*?${LUGGAGE_WORD})(?=[\\s\\S]*?${LUGGAGE_DROP_VERB})(?=[\\s\\S]*?${LUGGAGE_EARLY_CONTEXT})`,
+  "iu",
+);
 
 /**
  * GÖMÜLÜ SORU / KOŞUL İDDİA DEĞİLDİR (ilk ölçüm, 09-24): istemin KENDİ İngilizce standart cümlesi
@@ -191,7 +225,8 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `ليلتين\\s+(?:إضافيتين|اضافيتين)`,
     `تمديد`,
   ]),
-  early: rx([
+  early: [
+    ...rx([
     `${NL}erken\\s+(?:giris|check|gir|gel|var|yerles|teslim|ulas)${L}`,
     `${NL}daha\\s+erken\\s+(?:gir|gel|var|yerles|check|teslim)${L}`,
     // Fiil ÇEKİMLİ olmak zorunda: çıplak "var"/"al" "Girişten önce market VAR mı?" · "…ALışveriş…"
@@ -213,7 +248,9 @@ const REQUEST_PATTERNS: Record<AvailabilityRequestKind, RegExp[]> = {
     `(?:заселит|заехат|въехат|приехат)${LB}\\s+(?:раньше|пораньше)`,
     `(?:دخول|وصول|تسجيل\\s+(?:ال)?دخول)\\s+(?:مبكر|مبكرا|مبكراً|أبكر|ابكر)`,
     `(?:الوصول|الدخول|نصل|ندخل)\\s+(?:مبكرا|مبكراً|أبكر|ابكر)`,
-  ]),
+    ]),
+    LUGGAGE_EARLY_REQUEST,
+  ],
   late: rx([
     `${NL}gec\\s+(?:cikis|check|cik|ayril|birak|teslim)${L}`,
     `${NL}daha\\s+gec\\s+(?:cik|ayril|birak)${L}`,
@@ -602,6 +639,25 @@ function onlyThirdPartyAvailability(message: string): boolean {
   return !anyClauseMatches(residual, REQUEST_PATTERNS.availability);
 }
 
+/**
+ * Misafir metninde (çıkış bağlamı olmadan) bavul bırakma cümleciği varsa metindeki AÇIK saatler ("SS:DD"); yoksa boş. Saatin
+ * erken olup olmadığına çağıran mülkün giriş saatiyle karar verir (`stayRequestKinds`). Belirsiz saat ("9" → 09:00 / 21:00) her
+ * adayıyla döner — biri giriş saatinden önceyse istek sayılır (yalnız sıkılaştırır).
+ */
+export function luggageDropTimes(message: string | null | undefined): string[] {
+  if (typeof message !== "string" || message.trim() === "") return [];
+  if (!anyClauseMatches(message, [LUGGAGE_DROP_CLAUSE])) return [];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return explicitTimeMentions(message)
+    .flat()
+    .map((m) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`);
+}
+
+/** Bavul bırakma cümleciği + giriş saatinden ÖNCEKİ açık saat (mülk saati bilinmiyorsa `false` — sözcük bağlamı ayrıca aranır). */
+export function luggageBeforeCheckIn(message: string | null | undefined, stayTimes: StayTimes | null | undefined): boolean {
+  return luggageDropTimes(message).some((hhmm) => isEarlierThanCheckIn(hhmm, stayTimes) === true);
+}
+
 /** Cevap takvim durumu söylüyor ya da konaklama değişikliğine izin veriyor mu? */
 export function detectAvailabilityClaim(reply: string | null | undefined): "calendar" | "grant" | null {
   if (typeof reply !== "string" || reply.trim() === "") return null;
@@ -714,6 +770,8 @@ export function stayRequestKinds(
   const kinds = new Set<StayRequestKind>();
   for (const t of guestTexts) {
     for (const k of detectAvailabilityRequestKinds(t)) kinds.add(LEXICAL_KIND[k]);
+    // Bavul bırakma + giriş saatinden ÖNCEKİ saat ("Bavullarımızı 9'da bırakabilir miyiz?", giriş 15:00) → erken giriş isteği.
+    if (luggageBeforeCheckIn(t, opts.stayTimes)) kinds.add("early_checkin");
   }
   const d = opts.declared;
   if (d && d.asked !== "none") kinds.add(d.asked);
@@ -965,7 +1023,18 @@ function lexicalClaim(text: string, stayTimes: StayTimes | null | undefined, kbF
   const windows = parkingAssignmentWindows(kbFacts);
   const strip = windows.length > 0 ? (clause: string) => withoutGroundedParkingAssignment(clause, windows) : undefined;
   if (anyClauseMatches(text, CALENDAR_CLAIMS, strip)) return true;
+  if (luggageGrantBeforeCheckIn(text, stayTimes)) return true;
   return anyClauseMatches(withoutStandardCheckoutUntil(text, stayTimes), GRANT_CLAIMS, strip);
+}
+
+/** Cevap giriş öncesi bavul bırakmaya İZİN veriyor mu (erken bağlam sözcüğüyle ya da giriş saatinden önceki açık saatle)? */
+function luggageGrantBeforeCheckIn(text: string, stayTimes: StayTimes | null | undefined): boolean {
+  if (anyClauseMatches(text, [LUGGAGE_EARLY_GRANT])) return true;
+  if (!anyClauseMatches(text, [LUGGAGE_GRANT_CLAUSE])) return false;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return explicitTimeMentions(text)
+    .flat()
+    .some((m) => isEarlierThanCheckIn(`${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`, stayTimes) === true);
 }
 
 /** Kanıt için PII'siz sinyal özeti (kapalı küme kodlar; metin taşımaz). */
@@ -1084,7 +1153,8 @@ export function evaluateAvailability(
   const offerTopic = kinds.size > 0 && [...kinds].every((k) => k === "late_checkout");
   const allowedMoney: MoneyAmount[] = offerTopic ? moneyAmountsOf(opts.hostOfferText) : [];
   const lexMoney = hasUnallowedMoney(offerTopic ? withoutOffer : reply, allowedMoney);
-  const lexRequest = guestTexts.some((t) => detectAvailabilityRequest(t) !== null);
+  // Kod katmanının isteği: sözcük kalıpları + bavul bırakma saati (giriş saatinden önce — kalıp tek başına saati bilemez).
+  const lexRequest = guestTexts.some((t) => detectAvailabilityRequest(t) !== null || luggageBeforeCheckIn(t, opts.stayTimes));
   const signals: AvailabilitySignals = {
     lx: (lexClaim ? "c" : "") + (lexRequest ? "r" : "") + (lexDeferral ? "d" : "") + (lexMoney ? "m" : "") || "-",
     d,
