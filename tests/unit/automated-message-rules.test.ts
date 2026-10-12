@@ -12,6 +12,7 @@ import { detectPromptInjection } from "@/lib/ai/fallback";
 import { displaySenderName } from "@/lib/ui-labels";
 import { unansweredGuestTexts } from "@/lib/ai/language-signal";
 import { pendingGuestMessages } from "@/lib/ai/retrieval/select";
+import { understandingWindow } from "@/lib/ai/semantic/understanding-schema";
 import { aiSuggestExceedsLength, unansweredExceedsGuestMessageLimit } from "@/lib/ai/message-length";
 import { preparedDraftOf } from "@/lib/conversation-items/prepared-draft";
 import type { SuggestReplyInput } from "@/lib/ai/types";
@@ -210,7 +211,20 @@ describe("pencere hesaplayan yardımcılar otomatik mesajı cevap saymaz", () =>
   });
   it("getirmenin cevapsız önceki soruları", () => {
     expect(pendingGuestMessages([G1, W, G2], G2.body)).toContain(G1.body);
+    // Şablon cevap değildir ama misafir sorusu da değildir: metni alt sorguya GİRMEZ.
+    expect(pendingGuestMessages([G1, W, G2], G2.body)).toEqual([G1.body]);
     expect(pendingGuestMessages([G1, H, G2], G2.body)).not.toContain(G1.body);
+  });
+  it("anlama katmanının cevapsız listesi (K7 bağlantısı 10-12): şablon pencereyi sıfırlamaz, kendisi listeye de bağlama da girmez", () => {
+    const auto = understandingWindow([G1, W, G2], G2.body);
+    expect(auto.unanswered.map((m) => m.body)).toEqual([G1.body, G2.body]);
+    expect(auto.context).toEqual([]);
+    const host = understandingWindow([G1, H, G2], G2.body);
+    expect(host.unanswered.map((m) => m.body)).toEqual([G2.body]);
+    expect(host.context.map((m) => m.body)).toEqual([G1.body, H.body]);
+    // Yazar etiketi yoksa eski davranış (her giden mesaj cevaptır) — etiketsiz çağıranlar etkilenmez.
+    const unlabeled = { direction: W.direction, body: W.body };
+    expect(understandingWindow([G1, unlabeled, G2], G2.body).unanswered.map((m) => m.body)).toEqual([G2.body]);
   });
   it("uzun mesaj kuralı: otomatik mesajın arkasındaki uzun misafir mesajı hâlâ cevapsız", () => {
     const longGuest = { direction: "inbound", body: "a".repeat(8_001), authorType: "guest" };

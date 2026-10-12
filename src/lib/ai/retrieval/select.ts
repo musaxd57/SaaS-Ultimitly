@@ -328,6 +328,9 @@ export function pendingGuestMessages(
   const cur = current.trim();
   const out: string[] = [];
   for (let i = h.length - 1; i > lastOut && out.length < PENDING_QUERY_MESSAGES; i--) {
+    // Yalnız MİSAFİR mesajı: aradaki otomatik şablon mesajı (K7) cevap sayılmaz ama sorgu da DEĞİLDİR — metni alt sorguya girerse
+    // getirme şablonun konularını arar (10-12: kanal yazar etiketi bağlanınca ölçüldü, 1 yerine 3 alt sorgu).
+    if (h[i].direction !== "inbound") continue;
     const b = (h[i].body ?? "").trim();
     if (!b || b === cur || out.includes(b)) continue;
     out.push(b);

@@ -14,6 +14,7 @@
  *  · kanıt: niyet etiketleri (kapalı küme, PII yok).
  * ------------------------------------------------------------------------- */
 
+import { isAnsweringOutbound } from "@/lib/message-author";
 import { STAY_CHANGE_KINDS, normalizeHhmm, type UnderstandingStaySignal } from "./stay-change";
 import { HOUSE_RULE_TOPICS, RULE_STANCES, type HouseRuleTopic, type RuleStance } from "@/lib/house-rules/core";
 import { ITEM_RELATIONS, type ItemRelation } from "@/lib/conversation-items/relation-kinds";
@@ -77,19 +78,32 @@ export interface UnderstandingHistoryEntry {
   body: string;
   /** Mesajın YAZILDIĞI an (F14b). */
   at?: Date;
+  /**
+   * İstem geçmişinin yazar etiketi (`historyAuthorOf`). Otomatik şablon mesajı (K7) cevap DEĞİLDİR: cevapsız pencereyi sıfırlamaz
+   * (kapıyla aynı kural, `isAnsweringOutbound`). Yoksa eski davranış: her giden mesaj cevaptır.
+   */
+  author?: string;
 }
 
 /**
- * Katmanın gördüğü mesajlar: boş gövdeler atılır; son GİDEN mesajdan sonraki misafir mesajları cevapsızdır (güncel mesaj
- * dâhil, tekrar etmeden; son UNDERSTANDING_MAX_UNANSWERED tanesi — `unseen` = görülmeyen eski cevapsız sayısı); bağlam son
- * giden mesaja kadarki son UNDERSTANDING_MAX_CONTEXT mesajdır. İstem ([1]..[n] numaraları) ve öğe eşlemesi BU listeyi kullanır.
+ * Katmanın gördüğü mesajlar: boş gövdeler atılır; son CEVAPLAYAN giden mesajdan sonraki misafir mesajları cevapsızdır (güncel
+ * mesaj dâhil, tekrar etmeden; son UNDERSTANDING_MAX_UNANSWERED tanesi — `unseen` = görülmeyen eski cevapsız sayısı); bağlam o
+ * mesaja kadarki son UNDERSTANDING_MAX_CONTEXT mesajdır. İstem ([1]..[n] numaraları) ve öğe eşlemesi BU listeyi kullanır. Cevapsız
+ * misafir mesajlarının ARASINA düşen otomatik şablon mesajı (K7) ne bağlamda ne cevapsız listede yer alır (sırayı bozmamak için).
  */
 export function understandingWindow(
   history: readonly UnderstandingHistoryEntry[] | undefined,
   guestMessage: string,
 ): { context: UnderstandingHistoryEntry[]; unanswered: { id?: string; body: string; at?: Date }[]; unseen: number } {
   const hist = (history ?? []).filter((m) => typeof m.body === "string" && m.body.trim().length > 0);
-  const lastOut = hist.map((m) => m.direction).lastIndexOf("outbound");
+  // K7 (kurucu onayı 09-30): son CEVAPLAYAN giden mesaj — otomatik şablon mesajı cevapsız pencereyi sıfırlamaz (kapıyla aynı kural).
+  let lastOut = -1;
+  for (let i = hist.length - 1; i >= 0; i--) {
+    if (isAnsweringOutbound(hist[i])) {
+      lastOut = i;
+      break;
+    }
+  }
   const pending = hist
     .slice(lastOut + 1)
     .filter((m) => m.direction === "inbound")

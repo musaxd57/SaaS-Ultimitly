@@ -2005,11 +2005,14 @@ export async function applyChannelAutoReply(
   // noktası `kb-retrieve.ts`); öğe eşlemesi katmanın gördüğü AYNI diziden. Mesaj kimliği dizide HER ZAMAN taşınır: katmanın
   // girdisine ve önbellek anahtarına girmez, seçici okumaz — yalnız öğe eşlemesi okur.
   const itemsFlag = conversationItemsEnabled();
+  // Yazar etiketi (K7, kurucu onayı 09-30): otomatik şablon mesajı getirmenin alt sorgularında ve anlama penceresinde de CEVAP
+  // SAYILMAZ — kapının cevapsız kümesiyle aynı kural. Etiket yokken bu iki yol şablonu cevap sayıyordu (önceki soru aranmıyordu).
   const turnHistory = messages.map((m) => ({
     id: m.id,
     direction: m.direction as "inbound" | "outbound",
     body: m.body,
     at: m.createdAt,
+    author: historyAuthorOf(m),
   }));
   // #189: seçim HAM metinle (yer tutucular çözülmemiş). Misafir adı metne seçimden ÖNCE girince parça metni misafire özgü
   // oluyor, anlamsal vektör deposu her yeni misafirin ilk mesajında o parçayı bulamıyor ve karar SÖZCÜKSEL kalıyordu. Sır
