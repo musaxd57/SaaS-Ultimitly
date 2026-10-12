@@ -403,7 +403,7 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
 **Şablon düzenleme/uygulama:** PATCH `propertyId` alanı var; create şemasındaki `.nullish().transform(v => v || null)`
 **Panel yerleşimi (lg):** dış kap `lg:fixed lg:inset-0`, `fillsViewport` dikey flex, grid `lg:flex-1 lg:min-h-0`, kart
 **🔔 Kurucu 10-10 (unutma):** ödeme idempotency boşlukları + deneme kötüye kullanımı / risk puanı → `docs/TASARIM-2026-10-10-odeme-idempotency-ve-deneme-kotuye-kullanim.md`
-**🔔 GOAL BİTTİKTEN SONRA OKU (kurucu 10-10):** Correlation ID / takip numarası (önce ödeme zinciri; destek ekranında numarayla arama) → `docs/TASARIM-2026-10-10-correlation-id-takip-numarasi.md` — kurucu kararları §5 (kapsam önce ödeme · hata ekranında numara · migration onaylı · KALICI yalnız-ekle olay günlüğü, güvenlik şartlarıyla) · Load balancer / yatay ölçek (bugün gerekmiyor; 2 kopya ön koşulları + karar soruları) → `docs/TASARIM-2026-10-10-load-balancer-yatay-olcek.md`
+**🔔 GOAL BİTTİKTEN SONRA OKU (kurucu 10-10):** Correlation ID / takip numarası (önce ödeme zinciri; destek ekranında numarayla arama; İLK DİLİM ✅ 10-12, §6) → `docs/TASARIM-2026-10-10-correlation-id-takip-numarasi.md` — kurucu kararları §5 (kapsam önce ödeme · hata ekranında numara · migration onaylı · KALICI yalnız-ekle olay günlüğü, güvenlik şartlarıyla) · Load balancer / yatay ölçek (bugün gerekmiyor; 2 kopya ön koşulları + karar soruları) → `docs/TASARIM-2026-10-10-load-balancer-yatay-olcek.md`
 **Diğer açıklar:** Codex P2 (F09–F18) · `docs/DENETIM-2026-08-09.md` (27) · `docs/ACIK-ISLER-2026-08-08.md` (16) ·
 
 ## 🚨 ÇALIŞMA BİÇİMİ (09-19 → 09-24 güncel): RAILWAY AYIN 1'İNE KADAR AKTİF, GELİŞTİRME LOCAL'DE
@@ -517,7 +517,7 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-12 gece (güncel):** S1 bavul kapısı · S2 QR iptal edilmiş rezervasyon · ⑤ ilk dilim öneriler (`AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) — `docs/claude/durum.md`.
+**10-12 gece (güncel):** S1 bavul kapısı · S2 QR iptal edilmiş rezervasyon · ⑤ ilk dilim öneriler (`AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) · takip numarası ilk dilimi (migration 63) — `docs/claude/durum.md`.
 **10-08 gece:** Codex `15c8663` bulguları (U16–U44 + yeni 1–11) döngüde dört turda işlendi ve İTİLDİ (`87ba35d`; takip tablosu
 `docs/INCELEME-2026-10-07-codex-u16-u44.md`, her bulguda regresyon testi, yarışlar gerçek PostgreSQL'de). Kimlik yarışları (U13/U40/U41/U43/U44),
 silinen metnin gönderimi (Y1), özgün mesaj kaybı (Y2), tehlike okuyucu (U3), takvim / CSV / ICS / gün başı / rapor / sağlık düzeltmeleri, ölçer

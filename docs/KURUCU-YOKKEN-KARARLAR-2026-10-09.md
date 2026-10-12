@@ -233,3 +233,14 @@ Yalnız Türkçe + İngilizce. Mutasyon 23+4+25+2+11, hepsi öldü.
 | # | Konu | Bugün | Önerim (önce / sonra) |
 |---|---|---|---|
 | S3 | Bilgi tabanı kaydı DEĞİŞMEDEN kaydedilince "son güncelleme" ilerliyor | Ev sahibi Wi-Fi kalemini açıp hiçbir şey değiştirmeden "Kaydet" derse (ya da pasif / aktif yaparsa) kalem "yeni düzenlendi" sayılıyor → ondan önce misafire yazdığı yeni şifre için "bilgi tabanını güncelle" önerisi KAYBOLUR (temkinli yön: yanlış değer yazılmaz, öneri kaçar). Aynı alan yapay zekânın "en güncel N kalem" sırasını da belirliyor | Önerim: içerik / başlık / kategori / aktiflik hiç değişmediyse kayıt YAZILMASIN (tarih ilerlemesin). Yan etkisi: "kaydet"e basmak bir kalemi yapay zekânın okuma sırasında öne ALMAZ (bugün alıyor — bilinçli kullanılan bir şey değil sanıyorum). Uygulayayım mı? |
+
+**Takip numarası (Correlation ID) ilk dilim — 10-12 gece (kurucu kararı 10-10 §5 uygulandı; migration 63):** ödeme zinciri + hata bildirimi + operatör araması.
+Kurucu metni AYNEN: "Bir sorun oluştu. Destek ekibimize bu takip numarasıyla yazarak destek alabilirsiniz: 7f3a91b2" — kimlikli her beklenmeyen hatada
+(misafir / QR rotalarında değil). Açık kalan iki konu:
+
+| # | Konu | Bugün | Önerim |
+|---|---|---|---|
+| T1 | Ödeme olaylarının saklama süresi | Olay günlüğünün tamamı 90 gün (tasarım önerisi); faturalar `Invoice` tablosunda süresiz duruyor | 90 gün yeterli (muhasebe kaydı fatura satırı, günlük yalnız teşhis). Daha uzun isterseniz söyleyin |
+| T2 | Olay günlüğü KVKK dökümünde mi | Dışarıda (gerekçe: kişisel veri taşımıyor; avukat paketiyle karar) | Avukat paketine eklendi |
+
+Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı aynen (canlı yok, deploy olmuyor).

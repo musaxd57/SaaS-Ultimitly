@@ -95,3 +95,20 @@ bul" içindir (etkiye dokunmaz, yalnız iz bırakır). İkisi birlikte kullanıl
 - **Hacim / kötüye kullanım:** satır başı boyut tavanı + işletme başına dakikalık yazma tavanı (log seli tabloyu şişirmesin).
 - **Claude'un görmesi:** bu bulut ortamı canlı veritabanına BAĞLANMAZ (bağlanmamalı). Operatör ekranında numarayla arama + "JSON olarak
   indir"; kurucu gerektiğinde dosyayı paylaşır. Doğrudan erişim istenirse ayrı karar (salt-okuma, IP kısıtlı, süreli).
+
+## 6. Uygulama durumu (10-12 gece — ilk dilim: ödeme zinciri + hata bildirimi; migration 63)
+
+| Adım (§3) | Durum | Yer |
+|---|---|---|
+| 1 Kimlik üretimi | ✅ Yalnız SUNUCUDA; istemcinin gönderdiği başlık / gövde değeri KABUL EDİLMEZ (tasarımdaki "biçime uyan istemci değeri" seçeneği güvenlik için kaldırıldı — başkasının zincirine satır yazdırılamasın) | `lib/correlation.ts` |
+| 2 Her API isteği | ✅ `withAuth / withManage / withOwner`; yanıt başlığı `X-Correlation-ID`. Anonim rotalar (QR, webhook dışı) numarasız — 500 metni eski hâliyle (misafir Lixus desteğine yazmaz) | `lib/route-guard.ts` |
+| 3 Hata bildirimi | ✅ Log satırı + Sentry etiketi `correlation_id` + alarm e-postası "Takip numarası"; işlem dışı hata kendi numarasını açar | `lib/report-error*.ts` |
+| 4 Ödeme zinciri | ✅ Onay kaydı numarayı taşır (`CheckoutConsent.correlationId`); webhook numarayı istemci verisinden DEĞİL onay SATIRINDAN okur ve yalnız bağlama tazeliğini geçen onayda; "Ödemeniz işleniyor" aynı zincire katılır; Paddle istek kimliği günlükte | `api/billing/*`, `api/webhooks/paddle`, `payments/paddle.ts` |
+| 5 Kullanıcıya gösterme | ✅ Kurucu metni AYNEN (kimlikli 500'lerin hepsinde); ödeme ekranında "Takip numarasını kopyala" | `lib/api.ts serverError`, `tracking-number-copy.tsx` |
+| 6 Arka plan işleri | ⏳ Sonraki dilim (kurucu: "sonra genel") — bugün yalnız arka plandaki HATA raporu numara alır | — |
+| 7 Operatör ekranı | ✅ Kısa / tam numarayla arama + JSON indir; süper-admin + 2FA, bürünmede yasak, site dışı istek reddi, saatte 60, zorunlu denetim kaydı | `api/admin/events`, `admin/event-search.tsx` |
+| 8 Testler | ✅ `tests/unit/correlation.test.ts`, `tests/integration/correlation-event-log.test.ts` (gerçek PostgreSQL; tetikleyici migration dosyasının KENDİ SQL'inden kurulur) | — |
+
+**Güvenlik şartları (§5) → kod:** olay adı kapalı küme (`OPERATIONAL_EVENTS`) · veri yalnız izinli anahtar + kimlik / kod / sayı biçimi (boşluk, `@`, `+` taşıyamaz; yapısal redaksiyondan geçmeyen değer düşer, düşen sayısı `_dropped`) · UPDATE veritabanı tetikleyicisiyle reddedilir · işletme başına dakikada 120 satır · 90 gün süpürge (`pruneOperationalEvents`, saatlik derin geçiş) · işletme silinince kademeli silme · KVKK dışa aktarma: gerekçeli dışarıda, avukat kararı bekliyor.
+
+**Açık kararlar (karar listesinde):** ödeme olaylarının saklama süresi (bugün hepsi 90 gün; faturalar `Invoice`ta ayrıca duruyor) · olay günlüğünün KVKK dökümüne girip girmeyeceği (avukat) · migration 63 Railway açılmadan önce taze yedek kuralı aynen.

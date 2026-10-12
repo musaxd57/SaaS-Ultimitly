@@ -65,6 +65,16 @@ describe("takip numarası", () => {
     });
     expect(currentCorrelationId()).toBeNull();
   });
+
+  it("işlem bağlamı KOPYALANIR: zincire katılma çağıranın nesnesini değiştirmez (aynı nesneyle açılan ikinci işlem eski numarada kalır)", async () => {
+    const ctx = { id: newCorrelationId(), organizationId: null };
+    const original = ctx.id;
+    await runWithCorrelation(ctx, async () => {
+      adoptCorrelation(newCorrelationId(), "org-x");
+    });
+    expect(ctx).toEqual({ id: original, organizationId: null });
+    await runWithCorrelation(ctx, async () => expect(currentCorrelationId()).toBe(original));
+  });
 });
 
 describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () => {
@@ -80,6 +90,8 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
   it.each([
     ["e-posta", { consentId: "misafir@example.com" }],
     ["ad soyad (boşluk)", { reason: "Ayşe Yılmaz" }],
+    ["kimlik alanında ad soyad (redaksiyon yakalamaz — biçim kuralı yakalar)", { subscriptionRef: "Ayşe Yılmaz" }],
+    ["kimlik alanında Türkçe harfli tek sözcük", { consentId: "Yılmaz" }],
     ["telefon (+)", { providerRequestId: "+905551112233" }],
     ["cümle", { context: "ödeme başarısız oldu çünkü kart reddedildi" }],
     ["jeton", { providerRequestId: "Bearer abc.def.ghi" }],

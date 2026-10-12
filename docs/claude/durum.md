@@ -13,7 +13,9 @@ bırakma kod kapısında (giriş öncesi saat / "erken" bağlamında erken giri�
 kota düşmez, panel kaydı + 6 saatte bir e-posta `QR_ESCALATION_EMAIL_ENABLED` ile) · ⑤ ilk dilim öneriler (görev / Wi-Fi bilgi tabanı / söz, sahip +
 yönetici tek tık; `AI_ACTION_SUGGESTIONS_ENABLED` KAPALI; ölçüt yalnız ölçülür) · değişmez 13 düzeltmesi ("bilgi yanlış" beyanı) · kritik akış testleri
 (gelen → teslim, özel yükleme oturumu). Her biri Haiku sert inceleme (2–3 tur) + mutasyon + tam kapı. Tablo: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`
-"Uygulama durumu (10-12 gece)"; çizelge `docs/YOL-PLANI-DURUM-2026-10-09.md` ⑤. Railway hâlâ kapalı.
+"Uygulama durumu (10-12 gece)"; çizelge `docs/YOL-PLANI-DURUM-2026-10-09.md` ⑤. Ardından kurucunun "goal bitince" notu: **takip numarası
+(correlation ID) ilk dilimi** (ödeme zinciri + hata bildirimi + operatör araması, yalnız-ekle olay günlüğü, migration 63) —
+`docs/TASARIM-2026-10-10-correlation-id-takip-numarasi.md` §6. ⑤ önerileri dört Haiku turu (Wi-Fi "çalışmıyor" ≠ şifre dersi kod kuralı). Railway hâlâ kapalı.
 
 **10-11 akşam:** acil numara sorusu Luna 6.0 ile ölçüldü (33 senaryo × 2), modelin kendi açıklaması alındı, kod anahtar arkasında
 (`AI_EMERGENCY_NUMBER_ENABLED` KAPALI; servis başına numara, ev sahibi / anlaşmazlık / konaklama konusunda numara yok — ölçüm setinde 62/62)
