@@ -65,6 +65,8 @@ describe("bavul bırakma isteği (misafir)", () => {
     ["Can we leave our bags at 3 p.m.?", false], // giriş saatine eşit — erken değil
     ["Can we leave our bags at 9 a.m.?", true],
     ["Can we leave our bags at 4 p.m.?", false],
+    ["Can we leave our bags at 6 p.m.?", false], // "p.m." birleşmezse 06:00 ikizi erken sayılırdı (mutasyon T5)
+    ["I am arriving at 1, can we leave our bags?", true], // "I am" sabah işareti değil → 13:00 adayı kalır (mutasyon T6)
     ["Öğle yemeğinden sonra 16:00'da giriş yapacağız, bavulları bırakabilir miyiz?", false],
   ])("%s → erken giriş isteği: %s", (text, expected) => {
     expect(stayRequestKinds([text as string], { stayTimes: stay }).has("early_checkin")).toBe(expected);
@@ -105,6 +107,7 @@ describe("bavul bırakma izni (cevap) — kod kapısı tutar", () => {
     ["Elbette, sabah bırakabilirsiniz.", ["Valizleri bırakabilir miyiz?"], true],
     // Kontrol: bavul sorulmadıysa aynı cevap bu kuraldan tutulmaz; giriş sonrası saat tutulmaz.
     ["Elbette, 16:00'da bırakabilirsiniz.", ["Bavullarımızı bırakabilir miyiz?"], false],
+    ["Elbette, 9'da bırakabilirsiniz.", ["Anahtarı nereye bırakalım?"], false], // bavul sorulmadı → bu kural tutmaz (mutasyon T8)
   ])("%s | %j → tutulur: %s", (reply, guest, expected) => {
     expect(vetoAvailability(reply as string, guest as string[], { stayTimes: stay, declared: noDecl }) !== null).toBe(expected);
   });
