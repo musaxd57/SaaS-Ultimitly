@@ -13,6 +13,7 @@ import {
 import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES } from "@/lib/message-author";
 import { conversationPhaseFacts } from "./conversation-phase";
 import { loadConversationPhase } from "@/lib/operator-replies";
+import { reportError } from "@/lib/report-error";
 
 // ---------------------------------------------------------------------------
 // Konuşma Anlama Durumu v1 dilim B — yükleyici. Bayrak kapalıyken HİÇ sorgu atmaz (istem bayt bayt aynı).
@@ -144,7 +145,9 @@ export async function loadConversationState(input: {
       if (phase) summary.phase = conversationPhaseFacts(phase, input.now ?? new Date(), input.timeZone);
     }
     return summary;
-  } catch {
+  } catch (err) {
+    // Okunamayan durum = blok yok (cevap akışı durmaz) — ama SESSİZ değil (Haiku 10-12: kodlama / sınır hatası görünmeden kayboluyordu).
+    void reportError("conversation-state-load", err);
     return undefined;
   }
 }

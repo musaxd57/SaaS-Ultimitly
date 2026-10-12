@@ -53,10 +53,24 @@ export default async function setup() {
   execSync(`chown postgres:postgres ${PGDATA}`);
 
   // Kodlama + yerel ayar AÇIK (canlıyla aynı UTF8): belirtilmezse ortamdan gelir — CI konteynerinde LANG boş → SQL_ASCII, yerelde
-  // C.UTF-8 → UTF8; ham SQL'deki Unicode karakter kalıpları iki ortamda farklı davranıyordu (10-12, CI #1420).
-  execSync(`su postgres -c "${BIN}/initdb -D ${PGDATA} -U postgres --auth=trust -E UTF8 --locale=C.UTF-8"`, {
-    stdio: "ignore",
-  });
+  // C.UTF-8 → UTF8; ham SQL'deki Unicode karakter kalıpları iki ortamda farklı davranıyordu (10-12, CI #1420). C.UTF-8 yerel ayarı
+  // olmayan imajda `C` ile yine UTF8 kurulur (sıralama aynı — UTF-8 bayt sırası = kod noktası sırası); ikisi de düşerse initdb'nin
+  // KENDİ hata çıktısıyla durur (Haiku 10-12: sessiz düşüş bütün paketi sebepsiz kırmızı yapardı).
+  const initdb = (locale: string) =>
+    execSync(`su postgres -c "${BIN}/initdb -D ${PGDATA} -U postgres --auth=trust -E UTF8 --locale=${locale}"`, { stdio: "pipe" });
+  try {
+    initdb("C.UTF-8");
+  } catch {
+    rmSync(PGDATA, { recursive: true, force: true });
+    mkdirSync(PGDATA, { recursive: true });
+    execSync(`chown postgres:postgres ${PGDATA}`);
+    try {
+      initdb("C");
+    } catch (err) {
+      const stderr = (err as { stderr?: Buffer }).stderr?.toString() ?? String(err);
+      throw new Error(`test kümesi initdb başarısız (UTF8): ${stderr}`);
+    }
+  }
   execSync(
     `su postgres -c "${BIN}/pg_ctl -D ${PGDATA} -o '-p ${PORT} -k ${SOCK}' -w -l ${PGDATA}/server.log start"`,
     { stdio: "ignore" },

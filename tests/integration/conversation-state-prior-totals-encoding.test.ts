@@ -14,9 +14,19 @@ describe("kesit öncesi cevap toplamları — veritabanı kodlaması", () => {
   });
 
   it("🚨 UTF8 dışı kodlamada fırlatır (yanlış sayım yerine sayım yok); yükleyici kayıt bloğunu yazmaz", async () => {
-    vi.spyOn(prisma, "$queryRaw").mockResolvedValue([{ encoding: "SQL_ASCII", found: 1, outbound: 3, hostOutbound: 1 }] as never);
-    await expect(conversationStatePriorTotals({ conversationId: "c", before: { id: "m" }, excludedIds: [] })).rejects.toThrow(/UTF8 değil/);
     vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const spy = vi.spyOn(prisma, "$queryRaw");
+    // KONTROL (aynı girdi, UTF8): yükleyici blok kurar — aşağıdaki `undefined` başka bir sebepten gelmiyor.
+    spy.mockResolvedValue([{ encoding: "UTF8", found: 1, outbound: 3, hostOutbound: 1 }] as never);
+    const ok = await loadConversationState({
+      organizationId: "o",
+      messages: [],
+      conversationId: "c",
+      priorBefore: { row: { id: "m" }, excludedIds: [] },
+    });
+    expect(ok?.outbound).toBe(3);
+    spy.mockResolvedValue([{ encoding: "SQL_ASCII", found: 1, outbound: 3, hostOutbound: 1 }] as never);
+    await expect(conversationStatePriorTotals({ conversationId: "c", before: { id: "m" }, excludedIds: [] })).rejects.toThrow(/UTF8 değil/);
     const state = await loadConversationState({
       organizationId: "o",
       messages: [],
