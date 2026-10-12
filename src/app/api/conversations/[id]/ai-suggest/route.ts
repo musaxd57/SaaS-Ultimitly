@@ -17,7 +17,8 @@ import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
-import { loadConversationState } from "@/lib/ai/conversation-state-loader";
+import { conversationStateWindowSufficient, loadConversationState } from "@/lib/ai/conversation-state-loader";
+import { extendThread, readThreadTail, threadWindowSufficient } from "@/lib/channel-thread-window";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { orgTimezone } from "@/lib/timezone";
 import { historyAuthorOf, isAnsweringOutbound } from "@/lib/message-author";
@@ -44,15 +45,23 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     include: {
       property: true,
       reservation: true,
-      messages: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!conversation) return notFound();
+  // MADDE 10 (kurucu talimatı bağlam sözleşmesi; kanal oto-yanıtıyla aynı okuyucu `channel-thread-window.ts`): konuşmanın TAMAMI
+  // okunmaz — sondan sayfa sayfa, kesit her tüketiciye (istem / anlama / getirme / uzunluk kuralı / konuşma kayıtları) konuşmanın
+  // tamamıyla AYNI sonucu verecek kadar. Sıra `(createdAt, id)` (eşit damgada kesin; eskiden yalnız `createdAt`). Bu yüzeyde süzgeç
+  // yok (taslak ev sahibine gider; kanal yolundaki teslim edilmemiş taslak / sondaki otomatik mesaj süzgeci burada uygulanmıyordu).
+  let thread = await readThreadTail(conversation.id);
+  while (!thread.complete && !(threadWindowSufficient(thread.rows) && conversationStateWindowSufficient(thread.rows))) {
+    thread = await extendThread(conversation.id, thread);
+  }
+  const messages = thread.rows;
 
   const parsed = aiSuggestSchema.safeParse((await readJsonCappedOrNull(req)) ?? {});
   const tone = parsed.success ? parsed.data.tone : "warm";
 
-  const lastInbound = [...conversation.messages]
+  const lastInbound = [...messages]
     .reverse()
     .find((m) => m.direction === "inbound");
   if (!lastInbound) {
@@ -62,7 +71,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // ve kota düşümü YOK, metin kırpılıp modele verilmez; panel bu açıklamayı gösterir (boş kalmaz). Cevap verilen mesajın
   // KENDİSİ de sayılır (09-28 inceleme): rota son GELEN mesaja cevap önerir; arkasından bir giden mesaj varsa o mesaj
   // "cevapsız" kümede değildir ama modele yine TAM gidiyordu.
-  if (aiSuggestExceedsLength(conversation.messages)) {
+  if (aiSuggestExceedsLength(messages)) {
     return NextResponse.json({ error: MESSAGE_TOO_LONG_SUGGEST_TEXT }, { status: 422 });
   }
 
@@ -124,10 +133,13 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     // Anlama katmanının tarih satırı (yalnız Konuşma Anlama Durumu bayrağı açıkken kullanılır).
     dateContext: { now: new Date(), timeZone: org?.timezone, reservation: conversation.reservation ?? null },
     // `at` (F14b): anlama katmanında yazıldığı an — öneri saatler sonra istenebilir; yalnız bayrakla görünür.
-    history: conversation.messages.map((m) => ({
+    // Yazar etiketi (K7, kurucu onayı 09-30; kanal yoluyla aynı — 10-12): otomatik şablon mesajı getirmenin alt sorgularında ve
+    // anlama penceresinde CEVAP SAYILMAZ. Etiket yokken şablondan önceki cevapsız soru aranmıyordu.
+    history: messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
       at: m.createdAt,
+      author: historyAuthorOf(m),
     })),
   });
 
@@ -137,10 +149,12 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // Konuşma Anlama Durumu v1 dilim B (bayraklı; kapalıyken sorgu yok, istem aynı).
   const conversationRecords = await loadConversationState({
     organizationId: session.organizationId,
-    messages: conversation.messages,
+    messages,
     reservationId: conversation.reservation?.id ?? null,
     conversationId: conversation.id,
     timeZone: orgTimezone(org?.timezone),
+    // Kesit konuşmanın tamamı değilse kesit öncesi cevap toplamları veritabanında sayılır (madde 10).
+    ...(thread.complete ? {} : { priorBefore: { row: thread.rows[0], excludedIds: [] } }),
   });
 
   const result = await suggestReply({
@@ -171,7 +185,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     knowledgeBaseNotes: kbSel.notes,
     // Yazar + yazıldığı an (F14): istemde YALNIZ Konuşma Anlama Durumu bayrağı açıkken görünür. Öneri saatler/günler
     // sonra istenebilir → cevaplanan mesajın kendi zamanı da gider ("yarın" o güne göre).
-    history: conversation.messages.map((m) => ({
+    history: messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
       author: historyAuthorOf(m),
@@ -212,8 +226,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // takvim iddiası taşıyorsa ya da müsaitlik isteğini ertelemiyorsa host onaylamadan önce görür —
   // yoksa oto-gönderimin durdurduğu iddiayı host tek tıkla misafire gönderebilirdi.
   // Otomatik şablon mesajı (K7) cevap değildir: pencereyi kapatmaz.
-  const lastOut = conversation.messages.findLastIndex((m) => isAnsweringOutbound(m));
-  const unanswered = conversation.messages
+  const lastOut = messages.findLastIndex((m) => isAnsweringOutbound(m));
+  const unanswered = messages
     .slice(lastOut + 1)
     .filter((m) => m.direction === "inbound")
     .map((m) => m.body);
