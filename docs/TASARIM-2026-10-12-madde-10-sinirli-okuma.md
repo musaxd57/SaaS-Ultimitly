@@ -40,6 +40,18 @@
   geriye bakışı kapsar) → yeniden modellenen turun girdisi aynı olurdu; fark yalnız fazladan bir model çağrısıdır (Haiku 10-12 de aynı
   sonuca vardı).
 
+## Diğer yüzeyler (10-12 gece)
+
+- **Gelen kutusu "AI cevap öner"** (`api/conversations/[id]/ai-suggest`): aynı sınırlı okuyucu (kanalın yeterlilik koşulu + konuşma
+  kayıtları koşulu; bu yüzeyde süzgeç yok, son satır giden olabilir — "en az 2 misafir mesajı" koşulu burada bağlayıcı, son GELEN mesajı
+  kesite alır). Sıra artık `(createdAt, id)` (eskiden yalnız `createdAt`; eşit damgada PostgreSQL sırası rastgeleydi). Aynı turda **K7
+  bağlantısı** bu yüzeyde de: getirme / anlama geçmişi yazar etiketi taşır (otomatik şablon mesajı cevapsız pencereyi sıfırlamaz — kanal
+  düzeltmesinin eşi). Kâhin: `ai-suggest-thread-window-oracle.test.ts` (taslak + modele giden istekler + kaydedilen öneri birebir).
+- **QR konuşma kayıtları** (`loadConversationStateForConversation`): eskiden son 200 satır okunup toplamlar YALNIZ o pencereden sayılıyordu
+  (Haiku 10-12: uzun QR konuşmasında "misafire giden mesaj" eksik). Artık kiracı kontrolü → sınırlı okuyucu (kayıtların koşulu) → kesit
+  öncesi sayım. Kâhin: `conversation-state-qr-window.test.ts` (bütün satırlarla kurulan özetle birebir; eski pencerenin eksik saydığı ayrıca
+  sabit).
+
 ## Envanter (uygulama öncesi hâl)
 
 `applyChannelAutoReply` (`src/lib/automation.ts` ~1594) konuşmayı `include.messages` ile **tavansız** okur (bütün kolonlar, eski → yeni).
