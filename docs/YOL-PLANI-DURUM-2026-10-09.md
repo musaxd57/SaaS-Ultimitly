@@ -15,6 +15,7 @@
 | ⑤ | Geniş otonom AI | 🟡 **ilk dilim kodda (10-12, kurucu "A + B + C", anahtar `AI_ACTION_SUGGESTIONS_ENABLED` KAPALI)**: görev / Wi-Fi bilgi tabanı düzeltmesi / söz kaydı ÖNERİSİ, sahip + yönetici tek tıkla onaylar (`lib/ai-suggestions/`); misafire hiçbir şey gitmez, otomatik eylem YOK. Ölçüt (2 hafta, ≥ 10 karar, ≥ %90 düzenlemesiz onay) yalnız ölçülür — otomatiğe geçiş ayrı karar + anahtar. Geniş otonomi ⛔ (④ korumaları canlıda doğrulanmadan) |
 
 Ürün fazları: V1 ✅ canlı · V2 🟡 ("Dikkat Gerektirenler" + çakışmada para aralığı) · V3–V8 başlamadı.
+> **10-12 gece düzeltmesi (Haiku denetimi):** "V3–V8 başlamadı" eksik — ⑤ ilk dilim V3'ün kapsamına girer (yapay zekâ önerisinden tek tıkla onayla görev / söz / bilgi tabanı kalemi oluşturma, `lib/ai-suggestions/act.ts`; anahtar `AI_ACTION_SUGGESTIONS_ENABLED` KAPALI). V4–V8 başlamadı.
 Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.
 
 ## 2. V0 kalanları (kodda ölçüldü 10-09)
@@ -24,17 +25,17 @@ Talimat: "V0 gerçekten kurulmadan V1'e geçme" → önce §2 kapatılır.
 | a | Çekirdek kimlik bilgisini kendisi çözüyor (değişmez 1, 4/9, 20) | ✅ **V0.8** (`channels/access.ts`) — eskiden: | `automation.ts:164` (5 çağrı), `host-send.ts:7`, `outbox/worker.ts:10`, `reservations-cleanup.ts:5`, 6 panel sayfası `getConnectionInfo` | Hayır |
 | b | Mimari pin: çekirdekte sağlayıcı importu (20) | ✅ **V0.8**: bütün `src/` taranır, gerekçeli izin listesi (kalan: `scheduled-sync` yoklayıcı kaydı) | `tests/unit/core-channel-independence.test.ts` | Hayır |
 | c | Mimari pin: kanal dizesinden yetenek çıkarımı (20) | ✅ **V0.9** pin (mutasyon 2/2); çekirdekte ihlal yoktu | `channels/capability.ts:35,46` tek kaynak ama pinsiz | Hayır |
-| d | Org kolonlarını okuyan son yerler (V0.7 contract ön koşulu) | ⏸ BEKLİYOR: operatör planı Aşama 1–3 (canlıda bağlantı satırına geçiş + okuma anahtarı ≥2 hafta) önce gelir; Railway kapalı. Şimdi satır-tek-kaynağa almak satırı olmayan org'u kırar | `hospitable-token-diagnostics-core.ts:146-169`, `channels/connections.ts:218-241`, `scheduled-sync.ts:371,382`, `unverified-sweep.ts:169-216`, `demo-tenant/apply-core.ts:72-79`, `admin/page.tsx:35,151` | Kod hayır; DROP evet (operatör planı) |
+| d | Org kolonlarını okuyan son yerler (V0.7 contract ön koşulu) | ⏸ BEKLİYOR: operatör planı Aşama 1–3 (canlıda bağlantı satırına geçiş + okuma anahtarı ≥2 hafta) önce gelir; Railway kapalı. Şimdi satır-tek-kaynağa almak satırı olmayan org'u kırar | `hospitable-token-diagnostics-core.ts:146-169`, `channels/connections.ts:218-241`, `scheduled-sync.ts:375,386` (10-12 gece güncel satır), `unverified-sweep.ts:169-216`, `demo-tenant/apply-core.ts:72-79`, `admin/page.tsx:51,183` (10-12 gece güncel satır) | Kod hayır; DROP evet (operatör planı) |
 | e | Webhook girişi aynı yazma servisine (7) | ⏸ BİLİNÇLİ: köprüye webhook yazılmaz (`channels/manifests.ts:79`); Airbnb Direct'te `planned`. Sandbox / resmî doküman olmadan rota = kullanılmayan arayüz (talimat yasaklar, değişmez 18) | `api/webhooks/` yalnız `paddle` | Belki |
 | f | Bağlantı sağlığı sinyali (sağlayıcıdan bağımsız) (9) | ✅ 10-10: `channels/health.ts` (okuma kaydından ok / bayat / hata; ölçüm yoksa hiçbir şey çizilmez) → Ayarlar satırı + Dikkat Gerektirenler satırı (kalıcı hata hemen, geçici hata yalnız bayatsa); yazıcı migration 60 `CHANNEL_METADATA_WRITE` arkasında (KAPALI) | `channels/health.ts`, `incidents/attention.ts` | migration 60 (itildi) |
 | g | Ham platform korunmuyor (`toChannel`) (2) | 🟡 migration 60 İTİLDİ (10-10): `Reservation.sourcePlatform` + yazıcı (`sourcePlatformOf`, `CHANNEL_METADATA_WRITE` arkasında, KAPALI) | `channels/hospitable-ingest.ts:126`, `channels/ingest.ts:190` | — |
-| h | `Property.hospitableId` global unique (3) | 🟡 migration 60 İTİLDİ (10-10): bağlantı kapsamlı `ChannelListing` + çift yazım (`CHANNEL_METADATA_WRITE`, KAPALI); OKUMA geçişi KODDA (10-10, `CHANNEL_LISTING_READ` KAPALI — satır yoksa `hospitableId`e düşer; açmak = kurucu onayı + çift yazım canlıda koşmuş olmalı); `hospitableId` tekilliği geçiş boyunca durur (DROP = operatör planı) | `channels/metadata.ts`, `prisma/schema.prisma:1522` | DROP evet |
+| h | `Property.hospitableId` global unique (3) | 🟡 migration 60 İTİLDİ (10-10): bağlantı kapsamlı `ChannelListing` + çift yazım (`CHANNEL_METADATA_WRITE`, KAPALI); OKUMA geçişi KODDA (10-10, `CHANNEL_LISTING_READ` KAPALI — satır yoksa `hospitableId`e düşer; açmak = kurucu onayı + çift yazım canlıda koşmuş olmalı); `hospitableId` tekilliği geçiş boyunca durur (DROP = operatör planı) | `channels/metadata.ts`, `prisma/schema.prisma:354` (`hospitableId @unique`; 1547 yorum satırı — 10-12 gece düzeltme) | DROP evet |
 
 ## 2b. 20 teknik değişmez — pin eşlemesi (10-10, Haiku taraması + kodda doğrulandı)
 
 | Durum | Değişmezler |
 |---|---|
-| ✅ güçlü pin | 1 (`core-channel-independence` — ⚠️ "import yok" pinlidir, gerekçeli izin listesi: `scheduled-sync` yoklayıcı kaydı; uyum değil BÜYÜYEMEZ), 5 + 18 (`channel-manifest`, `airbnb-direct-adapter`), 7 (`ingest-write-service` + tek yazıcı pini — ⚠️ yalnız YOKLAMA yarısı: webhook girişi yok, köprüye yazılmaz, Airbnb Direct'te sandbox'a bağlı → §2e), 8 (`outbound-dispatch-guards`, `outbox`, `outbound-classification-parity`), 15 (`money-impact`, `attention-money`), 17 (iki uyum kiti + kit dışı yaşam döngüsü testleri) |
+| ✅ güçlü pin | 1 (`core-channel-independence` — ⚠️ "import yok" pinlidir, gerekçeli izin listesi: `scheduled-sync` yoklayıcı kaydı; uyum değil BÜYÜYEMEZ), 5 + 18 (`channel-manifest`, `airbnb-direct-adapter`), 7 (`ingest-write-service` + tek yazıcı pini — ⚠️ yalnız YOKLAMA yarısı: webhook girişi yok, köprüye yazılmaz, Airbnb Direct'te sandbox'a bağlı → §2e), 8 (`outbound-dispatch-guards`, `outbox`, `outbound-classification-parity`), 15 (`money-impact`, `attention-money`), 17 (iki uyum kiti + kit dışı yaşam döngüsü testleri; **10-12 gece:** giriş kiti tekrar oynatma / değişiklik / kiracı ayrımı / yeniden bağlanma vakalarıyla tamamlandı — sıra dışı teslimde iptal edilmiş satırın geri açılması ÇEKİRDEK politikası, kurucu sorusu G9) · ⚠️ 8'de belirsiz teslim satırı kendiliğinden çözülmez (`outbox/worker.ts` uzlaştırma bilinçli `found:false` — sağlayıcı "gönderildi mi" sorgusu sunmuyor; operatör kuyruğu) |
 | 🟡 10-10 büyüyemez liste (UYUM DEĞİL — Haiku kapsam denetimi 10-11 doğru buldu) | **3** (dış kimlik bağlantı kapsamsız eşsiz değil — 4 bilinen ihlal SÜRÜYOR: `Property.hospitableId @unique`, Reservation / Conversation / Message bileşik eşsizleri; migration + Airbnb Direct ile kalkar; + 1 kapsam dışı gerekçeli) · **20** (çekirdekte `hospitable*` şema alanı — 7 gerekçeli dosya hâlâ okuyor; kanal dizesi yasağı V0.9) — `channel-invariants-ratchet.test.ts`, mutasyon 3/3 |
 | ✅ 10-10 gece | **16**: kimlik parçalı HER API rotasının HER yöntemi bir kiracılar arası DAVRANIŞSAL teste eşli (`cross-tenant-coverage.test.ts`; eksik 7 tutamaç `cross-tenant-handlers-more`; muaf: operatör + iki anonim belirteç rotası; mutasyon 7/7) |
 | ✅ 10-10 gece | **10** (otomatik kanallar arası birleştirme): konuşma kopya temizliği QR ipliğini aynı konaklamanın Airbnb ipliğiyle "kopya" sayıp boş olanı birleştiriyordu → kopya = AYNI kanal + aynı konaklama (`conversations-cleanup.test.ts`, mutasyon 2/2); toplu birleştirme betiği zaten sağlayıcı kimliğiyle gruplar |
@@ -124,3 +125,20 @@ analiz kurucuya sunuldu, karar bekliyor.
 6. ✅ (10-09 gece, kurucu yokken karar #9) Müsaitlik motorunda `claimBasis` kaynak tazeliğine bakmıyordu → panel çakışma önemi bayat
    kaynakta da "kesin 97". Motor 2: son okuması 6 saatten eski kaynağın satırı "taze iddia" değil (panel 70 / çıkarım); araç sözleşmesi 3.
 7. V2 sonraki dilimleri / V3 eylemler / V5 hazırlık puanı: yeni ürün yüzeyleri — kapsam ve örnekle sorulacak.
+
+## 7. 10-10 → 10-12 kurucu onaylı işler (10-12 gece eklendi — Haiku denetimi: çizelgede satırları yoktu)
+
+Talimat dışı, kurucunun ara kararlarıyla yapılanlar; ayrıntı ve kanıt `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` ve `docs/claude/durum.md`.
+
+| İş | Durum |
+|---|---|
+| Deneme kötüye kullanımı (işletme kimliği + risk puanı + operatör listesi) | ✅ yalnız liste (kurucu "önce yalnız liste"); kartla doğrulama eşiği kurucu kararı bekliyor (`billing/trial-risk.ts`) |
+| Ödeme kilidi ("Ödemeniz işleniyor") + ikinci aktif abonelik alarmı | ✅ (`webhooks/paddle/route.ts`) |
+| Takip numarası (correlation ID) ilk dilim + arka plan işleri (migration 63) | ✅ |
+| Acil numara kod metni (`AI_EMERGENCY_NUMBER_ENABLED` KAPALI) | ✅ kodda |
+| QR tavanları (konaklama saatte 40, acil e-posta saatte 3, daire alt kotası) · Wi-Fi bağlı cihazda / kapı kodu yok · çıktı taraması | ✅ |
+| S1 bavul kapısı · S2 iptal edilmiş rezervasyonda QR · S3 boş kayıt yazmaz | ✅ |
+| B1 "Bilgi tabanına ekle" + Yerel Tavsiye hatırlatması | ✅ |
+| Görev atama e-postası tavanı (görev başı saatte 3) · önizleme kotası konuşma başına | ✅ |
+| ⑤ ilk dilim öneriler (`AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) | ✅ kodda; "sonuç makbuzu" = onay denetim kaydı (`ai_suggestion.approved`, oluşturulan görev / söz / kalem kimlikleriyle) — ayrı makbuz tablosu YOK |
+| Madde 10 sınırlı konuşma okuması (kanal · AI öner · QR kayıtları) | ✅ |

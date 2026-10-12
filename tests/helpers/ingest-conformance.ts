@@ -13,6 +13,7 @@ import { IngestError, type IngestAdapter } from "@/lib/channels/ingest";
 
 export type IngestScenario =
   | "two_reservations"
+  | "modified_reservation"
   | "duplicate_reservation"
   | "status_variants"
   | "messages_unsorted"
@@ -82,6 +83,45 @@ export function describeIngestConformance(label: string, makeHarness: () => Inge
       expect(b.guest.email).toBeNull(); // maskelenmiş misafir → null, uydurulmaz
       expect(b.guest.givenName ?? null).toBeNull(); // ayrı ad alanı yok → tam addan TÜRETİLMEZ (tahmin yok)
       expect(h.lastToken()).toBe(KIT.TOKEN);
+    });
+
+    // ── Değişmez 17 kit tamamlama (10-12 gece, Haiku denetimi: kit tekrar / değişiklik / kiracı / yeniden bağlanma vakası taşımıyordu).
+    //    Adaptör DURUM TUTMAZ: her çağrının sonucu yalnız o anki sağlayıcı cevabına ve o çağrının kimlik bilgisine bağlıdır. Sıra dışı
+    //    teslimin ÇEKİRDEKTEKİ politikası (iptal edilmiş satırın geri açılması) ayrı karar — kit adaptör düzeyindedir.
+    it("tekrar oynatma: aynı cevap iki kez → birebir aynı canonical çıktı (adaptör durum biriktirmez)", async () => {
+      h.arrange("two_reservations");
+      const first = await h.adapter.listReservations(cred, KIT.WINDOW);
+      const second = await h.adapter.listReservations(cred, KIT.WINDOW);
+      expect(second).toEqual(first);
+      expect(first).toHaveLength(2);
+    });
+
+    it("değişiklik: sağlayıcıdaki satır değişince YENİ değer aktarılır (önbellek yok)", async () => {
+      h.arrange("two_reservations");
+      const before = await h.adapter.listReservations(cred, KIT.WINDOW);
+      expect(before[0].departureDate?.toISOString().slice(0, 10)).toBe("2026-06-05");
+      h.arrange("modified_reservation");
+      const after = await h.adapter.listReservations(cred, KIT.WINDOW);
+      expect(after.find((r) => r.externalId === KIT.RES_A)?.departureDate?.toISOString().slice(0, 10)).toBe("2026-06-07");
+    });
+
+    it("🚨 kiracı ayrımı: her çağrı KENDİ kimlik bilgisini taşır — önceki çağrının token'ı sonrakine sızmaz", async () => {
+      h.arrange("two_reservations");
+      await h.adapter.listReservations({ provider: "hospitable", token: "tok-OTHER-tenant" }, KIT.WINDOW);
+      expect(h.lastToken()).toBe("tok-OTHER-tenant");
+      const own = await h.adapter.listReservations(cred, KIT.WINDOW);
+      expect(h.lastToken()).toBe(KIT.TOKEN);
+      expect(own.map((r) => r.externalId)).toEqual([KIT.RES_A, KIT.RES_B]);
+    });
+
+    it("yeniden bağlanma: yetki reddinden (401) sonra yenilenen kimlik bilgisiyle çağrı BAŞARILI — hata yapışkan değil", async () => {
+      h.arrange("reject_401");
+      await expect(h.adapter.listReservations(cred, KIT.WINDOW)).rejects.toBeInstanceOf(IngestError);
+      h.reset();
+      h.arrange("two_reservations");
+      const rs = await h.adapter.listReservations({ provider: "hospitable", token: KIT.TOKEN }, KIT.WINDOW);
+      expect(rs.map((r) => r.externalId)).toEqual([KIT.RES_A, KIT.RES_B]);
+      expect(h.attempts()).toBeGreaterThanOrEqual(1);
     });
 
     it("🚨 sağlayıcı DEDUPE YAPMAZ: aynı rezervasyon listede iki kez → adaptör ikisini de aktarır (tekilleştirme çekirdeğin işi)", async () => {

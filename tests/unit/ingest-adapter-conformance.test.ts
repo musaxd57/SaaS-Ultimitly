@@ -39,6 +39,9 @@ describeIngestConformance("ortak fake (tests/helpers/fake-ingest.ts)", () => {
         case "two_reservations":
           fake.setReservations(KIT.PROPERTY, [A, B]);
           break;
+        case "modified_reservation":
+          fake.setReservations(KIT.PROPERTY, [{ ...A, departureDate: new Date("2026-06-07T00:00:00Z") }, B]);
+          break;
         case "duplicate_reservation":
           fake.setReservations(KIT.PROPERTY, [A, A]);
           break;
@@ -138,6 +141,8 @@ describeIngestConformance("gerçek Hospitable ingest adaptörü (fetch stub)", (
     switch (scenario) {
       case "two_reservations":
         return page([RAW_A, RAW_B], 1, 1);
+      case "modified_reservation":
+        return page([{ ...RAW_A, departure_date: "2026-06-07" }, RAW_B], 1, 1);
       case "duplicate_reservation":
         return page([RAW_A, RAW_A], 1, 1);
       case "status_variants":
