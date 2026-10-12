@@ -51,6 +51,9 @@ async function conversationWith(orgId: string, propertyId: string, msgs: { direc
   return { conversationId: c.id, messageIds: ids };
 }
 
+/** Bilgi tabanı kalemi mesajlardan ÖNCE düzenlenmiş olsun (kalem mesajdan sonra düzenlendiyse öneri çıkmaz — ↓ B). */
+const DAY_AGO = () => new Date(Date.now() - 86_400_000);
+
 beforeEach(async () => {
   await resetDb();
   vi.stubEnv("AI_ACTION_SUGGESTIONS_ENABLED", "1");
@@ -178,7 +181,7 @@ describe("B · Wi-Fi bilgi tabanı düzeltmesi", () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asUser(orgId);
     const kb = await prisma.knowledgeBaseItem.create({
-      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre: eskiSifre1", isActive: true, source: "host", reviewState: "approved" },
+      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre: eskiSifre1", isActive: true, source: "host", reviewState: "approved", updatedAt: DAY_AGO() },
     });
     await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Kusura bakmayın, yeni Wi-Fi şifresi: YeniSifre22" }]);
     const [s] = await getPropertyWifiSuggestions(orgId, propertyId);
@@ -193,13 +196,65 @@ describe("B · Wi-Fi bilgi tabanı düzeltmesi", () => {
   it("hedef belirsizse öneri YOK: iki Wi-Fi kalemi (ana + misafir ağı) ya da kalemde iki şifre (Haiku 10-12)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asUser(orgId);
-    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Ana", content: "şifre: Abc12345 / misafir şifresi: Gst98765", isActive: true } });
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Ana", content: "şifre: Abc12345 / misafir şifresi: Gst98765", isActive: true, updatedAt: DAY_AGO() } });
     await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Yeni Wi-Fi şifresi: YeniSifre22" }]);
     expect(await getPropertyWifiSuggestions(orgId, propertyId)).toEqual([]);
     await prisma.knowledgeBaseItem.deleteMany({});
-    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Ana", content: "şifre: Abc12345", isActive: true } });
-    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Misafir", content: "şifre: Gst98765", isActive: true } });
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Ana", content: "şifre: Abc12345", isActive: true, updatedAt: DAY_AGO() } });
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Misafir", content: "şifre: Gst98765", isActive: true, updatedAt: DAY_AGO() } });
     expect(await getPropertyWifiSuggestions(orgId, propertyId)).toEqual([]);
+    // Kontrol (vakum değil): tek kalem, tek değer → aynı mesaj öneri üretir.
+    await prisma.knowledgeBaseItem.deleteMany({});
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Ana", content: "şifre: Abc12345", isActive: true, updatedAt: DAY_AGO() } });
+    expect(await getPropertyWifiSuggestions(orgId, propertyId)).toHaveLength(1);
+  });
+
+  it("🚨 kalem mesajdan SONRA düzenlendiyse öneri YOK; öneri görüldükten sonra kalem düzenlenirse onay 409, kalem değişmez (Haiku 10-12 2. tur)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asUser(orgId);
+    // Mesaj 2 saat önce; ev sahibi kalemi 1 saat önce elle güncelledi → mesajdaki değer bayat.
+    await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Yeni Wi-Fi şifresi: EskiYeni11", minutesAgo: 120 }]);
+    const kb = await prisma.knowledgeBaseItem.create({
+      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "şifre: EnYeni9999", isActive: true, updatedAt: new Date(Date.now() - 60 * 60_000) },
+    });
+    expect(await getPropertyWifiSuggestions(orgId, propertyId)).toEqual([]);
+
+    // Kalem mesajdan önce düzenlenmiş → öneri var; kart açıkken kalem düzenlenirse onay bayat değeri YAZMAZ.
+    await prisma.knowledgeBaseItem.update({ where: { id: kb.id }, data: { updatedAt: DAY_AGO() } });
+    const [s] = await getPropertyWifiSuggestions(orgId, propertyId);
+    expect(s).toMatchObject({ kind: "kb_wifi", proposal: { field: "password" } });
+    await prisma.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content: "şifre: ElleYazilan7" } });
+    expect((await decide({ key: s.key, decision: "approve" })).status).toBe(409);
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kb.id } })).content).toBe("şifre: ElleYazilan7");
+    expect(await prisma.auditLog.count({ where: { action: "ai_suggestion.approved" } })).toBe(0);
+
+    // İşlem İÇİ savunma: yeniden üretim geçti, kalem kilitten SONRA (işlem okumadan önce) düzenlendi → yine 409, elle yazılan korunur.
+    await prisma.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content: "şifre: EnYeni9999", updatedAt: DAY_AGO() } });
+    const [again] = await getPropertyWifiSuggestions(orgId, propertyId);
+    expect(again?.key).toBe(s.key);
+    __aiSuggestionHooks.afterDecisionCheck = async () => {
+      await prisma.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content: "şifre: Kanca5555" } });
+    };
+    try {
+      expect((await decide({ key: again.key, decision: "approve" })).status).toBe(409);
+    } finally {
+      __aiSuggestionHooks.afterDecisionCheck = null;
+    }
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kb.id } })).content).toBe("şifre: Kanca5555");
+    expect(await prisma.auditLog.count({ where: { action: "ai_suggestion.approved" } })).toBe(0);
+  });
+
+  it("modem / yönetici ya da kapı şifresi Wi-Fi önerisi ÜRETMEZ; açık ':' ile yazılan sözcük biçimli şifre üretir", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asUser(orgId);
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "şifre: Abc12345", isActive: true, updatedAt: DAY_AGO() } });
+    await conversationWith(orgId, propertyId, [
+      { direction: "outbound", authorType: "host", body: "Modem admin şifresi: admin9876", minutesAgo: 30 },
+      { direction: "outbound", authorType: "host", body: "Kapı şifresi: 4829#1234", minutesAgo: 20 },
+    ]);
+    expect(await getPropertyWifiSuggestions(orgId, propertyId)).toEqual([]);
+    await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Wi-Fi şifresi: lalehouse", minutesAgo: 10 }]);
+    expect(await getPropertyWifiSuggestions(orgId, propertyId)).toMatchObject([{ kind: "kb_wifi", proposal: { field: "password", masked: "••••se" } }]);
   });
 });
 

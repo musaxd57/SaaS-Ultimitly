@@ -137,6 +137,8 @@ export const PIPELINE_FLAGS = [
   "AI_EMERGENCY_NUMBER_ENABLED",
   // Anlama istemine şikâyet tehdidi kuralı (10-11; anlama istemini değiştirir).
   "AI_UNDERSTANDING_THREAT_RULE_ENABLED",
+  // Ev sahibine öneri kartı (10-12, ⑤); misafire giden metni değiştirmez, koşu kimliğinde görünür (tek kural: her AI_* bayrağı).
+  "AI_ACTION_SUGGESTIONS_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

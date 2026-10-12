@@ -231,20 +231,23 @@ const WIFI_WINDOW_DAYS = 14;
 /**
  * Bir mülkün B (Wi-Fi) önerileri: ev sahibinin misafire yazdığı şifre / ağ adı bilgi tabanının Wi-Fi kaleminde GEÇMİYORSA → "bilgi
  * tabanını güncelle". Alan başına yalnız EN YENİ değer. HEDEF BELİRSİZSE öneri YOK (Haiku 10-12): birden çok Wi-Fi kalemi (ana / misafir
- * ağı) ya da kalemde o alan için birden çok değer. Anahtar mesaja bağlı (`kb_wifi:<mesaj>:<alan>`) — hedef kalem değişse de "yok say" kalır.
+ * ağı) ya da kalemde o alan için birden çok değer. Kalemin son düzenlemesinden ÖNCEKİ mesaj öneri üretmez. Anahtar mesaja bağlı (`kb_wifi:<mesaj>:<alan>`) — hedef kalem değişse de "yok say" kalır.
  */
 export async function getPropertyWifiSuggestions(organizationId: string, propertyId: string, now: Date = new Date()): Promise<SuggestionView[]> {
   const kbItems = await prisma.knowledgeBaseItem.findMany({
     where: { propertyId, property: { organizationId }, category: "wifi", isActive: true },
     orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-    select: { id: true, content: true },
+    select: { id: true, content: true, updatedAt: true },
   });
   if (kbItems.length !== 1) return [];
   const target = kbItems[0];
   const since = new Date(now.getTime() - WIFI_WINDOW_DAYS * 86_400_000);
+  // Kalem mesajdan SONRA düzenlendiyse mesajdaki değer bayat sayılır (ev sahibi kalemi o mesajı gördükten sonra elle güncellemiş olabilir —
+  // eski şifre yenisinin üstüne yazılmasın; Haiku 10-12 2. tur). Yalnız kalemin son düzenlemesinden SONRAKİ mesajlar.
+  const after = target.updatedAt.getTime() > since.getTime() ? target.updatedAt : since;
   const [messages, decided] = await Promise.all([
     prisma.message.findMany({
-      where: { conversation: { propertyId, property: { organizationId } }, direction: "outbound", createdAt: { gte: since, lte: now } },
+      where: { conversation: { propertyId, property: { organizationId } }, direction: "outbound", createdAt: { gt: after, lte: now } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 200,
       select: { id: true, body: true, direction: true, authorType: true, senderName: true, systemEventType: true, createdAt: true },

@@ -139,11 +139,14 @@ export async function decideSuggestion(input: {
         created.taskId = c.taskId;
       } else {
         const [kb, msg] = await Promise.all([
-          tx.knowledgeBaseItem.findFirst({ where: { id: view.proposal.kbItemId, propertyId }, select: { id: true, content: true } }),
-          tx.message.findFirst({ where: { id: view.proposal.messageId }, select: { body: true } }),
+          tx.knowledgeBaseItem.findFirst({ where: { id: view.proposal.kbItemId, propertyId }, select: { id: true, content: true, updatedAt: true } }),
+          tx.message.findFirst({ where: { id: view.proposal.messageId }, select: { body: true, createdAt: true } }),
         ]);
         const value = msg ? extractWifiValues(msg.body)[view.proposal.field] : null;
-        if (!kb || !value) return { status: "gone" } as const;
+        if (!kb || !msg || !value) return { status: "gone" } as const;
+        // Önerinin yeniden üretilmesiyle bu okuma arasında kalem düzenlendiyse (her içerik değişikliği `updatedAt`ı mesajın ötesine
+        // taşır) → karar YAZILMAZ (bayat değer elle yazılan yeni bilginin üstüne yazılmasın). Değer / değer sayısı denetimi yeniden üretimde.
+        if (kb.updatedAt.getTime() >= msg.createdAt.getTime()) return { status: "gone" } as const;
         await tx.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content: applyWifiValue(kb.content, view.proposal.field, value) } });
         created.kbItemId = kb.id;
       }

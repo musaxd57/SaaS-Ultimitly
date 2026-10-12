@@ -64,6 +64,47 @@ describe("C · ev sahibinin sözü", () => {
     expect(promiseDue(detectHostPromise("Temizlikçi gelecek.")!, at10)).toEqual({ day: "today", time: "12:00" });
     expect(promiseDue(detectHostPromise("Birazdan temizlikçi gelecek.")!, 23 * 60 + 30)).toEqual({ day: "tomorrow", time: "00:30" });
   });
+
+  // Haiku 10-12 2. tur.
+  it("rakamlar arasındaki nokta cümlecik bölmez ('09.30', '1.5'); ondalık süre dakikaya çevrilir", () => {
+    expect(detectHostPromise("Teknisyen saat 09.30'da gelecek.")).toMatchObject({ kind: "maintenance", timeCandidates: [9 * 60 + 30] });
+    expect(detectHostPromise("Temizlikçi 1,5 saat içinde gelecek.")).toMatchObject({ kind: "cleaning", inMinutes: 90 });
+    expect(detectHostPromise("Temizlikçi 1.5 saat içinde gelecek.")).toMatchObject({ kind: "cleaning", inMinutes: 90 });
+    expect(detectHostPromise("Teknisyen 2 saat sonra gelecek.")).toMatchObject({ inMinutes: 120 });
+    // Cümle sonu noktası ("saat 10.") yine böler: ikinci cümlecikteki söz kendi saatini taşır.
+    expect(detectHostPromise("Kahvaltı saat 10. Temizlikçi gelecek.")).toMatchObject({ kind: "cleaning", timeCandidates: [] });
+  });
+
+  it("'değil' / 'yok' yalnız söz fiilinin parçasında ve fiilden SONRA olumsuzlar; başka parçadaki 'yok' sözü bozmaz", () => {
+    expect(detectHostPromise("Havlu yok demişsiniz, yarın getireceğim havluları.")).toMatchObject({ kind: "towels", day: "tomorrow" });
+    expect(detectHostPromise("Sorun yok, teknisyen yarın gelecek.")).toMatchObject({ kind: "maintenance", day: "tomorrow" });
+    expect(detectHostPromise("Sorun yok yarın teknisyen gelecek.")).toMatchObject({ kind: "maintenance" }); // aynı parça, fiilden ÖNCE
+    expect(detectHostPromise("Bugün gelecek teknisyen yok.")).toBeNull();
+    expect(detectHostPromise("Havlu getirecek kimse yok.")).toBeNull();
+    expect(detectHostPromise("Teknisyen gelecek ama iptal olabilir.")).toBeNull(); // iptal cümlecik boyunca
+  });
+
+  it("konu önce söz fiilinin parçasında aranır: 'Klima için teşekkürler, yarın havlu getireceğim' → havlu (bakım değil)", () => {
+    expect(detectHostPromise("Klima için teşekkürler, yarın havlu getireceğim.")).toMatchObject({ kind: "towels" });
+    // Fiilin parçasında konu yoksa cümlecik geneline düşer.
+    expect(detectHostPromise("Kombi için, yarın getireceğim.")).toMatchObject({ kind: "maintenance" });
+  });
+
+  it("gün dilimi: açık saat yoksa 'sabah' 10:00 / 'akşam' 19:00 / 'gece' 21:00 / 'öğlen' 12:00; açık saati öğleden önce / sonra süzer", () => {
+    const at14 = 14 * 60;
+    expect(promiseDue(detectHostPromise("Yarın sabah teknisyen gelecek.")!, at14)).toEqual({ day: "tomorrow", time: "10:00" });
+    expect(promiseDue(detectHostPromise("Bu akşam havlu getireceğim.")!, at14)).toEqual({ day: "today", time: "19:00" });
+    expect(promiseDue(detectHostPromise("Bu gece havlu getireceğim.")!, at14)).toEqual({ day: "today", time: "21:00" });
+    expect(promiseDue(detectHostPromise("Yarın öğlen temizlikçi gelecek.")!, at14)).toEqual({ day: "tomorrow", time: "12:00" });
+    expect(promiseDue(detectHostPromise("Öğleden sonra teknisyen gelecek.")!, 10 * 60)).toEqual({ day: "today", time: "15:00" });
+    // Bugünkü dilim geçmişse yarına KAYMAZ ("bu akşam" 20:00'de yazıldıysa) → şimdi + 2 saat.
+    expect(promiseDue(detectHostPromise("Bu akşam havlu getireceğim.")!, 20 * 60)).toEqual({ day: "today", time: "22:00" });
+    // "akşam 6" → 18:00 (06:00 değil); "sabah 9" → 09:00 (21:00 değil).
+    expect(detectHostPromise("Akşam 6'da teknisyen gelecek.")).toMatchObject({ timeCandidates: [18 * 60], cueMinutes: null });
+    expect(detectHostPromise("Yarın sabah 9'da temizlikçi gelecek.")).toMatchObject({ timeCandidates: [9 * 60], cueMinutes: null });
+    // Açık saat ya da süre varsa ipucu kullanılmaz.
+    expect(detectHostPromise("Bu akşam 30 dakika içinde havlu getireceğim.")).toMatchObject({ inMinutes: 30, cueMinutes: null });
+  });
 });
 
 describe("B · Wi-Fi değeri", () => {
@@ -109,6 +150,29 @@ describe("B · Wi-Fi değeri", () => {
     expect(kbContainsValue("şifre: Abc12345", "abc12345", true)).toBe(false);
     expect(kbContainsValue("Ağ: LALENET", "lalenet", false)).toBe(true);
     expect(maskSecret("Lale2025!")).toBe("••••5!");
+  });
+});
+
+describe("B · Wi-Fi değeri — Haiku 10-12 2. tur", () => {
+  it("modem / yönetici / kapı / kasa şifresi Wi-Fi değeri SAYILMAZ (ne çıkarılır ne kalemde sayılır)", () => {
+    expect(extractWifiValues("Modem admin şifresi: admin1234").password).toBeNull();
+    expect(extractWifiValues("Router password: Rt998877").password).toBeNull();
+    expect(extractWifiValues("Kapı şifresi: 4829#1234").password).toBeNull();
+    expect(extractWifiValues("Kasa şifresi 55667788").password).toBeNull();
+    expect(extractWifiValues("Yönetici şifresi: Yn123456, Wi-Fi şifresi: Wf123456").password).toBe("Wf123456");
+    expect(wifiValueCount("Wi-Fi şifresi: Abc12345\nModem arayüzü şifresi: Mdm12345", "password")).toBe(1);
+    expect(extractWifiValues("Wi-Fi şifresi: Abc12345").password).toBe("Abc12345"); // kontrol
+  });
+
+  it("açık ':' / '=' ile yazılan ve parçayı BİTİREN sözcük biçimli değer kabul; ardından sözcük gelirse ya da ayraç yoksa değil", () => {
+    expect(extractWifiValues("Wi-Fi şifresi: lalehouse").password).toBe("lalehouse");
+    expect(extractWifiValues("Şifre = lalehouse, iyi tatiller").password).toBe("lalehouse");
+    expect(extractWifiValues("Ağ adımız: lale").network).toBe("lale");
+    expect(extractWifiValues("Wi-Fi adınız: Lale").network).toBe("Lale");
+    expect(extractWifiValues("Şifre: routerin altında yazıyor").password).toBeNull();
+    expect(extractWifiValues("Şifre lalehouse").password).toBeNull(); // ayraç yok, rakam yok
+    expect(extractWifiValues("Şifre: aşağıdaki.").password).toBeNull();
+    expect(extractWifiValues("Ağ adı: ab").network).toBeNull(); // sözcük biçimli ağ adı en az 3 harf
   });
 });
 
