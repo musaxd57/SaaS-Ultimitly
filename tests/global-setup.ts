@@ -52,7 +52,9 @@ export default async function setup() {
   mkdirSync(PGDATA, { recursive: true });
   execSync(`chown postgres:postgres ${PGDATA}`);
 
-  execSync(`su postgres -c "${BIN}/initdb -D ${PGDATA} -U postgres --auth=trust"`, {
+  // Kodlama + yerel ayar AÇIK (canlıyla aynı UTF8): belirtilmezse ortamdan gelir — CI konteynerinde LANG boş → SQL_ASCII, yerelde
+  // C.UTF-8 → UTF8; ham SQL'deki Unicode karakter kalıpları iki ortamda farklı davranıyordu (10-12, CI #1420).
+  execSync(`su postgres -c "${BIN}/initdb -D ${PGDATA} -U postgres --auth=trust -E UTF8 --locale=C.UTF-8"`, {
     stdio: "ignore",
   });
   execSync(

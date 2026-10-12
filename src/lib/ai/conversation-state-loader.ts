@@ -58,8 +58,9 @@ export async function conversationStatePriorTotals(input: {
   before: { id: string };
   excludedIds: readonly string[];
 }): Promise<{ outbound: number; hostOutbound: number }> {
-  const rows = await prisma.$queryRaw<{ outbound: number; hostOutbound: number; found: number }[]>`
-    SELECT count(*) FILTER (WHERE a IN ('ai', 'host'))::int AS "outbound",
+  const rows = await prisma.$queryRaw<{ outbound: number; hostOutbound: number; found: number; encoding: string }[]>`
+    SELECT current_setting('server_encoding') AS "encoding",
+           count(*) FILTER (WHERE a IN ('ai', 'host'))::int AS "outbound",
            count(*) FILTER (WHERE a = 'host')::int AS "hostOutbound",
            (SELECT count(*) FROM "Message" s WHERE s."id" = ${input.before.id} AND s."conversationId" = ${input.conversationId})::int AS "found"
     FROM (
@@ -83,6 +84,9 @@ export async function conversationStatePriorTotals(input: {
   // (Haiku son tur 10-12). Fırlatılır: çağıran (`loadConversationState`) yakalar, kayıt bloğu yazılmaz (okunamayan durum = blok yok).
   const r = rows[0];
   if (!r || r.found !== 1) throw new Error("conversation-state prior totals: kesit sınırı satırı bulunamadı");
+  // Boşluk kalıbı Unicode karakter içerir: UTF8 dışı kodlamada (SQL_ASCII) bayt bazında eşleşir ve U+200B gibi karakterleri "boş"
+  // sayar (CI #1420'de ölçüldü). Canlı UTF8; başka kodlamada sayım YAPILMAZ → çağıran kayıt bloğunu yazmaz.
+  if (r.encoding !== "UTF8") throw new Error(`conversation-state prior totals: veritabanı kodlaması UTF8 değil (${r.encoding})`);
   return { outbound: r.outbound, hostOutbound: r.hostOutbound };
 }
 
