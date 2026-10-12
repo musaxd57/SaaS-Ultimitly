@@ -20,7 +20,23 @@ import React from "react";
  */
 export function treeText(root: unknown): string {
   const parts: string[] = [];
-  const TEXT_PROPS = ["title", "description", "summary", "label", "value", "placeholder"];
+  // 🚨 BÜTÜN METİN PROP'LARI (DENETIM 08-09 #36, 10-12 gece): eskiden yalnız altı ad (title/description/summary/label/value/placeholder)
+  // toplanıyordu → başka bir prop'tan (`guestName`, `aria-label`, `subtitle`…) ekrana / istemciye giden kişisel veri `not.toContain`
+  // iddialarına GÖRÜNMEZDİ. Artık her dize prop'u toplanır; yalnız metin taşımayan öznitelikler (sınıf, bağlantı, kimlik, tür…) dışarıda.
+  // Açılamayan (hook'lu / istemci) bileşenin nesne prop'larındaki dizeler de toplanır: o veri istemciye serileştirilir.
+  const NON_TEXT_PROPS = new Set([
+    "children", "className", "href", "src", "id", "key", "type", "role", "rel", "target", "method", "action", "htmlFor", "name",
+    "autoComplete", "inputMode", "pattern", "d", "viewBox", "fill", "stroke", "xmlns", "strokeWidth", "strokeLinecap",
+    "strokeLinejoin", "encType", "dir", "lang", "form", "as", "prefetch", "scroll", "replace", "loading", "decoding",
+  ]);
+  const deepStrings = (v: unknown, depth: number): void => {
+    if (depth > 6 || v == null) return;
+    if (typeof v === "string") parts.push(v);
+    else if (Array.isArray(v)) for (const x of v) deepStrings(x, depth + 1);
+    else if (typeof v === "object" && !React.isValidElement(v) && Object.getPrototypeOf(v) === Object.prototype) {
+      for (const x of Object.values(v as Record<string, unknown>)) deepStrings(x, depth + 1);
+    }
+  };
   const collect = (node: unknown): void => {
     if (node == null || typeof node === "boolean") return;
     if (typeof node === "string" || typeof node === "number") {
@@ -40,20 +56,25 @@ export function treeText(root: unknown): string {
       // ⚠️ `try/catch` ŞART: hook kullanan ya da async olan bir bileşen burada
       // patlar; o durumda AÇMADAN devam ediyoruz (eski davranış), yani bu
       // ekleme hiçbir testi bozamaz — yalnız görebildiğini genişletir.
+      let expanded = false;
       if (typeof node.type === "function") {
         try {
           const out = (node.type as (p: unknown) => unknown)(props);
           // Async sunucu bileşeni bir Promise döner — açılamaz, atla.
           if (out && typeof (out as { then?: unknown }).then !== "function") {
             collect(out);
+            expanded = true;
           }
         } catch {
           /* hook'lu/renderer gerektiren bileşen — prop'larla yetin */
         }
       }
       collect(props.children);
-      for (const key of TEXT_PROPS) {
-        if (typeof props[key] === "string") parts.push(props[key] as string);
+      for (const [key, v] of Object.entries(props)) {
+        if (NON_TEXT_PROPS.has(key)) continue;
+        if (typeof v === "string") parts.push(v);
+        // Açılamayan bileşenin veri prop'ları (nesne / dizi) istemciye gider → içindeki dizeler de sayfadadır.
+        else if (!expanded && typeof node.type === "function" && v && typeof v === "object") deepStrings(v, 0);
       }
     }
   };
