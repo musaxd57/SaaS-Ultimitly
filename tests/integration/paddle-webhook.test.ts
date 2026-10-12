@@ -61,6 +61,28 @@ describe("POST /api/webhooks/paddle", () => {
     expect(await prisma.webhookEvent.count({ where: { providerEventId: "evt_bad" } })).toBe(0);
   });
 
+  // DENETIM 08-09 #37: tek negatif vaka vardı. İmza başlığı HİÇ yoksa ve başka bir gövdenin GEÇERLİ imzası yeniden kullanılırsa da
+  // 401 + hiçbir şey yazılmaz (abonelik değişmez).
+  it("🚨 imza başlığı YOK → 401, hiçbir şey yazılmaz", async () => {
+    const body = JSON.stringify({ event_id: "evt_nohdr", event_type: "subscription.activated", data: {} });
+    const res = await POST(req(body, null));
+    expect(res.status).toBe(401);
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: "evt_nohdr" } })).toBe(0);
+  });
+
+  it("🚨 başka gövdenin GEÇERLİ imzası (yeniden oynatma) → 401, abonelik yazılmaz", async () => {
+    const harmless = JSON.stringify({ event_id: "evt_a", event_type: "transaction.created", data: {} });
+    const forged = JSON.stringify({
+      event_id: "evt_b",
+      event_type: "subscription.activated",
+      data: { id: "sub_forged", status: "active", customer_id: "ctm_x", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    const res = await POST(req(forged, sign(harmless)));
+    expect(res.status).toBe(401);
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: { in: ["evt_a", "evt_b"] } } })).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
   it("applies subscription.activated → upserts the org's Subscription", async () => {
     const body = JSON.stringify({
       event_id: "evt_sub_1",
