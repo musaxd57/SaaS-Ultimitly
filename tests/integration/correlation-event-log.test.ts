@@ -161,6 +161,9 @@ describe("kimlikli istek — numara başlıkta, hata günlükte aynı numarayla"
     expect(JSON.parse((await events())[0].dataJson!)).toEqual({ context: "scheduled-sync" });
     await reportError("hospitable-sync org=cm123 Ayse Yilmaz", new Error("y"));
     expect(JSON.parse((await events({ correlationId: { not: (await events())[0].correlationId } }))[0].dataJson!)).toEqual({ context: "hospitable-sync" });
+    // ":" sonrası kimlik atılır (kaynak başına sayaç anahtarı / günlük alanı açılmaz).
+    await reportError("ical.reconcile:cmsourceid123", new Error("z"));
+    expect((await events()).map((e) => JSON.parse(e.dataJson!).context)).toContain("ical.reconcile");
   });
 });
 
@@ -295,6 +298,14 @@ describe("bütünlük — yalnız ekle, kademeli silme, tavan, saklama", () => {
     expect(await prisma.operationalEvent.count({ where: { organizationId: a.orgId, event: "error.reported" } })).toBe(120);
     expect(await prisma.operationalEvent.count({ where: { organizationId: a.orgId, event: "billing.paddle.request" } })).toBe(300);
     expect(await prisma.operationalEvent.count({ where: { organizationId: b.orgId } })).toBe(5);
+  });
+
+  it("arka plan iş olayları KENDİ bütçesinde: kuyruk satırı seli aynı işletmenin hata kaydını boğmaz", async () => {
+    const a = await ownerOf("A");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (let i = 0; i < 130; i++) await logEvent("job.outbox.row", { status: "sent" }, { organizationId: a.orgId });
+    await logEvent("error.reported", { context: "outbox-row" }, { organizationId: a.orgId });
+    expect(await prisma.operationalEvent.count({ where: { organizationId: a.orgId, event: "error.reported" } })).toBe(1);
   });
 
   it(`saklama: ${EVENT_LOG_RETENTION_DAYS} günden eski satırlar silinir, yenisi kalır`, async () => {

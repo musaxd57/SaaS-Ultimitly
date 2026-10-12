@@ -53,6 +53,14 @@ describe("bilgi tabanı — değişmeden kaydet", () => {
     expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kb.id } })).updatedAt.getTime()).toBe(kb.updatedAt.getTime());
   });
 
+  it("boş kaydet yazmaz ama Mülk Hafızası eşitlemesi yine koşar (kaydet hafızanın kendini onarma yoluydu)", async () => {
+    const kb = await item();
+    await prisma.propertyMemory.deleteMany({ where: { propertyId } });
+    await patch(kb.id, { title: "Wi-Fi" });
+    expect(await prisma.propertyMemory.count({ where: { propertyId, sourceRef: kb.id } })).toBeGreaterThan(0);
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kb.id } })).updatedAt.getTime()).toBe(kb.updatedAt.getTime());
+  });
+
   it("tek alan değişirse yazılır (başlık / aktiflik)", async () => {
     const kb = await item();
     expect((await patch(kb.id, { title: "Wi-Fi bilgisi" })).status).toBe(200);
