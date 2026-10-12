@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  wifiTargetAmbiguous,
   wifiValueCount,
   applyWifiValue,
   AUTO_PROMOTION_MIN_DECISIONS,
@@ -100,10 +101,10 @@ describe("C · ev sahibinin sözü", () => {
     // Bugünkü dilim geçmişse yarına KAYMAZ ("bu akşam" 20:00'de yazıldıysa) → şimdi + 2 saat.
     expect(promiseDue(detectHostPromise("Bu akşam havlu getireceğim.")!, 20 * 60)).toEqual({ day: "today", time: "22:00" });
     // "akşam 6" → 18:00 (06:00 değil); "sabah 9" → 09:00 (21:00 değil).
-    expect(detectHostPromise("Akşam 6'da teknisyen gelecek.")).toMatchObject({ timeCandidates: [18 * 60], cueMinutes: null });
-    expect(detectHostPromise("Yarın sabah 9'da temizlikçi gelecek.")).toMatchObject({ timeCandidates: [9 * 60], cueMinutes: null });
+    expect(detectHostPromise("Akşam 6'da teknisyen gelecek.")).toMatchObject({ timeCandidates: [18 * 60], cue: null });
+    expect(detectHostPromise("Yarın sabah 9'da temizlikçi gelecek.")).toMatchObject({ timeCandidates: [9 * 60], cue: null });
     // Açık saat ya da süre varsa ipucu kullanılmaz.
-    expect(detectHostPromise("Bu akşam 30 dakika içinde havlu getireceğim.")).toMatchObject({ inMinutes: 30, cueMinutes: null });
+    expect(detectHostPromise("Bu akşam 30 dakika içinde havlu getireceğim.")).toMatchObject({ inMinutes: 30, cue: null });
   });
 });
 
@@ -142,8 +143,9 @@ describe("B · Wi-Fi değeri", () => {
 
   it("bilgi tabanı metnine uygulama: eski değer yerine yazılır; yoksa satır eklenir; aynıysa değişmez; maske son iki karakter", () => {
     expect(applyWifiValue("Ağ LaleNet, şifre: eskiSifre1", "password", "YeniSifre2")).toBe("Ağ LaleNet, şifre: YeniSifre2");
-    // Yalnız ilk geçiş değişir (Haiku 10-12).
-    expect(applyWifiValue("şifre: abc12345 (yedek kart: abc12345)", "password", "Yeni99999")).toBe("şifre: Yeni99999 (yedek kart: abc12345)");
+    // Eski değer metinde İKİ kez geçiyorsa hangisinin değişeceği belirsiz → uygulanmaz (Haiku 10-12 3. tur; önceki "yalnız ilk geçiş" kuralı
+    // başlıkta / başka satırda geçen aynı sözcüğü değiştirebiliyordu).
+    expect(applyWifiValue("şifre: abc12345 (yedek kart: abc12345)", "password", "Yeni99999")).toBeNull();
     expect(applyWifiValue("Modem salonda.", "password", "YeniSifre2")).toBe("Modem salonda.\nŞifre: YeniSifre2");
     expect(applyWifiValue("şifre: YeniSifre2", "password", "YeniSifre2")).toBe("şifre: YeniSifre2");
     expect(applyWifiValue("Ağ adı: EskiAg, şifre: x1234567", "network", "YeniAg")).toBe("Ağ adı: YeniAg, şifre: x1234567");
@@ -164,15 +166,86 @@ describe("B · Wi-Fi değeri — Haiku 10-12 2. tur", () => {
     expect(extractWifiValues("Wi-Fi şifresi: Abc12345").password).toBe("Abc12345"); // kontrol
   });
 
-  it("açık ':' / '=' ile yazılan ve parçayı BİTİREN sözcük biçimli değer kabul; ardından sözcük gelirse ya da ayraç yoksa değil", () => {
-    expect(extractWifiValues("Wi-Fi şifresi: lalehouse").password).toBe("lalehouse");
-    expect(extractWifiValues("Şifre = lalehouse, iyi tatiller").password).toBe("lalehouse");
+  it("ağ adı: açık ':' ile yazılan, SATIRI bitiren, fiil sonu taşımayan sözcük kabul; 'ağ adımız / adınız / misafir ağı adı' etiketleri", () => {
     expect(extractWifiValues("Ağ adımız: lale").network).toBe("lale");
     expect(extractWifiValues("Wi-Fi adınız: Lale").network).toBe("Lale");
-    expect(extractWifiValues("Şifre: routerin altında yazıyor").password).toBeNull();
-    expect(extractWifiValues("Şifre lalehouse").password).toBeNull(); // ayraç yok, rakam yok
-    expect(extractWifiValues("Şifre: aşağıdaki.").password).toBeNull();
+    expect(extractWifiValues("Misafir ağı adı: GuestNet").network).toBe("GuestNet");
     expect(extractWifiValues("Ağ adı: ab").network).toBeNull(); // sözcük biçimli ağ adı en az 3 harf
+    expect(extractWifiValues("Ağ adı: lale, iyi tatiller").network).toBeNull(); // satırı bitirmiyor
+  });
+
+  // Haiku 10-12 3. tur — kurucu 10-11 dersi ("Wi-Fi çalışmıyor" ≠ şifre): sözcük biçimli şifre ASLA değer değildir.
+  it.each([
+    ["Wi-Fi şifresi: çalışmıyor, yarın bakacağım", "password"],
+    ["Şifre: Değişmeyecek.", "password"],
+    ["Wi-Fi şifresi: lalehouse", "password"],
+    ["Şifre = lalehouse, iyi tatiller", "password"],
+    ["Şifre: routerin altında yazıyor", "password"],
+    ["Şifre lalehouse", "password"],
+    ["Şifre: aşağıdaki.", "password"],
+    ["Ağ adı: bilmiyorum", "network"],
+    ["Network is Up", "network"],
+    ["Wi-Fi şifresi: Sonbahar2024 Lale", "password"], // boşluklu şifre olabilir → belirsiz, ilk sözcük alınmaz
+  ] as const)("%s → %s değer DEĞİL", (text, field) => {
+    expect(extractWifiValues(text)[field]).toBeNull();
+  });
+
+  it("düz cümledeki etiket sözcüğü engel değil; değerden sonra etiket / bağlaç / noktalama gelebilir", () => {
+    expect(extractWifiValues("Şifreyi değiştirdim, yeni şifre: Abc12345").password).toBe("Abc12345");
+    expect(extractWifiValues("Şifreniz güncellenmiştir, yeni şifre: Abc12345").password).toBe("Abc12345"); // ayraçsız sözcük = düz cümle
+    expect(extractWifiValues("Wi-Fi şifresi: Abc12345 olarak değişti").password).toBe("Abc12345");
+    expect(extractWifiValues("Yeni şifre Abc12345, iyi tatiller").password).toBe("Abc12345");
+    expect(extractWifiValues("Şifre: Abc12345 ağ adı: LaleNet").password).toBe("Abc12345");
+    expect(extractWifiValues("Kapıdan girince Wi-Fi şifresi: Abc12345").password).toBe("Abc12345"); // "kapı" etiketten önce değil
+  });
+
+  it("bilgi tabanında hedef belirsizse uygulanmaz: okunamayan etiket (boşluklu ağ adı / sözcük biçimli şifre) ya da eski değer metinde iki kez", () => {
+    expect(wifiTargetAmbiguous("Wi-Fi adı: Lale Ev\nŞifre: Abc12345", "network")).toBe(true);
+    expect(applyWifiValue("Wi-Fi adı: Lale Ev\nŞifre: Abc12345", "network", "Kumsal")).toBeNull();
+    expect(applyWifiValue("Şifre: lalehouse", "password", "Yeni12345")).toBeNull();
+    expect(applyWifiValue("Lale Apart Wi-Fi\nAğ adı: Lale\nŞifre: Abc12345", "network", "Kumsal")).toBeNull(); // "Lale" başlıkta da geçiyor
+    expect(applyWifiValue("Ağ adı: Lale\nŞifre: Abc12345", "network", "Kumsal")).toBe("Ağ adı: Kumsal\nŞifre: Abc12345"); // kontrol
+    expect(wifiTargetAmbiguous("Ağ adı: Lale\nŞifre: Abc12345", "network")).toBe(false);
+  });
+});
+
+describe("C · söz — Haiku 10-12 3. tur", () => {
+  it.each([
+    "Teknisyen yarından sonra gelecek.",
+    "Teknisyen 2 gün sonra gelecek.",
+    "Teknisyen cumaya gelecek.",
+    "Teknisyen önümüzdeki hafta gelecek.",
+    "Havalimanı servisi yarın gelecek.", // ulaşım, bakım değil
+  ])("%s → öneri yok (tanınmayan gün / konu değil)", (text) => {
+    expect(detectHostPromise(text)).toBeNull();
+  });
+
+  it.each([
+    ["Teknisyen yarına gelecek.", 600, { day: "tomorrow", time: "12:00" }],
+    ["Akşam 7:00'de teknisyen gelecek.", 600, { day: "today", time: "19:00" }],
+    ["Öğleden sonra 2:30'da teknisyen gelecek.", 600, { day: "today", time: "14:30" }],
+    ["Yarın saat 2'de teknisyen gelecek.", 600, { day: "tomorrow", time: "14:00" }],
+    ["Tomorrow at 2 the technician will come.", 600, { day: "tomorrow", time: "14:00" }],
+    ["Teknisyen saat 10'da gelecek.", 900, { day: "tomorrow", time: "10:00" }],
+    ["Teknisyen bugün gelecek, yarın havlu getiririm.", 600, { day: "today", time: "12:00" }],
+    ["Yarın sabah, teknisyen gelecek.", 600, { day: "tomorrow", time: "10:00" }],
+    ["Teknisyen yarın gelecek, işi 2 saat sürer.", 540, { day: "tomorrow", time: "12:00" }],
+    ["Teknisyen bugün gelecek, 30 dakika sürer.", 540, { day: "today", time: "11:00" }],
+    ["Yarın akşama teknisyen gelecek.", 600, { day: "tomorrow", time: "19:00" }],
+    ["Sabah teknisyen gelecek.", 840, { day: "tomorrow", time: "10:00" }],
+    ["Akşamüstü teknisyen gelecek.", 600, { day: "today", time: "17:00" }],
+    ["Yarım saat içinde havlu getireceğim.", 600, { day: "today", time: "10:30" }],
+    ["Bir saat içinde havlu getireceğim.", 600, { day: "today", time: "11:00" }],
+    ["I'll bring towels in an hour.", 600, { day: "today", time: "11:00" }],
+    ["1,25 saat sonra temizlikçi gelecek.", 600, { day: "today", time: "11:15" }],
+    ["Gece 11'de havlu getireceğim.", 600, { day: "today", time: "23:00" }],
+    ["Gece 11:30'da havlu getireceğim.", 600, { day: "today", time: "23:30" }],
+    ["Temizlikçi gelecek ve 3 saat kalacak.", 600, { day: "today", time: "12:00" }], // süre "içinde / sonra"sız → son an değil
+    ["Teknik servis yarın gelecek.", 600, { day: "tomorrow", time: "12:00" }],
+  ] as const)("%s @%i → %o", (text, now, due) => {
+    const p = detectHostPromise(text);
+    expect(p).not.toBeNull();
+    expect(promiseDue(p!, now)).toEqual(due);
   });
 });
 
@@ -203,7 +276,7 @@ describe("anahtar ve ölçüt", () => {
 
 describe("süre (karesel iş yok)", () => {
   it("uzun tek sözcük / boşluk dizisi / tekrarlanan söz fiili ve şifre sözcüğü doğrusal", () => {
-    const runs = ["a".repeat(4_000), `a${" ".repeat(3_990)}b`, "getirecegim ".repeat(330), "sifre ".repeat(660), "password is ".repeat(330), "havlu gelecek ".repeat(280)];
+    const runs = ["a".repeat(4_000), `a${" ".repeat(3_990)}b`, "getirecegim ".repeat(330), "sifre ".repeat(660), "password is ".repeat(330), "havlu gelecek ".repeat(280), `${",".repeat(3_970)}teknisyen gelecek`, `${"sabah, ".repeat(560)}teknisyen gelecek`, "1,".repeat(1_990)];
     for (const r of runs) {
       const t = performance.now();
       detectHostPromise(r);

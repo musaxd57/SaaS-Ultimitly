@@ -147,7 +147,9 @@ export async function decideSuggestion(input: {
         // Önerinin yeniden üretilmesiyle bu okuma arasında kalem düzenlendiyse (her içerik değişikliği `updatedAt`ı mesajın ötesine
         // taşır) → karar YAZILMAZ (bayat değer elle yazılan yeni bilginin üstüne yazılmasın). Değer / değer sayısı denetimi yeniden üretimde.
         if (kb.updatedAt.getTime() >= msg.createdAt.getTime()) return { status: "gone" } as const;
-        await tx.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content: applyWifiValue(kb.content, view.proposal.field, value) } });
+        const content = applyWifiValue(kb.content, view.proposal.field, value);
+        if (content === null) return { status: "gone" } as const; // hedef belirsizleşti → yazılmaz
+        await tx.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content } });
         created.kbItemId = kb.id;
       }
     }

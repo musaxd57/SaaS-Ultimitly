@@ -8,12 +8,13 @@ import { resolveMessageAuthor } from "@/lib/message-author";
 import { addZonedDays, dateKeyInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
 import { COMMITMENT_KIND_LABELS, type CommitmentKind } from "@/lib/guest-commitments-core";
 import {
+  applyWifiValue,
   detectHostPromise,
   extractWifiValues,
   kbContainsValue,
   maskSecret,
   promiseDue,
-  wifiValueCount,
+  wifiTargetAmbiguous,
   SUGGESTION_WINDOW_DAYS,
   suggestionKey,
   type SuggestionDecision,
@@ -264,7 +265,8 @@ export async function getPropertyWifiSuggestions(organizationId: string, propert
       if (!value || seenField.has(field)) continue;
       seenField.add(field); // alan başına en yeni değer (daha eskisi önerilmez)
       if (kbContainsValue(target.content, value, field === "password")) continue;
-      if (wifiValueCount(target.content, field) > 1) continue; // kalemde iki değer → hangisi? belirsiz
+      // Kalemde hedef belirsiz (iki değer / okunamayan etiket) ya da eski değer metinde birden çok yerde → hangisi? öneri yok.
+      if (wifiTargetAmbiguous(target.content, field) || applyWifiValue(target.content, field, value) === null) continue;
       const key = suggestionKey("kb_wifi", `${m.id}:${field}`);
       if (decided.has(key)) continue;
       out.push({

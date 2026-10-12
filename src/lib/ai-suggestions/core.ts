@@ -60,13 +60,16 @@ const NEGATION = new RegExp(`${NL}(?:iptal|olmayacak|gelmeyecek|gelemeyecek|izin
  * teknisyen yok"). Başka parçadaki ya da fiilden önceki "yok" sözü bozmaz ("Havlu yok demişsiniz, yarın getireceğim" — Haiku 10-12 2. tur).
  */
 const NEGATION_AFTER_VERB = new RegExp(`${NL}(?:degil|yok)${NR}`, "u");
-/** Virgül parçası ayracı (karşıtlık bağlacı da parça başlatır). */
-const SEGMENT_SPLIT = /,|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|but)(?![\p{L}\p{N}])/u;
-/** Gün sözcükleri: tanınan (bugün / yarın) ve TANINMAYAN (haftanın günleri, "öbür gün", "gelecek hafta") — tanınmayanda öneri YOK
- *  (yanlış son tarih tek tıkla yazılmasın — Haiku 10-12). */
-const DAY_TOMORROW = /(?<![\p{L}\p{N}])(?:yarin|tomorrow)(?![\p{L}])/u;
+/** Virgül parçası ayracı (karşıtlık bağlacı da parça başlatır). İki rakam arasındaki virgül ayraç DEĞİLDİR ("1,5 saat"). */
+const SEGMENT_SPLIT = /(?<!\d),|,(?!\d)|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|but)(?![\p{L}\p{N}])/u;
+/**
+ * Gün sözcükleri: tanınan (bugün / yarın, ekli biçimler "yarına", "yarınki") ve TANINMAYAN (haftanın günleri ekleriyle, "yarından sonra",
+ * "2 gün sonra", "önümüzdeki hafta") — tanınmayanda öneri YOK (yanlış son tarih tek tıkla yazılmasın — Haiku 10-12, 3. tur).
+ */
+const DAY_TODAY = /(?<![\p{L}\p{N}])(?:bugun\p{L}{0,3}|today|tonight)(?![\p{L}])/u;
+const DAY_TOMORROW = /(?<![\p{L}\p{N}])(?:yarin(?:a|ki)?|tomorrow)(?![\p{L}])/u;
 const DAY_UNKNOWN = new RegExp(
-  `${NL}(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar|obur\\s+gun|ertesi\\s+gun|gelecek\\s+hafta|haftaya|hafta\\s+sonu|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+week|weekend|day\\s+after\\s+tomorrow)${NR}`,
+  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)\\p{L}{0,4}|yarindan\\s+sonra|obur\\s+gun\\p{L}{0,2}|ertesi\\s+gun\\p{L}{0,2}|\\d{1,2}\\s*gun\\p{L}{0,3}|(?:iki|uc|dort|bes|birkac)\\s+gun\\p{L}{0,3}|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+\\d+\\s+days)${NR}`,
   "u",
 );
 
@@ -74,7 +77,7 @@ const KIND_TOPICS: ReadonlyArray<readonly [CommitmentKind, RegExp]> = [
   [
     "maintenance",
     new RegExp(
-      `${NL}(?:teknisyen|tamir|usta|tesisatci|elektrikci|servis|ariza|bakim|klima|kombi|sofben|petek|bulasik\\s+makinesi|camasir\\s+makinesi|buzdolabi|(?:technician|repair|fix|plumber|electrician|maintenance|engineer|heater|boiler)${NR})`,
+      `${NL}(?:teknisyen|tamir|usta|tesisatci|elektrikci|teknik\\s+servis|servis\\s+(?:elemani|ekibi|gorevlisi|teknisyeni)|ariza|bakim|klima|kombi|sofben|petek|bulasik\\s+makinesi|camasir\\s+makinesi|buzdolabi|(?:technician|repair|fix|plumber|electrician|maintenance|engineer|heater|boiler)${NR})`,
       "u",
     ),
   ],
@@ -93,30 +96,83 @@ export interface HostPromise {
   kind: CommitmentKind;
   /** Gün: misafire söylenen ("yarın") ya da varsayılan bugün. */
   day: "today" | "tomorrow";
-  /** Açık saat adayları (dakika; "6" → 06:00 ve 18:00) — seçim yükleyicide (gelecekteki ilk aday). Gün dilimi sözcüğü adayları süzer. */
+  /** Açık saat adayları (dakika; "6" → 06:00 ve 18:00) — gün dilimi ya da gündüz tercihiyle süzülmüş; seçim `promiseDue`da. */
   timeCandidates: number[];
-  /** Göreli süre ("birazdan" 60, "30 dakika" 30, "1,5 saat içinde" 90) — açık saat yoksa. */
+  /** Göreli süre ("birazdan" 60, "30 dakika içinde" 30, "1,5 saat sonra" 90, "yarım saat içinde" 30) — açık saat yoksa. */
   inMinutes: number | null;
-  /** Açık saat ve süre YOKKEN gün dilimi sözcüğünden varsayılan saat ("sabah" 10:00, "akşam" 19:00 — Haiku 10-12 2. tur). */
-  cueMinutes: number | null;
+  /** Açık saat ve süre YOKKEN gün dilimi sözcüğünden varsayılan saat ("sabah" 10:00, "akşam" 19:00 — Haiku 10-12 2. / 3. tur). */
+  cue: { minutes: number; half: DayHalf } | null;
 }
+
+type DayHalf = "am" | "pm" | "night";
 
 /** Cümlecik + ayracı ("?" soru ayırt edilsin diye ayraç cümleciğe dahil). İki rakam arasındaki nokta ayraç DEĞİLDİR ("09.30", "1.5"). */
 const RAW_CLAUSES = /(?:[^.!?;\n…؟。]|(?<=\d)\.(?=\d))+[.!?;\n…؟。]*/gu;
 /** Söz fiilinden sonra soru eki ("gelecek mi", "getirecek misiniz"). */
 const QUESTION_PARTICLE = /(?<![\p{L}\p{N}])m[iu](?:s[iu]n[iu]z|s[iu]n|y[iu]m)?(?![\p{L}])/u;
-/** Göreli süre: "30 dakika", "2 saat içinde", "1,5 saat sonra" (ondalık süre dakikaya yuvarlanır). */
-const RELATIVE_DURATION =
-  /(?<![\p{L}\p{N}])(\d{1,3})\s*(?:dakika|dk|minutes?|mins?)(?![\p{L}])|(?<![\p{L}\p{N}.,])(\d{1,2}(?:[.,]\d)?)\s*(?:saat|hours?|hrs?)(?![\p{L}])/u;
+/**
+ * Göreli süre YALNIZ son an bildiren kalıpla: "30 dakika içinde / sonra", "1,5 saate kadar", "in 2 hours", "within 30 minutes",
+ * "20 minutes later". "İşi 2 saat sürer" SÜREDİR, son an değil (Haiku 10-12 3. tur). Sayı: rakam (ondalıklı) ya da yarım / bir / iki / üç.
+ */
+const DURATION_TR =
+  /(?<![\p{L}\p{N}.,])(\d{1,3}(?:[.,]\d{1,2})?|yarim|bir|iki|uc)\s*(dakika|dk|saat)(?:ya|ye|a|e)?\s+(?:icinde|icerisinde|sonra|kadar)(?![\p{L}])/u;
+const DURATION_EN =
+  /(?<![\p{L}\p{N}])(?:(?:in|within)\s+(\d{1,3}(?:\.\d{1,2})?|an?|one|two|half\s+an?)\s+(minutes?|mins?|hours?|hrs?)|(\d{1,3})\s+(minutes?|mins?|hours?|hrs?)\s+later)(?![\p{L}])/u;
 const SOON = /(?<![\p{L}\p{N}])(?:birazdan|hemen|az\s+sonra|shortly|right\s+away|soon|asap)(?![\p{L}])/u;
-/** Gün dilimi sözcükleri → varsayılan saat + açık saat süzgeci (öğleden sonra / akşam / gece → 12:00 sonrası; sabah → öncesi). */
-const DAY_PARTS: ReadonlyArray<{ re: RegExp; minutes: number; half: "am" | "pm" }> = [
+const WORD_NUMBER: Record<string, number> = { yarim: 0.5, bir: 1, iki: 2, uc: 3, a: 1, an: 1, one: 1, two: 2 };
+
+function durationMinutes(text: string): number | null {
+  const tr = DURATION_TR.exec(text);
+  if (tr) {
+    const n = WORD_NUMBER[tr[1]] ?? Number(tr[1].replace(",", "."));
+    const minutes = tr[2] === "saat" ? n * 60 : tr[1] === "yarim" ? 30 : n;
+    return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null;
+  }
+  const en = DURATION_EN.exec(text);
+  if (en) {
+    const rawN = en[1] ?? en[3];
+    const unit = en[2] ?? en[4];
+    const n = /^half/.test(rawN) ? 0.5 : (WORD_NUMBER[rawN] ?? Number(rawN));
+    const minutes = /^h/.test(unit) ? n * 60 : n;
+    return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null;
+  }
+  return SOON.test(text) ? 60 : null;
+}
+
+/**
+ * Gün dilimi sözcükleri (ekli biçimler: "akşama", "sabahleyin", "öğlene", "geceleyin") → varsayılan saat + açık saati yorumlama yönü.
+ * Sıra önemli: "öğleden sonra" > "öğle"; "akşamüstü" > "akşam"; "gece yarısı" > "gece".
+ */
+const DAY_PARTS: ReadonlyArray<{ re: RegExp; minutes: number; half: DayHalf }> = [
   { re: new RegExp(`${NL}(?:ogleden\\s+sonra|afternoon)${NR}`, "u"), minutes: 15 * 60, half: "pm" },
-  { re: new RegExp(`${NL}(?:aksam(?:ustu|leyin)?|evening)${NR}`, "u"), minutes: 19 * 60, half: "pm" },
-  { re: new RegExp(`${NL}(?:gece|tonight)${NR}`, "u"), minutes: 21 * 60, half: "pm" },
-  { re: new RegExp(`${NL}(?:sabah(?:leyin)?|morning)${NR}`, "u"), minutes: 10 * 60, half: "am" },
-  { re: new RegExp(`${NL}(?:ogle(?:n|yin)|noon|midday)${NR}`, "u"), minutes: 12 * 60, half: "pm" },
+  { re: new RegExp(`${NL}aksamustu\\p{L}{0,3}${NR}`, "u"), minutes: 17 * 60, half: "pm" },
+  { re: new RegExp(`${NL}(?:aksam\\p{L}{0,5}|evening)${NR}`, "u"), minutes: 19 * 60, half: "pm" },
+  { re: new RegExp(`${NL}gece\\s+yarisi\\p{L}{0,3}${NR}`, "u"), minutes: 23 * 60 + 30, half: "night" },
+  { re: new RegExp(`${NL}(?:gece\\p{L}{0,5}|tonight)${NR}`, "u"), minutes: 21 * 60, half: "night" },
+  { re: new RegExp(`${NL}(?:sabah\\p{L}{0,5}|morning)${NR}`, "u"), minutes: 10 * 60, half: "am" },
+  { re: new RegExp(`${NL}(?:ogle(?:n|ne|yin|ye)|noon|midday)${NR}`, "u"), minutes: 12 * 60, half: "pm" },
 ];
+
+/** Açık saat adaylarını gün dilimine göre yorumla: akşam "7:00" → 19:00, öğleden sonra "2:30" → 14:30, gece "2" → 02:00, sabah "9" → 09:00. */
+function fitToHalf(candidates: number[], half: DayHalf): number[] {
+  const DAY = 24 * 60;
+  const out = candidates.map((m) => {
+    if (half === "pm" && m < 12 * 60) return m + 12 * 60;
+    if (half === "night" && m >= 6 * 60 && m < 12 * 60) return m + 12 * 60; // "gece 11" → 23:00
+    return m;
+  });
+  const fitting = out.filter((m) =>
+    half === "am" ? m < 12 * 60 : half === "pm" ? m >= 12 * 60 && m < DAY : m >= 18 * 60 || m < 6 * 60,
+  );
+  return [...new Set(fitting.length > 0 ? fitting : out)];
+}
+
+/** Gün dilimi yokken iki anlamlı saat ("saat 2" → 02:00 / 14:00): gündüz (07:00–21:00) adayı tercih edilir (Haiku 10-12 3. tur). */
+function preferDaytime(candidates: number[]): number[] {
+  if (candidates.length < 2) return candidates;
+  const day = candidates.filter((m) => m >= 7 * 60 && m < 21 * 60);
+  return day.length > 0 ? day : candidates;
+}
 
 /** Söz fiilinin bulunduğu parçada fiilden SONRA "değil" / "yok" var mı. */
 function negatedAfterVerb(segment: string): boolean {
@@ -124,10 +180,27 @@ function negatedAfterVerb(segment: string): boolean {
   return m !== null && NEGATION_AFTER_VERB.test(segment.slice(m.index + m[0].length));
 }
 
+/** Parça ayracı ÖZGÜN metinde (saat okuyucusu özgün metinde koşar); katlanmış metinle aynı sayıda parça vermezse null. */
+const RAW_SEGMENT_SPLIT = /(?<!\d),|,(?!\d)|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|but)(?![\p{L}\p{N}])/iu;
+
+/** Parçada gün / saat / süre / gün dilimi bilgisi var mı (yoksa kapsam soldaki parçalara genişler: "Yarın sabah, teknisyen gelecek"). */
+function hasTimeInfo(folded: string, raw: string): boolean {
+  return (
+    DAY_TODAY.test(folded) ||
+    DAY_TOMORROW.test(folded) ||
+    DAY_UNKNOWN.test(folded) ||
+    DAY_PARTS.some((d) => d.re.test(folded)) ||
+    durationMinutes(folded) !== null ||
+    explicitTimeMentions(raw).length > 0
+  );
+}
+
 /**
  * Ev sahibinin mesajında misafire verilen SÖZ var mı (aynı cümlecikte söz fiili + konu; soru / koşul / teklif değil)? Tür kapalı küme
  * (havlu / malzeme / temizlik / bakım) — konu önce söz fiilinin virgül parçasında aranır ("Klima için teşekkürler, yarın havlu getireceğim"
- * → havlu), yoksa cümlecikte; birden çok konu varsa bakım > temizlik > havlu > malzeme. Metin SAKLANMAZ.
+ * → havlu), yoksa cümlecikte; birden çok konu varsa bakım > temizlik > havlu > malzeme. Gün / saat / süre YALNIZ sözün parçasından (o parçada
+ * yoksa soldaki söz fiilsiz parçalardan): "Teknisyen bugün gelecek, yarın havlu getiririm" → bakım BUGÜN; "Teknisyen yarın gelecek, işi
+ * 2 saat sürer" → süre son an değil (Haiku 10-12 3. tur). Metin SAKLANMAZ.
  */
 export function detectHostPromise(text: string | null | undefined): HostPromise | null {
   if (typeof text !== "string" || text.trim() === "" || text.length > 4_000) return null;
@@ -135,34 +208,42 @@ export function detectHostPromise(text: string | null | undefined): HostPromise 
     const clause = foldTurkishAscii(raw).toLowerCase();
     if (clause.trim() === "" || /[?؟]\s*$/.test(raw) || CONDITIONAL.test(clause) || !PROMISE.test(clause)) continue;
     if (QUESTION_PARTICLE.test(clause) || NEGATION.test(clause)) continue;
-    const verbSegments = clause.split(SEGMENT_SPLIT).filter((seg) => PROMISE.test(seg));
-    if (verbSegments.length === 0 || verbSegments.some(negatedAfterVerb)) continue;
+    const segments = clause.split(SEGMENT_SPLIT);
+    const rawSegments = raw.split(RAW_SEGMENT_SPLIT);
+    const verbIdx = segments.map((seg, i) => (PROMISE.test(seg) ? i : -1)).filter((i) => i >= 0);
+    if (verbIdx.length === 0 || verbIdx.some((i) => negatedAfterVerb(segments[i]))) continue;
     const topicIn = (t: string) => KIND_TOPICS.find(([, re]) => re.test(t))?.[0];
-    const kind = verbSegments.map(topicIn).find((k) => k !== undefined) ?? topicIn(clause);
+    const withTopic = verbIdx.find((i) => topicIn(segments[i]) !== undefined);
+    const kind = withTopic !== undefined ? topicIn(segments[withTopic]) : topicIn(clause);
     if (!kind) continue;
-    // Gün YALNIZ bu cümlecikten ("Teknisyen bugün gelecek. Yarın havlu getiririm." → bakım bugün — Haiku 10-12). Tanınmayan gün → öneri yok.
-    if (DAY_UNKNOWN.test(clause)) return null;
-    const day: HostPromise["day"] = DAY_TOMORROW.test(clause) ? "tomorrow" : "today";
-    const part = DAY_PARTS.find((d) => d.re.test(clause));
-    let inMinutes: number | null = null;
-    const rel = RELATIVE_DURATION.exec(clause);
-    if (rel) inMinutes = rel[1] ? Number(rel[1]) : Math.round(Number(rel[2].replace(",", ".")) * 60);
-    else if (SOON.test(clause)) inMinutes = 60;
-    let timeCandidates = inMinutes === null ? [...new Set(explicitTimeMentions(raw).flat())] : [];
-    if (part && timeCandidates.length > 1) {
-      const fitting = timeCandidates.filter((m) => (part.half === "pm" ? m >= 12 * 60 : m < 12 * 60));
-      if (fitting.length > 0) timeCandidates = fitting; // "akşam 6" → 18:00 (06:00 değil)
-    }
-    const cueMinutes = inMinutes === null && timeCandidates.length === 0 && part ? part.minutes : null;
-    return { kind, day, timeCandidates, inMinutes, cueMinutes };
+    // Kapsam: sözün parçası; bilgi yoksa soldaki (söz fiili TAŞIMAYAN) parçalar. Özgün metin aynı sayıda parçaya bölünemezse cümlecik.
+    const at = withTopic ?? verbIdx[0];
+    let from = at;
+    const aligned = rawSegments.length === segments.length;
+    const sliceOf = (a: number, b: number) => ({
+      folded: segments.slice(a, b + 1).join(","),
+      raw: aligned ? rawSegments.slice(a, b + 1).join(",") : raw,
+    });
+    // En fazla 3 parça sola (her adım dilimi yeniden tarar — sınırsız genişleme virgül dizisinde karesel olurdu).
+    while (from > 0 && at - from < 3 && !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw) && !PROMISE.test(segments[from - 1])) from--;
+    const scope = sliceOf(from, at);
+    // Tanınmayan gün (kapsamda) → öneri yok (bütün mesaj için: aynı mesajda başka söz de yanlış güne bağlanmasın).
+    if (DAY_UNKNOWN.test(scope.folded)) return null;
+    const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) && !DAY_TODAY.test(scope.folded) ? "tomorrow" : "today";
+    const part = DAY_PARTS.find((d) => d.re.test(scope.folded));
+    const inMinutes = durationMinutes(scope.folded);
+    let timeCandidates = inMinutes === null ? [...new Set(explicitTimeMentions(scope.raw).flat())] : [];
+    timeCandidates = part ? fitToHalf(timeCandidates, part.half) : preferDaytime(timeCandidates);
+    const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half } : null;
+    return { kind, day, timeCandidates, inMinutes, cue };
   }
   return null;
 }
 
 /**
  * Sözün son anı (dakika cinsinden, işletmenin yerel duvar saati): açık saat → aday saatlerden şimdiden sonraki ilki (yoksa yarın ilki);
- * göreli süre → şimdi + süre; gün dilimi ("yarın sabah" 10:00, "bu akşam" 19:00; bugünkü dilim geçmişse şimdi + 2 saat); "yarın" ipuçsuz →
- * yarın 12:00; hiçbiri → bugün şimdi + 2 saat. Döner: gün + "SS:DD" (ev sahibi onaylamadan önce değiştirebilir).
+ * göreli süre → şimdi + süre; gün dilimi ("yarın sabah" 10:00, "bu akşam" 19:00; bugünkü SABAH geçmişse yarın sabah, akşam / gece geçmişse
+ * şimdi + 2 saat); "yarın" ipuçsuz → yarın 12:00; hiçbiri → bugün şimdi + 2 saat. Döner: gün + "SS:DD" (ev sahibi onaydan önce değiştirebilir).
  */
 export function promiseDue(p: HostPromise, nowMinutes: number): { day: "today" | "tomorrow"; time: string } {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -177,9 +258,10 @@ export function promiseDue(p: HostPromise, nowMinutes: number): { day: "today" |
     const future = p.timeCandidates.filter((m) => m > nowMinutes).sort((a, b) => a - b);
     return future.length > 0 ? { day: "today", time: fmt(future[0]) } : { day: "tomorrow", time: fmt(Math.min(...p.timeCandidates)) };
   }
-  if (p.cueMinutes !== null) {
-    if (p.day === "tomorrow") return { day: "tomorrow", time: fmt(p.cueMinutes) };
-    return p.cueMinutes > nowMinutes ? { day: "today", time: fmt(p.cueMinutes) } : inTwoHours();
+  if (p.cue !== null) {
+    if (p.day === "tomorrow") return { day: "tomorrow", time: fmt(p.cue.minutes) };
+    if (p.cue.minutes > nowMinutes) return { day: "today", time: fmt(p.cue.minutes) };
+    return p.cue.half === "am" ? { day: "tomorrow", time: fmt(p.cue.minutes) } : inTwoHours();
   }
   if (p.day === "tomorrow") return { day: "tomorrow", time: "12:00" };
   return inTwoHours();
@@ -189,17 +271,26 @@ export function promiseDue(p: HostPromise, nowMinutes: number): { day: "today" |
 
 /** Şifre / ağ adı sözcüğünden sonra gelebilecek, değer OLMAYAN sözcükler ("şifre yanlış", "Wi-Fi adı yok", "password is wrong"). */
 const NOT_A_VALUE =
-  /^(?:yanlis|dogru|degisti|degistirildi|degismedi|degistirdim|guncellendi|asagida|asagidaki|yukarida|yukaridaki|nedir|ne|su|bu|kartta|kartin|duvarda|modemin|modemde|altinda|etikette|etiketteki|ekte|ektedir|ayni|aynidir|yazili|yaziyor|gonderdim|gonderildi|yok|var|gorunmuyor|bulunmuyor|wrong|correct|incorrect|below|above|attached|unchanged|on|the|is|was|changed|printed|written|same|not|missing)$/u;
+  /^(?:yanlis|dogru|degisti|degistirildi|degismedi|degistirdim|guncellendi|asagida|asagidaki|yukarida|yukaridaki|nedir|ne|su|bu|kartta|kartin|duvarda|modemin|modemde|altinda|etikette|etiketteki|ekte|ektedir|ayni|aynidir|yazili|yaziyor|gonderdim|gonderildi|yok|var|gorunmuyor|bulunmuyor|wrong|correct|incorrect|below|above|attached|unchanged|on|the|is|was|changed|printed|written|same|not|missing|up|down|slow|working|broken|fine|ok|okay|back|offline|online)$/u;
+/** Türkçe fiil / yüklem sonu ("çalışmıyor", "bilmiyorum", "değişmeyecek", "gelmedi") — sözcük biçimli ağ adı OLAMAZ (Haiku 10-12 3. tur). */
+const VERB_LIKE_END = /(?:yor|yorum|yoruz|yorsunuz|mez|maz|mem|mam|cak|cek|cagim|cegim|madi|medi|mis|mus|dim|dum|tim|tum)$/u;
 /**
- * Değer biçimi (Haiku 10-12: "şifre değişmedi" / "şifre çalışmazsa" değer sanılıyordu): şifre en az bir RAKAM içerir; ağ adı rakam ya da
- * büyük harf ya da "-" / "_" içerir. Sözcük gibi görünen değer öneri üretmez (temkinli: kaçabilir, yanlış değer yazdırmaz) — İSTİSNA: açık
- * ":" / "=" ayracından sonra satırı / parçayı BİTİREN değer ("Şifre: lalehouse", "Ağ adı: Lale"); ardından sözcük gelirse ("Şifre: modemin
- * altında yazıyor") yine sayılmaz (Haiku 10-12 2. tur).
+ * Değer biçimi: şifre en az bir RAKAM içerir (sözcük biçimli şifre ASLA — "Wi-Fi şifresi: çalışmıyor" değer değildir, kurucu 10-11 dersi;
+ * Haiku 10-12 3. tur gevşek kuralı kaldırdı). Ağ adı rakam / "-" / "_" içerir ya da büyük harfle başlayan ≥ 4 harf; açık ":" / "="
+ * ayracından sonra satırı bitiren, fiil sonu taşımayan ≥ 3 harf de kabul ("Ağ adı: lale").
  */
 const looksLikePassword = (v: string) => /\d/.test(v);
-const looksLikeNetwork = (v: string) => /[\d\p{Lu}_-]/u.test(v);
-/** Değerden sonra yalnız satır / metin sonu ya da noktalama → değer parçayı bitiriyor. */
-const ENDS_SEGMENT = /^["'”»]?[ \t]*(?:$|[\n,;.!)])/u;
+const looksLikeNetwork = (v: string) => /[\d_-]/.test(v) || (/^\p{Lu}/u.test(v) && v.length >= 4);
+/** Değerden sonra yalnız satır / metin sonu → değer satırı bitiriyor (gevşek ağ adı kuralı için). */
+const ENDS_LINE = /^["'”»]?[ \t]*(?:$|\n)/u;
+/**
+ * Değerden sonra aynı satırda HARF / RAKAMLA başlayan bir sözcük varsa ve bu bir etiket / bağlaç değilse değer BELİRSİZ (boşluklu şifre ya
+ * da ağ adı olabilir: "Sonbahar2024 Lale", "Lale Ev") → değer yok (Haiku 10-12 3. tur: ilk sözcük yanlış yere yazılıyordu).
+ */
+const AFTER_VALUE_OK = new RegExp(
+  `^["'”»]?[ \\t]*(?:$|\\n|[^\\p{L}\\p{N}\\s]|(?:ve|and|ile|a[ğg]|wi-?fi|kablosuz|network|ssid|[şs]ifre\\p{L}{0,4}|parola\\p{L}{0,3}|password|ol\\p{L}{0,8}|de[ğg]i[şs]\\p{L}{0,8}|[şs]eklinde|kullan\\p{L}{0,12}|iyi|is|was|now|for|have|enjoy|thanks|te[şs]ekk[üu]r\\p{L}{0,6})(?![\\p{L}\\p{N}]))`,
+  "iu",
+);
 
 /**
  * Wi-Fi şifresi değeri (WPA: 8–63 karakter, boşluksuz). Türkçe / İngilizce: "Wi-Fi şifresi: X", "yeni şifre X", "password is now X".
@@ -209,9 +300,9 @@ const PASSWORD_VALUE = new RegExp(
   `${NL}(?:[şs]ifre(?:si|miz|niz|yi|yı)?|parola(?:s[ıi]|y[ıi])?|password)${NR}\\s*(?:(?:yeni|art[ıi]k|now|is|olarak|ise|changed\\s+to)\\s*){0,3}(?<sep>[:=\\-–])?[*_~\`]*\\s*["'“”«]?(?<v>[^\\s"'“”»,;]{8,63})`,
   "iu",
 );
-/** Ağ adı (SSID): "Ağ adı: X", "Wi-Fi adı X", "ağ adımız X", "network name is X", "SSID: X". */
+/** Ağ adı (SSID): "Ağ adı: X", "Wi-Fi adı X", "ağ adımız X", "misafir ağı adı X", "network name is X", "SSID: X". */
 const NETWORK_VALUE = new RegExp(
-  `${NL}(?:(?:a[ğg](?:[ıi]n)?|wi-?fi|kablosuz\\s+a[ğg])\\s+(?:ad[ıi](?:m[ıi]z|n[ıi]z)?|ismi)|network(?:\\s+name)?|ssid)${NR}\\s*(?:(?:is|now|art[ıi]k)\\s*){0,2}(?<sep>[:=\\-–])?[*_~\`]*\\s*["'“”«]?(?<v>[^\\s"'“”»,;]{2,32})`,
+  `${NL}(?:(?:a[ğg](?:[ıi]n|[ıi])?|wi-?fi|kablosuz\\s+a[ğg])\\s+(?:ad[ıi](?:m[ıi]z|n[ıi]z)?|ismi)|network(?:\\s+name)?|ssid)${NR}\\s*(?:(?:is|now|art[ıi]k)\\s*){0,2}(?<sep>[:=\\-–])?[*_~\`]*\\s*["'“”«]?(?<v>[^\\s"'“”»,;]{2,32})`,
   "iu",
 );
 /**
@@ -232,44 +323,65 @@ function cleanValue(v: string | undefined): string | null {
 /** Yatay boşluk dizisi teke iner (bitişik boşluk niceleyicileri uzun dizide karesel olmasın); değerler boşluk içermez. */
 const squash = (t: string) => t.replace(/[^\S\n]+/g, " ").replace(/[*_~`]+(?=\s*[:=])/g, "");
 
-/** Eşleşmeden geçerli değer (etiket Wi-Fi değilse / biçim tutmazsa null). */
-function valueOf(m: RegExpMatchArray, t: string, field: "password" | "network"): string | null {
+/**
+ * Eşleşmeden değer: null = Wi-Fi etiketi DEĞİL (modem / kapı şifresi) ya da etiket sözcüğü düz cümlede ("Şifreyi değiştirdim", "şifre yanlış");
+ * "ambiguous" = etiket VAR ama değer okunamıyor (ardından etiket olmayan sözcük, açık ":" sonrası sözcük biçimli şifre) → o metinde hedef
+ * belirsiz; string = geçerli değer.
+ */
+function valueOf(m: RegExpMatchArray, t: string, field: "password" | "network"): string | "ambiguous" | null {
   const start = m.index ?? 0;
   if (NON_WIFI_LABEL.test(t.slice(Math.max(0, start - 24), start))) return null;
   const v = cleanValue(m.groups?.v);
   if (!v) return null;
-  const min = field === "password" ? 8 : 2;
-  if (v.length < min) return null;
-  if (field === "password" ? looksLikePassword(v) : looksLikeNetwork(v)) return v;
-  // Sözcük biçimli değer: yalnız açık ":" / "=" ayracı + parçayı bitiren değer (ağ adı en az 3 harf).
   const sep = m.groups?.sep;
-  const relaxed = (sep === ":" || sep === "=") && (field === "password" || v.length >= 3) && ENDS_SEGMENT.test(t.slice(start + m[0].length));
-  return relaxed ? v : null;
+  const explicit = sep === ":" || sep === "=";
+  const after = t.slice(start + m[0].length);
+  const shapeOk = field === "password" ? v.length >= 8 && looksLikePassword(v) : looksLikeNetwork(v);
+  if (shapeOk) return AFTER_VALUE_OK.test(after) ? v : "ambiguous";
+  if (!explicit) return null; // ayraçsız sözcük → düz cümle ("şifre değiştirilmedi")
+  if (field === "network" && v.length >= 3 && /^\p{L}+$/u.test(v) && !VERB_LIKE_END.test(foldTurkishAscii(v).toLowerCase()) && ENDS_LINE.test(after)) {
+    return v; // "Ağ adı: lale" (satırı bitiren, fiil sonu taşımayan)
+  }
+  return "ambiguous"; // "Wi-Fi şifresi: çalışmıyor" / "Şifre: lalehouse" — değer değil ama kalemde hedef de belirsiz
 }
 
-function wifiMatches(text: string, field: "password" | "network"): string[] {
+/** Bir alanın Wi-Fi etiketleri: kaç etiket var ve hangileri GEÇERLİ değer verdi (belirsiz etiket sayılır ama değer vermez). */
+function wifiField(text: string, field: "password" | "network"): { labels: number; values: string[] } {
   const t = squash(text);
   const re = new RegExp((field === "password" ? PASSWORD_VALUE : NETWORK_VALUE).source, "giu");
-  const out: string[] = [];
+  let labels = 0;
+  const values: string[] = [];
   for (const m of t.matchAll(re)) {
     const v = valueOf(m, t, field);
-    if (v) out.push(v);
+    if (v === null) continue; // Wi-Fi etiketi değil (modem / kapı)
+    labels++;
+    if (v !== "ambiguous") values.push(v);
   }
-  return out;
+  return { labels, values };
 }
 
-/** Ev sahibinin metninden Wi-Fi şifresi / ağ adı (değer biçimi tutarsa; Wi-Fi olmayan etiket atlanır). Şifre BÜYÜK-KÜÇÜK harf korunur. */
+/** Ev sahibinin metninden Wi-Fi şifresi / ağ adı — alan için TEK, belirsiz olmayan etiket varsa. Şifre BÜYÜK-KÜÇÜK harf korunur. */
 export function extractWifiValues(text: string | null | undefined): { password: string | null; network: string | null } {
   if (typeof text !== "string" || text.length > 4_000) return { password: null, network: null };
-  return { password: wifiMatches(text, "password")[0] ?? null, network: wifiMatches(text, "network")[0] ?? null };
+  const one = (field: "password" | "network") => {
+    const f = wifiField(text, field);
+    return f.labels >= 1 && f.values.length === f.labels ? f.values[0] : null;
+  };
+  return { password: one("password"), network: one("network") };
 }
 
 /**
- * Metinde bu alan için KAÇ değer var (bilgi tabanı kaleminde ana ağ + misafir ağı gibi iki şifre → hangisinin değişeceği belirsiz →
- * öneri YOK — Haiku 10-12). Modem / kapı şifresi sayılmaz.
+ * Bilgi tabanı kaleminde bu alan için hedef BELİRSİZ mi: birden çok değer (ana + misafir ağı — Haiku 10-12) ya da okunamayan etiket
+ * ("Wi-Fi adı: Lale Ev" boşluklu) → öneri YOK. Modem / kapı şifresi sayılmaz.
  */
+export function wifiTargetAmbiguous(text: string, field: "password" | "network"): boolean {
+  const f = wifiField(text, field);
+  return f.values.length > 1 || f.labels > f.values.length;
+}
+
+/** Kalemdeki geçerli değer sayısı (modem / kapı şifresi sayılmaz). */
 export function wifiValueCount(text: string, field: "password" | "network"): number {
-  return wifiMatches(text, field).length;
+  return wifiField(text, field).values.length;
 }
 
 /** Değerin bilgi tabanı metninde AYNEN geçip geçmediği (şifre büyük-küçük harfe duyarlı; ağ adı duyarsız). */
@@ -278,16 +390,18 @@ export function kbContainsValue(kbContent: string, value: string, caseSensitive:
 }
 
 /**
- * Bilgi tabanı metninde eski değeri yenisiyle değiştir: aynı kalıpla bulunan değer yerine yazılır; bulunamazsa satır olarak eklenir
- * ("Şifre: X" / "Ağ adı: X"). Saf — onaydan ÖNCE önizleme de bununla kurulur.
+ * Bilgi tabanı metninde eski değeri yenisiyle değiştir: geçerli değer metinde TAM BİR KEZ geçiyorsa yerine yazılır (başlıkta / başka satırda
+ * da geçen değer — "Lale Apart … Ağ adı: Lale" — yanlış yere yazılmasın: Haiku 10-12 3. tur); kalemde o alan hiç yoksa satır eklenir
+ * ("Şifre: X" / "Ağ adı: X"); hedef belirsizse null (öneri yok / onay yazmaz). Saf — onaydan ÖNCE önizleme de bununla kurulur.
  */
-export function applyWifiValue(kbContent: string, field: "password" | "network", value: string): string {
-  const current = extractWifiValues(kbContent)[field];
+export function applyWifiValue(kbContent: string, field: "password" | "network", value: string): string | null {
+  if (wifiTargetAmbiguous(kbContent, field)) return null;
+  const [current] = wifiField(kbContent, field).values;
   if (current === value) return kbContent;
-  // YALNIZ ilk geçiş (aynı değer metinde başka bir yerde anlamlı olabilir — Haiku 10-12: `split/join` hepsini değiştiriyordu).
   if (current) {
     const i = kbContent.indexOf(current);
-    if (i >= 0) return kbContent.slice(0, i) + value + kbContent.slice(i + current.length);
+    if (i < 0 || kbContent.indexOf(current, i + 1) >= 0) return null;
+    return kbContent.slice(0, i) + value + kbContent.slice(i + current.length);
   }
   const label = field === "password" ? "Şifre" : "Ağ adı";
   return `${kbContent.trimEnd()}\n${label}: ${value}`;

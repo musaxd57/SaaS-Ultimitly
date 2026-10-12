@@ -209,6 +209,14 @@ describe("B · Wi-Fi bilgi tabanı düzeltmesi", () => {
     expect(await getPropertyWifiSuggestions(orgId, propertyId)).toHaveLength(1);
   });
 
+  it("🚨 bilgi tabanında hedef belirsizse (boşluklu ağ adı / sözcük biçimli eski şifre) öneri YOK — eski değer yanlış yere yazılmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asUser(orgId);
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Wi-Fi adı: Lale Ev\nŞifre: lalehouse", isActive: true, updatedAt: DAY_AGO() } });
+    await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Ağ adı: Kumsal-5G, Wi-Fi şifresi: Yeni12345" }]);
+    expect(await getPropertyWifiSuggestions(orgId, propertyId)).toEqual([]);
+  });
+
   it("🚨 kalem mesajdan SONRA düzenlendiyse öneri YOK; öneri görüldükten sonra kalem düzenlenirse onay 409, kalem değişmez (Haiku 10-12 2. tur)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asUser(orgId);
@@ -244,7 +252,7 @@ describe("B · Wi-Fi bilgi tabanı düzeltmesi", () => {
     expect(await prisma.auditLog.count({ where: { action: "ai_suggestion.approved" } })).toBe(0);
   });
 
-  it("modem / yönetici ya da kapı şifresi Wi-Fi önerisi ÜRETMEZ; açık ':' ile yazılan sözcük biçimli şifre üretir", async () => {
+  it("modem / yönetici ya da kapı şifresi ve sözcük biçimli 'şifre' Wi-Fi önerisi ÜRETMEZ; rakamlı değer üretir", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asUser(orgId);
     await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "şifre: Abc12345", isActive: true, updatedAt: DAY_AGO() } });
@@ -253,8 +261,11 @@ describe("B · Wi-Fi bilgi tabanı düzeltmesi", () => {
       { direction: "outbound", authorType: "host", body: "Kapı şifresi: 4829#1234", minutesAgo: 20 },
     ]);
     expect(await getPropertyWifiSuggestions(orgId, propertyId)).toEqual([]);
-    await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Wi-Fi şifresi: lalehouse", minutesAgo: 10 }]);
-    expect(await getPropertyWifiSuggestions(orgId, propertyId)).toMatchObject([{ kind: "kb_wifi", proposal: { field: "password", masked: "••••se" } }]);
+    // Sözcük biçimli "şifre" değer sayılmaz (kurucu 10-11 dersi: "Wi-Fi çalışmıyor" ≠ şifre) → öneri yok; rakamlı değer → öneri.
+    await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Wi-Fi şifresi: çalışmıyor, bakacağım", minutesAgo: 15 }]);
+    expect(await getPropertyWifiSuggestions(orgId, propertyId)).toEqual([]);
+    await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Wi-Fi şifresi: Lale2024", minutesAgo: 10 }]);
+    expect(await getPropertyWifiSuggestions(orgId, propertyId)).toMatchObject([{ kind: "kb_wifi", proposal: { field: "password", masked: "••••24" } }]);
   });
 });
 
