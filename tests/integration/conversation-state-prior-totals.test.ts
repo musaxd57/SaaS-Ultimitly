@@ -4,10 +4,10 @@
 // WhiteSpace + LineTerminator + Unicode Zs — U+0085 ve U+200B BOŞLUK DEĞİL) · yazar yapay zekâ / ev sahibi (yazar alanı boş dize
 // ise görünen ad kuralı). Özellik testi: tohumlu rastgele satırlar gerçek PostgreSQL'e yazılır, her sınırda iki sayım eşit.
 // ---------------------------------------------------------------------------
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { replyAuthor } from "@/lib/ai/conversation-state";
-import { conversationStatePriorTotals } from "@/lib/ai/conversation-state-loader";
+import { conversationStatePriorTotals, loadConversationState } from "@/lib/ai/conversation-state-loader";
 
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -101,14 +101,49 @@ describe("kesit öncesi cevap toplamları — SQL = JS `replyAuthor`", () => {
     }
   });
 
+  it("🚨 sınır satırı yoksa (okumadan sonra silindi) sessiz 0 DÖNMEZ — fırlatır; yükleyici kayıt bloğunu yazmaz", async () => {
+    await expect(conversationStatePriorTotals({ conversationId, before: { id: "yok-olan-satir" }, excludedIds: [] })).rejects.toThrow(
+      /sınırı satırı bulunamadı/,
+    );
+    // Başka konuşmanın satırı da sınır sayılmaz.
+    const { propertyId } = await makeOrgWithProperty();
+    const other = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "K", channel: "airbnb", status: "new" } });
+    await expect(conversationStatePriorTotals({ conversationId: other.id, before: { id: rows[300].id }, excludedIds: [] })).rejects.toThrow(
+      /sınırı satırı bulunamadı/,
+    );
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    try {
+      const state = await loadConversationState({
+        organizationId: "org-yok",
+        messages: [],
+        conversationId,
+        priorBefore: { row: { id: "yok-olan-satir" }, excludedIds: [] },
+      });
+      expect(state).toBeUndefined();
+      // KONTROL: sınır satırı varken blok kurulur.
+      const ok = await loadConversationState({
+        organizationId: "org-yok",
+        messages: [],
+        conversationId,
+        priorBefore: { row: { id: rows[300].id }, excludedIds: [] },
+      });
+      expect(ok).toBeDefined();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("başka konuşmanın satırları sayılmaz (kiracı / konuşma kapsamı)", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const other = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "H", channel: "airbnb", status: "new" } });
     await prisma.message.create({
       data: { conversationId: other.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Cevap", createdAt: new Date(0) },
     });
-    const last = rows[rows.length - 1];
-    const sql = await conversationStatePriorTotals({ conversationId: other.id, before: { id: last.id }, excludedIds: [] });
+    const boundary = await prisma.message.create({
+      data: { conversationId: other.id, direction: "inbound", authorType: "guest", senderName: "H", body: "Soru", createdAt: new Date() },
+    });
+    // İlk konuşmanın ~600 satırı aynı tabloda; yalnız bu konuşmanın sınırdan önceki tek cevabı sayılır.
+    const sql = await conversationStatePriorTotals({ conversationId: other.id, before: { id: boundary.id }, excludedIds: [] });
     expect(sql).toEqual({ outbound: 1, hostOutbound: 1 });
   });
 });

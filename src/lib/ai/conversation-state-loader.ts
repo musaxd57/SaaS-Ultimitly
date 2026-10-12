@@ -58,9 +58,10 @@ export async function conversationStatePriorTotals(input: {
   before: { id: string };
   excludedIds: readonly string[];
 }): Promise<{ outbound: number; hostOutbound: number }> {
-  const rows = await prisma.$queryRaw<{ outbound: number; hostOutbound: number }[]>`
+  const rows = await prisma.$queryRaw<{ outbound: number; hostOutbound: number; found: number }[]>`
     SELECT count(*) FILTER (WHERE a IN ('ai', 'host'))::int AS "outbound",
-           count(*) FILTER (WHERE a = 'host')::int AS "hostOutbound"
+           count(*) FILTER (WHERE a = 'host')::int AS "hostOutbound",
+           (SELECT count(*) FROM "Message" s WHERE s."id" = ${input.before.id} AND s."conversationId" = ${input.conversationId})::int AS "found"
     FROM (
       SELECT COALESCE(
                NULLIF("authorType", ''),
@@ -78,7 +79,11 @@ export async function conversationStatePriorTotals(input: {
         AND NOT ("id" = ANY(${[...input.excludedIds]}::text[]))
         AND "body" !~ ${BLANK_BODY_RE}
     ) t`;
-  return rows[0] ?? { outbound: 0, hostOutbound: 0 };
+  // Sınır satırı yoksa (okumadan sonra silindi) karşılaştırma NULL olur ve sayım SESSİZCE 0 döner — "misafire giden mesaj" küçülürdü
+  // (Haiku son tur 10-12). Fırlatılır: çağıran (`loadConversationState`) yakalar, kayıt bloğu yazılmaz (okunamayan durum = blok yok).
+  const r = rows[0];
+  if (!r || r.found !== 1) throw new Error("conversation-state prior totals: kesit sınırı satırı bulunamadı");
+  return { outbound: r.outbound, hostOutbound: r.hostOutbound };
 }
 
 export function conversationRecordsInPrompt(records: Parameters<typeof conversationStateBlock>[0]): boolean {
