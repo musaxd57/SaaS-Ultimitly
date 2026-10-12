@@ -30,6 +30,68 @@ function nextDayKey(key: string): string {
   return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
+// rangeStart/rangeEnd are UTC instants marking org-local day boundaries. Walk
+// the stay in org-local CALENDAR days (addZonedDays, not fixed 24h steps —
+// DST'li dilimlerde 23/25 saatlik günler sabit adımı geceyarısından kaydırır;
+// Codex 07-23 #4) and collect each distinct local day-key inside the window;
+// departure day is exclusive (checkout is not an occupied night).
+// Dışa açık (ACIK-ISLER 08-08 son liste, 10-12 gece): test eskiden bu fonksiyonun ELLE KOPYASINI sınıyordu ve kopya bayatlamıştı
+// (anlık yürüyüş + ham `dayKeyTz` uçları); artık gerçeği sınanır. `tz` org'un rapor dilimi.
+export function countOccupiedDays(
+  reservations: { arrivalDate: Date; departureDate: Date }[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  tz: string,
+): number {
+  const occupied = new Set<string>();
+  // 🚨 SINIR GÜN ANAHTARIYLA KARŞILAŞTIRILIR, HAM ZAMAN DAMGASIYLA DEĞİL
+  // (denetim 08-07 (4), ÖLÇÜLDÜ — dört vakanın dördü de yanlıştı).
+  // Eski kod `cur < end` diyordu: `cur` org-YEREL geceyarısı, `end` ise
+  // sağlayıcının HAM anı. UTC+3'te çıkış günü yerel geceyarısı (Ağu 2 00:00
+  // yerel = Ağu 1 21:00Z) çıkış anından (Ağu 2 00:00Z) ÖNCEDİR → döngü çıkış
+  // gününü de sayıyordu. Sonuç: HER konaklama +1 gece.
+  //   1 gecelik Hospitable kaydı → 2 · 3 gecelik iCal kaydı (12:00Z) → 4 ·
+  //   aynı-gün 0 gece → 1 · 7 gece → 8. Yani /reports donut'u ve her dairenin
+  //   doluluk yüzdesi sistematik olarak şişiyordu ve /calendar ile ÇELİŞİYORDU
+  //   (orası zaten `key >= arrKey && key < depKey` ile doğru sayıyor).
+  // İki taraf da artık "YYYY-MM-DD" karşılaştırması: aynı çerçeve, kayma yok.
+  const rangeStartKey = dayKeyTz(rangeStart, tz);
+  const rangeEndKey = dayKeyTz(rangeEnd, tz); // DIŞLAYICI (günler 1..cutoff-1)
+  for (const r of reservations) {
+    // Konaklamanın uçları TEK TARİH KURALIYLA (`calendarDateOf`, 09-26): yalnız-tarih çapası UTC tarihidir. Ham
+    // `dayKeyTz` New York'ta her Hospitable konaklamasını bir gün erkene kaydırıyordu (ay başında bir gece eksik).
+    const arrKey = calendarDateOf(r.arrivalDate, tz).key;
+    const depKey = calendarDateOf(r.departureDate, tz).key; // çıkış günü DIŞLANIR
+    const startKey = arrKey > rangeStartKey ? arrKey : rangeStartKey;
+    const endKey = depKey < rangeEndKey ? depKey : rangeEndKey;
+    // 🚨 YÜRÜYÜŞ TAKVİM ANAHTARI ÜZERİNDE — ANLIK (instant) ÜZERİNDE DEĞİL.
+    // (denetim 08-08, ÖLÇÜLDÜ.) Eskiden `addZonedDays` ile an-an yürünüyordu ve
+    // o fonksiyon bazı dilimlerde SABİT NOKTAYA düşüyor: yerel gece yarısı
+    // OLMAYAN bir güne gelindiğinde ("saat 00:00'da ileri al" kuralı olan
+    // dilimler — America/Santiago, Havana, Asia/Beirut…) "ertesi günün 00:00'ı"
+    // istendiğinde dönen anın YEREL GÜNÜ DEĞİŞMİYOR. Ölçüldü: Santiago'da
+    // 2026-09-06 00:00 istendi → dönen anın yerel günü 2026-09-05. Döngü
+    // orada TAKILIYORDU.
+    // ⚠️ BU YAVAŞ BİR SORGU DEĞİL, SENKRON BİR CPU DÖNGÜSÜ: Node olay döngüsünü
+    // bloklar, yani TEK bir kiracının /reports'u tüm replikayı (sağlık ucu
+    // dahil) durdurur. Bugün her org Türkiye'de ve TR'de DST yok, ama
+    // `PATCH /api/settings` çalışma zamanının tanıdığı HER IANA dilimini kabul
+    // ediyor → gizli değil, yalnız henüz tetiklenmemiş.
+    // ⚠️ İLK DÜZELTMEM YALNIZ "İLERLEME YOKSA DUR" KORUMASIYDI: asılmayı
+    // bitiriyordu ama Santiago'da 29 gecelik bir konaklamayı 6 sayıyordu —
+    // yani kilitlenme yerine SESSİZ YANLIŞ SAYI. Doğru çözüm, gün yürüyüşünü
+    // saat diliminden BAĞIMSIZ hale getirmek: uçlar org dilimiyle anahtara
+    // çevrilir, aradaki günler saf takvim aritmetiğiyle üretilir. Takvimde
+    // "olmayan gün" yoktur → sabit nokta imkânsız, sayım da doğru.
+    let key = startKey;
+    while (key < endKey) {
+      occupied.add(key);
+      key = nextDayKey(key);
+    }
+  }
+  return occupied.size;
+}
+
 /** The org's report timezone (one cheap PK read; bozuk/boş değer → Istanbul). */
 async function reportTz(orgId: string): Promise<string> {
   const org = await prisma.organization.findUnique({
@@ -396,72 +458,13 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     else byProperty.set(r.propertyId, [r]);
   }
 
-  // rangeStart/rangeEnd are UTC instants marking org-local day boundaries. Walk
-  // the stay in org-local CALENDAR days (addZonedDays, not fixed 24h steps —
-  // DST'li dilimlerde 23/25 saatlik günler sabit adımı geceyarısından kaydırır;
-  // Codex 07-23 #4) and collect each distinct local day-key inside the window;
-  // departure day is exclusive (checkout is not an occupied night).
-  function countOccupiedDays(
-    reservations: { arrivalDate: Date; departureDate: Date }[],
-    rangeStart: Date,
-    rangeEnd: Date,
-  ): number {
-    const occupied = new Set<string>();
-    // 🚨 SINIR GÜN ANAHTARIYLA KARŞILAŞTIRILIR, HAM ZAMAN DAMGASIYLA DEĞİL
-    // (denetim 08-07 (4), ÖLÇÜLDÜ — dört vakanın dördü de yanlıştı).
-    // Eski kod `cur < end` diyordu: `cur` org-YEREL geceyarısı, `end` ise
-    // sağlayıcının HAM anı. UTC+3'te çıkış günü yerel geceyarısı (Ağu 2 00:00
-    // yerel = Ağu 1 21:00Z) çıkış anından (Ağu 2 00:00Z) ÖNCEDİR → döngü çıkış
-    // gününü de sayıyordu. Sonuç: HER konaklama +1 gece.
-    //   1 gecelik Hospitable kaydı → 2 · 3 gecelik iCal kaydı (12:00Z) → 4 ·
-    //   aynı-gün 0 gece → 1 · 7 gece → 8. Yani /reports donut'u ve her dairenin
-    //   doluluk yüzdesi sistematik olarak şişiyordu ve /calendar ile ÇELİŞİYORDU
-    //   (orası zaten `key >= arrKey && key < depKey` ile doğru sayıyor).
-    // İki taraf da artık "YYYY-MM-DD" karşılaştırması: aynı çerçeve, kayma yok.
-    const rangeStartKey = dayKeyTz(rangeStart, tz);
-    const rangeEndKey = dayKeyTz(rangeEnd, tz); // DIŞLAYICI (günler 1..cutoff-1)
-    for (const r of reservations) {
-      // Konaklamanın uçları TEK TARİH KURALIYLA (`calendarDateOf`, 09-26): yalnız-tarih çapası UTC tarihidir. Ham
-      // `dayKeyTz` New York'ta her Hospitable konaklamasını bir gün erkene kaydırıyordu (ay başında bir gece eksik).
-      const arrKey = calendarDateOf(r.arrivalDate, tz).key;
-      const depKey = calendarDateOf(r.departureDate, tz).key; // çıkış günü DIŞLANIR
-      const startKey = arrKey > rangeStartKey ? arrKey : rangeStartKey;
-      const endKey = depKey < rangeEndKey ? depKey : rangeEndKey;
-      // 🚨 YÜRÜYÜŞ TAKVİM ANAHTARI ÜZERİNDE — ANLIK (instant) ÜZERİNDE DEĞİL.
-      // (denetim 08-08, ÖLÇÜLDÜ.) Eskiden `addZonedDays` ile an-an yürünüyordu ve
-      // o fonksiyon bazı dilimlerde SABİT NOKTAYA düşüyor: yerel gece yarısı
-      // OLMAYAN bir güne gelindiğinde ("saat 00:00'da ileri al" kuralı olan
-      // dilimler — America/Santiago, Havana, Asia/Beirut…) "ertesi günün 00:00'ı"
-      // istendiğinde dönen anın YEREL GÜNÜ DEĞİŞMİYOR. Ölçüldü: Santiago'da
-      // 2026-09-06 00:00 istendi → dönen anın yerel günü 2026-09-05. Döngü
-      // orada TAKILIYORDU.
-      // ⚠️ BU YAVAŞ BİR SORGU DEĞİL, SENKRON BİR CPU DÖNGÜSÜ: Node olay döngüsünü
-      // bloklar, yani TEK bir kiracının /reports'u tüm replikayı (sağlık ucu
-      // dahil) durdurur. Bugün her org Türkiye'de ve TR'de DST yok, ama
-      // `PATCH /api/settings` çalışma zamanının tanıdığı HER IANA dilimini kabul
-      // ediyor → gizli değil, yalnız henüz tetiklenmemiş.
-      // ⚠️ İLK DÜZELTMEM YALNIZ "İLERLEME YOKSA DUR" KORUMASIYDI: asılmayı
-      // bitiriyordu ama Santiago'da 29 gecelik bir konaklamayı 6 sayıyordu —
-      // yani kilitlenme yerine SESSİZ YANLIŞ SAYI. Doğru çözüm, gün yürüyüşünü
-      // saat diliminden BAĞIMSIZ hale getirmek: uçlar org dilimiyle anahtara
-      // çevrilir, aradaki günler saf takvim aritmetiğiyle üretilir. Takvimde
-      // "olmayan gün" yoktur → sabit nokta imkânsız, sayım da doğru.
-      let key = startKey;
-      while (key < endKey) {
-        occupied.add(key);
-        key = nextDayKey(key);
-      }
-    }
-    return occupied.size;
-  }
-
   const clamp = (n: number) => Math.min(100, Math.max(0, n));
 
   return properties.map((p) => {
     const res = byProperty.get(p.id) ?? [];
     // Both windows stop at their respective cutoff so we compare like-for-like.
-    const thisOccupied = countOccupiedDays(res, thisMonthStart, thisMonthCutoff);
-    const lastOccupied = countOccupiedDays(res, lastMonthStart, lastMonthCutoff);
+    const thisOccupied = countOccupiedDays(res, thisMonthStart, thisMonthCutoff, tz);
+    const lastOccupied = countOccupiedDays(res, lastMonthStart, lastMonthCutoff, tz);
     const thisRate = clamp(Math.round((thisOccupied / elapsedNightsThis) * 100));
     const lastRate = clamp(Math.round((lastOccupied / elapsedNightsLast) * 100));
     return {

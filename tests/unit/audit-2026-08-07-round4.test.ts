@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { taskUpdateSchema } from "@/lib/validators";
 import { detectSupplyRequest } from "@/lib/supply";
-import { zonedDayRange, addZonedDays } from "@/lib/timezone";
+import { countOccupiedDays } from "@/lib/reports";
 
 // ---------------------------------------------------------------------------
 // 10-AJANLIK DENETİM TURU (08-07 (4)) — az bakılan modüller.
@@ -70,24 +70,11 @@ describe("🚨 doluluk: ÇIKIŞ GÜNÜ sayılmaz", () => {
   // de sayılıyordu → /reports donut'u sistematik şişiyor ve /calendar ile
   // ÇELİŞİYORDU (orası zaten gün anahtarı karşılaştırıyor).
   const tz = "Europe/Istanbul";
-  const dayKeyTz = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: tz });
 
-  // reports.ts'teki countOccupiedDays'in BİREBİR aynısı (özel fonksiyon).
-  function count(arr: string, dep: string, rs = "2026-07-01T00:00:00Z", re = "2026-09-01T00:00:00Z") {
-    const rangeStart = new Date(rs);
-    const rangeEndKey = dayKeyTz(new Date(re));
-    const occupied = new Set<string>();
-    const start = new Date(arr) > rangeStart ? new Date(arr) : rangeStart;
-    const depKey = dayKeyTz(new Date(dep));
-    const endKey = depKey < rangeEndKey ? depKey : rangeEndKey;
-    let cur = zonedDayRange(start, tz).start;
-    let key = dayKeyTz(cur);
-    while (key < endKey) {
-      occupied.add(key);
-      cur = addZonedDays(cur, 1, tz);
-      key = dayKeyTz(cur);
-    }
-    return occupied.size;
+  // GERÇEK fonksiyon (ACIK-ISLER 08-08 son liste, 10-12 gece): eskiden burada reports.ts'in ELLE KOPYASI vardı ve kopya bayatlamıştı —
+  // kaynak takvim anahtarıyla yürürken kopya hâlâ anlık (`addZonedDays`) yürüyordu; kaynağı bozan değişiklik bu testi kırmazdı.
+  function count(arr: string, dep: string, rs = "2026-07-01T00:00:00Z", re = "2026-09-01T00:00:00Z", zone = tz) {
+    return countOccupiedDays([{ arrivalDate: new Date(arr), departureDate: new Date(dep) }], new Date(rs), new Date(re), zone);
   }
 
   it("gece sayısı = konaklama gecesi (çıkış günü hariç)", () => {
@@ -101,9 +88,27 @@ describe("🚨 doluluk: ÇIKIŞ GÜNÜ sayılmaz", () => {
     expect(count("2026-06-25T00:00:00Z", "2026-09-10T00:00:00Z")).toBe(62); // Tem 31 + Ağu 31
   });
 
+  it("çakışan iki konaklama aynı geceyi İKİ KEZ saymaz (gün kümesi)", () => {
+    const rows = [
+      { arrivalDate: new Date("2026-08-01T00:00:00Z"), departureDate: new Date("2026-08-05T00:00:00Z") },
+      { arrivalDate: new Date("2026-08-03T00:00:00Z"), departureDate: new Date("2026-08-07T00:00:00Z") },
+    ];
+    expect(countOccupiedDays(rows, new Date("2026-07-01T00:00:00Z"), new Date("2026-09-01T00:00:00Z"), tz)).toBe(6);
+  });
+
+  it("🚨 New York: yalnız-tarih çapası (00:00Z) bir gün erkene KAYMAZ (ay başı gecesi sayılır)", () => {
+    // Ham `dayKeyTz` uçları 1 Ağu 00:00Z'yi New York'ta 31 Tem okur → pencere 1 Ağu'dan başladığı için ilk gece düşerdi.
+    expect(count("2026-08-01T00:00:00Z", "2026-08-03T00:00:00Z", "2026-08-01T04:00:00Z", "2026-09-01T04:00:00Z", "America/New_York")).toBe(2);
+  });
+
+  it("🚨 Santiago (gece yarısı olmayan gün, 6 Eyl): döngü TAKILMAZ, 29 gece doğru sayılır", () => {
+    expect(count("2026-08-20T00:00:00Z", "2026-09-18T00:00:00Z", "2026-08-01T12:00:00Z", "2026-10-01T12:00:00Z", "America/Santiago")).toBe(29);
+  });
+
   it("kaynak GERÇEKTEN gün anahtarı karşılaştırıyor (ham damga değil)", () => {
     const src = codeOnly(read("src/lib/reports.ts"));
-    const fn = src.slice(src.indexOf("function countOccupiedDays"), src.indexOf("const clamp ="));
+    const fn = src.slice(src.indexOf("function countOccupiedDays"), src.indexOf("async function reportTz"));
+    expect(fn.length, "dilim boş değil").toBeGreaterThan(200);
     expect(fn).toContain("const rangeEndKey = dayKeyTz(rangeEnd, tz)");
     expect(fn).toContain("while (key < endKey)");
     // Eski, çerçeve karıştıran karşılaştırma geri gelirse KIRMIZI.
