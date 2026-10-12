@@ -96,9 +96,11 @@ describe("🚨 doluluk: ÇIKIŞ GÜNÜ sayılmaz", () => {
     expect(countOccupiedDays(rows, new Date("2026-07-01T00:00:00Z"), new Date("2026-09-01T00:00:00Z"), tz)).toBe(6);
   });
 
-  it("🚨 New York: yalnız-tarih çapası (00:00Z) bir gün erkene KAYMAZ (ay başı gecesi sayılır)", () => {
-    // Ham `dayKeyTz` uçları 1 Ağu 00:00Z'yi New York'ta 31 Tem okur → pencere 1 Ağu'dan başladığı için ilk gece düşerdi.
+  it("🚨 New York: yalnız-tarih çapası (00:00Z) bir gün erkene KAYMAZ — iki uç ayrı ayrı", () => {
+    // Ham `dayKeyTz` 00:00Z'yi New York'ta BİR ÖNCEKİ gün okur. Çıkış ucu: 3 Ağu çıkışı 2 Ağu sayılır → 1 Ağu ayın ilk gecesi düşer (1).
     expect(count("2026-08-01T00:00:00Z", "2026-08-03T00:00:00Z", "2026-08-01T04:00:00Z", "2026-09-01T04:00:00Z", "America/New_York")).toBe(2);
+    // Varış ucu (Haiku 10-12: yukarıdaki vaka onu ayırt etmez, pencere başı kırpar): 2 Ağu varışı 1 Ağu sayılır → fazladan gece (3).
+    expect(count("2026-08-02T00:00:00Z", "2026-08-04T00:00:00Z", "2026-08-01T04:00:00Z", "2026-09-01T04:00:00Z", "America/New_York")).toBe(2);
   });
 
   it("🚨 Santiago (gece yarısı olmayan gün, 6 Eyl): döngü TAKILMAZ, 29 gece doğru sayılır", () => {

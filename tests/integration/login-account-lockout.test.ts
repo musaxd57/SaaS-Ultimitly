@@ -49,7 +49,10 @@ describe("login — hesap kovasının YERİ (yapısal pin)", () => {
 
   it("IP kovası HÂLÂ en başta ve koşulsuz (regresyon pini)", async () => {
     const src = await loginSource();
-    const head = src.slice(0, src.indexOf("const bodyResult"));
+    // Çapa bulunamazsa `slice(0, -1)` neredeyse bütün dosyayı verir ve pin boşa düşer (DENETIM 08-09 #32).
+    const cut = src.indexOf("const bodyResult");
+    expect(cut, "gövde okumasının çapası bulunamadı — pin boşa düştü").toBeGreaterThan(0);
+    const head = src.slice(0, cut);
     // (09-23: kova anahtarı IPv6 /64'e indirgeyen `rateLimitClientKey`ten gelir.)
     expect(head).toMatch(/await rateLimit\(`login:\$\{rateLimitClientKey\(req\)\}`, 10, 5 \* 60 \* 1000\)/);
   });

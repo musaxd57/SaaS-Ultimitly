@@ -124,7 +124,9 @@ describe("session JWT", () => {
   });
 
   // DENETIM 08-09 #33: algoritma HS256'ya sabit (`verifySession` `algorithms: ["HS256"]`). Sabitleme gevşerse AYNI sırla HS512 ile
-  // imzalanmış ya da imzasız (`alg: none`) bir belirteç kabul edilirdi. Belirteçler `jose`'a bağlı kalmadan elle kurulur.
+  // imzalanmış bir belirteç kabul edilirdi — HS512 testi bunu ayırt eder. `alg: none` testi bu sabitlemeyi SINAMAZ (Haiku 10-12, doğrulandı:
+  // `jose` imzasız belirteci simetrik anahtarla anahtar türü denetiminde, izin listesine bakmadan reddeder); kütüphane / doğrulayıcı
+  // değişirse imzasız belirtecin yine reddedildiğini pinler. Belirteçler `jose`'a bağlı kalmadan elle kurulur.
   const b64url = (b: Buffer | string) => Buffer.from(b).toString("base64url");
   const claims = { userId: "u1", organizationId: "org1", role: "owner", email: "demo@guestops.ai", name: "Demo", exp: Math.floor(Date.now() / 1000) + 3600 };
   function handMade(alg: "HS256" | "HS512" | "none"): string {
@@ -139,7 +141,7 @@ describe("session JWT", () => {
     expect(await verifySession(handMade("HS512"))).toBeNull();
   });
 
-  it("🚨 imzasız (`alg: none`) belirteç reddedilir", async () => {
+  it("🚨 imzasız (`alg: none`) belirteç reddedilir (kütüphane düzeyi; sabitlemenin pini HS512 testidir)", async () => {
     expect(await verifySession(handMade("none"))).toBeNull();
   });
 
