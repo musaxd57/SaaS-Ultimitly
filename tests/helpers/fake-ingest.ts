@@ -47,6 +47,8 @@ export class FakeIngestProvider {
   private reservationsByProperty = new Map<string, CanonicalReservation[]>();
   private messagesByReservation = new Map<string, CanonicalMessage[]>();
   private behaviour: FakeIngestBehaviour = { mode: "ok" };
+  /** Sağlayıcının iptal ettiği token'lar — o token'la her istek 401 (yalnız o token; diğerleri çalışır). */
+  private revoked = new Set<string>();
   readonly requests: { op: string; token: string | undefined; arg?: string }[] = [];
 
   reset(): void {
@@ -55,7 +57,13 @@ export class FakeIngestProvider {
     this.reservationsByProperty.clear();
     this.messagesByReservation.clear();
     this.behaviour = { mode: "ok" };
+    this.revoked.clear();
     this.requests.length = 0;
+  }
+
+  /** Token'ı sağlayıcı tarafında iptal et (yeniden bağlanma senaryosu). */
+  revokeToken(token: string): void {
+    this.revoked.add(token);
   }
 
   behave(b: FakeIngestBehaviour): void {
@@ -93,6 +101,9 @@ export class FakeIngestProvider {
       throw new IngestError(cred.provider, "no_credential", "kimlik bilgisi yok — ağa çıkılmadı");
     }
     this.requests.push({ op, token: cred.token, arg });
+    if (cred.token && this.revoked.has(cred.token)) {
+      throw new IngestError(cred.provider, "auth_revoked", "sağlayıcı reddetti (HTTP 401)", 401);
+    }
     const b = this.behaviour;
     switch (b.mode) {
       case "ok":
@@ -114,7 +125,8 @@ export class FakeIngestProvider {
   }
 
   private visible(cred: IngestCredential): Set<string> {
-    const token = cred.token ?? process.env.HOSPITABLE_API_TOKEN ?? "";
+    // Gerçek istemciyle AYNI geri düşüş (`||`: boş token da ortam token'ına düşer — Haiku 10-12, `??` ayrışıyordu).
+    const token = cred.token || process.env.HOSPITABLE_API_TOKEN || "";
     return this.access.get(token) ?? new Set();
   }
 

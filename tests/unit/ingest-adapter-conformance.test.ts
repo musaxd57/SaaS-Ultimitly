@@ -40,7 +40,11 @@ describeIngestConformance("ortak fake (tests/helpers/fake-ingest.ts)", () => {
           fake.setReservations(KIT.PROPERTY, [A, B]);
           break;
         case "modified_reservation":
-          fake.setReservations(KIT.PROPERTY, [{ ...A, departureDate: new Date("2026-06-07T00:00:00Z") }, B]);
+          fake.setReservations(KIT.PROPERTY, [{ ...A, departureDate: new Date("2026-06-07T00:00:00Z"), status: "cancelled", terminal: true }, B]);
+          break;
+        case "token_rotation":
+          fake.setReservations(KIT.PROPERTY, [A, B]);
+          fake.revokeToken(KIT.REVOKED_TOKEN);
           break;
         case "duplicate_reservation":
           fake.setReservations(KIT.PROPERTY, [A, A]);
@@ -138,11 +142,18 @@ describeIngestConformance("gerçek Hospitable ingest adaptörü (fetch stub)", (
     const headers = (init?.headers ?? {}) as Record<string, string>;
     lastAuth = headers.Authorization?.replace(/^Bearer /, "");
     const pageNo = Number(new URL(url).searchParams.get("page") ?? "1");
+    // Kiracı sınırı + token iptali (kit 10-12): sağlayıcı yalnız KIT.TOKEN'a bu mülkün verisini verir; iptal edilmiş token 401 alır.
+    if (scenario === "token_rotation" && lastAuth === KIT.REVOKED_TOKEN) return err(401);
+    if (lastAuth !== KIT.TOKEN && (scenario === "two_reservations" || scenario === "modified_reservation" || scenario === "token_rotation")) {
+      return page([], 1, 1);
+    }
     switch (scenario) {
       case "two_reservations":
         return page([RAW_A, RAW_B], 1, 1);
       case "modified_reservation":
-        return page([{ ...RAW_A, departure_date: "2026-06-07" }, RAW_B], 1, 1);
+        return page([{ ...RAW_A, departure_date: "2026-06-07", status: "cancelled" }, RAW_B], 1, 1);
+      case "token_rotation":
+        return page([RAW_A, RAW_B], 1, 1);
       case "duplicate_reservation":
         return page([RAW_A, RAW_A], 1, 1);
       case "status_variants":
