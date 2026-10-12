@@ -60,7 +60,7 @@ const EXCLUDED: Record<string, string> = {
   AiReviewLabel: "⚠️ KARAR 25: kurucunun kalite etiket notu",
   TrialIdentity: "Deneme kötüye kullanımı parmak izi (HMAC) — iç güvenlik",
   OperationalEvent:
-    "⚠️ KARAR (avukat paketi, tasarım §5): takip numarası olay günlüğü — iç teşhis; kişisel veri taşımaz (kapalı olay adı + izinli kimlik / kod / sayı alanları), 90 gün",
+    "⚠️ KARAR (avukat paketi, tasarım §5): takip numarası olay günlüğü — iç teşhis; DOĞRUDAN kişisel veri taşımaz (kapalı olay adı + anahtar başına kalıplı kimlik / kod / sayı); Paddle abonelik / işlem kimliği yalnız işletmeye bağlı satırda (işletme silinince satırla gider), 90 gün",
 };
 
 const EXPORT_SRC = readFileSync("src/lib/data-export.ts", "utf8");

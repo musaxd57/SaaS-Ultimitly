@@ -6,7 +6,7 @@ import { reportError } from "@/lib/report-error";
 import { isSuperAdmin } from "@/lib/admin";
 import { isChannelSubscriptionInactive, SUBSCRIPTION_INACTIVE_MESSAGE } from "@/lib/provider-errors";
 import { PasswordHashBusyError } from "@/lib/auth/password";
-import { currentCorrelationId, shortCorrelationId } from "@/lib/correlation";
+import { correlationShownToUser, currentCorrelationId, shortCorrelationId } from "@/lib/correlation";
 
 export type { SessionPayload };
 
@@ -200,9 +200,10 @@ export function serverError(message = DEFAULT_SERVER_ERROR, err?: unknown) {
     }
     void reportError("api", err);
   }
-  // TAKİP NUMARASI (kurucu kararı 10-10, metin AYNEN): kimlikli istekte (numara varsa) beklenmeyen hata ekranı numarayı gösterir; tam numara
-  // gövdede (`correlationId`, "kopyala"). Anonim / misafir rotalarında numara yok → eski metin (misafir Lixus desteğine yazmaz).
-  const correlationId = currentCorrelationId();
+  // TAKİP NUMARASI (kurucu kararı 10-10, metin AYNEN): beklenmeyen hata ekranı numarayı YALNIZ ödeme ekranının uçlarında gösterir (kurucu
+  // kararı 10-12 sabah: "yalnız ödeme ekranında"); tam numara gövdede (`correlationId`, "kopyala"). Diğer kimlikli uçlar ve anonim / misafir
+  // rotaları eski metni gösterir — numara orada da günlükte / Sentry'de / yanıt başlığında durur.
+  const correlationId = correlationShownToUser() ? currentCorrelationId() : null;
   if (correlationId) {
     const short = shortCorrelationId(correlationId);
     const support = `Destek ekibimize bu takip numarasıyla yazarak destek alabilirsiniz: ${short}`;

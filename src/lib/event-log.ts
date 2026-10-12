@@ -19,7 +19,6 @@ import { currentCorrelation, isCorrelationId, isShortCorrelationId, newCorrelati
 
 /** Olay adı → seviye (kapalı küme; yeni olay buraya eklenmeden yazılamaz). */
 export const OPERATIONAL_EVENTS = {
-  "request.failed": "error",
   "error.reported": "error",
   "billing.consent.created": "info",
   "billing.checkout.pending": "info",
@@ -35,29 +34,32 @@ export const OPERATIONAL_EVENTS = {
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 
-type ValueKind = "id" | "code" | "number" | "boolean";
-/** İzinli veri anahtarları ve biçimleri. Kimlik / kod biçimi boşluk, "@", "+" taşımaz → e-posta / ad / telefon / cümle sığmaz. */
-const DATA_KEYS: Record<string, ValueKind> = {
-  context: "code",
-  plan: "code",
-  status: "code",
-  eventType: "code",
-  reason: "code",
-  resource: "code",
-  method: "code",
-  providerCode: "code",
-  currency: "code",
-  consentId: "id",
-  providerEventId: "id",
-  subscriptionRef: "id",
-  transactionRef: "id",
-  providerRequestId: "id",
+/**
+ * İzinli veri anahtarları → değer biçimi. Kimlikler ANAHTAR BAŞINA kalıpla (Paddle `sub_` / `txn_` / `evt_`, onay kaydı cuid, istek kimliği
+ * onaltılık); kodlar kısa kod biçimi. Hiçbir metin değerinde boşluk, "@", "+" ya da 7+ haneli rakam dizisi olamaz → e-posta, ad soyad,
+ * telefon, TC kimlik numarası, cümle SIĞMAZ (Haiku güvenlik incelemesi 10-12: tek biçim kuralı rakam dizisini ve "Ayse-Yilmaz"ı geçiriyordu).
+ */
+const CODE = /^[A-Za-z0-9_.:-]{1,64}$/;
+const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
+  context: CODE,
+  plan: CODE,
+  status: CODE,
+  eventType: CODE,
+  reason: CODE,
+  resource: CODE,
+  method: /^[A-Z]{3,7}$/,
+  providerCode: CODE,
+  currency: /^[A-Z]{3}$/,
+  consentId: /^c[a-z0-9]{7,40}$/,
+  providerEventId: /^evt_[A-Za-z0-9_]{1,64}$/,
+  subscriptionRef: /^sub_[A-Za-z0-9_]{1,64}$/,
+  transactionRef: /^txn_[A-Za-z0-9_]{1,64}$/,
+  providerRequestId: /^[0-9a-f-]{8,64}$/,
   httpStatus: "number",
   amountMinor: "number",
   count: "number",
 };
-const ID_SHAPE = /^[A-Za-z0-9_:.-]{1,80}$/;
-const CODE_SHAPE = /^[A-Za-z0-9_.:-]{1,64}$/;
+const LONG_DIGITS = /\d{7,}/;
 const MAX_DATA_CHARS = 2_000;
 
 export type EventData = Partial<Record<keyof typeof DATA_KEYS, string | number | boolean | null | undefined>>;
@@ -69,12 +71,12 @@ export function sanitizeEventData(data: Record<string, unknown> | undefined): Re
   let dropped = 0;
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue;
-    const kind = DATA_KEYS[key];
+    const kind = Object.hasOwn(DATA_KEYS, key) ? DATA_KEYS[key] : undefined;
     let ok = false;
     if (kind === "number") ok = typeof value === "number" && Number.isSafeInteger(value);
     else if (kind === "boolean") ok = typeof value === "boolean";
-    else if (kind === "id" || kind === "code") {
-      ok = typeof value === "string" && (kind === "id" ? ID_SHAPE : CODE_SHAPE).test(value) && redactSensitive(value) === value;
+    else if (kind instanceof RegExp) {
+      ok = typeof value === "string" && kind.test(value) && !LONG_DIGITS.test(value) && redactSensitive(value) === value;
     }
     if (ok) out[key] = value as string | number | boolean;
     else dropped++;
@@ -83,15 +85,16 @@ export function sanitizeEventData(data: Record<string, unknown> | undefined): Re
   return Object.keys(out).length > 0 ? out : null;
 }
 
-// Dakikalık yazma tavanı (süreç içi; tek kopya çalışıyoruz — yatay ölçekte kopya başına).
+// Dakikalık yazma tavanı (süreç içi; tek kopya çalışıyoruz — yatay ölçekte kopya başına). ÖDEME olayları AYRI bütçede: hata seli ödeme
+// izini boğamaz (Haiku güvenlik incelemesi 10-12: anonim 500'ler sistem kovasını doldurunca "bağlanamayan ödeme" satırı iz bırakmadan
+// düşüyordu). Aynı bağlamdan gelen hata dakikada en fazla 5 satır (tablo şişmesin). Düşen satır sayılır ve dakikada bir konsola yazılır.
 const WINDOW_MS = 60_000;
-const ORG_PER_MINUTE = 120;
-const SYSTEM_PER_MINUTE = 600;
+const CAPS = { orgBilling: 300, orgOther: 120, systemBilling: 1_200, systemOther: 120, errorPerContext: 5 } as const;
 const windows = new Map<string, { start: number; count: number }>();
+let dropped = 0;
+let droppedSince = 0;
 
-function underCap(organizationId: string | null, now: number): boolean {
-  const key = organizationId ?? "__system";
-  const cap = organizationId ? ORG_PER_MINUTE : SYSTEM_PER_MINUTE;
+function take(key: string, cap: number, now: number): boolean {
   const w = windows.get(key);
   if (!w || now - w.start >= WINDOW_MS) {
     if (windows.size > 5_000) windows.clear(); // bellek tavanı
@@ -103,10 +106,33 @@ function underCap(organizationId: string | null, now: number): boolean {
   return true;
 }
 
+function underCap(event: OperationalEventName, organizationId: string | null, context: unknown, now: number): boolean {
+  const billing = event.startsWith("billing.");
+  const owner = organizationId ?? "__system";
+  const cap = organizationId ? (billing ? CAPS.orgBilling : CAPS.orgOther) : billing ? CAPS.systemBilling : CAPS.systemOther;
+  const ok =
+    (event !== "error.reported" || take(`ctx:${owner}:${String(context)}`, CAPS.errorPerContext, now)) &&
+    take(`${owner}:${billing ? "billing" : "other"}`, cap, now);
+  if (!ok) {
+    dropped++;
+    if (now - droppedSince >= WINDOW_MS) {
+      console.warn(`[event-log] tavan nedeniyle yazılmayan olay: ${dropped}`);
+      dropped = 0;
+      droppedSince = now;
+    }
+  }
+  return ok;
+}
+
 /** Yalnız test: dakikalık tavanı sıfırla. */
 export function __resetEventLogLimits(): void {
   windows.clear();
+  dropped = 0;
+  droppedSince = 0;
 }
+
+/** Günlük yazımı ödeme / istek yolunu bekletmez: veritabanı takılırsa en fazla bu kadar beklenir (yazım arka planda sürer). */
+const WRITE_TIMEOUT_MS = 1_500;
 
 /**
  * Olay yaz (asla fırlatmaz). Takip numarası: verilen > süren işlemin numarası > yeni numara. İşletme: verilen > süren işlemin işletmesi.
@@ -120,13 +146,15 @@ export async function logEvent(
   const ctx = currentCorrelation();
   const correlationId = opts.correlationId && isCorrelationId(opts.correlationId) ? opts.correlationId : (ctx?.id ?? newCorrelationId());
   try {
+    if (!Object.hasOwn(OPERATIONAL_EVENTS, event)) return correlationId;
     const level = OPERATIONAL_EVENTS[event];
-    if (!level) return correlationId;
     const organizationId = opts.organizationId !== undefined ? opts.organizationId : (ctx?.organizationId ?? null);
-    if (!underCap(organizationId, Date.now())) return correlationId;
+    if (!underCap(event, organizationId, data?.context, Date.now())) return correlationId;
     const clean = sanitizeEventData(data as Record<string, unknown> | undefined);
     const dataJson = clean ? JSON.stringify(clean).slice(0, MAX_DATA_CHARS) : null;
-    await prisma.operationalEvent.create({ data: { correlationId, organizationId, event, level, dataJson } });
+    const write = prisma.operationalEvent.create({ data: { correlationId, organizationId, event, level, dataJson } });
+    write.catch(() => {}); // zaman aşımından sonra düşen yazım işlenmemiş ret olmasın
+    await Promise.race([write, new Promise<void>((resolve) => setTimeout(resolve, WRITE_TIMEOUT_MS).unref?.())]);
   } catch (err) {
     // Günlük yazılamadı (ör. işletme az önce silindi → yabancı anahtar). İsteği bozmaz; yalnız konsol (döngü olmasın diye reportError YOK).
     console.warn(`[event-log] ${event} yazılamadı: ${formatErrorForLog(err, 200)}`);

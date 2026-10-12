@@ -66,19 +66,27 @@ async function ownerOf(name = "Org") {
 }
 
 /**
- * Test kümesi şemayı `db push` ile kurar → migration'daki ELLE yazılmış tetikleyici orada yok. Tetikleyici migration 63 dosyasının KENDİ
- * SQL'inden kurulur (sınanan şey migration metninin kendisi; dosyadan tetikleyici silinirse bu test kırmızı).
+ * Test kümesi şemayı `db push` ile kurar → migration'daki ELLE yazılmış tetikleyiciler orada yok. Tetikleyiciler migration 63 / 64
+ * dosyalarının KENDİ SQL'inden kurulur (sınanan şey migration metninin kendisi; dosyadan tetikleyici silinirse bu test kırmızı).
  */
 beforeAll(async () => {
-  const sql = readFileSync("prisma/migrations/63_operational_event/migration.sql", "utf8");
-  const fnStart = sql.indexOf('CREATE FUNCTION "operational_event_append_only"');
-  const trgStart = sql.indexOf('CREATE TRIGGER "OperationalEvent_append_only"');
-  expect(fnStart).toBeGreaterThan(0);
-  expect(trgStart).toBeGreaterThan(fnStart);
+  // Fonksiyon gövdeleri ";" içerir → deyimler yalnız "CREATE" ile başlayan satırdan bölünür. 63: güncelleme reddi; 64: silme koruması.
+  const statementsOf = (file: string, first: string) => {
+    const sql = readFileSync(file, "utf8");
+    const start = sql.indexOf(first);
+    expect(start).toBeGreaterThanOrEqual(0);
+    return sql.slice(start).split(/;\s*\n(?=CREATE )/).map((st) => st.trim().replace(/;\s*$/, ""));
+  };
+  const statements = [
+    ...statementsOf("prisma/migrations/63_operational_event/migration.sql", 'CREATE FUNCTION "operational_event_append_only"'),
+    ...statementsOf("prisma/migrations/64_operational_event_delete_guard/migration.sql", 'CREATE FUNCTION "operational_event_delete_guard"'),
+  ];
+  expect(statements.filter((st) => st.startsWith("CREATE TRIGGER"))).toHaveLength(2); // güncelleme + silme
   await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS "OperationalEvent_append_only" ON "OperationalEvent"');
+  await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS "OperationalEvent_delete_guard" ON "OperationalEvent"');
   await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "operational_event_append_only"()');
-  await prisma.$executeRawUnsafe(sql.slice(fnStart, trgStart).trim().replace(/;\s*$/, ""));
-  await prisma.$executeRawUnsafe(sql.slice(trgStart).trim().replace(/;\s*$/, ""));
+  await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "operational_event_delete_guard"()');
+  for (const st of statements) await prisma.$executeRawUnsafe(st);
 });
 
 beforeEach(async () => {
@@ -106,13 +114,29 @@ describe("kimlikli istek — numara başlıkta, hata günlükte aynı numarayla"
     expect(a).not.toBe(forged);
   });
 
-  it("🚨 beklenmeyen hata: 500 kurucu metni + kısa numara; olay günlüğünde AYNI numara + işletme ile 'error.reported'", async () => {
+  it("ödeme dışı uçta beklenmeyen hata: ekranda ESKİ metin (numara yok) ama başlıkta ve günlükte numara var (kurucu kararı 10-12 sabah)", async () => {
     const o = await ownerOf();
     session = o.session;
     const route = withAuth(async () => {
       throw new Error("beklenmeyen");
     });
-    const res = await route(new NextRequest("http://localhost/api/x"), ctx);
+    const res = await route(new NextRequest("http://localhost/api/tasks"), ctx);
+    expect(res.status).toBe(500);
+    const id = res.headers.get(CORRELATION_HEADER)!;
+    const body = await res.json();
+    expect(body.error).toBe("Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.");
+    expect(body).not.toHaveProperty("correlationId");
+    const rows = await waitFor(() => events({ correlationId: id }), (r) => r.length > 0);
+    expect(rows).toMatchObject([{ event: "error.reported", organizationId: o.orgId }]);
+  });
+
+  it("🚨 ödeme ekranı ucunda beklenmeyen hata: 500 kurucu metni + kısa numara; olay günlüğünde AYNI numara + işletme ile 'error.reported'", async () => {
+    const o = await ownerOf();
+    session = o.session;
+    const route = withAuth(async () => {
+      throw new Error("beklenmeyen");
+    });
+    const res = await route(new NextRequest("http://localhost/api/billing/portal"), ctx);
     expect(res.status).toBe(500);
     const id = res.headers.get(CORRELATION_HEADER)!;
     const body = await res.json();
@@ -126,7 +150,10 @@ describe("kimlikli istek — numara başlıkta, hata günlükte aynı numarayla"
   it("arka plan hatası (işlem yok): kendi numarası açılır, işletmesiz satır; bağlam adındaki boşluk koda indirgenir", async () => {
     await reportError("scheduled-sync retention", new Error("x"));
     expect(await events()).toMatchObject([{ event: "error.reported", organizationId: null }]);
-    expect(JSON.parse((await events())[0].dataJson!)).toEqual({ context: "scheduled-sync-retention" });
+    // Yalnız İLK kod belirteci (ad / kimlik gibi değişken parça günlüğe giremez).
+    expect(JSON.parse((await events())[0].dataJson!)).toEqual({ context: "scheduled-sync" });
+    await reportError("hospitable-sync org=cm123 Ayse Yilmaz", new Error("y"));
+    expect(JSON.parse((await events({ correlationId: { not: (await events())[0].correlationId } }))[0].dataJson!)).toEqual({ context: "hospitable-sync" });
   });
 });
 
@@ -163,18 +190,19 @@ describe("ödeme zinciri — onay → webhook → abonelik aynı numara", () => 
       ctx,
     );
     expect(pending.status).toBe(200);
-    expect(pending.headers.get(CORRELATION_HEADER)).not.toBe(chain); // isteğin kendi numarası başlıkta
+    expect(pending.headers.get(CORRELATION_HEADER)).toBe(chain); // zincire katılan istek başlıkta da zincirin numarasını taşır
     session = null;
 
     expect((await webhook(sub("evt_1", consentId))).status).toBe(200);
     expect(await prisma.subscription.count({ where: { organizationId: o.orgId, status: "active" } })).toBe(1);
     const chainEvents = (await events({ correlationId: chain })).map((e) => [e.event, e.organizationId]);
+    // Webhook zincire yalnız NUMARAYLA katılır; işletme yalnız bağlama kuralının kendisinden (abonelik satırı) gelir.
     expect(chainEvents).toEqual([
       ["billing.consent.created", o.orgId],
       ["billing.checkout.pending", o.orgId],
-      ["billing.webhook.received", o.orgId],
+      ["billing.webhook.received", null],
       ["billing.subscription.applied", o.orgId],
-      ["billing.webhook.processed", o.orgId],
+      ["billing.webhook.processed", null],
     ]);
     // Aynı olay yeniden teslim edilirse: yinelenen kaydı da aynı zincirde.
     expect((await webhook(sub("evt_1", consentId))).status).toBe(200);
@@ -192,6 +220,11 @@ describe("ödeme zinciri — onay → webhook → abonelik aynı numara", () => 
     const received = await events({ event: "billing.webhook.received" });
     expect(received).toHaveLength(1);
     expect(received[0].correlationId).not.toBe(chain);
+    // İşletmesiz "bağlanamadı" satırı Paddle abonelik kimliği TAŞIMAZ (işletme silinince kademeyle gitmez).
+    const unlinked = await events({ event: "billing.webhook.unlinked" });
+    expect(unlinked).toHaveLength(1);
+    expect(unlinked[0].organizationId).toBeNull();
+    expect(unlinked[0].dataJson).not.toMatch(/sub_/);
   });
 
   it("istemcinin custom_data'ya koyduğu numara zincir SEÇTİREMEZ (numara yalnız onay satırından okunur)", async () => {
@@ -217,6 +250,14 @@ describe("bütünlük — yalnız ekle, kademeli silme, tavan, saklama", () => {
     expect((await events())[0]).toEqual(row);
   });
 
+  it("🚨 taze satır SİLİNEMEZ (yalnız saklama süresi aşılınca ya da işletmesi silinince)", async () => {
+    const o = await ownerOf();
+    await logEvent("billing.consent.created", {}, { organizationId: o.orgId });
+    await logEvent("error.reported", { context: "x" }, { organizationId: null });
+    await expect(prisma.operationalEvent.deleteMany({})).rejects.toThrow(/deleted only by retention/);
+    expect(await prisma.operationalEvent.count()).toBe(2);
+  });
+
   it("işletme silinince satırları gider; işletmesiz (sistem) satır kalır", async () => {
     const o = await ownerOf();
     await logEvent("billing.consent.created", {}, { organizationId: o.orgId });
@@ -225,17 +266,20 @@ describe("bütünlük — yalnız ekle, kademeli silme, tavan, saklama", () => {
     expect((await events()).map((e) => e.organizationId)).toEqual([null]);
   });
 
-  it("işletme başına dakikalık tavan (120): fazlası yazılmaz, başka işletme etkilenmez", async () => {
+  it("dakikalık tavan: ödeme olayları AYRI bütçede (hata seli ödeme izini boğamaz); aynı bağlamdan hata en fazla 5; başka işletme etkilenmez", async () => {
     const a = await ownerOf("A");
     const b = await ownerOf("B");
-    for (let i = 0; i < 125; i++) await logEvent("billing.paddle.request", { httpStatus: 200 }, { organizationId: a.orgId });
-    await logEvent("billing.paddle.request", { httpStatus: 200 }, { organizationId: b.orgId });
-    expect(await prisma.operationalEvent.count({ where: { organizationId: a.orgId } })).toBe(120);
-    expect(await prisma.operationalEvent.count({ where: { organizationId: b.orgId } })).toBe(1);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (let i = 0; i < 130; i++) await logEvent("error.reported", { context: `ctx${i % 30}` }, { organizationId: a.orgId });
+    for (let i = 0; i < 7; i++) await logEvent("error.reported", { context: "tek" }, { organizationId: b.orgId });
+    for (let i = 0; i < 305; i++) await logEvent("billing.paddle.request", { httpStatus: 200 }, { organizationId: a.orgId });
+    expect(await prisma.operationalEvent.count({ where: { organizationId: a.orgId, event: "error.reported" } })).toBe(120);
+    expect(await prisma.operationalEvent.count({ where: { organizationId: a.orgId, event: "billing.paddle.request" } })).toBe(300);
+    expect(await prisma.operationalEvent.count({ where: { organizationId: b.orgId } })).toBe(5);
   });
 
   it(`saklama: ${EVENT_LOG_RETENTION_DAYS} günden eski satırlar silinir, yenisi kalır`, async () => {
-    const now = new Date("2026-10-12T00:00:00Z");
+    const now = new Date();
     const day = 86_400_000;
     for (const [id, ageDays] of [["old", EVENT_LOG_RETENTION_DAYS + 1], ["edge", EVENT_LOG_RETENTION_DAYS - 1], ["new", 1]] as const) {
       await prisma.operationalEvent.create({
@@ -270,8 +314,10 @@ describe("operatör araması — api/admin/events", () => {
     expect((await short.json()).events).toMatchObject([{ event: "billing.consent.created", organizationId: customer.orgId, data: { plan: "pro" } }]);
     expect(((await (await search(id)).json()).events as unknown[]).length).toBe(1);
     const audits = await prisma.auditLog.findMany({ where: { action: "operator.event_search" } });
-    expect(audits).toHaveLength(2);
-    expect(audits.every((a) => a.organizationId === op.orgId && JSON.parse(a.metadataJson!).prefix === "55555555")).toBe(true);
+    // Operatörün kendi kaydı + sonucu dönen işletmenin KENDİ kaydı (iki arama × iki işletme).
+    expect(audits.filter((a) => a.organizationId === op.orgId)).toHaveLength(2);
+    expect(audits.filter((a) => a.organizationId === customer.orgId)).toHaveLength(2);
+    expect(audits.every((a) => a.actorUserId === op.userId && JSON.parse(a.metadataJson!).prefix === "55555555")).toBe(true);
   });
 
   it("🚨 2FA'sız operatör / sıradan müşteri → 401; bürünme → 403; başka sitenin yönlendirmesi → 403; bozuk numara → 400 (kayıt yazılır)", async () => {

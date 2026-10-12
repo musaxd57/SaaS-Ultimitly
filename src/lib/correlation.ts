@@ -14,6 +14,11 @@ export interface CorrelationContext {
   id: string;
   /** Oturumdan gelen işletme (olay günlüğü satırının sahibi); sistem işinde yok. */
   organizationId: string | null;
+  /**
+   * Numara kullanıcıya (hata ekranında) GÖSTERİLEBİLİR mi — kurucu kararı 10-12 sabah: "yalnız ödeme ekranında" (`/api/billing/*`).
+   * Göstermediğimiz istekte numara yine günlük / Sentry / alarm e-postası / yanıt başlığında durur.
+   */
+  showToUser?: boolean;
 }
 
 const storage = new AsyncLocalStorage<CorrelationContext>();
@@ -42,7 +47,7 @@ export function shortCorrelationId(id: string): string {
 
 /** `fn`i verilen numarayla koşturur; içindeki her `await` zinciri numarayı görür, eşzamanlı istekler birbirininkini görmez. */
 export function runWithCorrelation<T>(ctx: CorrelationContext, fn: () => T): T {
-  return storage.run({ id: ctx.id, organizationId: ctx.organizationId }, fn);
+  return storage.run({ id: ctx.id, organizationId: ctx.organizationId, showToUser: ctx.showToUser === true }, fn);
 }
 
 export function currentCorrelation(): CorrelationContext | null {
@@ -52,6 +57,14 @@ export function currentCorrelation(): CorrelationContext | null {
 export function currentCorrelationId(): string | null {
   return storage.getStore()?.id ?? null;
 }
+
+/** Süren işlemin numarası kullanıcıya gösterilebilir mi (yalnız ödeme ekranı — kurucu kararı 10-12 sabah). */
+export function correlationShownToUser(): boolean {
+  return storage.getStore()?.showToUser === true;
+}
+
+/** Takip numarasının ekranda gösterildiği API yolu (kurucu kararı 10-12 sabah: "yalnız ödeme ekranında"). TEK kaynak. */
+export const USER_VISIBLE_CORRELATION_PREFIX = "/api/billing/";
 
 /**
  * Süren işlemi sunucunun ÖNCEDEN ürettiği bir zincire bağlar (ödeme webhook'u → onay kaydının numarası). Yalnız geçerli biçimdeki

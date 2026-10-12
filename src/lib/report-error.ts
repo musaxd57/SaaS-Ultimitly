@@ -19,8 +19,9 @@ export * from "./report-error-core";
 export async function reportError(context: string, err: unknown): Promise<ReportOutcome> {
   const run = async () => {
     const outcome = await reportErrorCore(context, err);
-    // Bağlam adı koddan gelir; olay günlüğünün kod biçimine indirgenir (boşluk → "-"), biçime uymazsa alan düşer.
-    await logEvent("error.reported", { context: context.replace(/\s+/g, "-").slice(0, 64) });
+    // Bağlam adı koddan gelir; yalnız İLK kod belirteci yazılır ("scheduled-sync retention" → "scheduled-sync", "sync org=…" → "sync") —
+    // ad / kimlik gibi değişken parça günlüğe giremez (Haiku güvenlik incelemesi 10-12).
+    await logEvent("error.reported", { context: context.split(/[^A-Za-z0-9_.:-]/)[0].slice(0, 40) || "unknown" });
     return outcome;
   };
   return currentCorrelation() ? run() : runWithCorrelation({ id: newCorrelationId(), organizationId: null }, run);

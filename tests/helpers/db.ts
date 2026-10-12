@@ -4,7 +4,9 @@ export { prisma };
 
 /** Wipe every table in FK-safe order. Call in beforeEach for test isolation. */
 export async function resetDb(): Promise<void> {
-  await prisma.operationalEvent.deleteMany(); // migration 63: işletmesiz (sistem) satırlar kademeyle gitmez → açıkça temizlenir
+  // migration 63: işletmesiz (sistem) satırlar kademeyle gitmez → açıkça temizlenir. TRUNCATE: tablonun silme koruma tetikleyicisi
+  // (yalnız saklama / işletme silinmesi) satır tetikleyicisidir, TRUNCATE'te çalışmaz — test temizliği engellenmez.
+  await prisma.$executeRawUnsafe('TRUNCATE "OperationalEvent"');
   await prisma.signal.deleteMany(); // V1 (FK → Property/Reservation/Conversation)
   await prisma.propertyMemory.deleteMany(); // V1
   await prisma.taskUpdate.deleteMany();

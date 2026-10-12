@@ -147,11 +147,9 @@ const PAYING_SUBSCRIPTION_STATUSES: ReadonlySet<string> = new Set(["active", "tr
 async function alertUnlinkedPayment(kind: "subscription" | "transaction", data: Record<string, unknown>, reason: string): Promise<void> {
   const id = str(data.id) ?? "unknown";
   const customer = str(data.customer_id);
-  await logEvent("billing.webhook.unlinked", {
-    eventType: kind,
-    reason: reason.includes("işletme") ? "org_missing" : "no_fresh_consent",
-    ...(kind === "subscription" ? { subscriptionRef: id } : { transactionRef: id }),
-  });
+  // İşletmesiz satıra Paddle abonelik / işlem kimliği YAZILMAZ (işletme silinince bu satırlar kademeyle gitmez; kimlik operatör
+  // e-postasında zaten var — Haiku güvenlik incelemesi 10-12).
+  await logEvent("billing.webhook.unlinked", { eventType: kind, reason: reason.includes("işletme") ? "org_missing" : "no_fresh_consent" });
   await alertOnTransition(
     `paddle-webhook:unlinked:${id}`,
     "paddle-webhook-unlinked-payment",
@@ -518,8 +516,9 @@ function looksLikePaddleDelivery(header: string | null): boolean {
 }
 
 /**
- * Onay kaydının zincirine katıl: `custom_data.consentId` (istemci verisi) YALNIZ satırı bulmak için; numara ve işletme satırdan okunur ve
- * yalnız onay `resolveOrgId`deki tazelik kuralını geçiyorsa (eski onaya bağlanan yenileme olayı kendi numarasında kalır). Asla fırlatmaz.
+ * Onay kaydının zincirine katıl: `custom_data.consentId` (istemci verisi) YALNIZ satırı bulmak için; numara satırdan okunur ve yalnız onay
+ * `resolveOrgId`deki tazelik kuralını geçiyorsa (eski onaya bağlanan yenileme olayı kendi numarasında kalır). İşletme ATANMAZ — olayın
+ * işletmesi yalnız bağlama kuralının kendisinden (`resolveOrgId`) gelir (iki kural ayrışmasın). Asla fırlatmaz.
  */
 async function adoptConsentChain(data: Record<string, unknown> | undefined, occurredAt: Date | null): Promise<void> {
   try {
@@ -528,10 +527,10 @@ async function adoptConsentChain(data: Record<string, unknown> | undefined, occu
     if (!consentId) return;
     const row = await prisma.checkoutConsent.findUnique({
       where: { id: consentId },
-      select: { correlationId: true, organizationId: true, createdAt: true },
+      select: { correlationId: true, createdAt: true },
     });
     if (!row?.correlationId || !consentAcceptable(row.createdAt, occurredAt, Date.now())) return;
-    adoptCorrelation(row.correlationId, row.organizationId);
+    adoptCorrelation(row.correlationId);
   } catch {
     /* iz yalnız teşhis içindir; webhook'u bozmaz */
   }

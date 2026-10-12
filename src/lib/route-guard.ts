@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
+import { currentCorrelationId, newCorrelationId, runWithCorrelation, USER_VISIBLE_CORRELATION_PREFIX } from "@/lib/correlation";
 import {
   requireSession,
   unauthorized,
@@ -51,14 +51,17 @@ export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
     // KABUL EDİLMEZ (başkasının zincirine satır yazdırılamaz). Hata raporu / olay günlüğü / 500 yanıtı aynı numarayı taşır; yanıt başlığı
     // `X-Correlation-ID`.
     const correlationId = newCorrelationId();
-    return runWithCorrelation({ id: correlationId, organizationId: session.organizationId }, async () => {
+    // Numara ekranda YALNIZ ödeme ekranının uçlarında gösterilir (kurucu kararı 10-12 sabah); diğerlerinde arka planda kalır.
+    const showToUser = (req.nextUrl?.pathname ?? new URL(req.url).pathname).startsWith(USER_VISIBLE_CORRELATION_PREFIX);
+    return runWithCorrelation({ id: correlationId, organizationId: session.organizationId, showToUser }, async () => {
       let res: Response;
       try {
         res = await handler(session, req, ctx);
       } catch (err) {
         res = serverError(undefined, err);
       }
-      return withCorrelationHeader(res, correlationId);
+      // Yanıt anındaki numara: işlem bir zincire katıldıysa (ödeme) başlık gövde ve olaylarla AYNI numarayı taşır.
+      return withCorrelationHeader(res, currentCorrelationId() ?? correlationId);
     });
   };
 }

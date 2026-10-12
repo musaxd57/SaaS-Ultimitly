@@ -78,13 +78,20 @@ describe("takip numarası", () => {
 });
 
 describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () => {
-  it("izinli anahtar + kimlik / kod / sayı biçimi geçer", () => {
-    expect(sanitizeEventData({ plan: "pro", consentId: "cmabc123", httpStatus: 404, eventType: "subscription.activated" })).toEqual({
+  it("izinli anahtar + anahtar başına kalıp geçer", () => {
+    const ok = {
       plan: "pro",
-      consentId: "cmabc123",
+      consentId: "cmabc123def",
       httpStatus: 404,
       eventType: "subscription.activated",
-    });
+      subscriptionRef: "sub_01hx9abc",
+      transactionRef: "txn_01hx9abc",
+      providerEventId: "evt_01hx9abc",
+      providerRequestId: "7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef",
+      method: "PATCH",
+      currency: "TRY",
+    };
+    expect(sanitizeEventData(ok)).toEqual(ok);
   });
 
   it.each([
@@ -92,6 +99,14 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
     ["ad soyad (boşluk)", { reason: "Ayşe Yılmaz" }],
     ["kimlik alanında ad soyad (redaksiyon yakalamaz — biçim kuralı yakalar)", { subscriptionRef: "Ayşe Yılmaz" }],
     ["kimlik alanında Türkçe harfli tek sözcük", { consentId: "Yılmaz" }],
+    // Haiku güvenlik incelemesi 10-12: rakam dizisi (telefon / TC kimlik) ve kalıba uymayan kimlik.
+    ["istek kimliğinde telefon rakamları", { providerRequestId: "05551112233" }],
+    ["kodda TC kimlik numarası", { reason: "12345678901" }],
+    ["abonelik alanında sub_ olmayan değer", { subscriptionRef: "Ayse-Yilmaz" }],
+    ["olay kimliğinde rakam dizisi", { providerEventId: "evt_05551112233" }],
+    ["yöntem alanında serbest metin", { method: "get all" }],
+    ["para biriminde uzun kod", { currency: "TRYX" }],
+    ["prototip anahtarı", { constructor: "x", __proto__: "y" }],
     ["telefon (+)", { providerRequestId: "+905551112233" }],
     ["cümle", { context: "ödeme başarısız oldu çünkü kart reddedildi" }],
     ["jeton", { providerRequestId: "Bearer abc.def.ghi" }],
@@ -102,6 +117,7 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
   ])("%s → düşer, yalnız düşen sayısı kalır", (_label, data) => {
     const out = sanitizeEventData(data as Record<string, unknown>);
     expect(out).toEqual({ _dropped: Object.keys(data).length });
+    expect(JSON.stringify(out)).not.toMatch(/Yılmaz|Yilmaz|5551112233|12345678901|@/);
   });
 
   it("olay adı kapalı küme (anti-vakum: ödeme zinciri adımları kayıtlı)", () => {
@@ -112,12 +128,12 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
   });
 });
 
-describe("500 yanıtı — takip numarası (kurucu metni AYNEN)", () => {
+describe("500 yanıtı — takip numarası (kurucu metni AYNEN; ekranda YALNIZ ödeme — kurucu kararı 10-12 sabah)", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("kimlikli istekte (numara var): kurucunun metni + kısa numara, tam numara gövdede", async () => {
+  it("ödeme ekranı ucunda (gösterilebilir numara): kurucunun metni + kısa numara, tam numara gövdede", async () => {
     const id = newCorrelationId();
-    const res = await runWithCorrelation({ id, organizationId: null }, async () => serverError());
+    const res = await runWithCorrelation({ id, organizationId: null, showToUser: true }, async () => serverError());
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toMatch(FOUNDER_TEXT);
@@ -127,8 +143,15 @@ describe("500 yanıtı — takip numarası (kurucu metni AYNEN)", () => {
 
   it("özel iletili 500: ileti korunur, destek cümlesi eklenir", async () => {
     const id = newCorrelationId();
-    const res = await runWithCorrelation({ id, organizationId: null }, async () => serverError("Ödeme ekranı açılamadı."));
+    const res = await runWithCorrelation({ id, organizationId: null, showToUser: true }, async () => serverError("Ödeme ekranı açılamadı."));
     expect((await res.json()).error).toBe(`Ödeme ekranı açılamadı. Destek ekibimize bu takip numarasıyla yazarak destek alabilirsiniz: ${id.slice(0, 8)}`);
+  });
+
+  it("🚨 ödeme dışı kimlikli uçta numara VAR ama ekranda GÖSTERİLMEZ: eski metin, gövdede numara yok", async () => {
+    const res = await runWithCorrelation({ id: newCorrelationId(), organizationId: "org-1" }, async () => serverError());
+    const body = await res.json();
+    expect(body.error).toBe("Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.");
+    expect(body).not.toHaveProperty("correlationId");
   });
 
   it("numara yoksa (anonim / misafir rotası) eski metin, gövdede numara YOK (misafir Lixus desteğine yazmaz)", async () => {
@@ -172,5 +195,25 @@ describe("hata raporu — log satırı, Sentry etiketi ve alarm e-postası AYNI 
     await new Promise((r) => setTimeout(r, 10));
     const envelope = String(((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body);
     expect(JSON.parse(envelope.split("\n")[2])).not.toHaveProperty("tags");
+  });
+});
+
+describe("arka plan işi çağıranın numarasını MİRAS ALMAZ (Haiku güvenlik incelemesi 10-12)", () => {
+  it("e-posta kuyruğu boşaltımı kimlikli isteğin içinden tetiklense de kendi numarasıyla, işletmesiz koşar", async () => {
+    const { kickEmailOutboxDrain } = await import("@/lib/email-outbox");
+    const outer = newCorrelationId();
+    let seen: ReturnType<typeof currentCorrelation> = null;
+    await runWithCorrelation({ id: outer, organizationId: "org-1" }, async () => {
+      await new Promise<void>((resolve) => {
+        kickEmailOutboxDrain(async () => {
+          seen = currentCorrelation();
+          resolve();
+        });
+      });
+    });
+    expect(seen).not.toBeNull();
+    expect(seen!.id).not.toBe(outer);
+    expect(isCorrelationId(seen!.id)).toBe(true);
+    expect(seen!.organizationId).toBeNull();
   });
 });
