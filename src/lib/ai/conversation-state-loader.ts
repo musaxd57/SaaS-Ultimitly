@@ -160,6 +160,16 @@ export async function loadConversationState(input: {
  */
 export const QR_STATE_MAX_ROWS = 2_000;
 
+const qrCapReportedAt = new Map<string, number>();
+const QR_CAP_REPORT_EVERY_MS = 86_400_000;
+function shouldReportQrCap(conversationId: string, now = Date.now()): boolean {
+  const last = qrCapReportedAt.get(conversationId);
+  if (last !== undefined && now - last < QR_CAP_REPORT_EVERY_MS) return false;
+  if (qrCapReportedAt.size >= 1_000) qrCapReportedAt.clear(); // sınırlı bellek; temizlenirse en kötü bir kez fazladan kayıt
+  qrCapReportedAt.set(conversationId, now);
+  return true;
+}
+
 export async function loadConversationStateForConversation(input: {
   organizationId: string;
   conversationId: string;
@@ -188,10 +198,13 @@ export async function loadConversationStateForConversation(input: {
     let thread = await readThreadTail(input.conversationId);
     while (!thread.complete && !conversationStateWindowSufficient(thread.rows)) {
       if (thread.rows.length >= QR_STATE_MAX_ROWS) {
-        void reportError(
-          "conversation-state-qr-window-cap",
-          new Error(`conversationId=${input.conversationId} rows=${thread.rows.length}`),
-        );
+        // Konuşma başına süreç içinde günde bir kez (Haiku 10-12: her QR turunda Sentry olayı düşüyordu).
+        if (shouldReportQrCap(input.conversationId)) {
+          void reportError(
+            "conversation-state-qr-window-cap",
+            new Error(`conversationId=${input.conversationId} rows=${thread.rows.length}`),
+          );
+        }
         return undefined;
       }
       thread = await extendThread(input.conversationId, thread);

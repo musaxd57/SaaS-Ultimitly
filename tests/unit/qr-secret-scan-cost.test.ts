@@ -17,9 +17,11 @@ const CASES: [string, string][] = [
   ["şifre + boşluk dizisi", "şifre" + " ".repeat(N) + "x"],
   ["kod sözcüğü tekrarı", "kod ".repeat(N / 4)],
   ["kod sözcüğü bitişik tekrarı", "kod".repeat(Math.floor(N / 3))],
-  ["şifre sözcüğü bitişik tekrarı", "sifre".repeat(Math.floor(N / 5))],
+  ["şifre sözcüğü bitişik tekrarı (ASCII)", "sifre".repeat(Math.floor(N / 5))],
+  ["şifre sözcüğü bitişik tekrarı (Türkçe)", "şifre".repeat(Math.floor(N / 5))],
   ["kapı kodu + rakam-tire", "kapı kodu " + "1-".repeat(N / 2)],
-  ["password + sekme dizisi", "password" + "\t".repeat(N)],
+  // Sonda "x": stil profili taraması `trim()` eder — yalnız boşlukla biten girdi orada boşa düşerdi (Haiku 10-12).
+  ["password + sekme dizisi", "password" + "\t".repeat(N) + "x"],
   ["şifre: tekrarı", "şifre: ".repeat(Math.floor(N / 7))],
   ["kod + uzun rakam", "kod " + "1".repeat(N)],
   ["kod + rakam boşluk", "kod " + "1 ".repeat(N / 2)],

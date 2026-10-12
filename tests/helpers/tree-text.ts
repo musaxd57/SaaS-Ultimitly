@@ -60,8 +60,9 @@ export function treeText(root: unknown): string {
       if (typeof node.type === "function") {
         try {
           const out = (node.type as (p: unknown) => unknown)(props);
-          // Async sunucu bileşeni bir Promise döner — açılamaz, atla.
-          if (out && typeof (out as { then?: unknown }).then !== "function") {
+          // Async sunucu bileşeni bir Promise döner — açılamaz, atla. `null` dönen bileşen AÇILDI (hiçbir şey çizmedi; Haiku 10-12:
+          // eskiden açılmamış sayılıp veri prop'ları toplanıyordu).
+          if (!(out && typeof (out as { then?: unknown }).then === "function")) {
             collect(out);
             expanded = true;
           }

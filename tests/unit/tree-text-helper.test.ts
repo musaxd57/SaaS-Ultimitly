@@ -35,6 +35,12 @@ describe("treeText — metin taşıyan bütün prop'lar", () => {
     expect(treeText(h(Pure, { heading: "Başlık" }))).toContain("Başlık");
   });
 
+  it("hiçbir şey çizmeyen (null) saf bileşenin veri prop'ları toplanmaz — çizilmeyen sayfada değildir", () => {
+    const Gate = (p: { show: boolean; guest: { name: string } }) => (p.show ? h("p", null, p.guest.name) : null);
+    expect(treeText(h(Gate, { show: false, guest: { name: "Ayşe Yılmaz" } }))).toBe("");
+    expect(treeText(h(Gate, { show: true, guest: { name: "Ayşe Yılmaz" } }))).toBe("Ayşe Yılmaz");
+  });
+
   it("KONTROL: sınıf / bağlantı / kimlik gibi öznitelikler METİN DEĞİL — toplanmaz", () => {
     const text = treeText(h("a", { href: "/inbox/abc", className: "text-red-600", id: "x1" }, "Aç"));
     expect(text).toBe("Aç");

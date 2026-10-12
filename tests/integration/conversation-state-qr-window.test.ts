@@ -145,14 +145,26 @@ describe("QR konuşma kayıtları — sınırlı okuma = bütün satırlar", () 
     expect(held.maxRows).toBeLessThanOrEqual(QR_STATE_MAX_ROWS);
     // Sebep sınır (başka bir hata değil): yalnız sınır kaydı düştü.
     expect(reported).toEqual(["conversation-state-qr-window-cap"]);
+    // Aynı konuşmanın sonraki turu: yine sınır, ama kayıt TEKRAR düşmez (günde bir kez).
+    expect(await loadConversationStateForConversation({ organizationId: orgId, conversationId })).toBeUndefined();
+    expect(reported).toEqual(["conversation-state-qr-window-cap"]);
+  });
+
+  it("tam sınır kadar satır (2.000) konuşmanın tamamıdır → sınır kaydı yok, blok kurulur", async () => {
+    reported.length = 0;
+    const { orgId, conversationId } = await seedGuestOnly(QR_STATE_MAX_ROWS);
+    const got = await loadConversationStateForConversation({ organizationId: orgId, conversationId });
+    expect(got!.unansweredGuest).toBe(QR_STATE_MAX_ROWS);
+    expect(reported).toEqual([]);
   });
 
   it("KONTROL: sınırın altındaki cevapsız konuşma eksiksiz okunur ve blok kurulur (sayılar bütün satırlarla aynı)", async () => {
     reported.length = 0;
-    const { orgId, conversationId } = await seedGuestOnly(QR_STATE_MAX_ROWS - 10);
+    // Sayı SABİT (sınırdan türetilmez — Haiku 10-12): sınır eski 200 satıra inerse bu kontrol kırmızı olur.
+    const { orgId, conversationId } = await seedGuestOnly(1_990);
     const got = await loadConversationStateForConversation({ organizationId: orgId, conversationId });
     expect(got).toEqual(await expected(orgId, conversationId));
-    expect(got!.unansweredGuest).toBe(QR_STATE_MAX_ROWS - 10);
+    expect(got!.unansweredGuest).toBe(1_990);
     expect(reported).toEqual([]);
   });
 

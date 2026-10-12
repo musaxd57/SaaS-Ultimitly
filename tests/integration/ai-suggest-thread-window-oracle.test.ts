@@ -240,11 +240,13 @@ describe("madde 10 kâhini — AI cevap öner: kayıt koşulu okumayı bağlar (
     const now = Date.now();
     const rows = shaped(now - 2 * DAY);
     const decide = async () => {
-      for (let i = 5; i < 14; i++) {
+      // Konular FARKLI (konu başına yalnız en yeni durum kalır — tek konu olsaydı kesit farkı görünmezdi; ilk yazımda N3 bu yüzden yaşadı).
+      const TYPES = ["complaint", "safety_emergency", "money_refund", "human_request"];
+      for (let i = 5; i < 13; i++) {
         await prisma.riskEvent.create({
           data: {
             organizationId: "org-ai", propertyId: "prop-ai", conversationId: "conv-ai", surface: "auto_reply", triggerId: `g${String(i).padStart(2, "0")}`,
-            finalDecision: i % 2 ? "human_review" : "auto_sent", reason: "low_confidence_or_risky", riskType: "human_request",
+            finalDecision: "human_review", reason: "low_confidence_or_risky", riskType: TYPES[i % TYPES.length],
           },
         });
       }
