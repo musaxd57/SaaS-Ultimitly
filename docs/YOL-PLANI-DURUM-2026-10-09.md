@@ -77,11 +77,11 @@ Yasal metinler (`(legal)/entegrasyonlar`, ön bilgilendirme, gizlilik, koşullar
 1. ✅ **V0.8** (10-09, `6a654f0`) — §2a + §2b: kimlik bilgisi ve bağlantı durumu kanal katmanına; çekirdek sağlayıcı modülü import etmez (pin bütün `src/`). Migration yok, davranış birebir.
 2. ✅ §2c pin (V0.9). ⏸ §2d operatör planına bağlı (↑).
 3. ✅ Kapı 2 eksikleri (10-09): başlangıç rehberinde takvim (iCal) adımı, bağlantısız hesapta ölü düğme, yanıltıcı metinler (talimatın açık şartı; misafire giden mesaja dokunmaz).
-4. §2f–h: üçü de migration (bağlantı sağlığı alanı · ham platform kolonu · bağlantı kapsamlı ilan kimliği tablosu) ve `channels/requirements.ts`te "canlı öncesi migration" diye listeli → tek migration paketi olarak kurucu onayına (taze `pg_dump` kuralı). §2e Airbnb sandbox'ına kadar kapalı.
-5. ④ Availability Engine → yapay zekâya araç sonucu olarak bağlanması (sözleşme + kırmızı-önce).
+4. ✅ §2f–h: üçü de migration (bağlantı sağlığı alanı · ham platform kolonu · bağlantı kapsamlı ilan kimliği tablosu) → tek paket olarak kurucu onayına sunuldu ve **migration 60 olarak itildi** (kurucu 10-10 "ŞİMDİ uygula + push; Railway açılmadan önce taze `pg_dump`"; ↓ §"Kurucu döndü"). Yazıcılar anahtar arkasında KAPALI (§2g `CHANNEL_METADATA_WRITE`; §2h açma = kurucu onayı + çift yazım canlıda koşmuş olmalı) → Railway. §2e Airbnb sandbox'ına kadar kapalı. (Satır 10-12'de güncellendi: "onaya" ifadesi bayattı.)
+5. ④ Availability Engine → yapay zekâya araç sonucu olarak bağlanması (sözleşme + kırmızı-önce). Durum 10-12: **kod metni yolu ✅ 10-09** (doğrulanmış müsaitlik / uzatma, anahtarlar KAPALI — açma = kurucu + ilk denemeler); modele ARAÇ olarak verilmesi ayrı kurucu onayı.
 6. Sonra V2 sonraki dilimleri ve §4.
 
-Kurucu kararı bekleyen: yapay zekâ günlük özeti (08-08 kaldırma kararı ↔ talimat kapı 2).
+~~Kurucu kararı bekleyen: yapay zekâ günlük özeti~~ → **KARAR VERİLDİ (kurucu 10-09): ŞİMDİLİK YOK; V8 Ask Lixus ile tasarlanır** (↑ kapı 2 satırı). (10-12'de düzeltildi: bu satır bayattı.)
 
 ## 6. 10-09 akşam — yapılanlar ve kurucu kararı bekleyenler
 
