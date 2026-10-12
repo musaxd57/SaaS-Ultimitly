@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SignJWT } from "jose";
+import { createHmac } from "node:crypto";
 import { signSession, verifySession, type SessionPayload } from "@/lib/auth/session";
 
 // AUTH_SECRET is injected via vitest.config.ts (test.env).
@@ -120,5 +121,29 @@ describe("session JWT", () => {
     const verified = await verifySession(legacy);
     expect(verified).not.toBeNull();
     expect(verified?.sessionEpoch).toBe(0);
+  });
+
+  // DENETIM 08-09 #33: algoritma HS256'ya sabit (`verifySession` `algorithms: ["HS256"]`). Sabitleme gevşerse AYNI sırla HS512 ile
+  // imzalanmış ya da imzasız (`alg: none`) bir belirteç kabul edilirdi. Belirteçler `jose`'a bağlı kalmadan elle kurulur.
+  const b64url = (b: Buffer | string) => Buffer.from(b).toString("base64url");
+  const claims = { userId: "u1", organizationId: "org1", role: "owner", email: "demo@guestops.ai", name: "Demo", exp: Math.floor(Date.now() / 1000) + 3600 };
+  function handMade(alg: "HS256" | "HS512" | "none"): string {
+    const head = b64url(JSON.stringify({ alg, typ: "JWT" }));
+    const body = b64url(JSON.stringify(claims));
+    if (alg === "none") return `${head}.${body}.`;
+    const h = createHmac(alg === "HS256" ? "sha256" : "sha512", process.env.AUTH_SECRET!).update(`${head}.${body}`).digest();
+    return `${head}.${body}.${b64url(h)}`;
+  }
+
+  it("🚨 AYNI sırla HS512 imzalı belirteç reddedilir (algoritma sabit)", async () => {
+    expect(await verifySession(handMade("HS512"))).toBeNull();
+  });
+
+  it("🚨 imzasız (`alg: none`) belirteç reddedilir", async () => {
+    expect(await verifySession(handMade("none"))).toBeNull();
+  });
+
+  it("KONTROL: aynı yolla kurulmuş HS256 belirteç kabul edilir (elle kurulum doğru)", async () => {
+    expect((await verifySession(handMade("HS256")))?.userId).toBe("u1");
   });
 });
