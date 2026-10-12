@@ -46,8 +46,10 @@ export async function createGuestCommitment(input: {
   kind: CommitmentKind;
   dueAt: Date;
   actorUserId: string;
-}): Promise<{ id: string; taskId: string }> {
-  return prisma.$transaction(async (tx) => {
+}, outerTx?: Prisma.TransactionClient): Promise<{ id: string; taskId: string }> {
+  // Dış işlem verilirse (yapay zekâ önerisinin onayı — karar kaydıyla AYNI işlem) onun içinde; yoksa bugünkü gibi kendi işlemi.
+  const run = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => (outerTx ? fn(outerTx) : prisma.$transaction(fn));
+  return run(async (tx) => {
     const task = await tx.task.create({
       data: {
         propertyId: input.propertyId,

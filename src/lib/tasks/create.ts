@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
 import { detectOperationalTask, buildOperationalTaskData } from "./detect";
@@ -25,12 +26,15 @@ export async function createOperationalTaskFromMessage(ctx: {
   reservationId?: string | null;
   ai?: { intent?: string | null; riskType?: string | null };
   now?: Date;
+  /** İşlem içinden çağıran (yapay zekâ önerisinin onayı — karar kaydıyla AYNI işlem). Verilmezse bugünkü gibi genel istemci. */
+  db?: Prisma.TransactionClient;
 }): Promise<CreateOperationalTaskResult> {
+  const db = ctx.db ?? prisma;
   const detected = detectOperationalTask(ctx.message, ctx.ai ?? {});
   if (!detected) return { status: "none" };
 
   // Dedupe day-bucket in the HOST'S calendar day (org.timezone), not a fixed one.
-  const property = await prisma.property.findUnique({
+  const property = await db.property.findUnique({
     where: { id: ctx.propertyId },
     select: { organization: { select: { timezone: true } } },
   });
@@ -46,13 +50,13 @@ export async function createOperationalTaskFromMessage(ctx: {
   // atomic (findFirst-then-create), matching the codebase's other task creators;
   // a rare concurrent double-escalation could still make two — acceptable at this
   // frequency, and the index keeps the lookup cheap.
-  const existing = await prisma.task.findFirst({
+  const existing = await db.task.findFirst({
     where: { dedupeKey: data.dedupeKey, status: { not: "done" } },
     select: { id: true },
   });
   if (existing) return { status: "duplicate" };
 
-  const task = await prisma.task.create({
+  const task = await db.task.create({
     data: {
       propertyId: ctx.propertyId,
       reservationId: ctx.reservationId ?? null,

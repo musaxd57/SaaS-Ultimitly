@@ -47,6 +47,8 @@ import { isImpersonating } from "@/lib/auth/impersonation";
 import { isOpenDecision } from "@/lib/decisions/core";
 import { DecisionPanel } from "@/components/inbox/decision-panel";
 import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
+import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestions";
+import { aiActionSuggestionsEnabled, getConversationSuggestions } from "@/lib/ai-suggestions/load";
 import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-core";
 
 export const dynamic = "force-dynamic";
@@ -228,6 +230,13 @@ export default async function ConversationPage({
   const outboxByMessage = new Map(
     outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
   );
+
+  // Yapay zekâ EYLEM ÖNERİLERİ (⑤ ilk dilim, kurucu 10-12: "öner + tek tıkla onay"): görev + söz. Yalnız yönetici, destek görünümünde YOK
+  // (yazma kapalı — K8), anahtar kapalıyken veri hiç ÜRETİLMEZ. Okunamazsa öneri yok (sayfa etkilenmez).
+  const actionSuggestions =
+    aiActionSuggestionsEnabled() && canManage(session) && !isImpersonating(session)
+      ? await getConversationSuggestions(session.organizationId, conversation.id).catch(() => [])
+      : [];
 
   // Misafire verilen AÇIK sözler (açık taahhüt hafızası A, kurucu kararı 10-10; migration 62) — yalnız yönetici görür / işaretler.
   const commitmentNow = new Date();
@@ -469,6 +478,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
             ikisi de artık `lg:h-full` (grid satırının kendisi ölçüyü verir). */}
         <div className="min-w-0 space-y-4 lg:h-full lg:min-h-[26rem] lg:overflow-y-auto lg:pr-1">
           <ConversationItemsCard conversationId={conversation.id} items={itemRows} canManage={canManage(session)} />
+          <ActionSuggestions items={actionSuggestions} />
           {canManage(session) ? (
             <CommitmentsCard conversationId={conversation.id} commitments={commitmentRows} readOnly={isImpersonating(session)} />
           ) : null}

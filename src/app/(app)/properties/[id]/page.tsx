@@ -30,6 +30,8 @@ import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { getMemoryContradictions, getPropertyMemory } from "@/modules/intelligence";
 import { MemoryContradictions } from "@/components/properties/memory-contradictions";
+import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestions";
+import { aiActionSuggestionsEnabled, getPropertyWifiSuggestions } from "@/lib/ai-suggestions/load";
 import { getNightlyRate } from "@/modules/intelligence/money/rates";
 import { RATE_STALE_DAYS } from "@/modules/intelligence/money/impact";
 import { NightlyRateForm } from "@/components/properties/nightly-rate-form";
@@ -78,6 +80,12 @@ export default async function PropertyDetailPage({
   // Destek görünümünde (bürünme, salt-okunur — K8) gösterilmez: "Bilerek böyle" yazması reddedilir (Haiku 4. tur).
   const contradictions =
     canManage && !isImpersonating(session) ? await getMemoryContradictions(session.organizationId, property.id).catch(() => []) : [];
+  // Yapay zekâ EYLEM ÖNERİSİ (⑤ ilk dilim, kurucu 10-12): misafire yazılan Wi-Fi bilgisi bilgi tabanındakinden farklıysa "güncelle". Yalnız
+  // yönetici, destek görünümünde yok, anahtar kapalıyken üretilmez.
+  const wifiSuggestions =
+    aiActionSuggestionsEnabled() && canManage && !isImpersonating(session)
+      ? await getPropertyWifiSuggestions(session.organizationId, property.id).catch(() => [])
+      : [];
   // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
   const nightlyRate = canManage ? await getNightlyRate(session.organizationId, property.id).catch(() => null) : null;
   const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null;
@@ -450,6 +458,7 @@ export default async function PropertyDetailPage({
                     Bilgi Tabanı&apos;ndan {memory.facts.length} kalem hafızada
                     {memory.patterns.length > 0 ? ` · ${memory.patterns.length} tekrarlayan örüntü` : ""}.
                   </p>
+                  <ActionSuggestions items={wifiSuggestions} />
                   <MemoryContradictions
                     propertyId={property.id}
                     items={contradictions.map((c) => ({ memoryIds: c.memoryIds, text: c.text }))}

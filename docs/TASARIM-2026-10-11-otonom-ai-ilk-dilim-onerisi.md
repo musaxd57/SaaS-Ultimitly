@@ -1,4 +1,4 @@
-# Otonom yapay zekâ — ilk dilim önerisi (yürütme sırası ⑤) — KURUCU KARARI BEKLİYOR
+# Otonom yapay zekâ — ilk dilim (yürütme sırası ⑤) — KURUCU KARARI VERİLDİ (10-12), UYGULANDI (anahtar kapalı)
 
 > Kurucu (10-11): "Başta öner + tek tıkla onay olur ama geçici — yaptıklarını görmek için; sonra beğenirsek hemen düşük riskte otomatik
 > olsun; ama önce öteki işler, bunları not al."
@@ -57,3 +57,19 @@ otomatiğe hiç geçmez.
 3. Otomatiğe geçiş ölçütü yukarıdaki gibi mi (2 hafta, ≥ %90, 0 geri alma)?
 4. Migration: öneri kartı + onay kaydı yeni bir tablo ister (taze `pg_dump` + onay kuralı). Railway kapalıyken kod hazırlanıp
    push edilebilir mi, yoksa Railway açılınca mı?
+
+
+## 5. Kurucu kararı (10-12) ve uygulama
+
+Kurucu: **"A + B + C"**; onay **"sahip + yönetici, 2 hafta ≥ %90"**. Uygulama (anahtar `AI_ACTION_SUGGESTIONS_ENABLED`, yalnız "1",
+VARSAYILAN KAPALI — açma = env "1"):
+
+| Parça | Dosya | Not |
+|---|---|---|
+| Saf çekirdek | `src/lib/ai-suggestions/core.ts` | söz tespiti (TR + EN, soru / koşul / teklif söz değil), Wi-Fi değer çıkarımı (WPA 8–63, maske), anahtar biçimi, otomatiğe geçiş ölçütü |
+| Okuma | `src/lib/ai-suggestions/load.ts` | A: mevcut `detectOperationalTask` — işletmenin otomatik görev anahtarı (`autoTaskFromMessageEnabled`) KAPALIYKEN (açıksa görev zaten kendiliğinden açılıyor; "beğenirsek otomatik" yolu = o anahtar) · B: ev sahibinin misafire yazdığı şifre / ağ adı bilgi tabanının Wi-Fi kaleminde yoksa · C: ev sahibinin sözü, aynı türde söz işaretlenmediyse |
+| Karar | `src/lib/ai-suggestions/act.ts` + `POST /api/ai-suggestions` | öneri sunucuda YENİDEN üretilir (istemcinin içeriğine güvenilmez), anahtar başına danışma kilidi, eylem + karar kaydı (`AuditLog` `ai_suggestion.approved/dismissed`, yalnız anahtar + tür + düzenleme işareti) AYNI işlemde; migration YOK |
+| Yüzey | `components/ai-suggestions/action-suggestions.tsx` | konuşma sayfası (A, C), mülk sayfası Mülk Hafızası kartı (B); yalnız sahip / yönetici, destek görünümünde yok |
+
+Misafire hiçbir şey GÖNDERİLMEZ. Otomatiğe geçiş KOD DEĞİL: ölçüt (`promotionReadiness`) karar kayıtlarından hesaplanır; görev için
+otomatik yol zaten işletme ayarındaki "mesajdan otomatik görev" anahtarıdır.
