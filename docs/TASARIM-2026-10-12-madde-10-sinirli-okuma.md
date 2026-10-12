@@ -11,9 +11,14 @@
   `threadWindowSufficient` sağlanana kadar geriye genişler — koşulların her biri ↓ "Tüketiciler"deki bir geriye bakışı kapsar.
   Konuşma ilk sayfaya sığıyorsa dizi bugünküyle birebir aynıdır. Mesajlar artık erken çıkışlardan (saat dışı, kapalı, devir bekletmesi,
   bitmiş konaklama) SONRA okunur — o durumlarda hiç okunmaz.
-- Konuşma kayıtları (`AI_CONVERSATION_STATE_ENABLED`) ya da üretim izi (`AI_GENERATION_TRACE_ENABLED`) açıksa toplamlar ("misafire giden
-  cevap: N", atlanan satır) konuşmanın tamamından sayılır → başa kadar okunur (iki anahtar da canlıda kapalı; açılırken sayım sorgusu
-  ayrı bir tur).
+- Konuşma kayıtları (`AI_CONVERSATION_STATE_ENABLED`) ya da üretim izi (`AI_GENERATION_TRACE_ENABLED`) açıkken de sınırlı (10-12 ikinci
+  tur): kayıtların kendi kesit koşulu (son 10 misafir mesajı + kayıtların cevap kuralıyla bir cevap — sistem olayı işaretli satır kapanış
+  kuralında cevap, kayıtlarda değil) ve kesit ÖNCESİ toplamlar veritabanında SAYILIR, satır okunmaz: cevap toplamı ham SQL
+  (`conversationStatePriorTotals`, `replyAuthor` kuralının birebir karşılığı — boş dize yazar / sistem olayı, JS `trim()` boşluk kümesi),
+  iz tanısının "atlanan" sayısı ORM sayımı. SQL ↔ JS eşitliği 600 rastgele satırda HER sınırda özellik testiyle sabit
+  (`conversation-state-prior-totals.test.ts`). 🚨 Haiku'nun yakaladığı hata: sınır ilk sürümde ham SQL'e TARİH PARAMETRESİ olarak
+  bağlanıyordu → veritabanı oturum saat dilimi UTC+14'te sayım 2 yerine 56 (ölçüldü, kırmızı). Düzeltme: sınır kesitin en eski satırının
+  kendisinden okunur (alt sorgu) — saat diliminden bağımsız; test oturumu UTC+14'e alıp koşar.
 - Kalıcı outbox süzgecinin konuşma çapındaki tetikleyicisi okunmayan kısımda tek bir varlık sorgusuyla aranır.
 - **Kanıt (kâhin, `tests/integration/channel-thread-window-oracle.test.ts`):** tohumlu rastgele konuşmalar (misafir / ev sahibi / yapay
   zekâ / otomatik şablon / eski ad kuralı / sistem olayı / boş gövde / eşit damga / sonda şablon) aynı kimliklerle yeniden kurulur, önce
@@ -24,7 +29,9 @@
   koşulu anlama koşuluna katıldı (aynı sabit, son dolu cevap ≤ son cevap → kapsanıyordu; artık ikisinin büyüğü tek koşul) + koşul
   başına HEDEFLİ senaryo (boş gövdeli ev sahibi mesajı, 200+ cevapsız mesaj + dolu sistem satırı, ilk cevaptan önce misafir mesajı
   olmayan kesit, ev sahibine bırakılmış eski talep). İkinci tur **12/13**; yaşayan tek mutant "en az 2 misafir mesajı" — EŞDEĞER
-  (gerekçe kodda: bir üstteki koşul + son satırın misafir olması bugün bunu sağlar; sabit büyürse bağlayıcı olur).
+  (gerekçe kodda: bir üstteki koşul + son satırın misafir olması bugün bunu sağlar; sabit büyürse bağlayıcı olur). Bayraklı mod (kayıtlar /
+  iz): ilk tur 12/15 (kayıt kesit koşulları + sınırın kendisi bağlayıcı değildi) → iki hedefli senaryo + her sınırı tarayan özellik testi →
+  **15/15**.
 - **Ölçüm (yerel PostgreSQL, 7 tekrarın ortancası, cevap modeli sahte):** 200 mesajlık konuşmada tur 12,3 ms → 12,6 ms (aynı);
   2.000 mesajlık konuşmada tur 65,6 ms → 11,3 ms; yalnız okuma 67,1 ms → 7,9 ms.
 - **Bilinçli tek fark (sahiplenme):** model çalışırken gelen YENİ misafir mesajı (C2) iki yolda da cevabı durdurur (testli). Kesit

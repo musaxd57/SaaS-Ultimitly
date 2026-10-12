@@ -125,6 +125,13 @@ export async function undeliveredShapedOutboundBefore(conversationId: string, ol
   return row !== null;
 }
 
+/** Kesitten ÖNCEKİ (okunmamış) satır sayısı, süzülen satırlar hariç — bağlam tanısının "atlanan" sayısı konuşmanın tamamından. */
+export async function countRowsBefore(conversationId: string, oldest: Message, excludedIds: ReadonlySet<string>): Promise<number> {
+  return prisma.message.count({
+    where: { conversationId, ...keysetBefore(oldest), ...(excludedIds.size > 0 ? { id: { notIn: [...excludedIds] } } : {}) },
+  });
+}
+
 /** Süzülmüş görünüm: teslim edilmemiş taslaklar çıkar, sondaki otomatik şablon mesajları kesilir (K7). Sıra bugünküyle aynı. */
 export function threadView(rows: readonly Message[], undeliveredIds: ReadonlySet<string>): Message[] {
   const kept = undeliveredIds.size > 0 ? rows.filter((m) => !undeliveredIds.has(m.id)) : [...rows];

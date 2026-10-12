@@ -31,7 +31,12 @@ const ID_SHAPE = /^[A-Za-z0-9_-]{6,64}$/;
 
 export function contextDiagnostics<
   T extends { id?: string | null; direction: "inbound" | "outbound"; body: string; author?: string; createdAt?: Date | null },
->(history: readonly T[], selected: readonly T[], opts: { olderMemoryUsed?: boolean } = {}): ContextDiagnostics {
+>(
+  history: readonly T[],
+  selected: readonly T[],
+  /** `omittedBefore`: `history` konuşmanın sonundan bir kesitse kesitten ÖNCEKİ satır sayısı (kanal sınırlı okuması, madde 10). */
+  opts: { olderMemoryUsed?: boolean; omittedBefore?: number } = {},
+): ContextDiagnostics {
   const included = new Set<T>(selected);
   let lastAnswer = -1;
   for (let i = history.length - 1; i >= 0; i--) {
@@ -53,7 +58,7 @@ export function contextDiagnostics<
     v: 1,
     includedIds: selected.map((m) => m.id).filter((id): id is string => typeof id === "string" && ID_SHAPE.test(id)).slice(0, 50),
     includedCount: selected.length,
-    omittedCount: Math.max(0, history.length - selected.length),
+    omittedCount: Math.max(0, history.length - selected.length) + Math.max(0, opts.omittedBefore ?? 0),
     oldestIncludedAt: oldest ? oldest.toISOString() : null,
     totalChars: selected.reduce((n, m) => n + m.body.length, 0),
     pendingCount,

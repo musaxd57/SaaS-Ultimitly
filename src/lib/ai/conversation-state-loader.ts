@@ -5,10 +5,12 @@ import {
   conversationStateBlock,
   buildConversationState,
   conversationStateEnabled,
+  replyAuthor,
   STATE_DECISION_WINDOW,
   type ConversationStateSummary,
   type StateMessage,
 } from "./conversation-state";
+import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES } from "@/lib/message-author";
 import { conversationPhaseFacts } from "./conversation-phase";
 import { loadConversationPhase } from "@/lib/operator-replies";
 
@@ -32,6 +34,53 @@ const PENDING_GUEST_MESSAGE_ID = "pending-guest-message";
 /** Kanal oto-yanıtının sınırlı okuması bu anahtar açıkken konuşmayı başa kadar okur (toplamlar konuşmanın tamamından — madde 10). */
 export { conversationStateEnabled };
 
+/**
+ * Kanal oto-yanıtının sınırlı okuması (madde 10): konuşmanın SONUNDAN bir kesit konuşma kayıtlarına yetiyor mu — son
+ * `STATE_DECISION_WINDOW` misafir mesajı (karar kayıtları + konu durumu) ve son cevap (cevapsız misafir sayısı, "sonra ev sahibi
+ * yazdı mı") kesitte. Toplamlar kesit dışından sayılır (↓`conversationStatePriorTotals`). Anahtar kapalıyken her kesit yeter.
+ */
+export function conversationStateWindowSufficient(messages: readonly StateMessage[]): boolean {
+  if (!conversationStateEnabled()) return true;
+  return messages.filter((m) => m.direction === "inbound").length >= STATE_DECISION_WINDOW && messages.some((m) => replyAuthor(m) !== null);
+}
+
+/** JS `String.prototype.trim()`'in sildiği karakterlerin TAMAMI (WhiteSpace + LineTerminator; Unicode Zs) — "gövde boş mu" birebir. */
+export const BLANK_BODY_RE = "^[ \t\n\v\f\r\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]*$";
+
+/**
+ * Kesitten ÖNCEKİ kısmın cevap toplamları — `replyAuthor` kuralının veritabanı karşılığı (giden · sistem olayı değil · gövde boş
+ * değil · yazar yapay zekâ / ev sahibi; yazar alanı yoksa görünen ad kuralı `deriveMessageAuthor`). Teslim edilmemiş taslaklar
+ * (`excludedIds`) sayılmaz — kesitle aynı süzgeç. Kural eşitliği gerçek PostgreSQL'de özellik testiyle sabit.
+ */
+export async function conversationStatePriorTotals(input: {
+  conversationId: string;
+  /** Kesitin en eski satırı (yalnız kimliği kullanılır; satır veritabanında okunur). */
+  before: { id: string };
+  excludedIds: readonly string[];
+}): Promise<{ outbound: number; hostOutbound: number }> {
+  const rows = await prisma.$queryRaw<{ outbound: number; hostOutbound: number }[]>`
+    SELECT count(*) FILTER (WHERE a IN ('ai', 'host'))::int AS "outbound",
+           count(*) FILTER (WHERE a = 'host')::int AS "hostOutbound"
+    FROM (
+      SELECT COALESCE(
+               NULLIF("authorType", ''),
+               CASE WHEN "senderName" = ${LEGACY_AI_RESUME_SENDER} THEN 'system'
+                    WHEN "senderName" = ANY(${[...LEGACY_AI_SENDER_NAMES]}::text[]) THEN 'ai'
+                    ELSE 'host' END
+             ) AS a
+      FROM "Message"
+      WHERE "conversationId" = ${input.conversationId}
+        AND "direction" = 'outbound'
+        AND ("systemEventType" IS NULL OR "systemEventType" = '')
+        -- Sınır, kesitin en eski SATIRININ kendisinden okunur (parametre olarak tarih bağlanmaz): ham SQL'e bağlanan tarih oturum
+        -- saat dilimine göre kayıyordu — UTC+14'te sayım 2 yerine 56 (Haiku 10-12; conversation-state-prior-totals.test.ts).
+        AND ("createdAt", "id") < (SELECT b."createdAt", b."id" FROM "Message" b WHERE b."id" = ${input.before.id})
+        AND NOT ("id" = ANY(${[...input.excludedIds]}::text[]))
+        AND "body" !~ ${BLANK_BODY_RE}
+    ) t`;
+  return rows[0] ?? { outbound: 0, hostOutbound: 0 };
+}
+
 export function conversationRecordsInPrompt(records: Parameters<typeof conversationStateBlock>[0]): boolean {
   return conversationStateBlock(records) !== "";
 }
@@ -49,6 +98,8 @@ export async function loadConversationState(input: {
   now?: Date;
   /** Henüz kaydedilmemiş, şu an cevaplanan misafir mesajı (QR). */
   pendingGuestText?: string | null;
+  /** `messages` konuşmanın sonundan bir kesitse: kesitin en eski satırı + süzülen satırlar → kesit öncesi cevap toplamları sayılır. */
+  priorBefore?: { row: { id: string }; excludedIds: readonly string[] };
 }): Promise<ConversationStateSummary | undefined> {
   if (!conversationStateEnabled()) return undefined;
   try {
@@ -70,7 +121,15 @@ export async function loadConversationState(input: {
           })
         : null,
     ]);
-    const summary = buildConversationState({ messages: input.messages, decisions, lifecycle });
+    const priorTotals =
+      input.priorBefore && input.conversationId
+        ? await conversationStatePriorTotals({
+            conversationId: input.conversationId,
+            before: input.priorBefore.row,
+            excludedIds: input.priorBefore.excludedIds,
+          })
+        : undefined;
+    const summary = buildConversationState({ messages: input.messages, decisions, lifecycle, priorTotals });
     if (input.conversationId && input.timeZone) {
       const phase = await loadConversationPhase(input.conversationId, input.pendingGuestText);
       if (phase) summary.phase = conversationPhaseFacts(phase, input.now ?? new Date(), input.timeZone);

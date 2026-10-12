@@ -327,7 +327,7 @@ describe("madde 10 kâhini — sayfalı okuma = tam okuma", () => {
     }
   });
 
-  it.each(SEEDS.slice(0, 8))("🚨 tohum %i: konuşma kayıtları + üretim izi açık — toplamlar konuşmanın TAMAMINDAN (başa kadar okunur)", async (seedN) => {
+  it.each(SEEDS.slice(0, 8))("🚨 tohum %i: konuşma kayıtları + üretim izi açık — kesit öncesi toplamlar SAYILIR (satır okunmaz), sonuç tam okumayla aynı", async (seedN) => {
     vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
     vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
     const now = Date.now();
@@ -398,6 +398,8 @@ function spec(lines: readonly string[], t0: number): Row[] {
     if (k === "h") return { ...base, direction: "outbound" as const, body, authorType: "host", senderName: "Ev sahibi" };
     if (k === "a") return { ...base, direction: "outbound" as const, body, authorType: "ai", senderName: "GuestOps AI" };
     if (k === "A") return { ...base, direction: "outbound" as const, body, authorType: "automation", senderName: "Ev sahibi" };
+    // Sistem olayı işaretli ev sahibi satırı: kapanışın cevap kuralı sayar, konuşma kayıtlarınınki SAYMAZ (iki kural ayrışır).
+    if (k === "x") return { ...base, direction: "outbound" as const, body, authorType: "host", senderName: "Ev sahibi", systemEventType: "guest_chat_ai_resumed" };
     return { ...base, direction: "outbound" as const, body, authorType: "system", senderName: "__lixus_ai_resumed__", systemEventType: "guest_chat_ai_resumed" };
   });
 }
@@ -474,5 +476,35 @@ describe("madde 10 kâhini — hedefli senaryolar (koşul başına)", () => {
     });
     // Anti-vakumluk: açık iş görüldü → kapanış GÖRÜNÜR kalır.
     expect(full.convo.skippedReason).toBe("closing_ack_open");
+  });
+
+  it("🚨 konuşma kayıtları: kesitte KENDİ kuralıyla bir cevap yoksa okuma sürer ('son giden mesajdan sonra misafirin yazdığı' sayısı)", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const t0 = Date.now() - 2 * DAY;
+    const rows = spec(["g:Soru", "h:Cevap verildi.", ...many("Ara", 12), "x:Sistem notu", ...many("Bekleyen", 14), "g:Wifi şifresi nedir?"], t0);
+    const full = await same(rows, [1, 2, 3]);
+    const reply = full.fetchBodies.find((b) => b.includes("KONUŞMA KAYITLARI"));
+    expect(reply).toBeDefined(); // anti-vakumluk: blok istemde
+    expect(reply).toContain("misafirin yazdığı mesaj: 27");
+  });
+
+  it("🚨 konuşma kayıtları: son 10 misafir mesajı kesitte olmadan okuma durmaz (ev sahibine bırakılmış eski iade konusu)", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    const t0 = Date.now() - 2 * DAY;
+    const pairs = Array.from({ length: 7 }, (_, i) => [`g:Soru ${i + 1}`, `h:Cevap ${i + 1}`]).flat();
+    const rows = spec(["g:İade istiyorum", "h:Bakıyorum", "g:Ara 1", ...many("Bilgi", 26, "h"), ...pairs, "g:Wifi şifresi nedir?"], t0);
+    const full = await same(rows, [1, 2, 3], {
+      afterSeed: async () => {
+        await prisma.riskEvent.create({
+          data: {
+            organizationId: "org-oracle", propertyId: "prop-oracle", conversationId: "conv-oracle", surface: "auto_reply",
+            triggerId: rows[0].id, finalDecision: "human_review", reason: "refund_request", riskType: "money_refund",
+          },
+        });
+      },
+    });
+    const reply = full.fetchBodies.find((b) => b.includes("KONUŞMA KAYITLARI"));
+    expect(reply).toBeDefined();
+    expect(reply).toContain("Önceki konular"); // anti-vakumluk: eski iade kaydı konu satırına girdi
   });
 });

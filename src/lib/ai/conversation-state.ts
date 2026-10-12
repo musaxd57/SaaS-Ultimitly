@@ -170,7 +170,7 @@ export function decisionTopic(d: StateDecision): StateTopic {
 const DECISION_RANK: Readonly<Record<string, number>> = { auto_sent: 3, human_review: 2, no_reply: 1 };
 
 /** Misafirin gördüğü giden mesajın yazarı (yapay zekâ / ev sahibi); sistem olayı ve gövdesiz satır mesaj DEĞİL → null. */
-function replyAuthor(m: StateMessage): "ai" | "host" | null {
+export function replyAuthor(m: StateMessage): "ai" | "host" | null {
   if (m.direction !== "outbound" || m.systemEventType || m.body.trim() === "") return null;
   const a = resolveMessageAuthor(m).authorType; // eski satırlar: ad kuralı (eski QR "yeniden başlatıldı" işareti = sistem)
   return a === "ai" || a === "host" ? a : null;
@@ -184,11 +184,16 @@ export function buildConversationState(input: {
   messages: readonly StateMessage[];
   decisions: readonly StateDecision[];
   lifecycle?: LifecycleStamps | null;
+  /**
+   * `messages` konuşmanın sonundan bir KESİTSE (kanal oto-yanıtının sınırlı okuması, madde 10): kesitten ÖNCEKİ kısmın cevap
+   * toplamları (aynı `replyAuthor` kuralı, veritabanında sayılır). Yoksa 0 — `messages` konuşmanın tamamıdır.
+   */
+  priorTotals?: { outbound: number; hostOutbound: number };
 }): ConversationStateSummary {
   const { messages } = input;
   const authors = messages.map(replyAuthor);
-  let outbound = 0;
-  let hostOutbound = 0;
+  let outbound = input.priorTotals?.outbound ?? 0;
+  let hostOutbound = input.priorTotals?.hostOutbound ?? 0;
   let lastOutboundIdx = -1;
   authors.forEach((a, i) => {
     if (a === null) return;

@@ -45,8 +45,13 @@ import type {
 } from "@/lib/ai/semantic/stay-change";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
 import { guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
-import { conversationRecordsInPrompt, conversationStateEnabled, loadConversationState } from "@/lib/ai/conversation-state-loader";
 import {
+  conversationRecordsInPrompt,
+  conversationStateWindowSufficient,
+  loadConversationState,
+} from "@/lib/ai/conversation-state-loader";
+import {
+  countRowsBefore,
   extendThread,
   keysetAfter,
   readThreadTail,
@@ -1756,10 +1761,9 @@ export async function applyChannelAutoReply(
   const last = messages[messages.length - 1];
   // Only answer when the guest spoke last (don't reply to ourselves).
   if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
-  // Kesit yetene kadar geriye (madde 10). Konuşma kayıtları / üretim izi anahtarı açıksa toplamlar (misafire giden cevap sayısı,
-  // atlanan satır) konuşmanın TAMAMINDAN sayılır → başa kadar okunur (iki anahtar da canlıda kapalı).
-  const needsWholeThread = conversationStateEnabled() || aiGenerationTraceEnabled();
-  while (!thread.complete && (needsWholeThread || !threadWindowSufficient(messages))) {
+  // Kesit yetene kadar geriye (madde 10). Konuşma kayıtları açıksa kendi kesit koşulu da (son 10 misafir mesajı + son cevap);
+  // toplamlar (misafire giden cevap sayısı, iz tanısının atlanan satırı) kesitten ÖNCESİ için veritabanında SAYILIR — satır okunmaz.
+  while (!thread.complete && !(threadWindowSufficient(messages) && conversationStateWindowSufficient(messages))) {
     thread = await extendThread(conversation.id, thread);
     messages = threadView(thread.rows, undeliveredIds);
   }
@@ -2082,6 +2086,8 @@ export async function applyChannelAutoReply(
     timeZone: orgTimezone(org.timezone),
     // Zaman bağlamı cevaplanan misafir mesajının anından (yeniden işlenen tur aralığı şişirmesin — Haiku 10-09).
     now: last.createdAt,
+    // Kesit konuşmanın tamamı değilse kesit öncesi cevap toplamları sayılır (madde 10).
+    ...(thread.complete ? {} : { priorBefore: { row: thread.rows[0], excludedIds: [...undeliveredIds] } }),
   });
 
   // ── KONUŞMA ÖĞELERİ (09-26, kurucu kararları; `docs/TASARIM-2026-09-26-konusma-ogeleri.md`) ─────────────────────
@@ -2677,6 +2683,8 @@ export async function applyChannelAutoReply(
     if (options.dryRun || !aiGenerationTraceEnabled() || (result.source !== "openai" && !result.llmUsage)) return;
     // Bağımsız güvence: girdinin KURULUMU da (istem sürümü, model adı) karar yolunu asla kırmaz.
     try {
+      // Tanının "atlanan" sayısı konuşmanın tamamından: kesit öncesi satırlar sayılır (madde 10; okunmaz).
+      const omittedBefore = thread.complete ? 0 : await countRowsBefore(conversation.id, thread.rows[0], undeliveredIds);
       await recordAiGeneration({
         organizationId: ev.organizationId,
         propertyId: conversation.propertyId,
@@ -2706,6 +2714,7 @@ export async function applyChannelAutoReply(
           // Eski hafıza = istemin "KONUŞMA KAYITLARI" bloğu (pencere dışı konu / sayaç) — istemle AYNI koşul (Haiku 10-12).
           return contextDiagnostics(forDiag, selectHistoryForPrompt(forDiag), {
             olderMemoryUsed: conversationRecordsInPrompt(conversationRecords),
+            omittedBefore,
           });
         })(),
         toolResults: [verifiedAvailabilityRun?.va.result, verifiedExtensionRun?.va.result].filter(
