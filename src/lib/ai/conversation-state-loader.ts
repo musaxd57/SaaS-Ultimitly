@@ -217,7 +217,9 @@ export async function loadConversationStateForConversation(input: {
       pendingGuestText: input.pendingGuestMessage ? input.pendingGuestText : null,
       ...(priorBefore ? { priorBefore } : {}),
     });
-  } catch {
+  } catch (err) {
+    // Kardeşi gibi: blok yok (cevap akışı durmaz) ama sessiz değil.
+    void reportError("conversation-state-load", err);
     return undefined;
   }
 }

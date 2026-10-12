@@ -38,7 +38,12 @@ describe("loadConversationState — bayrak kapalı", () => {
     vi.spyOn(prisma.message, "findMany").mockRejectedValue(new Error("db down"));
     const msgs = [{ id: "m1", direction: "inbound", senderName: "Ayşe", body: "Merhaba" }];
     await expect(loadConversationState({ organizationId: "org", messages: msgs })).resolves.toBeUndefined();
+    // QR yükleyicisi önce kiracı kapsamını okur (10-12 gece): o okuma da, ardından gelen mesaj okuması da hata verse sonuç aynı.
+    const owner = vi.spyOn(prisma.conversation, "findFirst").mockRejectedValueOnce(new Error("db down"));
     await expect(loadConversationStateForConversation({ organizationId: "org", conversationId: "c" })).resolves.toBeUndefined();
+    owner.mockResolvedValueOnce({ id: "c" } as never);
+    await expect(loadConversationStateForConversation({ organizationId: "org", conversationId: "c" })).resolves.toBeUndefined();
+    expect(owner).toHaveBeenCalledTimes(2);
   });
 
   it("KONTROL: bayrak '1' iken aynı çağrı sorgu atar (spy gerçekten bağlı)", async () => {

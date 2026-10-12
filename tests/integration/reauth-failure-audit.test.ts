@@ -76,9 +76,16 @@ describe("hatalı yeniden doğrulama → denetim kaydı", () => {
   });
 
   it("kayıt yazıcısı bürünme oturumunda gerçek aktörü (operatör) yazar — yolu açılırsa iz doğru kişide", async () => {
-    await noteReauthFailure({ ...session, actorUserId: "operator-1" }, "account_delete");
-    const [a] = await failedAudits();
-    expect(a.actorUserId).toBe("operator-1");
+    // Aktör sütunu kullanıcıya yabancı anahtarlı → operatör GERÇEK bir kullanıcı (uydurma kimlik yazımı düşürür).
+    const opOrg = await prisma.organization.create({ data: { name: "Op" } });
+    const op = await prisma.user.create({
+      data: { organizationId: opOrg.id, name: "Op", email: "op@example.com", passwordHash: "x", role: "owner" },
+    });
+    await noteReauthFailure({ ...session, actorUserId: op.id }, "account_delete");
+    const audits = await failedAudits();
+    expect(audits).toHaveLength(1);
+    expect(audits[0].actorUserId).toBe(op.id);
+    expect(audits[0].organizationId).toBe(session.organizationId);
   });
 
   it("🚨 2FA açarken yanlış kod → kayıt (`2fa_enable`); 2FA AÇILMAZ", async () => {

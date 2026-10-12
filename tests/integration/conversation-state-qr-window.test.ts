@@ -10,6 +10,17 @@ import { loadConversationState, loadConversationStateForConversation, QR_STATE_M
 import { __setChannelThreadPageForTests } from "@/lib/channel-thread-window";
 
 const reported = vi.hoisted(() => [] as string[]);
+// Okunan satır sayısı okuyucunun kendisinden (Prisma temsilcisine `spyOn` sonraki testlere sızar — CLAUDE.md dersi; ilk yazımda sızdı).
+const held = vi.hoisted(() => ({ maxRows: 0 }));
+vi.mock("@/lib/channel-thread-window", async (orig) => {
+  const actual = await orig<typeof import("@/lib/channel-thread-window")>();
+  const note = <T extends { rows: unknown[] }>(w: T) => ((held.maxRows = Math.max(held.maxRows, w.rows.length)), w);
+  return {
+    ...actual,
+    readThreadTail: async (id: string) => note(await actual.readThreadTail(id)),
+    extendThread: async (id: string, w: Parameters<typeof actual.extendThread>[1]) => note(await actual.extendThread(id, w)),
+  };
+});
 vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
   return { ...actual, reportError: vi.fn(async (where: string) => void reported.push(where)) };
@@ -128,12 +139,12 @@ describe("QR konuşma kayıtları — sınırlı okuma = bütün satırlar", () 
   it("🚨 hiç cevap olmayan çok uzun konuşma: okuma sınırda DURUR, blok yazılmaz, hata kaydı düşer (her turda bütün konuşma okunmaz)", async () => {
     reported.length = 0;
     const { orgId, conversationId } = await seedGuestOnly(QR_STATE_MAX_ROWS + 1);
-    const spy = vi.spyOn(prisma.message, "findMany");
+    held.maxRows = 0;
     expect(await loadConversationStateForConversation({ organizationId: orgId, conversationId })).toBeUndefined();
-    const read = (await Promise.all(spy.mock.results.map((r) => r.value as Promise<unknown[]>))).reduce((n, rows) => n + rows.length, 0);
-    spy.mockRestore();
-    expect(read).toBeLessThanOrEqual(QR_STATE_MAX_ROWS);
-    expect(reported).toContain("conversation-state-qr-window-cap");
+    expect(held.maxRows).toBeGreaterThan(0);
+    expect(held.maxRows).toBeLessThanOrEqual(QR_STATE_MAX_ROWS);
+    // Sebep sınır (başka bir hata değil): yalnız sınır kaydı düştü.
+    expect(reported).toEqual(["conversation-state-qr-window-cap"]);
   });
 
   it("KONTROL: sınırın altındaki cevapsız konuşma eksiksiz okunur ve blok kurulur (sayılar bütün satırlarla aynı)", async () => {
@@ -142,7 +153,7 @@ describe("QR konuşma kayıtları — sınırlı okuma = bütün satırlar", () 
     const got = await loadConversationStateForConversation({ organizationId: orgId, conversationId });
     expect(got).toEqual(await expected(orgId, conversationId));
     expect(got!.unansweredGuest).toBe(QR_STATE_MAX_ROWS - 10);
-    expect(reported).not.toContain("conversation-state-qr-window-cap");
+    expect(reported).toEqual([]);
   });
 
   it("🚨 başka işletmenin konuşması: saat dilimi verilse de aşama / son cevap süresi SIZMAZ (boş özet)", async () => {
