@@ -42,6 +42,7 @@ vi.mock("@/lib/messaging", async (orig) => {
 import { reportError } from "@/lib/report-error";
 import { sendOnChannel } from "@/lib/messaging";
 import { sendDueWelcomes } from "@/lib/automation";
+import { withoutRandomIds } from "../helpers/random-ids";
 
 const mockReport = vi.mocked(reportError);
 const mockSend = vi.mocked(sendOnChannel);
@@ -179,8 +180,8 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     expect(payload).not.toContain(reservationId);
     expect(payload).not.toContain("res-1");
     expect(payload).not.toContain("thread closed"); // sağlayıcının ham metni
-    // Telefon AYRI sayı olarak geçmez (yük `org=<cuid>` taşır; çıplak "555" araması kimliğin içine düşüp kararsız olurdu — CI #1426 sınıfı).
-    expect(payload).not.toMatch(/(?<![A-Za-z0-9])555(?![A-Za-z0-9])/);
+    // Yük `org=<cuid>` taşır; kimlik çıkarılmadan "555" araması rastgele eşleşirdi (CI #1426 sınıfı). Bitişik yazım da ("05551234567") yakalanır.
+    expect(withoutRandomIds(payload)).not.toContain("555"); // telefon
   });
 
   it("BAŞARILI gönderimde alarm YOK (regresyon pini)", async () => {

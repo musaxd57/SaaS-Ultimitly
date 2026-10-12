@@ -23,6 +23,7 @@ import { loadNightlyRates, setNightlyRate } from "@/modules/intelligence/money/r
 import { getPropertyMemory } from "@/modules/intelligence";
 import { buildOrganizationDataExport } from "@/lib/data-export";
 import { PUT, DELETE } from "@/app/api/properties/[id]/nightly-rate/route";
+import { withoutRandomIds } from "../helpers/random-ids";
 
 const NOW = new Date("2026-10-01T09:00:00Z");
 const midnight = (d: string) => new Date(`${d}T00:00:00.000Z`);
@@ -119,14 +120,14 @@ describe("PUT/DELETE /api/properties/[id]/nightly-rate", () => {
     const rates = await loadNightlyRates(orgId, [propertyId]);
     expect(rates.get(propertyId)).toMatchObject({ low: 1800, high: 4200, currency: "TRY" });
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "property.nightly_rate_set" } });
-    // Değer, kayıtta AYRI bir sayı olarak geçmez. Çıplak `/1800|4200/` KARARSIZDI (CI #1426, 10-12): rastgele mülk kimliği
-    // "cmv5q6i42001…" "4200" içeriyordu. Kimlik harf-rakam karışık → sözcük sınırı kimliğin içini eşleştirmez; değer anahtarı da yok.
+    // Değer kayıtta geçmez. Çıplak `/1800|4200/` KARARSIZDI (CI #1426, 10-12): rastgele mülk kimliği "cmv5q6i42001…" "4200" içeriyordu.
+    // Kimlikler çıkarılıp eski iddia koşulur (bitişik yazım "1800TL" de yakalanır); değer anahtarı da yok.
     const meta = JSON.parse(String(audit.metadataJson)) as Record<string, unknown>;
     expect(Object.keys(meta)).not.toEqual(expect.arrayContaining(["low"]));
     expect(Object.keys(meta)).not.toEqual(expect.arrayContaining(["high"]));
-    expect(String(audit.metadataJson)).not.toMatch(/(?<![A-Za-z0-9])(?:1800|4200)(?![A-Za-z0-9])/);
-    expect('{"propertyId":"cmv5q6i42001cmu5x74hvfjw7"}').not.toMatch(/(?<![A-Za-z0-9])(?:1800|4200)(?![A-Za-z0-9])/); // CI'daki kimlik
-    expect('{"low":1800}').toMatch(/(?<![A-Za-z0-9])(?:1800|4200)(?![A-Za-z0-9])/); // KONTROL: değer sızsa yakalanır
+    expect(withoutRandomIds(String(audit.metadataJson))).not.toMatch(/1800|4200/);
+    expect(withoutRandomIds('{"propertyId":"cmv5q6i42001cmu5x74hvfjw7"}')).not.toMatch(/1800|4200/); // CI'daki kimlik elenir
+    expect(withoutRandomIds('{"note":"aralik 1800TL"}')).toMatch(/1800|4200/); // KONTROL: değer sızsa yakalanır
     const memory = await getPropertyMemory(orgId, propertyId);
     expect(memory.facts.some((f) => f.category === "pricing")).toBe(false);
     const exported = await buildOrganizationDataExport(orgId);

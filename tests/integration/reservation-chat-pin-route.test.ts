@@ -11,7 +11,7 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { POST, DELETE } from "@/app/api/reservations/[id]/chat-pin/route";
-import { standaloneNumber } from "../helpers/standalone-number";
+import { withoutRandomIds } from "../helpers/random-ids";
 
 const ENV = "QR_PIN_ENABLED";
 let origEnv: string | undefined;
@@ -66,7 +66,7 @@ describe("POST /api/reservations/[id]/chat-pin — generate", () => {
     // Audit written WITHOUT the PIN anywhere in it.
     const audits = await prisma.auditLog.findMany({ where: { action: { contains: "guest_chat.pin" } } });
     expect(audits.length).toBeGreaterThan(0);
-    for (const a of audits) expect(a.metadataJson ?? "").not.toMatch(standaloneNumber(json.pin)); // kayıt kimlik taşır
+    for (const a of audits) expect(withoutRandomIds(a.metadataJson ?? "")).not.toContain(json.pin); // kayıt kimlik taşır
   });
 
   it("PIN response carries Cache-Control: no-store (Codex 5) and leaks the PIN nowhere but the body", async () => {
@@ -77,10 +77,10 @@ describe("POST /api/reservations/[id]/chat-pin — generate", () => {
     const pin = json.pin as string;
     // The PIN must NOT appear in any audit metadata row.
     const audits = await prisma.auditLog.findMany();
-    for (const a of audits) expect(a.metadataJson ?? "").not.toMatch(standaloneNumber(pin));
+    for (const a of audits) expect(withoutRandomIds(a.metadataJson ?? "")).not.toContain(pin);
     // …nor persisted on the reservation row (only its hash lives there).
     const row = await prisma.reservation.findUnique({ where: { id: reservationId } });
-    expect(JSON.stringify(row)).not.toMatch(standaloneNumber(pin)); // satır kimlik + zaman damgası taşır
+    expect(withoutRandomIds(JSON.stringify(row))).not.toContain(pin); // satır kimlik + zaman damgası taşır
   });
 
   it("manager may generate too (owner|manager surface)", async () => {

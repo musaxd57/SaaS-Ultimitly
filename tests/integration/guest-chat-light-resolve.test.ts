@@ -12,7 +12,7 @@ vi.mock("@/lib/ai/kb-fetch", async (importOriginal) => {
 });
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { GET } from "@/app/api/chat/[token]/route";
-import { standaloneNumber } from "../helpers/standalone-number";
+import { withoutRandomIds } from "../helpers/random-ids";
 
 const kbFetch = vi.mocked(fetchKnowledgeBaseForPrompt);
 
@@ -86,7 +86,7 @@ describe("resolveGuestChat — bilgi tabanısız çözümleme", () => {
     kbFetch.mockClear();
     const ctx = await resolveGuestChat(token);
     expect(kbFetch).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(ctx!.knowledgeBase)).not.toMatch(standaloneNumber("9090")); // blob kalem kimliği taşır
+    expect(withoutRandomIds(JSON.stringify(ctx!.knowledgeBase))).not.toContain("9090"); // blob kalem kimliği taşır
     expect(JSON.stringify(ctx!.knowledgeBase)).toContain("Çöp salı");
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { subMonths } from "date-fns";
 import { prisma, resetDb } from "../helpers/db";
 import { anonymizeOldGuestData, deleteAccountData, purgeOldLeads, ANON_BODY } from "@/lib/data-retention";
-import { standaloneNumber } from "../helpers/standalone-number";
+import { withoutRandomIds } from "../helpers/random-ids";
 
 async function seedStay(opts: {
   orgName?: string;
@@ -440,7 +440,7 @@ describe("deleteAccountData (KVKK erasure)", () => {
     expect(redacted).not.toBeNull();
     expect(redacted!.payloadJson).not.toContain("owner@a.com");
     expect(redacted!.payloadJson).not.toContain("Ada Owner");
-    expect(redacted!.payloadJson).not.toMatch(standaloneNumber("34000")); // iskelet org kimliği taşıyabilir
+    expect(withoutRandomIds(redacted!.payloadJson)).not.toContain("34000"); // iskelet org kimliği taşıyabilir
     // ...reconciliation skeleton kept.
     expect(redacted!.payloadJson).toContain("evt_1");
     expect(redacted!.payloadJson).toContain("txn_1");

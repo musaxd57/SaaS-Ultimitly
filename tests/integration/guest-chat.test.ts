@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import { resolveGuestChat, generateChatToken, QR_SECRET_CATEGORIES, PREBOOKING_SECRET_CATEGORIES } from "@/lib/guest-chat";
-import { standaloneNumber } from "../helpers/standalone-number";
+import { withoutRandomIds } from "../helpers/random-ids";
 
 async function enableChat(propertyId: string): Promise<string> {
   const token = generateChatToken();
@@ -62,7 +62,7 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     // The DOOR code must not appear anywhere in the chat context.
     const blob = JSON.stringify(ctx!.knowledgeBase);
     expect(blob).toContain("SECRET123");
-    expect(blob).not.toMatch(standaloneNumber("4821"));
+    expect(withoutRandomIds(blob)).not.toContain("4821");
   });
 
   it("🚨 Wi-Fi kalemi kapı / kutu izi taşıyorsa QR'a GİRMEZ (değer olmasa da); Wi-Fi'nin gündelik adı 'Wi-Fi kodu' girer", async () => {
@@ -79,10 +79,10 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     const token = await enableChat(propertyId);
 
     const blob = JSON.stringify((await resolveGuestChat(token))!.knowledgeBase);
-    expect(blob).not.toMatch(standaloneNumber("4590"));
+    expect(withoutRandomIds(blob)).not.toContain("4590");
     expect(blob).not.toContain("gunes1907"); // aynı kalemde kapı kodu → kalem KOMPLE düşer
     expect(blob).not.toContain("deniz2024"); // kutu izi
-    expect(blob).not.toMatch(standaloneNumber("8812"));
+    expect(withoutRandomIds(blob)).not.toContain("8812");
     expect(blob).toContain("12345678"); // "Wi-Fi kodu" kapı izi sayılmaz
   });
 
@@ -104,10 +104,10 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
 
     const ctx = await resolveGuestChat(token);
     const blob = JSON.stringify(ctx!.knowledgeBase);
-    expect(blob).not.toMatch(standaloneNumber("7788"));
-    expect(blob).not.toMatch(standaloneNumber("9090"));
+    expect(withoutRandomIds(blob)).not.toContain("7788");
+    expect(withoutRandomIds(blob)).not.toContain("9090");
     expect(blob).not.toContain("HUNTER2");
-    expect(blob).not.toMatch(standaloneNumber("4455"));
+    expect(withoutRandomIds(blob)).not.toContain("4455");
     // ...but the benign item is still available.
     expect(blob).toContain("Çöp salı günü");
   });
