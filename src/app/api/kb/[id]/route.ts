@@ -29,7 +29,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const { id } = await params;
   const existing = await prisma.knowledgeBaseItem.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
-    select: { id: true, propertyId: true, isActive: true, content: true },
+    select: { id: true, propertyId: true, isActive: true, content: true, title: true, category: true, language: true },
   });
   if (!existing) return notFound();
 
@@ -72,6 +72,14 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     }
   }
 
+  // HİÇBİR alan değişmediyse yazılmaz (kurucu kararı 10-12 sabah): boş "Kaydet" kalemi "yeni düzenlendi" saymasın — `updatedAt`
+  // ilerlemez, yapay zekânın "en güncel kalem" sırası ve Wi-Fi bilgi tabanı önerisinin tazelik denetimi bozulmaz.
+  const current: Record<string, unknown> = existing;
+  const changed = Object.entries(d).some(([key, value]) => value !== undefined && current[key] !== value);
+  if (!changed) {
+    const unchanged = await prisma.knowledgeBaseItem.findUnique({ where: { id } });
+    return jsonOk(unchanged);
+  }
   const item = await prisma.knowledgeBaseItem.update({
     where: { id },
     data: d,
