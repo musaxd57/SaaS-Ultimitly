@@ -428,6 +428,8 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["keeps screeching", "The CO alarm keeps screeching.", "gas"],
     ["squealing", "The CO alarm keeps squealing.", "gas"],
     ["wailing", "The smoke alarm is wailing.", "smoke"],
+    ["devam: It's shrieking", "Where is the CO alarm? It's shrieking.", "gas"],
+    ["geriye: Something is shrieking", "Something is shrieking. It's the CO alarm.", "gas"],
     ["çıplak ad + sounds", "Where is the CO alarm? Alarm sounds again.", "gas"],
     ["çıplak ad + yer tamlaması", "Where is the CO alarm? The alarm in the kitchen keeps beeping.", "gas"],
     ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
@@ -477,6 +479,12 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["plan sounds perfect", "That CO detector plan sounds perfect, thanks.", "gas"],
     ["başkasının durmayan eylemi (won't stop + -ing)", "The CO alarm is fine but the kids won't stop crying.", "gas"],
     ["keeps going on about (konuşma)", "The dog keeps going on about the smoke alarm.", "smoke"],
+    // Haiku 18. tur — canlı / hava öznesi (aynı cümlede yeni fiiller):
+    ["rüzgâr ıslık çalıyor", "The wind is whistling, where is the CO detector?", "gas"],
+    ["çocuklar kahkaha", "The kids are howling with laughter and the CO alarm is fine.", "gas"],
+    ["trafik korna", "The traffic is honking near the CO alarm.", "gas"],
+    ["çocuklar çığlık", "The kids are screeching next to the smoke alarm.", "smoke"],
+    ["köpek uluyor", "The dog is howling, where is the smoke alarm?", "smoke"],
     // Türkçe ünsüz yumuşaması (çaydanlık → çaydanlığı, müzik → müziği) — kaynak yine tanınır (mutasyon X2: kaynak hiç tanınmıyordu):
     ["tr çaydanlığı ötüyor", "Çaydanlığım sürekli ötüyor. CO alarmı nerede?", "gas"],
     ["tr müziği çalıyor", "Komşunun müziği hâlâ çalıyor. CO dedektörü nerede?", "gas"],

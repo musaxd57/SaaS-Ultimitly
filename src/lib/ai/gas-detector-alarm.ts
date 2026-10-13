@@ -58,7 +58,8 @@ const SOUNDING: Record<Lang, RegExp> = {
     "gu",
   ),
   // "is on" BİLEREK YOK: "the CO detector is on the ceiling" yer cümlesidir.
-  en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounds|sounding|sounded|ringing|blaring|screaming|shriek(?:s|ing|ed)?|screech(?:es|ing|ed)?|squeal(?:s|ing|ed)?|whin(?:es|ing|ed)|wail(?:s|ing|ed)?|howl(?:s|ing|ed)?|whistl(?:es|ing|ed)|honk(?:s|ing|ed)?|(?:won't|wont|will not|doesn't|doesnt|does not|never) stops?(?! \\p{L}{2,}ing)|keeps going(?! on))${E}`, "gu"),
+  // shriek / screech / squeal / whine / wail / howl / whistle / honk yalnız dil karışımı listesinde (başka dilde sözcük değil; mutasyon AG4).
+  en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounds|sounding|sounded|ringing|blaring|screaming|(?:won't|wont|will not|doesn't|doesnt|does not|never) stops?(?! \\p{L}{2,}ing)|keeps going(?! on))${E}`, "gu"),
   de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|klingelte|heulte|schlagt an|schlagt alarm|alarm schlagt|hat angeschlagen|geht los|losgegangen|heult|ertont|hort nicht auf)${E}`, "gu"),
   fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|retentissait|se declenche|s'est declenche|declenche|ne s'arrete pas|s'arrete pas)${E}`, "gu"),
   es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|pitaba|pitaban|se activo|se ha activado|no para(?! de))${E}`, "gu"),
@@ -128,7 +129,7 @@ const GENERIC_DETECTOR_BEFORE =
 /** Ses fiilinin hemen önünde özne zamiri ("Last night it went off", "er piept") — devam cümlesi işareti (Haiku 4. tur). */
 const PRONOUN_BEFORE = /(?:^|\s)(?:it|it's|its|er|es|sie|il|elle|ca|o)\s(?:\p{L}{1,12}\s)?$/u;
 const SOURCE_WORDS =
-  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|washing machine|dryer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|truck|laptop|computer|tablet|router|elevator|lift|baby monitor|burglar|intruder|einbruch\\p{L}{0,8}|hirsiz\\p{L}{0,4}|antirrobo|intrusion|neighbou?r\\p{L}{0,6}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanli[kg]\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzi[kg]\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|camasir\\p{L}{0,8}|kurutma\\p{L}{0,8}|bilgisayar\\p{L}{0,4}|asansor\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|trockner|waschmaschine|aufzug|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|seche-linge|ordinateur|ascenseur|hervidor|secadora|ordenador|ascensor|impresora|musica|vecino\\p{L}{0,2}|coche";
+  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|washing machine|dryer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|truck|laptop|computer|tablet|router|elevator|lift|baby monitor|burglar|intruder|wind|dogs?|cats?|birds?|kids?|child|children|bab(?:y|ies)|people|traffic|ruzgar\\p{L}{0,4}|kopek\\p{L}{0,4}|cocuk\\p{L}{0,6}|bebe[kg]\\p{L}{0,4}|kedi\\p{L}{0,4}|kus\\p{L}{0,4}|trafik\\p{L}{0,4}|hund\\p{L}{0,2}|kinder|katze|vogel|verkehr|vent|chien\\p{L}{0,2}|enfants?|chat|oiseaux?|circulation|viento|perros?|ninos?|gatos?|pajaros?|trafico|einbruch\\p{L}{0,8}|hirsiz\\p{L}{0,4}|antirrobo|intrusion|neighbou?r\\p{L}{0,6}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanli[kg]\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzi[kg]\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|camasir\\p{L}{0,8}|kurutma\\p{L}{0,8}|bilgisayar\\p{L}{0,4}|asansor\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|trockner|waschmaschine|aufzug|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|seche-linge|ordinateur|ascenseur|hervidor|secadora|ordenador|ascensor|impresora|musica|vecino\\p{L}{0,2}|coche";
 const OTHER_SOUND_SOURCE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`, "gu");
 /** Olumsuzlanan kaynak adı kaynak değildir ("It is not my phone, it is beeping", "Not my phone, it keeps beeping", "telefon değil" — Haiku 5. tur). */
 const NEG_BEFORE_SOURCE =
@@ -157,6 +158,7 @@ function sourceIsModifier(text: string, at: number, end: number): boolean {
  */
 const SOURCE_SUBJECT_BEFORE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?:'s)?\\s(?:\\p{L}{1,12}\\s){0,2}$`, "u");
 const SOURCE_AT_START = new RegExp(`^(?:${SOURCE_WORDS})`, "u");
+const ANIMATE_PRONE = /^(?:shriek|screech|squeal|whin|wail|howl|whistl|honk|scream)/u;
 const CONJ_START = /^(?:and|y|et|und|ve|e|then|und dann|puis)(?![\p{L}\p{N}])/u;
 const SOURCE_RIGHT_AFTER = new RegExp(
   `^\\s(?:(?:my|the|our|a|an|mein|meine|das|der|die|le|la|mon|ma|el|mi|su)\\s)?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`,
@@ -326,7 +328,12 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     // İlk varsayım sözcüğünün yeri yeter (ses ondan sonraysa varsayımdır) — ses başına tarama yok (maliyet O(S + H)).
     const firstHypo = spans(HYPOTHETICAL_ALL, sentence)[0]?.start ?? Infinity;
     const live = (s: Span) => liveSound(sentence, s, firstHypo);
-    const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter(live);
+    // Canlı / hava kaynaklı olabilen fiiller (howl, whistle, honk, screech …) AYNI cümlede de öznesine bakar (Haiku 18. tur: "The wind is
+    // whistling, where is the CO detector?", "The kids are screeching next to the smoke alarm"). Eski fiillerde bilinçli olarak yok —
+    // "CO alarmı ve telefonum ötüyor" gerçek bildirimdir.
+    const sameLive = (s: Span) =>
+      live(s) && !(ANIMATE_PRONE.test(sentence.slice(s.start, s.end)) && soundOfOtherSource(sentence, s));
+    const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter(sameLive);
     // Yordam okuması yalnız GENİŞ zamanlı ve sürüyor beyanı olmayan sese uygulanır (↑ WHEN_GOVERNS).
     const procedural = (s: Span) => !ongoing[k] && GENERIC_PRESENT.test(sentence.slice(s.start, s.end));
     const crossReport = crossSounds.filter((s) => !procedural(s));
@@ -337,7 +344,7 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
       const governed = detectors.filter((d) => WHEN_GOVERNS.test(sentence.slice(Math.max(0, d.start - 24), d.start)));
       const governedSet = new Set(governed);
       const free = governed.length === 0 ? detectors : detectors.filter((d) => !governedSet.has(d));
-      const sounds = spans(SOUNDING[lang], sentence).filter(live);
+      const sounds = spans(SOUNDING[lang], sentence).filter(sameLive);
       if (anyNear(free, sounds) || anyNear(free, crossSounds)) return true;
       if (governed.length > 0 && (anyNear(governed, sounds.filter((s) => !procedural(s))) || anyNear(governed, crossReport))) return true;
     }
