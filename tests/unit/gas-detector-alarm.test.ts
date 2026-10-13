@@ -413,6 +413,15 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     // Haiku 14. tur — "sounds" İngilizce ses fiili değildi (itilmiş G4'te de kaçıyordu); çıplak ad + yer tamlaması:
     ["sounds again", "The CO alarm sounds again.", "gas"],
     ["sounds (yer tamlamalı)", "The CO alarm in the kitchen sounds.", "gas"],
+    // Haiku 16. tur — ses fiilsiz "durmuyor" biçimleri ve ses betimlemesi:
+    ["won't stop", "The CO alarm won't stop.", "gas"],
+    ["devam: It won't stop!", "Where is the CO alarm? It won't stop!", "gas"],
+    ["sounds like a siren", "The smoke alarm sounds like a siren.", "smoke"],
+    ["devam: It sounds like a siren", "Where is the CO alarm? It sounds like a siren.", "gas"],
+    ["de hört nicht auf", "Der CO-Melder hört nicht auf.", "gas"],
+    ["fr ne s'arrête pas", "Le détecteur de CO ne s'arrête pas.", "gas"],
+    ["es no para", "La alarma de gas no para.", "gas"],
+    ["tr durmuyor", "CO alarmı durmuyor.", "gas"],
     ["çıplak ad + sounds", "Where is the CO alarm? Alarm sounds again.", "gas"],
     ["çıplak ad + yer tamlaması", "Where is the CO alarm? The alarm in the kitchen keeps beeping.", "gas"],
     ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
@@ -460,6 +469,7 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["test sounds fine", "The fire alarm test sounds fine.", "smoke"],
     ["Sounds good + konum", "Sounds good, the smoke alarm is in the hall.", "smoke"],
     ["plan sounds perfect", "That CO detector plan sounds perfect, thanks.", "gas"],
+    ["başkasının durmayan eylemi (won't stop + -ing)", "The CO alarm is fine but the kids won't stop crying.", "gas"],
     // Türkçe ünsüz yumuşaması (çaydanlık → çaydanlığı, müzik → müziği) — kaynak yine tanınır (mutasyon X2: kaynak hiç tanınmıyordu):
     ["tr çaydanlığı ötüyor", "Çaydanlığım sürekli ötüyor. CO alarmı nerede?", "gas"],
     ["tr müziği çalıyor", "Komşunun müziği hâlâ çalıyor. CO dedektörü nerede?", "gas"],

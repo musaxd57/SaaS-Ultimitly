@@ -54,14 +54,14 @@ const SMOKE_DETECTOR: Record<Lang, RegExp> = {
  */
 const SOUNDING: Record<Lang, RegExp> = {
   tr: new RegExp(
-    `${B}(?:(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|(?:otmeye|calmaya|biplemeye) basla\\p{L}{0,6}|(?:otmeyi|calmayi|biplemeyi) birakti\\p{L}{0,4}|sustu|durdu|bip bip|bip sesi (?:veriyor|cikariyor|geliyor)|ses (?:veriyor|cikariyor)|uyari veriyor|alarm veriyor|otup duruyor|calip duruyor)${E}`,
+    `${B}(?:(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|(?:otmeye|calmaya|biplemeye) basla\\p{L}{0,6}|(?:otmeyi|calmayi|biplemeyi) birakti\\p{L}{0,4}|sustu|durdu|durmuyor|bip bip|bip sesi (?:veriyor|cikariyor|geliyor)|ses (?:veriyor|cikariyor)|uyari veriyor|alarm veriyor|otup duruyor|calip duruyor)${E}`,
     "gu",
   ),
   // "is on" BİLEREK YOK: "the CO detector is on the ceiling" yer cümlesidir.
-  en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounds|sounding|sounded|ringing|blaring|screaming)${E}`, "gu"),
-  de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|klingelte|heulte|schlagt an|schlagt alarm|alarm schlagt|hat angeschlagen|geht los|losgegangen|heult|ertont)${E}`, "gu"),
-  fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|retentissait|se declenche|s'est declenche|declenche)${E}`, "gu"),
-  es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|pitaba|pitaban|se activo|se ha activado)${E}`, "gu"),
+  en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounds|sounding|sounded|ringing|blaring|screaming|(?:won't|wont|will not|doesn't|doesnt|does not|never) stops?(?! \\p{L}{2,}ing)|keeps going)${E}`, "gu"),
+  de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|klingelte|heulte|schlagt an|schlagt alarm|alarm schlagt|hat angeschlagen|geht los|losgegangen|heult|ertont|hort nicht auf)${E}`, "gu"),
+  fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|retentissait|se declenche|s'est declenche|declenche|ne s'arrete pas|s'arrete pas)${E}`, "gu"),
+  es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|pitaba|pitaban|se activo|se ha activado|no para(?! de))${E}`, "gu"),
 };
 const LANGS = Object.keys(GAS_DETECTOR) as Lang[];
 /** Herhangi bir dedektör adı (gaz ya da duman, her dil) — tek tarama (maliyet: devam cümlesi başına bir geçiş). */
@@ -269,7 +269,8 @@ const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert)(?: \p{L}{1,12}){0,2} nicht auf
  * "sounds / sounded / sounding" ardından DEĞERLENDİRME gelirse ses değil görüştür (Haiku 15. tur: "Sounds good, the smoke alarm is in the
  * hall", "The CO alarm sounds like a good idea", "the fire alarm test sounded fine").
  */
-const SOUNDS_OPINION = /^\s(?:like|good|great|fine|perfect|ok|okay|nice|right|reasonable|interesting|lovely|amazing|awesome|cool|wonderful|excellent|helpful|about|as if|as though|to me|logical|easy|simple)(?![\p{L}\p{N}])/u;
+const SOUNDS_OPINION =
+  /^\s(?:like (?:(?:a|an)\s)?(?:good|great|nice|bad|fine|perfect|plan|idea|deal|fun|joke|lot|you|we|they|it will|it would)|good|great|fine|perfect|ok|okay|nice|right|reasonable|interesting|lovely|amazing|awesome|cool|wonderful|excellent|helpful|about right|to me|logical|easy|simple)(?![\p{L}\p{N}])/u;
 
 function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
   if (/^sound(?:s|ed|ing)$/u.test(sentence.slice(s.start, s.end)) && SOUNDS_OPINION.test(sentence.slice(s.end, s.end + 16))) return false;
