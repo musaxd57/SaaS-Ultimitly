@@ -462,7 +462,9 @@
   sözcüğü başka nesneyi anlatabiliyor: "kombi durdu", "bebek sustu"; kurucu sorusu H4). "Durdu / artık ötmüyor" da bildirim (ses ÇALMIŞ);
   yalnız hiç ÇALMAMIŞ ses ("is not beeping", "hat nicht gepiept") bildirim değil. Devam cümlesinde ses İLK dedektör adından önce olmalı;
   sesi kaynağa bağlayan cümle ("that's my phone", "das ist mein Handy") koparır; olumsuzlanan kaynak ("not my phone") kaynak değildir;
-  başka cihazın DURDU sesi ("The microwave stopped beeping") dedektöre bağlanmaz.
+  başka cihazın DURDU sesi ("The microwave stopped beeping") dedektöre bağlanmaz — cümlecikte dedektör adı YOKSA ("The CO alarm next to the
+  oven stopped beeping" bildirim); konum edatı ("next door to", "à côté de") kaynak DEĞİL. Geriye atıf: "Something keeps beeping. It's
+  the CO alarm." bildirim. Yanlış pozitifi azaltan her kural Haiku turunda tehlikeli yönde kaçırma üretti — önce kaçırma, sonra gürültü.
   Gelecek zaman istisnası sürme fiilinde yok ("will keep beeping"); "when" yordamı yalnız dedektörü DOĞRUDAN yönetirse (araya ≤1 belirleyici)
   + geniş zaman + sürüyor beyanı yok. Devam cümlesi: kendi dedektör adını taşımaz; varsayım ve başka ses kaynağı KONUMA göre okunur. Cümle
   olguları cümle başına BİR KEZ (ses başına tarama karesel idi — süre pini).

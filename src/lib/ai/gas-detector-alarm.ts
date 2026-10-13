@@ -54,7 +54,7 @@ const SMOKE_DETECTOR: Record<Lang, RegExp> = {
  */
 const SOUNDING: Record<Lang, RegExp> = {
   tr: new RegExp(
-    `${B}(?:(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|(?:otmeye|calmaya|biplemeye) basla\\p{L}{0,6}|bip bip|bip sesi (?:veriyor|cikariyor|geliyor)|ses (?:veriyor|cikariyor)|uyari veriyor|alarm veriyor|otup duruyor|calip duruyor)${E}`,
+    `${B}(?:(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|(?:otmeye|calmaya|biplemeye) basla\\p{L}{0,6}|(?:otmeyi|calmayi|biplemeyi) birakti\\p{L}{0,4}|sustu|durdu|bip bip|bip sesi (?:veriyor|cikariyor|geliyor)|ses (?:veriyor|cikariyor)|uyari veriyor|alarm veriyor|otup duruyor|calip duruyor)${E}`,
     "gu",
   ),
   // "is on" BİLEREK YOK: "the CO detector is on the ceiling" yer cümlesidir.
@@ -79,6 +79,8 @@ const CROSS_LANGUAGE_SAFE = new RegExp(
   `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|blaring|screaming|piept|piepst|piepen|piepsen|gepiept|piepton|bipe|bipent|retentit|suena|suenan|sonando|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
   "gu",
 );
+/** Herhangi bir ses fiili (her dil + dil karışımı) — sessiz komşu cümlenin olguları hiç hesaplanmaz (maliyet; Haiku 5–6. tur ölçümü). */
+const ANY_SOUND = new RegExp([...Object.values(SOUNDING), CROSS_LANGUAGE_SAFE].map((re) => `(?:${re.source})`).join("|"), "u");
 
 /**
  * Olumsuzlama — ses fiilinin hemen ÖNÜNDE (≤ 28 karakter; araya en çok iki sözcük: "not making any beeps", "hat nicht gepiept").
@@ -86,7 +88,7 @@ const CROSS_LANGUAGE_SAFE = new RegExp(
  * Fransızca olumsuzluk ardındaki "pas / plus" ile tanınır (↓). Türkçe olumsuzluk çekimdedir ve olumlu fiil listesine girmez.
  */
 const PLAIN_NEG =
-  /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|hasn't|hasnt|haven't|havent|won't|wont|never|no longer|no|ya no|nicht|kein|keine|nie)\s((?:\p{L}{1,12}\s){0,2})$/u;
+  /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|hasn't|hasnt|haven't|havent|won't|wont|never|nothing|no longer|no|ya no|nicht|nichts|kein|keine|nie|rien|nada)\s((?:\p{L}{1,12}\s){0,2})$/u;
 /**
  * DURDU / ARTIK ÖTMÜYOR da BİLDİRİMDİR (Haiku 4. tur, kurucu sorusu H4'ün güvenli varsayılanı): ses ÇALMIŞ — "stopped beeping", "dejó de
  * sonar", "a cessé de sonner", "hat aufgehört zu piepen", "no longer beeps", "doesn't beep anymore", "piept nicht mehr", "ne sonne plus",
@@ -117,13 +119,21 @@ const CONTINUATION_MAX_WORDS = 1;
  * too") — ama sesi kaynağa BAĞLAYAN cümle ("…, that's my phone", "it's just the oven", "das ist mein Handy") koparır (Haiku 4. tur).
  */
 const PRONOUN_START = /^(?:it|it's|its|er|es|sie|il|elle|ca|o)(?![\p{L}\p{N}])/u;
+/**
+ * GERİYE ATIF: ses önceki cümlede, bu cümle onu dedektöre BAĞLIYOR ("Something keeps beeping. It's the CO alarm.", "Bir şey sürekli
+ * ötüyor. CO alarmıymış.", "Something is beeping. Is it the CO alarm?"). Bu cümlede dedektör adından ÖNCE yalnız tanıtım kalıbı ve
+ * belirleyici olabilir; önceki cümlede dedektör adı ve olumsuzlanmamış başka kaynak YOK (Claude 6. tur kendi sondası).
+ */
+const IDENTIFY_PREFIX =
+  /^(?:(?:it's|it is|its|it was|that's|thats|that is|this is|is it|is that|could it be|maybe|probably|i think it's|das ist|das war|es ist|es war|ist es|ist das|c'est|c'etait|est-ce|es el|es la|era el|era la|sera el|sera la|bu|o|sanirim|galiba|herhalde|acaba)\s)?(?:(?:the|my|our|a|an|der|die|das|den|le|la|el|un|une)\s|l')?$/u;
 /** Ses fiilinin hemen önünde özne zamiri ("Last night it went off", "er piept") — devam cümlesi işareti (Haiku 4. tur). */
 const PRONOUN_BEFORE = /(?:^|\s)(?:it|it's|its|er|es|sie|il|elle|ca|o)\s(?:\p{L}{1,12}\s)?$/u;
 const SOURCE_WORDS =
-  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|neighbou?r\\p{L}{0,6}|next door|nebenan|a cote|al lado|yan daire\\p{L}{0,4}|yan bina\\p{L}{0,4}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanlik\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzik\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|hervidor|impresora|musica|vecino\\p{L}{0,2}|coche";
+  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|neighbou?r\\p{L}{0,6}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanlik\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzik\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|hervidor|impresora|musica|vecino\\p{L}{0,2}|coche";
 const OTHER_SOUND_SOURCE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`, "gu");
 /** Olumsuzlanan kaynak adı kaynak değildir ("It is not my phone, it is beeping", "Not my phone, it keeps beeping", "telefon değil" — Haiku 5. tur). */
-const NEG_BEFORE_SOURCE = /(?:^|\s)(?:not|no|nicht|kein|keine|pas|ni)\s(?:(?:my|the|a|mein|meine|das|der|die|mon|ma|le|la|mi|el)\s)?$/u;
+const NEG_BEFORE_SOURCE =
+  /(?:^|\s)(?:not|isn't|isnt|wasn't|wasnt|aren't|arent|no|nicht|kein|keine|pas|ni)\s(?:(?:my|the|a|mein|meine|das|der|die|mon|ma|le|la|mi|el)\s)?$/u;
 const NEG_AFTER_SOURCE = /^\p{L}{0,6}\s(?:degil|degildi)(?![\p{L}\p{N}])/u;
 /** İlk OLUMSUZLANMAMIŞ kaynak adının yeri (yoksa Infinity). */
 function firstSourceAt(text: string): number {
@@ -138,12 +148,16 @@ function firstSourceAt(text: string): number {
 }
 /**
  * DURDU sesi BAŞKA cihazınsa dedektörün sesi değildir (Haiku 5. tur: "The microwave stopped beeping, is the CO alarm okay?" gaz acili
- * sayılıyordu): aynı cümlecikte (son virgülden beri) sesin önünde olumsuzlanmamış kaynak adı varsa o ses sayılmaz. YALNIZ durdu
- * biçiminde — süren seste "CO alarmı ve telefonum ötüyor" gerçek bildirimdir.
+ * sayılıyordu): aynı cümlecikte (son virgülden beri, en çok CLAUSE_MAX karakter) sesin önünde olumsuzlanmamış kaynak adı var ve HİÇ
+ * dedektör adı yoksa o ses sayılmaz. Cümlecikte dedektör adı varsa ses onundur (Haiku 6. tur: "The CO alarm next to the oven stopped
+ * beeping", "Since I charged my phone the CO alarm stopped beeping"). YALNIZ durdu biçiminde — süren seste "CO alarmı ve telefonum ötüyor"
+ * gerçek bildirimdir.
  */
-function sourceInClauseBefore(before: string): boolean {
-  const clause = before.slice(before.lastIndexOf(",") + 1);
-  return firstSourceAt(clause) !== Infinity;
+const CLAUSE_MAX = 160;
+function otherDeviceStopped(sentence: string, s: Span): boolean {
+  const window = sentence.slice(Math.max(0, s.start - CLAUSE_MAX), s.start);
+  const clause = window.slice(window.lastIndexOf(",") + 1);
+  return firstSourceAt(clause) !== Infinity && !ANY_DETECTOR.test(clause);
 }
 const ATTRIBUTION = new RegExp(
   `(?:^|\\s)(?:that's|thats|that is|it's|its|it is|this is|das ist|das war|es ist|c'est|es el|es la|es mi|bu|o)\\s(?:just |only |nur |juste |solo |sadece )?(?:my |the |our |a |an |mein |meine |das |der |die |le |la |mon |ma |mi |el |benim )?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`,
@@ -223,7 +237,7 @@ function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
     STOPPED_NEG.test(before) || NO_LONGER_BEFORE.test(before) || NO_LONGER_AFTER.test(sentence.slice(s.end, s.end + 30));
   if (soundedBefore) {
     // Başka cihazın durdu sesi dedektöre bağlanmaz ("The microwave stopped beeping, is the CO alarm okay?").
-    if (sourceInClauseBefore(before)) return false;
+    if (otherDeviceStopped(sentence, s)) return false;
   } else {
     const neg = PLAIN_NEG.exec(before);
     if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
@@ -258,6 +272,7 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
   const sentences = fold(message).split(/[.!?;؟\n]+/u).map((s) => s.trim());
   // Cümle başına BİR KEZ (maliyet pini: ses başına cümle taraması 50.000 karakterde karesel idi).
   const ongoing = sentences.map((s) => ONGOING.test(s));
+  const hasSound = sentences.map((s) => ANY_SOUND.test(s));
   for (let k = 0; k < sentences.length; k++) {
     const sentence = sentences[k];
     if (sentence.length < 6) continue;
@@ -273,7 +288,7 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     //    beeping" → öteki dedektörün kendi turu);
     //  · varsayım sesten ÖNCE gelirse sayılmaz ("It keeps beeping even if I open the window" bildirimdir);
     //  · başka ses kaynağı ↑ (OTHER_SOUND_SOURCE / ATTRIBUTION).
-    const hasNext = next.length > 0 && firstHypo === Infinity;
+    const hasNext = next.length > 0 && firstHypo === Infinity && hasSound[k + 1];
     const nextStarts = hasNext && (CONTINUATION_START.test(next) || next.split(" ").length <= CONTINUATION_MAX_WORDS);
     const firstDetectorNext = hasNext ? (ANY_DETECTOR.exec(next)?.index ?? Infinity) : Infinity;
     const firstHypoNext = hasNext ? (spans(HYPOTHETICAL_ALL, next)[0]?.start ?? Infinity) : Infinity;
@@ -281,6 +296,16 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     const attributed = hasNext && ATTRIBUTION.test(next);
     const pronounNext = PRONOUN_START.test(next);
     const live = (s: Span) => liveSound(sentence, s, firstHypo);
+    const prev = k > 0 && hasSound[k - 1] ? sentences[k - 1] : "";
+    const identifies = (first: Span | undefined) =>
+      first !== undefined &&
+      prev.length > 0 &&
+      IDENTIFY_PREFIX.test(sentence.slice(0, first.start)) &&
+      !ANY_DETECTOR.test(prev) &&
+      firstSourceAt(prev) === Infinity &&
+      !ATTRIBUTION.test(prev);
+    const firstHypoPrev = prev.length > 0 ? (spans(HYPOTHETICAL_ALL, prev)[0]?.start ?? Infinity) : Infinity;
+    const livePrev = (s: Span) => liveSound(prev, s, firstHypoPrev);
     const liveNext = (s: Span) =>
       hasNext &&
       !attributed &&
@@ -302,6 +327,10 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
       const sounds = spans(SOUNDING[lang], sentence).filter(live);
       if (anyNear(free, sounds) || anyNear(free, crossSounds)) return true;
       if (governed.length > 0 && (anyNear(governed, sounds.filter((s) => !procedural(s))) || anyNear(governed, crossReport))) return true;
+      // Geriye atıf (↑ IDENTIFY_PREFIX): önceki cümledeki ses bu cümlenin İLK dedektör adına bağlanır.
+      if (identifies(detectors[0]) && [...LANGS.map((l) => SOUNDING[l]), CROSS_LANGUAGE_SAFE].some((re) => spans(re, prev).some(livePrev))) {
+        return true;
+      }
       // Hemen ardındaki kısa devam cümlesi ("…in the kitchen. It keeps beeping!") — ses orada, dedektör burada, varsayım yok.
       if (hasNext && spans(SOUNDING[lang], next).some(liveNext)) return true;
       if (crossNext) return true;
