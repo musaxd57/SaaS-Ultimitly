@@ -34,6 +34,9 @@ describe("KONTROL — telefon OLMAYAN sayılar AYNEN kalır", () => {
     ["kısa uluslararası", "+90 212"],
     ["10 haneli onay kodu (5 ile başlamıyor)", "Booking onay no 4123456789"],
     ["uzun sayının parçası", "Kargo 1234055512345671234"],
+    // Mutasyon 10-13 (G7a): uluslararası biçim ama telefon hane sayısı dışında (8–9 ve 15'ten uzun).
+    ["8 haneli uluslararası", "+49 30 1234"],
+    ["15'ten uzun uluslararası", "+1 2345 6789 0123 4567"],
   ])("%s", (_l, input) => {
     expect(redactContactsFromText(input)).toBe(input);
   });

@@ -118,6 +118,34 @@ describe("G9 — panel dikkat satırı", () => {
     expect((await findAttentionItems(orgId)).some((i) => i.kind === "channel_reactivation")).toBe(false);
   });
 
+  it("başka işletmenin çok sayıdaki olayı bu işletmenin satırını DIŞARI itmez (mutasyon 10-13)", async () => {
+    const a = await makeOrgWithProperty();
+    const b = await makeOrgWithProperty();
+    await upsert(a.propertyId, reservation("cancelled"));
+    await upsert(a.propertyId, reservation("accepted")); // A'nın tek olayı (en eski)
+    const ext = await prisma.reservation.create({
+      data: {
+        propertyId: b.propertyId,
+        guestName: "B",
+        sourceReference: "b-res",
+        arrivalDate: new Date(Date.now() + 5 * DAY),
+        departureDate: new Date(Date.now() + 8 * DAY),
+        status: "cancelled",
+      },
+    });
+    await prisma.ingestEvent.createMany({
+      data: Array.from({ length: 120 }, () => ({
+        organizationId: b.orgId,
+        provider: "hospitable",
+        entityType: "reservation",
+        entityId: ext.id,
+        kind: "reservation.updated",
+        changedFieldsJson: JSON.stringify([REACTIVATION_BLOCKED_FIELD]),
+      })),
+    });
+    expect((await findAttentionItems(a.orgId)).filter((i) => i.kind === "channel_reactivation")).toHaveLength(1);
+  });
+
   it("KONTROL: olay yoksa (sakin gün) satır yok; başka işletmenin olayı görünmez", async () => {
     const a = await makeOrgWithProperty();
     const b = await makeOrgWithProperty();

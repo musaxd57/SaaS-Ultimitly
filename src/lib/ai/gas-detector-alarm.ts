@@ -35,9 +35,10 @@ const DETECTOR: Record<Lang, RegExp> = {
 };
 
 /**
- * Öten / çalan / bip — süren ya da az önce olan ses; dil başına OLUMLU biçimler. Türkçe fiil yalnız kişi / soru / rivayet ekiyle
- * biter ("ötüyor", "ötüyormuş", "çalıyor mu"): "öttüğünü duymadım" (ad-fiil) ve "ötmüyor" (olumsuz çekim) eşleşmez. "Susmuyor"
- * (susmuyor = ses sürüyor) olumlu bildirimdir.
+ * Öten / çalan / bip — süren ya da az önce olan ses; dil başına OLUMLU biçimler. Türkçe fiil yalnız kişi / soru / rivayet / geçmiş
+ * ekiyle biter ("ötüyor", "ötüyormuş", "ötüyordu", "çalıyor mu"): "öttüğünü duymadım" (ad-fiil), "ötmüyor" (olumsuz çekim) ve
+ * "çalıyorsa / öttüyse" (koşul eki — bildirim değil koşul) EŞLEŞMEZ; ayrı koşul denetimi bu yüzden yok (mutasyon 10-13: ölü koddu).
+ * "Susmuyor" (ses sürüyor) olumlu bildirimdir.
  */
 const SOUNDING: Record<Lang, RegExp> = {
   tr: new RegExp(
@@ -70,8 +71,6 @@ const NEG_BEFORE =
   /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|never|no longer|stopped|no|ya no|nicht|kein|keine|nie)\s(?:\p{L}{1,12}\s){0,2}$/u;
 /** Olumsuzlama — ses fiilinin hemen ARDINDA (≤ 14 karakter): "piept nicht", "(ne) sonne pas / plus", "no suena nunca". */
 const NEG_AFTER = /^\s(?:nicht|nie|pas|plus|mehr nicht|nunca)(?![\p{L}\p{N}])/u;
-/** Türkçe koşul eki fiile bitişik ("çalıyorsa", "öttüyse") → bildirim değil koşul (fallback.ts `CONDITIONAL_TAIL` emsali). */
-const TR_CONDITIONAL_TAIL = /^[ry]?s[ae]/u;
 /** Varsayım / yordam sorusu — yalnız SESTEN ÖNCE gelirse: "If the CO alarm goes off…" evet; "…is beeping, I don't know if…" hayır. */
 const HYPOTHETICAL_SRC =
   "(?:^|\\s)(?:if|in case|what if|should the|whenever|what (?:do|should) (?:i|we) do when|falls|wenn|sollte|eger|durumunda|halinde|au cas ou|en cas de|que faire si|en caso de|que hago si|que hacer si)(?![\\p{L}\\p{N}])";
@@ -111,7 +110,6 @@ function liveSound(sentence: string, s: Span, hypoStarts: readonly number[]): bo
   const before = sentence.slice(Math.max(0, s.start - 28), s.start);
   if (NEG_BEFORE.test(before) && !STOP_VERB.test(before)) return false;
   if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
-  if (TR_CONDITIONAL_TAIL.test(sentence.slice(s.end, s.end + 3))) return false;
   return !hypoStarts.some((h) => h < s.start);
 }
 

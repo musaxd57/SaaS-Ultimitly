@@ -49,6 +49,8 @@ const SOUNDING: Array<[string, string]> = [
   ["tr geçmiş sürerlik (ötüyordu)", "CO dedektörü bütün gece ötüyordu"],
   ["tr başlama (çalmaya başladı)", "Gaz alarmı çalmaya başladı"],
   ["tr 'detektör' yazımı", "CO detektörü ötüyor"],
+  // Mutasyon 10-13 (G4a): devam cümlesinde YALNIZ kendi dilinin fiili ("sonne" dil karışımı kümesinde yok).
+  ["fr devam cümlesi (kendi dilinin fiili)", "Le détecteur de CO est dans la cuisine. Il sonne!"],
 ];
 
 const NOT_SOUNDING: Array<[string, string]> = [
@@ -80,6 +82,8 @@ const NOT_SOUNDING: Array<[string, string]> = [
   // Haiku 2. inceleme: dil karışımında çakışmaya açık fiil (Almanca 'Sonne' = güneş) yine eşleşmez.
   ["en ad + de 'Sonne'", "The CO alarm hangs in der Sonne"],
   ["en olumsuz geçmiş (stopped)", "The CO alarm stopped beeping an hour ago"],
+  // Mutasyon 10-13 (G4d): ses başta, dedektör 80 karakterden UZAKTA sağda — yakınlık iki yönde de sınanır.
+  ["uzak sağdaki dedektör", `My phone keeps beeping ${"and ".repeat(30)}the CO alarm is on the wall`],
 ];
 
 describe("gasDetectorSounding — gaz / CO dedektörü ötüyor", () => {

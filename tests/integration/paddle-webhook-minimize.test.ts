@@ -113,6 +113,22 @@ describe("minimizeOldPaddleWebhooks (G6)", () => {
     expect(await prisma.webhookEvent.count({ where: { payloadJson: { contains: "ayse@example.com" } } })).toBe(0);
   });
 
+  it("eski HATA satırları partiyi doldurup işlenmiş satırı aç bırakmaz (mutasyon 10-13)", async () => {
+    await prisma.webhookEvent.createMany({
+      data: Array.from({ length: 500 }, (_, i) => ({
+        provider: "paddle",
+        eventType: "transaction.completed",
+        providerEventId: `evt_err_${i}`,
+        payloadJson: rawPayload(`evt_err_${i}`),
+        status: "error",
+        createdAt: subMonths(NOW, 30),
+      })),
+    });
+    const target = await row("evt_after_errors", { monthsAgo: 13 });
+    expect((await minimizeOldPaddleWebhooks(NOW)).minimized).toBe(1);
+    expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { id: target.id } })).payloadJson).not.toContain("ayse@example.com");
+  });
+
   it("çözülemeyen yük de küçülür (ham metin kalmaz)", async () => {
     const bad = await row("evt_bad", { monthsAgo: 13, payload: "not json ayse@example.com" });
     expect((await minimizeOldPaddleWebhooks(NOW)).minimized).toBe(1);
