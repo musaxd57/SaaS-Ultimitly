@@ -1,4 +1,5 @@
 import { foldTurkishAscii, neutralizeNonEmergency } from "@/lib/ai/fallback";
+import { gasDetectorSounding } from "@/lib/ai/gas-detector-alarm";
 
 // ---------------------------------------------------------------------------
 // FİZİKSEL TEHLİKE KANITI — bağlam ilkesi (kurucu kararı 10-02 akşam, Sabah Kararları 51 + 55). Saf, LLM'siz, deterministik.
@@ -638,6 +639,13 @@ export function hazardEvidenceOf(message: string | null | undefined): HazardEvid
       kinds.clear();
     }
     if (r.level === best.level) for (const k of r.kinds) kinds.add(k);
+  }
+  // G4 (kurucu kararı 10-13 "Olası gaz acili say"): gaz / CO dedektörü ÖTÜYOR → açık gaz tehlikesi (model çağrılmaz, ev sahibine kritik
+  // bildirim). Kanal ağıyla tek kaynak. Alıntı ve K6 nötrlemesi sonrası metin okunur; başka açık tür varsa korunur.
+  if (gasDetectorSounding(folded)) {
+    if (best.level !== "clear") kinds.clear();
+    kinds.add("gas");
+    return { level: "clear", kinds: [...kinds] };
   }
   return { level: best.level, kinds: best.level === "clear" || best.level === "possible" ? [...kinds] : [] };
 }

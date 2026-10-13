@@ -22,6 +22,9 @@ describe("karbonmonoksit — her dilde gaz tehlikesi", () => {
 
   it("KONTROL: dedektörün YERİNİ sormak tehlike değil", () => {
     expect(hazardEvidenceOf("Wo ist der Kohlenmonoxidmelder?").level).toBe("none");
-    // "Der Kohlenmonoxidmelder piept" (ötüyor) bugün de "none" — bilinçli olarak PİNLENMEDİ: sabah sorusu G4 (kural önerisi).
+  });
+
+  it("🚨 G4 (kurucu kararı 10-13): dedektör ÖTÜYOR → açık gaz tehlikesi (ayrıntı: gas-detector-alarm.test.ts)", () => {
+    expect(hazardEvidenceOf("Der Kohlenmonoxidmelder piept")).toEqual({ level: "clear", kinds: ["gas"] });
   });
 });

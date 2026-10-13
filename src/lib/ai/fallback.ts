@@ -2,6 +2,7 @@ import type { Priority } from "@/lib/constants";
 import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
 import { guestFirstNameOf } from "@/lib/kb-placeholders";
 import { codeGreetingEnabled, salutationNameOf } from "./code-greeting";
+import { gasDetectorSounding } from "./gas-detector-alarm";
 
 // Deterministic, keyword-based AI fallback. Used when no OPENAI_API_KEY is set,
 // or when the OpenAI call fails. Keeps the product usable without external APIs.
@@ -2561,6 +2562,8 @@ export function isSafetyEmergencyText(message: string): boolean {
     }
     if (SAFETY_WHOLE_WORD_RE.test(ascii)) return true;
     if (SAFETY_CRITICAL_PATTERNS.some((re) => re.test(std) || re.test(tr) || re.test(ascii))) return true;
+    // G4 (kurucu kararı 10-13): gaz / CO dedektörü ÖTÜYOR → olası gaz acili (dedektörün yeri / varlığı sorusu değil). Tek kaynak QR ile ortak.
+    if (gasDetectorSounding(ascii)) return true;
   }
   return false;
 }
