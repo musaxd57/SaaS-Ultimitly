@@ -4,7 +4,9 @@ import { createHmac, scryptSync } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
-import { ANON_NAME, ANON_ID, ANON_BODY, redactNameFromBody } from "@/lib/data-retention";
+import { ANON_NAME, ANON_ID, ANON_BODY, redactNameFromBody, scrubStyleProfile } from "@/lib/data-retention";
+// G7-a (kurucu kararı 10-13): silinen misafirin metinlerinde ad maskesinden SONRA telefon + e-posta maskesi — saklama süpürgesiyle parite.
+import { redactContactsFromText } from "@/lib/contact-redact";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 
 // ---------------------------------------------------------------------------
@@ -461,7 +463,7 @@ async function maskReservationRows(
       select: { id: true, body: true },
     });
     for (const m of outbound) {
-      const red = redactNameFromBody(m.body, allNames);
+      const red = redactNameFromBody(redactContactsFromText(m.body), allNames);
       if (red !== m.body) {
         await db.message.update({ where: { id: m.id }, data: { body: red } });
       }
@@ -514,7 +516,7 @@ async function maskReservationRows(
     select: { id: true, title: true, description: true },
   });
   for (const t of tasks) {
-    const red = redactNameFromBody(t.title, allNames);
+    const red = redactNameFromBody(redactContactsFromText(t.title), allNames);
     // AÇIKLAMA misafirin HAM MESAJI olabilir (şikayet / akıllı görev) — ad
     // redaksiyonu yetmez, `Message.body` gibi tamamen anonimleştirilir.
     // Bu alan bir süre HİÇBİR süpürgede yoktu (derin denetim, 08-01).
@@ -534,10 +536,13 @@ async function maskReservationRows(
       select: { id: true, note: true },
     });
     for (const n of notes) {
-      const red = redactNameFromBody(n.note ?? "", allNames);
+      const red = redactNameFromBody(redactContactsFromText(n.note ?? ""), allNames);
       if (red !== n.note) await db.taskUpdate.update({ where: { id: n.id }, data: { note: red } });
     }
   }
+  // G7-b (kurucu kararı 10-13): işletmenin üslup profilinde de silinen misafirin adı + metindeki telefon / e-posta maskelenir (saklama
+  // süpürgesiyle parite). İdempotent — doğrulama geçişinde yeniden koşması zararsız.
+  await scrubStyleProfile(db, organizationId, allNames);
 
   await db.reservation.updateMany({
     where: { id: reservationId },

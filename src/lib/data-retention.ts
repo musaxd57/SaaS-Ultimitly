@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 import { redactNameInCodeGreetingLine } from "@/lib/ai/code-greeting";
 import { nameSource } from "@/lib/name-source";
+// G7-a (kurucu kararı 10-13): süpürülen metinlerde ad maskesinden SONRA telefon + e-posta maskesi (yaprak modül).
+import { redactContactsFromText } from "@/lib/contact-redact";
 
 // ---------------------------------------------------------------------------
 // KVKK / data-retention + erasure.
@@ -62,6 +64,26 @@ export function redactNameFromBody(body: string, names: string[]): string {
 
 /** Ad eşleşme kalıbı — tek kaynak yaprak modül `name-source.ts` (istem ad maskesi de kullanır); eski içe aktaranlar için yeniden dışa. */
 export { nameSource };
+
+/**
+ * ÜSLUP PROFİLİ DE SÜPÜRÜLÜR (G7-b, kurucu kararı 10-13 "İkisi de"; DENETIM 08-09 #21). `Organization.aiStyleProfile` ev sahibinin son
+ * cevaplarından damıtılır; örnek cümlelerde misafir adı / telefon / e-posta geçebilir ve iki süpürgenin de dışındaydı. Süpürülen
+ * misafirin adları + metindeki telefon / e-posta, o işletmenin profilinde de maskelenir (sürüm işareti satırı adsızdır, korunur).
+ * Koşullu yazma: okuma ile yazma arasında profil yenilendiyse bu tur ona dokunmaz (yeni profil zaten ad maskeli girdiden üretilir).
+ */
+export async function scrubStyleProfile(
+  db: Prisma.TransactionClient | typeof prisma,
+  organizationId: string,
+  names: readonly string[],
+): Promise<boolean> {
+  const org = await db.organization.findUnique({ where: { id: organizationId }, select: { aiStyleProfile: true } });
+  const current = org?.aiStyleProfile;
+  if (!current) return false;
+  const red = redactNameFromBody(redactContactsFromText(current), [...names]);
+  if (red === current) return false;
+  const res = await db.organization.updateMany({ where: { id: organizationId, aiStyleProfile: current }, data: { aiStyleProfile: red } });
+  return res.count > 0;
+}
 
 /** How many old reservations to scrub per call — bounds work / lock time. */
 const RETENTION_BATCH = 300;
@@ -202,7 +224,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
           }
         : { guestName: { not: ANON_NAME } }),
     },
-    select: { id: true, guestName: true, guestGivenName: true },
+    select: { id: true, guestName: true, guestGivenName: true, property: { select: { organizationId: true } } },
     take: RETENTION_BATCH,
   });
   if (oldRes.length > 0) {
@@ -237,7 +259,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       : [];
     const bodyRedactions: { id: string; body: string }[] = [];
     for (const m of outbound) {
-      const red = redactNameFromBody(m.body, namesByConv.get(m.conversationId) ?? []);
+      const red = redactNameFromBody(redactContactsFromText(m.body), namesByConv.get(m.conversationId) ?? []);
       if (red !== m.body) bodyRedactions.push({ id: m.id, body: red });
     }
 
@@ -304,7 +326,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     for (const t of tasks) {
       const names = t.reservationId ? namesByRes.get(t.reservationId) ?? [] : allScopedNames;
       namesByTask.set(t.id, names);
-      const red = redactNameFromBody(t.title, names);
+      const red = redactNameFromBody(redactContactsFromText(t.title), names);
       // AÇIKLAMA misafirin HAM MESAJIDIR (şikayet / akıllı görev) — ad redaksiyonu
       // yetmez, tıpkı `Message.body` gibi TAMAMEN anonimleştirilir. Görevin
       // başlığı ve tipi host'un iş kaydı olarak okunur kalır.
@@ -324,7 +346,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       : [];
     const noteRedactions: { id: string; note: string }[] = [];
     for (const n of noteRows) {
-      const red = redactNameFromBody(n.note ?? "", namesByTask.get(n.taskId) ?? []);
+      const red = redactNameFromBody(redactContactsFromText(n.note ?? ""), namesByTask.get(n.taskId) ?? []);
       if (red !== n.note) noteRedactions.push({ id: n.id, note: red });
     }
 
@@ -434,6 +456,13 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       }),
     ]);
     anonymized += resIds.length;
+    // G7-b: bu partide süpürülen misafirlerin adları işletme başına → o işletmenin üslup profili (telefon / e-posta da).
+    const namesByOrg = new Map<string, string[]>();
+    for (const r of oldRes) {
+      const orgId = r.property.organizationId;
+      namesByOrg.set(orgId, [...(namesByOrg.get(orgId) ?? []), ...(namesByRes.get(r.id) ?? [])]);
+    }
+    for (const [orgId, names] of namesByOrg) await scrubStyleProfile(prisma, orgId, names);
   }
 
   // (2) Orphaned conversations with NO reservation link. These never reach the
@@ -481,7 +510,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
           : []),
       ],
     },
-    select: { id: true, guestIdentifier: true },
+    select: { id: true, guestIdentifier: true, property: { select: { organizationId: true } } },
     take: RETENTION_BATCH,
   });
   if (orphanConvs.length > 0) {
@@ -496,7 +525,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     const bodyRedactions: { id: string; body: string }[] = [];
     for (const m of outbound) {
       const name = nameByConv.get(m.conversationId);
-      const red = name ? redactNameFromBody(m.body, [name]) : m.body;
+      const red = name ? redactNameFromBody(redactContactsFromText(m.body), [name]) : redactContactsFromText(m.body);
       if (red !== m.body) bodyRedactions.push({ id: m.id, body: red });
     }
     // ⚠️ YETİM DALI DA GÖREVLERE DOKUNMALI (denetim, 08-01 — ikinci tur).
@@ -527,7 +556,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     const orphanNames = orphanConvs.map((c) => c.guestIdentifier).filter(Boolean) as string[];
     const taskRedactions: { id: string; title: string; description?: string }[] = [];
     for (const t of orphanTasks) {
-      const redTitle = redactNameFromBody(t.title, orphanNames);
+      const redTitle = redactNameFromBody(redactContactsFromText(t.title), orphanNames);
       // Açıklama misafirin HAM MESAJI → tıpkı `Message.body` gibi tamamen
       // anonimleştirilir; başlık ve tip host'un iş kaydı olarak okunur kalır.
       const guestText = t.description && t.description !== ANON_BODY ? ANON_BODY : undefined;
@@ -561,7 +590,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       : [];
     const orphanNoteRedactions: { id: string; note: string }[] = [];
     for (const n of orphanNoteRows) {
-      const red = redactNameFromBody(n.note ?? "", orphanNames);
+      const red = redactNameFromBody(redactContactsFromText(n.note ?? ""), orphanNames);
       if (red !== n.note) orphanNoteRedactions.push({ id: n.id, note: red });
     }
 
@@ -628,6 +657,14 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       ),
     ]);
     anonymized += orphanIds.length;
+    // G7-b (öksüz dal paritesi): öksüz konuşmanın tek ad kaynağı `guestIdentifier` → işletmenin üslup profilinde de maskelenir.
+    const orphanNamesByOrg = new Map<string, string[]>();
+    for (const c of orphanConvs) {
+      if (!c.guestIdentifier) continue;
+      const orgId = c.property.organizationId;
+      orphanNamesByOrg.set(orgId, [...(orphanNamesByOrg.get(orgId) ?? []), c.guestIdentifier]);
+    }
+    for (const [orgId, names] of orphanNamesByOrg) await scrubStyleProfile(prisma, orgId, names);
   }
 
   return { anonymized };
@@ -658,12 +695,12 @@ const asObj = (v: unknown): Record<string, unknown> =>
  * PII, so they're kept for the books; customer email/name/address/card and the
  * rest of the raw body are dropped.
  */
-function redactPaddlePayload(raw: string): string {
+function redactPaddlePayload(raw: string, note: "kvkk-erasure" | "retention-1y" = "kvkk-erasure"): string {
   let p: Record<string, unknown>;
   try {
     p = asObj(JSON.parse(raw));
   } catch {
-    return JSON.stringify({ redactedAt: new Date().toISOString(), note: "kvkk-erasure", raw: "unparseable" });
+    return JSON.stringify({ redactedAt: new Date().toISOString(), note, raw: "unparseable" });
   }
   const d = asObj(p.data);
   const totals = asObj(asObj(d.details).totals);
@@ -684,8 +721,47 @@ function redactPaddlePayload(raw: string): string {
       custom_data: { organizationId: cd.organizationId ?? null },
     },
     redactedAt: new Date().toISOString(),
-    note: "kvkk-erasure",
+    note,
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PADDLE OLAY KAYITLARI 1 YIL SONRA KÜÇÜLÜR (G6, kurucu kararı 10-13 "1 yıl"; ACIK-ISLER 08-08 §15)
+//
+// Ham yük müşterinin adını / e-postasını / fatura adresini taşır ve yalnız hesap SİLİNİNCE küçülüyordu → silinmeyen müşterinin her
+// ödeme olayı süresiz ham kalıyordu. Kural: İŞLENMİŞ (`processed`) ve 12 aydan eski satırın yükü, hesap silmedeki AYNI izin listesine
+// (`redactPaddlePayload`) indirilir — olay kimliği (`providerEventId`, tekrar koruması), tür, durum, tarihler ve finansal iskelet KALIR;
+// ad / e-posta / adres ve gövdenin geri kalanı gider. `error` / `received` satırlarına DOKUNULMAZ (inceleme için). Zaten küçültülmüş satır
+// (`redactedAt`) atlanır. Saatlik iş, parti başına sınırlı (birikmiş geçmiş birkaç saatte erir). `DATA_RETENTION_MONTHS`tan bağımsız.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ham ödeme olayı yükünün saklama süresi (ay) — kurucu kararı. */
+export const PADDLE_WEBHOOK_RAW_RETENTION_MONTHS = 12;
+const PADDLE_MINIMIZE_BATCH = 500;
+
+export async function minimizeOldPaddleWebhooks(now: Date = new Date()): Promise<{ minimized: number }> {
+  const cutoff = subMonths(now, PADDLE_WEBHOOK_RAW_RETENTION_MONTHS);
+  const rows = await prisma.webhookEvent.findMany({
+    where: {
+      provider: "paddle",
+      status: "processed",
+      createdAt: { lt: cutoff },
+      NOT: { payloadJson: { contains: '"redactedAt"' } },
+    },
+    select: { id: true, payloadJson: true },
+    orderBy: { createdAt: "asc" },
+    take: PADDLE_MINIMIZE_BATCH,
+  });
+  let minimized = 0;
+  for (const r of rows) {
+    // Koşullu yazma: okuma ile yazma arasında satır değiştiyse (yeniden işleme, hesap silme) bu tur ona dokunmaz.
+    const res = await prisma.webhookEvent.updateMany({
+      where: { id: r.id, status: "processed", payloadJson: r.payloadJson },
+      data: { payloadJson: redactPaddlePayload(r.payloadJson, "retention-1y") },
+    });
+    minimized += res.count;
+  }
+  return { minimized };
 }
 
 /**

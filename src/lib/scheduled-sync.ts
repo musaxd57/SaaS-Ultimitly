@@ -9,7 +9,7 @@ import { isChannelSubscriptionInactive } from "@/lib/provider-errors";
 import { alertTracker, sweepStaleAlertStates } from "@/lib/alert-state";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
-import { anonymizeOldGuestData, purgeOldLeads, retentionCutoff } from "@/lib/data-retention";
+import { anonymizeOldGuestData, minimizeOldPaddleWebhooks, purgeOldLeads, retentionCutoff } from "@/lib/data-retention";
 import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
 import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
 import { purgeExpiredConversationItems } from "@/lib/conversation-items/store";
@@ -860,6 +860,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // Distributed rate-limit hygiene: drop counters whose window ended (keys
         // that never return — one-off IPs — would otherwise accumulate forever).
         await hourly("rate-limit-sweep", "scheduled-sync rate-limit-sweep", () => sweepExpiredRateLimits());
+        // Ödeme olayı kayıtları (G6, kurucu kararı 10-13): işlenmiş ve 12 aydan eski satırın ham yükü (ad / e-posta / adres) küçülür.
+        await hourly("paddle-webhook-minimize", "scheduled-sync paddle-webhook-minimize", () => minimizeOldPaddleWebhooks());
         // Parola sıfırlama challenge'ları: süresi dolmuş / tüketilmiş / iptal
         // edilmiş satırları topla. CANLI satıra dokunmaz; 24 saatlik gecikme
         // bilinçli (destek "sıfırlayamıyorum" derse izi bir süre daha durur).
