@@ -126,6 +126,15 @@ analiz kurucuya sunuldu, karar bekliyor.
    kaynakta da "kesin 97". Motor 2: son okuması 6 saatten eski kaynağın satırı "taze iddia" değil (panel 70 / çıkarım); araç sözleşmesi 3.
 7. V2 sonraki dilimleri / V3 eylemler / V5 hazırlık puanı: yeni ürün yüzeyleri — kapsam ve örnekle sorulacak.
 
+## 2c. 10-13 gece — değişmez davranışsal pin turu (Haiku kapsam denetimi)
+
+- **5** (iCal mesaj davranışı ima etmez) · **10** (tahmine dayalı birleştirme yok — dönen misafir yalnız kararlı misafir kimliğiyle) · **14**
+  (kopmada veri sınıfları korunur): yalnız bildirimsel / dolaylı pinleri vardı → `channel-invariants-behavioral.test.ts` (mutasyon 3/3).
+- **17**: giriş kiti genişletildi (↑ §2b).
+- **8**: talimat "provider outage" sınıfını ayrı ister; giden yönde 5xx bilinçli "belirsiz" (çift gönderim riski) → kurucu sorusu G10.
+- **20**: yapısal tarama `.includes("airbnb")` / `case "airbnb":` biçimlerini görmez; bugün `channels/` dışında YETENEK amaçlı böyle bir kullanım
+  yok (`import/sync.ts` beslemenin etiketinden kanal ADI türetir — yetenek değil); genişletmek bu meşru satırda yanlış alarm verir → bilinçli bırakıldı.
+
 ## 7. 10-10 → 10-12 kurucu onaylı işler (10-12 gece eklendi — Haiku denetimi: çizelgede satırları yoktu)
 
 Talimat dışı, kurucunun ara kararlarıyla yapılanlar; ayrıntı ve kanıt `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` ve `docs/claude/durum.md`.
