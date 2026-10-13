@@ -70,6 +70,13 @@ alınır; inceleme hesabının şifresi ve oturumu (açıkça istenmedikçe) kor
 
 1. Taze `pg_dump` (`scripts/ops-*` yedek betiği) + kurucunun açık onayı.
 2. Önce YEREL (5434) kuru koşu → uygula → ekran görüntüleri (panel, Mesajlar, mülk, Bilgi Tabanı).
+   ✅ **10-13 gece eşdeğer koşu (geçici küme, 5434 DEĞİL — kurucunun yerel makinesinde yine yapılır):** 65 migration'lı taze veritabanı ·
+   kuru koşu (boş) → uygula → kuru koşu (dolu: sayılar birebir) → yenileme (idempotent; satır sayıları değişmedi: mülk 12 · rezervasyon 427 ·
+   konuşma 14 · mesaj 28 · görev 348 · bilgi tabanı 84) · üretim build'iyle inceleme hesabı girişi · `/api/cron/sync` (adım 5): 0 mesaj /
+   karşılama / giriş / oto-yanıt / uyarı · örüntü hafızası 1 satır → panelde "Şikâyet tekrar ediyor · 3 sinyal". Dört ekranda örnek hesap
+   bandı VAR, bağlantı dürtüsü YOK. Görüntüler `docs/olcum/ekran/demo-hesabi-2026-10-13/`. Gözlem (karar değil): Mesajlar'da
+   "Oto-yanıt (7/24): Açık" rozeti görünür (kanal hedefi olmadığı için hiçbir şey gitmez); "Mülkü sil" ve takvim bağlantısı ekleme
+   inceleyiciye açık (yenileme mülkleri geri getirir; takvim bağlantısı eklenirse yenileme reddeder — ↑ bilinen).
 3. Canlıya kuru koşu (`DEMO_TENANT_REMOTE_HOST` = adresin sunucu adı, birebir; tünel YOK).
 4. Uygula (`DEMO_TENANT_APPLY=1 …`, şifre ≥20 karakter, kasada sakla).
 5. Bir zamanlanmış senkron geçişini bekle (2 dk) ya da `/api/cron/sync`i `CRON_SECRET` ile tetikle →
@@ -77,6 +84,7 @@ alınır; inceleme hesabının şifresi ve oturumu (açıkça istenmedikçe) kor
    kimliği olmadığından senkron bacağı hiçbir şey çekmez, alarm üretmez).
 6. İnceleme hesabıyla giriş: bant görünüyor mu, "Dikkat Gerektirenler" kartında çakışma/tekrar eden
    arıza satırları var mı, hiçbir yerde "bağlantıyı kur" dürtüsü yok mu.
+   (10-13 düzeltme: tasarım gereği ÇAKIŞMA satırı YOK — kart iki "cevapsız misafir" satırı + senkrondan sonra "tekrar eden arıza" satırı gösterir; pin `demo-tenant` entegrasyon testi "panel yalnız tasarlanan satırları gösterir".)
 7. Operatör panelinde demo satırı "Demo" etiketli ve müşteri sayısına girmiyor mu.
 
 ## Kurucu kararı bekleyenler
