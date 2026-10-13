@@ -171,9 +171,16 @@ describe("maliyet — misafir metninde karesel iş yok", () => {
     ["binlerce ad + binlerce uzak fiil", `${"co alarm ".repeat(5_000)}${"x ".repeat(100)}${"beeping ".repeat(5_000)}`],
     // Haiku son kontrolü (2): çok sayıda varsayım sözcüğü + ses aynı cümlede (eski ses × varsayım taraması).
     ["binlerce 'if' + binlerce ses", `${"if ".repeat(8_000)}${"beep ".repeat(5_000)}gas alarm`],
+    // H3 + son kontrol: geçmiş / yordam / bitti olguları ses başına cümleyi yeniden tarıyordu (ölçüldü 1,1–1,4 sn) → cümle başına bir kez.
+    ["geçmiş belirteci + binlerce geçmiş fiil", `last night ${"the co alarm beeped ".repeat(2_600)}`],
+    ["geçmiş sürerlik + binlerce ses", `this morning ${"co alarm was beeping ".repeat(2_400)}`],
+    ["geçmiş + uzun bitti cümlesi", `last night the co alarm beeped ${"beeped ".repeat(3_500)}. ${"fine ".repeat(5_000)}`],
+    ["yordam (when) + binlerce geniş zaman", "when the co alarm beeps ".repeat(2_100)],
+    ["olumsuzlanmış bitti beyanı dizisi", `last night the co alarm beeped ${"not fixed ".repeat(5_000)}`],
   ])("%s → 300 ms altında", (_l, text) => {
     const t0 = performance.now();
     gasDetectorSounding(text);
+    smokeDetectorSounding(text);
     expect(performance.now() - t0).toBeLessThan(300);
   });
 
@@ -235,5 +242,51 @@ describe("smokeDetectorSounding — duman / yangın dedektörü ötüyor (H3)", 
 
   it("KONTROL: yer sorusu QR'da açık tehlike DEĞİL (bugünkü davranış)", () => {
     expect(hazardEvidenceOf("Where is the smoke detector?").level).toBe("mentioned");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Haiku son kontrolü (673a896) — kural fazla dardı; her satır önce YANLIŞ negatifti (ölçüldü). Misafir pil uyarısını gerçek alarmdan
+// ayıramaz; bittiğine / varsayım olduğuna dair kanıt yoksa karar ev sahibinin.
+// ---------------------------------------------------------------------------
+describe("Haiku son kontrolü: gelecek zaman / yordam / geçmiş kuralları bildirimi yutmasın", () => {
+  it.each([
+    ["sürme fiili gelecek değildir (going to keep)", "The CO alarm is going to keep beeping until someone comes", "gas"],
+    ["sürme fiili (will keep)", "The CO alarm will keep beeping", "gas"],
+    ["es sürme fiili (va a seguir)", "La alarma de gas va a seguir sonando", "gas"],
+    ["de sürme fiili (wird weiter)", "Der CO-Melder wird weiter piepen", "gas"],
+    ["es çıplak 'va' + ulaç = süren zaman", "La alarma de gas va sonando", "gas"],
+    ["yan cümlenin kendi öznesi var → bildirim", "When I got home the CO alarm beeps", "gas"],
+    ["when + kendi özneli yan cümle (duman)", "When I open the door the smoke alarm goes off", "smoke"],
+    ["whenever artık varsayım değil (bildirim)", "Whenever I open the door the smoke alarm goes off", "smoke"],
+    ["yordam + sürüyor beyanı", "When the smoke alarm goes off it keeps going, it is going off right now", "smoke"],
+    ["geçmiş, bittiği söylenmemiş (was beeping)", "This morning the CO alarm was beeping", "gas"],
+    ["geçmiş, bittiği söylenmemiş (beeped)", "This morning the CO alarm beeped three times", "gas"],
+    ["geçmiş + olumsuz bitti ('not fixed')", "Last night the CO alarm went off, it's not fixed yet", "gas"],
+    ["geçmiş + 'hasn't stopped' (çıplak stopped bitti değildir)", "The CO alarm went off last night and hasn't stopped", "gas"],
+    ["tr geçmiş, bitti beyanı yok", "Dün gece duman alarmı öttü", "smoke"],
+    ["geçmiş + yardımcı fiille olumsuz bitti (hasn't been fixed)", "Last night the CO alarm went off and it hasn't been fixed", "gas"],
+    ["geçmiş + didn't get resolved", "Last night the CO alarm went off, didn't get resolved", "gas"],
+    ["yordam biçimi + sürüyor beyanı (won't stop)", "Whenever the CO alarm beeps it won't stop", "gas"],
+    ["bitti beyanı sesten ÖNCE sayılmaz", "Everything is fine, but last night the CO alarm went off", "gas"],
+    ["zaman belirteci yok + bitti → yine ev sahibine (CO)", "The CO alarm went off but it's fine now", "gas"],
+  ])("🚨 %s: %s", (_l, text, kind) => {
+    expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
+    expect(hazardEvidenceOf(text)).toEqual({ level: "clear", kinds: [kind] });
+    expect(isSafetyEmergencyText(text)).toBe(true);
+  });
+
+  it.each([
+    ["es gelecek (va a sonar)", "La alarma de gas va a sonar a las 5 para la prueba", "gas"],
+    ["en gelecek (will beep)", "The CO alarm will beep when the battery is low", "gas"],
+    ["en gelecek ('ll, devam cümlesi)", "Where is the CO alarm? It'll beep twice when you test it", "gas"],
+    ["whenever + dedektör + geniş zaman = yordam", "Whenever the CO alarm beeps, should I open the windows?", "gas"],
+    ["fr yordam (quand l'…)", "Quand l'alarme incendie sonne, que dois-je faire ?", "smoke"],
+    ["es yordam (cuando la …)", "Cuando la alarma de humo suena, ¿qué hago?", "smoke"],
+    ["geçmiş + ardındaki cümlede bitti", "Last night the smoke alarm went off. Everything is fine now.", "smoke"],
+    ["de geçmiş + bitti", "Gestern hat der Rauchmelder gepiept, jetzt ist alles gut", "smoke"],
+    ["es geçmiş + bitti", "Anoche sonó la alarma de humo, ya está bien", "smoke"],
+  ])("KONTROL %s: %s", (_l, text, kind) => {
+    expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(false);
   });
 });

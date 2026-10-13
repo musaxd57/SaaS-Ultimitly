@@ -5,6 +5,8 @@ import { writeAudit } from "@/lib/audit";
 import { createReservationTasks } from "@/lib/automation";
 import { reportError } from "@/lib/report-error";
 import { REACTIVATION_ATTENTION_DAYS, REACTIVATION_BLOCKED_FIELD } from "@/lib/ingest/reactivation";
+import { stayEndedBefore } from "@/modules/availability/core";
+import { orgTimezone } from "@/lib/timezone";
 
 // ---------------------------------------------------------------------------
 // "GERÇEKTEN ETKİN — YENİDEN AÇ" (H2, kurucu kararı 10-13 "Evet, düğme ekle").
@@ -29,12 +31,16 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
   const { id } = await params;
   const reservation = await prisma.reservation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
-    select: { id: true, status: true, departureDate: true },
+    select: { id: true, status: true, departureDate: true, property: { select: { organization: { select: { timezone: true } } } } },
   });
   if (!reservation) return notFound();
   if (reservation.status !== "cancelled") return conflict("not_cancelled", "Bu rezervasyon zaten etkin.");
   // Panel satırıyla aynı kapsam: konaklaması bitmiş rezervasyon yeniden açılmaz (Haiku incelemesi — eskiden rota buna izin veriyordu).
-  if (reservation.departureDate < new Date()) return conflict("past_stay", "Konaklaması bitmiş rezervasyon yeniden açılamaz.");
+  // "Bitmiş" = çıkış günü işletmenin takviminde BUGÜNDEN önce (tek tarih kuralı; çıkış günü açılabilir — çıkış temizliği o gündür).
+  const tz = orgTimezone(reservation.property.organization.timezone);
+  if (stayEndedBefore(reservation.departureDate, new Date(), tz)) {
+    return conflict("past_stay", "Konaklaması bitmiş rezervasyon yeniden açılamaz.");
+  }
 
   const signal = await prisma.ingestEvent.findFirst({
     where: {
@@ -62,8 +68,9 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
     metadata: { reservationId: id },
   });
   // İptal edilmiş rezervasyona üretilmemiş giriş hazırlığı / temizlik görevleri (tekrarsız; geçmiş tarihli konaklamada üretmez). Hata
-  // yanıtı bozmaz: rezervasyon AÇILDI (500 dönmek düğmeyi "zaten etkin" 409'una iterdi); eksik görevi bir sonraki senkron tamamlar, arıza
-  // raporlanır (Haiku incelemesi).
+  // yanıtı bozmaz: rezervasyon AÇILDI (500 dönmek düğmeyi "zaten etkin" 409'una iterdi); arıza raporlanır. Eksik görevi bir sonraki
+  // senkron tamamlar: kanal sinyalini YALNIZ yazma servisi (sağlayıcı senkronu) üretir ve o senkron her turda penceredeki her
+  // rezervasyon için `createReservationTasks` çağırır (hospitable-sync, tekrarsız) — Haiku "senkron görev üretmez" dedi, kodda yanlış çıktı.
   try {
     await createReservationTasks(id);
   } catch (err) {

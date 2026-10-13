@@ -10,6 +10,8 @@ import { heldRequestsByConversation, type HeldRequestSummary } from "@/lib/conve
 import type { ItemKind } from "@/lib/conversation-items/core";
 import { notAutomationMessageWhere } from "@/lib/message-author";
 import { addZonedDays, dateKeyInTimeZone, orgTimezone } from "@/lib/timezone";
+import { reservationDayRangeWhere } from "@/lib/day-where";
+import { todayKey } from "@/modules/availability/core";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
 import { decisionTitle } from "@/lib/decisions/core";
@@ -695,7 +697,7 @@ export async function findAttentionItems(
   // KANAL İPTALLİ REZERVASYONU YENİDEN ETKİN GÖSTERİYOR (G9, kurucu kararı 10-13 "Kanal açmasın, iCal aynı"). Yazma servisi satırı
   // iptal TUTAR ve günde en çok bir olay düşer; burada son REACTIVATION_ATTENTION_DAYS günün olayından, hâlâ iptal olan ve konaklaması
   // bitmemiş rezervasyon başına TEK satır. Kanal etkin göstermeyi bırakınca satır kendiliğinden kalkar. Arıza öteki satırları düşürmez.
-  const reactivated = await findChannelReactivations(organizationId, propertyIds, now).catch((err) => {
+  const reactivated = await findChannelReactivations(organizationId, propertyIds, now, decisionTz).catch((err) => {
     void alertOnTransition("attention:channel-reactivation", "attention channel_reactivation", err).catch(() => {});
     return [];
   });
@@ -722,11 +724,16 @@ export async function findAttentionItems(
   return items.slice(0, ATTENTION_MAX_ITEMS);
 }
 
-/** G9: son günlerde kanalın yeniden etkin gösterdiği, hâlâ iptal ve konaklaması bitmemiş rezervasyonlar (en yeni olayla). */
+/**
+ * G9: son günlerde kanalın yeniden etkin gösterdiği, hâlâ iptal ve konaklaması bitmemiş rezervasyonlar (en yeni olayla). "Bitmemiş" =
+ * çıkış günü işletmenin takviminde BUGÜN ya da sonrası (tek tarih kuralının sorgu ikizi; rota `stayEndedBefore` ile aynı kararı verir —
+ * Haiku incelemesi 10-13: ham `departureDate >= şimdi` çıkış günü sabahı satırı düşürüyordu, oysa çıkış temizliği o gündür).
+ */
 async function findChannelReactivations(
   organizationId: string,
   propertyIds: readonly string[],
   now: Date,
+  tzHint: string | null | undefined,
 ): Promise<{ reservationId: string; propertyId: string; lastSeenAt: Date; conversation: { id: string; channel: string } | null }[]> {
   const events = await prisma.ingestEvent.findMany({
     where: {
@@ -743,12 +750,13 @@ async function findChannelReactivations(
   if (events.length === 0) return [];
   const lastSeen = new Map<string, Date>();
   for (const e of events) if (!lastSeen.has(e.entityId)) lastSeen.set(e.entityId, e.occurredAt);
+  const tz = orgTimezone(tzHint ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone);
   const reservations = await prisma.reservation.findMany({
     where: {
       id: { in: [...lastSeen.keys()] },
       propertyId: { in: [...propertyIds] },
       status: "cancelled",
-      departureDate: { gte: now },
+      AND: [reservationDayRangeWhere("departureDate", { from: todayKey(now, tz), to: null }, tz)],
     },
     select: {
       id: true,

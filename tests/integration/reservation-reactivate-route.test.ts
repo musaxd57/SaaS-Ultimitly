@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { REACTIVATION_BLOCKED_FIELD } from "@/lib/ingest/reactivation";
+import { todayKey } from "@/modules/availability/core";
+import { orgTimezone } from "@/lib/timezone";
 import type { SessionPayload } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
@@ -106,6 +108,22 @@ describe("POST /api/reservations/[id]/reactivate (H2)", () => {
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("past_stay");
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("cancelled");
+  });
+
+  it("çıkış GÜNÜ (yalnız-tarih çapası, işletme takviminde bugün) → panel satırı var + yeniden açılır (tek tarih kuralı, Haiku 10-13)", async () => {
+    const s = await seed();
+    const org = await prisma.organization.findUniqueOrThrow({ where: { id: s.orgId }, select: { timezone: true } });
+    const today = todayKey(new Date(), orgTimezone(org.timezone));
+    // Ham `departureDate < şimdi` kıyası bu satırı çıkış günü sabahı "bitmiş" sayıyordu (00:00Z çapası her zaman geçmişte).
+    await prisma.reservation.update({
+      where: { id: s.reservationId },
+      data: { arrivalDate: new Date(Date.now() - 3 * DAY), departureDate: new Date(`${today}T00:00:00.000Z`) },
+    });
+    session = s.session;
+    expect((await findAttentionItems(s.orgId)).some((i) => i.kind === "channel_reactivation")).toBe(true);
+    const res = await POST(req(s.reservationId), ctx(s.reservationId));
+    expect(res.status).toBe(200);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("confirmed");
   });
 
   it("KONTROL: zaten etkin rezervasyon → 409 not_cancelled", async () => {
