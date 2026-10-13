@@ -265,7 +265,14 @@ const STOP_VERB = /(?:^|\s)(?:stop|stops|stopping|quit|aufhoren|aufgehort|arrete
 /** Almanca ayrılabilir "hört (leider) nicht auf zu piepen" — "hört" ile "nicht" arasında en çok iki sözcük. */
 const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert)(?: \p{L}{1,12}){0,2} nicht auf zu $/u;
 
+/**
+ * "sounds / sounded / sounding" ardından DEĞERLENDİRME gelirse ses değil görüştür (Haiku 15. tur: "Sounds good, the smoke alarm is in the
+ * hall", "The CO alarm sounds like a good idea", "the fire alarm test sounded fine").
+ */
+const SOUNDS_OPINION = /^\s(?:like|good|great|fine|perfect|ok|okay|nice|right|reasonable|interesting|lovely|amazing|awesome|cool|wonderful|excellent|helpful|about|as if|as though|to me|logical|easy|simple)(?![\p{L}\p{N}])/u;
+
 function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
+  if (/^sound(?:s|ed|ing)$/u.test(sentence.slice(s.start, s.end)) && SOUNDS_OPINION.test(sentence.slice(s.end, s.end + 16))) return false;
   const before = sentence.slice(Math.max(0, s.start - 40), s.start);
   // Ses ÇALMIŞ (durdu / artık ötmüyor) → olumsuz denetimi atlanır (↑ STOPPED_NEG).
   const soundedBefore =
