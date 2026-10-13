@@ -4,6 +4,7 @@ import { callStructuredJson } from "./structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
 import { fenceSafe } from "./fence";
+import { stripDividerRuns } from "../divider-spoof";
 import {
   STAY_GUARD_JSON_SCHEMA,
   normalizeHhmm,
@@ -103,8 +104,9 @@ export function guardSeesWholeReply(input: Pick<StayGuardInput, "reply" | "names
 
 export function buildStayGuardUserContent(input: StayGuardInput): string {
   const names = knownNames(input);
+  // G8 (kurucu kararı 10-13): misafir metnindeki istem bölüm çizgisi dizileri tek boşluğa iner (dizisiz metin bayt bayt aynı).
   const clean = (t: string, cap: number, author: "guest" | "ours" = "guest") =>
-    fenceSafe(redactForSemanticModel(t, names, author)).slice(0, cap);
+    fenceSafe(redactForSemanticModel(author === "guest" ? stripDividerRuns(t) : t, names, author)).slice(0, cap);
   const msgs = input.guestMessages
     .filter((m): m is string => typeof m === "string" && m.trim().length > 0)
     .slice(-MAX_GUEST_MESSAGES)

@@ -6,6 +6,7 @@ import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeout
 import { redactForSemanticModel } from "./redact";
 import { nameMaskHidesEmergency } from "../prompt-name-redaction";
 import { fenceSafe } from "./fence";
+import { stripDividerRuns } from "../divider-spoof";
 import { normalizeHhmm, type StayTimes } from "./stay-change";
 import {
   UNDERSTANDING_MAX_UNANSWERED,
@@ -222,8 +223,9 @@ export const MASKED_EMERGENCY_NOTE =
 /** Modele giden kullanıcı içeriği (redakte, ayraçlı, tavanlı). Saf; test edilebilir. */
 export function buildUnderstandingUserContent(input: UnderstandingInput): string {
   const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+  // G8 (kurucu kararı 10-13): misafir metnindeki istem bölüm çizgisi dizileri tek boşluğa iner (dizisiz metin bayt bayt aynı).
   const clean = (t: string, author: "guest" | "ours" = "guest") =>
-    fenceSafe(redactForSemanticModel(t, names, author)).slice(0, UNDERSTANDING_MESSAGE_CAP);
+    fenceSafe(redactForSemanticModel(author === "guest" ? stripDividerRuns(t) : t, names, author)).slice(0, UNDERSTANDING_MESSAGE_CAP);
   // AD MASKESİ ACİL SÖZCÜĞÜ GİZLEDİYSE (Codex önerisi 09-28): ad her zaman silinir; silme cevapsız bir mesajdaki acil durum
   // sözcüğünü de götürdüyse ("Yangın Kaya" adlı misafirin "Dairede yangın var"ı) ayracın DIŞINA kod notu düşülür — ad modele
   // gitmez, acil sinyali kaybolmaz. Yalnız o durumda: başka her mesajda içerik ve önbellek anahtarı bayt bayt eskisi.

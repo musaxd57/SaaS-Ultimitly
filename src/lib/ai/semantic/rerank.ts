@@ -4,6 +4,7 @@ import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "@/lib/ai/semantic/config";
 import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
 import { fenceSafe } from "@/lib/ai/semantic/fence";
+import { stripDividerRuns } from "../divider-spoof";
 import { reportError } from "@/lib/report-error";
 import { chunkItems, chunkKey, type KbChunkSource } from "@/lib/ai/retrieval/chunker";
 import { rerankPerQuestionInfo } from "@/lib/ai/retrieval/flag";
@@ -110,7 +111,8 @@ export function buildRerankRequest(
     const body = fenceSafe(`${c.title} — ${c.text}`.slice(0, RERANK_TEXT_CHARS));
     return `[${id}] <<<${body}>>>`;
   });
-  const question = fenceSafe(redactForSemanticModel(guestMessage.slice(0, RERANK_QUESTION_CHARS), names));
+  // G8 (kurucu kararı 10-13): misafir sorusundaki istem bölüm çizgisi dizileri tek boşluğa iner (dizisiz metin bayt bayt aynı).
+  const question = fenceSafe(redactForSemanticModel(stripDividerRuns(guestMessage.slice(0, RERANK_QUESTION_CHARS)), names));
   return { user: [`Guest message: <<<${question}>>>`, "", "Candidates:", ...lines].join("\n"), ids };
 }
 

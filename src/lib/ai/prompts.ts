@@ -28,6 +28,7 @@ import { ACTION_CLAIMS_PROMPT_BLOCK } from "./action-claims";
 import { buildItemsPromptBlock } from "@/lib/conversation-items/reply-block";
 import { codeGreetingEnabled, withoutCodeGreetingLine } from "./code-greeting";
 import { nameMaskHidesEmergency, promptRedactionNames, redactGuestNamesForPrompt } from "./prompt-name-redaction";
+import { stripDividerRuns } from "./divider-spoof";
 
 // ============================================================================
 // TONE SYSTEM — Detailed guidance for each tone mode
@@ -1481,8 +1482,12 @@ export function buildReplyPrompt(input: SuggestReplyInput): {
     ? promptRedactionNames([reservation?.guestName, reservation?.guestGivenName, input.guestIdentifier])
     : [];
   // Ad YALNIZ kimlik konumunda maskelenir (kurucu kararı 09-30): misafir metninde "adım X" / imza, bizim metnimizde hitap.
-  const shown = (text: string, author: "guest" | "ours" = "guest") =>
-    codeGreeting ? redactGuestNamesForPrompt(text, redactionNames, author) : text;
+  // G8 (kurucu kararı 10-13): misafir metnindeki 3+ çizgi dizisi (istem bölüm çizgisi taklidi) tek boşluğa iner — dizisi olmayan metin
+  // BAYT BAYT aynı (açık eval setlerindeki 1.741 misafir metninin hiçbirinde yok). Bizim metnimize dokunulmaz.
+  const shown = (text: string, author: "guest" | "ours" = "guest") => {
+    const t = author === "guest" ? stripDividerRuns(text) : text;
+    return codeGreeting ? redactGuestNamesForPrompt(t, redactionNames, author) : t;
+  };
 
   // ZAMAN VE KONAKLAMA EVRESİ — KODDA, org diliminde, takvim günü kuralıyla (`stay-timeline.ts`). Eskiden sunucu saati ham
   // damgayla kıyaslanıyordu: çıkış sabahı "konaklama tamamlandı", varıştan önceki akşam "girişe 0 gün" (09-25 ölçüldü).
