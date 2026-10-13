@@ -359,12 +359,19 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
   senkron kanalın gerçek durumuna eşitler. Kiracılar arası test kapsamına eklendi.
 - H3: "Evet, doğrudan ev sahibine" → ✅ `smokeDetectorSounding` (gaz kuralıyla aynı işleyiş: 5 dil, olumsuz, varsayım, devam cümlesi);
   QR'da açık duman, kanalda `safety_emergency`. Eski pin "Duman alarmı ötüyor, pili mi bitti?" → olası idi, şimdi açık (kararın tam konusu).
-  Tam kapıda yakalanan ek düzeltme: geçmişte olup bitmiş ("Last night the smoke alarm went off but it's out now.") anılış kalır; şimdiki
-  zaman ("… and it is still beeping") canlı. Haiku son kontrolü (10-13, ölçülen 6 yanlış negatif kapandı): geçmiş bildirim YALNIZ zaman
-  belirteci + sesin ardında olumsuzlanmamış "bitti" beyanıyla anılıştır ("This morning the CO alarm was beeping" → ev sahibine; "… it hasn't
-  been fixed" → ev sahibine); "is going to keep beeping" / "va sonando" gelecek değil; "When I open the door the smoke alarm goes off" bildirim
-  (yordam yalnız "when" doğrudan dedektörü yönetirse: "When the smoke alarm goes off, what do I do?"). Müşteriye giden metin yok — yalnız
-  yönlendirme (güvenli yön: daha çok ev sahibine). H2 rotası + panel çıkış gününü tek tarih kuralıyla sayar (çıkış günü yeniden açılabilir).
+  Haiku son kontrolü (10-13, ÜÇ tur, her bulgu kodda ölçüldü): "is going to keep beeping" / "va sonando" gelecek değil; "When I open the
+  door the smoke alarm goes off" bildirim (yordam yalnız "when" dedektörü DOĞRUDAN yönetirse: "When the smoke alarm goes off, what do I
+  do?"); devam cümlesinde varsayım / başka ses kaynağı konuma göre okunur. GEÇMİŞ ZAMAN İNDİRİMİ KALDIRILDI (↓ H4): "dün gece öttü, şimdi
+  iyi" ayrımını sözcük listesiyle kurmayı üç tur denedim, her turda yeni yanlış negatif çıktı ("Dün gece gaz alarmı öttü ve kombi durdu",
+  "…bebek sustu", "I checked the boiler and it's fine", "…and we turned off the gas valve"). Müşteriye giden metin yok — yalnız yönlendirme
+  (güvenli yön). H2 rotası + panel çıkış gününü tek tarih kuralıyla sayar (çıkış günü yeniden açılabilir).
+
+**10-13 öğle — YENİ soru (güvenli varsayılan UYGULANDI, isterseniz geri alınır):**
+
+| # | Soru | Bugün (uygulandı) | Seçenek | Örnek |
+|---|---|---|---|---|
+| H4 | Dedektör GEÇMİŞTE öttü, misafir "şimdi iyi" diyor | Ev sahibine (yapay zekâ cevaplamaz) — G4'ün itilmiş hâliyle aynı | Yapay zekâya bırakmak ("olası", model karar verir) — ama "bitti" sözcüğü başka nesneyi anlatabiliyor, gaz acili kaçabilir | "Last night the smoke alarm went off but it's out now." → bugün ev sahibine. "Dün gece gaz alarmı öttü ve kombi durdu." → seçenekte kaçardı (kombi durdu ≠ alarm sustu) |
+
 
 **10-12 gece — yapılanlar (soru gerektirmeyen; müşteriye giden mesaj DEĞİŞMEDİ; her biri Haiku sert incelemesi + mutasyon + tam kapı):**
 - Madde 10 kalan yüzeyler: AI cevap öner rotası ve QR konuşma kayıtları kanalla aynı sınırlı okuyucuya geçti (kâhin: sayfalı okuma = tam okuma).

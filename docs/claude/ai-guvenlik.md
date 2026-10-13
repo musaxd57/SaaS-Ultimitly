@@ -458,9 +458,11 @@
   sesten sonra gelen "eğer / if" acili düşürmez. Yer / varlık sorusu ("dedektör nerede?") acil değil.
 - DUMAN / YANGIN dedektörü de aynı kural (H3, kurucu kararı 10-13 "Evet, doğrudan ev sahibine"; `smokeDetectorSounding`): öterse QR'da açık
   DUMAN tehlikesi, kanalda `safety_emergency`. Yer / varlık sorusu, olumsuz, varsayım, "durdu" bugünkü davranışında.
-- ŞÜPHEDE EV SAHİBİNE (Haiku son kontrolü 10-13): geçmiş bildirim yalnız zaman belirteci + sesin ARDINDA olumsuzlanmamış "bitti" beyanıyla
-  anılış; gelecek zaman istisnası sürme fiilinde yok ("will keep beeping"); "when" yordamı yalnız dedektörü DOĞRUDAN yönetirse (araya ≤1
-  belirleyici) + geniş zaman + sürüyor beyanı yok. Cümle olguları cümle başına BİR KEZ hesaplanır (ses başına tarama karesel idi — süre pini).
+- ŞÜPHEDE EV SAHİBİNE (Haiku son kontrolü 10-13, üç tur): GEÇMİŞ ZAMAN İNDİRİMİ YOK — "dün gece öttü, şimdi iyi" de ev sahibine ("bitti"
+  sözcüğü başka nesneyi anlatabiliyor: "kombi durdu", "bebek sustu"; kurucu sorusu H4). Yalnız sesin KENDİSİ durdu / olumsuz bildirim değil.
+  Gelecek zaman istisnası sürme fiilinde yok ("will keep beeping"); "when" yordamı yalnız dedektörü DOĞRUDAN yönetirse (araya ≤1 belirleyici)
+  + geniş zaman + sürüyor beyanı yok. Devam cümlesi: kendi dedektör adını taşımaz; varsayım ve başka ses kaynağı KONUMA göre okunur. Cümle
+  olguları cümle başına BİR KEZ (ses başına tarama karesel idi — süre pini).
 - Kalıp ekleyen: dil eşleşmesi, olumsuz biçim ve süre pini (`gas-detector-alarm.test.ts`) ile birlikte; ad–fiil eşlemesi sıralı iki işaretçi (O(D+S)).
 
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)

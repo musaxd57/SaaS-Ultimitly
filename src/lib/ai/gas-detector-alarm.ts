@@ -64,6 +64,7 @@ const SOUNDING: Record<Lang, RegExp> = {
   es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|se activo|se ha activado)${E}`, "gu"),
 };
 const LANGS = Object.keys(GAS_DETECTOR) as Lang[];
+const ALL_DETECTORS: readonly RegExp[] = [...Object.values(GAS_DETECTOR), ...Object.values(SMOKE_DETECTOR)];
 /**
  * DİL KARIŞIMI (Haiku incelemesi 10-13): misafir dili karıştırır ("CO alarmı sürekli beep yapıyor"). Ad bir dilde, fiil başka dilde ise
  * YALNIZ başka bir dilde sıradan sözcük OLMAYAN fiiller eşleşir: Fransızca "sonne / sonner" (Almanca "Sonne" = güneş), İspanyolca
@@ -107,52 +108,19 @@ const CONTINUATION_MAX_WORDS = 1;
  * is beeping", "Wo ist der CO-Melder? Piept mein Handy"). YALNIZ devam cümlesinde: aynı cümlede "CO alarmı ve telefonum ötüyor" gerçek
  * bildirimdir, kaçırılmaz.
  */
+const PRONOUN_START = /^(?:it|it's|its|er|es|sie|il|elle|ca|o)(?![\p{L}\p{N}])/u;
 const OTHER_SOUND_SOURCE =
   /(?<![\p{L}\p{N}])(?:phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|dishwasher|fridge|timer|telefon\p{L}{0,6}|zil\p{L}{0,4}|saat\p{L}{0,4}|firin\p{L}{0,4}|mikrodalga\p{L}{0,4}|makine\p{L}{0,4}|buzdolab\p{L}{0,4}|handy|wecker|klingel|telefono|movil|portable|reveil|horno|minuteur)(?![\p{L}\p{N}])/u;
 
 /**
- * GEÇMİŞTE OLUP BİTMİŞ (H3 tam kapısı, eski pin: "Last night the smoke alarm went off but it's out now." → anılış): cümlede geçmiş zaman
- * belirteci VE AYNI cümlede sesin ardında BİTTİ beyanı ("…but it's fine now", "…şimdi sorun yok") varsa geçmiş biçimli ses fiili
- * ("went off", "öttü", "çaldı", "gepiept", "a sonné", "sonó", "was beeping") sayılmaz; şimdiki zaman ("…and it is still beeping",
- * "hâlâ ötüyor") yine canlıdır. Bitti beyanı YOKSA geçmiş bildirim de canlıdır (Haiku son kontrolü 10-13: "This morning the CO alarm
- * was beeping" — bittiğine dair kanıt yok; misafir pil uyarısını gerçek alarmdan ayıramaz, karar ev sahibinin).
+ * GEÇMİŞ ZAMAN İNDİRİMİ YOK (Haiku son kontrolü 10-13, üç tur, ölçüldü): "dün gece öttü, şimdi iyi" ayrımı sözcük listesiyle GÜVENLİ
+ * kurulamıyor — "bitti" sözcüğü başka nesneyi anlatabiliyor ("Dün gece gaz alarmı öttü ve kombi durdu", "…bebek sustu", "I checked the
+ * boiler and it's fine", "…and we turned off the gas valve") ve her turda yeni yanlış negatif çıktı. Kural: dedektör öttü bildirimi
+ * geçmiş zamanda da ev sahibine (G4 itilmiş hâliyle aynı; H3 "öterse doğrudan ev sahibine"). Yalnız SESİN KENDİSİ durdu / olumsuz
+ * ("stopped beeping", "is not beeping") bildirim değildir.
  */
-// Fransızca "hier" (dün) BİLEREK YOK: Almancada "burada" ("Der Rauchmelder hier piept") — Haiku incelemesi 10-13; "hier soir" kalır.
-const PAST_MARKER = /(?:^|\s)(?:last night|yesterday|earlier today|this morning|dun|dun gece|gecen gece|bu sabah|gestern|letzte nacht|heute morgen|hier soir|la nuit derniere|ce matin|ayer|anoche|esta manana)(?![\p{L}\p{N}])/u;
-const PAST_FORM = /^(?:went off|gone off|sounded|beeped|chirped|buzzed|ottu\p{L}*|caldi\p{L}*|bipledi\p{L}*|(?:otuyor|caliyor|bipliyor)du\p{L}*|gepiept|losgegangen|hat angeschlagen|a sonne|s'est declenche|sono|se activo|se ha activado)$/u;
-/** "was / were beeping" — İngilizce geçmiş sürerlik (yardımcı fiil sesin hemen önünde). */
-const PAST_AUX_BEFORE = /(?:^|\s)(?:was|were)\s$/u;
-/**
- * SES SÜRÜYOR / AZ ÖNCE: geçmiş belirteci olsa da canlı ("This morning … went off and it won't stop", "Gestern war alles ok, aber eben hat
- * der Rauchmelder gepiept", "dün gece öttü, hâlâ ötüyor").
- */
+/** SES SÜRÜYOR beyanı — yordam biçimli cümleyi de bildirime çevirir ("When the CO alarm goes off it won't stop"). */
 const ONGOING = /(?:^|\s)(?:won't stop|wont stop|will not stop|doesn't stop|doesnt stop|does not stop|never stops|keeps|still|nonstop|non-stop|right now|just now|hala|halen|surekli|durmadan|az once|demin|eben|gerade|immer noch|hort nicht auf|toujours|a l'instant|en ce moment|sigue|todavia|ahora mismo|recien|no para)(?![\p{L}\p{N}])/u;
-/**
- * BİTTİ beyanı — yalnız AYNI cümlede, sesin ARDINDA ve DURUMUN kendisi hakkında: özneli "it's fine / it's out / everything is ok", "it
- * stopped", "sustu / durdu", "sorun yok", "alles gut", "tout va bien", "todo bien", "false alarm". Haiku son kontrolü (10-13, ölçüldü):
- * EYLEM sözcükleri BAŞKA nesneyi anlatır ve gaz acilinde tehlikenin GERÇEK olduğunu gösterir ("…and we turned off the gas valve", "fırını
- * kapattım", "Der Herd ist aus", "Se apagó la estufa") → bitti DEĞİL; özne-siz "fine now" başka şey olabilir ("the wifi is fine now");
- * ardındaki cümle de güvenilmez ("… We opened the windows and turned off the stove."). Önünde olumsuz / belirsizlik varsa ("not", "I don't
- * know if", "ob", "si") ya da Türkçe soru ekiyle bitiyorsa ("sorun yok mu") sayılmaz. Çıplak "stopped" YOK ("nobody stopped it").
- */
-const ENDED =
-  /(?:^|\s)(?:(?:it|it's|its|it is|everything|everything's|everything is|all|all is|things are) (?:fine|ok|okay|good|quiet|out|over|silent)|(?:it|then|and|finally|eventually|it has|it's) stopped|false alarm|sustu|durdu|sorun yok|sorun kalmadi|simdi iyi|her sey yolunda|yanlis alarm|alles (?:ok|gut|in ordnung)|wieder ruhig|fehlalarm|tout va bien|c'est fini|s'est arrete|fausse alerte|ya paro|ya esta bien|todo bien|ya no suena|falsa alarma)(?![\p{L}\p{N}])(?! m[iu](?![\p{L}\p{N}]))/gu;
-const NEG_BEFORE_ENDED =
-  /(?:^|\s)(?:not|isn't|isnt|wasn't|wasnt|hasn't|hasnt|haven't|havent|didn't|didnt|doesn't|doesnt|won't|wont|never|nicht|nie|no|ne|nunca|jamais|if|whether|ob|si)\s(?:\p{L}{1,12}\s)?$/u;
-
-/**
- * Cümle başına BİR KEZ hesaplanan olgular (maliyet pini: ses başına cümle taraması 50.000 karakterlik "last night … beeped beeped …"
- * mesajında karesel işti — 1,1 sn; yordam okumasında da aynı sınıf). `lastEnded` = olumsuzlanmamış son BİTTİ beyanının yeri (yoksa −1).
- */
-type SentenceFacts = { past: boolean; ongoing: boolean; lastEnded: number };
-function factsOf(sentence: string): SentenceFacts {
-  let lastEnded = -1;
-  for (const m of sentence.matchAll(ENDED)) {
-    const at = m.index ?? 0;
-    if (!NEG_BEFORE_ENDED.test(sentence.slice(Math.max(0, at - 24), at + 1))) lastEnded = at;
-  }
-  return { past: PAST_MARKER.test(sentence), ongoing: ONGOING.test(sentence), lastEnded };
-}
 /**
  * Gelecek zaman sesin hemen önünde ("It will beep for five seconds", "it'll beep", "il va sonner", "va a sonar") — bildirim değil. İKİ
  * istisna (Haiku son kontrolü 10-13): araya giren sözcük SÜRME fiiliyse ses ŞU AN var ("is going to keep beeping until someone comes",
@@ -210,7 +178,7 @@ const STOP_VERB = /(?:^|\s)(?:stop|stops|stopping|quit|aufhoren|aufgehort|arrete
 /** Almanca ayrılabilir "hört (leider) nicht auf zu piepen" — "hört" ile "nicht" arasında en çok iki sözcük. */
 const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert)(?: \p{L}{1,12}){0,2} nicht auf zu $/u;
 
-function liveSound(sentence: string, s: Span, firstHypo: number, f: SentenceFacts): boolean {
+function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
   const before = sentence.slice(Math.max(0, s.start - 40), s.start);
   const stopped = STOPPED_NEG.exec(before);
   if (stopped) {
@@ -221,9 +189,6 @@ function liveSound(sentence: string, s: Span, firstHypo: number, f: SentenceFact
     if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
   }
   if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
-  const verb = sentence.slice(s.start, s.end);
-  const pastShaped = PAST_FORM.test(verb) || PAST_AUX_BEFORE.test(sentence.slice(Math.max(0, s.start - 6), s.start));
-  if (pastShaped && f.past && !f.ongoing && f.lastEnded >= s.end) return false;
   if (futureBefore(sentence, s)) return false;
   return !(firstHypo < s.start);
 }
@@ -251,7 +216,8 @@ export function smokeDetectorSounding(message: string | null | undefined): boole
 function detectorSounding(message: string | null | undefined, DETECTOR: Record<Lang, RegExp>): boolean {
   if (typeof message !== "string" || message.length === 0) return false;
   const sentences = fold(message).split(/[.!?;؟\n]+/u).map((s) => s.trim());
-  const facts = sentences.map(factsOf);
+  // Cümle başına BİR KEZ (maliyet pini: ses başına cümle taraması 50.000 karakterde karesel idi).
+  const ongoing = sentences.map((s) => ONGOING.test(s));
   for (let k = 0; k < sentences.length; k++) {
     const sentence = sentences[k];
     if (sentence.length < 6) continue;
@@ -262,18 +228,22 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
       next.length > 0 &&
       (CONTINUATION_START.test(next) ||
         next.split(" ").length <= CONTINUATION_MAX_WORDS ||
-        // Sürüyor beyanı taşıyan cümle de devamdır (Haiku son kontrolü 10-13: "… We turned it off, but it keeps beeping.", "Kapattık ama
-        // hâlâ ötüyor."); başka ses kaynağı ve varsayım süzgeci aynen.
-        facts[k + 1].ongoing ||
         [...LANGS.map((l) => SOUNDING[l]), CROSS_LANGUAGE_SAFE].some((re) => spans(re, next)[0]?.start === 0)) &&
-      spans(HYPOTHETICAL_ALL, next).length === 0 &&
-      !OTHER_SOUND_SOURCE.test(next);
-    const live = (s: Span) => liveSound(sentence, s, firstHypo, facts[k]);
-    const liveNext = (s: Span) => liveSound(next, s, Infinity, facts[k + 1]);
+      // Kendi dedektör adını taşıyan cümle kendi turunda okunur ("The CO alarm is in the kitchen. The smoke alarm is still beeping." gaz
+      // DEĞİL, duman — Haiku 3. tur).
+      !ALL_DETECTORS.some((re) => spans(re, next).length > 0);
+    // Devam cümlesinde varsayım da SESTEN ÖNCE gelirse sayılır ("It keeps beeping even if I open the window" bildirimdir — Haiku 3. tur).
+    const firstHypoNext = nextIsContinuation ? (spans(HYPOTHETICAL_ALL, next)[0]?.start ?? Infinity) : Infinity;
+    // Başka ses kaynağı devam cümlesini dedektörden koparır ("Now my phone is beeping", "Piept mein Handy"); zamirle başlayan cümlede ses
+    // kaynaktan ÖNCE geliyorsa dedektördür ("It keeps beeping and the phone is ringing too").
+    const otherAt = nextIsContinuation ? (OTHER_SOUND_SOURCE.exec(next)?.index ?? Infinity) : Infinity;
+    const pronounNext = PRONOUN_START.test(next);
+    const live = (s: Span) => liveSound(sentence, s, firstHypo);
+    const liveNext = (s: Span) => (otherAt === Infinity || (pronounNext && s.end <= otherAt)) && liveSound(next, s, firstHypoNext);
     const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter(live);
     const crossNext = firstHypo === Infinity && nextIsContinuation && spans(CROSS_LANGUAGE_SAFE, next).some(liveNext);
     // Yordam okuması yalnız GENİŞ zamanlı ve sürüyor beyanı olmayan sese uygulanır (↑ WHEN_GOVERNS).
-    const procedural = (s: Span) => !facts[k].ongoing && GENERIC_PRESENT.test(sentence.slice(s.start, s.end));
+    const procedural = (s: Span) => !ongoing[k] && GENERIC_PRESENT.test(sentence.slice(s.start, s.end));
     const crossReport = crossSounds.filter((s) => !procedural(s));
     for (const lang of LANGS) {
       const detectors = spans(DETECTOR[lang], sentence);

@@ -81,7 +81,7 @@ describe("olumsuzlama · geçmiş · varsayım · alıntı · çelişen belirtil
     ["There is no smoke, just steam from the kettle.", "mentioned"],
     ["Kein Rauch, nur Dampf vom Wasserkocher.", "mentioned"],
     ["Dün mutfakta küçük bir yangın çıktı ama söndürdük.", "mentioned"],
-    ["Last night the smoke alarm went off but it's out now.", "mentioned"],
+    // "Last night the smoke alarm went off but it's out now." → H3 + geçmiş indirimi yok (10-13): açık duman (gas-detector-alarm.test.ts).
     ["Yangın çıkarsa ne yapmalıyız?", "mentioned"],
     ["Gaz kokusu alırsanız ne yapmalıyım?", "mentioned"],
     ["What should we do in case of fire?", "mentioned"],
