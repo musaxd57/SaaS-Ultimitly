@@ -120,12 +120,10 @@ const CONTINUATION_MAX_WORDS = 1;
  */
 const PRONOUN_START = /^(?:it|it's|its|er|es|sie|il|elle|ca|o)(?![\p{L}\p{N}])/u;
 /**
- * GERİYE ATIF: ses önceki cümlede, bu cümle onu dedektöre BAĞLIYOR ("Something keeps beeping. It's the CO alarm.", "Bir şey sürekli
- * ötüyor. CO alarmıymış.", "Something is beeping. Is it the CO alarm?"). Bu cümlede dedektör adından ÖNCE yalnız tanıtım kalıbı ve
- * belirleyici olabilir; önceki cümlede dedektör adı ve olumsuzlanmamış başka kaynak YOK (Claude 6. tur kendi sondası).
+ * GERİYE ATIF: önceki cümlede AÇIKLANMAMIŞ ses (dedektör adı ve olumsuzlanmamış başka kaynak yok), bu cümle bir dedektörü anıyor →
+ * bildirim ("Something keeps beeping. It's the CO alarm.", "Bir şey sürekli ötüyor. CO alarmıymış.", "Something keeps beeping. Where is
+ * the CO alarm?" — ses dedektör olabilir; karar ev sahibinin). Claude 6. tur sondası; tanıtım kalıbı şartı mutasyonla (V5) gereksiz çıktı.
  */
-const IDENTIFY_PREFIX =
-  /^(?:(?:it's|it is|its|it was|that's|thats|that is|this is|is it|is that|could it be|maybe|probably|i think it's|das ist|das war|es ist|es war|ist es|ist das|c'est|c'etait|est-ce|es el|es la|era el|era la|sera el|sera la|bu|o|sanirim|galiba|herhalde|acaba)\s)?(?:(?:the|my|our|a|an|der|die|das|den|le|la|el|un|une)\s|l')?$/u;
 /** Ses fiilinin hemen önünde özne zamiri ("Last night it went off", "er piept") — devam cümlesi işareti (Haiku 4. tur). */
 const PRONOUN_BEFORE = /(?:^|\s)(?:it|it's|its|er|es|sie|il|elle|ca|o)\s(?:\p{L}{1,12}\s)?$/u;
 const SOURCE_WORDS =
@@ -157,7 +155,28 @@ const CLAUSE_MAX = 160;
 function otherDeviceStopped(sentence: string, s: Span): boolean {
   const window = sentence.slice(Math.max(0, s.start - CLAUSE_MAX), s.start);
   const clause = window.slice(window.lastIndexOf(",") + 1);
-  return firstSourceAt(clause) !== Infinity && !ANY_DETECTOR.test(clause);
+  // Dedektör adı sesten önce (aynı cümlede, pencere içinde) geçiyorsa ses onundur — virgüllü liste dahil ("The CO alarm, the phone and the
+  // kettle stopped beeping" — Haiku 7. tur). Bedeli: "The CO alarm is fine, the microwave stopped beeping" de ev sahibine (güvenli yön).
+  return firstSourceAt(clause) !== Infinity && !ANY_DETECTOR.test(window);
+}
+
+/**
+ * Bu ses BAŞKA bir kaynağın mı? Sesin CÜMLECİĞİNDE (virgülden virgüle) olumsuzlanmamış kaynak adı var — zamirle başlayan cümlecikte ses
+ * kaynaktan ÖNCE geliyorsa değil ("It keeps beeping and the phone is ringing too"). Cümlecik kapsamı (Haiku 7. tur): "Something keeps
+ * beeping, my phone is off" sesi telefona bağlamaz.
+ */
+function soundOfOtherSource(text: string, s: Span): boolean {
+  const lo = Math.max(0, s.start - CLAUSE_MAX);
+  const raw0 = lo + text.slice(lo, s.start).lastIndexOf(",") + 1;
+  const after = text.slice(s.end, s.end + CLAUSE_MAX);
+  const comma = after.indexOf(",");
+  const end = comma < 0 ? s.end + after.length : s.end + comma;
+  const raw = text.slice(raw0, end);
+  const clause = raw.trimStart();
+  const start = raw0 + (raw.length - clause.length);
+  const src = firstSourceAt(clause);
+  if (src === Infinity) return false;
+  return !(PRONOUN_START.test(clause) && s.end - start <= src);
 }
 const ATTRIBUTION = new RegExp(
   `(?:^|\\s)(?:that's|thats|that is|it's|its|it is|this is|das ist|das war|es ist|c'est|es el|es la|es mi|bu|o)\\s(?:just |only |nur |juste |solo |sadece )?(?:my |the |our |a |an |mein |meine |das |der |die |le |la |mon |ma |mi |el |benim )?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`,
@@ -273,51 +292,21 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
   // Cümle başına BİR KEZ (maliyet pini: ses başına cümle taraması 50.000 karakterde karesel idi).
   const ongoing = sentences.map((s) => ONGOING.test(s));
   const hasSound = sentences.map((s) => ANY_SOUND.test(s));
+  const allSounds = (text: string) => [...LANGS.map((l) => SOUNDING[l]), CROSS_LANGUAGE_SAFE].flatMap((re) => spans(re, text));
   for (let k = 0; k < sentences.length; k++) {
     const sentence = sentences[k];
     if (sentence.length < 6) continue;
-    // Dedektör adı yoksa cümle (ve devamı) okunmaz — yoğun kısa cümlelerde sabit maliyeti yarıya indirir (Haiku 5. tur ölçümü).
+    // Dedektör adı yoksa cümle okunmaz — yoğun kısa cümlelerde sabit maliyet (Haiku 5. tur ölçümü).
     const detectorsByLang = LANGS.map((lang) => spans(DETECTOR[lang], sentence));
     if (detectorsByLang.every((d) => d.length === 0)) continue;
     // İlk varsayım sözcüğünün yeri yeter (ses ondan sonraysa varsayımdır) — ses başına tarama yok (maliyet O(S + H)).
     const firstHypo = spans(HYPOTHETICAL_ALL, sentence)[0]?.start ?? Infinity;
-    const next = sentences[k + 1] ?? "";
-    // DEVAM CÜMLESİ ses başına okunur (Haiku 3–4. tur):
-    //  · cümle devam sözcüğüyle / tek sözcükle / sesle başlar ya da sesin hemen önünde özne zamiri var ("Last night it went off");
-    //  · ses, cümledeki İLK dedektör adından ÖNCE ("It keeps beeping, the smoke alarm is fine" → önceki dedektör; "Now the smoke alarm is
-    //    beeping" → öteki dedektörün kendi turu);
-    //  · varsayım sesten ÖNCE gelirse sayılmaz ("It keeps beeping even if I open the window" bildirimdir);
-    //  · başka ses kaynağı ↑ (OTHER_SOUND_SOURCE / ATTRIBUTION).
-    const hasNext = next.length > 0 && firstHypo === Infinity && hasSound[k + 1];
-    const nextStarts = hasNext && (CONTINUATION_START.test(next) || next.split(" ").length <= CONTINUATION_MAX_WORDS);
-    const firstDetectorNext = hasNext ? (ANY_DETECTOR.exec(next)?.index ?? Infinity) : Infinity;
-    const firstHypoNext = hasNext ? (spans(HYPOTHETICAL_ALL, next)[0]?.start ?? Infinity) : Infinity;
-    const otherAt = hasNext ? firstSourceAt(next) : Infinity;
-    const attributed = hasNext && ATTRIBUTION.test(next);
-    const pronounNext = PRONOUN_START.test(next);
     const live = (s: Span) => liveSound(sentence, s, firstHypo);
-    const prev = k > 0 && hasSound[k - 1] ? sentences[k - 1] : "";
-    const identifies = (first: Span | undefined) =>
-      first !== undefined &&
-      prev.length > 0 &&
-      IDENTIFY_PREFIX.test(sentence.slice(0, first.start)) &&
-      !ANY_DETECTOR.test(prev) &&
-      firstSourceAt(prev) === Infinity &&
-      !ATTRIBUTION.test(prev);
-    const firstHypoPrev = prev.length > 0 ? (spans(HYPOTHETICAL_ALL, prev)[0]?.start ?? Infinity) : Infinity;
-    const livePrev = (s: Span) => liveSound(prev, s, firstHypoPrev);
-    const liveNext = (s: Span) =>
-      hasNext &&
-      !attributed &&
-      s.start < firstDetectorNext &&
-      (nextStarts || s.start === 0 || PRONOUN_BEFORE.test(next.slice(Math.max(0, s.start - 20), s.start))) &&
-      (otherAt === Infinity || (pronounNext && s.end <= otherAt)) &&
-      liveSound(next, s, firstHypoNext);
     const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter(live);
-    const crossNext = hasNext && spans(CROSS_LANGUAGE_SAFE, next).some(liveNext);
     // Yordam okuması yalnız GENİŞ zamanlı ve sürüyor beyanı olmayan sese uygulanır (↑ WHEN_GOVERNS).
     const procedural = (s: Span) => !ongoing[k] && GENERIC_PRESENT.test(sentence.slice(s.start, s.end));
     const crossReport = crossSounds.filter((s) => !procedural(s));
+    // 1) AYNI CÜMLE: ad ile canlı ses ≤ NEAR.
     for (const [li, lang] of LANGS.entries()) {
       const detectors = detectorsByLang[li];
       if (detectors.length === 0) continue;
@@ -327,13 +316,36 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
       const sounds = spans(SOUNDING[lang], sentence).filter(live);
       if (anyNear(free, sounds) || anyNear(free, crossSounds)) return true;
       if (governed.length > 0 && (anyNear(governed, sounds.filter((s) => !procedural(s))) || anyNear(governed, crossReport))) return true;
-      // Geriye atıf (↑ IDENTIFY_PREFIX): önceki cümledeki ses bu cümlenin İLK dedektör adına bağlanır.
-      if (identifies(detectors[0]) && [...LANGS.map((l) => SOUNDING[l]), CROSS_LANGUAGE_SAFE].some((re) => spans(re, prev).some(livePrev))) {
-        return true;
+    }
+    // 2) DEVAM CÜMLESİ, ses başına (Haiku 3–7. tur): devam işareti (devam sözcüğü / tek sözcük / sesle başlama / sesin önünde özne zamiri:
+    //    "Last night it went off"); ses cümledeki İLK dedektör adından ÖNCE ("It keeps beeping, the smoke alarm is fine"); varsayım sesten
+    //    ÖNCE gelirse sayılmaz ("…even if I open the window" bildirim); bağlama cümlesi ("that's my phone") ya da sesin cümleciğindeki
+    //    kaynak ("Now my phone is beeping", "Piept mein Handy") koparır.
+    const next = sentences[k + 1] ?? "";
+    if (firstHypo === Infinity && next.length > 0 && hasSound[k + 1] && !ATTRIBUTION.test(next)) {
+      const nextStarts = CONTINUATION_START.test(next) || next.split(" ").length <= CONTINUATION_MAX_WORDS;
+      const firstDetectorNext = ANY_DETECTOR.exec(next)?.index ?? Infinity;
+      const firstHypoNext = spans(HYPOTHETICAL_ALL, next)[0]?.start ?? Infinity;
+      const continues = (s: Span) =>
+        s.start < firstDetectorNext &&
+        (nextStarts || s.start === 0 || PRONOUN_BEFORE.test(next.slice(Math.max(0, s.start - 20), s.start))) &&
+        !soundOfOtherSource(next, s) &&
+        liveSound(next, s, firstHypoNext);
+      for (const [li, lang] of LANGS.entries()) {
+        if (detectorsByLang[li].length > 0 && spans(SOUNDING[lang], next).some(continues)) return true;
       }
-      // Hemen ardındaki kısa devam cümlesi ("…in the kitchen. It keeps beeping!") — ses orada, dedektör burada, varsayım yok.
-      if (hasNext && spans(SOUNDING[lang], next).some(liveNext)) return true;
-      if (crossNext) return true;
+      if (spans(CROSS_LANGUAGE_SAFE, next).some(continues)) return true;
+    }
+    // 3) GERİYE ATIF (↑): önceki (ya da arada sessiz bir cümle varsa bir önceki) cümlede AÇIKLANMAMIŞ canlı ses — dedektör adı yok, bağlama
+    //    yok, sesin cümleciğinde kaynak yok. Geri alma ("Is it the CO alarm? No, it's the kettle.", "It's the CO alarm, no, it's the kettle")
+    //    bağlamayı bu ya da ardındaki cümlede taşır → sayılmaz.
+    const p = k > 0 && hasSound[k - 1] ? k - 1 : k > 1 && hasSound[k - 2] && !ANY_DETECTOR.test(sentences[k - 1]) ? k - 2 : -1;
+    if (p >= 0) {
+      const prev = sentences[p];
+      if (!ANY_DETECTOR.test(prev) && !ATTRIBUTION.test(prev) && !ATTRIBUTION.test(sentence) && !ATTRIBUTION.test(next)) {
+        const firstHypoPrev = spans(HYPOTHETICAL_ALL, prev)[0]?.start ?? Infinity;
+        if (allSounds(prev).some((s) => !soundOfOtherSource(prev, s) && liveSound(prev, s, firstHypoPrev))) return true;
+      }
     }
   }
   return false;
