@@ -54,7 +54,7 @@ const SMOKE_DETECTOR: Record<Lang, RegExp> = {
  */
 const SOUNDING: Record<Lang, RegExp> = {
   tr: new RegExp(
-    `${B}(?:(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|(?:otmeye|calmaya|biplemeye) basla\\p{L}{0,6}|(?:otmeyi|calmayi|biplemeyi) birakti\\p{L}{0,4}|sustu|durdu|durmuyor|bip bip|bip sesi (?:veriyor|cikariyor|geliyor)|ses (?:veriyor|cikariyor)|uyari veriyor|alarm veriyor|otup duruyor|calip duruyor)${E}`,
+    `${B}(?:(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|(?:otmeye|calmaya|biplemeye) basla\\p{L}{0,6}|(?:otmeyi|calmayi|biplemeyi) birakti\\p{L}{0,4}|sustu|durdu|durmuyor|ciglik at(?:iyor|ti)\\p{L}{0,4}|bip bip|bip sesi (?:veriyor|cikariyor|geliyor)|ses (?:veriyor|cikariyor)|uyari veriyor|alarm veriyor|otup duruyor|calip duruyor)${E}`,
     "gu",
   ),
   // "is on" BİLEREK YOK: "the CO detector is on the ceiling" yer cümlesidir.
@@ -77,7 +77,7 @@ const ANY_DETECTOR = new RegExp(
  * İngilizce adla (3. inceleme: "CO dedektörü nerede, telefon ringing" — çalan telefondur).
  */
 const CROSS_LANGUAGE_SAFE = new RegExp(
-  `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|blaring|screaming|shriek(?:s|ing|ed)?|screech(?:es|ing|ed)?|squeal(?:s|ing|ed)?|whin(?:es|ing|ed)|wail(?:s|ing|ed)?|howl(?:s|ing|ed)?|whistl(?:es|ing|ed)|honk(?:s|ing|ed)?|piept|piepst|piepen|piepsen|gepiept|piepton|piepte|piepten|piepste|bipe|bipent|bipait|bipaient|retentit|sonnait|sonnaient|suena|suenan|sonando|sonaba|sonaban|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
+  `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|blaring|scream(?:s|ing|ed)?|shriek(?:s|ing|ed)?|screech(?:es|ing|ed)?|squeal(?:s|ing|ed)?|whin(?:es|ing|ed)|wail(?:s|ing|ed)?|howl(?:s|ing|ed)?|whistl(?:es|ing|ed)|honk(?:s|ing|ed)?|piept|piepst|piepen|piepsen|gepiept|piepton|piepte|piepten|piepste|bipe|bipent|bipait|bipaient|retentit|sonnait|sonnaient|suena|suenan|sonando|sonaba|sonaban|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
   "gu",
 );
 /** Herhangi bir ses fiili (her dil + dil karışımı; başka dilde sözcük olmayan geçmiş süreklilikler — sonnait, sonaba, piepte — yalnız
@@ -331,8 +331,14 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     // Canlı / hava kaynaklı olabilen fiiller (howl, whistle, honk, screech …) AYNI cümlede de öznesine bakar (Haiku 18. tur: "The wind is
     // whistling, where is the CO detector?", "The kids are screeching next to the smoke alarm"). Eski fiillerde bilinçli olarak yok —
     // "CO alarmı ve telefonum ötüyor" gerçek bildirimdir.
+    // Ortak özne: cümlecikte sesten ÖNCE dedektör adı varsa koruma yok ("The CO alarm and the dog are howling" — Haiku 19. tur).
+    const detectorEarlierInClause = (s: Span) => {
+      const w = sentence.slice(Math.max(0, s.start - CLAUSE_MAX), s.start);
+      return ANY_DETECTOR.test(w.slice(w.lastIndexOf(",") + 1));
+    };
     const sameLive = (s: Span) =>
-      live(s) && !(ANIMATE_PRONE.test(sentence.slice(s.start, s.end)) && soundOfOtherSource(sentence, s));
+      live(s) &&
+      !(ANIMATE_PRONE.test(sentence.slice(s.start, s.end)) && soundOfOtherSource(sentence, s) && !detectorEarlierInClause(s));
     const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter(sameLive);
     // Yordam okuması yalnız GENİŞ zamanlı ve sürüyor beyanı olmayan sese uygulanır (↑ WHEN_GOVERNS).
     const procedural = (s: Span) => !ongoing[k] && GENERIC_PRESENT.test(sentence.slice(s.start, s.end));
