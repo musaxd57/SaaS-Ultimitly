@@ -422,6 +422,12 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["fr ne s'arrête pas", "Le détecteur de CO ne s'arrête pas.", "gas"],
     ["es no para", "La alarma de gas no para.", "gas"],
     ["tr durmuyor", "CO alarmı durmuyor.", "gas"],
+    // Haiku 17. tur — eksik ses fiilleri:
+    ["won't stop shrieking", "The CO alarm won't stop shrieking.", "gas"],
+    ["is shrieking", "The smoke alarm is shrieking.", "smoke"],
+    ["keeps screeching", "The CO alarm keeps screeching.", "gas"],
+    ["squealing", "The CO alarm keeps squealing.", "gas"],
+    ["wailing", "The smoke alarm is wailing.", "smoke"],
     ["çıplak ad + sounds", "Where is the CO alarm? Alarm sounds again.", "gas"],
     ["çıplak ad + yer tamlaması", "Where is the CO alarm? The alarm in the kitchen keeps beeping.", "gas"],
     ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
@@ -470,6 +476,7 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["Sounds good + konum", "Sounds good, the smoke alarm is in the hall.", "smoke"],
     ["plan sounds perfect", "That CO detector plan sounds perfect, thanks.", "gas"],
     ["başkasının durmayan eylemi (won't stop + -ing)", "The CO alarm is fine but the kids won't stop crying.", "gas"],
+    ["keeps going on about (konuşma)", "The dog keeps going on about the smoke alarm.", "smoke"],
     // Türkçe ünsüz yumuşaması (çaydanlık → çaydanlığı, müzik → müziği) — kaynak yine tanınır (mutasyon X2: kaynak hiç tanınmıyordu):
     ["tr çaydanlığı ötüyor", "Çaydanlığım sürekli ötüyor. CO alarmı nerede?", "gas"],
     ["tr müziği çalıyor", "Komşunun müziği hâlâ çalıyor. CO dedektörü nerede?", "gas"],

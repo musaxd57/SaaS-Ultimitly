@@ -58,7 +58,7 @@ const SOUNDING: Record<Lang, RegExp> = {
     "gu",
   ),
   // "is on" BİLEREK YOK: "the CO detector is on the ceiling" yer cümlesidir.
-  en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounds|sounding|sounded|ringing|blaring|screaming|(?:won't|wont|will not|doesn't|doesnt|does not|never) stops?(?! \\p{L}{2,}ing)|keeps going)${E}`, "gu"),
+  en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounds|sounding|sounded|ringing|blaring|screaming|shriek(?:s|ing|ed)?|screech(?:es|ing|ed)?|squeal(?:s|ing|ed)?|whin(?:es|ing|ed)|wail(?:s|ing|ed)?|howl(?:s|ing|ed)?|whistl(?:es|ing|ed)|honk(?:s|ing|ed)?|(?:won't|wont|will not|doesn't|doesnt|does not|never) stops?(?! \\p{L}{2,}ing)|keeps going(?! on))${E}`, "gu"),
   de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|klingelte|heulte|schlagt an|schlagt alarm|alarm schlagt|hat angeschlagen|geht los|losgegangen|heult|ertont|hort nicht auf)${E}`, "gu"),
   fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|retentissait|se declenche|s'est declenche|declenche|ne s'arrete pas|s'arrete pas)${E}`, "gu"),
   es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|pitaba|pitaban|se activo|se ha activado|no para(?! de))${E}`, "gu"),
@@ -76,7 +76,7 @@ const ANY_DETECTOR = new RegExp(
  * İngilizce adla (3. inceleme: "CO dedektörü nerede, telefon ringing" — çalan telefondur).
  */
 const CROSS_LANGUAGE_SAFE = new RegExp(
-  `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|blaring|screaming|piept|piepst|piepen|piepsen|gepiept|piepton|piepte|piepten|piepste|bipe|bipent|bipait|bipaient|retentit|sonnait|sonnaient|suena|suenan|sonando|sonaba|sonaban|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
+  `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|blaring|screaming|shriek(?:s|ing|ed)?|screech(?:es|ing|ed)?|squeal(?:s|ing|ed)?|whin(?:es|ing|ed)|wail(?:s|ing|ed)?|howl(?:s|ing|ed)?|whistl(?:es|ing|ed)|honk(?:s|ing|ed)?|piept|piepst|piepen|piepsen|gepiept|piepton|piepte|piepten|piepste|bipe|bipent|bipait|bipaient|retentit|sonnait|sonnaient|suena|suenan|sonando|sonaba|sonaban|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
   "gu",
 );
 /** Herhangi bir ses fiili (her dil + dil karışımı; başka dilde sözcük olmayan geçmiş süreklilikler — sonnait, sonaba, piepte — yalnız
