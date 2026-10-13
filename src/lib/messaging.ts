@@ -36,6 +36,8 @@ export interface SendOutcome {
    * on `error` text via isDefinitiveSendFailure keep working; new code can use this.
    */
   kind?: SendResultKind;
+  /** G10: sağlayıcı 5xx döndü (YALNIZ rapor; tekrar davranışı `ambiguous` ile aynı — `channels/outbound.ts`). */
+  providerOutage?: boolean;
 }
 
 /**
@@ -59,7 +61,13 @@ export async function sendOnChannel(
   // (undefined included — the client's legacy env fallback; V0.3 moves credential
   // resolution behind a connection and can then fail closed here).
   const r = await dispatchOutbound(route.destination, body, { provider: route.destination.provider, token });
-  return { ok: r.ok, error: r.error ?? undefined, providerMessageId: r.providerMessageId ?? null, kind: r.kind };
+  return {
+    ok: r.ok,
+    error: r.error ?? undefined,
+    providerMessageId: r.providerMessageId ?? null,
+    kind: r.kind,
+    ...(r.providerOutage ? { providerOutage: true } : {}),
+  };
 }
 
 /**

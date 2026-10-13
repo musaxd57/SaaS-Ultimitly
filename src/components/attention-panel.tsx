@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarPlus, CalendarRange, CalendarX2, Clock, Hand, HandHeart, Hourglass, LogOut, Repeat, Unplug } from "lucide-react";
+import { AlertTriangle, CalendarPlus, CalendarRange, CalendarX2, Clock, Hand, HandHeart, Hourglass, LogOut, Repeat, RotateCcw, ServerCrash, Unplug } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
@@ -34,6 +34,8 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   commitment_due: HandHeart,
   connection_unhealthy: Unplug,
   booking_gap: CalendarPlus,
+  channel_reactivation: RotateCcw,
+  provider_outage: ServerCrash,
 };
 
 /** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
@@ -88,6 +90,10 @@ function headline(item: AttentionItem): string {
       return item.connectionErrorKind ? "Kanal bağlantısı okunamıyor" : "Kanal senkronu gecikiyor";
     case "booking_gap":
       return `İki konaklama arasında ${item.nights ? nightCount(item.nights.from, item.nights.to) : 1} gece boş görünüyor`;
+    case "channel_reactivation":
+      return "Kanal, iptal edilmiş bir rezervasyonu yeniden etkin gösteriyor";
+    case "provider_outage":
+      return `Kanal sağlayıcısında arıza — ${item.waitingCount ?? 0} mesaj bekliyor`;
   }
 }
 
@@ -132,6 +138,12 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
       const more = (item.gapCount ?? 1) > 1 ? ` · ${(item.gapCount ?? 1) - 1} boşluk daha` : "";
       return `${item.propertyName} · ${range}${more} · kısa konaklamaya açmak isteyebilirsiniz`;
     }
+    case "channel_reactivation":
+      // G9 (kurucu kararı 10-13): rezervasyon kendiliğinden geri AÇILMADI — ev sahibi kanaldan doğrular.
+      return `${item.propertyName} · rezervasyon iptal olarak kaldı · kanaldan kontrol edin`;
+    case "provider_outage":
+      // G10: mesajlar iletilmiş OLABİLİR (sağlayıcı alıp hata vermiş olabilir) → elle yanıtlamadan önce kontrol (çift mesaj riski).
+      return "Tüm daireler · mesajlar iletilmiş olabilir · elle yanıtlamadan önce konuşmaları kanaldan kontrol edin";
   }
 }
 

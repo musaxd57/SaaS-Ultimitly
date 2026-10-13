@@ -116,17 +116,23 @@ export function describeOutboundConformance(label: string, makeHarness: () => Co
       expect(r.kind).toBe("ambiguous");
       expect(h.attempts()).toBe(1);
       expect(h.deliveries()).toBe(0);
+      // G10 (kurucu kararı 10-13): sağlayıcı arızası işareti — YALNIZ rapor; tür ve tekrar davranışı `ambiguous` ile aynı.
+      expect(r.providerOutage).toBe(true);
     });
 
-    it("408 → ambiguous (zaman aşımı sınıfı, definitive DEĞİL)", async () => {
+    it("408 → ambiguous (zaman aşımı sınıfı, definitive DEĞİL) — sağlayıcı arızası SAYILMAZ", async () => {
       h.arrange("status_408");
-      expect((await send()).kind).toBe("ambiguous");
+      const r = await send();
+      expect(r.kind).toBe("ambiguous");
+      expect(r.providerOutage ?? false).toBe(false);
     });
 
     it("ağ zaman aşımı (yanıt yok, POST ulaşmadı) → ambiguous, id yok, TEK deneme", async () => {
       h.arrange("timeout_lost");
       const r = await send();
       expect(r).toMatchObject({ ok: false, kind: "ambiguous", providerMessageId: null });
+      // Ağ hatası / zaman aşımı sağlayıcı arızası SAYILMAZ (bizim tarafımız olabilir) — G10.
+      expect(r.providerOutage ?? false).toBe(false);
       expect(h.attempts()).toBe(1);
       expect(h.deliveries()).toBe(0);
     });

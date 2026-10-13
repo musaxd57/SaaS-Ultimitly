@@ -174,7 +174,7 @@ import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
-import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, NOT_DELIVERED_STATUSES } from "@/lib/outbox/state";
+import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, NOT_DELIVERED_STATUSES, PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 import { resolveOrgChannelCredential } from "@/lib/channels";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
@@ -3506,8 +3506,13 @@ export async function applyChannelAutoReply(
       // `delivery_unverified` metni tam da bunu dürüstçe söylüyor ("iletilmiş
       // OLABİLİR, elle yanıtlamadan önce kanalı kontrol edin") ama üretimde
       // ULAŞILAMAZ bir etiketti (yalnız kuyruk yolundan yazılıyordu).
+      // G10 (kurucu kararı 10-13): sağlayıcı 5xx döndüyse sebep "provider_outage" — davranış AYNI (claim tutulur, kör tekrar yok);
+      // fark yalnız raporda: panelde konuşma başına satır yerine TEK "sağlayıcı arızası — N mesaj bekliyor" satırı.
       await prisma.conversation
-        .updateMany({ where: { id: conversation.id }, data: { skippedReason: "delivery_unverified" } })
+        .updateMany({
+          where: { id: conversation.id },
+          data: { skippedReason: delivery.providerOutage ? PROVIDER_OUTAGE_REASON : "delivery_unverified" },
+        })
         .catch((err) => void reportError("auto-reply-unverified-reason", err));
     }
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };

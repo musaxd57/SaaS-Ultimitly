@@ -1004,6 +1004,33 @@ describe("applyChannelAutoReply", () => {
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     expect(conv?.status).toBe("answered"); // claim HELD — no re-send of a possibly-delivered reply
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+    // Adaptör sağlayıcı arızası işareti vermedi → eski sebep (G10 kontrolü).
+    expect(conv?.skippedReason).toBe("delivery_unverified");
+  });
+
+  it("G10 (kurucu kararı 10-13): sağlayıcı 5xx → sebep 'provider_outage'; davranış AYNI (claim tutulur, kör tekrar yok) + panelde TEK satır", async () => {
+    mockSend.mockResolvedValue({ ok: false, error: "Hospitable API hatası (HTTP 503): down", kind: "ambiguous", providerOutage: true });
+    const a = await seed();
+    await applyChannelAutoReply(a.conversationId);
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: a.conversationId } });
+    expect(conv.status).toBe("answered"); // claim TUTULDU — belirsiz gönderim yeniden modellenmez / gönderilmez
+    expect(conv.skippedReason).toBe("provider_outage");
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    // İkinci geçiş: hiçbir şey yeniden gönderilmez.
+    await applyChannelAutoReply(a.conversationId);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+
+    const { findAttentionItems } = await import("@/modules/intelligence/incidents/attention");
+    const property = await prisma.property.findUniqueOrThrow({ where: { id: conv.propertyId }, select: { organizationId: true } });
+    const rows = (await findAttentionItems(property.organizationId)).filter((i) => i.kind === "provider_outage");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ waitingCount: 1, href: "/inbox", propertyId: "" });
+
+    // Ev sahibi kanaldan kontrol edip ELLE cevap verdi → misafir artık beklemiyor → satır kalkar (Haiku incelemesi 10-13).
+    await prisma.message.create({
+      data: { conversationId: a.conversationId, direction: "outbound", senderName: "Ev sahibi", body: "Merhaba, iletildi mi kontrol ettim." },
+    });
+    expect((await findAttentionItems(property.organizationId)).some((i) => i.kind === "provider_outage")).toBe(false);
   });
 
   it("claim-then-send: backs off (no double-send) when the thread was concurrently claimed (#3b)", async () => {

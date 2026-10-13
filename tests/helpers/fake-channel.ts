@@ -117,7 +117,8 @@ export class FakeOutboundProvider {
       case "blocked":
         return { ok: false, kind: "blocked", error: `Hospitable API hatası (HTTP 402): {"message":"Subscription not active"}`, providerMessageId: null, retryAfterSec: null };
       case "outage":
-        return { ok: false, kind: "ambiguous", error: `Hospitable API hatası (HTTP ${b.status ?? 503}): {"message":"Service Unavailable"}`, providerMessageId: null, retryAfterSec: null };
+        // G10: sağlayıcı arızası YALNIZ rapor işaretidir; tür `ambiguous` kalır (gerçek adaptörle birebir — uyum kiti pinler).
+        return { ok: false, kind: "ambiguous", error: `Hospitable API hatası (HTTP ${b.status ?? 503}): {"message":"Service Unavailable"}`, providerMessageId: null, retryAfterSec: null, providerOutage: true };
       case "status_408":
         return { ok: false, kind: "ambiguous", error: `Hospitable API hatası (HTTP 408): {"message":"Request Timeout"}`, providerMessageId: null, retryAfterSec: null };
       case "timeout":

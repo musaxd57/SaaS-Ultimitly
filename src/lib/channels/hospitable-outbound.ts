@@ -64,6 +64,8 @@ export const hospitableOutboundAdapter: OutboundAdapter = {
       error: r.error ?? null,
       providerMessageId: r.id ?? null,
       retryAfterSec: r.retryAfterSec ?? null,
+      // G10: yalnız rapor (tür `ambiguous` kalır, tekrar davranışı aynı). Ağ hatası / zaman aşımı sağlayıcı arızası SAYILMAZ (bizim tarafımız olabilir).
+      ...(!r.ok && typeof r.status === "number" && r.status >= 500 && r.status <= 599 ? { providerOutage: true } : {}),
     };
   },
 };

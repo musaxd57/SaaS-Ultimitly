@@ -88,6 +88,13 @@ export interface OutboundSendResult {
   providerMessageId?: string | null;
   /** 429'da sağlayıcının Retry-After'ı (saniye). */
   retryAfterSec?: number | null;
+  /**
+   * SAĞLAYICI ARIZASI (G10, kurucu kararı 10-13 "Ekle, tek satır"; talimat değişmez 8): sağlayıcı 5xx döndü. YALNIZ RAPOR içindir —
+   * tür (`kind`) `ambiguous` KALIR ve tekrar davranışı birebir aynıdır (kör tekrar yok: sağlayıcı mesajı alıp sonra hata vermiş
+   * olabilir, kör tekrar misafire İKİ mesaj gönderir). Ayrı bir `kind` BİLİNÇLİ eklenmedi: onu tanımayan bir tüketici varsayılan
+   * dalda "kesin hata" sayıp yeniden gönderebilirdi.
+   */
+  providerOutage?: boolean;
 }
 
 export interface OutboundAdapter<P extends ChannelProviderId = OutboundProvider> {

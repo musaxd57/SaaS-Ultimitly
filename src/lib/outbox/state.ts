@@ -242,6 +242,13 @@ export const SEND_FAILURE_HOLD_MS = 4 * 60 * 60 * 1000;
 export const SEND_RATE_LIMIT_HOLD_MS = 15 * 60 * 1000;
 
 /**
+ * SAĞLAYICI ARIZASI SEBEBİ (G10, kurucu kararı 10-13): belirsiz gönderimin (`ambiguous`) sağlayıcı 5xx'inden geldiği hâl. Davranış
+ * `delivery_unverified` ile BİREBİR aynı (claim tutulur, kör tekrar yok, ekran aynı uyarıyı verir); fark yalnız raporda — panel
+ * konuşma başına satır yerine TEK "sağlayıcı arızası — N mesaj bekliyor" satırı gösterir.
+ */
+export const PROVIDER_OUTAGE_REASON = "provider_outage";
+
+/**
  * Gönderim hatası sınıfı → konuşmaya yazılacak SEBEP KODU.
  * ⚠️ Sağlayıcının HAM hata metni ASLA DB'ye yazılmaz (misafir/rezervasyon
  * ayrıntısı taşıyabilir); host ekranda `SKIP_REASON_LABELS`'tan okunur bir

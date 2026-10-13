@@ -22,6 +22,7 @@ import {
   backoffMs,
   classifySendResult,
   sendFailureReason,
+  PROVIDER_OUTAGE_REASON,
   type OutboxStatus,
   type SendResultKind,
   canTransition,
@@ -716,10 +717,16 @@ async function applyFailureEffect(row: OutboxRow, kind: SendResultKind): Promise
         });
       }
     }
+    // G10 (kurucu kararı 10-13): belirsiz sonucun son denemesi sağlayıcı 5xx'i ise sebep `provider_outage` (satır içi yolla parite;
+    // davranış aynı — satır `review`e park eder, kör tekrar yok). Yalnız bu hata yolunda bir kez okunur.
+    const lastErrorCode =
+      kind === "ambiguous"
+        ? (await prisma.messageOutbox.findUnique({ where: { id: row.id }, select: { lastErrorCode: true } }))?.lastErrorCode ?? null
+        : null;
     await prisma.conversation.updateMany({
       where: { id: row.conversationId, status: "new" },
       data: {
-        skippedReason: sendFailureReason(kind),
+        skippedReason: lastErrorCode && /^HTTP 5\d\d$/.test(lastErrorCode) ? PROVIDER_OUTAGE_REASON : sendFailureReason(kind),
         ...(newerInbound > 0 ? {} : { autoReplyAttemptedAt: convo.lastMessageAt }),
       },
     });

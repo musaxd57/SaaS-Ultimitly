@@ -396,6 +396,9 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   // ÇİFT mesaj alabilir — o yüzden ÖNCE kontrol etmesini söylüyor.
   delivery_unverified:
     "Gönderim sonucu doğrulanamadı — mesaj iletilmiş OLABİLİR. Elle yanıtlamadan önce konuşmayı kanal üzerinden kontrol edin.",
+  // G10 (kurucu kararı 10-13): aynı belirsizlik, sebebi kanal sağlayıcısındaki arıza — aynı uyarı (çift mesaj riski).
+  provider_outage:
+    "Kanal sağlayıcısında arıza — mesaj iletilmiş OLABİLİR. Elle yanıtlamadan önce konuşmayı kanal üzerinden kontrol edin.",
 };
   return (
     <>

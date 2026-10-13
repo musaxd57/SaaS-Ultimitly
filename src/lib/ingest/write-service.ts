@@ -14,6 +14,27 @@ import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/inge
 import { channelMetadataWriteEnabled } from "@/lib/channels/metadata";
 import { recordIngestEvent as emit, INGEST_EVENT_SCHEMA_VERSION } from "./events";
 import type { IngestContext } from "./events";
+import { REACTIVATION_BLOCKED_FIELD, REACTIVATION_NOTE_INTERVAL_MS } from "./reactivation";
+
+/**
+ * G9: kanal iptalli satırı yeniden etkin gösterdi → olay (günde en çok bir kez; 2 dakikalık senkron her geçişte yazmaz). Aynı işlemde
+ * (satırla birlikte commit). Dikkat akışı bu olaydan "kontrol edin" satırı çıkarır.
+ */
+async function noteReactivationBlocked(db: ErasureDb, ctx: IngestContext, reservationId: string): Promise<void> {
+  const recent = await db.ingestEvent.findFirst({
+    where: {
+      organizationId: ctx.organizationId,
+      entityType: "reservation",
+      entityId: reservationId,
+      kind: "reservation.updated",
+      changedFieldsJson: { contains: REACTIVATION_BLOCKED_FIELD },
+      occurredAt: { gte: new Date(Date.now() - REACTIVATION_NOTE_INTERVAL_MS) },
+    },
+    select: { id: true },
+  });
+  if (recent) return;
+  await emit(db, ctx, "reservation", reservationId, "reservation.updated", [REACTIVATION_BLOCKED_FIELD]);
+}
 
 // Event sözleşmesi `./events`'te (V1 ürün akışı: iCal/elle dosya/QR da aynı sözleşmeye bağlı).
 export { INGEST_EVENT_SCHEMA_VERSION } from "./events";
@@ -149,7 +170,13 @@ export async function upsertCanonicalReservation(
     if (!sameInstant(r.arrivalDate, existing.arrivalDate)) data.arrivalDate = r.arrivalDate;
     if (!sameInstant(r.departureDate, existing.departureDate)) data.departureDate = r.departureDate;
     if (r.channel !== existing.channel) data.channel = r.channel;
-    if (r.status !== existing.status) data.status = r.status;
+    // 🚨 İPTAL EDİLMİŞ REZERVASYON KANALDAN KENDİLİĞİNDEN GERİ AÇILMAZ (G9, kurucu kararı 10-13 "Kanal açmasın, iCal aynı"; değişmez
+    // 7 / 17). Eskiden durum koşulsuz yazılıyordu: iptalden sonra eski bir anlık görüntü ("accepted") gelirse satır yeniden onaylı olur,
+    // karşılama / giriş göndericileri ve görev üretimi yeniden devreye girebilirdi. Artık satır iptal kalır; ev sahibine dikkat akışında
+    // "kanal bu rezervasyonu yeniden etkin gösteriyor — kontrol edin" satırı düşer (↓ `noteReactivationBlocked`). Diğer alanlar aynen
+    // eşitlenir. iCal aboneliği (`import/sync.ts`) ve elle dosya yükleme bu yoldan GEÇMEZ — kuralları değişmedi.
+    const reactivationBlocked = existing.status === "cancelled" && r.status !== "cancelled";
+    if (r.status !== existing.status && !reactivationBlocked) data.status = r.status;
     if (r.totalAmount !== null && (r.totalAmount !== existing.totalAmount || currency !== existing.currency)) {
       data.totalAmount = r.totalAmount;
       data.totalAmountDec = toAmountDec(r.totalAmount);
@@ -189,6 +216,7 @@ export async function upsertCanonicalReservation(
         Object.keys(data).filter((k) => !isMetadataKey(k)),
       );
     }
+    if (reactivationBlocked) await noteReactivationBlocked(db, ctx, existing.id);
     return existing.id;
   }
 

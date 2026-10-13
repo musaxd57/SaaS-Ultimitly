@@ -17,6 +17,8 @@ import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-c
 import { connectionHealth, connectionNeedsAttention } from "@/lib/channels/health";
 import { isFounderOrg } from "@/lib/billing/subscription";
 import type { IngestErrorKind } from "@/lib/channels/ingest";
+import { REACTIVATION_ATTENTION_DAYS, REACTIVATION_BLOCKED_FIELD } from "@/lib/ingest/reactivation";
+import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ (okuduğu tablolar başka dilimlerin migration'larıyla geldi).
@@ -42,6 +44,8 @@ import type { IngestErrorKind } from "@/lib/channels/ingest";
 //  · decision_pending     — (10-02, Host Karar Motoru, `HOST_DECISIONS_ENABLED`) ev sahibinin KARARINI bekleyen konaklama isteği
 //                           ("13:00 erken giriş"). Kurucu: "panelde 'karar bekliyor' açık kalır". Karar başına satır; aynı
 //                           konuşmanın "cevapsız" satırının yerini alır.
+//  · channel_reactivation — (10-13, G9) kanal İPTALLİ bir rezervasyonu yeniden etkin gösterdi; satır iptal tutuldu (kendiliğinden
+//                           geri açılmaz), ev sahibi kanaldan kontrol eder.
 //  · calendar_conflict    — (09-24, müsaitlik motoru) önümüzdeki 60 gecede AYNI geceyi
 //                           işgal eden iki rezervasyon. Hiçbir yazma yolu bunu engellemiyor,
 //                           takvim sayfası gece başına mülk saydığı için GÖRÜNMÜYORDU.
@@ -72,6 +76,8 @@ export const ATTENTION_KINDS = [
   "commitment_due",
   "connection_unhealthy",
   "booking_gap",
+  "channel_reactivation",
+  "provider_outage",
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -99,6 +105,9 @@ export const COMMITMENT_SOON_HOURS = 2;
 export const COMMITMENT_STALE_HOURS = 48;
 /** En fazla bu kadar söz satırı (öteki dikkat satırlarını dışarı itmesin). */
 export const COMMITMENT_MAX_ROWS = 3;
+
+/** Sağlayıcı arızası satırı bu kadar saat içinde bu sebeple bekleyen konuşmaları sayar (G10). */
+export const PROVIDER_OUTAGE_WINDOW_HOURS = 48;
 
 /** Liste tavanı: dikkat çekmek için kısa kalmak zorunda. */
 export const ATTENTION_MAX_ITEMS = 8;
@@ -196,6 +205,8 @@ export interface AttentionItem {
   connectionErrorKind?: IngestErrorKind;
   /** Yalnız `connection_unhealthy`: son başarılı okumadan bu yana dakika (hiç yoksa yok). */
   minutesSinceOk?: number;
+  /** Yalnız `provider_outage` (işletme düzeyi): sağlayıcı arızası yüzünden teslimi doğrulanamayan konuşma sayısı. */
+  waitingCount?: number;
 }
 
 export interface FindAttentionOptions {
@@ -382,6 +393,46 @@ export async function findAttentionItems(
         href: "/settings?tab=baglantilar",
         ...(h.state === "error" && h.errorKind ? { connectionErrorKind: h.errorKind } : {}),
         ...(h.minutesSinceOk !== null ? { minutesSinceOk: h.minutesSinceOk } : {}),
+      });
+    }
+    // SAĞLAYICI ARIZASI — TEK SATIR (G10, kurucu kararı 10-13 "Ekle, tek satır"). Sağlayıcı 5xx döndüğünde gönderim belirsizdir (claim
+    // tutulur, kör tekrar yok); eskiden her konuşma ayrı "doğrulanamadı" satırıydı. Burada son PROVIDER_OUTAGE_WINDOW_HOURS saatte bu
+    // sebeple bekleyen konuşmalar SAYILIR → işletme düzeyinde tek satır. Okuma arızası öteki satırları düşürmez.
+    // Yalnız misafirin HÂLÂ beklediği konuşmalar (son görünür mesaj misafirden): ev sahibi elle cevap verdiyse sebep kolonu kalsa da
+    // konuşma sayılmaz (Haiku incelemesi 10-13 — yoksa satır 48 saat "bekliyor" derdi).
+    const outageCount = await prisma.conversation
+      .findMany({
+        where: {
+          propertyId: { in: propertyIds },
+          skippedReason: PROVIDER_OUTAGE_REASON,
+          updatedAt: { gte: new Date(now.getTime() - PROVIDER_OUTAGE_WINDOW_HOURS * HOUR) },
+        },
+        take: CONVERSATION_CANDIDATE_CAP,
+        select: {
+          messages: {
+            where: { systemEventType: null, NOT: { body: "" }, ...notAutomationMessageWhere() },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 1,
+            select: { direction: true },
+          },
+        },
+      })
+      .then((rows) => rows.filter((r) => r.messages[0]?.direction === "inbound").length)
+      .catch((err) => {
+        void alertOnTransition("attention:provider-outage", "attention provider_outage", err).catch(() => {});
+        return 0;
+      });
+    if (outageCount > 0) {
+      items.push({
+        kind: "provider_outage",
+        certainty: "observed",
+        propertyId: "",
+        propertyName: "",
+        // Bağlantı satırıyla aynı sınıf (bütün dairelerin giden mesajı): onun hemen altı.
+        severity: 97,
+        occurredAt: now,
+        href: "/inbox",
+        waitingCount: outageCount,
       });
     }
   }
@@ -637,10 +688,72 @@ export async function findAttentionItems(
     });
   }
 
+  // KANAL İPTALLİ REZERVASYONU YENİDEN ETKİN GÖSTERİYOR (G9, kurucu kararı 10-13 "Kanal açmasın, iCal aynı"). Yazma servisi satırı
+  // iptal TUTAR ve günde en çok bir olay düşer; burada son REACTIVATION_ATTENTION_DAYS günün olayından, hâlâ iptal olan ve konaklaması
+  // bitmemiş rezervasyon başına TEK satır. Kanal etkin göstermeyi bırakınca satır kendiliğinden kalkar. Arıza öteki satırları düşürmez.
+  const reactivated = await findChannelReactivations(organizationId, propertyIds, now).catch((err) => {
+    void alertOnTransition("attention:channel-reactivation", "attention channel_reactivation", err).catch(() => {});
+    return [];
+  });
+  for (const r of reactivated) {
+    items.push({
+      kind: "channel_reactivation",
+      // GÖZLEM: kanalın gönderdiği durum bizim olay kaydımız.
+      certainty: "observed",
+      propertyId: r.propertyId,
+      propertyName: nameById.get(r.propertyId) ?? "",
+      // Gerçekten yeniden açıldıysa misafir karşılama / giriş bilgisi almaz → cevapsız mesajların üstünde, risk satırlarının altında.
+      severity: 85,
+      occurredAt: r.lastSeenAt,
+      href: r.conversation ? conversationHref(r.conversation.id, r.conversation.channel) : `/calendar?property=${encodeURIComponent(r.propertyId)}`,
+    });
+  }
+
   items.sort((a, b) => {
     if (b.severity !== a.severity) return b.severity - a.severity;
     // Eşit önemde ESKİ olan üstte: daha uzun süredir bekliyor.
     return a.occurredAt.getTime() - b.occurredAt.getTime();
   });
   return items.slice(0, ATTENTION_MAX_ITEMS);
+}
+
+/** G9: son günlerde kanalın yeniden etkin gösterdiği, hâlâ iptal ve konaklaması bitmemiş rezervasyonlar (en yeni olayla). */
+async function findChannelReactivations(
+  organizationId: string,
+  propertyIds: readonly string[],
+  now: Date,
+): Promise<{ propertyId: string; lastSeenAt: Date; conversation: { id: string; channel: string } | null }[]> {
+  const events = await prisma.ingestEvent.findMany({
+    where: {
+      organizationId,
+      entityType: "reservation",
+      kind: "reservation.updated",
+      changedFieldsJson: { contains: REACTIVATION_BLOCKED_FIELD },
+      occurredAt: { gte: new Date(now.getTime() - REACTIVATION_ATTENTION_DAYS * 24 * HOUR) },
+    },
+    orderBy: { occurredAt: "desc" },
+    take: 100,
+    select: { entityId: true, occurredAt: true },
+  });
+  if (events.length === 0) return [];
+  const lastSeen = new Map<string, Date>();
+  for (const e of events) if (!lastSeen.has(e.entityId)) lastSeen.set(e.entityId, e.occurredAt);
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      id: { in: [...lastSeen.keys()] },
+      propertyId: { in: [...propertyIds] },
+      status: "cancelled",
+      departureDate: { gte: now },
+    },
+    select: {
+      id: true,
+      propertyId: true,
+      conversations: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 1, select: { id: true, channel: true } },
+    },
+  });
+  return reservations.map((r) => ({
+    propertyId: r.propertyId,
+    lastSeenAt: lastSeen.get(r.id) ?? now,
+    conversation: r.conversations[0] ?? null,
+  }));
 }
