@@ -150,9 +150,9 @@ describe("ekipman / yer / ürün / argo / sigara izni — yalnız anılış", ()
     expect(level("Wir haben einen Rauchmelder im Flur.")).toBe("mentioned");
   });
 
-  it("çalan alarm ekipman anılışını olasıya çevirir (pil mi, gerçek mi — model karar verir)", () => {
-    expect(level("Duman alarmı ötüyor, pili mi bitti?")).toBe("possible");
-    expect(level("Hallo, der Rauchmelder in der Küche gibt alle paar Minuten einen kurzen Piepton von sich.")).toBe("possible");
+  it("🚨 H3 (kurucu kararı 10-13 \"Evet, doğrudan ev sahibine\"): ÖTEN duman alarmı açık duman — pil uyarısı da ev sahibine (önce: olası, karar modeldeydi)", () => {
+    expect(level("Duman alarmı ötüyor, pili mi bitti?")).toBe("clear");
+    expect(level("Hallo, der Rauchmelder in der Küche gibt alle paar Minuten einen kurzen Piepton von sich.")).toBe("clear");
   });
 });
 

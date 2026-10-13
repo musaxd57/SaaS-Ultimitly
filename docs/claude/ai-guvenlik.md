@@ -456,7 +456,8 @@
 - Dil başına fiil kümesi (Almanca "Sonne" ≠ Fransızca "sonne"); Türkçe fiil yalnız kişi / soru / rivayet ekiyle biter ("öttüğünü duymadım"
   eşleşmez); olumsuz (önde ≤2 sözcük, ardında "nicht / pas / nunca") ve SESTEN ÖNCE gelen varsayım ("If the CO alarm goes off…") acil değil;
   sesten sonra gelen "eğer / if" acili düşürmez. Yer / varlık sorusu ("dedektör nerede?") acil değil.
-- Duman dedektörü BU kuralın dışında (bugünkü "olası duman", karar modele) — kurucuya soru H3.
+- DUMAN / YANGIN dedektörü de aynı kural (H3, kurucu kararı 10-13 "Evet, doğrudan ev sahibine"; `smokeDetectorSounding`): öterse QR'da açık
+  DUMAN tehlikesi, kanalda `safety_emergency`. Yer / varlık sorusu, olumsuz, varsayım, "durdu" bugünkü davranışında.
 - Kalıp ekleyen: dil eşleşmesi, olumsuz biçim ve süre pini (`gas-detector-alarm.test.ts`) ile birlikte; ad–fiil eşlemesi sıralı iki işaretçi (O(D+S)).
 
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)

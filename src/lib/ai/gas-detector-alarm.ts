@@ -24,7 +24,7 @@ const E = "(?![\\p{L}\\p{N}])"; // sözcük sonu
 type Lang = "tr" | "en" | "de" | "fr" | "es";
 
 /** Gaz / CO dedektörü adı, dil başına (katlanmış metinde: küçük harf, aksansız, Türkçe harfler ASCII). */
-const DETECTOR: Record<Lang, RegExp> = {
+const GAS_DETECTOR: Record<Lang, RegExp> = {
   // karbonmonoksit / CO / (doğal)gaz + dedektör / alarm / sensör / algılayıcı (+ iyelik / hâl eki); "CO-dedektörü" tireli de.
   tr: new RegExp(`${B}(?:karbon ?monoksit|co|(?:dogal ?)?gaz)[- ](?:kacak |kacagi )?(?:dedektor|detektor|alarm|sensor|algilayici)\\p{L}{0,6}${E}`, "gu"),
   en: new RegExp(`${B}(?:carbon[- ]monoxide|co|gas)[- ](?:detector|alarm|sensor|monitor)s?${E}`, "gu"),
@@ -32,6 +32,18 @@ const DETECTOR: Record<Lang, RegExp> = {
   de: new RegExp(`${B}(?:kohlenmonoxid|co|gas)[- ]?(?:warn)?(?:melder|alarm|sensor)\\p{L}{0,3}${E}`, "gu"),
   fr: new RegExp(`${B}(?:detecteur|alarme|capteur)s? (?:de |d'|a )?(?:monoxyde de carbone|co|gaz)${E}`, "gu"),
   es: new RegExp(`${B}(?:detector|detectores|alarma|alarmas|sensor|sensores) de (?:monoxido de carbono|co|gas)${E}`, "gu"),
+};
+
+/**
+ * DUMAN / YANGIN DEDEKTÖRÜ (H3, kurucu kararı 10-13 "Evet, doğrudan ev sahibine"): aynı kural, aynı fiil / olumsuz / varsayım / devam
+ * cümlesi işleyişi. Evde duman alarmı ile yangın alarmı aynı cihazdır ("smoke alarm" = "fire alarm", "Rauchmelder" = "Brandmelder").
+ */
+const SMOKE_DETECTOR: Record<Lang, RegExp> = {
+  tr: new RegExp(`${B}(?:duman|yangin)[- ](?:dedektor|detektor|alarm|sensor|algilayici)\\p{L}{0,6}${E}`, "gu"),
+  en: new RegExp(`${B}(?:smoke|fire)[- ](?:detector|alarm|sensor)s?${E}`, "gu"),
+  de: new RegExp(`${B}(?:rauch|rauchwarn|brand|feuer|feuerwarn)[- ]?(?:melder|alarm)\\p{L}{0,3}${E}`, "gu"),
+  fr: new RegExp(`${B}(?:detecteur|alarme)s? (?:de |d'|a )?(?:fumee|incendie)${E}`, "gu"),
+  es: new RegExp(`${B}(?:detector|detectores|alarma|alarmas) (?:de|contra) (?:humo|incendios?)${E}`, "gu"),
 };
 
 /**
@@ -51,7 +63,7 @@ const SOUNDING: Record<Lang, RegExp> = {
   fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|se declenche|s'est declenche|declenche)${E}`, "gu"),
   es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|se activo|se ha activado)${E}`, "gu"),
 };
-const LANGS = Object.keys(DETECTOR) as Lang[];
+const LANGS = Object.keys(GAS_DETECTOR) as Lang[];
 /**
  * DİL KARIŞIMI (Haiku incelemesi 10-13): misafir dili karıştırır ("CO alarmı sürekli beep yapıyor"). Ad bir dilde, fiil başka dilde ise
  * YALNIZ başka bir dilde sıradan sözcük OLMAYAN fiiller eşleşir: Fransızca "sonne / sonner" (Almanca "Sonne" = güneş), İspanyolca
@@ -98,6 +110,14 @@ const CONTINUATION_MAX_WORDS = 1;
 const OTHER_SOUND_SOURCE =
   /(?<![\p{L}\p{N}])(?:phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|dishwasher|fridge|timer|telefon\p{L}{0,6}|zil\p{L}{0,4}|saat\p{L}{0,4}|firin\p{L}{0,4}|mikrodalga\p{L}{0,4}|makine\p{L}{0,4}|buzdolab\p{L}{0,4}|handy|wecker|klingel|telefono|movil|portable|reveil|horno|minuteur)(?![\p{L}\p{N}])/u;
 
+/**
+ * GEÇMİŞTE OLUP BİTMİŞ (H3 tam kapısı, eski pin: "Last night the smoke alarm went off but it's out now." → anılış): cümlede geçmiş zaman
+ * belirteci varsa YALNIZ geçmiş biçimli ses fiili ("went off", "öttü", "çaldı", "gepiept", "a sonné", "sonó") sayılmaz; şimdiki
+ * zaman ("…and it is still beeping", "hâlâ ötüyor") yine canlıdır.
+ */
+const PAST_MARKER = /(?:^|\s)(?:last night|yesterday|earlier today|this morning|dun|dun gece|gecen gece|bu sabah|gestern|letzte nacht|heute morgen|hier|la nuit derniere|ce matin|ayer|anoche|esta manana)(?![\p{L}\p{N}])/u;
+const PAST_FORM = /^(?:went off|gone off|sounded|beeped|chirped|buzzed|ottu\p{L}*|caldi\p{L}*|bipledi\p{L}*|gepiept|losgegangen|hat angeschlagen|a sonne|s'est declenche|sono|se activo|se ha activado)$/u;
+
 /** Cümle yakınlığı: ad ile fiil arasında en çok bu kadar karakter (iki yönde de: "Es piept der CO-Melder", "Suena la alarma de gas"). */
 const NEAR = 80;
 
@@ -142,6 +162,7 @@ function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
     if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
   }
   if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
+  if (PAST_FORM.test(sentence.slice(s.start, s.end)) && PAST_MARKER.test(sentence)) return false;
   return !(firstHypo < s.start);
 }
 
@@ -157,6 +178,15 @@ function anyNear(detectors: readonly Span[], sounds: readonly Span[]): boolean {
 
 /** Misafir metni bir gaz / CO dedektörünün ŞU AN (ya da az önce) öttüğünü bildiriyor mu? */
 export function gasDetectorSounding(message: string | null | undefined): boolean {
+  return detectorSounding(message, GAS_DETECTOR);
+}
+
+/** Misafir metni bir duman / yangın dedektörünün ŞU AN (ya da az önce) öttüğünü bildiriyor mu? (H3, kurucu kararı 10-13) */
+export function smokeDetectorSounding(message: string | null | undefined): boolean {
+  return detectorSounding(message, SMOKE_DETECTOR);
+}
+
+function detectorSounding(message: string | null | undefined, DETECTOR: Record<Lang, RegExp>): boolean {
   if (typeof message !== "string" || message.length === 0) return false;
   const sentences = fold(message).split(/[.!?;؟\n]+/u).map((s) => s.trim());
   for (let k = 0; k < sentences.length; k++) {

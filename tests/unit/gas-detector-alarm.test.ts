@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { gasDetectorSounding } from "@/lib/ai/gas-detector-alarm";
+import { gasDetectorSounding, smokeDetectorSounding } from "@/lib/ai/gas-detector-alarm";
 import { hazardEvidenceOf } from "@/lib/ai/hazard-evidence";
 import { isSafetyEmergencyText } from "@/lib/ai/fallback";
 
@@ -86,7 +86,7 @@ const NOT_SOUNDING: Array<[string, string]> = [
   ["Türkçe koşul eki", "Gaz alarmı çalıyorsa ne yapalım?"],
   ["başka cümlede ses", "Can you check the gas bill? Also the alarm clock is beeping"],
   ["CO2 dedektör değil", "The CO2 monitor is beeping"],
-  ["duman dedektörü (bu kuralın konusu değil)", "The smoke detector is beeping"],
+  ["duman dedektörü (gaz kuralının konusu değil — ayrı kural ↓)", "The smoke detector is beeping"],
   // Haiku incelemesi 10-13 — yanlış pozitifler:
   ["tr olumsuz çekim (bip sesi çıkarmıyor)", "CO dedektörü bip sesi çıkarmıyor, pil mi bitti?"],
   ["en olumsuz, araya iki sözcük", "The CO detector is not making any beeps"],
@@ -149,8 +149,8 @@ describe("iki ağ da aynı kuralı okur", () => {
     expect([...r.kinds].sort()).toEqual(["fire", "gas"]);
   });
 
-  it("QR: duman dedektörü bugünkü kuralında (olası duman, karar modele)", () => {
-    expect(hazardEvidenceOf("Der Rauchmelder piept")).toEqual({ level: "possible", kinds: ["smoke"] });
+  it("QR: duman dedektörü öterse açık DUMAN tehlikesi (H3, kurucu 10-13) — gaz değil", () => {
+    expect(hazardEvidenceOf("Der Rauchmelder piept")).toEqual({ level: "clear", kinds: ["smoke"] });
   });
 
   it("kanal: Almanca bileşik önce kaçıyordu, şimdi acil (kırmızı-önce kanıtı bu satır)", () => {
@@ -179,5 +179,51 @@ describe("maliyet — misafir metninde karesel iş yok", () => {
 
   it("tekrarlanan ad + fiil hâlâ doğru sonuç verir (tavan kesmez)", () => {
     expect(gasDetectorSounding(`${"hello ".repeat(10_000)}. The CO alarm is beeping`)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H3 (kurucu kararı 10-13 "Evet, doğrudan ev sahibine"): duman / yangın dedektörü öterse de yapay zekâ cevaplamaz, ev sahibine acil.
+// Önce: QR'da "olası duman" (karar modele) — "The smoke detector is beeping" için model bilgi cevabı yazabiliyordu.
+// ---------------------------------------------------------------------------
+describe("smokeDetectorSounding — duman / yangın dedektörü ötüyor (H3)", () => {
+  it.each([
+    ["en", "The smoke detector is beeping"],
+    ["en (fire alarm)", "The fire alarm went off"],
+    ["tr", "Duman dedektörü ötüyor"],
+    ["tr (yangın alarmı)", "Yangın alarmı çalıyor"],
+    ["de", "Der Rauchmelder piept"],
+    ["de (bileşik)", "Der Rauchwarnmelder piept seit einer Stunde"],
+    ["fr", "Le détecteur de fumée sonne"],
+    ["es", "El detector de humo está sonando"],
+    ["devam cümlesi", "The smoke alarm is in the hallway. It keeps chirping!"],
+    ["geçmiş + hâlâ ötüyor (şimdiki zaman canlı)", "The smoke alarm went off last night and it is still beeping"],
+  ])("🚨 %s: %s → QR açık duman + kanal acil", (_l, text) => {
+    expect(smokeDetectorSounding(text)).toBe(true);
+    expect(hazardEvidenceOf(text)).toEqual({ level: "clear", kinds: ["smoke"] });
+    expect(isSafetyEmergencyText(text)).toBe(true);
+  });
+
+  it.each([
+    ["yer sorusu", "Where is the smoke detector?"],
+    ["olumsuz", "The smoke detector is not beeping"],
+    ["varsayım", "If the smoke alarm goes off, what do we do?"],
+    ["durdu", "The smoke detector stopped beeping an hour ago"],
+    ["söndürücü sorusu", "Is there a fire extinguisher?"],
+    ["geçmişte olup bitmiş (H3 eski pin)", "Last night the smoke alarm went off but it's out now."],
+    ["tr geçmiş (dün gece öttü)", "Dün gece duman dedektörü öttü, şimdi sorun yok"],
+    ["gaz dedektörü (öteki kural)", "The CO alarm is beeping"],
+  ])("KONTROL %s: %s", (_l, text) => {
+    expect(smokeDetectorSounding(text)).toBe(false);
+  });
+
+  it("QR: duman + gaz dedektörü birlikte → iki tür", () => {
+    const r = hazardEvidenceOf("The smoke detector and the CO alarm are both beeping");
+    expect(r.level).toBe("clear");
+    expect([...r.kinds].sort()).toEqual(["gas", "smoke"]);
+  });
+
+  it("KONTROL: yer sorusu QR'da açık tehlike DEĞİL (bugünkü davranış)", () => {
+    expect(hazardEvidenceOf("Where is the smoke detector?").level).toBe("mentioned");
   });
 });

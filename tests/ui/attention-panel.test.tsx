@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// H2 düğmesi istemci bileşeni (`useRouter`) — uygulama yönlendiricisi testte yok.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => "/dashboard" }));
 import { AttentionPanel } from "@/components/attention-panel";
 import type { AttentionItem } from "@/modules/intelligence/incidents/attention";
 
@@ -210,5 +213,54 @@ describe("AttentionPanel", () => {
     expect(screen.getByText(/kayıtlardan biri güncel olmayabilir, doğrulayın/)).toBeTruthy();
     // Tutar satırı YOK — ne "olası gelir" ne "risk altındaki tutar" ne "aralığını ekleyin" çağrısı.
     expect(screen.queryByText(/gelir|Risk altındaki tutar|fiyat aralığını/)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G9 / G10 / H2 (kurucu kararları 10-13): kanal iptal edilmiş rezervasyonu yeniden etkin gösteriyor (+ "yeniden aç" düğmesi yalnız
+// sahip / yönetici) · sağlayıcı arızası TEK satır.
+// ---------------------------------------------------------------------------
+describe("AttentionPanel — kanal yeniden etkin + sağlayıcı arızası", () => {
+  const reactivation: AttentionItem = {
+    ...base,
+    kind: "channel_reactivation",
+    certainty: "observed",
+    severity: 85,
+    href: "/inbox/c9",
+    reservationId: "res-9",
+  };
+
+  it("G9 satırı: iptal olarak kaldı, kanaldan kontrol çağrısı", () => {
+    render(<AttentionPanel items={[reactivation]} />);
+    expect(screen.getByText("Kanal, iptal edilmiş bir rezervasyonu yeniden etkin gösteriyor")).toBeTruthy();
+    expect(screen.getByText(/rezervasyon iptal olarak kaldı · kanaldan kontrol edin/)).toBeTruthy();
+  });
+
+  it("H2: 'yeniden aç' düğmesi YALNIZ yönetebilen kullanıcıda; bağlantının DIŞINDA", () => {
+    const { rerender } = render(<AttentionPanel items={[reactivation]} />);
+    expect(screen.queryByRole("button", { name: /yeniden aç/ })).toBeNull();
+    rerender(<AttentionPanel items={[reactivation]} canManageReservations />);
+    const btn = screen.getByRole("button", { name: /yeniden aç/ });
+    expect(btn.closest("a")).toBeNull();
+  });
+
+  it("H2: başka satır türünde düğme yok (yönetebilen kullanıcıda da)", () => {
+    render(
+      <AttentionPanel
+        items={[{ ...base, kind: "unanswered_aging", certainty: "observed", severity: 60, href: "/inbox/c1", hoursWaiting: 7 }]}
+        canManageReservations
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /yeniden aç/ })).toBeNull();
+  });
+
+  it("G10: sağlayıcı arızası tek satır, bekleyen sayısı ve 'iletilmiş olabilir' uyarısı", () => {
+    render(
+      <AttentionPanel
+        items={[{ ...base, propertyId: "", propertyName: "", kind: "provider_outage", certainty: "observed", severity: 97, href: "/inbox", waitingCount: 12 }]}
+      />,
+    );
+    expect(screen.getByText("Kanal sağlayıcısında arıza — 12 mesaj bekliyor")).toBeTruthy();
+    expect(screen.getByText(/mesajlar iletilmiş olabilir · elle yanıtlamadan önce konuşmaları kanaldan kontrol edin/)).toBeTruthy();
   });
 });

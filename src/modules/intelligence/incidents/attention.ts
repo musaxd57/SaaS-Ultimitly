@@ -207,6 +207,8 @@ export interface AttentionItem {
   minutesSinceOk?: number;
   /** Yalnız `provider_outage` (işletme düzeyi): sağlayıcı arızası yüzünden teslimi doğrulanamayan konuşma sayısı. */
   waitingCount?: number;
+  /** Yalnız `channel_reactivation`: "yeniden aç" düğmesinin hedefi (H2). */
+  reservationId?: string;
 }
 
 export interface FindAttentionOptions {
@@ -708,6 +710,7 @@ export async function findAttentionItems(
       severity: 85,
       occurredAt: r.lastSeenAt,
       href: r.conversation ? conversationHref(r.conversation.id, r.conversation.channel) : `/calendar?property=${encodeURIComponent(r.propertyId)}`,
+      reservationId: r.reservationId,
     });
   }
 
@@ -724,7 +727,7 @@ async function findChannelReactivations(
   organizationId: string,
   propertyIds: readonly string[],
   now: Date,
-): Promise<{ propertyId: string; lastSeenAt: Date; conversation: { id: string; channel: string } | null }[]> {
+): Promise<{ reservationId: string; propertyId: string; lastSeenAt: Date; conversation: { id: string; channel: string } | null }[]> {
   const events = await prisma.ingestEvent.findMany({
     where: {
       organizationId,
@@ -754,6 +757,7 @@ async function findChannelReactivations(
     },
   });
   return reservations.map((r) => ({
+    reservationId: r.id,
     propertyId: r.propertyId,
     lastSeenAt: lastSeen.get(r.id) ?? now,
     conversation: r.conversations[0] ?? null,

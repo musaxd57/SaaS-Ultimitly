@@ -348,6 +348,20 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
 | H2 | G9 "Yeniden aç" düğmesi | Kanal gerçekten yeniden etkinleştirdiyse (misafir rezervasyonu geri aldı) Lixus'ta rezervasyonu elle açacak bir yol yok — karşılama / giriş mesajı gitmez | Dikkat satırına "Gerçekten etkin — yeniden aç" düğmesi (sahip / yönetici; denetim kaydı) | Bugün: satır "kanaldan kontrol edin" der, düzeltme yolu yok. Sonra: tek tıkla "onaylı"ya döner |
 | H3 | Duman dedektörü öterse | Bugün "olası duman" (karar modele); G4 yalnız gaz / CO dedektörü | Duman dedektörü öterse de deterministik ev sahibine (yapay zekâ cevaplamaz) | "The smoke detector is beeping" → bugün model karar verir; sonra doğrudan ev sahibine |
 
+**10-13 — kurucu cevapları (H1–H3, soru ekranından):**
+- H1: "bundan önce müşteri olarak kimse kullanmadı tek kendi 10 daireli hesabım vardı … benden başka tanıdık 1 2 kişi yaptı gerek var mı?" →
+  CEVABIM: gerek yok (saklama 24 ay; G7'den önce süpürülmüş kayıt varsa yalnız kurucu / tanıdık verisi; gerçek müşteri verisi 24 aya ulaşmadan G7
+  devrede). Migration YOK. Railway açılınca salt-okuma sayım (`guestIdentifier = ANON_ID` konuşmalarında telefon / e-posta kalıbı taşıyan giden
+  gövde sayısı) → 0 ise kapanır.
+- H2: "Evet, düğme ekle" → ✅ panel satırında "Gerçekten etkin — yeniden aç" (yalnız sahip / yönetici; onay penceresi; bürünmede yazma yok).
+  Rota `POST /api/reservations/[id]/reactivate`: yalnız İPTAL ve son 3 günde kanal sinyali olan rezervasyon (yoksa 409), koşullu yazma,
+  denetim kaydı ("Kanal yeniden etkin gösterdi — rezervasyon yeniden açıldı"), eksik yaşam döngüsü görevleri tekrarsız oluşturulur; sonraki
+  senkron kanalın gerçek durumuna eşitler. Kiracılar arası test kapsamına eklendi.
+- H3: "Evet, doğrudan ev sahibine" → ✅ `smokeDetectorSounding` (gaz kuralıyla aynı işleyiş: 5 dil, olumsuz, varsayım, devam cümlesi);
+  QR'da açık duman, kanalda `safety_emergency`. Eski pin "Duman alarmı ötüyor, pili mi bitti?" → olası idi, şimdi açık (kararın tam konusu).
+  Tam kapıda yakalanan ek düzeltme: geçmişte olup bitmiş ("Last night the smoke alarm went off but it's out now.") anılış kalır — geçmiş
+  zaman belirteci + geçmiş biçimli fiil sayılmaz; şimdiki zaman ("… and it is still beeping") canlı.
+
 **10-12 gece — yapılanlar (soru gerektirmeyen; müşteriye giden mesaj DEĞİŞMEDİ; her biri Haiku sert incelemesi + mutasyon + tam kapı):**
 - Madde 10 kalan yüzeyler: AI cevap öner rotası ve QR konuşma kayıtları kanalla aynı sınırlı okuyucuya geçti (kâhin: sayfalı okuma = tam okuma).
   QR'da cevapsız uzun konuşma için okuma 2.000 satırda durur (kayıt bloğu yazılmaz, hata kaydı düşer); başka işletmenin konuşmasında aşama

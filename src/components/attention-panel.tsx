@@ -8,6 +8,7 @@ import type { MoneyImpact } from "@/modules/intelligence/money/impact";
 import { itemKindLabel } from "@/lib/conversation-items/view";
 import { COMMITMENT_KIND_LABELS, commitmentDurationLabel } from "@/lib/guest-commitments-core";
 import { CONNECTION_ERROR_TEXT, CONNECTION_ERROR_TEXT_VIEWER, agoLabel } from "@/lib/channels/health";
+import { ReactivateReservationButton } from "@/components/reactivate-reservation-button";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "Dikkat Gerektirenler" kartı.
@@ -173,10 +174,13 @@ export function moneyLine(m: MoneyImpact | undefined): { text: string; hint?: st
 export function AttentionPanel({
   items,
   canManageChannel = false,
+  canManageReservations = false,
 }: {
   items: AttentionItem[];
   /** Kanal bağlantısını onarabilir mi (sahip / operatör) — değilse bağlantı satırı nötr çağrı yapar. */
   canManageChannel?: boolean;
+  /** Rezervasyonu yeniden açabilir mi (sahip / yönetici; H2 düğmesi) — personel düğmeyi görmez (rota da 403 döner). */
+  canManageReservations?: boolean;
 }) {
   // 🚨 Sessiz gün = hiç render yok.
   if (items.length === 0) return null;
@@ -193,11 +197,13 @@ export function AttentionPanel({
       <CardContent className="space-y-2">
         {items.map((item) => {
           const Icon = ICONS[item.kind];
-          return (
+          const reopen =
+            item.kind === "channel_reactivation" && item.reservationId && canManageReservations ? item.reservationId : null;
+          const row = (
             <Link
               key={`${item.kind}:${item.href}:${item.occurredAt.getTime()}`}
               href={item.href}
-              className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 hover:bg-accent"
+              className="flex min-w-0 flex-1 items-start gap-3 rounded-lg border border-border px-3 py-2 hover:bg-accent"
             >
               <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
@@ -224,6 +230,15 @@ export function AttentionPanel({
                 })()}
               </div>
             </Link>
+          );
+          // H2: "yeniden aç" düğmesi bağlantının DIŞINDA (bağlantı içinde düğme geçersiz HTML; tık satırı açmamalı).
+          return reopen ? (
+            <div key={`${item.kind}:${item.href}:${item.occurredAt.getTime()}`} className="flex items-center gap-2">
+              {row}
+              <ReactivateReservationButton reservationId={reopen} />
+            </div>
+          ) : (
+            row
           );
         })}
       </CardContent>

@@ -2,7 +2,7 @@ import type { Priority } from "@/lib/constants";
 import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
 import { guestFirstNameOf } from "@/lib/kb-placeholders";
 import { codeGreetingEnabled, salutationNameOf } from "./code-greeting";
-import { gasDetectorSounding } from "./gas-detector-alarm";
+import { gasDetectorSounding, smokeDetectorSounding } from "./gas-detector-alarm";
 import { hasDividerHeaderSpoof } from "./divider-spoof";
 
 // Deterministic, keyword-based AI fallback. Used when no OPENAI_API_KEY is set,
@@ -2568,6 +2568,9 @@ export function isSafetyEmergencyText(message: string): boolean {
     if (SAFETY_CRITICAL_PATTERNS.some((re) => re.test(std) || re.test(tr) || re.test(ascii))) return true;
     // G4 (kurucu kararı 10-13): gaz / CO dedektörü ÖTÜYOR → olası gaz acili (dedektörün yeri / varlığı sorusu değil). Tek kaynak QR ile ortak.
     if (gasDetectorSounding(ascii)) return true;
+    // H3 (kurucu kararı 10-13): duman / yangın dedektörü ÖTÜYOR → aynı (çıplak "duman / smoke / rauchmelder" zaten acil; bileşikler —
+    // "Rauchwarnmelder", "Brandmelder" — ve "fire alarm going off" için tek kaynak QR ile ortak).
+    if (smokeDetectorSounding(ascii)) return true;
   }
   return false;
 }

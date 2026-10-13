@@ -1,5 +1,5 @@
 import { foldTurkishAscii, neutralizeNonEmergency } from "@/lib/ai/fallback";
-import { gasDetectorSounding } from "@/lib/ai/gas-detector-alarm";
+import { gasDetectorSounding, smokeDetectorSounding } from "@/lib/ai/gas-detector-alarm";
 
 // ---------------------------------------------------------------------------
 // FİZİKSEL TEHLİKE KANITI — bağlam ilkesi (kurucu kararı 10-02 akşam, Sabah Kararları 51 + 55). Saf, LLM'siz, deterministik.
@@ -642,9 +642,13 @@ export function hazardEvidenceOf(message: string | null | undefined): HazardEvid
   // G4 (kurucu kararı 10-13 "Olası gaz acili say"): gaz / CO dedektörü ÖTÜYOR → açık gaz tehlikesi (model çağrılmaz, ev sahibine kritik
   // bildirim). Kanal ağıyla tek kaynak ve AYNI girdi sınıfı: K6 nötrlemesi sonrası, ALINTI SİLİNMEDEN (kanal ağı alıntıyı silmez;
   // `CO dedektörü "bip bip" yapıyor` iki ağda aynı sonuç — Haiku incelemesi 10-13). Başka açık tür varsa korunur.
-  if (gasDetectorSounding(contextual)) {
+  // H3 (kurucu kararı 10-13 "Evet, doğrudan ev sahibine"): duman / yangın dedektörü ötüyor → aynı şekilde açık duman tehlikesi.
+  const gasAlarm = gasDetectorSounding(contextual);
+  const smokeAlarm = smokeDetectorSounding(contextual);
+  if (gasAlarm || smokeAlarm) {
     if (best.level !== "clear") kinds.clear();
-    kinds.add("gas");
+    if (gasAlarm) kinds.add("gas");
+    if (smokeAlarm) kinds.add("smoke");
     return { level: "clear", kinds: [...kinds] };
   }
   return { level: best.level, kinds: best.level === "clear" || best.level === "possible" ? [...kinds] : [] };

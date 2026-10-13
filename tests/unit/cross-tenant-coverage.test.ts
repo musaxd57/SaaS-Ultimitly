@@ -51,6 +51,7 @@ const COVERAGE: Record<string, Record<string, string>> = {
   "reservations/[id]": { PATCH: "tests/integration/cross-tenant-handlers.test.ts", DELETE: "tests/integration/cross-tenant-handlers.test.ts" },
   "reservations/[id]/chat-pin": { POST: "tests/integration/reservation-chat-pin-route.test.ts", DELETE: "tests/integration/reservation-chat-pin-route.test.ts" },
   "reservations/[id]/erase": { GET: "tests/integration/reservation-erase-route.test.ts", POST: "tests/integration/reservation-erase-route.test.ts" },
+  "reservations/[id]/reactivate": { POST: "tests/integration/reservation-reactivate-route.test.ts" },
   "storage/photo/[...key]": { GET: "tests/integration/storage-wiring.test.ts" },
   "tasks/[id]": { PATCH: "tests/integration/tasks-route.test.ts", DELETE: "tests/integration/tasks-route.test.ts" },
   "templates/[id]": { PATCH: "tests/integration/templates-route.test.ts", DELETE: "tests/integration/cross-tenant-handlers-more.test.ts" },
