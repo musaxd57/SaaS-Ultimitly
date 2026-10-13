@@ -469,6 +469,9 @@
   açıklanmamış sesten sonra dedektör anılırsa bildirim ("Something keeps beeping. Where is the CO alarm?"); geri alma ("No, the kettle")
   sayılmaz. Yanlış pozitifi azaltan her kural Haiku turunda tehlikeli yönde kaçırma üretti — önce kaçırma, sonra gürültü. Bilinen sınırlar
   (düşük, güvenli yön): ek açıklama ("Still beeping, the dryer."), eksiltili ("…and so did the CO alarm"), "building next door".
+  Devam cümlesinde dil değişimi: başka dilin ses fiili yalnız özne zamiri / çıplak dedektör adı HEMEN önündeyse ("Where is the CO alarm?
+  Il sonne."). "sounds / sounded" + değerlendirme ("sounds good / like / great") görüştür, ses değil. KAPSAM: niteleyicisiz "alarm"
+  (CO / gaz / duman yok) tek başına bildirim DEĞİL — G4/H3 kapsamı dışında; genişletmek kurucu kararı.
 - Kalıp ekleyen: dil eşleşmesi, olumsuz biçim ve süre pini (`gas-detector-alarm.test.ts`) ile birlikte; ad–fiil eşlemesi sıralı iki işaretçi (O(D+S)).
 
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)
