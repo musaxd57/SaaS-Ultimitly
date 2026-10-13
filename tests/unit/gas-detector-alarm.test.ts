@@ -198,6 +198,11 @@ describe("smokeDetectorSounding — duman / yangın dedektörü ötüyor (H3)", 
     ["es", "El detector de humo está sonando"],
     ["devam cümlesi", "The smoke alarm is in the hallway. It keeps chirping!"],
     ["geçmiş + hâlâ ötüyor (şimdiki zaman canlı)", "The smoke alarm went off last night and it is still beeping"],
+    // Haiku incelemesi (H3) — yanlış negatifler:
+    ["geçmiş belirteci + sürüyor (won't stop)", "This morning the smoke alarm went off and it won't stop"],
+    ["de 'eben' (az önce)", "Gestern war alles ok, aber eben hat der Rauchmelder gepiept"],
+    ["de 'hier' = burada (Fransızca dün değil)", "Der Rauchmelder hier hat gepiept"],
+    ["de 'schlägt Alarm'", "Der Rauchmelder schlägt Alarm"],
   ])("🚨 %s: %s → QR açık duman + kanal acil", (_l, text) => {
     expect(smokeDetectorSounding(text)).toBe(true);
     expect(hazardEvidenceOf(text)).toEqual({ level: "clear", kinds: ["smoke"] });
@@ -212,6 +217,11 @@ describe("smokeDetectorSounding — duman / yangın dedektörü ötüyor (H3)", 
     ["söndürücü sorusu", "Is there a fire extinguisher?"],
     ["geçmişte olup bitmiş (H3 eski pin)", "Last night the smoke alarm went off but it's out now."],
     ["tr geçmiş (dün gece öttü)", "Dün gece duman dedektörü öttü, şimdi sorun yok"],
+    // Haiku incelemesi (H3) — yanlış pozitifler:
+    ["tr geçmiş sürerlik (ötüyordu, sustu)", "Dün gece duman alarmı ötüyordu, şimdi sustu."],
+    ["en geçmiş sürerlik (was beeping)", "Last night the smoke alarm was beeping but it's fine now"],
+    ["planlı test + gelecek zaman", "The fire alarm test is on Monday. It will beep for five seconds."],
+    ["yordam sorusu (when + geniş zaman)", "When the smoke alarm goes off, what do I do?"],
     ["gaz dedektörü (öteki kural)", "The CO alarm is beeping"],
   ])("KONTROL %s: %s", (_l, text) => {
     expect(smokeDetectorSounding(text)).toBe(false);

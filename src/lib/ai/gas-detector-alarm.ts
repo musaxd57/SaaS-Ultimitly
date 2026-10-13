@@ -59,7 +59,7 @@ const SOUNDING: Record<Lang, RegExp> = {
   ),
   // "is on" BİLEREK YOK: "the CO detector is on the ceiling" yer cümlesidir.
   en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|ringing|blaring|screaming)${E}`, "gu"),
-  de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|schlagt an|hat angeschlagen|geht los|losgegangen|heult|ertont)${E}`, "gu"),
+  de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|schlagt an|schlagt alarm|alarm schlagt|hat angeschlagen|geht los|losgegangen|heult|ertont)${E}`, "gu"),
   fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|se declenche|s'est declenche|declenche)${E}`, "gu"),
   es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|se activo|se ha activado)${E}`, "gu"),
 };
@@ -115,8 +115,21 @@ const OTHER_SOUND_SOURCE =
  * belirteci varsa YALNIZ geçmiş biçimli ses fiili ("went off", "öttü", "çaldı", "gepiept", "a sonné", "sonó") sayılmaz; şimdiki
  * zaman ("…and it is still beeping", "hâlâ ötüyor") yine canlıdır.
  */
-const PAST_MARKER = /(?:^|\s)(?:last night|yesterday|earlier today|this morning|dun|dun gece|gecen gece|bu sabah|gestern|letzte nacht|heute morgen|hier|la nuit derniere|ce matin|ayer|anoche|esta manana)(?![\p{L}\p{N}])/u;
-const PAST_FORM = /^(?:went off|gone off|sounded|beeped|chirped|buzzed|ottu\p{L}*|caldi\p{L}*|bipledi\p{L}*|gepiept|losgegangen|hat angeschlagen|a sonne|s'est declenche|sono|se activo|se ha activado)$/u;
+// Fransızca "hier" (dün) BİLEREK YOK: Almancada "burada" ("Der Rauchmelder hier piept") — Haiku incelemesi 10-13; "hier soir" kalır.
+const PAST_MARKER = /(?:^|\s)(?:last night|yesterday|earlier today|this morning|dun|dun gece|gecen gece|bu sabah|gestern|letzte nacht|heute morgen|hier soir|la nuit derniere|ce matin|ayer|anoche|esta manana)(?![\p{L}\p{N}])/u;
+const PAST_FORM = /^(?:went off|gone off|sounded|beeped|chirped|buzzed|ottu\p{L}*|caldi\p{L}*|bipledi\p{L}*|(?:otuyor|caliyor|bipliyor)du\p{L}*|gepiept|losgegangen|hat angeschlagen|a sonne|s'est declenche|sono|se activo|se ha activado)$/u;
+/** "was / were beeping" — İngilizce geçmiş sürerlik (yardımcı fiil sesin hemen önünde). */
+const PAST_AUX_BEFORE = /(?:^|\s)(?:was|were)\s$/u;
+/**
+ * SES SÜRÜYOR / AZ ÖNCE: geçmiş belirteci olsa da canlı ("This morning … went off and it won't stop", "Gestern war alles ok, aber eben hat
+ * der Rauchmelder gepiept", "dün gece öttü, hâlâ ötüyor").
+ */
+const ONGOING = /(?:^|\s)(?:won't stop|wont stop|keeps|still|nonstop|non-stop|right now|just now|hala|halen|surekli|durmadan|az once|demin|eben|gerade|immer noch|hort nicht auf|toujours|a l'instant|en ce moment|sigue|todavia|ahora mismo|recien|no para)(?![\p{L}\p{N}])/u;
+/** Gelecek zaman sesin hemen önünde ("It will beep for five seconds", "il va sonner", "va a sonar") — bildirim değil. */
+const FUTURE_BEFORE = /(?:^|\s)(?:will|'ll|going to|gonna|wird|werden|va|vont|sera|va a|van a)\s(?:\p{L}{1,12}\s)?$/u;
+/** Yordam sorusu: "When the smoke alarm goes off, what do I do?" — "when / quand / cuando" + GENİŞ zaman (süren / geçmiş değil). */
+const WHEN_BEFORE = /(?:^|\s)(?:when|whenever|quand|cuando)\s/u;
+const GENERIC_PRESENT = /^(?:goes off|beeps|chirps|buzzes|sounds|sonne|sonnent|suena|suenan|pita|pitan)$/u;
 
 /** Cümle yakınlığı: ad ile fiil arasında en çok bu kadar karakter (iki yönde de: "Es piept der CO-Melder", "Suena la alarma de gas"). */
 const NEAR = 80;
@@ -162,7 +175,11 @@ function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
     if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
   }
   if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
-  if (PAST_FORM.test(sentence.slice(s.start, s.end)) && PAST_MARKER.test(sentence)) return false;
+  const verb = sentence.slice(s.start, s.end);
+  const pastShaped = PAST_FORM.test(verb) || PAST_AUX_BEFORE.test(sentence.slice(Math.max(0, s.start - 6), s.start));
+  if (pastShaped && PAST_MARKER.test(sentence) && !ONGOING.test(sentence)) return false;
+  if (FUTURE_BEFORE.test(sentence.slice(Math.max(0, s.start - 24), s.start))) return false;
+  if (GENERIC_PRESENT.test(verb) && WHEN_BEFORE.test(sentence.slice(0, s.start))) return false;
   return !(firstHypo < s.start);
 }
 

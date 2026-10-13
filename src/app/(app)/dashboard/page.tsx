@@ -214,7 +214,8 @@ export default async function DashboardPage() {
       <AttentionPanel
         items={attention}
         canManageChannel={session.role === "owner" || isSuperAdmin(session)}
-        canManageReservations={canManage(session)}
+        // Bürünmede (destek görünümü, salt-okunur) düğme gösterilmez — rota zaten reddeder (Haiku incelemesi).
+        canManageReservations={canManage(session) && !session.actorUserId}
       />
 
       {/* 🚨 "AI GÜNLÜK ÖZET" KARTI KALDIRILDI (kullanıcı kararı 08-08) — GERİ EKLEME.

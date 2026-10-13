@@ -3,6 +3,7 @@ import { jsonOk, notFound } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit } from "@/lib/audit";
 import { createReservationTasks } from "@/lib/automation";
+import { reportError } from "@/lib/report-error";
 import { REACTIVATION_ATTENTION_DAYS, REACTIVATION_BLOCKED_FIELD } from "@/lib/ingest/reactivation";
 
 // ---------------------------------------------------------------------------
@@ -28,10 +29,12 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
   const { id } = await params;
   const reservation = await prisma.reservation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
-    select: { id: true, status: true },
+    select: { id: true, status: true, departureDate: true },
   });
   if (!reservation) return notFound();
   if (reservation.status !== "cancelled") return conflict("not_cancelled", "Bu rezervasyon zaten etkin.");
+  // Panel satırıyla aynı kapsam: konaklaması bitmiş rezervasyon yeniden açılmaz (Haiku incelemesi — eskiden rota buna izin veriyordu).
+  if (reservation.departureDate < new Date()) return conflict("past_stay", "Konaklaması bitmiş rezervasyon yeniden açılamaz.");
 
   const signal = await prisma.ingestEvent.findFirst({
     where: {
@@ -58,7 +61,13 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
     action: "reservation.reactivated",
     metadata: { reservationId: id },
   });
-  // İptal edilmiş rezervasyona üretilmemiş giriş hazırlığı / temizlik görevleri (tekrarsız; geçmiş tarihli konaklamada üretmez).
-  await createReservationTasks(id);
+  // İptal edilmiş rezervasyona üretilmemiş giriş hazırlığı / temizlik görevleri (tekrarsız; geçmiş tarihli konaklamada üretmez). Hata
+  // yanıtı bozmaz: rezervasyon AÇILDI (500 dönmek düğmeyi "zaten etkin" 409'una iterdi); eksik görevi bir sonraki senkron tamamlar, arıza
+  // raporlanır (Haiku incelemesi).
+  try {
+    await createReservationTasks(id);
+  } catch (err) {
+    void reportError("reservation-reactivate-tasks", err);
+  }
   return jsonOk({ ok: true });
 });

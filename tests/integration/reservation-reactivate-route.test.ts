@@ -95,6 +95,19 @@ describe("POST /api/reservations/[id]/reactivate (H2)", () => {
     expect((await POST(req(old.reservationId), ctx(old.reservationId))).status).toBe(409);
   });
 
+  it("KONTROL: konaklaması bitmiş rezervasyon → 409 past_stay (panel kapsamıyla aynı)", async () => {
+    const s = await seed();
+    await prisma.reservation.update({
+      where: { id: s.reservationId },
+      data: { arrivalDate: new Date(Date.now() - 5 * DAY), departureDate: new Date(Date.now() - 2 * DAY) },
+    });
+    session = s.session;
+    const res = await POST(req(s.reservationId), ctx(s.reservationId));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("past_stay");
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("cancelled");
+  });
+
   it("KONTROL: zaten etkin rezervasyon → 409 not_cancelled", async () => {
     const s = await seed({ status: "confirmed" });
     session = s.session;
