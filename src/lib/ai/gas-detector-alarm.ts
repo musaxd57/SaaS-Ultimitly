@@ -106,19 +106,12 @@ const HYPOTHETICAL_SRC =
 const HYPOTHETICAL_ALL = new RegExp(HYPOTHETICAL_SRC, "gu");
 /** Devam cümlesi: bir önceki cümledeki dedektörü sürdüren kısa cümle ("It keeps beeping!", "Sürekli ötüyor!", "Es piept."). */
 const CONTINUATION_START =
-  /^(?:it|it's|its|still|keeps|now|again|constantly|er|es|sie|immer|standig|il|elle|ca|encore|toujours|sigue|esta|ahora|todavia|surekli|hala|simdi|durmadan|yine|hep)(?![\p{L}\p{N}])/u;
+  /^(?:it|it's|its|the one|that one|this one|that|this|still|keeps|now|again|constantly|er|es|sie|immer|standig|il|elle|ca|encore|toujours|sigue|esta|ahora|todavia|surekli|hala|simdi|durmadan|yine|hep)(?![\p{L}\p{N}])/u;
 /**
  * Zamir / zarfsız devam cümlesi yalnız TEK sözcük ("Ötüyor!") ya da doğrudan SES fiiliyle başlayan cümle ("Suena sin parar!") —
  * "Telefon çalıyor." başka bir öznedir (3. inceleme; zarf listesi son kontrol: "Şimdi ötüyor!").
  */
 const CONTINUATION_MAX_WORDS = 1;
-/**
- * Devam cümlesi BAŞKA bir ses kaynağından söz ediyorsa dedektöre bağlanmaz (Haiku son kontrolü: "Where is the CO detector? Now my phone
- * is beeping", "Wo ist der CO-Melder? Piept mein Handy"). YALNIZ devam cümlesinde: aynı cümlede "CO alarmı ve telefonum ötüyor" gerçek
- * bildirimdir, kaçırılmaz. Zamirle başlayan cümlede ses kaynaktan ÖNCE geliyorsa dedektördür ("It keeps beeping and the phone is ringing
- * too") — ama sesi kaynağa BAĞLAYAN cümle ("…, that's my phone", "it's just the oven", "das ist mein Handy") koparır (Haiku 4. tur).
- */
-const PRONOUN_START = /^(?:it|it's|its|er|es|sie|il|elle|ca|o)(?![\p{L}\p{N}])/u;
 /**
  * GERİYE ATIF: önceki cümlede AÇIKLANMAMIŞ ses (dedektör adı ve olumsuzlanmamış başka kaynak yok), bu cümle bir dedektörü anıyor →
  * bildirim ("Something keeps beeping. It's the CO alarm.", "Bir şey sürekli ötüyor. CO alarmıymış.", "Something keeps beeping. Where is
@@ -141,51 +134,46 @@ const NEG_AFTER_SOURCE = /^\p{L}{0,6}\s(?:degil|degildi)(?![\p{L}\p{N}])/u;
 const LOC_BEFORE_SOURCE =
   /(?:^|\s)(?:near|next to|by|beside|behind|above|below|under|over|neben|bei|uber|unter|hinter|pres de|a cote de|au-dessus de|sous|cerca de|junto a|al lado de|encima de|debajo de)\s(?:(?:the|my|our|a|an|der|die|das|dem|den|le|la|l'|el|un|une|mi)\s)?$/u;
 const LOC_AFTER_SOURCE = /^\p{L}{0,6}\s(?:yaninda|yakininda|ustunde|altinda|arkasinda|onunde)(?![\p{L}\p{N}])/u;
-/** İlk OLUMSUZLANMAMIŞ kaynak adının yeri (yoksa Infinity). */
-function firstSourceAt(text: string): number {
-  for (const m of text.matchAll(OTHER_SOUND_SOURCE)) {
-    const at = m.index ?? 0;
-    const end = at + m[0].length;
-    if (NEG_BEFORE_SOURCE.test(text.slice(Math.max(0, at - 16), at))) continue;
-    if (NEG_AFTER_SOURCE.test(text.slice(end, end + 16))) continue;
-    if (LOC_BEFORE_SOURCE.test(text.slice(Math.max(0, at - 20), at)) || LOC_AFTER_SOURCE.test(text.slice(end, end + 16))) continue;
-    return at;
-  }
-  return Infinity;
+/** Cihaz adı yalnız niteleyici mi (olumsuzlanmış ya da yer tamlayıcısında)? */
+function sourceIsModifier(text: string, at: number, end: number): boolean {
+  const before = text.slice(Math.max(0, at - 20), at);
+  const after = text.slice(end, end + 16);
+  return NEG_BEFORE_SOURCE.test(before) || NEG_AFTER_SOURCE.test(after) || LOC_BEFORE_SOURCE.test(before) || LOC_AFTER_SOURCE.test(after);
 }
 /**
- * DURDU sesi BAŞKA cihazınsa dedektörün sesi değildir (Haiku 5. tur: "The microwave stopped beeping, is the CO alarm okay?" gaz acili
- * sayılıyordu): aynı cümlecikte (son virgülden beri, en çok CLAUSE_MAX karakter) sesin önünde olumsuzlanmamış kaynak adı var ve HİÇ
- * dedektör adı yoksa o ses sayılmaz. Cümlecikte dedektör adı varsa ses onundur (Haiku 6. tur: "The CO alarm next to the oven stopped
- * beeping", "Since I charged my phone the CO alarm stopped beeping"). YALNIZ durdu biçiminde — süren seste "CO alarmı ve telefonum ötüyor"
- * gerçek bildirimdir.
+ * SES BAŞKA BİR CİHAZIN MI? (Haiku 3–9. tur — cihaz adını cümlecikte GÖRMEK yetmiyordu: "in the dryer room", "lift lobby", "near the
+ * kettle" gerçek CO bildirimini susturuyordu.) Cihaz sesin DİLBİLGİSİ KOMŞUSU ise ses onundur:
+ *  · özne olarak hemen önünde, araya en çok iki sözcük ("my phone is beeping", "the kettle no longer beeps", "müziği hâlâ çalıyor");
+ *  · fiil-önce dizilişte hemen ardında, isteğe bağlı belirleyiciyle ("piept mein Handy", "suena el teléfono", "beeping phone").
+ * Olumsuzlanan / yer tamlayıcısındaki cihaz sayılmaz. Bunun dışında yalnız açık bağlama (↓ ATTRIBUTION: "it's the kettle") koparır.
  */
-const CLAUSE_MAX = 160;
-function otherDeviceStopped(sentence: string, s: Span): boolean {
-  const window = sentence.slice(Math.max(0, s.start - CLAUSE_MAX), s.start);
-  const clause = window.slice(window.lastIndexOf(",") + 1);
-  // Dedektör adı sesten önce (aynı cümlede, pencere içinde) geçiyorsa ses onundur — virgüllü liste dahil ("The CO alarm, the phone and the
-  // kettle stopped beeping" — Haiku 7. tur). Bedeli: "The CO alarm is fine, the microwave stopped beeping" de ev sahibine (güvenli yön).
-  return firstSourceAt(clause) !== Infinity && !ANY_DETECTOR.test(window);
+const SOURCE_SUBJECT_BEFORE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?:'s)?\\s(?:\\p{L}{1,12}\\s){0,2}$`, "u");
+const SOURCE_AT_START = new RegExp(`^(?:${SOURCE_WORDS})`, "u");
+const SOURCE_RIGHT_AFTER = new RegExp(
+  `^\\s(?:(?:my|the|our|a|an|mein|meine|das|der|die|le|la|mon|ma|el|mi|su)\\s)?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`,
+  "u",
+);
+function soundOfOtherSource(text: string, s: Span): boolean {
+  const lo = Math.max(0, s.start - 48);
+  const m = SOURCE_SUBJECT_BEFORE.exec(text.slice(lo, s.start));
+  if (m) {
+    const at = lo + m.index;
+    const word = SOURCE_AT_START.exec(m[0])?.[0] ?? "";
+    if (!sourceIsModifier(text, at, at + word.length)) return true;
+  }
+  return SOURCE_RIGHT_AFTER.test(text.slice(s.end, s.end + 32));
 }
 
 /**
- * Bu ses BAŞKA bir kaynağın mı? Sesin CÜMLECİĞİNDE (virgülden virgüle) olumsuzlanmamış kaynak adı var — zamirle başlayan cümlecikte ses
- * kaynaktan ÖNCE geliyorsa değil ("It keeps beeping and the phone is ringing too"). Cümlecik kapsamı (Haiku 7. tur): "Something keeps
- * beeping, my phone is off" sesi telefona bağlamaz.
+ * DURDU sesi BAŞKA cihazınsa dedektörün sesi değildir (Haiku 5. tur: "The microwave stopped beeping, is the CO alarm okay?" gaz acili
+ * sayılıyordu): ses o cihazın (↑) ve sesten önce aynı cümlede dedektör adı YOK. Dedektör adı önce geçiyorsa ses onundur — virgüllü liste
+ * dahil (Haiku 6–7. tur: "The CO alarm next to the oven stopped beeping", "The CO alarm, the phone and the kettle stopped beeping").
+ * Bilinçli bedel: "The CO alarm is fine, the microwave stopped beeping" de ev sahibine (güvenli yön). YALNIZ durdu biçiminde — süren seste
+ * "CO alarmı ve telefonum ötüyor" gerçek bildirimdir.
  */
-function soundOfOtherSource(text: string, s: Span): boolean {
-  const lo = Math.max(0, s.start - CLAUSE_MAX);
-  const raw0 = lo + text.slice(lo, s.start).lastIndexOf(",") + 1;
-  const after = text.slice(s.end, s.end + CLAUSE_MAX);
-  const comma = after.indexOf(",");
-  const end = comma < 0 ? s.end + after.length : s.end + comma;
-  const raw = text.slice(raw0, end);
-  const clause = raw.trimStart();
-  const start = raw0 + (raw.length - clause.length);
-  const src = firstSourceAt(clause);
-  if (src === Infinity) return false;
-  return !(PRONOUN_START.test(clause) && s.end - start <= src);
+const CLAUSE_MAX = 160;
+function otherDeviceStopped(sentence: string, s: Span): boolean {
+  return soundOfOtherSource(sentence, s) && !ANY_DETECTOR.test(sentence.slice(Math.max(0, s.start - CLAUSE_MAX), s.start));
 }
 const ATTRIBUTION = new RegExp(
   `(?:^|\\s)(?:that's|thats|that is|it's|its|it is|this is|das ist|das war|es ist|c'est|es el|es la|es mi|bu|o)\\s(?:just |only |nur |juste |solo |sadece )?(?:my |the |our |a |an |mein |meine |das |der |die |le |la |mon |ma |mi |el |benim )?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])(?!'s? (?:room|zimmer)|\\s(?:room|zimmer|chambre|oda\\p{L}{0,3}))`,
@@ -364,7 +352,8 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
         !ATTRIBUTION.test(prev) &&
         !ATTRIBUTION.test(sentence) &&
         !ATTRIBUTION.test(next) &&
-        !RETRACTION_NEXT.test(next)
+        // Geri alma ardındaki cümlede dedektör yeniden anılmıyorsa ("No, the kettle isn't the problem, it's the CO alarm" geri alma değil).
+        !(RETRACTION_NEXT.test(next) && !ANY_DETECTOR.test(next))
       ) {
         const firstHypoPrev = spans(HYPOTHETICAL_ALL, prev)[0]?.start ?? Infinity;
         if (allSounds(prev).some((s) => !soundOfOtherSource(prev, s) && liveSound(prev, s, firstHypoPrev))) return true;

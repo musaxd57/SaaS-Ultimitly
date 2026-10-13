@@ -375,6 +375,18 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["TV room", "Where is the CO alarm? It's the TV room one, it keeps beeping.", "gas"],
     ["'No, it keeps beeping' geri alma değil", "Something keeps beeping. Is it the CO alarm? No, it keeps beeping!", "gas"],
     ["'No idea' geri alma değil", "Something keeps beeping. Is it the CO alarm? No idea.", "gas"],
+    // Haiku 9. tur — cihaz adı yalnız sesin DİLBİLGİSİ KOMŞUSUYSA kaynaktır (yer tamlaması / bileşik ad değil):
+    ["dryer room", "Something keeps beeping in the dryer room. It's the CO alarm.", "gas"],
+    ["elevator lobby", "Something keeps beeping in the elevator lobby. It's the CO alarm.", "gas"],
+    ["with the washing machine", "Something keeps beeping in the laundry room with the washing machine. It's the CO alarm.", "gas"],
+    ["in front of the oven", "Something keeps beeping in front of the oven. It's the CO alarm.", "gas"],
+    ["on top of the fridge", "Something keeps beeping on top of the fridge. It's the CO alarm.", "gas"],
+    ["es al lado del horno", "Algo suena al lado del horno. Es la alarma de CO.", "gas"],
+    ["fr à côté du téléphone", "Quelque chose sonne à côté du téléphone. C'est le détecteur de CO.", "gas"],
+    ["car park", "Something keeps beeping in the car park. It's the CO alarm.", "gas"],
+    ["the one next to the kettle", "Where is the CO detector? The one next to the kettle is beeping.", "gas"],
+    ["olumsuzlanan özne-kaynak (mutasyon Y5)", "Where is the CO detector? It is not my phone that is beeping.", "gas"],
+    ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
   ])("🚨 %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
   });
