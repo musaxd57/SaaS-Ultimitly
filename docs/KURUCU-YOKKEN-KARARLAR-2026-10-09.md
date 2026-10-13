@@ -308,6 +308,46 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
 | G10 | "Ekle, tek satır" | `outage` sınıfı, tekrar davranışı belirsizle aynı; panelde tek özet satır |
 | G11 | "Raporlansın" | Node çalışma zamanına özgü `onRequestError` → `reportError` (rota şablonu); uyarı e-postası kısıtlaması aynen |
 
+**10-13 — uygulama durumu (her biri Haiku sert incelemesi + tam kapı; ayrıntı commit mesajlarında):**
+- G2 ✅ Dockerfile yalnız iki dosya; test COPY / ADD / `--from=` / satır devamını ayrıştırır (Haiku: ilk sürüm `--from=builder /app/scripts`ı görmüyordu).
+- G3 ✅ `lib/lead-notify-budget.ts`: günde 50 + tek özet (kişisel veri yok), gün = uygulama saat dilimi, sayaç veritabanında. Bilinçli sınır
+  (Haiku): sayaç küresel olduğu için saldırgan günün 50 bildirimini tüketirse o gün gerçek talepler de yalnız özetle bildirilir — talepler
+  yine kaydedilir; kararın doğası.
+- G4 ✅ `ai/gas-detector-alarm.ts` (kanal + QR tek kaynak, iki ağa aynı girdi sınıfı). Haiku ilk sürümde 12 karşı örnek buldu (devam cümlesi,
+  sesten sonra gelen "eğer", "susmuyor / buzzing / ertönt", olumsuz "bip sesi çıkarmıyor / nicht gepiept", Almanca "Sonne", alıntılı "bip bip",
+  çarpımsal maliyet) — hepsi düzeltildi ve pinlendi. Açık eval setlerinde 1.741 misafir metninin hiçbirinde karar değişmedi.
+- G5 ✅ 2FA kapatma `sessionEpoch` +1, bu tarayıcı `mfa:false`; hiç etkinleşmemiş kurulumun iptali oturum düşürmez.
+- G6 ✅ `minimizeOldPaddleWebhooks` saatlik iş: işlenmiş + 12 aydan eski Paddle yükü hesap silmedeki izin listesine iner (not "retention-1y").
+- G7 ✅ (a) `lib/contact-redact.ts` telefon / e-posta maskesi 9 silme / süpürme noktasında (ad maskesinden sonra; yapay zekâ girdilerindeki
+  ad maskesine dokunulmadı) · (b) `scrubStyleProfile`: süpürülen misafirin adı + telefon / e-posta işletmenin üslup profilinde de (saklama
+  süpürgesi iki dal + misafir silme). Tarih / saat / fiyat / kapı kodu / IBAN maskelenmez (testli).
+- G8 ✅ `ai/divider-spoof.ts`: çizgi + SİSTEM / KURAL / TALİMAT / SYSTEM (satır sonunu geçen ±40 karakter) → `prompt_injection` (insana);
+  misafir metnindeki 3+ çizgi dizisi yanıt istemi + anlama + bekçi + sıralayıcıya giderken tek boşluğa iner. Açık setlerde böyle dizi taşıyan
+  misafir metni 0 → normal mesajda modele giden metin değişmedi. Kör set ölçümü kredi gelince.
+- G9 ✅ yazma servisi iptalli satırı kanal görüntüsüyle geri açmaz; günde en çok bir olay → panelde "Kanal, iptal edilmiş bir rezervasyonu
+  yeniden etkin gösteriyor" satırı (konaklama bitmemişse, son 3 gün). iCal aboneliği ve elle dosya yolu değişmedi.
+- G10 ✅ sağlayıcı 5xx → sonuçta `providerOutage` işareti (tür `ambiguous` KALIR; ayrı tür bilinçli eklenmedi — tanımayan tüketici varsayılan
+  dalda kesin hata sayıp yeniden gönderebilirdi); konuşma sebebi `provider_outage` (aynı "iletilmiş olabilir" uyarısı); panelde işletme düzeyi
+  tek satır "Kanal sağlayıcısında arıza — N mesaj bekliyor" (48 saat). Uyum kiti sahte + gerçek Hospitable adaptöründe pinli (408 / ağ
+  hatası arıza sayılmaz).
+- G11 ✅ `lib/request-error-report.ts`; edge paketinde raporlayıcı YOK (derleme çıktısında doğrulandı); `HANGING_PROMISE_REJECTION` da akış kontrolü.
+- Haiku 2. inceleme (10-13): düzeltildi — G4 dil karışımı ("CO alarmı sürekli beep yapıyor"; dil eşlemesi benim getirdiğim gerilemeydi, çakışmaya
+  açık "sonne / sono / pita" yalnız kendi diliyle), çift olumsuz ("doesn't stop beeping", "hört nicht auf", "no para de sonar"), "ötüyordu",
+  "çalmaya başladı", "detektör" · G8 "_____" / "-----" (5+) çizgili taklit (yalnız algılama; silme listesi kurucununki) · G10 ev sahibi elle
+  cevap verince satır kalkar (yalnız misafirin hâlâ beklediği konuşma sayılır) + dayanıklı kuyruk yolunda da `provider_outage` (canlıda kapalı).
+  BİLİNÇLİ kabul (güvenli yön = ev sahibine fazladan bildirim / fazladan maske): G4 "CO dedektörü ötmüyor, fırın ötüyor" acil sayılır · G8
+  "=== Kural yok, rahat olun ===" insana gider · G7 5 ile başlayan 10 haneli rezervasyon no "[telefon]" olur (süpürülmüş eski kayıtta).
+- G1 ⏸ HAZIR YAMA `docs/hazir-yamalar/2026-10-13-G1-anlama-otomatik-mesaj-etiketi.patch` (test dahil, temiz uygulanıyor) — kararınız gereği
+  OpenAI kredisi gelince ölçülüp uygulanacak.
+
+**10-13 — uygulama sırasında çıkan YENİ sorular (sabah listesi, uygulanmadı):**
+
+| # | Soru | Bugün | Önerim | Örnek |
+|---|---|---|---|---|
+| H1 | G7 telefon / e-posta maskesi ESKİ kayıtlara | Saklama süpürgesi her rezervasyonu BİR kez işler (bilinçli, sonlanma kuralı). G7'den önce süpürülmüş eski kayıtların giden gövdelerinde telefon / e-posta kalır | Bir kerelik geriye dönük tarama için konuşmaya "maskeleme sürümü" işareti (migration) — ya da tek seferlik operatör betiği | Bugün: 2024'te süpürülmüş "[Misafir] Hanım, numaram +90 555…" kalır. Sonra: "[telefon]" |
+| H2 | G9 "Yeniden aç" düğmesi | Kanal gerçekten yeniden etkinleştirdiyse (misafir rezervasyonu geri aldı) Lixus'ta rezervasyonu elle açacak bir yol yok — karşılama / giriş mesajı gitmez | Dikkat satırına "Gerçekten etkin — yeniden aç" düğmesi (sahip / yönetici; denetim kaydı) | Bugün: satır "kanaldan kontrol edin" der, düzeltme yolu yok. Sonra: tek tıkla "onaylı"ya döner |
+| H3 | Duman dedektörü öterse | Bugün "olası duman" (karar modele); G4 yalnız gaz / CO dedektörü | Duman dedektörü öterse de deterministik ev sahibine (yapay zekâ cevaplamaz) | "The smoke detector is beeping" → bugün model karar verir; sonra doğrudan ev sahibine |
+
 **10-12 gece — yapılanlar (soru gerektirmeyen; müşteriye giden mesaj DEĞİŞMEDİ; her biri Haiku sert incelemesi + mutasyon + tam kapı):**
 - Madde 10 kalan yüzeyler: AI cevap öner rotası ve QR konuşma kayıtları kanalla aynı sınırlı okuyucuya geçti (kâhin: sayfalı okuma = tam okuma).
   QR'da cevapsız uzun konuşma için okuma 2.000 satırda durur (kayıt bloğu yazılmaz, hata kaydı düşer); başka işletmenin konuşmasında aşama

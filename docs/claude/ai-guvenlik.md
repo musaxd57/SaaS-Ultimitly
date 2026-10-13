@@ -448,3 +448,19 @@
   modülü kullanır → orada belirsiz = sorgu yok = ev sahibine (yalnız temkinli yön).
 - Doğrulanmış müsaitlik / uzatma göreli günü son misafir mesajının YAZILDIĞI ana göre çözer (`writtenAt`); takvim sorgusunun tazeliği
   işleme anıdır. QR anında cevaplandığı için işleme anı kullanılır.
+
+## 🚨 GAZ / CO DEDEKTÖRÜ ÖTÜYOR = OLASI GAZ ACİLİ (G4, kurucu kararı 10-13, `ai/gas-detector-alarm.ts`)
+- TEK KAYNAK, İKİ AĞ: kanal `isSafetyEmergencyText` (→ `safety_emergency`) ve QR `hazardEvidenceOf` (→ açık gaz) AYNI fonksiyonu, AYNI girdi
+  sınıfıyla (K6 nötrlemesi sonrası, alıntı SİLİNMEDEN) okur. Gaz / CO dedektörü adı + öten / çalan / bip fiili aynı cümlede ya da hemen
+  ardındaki kısa devam cümlesinde ("…mutfakta. Sürekli ötüyor!").
+- Dil başına fiil kümesi (Almanca "Sonne" ≠ Fransızca "sonne"); Türkçe fiil yalnız kişi / soru / rivayet ekiyle biter ("öttüğünü duymadım"
+  eşleşmez); olumsuz (önde ≤2 sözcük, ardında "nicht / pas / nunca") ve SESTEN ÖNCE gelen varsayım ("If the CO alarm goes off…") acil değil;
+  sesten sonra gelen "eğer / if" acili düşürmez. Yer / varlık sorusu ("dedektör nerede?") acil değil.
+- Duman dedektörü BU kuralın dışında (bugünkü "olası duman", karar modele) — kurucuya soru H3.
+- Kalıp ekleyen: dil eşleşmesi, olumsuz biçim ve süre pini (`gas-detector-alarm.test.ts`) ile birlikte; ad–fiil eşlemesi sıralı iki işaretçi (O(D+S)).
+
+## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)
+- Çizgi dizisi (3+ ═ ━ ─ ┄ ┅ ┈ ┉ ╌ ╍ = ＝, aralarında tek boşluk olabilir) ±40 karakter içinde (satır sonunu geçerek) SİSTEM / KURAL / TALİMAT /
+  SYSTEM başlığı → `detectPromptInjection` = true (mesaj insana).
+- Misafir metnindeki çizgi dizisi modele giderken tek boşluğa iner (yanıt istemi `shown`, anlama, bekçi, sıralayıcı sorusu); dizisiz metin
+  BAYT BAYT aynı. Bizim / ev sahibinin metnine ve KB'ye UYGULANMAZ (host KB'de "=====" ayracı kullanabilir).
