@@ -95,10 +95,16 @@ RUN npx prisma generate
 # (marka gorselleri, .well-known/security.txt) + eski yol
 # `public/uploads/{org}` yazma dizini. `scripts/` prestart env kapisi
 # (verify-env.mjs + env-check.mjs; hicbir node_modules bagimliligi yok).
+# 🚨 YALNIZ BU IKI DOSYA (kurucu 10-13, G2; DENETIM 08-09 #28): klasorun
+# tamami ~30 operator betigi tasiyordu (aralarinda takvim adresi sifrelemesini
+# geri alan bir betik). `.ts` betikleri bu kapta zaten kosamaz (`tsx` gelistirme
+# bagimliligi, `--omit=dev`); calisan koddan bir adim uzaklikta durmalari yalniz
+# saldiri yuzeyiydi. Acilista baska betik gerekirse buraya ADIYLA eklenir
+# (tests/unit/railway-config.test.ts pinler).
 COPY --from=builder /app/.next ./.next
 COPY public ./public
 COPY assets ./assets
-COPY scripts ./scripts
+COPY scripts/verify-env.mjs scripts/env-check.mjs ./scripts/
 COPY next.config.mjs ./
 
 # 🚨 ROOT DEGIL. Konteynerde kod calistirma elde eden bir saldirgan icin root,
