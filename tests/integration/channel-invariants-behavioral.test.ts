@@ -3,7 +3,14 @@ import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db
 
 vi.mock("@/lib/net/pinned-fetch", () => ({ fetchFeedText: vi.fn() }));
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
+// Sağlayıcının mesaj yüzeyi kayıt altında: iCal senkronu onu ÇAĞIRMAMALI. (İlk sürüm `globalThis.fetch` gözlüyordu — Haiku 10-13: token
+// yokken istemci ağa çıkmadan hata verdiği için gözcü hiç tetiklenemezdi, iddia boştu.)
+vi.mock("@/lib/hospitable", async (orig) => {
+  const actual = await orig<typeof import("@/lib/hospitable")>();
+  return { ...actual, listMessages: vi.fn(async () => []), sendMessage: vi.fn(async () => ({})), listReservations: vi.fn(async () => []) };
+});
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
+import * as hospitable from "@/lib/hospitable";
 import { syncCalendarSource } from "@/lib/import/sync";
 import { clearOrgHospitableToken, setOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getReturningGuestInfo } from "@/lib/returning-guest";
@@ -44,7 +51,10 @@ describe("değişmez 5 — iCal yalnız takvim: mesaj tarafına hiç dokunmaz", 
     const { propertyId } = await makeOrgWithProperty();
     const source = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" } });
     vi.mocked(fetchFeedText).mockResolvedValue(ICS);
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    // KONTROL (gözcü bağlı mı): sağlayıcı yüzeyine doğrudan çağrı gözcüye düşer.
+    await hospitable.listMessages("res-probe", "tok-probe");
+    expect(vi.mocked(hospitable.listMessages)).toHaveBeenCalledTimes(1);
+    vi.mocked(hospitable.listMessages).mockClear();
 
     const res = await syncCalendarSource(source.id);
 
@@ -53,8 +63,10 @@ describe("değişmez 5 — iCal yalnız takvim: mesaj tarafına hiç dokunmaz", 
     expect(await prisma.conversation.count()).toBe(0);
     expect(await prisma.message.count()).toBe(0);
     expect(await prisma.messageOutbox.count()).toBe(0);
-    expect(fetchSpy).not.toHaveBeenCalled(); // tek ağ yolu sabitlenmiş besleme okuyucusu; sağlayıcı mesaj API'si çağrılmaz
-    expect(vi.mocked(fetchFeedText)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(hospitable.listMessages)).not.toHaveBeenCalled();
+    expect(vi.mocked(hospitable.sendMessage)).not.toHaveBeenCalled();
+    expect(vi.mocked(hospitable.listReservations)).not.toHaveBeenCalled();
+    expect(vi.mocked(fetchFeedText)).toHaveBeenCalledTimes(1); // tek ağ yolu: sabitlenmiş besleme okuyucusu
   });
 });
 
@@ -88,8 +100,9 @@ describe("değişmez 14 — kopmada veri sınıfları korunur (Hospitable manife
     expect(before).toEqual({ reservation: 1, conversation: 1, message: 1, task: 1 }); // anti-vakumluk
     const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { hospitableTokenEnc: true } });
     expect(org.hospitableTokenEnc).toBeNull();
-    const conn = await prisma.channelConnection.findFirst({ where: { organizationId: orgId, provider: "hospitable" } });
-    expect(conn?.status).not.toBe("active");
+    // Satır KALIR (kopuk), kimlik bilgisi düşer — satırın yokluğu "active değil"i boşa geçirmesin (Haiku 10-13).
+    const conn = await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId, provider: "hospitable" } });
+    expect(conn).toMatchObject({ status: "disconnected", accessTokenEnc: null, refreshTokenEnc: null });
   });
 });
 

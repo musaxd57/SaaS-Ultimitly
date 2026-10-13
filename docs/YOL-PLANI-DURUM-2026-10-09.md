@@ -128,12 +128,14 @@ analiz kurucuya sunuldu, karar bekliyor.
 
 ## 2c. 10-13 gece — değişmez davranışsal pin turu (Haiku kapsam denetimi)
 
-- **5** (iCal mesaj davranışı ima etmez) · **10** (tahmine dayalı birleştirme yok — dönen misafir yalnız kararlı misafir kimliğiyle) · **14**
-  (kopmada veri sınıfları korunur): yalnız bildirimsel / dolaylı pinleri vardı → `channel-invariants-behavioral.test.ts` (mutasyon 3/3).
+- **5** (iCal mesaj davranışı ima etmez; bildirimsel pini güçlüydü — manifest, §2b — davranışsal pini eksikti) · **10** (tahmine dayalı
+  birleştirme yok — dönen misafir yalnız kararlı misafir kimliğiyle) · **14** (kopmada veri sınıfları korunur): davranışsal pin
+  `channel-invariants-behavioral.test.ts` (mutasyon 3/3; Haiku 2. tur: değişmez 5'teki ağ gözcüsü boştu → sağlayıcı yüzeyi kayıt altında +
+  bağlılık kontrolü; değişmez 14 kopuk satırı + boş kimlik bilgisini birebir ister).
 - **17**: giriş kiti genişletildi (↑ §2b).
 - **8**: talimat "provider outage" sınıfını ayrı ister; giden yönde 5xx bilinçli "belirsiz" (çift gönderim riski) → kurucu sorusu G10.
 - **20**: yapısal tarama `.includes("airbnb")` / `case "airbnb":` biçimlerini görmez; bugün `channels/` dışında YETENEK amaçlı böyle bir kullanım
-  yok (`import/sync.ts` beslemenin etiketinden kanal ADI türetir — yetenek değil); genişletmek bu meşru satırda yanlış alarm verir → bilinçli bırakıldı.
+  yok (`import/sync.ts` beslemenin etiketinden kanal ADI türetir — yetenek değil); genişletmek bu meşru satırda yanlış alarm verir → bilinçli bırakıldı. ⚠️ Aynı değer uzlaştırma adayını süzer (`sync.ts` `where: { channel, … }` — aynı kaynağın kanalı, yetenek değil); Haiku 10-13 notu.
 
 ## 7. 10-10 → 10-12 kurucu onaylı işler (10-12 gece eklendi — Haiku denetimi: çizelgede satırları yoktu)
 
