@@ -29,6 +29,26 @@ const SOUNDING: Array<[string, string]> = [
   ["es", "El detector de monóxido de carbono suena"],
   ["es", "La alarma de gas está sonando"],
   ["es (ters sıra)", "Suena la alarma de gas"],
+  // Haiku incelemesi 10-13 — yanlış negatifler:
+  ["en (devam cümlesi)", "The CO detector is in the kitchen. It keeps beeping!"],
+  ["tr (devam cümlesi)", "Karbonmonoksit dedektörü mutfakta. Sürekli ötüyor!"],
+  ["en (varsayım sözcüğü SESTEN SONRA)", "The gas alarm is beeping and I don't know if it's serious."],
+  ["tr (varsayım sözcüğü SESTEN SONRA)", "CO dedektörü ötüyor, eğer gaz varsa ne yapmalıyım?"],
+  ["tr ('susmuyor' = ses sürüyor)", "CO dedektörü susmuyor!"],
+  ["en (buzzing)", "The gas alarm is buzzing"],
+  ["de (ertönt)", "Der Gasmelder ertönt"],
+  ["fr (se met à sonner)", "Le détecteur de CO se met à sonner"],
+  ["tr (tireli)", "CO-dedektörü ötüyor"],
+  ["tr (alıntılı yansıma sesi)", 'CO dedektörü "bip bip" yapıyor'],
+  // Haiku 2. inceleme 10-13 — yanlış negatifler:
+  ["dil karışımı (TR ad + EN fiil)", "CO alarmı sürekli beeping yapıyor"],
+  ["en çift olumsuz (doesn't stop)", "The CO alarm doesn't stop beeping"],
+  ["en çift olumsuz (did not stop)", "The gas detector did not stop chirping all night"],
+  ["de çift olumsuz (hört nicht auf)", "Der CO-Melder hört nicht auf zu piepen"],
+  ["es çift olumsuz (no para de)", "La alarma de gas no para de sonar"],
+  ["tr geçmiş sürerlik (ötüyordu)", "CO dedektörü bütün gece ötüyordu"],
+  ["tr başlama (çalmaya başladı)", "Gaz alarmı çalmaya başladı"],
+  ["tr 'detektör' yazımı", "CO detektörü ötüyor"],
 ];
 
 const NOT_SOUNDING: Array<[string, string]> = [
@@ -50,6 +70,16 @@ const NOT_SOUNDING: Array<[string, string]> = [
   ["başka cümlede ses", "Can you check the gas bill? Also the alarm clock is beeping"],
   ["CO2 dedektör değil", "The CO2 monitor is beeping"],
   ["duman dedektörü (bu kuralın konusu değil)", "The smoke detector is beeping"],
+  // Haiku incelemesi 10-13 — yanlış pozitifler:
+  ["tr olumsuz çekim (bip sesi çıkarmıyor)", "CO dedektörü bip sesi çıkarmıyor, pil mi bitti?"],
+  ["en olumsuz, araya iki sözcük", "The CO detector is not making any beeps"],
+  ["de olumsuz geçmiş", "Der CO-Melder hat nicht gepiept"],
+  ["de 'Sonne' (güneş) Fransızca fiil değil", "Der CO-Melder hängt in der Sonne"],
+  ["tr ad-fiil + olumsuz ('öttüğünü duymadım')", "Gaz dedektörünün öttüğünü duymadım"],
+  ["başka cihaz ayrı cümlede", "Where is the CO detector? My phone is beeping."],
+  // Haiku 2. inceleme: dil karışımında çakışmaya açık fiil (Almanca 'Sonne' = güneş) yine eşleşmez.
+  ["en ad + de 'Sonne'", "The CO alarm hangs in der Sonne"],
+  ["en olumsuz geçmiş (stopped)", "The CO alarm stopped beeping an hour ago"],
 ];
 
 describe("gasDetectorSounding — gaz / CO dedektörü ötüyor", () => {
@@ -104,6 +134,9 @@ describe("maliyet — misafir metninde karesel iş yok", () => {
     ["tekrarlanan dedektör adı", "co alarm ".repeat(6_000)],
     ["tekrarlanan ses fiili", "beeping ".repeat(6_000)],
     ["ad + uzak fiil", `gas alarm ${"x ".repeat(25_000)}beeping`],
+    // Haiku incelemesi 10-13: ad ve fiil AYNI cümlede binlerce kez (eski çift döngü D×S) — sıralı işaretçiyle doğrusal.
+    ["binlerce ad + binlerce fiil", "gas alarm is on the wall and the clock is ringing ".repeat(1_500)],
+    ["binlerce ad + binlerce uzak fiil", `${"co alarm ".repeat(5_000)}${"x ".repeat(100)}${"beeping ".repeat(5_000)}`],
   ])("%s → 300 ms altında", (_l, text) => {
     const t0 = performance.now();
     gasDetectorSounding(text);

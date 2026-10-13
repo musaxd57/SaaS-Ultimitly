@@ -610,9 +610,8 @@ function waterReachesElectric(liveClauses: readonly string[]): boolean {
 export function hazardEvidenceOf(message: string | null | undefined): HazardEvidence {
   if (typeof message !== "string" || message.trim() === "") return { level: "none", kinds: [] };
   // K6 bağlam kuralı (yer / eşya sorusu, "acil değil") AYNEN önce; sonra çift tırnaklı / «» kısa alıntılar ve ürün adları değerlendirmeden çıkar.
-  const folded = neutralizeNonEmergency(foldTurkishAscii(message.slice(0, 8_000).replace(/\s+/g, " ")))
-    .replace(QUOTED, " ")
-    .replace(FIRE_PRODUCT, " ");
+  const contextual = neutralizeNonEmergency(foldTurkishAscii(message.slice(0, 8_000).replace(/\s+/g, " ")));
+  const folded = contextual.replace(QUOTED, " ").replace(FIRE_PRODUCT, " ");
   // Yalnız haykırış ("Yangın!", "Fire!!", "Au feu !", "¡Fuego!", "Пожар!") açık tehlikedir; ünlemsiz tek sözcük ("Yangın") modele kalır.
   if (BARE_ALARM.test(folded.replace(/[\s!¡.]+/gu, " ").trim()) && /[!¡]/u.test(folded)) return { level: "clear", kinds: ["fire"] };
   // Mesaj düzeyi sinyaller (yanık kokusu, nefes, suyun elektriğe teması) yalnız olumsuzlanmamış / geçmiş olmayan cümleciklerden sayılır.
@@ -641,8 +640,9 @@ export function hazardEvidenceOf(message: string | null | undefined): HazardEvid
     if (r.level === best.level) for (const k of r.kinds) kinds.add(k);
   }
   // G4 (kurucu kararı 10-13 "Olası gaz acili say"): gaz / CO dedektörü ÖTÜYOR → açık gaz tehlikesi (model çağrılmaz, ev sahibine kritik
-  // bildirim). Kanal ağıyla tek kaynak. Alıntı ve K6 nötrlemesi sonrası metin okunur; başka açık tür varsa korunur.
-  if (gasDetectorSounding(folded)) {
+  // bildirim). Kanal ağıyla tek kaynak ve AYNI girdi sınıfı: K6 nötrlemesi sonrası, ALINTI SİLİNMEDEN (kanal ağı alıntıyı silmez;
+  // `CO dedektörü "bip bip" yapıyor` iki ağda aynı sonuç — Haiku incelemesi 10-13). Başka açık tür varsa korunur.
+  if (gasDetectorSounding(contextual)) {
     if (best.level !== "clear") kinds.clear();
     kinds.add("gas");
     return { level: "clear", kinds: [...kinds] };
