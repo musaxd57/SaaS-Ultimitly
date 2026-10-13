@@ -62,6 +62,10 @@ const SOUNDING: Array<[string, string]> = [
   ["de ayrılabilir (hört leider nicht auf)", "Der CO-Melder hört leider nicht auf zu piepen"],
   ["tr zarflı devam (Şimdi ötüyor)", "Karbonmonoksit dedektörü mutfakta. Şimdi ötüyor!"],
   ["es ses fiiliyle başlayan devam", "El detector de gas está en la cocina. Suena sin parar!"],
+  // Haiku son kontrolü (2): "hiç durmadı" = ses sürüyor.
+  ["en hiç durmadı (never stopped)", "The CO alarm has never stopped beeping"],
+  ["es hiç durmadı (nunca ha dejado de)", "La alarma de gas nunca ha dejado de sonar"],
+  ["de hiç durmadı (nie aufgehört)", "Der CO-Melder hat nie aufgehört zu piepen"],
 ];
 
 const NOT_SOUNDING: Array<[string, string]> = [
@@ -103,6 +107,11 @@ const NOT_SOUNDING: Array<[string, string]> = [
   ["es durdu", "El detector de gas dejó de sonar"],
   ["fr durdu", "Le détecteur de CO a cessé de sonner"],
   ["de durdu", "Der CO-Melder hat aufgehört zu piepen"],
+  // Haiku son kontrolü (2): devam cümlesi BAŞKA bir ses kaynağından söz ediyor.
+  ["devam cümlesinde telefon (en)", "Where is the CO detector? Now my phone is beeping."],
+  ["devam cümlesinde telefon (ses fiiliyle başlıyor)", "Where is the CO detector? Beeping phone is mine."],
+  ["devam cümlesinde Handy (de)", "Wo ist der CO-Melder? Piept mein Handy."],
+  ["devam cümlesinde telefon (tr)", "Karbonmonoksit dedektörü nerede? Şimdi telefonum ötüyor."],
 ];
 
 describe("gasDetectorSounding — gaz / CO dedektörü ötüyor", () => {
@@ -160,6 +169,8 @@ describe("maliyet — misafir metninde karesel iş yok", () => {
     // Haiku incelemesi 10-13: ad ve fiil AYNI cümlede binlerce kez (eski çift döngü D×S) — sıralı işaretçiyle doğrusal.
     ["binlerce ad + binlerce fiil", "gas alarm is on the wall and the clock is ringing ".repeat(1_500)],
     ["binlerce ad + binlerce uzak fiil", `${"co alarm ".repeat(5_000)}${"x ".repeat(100)}${"beeping ".repeat(5_000)}`],
+    // Haiku son kontrolü (2): çok sayıda varsayım sözcüğü + ses aynı cümlede (eski ses × varsayım taraması).
+    ["binlerce 'if' + binlerce ses", `${"if ".repeat(8_000)}${"beep ".repeat(5_000)}gas alarm`],
   ])("%s → 300 ms altında", (_l, text) => {
     const t0 = performance.now();
     gasDetectorSounding(text);

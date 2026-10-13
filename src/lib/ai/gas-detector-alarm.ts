@@ -75,7 +75,7 @@ const PLAIN_NEG =
  * olumsuzdur → ses SÜRÜYOR ("has not stopped", "no ha dejado de", "hat nicht wirklich aufgehört zu" — Haiku son kontrolü 10-13).
  */
 const STOPPED_NEG = /(?:^|\s)(?:stopped|dejo de|ha dejado de|a cesse de|a arrete de|aufgehort zu)\s(?:\p{L}{1,12}\s){0,1}$/u;
-const PLAIN_NEG_TAIL = /(?:^|\s)(?:not|hasn't|hasnt|haven't|havent|no|nicht|ne)\s(?:\p{L}{1,12}\s){0,2}$/u;
+const PLAIN_NEG_TAIL = /(?:^|\s)(?:not|hasn't|hasnt|haven't|havent|never|no|nunca|nicht|nie|ne|jamais)\s(?:\p{L}{1,12}\s){0,2}$/u;
 /** Olumsuzlama — ses fiilinin hemen ARDINDA (≤ 14 karakter): "piept nicht", "(ne) sonne pas / plus", "no suena nunca". */
 const NEG_AFTER = /^\s(?:nicht|nie|pas|plus|mehr nicht|nunca)(?![\p{L}\p{N}])/u;
 /** Varsayım / yordam sorusu — yalnız SESTEN ÖNCE gelirse: "If the CO alarm goes off…" evet; "…is beeping, I don't know if…" hayır. */
@@ -90,6 +90,13 @@ const CONTINUATION_START =
  * "Telefon çalıyor." başka bir öznedir (3. inceleme; zarf listesi son kontrol: "Şimdi ötüyor!").
  */
 const CONTINUATION_MAX_WORDS = 1;
+/**
+ * Devam cümlesi BAŞKA bir ses kaynağından söz ediyorsa dedektöre bağlanmaz (Haiku son kontrolü: "Where is the CO detector? Now my phone
+ * is beeping", "Wo ist der CO-Melder? Piept mein Handy"). YALNIZ devam cümlesinde: aynı cümlede "CO alarmı ve telefonum ötüyor" gerçek
+ * bildirimdir, kaçırılmaz.
+ */
+const OTHER_SOUND_SOURCE =
+  /(?<![\p{L}\p{N}])(?:phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|dishwasher|fridge|timer|telefon\p{L}{0,6}|zil\p{L}{0,4}|saat\p{L}{0,4}|firin\p{L}{0,4}|mikrodalga\p{L}{0,4}|makine\p{L}{0,4}|buzdolab\p{L}{0,4}|handy|wecker|klingel|telefono|movil|portable|reveil|horno|minuteur)(?![\p{L}\p{N}])/u;
 
 /** Cümle yakınlığı: ad ile fiil arasında en çok bu kadar karakter (iki yönde de: "Es piept der CO-Melder", "Suena la alarma de gas"). */
 const NEAR = 80;
@@ -124,7 +131,7 @@ const STOP_VERB = /(?:^|\s)(?:stop|stops|stopping|quit|aufhoren|aufgehort|arrete
 /** Almanca ayrılabilir "hört (leider) nicht auf zu piepen" — "hört" ile "nicht" arasında en çok iki sözcük. */
 const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert)(?: \p{L}{1,12}){0,2} nicht auf zu $/u;
 
-function liveSound(sentence: string, s: Span, hypoStarts: readonly number[]): boolean {
+function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
   const before = sentence.slice(Math.max(0, s.start - 40), s.start);
   const stopped = STOPPED_NEG.exec(before);
   if (stopped) {
@@ -135,7 +142,7 @@ function liveSound(sentence: string, s: Span, hypoStarts: readonly number[]): bo
     if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
   }
   if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
-  return !hypoStarts.some((h) => h < s.start);
+  return !(firstHypo < s.start);
 }
 
 /** Sıralı iki işaretçi: herhangi bir ad–fiil çifti ≤ NEAR karakter mi? O(D + S) (iki dizi de konuma göre sıralı). */
@@ -155,23 +162,26 @@ export function gasDetectorSounding(message: string | null | undefined): boolean
   for (let k = 0; k < sentences.length; k++) {
     const sentence = sentences[k];
     if (sentence.length < 6) continue;
-    const hypo = spans(HYPOTHETICAL_ALL, sentence).map((h) => h.start);
+    // İlk varsayım sözcüğünün yeri yeter (ses ondan sonraysa varsayımdır) — ses başına tarama yok (maliyet O(S + H)).
+    const firstHypo = spans(HYPOTHETICAL_ALL, sentence)[0]?.start ?? Infinity;
     const next = sentences[k + 1] ?? "";
     const nextIsContinuation =
       next.length > 0 &&
       (CONTINUATION_START.test(next) ||
         next.split(" ").length <= CONTINUATION_MAX_WORDS ||
         [...LANGS.map((l) => SOUNDING[l]), CROSS_LANGUAGE_SAFE].some((re) => spans(re, next)[0]?.start === 0)) &&
-      spans(HYPOTHETICAL_ALL, next).length === 0;
-    const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter((s) => liveSound(sentence, s, hypo));
-    const crossNext = hypo.length === 0 && nextIsContinuation && spans(CROSS_LANGUAGE_SAFE, next).some((s) => liveSound(next, s, []));
+      spans(HYPOTHETICAL_ALL, next).length === 0 &&
+      !OTHER_SOUND_SOURCE.test(next);
+    const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter((s) => liveSound(sentence, s, firstHypo));
+    const crossNext =
+      firstHypo === Infinity && nextIsContinuation && spans(CROSS_LANGUAGE_SAFE, next).some((s) => liveSound(next, s, Infinity));
     for (const lang of LANGS) {
       const detectors = spans(DETECTOR[lang], sentence);
       if (detectors.length === 0) continue;
-      const sounds = spans(SOUNDING[lang], sentence).filter((s) => liveSound(sentence, s, hypo));
+      const sounds = spans(SOUNDING[lang], sentence).filter((s) => liveSound(sentence, s, firstHypo));
       if (anyNear(detectors, sounds) || anyNear(detectors, crossSounds)) return true;
       // Hemen ardındaki kısa devam cümlesi ("…in the kitchen. It keeps beeping!") — ses orada, dedektör burada, varsayım yok.
-      if (hypo.length === 0 && nextIsContinuation && spans(SOUNDING[lang], next).some((s) => liveSound(next, s, []))) return true;
+      if (firstHypo === Infinity && nextIsContinuation && spans(SOUNDING[lang], next).some((s) => liveSound(next, s, Infinity))) return true;
       if (crossNext) return true;
     }
   }
