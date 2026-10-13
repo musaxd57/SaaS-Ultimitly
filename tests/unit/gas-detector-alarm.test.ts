@@ -267,9 +267,31 @@ describe("Haiku son kontrolü: gelecek zaman / yordam / geçmiş kuralları bild
     ["tr geçmiş, bitti beyanı yok", "Dün gece duman alarmı öttü", "smoke"],
     ["geçmiş + yardımcı fiille olumsuz bitti (hasn't been fixed)", "Last night the CO alarm went off and it hasn't been fixed", "gas"],
     ["geçmiş + didn't get resolved", "Last night the CO alarm went off, didn't get resolved", "gas"],
+    ["geçmiş + 'nobody stopped it' (çıplak stopped bitti değildir — mutasyon M11)", "Last night the CO alarm went off and nobody stopped it", "gas"],
     ["yordam biçimi + sürüyor beyanı (won't stop)", "Whenever the CO alarm beeps it won't stop", "gas"],
     ["bitti beyanı sesten ÖNCE sayılmaz", "Everything is fine, but last night the CO alarm went off", "gas"],
     ["zaman belirteci yok + bitti → yine ev sahibine (CO)", "The CO alarm went off but it's fine now", "gas"],
+    // Haiku 2. son kontrol (77c9a85) — 17 yanlış negatif, hepsi ölçüldü:
+    ["eylem başka nesnede (gaz vanası)", "Last night the gas alarm went off and we turned off the gas valve.", "gas"],
+    ["tr eylem başka nesnede (fırın)", "Dün gece CO alarmı öttü, fırını kapattım.", "gas"],
+    ["tr eylem ardındaki cümlede", "Dün gece gaz dedektörü öttü. Gazı kapattık.", "gas"],
+    ["de eylem ardındaki cümlede (Herd ist aus)", "Gestern hat der Gasmelder gepiept. Der Herd ist aus.", "gas"],
+    ["es eylem ardındaki cümlede (se apagó)", "Anoche sonó la alarma de gas. Se apagó la estufa.", "gas"],
+    ["ardındaki cümlede eylem (turned off the stove)", "Last night the CO alarm went off. We opened the windows and turned off the stove.", "gas"],
+    ["ardındaki cümle güvenilmez (bilinçli: 'fine now')", "Last night the smoke alarm went off. Everything is fine now.", "smoke"],
+    ["ardındaki cümle başka nesne (wifi)", "Last night the CO alarm went off. The wifi is fine now.", "gas"],
+    ["aynı cümlede öznesiz 'fine now' başka nesne", "Last night the CO alarm went off, the wifi is fine now.", "gas"],
+    ["sürüyor beyanlı devam cümlesi", "Last night the CO alarm went off. We turned it off, but it keeps beeping.", "gas"],
+    ["tr sürüyor beyanlı devam cümlesi", "Dün gece CO alarmı öttü. Kapattık ama hâlâ ötüyor.", "gas"],
+    ["olumsuz iki sözcük önde (could not get it fixed)", "Last night the CO alarm went off and we could not get it fixed.", "gas"],
+    ["belirsizlik (I don't know if it stopped)", "Last night the CO alarm went off and I don't know if it stopped.", "gas"],
+    ["tr soru eki (sorun yok mu)", "Dün gece CO alarmı öttü, sorun yok mu?", "gas"],
+    ["sürme fiili (will stay)", "The CO alarm will stay beeping until I reset it.", "gas"],
+    ["sürme fiili (will still)", "The CO alarm will still beep.", "gas"],
+    ["de sürme fiili (wird noch)", "Der CO-Melder wird noch piepen.", "gas"],
+    ["yordam biçimi + 'does not stop'", "When the CO alarm goes off it does not stop.", "gas"],
+    ["yordam biçimi + 'doesn't stop'", "When the CO alarm goes off it doesn't stop.", "gas"],
+    ["çift olumsuz (won't stop beeping)", "The CO alarm won't stop beeping.", "gas"],
   ])("🚨 %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
     expect(hazardEvidenceOf(text)).toEqual({ level: "clear", kinds: [kind] });
@@ -283,9 +305,14 @@ describe("Haiku son kontrolü: gelecek zaman / yordam / geçmiş kuralları bild
     ["whenever + dedektör + geniş zaman = yordam", "Whenever the CO alarm beeps, should I open the windows?", "gas"],
     ["fr yordam (quand l'…)", "Quand l'alarme incendie sonne, que dois-je faire ?", "smoke"],
     ["es yordam (cuando la …)", "Cuando la alarma de humo suena, ¿qué hago?", "smoke"],
-    ["geçmiş + ardındaki cümlede bitti", "Last night the smoke alarm went off. Everything is fine now.", "smoke"],
     ["de geçmiş + bitti", "Gestern hat der Rauchmelder gepiept, jetzt ist alles gut", "smoke"],
     ["es geçmiş + bitti", "Anoche sonó la alarma de humo, ya está bien", "smoke"],
+    // Haiku 2. son kontrol — iyelikli yordam sorusu (77c9a85'te gerilemeydi) + "won't" olumsuzu:
+    ["iyelikli yordam (her)", "When her CO alarm goes off, what should I do?", "gas"],
+    ["es iyelikli yordam (mi)", "Cuando mi alarma de gas suena, ¿qué hago?", "gas"],
+    ["fr iyelikli yordam (mon)", "Quand mon détecteur de CO sonne, que dois-je faire ?", "gas"],
+    ["won't olumsuzu", "The CO alarm won't beep.", "gas"],
+    ["devam cümlesi başka ses kaynağı (sürüyor beyanlı)", "Where is the smoke detector? My phone keeps ringing", "smoke"],
   ])("KONTROL %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(false);
   });

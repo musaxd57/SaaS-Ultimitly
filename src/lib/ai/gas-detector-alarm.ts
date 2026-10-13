@@ -81,7 +81,7 @@ const CROSS_LANGUAGE_SAFE = new RegExp(
  * Fransızca olumsuzluk ardındaki "pas / plus" ile tanınır (↓). Türkçe olumsuzluk çekimdedir ve olumlu fiil listesine girmez.
  */
 const PLAIN_NEG =
-  /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|hasn't|hasnt|haven't|havent|never|no longer|no|ya no|nicht|kein|keine|nie)\s((?:\p{L}{1,12}\s){0,2})$/u;
+  /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|hasn't|hasnt|haven't|havent|won't|wont|never|no longer|no|ya no|nicht|kein|keine|nie)\s((?:\p{L}{1,12}\s){0,2})$/u;
 /**
  * DURDU (ses bitti): "stopped beeping", "dejó de sonar", "a cessé de sonner", "hat aufgehört zu piepen". Önünde DÜZ olumsuz varsa çift
  * olumsuzdur → ses SÜRÜYOR ("has not stopped", "no ha dejado de", "hat nicht wirklich aufgehört zu" — Haiku son kontrolü 10-13).
@@ -112,7 +112,7 @@ const OTHER_SOUND_SOURCE =
 
 /**
  * GEÇMİŞTE OLUP BİTMİŞ (H3 tam kapısı, eski pin: "Last night the smoke alarm went off but it's out now." → anılış): cümlede geçmiş zaman
- * belirteci VE sesin ardında BİTTİ beyanı ("…but it's fine now", ardındaki cümlede "Şimdi sorun yok") varsa geçmiş biçimli ses fiili
+ * belirteci VE AYNI cümlede sesin ardında BİTTİ beyanı ("…but it's fine now", "…şimdi sorun yok") varsa geçmiş biçimli ses fiili
  * ("went off", "öttü", "çaldı", "gepiept", "a sonné", "sonó", "was beeping") sayılmaz; şimdiki zaman ("…and it is still beeping",
  * "hâlâ ötüyor") yine canlıdır. Bitti beyanı YOKSA geçmiş bildirim de canlıdır (Haiku son kontrolü 10-13: "This morning the CO alarm
  * was beeping" — bittiğine dair kanıt yok; misafir pil uyarısını gerçek alarmdan ayıramaz, karar ev sahibinin).
@@ -126,15 +126,19 @@ const PAST_AUX_BEFORE = /(?:^|\s)(?:was|were)\s$/u;
  * SES SÜRÜYOR / AZ ÖNCE: geçmiş belirteci olsa da canlı ("This morning … went off and it won't stop", "Gestern war alles ok, aber eben hat
  * der Rauchmelder gepiept", "dün gece öttü, hâlâ ötüyor").
  */
-const ONGOING = /(?:^|\s)(?:won't stop|wont stop|keeps|still|nonstop|non-stop|right now|just now|hala|halen|surekli|durmadan|az once|demin|eben|gerade|immer noch|hort nicht auf|toujours|a l'instant|en ce moment|sigue|todavia|ahora mismo|recien|no para)(?![\p{L}\p{N}])/u;
+const ONGOING = /(?:^|\s)(?:won't stop|wont stop|will not stop|doesn't stop|doesnt stop|does not stop|never stops|keeps|still|nonstop|non-stop|right now|just now|hala|halen|surekli|durmadan|az once|demin|eben|gerade|immer noch|hort nicht auf|toujours|a l'instant|en ce moment|sigue|todavia|ahora mismo|recien|no para)(?![\p{L}\p{N}])/u;
 /**
- * BİTTİ beyanı (yalnız sesin ARDINDA ya da ardındaki cümlede; önünde olumsuz varsa sayılmaz: "not fixed", "nicht alles gut"). Çıplak
- * "stopped" YOK ("hasn't stopped" sürüyor demektir) — yalnız özneli / bağlaçlı biçim.
+ * BİTTİ beyanı — yalnız AYNI cümlede, sesin ARDINDA ve DURUMUN kendisi hakkında: özneli "it's fine / it's out / everything is ok", "it
+ * stopped", "sustu / durdu", "sorun yok", "alles gut", "tout va bien", "todo bien", "false alarm". Haiku son kontrolü (10-13, ölçüldü):
+ * EYLEM sözcükleri BAŞKA nesneyi anlatır ve gaz acilinde tehlikenin GERÇEK olduğunu gösterir ("…and we turned off the gas valve", "fırını
+ * kapattım", "Der Herd ist aus", "Se apagó la estufa") → bitti DEĞİL; özne-siz "fine now" başka şey olabilir ("the wifi is fine now");
+ * ardındaki cümle de güvenilmez ("… We opened the windows and turned off the stove."). Önünde olumsuz / belirsizlik varsa ("not", "I don't
+ * know if", "ob", "si") ya da Türkçe soru ekiyle bitiyorsa ("sorun yok mu") sayılmaz. Çıplak "stopped" YOK ("nobody stopped it").
  */
 const ENDED =
-  /(?:^|\s)(?:out now|fine now|ok now|okay now|quiet now|all good|all fine|everything is (?:fine|ok|okay)|everything's (?:fine|ok|okay)|it's (?:fine|ok|okay)|its fine|(?:it|then|and|finally|eventually) stopped|it's over|turned (?:it )?off|silenced|resolved|fixed|false alarm|sustu|durdu|gecti|sorun yok|sorun kalmadi|duzeldi|simdi iyi|kapattik|kapattim|yanlis alarm|alles (?:ok|gut|in ordnung)|wieder ruhig|ist aus|ist wieder aus|fehlalarm|tout va bien|c'est fini|s'est arrete|c'est regle|fausse alerte|ya paro|ya esta bien|todo bien|ya no suena|se apago|se arreglo|falsa alarma)(?![\p{L}\p{N}])/gu;
+  /(?:^|\s)(?:(?:it|it's|its|it is|everything|everything's|everything is|all|all is|things are) (?:fine|ok|okay|good|quiet|out|over|silent)|(?:it|then|and|finally|eventually|it has|it's) stopped|false alarm|sustu|durdu|sorun yok|sorun kalmadi|simdi iyi|her sey yolunda|yanlis alarm|alles (?:ok|gut|in ordnung)|wieder ruhig|fehlalarm|tout va bien|c'est fini|s'est arrete|fausse alerte|ya paro|ya esta bien|todo bien|ya no suena|falsa alarma)(?![\p{L}\p{N}])(?! m[iu](?![\p{L}\p{N}]))/gu;
 const NEG_BEFORE_ENDED =
-  /(?:^|\s)(?:not|isn't|isnt|wasn't|wasnt|hasn't|hasnt|haven't|havent|didn't|didnt|doesn't|doesnt|won't|wont|never|nicht|nie|no|ne|nunca|jamais)\s(?:\p{L}{1,12}\s)?$/u;
+  /(?:^|\s)(?:not|isn't|isnt|wasn't|wasnt|hasn't|hasnt|haven't|havent|didn't|didnt|doesn't|doesnt|won't|wont|never|nicht|nie|no|ne|nunca|jamais|if|whether|ob|si)\s(?:\p{L}{1,12}\s)?$/u;
 
 /**
  * Cümle başına BİR KEZ hesaplanan olgular (maliyet pini: ses başına cümle taraması 50.000 karakterlik "last night … beeped beeped …"
@@ -155,7 +159,7 @@ function factsOf(sentence: string): SentenceFacts {
  * "va a seguir sonando", "wird weiter piepen"); İspanyolca çıplak "va" + ulaç süren zamandır ("la alarma de gas va sonando").
  */
 const FUTURE_BEFORE = /(?:(?:^|\s)(will|going to|gonna|wird|werden|va|vont|sera|va a|van a)|\p{L}('ll))\s(?:(\p{L}{1,12})\s)?$/u;
-const KEEP_VERB = /^(?:keep|continue|seguir|weiter|continuer)$/u;
+const KEEP_VERB = /^(?:keep|continue|stay|remain|still|seguir|weiter|noch|continuer)$/u;
 const ES_GERUND = /^(?:sonando|pitando)$/u;
 function futureBefore(sentence: string, s: Span): boolean {
   const m = FUTURE_BEFORE.exec(sentence.slice(Math.max(0, s.start - 24), s.start));
@@ -170,7 +174,7 @@ function futureBefore(sentence: string, s: Span): boolean {
  * "When I open the door the smoke alarm goes off", "Whenever I cook the CO alarm beeps" → ev sahibine). Sürüyor beyanı da bildirimdir.
  */
 const WHEN_GOVERNS =
-  /(?:^|\s)(?:when|whenever|quand|cuando)\s(?:(?:the|my|our|your|this|a|an|le|la|les|un|une|el|los|las|una|der|die|das|den|ein|eine)\s|l')?$/u;
+  /(?:^|\s)(?:when|whenever|quand|cuando)\s(?:(?:the|my|our|your|his|her|their|its|this|that|a|an|any|each|le|la|les|un|une|mon|ma|mes|ton|ta|son|sa|notre|votre|el|los|las|una|mi|mis|tu|su|sus|nuestra|nuestro|der|die|das|den|ein|eine|mein|meine|unser|unsere|ihr|ihre)\s|l')?$/u;
 const GENERIC_PRESENT = /^(?:goes off|beeps|chirps|buzzes|sounds|sonne|sonnent|suena|suenan|pita|pitan)$/u;
 
 /** Cümle yakınlığı: ad ile fiil arasında en çok bu kadar karakter (iki yönde de: "Es piept der CO-Melder", "Suena la alarma de gas"). */
@@ -206,7 +210,7 @@ const STOP_VERB = /(?:^|\s)(?:stop|stops|stopping|quit|aufhoren|aufgehort|arrete
 /** Almanca ayrılabilir "hört (leider) nicht auf zu piepen" — "hört" ile "nicht" arasında en çok iki sözcük. */
 const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert)(?: \p{L}{1,12}){0,2} nicht auf zu $/u;
 
-function liveSound(sentence: string, s: Span, firstHypo: number, f: SentenceFacts, followingEnded: boolean): boolean {
+function liveSound(sentence: string, s: Span, firstHypo: number, f: SentenceFacts): boolean {
   const before = sentence.slice(Math.max(0, s.start - 40), s.start);
   const stopped = STOPPED_NEG.exec(before);
   if (stopped) {
@@ -219,7 +223,7 @@ function liveSound(sentence: string, s: Span, firstHypo: number, f: SentenceFact
   if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
   const verb = sentence.slice(s.start, s.end);
   const pastShaped = PAST_FORM.test(verb) || PAST_AUX_BEFORE.test(sentence.slice(Math.max(0, s.start - 6), s.start));
-  if (pastShaped && f.past && !f.ongoing && (f.lastEnded >= s.end || followingEnded)) return false;
+  if (pastShaped && f.past && !f.ongoing && f.lastEnded >= s.end) return false;
   if (futureBefore(sentence, s)) return false;
   return !(firstHypo < s.start);
 }
@@ -248,7 +252,6 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
   if (typeof message !== "string" || message.length === 0) return false;
   const sentences = fold(message).split(/[.!?;؟\n]+/u).map((s) => s.trim());
   const facts = sentences.map(factsOf);
-  const endedIn = (k: number) => (facts[k]?.lastEnded ?? -1) >= 0;
   for (let k = 0; k < sentences.length; k++) {
     const sentence = sentences[k];
     if (sentence.length < 6) continue;
@@ -259,11 +262,14 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
       next.length > 0 &&
       (CONTINUATION_START.test(next) ||
         next.split(" ").length <= CONTINUATION_MAX_WORDS ||
+        // Sürüyor beyanı taşıyan cümle de devamdır (Haiku son kontrolü 10-13: "… We turned it off, but it keeps beeping.", "Kapattık ama
+        // hâlâ ötüyor."); başka ses kaynağı ve varsayım süzgeci aynen.
+        facts[k + 1].ongoing ||
         [...LANGS.map((l) => SOUNDING[l]), CROSS_LANGUAGE_SAFE].some((re) => spans(re, next)[0]?.start === 0)) &&
       spans(HYPOTHETICAL_ALL, next).length === 0 &&
       !OTHER_SOUND_SOURCE.test(next);
-    const live = (s: Span) => liveSound(sentence, s, firstHypo, facts[k], endedIn(k + 1));
-    const liveNext = (s: Span) => liveSound(next, s, Infinity, facts[k + 1], endedIn(k + 2));
+    const live = (s: Span) => liveSound(sentence, s, firstHypo, facts[k]);
+    const liveNext = (s: Span) => liveSound(next, s, Infinity, facts[k + 1]);
     const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter(live);
     const crossNext = firstHypo === Infinity && nextIsContinuation && spans(CROSS_LANGUAGE_SAFE, next).some(liveNext);
     // Yordam okuması yalnız GENİŞ zamanlı ve sürüyor beyanı olmayan sese uygulanır (↑ WHEN_GOVERNS).
