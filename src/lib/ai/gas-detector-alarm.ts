@@ -68,8 +68,14 @@ const CROSS_LANGUAGE_SAFE = new RegExp(
  * Olumsuz sözcükten sonra boşluk ŞART ("neden" ≠ "ne"). Fransızca "ne" BİLEREK YOK: Türkçede "ne" sorudur ("ne ötüyor böyle?") —
  * Fransızca olumsuzluk ardındaki "pas / plus" ile tanınır (↓). Türkçe olumsuzluk çekimdedir ve olumlu fiil listesine girmez.
  */
-const NEG_BEFORE =
-  /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|never|no longer|stopped|no|ya no|nicht|kein|keine|nie|dejo de|ha dejado de|a cesse de|a arrete de|aufgehort zu)\s((?:\p{L}{1,12}\s){0,2})$/u;
+const PLAIN_NEG =
+  /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|hasn't|hasnt|haven't|havent|never|no longer|no|ya no|nicht|kein|keine|nie)\s((?:\p{L}{1,12}\s){0,2})$/u;
+/**
+ * DURDU (ses bitti): "stopped beeping", "dejó de sonar", "a cessé de sonner", "hat aufgehört zu piepen". Önünde DÜZ olumsuz varsa çift
+ * olumsuzdur → ses SÜRÜYOR ("has not stopped", "no ha dejado de", "hat nicht wirklich aufgehört zu" — Haiku son kontrolü 10-13).
+ */
+const STOPPED_NEG = /(?:^|\s)(?:stopped|dejo de|ha dejado de|a cesse de|a arrete de|aufgehort zu)\s(?:\p{L}{1,12}\s){0,1}$/u;
+const PLAIN_NEG_TAIL = /(?:^|\s)(?:not|hasn't|hasnt|haven't|havent|no|nicht|ne)\s(?:\p{L}{1,12}\s){0,2}$/u;
 /** Olumsuzlama — ses fiilinin hemen ARDINDA (≤ 14 karakter): "piept nicht", "(ne) sonne pas / plus", "no suena nunca". */
 const NEG_AFTER = /^\s(?:nicht|nie|pas|plus|mehr nicht|nunca)(?![\p{L}\p{N}])/u;
 /** Varsayım / yordam sorusu — yalnız SESTEN ÖNCE gelirse: "If the CO alarm goes off…" evet; "…is beeping, I don't know if…" hayır. */
@@ -77,8 +83,12 @@ const HYPOTHETICAL_SRC =
   "(?:^|\\s)(?:if|in case|what if|should the|whenever|what (?:do|should) (?:i|we) do when|falls|wenn|sollte|eger|durumunda|halinde|au cas ou|en cas de|que faire si|en caso de|que hago si|que hacer si)(?![\\p{L}\\p{N}])";
 const HYPOTHETICAL_ALL = new RegExp(HYPOTHETICAL_SRC, "gu");
 /** Devam cümlesi: bir önceki cümledeki dedektörü sürdüren kısa cümle ("It keeps beeping!", "Sürekli ötüyor!", "Es piept."). */
-const CONTINUATION_START = /^(?:it|it's|its|still|keeps|er|es|sie|il|elle|ca|sigue|esta|surekli|hala|durmadan|yine|hep)(?![\p{L}\p{N}])/u;
-/** Zamirsiz devam cümlesi yalnız TEK sözcük ("Ötüyor!") — "Telefon çalıyor." başka bir öznedir (3. inceleme). */
+const CONTINUATION_START =
+  /^(?:it|it's|its|still|keeps|now|again|constantly|er|es|sie|immer|standig|il|elle|ca|encore|toujours|sigue|esta|ahora|todavia|surekli|hala|simdi|durmadan|yine|hep)(?![\p{L}\p{N}])/u;
+/**
+ * Zamir / zarfsız devam cümlesi yalnız TEK sözcük ("Ötüyor!") ya da doğrudan SES fiiliyle başlayan cümle ("Suena sin parar!") —
+ * "Telefon çalıyor." başka bir öznedir (3. inceleme; zarf listesi son kontrol: "Şimdi ötüyor!").
+ */
 const CONTINUATION_MAX_WORDS = 1;
 
 /** Cümle yakınlığı: ad ile fiil arasında en çok bu kadar karakter (iki yönde de: "Es piept der CO-Melder", "Suena la alarma de gas"). */
@@ -111,12 +121,19 @@ function spans(re: RegExp, text: string): Span[] {
  * Almanca ayrılabilir "hört nicht auf zu piepen": "hört" olumsuzdan ÖNCE gelir → ayrıca tanınır.
  */
 const STOP_VERB = /(?:^|\s)(?:stop|stops|stopping|quit|aufhoren|aufgehort|arrete|arreter|para|parar|deja|dejar)(?:\s|$)/u;
-const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert) nicht auf zu $/u;
+/** Almanca ayrılabilir "hört (leider) nicht auf zu piepen" — "hört" ile "nicht" arasında en çok iki sözcük. */
+const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert)(?: \p{L}{1,12}){0,2} nicht auf zu $/u;
 
 function liveSound(sentence: string, s: Span, hypoStarts: readonly number[]): boolean {
-  const before = sentence.slice(Math.max(0, s.start - 28), s.start);
-  const neg = NEG_BEFORE.exec(before);
-  if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
+  const before = sentence.slice(Math.max(0, s.start - 40), s.start);
+  const stopped = STOPPED_NEG.exec(before);
+  if (stopped) {
+    // "Durdu" — önünde düz olumsuz yoksa ses bitti; varsa çift olumsuz (ses sürüyor).
+    if (!PLAIN_NEG_TAIL.test(before.slice(0, stopped.index + 1))) return false;
+  } else {
+    const neg = PLAIN_NEG.exec(before);
+    if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
+  }
   if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
   return !hypoStarts.some((h) => h < s.start);
 }
@@ -142,7 +159,9 @@ export function gasDetectorSounding(message: string | null | undefined): boolean
     const next = sentences[k + 1] ?? "";
     const nextIsContinuation =
       next.length > 0 &&
-      (CONTINUATION_START.test(next) || next.split(" ").length <= CONTINUATION_MAX_WORDS) &&
+      (CONTINUATION_START.test(next) ||
+        next.split(" ").length <= CONTINUATION_MAX_WORDS ||
+        [...LANGS.map((l) => SOUNDING[l]), CROSS_LANGUAGE_SAFE].some((re) => spans(re, next)[0]?.start === 0)) &&
       spans(HYPOTHETICAL_ALL, next).length === 0;
     const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter((s) => liveSound(sentence, s, hypo));
     const crossNext = hypo.length === 0 && nextIsContinuation && spans(CROSS_LANGUAGE_SAFE, next).some((s) => liveSound(next, s, []));

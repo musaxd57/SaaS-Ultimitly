@@ -54,6 +54,14 @@ const SOUNDING: Array<[string, string]> = [
   // Haiku 3. inceleme:
   ["de çift olumsuz geçmiş (hat nicht aufgehört)", "Der CO-Melder hat nicht aufgehört zu piepen"],
   ["tek sözcük devam", "Karbonmonoksit dedektörü mutfakta. Ötüyor!"],
+  // Haiku son kontrolü 10-13 (önceki düzeltmenin gerilemeleri):
+  ["es çift olumsuz (no ha dejado de)", "La alarma de gas no ha dejado de sonar"],
+  ["es çift olumsuz (no dejó de)", "El detector de CO no dejó de sonar"],
+  ["en çift olumsuz (has not stopped)", "The CO alarm has not stopped beeping"],
+  ["de çift olumsuz (nicht wirklich aufgehört)", "Der CO-Melder hat nicht wirklich aufgehört zu piepen"],
+  ["de ayrılabilir (hört leider nicht auf)", "Der CO-Melder hört leider nicht auf zu piepen"],
+  ["tr zarflı devam (Şimdi ötüyor)", "Karbonmonoksit dedektörü mutfakta. Şimdi ötüyor!"],
+  ["es ses fiiliyle başlayan devam", "El detector de gas está en la cocina. Suena sin parar!"],
 ];
 
 const NOT_SOUNDING: Array<[string, string]> = [
