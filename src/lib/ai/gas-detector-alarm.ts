@@ -132,7 +132,7 @@ const NEG_AFTER_SOURCE = /^\p{L}{0,6}\s(?:degil|degildi)(?![\p{L}\p{N}])/u;
  * ("çaydanlığın yanında").
  */
 const LOC_BEFORE_SOURCE =
-  /(?:^|\s)(?:near|next to|by|beside|behind|above|below|under|over|in|at|on|inside|from|neben|bei|beim|im|am|uber|unter|hinter|dans|sur|pres|a cote|au-dessus|sous|cerca|junto|al lado|encima|debajo|en|dentro)(?:\s(?:de|del|du|des|a|al|au|aux|dem|der))?\s(?:(?:the|my|our|a|an|der|die|das|dem|den|le|la|l'|el|un|une|mi|mein|meinem)\s)?$/u;
+  /(?:^|\s)(?:near|next to|by|beside|behind|above|below|under|over|in front|on top|opposite|across from|in|at|on|inside|from|neben|bei|beim|im|am|uber|unter|hinter|vor|auf|dans|sur|pres|a cote|au-dessus|sous|devant|en face|cerca|junto|al lado|encima|debajo|delante|frente|enfrente|en|dentro)(?:\s(?:of|de|del|du|des|a|al|au|aux|dem|der))?\s(?:(?:the|my|our|a|an|der|die|das|dem|den|le|la|l'|el|un|une|mi|mein|meinem)\s)?$/u;
 const LOC_AFTER_SOURCE = /^\p{L}{0,6}\s(?:yaninda|yakininda|ustunde|altinda|arkasinda|onunde)(?![\p{L}\p{N}])/u;
 /** Cihaz adı yalnız niteleyici mi (olumsuzlanmış ya da yer tamlayıcısında)? */
 function sourceIsModifier(text: string, at: number, end: number): boolean {

@@ -395,6 +395,11 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["de im Auto und piept", "Wo ist der CO-Melder? Er hängt im Auto und piept.", "gas"],
     ["yalnız bağlaç (mutasyon Z1)", "¿Dónde está la alarma de CO? Ahora apagué el horno y suena.", "gas"],
     ["yalnız kısaltmalı edat (mutasyon Z2)", "¿Dónde está la alarma de CO? Está junto al teléfono sonando.", "gas"],
+    // Haiku 11. tur — çok sözcüklü yer edatı:
+    ["in front of the oven beeping", "Where is the CO alarm? It's in front of the oven beeping.", "gas"],
+    ["on top of the fridge beeping", "Where is the CO alarm? It's on top of the fridge beeping.", "gas"],
+    ["de auf dem Kühlschrank", "Wo ist der CO-Melder? Er ist auf dem Kühlschrank und piept.", "gas"],
+    ["fr devant le four", "Où est le détecteur de CO ? Il est devant le four et il sonne.", "gas"],
     ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
   ])("🚨 %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
