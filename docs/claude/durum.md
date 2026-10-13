@@ -12,7 +12,7 @@
 günde 50 + özet, Paddle yükü 1 yıl, KVKK telefon / e-posta + üslup profili, çizgi taklidi → insana, kanal iptali geri açmaz + panel satırı,
 sağlayıcı arızası tek satır, yakalanmayan hata raporu, imajda yalnız iki betik); G1 hazır yama (kredi gelince ölçüm). Durum ve yeni sorular
 H1–H3: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-13". H1 gerek yok (kurucu verisi), H2 "yeniden aç" düğmesi + H3 duman dedektörü
-de doğrudan ev sahibine uygulandı.
+de doğrudan ev sahibine uygulandı (Haiku son kontrolü: 6 yanlış negatif + karesel iş kapandı; geçmiş bildirim yalnız "bitti" beyanıyla anılış).
 
 **10-12 gece geç saat:** madde 10 son yüzeyleri (AI cevap öner + QR konuşma kayıtları sınırlı okuma; QR'da 2.000 satır sınırı,
 yabancı konuşmada aşama sızmaz) · DENETIM 08-09 #6/#8/#10/#11/#22/#24–27/#32–37 kapandı ya da doğrulandı, #15 kısmen · ACIK-ISLER 08-08
