@@ -84,11 +84,14 @@ const CROSS_LANGUAGE_SAFE = new RegExp(
 const PLAIN_NEG =
   /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|hasn't|hasnt|haven't|havent|won't|wont|never|no longer|no|ya no|nicht|kein|keine|nie)\s((?:\p{L}{1,12}\s){0,2})$/u;
 /**
- * DURDU (ses bitti): "stopped beeping", "dejó de sonar", "a cessé de sonner", "hat aufgehört zu piepen". Önünde DÜZ olumsuz varsa çift
- * olumsuzdur → ses SÜRÜYOR ("has not stopped", "no ha dejado de", "hat nicht wirklich aufgehört zu" — Haiku son kontrolü 10-13).
+ * DURDU / ARTIK ÖTMÜYOR da BİLDİRİMDİR (Haiku 4. tur, kurucu sorusu H4'ün güvenli varsayılanı): ses ÇALMIŞ — "stopped beeping", "dejó de
+ * sonar", "a cessé de sonner", "hat aufgehört zu piepen", "no longer beeps", "doesn't beep anymore", "piept nicht mehr", "ne sonne plus",
+ * "ya no suena". Önce: "The CO alarm stopped beeping, should we stay in the house?" yapay zekâya kalıyordu. Çift olumsuz ("has not
+ * stopped") zaten süren sestir. Yalnız hiç ÇALMAMIŞ ses ("is not beeping", "hat nicht gepiept") bildirim değil.
  */
 const STOPPED_NEG = /(?:^|\s)(?:stopped|dejo de|ha dejado de|a cesse de|a arrete de|aufgehort zu)\s(?:\p{L}{1,12}\s){0,1}$/u;
-const PLAIN_NEG_TAIL = /(?:^|\s)(?:not|hasn't|hasnt|haven't|havent|never|no|nunca|nicht|nie|ne|jamais)\s(?:\p{L}{1,12}\s){0,2}$/u;
+const NO_LONGER_BEFORE = /(?:^|\s)(?:no longer|ya no)\s(?:\p{L}{1,12}\s){0,2}$/u;
+const NO_LONGER_AFTER = /^(?:\s\p{L}{1,12}){0,2}\s(?:anymore|any more)(?![\p{L}\p{N}])|^\s(?:nicht mehr|mehr nicht|plus|no mas|nunca mas)(?![\p{L}\p{N}])/u;
 /** Olumsuzlama — ses fiilinin hemen ARDINDA (≤ 14 karakter): "piept nicht", "(ne) sonne pas / plus", "no suena nunca". */
 const NEG_AFTER = /^\s(?:nicht|nie|pas|plus|mehr nicht|nunca)(?![\p{L}\p{N}])/u;
 /** Varsayım / yordam sorusu — yalnız SESTEN ÖNCE gelirse: "If the CO alarm goes off…" evet; "…is beeping, I don't know if…" hayır. */
@@ -106,11 +109,19 @@ const CONTINUATION_MAX_WORDS = 1;
 /**
  * Devam cümlesi BAŞKA bir ses kaynağından söz ediyorsa dedektöre bağlanmaz (Haiku son kontrolü: "Where is the CO detector? Now my phone
  * is beeping", "Wo ist der CO-Melder? Piept mein Handy"). YALNIZ devam cümlesinde: aynı cümlede "CO alarmı ve telefonum ötüyor" gerçek
- * bildirimdir, kaçırılmaz.
+ * bildirimdir, kaçırılmaz. Zamirle başlayan cümlede ses kaynaktan ÖNCE geliyorsa dedektördür ("It keeps beeping and the phone is ringing
+ * too") — ama sesi kaynağa BAĞLAYAN cümle ("…, that's my phone", "it's just the oven", "das ist mein Handy") koparır (Haiku 4. tur).
  */
 const PRONOUN_START = /^(?:it|it's|its|er|es|sie|il|elle|ca|o)(?![\p{L}\p{N}])/u;
-const OTHER_SOUND_SOURCE =
-  /(?<![\p{L}\p{N}])(?:phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|dishwasher|fridge|timer|telefon\p{L}{0,6}|zil\p{L}{0,4}|saat\p{L}{0,4}|firin\p{L}{0,4}|mikrodalga\p{L}{0,4}|makine\p{L}{0,4}|buzdolab\p{L}{0,4}|handy|wecker|klingel|telefono|movil|portable|reveil|horno|minuteur)(?![\p{L}\p{N}])/u;
+/** Ses fiilinin hemen önünde özne zamiri ("Last night it went off", "er piept") — devam cümlesi işareti (Haiku 4. tur). */
+const PRONOUN_BEFORE = /(?:^|\s)(?:it|it's|its|er|es|sie|il|elle|ca|o)\s(?:\p{L}{1,12}\s)?$/u;
+const SOURCE_WORDS =
+  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|neighbou?r\\p{L}{0,6}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanlik\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzik\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|hervidor|impresora|musica|vecino\\p{L}{0,2}|coche";
+const OTHER_SOUND_SOURCE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`, "u");
+const ATTRIBUTION = new RegExp(
+  `(?:^|\\s)(?:that's|thats|that is|it's|its|it is|this is|das ist|das war|es ist|c'est|es el|es la|es mi|bu|o)\\s(?:just |only |nur |juste |solo |sadece )?(?:my |the |our |a |an |mein |meine |das |der |die |le |la |mon |ma |mi |el |benim )?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`,
+  "u",
+);
 
 /**
  * GEÇMİŞ ZAMAN İNDİRİMİ YOK (Haiku son kontrolü 10-13, üç tur, ölçüldü): "dün gece öttü, şimdi iyi" ayrımı sözcük listesiyle GÜVENLİ
@@ -180,15 +191,14 @@ const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert)(?: \p{L}{1,12}){0,2} nicht auf
 
 function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
   const before = sentence.slice(Math.max(0, s.start - 40), s.start);
-  const stopped = STOPPED_NEG.exec(before);
-  if (stopped) {
-    // "Durdu" — önünde düz olumsuz yoksa ses bitti; varsa çift olumsuz (ses sürüyor).
-    if (!PLAIN_NEG_TAIL.test(before.slice(0, stopped.index + 1))) return false;
-  } else {
+  // Ses ÇALMIŞ (durdu / artık ötmüyor) → olumsuz denetimi atlanır (↑ STOPPED_NEG).
+  const soundedBefore =
+    STOPPED_NEG.test(before) || NO_LONGER_BEFORE.test(before) || NO_LONGER_AFTER.test(sentence.slice(s.end, s.end + 30));
+  if (!soundedBefore) {
     const neg = PLAIN_NEG.exec(before);
     if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
+    if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
   }
-  if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
   if (futureBefore(sentence, s)) return false;
   return !(firstHypo < s.start);
 }
@@ -224,24 +234,29 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     // İlk varsayım sözcüğünün yeri yeter (ses ondan sonraysa varsayımdır) — ses başına tarama yok (maliyet O(S + H)).
     const firstHypo = spans(HYPOTHETICAL_ALL, sentence)[0]?.start ?? Infinity;
     const next = sentences[k + 1] ?? "";
-    const nextIsContinuation =
-      next.length > 0 &&
-      (CONTINUATION_START.test(next) ||
-        next.split(" ").length <= CONTINUATION_MAX_WORDS ||
-        [...LANGS.map((l) => SOUNDING[l]), CROSS_LANGUAGE_SAFE].some((re) => spans(re, next)[0]?.start === 0)) &&
-      // Kendi dedektör adını taşıyan cümle kendi turunda okunur ("The CO alarm is in the kitchen. The smoke alarm is still beeping." gaz
-      // DEĞİL, duman — Haiku 3. tur).
-      !ALL_DETECTORS.some((re) => spans(re, next).length > 0);
-    // Devam cümlesinde varsayım da SESTEN ÖNCE gelirse sayılır ("It keeps beeping even if I open the window" bildirimdir — Haiku 3. tur).
-    const firstHypoNext = nextIsContinuation ? (spans(HYPOTHETICAL_ALL, next)[0]?.start ?? Infinity) : Infinity;
-    // Başka ses kaynağı devam cümlesini dedektörden koparır ("Now my phone is beeping", "Piept mein Handy"); zamirle başlayan cümlede ses
-    // kaynaktan ÖNCE geliyorsa dedektördür ("It keeps beeping and the phone is ringing too").
-    const otherAt = nextIsContinuation ? (OTHER_SOUND_SOURCE.exec(next)?.index ?? Infinity) : Infinity;
+    // DEVAM CÜMLESİ ses başına okunur (Haiku 3–4. tur):
+    //  · cümle devam sözcüğüyle / tek sözcükle / sesle başlar ya da sesin hemen önünde özne zamiri var ("Last night it went off");
+    //  · ses, cümledeki İLK dedektör adından ÖNCE ("It keeps beeping, the smoke alarm is fine" → önceki dedektör; "Now the smoke alarm is
+    //    beeping" → öteki dedektörün kendi turu);
+    //  · varsayım sesten ÖNCE gelirse sayılmaz ("It keeps beeping even if I open the window" bildirimdir);
+    //  · başka ses kaynağı ↑ (OTHER_SOUND_SOURCE / ATTRIBUTION).
+    const hasNext = next.length > 0 && firstHypo === Infinity;
+    const nextStarts = hasNext && (CONTINUATION_START.test(next) || next.split(" ").length <= CONTINUATION_MAX_WORDS);
+    const firstDetectorNext = hasNext ? Math.min(...ALL_DETECTORS.map((re) => spans(re, next)[0]?.start ?? Infinity)) : Infinity;
+    const firstHypoNext = hasNext ? (spans(HYPOTHETICAL_ALL, next)[0]?.start ?? Infinity) : Infinity;
+    const otherAt = hasNext ? (OTHER_SOUND_SOURCE.exec(next)?.index ?? Infinity) : Infinity;
+    const attributed = hasNext && ATTRIBUTION.test(next);
     const pronounNext = PRONOUN_START.test(next);
     const live = (s: Span) => liveSound(sentence, s, firstHypo);
-    const liveNext = (s: Span) => (otherAt === Infinity || (pronounNext && s.end <= otherAt)) && liveSound(next, s, firstHypoNext);
+    const liveNext = (s: Span) =>
+      hasNext &&
+      !attributed &&
+      s.start < firstDetectorNext &&
+      (nextStarts || s.start === 0 || PRONOUN_BEFORE.test(next.slice(Math.max(0, s.start - 20), s.start))) &&
+      (otherAt === Infinity || (pronounNext && s.end <= otherAt)) &&
+      liveSound(next, s, firstHypoNext);
     const crossSounds = spans(CROSS_LANGUAGE_SAFE, sentence).filter(live);
-    const crossNext = firstHypo === Infinity && nextIsContinuation && spans(CROSS_LANGUAGE_SAFE, next).some(liveNext);
+    const crossNext = hasNext && spans(CROSS_LANGUAGE_SAFE, next).some(liveNext);
     // Yordam okuması yalnız GENİŞ zamanlı ve sürüyor beyanı olmayan sese uygulanır (↑ WHEN_GOVERNS).
     const procedural = (s: Span) => !ongoing[k] && GENERIC_PRESENT.test(sentence.slice(s.start, s.end));
     const crossReport = crossSounds.filter((s) => !procedural(s));
@@ -255,7 +270,7 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
       if (anyNear(free, sounds) || anyNear(free, crossSounds)) return true;
       if (governed.length > 0 && (anyNear(governed, sounds.filter((s) => !procedural(s))) || anyNear(governed, crossReport))) return true;
       // Hemen ardındaki kısa devam cümlesi ("…in the kitchen. It keeps beeping!") — ses orada, dedektör burada, varsayım yok.
-      if (firstHypo === Infinity && nextIsContinuation && spans(SOUNDING[lang], next).some(liveNext)) return true;
+      if (hasNext && spans(SOUNDING[lang], next).some(liveNext)) return true;
       if (crossNext) return true;
     }
   }

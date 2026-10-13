@@ -96,7 +96,6 @@ const NOT_SOUNDING: Array<[string, string]> = [
   ["başka cihaz ayrı cümlede", "Where is the CO detector? My phone is beeping."],
   // Haiku 2. inceleme: dil karışımında çakışmaya açık fiil (Almanca 'Sonne' = güneş) yine eşleşmez.
   ["en ad + de 'Sonne'", "The CO alarm hangs in der Sonne"],
-  ["en olumsuz geçmiş (stopped)", "The CO alarm stopped beeping an hour ago"],
   // Mutasyon 10-13 (G4d): ses başta, dedektör 80 karakterden UZAKTA sağda — yakınlık iki yönde de sınanır.
   ["uzak sağdaki dedektör", `My phone keeps beeping ${"and ".repeat(30)}the CO alarm is on the wall`],
   // Haiku 3. inceleme — yanlış pozitifler:
@@ -104,9 +103,6 @@ const NOT_SOUNDING: Array<[string, string]> = [
   ["başka özneli kısa cümle", "Gaz dedektörü mutfakta. Telefon çalıyor."],
   ["'stop' olumsuzdan ÖNCE (çift olumsuz değil)", "Stop it, the CO alarm isn't ringing"],
   ["es 'para' = için", "Para el detector de gas no suena"],
-  ["es durdu", "El detector de gas dejó de sonar"],
-  ["fr durdu", "Le détecteur de CO a cessé de sonner"],
-  ["de durdu", "Der CO-Melder hat aufgehört zu piepen"],
   // Haiku son kontrolü (2): devam cümlesi BAŞKA bir ses kaynağından söz ediyor.
   ["devam cümlesinde telefon (en)", "Where is the CO detector? Now my phone is beeping."],
   ["devam cümlesinde telefon (ses fiiliyle başlıyor)", "Where is the CO detector? Beeping phone is mine."],
@@ -220,7 +216,6 @@ describe("smokeDetectorSounding — duman / yangın dedektörü ötüyor (H3)", 
     ["yer sorusu", "Where is the smoke detector?"],
     ["olumsuz", "The smoke detector is not beeping"],
     ["varsayım", "If the smoke alarm goes off, what do we do?"],
-    ["durdu", "The smoke detector stopped beeping an hour ago"],
     ["söndürücü sorusu", "Is there a fire extinguisher?"],
     // Haiku incelemesi (H3) — yanlış pozitif:
     ["planlı test + gelecek zaman", "The fire alarm test is on Monday. It will beep for five seconds."],
@@ -271,9 +266,34 @@ describe("geçmiş zaman indirimi yok — dedektör öttü bildirimi geçmişte 
     expect(isSafetyEmergencyText(text)).toBe(true);
   });
 
-  it("KONTROL: sesin KENDİSİ durdu / olumsuz → bildirim değil (indirim yok ≠ her anış acil)", () => {
-    expect(smokeDetectorSounding("The smoke detector stopped beeping an hour ago")).toBe(false);
-    expect(gasDetectorSounding("The CO alarm is not beeping anymore")).toBe(false);
+  // DURDU / ARTIK ÖTMÜYOR = ses ÇALMIŞ (Haiku 4. tur; H4 güvenli varsayılanı). Önce (itilmiş G4) bu satırlar yapay zekâya kalıyordu —
+  // "The CO alarm stopped beeping, should we stay in the house?" dahil.
+  it.each([
+    ["en durdu", "The CO alarm stopped beeping an hour ago", "gas"],
+    ["en durdu + soru", "The CO alarm stopped beeping, should we stay in the house?", "gas"],
+    ["en geçmiş durdu", "Last night the CO alarm stopped beeping.", "gas"],
+    ["es durdu", "El detector de gas dejó de sonar", "gas"],
+    ["fr durdu", "Le détecteur de CO a cessé de sonner", "gas"],
+    ["de durdu", "Der CO-Melder hat aufgehört zu piepen", "gas"],
+    ["duman durdu", "The smoke detector stopped beeping an hour ago", "smoke"],
+    ["anymore", "The CO alarm doesn't beep anymore.", "gas"],
+    ["no longer", "The CO alarm no longer beeps.", "gas"],
+    ["de nicht mehr", "Der CO-Melder piept nicht mehr.", "gas"],
+    ["fr ne … plus", "Le détecteur de CO ne sonne plus.", "gas"],
+    ["es ya no", "El detector de gas ya no suena.", "gas"],
+  ])("🚨 %s: %s", (_l, text, kind) => {
+    expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
+    expect(hazardEvidenceOf(text)).toEqual({ level: "clear", kinds: [kind] });
+    expect(isSafetyEmergencyText(text)).toBe(true);
+  });
+
+  it.each([
+    ["hiç çalmamış (en)", "The CO alarm is not beeping."],
+    ["hiç çalmamış (de)", "Der CO-Melder hat nicht gepiept"],
+    ["hiç çalmamış (fr)", "Le détecteur de CO ne sonne pas."],
+    ["hiç çalmamış (es)", "El detector de CO no suena nunca"],
+  ])("KONTROL %s: %s → bildirim değil", (_l, text) => {
+    expect(gasDetectorSounding(text)).toBe(false);
   });
 });
 
@@ -284,6 +304,14 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["de varsayım sesten sonra (wenn)", "Wo ist der CO-Melder? Er piept immer noch, wenn ich das Fenster öffne.", "gas"],
     ["kendi dedektör adını taşıyan cümle kendi turunda (duman)", "The CO alarm is in the kitchen. The smoke alarm is still beeping.", "smoke"],
     ["devam sözcüğüyle başlayan öteki dedektör cümlesi (duman)", "The CO alarm is in the kitchen. Now the smoke alarm is beeping.", "smoke"],
+    // Haiku 4. tur — devam cümlesinde öteki dedektör YALNIZ anılıyor (ses ondan ÖNCE):
+    ["ses öteki dedektörden önce", "Where is the CO detector? It keeps beeping, the smoke alarm is fine.", "gas"],
+    ["ses öteki dedektörden önce (ikisi de)", "The CO alarm is in the hall. Still beeping, the smoke alarm too.", "gas"],
+    ["de ses öteki dedektörden önce", "Wo ist der CO-Melder? Er piept, der Rauchmelder ist ok.", "gas"],
+    ["ters yön (duman, CO anılıyor)", "Where is the smoke alarm? It keeps beeping, the CO detector is fine.", "smoke"],
+    ["even though + öteki dedektör", "Where is the CO detector? It keeps beeping even though the smoke alarm is fine.", "gas"],
+    ["sesin önünde özne zamiri (Last night it went off)", "Where is the CO detector? Last night it went off, we are fine now.", "gas"],
+    ["kaynak olumsuzlanmış ('not the phone')", "Where is the CO detector? It keeps beeping, it's not the phone.", "gas"],
   ])("🚨 %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
   });
@@ -298,6 +326,12 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["devam sözcüğüyle başlasa da öteki dedektörün cümlesi (gaz DEĞİL — mutasyon Q1)", "The CO alarm is in the kitchen. Now the smoke alarm is beeping.", "gas"],
     ["varsayım SESTEN ÖNCE", "Where is the CO detector? If it beeps, what should I do?", "gas"],
     ["zamirle başlar ama kaynak sesten ÖNCE", "Where is the CO detector? It's my phone beeping", "gas"],
+    // Haiku 4. tur — sesi kaynağa BAĞLAYAN cümle:
+    ["that's my phone", "Where is the CO detector? It keeps beeping, that's my phone.", "gas"],
+    ["it's just the oven", "Where is the CO detector? It keeps beeping, it's just the oven.", "gas"],
+    ["de das ist mein Handy", "Wo ist der CO-Melder? Er piept, das ist mein Handy.", "gas"],
+    ["it's the kettle", "Where is the CO detector? It's the kettle, it keeps beeping.", "gas"],
+    ["it's the neighbour's alarm", "Where is the CO detector? It keeps beeping, it's the neighbour's alarm.", "gas"],
   ])("KONTROL %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(false);
   });

@@ -370,7 +370,7 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
 
 | # | Soru | Bugün (uygulandı) | Seçenek | Örnek |
 |---|---|---|---|---|
-| H4 | Dedektör GEÇMİŞTE öttü, misafir "şimdi iyi" diyor | Ev sahibine (yapay zekâ cevaplamaz) — G4'ün itilmiş hâliyle aynı | Yapay zekâya bırakmak ("olası", model karar verir) — ama "bitti" sözcüğü başka nesneyi anlatabiliyor, gaz acili kaçabilir | "Last night the smoke alarm went off but it's out now." → bugün ev sahibine. "Dün gece gaz alarmı öttü ve kombi durdu." → seçenekte kaçardı (kombi durdu ≠ alarm sustu) |
+| H4 | Dedektör GEÇMİŞTE öttü / DURDU, misafir "şimdi iyi" diyor | Ev sahibine (yapay zekâ cevaplamaz). "Stopped beeping / artık ötmüyor / piept nicht mehr" da (ses çalmış; Haiku 4. tur — önce "The CO alarm stopped beeping, should we stay in the house?" yapay zekâya kalıyordu) | Yapay zekâya bırakmak ("olası", model karar verir) — ama "bitti" sözcüğü başka nesneyi anlatabiliyor, gaz acili kaçabilir | "Last night the smoke alarm went off but it's out now." → bugün ev sahibine. "Dün gece gaz alarmı öttü ve kombi durdu." → seçenekte kaçardı (kombi durdu ≠ alarm sustu) |
 
 
 **10-12 gece — yapılanlar (soru gerektirmeyen; müşteriye giden mesaj DEĞİŞMEDİ; her biri Haiku sert incelemesi + mutasyon + tam kapı):**
