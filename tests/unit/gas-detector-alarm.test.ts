@@ -437,6 +437,7 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["ortak özne (alarm + köpek)", "The CO alarm and the dog are howling.", "gas"],
     ["ortak özne (duman + köpek)", "The smoke alarm and the dog are howling.", "smoke"],
     ["ortak özne (alarm + çocuklar)", "The CO alarm and the kids are screaming.", "gas"],
+    ["ortak özne (alarm + komşunun köpeği)", "The CO alarm and the neighbour's dog are howling.", "gas"],
     ["çıplak ad + sounds", "Where is the CO alarm? Alarm sounds again.", "gas"],
     ["çıplak ad + yer tamlaması", "Where is the CO alarm? The alarm in the kitchen keeps beeping.", "gas"],
     ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
@@ -493,6 +494,11 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["çocuklar çığlık", "The kids are screeching next to the smoke alarm.", "smoke"],
     ["köpek uluyor", "The dog is howling, where is the smoke alarm?", "smoke"],
     ["virgülle ayrılmış: alarm iyi, köpek uluyor", "The smoke alarm is fine, the dog is howling.", "smoke"],
+    // Haiku 20. tur — ortak özne değil (dedektörün kendi yüklemi var):
+    ["alarm iyi ve köpek uluyor", "The CO alarm is fine and the dog is howling.", "gas"],
+    ["alarm test edildi ve çocuklar çığlık", "The CO alarm was tested and the kids are screaming outside.", "gas"],
+    ["alarm koridorda ve trafik korna", "My CO alarm is in the hall and the traffic is honking.", "gas"],
+    ["duman alarmı çalışıyor ve rüzgâr ıslık", "The smoke alarm works and the wind is whistling.", "smoke"],
     // Türkçe ünsüz yumuşaması (çaydanlık → çaydanlığı, müzik → müziği) — kaynak yine tanınır (mutasyon X2: kaynak hiç tanınmıyordu):
     ["tr çaydanlığı ötüyor", "Çaydanlığım sürekli ötüyor. CO alarmı nerede?", "gas"],
     ["tr müziği çalıyor", "Komşunun müziği hâlâ çalıyor. CO dedektörü nerede?", "gas"],

@@ -158,6 +158,8 @@ function sourceIsModifier(text: string, at: number, end: number): boolean {
  */
 const SOURCE_SUBJECT_BEFORE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?:'s)?\\s(?:\\p{L}{1,12}\\s){0,2}$`, "u");
 const SOURCE_AT_START = new RegExp(`^(?:${SOURCE_WORDS})`, "u");
+const ANY_DETECTOR_G = new RegExp(ANY_DETECTOR.source, "gu");
+const CO_SUBJECT_TAIL = /^\s(?:and|&|ve|ile|und|et|y)\s(?:[\p{L}']{1,14}\s){1,4}$/u;
 const ANIMATE_PRONE = /^(?:shriek|screech|squeal|whin|wail|howl|whistl|honk|scream)/u;
 const CONJ_START = /^(?:and|y|et|und|ve|e|then|und dann|puis)(?![\p{L}\p{N}])/u;
 const SOURCE_RIGHT_AFTER = new RegExp(
@@ -331,10 +333,14 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     // Canlı / hava kaynaklı olabilen fiiller (howl, whistle, honk, screech …) AYNI cümlede de öznesine bakar (Haiku 18. tur: "The wind is
     // whistling, where is the CO detector?", "The kids are screeching next to the smoke alarm"). Eski fiillerde bilinçli olarak yok —
     // "CO alarmı ve telefonum ötüyor" gerçek bildirimdir.
-    // Ortak özne: cümlecikte sesten ÖNCE dedektör adı varsa koruma yok ("The CO alarm and the dog are howling" — Haiku 19. tur).
+    // ORTAK ÖZNE: dedektör adı sesin öznesine BAĞLAÇLA bağlı ("The CO alarm and the dog are howling" — Haiku 19. tur); "The CO alarm is
+    // fine and the dog is howling" ortak özne DEĞİL (Haiku 20. tur) — dedektör adı ile ses arasında yalnız bağlaç + en çok 4 sözcük.
     const detectorEarlierInClause = (s: Span) => {
       const w = sentence.slice(Math.max(0, s.start - CLAUSE_MAX), s.start);
-      return ANY_DETECTOR.test(w.slice(w.lastIndexOf(",") + 1));
+      const clause = w.slice(w.lastIndexOf(",") + 1);
+      let lastEnd = -1;
+      for (const m of clause.matchAll(ANY_DETECTOR_G)) lastEnd = (m.index ?? 0) + m[0].length;
+      return lastEnd >= 0 && CO_SUBJECT_TAIL.test(clause.slice(lastEnd));
     };
     const sameLive = (s: Span) =>
       live(s) &&
