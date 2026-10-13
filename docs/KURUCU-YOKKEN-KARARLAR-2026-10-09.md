@@ -364,7 +364,10 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
   do?"); devam cümlesinde varsayım / başka ses kaynağı konuma göre okunur. GEÇMİŞ ZAMAN İNDİRİMİ KALDIRILDI (↓ H4): "dün gece öttü, şimdi
   iyi" ayrımını sözcük listesiyle kurmayı üç tur denedim, her turda yeni yanlış negatif çıktı ("Dün gece gaz alarmı öttü ve kombi durdu",
   "…bebek sustu", "I checked the boiler and it's fine", "…and we turned off the gas valve"). Müşteriye giden metin yok — yalnız yönlendirme
-  (güvenli yön). H2 rotası + panel çıkış gününü tek tarih kuralıyla sayar (çıkış günü yeniden açılabilir).
+  (güvenli yön). H2 rotası + panel çıkış gününü tek tarih kuralıyla sayar (çıkış günü yeniden açılabilir). Toplam 10 Haiku turu (her bulgu
+  kodda ölçüldü, her tur mutasyon + önce-kırmızı + 1.741 açık eval metninde korpus farkı 0): devam cümlesi ses başına; ses başka cihazın
+  yalnız cihaz sesin dilbilgisi komşusuysa ("in the dryer room" kaynak değil); "durdu / artık ötmüyor" da bildirim (H4); geriye atıf
+  ("Something keeps beeping. It's the CO alarm."); 50.000 karakterde iki işlev birlikte ~100 ms.
 
 **10-13 öğle — YENİ soru (güvenli varsayılan UYGULANDI, isterseniz geri alınır):**
 

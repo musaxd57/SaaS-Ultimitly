@@ -132,7 +132,7 @@ const NEG_AFTER_SOURCE = /^\p{L}{0,6}\s(?:degil|degildi)(?![\p{L}\p{N}])/u;
  * ("çaydanlığın yanında").
  */
 const LOC_BEFORE_SOURCE =
-  /(?:^|\s)(?:near|next to|by|beside|behind|above|below|under|over|neben|bei|uber|unter|hinter|pres de|a cote de|au-dessus de|sous|cerca de|junto a|al lado de|encima de|debajo de)\s(?:(?:the|my|our|a|an|der|die|das|dem|den|le|la|l'|el|un|une|mi)\s)?$/u;
+  /(?:^|\s)(?:near|next to|by|beside|behind|above|below|under|over|in|at|on|inside|from|neben|bei|beim|im|am|uber|unter|hinter|dans|sur|pres|a cote|au-dessus|sous|cerca|junto|al lado|encima|debajo|en|dentro)(?:\s(?:de|del|du|des|a|al|au|aux|dem|der))?\s(?:(?:the|my|our|a|an|der|die|das|dem|den|le|la|l'|el|un|une|mi|mein|meinem)\s)?$/u;
 const LOC_AFTER_SOURCE = /^\p{L}{0,6}\s(?:yaninda|yakininda|ustunde|altinda|arkasinda|onunde)(?![\p{L}\p{N}])/u;
 /** Cihaz adı yalnız niteleyici mi (olumsuzlanmış ya da yer tamlayıcısında)? */
 function sourceIsModifier(text: string, at: number, end: number): boolean {
@@ -149,6 +149,7 @@ function sourceIsModifier(text: string, at: number, end: number): boolean {
  */
 const SOURCE_SUBJECT_BEFORE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?:'s)?\\s(?:\\p{L}{1,12}\\s){0,2}$`, "u");
 const SOURCE_AT_START = new RegExp(`^(?:${SOURCE_WORDS})`, "u");
+const CONJ_START = /^(?:and|y|et|und|ve|e|then|und dann|puis)(?![\p{L}\p{N}])/u;
 const SOURCE_RIGHT_AFTER = new RegExp(
   `^\\s(?:(?:my|the|our|a|an|mein|meine|das|der|die|le|la|mon|ma|el|mi|su)\\s)?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`,
   "u",
@@ -159,7 +160,9 @@ function soundOfOtherSource(text: string, s: Span): boolean {
   if (m) {
     const at = lo + m.index;
     const word = SOURCE_AT_START.exec(m[0])?.[0] ?? "";
-    if (!sourceIsModifier(text, at, at + word.length)) return true;
+    // Cihazla ses arasındaki sözcükler bağlaçla başlıyorsa cihaz özne değildir ("Está al lado del horno y suena", "im Auto und piept").
+    const between = m[0].slice(word.length).replace(/^'s/u, "").trimStart();
+    if (!sourceIsModifier(text, at, at + word.length) && !CONJ_START.test(between)) return true;
   }
   return SOURCE_RIGHT_AFTER.test(text.slice(s.end, s.end + 32));
 }

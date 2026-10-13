@@ -386,6 +386,15 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["car park", "Something keeps beeping in the car park. It's the CO alarm.", "gas"],
     ["the one next to the kettle", "Where is the CO detector? The one next to the kettle is beeping.", "gas"],
     ["olumsuzlanan özne-kaynak (mutasyon Y5)", "Where is the CO detector? It is not my phone that is beeping.", "gas"],
+    // Haiku 10. tur — yer edatı (kısaltmalı biçimler dahil) ve bağlaçla gelen ses:
+    ["in the car park beeping", "Where is the CO alarm? It's in the car park beeping.", "gas"],
+    ["in the dryer room beeping", "Where is the CO alarm? It's in the dryer room beeping.", "gas"],
+    ["es al lado del horno y suena", "¿Dónde está la alarma de CO? Está al lado del horno y suena.", "gas"],
+    ["es junto al teléfono y suena", "¿Dónde está la alarma de CO? Está junto al teléfono y suena.", "gas"],
+    ["fr à côté du téléphone et elle sonne", "Où est l'alarme CO ? Elle est à côté du téléphone et elle sonne.", "gas"],
+    ["de im Auto und piept", "Wo ist der CO-Melder? Er hängt im Auto und piept.", "gas"],
+    ["yalnız bağlaç (mutasyon Z1)", "¿Dónde está la alarma de CO? Ahora apagué el horno y suena.", "gas"],
+    ["yalnız kısaltmalı edat (mutasyon Z2)", "¿Dónde está la alarma de CO? Está junto al teléfono sonando.", "gas"],
     ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
   ])("🚨 %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);

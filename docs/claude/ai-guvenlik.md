@@ -461,14 +461,14 @@
 - ŞÜPHEDE EV SAHİBİNE (Haiku son kontrolü 10-13, üç tur): GEÇMİŞ ZAMAN İNDİRİMİ YOK — "dün gece öttü, şimdi iyi" de ev sahibine ("bitti"
   sözcüğü başka nesneyi anlatabiliyor: "kombi durdu", "bebek sustu"; kurucu sorusu H4). "Durdu / artık ötmüyor" da bildirim (ses ÇALMIŞ);
   yalnız hiç ÇALMAMIŞ ses ("is not beeping", "hat nicht gepiept") bildirim değil. Devam cümlesinde ses İLK dedektör adından önce olmalı;
-  sesi kaynağa bağlayan cümle ("that's my phone", "das ist mein Handy") koparır; olumsuzlanan kaynak ("not my phone") kaynak değildir;
-  başka cihazın DURDU sesi ("The microwave stopped beeping") dedektöre bağlanmaz — cümlecikte dedektör adı YOKSA ("The CO alarm next to the
-  oven stopped beeping" bildirim; sesten önce dedektör adı varsa virgüllü liste dahil); konum edatı ("next door to", "à côté de") kaynak
-  DEĞİL. Kaynak denetimi sesin CÜMLECİĞİNDE. Geriye atıf: açıklanmamış sesten sonra dedektör anılırsa bildirim ("Something keeps
-  beeping. Where is the CO alarm?"); geri alma ("No, it's the kettle") sayılmaz. Yanlış pozitifi azaltan her kural Haiku turunda tehlikeli yönde kaçırma üretti — önce kaçırma, sonra gürültü.
-  Gelecek zaman istisnası sürme fiilinde yok ("will keep beeping"); "when" yordamı yalnız dedektörü DOĞRUDAN yönetirse (araya ≤1 belirleyici)
-  + geniş zaman + sürüyor beyanı yok. Devam cümlesi: kendi dedektör adını taşımaz; varsayım ve başka ses kaynağı KONUMA göre okunur. Cümle
-  olguları cümle başına BİR KEZ (ses başına tarama karesel idi — süre pini).
+  sesi kaynağa bağlayan cümle ("that's my phone", "das ist mein Handy") koparır. SES BAŞKA CİHAZIN yalnız cihaz sesin DİLBİLGİSİ KOMŞUSUYSA
+  (özne olarak hemen önünde ≤2 sözcük: "my phone is beeping"; fiil-önce dizilişte hemen ardında: "piept mein Handy") — olumsuzlanan, yer
+  tamlayıcısındaki ("near / in / al lado del / im …") ya da bağlaçla ayrılan ("…horno y suena") cihaz sayılmaz (Haiku 9–10. tur: kapalı listeyi
+  cümlecikte görmek "in the dryer room" gibi gerçek CO bildirimini susturuyordu). Başka cihazın DURDU sesi dedektöre bağlanmaz — sesten önce
+  aynı cümlede dedektör adı YOKSA (bilinçli bedel: "The CO alarm is fine, the microwave stopped beeping" ev sahibine). Geriye atıf:
+  açıklanmamış sesten sonra dedektör anılırsa bildirim ("Something keeps beeping. Where is the CO alarm?"); geri alma ("No, the kettle")
+  sayılmaz. Yanlış pozitifi azaltan her kural Haiku turunda tehlikeli yönde kaçırma üretti — önce kaçırma, sonra gürültü. Bilinen sınırlar
+  (düşük, güvenli yön): ek açıklama ("Still beeping, the dryer."), eksiltili ("…and so did the CO alarm"), "building next door".
 - Kalıp ekleyen: dil eşleşmesi, olumsuz biçim ve süre pini (`gas-detector-alarm.test.ts`) ile birlikte; ad–fiil eşlemesi sıralı iki işaretçi (O(D+S)).
 
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)
