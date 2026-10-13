@@ -346,6 +346,14 @@ describe("POST /api/account/2fa — TOTP kodu TEK KULLANIMLIK", () => {
 describe("POST /api/account/2fa — enable koşullu yazma", () => {
   const SECRET = "ABCDEFGHIJKLMNOP";
 
+  // Bu blok önceki bloğun kullanıcısını devralır (kendi `resetDb`si yok). G5'ten (10-13) beri AÇIK 2FA'yı kapatmak `sessionEpoch`i
+  // artırır ve tarayıcının çerezini yeni sürümle yeniden imzalar — taklit oturum da o çerezi yansıtsın, yoksa `enable`ın U40 koşulu
+  // (bayat oturum açamaz) haklı olarak 400 döner.
+  beforeEach(async () => {
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: session.userId }, select: { sessionEpoch: true } });
+    session = { ...session, sessionEpoch: row.sessionEpoch };
+  });
+
   it("ZATEN AÇIK hesapta enable epoch'u TAZELEMEZ ve kurtarma kodlarını SİLMEZ", async () => {
     const { totp } = await import("@/lib/auth/totp");
     const enabledAt = new Date("2026-01-02T03:04:05.000Z");

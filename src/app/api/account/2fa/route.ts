@@ -207,8 +207,8 @@ export async function POST(req: NextRequest) {
       // 🚨 AÇMA ANI BİR GÜVENLİK SINIRIDIR (kurucu onayı 09-23): `sessionEpoch` AYNI
       // yazmada artar → 2FA ÖNCESİ açılmış her oturum (parola sızmışsa saldırganınki
       // dahil) bir sonraki istekte düşer. Eskiden artmıyordu ve middleware çerezi her
-      // istekte 14 gün ileri ittiği için öyle bir oturum HİÇ sona ermiyordu. Yalnız
-      // AÇMA: kapatma/kurtarma kodu üretimi kullanıcının diğer cihazlarını düşürmez.
+      // istekte 14 gün ileri ittiği için öyle bir oturum HİÇ sona ermiyordu. AÇMA ve
+      // (G5, 10-13) KAPATMA artırır; kurtarma kodu üretimi diğer cihazları düşürmez.
       const newEpoch = await prisma.$transaction(async (tx) => {
         const r = await tx.user.updateMany({
           // U40 (Codex 10-07): başlangıçta denetlenen oturum sürümü de koşulda — arada parola sıfırlandıysa bayat istek 2FA'yı
@@ -316,7 +316,13 @@ export async function POST(req: NextRequest) {
       // 🚨 KOŞULLU (Codex 09-30, C1): kod YUKARIDA okunan sırra göre doğrulandı; temizleme de YALNIZ o sır + o açılış anı
       // hâlâ duruyorsa olur. Eskiden koşulsuzdu: arada 2FA yeni bir sırla yeniden kurulduysa eski sırrın koduna dayanan
       // istek YENİ kurulumu siliyordu. Etkileşimli işlem: kaybeden bacak kurtarma kodlarına da DOKUNMAZ.
-      const cleared = await prisma.$transaction(async (tx) => {
+      // 🚨 KAPATMA DA BİR GÜVENLİK SINIRIDIR (G5, kurucu kararı 10-13 "Diğerleri düşsün"; ACIK-ISLER 08-08 §7f): AÇIK bir
+      // faktör kaldırıldığında `sessionEpoch` AYNI yazmada artar → diğer bütün oturumlar bir sonraki istekte düşer. Eskiden
+      // artmıyordu: faktörle açılmış (`mfa:true`) başka bir tarayıcı, faktör ARTIK YOKKEN operatör yetkisini taşımaya devam
+      // ediyordu. Bu tarayıcı aşağıda yeni epoch ve `mfa:false` ile yeniden imzalanır (girişli kalır, operatör yetkisi için
+      // yeniden 2FA gerekir). Hiç açılmamış kurulum (yalnız `setup`) kapatılırken artış YOK — kaldırılan bir faktör yok.
+      const wasActive = Boolean(user?.twoFactorEnabledAt);
+      const clearedEpoch = await prisma.$transaction(async (tx) => {
         const r = await tx.user.updateMany({
           where: {
             id: session.userId,
@@ -324,14 +330,34 @@ export async function POST(req: NextRequest) {
             twoFactorEnabledAt: user?.twoFactorEnabledAt ?? null,
             sessionEpoch: session.sessionEpoch, // U40 kardeşi: arada iptal edilen oturum 2FA'yı KAPATAMAZ
           },
-          data: { twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null },
+          data: {
+            twoFactorSecret: null,
+            twoFactorEnabledAt: null,
+            twoFactorLastStep: null,
+            ...(wasActive ? { sessionEpoch: { increment: 1 } } : {}),
+          },
         });
-        if (r.count === 0) return false;
+        if (r.count === 0) return null;
         await tx.twoFactorRecoveryCode.deleteMany({ where: { userId: session.userId } });
-        return true;
+        const row = await tx.user.findUniqueOrThrow({ where: { id: session.userId }, select: { sessionEpoch: true } });
+        return row.sessionEpoch;
       });
-      if (!cleared) {
+      if (clearedEpoch === null) {
         return badRequest({ _: "Güvenlik ayarınız az önce değişti. Sayfayı yenileyip yeniden deneyin." });
+      }
+      if (wasActive) {
+        // BU cihaz girişli kalır (parola değişimiyle aynı desen) ama faktör artık yok → `mfa` iddiası DÜŞER. İkisi de asla
+        // ölümcül değil: yazılamazsa kullanıcı bir kez yeniden girer — epoch artışının güvenlik yönü korunur.
+        try {
+          await setSessionCookie({ ...session, sessionEpoch: clearedEpoch, mfa: false });
+        } catch {
+          // yok say
+        }
+        try {
+          await setKnownDeviceCookie(session.userId, clearedEpoch);
+        } catch {
+          // yok say
+        }
       }
       await writeAudit({
         organizationId: session.organizationId,

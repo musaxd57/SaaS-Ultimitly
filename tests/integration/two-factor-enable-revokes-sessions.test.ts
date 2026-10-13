@@ -135,17 +135,103 @@ describe("② 2FA AÇILINCA diğer oturumlar düşer, bu cihaz girişli kalır",
     expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
   });
 
-  it("KAPSAM: disable ve kurtarma kodu üretimi epoch'a DOKUNMAZ (yalnız AÇMA bir güvenlik sınırıdır)", async () => {
+  it("KAPSAM: kurtarma kodu üretimi epoch'a DOKUNMAZ", async () => {
     await prisma.user.update({ where: { id: session.userId }, data: { twoFactorEnabledAt: new Date() } });
     const rc = await POST(req({ action: "recovery_codes", code: totp(SECRET) }));
     expect(rc.status).toBe(200);
     expect(await epochNow()).toBe(START_EPOCH);
+    expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
+  });
+});
 
-    // Aynı adımın kodu yakıldı → sonraki adımı bekletmeden geçmek için son adımı sıfırla.
-    await prisma.user.update({ where: { id: session.userId }, data: { twoFactorLastStep: null } });
-    const off = await POST(req({ action: "disable", code: totp(SECRET) }));
-    expect(off.status).toBe(200);
+// ---------------------------------------------------------------------------
+// G5 (kurucu kararı 10-13 "Diğerleri düşsün"; ACIK-ISLER 08-08 §7f): AÇIK 2FA KAPATILINCA diğer oturumlar düşer.
+// Eskiden epoch artmıyordu → faktörle açılmış (`mfa:true`) başka bir tarayıcı, faktör YOKKEN operatör yetkisini taşıyordu
+// (`isSuperAdmin` = allowlist + `mfa === true`). Bu tarayıcı girişli kalır ama `mfa:false` ile yeniden imzalanır.
+// ---------------------------------------------------------------------------
+describe("G5: 2FA KAPATILINCA diğer oturumlar düşer, bu cihaz girişli kalır ama mfa düşer", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const user = await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "U",
+        email: "u@example.com",
+        passwordHash: await hashPassword(PW),
+        role: "owner",
+        sessionEpoch: START_EPOCH,
+        twoFactorSecret: encryptSecret(SECRET),
+        twoFactorEnabledAt: new Date(Date.now() - 86_400_000), // ETKİN
+        twoFactorLastStep: null,
+      },
+    });
+    // Faktörle girmiş bir oturum (operatör senaryosunun ön koşulu: mfa:true).
+    session = {
+      userId: user.id,
+      organizationId: org.id,
+      role: "owner",
+      email: "u@example.com",
+      name: "U",
+      sessionEpoch: START_EPOCH,
+      mfa: true,
+    };
+  });
+
+  it("disable: sessionEpoch ARTAR → faktörle açılmış diğer oturumlar ölür; sır + kurtarma kodları gider", async () => {
+    await prisma.twoFactorRecoveryCode.create({ data: { userId: session.userId, codeHash: "h1" } });
+    const res = await POST(req({ action: "disable", code: totp(SECRET) }));
+    expect(res.status).toBe(200);
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    expect(u.twoFactorEnabledAt).toBeNull();
+    expect(u.twoFactorSecret).toBeNull();
+    expect(u.sessionEpoch).toBe(START_EPOCH + 1);
+    expect(await prisma.twoFactorRecoveryCode.count({ where: { userId: session.userId } })).toBe(0);
+  });
+
+  it("disable: BU cihaz yeni epoch + mfa:false ile yeniden imzalanır (girişli kalır, operatör yetkisi düşer)", async () => {
+    await POST(req({ action: "disable", code: totp(SECRET) }));
+    expect(vi.mocked(setSessionCookie)).toHaveBeenCalledTimes(1);
+    const payload = vi.mocked(setSessionCookie).mock.calls[0][0];
+    expect(payload).toMatchObject({
+      userId: session.userId,
+      organizationId: session.organizationId,
+      role: "owner",
+      email: "u@example.com",
+      sessionEpoch: START_EPOCH + 1,
+      mfa: false,
+    });
+    expect(vi.mocked(setKnownDeviceCookie)).toHaveBeenCalledWith(session.userId, START_EPOCH + 1);
+  });
+
+  it("KONTROL: hatalı kodla disable epoch'a ve çereze dokunmaz, 2FA açık kalır", async () => {
+    const res = await POST(req({ action: "disable", code: wrongCode() }));
+    expect(res.status).toBe(400);
     expect(await epochNow()).toBe(START_EPOCH);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: session.userId } })).twoFactorEnabledAt).not.toBeNull();
+    expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
+    expect(vi.mocked(setKnownDeviceCookie)).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL: arada iptal edilmiş (bayat epoch'lu) oturum kapatamaz, epoch'u İKİNCİ kez artırmaz", async () => {
+    await prisma.user.update({ where: { id: session.userId }, data: { sessionEpoch: START_EPOCH + 3 } });
+    const res = await POST(req({ action: "disable", code: totp(SECRET) }));
+    expect(res.status).toBe(400);
+    expect(await epochNow()).toBe(START_EPOCH + 3);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: session.userId } })).twoFactorEnabledAt).not.toBeNull();
+    expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
+  });
+
+  it("KAPSAM: hiç ETKİNLEŞMEMİŞ kurulumu (yalnız setup) iptal etmek oturumları düşürmez — kaldırılan faktör yok", async () => {
+    await prisma.user.update({ where: { id: session.userId }, data: { twoFactorEnabledAt: null } });
+    session = { ...session, mfa: false };
+    const res = await POST(req({ action: "disable", code: "" }));
+    expect(res.status).toBe(200);
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    expect(u.twoFactorSecret).toBeNull();
+    expect(u.sessionEpoch).toBe(START_EPOCH);
     expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
   });
 });
