@@ -292,6 +292,22 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
 | G10 | Giden mesajda "sağlayıcı arızası" sınıfı (talimat değişmez 8: "retryable, definitive, ambiguous, authentication/revocation ve provider outage durumları ayrılmalıdır"; Haiku 10-13) | Giden yönde 5xx BİLİNÇLİ olarak "belirsiz" (`outbox/state.ts` `SendResultKind`'da outage yok; uyum kiti 5xx → ambiguous pinler): sağlayıcı mesajı alıp sonra hata vermiş olabilir, kör tekrar misafire İKİ mesaj gönderir. Giriş yönünde `outage` zaten ayrı | Ayrı `outage` sınıfı eklensin ama tekrar davranışı BELİRSİZLE AYNI kalsın (kör tekrar yok, uzlaştırma / operatör kuyruğu); fark yalnız raporda: "sağlayıcı arızası — N mesaj bekliyor" tek alarm, mesaj başına belirsizlik satırı değil. Misafire giden davranış değişmez; kuyruğun durum makinesine dokunduğu için soruyorum | Bugün: Hospitable 30 dk 503 → 12 mesaj "belirsiz", 12 ayrı satır. Sonra: aynı 12 mesaj bekler, panelde tek "sağlayıcı arızası" satırı |
 | G11 | Yakalanmayan sunucu hataları operatöre ulaşmıyor (ACIK-ISLER 08-08 §15) | 9 API rotasında (`auth/logout`, `auth/resend-verification`, `alert-email/verify`, `calendar/[token]`, `cron/email-outbox`, `guest-chats/[id]/reply` + `resume-ai`, `hospitable/oauth/authorize`, `admin/trial-identity-exempt`) ve panel sayfalarının sunucu çiziminde fırlayan hata yalnız konsola düşer: Sentry'ye / uyarı e-postasına GİTMEZ. Diğer rotalar `serverError` ile raporluyor | Next'in tek kancası (`onRequestError`, yalnız Node çalışma zamanında): yakalanmayan her hata rota ŞABLONUYLA (`/api/calendar/[token]` — gerçek belirteç / kimlik yazılmaz) `reportError`'a gider; yönlendirme / bulunamadı gibi akış kontrolü hataları sayılmaz; yanıtlar DEĞİŞMEZ. Uyarı e-postası kısıtlaması aynen geçerli. Daha önce alarm seli yaşandığı için (09-23) soruyorum | Bugün: misafir sohbet cevabı rotası çökerse yalnız sunucu günlüğünde. Sonra: Sentry + (kısıtlı) "sistem hatası — request route POST /api/guest-chats/[id]/reply" |
 
+**10-13 sabah — kurucu cevapları (G1–G11, soru ekranından aynen):**
+
+| # | Karar | Uygulama notu |
+|---|---|---|
+| G1 | "Evet, kredi gelince ölç" | Etiket `Automated message:`; modele giden metin değiştiği için OpenAI kredisi gelince ölçülür, sonra açılır |
+| G2 | "Bunu anlamadım sen seç bildiğim konular değil güvenli olsun" | Güvenli seçenek: imaja yalnız `verify-env.mjs` + `env-check.mjs`; Railway açılınca ilk dağıtımda birlikte kontrol |
+| G3 | "Günde 50 + özet" | Talep her zaman kaydedilir; bildirim e-postası günde 50 + aşan gün tek özet |
+| G4 | "Olası gaz acili say" | Dedektör + öten / çalan / bip (TR/EN/DE/FR/ES) → acil; "dedektör nerede?" normal |
+| G5 | "Diğerleri düşsün" | 2FA kapatınca `sessionEpoch` +1; bu tarayıcı `mfa:false` ile yeniden imzalanır |
+| G6 | "1 yıl" (önerim 90 gündü) | İşlenmiş ve 1 yıldan eski Paddle olay kayıtlarında ad / e-posta / adres silinir; hata kayıtlarına dokunulmaz |
+| G7 | "İkisi de" | (a) süpürgede telefon + e-posta maskesi, (b) üslup profili taranıp maskelenir |
+| G8 | "Sil + insana devret" | 3+ çizgi silinir; çizgi + SİSTEM/KURAL/TALİMAT başlığı → insana; kredi gelince ölçülür |
+| G9 | "Kanal açmasın, iCal aynı" | Kanal sağlayıcısı iptalli satırı geri açmaz + panelde kontrol satırı; iCal aboneliği bugünkü gibi |
+| G10 | "Ekle, tek satır" | `outage` sınıfı, tekrar davranışı belirsizle aynı; panelde tek özet satır |
+| G11 | "Raporlansın" | Node çalışma zamanına özgü `onRequestError` → `reportError` (rota şablonu); uyarı e-postası kısıtlaması aynen |
+
 **10-12 gece — yapılanlar (soru gerektirmeyen; müşteriye giden mesaj DEĞİŞMEDİ; her biri Haiku sert incelemesi + mutasyon + tam kapı):**
 - Madde 10 kalan yüzeyler: AI cevap öner rotası ve QR konuşma kayıtları kanalla aynı sınırlı okuyucuya geçti (kâhin: sayfalı okuma = tam okuma).
   QR'da cevapsız uzun konuşma için okuma 2.000 satırda durur (kayıt bloğu yazılmaz, hata kaydı düşer); başka işletmenin konuşmasında aşama
