@@ -59,9 +59,9 @@ const SOUNDING: Record<Lang, RegExp> = {
   ),
   // "is on" BİLEREK YOK: "the CO detector is on the ceiling" yer cümlesidir.
   en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|ringing|blaring|screaming)${E}`, "gu"),
-  de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|schlagt an|schlagt alarm|alarm schlagt|hat angeschlagen|geht los|losgegangen|heult|ertont)${E}`, "gu"),
-  fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|se declenche|s'est declenche|declenche)${E}`, "gu"),
-  es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|se activo|se ha activado)${E}`, "gu"),
+  de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|klingelte|heulte|schlagt an|schlagt alarm|alarm schlagt|hat angeschlagen|geht los|losgegangen|heult|ertont)${E}`, "gu"),
+  fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|retentissait|se declenche|s'est declenche|declenche)${E}`, "gu"),
+  es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|pitaba|pitaban|se activo|se ha activado)${E}`, "gu"),
 };
 const LANGS = Object.keys(GAS_DETECTOR) as Lang[];
 /** Herhangi bir dedektör adı (gaz ya da duman, her dil) — tek tarama (maliyet: devam cümlesi başına bir geçiş). */
@@ -76,10 +76,11 @@ const ANY_DETECTOR = new RegExp(
  * İngilizce adla (3. inceleme: "CO dedektörü nerede, telefon ringing" — çalan telefondur).
  */
 const CROSS_LANGUAGE_SAFE = new RegExp(
-  `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|blaring|screaming|piept|piepst|piepen|piepsen|gepiept|piepton|bipe|bipent|retentit|suena|suenan|sonando|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
+  `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|blaring|screaming|piept|piepst|piepen|piepsen|gepiept|piepton|piepte|piepten|piepste|bipe|bipent|bipait|bipaient|retentit|sonnait|sonnaient|suena|suenan|sonando|sonaba|sonaban|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
   "gu",
 );
-/** Herhangi bir ses fiili (her dil + dil karışımı) — sessiz komşu cümlenin olguları hiç hesaplanmaz (maliyet; Haiku 5–6. tur ölçümü). */
+/** Herhangi bir ses fiili (her dil + dil karışımı; başka dilde sözcük olmayan geçmiş süreklilikler — sonnait, sonaba, piepte — yalnız
+ * dil karışımı listesinde, mutasyon AC3 ikinci kopyayı ölü buldu) — sessiz komşu cümlenin olguları hiç hesaplanmaz (maliyet; Haiku 5–6. tur ölçümü). */
 const ANY_SOUND = new RegExp([...Object.values(SOUNDING), CROSS_LANGUAGE_SAFE].map((re) => `(?:${re.source})`).join("|"), "u");
 
 /**
@@ -118,6 +119,12 @@ const CONTINUATION_MAX_WORDS = 1;
  * the CO alarm?" — ses dedektör olabilir; karar ev sahibinin). Claude 6. tur sondası; tanıtım kalıbı şartı mutasyonla (V5) gereksiz çıktı.
  */
 const PRONOUN_RIGHT_BEFORE = /(?:^|\s)(?:it|er|es|sie|il|elle|ca|o)\s$/u;
+/**
+ * Devam cümlesinde ÇIPLAK dedektör adı (niteleyicisiz: "the alarm", "le détecteur", "der Melder", "la alarma", "alarm") sesin hemen önünde
+ * → önceki cümledeki dedektöre atıf ("Where is the CO alarm? Le détecteur sonne.", "The alarm keeps beeping" — Haiku 13. tur).
+ */
+const GENERIC_DETECTOR_BEFORE =
+  /(?:^|\s)(?:detector|alarm|sensor|detecteur|alarme|capteur|melder|warnmelder|alarma|dedektor\p{L}{0,4}|alarm\p{L}{0,4}|sensor\p{L}{0,4})\s(?:\p{L}{1,12}\s)?$/u;
 /** Ses fiilinin hemen önünde özne zamiri ("Last night it went off", "er piept") — devam cümlesi işareti (Haiku 4. tur). */
 const PRONOUN_BEFORE = /(?:^|\s)(?:it|it's|its|er|es|sie|il|elle|ca|o)\s(?:\p{L}{1,12}\s)?$/u;
 const SOURCE_WORDS =
@@ -337,12 +344,17 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
       const firstHypoNext = spans(HYPOTHETICAL_ALL, next)[0]?.start ?? Infinity;
       const continues = (s: Span) =>
         s.start < firstDetectorNext &&
-        (nextStarts || s.start === 0 || PRONOUN_BEFORE.test(next.slice(Math.max(0, s.start - 20), s.start))) &&
+        (nextStarts ||
+          s.start === 0 ||
+          PRONOUN_BEFORE.test(next.slice(Math.max(0, s.start - 20), s.start)) ||
+          GENERIC_DETECTOR_BEFORE.test(next.slice(Math.max(0, s.start - 32), s.start))) &&
         !soundOfOtherSource(next, s) &&
         liveSound(next, s, firstHypoNext);
       // Dil değişimi (Haiku 12. tur: "Where is the CO alarm? Il sonne."): başka dilin ses fiili yalnız özne zamiri HEMEN önündeyse —
       // "Sonne" (Almanca güneş) gibi çakışmaya açık fiiller böylece yalnız fiil konumunda sayılır.
-      const pronounRightBefore = (s: Span) => PRONOUN_RIGHT_BEFORE.test(next.slice(Math.max(0, s.start - 8), s.start));
+      const pronounRightBefore = (s: Span) =>
+        PRONOUN_RIGHT_BEFORE.test(next.slice(Math.max(0, s.start - 8), s.start)) ||
+        GENERIC_DETECTOR_BEFORE.test(next.slice(Math.max(0, s.start - 32), s.start));
       for (const [li, lang] of LANGS.entries()) {
         const own = detectorsByLang[li].length > 0;
         if (spans(SOUNDING[lang], next).some((s) => (own || pronounRightBefore(s)) && continues(s))) return true;
