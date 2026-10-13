@@ -172,10 +172,16 @@ export async function register() {
   }
 }
 
-// NOTE: a global Next.js `onRequestError` crash-net was attempted here but reverted
-// — importing reportError (→ nodemailer) into instrumentation.ts pulls server-only
-// deps into the EDGE bundle and fails the build (same reason register() uses a
-// fetch-over-localhost call instead of importing the sync code). A future crash-net
-// needs a node-runtime-only entry (e.g. a separate instrumentation file or an
-// internal report endpoint). Server route 500s are already surfaced via
-// serverError(err) → reportError; this hook would only add RSC-render/throw capture.
+// YAKALANMAYAN İSTEK HATASI AĞI (G11, kurucu kararı 10-13 "Raporlansın"). Rotaların çoğu hatayı
+// `serverError(err)` → `reportError` ile kendisi raporlar; bu kanca yakalamayan rotaları ve panel
+// sayfalarının sunucu çizimini kapsar. Yanıtı DEĞİŞTİRMEZ.
+// ⚠️ İlk deneme geri alınmıştı: reportError'ı (→ nodemailer) burada STATİK import etmek sunucuya özgü
+// bağımlılıkları EDGE paketine sokup derlemeyi kırıyordu. Bu yüzden: dinamik import, `NEXT_RUNTIME ===
+// "nodejs"` dalının İÇİNDE (derleyici edge paketinde bu dalı sabit-yanlış olarak atar; Next'in önerdiği
+// biçim). Kural ve süzgeç tek kaynakta: src/lib/request-error-report.ts.
+export async function onRequestError(err: unknown, request: { method?: unknown }, context: { routePath?: unknown; routeType?: unknown; renderSource?: unknown }) {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { reportUncaughtRequestError } = await import("@/lib/request-error-report");
+    await reportUncaughtRequestError(err, request, context);
+  }
+}
