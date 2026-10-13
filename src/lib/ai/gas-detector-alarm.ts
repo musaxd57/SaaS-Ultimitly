@@ -58,7 +58,7 @@ const SOUNDING: Record<Lang, RegExp> = {
     "gu",
   ),
   // "is on" BİLEREK YOK: "the CO detector is on the ceiling" yer cümlesidir.
-  en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|ringing|blaring|screaming)${E}`, "gu"),
+  en: new RegExp(`${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounds|sounding|sounded|ringing|blaring|screaming)${E}`, "gu"),
   de: new RegExp(`${B}(?:piept|piepst|piepen|piepsen|gepiept|piepton|klingelt|klingelte|heulte|schlagt an|schlagt alarm|alarm schlagt|hat angeschlagen|geht los|losgegangen|heult|ertont)${E}`, "gu"),
   fr: new RegExp(`${B}(?:sonne|sonnent|sonner|a sonne|bipe|bipent|retentit|retentissait|se declenche|s'est declenche|declenche)${E}`, "gu"),
   es: new RegExp(`${B}(?:suena|suenan|sonando|sonar|sono|pita|pitan|pitando|pito|pitaba|pitaban|se activo|se ha activado)${E}`, "gu"),
@@ -124,11 +124,11 @@ const PRONOUN_RIGHT_BEFORE = /(?:^|\s)(?:it|er|es|sie|il|elle|ca|o)\s$/u;
  * → önceki cümledeki dedektöre atıf ("Where is the CO alarm? Le détecteur sonne.", "The alarm keeps beeping" — Haiku 13. tur).
  */
 const GENERIC_DETECTOR_BEFORE =
-  /(?:^|\s)(?:detector|alarm|sensor|detecteur|alarme|capteur|melder|warnmelder|alarma|dedektor\p{L}{0,4}|alarm\p{L}{0,4}|sensor\p{L}{0,4})\s(?:\p{L}{1,12}\s)?$/u;
+  /(?:^|\s)(?:detector|alarm|sensor|detecteur|alarme|capteur|melder|warnmelder|alarma|dedektor\p{L}{0,4}|alarm\p{L}{0,4}|sensor\p{L}{0,4})(?:\s(?:in|on|at|by|near|im|am|dans|sur|en|de)\s(?:(?:the|my|our|der|die|das|dem|le|la|l'|el)\s)?\p{L}{1,14})?\s(?:\p{L}{1,12}\s)?$/u;
 /** Ses fiilinin hemen önünde özne zamiri ("Last night it went off", "er piept") — devam cümlesi işareti (Haiku 4. tur). */
 const PRONOUN_BEFORE = /(?:^|\s)(?:it|it's|its|er|es|sie|il|elle|ca|o)\s(?:\p{L}{1,12}\s)?$/u;
 const SOURCE_WORDS =
-  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|washing machine|dryer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|truck|laptop|computer|tablet|router|elevator|lift|baby monitor|neighbou?r\\p{L}{0,6}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanli[kg]\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzi[kg]\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|camasir\\p{L}{0,8}|kurutma\\p{L}{0,8}|bilgisayar\\p{L}{0,4}|asansor\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|trockner|waschmaschine|aufzug|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|seche-linge|ordinateur|ascenseur|hervidor|secadora|ordenador|ascensor|impresora|musica|vecino\\p{L}{0,2}|coche";
+  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|washing machine|dryer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|truck|laptop|computer|tablet|router|elevator|lift|baby monitor|burglar|intruder|einbruch\\p{L}{0,8}|hirsiz\\p{L}{0,4}|antirrobo|intrusion|neighbou?r\\p{L}{0,6}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanli[kg]\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzi[kg]\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|camasir\\p{L}{0,8}|kurutma\\p{L}{0,8}|bilgisayar\\p{L}{0,4}|asansor\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|trockner|waschmaschine|aufzug|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|seche-linge|ordinateur|ascenseur|hervidor|secadora|ordenador|ascensor|impresora|musica|vecino\\p{L}{0,2}|coche";
 const OTHER_SOUND_SOURCE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`, "gu");
 /** Olumsuzlanan kaynak adı kaynak değildir ("It is not my phone, it is beeping", "Not my phone, it keeps beeping", "telefon değil" — Haiku 5. tur). */
 const NEG_BEFORE_SOURCE =

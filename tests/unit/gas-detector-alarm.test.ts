@@ -410,6 +410,10 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["fr sonnait", "Où est l'alarme CO ? Elle sonnait hier soir.", "gas"],
     ["es sonaba", "La alarma de gas sonaba toda la noche.", "gas"],
     ["de piepte", "Der CO-Melder piepte die ganze Nacht.", "gas"],
+    // Haiku 14. tur — "sounds" İngilizce ses fiili değildi (itilmiş G4'te de kaçıyordu); çıplak ad + yer tamlaması:
+    ["sounds again", "The CO alarm sounds again.", "gas"],
+    ["çıplak ad + sounds", "Where is the CO alarm? Alarm sounds again.", "gas"],
+    ["çıplak ad + yer tamlaması", "Where is the CO alarm? The alarm in the kitchen keeps beeping.", "gas"],
     ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
   ])("🚨 %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
@@ -448,6 +452,7 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["dizüstü", "The laptop is beeping. Where is the CO alarm?", "gas"],
     ["dil değişimi: zamirsiz Almanca 'Sonne' (güneş) fiil değil (mutasyon AB2)", "Wo ist der CO-Melder? Immer die Sonne hier.", "gas"],
     ["çıplak ad + araba alarmı (kaynak öznesi)", "Where is the CO detector? My car alarm keeps going off.", "gas"],
+    ["hırsız alarmı (Haiku 14. tur)", "Where is the CO alarm? The burglar alarm keeps beeping.", "gas"],
     // Türkçe ünsüz yumuşaması (çaydanlık → çaydanlığı, müzik → müziği) — kaynak yine tanınır (mutasyon X2: kaynak hiç tanınmıyordu):
     ["tr çaydanlığı ötüyor", "Çaydanlığım sürekli ötüyor. CO alarmı nerede?", "gas"],
     ["tr müziği çalıyor", "Komşunun müziği hâlâ çalıyor. CO dedektörü nerede?", "gas"],
