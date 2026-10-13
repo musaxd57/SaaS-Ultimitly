@@ -31,7 +31,8 @@ export type RequestErrorContext = { routePath?: unknown; routeType?: unknown; re
 
 // Next'in akış kontrolü için fırlattığı işaretler (digest). "NEXT_" ailesi: NEXT_REDIRECT;…, NEXT_NOT_FOUND,
 // NEXT_HTTP_ERROR_FALLBACK;404, NEXT_PRERENDER_INTERRUPTED …
-const FLOW_CONTROL_DIGESTS = new Set(["DYNAMIC_SERVER_USAGE", "BAILOUT_TO_CLIENT_SIDE_RENDERING"]);
+// HANGING_PROMISE_REJECTION: önbellekli bileşenlerin bilinçli olarak bekletilen sözü (Haiku incelemesi 10-13; bugün `cacheComponents` kapalı).
+const FLOW_CONTROL_DIGESTS = new Set(["DYNAMIC_SERVER_USAGE", "BAILOUT_TO_CLIENT_SIDE_RENDERING", "HANGING_PROMISE_REJECTION"]);
 // İstemcinin bağlantıyı kesmesi (sekmeyi kapattı, gezinti iptal) — sunucu arızası değil.
 const ABORT_NAMES = new Set(["AbortError", "ResponseAborted"]);
 

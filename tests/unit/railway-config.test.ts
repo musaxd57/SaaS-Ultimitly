@@ -39,12 +39,38 @@ describe("Dockerfile runner stage — scripts/ allowlist (G2)", () => {
   const runner = dockerfile.slice(dockerfile.indexOf("AS runner"));
   const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
 
-  const copiedScripts = (): string[] =>
+  // Every COPY / ADD source of the runner stage, normalized to a build-context path. Haiku review 10-13: the first version skipped
+  // `COPY --from=builder /app/scripts ./scripts` and multi-line (`\`) instructions — both would have smuggled the folder back in.
+  // Continuations are joined; flags (`--chown=…`) dropped; builder-stage paths (`/app/…`, WORKDIR /app) mapped to context paths.
+  const runnerSources = (): string[] =>
     runner
+      .replace(/\\\r?\n/g, " ")
       .split("\n")
-      .filter((l) => /^COPY\s/.test(l) && !l.includes("--from="))
-      .flatMap((l) => l.trim().split(/\s+/).slice(1, -1))
-      .filter((src) => src === "scripts" || src.startsWith("scripts/") || src === "." || src === "./");
+      .map((l) => l.trim())
+      .filter((l) => /^(?:COPY|ADD)\s/i.test(l))
+      .flatMap((l) => {
+        const parts = l.split(/\s+/).slice(1);
+        const fromStage = parts.some((p) => p.startsWith("--from="));
+        return parts
+          .filter((p) => !p.startsWith("--"))
+          .slice(0, -1)
+          .map((src) => (fromStage ? src.replace(/^\/app\/?/, "") || "." : src).replace(/^\.\/(?=.)/, ""));
+      });
+  const copiedScripts = (): string[] =>
+    runnerSources().filter((src) => src === "scripts" || src === "scripts/" || src.startsWith("scripts/") || src === "." || src === "./");
+
+  it("the source parser sees --from= stages, ADD and line continuations (anti-vacuity on synthetic Dockerfiles)", () => {
+    const parse = (text: string) =>
+      text
+        .replace(/\\\r?\n/g, " ")
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => /^(?:COPY|ADD)\s/i.test(l)).length;
+    expect(parse("COPY --from=builder /app/scripts ./scripts\nADD scripts ./scripts\nCOPY \\\n  scripts ./scripts")).toBe(3);
+    // The real runner stage really has COPY lines (the parser isn't reading an empty slice).
+    expect(runnerSources()).toContain(".next");
+    expect(runnerSources()).toContain("public");
+  });
 
   // Transitive relative imports of the prestart entry point, read from disk.
   const bootClosure = (): string[] => {

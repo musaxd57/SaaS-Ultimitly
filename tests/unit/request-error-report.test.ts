@@ -28,6 +28,7 @@ describe("shouldReportRequestError — akış kontrolü rapor değildir, gerisi 
     ["bulunamadı (15)", withDigest("NEXT_HTTP_ERROR_FALLBACK;404")],
     ["dinamik kullanım", withDigest("DYNAMIC_SERVER_USAGE")],
     ["istemci çizimine düşme", withDigest("BAILOUT_TO_CLIENT_SIDE_RENDERING")],
+    ["bekletilen söz (önbellekli bileşen)", withDigest("HANGING_PROMISE_REJECTION")],
     ["istemci iptali", named("AbortError")],
     ["yanıt iptali", named("ResponseAborted")],
   ])("%s → raporlanmaz", (_label, err) => {
