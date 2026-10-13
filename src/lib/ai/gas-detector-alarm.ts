@@ -127,12 +127,20 @@ const PRONOUN_START = /^(?:it|it's|its|er|es|sie|il|elle|ca|o)(?![\p{L}\p{N}])/u
 /** Ses fiilinin hemen önünde özne zamiri ("Last night it went off", "er piept") — devam cümlesi işareti (Haiku 4. tur). */
 const PRONOUN_BEFORE = /(?:^|\s)(?:it|it's|its|er|es|sie|il|elle|ca|o)\s(?:\p{L}{1,12}\s)?$/u;
 const SOURCE_WORDS =
-  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|neighbou?r\\p{L}{0,6}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanlik\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzik\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|hervidor|impresora|musica|vecino\\p{L}{0,2}|coche";
+  "phone|telephone|mobile|cell|doorbell|clock|oven|microwave|washer|washing machine|dryer|dishwasher|fridge|timer|kettle|printer|tv|television|music|car|truck|laptop|computer|tablet|router|elevator|lift|baby monitor|neighbou?r\\p{L}{0,6}|telefon\\p{L}{0,6}|zil\\p{L}{0,4}|saat\\p{L}{0,4}|firin\\p{L}{0,4}|mikrodalga\\p{L}{0,4}|makine\\p{L}{0,4}|buzdolab\\p{L}{0,4}|caydanli[kg]\\p{L}{0,4}|yazici\\p{L}{0,4}|televizyon\\p{L}{0,4}|muzi[kg]\\p{L}{0,4}|komsu\\p{L}{0,6}|araba\\p{L}{0,4}|camasir\\p{L}{0,8}|kurutma\\p{L}{0,8}|bilgisayar\\p{L}{0,4}|asansor\\p{L}{0,4}|handy|wecker|klingel|wasserkocher|drucker|fernseher|musik|nachbar\\p{L}{0,4}|auto|trockner|waschmaschine|aufzug|telefono|movil|portable|reveil|horno|minuteur|bouilloire|imprimante|tele|musique|voisin\\p{L}{0,2}|voiture|seche-linge|ordinateur|ascenseur|hervidor|secadora|ordenador|ascensor|impresora|musica|vecino\\p{L}{0,2}|coche";
 const OTHER_SOUND_SOURCE = new RegExp(`(?<![\\p{L}\\p{N}])(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`, "gu");
 /** Olumsuzlanan kaynak adı kaynak değildir ("It is not my phone, it is beeping", "Not my phone, it keeps beeping", "telefon değil" — Haiku 5. tur). */
 const NEG_BEFORE_SOURCE =
   /(?:^|\s)(?:not|isn't|isnt|wasn't|wasnt|aren't|arent|no|nicht|kein|keine|pas|ni)\s(?:(?:my|the|a|mein|meine|das|der|die|mon|ma|le|la|mi|el)\s)?$/u;
 const NEG_AFTER_SOURCE = /^\p{L}{0,6}\s(?:degil|degildi)(?![\p{L}\p{N}])/u;
+/**
+ * YER tamlayıcısındaki cihaz adı ses kaynağı değildir (Haiku 8. tur: "Something keeps beeping near the kettle. It's the CO alarm.",
+ * "…in the kitchen next to the kettle") — edat önde (near / next to / by / neben / près de / cerca de …) ya da Türkçe ardıl edat sonda
+ * ("çaydanlığın yanında").
+ */
+const LOC_BEFORE_SOURCE =
+  /(?:^|\s)(?:near|next to|by|beside|behind|above|below|under|over|neben|bei|uber|unter|hinter|pres de|a cote de|au-dessus de|sous|cerca de|junto a|al lado de|encima de|debajo de)\s(?:(?:the|my|our|a|an|der|die|das|dem|den|le|la|l'|el|un|une|mi)\s)?$/u;
+const LOC_AFTER_SOURCE = /^\p{L}{0,6}\s(?:yaninda|yakininda|ustunde|altinda|arkasinda|onunde)(?![\p{L}\p{N}])/u;
 /** İlk OLUMSUZLANMAMIŞ kaynak adının yeri (yoksa Infinity). */
 function firstSourceAt(text: string): number {
   for (const m of text.matchAll(OTHER_SOUND_SOURCE)) {
@@ -140,6 +148,7 @@ function firstSourceAt(text: string): number {
     const end = at + m[0].length;
     if (NEG_BEFORE_SOURCE.test(text.slice(Math.max(0, at - 16), at))) continue;
     if (NEG_AFTER_SOURCE.test(text.slice(end, end + 16))) continue;
+    if (LOC_BEFORE_SOURCE.test(text.slice(Math.max(0, at - 20), at)) || LOC_AFTER_SOURCE.test(text.slice(end, end + 16))) continue;
     return at;
   }
   return Infinity;
@@ -179,7 +188,15 @@ function soundOfOtherSource(text: string, s: Span): boolean {
   return !(PRONOUN_START.test(clause) && s.end - start <= src);
 }
 const ATTRIBUTION = new RegExp(
-  `(?:^|\\s)(?:that's|thats|that is|it's|its|it is|this is|das ist|das war|es ist|c'est|es el|es la|es mi|bu|o)\\s(?:just |only |nur |juste |solo |sadece )?(?:my |the |our |a |an |mein |meine |das |der |die |le |la |mon |ma |mi |el |benim )?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])`,
+  `(?:^|\\s)(?:that's|thats|that is|it's|its|it is|this is|das ist|das war|es ist|c'est|es el|es la|es mi|bu|o)\\s(?:just |only |nur |juste |solo |sadece )?(?:my |the |our |a |an |mein |meine |das |der |die |le |la |mon |ma |mi |el |benim )?(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}])(?!'s? (?:room|zimmer)|\\s(?:room|zimmer|chambre|oda\\p{L}{0,3}))`,
+  "u",
+);
+/**
+ * Geri alma: ardındaki cümle çıplak "Hayır." ya da "Hayır, çaydanlık." ("Something keeps beeping. Is it the CO alarm? No." — Haiku 8. tur).
+ * "No, it keeps beeping!" geri alma DEĞİL (kaynak yok, ses var).
+ */
+const RETRACTION_NEXT = new RegExp(
+  `^(?:no|nope|nein|non|hayir|degil)(?:$|,?\\s(?:(?:it's|its|it is|that's|the|my|a|an|der|die|das|le|la|el|mi|bu|o)\\s){0,3}(?:${SOURCE_WORDS})(?![\\p{L}\\p{N}]))`,
   "u",
 );
 
@@ -342,7 +359,13 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     const p = k > 0 && hasSound[k - 1] ? k - 1 : k > 1 && hasSound[k - 2] && !ANY_DETECTOR.test(sentences[k - 1]) ? k - 2 : -1;
     if (p >= 0) {
       const prev = sentences[p];
-      if (!ANY_DETECTOR.test(prev) && !ATTRIBUTION.test(prev) && !ATTRIBUTION.test(sentence) && !ATTRIBUTION.test(next)) {
+      if (
+        !ANY_DETECTOR.test(prev) &&
+        !ATTRIBUTION.test(prev) &&
+        !ATTRIBUTION.test(sentence) &&
+        !ATTRIBUTION.test(next) &&
+        !RETRACTION_NEXT.test(next)
+      ) {
         const firstHypoPrev = spans(HYPOTHETICAL_ALL, prev)[0]?.start ?? Infinity;
         if (allSounds(prev).some((s) => !soundOfOtherSource(prev, s) && liveSound(prev, s, firstHypoPrev))) return true;
       }

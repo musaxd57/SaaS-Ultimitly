@@ -368,6 +368,13 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["araya sessiz cümle", "Something keeps beeping. Please help. It's the CO alarm.", "gas"],
     ["dedektör cümlesinde yanındaki cihaz", "Something keeps beeping. It's the CO alarm next to the TV.", "gas"],
     ["olumsuz ses + sesin cümleciğinde kaynak yok", "Where is the CO detector? My phone is not beeping, it keeps beeping.", "gas"],
+    // Haiku 8. tur — yer tamlayıcısındaki cihaz kaynak değil; "TV room" bağlama değil; geri alma yalnız gerçek geri alma:
+    ["near the kettle", "Something keeps beeping near the kettle. It's the CO alarm.", "gas"],
+    ["next to the kettle", "Something keeps beeping in the kitchen next to the kettle. It's the CO alarm.", "gas"],
+    ["tr çaydanlığın yanında", "Bir şey çaydanlığın yanında sürekli ötüyor. CO alarmıymış.", "gas"],
+    ["TV room", "Where is the CO alarm? It's the TV room one, it keeps beeping.", "gas"],
+    ["'No, it keeps beeping' geri alma değil", "Something keeps beeping. Is it the CO alarm? No, it keeps beeping!", "gas"],
+    ["'No idea' geri alma değil", "Something keeps beeping. Is it the CO alarm? No idea.", "gas"],
   ])("🚨 %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
   });
@@ -399,6 +406,15 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["geri alma ardındaki cümlede", "Something keeps beeping. Is it the CO alarm? No, it's the kettle.", "gas"],
     ["geri alma aynı cümlede", "Something keeps beeping. It's the CO alarm, no, it's the kettle.", "gas"],
     ["önceki cümlede telefon sesi", "My phone keeps beeping. Where is the CO alarm?", "gas"],
+    ["önceki cümlede bağlama başka cümlecikte (mutasyon W7)", "It keeps beeping, that's my phone. Where is the CO alarm?", "gas"],
+    // Haiku 8. tur — kapalı listede olmayan cihazlar eklendi; çıplak "No." / "No, the kettle." geri almadır:
+    ["kurutma makinesi", "The dryer is beeping. Where is the CO alarm?", "gas"],
+    ["dizüstü", "The laptop is beeping. Where is the CO alarm?", "gas"],
+    // Türkçe ünsüz yumuşaması (çaydanlık → çaydanlığı, müzik → müziği) — kaynak yine tanınır (mutasyon X2: kaynak hiç tanınmıyordu):
+    ["tr çaydanlığı ötüyor", "Çaydanlığım sürekli ötüyor. CO alarmı nerede?", "gas"],
+    ["tr müziği çalıyor", "Komşunun müziği hâlâ çalıyor. CO dedektörü nerede?", "gas"],
+    ["çıplak No", "Something keeps beeping. Is it the CO alarm? No.", "gas"],
+    ["No + kaynak", "Something keeps beeping. Is it the CO alarm? No, the kettle.", "gas"],
     ["öteki dedektör (gaz değil)", "Something keeps beeping. It's the smoke alarm.", "gas"],
   ])("KONTROL %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(false);
