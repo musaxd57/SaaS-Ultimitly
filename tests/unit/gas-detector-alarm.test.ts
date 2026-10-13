@@ -400,6 +400,10 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     ["on top of the fridge beeping", "Where is the CO alarm? It's on top of the fridge beeping.", "gas"],
     ["de auf dem Kühlschrank", "Wo ist der CO-Melder? Er ist auf dem Kühlschrank und piept.", "gas"],
     ["fr devant le four", "Où est le détecteur de CO ? Il est devant le four et il sonne.", "gas"],
+    // Haiku 12. tur — dil değişimi (soru İngilizce, devam Fransızca); başka dilin fiili yalnız özne zamiri hemen önündeyse:
+    ["dil değişimi: Il sonne", "Where is the CO alarm? Il sonne.", "gas"],
+    ["dil değişimi: Elle sonne toujours", "Where is the CO alarm? Elle sonne toujours.", "gas"],
+    ["dil değişimi + en face du", "Where is the CO alarm? Il est en face du téléphone et il sonne.", "gas"],
     ["geri alma + dedektör yeniden", "Something keeps beeping. Is it the CO alarm? No, the kettle isn't the problem, it's the CO alarm.", "gas"],
   ])("🚨 %s: %s", (_l, text, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(true);
@@ -436,6 +440,7 @@ describe("devam cümlesi (Haiku 3. tur)", () => {
     // Haiku 8. tur — kapalı listede olmayan cihazlar eklendi; çıplak "No." / "No, the kettle." geri almadır:
     ["kurutma makinesi", "The dryer is beeping. Where is the CO alarm?", "gas"],
     ["dizüstü", "The laptop is beeping. Where is the CO alarm?", "gas"],
+    ["dil değişimi: zamirsiz Almanca 'Sonne' (güneş) fiil değil (mutasyon AB2)", "Wo ist der CO-Melder? Immer die Sonne hier.", "gas"],
     // Türkçe ünsüz yumuşaması (çaydanlık → çaydanlığı, müzik → müziği) — kaynak yine tanınır (mutasyon X2: kaynak hiç tanınmıyordu):
     ["tr çaydanlığı ötüyor", "Çaydanlığım sürekli ötüyor. CO alarmı nerede?", "gas"],
     ["tr müziği çalıyor", "Komşunun müziği hâlâ çalıyor. CO dedektörü nerede?", "gas"],

@@ -117,6 +117,7 @@ const CONTINUATION_MAX_WORDS = 1;
  * bildirim ("Something keeps beeping. It's the CO alarm.", "Bir şey sürekli ötüyor. CO alarmıymış.", "Something keeps beeping. Where is
  * the CO alarm?" — ses dedektör olabilir; karar ev sahibinin). Claude 6. tur sondası; tanıtım kalıbı şartı mutasyonla (V5) gereksiz çıktı.
  */
+const PRONOUN_RIGHT_BEFORE = /(?:^|\s)(?:it|er|es|sie|il|elle|ca|o)\s$/u;
 /** Ses fiilinin hemen önünde özne zamiri ("Last night it went off", "er piept") — devam cümlesi işareti (Haiku 4. tur). */
 const PRONOUN_BEFORE = /(?:^|\s)(?:it|it's|its|er|es|sie|il|elle|ca|o)\s(?:\p{L}{1,12}\s)?$/u;
 const SOURCE_WORDS =
@@ -339,8 +340,12 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
         (nextStarts || s.start === 0 || PRONOUN_BEFORE.test(next.slice(Math.max(0, s.start - 20), s.start))) &&
         !soundOfOtherSource(next, s) &&
         liveSound(next, s, firstHypoNext);
+      // Dil değişimi (Haiku 12. tur: "Where is the CO alarm? Il sonne."): başka dilin ses fiili yalnız özne zamiri HEMEN önündeyse —
+      // "Sonne" (Almanca güneş) gibi çakışmaya açık fiiller böylece yalnız fiil konumunda sayılır.
+      const pronounRightBefore = (s: Span) => PRONOUN_RIGHT_BEFORE.test(next.slice(Math.max(0, s.start - 8), s.start));
       for (const [li, lang] of LANGS.entries()) {
-        if (detectorsByLang[li].length > 0 && spans(SOUNDING[lang], next).some(continues)) return true;
+        const own = detectorsByLang[li].length > 0;
+        if (spans(SOUNDING[lang], next).some((s) => (own || pronounRightBefore(s)) && continues(s))) return true;
       }
       if (spans(CROSS_LANGUAGE_SAFE, next).some(continues)) return true;
     }
