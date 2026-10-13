@@ -51,6 +51,9 @@ const SOUNDING: Array<[string, string]> = [
   ["tr 'detektör' yazımı", "CO detektörü ötüyor"],
   // Mutasyon 10-13 (G4a): devam cümlesinde YALNIZ kendi dilinin fiili ("sonne" dil karışımı kümesinde yok).
   ["fr devam cümlesi (kendi dilinin fiili)", "Le détecteur de CO est dans la cuisine. Il sonne!"],
+  // Haiku 3. inceleme:
+  ["de çift olumsuz geçmiş (hat nicht aufgehört)", "Der CO-Melder hat nicht aufgehört zu piepen"],
+  ["tek sözcük devam", "Karbonmonoksit dedektörü mutfakta. Ötüyor!"],
 ];
 
 const NOT_SOUNDING: Array<[string, string]> = [
@@ -84,6 +87,14 @@ const NOT_SOUNDING: Array<[string, string]> = [
   ["en olumsuz geçmiş (stopped)", "The CO alarm stopped beeping an hour ago"],
   // Mutasyon 10-13 (G4d): ses başta, dedektör 80 karakterden UZAKTA sağda — yakınlık iki yönde de sınanır.
   ["uzak sağdaki dedektör", `My phone keeps beeping ${"and ".repeat(30)}the CO alarm is on the wall`],
+  // Haiku 3. inceleme — yanlış pozitifler:
+  ["TR ad + EN 'ringing' (çalan telefon)", "CO dedektörü nerede, telefon ringing"],
+  ["başka özneli kısa cümle", "Gaz dedektörü mutfakta. Telefon çalıyor."],
+  ["'stop' olumsuzdan ÖNCE (çift olumsuz değil)", "Stop it, the CO alarm isn't ringing"],
+  ["es 'para' = için", "Para el detector de gas no suena"],
+  ["es durdu", "El detector de gas dejó de sonar"],
+  ["fr durdu", "Le détecteur de CO a cessé de sonner"],
+  ["de durdu", "Der CO-Melder hat aufgehört zu piepen"],
 ];
 
 describe("gasDetectorSounding — gaz / CO dedektörü ötüyor", () => {

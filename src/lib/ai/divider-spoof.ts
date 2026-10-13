@@ -21,6 +21,11 @@ const DIVIDER_RUN_ONE = new RegExp(`[${DIVIDER_CHARS}](?: ?[${DIVIDER_CHARS}]){2
  * sinyalidir. Eşik 5 (gündelik "---" / "**" sayılmaz).
  */
 const SPOOF_ONLY_RUN = /[-_~*#](?: ?[-_~*#]){4,}/gu;
+/**
+ * Bu ek çizgilerde başlık BÜYÜK HARF olmalı (istem başlığı taklidi büyük harftir — 3. inceleme: "Ev kuralları hakkında: -----",
+ * "-----Original Message----- … Booking system" sıradan metindir). Kurucunun çizgi ailesinde (═ = …) büyük / küçük fark etmez.
+ */
+const HEADER_UPPER = /(?<![\p{L}\p{N}])(?:SİSTEM|SISTEM|KURAL|TALİMAT|TALIMAT|SYSTEM)\p{Lu}{0,6}(?![\p{L}\p{N}])/u;
 /** Başlık sözcüğü (katlanmış: küçük harf, aksansız, Türkçe ASCII) — çekimleriyle ("kuralı", "talimatlar", "system:"). */
 const HEADER = /(?<![\p{L}\p{N}])(?:sistem|kural|talimat|system)\p{L}{0,6}(?![\p{L}\p{N}])/u;
 
@@ -39,12 +44,11 @@ const HEADER_WINDOW = 40;
 
 /** Çizgi dizisinin hemen yanında (≤ 40 karakter, satır sonunu da geçerek) sistem / kural / talimat başlığı var mı? */
 export function hasDividerHeaderSpoof(text: string): boolean {
-  for (const re of [DIVIDER_RUN, SPOOF_ONLY_RUN]) {
-    for (const m of text.matchAll(re)) {
-      const at = m.index ?? 0;
-      const around = text.slice(Math.max(0, at - HEADER_WINDOW), at + m[0].length + HEADER_WINDOW);
-      if (HEADER.test(fold(around))) return true;
-    }
-  }
+  const around = (m: RegExpMatchArray) => {
+    const at = m.index ?? 0;
+    return text.slice(Math.max(0, at - HEADER_WINDOW), at + m[0].length + HEADER_WINDOW);
+  };
+  for (const m of text.matchAll(DIVIDER_RUN)) if (HEADER.test(fold(around(m)))) return true;
+  for (const m of text.matchAll(SPOOF_ONLY_RUN)) if (HEADER_UPPER.test(around(m))) return true;
   return false;
 }

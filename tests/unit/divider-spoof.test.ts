@@ -34,6 +34,9 @@ describe("hasDividerHeaderSpoof → enjeksiyon (mesaj insana)", () => {
     ["ok işareti", "Giriş => 15:00"],
     ["imza çizgisi, başlıksız", "Teşekkürler\n-----\nAyşe"],
     ["kısa vurgu + kural", "** Ev kuralı: sigara yok **"],
+    // Haiku 3. inceleme: ek çizgilerde başlık BÜYÜK HARF olmalı.
+    ["küçük harf kural + tire", "Ev kuralları hakkında: ----- Kapı şifresi nedir?"],
+    ["iletilmiş e-posta + system", "-----Original Message----- Booking system confirmation"],
   ])("KONTROL %s", (_l, text) => {
     expect(hasDividerHeaderSpoof(text)).toBe(false);
   });

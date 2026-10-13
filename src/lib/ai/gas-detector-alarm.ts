@@ -55,10 +55,11 @@ const LANGS = Object.keys(DETECTOR) as Lang[];
 /**
  * DİL KARIŞIMI (Haiku incelemesi 10-13): misafir dili karıştırır ("CO alarmı sürekli beep yapıyor"). Ad bir dilde, fiil başka dilde ise
  * YALNIZ başka bir dilde sıradan sözcük OLMAYAN fiiller eşleşir: Fransızca "sonne / sonner" (Almanca "Sonne" = güneş), İspanyolca
- * "sono" (İtalyanca "sono" = -im), "pita / pito / pitan" (pide, düdük) yalnız kendi dilinin adıyla.
+ * "sono" (İtalyanca "sono" = -im), "pita / pito / pitan" (pide, düdük) yalnız kendi dilinin adıyla. İngilizce "ringing" de yalnız
+ * İngilizce adla (3. inceleme: "CO dedektörü nerede, telefon ringing" — çalan telefondur).
  */
 const CROSS_LANGUAGE_SAFE = new RegExp(
-  `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|ringing|blaring|screaming|piept|piepst|piepen|piepsen|gepiept|piepton|bipe|bipent|retentit|suena|suenan|sonando|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
+  `${B}(?:beep(?:s|ing|ed)?|chirp(?:s|ing|ed)?|buzz(?:es|ing|ed)?|going off|went off|goes off|gone off|sounding|sounded|blaring|screaming|piept|piepst|piepen|piepsen|gepiept|piepton|bipe|bipent|retentit|suena|suenan|sonando|(?:otuyor|ottu|caliyor|caldi|bipliyor|bipledi|susmuyor)(?:lar|m|n|k|mus|mu|mi|du|dum|dun|duk|dular)?|bip bip)${E}`,
   "gu",
 );
 
@@ -68,7 +69,7 @@ const CROSS_LANGUAGE_SAFE = new RegExp(
  * Fransızca olumsuzluk ardındaki "pas / plus" ile tanınır (↓). Türkçe olumsuzluk çekimdedir ve olumlu fiil listesine girmez.
  */
 const NEG_BEFORE =
-  /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|never|no longer|stopped|no|ya no|nicht|kein|keine|nie)\s(?:\p{L}{1,12}\s){0,2}$/u;
+  /(?:^|\s)(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|doesn't|doesnt|didn't|didnt|never|no longer|stopped|no|ya no|nicht|kein|keine|nie|dejo de|ha dejado de|a cesse de|a arrete de|aufgehort zu)\s((?:\p{L}{1,12}\s){0,2})$/u;
 /** Olumsuzlama — ses fiilinin hemen ARDINDA (≤ 14 karakter): "piept nicht", "(ne) sonne pas / plus", "no suena nunca". */
 const NEG_AFTER = /^\s(?:nicht|nie|pas|plus|mehr nicht|nunca)(?![\p{L}\p{N}])/u;
 /** Varsayım / yordam sorusu — yalnız SESTEN ÖNCE gelirse: "If the CO alarm goes off…" evet; "…is beeping, I don't know if…" hayır. */
@@ -77,7 +78,8 @@ const HYPOTHETICAL_SRC =
 const HYPOTHETICAL_ALL = new RegExp(HYPOTHETICAL_SRC, "gu");
 /** Devam cümlesi: bir önceki cümledeki dedektörü sürdüren kısa cümle ("It keeps beeping!", "Sürekli ötüyor!", "Es piept."). */
 const CONTINUATION_START = /^(?:it|it's|its|still|keeps|er|es|sie|il|elle|ca|sigue|esta|surekli|hala|durmadan|yine|hep)(?![\p{L}\p{N}])/u;
-const CONTINUATION_MAX_WORDS = 3;
+/** Zamirsiz devam cümlesi yalnız TEK sözcük ("Ötüyor!") — "Telefon çalıyor." başka bir öznedir (3. inceleme). */
+const CONTINUATION_MAX_WORDS = 1;
 
 /** Cümle yakınlığı: ad ile fiil arasında en çok bu kadar karakter (iki yönde de: "Es piept der CO-Melder", "Suena la alarma de gas"). */
 const NEAR = 80;
@@ -103,12 +105,18 @@ function spans(re: RegExp, text: string): Span[] {
 }
 
 /** Fiil gerçekten SES bildiriyor mu (olumsuz / koşul / varsayım değil)? */
-/** "Doesn't stop beeping" / "hört nicht auf zu piepen" — olumsuz + DUR fiili = ses SÜRÜYOR (çift olumsuz; Haiku incelemesi 10-13). */
-const STOP_VERB = /(?:^|\s)(?:stop|stops|stopping|quit|hort|hoert|aufhoren|arrete|arreter|para|parar|deja|dejar)(?:\s|$)/u;
+/**
+ * "Doesn't stop beeping" / "no para de sonar" — olumsuz + DUR fiili = ses SÜRÜYOR (çift olumsuz; Haiku incelemesi 10-13). DUR fiili
+ * olumsuz sözcük ile ses fiilinin ARASINDA olmalı (3. inceleme: "Stop it, the CO alarm isn't ringing" çift olumsuz DEĞİLDİR).
+ * Almanca ayrılabilir "hört nicht auf zu piepen": "hört" olumsuzdan ÖNCE gelir → ayrıca tanınır.
+ */
+const STOP_VERB = /(?:^|\s)(?:stop|stops|stopping|quit|aufhoren|aufgehort|arrete|arreter|para|parar|deja|dejar)(?:\s|$)/u;
+const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert) nicht auf zu $/u;
 
 function liveSound(sentence: string, s: Span, hypoStarts: readonly number[]): boolean {
   const before = sentence.slice(Math.max(0, s.start - 28), s.start);
-  if (NEG_BEFORE.test(before) && !STOP_VERB.test(before)) return false;
+  const neg = NEG_BEFORE.exec(before);
+  if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
   if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
   return !hypoStarts.some((h) => h < s.start);
 }

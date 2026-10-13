@@ -407,6 +407,8 @@ export async function findAttentionItems(
           skippedReason: PROVIDER_OUTAGE_REASON,
           updatedAt: { gte: new Date(now.getTime() - PROVIDER_OUTAGE_WINDOW_HOURS * HOUR) },
         },
+        // En yeni önce: aday tavanı aşılırsa eski arızalar düşer, sayı güncel kalır (3. inceleme).
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: CONVERSATION_CANDIDATE_CAP,
         select: {
           messages: {
