@@ -5,6 +5,7 @@ import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge, hasJso
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
+import { claimLeadNotifySlot, LEAD_NOTIFY_DAILY_CAP } from "@/lib/lead-notify-budget";
 
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
@@ -64,22 +65,35 @@ export async function POST(req: NextRequest) {
     }
     if (to) {
       try {
+        // 🚨 GÜNLÜK BİLDİRİM BÜTÇESİ (G3, kurucu kararı 10-13): ilk 50 talep → bildirim, 51. → tek özet, sonrası → e-posta yok.
+        // Talep yukarıda ZATEN kaydedildi; bu yalnız ortak e-posta kotasını korur (kayıt doğrulama / şifre sıfırlama).
+        const slot = await claimLeadNotifySlot();
         // ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01 — üçüncü tur): `send`
         // ASLA FIRLATMAZ, sağlayıcı hatasını yalnız console'a yazar ve `void`
         // döner → aşağıdaki `catch` sağlayıcı 5xx'inde HİÇ ÇALIŞMIYORDU. Yani
         // "hata görünür olsun" diye yazılmış blok, tam da görünür kılmak istediği
         // arıza sınıfında sessizdi. Lead satırı DB'de duruyor (kayıp yok) ama
         // operatör demo talebini FARK ETMEYEBİLİRDİ.
-        const res = await emailService.sendReporting(
-          to,
-          `Yeni demo talebi: ${name}`,
-          `<p>Yeni bir demo / deneme talebi geldi.</p>
+        const res =
+          slot === "notify"
+            ? await emailService.sendReporting(
+                to,
+                `Yeni demo talebi: ${name}`,
+                `<p>Yeni bir demo / deneme talebi geldi.</p>
            <p>İsim: ${esc(name)}<br/>
            E-posta: ${esc(email)}${phone ? `<br/>Telefon: ${esc(phone)}` : ""}${
              message ? `<br/>Mesaj: ${esc(message)}` : ""
            }</p>
            <p>Operatör panelindeki "Demo Talepleri" bölümünde de görünür.</p>`,
-        );
+              )
+            : slot === "summary"
+              ? await emailService.sendReporting(
+                  to,
+                  `Bugün ${LEAD_NOTIFY_DAILY_CAP}'den fazla demo talebi geldi`,
+                  `<p>Bugün ${LEAD_NOTIFY_DAILY_CAP}'den fazla demo / deneme talebi geldi. Bugün gelecek diğer talepler için ayrı e-posta gönderilmeyecek; hepsi kaydediliyor.</p>
+           <p>Talepleri operatör panelindeki "Demo Talepleri" bölümünde görebilirsiniz.</p>`,
+                )
+              : { ok: true };
         if (!res.ok) {
           void reportError("lead-notify-mail", new Error("demo talebi bildirimi gönderilemedi"));
         }

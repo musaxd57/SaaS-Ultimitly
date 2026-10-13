@@ -106,3 +106,66 @@ describe("/api/leads — IP hız limiti", () => {
     expect(await prisma.lead.count()).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// G3 (kurucu kararı 10-13 "Günde 50 + özet"): IP döndüren biri her talepte bir operatör e-postası tetikleyip ORTAK e-posta kotasını
+// (kayıt doğrulama / şifre sıfırlama) bitirebiliyordu. Talep HER ZAMAN kaydedilir; bildirim günde 50 + aşan gün TEK özet.
+// ---------------------------------------------------------------------------
+describe("/api/leads — günlük bildirim bütçesi (G3)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    sendReportingMock.mockResolvedValue({ ok: true });
+    vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /** Her talep FARKLI bir IP'den — IP limiti devreye girmesin (saldırganın IP döndürmesi). */
+  const fromIp = (i: number) => req(i, `198.18.${Math.floor(i / 250)}.${(i % 250) + 1}`);
+
+  it("53 talep → 53 kayıt, 50 bildirim + 1 özet, sonrası e-posta YOK", async () => {
+    for (let i = 1; i <= 53; i++) {
+      expect((await POST(fromIp(i))).status, `talep ${i}`).toBe(201);
+    }
+    // Kayıt kaybı yok — bütçe yalnız e-postayı sınırlar.
+    expect(await prisma.lead.count()).toBe(53);
+    expect(sendReportingMock).toHaveBeenCalledTimes(51);
+    const subjects = sendReportingMock.mock.calls.map((c) => c[1] as string);
+    expect(subjects.slice(0, 50).every((s) => s.startsWith("Yeni demo talebi: "))).toBe(true);
+    expect(subjects[0]).toBe("Yeni demo talebi: Aday 1");
+    expect(subjects[49]).toBe("Yeni demo talebi: Aday 50");
+    expect(subjects[50]).toBe("Bugün 50'den fazla demo talebi geldi");
+    // Özet kişisel veri TAŞIMAZ (51. talebin adı / e-postası yok) ve paneli gösterir.
+    const summaryHtml = sendReportingMock.mock.calls[50][2] as string;
+    expect(summaryHtml).not.toContain("Aday 51");
+    expect(summaryHtml).not.toContain("aday51@example.com");
+    expect(summaryHtml).toContain("Demo Talepleri");
+  });
+
+  it("yeni gün yeni bütçe: dünün dolu sayacı bugünü etkilemez", async () => {
+    const { claimLeadNotifySlot } = await import("@/lib/lead-notify-budget");
+    const yesterday = new Date("2026-10-12T10:00:00Z");
+    const today = new Date("2026-10-13T10:00:00Z");
+    for (let i = 0; i < 50; i++) expect(await claimLeadNotifySlot(yesterday)).toBe("notify");
+    expect(await claimLeadNotifySlot(yesterday)).toBe("summary");
+    expect(await claimLeadNotifySlot(yesterday)).toBe("skip");
+    expect(await claimLeadNotifySlot(today)).toBe("notify");
+  });
+
+  it("gün sınırı uygulama saat dilimine göre: İstanbul gece yarısı (UTC 21:00) yeni gündür", async () => {
+    const { claimLeadNotifySlot } = await import("@/lib/lead-notify-budget");
+    const beforeMidnightIst = new Date("2026-10-12T20:59:00Z"); // İstanbul 23:59 (12 Ekim)
+    const afterMidnightIst = new Date("2026-10-12T21:01:00Z"); //  İstanbul 00:01 (13 Ekim) — UTC'de hâlâ 12 Ekim
+    for (let i = 0; i < 51; i++) await claimLeadNotifySlot(beforeMidnightIst);
+    expect(await claimLeadNotifySlot(beforeMidnightIst)).toBe("skip");
+    expect(await claimLeadNotifySlot(afterMidnightIst)).toBe("notify");
+  });
+
+  it("bildirim adresi yokken bütçe TÜKETİLMEZ (adres sonradan eklenirse ilk talepler yine bildirilir)", async () => {
+    vi.stubEnv("ERROR_ALERT_EMAIL", "");
+    vi.stubEnv("ALERT_EMAIL", "");
+    for (let i = 1; i <= 3; i++) await POST(fromIp(i));
+    expect(sendReportingMock).not.toHaveBeenCalled();
+    expect(await prisma.rateLimitCounter.count({ where: { key: { startsWith: "lead-notify" } } })).toBe(0);
+  });
+});
