@@ -576,6 +576,35 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
       expect(level(m)).not.toBe("clear");
     },
   );
+  // Haiku 10-14: çarpma / aşırı ısınma — önce iki ağda da boştu; RCD adı gerçek bildirimi yutuyordu.
+  it.each([
+    "prizden akım kaçıyor",
+    "Duş başlığı çarpıyor",
+    "the shower gives me a shock",
+    "I get a tingle from the washing machine",
+    "I got a shock from the kettle",
+    "kaçak akım rölesi attı, priz ısınıyor",
+    "Kaçak akım rölesi atıyor, dokununca çarpıyor.",
+    "kaçak akım rölesi sürekli atıyor ve priz ısınıyor",
+    "Priz ısınıyor",
+    "The socket is very hot",
+  ])("🚨 %j → iki ağda acil", (m) => {
+    expect(isSafetyEmergencyText(m)).toBe(true);
+    expect(level(m)).toBe("clear");
+  });
+  it.each(["Rüzgârdan kapı çarpıyor", "Bu sıcakta oda çok ısınıyor", "The coffee is hot", "It's hot outside, where is the AC remote?"])(
+    "KONTROL %j → acil değil (elektrikli özne yok)",
+    (m) => {
+      expect(isSafetyEmergencyText(m)).toBe(false);
+    },
+  );
+  it("süre: 50.000 karakterde çarpma / ısınma kalıpları doğrusal", () => {
+    const t0 = performance.now();
+    isSafetyEmergencyText("priz ".repeat(10_000));
+    isSafetyEmergencyText(`dus ${"a ".repeat(25_000)}`);
+    level("socket ".repeat(7_000));
+    expect(performance.now() - t0).toBeLessThan(1500);
+  });
   it("KONTROL: şalter adı + olay işareti → yine acil", () => {
     expect(isSafetyEmergencyText("Kaçak akım şalteri yanıyor, duman çıkıyor!")).toBe(true);
   });
