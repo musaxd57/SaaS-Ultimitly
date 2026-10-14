@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { calendarDateOf, nightsBetween, todayKey } from "@/modules/availability/core";
 import { orgTimezone } from "@/lib/timezone";
+import { foldUnicodeDigits } from "@/lib/unicode-digits";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { loadErasureGuard } from "@/lib/erasure";
 import { ANON_NAME } from "@/lib/data-retention";
@@ -374,7 +375,9 @@ const SECRET_PATTERNS: RegExp[] = [
   //
   // ÖLÇÜLDÜ (kalıp yok / serbest-metin / bugünkü): yanlış-pozitif 0 → 6 → 0,
   // yakalanan saldırı 0 → 11 → 13. Yani bugünkü hâl İKİ eksene göre de en iyisi.
-  /(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|kombinasyon|combination|door|lock|entry|gate)\w{0,24}\s*(?:[:=#.\-–—]\s*)?\d{4,8}(?!\d)(?![\s\-.]\d)/i,
+  // Y2 (10-14 dış inceleme): Arapça / Rusça / İspanyolca / Fransızca kapı adları da ("الباب: 4590", "Дверь: 4590") — `\w` bu harfleri
+  // kapsamadığı için ad + ek ayrı yazıldı. "portal" / Türkçe "tür" BİLEREK yok (Wi-Fi "captive portal", "her tür cihaz").
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|kombinasyon|combination|door|lock|entry|gate|puerta|porte(?![a-z])|(?:ال)?(?:باب|بوابة|مدخل)|двер[а-я]{0,3}|подъезд[а-я]{0,2})\w{0,24}\s*(?:[:=#.\-–—]\s*)?\d{4,8}(?!\d)(?![\s\-.]\d)/i,
   // 🚨 10-02 (QR kör kabul seti 1 — canlıda 5.1, bina kapısının tuş kodunu QR'da İKİ kez misafire yazdı): yukarıdaki kalıplar ya
   // "isim + BİTİŞİK rakam" ya da "kod / şifre sözcüğü + değer" arıyordu. Kalem şuydu: "Kilitliyken kapının sağındaki tuş paneline 6142
   // yazıp anahtar simgeli tuşa basarak içeri girebilirsiniz." Kaçan yazımlar (`secret-filter-keypad.test.ts`, 24 sızıntı + 16 ikiz):
@@ -400,7 +403,7 @@ const SECRET_PATTERNS: RegExp[] = [
     "i",
   ),
   new RegExp(
-    `(?:(?<![a-z])code|c[oó]digo|код|رمز|كود|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
+    `(?:(?<![a-z])code|c[oó]digo|код|رمز|كود|كلمة\\s+(?:ال)?(?:مرور|سر)|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
     "i",
   ),
   // 🚨 10-10 (Haiku QR güvenlik taraması F1): KAPI + AÇ- fiili + değer — kod sözcüğü olmadan ve bitişik değil: "Kapı açma: 4590",
@@ -452,7 +455,7 @@ const DOOR_SECRET_PATTERNS: readonly RegExp[] = SECRET_PATTERNS.filter((re) => !
  * şifresi ↓`secretLabels` ile yakalanır ("Bina şifresi 4590": etiket Wi-Fi değil).
  */
 const QR_WIFI_ITEM_DOOR_TRACE =
-  /(?<![a-z0-9])(?:kapi|(?<!(?:ag|wpa2?|guvenlik)\s)anahtar|kilit|kasa(?!ba)|kutu|key\s*(?:box|safe|pad)|lock|door|gate|entrance|panel|tus|interkom|intercom|domofon|digicode|alarm|pin(?![a-z]))/;
+  /(?<![a-z0-9])(?:kapi|(?<!(?:ag|wpa2?|guvenlik)\s)anahtar|kilit|kasa(?!ba)|kutu|key\s*(?:box|safe|pad)|lock|door|gate|entrance|panel|tus|interkom|intercom|domofon|digicode|alarm|pin(?![a-z])|puerta|porte(?![a-z])|(?:haus|wohnungs|eingangs)t[uü]r|t[uü]rcode|باب|بوابة|مدخل|قفل|двер|подъезд|замо?к)/;
 
 /** Şifre / kod sözcüğü (ASCII katlanmış, sözcük başında) + varsa DEĞERİ (isteğe bağlı ":" / "=" ve ardındaki tek sözcük; satır sonunu
  *  GEÇMEZ — başlık satırındaki "Wifi kodu" bir sonraki satırın Wi-Fi adını değer diye yutmasın). */
@@ -496,8 +499,9 @@ function secretLabels(folded: string): { wifi: boolean; word: string; value: str
 }
 
 /** `wifi` kategorisindeki kalem QR bağlamına girebilir mi: kapı kalıbı YOK, kapı / kilit izi YOK, her şifre / kod sözcüğü Wi-Fi'ye bağlı. */
-function qrWifiItemAllowed(text: string): boolean {
-  if (text.length > SECRET_SCAN_MAX_CHARS) return false;
+function qrWifiItemAllowed(raw: string): boolean {
+  if (raw.length > SECRET_SCAN_MAX_CHARS) return false;
+  const text = foldUnicodeDigits(raw); // Y2: "٦١٤٢" → "6142"
   const variants = [text, foldTurkishLower(text), foldTurkishAscii(text)];
   if (DOOR_SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return false;
   const ascii = foldTurkishAscii(text);
@@ -546,8 +550,10 @@ const PASSWORD_WORDS = new Set(["sifre", "parola", "password", "passcode", "pass
 const spacedDigits = (s: string) => s.replace(/(?<!\d)\d(?:[ -]\d){3,7}(?!\d)/g, (m) => m.replace(/\D/g, ""));
 
 /** Cevaptaki kapı kodu DEĞERLERİ (kapı bağlamlı: hepsi; bağlamsız: bilgi tabanında geçmeyenler). Boş dizi = sızıntı yok. */
-function doorCodeValues(text: string, allowedTexts: readonly string[]): string[] {
-  const allowed = new Set(allowedTexts.flatMap((t) => t.match(/\d{4,8}/g) ?? []));
+function doorCodeValues(raw: string, allowedTexts: readonly string[]): string[] {
+  // Y2 (10-14): Unicode rakamlar ASCII'ye iner — "Kapı kodu: ٦١٤٢" çıktı taramasından ve geçmiş maskesinden kaçıyordu.
+  const text = foldUnicodeDigits(raw);
+  const allowed = new Set(allowedTexts.flatMap((t) => foldUnicodeDigits(t).match(/\d{4,8}/g) ?? []));
   const ascii = foldTurkishAscii(text);
   const variants = [text, foldTurkishLower(text), ascii, spacedDigits(ascii)];
   const out = new Set<string>();
@@ -580,8 +586,10 @@ export const REDACTED_DOOR_CODE = "(kod gizlendi)";
  * kapı / kutu / giriş kodunun DEĞERİ (↑`doorCodeValues`, bilgi tabanı muafiyeti yok) "(kod gizlendi)" olur; mesajın geri kalanı aynı.
  * Misafirin gördüğü geçmiş DEĞİŞMEZ — yalnız modele giden kopya. Ayraçlı yazım ("4 5 9 0") da gizlenir.
  */
-export function redactDoorCodes(text: string): string {
-  if (!text) return text;
+export function redactDoorCodes(raw: string): string {
+  if (!raw) return raw;
+  // Y2 (10-14): modele giden kopyada Unicode rakamlar ASCII'ye iner (değer aranır ve gizlenir; misafirin gördüğü geçmiş değişmez).
+  const text = foldUnicodeDigits(raw);
   // Tarama sınırının üstü (bugün hiçbir yazma yolu bu boyutta mesaj kabul etmez) → fail-closed: her 4–8 hane gizlenir.
   if (text.length > SECRET_SCAN_MAX_CHARS) return text.replace(/(?<!\d)\d{4,8}(?!\d)/g, REDACTED_DOOR_CODE);
   let out = text;
@@ -611,7 +619,8 @@ function looksLikeSecret(text: string): boolean {
   // kalem başına ≪ 50 ms — kalıpların nicelikleri sınırlı (asıl ReDoS düzeltmesi
   // 08-07 (2)'de), yani maliyet doğrusala yakın.
   if (text.length > SECRET_SCAN_MAX_CHARS) return true; // doğrulanamayan → sır say
-  const variants = [text, foldTurkishLower(text), foldTurkishAscii(text)];
+  const digits = foldUnicodeDigits(text); // Y2 (10-14): "Kapı: ٦١٤٢" / "Giriş ۶۱۴۲ ile açılır"
+  const variants = [digits, foldTurkishLower(digits), foldTurkishAscii(digits)];
   return SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)));
 }
 
