@@ -602,6 +602,14 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     "Duştan akım geliyor.",
     "Musluktan elektrik geliyor.",
     "Musluk beni çarpıyor.",
+    // Haiku 10-14 ikinci tur.
+    "şarj aleti çok sıcak ve kokuyor",
+    "çaydanlık elektrik kaçırıyo",
+    "I felt a tingle when I touched the washer",
+    "şalter çok sıcak",
+    "kablodan elektrik geliyo",
+    "kapı kolu çarpıyor elektrik gibi",
+    "Duşta akım var sanki, çarpıyor",
   ])("🚨 %j → iki ağda acil", (m) => {
     expect(isSafetyEmergencyText(m)).toBe(true);
     expect(level(m)).toBe("clear");
@@ -625,6 +633,9 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     "The heater is really hot in the bedroom, can we lower it?",
     "The kettle is really hot, can I use it straight away?",
     "Prizden elektrik geliyor mu?",
+    "Kapı kolu duvara çarpıyor",
+    "Kablodan internet geliyor mu?",
+    "Şarj aleti var mı?",
     // "Acil değil" susturması: çıplak "ısınıyor" / "really hot" olay işareti DEĞİL (10-14 ara sürümünde bu iki cümle acildi).
     "Acil değil ama oda ısınıyor, klimayı açar mısınız?",
     "This is not an emergency, but the room is really hot.",
