@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { replyCallParams, replyPromptItemsOf, replyPromptVersion, suggestReply } from "@/lib/ai";
 import { aiGenerationTraceEnabled, recordAiGeneration } from "@/lib/ai/generation-trace";
+import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
+import { ANON_NAME } from "@/lib/data-retention";
 import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
 import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
@@ -213,6 +216,31 @@ function unansweredGuestTextsOf(thread: readonly ClosingThreadMessage[]): string
  * insert are atomic against a concurrent host reply. Escalated exchanges are
  * flagged via priority "urgent" (and stay urgent once set).
  */
+/** Y3 (10-14 dış inceleme): kayıt anında konaklama silinmiş — hiçbir şey yazılmaz, misafire "sohbet kapalı" döner. */
+const NO_ACTIVE_STAY_REPLY =
+  "Şu an bu daire için aktif bir konaklama görünmüyor; sohbet kapalı. Bir konaklamanız varsa lütfen giriş gününüzde tekrar deneyin.";
+
+class StayErasedError extends Error {
+  constructor() {
+    super("qr_stay_erased");
+  }
+}
+
+/**
+ * SİLME SINIRI QR YAZMASINDA (Y3): model çağrısı sürerken misafirin verisi silinirse bekleyen istek ham mesajı ve eski adı GERİ
+ * yazıyordu (giriş kapısı yalnız istek başında bakıyordu). Öteki girişlerle aynı iki-sıralama kuralı (`erasure.ts` RACE MODEL): yazma
+ * işlemi ÖNCE işletmenin silme kilidini alır, sonra kapıyı İŞLEM İÇİNDE yeniden okur. Uzun model çağrısı kilidin DIŞINDA kalır.
+ * Rezervasyonun GÜNCEL adını döner (istek başındaki anlık görüntü değil). Kilit sırası: silme kilidi → konuşma kilidi (silme işi konuşma
+ * kilidi almaz → döngü yok).
+ */
+async function assertStayNotErased(tx: Prisma.TransactionClient, organizationId: string, reservationId: string): Promise<string> {
+  await acquireErasureLock(tx, organizationId);
+  const guard = await loadErasureGuard(organizationId, tx);
+  const live = await tx.reservation.findUnique({ where: { id: reservationId }, select: { guestName: true, sourceReference: true } });
+  if (!live || live.guestName === ANON_NAME || guard.blocksSourceReference(live.sourceReference)) throw new StayErasedError();
+  return live.guestName;
+}
+
 async function recordGuestChatExchange(
   db: GuestChatDb,
   conversationId: string,
@@ -462,10 +490,11 @@ async function recordCancelledStayMessage(
     }
     const cap = await rateLimit(`qr-cancelled-stay:${stay.id}`, CANCELLED_STAY_MESSAGES_PER_HOUR, 60 * 60_000);
     if (!cap.ok) return;
-    const conversationId = await ensureGuestChatConversation(ctx.property.id, stay);
     const { inboundMessageId } = await prisma.$transaction(async (tx) => {
+      const guestName = await assertStayNotErased(tx, ctx.property.organizationId, stay.id); // Y3: silme sınırı
+      const conversationId = await ensureGuestChatConversation(ctx.property.id, { id: stay.id, guestName }, tx);
       await acquireGuestChatThreadLock(tx, conversationId);
-      return recordGuestChatExchange(tx, conversationId, stay.guestName, message, null, true, ctx.property.organizationId);
+      return recordGuestChatExchange(tx, conversationId, guestName, message, null, true, ctx.property.organizationId);
     });
     // E-posta: konaklama başına KAYAN 6 saatte en çok bir (dilim sınırında iki e-posta olmasın — Haiku 10-12). Gitmezse hak geri.
     const slot = await rateLimit(cancelledStayMailKey(stay.id), 1, CANCELLED_STAY_ALERT_WINDOW_MS);
@@ -479,6 +508,7 @@ async function recordCancelledStayMessage(
     });
     if (!mail.sent) await returnCancelledStayMailSlot(stay.id);
   } catch (err) {
+    if (err instanceof StayErasedError) return; // silinmiş konaklama: kayıt yok (beklenen, hata değil)
     // Misafire giden cevap bu yola bağlı DEĞİL (her durumda "sohbet kapalı").
     void reportError(`qr-cancelled-stay org=${ctx.property.organizationId}`, err);
   }
@@ -530,11 +560,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       // Yanıt bu işi BEKLEMEZ (süre farkı iptal kaydını sızdırmasın); iş yanıttan sonra tamamlanır.
       runDetached(recordCancelledStayMessage(ctx, ctx.cancelledStay, message, requestId));
     }
-    return jsonOk({
-      closed: true,
-      reply:
-        "Şu an bu daire için aktif bir konaklama görünmüyor; sohbet kapalı. Bir konaklamanız varsa lütfen giriş gününüzde tekrar deneyin.",
-    });
+    return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
   }
   const res = ctx.activeReservation;
   const cookieName = stayCookieName(ctx.property.id);
@@ -675,20 +701,22 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // check and the insert still got talked over.
   let recorded = false;
   const record = async (botReply: string | null, escalated: boolean, closing: false | "handled" | "open" = false) => {
-    const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
     const out = await prisma.$transaction(async (tx) => {
+      // Y3: silme kilidi + kapı İŞLEM İÇİNDE; konuşma satırı da (adı taşır) bu sınırın arkasında açılır.
+      const guestName = await assertStayNotErased(tx, ctx.property.organizationId, res.id);
+      const conversationId = await ensureGuestChatConversation(ctx.property.id, { id: res.id, guestName }, tx);
       await acquireGuestChatThreadLock(tx, conversationId);
       if (botReply !== null && (await guestChatAiPausedForStay(ctx.property.id, res.id, tx))) {
-        const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, null, true, ctx.property.organizationId);
-        return { ...r, handedOff: true };
+        const r = await recordGuestChatExchange(tx, conversationId, guestName, message, null, true, ctx.property.organizationId);
+        return { ...r, handedOff: true, conversationId };
       }
-      const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, botReply, escalated, ctx.property.organizationId, closing);
-      return { ...r, handedOff: false };
+      const r = await recordGuestChatExchange(tx, conversationId, guestName, message, botReply, escalated, ctx.property.organizationId, closing);
+      return { ...r, handedOff: false, conversationId };
     });
     recorded = true;
     // `conversationId` dışarıya taşınır: karar gerekçesi kaydı (RiskEvent) konuşmaya
     // bağlanabilsin — kurucu konsolunda "hangi sohbette hangi kapı kapattı" izlenir.
-    return { ...out, conversationId };
+    return out;
   };
   try {
 
@@ -1126,6 +1154,16 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         draftText: result.reply,
         sentText: input.sentText,
         contextDiagnostics: contextWindow.diagnostics ?? null,
+      }, {
+        // Y3: iz satırı da silme sınırının arkasında — konaklama arada silindiyse taslak / gönderilen metin yazılmaz.
+        guard: (tx) =>
+          assertStayNotErased(tx, ctx.property.organizationId, res.id).then(
+            () => true,
+            (e) => {
+              if (e instanceof StayErasedError) return false;
+              throw e;
+            },
+          ),
       });
     } catch (err) {
       void reportError(`ai-generation-trace org=${ctx.property.organizationId}`, err);
@@ -1293,6 +1331,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Pre-record failure (model/DB error before anything persisted) → release so
     // the guest's retry is processed instead of deduped against zero work.
     if (claimScopeId && !recorded) await releaseKeyedOutboundSend(claimScopeId);
+    // Y3: konaklama istek sürerken silindi — hiçbir şey yazılmadı; misafire konaklaması olmayan biriyle aynı cevap.
+    if (err instanceof StayErasedError) return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
     throw err;
   }
 }

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import "server-only";
 
 import { prisma } from "@/lib/db";
@@ -139,11 +140,23 @@ export function aiGenerationRow(input: AiGenerationInput) {
 }
 
 /** Anahtar açıksa bir iz satırı yazar. ASLA fırlatmaz. */
-export async function recordAiGeneration(input: AiGenerationInput): Promise<void> {
+export async function recordAiGeneration(
+  input: AiGenerationInput,
+  opts: { guard?: (tx: Prisma.TransactionClient) => Promise<boolean> } = {},
+): Promise<void> {
   if (!aiGenerationTraceEnabled()) return;
   try {
     const row = aiGenerationRow(input);
     if (!row) return;
+    // Y3 (10-14 dış inceleme): `guard` verildiyse yazma onunla AYNI işlemde — çağıran (QR) silme kilidini alıp konaklamanın arada
+    // silinmediğini doğrular; silinmişse iz satırı (taslak / gönderilen metin) YAZILMAZ.
+    if (opts.guard) {
+      const guard = opts.guard;
+      await prisma.$transaction(async (tx) => {
+        if (await guard(tx)) await tx.aiGeneration.create({ data: row });
+      });
+      return;
+    }
     await prisma.aiGeneration.create({ data: row });
   } catch (err) {
     void reportError(`ai-generation-trace org=${input.organizationId}`, err);
