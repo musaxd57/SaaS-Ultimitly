@@ -4431,6 +4431,9 @@ function onOrAfterTodayWhere(field: "arrivalDate" | "departureDate", now: Date, 
   return { OR: [{ [field]: { gte: zonedDayRange(now, tz).start } }, { [field]: { in: todayDateAnchors(now, tz) } }] };
 }
 
+/** Talep işlemi silme kilidini bekleyebilir (içe aktarım / silme sürerken) — varsayılan 5 sn döngüyü düşürmesin (Haiku 10-14). */
+const LIFECYCLE_CLAIM_TX = { timeout: 30_000, maxWait: 10_000 } as const;
+
 /** Rezervasyonun kaynak kimliği açık silme (tombstone) ile engelli mi — silme kilidi alınır, kapı işlem içinde okunur. */
 async function sourceReferenceErased(
   tx: Prisma.TransactionClient,
@@ -4552,6 +4555,10 @@ export async function sendDueWelcomes(
     // is re-considered next run and the deterministic key (org + booking) makes that a clean
     // dedupe-hit, so a scheduler replay / process restart never sends a second welcome. Flag
     // OFF → the proven claim-then-send below runs BYTE-FOR-BYTE as before.
+    // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
+    if (durableOutboxEnabled() && r.sourceReference && (await loadErasureGuard(organizationId)).blocksSourceReference(r.sourceReference)) {
+      continue;
+    }
     if (durableOutboxEnabled() && r.sourceReference) {
       try {
         const enq = await enqueueProactive({
@@ -4601,7 +4608,7 @@ export async function sendDueWelcomes(
         });
       }
       return c;
-    });
+    }, LIFECYCLE_CLAIM_TX);
     if (claim.count === 0) continue; // another run already claimed/sent this booking (or it was cancelled meanwhile)
 
     const traceId = await traceLifecycleSend(organizationId, r, "welcome", body, stampedAt);
@@ -4757,6 +4764,10 @@ export async function sendDueCheckins(
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkinSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
+    // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
+    if (durableOutboxEnabled() && r.sourceReference && (await loadErasureGuard(organizationId)).blocksSourceReference(r.sourceReference)) {
+      continue;
+    }
     if (durableOutboxEnabled() && r.sourceReference) {
       try {
         const enq = await enqueueProactive({
@@ -4820,7 +4831,7 @@ export async function sendDueCheckins(
         });
       }
       return c;
-    });
+    }, LIFECYCLE_CLAIM_TX);
     if (claim.count === 0) continue;
 
     const traceId = await traceLifecycleSend(organizationId, r, "checkin", body, stampedAt);
@@ -5115,6 +5126,10 @@ export async function sendDueCheckouts(
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkoutSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
+    // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
+    if (durableOutboxEnabled() && r.sourceReference && (await loadErasureGuard(organizationId)).blocksSourceReference(r.sourceReference)) {
+      continue;
+    }
     if (durableOutboxEnabled() && r.sourceReference) {
       try {
         const enq = await enqueueProactive({
@@ -5165,7 +5180,7 @@ export async function sendDueCheckouts(
         });
       }
       return c;
-    });
+    }, LIFECYCLE_CLAIM_TX);
     if (claim.count === 0) continue;
 
     const traceId = await traceLifecycleSend(organizationId, r, "checkout", body, stampedAt);

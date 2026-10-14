@@ -322,4 +322,24 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     expect(row.status).toBe("pending");
     expect(row.availableAt.getTime()).toBeGreaterThan(Date.now() + 30 * DAY);
   });
+
+  it("🚨 kalıcı kuyruk: açıkça SİLİNEN misafire satır açılmaz; kuyruktaki satır gönderim anında 'erased' ile iptal (Haiku 10-14)", async () => {
+    const orgId = await seed("checkin");
+    await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
+    // (a) kuyruktan SONRA silme → işçi POST etmez
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
+    await eraseReservationData(orgId, a.id);
+    // Silme yürütücüsü kuyruktaki satırı da iptal edebilir; vetoyu ayrıca sınamak için satırı bekler hâle döndür.
+    await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { status: "pending", body: "Merhaba,\n\ncheckin metni" } });
+    let posts = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++posts}` });
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(posts).toBe(0);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).lastErrorCode).toBe("erased");
+    // (b) silinmiş rezervasyon için YENİ satır açılmaz
+    await prisma.messageOutbox.deleteMany({ where: { organizationId: orgId } });
+    expect((await sendDueCheckins(orgId)).sent).toBe(0);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(0);
+  });
 });

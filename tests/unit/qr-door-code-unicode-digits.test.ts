@@ -131,11 +131,24 @@ describe("KONTROL — meşru içerik elenmez / sızıntı sayılmaz", () => {
 });
 
 describe("Haiku 10-14 son doğrulama: KAPI / GİRİŞ + 'için' + değer + kullanım fiili", () => {
-  it.each(["Giriş için 6142 kullanın.", "Kapı için 4590'ı girin.", "Bina girişi için 7788 tuşlayın."])("🚨 kalem elenir + cevap durur: %j", (t) => {
+  it.each([
+    "Giriş için 6142 kullanın.",
+    "Kapı için 4590'ı girin.",
+    "Bina girişi için 7788 tuşlayın.",
+    "Giriş için 4590 numaralı kodu girin.",
+    "Kapı için 4590 kodunu tuşlayınız.",
+  ])("🚨 kalem elenir + cevap durur: %j", (t) => {
     expect(withoutSecretKbItems([{ title: "Giriş", content: t }])).toHaveLength(0);
     expect(qrReplyHasDoorCode(t, [])).toBe(true);
   });
-  it.each(["Giriş için 1500 TL ödenir.", "Giriş için 15:00'ten sonra gelin.", "Kapı için 2024 model kilit kullanıldı."])(
+  it.each([
+    "Giriş için 1500 TL ödenir.",
+    "Giriş için 15:00'ten sonra gelin.",
+    "Kapı için 2024 model kilit kullanıldı.",
+    "Giriş için 1500 kullanım ücreti alınır.",
+    "Giriş için 2 kişilik yatak kullanın.",
+    "Giriş için 0532 111 2233'ü arayın.",
+  ])(
     "KONTROL: fiyat / saat / yıl elenmez: %j",
     (t) => expect(withoutSecretKbItems([{ title: "Bilgi", content: t }])).toHaveLength(1),
   );

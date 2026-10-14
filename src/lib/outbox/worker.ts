@@ -7,6 +7,7 @@ import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
+import { loadErasureGuard } from "@/lib/erasure";
 import { LEGACY_CONVERSATION_STATUSES } from "@/lib/constants";
 import { errorWithContext, reportError } from "@/lib/report-error";
 import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
@@ -523,6 +524,8 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
     null;
   if (!res) return "reservation_gone";
   if (res.status === "cancelled") return "reservation_cancelled";
+  // Açık silme (KVKK tombstone) kuyruğa girdikten SONRA geldiyse mesaj gitmez (Haiku 10-14; gövde "[ANON]" olmayabilir).
+  if ((await loadErasureGuard(row.organizationId)).blocksSourceReference(row.externalReservationId)) return "erased";
   // A completed stay is stale for welcome/check-in, but a CHECK-OUT is legitimately due on the
   // departure day itself (status may already have flipped) — its `window_passed` date guard
   // below handles a truly-past departure. This keeps the flag-ON veto consistent with the
