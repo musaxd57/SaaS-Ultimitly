@@ -590,6 +590,8 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     "The socket is very hot",
     "the kettle is overheating",
     "the cable is burning hot",
+    "kettle'a dokununca çarpıyor",
+    "Dokununca çarpıyor, ne yapalım?",
   ])("🚨 %j → iki ağda acil", (m) => {
     expect(isSafetyEmergencyText(m)).toBe(true);
     expect(level(m)).toBe("clear");
@@ -602,6 +604,7 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     // Haiku 10-14: hava "hot" / kapı "çarpıyor" RCD adının susturmasını bozmamalı.
     "Kaçak akım şalteri nerede, hava çok sıcak (hot) bugün",
     "Kapı çarpıyor, kaçak akım şalteri nerede?",
+    "The kettle is hot, can I use it?",
   ])(
     "KONTROL %j → acil değil (elektrikli özne yok)",
     (m) => {

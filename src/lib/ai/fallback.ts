@@ -2332,10 +2332,10 @@ const SAFETY_CRITICAL_PATTERNS: readonly RegExp[] = [
   /her\s+yeri\s+su(?:ya|yla|lar\p{L}{0,8})?(?![\p{L}\p{N}])/u,
   // ELEKTRİK ÇARPMASI / AŞIRI ISINAN PRİZ (10-14, Haiku: "duş başlığı çarpıyor", "the shower gives me a shock", "priz ısınıyor" hiçbir
   // ağa takılmıyordu). Türkçe "çarpıyor" yalnız ELEKTRİKLİ özneyle ("kapı çarpıyor" kapının çarpmasıdır).
-  /(?<![\p{L}\p{N}])(?:du[sş]|priz|makine|[iı]s[iı]t[iı]c[iı]|kettle|f[iı]r[iı]n|buzdolab|kombi|lamba|[sş]alter|kablo|musluk|batarya|[cç]aydanl[iı])\p{L}{0,8}(?:\s+\p{L}{1,12}){0,2}\s+[cç]arp(?:[iı]yo|t[iı])/u,
+  /(?<![\p{L}\p{N}])(?:du[sş]|priz|makine|[iı]s[iı]t[iı]c[iı]|kettle|f[iı]r[iı]n|buzdolab|kombi|lamba|[sş]alter|kablo|musluk|batarya|[cç]aydanl[iı])['’]?\p{L}{0,8}(?:\s+\p{L}{1,12}){0,2}\s+[cç]arp(?:[iı]yo|t[iı])|(?<![\p{L}\p{N}])dokun\p{L}{0,6}\s+[cç]arp(?:[iı]yo|t[iı])/u,
   /(?<![\p{L}\p{N}])(?:priz|kablo|fi[sş])\p{L}{0,6}(?:\s+\p{L}{1,12}){0,1}\s+(?:[iı]s[iı]n[iı]yo|[iı]s[iı]nd[iı]|eri(?:yo|di|mi[sş]))/u,
   /(?<![\p{L}\p{N}])(?:(?:gives?|gave|giving)\s+(?:me|us|you)\s+(?:an?\s+)?(?:electric\s+|small\s+|little\s+|mild\s+)?shocks?|got\s+(?:an?\s+)?(?:small\s+|little\s+|mild\s+)?shock(?:ed)?\s+(?:from|when|by)|tingl(?:e|es|ing)\s+(?:from|when))(?![\p{L}\p{N}])/u,
-  /(?<![\p{L}\p{N}])(?:sockets?|outlets?|plugs?|cables?|wires?|kettles?|heaters?|chargers?|extension\s+(?:cords?|leads?)|power\s+strips?|toasters?|boilers?|appliances?)\s+(?:is\s+|are\s+|gets?\s+|getting\s+|keeps?\s+)?(?:very\s+|really\s+|burning\s+)?(?:hot|overheating|melting|smoking)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])(?:(?:sockets?|outlets?|plugs?|cables?|wires?)\s+(?:is\s+|are\s+|gets?\s+|getting\s+|keeps?\s+)?(?:very\s+|really\s+|burning\s+)?(?:hot|overheating|melting|smoking)|(?:kettles?|heaters?|chargers?|extension\s+(?:cords?|leads?)|power\s+strips?|toasters?|boilers?|appliances?)\s+(?:is\s+|are\s+|gets?\s+|getting\s+|keeps?\s+)?(?:(?:very\s+|really\s+|burning\s+)hot|overheating|melting|smoking))(?![\p{L}\p{N}])/u,
 ];
 
 // Liste YALNIZ ASCII küçük harf (a–z) olabilir: tam sözcük eşleşmesi ASCII katlamaya dayanır (ASCII katlama, standart ve
