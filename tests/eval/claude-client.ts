@@ -2,6 +2,9 @@
 // CLAUDE (Anthropic Messages API) — ölçerlerin ZORLU TEST üreticisi ve HAKEMİ (kurucu 10-14: "zorlu ve uzun testlerde Claude API'yi
 // kullan"). Ürünün kendisi Claude ÇAĞIRMAZ; bu dosya yalnız tests/eval altındadır ve yalnız `ANTHROPIC_API_KEY` + `RUN_REAL_EVAL=1`
 // ile koşar. Anahtar hiçbir çıktıya yazılmaz. Test dosyası DEĞİL (başka ölçer içe aktarabilir).
+//
+// Ücret kuralı (Haiku incelemesi 10-14): yalnız GEÇİCİ hata (429 / 5xx / ağ) yeniden denenir. Kalıcı hata (diğer 4xx — yanlış model
+// adı, anahtar), kesilmiş cevap (`max_tokens`) ve JSON'a çevrilemeyen cevap AYNI pahalı isteği tekrar göndermez: `ClaudeFatalError`.
 // ---------------------------------------------------------------------------
 
 export const CLAUDE_GEN_MODEL = process.env.CLAUDE_EVAL_GEN_MODEL?.trim() || "claude-sonnet-5-5";
@@ -18,24 +21,67 @@ export interface ClaudeUsage {
 }
 export const claudeUsage: ClaudeUsage = { calls: 0, inputTokens: 0, outputTokens: 0 };
 
-/** Metindeki İLK JSON dizisi / nesnesi (model açıklama eklese de). */
+/** Yeniden denenmemesi gereken hata (ücret israfı olur). Mesajı yalnız hata TÜRÜNÜ taşır — istek / cevap gövdesi yok. */
+export class ClaudeFatalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ClaudeFatalError";
+  }
+}
+
+/**
+ * Cevaptaki JSON. Sıra: bütün metin → ```json çiti → ilk `[` / `{` ile SON eşi arası. Model önüne açıklama ("[not] …") koysa da
+ * çit ya da bütün metin önce denenir; hiçbiri ayrışmazsa `ClaudeFatalError`.
+ */
 export function extractJson<T>(text: string): T {
+  const attempts: string[] = [text.trim()];
+  const fence = /```(?:json)?\s*([\s\S]*?)```/u.exec(text);
+  if (fence?.[1]) attempts.push(fence[1].trim());
   const startObj = text.indexOf("{");
   const startArr = text.indexOf("[");
   const start = startArr >= 0 && (startObj < 0 || startArr < startObj) ? startArr : startObj;
-  const end = start === startArr ? text.lastIndexOf("]") : text.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("Claude cevabında JSON yok");
-  return JSON.parse(text.slice(start, end + 1)) as T;
+  if (start >= 0) {
+    const end = start === startArr ? text.lastIndexOf("]") : text.lastIndexOf("}");
+    if (end > start) attempts.push(text.slice(start, end + 1));
+    // Öndeki köşeli parantezli not ("[not] {…}") ilk adayı bozarsa nesne adayı da denenir.
+    if (start === startArr && startObj > start) {
+      const endObj = text.lastIndexOf("}");
+      if (endObj > startObj) attempts.push(text.slice(startObj, endObj + 1));
+    }
+  }
+  for (const a of attempts) {
+    try {
+      return JSON.parse(a) as T;
+    } catch {
+      /* sıradaki aday */
+    }
+  }
+  throw new ClaudeFatalError("Claude cevabı JSON değil");
 }
 
-/** Tek Claude çağrısı → JSON. İki geçici hatada yeniden dener (429 / 5xx / ağ). */
+/** Dizi bekleyen çağıran için: düz dizi ya da `{ items | results | data: [...] }` sarmalı. Başka biçim kalıcı hata. */
+export function asArray<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === "object") {
+    for (const k of ["items", "results", "data", "verdicts"]) {
+      const v = (value as Record<string, unknown>)[k];
+      if (Array.isArray(v)) return v as T[];
+    }
+  }
+  throw new ClaudeFatalError("Claude cevabı dizi değil");
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Tek Claude çağrısı → JSON. Yalnız geçici hatada (429 / 5xx / ağ) en çok iki kez yeniden dener. */
 export async function claudeJson<T>(opts: { model: string; system: string; user: string; maxTokens?: number }): Promise<T> {
   const key = claudeKey();
-  if (!key) throw new Error("ANTHROPIC_API_KEY yok");
+  if (!key) throw new ClaudeFatalError("ANTHROPIC_API_KEY yok");
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 3; attempt++) {
+    let res: Response;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify({
@@ -45,26 +91,29 @@ export async function claudeJson<T>(opts: { model: string; system: string; user:
           messages: [{ role: "user", content: opts.user }],
         }),
       });
-      if (res.status === 429 || res.status >= 500) {
-        lastErr = new Error(`Claude HTTP ${res.status}`);
-        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-        continue;
-      }
-      const body = (await res.json()) as {
-        content?: { type: string; text?: string }[];
-        usage?: { input_tokens?: number; output_tokens?: number };
-        error?: { type?: string; message?: string };
-      };
-      if (!res.ok) throw new Error(`Claude HTTP ${res.status}: ${body.error?.type ?? ""}`);
-      claudeUsage.calls++;
-      claudeUsage.inputTokens += body.usage?.input_tokens ?? 0;
-      claudeUsage.outputTokens += body.usage?.output_tokens ?? 0;
-      const text = (body.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
-      return extractJson<T>(text);
     } catch (err) {
-      lastErr = err;
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      lastErr = err; // ağ hatası — geçici
+      if (attempt < 2) await sleep(2000 * (attempt + 1));
+      continue;
     }
+    if (res.status === 429 || res.status >= 500) {
+      lastErr = new Error(`Claude HTTP ${res.status}`);
+      if (attempt < 2) await sleep(2000 * (attempt + 1));
+      continue;
+    }
+    const body = (await res.json().catch(() => ({}))) as {
+      content?: { type: string; text?: string }[];
+      usage?: { input_tokens?: number; output_tokens?: number };
+      stop_reason?: string;
+      error?: { type?: string };
+    };
+    if (!res.ok) throw new ClaudeFatalError(`Claude HTTP ${res.status}: ${body.error?.type ?? ""}`);
+    claudeUsage.calls++;
+    claudeUsage.inputTokens += body.usage?.input_tokens ?? 0;
+    claudeUsage.outputTokens += body.usage?.output_tokens ?? 0;
+    if (body.stop_reason === "max_tokens") throw new ClaudeFatalError("Claude cevabı kesildi (max_tokens)");
+    const text = (body.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
+    return extractJson<T>(text);
   }
   throw lastErr instanceof Error ? lastErr : new Error("Claude çağrısı başarısız");
 }
