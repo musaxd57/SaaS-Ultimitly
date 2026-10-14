@@ -421,6 +421,13 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   bugün 36/39 → 38/39), blok yalnız iki sorulu mesajda ~+%55 (1,7k → 2,6k karakter; geniş bütçede ~7 kat, 11,8k);
   soru başına sıralayıcı etiketi ise kötüleştirdi (33/39). Öneri: tavan yalnız çok sorulu mesajda soru sayısıyla büyüsün, tek soru aynen
   (`docs/olcum/rag-lab-2026-10-14-4.md` sonu, tekrarlar `-5` / `-6`, 60 kalem `-7`: 110 → 112/120, sızıntı 0). Açmak yine sizin kararınız.
+- YAPILDI (10-14 gece, Haiku ikinci tur, müşteriye giden metin DEĞİŞMEDİ — yalnız gitmemesi gereken gitmiyor): "olası" tehlike + anlama
+  katmanı koşmadı → tur ev sahibine (QR devir, kanal tutuş). Eskiden "Kısa devre oldu, wifi şifresi neydi?" anlama katmanı düşünce Wi-Fi
+  cevabıyla gidiyordu (kelime ağı "kısa devre"yi tanımaz — sizin 10-14 kararınız). Mutasyon 6/6.
+- AÇIK (kurucu, düşük öncelik): kanalda bu tutuş SESSİZ — mesaj gelen kutusunda cevapsız kalır ama "acil" e-postası gitmez (koddaki
+  mevcut kural: "anlama katmanı yoksa model sinyali yok → e-posta yok"). QR'da aynı durum ev sahibine acil bildirim üretiyor. Kanalda da
+  acil e-postası gitsin mi? Örnek: anlama katmanı zaman aşımına uğradı + "Kısa devre oldu, ışıklar gitti" → bugün: cevap gitmez, e-posta
+  yok; seçenek: cevap gitmez + "olası tehlike, kontrol edin" e-postası (yanlış alarm riski: "We smoked on the balcony, is that ok?").
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
 
