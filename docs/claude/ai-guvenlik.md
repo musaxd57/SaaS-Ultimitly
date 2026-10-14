@@ -488,6 +488,10 @@
   nesneyle açık; bağlamsız "It shocked me!" QR'da olası (model karar verir), mecaz "The bill shocked me" değil. "Acil değil" susturmasının olay işaretine çıplak ısınma / "hot" / "shock" EKLENMEZ (ölçüldü: etkisiz +
   "Acil değil ama oda ısınıyor"u acil yapıyordu).
 
+- NEZAKET KOŞUL DEĞİLDİR — tek kaynak `ai/polite-conditional.ts` (Y1, 10-14): tehlike okuyucusu VE dedektör sesi okuyucusu aynı listeyi
+  boşaltır (devam / geriye atıf cümleleri dahil). Belirsizlik ("I'm not sure if") yalnız tehlike okuyucusunda koşul değil; dedektör
+  okuyucusunda soru kalır. Ev sahibi uyarı yolunda (oto-yanıt kapalı) açık tehlike = kanal ağı VE tehlike okuyucusu (açık / olası) birlikte (Y6).
+
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)
 - Çizgi dizisi (3+ ═ ━ ─ ┄ ┅ ┈ ┉ ╌ ╍ = ＝, aralarında tek boşluk olabilir) ±40 karakter içinde (satır sonunu geçerek) SİSTEM / KURAL / TALİMAT /
   SYSTEM başlığı → `detectPromptInjection` = true (mesaj insana).

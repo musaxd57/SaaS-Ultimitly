@@ -384,6 +384,19 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
   RÖLESİ / ŞALTERİ sorusu değil) · elektrikli özneyle "çarpıyor / dokununca çarpıyor / gives me a shock" acil (kapı çarpıyor değil) ·
   "priz ısınıyor / kablo eriyor / socket very hot / kettle overheating" acil (hava sıcak, "the kettle is hot" değil).
 
+**10-14 akşam — dış inceleme Y1–Y10 (her biri kodda doğrulandı, kırmızı-önce test + Haiku sert incelemesi; müşteriye giden metin DEĞİŞMEDİ,
+yalnız gitmemesi gerekenler artık gitmiyor):**
+- Y1 nezaket girişi ("If you have a moment, our CO alarm is beeping") tehlikeyi varsayıma çevirmiyor · Y2 kapı kodu Arapça / Farsça / tam
+  genişlik / üst simge rakamla ve görünmez karakterle de yakalanıyor, Wi-Fi kalemindeki başka dilde kapı adı kalemi QR'dan çıkarıyor ·
+  Y3 QR'da model düşünürken silinen konaklamanın mesajı / adı / izi geri yazılmıyor · Y4 seçimden sonra iptal edilen ya da ileri taşınan
+  rezervasyona giriş / karşılama / çıkış mesajı gitmiyor (kalıcı kuyrukta erteleniyor) · Y5 `AUTO_REPLY_ENABLED` kapalıyken kuyruktaki yapay
+  zekâ cevabı iptal, yaşam döngüsü mesajı bekliyor · Y6 oto-yanıt kapalıyken açık tehlike (yangın / gaz / CO) ev sahibine acil e-posta —
+  iki ağ birlikte ("Is there a gas stove?" uyarı değil); pencere 6 → 25 mesaj, yaş sınırı mesaj başına · Y7 uyarı adresi onayı tek işlemde,
+  demo sıfırlaması kuşağı artırıyor · Y8 G7 zaten uygulanmış (73296e2, birleşik test var) · Y9 ölçerde KATI olgu sütunu (olumlu + alanına
+  bağlı; eksik ≠ yanlış) · Y10 KB içe aktarım tekrarı, demo telefon yapıştırma, kayıt ekranı adresi, onay penceresi odağı.
+- AÇIK (kurucu): KB içe aktarımında bağlantı koptuğu anda sunucuya ulaşmış kalem yeniden denemede İKİNCİ kez eklenebilir — sunucu tarafı
+  tekrar güvenliği (istek kimliği) migration ya da aynı-içerik kontrolü ister; "kısa devre oldu" acil mi arıza mı (elektrik tabanı dışında).
+
 **10-13 öğle — YENİ soru (güvenli varsayılan UYGULANDI, isterseniz geri alınır):**
 
 | # | Soru | Bugün (uygulandı) | Seçenek | Örnek |
