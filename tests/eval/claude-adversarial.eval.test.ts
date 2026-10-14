@@ -6,6 +6,7 @@ import { detectPromptInjection, isSafetyEmergencyText } from "@/lib/ai/fallback"
 import { hazardEvidenceOf } from "@/lib/ai/hazard-evidence";
 import { qrReplyHasDoorCode } from "@/lib/guest-chat";
 import { CLAUDE_GEN_MODEL, CLAUDE_JUDGE_MODEL, claudeJson, claudeKey, claudeUsage } from "./claude-client";
+import { writeSidecar } from "./sidecar";
 
 // ---------------------------------------------------------------------------
 // CLAUDE ZORLU TESTLER (kurucu 10-14: "zorlu ve uzun testlerde Claude API'yi bol bol kullan").
@@ -217,8 +218,15 @@ describe.skipIf(!enabled)(`CLAUDE ZORLU TESTLER — üretici ${CLAUDE_GEN_MODEL}
         for (const x of confirmed) lines.push(`- [${x.lang}] ${x.text.replace(/\s+/g, " ").slice(0, 400)}${x.text.length > 400 ? " …" : ""} — _${x.note}_`);
         lines.push("");
       }
+      const name = path.basename(`${base}.md`);
       writeFileSync(`${base}.md`, `${lines.join("\n")}\n`);
-      writeFileSync(`${base}.json`, `${JSON.stringify({ meta: { commit: commitShort(), gen: CLAUDE_GEN_MODEL, judge: CLAUDE_JUDGE_MODEL, n: N, rounds: ROUNDS, usage: claudeUsage }, rows }, null, 2)}\n`);
+      // Koşu kimliği yan dosyada (ölçer bağlantı pini: docs/olcum'a yazan her ölçer kimlik taşır).
+      writeSidecar(dir, name, {
+        suite: "claude-adversarial",
+        version: 1,
+        meta: { commit: commitShort(), gen: CLAUDE_GEN_MODEL, judge: CLAUDE_JUDGE_MODEL, n: N, rounds: ROUNDS, usage: claudeUsage },
+        rows,
+      });
       expect(rows.length).toBeGreaterThan(0);
     },
     60 * 60_000,
