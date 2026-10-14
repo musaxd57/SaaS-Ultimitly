@@ -610,6 +610,9 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     "kablodan elektrik geliyo",
     "kapı kolu çarpıyor elektrik gibi",
     "Duşta akım var sanki, çarpıyor",
+    // Mutasyon N7 / N8: dal başına ayrı pin (diğer dal aynı cümleyi yakalıyordu).
+    "I got a shock when I touched the fridge",
+    "şalter ısınıyor",
   ])("🚨 %j → iki ağda acil", (m) => {
     expect(isSafetyEmergencyText(m)).toBe(true);
     expect(level(m)).toBe("clear");
