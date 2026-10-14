@@ -452,6 +452,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
           guestExternalId: null,
           guestCheckoutTime: null,
           notes: null,
+          qrEscalationEmailMessageId: null, // acil mesaj metninin özetini taşıyabilir — silmeyle eş (Haiku 10-14)
         },
       }),
     ]);

@@ -235,6 +235,15 @@ export const QR_CONVERSATION_MARKER_PREFIX = "qr-chat:";
  * provider shape. Scoped to what was measured: on the API surface this app
  * uses, one stay maps to one thread.)
  */
+/** QR konuşmasının kimliği, YOKSA null — hiçbir şey yazmaz (silme sınırı yalnız ilk açılışta gerekir, Y3 Haiku 10-14). */
+export async function findGuestChatConversationId(propertyId: string, reservationId: string, db: GuestChatDb = prisma): Promise<string | null> {
+  const existing = await db.conversation.findFirst({
+    where: { propertyId, externalReservationId: `${QR_CONVERSATION_MARKER_PREFIX}${propertyId}:${reservationId}` },
+    select: { id: true },
+  });
+  return existing?.id ?? null;
+}
+
 export async function ensureGuestChatConversation(
   propertyId: string,
   reservation: { id: string; guestName: string },

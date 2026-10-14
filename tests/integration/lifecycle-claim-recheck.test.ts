@@ -204,6 +204,7 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     const deferred = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
     expect(deferred.status).toBe("pending"); // iptal DEĞİL — tek anahtar mesajı kalıcı yutmasın
     expect(deferred.attemptCount).toBe(0); // erteleme deneme sayılmaz
+    expect(deferred.claimedAt).toBeNull(); // rezervasyon başına gönderim sayacını yemez
     expect(deferred.availableAt.getTime()).toBeGreaterThan(Date.now() + 80 * DAY);
     expect(await stampOf("res-a", "checkinSentAt")).toBeNull();
 
@@ -224,6 +225,42 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
     expect((await sendDueCheckins(orgId)).sent).toBe(1);
     expect((await sendDueCheckins(orgId)).sent).toBe(0);
+    let posts = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++posts}` });
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(posts).toBe(1);
+  });
+
+  it("🚨 iptal edilmiş KOPYA satır onaylı rezervasyonun giriş mesajını iptal ETMEZ (kardeş keyfi okunmaz, Haiku 10-14)", async () => {
+    const orgId = await seed("checkin");
+    await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
+    const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
+    await prisma.reservation.delete({ where: { id: a.id } });
+    // Önce (fiziksel olarak İLK) iptal edilmiş kopya, sonra onaylı satır — sırasız `findFirst` kopyayı döndürüp mesajı iptal ediyordu.
+    const relinked = await prisma.property.create({ data: { organizationId: orgId, name: "Eski Kayıt" } });
+    await prisma.reservation.create({
+      data: {
+        propertyId: relinked.id,
+        guestName: a.guestName,
+        arrivalDate: a.arrivalDate,
+        departureDate: a.departureDate,
+        channel: "airbnb",
+        status: "cancelled",
+        sourceReference: "res-a",
+      },
+    });
+    await prisma.reservation.create({
+      data: {
+        propertyId: a.propertyId,
+        guestName: a.guestName,
+        arrivalDate: a.arrivalDate,
+        departureDate: a.departureDate,
+        channel: "airbnb",
+        status: "confirmed",
+        sourceReference: "res-a",
+      },
+    });
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
     let posts = 0;
     const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++posts}` });
     await drainOutboxOnce({ send, tokenFor: async () => "t" });

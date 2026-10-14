@@ -4753,7 +4753,7 @@ export async function sendDueCheckins(
           messageType: "checkin",
           body,
           // Rezervasyon başına TEK anahtar (Haiku 10-14: varış günlü anahtar belirsiz teslim + tarih değişiminde ÇİFT gönderime açıktı).
-          // İleri tarihe taşınan satır iptal edilmez, işçide pencere açılana kadar ERTELENİR (`lifecycleNotYetDue`).
+          // İleri tarihe taşınan satır iptal edilmez, işçide pencere açılana kadar ERTELENİR (`checkinNotYetDue`).
           idempotencyKey: `checkin:${organizationId}:${r.sourceReference}`,
         });
         if (!enq.deduped) sent++;

@@ -20,6 +20,7 @@ import {
   guestChatAiPausedForStay,
   acquireGuestChatThreadLock,
   ensureGuestChatConversation,
+  findGuestChatConversationId,
   styleProfileForPrompt,
   buildGuestChatContextWindow,
   GUEST_CHAT_MESSAGE_WINDOW,
@@ -239,6 +240,24 @@ async function assertStayNotErased(tx: Prisma.TransactionClient, organizationId:
   const live = await tx.reservation.findUnique({ where: { id: reservationId }, select: { guestName: true, sourceReference: true } });
   if (!live || live.guestName === ANON_NAME || guard.blocksSourceReference(live.sourceReference)) throw new StayErasedError();
   return live.guestName;
+}
+
+/**
+ * QR yazma işlemlerinin süre sınırı: silme kilidi işletme genelidir — bir konuşma içe aktarımı ya da silme sürerken misafirin yazması
+ * kilidi BEKLER (Prisma'nın 5 sn varsayılanı kısa beklemeleri de 500'e çeviriyordu, Haiku 10-14). 30 sn'yi aşan bekleme (uzun silme)
+ * hiçbir şey YAZMADAN geri alınır ve istek hata döner — kapalı yönde biter, talep bırakılır, misafir yeniden gönderebilir.
+ */
+const QR_TX = { timeout: 30_000, maxWait: 10_000 } as const;
+
+/** Y3: konuşma satırı (misafir adını taşır) da silme sınırının arkasında açılır — model çağrısından ÖNCEKİ okuma noktaları için. */
+async function ensureGuardedQrConversation(organizationId: string, propertyId: string, reservationId: string): Promise<string> {
+  // Konuşma zaten varsa okuma yazma yapmaz → kilit gerekmez (mesaj başına kilit sayısı az kalsın). Yalnız İLK açılış (adı yazar) korunur.
+  const existing = await findGuestChatConversationId(propertyId, reservationId);
+  if (existing) return existing;
+  return prisma.$transaction(async (tx) => {
+    const guestName = await assertStayNotErased(tx, organizationId, reservationId);
+    return ensureGuestChatConversation(propertyId, { id: reservationId, guestName }, tx);
+  }, QR_TX);
 }
 
 async function recordGuestChatExchange(
@@ -495,7 +514,7 @@ async function recordCancelledStayMessage(
       const conversationId = await ensureGuestChatConversation(ctx.property.id, { id: stay.id, guestName }, tx);
       await acquireGuestChatThreadLock(tx, conversationId);
       return recordGuestChatExchange(tx, conversationId, guestName, message, null, true, ctx.property.organizationId);
-    });
+    }, QR_TX);
     // E-posta: konaklama başına KAYAN 6 saatte en çok bir (dilim sınırında iki e-posta olmasın — Haiku 10-12). Gitmezse hak geri.
     const slot = await rateLimit(cancelledStayMailKey(stay.id), 1, CANCELLED_STAY_ALERT_WINDOW_MS);
     if (!slot.ok) return;
@@ -655,7 +674,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       const firstOverflow = await rateLimit(`guestchat-stay-capnote:${res.id}`, 1, 60 * 60_000);
       if (firstOverflow.ok) {
         const capEventId = `stay-cap:${res.id}:${Math.floor(Date.now() / 3_600_000)}`;
-        const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
+        const conversationId = await ensureGuardedQrConversation(ctx.property.organizationId, ctx.property.id, res.id);
         await prisma.conversation.update({ where: { id: conversationId }, data: { priority: "urgent" } });
         await recordRiskEvent({
           organizationId: ctx.property.organizationId,
@@ -676,7 +695,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         });
       }
     } catch (err) {
-      void reportError(`qr-stay-cap-notice org=${ctx.property.organizationId}`, err);
+      if (!(err instanceof StayErasedError)) void reportError(`qr-stay-cap-notice org=${ctx.property.organizationId}`, err);
     }
     const capped = tooManyRequests(stayLimit.retryAfter, STAY_MESSAGE_CAP_TEXT);
     // Cihaz bu istekte bağlandıysa çerez YİNE kurulur (yoksa misafir bir sonraki mesajda "başka cihazda" görürdü).
@@ -712,7 +731,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       }
       const r = await recordGuestChatExchange(tx, conversationId, guestName, message, botReply, escalated, ctx.property.organizationId, closing);
       return { ...r, handedOff: false, conversationId };
-    });
+    }, QR_TX);
     recorded = true;
     // `conversationId` dışarıya taşınır: karar gerekçesi kaydı (RiskEvent) konuşmaya
     // bağlanabilsin — kurucu konsolunda "hangi sohbette hangi kapı kapattı" izlenir.
@@ -739,7 +758,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   //  · son cevaptan sonraki TÜM misafir mesajları kapanış olmalı (yapay zekâ duraklatılmışken yazılmış, ev sahibinin
   //    cevaplamadığı bir soru bir "teşekkürler"in arkasında kaybolmasın);
   //  · konuşma yalnız açık iş yoksa "cevap gerekmedi" diye gizlenir (`closingMayHide`), yoksa görünür kalır.
-  const closingThread = await loadClosingThread(await ensureGuestChatConversation(ctx.property.id, res));
+  const closingThread = await loadClosingThread(await ensureGuardedQrConversation(ctx.property.organizationId, ctx.property.id, res.id));
   const qrUnanswered = [...unansweredGuestTextsOf(closingThread), message];
   const qrClosable = closableAfter(closingThread);
   const qrHideDecision = async () =>
@@ -912,7 +931,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // kapanmamış konuların PII'siz kategori notu (`openTopics`).
   // Sohbet bu turda yazılmadan önce okunur → misafirin ŞU ANKİ mesajı geçmişte
   // TEKRARLANMAZ (yapısal garanti, ayrıca test-pinli).
-  const priorConversationId = await ensureGuestChatConversation(ctx.property.id, res);
+  const priorConversationId = await ensureGuardedQrConversation(ctx.property.organizationId, ctx.property.id, res.id);
   const contextWindow = await buildGuestChatContextWindow(priorConversationId);
   const { openTopics, hasPriorOperatorReply } = contextWindow;
   // GEÇMİŞTEKİ KAPI KODU MODELE GİTMEZ (kurucu kararı 10-11): ev sahibinin / yapay zekânın yazdığı satırlarda kapı / kutu / giriş kodunun

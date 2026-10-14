@@ -369,6 +369,8 @@ const SKIP_REASON_LABELS: Record<string, string> = {
     "AI servisine geçici olarak ulaşılamadı — bağlantı düzelince bu konuşma otomatik olarak yeniden denenecek",
   // Model cevap verdi ama çıktı üst üste kullanılamadı (3 deneme, 09-28): bu mesaj bir daha OTOMATİK denenmez.
   ai_unusable: "AI bu mesaja kullanılabilir bir cevap üretemedi — lütfen elle yanıtlayın",
+  // Y5 (10-14): genel otomatik yanıt anahtarı kapalıyken hazırlanmış cevap kuyrukta iptal edildi.
+  auto_reply_disabled: "Otomatik yanıt kapalıyken hazırlanan cevap gönderilmedi — lütfen elle yanıtlayın",
   // K10-t (kurucu kararı 09-28): tek mesaj 8.000 karakteri aşıyor — yapay zekâ cevap üretmedi, metin modele verilmedi.
   message_too_long: "Mesaj çok uzun (8.000 karakterden fazla) — yapay zekâ cevap üretmedi; lütfen mesajı okuyup elle yanıtlayın",
   // Mevcut müşterilerin gündüz mesajlarının sessizce cevapsız kalmasının TEK

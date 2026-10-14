@@ -7,6 +7,7 @@ import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
+import { LEGACY_CONVERSATION_STATUSES } from "@/lib/constants";
 import { errorWithContext, reportError } from "@/lib/report-error";
 import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
@@ -499,14 +500,19 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
  */
 async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> {
   if (!row.externalReservationId) return "no_destination";
-  const res = await prisma.reservation.findFirst({
+  // Aynı rezervasyonun kardeş satırları (yeniden bağlama sonrası çift satır) KEYFİ sırayla okunmaz (Haiku 10-14): iptal edilmiş bir
+  // kopya önce dönerse canlı rezervasyonun mesajı kalıcı iptal ediliyordu. İptal OLMAYAN satır tercih edilir (en erken varış — ertelemeyle
+  // aynı kural, `checkinNotYetDue`); hepsi iptalse iptal hükmü verilir.
+  const siblings = await prisma.reservation.findMany({
     where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
     select: {
-      status: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
+      status: true, arrivalDate: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
       // Org timezone for the checkout window rule below (same lookup, no extra query).
       property: { select: { organization: { select: { timezone: true } } } },
     },
+    orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
   });
+  const res = siblings.find((r) => r.status !== "cancelled") ?? siblings[0] ?? null;
   if (!res) return "reservation_gone";
   if (res.status === "cancelled") return "reservation_cancelled";
   // A completed stay is stale for welcome/check-in, but a CHECK-OUT is legitimately due on the
@@ -548,14 +554,20 @@ function autoReplySwitchOn(): boolean {
 
 /**
  * Y4 (10-14 dış inceleme): kuyruğa girdikten sonra İLERİ tarihe taşınan rezervasyonun giriş mesajı (kapı kodu taşıyabilir) erken GİTMEZ —
- * satırın KENDİ rezervasyonu (kardeş satır değil) aday seçimiyle aynı pencerenin dışındaysa pencerenin açılacağı ana ERTELENİR. İptal
+ * rezervasyonun en erken onaylı varışı aday seçimiyle aynı pencerenin dışındaysa pencerenin açılacağı ana ERTELENİR. İptal
  * EDİLMEZ (Haiku: iptal + rezervasyon başına tek anahtar mesajı kalıcı yutuyordu; varış günlü anahtar ise çift gönderime açıktı).
  */
 async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null> {
-  if (row.messageType !== "checkin" || !row.reservationId) return null;
-  const own = await prisma.reservation.findUnique({ where: { id: row.reservationId }, select: { arrivalDate: true } });
-  if (!own) return null;
-  const opensAt = own.arrivalDate.getTime() - CHECKIN_LEAD_DAYS * 86_400_000;
+  if (row.messageType !== "checkin" || !row.externalReservationId) return null;
+  // Rezervasyonun ONAYLI satırlarının EN ERKEN varışı (kardeş çift satır sıradan / keyfi seçilmez — bir kardeşin uzak tarihi gönderici
+  // her geçişte vadeyi şimdiye çekerken işçinin her seferinde ertelemesi döngüsü doğurmasın). Onaylı satır yoksa diğer vetolar karar verir.
+  const earliest = await prisma.reservation.findFirst({
+    where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId }, status: "confirmed" },
+    orderBy: { arrivalDate: "asc" },
+    select: { arrivalDate: true },
+  });
+  if (!earliest) return null;
+  const opensAt = earliest.arrivalDate.getTime() - CHECKIN_LEAD_DAYS * 86_400_000;
   return opensAt > now.getTime() ? new Date(opensAt) : null;
 }
 
@@ -569,7 +581,7 @@ async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null>
 async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   const type = row.messageType;
   // Y5 (10-14 dış inceleme): genel kapatma kapalıyken kuyruktaki yapay zekâ cevabı GİTMEZ ve SONRA da gitmez (Haiku: anahtar günlerce kapalı
-  // kalıp açılınca bayat cevap gidiyordu) → iptal; ev sahibi panelde "iletilmedi" görür. Yaşam döngüsü satırı talep edilmez (↓claim), bekler.
+  // kalıp açılınca bayat cevap gidiyordu) → iptal; gelen kutusunda sebep notu görünür (↓çağıran). Yaşam döngüsü satırı talep edilmez, bekler.
   if (!autoReplySwitchOn() && (type === "ai" || type === "holding_ack")) return "auto_reply_disabled";
   if (type === "welcome" || type === "checkin" || type === "checkout") return lifecycleVeto(row, now);
   return replyVeto(row, now);
@@ -978,13 +990,38 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       attemptCount: { decrement: 1 },
       claimedBy: null,
       claimExpiresAt: null,
+      // POST yapılmadı: rezervasyon başına "60 sn'de en çok 2 gönderim" sayacı (claimedAt) bu talebi saymasın (Haiku 10-14).
+      claimedAt: null,
     });
     return;
   }
   const veto = await sendTimeVeto(row, now);
   if (veto) {
-    await cancelRow(row, token, veto);
+    const canceled = await cancelRow(row, token, veto);
     acc.canceled++;
+    // Y5: anahtar kapalıyken iptal edilen yapay zekâ cevabı SESSİZ kalmaz — gelen kutusunda sebep görünür ve konuşma "denendi" sayılır
+    // (Haiku 10-14: anahtar açılınca aynı mesaj için model boşuna yeniden koşuyor, aynı anahtar yutunca misafire hiç cevap gitmiyordu).
+    // Misafir yeniden yazarsa yeni mesaj için cevap normal üretilir.
+    if (canceled && veto === "auto_reply_disabled" && row.conversationId) {
+      // Damga cevabın CEVAPLADIĞI mesajın anı (Haiku 10-14: konuşmanın son mesajı alınırsa anahtar kapalıyken gelen YENİ mesajlar da
+      // "karar verildi" sayılır, açılınca hiç cevaplanmazdı). Tetik bilinmiyorsa damga yok — yalnız not.
+      const outbox = await prisma.messageOutbox.findUnique({ where: { id: row.id }, select: { idempotencyKey: true } });
+      const triggerId = triggerMessageIdOf(outbox?.idempotencyKey, row.conversationId);
+      const trigger = triggerId
+        ? await prisma.message.findUnique({ where: { id: triggerId }, select: { createdAt: true, conversationId: true } })
+        : null;
+      const stamp = trigger && trigger.conversationId === row.conversationId ? trigger.createdAt : null;
+      await prisma.conversation
+        .updateMany({
+          where: {
+            id: row.conversationId,
+            status: { in: ["new", ...LEGACY_CONVERSATION_STATUSES] },
+            ...(stamp ? { OR: [{ autoReplyAttemptedAt: null }, { autoReplyAttemptedAt: { lt: stamp } }] } : {}),
+          },
+          data: { skippedReason: "auto_reply_disabled", ...(stamp ? { autoReplyAttemptedAt: stamp } : {}) },
+        })
+        .catch((err) => void reportError(`outbox-auto-reply-disabled-note org=${row.organizationId}`, err));
+    }
     return;
   }
 

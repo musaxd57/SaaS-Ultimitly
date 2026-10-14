@@ -15,6 +15,11 @@ vi.mock("@/lib/ai", () => ({
   replyPromptVersion: vi.fn(() => "promptvqr1"),
   replyPromptItemsOf: (items: { held: readonly unknown[] } | undefined) => ({ mode: items !== undefined, held: (items?.held.length ?? 0) > 0 }),
 }));
+// Giriş kapısının anlık görüntüsünü (silme ÖNCESİ) tekrar verebilmek için — varsayılan gerçek fonksiyon.
+vi.mock("@/lib/guest-chat", async (orig) => {
+  const actual = await orig<typeof import("@/lib/guest-chat")>();
+  return { ...actual, resolveGuestChat: vi.fn(actual.resolveGuestChat) };
+});
 vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
   return { ...actual, reportError: vi.fn().mockResolvedValue(undefined) };
@@ -25,6 +30,7 @@ import { suggestReply } from "@/lib/ai";
 import { POST } from "@/app/api/chat/[token]/route";
 import { eraseReservationData } from "@/lib/erasure";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
+import { resolveGuestChat } from "@/lib/guest-chat";
 
 const mockSuggest = vi.mocked(suggestReply);
 const DAY = 86_400_000;
@@ -150,5 +156,26 @@ describe("Y3 — QR yazması silme sınırının arkasında", () => {
     const l = await leaks(propertyId);
     expect(l.secret).toBe(false);
     expect(l.name).toBe(false);
+  });
+
+  it("🚨 silme giriş kapısından SONRA, model çağrısından ÖNCE: konuşma satırı (adıyla) açılmaz, model çağrılmaz", async () => {
+    const { orgId, token, propertyId, reservationId } = await seedQr();
+    const before = await resolveGuestChat(token); // kapının silme öncesi anlık görüntüsü
+    await eraseReservationData(orgId, reservationId);
+    vi.mocked(resolveGuestChat).mockResolvedValueOnce(before);
+    mockSuggest.mockResolvedValue(draft() as never);
+    const r = await ask(token, SECRET_TEXT);
+    expect(r.body.closed).toBe(true);
+    expect(mockSuggest).not.toHaveBeenCalled();
+    const l = await leaks(propertyId);
+    expect(l.name).toBe(false);
+    expect(l.secret).toBe(false);
+  });
+
+  it("silme QR acil e-posta tekilleştirme izini (mesaj metni özeti taşıyabilir) de temizler", async () => {
+    const { orgId, reservationId } = await seedQr();
+    await prisma.reservation.update({ where: { id: reservationId }, data: { qrEscalationEmailMessageId: "crit:abcdef0123456789" } });
+    await eraseReservationData(orgId, reservationId);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } })).qrEscalationEmailMessageId).toBeNull();
   });
 });

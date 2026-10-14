@@ -71,7 +71,13 @@ describe("Y5 — genel kapatma kuyruktaki otomatik mesajı durdurur", () => {
         sourceReference: "res-welcome",
       },
     });
-    await enqueue(orgId, conversationId, "ai", "ai-1");
+    const inbound = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "inbound" } });
+    // Gerçek otomatik cevap anahtarı: auto:<konuşma>:<cevapladığı misafir mesajı>.
+    await enqueue(orgId, conversationId, "ai", `auto:${conversationId}:${inbound.id}`);
+    // Anahtar kapalıyken YENİ bir misafir mesajı geldi (sonradan cevaplanabilmeli).
+    const later = new Date();
+    await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Ayşe", body: "Bir de otopark?", createdAt: later } });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: later } });
     await enqueueProactive({
       organizationId: orgId,
       reservationId: reservation.id,
@@ -87,6 +93,12 @@ describe("Y5 — genel kapatma kuyruktaki otomatik mesajı durdurur", () => {
     const ai = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId, messageType: "ai" } });
     expect(ai.status).toBe("canceled");
     expect(ai.lastErrorCode).toBe("auto_reply_disabled");
+    // Sessiz değil: gelen kutusunda sebep notu + konuşma "denendi" (anahtar açılınca aynı mesaj için model boşuna koşmaz).
+    const convo = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(convo.skippedReason).toBe("auto_reply_disabled");
+    // Damga CEVAPLANAN mesajın anı — anahtar kapalıyken gelen yeni mesaj "karar verildi" sayılmaz (açılınca cevaplanır).
+    expect(convo.autoReplyAttemptedAt?.getTime()).toBe(inbound.createdAt.getTime());
+    expect(convo.autoReplyAttemptedAt!.getTime()).toBeLessThan(convo.lastMessageAt.getTime());
     const welcome = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId, messageType: "welcome" } });
     expect(welcome.status).toBe("pending");
     expect(welcome.attemptCount).toBe(0);

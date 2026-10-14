@@ -554,6 +554,8 @@ async function maskReservationRows(
       guestExternalId: null,
       guestCheckoutTime: null,
       notes: null,
+      // QR acil e-posta tekilleştirme izi: acil mesaj METNİNİN özetini taşıyabilir (`crit:<sha256>`) — silmede kalmaz (Haiku 10-14).
+      qrEscalationEmailMessageId: null,
     },
   });
 

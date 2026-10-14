@@ -152,9 +152,12 @@ export async function recordAiGeneration(
     // silinmediğini doğrular; silinmişse iz satırı (taslak / gönderilen metin) YAZILMAZ.
     if (opts.guard) {
       const guard = opts.guard;
-      await prisma.$transaction(async (tx) => {
-        if (await guard(tx)) await tx.aiGeneration.create({ data: row });
-      });
+      await prisma.$transaction(
+        async (tx) => {
+          if (await guard(tx)) await tx.aiGeneration.create({ data: row });
+        },
+        { timeout: 30_000, maxWait: 10_000 }, // silme kilidi işletme genelidir — bekleyebilir (QR_TX ile aynı)
+      );
       return;
     }
     await prisma.aiGeneration.create({ data: row });
