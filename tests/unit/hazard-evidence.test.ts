@@ -616,6 +616,10 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     // Haiku 10-14 ikinci tur: QR açık, kanal kaçırıyordu ("smells burning" vardı, "smells like burning" yoktu).
     "the plug smells like burning and it's hot",
     "There is a smell of burning from the socket",
+    // Haiku 10-14 üçüncü tur: daraltmadan sonra da yakalanmalı.
+    "Kapı kolu elektrik gibi çarpıyor",
+    "I got a shock when I touched it",
+    "I got a shock when I turned on the light switch",
   ])("🚨 %j → iki ağda acil", (m) => {
     expect(isSafetyEmergencyText(m)).toBe(true);
     expect(level(m)).toBe("clear");
@@ -642,6 +646,15 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     "Kapı kolu duvara çarpıyor",
     "Kablodan internet geliyor mu?",
     "Şarj aleti var mı?",
+    // Haiku 10-14 üçüncü tur — "when I …" nesnesi elektrikli değil, yemek / tütsü kokusu, normal ısınan şarj aleti, tamir talebi.
+    "I got a shock when I turned on the lights, so beautiful",
+    "tingle when I used the massage chair, very relaxing",
+    "I got a tingle when I touched the fresh mint, it smells great",
+    "smells like burning incense in the living room, so cozy",
+    "smell of burning wood from the fireplace is lovely",
+    "Telefonun şarj aleti hafif ısınıyor, bu normal mi acaba?",
+    "şarj aleti sıcak mı olur normalde?",
+    "kapı kolu çarpıyor diye biraz tamir etmemiz gerekebilir, sorun değil",
     // "Acil değil" susturması: çıplak "ısınıyor" / "really hot" olay işareti DEĞİL (10-14 ara sürümünde bu iki cümle acildi).
     "Acil değil ama oda ısınıyor, klimayı açar mısınız?",
     "This is not an emergency, but the room is really hot.",
@@ -660,6 +673,8 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     isSafetyEmergencyText("touch the kettle ".repeat(3_000));
     level("musluk beni ".repeat(5_000));
     isSafetyEmergencyText(`got ${"a ".repeat(25_000)}`);
+    isSafetyEmergencyText("smells like burning ".repeat(2_500));
+    isSafetyEmergencyText(`shock when i touched ${"the ".repeat(12_000)}`);
     expect(performance.now() - t0).toBeLessThan(1500);
   });
   it("KONTROL: şalter adı + olay işareti → yine acil", () => {

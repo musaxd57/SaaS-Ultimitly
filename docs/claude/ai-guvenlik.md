@@ -481,8 +481,10 @@
 - ELEKTRİK TABANI (10-14, iki ağ eşit: `fallback.ts` + `hazard-evidence.ts`): kaçak akım / akım kaçıyor / current leak acil; ardından röle /
   şalter / anahtar / sigorta gelirse yer adıdır (olay sözcüğü yoksa). "Çarpıyor" yalnız elektrikli özneyle (araya yalnız kapalı küme: beni,
   başlığı, çok…; "kapı / kapağı / başıma" girmez) ya da "dokununca" ile. EN "shock / tingle" yalnız elektrikli özne / nesne ya da dokunma
-  fiiliyle (mecaz "the bill gave us a shock" değil). Sıcaklık: priz / kablo çıplak "hot" ile; şarj aleti / uzatma şiddetle; kettle / ısıtıcı
-  yalnız overheating / melting / smoking. "Acil değil" susturmasının olay işaretine çıplak ısınma / "hot" / "shock" EKLENMEZ (ölçüldü: etkisiz +
+  fiiliyle; "when I touched / used / turned" nesnesi elektrikli olmalı (mecaz "the bill gave us a shock", "…turned on the lights, so beautiful"
+  değil). Sıcaklık: priz / kablo / şalter çıplak "hot / ısınıyor / sıcak" ile; şarj aleti / uzatma şiddetle ("hafif ısınıyor" değil); kettle /
+  ısıtıcı yalnız overheating / melting / smoking. Kanal "smells like burning" yalnız cümle sonu ya da elektrik / yer sözcüğüyle ("…burning
+  incense / wood" değil; QR'da olası = model karar verir). "Kapı kolu çarpıyor" tek başına değil, "elektrik gibi çarpıyor" acil. "Acil değil" susturmasının olay işaretine çıplak ısınma / "hot" / "shock" EKLENMEZ (ölçüldü: etkisiz +
   "Acil değil ama oda ısınıyor"u acil yapıyordu).
 
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)
