@@ -472,6 +472,10 @@
   Devam cümlesinde dil değişimi: başka dilin ses fiili yalnız özne zamiri / çıplak dedektör adı HEMEN önündeyse ("Where is the CO alarm?
   Il sonne."). "sounds / sounded" + değerlendirme ("sounds good / like / great") görüştür, ses değil. KAPSAM: niteleyicisiz "alarm"
   (CO / gaz / duman yok) tek başına bildirim DEĞİL — G4/H3 kapsamı dışında; genişletmek kurucu kararı.
+  Ses fiilsiz süreklilik ("won't stop", "keeps going", "hört nicht auf", "no para", "durmuyor") da sestir; ardından -ing eylemi gelirse
+  ("the kids won't stop crying") başkasınındır. Canlı / hava kaynaklı olabilen fiiller (howl, whistle, honk, screech, squeal, whine,
+  wail, shriek, scream) AYNI cümlede de öznesine bakar ("The wind is whistling, where is the CO detector?" bildirim değil); ortak özne
+  yalnız bağlaçla ("The CO alarm and the dog are howling" bildirim; "The CO alarm is fine and the dog is howling" değil).
 - Kalıp ekleyen: dil eşleşmesi, olumsuz biçim ve süre pini (`gas-detector-alarm.test.ts`) ile birlikte; ad–fiil eşlemesi sıralı iki işaretçi (O(D+S)).
 
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)

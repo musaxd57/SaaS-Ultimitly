@@ -369,7 +369,10 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
   yalnız cihaz sesin dilbilgisi komşusuysa ("in the dryer room" kaynak değil); "durdu / artık ötmüyor" da bildirim (H4); geriye atıf
   ("Something keeps beeping. It's the CO alarm."); 50.000 karakterde iki işlev birlikte ~100 ms. Push'tan sonraki turlar (12–15): dil
   değişimi ("Il sonne."), geçmiş süreklilik (sonnait / sonaba / piepte), İngilizce "sounds" (itilmiş G4'te de kaçıyordu), "sounds good"
-  görüş. Kapsam notu: niteleyicisiz "The alarm in the kitchen keeps beeping." bildirim sayılmıyor (çalar saat / hırsız alarmı olabilir) —
+  görüş. Turlar 16–20: ses fiilsiz "won't stop / hört nicht auf / no para / durmuyor" bildirim; "sounds like a siren" ses betimlemesi;
+  shriek / screech / squeal / whine / wail / howl / scream (+ "çığlık atıyor"); bu fiillerde canlı / hava öznesi ("The wind is
+  whistling", "The dog is howling") ve "won't stop crying" başkasının sesi; ortak özne ("The CO alarm and the dog are howling") bildirim.
+  Kapsam notu: niteleyicisiz "The alarm in the kitchen keeps beeping." bildirim sayılmıyor (çalar saat / hırsız alarmı olabilir) —
   isterseniz kapsama alınır.
 
 **10-13 öğle — YENİ soru (güvenli varsayılan UYGULANDI, isterseniz geri alınır):**
