@@ -10,7 +10,9 @@ import { prisma } from "@/lib/db";
 // yenilemesi satırı arka planda günceller, bağlantılar kendiliğinden geçersizleşirdi.
 // ---------------------------------------------------------------------------
 
-const PREFIX = "alert-email-gen:";
+import { ALERT_EMAIL_GEN_PREFIX } from "@/lib/alert-email-generation-key";
+
+const PREFIX = ALERT_EMAIL_GEN_PREFIX;
 /** Satır bir kilit değil sayaçtır: süresi hiç dolmaz (süresi dolan kilitleri silen bir süpürge olursa dokunmasın). */
 const NEVER = new Date("9999-12-31T00:00:00.000Z");
 

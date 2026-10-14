@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { DEMO_ID_PREFIX, DEMO_LOGIN_EMAIL, DEMO_ORG_ID } from "./constants";
+import { ALERT_EMAIL_GEN_PREFIX } from "../alert-email-generation-key";
 import type { DemoDataset } from "./dataset";
 
 // ---------------------------------------------------------------------------
@@ -157,6 +158,13 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
         aiStyleProfileAt: null,
       };
       await tx.organization.upsert({ where: { id: DEMO_ORG_ID }, create: { id: DEMO_ORG_ID, ...orgSettings }, update: orgSettings });
+      // Adres sıfırlandı → bekleyen doğrulama bağlantıları GEÇERSİZ (Y7 Haiku 10-14: ayarlar rotası kuşağı artırıyordu, demo sıfırlaması
+      // artırmıyordu; eski bağlantı boş adrese CAS ile yazabiliyordu). Sayaç `alert-email-generation.ts` ile aynı satır / aynı SQL.
+      await tx.$executeRaw`
+        INSERT INTO "SystemLock" ("name", "lockedUntil", "holder", "updatedAt")
+        VALUES (${ALERT_EMAIL_GEN_PREFIX + DEMO_ORG_ID}, ${new Date("9999-12-31T00:00:00.000Z")}, '1', NOW())
+        ON CONFLICT ("name") DO UPDATE
+          SET "holder" = (COALESCE("SystemLock"."holder", '0')::bigint + 1)::text, "updatedAt" = NOW()`;
 
       // --- Kullanıcılar ---
       for (const u of ds.users) {

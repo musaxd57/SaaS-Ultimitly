@@ -179,7 +179,7 @@ describe("Y4 — kuyruksuz yol: son talep durum + tarih şartını yeniden ister
   });
 });
 
-describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönderim anında iptal, yeni tarihte yeniden kuyruğa girer", () => {
+describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönderim anında ERTELENİR (iptal yok, tek anahtar)", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
@@ -188,7 +188,7 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("🚨 kuyruktan sonra 3 ay ileri → POST YOK (window_not_open); tarih yeniden pencereye girince yeni satır kuyruğa girer", async () => {
+  it("🚨 kuyruktan sonra 3 ay ileri → POST YOK, satır pencere açılana kadar ertelenir; tarih geri gelince bekletmeden gider", async () => {
     const orgId = await seed("checkin");
     await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
     expect((await sendDueCheckins(orgId)).sent).toBe(1);
@@ -201,17 +201,19 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++posts}` });
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(posts).toBe(0);
-    const canceled = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
-    expect(canceled.status).toBe("canceled");
-    expect(canceled.lastErrorCode).toBe("window_not_open");
+    const deferred = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(deferred.status).toBe("pending"); // iptal DEĞİL — tek anahtar mesajı kalıcı yutmasın
+    expect(deferred.attemptCount).toBe(0); // erteleme deneme sayılmaz
+    expect(deferred.availableAt.getTime()).toBeGreaterThan(Date.now() + 80 * DAY);
     expect(await stampOf("res-a", "checkinSentAt")).toBeNull();
 
-    // Yeni tarih pencereye girdi (ör. geri alındı): varış günü farklı → yeni anahtar → eski iptal satırı onu YUTMAZ.
+    // Tarih yeniden pencereye girdi: aynı anahtar dedupe olur ama ertelenmiş satırın vadesi şimdiye çekilir.
     await prisma.reservation.updateMany({
       where: { sourceReference: "res-a" },
       data: { arrivalDate: new Date(Date.now() + 2 * DAY), departureDate: new Date(Date.now() + 5 * DAY) },
     });
-    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    expect((await sendDueCheckins(orgId)).sent).toBe(0); // yeni satır yok (tek anahtar)
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(posts).toBe(1);
     expect(await stampOf("res-a", "checkinSentAt")).not.toBeNull();

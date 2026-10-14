@@ -64,6 +64,46 @@ describe("Y6 — açık tehlike + pencere", () => {
     },
   );
 
+  it.each(["Is there a gas stove?", "How do I use the Fire TV stick?", "Wifi düştü, şifreyi tekrar verir misiniz?"])(
+    "KONTROL (Haiku 10-14): %j — yalnız kanal ağı acil sanıyor, tehlike okuyucusu değil → uyarı YOK",
+    async (body) => {
+      const { orgId, conversationId } = await seed([{ dir: "inbound", body }]);
+      expect((await sendDueAlerts(orgId)).alerted).toBe(0);
+      expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
+    },
+  );
+
+  it("🚨 karışık tur: yangın + iade → ACİL mesaj seçilir (riskType safety_emergency)", async () => {
+    const { orgId, conversationId } = await seed([
+      { dir: "inbound", body: "Dairede yangın çıktı!" },
+      { dir: "inbound", body: "Ve paramın iadesini istiyorum." },
+    ]);
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).lastRiskType).toBe("safety_emergency");
+  });
+
+  it("KONTROL (Haiku 10-14): 72 saatten ESKİ cevapsız şikâyet bugünkü 'merhaba?' ile uyarıya dönmez", async () => {
+    const o = await prisma.organization.create({ data: { name: "Org", alertEmail: "host@example.com" } });
+    const p = await prisma.property.create({ data: { organizationId: o.id, name: "Lale 7" } });
+    const old = new Date(Date.now() - 5 * 86_400_000);
+    await prisma.conversation.create({
+      data: {
+        propertyId: p.id,
+        channel: "airbnb",
+        guestIdentifier: "Ayşe",
+        status: "new",
+        lastMessageAt: new Date(),
+        messages: {
+          create: [
+            { direction: "inbound", senderName: "Ayşe", body: "Daire çok kirli, param iade edilsin!", createdAt: old },
+            { direction: "inbound", senderName: "Ayşe", body: "Merhaba?", createdAt: new Date(Date.now() - MIN) },
+          ],
+        },
+      },
+    });
+    expect((await sendDueAlerts(o.id)).alerted).toBe(0);
+  });
+
   it("KONTROL: sıradan soru → uyarı yok", async () => {
     const { orgId } = await seed([{ dir: "inbound", body: "Wi-Fi şifresi nedir?" }]);
     expect((await sendDueAlerts(orgId)).alerted).toBe(0);

@@ -57,7 +57,7 @@ describe("Y5 — genel kapatma kuyruktaki otomatik mesajı durdurur", () => {
     await resetDb();
   });
 
-  it("🚨 anahtar KAPALI: yapay zekâ cevabı ve karşılama POST EDİLMEZ, satırlar bekler (iptal yok, deneme sayısı 0)", async () => {
+  it("🚨 anahtar KAPALI: yapay zekâ cevabı İPTAL (sonra da gitmez); karşılama POST EDİLMEZ ve bekler (deneme sayısı 0)", async () => {
     vi.stubEnv("AUTO_REPLY_ENABLED", "0");
     const { orgId, propertyId, conversationId } = await seed();
     const reservation = await prisma.reservation.create({
@@ -84,9 +84,17 @@ describe("Y5 — genel kapatma kuyruktaki otomatik mesajı durdurur", () => {
     const { send, sent } = counter();
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(sent).toEqual([]);
-    const rows = await prisma.messageOutbox.findMany({ where: { organizationId: orgId } });
-    expect(rows.map((r) => r.status).sort()).toEqual(["pending", "pending"]);
-    expect(rows.every((r) => r.attemptCount === 0)).toBe(true);
+    const ai = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId, messageType: "ai" } });
+    expect(ai.status).toBe("canceled");
+    expect(ai.lastErrorCode).toBe("auto_reply_disabled");
+    const welcome = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId, messageType: "welcome" } });
+    expect(welcome.status).toBe("pending");
+    expect(welcome.attemptCount).toBe(0);
+
+    // Anahtar açıldı: bayat yapay zekâ cevabı GİTMEZ (iptal), karşılama gider.
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(sent).toEqual(["welcome"]);
   });
 
   it("🚨 anahtar KAPALI: elle yazılan cevap gider ve aynı konuşmadaki bekleyen yapay zekâ satırının ARKASINDA tıkanmaz", async () => {
@@ -108,15 +116,4 @@ describe("Y5 — genel kapatma kuyruktaki otomatik mesajı durdurur", () => {
     expect(sent).toEqual(["ai"]);
   });
 
-  it("anahtar kapalıyken bekleyen satır, anahtar açılınca işlenir (kaybolmaz)", async () => {
-    vi.stubEnv("AUTO_REPLY_ENABLED", "0");
-    const { orgId, conversationId } = await seed();
-    await enqueue(orgId, conversationId, "ai", "ai-1");
-    const { send, sent } = counter();
-    await drainOutboxOnce({ send, tokenFor: async () => "t" });
-    expect(sent).toEqual([]);
-    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
-    await drainOutboxOnce({ send, tokenFor: async () => "t" });
-    expect(sent).toEqual(["ai"]);
-  });
 });

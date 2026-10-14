@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
@@ -94,7 +94,10 @@ describe("konuşma silme → kuyruk iptal edilir, sağlayıcı ÇAĞRILMAZ", () 
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
+    // Y5 (10-14): genel kapatma kapalıyken otomatik satır talep edilmez / iptal edilir — bu dosya canlı ayarda VARLIK vetosunu ölçer.
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   for (const messageType of ["manual", "ai", "holding_ack"] as const) {
     it(`🚨 ${messageType}: enqueue → DELETE /conversations/[id] → drain → send 0 çağrı`, async () => {
@@ -155,7 +158,10 @@ describe("mülk silme (cascade) → bağlı yanıt VE lifecycle satırları ipta
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
+    // Y5 (10-14): genel kapatma kapalıyken otomatik satır talep edilmez / iptal edilir — bu dosya canlı ayarda VARLIK vetosunu ölçer.
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("🚨 enqueue(reply + welcome) → DELETE /properties/[id] → drain → send 0 çağrı", async () => {
     const { orgId, propertyId, reservationId, conversationId } = await seed();
@@ -205,7 +211,10 @@ describe("worker — hedef varlığı/kiracı vetosu (braces: rota katmanı olma
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
+    // Y5 (10-14): genel kapatma kapalıyken otomatik satır talep edilmez / iptal edilir — bu dosya canlı ayarda VARLIK vetosunu ölçer.
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("🚨 Codex kanıtı: Message + Conversation DB'den doğrudan silinmiş → veto, POST yok", async () => {
     // Rota yolu DEĞİL: ham silme (bir migration, elle SQL, başka bir yol). Belt yok,

@@ -253,12 +253,11 @@ async function claimBatchLocked(
   //             lock (above) + committed claimedAt reads. Reconcile claims (ambiguous rows)
   //             never POST, so they bypass the send cap.
   // 🚨 Y5 (10-14 dış inceleme): GENEL KAPATMA (`AUTO_REPLY_ENABLED` "1" değil) kuyruktaki OTOMATİK mesajı da durdurur — eskiden
-  // yalnız kuyruğa girişte bakılıyordu, kuyrukta bekleyen yapay zekâ cevabı / karşılama / giriş mesajı yine gidiyordu. Otomatik satır
-  // TALEP EDİLMEZ (iptal de edilmez — deneme sayısı artmaz, anahtar dedupe'u yaşam döngüsü mesajını kalıcı yutmaz); anahtar açılınca
-  // gönderim anı vetoları (iptal / pencere / yeni mesaj / ev sahibi devraldı) ile normal işlenir. Elle yazılan ev sahibi cevabı
-  // ("manual", eski NULL) ve belirsiz teslimin uzlaştırması (POST yok) etkilenmez; bekleyen otomatik satır aynı konuşmadaki elle
-  // cevabı SIRA kuralıyla da tıkamaz.
-  const autoAllowed = process.env.AUTO_REPLY_ENABLED === "1";
+  // yalnız kuyruğa girişte bakılıyordu. Yaşam döngüsü satırı (karşılama / giriş / çıkış) TALEP EDİLMEZ, bekler (deneme sayısı artmaz;
+  // anahtar açılınca tarih vetolarıyla normal işlenir). Yapay zekâ cevabı talep edilir ve gönderim anı vetosu İPTAL eder (↓sendTimeVeto —
+  // durum makinesinde pending → canceled yok). Elle cevap ("manual", eski NULL) ve belirsiz teslim uzlaştırması (POST yok) etkilenmez;
+  // bekleyen otomatik satır aynı konuşmadaki elle cevabı SIRA kuralıyla tıkamaz.
+  const autoAllowed = autoReplySwitchOn();
   const rows = await tx.$queryRaw<OutboxRow[]>(Prisma.sql`
     UPDATE "MessageOutbox" AS o
     SET "status" = CASE WHEN o."status" = 'pending' THEN 'sending' ELSE 'reconciling' END,
@@ -292,7 +291,7 @@ async function claimBatchLocked(
           SELECT s."id", s."status", s."organizationId", s."externalReservationId", s."availableAt", s."createdAt"
           FROM "MessageOutbox" s
           WHERE s."status" IN ('pending', 'ambiguous')
-            AND (${autoAllowed}::boolean OR s."status" = 'ambiguous' OR s."messageType" IS NULL OR s."messageType" = 'manual')
+            AND (${autoAllowed}::boolean OR s."status" = 'ambiguous' OR s."messageType" IS NULL OR s."messageType" IN ('manual', 'ai', 'holding_ack'))
             AND s."availableAt" <= ${now}
             AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
             AND NOT EXISTS (
@@ -503,7 +502,7 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   const res = await prisma.reservation.findFirst({
     where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
     select: {
-      status: true, arrivalDate: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
+      status: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
       // Org timezone for the checkout window rule below (same lookup, no extra query).
       property: { select: { organization: { select: { timezone: true } } } },
     },
@@ -537,12 +536,27 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
     const today = todayKey(now, tz);
     const departureDay = calendarDateOf(res.departureDate, tz).key;
     if (type === "checkin" && today >= departureDay) return "window_passed";
-    // Y4 (10-14 inceleme): kuyruğa girdikten sonra ileri tarihe taşınan rezervasyon — giriş bilgisi (kapı kodu) erken GİTMEZ.
-    // Aday seçimiyle aynı pencere (`CHECKIN_LEAD_DAYS`); yeni tarihte varış günü taşıyan yeni anahtarla yeniden kuyruğa girer.
-    if (type === "checkin" && res.arrivalDate.getTime() > now.getTime() + CHECKIN_LEAD_DAYS * 86_400_000) return "window_not_open";
     if (type === "checkout" && today > departureDay) return "window_passed";
   }
   return null;
+}
+
+/** Genel otomatik mesaj anahtarı (`AUTO_REPLY_ENABLED`, kuyruğa giriş kapılarıyla aynı okuma). */
+function autoReplySwitchOn(): boolean {
+  return process.env.AUTO_REPLY_ENABLED === "1";
+}
+
+/**
+ * Y4 (10-14 dış inceleme): kuyruğa girdikten sonra İLERİ tarihe taşınan rezervasyonun giriş mesajı (kapı kodu taşıyabilir) erken GİTMEZ —
+ * satırın KENDİ rezervasyonu (kardeş satır değil) aday seçimiyle aynı pencerenin dışındaysa pencerenin açılacağı ana ERTELENİR. İptal
+ * EDİLMEZ (Haiku: iptal + rezervasyon başına tek anahtar mesajı kalıcı yutuyordu; varış günlü anahtar ise çift gönderime açıktı).
+ */
+async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null> {
+  if (row.messageType !== "checkin" || !row.reservationId) return null;
+  const own = await prisma.reservation.findUnique({ where: { id: row.reservationId }, select: { arrivalDate: true } });
+  if (!own) return null;
+  const opensAt = own.arrivalDate.getTime() - CHECKIN_LEAD_DAYS * 86_400_000;
+  return opensAt > now.getTime() ? new Date(opensAt) : null;
 }
 
 /**
@@ -554,6 +568,9 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
  */
 async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   const type = row.messageType;
+  // Y5 (10-14 dış inceleme): genel kapatma kapalıyken kuyruktaki yapay zekâ cevabı GİTMEZ ve SONRA da gitmez (Haiku: anahtar günlerce kapalı
+  // kalıp açılınca bayat cevap gidiyordu) → iptal; ev sahibi panelde "iletilmedi" görür. Yaşam döngüsü satırı talep edilmez (↓claim), bekler.
+  if (!autoReplySwitchOn() && (type === "ai" || type === "holding_ack")) return "auto_reply_disabled";
   if (type === "welcome" || type === "checkin" || type === "checkout") return lifecycleVeto(row, now);
   return replyVeto(row, now);
 }
@@ -952,6 +969,18 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   // reply (host took over / AI paused / escalated / superseded) OR a lifecycle send whose
   // booking is cancelled/completed/already-sent/out-of-window is canceled — NEVER POSTed, and
   // never shown as sent or failed.
+  const deferUntil = await checkinNotYetDue(row, now);
+  if (deferUntil) {
+    // Talep bırakılır, satır pencere açılınca yeniden talep edilir; bu talep bir DENEME sayılmaz (deneme tavanını yemesin).
+    await settle(row, token, "sending", {
+      status: "pending",
+      availableAt: deferUntil,
+      attemptCount: { decrement: 1 },
+      claimedBy: null,
+      claimExpiresAt: null,
+    });
+    return;
+  }
   const veto = await sendTimeVeto(row, now);
   if (veto) {
     await cancelRow(row, token, veto);

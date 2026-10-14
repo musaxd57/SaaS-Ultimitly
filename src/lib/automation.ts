@@ -8,7 +8,7 @@ import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
-import { contextLabels, hasEmergencyCallDirective, hasSafetyReassurance, hazardDecisionFor, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
+import { contextLabels, hasEmergencyCallDirective, hasSafetyReassurance, hazardDecisionFor, hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import {
   evaluateAvailability,
   kbFactsOf,
@@ -4574,15 +4574,21 @@ export async function sendDueWelcomes(
     // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
     const stampedAt = new Date();
     // Y4 (10-14): talep durumu yeniden ister — seçimden sonra iptal edilen rezervasyona karşılama gitmez (kardeşler ↓ aynı damga).
-    const claim = await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null, status: "confirmed" },
-      data: { welcomeSentAt: stampedAt },
+    // Talep + kardeş damgası TEK işlemde (Haiku 10-14): ikinci adım düşerse ilki de geri alınır — damgalı ama gönderilmemiş satır kalmaz.
+    const claim = await prisma.$transaction(async (tx) => {
+      const c = await tx.reservation.updateMany({
+        where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null, status: "confirmed" },
+        data: { welcomeSentAt: stampedAt },
+      });
+      if (c.count > 0) {
+        await tx.reservation.updateMany({
+          where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null },
+          data: { welcomeSentAt: stampedAt },
+        });
+      }
+      return c;
     });
     if (claim.count === 0) continue; // another run already claimed/sent this booking (or it was cancelled meanwhile)
-    await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null },
-      data: { welcomeSentAt: stampedAt },
-    });
 
     const traceId = await traceLifecycleSend(organizationId, r, "welcome", body, stampedAt);
     const delivery = await sendOnChannel(
@@ -4746,11 +4752,18 @@ export async function sendDueCheckins(
           channel: r.channel,
           messageType: "checkin",
           body,
-          // Y4 (10-14): anahtar varış GÜNÜNÜ taşır — ileri tarihe taşınan rezervasyonun kuyruk satırı gönderim anında
-          // "window_not_open" ile iptal edilir; yeni tarihte yeni anahtarla yeniden kuyruğa girer (eski anahtar onu yutmaz).
-          idempotencyKey: `checkin:${organizationId}:${r.sourceReference}:${calendarDateOf(r.arrivalDate, tz).key}`,
+          // Rezervasyon başına TEK anahtar (Haiku 10-14: varış günlü anahtar belirsiz teslim + tarih değişiminde ÇİFT gönderime açıktı).
+          // İleri tarihe taşınan satır iptal edilmez, işçide pencere açılana kadar ERTELENİR (`lifecycleNotYetDue`).
+          idempotencyKey: `checkin:${organizationId}:${r.sourceReference}`,
         });
         if (!enq.deduped) sent++;
+        // Ertelenmiş satır (işçi: varış ileri taşındı) tarih YENİDEN pencereye girdiyse beklemez — vadesi şimdiye çekilir; hâlâ erken ise
+        // işçi yeniden erteler (Y4 Haiku 10-14).
+        else
+          await prisma.messageOutbox.updateMany({
+            where: { id: enq.outboxId, organizationId, status: "pending", availableAt: { gt: new Date() } },
+            data: { availableAt: new Date() },
+          });
       } catch {
         // enqueue failure → *SentAt stays null → retries cleanly, ama SESSİZ DEĞİL
         // (denetim, 08-01 — üçüncü tur): bu dal `failures`'a hiçbir şey itmediği için
@@ -4770,22 +4783,28 @@ export async function sendDueCheckins(
     // tarihe taşınan rezervasyona giriş bilgisi (kapı kodu taşıyabilir) GİTMEZ. Döngü aday başına sağlayıcı çağrısı beklediği
     // için seçimle gönderim arası saniyeler-dakikalar sürebilir. Aynı rezervasyonun kardeş satırları (yeniden bağlama sonrası
     // çift satır) ikinci adımda AYNI damgayla işaretlenir — geri alma `stampedAt` koşuluyla ikisini birlikte geri alır.
-    const claim = await prisma.reservation.updateMany({
-      where: {
-        sourceReference: r.sourceReference,
-        property: { organizationId },
-        checkinSentAt: null,
-        status: "confirmed",
-        arrivalDate: { lte: addDays(stampedAt, CHECKIN_LEAD_DAYS) },
-        AND: [onOrAfterTodayWhere("arrivalDate", stampedAt, tz)],
-      },
-      data: { checkinSentAt: stampedAt },
+    // Talep + kardeş damgası TEK işlemde (Haiku 10-14): ikinci adım düşerse ilki de geri alınır — damgalı ama gönderilmemiş satır kalmaz.
+    const claim = await prisma.$transaction(async (tx) => {
+      const c = await tx.reservation.updateMany({
+        where: {
+          sourceReference: r.sourceReference,
+          property: { organizationId },
+          checkinSentAt: null,
+          status: "confirmed",
+          arrivalDate: { lte: addDays(stampedAt, CHECKIN_LEAD_DAYS) },
+          AND: [onOrAfterTodayWhere("arrivalDate", stampedAt, tz)],
+        },
+        data: { checkinSentAt: stampedAt },
+      });
+      if (c.count > 0) {
+        await tx.reservation.updateMany({
+          where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: null },
+          data: { checkinSentAt: stampedAt },
+        });
+      }
+      return c;
     });
     if (claim.count === 0) continue;
-    await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: null },
-      data: { checkinSentAt: stampedAt },
-    });
 
     const traceId = await traceLifecycleSend(organizationId, r, "checkin", body, stampedAt);
     const delivery = await sendOnChannel(
@@ -5107,21 +5126,27 @@ export async function sendDueCheckouts(
     // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
     const stampedAt = new Date();
     // Y4 (10-14): talep durumu + çıkış GÜNÜNÜ yeniden ister (seçimle aynı şart; kardeşler ↓ aynı damga).
-    const claim = await prisma.reservation.updateMany({
-      where: {
-        sourceReference: r.sourceReference,
-        property: { organizationId },
-        checkoutSentAt: null,
-        status: { in: ["confirmed", "completed"] },
-        AND: [{ OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] }],
-      },
-      data: { checkoutSentAt: stampedAt },
+    // Talep + kardeş damgası TEK işlemde (Haiku 10-14): ikinci adım düşerse ilki de geri alınır — damgalı ama gönderilmemiş satır kalmaz.
+    const claim = await prisma.$transaction(async (tx) => {
+      const c = await tx.reservation.updateMany({
+        where: {
+          sourceReference: r.sourceReference,
+          property: { organizationId },
+          checkoutSentAt: null,
+          status: { in: ["confirmed", "completed"] },
+          AND: [{ OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] }],
+        },
+        data: { checkoutSentAt: stampedAt },
+      });
+      if (c.count > 0) {
+        await tx.reservation.updateMany({
+          where: { sourceReference: r.sourceReference, property: { organizationId }, checkoutSentAt: null },
+          data: { checkoutSentAt: stampedAt },
+        });
+      }
+      return c;
     });
     if (claim.count === 0) continue;
-    await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId }, checkoutSentAt: null },
-      data: { checkoutSentAt: stampedAt },
-    });
 
     const traceId = await traceLifecycleSend(organizationId, r, "checkout", body, stampedAt);
     const delivery = await sendOnChannel(
@@ -5286,17 +5311,24 @@ export async function sendDueAlerts(
     // kadar olan kısım. O pencerenin HERHANGİ birinde şikayet varsa uyarı gider.
     const outboundAt = realMessages.findIndex((m) => isAnsweringOutbound(m));
     const pending = (outboundAt === -1 ? realMessages : realMessages.slice(0, outboundAt)).filter(
-      (m) => m.direction === "inbound",
+      // Yaş sınırı MESAJ başına (Haiku 10-14): pencere 25'e çıkınca yalnız en yenisine bakmak 5 gün önceki cevapsız şikâyeti bugünkü
+      // "merhaba?" ile yeniden uyarıya taşırdı.
+      (m) => m.direction === "inbound" && Date.now() - m.createdAt.getTime() <= ALERT_MAX_AGE_MS,
     );
     // K10-t: 8.000 karakteri aşan mesajda tam sınıflandırma KOŞMAZ, yalnız hafif acil sözcük ağı (kurucu: "acil sözcük
     // aransın") — acil ise bugünkü acil yol (Sorunlu + ev sahibine acil e-posta). Acil değilse uyarı yok; konuşma "elle yanıtla"
     // uyarısıyla görünür.
     // 🚨 Y6 (10-14 dış inceleme): AÇIK TEHLİKE şikâyet sınıfına BAĞLI DEĞİL — "Dairede yangın çıktı!" kelime ağında `general` döner
     // (şikâyet / iade sözcüğü yok) ve oto-yanıt kapalıyken ev sahibine hiçbir uyarı gitmiyordu. Acil ağı (iki ağın ortak tabanı) da uyarır.
+    // İKİ AĞ BİRLİKTE (Haiku 10-14): yalnız kanal ağı "Is there a gas stove?", "Fire TV", "Wifi düştü"yü de acil sayıyordu → ev sahibine
+    // acil e-posta + konuşma Sorunlu (oto-yanıt açıkken cevap da gitmezdi). Tehlike okuyucusu (QR ile ortak) açık / olası demeli.
+    const emergencyHit = (m: { body: string }) => {
+      if (!isSafetyEmergencyText(m.body)) return false;
+      const level = hazardEvidenceOf(m.body).level;
+      return level === "clear" || level === "possible";
+    };
     const alertHit = (m: { body: string }) =>
-      exceedsGuestMessageLimit(m.body)
-        ? isSafetyEmergencyText(m.body)
-        : isAlertClass(classifyFallback(m.body)) || isSafetyEmergencyText(m.body);
+      exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : isAlertClass(classifyFallback(m.body)) || emergencyHit(m);
     if (itemsFlag) {
       const hits = pending.filter(alertHit);
       if (hits.length === 0) continue;
@@ -5318,7 +5350,8 @@ export async function sendDueAlerts(
       }
       // Acil / enjeksiyon: bugünkü yol (Sorunlu + acil e-posta).
     }
-    const hit = pending.find(alertHit);
+    // Karışık turda ACİL mesaj önce (Haiku 10-14: "yangın çıktı" + "iade istiyorum" → e-posta iade satırını alıntılıyordu).
+    const hit = pending.find((m) => !exceedsGuestMessageLimit(m.body) && emergencyHit(m)) ?? pending.find(alertHit);
     if (!hit) continue;
     // Uzun acil mesajda tam sınıflandırma yok: acil ağının bugünkü karşılığı ŞİKAYET + acil etiketidir.
     const hitTooLong = exceedsGuestMessageLimit(hit.body);

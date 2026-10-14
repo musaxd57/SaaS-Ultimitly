@@ -5,6 +5,7 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { buildDemoDataset } from "@/lib/demo-tenant/dataset";
 import { applyDemoTenant, DemoRefusedError, preflightDemoTenant } from "@/lib/demo-tenant/apply-core";
 import { DEMO_LOGIN_EMAIL, DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
+import { applyAlertEmailVerification, bumpAlertEmailGeneration, consumeAlertEmailGeneration } from "@/lib/alert-email-generation";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import { findUpcomingConflicts } from "@/modules/availability/conflicts";
@@ -68,6 +69,17 @@ describe("demo hesabı — uygulama", () => {
     // Yenileme de komşuya dokunmaz.
     await applyDemoTenant(prisma, ds, { reviewerPasswordHash: null, staffPasswordHash: STAFF_HASH });
     expect([await snapshotOrg(a.orgId), await snapshotOrg(b.orgId)]).toEqual(before);
+  });
+
+  it("🚨 Y7 (Haiku 10-14): demo sıfırlaması uyarı adresini boşaltırken kuşağı ARTIRIR — bekleyen doğrulama bağlantısı geçersiz", async () => {
+    await applyDemoTenant(prisma, buildDemoDataset({ now: NOW }), { reviewerPasswordHash: PW_HASH, staffPasswordHash: STAFF_HASH });
+    const g = await bumpAlertEmailGeneration(DEMO_ORG_ID); // sıfırlamadan ÖNCE istenmiş bağlantının kuşağı
+    await applyDemoTenant(prisma, buildDemoDataset({ now: NOW }), { reviewerPasswordHash: null, staffPasswordHash: STAFF_HASH });
+    expect(await consumeAlertEmailGeneration(DEMO_ORG_ID, g)).toBe(false);
+    expect(
+      await applyAlertEmailVerification({ organizationId: DEMO_ORG_ID, generation: g, previous: null, email: "dis@ornek.com" }),
+    ).toBe("stale");
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: DEMO_ORG_ID } })).alertEmail).toBeNull();
   });
 
   it("veri kümesi eksiksiz yazılır; inceleme hesabı yönetici (sahip DEĞİL), e-postası doğrulanmış", async () => {
