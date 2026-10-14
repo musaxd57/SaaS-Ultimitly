@@ -396,6 +396,11 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   bağlı; eksik ≠ yanlış) · Y10 KB içe aktarım tekrarı, demo telefon yapıştırma, kayıt ekranı adresi, onay penceresi odağı.
 - AÇIK (kurucu): KB içe aktarımında bağlantı koptuğu anda sunucuya ulaşmış kalem yeniden denemede İKİNCİ kez eklenebilir — sunucu tarafı
   tekrar güvenliği (istek kimliği) migration ya da aynı-içerik kontrolü ister; "kısa devre oldu" acil mi arıza mı (elektrik tabanı dışında).
+- AÇIK (tasarım, kalıcı kuyruk KAPALI olduğu için bugün etkisiz): yeniden bağlanmış rezervasyonun (aynı kaynak kimliği, birden çok mülk
+  satırı) eski kopyaları — hangi kopyanın canlı olduğu (son güncellenen mi, onaylı mı) tek kuralla belirlenmeli; bugün kuyruk satırının
+  kendi rezervasyonu → onaylı kopya önceliği. Bayrak kapalı yolda gönderim sonrası yeni kopya ikinci giriş mesajı alabilir (eskiden beri).
+- AÇIK (kurucu): QR'da konaklama istek sürerken SİLİNİRSE (KVKK) o istekteki tehlike mesajı için ev sahibine uyarı da gitmiyor —
+  "silinmiş konaklama hiç işlenmez" mi, "acil uyarı yine gider (metinsiz)" mi?
 
 **10-13 öğle — YENİ soru (güvenli varsayılan UYGULANDI, isterseniz geri alınır):**
 
