@@ -1,0 +1,62 @@
+diff --git a/src/lib/ai/semantic/understand.ts b/src/lib/ai/semantic/understand.ts
+index 31d940d..60dce46 100644
+--- a/src/lib/ai/semantic/understand.ts
++++ b/src/lib/ai/semantic/understand.ts
+@@ -241,8 +241,12 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
+     const stamp = at && input.writtenStamp ? input.writtenStamp(at) : null;
+     return stamp ? ` (written ${stamp})` : "";
+   };
++  // G1 (kurucu kararı 10-13 "Evet, kredi gelince ölç"): otomatik şablon mesajı (K7) ev sahibinin kendi sözü DEĞİLDİR — cevap istemindeki
++  // "[OTOMATİK MESAJ]" etiketiyle tutarlı olarak "Automated message" yazılır (önce: "Host"). Modele giden metin değiştiği için ölçümle açılır.
++  const authorLabel = (m: UnderstandingHistoryEntry) =>
++    m.direction === "inbound" ? "Guest" : m.author === "automation" ? "Automated message" : "Host";
+   const contextLines = context.map(
+-    (m) => `${m.direction === "inbound" ? "Guest" : "Host"}${written(m.at)}: <<<${clean(m.body, m.direction === "inbound" ? "guest" : "ours")}>>>`,
++    (m) => `${authorLabel(m)}${written(m.at)}: <<<${clean(m.body, m.direction === "inbound" ? "guest" : "ours")}>>>`,
+   );
+   const unansweredLines = unanswered.map((m, i) => `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>${maskNote(m.body)}`);
+   const stamped = [...context, ...unanswered].some((m) => written(m.at) !== "");
+diff --git a/src/lib/ai/semantic/understanding-schema.ts b/src/lib/ai/semantic/understanding-schema.ts
+index 7b4d01c..1780cd3 100644
+--- a/src/lib/ai/semantic/understanding-schema.ts
++++ b/src/lib/ai/semantic/understanding-schema.ts
+@@ -14,7 +14,7 @@
+  *  · kanıt: niyet etiketleri (kapalı küme, PII yok).
+  * ------------------------------------------------------------------------- */
+ 
+-import { isAnsweringOutbound } from "@/lib/message-author";
++import { isAnsweringOutbound, isAutomationMessage } from "@/lib/message-author";
+ import { STAY_CHANGE_KINDS, normalizeHhmm, type UnderstandingStaySignal } from "./stay-change";
+ import { HOUSE_RULE_TOPICS, RULE_STANCES, type HouseRuleTopic, type RuleStance } from "@/lib/house-rules/core";
+ import { ITEM_RELATIONS, type ItemRelation } from "@/lib/conversation-items/relation-kinds";
+@@ -110,8 +110,11 @@ export function understandingWindow(
+     .map((m) => ({ id: m.id, body: m.body, at: m.at }));
+   if (pending[pending.length - 1]?.body !== guestMessage) pending.push({ id: undefined, body: guestMessage, at: undefined });
+   const unanswered = pending.slice(-UNDERSTANDING_MAX_UNANSWERED);
++  // G1b (ÖLÇÜM KOLU, ana dalda YOK): son cevaptan SONRA gelen otomatik şablon mesajı da bağlama girer ("Automated message:") — misafir
++  // ona cevap veriyor olabilir ("Wi-Fi bilgileri kartta" → "Kartı bulamadık, şifre neydi?"). Cevapsız pencere yine sıfırlanmaz (K7).
++  const autoAfter = hist.slice(lastOut + 1).filter((m) => m.direction !== "inbound" && isAutomationMessage(m));
+   return {
+-    context: hist.slice(0, lastOut + 1).slice(-UNDERSTANDING_MAX_CONTEXT),
++    context: [...hist.slice(0, lastOut + 1), ...autoAfter].slice(-UNDERSTANDING_MAX_CONTEXT),
+     unanswered,
+     unseen: pending.length - unanswered.length,
+   };
+diff --git a/tests/unit/automated-message-rules.test.ts b/tests/unit/automated-message-rules.test.ts
+index 7361ff3..057d59d 100644
+--- a/tests/unit/automated-message-rules.test.ts
++++ b/tests/unit/automated-message-rules.test.ts
+@@ -215,10 +215,11 @@ describe("pencere hesaplayan yardımcılar otomatik mesajı cevap saymaz", () =>
+     expect(pendingGuestMessages([G1, W, G2], G2.body)).toEqual([G1.body]);
+     expect(pendingGuestMessages([G1, H, G2], G2.body)).not.toContain(G1.body);
+   });
+-  it("anlama katmanının cevapsız listesi (K7 bağlantısı 10-12): şablon pencereyi sıfırlamaz, kendisi listeye de bağlama da girmez", () => {
++  it("anlama katmanının cevapsız listesi (K7 bağlantısı 10-12): şablon pencereyi sıfırlamaz, cevapsız listeye girmez; G1b: BAĞLAMA girer", () => {
+     const auto = understandingWindow([G1, W, G2], G2.body);
+     expect(auto.unanswered.map((m) => m.body)).toEqual([G1.body, G2.body]);
+-    expect(auto.context).toEqual([]);
++    // G1b (ölçüm 10-14): misafir şablona cevap veriyor olabilir ("Wi-Fi bilgileri kartta" → "Kartı bulamadık, şifre neydi?").
++    expect(auto.context.map((m) => m.body)).toEqual([W.body]);
+     const host = understandingWindow([G1, H, G2], G2.body);
+     expect(host.unanswered.map((m) => m.body)).toEqual([G2.body]);
+     expect(host.context.map((m) => m.body)).toEqual([G1.body, H.body]);

@@ -38,16 +38,29 @@ export function historyOf(s: Scenario) {
   return [...rows, { direction: "inbound" as const, body: s.message, at: new Date(base + rows.length * 60_000) }];
 }
 
-/** Kol İSTEMDEN ölçülür: otomatik mesaj "Automated message" mı "Host" mu yazılıyor. */
-export function armOf(): "otomatik-etiketi" | "host-etiketi" {
-  const content = buildUnderstandingUserContent({
+/**
+ * Kol İSTEMDEN ölçülür (elle verilmez), iki eksende: (1) ev sahibi cevabından ÖNCEKİ otomatik mesajın etiketi ("Host" / "Automated
+ * message" — G1), (2) son cevaptan SONRA gelen otomatik mesaj isteme giriyor mu (G1b; bugün girmiyor — K7 penceresi).
+ */
+export function armOf(): string {
+  const label = buildUnderstandingUserContent({
     guestMessage: "Tamam",
     history: [
-      { direction: "outbound", body: "Hoş geldiniz!", author: "automation" },
+      { direction: "outbound", body: "PROBE-A", author: "automation" },
+      { direction: "outbound", body: "Evet.", author: "host" },
       { direction: "inbound", body: "Tamam" },
     ],
   } as never);
-  return content.includes("Automated message") ? "otomatik-etiketi" : "host-etiketi";
+  const after = buildUnderstandingUserContent({
+    guestMessage: "Tamam",
+    history: [
+      { direction: "outbound", body: "PROBE-B", author: "automation" },
+      { direction: "inbound", body: "Tamam" },
+    ],
+  } as never);
+  const l = /Automated message[^\n]*PROBE-A/u.test(label) ? "otomatik" : "host";
+  const a = after.includes("PROBE-B") ? "gorunur" : "gorunmez";
+  return `etiket-${l}_sonraki-${a}`;
 }
 
 export function judge(s: Scenario, u: { requests: { intent: string }[]; stay: { requested: boolean; kind: string; checkinTime: string | null; checkoutTime: string | null } }) {
@@ -117,7 +130,7 @@ describe("G1 ölçer — çevrimdışı pinler", () => {
     const h = historyOf(DATA.scenarios[0]);
     expect(h[0]).toMatchObject({ direction: "outbound", author: "automation" });
     expect(h[h.length - 1]).toMatchObject({ direction: "inbound", body: DATA.scenarios[0].message });
-    expect(["otomatik-etiketi", "host-etiketi"]).toContain(armOf());
+    expect(armOf()).toMatch(/^etiket-(otomatik|host)_sonraki-(gorunur|gorunmez)$/u);
   });
   it("hakem: uydurulan konaklama değişikliği ve yanlış saat hata sayılır", () => {
     const s = DATA.scenarios.find((x) => x.id === "tr-geç-çıkış-teklifi-evet")!;

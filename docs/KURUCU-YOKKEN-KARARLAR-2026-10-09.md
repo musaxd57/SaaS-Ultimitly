@@ -428,6 +428,13 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   mevcut kural: "anlama katmanı yoksa model sinyali yok → e-posta yok"). QR'da aynı durum ev sahibine acil bildirim üretiyor. Kanalda da
   acil e-postası gitsin mi? Örnek: anlama katmanı zaman aşımına uğradı + "Kısa devre oldu, ışıklar gitti" → bugün: cevap gitmez, e-posta
   yok; seçenek: cevap gitmez + "olası tehlike, kontrol edin" e-postası (yanlış alarm riski: "We smoked on the balcony, is that ok?").
+- 🔔 G1 ÖLÇÜLDÜ (10-14 gece; sizin "kredi gelince ölç" kararınız) + YENİ BULGU, karar sizin (modele giden metin değişir):
+  anlama katmanı, son cevaptan SONRA gelen otomatik şablon mesajını HİÇ görmüyor (K7 penceresi: şablon cevap sayılmaz, ama istemden de
+  düşüyor). G1'in "Automated message" etiketi bu durumu etkilemiyor. 19 senaryo × 2 tur (gpt-5.1, `docs/olcum/g1-otomatik-etiket-2026-10-14-*`):
+  bugün 35/38 · yalnız G1 34/38 (fark yok) · G1 + G1b (şablon "Automated message:" etiketiyle BAĞLAMA girer, cevapsız listeye girmez) 38/38.
+  Örnek: şablon "Hoş geldiniz! Wi-Fi bilgileri buzdolabındaki kartta." → misafir "Kartı bulamadık, şifre neydi?" → bugün anlama katmanı
+  "kapı / anahtar sorusu" sanıyor (2/2), G1b ile "Wi-Fi" (2/2). Hazır yama `docs/hazir-yamalar/2026-10-14-G1-G1b-anlama-otomatik-mesaj-baglami.patch`
+  (G1 yamasının yerine geçer; ilgili 58 birim test dosyası yeşil; ana dala UYGULANMADI). Uygulayalım mı?
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
 
