@@ -620,6 +620,11 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     "Kapı kolu elektrik gibi çarpıyor",
     "I got a shock when I touched it",
     "I got a shock when I turned on the light switch",
+    // Elektrik artıkları (10-14): "shocked" yalnız elektrikli özne / nesneyle açık; kanalda "electrocut" da (QR'da vardı).
+    "It shocked me when I touched it",
+    "I got shocked touching the kettle.",
+    "I got shocked by the shower",
+    "I almost got electrocuted by the socket",
   ])("🚨 %j → iki ağda acil", (m) => {
     expect(isSafetyEmergencyText(m)).toBe(true);
     expect(level(m)).toBe("clear");
@@ -676,6 +681,18 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     isSafetyEmergencyText("smells like burning ".repeat(2_500));
     isSafetyEmergencyText(`shock when i touched ${"the ".repeat(12_000)}`);
     expect(performance.now() - t0).toBeLessThan(1500);
+  });
+  it("mecaz 'shocked' QR'da açık DEĞİL (kanal da acil saymaz); bağlamsız 'It shocked me!' olası = model karar verir", () => {
+    for (const m of ["The bill shocked me.", "I got shocked when I saw the bill"]) {
+      expect(isSafetyEmergencyText(m)).toBe(false);
+      expect(level(m)).not.toBe("clear");
+    }
+    expect(isSafetyEmergencyText("It shocked me!")).toBe(false);
+    expect(level("It shocked me!")).toBe("possible");
+  });
+  it("'kaçak yapıyor' QR'da olası (kanal ağı zaten acil — iki ağ arasında açık KALMAZ)", () => {
+    expect(isSafetyEmergencyText("Kahve makinesi kaçak yapıyor.")).toBe(true);
+    expect(level("Kahve makinesi kaçak yapıyor.")).toBe("possible");
   });
   it("KONTROL: şalter adı + olay işareti → yine acil", () => {
     expect(isSafetyEmergencyText("Kaçak akım şalteri yanıyor, duman çıkıyor!")).toBe(true);

@@ -484,7 +484,8 @@
   fiiliyle; "when I touched / used / turned" nesnesi elektrikli olmalı (mecaz "the bill gave us a shock", "…turned on the lights, so beautiful"
   değil). Sıcaklık: priz / kablo / şalter çıplak "hot / ısınıyor / sıcak" ile; şarj aleti / uzatma şiddetle ("hafif ısınıyor" değil); kettle /
   ısıtıcı yalnız overheating / melting / smoking. Kanal "smells like burning" yalnız cümle sonu ya da elektrik / yer sözcüğüyle ("…burning
-  incense / wood" değil; QR'da olası = model karar verir). "Kapı kolu çarpıyor" tek başına değil, "elektrik gibi çarpıyor" acil. "Acil değil" susturmasının olay işaretine çıplak ısınma / "hot" / "shock" EKLENMEZ (ölçüldü: etkisiz +
+  incense / wood" değil; QR'da olası = model karar verir). "Kapı kolu çarpıyor" tek başına değil, "elektrik gibi çarpıyor" acil. "Shocked me / got shocked" yalnız elektrikli özne /
+  nesneyle açık; bağlamsız "It shocked me!" QR'da olası (model karar verir), mecaz "The bill shocked me" değil. "Acil değil" susturmasının olay işaretine çıplak ısınma / "hot" / "shock" EKLENMEZ (ölçüldü: etkisiz +
   "Acil değil ama oda ısınıyor"u acil yapıyordu).
 
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)
