@@ -69,4 +69,14 @@ describe("uyarı adresi kuşağı", () => {
     expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.id } })).alertEmail).toBe("dis@ornek.com");
     expect(await applyAlertEmailVerification(claim)).toBe("stale");
   });
+
+  it("savunma katmanı: kuşağı ARTIRMAYAN bir yazıcı adresi değiştirdiyse onay onu EZMEZ (CAS: eski adres hâlâ kayıtlı olmalı)", async () => {
+    const org = await prisma.organization.create({ data: { name: "Y7c", alertEmail: null } });
+    const g = await bumpAlertEmailGeneration(org.id);
+    await prisma.organization.update({ where: { id: org.id }, data: { alertEmail: "ekip@ornek.com" } }); // kuşak artırılmadı
+    expect(
+      await applyAlertEmailVerification({ organizationId: org.id, generation: g, previous: null, email: "dis@ornek.com" }),
+    ).toBe("changed");
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.id } })).alertEmail).toBe("ekip@ornek.com");
+  });
 });
