@@ -2335,7 +2335,7 @@ const SAFETY_CRITICAL_PATTERNS: readonly RegExp[] = [
   /(?<![\p{L}\p{N}])(?:du[sş]|priz|makine|[iı]s[iı]t[iı]c[iı]|kettle|f[iı]r[iı]n|buzdolab|kombi|lamba|[sş]alter|kablo|musluk|batarya|[cç]aydanl[iı])\p{L}{0,8}(?:\s+\p{L}{1,12}){0,2}\s+[cç]arp(?:[iı]yo|t[iı])/u,
   /(?<![\p{L}\p{N}])(?:priz|kablo|fi[sş])\p{L}{0,6}(?:\s+\p{L}{1,12}){0,1}\s+(?:[iı]s[iı]n[iı]yo|[iı]s[iı]nd[iı]|eri(?:yo|di|mi[sş]))/u,
   /(?<![\p{L}\p{N}])(?:(?:gives?|gave|giving)\s+(?:me|us|you)\s+(?:an?\s+)?(?:electric\s+|small\s+|little\s+|mild\s+)?shocks?|got\s+(?:an?\s+)?(?:small\s+|little\s+|mild\s+)?shock(?:ed)?\s+(?:from|when|by)|tingl(?:e|es|ing)\s+(?:from|when))(?![\p{L}\p{N}])/u,
-  /(?<![\p{L}\p{N}])(?:sockets?|outlets?|plugs?|cables?|wires?)\s+(?:is\s+|are\s+|gets?\s+|getting\s+)?(?:very\s+|really\s+)?(?:hot|overheating|melting)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])(?:sockets?|outlets?|plugs?|cables?|wires?|kettles?|heaters?|chargers?|extension\s+(?:cords?|leads?)|power\s+strips?|toasters?|boilers?|appliances?)\s+(?:is\s+|are\s+|gets?\s+|getting\s+|keeps?\s+)?(?:very\s+|really\s+|burning\s+)?(?:hot|overheating|melting|smoking)(?![\p{L}\p{N}])/u,
 ];
 
 // Liste YALNIZ ASCII küçük harf (a–z) olabilir: tam sözcük eşleşmesi ASCII katlamaya dayanır (ASCII katlama, standart ve
@@ -2468,8 +2468,8 @@ const INCIDENT_CONTEXT_RE = new RegExp(
     // yanma / duman / kıvılcım
     "(?<![\\p{L}\\p{N}])yan(?:[iı]yo|d[iı]|m[iı][sş]|[iı]k)", "alev", "ate[sş]", "duman", "t[uü]t[uü]yo", "k[iı]sa\\s+devre",
     // aşırı ısınma / erime / çarpma (10-14: "kaçak akım rölesi attı, priz ısınıyor" RCD adı susturmasına takılıyordu)
-    "[iı]s[iı]n[iı]yo", "[iı]s[iı]nd[iı]", "(?<![\\p{L}\\p{N}])eri(?:yo|di|mi[sş])", "[cç]arp(?:[iı]yo|t[iı])", "overheat", "melt",
-    "(?<![\\p{L}\\p{N}])hot(?![\\p{L}\\p{N}])", "shock", "tingl",
+    "[iı]s[iı]n[iı]yo", "[iı]s[iı]nd[iı]", "(?<![\\p{L}\\p{N}])eri(?:yo|di|mi[sş])", "dokun\\p{L}{0,6}\\s+[cç]arp", "[cç]arp[iı]l", "overheat", "melt",
+    "(?:very|really|burning|too)\\s+hot", "shock", "tingl",
     "(?<![\\p{L}\\p{N}])burn", "on\\s+fire", "flam(?:e|es|ing)(?![\\p{L}\\p{N}])", "blaze", "smok(?:e|es|ing|y)(?![\\p{L}\\p{N}])", "spark",
     // hırsızlık / saldırı / tehdit / hukuki şikâyet
     "h[iı]rs[iı]z", "[cç]al[iı]n(?:d[iı]|m[iı][sş])", "(?<![\\p{L}\\p{N}])[cç]al(?:d[iı]|m[iı][sş])", "soyul", "soygun", "gasp", "zorla",

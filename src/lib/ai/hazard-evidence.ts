@@ -216,7 +216,7 @@ const MENTION: Record<HazardKind, RegExp> = {
   electric: rxg([
     `${NL}(?:elektrik\\s+carp${LB}|carpildi${LB}|carpildim|akim\\s+carp${LB}|kivilcim${LB}|kacak\\s+akim${LB}|akim\\s+kacir${LB}|akim\\s+kaciyo${LB}|elektrik\\s+kacag${LB})`,
     `${NL}(?:(?:dus|priz|makine|isitici|kettle|firin|buzdolab|kombi|lamba|salter|kablo|musluk|batarya|caydanli)\\p{L}{0,8}(?:\\s+\\p{L}{1,12}){0,2}\\s+carp(?:iyo|ti)|(?:priz|kablo|fis)\\p{L}{0,6}(?:\\s+\\p{L}{1,12}){0,1}\\s+(?:isiniyo|isindi|eri(?:yo|di|mis)))`,
-    `${NL}(?:(?:gives?|gave|giving)\\s+(?:me|us|you)\\s+(?:an?\\s+)?(?:electric\\s+|small\\s+|little\\s+|mild\\s+)?shocks?|got\\s+(?:an?\\s+)?(?:small\\s+|little\\s+|mild\\s+)?shock(?:ed)?\\s+(?:from|when|by)|tingl(?:e|es|ing)\\s+(?:from|when)|(?:sockets?|outlets?|plugs?|cables?|wires?)\\s+(?:is\\s+|are\\s+|gets?\\s+|getting\\s+)?(?:very\\s+|really\\s+)?(?:hot|overheating|melting))${NR}`,
+    `${NL}(?:(?:gives?|gave|giving)\\s+(?:me|us|you)\\s+(?:an?\\s+)?(?:electric\\s+|small\\s+|little\\s+|mild\\s+)?shocks?|got\\s+(?:an?\\s+)?(?:small\\s+|little\\s+|mild\\s+)?shock(?:ed)?\\s+(?:from|when|by)|tingl(?:e|es|ing)\\s+(?:from|when)|(?:sockets?|outlets?|plugs?|cables?|wires?|kettles?|heaters?|chargers?|extension\\s+(?:cords?|leads?)|power\\s+strips?|toasters?|boilers?|appliances?)\\s+(?:is\\s+|are\\s+|gets?\\s+|getting\\s+|keeps?\\s+)?(?:very\\s+|really\\s+|burning\\s+)?(?:hot|overheating|melting|smoking))${NR}`,
     `${NL}(?:electric\\s+shock|electrocut${LB}|got\\s+shocked|shocked\\s+me|sparks?|sparking|(?:electrical|current)\\s+leak${LB}|leaking\\s+(?:current|electricity))${NR}`,
     `${NL}(?:stromschlag|elektrischen\\s+schlag|funken${LB})${NR}`,
     `${NL}(?:électrocut${LB}|electrocut${LB}|décharge\\s+électrique|étincelle${LB}|etincelle${LB})`,
@@ -400,7 +400,7 @@ const CLEAR_ELECTRIC = rx([
   `${NL}(?:kacak\\s+akim${LB}|akim\\s+kacir${LB}|elektrik\\s+kacag${LB})`,
   // Elektrikli özneyle çarpma + aşırı ısınan / eriyen priz-kablo (10-14, Haiku; kanal ağıyla aynı kalıplar).
   `${NL}(?:(?:dus|priz|makine|isitici|kettle|firin|buzdolab|kombi|lamba|salter|kablo|musluk|batarya|caydanli)\\p{L}{0,8}(?:\\s+\\p{L}{1,12}){0,2}\\s+carp(?:iyo|ti)|(?:priz|kablo|fis)\\p{L}{0,6}(?:\\s+\\p{L}{1,12}){0,1}\\s+(?:isiniyo|isindi|eri(?:yo|di|mis)))`,
-  `${NL}(?:(?:gives?|gave|giving)\\s+(?:me|us|you)\\s+(?:an?\\s+)?(?:electric\\s+|small\\s+|little\\s+|mild\\s+)?shocks?|got\\s+(?:an?\\s+)?(?:small\\s+|little\\s+|mild\\s+)?shock(?:ed)?\\s+(?:from|when|by)|tingl(?:e|es|ing)\\s+(?:from|when)|(?:sockets?|outlets?|plugs?|cables?|wires?)\\s+(?:is\\s+|are\\s+|gets?\\s+|getting\\s+)?(?:very\\s+|really\\s+)?(?:hot|overheating|melting))${NR}`,
+  `${NL}(?:(?:gives?|gave|giving)\\s+(?:me|us|you)\\s+(?:an?\\s+)?(?:electric\\s+|small\\s+|little\\s+|mild\\s+)?shocks?|got\\s+(?:an?\\s+)?(?:small\\s+|little\\s+|mild\\s+)?shock(?:ed)?\\s+(?:from|when|by)|tingl(?:e|es|ing)\\s+(?:from|when)|(?:sockets?|outlets?|plugs?|cables?|wires?|kettles?|heaters?|chargers?|extension\\s+(?:cords?|leads?)|power\\s+strips?|toasters?|boilers?|appliances?)\\s+(?:is\\s+|are\\s+|gets?\\s+|getting\\s+|keeps?\\s+)?(?:very\\s+|really\\s+|burning\\s+)?(?:hot|overheating|melting|smoking))${NR}`,
   `${NL}(?:(?:electrical|current)\\s+leak${LB}|leaking\\s+(?:current|electricity))${NR}`,
   `${NL}(?:electric\\s+shock|electrocuted|got\\s+(?:an\\s+)?(?:electric\\s+)?shock(?:ed)?|shocked\\s+me)${NR}`,
   `${NL}(?:stromschlag|elektrischen\\s+schlag)${NR}`,
