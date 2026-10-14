@@ -413,13 +413,14 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
 - AÇIK (kurucu, RAG ölçümü 10-14 `docs/olcum/rag-lab-2026-10-14.md` sonu): 300 kalemlik bilgi tabanında iki sorulu mesajın bir cevabı
   3/39 kez bloğa girmiyor (sıralayıcı 8.–13. sıraya koyuyor, blok 12 parçada doluyor). Aynı sıralayıcı çıktısıyla geniş bütçe
   (`KB_RETRIEVAL_WIDE_BUDGET=1`, kapalı — sizin "hazırla, sonra aç" kararınız) 38/39, sızıntı 0; bedeli istem başına bilgi bloğu ~4 kat
-  (ortalama 2,1k → 8,4k karakter). Bugünkü 10 dairelik canlıda (mülk başına ≤60 kalem) fark yok; büyük bilgi tabanlı müşteride var.
+  (ortalama 2,1k → 8,4k karakter). ⚠️ DÜZELTME (aynı gece ölçüldü): "bugünkü canlıda fark yok" yanlıştı — 60 kalemlik gerçek boyutta da
+  iki sorulu mesaj 110/120 → 112/120 (`rag-lab-2026-10-14-7.md`); oradaki asıl kayıp (7) anlamsal eşik, ayrı iş.
   Açalım mı, ilk müşteri büyüyünce mi?
   → **KARAR (kurucu 10-14): "şimdilik kapalı kalsın; doğru çözüm bulunursa açarız, 4 kat gerekmez."** Ölçüm (aynı sıralayıcı çıktısı):
   darboğaz PARÇA TAVANI (12), karakter değil — iki sorulu mesajda 9k / 18 parça da 38/39 veriyor (iki taze sıralayıcı tekrarında da aynı:
   bugün 36/39 → 38/39), blok yalnız iki sorulu mesajda ~+%55 (1,7k → 2,6k karakter; geniş bütçede ~7 kat, 11,8k);
   soru başına sıralayıcı etiketi ise kötüleştirdi (33/39). Öneri: tavan yalnız çok sorulu mesajda soru sayısıyla büyüsün, tek soru aynen
-  (`docs/olcum/rag-lab-2026-10-14-4.md` sonu, tekrarlar `-5` / `-6`). 60 kalemlik gerçek boyut kontrolü koşuluyor; açmak yine sizin kararınız.
+  (`docs/olcum/rag-lab-2026-10-14-4.md` sonu, tekrarlar `-5` / `-6`, 60 kalem `-7`: 110 → 112/120, sızıntı 0). Açmak yine sizin kararınız.
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
 
