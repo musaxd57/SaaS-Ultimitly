@@ -1351,7 +1351,21 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // the guest's retry is processed instead of deduped against zero work.
     if (claimScopeId && !recorded) await releaseKeyedOutboundSend(claimScopeId);
     // Y3: konaklama istek sürerken silindi — hiçbir şey yazılmadı; misafire konaklaması olmayan biriyle aynı cevap.
-    if (err instanceof StayErasedError) return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
+    if (err instanceof StayErasedError) {
+      // Kurucu kararı 10-14 ("Uyarı gitsin, metinsiz"): mesaj bir tehlike bildirimiyse ev sahibine METİNSİZ acil uyarı (iki ağdan biri
+      // yeter — kaçırma gürültüden pahalı). Tekilleştirme kimliği saat dilimi (metinden türemez; silinmiş satıra metin özeti yazılmaz).
+      if (hazardEvidenceOf(message).level === "clear" || isSafetyEmergencyText(message)) {
+        await sendQrEscalationAlertBounded({
+          organizationId: ctx.property.organizationId,
+          propertyName: ctx.property.name,
+          reservationId: res.id,
+          eventId: `erased-hazard:${Math.floor(Date.now() / 3_600_000)}`,
+          reason: "erased_stay_hazard",
+          critical: true,
+        });
+      }
+      return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
+    }
     throw err;
   }
 }

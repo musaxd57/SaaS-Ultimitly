@@ -698,3 +698,15 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     expect(isSafetyEmergencyText("Kaçak akım şalteri yanıyor, duman çıkıyor!")).toBe(true);
   });
 });
+
+describe("kurucu kararı 10-14: 'kısa devre' = model karar verir (olası), elektrik nesnesiyle açık", () => {
+  it.each(["Kısa devre oldu", "Kısa devre oldu, sigorta attı, ışıklar yok", "There was a short circuit"])("%j → olası", (m) => {
+    expect(level(m)).toBe("possible");
+  });
+  it.each(["kısa devre oldu prizde", "Kısa devre oldu, priz kararmış ve yanık kokusu var"])("🚨 %j → açık", (m) => {
+    expect(level(m)).toBe("clear");
+  });
+  it("varsayım sorusu açık değil", () => {
+    expect(level("Kısa devre olursa ne yapmalıyım?")).not.toBe("clear");
+  });
+});

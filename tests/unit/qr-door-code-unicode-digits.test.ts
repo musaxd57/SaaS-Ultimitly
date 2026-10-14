@@ -137,6 +137,10 @@ describe("Haiku 10-14 son doğrulama: KAPI / GİRİŞ + 'için' + değer + kulla
     "Bina girişi için 7788 tuşlayın.",
     "Giriş için 4590 numaralı kodu girin.",
     "Kapı için 4590 kodunu tuşlayınız.",
+    "Kapı için 4590 kodunu girmeniz gerekir.",
+    "Giriş için 4590 kodunu girmelisiniz.",
+    "Kapı için 4590 kodu girilir.",
+    "Giriş için 4590 kodu kullanılarak açılır.",
   ])("🚨 kalem elenir + cevap durur: %j", (t) => {
     expect(withoutSecretKbItems([{ title: "Giriş", content: t }])).toHaveLength(0);
     expect(qrReplyHasDoorCode(t, [])).toBe(true);

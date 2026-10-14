@@ -20,6 +20,9 @@ vi.mock("@/lib/guest-chat", async (orig) => {
   const actual = await orig<typeof import("@/lib/guest-chat")>();
   return { ...actual, resolveGuestChat: vi.fn(actual.resolveGuestChat) };
 });
+vi.mock("@/lib/email", () => ({
+  emailService: { send: vi.fn(), sendReporting: vi.fn(async () => ({ ok: true })) },
+}));
 vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
   return { ...actual, reportError: vi.fn().mockResolvedValue(undefined) };
@@ -31,6 +34,7 @@ import { POST } from "@/app/api/chat/[token]/route";
 import { eraseReservationData } from "@/lib/erasure";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { resolveGuestChat } from "@/lib/guest-chat";
+import { emailService } from "@/lib/email";
 
 const mockSuggest = vi.mocked(suggestReply);
 const DAY = 86_400_000;
@@ -177,5 +181,36 @@ describe("Y3 — QR yazması silme sınırının arkasında", () => {
     await prisma.reservation.update({ where: { id: reservationId }, data: { qrEscalationEmailMessageId: "crit:abcdef0123456789" } });
     await eraseReservationData(orgId, reservationId);
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } })).qrEscalationEmailMessageId).toBeNull();
+  });
+
+  it("🚨 kurucu kararı 10-14: silinen konaklamadan TEHLİKE bildirimi → ev sahibine METİNSİZ acil e-posta; kayıt yok", async () => {
+    vi.stubEnv("QR_ESCALATION_EMAIL_ENABLED", "1");
+    const { orgId, token, propertyId, reservationId } = await seedQr();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@ornek.com" } });
+    const before = await resolveGuestChat(token);
+    await eraseReservationData(orgId, reservationId);
+    vi.mocked(resolveGuestChat).mockResolvedValueOnce(before);
+    const r = await ask(token, "Mutfakta yangın var, duman çıkıyor!");
+    expect(r.body.closed).toBe(true);
+    const mail = vi.mocked(emailService.sendReporting);
+    expect(mail).toHaveBeenCalledTimes(1);
+    const html = String(mail.mock.calls[0]?.[2] ?? "");
+    expect(html).toContain("TEHLİKE bildirimi");
+    expect(html).not.toContain("Mutfakta");
+    expect(html).not.toContain("Zeynep");
+    expect((await leaks(propertyId)).messages).toBe(0);
+    // Silinmiş satıra metinden türemiş iz yazılmaz.
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } })).qrEscalationEmailMessageId).toMatch(/^erased-hazard:\d+$/);
+  });
+
+  it("KONTROL: silinen konaklamadan sıradan mesaj → e-posta YOK", async () => {
+    vi.stubEnv("QR_ESCALATION_EMAIL_ENABLED", "1");
+    const { orgId, token, reservationId } = await seedQr();
+    const before = await resolveGuestChat(token);
+    await eraseReservationData(orgId, reservationId);
+    vi.mocked(resolveGuestChat).mockResolvedValueOnce(before);
+    const r = await ask(token, "Wi-Fi şifresi nedir?");
+    expect(r.body.closed).toBe(true);
+    expect(vi.mocked(emailService.sendReporting)).not.toHaveBeenCalled();
   });
 });

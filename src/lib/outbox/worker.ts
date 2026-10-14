@@ -998,7 +998,25 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   // reply (host took over / AI paused / escalated / superseded) OR a lifecycle send whose
   // booking is cancelled/completed/already-sent/out-of-window is canceled — NEVER POSTed, and
   // never shown as sent or failed.
-  const deferUntil = await checkinNotYetDue(row, now);
+  // Gönderim öncesi okumalar (kardeş satırlar, silme kapısı, pencere) DB hatası verirse satır POST'suz GERİ bırakılır (Haiku 10-14: eskiden
+  // "sending"de kalıp süre dolunca "misafire ulaşmış olabilir" incelemesine düşüyordu — hiç gönderilmemiş mesaj için yanıltıcı).
+  let deferUntil: Date | null;
+  let veto: string | null = null;
+  try {
+    deferUntil = await checkinNotYetDue(row, now);
+    if (!deferUntil) veto = await sendTimeVeto(row, now);
+  } catch (err) {
+    void reportError(`outbox-veto-read org=${row.organizationId}`, err);
+    await settle(row, token, "sending", {
+      status: "pending",
+      availableAt: new Date(now.getTime() + 60_000),
+      attemptCount: { decrement: 1 },
+      claimedBy: null,
+      claimExpiresAt: null,
+      claimedAt: null,
+    });
+    return;
+  }
   if (deferUntil) {
     // Talep bırakılır, satır pencere açılınca yeniden talep edilir; bu talep bir DENEME sayılmaz (deneme tavanını yemesin).
     await settle(row, token, "sending", {
@@ -1012,7 +1030,6 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     });
     return;
   }
-  const veto = await sendTimeVeto(row, now);
   if (veto) {
     const canceled = await cancelRow(row, token, veto);
     acc.canceled++;

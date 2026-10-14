@@ -4431,6 +4431,12 @@ function onOrAfterTodayWhere(field: "arrivalDate" | "departureDate", now: Date, 
   return { OR: [{ [field]: { gte: zonedDayRange(now, tz).start } }, { [field]: { in: todayDateAnchors(now, tz) } }] };
 }
 
+/** Koşu başına TEK silme kapısı okuması (kuyruğa giriş öncesi ön eleme; işçi gönderim anında yeniden bakar). */
+function erasureGuardMemo(organizationId: string): () => ReturnType<typeof loadErasureGuard> {
+  let p: ReturnType<typeof loadErasureGuard> | null = null;
+  return () => (p ??= loadErasureGuard(organizationId));
+}
+
 /** Talep işlemi silme kilidini bekleyebilir (içe aktarım / silme sürerken) — varsayılan 5 sn döngüyü düşürmesin (Haiku 10-14). */
 const LIFECYCLE_CLAIM_TX = { timeout: 30_000, maxWait: 10_000 } as const;
 
@@ -4531,6 +4537,7 @@ export async function sendDueWelcomes(
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
+  const runErasureGuard = erasureGuardMemo(organizationId);
   for (const r of reservations) {
     const welcome = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "welcome", ...GUEST_DELIVERABLE_KB_WHERE },
@@ -4556,7 +4563,7 @@ export async function sendDueWelcomes(
     // dedupe-hit, so a scheduler replay / process restart never sends a second welcome. Flag
     // OFF → the proven claim-then-send below runs BYTE-FOR-BYTE as before.
     // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
-    if (durableOutboxEnabled() && r.sourceReference && (await loadErasureGuard(organizationId)).blocksSourceReference(r.sourceReference)) {
+    if (durableOutboxEnabled() && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
       continue;
     }
     if (durableOutboxEnabled() && r.sourceReference) {
@@ -4744,6 +4751,7 @@ export async function sendDueCheckins(
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
+  const runErasureGuard = erasureGuardMemo(organizationId);
   for (const r of reservations) {
     const tpl = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "checkin", ...GUEST_DELIVERABLE_KB_WHERE },
@@ -4765,7 +4773,7 @@ export async function sendDueCheckins(
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkinSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
     // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
-    if (durableOutboxEnabled() && r.sourceReference && (await loadErasureGuard(organizationId)).blocksSourceReference(r.sourceReference)) {
+    if (durableOutboxEnabled() && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
       continue;
     }
     if (durableOutboxEnabled() && r.sourceReference) {
@@ -5106,6 +5114,7 @@ export async function sendDueCheckouts(
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
+  const runErasureGuard = erasureGuardMemo(organizationId);
   for (const r of reservations) {
     const tpl = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "checkout", ...GUEST_DELIVERABLE_KB_WHERE },
@@ -5127,7 +5136,7 @@ export async function sendDueCheckouts(
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkoutSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
     // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
-    if (durableOutboxEnabled() && r.sourceReference && (await loadErasureGuard(organizationId)).blocksSourceReference(r.sourceReference)) {
+    if (durableOutboxEnabled() && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
       continue;
     }
     if (durableOutboxEnabled() && r.sourceReference) {

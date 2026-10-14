@@ -534,11 +534,21 @@ export function trialEndedEmail(settingsUrl: string): string {
 // ---------------------------------------------------------------------------
 export function qrEscalationEmail(
   propertyName: string,
-  reason: "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr" | "stay_message_cap" | "emergency_number" | "cancelled_stay",
+  reason:
+    | "ai_escalated"
+    | "daily_cap"
+    | "daily_budget"
+    | "daily_budget_qr"
+    | "stay_message_cap"
+    | "emergency_number"
+    | "cancelled_stay"
+    | "erased_stay_hazard",
   panelUrl: string,
 ): string {
   const reasonText =
-    reason === "cancelled_stay"
+    reason === "erased_stay_hazard"
+      ? "Bu dairenin QR misafir sohbetinden bir TEHLİKE bildirimi geldi (yangın, gaz, duman gibi). Konaklamanın kişisel verileri silindiği için mesaj kaydedilmedi. Dairede biri olabilir — lütfen hemen kontrol edin."
+      : reason === "cancelled_stay"
       ? "Bu dairenin İPTAL EDİLMİŞ bir rezervasyonu için QR misafir sohbetine yazıldı. Yapay zekâ cevap vermedi ve yapay zekâ kullanımınızdan düşülmedi; yazana yalnız \"sohbet kapalı\" gösterildi. Dairede biri olabilir — mesajı panelde okuyun."
       : reason === "emergency_number"
       ? "Misafir bir acil servisin numarasını sordu; yapay zekâ yalnız o numarayı gönderdi. Mesajı panelde okuyun — durum acil olabilir."

@@ -430,7 +430,7 @@ const SECRET_PATTERNS: RegExp[] = [
   // Haiku 10-14 son doğrulama: KAPI / GİRİŞ + "için" + değer + kullanım fiili ("Giriş için 6142 kullanın", "Kapı için 4590'ı girin") —
   // kod sözcüğü yok, değer bitişik değil. Fiil ŞART (fiyat / yıl / saat cümleleri elenmez: "Giriş için 1500 TL ödenir").
   // Araya en çok iki sözcük ("4590 numaralı kodu girin"); fiil yalnız EMİR / ulaç biçimiyle ("kullanım ücreti" fiil değil — Haiku 10-14).
-  new RegExp(`(?:kap[ıi]|giri[şs])[a-zçğıöşü]{0,6}\\s+i[çc]in\\s+${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?:\\s*['’][a-zçğıöşü]{0,4})?(?:\\s+[a-zçğıöşü]{1,12}){0,2}?\\s+(?:kullan|gir|yaz|tu[şs]la|bas)(?:y?[ıi]n(?:[ıi]z)?|y?abilirsiniz|ebilirsiniz|y?arak|erek)(?![a-zçğıöşü])`, "i"),
+  new RegExp(`(?:kap[ıi]|giri[şs])[a-zçğıöşü]{0,6}\\s+i[çc]in\\s+${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?:\\s*['’][a-zçğıöşü]{0,4})?(?:\\s+[a-zçğıöşü]{1,12}){0,2}?\\s+(?:kullan|gir|yaz|tu[şs]la|bas)(?:y?[ıi]n(?:[ıi]z)?|y?abilirsiniz|ebilirsiniz|y?arak|erek|m[ae](?:n[ıi]z|l[ıi]s[ıi]n[ıi]z)|[ıi]l(?:[ıi]r|arak|erek)|n(?:[ıi]r|arak))(?![a-zçğıöşü])`, "i"),
 ];
 
 /**

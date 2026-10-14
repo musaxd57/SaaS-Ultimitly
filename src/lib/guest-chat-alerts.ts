@@ -131,7 +131,10 @@ export type QrEscalationReason =
   | "daily_budget_qr"
   | "stay_message_cap"
   | "emergency_number"
-  | "cancelled_stay";
+  | "cancelled_stay"
+  // Kurucu kararı 10-14: konaklama istek sürerken AÇIKÇA silindi (KVKK) ama mesaj bir tehlike bildirimiydi — mesaj kaydedilmez, ev
+  // sahibine METİNSİZ acil uyarı gider (misafir adı / metni yok; tekilleştirme kimliği metinden türemez).
+  | "erased_stay_hazard";
 
 export function qrEscalationEmailEnabled(): boolean {
   return process.env.QR_ESCALATION_EMAIL_ENABLED === "1";
