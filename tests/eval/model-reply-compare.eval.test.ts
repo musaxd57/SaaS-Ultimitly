@@ -10,7 +10,7 @@ import { actionClaimsEnabled } from "@/lib/ai/action-claims";
 import { writeSidecar, uniqueReportName } from "./sidecar";
 import { storedRunRuntime, type EvalRuntime } from "./run-meta";
 import { GREETING, promiseInReply } from "./reply-metrics";
-import { PRICES, MUST_HOLD, languageMatches, factsHit } from "./reply-scoring";
+import { PRICES, MUST_HOLD, languageMatches, factsHit, factsStrict, factValue, type FactSpec } from "./reply-scoring";
 
 // ---------------------------------------------------------------------------
 // CEVAP MODELİ KIYASI (09-25, kurucu: "Luna 6'yı dene, 5.1'den iyiyse misafire o cevap versin; son karar senin").
@@ -54,7 +54,7 @@ interface Scenario {
   kb: "full" | "sparse";
   history?: { direction: "inbound" | "outbound"; body: string }[];
   message: string;
-  expect: { autoSend: "yes" | "no" | "any"; facts?: string[]; stayKind?: string };
+  expect: { autoSend: "yes" | "no" | "any"; facts?: FactSpec[]; stayKind?: string };
 }
 
 interface Dataset {
@@ -96,6 +96,8 @@ interface Row {
   auto?: boolean;
   gate?: string | null;
   facts?: boolean | null;
+  /** Y9 KATI olgu: olumlu + (varsa) alanına bağlı; eksik ile yanlış ayrı (`factsStrict`). Eski yan dosyada yok → rescore üretir. */
+  factsStrict?: { ok: boolean; missing: number; wrong: number } | null;
   u?: number | null;
   uc?: string[];
   intent?: string;
@@ -206,6 +208,7 @@ async function runOne(s: Scenario): Promise<Row> {
       auto: gate === null,
       gate,
       facts: factsHit(s.expect.facts, reply),
+      factsStrict: factsStrict(s.expect.facts, reply),
       u: r.claimAudit?.u ?? null,
       uc: r.claimAudit?.uc ?? [],
       intent: r.intent,
@@ -263,6 +266,7 @@ export function rescore(row: Row, scenario: Scenario | undefined): Row {
     ...row,
     expectAuto: scenario.expect.autoSend,
     facts: factsHit(scenario.expect.facts, reply),
+    factsStrict: factsStrict(scenario.expect.facts, reply),
     langOk: languageMatches(scenario.lang, reply),
     greetRepeat: priorOutbound ? GREETING.test(reply) : null,
     promise: promiseInReply(reply),
@@ -299,6 +303,11 @@ export function summarize(rows: Row[], model: string): string[] {
     `| otomatik cevap (cevabı KB'de olan soru) | ${pct(grounded.filter((r) => r.auto).length, grounded.length)} |`,
     `| doğru olgu cevapta (şifre/kod/saat/tutar) | ${pct(withFacts.filter((r) => r.facts).length, withFacts.length)} |`,
     `| doğru olgu + otomatik gider | ${pct(withFacts.filter((r) => r.facts && r.auto).length, withFacts.length)} |`,
+    // Y9 (10-14 dış inceleme): gevşek satır "değer cevapta bir yerde geçti" der; KATI satır olumluluk + alan bağını da ister ve
+    // EKSİK (dürüst devir dahil) ile YANLIŞ (olumsuz / başka alana bağlı) ayrı sayılır. Kapı değildir (yüzde zorunluluğu yok).
+    `| doğru olgu — KATI (olumlu, alanına bağlı) | ${pct(withFacts.filter((r) => r.factsStrict?.ok).length, withFacts.length)} |`,
+    `| olgu YANLIŞ (olumsuz / başka alana bağlı) | ${pct(withFacts.filter((r) => (r.factsStrict?.wrong ?? 0) > 0).length, withFacts.length)} |`,
+    `| olgu EKSİK (cevapta yok; devir dahil) | ${pct(withFacts.filter((r) => (r.factsStrict?.missing ?? 0) > 0).length, withFacts.length)} |`,
     `| UYDURMA: desteksiz somut iddia (bilgi soruları) | ${pct(fabricated.length, info.length)} |`,
     `| UYDURMA: bilgisi olmayan soruda | ${pct(missing.filter((r) => (r.u ?? 0) > 0).length, missing.length)} |`,
     `| bilgisi olmayan soru otomatik gider | ${pct(missing.filter((r) => r.auto).length, missing.length)} |`,
@@ -449,7 +458,7 @@ describe("model kıyası — çevrimdışı pinler (gerçek çağrı YAPMAZ)", (
       const hay = [...data.kbSets[s.kb].map((k) => `${k.title} ${k.content}`), data.property.checkInTime, data.property.checkOutTime]
         .join("\n")
         .toLocaleLowerCase("tr");
-      for (const f of s.expect.facts) expect(hay.includes(f.toLocaleLowerCase("tr")), `${s.id}: ${f}`).toBe(true);
+      for (const f of s.expect.facts) expect(hay.includes(factValue(f).toLocaleLowerCase("tr")), `${s.id}: ${factValue(f)}`).toBe(true);
     }
   });
 

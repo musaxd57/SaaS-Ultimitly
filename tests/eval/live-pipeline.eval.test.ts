@@ -50,7 +50,7 @@ import { emailService } from "@/lib/email";
 import { applyChannelAutoReply } from "@/lib/automation";
 import { suggestReply } from "@/lib/ai";
 import { warmPropertyKbVectors } from "@/lib/ai/embeddings/kb-warm";
-import { MUST_HOLD, factsHit, languageMatches, priceFor } from "./reply-scoring";
+import { MUST_HOLD, factsHit, factsStrict, languageMatches, priceFor, type FactSpec } from "./reply-scoring";
 import { detectAvailabilityClaim } from "@/lib/ai/availability-claims";
 import { greetingLine } from "@/lib/ai/code-greeting";
 import { GREETING, promiseInReply } from "./reply-metrics";
@@ -73,7 +73,7 @@ interface Scenario {
   tone?: string;
   expect: {
     autoSend: "yes" | "no" | "any";
-    facts?: string[];
+    facts?: FactSpec[];
     /** Anahtar AÇIKKEN beklenen ilk satır: adlı selam · adsız selam · selam yok. */
     greeting?: "named" | "nameless" | "none";
     greetName?: string;
@@ -292,6 +292,8 @@ interface Row {
   emails: number;
   factsSent: boolean | null;
   factsDraft: boolean | null;
+  /** Y9 KATI olgu (misafire giden metin): olumlu + alanına bağlı; eksik / yanlış ayrı. */
+  factsSentStrict?: { ok: boolean; missing: number; wrong: number } | null;
   langOk: boolean | null;
   promise: boolean;
   greetingRepeat: boolean;
@@ -423,6 +425,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     heldItems: items.filter((i) => i.status === "pending_host").length,
     emails: mockMail.mock.calls.length,
     factsSent: sentText ? factsHit(s.expect.facts, sentText) : s.expect.facts?.length ? false : null,
+    factsSentStrict: sentText ? factsStrict(s.expect.facts, sentText) : null,
     factsDraft: draft ? factsHit(s.expect.facts, draft) : s.expect.facts?.length ? false : null,
     langOk: sentText ? languageMatches(s.lang, sentText) : null,
     promise: sentText ? promiseInReply(sentText) : false,
@@ -495,6 +498,9 @@ export function summarizeLive(rows: Row[]): string[] {
     `| misafire giden (cevabı KB'de olan soru) | ${pct(grounded.filter((r) => r.sent).length, grounded.length)} |`,
     `| doğru olgu MİSAFİRE GİDEN metinde | ${pct(withFacts.filter((r) => r.factsSent === true).length, withFacts.length)} |`,
     `| doğru olgu modelin taslağında (gitmese de) | ${pct(withFacts.filter((r) => r.factsDraft === true).length, withFacts.length)} |`,
+    // Y9 (10-14): katı satır — olumlu + alanına bağlı; YANLIŞ (olumsuz / başka alana bağlı) EKSİKTEN ayrı. Kapı değil.
+    `| doğru olgu MİSAFİRE GİDEN — KATI | ${pct(withFacts.filter((r) => r.factsSentStrict?.ok).length, withFacts.length)} |`,
+    `| 🚨 YANLIŞ olgu misafire giden metinde (olumsuz / başka alana bağlı) | ${pct(withFacts.filter((r) => (r.factsSentStrict?.wrong ?? 0) > 0).length, withFacts.length)} |`,
     `| bilgisi olmayan soruda misafire giden | ${pct(missing.filter((r) => r.sent).length, missing.length)} |`,
     `| 🚨 bekleme sözü misafire giden metinde (hedef 0) | ${pct(ok.filter((r) => r.promise).length, ok.filter((r) => r.sent).length)} |`,
     `| dil uyumu misafire giden (TR dışı) | ${pct(nonTr.filter((r) => r.langOk).length, nonTr.length)} |`,

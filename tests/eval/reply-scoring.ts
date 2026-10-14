@@ -53,16 +53,68 @@ export function languageMatches(lang: string, reply: string): boolean {
  * Beklenen olguların HEPSİ cevapta mı. U20 (Codex 10-07): olgu rakamla başlıyor / bitiyorsa o uçta RAKAM SINIRI aranır — düz alt dize
  * `factsHit(["11"], "Daire 110")`ı doğru sayıyordu. Harf içeren olgu (ör. "Wi-Fi") eskisi gibi alt dize.
  */
-export function factsHit(facts: string[] | undefined, reply: string): boolean | null {
+export function factsHit(facts: readonly FactSpec[] | undefined, reply: string): boolean | null {
   if (!facts || facts.length === 0) return null;
   const r = reply.toLocaleLowerCase("tr");
-  return facts.every((f) => {
-    const needle = f.toLocaleLowerCase("tr");
-    for (let i = r.indexOf(needle); i !== -1; i = r.indexOf(needle, i + 1)) {
-      const before = /\d/.test(needle[0] ?? "") && /\d/.test(r[i - 1] ?? "");
-      const after = /\d/.test(needle[needle.length - 1] ?? "") && /\d/.test(r[i + needle.length] ?? "");
-      if (!before && !after) return true;
-    }
-    return false;
-  });
+  return facts.every((f) => occurrences(r, factValue(f).toLocaleLowerCase("tr")).length > 0);
+}
+
+/**
+ * Olgu: düz değer ("11:00") ya da ALANINA bağlı değer ({ value: "11:00", field: ["çıkış", "check-out"] }) — Y9 (10-14 dış inceleme).
+ * Gevşek ölçü (`factsHit`) ikisinde de yalnız değeri arar (gelişim çizgisi bozulmasın); KATI ölçü (`factVerdict`) alanı da arar.
+ */
+export type FactSpec = string | { value: string; field?: readonly string[] };
+export const factValue = (f: FactSpec): string => (typeof f === "string" ? f : f.value);
+
+/** Değerin rakam sınırlı geçişleri (↑U20 kuralı). */
+function occurrences(r: string, needle: string): number[] {
+  const out: number[] = [];
+  for (let i = r.indexOf(needle); i !== -1; i = r.indexOf(needle, i + 1)) {
+    const before = /\d/.test(needle[0] ?? "") && /\d/.test(r[i - 1] ?? "");
+    const after = /\d/.test(needle[needle.length - 1] ?? "") && /\d/.test(r[i + needle.length] ?? "");
+    if (!before && !after) out.push(i);
+  }
+  return out;
+}
+
+/** Cümlecik sınırı: ardında boşluk / son gelen nokta-ünlem-soru-noktalı virgül, satır sonu, ardında boşluk gelen virgül
+ *  ("15.00" ve "1,5" bölünmez). */
+const CLAUSE_BREAK = /[.!?;](?=\s|$)|,(?=\s)|\n/g;
+/** Değerin HEMEN ardında / önünde olumsuzlama ("11:00 değildir", "is not 11:00", "isn't at 11:00", "nicht um 11:00"). */
+const NEG_AFTER = /^\s*(?:['’]\p{L}{0,4})?\s*(?:(?:değil|degil|olmaz)\p{L}{0,6}|(?:isn'?t|is\s+not|not)(?![\p{L}]))/iu;
+const NEG_BEFORE = /(?:^|[^\p{L}])(?:not|isn'?t|is\s+not|never|nicht|kein\p{L}{0,3}|değil)\s+(?:\p{L}{1,10}\s+)?$/iu;
+
+export type FactVerdict = "ok" | "missing" | "negated" | "misattributed";
+
+/**
+ * KATI olgu hükmü (Y9): değer cevapta OLUMLU ve (alan verildiyse) alanıyla AYNI cümlecikte geçmeli. "Çıkış 11:00 değildir" → negated;
+ * "Çıkış 150 TL, otopark 11:00" ({11:00, çıkış}) → misattributed; hiç yoksa (dürüst devir dahil) → missing — eksik ile YANLIŞ ayrı sınıf.
+ */
+export function factVerdict(spec: FactSpec, reply: string): FactVerdict {
+  const r = reply.toLocaleLowerCase("tr");
+  const needle = factValue(spec).toLocaleLowerCase("tr");
+  const at = occurrences(r, needle);
+  if (at.length === 0) return "missing";
+  const fields = typeof spec === "string" ? null : (spec.field ?? null)?.map((f) => f.toLocaleLowerCase("tr")) ?? null;
+  const breaks = [...r.matchAll(CLAUSE_BREAK)].map((m) => m.index ?? 0);
+  let sawNegated = false;
+  for (const i of at) {
+    const start = breaks.filter((b) => b < i).pop() ?? -1;
+    const end = breaks.find((b) => b >= i + needle.length) ?? r.length;
+    const clause = r.slice(start + 1, end);
+    const negated = NEG_AFTER.test(r.slice(i + needle.length, i + needle.length + 16)) || NEG_BEFORE.test(r.slice(Math.max(0, i - 24), i));
+    const attributed = !fields || fields.some((f) => clause.includes(f));
+    if (attributed && !negated) return "ok";
+    if (attributed && negated) sawNegated = true;
+  }
+  return sawNegated ? "negated" : "misattributed";
+}
+
+/** Senaryonun bütün olguları için KATI özet: hepsi doğru mu; kaçı eksik, kaçı yanlış (olumsuz / başka alana bağlı). */
+export function factsStrict(facts: readonly FactSpec[] | undefined, reply: string): { ok: boolean; missing: number; wrong: number } | null {
+  if (!facts || facts.length === 0) return null;
+  const v = facts.map((f) => factVerdict(f, reply));
+  const missing = v.filter((x) => x === "missing").length;
+  const wrong = v.filter((x) => x === "negated" || x === "misattributed").length;
+  return { ok: missing === 0 && wrong === 0, missing, wrong };
 }
