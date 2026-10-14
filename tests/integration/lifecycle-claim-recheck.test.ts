@@ -266,4 +266,45 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(posts).toBe(1);
   });
+
+  it("🚨 başka mülkteki BEKLEYEN / geçmiş kopya onaylı rezervasyonun giriş mesajını 'window_passed' ile iptal ETMEZ (Haiku 10-14 son tur)", async () => {
+    const orgId = await seed("checkin");
+    await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
+    const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Başka Daire" } });
+    // Aynı kaynak kimliği, bir ay ÖNCE bitmiş, "pending" kopya — en erken varış o; eski seçim onu alıp "window_passed" diyordu.
+    await prisma.reservation.create({
+      data: {
+        propertyId: other.id,
+        guestName: a.guestName,
+        arrivalDate: new Date(Date.now() - 35 * DAY),
+        departureDate: new Date(Date.now() - 30 * DAY),
+        channel: "airbnb",
+        status: "pending",
+        sourceReference: "res-a",
+      },
+    });
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    let posts = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++posts}` });
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(posts).toBe(1);
+  });
+
+  it("🚨 onaylı kopya kalmadıysa erteleme satırın KENDİ rezervasyonunun tarihine bakar (kapı kodu haftalar önce gitmez)", async () => {
+    const orgId = await seed("checkin");
+    await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    await prisma.reservation.updateMany({
+      where: { sourceReference: "res-a" },
+      data: { status: "pending", arrivalDate: new Date(Date.now() + 40 * DAY), departureDate: new Date(Date.now() + 43 * DAY) },
+    });
+    let posts = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++posts}` });
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(posts).toBe(0);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(row.status).toBe("pending");
+    expect(row.availableAt.getTime()).toBeGreaterThan(Date.now() + 30 * DAY);
+  });
 });

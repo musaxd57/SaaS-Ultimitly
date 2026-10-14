@@ -245,7 +245,7 @@ async function claimBatchLocked(
   //   ranked  — adds, per externalReservationId: `rn` (rank of this row among the batch's
   //             candidates for that reservation) and `recent` (how many provider ATTEMPTS
   //             that reservation already made in the last 60s, counted by claimedAt — which
-  //             every claim stamps and settle never clears). window functions can't sit
+  //             every claim stamps; settle clears it only for a no-POST deferral). window functions can't sit
   //             under FOR UPDATE, hence the separate layer.
   //   filter  — HOSPITABLE 2/min/RESERVATION (Codex P1): a SEND claim is allowed only when
   //             `rn + recent <= 2`, i.e. prior-window attempts + this row's rank stay within
@@ -277,8 +277,8 @@ async function claimBatchLocked(
                ) AS rn,
                (
                  -- Prior provider ATTEMPTS for this same (org, reservation) in the last 60s.
-                 -- claimedAt is stamped on every claim and never cleared by settle, so it is
-                 -- the true "last attempt" clock. (org-scoped: a Hospitable reservation UUID is
+                 -- claimedAt is stamped on every claim; settle clears it ONLY for a no-POST deferral
+                 -- (checkin window not open), so it is the true "last attempt" clock. (org-scoped: a Hospitable reservation UUID is
                  -- globally unique in prod, but scoping to the org is stricter and cheaper.)
                  SELECT count(*) FROM "MessageOutbox" h
                  WHERE h."organizationId" = locked."organizationId"
@@ -506,13 +506,21 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   const siblings = await prisma.reservation.findMany({
     where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
     select: {
-      status: true, arrivalDate: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
+      id: true, status: true, arrivalDate: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
       // Org timezone for the checkout window rule below (same lookup, no extra query).
       property: { select: { organization: { select: { timezone: true } } } },
     },
     orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
   });
-  const res = siblings.find((r) => r.status !== "cancelled") ?? siblings[0] ?? null;
+  // Öncelik (Haiku 10-14 son tur): satırın KENDİ rezervasyonu (iptal değilse) → onaylı kopya → iptal olmayan kopya → herhangi biri.
+  // Başka mülkteki "bekliyor / tamamlandı" bir kopya ("window_passed", "reservation_completed") canlı rezervasyonun mesajını kalıcı
+  // iptal etmesin — kuyruğa giriş de onaylı satırı seçer.
+  const res =
+    siblings.find((r) => r.id === row.reservationId && r.status !== "cancelled") ??
+    siblings.find((r) => r.status === "confirmed") ??
+    siblings.find((r) => r.status !== "cancelled") ??
+    siblings[0] ??
+    null;
   if (!res) return "reservation_gone";
   if (res.status === "cancelled") return "reservation_cancelled";
   // A completed stay is stale for welcome/check-in, but a CHECK-OUT is legitimately due on the
@@ -561,11 +569,17 @@ async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null>
   if (row.messageType !== "checkin" || !row.externalReservationId) return null;
   // Rezervasyonun ONAYLI satırlarının EN ERKEN varışı (kardeş çift satır sıradan / keyfi seçilmez — bir kardeşin uzak tarihi gönderici
   // her geçişte vadeyi şimdiye çekerken işçinin her seferinde ertelemesi döngüsü doğurmasın). Onaylı satır yoksa diğer vetolar karar verir.
-  const earliest = await prisma.reservation.findFirst({
-    where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId }, status: "confirmed" },
-    orderBy: { arrivalDate: "asc" },
-    select: { arrivalDate: true },
-  });
+  const earliest =
+    (await prisma.reservation.findFirst({
+      where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId }, status: "confirmed" },
+      orderBy: { arrivalDate: "asc" },
+      select: { arrivalDate: true },
+    })) ??
+    // Onaylı kopya yoksa (ör. "bekliyor"a döndü) satırın KENDİ rezervasyonunun tarihi — açık kalmasın (Haiku 10-14 son tur): kapı kodu
+    // haftalar önce gitmesin. İptal / tamamlanma hükmünü ↓veto verir.
+    (row.reservationId
+      ? await prisma.reservation.findUnique({ where: { id: row.reservationId }, select: { arrivalDate: true } })
+      : null);
   if (!earliest) return null;
   const opensAt = earliest.arrivalDate.getTime() - CHECKIN_LEAD_DAYS * 86_400_000;
   return opensAt > now.getTime() ? new Date(opensAt) : null;
