@@ -491,6 +491,10 @@
 - NEZAKET KOŞUL DEĞİLDİR — tek kaynak `ai/polite-conditional.ts` (Y1, 10-14): tehlike okuyucusu VE dedektör sesi okuyucusu aynı listeyi
   boşaltır (devam / geriye atıf cümleleri dahil). Belirsizlik ("I'm not sure if") yalnız tehlike okuyucusunda koşul değil; dedektör
   okuyucusunda soru kalır. Ev sahibi uyarı yolunda (oto-yanıt kapalı) açık tehlike = kanal ağı VE tehlike okuyucusu (açık / olası) birlikte (Y6).
+- 🚨 OLASI TEHLİKE + MODEL YOK = EV SAHİBİNE (10-14, Haiku ikinci tur; kurucu kararı "kısa devre → model karar versin"): "olası" düzeyde kararı
+  anlama katmanı verir; katman koşmadıysa (kapalı / düştü) `hazardDecisionFor().unverifiedPossible` → QR `physical_hazard`, kanal `lexical_risk`
+  (tur tutulur, öğe kipinde de). Eskiden `emergency` hükmü hesaplanıp HİÇBİR kapıda okunmuyordu: kelime ağının sessiz kaldığı "Kısa devre oldu,
+  wifi şifresi neydi?" model düşünce cevap modelinin "risk yok"una kalıp gidiyordu. Kelime ağının işaretlediği metinde bugünkü gerekçe aynen.
 
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)
 - Çizgi dizisi (3+ ═ ━ ─ ┄ ┅ ┈ ┉ ╌ ╍ = ＝, aralarında tek boşluk olabilir) ±40 karakter içinde (satır sonunu geçerek) SİSTEM / KURAL / TALİMAT /
