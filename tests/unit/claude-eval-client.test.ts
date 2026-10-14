@@ -90,6 +90,11 @@ describe("Claude ölçer istemcisi — JSON ayıklama", () => {
     expect(extractJson('Here you go:\n```json\n[{"a":1}]\n```\nThanks')).toEqual([{ a: 1 }]);
     expect(extractJson('[not] {"items":[{"a":1}]}')).toEqual({ items: [{ a: 1 }] });
   });
+  it("Haiku 10-14: önce gelen çitli ÖRNEK ve açıklamadaki köşeli parantez gerçek cevabın yerine geçmez", () => {
+    const withExample = 'Format example:\n```json\n[{"i":0}]\n```\nAnswer:\n```json\n[{"i":0,"belongs":true},{"i":1,"belongs":false}]\n```';
+    expect(extractJson(withExample)).toEqual([{ i: 0, belongs: true }, { i: 1, belongs: false }]);
+    expect(extractJson('[not] [{"a":1},{"a":2}]')).toEqual([{ a: 1 }, { a: 2 }]);
+  });
   it("dizi bekleyen çağıran {items} sarmalını da kabul eder, başka biçimde kalıcı hata", () => {
     expect(asArray({ items: [1, 2] })).toEqual([1, 2]);
     expect(asArray([3])).toEqual([3]);

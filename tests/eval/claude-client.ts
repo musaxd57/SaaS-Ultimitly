@@ -30,33 +30,33 @@ export class ClaudeFatalError extends Error {
 }
 
 /**
- * Cevaptaki JSON. Sıra: bütün metin → ```json çiti → ilk `[` / `{` ile SON eşi arası. Model önüne açıklama ("[not] …") koysa da
- * çit ya da bütün metin önce denenir; hiçbiri ayrışmazsa `ClaudeFatalError`.
+ * Cevaptaki JSON. Adaylar: bütün metin · her ```json çiti · ilk birkaç `[` / `{` konumundan SON eşine kadar. Ayrışan adaylardan EN UZUN
+ * kaynaklı olan seçilir (Haiku 10-14 ikinci tur: önce gelen çitli bir ÖRNEK ya da açıklamadaki "[not]" gerçek cevabın yerine geçmesin).
+ * Hiçbiri ayrışmazsa `ClaudeFatalError`.
  */
 export function extractJson<T>(text: string): T {
   const attempts: string[] = [text.trim()];
-  const fence = /```(?:json)?\s*([\s\S]*?)```/u.exec(text);
-  if (fence?.[1]) attempts.push(fence[1].trim());
-  const startObj = text.indexOf("{");
-  const startArr = text.indexOf("[");
-  const start = startArr >= 0 && (startObj < 0 || startArr < startObj) ? startArr : startObj;
-  if (start >= 0) {
-    const end = start === startArr ? text.lastIndexOf("]") : text.lastIndexOf("}");
-    if (end > start) attempts.push(text.slice(start, end + 1));
-    // Öndeki köşeli parantezli not ("[not] {…}") ilk adayı bozarsa nesne adayı da denenir.
-    if (start === startArr && startObj > start) {
-      const endObj = text.lastIndexOf("}");
-      if (endObj > startObj) attempts.push(text.slice(startObj, endObj + 1));
+  for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gu)) if (m[1]) attempts.push(m[1].trim());
+  for (const [open, close] of [["[", "]"], ["{", "}"]] as const) {
+    const end = text.lastIndexOf(close);
+    let from = -1;
+    for (let k = 0; k < 5; k++) {
+      from = text.indexOf(open, from + 1);
+      if (from < 0 || from >= end) break;
+      attempts.push(text.slice(from, end + 1));
     }
   }
+  let best: { value: unknown; len: number } | null = null;
   for (const a of attempts) {
     try {
-      return JSON.parse(a) as T;
+      const value = JSON.parse(a) as unknown;
+      if (value !== null && typeof value === "object" && (!best || a.length > best.len)) best = { value, len: a.length };
     } catch {
       /* sıradaki aday */
     }
   }
-  throw new ClaudeFatalError("Claude cevabı JSON değil");
+  if (!best) throw new ClaudeFatalError("Claude cevabı JSON değil");
+  return best.value as T;
 }
 
 /** Dizi bekleyen çağıran için: düz dizi ya da `{ items | results | data: [...] }` sarmalı. Başka biçim kalıcı hata. */
