@@ -396,11 +396,20 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   bağlı; eksik ≠ yanlış) · Y10 KB içe aktarım tekrarı, demo telefon yapıştırma, kayıt ekranı adresi, onay penceresi odağı.
 - AÇIK (kurucu): KB içe aktarımında bağlantı koptuğu anda sunucuya ulaşmış kalem yeniden denemede İKİNCİ kez eklenebilir — sunucu tarafı
   tekrar güvenliği (istek kimliği) migration ya da aynı-içerik kontrolü ister; "kısa devre oldu" acil mi arıza mı (elektrik tabanı dışında).
+  → **KARAR (kurucu 10-14): "kısa devre" → "Model karar versin"** — QR'da "olası" düzeyi (model koşmazsa acil sayılır), kanal ağı
+  değişmedi; eval `conversation-items.json` iki senaryo (bf76f19).
 - AÇIK (tasarım, kalıcı kuyruk KAPALI olduğu için bugün etkisiz): yeniden bağlanmış rezervasyonun (aynı kaynak kimliği, birden çok mülk
   satırı) eski kopyaları — hangi kopyanın canlı olduğu (son güncellenen mi, onaylı mı) tek kuralla belirlenmeli; bugün kuyruk satırının
   kendi rezervasyonu → onaylı kopya önceliği. Bayrak kapalı yolda gönderim sonrası yeni kopya ikinci giriş mesajı alabilir (eskiden beri).
 - AÇIK (kurucu): QR'da konaklama istek sürerken SİLİNİRSE (KVKK) o istekteki tehlike mesajı için ev sahibine uyarı da gitmiyor —
   "silinmiş konaklama hiç işlenmez" mi, "acil uyarı yine gider (metinsiz)" mi?
+  → **KARAR (kurucu 10-14): "Uyarı gitsin, metinsiz"** — açık tehlike (iki ağdan biri) ev sahibine misafir metni / adı OLMADAN acil
+  e-posta, kayıt yazılmaz; saatlik tekilleştirme izi metinden türemez (`qr-erasure-race.test.ts`, bf76f19).
+- AÇIK (kurucu, RAG ölçümü 10-14 `docs/olcum/rag-lab-2026-10-14.md` sonu): 300 kalemlik bilgi tabanında iki sorulu mesajın bir cevabı
+  3/39 kez bloğa girmiyor (sıralayıcı 8.–13. sıraya koyuyor, blok 12 parçada doluyor). Aynı sıralayıcı çıktısıyla geniş bütçe
+  (`KB_RETRIEVAL_WIDE_BUDGET=1`, kapalı — sizin "hazırla, sonra aç" kararınız) 38/39, sızıntı 0; bedeli istem başına bilgi bloğu ~4 kat
+  (ortalama 2,1k → 8,4k karakter). Bugünkü 10 dairelik canlıda (mülk başına ≤60 kalem) fark yok; büyük bilgi tabanlı müşteride var.
+  Açalım mı, ilk müşteri büyüyünce mi?
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
 
