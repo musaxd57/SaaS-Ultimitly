@@ -251,6 +251,11 @@ describe("yedi dil", () => {
     ["Mutfakta gaz kokusu var!", "clear"],
     ["Elektrik çarptı, kolum uyuşuyor.", "clear"],
     ["Prizden kıvılcım çıkıyor.", "clear"],
+    // Kaçak akım (10-14): önce hiçbir ağa takılmıyordu.
+    ["Kahve makinesi kaçak akım yapıyor.", "clear"],
+    ["Çamaşır makinesi akım kaçırıyor, dokununca çarpıyor.", "clear"],
+    ["Banyoda elektrik kaçağı var.", "clear"],
+    ["The kettle has an electrical leak, I felt a tingle.", "clear"],
     ["Mein Sohn hat beim Einstecken des Ladegeräts einen Stromschlag bekommen.", "clear"],
     ["There's smoke coming from the bedroom!", "possible"],
     ["Yanık kokusu var.", "possible"],
@@ -553,5 +558,25 @@ describe("U3 — aktif tehlike zararsız metinle bastırılamaz", () => {
     ["Can we use the fireplace?", "none"],
   ])("KONTROL (değişmez): %s → %s", (text, level) => {
     expect(hazardEvidenceOf(text).level).toBe(level);
+  });
+});
+
+describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
+  it.each([
+    "Kahve makinesi kaçak akım yapıyor.",
+    "Çamaşır makinesi akım kaçırıyor.",
+    "The kettle has an electrical leak.",
+  ])("%j → kanal safety_emergency", (m) => {
+    expect(isSafetyEmergencyText(m)).toBe(true);
+  });
+  it.each(["Kaçak akım rölesi nerede?", "Kaçak akım şalteri attı, nasıl açarım?"])(
+    "KONTROL: %j cihaz (RCD) sorusu — acil değil",
+    (m) => {
+      expect(isSafetyEmergencyText(m)).toBe(false);
+      expect(level(m)).not.toBe("clear");
+    },
+  );
+  it("KONTROL: şalter adı + olay işareti → yine acil", () => {
+    expect(isSafetyEmergencyText("Kaçak akım şalteri yanıyor, duman çıkıyor!")).toBe(true);
   });
 });

@@ -2089,6 +2089,8 @@ const SAFETY_CRITICAL_WORDS = [
   // the TR equivalents were not). Over-matching is the safe side — it only ever
   // withholds a holding-ack and forces the silent-escalate path.
   "elektrik kaçağı", "elektrik kacagi", "elektrik kaçag", "kaçak yapıyor", "kacak yapiyor",
+  // Kaçak akım (10-14): "Kahve makinesi kaçak akım yapıyor" hiçbir ağa takılmıyordu.
+  "kaçak akım", "kacak akim", "akım kaçır", "akim kacir", "electrical leak", "current leak", "leaking current",
   // "priz yanı" / "kablo yanı" alt dizesi "priz YANINDA / yanına" (yan = taraf) içinde acil üretiyordu ("Kumanda priz yanında mı?",
   // 10-02 kurucu onayı) → yanma bildiren biçimler açıkça: yanıyor / yandı / yanm(ış/aya) / yanık.
   "kıvılcım", "kivilcim", "priz yanıyor", "priz yandı", "priz yanm", "priz yanık", "priz kıvılcım",
@@ -2373,6 +2375,9 @@ const SAFETY_PLACE_PATTERNS: readonly RegExp[] = [
   /fire\s*(?:-\s*)?(?:extinguishers?|blankets?)(?![\p{L}\p{N}])/gu,
   // "Where is the nearest gas station?" (benzin istasyonu) bir yer sorusu — "police station" ile aynı sınıf (10-02 kurucu onayı).
   /gas\s+stations?(?![\p{L}\p{N}])/gu,
+  // "Kaçak akım rölesi / şalteri nerede?" bir cihaz (RCD) sorusu — "yangın söndürücü" ile aynı sınıf (10-14). Olay işareti varsa
+  // ("dokununca çarpıyor") nötrlenmez (↓`hasIncidentContext`).
+  /ka[cç]ak\s+ak[iı]m\s+(?:r[oö]le|[sş]alter|anahtar|sigorta)\p{L}{0,8}/gu,
 ];
 /**
  * SÖZCÜK ÖBEĞİ / DEYİM ACİL DEĞİLDİR (10-02 sabah, kurucu: "canlıda bulunan hatayı düzelt … en mantıklı yararlı şekilde"): acil sözcüğü
@@ -2429,6 +2434,7 @@ const NON_EMERGENCY_NEEDLES: ReadonlyMap<RegExp, readonly string[]> = new Map<Re
   [SAFETY_PLACE_PATTERNS[2], ["yangin", "yangın"]],
   [SAFETY_PLACE_PATTERNS[3], ["fire"]],
   [SAFETY_PLACE_PATTERNS[4], ["gas"]],
+  [SAFETY_PLACE_PATTERNS[5], ["kacak", "kaçak"]],
   [NOT_URGENT_PATTERNS[0], ["acil", "acıl"]],
   [NOT_URGENT_PATTERNS[1], ["acil", "acıl"]],
   [NOT_URGENT_PATTERNS[2], ["emergency"]],

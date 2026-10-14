@@ -214,8 +214,8 @@ const MENTION: Record<HazardKind, RegExp> = {
     `(?:فيضان|غمرت\\s+المياه|تسرب\\s+(?:ال)?مياه|تسريب\\s+(?:ال)?مياه|الماء\\s+يتسرب)`,
   ]),
   electric: rxg([
-    `${NL}(?:elektrik\\s+carp${LB}|carpildi${LB}|carpildim|akim\\s+carp${LB}|kivilcim${LB})`,
-    `${NL}(?:electric\\s+shock|electrocut${LB}|got\\s+shocked|shocked\\s+me|sparks?|sparking)${NR}`,
+    `${NL}(?:elektrik\\s+carp${LB}|carpildi${LB}|carpildim|akim\\s+carp${LB}|kivilcim${LB}|kacak\\s+akim${LB}|akim\\s+kacir${LB}|elektrik\\s+kacag${LB})`,
+    `${NL}(?:electric\\s+shock|electrocut${LB}|got\\s+shocked|shocked\\s+me|sparks?|sparking|(?:electrical|current)\\s+leak${LB}|leaking\\s+(?:current|electricity))${NR}`,
     `${NL}(?:stromschlag|elektrischen\\s+schlag|funken${LB})${NR}`,
     `${NL}(?:électrocut${LB}|electrocut${LB}|décharge\\s+électrique|étincelle${LB}|etincelle${LB})`,
     `${NL}(?:descarga\\s+eléctrica|descarga\\s+electrica|electrocut${LB}|chispa${LB})`,
@@ -393,6 +393,10 @@ const CLEAR_WATER_ELECTRIC = rx([
 ]);
 const CLEAR_ELECTRIC = rx([
   `${NL}(?:elektrik\\s+carpti|elektrik\\s+carpiyor|carpildi${LB}|carpildim|akim\\s+carpti)`,
+  // Kaçak akım = dokunan çarpılır (kurucu 10-14 taraması: "Kahve makinesi kaçak akım yapıyor" hiçbir ağa takılmıyordu; kanal ağında
+  // "elektrik kaçağı" vardı, burada yoktu — iki ağ eşit).
+  `${NL}(?:kacak\\s+akim${LB}|akim\\s+kacir${LB}|elektrik\\s+kacag${LB})`,
+  `${NL}(?:(?:electrical|current)\\s+leak${LB}|leaking\\s+(?:current|electricity))${NR}`,
   `${NL}(?:electric\\s+shock|electrocuted|got\\s+(?:an\\s+)?(?:electric\\s+)?shock(?:ed)?|shocked\\s+me)${NR}`,
   `${NL}(?:stromschlag|elektrischen\\s+schlag)${NR}`,
   `${NL}(?:électrocuté${LB}|electrocute${LB}|décharge\\s+électrique|decharge\\s+electrique)`,
