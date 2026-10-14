@@ -70,6 +70,9 @@ const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 beforeEach(async () => {
   await resetDb();
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
+  // Y5 (10-14): genel kapatma kapalıyken işçi otomatik satırı (ai / karşılama / giriş / çıkış) talep ETMEZ — bu dosya canlı ayarı ölçer.
+  vi.stubEnv("AUTO_REPLY_ENABLED", "1");
   session = null;
 });
 

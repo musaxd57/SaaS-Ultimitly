@@ -49,12 +49,15 @@ function jsClockBehind() {
 
 describe("kuyruk vade kapısı — enqueue ile worker aynı saat", () => {
   beforeEach(async () => {
+    // Y5 (10-14): genel kapatma kapalıyken işçi otomatik satırı (ai / karşılama / giriş / çıkış) talep ETMEZ — bu dosya canlı ayarı ölçer.
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     await resetDb();
     resetPrimaryOrgCache();
     fake.reset();
     __setOutboundAdapterForTest("hospitable", fake.adapter());
   });
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.useRealTimers();
     __setOutboundAdapterForTest("hospitable", null);
   });

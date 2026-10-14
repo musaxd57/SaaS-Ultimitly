@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
@@ -61,7 +61,12 @@ const sendWith = (during: () => Promise<void>): OutboxSendFn =>
   });
 
 describe("teslim tamamlanması — yeni inbound/problem EZİLMEZ", () => {
-  beforeEach(resetDb);
+  beforeEach(async () => {
+    // Y5 (10-14): genel kapatma kapalıyken işçi otomatik satırı (ai / karşılama / giriş / çıkış) talep ETMEZ — bu dosya canlı ayarı ölçer.
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    await resetDb();
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("🚨 Codex kanıtı: POST sırasında yeni şikâyet gelip thread 'problem' olduysa teslim onu 'answered' YAPMAZ", async () => {
     const { orgId, conversationId } = await seed();

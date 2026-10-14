@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
+import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
@@ -62,6 +63,7 @@ import {
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
+import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
@@ -4571,11 +4573,16 @@ export async function sendDueWelcomes(
     // roll the claim back so it retries next run. Stamps every row for this booking.
     // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
     const stampedAt = new Date();
+    // Y4 (10-14): talep durumu yeniden ister — seçimden sonra iptal edilen rezervasyona karşılama gitmez (kardeşler ↓ aynı damga).
     const claim = await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null, status: "confirmed" },
+      data: { welcomeSentAt: stampedAt },
+    });
+    if (claim.count === 0) continue; // another run already claimed/sent this booking (or it was cancelled meanwhile)
+    await prisma.reservation.updateMany({
       where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null },
       data: { welcomeSentAt: stampedAt },
     });
-    if (claim.count === 0) continue; // another run already claimed/sent this booking
 
     const traceId = await traceLifecycleSend(organizationId, r, "welcome", body, stampedAt);
     const delivery = await sendOnChannel(
@@ -4665,7 +4672,6 @@ export async function sendDueCheckins(
   if (!token) return { sent: 0, considered: 0 };
 
   // Land the access details close to the stay: CHECKIN_LEAD_DAYS before arrival.
-  const CHECKIN_LEAD_DAYS = 4;
   const now = new Date();
   const baseline = org.autoCheckinEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
@@ -4740,7 +4746,9 @@ export async function sendDueCheckins(
           channel: r.channel,
           messageType: "checkin",
           body,
-          idempotencyKey: `checkin:${organizationId}:${r.sourceReference}`,
+          // Y4 (10-14): anahtar varış GÜNÜNÜ taşır — ileri tarihe taşınan rezervasyonun kuyruk satırı gönderim anında
+          // "window_not_open" ile iptal edilir; yeni tarihte yeni anahtarla yeniden kuyruğa girer (eski anahtar onu yutmaz).
+          idempotencyKey: `checkin:${organizationId}:${r.sourceReference}:${calendarDateOf(r.arrivalDate, tz).key}`,
         });
         if (!enq.deduped) sent++;
       } catch {
@@ -4758,11 +4766,26 @@ export async function sendDueCheckins(
     // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
     // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
     const stampedAt = new Date();
+    // 🚨 Y4 (10-14 inceleme): son talep seçimin ŞARTLARINI yeniden ister — aday seçildikten sonra iptal edilen ya da ileri
+    // tarihe taşınan rezervasyona giriş bilgisi (kapı kodu taşıyabilir) GİTMEZ. Döngü aday başına sağlayıcı çağrısı beklediği
+    // için seçimle gönderim arası saniyeler-dakikalar sürebilir. Aynı rezervasyonun kardeş satırları (yeniden bağlama sonrası
+    // çift satır) ikinci adımda AYNI damgayla işaretlenir — geri alma `stampedAt` koşuluyla ikisini birlikte geri alır.
     const claim = await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: null },
+      where: {
+        sourceReference: r.sourceReference,
+        property: { organizationId },
+        checkinSentAt: null,
+        status: "confirmed",
+        arrivalDate: { lte: addDays(stampedAt, CHECKIN_LEAD_DAYS) },
+        AND: [onOrAfterTodayWhere("arrivalDate", stampedAt, tz)],
+      },
       data: { checkinSentAt: stampedAt },
     });
     if (claim.count === 0) continue;
+    await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: null },
+      data: { checkinSentAt: stampedAt },
+    });
 
     const traceId = await traceLifecycleSend(organizationId, r, "checkin", body, stampedAt);
     const delivery = await sendOnChannel(
@@ -5083,11 +5106,22 @@ export async function sendDueCheckouts(
     // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
     // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
     const stampedAt = new Date();
+    // Y4 (10-14): talep durumu + çıkış GÜNÜNÜ yeniden ister (seçimle aynı şart; kardeşler ↓ aynı damga).
     const claim = await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId }, checkoutSentAt: null },
+      where: {
+        sourceReference: r.sourceReference,
+        property: { organizationId },
+        checkoutSentAt: null,
+        status: { in: ["confirmed", "completed"] },
+        AND: [{ OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] }],
+      },
       data: { checkoutSentAt: stampedAt },
     });
     if (claim.count === 0) continue;
+    await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId }, checkoutSentAt: null },
+      data: { checkoutSentAt: stampedAt },
+    });
 
     const traceId = await traceLifecycleSend(organizationId, r, "checkout", body, stampedAt);
     const delivery = await sendOnChannel(
@@ -5212,7 +5246,9 @@ export async function sendDueAlerts(
       // gitmiyordu. Konuşma da oto-yanıtla "answered" olduğu için bir daha
       // seçilmiyordu: şikayet KALICI kayboluyordu. Son 6 mesaj alınır, aşağıda
       // CEVAPLANMAMIŞ olanların (son giden yanıttan sonrakiler) HEPSİ taranır.
-      messages: { orderBy: { createdAt: "desc" }, take: 6 },
+      // 🚨 Y6 (10-14 dış inceleme): 6 YETMEDİ — misafirin altı takip mesajı (ya da araya giren otomatik şablonlar; filtre okumadan
+      // SONRA) cevapsız şikâyeti pencereden itiyordu. Cevap modelinin geçmiş tavanıyla aynı derinlik (`HISTORY_MESSAGE_CAP`).
+      messages: { orderBy: { createdAt: "desc" }, take: HISTORY_MESSAGE_CAP },
     },
     // ⚠️ EN YENİ ÖNCE. Bu satır 08-01'de bir mutasyon-geri-alma script'inin
     // sayı sınırı olmayan `replace`'i yüzünden KAZAYLA "asc" olmuştu (commit
@@ -5255,8 +5291,12 @@ export async function sendDueAlerts(
     // K10-t: 8.000 karakteri aşan mesajda tam sınıflandırma KOŞMAZ, yalnız hafif acil sözcük ağı (kurucu: "acil sözcük
     // aransın") — acil ise bugünkü acil yol (Sorunlu + ev sahibine acil e-posta). Acil değilse uyarı yok; konuşma "elle yanıtla"
     // uyarısıyla görünür.
+    // 🚨 Y6 (10-14 dış inceleme): AÇIK TEHLİKE şikâyet sınıfına BAĞLI DEĞİL — "Dairede yangın çıktı!" kelime ağında `general` döner
+    // (şikâyet / iade sözcüğü yok) ve oto-yanıt kapalıyken ev sahibine hiçbir uyarı gitmiyordu. Acil ağı (iki ağın ortak tabanı) da uyarır.
     const alertHit = (m: { body: string }) =>
-      exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : isAlertClass(classifyFallback(m.body));
+      exceedsGuestMessageLimit(m.body)
+        ? isSafetyEmergencyText(m.body)
+        : isAlertClass(classifyFallback(m.body)) || isSafetyEmergencyText(m.body);
     if (itemsFlag) {
       const hits = pending.filter(alertHit);
       if (hits.length === 0) continue;

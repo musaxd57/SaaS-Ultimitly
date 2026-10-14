@@ -4,7 +4,7 @@ import { badRequest, hasJsonContentType, jsonOk, notFound, readJsonCappedOrNull,
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { alertEmailVerifyEnabled, verifyAlertEmailToken } from "@/lib/alert-email-verify";
-import { consumeAlertEmailGeneration } from "@/lib/alert-email-generation";
+import { applyAlertEmailVerification } from "@/lib/alert-email-generation";
 
 // ---------------------------------------------------------------------------
 // UYARI ADRESİ ONAYI — halka açık uç (kurucu kararı 09-30; bayrak `ALERT_EMAIL_VERIFY_ENABLED`, varsayılan KAPALI → 404).
@@ -31,16 +31,9 @@ export async function POST(req: NextRequest) {
     (await prisma.organization.findUnique({ where: { id: claim.organizationId }, select: { alertEmail: true } }))?.alertEmail === claim.email;
   // KUŞAK (15 ajan A13 F2): bağlantı yalnız işletmenin GÜNCEL kuşağıyla geçer ve onu tüketir — sonraki istek ya da doğrudan adres
   // değişikliği eski bağlantıları geçersiz kılar; adres belirtecin "eski adresine" dönse de (dış alıcıyı kaldırıp boşaltmak) canlanmaz.
-  if (!(await consumeAlertEmailGeneration(claim.organizationId, claim.generation))) {
-    if (await alreadyThis()) return jsonOk({ ok: true });
-    return NextResponse.json({ error: INVALID }, { status: 409 });
-  }
-  // CAS: arada adres değiştiyse (başka bir adres seçildi / temizlendi) eski bağlantı onu geri ALAMAZ.
-  const changed = await prisma.organization.updateMany({
-    where: { id: claim.organizationId, alertEmail: claim.previous },
-    data: { alertEmail: claim.email },
-  });
-  if (changed.count === 0) {
+  // Y7 (10-14): tüketme + CAS TEK işlemde (`applyAlertEmailVerification`) — arada ev sahibinin kaldırması kazanır.
+  const outcome = await applyAlertEmailVerification(claim);
+  if (outcome !== "applied") {
     if (await alreadyThis()) return jsonOk({ ok: true });
     return NextResponse.json({ error: INVALID }, { status: 409 });
   }

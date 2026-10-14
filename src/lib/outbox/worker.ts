@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
+import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { errorWithContext, reportError } from "@/lib/report-error";
 import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
@@ -251,6 +252,13 @@ async function claimBatchLocked(
   //             is left for the next window. Atomic under multi-replica via the shared claim
   //             lock (above) + committed claimedAt reads. Reconcile claims (ambiguous rows)
   //             never POST, so they bypass the send cap.
+  // 🚨 Y5 (10-14 dış inceleme): GENEL KAPATMA (`AUTO_REPLY_ENABLED` "1" değil) kuyruktaki OTOMATİK mesajı da durdurur — eskiden
+  // yalnız kuyruğa girişte bakılıyordu, kuyrukta bekleyen yapay zekâ cevabı / karşılama / giriş mesajı yine gidiyordu. Otomatik satır
+  // TALEP EDİLMEZ (iptal de edilmez — deneme sayısı artmaz, anahtar dedupe'u yaşam döngüsü mesajını kalıcı yutmaz); anahtar açılınca
+  // gönderim anı vetoları (iptal / pencere / yeni mesaj / ev sahibi devraldı) ile normal işlenir. Elle yazılan ev sahibi cevabı
+  // ("manual", eski NULL) ve belirsiz teslimin uzlaştırması (POST yok) etkilenmez; bekleyen otomatik satır aynı konuşmadaki elle
+  // cevabı SIRA kuralıyla da tıkamaz.
+  const autoAllowed = process.env.AUTO_REPLY_ENABLED === "1";
   const rows = await tx.$queryRaw<OutboxRow[]>(Prisma.sql`
     UPDATE "MessageOutbox" AS o
     SET "status" = CASE WHEN o."status" = 'pending' THEN 'sending' ELSE 'reconciling' END,
@@ -284,6 +292,7 @@ async function claimBatchLocked(
           SELECT s."id", s."status", s."organizationId", s."externalReservationId", s."availableAt", s."createdAt"
           FROM "MessageOutbox" s
           WHERE s."status" IN ('pending', 'ambiguous')
+            AND (${autoAllowed}::boolean OR s."status" = 'ambiguous' OR s."messageType" IS NULL OR s."messageType" = 'manual')
             AND s."availableAt" <= ${now}
             AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
             AND NOT EXISTS (
@@ -291,6 +300,7 @@ async function claimBatchLocked(
               WHERE e."conversationId" = s."conversationId"
                 AND e."id" <> s."id"
                 AND e."status" IN ('pending', 'sending', 'ambiguous', 'reconciling')
+                AND NOT (NOT ${autoAllowed}::boolean AND e."status" = 'pending' AND e."messageType" IS NOT NULL AND e."messageType" <> 'manual')
                 AND (
                   e."status" IN ('sending', 'reconciling')
                   OR (e."createdAt", e."id") < (s."createdAt", s."id")
@@ -493,7 +503,7 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   const res = await prisma.reservation.findFirst({
     where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
     select: {
-      status: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
+      status: true, arrivalDate: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
       // Org timezone for the checkout window rule below (same lookup, no extra query).
       property: { select: { organization: { select: { timezone: true } } } },
     },
@@ -527,6 +537,9 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
     const today = todayKey(now, tz);
     const departureDay = calendarDateOf(res.departureDate, tz).key;
     if (type === "checkin" && today >= departureDay) return "window_passed";
+    // Y4 (10-14 inceleme): kuyruğa girdikten sonra ileri tarihe taşınan rezervasyon — giriş bilgisi (kapı kodu) erken GİTMEZ.
+    // Aday seçimiyle aynı pencere (`CHECKIN_LEAD_DAYS`); yeni tarihte varış günü taşıyan yeni anahtarla yeniden kuyruğa girer.
+    if (type === "checkin" && res.arrivalDate.getTime() > now.getTime() + CHECKIN_LEAD_DAYS * 86_400_000) return "window_not_open";
     if (type === "checkout" && today > departureDay) return "window_passed";
   }
   return null;

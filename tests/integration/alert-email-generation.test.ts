@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
-import { bumpAlertEmailGeneration, consumeAlertEmailGeneration } from "@/lib/alert-email-generation";
+import { applyAlertEmailVerification, bumpAlertEmailGeneration, consumeAlertEmailGeneration } from "@/lib/alert-email-generation";
 
 // ---------------------------------------------------------------------------
 // Uyarı adresi KUŞAĞI sözleşmesi (15 ajan A13 F2, 10-01): artırma atomik ve 1'den başlar; tüketme yalnız GÜNCEL kuşakta olur
@@ -35,5 +35,38 @@ describe("uyarı adresi kuşağı", () => {
     const values = await Promise.all(Array.from({ length: 10 }, () => bumpAlertEmailGeneration("org_c")));
     expect(new Set(values).size).toBe(10);
     expect(Math.max(...values)).toBe(10);
+  });
+
+  it("🚨 Y7 (10-14): tüketme ile adres yazma ARASINDA ev sahibi adresi kaldırırsa KALDIRMA kazanır (eski alıcı geri gelmez)", async () => {
+    const org = await prisma.organization.create({ data: { name: "Y7", alertEmail: null } });
+    const g = await bumpAlertEmailGeneration(org.id);
+    let host: Promise<void> | null = null;
+    let hostDone = false;
+    await applyAlertEmailVerification(
+      { organizationId: org.id, generation: g, previous: null, email: "dis@ornek.com" },
+      {
+        afterConsume: async () => {
+          // Ayarlar rotasının sırası: kuşağı artır, sonra adresi boşalt. Kilit tutuluyorsa artırma BEKLER → zaman aşımıyla devam.
+          host = (async () => {
+            await bumpAlertEmailGeneration(org.id);
+            await prisma.organization.update({ where: { id: org.id }, data: { alertEmail: null } });
+            hostDone = true;
+          })();
+          await Promise.race([host, new Promise((r) => setTimeout(r, 400))]);
+        },
+      },
+    );
+    await host;
+    expect(hostDone).toBe(true);
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.id } })).alertEmail).toBeNull();
+  });
+
+  it("KONTROL: araya bir şey girmezse onay adresi yazar; aynı bağlantı ikinci kez 'stale'", async () => {
+    const org = await prisma.organization.create({ data: { name: "Y7b", alertEmail: null } });
+    const g = await bumpAlertEmailGeneration(org.id);
+    const claim = { organizationId: org.id, generation: g, previous: null, email: "dis@ornek.com" };
+    expect(await applyAlertEmailVerification(claim)).toBe("applied");
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.id } })).alertEmail).toBe("dis@ornek.com");
+    expect(await applyAlertEmailVerification(claim)).toBe("stale");
   });
 });
