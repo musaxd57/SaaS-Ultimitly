@@ -389,6 +389,19 @@ describe("51: acil KARARI (bağlam ilkesi)", () => {
     expect(decide("Yangın yok, gaz kokusu da yok, sadece kombi ses yapıyor.", false, false)).toMatchObject({ emergency: false, lexicalCleared: true });
   });
 
+  it("🚨 Haiku 10-14: kelime ağının SESSİZ kaldığı olası tehlike + model koşmadı → `unverifiedPossible` (kapılar bunu devre bağlar)", () => {
+    // "kısa devre" kelime ağında YOK (kurucu kararı 10-14: model karar verir) — model yoksa karar verecek kimse yok.
+    expect(isSafetyEmergencyText("Kısa devre oldu, wifi şifresi neydi?")).toBe(false);
+    expect(decide("Kısa devre oldu, wifi şifresi neydi?", false, false)).toMatchObject({ emergency: true, unverifiedPossible: true });
+    // Model koştu → karar modelin (acil değil dediyse tutuş yok; acil dediyse anlama katmanının kendi devri).
+    expect(decide("Kısa devre oldu, wifi şifresi neydi?", true, false)).toMatchObject({ emergency: false, unverifiedPossible: false });
+    expect(decide("Kısa devre oldu, wifi şifresi neydi?", true, true)).toMatchObject({ unverifiedPossible: false });
+    // Açık tehlike ayrı yoldan (model beklenmeden devir); anılış / tehlikesiz metin tutulmaz.
+    expect(decide("Prizden duman çıkıyor, yanık kokuyor!", false, false).unverifiedPossible).toBe(false);
+    expect(decide("Yangın çıkarsa ne yapmalıyız?", false, false).unverifiedPossible).toBe(false);
+    expect(decide("Wifi şifresi ne?", false, false).unverifiedPossible).toBe(false);
+  });
+
   it("başka acil sınıfı (sağlık) varsa fiziksel bağlam alarmı KALDIRAMAZ", () => {
     const d = decide("Duman var ve babam bayıldı!", true, false);
     expect(d.lexicalCleared).toBe(false);

@@ -1074,6 +1074,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // 51: kelime ağının fiziksel tehlike etiketi bağlamla kalktı mı (olası / anılış + model "acil değil").
     hazardCleared: hazardDecision.lexicalCleared,
     hazardClearedAsIssue: hazardDecision.clearedAsIssue,
+    // Olası tehlike + anlama katmanı koşmadı → model kararı yok, devir (Haiku 10-14; kanal kapısıyla parite).
+    hazardUnverified: hazardDecision.unverifiedPossible,
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);

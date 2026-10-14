@@ -758,6 +758,14 @@ export interface HazardDecision {
    * sigara dumanı geliyor → genellikle şikâyet akışı"; kettle dumanı, tavandan akan su). Anılan tehlike / belirsiz kalıp → etiket tamamen kalkar.
    */
   clearedAsIssue: boolean;
+  /**
+   * OLASI fiziksel tehlike ve anlama katmanı bu turda KOŞMADI (kapalı / düştü) → kararı verecek model yok, güvenli taraf: ACİL say
+   * (51 "model arızasında olası tehlike güvenli tarafta kalsın"; kurucu kararı 10-14 "kısa devre → model karar versin"). Kelime ağının
+   * zaten işaretlediği metinde bugünkü etiket aynen tutar; bu alan kelime ağının SESSİZ kaldığı olası tehlikeyi ("kısa devre oldu",
+   * yalın "it shocked me") da kapıya bağlar (Haiku 10-14: `emergency` hesaplanıyor ama hiçbir yerde okunmuyordu). Kapılar: QR
+   * `physical_hazard`, kanal `lexical_risk` — turun tamamı tutulur.
+   */
+  unverifiedPossible: boolean;
 }
 
 /**
@@ -843,7 +851,13 @@ export function hazardDecisionFor(
     // Belirsiz kalıp (övgü, bağlantı düştü, nezaket, acil numara…) ve anılışsız / olası fiziksel düzey: kararı MODEL verir; anılan (olumsuz /
     // geçmiş / varsayım) fiziksel tehlike model koşmadan da kalkar.
     (ambiguousInvolved ? modelSaysNo : level === "mentioned" || ((level === "possible" || level === "none") && modelSaysNo));
-  return { evidence, emergency, lexicalCleared, clearedAsIssue: lexicalCleared && level === "possible" };
+  return {
+    evidence,
+    emergency,
+    lexicalCleared,
+    clearedAsIssue: lexicalCleared && level === "possible",
+    unverifiedPossible: level === "possible" && !input.understandingRan,
+  };
 }
 
 /** Fiziksel tehlike anılışlarını nötr işaretle değiştirir — kalan metinde BAŞKA bir acil sınıfı var mı diye bakmak için. */

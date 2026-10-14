@@ -150,6 +150,27 @@ describe("QR rotası — bağlamla tehlike (55 + 51)", () => {
     expect((await lastEvent()).reason).toBe("keyword_risk_type");
   });
 
+  // Haiku 10-14 (ikinci tur): `hazardDecisionFor().emergency` hesaplanıyor ama hiçbir yerde OKUNMUYORDU — kelime ağının işaretlemediği
+  // olası tehlike ("kısa devre", kurucu kararı 10-14 "model karar versin") anlama katmanı koşmayınca yalnız cevap modelinin riskine
+  // kalıyordu; model "risk yok" derse Wi-Fi cevabı ev sahibine haber gitmeden gidiyordu.
+  it("🚨 OLASI tehlike, kelime ağı SESSİZ + anlama katmanı KOŞMADI → model kararı yok = acil: devir, misafire metin yok", async () => {
+    mockSuggest.mockResolvedValue({ ...DRAFT, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+    const { token } = await seed();
+    const out = await ask(token, "Kısa devre oldu, wifi şifresi neydi?");
+    expect(out.escalated).toBe(true);
+    expect(out.reply ?? null).toBeNull();
+    expect((await lastEvent()).reason).toBe("physical_hazard");
+  });
+
+  it("KONTROL: aynı mesaj + anlama katmanı 'acil değil' → olası-tehlike devri YOK (karar modelin)", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch("wifi"));
+    mockSuggest.mockResolvedValue({ ...DRAFT, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+    const { token } = await seed();
+    await ask(token, "Kısa devre oldu, wifi şifresi neydi?");
+    expect((await lastEvent()).reason).not.toBe("physical_hazard");
+  });
+
   it("OLASI tehlike + anlama katmanı 'acil değil' → acil DEĞİL (112 satırı yok) ama şikâyet akışı: ev sahibinde, misafire metin yok", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("appliance_help"));

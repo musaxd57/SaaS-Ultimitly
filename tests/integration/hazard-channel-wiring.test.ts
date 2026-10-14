@@ -118,6 +118,27 @@ describe("kanal oto-yanıtı — bağlamla tehlike (51)", () => {
     expect(await prisma.conversation.findUniqueOrThrow({ where: { id } })).toMatchObject({ lastRiskType: "safety_emergency" });
   });
 
+  // Haiku 10-14 (ikinci tur): kelime ağının işaretlemediği olası tehlike ("kısa devre", kurucu kararı 10-14) anlama katmanı koşmayınca
+  // yalnız cevap modelinin riskine kalıyordu — QR ile parite.
+  it("🚨 OLASI tehlike, kelime ağı SESSİZ + anlama katmanı KOŞMADI → gönderilmez (model kararı yok = güvenli taraf)", async () => {
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+    const id = await seed("Kısa devre oldu, wifi şifresi neydi?");
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await gateDetail(id)).toBe("lexical_risk");
+  });
+
+  it("KONTROL: aynı mesaj + anlama katmanı 'acil değil' → olası-tehlike tutuşu YOK (karar modelin)", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch("wifi"));
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+    const id = await seed("Kısa devre oldu, wifi şifresi neydi?");
+    await applyChannelAutoReply(id);
+    const ev = await prisma.riskEvent.findFirst({ where: { conversationId: id, surface: "auto_reply" } });
+    const d = ev ? (JSON.parse(String(ev.kbEvidenceJson)) as { g?: { d?: string } }).g?.d : undefined;
+    expect(d).not.toBe("lexical_risk");
+  });
+
   it("OLASI tehlike + anlama katmanı 'acil değil' → acil rozeti kalkar ama şikâyet akışı (gönderilmez, rozet şikâyet)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("appliance_help"));

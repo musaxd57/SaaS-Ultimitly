@@ -254,6 +254,8 @@ export function evaluateEscalation(
     hazardCleared?: boolean;
     /** Kalkan etiket olası fiziksel tehlikedendi → acil değil ama şikâyet olarak sayılır (`contextLabels`). */
     hazardClearedAsIssue?: boolean;
+    /** Olası fiziksel tehlike + anlama katmanı koşmadı (`hazardDecisionFor().unverifiedPossible`) → karar verecek model yok: devir. */
+    hazardUnverified?: boolean;
     /** Doğrulanmış müsaitlik / uzatma KOD metni (QR anahtarı `AI_VERIFIED_QR_ENABLED`); yalnız birebir metne ve bütün şartlarla muaf. */
     verifiedAvailability?: { text: string } | null;
     verifiedExtension?: { text: string } | null;
@@ -313,6 +315,9 @@ export function evaluateEscalation(
     ? (contextLabels(detectRiskTypes(message), { lexicalCleared: true, clearedAsIssue: stayCtx.hazardClearedAsIssue === true })[0] ?? null)
     : detectRiskType(message);
   if (dr && HIGH_STAKES_RISK_TYPES.has(dr)) return yes("keyword_risk_type");
+  // Kelime ağının SESSİZ kaldığı olası fiziksel tehlike ("Kısa devre oldu, wifi şifresi neydi?"), anlama katmanı koşmadıysa cevap
+  // modelinin "risk yok" demesine bırakılmaz (Haiku 10-14; kanal kapısıyla parite `automation.ts`).
+  if (stayCtx?.hazardUnverified) return yes("physical_hazard");
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return yes("model_risk_level");
   // ── "BİLGİM YOK" MİSAFİRE GİTMEZ (kurucu kuralı, 09-11) ───────────────────
   //

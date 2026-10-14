@@ -255,6 +255,11 @@ export interface AutoReplyGateContext {
   hazardCleared?: boolean;
   /** Kalkan etiket OLASI fiziksel tehlikedendi: acil değil ama ŞİKÂYET olarak sayılır (`contextLabels`) — ev sahibinin işi kalır. */
   hazardClearedAsIssue?: boolean;
+  /**
+   * OLASI fiziksel tehlike + anlama katmanı bu turda KOŞMADI (`hazardDecisionFor().unverifiedPossible`): kararı verecek model yok →
+   * tur tutulur (kelime ağının SESSİZ kaldığı "Kısa devre oldu, wifi şifresi neydi?" dahil; Haiku 10-14, QR ile parite).
+   */
+  hazardUnverified?: boolean;
   /** Anlama katmanının en ağır risk niyeti (`semantic/intent-risk.ts`); verilmezse sinyal yok. */
   understandingRisk?: IntentRiskKind | null;
   /**
@@ -389,6 +394,8 @@ export function autoReplyGateVerdict(
   // uyarısı — "dünkü çözülmüş şikayet, bugünün wifi cevabını engellememeli" —
   // bu yüzden geçerliliğini korur: bir kez cevap verdiğimizde pencere sıfırlanır.
   const surfaces = [guestMessage, ...(context?.pendingGuestMessages ?? [])].filter(Boolean);
+  // Olası fiziksel tehlike, anlama katmanı koşmadı: cevap modelinin "risk yok" demesi yetmez — tur (öğe kipinde de) tutulur.
+  if (context?.hazardUnverified) return hold("lexical_risk");
   // Öğe kipi: bu taramanın sinyalleri öğelere atfedildi (akış hassas öğeyi tutar). Tur düzeyi kalanlar (enjeksiyon, acil)
   // cevapsız mesajların HEPSİNDE aynen tutar — akış acil turu zaten öğe kipine sokmaz, bu savunma derinliğidir.
   if (items) {
@@ -2112,7 +2119,7 @@ export async function applyChannelAutoReply(
       { texts: unansweredGuestTexts, understandingRan: u != null, understandingEmergency: understandingRiskOf(u) === "emergency" },
       isSafetyEmergencyText,
     );
-    return { hazardCleared: d.lexicalCleared, hazardClearedAsIssue: d.clearedAsIssue };
+    return { hazardCleared: d.lexicalCleared, hazardClearedAsIssue: d.clearedAsIssue, hazardUnverified: d.unverifiedPossible };
   };
   if (itemsFlag && !options.dryRun) {
     try {
