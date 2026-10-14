@@ -410,6 +410,10 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   (`KB_RETRIEVAL_WIDE_BUDGET=1`, kapalı — sizin "hazırla, sonra aç" kararınız) 38/39, sızıntı 0; bedeli istem başına bilgi bloğu ~4 kat
   (ortalama 2,1k → 8,4k karakter). Bugünkü 10 dairelik canlıda (mülk başına ≤60 kalem) fark yok; büyük bilgi tabanlı müşteride var.
   Açalım mı, ilk müşteri büyüyünce mi?
+  → **KARAR (kurucu 10-14): "şimdilik kapalı kalsın; doğru çözüm bulunursa açarız, 4 kat gerekmez."** Ölçüm (aynı sıralayıcı çıktısı):
+  darboğaz PARÇA TAVANI (12), karakter değil — iki sorulu mesajda 9k / 18 parça da 38/39 veriyor, blok yalnız +%17 (2,1k → 2,5k);
+  soru başına sıralayıcı etiketi ise kötüleştirdi (33/39). Öneri: tavan yalnız çok sorulu mesajda soru sayısıyla büyüsün, tek soru aynen
+  (`docs/olcum/rag-lab-2026-10-14-4.md` sonu). Uygulamadan önce tekrar varyansı + 60 kalem kontrolü koşulacak; açmak yine sizin kararınız.
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
 
