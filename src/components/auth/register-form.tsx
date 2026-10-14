@@ -42,6 +42,9 @@ export function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  // Y10 (10-14 dış inceleme): bağlantının GÖNDERİLDİĞİ adres istek anında dondurulur — istek sürerken alan düzenlenirse başarı ekranı
+  // ve "yeniden gönder" yeni yazılan adresi değil bağlantının gittiği adresi kullanır.
+  const [sentTo, setSentTo] = useState("");
   const [consent, setConsent] = useState(false);
   // Doğrulama bağlantısını YENİDEN GÖNDERME, başarı ekranının kendisinde durur.
   // Eskiden bu seçenek yalnız giriş sayfasında ve ancak BAŞARISIZ bir giriş
@@ -68,7 +71,7 @@ export function RegisterForm() {
       const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email }),
+        body: JSON.stringify({ email: sentTo || form.email }),
       });
       // fetch 429/5xx'te throw ETMEZ: res.ok bakılmazsa kullanıcıya yalan
       // "gönderildi" gösterilir ve hiç gelmeyecek bir maili bekler.
@@ -115,11 +118,12 @@ export function RegisterForm() {
     setLoading(true);
     setError(null);
     setFields({});
+    const submitted = { ...form };
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, consent, timezone: browserTimezone() }),
+        body: JSON.stringify({ ...submitted, consent, timezone: browserTimezone() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -129,6 +133,7 @@ export function RegisterForm() {
       }
       if (data.verifyEmail) {
         // Anti-bot: the account is inert until the e-mailed link is clicked.
+        setSentTo(submitted.email);
         setSent(true);
         // Bağlantı AZ ÖNCE gönderildi: yeniden-gönder düğmesi sayaçla açılır —
         // hemen basmak yeni bir şey getirmez, sadece kotayı yerdi.
@@ -150,7 +155,7 @@ export function RegisterForm() {
         <div className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-5 text-sm text-emerald-900">
           <p className="font-semibold">Hesabınız oluşturuldu — son bir adım kaldı! 📧</p>
           <p>
-            <strong>{form.email}</strong> adresine bir <strong>doğrulama bağlantısı</strong>{" "}
+            <strong>{sentTo}</strong> adresine bir <strong>doğrulama bağlantısı</strong>{" "}
             gönderdik. Maildeki butona tıklayın ve az önce belirlediğiniz şifreyi girin.
           </p>
           <p className="text-xs text-emerald-700">

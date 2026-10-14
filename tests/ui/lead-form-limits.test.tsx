@@ -189,3 +189,20 @@ describe("telefon — canlı biçimlendirme ve 10 hane sınırı", () => {
     expect(normalizeTrPhone("abc")).toBe("");
   });
 });
+
+describe("Y10 (10-14 dış inceleme): yapıştırılan ülke kodlu numara KESİLMEZ", () => {
+  afterEach(() => cleanup());
+  // Tarayıcı yapıştırmayı onChange'den ÖNCE `maxLength`e keser; jsdom bunu yapmaz → kesmeyi burada tarayıcı gibi uygularız.
+  const pasteAsBrowser = (input: HTMLInputElement, raw: string) =>
+    fireEvent.change(input, { target: { value: input.maxLength > 0 ? raw.slice(0, input.maxLength) : raw } });
+
+  it.each(["+90 532 123 45 67", "0090 532 123 45 67", "0090 (532) 123-45-67", "+90 (532) 123 45 67", "0532 123 45 67"])(
+    "🚨 %j → 532 123 45 67",
+    (raw) => {
+      render(<LeadForm />);
+      const input = screen.getByLabelText(/Telefon numaranız/) as HTMLInputElement;
+      pasteAsBrowser(input, raw);
+      expect(input.value).toBe("532 123 45 67");
+    },
+  );
+});

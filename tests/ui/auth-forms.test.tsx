@@ -411,3 +411,45 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
     expect(link.getAttribute("href")).toBe("/login");
   });
 });
+
+describe("Y10 (10-14 dış inceleme): kayıt başarı ekranı bağlantının GİTTİĞİ adresi gösterir", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("🚨 istek sürerken e-posta değiştirilirse başarı ekranı İLK (gönderilen) adresi gösterir", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/auth/register") {
+        await gate;
+        return new Response(JSON.stringify({ verifyEmail: true }), { status: 200 });
+      }
+      return new Response("{}", { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<RegisterForm />);
+    typeInto(/İşletme adı/, "Lale");
+    typeInto(/Adınız/, "Musa");
+    typeInto(/E-posta/, "a@ornek.com");
+    typeInto("Şifre", "sifre12345");
+    fireEvent.click(screen.getByRole("checkbox"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));
+    });
+    // İstek havadayken alan düzenleniyor.
+    typeInto(/E-posta/, "b@ornek.com");
+    await act(async () => {
+      release();
+      await gate;
+    });
+    await screen.findByText(/Hesabınız oluşturuldu/);
+    expect(document.body.textContent).toContain("a@ornek.com");
+    expect(document.body.textContent).not.toContain("b@ornek.com");
+    const registerBody = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(registerBody.email).toBe("a@ornek.com");
+  });
+});

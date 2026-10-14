@@ -104,9 +104,11 @@ export function ConfirmHost() {
       }
       const first = nodes[0];
       const last = nodes[nodes.length - 1];
-      if (!active || !panel.contains(active)) {
+      // Y10 (10-14 dış inceleme): PANELİN KENDİSİ de sınırdır — açılışta odak panelde (tabIndex -1) dururken ilk Shift+Tab tarayıcının
+      // doğal sırasıyla panelin ARKASINDAKİ düğmeye kaçıyordu. Panel / dışarısı: Tab → ilk öğe, Shift+Tab → son öğe.
+      if (!active || active === panel || !panel.contains(active)) {
         e.preventDefault();
-        first.focus();
+        (e.shiftKey ? last : first).focus();
       } else if (e.shiftKey && active === first) {
         e.preventDefault();
         last.focus();

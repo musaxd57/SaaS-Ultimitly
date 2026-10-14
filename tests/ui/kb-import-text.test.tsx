@@ -152,3 +152,62 @@ describe("A5 — metinden bilgi çıkarma akışı", () => {
     expect(screen.queryByRole("button", { name: /Seçilenleri ekle/ })).toBeNull();
   });
 });
+
+describe("Y10 (10-14 dış inceleme): kısmi başarıdan sonra tekrar deneme yalnız EKSİK kalemi gönderir", () => {
+  beforeEach(() => {
+    cleanup();
+    __resetToastsForTest();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  const TWO = ["Çöpleri binanın yan sokağındaki konteynere bırakabilirsiniz.", "Otopark bina altındadır, ücretsizdir."].join("\n");
+  const sentCategories = (fetchMock: ReturnType<typeof vi.fn>) =>
+    fetchMock.mock.calls.map((c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)).category as string);
+
+  it("🚨 ilk kalem eklendi, ikincisi reddedildi → tekrar denemede ilk kalem İKİNCİ KEZ gönderilmez", async () => {
+    let n = 0;
+    const fetchMock = vi.fn(async () => {
+      n++;
+      return { ok: n !== 2, status: n === 2 ? 400 : 201, json: async () => ({}) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    openPanel();
+    paste(TWO);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    const first = sentCategories(fetchMock);
+    expect(first).toHaveLength(2);
+    expect(document.body.textContent).toMatch(/Eklenemedi/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    const all = sentCategories(fetchMock);
+    expect(all).toHaveLength(3);
+    expect(all[2]).toBe(first[1]); // yalnız eksik olan
+  });
+
+  it("🚨 bağlantı koparsa önceden eklenen kalem de listeden çıkar (tekrar denemede gönderilmez)", async () => {
+    let n = 0;
+    const fetchMock = vi.fn(async () => {
+      n++;
+      if (n === 2) throw new TypeError("Failed to fetch");
+      return { ok: true, status: 201, json: async () => ({}) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    openPanel();
+    paste(TWO);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    const first = sentCategories(fetchMock);
+    expect(document.body.textContent).toMatch(/İnternet bağlantınızda sorun/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    const all = sentCategories(fetchMock);
+    expect(all.slice(2)).toEqual([first[1]]);
+  });
+});

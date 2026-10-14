@@ -76,6 +76,14 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
     setError(null);
     let created = 0;
     const failed: string[] = [];
+    // KISMİ BAŞARIDA eklenen kalemler önizlemeden ÇIKARILIR (Y10, 10-14 dış inceleme): yoksa "tekrar dene" aynı kalemi ikinci kez ekliyordu.
+    const added: string[] = [];
+    const dropAdded = () => {
+      if (added.length === 0) return;
+      const gone = new Set(added);
+      setPreview((p) => (p ? { ...p, items: p.items.filter((i) => !gone.has(i.category)) } : p));
+      setSelected((sel) => new Set([...sel].filter((c) => !gone.has(c))));
+    };
     try {
       for (const item of chosen) {
         // TEK TEK: mevcut rotanın plan sınırı ve doğrulaması her kalem için
@@ -92,12 +100,17 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
             isActive: true,
           }),
         });
-        if (res.ok) created++;
-        else failed.push(KB_CATEGORY.label(item.category));
+        if (res.ok) {
+          created++;
+          added.push(item.category);
+        } else failed.push(KB_CATEGORY.label(item.category));
       }
     } catch {
+      dropAdded();
+      if (created > 0) toast.success(`${created} bilgi eklendi.`);
       setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
       setBusy(false);
+      if (created > 0) router.refresh();
       return;
     }
     setBusy(false);
@@ -106,6 +119,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
     if (created > 0) toast.success(`${created} bilgi eklendi.`);
     if (failed.length > 0) setError(`Eklenemedi: ${failed.join(", ")}. Plan sınırınıza takılmış olabilir.`);
     if (failed.length === 0) reset();
+    else dropAdded();
     router.refresh();
   }
 

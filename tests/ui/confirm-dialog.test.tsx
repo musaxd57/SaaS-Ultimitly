@@ -98,6 +98,29 @@ describe("ConfirmHost — diyalog sözleşmesi", () => {
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
+  it("🚨 Y10 (10-14): odak PANELDEYKEN ilk Shift+Tab arkadaki düğmeye kaçmaz — son öğeye; Tab ilk öğeye gider", async () => {
+    await open();
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    const buttons = within(dialog).getAllByRole("button");
+    const panel = document.activeElement as HTMLElement;
+    expect(buttons).not.toContain(panel); // başlangıç odağı panelin kendisi
+
+    let notPrevented = true;
+    await act(async () => {
+      notPrevented = fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    });
+    expect(notPrevented).toBe(false); // tarayıcının doğal Shift+Tab'ı (panelin arkasına) engellendi
+    expect(document.activeElement).toBe(buttons[buttons.length - 1]);
+
+    panel.focus();
+    await act(async () => {
+      notPrevented = fireEvent.keyDown(document, { key: "Tab" });
+    });
+    expect(notPrevented).toBe(false);
+    expect(document.activeElement).toBe(buttons[0]);
+  });
+
   it("açılınca odak diyaloğa girer", async () => {
     await open();
     const dialog = await screen.findByRole("dialog");

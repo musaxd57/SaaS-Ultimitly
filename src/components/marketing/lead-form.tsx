@@ -34,6 +34,9 @@ const PHONE_PREFIX = "+90";
  * sıfır kırpılır, kalan tek biçimde birleştirilir. Rakam yoksa BOŞ döner —
  * telefon yazmayan her aday "+90" diye sahte bir kayıt üretmesin.
  */
+/** Telefon alanının ham yapıştırma tavanı — en uzun desteklenen yazım ("0090 (532) 123-45-67", 20) + pay. */
+export const PHONE_PASTE_MAX = 32;
+
 export function normalizeTrPhone(raw: string): string {
   const d = trPhoneDigits(raw);
   if (!d) return "";
@@ -148,7 +151,9 @@ export function LeadForm() {
           type="tel"
           inputMode="tel"
           autoComplete="tel-national"
-          maxLength={13}
+          // Y10 (10-14 dış inceleme): tarayıcı yapıştırılan metni onChange'DEN ÖNCE `maxLength`e keser — 13 iken "+90 532 123 45 67"
+          // "+90 532 123 4" oluyordu (yanlış numara). Biçimlendirici zaten 10 haneye sınırlar; bu sınır yalnız dev yapıştırmaya karşı.
+          maxLength={PHONE_PASTE_MAX}
           placeholder="532 123 45 67 (opsiyonel)"
           value={form.phone}
           onChange={(e) => set("phone", formatTrPhone(e.target.value))}
