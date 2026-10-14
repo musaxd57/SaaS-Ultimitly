@@ -2084,7 +2084,7 @@ const SAFETY_CRITICAL_WORDS = [
   // (Çıplak "gas" / "fire" / "acil" artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK.)
   // (Almanca "rauch" da artık ↓SAFETY_CRITICAL_WHOLE_WORDS'te — TAM SÖZCÜK; alt dize "brauchen" / "Nichtraucher" / "Verbrauch" tutuyordu.)
   "smell of gas", "smells like gas", "sparks", "sparking", "burning smell",
-  "smells burning", "flooding", "water pouring", "pouring through", "electric shock", "monoxide",
+  "smells burning", "smells like burning", "smell of burning", "smells of burning", "flooding", "water pouring", "pouring through", "electric shock", "monoxide",
   // TR electrical-fire / carbon-monoxide vocab (EN "sparks/monoxide" was covered,
   // the TR equivalents were not). Over-matching is the safe side — it only ever
   // withholds a holding-ack and forces the silent-escalate path.

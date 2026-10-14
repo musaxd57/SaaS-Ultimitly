@@ -613,6 +613,9 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     // Mutasyon N7 / N8: dal başına ayrı pin (diğer dal aynı cümleyi yakalıyordu).
     "I got a shock when I touched the fridge",
     "şalter ısınıyor",
+    // Haiku 10-14 ikinci tur: QR açık, kanal kaçırıyordu ("smells burning" vardı, "smells like burning" yoktu).
+    "the plug smells like burning and it's hot",
+    "There is a smell of burning from the socket",
   ])("🚨 %j → iki ağda acil", (m) => {
     expect(isSafetyEmergencyText(m)).toBe(true);
     expect(level(m)).toBe("clear");
