@@ -478,6 +478,13 @@
   yalnız bağlaçla ("The CO alarm and the dog are howling" bildirim; "The CO alarm is fine and the dog is howling" değil).
 - Kalıp ekleyen: dil eşleşmesi, olumsuz biçim ve süre pini (`gas-detector-alarm.test.ts`) ile birlikte; ad–fiil eşlemesi sıralı iki işaretçi (O(D+S)).
 
+- ELEKTRİK TABANI (10-14, iki ağ eşit: `fallback.ts` + `hazard-evidence.ts`): kaçak akım / akım kaçıyor / current leak acil; ardından röle /
+  şalter / anahtar / sigorta gelirse yer adıdır (olay sözcüğü yoksa). "Çarpıyor" yalnız elektrikli özneyle (araya yalnız kapalı küme: beni,
+  başlığı, çok…; "kapı / kapağı / başıma" girmez) ya da "dokununca" ile. EN "shock / tingle" yalnız elektrikli özne / nesne ya da dokunma
+  fiiliyle (mecaz "the bill gave us a shock" değil). Sıcaklık: priz / kablo çıplak "hot" ile; şarj aleti / uzatma şiddetle; kettle / ısıtıcı
+  yalnız overheating / melting / smoking. "Acil değil" susturmasının olay işaretine çıplak ısınma / "hot" / "shock" EKLENMEZ (ölçüldü: etkisiz +
+  "Acil değil ama oda ısınıyor"u acil yapıyordu).
+
 ## 🚨 İSTEM BÖLÜM ÇİZGİSİ TAKLİDİ (G8, kurucu kararı 10-13, `ai/divider-spoof.ts`)
 - Çizgi dizisi (3+ ═ ━ ─ ┄ ┅ ┈ ┉ ╌ ╍ = ＝, aralarında tek boşluk olabilir) ±40 karakter içinde (satır sonunu geçerek) SİSTEM / KURAL / TALİMAT /
   SYSTEM başlığı → `detectPromptInjection` = true (mesaj insana).

@@ -592,6 +592,16 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     "the cable is burning hot",
     "kettle'a dokununca çarpıyor",
     "Dokununca çarpıyor, ne yapalım?",
+    // Haiku 10-14 son tur: iki ağda da kaçıyordu.
+    "The socket is too hot to touch.",
+    "The charger got really hot and smells strange.",
+    "I felt a shock from the tap.",
+    "Every time I touch the kettle I get a tingle.",
+    "The kettle shocked me.",
+    "Priz çok sıcak oluyor.",
+    "Duştan akım geliyor.",
+    "Musluktan elektrik geliyor.",
+    "Musluk beni çarpıyor.",
   ])("🚨 %j → iki ağda acil", (m) => {
     expect(isSafetyEmergencyText(m)).toBe(true);
     expect(level(m)).toBe("clear");
@@ -605,10 +615,24 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     "Kaçak akım şalteri nerede, hava çok sıcak (hot) bugün",
     "Kapı çarpıyor, kaçak akım şalteri nerede?",
     "The kettle is hot, can I use it?",
+    // Haiku 10-14 son tur — mecaz "shock", kapı / kapak / baş "çarpıyor", sıcak çalışan cihaz, elektrik var mı sorusu.
+    "The view from the balcony gives me a shock, it is so beautiful!",
+    "The price gave us a shock when we checked out.",
+    "Got a shock when I saw the bill.",
+    "Duştan çıkınca kapı çarpıyor, rüzgardan olsa gerek.",
+    "Fırın kapağı çarpıyor, kapanmıyor.",
+    "Lamba başıma çarpıyor, tavan çok alçak.",
+    "The heater is really hot in the bedroom, can we lower it?",
+    "The kettle is really hot, can I use it straight away?",
+    "Prizden elektrik geliyor mu?",
+    // "Acil değil" susturması: çıplak "ısınıyor" / "really hot" olay işareti DEĞİL (10-14 ara sürümünde bu iki cümle acildi).
+    "Acil değil ama oda ısınıyor, klimayı açar mısınız?",
+    "This is not an emergency, but the room is really hot.",
   ])(
     "KONTROL %j → acil değil (elektrikli özne yok)",
     (m) => {
       expect(isSafetyEmergencyText(m)).toBe(false);
+      expect(level(m)).not.toBe("clear");
     },
   );
   it("süre: 50.000 karakterde çarpma / ısınma kalıpları doğrusal", () => {
@@ -616,6 +640,9 @@ describe("kaçak akım — kanal ağı da acil (10-14, iki ağ eşit)", () => {
     isSafetyEmergencyText("priz ".repeat(10_000));
     isSafetyEmergencyText(`dus ${"a ".repeat(25_000)}`);
     level("socket ".repeat(7_000));
+    isSafetyEmergencyText("touch the kettle ".repeat(3_000));
+    level("musluk beni ".repeat(5_000));
+    isSafetyEmergencyText(`got ${"a ".repeat(25_000)}`);
     expect(performance.now() - t0).toBeLessThan(1500);
   });
   it("KONTROL: şalter adı + olay işareti → yine acil", () => {

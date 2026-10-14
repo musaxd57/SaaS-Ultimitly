@@ -375,6 +375,15 @@ Migration 63 itildi sayılırsa: Railway açılmadan önce taze yedek kuralı ay
   Kapsam notu: niteleyicisiz "The alarm in the kitchen keeps beeping." bildirim sayılmıyor (çalar saat / hırsız alarmı olabilir) —
   isterseniz kapsama alınır.
 
+**10-14 — sözcük kuralı yerine model (kurucu: "1 ve 2 ve 3'ü yap"; müşteriye giden mesaj DEĞİŞMEDİ):**
+- Ölçüldü: canlı ayarda (`AI_CONVERSATION_ITEMS_ENABLED=1`) cihaz listesi, K6 susturma ve koşul eki kararı zaten ANLAMA MODELİNİN; sözcük
+  ağları yalnız model düşerse devreye giren TABAN (`automation.ts` öğe kipi + anlama acili her zaman tutar). Kod değişikliği gerekmedi;
+  8 yeni senaryo `evals/conversation-items.json`a eklendi (listede olmayan cihaz, kaçak akım, K6 karşı örnekleri, koşul + gerçek arıza) —
+  OpenAI kredisi gelince koşulacak.
+- Tabanda kapanan boşluklar (Haiku sert incelemesi, iki ağ eşit, mutasyon): "kaçak akım / akım kaçıyor / current leak" acil (kaçak akım
+  RÖLESİ / ŞALTERİ sorusu değil) · elektrikli özneyle "çarpıyor / dokununca çarpıyor / gives me a shock" acil (kapı çarpıyor değil) ·
+  "priz ısınıyor / kablo eriyor / socket very hot / kettle overheating" acil (hava sıcak, "the kettle is hot" değil).
+
 **10-13 öğle — YENİ soru (güvenli varsayılan UYGULANDI, isterseniz geri alınır):**
 
 | # | Soru | Bugün (uygulandı) | Seçenek | Örnek |
