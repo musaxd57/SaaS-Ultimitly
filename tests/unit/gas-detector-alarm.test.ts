@@ -580,3 +580,32 @@ describe("Haiku son kontrolü: gelecek zaman / yordam / geçmiş kuralları bild
     expect(kind === "gas" ? gasDetectorSounding(text) : smokeDetectorSounding(text)).toBe(false);
   });
 });
+
+describe("Y1 (10-14 dış inceleme): nezaket girişi gerçekleşen tehlikeyi varsayıma ÇEVİRMEZ", () => {
+  it.each([
+    ["If you have a moment, our CO alarm is beeping.", "gas"],
+    ["If you get a chance, the smoke alarm is going off", "smoke"],
+    ["When you have a moment, the CO detector keeps beeping", "gas"],
+    ["Eğer müsaitseniz, gaz alarmı ötüyor", "gas"],
+    ["Vaktiniz olursa, CO alarmı ötüyor", "gas"],
+    ["Si vous avez un moment, le détecteur de CO sonne.", "gas"],
+    ["Wenn Sie Zeit haben, der CO-Melder piept.", "gas"],
+  ])("🚨 %j → çıplak hâliyle AYNI sonuç: dedektör ötüyor + iki ağda acil", (m, kind) => {
+    expect(kind === "gas" ? gasDetectorSounding(m) : smokeDetectorSounding(m)).toBe(true);
+    expect(isSafetyEmergencyText(m)).toBe(true);
+    expect(hazardEvidenceOf(m).level).toBe("clear");
+  });
+  it.each(["If the CO alarm beeps, what should we do?", "If you have a moment, what should we do if the CO alarm beeps?"])(
+    "KONTROL: gerçek varsayım %j → bildirim değil",
+    (m) => {
+      expect(gasDetectorSounding(m)).toBe(false);
+      expect(hazardEvidenceOf(m).level).not.toBe("clear");
+    },
+  );
+  it("süre: uzun nezaket dizisi doğrusal", () => {
+    const t0 = performance.now();
+    gasDetectorSounding(`${"if you have a moment, ".repeat(2_000)}the co alarm is beeping`);
+    hazardEvidenceOf(`${"eger musaitseniz ".repeat(3_000)}gaz alarmi otuyor`);
+    expect(performance.now() - t0).toBeLessThan(1500);
+  });
+});

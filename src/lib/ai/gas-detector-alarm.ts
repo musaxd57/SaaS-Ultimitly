@@ -1,3 +1,4 @@
+import { blankPoliteConditionals } from "@/lib/ai/polite-conditional";
 // ─────────────────────────────────────────────────────────────────────────────
 // GAZ / KARBONMONOKSİT DEDEKTÖRÜ ÖTÜYOR → OLASI GAZ ACİLİ (G4, kurucu kararı 10-13 "Olası gaz acili say"; DENETIM 08-09 #15)
 //
@@ -328,7 +329,9 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     const detectorsByLang = LANGS.map((lang) => spans(DETECTOR[lang], sentence));
     if (detectorsByLang.every((d) => d.length === 0)) continue;
     // İlk varsayım sözcüğünün yeri yeter (ses ondan sonraysa varsayımdır) — ses başına tarama yok (maliyet O(S + H)).
-    const firstHypo = spans(HYPOTHETICAL_ALL, sentence)[0]?.start ?? Infinity;
+    // Y1 (10-14 dış inceleme): nezaket kalıbı ("If you have a moment, our CO alarm is beeping") varsayım DEĞİL — tehlike okuyucusuyla
+    // aynı liste, konum koruyarak boşlanır; gerçek varsayım ("If the CO alarm beeps, what should we do?") aynen kalır.
+    const firstHypo = spans(HYPOTHETICAL_ALL, blankPoliteConditionals(sentence))[0]?.start ?? Infinity;
     const live = (s: Span) => liveSound(sentence, s, firstHypo);
     // Canlı / hava kaynaklı olabilen fiiller (howl, whistle, honk, screech …) AYNI cümlede de öznesine bakar (Haiku 18. tur: "The wind is
     // whistling, where is the CO detector?", "The kids are screeching next to the smoke alarm"). Eski fiillerde bilinçli olarak yok —

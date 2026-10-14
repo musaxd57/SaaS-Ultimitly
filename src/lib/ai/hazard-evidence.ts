@@ -1,5 +1,6 @@
 import { foldTurkishAscii, neutralizeNonEmergency } from "@/lib/ai/fallback";
 import { gasDetectorSounding, smokeDetectorSounding } from "@/lib/ai/gas-detector-alarm";
+import { POLITE_CONDITIONAL_PARTS } from "@/lib/ai/polite-conditional";
 
 // ---------------------------------------------------------------------------
 // FİZİKSEL TEHLİKE KANITI — bağlam ilkesi (kurucu kararı 10-02 akşam, Sabah Kararları 51 + 55). Saf, LLM'siz, deterministik.
@@ -326,20 +327,8 @@ const HYPOTHETICAL = rx([
   `${NL}(?:если|в\\s+случае|что\\s+делать\\s+(?:если|при))`,
   `(?:إذا|في\\s+حالة|لو\\s+)`,
 ]);
-/**
- * Nezaket / belirsizlik kalıpları KOŞUL DEĞİLDİR ("isterseniz", "mümkünse", "if you can", "لو سمحت" = lütfen, "I'm not sure if"):
- * tehlike bildirimini varsayıma ÇEVİRMESİN diye varsayım testinden önce nötrlenir.
- */
-const POLITE = rxg([
-  `${NL}(?:zahmet\\s+olmazsa|mumkunse|mumkun\\s+ise|isterseniz|isterse|dilerseniz|uygunsa|musaitseniz|musaitse|rica\\s+etsem)${NR}`,
-  `${NL}if\\s+(?:you\\s+(?:can|could|don'?t\\s+mind|have\\s+(?:a\\s+)?(?:time|moment|minute|chance)|are\\s+(?:able|free|available)|want|wish|like|please)|possible|needed|necessary|that'?s\\s+(?:ok|okay|alright|fine))${NR}`,
-  `${NL}(?:not\\s+sure|don'?t\\s+know|no\\s+idea|can'?t\\s+tell|wondering|unsure)\\s+(?:if|whether)${NR}`,
-  `${NL}(?:wenn|falls)\\s+(?:möglich|moglich|sie\\s+(?:können|konnen|mögen|mogen|wollen)|es\\s+(?:geht|ihnen\\s+passt))${NR}`,
-  `${NL}si\\s+(?:possible|vous\\s+(?:pouvez|voulez|le\\s+pouvez)|ça\\s+vous\\s+(?:va|dérange)|ca\\s+vous\\s+(?:va|derange))${NR}`,
-  `${NL}si\\s+(?:es\\s+posible|puede[ns]?|pudiera[ns]?|no\\s+es\\s+molestia|le\\s+parece)${NR}`,
-  `${NL}если\\s+(?:можно|не\\s+сложно|не\\s+трудно|возможно|вам\\s+удобно)`,
-  `(?:لو\\s+سمحت${LB}|إذا\\s+(?:أمكن|ممكن|سمحت${LB}|تكرمت${LB})|من\\s+فضلك)`,
-]);
+/** Nezaket / belirsizlik kalıpları KOŞUL DEĞİLDİR — tek kaynak `polite-conditional.ts` (dedektör sesi okuyucusuyla ortak, Y1 10-14). */
+const POLITE = rxg(POLITE_CONDITIONAL_PARTS);
 
 // ─── AÇIK tehlike (tür başına, olumsuzlanmamış + şimdiki cümlecikte) ───────────────────────────────────────────────
 /** Tutuşma / yangın bildirimi — istenen ateş bağlamında da açık ("Tava alev aldı", "The candle set the curtain on fire"). */
