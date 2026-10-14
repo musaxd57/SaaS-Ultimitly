@@ -427,6 +427,9 @@ const SECRET_PATTERNS: RegExp[] = [
   new RegExp(`${DOOR_OPEN}(?:\\s*[:\\-–—(]|\\s+i[çc]in)\\s*${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`, "i"),
   new RegExp(`${DOOR_OPEN}\\s+${KEY_DIGITS}(?=\\s*(?:[.,;!)\\n#*]|$)|(?:\\s*['’][a-zçğıöşü]{0,4}|\\s+[a-zçğıöşü]{1,4})?\\s+(?:gir|yaz|tu[şs]la|bas))`, "i"),
   new RegExp(`(?:door|gate|entrance)[a-z]{0,2}\\s+(?:opens?|unlocks?)\\s+(?:with|using|by\\s+entering)\\s+${KEY_DIGITS}`, "i"),
+  // Haiku 10-14 son doğrulama: KAPI / GİRİŞ + "için" + değer + kullanım fiili ("Giriş için 6142 kullanın", "Kapı için 4590'ı girin") —
+  // kod sözcüğü yok, değer bitişik değil. Fiil ŞART (fiyat / yıl / saat cümleleri elenmez: "Giriş için 1500 TL ödenir").
+  new RegExp(`(?:kap[ıi]|giri[şs])[a-zçğıöşü]{0,6}\\s+i[çc]in\\s+${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?:\\s*['’][a-zçğıöşü]{0,4})?\\s+(?:kullan|gir|yaz|tu[şs]la|bas)`, "i"),
 ];
 
 /**

@@ -24,12 +24,13 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 
 import { sendOnChannel } from "@/lib/messaging";
 import { sendDueWelcomes, sendDueCheckins, sendDueCheckouts } from "@/lib/automation";
+import { eraseReservationData } from "@/lib/erasure";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 
 const mockSend = vi.mocked(sendOnChannel);
 const DAY = 86_400_000;
 
-type Change = "none" | "cancel" | "postpone";
+type Change = "none" | "cancel" | "postpone" | "erase";
 
 /** İki aday rezervasyon (A önce, B sonra — `orderBy` tarih). */
 async function seed(kind: "welcome" | "checkin" | "checkout") {
@@ -75,11 +76,17 @@ function changeBDuringFirstSend(change: Change) {
   mockSend.mockImplementation(async () => {
     if (first && change !== "none") {
       first = false;
-      const data =
-        change === "cancel"
-          ? { status: "cancelled" }
-          : { arrivalDate: new Date(Date.now() + 90 * DAY), departureDate: new Date(Date.now() + 93 * DAY) };
-      await prisma.reservation.updateMany({ where: { sourceReference: "res-b" }, data });
+      if (change === "erase") {
+        // Misafir AÇIKÇA silindi (KVKK, tombstone) — durum "confirmed" kalır.
+        const b = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-b" }, include: { property: true } });
+        await eraseReservationData(b.property.organizationId, b.id);
+      } else {
+        const data =
+          change === "cancel"
+            ? { status: "cancelled" }
+            : { arrivalDate: new Date(Date.now() + 90 * DAY), departureDate: new Date(Date.now() + 93 * DAY) };
+        await prisma.reservation.updateMany({ where: { sourceReference: "res-b" }, data });
+      }
     }
     first = false;
     return { ok: true } as never;
@@ -118,6 +125,14 @@ describe("Y4 — kuyruksuz yol: son talep durum + tarih şartını yeniden ister
   it("🚨 seçimden sonra AYLAR SONRASINA taşındı → şimdi GİTMEZ; damga konmaz (yeni tarihte normal gider)", async () => {
     const orgId = await seed("checkin");
     changeBDuringFirstSend("postpone");
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await stampOf("res-b", "checkinSentAt")).toBeNull();
+  });
+
+  it("🚨 seçimden sonra misafir SİLİNDİ (KVKK) → giriş mesajı gitmez (Haiku 10-14 son doğrulama)", async () => {
+    const orgId = await seed("checkin");
+    changeBDuringFirstSend("erase");
     expect((await sendDueCheckins(orgId)).sent).toBe(1);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(await stampOf("res-b", "checkinSentAt")).toBeNull();

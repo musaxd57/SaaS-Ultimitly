@@ -130,6 +130,17 @@ describe("KONTROL — meşru içerik elenmez / sızıntı sayılmaz", () => {
   );
 });
 
+describe("Haiku 10-14 son doğrulama: KAPI / GİRİŞ + 'için' + değer + kullanım fiili", () => {
+  it.each(["Giriş için 6142 kullanın.", "Kapı için 4590'ı girin.", "Bina girişi için 7788 tuşlayın."])("🚨 kalem elenir + cevap durur: %j", (t) => {
+    expect(withoutSecretKbItems([{ title: "Giriş", content: t }])).toHaveLength(0);
+    expect(qrReplyHasDoorCode(t, [])).toBe(true);
+  });
+  it.each(["Giriş için 1500 TL ödenir.", "Giriş için 15:00'ten sonra gelin.", "Kapı için 2024 model kilit kullanıldı."])(
+    "KONTROL: fiyat / saat / yıl elenmez: %j",
+    (t) => expect(withoutSecretKbItems([{ title: "Bilgi", content: t }])).toHaveLength(1),
+  );
+});
+
 describe("süre — Unicode rakam katlaması doğrusal", () => {
   it("50.000 Arap rakamı + kapı adı < 1500 ms", () => {
     const t0 = performance.now();

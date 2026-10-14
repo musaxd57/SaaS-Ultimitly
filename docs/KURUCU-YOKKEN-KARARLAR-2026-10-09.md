@@ -401,6 +401,8 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   kendi rezervasyonu → onaylı kopya önceliği. Bayrak kapalı yolda gönderim sonrası yeni kopya ikinci giriş mesajı alabilir (eskiden beri).
 - AÇIK (kurucu): QR'da konaklama istek sürerken SİLİNİRSE (KVKK) o istekteki tehlike mesajı için ev sahibine uyarı da gitmiyor —
   "silinmiş konaklama hiç işlenmez" mi, "acil uyarı yine gider (metinsiz)" mi?
+- Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
+  (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
 
 **10-13 öğle — YENİ soru (güvenli varsayılan UYGULANDI, isterseniz geri alınır):**
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Prisma } from "@prisma/client";
+import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
@@ -4430,6 +4431,16 @@ function onOrAfterTodayWhere(field: "arrivalDate" | "departureDate", now: Date, 
   return { OR: [{ [field]: { gte: zonedDayRange(now, tz).start } }, { [field]: { in: todayDateAnchors(now, tz) } }] };
 }
 
+/** Rezervasyonun kaynak kimliği açık silme (tombstone) ile engelli mi — silme kilidi alınır, kapı işlem içinde okunur. */
+async function sourceReferenceErased(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  sourceReference: string | null,
+): Promise<boolean> {
+  await acquireErasureLock(tx, organizationId);
+  return (await loadErasureGuard(organizationId, tx)).blocksSourceReference(sourceReference);
+}
+
 /**
  * Send the per-apartment welcome message for upcoming reservations that haven't
  * received one yet. The body is built from the apartment's "welcome" knowledge
@@ -4576,6 +4587,9 @@ export async function sendDueWelcomes(
     // Y4 (10-14): talep durumu yeniden ister — seçimden sonra iptal edilen rezervasyona karşılama gitmez (kardeşler ↓ aynı damga).
     // Talep + kardeş damgası TEK işlemde (Haiku 10-14): ikinci adım düşerse ilki de geri alınır — damgalı ama gönderilmemiş satır kalmaz.
     const claim = await prisma.$transaction(async (tx) => {
+      // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
+      // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
+      if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null, status: "confirmed" },
         data: { welcomeSentAt: stampedAt },
@@ -4785,6 +4799,9 @@ export async function sendDueCheckins(
     // çift satır) ikinci adımda AYNI damgayla işaretlenir — geri alma `stampedAt` koşuluyla ikisini birlikte geri alır.
     // Talep + kardeş damgası TEK işlemde (Haiku 10-14): ikinci adım düşerse ilki de geri alınır — damgalı ama gönderilmemiş satır kalmaz.
     const claim = await prisma.$transaction(async (tx) => {
+      // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
+      // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
+      if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: {
           sourceReference: r.sourceReference,
@@ -5128,6 +5145,9 @@ export async function sendDueCheckouts(
     // Y4 (10-14): talep durumu + çıkış GÜNÜNÜ yeniden ister (seçimle aynı şart; kardeşler ↓ aynı damga).
     // Talep + kardeş damgası TEK işlemde (Haiku 10-14): ikinci adım düşerse ilki de geri alınır — damgalı ama gönderilmemiş satır kalmaz.
     const claim = await prisma.$transaction(async (tx) => {
+      // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
+      // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
+      if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: {
           sourceReference: r.sourceReference,
