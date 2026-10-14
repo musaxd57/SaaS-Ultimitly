@@ -396,6 +396,11 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   bağlı; eksik ≠ yanlış) · Y10 KB içe aktarım tekrarı, demo telefon yapıştırma, kayıt ekranı adresi, onay penceresi odağı.
 - AÇIK (kurucu): KB içe aktarımında bağlantı koptuğu anda sunucuya ulaşmış kalem yeniden denemede İKİNCİ kez eklenebilir — sunucu tarafı
   tekrar güvenliği (istek kimliği) migration ya da aynı-içerik kontrolü ister; "kısa devre oldu" acil mi arıza mı (elektrik tabanı dışında).
+  → **KARAR (kurucu 10-14): "İstek kimliği (migration)"** — HAZIR YAMA `docs/hazir-yamalar/2026-10-14-KB-istek-kimligi-migration-65.patch`
+  (ana dala UYGULANMADI: Railway kapalı; migration 65 = NULL'lanabilir kolon + (mülk, kimlik) benzersiz dizini, taze PG'de fark sıfır).
+  Ekran kalem başına kimlik yollar; kopan istekte yeniden deneme aynı kimlikle ilk kalemi geri alır, ikinci kalem açılmaz (eş zamanlı iki
+  deneme ve dolu plan sınırı dahil); metin değişip yeniden önizlenirse yeni kimlik. Kırmızı-önce 5 test, mutasyon 7/7. Uygulamak: taze
+  `pg_dump` + sizin açık onayınız (migration'lı push kuralı).
   → **KARAR (kurucu 10-14): "kısa devre" → "Model karar versin"** — QR'da "olası" düzeyi (model koşmazsa acil sayılır), kanal ağı
   değişmedi; eval `conversation-items.json` iki senaryo (bf76f19).
 - AÇIK (tasarım, kalıcı kuyruk KAPALI olduğu için bugün etkisiz): yeniden bağlanmış rezervasyonun (aynı kaynak kimliği, birden çok mülk
