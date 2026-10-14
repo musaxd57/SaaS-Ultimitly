@@ -1,6 +1,6 @@
 import { foldTurkishAscii, neutralizeNonEmergency } from "@/lib/ai/fallback";
 import { gasDetectorSounding, smokeDetectorSounding } from "@/lib/ai/gas-detector-alarm";
-import { POLITE_CONDITIONAL_PARTS } from "@/lib/ai/polite-conditional";
+import { DOUBT_NOT_CONDITIONAL_PARTS, POLITE_CONDITIONAL_PARTS } from "@/lib/ai/polite-conditional";
 
 // ---------------------------------------------------------------------------
 // FİZİKSEL TEHLİKE KANITI — bağlam ilkesi (kurucu kararı 10-02 akşam, Sabah Kararları 51 + 55). Saf, LLM'siz, deterministik.
@@ -328,7 +328,7 @@ const HYPOTHETICAL = rx([
   `(?:إذا|في\\s+حالة|لو\\s+)`,
 ]);
 /** Nezaket / belirsizlik kalıpları KOŞUL DEĞİLDİR — tek kaynak `polite-conditional.ts` (dedektör sesi okuyucusuyla ortak, Y1 10-14). */
-const POLITE = rxg(POLITE_CONDITIONAL_PARTS);
+const POLITE = rxg([...POLITE_CONDITIONAL_PARTS, ...DOUBT_NOT_CONDITIONAL_PARTS]);
 
 // ─── AÇIK tehlike (tür başına, olumsuzlanmamış + şimdiki cümlecikte) ───────────────────────────────────────────────
 /** Tutuşma / yangın bildirimi — istenen ateş bağlamında da açık ("Tava alev aldı", "The candle set the curtain on fire"). */

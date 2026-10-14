@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Field } from "@/components/form-field";
 import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
@@ -38,6 +38,11 @@ export function RegisterForm() {
     email: "",
     password: "",
   });
+  // Yanıt geldiği andaki alan değerleri (istek sürerken düzenlenen alanın eski sunucu hatası gösterilmesin).
+  const formRef = useRef(form);
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
   const [fields, setFields] = useState<Fields>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -71,7 +76,7 @@ export function RegisterForm() {
       const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: sentTo || form.email }),
+        body: JSON.stringify({ email: sentTo }),
       });
       // fetch 429/5xx'te throw ETMEZ: res.ok bakılmazsa kullanıcıya yalan
       // "gönderildi" gösterilir ve hiç gelmeyecek bir maili bekler.
@@ -127,7 +132,16 @@ export function RegisterForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (data.fields) setFields(data.fields);
+        // İstek sürerken düzenlenen alanın eski hatası yeni değerin altına YAZILMAZ (Haiku 10-14: "zaten kayıtlı" b@… altında).
+        if (data.fields) {
+          const live = formRef.current;
+          const fresh = Object.fromEntries(
+            Object.entries(data.fields as Record<string, string>).filter(
+              ([k]) => !(k in submitted) || live[k as keyof typeof live] === submitted[k as keyof typeof submitted],
+            ),
+          );
+          setFields(fresh);
+        }
         setError(data.error ?? "Kayıt başarısız oldu");
         return;
       }

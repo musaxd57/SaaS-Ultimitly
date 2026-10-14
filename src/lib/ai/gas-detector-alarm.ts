@@ -371,7 +371,7 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     if (firstHypo === Infinity && next.length > 0 && hasSound[k + 1] && !ATTRIBUTION.test(next)) {
       const nextStarts = CONTINUATION_START.test(next) || next.split(" ").length <= CONTINUATION_MAX_WORDS;
       const firstDetectorNext = ANY_DETECTOR.exec(next)?.index ?? Infinity;
-      const firstHypoNext = spans(HYPOTHETICAL_ALL, next)[0]?.start ?? Infinity;
+      const firstHypoNext = spans(HYPOTHETICAL_ALL, blankPoliteConditionals(next))[0]?.start ?? Infinity;
       const continues = (s: Span) =>
         s.start < firstDetectorNext &&
         (nextStarts ||
@@ -405,7 +405,7 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
         // Geri alma ardındaki cümlede dedektör yeniden anılmıyorsa ("No, the kettle isn't the problem, it's the CO alarm" geri alma değil).
         !(RETRACTION_NEXT.test(next) && !ANY_DETECTOR.test(next))
       ) {
-        const firstHypoPrev = spans(HYPOTHETICAL_ALL, prev)[0]?.start ?? Infinity;
+        const firstHypoPrev = spans(HYPOTHETICAL_ALL, blankPoliteConditionals(prev))[0]?.start ?? Infinity;
         if (allSounds(prev).some((s) => !soundOfOtherSource(prev, s) && liveSound(prev, s, firstHypoPrev))) return true;
       }
     }

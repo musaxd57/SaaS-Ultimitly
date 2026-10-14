@@ -590,12 +590,32 @@ describe("Y1 (10-14 dış inceleme): nezaket girişi gerçekleşen tehlikeyi var
     ["Vaktiniz olursa, CO alarmı ötüyor", "gas"],
     ["Si vous avez un moment, le détecteur de CO sonne.", "gas"],
     ["Wenn Sie Zeit haben, der CO-Melder piept.", "gas"],
+    // Haiku 10-14 ikinci tur: başka nezaket biçimleri + devam / geriye atıf cümleleri.
+    ["If it's not too much trouble, the CO alarm is beeping.", "gas"],
+    ["If you're free, the CO alarm is beeping.", "gas"],
+    ["If you've got a moment, the CO alarm is beeping.", "gas"],
+    ["If you wouldn't mind, the CO alarm is beeping.", "gas"],
+    ["If it's no bother, the CO alarm is beeping.", "gas"],
+    ["In case you have a moment, the CO alarm is beeping.", "gas"],
+    ["Wenn es Ihnen recht ist, piept der Kohlenmonoxidmelder.", "gas"],
+    ["Wenn du Zeit hast, der CO-Melder piept.", "gas"],
+    ["Eğer rahatsız etmezse, CO dedektörü ötüyor.", "gas"],
+    ["Eğer sakıncası yoksa, CO dedektörü ötüyor.", "gas"],
+    ["Eğer müsait iseniz, CO dedektörü ötüyor.", "gas"],
+    ["En caso de que tenga un momento, la alarma de CO está sonando.", "gas"],
+    ["The CO alarm is in the kitchen. If you have a moment, it keeps beeping.", "gas"],
+    ["If you have a moment, something keeps beeping. It is the CO alarm.", "gas"],
   ])("🚨 %j → çıplak hâliyle AYNI sonuç: dedektör ötüyor + iki ağda acil", (m, kind) => {
     expect(kind === "gas" ? gasDetectorSounding(m) : smokeDetectorSounding(m)).toBe(true);
     expect(isSafetyEmergencyText(m)).toBe(true);
     expect(hazardEvidenceOf(m).level).toBe("clear");
   });
-  it.each(["If the CO alarm beeps, what should we do?", "If you have a moment, what should we do if the CO alarm beeps?"])(
+  it.each([
+    "If the CO alarm beeps, what should we do?",
+    "If you have a moment, what should we do if the CO alarm beeps?",
+    // Belirsizlik nezaket DEĞİL — dedektör okuyucusunda soru olarak kalır (ilk Y1 sürümü bunu bildirime çeviriyordu).
+    "I'm not sure if the CO alarm beeps when I cook.",
+  ])(
     "KONTROL: gerçek varsayım %j → bildirim değil",
     (m) => {
       expect(gasDetectorSounding(m)).toBe(false);

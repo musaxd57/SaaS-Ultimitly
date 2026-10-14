@@ -5,7 +5,6 @@
  * rakamlar — da 10'un katı) → değer = (kod noktası − ardışık Nd dizisinin başı) mod 10. ASCII metin aynen döner. Yaprak modül.
  */
 export function foldUnicodeDigits(s: string): string {
-  // eslint-disable-next-line no-control-regex
   if (!/[^\u0000-\u007f]/.test(s)) return s;
   return s.replace(/(?![0-9])\p{Nd}/gu, (ch) => {
     const cp = ch.codePointAt(0) as number;
@@ -13,4 +12,19 @@ export function foldUnicodeDigits(s: string): string {
     while (start > 0 && /\p{Nd}/u.test(String.fromCodePoint(start - 1))) start--;
     return String((cp - start) % 10);
   });
+}
+
+/**
+ * SIR TARAMASI KATLAMASI (Haiku 10-14 ikinci tur): `foldUnicodeDigits` + rakam görünümlü diğer sayılar (üst / alt simge ⁶₆, daire içi ⑥
+ * — `\p{No}`, NFKC karşılığı ASCII rakamsa) + GÖRÜNMEZ karakterler silinir ("61​42", yumuşak tire). Yalnız TARAMA ve modele giden
+ * kopyada kullanılır; misafirin / ev sahibinin gördüğü metin değişmez.
+ */
+export function foldForSecretScan(s: string): string {
+  if (!/[^\u0000-\u007f]/.test(s)) return s;
+  return foldUnicodeDigits(s)
+    .replace(/\p{No}/gu, (ch) => {
+      const n = ch.normalize("NFKC");
+      return /^[0-9]+$/.test(n) ? n : ch;
+    })
+    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]/gu, "");
 }

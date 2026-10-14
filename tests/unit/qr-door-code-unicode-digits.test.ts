@@ -49,6 +49,46 @@ describe("(a) Unicode rakamlı kapı kodu", () => {
   });
 });
 
+describe("(a2) rakam görünümlü diğer biçimler ve araya giren görünmez karakter / ayraç (Haiku 10-14)", () => {
+  const leaks = [
+    "Kapı kodu: ⁶¹⁴²",
+    "Kapı kodu: ₆₁₄₂",
+    "Kapı kodu: ⑥①④②",
+    "Kapı kodu: 61\u200B42",
+    "Kapı kodu: 61\u00AD42",
+    "Kapı kodu: 6\u00A01\u00A04\u00A02",
+    "Kapı kodu: 6.1.4.2",
+    "Kapı kodu: 6/1/4/2",
+  ];
+  it.each(leaks)("🚨 çıktı taraması yakalar: %j", (reply) => expect(qrReplyHasDoorCode(reply, [])).toBe(true));
+  it.each(leaks)("🚨 geçmişte değer kalmaz: %j", (m) => {
+    const out = redactDoorCodes(m);
+    expect(out).toContain(REDACTED_DOOR_CODE);
+    expect(out.replace(/\D/g, "")).not.toContain("6142");
+  });
+  it.each(["Kapı: ⁶¹⁴²", "Kapı: ⑥①④②", "Kapı: 61\u200B42"])("🚨 bilgi tabanı kalemi elenir: %j", (content) => {
+    expect(withoutSecretKbItems([{ title: "Giriş", content }])).toHaveLength(0);
+  });
+  it.each(["Fiyat ²⁰²⁴ değil 2024'te belirlendi.", "Giriş saati 15.00, çıkış 11.00", "Sürüm 1.2.3 yüklü"])(
+    "KONTROL: kapı bağlamı yoksa cevap durmaz: %j",
+    (reply) => expect(qrReplyHasDoorCode(reply, [])).toBe(false),
+  );
+});
+
+describe("(b2) kapı adı sözcük İÇİNDE değil (Haiku 10-14: 'importe 2500' / 'soporte 2024')", () => {
+  it.each([
+    "Le total importe 2500 TL pour la nuit.",
+    "Importe total: 2500 TL",
+    "Soporte 2024 incluido.",
+    "Shabab 2024",
+  ])("bilgi tabanı kalemi KALIR: %j", (content) => {
+    expect(withoutSecretKbItems([{ title: "Bilgi", content }])).toHaveLength(1);
+  });
+  it("Wi-Fi kaleminde Arapça sözcük içindeki 'باب' (شباب) iz sayılmaz", () => {
+    expect(withoutQrSecretKbItems([{ category: "wifi", title: "Wi-Fi", content: "Wi-Fi: LaleNet, şifre lale2024. شباب" }])).toHaveLength(1);
+  });
+});
+
 describe("(b) Wi-Fi kaleminde başka dilde kapı etiketi", () => {
   it.each([
     "Wi-Fi şifresi: lale2024. كلمة مرور الباب: 6142",

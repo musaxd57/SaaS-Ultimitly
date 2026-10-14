@@ -54,8 +54,14 @@ export function ConfirmHost() {
             id: ++sequence,
             options,
             resolve,
+            // Bir diyalog açıkken sıraya giren soru, odağı o diyalogdan ALMAZ — sıranın İLK sorusunun dönüş hedefini devralır (Haiku
+            // 10-14: yoksa ikinci soru kapanınca odak sökülmüş diyaloğa dönmek isteyip sayfanın başına düşüyordu).
             restore:
-              document.activeElement instanceof HTMLElement ? document.activeElement : null,
+              queueRef.current.length > 0
+                ? (queueRef.current[0].restore ?? null)
+                : document.activeElement instanceof HTMLElement
+                  ? document.activeElement
+                  : null,
           };
           queueRef.current = [...queueRef.current, item];
           setQueue(queueRef.current);

@@ -452,4 +452,34 @@ describe("Y10 (10-14 dış inceleme): kayıt başarı ekranı bağlantının Gİ
     const registerBody = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
     expect(registerBody.email).toBe("a@ornek.com");
   });
+
+  it("🚨 istek sürerken e-posta düzeltilirse eski sunucu hatası ('zaten kayıtlı') YENİ adresin altına yazılmaz", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        await gate;
+        return new Response(JSON.stringify({ error: "Doğrulama hatası", fields: { email: "Bu e-posta adresi zaten kayıtlı" } }), {
+          status: 400,
+        });
+      }),
+    );
+    render(<RegisterForm />);
+    typeInto(/İşletme adı/, "Lale");
+    typeInto(/Adınız/, "Musa");
+    typeInto(/E-posta/, "kayitli@ornek.com");
+    typeInto("Şifre", "sifre12345");
+    fireEvent.click(screen.getByRole("checkbox"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));
+    });
+    typeInto(/E-posta/, "yeni@ornek.com");
+    await act(async () => {
+      release();
+      await gate;
+    });
+    await act(async () => {});
+    expect(screen.queryByText("Bu e-posta adresi zaten kayıtlı")).toBeNull();
+  });
 });

@@ -210,4 +210,27 @@ describe("Y10 (10-14 dış inceleme): kısmi başarıdan sonra tekrar deneme yal
     const all = sentCategories(fetchMock);
     expect(all.slice(2)).toEqual([first[1]]);
   });
+
+  it("ekleme sürerken metin alanı ve Önizle KİLİTLİ (biten işlem yeni yazılanı silmez)", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        await gate;
+        return { ok: true, status: 201, json: async () => ({}) };
+      }),
+    );
+    openPanel();
+    paste(TWO);
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    expect((screen.getByLabelText("Metin") as HTMLTextAreaElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Önizle" }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => {
+      release();
+      await gate;
+    });
+  });
 });

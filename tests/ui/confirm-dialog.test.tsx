@@ -121,6 +121,23 @@ describe("ConfirmHost — diyalog sözleşmesi", () => {
     expect(document.activeElement).toBe(buttons[0]);
   });
 
+  it("sıradaki ikinci soru kapanınca odak İLK tetikleyiciye döner (sökülen diyaloğa değil — Haiku 10-14)", async () => {
+    const { trigger, result } = await open("Birinci?");
+    let second!: Promise<boolean>;
+    await act(async () => {
+      second = confirmDialog({ title: "İkinci?" });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Onayla" }));
+    });
+    await expect(result).resolves.toBe(true);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Onayla" }));
+    });
+    await expect(second).resolves.toBe(true);
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
   it("açılınca odak diyaloğa girer", async () => {
     await open();
     const dialog = await screen.findByRole("dialog");

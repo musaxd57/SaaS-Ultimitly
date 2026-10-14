@@ -162,16 +162,19 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
               id="kb-import-text"
               rows={6}
               value={text}
+              // Ekleme sürerken metin / önizleme DEĞİŞMEZ (Haiku 10-14): biten işlem `reset()` ile yeni yazılanı silmesin, eklenen
+              // kalemler yeni önizlemeden yanlışlıkla düşürülmesin.
+              disabled={busy}
               onChange={(e) => setText(e.target.value)}
               placeholder={"Çıkış saati 11:00'dir.\nÇöpleri binanın yan sokağındaki konteynere bırakabilirsiniz.\nOtopark bina altındadır."}
             />
           </Field>
           <div className="flex gap-2">
-            <Button type="button" size="sm" onClick={runPreview} disabled={!text.trim()}>
+            <Button type="button" size="sm" onClick={runPreview} disabled={busy || !text.trim()}>
               Önizle
             </Button>
             {preview ? (
-              <Button type="button" variant="ghost" size="sm" onClick={reset}>
+              <Button type="button" variant="ghost" size="sm" onClick={reset} disabled={busy}>
                 Temizle
               </Button>
             ) : null}
