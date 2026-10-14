@@ -152,6 +152,8 @@ describe("KVKK süpürgeleri — süre-bazlı ↔ açık-silme paritesi", () => 
         "Reservation.guestName",
         "Reservation.guestPhone",
         "Reservation.notes",
+        // QR acil e-posta tekilleştirme izi: acil mesaj METNİNİN özetini (`crit:<sha256>`) taşıyabilir — iki süpürgede de (Haiku 10-14).
+        "Reservation.qrEscalationEmailMessageId",
         "Task.description",
         "Task.title",
         "TaskUpdate.note",
