@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { buildUnderstandingUserContent, understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { writeSidecar, uniqueReportName } from "./sidecar";
@@ -17,6 +19,8 @@ interface Scenario {
   lang: string;
   history: { a: "in" | "auto" | "host"; t: string }[];
   message: string;
+  /** Güncel misafir mesajından SONRA yazılan şablonlar (AI öner yolunda geçmiş kesilmez). */
+  after?: { a: "auto"; t: string }[];
   expect: { stayRequested?: boolean; stayKind?: string; checkinTime?: string; checkoutTime?: string; intentsAny?: string[] };
 }
 const DATA = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/understanding-automation-label.json"), "utf8")) as {
@@ -35,7 +39,24 @@ export function historyOf(s: Scenario) {
     ...(h.a === "auto" ? { author: "automation" } : h.a === "host" ? { author: "host" } : {}),
     at: new Date(base + i * 60_000),
   }));
-  return [...rows, { direction: "inbound" as const, body: s.message, at: new Date(base + rows.length * 60_000) }];
+  const msg = { direction: "inbound" as const, body: s.message, at: new Date(base + rows.length * 60_000) };
+  const tail = (s.after ?? []).map((h, i) => ({ direction: "outbound" as const, body: h.t, author: "automation", at: new Date(base + (rows.length + 1 + i) * 60_000) }));
+  return [...rows, msg, ...tail];
+}
+
+/**
+ * KOD KÖKENİ (Haiku 10-15): kollar yamalı ama commit edilmemiş ağaçlarda koşabilir — rapor HEAD'i, ağacın kirli olup olmadığını ve
+ * `src/` yerel farkının özetini yazar (kol kimliği ayrıca istemden ölçülür, ↓`armOf`).
+ */
+export function codeProvenance(cwd: string): { head: string; dirty: boolean; srcDiff: string } {
+  try {
+    const run = (c: string) => execSync(c, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const head = run("git rev-parse --short HEAD").trim();
+    const diff = run("git diff HEAD -- src");
+    return { head, dirty: diff.length > 0, srcDiff: diff.length ? createHash("sha256").update(diff).digest("hex").slice(0, 12) : "-" };
+  } catch {
+    return { head: "?", dirty: false, srcDiff: "?" };
+  }
 }
 
 /**
@@ -104,17 +125,20 @@ describe.skipIf(!enabled)("G1 — anlama katmanında otomatik mesaj etiketi (üc
     const date = new Date().toISOString().slice(0, 10);
     const name = uniqueReportName(dir, `g1-otomatik-etiket-${date}-${arm}.md`);
     const okN = rows.filter((r) => r.ok).length;
+    const prov = codeProvenance(path.resolve(__dirname, "../.."));
     const lines = [
       `# G1 — anlama katmanında otomatik mesaj etiketi (${date}) · kol: ${arm}`,
       "",
       `Senaryo ${DATA.scenarios.length} × tur ${ROUNDS} · doğru ${okN}/${rows.length} · katman hatası ${rows.filter((r) => r.status !== "ok").length}`,
+      "",
+      `Kod: HEAD \`${prov.head}\` · ${prov.dirty ? `yerel src değişikliği VAR (özet \`${prov.srcDiff}\` — yamalı ölçüm ağacı)` : "yerel src değişikliği yok"} · kol istemden ölçüldü: \`${arm}\``,
       "",
       "| Senaryo | Tur | Sonuç | Niyetler | Konaklama | Hata |",
       "|---|---|---|---|---|---|",
       ...rows.map((r) => `| ${r.id} | ${r.round + 1} | ${r.ok ? "✓" : "✗"} | ${r.intents.join(" + ") || "—"} | ${r.stay} | ${r.fails.join("; ")} |`),
     ];
     writeFileSync(path.join(dir, name), `${lines.join("\n")}\n`);
-    writeSidecar(dir, name, { suite: "g1-automation-label", version: 1, meta: { arm, rounds: ROUNDS, scenarios: DATA.scenarios.length }, rows });
+    writeSidecar(dir, name, { suite: "g1-automation-label", version: 1, meta: { arm, rounds: ROUNDS, scenarios: DATA.scenarios.length, provenance: prov }, rows });
     expect(rows.length).toBe(DATA.scenarios.length * ROUNDS);
   }, 30 * 60_000);
 });

@@ -474,6 +474,52 @@
           "other"
         ]
       }
+    },
+    {
+      "id": "son-tr-wifi-sonra-çıkış-şablonu",
+      "lang": "tr",
+      "history": [
+        {
+          "a": "host",
+          "t": "Evet, otopark ücretsiz."
+        }
+      ],
+      "message": "Wi-Fi şifresi neydi?",
+      "after": [
+        {
+          "a": "auto",
+          "t": "Yarın çıkış saatiniz 11:00. Geç çıkış isterseniz yazmanız yeterli."
+        }
+      ],
+      "expect": {
+        "stayRequested": false,
+        "intentsAny": [
+          "wifi"
+        ]
+      }
+    },
+    {
+      "id": "son-en-parking-then-welcome",
+      "lang": "en",
+      "history": [
+        {
+          "a": "host",
+          "t": "You're welcome!"
+        }
+      ],
+      "message": "Where can we park the car?",
+      "after": [
+        {
+          "a": "auto",
+          "t": "Welcome! Check-in is from 15:00. Early check-in may be possible depending on availability."
+        }
+      ],
+      "expect": {
+        "stayRequested": false,
+        "intentsAny": [
+          "parking"
+        ]
+      }
     }
   ]
 }

@@ -432,14 +432,18 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
 - 🔔 G1 ÖLÇÜLDÜ (10-14 gece / 10-15; sizin "kredi gelince ölç" kararınız) + YENİ BULGU, karar sizin (modele giden metin değişir):
   anlama katmanı, son cevaptan SONRA gelen otomatik şablon mesajını HİÇ görmüyor (K7 penceresi: şablon cevap sayılmaz, ama istemden de
   düşüyor). G1'in "Automated message" etiketi bunu çözmüyor. İkinci ölçüm (Haiku incelemesinden sonra, "misafir → şablon → misafir" sırası
-  eklendi): 23 senaryo × 3 tur, gpt-5.1 (`docs/olcum/g1-otomatik-etiket-2026-10-15-*`): **bugün 56/69 · yalnız G1 58/69 · G1 + G1b 69/69**.
+  eklendi): 23 senaryo × 3 tur, gpt-5.1 (`docs/olcum/g1-otomatik-etiket-2026-10-15-*`): bugün 56/69 · yalnız G1 58/69 · G1 + G1b 69/69.
+  Üçüncü ölçüm (Haiku ikinci incelemesi: kod kökeni rapora yazılır, şablonun misafir mesajından SONRA geldiği 2 senaryo eklendi; G1b commit
+  `f90d971`, yerel değişiklik yok): 25 × 3 → **bugün 65/75 · yalnız G1 63/75 · G1 + G1b 75/75** (`…-2.md`). Dürüst okuma: bugünkü kodun
+  yanıldığı 4 senaryo her turda aynı yönde, G1b hiçbirini bozmuyor; senaryo düzeyinde işaret testi p≈0,125 — küçük set, ORAN tahmini değil,
+  hata TÜRÜNÜN kanıtı.
   G1b: şablon cevapsız misafir mesajlarının ARASINA, yazıldığı yere, numarasız "Automated message (not an answer)" satırı olarak girer
   (en çok son 2; gerçek bağlam tavanından yer yemez; mesaj numaraları ve öğe eşlemesi değişmez).
   Örnekler (bugün → G1b, üç turda da aynı): şablon "Reminder: check-out tomorrow is at 11:00. Need a late checkout? Just reply." → misafir
   "Yes please, 1pm would be great." → bugün **erken giriş 13:00** sanılıyor → G1b **geç çıkış 13:00**. Şablon "Wi-Fi bilgileri kartta" →
   "Kartı bulamadık, şifre neydi?" → bugün kapı / anahtar sorusu → G1b Wi-Fi.
   Hazır yama `docs/hazir-yamalar/2026-10-14-G1-G1b-anlama-otomatik-mesaj-baglami.patch` (G1 yamasının yerine geçer; ilgili 58 birim test
-  dosyası yeşil; ana dala UYGULANMADI; anahtarsız — isterseniz anahtar arkasına alırım). Aynı "Host" etiketi bekçi isteminde de var
+  dosyası yeşil, sıra / kesilen pencere / damga pinleri; ana dala UYGULANMADI; anahtarsız — isterseniz anahtar arkasına alırım). Aynı "Host" etiketi bekçi isteminde de var
   (`ai/semantic/guard.ts`: şablon ve yapay zekâ cevabı da "Host:") — bu yamada YOK, ayrı karar. Uygulayalım mı?
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
