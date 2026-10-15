@@ -23,6 +23,7 @@ import {
   type ConfidentLanguage,
 } from "@/lib/ai/language-signal";
 import { HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
+import { fixSupportHolds, type KbFixSupport } from "@/lib/conversation-items/relation";
 
 // ---------------------------------------------------------------------------
 // QR MİSAFİR SOHBETİ — DEVİR KAPISI (saf; DB yok, ağ yok, yan etki yok).
@@ -149,6 +150,9 @@ export const ESCALATION_REASONS = [
   "door_code_in_reply",
   // Cevap misafiri acil numarayı / acil servisi aramaya yönlendirdi (kurucu kararı 10-11) → gitmez; QR'da önce bir kez yeniden yazdırılır.
   "emergency_directive",
+  // Kanıtsız arıza adımı (kurucu 10-15: "BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ"; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`) —
+  // kanal kapısıyla AYNI yüklem (`relation.fixSupportHolds`).
+  "fix_unsupported",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -259,6 +263,8 @@ export function evaluateEscalation(
     /** Doğrulanmış müsaitlik / uzatma KOD metni (QR anahtarı `AI_VERIFIED_QR_ENABLED`); yalnız birebir metne ve bütün şartlarla muaf. */
     verifiedAvailability?: { text: string } | null;
     verifiedExtension?: { text: string } | null;
+    /** Kanıtsız arıza adımı kemeri (`relation.fixSupportContextOf`; anahtar kapalıyken alan yok → kural koşmaz). */
+    kbFixSupport?: KbFixSupport;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
@@ -351,6 +357,9 @@ export function evaluateEscalation(
   }
   // ── ACİL ARAMA YÖNERGESİ MİSAFİRE GİTMEZ (kurucu kararı 10-11: "112'yi arayın yazmasın … hiçbir şekilde") ──
   if (hasEmergencyCallDirective(result.reply)) return yes("emergency_directive");
+  // ── KANITSIZ ARIZA ADIMI (kurucu 10-15; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`) — kanal kapısıyla AYNI yüklem. Bilgi tabanında tarifi /
+  // konusu olmayan cihaz için adım misafire gitmez, ev sahibine devredilir. ──
+  if (fixSupportHolds(result.reply, stayCtx?.kbFixSupport)) return yes("fix_unsupported");
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24) ────────────────────────────────
   // Kanal kapısıyla AYNI yüklem. QR'da cevaplanan tek mesaj GÜNCEL mesajdır (eşzamanlı sohbet;
   // önceki turlar ya o anda cevaplandı ya da ev sahibine DEVREDİLDİ — devredilen tur yapay zekâ cevabı

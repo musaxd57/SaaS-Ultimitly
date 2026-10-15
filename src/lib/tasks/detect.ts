@@ -130,7 +130,9 @@ function siteOfClause(
   const original = originalClauses[clauseIndex];
   const device = original ? firstBreakdownDevice(original.text) : null;
   if (original && device) return { device, guestOwned: mentionsGuestOwnedItem(original.text) };
-  return { device: firstBreakdownDevice(message), guestOwned: mentionsGuestOwnedItem(message) };
+  // Cihazı OLMAYAN cümlecikte sahiplik BİLİNMEZ → bildirim (Opus N6, 10-15 gece, ölçüldü: bütün mesaja düşülünce "Valizleri getirdik.
+  // Klimayı açtık, bozuldu" / "Televizyon kendi kendine kapanıyor, bozuk" görev açmıyordu — kurucu D4 "şüphede bildirim").
+  return { device: firstBreakdownDevice(message), guestOwned: false };
 }
 /**
  * Arıza sözcüğünün HEMEN SOLUNDAKİ cihaz (en çok 6 sözcük geri; Türkçede cihaz fiilden önce gelir): "Anahtarı aldık içeri girdik klima
@@ -160,7 +162,7 @@ function deviceFaultSite(message: string, reportText: string): { device: string 
     const site = siteOfClause(message, originals, k);
     if (site.device) return site;
   }
-  return { device: firstBreakdownDevice(message), guestOwned: mentionsGuestOwnedItem(message) };
+  return { device: firstBreakdownDevice(message), guestOwned: false };
 }
 
 /** Bildirilmemiş (olumsuzlanmış / koşul) arıza sözcüğü geçişleri boşlukla örtülmüş metin — sınıflandırıcı "bozuk değil"i şikâyet okumasın. */
@@ -211,9 +213,36 @@ export function detectOperationalTask(
   message: string,
   ai: { intent?: string | null; riskType?: string | null } = {},
 ): DetectedTask | null {
-  // "İ" ayrı: `toLowerCase()` onu iki kod birimine (i + birleştirici nokta) çevirir — "ELEKTRİK YOK" sözlükle eşleşmiyordu (Haiku 10-15).
-  // Uzunluk korunur (cümlecik eşlemesi sıra numarasıyla).
-  const msg = message.replace(/İ/g, "i").toLowerCase();
+  const primary = detectWith(message, ai, lowerForMatch(message, false));
+  // BÜYÜK HARFLİ TÜRKÇE (Opus N7, 10-15 gece, ölçüldü): JS `"I".toLowerCase()` "i" verir, Türkçede "ı" olmalı — "İNTERNET ÇALIŞMIYOR"
+  // görev açmıyor, "KLİMA ÇALIŞMIYOR" yalnız genel "cihaz/olanak" görevine düşüyordu. Mesaj Türkçe harf taşıyor ve ilk okuma sonuç vermedi /
+  // genel kaldıysa "I → ı" okumasıyla yeniden bakılır (İngilizce "WIFI / I" okuması ilk geçişte aynen korunur).
+  if (primary === null || primary.topic === GENERIC_AMENITY_TOPIC) {
+    if (/I/.test(message) && TURKISH_LETTER.test(message)) {
+      const alt = detectWith(message, ai, lowerForMatch(message, true));
+      if (alt && alt.topic !== GENERIC_AMENITY_TOPIC) return alt;
+    }
+  }
+  return primary;
+}
+
+const GENERIC_AMENITY_TOPIC = "cihaz/olanak";
+const TURKISH_LETTER = /[ÇŞĞÖÜİçşğöüı]/u;
+
+/**
+ * Eşleştirme için küçük harf — uzunluk KORUNUR (cümlecik eşlemesi sıra numarasıyla). "İ" ayrı: `toLowerCase()` onu iki kod birimine
+ * (i + birleştirici nokta) çevirir — "ELEKTRİK YOK" sözlükle eşleşmiyordu (Haiku 10-15). `turkishI`: "I" → "ı" (büyük harfli Türkçe).
+ */
+function lowerForMatch(message: string, turkishI: boolean): string {
+  const dotted = message.replace(/İ/g, "i");
+  return (turkishI ? dotted.replace(/I/g, "ı") : dotted).toLowerCase();
+}
+
+function detectWith(
+  message: string,
+  ai: { intent?: string | null; riskType?: string | null },
+  msg: string,
+): DetectedTask | null {
   const riskType = ai.riskType ?? detectRiskType(message);
 
   if (riskType && NON_OPERATIONAL_RISK.has(riskType)) return null;
@@ -273,9 +302,11 @@ export function detectOperationalTask(
   }
 
   // 4) Appliance/amenity complaint → maintenance. Reuses the existing safety-net
-  //    "amenity" keywords (klima / buzdolabı / çamaşır makinesi / fırın / tv…).
-  if (isReportedComplaint && !mentionsGuestOwnedItem(message) && matchesIntentKeywords(message, "amenity")) {
-    return { type: "maintenance", priority: "standard", topic: "cihaz/olanak", slaHours: 24 };
+  //    "amenity" keywords (klima / buzdolabı / çamaşır makinesi / fırın / tv…). Misafirin kendi eşyası yalnız ARIZANIN cümleciğinde
+  //    okunur (Opus N6: bütün mesajda "we brought our own towels" geçince klima arızası TEMİZLİK görevine dönüyordu).
+  const faultOnGuestItem = !inquiry && reportsDeviceFault(reportText) && deviceFaultSite(message, reportText).guestOwned;
+  if (isReportedComplaint && !faultOnGuestItem && matchesIntentKeywords(message, "amenity")) {
+    return { type: "maintenance", priority: "standard", topic: GENERIC_AMENITY_TOPIC, slaHours: 24 };
   }
 
   // 5) Cleanliness complaint → cleaning. Reuses the existing "cleaning" net.

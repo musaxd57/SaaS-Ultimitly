@@ -178,6 +178,53 @@ describe("vazgeçme — acil hariç", () => {
   });
 });
 
+describe("kodun eklediği arıza şikâyeti (fault_guard) misafirin vazgeçmesiyle kapanır (Opus N10, 10-15 gece)", () => {
+  const faultItems = (extra: { intent: "trash" | "appliance_help" }[] = []) => [
+    ...buildItemsForMessage({ requests: [{ intent: "appliance_help" }, ...extra], lexicalLabels: [] }),
+    { requestIndex: 0, kind: "complaint_issue" as const, sensitivity: "sensitive" as const, riskType: "complaint", sources: ["fault_guard" as const], hint: "televizyonda görüntü yok" },
+  ];
+
+  it("🚨 'TV düzeldi' → anlama katmanı appliance_help'i geri çeker; aynı mesajın kod şikâyeti de kapanır (açık iş kalmaz)", async () => {
+    const { conversationId, ids } = await seedConversation(orgId, propertyId, [
+      ["tv", "inbound", "Televizyonda görüntü yok", 0],
+      ["ok", "inbound", "Tamam TV düzeldi, teşekkürler", 30],
+    ]);
+    const turn = await upsertTurnItems(prisma, { organizationId: orgId, conversationId, now: at(1), messages: [{ messageId: ids[0], items: faultItems() }] });
+    expect(turn.map((i) => i.kind).sort()).toEqual(["appliance_help", "complaint_issue"]);
+    await applyWithdrawals(prisma, {
+      organizationId: orgId, conversationId, now: at(31), turnMessageIds: [ids[1]], withdrawals: [{ kind: "appliance_help", earlier: true }],
+    });
+    for (const it of turn) expect((await prisma.conversationItem.findUnique({ where: { id: it.id } }))?.status, it.kind).toBe("withdrawn");
+  });
+
+  it("aynı mesajda başka açık istek varsa (çöp sorusu cevapsız) kod şikâyeti KAPANMAZ — temkinli yön", async () => {
+    const { conversationId, ids } = await seedConversation(orgId, propertyId, [
+      ["tv", "inbound", "Televizyonda görüntü yok. Çöpleri nereye atıyoruz?", 0],
+      ["ok", "inbound", "TV düzeldi", 30],
+    ]);
+    const turn = await upsertTurnItems(prisma, { organizationId: orgId, conversationId, now: at(1), messages: [{ messageId: ids[0], items: faultItems([{ intent: "trash" }]) }] });
+    await applyWithdrawals(prisma, {
+      organizationId: orgId, conversationId, now: at(31), turnMessageIds: [ids[1]], withdrawals: [{ kind: "appliance_help", earlier: true }],
+    });
+    const status = async (kind: string) => (await prisma.conversationItem.findUnique({ where: { id: turn.find((i) => i.kind === kind)!.id } }))?.status;
+    expect(await status("appliance_help")).toBe("withdrawn");
+    expect(await status("complaint_issue")).toBe("open");
+    expect(await status("trash")).toBe("open");
+  });
+
+  it("modelin KENDİ şikâyeti (kaynak understanding) bu kuralla kapanmaz — yalnız kodun eklediği", async () => {
+    const { conversationId, ids } = await seedConversation(orgId, propertyId, [["tv", "inbound", "Televizyon bozuk", 0], ["ok", "inbound", "düzeldi", 30]]);
+    const turn = await upsertTurnItems(prisma, {
+      organizationId: orgId, conversationId, now: at(1),
+      messages: [{ messageId: ids[0], items: buildItemsForMessage({ requests: [{ intent: "appliance_help" }, { intent: "complaint_issue" }], lexicalLabels: [] }) }],
+    });
+    await applyWithdrawals(prisma, {
+      organizationId: orgId, conversationId, now: at(31), turnMessageIds: [ids[1]], withdrawals: [{ kind: "appliance_help", earlier: true }],
+    });
+    expect((await prisma.conversationItem.findUnique({ where: { id: turn.find((i) => i.kind === "complaint_issue")!.id } }))?.status).toBe("open");
+  });
+});
+
 describe("yerine geçme + e-posta devri", () => {
   it("🚨 K9: aynı hassas istek tekrar sorulunca eski öğe KAPANMAZ; yeni mesajın kendi işi, e-posta DEVRALINMAZ (mesaj başına e-posta)", async () => {
     const { conversationId, ids } = await seedConversation(orgId, propertyId, [

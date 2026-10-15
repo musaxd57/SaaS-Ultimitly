@@ -66,6 +66,14 @@ export function topicsOf(text: string): string[] {
   return [...new Set([...matched.map((m) => m.concept.id), ...local])].filter((id) => !GENERIC_TOPICS.has(id)).sort();
 }
 
+/**
+ * Arızalı isteğin konuları: `requestTopics` + TV belirti adları (`TV_SYMPTOM` — "Ekranda görüntü yok" sorgusunda "televizyon" geçmeyebilir).
+ * Yalnız arıza koruması kullanır (sentetik şikâyetin konusu → bırakılan cihaz kapısı).
+ */
+export function faultTopics(queryTr: string, queryOriginal: string, kind: ItemKind): string[] {
+  return [...new Set([...topicsWithSymptomsOf(queryTr), ...topicsWithSymptomsOf(queryOriginal), ...(KIND_TOPICS[kind] ?? [])])].sort();
+}
+
 /** İsteğin konuları: Türkçe + özgün dildeki sorgu + türün kendi konusu. */
 export function requestTopics(queryTr: string, queryOriginal: string, kind: ItemKind): string[] {
   return [...new Set([...topicsOf(queryTr), ...topicsOf(queryOriginal), ...(KIND_TOPICS[kind] ?? [])])].sort();
@@ -100,11 +108,27 @@ const LOCAL_DEVICE_WORDS: readonly (readonly [RegExp, string])[] = [
   [new RegExp(`${L}televisor(?:es)?${R}`, "u"), "tv"],
   [new RegExp(`${L}(?:kar tanes\\p{L}{0,6}|snowflake\\p{L}{0,2}|schneeflocke\\p{L}{0,2}|flocon\\p{L}{0,2}|copo de nieve|снежинк\\p{L}{0,3})${R}`, "u"), "ac"],
   [new RegExp(`${L}lave[ -]linge${R}`, "u"), "laundry"],
-  // Opus 10-15 P2 (ölçüldü): TV'nin BELİRTİ / parça adları — 5.1'in bırakılan TV için uydurduğu "Ekranda görüntü yoksa kaynak girişinin
-  // (HDMI/AV) doğru seçili olduğundan emin olur musunuz" cümlesi "televizyon" sözcüğü geçmediği için bırakılan cihaz kapısından geçiyordu.
-  // Çıplak "ekran / kaynak / kanal" BİLEREK yok (kumanda ekranı, sıcak su kaynağı…); yalnız TV'ye özgü biçimler. Yalnız sıkılaştırır.
-  [new RegExp(`${L}(?:goruntu\\p{L}{0,6}|hdmi|uydu alici\\p{L}{0,6}|siyah ekran|black screen|no picture|smart tv|kein bild|pas d'image|sin imagen)${R}`, "u"), "tv"],
 ];
+
+/**
+ * TV'nin BELİRTİ / parça adları (Opus 10-15 P2, ölçüldü): 5.1'in bırakılan TV için uydurduğu "Ekranda görüntü yoksa kaynak girişinin (HDMI/AV)
+ * doğru seçili olduğundan emin olur musunuz" cümlesi "televizyon" sözcüğü geçmediği için bırakılan cihaz kapısından geçiyordu.
+ * 🚨 `topicsOf`a (genel konu çıkarımı) GİRMEZ — Opus N2 (10-15 gece, ölçüldü): genel sözlükte "görüntülü diyafon" kalemi bilgi tabanında TV
+ * TARİFİ sayılıyor (`kbRecipeTopics`), tarifsiz TV arızası "çözüm" olarak cevaplanabilir oluyordu (yani sıkılaştırmak yerine GEVŞETİYORDU) ve
+ * "Görüntülü diyafon" başlığının anahtar tarifi kayboluyordu. Yalnız üç yerde okunur: cevap tarafı (`touchesHeldDevice`, kanıtsız adım
+ * kemeri) ve istek tarafındaki arıza sinyali (`faultSignal`). "görüntülü" (diyafon / görüntülü arama) BİLEREK hariç; çıplak "ekran / kaynak /
+ * kanal" yok (kumanda ekranı, sıcak su kaynağı…). Katlanmış metin, sınırlı tekrar.
+ */
+const TV_SYMPTOM = new RegExp(
+  `${L}(?:goruntu(?!lu)\\p{L}{0,6}|hdmi|uydu alici\\p{L}{0,6}|siyah ekran|black screen|no picture|smart tv|kein bild|pas d'image|sin imagen)${R}`,
+  "u",
+);
+
+/** Cevap / arıza sinyali tarafının cihaz kavramları: genel konu çıkarımı + TV belirti adları (`TV_SYMPTOM`). */
+function topicsWithSymptomsOf(text: string): string[] {
+  const topics = topicsOf(text);
+  return TV_SYMPTOM.test(fold(text)) && !topics.includes("tv") ? [...topics, "tv"] : topics;
+}
 
 /**
  * TEHLİKE SINIFI (kurucu 18 "a" + 10-01 "Elektrik/gaz/sıcak su cihazına müdahaleyi çözüm istisnasına alma"): elektrik panosu / sigorta /
@@ -746,6 +770,139 @@ export function kbRecipeTopics(items: readonly { title: string; content: string 
   return out;
 }
 
+/**
+ * KANITSIZ ARIZA ADIMI (kurucu 10-15 inceleme notu, aynen: "BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ"; Opus 10-15 P3).
+ * Anahtar `AI_FIX_SUPPORT_GATE_ENABLED` VARSAYILAN KAPALI (tam "1"). Yalnız sıkılaştırır: tutulan cevap ev sahibinde taslak kalır.
+ */
+export function fixSupportGateEnabled(): boolean {
+  return process.env.AI_FIX_SUPPORT_GATE_ENABLED === "1";
+}
+
+/**
+ * Misafire yöneltilmiş DENETİM / DENEME adımı ("… emin olur musunuz", "kontrol edin", "dener misiniz", "make sure", "try", "prüfen Sie",
+ * "vérifiez", "compruebe", "проверьте"). `isFixRecipeText` bunları tarif saymaz (bilgi tabanı kalemi için doğru: "Kontrol edin" tek başına
+ * tarif değildir) — ama 5.1'in uydurduğu TV adımı tam bu biçimdeydi ("kaynak girişinin doğru seçili olduğundan emin olur musunuz").
+ * "check-in / check-out" denetim değildir. Katlanmış metin, sabit alternatifler (doğrusal).
+ */
+const GUEST_CHECK_STEP = new RegExp(
+  [
+    `${L}(?:kontrol (?:edin|ediniz|eder misiniz|edebilir misiniz|edip)|emin (?:olun|olunuz|olur musunuz|olabilir misiniz)|dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip)${R}`,
+    `${L}(?:make sure|ensure|try|verify|check(?![- ]?(?:in|out)${R}))${R}`,
+    `${L}(?:prufen sie|uberprufen sie|stellen sie sicher|versuchen sie|verifiez|assurez-vous|essayez|compruebe|verifique|asegurese|intente|pruebe|проверьте|убедитесь|попробуите)${R}`,
+    `(?:تأكد|تحقق|جرب)`,
+  ].join("|"),
+  "u",
+);
+
+/**
+ * ARIZA GİDERME bağlamı (kullanım adımından ayrılır): olumsuz koşul ("-mıyorsa / -mazsa", "… yoksa"), arıza anma ("not working"), yeniden
+ * başlatma / fişten çekme / sıfırlama ailesi, deneme ("dener misiniz", "try"). Kullanım adımı ("MODE tuşuyla soğutmayı seçin") bu bağlamı
+ * taşımaz — o yalnız cihazın bilgi tabanında KONU olmasını ister; arıza giderme adımı o cihazın TARİFİNİ ister (kurucu 18 "a").
+ */
+const TROUBLESHOOT_CONTEXT = new RegExp(
+  [
+    `${L}\\p{L}{2,24} yoksa${R}`,
+    `${L}(?:dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip|try|versuchen sie|essayez|intente|pruebe|попробуите)${R}`,
+    `${L}(?:restart|reboot|reset|unplug|replug|power cycle|turn it back on|turn (?:it )?off and (?:back )?on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
+    `${L}(?:yeniden|tekrar) (?:baslat|ac|tak)\\p{L}{0,8}${R}`,
+    `${L}(?:sifirla\\p{L}{0,8}|fisini (?:cek|cikar)\\p{L}{0,6}|fisten cek\\p{L}{0,6}|kapatip (?:yeniden |tekrar )?ac\\p{L}{0,8})${R}`,
+    `${L}if (?:the |your |it |there )?\\p{L}{0,16} ?(?:is not|isn't|doesn't|does not|won't|will not|still|no )`,
+  ].join("|"),
+  "u",
+);
+
+/**
+ * Kumanda adı (her cihazın kumandası olur; getirme sözlüğü onu TV kavramına bağlıyor — ölçüldü: "Kumanda çalışmazsa kapının solundaki tuş
+ * takımına 5523 yazın" otopark tarifiydi, TV sayıldı). Yalnız bu kemerin cümle okumasında nötrlenir.
+ */
+const REMOTE_WORD = new RegExp(
+  `${L}(?:kumanda\\p{L}{0,10}|remote(?: control)?s?|fernbedienung\\p{L}{0,2}|t[eé]l[eé]commande\\p{L}{0,2}|mando\\p{L}{0,2}|пульт\\p{L}{0,3})${R}`,
+  "giu",
+);
+
+/**
+ * Cümlenin cihaz kavramları — kumanda nötr; priz / fiş bir cihazın PARÇASIDIR ("modemin fişini prizden çekin"): tek başına geçtiğinde
+ * ("Fişini çekip bir dakika bekleyin") cihaz belirsizdir (cihaz adı geçmeyen adım kuralı).
+ */
+function stepDevicesOf(sentence: string): string[] {
+  // Ham metinde (getirme sözlüğü Türkçe harfleri okur; katlanmış metin kökleri kaçırır).
+  return deviceTopicsOf(topicsWithSymptomsOf(sentence.replace(REMOTE_WORD, " "))).filter((t) => t !== "socket");
+}
+
+/**
+ * Bilgi tabanı kaleminin KONU cihazları: başlık bir cihazı adlandırıyorsa yalnız başlığın ("Wi-Fi" kalemindeki "Modem TV ünitesinin
+ * altında" TV'yi konu yapmaz — kurucunun TV vakası tam bu bilgi tabanındaydı); başlık cihazsızsa metnin cihazları.
+ */
+function kbSubjectTopicsOf(item: { title: string; content: string }): string[] {
+  const title = deviceTopicsOf(topicsOf(item.title));
+  return title.length > 0 ? title : deviceTopicsOf(topicsOf(item.content));
+}
+
+/** Modele giden bilgi tabanının konu cihazları (kullanım adımının dayanağı). */
+export function kbSubjectTopics(items: readonly { title: string; content: string }[]): Set<string> {
+  const out = new Set<string>();
+  for (const it of items) for (const t of kbSubjectTopicsOf(it)) out.add(t);
+  return out;
+}
+
+/**
+ * Cevabın bir cümlesi misafire yöneltilmiş bir ADIM (`isFixRecipeText` ya da denetim / deneme adımı) ve:
+ *  · ARIZA GİDERME adımıysa (olumsuz koşul / yeniden başlatma / deneme — `TROUBLESHOOT_CONTEXT`) cihazlarının HER BİRİNİN modele giden
+ *    bilgi tabanında TARİFİ (`kbRecipeTopics`) olmalı;
+ *  · KULLANIM adımıysa ("MODE tuşuyla soğutmayı seçin") cihazlarından BİRİ bilgi tabanında KONU (`kbSubjectTopics`) olmalı —
+ *    yoksa true. İstem bunu zaten yasaklar (KURAL-1 "kendi bilgini kullanma"; ARIZA ÇÖZÜMÜ bloğu yalnız tarifli istekte görünür); ölçülen
+ * ihlal: 5.1 "Televizyonda görüntü gelmiyorsa kaynak girişinin (HDMI/AV/TV) doğru seçili olduğundan emin olur musunuz?" — bilgi tabanında
+ * TV kalemi yokken (kör set 6). Kod kemeri, öğe kipinden bağımsız (anlama katmanının etiketi ne olursa olsun).
+ * Cihaz adı geçmeyen arıza giderme adımı ("Fişini çekip bir dakika bekleyin") yalnız modele giden bilgi tabanında HİÇ tarif yokken tutulur —
+ * tarifli bir kalemin adımı olabilir, konusu cümleden çıkarılamıyor (temkinli yön: geçer).
+ * Bilinen sınır: aynı cihazın tarifi varken tarifte YAZMAYAN başka bir adım (cihaz düzeyinde okunur, adım düzeyinde değil — misafir başka
+ * dilde yazınca sözcük örtüşmesi ölçülemez). Cümle bölme `sentencesOf`; doğrusal.
+ */
+export function unsupportedFixStep(
+  reply: string,
+  kb: { recipeTopics: ReadonlySet<string>; subjectTopics: ReadonlySet<string> },
+): boolean {
+  if (!reply || !reply.trim()) return false;
+  for (const sentence of sentencesOf(reply)) {
+    const f = fold(sentence);
+    if (!isFixRecipeText(sentence) && !GUEST_CHECK_STEP.test(f)) continue;
+    const devices = stepDevicesOf(sentence);
+    const troubleshooting =
+      TROUBLESHOOT_CONTEXT.test(f) || RECIPE_CONDITIONAL.test(f) || RECIPE_FAULT_PHRASES.some((p) => f.includes(p));
+    if (devices.length === 0) {
+      if (troubleshooting && kb.recipeTopics.size === 0) return true;
+      continue;
+    }
+    if (troubleshooting) {
+      if (devices.some((t) => !kb.recipeTopics.has(t))) return true;
+    } else if (!devices.some((t) => kb.subjectTopics.has(t) || kb.recipeTopics.has(t))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Kapı bağlamının kanıtsız adım bölümü: modele giden bilgi tabanının tarif ve konu cihazları (sıralı kimlikler; metin TAŞIMAZ). */
+export interface KbFixSupport {
+  recipeTopics: readonly string[];
+  subjectTopics: readonly string[];
+}
+
+/**
+ * Kanal / QR / Ayarlar testi / karşılaştırma kapı bağlamına eklenen alan. Anahtar KAPALIYKEN `{}` — bağlam bayt bayt bugünkü (hesap da
+ * yapılmaz). Girdi: MODELE GİDEN kalemler (`kbSel.items`), kiracının bütün bilgi tabanı değil.
+ */
+export function fixSupportContextOf(items: readonly { title: string; content: string }[]): { kbFixSupport?: KbFixSupport } {
+  if (!fixSupportGateEnabled()) return {};
+  return { kbFixSupport: { recipeTopics: [...kbRecipeTopics(items)].sort(), subjectTopics: [...kbSubjectTopics(items)].sort() } };
+}
+
+/** Kapının tek çağrısı (kanal + QR AYNI yüklem): anahtar açık + bağlam verilmiş + cevapta kanıtsız adım. */
+export function fixSupportHolds(reply: string | null | undefined, support: KbFixSupport | null | undefined): boolean {
+  if (!fixSupportGateEnabled() || !support) return false;
+  return unsupportedFixStep(reply ?? "", { recipeTopics: new Set(support.recipeTopics), subjectTopics: new Set(support.subjectTopics) });
+}
+
 /** Yalnız cihaz / tesis kavramları (`DEVICE_TOPICS`). */
 export function deviceTopicsOf(topics: readonly string[]): string[] {
   return topics.filter((t) => DEVICE_TOPICS.has(t));
@@ -765,7 +922,7 @@ export function touchesHeldDevice(
   // Boş liste kısa yolu yalnız gereksiz `topicsOf` çağrısını önler (sonuç aynı — mutasyon turunda eşdeğer mutant, bilerek).
   if (heldDeviceTopics.length === 0 || !reply.trim()) return false;
   const held = new Set(heldDeviceTopics);
-  if (topicsOf(reply).some((t) => held.has(t))) return true;
+  if (topicsWithSymptomsOf(reply).some((t) => held.has(t))) return true;
   // Adı ANILMAYAN bırakılan cihaz (15 ajan A06, 10-01): "Makineyi kapatıp fişini 1 dakika çekin, sonra tekrar başlatın" — cevaplanan
   // isteklerin hiçbiri cihaz değilse (`genericRef`, plan verir) "makine / cihaz / the device / l'appareil …" yalnız bırakılan cihaz
   // olabilir; aynı cümle bir adım (tarif işareti) taşıyorsa cevap ona değinmiştir.
@@ -907,20 +1064,78 @@ const FAULT_PHRASE = new RegExp(
     // en
     `${L}(?:not working|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged)${R}`,
     // de / fr / es
-    `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|no funciona|roto|rota|averiad[oa]|sin imagen|sin sonido)${R}`,
+    `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|no funciona|averiad[oa]|sin imagen|sin sonido)${R}`,
     // ru / ar (katlama Latin dışını değiştirmez)
     `(?:не работает|сломал\\p{L}{0,2}|не включается|нет изображения|нет звука|لا يعمل|معطل)`,
   ].join("|"),
   "u",
 );
 
+/** Arıza düzelmiş / geçmiş ("çalışmadı ama sonra düzeldi", "it works now") — bildirim değil. Katlanmış metin, sabit alternatifler. */
+const FAULT_RESOLVED = new RegExp(
+  `${L}(?:duzeldi|duzelmis|gecti|hallettik|hallettim|halloldu|cozuldu|cozduk|artik calisiyor|calisiyor artik|fixed|works now|working now|it'?s working|resolved|sorted it|funktioniert (?:jetzt|wieder)|fonctionne maintenant|ca marche maintenant|ya funciona|funciona ahora|заработал\\p{L}{0,2}|تم الحل)${R}`,
+  "u",
+);
+
 /**
- * İstek bir CİHAZ ARIZASI mı: isteğin KENDİ sorgusu (anlama katmanının Türkçe + özgün dil sorgusu) bir cihaz kavramı ve bir arıza ifadesi
- * taşıyor. Mesajın bütün gövdesine BAKILMAZ: "Wi-Fi şifresi?" isteği, aynı mesajdaki TV arızası yüzünden arıza sayılmasın.
+ * Misafirin KENDİ eşyası (D4 dersi — "misafir eşyası bakım değildir"): araba / araç, bavul / valiz, "benimki / bizimki", "kendi X'imiz",
+ * "our own / my car", bozuk para (bozukluk). Yalnız arızanın cümleciğinde okunur. "kendi kendine / kendi başımıza" sahiplik değildir.
+ */
+const FAULT_GUEST_OWNED = new RegExp(
+  `${L}(?:araba\\p{L}{0,8}|arac(?:i|imiz|imizin|imizi|in)?|bavul\\p{L}{0,8}|valiz\\p{L}{0,8}|benimki|bizimki|kendi (?!kendi|basim|basimiza|basina|basiniza|basimizi)\\p{L}{2,16}|bozuk para\\p{L}{0,4}|(?:my|our) (?:own|car|luggage|suitcase)|our rental car)${R}`,
+  "u",
+);
+
+/** Arıza ifadesinin hemen ardındaki koşul yüklemi ("arıza yaparsa", "bozuk olursa") — varsayım bildirim değildir (kurucu D4 ayrımı). */
+const FAULT_CONDITION_TAIL = /^\s{1,3}(?:olursa|yaparsa|verirse|ederse|cikarsa|kalirsa|olunca|oldugunda|yapinca|giderse|olmasi halinde)(?![\p{L}\p{N}])/u;
+
+/** Arızanın önünde koşul bağlacı ("if the TV breaks", "wenn", "falls", "si", "en caso de", "если"). */
+const FAULT_CONDITION_LEAD = new RegExp(`${L}(?:if|in case|wenn|falls|si|en caso de|если)${R}`, "u");
+
+/** Cümlecik sınırı: noktalama + karşıtlık bağlaçları (ama / fakat / ancak / but / however / aber / mais / pero / но). */
+const FAULT_CLAUSE_SPLIT = /[,.;!?\n]+|\s(?:ama|fakat|ancak|lakin|but|however|aber|mais|pero|но)\s/u;
+
+/**
+ * İstek bir CİHAZ ARIZASI mı: isteğin KENDİ sorgusu (anlama katmanının Türkçe + özgün dil sorgusu) — mesajın bütün gövdesine BAKILMAZ ("Wi-Fi
+ * şifresi?" isteği, aynı mesajdaki TV arızası yüzünden arıza sayılmasın). Opus N3 (10-15 gece, ölçüldü) yanlış alarmları üzerine cihaz ve arıza
+ * ifadesi AYNI CÜMLECİKTE aranır ("Bavulumuzun tekerleği kırık, asansör var mı?" · "Telefon çekmiyor, wifi şifresi ne?"); cümleciğinde misafir
+ * eşyası ("Arabamız bozuldu"), arıza ifadesinin ardında koşul yüklemi ("Klima arıza yaparsa…") ya da önünde koşul bağlacı varsa, sorgu
+ * arızanın düzeldiğini söylüyorsa ("çalışmadı ama sonra düzeldi") arıza DEĞİLDİR. Kapalı küme, doğrusal (cümlecik başına tek tarama).
  */
 export function faultSignal(queryTr: string, queryOriginal: string): boolean {
-  if (deviceTopicsOf([...topicsOf(queryTr), ...topicsOf(queryOriginal)]).length === 0) return false;
-  return [queryTr, queryOriginal].some((t) => t.trim() !== "" && FAULT_PHRASE.test(fold(t)));
+  return [queryTr, queryOriginal].some((t) => !!t && t.trim() !== "" && textReportsFault(t));
+}
+
+/** Yüklemsiz kısa cihaz öbeği ("Klima", "Salondaki TV") — virgülle ayrılmış arızanın öznesi olabilir ("Klima, çalışmıyor"). */
+function bareDeviceClause(clause: string): boolean {
+  const words = clause.trim().split(/\s+/u);
+  // Soru eki / var-yok yüklemi taşıyan öbek ("Asansör var mı") özne değildir.
+  return (
+    words.length <= 3 &&
+    !/[?]/u.test(clause) &&
+    !/(?:^|\s)(?:mi|mu|var|yok)(?=\s|$)/u.test(fold(clause)) &&
+    deviceTopicsOf(topicsWithSymptomsOf(clause)).length > 0
+  );
+}
+
+function textReportsFault(text: string): boolean {
+  const folded = fold(text);
+  if (FAULT_RESOLVED.test(folded)) return false;
+  let previousBare = false;
+  for (const clause of text.split(FAULT_CLAUSE_SPLIT)) {
+    if (!clause || clause.trim() === "") continue;
+    const inheritsDevice = previousBare;
+    previousBare = bareDeviceClause(clause);
+    const f = fold(clause);
+    const m = FAULT_PHRASE.exec(f);
+    if (!m) continue;
+    if (deviceTopicsOf(topicsWithSymptomsOf(clause)).length === 0 && !inheritsDevice) continue;
+    if (FAULT_GUEST_OWNED.test(f)) continue;
+    if (FAULT_CONDITION_TAIL.test(f.slice(m.index + m[0].length, m.index + m[0].length + 24))) continue;
+    if (FAULT_CONDITION_LEAD.test(f.slice(0, m.index))) continue;
+    return true;
+  }
+  return false;
 }
 
 export interface ItemRelationFacts {
@@ -928,8 +1143,6 @@ export interface ItemRelationFacts {
   topics: string[];
   generic: boolean;
   hazard: boolean;
-  /** Anahtar açıkken: istek bir cihaz arızası (`faultSignal`). Kapalıyken alan HİÇ yazılmaz. */
-  fault?: boolean;
   /** İsteğin sorgusu ücret / fiyat / ödeme soruyor (`moneyRequest`); yoksa (eski olgu) para isteği sayılmaz — cevap kemeri yine koşar. */
   money?: boolean;
 }

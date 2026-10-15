@@ -156,10 +156,18 @@ export function isInquiryOnly(message: string, reportsFault: (clause: string) =>
 const GUEST_OWNED_TOKENS: ReadonlySet<string> = new Set(["kendi", "kendimizin", "kendimin"]);
 const GUEST_OWNED_PREFIXES: readonly string[] = ["getirdig", "getirdik", "getirmistik", "getirdim"];
 const GUEST_OWNED_PHRASES: readonly string[] = ["our own", "my own", "we brought", "i brought"];
+/** "kendi kendine" (kendiliğinden) / "kendi başımıza" (yardımsız) — sahiplik DEĞİL (Opus N6: "Televizyon kendi kendine kapanıyor"). */
+const NOT_OWNERSHIP_AFTER_KENDI: readonly string[] = ["kendi", "basim", "basin"];
 export function mentionsGuestOwnedItem(message: string): boolean {
   const folded = foldTurkishAscii(message).replace(/[\u2019`]/g, "'");
   if (GUEST_OWNED_PHRASES.some((p) => folded.includes(p))) return true;
-  return folded.split(TOKEN_SPLIT).some((t) => GUEST_OWNED_TOKENS.has(t) || GUEST_OWNED_PREFIXES.some((p) => t.startsWith(p)));
+  const tokens = folded.split(TOKEN_SPLIT).filter((t) => t !== "");
+  return tokens.some((t, i) => {
+    if (GUEST_OWNED_PREFIXES.some((p) => t.startsWith(p))) return true;
+    if (!GUEST_OWNED_TOKENS.has(t)) return false;
+    const next = tokens[i + 1] ?? "";
+    return t !== "kendi" || !NOT_OWNERSHIP_AFTER_KENDI.some((p) => next.startsWith(p));
+  });
 }
 
 /** Türkçe koşul eki (sınıflandırıcıdaki `CONDITIONAL_TAIL` ile aynı: -sa/-se, kaynaştırmalı -rsa/-ysa). */

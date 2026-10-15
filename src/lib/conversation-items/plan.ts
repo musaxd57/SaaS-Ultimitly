@@ -32,6 +32,16 @@ export function hintKey(messageId: string, kind: ItemKind): string {
   return `${messageId}\u0000${kind}`;
 }
 
+/**
+ * Turun CİHAZ ARIZASI istekleri (`hintKey`; anahtar `AI_FAULT_GUARD_ENABLED` — `extract` yalnız açıkken yazar). Boşsa `null` → plan bayt bayt
+ * bugünkü. Ölçüm düzeneği de aynı fonksiyonu çağırır.
+ */
+export function faultRequestsOf(messages: readonly { messageId: string; faultKinds?: readonly ItemKind[] }[]): Set<string> | null {
+  const out = new Set<string>();
+  for (const m of messages) for (const k of m.faultKinds ?? []) out.add(hintKey(m.messageId, k));
+  return out.size > 0 ? out : null;
+}
+
 /** Turun ilişki olguları (`hintKey` → olgu); ilişki kipinde değilse `null`. Ölçüm düzeneği de aynı fonksiyonu çağırır. */
 export function relationFactsOf(
   messages: readonly { messageId: string; relations?: Partial<Record<ItemKind, ItemRelationFacts>> }[],
@@ -65,15 +75,24 @@ export function composeItemsPlan<T extends PlanItem>(input: {
    * isteğe sunulur; verilmezse hiçbir istek tarifli sayılmaz (bilinmiyor = tut).
    */
   kbRecipeTopics?: ReadonlySet<string>;
+  /**
+   * Cihaz arızası istekleri (`faultRequestsOf`; anahtar `AI_FAULT_GUARD_ENABLED`). LİSTE kipinde bunlar ev sahibine bırakılır (bağımsız tür
+   * olsa da — Wi-Fi / otopark / anahtar arızası). İlişki kipinde karar `requestDependency`de (sentetik şikâyetin konusu = arızalı isteğin
+   * konusu → örtüşme; tarif varsa çözüm). Verilmezse bugünkü kural BİREBİR.
+   */
+  faultRequests?: ReadonlySet<string>;
 }): ComposedItemsPlan<T> {
   const relations = input.relations;
   // İlişki kipi (kurucu kararı 10-01 sabah): olgular varsa karar `relation.requestDependency`, yoksa bugünkü liste kuralı BİREBİR.
   const relation = relations ? relationPlan(input.turnItems, input.held, relations, input.kbRecipeTopics ?? new Set()) : null;
   // Şikâyete bağlı istek (kurucu kararı 10-01, `core.complaintDependent`): bu turda tutulan şikâyet varken bağımsız bilgi türü
   // olmayan istek cevaplanabilir SAYILMAZ — cevap modeline bırakılan istek olarak gösterilir.
+  const faulty = (i: T) => input.faultRequests?.has(hintKey(i.messageId, i.kind)) === true;
+  // Arızalı istek, ilişki kipinde bile kendi konusu şikâyetle örtüşmediyse (konu çıkarılamadı) "bağımsız" kalmasın: yalnız tarifli
+  // çözüm (`fix`) cevaplanabilir.
   const dependent = relation
-    ? relation.dependent
-    : input.turnItems.filter((i) => i.sensitivity === "none" && complaintDependent(i.kind, input.held));
+    ? [...relation.dependent, ...input.turnItems.filter((i) => i.sensitivity === "none" && faulty(i) && !relation.dependent.includes(i) && !relation.fix.has(i))]
+    : input.turnItems.filter((i) => i.sensitivity === "none" && (complaintDependent(i.kind, input.held) || faulty(i)));
   const answerable = input.turnItems
     .filter((i) => i.sensitivity === "none" && !dependent.includes(i))
     .map((item, idx) => ({ ref: `R${idx + 1}`, item }));

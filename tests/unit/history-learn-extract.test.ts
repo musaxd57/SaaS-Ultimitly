@@ -524,7 +524,16 @@ describe("taslak kapısı — tarih / geçici durum / deneme / 'bilgi yok' işar
   });
 
   it("aşırı uygulama yok: kalıcı bilgi işaretsiz kalır", () => {
-    for (const c of ["Market her gün 07:00–24:00 açıktır.", "Otopark binanın arkasında, ücretsizdir.", "Çöp konteyneri sokağın başındadır.", "Havuz 09:00–20:00 açıktır."]) {
+    for (const c of [
+      "Market her gün 07:00–24:00 açıktır.",
+      "Otopark binanın arkasında, ücretsizdir.",
+      "Çöp konteyneri sokağın başındadır.",
+      "Havuz 09:00–20:00 açıktır.",
+      // Opus N8 (10-15 gece, ölçüldü): kısa kalıplar sağ sınırsızdı; "tekrar deneyin" gerçek tarifin son adımıdır.
+      "Ayakkabılar bu ayakkabılıkta durur.",
+      "Su ana vanası mutfak tezgâhının altındadır.",
+      "Modemin fişini çekip 30 saniye bekleyin ve tekrar deneyin.",
+    ]) {
       expect(gateDraft("Bilgi", c), c).toEqual({ ok: true, flags: [] });
     }
   });

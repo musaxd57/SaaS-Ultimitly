@@ -7,6 +7,7 @@ import { hostOfferForGate, passesAutoReplySafetyGate, semanticClosingHolds } fro
 import { hostVoiceDraft } from "@/lib/ai/host-voice";
 import { isClosingAck } from "@/lib/ai/fallback";
 import { kbFactsOf } from "@/lib/ai/availability-claims";
+import { fixSupportContextOf } from "@/lib/conversation-items/relation";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
@@ -130,6 +131,8 @@ export async function dryRunReply(input: {
     understandingRisk: understandingRiskOf(understood),
     hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
     kbFacts: kbFactsOf(kbSel.items),
+    // Kanıtsız arıza adımı kemeri — üretim kapısıyla aynı bağlam (anahtar kapalıyken alan yok).
+    ...fixSupportContextOf(kbSel.items),
   };
   const wouldAutoSend = passesAutoReplySafetyGate(gateInput, message, gateCtx);
   // Kapanış (test rotasıyla aynı yüklemler): sözcük yolu "teşekkürler / tamam", anlam yolu "Anladım" → gerçek kanalda cevap gitmez.

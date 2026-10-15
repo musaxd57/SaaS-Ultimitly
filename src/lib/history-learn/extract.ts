@@ -227,10 +227,14 @@ const ONE_OFF_RE =
  *  · tentative: doğrulanmamış deneme ("Modemi kapatıp açın, belki düzelir").
  *  · no_info: bilginin OLMADIĞINI söyleyen taslak ("Şifresi belirtilmemiştir") — kalıcı bilgi gibi saklanırsa "bilgi yok" misafire yolu açar.
  */
+// Opus N8 (10-15 gece, ölçüldü): "bu ay" → "bu ayakkabılıkta", "şu an" → "şu ana vanası", "2 may be late" yanlış işaret veriyordu — kısa
+// kalıplar SAĞ SINIRLA (yalnız açık ekler), İngilizce "may" yalnız fiil değilken ay adı.
 const TIME_BOUND_RE =
-  /(?<![a-z])(?:yarin|bugun|bu aksam|bu sabah|bu gece|bu hafta|bu ay|gecici|su an|simdilik|today|tomorrow|tonight|this week|this weekend|for now|currently|temporar)|\d{1,2}\s?(?:ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik|january|february|march|april|may|june|july|august|september|october|november|december)(?![a-z])/u;
+  /(?<![a-z])(?:yarin|bugun|bu aksam|bu sabah|bu gece|bu hafta|bu ay(?:ki|da|in)?(?![a-z])|gecici|su an(?:da|ki)?(?![a-z])|simdilik|today|tomorrow|tonight|this week|this weekend|for now|currently|temporar)|\d{1,2}\s?(?:ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik|january|february|march|april|may(?!\s(?:be|have|not|need|also))|june|july|august|september|october|november|december)(?![a-z])/u;
+// "tekrar / yeniden deneyin", "try again" gerçek tarifin son adımıdır ("fişini çekip 30 saniye bekleyin ve tekrar deneyin") — deneme işareti
+// DEĞİL (Opus N8: en değerli öğrenme türü en çok uyarı alıyordu).
 const TENTATIVE_RE =
-  /(?<![a-z])(?:belki|deneyin|deneyebilirsiniz|deneyelim|deneyiniz|olabilir|galiba|sanirim|umarim|maybe|perhaps|might|hopefully)(?![a-z])/u;
+  /(?<![a-z])(?<!(?:tekrar|yeniden) )(?:belki|deneyin|deneyebilirsiniz|deneyelim|deneyiniz|olabilir|galiba|sanirim|umarim|maybe|perhaps|might|hopefully)(?![a-z])/u;
 const NO_INFO_RE =
   /(?<![a-z])(?:belirtilmemis|belirtilmedi|bilgi yok|bilgimiz yok|bilgi bulunmamaktadir|bilmiyoruz|bilmiyorum|not specified|no information|we don't know|we do not know)/u;
 /** Kapı / kutu / tuş paneli kodu KONUSU (değer olmasa da gözle bakılsın). */

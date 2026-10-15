@@ -123,15 +123,35 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       { hazardCleared: true, kbFacts: [] },
       "hazard_reassurance",
     ],
+    [
+      // Kurucu 10-15 ("BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ"; anahtar `AI_FIX_SUPPORT_GATE_ENABLED` — bu vakada açık).
+      "bilgi tabanında tarifi olmayan cihaz için arıza adımı",
+      { ...ok, reply: "Press the red power button on the TV, then select HDMI 1 with the SOURCE button." },
+      "How do we turn on the TV?",
+      { kbFixSupport: { recipeTopics: [], subjectTopics: ["wifi"] } },
+      "reply_fix_unsupported",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {
-      const v = autoReplyGateVerdict(result, msg, ctx);
-      expect(v).toEqual({ reason: "blocked", detail });
-      // Tek kaynak: eski API aynı gerekçeyi verir.
-      expect(autoReplyGateFailure(result, msg, ctx)).toBe("blocked");
+      vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", detail === "reply_fix_unsupported" ? "1" : "");
+      try {
+        const v = autoReplyGateVerdict(result, msg, ctx);
+        expect(v).toEqual({ reason: "blocked", detail });
+        // Tek kaynak: eski API aynı gerekçeyi verir.
+        expect(autoReplyGateFailure(result, msg, ctx)).toBe("blocked");
+      } finally {
+        vi.unstubAllEnvs();
+      }
     });
   }
+
+  it("kanıtsız adım kemeri anahtar KAPALIYKEN koşmaz (bağlam verilse de) — bugünkü karar", () => {
+    vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", "");
+    const reply = { ...ok, reply: "Press the red power button on the TV, then select HDMI 1 with the SOURCE button." };
+    expect(autoReplyGateVerdict(reply, "How do we turn on the TV?", { kbFixSupport: { recipeTopics: [], subjectTopics: [] } })).toBeNull();
+    vi.unstubAllEnvs();
+  });
 
   it("İKİZ: güvence bilgi tabanında yazılıysa (aynı konu) tutulmaz; alarm kalkmadıysa kelime ağı kapatır", () => {
     const reply = { ...ok, reply: "Bu buhar normaldir, endişelenmeyin." };

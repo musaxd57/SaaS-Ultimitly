@@ -202,7 +202,36 @@ export async function applyWithdrawals(
     });
     ids.push(...rows.map((r) => r.id));
   }
+  ids.push(...(await faultGuardCompanions(db, input, ids)));
   return applyItemEvent(db, { organizationId: input.organizationId, ids: [...new Set(ids)], event: "withdrawn", now: input.now });
+}
+
+/**
+ * Kodun eklediği arıza şikâyeti (`sources` "fault_guard", anahtar `AI_FAULT_GUARD_ENABLED`) anlama katmanının bildiği bir tür değildir —
+ * misafir "TV düzeldi" deyince katman `appliance_help`i geri çeker, şikâyeti çekemez (Opus N10, 10-15 gece). Geri çekilen öğenin mesajında
+ * başka AÇIK öğe kalmıyorsa o mesajın kod şikâyeti de geri çekilir; kalıyorsa (aynı mesajdaki başka istek hâlâ açık) dokunulmaz — temkinli yön.
+ */
+async function faultGuardCompanions(
+  db: Db,
+  input: { organizationId: string; conversationId: string },
+  withdrawnIds: readonly string[],
+): Promise<string[]> {
+  if (withdrawnIds.length === 0) return [];
+  const withdrawn = await db.conversationItem.findMany({
+    where: { organizationId: input.organizationId, id: { in: [...withdrawnIds] } },
+    select: { messageId: true },
+  });
+  const out: string[] = [];
+  for (const messageId of new Set(withdrawn.map((w) => w.messageId))) {
+    const open = await db.conversationItem.findMany({
+      where: { organizationId: input.organizationId, conversationId: input.conversationId, messageId, status: { in: OPEN_STATUSES } },
+      select: { id: true, kind: true, sources: true },
+    });
+    const companion = open.find((o) => o.kind === "complaint_issue" && o.sources.split(",").includes("fault_guard"));
+    if (!companion) continue;
+    if (open.every((o) => o.id === companion.id || withdrawnIds.includes(o.id))) out.push(companion.id);
+  }
+  return out;
 }
 
 /**

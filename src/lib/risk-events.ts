@@ -87,6 +87,8 @@ const REASONS = new Set([
   "emergency_directive",
   // Acil numara sorusuna koddan yalnız numara gitti (kurucu kararları 10-11; anahtar `AI_EMERGENCY_NUMBER_ENABLED`).
   "emergency_number",
+  // QR cevabında bilgi tabanında tarifi / konusu olmayan cihaz için adım (kurucu 10-15; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`; QR kapısı ile BİREBİR).
+  "fix_unsupported",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

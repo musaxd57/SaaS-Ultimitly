@@ -14,6 +14,7 @@ import {
   type CourtesyKind,
 } from "@/lib/automation";
 import { kbFactsOf } from "@/lib/ai/availability-claims";
+import { fixSupportContextOf } from "@/lib/conversation-items/relation";
 import { badRequest, jsonOk, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
@@ -222,6 +223,8 @@ export const POST = withManage(async (session, req) => {
     hostOfferText: hostOfferForGate(org?.lateCheckoutOfferText),
     // Modelin gördüğü bilgi tabanı (24 EK) — gerçek kapıyla PARİTE.
     kbFacts: kbFactsOf(kbSel.items),
+    // Kanıtsız arıza adımı kemeri — üretim kapısıyla aynı bağlam (anahtar kapalıyken alan yok).
+    ...fixSupportContextOf(kbSel.items),
   };
   const wouldAutoSend = passesAutoReplySafetyGate(gateInput, message, gateCtx);
   // Kapanışa sessizlik — anlam yolu (kurucu kuralı 09-25): gerçek kanalla AYNI yüklem. Önizleme de "bu mesaja cevap

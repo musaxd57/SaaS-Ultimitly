@@ -531,8 +531,9 @@ const HANDOFF_NOTICE = new RegExp(
     `|dönüş\\s+yapılaca[kğ]\\p{L}*` +
     // TR ALICI ODAKLI edilgen devir (Opus 10-15, ölçüldü): "Televizyon arızası ev sahibinize iletildi", "Sorununuz ekibimize bildirilmiştir" —
     // özne listede olmasa da alıcı YÖNELME hâlinde ev sahibi / ekip / yönetici ise devirdir. "Ev sahibiniz tarafından iletildi" (yalın hâl,
-    // önceki mesaja atıf) eşleşmez.
-    `|(?:ev\\s+sahib|ekib|ekip|yönetici|görevli)\\p{L}{0,6}[ea]\\s+(?:\\p{L}+\\s+){0,2}?(?:iletil|aktarıl|bildiril|ulaştırıl|yönlendiril)(?:d[iı]|m[iı][sş](?:t[iı]r)?|[ea]c[ea][kğ]\\p{L}*)${NR}` +
+    // önceki mesaja atıf) eşleşmez. Opus N4 (10-15 gece, ölçüldü): 2. şahıs gelecek ("Güvenlik görevlisine yönlendirileceksiniz" — yol
+    // tarifi) ve "-ce" etken eki ("ev sahibinizce iletildi" = tarafından) devir DEĞİLDİR → gelecek yalnız 3. şahıs, yönelme eki "c/ç"siz.
+    `|(?:ev\\s+sahib|ekib|ekip|yönetici|görevli)\\p{L}{0,6}(?<![cç])[ea]\\s+(?:\\p{L}+\\s+){0,2}?(?:iletil|aktarıl|bildiril|ulaştırıl|yönlendiril)(?:d[iı]|m[iı][sş](?:t[iı]r)?|[ea]c[ea]k(?:t[iı]r)?)${NR}` +
     // TR: "ev sahibiniz görebilir / görüntüleyebilir / görecek / görüyor" (3. şahıs; "görebilirsiniz" değil)
     `|ev\\s+sahib\\p{L}{0,6}\\s+(?:\\p{L}+\\s+){0,2}?(?:görebilir|görüntüleyebilir|görecek|görüyor|okuyabilir)(?!s[iı]n[iı]z)${NR}` +
     // EN
@@ -546,7 +547,8 @@ const HANDOFF_NOTICE = new RegExp(
     // EN: "The cleaning team has been notified", "Your request will be passed on to the host".
     `|(?:host|owner|team|cleaner|manager|housekeeping|staff)\\s+(?:has|have)\\s+(?:already\\s+)?been\\s+(?:notified|informed|told|alerted|contacted)${NR}` +
     // EN ALICI ODAKLI (Opus 10-15, ölçüldü): "The TV issue has been passed on to your host" — özne listede olmasa da alıcı ev sahibi / ekipse.
-    `|(?:has|have|was|were)\\s+been\\s+(?:now\\s+|already\\s+)?(?:passed\\s+on|forwarded|relayed|escalated|reported|sent)\\s+to\\s+(?:the|your|our)\\s+(?:host|owner|team|manager)${NR}` +
+    // İyelik ("sent to the host's lockbox" — eşyanın yeri) devir değildir (Opus N4).
+    `|(?:has|have|was|were)\\s+been\\s+(?:now\\s+|already\\s+)?(?:passed\\s+on|forwarded|relayed|escalated|reported|sent)\\s+to\\s+(?:the|your|our)\\s+(?:host|owner|team|manager)${NR}(?!['’]s)` +
     `|(?:your|the)\\s+(?:message|request|report|note|question|complaint|concern)s?\\s+will\\s+be\\s+(?:passed\\s+on|forwarded|shared|sent)\\s+(?:to|with)${NR}` +
     `|(?:your|the)\\s+(?:host|owner)\\s+(?:can|will\\s+be\\s+able\\s+to|is\\s+able\\s+to|will)\\s+(?:see|view|read)\\s+(?:it|this|that|them|your)${NR}` +
     // DE / FR / ES / RU — istemin devir cümlesinin çevirileri

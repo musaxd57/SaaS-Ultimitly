@@ -155,7 +155,7 @@ import {
   type PersistedDecision,
 } from "@/lib/decisions/store";
 import { decisionLang } from "@/lib/decisions/core";
-import { relationGateHold, touchesHeldDevice } from "@/lib/conversation-items/relation";
+import { fixSupportContextOf, fixSupportHolds, relationGateHold, touchesHeldDevice, type KbFixSupport } from "@/lib/conversation-items/relation";
 import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import {
   holdTurnLevelItems,
@@ -283,6 +283,11 @@ export interface AutoReplyGateContext {
    * (doğrulanmış erken giriş akışının tetiği — `heldOnlyByOutputVeto`; akış modelin metnini koddan kurulanla değiştirir).
    */
   skipOutputVetoForDiagnosis?: boolean;
+  /**
+   * KANITSIZ ARIZA ADIMI (kurucu 10-15, anahtar `AI_FIX_SUPPORT_GATE_ENABLED` KAPALI): modele giden bilgi tabanının tarif ve konu cihazları
+   * (`relation.fixSupportContextOf`). Anahtar kapalıyken alan HİÇ yazılmaz; verilmezse kural koşmaz.
+   */
+  kbFixSupport?: KbFixSupport;
   /**
    * KONUŞMA ÖĞELERİ KİPİ (09-26, kurucu kararları; `conversation-items`): verildiğinde cevapsız mesajların kelime ağı ve
    * anlama katmanı sinyalleri ÖĞE kapsamında karar verir — hassas öğe ev sahibinde sessizce tutulur, güvenli kısmın
@@ -623,6 +628,15 @@ export function autoReplyGateVerdict(
     ) {
       return hold("items_touch_held");
     }
+  }
+  // ── KANITSIZ ARIZA ADIMI (kurucu 10-15 inceleme notu, aynen: "BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ") ──────────
+  // Anahtar `AI_FIX_SUPPORT_GATE_ENABLED` (VARSAYILAN KAPALI). Öğe kipinden ve anlama katmanının etiketinden BAĞIMSIZ: cevabın bir
+  // cümlesi arıza giderme adımıysa o cihazın tarifi, kullanım adımıysa o cihazın konusu modele giden bilgi tabanında olmalı
+  // (`relation.unsupportedFixStep`). Ölçülen ihlal: 5.1 bilgi tabanında TV kalemi yokken "Televizyonda görüntü gelmiyorsa kaynak
+  // girişinin (HDMI/AV/TV) doğru seçili olduğundan emin olur musunuz?" yazdı (kör set 6). Koddan kurulan onay metni muaf (şablon / yedek
+  // cevap buraya hiç gelmez — `not_model`).
+  if (!codeBuiltGrant && fixSupportHolds(result.reply, context?.kbFixSupport)) {
+    return hold("reply_fix_unsupported");
   }
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24, `availability-claims.ts`) ──────────
   // Model takvimi GÖRMÜYOR → "o gece boş / kalabilirsiniz / fully booked" doğrulanmamış iddiadır;
@@ -2384,6 +2398,8 @@ export async function applyChannelAutoReply(
     hostOfferText: hostOfferForGate(org.lateCheckoutOfferText),
     // Modelin gördüğü bilgi tabanı: yalnız yazılı sabit otopark yeri tahsisi takvim iddiası sayılmasın diye (24 EK).
     kbFacts: kbFactsOf(kbForModel),
+    // Kanıtsız arıza adımı kemeri (anahtar kapalıyken alan yok — bağlam bayt bayt bugünkü).
+    ...fixSupportContextOf(kbForModel),
     // 51: fiziksel tehlike alarmı bağlamla kalktı mı (cevapsız mesajların tamamı; olası / anılış + anlama katmanı "acil değil").
     ...hazardContextFor(understood),
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.

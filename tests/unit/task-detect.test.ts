@@ -270,6 +270,33 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     expect(key("Banyonun suyu akmıyor")).toBe(key("Su akmıyor"));
   });
 
+  // Opus N6 (10-15 gece, ölçüldü): misafir eşyası işareti bütün mesaja bakınca gerçek arıza görevleri kayboluyordu. Sahiplik YALNIZ arızalı
+  // cihazın cümleciğinde okunur; cihazsız cümlecikte sahiplik bilinmez → bildirim (kurucu D4 "şüphede bildirim"). "kendi kendine / kendi
+  // başımıza" sahiplik değildir.
+  it.each([
+    ["Televizyon kendi kendine kapanıyor, bozuk.", "maintenance"],
+    ["Kendi başımıza denedik kombi çalışmıyor", "maintenance"],
+    ["Valizleri getirdik. Klimayı açtık, bozuldu.", "maintenance"],
+    ["Getirdiğimiz yemekleri buzdolabına koyduk, bozuk.", "maintenance"],
+    ["We brought our own towels. The AC is broken.", "maintenance"],
+    ["We brought our own towels. The dishwasher is not working.", "maintenance"],
+  ])("🚨 misafir eşyası başka cümlecikteyse arıza görevi açılır: %j → %s", (m, type) => {
+    expect(detect(m)?.type).toBe(type);
+  });
+
+  it("aşırı düzeltme yok: arızalı cihazın KENDİ cümleciğindeki sahiplik hâlâ görev açmaz", () => {
+    expect(detect("Getirdiğimiz kahve makinesi bozuldu.")).toBeNull();
+    expect(detect("Kendi kahve makinemiz bozuldu")).toBeNull();
+  });
+
+  // Opus N7 (10-15 gece, ölçüldü): JS "I".toLowerCase() → "i"; büyük harfli Türkçe "ÇALIŞMIYOR" eşleşmiyordu.
+  it("büyük harfli Türkçe: 'İNTERNET ÇALIŞMIYOR' görev açar, 'KLİMA ÇALIŞMIYOR' genel değil klima konusuyla", () => {
+    expect(detect("İNTERNET ÇALIŞMIYOR")?.type).toBe("maintenance");
+    expect(detect("KLİMA ÇALIŞMIYOR")).toMatchObject({ type: "maintenance", topic: "klima" });
+    // İngilizce büyük harf ilk okumada aynen (I → i)
+    expect(detect("THE WIFI IS NOT WORKING")?.type).toBe("maintenance");
+  });
+
   it("uzun girdide doğrusal (karesel iş yok — misafir metni)", () => {
     const t0 = performance.now();
     detect(`${"Su akmıyor mu, ".repeat(2_000)}x`);

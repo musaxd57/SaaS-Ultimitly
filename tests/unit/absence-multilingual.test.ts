@@ -347,6 +347,19 @@ describe("'talimatım yok' (kör set 5, 10-01 öğlen) — iki yön", () => {
   it("'özel talimat gerekmez / yok' olgusu ve 2. şahıs cümleler TUTULMAZ", () => {
     for (const m of LEGIT_INSTRUCTIONS) expect(admitsMissingKnowledge(m), m).toBe(false);
   });
+  it("Opus N5 (10-15 gece): niteleyicili 1. şahıs ('özel / ek / başka talimatımız yok') OLGUDUR — tutulmaz; çıplak itiraf tutulur", () => {
+    for (const m of [
+      "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli.",
+      "Çıkış için ek bir talimatımız bulunmuyor; anahtarları masada bırakabilirsiniz.",
+      "Özel talimatımız yok, rahatça kullanabilirsiniz.",
+      "There are no other instructions in my notes, so just leave the keys on the table.",
+    ]) {
+      expect(admitsMissingKnowledge(m), m).toBe(false);
+    }
+    for (const m of ["Televizyon için talimatım yok.", "Kayıtlı bir talimatımız bulunmuyor, ev sahibiniz yardımcı olacaktır."]) {
+      expect(admitsMissingKnowledge(m), m).toBe(true);
+    }
+  });
 });
 
 describe("'… bilgide yok' kalıbı (karar 23 kör doğrulaması, 10-01 öğlen) — yedi dil, iki yön", () => {

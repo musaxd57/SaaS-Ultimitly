@@ -36,6 +36,12 @@ vi.mock("@/lib/hospitable", () => ({
   },
 }));
 vi.mock("@/lib/net/pinned-fetch", () => ({ fetchFeedText: vi.fn() }));
+// DNS kapısı bu dosyanın konusu değil (`private-host.test.ts`, `ical-direct-authority.test.ts`): her vakada GERÇEK DNS sorgusu yapılıyordu
+// (fail-open, kırmızı vermez ama yavaşlatır ve ağsız ortamda süreyi ağ zaman aşımına bağlar — ACIK-ISLER 08-08 §12). Ad çözülmez, kapı geçer.
+vi.mock("@/lib/net/private-host", async (orig) => ({
+  ...(await orig<typeof import("@/lib/net/private-host")>()),
+  resolvesToPrivate: vi.fn(async () => false),
+}));
 vi.mock("@/lib/report-error", () => ({
   reportError: vi.fn().mockResolvedValue(undefined),
   redactSensitive: (s: string) => s,

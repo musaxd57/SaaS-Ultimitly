@@ -139,6 +139,10 @@ export const PIPELINE_FLAGS = [
   "AI_UNDERSTANDING_THREAT_RULE_ENABLED",
   // Ev sahibine öneri kartı (10-12, ⑤); misafire giden metni değiştirmez, koşu kimliğinde görünür (tek kural: her AI_* bayrağı).
   "AI_ACTION_SUGGESTIONS_ENABLED",
+  // Arıza her yolda arıza (10-15, kurucu inceleme notu): plan / cevaplanabilir istekleri değiştirir (misafire gideni yalnız TUTARAK).
+  "AI_FAULT_GUARD_ENABLED",
+  // Kanıtsız arıza adımı kemeri (10-15, kurucu: "bozuklar için bilgi tabanında yazmayan öneri veremez"): kapı; yalnız TUTARAK değiştirir.
+  "AI_FIX_SUPPORT_GATE_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

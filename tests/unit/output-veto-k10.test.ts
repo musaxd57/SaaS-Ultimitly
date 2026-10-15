@@ -88,6 +88,11 @@ describe("K10 — alıcı odaklı edilgen devir (Opus 10-15, ölçüldü: özne 
     "The keys have been sent to your email.",
     "Ev sahibiniz sizi 15:00'te kapıda karşılayacak.",
     "Faturanız e-posta adresinize gönderildi.",
+    // Opus N4 (10-15 gece, ölçüldü): 2. şahıs gelecek (yol tarifi), "-ce" etken eki (= tarafından), iyelikli yer.
+    "Binaya girişte güvenlik görevlisine yönlendirileceksiniz, kimliğinizi göstermeniz yeterli.",
+    "Havalimanında sizi karşılayacak görevliye yönlendirileceksiniz.",
+    "Giriş kodu ev sahibinizce iletildi.",
+    "Your keys have been sent to the host's lockbox.",
   ])("aşırı uygulama yok — GEÇER: %j", (m) => {
     expect(carriesHandoffNotice(m)).toBe(false);
   });

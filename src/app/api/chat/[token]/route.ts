@@ -9,6 +9,7 @@ import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
 import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
+import { fixSupportContextOf } from "@/lib/conversation-items/relation";
 import { hasEmergencyCallDirective, hazardDecisionFor, hazardEvidenceOf } from "@/lib/ai/hazard-evidence";
 import { emergencyNumberEnabled, emergencyNumberReply } from "@/lib/ai/emergency-number";
 import { confidentLanguage } from "@/lib/ai/language-signal";
@@ -1072,6 +1073,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     understandingRisk: understandingRiskOf(understood),
     // Modelin gördüğü bilgi tabanı (24 EK): yazılı sabit otopark yeri tahsisi takvim iddiası sayılmaz — kanalla parite.
     kbFacts: kbFactsOf(kbSel.items),
+    // Kanıtsız arıza adımı kemeri — kanal kapısıyla AYNI yüklem ve bağlam (anahtar kapalıyken alan yok).
+    ...fixSupportContextOf(kbSel.items),
     // 56: kodun dil tespiti emin değilken (kısa / karışık soru) misafirin dili için MODEL görüşü — önce bağımsız anlama katmanı.
     guestLanguageHint: understood?.language ?? result.detectedLanguage ?? null,
     // 51: kelime ağının fiziksel tehlike etiketi bağlamla kalktı mı (olası / anılış + model "acil değil").

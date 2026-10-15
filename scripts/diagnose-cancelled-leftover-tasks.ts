@@ -42,7 +42,8 @@ async function main() {
       },
     },
     });
-  });
+    // Etkileşimli işlemin varsayılan süresi 5 sn — büyük veride okuma bitmeden işlem kapanırdı (Opus N11). Yalnız okuma: uzun süre güvenli.
+  }, { timeout: 120_000, maxWait: 10_000 });
   const rows: LeftoverRow[] = tasks.flatMap((t) => {
     if (!t.reservation) return [];
     const photos = t.updates.map((u) => u.photoUrl).filter((p): p is string => p !== null);
