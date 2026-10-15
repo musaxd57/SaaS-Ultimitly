@@ -356,6 +356,8 @@ const FLAGS = [
   "AI_ACTION_CLAIMS_ENABLED",
   "KB_SEMANTIC_RETRIEVAL",
   "AI_HOUSE_RULES_SHADOW",
+  // Canlıda AÇIK (kurucu 10-02): ilişki eki anlama istemine girer — boşken koşu canlıyı ölçmez ("Tost makinesi" 10-14 / 10-15 dersi).
+  "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
 ] as const;
 
 describe.skipIf(!enabled)(`KONUŞMA ÖĞELERİ — gerçek model (${MODEL})`, () => {

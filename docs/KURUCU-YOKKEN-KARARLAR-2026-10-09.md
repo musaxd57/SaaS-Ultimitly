@@ -449,6 +449,13 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   Hazır yama `docs/hazir-yamalar/2026-10-14-G1-G1b-anlama-otomatik-mesaj-baglami.patch` (G1 yamasının yerine geçer; ilgili 58 birim test
   dosyası yeşil, sıra / kesilen pencere / damga pinleri, mutasyon 6/6; ana dala UYGULANMADI; anahtarsız — isterseniz anahtar arkasına alırım). Aynı "Host" etiketi bekçi isteminde de var
   (`ai/semantic/guard.ts`: şablon ve yapay zekâ cevabı da "Host:") — bu yamada YOK, ayrı karar. Uygulayalım mı?
+- ÖLÇÜLDÜ, KAPANDI (10-15): 10-14 konuşma öğeleri ölçümünde "Tost makinesi hiç ısınmıyor, Wi-Fi şifresi neydi?" turu bütünüyle
+  tutulmuş, Wi-Fi cevaplanmamıştı. Sebep ÖLÇERDİ: koşu `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` boşken yapılmış, canlıda açık (ölçer artık bu
+  bayrağı rapora yazıyor). Canlı bayraklarla (`docs/olcum/konusma-ogeleri-eval-2026-10-15-gpt-5.1-oge-kolu-canli-cfu.md`): arıza ev sahibinde,
+  Wi-Fi gidiyor; güvenli kısım 23/24, sızıntı 0, acilde otomatik cevap 0. Anlama katmanı tek başına (`docs/olcum/ariza-kullanim-2026-10-15-*`,
+  20 vaka × 2 tur): canlı kipte bugün 40/40; anahtarlar KAPALI olsaydı (temel kip) arıza bildirimi 2/22 → istem cümlesiyle 20/22, kullanım
+  soruları her iki kolda 18/18. Temel kip için düşük öncelikli hazır yama: `docs/hazir-yamalar/2026-10-15-anlama-ariza-kullanim-ayrimi.patch`
+  (canlıda bugün etkisi yok; anahtarlar geri alınırsa koruma — isterseniz uygularım).
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
 
