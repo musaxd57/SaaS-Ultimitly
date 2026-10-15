@@ -321,9 +321,9 @@ const LOCK_GAP = "[^\\d.]{0,30}?";
  * Sınırlı geriye bakış (en çok ~20 karakter) → doğrusal.
  */
 const LOCK_VALUE_LEFT =
-  "(?<!(?:daire|room|oda|apt|apartman|nolu|numara|no|sokak|sk|cadde|cad|seri|serial|sn|servis|service|saat|floor|kat|bedel|[üu]cret|fiyat|price|fee|cost|tel|telefon|phone|posta|zip)[a-zçğıöşü]{0,4}\\.?\\s{0,3}[:#]?\\s{0,2}\\(?)(?<!\\)\\s?)";
+  "(?<!(?:daire|room|oda|apt|apartman|nolu|numara|no|soka[kğg]|sk|cadde|cad|mahalle|mah|ada|parsel|seri|serial|sn|servis|service|saat|floor|kat|bedel|[üu]cret|fiyat|price|fee|cost|tel|telefon|phone|posta|zip)[a-zçğıöşü]{0,4}[.,]?\\s{0,3}[:#]?\\s{0,2}\\(?)(?<!\\)\\s?)";
 const LOCK_VALUE_RIGHT =
-  "(?!\\s*(?:numara|nolu|no\\b|sokak|sk\\b|cad|adres|room|oda|kez|kere|defa|times|adet|saat|hour|tane|kişi|ki[şs]i|metre|m\\b|km|gb|mb|mah))";
+  "(?!\\s*(?:numara|nolu|no\\b|sokak|sk\\b|cad|adres|room|oda|kez|kere|defa|times|adet|saat|hour|tane|kişi|ki[şs]i|metre|m\\b|m2|m²|km|gb|mb|mah|ada\\b))";
 /** 19xx / 20xx dört hane YIL sayılır — ardından giriş fiili / tuş işareti gelmiyorsa ("2022 Mart'ta kuruldu" yıl; "2019 girin" kod). */
 const LOCK_NOT_YEAR = "(?!(?:19|20)\\d\\d(?!\\d)(?![^\\n.]{0,15}?(?:(?<![a-zçğıöşü])(?:gir|yaz|tu[şs]la|bas)(?:[ıi]n|[ıi]n[ıi]z|[ıi]p|arak|erek)?(?![a-zçğıöşü])|enter|then|press|tap|#|\\*|✓)))";
 /** 4–8 haneli değer; telefonun ilk öbeği (ardında rakam öbeği) ve SON öbeği (önünde rakam + ayraç) dışarıda. */

@@ -216,6 +216,8 @@ describe("talimat kapısı — Opus 10-15 HL4 F5 / F20 (hepsi geçiyordu; çalı
       "Erken gelen misafire bahçede bekleyebileceğini söyle.",
       "Her zaman Turkish breakfast çeşitlerini anlat.",
       "Rezervasyon sorusu olan misafir direkt bize yazabilir de.",
+      "Sıcak ve samimi bir dille yaz, doktor gibi konuşma.",
+      "Ayakkabılarınızı paspasa silerek girmelerini rica et.",
       ...INSTRUCTION_PRESETS.map((p) => p.text),
     ]) {
       expect(checkInstruction(t), t).toEqual({ ok: true, content: t });

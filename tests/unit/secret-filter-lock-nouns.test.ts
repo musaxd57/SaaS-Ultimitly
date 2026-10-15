@@ -136,6 +136,10 @@ describe("Opus son kontrol — gerçekçi bilgi tabanı satırları DÜŞMEZ, no
     "Smart lock opens 2000 times per battery.",
     "Akıllı kilit saat 1400 itibarıyla aktif olur.",
     "Dijital kilit bedeli 1500 TL.",
+    // Haiku 10-15 son tur: tamlama ekli sokak, mahalle / ada, m2.
+    "Akıllı kilitli villa, Gül Sokağı 1453 kapısı solda.",
+    "Dijital kilitli daire, 2500 m2 bahçe.",
+    "Akıllı kilit Mahallesi 1453 ada, yardım için arayın.",
   ])("%s", (text) => {
     expect(dropped(text)).toBe(false);
     expect(qrReplyHasDoorCode(text, [])).toBe(false);

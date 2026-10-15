@@ -198,7 +198,9 @@ function splitPunct(w: string): { lead: string; core: string; trail: string } {
 }
 /** Değerin ardından gelen birim / sayaç / adres sözcüğü → kod DEĞİL ("104 numaralı", "300 TL", "2019 yılında", "1000 kez"). */
 const VALUE_UNIT_AFTER_RE =
-  /^\s*(?:['’]\s*[\p{L}]{0,4}\s+)?(?:numara|nolu|no\b|tl\b|try\b|₺|lira|euro|eur\b|€|usd|\$|dolar|y[ıi]l|year|kez|kere|defa|times|saat|hour|dakika|minute|kişi|ki[şs]i|adet|tane|metre|m\b|km\b|sokak|cadde|mah)/iu;
+  /^\s*(?:['’]\s*[\p{L}]{0,4}\s+)?(?:numaral[ıi]|nolu|no\b|tl\b|try\b|₺|lira|euro|eur\b|€|usd|\$|dolar|y[ıi]l|year|kez|kere|defa|times|saat(?!\s*\d)|hour|dakika|minute|ki[şs]i|adet|tane|metre|m\b|km\b|sokak|cadde|mah\.|mahalle)/iu;
+/** Önceki sözcük kod / şifre adıysa harf + rakam değer kısa da olsa kod ("Kilit kodu 7K3"). */
+const CODE_LABEL_RE = /^(?:kod|kodu|şifre|şifresi|sifre|sifresi|code|pin|password|passcode)$/iu;
 function maskLockContextCodes(text: string, opts: { carry?: boolean } = {}): string {
   const sentences = text.split(/(?<=[.!?\n])/u);
   // Kilit sözcüğü geçen cümle VE ardındaki cümle ("Anahtarlar kutuda. Kod: 4B7Z"); yalnız boşluktan oluşan parça (satır sonu) taşımayı
@@ -251,7 +253,8 @@ function maskLockContextCodes(text: string, opts: { carry?: boolean } = {}): str
         }
         const digits = core.replace(/\D/gu, "").length;
         // Harf + rakam karışık değer en az 4 karakter ("A1B2", "4B7Z"); "12B" gibi daire / blok adı kod sayılmaz.
-        if ((digits >= 1 && /\p{L}/u.test(core) && core.length >= 4) || /[#*]/u.test(core)) {
+        const prev = i >= 2 ? splitPunct(parts[i - 2]).core : "";
+        if ((digits >= 1 && /\p{L}/u.test(core) && (core.length >= 4 || CODE_LABEL_RE.test(prev))) || /[#*]/u.test(core)) {
           out.push(`${lead}(kod gizlendi)${trail}`);
           continue;
         }

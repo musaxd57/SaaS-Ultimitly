@@ -201,11 +201,16 @@ describe("Geçmişten öğren — kilit bağlamı + kişisel veri (Opus 10-15 HL
       // Opus son kontrol: satır sonu taşımayı tüketmez; büyük harf KILIT.
       ["Anahtarlar kutuda.\nKod: 4B7Z", "Anahtarlar kutuda."],
       ["KILIT: 4B7Z", "KILIT:"],
+      // Haiku son tur: birim sanılan önek sözcükleri ("Mahmut", "numarasıdır", "saat 18:00") kodu açık bırakmaz; kısa kod etiketliyse gizlenir.
+      ["Dijital kilit kodu 4455 Mahmut Bey'i arayın.", "Dijital kilit kodu"],
+      ["Dijital kilit kodu 4455 numarasıdır.", "Dijital kilit kodu"],
+      ["Akıllı kilit kodu 4455 saat 18:00'den sonra çalışır.", "Akıllı kilit kodu"],
+      ["Kilit kodu 7K3", "Kilit kodu"],
     ] as const) {
       const out = maskForLearning(input, []);
       expect(out, input).toContain("(kod gizlendi)");
       expect(out, input).toContain(kept);
-      expect(out, input).not.toMatch(/4590|A1B2|4B7Z|45 90|459|7788/u);
+      expect(out, input).not.toMatch(/4590|A1B2|4B7Z|45 90|459|7788|4455|7K3/u);
     }
   });
 

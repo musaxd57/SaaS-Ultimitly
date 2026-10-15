@@ -49,7 +49,7 @@ const DOOR_TOPIC_RE =
  * etme", "geç çıkış ücretsiz de" geçiyordu). Bu konularda karar kod kapılarında ve ev sahibindedir; talimat onları anamaz.
  */
 const SAFETY_TOPIC_RE =
-  /(?<![a-z])(?:acil(?!is)|emergency|urgent|sikayet|complaint|risk|devret|devir|handoff|escalat|rahatsiz ?etme|haber ?verme|bildirme|kendin cevapla|her ?zaman ?evet|always ?(?:say ?)?yes|say ?yes|ucret|fiyat|bedava|price|fee(?!d)|free ?of ?charge|for ?free|indirim|discount|iade|refund|geri ?ode|tazmin|compensat|polis|police|yangin|fire(?![a-z])|tehdit|threat|gormezden gel|involve|ev sahibini (?:arama|karistirma|bildirme)|otomatik gonder|auto.?send|insan onay|onay bekleme|without (?:human )?approval|pazarlik|negotiat|haggle|kapora|depozito|deposit|tehdi[td]|devre[dt]|doktor|doctor|ambulans|ambulance|hastane|hospital|ev sahib[a-z]{0,6}\s{1,3}(?:iletme|bildirme|haber verme|yonlendirme|sorma)|(?:never|don'?t|do not)\s{1,3}(?:[a-z]+\s{1,3}){0,6}?(?:host|owner)|yuzde ?\d|%\s?\d|\d\s?%|(?:her|tum|butun|every|all)\s{1,3}(?:tale[pb]|istek|istey|request)[a-z]{0,6}\s{1,3}(?:olur|evet|tamam|kabul|yes|agree))/u;
+  /(?<![a-z])(?:acil(?!is)|emergency|urgent|sikayet|complaint|risk|devret|devir|handoff|escalat|rahatsiz ?etme|haber ?verme|bildirme|kendin cevapla|her ?zaman ?evet|always ?(?:say ?)?yes|say ?yes|ucret|fiyat|bedava|price|fee(?!d)|free ?of ?charge|for ?free|indirim|discount|iade|refund|geri ?ode|tazmin|compensat|polis|police|yangin|fire(?![a-z])|tehdit|threat|gormezden gel|involve|ev sahibini (?:arama|karistirma|bildirme)|otomatik gonder|auto.?send|insan onay|onay bekleme|without (?:human )?approval|pazarlik|negotiat|haggle|kapora|depozito|deposit|tehdi[td]|devre[dt]|doktor(?:a)?\s{1,3}(?:cagir|getir|gotur|yonlendir|gerek)|(?:call|get)\s{1,3}(?:a\s{1,3})?doctor|ambulans|ambulance|hastane|hospital|ev sahib[a-z]{0,6}\s{1,3}(?:iletme|bildirme|haber verme|yonlendirme|sorma)|(?:never|don'?t|do not)\s{1,3}(?:[a-z]+\s{1,3}){0,6}?(?:host|owner)|yuzde ?\d|%\s?\d|\d\s?%|(?:her|tum|butun|every|all)\s{1,3}(?:tale[pb]|istek|istey|request)[a-z]{0,6}\s{1,3}(?:olur|evet|tamam|kabul|yes|agree))/u;
 /**
  * Opus 10-15 HL4 F5 / F20 (çalıştırılarak ölçüldü — hepsi geçiyordu; bugün yalnız operatör yazar, müşteriye açılınca P1):
  *  · konaklama değişikliği kararları (doğrulanmış erken giriş iş akışı ve ev sahibi kararı; talimat "olur de" diyemez)
@@ -58,7 +58,7 @@ const SAFETY_TOPIC_RE =
  *  · platform dışı ödeme / rezervasyon ("Airbnb dışında ödeme alalım", "direkt bana rezervasyon")
  */
 /** Yedek anahtarın yeri bir erişim sırrıdır (talimat QR istemine de girer — Opus 10-15 son kontrol: "yedek anahtar paspasın altında"). */
-const KEY_LOCATION_RE = /(?<![a-z])(?:yedek anahtar|spare key|paspas|doormat|under the mat|saksi(?:nin)? alt|anahtar[a-z]{0,6}\s{1,3}(?:[a-z]+\s{1,3}){0,2}?(?:altinda|icinde|arkasinda))/u;
+const KEY_LOCATION_RE = /(?<![a-z])(?:yedek anahtar|spare key|paspas[a-z]{0,3}\s{1,3}alt|under the (?:door)?mat|saksi(?:nin)? alt|anahtar[a-z]{0,6}\s{1,3}(?:[a-z]+\s{1,3}){0,2}?(?:altinda|icinde|arkasinda))/u;
 const STAY_CHANGE_RE =
   /(?<![a-z])(?:erken giris|gec cikis|early check|late check|konaklama(?:yi)? uzat|uzatma talebi|cikis[a-z]{0,6}\s{1,3}(?:[a-z]+\s{1,3}){0,3}?uzat|giris[a-z]{0,6}\s{1,3}(?:[a-z]+\s{1,3}){0,3}?(?:erkene|one) al|extend(?:ing)? (?:the |their |a )?stay|stay extension|erken gelme|bir gece daha|fazladan gece|extra night|onaylanma|unconfirmed|rezervasyon onay)/u;
 const CONTACT_RE =
