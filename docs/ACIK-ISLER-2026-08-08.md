@@ -13,6 +13,14 @@
 > rezervasyon iç alanları, ölü `plan` dışa aktarımdan çıktı, gelen kutusu listesi dar `select`) bu tur işaretlendi. Açık kalan §15:
 > `leads` genel tavan (G3), `WebhookEvent` budama yok, `/api/calendar/sync` ölü kod, `error.tsx` → `reportError`.
 
+> **10-15 gece yeniden tarama (Haiku + kod doğrulaması; yukarıdaki satırlar SİLİNMEDİ):** §2 "org sırası dönmüyor" ESKİMİŞ — döner; 12 dk
+> bütçe dolunca `sendDueAlerts` o geçişte atlanır, sonraki geçişte döner (sınırlı gecikme; değiştirilmedi). §7b uygulandı, §7f G5 ile kapandı.
+> §15: `leads` bildirim e-postası günlük 50 + 1 özetle sınırlı (`lead-notify-budget.ts`; Resend kotası korunuyor), yalnız kayıt tablosu IP
+> döndüren saldırgana tavansız · `WebhookEvent` satırı silinmiyor ama 12 aydan eski işlenmiş Paddle gövdesi redakte ediliyor
+> (`data-retention.ts`) · `/api/calendar/sync` ön yüzde çağıranı yok (yönetici + 6/dk; kaldırmak karar) · panel `error.tsx` yalnız
+> `console.error` (tarayıcıda raporlayıcı yok — Sentry istemcisi kurulmadı). §12 `scheduled-ical-sync.test.ts` gerçek DNS sorgusu: 10-15 gece
+> düzeltildi (aşağıda). §13 Dockerfile `sh -c` + `migrate deploy` env kapısından önce: altyapı kararı (Railway kapalıyken denenemez).
+
 > Bu dosya **Codex'e verilmek üzere** yazıldı. Bu turda **uygulananlar** git log'da
 > (`f0dd8f5`, `0e458e3`, `0a34a9c`, `3da085e`). Aşağıdakiler **bilerek açık bırakıldı**:
 > hepsi kod-doğrulandı, hiçbiri "unutuldu" değil — ya kullanıcı kararı ister, ya ayrı

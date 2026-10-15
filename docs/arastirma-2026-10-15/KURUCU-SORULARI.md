@@ -238,7 +238,7 @@ envanterinden bir cihaz" = bakım görevi (cihaz envanteri ve olumsuzluk kuralla
 | Durum | Örnek misafir mesajı | Neden ayrı | Önerdiğim sınıf |
 |---|---|---|---|
 | Kilitlenemeyen kapı | "Kapı kilitlenmiyor, gece açık kalacak" | güvenlik; misafir içeride ama kapı açık | yüksek |
-| İçeride mahsur kalma | "Kapının kilidi bozuldu, çıkamıyoruz" | kişi güvenliği | en yüksek (bugünkü acil güvenlik yolu zaten acil açıyor) |
+| İçeride mahsur kalma | "Kapının kilidi bozuldu, çıkamıyoruz" | kişi güvenliği | en yüksek — ⚠️ **ÖLÇÜLDÜ (10-15 gece): bugünkü acil yolu bunu ACİL SAYMIYOR** (yalnız "içeri giremiyoruz" — dışarıda kalma — acil). Şikâyet olarak ev sahibine düşüyor; D4 ile normal bakım görevi açılır. Acil sayılsın mı → soru ↓ §G |
 | Tamamen susuzluk | "Hiç su yok, ne musluktan ne duştan" | konaklama kullanılamaz | yüksek |
 | Tek tuvaletin kullanılamaması | "Tuvalet tıkalı, başka tuvalet yok" | konaklama kullanılamaz | yüksek |
 | Tek cihaz arızası | "Musluktan su gelmiyor" (duş çalışıyor) | konfor | normal |
@@ -256,3 +256,146 @@ envanterinden bir cihaz" = bakım görevi (cihaz envanteri ve olumsuzluk kuralla
    ÖNCE şemayı ve geri alma planını sana göstereceğim (senin şartın).
 5. D4 → yukarıdaki saat seçiminden sonra.
 6. D5 → arşiv seçimini bekliyor; sayım Railway açılınca.
+
+## G. D1–D7 uygulama durumu (10-15 gece)
+
+| Karar | Durum | Ne yapıldı (müşteriye görünen) | Kanıt |
+|---|---|---|---|
+| D1 | ✅ kodda (push bekliyor) | Kimlik form başına; ağ hatası / 409 sonrası değişmez, başarıda yenilenir. 409'da yazdığınız metin kalır, kaydedilmiş kalem gösterilir: **"Kaydedilen bilgiyi düzenle"** (düzenleyici güncel listeden açılır; kalem bu arada silindiyse "Kaydedilen bilgi listede bulunamadı. Sayfayı yenileyip tekrar deneyin.") ve **"Ayrı bir bilgi olarak ekle"** (bilinçli ikinci kayıt; sıradan "Ekle" yine 409) | `kb-create-request-id-screens.test.tsx` |
+| D2 | ⏳ kod hazır, **migration 68 onayını bekliyor** (aşağıda) | Kaynaktan gelmiş + yerelde değişmemiş kopya güncellenir; yerelde değişmişse dokunulmaz ve daire adıyla "elle değiştirildiği için atlandı" yazılır; kaynak bağı bilinmeyen eski kopyalar eşleştirilmez | `kb-copy-update-d2.test.ts` |
+| D3 | ⏳ kod hazır, **migration 68 onayını bekliyor** | Her söz kendi işlem kimliği; çift tık / yeniden deneme aynı kimlik; aynı kimlik + farklı içerik → "Bu söz az önce farklı bilgilerle kaydedildi. Sayfayı yenileyip kontrol edin."; klima 18:00 + musluk 18:00 = iki söz / iki görev | `guest-commitments.test.ts`, `idempotency-acceptance.test.ts` |
+| D4 | ✅ kodda (push bekliyor) | ↓ ayrıntı | `task-detect.test.ts` (D4 bölümü) |
+| D5 | ⏳ sayım aracı hazır (salt-okuma); Railway kapalı → koşulamadı | Hiçbir kayıt değiştirilmedi. Arşiv seçimi ↑ §F (önerim A) | `scripts/diagnose-cancelled-leftover-tasks.ts` |
+| D6 | ✅ kodda (push bekliyor) | PATCH ve düğme aynı kural (`lib/reservations/reopen.ts`). "Sağlayıcıya ait" = bağlantı damgalı satır YA DA damga öncesi eski sağlayıcı satırı (kanal etiketli + referanslı); dosya / takvim / elle satırında işaret aranmaz. Şüphede işaret aranır (yanlış açma karşılama mesajı gönderebilir) | `reservation-reactivate-route.test.ts` |
+| D7 | ✅ kodda (push bekliyor) | Yalnız sistem görevi "var" sayılır; bitmiş sistem görevi yalnız aynı takvim günündeyse engeller; düğmedeki sayı aynı kural | `lifecycle-presence*.test.ts`, `host-day-rule.test.ts` |
+
+### D4 — ne değişti (önce / sonra)
+| Misafir mesajı | Önce | Sonra |
+|---|---|---|
+| Kapının kilidi bozuldu · Kapı kilitlenmiyor | görev yok | Bakım — misafir bildirimi: kapı (normal, 24 sa) |
+| Su akmıyor · Banyonun suyu akmıyor | görev yok | Bakım — misafir bildirimi: su |
+| Musluktan su gelmiyor · Sifon bozuldu · Duştan su akmıyor | görev yok | … musluk · sifon · duş |
+| Klima bozuldu | Bakım: cihaz/olanak | Bakım — misafir bildirimi: klima |
+| Klima çalışmıyor | Bakım: çalışmıyor | Bakım — misafir bildirimi: klima |
+| Salon ışığı yanmıyor mu, karanlıkta oturuyoruz (tereddütlü bildirim) | Bakım: yanmıyor | Bakım — misafir bildirimi: ışık |
+| Su akmıyor mu acaba, gelmeden sormak istedim | görev yok | görev yok |
+| Klima bozuk değil, sadece kumandayı bulamadık | ⚠️ Bakım: bozuk | görev yok |
+| Kombi bozuksa ne yapmalıyız? · Klima çalışmıyorsa kimi arayalım? | ⚠️ Bakım | görev yok |
+| Is the AC broken? · Klima çalışmıyor mu, biz mi yanlış yapıyoruz? | ⚠️ Bakım | görev yok (soru; konuşma yine ev sahibine düşer) |
+| Merdivenlerde sigara kokusu var · I'll sue you | görev yok | görev yok (genel şikâyet + cihaz adı yetmez) |
+| Getirdiğimiz kahve makinesi bozuldu | görev yok | görev yok (misafirin kendi eşyası) |
+| Kapının kilidi bozuldu, içeri giremiyoruz | ACİL (2 sa) | aynı |
+- **Ölçüm (5.122 mesajlık test / eval derlemi, ücretli çağrı yok):** 116 mesaj yeni görev açtı (gerçek arıza bildirimleri), 8 mesajın görevi
+  kalktı (7'si soru / varsayım), 173'ünün yalnız konusu değişti (belirti sözcüğü → cihaz adı). Eşya ve temizlik görevleri DEĞİŞMEDİ.
+- **Bilinen sınırlar:** "Tatil düşümüz bozuldu" → "duş" (sınıflandırıcının Türkçe harf katlaması; konuşma zaten şikâyet sayılıyordu) ·
+  "Saç kurutma makinemiz bozuldu" (misafirin kendi eşyası, "kendi / getirdiğimiz" yoksa ayırt edilemez) · "Duş başlığı kırılmış",
+  "Bulaşık makinesi su almıyor", "Kapı kolu elimde kaldı" bugün de görev açmıyor (sınıflandırıcı şikâyet saymıyor; ayrı tur).
+- **Değişmeyenler:** otomatik görev ayarı kapalıysa görev açılmaz; misafire hiçbir metin / söz gitmez; konuşmanın şikâyet / devir kararı aynı.
+
+### G'den doğan sorular
+- **G-D4a · Öncelik (senin seçimin, 2/24 saat kesinleşmedi):** ↑ "D4 öncelik örnekleri" tablosu. Bugün yalnız acil güvenlik 2 sa, gerisi 24 sa.
+- **G-D4b · İçeride mahsur kalma acil sayılsın mı?** "Kapının kilidi bozuldu, çıkamıyoruz" bugün acil DEĞİL (ölçüldü); misafire giden
+  cevap kararı (otomatik cevap durur, ev sahibine düşer) aynı; fark acil işaret + 2 sa görev. Önerim: "çıkamıyoruz / içeride kaldık /
+  mahsur kaldık / locked in / can't get out" (kapı / kilit bağlamında) acil güvenlik ağına eklensin — önce örnek setiyle ölçerek, misafire
+  giden metin değişmeden.
+  Böyle yapalım mı?
+- **G-D2/D3 · Migration 68 onayı:** iki yeni sütun + bir yeni sütun + dizinler, hepsi BOŞ BIRAKILABİLİR (dolu tabloya zorunlu alan / tekil
+  kısıt EKLENMEZ — tekil dizin yalnız yeni sütunda, eski satırlar NULL):
+  `KnowledgeBaseItem.copiedFromId` (kaynak kalem), `KnowledgeBaseItem.copiedContentHash` (kopyalandığı andaki içerik izi) + dizin ·
+  `GuestCommitment.clientRequestId` + `(conversationId, clientRequestId)` tekil dizini. Geri alma: sütunları okumayan sürüme dönmek yeterli
+  (sütunlar boş kalır, eski kod onları görmez); gerekirse `DROP COLUMN` ile tamamen geri. Railway açılmadan önce taze `pg_dump` (kural).
+  Onaylıyor musun?
+
+## H. 10-15 gece — inceleme notun ("BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ") + Opus dilim sonu kontrolü
+
+İki anahtar yazıldı, ikisi de **KAPALI** (açmak senin kararın; ilk denemeler birlikte). Kapalıyken bugünkü davranış bayt bayt aynı (testli).
+
+### H1 · `AI_FAULT_GUARD_ENABLED` — arıza her yolda arıza (Sabah Kararları 27 "b" + 30)
+- Bugün: arıza kontrolü yalnız anlama modeli "şikâyet" derse çalışıyor. Demediği koşuda (kör set 6) TV arızası sıradan soru gibi cevaplandı,
+  sana e-posta gitmedi.
+- Anahtar açıkken: cihaz + arıza ifadesi (yedi dil; "görüntü yok / siyah ekran" dahil) AYNI cümlecikte görülünce kod arızayı sana bırakır
+  (şikâyet öğesi + tek e-posta); aynı mesajdaki bağımsız soru cevaplanır. Wi-Fi / otopark / anahtar arızası da (liste kipinde de) bilgi
+  tabanı şartı olmadan cevaplanmaz. Misafir "düzeldi" deyince kodun açtığı iş kapanır (aynı mesajda başka açık istek yoksa).
+- Arıza SAYILMAYANLAR (Opus ölçtü, düzeltildi): "Otoparka rota gönderir misiniz?" · "Telefon çekmiyor, wifi şifresi ne?" · "Bavulumuzun
+  tekerleği kırık, asansör var mı?" · "Arabamız bozuldu, otopark var mı?" · "bozuk para" · "Klima arıza yaparsa kimi arayalım?" · "Klima
+  çalışmadı ama sonra düzeldi".
+- ÖRNEK: "Telvizyonda goruntu yok, sadece siyah ekran var. Copleri nereye atiyoruz?" (TV tarifi yok)
+  ÖNCE (bazen): misafire çöp + "Televizyonda görüntü gelmiyorsa kaynak girişinin (HDMI/AV/TV) doğru seçili olduğundan emin olur musunuz?";
+  sana e-posta yok. SONRA: misafire yalnız çöp cevabı; sana "⚠️ Acil misafir mesajı"; panelde "şikâyet / sorun · Size bırakıldı".
+- **Açalım mı?** (QR'da aynı kural ayrı soru ↓ H3.)
+
+### H2 · `AI_FIX_SUPPORT_GATE_ENABLED` — bilgi tabanında yazmayan arıza adımı GİTMEZ (senin notunun kod kemeri)
+- Kural: cevabın bir cümlesi **arıza giderme adımıysa** ("çalışmıyorsa … yeniden açın", "dener misiniz", "emin olur musunuz") o cihazın
+  bilgi tabanında **tarifi** olmalı; **kullanım adımıysa** ("MODE tuşuyla soğutmayı seçin") o cihaz bilgi tabanında **konu** olmalı. Yoksa
+  cevap gitmez, taslak sende kalır (QR'da sana devredilir). Anlama modelinin etiketinden bağımsız; kanal + QR + Ayarlar testi aynı kural.
+- Ölçüm (kayıtlı 3.324 cevap, ücretli çağrı yok): **21 cevap tutulurdu, hepsi tarifi olmayan arıza için uydurulmuş adım** (klima çalışmıyor →
+  "kapatıp birkaç dakika sonra açın"; internet yok → "modemi fişten çekip 30 sn bekleyin"; kilit takılıyor → "kolu kaldırıp anahtarı yavaşça
+  çevirin"). **Gerçekten gönderilmiş cevaplarda yanlış tutuş 0.**
+- ÖRNEK 1 (bilgi tabanında TV kalemi yok): "Ekranda görüntü yoksa kaynak girişini (HDMI) kontrol edin." → ÖNCE gider · SONRA gitmez.
+- ÖRNEK 2 (bilgi tabanında "Televizyon: görüntü gelmezse SOURCE → HDMI 1"): aynı adım → ÖNCE de SONRA da gider.
+- ÖRNEK 3 (otopark tarifinde "kumanda çalışmazsa tuş takımına 5523"): "Kumanda çalışmazsa tuş takımına 5523 yazın" → gider (kumanda TV sayılmaz).
+- ⚠️ Bir sınır: klima kaleminde yalnız KULLANIM varken ("MODE tuşuyla soğutma, 24 derece"), misafir "klima çalışmıyor" deyince modelin
+  "MODE tuşuyla kar tanesini seçip 24 dereceye almayı dener misiniz?" cevabı da **tutulur** (arıza adımı tarif ister — 1 Ekim kararın 18 "a").
+  Bilgi bilgi tabanında yazılı ama arıza tarifi olarak değil. Böyle kalsın mı, yoksa kullanım bilgisi arıza cevabında da kullanılabilsin mi?
+- Bilinen sınır: aynı cihazın tarifi VARKEN tarifte yazmayan başka bir adım (cihaz düzeyinde okunuyor; misafir başka dilde yazınca sözcük
+  karşılaştırması güvenilir değil).
+- **Açalım mı?**
+
+### H3 · QR'da "arıza her yolda arıza" (Opus N9)
+- Bugün QR öğe akışını kullanmıyor; H2 (kanıtsız adım) QR'a bağlandı, H1'in "arızayı sana bırak + e-posta" kısmı QR'da YOK. QR'da arıza
+  bildiren misafir şu an ya cevap alır (tarifliyse) ya da devredilir (kelime ağı / model şikâyet derse). Önerim: H2 QR'da yeterli; H1'in QR
+  karşılığını ayrı turda ölçerek. Böyle yapalım mı?
+
+### H4 · Opus dilim sonu kontrolü (12 bulgu) — ne yapıldı
+| # | Bulgu | Durum |
+|---|---|---|
+| N1 | yeni anahtarlar bayrak listelerinde yoktu (tam suit kırmızı olurdu) | ✅ iki listeye eklendi |
+| N2 | "görüntülü diyafon" bilgi tabanında TV tarifi sayılıyordu (anahtarsız, GEVŞETİYORDU) | ✅ belirti sözcükleri genel konu çıkarımından çıkarıldı |
+| N3 | arıza sinyalinin yanlış alarmları | ✅ (↑ H1 listesi) |
+| N4 | devir vetosu "görevlisine yönlendirileceksiniz", "ev sahibinizce iletildi", "host's lockbox" cümlelerini tutuyordu | ✅ (bu gece eklenen kalıp; canlıda yoktu) |
+| N5 | "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli" "bilgim yok" sayılıyordu | ✅ (bu gece eklenen kalıp) |
+| N6 | D4: misafir eşyası işareti bütün mesaja bakınca gerçek arıza görevi kayboluyordu ("Valizleri getirdik. Klimayı açtık, bozuldu") | ✅ yalnız arızanın cümleciği |
+| N7 | "İNTERNET ÇALIŞMIYOR" (büyük harf) görev açmıyordu | ✅ |
+| N8 | Geçmişten öğren: "bu ayakkabılıkta" tarih, "tekrar deneyin" deneme sayılıyordu | ✅ |
+| N9 | liste kipinde Wi-Fi arızası tarif şartı olmadan cevaplanıyordu | ✅ (anahtar açıkken); QR ↑ H3 |
+| N10 | misafir "düzeldi" deyince kodun açtığı iş kapanmıyordu | ✅ |
+| N11 | teşhis betiği büyük veride 5 sn'de düşerdi | ✅ |
+| N12 | test kalitesi (vakum iddia, ölü alan) | ✅ (bir maddeye gerekçeli itiraz: `$transaction` spy'ı model temsilcisi değil, aynı dosyada önceden üç test aynı kalıpla yeşil) |
+
+### H5 · D4 görev tespiti — Opus düzeltmesinden sonra (önce / sonra)
+| Misafir mesajı | Bu gece ilk sürüm | Şimdi |
+|---|---|---|
+| Valizleri getirdik. Klimayı açtık, bozuldu. | görev yok | Bakım — misafir bildirimi |
+| Televizyon kendi kendine kapanıyor, bozuk. | görev yok | Bakım — misafir bildirimi |
+| We brought our own towels. The AC is broken. | Temizlik görevi (yanlış) | Bakım |
+| İNTERNET ÇALIŞMIYOR | görev yok | Bakım — misafir bildirimi |
+| KLİMA ÇALIŞMIYOR | Bakım: cihaz/olanak | Bakım — misafir bildirimi: klima |
+| Getirdiğimiz kahve makinesi bozuldu. | görev yok | görev yok (aynı) |
+
+### H6 · İnceleme sayfasındaki 9 yorumun (10-15) neden analizi
+Hepsi kör set 6'dan (Luna, kabul seti — o setin bilgi tabanını açmam yasak, bu yüzden sayfada göremiyorsun). "Misafire gitti" = ölçümde
+"otomatik gönderilirdi"; hiçbiri gerçek misafire gitmedi.
+| Senaryo | Senin notun | Ne oldu | Bu gece yazılan kural ne yapardı |
+|---|---|---|---|
+| k6-03 TV + çöp | TV görmezden gelinmiş gibi olmasın | TV sana kalmalıydı; bildirim yoktu | H1 açıkken: sana tek e-posta + panelde iş; misafire yalnız çöp |
+| k6-13 TV "Sinyal yok" + koy | "Rica ederiz, iyi tatiller dileriz" kim yazıyor? · fazla yönlendirme | ⚠️ "Wifi'ye bağlandık… / Rica ederiz…" satırları senaryonun ÖNCEDEN YAZILMIŞ GEÇMİŞİ (test girdisi), yapay zekâmızın cevabı değil. Cevap: SOURCE → HDMI 2 + uydu alıcısı POWER (2 adım) + koy bilgisi | Bilgi tabanında TV tarifi yoksa H2 tutar; varsa bugünkü kural (1 Ekim 18 "a") gönderir |
+| k6-14 bulaşık + cam şişe | iyi gibi | Kapak + ON/OFF + P3 + START (bir adım dizisi) + geri dönüşüm | — |
+| k6-19 otopark kumandası | iyi gibi, fazla yönlendirme yok | "Pili bitmiş olabilir; arka kapağı açıp yedek CR2032 pili takabilirsiniz" | — |
+| k6-24 klima kumandası | "Adama pilleri değiştirin mi yazacak?" | "Ekran boşsa pillerini değiştirin; yedek AAA piller TV ünitesinin üst çekmecesinde" | — |
+| k6-25 bulaşık E24 | çok yönlendirme | Sepet → filtreyi çevirip çıkar → yıka → tak → programı başlat (4–5 adım) | — |
+| k6-18 internet / kırmızı ışık | WAN ışığı demedi ki · çok yönlendirme | Modemi kapat-aç → 5 dk sonra hâlâ kırmızıysa fiber kutusu → modem yeniden (3 adım, misafirin söylemediği "WAN" varsayımı) | — |
+| k6-39 Wi-Fi + market saati | "24.00'e kadar açık" rezillik | Cevap "her gün 24:00'e kadar açık" | — (aşağıda soru) |
+| k6-14/19 iyi · k6-24/25/18 kötü | | | ⚠️ ikisi de pil / tuş adımı — kural netleşmeli ↓ |
+
+**Sorular:**
+- **H6a · Hangi arıza adımı misafire gitsin?** k6-19'da pil değiştirmeyi "iyi" dedin, k6-24'te "adama pilleri değiştirin mi yazacak" dedin. Fark
+  bence adım sayısı / zorluk değil, cihaz olabilir (otopark kumandası vs klima kumandası) — emin değilim. Seçenekler: (a) bugünkü: bilgi
+  tabanında tarif varsa gider · (b) en çok TEK basit adım (tuşa bas / kaynağı seç) gider, birden çok adım ya da kapak açma / filtre
+  söküm / ikinci cihaz sana kalır · (c) bilgi tabanı kalemine "misafir kendisi yapabilir" işareti, yalnız işaretliler gider (yeni alan =
+  migration) · (d) hiçbir arıza adımı otomatik gitmez, hepsi senin hazır taslağın olur. Önerim (b) + (c) birlikte; ölçüm setiyle (`evals/fault-mixed-dev.json`, ücretli koşu senin onayınla) önce/sonra gösteririm. Hangisi?
+- **H6b · "24:00" yazımı:** bilgi tabanında "07:00–24:00" yazıyorsa model "24:00'e kadar" diyor. Önerim: misafire giden metinde kod "24:00"ı
+  "gece yarısına (00:00) kadar" yapsın (yalnız biçim; değer değişmez). ÖRNEK: ÖNCE "her gün 24:00'e kadar açık" · SONRA "her gün gece
+  yarısına (00:00) kadar açık". Böyle yapalım mı? (Ya da bilgi tabanında bunu sen düzeltirsin — o zaman kod dokunmaz.)
+- **H6c · Kabul setlerinin bilgi tabanını sayfada görmek:** o dosyaları açmam yasak (kör ölçüm bozulmasın diye senin kuralın). Sayfada
+  göstermem için ya (1) yalnız BİLGİ TABANI bölümünü okumama izin verirsin (beklenen cevaplar / puanlar kapalı kalır) ya da (2) kör setleri
+  sayfadan çıkarıp yalnız dev setlerini bırakırım. Hangisi?

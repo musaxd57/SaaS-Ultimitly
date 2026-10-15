@@ -156,7 +156,10 @@ geçiş, `Object.hasOwn`, `LEFTOVER_DOUBLE` yalnız düzgün belirteci siler.
 **Panel yerleşimi (lg):** dış kap `lg:fixed lg:inset-0`, `fillsViewport` dikey flex, grid `lg:flex-1 lg:min-h-0`, kart
 `lg:h-full`; `100vh` aritmetiği ve sabit `11rem` GERİ GELMEZ (pin `mobile-grid-min-width.test.ts`, TAM öznitelik eşitliği).
 
-**Diğer açıklar:** Codex P2 (F09–F18) · `docs/DENETIM-2026-08-09.md` (27) · `docs/ACIK-ISLER-2026-08-08.md` (16) ·
+**Diğer açıklar (10-15 gece yeniden tarandı — kalanlar):** Codex P2 F09 / F13 / F15 / F16 KAPANDI; KISMEN F10 (denetim kaydı yazılamazsa
+eylem başına politika — karar), F11 (geçici yükleme + sahipsiz nesne uzlaştırması), F12 (haftalık zamanlanmış denetim iş akışı yok), F14 (CUS v2),
+F17 (org başına gecikme ölçüsü), F18 (passkey — karar) · `docs/DENETIM-2026-08-09.md` başındaki 10-15 satırı · `docs/ACIK-ISLER-2026-08-08.md`
+başındaki 10-15 satırı · eski satır: Codex P2 (F09–F18) · `docs/DENETIM-2026-08-09.md` (27) · `docs/ACIK-ISLER-2026-08-08.md` (16) ·
 `docs/MIGRATION-BEKLEYEN-ISLER.md`. Operatör: bucket görünürlüğü (imzasız URL 403) · `weekly-audit.yml` `main`'e ·
 `security@lixusai.com` · retention onay paketi · `UNVERIFIED_SWEEP` (dry-run önce) · Railway Pro + PITR lansmandan 2-3
 gün önce · eski org'ların aktif-saat penceresi (migration 55 varsayılanı 0/0; prod damgası bekliyor). LEGAL (avukat):

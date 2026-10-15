@@ -674,6 +674,8 @@ derin kontrol; tam suit koşarken başka vitest koşulmaz (PG 5433).
 ## 16. Kanıt durumu (TEST-EVIDENCE-CONTRACT biçimi)
 
 - **KOD:** yok — bu bir tasarım belgesi; depoya tek satır yazılmadı.
+  ⚠️ (10-15 gece ek) Bu satır belgenin YAZILDIĞI ANI anlatır; ilk dilim (ödeme zinciri, migration 63) ve ikinci dilim (arka plan işleri)
+  o tarihten önce zaten koddaydı — durum `docs/claude/durum.md` (10-12 gece) ve `docs/TASARIM-2026-10-10-correlation-id-takip-numarasi.md` §6.
 - **CI / DEPLOY / PROD:** yok.
 - **Ölçüm:** hacim tahmini hesaptır (satır boyu + 09-19 yedek sayımı), canlı veritabanında ölçülmedi (bu ortam canlıya bağlanmaz —
   kurucu kararı §5).

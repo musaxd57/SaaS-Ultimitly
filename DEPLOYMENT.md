@@ -226,8 +226,10 @@ yapılandırılmamışsa sessizce atlar (satırlar bekler). Hesap-silme: niyet k
 → org silinirse niyet mutlaka var, org silme rollback olursa hiç niyet yazılmaz.
 
 **LEGACY GEÇİŞ / FALLBACK STRATEJİSİ (kural):** Mevcut `/uploads` dosyaları **taşınmaz ve silinmez** —
-bu tur SADECE ileriye dönük. Eski `photoUrl`'ler (`/uploads/...`) doğrudan statik olarak sunulmaya
-devam eder (serve route yalnız `/api/storage/photo/` önekli key'leri tanır; legacy'e dokunmaz),
+bu tur SADECE ileriye dönük. ⚠️ Eski `photoUrl`'ler (`/uploads/...`) üretimde SUNULMAZ: Next.js `public/`
+klasörünü açılışta bir kez tarar, açılıştan SONRA yazılan dosya 404 döner (`next start` ile ölçüldü — DENETIM-2026-08-09 #23).
+Bugün sorun değil çünkü `STORAGE_ENABLED` açık ve fotoğraflar `/api/storage/photo/` rotasından imzalı adrese çözülür; o anahtar
+kapatılırsa yeni fotoğraflar kırık görünür (serve route yalnız `/api/storage/photo/` önekli key'leri tanır; legacy'e dokunmaz),
 silme kuyruğu yalnız storage-önekli satırları hedefler, hesap-silmedeki yerel `rm` legacy klasörünü
 eskisi gibi temizler. Açtıktan sonra: eski fotoğraflar zamanla doğal olarak (görev/hesap silindikçe)
 tükenir; toplu geri-doldurma (backfill) yapılırsa ayrı bir tur + [KARAR] olarak ele alınmalı (bugün YOK).

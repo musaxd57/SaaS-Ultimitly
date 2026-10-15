@@ -505,3 +505,15 @@
   SYSTEM başlığı → `detectPromptInjection` = true (mesaj insana).
 - Misafir metnindeki çizgi dizisi modele giderken tek boşluğa iner (yanıt istemi `shown`, anlama, bekçi, sıralayıcı sorusu); dizisiz metin
   BAYT BAYT aynı. Bizim / ev sahibinin metnine ve KB'ye UYGULANMAZ (host KB'de "=====" ayracı kullanabilir).
+
+## 🚨 ARIZA HER YOLDA ARIZA + KANITSIZ ARIZA ADIMI (10-15 gece, kurucu inceleme notu "BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ"; iki anahtar VARSAYILAN KAPALI)
+- `AI_FAULT_GUARD_ENABLED` (`conversation-items/relation.ts` `faultSignal`, `extract.ts`, `plan.ts` `faultRequests`): isteğin KENDİ sorgusunda cihaz +
+  arıza ifadesi AYNI CÜMLECİKTE (misafir eşyası / koşul yüklemi / koşul bağlacı / "düzeldi" hariç; yedi dil) → mesajda şikâyet öğesi yoksa kod
+  `complaint_issue` ekler (kaynak `fault_guard`), arızalı istek ev sahibinde (liste kipinde de; ilişki kipinde yalnız tarifli çözüm cevaplanır).
+  Misafir arızalı isteği geri çekince ve o mesajda başka açık öğe yoksa kod şikâyeti de geri çekilir (`store.faultGuardCompanions`). QR karşılığı YOK (kurucu sorusu §H3).
+- `AI_FIX_SUPPORT_GATE_ENABLED` (`relation.unsupportedFixStep` / `fixSupportHolds`; kanal `reply_fix_unsupported`, QR `fix_unsupported`): cevap cümlesi
+  ARIZA GİDERME adımıysa (olumsuz koşul / yeniden başlatma / deneme / denetim) cihazlarının HER BİRİNİN modele giden bilgi tabanında TARİFİ, KULLANIM
+  adımıysa cihazlarından BİRİNİN KONUSU (başlık önce — "Wi-Fi" kalemindeki "TV ünitesi" TV'yi konu yapmaz) olmalı. Kumanda nötr, priz / fiş parça.
+  Bağlam yalnız anahtar açıkken yazılır (`fixSupportContextOf`, sıralı kimlik, metin yok); dört çağıran (kanal, QR, Ayarlar testi, karşılaştırma).
+- TV belirti adları (`TV_SYMPTOM`: görüntü / HDMI / siyah ekran / no picture…; "görüntülü" HARİÇ) genel `topicsOf`a GİRMEZ — yalnız cevap tarafı ve
+  arıza sinyali (Opus N2: genel sözlükte "görüntülü diyafon" kalemi TV tarifi sayılıyor, tarifsiz TV arızası "çözüm" oluyordu).

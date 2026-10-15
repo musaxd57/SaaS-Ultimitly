@@ -8,7 +8,22 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-15 öğleden sonra (güncel) — V sonrası işler (kurucu "Vlerden sonra yapacağız dediklerimi yap, soru sorma"):** beş Opus araştırması
+**10-15 gece (güncel) — idempotency bitişi + kurucu D1–D7:** iptal yollarının hepsi aynı kilit protokolünde (sekiz yol, iptalden önce başlamış
+görev açmaya karşı belirlenimci testler; "zaten iptal" kısa yolu kaldırıldı; ters yön "Yeniden aç" kilitli yoldan). Onarım ≠ alarm: iCal (onarım
+taraması, koşu başına 50) ve Hospitable (her senkron) kendiliğinden yeniden dener; dosya / PATCH yolunda otomatik onarım YOK (D5 aracı, onay
+bekliyor). Kurucu D1 (form başına kimlik + "Ayrı bir bilgi olarak ekle" + güncel listeden düzenle) · D4 (arıza görev tespiti genişledi; soru /
+varsayım / olumsuzlama ayrıldı; başlık "Bakım — misafir bildirimi: <cihaz>"; öncelik değişmedi) · D6 (PATCH + düğme tek kural
+`lib/reservations/reopen.ts`) · D7 (yalnız sistem görevi "var" sayılır; bitmiş görev yalnız aynı gün) kodda. D2 + D3 kodu hazır, **migration 68
+onayı bekliyor** (yedek dal `backup/d2d3-stash-2026-10-15`). D5 sayım aracı salt-okuma (Railway kapalı → koşulmadı). Ölçülen bulgu: "Kapının
+kilidi bozuldu, çıkamıyoruz" acil sayılmıyor (soru G-D4b). Durum + sorular `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §E–§G; test
+paralelleştirme raporu `docs/arastirma-2026-10-15/test-paralellik.md` (öneri; ana yapılandırma değişmedi).
+Gece devamı (kurucu inceleme notu "BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ" + TV / çöp vakası): iki anahtar, ikisi KAPALI —
+`AI_FAULT_GUARD_ENABLED` (cihaz + arıza ifadesi aynı cümlecikte → kod şikâyet öğesi, arızalı istek ev sahibinde, liste kipi dahil; misafir
+"düzeldi" deyince kodun işi kapanır) ve `AI_FIX_SUPPORT_GATE_ENABLED` (arıza adımı tarif, kullanım adımı konu ister; kanal + QR + Ayarlar testi +
+karşılaştırma aynı yüklem `relation.fixSupportHolds`; kayıtlı 3.324 cevapta 21 tutuş, gönderilmiş cevapta 0). TV belirti sözcükleri genel konu
+çıkarımından AYRILDI (Opus N2: "görüntülü diyafon" TV tarifi sayılıyordu). Opus N1–N12 + yaşayan iki mutant (O1, D2b) kapandı; sorular §H.
+
+**10-15 öğleden sonra — V sonrası işler (kurucu "Vlerden sonra yapacağız dediklerimi yap, soru sorma"):** beş Opus araştırması
 `docs/arastirma-2026-10-15/` (idempotency · ödeme · takip numarası · yatay ölçek · deneme kötüye kullanımı). Müşteriye / misafire gideni
 değiştirmeyen, migration'sız düzeltmeler SORULMADAN yapıldı: bilgi tabanı ekleme ekranları + kopyalama istek kimliği, rezervasyon görevi /
 mesajdan görev / söz / talimat çiftleri kilit altında, kimliksiz CSV eş zamanlı yükleme, QR jetonu koşullu yazım, Paddle imza alarmında
