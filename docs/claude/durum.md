@@ -13,7 +13,11 @@
 değiştirmeyen, migration'sız düzeltmeler SORULMADAN yapıldı: bilgi tabanı ekleme ekranları + kopyalama istek kimliği, rezervasyon görevi /
 mesajdan görev / söz / talimat çiftleri kilit altında, kimliksiz CSV eş zamanlı yükleme, QR jetonu koşullu yazım, Paddle imza alarmında
 "eski zaman damgası" ayrı teşhis, Sentry sürüm / ortam / alan etiketi + olay günlüğünde Sentry olay kimliği, dört ödeme eşzamanlılık testi
-(gerçek PG). Sorular (13 madde, sıralı) `docs/arastirma-2026-10-15/KURUCU-SORULARI.md`; U42'nin basit hâli hazır yama.
+(gerçek PG). Sorular (14 madde, sıralı) `docs/arastirma-2026-10-15/KURUCU-SORULARI.md`; U42'nin basit hâli hazır yama.
+Opus son kontrolü (0 P0 · 0 P1 · 2 P2 · 13 P3; rapor özeti KURUCU-SORULARI §A/§C) + Haiku son tur kodda kapandı: söz önerisinde ölü düğme,
+iCal testlerinin hedefi, rezervasyon görevi hızlı yol + kilit altında yeniden okuma + iptal temizliği aynı kilit ve kendini onarma, görev hatası
+satır hatası sayılmaz, eşzamanlılık testleri kilit sınamasıyla belirlenimci (`tests/helpers/lock-probe.ts`). Mutasyon: ilk tur 14/17 (yaşayan 3
+→ belirlenimci testlerle) ikinci tur 20/20.
 
 **10-15 gündüz — Geçmişten öğren (migration 65, hiçbir yere uygulanmadı; `HISTORY_LEARN_ENABLED` KAPALI):** müşteri "Geçmişi oku"
 → Luna (gpt-6-luna / low) geçmiş soru ↔ cevaplardan bilgi tabanı TASLAĞI çıkarır (ad / telefon / IBAN / TC / kapı kodu modele gitmeden

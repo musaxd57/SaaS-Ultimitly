@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
-import { createReservationTasks } from "@/lib/automation";
+import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // HIZLI YOL (Opus 10-15 B5): senkron her turda penceredeki HER rezervasyon için çağırır; geçmiş konaklama ya da görevleri tam rezervasyon
@@ -39,5 +39,13 @@ describe("createReservationTasks — hızlı yol", () => {
     await prisma.task.deleteMany({ where: { reservationId: r.id, type: "cleaning" } });
     expect(await createReservationTasks(r.id)).toBe(1);
     expect(tx).toHaveBeenCalledTimes(1);
+  });
+
+  it("iptal temizliği: silinecek sistem görevi yoksa işlem AÇILMAZ (senkron zaten iptal edilmiş satırlarda her turda yeniden dener)", async () => {
+    const r = await reservation(2, 4);
+    await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
+    const tx = vi.spyOn(prisma, "$transaction");
+    expect(await removeAutoTasksForCancelledReservation(r.id)).toBe(0);
+    expect(tx).not.toHaveBeenCalled();
   });
 });
