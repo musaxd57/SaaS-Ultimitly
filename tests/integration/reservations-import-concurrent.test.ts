@@ -10,7 +10,7 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { POST } from "@/app/api/reservations/import/route";
-import { RESERVATION_TASKS_TX } from "@/lib/automation";
+import { RESERVATION_TASKS_TX, backfillReservationTasks } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // KİMLİKSİZ CSV — EŞ ZAMANLI İKİ YÜKLEME (idempotency denetimi 10-15, P2).
@@ -69,17 +69,34 @@ describe("POST /api/reservations/import — eş zamanlı kimliksiz yükleme", ()
     expect(await prisma.reservation.count({ where: { propertyId, guestName: "Ada Guest" } })).toBe(2);
   });
 
-  it("görev açma hatası satırı 'Kaydedilemedi' yapmaz: rezervasyonlar kaydedildi ve öyle sayılır (Opus 10-15 B4)", async () => {
+  it("görev açma hatası satırı 'Kaydedilemedi' yapmaz: rezervasyonlar kaydedildi ve öyle sayılır; görev GERÇEKTEN açılmadı ve sonradan tamamlanır (Opus 10-15 B4)", async () => {
+    // Enjeksiyon hem kimlikle hem İÇERİKLE tanınır ve SAYILIR (ChatGPT 10-15: yalnız nesne kimliğine bakan enjeksiyon üretim kodu ayarları
+    // kopyalarsa hiç tetiklenmez, test sahte yeşil kalırdı).
     const realTx = prisma.$transaction.bind(prisma);
-    vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
-      if (opts === RESERVATION_TASKS_TX) return Promise.reject(new Error("pool timeout"));
+    let injected = 0;
+    // Satır yazma işlemi de aynı zaman aşımı ayarlarını kullanır → ayar içeriği tek başına yetmez; görev açma gövdesi de aranır.
+    const isTaskTx = (arg: unknown, opts: unknown) =>
+      opts === RESERVATION_TASKS_TX ||
+      (JSON.stringify(opts) === JSON.stringify(RESERVATION_TASKS_TX) && String(arg).includes("reservationTasksToCreate"));
+    const spy = vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
+      if (isTaskTx(arg, opts)) {
+        injected += 1;
+        return Promise.reject(new Error("pool timeout"));
+      }
       return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
     }) as never);
     vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await POST(importReq(propertyId, CSV), { params: Promise.resolve({}) });
     const j = (await res.json()) as { imported: number; errors: string[] };
+    expect(injected).toBe(2); // iki satırın da görev işlemi GERÇEKTEN düştü
     expect(j.imported).toBe(2);
     expect(j.errors).toEqual([]);
     expect(await prisma.reservation.count({ where: { propertyId } })).toBe(2);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(0); // görevler açılmadı
+    // Tamamlama yolu: "Eksik görevleri oluştur" eksikleri açar.
+    spy.mockRestore();
+    const org = await prisma.property.findUniqueOrThrow({ where: { id: propertyId }, select: { organizationId: true } });
+    await backfillReservationTasks(org.organizationId);
+    expect(await prisma.task.count({ where: { propertyId, type: "cleaning" } })).toBe(2);
   });
 });

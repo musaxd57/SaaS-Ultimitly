@@ -102,6 +102,29 @@ describe("1 · Aynı kimlik, farklı içerik → açık uyuşmazlık", () => {
     expect(await (await copy(src.id, { targetPropertyIds: [a, b, c], requestId: RID2 })).json()).toMatchObject({ created: 3 });
     expect((await prisma.knowledgeBaseItem.findFirstOrThrow({ where: { propertyId: c } })).content).toBe("Yeni metin.");
   });
+
+  it.each([
+    ["[C, A]", (a: string, c: string) => [c, a]],
+    ["[A, C]", (a: string, c: string) => [a, c]],
+    ["yalnız [C]", (_a: string, c: string) => [c]],
+  ])("🚨 kopyalama: kaynak değiştikten sonra hedef sırası %s — C YAZILMAZ, A'ya ikinci kopya gitmez, 409 (ChatGPT 10-15)", async (_n, order) => {
+    const a = await prop(orgId, "Lale 2");
+    const c = await prop(orgId, "Lale 4");
+    const src = await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Eski metin.", isActive: true } });
+    await copy(src.id, { targetPropertyIds: [a], requestId: RID });
+    await prisma.knowledgeBaseItem.update({ where: { id: src.id }, data: { content: "Yeni metin." } });
+    const targets = order(a, c);
+    const res = await copy(src.id, { targetPropertyIds: targets, requestId: RID });
+    if (targets.includes(a)) {
+      expect(res.status).toBe(409);
+    } else {
+      // Yalnız [C]: bu kimlikle C'de önceki kopya yok → karşılaştırılacak eski kopya yok; uyuşmazlık KANITLANAMAZ → güncel metin yazılır.
+      expect(res.status).toBe(200);
+    }
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: a } })).toBe(1);
+    expect((await prisma.knowledgeBaseItem.findFirstOrThrow({ where: { propertyId: a } })).content).toBe("Eski metin.");
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: c } })).toBe(targets.includes(a) ? 0 : 1);
+  });
 });
 
 describe("2 · Kiracı sınırı", () => {

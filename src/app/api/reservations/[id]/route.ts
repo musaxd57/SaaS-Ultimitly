@@ -3,6 +3,8 @@ import { reservationUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { stripReservationInternals } from "@/lib/reservation-view";
+import { removeAutoTasksForCancelledReservation } from "@/lib/automation";
+import { reportError } from "@/lib/report-error";
 
 async function findScoped(id: string, orgId: string) {
   return prisma.reservation.findFirst({
@@ -22,6 +24,11 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     where: { id },
     data: parsed.data,
   });
+  // Bu rota da iptal edebiliyor (arayüz kullanmıyor, API açık — Haiku 10-15): öteki iptal yollarıyla AYNI protokol, iptal commit
+  // edildikten SONRA kilitli görev temizliği (`cancel-paths-lock-protocol.test.ts`). Temizlik düşerse iptal geri alınmaz; operatöre alarm.
+  if (parsed.data.status === "cancelled") {
+    await removeAutoTasksForCancelledReservation(id).catch((err: unknown) => void reportError("reservations.patch.tasks", err));
+  }
   return jsonOk(stripReservationInternals(reservation));
 });
 

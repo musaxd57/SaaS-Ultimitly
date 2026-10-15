@@ -41,9 +41,19 @@ describe("createReservationTasks — hızlı yol", () => {
     expect(tx).toHaveBeenCalledTimes(1);
   });
 
-  it("iptal temizliği: silinecek sistem görevi yoksa işlem AÇILMAZ (senkron zaten iptal edilmiş satırlarda her turda yeniden dener)", async () => {
+  it("iptal temizliğinde 'zaten iptal + silinecek görev yok' hızlı yol DEĞİLDİR: kilitli işlem her çağrıda açılır (ChatGPT 10-15)", async () => {
     const r = await reservation(2, 4);
     await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
+    const tx = vi.spyOn(prisma, "$transaction");
+    // Görev olmasa da kilit beklenir — iptalden önce başlamış görev açan işlem henüz yazmamış olabilir (yarışın kendisi
+    // `cancel-paths-lock-protocol.test.ts`te); onarım çağrısı (senkronun "zaten iptal" satırı) da aynı fonksiyonu çağırır.
+    expect(await removeAutoTasksForCancelledReservation(r.id)).toBe(0);
+    expect(await removeAutoTasksForCancelledReservation(r.id)).toBe(0);
+    expect(tx).toHaveBeenCalledTimes(2);
+  });
+
+  it("aşırı uygulama yok: iptal edilMEMİŞ rezervasyonda temizlik işlem AÇMAZ (Hospitable senkronu her rezervasyon için çağırır)", async () => {
+    const r = await reservation(2, 4);
     const tx = vi.spyOn(prisma, "$transaction");
     expect(await removeAutoTasksForCancelledReservation(r.id)).toBe(0);
     expect(tx).not.toHaveBeenCalled();

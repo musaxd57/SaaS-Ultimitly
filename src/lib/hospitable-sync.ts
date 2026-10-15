@@ -142,6 +142,8 @@ export async function syncHospitable(
   let firstLinkError: unknown = null;
   let reservationUpsertFailures = 0;
   let firstReservationError: unknown = null;
+  let reservationTaskFailures = 0;
+  let firstReservationTaskError: unknown = null;
   /** Yalnız ETİKET taşır ("no_dates"/"inverted_dates"/"no_property"/"upsert_threw") — sağlayıcı
    *  payload'ı ya da misafir verisi ASLA (KVKK). */
   let firstUnwritableReason: string | null = null;
@@ -351,10 +353,15 @@ export async function syncHospitable(
           // Auto-create check-in/cleaning tasks for this booking (idempotent,
           // best-effort) — AFTER the commit so the FK target exists and the
           // lock is held only for the write itself.
-          await createReservationTasks(localReservationId).catch(() => {});
+          // Düşen görev yan etkisi SESSİZ kalmaz (Opus 10-15 O4; eskiden `.catch(() => {})`): satır her turda yeniden denenir (pencere
+          // içinde kendini toparlar) ama KALICI arıza görünmüyordu → koşu başına tek alarm (↓ `reservation-tasks`, satır verisi yok).
+          const countTaskFailure = (err: unknown) => {
+            if (reservationTaskFailures++ === 0) firstReservationTaskError = err;
+          };
+          await createReservationTasks(localReservationId).catch(countTaskFailure);
           // If the booking flipped to cancelled, remove its still-pending auto
           // tasks. No-op for active bookings. Best-effort.
-          await removeAutoTasksForCancelledReservation(localReservationId).catch(() => {});
+          await removeAutoTasksForCancelledReservation(localReservationId).catch(countTaskFailure);
         }
       } catch (err) {
         // Buraya düşmek "bu rezervasyon satırı DB'ye hiç yazılmadı" demektir:
@@ -655,6 +662,17 @@ export async function syncHospitable(
       new Error(
         `${reservationUpsertFailures} reservation upsert(s) failed; first: ${
           formatErrorForLog(firstReservationError)
+        }`,
+      ),
+  );
+  await aggregate(
+    "reservation-tasks",
+    `reservation-tasks org:${organizationId}`,
+    reservationTaskFailures > 0,
+    () =>
+      new Error(
+        `${reservationTaskFailures} reservation task side effect(s) failed (create / cancel cleanup; retried next sync); first: ${
+          formatErrorForLog(firstReservationTaskError)
         }`,
       ),
   );

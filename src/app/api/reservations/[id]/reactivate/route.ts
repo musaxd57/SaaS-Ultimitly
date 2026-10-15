@@ -72,7 +72,8 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
   // senkron tamamlar: kanal sinyalini YALNIZ yazma servisi (sağlayıcı senkronu) üretir ve o senkron her turda penceredeki her
   // rezervasyon için `createReservationTasks` çağırır (hospitable-sync, tekrarsız) — Haiku "senkron görev üretmez" dedi, kodda yanlış çıktı.
   try {
-    await createReservationTasks(id);
+    // `reopened`: kilitsiz hızlı yol atlanır — süren bir iptal temizliğinin henüz silmediği eski görevleri "var" sayıp çıkmasın (Opus O1).
+    await createReservationTasks(id, { reopened: true });
   } catch (err) {
     void reportError("reservation-reactivate-tasks", err);
   }

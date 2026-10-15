@@ -376,7 +376,11 @@ export const POST = withManage(async (session, req) => {
         continue;
       }
       if (existing.status === "cancelled") {
-        skip("cancel_already");
+        // Atlanır, AMA dosyanın KENDİ satırıysa (`calendarSourceId` null + `channel` "ics" — sahiplik kuralı ↓) iptal temizliği gerçek
+        // aktarımda YENİDEN denenir (10-15): önceki aktarımda düşen temizliği en doğal onarım, AYNI iptal dosyasının yeniden yüklenmesidir
+        // (eskiden yalnız canlı satırlı dosya — `cancelled_stays` — onarıyordu). Başka kaynağın / kanalın satırına dokunulmaz.
+        const own = existing.calendarSourceId === null && existing.channel === "ics";
+        classified.push({ ...base, reason: "cancel_already", existingId: own ? existing.id : null });
         continue;
       }
       // KAYNAK SAHİPLİĞİ: `calendarSourceId != null` = satır bir takvim
@@ -525,7 +529,7 @@ export const POST = withManage(async (session, req) => {
 
     if (c.action === "skip") {
       if (c.error) errors.push(c.error);
-      const healId = c.reason === "cancelled_stays" ? c.existingId : null;
+      const healId = c.reason === "cancelled_stays" || c.reason === "cancel_already" ? c.existingId : null;
       if (healId) await taskSideEffect(() => removeAutoTasksForCancelledReservation(healId), "cancel");
       skipped++;
       continue;

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll, afterEach, vi } from "vites
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import { createReservationTasks, removeAutoTasksForCancelledReservation, __reservationTaskHooks } from "@/lib/automation";
 import { lockProbe } from "../helpers/lock-probe";
+import { pauseFirstCreator, untilPaused, waitingOnReservationLock } from "../helpers/reservation-lock";
 
 // ---------------------------------------------------------------------------
 // YAŞAM DÖNGÜSÜ GÖREVLERİ — EŞ ZAMANLI ÇAĞRI (idempotency denetimi 10-15, P2).
@@ -86,17 +87,18 @@ describe("createReservationTasks — eş zamanlı çağrı", () => {
     await ready;
     return { release: async () => { release(); await done; } };
   }
-  const waitingAdvisoryLocks = async () =>
-    Number((await prisma.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*)::bigint AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`))[0].n);
-
   it("🚨 kilitte bekleyen görev açma, arada İPTAL edilen rezervasyona görev AÇMAZ (rezervasyon kilit altında yeniden okunur — Opus B6)", async () => {
     const r = await makeReservation();
     const lock = await holdReservationLock(r.id);
-    const pending = createReservationTasks(r.id);
-    await vi.waitFor(async () => expect(await waitingAdvisoryLocks()).toBe(1), { timeout: 5_000 });
-    await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
-    await lock.release();
-    expect(await pending).toBe(0);
+    let pending: Promise<number>;
+    try {
+      pending = createReservationTasks(r.id);
+      await vi.waitFor(async () => expect(await waitingOnReservationLock(r.id)).toBe(1), { timeout: 5_000 });
+      await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
+    } finally {
+      await lock.release(); // kontrol düşse de kilit bırakılır (ChatGPT 10-15)
+    }
+    expect(await pending!).toBe(0);
     expect(await prisma.task.count({ where: { reservationId: r.id } })).toBe(0);
   });
 
@@ -105,11 +107,34 @@ describe("createReservationTasks — eş zamanlı çağrı", () => {
     await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
     await prisma.task.create({ data: { propertyId, reservationId: r.id, type: "cleaning", origin: "system", title: "x", dueAt: r.departureDate, status: "todo" } });
     const lock = await holdReservationLock(r.id);
-    const pending = removeAutoTasksForCancelledReservation(r.id);
-    await vi.waitFor(async () => expect(await waitingAdvisoryLocks()).toBe(1), { timeout: 5_000 });
-    expect(await prisma.task.count({ where: { reservationId: r.id } })).toBe(1); // kilit tutulurken silmedi
-    await lock.release();
-    expect(await pending).toBe(1);
+    let pending: Promise<number>;
+    try {
+      pending = removeAutoTasksForCancelledReservation(r.id);
+      await vi.waitFor(async () => expect(await waitingOnReservationLock(r.id)).toBe(1), { timeout: 5_000 });
+      expect(await prisma.task.count({ where: { reservationId: r.id } })).toBe(1); // kilit tutulurken silmedi
+    } finally {
+      await lock.release();
+    }
+    expect(await pending!).toBe(1);
+    expect(await prisma.task.count({ where: { reservationId: r.id } })).toBe(0);
+  });
+
+  it("🚨 İPTAL SIRASI (ChatGPT 10-15): görev açan işlem rezervasyonu 'onaylı' okuyup YAZMADAN önce iptal + temizlik gelir → temizlik kilidi BEKLER, sonunda görev KALMAZ (her iptal yolu ayrıca `cancel-paths-lock-protocol.test.ts`te)", async () => {
+    const r = await makeReservation();
+    const pause = pauseFirstCreator(r.id); // açan işlem kilit altında: rezervasyon "onaylı" okundu, görevler henüz yazılmadı
+    const creating = createReservationTasks(r.id);
+    let cleaning: Promise<number> | null = null;
+    try {
+      await untilPaused(pause, creating);
+      await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
+      cleaning = removeAutoTasksForCancelledReservation(r.id);
+      // Temizlik KİLİTTE beklemeli — o an silinecek görev yok; "görev yok → çık" kısa yolu burada yanılırdı.
+      await vi.waitFor(async () => expect(await waitingOnReservationLock(r.id)).toBe(1), { timeout: 5_000 });
+    } finally {
+      pause.release();
+    }
+    expect(await creating).toBe(2); // açan işlem kendi gördüğüyle bitti (iki görev yazdı)
+    expect(await cleaning!).toBe(2); // temizlik kilidi alınca onları sildi
     expect(await prisma.task.count({ where: { reservationId: r.id } })).toBe(0);
   });
 

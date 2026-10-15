@@ -668,13 +668,21 @@ describe("codex round-4: atomic legacy adoption", () => {
     const source = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" } });
     mockFetch(ICS); // two bookings
     const realTx = prisma.$transaction.bind(prisma);
-    vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
-      if (opts === RESERVATION_TASKS_TX) return Promise.reject(new Error("pool timeout"));
+    let injected = 0;
+    const spy = vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
+      // Kimlikle ya da (ayar kopyalanmışsa) İÇERİK + görev açma gövdesiyle tanınır — satır yazma işlemi de aynı zaman aşımı ayarlarını
+      // kullandığı için yalnız ayar içeriği yetmez (o da yakalanırdı).
+      if (opts === RESERVATION_TASKS_TX || (JSON.stringify(opts) === JSON.stringify(RESERVATION_TASKS_TX) && String(arg).includes("reservationTasksToCreate"))) {
+        injected += 1;
+        return Promise.reject(new Error("pool timeout"));
+      }
       return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
     }) as never);
 
     const result = await syncCalendarSource(source.id);
 
+    expect(injected).toBe(2); // enjeksiyon GERÇEKTEN çalıştı (ChatGPT 10-15)
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(0);
     expect(result.imported).toBe(2);
     expect(result.errors).toEqual([]);
     expect(await prisma.reservation.count({ where: { propertyId } })).toBe(2);
@@ -682,6 +690,10 @@ describe("codex round-4: atomic legacy adoption", () => {
     expect(String((reportErrorMock.mock.calls[0][1] as Error).message)).toContain("2 rezervasyonun görevleri açılamadı");
     const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: source.id } });
     expect(src.lastStatus).toBe("ok");
+    // Tamamlama yolu: sonraki senkron (satırlar değişmedi) görev onarımıyla eksikleri açar.
+    spy.mockRestore();
+    await syncCalendarSource(source.id);
+    expect(await prisma.task.count({ where: { propertyId, type: "cleaning" } })).toBe(2);
   });
 
   it("🚨 iptal temizliği düştüyse SONRAKİ senkron yeniden dener (zaten iptal edilmiş satır atlanırken temizlik yeniden koşar — Haiku 10-15)", async () => {

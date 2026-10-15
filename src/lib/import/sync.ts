@@ -14,6 +14,7 @@ import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 import { recordIngestEvent, type IngestContext } from "@/lib/ingest/events";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
+import { OPEN_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
 import { directChannelsForProperty, icalChannelOfUrl, icalWriteAuthority, standbySummary } from "@/lib/channels/ical-authority";
 
 export interface SyncResult {
@@ -59,6 +60,8 @@ export function feedReconcileEnabled(): boolean {
   return process.env.ICAL_DISAPPEARANCE_RECONCILE_ENABLED === "1";
 }
 
+/** Senkron başına en çok kaç iptal edilmiş satırın düşmüş görev temizliği yeniden denenir (↓ onarım taraması). */
+const CLEANUP_RETRY_PER_RUN = 50;
 const FEED_MISSING_THRESHOLD = 2; //            >= 2 consecutive reliable runs missing it
 const FEED_MISSING_MIN_MS = 24 * 60 * 60_000; // AND gone >= 24h (user-driven cadence → wall-clock rules)
 const SUSPICIOUS_DROP_MIN_BASE = 5; //          only guard a drop when the baseline had >= 5 UIDs
@@ -354,6 +357,8 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   let taskFailures = 0;
   let cancelCleanupFailures = 0;
   let firstTaskError: unknown = null;
+  /** Bu turda iptal temizliği denenen satırlar — ↓ onarım taraması aynı satırı ikinci kez denemez (alarm sayısı şişmesin). */
+  const cleanupTried = new Set<string>();
   const taskSideEffect = async (run: () => Promise<unknown>, kind: "tasks" | "cancel" = "tasks"): Promise<void> => {
     try {
       await run();
@@ -405,7 +410,9 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           // Zaten iptal edilmiş satır yine "skipped" sayılır ama iptal temizliği YENİDEN denenir (Haiku 10-15: önceki koşuda temizlik
           // düştüyse başka onarım yolu yoktu — senkron iptal satırını atlıyor, "Eksik görevleri oluştur" iptalleri hiç okumuyor).
           | { kind: "cancelled_already"; id: string }
-          | { kind: "cancelled" | "updated" | "created"; id: string }
+          | { kind: "cancelled" | "created"; id: string }
+          // `reopened`: iptalli satır canlı göründü ve yeniden onaylandı → görevler kilitli yoldan açılır (Opus 10-15 O1).
+          | { kind: "updated"; id: string; reopened: boolean }
         > => {
           await acquireErasureLock(tx, source.property.organizationId);
           const fresh = await loadErasureGuard(source.property.organizationId, tx);
@@ -547,7 +554,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             // Tarih değiştiyse açık yaşam döngüsü görevleri yeni tarihe (aynı TX; host'un taşıdığına dokunulmaz — dilim 4a).
             await followReservationDates(tx, existing.id, existing, row);
             await recordIngestEvent(tx, ingestCtx, "reservation", existing.id, "reservation.updated", changedFields);
-            return { kind: "updated", id: existing.id };
+            return { kind: "updated", id: existing.id, reopened: existing.status === "cancelled" };
           }
 
           const created = await tx.reservation.create({
@@ -584,16 +591,18 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           result.skipped++;
           break;
         case "cancelled_already":
+          cleanupTried.add(action.id);
           await taskSideEffect(() => removeAutoTasksForCancelledReservation(action.id), "cancel");
           result.skipped++;
           break;
         case "cancelled":
+          cleanupTried.add(action.id);
           await taskSideEffect(() => removeAutoTasksForCancelledReservation(action.id), "cancel");
           result.updated++;
           break;
         case "updated":
           // Backfill tasks for reservations imported before task automation existed.
-          await taskSideEffect(() => createReservationTasks(action.id));
+          await taskSideEffect(() => createReservationTasks(action.id, { reopened: action.reopened }));
           result.updated++;
           break;
         case "created":
@@ -637,6 +646,22 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     );
     aggregate.stack = sample.stack;
     void reportError("import.sync", aggregate);
+  }
+  // ONARIM YOLU (kurucu / Codex 10-15: "alarm göndermek, başarısız temizliği tamamlamak değildir"): bu kaynağa bağlı, İPTAL edilmiş ve
+  // hâlâ açık sistem görevi olan satırlar her senkronda yeniden temizlenir — önceki turun düşen temizliği, feed'den artık kaybolmuş
+  // (bu yüzden "zaten iptal" satırı olarak hiç gelmeyen) satırlar ve kayıp uzlaştırmasının iptalleri dahil. Sınırlı küme (turda en çok
+  // 50), aynı kilitli fonksiyon; bu turda zaten denenen satır ikinci kez denenmez. Kilitsiz "görevi var mı?" okuması burada kanıt değil
+  // TARAMA'dır: iptal geçişinin kendi kilitli temizliği asıl güvencedir, bu tur kaçırılan bir sonrakinde yakalanır.
+  const leftover = await prisma.reservation
+    .findMany({
+      where: { calendarSourceId: source.id, status: "cancelled", tasks: { some: OPEN_AUTO_LIFECYCLE_TASK_WHERE } },
+      select: { id: true },
+      take: CLEANUP_RETRY_PER_RUN,
+    })
+    .catch(() => [] as { id: string }[]);
+  for (const r of leftover) {
+    if (cleanupTried.has(r.id)) continue;
+    await taskSideEffect(() => removeAutoTasksForCancelledReservation(r.id), "cancel");
   }
   if (taskFailures + cancelCleanupFailures > 0) {
     const sample = firstTaskError instanceof Error ? firstTaskError : new Error(String(firstTaskError));
@@ -864,8 +889,23 @@ export async function reconcileFeedDisappearance(opts: {
 
   // Auto-task cleanup for the cancelled stays — ONLY system-origin tasks (manual/ai preserved).
   // Best-effort, outside the tx so a task hiccup never rolls back a correct cancellation.
+  // Düşen temizlik SESSİZ kalmaz (10-15; eskiden `.catch(() => {})`): operatöre koşu başına TEK toplu alarm (satır verisi yok, yalnız
+  // sayı). Alarm temizliği TAMAMLAMAZ — satır feed'de artık yok, "zaten iptal" onarımı ona uğramaz; tamamlayan, `syncCalendarSource`un
+  // her turdaki onarım taramasıdır (kaynağa bağlı, iptal edilmiş, açık sistem görevi olan satırlar).
+  let cleanupFailures = 0;
+  let firstCleanupError: unknown = null;
   for (const id of cancelledIds) {
-    await removeAutoTasksForCancelledReservation(id).catch(() => {});
+    await removeAutoTasksForCancelledReservation(id).catch((err: unknown) => {
+      if (cleanupFailures++ === 0) firstCleanupError = err;
+    });
+  }
+  if (cleanupFailures > 0) {
+    const sample = firstCleanupError instanceof Error ? firstCleanupError : new Error(String(firstCleanupError));
+    const aggregate = new Error(
+      `${cleanupFailures} kaybolan rezervasyonun görevleri silinemedi (sonraki senkron yeniden dener) — örnek hata: ${sample.message}`,
+    );
+    aggregate.stack = sample.stack;
+    void reportError("import.sync.reconcile.tasks", aggregate);
   }
   return { cancelled: cancelledIds.length, warning };
 }

@@ -75,10 +75,14 @@ describe("POST /api/properties/[id]/chat — enable guest QR concierge", () => {
     session = owner(orgId);
     const ctx = { params: Promise.resolve({ id: propertyId }) };
     const responses = await Promise.all(Array.from({ length: 4 }, () => POST(req(propertyId, { enabled: true }), ctx)));
-    const tokens = await Promise.all(responses.map(async (r) => ((await r.json()) as { chatToken: string }).chatToken));
-    const stored = (await prisma.property.findUnique({ where: { id: propertyId } }))?.chatToken;
-    expect(stored).toBeTruthy();
-    expect(new Set(tokens)).toEqual(new Set([stored]));
+    expect(responses.map((r) => r.status)).toEqual([200, 200, 200, 200]);
+    const bodies = await Promise.all(responses.map(async (r) => (await r.json()) as { chatToken: string; chatEnabled: boolean }));
+    expect(bodies.every((b) => b.chatEnabled === true)).toBe(true);
+    const row = await prisma.property.findUniqueOrThrow({ where: { id: propertyId } });
+    expect(row.chatEnabled).toBe(true);
+    expect(row.chatToken).toBeTruthy();
+    expect(new Set(bodies.map((b) => b.chatToken))).toEqual(new Set([row.chatToken]));
+    // Kesin (belirlenimci) yarış kanıtı ayrı dosyada: property-chat-route-race.test.ts. Jeton üretimi `crypto.randomUUID()` ×2 (122+122 bit).
   });
 
   it("REJECTS cross-org access (403) — an owner can't touch another org's apartment", async () => {

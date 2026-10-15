@@ -196,6 +196,7 @@ import {
 } from "@/lib/email-templates";
 import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
+import { OPEN_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
 
 const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 
@@ -1128,14 +1129,19 @@ export const RESERVATION_TASKS_TX = { timeout: 60_000, maxWait: 15_000 } as cons
  * ⚠️ Kendi işlemini açar (kilit için): dış bir işlemin İÇİNDEN çağrılmaz — o işlemde yazılıp henüz commit edilmemiş rezervasyonu
  * görmez (bugün bütün çağıranlar commit SONRASI çağırır; Haiku 10-15).
  */
-export async function createReservationTasks(reservationId: string): Promise<number> {
-  const r0 = await prisma.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
-  if (!r0 || r0.status === "cancelled") return 0;
-  // HIZLI YOL (Opus 10-15 B5): senkron her turda pencerendeki HER rezervasyonu çağırır; geçmiş konaklama ya da görevleri tam rezervasyon
-  // için işlem + kilit açılmaz (kilitsiz okuma eksik yok diyorsa yazacak bir şey yoktur — eksik varsa kilit altında YENİDEN okunur).
+export async function createReservationTasks(reservationId: string, opts: { reopened?: boolean } = {}): Promise<number> {
   const now = new Date();
-  const quick = await prisma.task.findMany({ where: { reservationId }, select: { type: true } });
-  if (reservationTasksToCreate(r0, new Set(quick.map((t) => t.type)), now).length === 0) return 0;
+  // HIZLI YOL (Opus 10-15 B5): senkron her turda penceresindeki HER rezervasyonu çağırır; geçmiş konaklama ya da görevleri tam rezervasyon
+  // için işlem + kilit açılmaz (kilitsiz okuma eksik yok diyorsa yazacak bir şey yoktur — eksik varsa kilit altında YENİDEN okunur).
+  // YENİDEN AÇILAN rezervasyonda (`reopened`: "Yeniden aç" düğmesi, takvimin iptalli satırı yeniden onaylaması) hızlı yol YOK (Opus 10-15
+  // O1): iptal temizliği kilit altında "iptal" okuyup eski görevleri silmek üzereyken (henüz commit edilmemiş) kilitsiz okuma o görevleri
+  // "var" görüp çıkardı → onaylı rezervasyon görevsiz kalırdı. Kilitli yol temizliği bekler, silinenleri görür, yeniden açar. Seyrek olay.
+  if (!opts.reopened) {
+    const r0 = await prisma.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
+    if (!r0 || r0.status === "cancelled") return 0;
+    const quick = await prisma.task.findMany({ where: { reservationId }, select: { type: true } });
+    if (reservationTasksToCreate(r0, new Set(quick.map((t) => t.type)), now).length === 0) return 0;
+  }
 
   // Per-TYPE idempotency: create whichever of check-in / cleaning is still missing.
   // A plain "has any task → bail" permanently blocked a reservation that earlier
@@ -1157,7 +1163,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
       where: { reservationId: r.id },
       select: { type: true },
     });
-    if (__reservationTaskHooks.afterExistingRead) await __reservationTaskHooks.afterExistingRead();
+    if (__reservationTaskHooks.afterExistingRead) await __reservationTaskHooks.afterExistingRead(r.id);
     const data = reservationTasksToCreate(r, new Set(existing.map((t) => t.type)), now);
     if (data.length === 0) return 0;
     await tx.task.createMany({ data });
@@ -1166,7 +1172,11 @@ export async function createReservationTasks(reservationId: string): Promise<num
 }
 
 /** Yalnız testler: kilitli bölgede "var mı?" okumasından SONRA bekleme noktası (eşzamanlılık testleri şansa kalmasın — Opus B8). */
-export const __reservationTaskHooks: { afterExistingRead: null | (() => Promise<void>) } = { afterExistingRead: null };
+export const __reservationTaskHooks: {
+  afterExistingRead: null | ((reservationId: string) => Promise<void>);
+  /** İptal temizliği kilit altında "iptal" okuduktan SONRA, silmeden ÖNCE (yeniden açma yarışı testi — Opus 10-15 O1). */
+  afterCleanupLockedRead: null | ((reservationId: string) => Promise<void>);
+} = { afterExistingRead: null, afterCleanupLockedRead: null };
 
 const RESERVATION_TASKS_SELECT = {
   id: true,
@@ -1239,19 +1249,16 @@ function reservationTasksToCreate(
  * Best-effort + idempotent: safe to call on every sync. Returns the number removed.
  */
 export async function removeAutoTasksForCancelledReservation(reservationId: string): Promise<number> {
+  // Kilitsiz ön okuma YALNIZ "iptal DEĞİL → yapılacak iş yok" der (çağıran kendi iptalini commit ettikten SONRA çağırır; arada yeniden
+  // onaylandıysa kilit altındaki okuma zaten 0 döner). "İptal ve silinecek görev yok" ise kilitsiz bir KANIT DEĞİLDİR (ChatGPT 10-15,
+  // `cancel-paths-lock-protocol.test.ts`): iptalden ÖNCE başlamış görev açan işlem kilit altında rezervasyonu "onaylı" okumuş, görevleri
+  // henüz yazmamış olabilir → kilitsiz sayım 0 görüp çıkan temizlik, birazdan yazılacak görevleri kaçırır. Bu yüzden onarım çağrısı da
+  // (senkronun "zaten iptal" satırı, dosyanın yeniden yüklenmesi) iptal geçişiyle AYNI kilidi bekler — hızlı yol yok.
   const r0 = await prisma.reservation.findUnique({ where: { id: reservationId }, select: { status: true } });
   if (!r0 || r0.status !== "cancelled") return 0;
-  const doomed: Prisma.TaskWhereInput = {
-    reservationId,
-    status: { not: "done" },
-    type: { in: ["checkin_prep", "cleaning"] },
-    // ONLY lifecycle-generated tasks: a host's own task tied to this
-    // reservation (origin manual) or a message-driven one (ai) must survive
-    // the booking being cancelled — deleting them destroyed user data.
-    origin: "system",
-  };
-  // Hızlı yol: silinecek görev yoksa işlem + kilit açılmaz (senkron zaten iptal edilmiş satırlarda temizliği her turda yeniden dener).
-  if ((await prisma.task.count({ where: doomed })) === 0) return 0;
+  // ONLY lifecycle-generated tasks: a host's own task tied to this reservation (origin manual) or a message-driven one (ai) must
+  // survive the booking being cancelled — deleting them destroyed user data. Küme TEK kaynakta (salt-okuma artık teşhisiyle ortak).
+  const doomed: Prisma.TaskWhereInput = { reservationId, ...OPEN_AUTO_LIFECYCLE_TASK_WHERE };
   // 🚨 Temizlikçinin bu görevlere yüklediği fotoğraflar kovada sahipsiz kalıyordu (inceleme b1, 09-30): güncellemeler görevle
   // birlikte silinince hesap silme de onları bulamaz. Silme niyeti AYNI işlemde (görev / mülk silmeyle aynı sözleşme).
   // Görev oluşturmayla AYNI rezervasyon kilidi (Opus 10-15 B6): yarışan "Eksik görevleri oluştur" ya önce biter (görevlerini burada
@@ -1265,6 +1272,7 @@ export async function removeAutoTasksForCancelledReservation(reservationId: stri
       select: { status: true, property: { select: { organizationId: true } } },
     });
     if (!r || r.status !== "cancelled") return 0;
+    if (__reservationTaskHooks.afterCleanupLockedRead) await __reservationTaskHooks.afterCleanupLockedRead(reservationId);
     const photos = await tx.taskUpdate.findMany({
       where: { task: doomed, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },
       select: { photoUrl: true },
