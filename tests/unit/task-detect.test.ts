@@ -202,6 +202,7 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     "Klima bozuk, değil mi?",
     "Klima bozuk değil mi?", // virgülsüz onay sorusu da (Haiku 10-15)
     "ELEKTRİK YOK, SALONDA IŞIK YANMIYOR", // büyük "İ" (Haiku 10-15)
+    "ELEKTRİK YOK",
     "Merhaba, duştan sıcak su gelmiyor.",
     // İngilizce cümle yardımcı fiille başlasa da "?" yoksa soru değildir; "mi" cümlecik başında soru eki değildir (İspanyolca "mi").
     "Have been trying all morning but the heater is broken",
