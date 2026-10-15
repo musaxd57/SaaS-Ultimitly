@@ -4,7 +4,9 @@
 // kilit varsa ikinci çağrı kilitte bekler, burada hiç buluşma olmaz (`maxInside() === 1`). Böylece eşzamanlılık testi `Promise.all`
 // zamanlamasına değil, kilidin kendisine bağlı olur: kilit kaldırılan mutant HER koşuda kırmızı.
 // ---------------------------------------------------------------------------
-export function lockProbe(waitMs = 300) {
+// Bekleme 1 sn (Haiku 10-15): tam suit yükünde kilitsiz ikinci çağrının kancaya varması 300 ms'yi aşabilir → kilit kaldırılan mutant
+// yanlışlıkla yeşil kalırdı. Kilit VARKEN her çağrı bu süre kadar bekler (3 çağrı ≈ 3 sn) — bedel bilinçli.
+export function lockProbe(waitMs = 1_000) {
   let inside = 0;
   let maxInside = 0;
   let entries = 0;

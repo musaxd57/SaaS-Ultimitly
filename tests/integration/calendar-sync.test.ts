@@ -684,6 +684,32 @@ describe("codex round-4: atomic legacy adoption", () => {
     expect(src.lastStatus).toBe("ok");
   });
 
+  it("🚨 iptal temizliği düştüyse SONRAKİ senkron yeniden dener (zaten iptal edilmiş satır atlanırken temizlik yeniden koşar — Haiku 10-15)", async () => {
+    reportErrorMock.mockClear();
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" } });
+    mockFetch(ICS);
+    await syncCalendarSource(source.id); // iki rezervasyon + görevleri
+    const cancelledIcs = ICS.replace(/SUMMARY:/, "STATUS:CANCELLED\nSUMMARY:");
+    expect(cancelledIcs).not.toBe(ICS);
+    mockFetch(cancelledIcs);
+    // İptal turu: temizlik işlemi düşer (havuz baskısı) — rezervasyon iptal edildi, sistem görevleri KALDI.
+    const realTx = prisma.$transaction.bind(prisma);
+    const spy = vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
+      if (opts === RESERVATION_TASKS_TX && typeof arg === "function" && String(arg).includes("taskUpdate")) return Promise.reject(new Error("pool timeout"));
+      return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
+    }) as never);
+    const r1 = await syncCalendarSource(source.id);
+    spy.mockRestore();
+    expect(r1.errors).toEqual([]);
+    const cancelled = await prisma.reservation.findFirstOrThrow({ where: { propertyId, status: "cancelled" } });
+    expect(await prisma.task.count({ where: { reservationId: cancelled.id, origin: "system" } })).toBeGreaterThan(0);
+    expect(String((reportErrorMock.mock.calls.find((c) => c[0] === "import.sync.tasks")?.[1] as Error)?.message)).toContain("iptal edilen rezervasyonun görevleri silinemedi");
+    // Sonraki senkron: satır "zaten iptal" atlanır AMA temizlik yeniden koşar.
+    await syncCalendarSource(source.id);
+    expect(await prisma.task.count({ where: { reservationId: cancelled.id, origin: "system" } })).toBe(0);
+  });
+
   it("#4: a WHOLE-import outage alerts EXACTLY once (no per-row event flood), lastStatus=error", async () => {
     reportErrorMock.mockClear();
     const { propertyId } = await makeOrgWithProperty();

@@ -62,7 +62,8 @@ describe("createReservationTasks — eş zamanlı çağrı", () => {
     const probe = lockProbe();
     __reservationTaskHooks.afterExistingRead = probe.hook;
     const results = await Promise.all([createReservationTasks(r.id), createReservationTasks(r.id), createReservationTasks(r.id)]);
-    expect(probe.entries()).toBe(3); // üçü de kilitli bölgeye girdi (hızlı yoldan dönen yok — hepsi görev eksikken başladı)
+    // En az ikisi kilitli bölgeye girdi (biri hızlı yoldan dönebilir: bağlantı havuzu dar / yük altında birincinin commit'ini görür).
+    expect(probe.entries()).toBeGreaterThanOrEqual(2);
     expect(probe.maxInside()).toBe(1);
     expect(results.reduce((a, b) => a + b, 0)).toBe(2);
     expect(await prisma.task.count({ where: { reservationId: r.id } })).toBe(2);
@@ -123,5 +124,15 @@ describe("createReservationTasks — eş zamanlı çağrı", () => {
     } finally {
       await lock.release();
     }
+  });
+
+  it("iptal temizliği hızlı yol: silinecek sistem görevi yoksa işlem açmadan 0 döner; varsa siler", async () => {
+    const r = await makeReservation();
+    await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
+    expect(await removeAutoTasksForCancelledReservation(r.id)).toBe(0);
+    await prisma.task.create({ data: { propertyId, reservationId: r.id, type: "cleaning", origin: "system", title: "x", dueAt: r.departureDate, status: "todo" } });
+    await prisma.task.create({ data: { propertyId, reservationId: r.id, type: "cleaning", origin: "manual", title: "elle", dueAt: r.departureDate, status: "todo" } });
+    expect(await removeAutoTasksForCancelledReservation(r.id)).toBe(1);
+    expect((await prisma.task.findMany({ where: { reservationId: r.id }, select: { origin: true } })).map((t) => t.origin)).toEqual(["manual"]);
   });
 });

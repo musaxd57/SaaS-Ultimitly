@@ -1250,6 +1250,8 @@ export async function removeAutoTasksForCancelledReservation(reservationId: stri
     // the booking being cancelled — deleting them destroyed user data.
     origin: "system",
   };
+  // Hızlı yol: silinecek görev yoksa işlem + kilit açılmaz (senkron zaten iptal edilmiş satırlarda temizliği her turda yeniden dener).
+  if ((await prisma.task.count({ where: doomed })) === 0) return 0;
   // 🚨 Temizlikçinin bu görevlere yüklediği fotoğraflar kovada sahipsiz kalıyordu (inceleme b1, 09-30): güncellemeler görevle
   // birlikte silinince hesap silme de onları bulamaz. Silme niyeti AYNI işlemde (görev / mülk silmeyle aynı sözleşme).
   // Görev oluşturmayla AYNI rezervasyon kilidi (Opus 10-15 B6): yarışan "Eksik görevleri oluştur" ya önce biter (görevlerini burada
@@ -1272,7 +1274,7 @@ export async function removeAutoTasksForCancelledReservation(reservationId: stri
       await enqueueUnreferencedPhotoDeletions(tx, r.property.organizationId, photos.map((p) => p.photoUrl));
     }
     return count;
-  });
+  }, RESERVATION_TASKS_TX);
 }
 
 /**

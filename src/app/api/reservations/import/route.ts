@@ -416,7 +416,9 @@ export const POST = withManage(async (session, req) => {
         continue;
       }
       if (existing.status === "cancelled") {
-        skip("cancelled_stays");
+        // `existingId` taşınır: gerçek aktarımda iptal temizliği YENİDEN denenir (önceki aktarımda düştüyse başka onarım yolu yok — Haiku
+        // 10-15). Önizleme yazmaz (bu satırlar yalnız sayılır).
+        classified.push({ ...base, reason: "cancelled_stays", error: null, existingId: existing.id });
         continue;
       }
       // KVKK resurrection guard: retention süpürgesi bu satırı anonimleştirdiyse
@@ -505,13 +507,15 @@ export const POST = withManage(async (session, req) => {
   // temizliği düşerse ekranda "Kaydedilemedi" YAZILMAZ (yazılmıştı — yeniden yükleme "zaten var" deyip görevleri hiç açmıyordu).
   // Görevler "Eksik görevleri oluştur" ile tamamlanır; operatöre istek başına TEK alarm.
   let taskFailures = 0;
+  let cancelCleanupFailures = 0;
   let firstTaskError: unknown = null;
-  const taskSideEffect = async (run: () => Promise<unknown>): Promise<void> => {
+  const taskSideEffect = async (run: () => Promise<unknown>, kind: "tasks" | "cancel" = "tasks"): Promise<void> => {
     try {
       await run();
     } catch (err) {
-      if (taskFailures === 0) firstTaskError = err;
-      taskFailures++;
+      if (taskFailures + cancelCleanupFailures === 0) firstTaskError = err;
+      if (kind === "cancel") cancelCleanupFailures++;
+      else taskFailures++;
     }
   };
   const ingestCtx = { organizationId: session.organizationId, provider: "manual_file" as const, connectionId: null };
@@ -521,6 +525,8 @@ export const POST = withManage(async (session, req) => {
 
     if (c.action === "skip") {
       if (c.error) errors.push(c.error);
+      const healId = c.reason === "cancelled_stays" ? c.existingId : null;
+      if (healId) await taskSideEffect(() => removeAutoTasksForCancelledReservation(healId), "cancel");
       skipped++;
       continue;
     }
@@ -562,7 +568,7 @@ export const POST = withManage(async (session, req) => {
         // Commit SONRASI yan etki — kardeş yolun `cancelled` dalıyla aynı:
         // iptal edilmiş konaklamanın yaşam-döngüsü görevleri (yalnız
         // origin:"system" olanlar) düşer, host'un kendi görevleri kalır.
-        await taskSideEffect(() => removeAutoTasksForCancelledReservation(cancelledId));
+        await taskSideEffect(() => removeAutoTasksForCancelledReservation(cancelledId), "cancel");
         cancelled++;
       } catch {
         errors.push(`${rowLabel}: Kaydedilemedi (veritabanı hatası).`);
@@ -726,9 +732,13 @@ export const POST = withManage(async (session, req) => {
   // sayıyor; `updated` burada da AYRI ve additive: aynı UID'li önceki dosya
   // aktarımının tarih/ad güncellemesi (Codex 09-08), iptalden farklı.
   // `note` (F16, additive): eksik okunan dosya aktarımdan SONRA da "tamamı aktarıldı" gibi görünmesin.
-  if (taskFailures > 0) {
+  if (taskFailures + cancelCleanupFailures > 0) {
     const sample = firstTaskError instanceof Error ? firstTaskError : new Error(String(firstTaskError));
-    void reportError("reservations.import.tasks", new Error(`${taskFailures} rezervasyonun görevleri açılamadı (rezervasyonlar kaydedildi) — örnek hata: ${sample.message}`));
+    const parts = [
+      taskFailures > 0 ? `${taskFailures} rezervasyonun görevleri açılamadı` : null,
+      cancelCleanupFailures > 0 ? `${cancelCleanupFailures} iptal edilen rezervasyonun görevleri silinemedi (dosya yeniden yüklenince yeniden denenir)` : null,
+    ].filter(Boolean);
+    void reportError("reservations.import.tasks", new Error(`${parts.join("; ")} — rezervasyonlar kaydedildi; örnek hata: ${sample.message}`));
   }
   return jsonOk({ imported, updated, cancelled, skipped, errors, note: incompleteNote });
 });

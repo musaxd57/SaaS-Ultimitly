@@ -352,13 +352,15 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // "Kaydedilemedi" sayılmıyordu doğru değildi — rezervasyon yazılmıştı, ev sahibi yanlış hata görüyordu. Görevler bir sonraki senkronda
   // (görev onarımı) ya da "Eksik görevleri oluştur" ile tamamlanır; operatöre koşu başına TEK toplu alarm.
   let taskFailures = 0;
+  let cancelCleanupFailures = 0;
   let firstTaskError: unknown = null;
-  const taskSideEffect = async (run: () => Promise<unknown>): Promise<void> => {
+  const taskSideEffect = async (run: () => Promise<unknown>, kind: "tasks" | "cancel" = "tasks"): Promise<void> => {
     try {
       await run();
     } catch (err) {
-      if (taskFailures === 0) firstTaskError = err;
-      taskFailures++;
+      if (taskFailures + cancelCleanupFailures === 0) firstTaskError = err;
+      if (kind === "cancel") cancelCleanupFailures++;
+      else taskFailures++;
     }
   };
 
@@ -400,6 +402,9 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           // görev onarımı koşuyor (↓gerekçe). Aynı kind'a katlamak, onarımı
           // gerçekten atlanan satırlara da uygulardı.
           | { kind: "unchanged"; id: string; healTasks: boolean }
+          // Zaten iptal edilmiş satır yine "skipped" sayılır ama iptal temizliği YENİDEN denenir (Haiku 10-15: önceki koşuda temizlik
+          // düştüyse başka onarım yolu yoktu — senkron iptal satırını atlıyor, "Eksik görevleri oluştur" iptalleri hiç okumuyor).
+          | { kind: "cancelled_already"; id: string }
           | { kind: "cancelled" | "updated" | "created"; id: string }
         > => {
           await acquireErasureLock(tx, source.property.organizationId);
@@ -463,6 +468,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
                 return { kind: "cancelled", id: existing.id };
               }
             }
+            if (existing && existing.status === "cancelled") return { kind: "cancelled_already", id: existing.id };
             return { kind: "skip" };
           }
 
@@ -577,8 +583,12 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           if (action.healTasks) await taskSideEffect(() => createReservationTasks(action.id));
           result.skipped++;
           break;
+        case "cancelled_already":
+          await taskSideEffect(() => removeAutoTasksForCancelledReservation(action.id), "cancel");
+          result.skipped++;
+          break;
         case "cancelled":
-          await taskSideEffect(() => removeAutoTasksForCancelledReservation(action.id));
+          await taskSideEffect(() => removeAutoTasksForCancelledReservation(action.id), "cancel");
           result.updated++;
           break;
         case "updated":
@@ -628,9 +638,13 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     aggregate.stack = sample.stack;
     void reportError("import.sync", aggregate);
   }
-  if (taskFailures > 0) {
+  if (taskFailures + cancelCleanupFailures > 0) {
     const sample = firstTaskError instanceof Error ? firstTaskError : new Error(String(firstTaskError));
-    const aggregate = new Error(`${taskFailures} rezervasyonun görevleri açılamadı (rezervasyonlar kaydedildi) — örnek hata: ${sample.message}`);
+    const parts = [
+      taskFailures > 0 ? `${taskFailures} rezervasyonun görevleri açılamadı` : null,
+      cancelCleanupFailures > 0 ? `${cancelCleanupFailures} iptal edilen rezervasyonun görevleri silinemedi (sonraki senkron yeniden dener)` : null,
+    ].filter(Boolean);
+    const aggregate = new Error(`${parts.join("; ")} — rezervasyonlar kaydedildi; örnek hata: ${sample.message}`);
     aggregate.stack = sample.stack;
     void reportError("import.sync.tasks", aggregate);
   }
