@@ -443,7 +443,7 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   "Yes please, 1pm would be great." → bugün **erken giriş 13:00** sanılıyor → G1b **geç çıkış 13:00**. Şablon "Wi-Fi bilgileri kartta" →
   "Kartı bulamadık, şifre neydi?" → bugün kapı / anahtar sorusu → G1b Wi-Fi.
   Hazır yama `docs/hazir-yamalar/2026-10-14-G1-G1b-anlama-otomatik-mesaj-baglami.patch` (G1 yamasının yerine geçer; ilgili 58 birim test
-  dosyası yeşil, sıra / kesilen pencere / damga pinleri; ana dala UYGULANMADI; anahtarsız — isterseniz anahtar arkasına alırım). Aynı "Host" etiketi bekçi isteminde de var
+  dosyası yeşil, sıra / kesilen pencere / damga pinleri, mutasyon 6/6; ana dala UYGULANMADI; anahtarsız — isterseniz anahtar arkasına alırım). Aynı "Host" etiketi bekçi isteminde de var
   (`ai/semantic/guard.ts`: şablon ve yapay zekâ cevabı da "Host:") — bu yamada YOK, ayrı karar. Uygulayalım mı?
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
