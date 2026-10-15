@@ -6,6 +6,7 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
+import { withoutClientRequestId } from "@/lib/kb/request-id";
 
 // ---------------------------------------------------------------------------
 // PLAN SINIRLARI DÜZENLEME YOLUNDA DA GEÇERLİ (denetim, 07-31).
@@ -81,7 +82,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
     warmPropertyKbVectorsBestEffort(existing.propertyId);
     const unchanged = await prisma.knowledgeBaseItem.findUnique({ where: { id } });
-    return jsonOk(unchanged);
+    return jsonOk(unchanged ? withoutClientRequestId(unchanged) : unchanged);
   }
   const item = await prisma.knowledgeBaseItem.update({
     where: { id },
@@ -90,7 +91,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   // V1: içerik/pasif-aktif değişimi hafızaya anında yansır (pasif → retired).
   await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
   warmPropertyKbVectorsBestEffort(existing.propertyId); // #189: yazma anında ısıtma
-  return jsonOk(item);
+  return jsonOk(withoutClientRequestId(item));
 });
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {

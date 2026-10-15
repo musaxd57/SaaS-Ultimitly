@@ -9,7 +9,7 @@ vi.mock("@/lib/api", async (orig) => {
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
 
-import { POST as CREATE } from "@/app/api/kb/route";
+import { GET, POST as CREATE } from "@/app/api/kb/route";
 import { PATCH } from "@/app/api/kb/[id]/route";
 import { planLimitsFor } from "@/lib/billing/plan-limits";
 
@@ -68,10 +68,22 @@ describe("KB oluşturma — istek kimliğiyle tekrar güvenliği", () => {
     const first = await create(wifi(propertyId, { requestId: RID }));
     expect(first.status).toBe(201);
     const a = (await first.json()) as { id: string };
+    expect(a).not.toHaveProperty("clientRequestId"); // iç alan yanıtta yok (Opus 10-15 B3)
     const again = await create(wifi(propertyId, { requestId: RID }));
     expect(again.status).toBe(200);
-    expect(((await again.json()) as { id: string }).id).toBe(a.id);
+    const b = (await again.json()) as { id: string };
+    expect(b.id).toBe(a.id);
+    expect(b).not.toHaveProperty("clientRequestId");
     expect(await count()).toBe(1);
+    // Liste ve düzenleme yanıtları da iç alanı taşımaz.
+    const list = (await (await GET(new NextRequest(`http://localhost/api/kb?propertyId=${propertyId}`), { params: Promise.resolve({}) })).json()) as Record<string, unknown>[];
+    expect(list.length).toBe(1);
+    expect(list[0]).not.toHaveProperty("clientRequestId");
+    const patched = await PATCH(
+      new NextRequest(`http://localhost/api/kb/${a.id}`, { method: "PATCH", body: JSON.stringify({ title: "Wi-Fi 2" }), headers: { "content-type": "application/json" } }),
+      { params: Promise.resolve({ id: a.id }) },
+    );
+    expect(await patched.json()).not.toHaveProperty("clientRequestId");
   });
 
   it("🚨 iki yeniden deneme AYNI ANDA → tek kalem, ikisi de aynı kalemi alır", async () => {

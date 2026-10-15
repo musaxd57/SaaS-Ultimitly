@@ -37,6 +37,9 @@ type Tx = Prisma.TransactionClient | PrismaClient;
 /** Söz ekleme kilidi ad alanı (diğerleri: 23 · 40–45). Konuşma başına. */
 const COMMITMENT_LOCK_NS = 46;
 
+/** Yalnız testler: kilitli bölgede "aynı söz var mı?" okumasından SONRA bekleme noktası (Opus 10-15 B8). */
+export const __commitmentHooks: { afterSameCheck: null | (() => Promise<void>) } = { afterSameCheck: null };
+
 /**
  * Söz + görev TEK işlemde. Konuşmanın dairesi yoksa söz verilemez (görev bir daireye bağlıdır). Görev kökeni `manual` (ev sahibinin
  * işi — rezervasyon iptalinde otomatik silinmez).
@@ -68,6 +71,7 @@ export async function createGuestCommitment(input: {
       select: { id: true, taskId: true },
     });
     if (same?.taskId) return { id: same.id, taskId: same.taskId, reused: true };
+    if (__commitmentHooks.afterSameCheck) await __commitmentHooks.afterSameCheck();
     const task = await tx.task.create({
       data: {
         propertyId: input.propertyId,

@@ -99,7 +99,9 @@ describe("Paddle webhook — fatura yazımında P2002 (rakip teslim faturayı ar
       }
     }) as unknown as typeof realCreate;
 
-    const res = await deliver(txnBody("evt_race", "txn_race", "12345")).finally(() => {
+    // Gelen olay AYNI tutarı taşır (Opus 10-15 B13): bu test yalnız P2002 hakemini sınar. Aynı işlemde FARKLI tutar gerçek bir para
+    // tutarsızlığıdır ve bekleyen kurucu sorusu Ödeme S1'e (U39) bağlıdır — bugünkü sessizliği "doğru" diye burada pinlemeyiz.
+    const res = await deliver(txnBody("evt_race", "txn_race", "89900")).finally(() => {
       prisma.invoice.findFirst = realFind;
       prisma.invoice.create = realCreate;
     });
@@ -112,7 +114,7 @@ describe("Paddle webhook — fatura yazımında P2002 (rakip teslim faturayı ar
     const invoices = await prisma.invoice.findMany({ where: { provider: "paddle", providerRef: "txn_race" } });
     expect(invoices).toHaveLength(1);
     expect(invoices[0].id).toBe(rival.id);
-    expect(invoices[0].amountMinor).toBe(89900); // ilk yazan kazanır — kaybeden teslim satırı ezmez
+    expect(invoices[0]).toEqual(rival); // kaybeden teslim satıra HİÇ yazmadı (ezme yok)
     expect(routeFailures()).toHaveLength(0); // P2002 bir arıza sayılmadı (500 / alarm yok)
   });
 

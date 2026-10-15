@@ -61,6 +61,7 @@ export async function createOperationalTaskFromMessage(ctx: {
       select: { id: true },
     });
     if (existing) return { status: "duplicate" };
+    if (__taskDedupeHooks.afterExistingRead) await __taskDedupeHooks.afterExistingRead();
 
     const task = await tx.task.create({
       data: {
@@ -79,5 +80,10 @@ export async function createOperationalTaskFromMessage(ctx: {
     });
     return { status: "created", taskId: task.id, type: data.type };
   };
-  return ctx.db ? run(ctx.db) : prisma.$transaction(run);
+  // Süreler kardeş kilitli yollarla aynı (Opus 10-15 B10): varsayılan 2 sn havuz beklemesi senkron + içe aktarma baskısında şikâyet görevini
+  // sessizce düşürürdü (çağıranlar hatayı yutar — en iyi çaba).
+  return ctx.db ? run(ctx.db) : prisma.$transaction(run, { maxWait: 15_000, timeout: 30_000 });
 }
+
+/** Yalnız testler: kilitli bölgede "var mı?" okumasından SONRA bekleme noktası (eşzamanlılık testi şansa kalmasın — Opus B8). */
+export const __taskDedupeHooks: { afterExistingRead: null | (() => Promise<void>) } = { afterExistingRead: null };

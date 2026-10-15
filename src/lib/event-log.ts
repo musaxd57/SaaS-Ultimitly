@@ -69,8 +69,9 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
   replies: "number",
   outboxId: /^c[a-z0-9]{7,40}$/,
   errored: "boolean",
-  // Sentry olay kimliği (takip numarası dilim G): tam 32 onaltılık — kişisel veri biçimi taşıyamaz; uzun rakam kuralından muaf (rastgele
-  // onaltılıkta 7+ rakam dizisi sık çıkar, kural kimliği düşürürdü).
+  // Sentry olay kimliği (takip numarası dilim G): tam 32 KÜÇÜK onaltılık — kişisel veri biçimi taşıyamaz. Uzun rakam kuralından VE
+  // telefon / kimlik biçimli değer süzgecinden (`redactSensitive`) muaf: ölçüldü (Opus 10-15 B12, 20.000 rastgele kimlik) — %37,7'sinde
+  // 7+ rakam dizisi var, %9,4'ünü süzgeç "[PHONE]" yapıyor; ikisi de kimliği düşürürdü. Bu anahtarı YALNIZ `report-error.ts` yazar.
   sentryEventId: /^[0-9a-f]{32}$/,
 };
 /** Biçimi tam ve sabit uzunluklu rastgele kimlikler — uzun rakam dizisi kuralı bunlarda kişisel veri sinyali değildir. */

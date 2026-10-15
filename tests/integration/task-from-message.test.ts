@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
-import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
+import { createOperationalTaskFromMessage, __taskDedupeHooks } from "@/lib/tasks/create";
+import { lockProbe } from "../helpers/lock-probe";
 
 describe("createOperationalTaskFromMessage", () => {
   let propertyId: string;
@@ -46,6 +47,22 @@ describe("createOperationalTaskFromMessage", () => {
     );
     expect(results.filter((r) => r.status === "created")).toHaveLength(1);
     expect(results.filter((r) => r.status === "duplicate")).toHaveLength(4);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
+  });
+
+  it("🚨 BELİRLENİMCİ (Opus B8): kilitli bölgeye aynı anda yalnız bir çağrı girer; kilit kaldırılırsa her koşuda çift görev", async () => {
+    const now = new Date("2026-07-10T09:00:00.000Z");
+    const probe = lockProbe();
+    __taskDedupeHooks.afterExistingRead = probe.hook;
+    try {
+      const results = await Promise.all(
+        Array.from({ length: 3 }, () => createOperationalTaskFromMessage({ propertyId, message: "musluk akıtıyor", now })),
+      );
+      expect(probe.maxInside()).toBe(1);
+      expect(results.filter((r) => r.status === "created")).toHaveLength(1);
+    } finally {
+      __taskDedupeHooks.afterExistingRead = null;
+    }
     expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
   });
 

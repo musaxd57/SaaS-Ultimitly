@@ -7,6 +7,7 @@ import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { withoutClientRequestId } from "@/lib/kb/request-id";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -20,7 +21,7 @@ export const GET = withManage(async (session, req) => {
     include: { property: { select: { name: true } } },
     orderBy: [{ propertyId: "asc" }, { category: "asc" }],
   });
-  return jsonOk(items);
+  return jsonOk(items.map(withoutClientRequestId));
 });
 
 export const POST = withManage(async (session, req) => {
@@ -45,7 +46,7 @@ export const POST = withManage(async (session, req) => {
   const replay = async (prior: NonNullable<Awaited<ReturnType<typeof priorFor>>>) => {
     await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
     warmPropertyKbVectorsBestEffort(d.propertyId);
-    return jsonOk(prior, 200);
+    return jsonOk(withoutClientRequestId(prior), 200);
   };
   if (d.requestId) {
     const prior = await priorFor(d.requestId);
@@ -107,5 +108,5 @@ export const POST = withManage(async (session, req) => {
   await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
   // #189: anlamsal vektörler yazma anında (misafirin bir sonraki mesajı sözcüksele düşmesin; beklemez, fırlatmaz).
   warmPropertyKbVectorsBestEffort(d.propertyId);
-  return jsonOk(item, 201);
+  return jsonOk(withoutClientRequestId(item), 201);
 });

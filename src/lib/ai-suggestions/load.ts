@@ -157,7 +157,10 @@ export async function getConversationSuggestions(organizationId: string, convers
       select: { id: true, body: true, direction: true, authorType: true, senderName: true, systemEventType: true, createdAt: true },
     }),
     decidedSuggestionKeys(organizationId, since),
-    prisma.guestCommitment.findMany({ where: { conversationId: conversation.id, organizationId }, select: { kind: true, createdAt: true } }),
+    prisma.guestCommitment.findMany({
+      where: { conversationId: conversation.id, organizationId },
+      select: { kind: true, createdAt: true, dueAt: true, status: true },
+    }),
   ]);
   const tz = orgTimezone(conversation.property.organization.timezone);
   const autoTask = conversation.property.organization.autoTaskFromMessageEnabled;
@@ -211,6 +214,10 @@ export async function getConversationSuggestions(organizationId: string, convers
       if (!promise) continue;
       if (commitments.some((c) => c.kind === promise.kind && c.createdAt.getTime() >= m.createdAt.getTime())) continue;
       const dueAt = absolutePromiseDue(promise, m.createdAt, tz);
+      // Aynı tür + aynı an için AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki mesajda tekrarlamış)
+      // öneri gösterilmez — onay tarafının tekrar ölçütüyle AYNI (`createGuestCommitment`: tür + son an + açık). Yoksa onay "zaten var"
+      // diye hiçbir şey yapmaz ve öneri yenilemede geri gelir: ölü "Onayla" düğmesi (Opus 10-15 B1).
+      if (dueAt && commitments.some((c) => c.kind === promise.kind && c.status === "open" && c.dueAt.getTime() === dueAt.getTime())) continue;
       const due = dueAt ? relativeDay(dueAt, now, tz) : null;
       if (!due) continue;
       out.push({

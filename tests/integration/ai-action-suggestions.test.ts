@@ -177,9 +177,31 @@ describe("C · söz kaydı önerisi", () => {
     expect(await getConversationSuggestions(orgId, conversationId)).toEqual([]);
   });
 
-  it("🚨 aynı söz (tür + saat) ev sahibince zaten açılmışsa onay İKİNCİ söz açmaz ve karar yazmaz — görev dalıyla aynı (Haiku 10-15)", async () => {
+  it("🚨 aynı söz (tür + saat) mesajdan ÖNCE açıksa öneri GÖSTERİLMEZ — ölü 'Onayla' düğmesi yok (Opus 10-15 B1)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await asUser(orgId);
+    const u = await asUser(orgId);
+    const { conversationId } = await conversationWith(orgId, propertyId, [
+      { direction: "inbound", authorType: "guest", body: "Kombi çalışmıyor." },
+      { direction: "outbound", authorType: "host", body: "Yarın teknisyen gelecek, kusura bakmayın.", minutesAgo: 1 },
+    ]);
+    await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
+    const [s] = await getConversationSuggestions(orgId, conversationId);
+    expect(s?.kind).toBe("commitment");
+    // Ev sahibi aynı sözü (aynı tür + aynı an) mesajdan ÖNCE elle açmış olsun.
+    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
+    const proposal = s.proposal as { day: "today" | "tomorrow"; time: string };
+    const dueAt = commitmentDueAt({ day: proposal.day, time: proposal.time }, orgTimezone(org.timezone), new Date())!;
+    const c = await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: u.id });
+    await prisma.guestCommitment.update({ where: { id: c.id }, data: { createdAt: new Date(Date.now() - 10 * 60_000) } });
+    expect(await getConversationSuggestions(orgId, conversationId)).toEqual([]);
+    // Aşırı uygulama yok: söz kapanınca (görev bitti) aynı öneri yeniden görünür.
+    await prisma.guestCommitment.update({ where: { id: c.id }, data: { status: "done" } });
+    expect((await getConversationSuggestions(orgId, conversationId)).map((x) => x.kind)).toEqual(["commitment"]);
+  });
+
+  it("🚨 onay ile elle söz YARIŞI: karar denetiminden sonra aynı söz açılırsa onay ikinci söz açmaz, karar yazmaz (409)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const u = await asUser(orgId);
     const { conversationId } = await conversationWith(orgId, propertyId, [
       { direction: "inbound", authorType: "guest", body: "Kombi çalışmıyor." },
       { direction: "outbound", authorType: "host", body: "Yarın teknisyen gelecek, kusura bakmayın." },
@@ -188,10 +210,15 @@ describe("C · söz kaydı önerisi", () => {
     const [s] = await getConversationSuggestions(orgId, conversationId);
     const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
     const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, orgTimezone(org.timezone), new Date())!;
-    const user = await prisma.user.findFirstOrThrow({ where: { organizationId: orgId } });
-    await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: user.id });
-    const res = await decide({ key: s.key, decision: "approve", day: "tomorrow", time: "10:00" });
-    expect(res.status).toBe(409);
+    __aiSuggestionHooks.afterDecisionCheck = async () => {
+      // Başka sekmede ev sahibi aynı sözü elle açtı (ayrı bağlantı, hemen commit).
+      await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: u.id });
+    };
+    try {
+      expect((await decide({ key: s.key, decision: "approve", day: "tomorrow", time: "10:00" })).status).toBe(409);
+    } finally {
+      __aiSuggestionHooks.afterDecisionCheck = null;
+    }
     expect(await prisma.guestCommitment.count({ where: { conversationId } })).toBe(1);
     expect(await prisma.auditLog.count({ where: { action: "ai_suggestion.approved" } })).toBe(0);
   });

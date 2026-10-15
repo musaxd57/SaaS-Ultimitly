@@ -12,6 +12,7 @@ import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import { recordIngestEvent } from "@/lib/ingest/events";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { ANON_NAME } from "@/lib/data-retention";
+import { reportError } from "@/lib/report-error";
 
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 /** Önizleme yanıtında satır listesi tavanı (sayımlar TÜM satırlar üzerinden). */
@@ -500,6 +501,19 @@ export const POST = withManage(async (session, req) => {
   let cancelled = 0;
   let skipped = 0;
   const errors: string[] = [];
+  // Görev yan etkisi SATIRDAN AYRI (Opus 10-15 B4; takvim senkronuyla aynı kural): satır KAYDEDİLDİKTEN sonra görev açma / iptal
+  // temizliği düşerse ekranda "Kaydedilemedi" YAZILMAZ (yazılmıştı — yeniden yükleme "zaten var" deyip görevleri hiç açmıyordu).
+  // Görevler "Eksik görevleri oluştur" ile tamamlanır; operatöre istek başına TEK alarm.
+  let taskFailures = 0;
+  let firstTaskError: unknown = null;
+  const taskSideEffect = async (run: () => Promise<unknown>): Promise<void> => {
+    try {
+      await run();
+    } catch (err) {
+      if (taskFailures === 0) firstTaskError = err;
+      taskFailures++;
+    }
+  };
   const ingestCtx = { organizationId: session.organizationId, provider: "manual_file" as const, connectionId: null };
 
   for (const c of classified) {
@@ -548,7 +562,7 @@ export const POST = withManage(async (session, req) => {
         // Commit SONRASI yan etki — kardeş yolun `cancelled` dalıyla aynı:
         // iptal edilmiş konaklamanın yaşam-döngüsü görevleri (yalnız
         // origin:"system" olanlar) düşer, host'un kendi görevleri kalır.
-        await removeAutoTasksForCancelledReservation(cancelledId);
+        await taskSideEffect(() => removeAutoTasksForCancelledReservation(cancelledId));
         cancelled++;
       } catch {
         errors.push(`${rowLabel}: Kaydedilemedi (veritabanı hatası).`);
@@ -600,7 +614,7 @@ export const POST = withManage(async (session, req) => {
           continue;
         }
         // Kardeş yolla aynı: görev backfill'i (idempotent).
-        await createReservationTasks(updatedId);
+        await taskSideEffect(() => createReservationTasks(updatedId));
         updated++;
       } catch {
         errors.push(`${rowLabel}: Kaydedilemedi (veritabanı hatası).`);
@@ -691,7 +705,7 @@ export const POST = withManage(async (session, req) => {
         skipped++;
         continue;
       }
-      await createReservationTasks(created.id);
+      await taskSideEffect(() => createReservationTasks(created.id));
       imported++;
     } catch (err) {
       // A re-imported row with the same platform reference is a DEDUPE, not an
@@ -712,5 +726,9 @@ export const POST = withManage(async (session, req) => {
   // sayıyor; `updated` burada da AYRI ve additive: aynı UID'li önceki dosya
   // aktarımının tarih/ad güncellemesi (Codex 09-08), iptalden farklı.
   // `note` (F16, additive): eksik okunan dosya aktarımdan SONRA da "tamamı aktarıldı" gibi görünmesin.
+  if (taskFailures > 0) {
+    const sample = firstTaskError instanceof Error ? firstTaskError : new Error(String(firstTaskError));
+    void reportError("reservations.import.tasks", new Error(`${taskFailures} rezervasyonun görevleri açılamadı (rezervasyonlar kaydedildi) — örnek hata: ${sample.message}`));
+  }
   return jsonOk({ imported, updated, cancelled, skipped, errors, note: incompleteNote });
 });

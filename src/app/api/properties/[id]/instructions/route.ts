@@ -59,11 +59,14 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     if (r.reason === "limit") return NextResponse.json({ error: REASONS.limit }, { status: 409 });
     return badRequest({ content: REASONS[r.reason] });
   }
-  await writeAudit({
-    organizationId: session.organizationId,
-    actorUserId: auditActor(session),
-    action: "property.instruction_added",
-    metadata: { propertyId: id, instructionId: r.id },
-  });
+  // Aynı talimat yeniden gönderildiyse (çift tık) yeni ekleme YOK → ikinci "eklendi" denetim kaydı da yok (Opus 10-15 B7).
+  if (!r.reused) {
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: auditActor(session),
+      action: "property.instruction_added",
+      metadata: { propertyId: id, instructionId: r.id },
+    });
+  }
   return jsonOk({ id: r.id }, 201);
 });

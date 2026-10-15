@@ -1118,7 +1118,7 @@ export function isWithinActiveHours(startHour: number, endHour: number, hour: nu
 /** Rezervasyon görevleri kilidi ad alanı (diğerleri: 23 takvim beslemesi · 40 silme · 41 QR · 42 e-posta kuyruğu · 43 konuşma kimliği). */
 const RESERVATION_TASKS_LOCK_NS = 44;
 /** Kilit beklemesi havuz baskısında 2 sn varsayılanını aşabilir (senkron + içe aktarma aynı anda); kardeş giriş yollarıyla aynı değerler. */
-const RESERVATION_TASKS_TX = { timeout: 60_000, maxWait: 15_000 } as const;
+export const RESERVATION_TASKS_TX = { timeout: 60_000, maxWait: 15_000 } as const;
 
 /**
  * Create the standard check-in prep + checkout cleaning tasks for a reservation.
@@ -1129,25 +1129,13 @@ const RESERVATION_TASKS_TX = { timeout: 60_000, maxWait: 15_000 } as const;
  * görmez (bugün bütün çağıranlar commit SONRASI çağırır; Haiku 10-15).
  */
 export async function createReservationTasks(reservationId: string): Promise<number> {
-  const r = await prisma.reservation.findUnique({
-    where: { id: reservationId },
-    select: {
-      id: true,
-      propertyId: true,
-      guestName: true,
-      arrivalDate: true,
-      departureDate: true,
-      status: true,
-      property: { select: { supplyProfileJson: true, organization: { select: { timezone: true } } } },
-    },
-  });
-  if (!r || r.status === "cancelled") return 0;
-
-  // Turnover linen/supply checklist from the property's profile (if set). Attached
-  // to the cleaning task — the turnover job the cleaner actually opens ("çarşaf/
-  // havlu değişimi"). Empty when no profile → no checklist, behavior unchanged.
-  const supplyChecklist = buildSupplyChecklist(parseSupplyProfile(r.property?.supplyProfileJson));
-  const supplyChecklistJson = supplyChecklist.length > 0 ? JSON.stringify(supplyChecklist) : undefined;
+  const r0 = await prisma.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
+  if (!r0 || r0.status === "cancelled") return 0;
+  // HIZLI YOL (Opus 10-15 B5): senkron her turda pencerendeki HER rezervasyonu çağırır; geçmiş konaklama ya da görevleri tam rezervasyon
+  // için işlem + kilit açılmaz (kilitsiz okuma eksik yok diyorsa yazacak bir şey yoktur — eksik varsa kilit altında YENİDEN okunur).
+  const now = new Date();
+  const quick = await prisma.task.findMany({ where: { reservationId }, select: { type: true } });
+  if (reservationTasksToCreate(r0, new Set(quick.map((t) => t.type)), now).length === 0) return 0;
 
   // Per-TYPE idempotency: create whichever of check-in / cleaning is still missing.
   // A plain "has any task → bail" permanently blocked a reservation that earlier
@@ -1158,68 +1146,85 @@ export async function createReservationTasks(reservationId: string): Promise<num
   // TEKRAR GÜVENLİĞİ (idempotency denetimi 10-15, P2): "var mı?" okuması ile yazma arasında kilit yoktu → senkron + "Eksik görevleri oluştur"
   // (ya da iki senkron turu) aynı anda koşarsa ikisi de "temizlik yok" görüp İKİ temizlik görevi açıyordu. Okuma + yazma rezervasyon başına
   // işlem kilidi altında: ikinci çağrı birincinin yazdığını görür. Kilit yalnız bu rezervasyonu sıraya koyar (başka rezervasyonlar beklemez).
+  // Rezervasyon da kilit ALTINDA yeniden okunur (Opus B6): arada iptal edildiyse görev açılmaz (iptal temizliği aynı kilidi alır).
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(${RESERVATION_TASKS_LOCK_NS}::int4, hashtext(${r.id}))`,
+      Prisma.sql`SELECT pg_advisory_xact_lock(${RESERVATION_TASKS_LOCK_NS}::int4, hashtext(${reservationId}))`,
     );
+    const r = await tx.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
+    if (!r || r.status === "cancelled") return 0;
     const existing = await tx.task.findMany({
       where: { reservationId: r.id },
       select: { type: true },
     });
-    const has = new Set(existing.map((t) => t.type));
-
-    // "Bugün" = HOST'UN günü (org.timezone) ve TEK TARİH KURALI (09-26, `onOrAfterToday` → `calendarDateOf`): yalnız-tarih
-    // çapası (D 00:00Z / D 12:00Z) UTC tarihidir, gerçek an org diliminde okunur. Önceki ham `tarih >= org gün başı` kıyası
-    // İstanbul'da doğruydu (eskiden sunucunun UTC günüydü → "Eksik görevleri oluştur" 0 açıyordu), ama New York'ta bugünün
-    // 00:00Z değerini "dün" sayıyordu (aynı gün rezervasyona giriş hazırlığı, bugün çıkana temizlik AÇILMIYORDU), Auckland'da
-    // dünün 12:00Z değerini "bugün". Görevler sayfasındaki eksik görev sayısı aynı kararı verir (`reservationsMissingCleaningWhere`).
-    const now = new Date();
-    const tz = orgTimezone(r.property?.organization?.timezone);
-    const data: {
-      propertyId: string;
-      reservationId: string;
-      type: string;
-      origin: string;
-      title: string;
-      description: string;
-      dueAt: Date;
-      status: string;
-      priority: string;
-      checklistJson?: string;
-    }[] = [];
-
-    if (onOrAfterToday(r.arrivalDate, now, tz) && !has.has("checkin_prep")) {
-      data.push({
-        propertyId: r.propertyId,
-        reservationId: r.id,
-        type: "checkin_prep",
-        origin: "system",
-        title: `${r.guestName} girişi için hazırlık`,
-        description: "Hoş geldin hazırlığı, anahtar/giriş kontrolü.",
-        dueAt: r.arrivalDate,
-        status: "todo",
-        priority: "standard",
-      });
-    }
-    if (onOrAfterToday(r.departureDate, now, tz) && !has.has("cleaning")) {
-      data.push({
-        propertyId: r.propertyId,
-        reservationId: r.id,
-        type: "cleaning",
-        origin: "system",
-        title: `Çıkış temizliği - ${r.guestName}`,
-        description: "Çıkış sonrası tam temizlik ve çarşaf/havlu değişimi.",
-        dueAt: r.departureDate,
-        status: "todo",
-        priority: "standard",
-        checklistJson: supplyChecklistJson,
-      });
-    }
-
+    if (__reservationTaskHooks.afterExistingRead) await __reservationTaskHooks.afterExistingRead();
+    const data = reservationTasksToCreate(r, new Set(existing.map((t) => t.type)), now);
     if (data.length === 0) return 0;
     await tx.task.createMany({ data });
     return data.length;
   }, RESERVATION_TASKS_TX);
+}
+
+/** Yalnız testler: kilitli bölgede "var mı?" okumasından SONRA bekleme noktası (eşzamanlılık testleri şansa kalmasın — Opus B8). */
+export const __reservationTaskHooks: { afterExistingRead: null | (() => Promise<void>) } = { afterExistingRead: null };
+
+const RESERVATION_TASKS_SELECT = {
+  id: true,
+  propertyId: true,
+  guestName: true,
+  arrivalDate: true,
+  departureDate: true,
+  status: true,
+  property: { select: { supplyProfileJson: true, organization: { select: { timezone: true } } } },
+} satisfies Prisma.ReservationSelect;
+
+/** Saf: rezervasyonun eksik yaşam döngüsü görevleri (hızlı yol ve kilitli yol AYNI kararı verir). */
+function reservationTasksToCreate(
+  r: Prisma.ReservationGetPayload<{ select: typeof RESERVATION_TASKS_SELECT }>,
+  has: ReadonlySet<string>,
+  now: Date,
+): Prisma.TaskCreateManyInput[] {
+  // Turnover linen/supply checklist from the property's profile (if set). Attached
+  // to the cleaning task — the turnover job the cleaner actually opens ("çarşaf/
+  // havlu değişimi"). Empty when no profile → no checklist, behavior unchanged.
+  const supplyChecklist = buildSupplyChecklist(parseSupplyProfile(r.property?.supplyProfileJson));
+  const supplyChecklistJson = supplyChecklist.length > 0 ? JSON.stringify(supplyChecklist) : undefined;
+
+  // "Bugün" = HOST'UN günü (org.timezone) ve TEK TARİH KURALI (09-26, `onOrAfterToday` → `calendarDateOf`): yalnız-tarih
+  // çapası (D 00:00Z / D 12:00Z) UTC tarihidir, gerçek an org diliminde okunur. Önceki ham `tarih >= org gün başı` kıyası
+  // İstanbul'da doğruydu (eskiden sunucunun UTC günüydü → "Eksik görevleri oluştur" 0 açıyordu), ama New York'ta bugünün
+  // 00:00Z değerini "dün" sayıyordu (aynı gün rezervasyona giriş hazırlığı, bugün çıkana temizlik AÇILMIYORDU), Auckland'da
+  // dünün 12:00Z değerini "bugün". Görevler sayfasındaki eksik görev sayısı aynı kararı verir (`reservationsMissingCleaningWhere`).
+  const tz = orgTimezone(r.property?.organization?.timezone);
+  const data: Prisma.TaskCreateManyInput[] = [];
+  if (onOrAfterToday(r.arrivalDate, now, tz) && !has.has("checkin_prep")) {
+    data.push({
+      propertyId: r.propertyId,
+      reservationId: r.id,
+      type: "checkin_prep",
+      origin: "system",
+      title: `${r.guestName} girişi için hazırlık`,
+      description: "Hoş geldin hazırlığı, anahtar/giriş kontrolü.",
+      dueAt: r.arrivalDate,
+      status: "todo",
+      priority: "standard",
+    });
+  }
+  if (onOrAfterToday(r.departureDate, now, tz) && !has.has("cleaning")) {
+    data.push({
+      propertyId: r.propertyId,
+      reservationId: r.id,
+      type: "cleaning",
+      origin: "system",
+      title: `Çıkış temizliği - ${r.guestName}`,
+      description: "Çıkış sonrası tam temizlik ve çarşaf/havlu değişimi.",
+      dueAt: r.departureDate,
+      status: "todo",
+      priority: "standard",
+      checklistJson: supplyChecklistJson,
+    });
+  }
+  return data;
 }
 
 /**
@@ -1234,11 +1239,8 @@ export async function createReservationTasks(reservationId: string): Promise<num
  * Best-effort + idempotent: safe to call on every sync. Returns the number removed.
  */
 export async function removeAutoTasksForCancelledReservation(reservationId: string): Promise<number> {
-  const r = await prisma.reservation.findUnique({
-    where: { id: reservationId },
-    select: { status: true, property: { select: { organizationId: true } } },
-  });
-  if (!r || r.status !== "cancelled") return 0;
+  const r0 = await prisma.reservation.findUnique({ where: { id: reservationId }, select: { status: true } });
+  if (!r0 || r0.status !== "cancelled") return 0;
   const doomed: Prisma.TaskWhereInput = {
     reservationId,
     status: { not: "done" },
@@ -1250,7 +1252,17 @@ export async function removeAutoTasksForCancelledReservation(reservationId: stri
   };
   // 🚨 Temizlikçinin bu görevlere yüklediği fotoğraflar kovada sahipsiz kalıyordu (inceleme b1, 09-30): güncellemeler görevle
   // birlikte silinince hesap silme de onları bulamaz. Silme niyeti AYNI işlemde (görev / mülk silmeyle aynı sözleşme).
+  // Görev oluşturmayla AYNI rezervasyon kilidi (Opus 10-15 B6): yarışan "Eksik görevleri oluştur" ya önce biter (görevlerini burada
+  // sileriz) ya da sonra koşar (kilit altında iptali görür, açmaz) — iptal edilmiş konaklamaya temizlik görevi kalmaz.
   return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(${RESERVATION_TASKS_LOCK_NS}::int4, hashtext(${reservationId}))`,
+    );
+    const r = await tx.reservation.findUnique({
+      where: { id: reservationId },
+      select: { status: true, property: { select: { organizationId: true } } },
+    });
+    if (!r || r.status !== "cancelled") return 0;
     const photos = await tx.taskUpdate.findMany({
       where: { task: doomed, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },
       select: { photoUrl: true },

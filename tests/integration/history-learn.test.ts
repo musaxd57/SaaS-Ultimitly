@@ -680,7 +680,9 @@ describe("Mülk talimatı — tekrar gönderim", () => {
 
   it("🚨 aynı talimat EŞ ZAMANLI iki kez → tek etkin satır, iki cevap da aynı kimlik", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    session = owner(orgId);
+    // Denetim kaydının yazılabilmesi için oturum GERÇEK bir kullanıcıya bağlı (yabancı anahtar; yoksa kayıt sessizce yazılmaz → sayım vakum).
+    const user = await prisma.user.create({ data: { organizationId: orgId, name: "O", email: `o-${orgId}@example.com`, passwordHash: "x", role: "owner" } });
+    session = { ...owner(orgId), userId: user.id };
     const url = `http://localhost/api/properties/${propertyId}/instructions`;
     const [a, b] = await Promise.all([
       addInstr(json(url, "POST", { content: TEXT }), p({ id: propertyId })),
@@ -689,6 +691,8 @@ describe("Mülk talimatı — tekrar gönderim", () => {
     expect([a.status, b.status]).toEqual([201, 201]);
     expect((await a.json()).id).toBe((await b.json()).id);
     expect(await prisma.propertyInstruction.count({ where: { propertyId, status: "active" } })).toBe(1);
+    // Tek ekleme oldu → tek "eklendi" denetim kaydı (Opus 10-15 B7).
+    expect(await prisma.auditLog.count({ where: { action: "property.instruction_added" } })).toBe(1);
   });
 
   it("tavan doluyken AYNI metnin yeniden denemesi 'sınır' hatası değil, var olan satır; farklı metin yine 409", async () => {

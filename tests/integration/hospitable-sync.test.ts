@@ -16,6 +16,7 @@ vi.mock("@/lib/hospitable-credentials", () => ({
 
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
 import { syncHospitable } from "@/lib/hospitable-sync";
+import { RESERVATION_TASKS_TX } from "@/lib/automation";
 
 const mockProperties = vi.mocked(listProperties);
 const mockReservations = vi.mocked(listReservations);
@@ -827,11 +828,15 @@ describe("syncHospitable — plan property limit", () => {
     // injection point is the 2nd $transaction call: TX#1 = reservation upsert,
     // TX#2 = this thread). Later calls delegate to the REAL $transaction so the
     // second sync below writes for real. (No mockRestore — file convention.)
+    // Görev işlemi (`createReservationTasks`, 10-15'ten beri kendi kilitli işlemi) SAYILMAZ — kimliğiyle ayrılır (Opus 10-15 B4: fikstüre
+    // tarih eklenirse 2. işlem görev işlemi olurdu ve test sessizce başka şeyi sınardı).
     const realTx = prisma.$transaction.bind(prisma);
     let txCall = 0;
     vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
-      txCall += 1;
-      if (txCall === 2) return Promise.reject(new Error("db blip"));
+      if (opts !== RESERVATION_TASKS_TX) {
+        txCall += 1;
+        if (txCall === 2) return Promise.reject(new Error("db blip"));
+      }
       return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
     }) as never);
     await syncHospitable(orgId);

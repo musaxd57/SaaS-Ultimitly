@@ -92,7 +92,12 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   const warmTargets: string[] = [];
   for (const t of targets) {
     // Önce "bu istek bu daireye zaten kopyaladı mı?" — sınır sayımından ÖNCE: ilk deneme sınırı doldurduysa yeniden deneme "atlandı" demesin.
-    if (await alreadyCopied(t.id)) continue;
+    if (await alreadyCopied(t.id)) {
+      // Yeniden deneme: ilk istek yazıp eşitlemeden ÖNCE kesildiyse hafıza / vektör eşitlemesi burada tamamlanır (ekleme rotasının
+      // `replay`i gibi; ikisi de tekrar güvenli — Opus 10-15 B2).
+      warmTargets.push(t.id);
+      continue;
+    }
     if (source.isActive) {
       const activeCount = await prisma.knowledgeBaseItem.count({
         where: { propertyId: t.id, isActive: true },
@@ -134,7 +139,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     warmTargets.push(t.id);
   }
   // V1: hedef mülklerin hafızası anında eşitlenir (org kapsamı; fırlatmaz).
-  if (created > 0) await refreshPropertyMemoryBestEffort(session.organizationId);
+  if (warmTargets.length > 0) await refreshPropertyMemoryBestEffort(session.organizationId);
   // #189: hedef mülklerin anlamsal vektörleri yazma anında (beklemez, fırlatmaz).
   for (const id of warmTargets) warmPropertyKbVectorsBestEffort(id);
 

@@ -21,6 +21,8 @@ import { PATCH as commitmentPatch } from "@/app/api/conversations/[id]/commitmen
 import { PATCH as taskPatch, DELETE as taskDelete } from "@/app/api/tasks/[id]/route";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import { commitmentDueAt, commitmentDurationLabel } from "@/lib/guest-commitments-core";
+import { __commitmentHooks } from "@/lib/guest-commitments";
+import { lockProbe } from "../helpers/lock-probe";
 
 const json = (url: string, method: string, body: unknown) =>
   new NextRequest(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -146,6 +148,20 @@ describe("söz işaretleme (gerçek PostgreSQL)", () => {
     expect((await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "19:00" })).status).toBe(201);
     expect((await create(s.conversationId, { kind: "supplies", day: "tomorrow", time: "18:00" })).status).toBe(201);
     expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(3);
+  });
+
+  it("🚨 BELİRLENİMCİ (Opus B8): aynı konuşmada kilitli bölgeye aynı anda yalnız bir söz isteği girer; kilit kaldırılırsa her koşuda çift söz", async () => {
+    const s = await setup();
+    const probe = lockProbe();
+    __commitmentHooks.afterSameCheck = probe.hook;
+    try {
+      const body = { kind: "towels", day: "tomorrow", time: "18:00" };
+      await Promise.all([create(s.conversationId, body), create(s.conversationId, body)]);
+      expect(probe.maxInside()).toBe(1);
+    } finally {
+      __commitmentHooks.afterSameCheck = null;
+    }
+    expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(1);
   });
 
   it("🚨 personel söz veremez (403, yalnız yönetici)", async () => {

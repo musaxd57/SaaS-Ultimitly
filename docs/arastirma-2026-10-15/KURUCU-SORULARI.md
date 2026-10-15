@@ -15,6 +15,8 @@ hiçbir şeyi değiştirmeyen düzeltmeler SORULMADAN yapıldı (§A). Değişti
 | QR'ı aynı anda iki kez "aç" | Jeton yalnız boşsa yazılır → basılan QR ölü kalmaz | `tests/integration/property-chat-route.test.ts` |
 | Mülk talimatı / söz / mesajdan görev | Aynı talimat, aynı söz (tür + saat), aynı gün aynı konu görevi kilit altında tekilleşir | `history-learn.test.ts`, `guest-commitments.test.ts`, `task-from-message.test.ts` |
 | Ödeme eşzamanlılık testleri | Aynı olayın eş zamanlı teslimi, aynı işlemin iki olayı, fatura çakışması, eş zamanlı onay — dördü de gerçek PG'de pinlendi (kod değişmedi) | `tests/integration/paddle-webhook-*.test.ts`, `billing-consent-concurrent.test.ts` |
+| Öneri listesi (anahtar `AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) | Aynı tür + aynı saat için AÇIK söz zaten varsa "Söz kaydet" önerisi gösterilmez (eskiden onay ikinci sözü açardı; ilk düzeltmede ölü "Onayla" düğmesi kalıyordu — Opus son kontrolü B1) | `ai-action-suggestions.test.ts` |
+| Takvim senkronu + dosyadan içe aktarma | Satır KAYDEDİLDİKTEN sonra görev açma düşerse satır artık "Kaydedilemedi" sayılmaz (yazılmıştı; yeniden yükleme "zaten var" deyip görevleri hiç açmıyordu). Operatöre tek toplu alarm; görevler sonraki senkron / "Eksik görevleri oluştur" ile tamamlanır (Opus B4) | `calendar-sync.test.ts`, `reservations-import-concurrent.test.ts` |
 | Sentry (takip no. dilim G'nin bir kısmı) | Sürüm (Railway commit), ortam, ALAN etiketi; Sentry olay kimliği olay günlüğüne (iki yönlü bağ). İşletme özeti etiketi YOK (soru F5) | `tests/unit/correlation.test.ts` |
 
 ## B. Sorular (sıra = önerdiğim öncelik)
@@ -34,7 +36,12 @@ hiçbir şeyi değiştirmeyen düzeltmeler SORULMADAN yapıldı (§A). Değişti
 | 11 | **İdempotency S4 / S5 / S6:** kayıtta "hesabınız var" e-postası tekrarı · bilgi tabanında eski sekmeden kaydetme (409) · e-posta sağlayıcısına tekrar kimliği | kimlik / e-posta / arayüz | `idempotency.md` §9 |
 | 12 | **Takip no. F5 / F6 / F7:** Sentry'ye işletme özeti · günlük bütünlük mührü · KVKK dökümü (avukat) | gizlilik | `takip-numarasi.md` §15 |
 | 13 | **QR kalkan süresi (P3):** 120 sn'den uzun süren QR isteğinde tekrar = çift işleme; süreyi 300 sn'ye çıkaralım mı (çöken istekte misafirin yeniden denemesi 5 dk bekler) | misafir deneyimi | `idempotency.md` §8 #14 |
+| 14 | **Söz ekranı metni (Opus B15):** aynı söz ikinci kez girilince bugün "Söz kaydedildi, görev açıldı." yazıyor ama yeni görev açılmıyor (söz zaten var). Önerim: "Bu söz zaten kayıtlı." — ÖRNEK: ev sahibi "Havlu, yarın 18:00"e iki kez basar → önce: iki kez "görev açıldı" · sonra: ikincide "Bu söz zaten kayıtlı." Böyle yapalım mı? | müşteriye giden metin | `components/inbox/commitments-card.tsx` |
 
 ## C. Bilinen sınır (kayıt)
+- Kopyalama: iki sekme + kopan bağlantı birleşiminde, ilk deneme A + B'ye eski metni yazdıysa ve kaynak ARADA başka sekmede düzenlendiyse,
+  eski sekmeden C eklenerek yapılan yeniden deneme A + B'yi atlar, C'ye YENİ metni yazar (çift kalem yok; daireler arası metin farklı kalır).
+  Opus 10-15 B14; kabul edildi.
+- Sentry: `environment` alanı BİLEREK eskisi gibi (NODE_ENV); Railway ortam adı ayrı `railway_env` etiketi — mevcut uyarı kuralları değişmez.
 - Bilgi tabanı yeniden denemesi: ilk istek yazıp cevap koptuysa ve kalem ARADA başka sekmeden düzenlendiyse, yeniden deneme düzenlenmiş
   kalemi döndürür (yeni kalem açmaz). Kalem zaten var; form temizlenir. Haiku 10-15 inceleme; kabul edildi (409 yeni müşteri metni ister).

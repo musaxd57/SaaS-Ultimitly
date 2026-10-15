@@ -68,13 +68,23 @@ export function sentryRelease(env: Record<string, string | undefined> = process.
 }
 
 /**
- * Ortam: Railway ortam adı (ileride hazırlık / .eu ayrışır), yoksa NODE_ENV. Biçim dışı karakter "-" olur ("Hazırlık EU" → "haz-rl-k-eu")
- * — sessizce "production"a düşmez (hazırlık olayı üretim gibi görünmesin; Haiku 10-15). Boş kalırsa "production".
+ * Railway ortam adı ETİKETİ (ileride hazırlık / .eu ayrışır). Sentry'nin `environment` alanı BİLEREK eskisi gibi NODE_ENV kalır (Opus 10-15
+ * B11): operatörün `environment:production` süzgeçli uyarı kuralları ortam adı değişince sessizce boşa düşmesin. Türkçe harfler ASCII
+ * karşılığına çevrilir, kalan biçim dışı karakter "-" olur ("Hazırlık EU" → "hazirlik-eu"); boş kalırsa / değişken yoksa etiket yok.
  */
-export function sentryEnvironment(env: Record<string, string | undefined> = process.env): string {
-  const raw = (env.RAILWAY_ENVIRONMENT_NAME?.trim() || env.NODE_ENV || "production").toLowerCase();
-  const clean = raw.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
-  return clean || "production";
+export function sentryRailwayEnv(env: Record<string, string | undefined> = process.env): string | null {
+  const raw = env.RAILWAY_ENVIRONMENT_NAME?.trim();
+  if (!raw) return null;
+  const ascii = raw
+    .replace(/[ıİ]/g, "i")
+    .replace(/[şŞ]/g, "s")
+    .replace(/[ğĞ]/g, "g")
+    .replace(/[üÜ]/g, "u")
+    .replace(/[öÖ]/g, "o")
+    .replace(/[çÇ]/g, "c")
+    .toLowerCase();
+  const clean = ascii.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+  return clean || null;
 }
 
 export async function reportError(context: string, err: unknown): Promise<ReportOutcome> {
@@ -210,6 +220,7 @@ export async function captureToSentry(
 
   try {
     const release = sentryRelease();
+    const railwayEnv = sentryRailwayEnv();
     const header = JSON.stringify({ event_id: eventId, sent_at: new Date().toISOString(), dsn });
     const itemHeader = JSON.stringify({ type: "event" });
     const event = JSON.stringify({
@@ -218,7 +229,7 @@ export async function captureToSentry(
       platform: "node",
       level: "error",
       logger: "guestops",
-      environment: sentryEnvironment(),
+      environment: process.env.NODE_ENV ?? "production",
       ...(release ? { release } : {}),
       transaction: context,
       // errName/errMessage/detail must arrive PRE-REDACTED (reportError does this).
@@ -237,7 +248,11 @@ export async function captureToSentry(
       extra: { detail: detail.slice(0, 4000), message: errMessage.slice(0, 1000) },
       // Etiketler (gruplamaya girmez): takip numarası (Sentry'de numarayla arama) + ALAN (ödeme / kuyruk / senkron… süzme; dilim G).
       // İşletme etiketi (anahtarlı özet) kurucu kararına bırakıldı (F5) — Sentry yurt dışı alt işleyen.
-      tags: { area: sentryArea(context), ...(correlationId ? { correlation_id: correlationId } : {}) },
+      tags: {
+        area: sentryArea(context),
+        ...(correlationId ? { correlation_id: correlationId } : {}),
+        ...(railwayEnv ? { railway_env: railwayEnv } : {}),
+      },
     });
     await fetch(parsed.endpoint, {
       method: "POST",

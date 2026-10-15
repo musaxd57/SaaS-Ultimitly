@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
@@ -10,6 +10,7 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { POST } from "@/app/api/reservations/import/route";
+import { RESERVATION_TASKS_TX } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // KİMLİKSİZ CSV — EŞ ZAMANLI İKİ YÜKLEME (idempotency denetimi 10-15, P2).
@@ -42,6 +43,7 @@ describe("POST /api/reservations/import — eş zamanlı kimliksiz yükleme", ()
     propertyId = made.propertyId;
     session = { userId: "u", organizationId: made.orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
   });
+  afterEach(() => vi.restoreAllMocks());
   afterAll(async () => {
     await prisma.$disconnect();
   });
@@ -65,5 +67,19 @@ describe("POST /api/reservations/import — eş zamanlı kimliksiz yükleme", ()
     const ctx = { params: Promise.resolve({}) };
     await Promise.all([POST(importReq(propertyId, CSV), ctx), POST(importReq(propertyId, other), ctx)]);
     expect(await prisma.reservation.count({ where: { propertyId, guestName: "Ada Guest" } })).toBe(2);
+  });
+
+  it("görev açma hatası satırı 'Kaydedilemedi' yapmaz: rezervasyonlar kaydedildi ve öyle sayılır (Opus 10-15 B4)", async () => {
+    const realTx = prisma.$transaction.bind(prisma);
+    vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
+      if (opts === RESERVATION_TASKS_TX) return Promise.reject(new Error("pool timeout"));
+      return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
+    }) as never);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await POST(importReq(propertyId, CSV), { params: Promise.resolve({}) });
+    const j = (await res.json()) as { imported: number; errors: string[] };
+    expect(j.imported).toBe(2);
+    expect(j.errors).toEqual([]);
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(2);
   });
 });

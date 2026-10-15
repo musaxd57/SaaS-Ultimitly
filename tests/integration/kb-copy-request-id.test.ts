@@ -4,6 +4,8 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
 
 let session: SessionPayload;
+const { warmMock } = vi.hoisted(() => ({ warmMock: vi.fn() }));
+vi.mock("@/lib/ai/embeddings/kb-warm", () => ({ warmPropertyKbVectorsBestEffort: warmMock }));
 vi.mock("@/lib/api", async (orig) => {
   const actual = await orig<typeof import("@/lib/api")>();
   return { ...actual, requireSession: vi.fn(async () => session) };
@@ -96,6 +98,17 @@ describe("KB kopyalama — istek kimliği", () => {
     expect(await copiesIn(b)).toBe(2);
     const legacy = await prisma.knowledgeBaseItem.findMany({ where: { propertyId: b }, select: { clientRequestId: true } });
     expect(legacy.every((x) => x.clientRequestId === null)).toBe(true);
+  });
+
+  it("yeniden deneme, ilk istek eşitlemeden ÖNCE kesildiyse hedeflerin vektör eşitlemesini tamamlar (Opus B2)", async () => {
+    // İlk istek kopyayı yazdı ama eşitleme koşmadı (süreç düştü): kopya satırı doğrudan konur.
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId: a, category: "wifi", title: "Wi-Fi", content: "Ağ adı: Lale_5G.", isActive: true, clientRequestId: `copy:${sourceId}:${RID}` },
+    });
+    warmMock.mockClear();
+    const r = await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID });
+    expect(await r.json()).toMatchObject({ created: 0 });
+    expect(warmMock).toHaveBeenCalledWith(a);
   });
 
   it("yeniden denemeye eklenen daire yazılır, öncekiler atlanır", async () => {

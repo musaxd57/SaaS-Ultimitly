@@ -6,6 +6,7 @@ import { syncCalendarSource } from "@/lib/import/sync";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { loadAvailabilityInputs } from "@/modules/availability/load";
 import { checkAvailability, todayKey, addNights } from "@/modules/availability/core";
+import { RESERVATION_TASKS_TX } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // F16 (Codex denetimi 09-05, düzeltme 09-26): EKSİK OKUMA → okunanlar yazılır, açık iptal işlenir,
@@ -68,15 +69,19 @@ describe("F16 — eksik iCal okuması", () => {
   it("satır yazma hatası eksik okumaya BASKINDIR: 'error'", async () => {
     const { sourceId } = await seed();
     vi.mocked(fetchFeedText).mockResolvedValue(truncated(ev("a@x"), ev("b@x", 14, 16)));
+    // Yalnız SATIR yazma işlemleri sayılır; görev işlemi (kendi kilitli işlemi) kimliğiyle ayrılır (Opus 10-15 B4).
     const realTx = prisma.$transaction.bind(prisma);
-    let n = 0;
+    let rowWrites = 0;
     vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
-      n += 1;
-      if (n === 2) return Promise.reject(new Error("db blip"));
+      if (opts !== RESERVATION_TASKS_TX) {
+        rowWrites += 1;
+        if (rowWrites === 2) return Promise.reject(new Error("db blip"));
+      }
       return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
     }) as never);
     await syncCalendarSource(sourceId);
     expect((await sourceRow(sourceId)).lastStatus).toBe("error");
+    expect(rowWrites).toBeGreaterThanOrEqual(2); // ikinci satırın yazması gerçekten denendi ve düştü
   });
 
   it("🚨 kayıp uzlaştırması AÇIKKEN: eksik okumalar 24 saati aşsa bile kaybolanı iptal ETMEZ; tam okuma kaybı sayar", async () => {

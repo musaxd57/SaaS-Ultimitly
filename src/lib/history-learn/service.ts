@@ -564,7 +564,7 @@ export async function addPropertyInstruction(input: {
   source?: "host_note" | "history_learn";
   /** Yazan operatör mü (bkz. `reviewComparison.byOperator`). */
   byOperator?: boolean;
-}): Promise<{ ok: true; id: string } | { ok: false; reason: InstructionRejectReason | "not_found" | "limit" }> {
+}): Promise<{ ok: true; id: string; reused?: boolean } | { ok: false; reason: InstructionRejectReason | "not_found" | "limit" }> {
   const check = checkInstruction(input.content);
   if (!check.ok) return check;
   return prisma.$transaction(async (tx) => {
@@ -578,7 +578,7 @@ export async function addPropertyInstruction(input: {
       where: { propertyId: input.propertyId, status: "active", presetKey: null, byOperator: input.byOperator === true, content: check.content },
       select: { id: true },
     });
-    if (same) return { ok: true, id: same.id } as const;
+    if (same) return { ok: true, id: same.id, reused: true } as const;
     // Tavan yalnız SERBEST metne (hazır seçenekler kapalı küme, sayıları sabit).
     const active = await tx.propertyInstruction.count({ where: { propertyId: input.propertyId, status: "active", presetKey: null } });
     if (active >= INSTRUCTIONS_MAX_ACTIVE) return { ok: false, reason: "limit" } as const;

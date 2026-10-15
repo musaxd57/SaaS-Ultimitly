@@ -5,6 +5,7 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 vi.mock("@/lib/net/pinned-fetch", () => ({ fetchFeedText: vi.fn() }));
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
 import { syncCalendarSource } from "@/lib/import/sync";
+import { RESERVATION_TASKS_TX } from "@/lib/automation";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { __reconcileHooks } from "@/lib/import/sync";
 import { reportError } from "@/lib/report-error";
@@ -639,12 +640,15 @@ describe("codex round-4: atomic legacy adoption", () => {
     // handled separately). The first row still lands → this is a PARTIAL import.
     // Injection point = the row WRITE-TRANSACTION: since m40's locked row-TX, row
     // writes go through tx.* clients, which a spy on the global delegate can't
-    // reach — failing the 2nd $transaction call IS the 2nd row's write failing.
+    // reach. Görev işlemi (`createReservationTasks`, 10-15'ten beri kendi kilitli işlemi) SAYILMAZ — kimliğiyle ayrılır (Opus 10-15 B4:
+    // çağrı sırasıyla "2. işlem" artık 1. satırın görev işlemiydi, test yanlış senaryoyu sınıyordu).
     const realTx = prisma.$transaction.bind(prisma);
-    let n = 0;
+    let rowWrites = 0;
     vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
-      n += 1;
-      if (n === 2) return Promise.reject(new Error("db blip"));
+      if (opts !== RESERVATION_TASKS_TX) {
+        rowWrites += 1;
+        if (rowWrites === 2) return Promise.reject(new Error("db blip"));
+      }
       return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
     }) as never);
 
@@ -652,9 +656,32 @@ describe("codex round-4: atomic legacy adoption", () => {
 
     expect(result.imported).toBe(1); // the first row landed
     expect(result.errors.length).toBe(1); // the second row failed
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(1); // gerçekten KISMİ: ikinci satır yazılmadı
     expect(reportErrorMock).toHaveBeenCalledTimes(1); // logged (not swallowed), and exactly once per run
     const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: source.id } });
     expect(src.lastStatus).toBe("error"); // a partial import must NOT report "ok"
+  });
+
+  it("görev açma hatası SATIR hatası sayılmaz: rezervasyonlar kaydedildi, ev sahibine 'Kaydetme sırasında…' gösterilmez, operatöre TEK toplu alarm (Opus 10-15 B4)", async () => {
+    reportErrorMock.mockClear();
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" } });
+    mockFetch(ICS); // two bookings
+    const realTx = prisma.$transaction.bind(prisma);
+    vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
+      if (opts === RESERVATION_TASKS_TX) return Promise.reject(new Error("pool timeout"));
+      return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
+    }) as never);
+
+    const result = await syncCalendarSource(source.id);
+
+    expect(result.imported).toBe(2);
+    expect(result.errors).toEqual([]);
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(2);
+    expect(reportErrorMock.mock.calls.map((c) => c[0])).toEqual(["import.sync.tasks"]);
+    expect(String((reportErrorMock.mock.calls[0][1] as Error).message)).toContain("2 rezervasyonun görevleri açılamadı");
+    const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: source.id } });
+    expect(src.lastStatus).toBe("ok");
   });
 
   it("#4: a WHOLE-import outage alerts EXACTLY once (no per-row event flood), lastStatus=error", async () => {

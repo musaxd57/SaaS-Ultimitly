@@ -11,7 +11,7 @@ import {
 } from "@/lib/correlation";
 import { OPERATIONAL_EVENTS, sanitizeEventData } from "@/lib/event-log";
 import { serverError } from "@/lib/api";
-import { reportError as reportErrorCore, __resetReportThrottle, sentryArea, sentryEnvironment, sentryRelease } from "@/lib/report-error-core";
+import { reportError as reportErrorCore, __resetReportThrottle, sentryArea, sentryRailwayEnv, sentryRelease } from "@/lib/report-error-core";
 import { emailService } from "@/lib/email-core";
 
 // ---------------------------------------------------------------------------
@@ -189,7 +189,7 @@ describe("hata raporu — log satırı, Sentry etiketi ve alarm e-postası AYNI 
     await runWithCorrelation({ id, organizationId: null }, () => reportErrorCore("test-context", new Error("boom")));
     await new Promise((r) => setTimeout(r, 10)); // Sentry gönderimi beklenmeden başlatılır
     const envelope = String((fetchMock.mock.calls[0] as unknown[])[1] && ((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body);
-    expect(JSON.parse(envelope.split("\n")[2]).tags).toEqual({ correlation_id: id, area: "test-context" });
+    expect(JSON.parse(envelope.split("\n")[2]).tags).toMatchObject({ correlation_id: id, area: "test-context" });
     expect(String(send.mock.calls[0][2])).toContain(`Takip numarası: <code>${id}</code>`);
     expect(log.mock.calls.some(([line]) => String(line).includes(`[takip ${id}]`))).toBe(true);
   });
@@ -203,7 +203,8 @@ describe("hata raporu — log satırı, Sentry etiketi ve alarm e-postası AYNI 
     await new Promise((r) => setTimeout(r, 10));
     const envelope = String(((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body);
     // Takip numarası uydurulmaz; yalnız alan etiketi (dilim G).
-    expect(JSON.parse(envelope.split("\n")[2]).tags).toEqual({ area: "script" });
+    expect(JSON.parse(envelope.split("\n")[2]).tags).not.toHaveProperty("correlation_id");
+    expect(JSON.parse(envelope.split("\n")[2]).tags.area).toBe("script");
   });
 
   it("dilim G: sürüm (Railway commit ilk 12) + ortam + alan; olay kimliği zarfta ve sonuçta AYNI; değişken parça alana girmez", async () => {
@@ -218,20 +219,21 @@ describe("hata raporu — log satırı, Sentry etiketi ve alarm e-postası AYNI 
     const lines = String(((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body).split("\n");
     const event = JSON.parse(lines[2]);
     expect(event.release).toBe("abcdef012345");
-    expect(event.environment).toBe("production");
-    expect(event.tags).toEqual({ area: "sync" });
+    // `environment` eskisi gibi NODE_ENV (uyarı kuralları bozulmasın — Opus B11); Railway adı ayrı etiket.
+    expect(event.environment).toBe(process.env.NODE_ENV ?? "production");
+    expect(event.tags).toEqual({ area: "sync", railway_env: "production" });
     expect(outcome.sentryEventId).toMatch(/^[0-9a-f]{32}$/);
     expect(event.event_id).toBe(outcome.sentryEventId);
     expect(JSON.parse(lines[0]).event_id).toBe(outcome.sentryEventId);
   });
 
-  it("dilim G: commit değişkeni yok / biçimsiz → sürüm alanı YOK; ortam biçimsiz karakterleri '-' olur (production'a düşmez); DSN yok → olay kimliği yok", async () => {
+  it("dilim G: commit değişkeni yok / biçimsiz → sürüm alanı YOK; Railway ortam etiketi Türkçe harfi çevirir, boşsa etiket yok; DSN yok → olay kimliği yok", async () => {
     expect(sentryRelease({ RAILWAY_GIT_COMMIT_SHA: "main" })).toBeNull();
     expect(sentryRelease({})).toBeNull();
-    expect(sentryEnvironment({ RAILWAY_ENVIRONMENT_NAME: "Prod EU!" })).toBe("prod-eu");
-    expect(sentryEnvironment({ RAILWAY_ENVIRONMENT_NAME: "Hazırlık" })).toBe("haz-rl-k");
-    expect(sentryEnvironment({ RAILWAY_ENVIRONMENT_NAME: "!!!", NODE_ENV: "test" })).toBe("production");
-    expect(sentryEnvironment({ NODE_ENV: "test" })).toBe("test");
+    expect(sentryRailwayEnv({ RAILWAY_ENVIRONMENT_NAME: "Prod EU!" })).toBe("prod-eu");
+    expect(sentryRailwayEnv({ RAILWAY_ENVIRONMENT_NAME: "Hazırlık Öğle" })).toBe("hazirlik-ogle");
+    expect(sentryRailwayEnv({ RAILWAY_ENVIRONMENT_NAME: "!!!" })).toBeNull();
+    expect(sentryRailwayEnv({})).toBeNull();
     expect(sentryArea("ical.reconcile:src_123")).toBe("ical.reconcile");
     expect(sentryArea("  ")).toBe("unknown");
     vi.stubEnv("SENTRY_DSN", "");

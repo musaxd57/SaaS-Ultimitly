@@ -348,6 +348,19 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // #4 (Codex): keep only the FIRST row-failure sample; a SINGLE aggregate
   // reportError fires after the loop (never one-per-row → no event/log flood).
   let firstRowError: unknown;
+  // Görev yan etkisi SATIRDAN AYRI sayılır (Opus 10-15 B4): satır KAYDEDİLDİKTEN sonra görev açma / iptal temizliği düşerse satır
+  // "Kaydedilemedi" sayılmıyordu doğru değildi — rezervasyon yazılmıştı, ev sahibi yanlış hata görüyordu. Görevler bir sonraki senkronda
+  // (görev onarımı) ya da "Eksik görevleri oluştur" ile tamamlanır; operatöre koşu başına TEK toplu alarm.
+  let taskFailures = 0;
+  let firstTaskError: unknown = null;
+  const taskSideEffect = async (run: () => Promise<unknown>): Promise<void> => {
+    try {
+      await run();
+    } catch (err) {
+      if (taskFailures === 0) firstTaskError = err;
+      taskFailures++;
+    }
+  };
 
   for (const row of rows) {
     if (row.sourceReference) seenRefs.add(row.sourceReference);
@@ -561,20 +574,20 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           break;
         case "unchanged":
           // Yazma YOK (satır zaten aynı) ama görev onarımı korunuyor — ↑gerekçe.
-          if (action.healTasks) await createReservationTasks(action.id);
+          if (action.healTasks) await taskSideEffect(() => createReservationTasks(action.id));
           result.skipped++;
           break;
         case "cancelled":
-          await removeAutoTasksForCancelledReservation(action.id);
+          await taskSideEffect(() => removeAutoTasksForCancelledReservation(action.id));
           result.updated++;
           break;
         case "updated":
           // Backfill tasks for reservations imported before task automation existed.
-          await createReservationTasks(action.id);
+          await taskSideEffect(() => createReservationTasks(action.id));
           result.updated++;
           break;
         case "created":
-          await createReservationTasks(action.id);
+          await taskSideEffect(() => createReservationTasks(action.id));
           result.imported++;
           break;
       }
@@ -614,6 +627,12 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     );
     aggregate.stack = sample.stack;
     void reportError("import.sync", aggregate);
+  }
+  if (taskFailures > 0) {
+    const sample = firstTaskError instanceof Error ? firstTaskError : new Error(String(firstTaskError));
+    const aggregate = new Error(`${taskFailures} rezervasyonun görevleri açılamadı (rezervasyonlar kaydedildi) — örnek hata: ${sample.message}`);
+    aggregate.stack = sample.stack;
+    void reportError("import.sync.tasks", aggregate);
   }
 
   // Feed-disappearance reconciliation (#23, FAZ 2) — DEFAULT OFF. All the mass-cancel guards
