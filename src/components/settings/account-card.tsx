@@ -93,11 +93,11 @@ export function AccountCard({ email }: { email: string }) {
   return (
     <div className="space-y-3">
       <p className="text-sm">
-        Giriş e-postan: <strong className="font-medium">{email}</strong>
+        Giriş e-postanız: <strong className="font-medium">{email}</strong>
       </p>
       <p className="text-xs text-muted-foreground">
-        lixusai.com/login adresinden bu e-posta ve şifrenle girersin. Şifreni değiştirmek için
-        e-postana bir doğrulama kodu göndeririz — mevcut şifreni bilmene gerek yok.
+        lixusai.com/login adresinden bu e-posta ve şifrenizle giriş yaparsınız. Şifrenizi değiştirmek için
+        e-posta adresinize bir doğrulama kodu göndeririz; mevcut şifrenizi bilmeniz gerekmez.
       </p>
 
       {step === "idle" ? (
@@ -109,7 +109,7 @@ export function AccountCard({ email }: { email: string }) {
         </Button>
       ) : (
         <form onSubmit={confirmChange} className="space-y-3">
-          <Field label="E-postana gelen 8 haneli kod" htmlFor="pw-code" className="max-w-[220px]">
+          <Field label="E-postanıza gelen 8 haneli kod" htmlFor="pw-code" className="max-w-[220px]">
             <Input
               id="pw-code"
               inputMode="numeric"
@@ -159,7 +159,7 @@ export function AccountCard({ email }: { email: string }) {
       {info ? <p className="text-xs text-muted-foreground">{info}</p> : null}
       {done ? (
         <p className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-          <Check className="size-4" /> Şifre güncellendi. Bunu unutma!
+          <Check className="size-4" /> Şifreniz güncellendi.
         </p>
       ) : null}
       {error ? <p className="text-sm text-destructive">{error}</p> : null}

@@ -43,7 +43,7 @@ export function AddCustomerForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setDone(`"${form.organizationName}" eklendi. Hesabına girip Ayarlar'dan Hospitable bağlayabilirsin.`);
+        setDone(`"${form.organizationName}" eklendi. Hesabına girip Ayarlar'dan kanal bağlantısını kurabilirsiniz.`);
         setForm({ organizationName: "", name: "", email: "", password: "", billingMode: "trial" });
         router.refresh();
       } else {

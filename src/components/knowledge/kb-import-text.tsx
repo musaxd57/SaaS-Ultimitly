@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardPaste, Loader2, Settings2, SkipForward } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,15 @@ const SKIP_TEXT: Record<SkipReason, string> = {
   duplicate: "aynı bilgi zaten önerildi (çelişen ikinci değer)",
 };
 
+/**
+ * Kalem başına tekrar güvenliği kimliği (migration 67, kurucu 10-14 "İstek kimliği"): bağlantı tam cevap anında koparsa "tekrar dene"
+ * AYNI kimliği yollar, sunucu ilk denemenin yazdığı kalemi döndürür (ikinci kalem yok). `getRandomValues` (her tarayıcıda) — tahmin
+ * edilemez; başka işletmenin kimliği zaten mülk kapsamında eşleşemez.
+ */
+function newRequestId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 const FIELD_TEXT: Record<string, string> = {
   checkInTime: "Giriş saati",
   checkOutTime: "Çıkış saati",
@@ -51,8 +60,22 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // mülk + KALEMİN KENDİSİ (kategori + başlık + içerik) → kimlik. Yeni önizleme / sıfırlama temizler; mülk ya da içerik değişirse anahtar
+  // değişir. Kategori tek başına anahtar DEĞİL (Haiku 10-14): çıkarıcı bugün kategori başına tek kalem üretse de, ikinci kalem aynı kimliği
+  // alsaydı sunucu ilkini döndürür, ikincisi sessizce kaybolurdu.
+  const requestIds = useRef(new Map<string, string>());
+  const requestIdFor = (item: { category: string; title: string; content: string }) => {
+    const key = JSON.stringify([propertyId, item.category, item.title, item.content]);
+    let id = requestIds.current.get(key);
+    if (!id) {
+      id = newRequestId();
+      requestIds.current.set(key, id);
+    }
+    return id;
+  };
 
   function runPreview() {
+    requestIds.current.clear();
     const result = extractKbSuggestions(text);
     setPreview(result);
     // Varsayılan: hepsi seçili. Host çıkarmak isterse işareti kaldırır —
@@ -62,6 +85,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
   }
 
   function reset() {
+    requestIds.current.clear();
     setText("");
     setPreview(null);
     setSelected(new Set());
@@ -98,6 +122,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
             content: item.content,
             language: "tr",
             isActive: true,
+            requestId: requestIdFor(item),
           }),
         });
         if (res.ok) {

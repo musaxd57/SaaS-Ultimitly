@@ -6,6 +6,7 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
+import { isUniqueViolation } from "@/lib/db-errors";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -32,6 +33,25 @@ export const POST = withManage(async (session, req) => {
     return badRequest({ propertyId: "Geçersiz mülk" });
   }
 
+  // TEKRAR GÜVENLİĞİ (migration 67, kurucu 10-14 "İstek kimliği"): içe aktarımda bağlantı tam cevap anında koparsa istemci AYNI kimlikle
+  // yeniden dener → ilk istek kalemi yazdıysa O kalem döner (ikinci kalem yok; plan sınırı yeniden sayılmaz — kalem zaten sayılıyor).
+  // Arama mülk kapsamında (mülk yukarıda işletmeye bağlandı): başka işletmenin kimliği eşleşemez.
+  const priorFor = (requestId: string) =>
+    prisma.knowledgeBaseItem.findUnique({
+      where: { propertyId_clientRequestId: { propertyId: d.propertyId, clientRequestId: requestId } },
+    });
+  // Var olan kalem dönerken eşitlemeler YİNE koşar (Haiku 10-14): ilk istek kalemi yazıp hafıza / vektör eşitlemesinden önce kesildiyse
+  // yeniden deneme onları tamamlar. İkisi de tekrar güvenli (fırlatmaz, aynı sonucu yazar).
+  const replay = async (prior: NonNullable<Awaited<ReturnType<typeof priorFor>>>) => {
+    await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
+    warmPropertyKbVectorsBestEffort(d.propertyId);
+    return jsonOk(prior, 200);
+  };
+  if (d.requestId) {
+    const prior = await priorFor(d.requestId);
+    if (prior) return replay(prior);
+  }
+
   // PLAN SINIRLARI (billing/plan-limits.ts). İki ayrı kapı, ikisi de gerekli:
   //  · ADET — paketleri ayrıştıran ölçü (Başlangıç 15 / Pro 30 / İşletme 60).
   //  · KARAKTER — adet sınırının kaçış yolunu kapatır: yoksa host her şeyi TEK
@@ -46,28 +66,43 @@ export const POST = withManage(async (session, req) => {
     where: { propertyId: d.propertyId, isActive: true },
   });
   if (d.isActive && activeCount >= limits.kbItemsPerProperty) {
+    // Eş zamanlı iki deneme: sayımı dolduran kalem bu kimliğin kalemi olabilir (öteki deneme az önce yazdı) — o zaman sınır hatası
+    // değil, o kalem döner (Haiku 10-14).
+    const prior = d.requestId ? await priorFor(d.requestId) : null;
+    if (prior) return replay(prior);
     return badRequest({
       _: `Planınızın izin verdiği bilgi tabanı sınırına ulaştınız (daire başına ${limits.kbItemsPerProperty} kayıt). Kullanmadığınız kayıtları pasife alabilir veya planınızı yükseltebilirsiniz.`,
     });
   }
 
-  const item = await prisma.knowledgeBaseItem.create({
-    data: {
-      propertyId: d.propertyId,
-      category: d.category,
-      title: d.title,
-      content: d.content,
-      language: d.language,
-      isActive: d.isActive,
-      // ONAY SÖZLEŞMESİ (A1): host bu metni KENDİ yazdı ve KENDİ kaydetti —
-      // bundan daha açık bir onay yok, `approvedAt` de o anın GERÇEK zamanı.
-      // Kolon varsayılanı da aynı; burada AÇIKÇA yazılıyor ki `approvedAt`
-      // ile `reviewState` asla ayrışmasın ("approved ama zamanı yok" olmasın).
-      source: "host_manual",
-      reviewState: "approved",
-      approvedAt: new Date(),
-    },
-  });
+  let item;
+  try {
+    item = await prisma.knowledgeBaseItem.create({
+      data: {
+        propertyId: d.propertyId,
+        category: d.category,
+        title: d.title,
+        content: d.content,
+        language: d.language,
+        isActive: d.isActive,
+        // ONAY SÖZLEŞMESİ (A1): host bu metni KENDİ yazdı ve KENDİ kaydetti —
+        // bundan daha açık bir onay yok, `approvedAt` de o anın GERÇEK zamanı.
+        // Kolon varsayılanı da aynı; burada AÇIKÇA yazılıyor ki `approvedAt`
+        // ile `reviewState` asla ayrışmasın ("approved ama zamanı yok" olmasın).
+        source: "host_manual",
+        reviewState: "approved",
+        approvedAt: new Date(),
+        clientRequestId: d.requestId ?? null,
+      },
+    });
+  } catch (err) {
+    // İki yeniden deneme AYNI ANDA geldiyse kaybeden, kazananın kalemini alır (yalnız BU benzersizlik ihlali; başkası fırlar).
+    if (d.requestId && isUniqueViolation(err, ["propertyId", "clientRequestId"])) {
+      const prior = await priorFor(d.requestId);
+      if (prior) return replay(prior);
+    }
+    throw err;
+  }
   // V1: KB = mülk hafızasının kaynağı → hafıza anında eşitlenir (fırlatmaz; KB kaydı başarılı kalır).
   await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
   // #189: anlamsal vektörler yazma anında (misafirin bir sonraki mesajı sözcüksele düşmesin; beklemez, fırlatmaz).

@@ -173,7 +173,8 @@ export function canManage(session: SessionPayload | null): boolean {
  * email via reportError — a plain `catch {}` here would make the failure totally
  * invisible (only `reportError`, NOT bare console.error, is captured).
  */
-const DEFAULT_SERVER_ERROR = "Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.";
+// Sade ve mantıklı sıra (kurucu 10-15: "o nasıl bir açıklama"): işlem arka planda tamamlanmış olabilir → önce yenile, olmadıysa tekrar dene.
+const DEFAULT_SERVER_ERROR = "Bir sorun oluştu. Sayfayı yenileyin; işlem tamamlanmadıysa birazdan tekrar deneyin.";
 
 export function serverError(message = DEFAULT_SERVER_ERROR, err?: unknown) {
   if (err !== undefined) {

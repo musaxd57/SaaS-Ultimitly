@@ -83,7 +83,7 @@ export function TwoFactorCard({
       setEnabled(true);
       setSecret(null);
       setCode("");
-      setDone("2FA açıldı. Artık girişte telefonundaki kod istenecek.");
+      setDone("İki adımlı doğrulama açıldı. Artık girişte telefonunuzdaki kod istenecek.");
     } else {
       setError(data.fields?.code ?? data.error ?? "Kod doğrulanamadı.");
     }
@@ -232,15 +232,15 @@ export function TwoFactorCard({
     return (
       <form onSubmit={confirmEnable} className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Telefonunda <strong>Google Authenticator</strong> ya da <strong>Authy</strong> aç →
-          &quot;Hesap ekle&quot; → <strong>&quot;Kurulum anahtarı gir&quot;</strong> de ve aşağıdaki
-          anahtarı yaz (hesap adı: Lixus AI):
+          Telefonunuzda <strong>Google Authenticator</strong> ya da <strong>Authy</strong> uygulamasını açın →
+          &quot;Hesap ekle&quot; → <strong>&quot;Kurulum anahtarı gir&quot;</strong> seçin ve aşağıdaki
+          anahtarı yazın (hesap adı: Lixus AI):
         </p>
         <div className="rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm tracking-wider break-all">
           {secret.match(/.{1,4}/g)?.join(" ")}
         </div>
         <p className="text-sm text-muted-foreground">
-          Eklenince uygulama 6 haneli kod üretmeye başlar. O kodu buraya gir:
+          Eklenince uygulama 6 haneli kod üretmeye başlar. O kodu buraya girin:
         </p>
         <Field label="Uygulamadaki kod" htmlFor="tf-on" error={error ?? undefined} className="max-w-[240px]">
           <Input id="tf-on" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} placeholder="6 haneli kod" autoFocus />
@@ -258,28 +258,28 @@ export function TwoFactorCard({
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
         <strong className="text-foreground">Ne işe yarar?</strong> Şifrene ek bir güvenlik katmanı.
-        Açıkken girişte, şifrenin yanında telefonundaki uygulamadan 6 haneli bir kod da istenir —
-        şifren çalınsa bile telefonun olmadan kimse giremez. Kod 30 saniyede bir yenilenir.
+        Açıkken girişte, şifrenizin yanında telefonunuzdaki uygulamadan 6 haneli bir kod da istenir.
+        Şifreniz çalınsa bile telefonunuz olmadan kimse giremez. Kod 30 saniyede bir yenilenir.
       </p>
       <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
         <p className="mb-1.5 font-medium text-foreground">Nasıl yapılır? (2 dakika)</p>
         <ol className="list-decimal space-y-1 pl-4">
           <li>
-            Telefonuna <strong>Google Authenticator</strong> (veya Authy) uygulamasını indir —
-            ücretsiz.
+            Telefonunuza <strong>Google Authenticator</strong> (veya Authy) uygulamasını indirin;
+            ücretsizdir.
           </li>
           <li>
-            Aşağıda <strong>hesap şifreni gir</strong> ve <strong>&quot;2FA kur&quot;</strong>
-            butonuna bas; ekranda bir anahtar çıkar.
+            Aşağıya <strong>hesap şifrenizi girin</strong> ve <strong>&quot;2FA kur&quot;</strong>
+            düğmesine basın; ekranda bir anahtar çıkar.
           </li>
           <li>
-            Uygulamada <strong>&quot;Hesap ekle → Kurulum anahtarı gir&quot;</strong> de; anahtarı yaz
+            Uygulamada <strong>&quot;Hesap ekle → Kurulum anahtarı gir&quot;</strong> seçin; anahtarı yazın
             (anahtar türü: <strong>Zaman bazlı / Time based</strong>).
           </li>
-          <li>Uygulamanın ürettiği 6 haneli kodu buraya gir → 2FA açılır.</li>
+          <li>Uygulamanın ürettiği 6 haneli kodu buraya girin; iki adımlı doğrulama açılır.</li>
         </ol>
         <p className="mt-1.5 text-xs">
-          Not: Telefonunu kaybetmemek için uygulamanın yedeklemesini (bulut senkron) açık tut.
+          Not: Telefonunuzu kaybederseniz kodlara erişebilmek için uygulamanın bulut yedeklemesini açık tutun.
         </p>
       </div>
       {/* 🚨 ŞİFRE ONAYI — sunucu `setup`ta yeniden kimlik doğrulama istiyor

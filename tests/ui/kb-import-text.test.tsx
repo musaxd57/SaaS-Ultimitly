@@ -211,6 +211,68 @@ describe("Y10 (10-14 dış inceleme): kısmi başarıdan sonra tekrar deneme yal
     expect(all.slice(2)).toEqual([first[1]]);
   });
 
+  // Migration 65 (kurucu 10-14 "İstek kimliği"): bağlantı TAM cevap anında koparsa sunucu kalemi yazmış olabilir; ekran bunu bilemez.
+  // Yeniden deneme AYNI kimliği yollar → sunucu ilk kalemi döndürür, ikinci kalem açılmaz (`tests/integration/kb-create-request-id`).
+  it("🚨 kopan istekte yeniden deneme AYNI istek kimliğini yollar; yeni önizleme YENİ kimlik üretir", async () => {
+    let n = 0;
+    const fetchMock = vi.fn(async () => {
+      n++;
+      if (n === 2) throw new TypeError("Failed to fetch");
+      return { ok: true, status: 201, json: async () => ({}) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    openPanel();
+    paste(TWO);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    const bodyOf = (c: unknown) => JSON.parse(String((c as [string, RequestInit])[1].body)) as { category: string; requestId?: string };
+    const bodies = fetchMock.mock.calls.map(bodyOf);
+    expect(bodies).toHaveLength(3);
+    for (const b of bodies) expect(b.requestId).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
+    // 2. istek (koptu) ile 3. istek (yeniden deneme) AYNI kalem, AYNI kimlik; ilk kalemin kimliği farklı.
+    expect(bodies[2].category).toBe(bodies[1].category);
+    expect(bodies[2].requestId).toBe(bodies[1].requestId);
+    expect(bodies[0].requestId).not.toBe(bodies[1].requestId);
+    // Yeni önizleme = yeni kimlik (eski kimlik eski kalemi döndürmesin).
+    paste(TWO);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    const after = fetchMock.mock.calls.slice(3).map(bodyOf);
+    expect(after.length).toBe(2);
+    for (const a of after) expect([bodies[0].requestId, bodies[1].requestId]).not.toContain(a.requestId);
+  });
+
+  it("🚨 bağlantı koptu, ev sahibi metni DEĞİŞTİRİP yeniden önizledi → aynı kategori YENİ kimlikle gider (eski kalem yeni içeriğin yerine dönmez)", async () => {
+    let n = 0;
+    const fetchMock = vi.fn(async () => {
+      n++;
+      if (n === 2) throw new TypeError("Failed to fetch");
+      return { ok: true, status: 201, json: async () => ({}) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    openPanel();
+    paste(TWO);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    const bodyOf = (c: unknown) => JSON.parse(String((c as [string, RequestInit])[1].body)) as { category: string; content: string; requestId?: string };
+    const lost = bodyOf(fetchMock.mock.calls[1]);
+    // Panel sıfırlanmadı (hata) — ev sahibi aynı konuyu farklı yazıp yeniden önizliyor.
+    paste(["Çöpleri binanın arka bahçesindeki gri konteynere bırakabilirsiniz.", "Otopark bina önündedir, ücretlidir."].join("\n"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
+    });
+    const again = fetchMock.mock.calls.slice(2).map(bodyOf).find((b) => b.category === lost.category);
+    expect(again).toBeDefined();
+    expect(again!.content).not.toBe(lost.content);
+    expect(again!.requestId).not.toBe(lost.requestId);
+  });
+
   it("ekleme sürerken metin alanı ve Önizle KİLİTLİ (biten işlem yeni yazılanı silmez)", async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));

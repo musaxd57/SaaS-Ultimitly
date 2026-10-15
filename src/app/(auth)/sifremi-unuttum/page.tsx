@@ -8,9 +8,9 @@ export default function ForgotPasswordPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1.5">
-        <h1 className="text-xl font-semibold tracking-tight">Şifreni mi unuttun?</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Şifrenizi mi unuttunuz?</h1>
         <p className="text-sm text-muted-foreground">
-          E-postana bir doğrulama kodu gönderelim; yeni şifreni hemen belirle.
+          E-posta adresinize bir sıfırlama kodu gönderelim, ardından yeni şifrenizi oluşturun.
         </p>
       </div>
       <ForgotPasswordForm />

@@ -69,8 +69,8 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
   operatörde (kurucu 10-15); kurucu Railway'de deneyip beğenirse "1" → müşterilerde de görünür (kod hazır).
 - `HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED` — KAPALI kalır. Açılırsa müşteri SERBEST metin talimat da yazar (bugünkü karar: müşteri
   yalnız hazır seçenek).
-- ⚠️ Hazır yama `docs/hazir-yamalar/2026-10-14-KB-istek-kimligi-migration-65.patch` uygulanırken migration adı **67** olmalı (65 `65_history_learn`,
-  66 `66_property_instruction_by_operator`).
+- ✅ KB içe aktarım istek kimliği (kurucu kararı 10-14 "İstek kimliği") ana dala alındı: **migration 67** `67_kb_client_request_id` (NULL'lanabilir
+  kolon + (mülk, kimlik) benzersiz dizini; taze PG'de fark sıfır). Railway açılışında 65 + 66 + 67 birlikte uygulanır → önce taze yedek.
 - ⚠️ Migration 65 itildikten SONRA değiştirilmedi; operatör işareti ayrı migration 66 (Opus 10-15 son kontrol). Yerelde 65'i daha önce
   uyguladıysanız `npx prisma migrate deploy` yalnız 66'yı ekler.
 - GitHub Actions sırrı `ANTHROPIC_API_KEY` (Railway'e DEĞİL; yalnız test iş akışı) — kurucu 10-15 ekledi.

@@ -131,7 +131,7 @@ describe("kimlikli istek — numara başlıkta, hata günlükte aynı numarayla"
     expect(res.status).toBe(500);
     const id = res.headers.get(CORRELATION_HEADER)!;
     const body = await res.json();
-    expect(body.error).toBe("Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.");
+    expect(body.error).toBe("Bir sorun oluştu. Sayfayı yenileyin; işlem tamamlanmadıysa birazdan tekrar deneyin.");
     expect(body).not.toHaveProperty("correlationId");
     const rows = await waitFor(() => events({ correlationId: id }), (r) => r.length > 0);
     expect(rows).toMatchObject([{ event: "error.reported", organizationId: o.orgId }]);

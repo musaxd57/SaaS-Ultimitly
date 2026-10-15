@@ -253,10 +253,18 @@ export const kbSchema = z.object({
   // (Boolean("false")). Callers send real booleans; a stringy "false" should be
   // rejected, not silently activate the item. default(true) still handles absent.
   isActive: z.boolean().default(true),
+  /**
+   * İçe aktarma tekrar güvenliği (migration 67, kurucu 10-14): istemcinin kalem başına ürettiği rastgele kimlik — aynı mülkte aynı kimlik
+   * ikinci kalem açmaz. İsteğe bağlı (elle ekleme göndermez). Yalnız oluşturmada; düzenleme şeması kabul etmez.
+   */
+  requestId: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{16,64}$/u, "Geçersiz istek")
+    .optional(),
 });
 export type KbInput = z.infer<typeof kbSchema>;
 
-export const kbUpdateSchema = kbSchema.partial().omit({ propertyId: true });
+export const kbUpdateSchema = kbSchema.partial().omit({ propertyId: true, requestId: true });
 
 /** Helper to format a ZodError into a flat { field: message } map for the API. */
 export function zodFieldErrors(error: z.ZodError): Record<string, string> {

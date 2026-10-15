@@ -151,13 +151,13 @@ describe("500 yanıtı — takip numarası (kurucu metni AYNEN; ekranda YALNIZ �
   it("🚨 ödeme dışı kimlikli uçta numara VAR ama ekranda GÖSTERİLMEZ: eski metin, gövdede numara yok", async () => {
     const res = await runWithCorrelation({ id: newCorrelationId(), organizationId: "org-1" }, async () => serverError());
     const body = await res.json();
-    expect(body.error).toBe("Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.");
+    expect(body.error).toBe("Bir sorun oluştu. Sayfayı yenileyin; işlem tamamlanmadıysa birazdan tekrar deneyin.");
     expect(body).not.toHaveProperty("correlationId");
   });
 
   it("numara yoksa (anonim / misafir rotası) eski metin, gövdede numara YOK (misafir Lixus desteğine yazmaz)", async () => {
     const body = await serverError().json();
-    expect(body.error).toBe("Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.");
+    expect(body.error).toBe("Bir sorun oluştu. Sayfayı yenileyin; işlem tamamlanmadıysa birazdan tekrar deneyin.");
     expect(body).not.toHaveProperty("correlationId");
   });
 });
