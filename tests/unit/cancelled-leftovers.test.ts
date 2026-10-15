@@ -52,6 +52,21 @@ describe("iptal edilmiş konaklamada kalan sistem görevleri — saf sayım", ()
     expect([s.pastStay, s.futureStay]).toEqual([1, 3]);
   });
 
+  it("kurucu D5 aday ayrımı: yalnız başlanmamış + dokunulmamış aday; başlanmış ve dokunulmuş KORUNUR (ayrı sayılır)", () => {
+    const s = summarizeLeftovers(
+      [
+        row(), // aday
+        row({ assigned: true }), // aday, atanmış
+        row({ status: "in_progress" }), // başlanmış → korunur
+        row({ status: "awaiting_review", staffUpdates: 1 }), // başlanmış → korunur (bir kez sayılır)
+        row({ staffUpdates: 1 }), // dokunulmuş → korunur
+        row({ otherPhotos: 1 }), // fotoğraflı → korunur
+      ],
+      NOW,
+    );
+    expect([s.candidates, s.candidatesAssigned, s.protectedStarted, s.protectedTouched]).toEqual([2, 1, 2, 2]);
+  });
+
   it("çıktıda kimlik / ad yok: yalnız sayı ve sabit anahtarlar", () => {
     const json = JSON.stringify(summarizeLeftovers([row({ res: { id: "gizli-rezervasyon-kimligi", organizationId: "gizli-isletme-kimligi" } })], NOW));
     expect(json).not.toContain("gizli-rezervasyon-kimligi");

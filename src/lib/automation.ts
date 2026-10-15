@@ -196,7 +196,7 @@ import {
 } from "@/lib/email-templates";
 import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
-import { OPEN_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { OPEN_AUTO_LIFECYCLE_TASK_WHERE, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
 
 const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 
@@ -1248,7 +1248,10 @@ function reservationTasksToCreate(
  * cancellation — only lifecycle-generated tasks are dropped.
  * Best-effort + idempotent: safe to call on every sync. Returns the number removed.
  */
-export async function removeAutoTasksForCancelledReservation(reservationId: string): Promise<number> {
+export async function removeAutoTasksForCancelledReservation(
+  reservationId: string,
+  opts: { repair?: boolean } = {},
+): Promise<number> {
   // Kilitsiz ön okuma YALNIZ "iptal DEĞİL → yapılacak iş yok" der (çağıran kendi iptalini commit ettikten SONRA çağırır; arada yeniden
   // onaylandıysa kilit altındaki okuma zaten 0 döner). "İptal ve silinecek görev yok" ise kilitsiz bir KANIT DEĞİLDİR (ChatGPT 10-15,
   // `cancel-paths-lock-protocol.test.ts`): iptalden ÖNCE başlamış görev açan işlem kilit altında rezervasyonu "onaylı" okumuş, görevleri
@@ -1258,7 +1261,12 @@ export async function removeAutoTasksForCancelledReservation(reservationId: stri
   if (!r0 || r0.status !== "cancelled") return 0;
   // ONLY lifecycle-generated tasks: a host's own task tied to this reservation (origin manual) or a message-driven one (ai) must
   // survive the booking being cancelled — deleting them destroyed user data. Küme TEK kaynakta (salt-okuma artık teşhisiyle ortak).
-  const doomed: Prisma.TaskWhereInput = { reservationId, ...OPEN_AUTO_LIFECYCLE_TASK_WHERE };
+  // `repair` (onarım çağrısı — iptal geçişinin kendisi değil): yalnız başlanmamış + dokunulmamış görevler (kurucu D5, 10-15). Kilit ve
+  // protokol AYNI; seçenek yalnız silinecek kümeyi daraltır, kısa yol açmaz.
+  const doomed: Prisma.TaskWhereInput = {
+    reservationId,
+    ...(opts.repair ? UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE : OPEN_AUTO_LIFECYCLE_TASK_WHERE),
+  };
   // 🚨 Temizlikçinin bu görevlere yüklediği fotoğraflar kovada sahipsiz kalıyordu (inceleme b1, 09-30): güncellemeler görevle
   // birlikte silinince hesap silme de onları bulamaz. Silme niyeti AYNI işlemde (görev / mülk silmeyle aynı sözleşme).
   // Görev oluşturmayla AYNI rezervasyon kilidi (Opus 10-15 B6): yarışan "Eksik görevleri oluştur" ya önce biter (görevlerini burada

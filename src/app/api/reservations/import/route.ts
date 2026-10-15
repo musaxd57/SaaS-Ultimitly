@@ -530,7 +530,7 @@ export const POST = withManage(async (session, req) => {
     if (c.action === "skip") {
       if (c.error) errors.push(c.error);
       const healId = c.reason === "cancelled_stays" || c.reason === "cancel_already" ? c.existingId : null;
-      if (healId) await taskSideEffect(() => removeAutoTasksForCancelledReservation(healId), "cancel");
+      if (healId) await taskSideEffect(() => removeAutoTasksForCancelledReservation(healId, { repair: true }), "cancel");
       skipped++;
       continue;
     }

@@ -17,6 +17,17 @@ export const OPEN_AUTO_LIFECYCLE_TASK_WHERE = {
   origin: "system",
 } satisfies Prisma.TaskWhereInput;
 
+/** ONARIM kümesi (kurucu D5, 10-15: "Yalnız … sistemin oluşturduğu, başlanmamış temizlik/giriş hazırlığı görevleri aday olsun. Manuel
+ *  görevleri, mesajdan açılanları, tamamlanmış veya personelin işlem yaptığı görevleri koru."): iptal ANINDAKİ temizlik değil, sonradan
+ *  yapılan onarım (senkronun onarım taraması, "zaten iptal" satırı, dosyanın yeniden yüklenmesi) yalnız bunu siler — başlanmış ("devam
+ *  ediyor" / "onay bekliyor") ya da bir kişinin güncellemesi / fotoğrafı olan görev KORUNUR ve teşhis betiğinde ayrı sayılır. */
+export const UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE = {
+  status: "todo",
+  type: { in: ["checkin_prep", "cleaning"] },
+  origin: "system",
+  updates: { none: { OR: [{ userId: { not: null } }, { photoUrl: { not: null } }] } },
+} satisfies Prisma.TaskWhereInput;
+
 /** Depoya yüklenmiş fotoğrafın adres öneki — `lib/storage/keys.ts` `STORAGE_PHOTO_URL_PREFIX` ile AYNI (o modül sunucuya özel, betik
  *  import edemez; eşitlik birim testte pinli). Temizlik yalnız bunları depodan silme kuyruğuna alır; dış bağlantılar ayrı sayılır. */
 export const STORAGE_PHOTO_PREFIX = "/api/storage/photo/";
@@ -50,6 +61,12 @@ export type LeftoverSummary = {
   /** Konaklamanın çıkışı geçmişte mi (görev sayısı). */
   pastStay: number;
   futureStay: number;
+  /** Kurucu D5 (10-15) aday tanımı: BAŞLANMAMIŞ ("yapılacak") ve bir kişinin dokunmadığı (güncelleme / fotoğraf yok) görev. Başlanmış ya da
+   *  dokunulmuş olanlar KORUNUR ve ayrı sayılır; atanmış adaylar ayrıca gösterilir (atamayı ev sahibi yapar, karar ona sorulur). */
+  candidates: number;
+  candidatesAssigned: number;
+  protectedStarted: number;
+  protectedTouched: number;
 };
 
 /** Saf: satırları sayılara indirger (kimlik, ad, başlık ÇIKMAZ). */
@@ -70,8 +87,19 @@ export function summarizeLeftovers(rows: readonly LeftoverRow[], now: Date): Lef
     bySource: { calendar_feed: 0, file: 0, other: 0 },
     pastStay: 0,
     futureStay: 0,
+    candidates: 0,
+    candidatesAssigned: 0,
+    protectedStarted: 0,
+    protectedTouched: 0,
   };
   for (const r of rows) {
+    const touched = r.staffUpdates > 0 || r.storagePhotos > 0 || r.otherPhotos > 0;
+    if (r.status !== "todo") s.protectedStarted++;
+    else if (touched) s.protectedTouched++;
+    else {
+      s.candidates++;
+      if (r.assigned) s.candidatesAssigned++;
+    }
     inc(perOrg, r.reservation.organizationId);
     inc(s.byType, r.type);
     inc(s.byStatus, r.status);

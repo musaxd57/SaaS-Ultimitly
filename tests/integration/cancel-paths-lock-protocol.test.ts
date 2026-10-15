@@ -294,6 +294,22 @@ describe("İptal yolları — aynı rezervasyon kilidi (iptalden ÖNCE başlamı
     expect(await systemTasks(s.reservationId)).toBe(0);
   });
 
+  it("kurucu D5: ONARIM yalnız başlanmamış + dokunulmamış sistem görevini siler; başlanmış ya da bir kişinin güncellediği görev KORUNUR", async () => {
+    const s = await icalBound(ctx, { status: "cancelled" });
+    const user = await prisma.user.create({ data: { organizationId: ctx.orgId, name: "Temizlikçi", email: `t-${ctx.orgId}@x.com`, passwordHash: "x", role: "staff" } });
+    const untouched = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: s.reservationId, type: "checkin_prep", origin: "system", title: "x", status: "todo" } });
+    const started = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: s.reservationId, type: "cleaning", origin: "system", title: "x", status: "in_progress" } });
+    const noted = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: s.reservationId, type: "cleaning", origin: "system", title: "x", status: "todo" } });
+    await prisma.taskUpdate.create({ data: { taskId: noted.id, userId: user.id, note: "anahtar alındı" } });
+    vi.mocked(fetchFeedText).mockResolvedValue(calendar(vevent("kalan@airbnb.com", false))); // satır feed'de yok → onarım taraması
+    await syncCalendarSource(s.sourceId!);
+    expect(await prisma.task.findUnique({ where: { id: untouched.id } })).toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: started.id } })).not.toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: noted.id } })).not.toBeNull();
+    // İptal GEÇİŞİNİN kendisi (onarım değil) bugünkü kümeyi siler — bu tur değiştirilmedi.
+    expect(await removeAutoTasksForCancelledReservation(s.reservationId)).toBe(2);
+  });
+
   it("aşırı uygulama yok (onarım taraması): onaylı satırın görevleri, ev sahibinin kendi görevi ve BAŞKA kaynağın iptalli satırı dokunulmaz", async () => {
     const s = await icalBound(ctx); // onaylı, bu kaynağın satırı
     await leftoverTasksFor(ctx, s.reservationId);

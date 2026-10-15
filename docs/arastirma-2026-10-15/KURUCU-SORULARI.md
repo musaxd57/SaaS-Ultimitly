@@ -210,3 +210,49 @@ envanterinden bir cihaz" = bakım görevi (cihaz envanteri ve olumsuzluk kuralla
 - **D7:** "İlk seçenek. Ara temizlik sözü veya manuel temizlik, otomatik çıkış temizliğini engellemesin; mevcut söz görevi korunsun. Ancak
   tamamlanmış sistem görevi yalnız aynı rezervasyonun aynı çıkış temizliğiyse tekrar oluşturmayı engellesin. Çıkış tarihi sonradan
   değişmişse eski tamamlanmış işi otomatik olarak yeni tarihin temizliği sayma; bu durumun önerilen davranışını ayrıca göster."
+
+## F. Kararlara göre durum ve açıklamalar (10-15 akşam)
+
+### D5 açıklaması — kalıcı silme yerine iptal / arşiv mümkün mü?
+- **Bugün:** iptal temizliği görevi KALICI siler; görevin güncellemeleri (not, durum geçmişi) de silinir, depodaki fotoğraflar silme kuyruğuna
+  girer. Geriye iz kalmaz.
+- **Seçenek A — görev durumuna "iptal edildi" eklemek (migration GEREKMEZ; durum metin sütunu):** görev, notları ve fotoğrafları KALIR;
+  panoda, temizlikçi listesinde ve sayılarda görünmez. Bedel: görev durumunu okuyan ~11 sorgu ve ekranın (Kanban sütunları, temizlikçi
+  görünümü, rapor sayıları, eksik görev bandı, tarih takibi, dışa aktarma, görev açmanın "var mı?" kontrolü) yeni durumu bilmesi gerekir;
+  bilmeyen yer iptal görevi "yapılacak" gösterir ya da "temizlik var" sayıp yenisini engeller (D7 ile bağlantılı). Rezervasyon yeniden
+  açılırsa iptal görev geri mi açılır, yenisi mi açılır — kural gerekir (önerim: yenisi açılır, eskisi iptal kalır).
+- **Seçenek B — ayrı "arşivlendi" sütunu:** A ile aynı tarama bedeli + migration.
+- **Kişisel veri:** görev başlığı misafir adı taşıyor; arşivlenen görev de saklama süresi temizliğinin kapsamında kalır (bugünkü temizlik
+  görev başlığını zaten kapsıyor — `data-retention.ts`).
+- **Önerim:** A. Bir kerelik onarım ve iptal temizliği "sil" yerine "iptal edildi" yapar; önce durumu okuyan bütün yerlerin envanteri ve
+  testleri. Kararını bekliyorum; şimdilik HİÇBİR artık görev değiştirilmiyor.
+- **Bu turda yapılan (kararına uygun):** otomatik ONARIM yolları (takvim senkronunun onarım taraması, "zaten iptal" satırı, dosyanın yeniden
+  yüklenmesi) artık yalnız senin aday tanımındaki görevleri temizliyor: sistemin açtığı, BAŞLANMAMIŞ, kimsenin güncellemediği / fotoğraf
+  eklemediği giriş hazırlığı / temizlik. Başlanmış ya da kişi izi olan görev korunur. İptal ANINDAKİ temizlik bugünkü gibi (ürün davranışı;
+  değiştirmek ayrı karar). Teşhis betiği aday / korunacak ayrımını sayar; hiçbir şey değiştirmez. "Eksik görevleri oluştur" düğmesine
+  dokunulmadı.
+- **Not:** canlıda takvim bağlantısı 0 (09-19 yedeği) → onarım taraması bugün hiçbir eski satıra uğramaz. Hospitable senkronunun her turda
+  iptal temizliği çağırması ÖNCEDEN vardı (kurucu org'da 402 → koşmuyor).
+
+### D4 öncelik örnekleri (2 / 24 saat hedefleri KESİNLEŞTİRİLMEDİ — senin seçimin)
+| Durum | Örnek misafir mesajı | Neden ayrı | Önerdiğim sınıf |
+|---|---|---|---|
+| Kilitlenemeyen kapı | "Kapı kilitlenmiyor, gece açık kalacak" | güvenlik; misafir içeride ama kapı açık | yüksek |
+| İçeride mahsur kalma | "Kapının kilidi bozuldu, çıkamıyoruz" | kişi güvenliği | en yüksek (bugünkü acil güvenlik yolu zaten acil açıyor) |
+| Tamamen susuzluk | "Hiç su yok, ne musluktan ne duştan" | konaklama kullanılamaz | yüksek |
+| Tek tuvaletin kullanılamaması | "Tuvalet tıkalı, başka tuvalet yok" | konaklama kullanılamaz | yüksek |
+| Tek cihaz arızası | "Musluktan su gelmiyor" (duş çalışıyor) | konfor | normal |
+| Varsayım / soru / olumsuzlama | "Su akmıyor mu acaba?", "Kilit bozulmadı" | arıza bildirimi DEĞİL | görev yok |
+- Görev başlığı "misafir bildirimi" olduğunu söyleyecek (ör. "Bakım — misafir bildirimi: kapı"); doğrulanmış arıza gibi yazılmayacak.
+- Otomatik görev ayarı kapalıysa görev yok; misafire hiçbir müdahale / teknisyen sözü gitmez (değişmez).
+- **Sıra:** önce bu tablo üzerinde senin "yüksek / en yüksek" için saat seçimin; tespit genişletmesi (gerçek bildirim ↔ varsayım / olumsuzlama /
+  soru ayrımıyla) ayrı dilim, örnek mesaj setiyle ölçülerek.
+
+### Uygulama sırası (kararlarına göre)
+1. D7 (görev "var mı?" yalnız sistem görevi; bitmiş görev yalnız aynı tarihteyse engeller) — migration yok.
+2. D6 (PATCH ile açma "Yeniden aç" kurallarından; sağlayıcı işareti yalnız sağlayıcı satırında; tekrar ikinci görev açmaz) — migration yok.
+3. D1 (form başına kimlik; uyuşmazlıkta metin korunur, kaydedilmiş kalem gösterilip düzenleme seçeneği) — migration yok.
+4. D2 + D3 → **migration 68 gerekiyor** (kopyanın kaynak bağı + kopyalandığı andaki içerik izi; sözün istek kimliği + tekil dizin). Uygulamadan
+   ÖNCE şemayı ve geri alma planını sana göstereceğim (senin şartın).
+5. D4 → yukarıdaki saat seçiminden sonra.
+6. D5 → arşiv seçimini bekliyor; sayım Railway açılınca.

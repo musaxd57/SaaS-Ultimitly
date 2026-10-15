@@ -70,6 +70,10 @@ async function main() {
   console.log(`  depo fotoğrafı / dış bağlantı    : ${s.withStoragePhotos} / ${s.withOtherPhotos}`);
   console.log(`  kaynak: takvim bağlantısı / dosya / diğer : ${s.bySource.calendar_feed} / ${s.bySource.file} / ${s.bySource.other}`);
   console.log(`  konaklama çıkışı geçmişte / gelecekte     : ${s.pastStay} / ${s.futureStay}`);
+  console.log("Kurucu D5 (10-15) ayrımı — bu betik HİÇBİR ŞEYİ değiştirmez:");
+  console.log(`  aday (başlanmamış, kimse dokunmamış)      : ${s.candidates}  (bunlardan birine atanmış: ${s.candidatesAssigned})`);
+  console.log(`  KORUNUR — başlanmış / onay bekliyor        : ${s.protectedStarted}`);
+  console.log(`  KORUNUR — kişi güncellemesi ya da fotoğraf : ${s.protectedTouched}`);
 }
 
 main()

@@ -14,7 +14,7 @@ import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 import { recordIngestEvent, type IngestContext } from "@/lib/ingest/events";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
-import { OPEN_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
 import { directChannelsForProperty, icalChannelOfUrl, icalWriteAuthority, standbySummary } from "@/lib/channels/ical-authority";
 
 export interface SyncResult {
@@ -592,7 +592,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           break;
         case "cancelled_already":
           cleanupTried.add(action.id);
-          await taskSideEffect(() => removeAutoTasksForCancelledReservation(action.id), "cancel");
+          await taskSideEffect(() => removeAutoTasksForCancelledReservation(action.id, { repair: true }), "cancel");
           result.skipped++;
           break;
         case "cancelled":
@@ -648,20 +648,20 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     void reportError("import.sync", aggregate);
   }
   // ONARIM YOLU (kurucu / Codex 10-15: "alarm göndermek, başarısız temizliği tamamlamak değildir"): bu kaynağa bağlı, İPTAL edilmiş ve
-  // hâlâ açık sistem görevi olan satırlar her senkronda yeniden temizlenir — önceki turun düşen temizliği, feed'den artık kaybolmuş
+  // hâlâ BAŞLANMAMIŞ + dokunulmamış sistem görevi olan satırlar (kurucu D5 kümesi) her senkronda yeniden temizlenir — önceki turun düşen temizliği, feed'den artık kaybolmuş
   // (bu yüzden "zaten iptal" satırı olarak hiç gelmeyen) satırlar ve kayıp uzlaştırmasının iptalleri dahil. Sınırlı küme (turda en çok
   // 50), aynı kilitli fonksiyon; bu turda zaten denenen satır ikinci kez denenmez. Kilitsiz "görevi var mı?" okuması burada kanıt değil
   // TARAMA'dır: iptal geçişinin kendi kilitli temizliği asıl güvencedir, bu tur kaçırılan bir sonrakinde yakalanır.
   const leftover = await prisma.reservation
     .findMany({
-      where: { calendarSourceId: source.id, status: "cancelled", tasks: { some: OPEN_AUTO_LIFECYCLE_TASK_WHERE } },
+      where: { calendarSourceId: source.id, status: "cancelled", tasks: { some: UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } },
       select: { id: true },
       take: CLEANUP_RETRY_PER_RUN,
     })
     .catch(() => [] as { id: string }[]);
   for (const r of leftover) {
     if (cleanupTried.has(r.id)) continue;
-    await taskSideEffect(() => removeAutoTasksForCancelledReservation(r.id), "cancel");
+    await taskSideEffect(() => removeAutoTasksForCancelledReservation(r.id, { repair: true }), "cancel");
   }
   if (taskFailures + cancelCleanupFailures > 0) {
     const sample = firstTaskError instanceof Error ? firstTaskError : new Error(String(firstTaskError));
