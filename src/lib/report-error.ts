@@ -2,7 +2,7 @@ import "server-only";
 
 import { currentCorrelation, newCorrelationId, runWithCorrelation } from "./correlation";
 import { logEvent } from "./event-log";
-import { reportError as reportErrorCore, type ReportOutcome } from "./report-error-core";
+import { reportError as reportErrorCore, sentryArea, type ReportOutcome } from "./report-error-core";
 
 // Server-only marker over the pure implementation (crypto.ts precedent).
 // The FULL reporter — redaction, Sentry envelope client, email leg, throttle —
@@ -22,7 +22,8 @@ export async function reportError(context: string, err: unknown): Promise<Report
     // Bağlam adı koddan gelir; yalnız İLK kod belirteci yazılır ("scheduled-sync retention" → "scheduled-sync", "sync org=…" → "sync") —
     // ad / kimlik gibi değişken parça günlüğe giremez (Haiku güvenlik incelemesi 10-12).
     // ":" sonrası da atılır ("ical.reconcile:<kaynak>" → "ical.reconcile") — kaynak başına sayaç anahtarı açılmasın (Haiku 2. tur).
-    await logEvent("error.reported", { context: context.split(/[^A-Za-z0-9_.-]/)[0].slice(0, 40) || "unknown" });
+    // Sentry olay kimliği (dilim G): olay günlüğünden Sentry'deki olaya, Sentry'deki etiketten (takip numarası) bu satıra iki yönlü bağ.
+    await logEvent("error.reported", { context: sentryArea(context), sentryEventId: outcome.sentryEventId });
     return outcome;
   };
   return currentCorrelation() ? run() : runWithCorrelation({ id: newCorrelationId(), organizationId: null }, run);

@@ -11,7 +11,7 @@ import {
 } from "@/lib/correlation";
 import { OPERATIONAL_EVENTS, sanitizeEventData } from "@/lib/event-log";
 import { serverError } from "@/lib/api";
-import { reportError as reportErrorCore, __resetReportThrottle } from "@/lib/report-error-core";
+import { reportError as reportErrorCore, __resetReportThrottle, sentryArea, sentryEnvironment, sentryRelease } from "@/lib/report-error-core";
 import { emailService } from "@/lib/email-core";
 
 // ---------------------------------------------------------------------------
@@ -92,6 +92,13 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
       currency: "TRY",
     };
     expect(sanitizeEventData(ok)).toEqual(ok);
+  });
+
+  it("dilim G: Sentry olay kimliği (tam 32 onaltılık) uzun rakam dizisi taşısa da geçer; biçim dışı değer düşer", () => {
+    expect(sanitizeEventData({ sentryEventId: "0123456789abcdef0123456789abcdef" })).toEqual({ sentryEventId: "0123456789abcdef0123456789abcdef" });
+    expect(sanitizeEventData({ sentryEventId: "05551112233" })).toEqual({ _dropped: 1 });
+    expect(sanitizeEventData({ sentryEventId: "0123456789ABCDEF0123456789ABCDEF" })).toEqual({ _dropped: 1 });
+    expect(sanitizeEventData({ sentryEventId: "05551112233055511122330555111223" })).toEqual({ sentryEventId: "05551112233055511122330555111223" });
   });
 
   it.each([
@@ -182,7 +189,7 @@ describe("hata raporu — log satırı, Sentry etiketi ve alarm e-postası AYNI 
     await runWithCorrelation({ id, organizationId: null }, () => reportErrorCore("test-context", new Error("boom")));
     await new Promise((r) => setTimeout(r, 10)); // Sentry gönderimi beklenmeden başlatılır
     const envelope = String((fetchMock.mock.calls[0] as unknown[])[1] && ((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body);
-    expect(JSON.parse(envelope.split("\n")[2]).tags).toEqual({ correlation_id: id });
+    expect(JSON.parse(envelope.split("\n")[2]).tags).toEqual({ correlation_id: id, area: "test-context" });
     expect(String(send.mock.calls[0][2])).toContain(`Takip numarası: <code>${id}</code>`);
     expect(log.mock.calls.some(([line]) => String(line).includes(`[takip ${id}]`))).toBe(true);
   });
@@ -195,7 +202,45 @@ describe("hata raporu — log satırı, Sentry etiketi ve alarm e-postası AYNI 
     await reportErrorCore("script", new Error("boom"));
     await new Promise((r) => setTimeout(r, 10));
     const envelope = String(((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body);
-    expect(JSON.parse(envelope.split("\n")[2])).not.toHaveProperty("tags");
+    // Takip numarası uydurulmaz; yalnız alan etiketi (dilim G).
+    expect(JSON.parse(envelope.split("\n")[2]).tags).toEqual({ area: "script" });
+  });
+
+  it("dilim G: sürüm (Railway commit ilk 12) + ortam + alan; olay kimliği zarfta ve sonuçta AYNI; değişken parça alana girmez", async () => {
+    vi.stubEnv("SENTRY_DSN", "https://publickey@o1.ingest.sentry.io/123");
+    vi.stubEnv("RAILWAY_GIT_COMMIT_SHA", "ABCDEF0123456789abcdef0123456789abcdef01");
+    vi.stubEnv("RAILWAY_ENVIRONMENT_NAME", "production");
+    const fetchMock = vi.fn(async () => new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const outcome = await reportErrorCore("sync org=cabc123 Ayşe", new Error("boom"));
+    await new Promise((r) => setTimeout(r, 10));
+    const lines = String(((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body).split("\n");
+    const event = JSON.parse(lines[2]);
+    expect(event.release).toBe("abcdef012345");
+    expect(event.environment).toBe("production");
+    expect(event.tags).toEqual({ area: "sync" });
+    expect(outcome.sentryEventId).toMatch(/^[0-9a-f]{32}$/);
+    expect(event.event_id).toBe(outcome.sentryEventId);
+    expect(JSON.parse(lines[0]).event_id).toBe(outcome.sentryEventId);
+  });
+
+  it("dilim G: commit değişkeni yok / biçimsiz → sürüm alanı YOK; ortam biçimsiz karakterleri '-' olur (production'a düşmez); DSN yok → olay kimliği yok", async () => {
+    expect(sentryRelease({ RAILWAY_GIT_COMMIT_SHA: "main" })).toBeNull();
+    expect(sentryRelease({})).toBeNull();
+    expect(sentryEnvironment({ RAILWAY_ENVIRONMENT_NAME: "Prod EU!" })).toBe("prod-eu");
+    expect(sentryEnvironment({ RAILWAY_ENVIRONMENT_NAME: "Hazırlık" })).toBe("haz-rl-k");
+    expect(sentryEnvironment({ RAILWAY_ENVIRONMENT_NAME: "!!!", NODE_ENV: "test" })).toBe("production");
+    expect(sentryEnvironment({ NODE_ENV: "test" })).toBe("test");
+    expect(sentryArea("ical.reconcile:src_123")).toBe("ical.reconcile");
+    expect(sentryArea("  ")).toBe("unknown");
+    vi.stubEnv("SENTRY_DSN", "");
+    const fetchMock = vi.fn(async () => new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const outcome = await reportErrorCore("x", new Error("boom"));
+    expect(outcome.sentryEventId).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

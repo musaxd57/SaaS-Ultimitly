@@ -10,6 +10,7 @@ vi.mock("@/lib/email-core", () => ({ emailService: { sendReporting: vi.fn() } })
 import { emailService } from "@/lib/email-core";
 import { reportError, redactSensitive, __resetReportThrottle } from "@/lib/report-error";
 import { withoutRandomIds } from "../helpers/random-ids";
+import { prisma } from "../helpers/db";
 
 const mockSend = vi.mocked(emailService.sendReporting);
 
@@ -165,6 +166,26 @@ describe("reportError", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://o123.ingest.sentry.io/api/456/envelope/");
     expect(String((init as RequestInit).body)).toContain("kaboom");
+  });
+
+  it("dilim G: olay günlüğündeki error.reported satırı Sentry'ye giden olayın kimliğini taşır (iki yönlü bağ); http adresinde kimlik yazılmaz", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("ERROR_ALERT_EMAIL", "");
+    vi.stubEnv("ALERT_EMAIL", "");
+    vi.stubEnv("SENTRY_DSN", "https://pubkey@o123.ingest.sentry.io/456");
+    const outcome = await reportError("dilim-g-link x=1", new Error("kaboom"));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const sentId = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body).split("\n")[2]).event_id as string;
+    expect(outcome.sentryEventId).toBe(sentId);
+    const row = await prisma.operationalEvent.findFirst({ where: { event: "error.reported", dataJson: { contains: "dilim-g-link" } }, orderBy: { createdAt: "desc" } });
+    expect(JSON.parse(row?.dataJson ?? "{}")).toEqual({ context: "dilim-g-link", sentryEventId: sentId });
+
+    vi.stubEnv("SENTRY_DSN", "http://pubkey@o123.ingest.sentry.io/456");
+    const plain = await reportError("dilim-g-plain", new Error("kaboom"));
+    expect(plain.sentryEventId).toBeUndefined();
+    const row2 = await prisma.operationalEvent.findFirst({ where: { event: "error.reported", dataJson: { contains: "dilim-g-plain" } } });
+    expect(JSON.parse(row2?.dataJson ?? "{}")).toEqual({ context: "dilim-g-plain" });
   });
 
   it("🚨 şifresiz (http) Sentry adresi → olay GÖNDERİLMEZ (redakte de olsa hata ayrıntısı düz metin gitmez; eski denetim DEN#27)", async () => {

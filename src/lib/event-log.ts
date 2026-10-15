@@ -69,7 +69,12 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
   replies: "number",
   outboxId: /^c[a-z0-9]{7,40}$/,
   errored: "boolean",
+  // Sentry olay kimliği (takip numarası dilim G): tam 32 onaltılık — kişisel veri biçimi taşıyamaz; uzun rakam kuralından muaf (rastgele
+  // onaltılıkta 7+ rakam dizisi sık çıkar, kural kimliği düşürürdü).
+  sentryEventId: /^[0-9a-f]{32}$/,
 };
+/** Biçimi tam ve sabit uzunluklu rastgele kimlikler — uzun rakam dizisi kuralı bunlarda kişisel veri sinyali değildir. */
+const LONG_DIGITS_EXEMPT = new Set(["sentryEventId"]);
 const LONG_DIGITS = /\d{7,}/;
 const MAX_DATA_CHARS = 2_000;
 
@@ -87,7 +92,7 @@ export function sanitizeEventData(data: Record<string, unknown> | undefined): Re
     if (kind === "number") ok = typeof value === "number" && Number.isSafeInteger(value);
     else if (kind === "boolean") ok = typeof value === "boolean";
     else if (kind instanceof RegExp) {
-      ok = typeof value === "string" && kind.test(value) && !LONG_DIGITS.test(value) && redactSensitive(value) === value;
+      ok = typeof value === "string" && kind.test(value) && (LONG_DIGITS_EXEMPT.has(key) || (!LONG_DIGITS.test(value) && redactSensitive(value) === value));
     }
     if (ok) out[key] = value as string | number | boolean;
     else dropped++;

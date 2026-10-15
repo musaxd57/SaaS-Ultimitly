@@ -49,6 +49,32 @@ export interface ReportOutcome {
   notified: boolean;
   throttled: boolean;
   configured: boolean;
+  /** Sentry'ye giden olayın kimliği (32 onaltılık; `SENTRY_DSN` yoksa yok) — olay günlüğüne yazılır, iki yönlü bağ (takip no. dilim G). */
+  sentryEventId?: string;
+}
+
+/**
+ * Sentry ALANI (takip numarası dilim G, 10-15): bağlamın ilk kod belirteci — olay günlüğüyle AYNI kural (`report-error.ts`): "sync org=…"
+ * → "sync", "ical.reconcile:<kaynak>" → "ical.reconcile". Değişken parça (ad, kimlik) etikete giremez.
+ */
+export function sentryArea(context: string): string {
+  return context.split(/[^A-Za-z0-9_.-]/)[0].slice(0, 40) || "unknown";
+}
+
+/** Sürüm: Railway'in commit değişkeninin ilk 12 onaltılığı; yoksa / biçimsizse alan hiç gönderilmez. */
+export function sentryRelease(env: Record<string, string | undefined> = process.env): string | null {
+  const sha = env.RAILWAY_GIT_COMMIT_SHA?.trim().toLowerCase() ?? "";
+  return /^[0-9a-f]{12,40}$/.test(sha) ? sha.slice(0, 12) : null;
+}
+
+/**
+ * Ortam: Railway ortam adı (ileride hazırlık / .eu ayrışır), yoksa NODE_ENV. Biçim dışı karakter "-" olur ("Hazırlık EU" → "haz-rl-k-eu")
+ * — sessizce "production"a düşmez (hazırlık olayı üretim gibi görünmesin; Haiku 10-15). Boş kalırsa "production".
+ */
+export function sentryEnvironment(env: Record<string, string | undefined> = process.env): string {
+  const raw = (env.RAILWAY_ENVIRONMENT_NAME?.trim() || env.NODE_ENV || "production").toLowerCase();
+  const clean = raw.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+  return clean || "production";
 }
 
 export async function reportError(context: string, err: unknown): Promise<ReportOutcome> {
@@ -74,8 +100,11 @@ export async function reportError(context: string, err: unknown): Promise<Report
   console.error(`[reportError] ${context}${correlationId ? ` [takip ${correlationId}]` : ""} :: ${detail}`);
 
   // Real error monitoring (optional): send to Sentry when SENTRY_DSN is set.
-  // Fire-and-forget, dependency-free, never throws.
-  void captureToSentry(context, errName, errMessage, detail, correlationId);
+  // Fire-and-forget, dependency-free, never throws. Olay kimliği BURADA üretilir → çağıran olay günlüğüne yazar (iki yönlü bağ).
+  // Kimlik yalnız olay GERÇEKTEN gönderilebilecekse (geçerli https adresi) üretilir — gönderilmeyen olaya bağ yazılmaz.
+  const sentryEventId = parseDsn(process.env.SENTRY_DSN?.trim() ?? "") ? randomUUID().replace(/-/g, "") : undefined;
+  if (sentryEventId) void captureToSentry(context, errName, errMessage, detail, correlationId, sentryEventId);
+  const linked = sentryEventId ? { sentryEventId } : {};
 
   const to = process.env.ERROR_ALERT_EMAIL || process.env.ALERT_EMAIL;
   // ⚠️ `configured` HEM alıcıyı HEM sağlayıcıyı ister. Yalnız alıcıya bakmak
@@ -85,11 +114,11 @@ export async function reportError(context: string, err: unknown): Promise<Report
   // eksikliği, geçici arıza değil). Üretimde bu kombinasyon boot kapısınca
   // zaten imkânsız; koruma dev/test içindir.
   const providerReady = Boolean(process.env.RESEND_API_KEY || process.env.EMAIL_HOST);
-  if (!to || !providerReady) return { notified: false, throttled: false, configured: false };
+  if (!to || !providerReady) return { notified: false, throttled: false, configured: false, ...linked };
 
   const now = Date.now();
   if (now - (lastEmailAt.get(context) ?? 0) < EMAIL_THROTTLE_MS) {
-    return { notified: false, throttled: true, configured: true };
+    return { notified: false, throttled: true, configured: true, ...linked };
   }
   lastEmailAt.set(context, now);
 
@@ -116,10 +145,10 @@ export async function reportError(context: string, err: unknown): Promise<Report
     // olayı üretir, üstelik her deneme 12-15 sn timeout ile senkron içinde
     // bloklardı. Geri çekme hem tekrarı korur hem tavanı ≤1/dk'ya indirir.
     if (!res.ok) lastEmailAt.set(context, now - (EMAIL_THROTTLE_MS - 60_000));
-    return { notified: res.ok, throttled: false, configured: true };
+    return { notified: res.ok, throttled: false, configured: true, ...linked };
   } catch {
     lastEmailAt.set(context, now - (EMAIL_THROTTLE_MS - 60_000));
-    return { notified: false, throttled: false, configured: true }; // Reporting must never throw.
+    return { notified: false, throttled: false, configured: true, ...linked }; // Reporting must never throw.
   }
 }
 
@@ -172,6 +201,7 @@ export async function captureToSentry(
   errMessage: string,
   detail: string,
   correlationId: string | null = null,
+  eventId: string = randomUUID().replace(/-/g, ""),
 ): Promise<void> {
   const dsn = process.env.SENTRY_DSN?.trim();
   if (!dsn) return;
@@ -179,7 +209,7 @@ export async function captureToSentry(
   if (!parsed) return;
 
   try {
-    const eventId = randomUUID().replace(/-/g, "");
+    const release = sentryRelease();
     const header = JSON.stringify({ event_id: eventId, sent_at: new Date().toISOString(), dsn });
     const itemHeader = JSON.stringify({ type: "event" });
     const event = JSON.stringify({
@@ -188,7 +218,8 @@ export async function captureToSentry(
       platform: "node",
       level: "error",
       logger: "guestops",
-      environment: process.env.NODE_ENV ?? "production",
+      environment: sentryEnvironment(),
+      ...(release ? { release } : {}),
       transaction: context,
       // errName/errMessage/detail must arrive PRE-REDACTED (reportError does this).
       //
@@ -204,8 +235,9 @@ export async function captureToSentry(
         values: [{ type: errName, value: groupingValue(errMessage) }],
       },
       extra: { detail: detail.slice(0, 4000), message: errMessage.slice(0, 1000) },
-      // Takip numarası etiketi: Sentry'de numarayla arama (gruplamaya girmez — etiket, istisna değeri değil).
-      ...(correlationId ? { tags: { correlation_id: correlationId } } : {}),
+      // Etiketler (gruplamaya girmez): takip numarası (Sentry'de numarayla arama) + ALAN (ödeme / kuyruk / senkron… süzme; dilim G).
+      // İşletme etiketi (anahtarlı özet) kurucu kararına bırakıldı (F5) — Sentry yurt dışı alt işleyen.
+      tags: { area: sentryArea(context), ...(correlationId ? { correlation_id: correlationId } : {}) },
     });
     await fetch(parsed.endpoint, {
       method: "POST",
