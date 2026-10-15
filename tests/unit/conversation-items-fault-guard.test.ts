@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { parseUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { extractTurnItems } from "@/lib/conversation-items/extract";
 import { composeItemsPlan, faultRequestsOf, relationFactsOf } from "@/lib/conversation-items/plan";
-import { faultSignal, kbRecipeTopics, topicsOf, touchesHeldDevice } from "@/lib/conversation-items/relation";
+import { faultSignal, kbRecipeTopics, requestTopics, topicsOf, touchesHeldDevice } from "@/lib/conversation-items/relation";
 import type { ItemKind } from "@/lib/conversation-items/core";
 
 // ---------------------------------------------------------------------------
@@ -78,6 +78,16 @@ describe("arıza sinyali (saf)", () => {
     ["Televizyon kendi kendine kapanıyor, bozuk mu bilmiyorum ama görüntü yok", true],
     ["Wi-Fi bağlanmıyor, şifre doğru", true],
     ["Klima: çalışmıyor", true],
+    // Haiku 10-15 gece (ölçüldü): zaman "geçti" düzelme değil · dört sözcüklü özne · düzelme SONRA tekrar arıza · geniş / geçmiş zaman ·
+    // İspanyolca "sí" koşul değil · aynı cümlecikte koşullu ilk arızadan sonra gerçek ikinci arıza
+    ["Klima bir saat geçti hâlâ çalışmıyor", true],
+    ["Televizyon kendi kendine kapanıyor, bozuk", true],
+    ["Klima düzeldi ama şimdi yine çalışmıyor", true],
+    ["Klima çalışmaz", true],
+    ["Klima çalışmıyordu, hâlâ öyle", true],
+    ["Sí, el televisor no funciona", true],
+    ["Klima arıza yaparsa televizyon çalışmıyor", true],
+    ["Asansör nerede, tekerlek kırık", false],
     ["Klima, çalışmıyor", true],
     ["Asansör var mı, bavulun tekerleği kırık", false],
     ["Asansör var mı, tekerlek kırık", false],
@@ -92,6 +102,11 @@ describe("TV belirti sözlüğü genel konu çıkarımına GİRMEZ (Opus N2 — 
     expect(kbRecipeTopics([{ title: "Kapı zili", content: "Görüntülü diyafonda görüntü gelmezse sağdaki tuşa 3 saniye basılı tutun." }]).has("tv")).toBe(false);
     expect(topicsOf("Görüntülü diyafon")).not.toContain("tv");
     expect(topicsOf("Ev sahibiyle görüntülü görüşebilir miyiz?")).not.toContain("tv");
+  });
+
+  it("İSTEK tarafı belirti adını okur (bırakılan cihaz yalnız sıkılaşır); bilgi tabanı tarafı okumaz (gevşetmez)", () => {
+    expect(requestTopics("ekranda görüntü yok", "", "appliance_help")).toContain("tv");
+    expect(kbRecipeTopics([{ title: "Sık sorulanlar", content: "Ekranda görüntü yoksa kaynak tuşuyla HDMI girişini seçin." }]).has("tv")).toBe(false);
   });
 
   it("cevap tarafında belirti adı TV'dir (bırakılan TV kapısı); 'görüntülü' değildir", () => {

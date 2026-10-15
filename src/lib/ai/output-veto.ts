@@ -533,7 +533,7 @@ const HANDOFF_NOTICE = new RegExp(
     // özne listede olmasa da alıcı YÖNELME hâlinde ev sahibi / ekip / yönetici ise devirdir. "Ev sahibiniz tarafından iletildi" (yalın hâl,
     // önceki mesaja atıf) eşleşmez. Opus N4 (10-15 gece, ölçüldü): 2. şahıs gelecek ("Güvenlik görevlisine yönlendirileceksiniz" — yol
     // tarifi) ve "-ce" etken eki ("ev sahibinizce iletildi" = tarafından) devir DEĞİLDİR → gelecek yalnız 3. şahıs, yönelme eki "c/ç"siz.
-    `|(?:ev\\s+sahib|ekib|ekip|yönetici|görevli)\\p{L}{0,6}(?<![cç])[ea]\\s+(?:\\p{L}+\\s+){0,2}?(?:iletil|aktarıl|bildiril|ulaştırıl|yönlendiril)(?:d[iı]|m[iı][sş](?:t[iı]r)?|[ea]c[ea]k(?:t[iı]r)?)${NR}` +
+    `|(?:ev\\s+sahib|ekib|ekip|yönetici|görevli)\\p{L}{0,6}(?<![cç])[ea]\\s+(?:\\p{L}+\\s+){0,2}?(?:iletil|aktarıl|bildiril|ulaştırıl|yönlendiril)(?:d[iı]|m[iı][sş](?:t[iı]r)?|[ea]c[ea](?:k(?:t[iı]r)?|ğ(?:iz|im)))${NR}` +
     // TR: "ev sahibiniz görebilir / görüntüleyebilir / görecek / görüyor" (3. şahıs; "görebilirsiniz" değil)
     `|ev\\s+sahib\\p{L}{0,6}\\s+(?:\\p{L}+\\s+){0,2}?(?:görebilir|görüntüleyebilir|görecek|görüyor|okuyabilir)(?!s[iı]n[iı]z)${NR}` +
     // EN

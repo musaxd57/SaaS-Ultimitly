@@ -76,7 +76,9 @@ export function faultTopics(queryTr: string, queryOriginal: string, kind: ItemKi
 
 /** İsteğin konuları: Türkçe + özgün dildeki sorgu + türün kendi konusu. */
 export function requestTopics(queryTr: string, queryOriginal: string, kind: ItemKind): string[] {
-  return [...new Set([...topicsOf(queryTr), ...topicsOf(queryOriginal), ...(KIND_TOPICS[kind] ?? [])])].sort();
+  // İSTEK tarafı TV belirti adlarını da okur ("Ekranda görüntü yok" → tv): bırakılan cihaz kapısı ve örtüşme yalnız SIKILAŞIR (Haiku 10-15
+  // gece). Bilgi tabanı tarafı (`kbRecipeTopics`, `kbSubjectTopics`) genel `topicsOf` ile kalır — orada belirti adı GEVŞETİYORDU (Opus N2).
+  return [...new Set([...topicsWithSymptomsOf(queryTr), ...topicsWithSymptomsOf(queryOriginal), ...(KIND_TOPICS[kind] ?? [])])].sort();
 }
 
 /** Harf katlama (aksan, büyük harf, Türkçe ı/İ, Rusça ё): tehlike ve genel soru sözlükleri bu biçimde yazılır. */
@@ -802,12 +804,30 @@ const GUEST_CHECK_STEP = new RegExp(
 const TROUBLESHOOT_CONTEXT = new RegExp(
   [
     `${L}\\p{L}{2,24} yoksa${R}`,
-    `${L}(?:dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip|try|versuchen sie|essayez|intente|pruebe|попробуите)${R}`,
+    `${L}if (?:the |your |it |there )?\\p{L}{0,16} ?(?:is not|isn't|doesn't|does not|won't|will not|still|no )`,
+  ].join("|"),
+  "u",
+);
+
+/**
+ * Yeniden başlatma / fişten çekme / sıfırlama ailesi — kendi başına hem ADIM hem ARIZA GİDERME bağlamıdır ("Modemi kapatıp açın" — Haiku 10-15
+ * gece: "kapatıp" tek zayıf işaret, "açın" hiçbir listede yoktu → cümle adım sayılmıyordu).
+ */
+const RESTART_STEP = new RegExp(
+  [
     `${L}(?:restart|reboot|reset|unplug|replug|power cycle|turn it back on|turn (?:it )?off and (?:back )?on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
     `${L}(?:yeniden|tekrar) (?:baslat|ac|tak)\\p{L}{0,8}${R}`,
     `${L}(?:sifirla\\p{L}{0,8}|fisini (?:cek|cikar)\\p{L}{0,6}|fisten cek\\p{L}{0,6}|kapatip (?:yeniden |tekrar )?ac\\p{L}{0,8})${R}`,
-    `${L}if (?:the |your |it |there )?\\p{L}{0,16} ?(?:is not|isn't|doesn't|does not|won't|will not|still|no )`,
   ].join("|"),
+  "u",
+);
+
+/**
+ * Deneme önerisi ("dener misiniz", "try") — YALNIZ misafir bir arıza bildirdiyse ya da cümle arıza / koşul taşıyorsa arıza giderme bağlamıdır
+ * (Haiku 10-15 gece: "Kahve makinesinde farklı bir ayarı deneyebilirsiniz" kullanım önerisiydi, tarif isteniyordu).
+ */
+const TRY_STEP = new RegExp(
+  `${L}(?:dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip|try|versuchen sie|essayez|intente|pruebe|попробуите)${R}`,
   "u",
 );
 
@@ -815,6 +835,9 @@ const TROUBLESHOOT_CONTEXT = new RegExp(
  * Kumanda adı (her cihazın kumandası olur; getirme sözlüğü onu TV kavramına bağlıyor — ölçüldü: "Kumanda çalışmazsa kapının solundaki tuş
  * takımına 5523 yazın" otopark tarifiydi, TV sayıldı). Yalnız bu kemerin cümle okumasında nötrlenir.
  */
+/** Taranan en çok cevap cümlesi (doğrusal tavan; model metni uzun olabilir). */
+const MAX_STEP_SENTENCES = 64;
+
 const REMOTE_WORD = new RegExp(
   `${L}(?:kumanda\\p{L}{0,10}|remote(?: control)?s?|fernbedienung\\p{L}{0,2}|t[eé]l[eé]commande\\p{L}{0,2}|mando\\p{L}{0,2}|пульт\\p{L}{0,3})${R}`,
   "giu",
@@ -826,8 +849,19 @@ const REMOTE_WORD = new RegExp(
  */
 function stepDevicesOf(sentence: string): string[] {
   // Ham metinde (getirme sözlüğü Türkçe harfleri okur; katlanmış metin kökleri kaçırır).
-  return deviceTopicsOf(topicsWithSymptomsOf(sentence.replace(REMOTE_WORD, " "))).filter((t) => t !== "socket");
+  const devices = deviceTopicsOf(topicsWithSymptomsOf(sentence.replace(REMOTE_WORD, " "))).filter((t) => t !== "socket");
+  // Getirme sözlüğü "açın / açıp" fiilini klimaya (AC) bağlıyor (ölçüldü 10-15 gece: "Cihazı kapatıp 30 saniye bekleyin, sonra yeniden açın"
+  // klima sayılıyor, klima tarifi varsa bulaşık makinesi adımı geçiyordu) — klima ancak cümlede gerçek bir klima adı varsa sayılır.
+  return devices.includes("ac") && !AC_EVIDENCE.test(fold(sentence)) && !/(?<![\p{L}])A\/?C(?![\p{L}])/u.test(sentence)
+    ? devices.filter((t) => t !== "ac")
+    : devices;
 }
+
+/** Klimanın adı (katlanmış; yedi dil + kar tanesi simgesi). Çıplak "ac" BİLEREK yok: Türkçe "aç" (açın / açıp) ile aynı. */
+const AC_EVIDENCE = new RegExp(
+  `${L}(?:klima\\p{L}{0,8}|kondisyoner\\p{L}{0,8}|air ?con\\p{L}{0,10}|aircon|klimaanlage\\p{L}{0,2}|climatis\\p{L}{0,6}|aire acondicionado|кондиционер\\p{L}{0,3}|مكيف|kar tanes\\p{L}{0,6}|snowflake\\p{L}{0,2})${R}`,
+  "u",
+);
 
 /**
  * Bilgi tabanı kaleminin KONU cihazları: başlık bir cihazı adlandırıyorsa yalnız başlığın ("Wi-Fi" kalemindeki "Modem TV ünitesinin
@@ -861,23 +895,42 @@ export function kbSubjectTopics(items: readonly { title: string; content: string
 export function unsupportedFixStep(
   reply: string,
   kb: { recipeTopics: ReadonlySet<string>; subjectTopics: ReadonlySet<string> },
+  /** Misafirin mesajı (varsa): cihazı anılmayan adımın cihazı + deneme önerisinin arıza bağlamı ondan okunur. */
+  guestText = "",
 ): boolean {
   if (!reply || !reply.trim()) return false;
-  for (const sentence of sentencesOf(reply)) {
+  const guestDevices = guestText ? stepDevicesOf(guestText) : [];
+  const guestReportsFault = guestText !== "" && FAULT_PHRASE.test(fold(guestText));
+  let carried: string[] = [];
+  for (const sentence of sentencesOf(reply).slice(0, MAX_STEP_SENTENCES)) {
     const f = fold(sentence);
-    if (!isFixRecipeText(sentence) && !GUEST_CHECK_STEP.test(f)) continue;
-    const devices = stepDevicesOf(sentence);
+    const own = stepDevicesOf(sentence);
+    // Cihazı anılmayan cümle önceki cümlenin cihazını alır ("Bulaşık makinesi için: cihazı kapatıp 30 saniye bekleyin"); cevapta hiç yoksa
+    // misafirin mesajındaki cihaz (Haiku 10-15 gece: başka cihazın tarifi her adsız adımı geçiriyordu).
+    const devices = own.length > 0 ? own : carried.length > 0 ? carried : guestDevices;
+    const carriedBefore = carried;
+    if (own.length > 0) carried = own;
+    const restart = RESTART_STEP.test(f);
+    const tries = TRY_STEP.test(f);
+    if (!restart && !tries && !isFixRecipeText(sentence) && !GUEST_CHECK_STEP.test(f)) continue;
     const troubleshooting =
-      TROUBLESHOOT_CONTEXT.test(f) || RECIPE_CONDITIONAL.test(f) || RECIPE_FAULT_PHRASES.some((p) => f.includes(p));
+      restart ||
+      TROUBLESHOOT_CONTEXT.test(f) ||
+      RECIPE_CONDITIONAL.test(f) ||
+      RECIPE_FAULT_PHRASES.some((p) => f.includes(p)) ||
+      (tries && guestReportsFault);
     if (devices.length === 0) {
       if (troubleshooting && kb.recipeTopics.size === 0) return true;
       continue;
     }
     if (troubleshooting) {
       if (devices.some((t) => !kb.recipeTopics.has(t))) return true;
-    } else if (!devices.some((t) => kb.subjectTopics.has(t) || kb.recipeTopics.has(t))) {
-      return true;
+      continue;
     }
+    // Kullanım adımı bağlamla okunur: cümlenin, önceki cümlenin ya da misafirin cihazından BİRİ konu olsun ("Klima kumandası çekmecede.
+    // MODE tuşuyla soğutma ya da ısıtma modunu seçin" — ikinci cümlede "klima" geçmiyor, "ısıtma" ısıtma konusuna iniyor).
+    const context = new Set([...devices, ...carriedBefore, ...guestDevices]);
+    if (![...context].some((t) => kb.subjectTopics.has(t) || kb.recipeTopics.has(t))) return true;
   }
   return false;
 }
@@ -898,9 +951,13 @@ export function fixSupportContextOf(items: readonly { title: string; content: st
 }
 
 /** Kapının tek çağrısı (kanal + QR AYNI yüklem): anahtar açık + bağlam verilmiş + cevapta kanıtsız adım. */
-export function fixSupportHolds(reply: string | null | undefined, support: KbFixSupport | null | undefined): boolean {
+export function fixSupportHolds(
+  reply: string | null | undefined,
+  support: KbFixSupport | null | undefined,
+  guestText = "",
+): boolean {
   if (!fixSupportGateEnabled() || !support) return false;
-  return unsupportedFixStep(reply ?? "", { recipeTopics: new Set(support.recipeTopics), subjectTopics: new Set(support.subjectTopics) });
+  return unsupportedFixStep(reply ?? "", { recipeTopics: new Set(support.recipeTopics), subjectTopics: new Set(support.subjectTopics) }, guestText);
 }
 
 /** Yalnız cihaz / tesis kavramları (`DEVICE_TOPICS`). */
@@ -1055,10 +1112,9 @@ export function faultGuardEnabled(): boolean {
  * Arıza / belirti ifadesi (katlanmış metin; yedi dil). Koşul eki almış biçim ("çalışmazsa", "bozulursa") TAM sözcük sınırı yüzünden eşleşmez
  * (varsayım arıza bildirimi değildir — kurucu D4 ayrımı). Sabit alternatifler + sınırlı ek (doğrusal).
  */
-const FAULT_PHRASE = new RegExp(
-  [
+const FAULT_PHRASE_SOURCE = [
     // tr
-    `${L}(?:calismiyor|calismadi|calismiyo|acilmiyor|acilmadi|bozuk|bozuldu|bozulmus|arizali|arizalandi|ariza(?:si|lari)?|isinmiyor|isitmiyor|sogutmuyor|akmiyor|gelmiyor|yanmiyor|kapanmiyor|baglanmiyor|cekmiyor|tikali|tikandi|sizdiriyor|damlatiyor|kirik|kirildi)${R}`,
+    `${L}(?:calismiyor(?:du)?|calismadi|calismiyo|calismaz|acilmiyor(?:du)?|acilmadi|acilmaz|bozuk|bozuldu|bozulmus|arizali|arizalandi|ariza(?:si|lari)?|isinmiyor(?:du)?|isitmiyor|sogutmuyor(?:du)?|akmiyor(?:du)?|gelmiyor(?:du)?|yanmiyor(?:du)?|kapanmiyor|baglanmiyor(?:du)?|cekmiyor|tikali|tikandi|sizdiriyor|damlatiyor|kirik|kirildi)${R}`,
     `${L}(?:goruntu|ses|sinyal)\\p{L}{0,3} (?:yok|gelmiyor|vermiyor|gitti)${R}`,
     `${L}siyah ekran${R}`,
     // en
@@ -1067,13 +1123,14 @@ const FAULT_PHRASE = new RegExp(
     `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|no funciona|averiad[oa]|sin imagen|sin sonido)${R}`,
     // ru / ar (katlama Latin dışını değiştirmez)
     `(?:не работает|сломал\\p{L}{0,2}|не включается|нет изображения|нет звука|لا يعمل|معطل)`,
-  ].join("|"),
-  "u",
-);
+].join("|");
+const FAULT_PHRASE = new RegExp(FAULT_PHRASE_SOURCE, "u");
+/** Aynı kalıbın küresel biçimi — bir cümlecikteki BÜTÜN arıza geçişleri (ilki koşullu olsa da ikincisi okunur — Haiku 10-15 gece). */
+const FAULT_PHRASE_ALL = new RegExp(FAULT_PHRASE_SOURCE, "gu");
 
 /** Arıza düzelmiş / geçmiş ("çalışmadı ama sonra düzeldi", "it works now") — bildirim değil. Katlanmış metin, sabit alternatifler. */
 const FAULT_RESOLVED = new RegExp(
-  `${L}(?:duzeldi|duzelmis|gecti|hallettik|hallettim|halloldu|cozuldu|cozduk|artik calisiyor|calisiyor artik|fixed|works now|working now|it'?s working|resolved|sorted it|funktioniert (?:jetzt|wieder)|fonctionne maintenant|ca marche maintenant|ya funciona|funciona ahora|заработал\\p{L}{0,2}|تم الحل)${R}`,
+  `${L}(?:duzeldi|duzelmis|hallettik|hallettim|halloldu|cozuldu|cozduk|artik calisiyor|calisiyor artik|fixed|works now|working now|it'?s working|resolved|sorted it|funktioniert (?:jetzt|wieder)|fonctionne maintenant|ca marche maintenant|ya funciona|funciona ahora|заработал\\p{L}{0,2}|تم الحل)${R}`,
   "u",
 );
 
@@ -1089,8 +1146,8 @@ const FAULT_GUEST_OWNED = new RegExp(
 /** Arıza ifadesinin hemen ardındaki koşul yüklemi ("arıza yaparsa", "bozuk olursa") — varsayım bildirim değildir (kurucu D4 ayrımı). */
 const FAULT_CONDITION_TAIL = /^\s{1,3}(?:olursa|yaparsa|verirse|ederse|cikarsa|kalirsa|olunca|oldugunda|yapinca|giderse|olmasi halinde)(?![\p{L}\p{N}])/u;
 
-/** Arızanın önünde koşul bağlacı ("if the TV breaks", "wenn", "falls", "si", "en caso de", "если"). */
-const FAULT_CONDITION_LEAD = new RegExp(`${L}(?:if|in case|wenn|falls|si|en caso de|если)${R}`, "u");
+/** Arızanın önünde koşul bağlacı ("if the TV breaks", "wenn", "falls", "en caso de", "если"). İspanyolca / Fransızca "si" YOK: katlamada "sí" (evet) ile aynı (Haiku 10-15 gece). */
+const FAULT_CONDITION_LEAD = new RegExp(`${L}(?:if|in case|wenn|falls|en caso de|если)${R}`, "u");
 
 /** Cümlecik sınırı: noktalama + karşıtlık bağlaçları (ama / fakat / ancak / but / however / aber / mais / pero / но). */
 const FAULT_CLAUSE_SPLIT = /[,.;!?\n]+|\s(?:ama|fakat|ancak|lakin|but|however|aber|mais|pero|но)\s/u;
@@ -1106,36 +1163,48 @@ export function faultSignal(queryTr: string, queryOriginal: string): boolean {
   return [queryTr, queryOriginal].some((t) => !!t && t.trim() !== "" && textReportsFault(t));
 }
 
-/** Yüklemsiz kısa cihaz öbeği ("Klima", "Salondaki TV") — virgülle ayrılmış arızanın öznesi olabilir ("Klima, çalışmıyor"). */
-function bareDeviceClause(clause: string): boolean {
-  const words = clause.trim().split(/\s+/u);
-  // Soru eki / var-yok yüklemi taşıyan öbek ("Asansör var mı") özne değildir.
-  return (
-    words.length <= 3 &&
-    !/[?]/u.test(clause) &&
-    !/(?:^|\s)(?:mi|mu|var|yok)(?=\s|$)/u.test(fold(clause)) &&
-    deviceTopicsOf(topicsWithSymptomsOf(clause)).length > 0
-  );
+/** Soru / varlık yüklemi taşıyan öbek ("Asansör var mı", "Otopark nerede") arızanın öznesi değildir. */
+const NOT_A_SUBJECT = /[?]|(?:^|\s)(?:mi|mu|var|yok|nerede|nasil|hangi|kac|ne zaman|where|how|what|when|which|wo|ou|donde)(?=\s|$)/u;
+
+/**
+ * Cihaz taşıyan ama arıza ifadesi / soru taşımayan öbek — virgülle ayrılmış arızanın öznesi olabilir ("Klima, çalışmıyor", "Televizyon kendi
+ * kendine kapanıyor, bozuk").
+ */
+function deviceSubjectClause(clause: string): boolean {
+  const f = fold(clause);
+  return !FAULT_PHRASE.test(f) && !NOT_A_SUBJECT.test(f) && deviceTopicsOf(topicsWithSymptomsOf(clause)).length > 0;
 }
 
+/** Taranan en çok cümlecik (doğrusal tavan). */
+const MAX_FAULT_CLAUSES = 64;
+
+/**
+ * Metin bir cihaz arızası BİLDİRİYOR mu. Sıra önemlidir: arızadan SONRA gelen düzelme ("çalışmadı ama sonra düzeldi") bildirimi kapatır,
+ * düzelmeden SONRA gelen arıza ("düzeldi ama şimdi yine çalışmıyor") açar. Cümleciğin BÜTÜN arıza geçişleri okunur.
+ */
 function textReportsFault(text: string): boolean {
-  const folded = fold(text);
-  if (FAULT_RESOLVED.test(folded)) return false;
-  let previousBare = false;
-  for (const clause of text.split(FAULT_CLAUSE_SPLIT)) {
+  let reported = false;
+  let previousSubject = false;
+  for (const clause of text.split(FAULT_CLAUSE_SPLIT).slice(0, MAX_FAULT_CLAUSES)) {
     if (!clause || clause.trim() === "") continue;
-    const inheritsDevice = previousBare;
-    previousBare = bareDeviceClause(clause);
+    const inheritsDevice = previousSubject;
+    previousSubject = deviceSubjectClause(clause);
     const f = fold(clause);
-    const m = FAULT_PHRASE.exec(f);
-    if (!m) continue;
+    if (FAULT_RESOLVED.test(f)) {
+      reported = false;
+      continue;
+    }
     if (deviceTopicsOf(topicsWithSymptomsOf(clause)).length === 0 && !inheritsDevice) continue;
     if (FAULT_GUEST_OWNED.test(f)) continue;
-    if (FAULT_CONDITION_TAIL.test(f.slice(m.index + m[0].length, m.index + m[0].length + 24))) continue;
-    if (FAULT_CONDITION_LEAD.test(f.slice(0, m.index))) continue;
-    return true;
+    for (const m of f.matchAll(FAULT_PHRASE_ALL)) {
+      const at = m.index ?? 0;
+      if (FAULT_CONDITION_TAIL.test(f.slice(at + m[0].length, at + m[0].length + 24))) continue;
+      if (FAULT_CONDITION_LEAD.test(f.slice(Math.max(0, at - 160), at))) continue;
+      reported = true;
+      break;
+    }
   }
-  return false;
+  return reported;
 }
 
 export interface ItemRelationFacts {

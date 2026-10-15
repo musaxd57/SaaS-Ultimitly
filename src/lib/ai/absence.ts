@@ -172,7 +172,7 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   // talimat yok" olgudur); "There are no troubleshooting steps for the TV in my notes" — yer çapası ŞART ("There are no steps to the door").
   // Opus N5 (10-15 gece, ölçüldü): "Çıkış için özel / ek bir talimatımız yok, anahtarı masaya bırakmanız yeterli" OLGUDUR (İngilizce dalın
   // "no special / additional …" istisnasıyla aynı) — niteleyicili biçim tutulmaz. Geriye bakış sabit gövdeye ÖNCE ileriye bakışla bağlı.
-  new RegExp(`${L}(?=talimat)(?<!(?:özel|ek|başka|farklı|ilave|ekstra|ayrıca|ayrı)\\s(?:bir\\s)?)talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
+  new RegExp(`${L}(?=talimat)(?<!(?<![\\p{L}])(?:özel|ek|başka|farklı|ilave|ekstra|ayrıca|ayrı)\\s(?:bir\\s)?)talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
   /(?<![\p{L}])no (?!(?:special|particular|additional|extra|further|other) )(?:\p{L}{1,20} ){0,2}(?:steps|instructions|guidance) (?:[\p{L}\p{N}'-]{1,30} ){0,5}in (?:my|our) (?:notes?|records?|guide|files?|information)(?![\p{L}])/u,
   new RegExp(`there (?:isn't|is not|aren't|are not) (?:any )?${gap(1)}${EN_OBJ}`, "u"),
 ];

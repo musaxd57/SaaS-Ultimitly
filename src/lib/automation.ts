@@ -635,7 +635,7 @@ export function autoReplyGateVerdict(
   // (`relation.unsupportedFixStep`). Ölçülen ihlal: 5.1 bilgi tabanında TV kalemi yokken "Televizyonda görüntü gelmiyorsa kaynak
   // girişinin (HDMI/AV/TV) doğru seçili olduğundan emin olur musunuz?" yazdı (kör set 6). Koddan kurulan onay metni muaf (şablon / yedek
   // cevap buraya hiç gelmez — `not_model`).
-  if (!codeBuiltGrant && fixSupportHolds(result.reply, context?.kbFixSupport)) {
+  if (!codeBuiltGrant && fixSupportHolds(result.reply, context?.kbFixSupport, [...(context?.pendingGuestMessages ?? []), guestMessage].join("\n"))) {
     return hold("reply_fix_unsupported");
   }
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24, `availability-claims.ts`) ──────────

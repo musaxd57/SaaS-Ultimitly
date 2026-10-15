@@ -328,7 +328,7 @@ envanterinden bir cihaz" = bakım görevi (cihaz envanteri ve olumsuzluk kuralla
 - Kural: cevabın bir cümlesi **arıza giderme adımıysa** ("çalışmıyorsa … yeniden açın", "dener misiniz", "emin olur musunuz") o cihazın
   bilgi tabanında **tarifi** olmalı; **kullanım adımıysa** ("MODE tuşuyla soğutmayı seçin") o cihaz bilgi tabanında **konu** olmalı. Yoksa
   cevap gitmez, taslak sende kalır (QR'da sana devredilir). Anlama modelinin etiketinden bağımsız; kanal + QR + Ayarlar testi aynı kural.
-- Ölçüm (kayıtlı 3.324 cevap, ücretli çağrı yok): **21 cevap tutulurdu, hepsi tarifi olmayan arıza için uydurulmuş adım** (klima çalışmıyor →
+- Ölçüm (kayıtlı 3.324 cevap, ücretli çağrı yok): **22 cevap tutulurdu, hepsi tarifi olmayan arıza için uydurulmuş adım** (klima çalışmıyor →
   "kapatıp birkaç dakika sonra açın"; internet yok → "modemi fişten çekip 30 sn bekleyin"; kilit takılıyor → "kolu kaldırıp anahtarı yavaşça
   çevirin"). **Gerçekten gönderilmiş cevaplarda yanlış tutuş 0.**
 - ÖRNEK 1 (bilgi tabanında TV kalemi yok): "Ekranda görüntü yoksa kaynak girişini (HDMI) kontrol edin." → ÖNCE gider · SONRA gitmez.
@@ -393,6 +393,12 @@ Hepsi kör set 6'dan (Luna, kabul seti — o setin bilgi tabanını açmam yasak
   tabanında tarif varsa gider · (b) en çok TEK basit adım (tuşa bas / kaynağı seç) gider, birden çok adım ya da kapak açma / filtre
   söküm / ikinci cihaz sana kalır · (c) bilgi tabanı kalemine "misafir kendisi yapabilir" işareti, yalnız işaretliler gider (yeni alan =
   migration) · (d) hiçbir arıza adımı otomatik gitmez, hepsi senin hazır taslağın olur. Önerim (b) + (c) birlikte; ölçüm setiyle (`evals/fault-mixed-dev.json`, ücretli koşu senin onayınla) önce/sonra gösteririm. Hangisi?
+  Sektör araştırması (Opus, 10-15 gece; siteler açılamadı, arama özetlerinden — kısmen doğrulandı): misafiri adım adım yönlendiren iki
+  ürün (Host & Guest Fix+, Akia) adımları EV SAHİBİNE / personele yazdırıyor; Hostaway arızayı (ör. "sıcak su yok") tırmandırma örneği veriyor;
+  Hospitable bağlam zayıfsa cevap vermiyor; Airbnb arızalı cihazı ev sahibinin sorumluluğu sayıyor; Gartner: sorunların yalnız %14'ü
+  tamamen self-serviste çözülüyor. k6-19 ile k6-24 ikisi de TEK pil değişimi — adım sayısına bakan hiçbir kural ikisini ayıramıyor; farkı
+  yalnız sen bilirsin (tahmin: otoparkta misafir dışarıda kalıyor + yedek pil anahtarlıkta). Bu yüzden önerim (c) "senin işaretlediğin tek
+  eylemlik tarif", işaret yoksa (d) gibi davransın. Ayrıntı: scratchpad notu, rapora özet.
 - **H6b · "24:00" yazımı:** bilgi tabanında "07:00–24:00" yazıyorsa model "24:00'e kadar" diyor. Önerim: misafire giden metinde kod "24:00"ı
   "gece yarısına (00:00) kadar" yapsın (yalnız biçim; değer değişmez). ÖRNEK: ÖNCE "her gün 24:00'e kadar açık" · SONRA "her gün gece
   yarısına (00:00) kadar açık". Böyle yapalım mı? (Ya da bilgi tabanında bunu sen düzeltirsin — o zaman kod dokunmaz.)

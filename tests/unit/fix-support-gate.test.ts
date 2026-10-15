@@ -76,6 +76,21 @@ describe("saf kural — kurucunun TV vakası ve ikizleri", () => {
     expect(holds(step, support)).toBe(false); // otopark tarifi var → konusu çıkarılamayan adım geçer (temkinli yön)
   });
 
+  it("Haiku 10-15 gece: yeniden başlatma tek başına adımdır; deneme önerisi yalnız arıza bağlamında tarif ister; adsız adımın cihazı önceki cümleden / misafirden", () => {
+    const empty = { recipeTopics: new Set<string>(), subjectTopics: new Set<string>() };
+    expect(holds("Modemi kapatıp açın.", empty)).toBe(true);
+    const coffeeKb = [{ title: "Kahve makinesi", content: "Kapsüller makinenin yanındaki kutudadır; su haznesi arkadadır." }];
+    const coffee = { recipeTopics: kbRecipeTopics(coffeeKb), subjectTopics: kbSubjectTopics(coffeeKb) };
+    const tip = "Kahve makinesinde farklı bir ayarı deneyebilirsiniz.";
+    expect(unsupportedFixStep(tip, coffee, "Kahve makinesinde hangi ayarlar var?")).toBe(false); // kullanım önerisi
+    expect(unsupportedFixStep(tip, coffee, "Kahve makinesi çalışmıyor")).toBe(true); // arıza → tarif ister
+    const acOnly = [{ title: "Klima", content: "Klima çalışmazsa kumandadaki MODE tuşuna basıp kar tanesini seçin." }];
+    const ac = { recipeTopics: kbRecipeTopics(acOnly), subjectTopics: kbSubjectTopics(acOnly) };
+    expect(unsupportedFixStep("Cihazı kapatıp 30 saniye bekleyin, sonra yeniden açın.", ac, "Bulaşık makinesi çalışmıyor")).toBe(true);
+    expect(unsupportedFixStep("Bulaşık makinesi için şunu yapın. Fişini çekip 30 saniye bekleyin.", ac)).toBe(true);
+    expect(unsupportedFixStep("Cihazı kapatıp 30 saniye bekleyin, sonra yeniden açın.", ac, "Klima çalışmıyor")).toBe(false);
+  });
+
   it("'Görüntülü diyafon' kalemi TV konusu/tarifi vermez (Opus N2 ile tutarlı)", () => {
     const kb = [{ title: "Görüntülü diyafon", content: "Kapı çaldığında diyafonun ekranında misafiri görür, anahtar tuşuna basıp kapıyı açabilirsiniz." }];
     expect(kbSubjectTopics(kb).has("tv")).toBe(false);

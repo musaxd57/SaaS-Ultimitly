@@ -359,7 +359,9 @@ export function evaluateEscalation(
   if (hasEmergencyCallDirective(result.reply)) return yes("emergency_directive");
   // ── KANITSIZ ARIZA ADIMI (kurucu 10-15; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`) — kanal kapısıyla AYNI yüklem. Bilgi tabanında tarifi /
   // konusu olmayan cihaz için adım misafire gitmez, ev sahibine devredilir. ──
-  if (fixSupportHolds(result.reply, stayCtx?.kbFixSupport)) return yes("fix_unsupported");
+  // Koddan kurulan doğrulanmış müsaitlik / uzatma metni muaf (kanal kapısındaki `codeBuiltGrant` paritesi — Haiku 10-15 gece).
+  const qrCodeBuilt = result.reply != null && (result.reply === stayCtx?.verifiedAvailability?.text || result.reply === stayCtx?.verifiedExtension?.text);
+  if (!qrCodeBuilt && fixSupportHolds(result.reply, stayCtx?.kbFixSupport, message)) return yes("fix_unsupported");
   // ── MÜSAİTLİK VETOSU (kurucu kararı 09-24) ────────────────────────────────
   // Kanal kapısıyla AYNI yüklem. QR'da cevaplanan tek mesaj GÜNCEL mesajdır (eşzamanlı sohbet;
   // önceki turlar ya o anda cevaplandı ya da ev sahibine DEVREDİLDİ — devredilen tur yapay zekâ cevabı

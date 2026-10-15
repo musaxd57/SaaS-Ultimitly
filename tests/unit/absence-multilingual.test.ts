@@ -356,7 +356,12 @@ describe("'talimatım yok' (kör set 5, 10-01 öğlen) — iki yön", () => {
     ]) {
       expect(admitsMissingKnowledge(m), m).toBe(false);
     }
-    for (const m of ["Televizyon için talimatım yok.", "Kayıtlı bir talimatımız bulunmuyor, ev sahibiniz yardımcı olacaktır."]) {
+    for (const m of [
+      "Televizyon için talimatım yok.",
+      "Kayıtlı bir talimatımız bulunmuyor, ev sahibiniz yardımcı olacaktır.",
+      // Haiku 10-15 gece: niteleyici sözcük SINIRIYLA ("tek" içindeki "ek" niteleyici değil)
+      "Kapı kodu için tek talimatımız yok, anahtar masada.",
+    ]) {
       expect(admitsMissingKnowledge(m), m).toBe(true);
     }
   });

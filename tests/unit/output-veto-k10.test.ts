@@ -77,6 +77,7 @@ describe("K10 — alıcı odaklı edilgen devir (Opus 10-15, ölçüldü: özne 
     "Televizyon arızası ev sahibinize iletildi.",
     "Sorununuz ekibimize bildirilmiştir.",
     "Klima konusu yöneticiye aktarılacaktır.",
+    "Bunu ev sahibimize iletileceğiz.",
     "The TV issue has been passed on to your host.",
     "The heating problem has been reported to the team.",
   ])("TUTULUR: %j", (m) => {
