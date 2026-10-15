@@ -84,7 +84,8 @@ function clauseKind(raw: string, endsWithQuestion: boolean, reportsFault: (claus
   const folded = foldTurkishAscii(raw).replace(/[’`]/g, "'");
   const tokens = folded.split(TOKEN_SPLIT).filter(Boolean);
   if (tokens.length === 0) return "empty";
-  const asksTr = tokens.some((t, i) => (i > 0 && TR_QUESTION_PARTICLES.has(t)) || t === "acaba");
+  // "değil mi" onay sorusunun eki soru sayılmaz (arızayı varsayar — "Klima bozuk değil mi?").
+  const asksTr = tokens.some((t, i) => (i > 0 && TR_QUESTION_PARTICLES.has(t) && tokens[i - 1] !== "degil") || t === "acaba");
   if (tokens.some((t) => INQUIRY_TOKEN_PREFIXES.some((p) => t.startsWith(p))) || INQUIRY_PHRASES.some((re) => re.test(folded))) {
     // Soru niyeti işareti olan ama soru eki taşımayan cümlecik arızayı KENDİSİ bildiriyorsa bildirimdir ("Sormak istemiştim klima hâlâ
     // çalışmıyor" — Opus O5); "Su akmıyor mu acaba gelmeden sormak istedim" soru eki taşıdığı için soru niyeti kalır.
@@ -209,6 +210,8 @@ export function hitIsReported(lower: string, start: number, end: number): boolea
       while (j < lower.length && j - i <= MAX_NEIGHBOR_WORD && WORD_CHAR.test(lower[j])) j++;
       if (j - i > MAX_NEIGHBOR_WORD) break;
       const next = foldTurkishAscii(lower.slice(i, j));
+      // "Klima bozuk değil mi?" onay sorusudur (arızayı varsayar) — virgüllü biçimi ("bozuk, değil mi?") gibi bildirim (Haiku 10-15).
+      if (next === "degil" && /^\s{1,3}m[iıuü](?![\p{L}\p{N}])/u.test(lower.slice(j, j + 8))) break;
       if (TR_AFTER_NEGATION.has(next) || TR_AFTER_CONDITIONAL.has(next)) return false;
       if (!TR_NEGATION_FILLERS.has(next)) break;
       i = j;

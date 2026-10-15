@@ -164,6 +164,12 @@ describe("🚨 yapay zekâ taslağının yankısı ev sahibi kanıtı DEĞİL (O
     expect(own).toHaveLength(1);
     const none = buildLearnPairs([msg("c3", 0, "inbound", "TV açılmıyor"), msg("c3", 5, "outbound", DRAFT)]);
     expect(none).toHaveLength(1);
+    // Kısa taslak ("Evet, var.") içinde geçtiği gerçek cevabı düşürmez (Haiku 10-15).
+    const short = buildLearnPairs([
+      msg("c4", 0, "inbound", "Otopark var mı?", { aiSuggestedReply: "Evet, var." }),
+      msg("c4", 5, "outbound", "Evet, var. Binanın arkasında 2 yer var, ücretsiz."),
+    ]);
+    expect(short).toHaveLength(1);
   });
 
   it("uzun taslak / cevapta doğrusal (sözcük kümesi tavanlı)", () => {

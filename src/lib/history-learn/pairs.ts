@@ -43,6 +43,8 @@ export interface BuildLearnPairsOptions {
  */
 const ECHO_MAX_TOKENS = 400;
 const ECHO_OVERLAP = 0.6;
+/** Bundan kısa taslak ("Evet, var.", "Merhaba") yankı sayılmaz — içinde geçtiği her gerçek cevabı düşürürdü (Haiku 10-15). */
+const ECHO_MIN_DRAFT_WORDS = 4;
 function wordSet(text: string): Set<string> {
   const out = new Set<string>();
   for (const w of text.toLocaleLowerCase("tr").split(/[^\p{L}\p{N}]+/u)) {
@@ -57,7 +59,7 @@ export function echoesAiDraft(block: readonly HistoryMessage[], answer: string):
   const answerWords = wordSet(answer);
   return drafts.some((d) => {
     const draftWords = wordSet(d);
-    if (draftWords.size === 0) return false;
+    if (draftWords.size < ECHO_MIN_DRAFT_WORDS) return false;
     let shared = 0;
     for (const w of draftWords) if (answerWords.has(w)) shared += 1;
     return shared / draftWords.size >= ECHO_OVERLAP;

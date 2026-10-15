@@ -211,7 +211,9 @@ export function detectOperationalTask(
   message: string,
   ai: { intent?: string | null; riskType?: string | null } = {},
 ): DetectedTask | null {
-  const msg = message.toLowerCase();
+  // "İ" ayrı: `toLowerCase()` onu iki kod birimine (i + birleştirici nokta) çevirir — "ELEKTRİK YOK" sözlükle eşleşmiyordu (Haiku 10-15).
+  // Uzunluk korunur (cümlecik eşlemesi sıra numarasıyla).
+  const msg = message.replace(/İ/g, "i").toLowerCase();
   const riskType = ai.riskType ?? detectRiskType(message);
 
   if (riskType && NON_OPERATIONAL_RISK.has(riskType)) return null;

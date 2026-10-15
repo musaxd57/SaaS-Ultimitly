@@ -1287,8 +1287,16 @@ export async function removeAutoTasksForCancelledReservation(
     // Onarımda kontrol listesi işaretlenmiş görev de KORUNUR (Opus O1: işaret `TaskUpdate` yazmaz, sorgu göremez → kimlikle daraltılır).
     let target: Prisma.TaskWhereInput = doomed;
     if (opts.repair) {
-      const rows = await tx.task.findMany({ where: doomed, select: { id: true, checklistJson: true } });
-      target = { id: { in: rows.filter((t) => !checklistTouched(t.checklistJson)).map((t) => t.id) } };
+      const ids = (await tx.task.findMany({ where: doomed, select: { id: true } })).map((t) => t.id);
+      // Aday satırlar KİLİTLENİR (Haiku 10-15): görev rotası kontrol listesi işaretini `FOR UPDATE` ile yazar — kilitsiz okuma ile silme
+      // arasında işaretlenen görev silinebilirdi. Kilitten sonra okunan liste kesin karardır.
+      const locked =
+        ids.length === 0
+          ? []
+          : await tx.$queryRaw<{ id: string; checklistJson: string | null }[]>(
+              Prisma.sql`SELECT "id", "checklistJson" FROM "Task" WHERE "id" IN (${Prisma.join(ids)}) FOR UPDATE`,
+            );
+      target = { ...doomed, id: { in: locked.filter((t) => !checklistTouched(t.checklistJson)).map((t) => t.id) } };
     }
     const photos = await tx.taskUpdate.findMany({
       where: { task: target, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },

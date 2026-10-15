@@ -200,6 +200,8 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     "Su gelmiyor eğer akşama kadar düzelmezse otele geçeceğiz",
     "Su gelmiyorsa ne yapalım? Bu arada su gelmiyor.",
     "Klima bozuk, değil mi?",
+    "Klima bozuk değil mi?", // virgülsüz onay sorusu da (Haiku 10-15)
+    "ELEKTRİK YOK, SALONDA IŞIK YANMIYOR", // büyük "İ" (Haiku 10-15)
     "Merhaba, duştan sıcak su gelmiyor.",
     // İngilizce cümle yardımcı fiille başlasa da "?" yoksa soru değildir; "mi" cümlecik başında soru eki değildir (İspanyolca "mi").
     "Have been trying all morning but the heater is broken",
