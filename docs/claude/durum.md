@@ -8,7 +8,16 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-13 sabah (güncel):** kurucu G1–G11'i cevapladı; G2–G11 uygulandı (gaz / CO dedektörü acili, 2FA kapatma oturum düşürür, demo talebi
+**10-14 akşam → 10-15 gece (güncel; kurucu "gece modu — soru sorma, Haiku'yu bol kullan"):** dış inceleme Y1–Y10 kodda kapandı ve itildi
+(nezaket girişi, Unicode / çok dilli kapı kodu, QR silme yarışı, iptal / ertelenen rezervasyona giriş, genel kapatma kuyruğu, açık yangın
+uyarısı + 25 mesaj penceresi, uyarı adresi kuşak yarışı, ölçerde KATI olgu, dört müşteri ekranı) · kurucu 10-14 kararları (silinen
+konaklamada metinsiz acil uyarı, "kısa devre" model karar verir) · Haiku ikinci tur: olası tehlike + anlama katmanı koşmadı → tur ev
+sahibine (QR + kanal; `hazardDecisionFor` acil hükmü hiç okunmuyordu) · Claude ölçeri (Anthropic API; ANAHTAR bu ortamda YOK — alt oturum
+ücretsiz durdu) · HAZIR YAMALAR: KB içe aktarım istek kimliği (migration 65, mutasyon 10/10) ve G1 + G1b (anlama katmanı son cevaptan
+sonraki otomatik şablonu hiç görmüyordu; 25 × 3: 65/75 → 75/75) · RAG: asıl kazanç İngilizce köprü (60 kalem 110 → 117/120); parça tavanı
+ve soru başına etiket ölçüldü (etiket kötüleştirdi). Sorular ve ölçümler: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-14".
+
+**10-13 sabah:** kurucu G1–G11'i cevapladı; G2–G11 uygulandı (gaz / CO dedektörü acili, 2FA kapatma oturum düşürür, demo talebi
 günde 50 + özet, Paddle yükü 1 yıl, KVKK telefon / e-posta + üslup profili, çizgi taklidi → insana, kanal iptali geri açmaz + panel satırı,
 sağlayıcı arızası tek satır, yakalanmayan hata raporu, imajda yalnız iki betik); G1 hazır yama (kredi gelince ölçüm). Durum ve yeni sorular
 H1–H3: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-13". H1 gerek yok (kurucu verisi), H2 "yeniden aç" düğmesi + H3 duman dedektörü

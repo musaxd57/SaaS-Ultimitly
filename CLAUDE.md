@@ -519,7 +519,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-13 sabah (güncel):** G1–G11 kurucu cevapları uygulandı (G1 hazır yama, kredi bekliyor) + yeni sorular H1–H3 — `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`.
+**10-15 gece (güncel):** Y1–Y10 + Haiku ikinci tur itildi; hazır yamalar KB istek kimliği (migration 65) + G1/G1b; RAG köprü önerisi — `docs/claude/durum.md`.
+**10-13 sabah:** G1–G11 kurucu cevapları uygulandı (G1 hazır yama, kredi bekliyor) + yeni sorular H1–H3 — `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`.
 **10-12 gece:** S1 bavul kapısı · S2 QR iptal edilmiş rezervasyon · ⑤ ilk dilim öneriler (`AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) · takip numarası ilk dilimi (migration 63) — `docs/claude/durum.md`.
 **10-08 gece:** Codex `15c8663` bulguları (U16–U44 + yeni 1–11) döngüde dört turda işlendi ve İTİLDİ (`87ba35d`; takip tablosu
 `docs/INCELEME-2026-10-07-codex-u16-u44.md`, her bulguda regresyon testi, yarışlar gerçek PostgreSQL'de). Kimlik yarışları (U13/U40/U41/U43/U44),
