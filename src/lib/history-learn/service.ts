@@ -7,6 +7,7 @@ import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { reportError } from "@/lib/report-error";
+import { ANON_BODY } from "@/lib/data-retention";
 import { buildLearnPairs } from "./pairs";
 import { maskPairs, maskForLearning } from "./mask";
 import { DRAFT_FLAGS, extractDraftsFromPairs, gateDraft, historyLearnEffort, historyLearnModel, LEARN_CATEGORIES, type DraftFlag } from "./extract";
@@ -467,6 +468,55 @@ async function evidenceContext(organizationId: string, evidenceJson: string) {
   const names = [...new Set([...guestNamesOf(nameRows).values()].flatMap((s) => [...s]))];
   const hostAnswers = msgs.length ? msgs.map((m) => maskForLearning(m.body ?? "", names)) : undefined;
   return { hostAnswers, guestNames: names };
+}
+
+/** İnceleme ekranında taslak başına gösterilen örnek cevabın en çok uzunluğu (maskeden SONRA kırpılır — `mask.ts` kuralı). */
+export const EVIDENCE_SAMPLE_MAX_CHARS = 280;
+
+/**
+ * TASLAĞIN DAYANDIĞI ÖRNEK (Opus 10-15 H6, Codex ilke 1 "mesajı bağlamından koparma"): ekran yalnız çıkarılmış metni gösteriyordu — ev
+ * sahibi "bunu nereden çıkardı?" sorusunu cevaplayamıyordu. Taslak başına İLK kanıt mesajı (ev sahibinin kendi cevabı) CANLI satırdan okunur
+ * (saklama süresi / misafir silmesi mesajla birlikte işler — kopya tutulmaz), çıkarımla AYNI maskeden geçer (ad / telefon / e-posta / kapı
+ * kodu), ay etiketiyle. Kapsam: mülk (çağıran işletmeye ait olduğunu doğruladı). Silinmiş / anonimleştirilmiş mesaj → örnek yok.
+ */
+export async function draftEvidenceSamples(
+  propertyId: string,
+  drafts: readonly { id: string; evidenceMessageIdsJson: string }[],
+): Promise<Map<string, { text: string; month: string }>> {
+  const firstIdOf = new Map<string, string>();
+  for (const d of drafts) {
+    try {
+      const v = JSON.parse(d.evidenceMessageIdsJson);
+      const first = Array.isArray(v) ? v.find((x): x is string => typeof x === "string") : undefined;
+      if (first) firstIdOf.set(d.id, first);
+    } catch {
+      /* bozuk iz → örnek yok */
+    }
+  }
+  const out = new Map<string, { text: string; month: string }>();
+  if (firstIdOf.size === 0) return out;
+  const msgs = await prisma.message.findMany({
+    where: { id: { in: [...new Set(firstIdOf.values())] }, conversation: { propertyId } },
+    select: { id: true, conversationId: true, body: true, createdAt: true },
+  });
+  if (msgs.length === 0) return out;
+  const nameRows = await prisma.message.findMany({
+    where: { conversationId: { in: [...new Set(msgs.map((m) => m.conversationId))] } },
+    select: { conversationId: true, direction: true, senderName: true, conversation: { select: { guestIdentifier: true, reservation: { select: { guestName: true } } } } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: 2_000,
+  });
+  const namesByConv = guestNamesOf(nameRows);
+  const byId = new Map(msgs.map((m) => [m.id, m]));
+  for (const [draftId, messageId] of firstIdOf) {
+    const m = byId.get(messageId);
+    const body = m?.body?.trim();
+    if (!m || !body || body === ANON_BODY) continue;
+    const masked = maskForLearning(body, [...(namesByConv.get(m.conversationId) ?? [])]);
+    const text = masked.length > EVIDENCE_SAMPLE_MAX_CHARS ? `${masked.slice(0, EVIDENCE_SAMPLE_MAX_CHARS)} …` : masked;
+    out.set(draftId, { text, month: m.createdAt.toISOString().slice(0, 7) });
+  }
+  return out;
 }
 
 /**

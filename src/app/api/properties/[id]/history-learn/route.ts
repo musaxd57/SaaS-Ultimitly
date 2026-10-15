@@ -6,6 +6,7 @@ import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
 import {
   clampQuestions,
+  draftEvidenceSamples,
   executeHistoryLearnRun,
   historyLearnEnabled,
   parseFlags,
@@ -57,6 +58,7 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
         conflict: true,
         conflictNote: true,
         flagsJson: true,
+        evidenceMessageIdsJson: true,
         // "Böyle yapsın" notundan doğan taslak (karşılaştırma koşusu) — ekranda "N konuşmada" değil "sizin notunuz" yazar.
         run: { select: { kind: true } },
       },
@@ -93,9 +95,25 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
         ).map((m) => [m.id, m.body ?? ""]),
       )
     : new Map<string, string>();
+  // Taslağın dayandığı örnek cevap (H6, Codex ilke 1): canlı satırdan, çıkarımla aynı maskeden; kimlik dizisi istemciye GİTMEZ.
+  const samples = await draftEvidenceSamples(property.id, drafts);
   return jsonOk({
     runs,
-    drafts: drafts.map(({ flagsJson, run, ...d }) => ({ ...d, fromNote: run.kind === "compare", flags: parseFlags(flagsJson) })),
+    // Açık izin listesi (iç alan — kanıt kimlik dizisi — yanıta girmez).
+    drafts: drafts.map((d) => ({
+      id: d.id,
+      category: d.category,
+      title: d.title,
+      content: d.content,
+      supportConversations: d.supportConversations,
+      newestMonth: d.newestMonth,
+      oldestMonth: d.oldestMonth,
+      conflict: d.conflict,
+      conflictNote: d.conflictNote,
+      fromNote: d.run.kind === "compare",
+      flags: parseFlags(d.flagsJson),
+      sample: samples.get(d.id) ?? null,
+    })),
     // Sorusu silinmiş (konuşma birleştirme / silme) karşılaştırma gösterilmez — boş soru kartı yok (Opus 10-15 HL4).
     comparisons: comparisons.filter((c) => texts.has(c.questionMessageId)).map((c) => ({
       id: c.id,

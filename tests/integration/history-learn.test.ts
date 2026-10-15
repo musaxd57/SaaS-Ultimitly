@@ -206,6 +206,25 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect(after.drafts).toEqual([]);
   });
 
+  it("🚨 H6 (Codex ilke 1): taslağın dayandığı kendi cevabınız MASKELİ örnek + ay olarak listelenir; kimlik dizisi yanıta girmez; silinen mesaj → örnek yok", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = customer(orgId);
+    const { hostMessageId } = await seedHistory(propertyId);
+    const d = await seedDraft(propertyId, orgId, { evidenceMessageIdsJson: JSON.stringify([hostMessageId]) });
+    const list = await (await getRuns(json(`http://localhost/api/properties/${propertyId}/history-learn`, "GET"), p({ id: propertyId }))).json();
+    const row = list.drafts.find((x: { id: string }) => x.id === d.id);
+    expect(row.sample.text).toContain("otopark binanın arkasında ücretsiz");
+    expect(row.sample.text).not.toContain("Ayşe");
+    expect(row.sample.text).not.toContain("4590");
+    const host = await prisma.message.findUniqueOrThrow({ where: { id: hostMessageId } });
+    expect(row.sample.month).toBe(host.createdAt.toISOString().slice(0, 7));
+    expect(row).not.toHaveProperty("evidenceMessageIdsJson");
+    // Saklama süresiyle anonimleştirilen / silinen mesaj örnek vermez (kopya tutulmaz).
+    await prisma.message.delete({ where: { id: hostMessageId } });
+    const after = await (await getRuns(json(`http://localhost/api/properties/${propertyId}/history-learn`, "GET"), p({ id: propertyId }))).json();
+    expect(after.drafts.find((x: { id: string }) => x.id === d.id).sample).toBeNull();
+  });
+
   it("🚨 işaretli / çelişkili taslak onay için açık teyit ister; düzenlenen metin kapıdan geçer; ret kalem açmaz", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     session = owner(orgId);

@@ -60,6 +60,8 @@ interface Draft {
   /** "Böyle yapsın" notundan doğdu (geçmiş cevaplardan değil). */
   fromNote?: boolean;
   flags: Flag[];
+  /** Taslağın dayandığı kendi cevabınızdan maskeli örnek + ay (canlı satır; silinmişse yok). */
+  sample?: { text: string; month: string } | null;
 }
 interface Run {
   id: string;
@@ -253,6 +255,11 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
       </div>
       <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} aria-label="Başlık" disabled={busy} />
       <Textarea value={content} onChange={(e) => setContent(e.target.value)} maxLength={2000} rows={3} aria-label="İçerik" disabled={busy} />
+      {draft.sample ? (
+        <p className="rounded-md bg-muted/50 px-2.5 py-2 text-xs text-muted-foreground" data-testid="history-learn-sample">
+          Örnek cevabınız ({draft.sample.month}): <span className="whitespace-pre-wrap">“{draft.sample.text}”</span>
+        </p>
+      ) : null}
       {draft.conflict ? (
         <p className="rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
           Cevaplarınız bu konuda farklı. {draft.conflictNote ?? ""}
