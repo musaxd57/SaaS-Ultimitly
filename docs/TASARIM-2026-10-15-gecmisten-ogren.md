@@ -43,7 +43,16 @@ Bütün geçmiş (kurucu org, 17.462 mesaj): okuma ~10 $, her soruya cevap ~50�
 - Kurucu org için: Railway açılınca orada koşar (09-19 yedeğini yerele yüklemek eski kararı açar — gerekmez).
 - Taslak / not satırları müşterinin dışa aktarma + hesap silme kapsamına girer (değişmez 14 listesi).
 
-## 5. Açık sorular (kod yazılmadan önce)
+## 5. Kurucu kararları (10-15)
+
+- **Migration ile, "en sağlamı / en güçlüsü".**
+- **"Böyle yapsın" notları HEM bilgi tabanına HEM mülke özgü talimata yazılır** (talimat cevap istemine girer → ev sahibi metni istem
+  sayılır: KB talimat-ele-geçirme süzgeci, sır kapısı, uzunluk tavanı ve ödeme yöntemi kapısı talimata da uygulanır).
+- **Model Luna 6.0** ("5.1 çok pahalı, müşteriler için de"): okuma, taslak çıkarma ve karşılaştırma cevabı Luna; ayrı katman değişkeni
+  (`AI_HISTORY_LEARN_MODEL` / `_REASONING_EFFORT`, varsayılan `gpt-6-luna` / `low`).
+- İlk deneme 300 misafir sorusu; inceleme Lixus panelinde.
+
+## 6. Eski açık sorular (yanıtlandı ↑)
 
 1. "Böyle yapsın" notları ne olsun? (a) yalnız bilgi tabanı taslağına dönüşsün (en güvenli) · (b) mülke özgü "ev sahibi talimatı" olarak
    cevap istemine girsin (güçlü ama ev sahibi metni = istem değişikliği, ayrı güvenlik kapısı ister) · (c) yalnız bizim ölçümümüze girdi.

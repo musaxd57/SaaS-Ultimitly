@@ -1,0 +1,67 @@
+name: Claude eval
+
+# CLAUDE ZORLU TESTLER (kurucu 10-15: "Claude anahtarını ortama ekleyemiyorum — API'yi bir yere gireyim, sen kullan").
+# Anahtar GitHub deposunun Actions sırrında durur (Settings → Secrets and variables → Actions → ANTHROPIC_API_KEY); konuşmaya,
+# depoya ya da günlüğe YAZILMAZ (GitHub sırları günlükte maskeler). Ücretli koşu YALNIZ iki yoldan başlar:
+#  · `evals/claude-run-request.json` değişen bir push (Claude oturumu istek dosyasını güncelleyip iter),
+#  · Actions sekmesinden elle (workflow_dispatch).
+# Sır tanımlı değilse iş ücretsiz biter (hiçbir çağrı yok). Rapor iş yapıtı (artifact) olarak yüklenir; depoya commit ETMEZ.
+on:
+  push:
+    branches: ["claude/great-edison-3zqpZ"]
+    paths: ["evals/claude-run-request.json"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-eval
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Sır yoksa ücretsiz bitir
+        if: env.HAS_KEY != 'true'
+        run: echo "ANTHROPIC_API_KEY Actions sırrı tanımlı değil — koşu yapılmadı."
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - uses: actions/setup-node@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        if: env.HAS_KEY == 'true'
+        run: npm ci && npx prisma generate
+      - name: İstek dosyasını oku
+        if: env.HAS_KEY == 'true'
+        id: req
+        run: |
+          echo "n=$(node -e 'console.log(require("./evals/claude-run-request.json").n ?? 40)')" >> "$GITHUB_OUTPUT"
+          echo "rounds=$(node -e 'console.log(require("./evals/claude-run-request.json").rounds ?? 1)')" >> "$GITHUB_OUTPUT"
+          echo "suite=$(node -e 'console.log(require("./evals/claude-run-request.json").suite ?? "tests/eval/claude-adversarial.eval.test.ts")')" >> "$GITHUB_OUTPUT"
+      - name: Claude ölçümü
+        if: env.HAS_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RUN_REAL_EVAL: "1"
+          CLAUDE_EVAL_N: ${{ steps.req.outputs.n }}
+          CLAUDE_EVAL_ROUNDS: ${{ steps.req.outputs.rounds }}
+        # Ölçer N ≤ 60, tur ≤ 3 tavanlı (ücret); eksik ölçümde kırmızı biter ama raporu yine yazar → yapıt her durumda yüklenir.
+        run: npx vitest run --config vitest.eval.config.ts "${{ steps.req.outputs.suite }}"
+      - name: Raporu yükle
+        if: always() && env.HAS_KEY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-eval-report
+          path: |
+            docs/olcum/claude-zorlu-*.md
+            docs/olcum/claude-zorlu-*.json
+          if-no-files-found: warn
+          retention-days: 30
