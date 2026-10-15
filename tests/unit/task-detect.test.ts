@@ -67,7 +67,7 @@ describe("buildOperationalTaskData", () => {
     const d = detectOperationalTask("musluk akıtıyor", {})!;
     const data = buildOperationalTaskData(d, { propertyId: "prop-1", message: "Ben Ahmet, musluk akıtıyor", now });
     expect(data.type).toBe("maintenance");
-    expect(data.title.startsWith("Bakım:")).toBe(true);
+    expect(data.title).toBe("Bakım — misafir bildirimi: musluk"); // kurucu D4: doğrulanmış arıza gibi yazılmaz
     expect(data.title).not.toContain("Ahmet"); // guest name stays out of the title
     // Bakımda tekilleştirme konusu CİHAZDIR, belirti değil (kurucu 10-15: "Klima bozuk" ile "Musluk bozuk" birleşmemeli).
     expect(data.dedupeKey).toBe("prop-1:maintenance:cihaz:musluk:2026-07-10");
@@ -103,7 +103,7 @@ describe("15 ajan A11 — görev ağı alt dize eşleştirmez (sahte görev yok)
     expect(detectOperationalTask("We ran out of tea.", {})?.topic).toBe("tea");
     expect(detectOperationalTask("The sink keeps leaking.", {})?.topic).toBe("leaking");
     expect(detectOperationalTask("Havlular bitmiş.", {})?.topic).toBe("havlu");
-    expect(detectOperationalTask("Klima bozulmuş.", {})?.topic).toBe("bozulmuş");
+    expect(detectOperationalTask("Klima bozulmuş.", {})?.topic).toBe("klima"); // kurucu D4: konu mesajdaki cihaz
   });
 
   it("🚨 Türkçe sözcük BAŞI şartı: sözcük içindeki eşleşme görev açmaz (\"ko-CAY-a\" çay değildir); sözcük başındaki ekli biçim açar", () => {
@@ -138,3 +138,101 @@ describe("bakım tekilleştirme anahtarı — cihaz (kurucu 10-15)", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// KURUCU D4 (10-15, aynen): "Görev tespitini genişletelim; fakat önceliği yalnız cihaz adına veya soru işaretine göre belirlemeyelim.
+// Gerçek arıza bildirimi ile varsayım, olumsuzlama ve genel soruyu ayır. Görev başlığında “misafir bildirimi” olduğunu koru; doğrulanmış
+// arıza gibi yazma. … 2/24 saat hedeflerini henüz kesinleştirme. Otomatik görev kapalıysa görev açılmasın."
+// ---------------------------------------------------------------------------
+describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olumsuzlama ayrıldı", () => {
+  const now = new Date("2026-07-10T09:00:00.000Z");
+  const detect = (m: string) => detectOperationalTask(m, {});
+  const title = (m: string) => buildOperationalTaskData(detect(m)!, { propertyId: "p", message: m, now }).title;
+
+  it.each([
+    ["Kapının kilidi bozuldu", "kapı"],
+    ["Kapı kilitlenmiyor", "kapı"],
+    ["Su akmıyor", "su"],
+    ["Banyoda su akmıyor", "su"],
+    ["Duştan su akmıyor", "duş"],
+    ["Musluktan su gelmiyor", "musluk"],
+    ["Sifon bozuldu", "sifon"],
+    ["Kombi bu sabah bozuldu.", "kombi"],
+  ])("🚨 bugün görev AÇMAYAN gerçek bildirim → bakım (normal öncelik, 24 sa — saat hedefi kesinleşmedi): %j", (m, topic) => {
+    expect(detect(m)).toEqual({ type: "maintenance", priority: "standard", topic, slaHours: 24 });
+    expect(title(m)).toBe(`Bakım — misafir bildirimi: ${topic}`);
+  });
+
+  it.each([
+    "Su akmıyor mu acaba, gelmeden sormak istedim",
+    "Sıcak su gelmiyor mu? Gelmeden önce soruyorum",
+    "Klima bozulursa kime haber verelim?",
+    "Kombi bozuksa ne yapmalıyız?",
+    "Klima çalışmıyorsa kimi arayalım?",
+    "Eğer su gelmiyor ise ne yapalım?",
+    "Klima bozuk değil, sadece kumandayı bulamadık",
+    "Musluk bozuk değil sanırım, sadece sert",
+    "Kilit bozulmadı, sadece sıkı",
+    "Is the AC broken?",
+    "What should we do if the AC is broken?",
+    "The AC isn't broken, we just couldn't find the remote.",
+    "Moralim bozuldu",
+    "Merhaba, klima bozuk mu?",
+    "Klima bozuk olursa ne yapalım?",
+  ])("🚨 soru / varsayım / olumsuzlama → bakım görevi YOK: %j", (m) => {
+    expect(detect(m)).toBeNull();
+  });
+
+  it.each([
+    "Salon ışığı yanmıyor mu, karanlıkta oturuyoruz.",
+    "Banyo lavabosu tıkandı mı acaba, su gitmiyor.",
+    "Oda peteği ısınmıyor mu sizce, buz gibi.",
+    "Kapının kilidi bozuk mu, anahtar dönmüyor",
+    "Su gelmiyor eğer akşama kadar düzelmezse otele geçeceğiz",
+    "Su gelmiyorsa ne yapalım? Bu arada su gelmiyor.",
+    "Klima bozuk, değil mi?",
+    "Merhaba, duştan sıcak su gelmiyor.",
+    // İngilizce cümle yardımcı fiille başlasa da "?" yoksa soru değildir; "mi" cümlecik başında soru eki değildir (İspanyolca "mi").
+    "Have been trying all morning but the heater is broken",
+    "Mi calentador is broken.",
+  ])("aşırı uygulama yok: soru ekiyle TEREDDÜTLÜ bildirim / koşulla biten gerçek bildirim → görev AÇILIR: %j", (m) => {
+    expect(detect(m)?.type).toBe("maintenance");
+  });
+
+  it.each([
+    "Merdivenlerde yoğun sigara kokusu var, komşulardan geliyor galiba.",
+    "Dairede ağır bir rutubet kokusu var, pencereleri açtık ama geçmedi.",
+    "Teknisyenimiz geldi, sıcak su sorunu giderildi. Anlayışınız için teşekkürler.",
+    "Getirdiğimiz kahve makinesi bozuldu.",
+    "Kendi blenderımız bozuldu, mutfakta var mı?",
+  ])("genel şikâyet + mesajda geçen cihaz adı / misafirin kendi eşyası → bakım görevi YOK: %j", (m) => {
+    expect(detect(m)).toBeNull();
+  });
+
+  it("acil güvenlik DEĞİŞMEDİ: soru gibi yazılsa da acil (şüphede acil)", () => {
+    expect(detect("Kapının kilidi bozuldu, içeri giremiyoruz")?.priority).toBe("urgent");
+    expect(detectOperationalTask("Gaz kokusu mu bu acaba?", { riskType: "safety_emergency" })?.priority).toBe("urgent");
+  });
+
+  it("eşya / temizlik başlığı değişmedi (misafir bildirimi eki yalnız bakımda)", () => {
+    expect(title("Havlu eksik")).toBe("Eksik Eşya: havlu");
+  });
+
+  it("aynı cihazın kaynaştırmalı yazımı aynı konu ve anahtar ('suyu' → su)", () => {
+    expect(detect("Banyonun suyu akmıyor")?.topic).toBe("su");
+    const key = (m: string) => buildOperationalTaskData(detect(m)!, { propertyId: "p", message: m, now }).dedupeKey;
+    expect(key("Banyonun suyu akmıyor")).toBe(key("Su akmıyor"));
+  });
+
+  it("uzun girdide doğrusal (karesel iş yok — misafir metni)", () => {
+    const t0 = performance.now();
+    detect(`${"Su akmıyor mu, ".repeat(2_000)}x`);
+    detect("a".repeat(50_000));
+    detect(`${"bozuk ".repeat(8_000)}değil`);
+    detect(`${" ".repeat(50_000)}bozuk`);
+    detect(`${",".repeat(50_000)}klima bozuk`);
+    detect("klima bozuk değil ".repeat(3_000));
+    detect("Klima bozuk mu? ".repeat(3_000));
+    expect(performance.now() - t0).toBeLessThan(4_000);
+  });
+});

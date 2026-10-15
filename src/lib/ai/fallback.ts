@@ -1409,7 +1409,7 @@ function reportSubjectSlot(toks: string[], verbIndex: number): boolean {
  */
 /**
  * Mesajda geçen İLK cihazın kök adı (`BREAKDOWN_DEVICES` envanterinden; çekimli biçim de eşleşir: "klimayı" → "klima", "musluğu" → "musluk").
- * Yumuşamış kök (musluğ / kilid / dolab) sert karşılığı envanterdeyse ona çevrilir → aynı cihazın iki yazımı aynı anahtar. Cihaz yoksa null.
+ * Yumuşamış kök (musluğ / kilid / dolab / kepeng) sert karşılığı, kaynaştırmalı kök ("suy") yalın hâli envanterdeyse ona çevrilir → aynı cihazın iki yazımı aynı anahtar. Cihaz yoksa null.
  * Kullanım: mesajdan açılan görevin TEKİLLEŞTİRME anahtarı (kurucu 10-15: "Klima bozuk" ile "Musluk bozuk" birleşmemeli — ikisi de "bozuk"
  * konusuna düşüyordu). Belirteç başına doğrusal (karesel iş yok).
  */
@@ -1423,8 +1423,11 @@ export function firstBreakdownDevice(message: string): string | null {
       // Hangi kök: önce uzun kökler ("çamaşır makinesi" değil tek sözcük envanteri; "kilid" ile "kilit" gibi eşdeğerler aşağıda birleşir).
       const hit = DEVICES_LONGEST_FIRST.find((d) => matchesInflectedWord(tok, [d]));
       if (!hit) continue;
-      const hard = hit.replace(/ğ$/u, "k").replace(/d$/u, "t").replace(/b$/u, "p").replace(/c$/u, "ç");
-      return hard !== hit && DEVICE_SET.has(hard) ? hard : hit;
+      const hard = hit.replace(/ğ$/u, "k").replace(/g$/u, "k").replace(/d$/u, "t").replace(/b$/u, "p").replace(/c$/u, "ç");
+      if (hard !== hit && DEVICE_SET.has(hard)) return hard;
+      // Kaynaştırma "y"si ("suy" → "su"): görev başlığında "Bakım — misafir bildirimi: suy" görünmesin, "su" ile "suyu" aynı anahtara düşsün.
+      const unbuffered = hit.replace(/y$/u, "");
+      return unbuffered !== hit && DEVICE_SET.has(unbuffered) ? unbuffered : hit;
     }
   }
   return null;
@@ -1495,6 +1498,15 @@ function hasNegativeVerbComplaint(message: string): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Mesaj bir CİHAZ arızasını bildiriyor mu? (cihaz + arıza fiili ya da tesis + olumsuz fiil; koşul eki elenmiş — sınıflandırıcının
+ * şikâyet kararındaki İKİ cihaz bacağının aynısı, yeni kural yok). YALNIZ görev tespiti okur (`tasks/detect.ts`, kurucu D4 10-15):
+ * genel şikâyet ("sigara kokusu var", "dava açarım") + mesajda geçen bir cihaz adı bakım görevi açmasın. Güvenlik kapısına BAĞLANMAZ.
+ */
+export function reportsDeviceFault(message: string): boolean {
+  return hasDeviceBreakdown(message) || hasNegativeVerbComplaint(message);
 }
 
 function detectIntent(message: string): Intent {

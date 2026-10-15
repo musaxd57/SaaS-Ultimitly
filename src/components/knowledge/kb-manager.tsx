@@ -121,7 +121,7 @@ export function KbManager({
   prefill?: KbPrefill | null;
 }) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
+  const [refreshing, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,13 +168,16 @@ export function KbManager({
   // metin sonra düzeltilip yeniden gönderilirse aynı kimlik gider → sunucu 409 + kaydedilen kalem; ikinci kalem açılmaz.
   const formRequestId = useRef<string>(newKbRequestId());
   const [conflictItem, setConflictItem] = useState<Pick<KbItem, "id" | "category" | "title" | "content"> | null>(null);
+  // "Kaydedilen bilgiyi düzenle": düzenleyici GÜNCEL listeden açılır (409 anlık görüntüsünden değil — başka sekmede değişmiş olabilir;
+  // Haiku 10-15). Kalem henüz listede yoksa liste yenilenir, gelince açılır.
+  const [pendingEditId, setPendingEditId] = useState<string | null>(null);
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
+  async function create(e?: React.FormEvent) {
+    e?.preventDefault();
     setCreating(true);
     setError(null);
     try {
@@ -347,6 +350,19 @@ export function KbManager({
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!pendingEditId) return;
+    const it = items.find((i) => i.id === pendingEditId);
+    if (it) {
+      setPendingEditId(null);
+      startEdit(it);
+    } else if (!refreshing) {
+      // Yenileme bitti, kalem yine yok (bu arada silinmiş olabilir) → sessizce beklemek yerine söylenir.
+      setPendingEditId(null);
+      setError("Kaydedilen bilgi listede bulunamadı. Sayfayı yenileyip tekrar deneyin.");
+    }
+  }, [items, pendingEditId, refreshing]);
+
   function startEdit(item: KbItem) {
     setCopyId(null);
     setEditId(item.id);
@@ -430,17 +446,37 @@ export function KbManager({
                   {conflictItem.title ? <span className="font-medium">{conflictItem.title}: </span> : null}
                   {conflictItem.content}
                 </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    startEdit({ ...conflictItem, propertyId: form.propertyId, propertyName: "", language: form.language, isActive: true });
-                    refresh();
-                  }}
-                >
-                  Kaydedilen bilgiyi düzenle
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const inList = items.find((i) => i.id === conflictItem.id);
+                      if (inList) startEdit(inList);
+                      else {
+                        setPendingEditId(conflictItem.id);
+                        refresh();
+                      }
+                    }}
+                  >
+                    Kaydedilen bilgiyi düzenle
+                  </Button>
+                  {/* Bilinçli YENİ kayıt yalnız bu açık seçenekle (kurucu D1: sıradan "Ekle" ikinci kayıt onayı sayılmaz). */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={creating}
+                    onClick={() => {
+                      formRequestId.current = newKbRequestId();
+                      setConflictItem(null);
+                      void create();
+                    }}
+                  >
+                    Ayrı bir bilgi olarak ekle
+                  </Button>
+                </div>
               </div>
             ) : null}
             {prefillNotice ? (

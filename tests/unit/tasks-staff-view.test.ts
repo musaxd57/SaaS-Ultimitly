@@ -19,6 +19,10 @@ describe("temizlikçi başlığı — misafir adı asla", () => {
 
   it("yapay zekâ görevi: yalnız bizim 'Tür: konu' biçimimiz kalır; başka her başlık (şikâyet + misafir adı) tür adına düşer", () => {
     expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: "Bakım: klima" })).toBe("Bakım: klima");
+    // Kurucu D4 (10-15): bakım başlığı "misafir bildirimi" der; personel de aynı başlığı görür. Konuda rakam yine geçmez.
+    expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: "Bakım — misafir bildirimi: kapı" })).toBe("Bakım — misafir bildirimi: kapı");
+    expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: "Bakım — misafir bildirimi: 0532 111 22 33" })).toBe("Bakım");
+    expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: "Bakım — başka bir şey: kapı" })).toBe("Bakım");
     expect(cleanerTaskTitle({ origin: "ai", type: "restock", title: "Eksik Eşya: havlu" })).toBe("Eksik Eşya: havlu");
     expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: `Şikayet: ${GUEST}` })).toBe("Bakım");
     // Etiket başka türün etiketiyse (bozuk satır) ya da konu rakam içeriyorsa (telefon/kod) geçmez.

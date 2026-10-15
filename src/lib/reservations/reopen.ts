@@ -8,9 +8,11 @@
 // Kurallar:
 //  · Yalnız İPTAL edilmiş rezervasyon (değilse 409 — tekrarlanan istek böylece ikinci görev açamaz).
 //  · Konaklaması bitmiş rezervasyon açılmaz (çıkış günü işletmenin takviminde bugünden önce; çıkış günü açılabilir).
-//  · SAĞLAYICIYA AİT satırda (kanıtlı bağlantı damgası — `hasProvenConnection`) kanal son REACTIVATION_ATTENTION_DAYS günde rezervasyonu
-//    etkin göstermiş olmalı; dosya / takvim bağlantısı / elle girilmiş satırda bu işaret ARANMAZ (o kaynaklar böyle bir işaret üretmez —
-//    yanlışlıkla iptal edilmiş dosya satırını geri açmanın tek yolu buydu).
+//  · SAĞLAYICIYA AİT satırda kanal son REACTIVATION_ATTENTION_DAYS günde rezervasyonu etkin göstermiş olmalı; dosya / takvim bağlantısı /
+//    elle girilmiş satırda bu işaret ARANMAZ (o kaynaklar böyle bir işaret üretmez — yanlışlıkla iptal edilmiş dosya satırını geri açmanın
+//    tek yolu buydu). "Sağlayıcıya ait" = kanıtlı bağlantı damgası (`hasProvenConnection`) YA DA sağlayıcıda mesajlanabilir satır
+//    (`reservationMessagingCapable`: dolu referans + takvim bağlantısı yok + kanal ics/manual değil — damga öncesi eski sağlayıcı satırları;
+//    Haiku 10-15). Şüphede işaret ARANIR (eski davranış): yanlış yeniden açma karşılama / giriş mesajı gönderebilir.
 //  · Koşullu yazma (iki tık / arada kanalın iptali yarışı) + denetim kaydı + eksik yaşam döngüsü görevleri (tekrarsız, kilitli yol).
 // ---------------------------------------------------------------------------
 import { prisma } from "@/lib/db";
@@ -19,6 +21,7 @@ import { createReservationTasks } from "@/lib/automation";
 import { reportError } from "@/lib/report-error";
 import { REACTIVATION_ATTENTION_DAYS, REACTIVATION_BLOCKED_FIELD } from "@/lib/ingest/reactivation";
 import { hasProvenConnection } from "@/lib/channels/provenance";
+import { reservationMessagingCapable } from "@/lib/channels/capability";
 import { stayEndedBefore } from "@/modules/availability/core";
 import { orgTimezone } from "@/lib/timezone";
 
@@ -61,6 +64,9 @@ export async function reopenCancelledReservation(input: {
       connectionId: true,
       connectionEvidence: true,
       ingestedAt: true,
+      sourceReference: true,
+      calendarSourceId: true,
+      channel: true,
       property: { select: { organization: { select: { timezone: true } } } },
     },
   });
@@ -69,7 +75,7 @@ export async function reopenCancelledReservation(input: {
   const tz = orgTimezone(reservation.property.organization.timezone);
   if (stayEndedBefore(reservation.departureDate, now, tz)) return conflict("past_stay");
 
-  if (hasProvenConnection(reservation)) {
+  if (hasProvenConnection(reservation) || reservationMessagingCapable(reservation)) {
     const signal = await prisma.ingestEvent.findFirst({
       where: {
         organizationId: input.organizationId,

@@ -260,9 +260,12 @@ describe("Görevler sayfası — 'Eksik görevleri oluştur' sayısı görev olu
     await stay(propertyId, "2026-09-23T00:00:00.000Z", "2026-09-26T00:00:00.000Z", "cancelled"); // iptal → sayılmaz
     await stay(propertyId, "2026-09-20T00:00:00.000Z", "2026-09-25T00:00:00.000Z"); // dün çıktı → sayılmaz
     const withTask = await stay(propertyId, "2026-09-27T00:00:00.000Z", "2026-09-30T00:00:00.000Z");
-    await prisma.task.create({ data: { propertyId, reservationId: withTask.id, type: "cleaning", title: "Elle temizlik", dueAt: withTask.departureDate } });
+    await prisma.task.create({ data: { propertyId, reservationId: withTask.id, type: "cleaning", origin: "system", title: "Çıkış temizliği", dueAt: withTask.departureDate } });
+    // Kurucu D7 (10-15): elle açılmış temizlik otomatik çıkış temizliğini KARŞILAMAZ → bu konaklama da eksik sayılır.
+    const withManual = await stay(propertyId, "2026-09-27T00:00:00.000Z", "2026-09-29T00:00:00.000Z");
+    await prisma.task.create({ data: { propertyId, reservationId: withManual.id, type: "cleaning", origin: "manual", title: "Elle temizlik", dueAt: withManual.departureDate } });
 
-    expect(await pageCount(orgId)).toBe(1);
+    expect(await pageCount(orgId)).toBe(2);
     await backfillReservationTasks(orgId);
     expect(await pageCount(orgId)).toBeNull();
   });

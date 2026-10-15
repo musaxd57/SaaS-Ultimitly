@@ -26,7 +26,9 @@ const DAY = 86_400_000;
 const req = (id: string) => new NextRequest(`http://localhost/api/reservations/${id}/reactivate`, { method: "POST" });
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 
-async function seed(opts: { role?: SessionPayload["role"]; signalDaysAgo?: number | null; status?: string; provider?: boolean } = {}) {
+/** `provider`: true (varsayılan) kanıtlı bağlantı damgalı sağlayıcı satırı · "legacy" damga öncesi sağlayıcı satırı (airbnb + referans,
+ *  bağlantı damgası yok) · false sağlayıcıya ait OLMAYAN satır (`channel`: varsayılan dosya "ics"; elle "manual"). */
+async function seed(opts: { role?: SessionPayload["role"]; signalDaysAgo?: number | null; status?: string; provider?: boolean | "legacy"; channel?: "ics" | "manual" } = {}) {
   const { orgId, propertyId } = await makeOrgWithProperty();
   const user = await prisma.user.create({
     data: { organizationId: orgId, name: "O", email: `o-${orgId}@x.com`, passwordHash: "x", role: opts.role ?? "owner" },
@@ -39,9 +41,9 @@ async function seed(opts: { role?: SessionPayload["role"]; signalDaysAgo?: numbe
       arrivalDate: new Date(Date.now() + 10 * DAY),
       departureDate: new Date(Date.now() + 13 * DAY),
       status: opts.status ?? "cancelled",
-      channel: "airbnb",
-      // Sağlayıcıya ait satır (kanıtlı bağlantı damgası) — kanal işareti YALNIZ bunda aranır (kurucu D6, 10-15).
-      ...(opts.provider === false ? {} : { connectionId: `conn-${orgId}`, connectionEvidence: "ingest", ingestedAt: new Date() }),
+      channel: opts.provider === false ? (opts.channel ?? "ics") : "airbnb",
+      // Sağlayıcıya ait satır — kanal işareti YALNIZ bunda aranır (kurucu D6, 10-15).
+      ...(opts.provider === false || opts.provider === "legacy" ? {} : { connectionId: `conn-${orgId}`, connectionEvidence: "ingest", ingestedAt: new Date() }),
     },
   });
   if (opts.signalDaysAgo !== null) {
@@ -112,6 +114,25 @@ describe("POST /api/reservations/[id]/reactivate (H2)", () => {
     const again = await POST(req(s.reservationId), ctx(s.reservationId));
     expect(again.status).toBe(409);
     expect(await prisma.task.count({ where: { reservationId: s.reservationId, origin: "system" } })).toBe(2);
+  });
+
+  it("elle girilmiş satır (kanal 'manual' + referans) da sağlayıcıya ait sayılmaz → işaret aranmadan açılır", async () => {
+    const s = await seed({ signalDaysAgo: null, provider: false, channel: "manual" });
+    session = s.session;
+    expect((await POST(req(s.reservationId), ctx(s.reservationId))).status).toBe(200);
+  });
+
+  it("🚨 ŞÜPHEDE İŞARET ARANIR: bağlantı damgası öncesi eski sağlayıcı satırı (airbnb + referans, damga yok) işaretsiz → 409, iptal kalır", async () => {
+    const s = await seed({ signalDaysAgo: null, provider: "legacy" });
+    session = s.session;
+    const res = await POST(req(s.reservationId), ctx(s.reservationId));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("no_channel_signal");
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("cancelled");
+    // Aynı eski satır kanal işaretiyle açılır (aşırı uygulama yok).
+    const withSignal = await seed({ provider: "legacy" });
+    session = withSignal.session;
+    expect((await POST(req(withSignal.reservationId), ctx(withSignal.reservationId))).status).toBe(200);
   });
 
   it("KONTROL: konaklaması bitmiş rezervasyon → 409 past_stay (panel kapsamıyla aynı)", async () => {

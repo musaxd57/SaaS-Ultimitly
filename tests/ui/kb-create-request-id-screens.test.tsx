@@ -108,6 +108,42 @@ describe("Bilgi tabanı formu (KbManager)", () => {
     expect(b.requestId).toBe(a.requestId);
   });
 
+  it("kurucu D1: bilinçli ikinci kayıt YALNIZ açık seçenekle — 'Ayrı bir bilgi olarak ekle' YENİ kimlikle gönderir, metin aynı kalır", async () => {
+    mockFetch({ fromTemplates: [] }, ["conflict", "ok"]);
+    render(<KbManager properties={PROPS} items={[]} />);
+    fill("Otopark", "Bina önünde ücretsiz otopark var.");
+    submit();
+    await screen.findByRole("button", { name: "Ayrı bir bilgi olarak ekle" });
+    fireEvent.click(screen.getByRole("button", { name: "Ayrı bir bilgi olarak ekle" }));
+    await waitFor(() => expect(posts()).toHaveLength(2));
+    const [a, b] = posts();
+    expect(b.requestId).toMatch(/^[0-9a-f]{32}$/);
+    expect(b.requestId).not.toBe(a.requestId);
+    expect(b.content).toBe(a.content);
+    await waitFor(() => expect((document.getElementById("kb-content") as HTMLTextAreaElement).value).toBe(""));
+  });
+
+  it("kurucu D1: 'Kaydedilen bilgiyi düzenle' düzenleyiciyi GÜNCEL listeden açar (409 anındaki kopyadan değil)", async () => {
+    mockFetch({ fromTemplates: [] }, ["conflict"]);
+    const saved = { id: "kb-saved", propertyId: "p1", propertyName: "Lale 1", category: "general", title: "Otopark", content: "Bina önünde ücretli otopark var (güncel).", language: "tr", isActive: true };
+    render(<KbManager properties={PROPS} items={[saved]} />);
+    fill("Otopark", "Bina önünde ücretsiz otopark var.");
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Kaydedilen bilgiyi düzenle" }));
+    expect(await screen.findByDisplayValue("Bina önünde ücretli otopark var (güncel).")).toBeTruthy();
+    expect(screen.queryByDisplayValue("Bina önünde ÜCRETLİ otopark var.")).toBeNull();
+  });
+
+  it("kurucu D1: kaydedilen bilgi listede yoksa (silinmiş olabilir) liste yenilenir ve sessiz kalınmaz", async () => {
+    mockFetch({ fromTemplates: [] }, ["conflict"]);
+    render(<KbManager properties={PROPS} items={[]} />);
+    fill("Otopark", "Bina önünde ücretsiz otopark var.");
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Kaydedilen bilgiyi düzenle" }));
+    expect(await screen.findByText("Kaydedilen bilgi listede bulunamadı. Sayfayı yenileyip tekrar deneyin.")).toBeTruthy();
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
   it("🚨 kurucu D1: bağlantı koparken metin düzeltilip yeniden gönderilirse AYNI kimlik gider (kalem aslında yazıldıysa sunucu 409 der, ikinci kalem açılmaz)", async () => {
     mockFetch({ fromTemplates: [] }, ["net", "ok", "ok"]);
     render(<KbManager properties={PROPS} items={[]} />);

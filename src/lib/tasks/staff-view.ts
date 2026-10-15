@@ -28,8 +28,9 @@ const SYSTEM_TITLES: Readonly<Record<string, string>> = {
 /**
  * `buildOperationalTaskData` biçimi: "Bakım: klima" — tür etiketi + kısa konu sözcüğü (mesajdan eşleşen cihaz/eşya
  * sözcüğü; misafir adı olamaz). Konuda rakam YOK: telefon / oda no / kod gibi bir değer başlıktan geçemesin.
+ * Bakımda (kurucu D4, 10-15) etiket "Bakım — misafir bildirimi: kapı" (sabit ek; personel de bildirimin doğrulanmadığını görür).
  */
-const AI_TOPIC_TITLE = /^[\p{L} ]{2,20}: [\p{L} ./-]{1,40}$/u;
+const AI_TOPIC_TITLE = /^[\p{L} ]{2,20}(?: — misafir bildirimi)?: [\p{L} ./-]{1,40}$/u;
 
 function typeLabel(type: string): string {
   return TASK_TYPE.label(type) || "Görev";
@@ -41,7 +42,8 @@ export function cleanerTaskTitle(t: StaffViewInput): string {
   if (t.origin === "system") return SYSTEM_TITLES[t.type] ?? typeLabel(t.type);
   if (t.origin === "ai") {
     const label = typeLabel(t.type);
-    return t.title.startsWith(`${label}: `) && AI_TOPIC_TITLE.test(t.title) ? t.title : label;
+    const ours = t.title.startsWith(`${label}: `) || t.title.startsWith(`${label} — misafir bildirimi: `);
+    return ours && AI_TOPIC_TITLE.test(t.title) ? t.title : label;
   }
   // Bilinmeyen / eski kaynak: güvenli yön — başlıkta ne olduğu bilinmiyor.
   return typeLabel(t.type);

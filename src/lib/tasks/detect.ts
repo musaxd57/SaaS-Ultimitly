@@ -1,5 +1,6 @@
-import { matchesIntentKeywords, detectRiskType, classifyFallback, firstBreakdownDevice } from "@/lib/ai/fallback";
+import { matchesIntentKeywords, detectRiskType, classifyFallback, firstBreakdownDevice, reportsDeviceFault } from "@/lib/ai/fallback";
 import { TASK_TYPE } from "@/lib/constants";
+import { hitIsReported, isInquiryOnly, mentionsGuestOwnedItem } from "./report-reading";
 
 // Smart operational-task routing (Faz A). Turns an escalating guest message into
 // an ACTIONABLE task (maintenance / restock / cleaning) instead of only flagging
@@ -89,6 +90,47 @@ function firstHit(msg: string, words: string[]): string | null {
   return null;
 }
 
+const WORD_RE_GLOBAL = new Map<string, RegExp>();
+/** Arıza sözcüğünün BİLDİRİLMİŞ (olumsuzlanmamış / koşul olmayan) ilk geçişi; yoksa null (kurucu D4). */
+function firstReportedBreakage(msg: string): string | null {
+  for (const w of BREAKAGE_WORDS) {
+    let re = WORD_RE_GLOBAL.get(w);
+    if (!re) {
+      re = new RegExp(wordRe(w).source, "gu");
+      WORD_RE_GLOBAL.set(w, re);
+    }
+    re.lastIndex = 0;
+    for (let m = re.exec(msg); m; m = re.exec(msg)) {
+      if (hitIsReported(msg, m.index, m.index + m[0].length)) return w;
+      if (m[0].length === 0) re.lastIndex++;
+    }
+  }
+  return null;
+}
+
+/** Bildirilmemiş (olumsuzlanmış / koşul) arıza sözcüğü geçişleri boşlukla örtülmüş metin — sınıflandırıcı "bozuk değil"i şikâyet okumasın. */
+function withoutUnreportedBreakage(msg: string): string {
+  // Örtülecek aralıklar önce toplanır, metin TEK geçişte kurulur (geçiş başına yeniden kurmak "bozuk değil" × N'de karesel olurdu).
+  const blank = new Uint8Array(msg.length);
+  let any = false;
+  for (const w of BREAKAGE_WORDS) {
+    const re = WORD_RE_GLOBAL.get(w) ?? new RegExp(wordRe(w).source, "gu");
+    WORD_RE_GLOBAL.set(w, re);
+    re.lastIndex = 0;
+    for (let m = re.exec(msg); m; m = re.exec(msg)) {
+      if (!hitIsReported(msg, m.index, m.index + m[0].length)) {
+        blank.fill(1, m.index, m.index + m[0].length);
+        any = true;
+      }
+      if (m[0].length === 0) re.lastIndex++;
+    }
+  }
+  if (!any) return msg;
+  let out = "";
+  for (let i = 0; i < msg.length; i++) out += blank[i] ? " " : msg[i];
+  return out;
+}
+
 // Risk signals that are NOT physical operations — those escalate to the host via
 // the conversation "problem" flag + email, never a maintenance/cleaning task.
 const NON_OPERATIONAL_RISK = new Set([
@@ -124,10 +166,19 @@ export function detectOperationalTask(
     return { type: "maintenance", priority: "urgent", topic: "acil güvenlik", slaHours: 2 };
   }
 
-  // 2) Explicit physical breakage / fault → maintenance.
-  const breakage = firstHit(msg, BREAKAGE_WORDS);
+  // KURUCU D4 (10-15): gerçek arıza bildirimi ile soru / varsayım / olumsuzlama AYRILIR — yalnız BAKIM kuralları (2, 3b, 4) için. Acil
+  // güvenlik (1) ↑ bunlardan ÖNCE ve DEĞİŞMEDİ (şüphede acil). Konuşmanın şikâyet / devir kararı da değişmez (yalnız görev açılmaz).
+  //  · Mesaj yalnız soru / varsayım / soru niyetiyse ("Su akmıyor mu acaba, gelmeden sormak istedim") → bakım görevi yok.
+  //  · Arıza sözcüğü olumsuzlanmış ya da koşulsa ("Klima bozuk değil", "Kombi bozuksa ne yapmalıyız?") → o geçiş sayılmaz.
+  // Öncelik / süre (24 sa) DEĞİŞMEDİ: kurucu "2/24 saat hedeflerini henüz kesinleştirme".
+  const inquiry = isInquiryOnly(message);
+  const reportText = withoutUnreportedBreakage(msg);
+  const device = firstBreakdownDevice(message);
+
+  // 2) Explicit physical breakage / fault → maintenance. Konu: mesajdaki cihaz (varsa), yoksa eşleşen sözcük.
+  const breakage = inquiry ? null : firstReportedBreakage(msg);
   if (breakage) {
-    return { type: "maintenance", priority: "standard", topic: breakage, slaHours: 24 };
+    return { type: "maintenance", priority: "standard", topic: device ?? breakage, slaHours: 24 };
   }
 
   // 3) Consumable depletion → restock (item AND lack signal).
@@ -143,10 +194,20 @@ export function detectOperationalTask(
   // inherently problems — an explicit fault / lack / safety word — so they fire
   // on their own.) `classifyFallback` gives the deterministic complaint verdict.
   const isComplaint = classifyFallback(message).isComplaint;
+  const isReportedComplaint = !inquiry && (reportText === msg ? isComplaint : classifyFallback(reportText).isComplaint);
+
+  // 3b) CİHAZ ARIZASI BİLDİRİMİ → bakım (kurucu D4, 10-15). Sınıflandırıcı "Kapının kilidi bozuldu", "Su akmıyor", "Musluktan su gelmiyor",
+  //     "Sifon bozuldu" mesajlarını cihaz arızası olarak zaten tanıyor (şikâyet kararının iki cihaz bacağı); görev kuralı bakmıyordu. Cihaz
+  //     envanteri ve koşul eki kuralı sınıflandırıcıyla ORTAK (yeni sözcük listesi yok). GENEL şikâyet + mesajda geçen cihaz adı YETMEZ
+  //     (ölçüldü: "Merdivenlerde sigara kokusu var" → "merdiven", "I'll sue you" → "su" görevi açıyordu). Misafirin KENDİ eşyası
+  //     ("Getirdiğimiz kahve makinesi bozuldu") dairenin bakımı değil. Konu cihaz adı (rakam / ad taşımaz).
+  if (!inquiry && device && !mentionsGuestOwnedItem(message) && reportsDeviceFault(reportText)) {
+    return { type: "maintenance", priority: "standard", topic: device, slaHours: 24 };
+  }
 
   // 4) Appliance/amenity complaint → maintenance. Reuses the existing safety-net
   //    "amenity" keywords (klima / buzdolabı / çamaşır makinesi / fırın / tv…).
-  if (isComplaint && matchesIntentKeywords(message, "amenity")) {
+  if (isReportedComplaint && matchesIntentKeywords(message, "amenity")) {
     return { type: "maintenance", priority: "standard", topic: "cihaz/olanak", slaHours: 24 };
   }
 
@@ -157,6 +218,9 @@ export function detectOperationalTask(
 
   return null;
 }
+
+/** Mesajdan açılan bakım görevinin başlık eki (kurucu D4). Personel görünümü bu biçimi tanır (`staff-view.ts`). */
+export const GUEST_REPORT_LABEL = "misafir bildirimi";
 
 export interface OperationalTaskData {
   type: OperationalTaskType;
@@ -195,7 +259,8 @@ export function buildOperationalTaskData(
   const label = TASK_TYPE.label(detected.type); // "Bakım" | "Eksik Eşya" | "Temizlik"
   return {
     type: detected.type,
-    title: `${label}: ${detected.topic}`.slice(0, 200),
+    // Bakım başlığı "misafir bildirimi" der (kurucu D4: "doğrulanmış arıza gibi yazma"); eşya / temizlik başlığı değişmedi.
+    title: (detected.type === "maintenance" ? `${label} — ${GUEST_REPORT_LABEL}: ${detected.topic}` : `${label}: ${detected.topic}`).slice(0, 200),
     description: ctx.message.slice(0, 500),
     priority: detected.priority,
     dueAt: new Date(now.getTime() + detected.slaHours * 3600_000),
@@ -205,7 +270,7 @@ export function buildOperationalTaskData(
     // "havlu eksik" + "şampuan bitti") stay separate, each an actionable task.
     // 🚨 Bakımda konu CİHAZDIR, belirti değil (kurucu 10-15, ölçüldü): "Klima bozuk" ile "Musluk bozuk" ikisi de "bozuk" konusuna düşüp
     // aynı gün TEK görevde birleşiyordu — ikinci arıza kayboluyordu; "Klima bozuk" ile "Klima yine bozuldu" ise ayrı konuya düşüp iki görev
-    // açıyordu. Cihaz bulunamazsa eski konu kullanılır; acil güvenlik ayrı kalır. Görev BAŞLIĞI değişmedi (ev sahibine görünen metin).
+    // açıyordu. Cihaz bulunamazsa eski konu kullanılır; acil güvenlik ayrı kalır. (Başlık kurucu D4 ile "Bakım — misafir bildirimi: <cihaz>".)
     dedupeKey: `${ctx.propertyId}:${detected.type}:${dedupeTopic(detected, ctx.message).replace(/\s+/g, "-")}:${dayKey(now, tz)}`,
   };
 }
