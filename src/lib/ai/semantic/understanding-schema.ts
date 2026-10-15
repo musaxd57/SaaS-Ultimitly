@@ -14,7 +14,7 @@
  *  · kanıt: niyet etiketleri (kapalı küme, PII yok).
  * ------------------------------------------------------------------------- */
 
-import { isAnsweringOutbound } from "@/lib/message-author";
+import { isAnsweringOutbound, isAutomationMessage } from "@/lib/message-author";
 import { STAY_CHANGE_KINDS, normalizeHhmm, type UnderstandingStaySignal } from "./stay-change";
 import { HOUSE_RULE_TOPICS, RULE_STANCES, type HouseRuleTopic, type RuleStance } from "@/lib/house-rules/core";
 import { ITEM_RELATIONS, type ItemRelation } from "@/lib/conversation-items/relation-kinds";
@@ -85,16 +85,31 @@ export interface UnderstandingHistoryEntry {
   author?: string;
 }
 
+/** G1b: son cevaptan sonra gelen otomatik şablon mesajlarından istemde en çok bu kadarı (en yeniler) görünür. */
+export const UNDERSTANDING_MAX_TEMPLATES = 2;
+
 /**
  * Katmanın gördüğü mesajlar: boş gövdeler atılır; son CEVAPLAYAN giden mesajdan sonraki misafir mesajları cevapsızdır (güncel
  * mesaj dâhil, tekrar etmeden; son UNDERSTANDING_MAX_UNANSWERED tanesi — `unseen` = görülmeyen eski cevapsız sayısı); bağlam o
  * mesaja kadarki son UNDERSTANDING_MAX_CONTEXT mesajdır. İstem ([1]..[n] numaraları) ve öğe eşlemesi BU listeyi kullanır. Cevapsız
- * misafir mesajlarının ARASINA düşen otomatik şablon mesajı (K7) ne bağlamda ne cevapsız listede yer alır (sırayı bozmamak için).
+ * mesajlarının arasına / ardına düşen otomatik şablon mesajı (K7) bağlama da numaralı listeye de girmez; G1b: `templates` alanıyla istemde
+ * YAZILDIĞI YERE, numarasız girer (kronoloji korunur).
  */
 export function understandingWindow(
   history: readonly UnderstandingHistoryEntry[] | undefined,
   guestMessage: string,
-): { context: UnderstandingHistoryEntry[]; unanswered: { id?: string; body: string; at?: Date }[]; unseen: number } {
+): {
+  context: UnderstandingHistoryEntry[];
+  unanswered: { id?: string; body: string; at?: Date }[];
+  unseen: number;
+  /**
+   * G1b (ölçüm 10-14): son cevaptan SONRA gelen otomatik şablon mesajları (K7: cevap değiller, pencereyi sıfırlamazlar) — misafir onlara
+   * cevap veriyor olabilir ("Wi-Fi bilgileri kartta" → "Kartı bulamadık, şifre neydi?"). `before` = istemde kaç numaralı cevapsız
+   * mesajdan ÖNCE yazılacağı (0'dan; `unanswered.length` = hepsinin ardından) — kronoloji korunur, numaralandırma ve öğe eşlemesi
+   * DEĞİŞMEZ, bağlam tavanından yer yemez.
+   */
+  templates: { body: string; at?: Date; before: number }[];
+} {
   const hist = (history ?? []).filter((m) => typeof m.body === "string" && m.body.trim().length > 0);
   // K7 (kurucu onayı 09-30): son CEVAPLAYAN giden mesaj — otomatik şablon mesajı cevapsız pencereyi sıfırlamaz (kapıyla aynı kural).
   let lastOut = -1;
@@ -104,16 +119,25 @@ export function understandingWindow(
       break;
     }
   }
-  const pending = hist
-    .slice(lastOut + 1)
-    .filter((m) => m.direction === "inbound")
-    .map((m) => ({ id: m.id, body: m.body, at: m.at }));
+  const pending: { id?: string; body: string; at?: Date }[] = [];
+  const rawTemplates: { body: string; at?: Date; after: number }[] = [];
+  for (const m of hist.slice(lastOut + 1)) {
+    if (m.direction === "inbound") pending.push({ id: m.id, body: m.body, at: m.at });
+    // Not (mutasyon, EŞDEĞER): son cevaplayan mesajdan sonraki her giden mesaj tanım gereği şablondur (`isAnsweringOutbound`); yazar
+    // denetimi o tanım değişirse araya ev sahibi cevabı sızmasın diye savunma olarak durur.
+    else if (isAutomationMessage(m)) rawTemplates.push({ body: m.body, at: m.at, after: pending.length });
+  }
   if (pending[pending.length - 1]?.body !== guestMessage) pending.push({ id: undefined, body: guestMessage, at: undefined });
   const unanswered = pending.slice(-UNDERSTANDING_MAX_UNANSWERED);
+  const unseen = pending.length - unanswered.length;
+  const templates = rawTemplates
+    .slice(-UNDERSTANDING_MAX_TEMPLATES)
+    .map((t) => ({ body: t.body, at: t.at, before: Math.min(unanswered.length, Math.max(0, t.after - unseen)) }));
   return {
     context: hist.slice(0, lastOut + 1).slice(-UNDERSTANDING_MAX_CONTEXT),
     unanswered,
-    unseen: pending.length - unanswered.length,
+    unseen,
+    templates,
   };
 }
 

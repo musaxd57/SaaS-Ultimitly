@@ -215,10 +215,12 @@ describe("pencere hesaplayan yardımcılar otomatik mesajı cevap saymaz", () =>
     expect(pendingGuestMessages([G1, W, G2], G2.body)).toEqual([G1.body]);
     expect(pendingGuestMessages([G1, H, G2], G2.body)).not.toContain(G1.body);
   });
-  it("anlama katmanının cevapsız listesi (K7 bağlantısı 10-12): şablon pencereyi sıfırlamaz, kendisi listeye de bağlama da girmez", () => {
+  it("anlama katmanının cevapsız listesi (K7 bağlantısı 10-12): şablon pencereyi sıfırlamaz, cevapsız listeye girmez; G1b: BAĞLAMA girer", () => {
     const auto = understandingWindow([G1, W, G2], G2.body);
     expect(auto.unanswered.map((m) => m.body)).toEqual([G1.body, G2.body]);
+    // G1b (ölçüm 10-14): misafir şablona cevap veriyor olabilir — şablon bağlama DEĞİL, cevapsız mesajların arasına yazıldığı yerde.
     expect(auto.context).toEqual([]);
+    expect(auto.templates).toEqual([{ body: W.body, at: undefined, before: 1 }]);
     const host = understandingWindow([G1, H, G2], G2.body);
     expect(host.unanswered.map((m) => m.body)).toEqual([G2.body]);
     expect(host.context.map((m) => m.body)).toEqual([G1.body, H.body]);

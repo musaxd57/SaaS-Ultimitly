@@ -491,6 +491,10 @@
 - NEZAKET KOŞUL DEĞİLDİR — tek kaynak `ai/polite-conditional.ts` (Y1, 10-14): tehlike okuyucusu VE dedektör sesi okuyucusu aynı listeyi
   boşaltır (devam / geriye atıf cümleleri dahil). Belirsizlik ("I'm not sure if") yalnız tehlike okuyucusunda koşul değil; dedektör
   okuyucusunda soru kalır. Ev sahibi uyarı yolunda (oto-yanıt kapalı) açık tehlike = kanal ağı VE tehlike okuyucusu (açık / olası) birlikte (Y6).
+- OTOMATİK ŞABLON ANLAMA İSTEMİNDE (G1 + G1b, kurucu 10-15 "Evet, uygula"; ölçüm `docs/olcum/g1-otomatik-etiket-2026-10-15-*`, 65/75 → 75/75):
+  ev sahibi cevabından önceki şablon bağlamda "Automated message:"; son cevaptan SONRAKİ şablon (en çok son 2) cevapsız misafir mesajlarının
+  ARASINA, yazıldığı yere, numarasız "Automated message (not an answer)" olarak girer (K7: pencereyi sıfırlamaz; numaralandırma ve öğe
+  eşlemesi değişmez; bağlam tavanından yer yemez). Bekçi istemi (`semantic/guard.ts`) hâlâ her giden mesajı "Host" yazar — ayrı karar.
 - 🚨 OLASI TEHLİKE + MODEL YOK = EV SAHİBİNE (10-14, Haiku ikinci tur; kurucu kararı "kısa devre → model karar versin"): "olası" düzeyde kararı
   anlama katmanı verir; katman koşmadıysa (kapalı / düştü) `hazardDecisionFor().unverifiedPossible` → QR `physical_hazard`, kanal `lexical_risk`
   (tur tutulur, öğe kipinde de). Eskiden `emergency` hükmü hesaplanıp HİÇBİR kapıda okunmuyordu: kelime ağının sessiz kaldığı "Kısa devre oldu,

@@ -232,7 +232,7 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
   const maskNote = (body: string) => (nameMaskHidesEmergency(body, names) ? ` ${MASKED_EMERGENCY_NOTE}` : "");
   // Cevapsız misafir mesajları: son GİDEN mesajdan sonrakiler (güncel mesaj dâhil, tekrar etmeden) — TEK kaynak
   // `understandingWindow` (konuşma öğeleri [n] numarasını aynı listeden mesaja eşler).
-  const { context, unanswered } = understandingWindow(input.history, input.guestMessage);
+  const { context, unanswered, templates } = understandingWindow(input.history, input.guestMessage);
   const ci = normalizeHhmm(input.stayTimes?.checkIn) ?? "unknown";
   const co = normalizeHhmm(input.stayTimes?.checkOut) ?? "unknown";
   // F14b: yazıldığı an yalnız damga fonksiyonu verildiğinde (bayrak açık) ve satır anı taşıyorsa; açıklama yalnız en az bir
@@ -241,11 +241,21 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
     const stamp = at && input.writtenStamp ? input.writtenStamp(at) : null;
     return stamp ? ` (written ${stamp})` : "";
   };
+  // G1 (kurucu kararı 10-13 "Evet, kredi gelince ölç"): otomatik şablon mesajı (K7) ev sahibinin kendi sözü DEĞİLDİR — cevap istemindeki
+  // "[OTOMATİK MESAJ]" etiketiyle tutarlı olarak "Automated message" yazılır (önce: "Host"). Modele giden metin değiştiği için ölçümle açılır.
+  const authorLabel = (m: UnderstandingHistoryEntry) =>
+    m.direction === "inbound" ? "Guest" : m.author === "automation" ? "Automated message" : "Host";
   const contextLines = context.map(
-    (m) => `${m.direction === "inbound" ? "Guest" : "Host"}${written(m.at)}: <<<${clean(m.body, m.direction === "inbound" ? "guest" : "ours")}>>>`,
+    (m) => `${authorLabel(m)}${written(m.at)}: <<<${clean(m.body, m.direction === "inbound" ? "guest" : "ours")}>>>`,
   );
-  const unansweredLines = unanswered.map((m, i) => `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>${maskNote(m.body)}`);
-  const stamped = [...context, ...unanswered].some((m) => written(m.at) !== "");
+  // G1b: son cevaptan sonraki şablonlar cevapsız mesajların ARASINA, yazıldıkları yere, numarasız girer (kronoloji korunur).
+  const templateLine = (t: { body: string; at?: Date }) => `Automated message (not an answer)${written(t.at)}: <<<${clean(t.body, "ours")}>>>`;
+  const unansweredLines = unanswered.flatMap((m, i) => [
+    ...templates.filter((t) => t.before === i).map(templateLine),
+    `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>${maskNote(m.body)}`,
+  ]);
+  unansweredLines.push(...templates.filter((t) => t.before >= unanswered.length).map(templateLine));
+  const stamped = [...context, ...unanswered, ...templates].some((m) => written(m.at) !== "");
   return [
     `Property standard check-in: ${ci}; standard check-out: ${co}.`,
     ...(input.dateLine ? [input.dateLine] : []),
