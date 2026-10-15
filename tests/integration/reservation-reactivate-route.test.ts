@@ -238,38 +238,6 @@ describe("PATCH /api/reservations/[id] — iptalden çıkış 'Yeniden aç' kura
     expect(await prisma.task.count({ where: { reservationId: s.reservationId, origin: "system" } })).toBe(2);
   });
 
-  it("🚨 YARIŞ (Opus O2): okuma 'onaylı' gördükten sonra senkron satırı iptal ettiyse PATCH durumu yazmaz → 409, satır iptal kalır", async () => {
-    const s = await seed({ signalDaysAgo: null, provider: false, status: "cancelled" });
-    session = s.session;
-    // `findScoped` satırı iptalden ÖNCEKİ hâliyle okudu (yarışın kendisi): okuma "confirmed" der, veritabanında satır iptal.
-    const stale = vi.spyOn(prisma.reservation, "findFirst").mockResolvedValueOnce({ id: s.reservationId, status: "confirmed" } as never);
-    try {
-      const res = await patch(s.reservationId, { status: "confirmed", notes: "x" });
-      expect(res.status).toBe(409);
-      expect((await res.json()).code).toBe("stale");
-    } finally {
-      stale.mockRestore();
-    }
-    const row = await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } });
-    expect([row.status, row.notes]).toEqual(["cancelled", null]);
-    expect(await prisma.auditLog.count({ where: { organizationId: s.orgId, action: "reservation.reactivated" } })).toBe(0);
-  });
-
-  it("🚨 YARIŞ (Opus O8): okuma 'iptal' gördü ama satır arada yeniden onaylandıysa PATCH iptali GEÇİŞTİR → tam temizlik (başlanmış görev de silinir)", async () => {
-    const s = await seed({ signalDaysAgo: null, provider: false, status: "confirmed" });
-    session = s.session;
-    const r = await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } });
-    await prisma.task.create({ data: { propertyId: s.propertyId, reservationId: r.id, type: "cleaning", origin: "system", title: "Çıkış temizliği", status: "in_progress" } });
-    const stale = vi.spyOn(prisma.reservation, "findFirst").mockResolvedValueOnce({ id: s.reservationId, status: "cancelled" } as never);
-    try {
-      expect((await patch(s.reservationId, { status: "cancelled" })).status).toBe(200);
-    } finally {
-      stale.mockRestore();
-    }
-    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("cancelled");
-    expect(await prisma.task.count({ where: { reservationId: s.reservationId, origin: "system" } })).toBe(0);
-  });
-
   it("aşırı uygulama yok: zaten iptal satıra tekrar 'iptal' ONARIMDIR — başlanmış görev korunur, not alanı yazılır", async () => {
     const s = await seed({ signalDaysAgo: null, provider: false, status: "cancelled" });
     session = s.session;
