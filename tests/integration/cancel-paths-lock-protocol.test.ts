@@ -301,13 +301,21 @@ describe("İptal yolları — aynı rezervasyon kilidi (iptalden ÖNCE başlamı
     const started = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: s.reservationId, type: "cleaning", origin: "system", title: "x", status: "in_progress" } });
     const noted = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: s.reservationId, type: "cleaning", origin: "system", title: "x", status: "todo" } });
     await prisma.taskUpdate.create({ data: { taskId: noted.id, userId: user.id, note: "anahtar alındı" } });
+    // Opus O1: kontrol listesinde madde işaretleyen personel `TaskUpdate` yazmaz, durum "yapılacak" kalır — o görev de KORUNUR; işaretsiz
+    // listeli görev aday kalır (aşırı uygulama yok).
+    const ticked = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: s.reservationId, type: "cleaning", origin: "system", title: "x", status: "todo", checklistJson: JSON.stringify([{ label: "Havlu × 2", done: true }, { label: "Çarşaf × 1", done: false }]) } });
+    const unticked = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: s.reservationId, type: "cleaning", origin: "system", title: "x", status: "todo", checklistJson: JSON.stringify([{ label: "Havlu × 2", done: false }]) } });
     vi.mocked(fetchFeedText).mockResolvedValue(calendar(vevent("kalan@airbnb.com", false))); // satır feed'de yok → onarım taraması
     await syncCalendarSource(s.sourceId!);
     expect(await prisma.task.findUnique({ where: { id: untouched.id } })).toBeNull();
     expect(await prisma.task.findUnique({ where: { id: started.id } })).not.toBeNull();
     expect(await prisma.task.findUnique({ where: { id: noted.id } })).not.toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: ticked.id } })).not.toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: unticked.id } })).toBeNull();
+    // Doğrudan onarım çağrısı da (işaretli listeyi sorgu biçiminden bağımsız okur) işaretli görevi silmez.
+    expect(await removeAutoTasksForCancelledReservation(s.reservationId, { repair: true })).toBe(0);
     // İptal GEÇİŞİNİN kendisi (onarım değil) bugünkü kümeyi siler — bu tur değiştirilmedi.
-    expect(await removeAutoTasksForCancelledReservation(s.reservationId)).toBe(2);
+    expect(await removeAutoTasksForCancelledReservation(s.reservationId)).toBe(3);
   });
 
   it("kurucu D5 (Haiku 10-15): ZATEN iptalli satıra tekrar PATCH 'iptal' ve Hospitable'ın her turdaki çağrısı ONARIMDIR — başlanmış görev korunur", async () => {

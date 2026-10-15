@@ -722,6 +722,27 @@ describe("codex round-4: atomic legacy adoption", () => {
     expect(await prisma.task.count({ where: { reservationId: cancelled.id, origin: "system" } })).toBe(0);
   });
 
+  it("🚨 kalıcı temizlik arızası HER senkronda alarm üretmez: geçiş tabanlı — ilk turda bir kez, düzelince durum temizlenir (Opus O7)", async () => {
+    reportErrorMock.mockClear();
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" } });
+    mockFetch(ICS);
+    await syncCalendarSource(source.id);
+    mockFetch(ICS.replace(/SUMMARY:/, "STATUS:CANCELLED\nSUMMARY:"));
+    const realTx = prisma.$transaction.bind(prisma);
+    const spy = vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
+      if (opts === RESERVATION_TASKS_TX && typeof arg === "function" && String(arg).includes("taskUpdate")) return Promise.reject(new Error("pool timeout"));
+      return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
+    }) as never);
+    for (let i = 0; i < 3; i++) await syncCalendarSource(source.id);
+    spy.mockRestore();
+    expect(reportErrorMock.mock.calls.filter((c) => c[0] === "import.sync.tasks")).toHaveLength(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: `alert-state:ical-sync:${source.id}:` } } })).toBe(1);
+    // Düzelince: temizlik koşar, alarm durumu temizlenir (sonraki arıza yeniden alarm verir).
+    await syncCalendarSource(source.id);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: `alert-state:ical-sync:${source.id}:` } } })).toBe(0);
+  });
+
   it("#4: a WHOLE-import outage alerts EXACTLY once (no per-row event flood), lastStatus=error", async () => {
     reportErrorMock.mockClear();
     const { propertyId } = await makeOrgWithProperty();

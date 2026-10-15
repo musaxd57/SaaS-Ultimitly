@@ -5,7 +5,7 @@ import { withManage } from "@/lib/route-guard";
 import { stripReservationInternals } from "@/lib/reservation-view";
 import { removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { reportError } from "@/lib/report-error";
-import { reopenCancelledReservation } from "@/lib/reservations/reopen";
+import { REOPEN_ERRORS, reopenCancelledReservation } from "@/lib/reservations/reopen";
 
 async function findScoped(id: string, orgId: string) {
   return prisma.reservation.findFirst({
@@ -39,15 +39,28 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     }
   }
   const reopening = prev.status === "cancelled" && nextStatus !== undefined && nextStatus !== "cancelled";
-  const reservation = await prisma.reservation.update({
-    where: { id },
-    data: reopening ? rest : parsed.data,
-  });
+  // DURUM YAZIMI KOŞULLU (Opus O2 / O8): `prev` kilitsiz okundu; arada senkron satırı iptal edebilir ya da yeniden onaylayabilir.
+  //  · iptal-dışı durum yazımı yalnız satır HÂLÂ iptal değilse — arada iptal edildiyse 409 (yeniden açma "Yeniden aç" kurallarından geçer).
+  //  · iptal yazımında geçiş mi onarım mı, okumaya değil yazımın KENDİSİNE bakılır (count 1 = bu istek iptal etti → tam küme temizlik).
+  const scope = { id, property: { organizationId: session.organizationId } };
+  let cancelledNow = false;
+  if (!reopening && nextStatus !== undefined && nextStatus !== "cancelled") {
+    const res = await prisma.reservation.updateMany({ where: { ...scope, status: { not: "cancelled" } }, data: parsed.data });
+    if (res.count === 0) return Response.json({ error: REOPEN_ERRORS.stale, code: "stale" }, { status: 409 });
+  } else if (nextStatus === "cancelled") {
+    const res = await prisma.reservation.updateMany({ where: { ...scope, status: { not: "cancelled" } }, data: parsed.data });
+    cancelledNow = res.count === 1;
+    if (!cancelledNow && Object.keys(rest).length > 0) await prisma.reservation.updateMany({ where: scope, data: rest });
+  } else {
+    await prisma.reservation.updateMany({ where: scope, data: reopening ? rest : parsed.data });
+  }
+  const reservation = await prisma.reservation.findFirst({ where: scope });
+  if (!reservation) return notFound();
   // Bu rota da iptal edebiliyor (arayüz kullanmıyor, API açık — Haiku 10-15): öteki iptal yollarıyla AYNI protokol, iptal commit
   // edildikten SONRA kilitli görev temizliği (`cancel-paths-lock-protocol.test.ts`). Temizlik düşerse iptal geri alınmaz; operatöre alarm.
-  if (parsed.data.status === "cancelled") {
-    // Zaten iptalli satıra tekrar "iptal" = ONARIM (yalnız başlanmamış + dokunulmamış görev; kurucu D5, Haiku 10-15).
-    await removeAutoTasksForCancelledReservation(id, { repair: prev.status === "cancelled" }).catch((err: unknown) =>
+  if (nextStatus === "cancelled") {
+    // Bu istek iptal ETMEDİYSE (satır zaten iptaldi) = ONARIM (yalnız başlanmamış + dokunulmamış görev; kurucu D5, Haiku 10-15).
+    await removeAutoTasksForCancelledReservation(id, { repair: !cancelledNow }).catch((err: unknown) =>
       void reportError("reservations.patch.tasks", err),
     );
   }

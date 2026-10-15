@@ -26,7 +26,26 @@ export const UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE = {
   type: { in: ["checkin_prep", "cleaning"] },
   origin: "system",
   updates: { none: { OR: [{ userId: { not: null } }, { photoUrl: { not: null } }] } },
+  // Kontrol listesi işareti `TaskUpdate` yazmaz (Opus O1): sorgu düzeyinde kaba eleme (JSON.stringify biçimi `"done":true`) — onarım
+  // taraması aynı görevleri her turda seçip 50'lik yeri yemesin. Asıl karar kilit altında `checklistTouched` ile (biçimden bağımsız).
+  OR: [{ checklistJson: null }, { NOT: { checklistJson: { contains: '"done":true' } } }],
 } satisfies Prisma.TaskWhereInput;
+
+/**
+ * Kontrol listesinde işaretlenmiş madde var mı? Personel maddeyi işaretlediğinde `TaskUpdate` yazılmaz ve durum "yapılacak" kalır (Opus O1,
+ * 10-15) — yukarıdaki sorgu bu izi göremez, onarım bu görevi de "dokunulmamış" sanıyordu. Okunamayan / beklenmedik biçimli liste
+ * DOKUNULMUŞ sayılır (şüphede silme yok).
+ */
+export function checklistTouched(checklistJson: string | null): boolean {
+  if (checklistJson === null || checklistJson === "") return false;
+  try {
+    const items: unknown = JSON.parse(checklistJson);
+    if (!Array.isArray(items)) return true;
+    return items.some((it) => typeof it !== "object" || it === null || (it as { done?: unknown }).done !== false);
+  } catch {
+    return true;
+  }
+}
 
 /** Depoya yüklenmiş fotoğrafın adres öneki — `lib/storage/keys.ts` `STORAGE_PHOTO_URL_PREFIX` ile AYNI (o modül sunucuya özel, betik
  *  import edemez; eşitlik birim testte pinli). Temizlik yalnız bunları depodan silme kuyruğuna alır; dış bağlantılar ayrı sayılır. */
@@ -40,6 +59,8 @@ export type LeftoverRow = {
   staffUpdates: number;
   storagePhotos: number;
   otherPhotos: number;
+  /** Kontrol listesinde işaretli madde (personel işlemi; `checklistTouched`). */
+  checklistTicked?: boolean;
   reservation: { id: string; organizationId: string; channel: string; calendarSourceId: string | null; departureDate: Date };
 };
 
@@ -93,7 +114,7 @@ export function summarizeLeftovers(rows: readonly LeftoverRow[], now: Date): Lef
     protectedTouched: 0,
   };
   for (const r of rows) {
-    const touched = r.staffUpdates > 0 || r.storagePhotos > 0 || r.otherPhotos > 0;
+    const touched = r.staffUpdates > 0 || r.storagePhotos > 0 || r.otherPhotos > 0 || r.checklistTicked === true;
     if (r.status !== "todo") s.protectedStarted++;
     else if (touched) s.protectedTouched++;
     else {

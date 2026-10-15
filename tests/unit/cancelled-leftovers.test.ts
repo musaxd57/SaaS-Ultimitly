@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   summarizeLeftovers,
+  checklistTouched,
   OPEN_AUTO_LIFECYCLE_TASK_WHERE,
   STORAGE_PHOTO_PREFIX,
   type LeftoverRow,
@@ -79,5 +80,24 @@ describe("iptal edilmiş konaklamada kalan sistem görevleri — saf sayım", ()
 
   it("depo fotoğrafı öneki sunucu modülündekiyle AYNI (betik onu import edemiyor — ayrışma burada yakalanır)", () => {
     expect(STORAGE_PHOTO_PREFIX).toBe(STORAGE_PHOTO_URL_PREFIX);
+  });
+});
+
+describe("kontrol listesi işareti personel işlemidir (Opus O1)", () => {
+  it("işaretli madde → dokunulmuş; işaretsiz / boş liste → dokunulmamış; okunamayan liste → dokunulmuş (şüphede silme yok)", () => {
+    expect(checklistTouched(null)).toBe(false);
+    expect(checklistTouched("")).toBe(false);
+    expect(checklistTouched(JSON.stringify([{ label: "Havlu", done: false }]))).toBe(false);
+    expect(checklistTouched(JSON.stringify([]))).toBe(false);
+    expect(checklistTouched(JSON.stringify([{ label: "Havlu", done: false }, { label: "Çarşaf", done: true }]))).toBe(true);
+    expect(checklistTouched('[{"label": "Havlu", "done": true}]')).toBe(true); // boşluklu biçim de (sorgu kaba eleme yapar, karar bu)
+    expect(checklistTouched("{bozuk")).toBe(true);
+    expect(checklistTouched(JSON.stringify({ label: "x" }))).toBe(true);
+    expect(checklistTouched(JSON.stringify([{ label: "x" }]))).toBe(true);
+  });
+
+  it("sayım: işaretli listeli görev aday DEĞİL, korunan sayılır", () => {
+    const s = summarizeLeftovers([row({ checklistTicked: true }), row({ res: { id: "r2" } })], NOW);
+    expect([s.candidates, s.protectedTouched]).toEqual([1, 1]);
   });
 });

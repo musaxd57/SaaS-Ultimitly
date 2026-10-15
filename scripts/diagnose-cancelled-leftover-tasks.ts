@@ -16,6 +16,7 @@
 import { PrismaClient } from "@prisma/client";
 import {
   OPEN_AUTO_LIFECYCLE_TASK_WHERE,
+  checklistTouched,
   STORAGE_PHOTO_PREFIX,
   summarizeLeftovers,
   type LeftoverRow,
@@ -25,17 +26,22 @@ const prisma = new PrismaClient();
 
 async function main() {
   const now = new Date();
-  const tasks = await prisma.task.findMany({
+  // SALT-OKUMA GARANTİSİ (Opus O15): bütün okuma tek bir READ ONLY işlemde — kod yanlışlıkla yazmaya kalkarsa veritabanı reddeder.
+  const tasks = await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
+    return tx.task.findMany({
     where: { ...OPEN_AUTO_LIFECYCLE_TASK_WHERE, reservation: { status: "cancelled" } },
     select: {
       type: true,
       status: true,
       assignedToId: true,
+      checklistJson: true,
       updates: { select: { userId: true, photoUrl: true } },
       reservation: {
         select: { id: true, channel: true, calendarSourceId: true, departureDate: true, property: { select: { organizationId: true } } },
       },
     },
+    });
   });
   const rows: LeftoverRow[] = tasks.flatMap((t) => {
     if (!t.reservation) return [];
@@ -48,6 +54,7 @@ async function main() {
         staffUpdates: t.updates.filter((u) => u.userId !== null).length,
         storagePhotos: photos.filter((p) => p.startsWith(STORAGE_PHOTO_PREFIX)).length,
         otherPhotos: photos.filter((p) => !p.startsWith(STORAGE_PHOTO_PREFIX)).length,
+        checklistTicked: checklistTouched(t.checklistJson),
         reservation: {
           id: t.reservation.id,
           organizationId: t.reservation.property.organizationId,
@@ -73,7 +80,7 @@ async function main() {
   console.log("Kurucu D5 (10-15) ayrımı — bu betik HİÇBİR ŞEYİ değiştirmez:");
   console.log(`  aday (başlanmamış, kimse dokunmamış)      : ${s.candidates}  (bunlardan birine atanmış: ${s.candidatesAssigned})`);
   console.log(`  KORUNUR — başlanmış / onay bekliyor        : ${s.protectedStarted}`);
-  console.log(`  KORUNUR — kişi güncellemesi ya da fotoğraf : ${s.protectedTouched}`);
+  console.log(`  KORUNUR — kişi güncellemesi / fotoğraf / işaretli kontrol listesi : ${s.protectedTouched}`);
 }
 
 main()

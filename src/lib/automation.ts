@@ -196,7 +196,7 @@ import {
 } from "@/lib/email-templates";
 import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
-import { OPEN_AUTO_LIFECYCLE_TASK_WHERE, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { OPEN_AUTO_LIFECYCLE_TASK_WHERE, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE, checklistTouched } from "@/lib/tasks/cancelled-leftovers";
 import { LIFECYCLE_TASK_LITE_SELECT, lifecycleTaskPresent, type LifecycleTaskLite } from "@/lib/tasks/lifecycle-presence";
 
 const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
@@ -1284,11 +1284,17 @@ export async function removeAutoTasksForCancelledReservation(
     });
     if (!r || r.status !== "cancelled") return 0;
     if (__reservationTaskHooks.afterCleanupLockedRead) await __reservationTaskHooks.afterCleanupLockedRead(reservationId);
+    // Onarımda kontrol listesi işaretlenmiş görev de KORUNUR (Opus O1: işaret `TaskUpdate` yazmaz, sorgu göremez → kimlikle daraltılır).
+    let target: Prisma.TaskWhereInput = doomed;
+    if (opts.repair) {
+      const rows = await tx.task.findMany({ where: doomed, select: { id: true, checklistJson: true } });
+      target = { id: { in: rows.filter((t) => !checklistTouched(t.checklistJson)).map((t) => t.id) } };
+    }
     const photos = await tx.taskUpdate.findMany({
-      where: { task: doomed, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },
+      where: { task: target, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },
       select: { photoUrl: true },
     });
-    const { count } = await tx.task.deleteMany({ where: doomed });
+    const { count } = await tx.task.deleteMany({ where: target });
     if (count > 0 && photos.length > 0) {
       await enqueueUnreferencedPhotoDeletions(tx, r.property.organizationId, photos.map((p) => p.photoUrl));
     }

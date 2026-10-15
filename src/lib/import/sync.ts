@@ -15,6 +15,7 @@ import { ANON_NAME } from "@/lib/data-retention";
 import { recordIngestEvent, type IngestContext } from "@/lib/ingest/events";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { alertTracker } from "@/lib/alert-state";
 import { directChannelsForProperty, icalChannelOfUrl, icalWriteAuthority, standbySummary } from "@/lib/channels/ical-authority";
 
 export interface SyncResult {
@@ -672,15 +673,25 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   for (const r of leftover) {
     await taskSideEffect(() => removeAutoTasksForCancelledReservation(r.id, { repair: true }), "cancel");
   }
-  if (taskFailures + cancelCleanupFailures > 0) {
-    const sample = firstTaskError instanceof Error ? firstTaskError : new Error(String(firstTaskError));
-    const parts = [
-      taskFailures > 0 ? `${taskFailures} rezervasyonun görevleri açılamadı` : null,
-      cancelCleanupFailures > 0 ? `${cancelCleanupFailures} iptal edilen rezervasyonun görevleri silinemedi (sonraki senkron yeniden dener)` : null,
-    ].filter(Boolean);
-    const aggregate = new Error(`${parts.join("; ")} — rezervasyonlar kaydedildi; örnek hata: ${sample.message}`);
-    aggregate.stack = sample.stack;
-    void reportError("import.sync.tasks", aggregate);
+  // GEÇİŞ TABANLI ALARM (Opus O7; kalıcı karar "PERİYODİK İŞİN ALARMI GEÇİŞ TABANLIDIR"): onarım taraması aynı satırı her senkronda
+  // (kaynak başına ~15 dk) yeniden dener — kalıcı bir arıza her turda e-posta üretmesin. Arıza başlayınca bir kez + 24 saatte bir hatırlatma;
+  // düzelince durum temizlenir. Konu başlığı ("import.sync.tasks") DEĞİŞMEDİ; sayılar mesajda.
+  try {
+    const opsAlarm = await alertTracker(`ical-sync:${source.id}:`);
+    if (taskFailures + cancelCleanupFailures > 0) {
+      const sample = firstTaskError instanceof Error ? firstTaskError : new Error(String(firstTaskError));
+      const parts = [
+        taskFailures > 0 ? `${taskFailures} rezervasyonun görevleri açılamadı` : null,
+        cancelCleanupFailures > 0 ? `${cancelCleanupFailures} iptal edilen rezervasyonun görevleri silinemedi (sonraki senkron yeniden dener)` : null,
+      ].filter(Boolean);
+      const aggregate = new Error(`${parts.join("; ")} — rezervasyonlar kaydedildi; örnek hata: ${sample.message}`);
+      aggregate.stack = sample.stack;
+      await opsAlarm.fail("tasks", "import.sync.tasks", aggregate);
+    } else {
+      await opsAlarm.ok("tasks");
+    }
+  } catch (err) {
+    void reportError("import.sync.tasks", err instanceof Error ? err : new Error(String(err)));
   }
 
   // Feed-disappearance reconciliation (#23, FAZ 2) — DEFAULT OFF. All the mass-cancel guards
