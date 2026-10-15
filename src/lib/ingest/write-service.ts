@@ -101,6 +101,9 @@ export async function upsertCanonicalReservation(
   propertyId: string,
   r: CanonicalReservation,
   ctx: IngestContext,
+  /** İsteğe bağlı çıktı: bu yazma rezervasyonu GERÇEKTEN iptale çevirdi mi (çağıran iptal temizliğini geçiş ile onarım arasında ayırır —
+   *  kurucu D5, 10-15: onarım yalnız başlanmamış + dokunulmamış görevi siler). */
+  out?: { cancelledNow?: boolean },
 ): Promise<string | null> {
   const srcRef = r.externalId;
   if (!r.arrivalDate || !r.departureDate) return null;
@@ -177,6 +180,7 @@ export async function upsertCanonicalReservation(
     // eşitlenir. iCal aboneliği (`import/sync.ts`) ve elle dosya yükleme bu yoldan GEÇMEZ — kuralları değişmedi.
     const reactivationBlocked = existing.status === "cancelled" && r.status !== "cancelled";
     if (r.status !== existing.status && !reactivationBlocked) data.status = r.status;
+    if (out) out.cancelledNow = data.status === "cancelled";
     if (r.totalAmount !== null && (r.totalAmount !== existing.totalAmount || currency !== existing.currency)) {
       data.totalAmount = r.totalAmount;
       data.totalAmountDec = toAmountDec(r.totalAmount);

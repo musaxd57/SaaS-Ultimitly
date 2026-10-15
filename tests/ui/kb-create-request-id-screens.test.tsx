@@ -39,7 +39,15 @@ function mockFetch(scan: unknown, postPlan: Array<"ok" | "fail" | "net" | "confl
       if (step === "net") throw new TypeError("Failed to fetch");
       if (step === "fail") return { ok: false, status: 500, json: async () => ({ error: "x" }) } as unknown as Response;
       if (step === "conflict") {
-        return { ok: false, status: 409, json: async () => ({ error: "Bu bilgi az önce farklı bir içerikle kaydedildi. Sayfayı yenileyip kontrol edin.", code: "idempotency_conflict" }) } as unknown as Response;
+        return {
+          ok: false,
+          status: 409,
+          json: async () => ({
+            error: "Bu bilgi az önce farklı bir içerikle kaydedildi. Sayfayı yenileyip kontrol edin.",
+            code: "idempotency_conflict",
+            existing: { id: "kb-saved", category: "general", title: "Otopark", content: "Bina önünde ÜCRETLİ otopark var." },
+          }),
+        } as unknown as Response;
       }
       return { ok: true, status: 201, json: async () => ({ id: "kb1" }) } as unknown as Response;
     }),
@@ -83,21 +91,25 @@ describe("Bilgi tabanı formu (KbManager)", () => {
     expect(c.requestId).not.toBe(a.requestId);
   });
 
-  it("🚨 409 uyuşmazlıktan sonra (kurucu 10-15) mesaj gösterilir ve aynı metinle yeniden 'Ekle' YENİ kimlik gönderir (bilinçli yeni işlem)", async () => {
-    mockFetch({ fromTemplates: [] }, ["conflict", "ok"]);
+  it("🚨 kurucu D1: 409 uyuşmazlıktan sonra kimlik DEĞİŞMEZ (yeniden 'Ekle' ikinci kayıt onayı sayılmaz), yazılan metin KORUNUR, kaydedilen kalem düzenleme seçeneğiyle gösterilir", async () => {
+    mockFetch({ fromTemplates: [] }, ["conflict", "conflict"]);
     render(<KbManager properties={PROPS} items={[]} />);
     fill("Otopark", "Bina önünde ücretsiz otopark var.");
     submit();
     await screen.findByText(/farklı bir içerikle kaydedildi/);
+    expect((document.getElementById("kb-content") as HTMLTextAreaElement).value).toBe("Bina önünde ücretsiz otopark var.");
+    expect(screen.getByText(/ÜCRETLİ otopark/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Kaydedilen bilgiyi düzenle" })).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Ekle$/ }).hasAttribute("disabled")).toBe(false));
     submit();
     await waitFor(() => expect(posts()).toHaveLength(2));
     const [a, b] = posts();
-    expect(b.requestId).toMatch(/^[0-9a-f]{32}$/);
-    expect(b.requestId).not.toBe(a.requestId);
+    expect(a.requestId).toMatch(/^[0-9a-f]{32}$/);
+    expect(b.requestId).toBe(a.requestId);
   });
 
-  it("metin değişince yeni kimlik (düzeltilmiş kalem ayrı istek)", async () => {
-    mockFetch({ fromTemplates: [] }, ["fail", "ok"]);
+  it("🚨 kurucu D1: bağlantı koparken metin düzeltilip yeniden gönderilirse AYNI kimlik gider (kalem aslında yazıldıysa sunucu 409 der, ikinci kalem açılmaz)", async () => {
+    mockFetch({ fromTemplates: [] }, ["net", "ok", "ok"]);
     render(<KbManager properties={PROPS} items={[]} />);
     fill("Otopark", "Bina önünde ücretsiz otopark var.");
     submit();
@@ -106,9 +118,14 @@ describe("Bilgi tabanı formu (KbManager)", () => {
     fill("Otopark", "Bina önünde ücretli otopark var.");
     submit();
     await waitFor(() => expect(posts()).toHaveLength(2));
-    const [a, b] = posts();
-    expect(b.requestId).toMatch(/^[0-9a-f]{32}$/);
-    expect(b.requestId).not.toBe(a.requestId);
+    // Başarı kesinleşti → sonraki ekleme YENİ işlem.
+    await waitFor(() => expect((document.getElementById("kb-content") as HTMLTextAreaElement).value).toBe(""));
+    fill("Havuz", "Havuz 09:00–20:00 açık.");
+    submit();
+    await waitFor(() => expect(posts()).toHaveLength(3));
+    const [a, b, c] = posts();
+    expect(b.requestId).toBe(a.requestId);
+    expect(c.requestId).not.toBe(a.requestId);
   });
 });
 

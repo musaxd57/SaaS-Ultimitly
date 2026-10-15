@@ -122,10 +122,17 @@ describe("yaşam döngüsü görevleri rezervasyon tarihini izler", () => {
       const ai = await prisma.task.create({
         data: { propertyId, reservationId: res.id, type: "checkin_prep", origin: "ai", title: "Mesajdan", dueAt: ARR, status: "todo", priority: "standard" },
       });
-      fake.setReservations("hp-A", [R({ arrivalDate: daysFromNow(6), departureDate: daysFromNow(11) })]);
+      const newArr = daysFromNow(6);
+      fake.setReservations("hp-A", [R({ arrivalDate: newArr, departureDate: daysFromNow(11) })]);
       await syncHospitable(orgId);
       expect(await due(res.id, "cleaning")).toBe(hostMoved.getTime());
-      expect(await due(res.id, "checkin_prep")).toBe(ARR.getTime());
+      // BİTMİŞ giriş hazırlığına DOKUNULMAZ (eski gününde kalır). Kurucu D7 (10-15): giriş günü değiştiği için o bitmiş iş YENİ günün
+      // hazırlığı SAYILMAZ → yeni gün için yeni giriş hazırlığı açılır (elle / mesaj görevi bunu engellemez).
+      const preps = await prisma.task.findMany({ where: { reservationId: res.id, type: "checkin_prep", origin: "system" }, orderBy: { createdAt: "asc" } });
+      expect(preps.map((t) => [t.status, t.dueAt?.getTime()])).toEqual([
+        ["done", ARR.getTime()],
+        ["todo", newArr.getTime()],
+      ]);
       expect((await prisma.task.findUniqueOrThrow({ where: { id: manual.id } })).dueAt?.getTime()).toBe(DEP.getTime());
       expect((await prisma.task.findUniqueOrThrow({ where: { id: ai.id } })).dueAt?.getTime()).toBe(ARR.getTime());
     });

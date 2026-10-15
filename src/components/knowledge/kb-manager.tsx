@@ -23,7 +23,7 @@ import { kbPlaceholderTokens, unfilledTemplateTokens } from "@/lib/kb-placeholde
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import type { KbTimeConflictRow } from "@/lib/kb-time-conflicts";
 import { takeKbPrefillTitle, type KbPrefill } from "@/lib/kb-prefill";
-import { createKbRequestIdStore, KB_IDEMPOTENCY_CONFLICT, newKbRequestId } from "@/lib/kb/request-id";
+import { KB_IDEMPOTENCY_CONFLICT, newKbRequestId } from "@/lib/kb/request-id";
 import Link from "next/link";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
@@ -162,9 +162,12 @@ export function KbManager({
 
 
   const refresh = () => startTransition(() => router.refresh());
-  // Tekrar güvenliği (idempotency denetimi 10-15): aynı metin yeniden gönderilirse (çift tıklama, bağlantı cevap anında koptu) aynı kimlik
-  // gider, sunucu ilk kalemi döndürür. Metin değişirse yeni kimlik; başarıdan sonra unutulur.
-  const [requestIds] = useState(createKbRequestIdStore);
+  // Tekrar güvenliği — kimlik FORM başına (kurucu D1, 10-15, aynen: "Ağ hatası veya 409 sonrası kimlik kendiliğinden değişmesin. Başarı
+  // kesinleşince yeni ekleme için yeni kimlik üret. Uyuşmazlıkta yazdığım metni koru; mümkünse kaydedilmiş kalemi gösterip onu düzenleme
+  // seçeneği sun. Sıradan “Ekle”ye tekrar basmak ikinci kayıt oluşturma onayı sayılmasın."). Bağlantı koparken kalem aslında yazıldıysa ve
+  // metin sonra düzeltilip yeniden gönderilirse aynı kimlik gider → sunucu 409 + kaydedilen kalem; ikinci kalem açılmaz.
+  const formRequestId = useRef<string>(newKbRequestId());
+  const [conflictItem, setConflictItem] = useState<Pick<KbItem, "id" | "category" | "title" | "content"> | null>(null);
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -178,12 +181,16 @@ export function KbManager({
       const res = await fetch("/api/kb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, isActive: true, requestId: requestIds.idFor(form) }),
+        body: JSON.stringify({ ...form, isActive: true, requestId: formRequestId.current }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // Aynı kimlik başka içerikle kullanılmış (409): kimlik bırakılır — bilerek yeniden "Ekle" YENİ işlemdir (kurucu 10-15).
-        if (res.status === 409 && data.code === KB_IDEMPOTENCY_CONFLICT) requestIds.forget(form);
+        // Aynı kimlik başka içerikle kullanılmış (409): kimlik DEĞİŞMEZ (yeniden "Ekle" yine 409 — ikinci kayıt onayı sayılmaz), yazılan
+        // metin korunur, kaydedilen kalem düzenleme seçeneğiyle gösterilir (kurucu D1).
+        if (res.status === 409 && data.code === KB_IDEMPOTENCY_CONFLICT) {
+          const ex = data.existing as Pick<KbItem, "id" | "category" | "title" | "content"> | undefined;
+          setConflictItem(ex && typeof ex.id === "string" ? ex : null);
+        }
         // `badRequest` alan hatalarını `fields` altına koyar ve `error` sabit
         // "Doğrulama hatası"dır — yalnız onu okumak, plan sınırı gibi ÖZELLİKLE
         // yazılmış açıklayıcı mesajları çöpe atıyordu (düzenleme yolu bunu baştan
@@ -192,7 +199,8 @@ export function KbManager({
         setError((typeof field === "string" ? field : null) ?? data.error ?? "Bilgi eklenemedi");
         return;
       }
-      requestIds.forget(form);
+      formRequestId.current = newKbRequestId(); // başarı kesinleşti → sonraki ekleme yeni işlem
+      setConflictItem(null);
       setForm((f) => ({ ...f, title: "", content: "" }));
       setPrefillNotice(false);
       refresh();
@@ -414,6 +422,26 @@ export function KbManager({
           <form onSubmit={create} className="space-y-3">
             {error ? (
               <FormError>{error}</FormError>
+            ) : null}
+            {conflictItem ? (
+              <div className="space-y-2 rounded-md border px-2.5 py-2 text-sm">
+                <p className="text-xs font-medium text-muted-foreground">Kaydedilen bilgi</p>
+                <p className="whitespace-pre-wrap break-words">
+                  {conflictItem.title ? <span className="font-medium">{conflictItem.title}: </span> : null}
+                  {conflictItem.content}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    startEdit({ ...conflictItem, propertyId: form.propertyId, propertyName: "", language: form.language, isActive: true });
+                    refresh();
+                  }}
+                >
+                  Kaydedilen bilgiyi düzenle
+                </Button>
+              </div>
             ) : null}
             {prefillNotice ? (
               <p role="status" className="rounded-md bg-accent/60 px-2.5 py-2 text-xs text-muted-foreground">

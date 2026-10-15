@@ -197,6 +197,7 @@ import {
 import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 import { OPEN_AUTO_LIFECYCLE_TASK_WHERE, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { LIFECYCLE_TASK_LITE_SELECT, lifecycleTaskPresent, type LifecycleTaskLite } from "@/lib/tasks/lifecycle-presence";
 
 const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 
@@ -1139,8 +1140,8 @@ export async function createReservationTasks(reservationId: string, opts: { reop
   if (!opts.reopened) {
     const r0 = await prisma.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
     if (!r0 || r0.status === "cancelled") return 0;
-    const quick = await prisma.task.findMany({ where: { reservationId }, select: { type: true } });
-    if (reservationTasksToCreate(r0, new Set(quick.map((t) => t.type)), now).length === 0) return 0;
+    const quick = await prisma.task.findMany({ where: { reservationId }, select: LIFECYCLE_TASK_LITE_SELECT });
+    if (reservationTasksToCreate(r0, quick, now).length === 0) return 0;
   }
 
   // Per-TYPE idempotency: create whichever of check-in / cleaning is still missing.
@@ -1161,10 +1162,10 @@ export async function createReservationTasks(reservationId: string, opts: { reop
     if (!r || r.status === "cancelled") return 0;
     const existing = await tx.task.findMany({
       where: { reservationId: r.id },
-      select: { type: true },
+      select: LIFECYCLE_TASK_LITE_SELECT,
     });
     if (__reservationTaskHooks.afterExistingRead) await __reservationTaskHooks.afterExistingRead(r.id);
-    const data = reservationTasksToCreate(r, new Set(existing.map((t) => t.type)), now);
+    const data = reservationTasksToCreate(r, existing, now);
     if (data.length === 0) return 0;
     await tx.task.createMany({ data });
     return data.length;
@@ -1191,7 +1192,7 @@ const RESERVATION_TASKS_SELECT = {
 /** Saf: rezervasyonun eksik yaşam döngüsü görevleri (hızlı yol ve kilitli yol AYNI kararı verir). */
 function reservationTasksToCreate(
   r: Prisma.ReservationGetPayload<{ select: typeof RESERVATION_TASKS_SELECT }>,
-  has: ReadonlySet<string>,
+  tasks: readonly LifecycleTaskLite[],
   now: Date,
 ): Prisma.TaskCreateManyInput[] {
   // Turnover linen/supply checklist from the property's profile (if set). Attached
@@ -1207,7 +1208,9 @@ function reservationTasksToCreate(
   // dünün 12:00Z değerini "bugün". Görevler sayfasındaki eksik görev sayısı aynı kararı verir (`reservationsMissingCleaningWhere`).
   const tz = orgTimezone(r.property?.organization?.timezone);
   const data: Prisma.TaskCreateManyInput[] = [];
-  if (onOrAfterToday(r.arrivalDate, now, tz) && !has.has("checkin_prep")) {
+  // "Zaten var mı?" yalnız SİSTEMİN açtığı göreve bakar; bitmiş sistem görevi yalnız AYNI günün göreviyse sayılır (kurucu D7, 10-15 —
+  // `lib/tasks/lifecycle-presence.ts`). Elle açılmış / söz / mesaj görevi otomatik görevi ENGELLEMEZ.
+  if (onOrAfterToday(r.arrivalDate, now, tz) && !lifecycleTaskPresent("checkin_prep", r.arrivalDate, tasks, tz)) {
     data.push({
       propertyId: r.propertyId,
       reservationId: r.id,
@@ -1220,7 +1223,7 @@ function reservationTasksToCreate(
       priority: "standard",
     });
   }
-  if (onOrAfterToday(r.departureDate, now, tz) && !has.has("cleaning")) {
+  if (onOrAfterToday(r.departureDate, now, tz) && !lifecycleTaskPresent("cleaning", r.departureDate, tasks, tz)) {
     data.push({
       propertyId: r.propertyId,
       reservationId: r.id,

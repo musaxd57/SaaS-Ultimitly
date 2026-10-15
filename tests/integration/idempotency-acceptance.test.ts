@@ -69,7 +69,12 @@ describe("1 · Aynı kimlik, farklı içerik → açık uyuşmazlık", () => {
     await prisma.knowledgeBaseItem.update({ where: { id }, data: { content: "Ağ adı: Lale_YENI." } });
     const again = await create(wifi(propertyId, { requestId: RID }));
     expect(again.status).toBe(409);
-    expect(await again.json()).toEqual({ error: KB_CREATE_CONFLICT_MESSAGE, code: KB_IDEMPOTENCY_CONFLICT });
+    // Kurucu D1 (10-15): kaydedilen kalem de döner (ekranda "Kaydedilen bilgiyi düzenle" seçeneği için).
+    expect(await again.json()).toEqual({
+      error: KB_CREATE_CONFLICT_MESSAGE,
+      code: KB_IDEMPOTENCY_CONFLICT,
+      existing: { id, category: "wifi", title: expect.any(String), content: "Ağ adı: Lale_YENI." },
+    });
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1);
   });
 

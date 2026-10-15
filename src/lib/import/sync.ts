@@ -652,15 +652,24 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // (bu yüzden "zaten iptal" satırı olarak hiç gelmeyen) satırlar ve kayıp uzlaştırmasının iptalleri dahil. Sınırlı küme (turda en çok
   // 50), aynı kilitli fonksiyon; bu turda zaten denenen satır ikinci kez denenmez. Kilitsiz "görevi var mı?" okuması burada kanıt değil
   // TARAMA'dır: iptal geçişinin kendi kilitli temizliği asıl güvencedir, bu tur kaçırılan bir sonrakinde yakalanır.
-  const leftover = await prisma.reservation
-    .findMany({
-      where: { calendarSourceId: source.id, status: "cancelled", tasks: { some: UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } },
+  // Tarama sorgusu düşerse SESSİZ kalmaz (Haiku 10-15): görev yan etkisi gibi sayılır → ↓ toplu alarm. Bu turda zaten denenenler
+  // sorguda dışlanır (50'lik yeri yemesinler). Sınır yalnız güvenlik tavanıdır: bir kaynakta 50'den fazla satırın temizliği HER turda
+  // düşüyorsa kalanlar sıra bekler — o durum zaten her turda alarm verir (operatör işi).
+  let leftover: { id: string }[] = [];
+  await taskSideEffect(async () => {
+    leftover = await prisma.reservation.findMany({
+      where: {
+        calendarSourceId: source.id,
+        status: "cancelled",
+        id: { notIn: [...cleanupTried] },
+        tasks: { some: UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE },
+      },
       select: { id: true },
+      orderBy: { id: "asc" },
       take: CLEANUP_RETRY_PER_RUN,
-    })
-    .catch(() => [] as { id: string }[]);
+    });
+  }, "cancel");
   for (const r of leftover) {
-    if (cleanupTried.has(r.id)) continue;
     await taskSideEffect(() => removeAutoTasksForCancelledReservation(r.id, { repair: true }), "cancel");
   }
   if (taskFailures + cancelCleanupFailures > 0) {

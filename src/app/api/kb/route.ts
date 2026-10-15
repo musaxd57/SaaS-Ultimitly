@@ -48,7 +48,16 @@ export const POST = withManage(async (session, req) => {
     // Aynı kimlik, FARKLI içerik (kurucu 10-15): eski kalem sessizce dönmez — açık uyuşmazlık. Örnek: ilk deneme yazdı, cevap koptu, kalem
     // başka sekmede düzenlendi; eski sekmeden yeniden deneme artık "eklendi" sanmaz. İstemci kimliği bırakır (bilerek yeniden = yeni işlem).
     if (!sameKbContent(prior, d)) {
-      return NextResponse.json({ error: KB_CREATE_CONFLICT_MESSAGE, code: KB_IDEMPOTENCY_CONFLICT }, { status: 409 });
+      // Kaydedilen kalem de döner (kurucu D1, 10-15: "mümkünse kaydedilmiş kalemi gösterip onu düzenleme seçeneği sun"). Kalem bu
+      // işletmenin mülkünde (mülk yukarıda işletmeye bağlandı) ve bu kimlikle yazıldı — başka kiracıya ait olamaz.
+      return NextResponse.json(
+        {
+          error: KB_CREATE_CONFLICT_MESSAGE,
+          code: KB_IDEMPOTENCY_CONFLICT,
+          existing: { id: prior.id, category: prior.category, title: prior.title, content: prior.content },
+        },
+        { status: 409 },
+      );
     }
     await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
     warmPropertyKbVectorsBestEffort(d.propertyId);

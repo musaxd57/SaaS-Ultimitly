@@ -225,6 +225,9 @@ describe("backfillReservationTasks", () => {
         propertyId,
         reservationId: reservation.id,
         type: "checkin_prep",
+        // Otomasyonun açtığı görev (kurucu D7, 10-15: "zaten var mı?" yalnız SİSTEM görevine bakar; köken belirtilmeyen görev
+        // şema varsayılanıyla "manual" sayılırdı ve artık otomatik giriş hazırlığını engellemezdi).
+        origin: "system",
         title: "existing check-in",
         description: "",
         dueAt: reservation.arrivalDate,

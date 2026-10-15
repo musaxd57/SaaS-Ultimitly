@@ -310,6 +310,40 @@ describe("İptal yolları — aynı rezervasyon kilidi (iptalden ÖNCE başlamı
     expect(await removeAutoTasksForCancelledReservation(s.reservationId)).toBe(2);
   });
 
+  it("kurucu D5 (Haiku 10-15): ZATEN iptalli satıra tekrar PATCH 'iptal' ve Hospitable'ın her turdaki çağrısı ONARIMDIR — başlanmış görev korunur", async () => {
+    // PATCH: satır zaten iptal → yalnız dokunulmamış görev silinir.
+    const a = await fileOwned(ctx);
+    await markCancelled(a.reservationId);
+    const aTodo = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: a.reservationId, type: "checkin_prep", origin: "system", title: "x", status: "todo" } });
+    const aStarted = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: a.reservationId, type: "cleaning", origin: "system", title: "x", status: "in_progress" } });
+    const patch = await PATCH_RESERVATION(
+      new NextRequest(`http://localhost/api/reservations/${a.reservationId}`, { method: "PATCH", body: JSON.stringify({ status: "cancelled" }), headers: { "content-type": "application/json" } }),
+      { params: Promise.resolve({ id: a.reservationId }) },
+    );
+    expect(patch.status).toBe(200);
+    expect(await prisma.task.findUnique({ where: { id: aTodo.id } })).toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: aStarted.id } })).not.toBeNull();
+    // Hospitable: satır ÖNCEKİ turda iptal edildi; bu tur geçiş değil → onarım.
+    const hosp = PATHS.find((p) => p.name.startsWith("Hospitable"))!;
+    const h = await hosp.setup(ctx);
+    await hosp.cancel(ctx, h); // geçiş turu (görev yoktu)
+    const hStarted = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: h.reservationId, type: "cleaning", origin: "system", title: "x", status: "in_progress" } });
+    const hTodo = await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: h.reservationId, type: "checkin_prep", origin: "system", title: "x", status: "todo" } });
+    await hosp.cancel(ctx, h); // sonraki tur: satır zaten iptal
+    expect(await prisma.task.findUnique({ where: { id: hTodo.id } })).toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: hStarted.id } })).not.toBeNull();
+  });
+
+  it("geçişte TAM küme (bugünkü iptal davranışı değişmedi): onaylı satır PATCH ile iptal edilince başlanmış sistem görevi de silinir", async () => {
+    const a = await fileOwned(ctx);
+    await prisma.task.create({ data: { propertyId: ctx.propertyId, reservationId: a.reservationId, type: "cleaning", origin: "system", title: "x", status: "in_progress" } });
+    await PATCH_RESERVATION(
+      new NextRequest(`http://localhost/api/reservations/${a.reservationId}`, { method: "PATCH", body: JSON.stringify({ status: "cancelled" }), headers: { "content-type": "application/json" } }),
+      { params: Promise.resolve({ id: a.reservationId }) },
+    );
+    expect(await systemTasks(a.reservationId)).toBe(0);
+  });
+
   it("aşırı uygulama yok (onarım taraması): onaylı satırın görevleri, ev sahibinin kendi görevi ve BAŞKA kaynağın iptalli satırı dokunulmaz", async () => {
     const s = await icalBound(ctx); // onaylı, bu kaynağın satırı
     await leftoverTasksFor(ctx, s.reservationId);

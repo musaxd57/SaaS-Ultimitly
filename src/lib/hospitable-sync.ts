@@ -318,6 +318,9 @@ export async function syncHospitable(
       // FRESH guard read — either this commits before an erasure (which then
       // masks it) or it sees the erasure's tombstones and refuses (RACE MODEL).
       let localReservationId: string | null = null;
+      // Bu yazma rezervasyonu GERÇEKTEN iptale çevirdiyse iptal temizliği tam kümeyle (geçiş); çevirmediyse (satır zaten iptaldi — senkron
+      // her turda her rezervasyon için çağırır) ONARIM: yalnız başlanmamış + dokunulmamış görev (kurucu D5, Haiku 10-15).
+      const upsertOut: { cancelledNow?: boolean } = {};
       try {
         const r1 = await prisma.$transaction(
           async (tx) => {
@@ -326,7 +329,7 @@ export async function syncHospitable(
             if (erasureBlocks(fresh)) return { blocked: true as const, id: null };
             return {
               blocked: false as const,
-              id: await upsertCanonicalReservation(tx, propertyId, reservation, ctx),
+              id: await upsertCanonicalReservation(tx, propertyId, reservation, ctx, upsertOut),
             };
           },
           { timeout: 60_000, maxWait: 15_000 },
@@ -361,7 +364,7 @@ export async function syncHospitable(
           await createReservationTasks(localReservationId).catch(countTaskFailure);
           // If the booking flipped to cancelled, remove its still-pending auto
           // tasks. No-op for active bookings. Best-effort.
-          await removeAutoTasksForCancelledReservation(localReservationId).catch(countTaskFailure);
+          await removeAutoTasksForCancelledReservation(localReservationId, { repair: upsertOut.cancelledNow !== true }).catch(countTaskFailure);
         }
       } catch (err) {
         // Buraya düşmek "bu rezervasyon satırı DB'ye hiç yazılmadı" demektir:

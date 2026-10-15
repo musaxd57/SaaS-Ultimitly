@@ -19,13 +19,14 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { POST } from "@/app/api/reservations/[id]/reactivate/route";
+import { PATCH } from "@/app/api/reservations/[id]/route";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 
 const DAY = 86_400_000;
 const req = (id: string) => new NextRequest(`http://localhost/api/reservations/${id}/reactivate`, { method: "POST" });
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 
-async function seed(opts: { role?: SessionPayload["role"]; signalDaysAgo?: number | null; status?: string } = {}) {
+async function seed(opts: { role?: SessionPayload["role"]; signalDaysAgo?: number | null; status?: string; provider?: boolean } = {}) {
   const { orgId, propertyId } = await makeOrgWithProperty();
   const user = await prisma.user.create({
     data: { organizationId: orgId, name: "O", email: `o-${orgId}@x.com`, passwordHash: "x", role: opts.role ?? "owner" },
@@ -39,6 +40,8 @@ async function seed(opts: { role?: SessionPayload["role"]; signalDaysAgo?: numbe
       departureDate: new Date(Date.now() + 13 * DAY),
       status: opts.status ?? "cancelled",
       channel: "airbnb",
+      // Sağlayıcıya ait satır (kanıtlı bağlantı damgası) — kanal işareti YALNIZ bunda aranır (kurucu D6, 10-15).
+      ...(opts.provider === false ? {} : { connectionId: `conn-${orgId}`, connectionEvidence: "ingest", ingestedAt: new Date() }),
     },
   });
   if (opts.signalDaysAgo !== null) {
@@ -95,6 +98,20 @@ describe("POST /api/reservations/[id]/reactivate (H2)", () => {
     const old = await seed({ signalDaysAgo: 10 });
     session = old.session;
     expect((await POST(req(old.reservationId), ctx(old.reservationId))).status).toBe(409);
+  });
+
+  it("🚨 kurucu D6: sağlayıcıya AİT OLMAYAN iptal (dosya / takvim / elle) kanal işareti ARANMADAN açılır; kurallar (bitmiş konaklama, denetim, görev) aynı", async () => {
+    const s = await seed({ signalDaysAgo: null, provider: false });
+    session = s.session;
+    const res = await POST(req(s.reservationId), ctx(s.reservationId));
+    expect(res.status).toBe(200);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("confirmed");
+    expect(await prisma.auditLog.count({ where: { organizationId: s.orgId, action: "reservation.reactivated" } })).toBe(1);
+    expect(await prisma.task.count({ where: { reservationId: s.reservationId, origin: "system" } })).toBe(2);
+    // Tekrarlanan istek ikinci görev AÇMAZ (409 not_cancelled).
+    const again = await POST(req(s.reservationId), ctx(s.reservationId));
+    expect(again.status).toBe(409);
+    expect(await prisma.task.count({ where: { reservationId: s.reservationId, origin: "system" } })).toBe(2);
   });
 
   it("KONTROL: konaklaması bitmiş rezervasyon → 409 past_stay (panel kapsamıyla aynı)", async () => {
@@ -156,5 +173,68 @@ describe("POST /api/reservations/[id]/reactivate (H2)", () => {
     const res = await POST(req(s.reservationId), ctx(s.reservationId));
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("cancelled");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KURUCU D6 (10-15): "API ve panel aynı yeniden açma kurallarını kullansın; yetki kontrolü, işlem kaydı ve otomatik görev ayarı korunsun.
+// Sağlayıcıya ait olmayan rezervasyonda sağlayıcı işareti aranmasın. Tekrarlanan istek ikinci görev oluşturmasın."
+// ---------------------------------------------------------------------------
+const patch = (id: string, body: unknown) =>
+  PATCH(
+    new NextRequest(`http://localhost/api/reservations/${id}`, { method: "PATCH", body: JSON.stringify(body), headers: { "content-type": "application/json" } }),
+    { params: Promise.resolve({ id }) },
+  );
+
+describe("PATCH /api/reservations/[id] — iptalden çıkış 'Yeniden aç' kurallarıyla (kurucu D6)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("🚨 sağlayıcı satırı + kanal işareti YOK → 409 no_channel_signal; satır iptal kalır, görev açılmaz (eskiden kurallar atlanıyordu)", async () => {
+    const s = await seed({ signalDaysAgo: null });
+    session = s.session;
+    const res = await patch(s.reservationId, { status: "confirmed" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("no_channel_signal");
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("cancelled");
+    expect(await prisma.task.count({ where: { reservationId: s.reservationId } })).toBe(0);
+  });
+
+  it("sağlayıcıya ait olmayan satır → işaret aranmadan açılır: denetim kaydı (via api) + görevler; tekrar istek ikinci görev AÇMAZ", async () => {
+    const s = await seed({ signalDaysAgo: null, provider: false });
+    session = s.session;
+    const res = await patch(s.reservationId, { status: "confirmed", notes: "misafir geri döndü" });
+    expect(res.status).toBe(200);
+    const row = await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } });
+    expect([row.status, row.notes]).toEqual(["confirmed", "misafir geri döndü"]);
+    const audits = await prisma.auditLog.findMany({ where: { organizationId: s.orgId, action: "reservation.reactivated" } });
+    expect(audits).toHaveLength(1);
+    expect(JSON.stringify(audits[0])).toContain("api");
+    expect(await prisma.task.count({ where: { reservationId: s.reservationId, origin: "system" } })).toBe(2);
+    const again = await patch(s.reservationId, { status: "confirmed" });
+    expect(again.status).toBe(200);
+    expect(await prisma.task.count({ where: { reservationId: s.reservationId, origin: "system" } })).toBe(2);
+  });
+
+  it("konaklaması bitmiş iptal → 409 past_stay (düğmeyle aynı)", async () => {
+    const s = await seed({ provider: false });
+    await prisma.reservation.update({
+      where: { id: s.reservationId },
+      data: { arrivalDate: new Date(Date.now() - 10 * DAY), departureDate: new Date(Date.now() - 7 * DAY) },
+    });
+    session = s.session;
+    const res = await patch(s.reservationId, { status: "confirmed" });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("past_stay");
+  });
+
+  it("aşırı uygulama yok: iptal OLMAYAN satırda not / durum değişikliği eskisi gibi (yeniden açma kuralı devreye girmez)", async () => {
+    const s = await seed({ status: "confirmed" });
+    session = s.session;
+    const res = await patch(s.reservationId, { status: "pending", notes: "n" });
+    expect(res.status).toBe(200);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } })).status).toBe("pending");
+    expect(await prisma.auditLog.count({ where: { organizationId: s.orgId, action: "reservation.reactivated" } })).toBe(0);
   });
 });
