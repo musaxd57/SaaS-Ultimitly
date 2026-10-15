@@ -74,3 +74,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 - ⚠️ Migration 65 itildikten SONRA değiştirilmedi; operatör işareti ayrı migration 66 (Opus 10-15 son kontrol). Yerelde 65'i daha önce
   uyguladıysanız `npx prisma migrate deploy` yalnız 66'yı ekler.
 - GitHub Actions sırrı `ANTHROPIC_API_KEY` (Railway'e DEĞİL; yalnız test iş akışı) — kurucu 10-15 ekledi.
+
+## 6. Bağlantı havuzu ve kapanış (yatay ölçek denetimi 10-15, `docs/arastirma-2026-10-15/yatay-olcek.md`)
+
+- `DATABASE_URL` sonuna `?connection_limit=10` (zaten parametre varsa `&connection_limit=10`) ekleyin. Bugün tavan yok: Prisma çekirdek×2+1
+  açar; ikinci kopya / işçi servisi eklenince Railway Postgres'in 100 bağlantı sınırına yaklaşılır. Tek kopyada da zararsız.
+- İkinci kopya AÇMAYIN: misafir mesajı işleme kapasitesini büyütmez (senkron tek kilit altında). Önce raporun §6 sırası (migration ön adımı,
+  kapanış işleyicisi, işçi servisi) — kurucu kararıyla.

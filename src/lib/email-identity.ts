@@ -64,7 +64,9 @@ export function canonicalMailbox(email: string): string {
   const at = normalized.lastIndexOf("@");
   if (at <= 0) return normalized;
   let local = normalized.slice(0, at);
-  const domain = normalized.slice(at + 1);
+  // googlemail.com ile gmail.com AYNI posta kutusudur (deneme araştırması 10-15).
+  const rawDomain = normalized.slice(at + 1);
+  const domain = rawDomain === "googlemail.com" ? "gmail.com" : rawDomain;
   const plus = local.indexOf("+");
   if (plus > 0) local = local.slice(0, plus);
   if (DOTTED_ALIAS_DOMAINS.has(domain)) local = local.replace(/\./g, "");

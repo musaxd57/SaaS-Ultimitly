@@ -7,7 +7,7 @@
 
 import { needsEmailVerification } from "@/lib/auth/email-verify";
 
-export type TrialRiskReason = "identity_reused" | "disposable_email" | "email_unverified";
+export type TrialRiskReason = "identity_reused" | "mailbox_shared" | "disposable_email" | "email_unverified";
 
 export interface TrialRisk {
   score: number;
@@ -17,11 +17,17 @@ export interface TrialRisk {
 /** Operatör paneli etiketleri (sade). */
 export const TRIAL_RISK_LABELS: Record<TrialRiskReason, string> = {
   identity_reused: "ilan daha önce kullanıldı",
+  mailbox_shared: "aynı posta kutusu başka hesapta",
   disposable_email: "geçici e-posta",
   email_unverified: "e-posta doğrulanmadı (24 sa+)",
 };
 
-const WEIGHTS: Record<TrialRiskReason, number> = { identity_reused: 60, disposable_email: 30, email_unverified: 10 };
+/**
+ * `mailbox_shared` (deneme araştırması 10-15, dilim 1): sahibin KANONİK posta kutusu (`canonicalMailbox` — Gmail noktası, `+etiket`,
+ * googlemail) başka bir işletmenin sahibinde de var ("ali+2@gmail.com" ile "a.li@gmail.com" iki ayrı deneme). Yalnız puan sinyali — kimlik
+ * kararı, engel YOK; aynı Gmail'le iki gerçek işletme açan kişi nadir ama olabilir (operatör bakışla karar verir).
+ */
+const WEIGHTS: Record<TrialRiskReason, number> = { identity_reused: 60, mailbox_shared: 40, disposable_email: 30, email_unverified: 10 };
 
 /**
  * Doğrulanmamış e-posta bu süreden sonra sinyal sayılır (kayıttan hemen sonra herkes doğrulanmamıştır). Doğrulama zorunluluğundan
@@ -60,10 +66,13 @@ export function isDisposableEmail(email: string): boolean {
 export function trialRisk(input: {
   owners: readonly { email: string; emailVerifiedAt: Date | null; createdAt: Date }[];
   identityReused: boolean;
+  /** Sahiplerden birinin kanonik posta kutusu başka bir işletmenin sahibinde de var (çağıran hesaplar). */
+  mailboxShared?: boolean;
   now: Date;
 }): TrialRisk {
   const reasons: TrialRiskReason[] = [];
   if (input.identityReused) reasons.push("identity_reused");
+  if (input.mailboxShared) reasons.push("mailbox_shared");
   if (input.owners.some((o) => isDisposableEmail(o.email))) reasons.push("disposable_email");
   if (input.owners.some((o) => needsEmailVerification(o) && input.now.getTime() - o.createdAt.getTime() >= UNVERIFIED_GRACE_MS)) {
     reasons.push("email_unverified");
@@ -84,6 +93,8 @@ export function riskyTrials<
   orgs: readonly T[],
   ownersByOrg: ReadonlyMap<string, readonly { email: string; emailVerifiedAt: Date | null; createdAt: Date }[]>,
   now: Date,
+  /** Kanonik posta kutusu başka işletmeyle ORTAK olan işletmeler (operatör sayfası kanaryadan hesaplar). */
+  sharedMailboxOrgIds: ReadonlySet<string> = new Set(),
 ): { org: T; risk: TrialRisk }[] {
   return orgs
     .filter((o) => o.subscription?.provider === "trial")
@@ -93,6 +104,7 @@ export function riskyTrials<
       risk: trialRisk({
         owners: ownersByOrg.get(org.id) ?? [],
         identityReused: org.subscription?.trialEndReason === "identity_reused",
+        mailboxShared: sharedMailboxOrgIds.has(org.id),
         now,
       }),
     }))

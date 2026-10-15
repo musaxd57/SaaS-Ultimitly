@@ -118,7 +118,11 @@ describe("canonicalMailbox — YALNIZ analiz içindir", () => {
     const box = "musa@gmail.com";
     expect(canonicalMailbox("musa+lixus@gmail.com")).toBe(box);
     expect(canonicalMailbox("m.u.s.a@gmail.com")).toBe(box);
-    expect(canonicalMailbox("M.Usa+2@GoogleMail.com")).toBe("musa@googlemail.com");
+    // googlemail.com ile gmail.com AYNI posta kutusu (deneme araştırması 10-15).
+    expect(canonicalMailbox("M.Usa+2@GoogleMail.com")).toBe("musa@gmail.com");
+    expect(canonicalMailbox("musa@googlemail.com")).toBe(canonicalMailbox("m.usa@gmail.com"));
+    // KONTROL: başka sağlayıcıda nokta korunur, yalnız +etiket atılır.
+    expect(canonicalMailbox("m.usa+x@outlook.com")).toBe("m.usa@outlook.com");
   });
 
   it("tanınmayan alan adında nokta kuralı UYGULANMAZ (yanlış eşleşme üretmesin)", () => {

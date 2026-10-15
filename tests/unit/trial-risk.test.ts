@@ -95,3 +95,22 @@ describe("operatör listesi (riskyTrials)", () => {
     ]);
   });
 });
+
+describe("ortak posta kutusu (deneme araştırması 10-15, dilim 1)", () => {
+  it("🚨 kanonik kutusu başka işletmede olan deneme → 'mailbox_shared' (40), sıralamada önde; KONTROL: ortak değilse sebep yok", () => {
+    const o = [owner("a@gmail.com", true, 3 * UNVERIFIED_GRACE_MS)];
+    expect(trialRisk({ owners: o, identityReused: false, mailboxShared: true, now: NOW })).toEqual({ score: 40, reasons: ["mailbox_shared"] });
+    expect(trialRisk({ owners: o, identityReused: false, mailboxShared: false, now: NOW }).reasons).toEqual([]);
+    const sub = { provider: "trial", trialEndsAt: new Date(NOW.getTime() + 86_400_000), trialEndReason: null };
+    const orgs = [
+      { id: "o1", createdAt: new Date(NOW.getTime() - 1000), subscription: sub },
+      { id: "o2", createdAt: new Date(NOW.getTime() - 2000), subscription: sub },
+    ];
+    const owners = new Map([
+      ["o1", o],
+      ["o2", o],
+    ]);
+    const rows = riskyTrials(orgs, owners, NOW, new Set(["o2"]));
+    expect(rows.map((r) => [r.org.id, r.risk.score])).toEqual([["o2", 40]]);
+  });
+});

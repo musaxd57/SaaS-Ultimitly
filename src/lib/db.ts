@@ -24,6 +24,6 @@ function createPrismaClient(): PrismaClient {
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+// Üretimde de süreç başına TEK istemci (yatay ölçek denetimi 10-15): modül iki pakette (ör. rota + arka plan işi) ayrı yüklense bile ikinci
+// bir bağlantı havuzu açılmaz. Havuz tavanı `DATABASE_URL` içindeki `connection_limit` ile verilir (Railway listesi).
+globalForPrisma.prisma = prisma;

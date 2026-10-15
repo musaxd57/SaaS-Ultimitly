@@ -163,10 +163,21 @@ export default async function AdminPage() {
   });
   const ownersByOrg = new Map<string, typeof trialOwners>();
   for (const u of trialOwners) ownersByOrg.set(u.organizationId, [...(ownersByOrg.get(u.organizationId) ?? []), u]);
+  // Deneme sahiplerinin kanonik kutusu kanarya gruplarında başka işletmeyle ortak mı (deneme araştırması 10-15, dilim 1). Deneme sahipleri
+  // kanarya sorgusunun 5000 tavanına takılmasın diye gruba ayrıca eklenir.
+  for (const u of trialOwners) {
+    const box = canonicalMailbox(u.email);
+    const set = mailboxGroups.get(box) ?? new Set<string>();
+    set.add(u.organizationId);
+    mailboxGroups.set(box, set);
+  }
+  const sharedMailboxOrgIds = new Set<string>();
+  for (const set of mailboxGroups.values()) if (set.size > 1) for (const id of set) sharedMailboxOrgIds.add(id);
   const riskyTrialRows = riskyTrials(
     orgs.filter((o) => !isDemoOrg(o.id)),
     ownersByOrg,
     new Date(),
+    sharedMailboxOrgIds,
   );
   const sharedMailboxOrgs = sharedMailboxes.reduce((n, s) => n + s.size, 0);
 
