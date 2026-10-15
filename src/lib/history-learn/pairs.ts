@@ -34,6 +34,36 @@ export interface BuildLearnPairsOptions {
   maxPairGapMs?: number;
 }
 
+/**
+ * 🚨 YAPAY ZEKÂ TASLAĞININ YANKISI EV SAHİBİ KANITI DEĞİLDİR (Opus H1, 10-15; Codex ilke 2: "AI'ın eski cevabını kendi doğruluğunun kanıtı
+ * yapmasını engelle"). "Taslağı kullan" yalnız yazma alanını doldurur, "Gönder" satırı `aiAssisted=false` + ev sahibi yazar → eşleştirici
+ * onu ev sahibi cevabı sanıyordu ve yapay zekânın uydurduğu bir çözüm "N konuşmadaki cevaplarınızdan" etiketiyle taslak oluyordu. Misafir
+ * bloğunda tutulan taslağın sözcüklerinin büyük kısmı cevapta da varsa çift DÜŞER (şüphede öğrenme yok — kaçan çift ucuz, sahte kanıt
+ * pahalı). Doğrusal: sözcük kümesi, en çok ECHO_MAX_TOKENS sözcük.
+ */
+const ECHO_MAX_TOKENS = 400;
+const ECHO_OVERLAP = 0.6;
+function wordSet(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of text.toLocaleLowerCase("tr").split(/[^\p{L}\p{N}]+/u)) {
+    if (w.length >= 2) out.add(w);
+    if (out.size >= ECHO_MAX_TOKENS) break;
+  }
+  return out;
+}
+export function echoesAiDraft(block: readonly HistoryMessage[], answer: string): boolean {
+  const drafts = block.map((q) => q.aiSuggestedReply?.trim()).filter((d): d is string => Boolean(d));
+  if (!drafts.length) return false;
+  const answerWords = wordSet(answer);
+  return drafts.some((d) => {
+    const draftWords = wordSet(d);
+    if (draftWords.size === 0) return false;
+    let shared = 0;
+    for (const w of draftWords) if (answerWords.has(w)) shared += 1;
+    return shared / draftWords.size >= ECHO_OVERLAP;
+  });
+}
+
 /** Ürünün yapay zekâsının (ya da kaybolmuş kendi çıktımızın) giden mesajı: ev sahibi değil, şablon değil, sistem olayı değil. */
 function isAiOutbound(m: HistoryMessage): boolean {
   return m.direction !== "inbound" && !m.systemEventType && !isAutomationMessage(m) && !isHostAuthored(m) && Boolean(m.body?.trim());
@@ -81,11 +111,13 @@ export function buildLearnPairs(
       const lastQ = block[block.length - 1];
       const gap = host[0].createdAt.getTime() - lastQ.createdAt.getTime();
       if (gap < 0 || gap > maxGapMs) continue;
+      const answer = host.map((h) => h.body!.trim()).join("\n");
+      if (echoesAiDraft(block, answer)) continue;
       pairs.push({
         conversationId: lastQ.conversationId,
         propertyId: lastQ.propertyId,
         question: block.map((q) => q.body!.trim()).join("\n"),
-        answer: host.map((h) => h.body!.trim()).join("\n"),
+        answer,
         askedAt: block[0].createdAt,
         answeredAt: host[host.length - 1].createdAt,
         questionIds: block.map((q) => q.id),

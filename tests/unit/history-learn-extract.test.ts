@@ -507,3 +507,25 @@ describe("Geçmişten öğren — çıkarım", () => {
     expect(r.drafts[0].flags).toContain("guest_name");
   });
 });
+
+describe("taslak kapısı — tarih / geçici durum / deneme / 'bilgi yok' işaretleri (Opus H3–H5, Codex ilke 2)", () => {
+  it.each([
+    ["Giriş", "Misafirler yarın 13:00'ten itibaren giriş yapabilir.", "time_bound"],
+    ["Havuz", "Bu hafta havuz bakım nedeniyle kapalıdır.", "time_bound"],
+    ["Geç çıkış", "14 Mayıs'ta 14:00'e kadar kalabilirsiniz.", "time_bound"],
+    ["Klima", "Salondaki klima arızalı, teknisyen yarın gelecek.", "time_bound"],
+    ["İnternet", "Modemi kapatıp açın, belki düzelir.", "tentative"],
+    ["İnternet", "Modemi yeniden başlatmayı deneyin.", "tentative"],
+    ["Wi-Fi", "Wi-Fi şifresi belirtilmemiştir.", "no_info"],
+    ["Otopark", "Otopark hakkında bilgimiz yok.", "no_info"],
+  ])("%s: %j → %s işareti", (title, content, flag) => {
+    const g = gateDraft(title, content);
+    expect(g.ok && g.flags).toContain(flag);
+  });
+
+  it("aşırı uygulama yok: kalıcı bilgi işaretsiz kalır", () => {
+    for (const c of ["Market her gün 07:00–24:00 açıktır.", "Otopark binanın arkasında, ücretsizdir.", "Çöp konteyneri sokağın başındadır.", "Havuz 09:00–20:00 açıktır."]) {
+      expect(gateDraft("Bilgi", c), c).toEqual({ ok: true, flags: [] });
+    }
+  });
+});

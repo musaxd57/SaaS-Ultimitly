@@ -16,7 +16,18 @@ import { toast } from "@/lib/toast";
  * Taslak ev sahibi onaylamadan yapay zekâya GİTMEZ. İşaretli / çelişkili taslakta "Kontrol ettim" işaretlenmeden Onayla kapalıdır (sunucu
  * da `confirmFlags` ister). Müşteri metni sade (kurucu 09-23): ne olduğu + ne yapılacağı.
  */
-type Flag = "payment" | "needs_edit" | "one_off" | "ungrounded" | "guest_name" | "sensitive" | "door_mention" | "outdated";
+type Flag =
+  | "payment"
+  | "needs_edit"
+  | "one_off"
+  | "ungrounded"
+  | "guest_name"
+  | "sensitive"
+  | "door_mention"
+  | "outdated"
+  | "time_bound"
+  | "tentative"
+  | "no_info";
 export const FLAG_TEXT: Record<Flag, string> = {
   payment: "Ödeme yöntemi ya da platform dışı ödeme / rezervasyon geçiyor. Kontrol edin.",
   needs_edit: "Gizlenmiş bir bilgi var (telefon, kod ya da ad). Metni düzenleyin.",
@@ -26,6 +37,9 @@ export const FLAG_TEXT: Record<Flag, string> = {
   sensitive: "Kişisel bilgi (telefon, e-posta, IBAN) geçiyor olabilir. Gerekmiyorsa metinden çıkarın.",
   door_mention: "Kapı ya da anahtar kutusu kodundan söz ediyor. Kodun kendisinin yazılmadığından emin olun.",
   outdated: "Daha yeni bir cevabınız farklı. Bu bilgi eskimişse reddedin.",
+  time_bound: "Belirli bir güne ya da geçici bir duruma bağlı görünüyor (yarın, bu hafta, şu an). Her zaman geçerliyse onaylayın, değilse reddedin.",
+  tentative: "Kesin bir çözüm değil, bir deneme gibi görünüyor (belki, deneyin). Doğrulanmış değilse reddedin.",
+  no_info: "Bilginin olmadığını söylüyor. Bu kayıt misafire yardım etmez; reddedin ya da bilgiyi yazın.",
 };
 
 /** Hata gövdesinden gösterilecek metin: alan mesajı ÖNCE (`badRequest` genel "Doğrulama hatası" + `fields` döner). */

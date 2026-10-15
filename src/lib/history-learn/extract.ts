@@ -66,7 +66,9 @@ export function historyLearnApiKey(): string | undefined {
   return resolveCompatKey(process.env.AI_HISTORY_LEARN_API_KEY, OPENAI_BASE_URL);
 }
 
-export const DRAFT_FLAGS = ["payment", "needs_edit", "one_off", "ungrounded", "guest_name", "sensitive", "door_mention", "outdated"] as const;
+export const DRAFT_FLAGS = [
+  "payment", "needs_edit", "one_off", "ungrounded", "guest_name", "sensitive", "door_mention", "outdated", "time_bound", "tentative", "no_info",
+] as const;
 export type DraftFlag = (typeof DRAFT_FLAGS)[number];
 export interface LearnDraft {
   category: LearnCategory;
@@ -218,6 +220,19 @@ const MASK_TRACES = [REDACTED_DOOR_CODE, "[PHONE]", "[EMAIL]", "[ID]", "[CARD]",
 /** Tek seferlik karar dili (Türkçe katlanmış + İngilizce). İşaret — ev sahibi karar verir (geç çıkış ÜCRETİ kalıcı kural olabilir). */
 const ONE_OFF_RE =
   /(?<![a-z])(?:indirim|discount|iade|refund|bu sefer|bu seferlik|this time|size ozel|sizin icin ozel|ozel olarak|ucretsiz konaklama|free stay|erken giris|early check|gec cikis|late check)|%/u;
+/**
+ * Codex ilke 2 / Opus H3–H5 (10-15): geçmişte bir kez söylenen her cümle kalıcı bilgi değildir. İşaret — karar ev sahibinin; misafire
+ * hiçbir şey gitmez. Katlanmış metinde, sabit alternatifler (doğrusal).
+ *  · time_bound: belirli bir güne / geçici duruma bağlı ("Yarın 13:00'ten itibaren…", "Bu hafta havuz kapalı", "14 Mayıs'ta…").
+ *  · tentative: doğrulanmamış deneme ("Modemi kapatıp açın, belki düzelir").
+ *  · no_info: bilginin OLMADIĞINI söyleyen taslak ("Şifresi belirtilmemiştir") — kalıcı bilgi gibi saklanırsa "bilgi yok" misafire yolu açar.
+ */
+const TIME_BOUND_RE =
+  /(?<![a-z])(?:yarin|bugun|bu aksam|bu sabah|bu gece|bu hafta|bu ay|gecici|su an|simdilik|today|tomorrow|tonight|this week|this weekend|for now|currently|temporar)|\d{1,2}\s?(?:ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik|january|february|march|april|may|june|july|august|september|october|november|december)(?![a-z])/u;
+const TENTATIVE_RE =
+  /(?<![a-z])(?:belki|deneyin|deneyebilirsiniz|deneyelim|deneyiniz|olabilir|galiba|sanirim|umarim|maybe|perhaps|might|hopefully)(?![a-z])/u;
+const NO_INFO_RE =
+  /(?<![a-z])(?:belirtilmemis|belirtilmedi|bilgi yok|bilgimiz yok|bilgi bulunmamaktadir|bilmiyoruz|bilmiyorum|not specified|no information|we don't know|we do not know)/u;
 /** Kapı / kutu / tuş paneli kodu KONUSU (değer olmasa da gözle bakılsın). */
 const DOOR_MENTION_RE =
   /(?<![a-z])(?:(?:kapi|kutu|anahtar kutusu|keybox|key box|lockbox|lock box|keypad|tus paneli|door|gate|bina girisi|giris|kilit|akilli kilit|smart lock)[a-z]{0,8}\s{0,3}(?:kod|sifre|code|pin|password|passcode)|smart lock|akilli kilit)/u;
@@ -286,6 +301,9 @@ export function gateDraft(
   if (MASK_TRACES.some((m) => text.includes(m))) flags.add("needs_edit");
   if (ONE_OFF_RE.test(folded)) flags.add("one_off");
   if (DOOR_MENTION_RE.test(folded)) flags.add("door_mention");
+  if (TIME_BOUND_RE.test(folded)) flags.add("time_bound");
+  if (TENTATIVE_RE.test(folded)) flags.add("tentative");
+  if (NO_INFO_RE.test(folded)) flags.add("no_info");
   if (sensitiveClassesIn(text).length) flags.add("sensitive");
   if (ctx.guestNames?.length && mentionsGuestName(text, ctx.guestNames)) flags.add("guest_name");
   if (ctx.hostAnswers) {

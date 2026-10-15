@@ -140,3 +140,36 @@ describe("Geçmişten öğren — eşleştirme", () => {
     expect(buildLearnPairs([b, a])).toHaveLength(1);
   });
 });
+
+describe("🚨 yapay zekâ taslağının yankısı ev sahibi kanıtı DEĞİL (Opus H1, Codex ilke 2)", () => {
+  const DRAFT = "Kumandadaki kırmızı düğmeye basıp 10 saniye bekleyin, televizyon açılacaktır.";
+  it("misafir mesajında tutulan taslak 'Taslağı kullan' ile (aiAssisted=false) gönderildiyse çift ÜRETİLMEZ — küçük düzenlemeyle de", () => {
+    const verbatim = buildLearnPairs([
+      msg("c1", 0, "inbound", "TV açılmıyor", { aiSuggestedReply: DRAFT }),
+      msg("c1", 5, "outbound", DRAFT, { aiAssisted: false }),
+    ]);
+    expect(verbatim).toEqual([]);
+    const edited = buildLearnPairs([
+      msg("c2", 0, "inbound", "TV açılmıyor", { aiSuggestedReply: DRAFT }),
+      msg("c2", 5, "outbound", `Merhaba! ${DRAFT} Kolay gelsin.`, { aiAssisted: false }),
+    ]);
+    expect(edited).toEqual([]);
+  });
+
+  it("aşırı uygulama yok: taslaktan FARKLI kendi cevabı yazan ev sahibi çift üretir; taslak yoksa bugünkü gibi", () => {
+    const own = buildLearnPairs([
+      msg("c1", 0, "inbound", "TV açılmıyor", { aiSuggestedReply: DRAFT }),
+      msg("c1", 5, "outbound", "Uydu alıcısının fişi takılı olmayabilir, prizi kontrol eder misiniz?"),
+    ]);
+    expect(own).toHaveLength(1);
+    const none = buildLearnPairs([msg("c3", 0, "inbound", "TV açılmıyor"), msg("c3", 5, "outbound", DRAFT)]);
+    expect(none).toHaveLength(1);
+  });
+
+  it("uzun taslak / cevapta doğrusal (sözcük kümesi tavanlı)", () => {
+    const long = "kelime ".repeat(50_000);
+    const t0 = performance.now();
+    buildLearnPairs([msg("c1", 0, "inbound", "Soru", { aiSuggestedReply: long }), msg("c1", 5, "outbound", long)]);
+    expect(performance.now() - t0).toBeLessThan(1_500);
+  });
+});

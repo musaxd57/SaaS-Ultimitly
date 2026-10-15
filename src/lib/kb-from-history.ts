@@ -71,6 +71,9 @@ export interface HistoryMessage {
   aiAssisted?: boolean | null;
   /** Sistem olayı satırı (gövdesiz) — cevap sayılmaz. */
   systemEventType?: string | null;
+  /** Misafir mesajında tutulan yapay zekâ TASLAĞI ("AI öner" / bekletilen otomatik cevap). Ev sahibi bu taslağı "Taslağı kullan" ile
+   *  gönderirse giden satır `aiAssisted=false` yazılır — geçmişten öğrenme onu ev sahibi cevabı saymasın diye okunur (Opus H1, 10-15). */
+  aiSuggestedReply?: string | null;
 }
 
 export interface HistoryConversation {
