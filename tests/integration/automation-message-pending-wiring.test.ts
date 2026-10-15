@@ -161,8 +161,13 @@ describe("K7 bağlantısı — otomatik şablon mesajı getirme / anlama pencere
     const autoSection = unansweredSection(prompts[0]);
     expect(autoSection).toContain(PARKING_Q);
     expect(autoSection).toContain(WIFI_Q);
-    // Şablon cevapsız misafir mesajı değildir; listeye girmez.
-    expect(autoSection).not.toContain("Hoş geldiniz");
+    // Şablon cevapsız misafir mesajı değildir: NUMARA almaz. G1b (kurucu 10-15): yazıldığı yerde, numarasız "Automated message (not an
+    // answer)" satırı olarak görünür (misafir ona cevap veriyor olabilir) — iki soru arasında, kronolojik.
+    expect(autoSection).not.toMatch(/\[\d+\][^\n]*Hoş geldiniz/u);
+    const lines = autoSection.split("\n");
+    const iT = lines.findIndex((l) => l.startsWith("Automated message (not an answer)") && l.includes("Hoş geldiniz"));
+    expect(iT).toBeGreaterThan(lines.findIndex((l) => l.includes(PARKING_Q)));
+    expect(iT).toBeLessThan(lines.findIndex((l) => l.includes(WIFI_Q)));
 
     await resetDb();
     __resetUnderstandingCache();
