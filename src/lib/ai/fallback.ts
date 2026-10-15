@@ -1416,6 +1416,11 @@ function reportSubjectSlot(toks: string[], verbIndex: number): boolean {
 const DEVICES_LONGEST_FIRST: readonly string[] = [...BREAKDOWN_DEVICES].sort((x, y) => y.length - x.length);
 const DEVICE_SET: ReadonlySet<string> = new Set(BREAKDOWN_DEVICES);
 
+/** Ad cihaz envanterinde mi (görev tekilleştirme konusu cihaz mı? — `tasks/detect.ts`). */
+export function isBreakdownDeviceName(name: string): boolean {
+  return DEVICE_SET.has(name);
+}
+
 export function firstBreakdownDevice(message: string): string | null {
   for (const cand of candidatesOf(message)) {
     for (const tok of deviceTokens(cand)) {

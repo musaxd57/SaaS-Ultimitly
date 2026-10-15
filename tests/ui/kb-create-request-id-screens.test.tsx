@@ -134,6 +134,20 @@ describe("Bilgi tabanı formu (KbManager)", () => {
     expect(screen.queryByDisplayValue("Bina önünde ÜCRETLİ otopark var.")).toBeNull();
   });
 
+  it("kurucu D1: kaydedilen bilgi listede henüz yoksa liste yenilenir; kalem gelince düzenleyici GÜNCEL hâliyle açılır", async () => {
+    mockFetch({ fromTemplates: [] }, ["conflict"]);
+    const saved = { id: "kb-saved", propertyId: "p1", propertyName: "Lale 1", category: "general", title: "Otopark", content: "Bina önünde ücretli otopark var (yenilemeden sonra).", language: "tr", isActive: true };
+    let rerenderWith: (items: (typeof saved)[]) => void = () => {};
+    router.refresh.mockImplementationOnce(() => rerenderWith([saved]));
+    const view = render(<KbManager properties={PROPS} items={[]} />);
+    rerenderWith = (items) => view.rerender(<KbManager properties={PROPS} items={items} />);
+    fill("Otopark", "Bina önünde ücretsiz otopark var.");
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Kaydedilen bilgiyi düzenle" }));
+    expect(await screen.findByDisplayValue("Bina önünde ücretli otopark var (yenilemeden sonra).")).toBeTruthy();
+    expect(screen.queryByText(/listede bulunamadı/)).toBeNull();
+  });
+
   it("kurucu D1: kaydedilen bilgi listede yoksa (silinmiş olabilir) liste yenilenir ve sessiz kalınmaz", async () => {
     mockFetch({ fromTemplates: [] }, ["conflict"]);
     render(<KbManager properties={PROPS} items={[]} />);

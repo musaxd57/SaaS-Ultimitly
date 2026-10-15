@@ -23,6 +23,8 @@ describe("temizlikçi başlığı — misafir adı asla", () => {
     expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: "Bakım — misafir bildirimi: kapı" })).toBe("Bakım — misafir bildirimi: kapı");
     expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: "Bakım — misafir bildirimi: 0532 111 22 33" })).toBe("Bakım");
     expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: "Bakım — başka bir şey: kapı" })).toBe("Bakım");
+    // Ek yalnız bakımda üretilir → başka türde tanınmaz.
+    expect(cleanerTaskTitle({ origin: "ai", type: "restock", title: "Eksik Eşya — misafir bildirimi: havlu" })).toBe("Eksik Eşya");
     expect(cleanerTaskTitle({ origin: "ai", type: "restock", title: "Eksik Eşya: havlu" })).toBe("Eksik Eşya: havlu");
     expect(cleanerTaskTitle({ origin: "ai", type: "maintenance", title: `Şikayet: ${GUEST}` })).toBe("Bakım");
     // Etiket başka türün etiketiyse (bozuk satır) ya da konu rakam içeriyorsa (telefon/kod) geçmez.

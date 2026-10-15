@@ -42,7 +42,8 @@ export function cleanerTaskTitle(t: StaffViewInput): string {
   if (t.origin === "system") return SYSTEM_TITLES[t.type] ?? typeLabel(t.type);
   if (t.origin === "ai") {
     const label = typeLabel(t.type);
-    const ours = t.title.startsWith(`${label}: `) || t.title.startsWith(`${label} — misafir bildirimi: `);
+    // "misafir bildirimi" eki yalnız BAKIM başlığında üretilir (kurucu D4) → yalnız orada tanınır.
+    const ours = t.title.startsWith(`${label}: `) || (t.type === "maintenance" && t.title.startsWith(`${label} — misafir bildirimi: `));
     return ours && AI_TOPIC_TITLE.test(t.title) ? t.title : label;
   }
   // Bilinmeyen / eski kaynak: güvenli yön — başlıkta ne olduğu bilinmiyor.

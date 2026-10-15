@@ -1,6 +1,13 @@
-import { matchesIntentKeywords, detectRiskType, classifyFallback, firstBreakdownDevice, reportsDeviceFault } from "@/lib/ai/fallback";
+import {
+  matchesIntentKeywords,
+  detectRiskType,
+  classifyFallback,
+  firstBreakdownDevice,
+  isBreakdownDeviceName,
+  reportsDeviceFault,
+} from "@/lib/ai/fallback";
 import { TASK_TYPE } from "@/lib/constants";
-import { hitIsReported, isInquiryOnly, mentionsGuestOwnedItem } from "./report-reading";
+import { hitIsReported, isInquiryOnly, mentionsGuestOwnedItem, splitClauses } from "./report-reading";
 
 // Smart operational-task routing (Faz A). Turns an escalating guest message into
 // an ACTIONABLE task (maintenance / restock / cleaning) instead of only flagging
@@ -91,8 +98,8 @@ function firstHit(msg: string, words: string[]): string | null {
 }
 
 const WORD_RE_GLOBAL = new Map<string, RegExp>();
-/** Arıza sözcüğünün BİLDİRİLMİŞ (olumsuzlanmamış / koşul olmayan) ilk geçişi; yoksa null (kurucu D4). */
-function firstReportedBreakage(msg: string): string | null {
+/** Arıza sözcüğünün BİLDİRİLMİŞ (olumsuzlanmamış / koşul olmayan) ilk geçişi ve konumu; yoksa null (kurucu D4). */
+function firstReportedBreakage(msg: string): { word: string; index: number } | null {
   for (const w of BREAKAGE_WORDS) {
     let re = WORD_RE_GLOBAL.get(w);
     if (!re) {
@@ -101,11 +108,46 @@ function firstReportedBreakage(msg: string): string | null {
     }
     re.lastIndex = 0;
     for (let m = re.exec(msg); m; m = re.exec(msg)) {
-      if (hitIsReported(msg, m.index, m.index + m[0].length)) return w;
+      if (hitIsReported(msg, m.index, m.index + m[0].length)) return { word: w, index: m.index };
       if (m[0].length === 0) re.lastIndex++;
     }
   }
   return null;
+}
+
+/**
+ * ARIZANIN YERİ (Haiku 10-15): konu ve "misafirin kendi eşyası mı?" kontrolü arızanın GEÇTİĞİ cümlecikten okunur, mesajın ilk cihazından değil
+ * — "Klima bozuk değil, musluk akmıyor" → musluk (eskiden klima; tekilleştirme anahtarı da gerçek bir klima arızasıyla birleşiyordu);
+ * "Valizleri getirdik, mutfak musluğu bozuldu" → musluk (eskiden "getirdik" bütün mesajı misafir eşyası sayıyordu). Cümlecikte cihaz yoksa
+ * (cihaz ile fiil ayrı cümleciklerde: "Klimayı açtık, bozuldu") bütün mesaja düşülür. `clauses` küçük harfli / örtülü metnin cümlecikleri;
+ * aynı sırada asıl metnin cümleciklerine eşlenir (noktalama değişmez).
+ */
+function siteOfClause(
+  message: string,
+  originalClauses: ReturnType<typeof splitClauses>,
+  clauseIndex: number,
+): { device: string | null; guestOwned: boolean } {
+  const original = originalClauses[clauseIndex];
+  const device = original ? firstBreakdownDevice(original.text) : null;
+  if (original && device) return { device, guestOwned: mentionsGuestOwnedItem(original.text) };
+  return { device: firstBreakdownDevice(message), guestOwned: mentionsGuestOwnedItem(message) };
+}
+function clauseIndexAt(text: string, index: number): number {
+  const clauses = splitClauses(text);
+  for (let k = clauses.length - 1; k >= 0; k--) if (clauses[k].start <= index) return k;
+  return 0;
+}
+/** Cihaz arızası bildiren İLK cümlecik (en çok 64 cümlecik taranır — doğrusal tavan); yoksa bütün mesaj. */
+const MAX_FAULT_CLAUSES = 64;
+function deviceFaultSite(message: string, reportText: string): { device: string | null; guestOwned: boolean } {
+  const clauses = splitClauses(reportText);
+  const originals = splitClauses(message);
+  for (let k = 0; k < Math.min(clauses.length, MAX_FAULT_CLAUSES); k++) {
+    if (!reportsDeviceFault(clauses[k].text)) continue;
+    const site = siteOfClause(message, originals, k);
+    if (site.device) return site;
+  }
+  return { device: firstBreakdownDevice(message), guestOwned: mentionsGuestOwnedItem(message) };
 }
 
 /** Bildirilmemiş (olumsuzlanmış / koşul) arıza sözcüğü geçişleri boşlukla örtülmüş metin — sınıflandırıcı "bozuk değil"i şikâyet okumasın. */
@@ -171,14 +213,19 @@ export function detectOperationalTask(
   //  · Mesaj yalnız soru / varsayım / soru niyetiyse ("Su akmıyor mu acaba, gelmeden sormak istedim") → bakım görevi yok.
   //  · Arıza sözcüğü olumsuzlanmış ya da koşulsa ("Klima bozuk değil", "Kombi bozuksa ne yapmalıyız?") → o geçiş sayılmaz.
   // Öncelik / süre (24 sa) DEĞİŞMEDİ: kurucu "2/24 saat hedeflerini henüz kesinleştirme".
-  const inquiry = isInquiryOnly(message);
+  // Soru sözcüklü cümlecik kendisi arıza anlatıyorsa ("…about the broken dishwasher?") soru sayılmaz.
+  const inquiry = isInquiryOnly(message, (clause) => {
+    const lower = clause.toLowerCase();
+    return firstReportedBreakage(lower) !== null || reportsDeviceFault(withoutUnreportedBreakage(lower));
+  });
   const reportText = withoutUnreportedBreakage(msg);
-  const device = firstBreakdownDevice(message);
 
-  // 2) Explicit physical breakage / fault → maintenance. Konu: mesajdaki cihaz (varsa), yoksa eşleşen sözcük.
+  // 2) Explicit physical breakage / fault → maintenance. Konu: arızanın geçtiği cümlecikteki cihaz (varsa), yoksa eşleşen sözcük. Misafirin
+  //    KENDİ eşyası ("Getirdiğimiz kahve makinesi bozulmuş") bakım değildir — o cümlecikte "kendi / getirdiğimiz" varsa görev açılmaz.
   const breakage = inquiry ? null : firstReportedBreakage(msg);
   if (breakage) {
-    return { type: "maintenance", priority: "standard", topic: device ?? breakage, slaHours: 24 };
+    const site = siteOfClause(message, splitClauses(message), clauseIndexAt(msg, breakage.index));
+    if (!site.guestOwned) return { type: "maintenance", priority: "standard", topic: site.device ?? breakage.word, slaHours: 24 };
   }
 
   // 3) Consumable depletion → restock (item AND lack signal).
@@ -201,13 +248,14 @@ export function detectOperationalTask(
   //     envanteri ve koşul eki kuralı sınıflandırıcıyla ORTAK (yeni sözcük listesi yok). GENEL şikâyet + mesajda geçen cihaz adı YETMEZ
   //     (ölçüldü: "Merdivenlerde sigara kokusu var" → "merdiven", "I'll sue you" → "su" görevi açıyordu). Misafirin KENDİ eşyası
   //     ("Getirdiğimiz kahve makinesi bozuldu") dairenin bakımı değil. Konu cihaz adı (rakam / ad taşımaz).
-  if (!inquiry && device && !mentionsGuestOwnedItem(message) && reportsDeviceFault(reportText)) {
-    return { type: "maintenance", priority: "standard", topic: device, slaHours: 24 };
+  if (!inquiry && reportsDeviceFault(reportText)) {
+    const site = deviceFaultSite(message, reportText);
+    if (site.device && !site.guestOwned) return { type: "maintenance", priority: "standard", topic: site.device, slaHours: 24 };
   }
 
   // 4) Appliance/amenity complaint → maintenance. Reuses the existing safety-net
   //    "amenity" keywords (klima / buzdolabı / çamaşır makinesi / fırın / tv…).
-  if (isReportedComplaint && matchesIntentKeywords(message, "amenity")) {
+  if (isReportedComplaint && !mentionsGuestOwnedItem(message) && matchesIntentKeywords(message, "amenity")) {
     return { type: "maintenance", priority: "standard", topic: "cihaz/olanak", slaHours: 24 };
   }
 
@@ -244,6 +292,8 @@ function dayKey(now: Date, tz: string): string {
 /** Tekilleştirme konusu: bakımda (acil güvenlik dışında) mesajdaki ilk cihaz; yoksa tespit edilen konu. */
 function dedupeTopic(detected: DetectedTask, message: string): string {
   if (detected.type === "maintenance" && detected.priority !== "urgent") {
+    // Konu zaten arızanın cümleciğindeki cihazsa o (Haiku 10-15: ilk cihaz değil); değilse mesajdaki ilk cihaz (eski kural).
+    if (isBreakdownDeviceName(detected.topic)) return `cihaz:${detected.topic}`;
     const device = firstBreakdownDevice(message);
     if (device) return `cihaz:${device}`;
   }

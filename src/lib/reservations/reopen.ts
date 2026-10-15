@@ -12,7 +12,9 @@
 //    elle girilmiş satırda bu işaret ARANMAZ (o kaynaklar böyle bir işaret üretmez — yanlışlıkla iptal edilmiş dosya satırını geri açmanın
 //    tek yolu buydu). "Sağlayıcıya ait" = kanıtlı bağlantı damgası (`hasProvenConnection`) YA DA sağlayıcıda mesajlanabilir satır
 //    (`reservationMessagingCapable`: dolu referans + takvim bağlantısı yok + kanal ics/manual değil — damga öncesi eski sağlayıcı satırları;
-//    Haiku 10-15). Şüphede işaret ARANIR (eski davranış): yanlış yeniden açma karşılama / giriş mesajı gönderebilir.
+//    Haiku 10-15). Şüphede işaret ARANIR (düğmenin 10-15 öncesi davranışı: HER satırda aranıyordu): kanalın iptal ettiği bir rezervasyonu
+//    yanlışlıkla açmak karşılama / giriş mesajı gönderebilir (Y4). Bilinen sınır: 09-28 öncesi elle girilmiş, kanal etiketli + referanslı
+//    satır da sağlayıcı satırı gibi görünür → işaretsiz açılamaz (bağlantı damgası 09-07'den beyle yazılıyor; eski satırlar damgasız).
 //  · Koşullu yazma (iki tık / arada kanalın iptali yarışı) + denetim kaydı + eksik yaşam döngüsü görevleri (tekrarsız, kilitli yol).
 // ---------------------------------------------------------------------------
 import { prisma } from "@/lib/db";

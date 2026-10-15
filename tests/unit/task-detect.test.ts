@@ -179,6 +179,8 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     "Moralim bozuldu",
     "Merhaba, klima bozuk mu?",
     "Klima bozuk olursa ne yapalım?",
+    "The AC isn't really broken, just noisy",
+    "In case the boiler is broken, who do we call?",
   ])("🚨 soru / varsayım / olumsuzlama → bakım görevi YOK: %j", (m) => {
     expect(detect(m)).toBeNull();
   });
@@ -195,6 +197,11 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     // İngilizce cümle yardımcı fiille başlasa da "?" yoksa soru değildir; "mi" cümlecik başında soru eki değildir (İspanyolca "mi").
     "Have been trying all morning but the heater is broken",
     "Mi calentador is broken.",
+    // Haiku 10-15: çıplak "gelmeden" soru niyeti değil; cümlecik ortasındaki "even if" varsayım değil.
+    "Musluktan su gelmiyor sabah gelmeden kalktık",
+    "Heating doesn't work even if I set it to max",
+    // Soru sözcüklü ama arızayı kendisi anlatan cümlecik bildirimdir.
+    "Who do I call about the broken dishwasher?",
   ])("aşırı uygulama yok: soru ekiyle TEREDDÜTLÜ bildirim / koşulla biten gerçek bildirim → görev AÇILIR: %j", (m) => {
     expect(detect(m)?.type).toBe("maintenance");
   });
@@ -205,8 +212,27 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     "Teknisyenimiz geldi, sıcak su sorunu giderildi. Anlayışınız için teşekkürler.",
     "Getirdiğimiz kahve makinesi bozuldu.",
     "Kendi blenderımız bozuldu, mutfakta var mı?",
+    // Açık arıza sözcüğü kuralında da (bozulmuş) misafirin kendi eşyası bakım değil (Haiku 10-15).
+    "Kendi blenderımız bozulmuş, mutfakta var mı?",
+    "Getirdiğimiz kahve makinesi bozulmuş",
   ])("genel şikâyet + mesajda geçen cihaz adı / misafirin kendi eşyası → bakım görevi YOK: %j", (m) => {
     expect(detect(m)).toBeNull();
+  });
+
+  it("🚨 konu ARIZANIN cümleciğindeki cihaz (mesajın ilk cihazı değil) — tekilleştirme anahtarı da o cihaz (Haiku 10-15)", () => {
+    expect(detect("Klima bozuk değil, musluk akmıyor")?.topic).toBe("musluk");
+    expect(detect("Merdivenlerde sigara kokusu var, su akmıyor")?.topic).toBe("su");
+    expect(detect("Klima güzel çalışıyor ama kombi bozuk")?.topic).toBe("kombi");
+    const key = (m: string) => buildOperationalTaskData(detect(m)!, { propertyId: "p", message: m, now }).dedupeKey;
+    expect(key("Klima bozuk değil, musluk akmıyor")).toBe(key("Musluk akmıyor"));
+    // Misafir eşyası işareti başka cümlecikteyse dairenin arızası yine görev açar.
+    expect(detect("Valizleri getirdik, mutfak musluğu bozuldu")?.topic).toBe("musluk");
+    // Cihaz ile fiil ayrı cümleciklerde: bütün mesaja düşülür.
+    expect(detect("Klimayı açtık, bozuldu.")?.topic).toBe("klima");
+  });
+
+  it("eşya kuralı: olumsuzlanmış arıza sözcüğü artık eşya görevini bastırmaz", () => {
+    expect(detect("Kahve bitti, klima bozuk değil")).toEqual({ type: "restock", priority: "standard", topic: "kahve", slaHours: 24 });
   });
 
   it("acil güvenlik DEĞİŞMEDİ: soru gibi yazılsa da acil (şüphede acil)", () => {
