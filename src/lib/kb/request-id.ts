@@ -50,3 +50,20 @@ export function withoutClientRequestId<T extends { clientRequestId?: unknown }>(
   delete copy.clientRequestId;
   return copy as Omit<T, "clientRequestId">;
 }
+
+/**
+ * TEKRAR GÜVENLİĞİNDE UYUŞMAZLIK (kurucu 10-15: "aynı kimlik, farklı içerik → eski kayıt sessizce dönmemeli; açık uyuşmazlık hatası").
+ * Aynı istek kimliği daha önce FARKLI bir kalemle kullanıldıysa sunucu eski kalemi döndürmez, 409 + bu kodla cevap verir; istemci kimliği
+ * bırakır (bilerek yeniden deneme = YENİ işlem). Metin müşteriye gider — sade.
+ */
+export const KB_IDEMPOTENCY_CONFLICT = "idempotency_conflict" as const;
+export const KB_CREATE_CONFLICT_MESSAGE = "Bu bilgi az önce farklı bir içerikle kaydedildi. Sayfayı yenileyip kontrol edin.";
+export const KB_COPY_CONFLICT_MESSAGE = "Kaynak bilgi bu arada değişti. Sayfayı yenileyip yeniden kopyalayın.";
+
+/** İki kalemin içerik alanları aynı mı (durum alanları — aktif / pasif, onay — içerik değildir). */
+export function sameKbContent(
+  a: { category: string; title: string; content: string; language: string },
+  b: { category: string; title: string; content: string; language: string },
+): boolean {
+  return a.category === b.category && a.title === b.title && a.content === b.content && a.language === b.language;
+}

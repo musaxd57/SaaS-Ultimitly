@@ -56,6 +56,16 @@ export async function createOperationalTaskFromMessage(ctx: {
   // Çağıran işlem verdiyse (`ctx.db`, öneri onayı) kilit o işlemde alınır; yoksa kısa bir işlem açılır.
   const run = async (tx: Prisma.TransactionClient): Promise<CreateOperationalTaskResult> => {
     await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${TASK_DEDUPE_LOCK_NS}::int4, hashtext(${data.dedupeKey}))`);
+    // AYNI MESAJIN YENİDEN İŞLENMESİ (kurucu 10-15): bir mesaj en çok bir görev açar — günü ya da görevin durumu ne olursa olsun. Gün kovası
+    // işleme anından hesaplandığı için aynı mesaj ertesi gün yeniden işlenince (senkron tekrarı, yeniden deneme) ikinci görev açılıyordu.
+    // Başka gün gelen YENİ bildirim (başka mesaj) yine ayrı görevdir.
+    if (ctx.sourceMessageId) {
+      const fromSameMessage = await tx.task.findFirst({
+        where: { propertyId: ctx.propertyId, sourceMessageId: ctx.sourceMessageId },
+        select: { id: true },
+      });
+      if (fromSameMessage) return { status: "duplicate" };
+    }
     const existing = await tx.task.findFirst({
       where: { dedupeKey: data.dedupeKey, status: { not: "done" } },
       select: { id: true },

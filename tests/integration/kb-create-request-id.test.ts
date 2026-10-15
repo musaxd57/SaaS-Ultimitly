@@ -113,7 +113,8 @@ describe("KB oluşturma — istek kimliğiyle tekrar güvenliği", () => {
   it("🚨 ilk istek kalemi yazıp eşitlemeden önce kesildiyse yeniden deneme mülk hafızasını TAMAMLAR (Haiku 10-14)", async () => {
     // İlk isteğin yalnız INSERT'i oldu (süreç hafıza eşitlemesinden önce düştü): kalem var, hafıza satırı yok.
     const orphan = await prisma.knowledgeBaseItem.create({
-      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ adı: Lale_5G.", isActive: true, source: "host_manual", reviewState: "approved", approvedAt: new Date(), clientRequestId: RID },
+      // İçerik isteğin AYNISI (kurucu 10-15 sonrası: aynı kimlik + farklı içerik açık uyuşmazlıktır, `idempotency-acceptance.test.ts`).
+      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ adı: Lale_5G — şifre ev sahibinde.", language: "tr", isActive: true, source: "host_manual", reviewState: "approved", approvedAt: new Date(), clientRequestId: RID },
     });
     expect(await prisma.propertyMemory.count({ where: { propertyId, sourceRef: orphan.id } })).toBe(0);
     const retry = await create(wifi(propertyId, { requestId: RID }));

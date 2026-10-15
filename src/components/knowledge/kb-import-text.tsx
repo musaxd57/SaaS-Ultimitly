@@ -13,7 +13,7 @@ import { Field } from "@/components/form-field";
 import { KB_CATEGORY } from "@/lib/constants";
 import { toast } from "@/lib/toast";
 import { extractKbSuggestions, type KbExtraction, type SkipReason } from "@/lib/kb-extract";
-import { newKbRequestId } from "@/lib/kb/request-id";
+import { KB_IDEMPOTENCY_CONFLICT, newKbRequestId } from "@/lib/kb/request-id";
 
 // ---------------------------------------------------------------------------
 // A5 — "Metinden bilgi çıkar" (09-08). Host elindeki metni yapıştırır, ürün
@@ -123,7 +123,16 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
         if (res.ok) {
           created++;
           added.push(item.category);
-        } else failed.push(KB_CATEGORY.label(item.category));
+        } else {
+          // Aynı kimlik başka içerikle kullanılmış (409): kimlik bırakılır — bilerek yeniden deneme YENİ işlemdir (kurucu 10-15).
+          if (res.status === 409) {
+            const data = (await res.json().catch(() => ({}))) as { code?: string };
+            if (data.code === KB_IDEMPOTENCY_CONFLICT) {
+              requestIds.current.delete(JSON.stringify([propertyId, item.category, item.title, item.content]));
+            }
+          }
+          failed.push(KB_CATEGORY.label(item.category));
+        }
       }
     } catch {
       dropAdded();

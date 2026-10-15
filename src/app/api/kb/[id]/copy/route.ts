@@ -6,6 +6,8 @@ import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { KB_REQUEST_ID_RE } from "@/lib/validators";
+import { NextResponse } from "next/server";
+import { KB_COPY_CONFLICT_MESSAGE, KB_IDEMPOTENCY_CONFLICT, sameKbContent } from "@/lib/kb/request-id";
 
 // Copy a knowledge-base entry to one or more OTHER apartments. Lets the host
 // fill one apartment fully, then clone its info across the rest and only tweak
@@ -85,6 +87,20 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     return badRequest({
       _: `Bu kayıt ${source.content.length.toLocaleString("tr-TR")} karakter ve kopyalama sınırı olan ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakteri aşıyor. Önce kaydı kısaltın, sonra kopyalayın.`,
     });
+  }
+
+  // Aynı kimlik, FARKLI içerik (kurucu 10-15): ilk deneme bazı dairelere yazdı, kaynak ARADA değişti, eski sekme aynı kimlikle yeniden
+  // denedi → bazı daireler eski, bazıları yeni metinle kalırdı. Artık HİÇBİR şey yazılmadan açık uyuşmazlık (409); istemci kimliği bırakır,
+  // bilerek yeniden kopyalama YENİ işlemdir (yeni kimlik → her daireye güncel metin). Aynı içerikli yeniden deneme (A / B yazıldı, C düştü)
+  // aynen sürer: yalnız eksik daireler yazılır.
+  if (copyKey != null && targets.length > 0) {
+    const earlier = await prisma.knowledgeBaseItem.findMany({
+      where: { propertyId: { in: targets.map((t) => t.id) }, clientRequestId: copyKey },
+      select: { category: true, title: true, content: true, language: true },
+    });
+    if (earlier.some((e) => !sameKbContent(e, source))) {
+      return NextResponse.json({ error: KB_COPY_CONFLICT_MESSAGE, code: KB_IDEMPOTENCY_CONFLICT }, { status: 409 });
+    }
   }
 
   let created = 0;

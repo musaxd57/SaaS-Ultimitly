@@ -3,6 +3,7 @@ import {
   detectOperationalTask,
   buildOperationalTaskData,
 } from "@/lib/tasks/detect";
+import { firstBreakdownDevice } from "@/lib/ai/fallback";
 
 describe("detectOperationalTask", () => {
   it("routes an explicit breakage to an urgent-SLA maintenance task", () => {
@@ -68,7 +69,8 @@ describe("buildOperationalTaskData", () => {
     expect(data.type).toBe("maintenance");
     expect(data.title.startsWith("Bakım:")).toBe(true);
     expect(data.title).not.toContain("Ahmet"); // guest name stays out of the title
-    expect(data.dedupeKey).toBe("prop-1:maintenance:akıtıyor:2026-07-10");
+    // Bakımda tekilleştirme konusu CİHAZDIR, belirti değil (kurucu 10-15: "Klima bozuk" ile "Musluk bozuk" birleşmemeli).
+    expect(data.dedupeKey).toBe("prop-1:maintenance:cihaz:musluk:2026-07-10");
     // full text is preserved in the description for context
     expect(data.description).toContain("Ahmet");
   });
@@ -109,3 +111,30 @@ describe("15 ajan A11 — görev ağı alt dize eşleştirmez (sahte görev yok)
     expect(detectOperationalTask("Bitmiş çaylar var mı?", {})?.topic).toBe("çay");
   });
 });
+
+describe("bakım tekilleştirme anahtarı — cihaz (kurucu 10-15)", () => {
+  const now = new Date("2026-07-10T09:00:00.000Z");
+  const key = (m: string) => buildOperationalTaskData(detectOperationalTask(m, {})!, { propertyId: "p", message: m, now }).dedupeKey;
+
+  it("🚨 farklı cihaz + aynı belirti → FARKLI anahtar; aynı cihaz + farklı belirti → AYNI anahtar; çekimli yazım aynı cihaz", () => {
+    expect(key("Klima bozuk")).not.toBe(key("Musluk bozuk"));
+    expect(key("Kombi bozuk")).not.toBe(key("Klima bozuk"));
+    expect(key("Klima bozuk")).toBe(key("Klima yine bozuldu"));
+    expect(key("Musluk bozuk")).toBe(key("Musluğu akıtıyor"));
+  });
+
+  it("cihaz yoksa eski konu; acil güvenlik ve eksik eşya cihaza göre bölünmez", () => {
+    expect(key("Wi-Fi çalışmıyor")).toBe("p:maintenance:çalışmıyor:2026-07-10");
+    expect(key("Havlu eksik")).toBe("p:restock:havlu:2026-07-10");
+    expect(key("Gaz kokusu var")).toBe("p:maintenance:acil-güvenlik:2026-07-10");
+  });
+
+  it("cihaz arama uzun girdide doğrusal (karesel iş yok)", () => {
+    const t0 = performance.now();
+    firstBreakdownDevice("a".repeat(50_000));
+    firstBreakdownDevice("klima ".repeat(8_000));
+    firstBreakdownDevice(`${" ".repeat(50_000)}x`);
+    expect(performance.now() - t0).toBeLessThan(1_500);
+  });
+});
+

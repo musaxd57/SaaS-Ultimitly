@@ -1,4 +1,4 @@
-import { matchesIntentKeywords, detectRiskType, classifyFallback } from "@/lib/ai/fallback";
+import { matchesIntentKeywords, detectRiskType, classifyFallback, firstBreakdownDevice } from "@/lib/ai/fallback";
 import { TASK_TYPE } from "@/lib/constants";
 
 // Smart operational-task routing (Faz A). Turns an escalating guest message into
@@ -177,6 +177,15 @@ function dayKey(now: Date, tz: string): string {
  * the type label + the matched topic keyword (an appliance/item word from the
  * guest's message, never their name); the full text goes into the description.
  */
+/** Tekilleştirme konusu: bakımda (acil güvenlik dışında) mesajdaki ilk cihaz; yoksa tespit edilen konu. */
+function dedupeTopic(detected: DetectedTask, message: string): string {
+  if (detected.type === "maintenance" && detected.priority !== "urgent") {
+    const device = firstBreakdownDevice(message);
+    if (device) return `cihaz:${device}`;
+  }
+  return detected.topic;
+}
+
 export function buildOperationalTaskData(
   detected: DetectedTask,
   ctx: { propertyId: string; message: string; now?: Date; timezone?: string },
@@ -194,6 +203,9 @@ export function buildOperationalTaskData(
     // issue on the same day collapses (guest re-sends "musluk akıtıyor"), but two
     // DISTINCT same-category problems ("klima bozuk" + "musluk akıtıyor", or
     // "havlu eksik" + "şampuan bitti") stay separate, each an actionable task.
-    dedupeKey: `${ctx.propertyId}:${detected.type}:${detected.topic.replace(/\s+/g, "-")}:${dayKey(now, tz)}`,
+    // 🚨 Bakımda konu CİHAZDIR, belirti değil (kurucu 10-15, ölçüldü): "Klima bozuk" ile "Musluk bozuk" ikisi de "bozuk" konusuna düşüp
+    // aynı gün TEK görevde birleşiyordu — ikinci arıza kayboluyordu; "Klima bozuk" ile "Klima yine bozuldu" ise ayrı konuya düşüp iki görev
+    // açıyordu. Cihaz bulunamazsa eski konu kullanılır; acil güvenlik ayrı kalır. Görev BAŞLIĞI değişmedi (ev sahibine görünen metin).
+    dedupeKey: `${ctx.propertyId}:${detected.type}:${dedupeTopic(detected, ctx.message).replace(/\s+/g, "-")}:${dayKey(now, tz)}`,
   };
 }

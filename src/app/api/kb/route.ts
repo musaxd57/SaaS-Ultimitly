@@ -7,7 +7,8 @@ import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { withoutClientRequestId } from "@/lib/kb/request-id";
+import { NextResponse } from "next/server";
+import { KB_CREATE_CONFLICT_MESSAGE, KB_IDEMPOTENCY_CONFLICT, sameKbContent, withoutClientRequestId } from "@/lib/kb/request-id";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -44,6 +45,11 @@ export const POST = withManage(async (session, req) => {
   // Var olan kalem dönerken eşitlemeler YİNE koşar (Haiku 10-14): ilk istek kalemi yazıp hafıza / vektör eşitlemesinden önce kesildiyse
   // yeniden deneme onları tamamlar. İkisi de tekrar güvenli (fırlatmaz, aynı sonucu yazar).
   const replay = async (prior: NonNullable<Awaited<ReturnType<typeof priorFor>>>) => {
+    // Aynı kimlik, FARKLI içerik (kurucu 10-15): eski kalem sessizce dönmez — açık uyuşmazlık. Örnek: ilk deneme yazdı, cevap koptu, kalem
+    // başka sekmede düzenlendi; eski sekmeden yeniden deneme artık "eklendi" sanmaz. İstemci kimliği bırakır (bilerek yeniden = yeni işlem).
+    if (!sameKbContent(prior, d)) {
+      return NextResponse.json({ error: KB_CREATE_CONFLICT_MESSAGE, code: KB_IDEMPOTENCY_CONFLICT }, { status: 409 });
+    }
     await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
     warmPropertyKbVectorsBestEffort(d.propertyId);
     return jsonOk(withoutClientRequestId(prior), 200);

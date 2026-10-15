@@ -23,7 +23,7 @@ import { kbPlaceholderTokens, unfilledTemplateTokens } from "@/lib/kb-placeholde
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import type { KbTimeConflictRow } from "@/lib/kb-time-conflicts";
 import { takeKbPrefillTitle, type KbPrefill } from "@/lib/kb-prefill";
-import { createKbRequestIdStore, newKbRequestId } from "@/lib/kb/request-id";
+import { createKbRequestIdStore, KB_IDEMPOTENCY_CONFLICT, newKbRequestId } from "@/lib/kb/request-id";
 import Link from "next/link";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
@@ -182,6 +182,8 @@ export function KbManager({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // Aynı kimlik başka içerikle kullanılmış (409): kimlik bırakılır — bilerek yeniden "Ekle" YENİ işlemdir (kurucu 10-15).
+        if (res.status === 409 && data.code === KB_IDEMPOTENCY_CONFLICT) requestIds.forget(form);
         // `badRequest` alan hatalarını `fields` altına koyar ve `error` sabit
         // "Doğrulama hatası"dır — yalnız onu okumak, plan sınırı gibi ÖZELLİKLE
         // yazılmış açıklayıcı mesajları çöpe atıyordu (düzenleme yolu bunu baştan
@@ -308,6 +310,8 @@ export function KbManager({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // Kaynak bu arada değişmiş (409): kimlik bırakılır — yenileyip yeniden kopyalama YENİ işlemdir (kurucu 10-15).
+        if (res.status === 409 && data.code === KB_IDEMPOTENCY_CONFLICT) copyRequestIds.current.delete(copyKey);
         const field = data.fields ? Object.values(data.fields)[0] : null;
         setCopyMsg((typeof field === "string" ? field : null) ?? data.error ?? "Kopyalanamadı");
         return;

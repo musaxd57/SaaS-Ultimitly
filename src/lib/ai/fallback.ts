@@ -1407,6 +1407,29 @@ function reportSubjectSlot(toks: string[], verbIndex: number): boolean {
  * Cümlecik yerine iki DAR kapı: fiilin hemen solundaki özne cihaz-dışı olmamalı
  * (`reportSubjectSlot`) ve fiil koşul kipinde olmamalı (`CONDITIONAL_TAIL`).
  */
+/**
+ * Mesajda geçen İLK cihazın kök adı (`BREAKDOWN_DEVICES` envanterinden; çekimli biçim de eşleşir: "klimayı" → "klima", "musluğu" → "musluk").
+ * Yumuşamış kök (musluğ / kilid / dolab) sert karşılığı envanterdeyse ona çevrilir → aynı cihazın iki yazımı aynı anahtar. Cihaz yoksa null.
+ * Kullanım: mesajdan açılan görevin TEKİLLEŞTİRME anahtarı (kurucu 10-15: "Klima bozuk" ile "Musluk bozuk" birleşmemeli — ikisi de "bozuk"
+ * konusuna düşüyordu). Belirteç başına doğrusal (karesel iş yok).
+ */
+const DEVICES_LONGEST_FIRST: readonly string[] = [...BREAKDOWN_DEVICES].sort((x, y) => y.length - x.length);
+const DEVICE_SET: ReadonlySet<string> = new Set(BREAKDOWN_DEVICES);
+
+export function firstBreakdownDevice(message: string): string | null {
+  for (const cand of candidatesOf(message)) {
+    for (const tok of deviceTokens(cand)) {
+      if (!matchesInflectedWord(tok, BREAKDOWN_DEVICES)) continue;
+      // Hangi kök: önce uzun kökler ("çamaşır makinesi" değil tek sözcük envanteri; "kilid" ile "kilit" gibi eşdeğerler aşağıda birleşir).
+      const hit = DEVICES_LONGEST_FIRST.find((d) => matchesInflectedWord(tok, [d]));
+      if (!hit) continue;
+      const hard = hit.replace(/ğ$/u, "k").replace(/d$/u, "t").replace(/b$/u, "p").replace(/c$/u, "ç");
+      return hard !== hit && DEVICE_SET.has(hard) ? hard : hit;
+    }
+  }
+  return null;
+}
+
 function hasDeviceBreakdown(message: string): boolean {
   for (const cand of candidatesOf(message)) {
     const toks = deviceTokens(cand);

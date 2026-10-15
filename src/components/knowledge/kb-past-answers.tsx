@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { KB_CATEGORY } from "@/lib/constants";
 import { toast } from "@/lib/toast";
-import { createKbRequestIdStore } from "@/lib/kb/request-id";
+import { createKbRequestIdStore, KB_IDEMPOTENCY_CONFLICT } from "@/lib/kb/request-id";
 
 // ---------------------------------------------------------------------------
 // KNOWLEDGE HUB BACAK B — "Kendi cevaplarınızdan öneriler".
@@ -113,7 +113,16 @@ export function KbPastAnswers() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...item, requestId: requestIds.idFor(item) }),
       });
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) {
+        // Aynı kimlik başka içerikle kullanılmış (409): kimlik bırakılır, sunucunun açıklaması gösterilir (kurucu 10-15).
+        const data = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
+        if (res.status === 409 && data.code === KB_IDEMPOTENCY_CONFLICT) {
+          requestIds.forget(item);
+          toast.error(data.error ?? "Eklenemedi.");
+          return;
+        }
+        throw new Error(String(res.status));
+      }
       requestIds.forget(item);
       setAdded((prev) => new Set(prev).add(uiKey));
       toast.success("Bilgi tabanına eklendi.");
