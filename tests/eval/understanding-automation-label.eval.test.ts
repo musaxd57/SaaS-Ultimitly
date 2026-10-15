@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { execSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import path from "node:path";
 import { buildUnderstandingUserContent, understandGuestMessages, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { writeSidecar, uniqueReportName } from "./sidecar";
+import { codeProvenance } from "./code-provenance";
 
 // ---------------------------------------------------------------------------
 // G1 ÖLÇÜMÜ (kurucu kararı 10-13: "Evet, kredi gelince ölç"): anlama katmanının bağlamında otomatik şablon mesajı (karşılama / giriş /
@@ -42,21 +41,6 @@ export function historyOf(s: Scenario) {
   const msg = { direction: "inbound" as const, body: s.message, at: new Date(base + rows.length * 60_000) };
   const tail = (s.after ?? []).map((h, i) => ({ direction: "outbound" as const, body: h.t, author: "automation", at: new Date(base + (rows.length + 1 + i) * 60_000) }));
   return [...rows, msg, ...tail];
-}
-
-/**
- * KOD KÖKENİ (Haiku 10-15): kollar yamalı ama commit edilmemiş ağaçlarda koşabilir — rapor HEAD'i, ağacın kirli olup olmadığını ve
- * `src/` yerel farkının özetini yazar (kol kimliği ayrıca istemden ölçülür, ↓`armOf`).
- */
-export function codeProvenance(cwd: string): { head: string; dirty: boolean; srcDiff: string } {
-  try {
-    const run = (c: string) => execSync(c, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-    const head = run("git rev-parse --short HEAD").trim();
-    const diff = run("git diff HEAD -- src");
-    return { head, dirty: diff.length > 0, srcDiff: diff.length ? createHash("sha256").update(diff).digest("hex").slice(0, 12) : "-" };
-  } catch {
-    return { head: "?", dirty: false, srcDiff: "?" };
-  }
 }
 
 /**
