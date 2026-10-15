@@ -71,6 +71,16 @@ describe("POST /api/properties/[id]/chat — enable guest QR concierge", () => {
     expect(reenabled.chatToken).toBe(first.chatToken);
   });
 
+  it("🚨 aynı anda iki 'aç' → TEK jeton; iki cevap da veritabanındaki jetonu gösterir (basılan QR ölü kalmaz)", async () => {
+    session = owner(orgId);
+    const ctx = { params: Promise.resolve({ id: propertyId }) };
+    const responses = await Promise.all(Array.from({ length: 4 }, () => POST(req(propertyId, { enabled: true }), ctx)));
+    const tokens = await Promise.all(responses.map(async (r) => ((await r.json()) as { chatToken: string }).chatToken));
+    const stored = (await prisma.property.findUnique({ where: { id: propertyId } }))?.chatToken;
+    expect(stored).toBeTruthy();
+    expect(new Set(tokens)).toEqual(new Set([stored]));
+  });
+
   it("REJECTS cross-org access (403) — an owner can't touch another org's apartment", async () => {
     const other = await prisma.organization.create({ data: { name: "Other" } });
     const otherProp = await prisma.property.create({ data: { organizationId: other.id, name: "Yabancı" } });

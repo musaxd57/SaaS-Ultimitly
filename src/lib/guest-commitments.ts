@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
 import { COMMITMENT_KIND_LABELS, type CommitmentKind } from "@/lib/guest-commitments-core";
@@ -34,6 +34,9 @@ const TASK_TYPE_FOR: Record<CommitmentKind, string> = {
 
 type Tx = Prisma.TransactionClient | PrismaClient;
 
+/** Söz ekleme kilidi ad alanı (diğerleri: 23 · 40–45). Konuşma başına. */
+const COMMITMENT_LOCK_NS = 46;
+
 /**
  * Söz + görev TEK işlemde. Konuşmanın dairesi yoksa söz verilemez (görev bir daireye bağlıdır). Görev kökeni `manual` (ev sahibinin
  * işi — rezervasyon iptalinde otomatik silinmez).
@@ -46,10 +49,25 @@ export async function createGuestCommitment(input: {
   kind: CommitmentKind;
   dueAt: Date;
   actorUserId: string;
-}, outerTx?: Prisma.TransactionClient): Promise<{ id: string; taskId: string }> {
+}, outerTx?: Prisma.TransactionClient): Promise<{ id: string; taskId: string; reused: boolean }> {
   // Dış işlem verilirse (yapay zekâ önerisinin onayı — karar kaydıyla AYNI işlem) onun içinde; yoksa bugünkü gibi kendi işlemi.
   const run = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => (outerTx ? fn(outerTx) : prisma.$transaction(fn));
   return run(async (tx) => {
+    // TEKRAR GÜVENLİĞİ (idempotency denetimi 10-15, P2): çift tıklama / bağlantı cevap anında koptu → aynı söz iki kez geliyordu (iki söz +
+    // iki görev). Konuşma kilidi altında aynı tür + aynı son an için AÇIK söz varsa o döner. Farklı son an / farklı tür = bilinçli yeni söz.
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${COMMITMENT_LOCK_NS}::int4, hashtext(${input.conversationId}))`);
+    const same = await tx.guestCommitment.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        conversationId: input.conversationId,
+        kind: input.kind,
+        dueAt: input.dueAt,
+        status: "open",
+        taskId: { not: null },
+      },
+      select: { id: true, taskId: true },
+    });
+    if (same?.taskId) return { id: same.id, taskId: same.taskId, reused: true };
     const task = await tx.task.create({
       data: {
         propertyId: input.propertyId,
@@ -79,7 +97,7 @@ export async function createGuestCommitment(input: {
       action: "commitment.created",
       metadata: { commitmentId: commitment.id, taskId: task.id, kind: input.kind },
     });
-    return { id: commitment.id, taskId: task.id };
+    return { id: commitment.id, taskId: task.id, reused: false };
   });
 }
 

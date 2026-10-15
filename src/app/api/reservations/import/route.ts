@@ -668,6 +668,17 @@ export const POST = withManage(async (session, req) => {
           await acquireErasureLock(tx, session.organizationId);
           const fresh = await loadErasureGuard(session.organizationId, tx);
           if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
+          // Kimliksiz (UID'siz) satırın doğal anahtar kontrolü KİLİT ALTINDA tekrarlanır (idempotency denetimi 10-15, P2): sınıflandırma
+          // kilitsiz okur → aynı dosya iki sekmeden / çift tıkla eş zamanlı yüklenince ikisi de "yok" görüp çift rezervasyon + çift görev
+          // açıyordu. Silme kilidi işletme başına tek (`acquireErasureLock`) → yazmalar sıraya girer, ikinci yazma birincinin satırını
+          // görür ve "zaten var" sayılır (yeniden yüklemeyle aynı sonuç; yeni hata metni yok).
+          if (!sourceReference) {
+            const dupe = await tx.reservation.findFirst({
+              where: { propertyId: data.propertyId, guestName: data.guestName, arrivalDate: data.arrivalDate, departureDate: data.departureDate },
+              select: { id: true },
+            });
+            if (dupe) return null;
+          }
           const created = await tx.reservation.create({ data });
           // V1: yeni satır → `reservation.created` aynı TX'te (dedupe-hit'te TX iptal → event de yok).
           await recordIngestEvent(tx, ingestCtx, "reservation", created.id, "reservation.created");

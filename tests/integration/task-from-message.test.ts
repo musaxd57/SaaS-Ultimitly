@@ -39,6 +39,16 @@ describe("createOperationalTaskFromMessage", () => {
     expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
   });
 
+  it("🚨 aynı mesaj EŞ ZAMANLI 5 kez (oto-yanıt + uyarı yolu) → TEK görev (idempotency denetimi 10-15: kilitsiz oku-sonra-yaz)", async () => {
+    const now = new Date("2026-07-10T09:00:00.000Z");
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => createOperationalTaskFromMessage({ propertyId, message: "musluk akıtıyor", now })),
+    );
+    expect(results.filter((r) => r.status === "created")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "duplicate")).toHaveLength(4);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
+  });
+
   it("does not dedupe across DIFFERENT categories on the same day", async () => {
     const now = new Date("2026-07-10T09:00:00.000Z");
     await createOperationalTaskFromMessage({ propertyId, message: "musluk akıtıyor", now });

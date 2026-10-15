@@ -19,6 +19,9 @@ import { POST } from "@/app/api/ai-suggestions/route";
 import { getConversationSuggestions, getPropertyWifiSuggestions, suggestionDecisions } from "@/lib/ai-suggestions/load";
 import { promotionReadiness } from "@/lib/ai-suggestions/core";
 import { __aiSuggestionHooks } from "@/lib/ai-suggestions/act";
+import { createGuestCommitment } from "@/lib/guest-commitments";
+import { commitmentDueAt } from "@/lib/guest-commitments-core";
+import { orgTimezone } from "@/lib/timezone";
 
 const decide = (body: Record<string, unknown>) =>
   POST(new NextRequest("http://localhost/api/ai-suggestions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }), {
@@ -172,6 +175,25 @@ describe("C · söz kaydı önerisi", () => {
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: "ai_suggestion.approved" } });
     expect(JSON.parse(audit.metadataJson!)).toMatchObject({ kind: "commitment", edited: true, commitmentId: c.id });
     expect(await getConversationSuggestions(orgId, conversationId)).toEqual([]);
+  });
+
+  it("🚨 aynı söz (tür + saat) ev sahibince zaten açılmışsa onay İKİNCİ söz açmaz ve karar yazmaz — görev dalıyla aynı (Haiku 10-15)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asUser(orgId);
+    const { conversationId } = await conversationWith(orgId, propertyId, [
+      { direction: "inbound", authorType: "guest", body: "Kombi çalışmıyor." },
+      { direction: "outbound", authorType: "host", body: "Yarın teknisyen gelecek, kusura bakmayın." },
+    ]);
+    await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
+    const [s] = await getConversationSuggestions(orgId, conversationId);
+    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, orgTimezone(org.timezone), new Date())!;
+    const user = await prisma.user.findFirstOrThrow({ where: { organizationId: orgId } });
+    await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: user.id });
+    const res = await decide({ key: s.key, decision: "approve", day: "tomorrow", time: "10:00" });
+    expect(res.status).toBe(409);
+    expect(await prisma.guestCommitment.count({ where: { conversationId } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: { action: "ai_suggestion.approved" } })).toBe(0);
   });
 
   it("teklif / soru söz değildir → öneri yok", async () => {

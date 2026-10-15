@@ -38,6 +38,7 @@ import {
   sweepHistoryLearnRuns,
   HISTORY_LEARN_MONTHLY_RUNS,
   INSTRUCTIONS_MAX_ACTIVE,
+  addPropertyInstruction,
 } from "@/lib/history-learn/service";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
@@ -661,5 +662,59 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
     expect(await purgeOldHistoryLearnDrafts()).toEqual({ deleted: 2, comparisons: 2 });
     expect((await prisma.historyLearnComparison.findMany({ select: { aiAnswer: true } })).map((c) => c.aiAnswer)).toEqual(["yeni"]);
     expect((await prisma.historyLearnDraft.findMany({ select: { title: true }, orderBy: { title: "asc" } })).map((d) => d.title)).toEqual(["c", "d"]);
+  });
+});
+
+// Idempotency denetimi 10-15 (P2): çift tıklama / bağlantı cevap anında koptu → aynı talimat iki kez gönderildi; iki etkin satır isteme iki
+// kez giriyor ve tavandan iki hak yiyordu. Mülk kilidi iki isteği sıraya koyuyordu ama metni tekilleştirmiyordu.
+describe("Mülk talimatı — tekrar gönderim", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("HISTORY_LEARN_ENABLED", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("SUPERADMIN_EMAILS", "o@example.com");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  const TEXT = "Otopark sorulursa önce binanın arkasındaki yeri anlat.";
+
+  it("🚨 aynı talimat EŞ ZAMANLI iki kez → tek etkin satır, iki cevap da aynı kimlik", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    const url = `http://localhost/api/properties/${propertyId}/instructions`;
+    const [a, b] = await Promise.all([
+      addInstr(json(url, "POST", { content: TEXT }), p({ id: propertyId })),
+      addInstr(json(url, "POST", { content: TEXT }), p({ id: propertyId })),
+    ]);
+    expect([a.status, b.status]).toEqual([201, 201]);
+    expect((await a.json()).id).toBe((await b.json()).id);
+    expect(await prisma.propertyInstruction.count({ where: { propertyId, status: "active" } })).toBe(1);
+  });
+
+  it("tavan doluyken AYNI metnin yeniden denemesi 'sınır' hatası değil, var olan satır; farklı metin yine 409", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    const url = `http://localhost/api/properties/${propertyId}/instructions`;
+    const first = await addInstr(json(url, "POST", { content: TEXT }), p({ id: propertyId }));
+    const firstId = (await first.json()).id;
+    for (let i = 1; i < INSTRUCTIONS_MAX_ACTIVE; i += 1) {
+      expect((await addInstr(json(url, "POST", { content: `Kural ${i}: sessiz saatler 23:00 sonrası.` }), p({ id: propertyId }))).status).toBe(201);
+    }
+    const again = await addInstr(json(url, "POST", { content: TEXT }), p({ id: propertyId }));
+    expect(again.status).toBe(201);
+    expect((await again.json()).id).toBe(firstId);
+    expect((await addInstr(json(url, "POST", { content: "Bir tane daha." }), p({ id: propertyId }))).status).toBe(409);
+  });
+
+  it("aşırı uygulama yok: kaldırılmış aynı metin yeniden eklenir; yazan sınıfı farklıysa (operatör / müşteri) ayrı satır", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const a = await addPropertyInstruction({ organizationId: orgId, propertyId, userId: null, content: TEXT });
+    expect(a.ok).toBe(true);
+    const op = await addPropertyInstruction({ organizationId: orgId, propertyId, userId: null, content: TEXT, byOperator: true });
+    expect(op.ok && a.ok && op.id !== a.id).toBe(true);
+    if (a.ok) await prisma.propertyInstruction.update({ where: { id: a.id }, data: { status: "retired" } });
+    const b = await addPropertyInstruction({ organizationId: orgId, propertyId, userId: null, content: TEXT });
+    expect(b.ok && a.ok && b.id !== a.id).toBe(true);
+    expect(await prisma.propertyInstruction.count({ where: { propertyId, status: "active" } })).toBe(2);
   });
 });

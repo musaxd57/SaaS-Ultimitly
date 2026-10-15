@@ -571,6 +571,14 @@ export async function addPropertyInstruction(input: {
     const locked = await tx.$queryRaw<{ id: string }[]>`
       SELECT "id" FROM "Property" WHERE "id" = ${input.propertyId} AND "organizationId" = ${input.organizationId} FOR NO KEY UPDATE`;
     if (!locked.length) return { ok: false, reason: "not_found" } as const;
+    // Tekrar gönderim (çift tıklama / bağlantı cevap anında koptu) İKİNCİ talimat açmaz (idempotency denetimi 10-15, P2; `reviewComparison`
+    // emsali): aynı metinli, aynı yazan sınıfından etkin serbest talimat varsa o döner. Mülk kilidi altında → yarışsız. Tavandan ÖNCE:
+    // sınırdaki yeniden deneme "sınır" hatası değil, var olan satırı alır.
+    const same = await tx.propertyInstruction.findFirst({
+      where: { propertyId: input.propertyId, status: "active", presetKey: null, byOperator: input.byOperator === true, content: check.content },
+      select: { id: true },
+    });
+    if (same) return { ok: true, id: same.id } as const;
     // Tavan yalnız SERBEST metne (hazır seçenekler kapalı küme, sayıları sabit).
     const active = await tx.propertyInstruction.count({ where: { propertyId: input.propertyId, status: "active", presetKey: null } });
     if (active >= INSTRUCTIONS_MAX_ACTIVE) return { ok: false, reason: "limit" } as const;

@@ -22,12 +22,16 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   });
   if (!property) return forbidden();
 
-  const data: { chatEnabled: boolean; chatToken?: string } = { chatEnabled: body.enabled };
-  if (body.enabled && !property.chatToken) data.chatToken = generateChatToken();
+  // Jeton YALNIZ hâlâ boşsa yazılır (idempotency denetimi 10-15, P2): aynı anda iki "aç" (çift tık / iki sekme) ikisi de boş jeton okuyup
+  // iki farklı jeton üretiyordu → ilk cevabın gösterdiği QR (basılıp daireye yapıştırılan) sonradan yazılanla ezilip ölü kalıyordu.
+  // Koşullu yazma: kaybeden hiçbir şey yazmaz, ikisi de veritabanındaki TEK jetonu döndürür (aşağıdaki güncelleme okur).
+  if (body.enabled && !property.chatToken) {
+    await prisma.property.updateMany({ where: { id: property.id, chatToken: null }, data: { chatToken: generateChatToken() } });
+  }
 
   const updated = await prisma.property.update({
     where: { id: property.id },
-    data,
+    data: { chatEnabled: body.enabled },
     select: { chatEnabled: true, chatToken: true },
   });
 

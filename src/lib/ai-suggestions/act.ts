@@ -135,6 +135,8 @@ export async function decideSuggestion(input: {
           },
           tx,
         );
+        // Aynı söz (tür + saat) zaten açıktı → görev dalıyla AYNI: karar YAZILMAZ (ölçüt şişmesin; Haiku 10-15).
+        if (c.reused) return { status: "gone" } as const;
         created.commitmentId = c.id;
         created.taskId = c.taskId;
       } else {

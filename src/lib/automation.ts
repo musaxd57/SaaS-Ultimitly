@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
@@ -1115,11 +1115,18 @@ export function isWithinActiveHours(startHour: number, endHour: number, hour: nu
 // Simple, fixed if/then automation engine (no queue/Zapier-style builder for MVP).
 // Each function represents a trigger handler.
 
+/** Rezervasyon görevleri kilidi ad alanı (diğerleri: 23 takvim beslemesi · 40 silme · 41 QR · 42 e-posta kuyruğu · 43 konuşma kimliği). */
+const RESERVATION_TASKS_LOCK_NS = 44;
+/** Kilit beklemesi havuz baskısında 2 sn varsayılanını aşabilir (senkron + içe aktarma aynı anda); kardeş giriş yollarıyla aynı değerler. */
+const RESERVATION_TASKS_TX = { timeout: 60_000, maxWait: 15_000 } as const;
+
 /**
  * Create the standard check-in prep + checkout cleaning tasks for a reservation.
  * Idempotent: skips entirely if the reservation already has tasks (so it is safe
  * to call on every iCal re-sync). Past-dated stays are ignored — only upcoming
  * arrivals/departures generate work. Returns the number of tasks created.
+ * ⚠️ Kendi işlemini açar (kilit için): dış bir işlemin İÇİNDEN çağrılmaz — o işlemde yazılıp henüz commit edilmemiş rezervasyonu
+ * görmez (bugün bütün çağıranlar commit SONRASI çağırır; Haiku 10-15).
  */
 export async function createReservationTasks(reservationId: string): Promise<number> {
   const r = await prisma.reservation.findUnique({
@@ -1147,63 +1154,72 @@ export async function createReservationTasks(reservationId: string): Promise<num
   // got only a check-in task from ever receiving its checkout cleaning — the exact
   // reason today's checkouts were absent from the cleaning list. Checking per type
   // is still safe to re-run every sync (never duplicates) and self-heals the gap.
-  const existing = await prisma.task.findMany({
-    where: { reservationId: r.id },
-    select: { type: true },
-  });
-  const has = new Set(existing.map((t) => t.type));
-
-  // "Bugün" = HOST'UN günü (org.timezone) ve TEK TARİH KURALI (09-26, `onOrAfterToday` → `calendarDateOf`): yalnız-tarih
-  // çapası (D 00:00Z / D 12:00Z) UTC tarihidir, gerçek an org diliminde okunur. Önceki ham `tarih >= org gün başı` kıyası
-  // İstanbul'da doğruydu (eskiden sunucunun UTC günüydü → "Eksik görevleri oluştur" 0 açıyordu), ama New York'ta bugünün
-  // 00:00Z değerini "dün" sayıyordu (aynı gün rezervasyona giriş hazırlığı, bugün çıkana temizlik AÇILMIYORDU), Auckland'da
-  // dünün 12:00Z değerini "bugün". Görevler sayfasındaki eksik görev sayısı aynı kararı verir (`reservationsMissingCleaningWhere`).
-  const now = new Date();
-  const tz = orgTimezone(r.property?.organization?.timezone);
-  const data: {
-    propertyId: string;
-    reservationId: string;
-    type: string;
-    origin: string;
-    title: string;
-    description: string;
-    dueAt: Date;
-    status: string;
-    priority: string;
-    checklistJson?: string;
-  }[] = [];
-
-  if (onOrAfterToday(r.arrivalDate, now, tz) && !has.has("checkin_prep")) {
-    data.push({
-      propertyId: r.propertyId,
-      reservationId: r.id,
-      type: "checkin_prep",
-      origin: "system",
-      title: `${r.guestName} girişi için hazırlık`,
-      description: "Hoş geldin hazırlığı, anahtar/giriş kontrolü.",
-      dueAt: r.arrivalDate,
-      status: "todo",
-      priority: "standard",
+  //
+  // TEKRAR GÜVENLİĞİ (idempotency denetimi 10-15, P2): "var mı?" okuması ile yazma arasında kilit yoktu → senkron + "Eksik görevleri oluştur"
+  // (ya da iki senkron turu) aynı anda koşarsa ikisi de "temizlik yok" görüp İKİ temizlik görevi açıyordu. Okuma + yazma rezervasyon başına
+  // işlem kilidi altında: ikinci çağrı birincinin yazdığını görür. Kilit yalnız bu rezervasyonu sıraya koyar (başka rezervasyonlar beklemez).
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(${RESERVATION_TASKS_LOCK_NS}::int4, hashtext(${r.id}))`,
+    );
+    const existing = await tx.task.findMany({
+      where: { reservationId: r.id },
+      select: { type: true },
     });
-  }
-  if (onOrAfterToday(r.departureDate, now, tz) && !has.has("cleaning")) {
-    data.push({
-      propertyId: r.propertyId,
-      reservationId: r.id,
-      type: "cleaning",
-      origin: "system",
-      title: `Çıkış temizliği - ${r.guestName}`,
-      description: "Çıkış sonrası tam temizlik ve çarşaf/havlu değişimi.",
-      dueAt: r.departureDate,
-      status: "todo",
-      priority: "standard",
-      checklistJson: supplyChecklistJson,
-    });
-  }
+    const has = new Set(existing.map((t) => t.type));
 
-  if (data.length === 0) return 0;
-  await prisma.task.createMany({ data });
-  return data.length;
+    // "Bugün" = HOST'UN günü (org.timezone) ve TEK TARİH KURALI (09-26, `onOrAfterToday` → `calendarDateOf`): yalnız-tarih
+    // çapası (D 00:00Z / D 12:00Z) UTC tarihidir, gerçek an org diliminde okunur. Önceki ham `tarih >= org gün başı` kıyası
+    // İstanbul'da doğruydu (eskiden sunucunun UTC günüydü → "Eksik görevleri oluştur" 0 açıyordu), ama New York'ta bugünün
+    // 00:00Z değerini "dün" sayıyordu (aynı gün rezervasyona giriş hazırlığı, bugün çıkana temizlik AÇILMIYORDU), Auckland'da
+    // dünün 12:00Z değerini "bugün". Görevler sayfasındaki eksik görev sayısı aynı kararı verir (`reservationsMissingCleaningWhere`).
+    const now = new Date();
+    const tz = orgTimezone(r.property?.organization?.timezone);
+    const data: {
+      propertyId: string;
+      reservationId: string;
+      type: string;
+      origin: string;
+      title: string;
+      description: string;
+      dueAt: Date;
+      status: string;
+      priority: string;
+      checklistJson?: string;
+    }[] = [];
+
+    if (onOrAfterToday(r.arrivalDate, now, tz) && !has.has("checkin_prep")) {
+      data.push({
+        propertyId: r.propertyId,
+        reservationId: r.id,
+        type: "checkin_prep",
+        origin: "system",
+        title: `${r.guestName} girişi için hazırlık`,
+        description: "Hoş geldin hazırlığı, anahtar/giriş kontrolü.",
+        dueAt: r.arrivalDate,
+        status: "todo",
+        priority: "standard",
+      });
+    }
+    if (onOrAfterToday(r.departureDate, now, tz) && !has.has("cleaning")) {
+      data.push({
+        propertyId: r.propertyId,
+        reservationId: r.id,
+        type: "cleaning",
+        origin: "system",
+        title: `Çıkış temizliği - ${r.guestName}`,
+        description: "Çıkış sonrası tam temizlik ve çarşaf/havlu değişimi.",
+        dueAt: r.departureDate,
+        status: "todo",
+        priority: "standard",
+        checklistJson: supplyChecklistJson,
+      });
+    }
+
+    if (data.length === 0) return 0;
+    await tx.task.createMany({ data });
+    return data.length;
+  }, RESERVATION_TASKS_TX);
 }
 
 /**

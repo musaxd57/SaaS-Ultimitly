@@ -23,6 +23,7 @@ import { kbPlaceholderTokens, unfilledTemplateTokens } from "@/lib/kb-placeholde
 import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import type { KbTimeConflictRow } from "@/lib/kb-time-conflicts";
 import { takeKbPrefillTitle, type KbPrefill } from "@/lib/kb-prefill";
+import { createKbRequestIdStore, newKbRequestId } from "@/lib/kb/request-id";
 import Link from "next/link";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
@@ -161,6 +162,9 @@ export function KbManager({
 
 
   const refresh = () => startTransition(() => router.refresh());
+  // Tekrar güvenliği (idempotency denetimi 10-15): aynı metin yeniden gönderilirse (çift tıklama, bağlantı cevap anında koptu) aynı kimlik
+  // gider, sunucu ilk kalemi döndürür. Metin değişirse yeni kimlik; başarıdan sonra unutulur.
+  const [requestIds] = useState(createKbRequestIdStore);
 
   function set(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -174,7 +178,7 @@ export function KbManager({
       const res = await fetch("/api/kb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, isActive: true }),
+        body: JSON.stringify({ ...form, isActive: true, requestId: requestIds.idFor(form) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -186,6 +190,7 @@ export function KbManager({
         setError((typeof field === "string" ? field : null) ?? data.error ?? "Bilgi eklenemedi");
         return;
       }
+      requestIds.forget(form);
       setForm((f) => ({ ...f, title: "", content: "" }));
       setPrefillNotice(false);
       refresh();
@@ -280,15 +285,26 @@ export function KbManager({
     return properties.filter((p) => p.id !== item.propertyId);
   }
 
+  // Kopyalama tekrar güvenliği (idempotency denetimi 10-15): aynı kalem (aynı metin) yeniden kopyalanırsa aynı kimlik; sunucu her dairede
+  // kopyayı bir kez yazar. Anahtar hedef daireleri İÇERMEZ: ilk deneme A + B'ye yazıp cevap kaybolduysa, C eklenerek yapılan yeniden deneme
+  // A + B'yi atlar, yalnız C'ye yazar. Kaynak metin düzenlendiyse yeni kimlik (yeni metin). Başarıdan sonra unutulur.
+  const copyRequestIds = useRef(new Map<string, string>());
+
   async function doCopy(item: KbItem) {
     if (copyTargets.size === 0) return;
     setCopying(true);
     setCopyMsg(null);
+    const copyKey = JSON.stringify([item.id, item.category, item.title, item.content]);
+    let requestId = copyRequestIds.current.get(copyKey);
+    if (!requestId) {
+      requestId = newKbRequestId();
+      copyRequestIds.current.set(copyKey, requestId);
+    }
     try {
       const res = await fetch(`/api/kb/${item.id}/copy`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetPropertyIds: [...copyTargets] }),
+        body: JSON.stringify({ targetPropertyIds: [...copyTargets], requestId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -296,6 +312,7 @@ export function KbManager({
         setCopyMsg((typeof field === "string" ? field : null) ?? data.error ?? "Kopyalanamadı");
         return;
       }
+      copyRequestIds.current.delete(copyKey);
       // Kısmi başarı: sınırı dolmuş daireler atlanmış olabilir. Sessizce
       // "başarılı" demek, host'un olmayan bir kaydı var sanmasına yol açardı.
       if (typeof data.notice === "string") {

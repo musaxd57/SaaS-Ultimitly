@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { KB_CATEGORY } from "@/lib/constants";
 import { toast } from "@/lib/toast";
+import { createKbRequestIdStore } from "@/lib/kb/request-id";
 
 // ---------------------------------------------------------------------------
 // KNOWLEDGE HUB BACAK B — "Kendi cevaplarınızdan öneriler".
@@ -88,26 +89,32 @@ export function KbPastAnswers() {
     }
   }
 
+  // Tekrar güvenliği (idempotency denetimi 10-15): "Eklenemedi" sonrası yeniden basış AYNI kimlikle gider; ilk istek kalemi yazdıysa
+  // sunucu onu döndürür (ikinci kalem yok).
+  const [requestIds] = useState(createKbRequestIdStore);
+
   /** Hem geçmiş cevap hem şablon önerisi aynı yoldan eklenir (tek yazma kapısı). */
   async function add(
     s: { propertyId: string; category: string; title?: string; content: string; language?: string },
     uiKey: string,
   ) {
     setBusy(uiKey);
+    const item = {
+      propertyId: s.propertyId,
+      category: s.category,
+      title: s.title || TITLE_BY_CATEGORY[s.category] || "Bilgi",
+      content: s.content,
+      language: s.language || "tr",
+      isActive: true,
+    };
     try {
       const res = await fetch("/api/kb", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          propertyId: s.propertyId,
-          category: s.category,
-          title: s.title || TITLE_BY_CATEGORY[s.category] || "Bilgi",
-          content: s.content,
-          language: s.language || "tr",
-          isActive: true,
-        }),
+        body: JSON.stringify({ ...item, requestId: requestIds.idFor(item) }),
       });
       if (!res.ok) throw new Error(String(res.status));
+      requestIds.forget(item);
       setAdded((prev) => new Set(prev).add(uiKey));
       toast.success("Bilgi tabanına eklendi.");
       router.refresh();

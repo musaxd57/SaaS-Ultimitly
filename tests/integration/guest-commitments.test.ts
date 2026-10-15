@@ -132,6 +132,22 @@ describe("söz işaretleme (gerçek PostgreSQL)", () => {
     expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: a.id } })).dueAt.toISOString()).toBe(later.toISOString());
   });
 
+  it("🚨 aynı söz EŞ ZAMANLI 3 kez (çift tıklama / kopan bağlantı) → TEK söz + TEK görev; farklı saat ayrı söz (idempotency denetimi 10-15)", async () => {
+    const s = await setup();
+    const body = { kind: "towels", day: "tomorrow", time: "18:00" };
+    const rs = await Promise.all([create(s.conversationId, body), create(s.conversationId, body), create(s.conversationId, body)]);
+    expect(rs.map((r) => r.status)).toEqual([201, 201, 201]);
+    const ids = await Promise.all(rs.map(async (r) => ((await r.json()) as { id: string; taskId: string })));
+    expect(new Set(ids.map((x) => x.id)).size).toBe(1);
+    expect(new Set(ids.map((x) => x.taskId)).size).toBe(1);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(1);
+    expect(await prisma.task.count({ where: { propertyId: s.propertyId } })).toBe(1);
+    // Aşırı uygulama yok: farklı saat / farklı tür bilinçli yeni sözdür.
+    expect((await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "19:00" })).status).toBe(201);
+    expect((await create(s.conversationId, { kind: "supplies", day: "tomorrow", time: "18:00" })).status).toBe(201);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(3);
+  });
+
   it("🚨 personel söz veremez (403, yalnız yönetici)", async () => {
     const s = await setup("staff");
     expect((await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "18:00" })).status).toBe(403);

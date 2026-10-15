@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
 import { detectOperationalTask, buildOperationalTaskData } from "./detect";
@@ -9,6 +9,9 @@ export type CreateOperationalTaskResult =
   | { status: "created"; taskId: string; type: string }
   | { status: "duplicate" }
   | { status: "none" };
+
+/** Mesajdan görev kilidi ad alanı (diğerleri: 23 · 40–44 — `automation.ts` RESERVATION_TASKS_LOCK_NS yanında). */
+const TASK_DEDUPE_LOCK_NS = 45;
 
 /**
  * From an inbound guest message, create ONE operational task (maintenance /
@@ -19,6 +22,7 @@ export type CreateOperationalTaskResult =
  * host) must never depend on this. Callers should still guard with .catch, but
  * the dedupe read + create are the only DB touches and both are cheap.
  */
+
 export async function createOperationalTaskFromMessage(ctx: {
   propertyId: string;
   message: string;
@@ -46,30 +50,34 @@ export async function createOperationalTaskFromMessage(ctx: {
     timezone: orgTimezone(property?.organization?.timezone),
   });
 
-  // Intra-day dedupe: skip if an OPEN task with the same key already exists. Non-
-  // atomic (findFirst-then-create), matching the codebase's other task creators;
-  // a rare concurrent double-escalation could still make two — acceptable at this
-  // frequency, and the index keeps the lookup cheap.
-  const existing = await db.task.findFirst({
-    where: { dedupeKey: data.dedupeKey, status: { not: "done" } },
-    select: { id: true },
-  });
-  if (existing) return { status: "duplicate" };
+  // Intra-day dedupe: skip if an OPEN task with the same key already exists.
+  // TEKRAR GÜVENLİĞİ (idempotency denetimi 10-15, P3): okuma + yazma anahtar başına işlem kilidi altında. Eskiden kilitsizdi ("nadir
+  // çift görev kabul edilebilir"); aynı mesaj kanal oto-yanıtı ile bekleyen-mesaj uyarı yolunda aynı anda işlenince iki görev açılıyordu.
+  // Çağıran işlem verdiyse (`ctx.db`, öneri onayı) kilit o işlemde alınır; yoksa kısa bir işlem açılır.
+  const run = async (tx: Prisma.TransactionClient): Promise<CreateOperationalTaskResult> => {
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${TASK_DEDUPE_LOCK_NS}::int4, hashtext(${data.dedupeKey}))`);
+    const existing = await tx.task.findFirst({
+      where: { dedupeKey: data.dedupeKey, status: { not: "done" } },
+      select: { id: true },
+    });
+    if (existing) return { status: "duplicate" };
 
-  const task = await db.task.create({
-    data: {
-      propertyId: ctx.propertyId,
-      reservationId: ctx.reservationId ?? null,
-      type: data.type,
-      origin: "ai",
-      title: data.title,
-      description: data.description,
-      dueAt: data.dueAt,
-      priority: data.priority,
-      status: "todo",
-      dedupeKey: data.dedupeKey,
-      sourceMessageId: ctx.sourceMessageId ?? null,
-    },
-  });
-  return { status: "created", taskId: task.id, type: data.type };
+    const task = await tx.task.create({
+      data: {
+        propertyId: ctx.propertyId,
+        reservationId: ctx.reservationId ?? null,
+        type: data.type,
+        origin: "ai",
+        title: data.title,
+        description: data.description,
+        dueAt: data.dueAt,
+        priority: data.priority,
+        status: "todo",
+        dedupeKey: data.dedupeKey,
+        sourceMessageId: ctx.sourceMessageId ?? null,
+      },
+    });
+    return { status: "created", taskId: task.id, type: data.type };
+  };
+  return ctx.db ? run(ctx.db) : prisma.$transaction(run);
 }

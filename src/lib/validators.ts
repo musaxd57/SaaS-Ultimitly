@@ -243,6 +243,9 @@ export const taskUpdateSchema = z.object({
 });
 
 // --- Knowledge Base ---------------------------------------------------------
+/** Bilgi tabanı istek kimliği biçimi (ekleme + kopyalama). `:` içermez → kopyalama anahtarı (`copy:<kaynak>:<kimlik>`) bununla çakışamaz. */
+export const KB_REQUEST_ID_RE = /^[A-Za-z0-9_-]{16,64}$/u;
+
 export const kbSchema = z.object({
   propertyId: z.string().min(1, "Mülk seçin"),
   category: z.enum(KB_CATEGORY.values).default("general"),
@@ -254,12 +257,13 @@ export const kbSchema = z.object({
   // rejected, not silently activate the item. default(true) still handles absent.
   isActive: z.boolean().default(true),
   /**
-   * İçe aktarma tekrar güvenliği (migration 67, kurucu 10-14): istemcinin kalem başına ürettiği rastgele kimlik — aynı mülkte aynı kimlik
-   * ikinci kalem açmaz. İsteğe bağlı (elle ekleme göndermez). Yalnız oluşturmada; düzenleme şeması kabul etmez.
+   * Tekrar güvenliği (migration 67, kurucu 10-14; 10-15 denetimi ile bütün ekleme ekranları): istemcinin kalem başına ürettiği rastgele
+   * kimlik — aynı mülkte aynı kimlik ikinci kalem açmaz. İsteğe bağlı (eski istemci göndermez). Yalnız oluşturmada; düzenleme şeması kabul
+   * etmez. Biçim tek kaynak `KB_REQUEST_ID_RE` (kopyalama rotası da kullanır).
    */
   requestId: z
     .string()
-    .regex(/^[A-Za-z0-9_-]{16,64}$/u, "Geçersiz istek")
+    .regex(KB_REQUEST_ID_RE, "Geçersiz istek")
     .optional(),
 });
 export type KbInput = z.infer<typeof kbSchema>;

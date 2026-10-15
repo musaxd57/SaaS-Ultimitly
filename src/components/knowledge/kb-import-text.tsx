@@ -13,6 +13,7 @@ import { Field } from "@/components/form-field";
 import { KB_CATEGORY } from "@/lib/constants";
 import { toast } from "@/lib/toast";
 import { extractKbSuggestions, type KbExtraction, type SkipReason } from "@/lib/kb-extract";
+import { newKbRequestId } from "@/lib/kb/request-id";
 
 // ---------------------------------------------------------------------------
 // A5 — "Metinden bilgi çıkar" (09-08). Host elindeki metni yapıştırır, ürün
@@ -37,14 +38,8 @@ const SKIP_TEXT: Record<SkipReason, string> = {
   duplicate: "aynı bilgi zaten önerildi (çelişen ikinci değer)",
 };
 
-/**
- * Kalem başına tekrar güvenliği kimliği (migration 67, kurucu 10-14 "İstek kimliği"): bağlantı tam cevap anında koparsa "tekrar dene"
- * AYNI kimliği yollar, sunucu ilk denemenin yazdığı kalemi döndürür (ikinci kalem yok). `getRandomValues` (her tarayıcıda) — tahmin
- * edilemez; başka işletmenin kimliği zaten mülk kapsamında eşleşemez.
- */
-function newRequestId(): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
-}
+/** Kalem başına tekrar güvenliği kimliği — ortak yardımcı (`lib/kb/request-id.ts`, migration 67, kurucu 10-14 "İstek kimliği"). */
+const newRequestId = newKbRequestId;
 
 const FIELD_TEXT: Record<string, string> = {
   checkInTime: "Giriş saati",

@@ -4,6 +4,8 @@ import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
+import { isUniqueViolation } from "@/lib/db-errors";
+import { KB_REQUEST_ID_RE } from "@/lib/validators";
 
 // Copy a knowledge-base entry to one or more OTHER apartments. Lets the host
 // fill one apartment fully, then clone its info across the rest and only tweak
@@ -37,6 +39,21 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   if (ids.length === 0) {
     return badRequest({ targetPropertyIds: "En az bir hedef daire seçin." });
   }
+  // TEKRAR GÜVENLİĞİ (idempotency denetimi 10-15, P1; migration YOK — 67'nin (mülk, kimlik) benzersiz dizini): çift tık / bağlantı cevap
+  // anında koptu → istemci AYNI kimlikle yeniden dener; her hedef dairede kalem `copy:<kaynak>:<kimlik>` anahtarıyla bir kez yazılır.
+  // Kaynak kimliği anahtarda: aynı istek kimliği başka bir kaynağın kopyasını "zaten var" saydırmaz. Kimlik biçimi (`KB_REQUEST_ID_RE`)
+  // `:` içermez → ekleme rotasının anahtarı kopya anahtarıyla çakışamaz. Kimliksiz eski istemci eski davranışta kalır.
+  const rawRequestId: unknown = body?.requestId;
+  if (rawRequestId !== undefined && (typeof rawRequestId !== "string" || !KB_REQUEST_ID_RE.test(rawRequestId))) {
+    return badRequest({ requestId: "Geçersiz istek kimliği" });
+  }
+  const copyKey = typeof rawRequestId === "string" ? `copy:${id}:${rawRequestId}` : null;
+  const alreadyCopied = async (propertyId: string) =>
+    copyKey != null &&
+    (await prisma.knowledgeBaseItem.findUnique({
+      where: { propertyId_clientRequestId: { propertyId, clientRequestId: copyKey } },
+      select: { id: true },
+    })) != null;
 
   // Keep only valid targets in this org, and never copy onto the source itself.
   const targets = await prisma.property.findMany({
@@ -74,6 +91,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   let skippedAtLimit = 0;
   const warmTargets: string[] = [];
   for (const t of targets) {
+    // Önce "bu istek bu daireye zaten kopyaladı mı?" — sınır sayımından ÖNCE: ilk deneme sınırı doldurduysa yeniden deneme "atlandı" demesin.
+    if (await alreadyCopied(t.id)) continue;
     if (source.isActive) {
       const activeCount = await prisma.knowledgeBaseItem.count({
         where: { propertyId: t.id, isActive: true },
@@ -83,27 +102,34 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         continue;
       }
     }
-    await prisma.knowledgeBaseItem.create({
-      data: {
-        propertyId: t.id,
-        category: source.category,
-        title: source.title,
-        content: source.content,
-        language: source.language,
-        isActive: source.isActive,
-        // ONAY SOYU DEVRALINIR (A1, 09-08) — iki yönlü gerekçe:
-        //  · Kaynak `legacy` ise kopya da `legacy` olur. Kopyalama düğmesine
-        //    basmak, o metnin İÇERİĞİNİ gözden geçirmek değildir; kopyaya
-        //    "host onayladı" yazmak tam olarak kurucunun yasakladığı varsayım.
-        //  · Kaynak `draft` ise kopya da `draft` kalır. Aksi hâlde kopyalama,
-        //    onaydan geçmemiş bir taslağı tek tıkla MODELE SOKAN kaçış olurdu.
-        // `approvedAt` de soydan gelir: kopya kendi başına onaylanmadı, hangi
-        // onaya yaslandığı ise kaynağın onay zamanıdır.
-        source: source.source,
-        reviewState: source.reviewState,
-        approvedAt: source.approvedAt,
-      },
-    });
+    try {
+      await prisma.knowledgeBaseItem.create({
+        data: {
+          propertyId: t.id,
+          category: source.category,
+          title: source.title,
+          content: source.content,
+          language: source.language,
+          isActive: source.isActive,
+          // ONAY SOYU DEVRALINIR (A1, 09-08) — iki yönlü gerekçe:
+          //  · Kaynak `legacy` ise kopya da `legacy` olur. Kopyalama düğmesine
+          //    basmak, o metnin İÇERİĞİNİ gözden geçirmek değildir; kopyaya
+          //    "host onayladı" yazmak tam olarak kurucunun yasakladığı varsayım.
+          //  · Kaynak `draft` ise kopya da `draft` kalır. Aksi hâlde kopyalama,
+          //    onaydan geçmemiş bir taslağı tek tıkla MODELE SOKAN kaçış olurdu.
+          // `approvedAt` de soydan gelir: kopya kendi başına onaylanmadı, hangi
+          // onaya yaslandığı ise kaynağın onay zamanıdır.
+          source: source.source,
+          reviewState: source.reviewState,
+          approvedAt: source.approvedAt,
+          clientRequestId: copyKey,
+        },
+      });
+    } catch (err) {
+      // Eş zamanlı iki deneme: kaybeden, kazananın bu dairedeki kopyasını bulur (yalnız BU benzersizlik ihlali; başkası fırlar).
+      if (copyKey != null && isUniqueViolation(err, ["propertyId", "clientRequestId"])) continue;
+      throw err;
+    }
     created++;
     warmTargets.push(t.id);
   }

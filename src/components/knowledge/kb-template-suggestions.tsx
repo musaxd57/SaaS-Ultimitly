@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { KB_CATEGORY } from "@/lib/constants";
 import { toast } from "@/lib/toast";
+import { createKbRequestIdStore } from "@/lib/kb/request-id";
 import type { TemplateSuggestion } from "@/components/knowledge/kb-past-answers";
 
 // ---------------------------------------------------------------------------
@@ -62,6 +63,10 @@ export function KbTemplateSuggestions() {
     }
   }
 
+  // Tekrar güvenliği (idempotency denetimi 10-15): "Eklenemedi" sonrası yeniden basış AYNI kimlikle gider; ilk istek kalemi yazdıysa
+  // sunucu onu döndürür (ikinci kalem yok).
+  const [requestIds] = useState(createKbRequestIdStore);
+
   async function add(s: TemplateSuggestion) {
     const k = keyOf(s);
     setBusy(k);
@@ -76,9 +81,11 @@ export function KbTemplateSuggestions() {
           content: s.content,
           language: s.language,
           isActive: true,
+          requestId: requestIds.idFor(s),
         }),
       });
       if (!res.ok) throw new Error(String(res.status));
+      requestIds.forget(s);
       setAdded((prev) => new Set(prev).add(k));
       toast.success("Bilgi tabanına eklendi.");
       router.refresh();
