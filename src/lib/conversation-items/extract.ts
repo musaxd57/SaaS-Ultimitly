@@ -18,7 +18,16 @@ import {
   type UnderstandingHistoryEntry,
 } from "@/lib/ai/semantic/understanding-schema";
 import { buildItemsForMessage, type BuiltItem, type ItemKind } from "./core";
-import { fixHazard, isGenericFollowup, moneyRequest, requestTopics, stricterRelation, type ItemRelationFacts } from "./relation";
+import {
+  faultGuardEnabled,
+  faultSignal,
+  fixHazard,
+  isGenericFollowup,
+  moneyRequest,
+  requestTopics,
+  stricterRelation,
+  type ItemRelationFacts,
+} from "./relation";
 
 export const ITEMS_DEGRADED_REASONS = [
   "understanding_unavailable",
@@ -75,6 +84,7 @@ export function extractTurnItems(input: {
   // İlişki kipi: anlama katmanı istek başına işaret verdiyse (öğe kipi + şikâyet takibi anahtarı). Yoksa olgu kurulmaz → plan bugünkü
   // liste kuralını koşar.
   const relationMode = u.requests.some((r) => r.relation !== undefined);
+  const faultGuard = faultGuardEnabled();
   const messages = win.unanswered.map((m, i) => {
     const labels = labelsOf(m.body);
     const requests = u.requests.filter((r) => r.message === i + 1);
@@ -90,6 +100,7 @@ export function extractTurnItems(input: {
           generic: isGenericFollowup(r.queryTr, r.queryOriginal),
           hazard: bodyHazard || fixHazard(r.queryTr) || fixHazard(r.queryOriginal),
           money: moneyRequest(r.queryTr, r.queryOriginal),
+          ...(faultGuard && faultSignal(r.queryTr, r.queryOriginal) ? { fault: true } : {}),
         };
         relations[r.intent] = prev
           ? {
@@ -98,16 +109,45 @@ export function extractTurnItems(input: {
               generic: prev.generic && facts.generic,
               hazard: prev.hazard || facts.hazard,
               money: prev.money === true || facts.money === true,
+              ...(prev.fault === true || facts.fault === true ? { fault: true } : {}),
             }
           : facts;
       }
     }
+    const items = buildItemsForMessage({
+      requests: requests.map((r) => ({ intent: r.intent, hint: r.queryTr })),
+      lexicalLabels: labels,
+    });
+    // ARIZA EV SAHİBİNE KALIR (anahtar `AI_FAULT_GUARD_ENABLED`): mesajda cihaz arızası isteği var ama şikâyet / acil öğesi yoksa kod bir
+    // şikâyet öğesi EKLER (kaynak `fault_guard`) — ev sahibi bildirimi ve tutulan istek kuralları bu öğe üzerinden koşar. Öğenin kendi
+    // ilişki olgusu yalnız ARIZALI isteklerin konularını taşır: aynı mesajdaki bağımsız soru ("Çöpleri nereye atıyoruz?") bağlı sayılmaz.
+    // Kelime ağı ETİKETİ olarak eklenmez: atfedilemeyen etiket mesajın TAMAMINI hassas yapardı (`core.buildItemsForMessage`).
+    if (faultGuard) {
+      const faulty = requests.filter((r) => faultSignal(r.queryTr, r.queryOriginal));
+      if (faulty.length > 0 && !items.some((it) => it.kind === "complaint_issue" || it.sensitivity === "emergency")) {
+        items.push({
+          requestIndex: requests.indexOf(faulty[0]),
+          kind: "complaint_issue",
+          sensitivity: "sensitive",
+          riskType: "complaint",
+          sources: ["fault_guard"],
+          hint: faulty.map((r) => r.queryTr).join(" · "),
+        });
+        if (relations) {
+          relations.complaint_issue = {
+            relation: "own_topic",
+            topics: [...new Set(faulty.flatMap((r) => requestTopics(r.queryTr, r.queryOriginal, r.intent)))].sort(),
+            generic: false,
+            hazard: faulty.some((r) => fixHazard(r.queryTr) || fixHazard(r.queryOriginal)) || fixHazard(m.body),
+            money: false,
+            fault: true,
+          };
+        }
+      }
+    }
     return {
       messageId: m.id as string,
-      items: buildItemsForMessage({
-        requests: requests.map((r) => ({ intent: r.intent, hint: r.queryTr })),
-        lexicalLabels: labels,
-      }),
+      items,
       labels,
       ...(relations ? { relations } : {}),
     };

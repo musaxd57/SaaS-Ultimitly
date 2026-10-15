@@ -100,6 +100,10 @@ const LOCAL_DEVICE_WORDS: readonly (readonly [RegExp, string])[] = [
   [new RegExp(`${L}televisor(?:es)?${R}`, "u"), "tv"],
   [new RegExp(`${L}(?:kar tanes\\p{L}{0,6}|snowflake\\p{L}{0,2}|schneeflocke\\p{L}{0,2}|flocon\\p{L}{0,2}|copo de nieve|снежинк\\p{L}{0,3})${R}`, "u"), "ac"],
   [new RegExp(`${L}lave[ -]linge${R}`, "u"), "laundry"],
+  // Opus 10-15 P2 (ölçüldü): TV'nin BELİRTİ / parça adları — 5.1'in bırakılan TV için uydurduğu "Ekranda görüntü yoksa kaynak girişinin
+  // (HDMI/AV) doğru seçili olduğundan emin olur musunuz" cümlesi "televizyon" sözcüğü geçmediği için bırakılan cihaz kapısından geçiyordu.
+  // Çıplak "ekran / kaynak / kanal" BİLEREK yok (kumanda ekranı, sıcak su kaynağı…); yalnız TV'ye özgü biçimler. Yalnız sıkılaştırır.
+  [new RegExp(`${L}(?:goruntu\\p{L}{0,6}|hdmi|uydu alici\\p{L}{0,6}|siyah ekran|black screen|no picture|smart tv|kein bild|pas d'image|sin imagen)${R}`, "u"), "tv"],
 ];
 
 /**
@@ -879,11 +883,53 @@ export function isGenericFollowup(...queries: readonly string[]): boolean {
  * Öğenin ilişki olguları (`extract.ts` kurar; yalnız ilişki kipinde — anlama katmanı işaret verdiyse). Metin TAŞIMAZ: işaret + konu
  * kavramları + genel takip sorusu + tehlike sınıfı (isteğin sorguları ya da mesajı).
  */
+/**
+ * ARIZA HER YOLDA ARIZA (kurucu 10-15 inceleme notu: "Televizyon arızası — KB'de ve kullanılabilir geçmişte doğrulanmış çözüm bulunamadı —
+ * Arıza açık kalsın; çözüm uydurulmasın, hosta devir / bildirim politikası uygulansın"; Sabah Kararları 27 b + 30; Opus 10-15 P1). Anahtar
+ * `AI_FAULT_GUARD_ENABLED` VARSAYILAN KAPALI — kapalıyken olgular ve plan bayt bayt bugünkü.
+ * Ölçülen boşluk: anlama katmanı arıza bildirimini "şikâyet" diye işaretlemezse (bağlayıcı yok) `requestDependency` isteği bağımsız sayıyor,
+ * tarif / `kb:` / tehlike kuralları hiç koşmuyordu → 5.1 bilgi tabanında olmayan bir adım uydurdu ve GİTTİ; ev sahibine bildirim de yoktu.
+ */
+export function faultGuardEnabled(): boolean {
+  return process.env.AI_FAULT_GUARD_ENABLED === "1";
+}
+
+/**
+ * Arıza / belirti ifadesi (katlanmış metin; yedi dil). Koşul eki almış biçim ("çalışmazsa", "bozulursa") TAM sözcük sınırı yüzünden eşleşmez
+ * (varsayım arıza bildirimi değildir — kurucu D4 ayrımı). Sabit alternatifler + sınırlı ek (doğrusal).
+ */
+const FAULT_PHRASE = new RegExp(
+  [
+    // tr
+    `${L}(?:calismiyor|calismadi|calismiyo|acilmiyor|acilmadi|bozuk|bozuldu|bozulmus|arizali|arizalandi|ariza(?:si|lari)?|isinmiyor|isitmiyor|sogutmuyor|akmiyor|gelmiyor|yanmiyor|kapanmiyor|baglanmiyor|cekmiyor|tikali|tikandi|sizdiriyor|damlatiyor|kirik|kirildi)${R}`,
+    `${L}(?:goruntu|ses|sinyal)\\p{L}{0,3} (?:yok|gelmiyor|vermiyor|gitti)${R}`,
+    `${L}siyah ekran${R}`,
+    // en
+    `${L}(?:not working|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged)${R}`,
+    // de / fr / es
+    `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|no funciona|roto|rota|averiad[oa]|sin imagen|sin sonido)${R}`,
+    // ru / ar (katlama Latin dışını değiştirmez)
+    `(?:не работает|сломал\\p{L}{0,2}|не включается|нет изображения|нет звука|لا يعمل|معطل)`,
+  ].join("|"),
+  "u",
+);
+
+/**
+ * İstek bir CİHAZ ARIZASI mı: isteğin KENDİ sorgusu (anlama katmanının Türkçe + özgün dil sorgusu) bir cihaz kavramı ve bir arıza ifadesi
+ * taşıyor. Mesajın bütün gövdesine BAKILMAZ: "Wi-Fi şifresi?" isteği, aynı mesajdaki TV arızası yüzünden arıza sayılmasın.
+ */
+export function faultSignal(queryTr: string, queryOriginal: string): boolean {
+  if (deviceTopicsOf([...topicsOf(queryTr), ...topicsOf(queryOriginal)]).length === 0) return false;
+  return [queryTr, queryOriginal].some((t) => t.trim() !== "" && FAULT_PHRASE.test(fold(t)));
+}
+
 export interface ItemRelationFacts {
   relation: ItemRelation;
   topics: string[];
   generic: boolean;
   hazard: boolean;
+  /** Anahtar açıkken: istek bir cihaz arızası (`faultSignal`). Kapalıyken alan HİÇ yazılmaz. */
+  fault?: boolean;
   /** İsteğin sorgusu ücret / fiyat / ödeme soruyor (`moneyRequest`); yoksa (eski olgu) para isteği sayılmaz — cevap kemeri yine koşar. */
   money?: boolean;
 }

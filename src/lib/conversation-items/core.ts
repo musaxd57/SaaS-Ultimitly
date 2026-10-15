@@ -23,7 +23,7 @@ export type ItemKind = UnderstandingIntent;
 export const ITEM_SENSITIVITIES = ["none", "sensitive", "emergency"] as const;
 export type ItemSensitivity = (typeof ITEM_SENSITIVITIES)[number];
 
-export const ITEM_SOURCES = ["lexical", "understanding", "reply_model"] as const;
+export const ITEM_SOURCES = ["lexical", "understanding", "reply_model", "fault_guard"] as const;
 export type ItemSource = (typeof ITEM_SOURCES)[number];
 
 /**
