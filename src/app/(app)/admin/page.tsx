@@ -222,7 +222,7 @@ export default async function AdminPage() {
     <>
       <PageHeader
         title="Operatör Paneli"
-        description="Tüm müşteri hesaplarını buradan yönet. Bir hesaba girip onun gelen kutusunu/ayarlarını çalıştırabilir, sonra kendi hesabına dönebilirsin."
+        description="Tüm müşteri hesaplarını buradan yönetin. Bir hesaba girip gelen kutusunu ve ayarlarını salt okunur görebilir, sonra kendi hesabınıza dönebilirsiniz."
       />
 
       <Card>

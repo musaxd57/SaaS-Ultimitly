@@ -102,7 +102,7 @@ export function AiVoiceForm({
               placeholder={`Örn:\nSevgiler,\n${name?.trim() || "Ali Yılmaz"}\n📞 +90 5XX XXX XX XX`}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Boş bırakırsan imza eklenmez. İletişim numaranı buraya koyabilirsin — her dairede aynı kalır.
+              Boş bırakırsanız imza eklenmez. İletişim numaranızı buraya yazabilirsiniz; her dairede aynı kalır.
             </p>
           </Field>
 

@@ -43,7 +43,7 @@ export const POST = withManage(async (session) => {
     if ("locked" in result) {
       return NextResponse.json({
         ok: false,
-        error: "Senkron şu an çalışıyor, lütfen birkaç saniye sonra tekrar deneyin.",
+        error: "Senkronizasyon şu anda çalışıyor; birkaç saniye sonra tekrar deneyin.",
       });
     }
     return NextResponse.json({ ok: true, ...result });

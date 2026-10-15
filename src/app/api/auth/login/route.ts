@@ -35,7 +35,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // kilitli kalan sahibin tek tıkla çıkış yolu: sıfırlamayı tamamlayan tarayıcı tanınan cihaz olur
 // ve kovayı aşar (09-23, `forgot-password` rotası).
 const ACCT_LOCKED_MESSAGE =
-  "Bu hesap için çok fazla deneme yapıldı. Biraz sonra tekrar deneyin ya da “Şifremi unuttum” ile şifrenizi yenileyin.";
+  "Bu hesap için çok fazla deneme yapıldı. Biraz sonra tekrar deneyin ya da “Şifremi unuttum” ile şifrenizi sıfırlayın.";
 
 export async function POST(req: NextRequest) {
   try {

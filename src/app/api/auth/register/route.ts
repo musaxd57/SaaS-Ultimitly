@@ -29,7 +29,7 @@ import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
 // bir başarı cevabı vermeye dayanıyor.
 const SEND_FAILED_503 = {
   error:
-    "Hesabınız oluşturuldu ancak doğrulama e-postası şu anda gönderilemedi. Lütfen birkaç dakika sonra giriş sayfasından “doğrulama e-postasını yeniden gönder” ile tekrar deneyin.",
+    "Hesabınız oluşturuldu ancak doğrulama e-postası şu anda gönderilemedi. Birkaç dakika sonra giriş sayfasındaki “Doğrulama e-postasını yeniden gönder” seçeneğini kullanın.",
   accountCreated: true,
   verifyEmailFailed: true,
 } as const;

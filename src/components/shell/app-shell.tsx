@@ -359,7 +359,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         {impersonating ? (
           <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 sm:px-6">
             <span>
-              <strong>{impersonating.orgName}</strong> hesabını görüntülüyorsun (operatör: {impersonating.actorName}). Destek
+              <strong>{impersonating.orgName}</strong> hesabını görüntülüyorsunuz (operatör: {impersonating.actorName}). Destek
               görünümü salt okunur — değişiklik yapılamaz; oturum en çok 2 saat sürer.
             </span>
             <Button

@@ -46,7 +46,7 @@ function reasonText(g: KbGapView): string {
     return "Bu konuda bir kayıt yazılmış ama onayınızı bekliyor — yapay zekâ onu kullanmıyor.";
   }
   if (g.label === "ungrounded") {
-    return `Kayıt var ve yanıtlarken okundu, ama son ${g.questionCount} soruda cevap ona dayanmadı. Yeni kayıt eklemek bunu çözmeyebilir; mevcut kaydın soruyu gerçekten karşılayıp karşılamadığına bakın.`;
+    return `Kayıt var ve yanıt verilirken okundu; ancak son ${g.questionCount} soruda yanıt bu kayda dayanmadı. Yeni kayıt eklemek bunu çözmeyebilir; mevcut kaydın soruyu gerçekten karşılayıp karşılamadığına bakın.`;
   }
   if (g.kind === "asked") {
     return `Misafirler bu konuyu son 90 günde ${g.questionCount} kez sordu; bu dairede onaylı bir kayıt yok.`;

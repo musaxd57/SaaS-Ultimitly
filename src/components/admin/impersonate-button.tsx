@@ -15,7 +15,7 @@ export function ImpersonateButton({ organizationId, orgName }: { organizationId:
   async function enter() {
     const ok = await confirmDialog({
       title: `"${orgName}" hesabına girilecek.`,
-      body: "Onun gelen kutusunu ve ayarlarını göreceksin.",
+      body: "Gelen kutusunu ve ayarlarını salt okunur göreceksiniz.",
       confirmLabel: "Hesaba gir",
     });
     if (!ok) return;

@@ -61,7 +61,7 @@ export function AddCustomerForm() {
       <p className="text-sm text-muted-foreground">
         Müşteri için bir hesap ve giriş bilgisi oluştur. Sonra <strong>&quot;Hesaba gir&quot;</strong> ile
         içeri girip <strong>Ayarlar → Hospitable Bağlantısı</strong>&apos;ndan onların kendi Hospitable
-        token&apos;ını bağlarsın. Müşterinin Airbnb verisi yalnızca o zaman akmaya başlar.
+        token&apos;ını bağlarsınız. Müşterinin Airbnb verisi yalnızca o zaman akmaya başlar.
       </p>
       <Field label="İşletme adı" htmlFor="c-org" error={errors.organizationName}>
         <Input id="c-org" value={form.organizationName} onChange={(e) => set("organizationName", e.target.value)} placeholder="Örn. Ahmet Apartmanları" required />
@@ -83,12 +83,12 @@ export function AddCustomerForm() {
           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           <option value="trial">Deneme / normal faturalama — 14 gün Pro, sonra ücretli</option>
-          <option value="manual">Manuel faturalama — premium açık, ödemeyi sen alırsın</option>
+          <option value="manual">Manuel faturalama — premium açık, ödemeyi siz alırsınız</option>
           <option value="free">Ücretsiz iç hesap — sınırsız, faturalama dışı</option>
         </select>
         <p className="mt-1 text-xs text-muted-foreground">
           Herkese abonelik kaydı oluşturulur. <strong>Deneme</strong> gerçek müşteri gibi 14 gün sonra ücrete
-          geçer; <strong>Manuel</strong> premium açık tutar (ödemeyi dışarıda toplarsın); <strong>Ücretsiz iç
+          geçer; <strong>Manuel</strong> premium açık tutar (ödemeyi dışarıda toplarsınız); <strong>Ücretsiz iç
           hesap</strong> faturalama zorlamasının tamamen dışındadır.
         </p>
       </Field>
